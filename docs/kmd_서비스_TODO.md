@@ -1,0 +1,110 @@
+# kmd 서비스 — TODO
+
+검토: [CDP_kmd_서비스_구체화_검토_v0.1.md](CDP_kmd_서비스_구체화_검토_v0.1.md) (KM1~KM28 · Q0~Q10 · F1~F9)
+
+판마다 끝에 전체 시험(`node --test test/*.test.mjs`) · 하네스 · CHANGELOG 「(다음 판)」 · 커밋까지 한다. 판 올림 · 태그 · push · 실서버 upgrade 는 사람이 한다. **단계 번호는 순서다 — 판 번호로 어떻게 묶을지는 사람이 태그 때 정한다.** 시험은 세 칸이다 — core(순수 함수) · e2e(시험 안에서 서버를 띄운다 — `test/ingest.test.mjs` 선례) · 사람 실측(완료 조건에서 뺀다 · 「나온 것」 에 적는다).
+
+## v1.9.1 고침판 — kmd 와 무관 · 먼저(KM27 · F1~F9)
+
+오늘의 팀 서버 writer 와 `ctx up` 사용자에게 열린 구멍이다. 실서버 upgrade 대상이다.
+
+- [ ] F1 **프론트매터 주입(P0)** — `core/save.js` `checkSchema` 에 `date` 모양(`YYYY-MM-DD( HH:MM)?`) · `supersedes` 는 `checkId` · `renderWork` 의 값 인용(줄바꿈 · 제어문자 거절) · writer 기록은 쓴 프론트매터를 `parseDoc` 으로 다시 읽어 `recordKind === 'work'` 확인. MCP zod 의 date · supersedes 에도 같은 모양
+- [ ] F2 `/records` 의 work 키 strict(모르는 키 → `E_INPUT`) · 묶음의 `curatorOnly({}, w)`(`save.js:1261`)가 `w.snapshot` 을 본다 → `E_FORBIDDEN`
+- [ ] F3 `skipExisting` — 같은 id · 같은 blob 만 건너뛴다 · 다르면 `E_EXISTS { differs: true }` · `ctx ingest` 의 보고 문장
+- [ ] F4 `sections[].base`(선택 · content sha) — 서버 해시는 `splitBaseline(sliceSection(…).content).curated` · 다르면 `E_CONFLICT` · base 가 오면 applied 대조를 대신 · MCP `section` 이 `base` 를 낸다 · MCP sections 항목에 `base` 와 `.strict()`(`ctx-mcp.mjs:384-394`)
+- [ ] F5 `ctx up` 미러 자동 켜짐 걷기(`ctx-up.mjs:242 · 253 · 262`) → `--mirror` 명시 · origin 이 있는데 꺼져 있으면 안내 한 줄 · 서비스 유닛 · CHANGELOG 「동작이 바뀐다」
+- [ ] F6 `core/git.js` 의 push · fetch · `pullFfOnly` 에 env `GIT_TERMINAL_PROMPT=0` · `GCM_INTERACTIVE=never`
+- [ ] F7 ingest run 해시에 서버 주소 · `--apply` 앞에 「→ <서버> · <레포>」 한 줄
+- [ ] F8 「트리 되돌리기」 가 `<data>/discarded/<시각>/` 에 사본을 먼저 둔다(미추적 파일 포함)
+- [ ] F9 ingest 이전 판 = 사슬 끝(다른 기록의 「이전 판」 으로 걸리지 않은 것)을 레포에서 계산 · 새 판 date = 그 판이 바뀐 날(git 그 파일의 마지막 커밋 → mtime)
+- [ ] F10 시험 — `test/save.test.mjs` · `test/save-records.test.mjs`(writer 의 date/supersedes 줄바꿈 → `E_INPUT` · 남의 기록 상태 불변 · `work.snapshot` → `E_FORBIDDEN` · 같은 id 다른 본문 → `differs` · 손 커밋 뒤 옛 base → `E_CONFLICT` · 옛 날짜 기록 reflect 뒤 옛 base → `E_CONFLICT`) · `test/up.test.mjs`(origin 있는 레포 → 미러 off) · git env 단언 · 되돌리기 사본 바이트 · 판 셋 연속 머리줄
+- [ ] F11 문서 — 시스템 설계서 §5(save 검사 · base) · 관리자 설명서 개인 서버 절(미러 · 되돌리기 사본) · `cdp-curate` 는 base 를 싣는다(kit 갱신)
+
+## 단계 ① 내 kmd 가 뜬다(KM3 ~ KM6 · KM25 · KM26)
+
+할 수 있게 되는 것 — 한 화면 · 한 로그인으로 내 레포 여럿 · PC 를 켜면 떠 있다 · 프로젝트 서버와 한 PC 에 같이 산다.
+
+- [ ] S1 스파이크 — Windows 시작프로그램 숨김 `.cmd` 와 작업 스케줄러 「로그온 시」(관리자 권한 · 한글 홈) · 개인 큐레이터 폴더 `.mcp.json` 의 `${CDP_ME_TOKEN}`(사용자 환경변수 · Claude Code 재시작). 결과를 「나온 것」 에
+- [ ] A1 `ctx up --root <레포 폴더>` — `makeStore` 의 `only` 대신 훑기 · 데이터 `~/.cdp/personal/<레포 폴더 이름>/` · 포트 첫 실행에 고정 · 콘솔에서 세운 새 레포가 바로 보인다 · 옛 `ctx up <레포>` 와 같이 뜨면 안내
+- [ ] A2 개인 표식 `/me.personal` · `/site/info.personal` · 착지 `/r/<마지막 레포>/` · 재인증 「이 PC 의 주인」 단추 · 머리 띠 「내 kmd · 이 PC 에만」 + 나가는 길
+- [ ] A3 이름 `--as`(git `user.name` ASCII → OS 사용자명 → `me`) · 레포 표시 이름 = README 첫 제목 · 레포 고르기 두 절(내 지식 · 프로젝트 새 탭)
+- [ ] A4 개인 git — `personal.json` 의 레포별 미러 · `opt.mirror` → `mirrorOf(name)`(`ctx-mcp-serve.mjs:713 · 738 · 1570 · 1771 · 1931 · 1991 · 2019 · 2070`) · 서버(개인) › 레포 › 「개인 git 켜기」 · `ctx up --git <레포>=<url>` · 켤 때 원격 확인 · origin 주소가 짝 프로젝트 · `login.json` 서버 레포와 같으면 거절 · 개인 화면에서 PAT 안내 감춤
+- [ ] A5 Windows 늘 떠 있기(S1 결과대로) · self-update 뒤 다시 띄우기
+- [ ] A6 두 서버 공존 — `resolveClient` 의 `--to me`(up.json 포트 · personal.token) · 둘 다 있으면 `--to` 필수 · `tokenstore` 의 이름 인자를 `loadToken` · `saveTokenPosix` 에도 · `CDP_ME_TOKEN` · `ctx up --curator` 가 개인 큐레이터 폴더 `.mcp.json` 에 `${CDP_ME_TOKEN}`
+- [ ] A7 시작 안내 「나가는 길 — 미러 · LLM 판단」 두 줄 · 레포 폴더가 클라우드 동기 폴더면 경고 한 줄(`ctx up` · `serve doctor --personal`)
+- [ ] A8 시험 — core: 레포 폴더 훑기 · 이름 고르기 · 클라우드 경로. e2e: 개인(레포 둘) + 팀 서버 — 한 `/me` 에 레포 둘 · Set-Cookie 이름 · 경로 · `--to me` 와 `login.json` 이 각자 · 꺼진 레포 save → push 0 · 켜면 재시작 없이 push 1 · 프로젝트 origin 과 같은 주소면 거절
+- [ ] A9 문서 — 용어(kmd · 개인 kmd) · 시스템 설계서 §7.7 · 관리자 설명서 개인 서버 절(`--root` · 데이터 · Windows 늘 켜 두기 · 토큰 자리) · 사용자 설명서
+- [ ] A10 사람 실측 — Windows 로그오프 → 로그온 뒤 떠 있다 · 망을 끊고 화면 · 찾기
+
+## 단계 ② md 가 곧 지식(KM7 ~ KM10 · KM13 ~ KM16)
+
+할 수 있게 되는 것 — md 폴더를 단추 하나로 그대로 내 지식으로 · 화면 · 세션 · 편집기로 고친다 · 좌표는 원하는 문서에만.
+
+- [ ] S2 스파이크 — 사내 md 100개로 좌표 달기 값 후보가 겹치는 비율
+- [ ] B1 save 입력 **등록부 밖 문서 통째 쓰기** `{ file, body, base? }` — 큐레이터 전용 · `docs/` 아래 · 등록부 행에 안 걸리는 파일 · base 없으면 새로(있으면 거절) · 있으면 sha 대조 · 크기 상한
+- [ ] B2 예약 태그 `edit` — `RESERVED_TAGS` · touches ⊆ 같은 save 의 sections 검사 · 등록부 밖은 `touchesEmpty` + 통째 쓰기 · `edits` 필수
+- [ ] B3 `buildCuration` — `edit` 기록은 `reflected · self: true · verdict: null · into = touches` · **암묵 전환 판정(`curation.js:201`)이 `edit` 의 applied 를 보지 않는다** · `/sources` 도 `self`
+- [ ] B4 `ctx ingest --as docs`(큐레이터 · MCP save 파일마다 · 짧은 고친 기록 + 정형 출처) · writer 면 `E_FORBIDDEN { need: 'curate' }`
+- [ ] B5 `POST /api/<r>/edit` — 그냥 고침 · 반영하며 저장(curates reflect) · 통째 쓰기 · edits · 항목 더하기(vocab add + 섹션) · 정정 기록 쓰기 · 개인은 까닭 선택(비우면 라벨)
+- [ ] B6 작업실 › 정리한다 › 고치기 — 편집기 · `renderMarkdown` 미리보기 · 그 섹션의 미반영 · 서식 단추 · 그림 붙이기 · 저장 전 dryRun diff · `E_CONFLICT` 나란히 · 대기열 · 진단의 [고치기에서 열기]
+- [ ] B7 좌표 달기 — 타입 이름 입력 · 헤딩 → 값 후보 · `## <값> — <원 헤딩>`(normValue 가 같으면 그대로) 미리보기 · vocab + managed + 문서를 save 한 번
+- [ ] B8 거두기 — core `collectPlan`(HEAD ↔ 작업 트리 · CRLF 무시 · 등록부 밖 통째 · 좌표 문서는 헤딩 뼈대가 같을 때 섹션 본문 · 새 헤딩은 항목 더하기 후보 · `work/` · `_vocab` · `_managed` · 기준선 블록 · 헤딩 이동은 거절) · `ctx collect <레포>` · 화면 미리보기 · 사본 → HEAD → save → 실패하면 바이트 복원 · 첫 화면 「거둘 손 편집 n」 · 작성자 `@cdp` 아닌 커밋은 「밖에서 커밋됨」 표시
+- [ ] B9 개인 [지금 실행] — 지식 생성의 들이기 `--no-llm` · 문서로 들이기 · 거두기를 개인 서버가 같은 core 로 잡으로(팀에는 단추 없음 · 개인 표식으로) · 개인 화면 기본은 「문서로」
+- [ ] B10 `cdp-curate` 「직접 쓰기」 절 — 기록 + 섹션(또는 통째 쓰기)을 save 한 번 · `edit` · diff 승인. 직접 편집에도 `edit`
+- [ ] B11 기록 목록 · 최근에서 `edit` 기본 접기 · 큐레이션 › 이력 「자기 반영」 거름 · 빈 틀 `.gitignore` 에 `.obsidian/` · `.vscode/` · `.DS_Store` · `*.swp`
+- [ ] B12 시험 — core: 문서로 들이기 계획 · 헤딩 변환(「API (v2): 인증」 · ` - ` 든 헤딩) · `collectPlan` 행렬 · 자기 반영(새 레포 첫 고치기에 대기 수 불변). e2e: md 12개 → 문서 12 · 대기 0 · check error 0 · 다시 → 커밋 0 · writer `--as docs` → `E_FORBIDDEN` · `/edit` 같은 base 두 번 → 뒤엣것 `E_CONFLICT` · 손 편집 둘 + 새 md 하나 → 거두기 → 커밋 1 · 트리 깨끗 · `work/` 섞이면 전체 거절 · 가짜 `E_CHECK` 면 바이트 복원
+- [ ] B13 문서 — 용어(문서로 들이기 · 좌표 달기 · 고치기 · 고친 기록 · 자기 반영 · 거두기 · 대기열 정의) · 시스템 설계서 §3.3 · §5.1 · 화면 설계서 · 화면 관례 문장(「화면은 사람이 쓴 글만 save 한다」) · 지식생성 검토 G5 정정 상자 · `nav.js` 묶음 주석
+- [ ] B14 사람 실측 — 브라우저 고치기 · Obsidian 보관함 폴더를 문서로 들이기 → 편집기로 고치고 거두기
+
+## 단계 ③ 원본과 맞추기(KM11 · KM12)
+
+할 수 있게 되는 것 — 원본 파일 · 폴더가 바뀌면 단추 하나로 맞추고 내가 고친 섹션은 덮이지 않는다.
+
+- [ ] C1 core `syncSections({ incoming, base, current })` → 같음 · 원본만 · 지식만 · 둘 다 · 없어짐 · 새것. 등록부 밖은 `##` 마다 · 헤딩 없으면 통째
+- [ ] C2 S0 = 지난 맞춤 커밋(그 고친 기록의 커밋)에서의 글 — `git show` · 장부 없음
+- [ ] C3 문서로 들인 것 다시 돌리기 — 파일마다 save 최대 둘(① 원본만 → 고친 기록 `edit` + sections/통째 · base ② 둘 다 · 없어짐 → 보통 업데이트 기록 · 대기)
+- [ ] C4 폴더 상태 — 새것(후보만) · 없어짐(표시) · 같은 blob 이름 바뀜(잇기) · 폴더째 없음(하나로 멈춤)
+- [ ] C5 git 원천 커밋 기준 읽기(`openSource`) · 작업 트리는 `--worktree` — 지식생성 TODO B3 과 검토 §5.2 정정
+- [ ] C6 지식 생성 화면의 원본 상태 · [지금 실행] 에 원본 맞추기 · 「둘 다」 세 칸 비교(원본 판으로 · 내 판 두기 · 고치기에서 합치기)
+- [ ] C7 시험 — core: `syncSections` 행렬(판 셋 연속 포함). e2e: 원본만 2 + 둘 다 1 한 파일 → 커밋 2 · 대기 1 · 덮어쓰기 0 · 다시 → 0 · 단일 · 폴더 입력 번갈아도 한 원본 · 폴더째 빼면 「원본 폴더 없음」 1
+- [ ] C8 문서 — 용어(원본 맞추기) · 사용자 설명서
+
+## 단계 ④ 프로젝트와 맞추기(KM17 ~ KM24)
+
+할 수 있게 되는 것 — 고른 것을 프로젝트로 보내고, 프로젝트가 바뀌면 받는다. 큐레이터는 받은 것을 묶음으로 본다.
+
+- [ ] D1 짝 프로젝트 — `personal.json` 에 개인 레포 ↔ 프로젝트 레포(0..1) · `ctx pull-docs --init` · `ctx send` 첫 실행이 적는다
+- [ ] D2 들이기의 지식 레포 입력 — 뿌리를 받는다 · `recordKind` 거름(큐레이션 · 기준선 · 스냅샷 · 시스템 · `private`) · 출처 있는 `edit` 원문 기록은 `edit` 를 떼고 · 원천 이름 = 레포 이름 · 출신 머리줄 · 원 touches 를 후보로(승인해야 touches) · vocab 키를 만들지 않는다
+- [ ] D3 섹션 제안(좌표가 프로젝트 어휘에 있을 때 · `match` · 섹션 전문 · 왜 · 기준 applied) · 새 문서 제안(`proposal` · `new-doc` · touchesEmpty · 문서 전문)
+- [ ] D4 반출 검사 — `private` · `noSend`(문서 glob · `personal.json`) 거절 · 절대 경로 · 토큰 모양 · 첨부 · 개인 링크 경고 → `dryRun` 표 → `y/N` · `--yes`
+- [ ] D5 `ctx send --to <프로젝트>` — D2 · D3 · D4 를 묶는 명령 · 진행은 잡으로 개인 서버에
+- [ ] D6 프로젝트 `GET /api/<p>/archive?layer=canon` · `ctx pull-docs`(`syncSections` · 덮는 조건 = 내 글 sha 가 지난 맞춤 sha · 둘 다는 사람 · 없어짐 표시 · 고친 기록 `edit` + `pull`)
+- [ ] D7 개인 서버 [보내기] · [받기] — 같은 core · 프로젝트 토큰은 클라이언트 설정에서 읽고 서버 데이터에 두지 않는다(KM24) · 작업실 › 프로젝트와 맞추기(프로젝트만 · 나만 · 둘 다 · 보낸 것)
+- [ ] D8 프로젝트 쪽 — 대기열 「받은 것 · <보낸 사람> · <레포>」 라벨 · 「제안」 칩 · [새 문서로 받기] · 같은 사슬 옛 판 접기 · `/sources` 에 `verdict · reason · into · by` · 기록 화면 출신 칩
+- [ ] D9 `cdp-curate` 「받은 것」 절 — 제안 읽는 법 · 새 문서 제안 · 철회 요청(보통 기록 → 둘 다 keep)
+- [ ] D10 시험 — core: 지식 레포 입력 계획 · 반출 검사. e2e(개인 + 팀): 기록 25 + 섹션 3 + 새 문서 1 → run 하나 · 섹션 제안은 「미반영 1」 · 다시 → 0 · 고쳐 다시 → 새 기록 + 이전 판 · 프로젝트 `_vocab.md` 변화 0 · stale 0 · keep(사유) → 개인 「보낸 것」 에 사유 · 둘째 묶음에 500 을 내는 가짜 서버 → 다시 보내면 이어 감 · 중복 0 · `pull-docs --init` → 정본과 같다 · 프로젝트 5 바뀜 중 1 을 개인이 고쳤으면 4 덮고 1 은 둘 다 · 손실 0
+- [ ] D11 문서 — 용어(프로젝트와 맞추기 · 보내기 · 제안 기록 · 짝 프로젝트) · 문서레포에서 세우기 검토 S8 · S13 정정 상자 · 사용자 · 큐레이터 설명서
+
+## 단계 ⑤ kmd(Q0 · Q2)
+
+- [ ] S3 스파이크 — Node SEA 로 `ctx.mjs` 를 exe 하나로(한글 경로 · 백신 오탐)
+- [ ] E1 이름 — Q0 의 결정대로(권장 B: 서비스 소개 · 개인 화면 머리는 kmd, 엔진 · 명령 · 식별자는 CDP)
+- [ ] E2 설치 프로그램(런타임 동봉) · 시작 메뉴 「내 kmd 열기」
+- [ ] E3 반출 표 — 레포마다 개인 git · 짝 프로젝트 · LLM(`noLlmIngest`) · 원천 연결 · HTML CDN · 레포 폴더 위치
+- [ ] E4 Q2 결정 반영 — 비개발 직군이면 v1.0 거부 설계 「비개발 직군 UI」 정정 상자
+- [ ] E5 사람 실측 — 빈 Windows PC 에서 설명서대로 「설치 → 문서로 들이기 → 고치기 → 원본 맞추기 → 보내기 → 받기」
+
+## 나온 것
+
+검토에서 권장으로 닫은 것이다. 구현하며 바꾸면 이 표에 줄을 더한다.
+
+| 항목 | 정한 것 | 왜 |
+|---|---|---|
+| 판 순서 | v1.9.1 고침판 → ① 뜬다 → ② md 가 곧 지식 → ③ 원본 → ④ 프로젝트 → ⑤ 이름 · 설치 | 원문의 앞 항목(md · 개인 · 에디팅)이 앞 단계에 · 결함은 kmd 결정과 떼어 먼저 |
+| 이름 | Q0 열림 · 권장 B · 개인 새 식별자는 `me` · `CDP_ME_TOKEN` | 설치된 레포 · 실서버를 움직이지 않는다 · `kmd` 를 개인 식별자로 쓰면 뜻이 거꾸로 |
+| 문서로 들이기 기본 | 등록부 밖 · 바이트 그대로 · 좌표는 달기로 | 좌표 정규식이 일반 파일 이름 · 헤딩을 못 받는다(실측) |
+| 보내기 | 들이기의 지식 레포 입력 · 새 `send` 장치 없음 | 오늘도 `ingest <레포>/work` 가 된다(실측 38건) |
+| S0 | `git show` 로 계산 · 장부 없음 | I8 · I9 |
+| 개인 서버가 나가는 일 | 사람이 누른 [보내기] · [받기] 만 · 미러 push 와 같은 급 | 같은 PC · 같은 OS 사용자 · 판정은 core 한 곳 |
+| 두 PC | PC 옮기기 절차 · 자동 ff 없음 | 「지식 폴더 자동 최신화」 거부 설계 · 「한 레포를 두 서버가 쓰지 않는다」 |
+| 사용자 범위 MCP | 쓰지 않는다 — 개인 큐레이터 폴더 `.mcp.json` | 세션 행선을 폴더가 가른다 · 스킬 사본 없음. 사용자 범위 헤더의 `${VAR}` 는 펼쳐진다(반박 검토 실측) |
