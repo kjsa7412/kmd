@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>kmd 목업 v0.3</title>
+<title>kmd 목업 v0.4</title>
 <style>
 :root{
   --bg:#f6f7f9;--surface:#fff;--surface-2:#f1f3f7;--surface-3:#e6eaf0;--border:#e2e6ed;--border-strong:#c9d1dd;
@@ -298,64 +298,100 @@ details.more>.in{padding:8px 0 2px;font-size:12.5px;color:var(--text-2)}
 .chat .msg.u .who{color:var(--accent)}
 .chat .dest{display:inline-flex;gap:6px;align-items:center;background:var(--accent-bg);color:#22389c;border:1px solid var(--accent-line);border-radius:8px;padding:4px 10px;font-weight:600;font-size:12.5px;margin:2px 0 6px}
 .chat .dest.me{background:#f1f3f7;color:#11151c;border-color:var(--border-strong)}
+
+/* ── v0.4 부품 ── */
+.kt{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;border-radius:5px;padding:1px 6px;white-space:nowrap}
+.kt.me{background:#11151c;color:#fff}
+.kt.team{background:var(--accent-bg);color:var(--accent)}
+.kt.br{background:var(--surface-3);color:var(--text-2)}
+.kt.role{background:var(--surface);color:var(--text-2);border:1px solid var(--border-strong);font-weight:500}
+.where{font-size:11px;color:var(--text-3);margin:-6px 6px 10px}
+.paste{display:flex;gap:8px;align-items:center}
+.paste .input{flex:1;font:12.5px var(--mono)}
+.heard{display:flex;gap:10px;align-items:center;padding:9px 12px;border-radius:9px;background:var(--surface-2);font-size:12.5px;margin-top:8px}
+.heard b{font-weight:700}
+.krow{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--border)}
+.krow:first-child{border-top:0}
+.krow .nm{font-weight:700;min-width:120px}
+.krow .nm small{display:block;font:400 11px var(--mono);color:var(--text-3)}
+.krow .meta{color:var(--text-3);font-size:12px;flex:1}
+.krow .r{margin-left:auto;display:flex;gap:6px;align-items:center}
+.gitbox{border:1px dashed var(--border-strong);border-radius:10px;padding:10px 12px;background:var(--surface);font-size:12.5px}
 </style>
 </head>
 <body>
 <div class="mframe">
   <nav class="mnav" aria-label="목업 화면">
-    <h1>kmd 목업 <small style="color:#8fa6ff">v0.3</small></h1>
-    <p>검토 문서 <b>개정 v0.3</b> 으로 다시 그렸다. <b>내 지식은 이 PC 의 루트 폴더(D:\kmd) 하나 — 그 안의 폴더 하나가 지식 하나다.</b> 브라우저가 직접 읽어 설치가 없고, 파일은 서버로 가지 않는다. 내 지식은 저장이 곧 반영이고, 프로젝트로는 보내기 한 방향뿐이다. 한 화면에 주 단추 하나 · 쉬운 말(v0.2 그대로). 숫자 · 이름은 예시값이다.</p>
-    <div class="lg"><span style="background:#3358e6;color:#fff">새</span><span style="background:#2a3246">새로 생기는 화면 · 단추</span><span style="background:#efedfd;color:#6247c4">보라 = 대기 · 미반영</span><span style="background:#fcf3e0;color:#8c5c00">앰버 = 경고</span><span style="background:#fdeceb;color:#cb3a2c">적 = 거절 · 무효</span><span style="background:#e9eeff;color:#3358e6">파랑 = 조작 · 바뀐 줄</span></div>
+    <h1>kmd 목업 <small style="color:#8fa6ff">v0.4</small></h1>
+    <p>검토 문서 <b>개정 v0.4</b> 로 다시 그렸다. <b>kmd 는 프로그램 하나 — 내 PC 든 팀 서버든 같은 것을 깐다.</b> [잇기] 한 칸에 폴더 · git 주소 · 링크를 붙이면 개인 지식 · 공유 지식이 한 목록에 선다. 공유 지식은 git 에 있어 kmd 가 여럿이어도 같이 쓰고, 정리하는 사람은 지식을 세운 주인이 정한다. 한 화면에 주 단추 하나 · 쉬운 말. 숫자 · 이름은 예시값이다.</p>
+    <div class="lg"><span style="background:#efedfd;color:#6247c4">보라 = 기다림 · 반영 전</span><span style="background:#fcf3e0;color:#8c5c00">앰버 = 경고</span><span style="background:#fdeceb;color:#cb3a2c">적 = 뺐다 · 막혔다</span><span style="background:#e9eeff;color:#3358e6">파랑 = 조작 · 바뀐 줄</span></div>
     <div class="grp">시작</div>
-    <button data-s="m0"><b>M0</b>하루 — 김과 박</button>
-    <div class="grp">내 지식</div>
-    <button data-s="m1"><b>M1</b>내 지식 폴더 잇기</button>
-    <button data-s="m2"><b>M2</b>내 지식 첫 화면</button>
-    <button data-s="m3"><b>M3</b>kmd 지식으로 만들기</button>
-    <button data-s="m4"><b>M4</b>지식 하나 — 배포노트</button>
-    <button data-s="m5"><b>M5</b>문서 읽기 · 고치기 — 헬스체크</button>
+    <button data-s="m0"><b>M0</b>하루 — 김 · 박 · 이</button>
+    <button data-s="m1"><b>M1</b>설치 · 시작하기</button>
+    <button data-s="m2"><b>M2</b>들어가기 — GitLab</button>
+    <div class="grp">잇기</div>
+    <button data-s="m3"><b>M3</b>잇기 — 한 칸</button>
+    <div class="grp">지식</div>
+    <button data-s="m4"><b>M4</b>지식 목록 — 한 화면</button>
+    <button data-s="m5"><b>M5</b>지식 하나 — DPMS 지식</button>
+    <button data-s="m6"><b>M6</b>읽기 · 고치기</button>
     <div class="grp">세션</div>
-    <button data-s="m6"><b>M6</b>세션에서 저장 — 내 지식</button>
-    <button data-s="m7"><b>M7</b>세션에서 저장 — 팀으로 / 내 메모로</button>
-    <div class="grp">내 지식</div>
+    <button data-s="m7"><b>M7</b>세션 저장 — 행선 한 줄</button>
+    <div class="grp">지식</div>
     <button data-s="m8"><b>M8</b>오늘 바뀐 것</button>
-    <div class="grp">프로젝트로</div>
-    <button data-s="m9"><b>M9</b>보낼 곳 — 어디가 어디로</button>
-    <button data-s="m10"><b>M10</b>보내기</button>
-    <div class="grp">프로젝트</div>
-    <button data-s="m11"><b>M11</b>프로젝트 문서 읽기 · 내 지식으로 복사</button>
-    <button data-s="m12"><b>M12</b>박이 받은 것</button>
-    <div class="grp">내 지식</div>
-    <button data-s="m13"><b>M13</b>설정</button>
+    <div class="grp">팀으로</div>
+    <button data-s="m9"><b>M9</b>보낼 곳 · 보내기</button>
+    <div class="grp">정리하는 사람</div>
+    <button data-s="m10"><b>M10</b>이 지식의 사람 — 주인이 정한다</button>
+    <button data-s="m11"><b>M11</b>받은 것</button>
+    <div class="grp">설정</div>
+    <button data-s="m12"><b>M12</b>설정</button>
+    <div class="grp">팀 kmd</div>
+    <button data-s="m13"><b>M13</b>팀 kmd 의 이 — 브라우저 폴더 · 형식 문턱</button>
 
   </nav>
   <main class="stage">
 
 <!-- ═════════ 1-start.html ═════════ -->
 <style>
-/* ── M0 하루 ── */
+/* ── m0 하루 ── */
 #m0 .wrap{max-width:1240px;margin:0 auto}
-#m0 .lead{margin:2px 0 12px}
-#m0 .map{max-width:1240px;margin:0 auto 12px;display:grid;grid-template-columns:minmax(0,1.3fr) 170px minmax(0,1fr);align-items:stretch}
-#m0 .map .hh{font-size:11.5px;font-weight:700;color:var(--text-3);margin:0 0 6px;letter-spacing:.02em}
-#m0 .map .tree{overflow-x:auto}
-#m0 .tree .c1{display:inline-block;width:132px;font-family:var(--font);font-size:13px}
-#m0 .tree .c2{display:inline-block;width:64px;color:var(--text-3)}
-#m0 .tree .raw{color:var(--text-3)}
-#m0 .tree .kn{font-family:var(--font)}
-#m0 .tree .cm{font:11.5px var(--font);color:var(--text-3);margin-left:6px}
-#m0 .map .foot{font-size:12px;color:var(--text-2);margin:6px 2px 0}
-#m0 .way{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:4px;text-align:center;font-size:11.5px;color:var(--text-2);padding:22px 10px 0}
-#m0 .way .ar{font-size:24px;line-height:1;color:var(--accent);font-weight:700}
-#m0 .way .ar.back{color:var(--danger)}
-#m0 .way b{color:var(--text);font-size:12.5px}
-#m0 .way .gap{height:14px}
-#m0 .team{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:12.5px}
-#m0 .team .rp{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--border)}
-#m0 .team .rp:first-child{border-top:0}
-#m0 .team .rp b{font-family:var(--mono);font-size:12px;min-width:84px}
-#m0 .team .rp small{color:var(--text-3);font-size:11.5px}
-#m0 .team .rp .chip{margin-left:auto}
+#m0 .wrap>.lead{margin:2px 0 12px}
+#m0 .pic{max-width:1240px;margin:0 auto 12px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px 14px;box-shadow:var(--shadow-1)}
+#m0 .one{display:flex;align-items:center;gap:12px;margin:0 0 14px;padding:0 0 12px;border-bottom:1px solid var(--border)}
+#m0 .one .logo{width:36px;height:36px;font-size:18px;border-radius:10px}
+#m0 .one b{font-size:22px;letter-spacing:-.01em;white-space:nowrap}
+#m0 .one span{color:var(--text-2);font-size:13px}
+#m0 .hh{font-size:11.5px;font-weight:700;color:var(--text-3);margin:0 0 8px;letter-spacing:.02em;display:flex;gap:8px;align-items:center}
+#m0 .gl{border:1px solid var(--border-strong);border-radius:12px;background:var(--surface-2);padding:10px 14px 10px}
+#m0 .gk{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#m0 .gk>div{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-size:12.5px}
+#m0 .gk .t{display:flex;align-items:center;gap:8px}
+#m0 .gk .t b{font-family:var(--mono);font-size:12.5px}
+#m0 .gk .t .chip{margin-left:auto}
+#m0 .gk small{display:block;color:var(--text-2);font-size:11.5px;margin-top:2px}
+#m0 .gk small i{font-style:normal;color:var(--text-3)}
+#m0 .gl .ft{font-size:11.5px;color:var(--text-2);margin:8px 2px 0}
+#m0 .ar{display:grid;grid-template-columns:1fr 1fr;gap:18px;text-align:center;font-size:11.5px;color:var(--text-2);padding:6px 0 8px}
+#m0 .ar span::before{content:"⇅";display:block;font-size:20px;color:var(--accent);line-height:1.15;font-weight:700}
+#m0 .two{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+#m0 .kb{border:1.5px solid var(--text-2);border-radius:12px;background:var(--bg);overflow:hidden}
+#m0 .kb .kh{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--border);font-size:12.5px}
+#m0 .kb .kh .brand{font-size:14px}
+#m0 .kb .kh small{color:var(--text-3);font-size:11.5px}
+#m0 .kb .kh .chip{margin-left:auto}
+#m0 .kb .kl{padding:2px 12px 4px}
+#m0 .kb .li{display:flex;align-items:center;gap:7px;padding:5px 0;border-top:1px solid var(--border);font-size:12.5px}
+#m0 .kb .li:first-child{border-top:0}
+#m0 .kb .li .nm{font-weight:600;min-width:78px}
+#m0 .kb .li .mt{color:var(--text-3);font-size:11.5px}
+#m0 .kb .li .r{margin-left:auto;display:flex;gap:4px;align-items:center}
+#m0 .kb .kf{padding:6px 12px;border-top:1px dashed var(--border-strong);font-size:11.5px;color:var(--text-2);background:var(--surface)}
+#m0 .use{font-size:11.5px;color:var(--text-2);margin:6px 4px 0;text-align:center}
+#m0 .use b{color:var(--text)}
+#m0 .lf{margin-top:8px;border:1px dashed var(--border-strong);border-radius:10px;padding:8px 12px;font-size:12px;color:var(--text-2);display:flex;gap:8px;align-items:center;background:var(--surface)}
+#m0 .lf b{color:var(--text)}
+#m0 .lf .ar2{color:var(--text-3);font-weight:700}
 #m0 .keys{max-width:1240px;margin:0 auto 16px;display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
 #m0 .keys>div{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:11.5px;color:var(--text-2)}
 #m0 .keys b{display:block;font-size:12.5px;color:var(--text);margin-bottom:2px}
@@ -365,464 +401,576 @@ details.more>.in{padding:8px 0 2px;font-size:12.5px;color:var(--text-2)}
 #m0 .step .who{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--text-2)}
 #m0 .step .who i{width:8px;height:8px;border-radius:50%;background:#11151c;display:inline-block}
 #m0 .step .who i.t{background:var(--accent)}
-#m0 .step .when{margin-left:auto;font-size:11.5px;color:var(--text-3)}
+#m0 .step .when{margin-left:auto;font-size:11.5px;color:var(--text-3);white-space:nowrap}
 #m0 .step .press{font-size:12px;color:var(--text-2);border-top:1px dashed var(--border);padding-top:7px;margin-top:2px}
 #m0 .step .press b{color:var(--text);font-weight:600}
 #m0 .step .press .none{color:var(--text-3)}
-#m0 .step.sum{background:var(--surface-2);border-style:dashed;box-shadow:none}
-#m0 .step.sum .tot{font-size:12.5px;color:var(--text);line-height:1.8}
-#m0 .step.sum .tot b{display:inline-block;width:22px;color:var(--text-2)}
+#m0 .tot{max-width:1240px;margin:12px auto 0;display:flex;flex-wrap:wrap;gap:6px 22px;align-items:center;background:var(--surface-2);border:1px dashed var(--border-strong);border-radius:12px;padding:10px 14px;font-size:12.5px;color:var(--text-2)}
+#m0 .tot .h{font-weight:700;color:var(--text)}
+#m0 .tot b{color:var(--text);margin-right:4px}
+#m0 .tot .m{color:var(--text-3);font-size:12px;flex-basis:100%}
 #m0 table.t td:first-child{font-weight:600;white-space:nowrap}
 #m0 table.t td.was{color:var(--text-3)}
 #m0 table.t td .chip{margin-right:6px}
 
-/* ── M1 폴더 잇기 ── */
-#m1 .main{display:flex;align-items:center;justify-content:center;padding:44px 28px}
-#m1 .pick{display:grid;grid-template-columns:minmax(0,500px) 400px;gap:44px;align-items:start;max-width:960px;width:100%}
-#m1 .pick .lead{margin:0 0 14px}
-#m1 .tree{font-size:12px;line-height:1.75;margin:0 0 16px;overflow-x:auto}
-#m1 .tree .c1{display:inline-block;width:120px;font-family:var(--font);font-size:12.5px}
+/* ── m1 설치 · 시작하기 ── */
+#m1 .main{display:flex;align-items:center;justify-content:center;padding:40px 28px 96px}
+#m1 .pick{display:grid;grid-template-columns:minmax(0,470px) minmax(0,380px);gap:44px;align-items:start;max-width:940px;width:100%}
+#m1 .pick .lead{margin:0 0 16px}
+#m1 .spot{display:flex;align-items:center;gap:10px;border:1px solid var(--border-strong);border-radius:10px;background:var(--surface);padding:10px 12px;margin:0 0 16px}
+#m1 .spot .k{color:var(--text-3);font-size:12px}
+#m1 .spot b{font:600 13px var(--mono)}
+#m1 .lnk{color:var(--accent);cursor:pointer;font-size:12px}
+#m1 .spot .lnk{margin-left:auto}
+#m1 .hint{font-size:12px;color:var(--text-3);margin:10px 0 0}
+#m1 .lbl{font-size:12px;color:var(--text-2);font-weight:600;margin:4px 0 8px}
+#m1 .tree{font-size:12px;line-height:1.8;margin:0 0 12px;overflow-x:auto}
+#m1 .tree .c1{display:inline-block;width:118px;font-family:var(--font);font-size:12.5px}
 #m1 .tree .cm{font:11.5px var(--font);color:var(--text-3)}
-#m1 .tree .tt{font:600 11px var(--font);color:var(--text-3)}
-#m1 .hint{font-size:12px;color:var(--text-3);margin:8px 0 0}
-#m1 .lnk{color:var(--accent);cursor:pointer}
-#m1 .ask .lbl{font-size:12px;color:var(--text-2);font-weight:600;margin:4px 0 8px}
-#m1 .ask .lbl small{font-weight:400;color:var(--text-3)}
-#m1 .perm{width:100%}
-#m1 .perm .src{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-3);margin-bottom:8px}
-#m1 .perm .src i{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--text-3);display:inline-block}
-#m1 .perm p{margin:0 0 14px;color:var(--text-2);font-size:12.5px}
-#m1 .perm .pb{display:flex;justify-content:flex-end;gap:8px}
-#m1 .perm .pb span{display:inline-flex;align-items:center;height:30px;padding:0 16px;border-radius:999px;border:1px solid var(--border-strong);font-size:12.5px;color:var(--accent);font-weight:600;background:#fff}
-#m1 .perm .pb span.ok{background:var(--accent);border-color:var(--accent);color:#fff}
-#m1 .ask .after{font-size:12px;color:var(--text-2);margin:10px 2px 0}
+#m1 .then{font-size:12px;color:var(--text-2);margin:0;padding:0 2px}
+#m1 .then b{color:var(--text)}
+#m1 .app.mini{min-height:440px}
+#m1 .mini .main{padding:30px 28px}
+#m1 .mini .pick{grid-template-columns:minmax(0,440px) minmax(0,400px)}
+#m1 .mini .plain li{font-size:12px}
+#m1 .mini .plain li .r{margin-left:auto;text-align:right}
 
-/* ── M2 내 지식 첫 화면 ── */
-#m2 .top{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}
-#m2 .top .lead{margin:0}
-#m2 .top .acts{margin-left:auto;display:flex;gap:8px;margin-top:4px}
-#m2 .card .ch svg,#m2 .fold .ic svg{width:16px;height:16px;fill:none;stroke:var(--text-2);stroke-width:1.7;stroke-linejoin:round;flex:none}
-#m2 .card .ch .r{font-weight:400;font-size:12px;color:var(--text-3)}
-#m2 .kl{position:relative;margin-left:10px;padding-left:20px;border-left:2px solid var(--border);display:flex;flex-direction:column;gap:8px}
-#m2 .kl .fold{position:relative}
-#m2 .kl .fold::before{content:"";position:absolute;left:-22px;top:50%;width:20px;border-top:2px solid var(--border)}
-#m2 .kl .fold:last-child::after{content:"";position:absolute;left:-23px;top:calc(50% + 2px);bottom:-2px;width:4px;background:var(--surface)}
-#m2 .fold[data-go]{cursor:pointer}
-#m2 .fold[data-go]:hover{border-color:var(--accent-line)}
-#m2 .fold .nm{flex:1;min-width:0}
-#m2 .fold .st{width:150px;flex:none}
-#m2 .fold .meta{width:110px;flex:none;font-size:12.5px}
-#m2 .fold .meta small{display:block;color:var(--text-3);font-size:11.5px}
-#m2 .fold .to{width:230px;flex:none;display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap}
-#m2 .fold.raw .ic svg{stroke:var(--text-3)}
-#m2 .fold.raw .nm{color:var(--text-2)}
-#m2 .fold .rawt{width:270px;flex:none;font-size:12px;color:var(--text-3)}
-#m2 .lnk{color:var(--accent);cursor:pointer;font-weight:600;font-size:12.5px;white-space:nowrap}
-#m2 .hint{font-size:12px;color:var(--text-3);margin:12px 0 2px 2px}
-#m2 .fold .nm small{font-family:var(--font);font-size:11.5px}
-#m2 .fi .dot.pend{padding:0;margin:0;border:0;border-radius:50%}
-#m2 .feed .fh .more{margin-left:auto;font-weight:400;font-size:12px;color:var(--accent);cursor:pointer}
+/* ── m2 들어가기 ── */
+#m2 .main{display:flex;align-items:center;justify-content:center;padding:44px 28px}
+#m2 .gate{width:min(470px,100%)}
+#m2 .gate .card{margin:0}
+#m2 .gate .cb{padding:24px 26px 18px}
+#m2 .gate .mk{width:38px;height:38px;border-radius:10px;background:var(--surface-2);border:1px solid var(--border);display:grid;place-items:center;margin:0 0 12px}
+#m2 .gate .mk svg{width:20px;height:20px;stroke:var(--text-2);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+#m2 .gate .lead{margin:0 0 18px}
+#m2 .gate .btn.pri{width:100%;justify-content:center;height:38px;font-size:13px}
+#m2 .gate details.more{margin-top:16px}
+#m2 .gate .field{margin:0 0 8px}
+#m2 .gate .field .input{font-family:var(--mono)}
+#m2 .why{font-size:12px;color:var(--text-3);margin:14px 4px 0;text-align:center}
+#m2 .pc{font-size:11.5px;color:var(--text-3);margin:6px 4px 0;text-align:center}
 </style>
 
-<section class="screen" id="m0" data-title="하루 — 김과 박" data-grp="시작">
-  <div class="note"><b>M0 · 하루 — 김과 박.</b> 위 그림이 이 판의 뼈대다 — 내 지식은 이 PC 의 루트 D:\kmd 하나이고, 그 안의 같은 높이 폴더 하나가 지식 하나이며, 지식마다 보낼 곳이 0..n 이고, 팀으로 가는 길은 보내기 한 방향뿐이다. 카드 일곱은 김 · 박의 하루이고 카드마다 「사람이 누르는 것」 한 줄 — 폴더 고르기(처음 한 번) · 저장 · 보내기가 거의 전부다. v0.2 의 설치 · 가져오기 · 원본 따라가기 · 편집기 자동 저장 · 프로젝트 소식 받기는 없어졌다(맨 아래 표). 검토 v0.3 §2 · §3.1 · §3.2 · §3.7 · §3.8.</div>
+<section class="screen" id="m0" data-title="하루 — 김 · 박 · 이" data-grp="시작">
+  <div class="note"><b>M0 · 하루 — 김 · 박 · 이.</b> 위 그림이 이 판의 뼈대다 — kmd 는 프로그램 하나라 김의 PC 에도 팀 서버에도 같은 것이 돌고, 공유 지식(dpms_wiki · gdi_wiki)은 사내 GitLab 에 하나씩 살며 어느 kmd 든 그것을 같이 쓴다. 카드 여덟은 세 사람의 하루이고 카드마다 「누르는 것」 한 줄 — 시작하기 · 잇기 · 보내기 · 맡기기가 거의 전부이며 받기 · 다시 올리기 · 형식 맞추기는 저절로 한다. v0.3 의 「브라우저만 · 내 지식 | 프로젝트 토글 · 팀은 보내기만 · 서버 명부」 가 바뀌었다(맨 아래 표). 검토 v0.4 「쉬운 말로 — 다섯 줄」 · §1 · §2.1 · §5.4.</div>
 
   <div class="wrap">
-    <p class="lead"><b>김</b> — Windows · Chrome · 팀 서버 cdp.team.local 의 dpms_wiki writer · 내 지식 루트 D:\kmd. <b>박</b> — dpms_wiki 의 큐레이터. 오늘은 10-21(수) 14:10.</p>
+    <p class="lead"><b>김</b> — 내 PC 의 kmd(Windows · 로그인 없음). <b>박</b> — 팀 kmd(팀 서버 · GitLab 로 들어옴) · DPMS 지식을 git 으로 세운 주인. <b>이</b> — 같은 팀 kmd 를 브라우저로만(설치 0). 오늘은 2026-10-21(수) 14:20.</p>
   </div>
 
-  <div class="map">
-    <div>
-      <div class="hh">김의 PC — 내 지식 루트(폴더 하나)</div>
-      <div class="tree"><b>D:\kmd</b><span class="cm">폴더 하나 = 지식 하나 · 모두 같은 높이</span>
-├─ <span class="c1"><b>배포노트</b>\</span><span class="c2">문서 12</span><span class="kn">→ dpms_wiki</span>
-├─ <span class="c1"><b>설계메모</b>\</span><span class="c2">문서 7</span><span class="kn">→ gdi_wiki</span> <span class="kn">→ dpms_wiki</span>
-├─ <span class="c1"><b>개인메모</b>\</span><span class="c2">문서 5</span><span class="kn none">보내지 않음</span>
-├─ <span class="c1"><b>받은편지함</b>\</span><span class="c2">메모 2</span><span class="kn none">보내지 않음</span><span class="cm">어디 넣을지 안 정한 세션 메모</span>
-└─ <span class="c1 raw">회의록-2026\</span><span class="c2">md 31</span><span class="cm">어제 옮겨 넣음 · 아직 kmd 형식이 아니다</span></div>
-      <p class="foot">브라우저가 이 폴더를 바로 읽는다 · 설치 없음 · 파일은 서버로 가지 않는다. 폴더를 더 넣으면 여기 계속 모인다.</p>
+  <div class="pic">
+    <div class="one"><span class="logo">K</span><b>프로그램은 같은 것 하나</b><span>김의 PC 에도 팀 서버에도 같은 kmd 가 돈다 — 「개인용 / 팀용」 을 고르지 않는다. 누구든 하나만 세우면 혼자든 같이든 쓰고, 여럿이어도 같은 지식을 같이 쓴다.</span></div>
+
+    <div class="gl">
+      <div class="hh">사내 GitLab — 공유 지식이 사는 곳 · 지식마다 하나</div>
+      <div class="gk">
+        <div>
+          <div class="t"><b>dpms_wiki</b>「DPMS 지식」<span class="chip c-line">사람 6</span></div>
+          <small><i>세운 사람</i> 박 · <i>이 지식의 사람(지식 안 명단)</i> 주인 박 · 정리 최</small>
+          <small><i>들어오기(읽기 · 올리기)</i> GitLab 에 더한 사람 6 — 김 · 이 포함</small>
+        </div>
+        <div>
+          <div class="t"><b>gdi_wiki</b>「GDI 지식」<span class="chip c-warn">지난주 형식이 올라감</span></div>
+          <small><i>나</i> 김: 기록</small>
+          <small>더 새 kmd(v1.13)가 형식을 올렸다 — 김의 PC kmd 는 저절로 새 판 · 팀 서버 kmd(v1.12)는 올릴 때까지 읽기만 · 「올리면 고쳐진다」</small>
+        </div>
+      </div>
+      <p class="ft">kmd 가 몇 개든 공유 지식은 여기 하나다. 누가 들어오나는 GitLab 이, 누가 정리하나는 지식 안 명단(세운 주인이 정한다)이 정한다 — 그래서 어느 kmd 에서 봐도 같다.</p>
     </div>
-    <div class="way">
-      <span class="ar">→</span>
-      <b>보내기</b>
-      <span>한 방향 · 내가 누를 때만<br>오늘 보낼 것 3</span>
-      <span class="gap"></span>
-      <span class="ar back">⇠</span>
-      <b>들어오는 길 없음</b>
-      <span>팀 글은 내 폴더에 쓰지 않는다</span>
+
+    <div class="ar">
+      <span>저장하면 곧 올라간다 · 남이 먼저 올렸으면 저절로 다시 저장 — 김의 GitLab 계정으로</span>
+      <span>같은 방식 — 박 · 이 각자의 GitLab 계정으로</span>
     </div>
-    <div>
-      <div class="hh">팀 서버 — cdp.team.local</div>
-      <div class="team">
-        <div class="rp"><b>dpms_wiki</b><small>배포노트 · 설계메모가 보내는 곳 · 큐레이터 박</small><span class="chip c-pend">김이 보낼 것 2</span></div>
-        <div class="rp"><b>gdi_wiki</b><small>설계메모가 보내는 곳</small><span class="chip c-pend">김이 보낼 것 1</span></div>
-        <div class="rp"><small>팀 문서는 「프로젝트」 에서 읽기만 한다. 내 것으로 쓰고 싶으면 「내 지식으로 복사」 한 번 — 그 뒤로는 내 글이다.</small></div>
+
+    <div class="two">
+      <div>
+        <div class="kb">
+          <div class="kh"><span class="logo">K</span><span class="brand">kmd</span><small>김의 PC · 이 PC 에서 돈다 · 로그인 없음</small><span class="chip c-line">같은 프로그램</span></div>
+          <div class="kl">
+            <div class="li"><span class="nm">배포노트</span><span class="kt me">개인</span><span class="mt">문서 12</span><span class="r"><span class="kn">→ DPMS 지식</span></span></div>
+            <div class="li"><span class="nm">설계메모</span><span class="kt me">개인</span><span class="mt">문서 7</span><span class="r"><span class="kn">→ GDI 지식</span><span class="kn">→ DPMS 지식</span></span></div>
+            <div class="li"><span class="nm">개인메모</span><span class="kt me">개인</span><span class="mt">문서 5</span><span class="r"><span class="kn none">보내지 않음</span></span></div>
+            <div class="li"><span class="nm">받은편지함</span><span class="kt me">개인</span><span class="mt">메모 2</span><span class="r"><span class="kn none">보내지 않음</span></span></div>
+            <div class="li"><span class="nm">DPMS 지식</span><span class="kt team">팀</span><span class="kt role">나: 기록</span><span class="r"><span class="chip c-acc">새로 바뀜 2</span></span></div>
+            <div class="li"><span class="nm">GDI 지식</span><span class="kt team">팀</span><span class="kt role">나: 기록</span></div>
+          </div>
+          <div class="kf">개인 지식은 D:\kmd 안 내 폴더 그대로 · 밖으로 나가는 것은 내가 보낼 때와 팀 지식에 저장할 때뿐</div>
+        </div>
+        <p class="use"><b>김</b> — 브라우저 · Claude Code 세션(행선 한 줄)</p>
+      </div>
+      <div>
+        <div class="kb">
+          <div class="kh"><span class="logo">K</span><span class="brand">kmd</span><small>팀 서버 · cdp.team.local · GitLab 로 들어온다</small><span class="chip c-line">같은 프로그램</span></div>
+          <div class="kl">
+            <div class="li"><span class="nm">DPMS 지식</span><span class="kt team">팀</span><span class="mt">박: 주인 · 이: 기록</span><span class="r"><span class="chip c-pend">받은 것 4</span></span></div>
+            <div class="li"><span class="nm">이의 메모</span><span class="kt me">개인</span><span class="mt">이의 PC 폴더 · 브라우저가 읽는다</span></div>
+            <div class="li"><span class="nm">GDI 지식</span><span class="kt team">팀</span><span class="mt">이: 읽기만</span><span class="r"><span class="chip c-warn">더 새 kmd 로 만들어졌다</span></span></div>
+          </div>
+          <div class="kf">여기 둔 내 지식은 관리자가 볼 수 있다 · 정말 나만은 내 PC 폴더나 내 PC 의 kmd</div>
+        </div>
+        <p class="use"><b>박 · 이</b> — 브라우저만(설치 0)</p>
+        <div class="lf"><b>이의 PC</b> 「이의 메모」 폴더 <span class="ar2">⇢</span> 이의 브라우저가 읽는다 · 내용은 서버로 가지 않는다</div>
       </div>
     </div>
   </div>
 
   <div class="keys">
-    <div><i>가</i><b>루트 하나</b>D:\kmd 안의 폴더 하나가 지식 하나 · 같은 높이로 계속 모인다</div>
-    <div><i>나</i><b>설치 없음</b>브라우저가 폴더를 바로 읽는다 · 파일은 서버로 가지 않는다</div>
-    <div><i>다</i><b>같은 모양</b>내 지식도 프로젝트와 같은 문서 화면 · 같은 검사</div>
-    <div><i>라</i><b>저장이 곧 반영</b>기록과 문서가 한 번에 · 결과는 한 줄 · 되돌리기</div>
-    <div><i>마</i><b>어디가 어디로</b>지식마다 보낼 곳 0..n · 문서마다 「보내지 않음」</div>
-    <div><i>바</i><b>한 방향</b>보내기만 · 팀 글은 「내 지식으로 복사」 한 번</div>
+    <div><b><i>가</i>프로그램 하나</b>내 PC 든 팀 서버든 같은 kmd · 같은 화면</div>
+    <div><b><i>나</i>잇기 한 칸</b>폴더 · 루트 · git 주소 · 링크 · 이름 — 알아서 가른다</div>
+    <div><b><i>다</i>한 목록</b>개인 · 팀이 한 목록 · 칩으로만 구별</div>
+    <div><b><i>라</i>같이 쓴다</b>kmd 가 여럿이어도 저절로 다시 저장 · 정말 같은 곳만 한 줄</div>
+    <div><b><i>마</i>정리는 주인이</b>세운 사람이 「이 지식의 사람」 에서 · 들어오기는 GitLab</div>
+    <div><b><i>바</i>v0.3 그대로</b>같은 형식 · 저장이 곧 반영 · 한 방향 보내기 · 보낼 곳 0..n</div>
   </div>
 
   <div class="story">
     <div class="step">
       <div class="hd"><span class="n">01</span><span class="who"><i></i>김</span><span class="when">처음 한 번</span></div>
-      <h3>내 지식 폴더를 잇는다</h3>
-      <p>팀 서버 화면에서 루트 D:\kmd 를 고르고 허락 한 번. 깔 것은 없다 — 브라우저가 폴더를 바로 읽고, 파일은 서버로 가지 않는다.</p>
-      <div class="press">사람이 누르는 것: <b>[폴더 고르기] · 허락 한 번</b></div>
-      <div class="go"><button data-go="m1">M1 폴더 잇기</button><button data-go="m2">M2 내 지식 첫 화면</button></div>
+      <h3>깔고 시작하기</h3>
+      <p>내 PC 에 kmd 를 깔고 [시작하기] 하나 — 로그인 없이 D:\kmd 와 받은편지함이 선다. 박이 팀 서버에 깐 것도 같은 프로그램이다.</p>
+      <div class="press">누르는 것: <b>[시작하기]</b></div>
+      <div class="go"><button data-go="m1">M1 설치 · 시작하기</button><button data-go="m12">M12 설정</button></div>
     </div>
     <div class="step">
-      <div class="hd"><span class="n">02</span><span class="who"><i></i>김</span><span class="when">어제</span></div>
-      <h3>지식 폴더를 만든다 · 옮겨 넣는다</h3>
-      <p>루트 안의 폴더 하나가 지식 하나 — 배포노트와 같은 높이로 계속 모인다. 이미 있는 md 폴더(회의록-2026)는 탐색기로 옮겨 넣고 한 번 누르면 kmd 지식이 된다. md 는 그 자리 그대로다.</p>
-      <div class="press">사람이 누르는 것: <b>[새 지식]</b> 또는 <b>「kmd 지식으로 만들기」 한 번</b></div>
-      <div class="go"><button data-go="m3">M3 kmd 지식으로 만들기</button><button data-go="m4">M4 지식 하나</button></div>
+      <div class="hd"><span class="n">02</span><span class="who"><i></i>김 · <i class="t"></i>이</span><span class="when">처음 한 번</span></div>
+      <h3>잇기 — 링크를 붙인다</h3>
+      <p>박이 팀 대화방에 준 링크를 [잇기] 칸에 붙이면 「DPMS 지식 · 팀 · 나: 기록」. 처음 한 번만 GitLab 로 들어간다. 이는 팀 kmd 에서 내 PC 폴더를 붙인다 — 브라우저가 읽는다.</p>
+      <div class="press">누르는 것: <b>[잇기]</b> <span class="none">— 처음 한 번 [GitLab 로 들어가기]</span></div>
+      <div class="go"><button data-go="m3">M3 잇기</button><button data-go="m2">M2 들어가기</button><button data-go="m13">M13 팀 kmd 의 이</button></div>
     </div>
     <div class="step">
-      <div class="hd"><span class="n">03</span><span class="who"><i></i>김</span><span class="when">오늘 09:40</span></div>
-      <h3>세션에서 저장 — 문서까지 한 번에</h3>
-      <p>dpms 코드 폴더에서 「저장해」 — 행선 한 줄이 「→ 팀」 으로 뜨자 「내 메모로」 한 마디로 「→ 내 지식 · 배포노트」. 저장하면 기록이 남으면서 헬스체크의 「시간 초과」 까지 고쳐진다.</p>
-      <div class="press">사람이 누르는 것: <b>말 한마디 「내 메모로」</b> <span class="none">— 기본은 팀</span></div>
-      <div class="go"><button data-go="m6">M6 세션 저장 — 내 지식</button><button data-go="m7">M7 팀 ↔ 내 메모</button></div>
+      <div class="hd"><span class="n">03</span><span class="who"><i></i>김</span><span class="when">언제든</span></div>
+      <h3>지식 목록 — 개인 · 팀 한 줄씩</h3>
+      <p>배포노트 · 설계메모 · 개인메모 · 받은편지함 · DPMS 지식 · GDI 지식이 한 목록이다. 다른 것은 칩뿐 — [개인] [팀] [나: 기록]. 팀 지식은 저절로 맞춰져 「새로 바뀜 2」 만 보인다.</p>
+      <div class="press">누르는 것: <b>없음</b> <span class="none">— 보낼 것이 있을 때만 [N개 보내기] · 14:12 에 다 보냈다</span></div>
+      <div class="go"><button data-go="m4">M4 지식 목록</button><button data-go="m5">M5 지식 하나</button><button data-go="m6">M6 읽기 · 고치기</button></div>
     </div>
     <div class="step">
-      <div class="hd"><span class="n">04</span><span class="who"><i></i>김</span><span class="when">오늘 11:05 · 13:31</span></div>
-      <h3>화면이나 편집기로 고친다</h3>
-      <p>화면에서 고치면 그 파일이 바로 바뀐다(도커-네트워크). VS Code 로 고쳐도 다음에 열면 그대로 보인다(카나리-배포) — 맞출 사본이 없다.</p>
-      <div class="press">사람이 누르는 것: <b>[저장]</b> <span class="none">— 편집기로 고치면 없음</span></div>
-      <div class="go"><button data-go="m5">M5 문서 읽기 · 고치기</button></div>
+      <div class="hd"><span class="n">04</span><span class="who"><i></i>김</span><span class="when">오늘 09:40</span></div>
+      <h3>세션에서 저장 — 행선 한 줄</h3>
+      <p>dpms 코드 폴더에서 「배포 점검 정리해」 — 저장 전에 「→ 내 지식 · 배포노트」 한 줄이 뜬다. 저장하면 기록과 문서(헬스체크 「시간 초과」)가 한 번에 바뀐다.</p>
+      <div class="press">누르는 것: <b>없음</b> <span class="none">— 행선을 바꿀 때만 말 한마디</span></div>
+      <div class="go"><button data-go="m7">M7 세션 저장</button><button data-go="m8">M8 오늘 바뀐 것</button></div>
     </div>
     <div class="step">
-      <div class="hd"><span class="n">05</span><span class="who"><i></i>김</span><span class="when">지식마다 한 번</span></div>
-      <h3>어디로 보낼지 — 지식마다</h3>
-      <p>배포노트 → dpms_wiki · 설계메모 → gdi_wiki 와 dpms_wiki · 개인메모 · 받은편지함은 보내지 않음. 문서 하나만 따로 둘 수도 있다(개인-체크리스트 — 보내지 않음).</p>
-      <div class="press">사람이 누르는 것: <b>지식마다 한 번 고른다</b> <span class="none">— 새 지식은 「보내지 않음」 으로 시작</span></div>
-      <div class="go"><button data-go="m9">M9 보낼 곳</button></div>
+      <div class="hd"><span class="n">05</span><span class="who"><i></i>김</span><span class="when">14:05 · 14:19</span></div>
+      <h3>같이 쓴다 — 저절로 다시 저장</h3>
+      <p>DPMS 지식에 저장한 기록은 박이 먼저 올렸어도 저절로 다시 올라갔다. 정말 같은 곳(롤백 절차)일 때만 「그사이 다른 사람이 같은 곳을 고쳤다 — 내 글은 따로 두었다」. 지하철에서는 「저장됨 · 아직 안 올림 — 닿으면 저절로 간다」.</p>
+      <div class="press">누르는 것: <b>없음</b> <span class="none">— 겹쳤을 때만 [비교]</span></div>
+      <div class="go"><button data-go="m8">M8 오늘 바뀐 것</button></div>
     </div>
     <div class="step">
-      <div class="hd"><span class="n">06</span><span class="who"><i></i>김 → <i class="t"></i>박</span><span class="when">오늘 14:12</span></div>
-      <h3>프로젝트로 보낸다 — 박이 받는다</h3>
-      <p>보낼 것 3 이 이미 골라져 있다(dpms_wiki 2 · gdi_wiki 1). 개인-체크리스트는 알아서 빠진다. 박에게는 「김이 보낸 2개 — 배포노트에서」 가 한 묶음으로 선다.</p>
-      <div class="press">사람이 누르는 것: <b>김 [보내기] 하나</b> · <b>박 받은 묶음에 단추 하나</b></div>
-      <div class="go"><button data-go="m10">M10 보내기</button><button data-go="m12">M12 박이 받은 것</button></div>
+      <div class="hd"><span class="n">06</span><span class="who"><i></i>김 → <i class="t"></i>팀</span><span class="when">오늘 14:12</span></div>
+      <h3>보내기 — 내 지식에서 팀으로</h3>
+      <p>내 지식에서 고친 것 3 이 이미 골라져 있다 — DPMS 지식 2 · GDI 지식 1. 어디로 가는지는 지식마다 정해 둔 보낼 곳(0..n)이 정한다. 길은 한 방향이다.</p>
+      <div class="press">누르는 것: <b>[3개 보내기]</b></div>
+      <div class="go"><button data-go="m9">M9 보낼 곳 · 보내기</button><button data-go="m4">M4 지식 목록</button></div>
     </div>
     <div class="step">
-      <div class="hd"><span class="n">07</span><span class="who"><i></i>김</span><span class="when">언제든</span></div>
-      <h3>팀 문서는 프로젝트에서 읽는다</h3>
-      <p>팀 글은 내 폴더에 들어오지 않는다 — 왼쪽 위 「프로젝트」 로 바꿔 읽는다. 서버목록을 내 것으로 쓰려면 「내 지식으로 복사」 한 번 → 배포노트 › 서버목록-팀. 그 뒤로는 내 글이다.</p>
-      <div class="press">사람이 누르는 것: <b>「내 지식으로 복사」</b> <span class="none">— 필요할 때만</span></div>
-      <div class="go"><button data-go="m11">M11 프로젝트 문서 · 복사</button></div>
+      <div class="hd"><span class="n">07</span><span class="who"><i class="t"></i>박</span><span class="when">오늘 14:12</span></div>
+      <h3>받은 것 — 에이전트에게 맡긴다</h3>
+      <p>팀 kmd 에 「김이 보낸 2개 — 배포노트에서」 한 묶음이 선다 — 고친 안 「배포절차 › 헬스 체크」 · 새 문서 제안 「도커-네트워크」. 묶음마다 단추 하나다.</p>
+      <div class="press">누르는 것: <b>[에이전트에게 맡기기]</b></div>
+      <div class="go"><button data-go="m11">M11 받은 것</button></div>
     </div>
-    <div class="step sum">
-      <h3>하루에 누른 것</h3>
-      <div class="tot"><b>김</b>저장 · 보내기 <span class="muted">(폴더 고르기는 처음 한 번)</span><br><b>박</b>받은 묶음 처리</div>
-      <p>나머지는 알아서 — 저장하면 문서까지 고쳐지고, 보낼 것은 이미 골라져 있다. 결과는 「오늘 바뀐 것」 에 한 줄씩, 줄마다 되돌리기. 어제 보낸 3 은 반영 2 · 그대로 둠 1.</p>
-      <div class="go"><button data-go="m8">M8 오늘 바뀐 것</button><button data-go="m13">M13 설정</button></div>
+    <div class="step">
+      <div class="hd"><span class="n">08</span><span class="who"><i class="t"></i>박</span><span class="when">세울 때 · 처음 한 번</span></div>
+      <h3>이 지식의 사람 — 정리하는 사람 정하기</h3>
+      <p>DPMS 지식을 git 으로 세운 박이 첫 주인이다. 「이 지식의 사람」 에서 최를 정리하는 사람으로 정한다 — 명단은 지식 안에 있어 어느 kmd 에서 봐도 같다. 김 · 이는 GitLab 에 더하고 링크를 대화방에 보냈다.</p>
+      <div class="press">누르는 것: <b>[정리하는 사람 더하기]</b> · <b>⋯ [링크 복사]</b></div>
+      <div class="go"><button data-go="m10">M10 이 지식의 사람</button></div>
     </div>
   </div>
 
-  <div class="cap">v0.2 → v0.3 — 없어진 것 · 바뀐 것</div>
+  <div class="tot">
+    <span class="h">하루에 누르는 것</span>
+    <span><b>김</b>시작하기 · 잇기 · (GitLab 로 들어가기 한 번) · 보내기</span>
+    <span><b>박</b>링크 복사 · 맡기기</span>
+    <span><b>이</b>들어가기 · 잇기</span>
+    <span class="m">받기 · 다시 올리기 · 형식 맞추기는 모두 저절로 한다 — 이상할 때만 「오늘 바뀐 것」 에 한 줄.</span>
+  </div>
+
+  <div class="cap">v0.3 → v0.4 — 바뀐 것 · 그대로인 것</div>
   <div class="wrap">
     <div class="card"><div class="cb" style="padding:4px 8px">
       <table class="t">
-        <thead><tr><th>일</th><th>v0.2</th><th>v0.3</th></tr></thead>
+        <thead><tr><th>일</th><th>v0.3</th><th>v0.4</th></tr></thead>
         <tbody>
-          <tr><td>내 지식이 사는 곳</td><td class="was">PC 의 개인 서버(설치 · 늘 떠 있음)</td><td><span class="chip c-danger">없앰</span>브라우저가 루트 폴더를 바로 읽는다 · 설치 없음</td></tr>
-          <tr><td>지식 만들기</td><td class="was">가져오기(원본을 복사)</td><td><span class="chip c-acc">바뀜</span>루트에 폴더를 둔다 — 폴더 하나 = 지식 하나</td></tr>
-          <tr><td>원본이 바뀌면</td><td class="was">원본 따라가기(자동으로 맞춤)</td><td><span class="chip c-danger">없앰</span>원본이 곧 내 지식 — 맞출 사본이 없다</td></tr>
-          <tr><td>편집기로 고친 것</td><td class="was">30초 뒤 자동 저장</td><td><span class="chip c-danger">없앰</span>편집기가 바로 내 파일을 고친다</td></tr>
-          <tr><td>팀 글</td><td class="was">프로젝트 소식 받기(내 문서에 덮어 넣기)</td><td><span class="chip c-danger">없앰</span>한 방향 — 필요하면 「내 지식으로 복사」 한 번</td></tr>
-          <tr><td>어디로 보내나</td><td class="was">짝 프로젝트 하나(1:1)</td><td><span class="chip c-acc">바뀜</span>지식마다 보낼 곳 0..n · 문서마다 「보내지 않음」</td></tr>
-          <tr><td>세션에서 저장할 곳</td><td class="was">일하는 폴더가 정한다</td><td><span class="chip c-acc">바뀜</span>행선 한 줄로 고른다(「내 메모로」 · 「팀으로」)</td></tr>
-          <tr><td>내 지식에 저장</td><td class="was">세션은 고친 것을 보이고 승인</td><td><span class="chip c-acc">바뀜</span>저장이 곧 반영 — 기록과 문서가 한 번에 · 결과 한 줄 · 되돌리기</td></tr>
+          <tr><td>kmd 가 도는 곳</td><td class="was">브라우저만 — PC 에 서버 없음 · 팀 서버는 따로</td><td><span class="chip c-acc">바뀜</span>같은 프로그램 하나를 어디든 — 내 PC 든 팀 서버든 · 몇 개든</td></tr>
+          <tr><td>지식 고르기</td><td class="was">「내 지식 | 프로젝트」 토글</td><td><span class="chip c-danger">없앰</span>한 목록 — 개인 · 팀은 칩으로만</td></tr>
+          <tr><td>잇기</td><td class="was">루트 폴더 하나를 고른다</td><td><span class="chip c-acc">바뀜</span>[잇기] 한 칸 — 폴더 · 루트 · git 주소 · 링크 · 이름을 알아서 가른다</td></tr>
+          <tr><td>팀 지식</td><td class="was">팀 서버 한 곳에서만 · 내 지식에서는 보내기만</td><td><span class="chip c-acc">바뀜</span>git 지식은 어느 kmd 든 직접 쓰고 저절로 맞춘다 · 정말 겹친 한 건만 한 줄</td></tr>
+          <tr><td>들어가기</td><td class="was">팀 서버마다 관리자가 내준 열쇠</td><td><span class="chip c-acc">바뀜</span>회사 GitLab 계정 하나 · 내 PC 는 로그인 없음</td></tr>
+          <tr><td>권한</td><td class="was">서버 명부 — 관리자가 사람마다 연다</td><td><span class="chip c-acc">바뀜</span>정리하는 사람은 지식 안 명단(세운 주인이 정한다) · 들어오기(읽기 · 올리기)는 GitLab</td></tr>
+          <tr><td>그대로</td><td class="was">같은 형식 · 저장이 곧 반영 · 한 방향 보내기 · 보낼 곳 0..n</td><td><span class="chip c-mute">그대로</span>같은 화면 · 같은 검사 — 지식을 세우는 일이 같으니 kmd 가 여럿이어도 된다</td></tr>
         </tbody>
       </table>
     </div></div>
   </div>
 </section>
 
-<section class="screen" id="m1" data-title="내 지식 폴더 잇기" data-grp="내 지식">
-  <div class="note"><b>M1 · 내 지식 폴더 잇기.</b> 처음 한 번 — 팀 서버 화면에서 루트 폴더 하나를 고르고 브라우저 허락을 한 번 받는다(오른쪽은 Chrome 이 띄우는 창의 그림이지 우리 단추가 아니다). v0.2 의 「설치 한 줄 · PC 의 개인 서버 · 로그온하면 켜짐」 이 통째로 빠졌다 — 깔 것이 없고 파일 내용은 브라우저 안에서만 읽힌다. 여러 폴더를 따로 잇지 않는다 — 루트 하나, 그 안의 폴더가 지식이다. §3.4 · §3.7.</div>
+<section class="screen" id="m1" data-title="설치 · 시작하기" data-grp="시작">
+  <div class="note"><b>M1 · 설치 · 시작하기(N1).</b> 내 PC 에 깔면 로그인 없이 [시작하기] 하나로 D:\kmd 와 받은편지함이 선다 — 팀 지식을 이을 때만 GitLab 로 한 번 들어간다(아래 알림이 누른 뒤의 결과). 아래 둘째 앱은 같은 프로그램을 팀 서버에 처음 깐 화면이고, 다른 것은 첫 설정 번호 한 칸(서버 주인 = 셸을 가진 사람 · 「GitLab 첫 로그인 = 주인」 은 하지 않는다)뿐이다. v0.3 M1 의 「설치 없음 · 브라우저로 루트 폴더 고르기」 가 「어디든 같은 프로그램」 으로 바뀌었고, 「개인용 / 팀용」 을 고르는 화면은 없다. 검토 v0.4 KM40 · KM41 · §2.1 · §5.1 · §8 N1.</div>
 
-  <div class="app" data-face="me" data-noroot data-active="root" data-crumb="처음" data-status='<span>아직 폴더를 잇지 않았다</span><span class="r">이 PC</span>'>
+  <div class="app" data-where="pc" data-nokn data-active="home" data-crumb="처음">
     <div class="main">
       <div class="pick">
         <div>
-          <div class="big">내 지식을 둘 폴더 하나를 고른다</div>
-          <p class="lead">그 안의 폴더 하나가 지식 하나가 된다. 설치할 것은 없다 — 브라우저가 이 PC 의 폴더를 바로 읽고, 파일은 서버로 가지 않는다.</p>
-          <div class="tree"><span class="tt">이렇게 된다(예)</span>
-<span class="c1"><b>D:\kmd</b></span><span class="cm">← 지금 고르는 폴더</span>
-├─ <span class="c1">배포노트\</span><span class="cm">← 지식 하나</span>
-├─ <span class="c1">설계메모\</span><span class="cm">← 지식 하나</span>
-└─ <span class="c1">…</span><span class="cm">폴더를 넣을 때마다 같은 높이로 는다</span></div>
-          <button class="btn pri">폴더 고르기</button>
-          <p class="hint">빈 폴더도 된다 — 어디 넣을지 안 정한 메모가 모일 「받은편지함」 하나를 만들어 둔다.</p>
-          <details class="more"><summary>자세히</summary><div class="in">Chrome · Edge 에서 된다(Firefox · Safari 는 아직 — 안내가 대신 뜬다) · 다음에 열면 허락을 한 번 더 묻는다 · 세션도 같은 폴더를 쓴다(<span class="lnk" data-go="m13">설정</span>)</div></details>
+          <div class="big">kmd 를 시작한다</div>
+          <p class="lead">이 PC 에서 돈다 — 나만 쓴다. 로그인은 없다. 팀 지식을 이을 때 회사 GitLab 로 한 번 들어간다.</p>
+          <div class="spot"><span class="k">내 지식을 둘 곳</span><b>D:\kmd</b><span class="lnk">바꾸기</span></div>
+          <button class="btn pri">시작하기</button>
+          <p class="hint">빈 폴더면 된다 — 이미 md 가 든 폴더도 그대로 쓴다. 옮기거나 지우는 것은 없다.</p>
+          <details class="more"><summary>자세히</summary><div class="in">이 PC 에서만 열린다 — 다른 사람은 이 kmd 에 들어올 수 없다 · 새 판이 나오면 다음 시작에 저절로 올라간다(안 되면 앞 판으로) · 세션(Claude Code)은 <span class="lnk" data-go="m12">설정</span>에서 한 줄로 잇는다</div></details>
         </div>
-        <div class="ask">
-          <div class="lbl">[폴더 고르기] → D:\kmd 를 고르면 브라우저가 한 번 묻는다 <small>(그림)</small></div>
-          <div class="perm">
-            <div class="src"><i></i>Chrome</div>
-            <div class="ph">cdp.team.local 이(가) D:\kmd 의 파일을 보고 고치려 한다</div>
-            <p>이 사이트를 여는 동안 이 폴더의 파일을 읽고, 고친 것을 같은 파일에 저장할 수 있다.</p>
-            <div class="pb"><span>차단</span><span class="ok">허용</span></div>
-          </div>
-          <p class="after">허용하면 곧바로 <span class="lnk" data-go="m2">내 지식 첫 화면</span>이 열린다 — 읽은 내용은 이 브라우저 안에만 있다.</p>
+        <div>
+          <div class="lbl">이렇게 선다</div>
+          <div class="tree"><span class="c1"><b>D:\kmd</b></span><span class="cm">← 내 지식을 둘 곳</span>
+└─ <span class="c1">받은편지함\</span><span class="cm">← 어디 넣을지 안 정한 세션 메모</span></div>
+          <p class="then"><b>그다음은 [잇기] 한 칸</b> — 이 PC 폴더 · git 주소 · 받은 링크 아무거나 붙이면 된다. 개인인지 팀인지는 묻지 않는다. <span class="lnk" data-go="m3">잇기 →</span></p>
         </div>
       </div>
     </div>
+    <div class="toast">D:\kmd 와 받은편지함을 세웠다 <a data-go="m3">이어서 잇기</a></div>
   </div>
-</section>
 
-<section class="screen" id="m2" data-title="내 지식 첫 화면" data-grp="내 지식">
-  <div class="note"><b>M2 · 내 지식 첫 화면.</b> 루트 D:\kmd 아래 같은 높이의 지식 다섯 — 줄마다 문서 수 · 바뀐 때 · 보낼 곳 칩이라 「어디가 어디로」 가 여기서 한눈에 보인다. 회의록-2026 은 어제 탐색기로 옮겨 넣은 일반 md 라 점선으로 서고, 글자 링크 하나로 kmd 지식이 된다. v0.2 첫 화면은 지식 하나의 문서 목록 + 연결된 프로젝트 하나였다 — 이제 이 목록이 다른 화면 왼쪽 위의 지식 고르기와 같다. 주 단추는 보낼 것이 있을 때만 [보내기 · 3]. §3.1 · §3.7 · §3.8.</div>
-
-  <div class="app" data-face="me" data-active="root" data-crumb="내 지식" data-badges='{"today":1,"send":3}'>
+  <div class="cap">같은 프로그램을 팀 서버에 처음 깔았을 때 — 박</div>
+  <div class="app mini" data-where="team" data-nokn data-anon data-active="home" data-crumb="처음" data-status='<span>첫 설정 · 아직 주인이 없다</span><span class="r">v1.12</span>'>
     <div class="main">
-      <div class="top">
+      <div class="pick">
         <div>
-          <div class="big">내 지식</div>
-          <p class="lead">D:\kmd · 지식 5</p>
-        </div>
-        <div class="acts">
-          <button class="btn">새 지식</button>
-          <button class="btn pri" data-go="m10">보내기 · 3</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="ch"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg>D:\kmd<small>폴더 하나 = 지식 하나 · 모두 같은 높이</small><span class="r">보낼 곳</span></div>
-        <div class="cb">
-          <div class="kl">
-            <div class="fold" data-go="m4">
-              <span class="ic"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg></span>
-              <span class="nm">배포노트<small>D:\kmd\배포노트</small></span>
-              <span class="st"></span>
-              <span class="meta">문서 12<small>오늘 13:31</small></span>
-              <span class="to"><span class="kn">→ dpms_wiki</span></span>
-            </div>
-            <div class="fold">
-              <span class="ic"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg></span>
-              <span class="nm">설계메모<small>D:\kmd\설계메모</small></span>
-              <span class="st"></span>
-              <span class="meta">문서 7<small>어제 16:45</small></span>
-              <span class="to"><span class="kn">→ gdi_wiki</span><span class="kn">→ dpms_wiki</span></span>
-            </div>
-            <div class="fold">
-              <span class="ic"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg></span>
-              <span class="nm">개인메모<small>D:\kmd\개인메모</small></span>
-              <span class="st"></span>
-              <span class="meta">문서 5<small>10-17</small></span>
-              <span class="to"><span class="kn none">보내지 않음</span></span>
-            </div>
-            <div class="fold">
-              <span class="ic"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg></span>
-              <span class="nm">받은편지함<small>D:\kmd\받은편지함</small></span>
-              <span class="st"><span class="chip c-pend">반영 못 한 메모 1</span></span>
-              <span class="meta">메모 2<small>오늘 13:50</small></span>
-              <span class="to"><span class="kn none">보내지 않음</span></span>
-            </div>
-            <div class="fold raw">
-              <span class="ic"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg></span>
-              <span class="nm">회의록-2026<small>D:\kmd\회의록-2026</small></span>
-              <span class="rawt">아직 kmd 형식이 아니다 · md 31개 · 어제 옮겨 넣음</span>
-              <span class="to"><span class="lnk" data-go="m3">kmd 지식으로 만들기 →</span></span>
-            </div>
+          <div class="big">kmd 를 시작한다</div>
+          <p class="lead">같은 프로그램이다 — 팀 서버에서 돈다. 다른 사람은 회사 GitLab 계정으로 들어온다.</p>
+          <div class="field">
+            <label>첫 설정 번호</label>
+            <div class="input ph">서버에서 kmd 를 띄울 때 셸에 찍힌 번호</div>
+            <div class="hint">서버에 kmd 를 깐 사람이 이 서버의 주인이 된다 — 먼저 들어온 아무나 주인이 되지 않게 한 번만 묻는다.</div>
           </div>
-          <p class="hint">루트에 폴더를 넣으면 다음에 열 때 여기 선다. 팀 문서는 왼쪽 위 「프로젝트」 에서 읽는다 — 내 폴더에는 들어오지 않는다.</p>
+          <button class="btn pri">시작하기</button>
         </div>
-      </div>
-
-      <div class="feed">
-        <div class="fh">오늘 바뀐 것<small>10-21(수) · 지식 전체</small><span class="more" data-go="m8">어제 것까지 보기</span></div>
-        <div class="fi"><span class="tm">13:50</span><span class="dot pend"></span><span class="tx">반영 못 한 메모 1 — 받은편지함 › 「배포 전 체크」<small>제목 줄이 없어 문서에 넣지 못했다 · 제목 한 줄을 넣으면 들어간다</small></span><span class="act" data-go="m8">고치기</span></div>
-        <div class="fi"><span class="tm">13:31</span><span class="dot acc"></span><span class="tx">편집기에서 바뀐 것이 보인다 — 배포노트 › 카나리-배포<small>파일을 직접 고쳤다 · 따로 할 일 없음</small></span></div>
-        <div class="fi"><span class="tm">11:05</span><span class="dot acc"></span><span class="tx">화면에서 고침 — 배포노트 › 도커-네트워크<small>파일에 바로 썼다 · 기록도 같이 남았다</small></span><span class="act">되돌리기</span></div>
-        <div class="fi"><span class="tm">09:40</span><span class="dot acc"></span><span class="tx">세션에서 저장 — 배포노트 › 헬스체크 「시간 초과」<small>dpms 코드 폴더에서 「내 메모로」 한 마디 — 기록과 문서가 한 번에</small></span><span class="act">되돌리기</span></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ═════════ 2-know.html ═════════ -->
-<section class="screen" id="m3" data-title="kmd 지식으로 만들기" data-grp="내 지식">
-<style>
-#m3 .rt{max-width:780px}
-#m3 .top{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}
-#m3 .top .lead{margin:0}
-#m3 .top .btn{margin-left:auto;margin-top:4px}
-#m3 .folds{display:grid;gap:8px}
-#m3 .fold .ic svg{width:17px;height:17px;fill:none;stroke:var(--text-2);stroke-width:1.7;stroke-linejoin:round}
-#m3 .fold .nm{flex:1;min-width:0}
-#m3 .fold .meta{font-size:12px;color:var(--text-3);white-space:nowrap}
-#m3 .fold .rr{margin-left:auto;display:flex;gap:8px;align-items:center}
-#m3 .fold.raw .meta{color:var(--warn)}
-#m3 .lnk{color:var(--accent);font-weight:600;font-size:12.5px;white-space:nowrap}
-#m3 .modal .mh .x{margin-left:auto;color:var(--text-3);font-weight:400;cursor:pointer}
-#m3 .modal .mb>p{margin:0 0 10px;color:var(--text-2)}
-#m3 .modal .mb>p b{color:var(--text)}
-#m3 .modal .sub{font-size:12px;color:var(--text-3);margin:12px 0 2px}
-#m3 .modal .plain li{padding:8px 2px}
-#m3 .modal .plain li .pl{width:14px;flex:none;color:var(--accent);font-weight:700;text-align:center}
-#m3 .modal .plain li .tx{flex:1;min-width:0}
-#m3 .modal .plain li .tx small{color:var(--text-3);font-size:12px;margin-left:6px}
-#m3 .modal .plain li .fn{font:11px var(--mono);color:var(--text-3);white-space:nowrap}
-#m3 .modal .dst{display:flex;gap:8px;align-items:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:12.5px}
-#m3 .modal .dst .lb{color:var(--text-3)}
-#m3 .modal .dst small{color:var(--text-3);font-size:12px}
-#m3 .modal .mf .lt{margin-right:auto;font-size:12px;color:var(--text-3);align-self:center}
-#m3 .app.mini{min-height:420px}
-#m3 .modal.sm{width:min(440px,92%)}
-#m3 .modal.sm .input .cur{display:inline-block;width:1px;height:15px;background:var(--text);margin-left:-4px}
-#m3 .modal.sm .hint b{font-weight:600;color:var(--text-2)}
-</style>
-  <div class="note"><b>M3 · kmd 지식으로 만들기.</b> 루트 D:\kmd(M2)에 어제 탐색기로 옮겨 넣은 일반 md 폴더 「회의록-2026」 을 한 번 눌러 지식으로 만든다 — md 31개는 그 자리 그대로 두고 틀 파일만 더한다(§3.6 · §3.7). 보낼 곳은 묻지 않고 「보내지 않음」 으로 두며 나중에 보낼 곳 화면에서 바꾼다(P1 · §3.1). v0.2 의 가져오기(복사 · 「문서로 / 기록으로」 · 원본 따라가기)는 없어졌다 — 폴더가 곧 내 지식이라 사본이 없다. 아래는 [새 지식] — 이름 하나만 받아 루트 바로 아래, 배포노트와 같은 높이에 폴더를 만든다.</div>
-
-  <div class="app" data-face="me" data-active="root" data-crumb="내 지식" data-status='<span>폴더 읽기 · 쓰기 허락됨</span><span>git 없음</span><span class="r">이 PC</span>'>
-    <div class="main"><div class="rt">
-      <div class="top">
         <div>
-          <div class="big">내 지식</div>
-          <p class="lead">D:\kmd — 이 폴더 바로 아래 폴더 하나가 지식 하나다</p>
-        </div>
-        <button class="btn">새 지식</button>
-      </div>
-      <div class="folds">
-        <div class="fold"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg></span><span class="nm">배포노트<small>D:\kmd\배포노트</small></span><span class="rr"><span class="meta">문서 12</span><span class="kn">→ dpms_wiki</span></span></div>
-        <div class="fold"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg></span><span class="nm">설계메모<small>D:\kmd\설계메모</small></span><span class="rr"><span class="meta">문서 7</span><span class="kn">→ gdi_wiki</span><span class="kn">→ dpms_wiki</span></span></div>
-        <div class="fold"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg></span><span class="nm">개인메모<small>D:\kmd\개인메모</small></span><span class="rr"><span class="meta">문서 5</span><span class="kn none">보내지 않음</span></span></div>
-        <div class="fold"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg></span><span class="nm">받은편지함<small>D:\kmd\받은편지함</small></span><span class="rr"><span class="meta">메모 2</span><span class="kn none">보내지 않음</span></span></div>
-        <div class="fold raw"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg></span><span class="nm">회의록-2026<small>D:\kmd\회의록-2026</small></span><span class="rr"><span class="meta">md 31 · 아직 kmd 형식이 아니다</span><span class="lnk">kmd 지식으로 만들기 →</span></span></div>
-      </div>
-    </div></div>
-    <div class="scrim"><div class="modal">
-      <div class="mh">회의록-2026 을 kmd 지식으로 만든다<span class="x">✕</span></div>
-      <div class="mb">
-        <p><b>md 31개는 그대로 둔다 — 옮기지도 바꾸지도 않는다.</b> 틀 파일 몇 개만 더한다.</p>
-        <div class="sub">더할 것</div>
-        <ul class="plain">
-          <li><span class="pl">+</span><span class="tx">소개 한 장<small>첫 제목이 이 지식의 이름이 된다</small></span><span class="fn">README.md</span></li>
-          <li><span class="pl">+</span><span class="tx">목록 파일 둘<small>이 지식에서 쓰는 낱말 · 문서 차례</small></span><span class="fn"></span></li>
-          <li><span class="pl">+</span><span class="tx">기록 폴더<small>저장할 때마다 한 줄씩 남는다</small></span><span class="fn">work\</span></li>
-          <li><span class="pl">+</span><span class="tx">보낼 곳 파일<small>이 지식을 어디로 보낼지 적어 두는 작은 파일</small></span><span class="fn">.kmd.json</span></li>
-        </ul>
-        <div class="dst"><span class="lb">보낼 곳</span><span class="kn none">보내지 않음</span><small>나중에 보낼 곳 화면에서 바꾼다</small></div>
-        <details class="more"><summary>자세히</summary><div class="in">목록 파일은 프로젝트와 같은 형식이라 같은 화면에서 보인다(<span class="mono">_vocab.md</span> · <span class="mono">_managed.md</span>). md 31개는 하위 폴더째 그 자리에서 문서로 보인다.</div></details>
-      </div>
-      <div class="mf"><span class="lt">D:\kmd\회의록-2026 안에만 더한다</span><button class="btn pri">만들기</button></div>
-    </div></div>
-  </div>
-
-  <div class="cap">[새 지식] 을 눌렀을 때 — 이름 하나만 받는다 · 루트 바로 아래, 배포노트와 같은 높이에 생긴다</div>
-  <div class="app mini" data-face="me" data-active="root" data-crumb="내 지식" data-status='<span>폴더 읽기 · 쓰기 허락됨</span><span>git 없음</span><span class="r">이 PC</span>'>
-    <div class="main"><div class="rt">
-      <div class="top">
-        <div>
-          <div class="big">내 지식</div>
-          <p class="lead">D:\kmd — 이 폴더 바로 아래 폴더 하나가 지식 하나다</p>
-        </div>
-        <button class="btn">새 지식</button>
-      </div>
-      <div class="folds">
-        <div class="fold"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg></span><span class="nm">배포노트<small>D:\kmd\배포노트</small></span><span class="rr"><span class="meta">문서 12</span><span class="kn">→ dpms_wiki</span></span></div>
-        <div class="fold"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg></span><span class="nm">설계메모<small>D:\kmd\설계메모</small></span><span class="rr"><span class="meta">문서 7</span><span class="kn">→ gdi_wiki</span><span class="kn">→ dpms_wiki</span></span></div>
-        <div class="fold"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg></span><span class="nm">개인메모<small>D:\kmd\개인메모</small></span><span class="rr"><span class="meta">문서 5</span><span class="kn none">보내지 않음</span></span></div>
-      </div>
-    </div></div>
-    <div class="scrim"><div class="modal sm">
-      <div class="mh">새 지식<span class="x">✕</span></div>
-      <div class="mb">
-        <div class="field">
-          <label>새 지식 이름</label>
-          <div class="input">장애대응<span class="cur"></span></div>
-          <div class="hint"><b>D:\kmd\장애대응</b> 이 생긴다 — 틀 파일도 같이 · 보낼 곳은 「보내지 않음」(나중에 보낼 곳에서)</div>
-        </div>
-      </div>
-      <div class="mf"><button class="btn pri">만들기</button></div>
-    </div></div>
-  </div>
-</section>
-
-<section class="screen" id="m4" data-title="지식 하나 — 배포노트" data-grp="내 지식">
-<style>
-#m4 .wrap{max-width:860px}
-#m4 .big{display:flex;align-items:center;gap:10px}
-#m4 .big .kn{font-size:12px;font-weight:500}
-#m4 .tabs{align-items:flex-end}
-#m4 .tabs .ord{margin-left:auto;font-size:12px;color:var(--text-3);padding:7px 2px}
-#m4 .card .cb{padding:2px 14px 4px}
-#m4 .plain li{padding:6px 2px}
-#m4 .plain li .di{width:16px;height:16px;flex:none;fill:none;stroke:var(--text-3);stroke-width:1.6;stroke-linejoin:round}
-#m4 .plain li .nm{flex:1;min-width:0;font-weight:500}
-#m4 .plain li .nm small{margin-left:8px;color:var(--text-3);font-weight:400;font-size:11.5px}
-#m4 .plain li .when{width:96px;flex:none;color:var(--text-2);font-size:12px}
-#m4 .plain li .when.td{color:var(--accent)}
-#m4 .plain li .kebab{height:22px}
-#m4 .plain li .sp{width:28px;height:22px;flex:none}
-</style>
-  <div class="note"><b>M4 · 지식 하나 — 배포노트.</b> 루트 D:\kmd 바로 아래 폴더 하나가 지식 하나다 — 왼쪽 위 지식 고르기가 루트의 폴더 목록이고, 제목 옆 칩이 이 지식의 보낼 곳이다(§3.7 · §3.1). <b>프로젝트의 문서 목록과 같은 화면이다 — 같은 형식이라서(§3.6).</b> v0.2 의 「어디서 왔나」 원본 폴더 아이콘 · 「어제 가져왔다」 · 연결된 프로젝트(0..1)는 없어졌다 — 파일이 곧 원본이다. 문서마다의 예외는 이름 옆 회색 「보내지 않음」 하나이고, 드문 일은 줄 끝 ⋯ 안에 있다(첫 줄에만 그렸다).</div>
-
-  <div class="app" data-face="me" data-kn="배포노트" data-active="docs" data-crumb="문서" data-pick-open>
-    <div class="main"><div class="wrap">
-      <div class="big">배포노트<span class="kn">→ dpms_wiki</span></div>
-      <p class="lead">문서 12 · 기록 9 · 마지막 기록 11:05</p>
-      <div class="tabs"><span class="on">문서</span><span>기록</span><span>그래프</span><span class="ord">최근 바뀐 순</span></div>
-      <div class="card">
-        <div class="cb">
+          <div class="lbl">김의 PC 와 다른 것</div>
           <ul class="plain">
-            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">카나리-배포</span><span class="when td">오늘 13:31</span><button class="kebab" title="이 문서로 할 수 있는 일 — 이력 · 보내지 않음으로 · 다른 곳으로 보내기 · 다른 지식으로 옮기기">⋯</button></li>
-            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">도커-네트워크</span><span class="when td">오늘 11:05</span><span class="sp"></span></li>
-            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">헬스체크</span><span class="when td">오늘 09:40</span><span class="sp"></span></li>
-            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">배포절차</span><span class="when">어제 16:20</span><span class="sp"></span></li>
-            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">개인-체크리스트<small>보내지 않음</small></span><span class="when">10-20</span><span class="sp"></span></li>
-            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">롤백-체크리스트</span><span class="when">10-18</span><span class="sp"></span></li>
-            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">서버목록</span><span class="when">10-17</span><span class="sp"></span></li>
-            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">태그-규칙</span><span class="when">10-16</span><span class="sp"></span></li>
-            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">인증서-갱신</span><span class="when">10-02</span><span class="sp"></span></li>
-            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">로그-보관</span><span class="when">09-30</span><span class="sp"></span></li>
-            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">README</span><span class="when">09-28</span><span class="sp"></span></li>
-            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">장애-회고-0912</span><span class="when">09-14</span><span class="sp"></span></li>
+            <li>화면 · 메뉴 · [잇기] · 보내기<span class="r">같다</span></li>
+            <li>들어오기<span class="r">GitLab 계정 — 관리자가 따로 내주지 않는다</span></li>
+            <li>여기 둔 내 지식<span class="r">관리자가 볼 수 있다</span></li>
+            <li>내 PC 폴더<span class="r">브라우저가 읽는다 — 서버로 가지 않는다</span></li>
           </ul>
         </div>
       </div>
-    </div></div>
+    </div>
   </div>
-  <div class="cap">프로젝트 문서 목록과 같은 화면이다 — 다른 것은 위 띠(검정 = 내 지식 · 파랑 = 프로젝트)와 제목 옆 보낼 곳 칩뿐 · 같은 형식이라서</div>
 </section>
 
-<section class="screen" id="m5" data-title="문서 읽기 · 고치기 — 헬스체크" data-grp="내 지식">
-<style>
-#m5 .wrap{max-width:820px}
-#m5 .ttl{display:flex;align-items:center;gap:8px;margin:0 0 10px}
-#m5 .ttl .path{flex:1;min-width:0}
-#m5 .ttl h2{font-size:17px;margin:0}
-#m5 .ttl .from{font-size:12px;color:var(--text-3)}
-#m5 .ttl .rr{margin-left:auto;display:flex;align-items:center;gap:6px}
-#m5 .paper .by{font-size:11.5px;color:var(--text-3);margin:2px 0 4px}
-#m5 .paper .chg{background:var(--accent-bg)}
-#m5 .lbl{font-size:12px;color:var(--text-3);margin:0 0 5px}
-#m5 .lbl b{color:var(--text);font-weight:600}
-#m5 .editor .gut{white-space:pre;flex:none}
-#m5 .split .paper h1{font-size:18px}
-#m5 .split .paper h2{font-size:15px}
-#m5 .path .r{font-family:var(--font)}
-#m5 .app.ed .main{padding-bottom:72px}
-</style>
-  <div class="note"><b>M5 · 문서 읽기 · 고치기 — 헬스체크.</b> 위는 읽기 — 프로젝트 문서 화면과 같은 모양(경로 줄 · 종이 · 섹션)이고, 오늘 세션에서 고친 「시간 초과」 아래에만 회색 한 줄이 붙는다(§3.6). 아래는 11:05 도커-네트워크를 고치는 중 — [저장] 하나로 브라우저가 이 파일에 바로 쓰고, 같은 저장에서 기록 한 줄이 남는다 — 승인도 기다림도 없다(§3.8 · §3.4). 쓰기 전에 프로젝트와 같은 검사를 브라우저에서 돌리고, 걸리면 쓰지 않고 그 자리를 알린다. v0.2 의 「원본 따라가기 켬」 · 편집기 자동 저장 · 고친 까닭은 없어졌다 — 사본이 없어 맞출 일이 없다.</div>
+<section class="screen" id="m2" data-title="들어가기 — GitLab" data-grp="시작">
+  <div class="note"><b>M2 · 들어가기 — GitLab(N2).</b> 팀 kmd 에 들어올 때, 또는 내 PC 의 kmd 에서 팀 지식을 처음 이을 때 한 번 뜬다 — 주 단추 [GitLab 로 들어가기] 하나이고, 회사가 단추를 아직 안 열었으면 접힌 칸에 개인 토큰 한 칸(범위 둘 — 이름 확인 · 올리기). 들어오면 kmd 에 내 자리가 저절로 서고 관리자 발급이 없다. 무엇을 볼 수 있는지는 GitLab 이, 누가 정리하는지는 지식 안 명단(세운 주인)이 정한다 — kmd 는 GitLab 의 멤버 수준을 읽지 않는다(운영자 정정). v0.3 에는 없던 화면이다 · 검토 v0.4 KM41 · KM44 · §5.1 · §5.4.</div>
 
-  <div class="app" data-face="me" data-kn="배포노트" data-active="docs" data-crumb="문서 › 헬스체크">
+  <div class="app" data-where="team" data-nokn data-anon data-active="home" data-crumb="들어가기" data-status='<span>아직 들어오지 않았다</span><span class="r">v1.12</span>'>
+    <div class="main">
+      <div class="gate">
+        <div class="card"><div class="cb">
+          <div class="mk"><svg viewBox="0 0 24 24"><path d="M10 4h8v16h-8 M4 12h10 M11 8l4 4-4 4"/></svg></div>
+          <div class="big">회사 GitLab 로 들어간다</div>
+          <p class="lead">kmd 에 따로 가입하지 않는다 — GitLab 계정 하나면 된다. 처음 들어오면 여기 내 자리가 저절로 선다.</p>
+          <button class="btn pri">GitLab 로 들어가기</button>
+          <details class="more"><summary>단추가 안 되면 — GitLab 개인 토큰 한 칸</summary><div class="in">
+            <div class="field">
+              <label>GitLab 개인 토큰</label>
+              <div class="input ph">glpat-… 붙여 넣기</div>
+              <div class="hint">GitLab › 내 설정 › 개인 토큰에서 만든다 · 이름 확인과 올리기에만 쓴다 · 그 밖은 묻지 않는다 · 끝나는 날을 꼭 정한다</div>
+            </div>
+            <button class="btn">들어가기</button>
+          </div></details>
+        </div></div>
+        <p class="why">무엇을 볼 수 있는지는 GitLab 이, 그 지식에서 누가 정리하는지는 지식의 주인이 정한다.</p>
+        <p class="pc">내 PC 의 kmd 는 로그인이 없다 — 팀 지식을 처음 이을 때만 이 창이 한 번 뜬다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ 2-link.html ═════════ -->
+<section class="screen" id="m3" data-title="잇기 — 한 칸" data-grp="잇기">
+<style>
+#m3 .main{padding-bottom:84px}
+#m3 .wrap{max-width:800px}
+#m3 .paste .input span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#m3 .paste .input .cur{display:inline-block;width:1px;height:15px;background:var(--text);flex:none}
+#m3 .heard{background:var(--surface);border:1px solid var(--accent-line);border-left:3px solid var(--accent);color:var(--text)}
+#m3 .heard .from{color:var(--text-2)}
+#m3 .heard .r{color:var(--text-3);font-size:11.5px}
+#m3 .nochoice{font-size:12px;color:var(--text-3);margin:8px 2px 16px}
+#m3 .card .cb{padding:2px 14px 4px}
+#m3 .plain li{gap:10px}
+#m3 .plain li .pc{width:300px;flex:none;font:12px var(--mono);color:var(--text-2);background:var(--surface-2);border-radius:6px;padding:3px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#m3 .plain li .pc.nm{font-family:var(--font)}
+#m3 .plain li .ar{color:var(--text-3);flex:none}
+#m3 .plain li .kt{flex:none}
+#m3 .plain li .tx{flex:1;min-width:0}
+#m3 .plain li .tx small{display:block;color:var(--text-3);font-size:11.5px}
+#m3 .plain li.no .tx{color:var(--danger)}
+#m3 .kt.no{background:var(--danger-bg);color:var(--danger)}
+</style>
+  <div class="note"><b>M3 · 잇기 — 한 칸(N3).</b> 폴더 경로 · git 주소 · 받은 링크 · 이름 중 무엇을 붙여도 kmd 가 글자를 보고 가르고, 알아들은 한 줄을 곧바로 보인다. 개인 / 팀을 고르는 칸이 없다 — 접근권으로 센다(폴더 · 새 이름 = 나만 · git = 그 GitLab 프로젝트에 든 사람들 · 사람 수는 세지 않는다). v0.3 의 M1 루트 고르기 · M3 「kmd 지식으로 만들기」 · [새 지식] 이 이 한 칸에 접혔다 — 틀 파일 더하기 · 루트로 잇기는 저절로 하고 알림 한 줄 + [되돌리기]. 링크에는 비밀이 없고 git 주소만 실린다 — 들어갈 수 있나는 GitLab 이 정하고, 못 들어가면 단추 없이 한 줄. §3.1 · §3.4 · KM42.</div>
+
+  <div class="app" data-where="pc" data-kn="*" data-active="home" data-crumb="잇기">
+    <div class="main"><div class="wrap">
+      <div class="big">잇기</div>
+      <p class="lead">폴더 경로 · git 주소 · 받은 링크 — 무엇이든 붙인다. kmd 가 알아서 가른다.</p>
+
+      <div class="paste">
+        <div class="input"><span>https://cdp.team.local/join#repo=git@gitlab…:team/dpms_wiki.git&amp;from=박</span><i class="cur"></i></div>
+        <button class="btn pri">잇기</button>
+      </div>
+      <div class="heard"><span class="kt team">팀</span><span><b>DPMS 지식</b> · <span class="kt role">나: 기록</span> <span class="from">— 박이 준 링크</span></span><span class="r">처음 한 번 GitLab 로 들어갔다</span></div>
+      <p class="nochoice">개인 / 팀을 고르지 않는다 — 폴더와 새 이름은 나만 쓰고, git 주소는 그 GitLab 프로젝트에 든 사람들이 같이 쓴다.</p>
+
+      <div class="card">
+        <div class="ch">이렇게도 붙인다<small>붙인 것 → 알아들은 한 줄</small></div>
+        <div class="cb">
+          <ul class="plain">
+            <li><span class="pc">D:\notes\회의록</span><span class="ar">→</span><span class="kt me">개인</span><span class="tx">이 PC 의 폴더 · md 31 · kmd 형식의 틀 파일을 더한다<small>md 는 그 자리 그대로 — 옮기지도 바꾸지도 않는다</small></span></li>
+            <li><span class="pc">E:\옛자료</span><span class="ar">→</span><span class="kt me">개인</span><span class="tx">루트로 잇는다 — 안의 폴더 5개가 지식 5<small>나중에 넣는 폴더도 저절로 선다</small></span></li>
+            <li><span class="pc">git@gitlab…:team/ops_wiki.git</span><span class="ar">→</span><span class="kt team">팀</span><span class="tx">비어 있음 — 새 지식으로 세운다 · 세운 사람이 주인<small>정리하는 사람은 주인이 「이 지식의 사람」 에서 고른다</small></span></li>
+            <li><span class="pc nm">「회의」</span><span class="ar">→</span><span class="kt me">개인</span><span class="tx">D:\kmd\회의 에 새 지식 — 나만</span></li>
+            <li class="no"><span class="pc">…/join#repo=…:team/plc_wiki.git&amp;from=박</span><span class="ar">→</span><span class="kt no">못 이음</span><span class="tx">아직 이 지식의 사람이 아니다 — 박에게<small>GitLab 에서 박이 더해 주면 같은 링크를 다시 붙인다</small></span></li>
+          </ul>
+        </div>
+      </div>
+
+      <details class="more"><summary>자세히</summary><div class="in">같은 폴더를 다시 붙이면 「이미 이었다 — 배포노트」 · 팀 서버의 kmd 에서도 같은 칸이다 — 이 PC 폴더는 브라우저가 읽고 내용은 서버로 가지 않는다 · 링크에는 비밀이 없다 — 누가 들어오나는 GitLab 이 정한다</div></details>
+    </div></div>
+    <div class="toast">DPMS 지식을 이었다 · 문서를 가져오는 중…<a>되돌리기</a></div>
+  </div>
+</section>
+
+<section class="screen" id="m4" data-title="지식 목록 — 한 화면" data-grp="지식">
+<style>
+#m4 .wrap{max-width:960px}
+#m4 .top{display:flex;align-items:flex-start;gap:12px}
+#m4 .top .acts{margin-left:auto;display:flex;gap:8px;margin-top:4px}
+#m4 .card{overflow:hidden}
+#m4 .krow .nm{width:250px;min-width:0;flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:0 6px}
+#m4 .krow .nm small{flex-basis:100%}
+#m4 .krow .meta{min-width:0}
+#m4 .krow .kebab{height:24px;width:24px}
+#m4 .krow .sp{width:24px;height:24px;flex:none}
+#m4 .feed{margin-top:14px}
+#m4 .fi .dot.pend{border:0;padding:0;margin:0;border-radius:50%;background:var(--pending)}
+#m4 .feed .fh .more{margin-left:auto;font-weight:400;font-size:12px;color:var(--accent)}
+#m4 .app.mini{min-height:0}
+</style>
+  <div class="note"><b>M4 · 지식 목록 — 한 화면(N4).</b> 개인 넷과 팀 둘이 한 목록에 서고 칩으로만 가른다(검정 개인 · 파랑 팀 · 테두리 칩 내 역할 · 줄마다 셋 이하). v0.3 M2 의 「내 지식 | 프로젝트」 토글과 M10 을 이 한 장에 접었다 — 주 단추는 보낼 것이 있을 때만 [N개 보내기] — 14:12 에 다 보내 지금은 없다. [맞추기] 단추는 없다 — 맞춤은 저절로이고(받기 · 밀리면 다시 올리기), 맞춘 시각은 늦을 때만 보이며, 피드에는 정말 같은 곳을 고친 한 건만 예외로 선다. 드문 일(팀 줄은 링크 복사 · 잇기 끊기 · 내 폴더 줄은 git 으로 올리기도)은 줄 끝 ⋯ — 첫 팀 줄에만 그렸다. 아래는 팀 서버의 kmd 에서 이가 보는 같은 화면이다. §8 N4 · KM40 · KM42 · §4.2.</div>
+
+  <div class="app" data-where="pc" data-kn="*" data-active="home" data-crumb="지식 목록" data-badges='{"today":1}'>
+    <div class="main"><div class="wrap">
+      <div class="top">
+        <div>
+          <div class="big">지식 목록</div>
+          <p class="lead">개인 4 · 팀 2 — 이은 것이 모두 한 목록에 선다</p>
+        </div>
+        <div class="acts">
+          <button class="btn" data-go="m3">잇기</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="krow"><span class="nm">배포노트 <span class="kt me">개인</span><small>D:\kmd\배포노트</small></span><span class="meta">문서 12 · 오늘 11:05</span><span class="r"><span class="kn">→ DPMS 지식</span><span class="sp"></span></span></div>
+        <div class="krow"><span class="nm">설계메모 <span class="kt me">개인</span><small>D:\kmd\설계메모</small></span><span class="meta">문서 7 · 어제 16:45</span><span class="r"><span class="kn">→ GDI 지식</span><span class="kn">→ DPMS 지식</span><span class="sp"></span></span></div>
+        <div class="krow"><span class="nm">개인메모 <span class="kt me">개인</span><small>D:\kmd\개인메모</small></span><span class="meta">문서 5 · 10-17</span><span class="r"><span class="kn none">보내지 않음</span><span class="sp"></span></span></div>
+        <div class="krow"><span class="nm">받은편지함 <span class="kt me">개인</span><small>D:\kmd\받은편지함</small></span><span class="meta">메모 2 · 어디 넣을지 안 정한 세션 메모가 모인다</span><span class="r"><span class="kn none">보내지 않음</span><span class="sp"></span></span></div>
+        <div class="krow" data-go="m5"><span class="nm">DPMS 지식 <span class="kt team">팀</span><small>gitlab › team/dpms_wiki</small></span><span class="meta">문서 18 · 박이 준 링크로 이었다</span><span class="r"><span class="kt role">나: 기록</span><span class="chip c-acc">새로 바뀜 2</span><button class="kebab" title="링크 복사 · 잇기 끊기">⋯</button></span></div>
+        <div class="krow"><span class="nm">GDI 지식 <span class="kt team">팀</span><small>gitlab › team/gdi_wiki</small></span><span class="meta">문서 24</span><span class="r"><span class="kt role">나: 기록</span><span class="sp"></span></span></div>
+      </div>
+
+      <div class="feed">
+        <div class="fh">오늘 바뀐 것<small>10-21(수) · 지식 전체</small><span class="more">모두 보기</span></div>
+        <div class="fi"><span class="tm">14:19</span><span class="dot warn"></span><span class="tx">그사이 다른 사람이 같은 곳을 고쳤다 — DPMS 지식 › 롤백 절차(기록)<small>내 글은 따로 두었다 · 잃은 것 없음</small></span><span class="act" data-go="m8">비교</span></div>
+        <div class="fi"><span class="tm">14:18</span><span class="dot acc"></span><span class="tx">DPMS 지식에서 새로 바뀜 — 배포절차 › 헬스 체크 · 박</span><span class="act" data-go="m6">보기</span></div>
+        <div class="fi"><span class="tm">14:05</span><span class="dot pend"></span><span class="tx">팀 DPMS 지식에 기록 저장 — 박이 먼저 올렸지만 저절로 다시 올라갔다<small>따로 할 일 없음</small></span></div>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="cap">같은 프로그램 — 팀 서버의 kmd 에서 이가 보는 지식 목록. 이의 PC 폴더는 브라우저가 읽는다 · 내용은 서버로 가지 않는다</div>
+  <div class="app mini" data-where="team" data-kn="*" data-active="home" data-crumb="지식 목록" data-who="이" data-count="개인 1 · 팀 2">
+    <div class="main"><div class="wrap">
+      <div class="top">
+        <div>
+          <div class="big">지식 목록</div>
+          <p class="lead">개인 1 · 팀 2</p>
+        </div>
+        <div class="acts">
+          <button class="btn">잇기</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="krow"><span class="nm">이의 메모 <span class="kt me">개인</span><small>D:\메모</small></span><span class="meta">문서 9 · 이의 PC 폴더 · 브라우저가 읽는다 — 서버로 가지 않는다</span><span class="r"><span class="kn none">보내지 않음</span><span class="sp"></span></span></div>
+        <div class="krow"><span class="nm">DPMS 지식 <span class="kt team">팀</span><small>gitlab › team/dpms_wiki</small></span><span class="meta">문서 18</span><span class="r"><span class="kt role">나: 기록</span><span class="chip c-acc">새로 바뀜 2</span><span class="sp"></span></span></div>
+        <div class="krow"><span class="nm">GDI 지식 <span class="kt team">팀</span><small>gitlab › team/gdi_wiki</small></span><span class="meta">문서 24</span><span class="r"><span class="chip c-warn">더 새 kmd 로 만들어졌다 — 읽기만</span><span class="sp"></span></span></div>
+      </div>
+    </div></div>
+  </div>
+</section>
+
+<section class="screen" id="m5" data-title="지식 하나 — DPMS 지식" data-grp="지식">
+<style>
+#m5 .big{display:flex;align-items:center;gap:8px}
+#m5 .big .kt{font-size:11.5px}
+#m5 .tabs{align-items:flex-end}
+#m5 .tabs .ord{margin-left:auto;font-size:12px;color:var(--text-3);padding:7px 2px;border-bottom:0}
+#m5 .card .cb{padding:2px 14px 4px}
+#m5 .plain li{padding:7px 2px}
+#m5 .plain li .di{width:16px;height:16px;flex:none;fill:none;stroke:var(--text-3);stroke-width:1.6;stroke-linejoin:round}
+#m5 .plain li .nm{flex:1;min-width:0;font-weight:500;display:flex;align-items:center;gap:8px}
+#m5 .plain li .nm small{color:var(--text-3);font-weight:400;font-size:11.5px}
+#m5 .plain li .chip{font-size:10.5px;padding:0 6px}
+#m5 .plain li .when{width:84px;flex:none;color:var(--text-2);font-size:12px}
+#m5 .plain li .when.td{color:var(--accent)}
+#m5 .plain li .kebab{height:22px;width:24px}
+#m5 .plain li .sp{width:24px;height:22px;flex:none}
+#m5 .plain li.more{color:var(--text-3);font-size:12px;justify-content:center}
+#m5 .aside h4{margin:2px 0 10px;font-size:13px}
+#m5 .aside .kv{grid-template-columns:54px 1fr;font-size:12.5px}
+#m5 .aside p{font-size:12.5px;color:var(--text-2);margin:12px 0 0}
+#m5 .aside p.sm{font-size:12px;color:var(--text-3);margin-top:8px}
+</style>
+  <div class="note"><b>M5 · 지식 하나 — DPMS 지식(N6).</b> 박이 git 으로 세운 팀 지식을 김의 PC kmd 에서 연 모습이다 — 탭 · 문서 줄 · ⋯ 이 내 지식 배포노트(v0.3 M4)와 같다(v0.3 §3.6 같은 형식). 다른 것은 띠 · 칩 · 내 역할 하나이고, 받은 변경은 문서 옆 파랑 「새로 바뀜」 으로만 보인다(받은 시각은 늦을 때만 띠에). 머리의 「주인 박 · 정리 최」 는 지식 안의 명단(<code>_members.md</code>)에서 읽는다 — GitLab 멤버 수준은 읽지 않는다(§5.4). 나: 기록이라 저장은 기록으로 올라가 정리하는 사람에게 서고, 고치기는 ⋯ 의 「내 지식으로 복사」 · 「고친 안 보내기」(§6).</div>
+
+  <div class="app" data-where="pc" data-kn="dpms_wiki" data-role="기록" data-active="docs" data-crumb="문서" data-sync="새로 바뀜 2">
+    <div class="main">
+      <div class="big">DPMS 지식 <span class="kt team">팀</span><span class="kt role">나: 기록</span></div>
+      <p class="lead">주인 박 · 정리 최 — 지식 안의 명단</p>
+      <div class="tabs"><span class="on">문서</span><span>기록</span><span>그래프</span><span class="ord">최근 바뀐 순 · 문서 18</span></div>
+      <div class="card">
+        <div class="cb">
+          <ul class="plain">
+            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">배포절차<span class="chip c-acc">새로 바뀜</span><small>헬스 체크 · 박</small></span><span class="when td">오늘 14:18</span><button class="kebab" title="이 문서로 할 수 있는 일 — 내 지식으로 복사 · 고친 안 보내기 · 이력">⋯</button></li>
+            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">롤백 절차<span class="chip c-acc">새로 바뀜</span><small>박</small></span><span class="when td">오늘 14:15</span><span class="sp"></span></li>
+            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">서버목록</span><span class="when">어제 17:02</span><span class="sp"></span></li>
+            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">장애 대응</span><span class="when">10-20</span><span class="sp"></span></li>
+            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">백업 절차</span><span class="when">10-19</span><span class="sp"></span></li>
+            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">모니터링</span><span class="when">10-18</span><span class="sp"></span></li>
+            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">인증서 갱신</span><span class="when">10-15</span><span class="sp"></span></li>
+            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">로그 보관</span><span class="when">10-14</span><span class="sp"></span></li>
+            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">접속 안내</span><span class="when">10-10</span><span class="sp"></span></li>
+            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">용어 모음</span><span class="when">10-02</span><span class="sp"></span></li>
+            <li><svg class="di" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">README</span><span class="when">09-28</span><span class="sp"></span></li>
+            <li class="more">7개 더</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="aside">
+      <h4>이 지식</h4>
+      <div class="kv">
+        <span>어디</span><span>GitLab › team/dpms_wiki</span>
+        <span>주인</span><span>박 — 이 지식을 세운 사람</span>
+        <span>정리</span><span>박 · 최</span>
+        <span>나</span><span>기록</span>
+      </div>
+      <p>내가 저장한 것은 기록으로 올라가고, 정리하는 사람(박 · 최)이 보고 문서에 넣는다.</p>
+      <p class="sm">정리하는 사람은 주인이 이 지식 안에서 정한다 — 어느 kmd 에서 열어도 같다. 들어오기(읽기 · 올리기)는 GitLab 이 정한다.</p>
+      <details class="more"><summary>자세히</summary><div class="in">10-21 10:02 박이 준 링크로 이었다 · 처음 한 번 GitLab 로 들어갔다 · 이 PC 의 kmd 가 받아 둔 것을 읽는다 — 늦어지면 띠에 「어제 17:00 판으로 보는 중」</div></details>
+    </div>
+  </div>
+  <div class="cap">내 지식 배포노트와 같은 화면이다 — 같은 형식. 다른 것은 띠 · 칩 · 내 역할뿐(배포노트는 나: 주인 — 저장이 곧 반영)</div>
+</section>
+
+<!-- ═════════ 3-work.html ═════════ -->
+<style>
+/* ── M6 · 읽기 · 고치기 ── */
+#m6 .wrap{max-width:820px}
+#m6 .ttl{display:flex;align-items:center;gap:8px;margin:0 0 6px}
+#m6 .ttl .path{flex:1;min-width:0}
+#m6 .ttl .rr{display:flex;align-items:center;gap:6px}
+#m6 .path .r{font-family:var(--font)}
+#m6 .hint{font-size:12px;color:var(--text-3);margin:0 2px 10px}
+#m6 .paper .by{font-size:11.5px;color:var(--text-3);margin:2px 0 4px}
+#m6 .paper .chg{background:var(--accent-bg)}
+#m6 .paper .wait{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--pending);background:var(--pending-bg);border-radius:6px;padding:4px 10px;margin:6px 0 2px}
+#m6 .paper .wait i{width:7px;height:7px;border-radius:50%;background:var(--pending);flex:none}
+#m6 .ed{border:1px solid var(--accent-line);border-radius:10px;padding:10px 12px;margin:14px -8px 4px;background:#fbfcff}
+#m6 .ed .lbl{font-size:12px;color:var(--text-3);margin:0 0 6px}
+#m6 .ed .lbl b{color:var(--accent);font-weight:600}
+#m6 .ed .editor .gut{white-space:pre;flex:none}
+#m6 .ed .row{margin-top:8px}
+#m6 .ed .lk{color:var(--text-3);font-size:12px;cursor:pointer}
+#m6 .ed .row .muted{font-size:12px}
+#m6 .foot{font-size:12px;color:var(--text-3);margin:10px 2px 0}
+#m6 .app.editing .main{padding-bottom:84px}
+#m6 .dochead{display:flex;align-items:center;gap:8px;position:relative}
+#m6 .dochead .path{flex:1;min-width:0}
+#m6 .menu{right:0;top:34px}
+#m6 .menu .mi.hot{background:var(--accent-bg);color:var(--accent);font-weight:600}
+#m6 .menu .mi.hot small{color:var(--accent)}
+#m6 .ro{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-3);margin:8px 2px 10px}
+#m6 .ro i{width:8px;height:8px;border-radius:50%;background:var(--border-strong);flex:none}
+
+/* ── M7 · 세션 저장 ── */
+#m7 .one{max-width:1240px;margin:0 auto 16px;display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:9px 14px;font-size:12.5px;color:var(--text-2)}
+#m7 .one b{color:var(--text)}
+#m7 .chat .tb+.msg{border-top:0}
+#m7 .chat .tb b{color:var(--text)}
+#m7 .chat .tb{align-items:center}
+#m7 .chat .msg.u{background:#fafbfc}
+#m7 .chat .bd{flex:1;min-width:0}
+#m7 .chat .bd p{margin:4px 0}
+#m7 .chat .bd p.q{margin:0}
+#m7 .why{color:var(--text-3);font-size:12px;margin-left:6px}
+#m7 .tool{font:12px/1.75 var(--font);color:var(--text-3)}
+#m7 .done{font-weight:600}
+#m7 .done.wait{color:var(--pending)}
+#m7 .chat .diff{max-width:620px;margin:6px 0 4px}
+#m7 .rule{max-width:1240px;margin:-8px auto 22px;color:var(--text-3);font-size:12px}
+#m7 .rule b{color:var(--text-2);font-weight:600}
+
+/* ── M8 · 오늘 바뀐 것 ── */
+#m8 .wrap{max-width:720px;margin:6px auto 0}
+#m8 .feed+.feed{margin-top:14px}
+#m8 .fi .tx b{font-weight:600}
+#m8 .fi .tx .kt{margin-right:3px;vertical-align:1px}
+#m8 .fi .dot.pend{border:0;padding:0;margin:0;border-radius:50%;background:var(--pending)}
+#m8 .fi.ex{background:#fffaf0}
+#m8 .fi.off .tx{color:var(--text-3)}
+#m8 .past{margin-top:12px;font-size:12px;color:var(--accent);text-align:center}
+#m8 .aside p{margin:0 0 10px;font-size:12.5px;color:var(--text-2)}
+#m8 .aside p.sm{font-size:12px;color:var(--text-3)}
+#m8 .aside p b{color:var(--text)}
+#m8 .aside .rare{margin-top:14px;border-top:1px solid var(--border);padding-top:10px}
+#m8 .aside .rare .hd{font-size:12px;color:var(--text-3);margin:0 0 4px}
+#m8 .aside .rare .plain li{font-size:12px;color:var(--text-2);padding:7px 2px}
+#m8 .cmpw{max-width:900px}
+#m8 .cmp{align-items:stretch}
+#m8 .cmp .paper{padding:12px 16px}
+#m8 .cmp .ph{display:flex;align-items:center;gap:8px;font-weight:700;font-size:12.5px;margin:0 0 8px}
+#m8 .cmp .ph small{font-weight:400;color:var(--text-3)}
+#m8 .cmp .paper h3{font-size:15px;margin:0 0 4px}
+#m8 .cmp .paper p{margin:4px 0}
+#m8 .cmp .paper ol{margin:4px 0;padding-left:20px}
+#m8 .cmp .paper li{margin:3px 0}
+#m8 .cmp .paper .chg{background:var(--accent-bg)}
+#m8 .cmp .paper.mine{border-color:#d9d2fb;background:#faf9ff}
+#m8 .cmp .paper.mine .ph{color:var(--pending)}
+#m8 .cmp .paper.mine .chg{background:var(--pending-bg)}
+#m8 .arow{display:flex;align-items:center;gap:10px;margin-top:12px}
+#m8 .arow .muted{font-size:12px}
+#m8 .gray{color:var(--text-3);font-size:12px;margin:10px 2px 0}
+</style>
+
+<!-- ───────── M6 · 읽기 · 고치기 ───────── -->
+<section class="screen" id="m6" data-title="읽기 · 고치기" data-grp="지식">
+  <div class="note"><b>M6 · 읽기 · 고치기(N7).</b> 위는 내 지식 문서 — 경로 줄 · 종이 · 섹션이고, [고치기] 로 그 자리에서 고쳐 [저장] 하나면 기록과 문서가 한 번에 바뀐다(승인 없음 · v0.3 §3.8 그대로). 아래는 팀 지식 문서 — 같은 형식이라 같은 화면이지만 나는 「기록」 이라 고치기 단추가 없고, ⋯ 의 「내 지식으로 복사」 · 「고친 안 보내기」 로만 나간다(v0.3 §3.2 한 방향 · §6). 누가 고치나는 그 지식 안 명단이고, 세운 주인 박이 정했다(§5.4 — GitLab 멤버 수준은 읽지 않는다). v0.3 의 M5 · M11 을 한 장으로 접었고, 「내 지식 | 프로젝트」 토글 대신 칩과 띠의 「나: 기록」 이 가른다 · 편집기로 고친 것은 다음 저장 앞에 kmd 가 거둔다(§3.3 · §8 N7).</div>
+
+  <div class="cap">내 지식 문서(배포노트) — 「실패하면」 섹션을 그 자리에서 고치는 중 · 아래 검은 알림은 [저장] 누른 뒤</div>
+  <div class="app editing" data-where="pc" data-status='<span>이 PC</span><span class="r">v1.13</span>' data-kn="배포노트" data-active="docs" data-crumb="문서 › 헬스체크">
     <div class="main"><div class="wrap">
       <div class="ttl">
         <div class="path"><span>D:\kmd\배포노트\헬스체크.md</span><span class="r">마지막으로 바뀐 때 오늘 09:40</span></div>
-        <span class="rr"><button class="btn">고치기</button><button class="kebab" title="이력 · 보내지 않음으로 · 다른 곳으로 보내기 · 다른 지식으로 옮기기">⋯</button></span>
+        <span class="rr"><button class="kebab" title="이력 · 보낼 곳 바꾸기 · 다른 지식으로 옮기기">⋯</button></span>
       </div>
+      <p class="hint">편집기로 고쳐도 된다 — kmd 가 다음 저장 앞에 이력에 남겨 되돌릴 수 있게 한다.</p>
       <div class="paper">
         <h1>헬스체크</h1>
         <p class="muted small">배포 뒤 서버가 살아 있는지 보는 법 — 내 메모.</p>
@@ -835,236 +983,143 @@ details.more>.in{padding:8px 0 2px;font-size:12.5px;color:var(--text-2)}
         <p>DB 점검이 무거운 서버는 <code>/health?light=1</code> 로 부른다.</p>
         <div class="by">오늘 09:40 세션에서 고침</div>
 
-        <h2>실패하면</h2>
-        <p>세 번 연속 실패하면 그 서버를 로드밸런서에서 뺀다. 빠진 서버는 사람이 확인하고 다시 넣는다.</p>
-      </div>
-    </div></div>
-  </div>
-
-  <div class="cap">11:05 고치는 중 — 도커-네트워크에서 [고치기] 를 누르면 같은 자리에서 글과 미리보기 · 「바깥으로 열기」 에 두 줄을 쓰고 [저장] 을 눌렀다</div>
-  <div class="app ed" data-face="me" data-kn="배포노트" data-active="docs" data-crumb="문서 › 도커-네트워크 › 고치기" data-status='<span>폴더 읽기 · 쓰기 허락됨</span><span>git 없음</span><span class="r">이 PC</span>'>
-    <div class="main">
-      <div class="ttl">
-        <h2>도커-네트워크</h2>
-        <span class="from">D:\kmd\배포노트\도커-네트워크.md 에 바로 쓴다 · 프로젝트로는 내가 보낼 때만</span>
-        <span class="rr"><button class="btn pri">저장</button><button class="kebab" title="이력 · 고치기 그만두기">⋯</button></span>
-      </div>
-      <div class="split">
-        <div>
-          <div class="lbl"><b>글</b></div>
-          <div class="toolbar"><span>제목</span><span>굵게</span><span>목록</span><span>표</span><span>링크</span><span>그림</span></div>
+        <div class="ed">
+          <div class="lbl"><b>실패하면</b> — 고치는 중 · 이 섹션만 연다</div>
+          <div class="toolbar"><span>제목</span><span>굵게</span><span>목록</span><span>표</span><span>링크</span></div>
           <div class="editor"><div class="gut">1
 2
 3
 4
-5
-6
-7
-8
-9
-10
-11
-12
-13
-14
-15
-16
-17
-18
-19</div><div class="tx"><span class="hd"># 도커-네트워크</span>
+5</div><div class="tx"><span class="hd">## 실패하면</span>
 
-배포 서버의 컨테이너가 서로 찾는 법 — 내 메모.
-
-<span class="hd">## 네트워크</span>
-
-앱 · 프록시 · 워커는 같은 네트워크 `dpms-net` 에 둔다.
-기본 bridge 는 쓰지 않는다.
-
-<span class="hd">## 이름으로 부르기</span>
-
-컨테이너끼리는 이름으로 부른다(`api:8080`).
-IP 는 적지 않는다 — 다시 띄우면 바뀐다.
-
-<span class="hd">## 바깥으로 열기</span>
-
-프록시만 80 · 443 을 연다.
-<span class="cur">앱 포트(8080)는 바깥에 열지 않는다.</span>
-<span class="cur">워커는 바깥으로 나가는 요청만 한다.</span></div></div>
-        </div>
-        <div>
-          <div class="lbl"><b>미리보기</b></div>
-          <div class="paper">
-            <h1>도커-네트워크</h1>
-            <p class="muted small">배포 서버의 컨테이너가 서로 찾는 법 — 내 메모.</p>
-            <h2>네트워크</h2>
-            <p>앱 · 프록시 · 워커는 같은 네트워크 <code>dpms-net</code> 에 둔다. 기본 bridge 는 쓰지 않는다.</p>
-            <h2>이름으로 부르기</h2>
-            <p>컨테이너끼리는 이름으로 부른다(<code>api:8080</code>). IP 는 적지 않는다 — 다시 띄우면 바뀐다.</p>
-            <h2>바깥으로 열기</h2>
-            <p>프록시만 80 · 443 을 연다. <span class="chg">앱 포트(8080)는 바깥에 열지 않는다. 워커는 바깥으로 나가는 요청만 한다.</span></p>
-          </div>
+세 번 연속 실패하면 그 서버를 로드밸런서에서 뺀다.
+빠진 서버는 사람이 확인하고 다시 넣는다.
+<span class="cur">다시 넣기 전에 /health 를 다섯 번 연속 통과해야 한다.</span></div></div>
+          <div class="row"><button class="btn pri">저장</button><span class="lk">그만두기</span><span class="muted r">저장하면 기록과 문서가 한 번에 바뀐다 — 쓰기 전에 형식을 본다</span></div>
         </div>
       </div>
-    </div>
-    <div class="toast">11:05 저장했다 — 파일에 바로 · 기록 1 <a>되돌리기</a></div>
+      <p class="foot">팀으로는 내가 보낼 때만 간다 — 배포노트의 보낼 곳: <span class="kn">→ DPMS 지식</span></p>
+    </div></div>
+    <div class="toast">저장했다 — 기록과 문서가 한 번에 <a>되돌리기</a></div>
   </div>
-  <div class="cap">저장하면 문서와 기록이 한 번에 바뀐다(§3.8) · 프로젝트에는 아무것도 가지 않는다 — 보내기는 보낼 것 화면에서 내가 누를 때만</div>
-</section>
 
-<!-- ═════════ 3-session.html ═════════ -->
-<style>
-/* M6 · M7 — Claude Code 대화 */
-#m6 .chat .tb+.msg,#m7 .chat .tb+.msg{border-top:0}
-#m6 .chat .tb b,#m7 .chat .tb b{color:var(--text)}
-#m6 .chat .msg.u,#m7 .chat .msg.u{background:#fafbfc}
-#m6 .chat .bd,#m7 .chat .bd{flex:1;min-width:0}
-#m6 .chat .bd p,#m7 .chat .bd p{margin:4px 0}
-#m6 .chat .bd p.q,#m7 .chat .bd p.q{margin:0}
-#m6 .why,#m7 .why{color:var(--text-3);font-size:12px;margin-left:6px}
-#m6 .tool,#m7 .tool{font:12px/1.75 var(--mono);color:var(--text-3)}
-#m6 .done,#m7 .done{font-weight:600}
-#m6 .chat .diff{max-width:620px;margin:6px 0 4px}
-#m6 .wrap{max-width:1240px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;align-items:start}
-#m6 .wrap>.chat{margin:0;max-width:none}
-#m6 .files{background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;padding:12px 14px;box-shadow:0 10px 30px rgba(15,23,42,.08)}
-#m6 .files .fl{font-weight:700;font-size:12.5px;margin-bottom:6px}
-#m6 .files .tree{border:0;padding:4px 0 8px;background:none;overflow:hidden}
-#m6 .tree .c{color:var(--accent);font-weight:700}
-#m6 .tree i{font:normal 11.5px var(--font);color:var(--accent)}
-#m6 .tree i.m{color:var(--text-3)}
-#m6 .files .plain li{font-size:12px}
-#m6 .mini{max-width:1240px;margin:0 auto}
-#m6 .mini .feed{max-width:720px}
-#m6 .fi .tx b,#m8 .fi .tx b{font-weight:600}
-#m7 .rule{max-width:1240px;margin:-8px auto 22px;color:var(--text-3);font-size:12px}
-#m7 .rule b{color:var(--text-2);font-weight:600}
-/* M8 — 오늘 바뀐 것 */
-#m8 .wrap{max-width:720px;margin:6px auto 0}
-#m8 .top{display:flex;align-items:center;gap:10px}
-#m8 .top .seg{margin-left:auto}
-#m8 .feed+.feed{margin-top:14px}
-#m8 .fi .dot.pend{border:0;padding:0;margin:0;border-radius:50%;background:var(--pending)}
-#m8 .fi.wait{background:#faf9ff}
-#m8 .fi.wait .tx{color:var(--pending)}
-#m8 .fi.wait .tx small{color:var(--text-3)}
-#m8 .past{margin-top:12px;font-size:12px;color:var(--accent);text-align:center}
-#m8 .aside p{margin:0 0 10px;font-size:12.5px;color:var(--text-2)}
-#m8 .aside p.sm{font-size:12px;color:var(--text-3)}
-#m8 .aside p b{color:var(--text)}
-</style>
-
-<!-- ───────── M6 · 세션에서 저장 — 내 지식 ───────── -->
-<section class="screen" id="m6" data-title="세션에서 저장 — 내 지식" data-grp="세션">
-  <div class="note"><b>M6 · 세션에서 저장 — 내 지식.</b> 09:40 dpms 코드 폴더의 Claude Code — 기본 행선은 팀이지만 「내 메모로」 한 마디에 그 폴더의 기본 지식(배포노트)으로 바뀌고, 같은 저장에서 기록 1 과 맞는 섹션(헬스체크 › 시간 초과)이 함께 고쳐진다(§3.3 · §3.8). 고칠 자리는 <code>cdp-curate</code> 와 같은 규칙, 쓰기 전에 같은 core 검사(§3.6). v0.2 의 개인 서버 · <code>--to me</code> · <code>CDP_ME_TOKEN</code> 은 없다 — Claude Code 가 D:\kmd 에 파일 둘을 쓰고 팀 서버로는 아무것도 가지 않는다(§3.4).</div>
-
-  <div class="wrap">
-    <div class="chat">
-      <div class="tb"><b>Claude Code</b><span>— D:\work\dpms</span><span class="r">dpms_wiki 에 이어진 코드 폴더 · 10-21(수) 09:40</span></div>
-      <div class="msg u"><span class="who">김</span><div class="bd"><p class="q">헬스체크 시간 초과 3초로 줄인 거 저장해</p></div></div>
-      <div class="msg"><span class="who">Claude</span><div class="bd">
-        <div><span class="dest">→ 팀 · dpms_wiki 에 기록</span><span class="why">바꾸려면 「내 메모로」</span></div>
-      </div></div>
-      <div class="msg u"><span class="who">김</span><div class="bd"><p class="q">내 메모로</p></div></div>
-      <div class="msg"><span class="who">Claude</span><div class="bd">
-        <div><span class="dest me">→ 내 지식 · 배포노트</span><span class="why">이 코드 폴더의 기본 지식 — D:\kmd\배포노트</span></div>
-        <p>한 번에 한다 — <b>기록 1</b> · 문서 <b>헬스체크 › 시간 초과</b> 고침 <span class="why">같은 제목의 섹션이 있다</span></p>
-        <div class="diff">
-          <div class="fh">헬스체크.md › 시간 초과</div>
-          <div class="ln">## 시간 초과</div>
-          <div class="ln del">시간 초과는 5초다.</div>
-          <div class="ln add">시간 초과는 3초다. 5초로 두면 로드밸런서(4초)가</div>
-          <div class="ln add">먼저 끊어 실패가 두 번 세어진다.</div>
+  <div class="cap">같은 화면 — 팀 지식 문서(DPMS 지식 · 나: 기록). 같은 형식이라 모양이 같고, 다른 것은 칩 · 띠 · 그 자리에서 고칠 수 없다는 것뿐 · ⋯ 를 펼친 모습</div>
+  <div class="app" data-where="pc" data-status='<span>이 PC</span><span class="r">v1.13</span>' data-kn="dpms_wiki" data-role="기록" data-active="docs" data-crumb="문서 › 배포절차" data-sync="새로 바뀜 2">
+    <div class="main"><div class="wrap">
+      <div class="dochead">
+        <div class="path"><span>DPMS 지식 › 운영/배포절차.md</span><span class="r">마지막으로 바뀐 때 오늘 14:18 · 박</span></div>
+        <button class="kebab on" title="내 지식으로 복사 · 고친 안 보내기 · 이력">⋯</button>
+        <div class="menu">
+          <div class="mi hot">내 지식으로 복사<small>배포노트로</small></div>
+          <div class="mi">고친 안 보내기 — 내 지식에서<small>복사한 글을 고쳐서</small></div>
+          <div class="sep"></div>
+          <div class="mi rare">이력<small>누가 언제 고쳤나</small></div>
         </div>
-        <div class="tool">⎿ 기록 — work\2026-10-21-헬스체크.md</div>
-        <div class="tool">⎿ 쓰기 전 확인 — 형식 · 어휘 이상 없음</div>
-        <p class="done">저장했다 — D:\kmd\배포노트. 팀에는 가지 않는다.</p>
-        <p class="why" style="margin-left:0">배포노트의 보낼 곳 dpms_wiki 로는 「보내기」 를 누를 때만 간다.</p>
-      </div></div>
-    </div>
+      </div>
+      <div class="ro"><i></i>이 문서는 정리하는 사람(박 · 최)이 고친다 — 나: 기록 · 정리하는 사람은 이 지식을 세운 박이 정했다</div>
+      <div class="paper">
+        <h1>배포절차</h1>
+        <p class="muted small">DPMS 운영 배포 — 카나리에서 운영까지.</p>
 
-    <div class="files">
-      <div class="fl">이 저장으로 내 폴더에서 바뀐 것</div>
-<div class="tree"><b>D:\kmd</b>
-├ <b>배포노트</b>
-│ ├ <span class="c">헬스체크.md</span>  <i>고침</i>
-│ ├ 도커-네트워크.md
-│ ├ …  <i class="m">문서 12</i>
-│ └ work
-│   └ <span class="c">2026-10-21-헬스체크.md</span> <i>기록</i>
-├ 설계메모
-├ 개인메모
-├ 받은편지함
-└ 회의록-2026</div>
-      <ul class="plain">
-        <li>한 번에 바뀐 파일<span class="r">둘 — 문서 · 기록</span></li>
-        <li>팀 서버로 간 것<span class="r">없음</span></li>
-        <li>배포노트의 보낼 곳<span class="r"><span class="kn">→ dpms_wiki</span> 누를 때만</span></li>
-      </ul>
-    </div>
-  </div>
+        <h2>준비</h2>
+        <p>배포 전 마지막 확인은 <code>stg-2</code> 에서 한다. 이미지 이름은 날짜-순번으로 짓는다.</p>
 
-  <div class="cap">같은 저장을 브라우저에서 보면 — 내 지식 › 오늘 바뀐 것</div>
-  <div class="mini">
-    <div class="feed">
-      <div class="fh">오늘<small>10-21(수)</small></div>
-      <div class="fi"><span class="tm">09:40</span><span class="dot acc"></span><div class="tx">세션에서 저장 — 배포노트 › <b>헬스체크</b> 「시간 초과」 를 고쳤다<small>dpms 코드 폴더에서 「내 메모로」 한 마디 — 기록 1 과 문서가 한 번에</small></div><span class="act">되돌리기</span></div>
-    </div>
+        <h2>카나리</h2>
+        <p><code>canary-1</code> 에 먼저 올리고 30분 지켜본다. 오류율이 1% 를 넘으면 멈춘다.</p>
+
+        <h2>헬스 체크</h2>
+        <p><span class="chg">각 서버의 <code>/health</code> 를 30초마다 부른다. 시간 초과는 3초 — 로드밸런서(4초)보다 짧게 둔다.</span></p>
+        <div class="by">오늘 14:18 박이 고쳤다 — 내가 보낸 고친 안이 들어갔다</div>
+
+        <h2>롤백</h2>
+        <p>실패하면 DB 를 먼저 되돌리고, 앱을 이전 판으로 내린다.</p>
+        <div class="wait"><i></i>내가 14:05 올린 기록 1 이 기다린다 — 정리하는 사람이 넣으면 여기가 바뀐다</div>
+      </div>
+    </div></div>
   </div>
 </section>
 
-<!-- ───────── M7 · 세션에서 저장 — 팀으로 / 내 메모로 ───────── -->
-<section class="screen" id="m7" data-title="세션에서 저장 — 팀으로 / 내 메모로" data-grp="세션">
-  <div class="note"><b>M7 · 세션에서 저장 — 팀으로 / 내 메모로.</b> 세션은 팀(지금 MCP save)과 내 지식(파일 쓰기)을 둘 다 쓰고, 저장 전에 행선 한 줄을 늘 보인다 — 바꾸는 것은 「내 메모로」 · 「팀으로」 한 마디(§3.3 · Q12). 팀으로 가면 기록만 서고 문서는 큐레이터가, 내 지식이면 기록과 문서가 한 번에 바뀐다 — 예외는 형식 검사에 걸린 메모 하나뿐(§3.8). v0.2 는 행선을 폴더가 정해 코드 폴더에서 내 메모로 남길 길이 없었다(지적 C). 둘 다에 저장은 두지 않는다(§3.2).</div>
+<!-- ───────── M7 · 세션 저장 — 행선 한 줄 ───────── -->
+<section class="screen" id="m7" data-title="세션 저장 — 행선 한 줄" data-grp="세션">
+  <div class="note"><b>M7 · 세션 저장 — 행선 한 줄(N8).</b> 세션은 이 kmd 의 MCP 하나에 사용자 범위로 한 번 잇고, 저장 전에 「→ 팀 · DPMS 지식」 / 「→ 내 지식 · 배포노트」 한 줄을 늘 보인다 — 그 줄이 곧 save 의 <code>repo</code> 다(§6 · 기본 행선은 말한 대로 → 코드 폴더가 기억한 지식 → 받은편지함). ① 그사이 박이 먼저 올려 밀려도 kmd 가 최신 글 위에서 같은 save 를 다시 돌려 올린다 — 사람에게는 결과 한 줄뿐(§4.2 ③~⑤ · 두 글을 합치지 않는다). ② 내 지식은 주인 = 정리라 저장이 곧 반영(v0.3 §3.8 그대로) · ③ 망이 없으면 <code>state: 'local'</code> 「저장됨 · 아직 안 올림」 · 닿으면 저절로 간다(정리 save 는 닿을 때만 · §4.4). v0.3 은 개인 = 파일 직접 쓰기 · 팀 = MCP 로 길이 둘이었다(§12).</div>
 
-  <div class="cap">① 팀 프로젝트에 이어진 코드 폴더에서 그냥 「저장해」 — 팀에는 기록만 가고, 문서는 박이 정리할 때 바뀐다</div>
+  <div class="one"><span class="chip c-acc">한 번</span><span><b>Claude Code 는 이 kmd 하나에 한 번 잇는다 — 지식이 여럿이어도.</b> 어느 지식에 둘지는 저장할 때 한 줄로 보이고, 한 마디로 바꾼다.</span></div>
+
+  <div class="cap">① 팀 지식으로 — 그사이 박이 먼저 올렸다(14:05)</div>
   <div class="chat">
-    <div class="tb"><b>Claude Code</b><span>— D:\work\dpms</span><span class="r">dpms_wiki 에 이어진 코드 폴더 · 10-16</span></div>
+    <div class="tb"><b>Claude Code</b><span>— D:\work\dpms</span><span class="r">10-21(수) 14:05</span></div>
     <div class="msg u"><span class="who">김</span><div class="bd"><p class="q">롤백 순서 바꾼 거 저장해</p></div></div>
     <div class="msg"><span class="who">Claude</span><div class="bd">
-      <div><span class="dest">→ 팀 · dpms_wiki 에 기록</span><span class="why">바꾸려면 「내 메모로」</span></div>
+      <div><span class="dest">→ 팀 · DPMS 지식 에 기록</span><span class="why">이 코드 폴더는 늘 여기에 저장했다 · 바꾸려면 「배포노트로」</span></div>
       <p>올릴 기록 — 「롤백 순서: 앱을 먼저 이전 판으로 내리고, 그다음 DB 를 되돌린다」</p>
-      <div class="tool">⎿ dpms_wiki 에 기록 1</div>
-      <p class="done">올렸다 — 기록 1. 팀 문서는 박이 정리할 때 바뀐다.</p>
+      <p class="done">저장했다 — 박이 그사이 먼저 올렸지만 최신 글 위에서 다시 저장해 올렸다 · 따로 할 일 없음</p>
+      <p class="why" style="margin-left:0">기록만 올라간다 — 문서는 정리하는 사람(박 · 최)이 넣는다.</p>
     </div></div>
   </div>
-  <p class="rule"><b>팀은 기록만 · 내 지식은 기록과 문서가 한 번에</b> — 같은 「저장해」 라도 팀으로 가면 박이 나중에 문서에 넣고, 「내 메모로」 하면 그 자리에서 문서까지 바뀐다(M6). <b>행선은 묻지 않고 정한다</b> — 말한 대로 → 코드 폴더가 팀 프로젝트에 이어져 있으면 팀 → 아니면 내 지식. 바꾸는 것은 한 마디. <b>둘 다에는 저장하지 않는다</b> — 내 메모로 두었다가 나중에 「보내기」 로 보낸다.</p>
+  <p class="rule"><b>kmd 가 여럿이어도 같은 지식을 같이 쓴다</b> — 박은 팀 서버의 kmd 로, 나는 이 PC 의 kmd 로 같은 DPMS 지식에 저장한다. 거의 같이 저장하면 뒤의 kmd 가 최신 글 위에서 같은 검사로 다시 저장한다. 두 글을 섞지 않고, 정말 같은 곳일 때만 「그사이 다른 사람이 같은 곳을 고쳤다」 한 줄로 멈춘다(M8).</p>
 
-  <div class="cap">② 어느 지식인지 정해지지 않은 폴더에서 — 받은편지함으로 · 문서에 못 넣으면 기록만(13:50)</div>
+  <div class="cap">② 같은 폴더에서 「배포노트로」 —내 지식은 저장이 곧 반영(09:40)</div>
   <div class="chat">
-    <div class="tb"><b>Claude Code</b><span>— D:\work\tools</span><span class="r">10-21(수) 13:50 · 팀에도, 정해 둔 지식에도 이어지지 않은 폴더</span></div>
-    <div class="msg u"><span class="who">김</span><div class="bd"><p class="q">배포 전에 볼 것 메모해 — 디스크 · 인증서 만료 · 백업</p></div></div>
+    <div class="tb"><b>Claude Code</b><span>— D:\work\dpms</span><span class="r">10-21(수) 09:40</span></div>
+    <div class="msg u"><span class="who">김</span><div class="bd"><p class="q">헬스체크 시간 초과 3초로 줄인 거 저장해 — 배포노트로</p></div></div>
     <div class="msg"><span class="who">Claude</span><div class="bd">
-      <div><span class="dest me">→ 내 지식 · 받은편지함 — 나중에 옮긴다</span><span class="why">이 폴더에 정해 둔 지식이 없다</span></div>
-      <div class="tool">⎿ 쓰기 전 확인 — 제목 줄이 없다 · 문서에는 넣지 않았다</div>
-      <p class="done">기록만 남겼다 — 받은편지함 › 배포 전 체크.</p>
-      <p class="why" style="margin-left:0">「오늘 바뀐 것」 에 보라 줄로 남는다 — 제목 한 줄을 넣으면 문서에 들어간다.</p>
+      <div><span class="dest me">→ 내 지식 · 배포노트</span><span class="why">「배포노트로」 — 말한 대로</span></div>
+      <p>한 번에 한다 — <b>기록 1</b> · 문서 <b>헬스체크 › 시간 초과</b> 고침 <span class="why">같은 제목의 섹션이 있다</span></p>
+      <div class="diff">
+        <div class="fh">헬스체크 › 시간 초과</div>
+        <div class="ln">## 시간 초과</div>
+        <div class="ln del">시간 초과는 5초다.</div>
+        <div class="ln add">시간 초과는 3초다. 5초로 두면 로드밸런서(4초)가</div>
+        <div class="ln add">먼저 끊어 실패가 두 번 세어진다.</div>
+      </div>
+      <div class="tool">⎿ 쓰기 전 확인 — 이상 없음</div>
+      <p class="done">저장했다 — 기록과 문서가 한 번에. 팀에는 가지 않는다.</p>
+      <p class="why" style="margin-left:0">배포노트의 보낼 곳 DPMS 지식으로는 「보내기」 를 누를 때만 간다.</p>
     </div></div>
   </div>
-  <p class="rule"><b>어느 지식에 두나</b> — 말한 것(「설계메모에 저장해」) → 이 코드 폴더에 정해 둔 지식(D:\work\dpms → 배포노트 같은 짝) → 루트의 받은편지함. 받은편지함에 모인 메모는 나중에 맞는 지식으로 옮긴다.</p>
+  <p class="rule"><b>내 지식은 내가 주인이라 저장이 곧 반영</b> — 기록과 문서가 한 번에 바뀌고 기다릴 것이 없다. 팀 지식이면 기록만 올라가고 문서는 정리하는 사람이 넣는다(①). <b>둘 다에는 저장하지 않는다</b> — 내 지식에 두었다가 나중에 「보내기」 로.</p>
+
+  <div class="cap">③ 망이 끊긴 때 — 지하철(08:10)</div>
+  <div class="chat">
+    <div class="tb"><b>Claude Code</b><span>— D:\work\dpms</span><span class="chip c-warn">망 없음</span><span class="r">10-21(수) 08:10 · 지하철</span></div>
+    <div class="msg u"><span class="who">김</span><div class="bd"><p class="q">카나리 비율 10% 로 바꾼 거 저장해</p></div></div>
+    <div class="msg"><span class="who">Claude</span><div class="bd">
+      <div><span class="dest">→ 팀 · DPMS 지식 에 기록</span><span class="why">이 코드 폴더는 늘 여기에 저장했다</span></div>
+      <p>올릴 기록 — 「카나리 비율: 첫 30분은 10% 만 보낸다」</p>
+      <div class="tool">⎿ 망이 닿지 않는다 — 이 PC 에 먼저 두었다</div>
+      <p class="done wait">저장됨 · 아직 안 올림 — 닿으면 저절로 간다</p>
+      <p class="why" style="margin-left:0">다시 말하지 않아도 된다 — 망이 닿으면 kmd 가 올리고, 결과는 「오늘 바뀐 것」 에 한 줄로 남는다.</p>
+    </div></div>
+  </div>
+  <p class="rule"><b>기록은 이 PC 에 먼저 두고 닿으면 간다</b> — 이날은 08:52 에 저절로 올라갔다. 그사이 바뀐 것이 있으면 ①처럼 최신 글 위에서 다시 저장한다. 정리하는 사람(박 · 최)이 문서에 넣는 일만은 망이 닿을 때만 한다 — 그 자리에서 끝나야 안전하다.</p>
 </section>
 
 <!-- ───────── M8 · 오늘 바뀐 것 ───────── -->
-<section class="screen" id="m8" data-title="오늘 바뀐 것" data-grp="내 지식">
-  <div class="note"><b>M8 · 오늘 바뀐 것.</b> 루트 D:\kmd 의 지식 전체에서 오늘 저장했거나 바뀐 것을 한 줄씩 — 세션 저장 · 화면에서 고친 것은 기록과 문서가 이미 함께 바뀐 뒤라 줄마다 [되돌리기] 하나, 편집기로 고친 것은 파일 그대로 보일 뿐 할 일이 없다. 보라 줄은 형식 검사에 걸려 기록만 남은 메모 — 개인 쪽에서 대기가 보이는 유일한 경우다(§3.8). v0.2 「오늘 한 일」 의 원본 반영 · 편집기 자동 저장 · 프로젝트 소식 받기 줄은 모두 없어졌다(원본이 곧 내 지식 · 한 방향 · §3.2). 단추 0 — 목록은 폴더의 기록과 파일 시각에서 브라우저가 계산한다(I8).</div>
+<section class="screen" id="m8" data-title="오늘 바뀐 것" data-grp="지식">
+  <div class="note"><b>M8 · 오늘 바뀐 것(N9).</b> 개인 · 팀 지식 전체에서 kmd 가 알아서 한 일과 다른 곳에서 바뀐 것을 한 줄씩 — 늦게 올리기 · 다시 저장 · 받기 · 편집기 거두기는 말없이 하고 결과만 남긴다(§4.2 · §4.5 · §3.3). 멈추는 것은 앰버 한 줄 「그사이 다른 사람이 같은 곳을 고쳤다」 뿐이고, [비교] 를 열면 두 글이 나란히 — 기계는 섞지 않는다(§4.3 같은 id 는 보류 · 원문은 받은편지함 · I12). v0.3 M8 에 「새로 바뀜」 · 「편집기에서 고친 것을 이력에 남겼다」 · 늦게 간 것 · 형식 문턱 줄이 더해졌고, 개인 · 팀은 칩으로만 가른다(§8 N9 · §7). 목록은 기록에서 계산한다(I8) · 단추 0.</div>
 
-  <div class="app" data-face="me" data-kn="*" data-active="today" data-crumb="오늘 바뀐 것" data-badges='{"today":1,"send":3}' data-status='<span>폴더 읽기 · 쓰기 허락됨</span><span>git 없음</span><span class="r">이 PC</span>'>
+  <div class="app" data-where="pc" data-status='<span>이 PC</span><span class="r">v1.13</span>' data-kn="*" data-active="today" data-crumb="오늘 바뀐 것">
     <div class="main">
       <div class="wrap">
-        <div class="top"><div class="big">오늘 바뀐 것</div><div class="seg"><span class="on">모든 지식</span><span>배포노트</span></div></div>
-        <p class="lead">내가 저장했거나 바뀐 것 — 한 줄씩. 마음에 들지 않으면 그 줄에서 되돌린다.</p>
+        <div class="big">오늘 바뀐 것</div>
+        <p class="lead">kmd 가 알아서 한 일 · 다른 곳에서 바뀐 것. 마음에 들지 않으면 그 줄에서.</p>
 
         <div class="feed">
           <div class="fh">오늘<small>10-21(수)</small></div>
-          <div class="fi wait"><span class="tm">13:50</span><span class="dot pend"></span><div class="tx">반영 못 한 메모 1 — 받은편지함 › 「배포 전 체크」<small>제목 줄이 없어 문서에 넣지 못했다 · 제목 한 줄을 넣으면 들어간다</small></div><span class="act">고치기</span></div>
-          <div class="fi"><span class="tm">13:31</span><span class="dot acc"></span><div class="tx">편집기에서 바뀐 것이 보인다 — 배포노트 › <b>카나리-배포</b><small>파일을 직접 고쳤다 · 따로 할 일 없음</small></div><span class="act mute">보기</span></div>
-          <div class="fi"><span class="tm">11:05</span><span class="dot acc"></span><div class="tx">화면에서 고침 — 배포노트 › <b>도커-네트워크</b><small>고친 그 자리에서 문서에 들어갔다 · 기록 1</small></div><span class="act">되돌리기</span></div>
-          <div class="fi"><span class="tm">09:40</span><span class="dot acc"></span><div class="tx">세션에서 저장 — 배포노트 › <b>헬스체크</b> 「시간 초과」 를 고쳤다<small>dpms 코드 폴더에서 「내 메모로」 한 마디 — 기록 1 과 문서가 한 번에</small></div><span class="act">되돌리기</span></div>
+          <div class="fi ex"><span class="tm">14:19</span><span class="dot warn"></span><div class="tx"><span class="kt team">팀</span>그사이 다른 사람이 같은 곳을 고쳤다 — DPMS 지식 › <b>롤백 절차</b>(기록)<small>박이 같은 이름으로 먼저 올렸다 · 내 글은 따로 두었다 — 잃은 것 없음</small></div><span class="act">비교</span></div>
+          <div class="fi"><span class="tm">14:18</span><span class="dot acc"></span><div class="tx"><span class="kt team">팀</span>DPMS 지식에서 새로 바뀜 —배포절차 › <b>헬스 체크</b> · 박<small>내가 14:12 보낸 고친 안이 들어갔다 · 내 배포노트는 그대로</small></div><span class="act" data-go="m6">보기</span></div>
+          <div class="fi"><span class="tm">14:12</span><span class="dot pend"></span><div class="tx">팀으로 보냈다 — DPMS 지식 2 · GDI 지식 1<small>배포노트 · 설계메모에서 · 정리하는 사람이 넣으면 여기 한 줄이 뜬다</small></div><span class="act mute">보기</span></div>
+          <div class="fi"><span class="tm">14:05</span><span class="dot pend"></span><div class="tx"><span class="kt team">팀</span>DPMS 지식에 기록 저장 —박이 먼저 올렸지만 저절로 다시 올라갔다<small>따로 할 일 없음 · 문서는 정리하는 사람(박 · 최)이 넣는다</small></div><span class="act mute">보기</span></div>
+          <div class="fi"><span class="tm">13:52</span><span class="dot"></span><div class="tx"><span class="kt team">팀</span>kmd 밖에서 고친 것이 들어왔다 — DPMS 지식 · 최 · 오류 0</div></div>
+          <div class="fi"><span class="tm">11:05</span><span class="dot acc"></span><div class="tx"><span class="kt me">개인</span>편집기에서 고친 것을 이력에 남겼다 — 배포노트 › <b>카나리-배포</b><small>파일을 직접 고쳤다 · 따로 할 일 없음 · 되돌릴 수 있다</small></div><span class="act">되돌리기</span></div>
+          <div class="fi"><span class="tm">09:40</span><span class="dot acc"></span><div class="tx"><span class="kt me">개인</span>세션에서 저장 — 배포노트 › <b>헬스체크</b> 「시간 초과」<small>기록과 문서가 한 번에 · dpms 코드 폴더에서 「배포노트로」 한 마디</small></div><span class="act">되돌리기</span></div>
+          <div class="fi off"><span class="tm">08:10</span><span class="dot"></span><div class="tx"><span class="kt team">팀</span>지하철에서 저장 — DPMS 지식 › 카나리 비율(기록)<small>그때는 「저장됨 · 아직 안 올림 — 닿으면 저절로 간다」 · 08:52 망이 닿자 저절로 올라갔다</small></div></div>
         </div>
 
         <div class="feed">
           <div class="fh">어제<small>10-20(화)</small></div>
-          <div class="fi"><span class="tm">17:05</span><span class="dot"></span><div class="tx">프로젝트로 보낸 3 — 반영 2 · 그대로 둠 1<small>박이 정했다 · 그대로 둔 1 은 「운영 문서에 이미 있음」 · 내 글은 그대로다</small></div><span class="act" data-go="m10">보기</span></div>
-          <div class="fi"><span class="tm">16:20</span><span class="dot"></span><div class="tx">D:\kmd 에 <b>회의록-2026</b> 폴더가 생겼다 — md 31<small>탐색기로 옮겨 넣었다 · 아직 kmd 형식이 아니다 — 한 번 누르면 된다</small></div><span class="act" data-go="m3">kmd 지식으로 만들기</span></div>
+          <div class="fi"><span class="tm">17:05</span><span class="dot"></span><div class="tx">팀으로 보낸 3 — 들어감 2 · 그대로 둠 1<small>박이 정했다 · 그대로 둔 1 은 「운영 문서에 이미 있음」 · 내 글은 그대로다</small></div><span class="act">보기</span></div>
+          <div class="fi"><span class="tm">16:30</span><span class="dot"></span><div class="tx">kmd 가 새 판(v1.13)으로 저절로 올라갔다<small>GDI 지식이 지난주 더 새 kmd 로 만들어져 있었다 — 이제 여기서도 쓴다 · 안 되면 앞 판으로 돌아간다</small></div></div>
         </div>
 
         <div class="past">그 전 — 지난 7일 보기</div>
@@ -1072,84 +1127,122 @@ IP 는 적지 않는다 — 다시 띄우면 바뀐다.
     </div>
 
     <div class="aside">
-      <p><b>반영 못 한 것이 생기는 때</b> — 형식이 맞지 않는 메모만. 나머지는 저장하면서 문서에 들어간다.</p>
-      <p class="sm">되돌리기는 바로 전 글로 다시 쓴다. 되돌린 것도 여기 한 줄로 남는다.</p>
-      <p class="sm">편집기로 고친 것은 되돌릴 전 글이 없다 — 폴더를 git 으로 두면 생긴다.</p>
+      <p><b>말없이 하는 일</b> — 망이 닿으면 올리기 · 거의 같이 저장했을 때 최신 글 위에서 다시 저장 · 다른 곳에서 바뀐 것 받기 · 편집기로 고친 것 남기기. 결과만 여기 한 줄.</p>
+      <p><b>멈추는 때</b> — 정말 같은 곳을 고쳤을 때 하나. 앰버 줄과 [비교] — 내 글은 잃지 않는다.</p>
+      <p class="sm">되돌리기는 바로 전 글로 다시 저장한다. 되돌린 것도 여기 한 줄로 남는다.</p>
+      <div class="rare">
+        <div class="hd">드물게 보이는 줄</div>
+        <ul class="plain">
+          <li>kmd 밖에서 고친 것이 들어왔다 — 최 · 오류 0</li>
+          <li>주인이 아닌 사람이 명단을 바꿨다 — 무시했다</li>
+          <li>어제 17:00 판으로 보는 중 — 망이 닿으면 맞춘다</li>
+          <li>이 지식은 더 새 kmd 로 만들어졌다 — 올리면 고쳐진다</li>
+        </ul>
+      </div>
     </div>
+  </div>
+
+  <div class="cap">14:19 줄의 [비교] 를 연 모습 — 롤백 절차 · 박이 먼저 올린 글과 내 글이 나란히</div>
+  <div class="app" data-where="pc" data-status='<span>이 PC</span><span class="r">v1.13</span>' data-kn="dpms_wiki" data-role="기록" data-active="today" data-crumb="오늘 바뀐 것 › 비교" data-sync="새로 바뀜 2">
+    <div class="main"><div class="wrap cmpw">
+      <div class="big">롤백 절차 — 두 글</div>
+      <p class="lead">박이 14:15 같은 이름으로 먼저 올렸다. kmd 가 최신 글 위에서 다시 저장해 보았지만 같은 곳이라 멈췄다 — 내 글은 받은편지함에 따로 두었다.</p>
+      <div class="split cmp">
+        <div class="paper">
+          <div class="ph">박이 먼저 올린 글<small>14:15 · 팀 서버의 kmd 에서</small></div>
+          <h3>롤백 절차</h3>
+          <p>카나리에서 오류율이 1% 를 넘으면</p>
+          <ol>
+            <li>카나리만 이전 판으로 내린다.</li>
+            <li>운영 서버는 건드리지 않는다.</li>
+            <li><span class="chg">DB 는 되돌리지 않는다 — 카나리도 같은 DB 를 쓴다.</span></li>
+          </ol>
+        </div>
+        <div class="paper mine">
+          <div class="ph">내 글(따로 두었다)<small>14:19 · 받은편지함에 있다</small></div>
+          <h3>롤백 절차</h3>
+          <p>카나리에서 오류율이 1% 를 넘으면</p>
+          <ol>
+            <li>카나리만 이전 판으로 내린다.</li>
+            <li>운영 서버는 건드리지 않는다.</li>
+            <li><span class="chg">앱이 내려간 뒤 DB 를 되돌린다.</span></li>
+            <li><span class="chg">알림 채널에 한 줄 남긴다.</span></li>
+          </ol>
+        </div>
+      </div>
+      <div class="arow">
+        <button class="btn">다시 하기</button>
+        <span class="muted">에이전트가 박의 글 위에서 내 글을 다시 짓는다 — 이름도 그때 새로 · 박의 글은 그대로</span>
+        <button class="kebab r" title="내 글 버리기 · 내 지식으로 옮기기">⋯</button>
+      </div>
+      <p class="gray">기계는 두 글을 섞지 않는다 — 어느 쪽을 문서에 넣을지는 사람이 정한다.</p>
+    </div></div>
   </div>
 </section>
 
 <!-- ═════════ 4-send.html ═════════ -->
 <style>
-#m9 .wrap{max-width:700px}
+#m9 .wrap{max-width:720px}
 #m9 .card .cb{padding:2px 12px 8px}
 #m9 table.t td{vertical-align:middle}
-#m9 table.t td.nm b{display:block}
-#m9 table.t td.nm small{color:var(--text-3);font-size:11.5px}
+#m9 table.t td.nm b{margin-right:6px}
+#m9 table.t td.nm small{display:block;color:var(--text-3);font-size:11.5px;margin-top:1px}
 #m9 table.t td.kb{width:36px;text-align:right;padding:4px 6px}
 #m9 table.t td .kn+.kn{margin-left:4px}
-#m9 table.t tr.dim td.nm b{color:var(--text-2)}
 #m9 table.t td .was{display:block;color:var(--text-3);font-size:11.5px;margin-top:2px}
+#m9 .cand{display:flex;flex-direction:column;gap:6px;padding:10px 2px 4px;border-top:1px solid var(--border);margin-top:4px;font-size:12px;color:var(--text-2)}
+#m9 .cand .hd{display:flex;gap:8px;align-items:center;color:var(--text-3)}
+#m9 .cand .hd .act{margin-left:auto;color:var(--accent);font-weight:600;cursor:pointer;white-space:nowrap}
+#m9 .cand .it{display:flex;gap:6px;align-items:center}
+#m9 .cand .it b{color:var(--text)}
 #m9 .hint{font-size:12px;color:var(--text-3);margin:6px 2px 0}
 #m9 details.more .in p{margin:0 0 6px}
 #m9 .aside h4{margin:2px 0 8px;font-size:13px}
-#m9 .map{width:100%;height:auto;display:block;margin:0 0 8px}
+#m9 .aside p{margin:0 0 8px;font-size:12px;color:var(--text-2)}
+#m9 .map{width:100%;height:auto;display:block;margin:0 0 10px}
 #m9 .map .bx{fill:var(--surface);stroke:var(--border-strong);stroke-width:1}
-#m9 .map .bx.raw{fill:var(--bg);stroke-dasharray:4 3}
-#m9 .map .pj{fill:var(--surface-2);stroke:var(--border-strong);stroke-width:1}
+#m9 .map .pj{fill:var(--accent-bg);stroke:var(--accent-line);stroke-width:1}
 #m9 .map text{font-size:12px;fill:var(--text);font-family:var(--font)}
-#m9 .map text.pn{font-family:var(--mono);font-size:11.5px}
 #m9 .map text.mu{fill:var(--text-3);font-size:11px}
 #m9 .map text.hd{fill:var(--text-3);font-size:10.5px}
 #m9 .map .ln{stroke:var(--accent);stroke-width:1.6;fill:none}
 #m9 .map .ah{fill:var(--accent)}
-#m9 .aside p{margin:0 0 8px;font-size:12px;color:var(--text-2)}
 
-#m10 .wrap{max-width:720px}
-#m10 .card .ch .chip{font-weight:600}
-#m10 .card .cb{padding:2px 14px 6px}
-#m10 .plain li b{min-width:92px}
-#m10 .plain li .to{margin-left:auto;color:var(--text-2);font-size:12px;white-space:nowrap}
-#m10 .skip{color:var(--text-3);font-size:12px;margin:2px 2px 0}
-#m10 .sendrow{display:flex;align-items:center;gap:10px;margin:12px 0 0;padding-top:10px;border-top:1px solid var(--border)}
-#m10 details.more .in p{margin:0 0 6px}
-#m10 .after .wrap{padding-bottom:64px}
-#m10 .empty{color:var(--text-3);font-size:12.5px;padding:4px 2px 12px}
-#m10 .fi .dot.pend{padding:0;margin:0;border:0;border-radius:50%;background:var(--pending)}
-
-#m11 .wrap{max-width:800px}
-#m11 .dochead{display:flex;align-items:center;gap:8px;position:relative}
-#m11 .dochead .path{flex:1}
-#m11 .menu{right:0;top:34px}
-#m11 .menu .mi.hot{background:var(--accent-bg);color:var(--accent);font-weight:600}
-#m11 .menu .mi.hot small{color:var(--accent)}
-#m11 .ro{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-2);margin:8px 2px 10px}
-#m11 .ro i{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}
-#m11 .paper table.t{max-width:520px}
-#m11 .cpy{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12.5px;color:var(--text-2);margin:0 0 12px}
-#m11 .cpy .lk{margin-left:auto;color:var(--accent);font-weight:600;white-space:nowrap}
-#m11 .mine .wrap{padding-bottom:60px}
+#m9 .send .wrap{padding-bottom:72px}
+#m9 .send .card .ch .chip{font-weight:600}
+#m9 .send .card .cb{padding:2px 14px 8px}
+#m9 .send .plain li b{min-width:92px}
+#m9 .send .plain li .to{margin-left:auto;color:var(--text-2);font-size:12px;white-space:nowrap}
+#m9 .send .skip{color:var(--text-3);font-size:12px;margin:2px 2px 0}
+#m9 .send .sendrow{display:flex;align-items:center;gap:10px;margin:12px 0 0;padding-top:10px;border-top:1px solid var(--border)}
+#m9 .send .feed{margin-top:14px}
+#m9 .send .fi .dot.pend{background:var(--pending)}
 </style>
 
-<!-- ───────── M9 · 보낼 곳 — 어디가 어디로 ───────── -->
-<section class="screen" id="m9" data-title="보낼 곳 — 어디가 어디로" data-grp="프로젝트로">
-  <div class="note"><b>M9 · 보낼 곳 — 어디가 어디로.</b> 루트 D:\kmd 안의 지식 다섯이 각각 어느 프로젝트로 보내는지 한 장에 모았다. 0개(보내지 않음) · 1개 · 2개가 모두 된다. v0.2 의 「짝 프로젝트 하나(0..1)」 는 지식 · 문서 단위 규칙(0..n)으로 바뀌었고, 문서 규칙이 지식 규칙보다 앞선다. 오른쪽 그림의 화살표는 한 방향이라 팀에서 내 폴더로 오는 선은 없다. 규칙은 각 지식 폴더 안의 작은 파일(.kmd.json)에 둔다 · §3.1 · §3.2 · §3.7.</div>
-  <div class="app" data-face="me" data-kn="*" data-active="targets" data-crumb="보낼 곳">
+<!-- ───────── M9 · 보낼 곳 · 보내기 ───────── -->
+<section class="screen" id="m9" data-title="보낼 곳 · 보내기" data-grp="팀으로">
+  <div class="note"><b>M9 · 보낼 곳 · 보내기(N10).</b> 위는 내 지식마다 어느 팀 지식으로 보내는지 한 장(0..n · 문서마다 덮어쓰기), 아래는 보낼 곳별로 모인 것을 [3개 보내기] 한 번으로 보내는 장이다(확인 상자 없음 · v0.2 KM34). v0.3 M9 · M10 과 같은 일이고 바뀐 것은 셋이다 — 보낼 곳 후보가 내가 이은 팀 지식에서 저절로 나오고, 보내기는 이 PC 의 kmd 가 GitLab 의 그 지식에 바로 넣는 저장 한 번이라 밀려도 저절로 다시 넣으며, 받는 쪽 「정리」 는 그 지식을 세운 주인이 정한 명단(DPMS 지식은 박 · 최)이다. 김의 PC kmd 는 저절로 새 판(v1.13)이라 GDI 지식에도 그대로 보낸다 — 옛 판의 「읽기만」 은 팀 서버 쪽 M13. 아래 검은 알림은 누른 직후를 같은 장에 겹쳐 그렸다 · §3.1 · §4.2 · §5.4 · §6 · §7 · v0.3 §3.1 · §3.2.</div>
+
+  <div class="app" data-where="pc" data-kn="*" data-active="targets" data-crumb="보낼 곳" data-status='<span>이 PC</span><span class="r">v1.13</span>' data-badges='{"send":3}'>
     <div class="main"><div class="wrap">
       <div class="big">보낼 곳</div>
-      <p class="lead">지식마다 보낼 프로젝트가 정해져 있다. 없어도 되고 둘이어도 된다.</p>
+      <p class="lead">내 지식마다 어느 팀 지식으로 보낼지 정해져 있다. 없어도 되고 둘이어도 된다.</p>
 
       <div class="card">
-        <div class="ch">지식마다 <small>D:\kmd 안의 지식 다섯</small></div>
+        <div class="ch">지식마다 <small>내 지식 넷</small></div>
         <div class="cb">
           <table class="t">
             <tr><th>지식</th><th>보낼 곳</th><th></th></tr>
-            <tr><td class="nm"><b>배포노트</b><small>문서 12</small></td><td><span class="kn">→ dpms_wiki</span></td><td class="kb"><button class="kebab" title="바꾸기">⋯</button></td></tr>
-            <tr><td class="nm"><b>설계메모</b><small>문서 7</small></td><td><span class="kn">→ gdi_wiki</span><span class="kn">→ dpms_wiki</span></td><td class="kb"><button class="kebab" title="바꾸기">⋯</button></td></tr>
-            <tr><td class="nm"><b>개인메모</b><small>문서 5</small></td><td><span class="kn none">보내지 않음</span></td><td class="kb"><button class="kebab" title="바꾸기">⋯</button></td></tr>
-            <tr><td class="nm"><b>받은편지함</b><small>메모 2 · 어디 넣을지 안 정한 메모가 모인다</small></td><td><span class="kn none">보내지 않음</span></td><td class="kb"><button class="kebab" title="바꾸기">⋯</button></td></tr>
-            <tr class="dim"><td class="nm"><b>회의록-2026</b><small>md 31 · 아직 kmd 형식이 아니다</small></td><td class="small">kmd 형식이 되면 정한다</td><td class="kb"></td></tr>
+            <tr><td class="nm"><b>배포노트</b><span class="kt me">개인</span><small>문서 12</small></td><td><span class="kn">→ DPMS 지식</span></td><td class="kb"><button class="kebab" title="바꾸기">⋯</button></td></tr>
+            <tr><td class="nm"><b>설계메모</b><span class="kt me">개인</span><small>문서 7</small></td><td><span class="kn">→ GDI 지식</span><span class="kn">→ DPMS 지식</span></td><td class="kb"><button class="kebab" title="바꾸기">⋯</button></td></tr>
+            <tr><td class="nm"><b>개인메모</b><span class="kt me">개인</span><small>문서 5</small></td><td><span class="kn none">보내지 않음</span></td><td class="kb"><button class="kebab" title="바꾸기">⋯</button></td></tr>
+            <tr><td class="nm"><b>받은편지함</b><span class="kt me">개인</span><small>메모 2 · 어디 넣을지 안 정한 메모가 모인다</small></td><td><span class="kn none">보내지 않음</span></td><td class="kb"><button class="kebab" title="바꾸기">⋯</button></td></tr>
           </table>
+          <div class="cand">
+            <div class="hd">보낼 곳 후보는 내가 이은 팀 지식에서 저절로 나온다 — 하나 더 이으면 ⋯ 에 저절로 생긴다<span class="act" data-go="m3">잇기</span></div>
+            <div class="it"><span class="kt team">팀</span><b>DPMS 지식</b><span class="kt role">나: 기록</span><span class="muted">정리하는 사람 박 · 최</span></div>
+            <div class="it"><span class="kt team">팀</span><b>GDI 지식</b><span class="kt role">나: 기록</span><span class="muted">정리하는 사람은 그 지식의 명단대로</span></div>
+          </div>
         </div>
       </div>
 
@@ -1158,70 +1251,66 @@ IP 는 적지 않는다 — 다시 띄우면 바뀐다.
         <div class="cb">
           <table class="t">
             <tr><th>문서</th><th>보낼 곳</th><th></th></tr>
-            <tr><td class="nm"><b>배포노트 › 개인-체크리스트</b></td><td><span class="kn none">보내지 않음</span><span class="was">지식은 → dpms_wiki</span></td><td class="kb"><button class="kebab" title="바꾸기">⋯</button></td></tr>
-            <tr><td class="nm"><b>설계메모 › 캐시-정책</b></td><td><span class="kn">→ gdi_wiki</span> <span class="small muted">만</span><span class="was">지식은 → gdi_wiki · dpms_wiki</span></td><td class="kb"><button class="kebab" title="바꾸기">⋯</button></td></tr>
+            <tr><td class="nm"><b>배포노트 › 개인-체크리스트</b></td><td><span class="kn none">보내지 않음</span><span class="was">지식은 → DPMS 지식</span></td><td class="kb"><button class="kebab" title="바꾸기">⋯</button></td></tr>
+            <tr><td class="nm"><b>설계메모 › 캐시-정책</b></td><td><span class="kn">→ GDI 지식</span> <span class="small muted">만</span><span class="was">지식은 → GDI 지식 · DPMS 지식</span></td><td class="kb"><button class="kebab" title="바꾸기">⋯</button></td></tr>
           </table>
           <p class="hint">다른 문서도 그 문서의 ⋯ 에서 「보낼 곳」 을 바꾸면 여기에 한 줄 생긴다.</p>
         </div>
       </div>
 
       <details class="more"><summary>자세히</summary><div class="in">
-        <p><b>이 설정은 어디에 있나</b> — 그 지식 폴더 안의 작은 파일(<span class="mono">.kmd.json</span>)에 있다. 폴더를 옮기거나 git 으로 다른 PC 에 가져가도 따라간다.</p>
+        <p><b>이 설정은 어디에 있나</b> — 그 지식 폴더 안의 작은 파일(<span class="mono">.kmd.json</span>)에 있다. 폴더를 옮겨도 따라간다.</p>
         <p><b>새 지식</b> — 「보내지 않음」 으로 시작한다. 보낼 곳은 나중에 여기서 더한다.</p>
-        <p><b>두 곳으로 보내면</b> — 두 프로젝트가 각자 따로 받는다. 한쪽이 반영해도 다른 쪽은 그대로다.</p>
+        <p><b>두 곳으로 보내면</b> — 두 팀 지식이 각자 따로 받는다. 한쪽이 넣어도 다른 쪽은 그대로다.</p>
         <p><b>팀 글은 오지 않는다</b> — 보낼 곳은 나가는 길만 정한다. 팀 문서를 내 지식에 두고 싶으면 그 팀 문서의 ⋯ 에서 「내 지식으로 복사」 를 한 번 누른다.</p>
+        <p><b>누가 정리하나</b> — 그 팀 지식을 세운 주인이 「이 지식의 사람」 에서 정한다(DPMS 지식은 박이 세웠다). 명단이 그 지식 안에 있어 어느 kmd 에서 열어도 같다.</p>
       </div></details>
     </div></div>
     <div class="aside">
       <h4>한눈에</h4>
-      <svg class="map" viewBox="0 0 272 218" role="img" aria-label="지식 폴더 다섯과 프로젝트 둘 사이의 보내기 화살표">
+      <svg class="map" viewBox="0 0 272 176" role="img" aria-label="내 지식 넷과 팀 지식 둘 사이의 보내기 화살표 — 한 방향">
         <defs><marker id="m9-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker></defs>
-        <text class="hd" x="2" y="12">D:\kmd — 이 PC</text>
-        <text class="hd" x="170" y="12">팀 서버</text>
-        <rect class="bx" x="0" y="22" width="108" height="28" rx="7"/><text x="10" y="40">배포노트</text>
-        <rect class="bx" x="0" y="62" width="108" height="28" rx="7"/><text x="10" y="80">설계메모</text>
-        <rect class="bx" x="0" y="102" width="108" height="28" rx="7"/><text x="10" y="120">개인메모</text>
-        <rect class="bx" x="0" y="142" width="108" height="28" rx="7"/><text x="10" y="160">받은편지함</text>
-        <rect class="bx raw" x="0" y="182" width="108" height="28" rx="7"/><text x="10" y="200">회의록-2026</text>
-        <rect class="pj" x="170" y="22" width="102" height="28" rx="7"/><text class="pn" x="180" y="40">dpms_wiki</text>
-        <rect class="pj" x="170" y="62" width="102" height="28" rx="7"/><text class="pn" x="180" y="80">gdi_wiki</text>
-        <path class="ln" d="M108 36H166" marker-end="url(#m9-ah)"/>
-        <path class="ln" d="M108 76H166" marker-end="url(#m9-ah)"/>
-        <path class="ln" d="M108 72C138 72 140 42 166 40" marker-end="url(#m9-ah)"/>
-        <text class="mu" x="120" y="120">보내지 않음</text>
-        <text class="mu" x="120" y="160">보내지 않음</text>
-        <text class="mu" x="120" y="200">아직 정하지 않음</text>
+        <text class="hd" x="2" y="12">내 지식 — 이 PC</text>
+        <text class="hd" x="166" y="12">팀 지식 — GitLab</text>
+        <rect class="bx" x="0" y="22" width="104" height="28" rx="7"/><text x="10" y="40">배포노트</text>
+        <rect class="bx" x="0" y="62" width="104" height="28" rx="7"/><text x="10" y="80">설계메모</text>
+        <rect class="bx" x="0" y="102" width="104" height="28" rx="7"/><text x="10" y="120">개인메모</text>
+        <rect class="bx" x="0" y="142" width="104" height="28" rx="7"/><text x="10" y="160">받은편지함</text>
+        <rect class="pj" x="166" y="22" width="106" height="28" rx="7"/><text x="176" y="40">DPMS 지식</text>
+        <rect class="pj" x="166" y="62" width="106" height="28" rx="7"/><text x="176" y="80">GDI 지식</text>
+        <path class="ln" d="M104 36H162" marker-end="url(#m9-ah)"/>
+        <path class="ln" d="M104 76H162" marker-end="url(#m9-ah)"/>
+        <path class="ln" d="M104 72C134 72 136 42 162 40" marker-end="url(#m9-ah)"/>
+        <text class="mu" x="116" y="120">보내지 않음</text>
+        <text class="mu" x="116" y="160">보내지 않음</text>
       </svg>
-      <p>화살표는 보내기다 — 내가 누를 때만, 한 방향으로.</p>
-      <p>팀 글이 내 폴더로 들어오는 선은 없다.</p>
-      <p>팀에서는 받은 것마다 「김의 배포노트 › 헬스체크」 처럼 어디서 왔는지 붙는다.</p>
+      <p>화살표는 보내기다 — 내가 누를 때만, 한 방향으로. 팀 글이 내 지식으로 들어오는 선은 없다.</p>
+      <p>보내면 이 PC 의 kmd 가 GitLab 의 팀 지식에 바로 넣는다. 박 · 이는 팀 서버의 kmd 에서 같은 것을 본다 — 프로그램은 같다.</p>
+      <p>팀에서는 받은 것마다 「김의 배포노트에서」 처럼 어디서 왔는지 붙는다.</p>
     </div>
   </div>
-</section>
 
-<!-- ───────── M10 · 보내기 ───────── -->
-<section class="screen" id="m10" data-title="보내기" data-grp="프로젝트로">
-  <div class="note"><b>M10 · 보내기.</b> 지난번 보낸 뒤 바뀐 것이 보낼 곳별로 모여 있고, 한 번 누르면 두 프로젝트로 각각 간다. v0.2 의 「프로젝트와 맞추기」 에서 소식 받기가 없어져 보내기만 남았다. 카드도 프로젝트 하나가 아니라 보낼 곳별로 나뉜다(M9 의 규칙 그대로). 「보내지 않음」 문서는 저절로 빠지고, 확인 상자 없이 곧 보낸다(KM34). 아래는 누른 뒤의 모습이고, 박의 대기열에는 「김이 보낸 2개 — 배포노트에서」 로 선다 · §3.1 · §3.2.</div>
-  <div class="app" data-face="me" data-kn="*" data-active="send" data-crumb="보내기" data-badges='{"send":3}'>
+  <div class="cap">보내기 — 누르면 확인 상자 없이 곧 간다 · 아래 검은 알림은 누른 직후(14:12)</div>
+  <div class="app send" data-where="pc" data-kn="*" data-active="send" data-crumb="보내기" data-status='<span>이 PC</span><span class="r">v1.13</span>' data-badges='{"send":3}'>
     <div class="main"><div class="wrap">
       <div class="big">보내기</div>
-      <p class="lead">지난번 보낸 뒤 바뀐 것이 보낼 곳별로 모였다. 누르면 곧 각 프로젝트로 간다.</p>
+      <p class="lead">지난번 보낸 뒤 바뀐 것이 보낼 곳별로 모였다. 누르면 곧 각 팀 지식으로 간다.</p>
 
       <div class="card">
-        <div class="ch">dpms_wiki 로 <span class="chip c-pend">2</span><small>받는 사람 박</small></div>
+        <div class="ch"><span class="kt team">팀</span>DPMS 지식으로 <span class="chip c-pend">2</span><small>정리하는 사람 박 · 최</small></div>
         <div class="cb">
           <ul class="plain">
             <li><b>헬스체크</b><span class="muted small">배포노트에서 · 오늘 09:40</span><span class="to">고친 안 → 배포절차 › 헬스 체크</span></li>
-            <li><b>도커-네트워크</b><span class="muted small">배포노트에서 · 오늘 11:05</span><span class="to">새 문서 제안 · 팀에 같은 문서가 없다</span></li>
+            <li><b>도커-네트워크</b><span class="muted small">배포노트에서 · 어제</span><span class="to">새 문서 제안 · 팀에 같은 문서가 없다</span></li>
           </ul>
         </div>
       </div>
 
       <div class="card">
-        <div class="ch">gdi_wiki 로 <span class="chip c-pend">1</span><small>gdi_wiki 에서 정리한다</small></div>
+        <div class="ch"><span class="kt team">팀</span>GDI 지식으로 <span class="chip c-pend">1</span><small>정리하는 사람은 그 지식의 명단대로</small></div>
         <div class="cb">
           <ul class="plain">
-            <li><b>캐시-정책</b><span class="muted small">설계메모에서 · 10-20 · 이 문서는 gdi_wiki 로만</span><span class="to">고친 안 → 캐시-정책</span></li>
+            <li><b>캐시-정책</b><span class="muted small">설계메모에서 · 10-20 · 이 문서는 GDI 지식으로만</span><span class="to">고친 안 → 캐시-정책</span></li>
           </ul>
         </div>
       </div>
@@ -1229,170 +1318,177 @@ IP 는 적지 않는다 — 다시 띄우면 바뀐다.
       <p class="skip">개인-체크리스트는 「보내지 않음」 이라 뺐다 · 개인메모 · 받은편지함은 보낼 곳이 없어 여기 오지 않는다</p>
 
       <div class="sendrow">
-        <span class="muted small">이 PC 밖으로 나가는 것은 이 세 문서뿐이다</span>
+        <span class="muted small">이 PC 밖으로 나가는 것은 이 세 문서뿐이다 · 망이 끊겨 있어도 닿으면 저절로 간다</span>
         <button class="btn pri r">3개 보내기</button>
       </div>
 
       <details class="more"><summary>자세히</summary><div class="in">
-        <p><b>어디로 들어가나</b> — 헬스체크는 dpms_wiki 「배포절차 › 헬스 체크」 에, 캐시-정책은 gdi_wiki 「캐시-정책」 에 고친 안으로 붙는다. 도커-네트워크는 팀에 같은 문서가 없어 새 문서로 제안하고, 자리는 박이 정한다.</p>
-        <p><b>팀 글과 멀어져 있어도 된다</b> — 고친 안은 보낼 때 팀 문서의 지금 글과 견주어 만든다.</p>
-        <p><b>직접 고르기</b> — 이번에 빼고 싶은 문서를 고른다. 늘 빼려면 보낼 곳에서 그 문서를 「보내지 않음」 으로 둔다.</p>
-        <p><b>보내는 까닭 적기</b> — 받는 사람이 읽는 한두 줄. 적지 않으면 「고침 · 헬스체크」 처럼 저절로 붙는다.</p>
-        <p><b>잘못 보냈으면</b> — 보낸 것은 지울 수 없다. 「거둬 달라」 는 글을 하나 더 보낸다.</p>
+        <p><b>어디로 들어가나</b> — 헬스체크는 DPMS 지식 「배포절차 › 헬스 체크」 에 고친 안으로 붙는다. 도커-네트워크는 팀에 같은 문서가 없어 새 문서로 제안하고, 자리는 박이 정한다. 캐시-정책은 GDI 지식 「캐시-정책」 에 고친 안으로 붙는다.</p>
+        <p><b>어떻게 가나</b> — 이 PC 의 kmd 가 GitLab 의 각 팀 지식에 바로 넣는다. 팀 서버를 거치지 않는다 — 박의 팀 kmd 도 같은 프로그램이라 같은 검사로 본다.</p>
+        <p><b>그사이 박이 먼저 넣었으면</b> — 저절로 다시 넣는다. 정말 같은 곳을 고쳤을 때만 「그사이 다른 사람이 같은 곳을 고쳤다 — 내 글은 따로 두었다 · 비교」 한 줄이 오늘 바뀐 것에 뜬다.</p>
+        <p><b>망이 끊겼으면</b> — 「저장됨 · 아직 안 올림 — 닿으면 저절로 간다」 로 두었다가 닿으면 간다. 다시 누를 일은 없다.</p>
+        <p><b>팀 글과 멀어져 있어도 된다</b> — 고친 안은 보낼 때 팀 문서의 지금 글과 견주어 만든다. 같은 형식이라 따로 고쳐 쓸 것이 없다.</p>
+        <p><b>직접 고르기 · 잘못 보냈으면</b> — 이번에 빼고 싶은 문서는 여기서 고른다. 보낸 것은 지울 수 없어 「거둬 달라」 는 글을 하나 더 보낸다.</p>
       </div></details>
-    </div></div>
-  </div>
 
-  <div class="cap">[3개 보내기] 를 누른 뒤 — 14:12</div>
-  <div class="app after" data-face="me" data-kn="*" data-active="send" data-crumb="보내기">
-    <div class="main"><div class="wrap">
-      <div class="big">보내기</div>
-      <p class="empty">지금은 보낼 것이 없다 — 문서를 고치면 여기에 저절로 모인다.</p>
       <div class="feed">
         <div class="fh">보낸 것</div>
-        <div class="fi"><span class="tm">14:12</span><span class="dot pend"></span><span class="tx">3개를 보냈다 — dpms_wiki 2 · gdi_wiki 1<small>정리 전 · 박에게는 「김이 보낸 2개 — 배포노트에서」 로 보인다</small></span><span class="act">보기</span></div>
-        <div class="fi"><span class="tm">어제</span><span class="dot"></span><span class="tx">3개를 보냈다 — 반영 2 · 그대로 둠 1<small>반영돼도 내 글은 그대로다 · 로그-보관 — 박: 「운영 문서에 이미 있음」</small></span><span class="act">팀 문서 보기</span></div>
+        <div class="fi"><span class="tm">어제</span><span class="dot"></span><span class="tx">3개를 보냈다 — 들어감 2 · 그대로 둠 1<small>들어가도 내 글은 그대로다 · 로그-보관 — 박: 「운영 문서에 이미 있음」</small></span><span class="act">팀 문서 보기</span></div>
       </div>
     </div></div>
-    <div class="toast">보냈다 — 팀에서 정리하면 「오늘 바뀐 것」 에 뜬다<a>닫기</a></div>
-  </div>
-</section>
-
-<!-- ───────── M11 · 프로젝트 문서 읽기 · 내 지식으로 복사 ───────── -->
-<section class="screen" id="m11" data-title="프로젝트 문서 읽기 · 내 지식으로 복사" data-grp="프로젝트">
-  <div class="note"><b>M11 · 프로젝트 문서 읽기 · 내 지식으로 복사.</b> 김(writer)이 dpms_wiki 의 서버목록을 읽다가 ⋯ 에서 「내 지식으로 복사」 를 누른다. v0.2 의 「프로젝트 소식 받기」(팀 글을 내 문서에 덮어 넣기)는 없어졌다 — 팀 글은 저절로 들어오지 않고, 사람이 누른 한 번의 복사뿐이며 팀 문서를 고치는 길도 복사 → 고침 → 보내기 하나다. 복사본은 같은 형식이라 같은 문서 화면으로 보이고, 맨 위 한 줄이 어디서 왔는지 적는다. 그 뒤로는 내 글이라 팀에서 바뀌어도 알림만 온다(Q14) · §3.2 · §3.6.</div>
-  <div class="app" data-face="team" data-repo="dpms_wiki" data-area="read" data-active="docs" data-who="김" data-role="writer" data-crumb="서버목록">
-    <div class="main"><div class="wrap">
-      <div class="dochead">
-        <div class="path"><span>docs/운영/서버목록.md</span><span class="r">마지막 반영 10-20 16:02 · 박</span></div>
-        <button class="kebab on" title="내 지식으로 복사 · 이력">⋯</button>
-        <div class="menu">
-          <div class="mi hot">내 지식으로 복사<small>배포노트로</small></div>
-          <div class="mi rare">이력</div>
-        </div>
-      </div>
-      <div class="ro"><i></i>팀 문서는 여기서 읽는다 — 내 지식에 저절로 들어오지 않는다</div>
-      <div class="paper">
-        <h1>서버목록</h1>
-        <p class="muted small">운영 · 스테이징 · 카나리 서버와 들어가는 길을 한 곳에 둔다.</p>
-        <h2>운영</h2>
-        <table class="t">
-          <tr><th>이름</th><th>주소</th><th>역할</th></tr>
-          <tr><td class="mono">prd-web-1</td><td class="mono">10.20.1.11</td><td>웹</td></tr>
-          <tr><td class="mono">prd-web-2</td><td class="mono">10.20.1.12</td><td>웹</td></tr>
-          <tr><td class="mono">prd-api-1</td><td class="mono">10.20.1.21</td><td>API</td></tr>
-        </table>
-        <h2>스테이징</h2>
-        <p><code>stg-1</code> · <code>stg-2</code>(10.20.9.11 · 10.20.9.12). 배포 전 마지막 확인은 stg-2 에서 한다.</p>
-        <h2>카나리</h2>
-        <p><code>canary-1</code>(10.20.1.31) — 카나리 단계에서만 요청을 받는다.</p>
-        <h2>들어가는 길</h2>
-        <p>모든 서버는 bastion(10.20.0.5)을 거쳐 들어간다. 직접 접속은 막혀 있다.</p>
-      </div>
-    </div></div>
-  </div>
-
-  <div class="cap">「내 지식으로 복사」 를 누른 뒤 — 내 지식 › 배포노트 › 서버목록-팀 · 위 팀 문서와 같은 화면(경로 줄 · 종이 · 섹션) — 같은 형식이라서. 다른 것은 띠 색과 맨 위 「어디서 복사」 한 줄뿐</div>
-  <div class="app mine" data-face="me" data-kn="배포노트" data-active="docs" data-crumb="문서 › 서버목록-팀">
-    <div class="main"><div class="wrap">
-      <div class="path"><span>D:\kmd\배포노트\서버목록-팀.md</span><span class="r">오늘 14:15 · 복사</span></div>
-      <div class="paper" style="margin-top:10px">
-        <div class="cpy">dpms_wiki › 서버목록 에서 10-21 복사 — 이제 내 글이다 · 팀에서 바뀌면 알림만<span class="lk">팀 문서 보기</span></div>
-        <h1>서버목록</h1>
-        <p class="muted small">운영 · 스테이징 · 카나리 서버와 들어가는 길을 한 곳에 둔다.</p>
-        <h2>운영</h2>
-        <table class="t">
-          <tr><th>이름</th><th>주소</th><th>역할</th></tr>
-          <tr><td class="mono">prd-web-1</td><td class="mono">10.20.1.11</td><td>웹</td></tr>
-          <tr><td class="mono">prd-web-2</td><td class="mono">10.20.1.12</td><td>웹</td></tr>
-          <tr><td class="mono">prd-api-1</td><td class="mono">10.20.1.21</td><td>API</td></tr>
-        </table>
-        <h2>스테이징</h2>
-        <p><code>stg-1</code> · <code>stg-2</code>(10.20.9.11 · 10.20.9.12). 배포 전 마지막 확인은 stg-2 에서 한다.</p>
-        <h2>카나리</h2>
-        <p><code>canary-1</code>(10.20.1.31) — 카나리 단계에서만 요청을 받는다.</p>
-        <h2>들어가는 길</h2>
-        <p>모든 서버는 bastion(10.20.0.5)을 거쳐 들어간다. 직접 접속은 막혀 있다.</p>
-      </div>
-    </div></div>
-    <div class="toast">배포노트로 복사했다 — 「서버목록」 이 이미 있어 「서버목록-팀」 으로 두었다<a>되돌리기</a></div>
+    <div class="toast">보냈다 — 정리하는 사람이 넣으면 오늘 바뀐 것에 뜬다<a>닫기</a></div>
   </div>
 </section>
 
 <!-- ═════════ 5-team.html ═════════ -->
 <style>
-#m12 .wrap,#m13 .wrap{max-width:760px}
-#m12 .card .cb{padding:2px 14px}
-#m12 .plain li .k{width:84px;flex:none;color:var(--text-3);font-size:12px}
-#m12 .plain li .nm{font-weight:600;min-width:0}
-#m12 .plain li .nm small{display:block;font-weight:400;color:var(--text-3);font-size:11.5px}
-#m12 .plain li .kebab{margin-left:2px}
-#m12 .ow{display:flex;gap:6px;align-items:center;padding:7px 14px;border-top:1px dashed var(--border);font-size:12px;color:var(--text-3)}
-#m12 .cf{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--border)}
-#m12 .cf .kebab{margin-left:auto}
-#m12 .lk,#m13 .lk{color:var(--accent);cursor:pointer;font-weight:600}
-#m12 .ah{font-weight:700;margin:2px 0 8px}
-#m12 .ah small{display:block;font-weight:400;color:var(--text-3);font-size:11.5px}
-#m12 .aside .plain li{padding:8px 2px}
-#m12 .aside .plain li .r{font-variant-numeric:tabular-nums}
-#m12 .aside p{font-size:12px;color:var(--text-2);margin:10px 0 0}
-#m13 .card .ch .kebab{margin-left:auto}
-#m13 .rt{display:flex;gap:16px;align-items:flex-start}
-#m13 .rt .tree{flex:none}
-#m13 .rt .kv{flex:1;grid-template-columns:96px 1fr}
-#m13 .tree .tn{display:inline-block;width:8.5em}
-#m13 .tree .tc{color:var(--text-3)}
-#m13 .tree .tw{color:var(--warn)}
-#m13 .tree .tn,#m13 .tree .tc,#m13 .tree .tw{font-family:var(--font)}
-#m13 .ft{margin-top:12px;font-size:12.5px;color:var(--text-2)}
-#m13 .rule{margin:0 0 8px;color:var(--text-2)}
-#m13 .dx{display:flex;align-items:center;gap:10px;margin:0 0 8px}
-#m13 .dest{display:inline-flex;gap:6px;align-items:center;background:#f1f3f7;color:#11151c;border:1px solid var(--border-strong);border-radius:8px;padding:4px 10px;font-weight:600;font-size:12.5px}
-#m13 table.t td.dv{color:var(--text-3)}
-#m13 .plain li .r{max-width:62%;text-align:right}
-#m13 .gray{margin:10px 0 2px;font-size:12px;color:var(--text-3)}
+#m10 .wrap,#m11 .wrap,#m12 .wrap,#m13 .wrap{max-width:760px}
+#m10 .lk,#m11 .lk,#m12 .lk,#m13 .lk{color:var(--accent);cursor:pointer;font-weight:600}
+#m10 .card .cb,#m11 .card .cb{padding:2px 14px}
+#m10 .plain li .av{width:26px;height:26px;border-radius:50%;background:var(--surface-3);color:var(--text-2);display:grid;place-items:center;font-weight:700;font-size:11.5px;flex:none}
+#m10 .plain li .nm,#m11 .plain li .nm{font-weight:600;min-width:0}
+#m10 .plain li .nm small,#m11 .plain li .nm small{display:block;font-weight:400;color:var(--text-3);font-size:11.5px}
+#m10 .plain li .r{margin-left:auto}
+#m10 .others{display:flex;gap:10px;align-items:flex-start;padding:10px 14px;border-top:1px dashed var(--border-strong);font-size:12.5px;color:var(--text-2)}
+#m10 .others .av{width:26px;height:26px;border-radius:50%;border:1px dashed var(--border-strong);color:var(--text-3);display:grid;place-items:center;font-size:11px;flex:none}
+#m10 .others small{display:block;color:var(--text-3);font-size:11.5px;margin-top:2px}
+#m10 .cf,#m11 .cf{display:flex;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid var(--border)}
+#m11 .cf .kebab{margin-left:auto}
+#m10 .callout{display:flex;gap:12px;align-items:center}
+#m10 .callout small{display:block;font-size:11.5px;opacity:.85;margin-top:2px}
+#m10 .callout .act{margin-left:auto;font-weight:600;cursor:pointer;white-space:nowrap}
+#m10 .ah,#m11 .ah{font-weight:700;margin:2px 0 8px}
+#m10 .ah small,#m11 .ah small{display:block;font-weight:400;color:var(--text-3);font-size:11.5px}
+#m10 .rule{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12.5px}
+#m10 .rule b{display:block;margin-bottom:4px}
+#m10 .rule .by{float:right;font-weight:600;font-size:11.5px}
+#m10 .rule p{margin:4px 0 0;color:var(--text-2);font-size:12px}
+#m10 .aside>p{font-size:12px;color:var(--text-2);margin:10px 0 0}
+#m11 .plain li .k{width:84px;flex:none;color:var(--text-3);font-size:12px}
+#m11 .plain li .kebab{margin-left:2px}
+#m11 .ow{display:flex;gap:6px;align-items:center;padding:7px 14px;border-top:1px dashed var(--border);font-size:12px;color:var(--text-3)}
+#m11 .ext{display:flex;gap:10px;align-items:center;padding:9px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text-2);font-size:12.5px;margin:0 0 14px}
+#m11 .ext .tm{font:11.5px var(--mono);color:var(--text-3);width:44px;flex:none}
+#m11 .ext .dot{width:8px;height:8px;border-radius:50%;background:var(--border-strong);flex:none}
+#m11 .ext small{display:block;color:var(--text-3);font-size:11.5px}
+#m11 .ext .act{margin-left:auto;color:var(--text-2);font-size:12px;cursor:pointer;white-space:nowrap}
+#m11 .aside .plain li{padding:8px 2px}
+#m11 .aside .plain li .r{font-variant-numeric:tabular-nums}
+#m11 .aside p{font-size:12px;color:var(--text-2);margin:10px 0 0}
+#m12 .card .ch .kebab{margin-left:auto}
+#m12 .kv{grid-template-columns:96px 1fr}
+#m12 .knl{display:flex;flex-direction:column;gap:8px}
+#m12 .knl .row{gap:10px;flex-wrap:wrap}
+#m12 .knl .nmz{color:var(--text)}
+#m12 .knl .nmz span+span::before{content:" · ";color:var(--text-3)}
+#m12 .ok{display:flex;gap:10px;align-items:center;margin:0 0 10px}
+#m12 table.t td.dv{color:var(--text-2)}
+#m12 .was{margin:10px 0 0;padding:8px 10px;border:1px dashed var(--border-strong);border-radius:8px;font-size:12px;color:var(--text-3)}
+#m12 .plain li>b{width:108px;flex:none}
+#m12 .plain li .r{margin-left:auto;max-width:70%;text-align:right}
+#m12 .gray{margin:10px 0 2px;font-size:12px;color:var(--text-3)}
+#m13 .top{display:flex;align-items:flex-start;gap:12px}
+#m13 .top .r{margin-left:auto;padding-top:4px}
+#m13 .krow .ic{width:30px;height:30px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;flex:none}
+#m13 .krow .ic svg{width:16px;height:16px;stroke:var(--text-2);fill:none;stroke-width:1.7;stroke-linejoin:round}
+#m13 .krow .nm{width:150px;flex:none}
+#m13 .krow .tags{display:flex;gap:5px;align-items:center;flex-wrap:wrap;width:196px;flex:none}
+#m13 .fi .dot.pv{background:var(--pending)}
+#m13 .krow .meta small{display:block;margin-top:2px}
+#m13 .krow.ro .nm{color:var(--text-2)}
+#m13 .gray{margin:-4px 2px 14px;font-size:12px;color:var(--text-3)}
+#m13 details.more .plain li .r{margin-left:auto;max-width:62%;text-align:right}
 </style>
 
-<!-- ───────── M12 · 박이 받은 것 ───────── -->
-<section class="screen" id="m12" data-title="박이 받은 것" data-grp="프로젝트">
-  <div class="note"><b>M12 · 박이 받은 것.</b> 큐레이터 박이 dpms_wiki 의 대기열을 연다 — 김이 보낸 것에는 「김의 배포노트 › 헬스체크」 처럼 <b>보낸 사람의 지식 이름</b>이 출신으로 붙어, 어느 개인 지식에서 왔는지가 보인다(§3.1). v0.2(M11 · KM23)의 「김의 kmd」 한 덩어리가 지식 폴더 단위로 바뀌었고, 오른쪽 「어디에서 왔나」 는 받은 기록에서 센다 — 여러 지식이 한 프로젝트로 온다(1:1 아님). 반영해도 김의 폴더에는 아무것도 쓰지 않는다(한 방향 · §3.2). 묶음마다 주 단추 하나 · 행은 ⋯ 는 v0.2 그대로.</div>
-  <div class="app" data-face="team" data-area="studio" data-active="queue" data-crumb="작업실 › 대기열" data-repo="dpms_wiki" data-who="박" data-role="큐레이터" data-badges='{"queue":4}' data-status='<span>미러 최신</span><span>대기 4 · 미반영 섹션 2</span><span class="r">v1.10</span>'>
+<!-- ───────── M10 · 이 지식의 사람 — 주인이 정한다 ───────── -->
+<section class="screen" id="m10" data-title="이 지식의 사람 — 주인이 정한다" data-grp="정리하는 사람">
+  <div class="note"><b>M10 · 이 지식의 사람 — 주인이 정한다.</b> dpms_wiki 를 git 으로 세운 박이 첫 주인이고, 정리하는 사람(최)을 kmd 안에서 고른다 — 명단은 지식 안 <code>_members.md</code> 라 김의 PC kmd 에서 봐도 같은 답이다. 들어오기(읽기 · 올리기)는 GitLab 프로젝트에 사람을 더하는 일이고, kmd 는 GitLab 의 멤버 수준을 읽지 않는다(운영자 정정). v0.3 에는 이 화면이 없었다 — 정리 권한을 서버 명부에서 관리자가 줬다. 주인이 아닌 사람이 명단을 바꾼 변경은 받을 때 무시하고 앰버 한 줄로 알린다. §5.4 · KM44 · §5.3 — §8 화면 표 11장에 없다: N6 지식 하나의 「사람」 칸으로 접거나 §8 에 한 줄 더한다.</div>
+  <div class="app" data-where="team" data-kn="dpms_wiki" data-role="주인" data-who="박" data-active="members" data-crumb="이 지식의 사람" data-sync="새로 바뀐 것 없음">
+    <div class="main"><div class="wrap">
+      <div class="big">이 지식의 사람</div>
+      <p class="lead">누가 정리하는지는 주인이 정한다. 누가 들어오는지(읽기 · 올리기)는 GitLab 이 정한다.</p>
+
+      <div class="card">
+        <div class="ch">정리하는 사람 <small>주인이 고른다 · 받은 것을 반영하고 문서를 고친다</small></div>
+        <div class="cb">
+          <ul class="plain">
+            <li><span class="av">박</span><span class="nm">박<small>세운 사람 · 명단을 고칠 수 있다</small></span><span class="kt role">주인</span><span class="r muted small">나</span><button class="kebab" title="주인 더하기 · 주인 넘기기">⋯</button></li>
+            <li><span class="av">최</span><span class="nm">최<small>받은 것을 반영한다 · 10-15 박이 더함</small></span><span class="kt role">정리</span><span class="r"></span><button class="kebab" title="주인으로 · 정리에서 빼기">⋯</button></li>
+          </ul>
+        </div>
+        <div class="others"><span class="av">+</span><span>그 밖에 GitLab 에서 들어온 사람은 기록을 올린다 — 올린 기록은 받은 것에 선다<small>지난 30일에 올린 사람 — 김 · 이 · 정 · 기록에서 센다(GitLab 에 묻지 않는다)</small></span></div>
+        <div class="cf">
+          <button class="btn pri">정리하는 사람 더하기</button>
+          <span class="lk">GitLab 에서 사람 더하기 ↗</span>
+          <span class="small muted">읽기 · 올리기는 GitLab 프로젝트에서</span>
+        </div>
+      </div>
+
+      <div class="callout warn">
+        <span>주인이 아닌 사람이 명단을 바꿨다 — 무시했다 · 정 · 10-20<small>kmd 밖에서 「정 — 정리」 를 더한 변경이다 · 앞의 명단으로 읽는다 · 정을 정리하는 사람으로 두려면 주인이 더한다</small></span>
+        <span class="act">보기</span>
+      </div>
+
+      <details class="more"><summary>이 명단은 지식 안에 있다 — 어느 kmd 에서 봐도 같다</summary><div class="in">
+        <div>바꾼 사람이 주인이 아니면 kmd 가 무시한다. 받을 때마다 명단을 바꾼 변경이 그 앞 명단의 주인이 kmd 에서 바꾼 것인지 차례로 본다 — 아니면 앞의 명단으로 읽는다.</div>
+        <div style="margin-top:6px">자리 — 지식 맨 위의 명단 파일 하나(사람 · 역할 두 칸). 세울 때 세운 사람이 첫 주인으로 함께 선다. 고치기는 주인이 이 화면에서만.</div>
+        <div style="margin-top:6px">kmd 는 GitLab 의 멤버 수준(Developer · Maintainer)을 읽지 않는다 — GitLab 로그인은 이름만 받는다. 그래서 GitLab 이 아닌 git 에서도 같다.</div>
+        <div class="muted small" style="margin-top:6px">한계 — 올릴 수 있는 사람은 손 git 으로 문서를 고칠 수 있다. 받을 때 「kmd 밖에서 고친 것이 들어왔다」 로 드러나고, 정리하는 사람이 되돌린다.</div>
+      </div></details>
+    </div></div>
+    <div class="aside">
+      <div class="ah">누가 무엇을 정하나<small>둘로 나뉜다</small></div>
+      <div class="rule"><span class="by" style="color:var(--text-2)">GitLab</span><b>들어오기</b>읽기 · 기록 올리기<p>GitLab 프로젝트에 사람을 더하면 끝이다. 지식 목록 ⋯ 「링크 복사」 로 팀 대화방에 보낸다 — 링크에는 비밀이 없다.</p></div>
+      <div class="rule"><span class="by" style="color:var(--accent)">주인 · 이 화면</span><b>정리</b>받은 것 반영 · 문서 고치기 · 명단<p>지식을 세운 사람이 첫 주인이다. 주인은 여럿일 수 있다.</p></div>
+      <p>김의 PC kmd 든 팀 서버 kmd 든 — 어느 kmd 로 열어도 이 명단을 받는다. kmd 가 여럿이어도 답은 하나다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── M11 · 받은 것 ───────── -->
+<section class="screen" id="m11" data-title="받은 것" data-grp="정리하는 사람">
+  <div class="note"><b>M11 · 받은 것(N13).</b> 박이 dpms_wiki 의 받은 것을 연다 — 묶음마다 주 단추 하나 · 행은 ⋯ · 출신 「김의 배포노트에서」 는 v0.3 M12 그대로다. 바뀐 것은 출신에 어느 kmd 에서 왔는지가 붙는 것이다 — 김의 14:05 기록은 김의 PC kmd 에서 git 으로 바로 올라왔다(박이 먼저 올렸어도 최신 위에서 다시 저장됐다 · 화면에는 결과만). 손 git · 고친 kmd 의 변경은 「kmd 밖에서 고친 것이 들어왔다」 회색 한 줄로 드러난다. 이 메뉴는 명단에서 내가 주인 · 정리일 때만 선다. §4.5 · §5.3 · §8 N13.</div>
+  <div class="cap">14:13 — 김이 보낸 직후 · 14:18 에 박이 헬스 체크를 넣었다(M8)</div>
+  <div class="app" data-where="team" data-kn="dpms_wiki" data-role="주인" data-who="박" data-active="queue" data-crumb="받은 것" data-badges='{"queue":5}' data-sync="새로 바뀐 것 없음" data-status='<span>GitLab 로 들어옴 · 박</span><span>기다림 5 · 반영 전 섹션 2</span><span class="r">v1.12</span>'>
     <div class="main"><div class="wrap">
       <div class="big">받은 것</div>
-      <p class="lead">4건이 기다린다 — 김이 보낸 2개 · 이의 기록 2. 가장 오래된 것은 3일째다.</p>
+      <p class="lead">5건이 기다린다 — 김이 보낸 2개 · 다른 기록 3. 가장 오래된 것은 1일째다.</p>
+      <div class="ext"><span class="tm"></span><span class="dot"></span><span>이 kmd 판 1.12 로 셌다 — 더 새 kmd 가 있다<small>김의 PC kmd(v1.13)가 오늘 쓴 것이 있다 · 서버를 올리면 맞는다</small></span></div>
 
       <div class="card">
         <div class="ch">김이 보낸 2개 — 배포노트에서 <small>14:12</small></div>
         <div class="cb">
           <ul class="plain">
-            <li><span class="k">고친 안</span><span class="nm">배포절차 › 헬스 체크<small>김의 배포노트 › 헬스체크 에서</small></span><span class="r"><span class="chip c-pend">미반영 1</span></span></li>
-            <li><span class="k">새 문서 제안</span><span class="nm">도커-네트워크<small>김의 배포노트 › 도커-네트워크 에서</small></span><span class="r">프로젝트에 같은 문서가 없다</span></li>
+            <li><span class="k">고친 안</span><span class="nm">배포절차 › 헬스 체크<small>김의 배포노트 › 헬스체크 에서</small></span><span class="r"><span class="chip c-pend">반영 전 1</span></span></li>
+            <li><span class="k">새 문서 제안</span><span class="nm">도커-네트워크<small>김의 배포노트 › 도커-네트워크 에서</small></span><span class="r muted small">같은 문서가 없다 — 그대로 새 문서로</span></li>
           </ul>
         </div>
-        <div class="ow">↳ 반영해도 김의 배포노트는 그대로다 — 김의 「보낸 것」 에 「반영됨 · 팀 문서 보기」 가 뜰 뿐이다</div>
+        <div class="ow">↳ 반영해도 김의 배포노트는 그대로다 — 김의 오늘 바뀐 것에 「반영됨 · 팀 문서 보기」 가 뜰 뿐이다</div>
         <div class="cf">
           <button class="btn pri">에이전트에게 맡기기</button>
           <span class="small muted">지시를 복사해 내 Claude Code 에 붙인다</span>
-          <button class="kebab" title="하나씩 보기 · 도커-네트워크 를 새 문서로 받기 · 기록으로 둠">⋯</button>
+          <button class="kebab" title="하나씩 보기 · 도커-네트워크 자리 고르기 · 기록으로 둠">⋯</button>
         </div>
       </div>
 
       <div class="card">
-        <div class="ch">다른 기록 2 <small>이가 작업 레포 세션에서 남긴 기록</small></div>
+        <div class="ch">다른 기록 3 <small>세션에서 남긴 기록</small></div>
         <div class="cb">
           <ul class="plain">
-            <li><span class="nm">알람 임계값 — CPU 85% 로 올림</span><span class="r">이 · 3일</span><button class="kebab" title="하나씩 보기 · 기록으로 둠">⋯</button></li>
-            <li><span class="nm">stg-3 신규 서버 — 사양 확정</span><span class="r">이 · 1일</span><button class="kebab" title="하나씩 보기 · 기록으로 둠">⋯</button></li>
+            <li><span class="nm">카나리 비율 — 첫 30분은 10%<small>김의 PC kmd 에서 · 08:52 · 지하철에서 저장해 닿자 저절로 왔다</small></span><span class="r muted small">김 · 오늘</span><button class="kebab" title="하나씩 보기 · 기록으로 둠">⋯</button></li>
+            <li><span class="nm">롤백 순서 — 앱을 먼저 내리고 DB 는 그다음<small>김의 PC kmd 에서 · 14:05</small></span><span class="r muted small">김 · 오늘</span><button class="kebab" title="하나씩 보기 · 기록으로 둠">⋯</button></li>
+            <li><span class="nm">알람 임계값 — CPU 85% 로 올림<small>이 · 팀 kmd 에서 · 10-20 16:40</small></span><span class="r muted small">이 · 1일</span><button class="kebab" title="하나씩 보기 · 기록으로 둠">⋯</button></li>
           </ul>
         </div>
         <div class="cf"><span class="lk">에이전트에게 맡기기</span><span class="small muted">김 묶음과 같은 길 — 지시를 복사해 붙인다</span></div>
       </div>
 
+      <div class="ext"><span class="tm">13:52</span><span class="dot"></span><span>kmd 밖에서 고친 것이 들어왔다 — 최 · 오류 0<small>배포절차 › 사전 점검 · 손으로 올린 변경 · 검사는 통과했다</small></span><span class="act">보기</span></div>
+
       <details class="more"><summary>자세히</summary><div class="in">
-        <div class="row" style="margin-bottom:6px">여러 건을 한 번에 기록으로 둠 — 판정 없이 닫는다(50건씩 나눠 보낸다) <button class="btn sm r">기록으로 둠…</button></div>
-        <div>출신 — 개인 지식에서 온 것은 「사람의 지식 › 문서」, 작업 레포 세션에서 온 것은 「사람 · 레포」. 보낸 사람 PC 의 경로는 오지 않는다.</div>
-        <div style="margin-top:4px">이력 — 지난 판정 · 자기 반영 · 기록으로 둔 것</div>
-        <div class="muted small" style="margin-top:4px">대기 나이는 받은 날부터 잰다 · 14일이 넘으면 경고</div>
+        <div class="row" style="margin-bottom:6px">여러 건을 한 번에 기록으로 둠 — 판정 없이 닫는다 <button class="btn sm r">기록으로 둠…</button></div>
+        <div>출신 — 개인 지식에서 보낸 것은 「사람의 지식 › 문서」, 세션 기록은 「사람 · 어느 kmd 에서」. 보낸 사람 PC 의 경로는 오지 않는다.</div>
+        <div style="margin-top:4px">늦게 온 기록 — 다른 kmd 가 먼저 올렸으면 최신 글 위에서 같은 검사로 다시 저장된 결과만 여기에 선다. 같은 곳이 겹친 것은 보낸 사람 쪽에 「따로 두었다」 로 남고 여기에는 오지 않는다.</div>
       </div></details>
     </div></div>
     <div class="aside">
@@ -1400,72 +1496,131 @@ IP 는 적지 않는다 — 다시 띄우면 바뀐다.
       <ul class="plain">
         <li><span class="kn">김의 배포노트</span><span class="r">4</span></li>
         <li><span class="kn">김의 설계메모</span><span class="r">1</span></li>
-        <li><span class="kn">이 · 작업 레포 세션</span><span class="r">9</span></li>
+        <li><span class="kn">김 · PC kmd 세션</span><span class="r">3</span></li>
+        <li><span class="kn">이 · 팀 kmd 세션</span><span class="r">9</span></li>
+        <li><span class="kn none">kmd 밖</span><span class="r">1</span></li>
       </ul>
-      <p>보낼 곳은 보내는 사람이 자기 지식마다 정한다 — 한 지식이 여러 프로젝트로, 여러 지식이 이 프로젝트로 올 수 있다.</p>
+      <p>kmd 가 여럿이어도 기록은 git 한 곳으로 온다 — 어느 kmd 에서 썼는지는 출신에만 붙는다.</p>
       <p class="muted">이 화면은 받은 것만 안다. 김의 다른 지식이 어디로 가는지는 김의 「보낼 곳」 에만 있다.</p>
     </div>
   </div>
 </section>
 
-<!-- ───────── M13 · 설정 ───────── -->
-<section class="screen" id="m13" data-title="설정" data-grp="내 지식">
-  <div class="note"><b>M13 · 설정.</b> 내 지식 루트 하나(D:\kmd) · 세션에서 저장할 때 갈 곳 · 이 PC 밖으로 나가는 길 — 셋만 있는 한 장이라 주 단추가 없다(§3.7 · §3.3 · §3.4). v0.2(M10)의 「자동으로 할 일」 스위치 넷(원본 따라가기 · 편집기 저장 · 프로젝트 소식 받기 · 양쪽이 고쳤을 때)과 백업 주소 칸이 모두 없어졌다 — 원본이 곧 내 지식이고, git 은 사용자 몫이다. 세션의 갈 곳은 「코드 폴더 → 기본 지식」 표 하나이고, 코드 폴더에는 아무것도 적지 않는다(이 PC 의 사용자 설정에만). 나가는 길은 「프로젝트로 보내기」 하나뿐이다.</div>
-  <div class="app" data-face="me" data-active="settings" data-crumb="설정" data-status='<span>폴더 읽기 · 쓰기 허락됨</span><span>git 없음</span><span class="r">이 PC</span>'>
+<!-- ───────── M12 · 설정 ───────── -->
+<section class="screen" id="m12" data-title="설정" data-grp="설정">
+  <div class="note"><b>M12 · 설정(N14).</b> 김의 내 PC kmd 의 설정 한 장 — 첫 카드는 「이 PC 에서 돈다 — 나만 쓴다」 이고 주소 · IP 는 쓰지 않는다(같은 프로그램을 팀 서버에 깔면 이 카드만 「팀 서버에서 돈다 — 관리자가 볼 수 있다」 로 바뀐다). v0.3 M13 의 루트 트리와 「여기 밖으로는 보내기뿐」 이, 「이은 것」 한 줄 · Claude Code 카드 · 나가는 것 셋(보내기 · 팀 지식에 쓰기 · 받기)으로 바뀌었다. Claude Code 카드의 주 단추 [세션 잇기 한 줄 복사] 는 아직 안 이었을 때만 서고, 김은 이었으므로 이 장에는 주 단추가 없다. §5.1 · §6 · §8 N14.</div>
+  <div class="app" data-where="pc" data-kn="*" data-active="settings" data-crumb="설정">
     <div class="main"><div class="wrap">
       <div class="big">설정</div>
-      <p class="lead">내 지식이 어디 있는지, 세션이 어디에 남기는지, 이 PC 밖으로 무엇이 나가는지.</p>
+      <p class="lead">어디서 돌고, 무엇을 이었고, 무엇이 밖으로 나가는지.</p>
 
       <div class="card">
-        <div class="ch">내 지식 폴더 <small>폴더 하나 — 그 안의 폴더 하나가 지식 하나다</small></div>
+        <div class="ch">이 PC 에서 돈다 — 나만 쓴다 <small>로그인 없음</small><button class="kebab" title="기본 자리 바꾸기 · GitLab 에서 나가기">⋯</button></div>
         <div class="cb">
-          <div class="rt">
-<div class="tree"><b>D:\kmd</b>
-├ <span class="tn">배포노트</span><span class="tc">문서 12</span>
-├ <span class="tn">설계메모</span><span class="tc">문서 7</span>
-├ <span class="tn">개인메모</span><span class="tc">문서 5</span>
-├ <span class="tn">받은편지함</span><span class="tc">메모 2</span>
-└ <span class="tn">회의록-2026</span><span class="tw">아직 kmd 형식이 아니다</span></div>
-            <div class="kv">
-              <span>자리</span><span class="mono">D:\kmd</span>
-              <span>브라우저 허락</span><span>허용됨 — 읽기 · 쓰기 · 브라우저를 다시 열면 한 번 더 묻는다</span>
-              <span>깔 것</span><span>없다 — 이 브라우저가 폴더를 바로 읽는다</span>
-              <span>세션</span><span>Claude Code 도 같은 자리를 본다</span>
-              <span>새 지식</span><span>이 안에 폴더가 생기면 다음에 열 때 목록에 뜬다</span>
-            </div>
+          <div class="kv">
+            <span>들어가기</span><span>없다 — 이 PC 의 나만 쓴다</span>
+            <span>GitLab</span><span>김 · 팀 지식을 처음 이을 때 한 번 들어갔다 · 팀 지식은 이 이름으로 쓴다</span>
+            <span>기본 자리</span><span><span class="mono">D:\kmd</span> — 새 지식과 받은편지함이 여기 선다 · 다른 곳의 폴더도 이을 수 있다</span>
+            <span>판</span><span>v1.13 — 새 판은 다음 시작에 저절로 · 안 되면 앞 판으로</span>
           </div>
-          <div class="ft"><span class="lk" data-go="m1">다른 폴더로 바꾸기</span> <span class="small muted">— 루트는 하나다. 다른 곳의 md 폴더는 탐색기로 D:\kmd 안에 옮겨 넣는다</span></div>
-          <details class="more"><summary>자세히</summary><div class="in">
-            이 자리는 이 PC 의 사용자 설정 파일(<code>~/.cdp/me.json</code>)에 적힌다 — 화면과 세션이 같은 파일을 읽는다. 지식마다의 보낼 곳은 그 지식 폴더 안의 작은 파일에 있어, 폴더를 옮겨도 따라간다.
-          </div></details>
+          <p class="gray">팀 서버에 깔아도 같은 프로그램이다 — 그때는 이 카드가 「팀 서버에서 돈다」 로 바뀌고, 들어갈 때 GitLab 계정을 쓴다.</p>
         </div>
       </div>
 
       <div class="card">
-        <div class="ch">세션에서 저장할 때 <small>Claude Code 에서 「저장해」 라고 하면</small><button class="kebab" title="줄 더하기 · 지식 바꾸기 · 줄 빼기">⋯</button></div>
+        <div class="ch">이은 것 <small>개인 4 · 팀 2</small><span class="r"><span class="lk">지식 목록 →</span></span></div>
         <div class="cb">
-          <p class="rule">저장하기 전에 갈 곳을 한 줄로 보인다. 프로젝트에 이어진 코드 폴더면 팀으로, 아니면 내 지식으로 — 「내 메모로」 · 「팀으로」 한 마디로 바꾼다.</p>
-          <div class="dx"><span class="dest">→ 내 지식 · 배포노트</span><span class="small muted">세션에는 이렇게 한 줄로 보인다 · 바꾸려면 「팀으로」</span></div>
-          <table class="t">
-            <tr><th>코드 폴더</th><th>그냥 「저장해」</th><th>「내 메모로」 라고 하면</th></tr>
-            <tr><td class="mono">D:\work\dpms</td><td class="dv">팀 · dpms_wiki</td><td><b>배포노트</b></td></tr>
-            <tr><td class="mono">D:\work\gdi</td><td class="dv">팀 · gdi_wiki</td><td><b>설계메모</b></td></tr>
-            <tr><td>그 밖</td><td class="dv">내 지식 · 받은편지함</td><td><b>받은편지함</b></td></tr>
-          </table>
-          <p class="small muted" style="margin:8px 0 0">내 지식에 저장하면 기록과 맞는 문서가 한 번에 바뀐다 — 「오늘 바뀐 것」 에 한 줄이 남고, 거기서 되돌린다. 어디에 둘지 모르는 메모는 받은편지함에 모였다가 나중에 옮긴다.</p>
+          <div class="knl">
+            <div class="row"><span class="kt me">개인</span><span class="nmz"><span>배포노트</span><span>설계메모</span><span>개인메모</span><span>받은편지함</span></span></div>
+            <div class="row"><span class="kt team">팀</span><span class="nmz"><span>DPMS 지식</span><span>GDI 지식</span></span><span class="small muted">나: 기록</span></div>
+          </div>
+          <p class="gray">더 이으려면 지식 목록의 [잇기] — 폴더 · git 주소 · 받은 링크 아무거나 붙인다.</p>
         </div>
       </div>
 
       <div class="card">
-        <div class="ch">이 PC 밖으로 나가는 것 <small>이것뿐이다</small></div>
+        <div class="ch">Claude Code <small>세션에서 「저장해」 하면</small></div>
+        <div class="cb">
+          <div class="ok"><span class="chip c-mute">이었다</span><span>이 PC 의 Claude Code 가 이 kmd 에 이어져 있다 — 어느 코드 폴더에서든 같다</span></div>
+          <table class="t">
+            <tr><th>코드 폴더</th><th>그냥 「저장해」 하면</th></tr>
+            <tr><td class="mono">D:\work\dpms</td><td class="dv"><span class="kt team">팀</span> DPMS 지식</td></tr>
+            <tr><td class="mono">D:\work\gdi</td><td class="dv"><span class="kt team">팀</span> GDI 지식</td></tr>
+            <tr><td>그 밖</td><td class="dv"><span class="kt me">개인</span> 받은편지함</td></tr>
+          </table>
+          <p class="small muted" style="margin:6px 0 0">처음 저장한 곳을 기억한다 · 저장하기 전에 갈 곳을 한 줄로 보이고, 「배포노트로」 처럼 지식 이름 한 마디로 바꾼다.</p>
+          <div class="was">안 이었을 때는 이 카드에 [세션 잇기 한 줄 복사] 하나만 선다 — 복사해 터미널에 붙이면 끝이다.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="ch">밖으로 나가는 것 <small>이것뿐이다</small></div>
         <div class="cb">
           <ul class="plain">
-            <li><b>프로젝트로 보내기</b><span class="r">내가 누를 때만 · 어디로 가는지는 지식마다 — <span class="lk" data-go="m9">보낼 곳</span></span></li>
-            <li><b>그 밖</b><span class="r">없다 — 파일 내용은 서버로 가지 않는다. 화면은 브라우저가 이 PC 에서 그린다</span></li>
+            <li><b>보내기</b><span class="r">내가 누를 때 — 고른 팀 지식으로만</span></li>
+            <li><b>팀 지식에 쓰기</b><span class="r">저장할 때 — 닿지 않으면 「저장됨 · 아직 안 올림」 으로 두었다가 닿으면 저절로 간다</span></li>
+            <li><b>팀 지식 받기</b><span class="r">1분마다 — 화면이나 세션이 열려 있는 동안</span></li>
+            <li><b>그 밖</b><span class="r">없다 — 개인 지식은 이 PC 를 떠나지 않는다</span></li>
           </ul>
-          <p class="gray">git 으로 이력을 남기려면 D:\kmd 를 git 폴더로 두면 된다 — kmd 가 따로 할 일은 없다.</p>
         </div>
       </div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ───────── M13 · 팀 kmd 의 이 ───────── -->
+<section class="screen" id="m13" data-title="팀 kmd 의 이 — 브라우저 폴더 · 형식 문턱" data-grp="팀 kmd">
+  <div class="note"><b>M13 · 팀 kmd 의 이(N4 · 팀 서버).</b> 같은 프로그램을 팀 서버에 깐 kmd 에 이가 브라우저로만 들어왔다(설치 0) — 띠가 「여기 둔 내 지식은 관리자가 볼 수 있다」 로 바뀌는 것 말고는 김의 내 PC 화면과 같은 모양이다. 이의 메모는 이의 PC 폴더를 브라우저가 읽어 서버로 가지 않는다(v0.3 §3.4 그대로 · 이력 · 세션 저장은 없다). 이는 GDI 지식도 이었다 — 지난주 더 새 kmd(v1.13)가 형식을 올려 이 서버(v1.12)에서는 읽기만이다(형식 문턱이 보이는 자리는 이 장 · 김의 PC kmd 는 저절로 새 판). [잇기] 는 보조 단추 하나이고, 팀 kmd 의 일반 사용자는 서버의 폴더 경로를 잇지 못한다. §3.2 · §7 · Q23 · Q25.</div>
+  <div class="app" data-where="team" data-kn="*" data-who="이" data-active="home" data-crumb="지식 목록" data-count="개인 1 · 팀 2" data-badges='{"today":1}'>
+    <div class="main"><div class="wrap">
+      <div class="top">
+        <div>
+          <div class="big">지식 목록</div>
+          <p class="lead">개인 1 · 팀 2</p>
+        </div>
+        <span class="r"><button class="btn">잇기</button></span>
+      </div>
+
+      <div class="card">
+        <div class="krow">
+          <span class="ic"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg></span>
+          <span class="nm">이의 메모<small>D:\메모</small></span>
+          <span class="tags"><span class="kt me">개인</span></span>
+          <span class="meta">이의 PC 폴더 · 브라우저가 읽는다 · 서버로 가지 않는다<small>문서 9 · 오늘 13:30</small></span>
+          <span class="r"><button class="kebab" title="다른 폴더로 · 잇기 끊기">⋯</button></span>
+        </div>
+        <div class="krow">
+          <span class="ic"><svg viewBox="0 0 24 24"><path d="M4 6c0-2.7 16-2.7 16 0v12c0 2.7-16 2.7-16 0z M4 6c0 2.7 16 2.7 16 0"/></svg></span>
+          <span class="nm">DPMS 지식<small>gitlab › team/dpms_wiki</small></span>
+          <span class="tags"><span class="kt team">팀</span><span class="kt role">나: 기록</span><span class="chip c-acc">새로 바뀜 2</span></span>
+          <span class="meta">문서 18<small>오늘 14:18 · 박</small></span>
+          <span class="r"><button class="kebab" title="링크 복사 · 잇기 끊기">⋯</button></span>
+        </div>
+        <div class="krow ro">
+          <span class="ic"><svg viewBox="0 0 24 24"><path d="M4 6c0-2.7 16-2.7 16 0v12c0 2.7-16 2.7-16 0z M4 6c0 2.7 16 2.7 16 0"/></svg></span>
+          <span class="nm">GDI 지식<small>gitlab › team/gdi_wiki</small></span>
+          <span class="tags"><span class="kt team">팀</span></span>
+          <span class="meta"><span class="chip c-warn">더 새 kmd 로 만들어졌다 — 읽기만 · 서버가 올리면 고쳐진다</span><small>문서 24 · 10-16</small></span>
+          <span class="r"><button class="kebab" title="링크 복사 · 잇기 끊기">⋯</button></span>
+        </div>
+      </div>
+      <p class="gray">세션 저장까지 내 PC 폴더에 하고 싶으면 내 PC 에 kmd 를 깐다(선택) — 같은 프로그램이다. <span class="lk">설명서</span></p>
+
+      <div class="feed">
+        <div class="fh">오늘 바뀐 것<small>10-21(수) · 지식 전체</small></div>
+        <div class="fi"><span class="tm">14:18</span><span class="dot acc"></span><span class="tx">DPMS 지식에서 새로 바뀜 — 배포절차 › 헬스 체크 · 박<small>따로 할 일 없음</small></span><span class="act">보기</span></div>
+        <div class="fi"><span class="tm">13:30</span><span class="dot"></span><span class="tx">화면에서 고침 — 이의 메모 › 알람-메모<small>이 PC 폴더에 바로 썼다 · 이 폴더는 이력을 두지 않는다</small></span></div>
+        <div class="fi"><span class="tm">10-20</span><span class="dot pv"></span><span class="tx">DPMS 지식에 기록을 남겼다 — 알람 임계값 · CPU 85%<small>정리하는 사람이 반영하면 여기 한 줄이 뜬다</small></span></div>
+      </div>
+
+      <details class="more"><summary>[잇기] 에 붙일 수 있는 것 — 이 팀 kmd 에서</summary><div class="in">
+        <ul class="plain">
+          <li><b>이 PC 폴더</b><span class="r">브라우저가 폴더 고르기 창을 연다 · 내용은 서버로 가지 않는다</span></li>
+          <li><b>git 주소 · 받은 링크</b><span class="r">GitLab 에서 들어올 수 있으면 「팀 · 나: 기록」 으로 선다</span></li>
+          <li><b>이름 하나</b><span class="r">팀 서버 안에 새 지식 — 나만 보지만 관리자는 볼 수 있다</span></li>
+          <li><b>서버의 폴더 경로</b><span class="r">받지 않는다</span></li>
+        </ul>
+      </div></details>
     </div></div>
   </div>
 </section>
@@ -1485,72 +1640,61 @@ server:'M4 4h16v6H4z M4 14h16v6H4z M8 7h.01 M8 17h.01',book:'M4 5c3-1 5-1 8 1 3-
 const svg=k=>`<svg viewBox="0 0 24 24"><path d="${IC[k]||IC.doc}"/></svg>`;
 // ── 메뉴 표(viewer/src/shell/nav.js 의 지금 항목 + 새 항목) ──
 // [key, 라벨, 아이콘, 새?, 개인만?]
-// 내 지식 — 루트 D:\kmd 아래 폴더가 지식이다
-const KN={'배포노트':['배포노트','→ dpms_wiki'],'설계메모':['설계메모','→ gdi_wiki · dpms_wiki'],'개인메모':['개인메모','보내지 않음'],'받은편지함':['받은편지함','보내지 않음']};
-const NAV_ME=[{g:'',items:[['docs','문서','doc'],['graph','그래프','graph'],['today','오늘 바뀐 것','check']]},{g:'프로젝트로',items:[['send','보내기','pair'],['targets','보낼 곳','plug']]}];
-const NAV={
-  read:[{g:'지식',items:[['docs','읽기','doc'],['graph','좌표 · 그래프','graph']]}],
-  studio:[
-    {g:'만든다',items:[['ingest','지식 생성','plus'],['linked','작업 레포 연결','plug']]},
-    {g:'정리한다',items:[['queue','대기열','hour'],['drift','진단','warn'],['edit','고치기','pen']]},
-    {g:'세운다',items:[['managed','관리 문서 · 서식집','managed'],['vocab','어휘','list'],['sources','출처','sync'],['overview','현황','check']]}],
-  server:[{g:'서버',items:[['con-overview','현황','check'],['con-repos','지식 레포','db'],['con-people','사람','users'],['con-server','서버','server']]}],
+// 지식 — 개인(이 PC 폴더) · 공유(git) · 브라우저 폴더가 한 목록
+const KN={
+ '*':{t:'지식 전체',k:'',sub:''},
+ '배포노트':{t:'배포노트',k:'me',sub:'D:\\kmd\\배포노트'},
+ '설계메모':{t:'설계메모',k:'me',sub:'D:\\kmd\\설계메모'},
+ '개인메모':{t:'개인메모',k:'me',sub:'D:\\kmd\\개인메모'},
+ '받은편지함':{t:'받은편지함',k:'me',sub:'D:\\kmd\\받은편지함'},
+ 'dpms_wiki':{t:'DPMS 지식',k:'team',sub:'GitLab › team/dpms_wiki'},
+ 'gdi_wiki':{t:'GDI 지식',k:'team',sub:'GitLab › team/gdi_wiki'},
+ '이의메모':{t:'이의 메모',k:'br',sub:'내 PC 폴더 · 브라우저가 읽는다'},
 };
-document.querySelectorAll('.app[data-face]').forEach(app=>{
-  const d=app.dataset, me=d.face==='me', area=d.area||'read';
-  const badges=JSON.parse(d.badges||'{}');
+const KT={me:'<span class="kt me">개인</span>',team:'<span class="kt team">팀</span>',br:'<span class="kt me">개인</span>'};
+const NAV_BASE=[['home','지식 목록','list'],['docs','문서','doc'],['graph','그래프','graph'],['today','오늘 바뀐 것','check']];
+const NAV_SEND=[['send','보내기','pair'],['targets','보낼 곳','plug']];
+const NAV_CUR=[['queue','받은 것','hour'],['members','이 지식의 사람','users']];
+document.querySelectorAll('.app[data-where]').forEach(app=>{
+  const d=app.dataset, team=d.where==='team', kn=d.kn||'*', k=KN[kn]||{t:kn,k:'',sub:''};
+  const role=d.role||(k.k==='me'?'주인':(k.k==='team'?'기록':'')); const cur=(role==='주인'||role==='정리')&&k.k==='team';
+  const badges=JSON.parse(d.badges||'{}'); const noKn=('nokn' in d);
   let h='<div class="sb-top"><div class="logo">K</div><span class="brand">kmd</span></div>';
-  h+='<div class="sb-face"><span class="'+(me?'on':'')+'">내 지식</span><span class="'+(me?'':'on')+'">프로젝트</span></div>';
-  let rn;
-  const noroot=('noroot' in d), all=(d.kn==='*'||d.active==='root');
-  if(me){
-    const kn=d.kn||'배포노트', k=KN[kn]||[kn,''];
-    rn=all?'내 지식':k[0];
-    if(!noroot&&d.active!=='settings'){
-      h+=all
-        ? '<div class="sb-repo"><span class="rk">전체</span><span class="rn">내 지식 전체<small>D:\\kmd · 지식 5</small></span><span class="rc">▾</span></div>'
-        : '<div class="sb-repo"><span class="rk">'+k[0].slice(0,2)+'</span><span class="rn">'+k[0]+'<small>D:\\kmd\\'+kn+'</small></span><span class="rc">▾</span></div>';
-      if('pickOpen' in d) h+='<div class="menu" style="position:relative;margin:-2px 0 8px;min-width:0;box-shadow:var(--shadow-2)"><div class="mi">내 지식 전체<small>D:\\kmd</small></div><div class="sep"></div><div class="mi" style="font-weight:600">배포노트<small>→ dpms_wiki</small></div><div class="mi">설계메모<small>→ 둘</small></div><div class="mi">개인메모<small>보내지 않음</small></div><div class="mi">받은편지함<small>보내지 않음</small></div><div class="mi rare">회의록-2026<small>아직 kmd 형식 아님</small></div><div class="sep"></div><div class="mi rare">+ 새 지식</div></div>';
-    }
-    h+='<div'+(noroot?' style="opacity:.45"':'')+'>';
-    NAV_ME.forEach(g=>{
-      h+=g.g?'<div class="sb-g">'+g.g+'</div>':'<div style="height:4px"></div>';
-      g.items.forEach(([key,l,ic])=>{h+='<div class="sb-i'+(key===d.active?' on':'')+'">'+svg(ic)+'<span class="t">'+l+'</span>'+(badges[key]?'<span class="bd">'+badges[key]+'</span>':'')+'</div>'});
-    });
-    h+='</div>';
-  } else {
-    const repo=d.repo||'dpms_wiki'; rn=repo;
-    if(area!=='server') h+='<div class="sb-repo"><span class="rk">'+repo.slice(0,2).toUpperCase()+'</span><span class="rn">'+repo+'</span><span class="rc">▾</span></div>';
-    const writer=(d.role||'')==='writer';
-    const areas=writer?[['read','보기'],['studio','작업실']]:[['read','보기'],['studio','작업실'],['server','서버']];
-    h+='<div class="sb-areas">'+areas.map(([k,l])=>'<span class="'+(k===area?'on':'')+'">'+l+'</span>').join('')+'</div>';
-    (NAV[area]||[]).forEach(g=>{
-      h+='<div class="sb-g">'+g.g+'</div>';
-      g.items.forEach(([key,l,ic])=>{ if(writer&&['queue','drift','edit','managed','vocab','sources'].includes(key))return;
-        h+='<div class="sb-i'+(key===d.active?' on':'')+'">'+svg(ic)+'<span class="t">'+l+'</span>'+(badges[key]?'<span class="bd">'+badges[key]+'</span>':'')+'</div>'});
-    });
+  h+='<div class="where">'+(team?'팀 서버에서 돈다':'이 PC 에서 돈다')+'</div>';
+  if(!noKn){
+    h+= kn==='*'
+      ? '<div class="sb-repo"><span class="rk">전체</span><span class="rn">지식 전체<small style="font-family:var(--font)">'+(d.count||'개인 4 · 팀 2')+'</small></span><span class="rc">▾</span></div>'
+      : '<div class="sb-repo"><span class="rk">'+k.t.slice(0,2)+'</span><span class="rn">'+k.t+' '+(KT[k.k]||'')+'<small>'+k.sub+'</small></span><span class="rc">▾</span></div>';
   }
-  h+='<div class="sb-foot">'+(me?'<div class="sb-set'+(d.active==='settings'?' on':'')+'">'+svg('server')+'<span>설정</span></div>':'')+'<div class="sb-i">'+svg('book')+'<span class="t">설명서</span></div><div class="sb-me"><span class="av">'+(d.who||'김')[0]+'</span><span>'+(d.who||'김')+' <small>· '+(me?'내 PC':(d.role||'writer'))+'</small></span></div></div>';
+  h+='<div'+(noKn?' style="opacity:.45"':'')+'>';
+  NAV_BASE.forEach(([key,l,ic])=>{h+='<div class="sb-i'+(key===d.active?' on':'')+'">'+svg(ic)+'<span class="t">'+l+'</span>'+(badges[key]?'<span class="bd">'+badges[key]+'</span>':'')+'</div>'});
+  h+='<div class="sb-g">팀으로</div>';
+  NAV_SEND.forEach(([key,l,ic])=>{h+='<div class="sb-i'+(key===d.active?' on':'')+'">'+svg(ic)+'<span class="t">'+l+'</span>'+(badges[key]?'<span class="bd">'+badges[key]+'</span>':'')+'</div>'});
+  if(cur){ h+='<div class="sb-g">정리 — 나: '+role+'</div>';
+    NAV_CUR.forEach(([key,l,ic])=>{ if(key==='members'&&role!=='주인')return; h+='<div class="sb-i'+(key===d.active?' on':'')+'">'+svg(ic)+'<span class="t">'+l+'</span>'+(badges[key]?'<span class="bd">'+badges[key]+'</span>':'')+'</div>'}); }
+  h+='</div>';
+  const who=d.who||'김', anon=('anon' in d);
+  h+='<div class="sb-foot"><div class="sb-set'+(d.active==='settings'?' on':'')+'">'+svg('server')+'<span>설정</span></div><div class="sb-i">'+svg('book')+'<span class="t">설명서</span></div>'+(anon?'<div class="sb-me"><span class="av">?</span><span class="muted">아직 들어오지 않았다</span></div>':'<div class="sb-me"><span class="av">'+who[0]+'</span><span>'+who+' <small>· '+(team?'GitLab 로 들어옴':'이 PC')+'</small></span></div>')+'</div>';
   const side=document.createElement('aside'); side.className='side'; side.innerHTML=h;
   const col=document.createElement('div'); col.className='col';
   const body=document.createElement('div'); body.className='body';
   const keep=[...app.children].filter(c=>c.classList.contains('scrim')||c.classList.contains('toast'));
   [...app.children].forEach(c=>{ if(!keep.includes(c)) body.appendChild(c) });
-  const crumb=(d.crumb||'').split(' › ');
-  const noName=(d.active==='settings'||noroot||area==='server'||(me&&crumb[0]===rn));
+  const crumb=(d.crumb||'').split(' › ').filter(Boolean);
+  const noName=(kn==='*'||noKn||d.active==='settings'||crumb[0]===k.t);
   const hdr=document.createElement('header'); hdr.className='hdr';
-  hdr.innerHTML='<span class="crumb">'+(noName?'':'<b>'+rn+'</b> › ')+crumb.map((c,i)=>i===crumb.length-1?'<b>'+c+'</b>':c).join(' › ')+'</span><div class="search">찾기<span style="margin-left:auto;font-size:11px">Ctrl K</span></div>';
+  hdr.innerHTML='<span class="crumb">'+(noName?'':'<b>'+k.t+'</b> › ')+crumb.map((c,i)=>i===crumb.length-1?'<b>'+c+'</b>':c).join(' › ')+'</span><div class="search">찾기<span style="margin-left:auto;font-size:11px">Ctrl K</span></div>';
   const band=document.createElement('div');
-  band.className='band'+(me?' me':' team');
-  band.innerHTML=me
-    ? (noroot
-      ? '<span class="who"><i></i>내 지식 · 아직 폴더를 잇지 않았다</span><span class="out muted">설치 없음 · 폴더를 고르면 브라우저가 바로 읽는다</span>'
-      : '<span class="who"><i></i>내 지식 · D:\\kmd</span><span class="out muted">이 PC 에서 바로 읽는다 · 서버로 가지 않는다 · 나가는 것은 내가 보낼 때뿐</span>')
-    : '<span class="who"><i></i>프로젝트 · '+(d.repo||'dpms_wiki')+'</span><span class="out muted">cdp.team.local · 팀이 같이 쓴다</span>';
+  band.className='band '+(k.k==='team'?'team':'me');
+  const left = kn==='*'||noKn
+    ? (team?'팀 서버의 kmd · 여기 둔 내 지식은 관리자가 볼 수 있다':'이 PC 의 kmd · 나만 쓴다')
+    : (k.k==='team' ? '팀 지식 · '+k.sub+' · 나: '+role : (k.k==='br' ? '내 지식 · 내 PC 폴더 · 브라우저가 읽는다' : '내 지식 · '+k.sub+' · 나만'));
+  const right = k.k==='team' ? (d.sync||'새로 바뀐 것 없음') : k.k==='br' ? '서버로 가지 않는다' : (kn==='*'||noKn) ? (team?'내 PC 폴더는 브라우저가 읽는다 — 서버로 가지 않는다':'밖으로 나가는 것 — 보낼 때 · 팀 지식에 저장할 때') : (team?'팀 서버에 있다 — 관리자가 볼 수 있다':'이 지식은 내가 보낼 때만 밖으로 나간다');
+  band.innerHTML='<span class="who"><i></i>'+left+'</span><span class="out muted">'+right+'</span>';
   const st=document.createElement('div'); st.className='status';
-  st.innerHTML=d.status||(me?'<span>폴더 읽기 · 쓰기 허락됨</span><span>git 없음</span><span class="r">이 PC</span>':'<span>미러 최신</span><span class="r">v1.10</span>');
+  st.innerHTML=d.status||(team?(anon?'<span>아직 들어오지 않았다</span><span class="r">v1.12</span>':'<span>GitLab 로 들어옴 · '+who+'</span><span class="r">v1.12</span>'):'<span>이 PC</span><span class="r">v1.13</span>');
   col.append(hdr,band,body,st);
-  app.prepend(side); app.append(col); keep.forEach(k=>app.append(k));
+  app.prepend(side); app.append(col); keep.forEach(x=>app.append(x));
 });
 // 목업 내비
 const show=id=>{document.querySelectorAll('.mnav button').forEach(x=>x.classList.toggle('on',x.dataset.s===id));
