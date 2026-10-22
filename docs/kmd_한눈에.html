@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kmd 한눈에</title>
+<style>
+:root{
+  --bg:#f5f6f8; --card:#ffffff; --ink:#151a23; --ink2:#4a5263; --ink3:#8a92a3; --line:#d9dde5;
+  --me:#1f2633; --me-bg:#e9ebf0; --team:#2f5bea; --team-bg:#e8eefe; --kmd:#0f8a6a; --kmd-bg:#e3f5ef;
+  --warn:#b26b00; --warn-bg:#fff3dc; --bad:#c23b2e; --bad-bg:#fde9e6; --soft:#f0f2f5;
+  --font:"Pretendard","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#11141a; --card:#1a1f28; --ink:#e8ebf1; --ink2:#b3bac8; --ink3:#7d8596; --line:#2d3441;
+    --me:#d9dee8; --me-bg:#262c37; --team:#7d9bff; --team-bg:#1d2a4d; --kmd:#3fc79f; --kmd-bg:#163a31;
+    --warn:#f0b24a; --warn-bg:#3a2c12; --bad:#ff8a7d; --bad-bg:#3d1d1a; --soft:#222834;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.7 var(--font);word-break:keep-all}
+header.top{padding:40px 16px 24px;max-width:1080px;margin:0 auto}
+header.top h1{margin:0 0 6px;font-size:30px;letter-spacing:-.5px}
+header.top p{margin:0;color:var(--ink2);max-width:760px}
+nav.toc{max-width:1080px;margin:0 auto 8px;padding:0 16px;display:flex;flex-wrap:wrap;gap:6px}
+nav.toc a{font-size:13px;color:var(--ink2);text-decoration:none;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px 11px}
+nav.toc a:hover{color:var(--team);border-color:var(--team)}
+main{max-width:1080px;margin:0 auto;padding:0 16px 80px}
+section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:26px 26px 22px;margin:18px 0}
+section h2{margin:0 0 4px;font-size:21px;letter-spacing:-.3px;display:flex;gap:10px;align-items:baseline}
+section h2 .n{font-size:13px;font-weight:700;color:#fff;background:var(--kmd);border-radius:6px;padding:1px 8px}
+section .lead{margin:0 0 16px;color:var(--ink2)}
+h3{font-size:16px;margin:22px 0 6px}
+figure{margin:14px 0 6px;overflow-x:auto}
+figure svg{display:block;width:100%;min-width:720px;height:auto}
+figcaption{font-size:12.5px;color:var(--ink3);margin-top:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:12px 0}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--card)}
+.card b{display:block;margin-bottom:2px}
+.card p{margin:0;color:var(--ink2);font-size:14px}
+.tag{display:inline-block;font-size:11.5px;font-weight:700;border-radius:5px;padding:0 6px;margin-right:4px;vertical-align:1px}
+.tag.me{background:var(--me-bg);color:var(--me)} .tag.team{background:var(--team-bg);color:var(--team)} .tag.kmd{background:var(--kmd-bg);color:var(--kmd)}
+.tag.warn{background:var(--warn-bg);color:var(--warn)}
+table{width:100%;border-collapse:collapse;font-size:14px;margin:10px 0}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--ink3);font-weight:600;font-size:12.5px}
+.say{border-left:3px solid var(--kmd);background:var(--kmd-bg);padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0;color:var(--ink)}
+.line1{font-size:13.5px;background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:7px 12px;display:inline-block;margin:3px 0}
+.k{font-family:Consolas,"Courier New",monospace;font-size:13px;background:var(--soft);border-radius:4px;padding:0 5px}
+footer{max-width:1080px;margin:0 auto;padding:0 16px 40px;color:var(--ink3);font-size:12.5px}
+/* SVG 부품 */
+svg text{font-family:var(--font);fill:var(--ink)}
+svg .t{font-size:15px;font-weight:700}
+svg .s{font-size:12.5px;fill:var(--ink2)}
+svg .xs{font-size:11.5px;fill:var(--ink3)}
+svg .box{fill:var(--card);stroke:var(--line);stroke-width:1.5}
+svg .me{fill:var(--me-bg);stroke:var(--me);stroke-width:1.5}
+svg .team{fill:var(--team-bg);stroke:var(--team);stroke-width:1.5}
+svg .kmd{fill:var(--kmd-bg);stroke:var(--kmd);stroke-width:1.5}
+svg .warn{fill:var(--warn-bg);stroke:var(--warn);stroke-width:1.5}
+svg .soft{fill:var(--soft);stroke:none}
+svg .ar{stroke:var(--ink2);stroke-width:1.8;fill:none}
+svg .ar.t{stroke:var(--team)} svg .ar.k{stroke:var(--kmd)} svg .ar.w{stroke:var(--warn)}
+svg .dash{stroke-dasharray:6 5}
+svg .ah{fill:var(--ink2)} svg .ah.t{fill:var(--team)} svg .ah.k{fill:var(--kmd)} svg .ah.w{fill:var(--warn)}
+svg .lbl{font-size:12px;fill:var(--ink2)}
+svg .num{font-size:13px;font-weight:700;fill:#fff}
+svg .dot-k{fill:var(--kmd)} svg .dot-t{fill:var(--team)} svg .dot-w{fill:var(--warn)} svg .dot-m{fill:var(--me)} svg .dot-g{fill:var(--ink3)}
+@media (max-width:640px){section{padding:18px 16px} header.top h1{font-size:24px}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10z" class="ah"/></marker>
+    <marker id="at" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10z" class="ah t"/></marker>
+    <marker id="ak" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10z" class="ah k"/></marker>
+    <marker id="aw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10z" class="ah w"/></marker>
+  </defs>
+</svg>
+
+<header class="top">
+  <h1>kmd 한눈에</h1>
+  <p>kmd 는 <b>md 로 된 지식을 정리해 두고, 사람과 Claude 가 찾아 쓰게 하는 프로그램</b>이다. 이 문서는 지식 한 조각이 <b>들어와서 → 쌓이고 → 정리되고 → 찾아 쓰이고 → 보내지고 → 지켜지는</b> 순서로 kmd 를 설명한다. 검토 문서 v0.3 ~ v0.6 의 내용을 그림으로 묶었다(운영자 확인 전인 v0.6 권장안 포함).</p>
+</header>
+
+<nav class="toc">
+  <a href="#map">0 전체 지도</a><a href="#life">1 데이터의 일생</a><a href="#in">2 들어온다</a><a href="#pile">3 쌓인다</a>
+  <a href="#cur">4 정리된다</a><a href="#find">5 찾아 쓴다</a><a href="#send">6 보낸다</a><a href="#keep">7 지킨다</a>
+  <a href="#src">8 가져오는 곳</a><a href="#login">9 들어가기</a><a href="#day">10 하루</a><a href="#words">11 말 대응</a>
+</nav>
+
+<main>
+
+<!-- 0 전체 지도 -->
+<section id="map">
+  <h2><span class="n">0</span>전체 지도 — 같은 프로그램이 두 자리에</h2>
+  <p class="lead">kmd 는 하나의 프로그램이다. <b>팀 서버</b>에 깔면 여럿이 같이 쓰고(SaaS), <b>내 PC</b>에 깔면 나만 쓴다(로컬 프로그램). 할 수 있는 일은 같다. 지식은 늘 어느 한 kmd 안에 살고, git 은 저절로 하는 <b>백업</b>이다.</p>
+  <figure>
+  <svg viewBox="0 0 960 470">
+    <!-- 사람 -->
+    <text x="20" y="30" class="xs">사람 · 세션</text>
+    <rect x="20" y="44" width="150" height="62" rx="10" class="me"/><text x="34" y="70" class="t">김</text><text x="34" y="92" class="s">내 PC 프로그램 있음</text>
+    <rect x="20" y="124" width="150" height="62" rx="10" class="box"/><text x="34" y="150" class="t">Claude Code</text><text x="34" y="172" class="s">세션에서 저장 · 찾기</text>
+    <rect x="20" y="254" width="150" height="62" rx="10" class="team"/><text x="34" y="280" class="t">박 · 이</text><text x="34" y="302" class="s">브라우저로 팀 화면</text>
+
+    <!-- 내 PC kmd -->
+    <rect x="250" y="30" width="330" height="170" rx="14" class="me"/>
+    <text x="270" y="58" class="t">kmd · 내 PC</text><text x="400" y="58" class="s">나만 · 망 없이도</text>
+    <rect x="270" y="74" width="290" height="110" rx="10" class="box"/>
+    <text x="286" y="98" class="s">내 지식 — D:\kmd 안의 폴더 하나 = 지식 하나</text>
+    <rect x="286" y="110" width="80" height="58" rx="8" class="soft"/><text x="296" y="134" class="s">기록</text><text x="296" y="154" class="xs">있었던 일</text>
+    <rect x="376" y="110" width="80" height="58" rx="8" class="soft"/><text x="386" y="134" class="s">문서</text><text x="386" y="154" class="xs">지금 상태</text>
+    <rect x="466" y="110" width="80" height="58" rx="8" class="soft"/><text x="476" y="134" class="s">이름표</text><text x="476" y="154" class="xs">찾는 이름</text>
+
+    <!-- 팀 kmd -->
+    <rect x="250" y="240" width="330" height="170" rx="14" class="team"/>
+    <text x="270" y="268" class="t">kmd · 팀 서버</text><text x="410" y="268" class="s">같이 · 늘 켜짐</text>
+    <rect x="270" y="284" width="290" height="110" rx="10" class="box"/>
+    <text x="286" y="308" class="s">팀 지식(DPMS · GDI) + 팀 서버 안 내 지식</text>
+    <rect x="286" y="320" width="80" height="58" rx="8" class="soft"/><text x="296" y="344" class="s">기록</text><text x="296" y="364" class="xs">있었던 일</text>
+    <rect x="376" y="320" width="80" height="58" rx="8" class="soft"/><text x="386" y="344" class="s">문서</text><text x="386" y="364" class="xs">지금 상태</text>
+    <rect x="466" y="320" width="80" height="58" rx="8" class="soft"/><text x="476" y="344" class="s">이름표</text><text x="476" y="364" class="xs">찾는 이름</text>
+
+    <!-- 백업 -->
+    <text x="660" y="30" class="xs">백업 (git · 저절로)</text>
+    <rect x="660" y="60" width="280" height="80" rx="10" class="box"/><text x="676" y="88" class="t">E:\kmd-백업</text><text x="676" y="112" class="s">다른 드라이브 · NAS 폴더</text><text x="676" y="128" class="xs">PC 가 켜 있을 때 · 켤 때 한 번</text>
+    <rect x="660" y="290" width="280" height="80" rx="10" class="box"/><text x="676" y="318" class="t">사내 GitLab</text><text x="676" y="342" class="s">지식 하나 = 프로젝트 하나</text><text x="676" y="358" class="xs">저장할 때마다</text>
+
+    <!-- 가져오는 곳 · 정리 -->
+    <rect x="660" y="160" width="280" height="56" rx="10" class="kmd"/><text x="676" y="184" class="t">가져오는 곳</text><text x="676" y="204" class="s">코드 · DB → 표를 저절로</text>
+    <rect x="660" y="224" width="280" height="56" rx="10" class="kmd"/><text x="676" y="248" class="t">밤의 정리</text><text x="676" y="268" class="s">kmd 가 넣을 글을 미리 써 둔다</text>
+
+    <!-- 화살표 -->
+    <path d="M170,75 L248,100" class="ar" marker-end="url(#a)"/>
+    <path d="M170,150 L248,130" class="ar" marker-end="url(#a)"/>
+    <path d="M170,160 L248,290" class="ar" marker-end="url(#a)"/>
+    <path d="M170,285 L248,320" class="ar t" marker-end="url(#at)"/>
+    <path d="M415,202 L415,238" class="ar t" marker-end="url(#at)"/><text x="424" y="224" class="lbl">보내기 — 한 방향</text>
+    <path d="M582,100 L658,100" class="ar" marker-end="url(#a)"/>
+    <path d="M582,330 L658,330" class="ar" marker-end="url(#a)"/>
+    <path d="M658,188 L582,300" class="ar k" marker-end="url(#ak)"/>
+    <path d="M658,252 L582,350" class="ar k" marker-end="url(#ak)"/>
+    <path d="M95,318 L95,428 L612,428 L612,150 L586,150" class="ar dash" marker-end="url(#a)"/>
+    <text x="110" y="450" class="lbl">팀 화면에서 내 PC 지식을 연다 — 내 PC 프로그램이 열고, 내용은 팀 서버로 가지 않는다</text>
+  </svg>
+  <figcaption>그림 0 — 지식은 kmd 안에 산다. 내 PC 지식은 내 PC 에, 팀 지식은 팀 서버에. git 은 그 kmd 가 미는 백업일 뿐이다.</figcaption>
+  </figure>
+  <div class="grid">
+    <div class="card"><b><span class="tag me">내 PC</span>나만 쓴다</b><p>망이 끊겨도 된다. 들어가기 화면이 없다. 다른 기기에서는 안 열린다.</p></div>
+    <div class="card"><b><span class="tag team">팀 서버</span>같이 쓴다</b><p>어디서든 열린다. 아이디 · 비밀번호로 들어간다. 관리자가 볼 수 있다는 점은 정직하게 알린다.</p></div>
+    <div class="card"><b><span class="tag kmd">kmd</span>할 일은 같다</b><p>보기 · 찾기 · 고치기 · 저장이 곧 반영 · 세션 저장 · 보내기 · 저절로 채우는 표 · 받은 것 정리.</p></div>
+  </div>
+</section>
+
+<!-- 1 데이터의 일생 -->
+<section id="life">
+  <h2><span class="n">1</span>데이터의 일생 — 여섯 걸음</h2>
+  <p class="lead">kmd 에서 지식 한 조각은 늘 같은 길을 간다. 아래 여섯 걸음이 이 문서의 차례다. 사람이 손대는 곳은 <b>굵은 테두리</b> 뿐이고, 나머지는 kmd 가 한다.</p>
+  <figure>
+  <svg viewBox="0 0 960 230">
+    <g>
+      <rect x="10" y="30" width="140" height="110" rx="12" class="box"/><circle cx="34" cy="54" r="13" class="dot-k"/><text x="29" y="59" class="num">1</text>
+      <text x="56" y="60" class="t">들어온다</text><text x="24" y="88" class="s">세션 저장</text><text x="24" y="106" class="s">편집기 · docx</text><text x="24" y="124" class="s">가져오는 곳</text>
+      <rect x="168" y="30" width="140" height="110" rx="12" class="box"/><circle cx="192" cy="54" r="13" class="dot-k"/><text x="187" y="59" class="num">2</text>
+      <text x="214" y="60" class="t">쌓인다</text><text x="182" y="88" class="s">기록이 된다</text><text x="182" y="106" class="s">고치지 않는다</text><text x="182" y="124" class="s">무엇을 건드렸나</text>
+      <rect x="326" y="30" width="140" height="110" rx="12" class="box" style="stroke:var(--ink);stroke-width:2.5"/><circle cx="350" cy="54" r="13" class="dot-k"/><text x="345" y="59" class="num">3</text>
+      <text x="372" y="60" class="t">정리된다</text><text x="340" y="88" class="s">문서에 넣는다</text><text x="340" y="106" class="s">내 것은 알아서</text><text x="340" y="124" class="s">팀은 아침 한 번</text>
+      <rect x="484" y="30" width="140" height="110" rx="12" class="box"/><circle cx="508" cy="54" r="13" class="dot-k"/><text x="503" y="59" class="num">4</text>
+      <text x="530" y="60" class="t">찾아 쓴다</text><text x="498" y="88" class="s">이름으로 →</text><text x="498" y="106" class="s">안 맞으면 비슷한</text><text x="498" y="124" class="s">글에서</text>
+      <rect x="642" y="30" width="140" height="110" rx="12" class="box" style="stroke:var(--ink);stroke-width:2.5"/><circle cx="666" cy="54" r="13" class="dot-k"/><text x="661" y="59" class="num">5</text>
+      <text x="688" y="60" class="t">보낸다</text><text x="656" y="88" class="s">내 PC → 팀</text><text x="656" y="106" class="s">한 방향</text><text x="656" y="124" class="s">[N개 보내기]</text>
+      <rect x="800" y="30" width="150" height="110" rx="12" class="box"/><circle cx="824" cy="54" r="13" class="dot-k"/><text x="819" y="59" class="num">6</text>
+      <text x="846" y="60" class="t">지킨다</text><text x="814" y="88" class="s">git 백업</text><text x="814" y="106" class="s">멈추면 한 줄</text><text x="814" y="124" class="s">되살리기</text>
+      <path d="M150,85 L166,85" class="ar" marker-end="url(#a)"/><path d="M308,85 L324,85" class="ar" marker-end="url(#a)"/>
+      <path d="M466,85 L482,85" class="ar" marker-end="url(#a)"/><path d="M624,85 L640,85" class="ar" marker-end="url(#a)"/><path d="M782,85 L798,85" class="ar" marker-end="url(#a)"/>
+      <path d="M240,142 C240,200 555,200 555,144" class="ar k dash" marker-end="url(#ak)"/>
+      <text x="290" y="200" class="lbl">찾을 때는 문서 + 아직 문서에 안 넣은 기록이 같이 나간다</text>
+    </g>
+  </svg>
+  <figcaption>그림 1 — 사람이 누르는 곳은 둘(3 팀 정리의 [모두 반영] · 5 [N개 보내기]). 나머지는 저절로 돌고, 멈출 때만 한 줄이 뜬다.</figcaption>
+  </figure>
+</section>
+
+<!-- 2 들어온다 -->
+<section id="in">
+  <h2><span class="n">2</span>들어온다 — 네 개의 입구</h2>
+  <p class="lead">지식이 kmd 로 들어오는 길은 넷이다. 어느 길로 오든 결국 <b>기록 하나</b>가 된다. 사람은 고르지 않는다 — 어디에 둘지는 지식 이름이 정한다.</p>
+  <figure>
+  <svg viewBox="0 0 960 300">
+    <rect x="10" y="20" width="220" height="56" rx="10" class="box"/><text x="26" y="44" class="t">Claude Code 세션</text><text x="26" y="64" class="s">"이 절차는 내 배포노트에"</text>
+    <rect x="10" y="88" width="220" height="56" rx="10" class="box"/><text x="26" y="112" class="t">편집기로 고침</text><text x="26" y="132" class="s">VS Code · 메모장 — 30초 뒤 저절로</text>
+    <rect x="10" y="156" width="220" height="56" rx="10" class="box"/><text x="26" y="180" class="t">파일을 넣음</text><text x="26" y="200" class="s">docx · pdf → 문서로 바뀐다</text>
+    <rect x="10" y="224" width="220" height="56" rx="10" class="kmd"/><text x="26" y="248" class="t">가져오는 곳</text><text x="26" y="268" class="s">코드 · DB 에서 표 (§8)</text>
+
+    <rect x="330" y="96" width="220" height="110" rx="12" class="kmd"/>
+    <text x="346" y="124" class="t">kmd 가 받는다</text>
+    <text x="346" y="148" class="s">① 검사 — 형식 · 이름 확인</text>
+    <text x="346" y="168" class="s">② 행선 — 지식 이름으로</text>
+    <text x="346" y="188" class="s">③ 기록 하나 = 저장 한 번</text>
+
+    <rect x="650" y="40" width="290" height="80" rx="12" class="me"/><text x="666" y="68" class="t">내 지식(내 PC)</text><text x="666" y="92" class="s">저장했다 — 문서에도 넣었다</text><text x="666" y="110" class="xs">저장이 곧 반영</text>
+    <rect x="650" y="180" width="290" height="80" rx="12" class="team"/><text x="666" y="208" class="t">팀 지식(팀 서버)</text><text x="666" y="232" class="s">기록했다 — 박이 아침에 문서에 넣는다</text><text x="666" y="250" class="xs">기록만 올라가 받은 것에 선다</text>
+    <path d="M230,48 L328,120" class="ar" marker-end="url(#a)"/><path d="M230,116 L328,140" class="ar" marker-end="url(#a)"/>
+    <path d="M230,184 L328,166" class="ar" marker-end="url(#a)"/><path d="M230,252 L328,190" class="ar k" marker-end="url(#ak)"/>
+    <path d="M552,135 L648,85" class="ar" marker-end="url(#a)"/><path d="M552,170 L648,215" class="ar t" marker-end="url(#at)"/>
+  </svg>
+  <figcaption>그림 2 — 세션은 승인 질문 없이 바로 저장한다(고칠 곳은 말 한마디 → 바로잡은 기록). 한 세션에서 내 PC 와 팀 두 곳을 다 쓴다.</figcaption>
+  </figure>
+</section>
+
+<!-- 3 쌓인다 -->
+<section id="pile">
+  <h2><span class="n">3</span>쌓인다 — 기록과 문서는 다르다</h2>
+  <p class="lead">kmd 지식에는 두 층이 있다. <b>기록</b>은 "그날 있었던 일"이고 한 번 쓰면 고치지 않는다. <b>문서</b>는 "지금 상태"이고 정리할 때만 바뀐다. 기록은 자기가 건드린 문서의 항목을 적어 둔다. 그래서 kmd 는 <b>어느 기록까지 문서에 넣었는지</b>를 항목마다 안다.</p>
+  <figure>
+  <svg viewBox="0 0 960 300">
+    <text x="20" y="28" class="xs">「배포절차 › 헬스 체크」 를 건드린 기록들 (시간 순)</text>
+    <line x1="30" y1="120" x2="640" y2="120" stroke="var(--line)" stroke-width="3"/>
+    <circle cx="80" cy="120" r="10" class="dot-g"/><text x="56" y="152" class="xs">10-14</text><text x="40" y="94" class="s">/status 로 본다</text>
+    <circle cx="200" cy="120" r="10" class="dot-g"/><text x="176" y="152" class="xs">10-20</text><text x="150" y="94" class="s">바로잡음: /health</text>
+    <circle cx="320" cy="120" r="10" class="dot-g"/><text x="296" y="152" class="xs">10-21</text><text x="282" y="94" class="s">3초 안에 200</text>
+    <line x1="370" y1="50" x2="370" y2="200" stroke="var(--kmd)" stroke-width="3"/>
+    <rect x="300" y="200" width="140" height="44" rx="8" class="kmd"/><text x="312" y="220" class="s">여기까지 넣었다</text><text x="312" y="236" class="xs">반영 표지 · 09:10</text>
+    <circle cx="470" cy="120" r="11" class="dot-w"/><text x="446" y="152" class="xs">10-22</text><text x="420" y="94" class="s">/healthz 도 있다</text>
+    <circle cx="590" cy="120" r="11" class="dot-w"/><text x="566" y="152" class="xs">10-22</text><text x="555" y="94" class="s">light=1</text>
+    <rect x="410" y="200" width="230" height="44" rx="8" class="warn" style="transform:translateX(50px)"/><text x="472" y="220" class="s">아직 문서에 안 넣은 기록 2</text><text x="472" y="236" class="xs">문서와 같이 나간다</text>
+
+    <rect x="700" y="40" width="240" height="210" rx="12" class="box"/>
+    <text x="716" y="66" class="t">문서의 항목</text><text x="716" y="86" class="xs">배포절차 › 헬스 체크</text>
+    <rect x="716" y="98" width="208" height="62" rx="8" class="soft"/><text x="728" y="122" class="s">각 서버의 /health 를</text><text x="728" y="142" class="s">30초마다 · 3초 안에 200</text>
+    <rect x="716" y="170" width="208" height="62" rx="8" class="warn"/><text x="728" y="194" class="s">+ 아직 안 넣은 기록 2</text><text x="728" y="214" class="xs">같이 읽힌다 — 잃는 것 없음</text>
+    <path d="M642,120 L698,140" class="ar w" marker-end="url(#aw)"/>
+  </svg>
+  <figcaption>그림 3 — 정리가 늦어도 새 내용은 숨지 않는다. 문서 옆에 "아직 문서에 안 넣은 기록" 으로 붙어 나간다. 틀린 기록은 지우지 않고 바로잡은 기록을 새로 쓴다.</figcaption>
+  </figure>
+</section>
+
+<!-- 4 정리된다 -->
+<section id="cur">
+  <h2><span class="n">4</span>정리된다 — 밤에 미리 쓰고, 넣는 것은 정해진 사람이</h2>
+  <p class="lead">"정리"는 기록을 문서의 항목에 녹이는 일이다. v0.6 에서는 <b>kmd 가 밤에 넣을 글을 미리 써 둔다.</b> 무엇이 바뀌는지에 따라 세 등급으로 나누고, 내 지식과 팀 지식이 다르게 간다.</p>
+  <figure>
+  <svg viewBox="0 0 960 360">
+    <rect x="10" y="130" width="150" height="80" rx="10" class="box"/><text x="26" y="160" class="t">낮의 기록</text><text x="26" y="184" class="s">받은 것에 선다</text>
+    <rect x="200" y="110" width="170" height="120" rx="12" class="kmd"/><text x="216" y="140" class="t">밤의 정리</text><text x="216" y="164" class="s">02:10 내 PC 가 쉴 때</text><text x="216" y="184" class="s">02:31 팀 서버</text><text x="216" y="208" class="xs">Claude 는 초안만 쓴다</text>
+    <path d="M160,170 L198,170" class="ar" marker-end="url(#a)"/>
+
+    <rect x="420" y="20" width="220" height="80" rx="10" class="box"/><text x="436" y="48" class="t">바뀌는 것 없음</text><text x="436" y="70" class="s">넣을 곳 없는 메모 · 옛 판</text><text x="436" y="88" class="xs">규칙으로 — Claude 없이</text>
+    <rect x="420" y="130" width="220" height="80" rx="10" class="box"/><text x="436" y="158" class="t">보통 반영</text><text x="436" y="180" class="s">항목 글이 조금 바뀐다</text><text x="436" y="198" class="xs">값 · 이름 대조 통과</text>
+    <rect x="420" y="240" width="220" height="80" rx="10" class="warn"/><text x="436" y="268" class="t">값이 바뀜</text><text x="436" y="290" class="s">10% → 20% · 기록끼리 다름</text><text x="436" y="308" class="xs">노란 줄로 꼭 보인다</text>
+    <path d="M372,150 L418,60" class="ar k" marker-end="url(#ak)"/><path d="M372,170 L418,170" class="ar k" marker-end="url(#ak)"/><path d="M372,190 L418,280" class="ar k" marker-end="url(#ak)"/>
+
+    <rect x="700" y="30" width="245" height="130" rx="12" class="me"/><text x="716" y="58" class="t">내 지식</text><text x="716" y="82" class="s">셋 다 알아서 넣는다</text><text x="716" y="104" class="s">「오늘 바뀐 것」 에 한 줄</text><text x="716" y="124" class="s">다음 대화 첫 줄에 알림</text><text x="716" y="146" class="xs">줄마다 되돌릴 수 있다</text>
+    <rect x="700" y="190" width="245" height="140" rx="12" class="team"/><text x="716" y="218" class="t">팀 지식</text><text x="716" y="242" class="s">바뀌는 것 없음 → 알아서</text><text x="716" y="262" class="s">글이 바뀜 → 아침에</text>
+    <rect x="716" y="274" width="214" height="32" rx="7" fill="var(--team)"/><text x="728" y="295" style="fill:#fff;font-size:13px;font-weight:700">모두 반영 — 값이 바뀌는 것 2 포함</text>
+    <text x="716" y="322" class="xs">박이 한 번 누른다 · 건마다 되돌리기</text>
+    <path d="M642,60 L698,80" class="ar" marker-end="url(#a)"/><path d="M642,170 L698,110" class="ar" marker-end="url(#a)"/><path d="M642,180 L698,240" class="ar t" marker-end="url(#at)"/><path d="M642,280 L698,280" class="ar t" marker-end="url(#at)"/>
+  </svg>
+  <figcaption>그림 4 — 팀 지식을 끝까지 자동으로 하지 않는 까닭: 틀린 문서가 모든 답의 근거가 되기 때문이다. 기다리는 동안에도 기록은 문서 옆에 나가므로 잃는 것은 없다.</figcaption>
+  </figure>
+  <div class="say">정리 초안을 쓰는 Claude 는 <b>도구도 열쇠도 없이 글(초안)만</b> 낸다. 문서에 넣는 것은 kmd 가 검사(값 · 이름 대조 · 크기 · 표지)를 한 뒤에 한다. 팀 지식에 회사 Claude 를 쓸지는 운영자가 정한다(Q51 — 권장 「쓴다」).</div>
+</section>
+
+<!-- 5 찾아 쓴다 -->
+<section id="find">
+  <h2><span class="n">5</span>찾아 쓴다 — 이름이 안 맞으면 비슷한 글에서</h2>
+  <p class="lead">Claude 가 "상태 점검은 어떻게 해?" 라고 물으면 kmd 는 사다리를 내려가며 찾는다. 이름이 딱 맞으면 그 항목을 준다. 안 맞으면 점점 넓게 찾되, <b>무엇을 어떻게 찾았는지를 늘 함께 말한다.</b></p>
+  <figure>
+  <svg viewBox="0 0 960 400">
+    <rect x="20" y="20" width="200" height="50" rx="10" class="box"/><text x="36" y="51" class="t">"상태 점검"</text>
+    <path d="M120,72 L120,94" class="ar" marker-end="url(#a)"/>
+    <rect x="20" y="96" width="420" height="48" rx="10" class="box"/><text x="36" y="125" class="t">① 이름이 딱 맞나</text><text x="200" y="125" class="s">이름표 전체를 본다</text>
+    <rect x="40" y="152" width="400" height="48" rx="10" class="box"/><text x="56" y="181" class="t">② 비슷한 이름</text><text x="200" y="181" class="s">이름을 품었다 · 배운 이름</text>
+    <rect x="60" y="208" width="380" height="48" rx="10" class="box"/><text x="76" y="237" class="t">③ 그 말이 든 항목</text><text x="230" y="237" class="s">정리된 문서 안</text>
+    <rect x="80" y="264" width="360" height="48" rx="10" class="box"/><text x="96" y="293" class="t">④ 그 말이 든 글 조각</text><text x="270" y="293" class="s">모든 md · 기록</text>
+    <rect x="100" y="320" width="340" height="48" rx="10" class="box" style="stroke-dasharray:5 4"/><text x="116" y="349" class="t">⑤ 뜻으로 (선택)</text><text x="270" y="349" class="s">관리자가 켤 때만</text>
+
+    <rect x="520" y="90" width="420" height="60" rx="10" class="kmd"/><text x="536" y="116" class="t">맞으면 — 그 항목을 통째로</text><text x="536" y="138" class="s">+ 아직 문서에 안 넣은 기록</text>
+    <path d="M442,120 L518,120" class="ar k" marker-end="url(#ak)"/>
+    <rect x="520" y="180" width="420" height="104" rx="10" class="warn"/><text x="536" y="206" class="t">딱 맞는 항목이 없어 비슷한 글에서 찾았다</text>
+    <text x="536" y="230" class="s">조각이 항목에 속하면 → 그 항목 통째로</text><text x="536" y="250" class="s">속하지 않으면 → 「문서의 한 토막」 표지</text><text x="536" y="272" class="xs">비슷한 글 9개 — 5개 · 4개 더 보기 (잘린 것도 센다)</text>
+    <path d="M442,176 L518,210" class="ar w" marker-end="url(#aw)"/><path d="M442,232 L518,232" class="ar w" marker-end="url(#aw)"/><path d="M442,288 L518,256" class="ar w" marker-end="url(#aw)"/>
+    <rect x="520" y="310" width="420" height="60" rx="10" class="box"/><text x="536" y="336" class="t">그래도 없으면</text><text x="536" y="358" class="s">「이 말로는 못 찾았다 — 없다는 뜻은 아니다」</text>
+    <path d="M442,344 L518,340" class="ar" marker-end="url(#a)"/>
+  </svg>
+  <figcaption>그림 5 — "없다" 는 ① 에서만 말한다. 넓게 찾은 결과를 확정처럼 말하면 Claude 가 틀린 답을 자신 있게 낸다. 같은 말로 이틀 찾으면 내 지식에서는 그 말이 "다른 이름" 으로 저절로 붙는다.</figcaption>
+  </figure>
+  <div class="grid">
+    <div class="card"><b>왜 이 순서인가</b><p>정리된 문서는 "지금" 이 맞다(낡은 답이 0). 비슷한 글은 넓게 찾지만 낡은 것이 섞인다. 그래서 정리된 쪽을 먼저, 넓은 쪽을 나중에, 표지를 달아서.</p></div>
+    <div class="card"><b>바로잡은 글은 같이</b><p>조각이 옛 기록이면 그 기록을 바로잡은 새 기록을 위에 함께 싣는다("10-20 에 바로잡혔다").</p></div>
+    <div class="card"><b>남의 지식은 섞이지 않는다</b><p>찾기는 볼 수 있는 지식 안에서만. 내 PC 지식의 말은 팀 서버에 남지 않는다.</p></div>
+  </div>
+</section>
+
+<!-- 6 보낸다 -->
+<section id="send">
+  <h2><span class="n">6</span>보낸다 — 내 PC 에서 팀으로, 한 방향</h2>
+  <p class="lead">내 지식에서 팀이 알아야 할 것은 <b>보낸다</b>. kmd 가 바뀐 것을 골라 두고, 사람은 [N개 보내기] 한 번. 팀 서버에 닿지 않으면 닿을 때 저절로 간다. 팀 쪽에서는 기록으로 들어가 밤에 정리되고 아침에 정리하는 사람이 넣는다.</p>
+  <figure>
+  <svg viewBox="0 0 960 170">
+    <rect x="10" y="40" width="200" height="90" rx="12" class="me"/><text x="26" y="68" class="t">배포노트</text><text x="26" y="92" class="s">바뀐 것 2 — 골라 둠</text><text x="26" y="112" class="xs">내 PC</text>
+    <rect x="250" y="55" width="150" height="60" rx="30" fill="var(--team)"/><text x="276" y="91" style="fill:#fff;font-weight:700;font-size:14px">2개 보내기</text>
+    <rect x="440" y="40" width="160" height="90" rx="12" class="team"/><text x="456" y="68" class="t">DPMS 지식</text><text x="456" y="92" class="s">기록 2 — 받은 것</text><text x="456" y="112" class="xs">14:12</text>
+    <rect x="640" y="40" width="140" height="90" rx="12" class="kmd"/><text x="656" y="68" class="t">밤 02:31</text><text x="656" y="92" class="s">초안</text>
+    <rect x="820" y="40" width="130" height="90" rx="12" class="team"/><text x="836" y="68" class="t">아침</text><text x="836" y="92" class="s">박 모두 반영</text>
+    <path d="M212,85 L248,85" class="ar" marker-end="url(#a)"/><path d="M402,85 L438,85" class="ar t" marker-end="url(#at)"/>
+    <path d="M602,85 L638,85" class="ar k" marker-end="url(#ak)"/><path d="M782,85 L818,85" class="ar t" marker-end="url(#at)"/>
+    <text x="250" y="150" class="lbl">닿지 않으면 「팀 서버에 닿으면 저절로 보낸다」 한 줄 — 다시 누르지 않는다</text>
+  </svg>
+  <figcaption>그림 6 — 팀에서 내 지식으로 거꾸로 흘러오지 않는다. 그래서 어디가 어디에 이어졌는지 헷갈리지 않는다.</figcaption>
+  </figure>
+</section>
+
+<!-- 7 지킨다 -->
+<section id="keep">
+  <h2><span class="n">7</span>지킨다 — git 은 저절로 하는 백업</h2>
+  <p class="lead">저장할 때마다 kmd 가 백업 자리에 민다. 잘 될 때는 아무 줄도 없다. 밀지 못하거나 백업이 지워지거나 되감기면 <b>조용히 넘어가지 않고</b> 한 줄을 띄운다.</p>
+  <figure>
+  <svg viewBox="0 0 960 230">
+    <rect x="10" y="80" width="130" height="60" rx="10" class="box"/><text x="26" y="116" class="t">저장 한 번</text>
+    <rect x="180" y="80" width="130" height="60" rx="10" class="box"/><text x="196" y="106" class="t">커밋 하나</text><text x="196" y="126" class="xs">이력이 남는다</text>
+    <rect x="350" y="80" width="130" height="60" rx="10" class="kmd"/><text x="366" y="106" class="t">백업에 민다</text><text x="366" y="126" class="xs">저절로</text>
+    <rect x="520" y="70" width="170" height="80" rx="10" class="box"/><text x="536" y="98" class="t">백업이 맞나</text><text x="536" y="120" class="s">실제로 확인한다</text><text x="536" y="138" class="xs">시작할 때 · 때마다</text>
+    <rect x="740" y="10" width="210" height="56" rx="10" class="box"/><text x="756" y="34" class="t">맞다</text><text x="756" y="54" class="s">아무 줄도 없다</text>
+    <rect x="740" y="82" width="210" height="56" rx="10" class="warn"/><text x="756" y="106" class="t">못 갔다</text><text x="756" y="126" class="s">다시 보낸다 · 한 줄</text>
+    <rect x="740" y="154" width="210" height="56" rx="10" class="warn"/><text x="756" y="178" class="t">지워짐 · 되감김</text><text x="756" y="198" class="s">다시 올리고 알린다</text>
+    <path d="M142,110 L178,110" class="ar" marker-end="url(#a)"/><path d="M312,110 L348,110" class="ar" marker-end="url(#a)"/><path d="M482,110 L518,110" class="ar k" marker-end="url(#ak)"/>
+    <path d="M692,95 L738,40" class="ar" marker-end="url(#a)"/><path d="M692,110 L738,110" class="ar w" marker-end="url(#aw)"/><path d="M692,125 L738,180" class="ar w" marker-end="url(#aw)"/>
+  </svg>
+  <figcaption>그림 7 — 한 지식은 kmd 하나에서만 쓴다. 다른 kmd 가 같은 백업에 밀면 알아채고 "여기서는 읽기만" 으로 닫는다.</figcaption>
+  </figure>
+  <p>멈춤 한 줄은 늘 같은 틀이다 — <b>무엇이 · 얼마나 — 풀리는 길 / 누구에게 알렸나.</b></p>
+  <span class="line1">백업이 멈췄다 · 3시간 — E: 드라이브를 꽂으면 이어서 보낸다</span><br>
+  <span class="line1">gdi DB 표를 2일째 못 가져왔다 — 표는 10-20 것 · 관리자에게 알렸다</span><br>
+  <span class="line1">자동 정리가 쉬고 있다 · 2일 — Claude Code 에서 다시 로그인하면 이어서 한다</span>
+</section>
+
+<!-- 8 가져오는 곳 -->
+<section id="src">
+  <h2><span class="n">8</span>가져오는 곳 — 표는 원천에서 저절로</h2>
+  <p class="lead">테이블 컬럼 · 꾸러미 판 · 파일 목록 같은 표는 사람이 옮겨 적으면 낡는다. 코드 폴더 · git 주소 · DB 를 <b>[잇기] 에 한 번</b> 붙이면 kmd 가 때마다 다시 읽어 <b>문서 안의 정해진 표만</b> 고친다.</p>
+  <figure>
+  <svg viewBox="0 0 960 260">
+    <rect x="10" y="40" width="170" height="70" rx="10" class="box"/><text x="26" y="68" class="t">gdi DB</text><text x="26" y="90" class="s">읽기 전용 · 매일 06:00</text>
+    <rect x="10" y="130" width="170" height="70" rx="10" class="box"/><text x="26" y="158" class="t">dpms-api 코드</text><text x="26" y="180" class="s">git · 1시간마다</text>
+    <rect x="230" y="80" width="150" height="80" rx="12" class="kmd"/><text x="246" y="110" class="t">읽는다</text><text x="246" y="132" class="s">정해진 규칙만</text><text x="246" y="148" class="xs">스크립트 실행 없음</text>
+    <rect x="430" y="80" width="140" height="80" rx="12" class="box"/><text x="446" y="112" class="t">바뀌었나</text><text x="446" y="134" class="s">이전 표와 견준다</text>
+    <rect x="620" y="10" width="320" height="60" rx="10" class="box"/><text x="636" y="36" class="t">아니오</text><text x="636" y="56" class="s">아무것도 남기지 않는다 · 확인 시각만</text>
+    <rect x="620" y="90" width="320" height="60" rx="10" class="kmd"/><text x="636" y="116" class="t">조금</text><text x="636" y="136" class="s">바뀐 표만 고친다 · 「오늘 바뀐 것」 한 줄</text>
+    <rect x="620" y="170" width="320" height="70" rx="10" class="warn"/><text x="636" y="196" class="t">한꺼번에 크게</text><text x="636" y="216" class="s">쓰지 않고 멈춘다 — 「120개가 사라졌다 · 그대로 둠」</text>
+    <path d="M182,75 L228,110" class="ar" marker-end="url(#a)"/><path d="M182,165 L228,135" class="ar" marker-end="url(#a)"/>
+    <path d="M382,120 L428,120" class="ar k" marker-end="url(#ak)"/>
+    <path d="M572,105 L618,40" class="ar" marker-end="url(#a)"/><path d="M572,120 L618,120" class="ar k" marker-end="url(#ak)"/><path d="M572,135 L618,200" class="ar w" marker-end="url(#aw)"/>
+  </svg>
+  <figcaption>그림 8 — 표에는 늘 라벨이 붙는다: 「저절로 채우는 표 · gdi DB · 10-04 부터 그대로 · 오늘 06:00 확인」. 사람은 그 표를 고치지 않는다(회색으로 잠김). 팀에서 원천을 잇는 것은 관리자 — 다른 사람은 [관리자에게 부탁].</figcaption>
+  </figure>
+</section>
+
+<!-- 9 들어가기 -->
+<section id="login">
+  <h2><span class="n">9</span>들어가기 — 사람은 비밀번호, 기계는 열쇠(사람이 보지 않는다)</h2>
+  <p class="lead">계정은 <b>팀 서버에만</b> 있다. 내 PC 프로그램은 들어가기가 없다. 사람은 아이디 · 비밀번호(브라우저가 채운다), Claude Code 가 팀에 붙을 때 쓰는 열쇠는 설치 한 줄이 받아 둔다.</p>
+  <figure>
+  <svg viewBox="0 0 960 220">
+    <rect x="10" y="30" width="170" height="70" rx="10" class="box"/><text x="26" y="58" class="t">처음 들어오기 링크</text><text x="26" y="80" class="s">관리자가 메신저로</text>
+    <rect x="220" y="30" width="170" height="70" rx="10" class="team"/><text x="236" y="58" class="t">비밀번호 정하기</text><text x="236" y="80" class="s">브라우저가 만들어 저장</text>
+    <rect x="430" y="30" width="170" height="70" rx="10" class="team"/><text x="446" y="58" class="t">팀 화면</text><text x="446" y="80" class="s">일주일에 한 번쯤 Enter</text>
+    <path d="M182,65 L218,65" class="ar" marker-end="url(#a)"/><path d="M392,65 L428,65" class="ar t" marker-end="url(#at)"/>
+    <rect x="220" y="130" width="170" height="70" rx="10" class="box"/><text x="236" y="158" class="t">설치 한 줄 복사</text><text x="236" y="180" class="s">10분 · 한 번만</text>
+    <rect x="430" y="130" width="170" height="70" rx="10" class="me"/><text x="446" y="158" class="t">PC 터미널</text><text x="446" y="180" class="s">붙여 넣기 — 묻는 것 0</text>
+    <rect x="640" y="130" width="150" height="70" rx="10" class="kmd"/><text x="656" y="158" class="t">기기 열쇠</text><text x="656" y="180" class="s">OS 저장소에</text>
+    <rect x="820" y="130" width="130" height="70" rx="10" class="box"/><text x="836" y="158" class="t">Claude Code</text><text x="836" y="180" class="s">꺼내 쓴다</text>
+    <path d="M305,102 L305,128" class="ar" marker-end="url(#a)"/>
+    <path d="M392,165 L428,165" class="ar" marker-end="url(#a)"/><path d="M602,165 L638,165" class="ar k" marker-end="url(#ak)"/><path d="M792,165 L818,165" class="ar" marker-end="url(#a)"/>
+    <text x="640" y="60" class="lbl">여러 번 틀리면 잠시 막힌다</text><text x="640" y="80" class="lbl">— 전에 들어온 브라우저는 막히지 않는다</text>
+  </svg>
+  <figcaption>그림 9 — 새 기기가 이어지면 「오늘 바뀐 것」 에 한 줄이 남는다. 90일 안 쓴 기기는 저절로 끊긴다. 사람이 열쇠 글자를 보는 곳은 없다.</figcaption>
+  </figure>
+</section>
+
+<!-- 10 하루 -->
+<section id="day">
+  <h2><span class="n">10</span>하루 — 세 사람과 kmd</h2>
+  <p class="lead">2026-10-22 하루를 따라가면 위의 흐름이 한 번에 보인다. 사람이 누른 것은 <b>김 「2개 보내기」 · 박 「모두 반영」 · 이 「링크 만들기」</b> 뿐이다.</p>
+  <figure>
+  <svg viewBox="0 0 960 330">
+    <text x="10" y="64" class="t">kmd</text><text x="10" y="134" class="t">김</text><text x="10" y="204" class="t">박</text><text x="10" y="274" class="t">이</text>
+    <line x1="70" y1="60" x2="950" y2="60" stroke="var(--line)"/><line x1="70" y1="130" x2="950" y2="130" stroke="var(--line)"/>
+    <line x1="70" y1="200" x2="950" y2="200" stroke="var(--line)"/><line x1="70" y1="270" x2="950" y2="270" stroke="var(--line)"/>
+    <!-- 시각 눈금 -->
+    <text x="80" y="20" class="xs">02:00</text><text x="210" y="20" class="xs">06:00</text><text x="330" y="20" class="xs">09:00</text><text x="470" y="20" class="xs">10:00</text><text x="610" y="20" class="xs">11:00</text><text x="810" y="20" class="xs">14:00</text>
+    <!-- kmd -->
+    <circle cx="90" cy="60" r="8" class="dot-k"/><text x="34" y="88" class="xs">02:10 내 지식 정리</text>
+    <circle cx="120" cy="60" r="8" class="dot-k"/><text x="104" y="44" class="xs">02:31 팀 초안</text>
+    <circle cx="225" cy="60" r="8" class="dot-k"/><text x="210" y="88" class="xs">06:00 gdi 표</text>
+    <circle cx="500" cy="60" r="8" class="dot-w"/><text x="470" y="88" class="xs">10:12 GDI 백업 다시 올림</text>
+    <!-- 김 -->
+    <circle cx="290" cy="130" r="8" class="dot-w"/><text x="236" y="114" class="xs">08:05 E: 백업 멈춤</text>
+    <circle cx="370" cy="130" r="8" class="dot-m"/><text x="350" y="114" class="xs">09:30 편집기</text>
+    <circle cx="640" cy="130" r="8" class="dot-m"/><text x="600" y="158" class="xs">11:05 세션 — 비슷한 글에서 찾음</text>
+    <circle cx="840" cy="130" r="11" class="dot-t"/><text x="790" y="114" class="s" style="font-weight:700">14:12 2개 보내기</text>
+    <!-- 박 -->
+    <circle cx="350" cy="200" r="11" class="dot-t"/><text x="300" y="228" class="s" style="font-weight:700">09:10 모두 반영</text>
+    <!-- 이 -->
+    <circle cx="440" cy="270" r="8" class="dot-t"/><text x="400" y="298" class="xs">09:20 아이디 · 비밀번호</text>
+    <circle cx="530" cy="270" r="11" class="dot-t"/><text x="500" y="254" class="s" style="font-weight:700">10:30 링크 만들기</text>
+    <path d="M128,64 C230,90 300,170 344,192" class="ar k dash" marker-end="url(#ak)"/>
+  </svg>
+  <figcaption>그림 10 — 굵은 점이 사람이 누른 때. 나머지는 kmd 가 저절로 했고, 멈춘 것(08:05 백업)은 한 줄로만 알렸다.</figcaption>
+  </figure>
+  <table>
+    <tr><th>사람</th><th>하는 일</th><th>kmd 가 대신 하는 일</th></tr>
+    <tr><td><span class="tag me">김</span>내 PC</td><td>세션으로 일한다 · 하루 한 번 [2개 보내기]</td><td>저장이 곧 반영 · 밤에 내 지식 정리 · 비슷한 글 찾기 · 백업 · 다른 이름 배우기</td></tr>
+    <tr><td><span class="tag team">박</span>정리</td><td>아침 [모두 반영] 한 번</td><td>밤에 넣을 글 미리 쓰기 · 값 · 이름 대조 · 넣을 곳 없는 메모 정리</td></tr>
+    <tr><td><span class="tag team">이</span>관리자</td><td>문제 줄이 있을 때만(오늘: 링크 만들기)</td><td>표 가져오기 · 백업 확인 · 잠금 저절로 풀기 · 옛 열쇠 옮기기</td></tr>
+  </table>
+</section>
+
+<!-- 11 말 -->
+<section id="words">
+  <h2><span class="n">11</span>화면 말 ↔ 설계 말</h2>
+  <p class="lead">화면에는 쉬운 말만 나온다. 검토 문서를 읽을 때 이 표로 옮겨 읽는다.</p>
+  <table>
+    <tr><th>화면에서</th><th>설계 문서에서</th><th>뜻</th></tr>
+    <tr><td>기록</td><td>작업 기록 · work</td><td>그날 있었던 일 · 고치지 않는다</td></tr>
+    <tr><td>문서의 항목</td><td>관리 문서 · 섹션</td><td>대상마다 지금 상태</td></tr>
+    <tr><td>딱 맞는 항목 · 다른 이름</td><td>좌표 · 어휘 · 별칭</td><td>항목을 찾는 이름표</td></tr>
+    <tr><td>여기까지 넣었다</td><td>applied 표지</td><td>항목이 어느 기록까지 반영했나</td></tr>
+    <tr><td>아직 문서에 안 넣은 기록</td><td>미반영(pending)</td><td>표지 뒤에 들어온 기록 — 항목과 같이 나간다</td></tr>
+    <tr><td>정리 · 받은 것 · 모두 반영</td><td>큐레이션 · 대기열 · 판정</td><td>기록을 항목에 녹이는 일</td></tr>
+    <tr><td>kmd 가 정리했다 · 넣을 준비 됨</td><td>정리 일꾼 · 초안 · curate-auto</td><td>밤에 Claude 가 쓴 초안을 kmd 가 검사해 넣음</td></tr>
+    <tr><td>비슷한 글에서 찾았다</td><td>RAG 폴백 · 찾기 사다리</td><td>이름이 안 맞을 때 넓게 찾기</td></tr>
+    <tr><td>저절로 채우는 표 · 가져오는 곳</td><td>기준선 블록 · 원천</td><td>코드 · DB 에서 읽은 표</td></tr>
+    <tr><td>바로잡은 기록</td><td>supersedes · 정정</td><td>틀린 기록을 고치지 않고 새로 바로잡음</td></tr>
+    <tr><td>내 기기 · 설치 한 줄</td><td>기기 열쇠 · 설치 표</td><td>Claude Code 가 팀에 붙는 자격</td></tr>
+    <tr><td>백업이 멈췄다</td><td>미러 lag · gone · rewound</td><td>git 백업이 못 갔다</td></tr>
+  </table>
+  <p style="font-size:13.5px;color:var(--ink2)">더 자세한 것 — <a href="CDP_kmd_개정_v0.6_검토.md">v0.6 검토</a> · <a href="CDP_kmd_개정_v0.5_검토.md">v0.5 검토</a> · <a href="CDP_vs_RAG_노트_검증.md">CDP 와 RAG 노트 검증</a> · <a href="kmd_목업.html">화면 목업(14장)</a></p>
+</section>
+
+</main>
+<footer>kmd 한눈에 · 2026-10-22 · v0.6 기준(운영자 확인 전 권장안 포함) · 숫자 · 이름은 목업과 같은 예시값이다.</footer>
+</body>
+</html>
