@@ -11,6 +11,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { startServer } from '../http.js'
+import { makeHub, defaultDataDir } from '../hub.js'
+import { enqueue } from '../../core/backup.js'
 import { VERSION } from '../version.js'
 
 const HELP = `kmd ${VERSION}
@@ -50,6 +52,7 @@ async function main() {
   const [cmd, ...rest] = process.argv.slice(2)
   if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') return void process.stdout.write(HELP)
   if (cmd === '--version' || cmd === '-v') return void console.log(VERSION)
+  if (cmd === 'backup') return backupCmd(parse(rest))
   if (cmd !== 'serve' && cmd !== 'up') {
     console.error(`모르는 명령 — ${cmd}\n`)
     process.stdout.write(HELP)
@@ -71,7 +74,7 @@ async function main() {
   const user = String(o.user || os.userInfo().username)
   let s
   try {
-    s = await startServer({ root, mode: pc ? 'pc' : 'team', user, host: o.host || '127.0.0.1', port })
+    s = await startServer({ root, data: o.data ? path.resolve(o.data) : null, mode: pc ? 'pc' : 'team', user, host: o.host || '127.0.0.1', port })
   } catch (e) {
     if (e.code === 'EADDRINUSE') console.error(`포트 ${port} 를 이미 다른 프로그램이 쓴다 — --port 로 다른 수를 준다`)
     else console.error(e.message)
@@ -85,6 +88,38 @@ async function main() {
   const stop = () => s.close().then(() => process.exit(0))
   process.on('SIGINT', stop)
   process.on('SIGTERM', stop)
+}
+
+// 백업 — 서버를 띄우지 않고 지식 폴더 · 살림 자리에 바로 한다(서버가 돌고 있으면 다시 띄울 때 붙는다)
+async function backupCmd(o) {
+  const root = path.resolve(o.root || (fs.existsSync(defaultPcRoot()) ? defaultPcRoot() : '.'))
+  const hub = await makeHub({ root, dataDir: o.data ? path.resolve(o.data) : defaultDataDir(root), log: (...a) => console.log(...a) })
+  const [sub, id, url] = o._
+  try {
+    if (sub === 'add') {
+      if (!id || !url) throw new Error('kmd backup add <지식> <주소>')
+      const r = await hub.backupAttach(id, url)
+      console.log(r.ok ? `붙였다 — ${id} → ${r.backup.url} · 지금까지 보냈다` : `붙였다 — ${id} · 아직 못 보냈다(다시 보내기를 건다)`)
+    } else if (sub === 'pull') {
+      if (!id) throw new Error('kmd backup pull <지식>')
+      const r = await hub.backupPull(id)
+      console.log(r.pulled ? `받았다 — ${r.pulled}개 · 이제 다시 저장된다` : '받을 것이 없다')
+    } else {
+      await hub.start()
+      for (const k of await hub.list()) {
+        const st = await hub.backupState(k.id)
+        if (!st) { console.log(`${k.name} — 백업 자리 없음`); continue }
+        await enqueue(k)
+        const lines = await hub.stops(k.id)
+        console.log(`${k.name} — ${st.url} · ${lines.length ? lines.map((l) => l.text).join(' / ') : '잘 보내고 있다'}`)
+      }
+    }
+  } catch (e) {
+    console.error(e.message)
+    process.exitCode = 1
+  } finally {
+    hub.stop()
+  }
 }
 
 main()

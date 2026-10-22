@@ -17,6 +17,7 @@ const S = {
   fold: {}, all: false,
   menu: null, pal: null, qo: null, cmd: null,
   cache: {}, wait: {}, err: null,
+  stops: [],
 }
 const KNSCR = ['docs', 'items', 'graph']
 const KN = (k) => S.kns.find((x) => x.id === k) || null
@@ -202,9 +203,20 @@ function bandHtml() {
   let left
   if (!k) left = team ? '팀 서버의 kmd · 같이 쓴다' : '이 PC 의 kmd · 나만 쓴다'
   else left = team ? '팀 지식 · 팀 서버 · 나: 기록' : '내 지식 · ' + ((KN(k) && KN(k).dir) || '') + ' · 나만'
-  const right = team ? '' : '<span class="muted">밖으로 나가는 것은 보내기 · 백업 · Claude 정리뿐</span>'
+  const st = stopsFor(k)
+  const right = st.length ? st.map((x) => `<span class="chip ${x.level === 'bad' ? 'c-danger' : 'c-warn'}" data-t="bandchip">${esc(x.b)} — ${esc(x.t)}</span>`).join('') : team ? '' : '<span class="muted">밖으로 나가는 것은 보내기 · 백업 · Claude 정리뿐</span>'
   return `<div class="band ${team ? 'team' : 'me'}"><span class="who"><i></i>${esc(left)}</span><span class="out">${right}</span></div>`
 }
+// ── 멈춤 한 줄(서버가 준 줄 그대로) ──
+function stopsFor(k) { return S.stops.filter((x) => !k || !x.kn || x.kn === k) }
+const stopHtml = (x) => `<div class="callout ${x.level === 'bad' ? 'danger' : 'warn'} stop" data-t="stop"><i></i><span><b>${esc(x.b)}</b>${x.t ? ' — ' + esc(x.t) : ''}</span>${x.r ? `<span class="r">${esc(x.r)}</span>` : ''}</div>`
+async function loadStops() {
+  try {
+    const st = await getJSON('/api/stops')
+    if (JSON.stringify(st) !== JSON.stringify(S.stops)) { S.stops = st; if (!S.qo && !S.pal && !S.cmd) render() }
+  } catch {}
+}
+
 function statusHtml() {
   const l = isTeam() ? '들어옴 · ' + esc(S.me.user) : '이 PC'
   return `<div class="status"><span>${l}</span><span class="r" data-t="clock">kmd v${esc(S.me.version)} · ${clock()}</span></div>`
@@ -225,6 +237,7 @@ function viewHome() {
   return {
     crumb: '지식 목록',
     main: `<div style="max-width:960px"><div class="top"><div><div class="big">지식 목록</div>${team ? '' : '<p class="lead">내 지식 ' + S.kns.length + '</p>'}</div><div class="acts"></div></div>
+  ${S.stops.map(stopHtml).join('')}
   <div class="card" data-t="klist">${rows || none}</div>
   <p class="tl"><a data-a="nav" data-s="add">+ 지식 추가</a><a data-a="nav" data-s="import">+ 자료 가져오기</a></p></div>`,
   }
@@ -557,6 +570,8 @@ async function boot() {
     const [me, kns] = await Promise.all([getJSON('/api/me'), getJSON('/api/knowledge')])
     S.me = me
     S.kns = kns
+    loadStops()
+    setInterval(loadStops, 60000)
     document.title = isTeam() ? 'kmd — 팀' : 'kmd'
     pushHist()
   } catch (e) {

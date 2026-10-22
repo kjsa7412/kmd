@@ -16,5 +16,5 @@ export const fail = (code, message, extra) => {
 }
 
 export function httpStatusOf(code) {
-  return { E_INPUT: 400, E_NOTFOUND: 404, E_CONFLICT: 409, E_FORBIDDEN: 403 }[code] || 500
+  return { E_INPUT: 400, E_AUTH: 401, E_FORBIDDEN: 403, E_NOTFOUND: 404, E_CONFLICT: 409, E_BEHIND: 409, E_CHECK: 422, E_LOCKED: 429 }[code] || 500
 }

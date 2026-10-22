@@ -2,6 +2,15 @@
 
 ## (다음 판)
 
+### E0 백업이 조용히 멈추지 않는다
+
+- **백업 자리**(`core/backup.js`) — 지식마다 붙인 백업 자리(원격 `kmd-backup`)에만 보낸다 · 상태 파일 `<data>/backup/<지식>.json` · 원격의 실제 sha 로 판정 여섯(ok · lag · gone · rewound · behind · moved) · `<sha>:refs/heads/<가지>` 로 적어 민다(지워진 백업도 다시 올린다) · 다시 보내기 1 · 5 · 15 · 60분 그 뒤 시간마다 · 시작할 때 한 번 · 매일 한 번.
+- **읽기만으로 닫기** — behind · moved 면 그 지식의 저장이 `E_BEHIND`(409). 「백업에서 받기」 는 앞으로만 · 받은 뒤 검사(`core/check.js`)가 새 오류를 내면 되돌린다.
+- **멈춤 한 줄**(`core/stopline.js`) — 「무엇이 · 얼마나 — 풀리는 길 / 누구에게」. 안 보낸 것이 6시간이면 노랑 · 24시간이면 빨강 · 지워짐 · 되감김은 다시 올린 뒤 하루 빨강. 화면 띠 · 지식 목록 · `/healthz` · `/api/stops` · MCP save 의 warnings · brief 가 같은 줄을 받는다.
+- **명령** — `kmd backup`(상태) · `kmd backup add <지식> <주소>` · `kmd backup pull <지식>` · 공통 `--data`(살림 자리 · 기본 `<폴더>/.kmd`). 화면 자료 `POST /api/k/<지식>/backup {url}` · `/backup/pull`.
+- 서버 가운데(`server/hub.js`)를 세워 화면과 MCP 의 저장이 한 길로 간다.
+- 시험 `test/backup.test.mjs`.
+
 ### K0 뼈대 — 지식 하나를 띄워 화면에서 읽고, 세션의 save 가 기록으로 남는다
 
 - **`kmd` 명령** — `kmd serve [폴더]`(팀 서버) · `kmd up [폴더]`(이 PC · 화면을 띄운다 · 폴더 기본 `D:\kmd` 또는 집 폴더의 `kmd`). 폴더 안의 폴더 하나하나가 지식이고, 폴더 자체가 지식 모양(`docs/` · `work/`)이면 그 하나만. 기본은 `127.0.0.1:7373` 에만 연다.

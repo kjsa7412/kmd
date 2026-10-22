@@ -7,7 +7,6 @@
 // 기억하지 않으므로(무상태) 다시 띄워도 세션이 끊기지 않는다.
 
 import { KmdError } from '../core/errors.js'
-import { save } from '../core/save.js'
 import { labelOf, sectionOf, coordsOfSection } from '../core/knowledge.js'
 import { headingMatches } from '../core/sections.js'
 import { VERSION } from './version.js'
@@ -75,6 +74,7 @@ export function makeMcp(store) {
         return {
           knowledge: ks.map((k) => ({ id: k.id, name: k.name, docs: k.docs.length, records: k.works.length, notYetInDocs: k.works.filter((w) => w.state === 'pend').length })),
           next: ks.length ? 'brief { knowledge } 로 지식 하나를 본다' : '아직 지식이 없다',
+          stops: (await store.stops()).map((l) => l.text),
         }
       }
       const k = await store.get(knowledge)
@@ -84,6 +84,7 @@ export function makeMcp(store) {
         docs: k.docs.map((d) => ({ doc: d.id, title: d.title, headings: d.sections.map((s) => s.h) })),
         recent: k.works.slice(0, 10).map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title })),
         notYetInDocs: k.works.filter((w) => w.state === 'pend').map((w) => ({ id: w.id, date: w.date, title: w.title })),
+        stops: (await store.stops(k.id)).map((l) => l.text),
       }
     },
 
@@ -156,10 +157,9 @@ export function makeMcp(store) {
 
     async save({ knowledge, record, sections }, ctx) {
       const k = await store.get(knowledge)
-      const r = await save(k.dir, { record, sections }, { user: ctx.user })
-      store.forget(k.id)
+      const r = await store.save(ctx, k.id, { record, sections })
       const n = r.docs.length
-      return { saved: r.id, date: r.date, docs: r.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')), note: n ? `저장했다 — 기록 1 · 문서 ${n}` : '저장했다 — 기록 1', warnings: [] }
+      return { saved: r.id, date: r.date, docs: r.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')), note: n ? `저장했다 — 기록 1 · 문서 ${n}` : '저장했다 — 기록 1', warnings: r.warnings }
     },
   }
 

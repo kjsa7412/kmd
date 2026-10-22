@@ -21,6 +21,39 @@ export function git(cwd, args, { input } = {}) {
   })
 }
 
+// 실패해도 던지지 않는 판 — 백업처럼 실패 사유(stderr)를 갈라 써야 하는 곳
+export function tryGit(cwd, args, { timeout = 0 } = {}) {
+  return new Promise((resolve) => {
+    const env = { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never', GIT_ASKPASS: '', SSH_ASKPASS: '', LANG: 'C.UTF-8' }
+    execFile('git', [...BASE, ...args], { cwd, env, maxBuffer: 64 << 20, windowsHide: true, timeout }, (err, stdout, stderr) => {
+      resolve({ ok: !err, out: String(stdout || ''), err: String(stderr || (err && err.killed ? 'timeout' : err?.message) || ''), timedOut: !!err?.killed })
+    })
+  })
+}
+
+export const headSha = async (dir) => {
+  const r = await tryGit(dir, ['rev-parse', '--verify', '-q', 'HEAD'])
+  return r.ok ? r.out.trim() : null
+}
+export const currentBranch = async (dir) => {
+  const r = await tryGit(dir, ['symbolic-ref', '--short', '-q', 'HEAD'])
+  return r.ok ? r.out.trim() || null : null
+}
+export const hasCommit = async (dir, sha) => !!sha && (await tryGit(dir, ['cat-file', '-e', `${sha}^{commit}`])).ok
+export const isAncestor = async (dir, a, b) => (await tryGit(dir, ['merge-base', '--is-ancestor', a, b])).ok
+export async function remoteUrl(dir, remote) {
+  const r = await tryGit(dir, ['remote', 'get-url', remote])
+  return r.ok ? r.out.trim() : null
+}
+// 주소의 자격(사용자:비밀@)은 지운다 — 상태 파일 · 화면 · 로그에 남기지 않는다
+export const maskUrl = (u) => String(u || '').replace(/\/\/[^/@\s]+@/, '//')
+// 커밋 시각(초) — 안 보낸 것 중 가장 오래된 것의 나이를 잰다
+export async function oldestAfter(dir, from) {
+  const r = await tryGit(dir, ['log', '--reverse', '--format=%ct', from ? `${from}..HEAD` : 'HEAD'])
+  const xs = r.ok ? r.out.trim().split('\n').filter(Boolean) : []
+  return { count: xs.length, oldest: xs.length ? Number(xs[0]) * 1000 : null }
+}
+
 const who = (user) => {
   const n = String(user).replace(/[<>\s]+/g, '') || 'kmd'
   return ['-c', `user.name=${n}`, '-c', `user.email=${n}@kmd`]
