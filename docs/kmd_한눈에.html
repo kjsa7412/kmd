@@ -157,7 +157,7 @@ svg .dot-k{fill:var(--kmd)} svg .dot-t{fill:var(--team)} svg .dot-w{fill:var(--w
 <!-- 1 데이터의 일생 -->
 <section id="life">
   <h2><span class="n">1</span>데이터의 일생 — 여섯 걸음</h2>
-  <p class="lead">kmd 에서 지식 한 조각은 늘 같은 길을 간다. 아래 여섯 걸음이 이 문서의 차례다. 사람이 손대는 곳은 <b>굵은 테두리</b> 뿐이고, 나머지는 kmd 가 한다.</p>
+  <p class="lead">kmd 에서 지식 한 조각은 늘 같은 길을 간다. 아래 여섯 걸음이 이 문서의 차례다. 사람이 손댈 수 있는 곳은 <b>굵은 테두리</b> 뿐이고(정리는 누르지 않아도 저절로 돈다), 나머지는 kmd 가 한다.</p>
   <figure>
   <svg viewBox="0 0 960 230">
     <g>
@@ -166,7 +166,7 @@ svg .dot-k{fill:var(--kmd)} svg .dot-t{fill:var(--team)} svg .dot-w{fill:var(--w
       <rect x="168" y="30" width="140" height="110" rx="12" class="box"/><circle cx="192" cy="54" r="13" class="dot-k"/><text x="187" y="59" class="num">2</text>
       <text x="214" y="60" class="t">쌓인다</text><text x="182" y="88" class="s">기록이 된다</text><text x="182" y="106" class="s">고치지 않는다</text><text x="182" y="124" class="s">무엇을 건드렸나</text>
       <rect x="326" y="30" width="140" height="110" rx="12" class="box" style="stroke:var(--ink);stroke-width:2.5"/><circle cx="350" cy="54" r="13" class="dot-k"/><text x="345" y="59" class="num">3</text>
-      <text x="372" y="60" class="t">정리된다</text><text x="340" y="88" class="s">문서에 넣는다</text><text x="340" y="106" class="s">내 것은 알아서</text><text x="340" y="124" class="s">팀은 아침 한 번</text>
+      <text x="372" y="60" class="t">정리된다</text><text x="340" y="88" class="s">문서에 넣는다</text><text x="340" y="106" class="s">승인 없이 바로</text><text x="340" y="124" class="s">밤 · [지금 정리]</text>
       <rect x="484" y="30" width="140" height="110" rx="12" class="box"/><circle cx="508" cy="54" r="13" class="dot-k"/><text x="503" y="59" class="num">4</text>
       <text x="530" y="60" class="t">찾아 쓴다</text><text x="498" y="88" class="s">이름으로 →</text><text x="498" y="106" class="s">안 맞으면 비슷한</text><text x="498" y="124" class="s">글에서</text>
       <rect x="642" y="30" width="140" height="110" rx="12" class="box" style="stroke:var(--ink);stroke-width:2.5"/><circle cx="666" cy="54" r="13" class="dot-k"/><text x="661" y="59" class="num">5</text>
@@ -179,7 +179,7 @@ svg .dot-k{fill:var(--kmd)} svg .dot-t{fill:var(--team)} svg .dot-w{fill:var(--w
       <text x="290" y="200" class="lbl">찾을 때는 문서 + 아직 문서에 안 넣은 기록이 같이 나간다</text>
     </g>
   </svg>
-  <figcaption>그림 1 — 사람이 누르는 곳은 둘(3 팀 정리의 [모두 반영] · 5 [N개 보내기]). 나머지는 저절로 돌고, 멈출 때만 한 줄이 뜬다.</figcaption>
+  <figcaption>그림 1 — 사람이 누르는 곳은 5 [N개 보내기] 하나다. 3 정리는 정해진 시간에 저절로 돌고, 바로 넣고 싶을 때만 [지금 정리] 를 누른다. 멈출 때만 한 줄이 뜬다.</figcaption>
   </figure>
 </section>
 
@@ -201,13 +201,21 @@ svg .dot-k{fill:var(--kmd)} svg .dot-t{fill:var(--team)} svg .dot-w{fill:var(--w
     <text x="346" y="188" class="s">③ 기록 하나 = 저장 한 번</text>
 
     <rect x="650" y="40" width="290" height="80" rx="12" class="me"/><text x="666" y="68" class="t">내 지식(내 PC)</text><text x="666" y="92" class="s">저장했다 — 문서에도 넣었다</text><text x="666" y="110" class="xs">저장이 곧 반영</text>
-    <rect x="650" y="180" width="290" height="80" rx="12" class="team"/><text x="666" y="208" class="t">팀 지식(팀 서버)</text><text x="666" y="232" class="s">기록했다 — 박이 아침에 문서에 넣는다</text><text x="666" y="250" class="xs">기록만 올라가 받은 것에 선다</text>
+    <rect x="650" y="180" width="290" height="80" rx="12" class="team"/><text x="666" y="208" class="t">팀 지식(팀 서버)</text><text x="666" y="232" class="s">기록했다 — 02:30 정리 때 문서에 들어간다</text><text x="666" y="250" class="xs">바로 넣으려면 [지금 정리]</text>
     <path d="M230,48 L328,120" class="ar" marker-end="url(#a)"/><path d="M230,116 L328,140" class="ar" marker-end="url(#a)"/>
     <path d="M230,184 L328,166" class="ar" marker-end="url(#a)"/><path d="M230,252 L328,190" class="ar k" marker-end="url(#ak)"/>
     <path d="M552,135 L648,85" class="ar" marker-end="url(#a)"/><path d="M552,170 L648,215" class="ar t" marker-end="url(#at)"/>
   </svg>
   <figcaption>그림 2 — 세션은 승인 질문 없이 바로 저장한다(고칠 곳은 말 한마디 → 바로잡은 기록). 한 세션에서 내 PC 와 팀 두 곳을 다 쓴다.</figcaption>
   </figure>
+  <table>
+    <tr><th>입구</th><th>어디서 하나</th><th>목업 화면</th></tr>
+    <tr><td>Claude Code 세션</td><td>세션이 한다(화면 없음)</td><td>M7 세션 저장</td></tr>
+    <tr><td>편집기 · 화면에서 고침</td><td>브라우저의 문서 화면 · 바깥 편집기</td><td>M6 읽기 · 고치기</td></tr>
+    <tr><td>파일 넣기</td><td>브라우저 — <b>가져오기 화면</b>에 끌어다 놓기</td><td><b>M14 가져오기</b></td></tr>
+    <tr><td>가져오는 곳(코드 · DB)</td><td>브라우저 — <b>가져오기 화면</b>에서 잇기 · 주기 · 지금 맞추기</td><td><b>M14 가져오기</b></td></tr>
+  </table>
+  <p style="font-size:13.5px;color:var(--ink2)">세션 말고 브라우저에서 하는 들이기는 중요도가 높아 <b>따로 한 화면(가져오기)</b>으로 모았다 — 운영자 지시.</p>
 </section>
 
 <!-- 3 쌓인다 -->
@@ -240,40 +248,41 @@ svg .dot-k{fill:var(--kmd)} svg .dot-t{fill:var(--team)} svg .dot-w{fill:var(--w
 <!-- 4 정리된다 -->
 <section id="cur">
   <h2><span class="n">4</span>정리된다 — 밤에 미리 쓰고, 넣는 것은 정해진 사람이</h2>
-  <p class="lead">"정리"는 <b>기록을 문서의 항목에 녹이는 일</b>이다. 개인 지식에서도 팀 지식에서도 같은 일이다. 다른 것은 <b>누가 넣느냐</b>뿐이다 — 개인 지식은 주인 한 사람이 곧 정리하는 사람이고, 팀 지식은 그 지식의 주인이 정한 정리하는 사람(예: 박)이다.</p>
+  <p class="lead">"정리"는 <b>기록을 문서의 항목에 녹이는 일</b>이다. 개인 지식에서도 팀 지식에서도 같은 일이고, <b>승인 없이 바로</b> 한다. 정해진 시간(기본 밤 02:30)에 저절로 돌거나, 바로 넣고 싶으면 누구든 <b>[지금 정리]</b> 를 한 번 누른다.</p>
+  <div class="say"><b>왜 승인이 없나(운영자 결정)</b> — 대상이 많아 관리자가 모두 검토할 수 없고, 자기 업무가 아닌 사람이 보면 오히려 틀린 결정을 할 수 있다. 그래서 사람이 하는 일은 승인이 아니라 <b>알림을 보고 필요하면 되돌리는 것</b>이고, 알림은 그 기록을 쓴 사람(그 일을 아는 사람)에게 간다.</div>
 
-  <h3>정리하는 길은 셋 — 사람이 직접 해도 된다</h3>
+  <h3>정리하는 길은 셋 — 기본은 ③, 사람이 직접 해도 된다</h3>
   <figure>
   <svg viewBox="0 0 960 250">
     <rect x="10" y="85" width="150" height="80" rx="10" class="box"/><text x="26" y="115" class="t">받은 기록</text><text x="26" y="139" class="s">아직 문서에 안 넣음</text>
     <rect x="220" y="10" width="300" height="70" rx="10" class="box" style="stroke:var(--ink);stroke-width:2.5"/><text x="236" y="38" class="t">① 직접 고친다</text><text x="236" y="62" class="s">사람이 항목 글을 쓰고 저장 — LLM 없음</text>
     <rect x="220" y="90" width="300" height="70" rx="10" class="box" style="stroke:var(--ink);stroke-width:2.5"/><text x="236" y="118" class="t">② 내 Claude Code 세션으로</text><text x="236" y="142" class="s">세션이 초안 → 사람이 보고 넣는다</text>
-    <rect x="220" y="170" width="300" height="70" rx="10" class="kmd"/><text x="236" y="198" class="t">③ 밤에 미리 (기본값)</text><text x="236" y="222" class="s">kmd 가 Claude 로 초안을 써 둔다</text>
+    <rect x="220" y="170" width="300" height="70" rx="10" class="kmd"/><text x="236" y="198" class="t">③ kmd 가 바로 (기본값)</text><text x="236" y="222" class="s">02:30 저절로 · 또는 [지금 정리]</text>
     <rect x="580" y="85" width="170" height="80" rx="10" class="kmd"/><text x="596" y="115" class="t">kmd 가 검사</text><text x="596" y="139" class="s">값 · 이름 · 크기 대조</text>
     <rect x="800" y="85" width="150" height="80" rx="10" class="box"/><text x="816" y="115" class="t">문서의 항목</text><text x="816" y="139" class="s">여기까지 넣었다</text>
     <path d="M162,110 L218,48" class="ar" marker-end="url(#a)"/><path d="M162,125 L218,125" class="ar" marker-end="url(#a)"/><path d="M162,140 L218,200" class="ar k" marker-end="url(#ak)"/>
     <path d="M522,45 L578,110" class="ar" marker-end="url(#a)"/><path d="M522,125 L578,125" class="ar" marker-end="url(#a)"/><path d="M522,205 L578,140" class="ar k" marker-end="url(#ak)"/>
     <path d="M752,125 L798,125" class="ar k" marker-end="url(#ak)"/>
   </svg>
-  <figcaption>그림 4-1 — ③ 은 ① · ② 를 없애지 않는다. 밤 초안이 없거나 마음에 안 들면 [지금 만들기](② 의 길) · 「하나씩 보고 넣기」 · 직접 고치기를 쓴다. 어느 길이든 넣기 전에 kmd 가 같은 검사를 한다.</figcaption>
+  <figcaption>그림 4-1 — ③ 은 ① · ② 를 없애지 않는다. 대부분은 ③ 으로 끝나고, 문서를 직접 손보고 싶은 사람만 ① · ② 를 쓴다. 어느 길이든 넣기 전에 kmd 가 같은 검사를 하고, 검사를 못 넘은 것은 넣지 않고 문서 옆에 그대로 둔다.</figcaption>
   </figure>
 
   <h3>LLM 이 필요한 것 · 필요 없는 것</h3>
   <table>
     <tr><th>정리할 것</th><th>LLM</th><th>까닭</th></tr>
     <tr><td>기록 몇 건을 읽고 항목 글을 지금 상태로 다시 쓰기(보통 반영 · 새 항목)</td><td><b>필요</b> — 또는 사람</td><td>글을 짓는 일이다</td></tr>
-    <tr><td>값이 바뀜 · 기록끼리 다름</td><td><b>필요</b> + 사람이 봄(노란 줄)</td><td>어느 쪽이 맞는지 판단이 든다</td></tr>
+    <tr><td>값이 바뀜 · 기록끼리 다름</td><td><b>필요</b> — 넣은 뒤 쓴 사람에게 노란 줄</td><td>늦은 기록을 따른다 · 틀렸으면 쓴 사람이 되돌린다</td></tr>
     <tr><td>넣을 곳 없는 메모 닫기 · 새 판이 온 옛 판 접기 · 이름만 바로잡은 기록</td><td>필요 없음</td><td>글이 바뀌지 않는다 — kmd 의 규칙으로</td></tr>
     <tr><td>저절로 채우는 표(가져오는 곳)</td><td>필요 없음</td><td>원천에서 읽은 그대로 넣는다(§8)</td></tr>
   </table>
   <div class="say">LLM 은 늘 <b>kmd 바깥</b>에서 돈다 — 사람의 Claude Code 세션이거나, 밤의 정리 일꾼(도구 · 열쇠 없이 초안만 내는 Claude). kmd 서버 자신은 LLM 을 부르지 않고, 받은 초안을 검사한 뒤 넣기만 한다.</div>
 
-  <h3>밤에 미리 쓰는 길(③)의 모양</h3>
-  <p>v0.6 에서는 <b>kmd 가 밤에 넣을 글을 미리 써 둔다.</b> 무엇이 바뀌는지에 따라 세 등급으로 나누고, 내 지식과 팀 지식이 다르게 간다.</p>
+  <h3>kmd 가 바로 하는 길(③)의 모양</h3>
+  <p>무엇이 바뀌는지에 따라 세 등급으로 나누지만, <b>셋 다 승인 없이 넣는다.</b> 다른 것은 넣은 뒤 누구에게 무엇을 알리느냐다. 내 지식과 팀 지식이 같다.</p>
   <figure>
   <svg viewBox="0 0 960 360">
     <rect x="10" y="130" width="150" height="80" rx="10" class="box"/><text x="26" y="160" class="t">낮의 기록</text><text x="26" y="184" class="s">받은 것에 선다</text>
-    <rect x="200" y="110" width="170" height="120" rx="12" class="kmd"/><text x="216" y="140" class="t">밤의 정리</text><text x="216" y="164" class="s">02:10 내 PC 가 쉴 때</text><text x="216" y="184" class="s">02:31 팀 서버</text><text x="216" y="208" class="xs">Claude 는 초안만 쓴다</text>
+    <rect x="200" y="110" width="170" height="120" rx="12" class="kmd"/><text x="216" y="140" class="t">kmd 정리</text><text x="216" y="164" class="s">02:30 저절로</text><text x="216" y="184" class="s">또는 [지금 정리]</text><text x="216" y="208" class="xs">Claude 는 글만 · kmd 가 검사</text>
     <path d="M160,170 L198,170" class="ar" marker-end="url(#a)"/>
 
     <rect x="420" y="20" width="220" height="80" rx="10" class="box"/><text x="436" y="48" class="t">바뀌는 것 없음</text><text x="436" y="70" class="s">넣을 곳 없는 메모 · 옛 판</text><text x="436" y="88" class="xs">규칙으로 — Claude 없이</text>
@@ -281,15 +290,15 @@ svg .dot-k{fill:var(--kmd)} svg .dot-t{fill:var(--team)} svg .dot-w{fill:var(--w
     <rect x="420" y="240" width="220" height="80" rx="10" class="warn"/><text x="436" y="268" class="t">값이 바뀜</text><text x="436" y="290" class="s">10% → 20% · 기록끼리 다름</text><text x="436" y="308" class="xs">노란 줄로 꼭 보인다</text>
     <path d="M372,150 L418,60" class="ar k" marker-end="url(#ak)"/><path d="M372,170 L418,170" class="ar k" marker-end="url(#ak)"/><path d="M372,190 L418,280" class="ar k" marker-end="url(#ak)"/>
 
-    <rect x="700" y="30" width="245" height="130" rx="12" class="me"/><text x="716" y="58" class="t">내 지식</text><text x="716" y="82" class="s">셋 다 알아서 넣는다</text><text x="716" y="104" class="s">「오늘 바뀐 것」 에 한 줄</text><text x="716" y="124" class="s">다음 대화 첫 줄에 알림</text><text x="716" y="146" class="xs">줄마다 되돌릴 수 있다</text>
-    <rect x="700" y="190" width="245" height="140" rx="12" class="team"/><text x="716" y="218" class="t">팀 지식</text><text x="716" y="242" class="s">바뀌는 것 없음 → 알아서</text><text x="716" y="262" class="s">글이 바뀜 → 아침에</text>
-    <rect x="716" y="274" width="214" height="32" rx="7" fill="var(--team)"/><text x="728" y="295" style="fill:#fff;font-size:13px;font-weight:700">모두 반영 — 값이 바뀌는 것 2 포함</text>
-    <text x="716" y="322" class="xs">박이 한 번 누른다 · 건마다 되돌리기</text>
-    <path d="M642,60 L698,80" class="ar" marker-end="url(#a)"/><path d="M642,170 L698,110" class="ar" marker-end="url(#a)"/><path d="M642,180 L698,240" class="ar t" marker-end="url(#at)"/><path d="M642,280 L698,280" class="ar t" marker-end="url(#at)"/>
+    <rect x="700" y="30" width="245" height="130" rx="12" class="kmd"/><text x="716" y="58" class="t">바로 문서에 들어간다</text><text x="716" y="82" class="s">내 지식 · 팀 지식 같다</text><text x="716" y="104" class="s">항목에 「kmd 가 정리」 표지</text><text x="716" y="124" class="s">「오늘 바뀐 것」 에 한 줄</text><text x="716" y="146" class="xs">줄마다 되돌릴 수 있다</text>
+    <rect x="700" y="190" width="245" height="140" rx="12" class="warn"/><text x="716" y="218" class="t">값이 바뀐 것은</text><text x="716" y="242" class="s">그 기록을 쓴 사람에게</text><text x="716" y="262" class="s">노란 줄 + 다음 대화 첫 줄</text>
+    <text x="716" y="290" class="s">틀렸으면 쓴 사람이 되돌린다</text>
+    <text x="716" y="318" class="xs">검사를 못 넘은 것은 넣지 않고 그대로</text>
+    <path d="M642,60 L698,80" class="ar k" marker-end="url(#ak)"/><path d="M642,170 L698,110" class="ar k" marker-end="url(#ak)"/><path d="M642,280 L698,100" class="ar k" marker-end="url(#ak)"/><path d="M642,285 L698,265" class="ar w" marker-end="url(#aw)"/>
   </svg>
-  <figcaption>그림 4 — 팀 지식을 끝까지 자동으로 하지 않는 까닭: 틀린 문서가 모든 답의 근거가 되기 때문이다. 기다리는 동안에도 기록은 문서 옆에 나가므로 잃는 것은 없다.</figcaption>
+  <figcaption>그림 4 — 승인 대신 남는 것은 셋이다: kmd 의 검사 · 건마다 되돌리기 · 쓴 사람에게 가는 알림. 이름 바꾸기 · 합치기 · 폐기는 정리가 아니라 이름표 구조를 바꾸는 일이라 제안 한 줄로만 남긴다.</figcaption>
   </figure>
-  <div class="say">정리 초안을 쓰는 Claude 는 <b>도구도 열쇠도 없이 글(초안)만</b> 낸다. 문서에 넣는 것은 kmd 가 검사(값 · 이름 대조 · 크기 · 표지)를 한 뒤에 한다. 팀 지식에 회사 Claude 를 쓸지는 운영자가 정한다(Q51 — 권장 「쓴다」).</div>
+  <div class="say">글을 쓰는 Claude 는 <b>도구도 열쇠도 없이 글만</b> 낸다. 문서에 넣는 것은 kmd 가 검사(값 · 이름 대조 · 크기 · 표지)를 한 뒤에 한다. 팀 지식을 저절로 정리하려면 Claude 가 들어 <b>회사 Claude 열쇠를 쓸지 운영자가 정한다(Q51 — 권장 「쓴다」)</b>. 쓰지 않으면 정해진 시간에는 규칙만 돌고, [지금 정리] 를 누른 사람의 PC 프로그램이 그 사람의 Claude 로 한다.</div>
 </section>
 
 <!-- 5 찾아 쓴다 -->
@@ -343,14 +352,14 @@ svg .dot-k{fill:var(--kmd)} svg .dot-t{fill:var(--team)} svg .dot-w{fill:var(--w
   </svg>
   <figcaption>그림 6-1 — 보내기는 팀 지식으로 들어오는 네 입구 중 하나다. 팀에 바로 쓰는 세션 기록이 오히려 흔하다. 보내기가 따로 있는 까닭은 내 PC 에서 먼저 써 둔 것을 나중에 골라 팀에 올리기 위해서다.</figcaption>
   </figure>
-  <p class="lead">내 지식에서 팀이 알아야 할 것은 <b>보낸다</b>. kmd 가 바뀐 것을 골라 두고, 사람은 [N개 보내기] 한 번. 팀 서버에 닿지 않으면 닿을 때 저절로 간다. 팀 쪽에서는 기록으로 들어가 밤에 정리되고 아침에 정리하는 사람이 넣는다.</p>
+  <p class="lead">내 지식에서 팀이 알아야 할 것은 <b>보낸다</b>. kmd 가 바뀐 것을 골라 두고, 사람은 [N개 보내기] 한 번. 팀 서버에 닿지 않으면 닿을 때 저절로 간다. 팀 쪽에서는 기록으로 들어가 다음 정리(02:30 또는 누군가의 [지금 정리])에 바로 문서에 들어간다.</p>
   <figure>
   <svg viewBox="0 0 960 170">
     <rect x="10" y="40" width="200" height="90" rx="12" class="me"/><text x="26" y="68" class="t">배포노트</text><text x="26" y="92" class="s">바뀐 것 2 — 골라 둠</text><text x="26" y="112" class="xs">내 PC</text>
     <rect x="250" y="55" width="150" height="60" rx="30" fill="var(--team)"/><text x="276" y="91" style="fill:#fff;font-weight:700;font-size:14px">2개 보내기</text>
     <rect x="440" y="40" width="160" height="90" rx="12" class="team"/><text x="456" y="68" class="t">DPMS 지식</text><text x="456" y="92" class="s">기록 2 — 받은 것</text><text x="456" y="112" class="xs">14:12</text>
-    <rect x="640" y="40" width="140" height="90" rx="12" class="kmd"/><text x="656" y="68" class="t">밤 02:31</text><text x="656" y="92" class="s">초안</text>
-    <rect x="820" y="40" width="130" height="90" rx="12" class="team"/><text x="836" y="68" class="t">아침</text><text x="836" y="92" class="s">박 모두 반영</text>
+    <rect x="640" y="40" width="140" height="90" rx="12" class="kmd"/><text x="656" y="68" class="t">정리</text><text x="656" y="92" class="s">02:30 저절로</text><text x="656" y="112" class="xs">또는 [지금 정리]</text>
+    <rect x="820" y="40" width="130" height="90" rx="12" class="team"/><text x="836" y="68" class="t">문서</text><text x="836" y="92" class="s">바로 들어감</text><text x="836" y="112" class="xs">김에게 알림</text>
     <path d="M212,85 L248,85" class="ar" marker-end="url(#a)"/><path d="M402,85 L438,85" class="ar t" marker-end="url(#at)"/>
     <path d="M602,85 L638,85" class="ar k" marker-end="url(#ak)"/><path d="M782,85 L818,85" class="ar t" marker-end="url(#at)"/>
     <text x="250" y="150" class="lbl">닿지 않으면 「팀 서버에 닿으면 저절로 보낸다」 한 줄 — 다시 누르지 않는다</text>
@@ -386,11 +395,13 @@ svg .dot-k{fill:var(--kmd)} svg .dot-t{fill:var(--team)} svg .dot-w{fill:var(--w
 <!-- 8 가져오는 곳 -->
 <section id="src">
   <h2><span class="n">8</span>가져오는 곳 — 표는 원천에서 저절로</h2>
-  <p class="lead">테이블 컬럼 · 꾸러미 판 · 파일 목록 같은 표는 사람이 옮겨 적으면 낡는다. 코드 폴더 · git 주소 · DB 를 <b>[잇기] 에 한 번</b> 붙이면 kmd 가 때마다 다시 읽어 <b>문서 안의 정해진 표만</b> 고친다.</p>
+  <p class="lead">테이블 컬럼 · 꾸러미 판 · 파일 목록 같은 표는 사람이 옮겨 적으면 낡는다. 코드 폴더 · git 주소 · DB 를 <b>[잇기] 에 한 번</b> 붙이면 kmd 가 때마다 다시 읽어 <b>문서 안의 정해진 표만</b> 고친다. 언제 읽을지는 <b>정해진 시간</b>(1시간마다 · 매일 06:00 · 매주 · 바뀔 때만)과 <b>[지금 맞추기]</b> 둘 다 된다 — 둘은 같은 길을 타서, 누른 실행도 바뀐 것만 쓰고 크게 바뀌면 멈춘다. 이 모든 것은 <b>가져오기 화면(M14)</b> 한 곳에서 본다.</p>
   <figure>
   <svg viewBox="0 0 960 260">
     <rect x="10" y="40" width="170" height="70" rx="10" class="box"/><text x="26" y="68" class="t">gdi DB</text><text x="26" y="90" class="s">읽기 전용 · 매일 06:00</text>
     <rect x="10" y="130" width="170" height="70" rx="10" class="box"/><text x="26" y="158" class="t">dpms-api 코드</text><text x="26" y="180" class="s">git · 1시간마다</text>
+    <rect x="10" y="214" width="170" height="38" rx="19" fill="var(--team)"/><text x="40" y="238" style="fill:#fff;font-size:13px;font-weight:700">지금 맞추기</text>
+    <path d="M182,232 L240,162" class="ar t" marker-end="url(#at)"/>
     <rect x="230" y="80" width="150" height="80" rx="12" class="kmd"/><text x="246" y="110" class="t">읽는다</text><text x="246" y="132" class="s">정해진 규칙만</text><text x="246" y="148" class="xs">스크립트 실행 없음</text>
     <rect x="430" y="80" width="140" height="80" rx="12" class="box"/><text x="446" y="112" class="t">바뀌었나</text><text x="446" y="134" class="s">이전 표와 견준다</text>
     <rect x="620" y="10" width="320" height="60" rx="10" class="box"/><text x="636" y="36" class="t">아니오</text><text x="636" y="56" class="s">아무것도 남기지 않는다 · 확인 시각만</text>
@@ -429,7 +440,7 @@ svg .dot-k{fill:var(--kmd)} svg .dot-t{fill:var(--team)} svg .dot-w{fill:var(--w
 <!-- 10 하루 -->
 <section id="day">
   <h2><span class="n">10</span>하루 — 세 사람과 kmd</h2>
-  <p class="lead">2026-10-22 하루를 따라가면 위의 흐름이 한 번에 보인다. 사람이 누른 것은 <b>김 「2개 보내기」 · 박 「모두 반영」 · 이 「링크 만들기」</b> 뿐이다.</p>
+  <p class="lead">2026-10-22 하루를 따라가면 위의 흐름이 한 번에 보인다. 사람이 누른 것은 <b>김 「2개 보내기」 · 이 「링크 만들기」</b> 뿐이다. 정리하는 사람 박은 누를 것이 없다 — 02:31 에 kmd 가 정리를 마쳤다.</p>
   <figure>
   <svg viewBox="0 0 960 330">
     <text x="10" y="64" class="t">kmd</text><text x="10" y="134" class="t">김</text><text x="10" y="204" class="t">박</text><text x="10" y="274" class="t">이</text>
@@ -439,7 +450,7 @@ svg .dot-k{fill:var(--kmd)} svg .dot-t{fill:var(--team)} svg .dot-w{fill:var(--w
     <text x="80" y="20" class="xs">02:00</text><text x="210" y="20" class="xs">06:00</text><text x="330" y="20" class="xs">09:00</text><text x="470" y="20" class="xs">10:00</text><text x="610" y="20" class="xs">11:00</text><text x="810" y="20" class="xs">14:00</text>
     <!-- kmd -->
     <circle cx="90" cy="60" r="8" class="dot-k"/><text x="34" y="88" class="xs">02:10 내 지식 정리</text>
-    <circle cx="120" cy="60" r="8" class="dot-k"/><text x="104" y="44" class="xs">02:31 팀 초안</text>
+    <circle cx="120" cy="60" r="8" class="dot-k"/><text x="104" y="44" class="xs">02:31 팀 정리 — 7건 넣음</text>
     <circle cx="225" cy="60" r="8" class="dot-k"/><text x="210" y="88" class="xs">06:00 gdi 표</text>
     <circle cx="500" cy="60" r="8" class="dot-w"/><text x="470" y="88" class="xs">10:12 GDI 백업 다시 올림</text>
     <!-- 김 -->
@@ -448,18 +459,18 @@ svg .dot-k{fill:var(--kmd)} svg .dot-t{fill:var(--team)} svg .dot-w{fill:var(--w
     <circle cx="640" cy="130" r="8" class="dot-m"/><text x="600" y="158" class="xs">11:05 세션 — 비슷한 글에서 찾음</text>
     <circle cx="840" cy="130" r="11" class="dot-t"/><text x="790" y="114" class="s" style="font-weight:700">14:12 2개 보내기</text>
     <!-- 박 -->
-    <circle cx="350" cy="200" r="11" class="dot-t"/><text x="300" y="228" class="s" style="font-weight:700">09:10 모두 반영</text>
+    <circle cx="350" cy="200" r="8" class="dot-g"/><text x="300" y="228" class="xs">09:10 정리된 것을 훑어봄 — 누를 것 없음</text>
     <!-- 이 -->
     <circle cx="440" cy="270" r="8" class="dot-t"/><text x="400" y="298" class="xs">09:20 아이디 · 비밀번호</text>
     <circle cx="530" cy="270" r="11" class="dot-t"/><text x="500" y="254" class="s" style="font-weight:700">10:30 링크 만들기</text>
     <path d="M128,64 C230,90 300,170 344,192" class="ar k dash" marker-end="url(#ak)"/>
   </svg>
-  <figcaption>그림 10 — 굵은 점이 사람이 누른 때. 나머지는 kmd 가 저절로 했고, 멈춘 것(08:05 백업)은 한 줄로만 알렸다.</figcaption>
+  <figcaption>그림 10 — 굵은 점이 사람이 누른 때. 나머지는 kmd 가 저절로 했고(02:31 팀 정리 포함), 멈춘 것(08:05 백업)은 한 줄로만 알렸다.</figcaption>
   </figure>
   <table>
     <tr><th>사람</th><th>하는 일</th><th>kmd 가 대신 하는 일</th></tr>
     <tr><td><span class="tag me">김</span>내 PC</td><td>세션으로 일한다 · 하루 한 번 [2개 보내기]</td><td>저장이 곧 반영 · 밤에 내 지식 정리 · 비슷한 글 찾기 · 백업 · 다른 이름 배우기</td></tr>
-    <tr><td><span class="tag team">박</span>정리</td><td>아침 [모두 반영] 한 번</td><td>밤에 넣을 글 미리 쓰기 · 값 · 이름 대조 · 넣을 곳 없는 메모 정리</td></tr>
+    <tr><td><span class="tag team">박</span>정리하는 사람</td><td>누를 것 없음 — 이름 합치기 같은 제안이 있을 때만 본다</td><td>02:30 정리 · 값 · 이름 대조 · 넣을 곳 없는 메모 정리 · 값이 바뀐 것은 쓴 사람에게 알림</td></tr>
     <tr><td><span class="tag team">이</span>관리자</td><td>문제 줄이 있을 때만(오늘: 링크 만들기)</td><td>표 가져오기 · 백업 확인 · 잠금 저절로 풀기 · 옛 열쇠 옮기기</td></tr>
   </table>
 </section>
@@ -475,15 +486,16 @@ svg .dot-k{fill:var(--kmd)} svg .dot-t{fill:var(--team)} svg .dot-w{fill:var(--w
     <tr><td>딱 맞는 항목 · 다른 이름</td><td>좌표 · 어휘 · 별칭</td><td>항목을 찾는 이름표</td></tr>
     <tr><td>여기까지 넣었다</td><td>applied 표지</td><td>항목이 어느 기록까지 반영했나</td></tr>
     <tr><td>아직 문서에 안 넣은 기록</td><td>미반영(pending)</td><td>표지 뒤에 들어온 기록 — 항목과 같이 나간다</td></tr>
-    <tr><td>정리 · 받은 것 · 모두 반영</td><td>큐레이션 · 대기열 · 판정</td><td>기록을 항목에 녹이는 일</td></tr>
-    <tr><td>kmd 가 정리했다 · 넣을 준비 됨</td><td>정리 일꾼 · 초안 · curate-auto</td><td>밤에 Claude 가 쓴 초안을 kmd 가 검사해 넣음</td></tr>
+    <tr><td>정리 · 받은 것 · 지금 정리</td><td>큐레이션 · 대기열 · 판정</td><td>기록을 항목에 녹이는 일</td></tr>
+    <tr><td>kmd 가 정리했다</td><td>정리 일꾼 · 초안 · curate-auto</td><td>Claude 가 쓴 글을 kmd 가 검사한 뒤 승인 없이 넣음</td></tr>
     <tr><td>비슷한 글에서 찾았다</td><td>RAG 폴백 · 찾기 사다리</td><td>이름이 안 맞을 때 넓게 찾기</td></tr>
     <tr><td>저절로 채우는 표 · 가져오는 곳</td><td>기준선 블록 · 원천</td><td>코드 · DB 에서 읽은 표</td></tr>
     <tr><td>바로잡은 기록</td><td>supersedes · 정정</td><td>틀린 기록을 고치지 않고 새로 바로잡음</td></tr>
+    <tr><td>가져오기 화면 · 지금 맞추기</td><td>원천 관리 · 동기화</td><td>파일 넣기와 가져오는 곳을 모은 화면 · 누르면 바로 다시 읽기</td></tr>
     <tr><td>내 기기 · 설치 한 줄</td><td>기기 열쇠 · 설치 표</td><td>Claude Code 가 팀에 붙는 자격</td></tr>
     <tr><td>백업이 멈췄다</td><td>미러 lag · gone · rewound</td><td>git 백업이 못 갔다</td></tr>
   </table>
-  <p style="font-size:13.5px;color:var(--ink2)">더 자세한 것 — <a href="CDP_kmd_개정_v0.6_검토.md">v0.6 검토</a> · <a href="CDP_kmd_개정_v0.5_검토.md">v0.5 검토</a> · <a href="CDP_vs_RAG_노트_검증.md">CDP 와 RAG 노트 검증</a> · <a href="kmd_목업.html">화면 목업(14장)</a></p>
+  <p style="font-size:13.5px;color:var(--ink2)">더 자세한 것 — <a href="CDP_kmd_개정_v0.6_검토.md">v0.6 검토</a> · <a href="CDP_kmd_개정_v0.5_검토.md">v0.5 검토</a> · <a href="CDP_vs_RAG_노트_검증.md">CDP 와 RAG 노트 검증</a> · <a href="kmd_목업.html">화면 목업(15장)</a></p>
 </section>
 
 </main>
