@@ -1,0 +1,25 @@
+{
+  "name": "kmd",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "kmd — 팀과 내 PC 의 지식(문서 · 기록 · 정리) · Claude Code 세션이 MCP 로 읽고 쓴다",
+  "bin": {
+    "kmd": "server/bin/kmd.mjs"
+  },
+  "scripts": {
+    "kmd": "node server/bin/kmd.mjs",
+    "demo": "node test/demo.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "markdown-it": "^14.1.0"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.63.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
