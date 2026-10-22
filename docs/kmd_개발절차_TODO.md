@@ -62,15 +62,16 @@ E0 백업 ─ E1 고침판·권한 ─ E2 들어가기·기기 열쇠 ─ E3 찾
 
 ### E1 고침판 · 권한(v0.6 L1 · v0.5 L1)
 
-- [ ] **F1** 프런트매터 주입 막기 — date · supersedes 를 **모양 검사**(줄바꿈 금지 · `YYYY-MM-DD[ HH:MM]`) · 값 인용 · 다시 읽어 `recordKind === 'work'`(`core/save.js` renderWork · `core/curation.js:50-56`)
-- [ ] **F4** 섹션 내용 잠금 — base(읽은 content 의 sha) 대조 · 모든 자동 쓰기에
-- [ ] **F12** 캐시는 요청 밖 — store 캐시를 MCP 에 잇기(`ctx-mcp.mjs:163-168` · `ctx-mcp-serve.mjs:183`) · save 뒤 검사는 바뀐 파일만 다시 읽은 증분 캐시
-- [ ] **I7** 미반영은 최신부터 골라 날짜 순 · 두 경로 한 순서(`core/tools.js:146-159` · `validity.js:41`) · 넘친 수를 센다
-- [ ] 같은 기준선 블록을 다시 올리면 커밋 · 기록 0 · `asof` 모양 강제
-- [ ] 예약 이름(`kmd` · `kmd-auto` · `kmd-worker`) · 예약 태그(`edit` · `curate-auto` · `curate-llm` · `alias-auto` · `sources` · `touches-fix`)
-- [ ] 등록표 · owner · `_members.md` · `_format.json` · `_sources.json` 예약 파일 · admin `*` 가림(콘솔 길 포함) · 되살린 지식은 admin 만 · git 주소 받아 오기는 팀에서 admin 만 · 허용 백업 루트
+- [x] **F1** 프런트매터 주입 막기 — date · supersedes 를 **모양 검사**(줄바꿈 금지 · `YYYY-MM-DD[ HH:MM]`) · 값 인용 · 다시 읽어 `recordKind === 'work'`(`core/save.js` renderWork · `core/curation.js:50-56`)
+- [x] **F4** 섹션 내용 잠금 — base(읽은 content 의 sha) 대조 · 모든 자동 쓰기에
+- [x] **F12** 캐시는 요청 밖 — store 캐시를 MCP 에 잇기(`ctx-mcp.mjs:163-168` · `ctx-mcp-serve.mjs:183`) · save 뒤 검사는 바뀐 파일만 다시 읽은 증분 캐시
+- [x] **I7** 미반영은 최신부터 골라 날짜 순 · 두 경로 한 순서(`core/tools.js:146-159` · `validity.js:41`) · 넘친 수를 센다
+- [x] 같은 기준선 블록을 다시 올리면 커밋 · 기록 0 · `asof` 모양 강제
+- [x] 예약 이름(`kmd` · `kmd-auto` · `kmd-worker`) · 예약 태그(`edit` · `curate-auto` · `curate-llm` · `alias-auto` · `sources` · `touches-fix`)
+- [x] 등록표 · owner · `_members.md` · `_format.json` · `_sources.json` 예약 파일 · admin `*` 가림(콘솔 길 포함) · 되살린 지식은 admin 만 · git 주소 받아 오기는 팀에서 admin 만 · 허용 백업 루트
 - 시험: date 줄바꿈 + `baseline:` / `snapshot:` → `E_INPUT` · 같은 기준선 두 번 → 커밋 0 · 둘째 MCP 요청 readFile ≤ 10 · 캐시를 켠 채 오류를 만드는 save → `E_CHECK` · 미반영 12 → 최신 8 · admin 토큰으로 남의 개인 지식 → `E_FORBIDDEN`
 - 끝: 시험 + 하네스 · **이 판은 kmd 와 무관하게 실서버에도 이득** — 사람이 v1.9.1 로 낼 수 있다
+- **됨** — CDP `b1abbf4` · `test/fixpack.test.mjs` 9 · 하네스 ✓120 ✗0(87 을 허용 백업 루트로 · 141 새로 — 서버 경로의 가림) · 깨 보는 검토(에이전트 6) 확인 17건 고침
 
 ### E2 들어가기 · 기기 열쇠(v0.6 §3 · L1a)
 
@@ -242,3 +243,4 @@ E0 백업 ─ E1 고침판·권한 ─ E2 들어가기·기기 열쇠 ─ E3 찾
 | 판 | 커밋 | 권장안으로 정한 것 · 남은 것 |
 |---|---|---|
 | E0 | CDP `6858e87` | **정한 것** — 코드 이름은 `core/mirror.js` 그대로 두고 뜻을 「붙인 백업」 으로 바꿈(상태 이름 diverged → moved · 옛 집계 칸 `diverged` 는 moved 수로 남김) · 서버 `--mirror`(serve.json `mirror`)는 「시작할 때 지금 원격을 백업으로 적기」 로 뜻을 바꿔 실서버 설정을 그대로 살림 · 상태 파일이 없으면 `<data>` 가 없는 서버도 메모리로만 붙음 · 「다른 kmd」 문구는 P5 전이라 「다른 서버」 · lag 의 빠른 실패 하나는 조용(나이 6시간부터 줄) · gone · rewound 는 다시 올린 뒤 하루 bad · 받은 머리가 검사 오류를 **새로** 만들면 `reset --hard` 로 되돌림(받기 전 상태 · 아무에게도 안 간 것) · 콘솔 「다시 보내기」 는 아직 백업이 아니면 지금 원격을 적고 민다 · 레포를 치우면 상태 파일도 지움 · ls-remote 상한 10초(`CDP_BACKUP_LS_MS`) · 하네스 139 가 Windows 에서 실제 `%APPDATA%\cdp` 에 쓰던 틈을 막음. **남은 것** — 백업 자리가 없는 지식의 「50건 · 7일」 warn 한 줄(v0.5 §4.2 끝)은 화면 줄(S1 띠)과 같이 · 폴더 밖 이력 되살리기 · [이 백업 이어 쓰기] 는 E9 · 밤 묶음 · 데이터 tar 는 설명서(E9). **사람** — 실서버 upgrade(먼저 `cdp serve doctor` — 원격이 앞선 레포는 「백업에서 받기」 뒤 `cdp serve backup adopt`) · 판 올림 · 태그 · push |
+| E1 | CDP `b1abbf4` | **정한 것** — F1 은 키 목록이 아니라 모양(date `YYYY-MM-DD[ HH:MM]` · supersedes id 하나 · 한 줄 칸 · 태그 trim+NFC)과 **다시 읽어 종류 · 태그 대조** · F4 base 는 16자 sha256(줄 끝 · 끝 공백 맞춤 · 기준선 블록 뺀 글) — 보내면 대조, 안 보내면 지금처럼(자동 쓰기는 늘 보낸다 — E4 · E5) · F12 파일 캐시는 레포마다 하나(mtime · 크기) · save 가 쓴 파일은 뒤 검사 전에 잊는다 · 지문은 docs · work 아래 폴더까지(assets 뺌) · 잠금은 서버 메모리가 아니라 E2 · 기준선은 이 판에서 **경고만**(사람 · 세션의 거절은 기계 열쇠가 생기는 E2) · 기계 태그는 `machine` 신원만(E4 · E5 가 쓴다) · 등록표 `<data>/registry.json`(행이 없으면 팀 지식 — 옛 서버 그대로) · 셸 `ctx serve owner` · 깨지면 서버가 뜨지 않는다 · 개인 지식 주인의 토큰은 콘솔에서 관리자가 못 만든다(셸 · 본인) · 로컬 경로 원격은 `backupRoots`(개인 서버는 루트 없이) · 콘솔 길의 E_FORBIDDEN 은 403 · 받아 온 지식에 `_members.md` 가 있으면 주인 · 개인을 다시 건다. **남은 것** — 화면의 주인 연산(`_members.md` 를 같이 바꾸기)은 S7 · 「n개(주인만 봄)」 화면 글은 S1 · 예약 이름이 옛 명부에 있을 때 upgrade 를 멈추는 것은 doctor fail 로(upgrade.sh 는 doctor 를 권한다) · 하네스 139 가 부하 때 15분을 넘긴 적이 있다(이 PC 에서 프로세스 하나 띄우는 데 1.4초 — 다른 Claude 세션 · 백신). **사람** — 실서버 upgrade 때 `backupRoots` 를 serve.json 에(로컬 경로 원격을 쓰면) · 판 올림 · 태그 · push |
