@@ -399,8 +399,179 @@ td.go2{text-align:right;white-space:nowrap}
 .rec li.bad .tx small{color:var(--warn)}
 .rec li.run .tx small{color:var(--accent)}
 
+/* ── v0.7 리본 · 보는 법 셋 ── */
+.ribbon{width:52px;flex:none;background:#eceff4;border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:12px 0 10px;gap:4px}
+.ribbon.dim{opacity:.45;pointer-events:none}
+.rb{width:44px;padding:6px 0 4px;border-radius:9px;border:0;background:none;color:var(--text-2);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10.5px}
+.app .rb svg{width:19px;height:19px}
+.rb:hover{background:var(--surface-3)}
+.rb.on{background:var(--accent-bg);color:var(--accent);font-weight:700}
+.ribbon .sp{flex:1}
+.side{width:248px}
+.lp{flex:1 1 auto;min-height:0;overflow:auto;margin:8px -4px 0;border-top:1px solid var(--border);padding:8px 2px 0}
+.lh{font-size:11.5px;color:var(--text-3);margin:0 6px 6px;font-weight:600}
+.tf{display:flex;align-items:center;gap:5px;padding:4px 6px;border-radius:6px;cursor:pointer;color:var(--text-2);font-weight:700;font-size:12px;user-select:none}
+.tf:hover{background:var(--surface-2)}
+.tf .ar{width:10px;color:var(--text-3);font-size:10px}
+.tf small{font-weight:400;color:var(--text-3)}
+.tf .cnt{margin-left:auto;font-weight:400;color:var(--text-3);font-size:11px}
+.tn{display:flex;align-items:center;gap:6px;padding:3px 6px 3px 21px;border-radius:6px;cursor:pointer;white-space:nowrap;font-size:12.5px;min-width:0}
+.tn:hover{background:var(--surface-2)}
+.tn.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.app .tn svg{width:13px;height:13px;color:var(--text-3)}
+.tn .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.tn .dt{font:10.5px var(--mono);color:var(--text-3);flex:none}
+.tn .rc,.alr .rc{font-size:10.5px;color:var(--text-3);background:var(--surface-2);border-radius:999px;padding:0 6px;flex:none}
+.tn .nd{font-size:10px;color:var(--text-3);border:1px dashed var(--border-strong);border-radius:4px;padding:0 4px;flex:none}
+.tn.more{color:var(--accent);font-weight:600}
+.tn.nc{cursor:default;font-size:11.5px}
+.pd{width:7px;height:7px;border-radius:50%;background:var(--pending);flex:none;display:inline-block}
+.nw{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none;display:inline-block}
+.fcs{display:flex;flex-wrap:wrap;gap:4px;margin:6px 2px 8px}
+.fc{font-size:11px;border:1px solid var(--border-strong);border-radius:999px;padding:1px 8px;cursor:pointer;color:var(--text-2);background:var(--surface);user-select:none}
+.fc.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.lp .inp{min-height:28px;font-size:12px}
+.ig{font-size:11.5px;color:var(--text-2);font-weight:700;margin:6px 6px 4px}
+.empty2{margin:8px 4px;padding:9px 10px;border-radius:8px;background:var(--surface-2);color:var(--text-2);font-size:11.5px;line-height:1.6}
+.empty2 b{display:block;color:var(--text);font-size:12px}
+.hist{display:flex;gap:2px;flex:none}
+.hb{width:24px;height:24px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);cursor:pointer;font-size:15px;line-height:1;padding:0}
+.hb[disabled]{opacity:.35;cursor:default}
+.qbtn{margin-left:auto;height:30px;border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;gap:6px;padding:0 10px;font-size:12px;color:var(--text-2);cursor:pointer;white-space:nowrap;background:var(--surface);flex:none}
+.qbtn:hover{border-color:var(--border-strong)}
+.qbtn+.search{margin-left:0}
+kbd{font:10.5px var(--mono);color:var(--text-3);border:1px solid var(--border);border-radius:4px;padding:0 4px;background:var(--surface-2)}
+.center{flex:1;min-width:0;display:flex;flex-direction:column}
+.tabbar{display:flex;align-items:flex-end;gap:6px;padding:6px 8px 0 10px;background:var(--surface-2);border-bottom:1px solid var(--border);min-height:37px;flex:none;position:relative;z-index:5}
+.tabs-s{display:flex;align-items:flex-end;gap:2px;overflow-x:auto;min-width:0;flex:0 1 auto;scrollbar-width:thin}
+.tb1{display:flex;align-items:center;gap:6px;max-width:190px;padding:5px 5px 6px 10px;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;font-size:12px;color:var(--text-2);cursor:pointer;white-space:nowrap;flex:none;position:relative;top:1px}
+.tb1:hover{background:var(--surface-3)}
+.tb1 .nm{overflow:hidden;text-overflow:ellipsis}
+.tb1.on{background:var(--bg);border-color:var(--border);color:var(--text);font-weight:600}
+.tb1.rt{box-shadow:inset 0 2px 0 var(--pending)}
+.app .tb1 svg{width:12px;height:12px;color:var(--text-3)}
+.tb1 .x{border:0;background:none;color:var(--text-3);cursor:pointer;font-size:14px;line-height:1;padding:0 3px;border-radius:4px}
+.tb1 .x:hover{background:var(--surface-3);color:var(--text)}
+.tadd{border:0;background:none;color:var(--text-3);font-size:16px;cursor:pointer;padding:2px 8px 6px;flex:none}
+.tabbar .kebab{margin:0 0 4px auto}
+.tabbar .none{font-size:11.5px;color:var(--text-3);padding:0 0 9px}
+.panes{flex:1;display:flex;min-height:0;min-width:0}
+.panes .main{flex:1 1 0}
+.panes .main.rp{border-left:2px solid var(--pending-bg);background:#fbfbfe}
+.rph{display:flex;align-items:center;gap:8px;margin:-6px 0 8px;font-size:11.5px;color:var(--pending)}
+.docw{max-width:820px}
+.dlinks{margin-top:14px;padding-top:8px;border-top:1px dashed var(--border-strong);font-size:12px;color:var(--text-3);display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.dlink{color:var(--accent);cursor:pointer;font-weight:600}
+.ilink{color:var(--accent);text-decoration:underline dotted;text-underline-offset:3px;cursor:pointer}
+.paper h2 .hn{margin-left:auto;font-size:11px;font-weight:500;color:var(--text-3);border:1px solid var(--border);border-radius:999px;padding:0 8px;cursor:pointer;white-space:nowrap;display:inline-flex;gap:5px;align-items:center}
+.paper h2 .hn:hover{color:var(--accent);border-color:var(--accent-line)}
+.paper h2.flash{animation:flash 1.4s}
+.attph{border:1px dashed var(--border-strong);border-radius:10px;padding:40px;text-align:center;color:var(--text-3);margin-top:10px}
+.ap{margin-bottom:16px}
+.ap h4{display:flex;align-items:baseline;gap:6px;margin:0 0 6px;font-size:12.5px}
+.ap h4 small{font-weight:400;color:var(--text-3);font-size:11px}
+.olr{padding:3px 8px;border-radius:0 6px 6px 0;cursor:pointer;font-size:12.5px;display:flex;align-items:center;gap:6px;border-left:2px solid var(--border)}
+.olr:hover{background:var(--surface-2);border-left-color:var(--accent)}
+.bg{font-size:11.5px;color:var(--text-2);margin:8px 0 2px;font-weight:600}
+.bg small{font-weight:400;color:var(--text-3)}
+.alr{display:flex;align-items:center;gap:6px;padding:3px 6px;border-radius:6px;cursor:pointer;font-size:12px;min-width:0}
+.alr:hover{background:var(--surface-2)}
+.alr .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.alr .nm small{color:var(--text-3);margin-left:4px}
+.alr .dt{font:10.5px var(--mono);color:var(--text-3);flex:none;width:34px}
+.app .alr svg{width:12px;height:12px;color:var(--text-3)}
+.alr.muted{cursor:default}
+details.nb{border:1px solid var(--border);border-radius:10px;padding:6px 10px}
+details.nb>summary{cursor:pointer;font-weight:700;font-size:12.5px;list-style:none}
+details.nb>summary::before{content:"▸ ";color:var(--text-3)}
+details.nb[open]>summary::before{content:"▾ "}
+details.nb>summary::-webkit-details-marker{display:none}
+details.nb summary small{font-weight:400;color:var(--text-3)}
+svg.mini{width:100%;height:150px;display:block;cursor:pointer;margin-top:6px;background:#fbfcfe;border-radius:8px;stroke:none}
+svg.mini line{stroke:#c9d1dd;stroke-width:1}
+svg.mini text{fill:var(--text-2);font-size:9px;stroke:none}
+svg.mini text.c{fill:var(--text);font-weight:700;font-size:10px}
+.ih{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 6px}
+.ih h1{font-size:21px;margin:0}
+.isec{margin:16px 0 0}
+.isec>h3{display:flex;align-items:center;gap:8px;font-size:13px;margin:0 0 6px}
+.isec>h3 small{font-weight:400;color:var(--text-3);font-size:11.5px}
+.paper.ip{padding:10px 16px}
+.rl{list-style:none;margin:0;padding:0;border:1px solid var(--border);border-radius:10px;background:#fff;overflow:hidden}
+.rl li{display:flex;gap:10px;align-items:flex-start;padding:8px 12px;border-top:1px solid var(--border);cursor:pointer;font-size:12.5px}
+.rl li:first-child{border-top:0}
+.rl li:hover{background:#fafbfd}
+.rl li.pend{background:var(--pending-bg)}
+.rl li .dt{font:11.5px var(--mono);color:var(--text-3);width:40px;flex:none;padding-top:1px}
+.rl li .tx{flex:1;min-width:0}
+.rl li .tx small{display:block;color:var(--text-3);font-size:11.5px}
+.main.full{padding:12px}
+.gwrap{position:relative;border:1px solid var(--border);border-radius:12px;background:#fbfcfe;overflow:hidden;height:calc(100vh - 230px);min-height:440px;touch-action:none}
+#gsvg{width:100%;height:100%;display:block;cursor:grab;user-select:none;stroke:none;fill:none}
+#gsvg .n{cursor:pointer}
+#gsvg .n .dot{stroke:#fff;stroke-width:1.5}
+#gsvg .n .ring{fill:none;stroke:var(--pending);stroke-width:1.6;stroke-dasharray:2 2}
+#gsvg .n text{font-size:11px;fill:#3c4452;pointer-events:none;paint-order:stroke;stroke:#fbfcfe;stroke-width:3px}
+#gsvg .n.k-doc text{fill:#5b6473}
+#gsvg .n.k-bundle text{font-weight:700;font-size:11px}
+#gsvg .n.nl text{display:none}
+#gsvg .n.dim{opacity:.15}
+#gsvg .n.hit .dot{stroke:#f0b400;stroke-width:3}
+#gsvg .n.sel .dot{stroke:#11151c;stroke-width:2.5}
+#gsvg .n.sel text{font-weight:700;fill:#11151c}
+#gsvg line,svg.lgl line{stroke-width:1.2}
+.e-in{stroke:#b9c2d0}
+.e-touch{stroke:#a99be6;stroke-dasharray:3 3}
+#gsvg line.e-fix,svg.lgl line.e-fix{stroke:#cb3a2c;stroke-width:1.7}
+.e-point{stroke:#7d95f0;stroke-dasharray:6 3}
+.e-fill{stroke:#2f8f5b}
+#gsvg line.dim{opacity:.08}
+.mk-fix{fill:#cb3a2c}.mk-point{fill:#7d95f0}
+.gz{position:absolute;right:10px;bottom:10px;display:flex;gap:4px}
+.gtl{position:absolute;left:12px;top:10px;color:var(--text-3)}
+.ghint{position:absolute;left:12px;bottom:12px;color:var(--text-3);right:190px}
+.gh{font-size:11.5px;font-weight:700;color:var(--text-2);margin:12px 4px 4px}
+.gh small{font-weight:400;color:var(--text-3)}
+.gr{display:flex;align-items:center;gap:8px;padding:4px 4px;font-size:12px}
+.gr .tx{flex:1;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.gr .tx small{flex-basis:100%;color:var(--text-3);font-size:11px}
+.kd{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
+.kd.ringk{border:1.6px dashed var(--pending);background:none}
+.seg{display:flex;border:1px solid var(--border-strong);border-radius:7px;overflow:hidden;margin:0 4px}
+.seg button{flex:1;border:0;background:var(--surface);padding:3px 0;font-size:12px;cursor:pointer;border-left:1px solid var(--border)}
+.seg button:first-child{border-left:0}
+.seg button.on{background:var(--accent);color:#fff;font-weight:600}
+.seg button[disabled]{color:var(--text-3);cursor:default}
+.gcard{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:14px;background:var(--surface)}
+.gcard .gn{font-weight:700;font-size:14px;margin:4px 0 2px}
+.lgr{display:flex;align-items:center;gap:8px;font-size:12px;padding:2px 0}
+.lgr small{display:block;color:var(--text-3);font-size:10.5px}
+svg.lgl{width:34px;height:8px;flex:none;stroke:none}
+.qr{display:flex;align-items:center;gap:8px;margin:2px 8px;padding:7px 10px;border-radius:8px;cursor:pointer;font-size:12.5px}
+.qr:hover,.qr.sel{background:#eef2ff}
+.qr .nm{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qr .r{margin-left:auto;white-space:nowrap;padding-left:10px}
+.qk{width:16px;display:grid;place-items:center;flex:none;color:var(--text-3)}
+.pv{position:fixed;z-index:70;width:290px;background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;box-shadow:var(--shadow-2);padding:10px 12px;font-size:12px;pointer-events:none;line-height:1.55;color:var(--text)}
+.pv svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none}
+.pv .ph{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.pv .ph b{font-size:13px}
+.pv .pm{margin-top:6px;color:var(--text-3);font-size:11.5px}
+.pv .kt{font-size:10.5px}
+.tabs span[data-a]{cursor:pointer}
+.flow{border:1px solid var(--accent-line);border-radius:10px;padding:10px 12px;background:#fbfcff;margin:4px 0 6px}
+li.new{animation:flash 1.6s}
+
 /* 좁은 화면 */
 @media (max-width:900px){
+  .ribbon{width:auto;flex-direction:row;padding:6px 8px;border-right:0;border-bottom:1px solid var(--border)}
+  .ribbon .sp{display:none}
+  .rb{width:auto;flex-direction:row;padding:4px 8px;gap:4px}
+  .lp{flex-basis:100%;max-height:260px}
+  .panes{flex-direction:column}
+  .panes .main.rp{border-left:0;border-top:2px solid var(--pending-bg)}
+  .qbtn kbd,.search span:last-child,.ghint{display:none}
+  .gwrap{height:420px}
   .ctl{position:static}
   .stage{padding:8px}
   .app{flex-direction:column;min-height:0}
@@ -421,7 +592,7 @@ td.go2{text-align:right;white-space:nowrap}
 </head>
 <body>
 <div class="ctl" id="ctl">
-  <span class="ttl">kmd 목업 <small>눌러 보기 · v0.6 · 2026-10-22</small></span>
+  <span class="ttl">kmd 목업 <small>눌러 보기 · v0.7 · 2026-10-22</small></span>
   <span class="grp"><span class="lb">① 누구로 볼까</span>
     <button data-p="kimTeam">김 · 팀 화면</button>
     <button data-p="kimPc">김 · 내 PC 프로그램</button>
@@ -438,6 +609,7 @@ td.go2{text-align:right;white-space:nowrap}
 </div>
 <div class="stage"><div class="app" id="app"></div></div>
 <div id="toastHost"></div>
+<div id="pvHost"></div>
 
 <script>
 'use strict';
@@ -455,7 +627,11 @@ const IC={doc:'M6 3h9l3 3v15H6z M14 3v4h4',list:'M8 6h12 M8 12h12 M8 18h12 M4 6h
  server:'M4 4h16v6H4z M4 14h16v6H4z M8 7h.01 M8 17h.01',book:'M4 5c3-1 5-1 8 1 3-2 5-2 8-1v14c-3-1-5-1-8 1-3-2-5-2-8-1z M12 6v14',
  shield:'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',search:'M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13 M15.5 15.5L20 20',
  user:'M12 12a4 4 0 1 0 0-8a4 4 0 1 0 0 8 M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5',sync:'M4 12a8 8 0 0 1 14-5l2 2 M20 12a8 8 0 0 1-14 5l-2-2 M20 4v5h-5 M4 20v-5h5',
- lock:'M6 11h12v10H6z M9 11V8a3 3 0 0 1 6 0v3'};
+ lock:'M6 11h12v10H6z M9 11V8a3 3 0 0 1 6 0v3',
+ tag:'M3 12V4h8l10 10-8 8z M7.5 8h.01',
+ graph:C(6,6,2.2)+C(18,7,2.2)+C(9,18,2.2)+C(18,17,1.8)+' M8.2 6.2l7.6.6 M6.6 8.1l1.8 7.8 M11.2 17.8l5-.6 M17.9 9.2l.1 6',
+ gear:C(12,12,3)+' M12 3v3 M12 18v3 M3 12h3 M18 12h3 M5.6 5.6l2.1 2.1 M16.3 16.3l2.1 2.1 M5.6 18.4l2.1-2.1 M16.3 7.7l2.1-2.1',
+ clip:'M8 12l6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l7-7'};
 const svg=(k,c)=>`<svg viewBox="0 0 24 24"${c?` class="${c}"`:''}><path d="${IC[k]||IC.doc}"/></svg>`;
 
 // ───────────── 시계(이야기 시각 10-22 11:10 에서 시작) ─────────────
@@ -474,6 +650,23 @@ const PERS={
 };
 const P=()=>PERS[S.persona];
 const isTeam=()=>P().where==='team';
+
+// ───────────── 항목(종류 · 이름 · 든 문서 · 그 부분 · 다른 이름) ─────────────
+const KINDS=['화면','절차','테이블','API','용어'];
+const IDEF={dpms:[
+ ['절차','준비','배포절차','준비'],['절차','카나리','배포절차','카나리'],['절차','헬스 체크','배포절차','헬스 체크',['상태 점검']],['절차','롤백','배포절차','롤백'],
+ ['절차','되돌리기','롤백절차','되돌리기'],['절차','되돌린 뒤 확인','롤백절차','되돌린 뒤 확인'],['절차','매일 백업','백업절차','매일 백업'],['절차','복구 점검','백업절차','복구 점검'],
+ ['절차','처음 10분','장애대응','처음 10분'],['절차','연락 순서','장애대응','연락 순서'],['절차','배포 승인',null,null],
+ ['화면','서버 상태','운영','서버 상태'],['화면','대시보드','모니터링','대시보드'],['화면','경보 기준','모니터링','경보 기준'],
+ ['API','/health',null,null],['API','/metrics',null,null],
+ ['용어','알람','운영','알람'],['용어','꾸러미 판','배포절차','꾸러미 판'],['용어','운영 서버','서버목록','운영 서버'],['용어','점검 시간','서버목록','점검 시간'],
+ ['용어','보관 기간','로그보관','보관 기간'],['용어','디스크 점검','로그보관','디스크 점검'],['용어','VPN','접속안내','VPN']
+]};
+const TA=['배포','서버','사용자','권한','알람','로그','작업','코드','배치','결재','부서','메뉴','파일','인증서','캐시','감사','공지','설정'];
+const TB=['이력','목록','상세','마스터','매핑','통계','큐','현황','기준','변경','요청','결과','첨부','설정','임시'];
+const TABLES=TA.flatMap(a=>TB.map(b=>a+' '+b)); // 270
+const AG_LATEST='v1.13';
+function rec(id,date,who,title,body,touches,x){return Object.assign({id,date,who,title,body,touches},x||{})}
 
 // ───────────── 처음 상태 ─────────────
 function sec(h,b,x){return Object.assign({h,b},x||{})}
@@ -608,9 +801,35 @@ function makeState(){
   roster:['최','김','정','한','이'],
   picker:false,
   autoSet:{kimPc:{save:true,file:true,src:true,claude:true,find:true,alias:true,check:true},kimTeam:{alias:true,file:true,find:true},park:{alias:true,file:true,find:true},lee:{alias:true,file:true,find:true}},
-  devices:{kim:[{n:'DESKTOP-KIM',s:'이 PC · Claude Code · 지금'},{n:'LAPTOP-KIM',s:'Claude Code · 어제 18:02 새로 이어졌다'}],park:[{n:'PARK-PC',s:'Claude Code · 오늘 09:10'}],lee:[{n:'LEE-PC',s:'Claude Code · 마지막 사용 오늘 11:20'},{n:'LEE-NOTE',s:'Claude Code · 마지막 사용 10-15'}]},
+  devices:{kim:[{n:'DESKTOP-KIM',s:'이 PC · Claude Code · 지금',v:'v1.13'},{n:'LAPTOP-KIM',s:'Claude Code · 어제 18:02 새로 이어졌다',v:'v1.11'}],park:[{n:'PARK-PC',s:'Claude Code · 오늘 09:10',v:'v1.13'}],lee:[{n:'LEE-PC',s:'Claude Code · 마지막 사용 오늘 11:20',v:'v1.13'},{n:'LEE-NOTE',s:'Claude Code · 마지막 사용 10-15',v:'v1.11'}]},
   admin:{nopw:true,lock:true,oldkey:true,requests:[]},
-  pwErr:false
+  pwErr:false,
+  // v0.7 — 기록 · 링크 · 첨부 · 탭 · 그래프 · 설정
+  recs:{dpms:[
+   rec('r01','10-21','김','헬스 체크 — 3초 안에 200','세션에서 — 시간 초과 3초 · 200 이 와야 통과.',['헬스 체크']),
+   rec('r02','10-21','박','배포 창 — 화 · 목 14:00 ~ 17:00','회의에서 정했다.',['준비']),
+   rec('r03','10-20','이','헬스 체크 주소 — /healthz','새 주소로 바꾼다고 들었다.',['헬스 체크','/health']),
+   rec('r04','10-20','김','헬스 체크 주소는 /health 그대로','/healthz 는 시험 서버에만 있다 — 10-20 이의 기록을 바로잡는다.',['헬스 체크','/health'],{fixes:'r03'}),
+   rec('r05','10-19','박','되돌린 뒤 헬스 체크를 다시','롤백 뒤 모든 서버가 200 인지 본다.',['되돌린 뒤 확인','헬스 체크']),
+   rec('r06','10-18','이','경보 기준 — 응답 2초','2초를 넘으면 빨갛게.',['경보 기준','대시보드']),
+   rec('r07','10-17','김','카나리 — 첫 30분은 10%','오류율 1% 를 넘으면 멈춘다.',['카나리','헬스 체크']),
+   rec('r08','10-16','이','CPU 경고 80%','운영 채널로 알린다.',['알람','서버 상태']),
+   rec('r09','10-15','박','배포 승인 — 박 또는 이가 승인','배포 전날 17:00 까지 부탁한다.',['배포 승인','준비']),
+   rec('r10','10-14','김','배포 승인 — 금요일 배포는 이만 승인','주말 앞이라 한 사람만.',['배포 승인']),
+   rec('r11','10-14','이','로그 디스크 80% 확인','배포 이력 테이블이 커서 디스크를 먹는다.',['디스크 점검','보관 기간','배포 이력']),
+   rec('r12','09-15','박','/metrics 로 응답 시간을 모은다','대시보드가 이것을 읽는다.',['/metrics','대시보드']),
+   rec('r13','10-10','이','처음 10분 — 서버 상태부터','대시보드에서 서버 상태를 먼저 본다.',['처음 10분','헬스 체크','서버 상태']),
+   rec('r14','09-10','김','매일 백업 01:00 · 복구는 월요일','서버 이력 테이블도 같이 백업한다.',['매일 백업','복구 점검','서버 이력'])
+  ]},
+  links:{dpms:{'배포절차':['롤백절차','서버목록'],'장애대응':['운영','롤백절차'],'모니터링':['운영'],'배포 체크리스트':['배포절차'],'롤백절차':['배포절차']}},
+  atts:{dpms:['배포 흐름.png','장애 회고-0930.docx','운영 대시보드.png'],bn:['카나리 그래프.png'],ib:['회의록-1021.docx']},
+  tabs:[],active:null,split:null,hist:[],hpos:-1,fold:{},kfold:{},tablesAll:false,
+  ifilt:{pend:false,recent:false,mine:false},iq:'',nbOpen:false,
+  g:{pos:{},view:{x:0,y:0,k:1},sel:null,bundle:false,layoutKey:'',f:{q:'',item:true,doc:true,rec:false,src:false,pend:false,recent:false,orph:false,depth:0}},
+  qo:null,cmd:null,setTab:'gen',
+  claude:{pc:{state:'in',acct:'kim@team.local',days:300,month:23}},
+  admClaude:{step:null},admDays:290,
+  agent:{folders:[{name:'dpms',path:'D:\\work\\dpms',v:'v1.13'},{name:'gdi',path:'D:\\work\\gdi',v:'v1.11'}],adding:false,draft:'',msg:null}
  };
  return st;
 }
@@ -667,22 +886,34 @@ function stops(){
  if(c.pcOff&&p.key==='kimTeam') out.push({cls:'gray',b:'내 PC 프로그램이 꺼져 있다',t:'켜면 내 PC 줄이 저절로 다시 열린다',chip:'c-mute'});
  if(c.serverDown){ if(p.where==='team') out.push({cls:'gray',b:'팀 서버에 닿지 않는다',t:'닿으면 저절로 다시 이어진다 · 보던 글은 그대로 읽힌다',chip:'c-mute'});
   else out.push({cls:'gray',b:'팀 서버에 닿지 않는다',t:'닿으면 저절로 보낸다',chip:'c-mute'}); }
- if(c.loginRest&&p.curator){ if(p.admin) out.push({cls:'warn',b:'자동 정리가 쉬고 있다 · 2일',t:'서버에서 다시 로그인하면 이어서 한다 — 관리 화면에 한 줄',chip:'c-warn'});
+ if(c.loginRest&&p.curator){ if(p.admin) out.push({cls:'warn',b:'자동 정리가 쉬고 있다 · 2일',t:'관리 › Claude 연결에서 다시 로그인하면 이어서 한다',chip:'c-warn',go:'admin'});
   else out.push({cls:'gray',b:'자동 정리가 쉬고 있다 · 2일',t:'관리자에게 알렸다',chip:'c-mute'}); }
  return out;
 }
-const stopHtml=s=>`<div class="callout ${s.cls} stop" data-t="stop"><i></i><span><b>${esc(s.b)}</b> — ${esc(s.t)}</span>${s.r?`<span class="r">${esc(s.r)}</span>`:''}</div>`;
+const stopHtml=s=>`<div class="callout ${s.cls} stop" data-t="stop"><i></i><span><b>${esc(s.b)}</b> — ${esc(s.t)}${s.go?` <a data-a="nav" data-s="${s.go}" data-t="stopGo">Claude 연결 ›</a>`:''}</span>${s.r?`<span class="r">${esc(s.r)}</span>`:''}</div>`;
 
 // ───────────── 토스트 ─────────────
 let toastTimer=null;
 function toast(html,ms){const h=$('#toastHost');h.innerHTML=`<div class="toast" data-t="toast">${html}</div>`;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{h.innerHTML=''},ms||4500);}
 
 // ───────────── 그리기 ─────────────
-function go(r){S.route=Object.assign({scr:'home',kn:S.route.kn,doc:null,hl:null,q:null},r);S.menu=null;S.edit=null;S.picker=false;
- if(S.route.kn&&S.route.kn!=='*') S.lastKn[S.persona]=S.route.kn; render(); const m=$('#app .main'); if(m) m.scrollTop=0;
- if(S.route.hl){ setTimeout(()=>{const el=$('#app .lit'); if(el) el.scrollIntoView({block:'center'});},30); }
+let MEMO={};
+const memo=(key,f)=>key in MEMO?MEMO[key]:(MEMO[key]=f());
+const KNSCR=['docs','items','graph','tidy','members'];
+function go(r){
+ r=r||{}; const prevKn=S.route.kn;
+ S.route=Object.assign({scr:'home',kn:S.route.kn,q:null},r); delete S.route.doc; delete S.route.hl; delete S.route.item;
+ S.menu=null;S.edit=null;S.picker=false;
+ if(S.route.kn&&S.route.kn!=='*') S.lastKn[S.persona]=S.route.kn;
+ if(r.doc){openTab({kind:'doc',kn:r.kn||S.route.kn,ref:r.doc,hl:r.hl||null,q:r.q||null},{noHist:true,view:r.scr==='items'?'items':'docs'}); if(r.hl) S._lit=true;}
+ else if(r.kn&&r.kn!=='*'&&r.kn!==prevKn){const t=activeTab(); if(t&&t.kn!==r.kn){const o=S.tabs.filter(x=>x.kn===r.kn).pop(); S.active=o?o.id:null; if(!o||S.split===S.active) S.split=null;}}
+ pushHist(); render(); if(!r.hl) scrollTopMain();
 }
+function scrollTopMain(){const m=$('#app .main'); if(m) m.scrollTop=0;}
+function defaultKn(){const k=S.route.kn, vk=visibleKns().filter(x=>!pcBlocked(x)); if(k&&k!=='*'&&visibleKns().includes(k)) return k; return vk.includes(S.lastKn[S.persona])?S.lastKn[S.persona]:(vk[0]||visibleKns()[0]);}
+function setView(v){go({scr:v,kn:defaultKn()});}
 function render(){
+ MEMO={}; hidePv();
  // 조종판
  document.querySelectorAll('#ctl [data-p]').forEach(b=>b.classList.toggle('on',b.dataset.p===S.persona));
  document.querySelectorAll('#ctl [data-c]').forEach(i=>{i.checked=!!S.cond[i.dataset.c]; i.parentElement.classList.toggle('on',i.checked);});
@@ -690,42 +921,53 @@ function render(){
  if(p.key==='kimPc'&&S.cond.pcOff){ app.innerHTML=`<div class="col"><div class="main" style="display:grid;place-items:center"><div class="card" style="max-width:420px;text-align:center"><div class="cb" style="padding:26px"><div class="logo me" style="margin:0 auto 10px;width:34px;height:34px;font-size:16px">K</div><div class="big">내 PC 프로그램이 꺼져 있다</div><p class="lead">켜면 이 창이 저절로 다시 열린다 — 글은 D:\\kmd 에 그대로 있다.</p><p class="muted small">조종판에서 「내 PC 프로그램 꺼짐」 을 끄면 다시 켜진다.</p></div></div></div></div>`; return; }
  const anon=isTeam()&&!S.logged[S.persona];
  let scr=anon?{crumb:'들어가기',main:viewLogin()}:viewOf(S.route.scr);
- app.innerHTML=sideHtml(anon)+`<div class="col">${hdrHtml(anon,scr.crumb)}${anon?'':bandHtml()}<div class="body"><div class="main" data-t="main">${scr.main}</div>${scr.aside?`<div class="aside">${scr.aside}</div>`:''}</div>${statusHtml(anon)}</div>${S.modal?modalHtml():''}${S.pal?palHtml():''}`;
- if(S.pal){const i=$('#palIn'); if(i&&document.activeElement!==i){i.focus(); i.setSelectionRange(i.value.length,i.value.length);}}
+ const center=scr.tabs?`<div class="center">${tabbarHtml()}<div class="panes"><div class="main${scr.full?' full':''}" data-t="main">${scr.main}</div>${scr.right!=null?`<div class="main rp" data-t="rightPane">${scr.right}</div>`:''}</div></div>`:`<div class="main" data-t="main">${scr.main}</div>`;
+ app.innerHTML=ribbonHtml(anon)+sideHtml(anon,scr.left)+`<div class="col">${hdrHtml(anon,scr.crumb)}${anon?'':bandHtml()}<div class="body">${center}${scr.aside?`<div class="aside" data-t="aside">${scr.aside}</div>`:''}</div>${statusHtml(anon)}</div>${S.modal?modalHtml():''}${S.pal?palHtml():''}${S.qo?qoHtml():''}${S.cmd?cmdHtml():''}`;
+ const fi=$('#palIn')||$('#qoIn')||$('#cmdIn'); if(fi&&document.activeElement!==fi){fi.focus(); fi.setSelectionRange(fi.value.length,fi.value.length);}
  if(S._focus){const el=document.getElementById(S._focus); if(el){el.focus(); try{el.setSelectionRange(el.value.length,el.value.length)}catch(e){}} S._focus=null;}
+ if(S.route.scr==='graph'&&!anon) gHighlight();
+ if(S._lit){S._lit=false; setTimeout(()=>{const el=$('#app .main[data-t=main] .lit'); if(el) el.scrollIntoView({block:'center'});},30);}
 }
 function viewOf(s){
- const f={home:viewHome,docs:viewDocs,today:viewToday,import:viewImport,send:viewSend,tidy:viewTidy,members:viewMembers,settings:viewSettings,admin:viewAdmin,add:viewAdd}[s]||viewHome;
+ const f={home:viewHome,docs:viewDocsV,items:viewItems,graph:viewGraph,today:viewToday,import:viewImport,send:viewSend,tidy:viewTidy,members:viewMembers,settings:viewSettings,admin:viewAdmin,add:viewAdd}[s]||viewHome;
  return f();
 }
-function sideHtml(anon){
+function ribbonHtml(anon){
+ const r=S.route.scr;
+ const b=(v,l,ic)=>`<button class="rb${!anon&&r===v?' on':''}" data-a="view" data-v="${v}" data-t="rb-${v}" title="${l}로 보기">${svg(ic)}<span>${l}</span></button>`;
+ return `<nav class="ribbon${anon?' dim':''}" data-t="ribbon">${b('docs','문서','doc')}${b('items','항목','tag')}${b('graph','그래프','graph')}<span class="sp"></span><button class="rb${!anon&&r==='settings'?' on':''}" data-a="nav" data-s="settings" data-t="nav-settings" title="설정">${svg('gear')}<span>설정</span></button></nav>`;
+}
+function sideHtml(anon,left){
  const p=P(),r=S.route,team=isTeam();
  const vk=visibleKns(); const cur=r.kn&&r.kn!=='*'?KN(r.kn):null;
  const ktag=k=>{const n=KN(k); if(n.type==='team') return '<span class="kt team">팀</span>'; if(n.type==='pc'&&team) return '<span class="kt me">내 PC</span>'; return '<span class="kt me">개인</span>';};
  let h=`<aside class="side${anon?' dim':''}"><div class="sb-top"><div class="logo${team?'':' me'}">K</div><span class="brand">kmd</span></div><div class="where">${team?'팀 서버에서 돈다 · kmd.team.local':'이 PC 에서 돈다'}</div>`;
  if(!anon){
   const cnt=team?(()=>{const t=vk.filter(k=>KN(k).type==='team').length,m=vk.length-t;return '팀 '+t+(m?(p.hasPc?' · 내 PC ':' · 개인 ')+m:'')})():'내 지식 '+vk.length;
-  h+=`<div class="sb-repo" data-a="kmenu" data-t="kpick">${cur?`<span class="rk">${esc(cur.name.slice(0,2))}</span><span class="rn">${esc(cur.name)} <small>${cur.type==='team'?'팀 서버':cur.type==='pc'?(team?'내 PC 프로그램이 연다':cur.path):'팀 서버 안 · 나만'}</small></span>`:`<span class="rk">전체</span><span class="rn">지식 전체<small>${cnt}</small></span>`}<span class="rc">▾</span>${S.menu==='kmenu'?`<div class="kmenu"><div class="mi" data-a="pickKn" data-k="*">지식 전체</div>${vk.map(k=>`<div class="mi" data-a="pickKn" data-k="${k}">${esc(KN(k).name)} ${ktag(k)}</div>`).join('')}</div>`:''}</div>`;
+  h+=`<div class="sb-repo" data-a="kmenu" data-t="kpick">${cur?`<span class="rk">${esc(cur.name.slice(0,2))}</span><span class="rn">${esc(cur.name)} <small>${cur.type==='team'?'팀 서버':cur.type==='pc'?(team?'내 PC 프로그램이 연다':cur.path):'팀 서버 안 · 나만'}</small></span>`:`<span class="rk">전체</span><span class="rn">지식 전체<small>${cnt}</small></span>`}<span class="rc">▾</span>${S.menu==='kmenu'?`<div class="kmenu"><div class="mi" data-a="pickKn" data-k="*" data-t="nav-home">${svg('list')} 지식 목록 — 전체</div>${vk.map(k=>`<div class="mi" data-a="pickKn" data-k="${k}">${esc(KN(k).name)} ${ktag(k)}</div>`).join('')}</div>`:''}</div>`;
  }
  const sendN=S.sendq.filter(q=>q.on).length+(S.sendWait?0:0);
  const inboxN=(S.inbox.dpms||[]).length+(S.inbox.gdi||[]).length;
  const it=(key,l,ic,bd)=>`<div class="sb-i${!anon&&r.scr===key?' on':''}" data-a="nav" data-s="${key}" data-t="nav-${key}">${svg(ic)}<span>${l}</span>${bd?`<span class="bd">${bd}</span>`:''}</div>`;
  h+='<div class="nav">';
- h+=it('home','지식 목록','list')+it('docs','문서','doc')+it('today','오늘 바뀐 것','check')+it('import','자료 가져오기','plug');
+ h+=it('today','오늘 바뀐 것','check')+it('import','자료 가져오기','plug');
  if(p.who==='김') h+=it('send','보내기','pair',S.sendWait?'…':(sendN||''));
  if(p.curator){h+='<div class="sb-g">정리하는 사람</div>'+it('tidy','정리','hour',inboxN||'')+it('members','이 지식의 사람','users');}
- h+='</div><div class="sb-foot"><div class="nav">'+it('settings','설정','server')+(p.admin?it('admin','관리','shield'):'')+'<div class="sb-i deco">'+svg('book')+'<span>설명서</span></div></div>';
+ h+='</div>';
+ if(left&&!anon) h+=`<div class="lp" data-t="leftPane">${left}</div>`;
+ h+='<div class="sb-foot"><div class="nav">'+(p.admin?it('admin','관리','shield'):'')+'<div class="sb-i deco">'+svg('book')+'<span>설명서</span></div></div>';
  h+=anon?'<div class="sb-me"><span class="av">?</span><span class="muted">아직 들어오지 않았다</span></div>':`<div class="sb-me"><span class="av">${p.who}</span><span>${p.who} <small>· ${team?'팀 서버':'이 PC'}</small></span></div>`;
  return h+'</div></aside>';
 }
 function hdrHtml(anon,crumb){
- const r=S.route; const kn=r.kn&&r.kn!=='*'&&['docs','tidy','members'].includes(r.scr)?KN(r.kn).name:'';
+ const r=S.route; const kn=r.kn&&r.kn!=='*'&&KNSCR.includes(r.scr)?KN(r.kn).name:'';
  const parts=String(crumb||'').split(' › ').filter(Boolean);
  const c=(kn&&parts[0]!==kn?'<span>'+esc(kn)+'</span> › ':'')+parts.map((x,i)=>i===parts.length-1?'<b>'+esc(x)+'</b>':esc(x)).join(' › ');
- return `<header class="hdr"><span class="crumb">${c}</span>${anon?'':`<div class="search" data-a="openSearch" data-t="search">${svg('search')}<span style="margin-left:6px">찾기</span><span style="margin-left:auto;font-size:11px">Ctrl K</span></div>`}</header>`;
+ const hb=`<span class="hist"><button class="hb" data-a="histGo" data-v="-1" data-t="histBack" title="이전 (Alt ←)"${S.hpos>0?'':' disabled'}>‹</button><button class="hb" data-a="histGo" data-v="1" data-t="histFwd" title="다음 (Alt →)"${S.hpos<S.hist.length-1?'':' disabled'}>›</button></span>`;
+ return `<header class="hdr">${anon?'':hb}<span class="crumb">${c}</span>${anon?'':`<div class="qbtn" data-a="openQo" data-t="qoBtn" title="문서 · 항목 · 기록 이름으로 바로 연다">빨리 열기 <kbd>Ctrl O</kbd></div><div class="search" data-a="openSearch" data-t="search">${svg('search')}<span style="margin-left:6px">찾기</span><span style="margin-left:auto;font-size:11px">Ctrl K</span></div>`}</header>`;
 }
 function bandHtml(){
- const p=P(),r=S.route,team=isTeam(); const k=r.kn&&r.kn!=='*'&&['docs','tidy','members'].includes(r.scr)?r.kn:null;
+ const p=P(),r=S.route,team=isTeam(); const k=r.kn&&r.kn!=='*'&&KNSCR.includes(r.scr)?r.kn:null;
  let left; if(!k) left=team?'팀 서버의 kmd · 같이 쓴다':'이 PC 의 kmd · 나만 쓴다';
  else {const n=KN(k); left=n.type==='team'?'팀 지식 · 팀 서버 · 나: '+(roleIn(k)==='주인'?'주인':'기록'):n.type==='srv'?'내 지식 · 팀 서버 안 · 나만':(team?'내 PC 지식 · 내 PC 프로그램이 연다':'내 지식 · '+n.path+' · 나만');}
  const st=stops();
@@ -790,24 +1032,248 @@ function viewHome(){
 // ── 문서 목록 · 읽기 · 고치기 ──
 function pickKn(){let k=S.route.kn; const vk=visibleKns(); if(!k||k==='*'||!vk.includes(k)){k=vk.includes(S.lastKn[S.persona])?S.lastKn[S.persona]:vk[0]; S.route.kn=k;} return k;}
 function myPendingIn(k,docId){return S.pending.filter(x=>x.kn===k&&(!docId||x.doc===docId)&&(S.inbox[k]||[]).some(i=>i.id===x.id))}
-function viewDocs(){
- const k=pickKn(),n=KN(k);
- if(pcBlocked(k)) return {crumb:'문서',main:`<div class="big">${esc(n.name)}</div><div class="callout gray stop"><i></i><span><b>내 PC 프로그램이 꺼져 있다</b> — 켜면 저절로 다시 열린다</span></div>`};
- if(S.route.doc) return viewDoc(k);
- const ds=docsOf(k); const showAll=S.route.all;
- const list=(showAll?ds:ds.slice(0,11));
- const pend=myPendingIn(k);
- const srcs=S.sources.filter(s=>s.kn===k);
- const main=`<div class="big">${esc(n.name)}</div><p class="lead">${n.type==='team'?'팀 모두 기록 — 정리는 '+esc(n.owner):n.type==='srv'?'팀 서버 안 내 지식 — 나만 쓴다':'내 지식 · '+esc(n.path)+' · 나만'}</p>
-  <div class="tabs"><span class="on">문서</span><span class="ord">최근 바뀐 순 · 문서 ${ds.length}</span></div>
-  ${pend.length?`<div class="wait" data-t="wait"><i></i>${pend.map(x=>esc(x.tm)+' 에 쓴 기록 1 — 오늘 밤 '+KN(k).tidyAt+' 정리 때 문서에 들어간다 · '+esc(docTitle(k,x.doc))+' › '+esc(x.secs.join(' · '))).join('<br>')} · 그동안도 문서 옆에 같이 읽힌다 <a data-a="tidyNow" data-k="${k}">지금 정리</a></div>`:''}
-  <div class="card"><div class="cb" style="padding:2px 14px 4px"><ul class="plain dl">${list.map(d=>{const a=d.autoDoc&&S.autos[d.autoDoc];
-   const pc=myPendingIn(k,d.id).length;
-   return `<li data-a="openDoc" data-k="${k}" data-d="${esc(d.id)}" data-t="doc" data-name="${esc(d.title)}">${svg('doc','di')}<span class="nm">${esc(d.title)}${d.chip?`<span class="chip c-acc">${esc(d.chip)}</span>`:''}${pc?`<span class="chip c-pend">안 넣은 기록 ${pc} · 내 것</span>`:''}${a?`<small>저절로 채우는 표 · ${esc(a.src)} · ${esc(a.checked)} 확인</small>`:''}</span><span class="when${/오늘|방금/.test(d.when)?' td':''}">${esc(d.when)}</span></li>`}).join('')}
-  ${!showAll&&ds.length>11?`<li class="more" data-a="allDocs" data-t="moreDocs">${ds.length-11}개 더</li>`:''}</ul></div></div>`;
- const aside=`<h4>이 지식</h4><div class="kv">${n.type==='team'?`<span>정리</span><span>${esc(n.owner)} — 이 지식을 세운 사람</span><span>쓰는 사람</span><span>팀 모두 기록</span><span>다음 정리</span><span>오늘 밤 ${esc(n.tidyAt)}</span>`:`<span>주인</span><span>나 — 정리하면 바로 바뀐다</span>`}
+// ── 항목 · 기록(가운데 자료) ──
+function kindGuess(n,s){ if(s.auto||/테이블|표/.test(n)) return '테이블'; if(/화면|메뉴|흐름/.test(n)) return '화면'; if(/API|인터페이스|^\//.test(n)) return 'API'; if(/용어|코드|규칙|이름/.test(n)) return '용어'; return '절차'; }
+function itemsOf(k){return memo('items:'+k,()=>{
+ const def=IDEF[k], out=[];
+ if(def){ def.forEach(([kind,name,doc,sec,alias])=>{ if(doc&&!findDoc(k,doc)) doc=null; out.push({kind,name,doc,sec:doc?sec:null,alias:alias||[]}); });
+  if(k==='dpms') TABLES.forEach(n=>out.push({kind:'테이블',name:n,doc:null,sec:null,alias:[],table:true})); }
+ else docsOf(k).forEach(d=>d.secs.forEach(s=>{const name=(s.h==='개요'||s.h==='내용'||s.h==='머리말')?d.title:s.h; if(out.some(x=>x.name===name)) return; out.push({kind:kindGuess(name,s),name,doc:d.id,sec:s.h,alias:[]});}));
+ return out;});}
+function itemByName(k,n){return memo('ibn:'+k,()=>{const m={}; itemsOf(k).forEach(i=>m[i.name]=i); return m;})[n]||null}
+function itemOfSec(k,doc,h){return itemsOf(k).find(i=>i.doc===doc&&i.sec===h)||null}
+function secOfItem(k,i){return i&&i.doc?findSec(k,i.doc,i.sec):null}
+function aliasOf(k,i){const s=secOfItem(k,i); return [...new Set([...(i.alias||[]),...((s&&s.alias)||[])])]}
+function recordsOf(k){return memo('recs:'+k,()=>{
+ const pend=(S.inbox[k]||[]).map(i=>({id:i.id,date:'10-22',tm:i.tm,who:i.who,title:i.title,body:i.small||'',touches:i.touches||null,target:i.target,eff:i.eff,state:'pend'}));
+ const st=(S.recs[k]||[]).map(r=>Object.assign({state:'in'},r)).sort((a,b)=>b.date.localeCompare(a.date));
+ return pend.concat(st);});}
+function recById(k,id){return recordsOf(k).find(r=>r.id===id)||null}
+function recItems(k,r){
+ if(r.touches) return r.touches.map(n=>itemByName(k,n)).filter(Boolean);
+ const out=[]; const [dt,sh]=String(r.target||'').split(' › '); const d=docsOf(k).find(x=>x.title===dt);
+ if(d&&sh){const i=itemOfSec(k,d.id,sh); if(i) out.push(i);}
+ if(!out.length&&r.eff&&r.eff.sec){const i=itemOfSec(k,r.eff.doc,r.eff.sec); if(i) out.push(i);}
+ return out;}
+function recIndex(k){return memo('ridx:'+k,()=>{const m={}; recordsOf(k).forEach(r=>recItems(k,r).forEach(i=>{(m[i.name]=m[i.name]||[]).push(r)})); return m;})}
+function recsOfItem(k,i){return (i&&recIndex(k)[i.name])||[]}
+function itemPend(k,i){return recsOfItem(k,i).filter(r=>r.state==='pend')}
+function usesOf(k,it){return memo('uses:'+k+':'+it.name,()=>{const keys=[it.name,...aliasOf(k,it)].filter(x=>x.length>=2); return itemsOf(k).filter(u=>!u.table&&u!==it).filter(u=>{const s=secOfItem(k,u); return s&&keys.some(x=>s.b.includes(x));});})}
+function coItems(k,it){const c={}; recsOfItem(k,it).forEach(r=>recItems(k,r).forEach(o=>{if(o!==it) c[o.name]=(c[o.name]||0)+1;})); return Object.entries(c).sort((a,b)=>b[1]-a[1]).map(([n,v])=>({it:itemByName(k,n),n:v}));}
+function firstLine(k,i){const s=secOfItem(k,i); if(s) return String(s.b).split('\n')[0].replace(/`/g,''); const rs=recsOfItem(k,i); return rs.length?rs[0].title:'아직 글이 없다';}
+function docPendSet(k){return memo('pds:'+k,()=>{const s=new Set(); recordsOf(k).filter(r=>r.state==='pend').forEach(r=>recItems(k,r).forEach(i=>i.doc&&s.add(i.doc))); S.pending.filter(x=>x.kn===k).forEach(x=>s.add(x.doc)); return s;})}
+function backlinks(k,d){return memo('bl:'+k+':'+d.id,()=>{
+ const its=itemsOf(k).filter(i=>i.doc===d.id);
+ const recs=recordsOf(k).filter(r=>recItems(k,r).some(i=>i.doc===d.id));
+ const L=S.links[k]||{}; const linkers=Object.keys(L).filter(a=>L[a].includes(d.id)).map(a=>findDoc(k,a)).filter(Boolean);
+ const keys=[d.title,...its.map(i=>i.name),...its.flatMap(i=>aliasOf(k,i))].filter(x=>x&&x.length>=2);
+ const ments=[]; docsOf(k).forEach(o=>{ if(o.id===d.id||linkers.includes(o)) return; const s=o.secs.find(s=>keys.some(x=>(s.h+' '+s.b).includes(x))); if(s) ments.push({d:o,h:s.h,x:keys.find(x=>(s.h+' '+s.b).includes(x))}); });
+ return {recs,linkers,ments};});}
+const reEsc=s=>s.replace(/[.*+?^${}()|[\]\\\/]/g,'\\$&');
+function linkify(h,k,self){
+ const m=memo('lmap:'+k,()=>{const map={}; itemsOf(k).forEach(i=>{if(i.table) return; if(!map[i.name]) map[i.name]=i.name; aliasOf(k,i).forEach(a=>{if(!map[a]) map[a]=i.name;});}); return map;});
+ const keys=Object.keys(m).filter(x=>x.length>=2&&x!==self&&m[x]!==self).sort((a,b)=>b.length-a.length);
+ if(!keys.length) return h;
+ const re=new RegExp(keys.map(reEsc).join('|'),'g');
+ return h.split(/(<[^>]+>)/).map(p=>p.charAt(0)==='<'?p:p.replace(re,x=>`<span class="ilink" data-a="openItem" data-k="${k}" data-n="${esc(m[x])}" data-pv="item|${k}|${esc(m[x])}">${x}</span>`)).join('');
+}
+
+// ── 탭 · 나누기 · 이전/다음 ──
+function activeTab(){return S.tabs.find(t=>t.id===S.active)||null}
+function tabOf(id){return S.tabs.find(t=>t.id===id)||null}
+function isAct(kind,k,ref){const t=activeTab(); return !!t&&t.kind===kind&&t.kn===k&&t.ref===ref}
+function openTab(t,o){o=o||{};
+ let ex=S.tabs.find(x=>x.kind===t.kind&&x.kn===t.kn&&x.ref===t.ref);
+ if(ex){ex.hl=t.hl||null; ex.q=t.q||null;}
+ else {ex=Object.assign({hl:null,q:null},t,{id:uid()}); const i=S.tabs.findIndex(x=>x.id===S.active); S.tabs.splice(i<0?S.tabs.length:i+1,0,ex);}
+ S.active=ex.id; if(S.split===ex.id) S.split=null; S.edit=null; S.route.kn=t.kn; S.lastKn[S.persona]=t.kn;
+ if(o.view) S.route.scr=o.view; else if(!['docs','items'].includes(S.route.scr)) S.route.scr=t.kind==='item'?'items':'docs';
+ if(!o.noHist) pushHist();
+ return ex;}
+function tabTitle(t){ if(t.kind==='doc') return docTitle(t.kn,t.ref); if(t.kind==='rec'){const r=recById(t.kn,t.ref); return r?r.title.split(' — ')[0]:'기록';} return t.ref; }
+function tabIcon(t){return t.kind==='doc'?svg('doc'):t.kind==='item'?svg('tag'):t.kind==='att'?svg('clip'):'<i class="pd"></i>'}
+function closeTab(id){const i=S.tabs.findIndex(t=>t.id===id); if(i<0) return; S.tabs.splice(i,1);
+ if(S.split===id) S.split=null;
+ if(S.active===id){const n=S.tabs[i]||S.tabs[i-1]; S.active=n?n.id:null; if(n) S.route.kn=n.kn;}
+ if(S.split===S.active) S.split=null;
+ if(S.edit&&S.edit.tab===id) S.edit=null;
+ pushHist();}
+function toggleSplit(){ S.menu=null;
+ if(S.split){S.split=null; render(); return;}
+ const a=activeTab(), others=S.tabs.filter(t=>t.id!==S.active);
+ if(!a||!others.length){toast('탭이 둘 있어야 나란히 본다 — Ctrl O 로 하나 더 연다'); render(); return;}
+ const i=S.tabs.indexOf(a); const o=(S.tabs[i-1]&&S.tabs[i-1].id!==S.active)?S.tabs[i-1]:others[others.length-1];
+ S.split=o.id; if(!['docs','items'].includes(S.route.scr)) S.route.scr=a.kind==='item'?'items':'docs'; S.edit=null; render();}
+function snap(){const t=['docs','items'].includes(S.route.scr)?activeTab():null; return {scr:S.route.scr,kn:S.route.kn,tab:t?{kind:t.kind,kn:t.kn,ref:t.ref}:null};}
+function pushHist(){const s=snap(), c=S.hist[S.hpos]; if(c&&JSON.stringify(c)===JSON.stringify(s)) return; S.hist=S.hist.slice(0,S.hpos+1); S.hist.push(s); if(S.hist.length>80) S.hist.shift(); S.hpos=S.hist.length-1;}
+function histGo(d){const i=S.hpos+d; if(i<0||i>=S.hist.length) return; S.hpos=i; const s=S.hist[i];
+ S.route={scr:s.scr,kn:s.kn,q:null}; S.menu=null; S.edit=null; S.pal=null; S.qo=null; S.cmd=null;
+ if(s.tab) openTab(Object.assign({},s.tab),{noHist:true,view:s.scr});
+ render(); scrollTopMain();}
+function tabbarHtml(){
+ const g=S.route.scr==='graph';
+ const tabs=S.tabs.map(t=>`<div class="tb1${t.id===S.active&&!g?' on':''}${t.id===S.split&&!g?' rt':''}" data-a="actTab" data-id="${t.id}" data-t="tab" data-name="${esc(tabTitle(t))}" title="${esc(KN(t.kn).name+' › '+tabTitle(t))}${t.id===S.split?' — 오른쪽에 나란히':''}">${tabIcon(t)}<span class="nm">${esc(tabTitle(t))}</span><button class="x" data-a="closeTab" data-id="${t.id}" data-t="tabX" title="닫기">×</button></div>`).join('');
+ const menu=S.menu==='tabs'?`<div class="menu" style="right:0;top:28px" data-t="tabMenu"><div class="mi" data-a="splitToggle" data-t="splitBtn">${S.split?'나누기 닫기':'나누어 보기'}<small>Ctrl \\</small></div><div class="mi" data-a="openQo">빨리 열기<small>Ctrl O · Ctrl T</small></div><div class="sep"></div><div class="mi" data-a="closeOthers" data-t="closeOthers">다른 탭 모두 닫기</div></div>`:'';
+ return `<div class="tabbar" data-t="tabbar"><div class="tabs-s">${tabs||'<span class="none">열린 탭이 없다 — 왼쪽에서 열거나 Ctrl O</span>'}</div><button class="tadd" data-a="openQo" data-t="tabAdd" title="빨리 열기 (Ctrl O · Ctrl T)">+</button><button class="kebab${S.menu==='tabs'?' on':''}" data-a="menu" data-m="tabs" data-t="tabKebab" title="나누어 보기 · 탭">⋯${menu}</button></div>`;
+}
+
+// ── 보기 하나 — 문서로 보기 ──
+function knBlocked(k,label){return {crumb:label,tabs:true,main:`<div class="big">${esc(KN(k).name)}</div><div class="callout gray stop"><i></i><span><b>내 PC 프로그램이 꺼져 있다</b> — 켜면 저절로 다시 열린다</span></div>`};}
+function centerOf(emptyFn){
+ const t=activeTab();
+ if(!t){const e=emptyFn(); return {main:e.main,aside:e.aside,title:null};}
+ const r=paneOf(t,false); const st=S.split&&tabOf(S.split);
+ return {main:r.html,aside:r.aside,right:st?paneOf(st,true).html:null,title:r.title};
+}
+function paneOf(t,right){
+ if(isTeam()&&KN(t.kn)&&KN(t.kn).type==='pc'&&S.cond.pcOff) return {html:`<div class="callout gray stop"><i></i><span><b>내 PC 프로그램이 꺼져 있다</b> — 켜면 저절로 다시 열린다</span></div>`,title:tabTitle(t)};
+ if(t.kind==='doc') return docPane(t,right);
+ if(t.kind==='rec') return recPane(t,right);
+ if(t.kind==='item') return itemPane(t,right);
+ return attPane(t,right);
+}
+function viewDocsV(){
+ const k=pickKn();
+ if(pcBlocked(k)) return knBlocked(k,'문서로 보기');
+ const c=centerOf(()=>({main:docsEmpty(k),aside:knAside(k)}));
+ return {crumb:'문서로 보기'+(c.title?' › '+c.title:''),main:c.main,aside:c.aside,right:c.right,tabs:true,left:treeHtml(k)};
+}
+function knAside(k){
+ const n=KN(k),srcs=S.sources.filter(s=>s.kn===k);
+ return `<h4>이 지식</h4><div class="kv">${n.type==='team'?`<span>정리</span><span>${esc(n.owner)} — 이 지식을 세운 사람</span><span>쓰는 사람</span><span>팀 모두 기록</span><span>다음 정리</span><span>오늘 밤 ${esc(n.tidyAt)}</span>`:`<span>주인</span><span>나 — 정리하면 바로 바뀐다</span>`}
   <span>자동으로 가져오는 곳</span><span>${srcs.length?srcs.map(s=>esc(s.name)+'<small>'+esc(s.last)+' 확인 · '+everyTxt(s.every)+'</small>').join(''):'없음'}<small><a data-a="nav" data-s="import">자료 가져오기 ›</a></small></span></div>`;
- return {crumb:'문서',main,aside};
+}
+function waitHtml(k){const pend=myPendingIn(k); return pend.length?`<div class="wait" data-t="wait"><i></i>${pend.map(x=>esc(x.tm)+' 에 쓴 기록 1 — 오늘 밤 '+KN(k).tidyAt+' 정리 때 문서에 들어간다 · '+esc(docTitle(k,x.doc))+' › '+esc(x.secs.join(' · '))).join('<br>')} · 그동안도 문서 옆에 같이 읽힌다 <a data-a="tidyNow" data-k="${k}">지금 정리</a></div>`:'';}
+function docsEmpty(k){
+ const n=KN(k),ds=docsOf(k);
+ return `<div style="max-width:760px"><div class="big">${esc(n.name)}</div><p class="lead">${n.type==='team'?'팀 모두 기록 — 정리는 '+esc(n.owner):n.type==='srv'?'팀 서버 안 내 지식 — 나만 쓴다':'내 지식 · '+esc(n.path)+' · 나만'}</p>${waitHtml(k)}
+  <div class="callout gray" data-t="docsEmpty">왼쪽 나무에서 문서나 기록을 연다 — 여러 개를 탭으로 띄우고, <b>Ctrl \\</b> 로 둘을 나란히 본다. 이름으로 바로 열려면 <b>Ctrl O</b>.</div>
+  <div class="card"><div class="ch">최근 바뀐 문서 <small>문서 ${ds.length}</small></div><div class="cb" style="padding:2px 14px 4px"><ul class="plain dl">${ds.slice(0,5).map(d=>`<li data-a="openDoc" data-k="${k}" data-d="${esc(d.id)}" data-t="recentDoc" data-pv="doc|${k}|${esc(d.id)}">${svg('doc','di')}<span class="nm">${esc(d.title)}${d.chip?`<span class="chip c-acc">${esc(d.chip)}</span>`:''}</span><span class="when${/오늘|방금/.test(d.when)?' td':''}">${esc(d.when)}</span></li>`).join('')}</ul></div></div></div>`;
+}
+function treeHtml(k){
+ const n=KN(k), ds=docsOf(k), fk=f=>!!S.fold[k+':'+f], pds=docPendSet(k);
+ const all=S.route.all, list=all?ds:ds.slice(0,11);
+ const head=(f,l,cnt,extra)=>`<div class="tf" data-a="fold" data-f="${f}" data-t="fold-${f}"><span class="ar">${fk(f)?'▸':'▾'}</span>${l}${extra||''}<span class="cnt">${cnt}</span></div>`;
+ let h=`<div class="tree" data-t="tree"><div class="lh">${esc(n.name)}</div>`+head('docs','문서',ds.length);
+ if(!fk('docs')) h+=list.map(d=>`<div class="tn${isAct('doc',k,d.id)?' on':''}" data-a="openDoc" data-k="${k}" data-d="${esc(d.id)}" data-t="doc" data-name="${esc(d.title)}" data-pv="doc|${k}|${esc(d.id)}">${svg('doc')}<span class="nm">${esc(d.title)}</span>${pds.has(d.id)?'<i class="pd" title="아직 문서에 안 넣은 기록이 있다"></i>':''}${d.chip?'<i class="nw" title="새로 바뀜"></i>':''}</div>`).join('')+(!all&&ds.length>11?`<div class="tn more" data-a="allDocs" data-t="moreDocs">${ds.length-11}개 더</div>`:'');
+ const rs=recordsOf(k);
+ h+=head('recs','기록',rs.length,' <small>날짜 순</small>');
+ if(!fk('recs')) h+=rs.length?rs.map(r=>`<div class="tn${isAct('rec',k,r.id)?' on':''}" data-a="openRec" data-k="${k}" data-r="${r.id}" data-t="rec" data-state="${r.state}" data-pv="rec|${k}|${r.id}">${r.state==='pend'?'<i class="pd" title="아직 문서에 안 넣은 기록"></i>':''}<span class="dt">${r.state==='pend'?esc(r.tm||'오늘'):esc(r.date)}</span><span class="nm">${esc(r.title.split(' — ')[0])}</span></div>`).join(''):`<div class="tn muted nc">${n.type==='team'?'아직 없다':'내 지식은 고치면 바로 문서다'}</div>`;
+ const at=S.atts[k]||[];
+ h+=head('atts','첨부',at.length);
+ if(!fk('atts')) h+=at.length?at.map(a=>`<div class="tn${isAct('att',k,a)?' on':''}" data-a="openAtt" data-k="${k}" data-v="${esc(a)}" data-t="att">${svg('clip')}<span class="nm">${esc(a)}</span></div>`).join(''):'<div class="tn muted nc">없다</div>';
+ return h+'</div>';
+}
+function rpHead(){return `<div class="rph"><i class="pd"></i>나란히 보기 — 읽기만<a class="r small" data-a="closeSplit" data-t="closeSplit">나누기 닫기 ×</a></div>`}
+function nbGraph(k,center){return `<details class="ap nb" data-t="nbGraph"${S.nbOpen?' open':''}><summary data-a="nbToggle">이웃 그래프 <small>한 겹 · 누르면 그래프로</small></summary>${S.nbOpen?miniGraph(k,center):''}</details>`;}
+function miniGraph(k,c){
+ const G=graphData(k,{q:'',item:true,doc:true,rec:true,src:true,pend:false,recent:false,orph:false,depth:0},false);
+ const nb=[]; G.edges.forEach(e=>{if(e.a===c&&!nb.includes(e.b)) nb.push(e.b); if(e.b===c&&!nb.includes(e.a)) nb.push(e.a);});
+ const nm={}; G.nodes.forEach(n=>nm[n.id]=n);
+ const sh=nb.slice(0,12), R=64;
+ const pos=sh.map((id,i)=>{const a=i/Math.max(sh.length,1)*Math.PI*2-Math.PI/2; return [Math.cos(a)*R,Math.sin(a)*R*.8];});
+ const lab=s=>esc(String(s).length>8?String(s).slice(0,8)+'…':s);
+ const cn=nm[c]||{kind:'doc',label:'?'};
+ return `<svg class="mini" viewBox="-115 -80 230 160" data-a="openGraph" data-n="${esc(c)}" data-t="miniGraph"><title>그래프에서 보기</title>${pos.map(p=>`<line x1="0" y1="0" x2="${p[0].toFixed(1)}" y2="${p[1].toFixed(1)}"/>`).join('')}${sh.map((id,i)=>`<circle cx="${pos[i][0].toFixed(1)}" cy="${pos[i][1].toFixed(1)}" r="4" fill="${KCOL[nm[id].kind]}"/><text x="${pos[i][0].toFixed(1)}" y="${(pos[i][1]+12).toFixed(1)}" text-anchor="middle">${lab(nm[id].label)}</text>`).join('')}<circle r="7" fill="${KCOL[cn.kind]}"/><text y="-11" text-anchor="middle" class="c">${lab(cn.label)}</text></svg><div class="small muted">이웃 ${nb.length}${nb.length>12?' · 12 만 보인다':''}</div>`;
+}
+function docAside(k,d){
+ const its=itemsOf(k).filter(i=>i.doc===d.id), bl=backlinks(k,d);
+ const ol=d.secs.map(s=>{const i=its.find(x=>x.sec===s.h); const p=i?itemPend(k,i).length:0; return `<div class="olr" data-a="scrollSec" data-h="${esc(s.h)}" data-t="olRow">${esc(s.h)}${p?'<i class="pd"></i>':''}</div>`;}).join('');
+ const none='<div class="muted small alr">없다</div>';
+ const recs=bl.recs.map(r=>`<div class="alr" data-a="openRec" data-k="${k}" data-r="${r.id}" data-t="blRec" data-pv="rec|${k}|${r.id}"><span class="dt">${r.state==='pend'?'●':esc(r.date)}</span><span class="nm">${esc(r.title)}</span></div>`).join('');
+ const docs=bl.linkers.map(o=>`<div class="alr" data-a="openDoc" data-k="${k}" data-d="${esc(o.id)}" data-t="blDoc" data-pv="doc|${k}|${esc(o.id)}">${svg('doc')}<span class="nm">${esc(o.title)}</span></div>`).join('');
+ const ments=bl.ments.map(x=>`<div class="alr" data-a="openDoc" data-k="${k}" data-d="${esc(x.d.id)}" data-h="${esc(x.h)}" data-t="blMent" data-pv="doc|${k}|${esc(x.d.id)}">${svg('doc')}<span class="nm">${esc(x.d.title)} › ${esc(x.h)}<small>「${esc(x.x)}」</small></span></div>`).join('');
+ const as=d.secs.find(s=>s.auto), a=as&&S.autos[as.auto], n=KN(k), lastBy=(d.secs.find(s=>s.by)||{}).by;
+ return `<div class="ap" data-t="outline"><h4>개요</h4>${ol}</div>
+  <div class="ap" data-t="backlinks"><h4>이 문서를 가리키는 것</h4>
+   <div class="bg">기록 <b data-t="blRecN">${bl.recs.length}</b> <small>이 문서의 항목을 건드린 것</small></div>${recs||none}
+   <div class="bg">문서 <b data-t="blDocN">${bl.linkers.length}</b> <small>이 문서를 링크한 것</small></div>${docs||none}
+   <div class="bg">이름만 나온 곳 <b data-t="blMentN">${bl.ments.length}</b> <small>링크 없이 이름만</small></div>${ments||none}</div>
+  <div class="ap" data-t="props"><h4>속성</h4><div class="kv"><span>마지막 정리</span><span>${esc(lastBy||d.when)}</span><span>가져오는 곳</span><span>${a?esc(a.src)+'<small>'+esc(a.checked)+' 확인</small>':'없음'}</span><span>주인</span><span>${n.type==='team'?esc(n.owner)+' — 정리하는 사람':'나'}</span><span>자리</span><span>${n.type==='team'?'팀':n.type==='pc'?'내 PC':'팀 서버 안 · 나만'}</span><span>항목</span><span>${its.length}</span></div></div>
+  ${nbGraph(k,'d:'+d.id)}`;
+}
+function recPane(t,right){
+ const k=t.kn, r=recById(k,t.ref);
+ if(!r) return {html:'<p class="muted">이 기록은 이제 없다 — 정리되어 다른 이름으로 남았을 수 있다</p>',title:'기록'};
+ const its=recItems(k,r), fx=r.fixes&&recById(k,r.fixes), fb=recordsOf(k).filter(x=>x.fixes===r.id);
+ const html=`<div class="docw" data-t="recPane" data-name="${esc(r.title)}">${right?rpHead():''}<div class="ttl"><div class="path"><span>${esc(KN(k).name)} › 기록 › ${esc(r.date)}${r.tm?' '+esc(r.tm):''}</span><span class="r">${r.state==='pend'?'<span class="chip c-pend" data-t="recState">아직 문서에 안 넣은 기록</span>':'<span class="chip c-mute" data-t="recState">문서에 들어감</span>'}</span></div></div>
+  <div class="paper"><h1>${esc(r.title)}</h1><p class="muted small">${esc(r.who)} · ${esc(r.date)}${r.tm?' '+esc(r.tm):''}</p><p>${linkify(fmt(r.body),k,'')}</p>
+  ${fx?`<div class="callout warn">이 기록은 ${esc(fx.date)} ${esc(fx.who)}의 기록을 바로잡았다 — <a data-a="openRec" data-k="${k}" data-r="${fx.id}">${esc(fx.title)}</a></div>`:''}${fb.map(x=>`<div class="callout gray">${esc(x.date)} ${esc(x.who)}이 이 기록을 바로잡았다 — <a data-a="openRec" data-k="${k}" data-r="${x.id}">${esc(x.title)}</a></div>`).join('')}
+  ${r.state==='pend'?`<div class="callout pend">오늘 밤 ${esc(KN(k).tidyAt||'02:30')} 정리 때 문서에 들어간다 — 그동안도 그 항목 옆에 같이 읽힌다</div>`:''}</div></div>`;
+ const aside=`<div class="ap" data-t="recItems"><h4>이 기록이 건드린 항목 <small>${its.length}</small></h4>${its.map(i=>`<div class="alr" data-a="openItem" data-k="${k}" data-n="${esc(i.name)}" data-t="recItem" data-pv="item|${k}|${esc(i.name)}">${svg('tag')}<span class="nm">${esc(i.name)}<small>${esc(i.kind)}</small></span></div>`).join('')||'<div class="muted small alr">없다</div>'}</div>
+  <div class="ap" data-t="recFix"><h4>바로잡은 / 바로잡힌 기록</h4>${fx?`<div class="alr" data-a="openRec" data-k="${k}" data-r="${fx.id}" data-t="fixRow"><span class="dt">${esc(fx.date)}</span><span class="nm">바로잡음 — ${esc(fx.title)}</span></div>`:''}${fb.map(x=>`<div class="alr" data-a="openRec" data-k="${k}" data-r="${x.id}" data-t="fixRow"><span class="dt">${esc(x.date)}</span><span class="nm">바로잡힘 — ${esc(x.title)}</span></div>`).join('')}${fx||fb.length?'':'<div class="muted small alr">없다</div>'}</div>
+  ${nbGraph(k,'r:'+r.id)}`;
+ return {html,aside:right?null:aside,title:r.title.split(' — ')[0]};
+}
+function attPane(t,right){
+ const ext=extOf(t.ref);
+ return {html:`<div class="docw" data-t="attPane">${right?rpHead():''}<div class="ttl"><div class="path"><span>${esc(KN(t.kn).name)} › 첨부 › ${esc(t.ref)}</span></div></div><div class="paper"><h1>${esc(t.ref)}</h1><div class="attph">${esc(ext)} 첨부 — 원본 그대로 둔다 · 목업이라 내용은 비워 둔다</div></div></div>`,aside:right?null:`<div class="ap"><h4>속성</h4><div class="kv"><span>종류</span><span>${esc(ext)}</span><span>자리</span><span>첨부</span></div></div>`,title:t.ref};
+}
+
+// ── 보기 둘 — 항목으로 보기 ──
+const IFL=[['pend','아직 안 넣은 것'],['recent','최근 바뀐 것'],['mine','내가 쓴 것']];
+function viewItems(){
+ const k=pickKn();
+ if(pcBlocked(k)) return knBlocked(k,'항목으로 보기');
+ const c=centerOf(()=>({main:itemsEmpty(k),aside:knAside(k)}));
+ return {crumb:'항목으로 보기'+(c.title?' › '+c.title:''),main:c.main,aside:c.aside,right:c.right,tabs:true,left:itemListHtml(k)};
+}
+function itemListHtml(k){
+ return `<div class="ilist" data-t="itemList"><div class="lh">${esc(KN(k).name)} — 항목</div><input class="inp" id="itemQ" data-in="itemQ" data-t="itemQ" value="${esc(S.iq)}" placeholder="항목 찾기 — 이름 · 다른 이름" autocomplete="off"><div class="fcs">${IFL.map(([v,l])=>`<span class="fc${S.ifilt[v]?' on':''}" data-a="itemFilt" data-v="${v}" data-t="if-${v}">${l}</span>`).join('')}</div><div id="itemListBody">${itemListBody(k)}</div></div>`;
+}
+function itemRecent(k,i){const s=secOfItem(k,i); if(s&&s.by&&/오늘|방금/.test(s.by)) return true; return recsOfItem(k,i).some(r=>r.state==='pend'||r.date>='10-20');}
+function itemMine(k,i){const w=P().who; return recsOfItem(k,i).some(r=>String(r.who).includes(w));}
+function kindFolded(k,kd){return S.kfold[kd]!==undefined?S.kfold[kd]:(kd==='테이블'&&itemsOf(k).filter(i=>i.kind===kd).length>40);}
+function itemListBody(k){
+ const q=S.iq.trim(), nq=norm(q), f=S.ifilt;
+ let its=itemsOf(k).filter(i=>(!f.pend||itemPend(k,i).length)&&(!f.recent||itemRecent(k,i))&&(!f.mine||itemMine(k,i)));
+ const hits=q?its.filter(i=>norm(i.name).includes(nq)||aliasOf(k,i).some(a=>norm(a).includes(nq))):its;
+ if(q&&!hits.length){ const toks=q.split(/\s+/).filter(Boolean); const like=its.filter(i=>{const s=secOfItem(k,i); return s&&toks.some(t=>s.b.includes(t));}).slice(0,8);
+  return like.length?`<div class="ig" data-t="itemSim">이름이 맞는 항목이 없다 — 비슷한 항목</div>${like.map(i=>itemRowHtml(k,i)).join('')}`:`<div class="empty2" data-t="itemNone"><b>이 말로는 못 찾았다 — 없다는 뜻은 아니다</b>다른 이름으로 · 또는 Ctrl K 찾기</div>`; }
+ let h='';
+ const kinds=[...KINDS,...new Set(hits.map(i=>i.kind).filter(x=>!KINDS.includes(x)))];
+ kinds.forEach(kd=>{const g=hits.filter(i=>i.kind===kd); if(!g.length) return;
+  const folded=q?false:kindFolded(k,kd);
+  h+=`<div class="tf" data-a="foldKind" data-v="${kd}" data-t="kind-${kd}"><span class="ar">${folded?'▸':'▾'}</span>${kd}<span class="cnt">${g.length}</span></div>`;
+  if(folded) return;
+  const show=(kd==='테이블'&&!S.tablesAll&&g.length>30)?g.slice(0,30):g;
+  h+=show.map(i=>itemRowHtml(k,i)).join('');
+  if(show.length<g.length) h+=`<div class="tn more" data-a="moreTables" data-t="moreTables">${g.length-show.length}개 더</div>`;
+ });
+ return h||'<div class="muted small" style="padding:8px">이 거름에 맞는 항목이 없다</div>';
+}
+function itemRowHtml(k,i,dt){const rs=recsOfItem(k,i), p=rs.filter(r=>r.state==='pend').length;
+ return `<div class="tn${isAct('item',k,i.name)?' on':''}" data-a="openItem" data-k="${k}" data-n="${esc(i.name)}" data-t="${dt||'itemRow'}" data-name="${esc(i.name)}" data-pv="item|${k}|${esc(i.name)}"><span class="nm">${esc(i.name)}</span>${p?'<i class="pd" title="아직 문서에 안 넣은 기록"></i>':''}${!i.doc?'<small class="nd">문서 없음</small>':''}${rs.length?`<span class="rc" title="기록">${rs.length}</span>`:''}</div>`;}
+function itemsEmpty(k){
+ const its=itemsOf(k), by=KINDS.map(kd=>[kd,its.filter(i=>i.kind===kd).length]).filter(x=>x[1]), pend=its.filter(i=>itemPend(k,i).length);
+ return `<div style="max-width:760px"><div class="big">${esc(KN(k).name)} — 항목</div><p class="lead">항목 하나를 고르면 그 항목의 지금 글 · 아직 문서에 안 넣은 기록 · 지난 기록이 한 화면에 모인다.</p><div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:12px">${by.map(([kd,n])=>`<span class="kn">${kd} ${n}</span>`).join('')}</div>${waitHtml(k)}
+  ${pend.length?`<div class="card"><div class="ch">아직 문서에 안 넣은 기록이 있는 항목 <span class="chip c-pend">${pend.length}</span></div><div class="cb" style="padding:6px 8px">${pend.map(i=>itemRowHtml(k,i,'pendItem')).join('')}</div></div>`:''}</div>`;
+}
+function itemPane(t,right){
+ const k=t.kn, it=itemByName(k,t.ref);
+ if(!it) return {html:'<p class="muted">이 항목은 이제 없다</p>',title:t.ref};
+ const s=secOfItem(k,it), d=it.doc&&findDoc(k,it.doc);
+ const rs=recsOfItem(k,it), pend=rs.filter(r=>r.state==='pend');
+ const past=rs.filter(r=>r.state!=='pend').slice().sort((a,b)=>((b.fixes?1:0)-(a.fixes?1:0))||b.date.localeCompare(a.date));
+ const uses=usesOf(k,it), al=aliasOf(k,it), all=recordsOf(k);
+ const li=(r,cls)=>`<li class="${cls||''}" data-a="openRec" data-k="${k}" data-r="${r.id}" data-t="${cls==='pend'?'itemPendRow':'itemHistRow'}" data-pv="rec|${k}|${r.id}"><span class="dt">${r.state==='pend'?esc(r.tm||'오늘'):esc(r.date)}</span><span class="tx"><b>${esc(r.title)}</b>${r.fixes?' <span class="chip c-warn">바로잡음</span>':''}${all.some(x=>x.fixes===r.id)?' <span class="chip c-mute">바로잡힘</span>':''}<small>${esc(r.who)} · ${esc(r.body||'')}</small></span></li>`;
+ let now;
+ if(s) now=`<div class="paper ip">${linkify(paras(s.b),k,it.name)}${s.auto?autoHtml(s.auto,false):''}${s.by?`<div class="hc"><span class="hchip">${esc(s.by)}</span></div>`:''}</div>`;
+ else if(d) now=`<div class="callout gray">문서 ${esc(d.title)} 에서 이 항목의 글이 빠졌다 — 다음 정리 때 kmd 가 자리를 다시 찾는다</div>`;
+ else now=`<div class="callout gray" data-t="noDoc">아직 문서에 없다 — 기록 ${rs.length} 이 같이 읽힌다</div><div class="paper ip">${rs.map(r=>`<p><b>${esc(r.date)} ${esc(r.who)}</b> — ${esc(r.title)}. ${fmt(r.body)}</p>`).join('')||'<p class="muted">기록도 아직 없다</p>'}</div>`;
+ const html=`<div class="docw" data-t="itemPage" data-name="${esc(it.name)}">${right?rpHead():''}
+  <div class="ih"><span class="kt src">${esc(it.kind)}</span><h1>${esc(it.name)}</h1>${d?`<span class="muted small">${esc(d.title)} › ${esc(it.sec)}</span>`:'<span class="chip c-mute">문서 없음</span>'}${al.length?`<span class="r small muted">다른 이름: ${al.map(esc).join(' · ')}</span>`:''}</div>
+  <section class="isec" data-t="itemNow"><h3>지금${d?` <small>— ${esc(d.title)} 안의 그 부분</small>`:''}${d&&!right?`<button class="btn pri sm r" data-a="itemToDoc" data-k="${k}" data-n="${esc(it.name)}" data-t="itemToDoc">문서로 보기에서 열기</button>`:''}</h3>${now}</section>
+  <section class="isec" data-t="itemPend"><h3>아직 문서에 안 넣은 기록 <span class="chip c-pend" data-t="itemPendN">${pend.length}</span>${pend.length&&KN(k).type==='team'?`<a class="r small" data-a="tidyNow" data-k="${k}">지금 정리</a>`:''}</h3>${pend.length?`<ul class="rl">${pend.map(r=>li(r,'pend')).join('')}</ul>`:'<p class="muted small">없다 — 모두 문서에 들어갔다</p>'}</section>
+  <section class="isec" data-t="itemHist"><h3>지난 기록 <small>이력 · 바로잡은 것 위</small> <span class="chip c-mute" data-t="itemHistN">${past.length}</span></h3>${past.length?`<ul class="rl">${past.map(r=>li(r)).join('')}</ul>`:'<p class="muted small">없다</p>'}</section>
+  <section class="isec" data-t="itemUses"><h3>이 항목을 쓰는 곳 <span class="chip c-mute">${uses.length}</span></h3>${uses.length?`<ul class="rl">${uses.map(u=>`<li data-a="openItem" data-k="${k}" data-n="${esc(u.name)}" data-t="useRow" data-pv="item|${k}|${esc(u.name)}"><span class="tx"><b>${esc(docTitle(k,u.doc))} › ${esc(u.name)}</b><small>${esc(firstLine(k,u))}</small></span></li>`).join('')}</ul>`:'<p class="muted small">없다</p>'}</section>
+  <section class="isec" data-t="itemAlias"><h3>다른 이름</h3>${al.length?al.map(a=>`<span class="kn">${esc(a)}</span>`).join(' '):'<p class="muted small">없다 — 같은 말로 이틀 찾으면 저절로 붙는다</p>'}</section></div>`;
+ const co=coItems(k,it);
+ const aside=`<div class="ap" data-t="coItems"><h4>같이 나오는 항목 <small>같은 기록이 함께 건드린 것</small></h4>${co.length?co.map(c=>`<div class="alr" data-a="openItem" data-k="${k}" data-n="${esc(c.it.name)}" data-t="coItem" data-pv="item|${k}|${esc(c.it.name)}">${svg('tag')}<span class="nm">${esc(c.it.name)}</span><span class="rc">${c.n}</span></div>`).join(''):'<div class="muted small alr">없다</div>'}</div>
+  <div class="ap"><h4>들어 있는 문서</h4>${d?`<div class="alr" data-a="openDoc" data-k="${k}" data-d="${esc(d.id)}" data-h="${esc(it.sec)}" data-t="inDoc" data-pv="doc|${k}|${esc(d.id)}">${svg('doc')}<span class="nm">${esc(d.title)}</span></div>`:'<div class="muted small alr">아직 없다 — 정리 때 kmd 가 자리를 찾는다</div>'}</div>
+  ${s&&s.auto?`<div class="ap"><h4>저절로 채우는 표</h4><div class="small">${esc(S.autos[s.auto].src)} · ${esc(S.autos[s.auto].checked)} 확인</div></div>`:''}
+  ${nbGraph(k,'i:'+it.name)}`;
+ return {html,aside:right?null:aside,title:it.name};
 }
 function autoHtml(aid,lock){
  const a=S.autos[aid]; if(!a) return '';
@@ -815,9 +1281,11 @@ function autoHtml(aid,lock){
  return `<div class="auto${lock?' lock':''}" data-t="${lock?'autoLock':'auto'}"><div class="ah">${svg('sync')} <b>저절로 채우는 표</b> · ${esc(a.src)} · ${esc(a.since)} 부터 · ${esc(a.checked)} 확인</div><table class="t"><tr>${a.cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr>${rows}</table>${lock?`<div class="lkl">${svg('lock')} ${esc(a.src)}에서 저절로 — 여기서는 고치지 않는다</div>`:''}</div>`;
 }
 function paras(b){return String(b).split('\n').map(x=>`<p>${fmt(x)}</p>`).join('')}
-function viewDoc(k){
- const n=KN(k),d=findDoc(k,S.route.doc); if(!d){S.route.doc=null; return viewDocs();}
- const hl=S.route.hl, q=S.route.q, editing=S.edit&&S.edit.kn===k&&S.edit.doc===d.id;
+function docPane(t,right){
+ const k=t.kn,n=KN(k),d=findDoc(k,t.ref);
+ if(!d) return {html:'<p class="muted">이 문서는 이제 없다 — 탭을 닫는다</p>',title:t.ref};
+ const hl=right?null:t.hl, q=right?null:t.q, editing=!right&&S.edit&&S.edit.tab===t.id;
+ const its=itemsOf(k).filter(i=>i.doc===d.id);
  const pend=myPendingIn(k,d.id);
  const loc=n.type==='team'?n.name+' › '+d.title:(n.type==='pc'?(isTeam()?'내 PC › ':'')+n.name+' › '+d.title+'.md':'받은편지함 › '+d.title);
  let body='';
@@ -830,22 +1298,194 @@ function viewDoc(k){
  } else {
   body=d.secs.map(s=>{
    const lit=hl&&s.h===hl;
-   const inner=paras(s.b)+(s.auto?autoHtml(s.auto,false):'');
+   const inner=linkify(paras(s.b),k,s.h)+(s.auto?autoHtml(s.auto,false):'');
    const mine=pend.filter(x=>x.secs.includes(s.h));
-   return `<h2>${esc(s.h)}</h2>${lit?`<div class="lit" data-t="lit"><span class="tag">찾은 곳</span>${inner}</div>`:inner}${s.tidy?`<div class="hc"><span class="hchip tidy">${esc(s.tidy.split(' · ')[0])}</span><span>${esc(s.tidy.split(' · ').slice(1).join(' · '))}</span></div>`:''}${s.by?`<div class="hc"><span class="hchip">${esc(s.by)}</span></div>`:''}${mine.map(x=>`<div class="penrec" data-t="penrec"><i></i><span><b>아직 문서에 안 넣은 기록 1</b> · ${esc(x.tm)} · 나 — 「${esc(x.preview[s.h]||'')}」 · 같이 읽힌다</span></div>`).join('')}`;
+   const it=its.find(i=>i.sec===s.h), rn=it?recsOfItem(k,it).length:0, pn=it?itemPend(k,it).length:0;
+   const hn=it?`<span class="hn" data-a="openItem" data-k="${k}" data-n="${esc(it.name)}" data-t="hn" title="항목으로 보기">${pn?'<i class="pd"></i>':''}기록 ${rn}</span>`:'';
+   return `<h2 data-sec="${esc(s.h)}">${esc(s.h)}${hn}</h2>${lit?`<div class="lit" data-t="lit"><span class="tag">찾은 곳</span>${inner}</div>`:inner}${s.tidy?`<div class="hc"><span class="hchip tidy">${esc(s.tidy.split(' · ')[0])}</span><span>${esc(s.tidy.split(' · ').slice(1).join(' · '))}</span></div>`:''}${s.by?`<div class="hc"><span class="hchip">${esc(s.by)}</span></div>`:''}${mine.map(x=>`<div class="penrec" data-t="penrec"><i></i><span><b>아직 문서에 안 넣은 기록 1</b> · ${esc(x.tm)} · 나 — 「${esc(x.preview[s.h]||'')}」 · 같이 읽힌다</span></div>`).join('')}`;
   }).join('');
  }
- const main=`<div style="max-width:820px">
+ const L=((S.links[k]||{})[d.id]||[]).filter(id=>findDoc(k,id));
+ const main=`<div class="docw" data-t="docPane" data-name="${esc(d.title)}">${right?rpHead():''}
   ${q?`<div class="found" data-t="found"><span>찾기 <b>‘${esc(q)}’</b> 로 열었다</span><a data-a="reopenSearch">찾은 것으로 돌아가기</a></div>`:''}
-  <div class="ttl"><div class="path"><span>${esc(loc)}</span><span class="r">마지막으로 바뀐 때 ${esc(d.when)}</span></div>${editing?'':`<button class="btn pri" data-a="editDoc" data-t="editBtn">고치기</button>`}</div>
+  <div class="ttl"><div class="path"><span>${esc(loc)}</span><span class="r">마지막으로 바뀐 때 ${esc(d.when)}</span></div>${editing||right?'':`<button class="btn pri" data-a="editDoc" data-t="editBtn">고치기</button>`}</div>
   ${pend.length&&!editing?`<div class="wait" data-t="wait"><i></i>${esc(pend[0].tm)} 에 쓴 기록 ${pend.length} — 오늘 밤 ${esc(n.tidyAt)} 정리 때 문서에 들어간다 · 그동안도 문서 옆에 같이 읽힌다 <a data-a="tidyNow" data-k="${k}">지금 정리</a></div>`:''}
-  <div class="paper"><h1>${esc(d.title)}</h1>${d.sub?`<p class="muted small">${esc(d.sub)}</p>`:''}${body}</div>
-  <p class="tl" style="margin-top:10px"><a data-a="backDocs">‹ ${esc(n.name)} 문서 목록</a></p></div>`;
- return {crumb:'문서 › '+d.title,main};
+  <div class="paper"><h1>${esc(d.title)}</h1>${d.sub?`<p class="muted small">${esc(d.sub)}</p>`:''}${body}
+  ${L.length&&!editing?`<div class="dlinks" data-t="dlinks">이 문서가 가리키는 문서 — ${L.map(id=>`<span class="dlink" data-a="openDoc" data-k="${k}" data-d="${esc(id)}" data-t="dlink" data-pv="doc|${k}|${esc(id)}">${esc(docTitle(k,id))}</span>`).join(' · ')}</div>`:''}</div></div>`;
+ return {html:main,aside:right?null:docAside(k,d),title:d.title};
 }
 
+// ── 보기 셋 — 그래프(2D · 손으로 쓴 힘 배치 · 바깥 라이브러리 없음) ──
+const KCOL={item:'#3358e6',bundle:'#3358e6',doc:'#7a8494',rec:'#8b6fe0',src:'#2f8f5b'};
+const KLAB={item:'항목',bundle:'항목 묶음',doc:'문서',rec:'기록',src:'가져오는 곳'};
+const ELAB=[['in','들어 있다','문서 ⊃ 항목'],['touch','건드렸다','기록 → 항목'],['fix','바로잡았다','기록 → 기록'],['point','가리킨다','문서 → 문서 · 글 속 다른 항목 이름'],['fill','채운다','가져오는 곳 → 항목']];
+let CURG=null;
+function graphData(k,fo,bundle){
+ const f=fo||S.g.f, B=bundle===undefined?S.g.bundle:bundle;
+ const its=itemsOf(k), ds=docsOf(k), rs=recordsOf(k), srcs=S.sources.filter(s=>s.kn===k);
+ const N=[], has={};
+ const add=(id,kind,label,x)=>{N.push(Object.assign({id,kind,label},x||{})); has[id]=1;};
+ const pendI=new Set(); rs.filter(r=>r.state==='pend').forEach(r=>recItems(k,r).forEach(i=>pendI.add(i.name)));
+ const pendD=docPendSet(k);
+ const tables=its.filter(i=>i.table);
+ const iid=i=>i.table&&!B?'b:table':'i:'+i.name;
+ if(f.item){ its.filter(i=>!i.table).forEach(i=>add('i:'+i.name,'item',i.name,{pend:pendI.has(i.name)}));
+  if(tables.length){ if(B) tables.forEach(i=>add('i:'+i.name,'item',i.name,{table:true,pend:pendI.has(i.name)})); else add('b:table','bundle','테이블 '+tables.length,{n:tables.length}); } }
+ if(f.doc) ds.forEach(d=>add('d:'+d.id,'doc',d.title,{pend:pendD.has(d.id)}));
+ if(f.rec) rs.forEach(r=>{ if(f.recent&&r.date<'09-22') return; add('r:'+r.id,'rec',r.title.split(' — ')[0],{pend:r.state==='pend'}); });
+ if(f.src) srcs.forEach(s=>add('s:'+s.id,'src',s.name));
+ const E=[], seen=new Set();
+ const edge=(a,b,t)=>{const key=a+'>'+b+'>'+t; if(has[a]&&has[b]&&a!==b&&!seen.has(key)){seen.add(key); E.push({a,b,t});}};
+ its.forEach(i=>{ if(i.doc) edge('d:'+i.doc,iid(i),'in'); });
+ rs.forEach(r=>{ recItems(k,r).forEach(i=>edge('r:'+r.id,iid(i),'touch')); if(r.fixes) edge('r:'+r.id,'r:'+r.fixes,'fix'); });
+ Object.entries(S.links[k]||{}).forEach(([a,bs])=>bs.forEach(b=>edge('d:'+a,'d:'+b,'point')));
+ its.filter(i=>!i.table).forEach(i=>usesOf(k,i).forEach(u=>edge('i:'+u.name,'i:'+i.name,'point')));
+ srcs.forEach(s=>its.forEach(i=>{const sc=secOfItem(k,i); if(sc&&sc.auto===s.auto) edge('s:'+s.id,'i:'+i.name,'fill');}));
+ let nodes=N;
+ if(f.pend) nodes=nodes.filter(n=>n.pend);
+ let ids=new Set(nodes.map(n=>n.id)); let edges=E.filter(e=>ids.has(e.a)&&ids.has(e.b));
+ const sel=fo?null:S.g.sel;
+ if(f.depth&&sel&&ids.has(sel)){
+  const keep=new Set([sel]); let front=[sel];
+  for(let d=0;d<f.depth;d++){const nx=[]; edges.forEach(e=>{ if(front.includes(e.a)&&!keep.has(e.b)){keep.add(e.b);nx.push(e.b);} if(front.includes(e.b)&&!keep.has(e.a)){keep.add(e.a);nx.push(e.a);} }); front=nx;}
+  nodes=nodes.filter(n=>keep.has(n.id)); ids=keep; edges=edges.filter(e=>keep.has(e.a)&&keep.has(e.b)); }
+ if(f.orph){ const deg={}; edges.forEach(e=>{deg[e.a]=1;deg[e.b]=1;}); nodes=nodes.filter(n=>deg[n.id]||n.id===sel); }
+ return {nodes,edges};
+}
+function hashf(s){let h=2166136261; for(const c of String(s)){h^=c.charCodeAt(0); h=Math.imul(h,16777619);} return ((h>>>0)%10007)/10007;}
+function simTick(G,alpha,pin){
+ const ns=G.nodes, P=S.g.pos, n=ns.length;
+ for(let i=0;i<n;i++){const a=P[ns[i].id]; for(let j=i+1;j<n;j++){const b=P[ns[j].id]; let dx=a.x-b.x,dy=a.y-b.y; let d2=dx*dx+dy*dy; if(d2>90000) continue; if(d2<1){dx=hashf(i+'/'+j)-.5; dy=hashf(j+'/'+i)-.5; d2=1;} const d=Math.sqrt(d2), f=3200*alpha/d2; a.vx+=dx/d*f; a.vy+=dy/d*f; b.vx-=dx/d*f; b.vy-=dy/d*f;}}
+ G.edges.forEach(e=>{const a=P[e.a],b=P[e.b]; const dx=b.x-a.x,dy=b.y-a.y; const d=Math.sqrt(dx*dx+dy*dy)||1; const L=e.t==='in'?48:66; const f=(d-L)*0.045*alpha; a.vx+=dx/d*f; a.vy+=dy/d*f; b.vx-=dx/d*f; b.vy-=dy/d*f;});
+ ns.forEach(nd=>{const p=P[nd.id]; p.vx-=p.x*0.006*alpha; p.vy-=p.y*0.01*alpha; if(p.fx||nd.id===pin){p.vx=0;p.vy=0;return;} p.vx*=0.55; p.vy*=0.55; const m=Math.hypot(p.vx,p.vy); if(m>24){p.vx*=24/m;p.vy*=24/m;} p.x+=p.vx; p.y+=p.vy;});
+}
+function layoutGraph(G){
+ const P=S.g.pos, fresh=G.nodes.filter(n=>!P[n.id]);
+ fresh.forEach(n=>{ const e=G.edges.find(e=>(e.a===n.id&&P[e.b])||(e.b===n.id&&P[e.a])); const o=e?P[e.a===n.id?e.b:e.a]:(n.table&&P['b:table']); const r1=hashf(n.id),r2=hashf(n.id+'#');
+  if(o) P[n.id]={x:o.x+(r1-.5)*70,y:o.y+(r2-.5)*70,vx:0,vy:0}; else {const a=r1*Math.PI*2,R=40+r2*240; P[n.id]={x:Math.cos(a)*R,y:Math.sin(a)*R*.65,vx:0,vy:0};} });
+ const key=G.nodes.map(n=>n.id).join('|')+'#'+G.edges.length;
+ if(key!==S.g.layoutKey){ S.g.layoutKey=key; const big=fresh.length>G.nodes.length/2; const it=big?300:120; for(let i=0;i<it;i++) simTick(G,1-i/it*0.85); fitView(G); }
+}
+function fitView(G){ if(!G||!G.nodes.length) return; const P=S.g.pos; let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+ G.nodes.forEach(n=>{const p=P[n.id]; if(!p) return; x0=Math.min(x0,p.x); y0=Math.min(y0,p.y); x1=Math.max(x1,p.x+50); y1=Math.max(y1,p.y);});
+ const k=Math.max(.3,Math.min(1.6,660/(x1-x0+40),440/(y1-y0+40))); S.g.view={x:-(x0+x1)/2*k,y:-(y0+y1)/2*k,k};}
+function nodeR(n,dg){ if(n.kind==='bundle') return 15; if(n.table) return 3; if(n.kind==='rec') return 4.5; if(n.kind==='src') return 6.5; if(n.kind==='doc') return 6; return 5+Math.min(dg,8)*0.45; }
+function graphSvg(G){
+ const P=S.g.pos, big=G.nodes.length>90, deg={};
+ G.edges.forEach(e=>{deg[e.a]=(deg[e.a]||0)+1; deg[e.b]=(deg[e.b]||0)+1;});
+ const lines=G.edges.map((e,i)=>{const a=P[e.a],b=P[e.b]; return `<line data-e="${i}" class="e-${e.t}" x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}"${e.t==='fix'||e.t==='point'?` marker-end="url(#ar-${e.t})"`:''}/>`;}).join('');
+ const nodes=G.nodes.map(n=>{const p=P[n.id], r=nodeR(n,deg[n.id]||0); const cls=['n','k-'+n.kind]; if(S.g.sel===n.id) cls.push('sel'); if(big&&n.table) cls.push('nl');
+  return `<g class="${cls.join(' ')}" data-node="${esc(n.id)}" data-t="gnode" data-kind="${n.kind}" data-name="${esc(n.label)}" transform="translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})"><title>${esc(KLAB[n.kind]+' · '+n.label)}</title>${n.pend?`<circle class="ring" r="${(r+3.5).toFixed(1)}"/>`:''}<circle class="dot" r="${r.toFixed(1)}" fill="${KCOL[n.kind]}"${n.kind==='bundle'?' fill-opacity=".55"':''}/><text x="${(r+3).toFixed(1)}" y="3.5">${esc(n.label)}</text></g>`;}).join('');
+ const v=S.g.view;
+ return `<svg id="gsvg" viewBox="-340 -230 680 460" preserveAspectRatio="xMidYMid meet" data-t="gsvg"><defs>${['fix','point'].map(t=>`<marker id="ar-${t}" viewBox="0 0 10 10" refX="17" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-${t}"/></marker>`).join('')}</defs><g id="gview" transform="translate(${v.x.toFixed(1)} ${v.y.toFixed(1)}) scale(${v.k.toFixed(3)})"><g class="edges">${lines}</g><g class="nodes">${nodes}</g></g></svg>`;
+}
+function paintGraph(){ const sv=$('#gsvg'); if(!sv||!CURG) return; const P=S.g.pos;
+ sv.querySelectorAll('g[data-node]').forEach(g=>{const p=P[g.dataset.node]; if(p) g.setAttribute('transform',`translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})`);});
+ sv.querySelectorAll('line[data-e]').forEach(l=>{const e=CURG.edges[+l.dataset.e]; if(!e) return; const a=P[e.a],b=P[e.b]; l.setAttribute('x1',a.x.toFixed(1)); l.setAttribute('y1',a.y.toFixed(1)); l.setAttribute('x2',b.x.toFixed(1)); l.setAttribute('y2',b.y.toFixed(1));});}
+function gHighlight(){ const sv=$('#gsvg'); if(!sv||!CURG) return; const nq=norm(S.g.f.q||''), hits=new Set();
+ sv.querySelectorAll('g[data-node]').forEach(g=>{const h=!!nq&&norm(g.dataset.name).includes(nq); g.classList.toggle('hit',h); g.classList.toggle('dim',!!nq&&!h); if(h) hits.add(g.dataset.node);});
+ sv.querySelectorAll('line[data-e]').forEach(l=>{const e=CURG.edges[+l.dataset.e]; l.classList.toggle('dim',!!nq&&!(e&&(hits.has(e.a)||hits.has(e.b))));});
+ const c=$('[data-t=gHits]'); if(c) c.textContent=nq?'맞는 점 '+hits.size:''; }
+function applyView(){const g=$('#gview'), v=S.g.view; if(g) g.setAttribute('transform',`translate(${v.x.toFixed(1)} ${v.y.toFixed(1)}) scale(${v.k.toFixed(3)})`);}
+function zoomAt(p,f){const v=S.g.view, k2=Math.max(.25,Math.min(4,v.k*f)), r=k2/v.k; v.x=p.x-(p.x-v.x)*r; v.y=p.y-(p.y-v.y)*r; v.k=k2; applyView();}
+function relax(pin){let i=0; const step=()=>{ if(!CURG||!$('#gsvg')) return; simTick(CURG,0.25*(1-i/30),pin); paintGraph(); if(++i<30) requestAnimationFrame(step);}; requestAnimationFrame(step);}
+function gClick(id){ if(id==='b:table'){S.g.bundle=true; toast('테이블 '+itemsOf(S.route.kn).filter(i=>i.table).length+' 을 폈다 — 접으려면 왼쪽 「접기」'); render(); return;} S.g.sel=id; render(); }
+function viewGraph(){
+ const k=pickKn(); if(pcBlocked(k)) return knBlocked(k,'그래프');
+ const G=graphData(k); layoutGraph(G); CURG=G; const f=S.g.f;
+ const main=`<div class="gwrap" data-t="graph">${graphSvg(G)}<div class="gtl small"><span data-t="gCount">점 ${G.nodes.length} · 선 ${G.edges.length}${f.depth&&S.g.sel?' · 깊이 '+f.depth:''}</span> <b data-t="gHits" style="color:#9a6a00"></b></div><div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit">처음 크기</button></div><div class="ghint small">휠 — 크게 · 작게 · 빈 곳을 끌면 옮긴다 · 점을 끌어 옮긴다</div></div>`;
+ return {crumb:'그래프'+(S.g.sel?' › '+((G.nodes.find(n=>n.id===S.g.sel)||{}).label||''):''),main,aside:graphAside(k,G),tabs:true,left:graphFilter(k),full:true};
+}
+function graphFilter(k){
+ const f=S.g.f, tables=itemsOf(k).filter(i=>i.table).length;
+ const sw=(v,l,sub)=>`<div class="gr"><span class="tx">${l}${sub?`<small>${sub}</small>`:''}</span><button class="sw${f[v]?' on':''}" data-a="gSet" data-v="${v}" data-t="g-${v}" aria-label="${l}"></button></div>`;
+ const kd=(v,l)=>`<div class="gr"><span class="tx"><i class="kd" style="background:${KCOL[v]}"></i>${l}</span><button class="sw${f[v]?' on':''}" data-a="gSet" data-v="${v}" data-t="gk-${v}" aria-label="${l}"></button></div>`;
+ return `<div class="gf" data-t="gFilter"><div class="lh">${esc(KN(k).name)} — 그래프</div>
+  <input class="inp" id="gQ" data-in="gQ" data-t="gQ" value="${esc(f.q)}" placeholder="찾기 — 맞는 점을 밝힌다" autocomplete="off">
+  <div class="gh">종류</div>${kd('item','항목')}${kd('doc','문서')}${kd('rec','기록')}${kd('src','가져오는 곳')}
+  <div class="gh">거름</div>${sw('pend','아직 안 넣은 것만')}${sw('recent','기간 — 최근 30일 기록',f.rec?'':'기록을 켜면 쓴다')}${sw('orph','외톨이 숨기기')}
+  <div class="gh">깊이 <small>고른 점 중심</small></div><div class="seg" data-t="gDepth">${[0,1,2,3].map(d=>`<button class="${f.depth===d?'on':''}" data-a="gDepth" data-v="${d}" data-t="gd-${d}"${d&&!S.g.sel?' disabled':''}>${d?d:'전체'}</button>`).join('')}</div>${S.g.sel?'':'<div class="small muted" style="margin:4px">점을 고르면 깊이를 쓴다</div>'}
+  ${tables?`<div class="gh">큰 종류</div><div class="gr"><span class="tx">테이블 ${tables}<small>${S.g.bundle?'펴 두었다 — 점 '+tables:'묶음 점 하나로 접어 두었다 — 누르면 편다'}</small></span>${S.g.bundle?'<a class="lk" data-a="gBundle" data-t="gFold">접기</a>':'<a class="lk" data-a="gBundle" data-t="gUnfold">펴기</a>'}</div>`:''}</div>`;
+}
+function nodeInfo(k,id){
+ const i=id.indexOf(':'), t=id.slice(0,i), ref=id.slice(i+1);
+ if(t==='i'){const it=itemByName(k,ref); if(!it) return null; const rs=recsOfItem(k,it); return {kind:it.kind,name:it.name,first:firstLine(k,it),recs:rs.length,pend:rs.filter(r=>r.state==='pend').length,doc:it.doc?{ref:it.doc,hl:it.sec}:null,item:it.name};}
+ if(t==='d'){const d=findDoc(k,ref); if(!d) return null; const its=itemsOf(k).filter(x=>x.doc===d.id), rs=backlinks(k,d).recs; return {kind:'항목 '+its.length,name:d.title,first:String(d.secs[0]?d.secs[0].b:'').split('\n')[0].replace(/`/g,''),recs:rs.length,pend:rs.filter(r=>r.state==='pend').length,doc:{ref:d.id},item:its[0]?its[0].name:null};}
+ if(t==='r'){const r=recById(k,ref); if(!r) return null; const its=recItems(k,r); return {kind:r.who+' · '+r.date,name:r.title,first:r.body,recs:1,pend:r.state==='pend'?1:0,doc:{rec:r.id},item:its[0]?its[0].name:null};}
+ if(t==='s'){const s=S.sources.find(x=>x.id===ref); if(!s) return null; const d=docsOf(k).find(x=>x.title===s.doc), it=itemsOf(k).find(x=>{const sc=secOfItem(k,x); return sc&&sc.auto===s.auto}); return {kind:s.kind,name:s.name,first:s.sub+' · '+everyTxt(s.every),recs:0,pend:0,doc:d?{ref:d.id}:null,item:it?it.name:null};}
+ return null;
+}
+function graphAside(k,G){
+ const id=S.g.sel, n=id&&G.nodes.find(x=>x.id===id), info=n&&nodeInfo(k,id);
+ const card=!info?`<div class="gcard muted small" data-t="gCard">점을 누르면 여기에 — 이름 · 첫 줄 · 기록 수.<br>[문서로 보기] · [항목으로 보기] 로 연다.</div>`
+  :`<div class="gcard" data-t="gCard" data-name="${esc(info.name)}"><div class="row"><i class="kd" style="background:${KCOL[n.kind]}"></i><span class="small muted">${KLAB[n.kind]}${info.kind?' · '+esc(info.kind):''}</span><a class="r small" data-a="gUnsel" title="고르기 풀기">×</a></div><div class="gn">${esc(info.name)}</div><div class="small">${esc(info.first)}</div><div class="small muted" data-t="gCardRecs" style="margin:4px 0 10px">기록 ${info.recs}${info.pend?' · 아직 안 넣은 기록 '+info.pend:''}</div><div class="row" style="flex-wrap:wrap"><button class="btn pri sm" data-a="gOpen" data-v="docs" data-t="gOpenDocs"${info.doc?'':' disabled'}>문서로 보기</button><button class="btn sm" data-a="gOpen" data-v="items" data-t="gOpenItems"${info.item?'':' disabled'}>항목으로 보기</button></div></div>`;
+ const legend=`<div class="ap" data-t="gLegend"><h4>점 — 색</h4>${['item','doc','rec','src'].map(v=>`<div class="lgr"><i class="kd" style="background:${KCOL[v]}"></i>${KLAB[v]}</div>`).join('')}<div class="lgr"><i class="kd ringk"></i>아직 안 넣은 기록이 있다</div><h4 style="margin-top:10px">선</h4>${ELAB.map(([t,l,s])=>`<div class="lgr" data-t="lg-${t}"><svg class="lgl" viewBox="0 0 34 8"><line class="e-${t}" x1="1" y1="4" x2="33" y2="4"/></svg><span>${l}<small>${s}</small></span></div>`).join('')}</div>`;
+ return `<h4>고른 점</h4>${card}${legend}`;
+}
+
+// ── 빨리 열기(Ctrl O · Ctrl T) ──
+function openQo(){S.pal=null; S.cmd=null; S.menu=null; S.qo={q:'',sel:0}; render();}
+function qoList(){
+ const q=(S.qo.q||'').trim(), nq=norm(q);
+ const ks=(S.route.kn&&S.route.kn!=='*'?[S.route.kn]:visibleKns()).filter(k=>!pcBlocked(k)), out=[];
+ ks.forEach(k=>{const kn=KN(k).name;
+  docsOf(k).forEach(d=>out.push({kind:'doc',label:d.title,sub:kn+' · 문서',k,ref:d.id}));
+  itemsOf(k).forEach(i=>{ if(i.table&&!q) return; out.push({kind:'item',label:i.name,sub:kn+' · 항목 · '+i.kind,k,ref:i.name,alias:aliasOf(k,i)}); });
+  recordsOf(k).forEach(r=>out.push({kind:'rec',label:r.title,sub:kn+' · 기록 · '+(r.state==='pend'?'● 아직 안 넣음':r.date),k,ref:r.id}));});
+ if(!q) return out.filter(x=>x.kind!=='rec').slice(0,12);
+ const ord={doc:0,item:1,rec:2};
+ const sc=x=>{const l=norm(x.label); if(l===nq) return 0; if(l.startsWith(nq)) return 1; if(l.includes(nq)) return 2; if((x.alias||[]).some(a=>norm(a).includes(nq))) return 3; return 9;};
+ return out.map(x=>Object.assign({s:sc(x)},x)).filter(x=>x.s<9).sort((a,b)=>a.s-b.s||ord[a.kind]-ord[b.kind]).slice(0,30);
+}
+function qoBody(){ const L=qoList(); S.qo.list=L; if(S.qo.sel>=L.length) S.qo.sel=Math.max(0,L.length-1);
+ if(!L.length) return `<div class="empty" data-t="qoNone"><b>이 이름으로는 없다</b>글 속 낱말은 Ctrl K 찾기로</div>`;
+ return L.map((x,i)=>`<div class="qr${i===S.qo.sel?' sel':''}" data-a="qoPick" data-i="${i}" data-t="qoRow" data-kind="${x.kind}" data-name="${esc(x.label)}"><span class="qk">${x.kind==='doc'?svg('doc'):x.kind==='item'?svg('tag'):'<i class="pd"></i>'}</span><span class="nm">${esc(x.label)}</span><span class="r small muted">${esc(x.sub)}</span></div>`).join('')+`<div class="ft">문서 · 항목 · 기록 이름으로 연다 — ↑↓ 로 고르고 Enter · 글 속 낱말은 <b>Ctrl K</b></div>`;}
+function qoHtml(){return `<div class="pscrim" data-a="qoClose" data-self="1"><div class="pal" data-t="qo"><div class="pin">${svg('search')}<input id="qoIn" data-in="qo" data-t="qoIn" value="${esc(S.qo.q)}" placeholder="빨리 열기 — 문서 · 항목 · 기록 이름" autocomplete="off"><span class="r">↑↓ · Enter · Esc</span></div><div id="qoBody">${qoBody()}</div></div></div>`;}
+function qoPick(i){const x=S.qo&&S.qo.list&&S.qo.list[i]; S.qo=null; if(!x){render(); return;} openTab({kind:x.kind,kn:x.k,ref:x.ref}); render(); scrollTopMain();}
+
+// ── 명령 창(Ctrl P) ──
+function openCmd(){S.pal=null; S.qo=null; S.menu=null; S.cmd={q:'',sel:0}; render();}
+function cmdDefs(){const p=P(), team=isTeam();
+ const L=[
+  {n:'지금 정리',s:'받은 기록을 바로 문서에',f:()=>{const k=tidyKn(); if(S.route.scr==='tidy') runTidy(k); else {const busy=!!S.tidyRun; runTidy(k,'toast'); if(!busy&&S.tidyRun) toast('정리하는 중 — 1~2분 · 다 되면 알린다');}},on:team},
+  {n:'자료 가져오기',s:'코드 · DB · 파일',f:()=>go({scr:'import'})},
+  {n:'지식 추가',s:'새 이름 · 폴더 · 팀 주소',f:()=>go({scr:'add'})},
+  {n:'나누어 보기',s:'Ctrl \\ — 두 탭을 나란히',f:()=>toggleSplit()},
+  {n:'그래프 열기',s:'리본 — 그래프',f:()=>setView('graph')},
+  {n:'문서로 보기',s:'리본 — 문서',f:()=>setView('docs')},
+  {n:'항목으로 보기',s:'리본 — 항목',f:()=>setView('items')},
+  {n:'빨리 열기',s:'Ctrl O',f:()=>openQo()},
+  {n:'찾기',s:'Ctrl K',f:()=>{S.pal={q:'',more:false}; render();}},
+  {n:'오늘 바뀐 것',s:'',f:()=>go({scr:'today'})},
+  {n:'보내기',s:'내 지식에서 고친 것을 팀으로',f:()=>go({scr:'send'}),on:p.who==='김'},
+  {n:'지식 목록',s:'전체',f:()=>go({scr:'home',kn:'*'})},
+  {n:'설정 › Claude 연결',s:'',f:()=>{S.setTab='claude'; go({scr:'settings'});}},
+  {n:'설정 › 에이전트 설치',s:'',f:()=>{S.setTab='agent'; go({scr:'settings'});}},
+  {n:'탭 닫기',s:'지금 탭',f:()=>{if(S.active) closeTab(S.active); render();}},
+  {n:'이전으로',s:'Alt ←',f:()=>histGo(-1)},
+  {n:'다음으로',s:'Alt →',f:()=>histGo(1)}
+ ];
+ return L.filter(c=>c.on!==false);}
+function cmdList(){const nq=norm(S.cmd.q||''); return cmdDefs().filter(c=>!nq||norm(c.n).includes(nq));}
+function cmdBody(){const L=cmdList(); S.cmd.list=L; if(S.cmd.sel>=L.length) S.cmd.sel=Math.max(0,L.length-1);
+ if(!L.length) return `<div class="empty" data-t="cmdNone"><b>그런 명령은 없다</b>다른 말로 — 예: 정리 · 그래프 · 나누어</div>`;
+ return L.map((c,i)=>`<div class="qr${i===S.cmd.sel?' sel':''}" data-a="cmdPick" data-i="${i}" data-t="cmdRow" data-name="${esc(c.n)}"><span class="qk">›</span><span class="nm">${esc(c.n)}</span><span class="r small muted">${esc(c.s)}</span></div>`).join('');}
+function cmdHtml(){return `<div class="pscrim" data-a="cmdClose" data-self="1"><div class="pal" data-t="cmd"><div class="pin"><span class="qk">›</span><input id="cmdIn" data-in="cmd" data-t="cmdIn" value="${esc(S.cmd.q)}" placeholder="명령 창 — 화면의 일을 이름으로" autocomplete="off"><span class="r">↑↓ · Enter · Esc</span></div><div id="cmdBody">${cmdBody()}</div></div></div>`;}
+function cmdPick(i){const c=S.cmd&&S.cmd.list&&S.cmd.list[i]; S.cmd=null; if(!c){render(); return;} render(); c.f();}
+
+// ── 미리보기 카드(이름 · 링크에 마우스) ──
+let pvT=null;
+function hidePv(){clearTimeout(pvT); const h=document.getElementById('pvHost'); if(h) h.innerHTML='';}
+function pvHtml(spec){const parts=String(spec).split('|'), kind=parts[0], k=parts[1], ref=parts.slice(2).join('|'); if(!KN(k)) return '';
+ if(kind==='item'){const it=itemByName(k,ref); if(!it) return ''; const s=secOfItem(k,it), d=it.doc&&findDoc(k,it.doc), rs=recsOfItem(k,it), p=rs.filter(r=>r.state==='pend').length;
+  return `<div class="pv" data-t="pv"><div class="ph"><span class="kt src">${esc(it.kind)}</span><b>${esc(it.name)}</b></div><div>${esc(firstLine(k,it))}</div><div class="pm">${d?esc(d.title+' › '+it.sec)+' · '+esc(s&&s.by?s.by:'바뀐 때 '+d.when):'아직 문서에 없다'} · 기록 ${rs.length}${p?' · 안 넣은 기록 '+p:''}</div></div>`;}
+ if(kind==='doc'){const d=findDoc(k,ref); if(!d) return ''; const n=itemsOf(k).filter(i=>i.doc===d.id).length; return `<div class="pv" data-t="pv"><div class="ph">${svg('doc')}<b>${esc(d.title)}</b></div><div>${esc(String(d.secs[0]?d.secs[0].b:'').split('\n')[0].replace(/`/g,''))}</div><div class="pm">바뀐 때 ${esc(d.when)} · 항목 ${n}</div></div>`;}
+ if(kind==='rec'){const r=recById(k,ref); if(!r) return ''; return `<div class="pv" data-t="pv"><div class="ph"><i class="pd"></i><b>${esc(r.title)}</b></div><div>${esc(r.body)}</div><div class="pm">${esc(r.who)} · ${esc(r.date)}${r.state==='pend'?' · 아직 문서에 안 넣은 기록':''}</div></div>`;}
+ return '';}
+function showPv(el){ if(!document.body.contains(el)) return; const h=pvHtml(el.dataset.pv), host=document.getElementById('pvHost'); if(!h||!host) return; host.innerHTML=h; const c=host.firstElementChild, r=el.getBoundingClientRect(); let x=Math.min(r.left,innerWidth-300), y=r.bottom+6; if(y+c.offsetHeight>innerHeight-8) y=r.top-c.offsetHeight-6; c.style.left=Math.max(8,x)+'px'; c.style.top=Math.max(8,y)+'px';}
+
 // ── 찾기 ──
-function scopeKns(){const k=S.route.kn; const vk=visibleKns().filter(x=>!pcBlocked(x)); if(k&&k!=='*'&&vk.includes(k)&&['docs','tidy','members'].includes(S.route.scr)) return [k]; return vk;}
+function scopeKns(){const k=S.route.kn; const vk=visibleKns().filter(x=>!pcBlocked(x)); if(k&&k!=='*'&&vk.includes(k)&&KNSCR.includes(S.route.scr)) return [k]; return vk;}
 function doSearch(q){
  q=String(q||'').trim(); if(!q) return null;
  const nq=norm(q), ks=scopeKns(), all=[];
@@ -1040,6 +1680,8 @@ function runTidy(k,from){
      else if(i.kind==='put') addToday(pk,{tm,kt:'team',dot:'acc',text:'kmd 가 정리했다 — '+KN(k).name+' › '+i.target,small:'내 기록에서('+i.tm+')',eff:i.eff,applied:true,link:r.id,go:i.eff?{kn:k,doc:i.eff.doc,hl:i.eff.sec||null}:null}); }
    return r;});
   rows.forEach(r=>{const d=r.eff&&findDoc(k,r.eff.doc); if(d){d.chip='새로 바뀜';}});
+  // 넣은 기록은 「기록」 나무와 항목의 지난 기록으로
+  rows.forEach(r=>{const s=r.src; (S.recs[k]=S.recs[k]||[]).unshift({id:s.id,date:'10-22',tm,who:s.who,title:s.title,body:(s.small||'')+' · '+s.tm+' 에 남김 — '+tm+' 정리 때 문서에',touches:s.touches||null,target:s.target,eff:s.eff});});
   S.inbox[k]=rest; S.pending=S.pending.filter(x=>rest.some(i=>i.id===x.id)||x.kn!==k);
   (S.runs[k]=S.runs[k]||[]).forEach(r=>r.open=false);
   S.runs[k].unshift({id:uid(),tm:'방금 '+tm,rows,open:true});
@@ -1085,9 +1727,48 @@ function viewSettings(){
  let left;
  if(team) left=`<div class="card" style="overflow:visible"><div class="ch">이 팀 서버 <small class="mono">kmd.team.local</small></div><div class="cb"><div class="kv"><span>들어가기</span><span>아이디 ${esc(p.id)} · 비밀번호는 브라우저가 기억한다 <a class="small" data-a="logout" data-t="logout">나가기</a></span><span>내 지식</span><span>${p.hasPc?'내 PC 지식 넷 — 내 PC 프로그램이 연다':'받은편지함 — 이 서버 안 · 나만 쓴다'}</span><span>백업</span><span>사내 GitLab · 저장할 때마다 저절로</span><span>판</span><span>kmd v1.13</span></div></div>${p.admin?'<div class="cf"><a class="lk" data-a="nav" data-s="admin">관리 — 문제 · 사람 · 백업 →</a></div>':''}</div>`+devCard;
  else left=`<div class="card"><div class="ch">이 PC</div><div class="cb"><div class="kv"><span>지식 폴더</span><span><span class="mono">D:\\kmd</span> — 지식 ${visibleKns().length}</span><span>백업 자리</span><span><span class="mono">E:\\kmd-백업</span> ${S.cond.backup?'<span class="chip c-warn">멈췄다 · 3시간</span><small>08:05 부터 E: 드라이브가 빠져 있다 · 저장은 그대로 된다</small>':'<span class="chip c-acc">잘 된다</span>'}</span><span>보낼 곳</span><span>배포노트 → DPMS · 설계메모 → GDI 와 DPMS</span><span>판</span><span>kmd v1.13 — 새 판은 다음 시작에 저절로</span></div></div></div>
-  <div class="card" style="overflow:visible"><div class="ch">이어진 것</div><div class="cb" style="padding:2px 14px"><ul class="plain"><li><span style="flex:1"><b>Claude Code</b><small class="muted" style="display:block">이어짐 · 갈 곳 둘 — 팀 · 내 PC</small></span></li><li><span style="flex:1"><b>팀 kmd</b><small class="muted" style="display:block">kmd.team.local · kim 으로 · ${S.cond.serverDown?'지금 닿지 않는다':'이어짐'}</small></span></li></ul><p class="small muted">밖으로 나가는 것은 보내기 · 백업 · Claude 정리뿐이다.</p></div></div>`+devCard;
- return {crumb:'설정',main:`<div style="max-width:980px"><div class="big">설정</div><div class="g2"><div>${left}</div><div>${autoCard}</div></div></div>`};
+  <div class="card" style="overflow:visible"><div class="ch">이어진 것</div><div class="cb" style="padding:2px 14px"><ul class="plain"><li><span style="flex:1"><b>Claude Code</b><small class="muted" style="display:block">이어짐 · 갈 곳 둘 — 팀 · 내 PC · 작업 폴더 ${S.agent.folders.length} <a data-a="setTab" data-v="agent">에이전트 설치 ›</a></small></span></li><li><span style="flex:1"><b>팀 kmd</b><small class="muted" style="display:block">kmd.team.local · kim 으로 · ${S.cond.serverDown?'지금 닿지 않는다':'이어짐'}</small></span></li></ul><p class="small muted">밖으로 나가는 것은 보내기 · 백업 · Claude 정리뿐이다.</p></div></div>`+devCard;
+ const ST=[['gen','일반'],['claude','Claude 연결'],['agent','에이전트 설치']];
+ const tabs=`<div class="tabs" data-t="setTabs">${ST.map(([v,l])=>`<span class="${S.setTab===v?'on':''}" data-a="setTab" data-v="${v}" data-t="st-${v}">${l}</span>`).join('')}</div>`;
+ const body=S.setTab==='claude'?`<div style="max-width:720px">${claudeCard()}</div>`:S.setTab==='agent'?`<div style="max-width:760px">${agentCard()}</div>`:`<div class="g2"><div>${left}</div><div>${autoCard}</div></div>`;
+ return {crumb:'설정'+(S.setTab==='gen'?'':' › '+ST.find(x=>x[0]===S.setTab)[1]),main:`<div style="max-width:980px"><div class="big">설정</div>${tabs}${body}</div>`};
 }
+function claudeCard(){
+ const p=P(),c=S.claude.pc;
+ if(p.where==='pc'){
+  let row;
+  if(c.state==='in') row=`<div class="set"><span class="tx"><b data-t="claudeState">로그인됨 · ${esc(c.acct)} · 남은 날 ${c.days}</b><small>이번 달 정리 ${c.month}건 · 기록 만들기 · 정리에 쓴다 · 로그인은 이 PC 의 자격 저장소에</small></span><button class="kebab${S.menu==='claude'?' on':''}" data-a="menu" data-m="claude" data-t="claudeKebab" title="다시 로그인 · 쓰지 않기">⋯${S.menu==='claude'?`<div class="menu" style="right:0;top:28px"><div class="mi" data-a="claudeRelogin" data-t="claudeRelogin">다시 로그인<small>브라우저가 열린다</small></div><div class="mi" data-a="claudeOff" data-t="claudeOff">Claude 쓰지 않기<small>규칙으로 되는 것만</small></div></div>`:''}</button></div>`;
+  else if(c.state==='opening') row=`<div class="set"><span class="tx"><b data-t="claudeState">로그인하는 중</b><span class="prog" data-t="claudeProg" style="margin-top:4px"><i></i>브라우저가 열렸다 — Claude 에 들어가면 끝</span></span></div>`;
+  else row=`<div class="set"><span class="tx"><b data-t="claudeState">로그인 안 됨</b><small>정리 · 기록 만들기는 규칙으로 되는 것만 한다</small></span><button class="btn pri" data-a="claudeLogin" data-t="claudeLogin">Claude 로그인</button></div>`;
+  return `<div class="card" data-t="claudeCard" style="overflow:visible"><div class="ch">Claude 연결 <small>이 프로그램이 쓰는 Claude Code 로그인</small></div><div class="cb" style="padding:2px 14px">${row}</div><div class="cf">기록 문서를 만들거나 정리할 때 이 PC 의 Claude Code 를 부른다 · 오래 가는 로그인을 쓴다</div></div>`;
+ }
+ const pcLine=p.hasPc?`<div class="set"><span class="tx"><b>내 PC 프로그램의 Claude</b><small data-t="claudePcLine">${S.cond.pcOff?'내 PC 프로그램이 꺼져 있다':c.state==='in'?'로그인됨 · 남은 날 '+c.days:'로그인 안 됨 — 내 PC 프로그램의 설정에서'}</small></span></div>`:'';
+ return `<div class="card" data-t="claudeCard"><div class="ch">Claude 연결 <small>읽기만</small></div><div class="cb" style="padding:2px 14px"><div class="set"><span class="tx"><b data-t="claudeRead">팀 정리는 정리 전용 로그인으로 돈다 — 쉬면 관리자에게 알린다</b><small>${S.cond.loginRest?'지금 쉬고 있다 · 2일 — 관리자에게 알렸다':'지금 돈다 · 로그인해 두는 것은 관리자(이)'}</small></span></div>${pcLine}</div>${p.admin?'<div class="cf"><a class="lk" data-a="nav" data-s="admin" data-t="toAdmClaude">관리 › Claude 연결 →</a></div>':''}</div>`;
+}
+function agBtn(){const ok=/^[A-Za-z]:\\./.test((S.agent.draft||'').trim()); return `<button class="btn pri" data-a="agentAddOk" data-t="agentAddOk"${ok?'':' disabled'}>더하기</button>`;}
+function agentCard(){
+ const p=P();
+ if(p.where==='pc'){
+  const A=S.agent, oldN=A.folders.filter(f=>f.v!==AG_LATEST).length;
+  const rows=A.folders.map(f=>{const old=f.v!==AG_LATEST, mk='ag:'+f.name;
+   return `<li data-t="agentRow" data-name="${esc(f.name)}"${f._new?' class="new"':''}><span style="flex:1;min-width:0"><b>${esc(f.name)}</b><small class="muted mono" style="display:block">${esc(f.path)}</small></span>${old?`<span class="chip c-warn" data-t="agentState">옛 판 — 고침 있음</span><small class="muted">${esc(f.v)}</small>`:`<span class="chip c-acc" data-t="agentState">최신 · ${AG_LATEST}</span>`}<button class="kebab${S.menu===mk?' on':''}" data-a="menu" data-m="${esc(mk)}" data-t="agentKebab" title="최신으로 · 빼기">⋯${S.menu===mk?`<div class="menu" style="right:0;top:28px">${old?`<div class="mi" data-a="agentUp" data-v="${esc(f.name)}" data-t="agentUp">최신으로<small>kmd 블록만 바꾼다</small></div>`:''}<div class="mi" data-a="agentRm" data-v="${esc(f.name)}" data-t="agentRm">빼기<small>스킬 · 연결 · kmd 블록을 걷는다</small></div></div>`:''}</button></li>`;}).join('');
+  A.folders.forEach(f=>delete f._new);
+  const add=A.adding?`<div class="paste" style="margin-top:10px"><input class="inp mono" id="agIn" data-in="ag" data-t="agIn" value="${esc(A.draft)}" placeholder="작업 폴더 경로 — 예: D:\\work\\dpms-batch" autocomplete="off"><span id="agBtnBox">${agBtn()}</span></div>`:`<button class="btn pri" data-a="agentAdd" data-t="agentAddBtn" style="margin-top:10px">폴더 더하기</button>`;
+  return `<div class="card" data-t="agentCard" style="overflow:visible"><div class="ch">에이전트 설치 <small>Claude Code 에 kmd 를 붙인다 — 작업 폴더마다</small><span class="r"><button class="kebab${S.menu==='agAll'?' on':''}" data-a="menu" data-m="agAll" data-t="agentAllKebab" title="지금 모두 최신으로">⋯${S.menu==='agAll'?`<div class="menu" style="right:0;top:28px"><div class="mi" data-a="agentAllNew" data-t="agentAllNew">지금 모두 최신으로<small>${oldN?'옛 판 '+oldN:'모두 최신'}</small></div></div>`:''}</button></span></div><div class="cb" style="padding:2px 14px 12px">${A.msg?`<div class="callout" data-t="agentMsg">${A.msg}</div>`:''}<ul class="plain" data-t="agentList">${rows||'<li class="muted">아직 붙인 폴더가 없다</li>'}</ul>${add}
+   <details class="more" data-t="agentMore"><summary>자세히 — 무엇이 깔리나</summary><div class="in">스킬 둘 — <code>kmd-work</code> · <code>kmd-save</code><br>연결 둘 — 팀 kmd(kmd.team.local) · 이 PC 의 kmd · 열쇠는 이 PC 의 자격 저장소에서 꺼낸다<br>안내 한 덩이 — <code>CLAUDE.md</code> 안 kmd 블록 14줄 · 사람이 고친 줄은 그대로 두고 kmd 블록만 바꾼다<br>새 판이 오면 저절로 모두 최신으로 — 바꾼 줄은 「오늘 바뀐 것」 에</div></details></div></div>`;
+ }
+ const devs=S.devices[personKey()]||[];
+ return `<div class="card" data-t="agentCard"><div class="ch">에이전트 설치 <small>Claude Code 에 kmd 를 붙인다</small></div><div class="cb" style="padding:2px 14px 12px"><div class="set"><span class="tx"><b>이 PC 의 Claude Code 로 쓰려면 — 설치 한 줄 복사</b><small>작업 폴더의 터미널에 붙여 넣는다 · 10분 동안 한 번만 · 내 PC 프로그램이 있으면 그 프로그램에 폴더를 더한다</small></span><button class="btn pri" data-a="copyInstall" data-t="copyInstall">설치 한 줄 복사</button></div>
+  <div class="rh">내 기기 판</div><ul class="plain" data-t="agentDevs">${devs.map(d=>`<li data-t="agentDev" data-name="${esc(d.n)}"><span style="flex:1"><b>${esc(d.n)}</b><small class="muted" style="display:block">${esc(d.s)}</small></span>${d.v===AG_LATEST?`<span class="chip c-acc">최신 · ${esc(d.v)}</span>`:`<span class="chip c-warn">옛 판 · ${esc(d.v)}</span>`}</li>`).join('')||'<li class="muted">아직 붙인 기기가 없다</li>'}</ul><p class="small muted">옛 판 기기는 그 기기에서 Claude Code 를 열면 저절로 최신이 된다.</p></div>${p.admin?'<div class="cf">관리 › 에이전트 — 팀 기본 스킬 판 '+AG_LATEST+' · <a class="lk" data-a="nav" data-s="admin">관리 →</a></div>':''}</div>`;
+}
+function claudeLogin(){S.claude.pc.state='opening'; S.menu=null; render(); setTimeout(()=>{if(S.claude.pc.state!=='opening') return; S.claude.pc.state='in'; S.claude.pc.days=365; toast('로그인됨 — Claude 연결 · 남은 날 365'); render();},1600);}
+function agentAdd(){const p=(S.agent.draft||'').trim(); if(!/^[A-Za-z]:\\./.test(p)) return; const name=p.replace(/[\\]+$/,'').split('\\').pop();
+ if(S.agent.folders.some(f=>f.path.toLowerCase()===p.toLowerCase())){toast('이미 붙어 있다 — '+esc(name)); return;}
+ S.agent.folders.push({name,path:p,v:AG_LATEST,_new:true}); S.agent.adding=false; S.agent.draft='';
+ S.agent.msg='<b>Claude Code 에 kmd 를 붙였다 — 스킬 · 연결 둘 · 안내 한 덩이</b> · '+esc(name);
+ bump(); addToday('kim',{tm:now(),kt:'me',dot:'acc',text:'에이전트 설치 — '+name+' 폴더의 Claude Code 에 kmd 를 붙였다',small:'스킬 · 연결 둘 · 안내 한 덩이'});
+ toast('Claude Code 에 kmd 를 붙였다 — 스킬 · 연결 둘 · 안내 한 덩이'); render();}
+function admDoneBtn(){const ok=!!(S.admClaude.code||'').trim(); return `<button class="btn pri" data-a="admDone" data-t="admDone"${ok?'':' disabled'}>마치기</button>`;}
 
 // ── 관리 ──
 function viewAdmin(){
@@ -1095,16 +1776,30 @@ function viewAdmin(){
  if(a.nopw) rows.push(`<li class="hot" data-t="adm-nopw"><span class="dot warn"></span><span class="tx"><b>비밀번호를 안 정한 사람 3</b><small>최 · 정 · 한 — 처음 들어오기 링크를 한꺼번에 만든다</small></span><a class="lk" data-a="admLinks" data-t="admLinks">링크 만들기</a></li>`);
  if(a.lock) rows.push(`<li data-t="adm-lock"><span class="dot"></span><span class="tx"><b>김(kim) · 다른 자리에서 5번 틀림 — 잠시 막혔다</b><small>10:21 · 10.10.31.7 · 10:36 에 저절로 풀린다 · 김은 그대로 쓴다</small></span><a class="lk" data-a="admUnlock" data-t="admUnlock">풀기</a></li>`);
  a.requests.forEach(r=>rows.push(`<li data-t="adm-req"><span class="dot pu"></span><span class="tx"><b>${esc(r.who)}이 ${esc(r.src.name)}를 더해 달라고 했다</b><small>${esc(r.tm)} · → ${esc(KN(r.src.kn).name)} › ${esc(r.src.doc)} · ${everyTxt(r.src.every)}</small></span><a class="lk" data-a="admAddReq" data-id="${r.id}" data-t="admAddReq">더하기</a></li>`));
- if(S.cond.loginRest) rows.push(`<li data-t="adm-rest"><span class="dot warn"></span><span class="tx"><b>자동 정리가 쉬고 있다 · 2일</b><small>정리 전용 Claude 로그인이 끝났다 — 서버에서 한 줄 — <code>claude</code> 다시 로그인 · 그동안은 규칙으로 되는 것만 넣는다</small></span></li>`);
+ if(S.cond.loginRest) rows.push(`<li data-t="adm-rest"><span class="dot warn"></span><span class="tx"><b>자동 정리가 쉬고 있다 · 2일</b><small>정리 전용 Claude 로그인이 끝났다 — 아래 「Claude 연결」 에서 다시 로그인 · 그동안은 규칙으로 되는 것만 넣는다</small></span></li>`);
  if(S.cond.serverDown) rows.push(`<li><span class="dot"></span><span class="tx"><b>팀 서버에 닿지 않는 PC 가 있다</b><small>닿으면 저절로 보낸다 — 할 것 없음</small></span></li>`);
  return {crumb:'관리',main:`<div style="max-width:780px"><div class="big">관리</div><p class="lead">문제가 있을 때만 줄이 선다 — 풀리면 저절로 사라진다.</p>
   <div class="card"><div class="ch">오늘 ${rows.length} <small>${now()}</small></div><ul class="plain pl" data-t="admList">${rows.join('')||'<li class="muted" data-t="admEmpty">오늘은 문제가 없다</li>'}</ul><div class="cf">아직 https 가 아니다 — 사내 인증서가 생기면 켤 수 있다</div></div>
+  ${admClaudeCard()}${admAgentCard()}
   <details class="more" data-t="admMore"><summary>잘 도는 것 — 지식 ${S.order.filter(k=>KN(k).type==='team').length+1} · 사람 6 · 자동으로 가져오는 곳 ${S.sources.filter(s=>s.scope==='team').length} · 백업 확인 10-20 · 자세히</summary><div class="in">
    <div>자동으로 가져오는 곳 — ${S.sources.filter(s=>s.scope==='team').map(s=>esc(s.name)+' '+esc(s.last)).join(' · ')} · <a data-a="nav" data-s="import">자료 가져오기 ›</a></div>
    <div style="margin-top:4px">자동 정리 — Claude 로 · 어젯밤 12건 · 이번 달 $8 · 정리 전용 로그인 ${S.cond.loginRest?'<b style="color:var(--warn)">쉼</b>':'있음'}</div>
    <div style="margin-top:4px">찾기 점검 — DPMS 27/30 · GDI 26/30 · 지난주보다 나빠진 것 0</div>
    <div style="margin-top:4px">백업 — 사내 GitLab 그룹 team · 10-20 되살려 봤다 · 이상 없음 · 다음 10-27</div>
    <div style="margin-top:4px">사람 — 김 · 박 · 이 · (최 · 정 · 한 비밀번호 ${a.nopw?'안 정함':'링크 보냄'})</div></div></details></div>`};
+}
+
+function admClaudeCard(){
+ const rest=S.cond.loginRest, ac=S.admClaude||{};
+ let flow='';
+ if(ac.step==='pw') flow=`<div class="flow" data-t="admPw"><div class="field"><label for="admPw">비밀번호 한 번 더 — 관리자 확인</label><input class="inp af" type="password" id="admPw" data-t="admPwIn" autocomplete="current-password" value="mock-password-1022"><div class="hint">브라우저가 채웠다 — 확인만 누르면 된다</div></div>${ac.err?'<div class="callout danger">비밀번호를 확인하세요</div>':''}<div class="row"><button class="btn pri" data-a="admPwOk" data-t="admPwOk">확인</button><a class="muted" data-a="admFlowCancel">그만두기</a></div></div>`;
+ else if(ac.step==='wait') flow=`<div class="flow"><span class="prog" data-t="admWait"><i></i>팀 서버가 정리용 로그인을 띄우는 중…</span></div>`;
+ else if(ac.step==='code') flow=`<div class="flow" data-t="admCode"><p style="margin:0 0 6px"><b>이 주소를 열어 Claude 에 들어가고 받은 번호를 붙여 넣으세요</b></p><div class="path"><span data-t="admUrl">https://claude.ai/oauth/authorize?code=true&amp;state=mock-7f3a9c</span><a class="r lk" data-a="copyUrl">복사</a></div><div class="paste" style="margin-top:8px"><input class="inp mono" id="admCodeIn" data-in="admCode" data-t="admCodeIn" value="${esc(ac.code||'')}" placeholder="받은 번호 붙여 넣기" autocomplete="off"><span id="admDoneBox">${admDoneBtn()}</span></div><p class="hint">한 번용 번호 — 저장하지 않는다 · 아직 https 가 아니다 — 사내 https 뒤 권장 · <a data-a="admFlowCancel">그만두기</a></p></div>`;
+ return `<div class="card" data-t="admClaude"><div class="ch">Claude 연결 <small>정리 전용 로그인 — 팀 서버의 정리 일꾼이 쓴다</small></div><div class="cb" style="padding:2px 14px 10px"><div class="set"><span class="tx"><b data-t="admClaudeState">${rest?'쉬고 있다 · 2일 — 로그인이 끝났다':'로그인됨 · 정리 전용 · 남은 날 '+S.admDays}</b><small>쓰는 곳 — 정해진 정리 · 지금 정리 · 기록 만들기${rest?' · 그동안은 규칙으로 되는 것만 넣는다':''}</small></span>${ac.step?'':`<button class="btn${rest?' pri':''}" data-a="admLoginStart" data-t="admLoginStart">${rest?'로그인 시작':'다시 로그인'}</button>`}</div>${flow}</div></div>`;
+}
+function admAgentCard(){
+ const old=Object.values(S.devices).flat().filter(d=>d.v&&d.v!==AG_LATEST);
+ return `<div class="card" data-t="admAgent"><div class="ch">에이전트 <small>팀 기본 스킬 판 ${AG_LATEST}</small></div><div class="cb small">옛 판으로 붙은 기기 ${old.length}${old.length?' — '+old.map(d=>esc(d.n)).join(' · '):''} · 그 기기에서 Claude Code 를 열면 저절로 최신으로</div></div>`;
 }
 
 // ── 지식 추가 ──
@@ -1156,19 +1851,69 @@ function modalHtml(){
 const ACT={
  nav(el){const s=el.dataset.s; if(s==='home') go({scr:'home',kn:'*'}); else if(s==='docs') go({scr:'docs',kn:S.route.kn,doc:null}); else go({scr:s,kn:['tidy','members'].includes(s)?S.route.kn:S.route.kn});},
  kmenu(el,ev){ if(ev.target.closest('.kmenu')) return; S.menu=S.menu==='kmenu'?null:'kmenu'; render();},
- pickKn(el){const k=el.dataset.k; S.menu=null; if(k==='*') go({scr:'home',kn:'*'}); else go({scr:['tidy','members'].includes(S.route.scr)&&KN(k).type==='team'?S.route.scr:'docs',kn:k});},
+ pickKn(el){const k=el.dataset.k; S.menu=null; if(k==='*') go({scr:'home',kn:'*'}); else go({scr:['tidy','members'].includes(S.route.scr)&&KN(k).type==='team'?S.route.scr:(['items','graph'].includes(S.route.scr)?S.route.scr:'docs'),kn:k});},
  openKn(el){const k=el.dataset.k; if(pcBlocked(k)){toast('내 PC 프로그램이 꺼져 있다 — 켜면 저절로 다시 열린다');return;} go({scr:'docs',kn:k});},
  allDocs(){S.route.all=true; render();},
- openDoc(el){go({scr:'docs',kn:el.dataset.k,doc:el.dataset.d});},
- backDocs(){go({scr:'docs',kn:S.route.kn,doc:null});},
- editDoc(){S.edit={kn:S.route.kn,doc:S.route.doc}; S.route.hl=null; render(); S._focus='edTx'; const t=$('#edTx'); if(t) t.focus();},
+ view(el){S.menu=null; setView(el.dataset.v);},
+ openDoc(el){openTab({kind:'doc',kn:el.dataset.k,ref:el.dataset.d,hl:el.dataset.h||null}); if(el.dataset.h) S._lit=true; render(); if(!el.dataset.h) scrollTopMain();},
+ openRec(el){openTab({kind:'rec',kn:el.dataset.k,ref:el.dataset.r}); render(); scrollTopMain();},
+ openItem(el){openTab({kind:'item',kn:el.dataset.k,ref:el.dataset.n}); render(); scrollTopMain();},
+ openAtt(el){openTab({kind:'att',kn:el.dataset.k,ref:el.dataset.v}); render(); scrollTopMain();},
+ itemToDoc(el){const it=itemByName(el.dataset.k,el.dataset.n); if(!it||!it.doc) return; openTab({kind:'doc',kn:el.dataset.k,ref:it.doc,hl:it.sec},{view:'docs'}); S._lit=true; render();},
+ actTab(el){const id=el.dataset.id; if(!tabOf(id)) return; if(S.split===id) S.split=S.active; S.active=id; const t=activeTab(); S.route.kn=t.kn; S.edit=null; if(!['docs','items'].includes(S.route.scr)) S.route.scr=t.kind==='item'?'items':'docs'; if(S.split===S.active) S.split=null; pushHist(); render(); scrollTopMain();},
+ closeTab(el){closeTab(el.dataset.id); render();},
+ closeSplit(){S.split=null; render();},
+ splitToggle(){toggleSplit();},
+ closeOthers(){S.tabs=S.tabs.filter(t=>t.id===S.active); S.split=null; S.menu=null; render();},
+ fold(el){const key=S.route.kn+':'+el.dataset.f; S.fold[key]=!S.fold[key]; render();},
+ foldKind(el){const kd=el.dataset.v; S.kfold[kd]=!kindFolded(S.route.kn,kd); render();},
+ moreTables(){S.tablesAll=true; render();},
+ itemFilt(el){const v=el.dataset.v; S.ifilt[v]=!S.ifilt[v]; render();},
+ scrollSec(el){const h=el.dataset.h, m=$('#app .main[data-t=main]'); const t=m&&[...m.querySelectorAll('.paper h2[data-sec]')].find(x=>x.dataset.sec===h); if(t){t.scrollIntoView({block:'start'}); t.classList.remove('flash'); void t.offsetWidth; t.classList.add('flash');}},
+ nbToggle(el,ev){ev.preventDefault(); S.nbOpen=!S.nbOpen; render();},
+ openGraph(el){const id=el.dataset.n, t=id.split(':')[0]; S.g.sel=id; S.g.f.depth=1; if(t==='r') S.g.f.rec=true; if(t==='s') S.g.f.src=true; if(t==='d') S.g.f.doc=true; if(t==='i') S.g.f.item=true; S.g.f.pend=false; go({scr:'graph',kn:S.route.kn});},
+ gSet(el){const v=el.dataset.v; S.g.f[v]=!S.g.f[v]; render();},
+ gDepth(el){S.g.f.depth=+el.dataset.v; render();},
+ gBundle(){S.g.bundle=!S.g.bundle; render();},
+ gUnsel(){S.g.sel=null; S.g.f.depth=0; render();},
+ gOpen(el){const k=S.route.kn, info=S.g.sel&&nodeInfo(k,S.g.sel); if(!info) return;
+  if(el.dataset.v==='docs'){ if(!info.doc) return; if(info.doc.rec) openTab({kind:'rec',kn:k,ref:info.doc.rec},{view:'docs'}); else {openTab({kind:'doc',kn:k,ref:info.doc.ref,hl:info.doc.hl||null},{view:'docs'}); if(info.doc.hl) S._lit=true;} }
+  else { if(!info.item) return; openTab({kind:'item',kn:k,ref:info.item},{view:'items'}); }
+  render(); if(!S._lit) scrollTopMain();},
+ gZoom(el){zoomAt({x:0,y:0},+el.dataset.v);},
+ gFit(){fitView(CURG); applyView();},
+ openQo(){openQo();},
+ qoClose(el,ev){ if(ev.target!==el) return; S.qo=null; render();},
+ qoPick(el){qoPick(+el.dataset.i);},
+ cmdClose(el,ev){ if(ev.target!==el) return; S.cmd=null; render();},
+ cmdPick(el){cmdPick(+el.dataset.i);},
+ histGo(el){histGo(+el.dataset.v);},
+ setTab(el){S.setTab=el.dataset.v; S.menu=null; if(S.route.scr!=='settings') go({scr:'settings'}); else render();},
+ claudeLogin(){claudeLogin();},
+ claudeRelogin(){claudeLogin();},
+ claudeOff(){S.claude.pc.state='out'; S.menu=null; toast('Claude 를 쓰지 않는다 — 정리 · 기록 만들기는 규칙으로 되는 것만'); render();},
+ admLoginStart(){S.admClaude={step:'pw'}; S._focus='admPw'; render();},
+ admPwOk(){const pw=$('#admPw'); if(!pw||!pw.value){S.admClaude={step:'pw',err:true}; render(); return;} S.admClaude={step:'wait'}; render(); setTimeout(()=>{if(S.admClaude.step==='wait'){S.admClaude={step:'code',code:''}; S._focus='admCodeIn'; render();}},900);},
+ admFlowCancel(){S.admClaude={step:null}; render();},
+ admDone(){const c=(S.admClaude.code||'').trim(); if(!c) return; S.admClaude={step:null}; S.cond.loginRest=false; S.admDays=365; bump();
+  addToday('lee',{tm:now(),kt:'team',dot:'acc',text:'정리 전용 Claude 로그인을 다시 했다 — 자동 정리가 다시 돈다',small:'관리 › Claude 연결 · 번호는 저장하지 않았다'});
+  toast('로그인했다 — 정리 전용 · 자동 정리가 다시 돈다'); render();},
+ copyUrl(){try{navigator.clipboard&&navigator.clipboard.writeText('https://claude.ai/oauth/authorize?code=true&state=mock-7f3a9c').catch(()=>{});}catch(e){} toast('주소를 복사했다 — 브라우저에서 연다');},
+ copyInstall(){const t='npx kmd-install --team http://kmd.team.local --once mock-3c7e'; try{navigator.clipboard&&navigator.clipboard.writeText(t).catch(()=>{});}catch(e){} toast('설치 한 줄을 복사했다 — 10분 동안 한 번만 · 작업 폴더의 터미널에 붙여 넣는다');},
+ agentAdd(){S.agent.adding=true; S.agent.draft=''; S.agent.msg=null; S._focus='agIn'; render();},
+ agentAddOk(){agentAdd();},
+ agentUp(el){const f=S.agent.folders.find(x=>x.name===el.dataset.v); if(!f) return; f.v=AG_LATEST; S.menu=null; toast('최신으로 — '+esc(f.name)+' · '+AG_LATEST+' · 사람이 고친 안내 줄은 그대로'); render();},
+ agentAllNew(){const n=S.agent.folders.filter(f=>f.v!==AG_LATEST).length; S.agent.folders.forEach(f=>f.v=AG_LATEST); S.menu=null; toast(n?'모두 최신으로 — 폴더 '+n+' 을 '+AG_LATEST+' 로':'이미 모두 최신이다'); render();},
+ agentRm(el){S.agent.folders=S.agent.folders.filter(x=>x.name!==el.dataset.v); S.menu=null; toast('뺐다 — '+esc(el.dataset.v)+' · 그 폴더의 kmd 블록 · 스킬 · 연결을 걷었다'); render();},
+ backDocs(){go({scr:'docs',kn:S.route.kn});},
+ editDoc(){const t=activeTab(); if(!t) return; S.edit={kn:t.kn,doc:t.ref,tab:t.id}; t.hl=null; render(); S._focus='edTx'; const x=$('#edTx'); if(x) x.focus();},
  cancelEdit(){S.edit=null; render();},
  saveDoc(){saveDoc();},
- openSearch(){S.pal={q:'',more:false}; render();},
- reopenSearch(){S.pal={q:S.route.q||'',more:false}; render();},
+ openSearch(){S.qo=null; S.cmd=null; S.pal={q:'',more:false}; render();},
+ reopenSearch(){const t=activeTab(); S.pal={q:(t&&t.q)||'',more:false}; render();},
  palClose(el,ev){ if(ev.target!==el) return; S.pal=null; render();},
  palMore(){S.pal.more=true; render();},
- palDocs(){S.pal=null; go({scr:'docs',kn:S.route.kn,doc:null});},
+ palDocs(){S.pal=null; go({scr:'docs',kn:S.route.kn});},
  palClear(){S.pal.q=''; S.pal.more=false; render();},
  openHit(el){const q=S.pal.q; S.pal=null; go({scr:'docs',kn:el.dataset.k,doc:el.dataset.d,hl:el.dataset.h,q});},
  toggleToday(el){S.openToday=S.openToday===el.dataset.id?null:el.dataset.id; render();},
@@ -1190,6 +1935,7 @@ const ACT={
  toggleRun(el,ev){ if(ev.target.closest('button,.menu')) return; const f=(S.runs[tidyKn()]||[]).find(r=>r.id===el.dataset.id); if(f){f.open=f.open===false; render();}},
  cmpRow(el){S.cmp=S.cmp===el.dataset.id?null:el.dataset.id; S.menu=null; render();},
  revertRow(el){const f=findRow(el.dataset.id); if(!f||f.r.reverted) return; revertEff(f.r.eff); f.r.reverted=true; S.menu=null;
+  if(f.r.src) S.recs[f.k]=(S.recs[f.k]||[]).filter(x=>x.id!==f.r.src.id);
   const back=Object.assign(clone(f.r.src||f.r),{id:uid(),tm:now(),small:'되돌린 것 — 다시 받은 것으로'}); delete back.reverted; delete back.applied; delete back.src; (S.inbox[f.k]=S.inbox[f.k]||[]).push(back);
   for(const pk in S.today) S.today[pk].forEach(t=>{if(t.link===f.r.id&&t.applied){t.applied=false;}});
   const pk=whoKey(f.r.who); if(pk&&pk!==personKey()) addToday(pk,{tm:now(),kt:'team',dot:'',text:P().who+'이 되돌렸다 — '+KN(f.k).name+' › '+f.r.target,small:'kmd 가 넣은 것을 넣기 전으로'});
@@ -1238,7 +1984,8 @@ function saveDoc(){
   toast('저장했다 — 문서에도 넣었다');
  } else {
   const id=uid(); const preview={}; newSecs.forEach(s=>{if(changed.includes(s.h)) preview[s.h]=s.b.slice(0,40)+(s.b.length>40?'…':'');});
-  const item={id,who:P().who,tm,title:d.title+' › '+changed.join(' · ')+' 고침',small:'팀 화면에서 남긴 기록',kind:'put',target:d.title+' › '+changed[0],eff:{type:'secs',kn:k,doc:d.id,before,after:newSecs}};
+  MEMO={}; const touches=changed.map(h=>{const it=itemOfSec(k,d.id,h); return it&&it.name;}).filter(Boolean);
+  const item={id,who:P().who,tm,title:d.title+' › '+changed.join(' · ')+' 고침',small:'팀 화면에서 남긴 기록',kind:'put',target:d.title+' › '+changed[0],touches,eff:{type:'secs',kn:k,doc:d.id,before,after:newSecs}};
   (S.inbox[k]=S.inbox[k]||[]).push(item);
   S.pending.push({id,kn:k,doc:d.id,tm,secs:changed,preview});
   addToday(personKey(),{tm,kt:'team',dot:'pend',text:KN(k).name+'에 기록 — '+d.title+' 「'+changed.join(' · ')+'」',small:'오늘 밤 '+KN(k).tidyAt+' 정리 때 문서에',go:{kn:k,doc:d.id,hl:changed[0]}});
@@ -1349,6 +2096,7 @@ function readEntries(entry,path,out){
 
 // ───────────── 이벤트 ─────────────
 document.addEventListener('click',ev=>{
+ MEMO={};
  const el=ev.target.closest('[data-a]');
  if(!el){ if(S.menu&&!ev.target.closest('.menu')){S.menu=null; render();} return;}
  if(el.dataset.self&&ev.target!==el) return;
@@ -1369,6 +2117,13 @@ document.addEventListener('input',ev=>{
  if(k==='pal'){S.pal.q=t.value; S.pal.more=false; $('#palBody').innerHTML=palBody();}
  if(k==='src'){S.srcDraft=t.value; const h=srcHeard(); $('#srcHeardBox').innerHTML=h.heard; $('#srcBtnBox').innerHTML=h.btn;}
  if(k==='add'){S.addDraft=t.value; const h=addHeard(); $('#addHeardBox').innerHTML=h.heard; $('#addBtnBox').innerHTML=h.btn; const m=$('[data-t=addMsg]'); if(m){S.addMsg=null; m.remove();}}
+ MEMO={};
+ if(k==='itemQ'){S.iq=t.value; $('#itemListBody').innerHTML=itemListBody(S.route.kn);}
+ if(k==='gQ'){S.g.f.q=t.value; gHighlight();}
+ if(k==='qo'){S.qo.q=t.value; S.qo.sel=0; $('#qoBody').innerHTML=qoBody();}
+ if(k==='cmd'){S.cmd.q=t.value; S.cmd.sel=0; $('#cmdBody').innerHTML=cmdBody();}
+ if(k==='ag'){S.agent.draft=t.value; $('#agBtnBox').innerHTML=agBtn();}
+ if(k==='admCode'){S.admClaude.code=t.value; $('#admDoneBox').innerHTML=admDoneBtn();}
 });
 document.addEventListener('change',ev=>{
  const t=ev.target;
@@ -1376,12 +2131,41 @@ document.addEventListener('change',ev=>{
  if(t.id==='evAt'){const m=S.menu&&S.menu.split(':')[1]; const s=S.sources.find(x=>x.id===m); if(s){s.every={t:'daily',at:t.value||'06:00'}; S.menu=null; toast(esc(s.name)+' — 이제 매일 '+s.every.at+' 가져온다'); render();}}
  if(t.dataset&&t.dataset.c){S.cond[t.dataset.c]=t.checked; onCond(t.dataset.c,t.checked); render();}
 });
+function listKeys(ev,st,bodyId,bodyFn,pick){
+ if(ev.key==='ArrowDown'||ev.key==='ArrowUp'){ev.preventDefault(); const n=(st.list||[]).length; if(n){st.sel=(st.sel+(ev.key==='ArrowDown'?1:-1)+n)%n; $('#'+bodyId).innerHTML=bodyFn(); const s=$('#'+bodyId+' .qr.sel'); if(s) s.scrollIntoView({block:'nearest'});} return true;}
+ if(ev.key==='Enter'){ev.preventDefault(); pick(st.sel); return true;}
+ return false;}
 document.addEventListener('keydown',ev=>{
- if((ev.ctrlKey||ev.metaKey)&&(ev.key==='k'||ev.key==='K')){ if(isTeam()&&!S.logged[S.persona]) return; ev.preventDefault(); S.pal={q:'',more:false}; render(); return;}
- if(ev.key==='Escape'){ if(S.pal){S.pal=null; render();} else if(S.modal){S.modal=null; render();} else if(S.menu){S.menu=null; render();} }
+ MEMO={};
+ const ctrl=ev.ctrlKey||ev.metaKey, low=String(ev.key).toLowerCase(), code=ev.code, locked=isTeam()&&!S.logged[S.persona]||(P().key==='kimPc'&&S.cond.pcOff);
+ if(S.qo&&ev.target.id==='qoIn'&&listKeys(ev,S.qo,'qoBody',qoBody,qoPick)) return;
+ if(S.cmd&&ev.target.id==='cmdIn'&&listKeys(ev,S.cmd,'cmdBody',cmdBody,cmdPick)) return;
+ if(ctrl&&!ev.altKey&&!locked){
+  if(low==='k'||code==='KeyK'){ev.preventDefault(); S.qo=null; S.cmd=null; S.pal={q:'',more:false}; render(); return;}
+  if(low==='o'||low==='t'||code==='KeyO'||code==='KeyT'){ev.preventDefault(); openQo(); return;}
+  if(low==='p'||code==='KeyP'){ev.preventDefault(); openCmd(); return;}
+  if(ev.key==='\\'||code==='Backslash'){ev.preventDefault(); toggleSplit(); return;}
+ }
+ if(ev.altKey&&!ctrl&&(ev.key==='ArrowLeft'||ev.key==='ArrowRight')&&!locked&&!/^(TEXTAREA|INPUT)$/.test(ev.target.tagName)){ev.preventDefault(); histGo(ev.key==='ArrowLeft'?-1:1); return;}
+ if(ev.key==='Escape'){ if(S.qo){S.qo=null; render();} else if(S.cmd){S.cmd=null; render();} else if(S.pal){S.pal=null; render();} else if(S.modal){S.modal=null; render();} else if(S.menu){S.menu=null; render();} }
  if(ev.key==='Enter'&&ev.target.id==='palIn'){const h=$('#app .hit'); if(h) h.click();}
  if(ev.key==='Enter'&&ev.target.id==='addIn'){const b=$('[data-t=addBtn]'); if(b&&!b.disabled) b.click();}
+ if(ev.key==='Enter'&&ev.target.id==='agIn'){ev.preventDefault(); agentAdd();}
+ if(ev.key==='Enter'&&ev.target.id==='admCodeIn'){const b=$('[data-t=admDone]'); if(b&&!b.disabled) b.click();}
+ if(ev.key==='Enter'&&ev.target.id==='admPw'){const b=$('[data-t=admPwOk]'); if(b) b.click();}
 });
+// 그래프 — 점 끌기 · 빈 곳 끌어 옮기기 · 휠 확대
+let GD=null;
+function svgPt(sv,ev,inner){const pt=sv.createSVGPoint(); pt.x=ev.clientX; pt.y=ev.clientY; return pt.matrixTransform((inner||sv).getScreenCTM().inverse());}
+document.addEventListener('pointerdown',ev=>{const sv=ev.target.closest&&ev.target.closest('#gsvg'); if(!sv||ev.button!==0) return; const nd=ev.target.closest('[data-node]'); GD={sv,node:nd?nd.dataset.node:null,sx:ev.clientX,sy:ev.clientY,moved:false,vx:S.g.view.x,vy:S.g.view.y}; if(!nd) sv.style.cursor='grabbing'; ev.preventDefault();});
+document.addEventListener('pointermove',ev=>{ if(!GD) return; const dx=ev.clientX-GD.sx, dy=ev.clientY-GD.sy; if(!GD.moved&&Math.hypot(dx,dy)<4) return; GD.moved=true;
+ if(GD.node){const p=svgPt(GD.sv,ev,$('#gview')), q=S.g.pos[GD.node]; if(q){q.x=p.x; q.y=p.y; q.fx=true;} simTick(CURG,0.3,GD.node); paintGraph();}
+ else {const m=GD.sv.getScreenCTM(); S.g.view.x=GD.vx+dx/m.a; S.g.view.y=GD.vy+dy/m.d; applyView();}});
+document.addEventListener('pointerup',()=>{ if(!GD) return; const g=GD; GD=null; g.sv.style.cursor=''; if(g.moved){ if(g.node) relax(g.node); return;} if(g.node) gClick(g.node);});
+document.addEventListener('wheel',ev=>{const sv=ev.target.closest&&ev.target.closest('#gsvg'); if(!sv) return; ev.preventDefault(); zoomAt(svgPt(sv,ev),Math.exp(-ev.deltaY*0.0015));},{passive:false});
+// 미리보기 카드
+document.addEventListener('mouseover',ev=>{const el=ev.target.closest&&ev.target.closest('[data-pv]'); if(!el) return; if(ev.relatedTarget&&el.contains(ev.relatedTarget)) return; clearTimeout(pvT); pvT=setTimeout(()=>showPv(el),250);});
+document.addEventListener('mouseout',ev=>{const el=ev.target.closest&&ev.target.closest('[data-pv]'); if(!el) return; if(ev.relatedTarget&&el.contains(ev.relatedTarget)) return; hidePv();});
 document.addEventListener('dragover',ev=>{const d=ev.target.closest&&ev.target.closest('#drop'); if(d){ev.preventDefault(); d.classList.add('over');}});
 document.addEventListener('dragleave',ev=>{const d=ev.target.closest&&ev.target.closest('#drop'); if(d) d.classList.remove('over');});
 document.addEventListener('drop',ev=>{const d=ev.target.closest&&ev.target.closest('#drop'); if(!d) return; ev.preventDefault(); d.classList.remove('over');
@@ -1392,10 +2176,12 @@ document.addEventListener('drop',ev=>{const d=ev.target.closest&&ev.target.close
 function onCond(c,on){
  if(c==='serverDown'&&!on&&S.sendWait){const w=S.sendWait; setTimeout(()=>finishSend(w.items,w.tm),600);}
 }
-document.querySelectorAll('#ctl [data-p]').forEach(b=>b.addEventListener('click',()=>{S.persona=b.dataset.p; S.pal=null; S.modal=null; S.menu=null; S.edit=null; S.pwErr=false; S.addMsg=null; S.route={scr:'home',kn:'*',doc:null,hl:null,q:null}; render();}));
-$('#reset').addEventListener('click',()=>{S=makeState(); T0=Date.now(); $('#toastHost').innerHTML=''; render();});
+document.querySelectorAll('#ctl [data-p]').forEach(b=>b.addEventListener('click',()=>{S.persona=b.dataset.p; S.pal=null; S.modal=null; S.menu=null; S.edit=null; S.pwErr=false; S.addMsg=null; S.qo=null; S.cmd=null;
+ S.tabs=[]; S.active=null; S.split=null; S.hist=[]; S.hpos=-1; S.g.sel=null; S.g.f.depth=0; S.setTab='gen'; S.admClaude={step:null}; S.agent.adding=false; S.agent.msg=null;
+ S.route={scr:'home',kn:'*',q:null}; pushHist(); render();}));
+$('#reset').addEventListener('click',()=>{S=makeState(); T0=Date.now(); $('#toastHost').innerHTML=''; pushHist(); render();});
 setInterval(()=>{const s=$('#app .status .r'); if(s) s.textContent='kmd v1.13 · 10-22(목) '+now();},15000);
-render();
+pushHist(); render();
 </script>
 </body>
 </html>
