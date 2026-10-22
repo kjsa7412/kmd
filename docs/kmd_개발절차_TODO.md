@@ -47,17 +47,18 @@ E0 백업 ─ E1 고침판·권한 ─ E2 들어가기·기기 열쇠 ─ E3 찾
 
 ### E0 백업이 조용히 멈추지 않는다(v0.5 §4 · L0)
 
-- [ ] 상태 파일 `<data>/backup/<지식>.json { url, branch, pushed, at }` — `core/mirror.js`
-- [ ] 판정은 `ls-remote` 로 본 원격 sha — ok · lag · gone · rewound · behind · moved(`core/git.js` 의 `ahead===0 → skipped` 걷기)
-- [ ] push 대상 명시 `HEAD:refs/heads/<가지>` · 다시 보내기(1 · 5 · 15 · 60분 · 그 뒤 시간마다) · 시작할 때 한 번 · 매일
-- [ ] 「붙인 백업에만 민다」 — 받아 온 원격은 백업이 아니다(F5 · `ctx-up.mjs` 의 미러 저절로 켜짐 고침)
-- [ ] behind · moved 면 그 지식의 save 를 닫는다(`E_BEHIND` · 읽기만) · [백업에서 받기] (ff 만 · 받은 머리를 check)
-- [ ] 나이 경보 6시간 warn · 24시간 bad — 화면 띠 · 콘솔 · healthz · **MCP save 응답 warnings · 세션 시작 brief**
-- [ ] 뒤에서 도는 git 에 `GIT_TERMINAL_PROMPT=0` · `GCM_INTERACTIVE=never`(F6)
-- [ ] **「멈춤 한 줄」 부품** — 틀 「무엇이 · 얼마나 — 풀리는 길 / 누구에게 알렸다」 하나(뒤 판은 줄 종류만 더한다)
-- [ ] upgrade 의 「지금 원격을 백업으로 적기」(원격이 HEAD 의 조상 · 같을 때만)
+- [x] 상태 파일 `<data>/backup/<지식>.json { url, branch, pushed, at }` — `core/mirror.js`
+- [x] 판정은 `ls-remote` 로 본 원격 sha — ok · lag · gone · rewound · behind · moved(`core/git.js` 의 `ahead===0 → skipped` 걷기)
+- [x] push 대상 명시 `HEAD:refs/heads/<가지>` · 다시 보내기(1 · 5 · 15 · 60분 · 그 뒤 시간마다) · 시작할 때 한 번 · 매일
+- [x] 「붙인 백업에만 민다」 — 받아 온 원격은 백업이 아니다(F5 · `ctx-up.mjs` 의 미러 저절로 켜짐 고침)
+- [x] behind · moved 면 그 지식의 save 를 닫는다(`E_BEHIND` · 읽기만) · [백업에서 받기] (ff 만 · 받은 머리를 check)
+- [x] 나이 경보 6시간 warn · 24시간 bad — 화면 띠 · 콘솔 · healthz · **MCP save 응답 warnings · 세션 시작 brief**
+- [x] 뒤에서 도는 git 에 `GIT_TERMINAL_PROMPT=0` · `GCM_INTERACTIVE=never`(F6)
+- [x] **「멈춤 한 줄」 부품** — 틀 「무엇이 · 얼마나 — 풀리는 길 / 누구에게 알렸다」 하나(뒤 판은 줄 종류만 더한다)
+- [x] upgrade 의 「지금 원격을 백업으로 적기」(원격이 HEAD 의 조상 · 같을 때만)
 - 시험: gone 두 장면 → 다시 밀고 bad · 끊김 뒤 다시 보내기 → 원격 = HEAD · 옛 커밋으로 되감은 집 시작 → `E_BEHIND` · 다른 kmd 가 민 백업 → moved · 상태 파일 없는 clone → push 0
 - 끝: 위 시험 + 하네스 · 사람 실측 — 실서버 upgrade(먼저 doctor)
+- **됨** — CDP `6858e87` · `test/backup.test.mjs` 13 · 하네스 ✓119 ✗0(93 · 94 를 새 판정으로 · 140 새로)
 
 ### E1 고침판 · 권한(v0.6 L1 · v0.5 L1)
 
@@ -240,4 +241,4 @@ E0 백업 ─ E1 고침판·권한 ─ E2 들어가기·기기 열쇠 ─ E3 찾
 
 | 판 | 커밋 | 권장안으로 정한 것 · 남은 것 |
 |---|---|---|
-| | | |
+| E0 | CDP `6858e87` | **정한 것** — 코드 이름은 `core/mirror.js` 그대로 두고 뜻을 「붙인 백업」 으로 바꿈(상태 이름 diverged → moved · 옛 집계 칸 `diverged` 는 moved 수로 남김) · 서버 `--mirror`(serve.json `mirror`)는 「시작할 때 지금 원격을 백업으로 적기」 로 뜻을 바꿔 실서버 설정을 그대로 살림 · 상태 파일이 없으면 `<data>` 가 없는 서버도 메모리로만 붙음 · 「다른 kmd」 문구는 P5 전이라 「다른 서버」 · lag 의 빠른 실패 하나는 조용(나이 6시간부터 줄) · gone · rewound 는 다시 올린 뒤 하루 bad · 받은 머리가 검사 오류를 **새로** 만들면 `reset --hard` 로 되돌림(받기 전 상태 · 아무에게도 안 간 것) · 콘솔 「다시 보내기」 는 아직 백업이 아니면 지금 원격을 적고 민다 · 레포를 치우면 상태 파일도 지움 · ls-remote 상한 10초(`CDP_BACKUP_LS_MS`) · 하네스 139 가 Windows 에서 실제 `%APPDATA%\cdp` 에 쓰던 틈을 막음. **남은 것** — 백업 자리가 없는 지식의 「50건 · 7일」 warn 한 줄(v0.5 §4.2 끝)은 화면 줄(S1 띠)과 같이 · 폴더 밖 이력 되살리기 · [이 백업 이어 쓰기] 는 E9 · 밤 묶음 · 데이터 tar 는 설명서(E9). **사람** — 실서버 upgrade(먼저 `cdp serve doctor` — 원격이 앞선 레포는 「백업에서 받기」 뒤 `cdp serve backup adopt`) · 판 올림 · 태그 · push |
