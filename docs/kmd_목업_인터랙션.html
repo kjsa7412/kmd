@@ -1,0 +1,1401 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kmd 목업 인터랙션</title>
+<style>
+:root{
+  --bg:#f6f7f9;--surface:#fff;--surface-2:#f1f3f7;--surface-3:#e6eaf0;--border:#e2e6ed;--border-strong:#c9d1dd;
+  --text:#11151c;--text-2:#515a68;--text-3:#858e9d;--accent:#3358e6;--accent-bg:#e9eeff;--accent-line:#c3d0fb;
+  --danger:#cb3a2c;--danger-bg:#fdeceb;--warn:#8c5c00;--warn-bg:#fcf3e0;--pending:#6247c4;--pending-bg:#efedfd;
+  --shadow-1:0 1px 2px rgba(15,23,42,.05),0 1px 3px rgba(15,23,42,.07);
+  --shadow-2:0 2px 6px -1px rgba(15,23,42,.08),0 14px 32px -8px rgba(15,23,42,.18);
+  --font:Pretendard,-apple-system,"Segoe UI",system-ui,"Malgun Gothic",sans-serif;
+  --mono:Consolas,"Cascadia Mono",D2Coding,"Malgun Gothic",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#dfe3ea;color:var(--text);font:13px/1.55 var(--font)}
+button,input,textarea,select{font:inherit}
+a{color:var(--accent);cursor:pointer}
+
+/* ── 목업 조종판(앱 밖) ── */
+.ctl{position:sticky;top:0;z-index:50;background:#1b2130;color:#cfd6e4;display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;padding:7px 16px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.ctl .ttl{color:#fff;font-size:12.5px;white-space:nowrap}
+.ctl .ttl small{color:#8fa6ff;font-weight:400;margin-left:4px}
+.ctl .grp{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.ctl .lb{color:#8f9bb3;margin-right:2px;white-space:nowrap}
+.ctl button{background:#2a3246;border:1px solid #3a4560;color:#cfd6e4;border-radius:6px;padding:3px 9px;cursor:pointer;font-size:12px;white-space:nowrap}
+.ctl button:hover{background:#343e57}
+.ctl button.on{background:#3358e6;border-color:#3358e6;color:#fff}
+.ctl label{display:inline-flex;align-items:center;gap:4px;background:#2a3246;border:1px solid #3a4560;border-radius:6px;padding:2px 8px;cursor:pointer;white-space:nowrap}
+.ctl label.on{background:#5a4210;border-color:#a07a24;color:#ffe2a6}
+.ctl input{margin:0;accent-color:#f0c060}
+.ctl .rs{background:transparent;border-color:#5a6680}
+.stage{padding:16px}
+
+/* 아이콘 기본 크기(구체적인 규칙이 이긴다) */
+:where(.app) svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;flex:none}
+.search span{white-space:nowrap}
+/* ── 앱 프레임 ── */
+.app{max-width:1240px;margin:0 auto;background:var(--bg);border:1px solid var(--border-strong);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,.18);display:flex;min-height:calc(100vh - 90px);position:relative}
+.col{flex:1;min-width:0;display:flex;flex-direction:column}
+.body{flex:1;display:flex;min-height:0;min-width:0}
+.main{flex:1;padding:18px 22px;overflow:auto;min-width:0}
+.aside{width:300px;flex:none;border-left:1px solid var(--border);background:var(--surface);padding:14px;overflow:auto}
+.aside h4{margin:2px 0 10px;font-size:13px}
+.side{width:236px;flex:none;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:12px 10px}
+.side.dim .nav{opacity:.45;pointer-events:none}
+.sb-top{display:flex;align-items:center;gap:8px;padding:2px 6px 10px}
+.logo{width:22px;height:22px;border-radius:6px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;font-size:12px;flex:none}
+.logo.me{background:#11151c}
+.brand{font-weight:700;font-size:15px}
+.where{font-size:11px;color:var(--text-3);margin:-6px 6px 10px}
+.sb-repo{display:flex;align-items:center;gap:8px;border:1px solid var(--border-strong);border-radius:10px;padding:8px 10px;margin-bottom:8px;cursor:pointer;position:relative;background:var(--surface)}
+.sb-repo:hover{background:var(--surface-2)}
+.sb-repo .rk{font:700 10.5px var(--mono);background:var(--accent-bg);color:var(--accent);border-radius:5px;padding:2px 5px;white-space:nowrap}
+.sb-repo .rn{font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-repo .rn small{display:block;font:400 10.5px var(--font);color:var(--text-3)}
+.sb-repo .rc{color:var(--text-3)}
+.kmenu{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-2);padding:6px;z-index:9}
+.kmenu .mi{padding:6px 8px;border-radius:6px;display:flex;gap:6px;align-items:center;font-size:12.5px;cursor:pointer}
+.kmenu .mi:hover{background:var(--surface-2)}
+.sb-g{font-size:11.5px;color:var(--text-3);margin:12px 8px 4px}
+.sb-i{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;color:var(--text);font-size:13px;cursor:pointer;white-space:nowrap}
+.sb-i:hover{background:var(--surface-2)}
+.sb-i.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.sb-i svg{width:17px;height:17px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;color:var(--text-2)}
+.sb-i.on svg{color:var(--accent)}
+.sb-i .bd{margin-left:auto;background:var(--pending-bg);color:var(--pending);font-size:11px;font-weight:700;border-radius:999px;padding:0 7px}
+.sb-i.deco{cursor:default;color:var(--text-2)}
+.sb-foot{margin-top:auto;border-top:1px solid var(--border);padding-top:8px}
+.sb-me{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px}
+.sb-me .av{width:24px;height:24px;border-radius:50%;background:var(--surface-3);color:var(--text-2);display:grid;place-items:center;font-weight:700;font-size:11px;flex:none}
+.sb-me small{color:var(--text-3)}
+.hdr{height:46px;display:flex;align-items:center;gap:10px;padding:0 14px;background:var(--surface);border-bottom:1px solid var(--border)}
+.crumb{font-size:13px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.crumb b{color:var(--text);font-weight:600}
+.search{margin-left:auto;flex:0 1 220px;min-width:110px;height:30px;border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;padding:0 10px;color:var(--text-3);font-size:12px;cursor:text;background:var(--surface)}
+.search:hover{border-color:var(--border-strong)}
+.band{display:flex;align-items:center;gap:10px;padding:6px 14px;font-size:12px;border-bottom:1px solid var(--border);background:var(--surface-2);color:var(--text-2);flex-wrap:wrap;row-gap:4px}
+.band .who{font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px;white-space:nowrap}
+.band .who i{width:8px;height:8px;border-radius:50%;background:#11151c;display:inline-block}
+.band.team .who i{background:var(--accent)}
+.band .out{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.status{height:26px;display:flex;align-items:center;gap:14px;padding:0 12px;font-size:11.5px;color:var(--text-2);background:var(--surface);border-top:1px solid var(--border)}
+.status .r{margin-left:auto}
+
+/* ── 부품 ── */
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap;vertical-align:1px}
+.c-warn{background:var(--warn-bg);color:var(--warn)}
+.c-pend{background:var(--pending-bg);color:var(--pending)}
+.c-mute{background:var(--surface-3);color:var(--text-2)}
+.c-acc{background:var(--accent-bg);color:var(--accent)}
+.c-danger{background:var(--danger-bg);color:var(--danger)}
+.btn{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 11px;border-radius:7px;border:1px solid var(--border-strong);background:var(--surface);font-size:12px;cursor:pointer;color:var(--text);white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn.pri:hover{background:#2a4bd0}
+.btn.sm{height:24px;padding:0 8px;font-size:11.5px}
+.btn[disabled]{opacity:.45;cursor:default}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1);margin-bottom:14px}
+.card .ch{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);font-weight:700;flex-wrap:wrap}
+.card .ch small{font-weight:400;color:var(--text-3)}
+.card .ch .r{margin-left:auto;display:flex;gap:6px;align-items:center}
+.card .cb{padding:12px 14px}
+.card .cf{display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid var(--border);font-size:12px;color:var(--text-3);flex-wrap:wrap}
+.row{display:flex;align-items:center;gap:8px}
+.r{margin-left:auto}
+.muted{color:var(--text-3)}
+.small{font-size:11.5px}
+.mono{font-family:var(--mono)}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:6px 10px;font-size:12.5px}
+.kv>span:nth-child(odd){color:var(--text-3)}
+.kv small{display:block;color:var(--text-3);font-size:11.5px}
+table.t{border-collapse:collapse;width:100%;font-size:12.5px;margin:4px 0}
+table.t th,table.t td{border-bottom:1px solid var(--border);padding:7px 9px;text-align:left;vertical-align:middle}
+table.t th{background:var(--surface-2);color:var(--text-2);font-weight:600;font-size:12px}
+table.t td small{display:block;color:var(--text-3);font-size:11.5px;font-weight:400}
+code{font:12px var(--mono);background:var(--surface-2);padding:1px 5px;border-radius:4px;color:var(--text)}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin:-2px 0 12px}
+.tabs span{padding:7px 12px;font-size:12.5px;color:var(--text-2);border-bottom:2px solid transparent}
+.tabs span.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.tabs .ord{margin-left:auto;font-size:12px;color:var(--text-3);border-bottom:0}
+.field{margin-bottom:12px}
+.field label{display:block;font-weight:600;font-size:12.5px;margin-bottom:4px}
+.field .hint{font-size:11.5px;color:var(--text-3);margin-top:3px}
+.inp{width:100%;min-height:32px;border:1px solid var(--border-strong);border-radius:7px;padding:5px 10px;font-size:12.5px;background:#fff;color:var(--text)}
+.inp:focus{outline:2px solid var(--accent-line);border-color:var(--accent)}
+.inp.af{background:#e8f0fe;border-color:#b9cdf6;font-family:var(--mono)}
+.inp.mono{font-family:var(--mono)}
+.callout{background:var(--accent-bg);border:1px solid var(--accent-line);border-radius:8px;padding:9px 12px;font-size:12.5px;color:#22389c;margin:8px 0}
+.callout.warn{background:var(--warn-bg);border-color:#ecd39c;color:var(--warn)}
+.callout.danger{background:var(--danger-bg);border-color:#efb7b1;color:var(--danger)}
+.callout.pend{background:var(--pending-bg);border-color:#d9d2fb;color:var(--pending)}
+.callout.gray{background:var(--surface-2);border-color:var(--border);color:var(--text-2)}
+.stop{display:flex;align-items:center;gap:10px;margin:0 0 12px}
+.stop i{width:8px;height:8px;border-radius:50%;background:#d39a2c;flex:none}
+.stop.gray i{background:var(--text-3)}
+.stop .r{font-size:11.5px;opacity:.85;white-space:nowrap}
+.paper{border:1px solid var(--border);border-radius:10px;padding:16px 20px;background:#fff}
+.paper h1{font-size:20px;margin:0 0 6px}
+.paper h2{font-size:16px;margin:18px 0 6px;display:flex;align-items:center;gap:8px}
+.paper p{margin:6px 0;color:#262c36}
+.path{font:11.5px var(--mono);color:var(--text-3);background:var(--surface-2);padding:5px 10px;border-radius:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.path .r{font-family:var(--font)}
+.big{font-size:20px;font-weight:700;margin:2px 0 4px}
+.lead{color:var(--text-2);margin:0 0 14px}
+.kt{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;border-radius:5px;padding:1px 6px;white-space:nowrap}
+.kt.me{background:#11151c;color:#fff}
+.kt.team{background:var(--accent-bg);color:var(--accent)}
+.kt.role{background:var(--surface);color:var(--text-2);border:1px solid var(--border-strong);font-weight:500}
+.kt.src{background:var(--surface);border:1px solid var(--border-strong);color:var(--text-2);font-weight:500}
+.kn{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:1px 8px;white-space:nowrap}
+.kn.none{color:var(--text-3);border-style:dashed}
+.plain{list-style:none;margin:0;padding:0}
+.plain li{display:flex;align-items:center;gap:10px;padding:9px 2px;border-top:1px solid var(--border);font-size:12.5px}
+.plain li:first-child{border-top:0}
+.kebab{width:26px;height:26px;border-radius:7px;border:1px solid transparent;background:none;color:var(--text-2);font-size:16px;line-height:1;cursor:pointer;display:inline-grid;place-items:center;flex:none;position:relative}
+.kebab:hover,.kebab.on{background:var(--surface-2);border-color:var(--border)}
+.menu{position:absolute;z-index:20;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-2);padding:6px;min-width:220px;font-size:12.5px;text-align:left;color:var(--text);font-weight:400;line-height:1.5}
+.menu .mi{padding:7px 10px;border-radius:6px;display:flex;gap:8px;align-items:center;cursor:pointer;white-space:nowrap}
+.menu .mi:hover{background:var(--surface-2)}
+.menu .mi small{margin-left:auto;color:var(--text-3);font-size:11px}
+.menu .mi.on{color:var(--accent);font-weight:600}
+.menu .sep{border-top:1px solid var(--border);margin:4px 2px}
+.menu .gray{font-size:11.5px;color:var(--text-3);padding:6px 10px 4px;white-space:normal;max-width:280px}
+.menu input[type=time]{border:1px solid var(--border-strong);border-radius:5px;padding:0 4px;font:12px var(--mono)}
+details.more{border-top:1px dashed var(--border-strong);margin-top:12px;padding-top:8px}
+details.more>summary{cursor:pointer;color:var(--text-3);font-size:12px;list-style:none}
+details.more>summary::before{content:"▸ "}
+details.more[open]>summary::before{content:"▾ "}
+details.more>summary::-webkit-details-marker{display:none}
+details.more>.in{padding:8px 0 2px;font-size:12.5px;color:var(--text-2)}
+.sw{display:inline-block;width:34px;height:20px;border-radius:999px;background:var(--border-strong);position:relative;flex:none;vertical-align:middle;cursor:pointer;border:0;padding:0}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:var(--shadow-1);transition:left .15s}
+.sw.on{background:var(--accent)}
+.sw.on::after{left:16px}
+.drop{border:2px dashed var(--border-strong);border-radius:12px;padding:18px 16px;text-align:center;color:var(--text-2);background:var(--surface);font-size:12px;transition:background .1s}
+.drop.over{background:var(--accent-bg);border-color:var(--accent)}
+.drop b{display:block;font-size:13.5px;color:var(--text);margin-bottom:4px}
+.drop .lks{margin-top:6px;font-size:12px}
+.drop .lks label{color:var(--accent);font-weight:600;cursor:pointer}
+.drop input{display:none}
+.lk{color:var(--accent);cursor:pointer;font-weight:600}
+.lk.q{color:var(--text-3);font-weight:500}
+.gl{font-size:11.5px;color:var(--text-3);margin:8px 2px 0;line-height:1.7}
+.hint{font-size:11.5px;color:var(--text-3);margin-top:8px;line-height:1.7}
+
+/* 토스트 · 대화 상자 */
+.toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);background:#11151c;color:#fff;border-radius:10px;padding:10px 14px;font-size:12.5px;display:flex;gap:14px;align-items:center;box-shadow:var(--shadow-2);z-index:60;max-width:calc(100vw - 32px)}
+.toast a{color:#9fb4ff;font-weight:600}
+.scrim{position:absolute;inset:0;background:rgba(15,23,42,.32);display:grid;place-items:center;z-index:30}
+.modal{background:var(--surface);border-radius:12px;box-shadow:var(--shadow-2);width:min(520px,92%);overflow:hidden}
+.win .tb{display:flex;align-items:center;gap:8px;padding:7px 8px 7px 12px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:12px;color:var(--text-2)}
+.win .tb .logo{width:18px;height:18px;font-size:10px;border-radius:4px}
+.win .tb b{color:var(--text)}
+.win .tb .x{margin-left:auto;border:0;background:none;font-size:16px;color:var(--text-3);cursor:pointer}
+.win .wb{padding:14px 16px}
+.win .ask{font-size:14.5px;font-weight:700;line-height:1.45;margin:0 0 10px}
+.win .ask b{color:var(--accent)}
+.win .what{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:var(--surface-2);border-radius:8px;padding:8px 10px;font-size:12.5px}
+.win .what .p{font:12px var(--mono);color:var(--text-2)}
+.win .only{margin:10px 0 0;color:var(--text-2);font-size:12.5px}
+.win .wf{display:flex;justify-content:flex-end;gap:8px;padding:9px 16px;border-top:1px solid var(--border)}
+
+/* 들어가기 */
+.gatewrap{display:flex;align-items:center;justify-content:center;padding:40px 20px}
+.gate{width:min(450px,100%)}
+.gate .cb{padding:24px 26px 16px}
+.gate .mk{width:38px;height:38px;border-radius:10px;background:var(--surface-2);border:1px solid var(--border);display:grid;place-items:center;margin:0 0 12px}
+.gate .mk svg{width:20px;height:20px;stroke:var(--text-2);fill:none;stroke-width:1.7}
+.gate .btn.pri{width:100%;justify-content:center;height:38px;font-size:13px}
+.gate .links{margin-top:14px;padding-top:10px;border-top:1px dashed var(--border-strong);font-size:12px;color:var(--text-3)}
+
+/* 지식 목록 */
+.top{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}
+.top .acts{margin-left:auto;display:flex;gap:8px;margin-top:4px}
+.krow{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--border);cursor:pointer}
+.krow:first-child{border-top:0}
+.krow:hover{background:#fafbfd}
+.krow .nm{font-weight:700;width:250px;flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:0 6px;min-width:0}
+.krow .nm small{flex-basis:100%;font:400 11px var(--mono);color:var(--text-3)}
+.krow .meta{color:var(--text-3);font-size:12px;flex:1;min-width:0}
+.krow .rr{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.krow .dst{font-size:11.5px;color:var(--text-3);white-space:nowrap}
+.krow.dim{opacity:.42}
+.krow.new{animation:flash 1.6s}
+@keyframes flash{0%{background:var(--accent-bg)}100%{background:transparent}}
+.tl{display:flex;align-items:center;gap:16px;margin:2px 2px 0;font-size:12px;color:var(--text-3);flex-wrap:wrap}
+.tl a{font-weight:600}
+
+/* 문서 목록 */
+.wait{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--pending);background:var(--pending-bg);border:1px solid #d9d2fb;border-radius:8px;padding:7px 12px;margin:0 0 10px;flex-wrap:wrap}
+.wait i{width:7px;height:7px;border-radius:50%;background:var(--pending);flex:none}
+.dl li{padding:7px 2px;cursor:pointer}
+.dl li:hover{background:#fafbfd}
+.dl li .di{width:16px;height:16px;flex:none;fill:none;stroke:var(--text-3);stroke-width:1.6;stroke-linejoin:round}
+.dl li .nm{flex:1;min-width:0;font-weight:500;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dl li .nm small{color:var(--text-3);font-weight:400;font-size:11.5px}
+.dl li .chip{font-size:10.5px;padding:0 6px}
+.dl li .when{width:84px;flex:none;color:var(--text-2);font-size:12px;text-align:right}
+.dl li .when.td{color:var(--accent)}
+.dl li.more{color:var(--accent);font-size:12px;justify-content:center;font-weight:600}
+
+/* 읽기 · 고치기 */
+.ttl{display:flex;align-items:center;gap:8px;margin:0 0 8px}
+.ttl .path{flex:1;min-width:0}
+.found{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--text-2);margin:0 0 10px;flex-wrap:wrap}
+.found b{color:var(--text)}
+.found a{margin-left:auto;white-space:nowrap}
+.lit{position:relative;background:#eef3fc;border-radius:6px;padding:4px 10px;margin:0 -10px}
+.lit .tag{position:absolute;right:8px;top:-9px;font-size:10.5px;background:#fff;border:1px solid #c9d6f3;color:var(--text-2);border-radius:999px;padding:0 7px}
+.hc{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0 2px;font-size:11.5px;color:var(--text-3)}
+.hchip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);border-radius:999px;padding:1px 9px;font-size:11.5px;white-space:nowrap}
+.hchip.tidy{color:var(--warn);border-color:#ecd39c;background:#fff;font-weight:600}
+.penrec{display:flex;gap:6px;align-items:flex-start;margin:6px 0;padding:6px 9px;border-radius:7px;background:var(--pending-bg);color:var(--pending);font-size:12px}
+.penrec i{width:6px;height:6px;border-radius:50%;background:var(--pending);flex:none;margin-top:6px}
+.auto{border:1.5px solid var(--border-strong);border-radius:8px;margin:8px 0;overflow:hidden;background:#fff}
+.auto .ah{display:block;padding:5px 10px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:11.5px;color:var(--text-2)}
+.auto .ah b{color:var(--text)}
+.auto table.t{margin:0}
+.auto table.t td,.auto table.t th{padding:4px 10px}
+.auto .lkl{display:flex;align-items:center;gap:6px;padding:5px 10px;font-size:11.5px;color:var(--text-2);border-top:1px dashed var(--border-strong);background:var(--surface-3)}
+.auto.lock{background:var(--surface-2);user-select:none}
+.auto.lock table.t td{color:var(--text-3);background:var(--surface-2)}
+.auto td.chg{background:var(--accent-bg)!important;color:var(--accent)!important;font-weight:600}
+.ed{border:1px solid var(--accent-line);border-radius:10px;padding:10px 12px;margin:8px 0 4px;background:#fbfcff}
+.ed .lbl{font-size:12px;color:var(--text-3);margin:0 0 6px}
+.ed .lbl b{color:var(--accent)}
+.toolbar{display:flex;gap:4px;padding:4px;border:1px solid var(--border);border-bottom:0;border-radius:8px 8px 0 0;background:var(--surface-2)}
+.toolbar span{font-size:11.5px;padding:2px 8px;border-radius:5px;color:var(--text-2)}
+.ed textarea{width:100%;min-height:300px;border:1px solid var(--border-strong);border-radius:0 0 8px 8px;padding:10px 12px;font:13px/1.7 var(--font);resize:vertical;background:#fff}
+.ed .lockh{font-size:11.5px;color:var(--text-3);margin:10px 0 2px}
+
+/* 찾기 */
+.pscrim{position:absolute;inset:0;background:rgba(15,23,42,.16);z-index:30;display:flex;justify-content:center;align-items:flex-start;padding:52px 16px 16px}
+.pal{width:min(682px,100%);max-height:calc(100% - 20px);overflow:auto;background:var(--surface);border:1px solid var(--border-strong);border-radius:12px;box-shadow:0 18px 48px rgba(15,23,42,.28);font-size:12.5px}
+.pal .pin{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface)}
+.pal .pin svg{width:16px;height:16px;stroke:var(--text-3);fill:none;stroke-width:1.8;flex:none}
+.pal .pin input{flex:1;border:0;outline:0;font-size:14px;padding:4px 0;min-width:0;background:transparent}
+.pal .pin .r{font-size:11.5px;color:var(--text-3);white-space:nowrap}
+.pal .g{padding:10px 14px 4px;font-size:12px;font-weight:700;color:var(--text-2)}
+.pal .hit{margin:4px 10px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);cursor:pointer}
+.pal .hit:hover,.pal .hit.sel{border-color:var(--accent-line);background:#f7f9ff}
+.pal .ht{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pal .ht b{font-weight:700}
+.pal .ht .r{margin-left:auto;font-size:11px;color:var(--text-3)}
+.tg{font-size:10.5px;font-weight:600;border-radius:5px;padding:0 6px;background:var(--surface-3);color:var(--text-2);white-space:nowrap}
+.tg.kmd{background:transparent;border:1px solid var(--text-3);color:var(--text);padding:0 5px}
+.tg.nm{background:transparent;border:1px dashed var(--border-strong);color:var(--text-2);padding:0 5px}
+.pal .tx{margin-top:4px;font-size:12px;color:#262c36;line-height:1.6}
+.pal mark{background:#fff1b8;color:inherit;border-radius:3px;padding:0 1px}
+.pal .ft{display:flex;align-items:center;gap:8px;padding:9px 14px;border-top:1px solid var(--border);font-size:12px;color:var(--text-2);margin-top:6px}
+.pal .empty{margin:12px 14px;padding:12px 14px;border-radius:8px;background:var(--surface-2);color:var(--text-2);font-size:12px;line-height:1.7}
+.pal .empty b{display:block;color:var(--text);font-size:13px}
+.pal .empty a{font-weight:600;margin-right:12px}
+.pal .tip{padding:12px 14px;color:var(--text-3);font-size:12px}
+
+/* 오늘 바뀐 것 */
+.feed{border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden;margin-bottom:14px}
+.feed .fh{padding:9px 14px;font-weight:700;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.feed .fh small{font-weight:400;color:var(--text-3)}
+.fi{border-top:1px solid var(--border);font-size:12.5px}
+.feed .fh+.fi{border-top:0}
+.fi .ln{display:flex;align-items:center;gap:10px;padding:9px 14px}
+.fi .tm{font:11.5px/1.35 var(--mono);color:var(--text-3);width:44px;flex:none}
+.fi .dot{width:8px;height:8px;border-radius:50%;background:var(--border-strong);flex:none}
+.fi .dot.acc{background:var(--accent)}.fi .dot.pend{background:var(--pending)}.fi .dot.warn{background:#d39a2c}.fi .dot.bad{background:var(--danger)}
+.fi .tx{flex:1;min-width:0}
+.fi .tx small{display:block;color:var(--text-3);font-size:11.5px}
+.fi .tx .kt{margin-right:3px;vertical-align:1px}
+.fi .act{margin-left:auto;font-size:12px;color:var(--accent);white-space:nowrap;cursor:pointer;font-weight:600}
+.fi.yl .tx b{color:var(--warn);font-weight:700}
+.fi.yl .tm{color:var(--warn)}
+.fi.done .tx b{color:var(--text-3)}
+.fi ul.sub{list-style:none;margin:3px 0 0;padding:0}
+.fi ul.sub li{padding-left:12px;font-size:12px;color:var(--text-2);position:relative}
+.fi ul.sub li::before{content:"·";position:absolute;left:3px}
+.fi .open{padding:2px 14px 12px 78px}
+.diff{border:1px solid var(--border);border-radius:8px;font:12px/1.7 var(--font);overflow:hidden;background:#fff;margin:6px 0}
+.diff .fh{background:var(--surface-2);padding:5px 10px;font:600 12px var(--font);color:var(--text-2);border-bottom:1px solid var(--border)}
+.diff .ln2{padding:0 10px;white-space:pre-wrap}
+.diff .ln2::before{content:" ";display:inline-block;width:14px;color:var(--text-3)}
+.diff .add{background:var(--accent-bg)}
+.diff .add::before{content:"+";color:var(--accent)}
+.diff .del{background:var(--surface-2);color:var(--text-3);text-decoration:line-through}
+.diff .del::before{content:"−"}
+
+/* 정리 */
+.go{display:flex;align-items:center;gap:12px;padding:11px 14px;border:1px solid var(--accent-line);border-radius:12px;background:var(--surface);box-shadow:var(--shadow-1);margin:0 0 12px;flex-wrap:wrap}
+.go .tx{font-size:12.5px;color:var(--text-2);flex:1;min-width:0}
+.go .tx b{color:var(--text)}
+.go .tx small{display:block;color:var(--text-3);font-size:11.5px}
+.prog{display:flex;align-items:center;gap:8px;color:var(--accent);font-weight:600;font-size:12.5px}
+.prog i{width:14px;height:14px;border-radius:50%;border:2px solid var(--accent-line);border-top-color:var(--accent);animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ch2{display:flex;align-items:center;gap:8px;padding:10px 14px 8px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:13px;cursor:pointer;flex-wrap:wrap}
+.ch2 small{font-weight:400;color:var(--text-3);font-size:11.5px}
+.ch2 .r{color:var(--text-3);font-size:12px}
+.sub{display:flex;gap:8px;align-items:baseline;padding:9px 14px 2px;border-top:1px solid var(--border);font-weight:700;font-size:12.5px}
+.sub.first{border-top:0}
+.sub small{font-weight:400;color:var(--text-3);font-size:11.5px}
+.tl2 li{gap:8px;padding:8px 14px;flex-wrap:wrap}
+.tl2 li .k{width:44px;flex:none;color:var(--text-3);font-size:12px}
+.tl2 li .nm{font-weight:600;min-width:0;flex:1}
+.tl2 li .nm small{display:block;font-weight:400;color:var(--text-3);font-size:11.5px}
+.tl2 li.yl{background:var(--warn-bg);box-shadow:inset 3px 0 0 #d39a2c}
+.tl2 li.yl .nm small{color:var(--warn)}
+.tl2 li.dim .nm{color:var(--text-2);font-weight:500}
+.tl2 li.rv .nm{color:var(--text-3);text-decoration:line-through}
+.tl2 li .cmp{flex-basis:100%;padding-left:52px}
+.to{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--accent);background:var(--accent-bg);border-radius:6px;padding:2px 8px;white-space:nowrap;flex:none;font-weight:600}
+.to.mute{color:var(--text-3);background:var(--surface-2);font-weight:500}
+
+/* 사람 · 설정 · 관리 */
+.av2{width:26px;height:26px;border-radius:50%;background:var(--surface-3);color:var(--text-2);display:grid;place-items:center;font-weight:700;font-size:11.5px;flex:none}
+.av2.k{border-radius:7px;background:var(--accent);color:#fff}
+.av2.all{background:var(--accent-bg);color:var(--accent)}
+.pl li{align-items:flex-start;padding:10px 14px}
+.pl li .nm{flex:1;min-width:0;font-weight:600}
+.pl li .nm small{display:block;font-weight:400;color:var(--text-3);font-size:11.5px}
+.pk{border:1px solid var(--border-strong);border-radius:10px;padding:8px 10px 10px;background:var(--surface);font-size:12px;margin:0 14px 12px}
+.pk .o{display:flex;align-items:center;gap:8px;padding:6px;border-top:1px solid var(--border);cursor:pointer;border-radius:6px}
+.pk .o:hover{background:var(--accent-bg)}
+.pk .o.off{color:var(--text-3);cursor:default}
+.pk .o.off:hover{background:none}
+.set{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--border)}
+.set:first-child{border-top:0}
+.set .tx{flex:1;min-width:0}
+.set .tx b{display:block;font-weight:600}
+.set .tx small{color:var(--text-3);font-size:12px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.pl li.hot{background:var(--warn-bg);box-shadow:inset 3px 0 0 #d39a2c}
+.pl li .dot{width:8px;height:8px;border-radius:50%;flex:none;margin-top:6px;background:var(--border-strong)}
+.pl li .dot.warn{background:#d39a2c}
+.pl li .dot.pu{background:var(--pending)}
+.pl li .tx{flex:1;min-width:0}
+.pl li .tx b{font-weight:600}
+.pl li .tx small{display:block;color:var(--text-3);font-size:11.5px}
+
+/* 자료 가져오기 */
+.paste{display:flex;gap:8px;align-items:center}
+.paste .inp{flex:1}
+.heard{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border-radius:9px;font-size:12.5px;margin-top:8px;background:var(--surface);border:1px solid var(--accent-line);border-left:3px solid var(--accent)}
+.heard.bad{border-color:var(--border);border-left-color:var(--text-3);color:var(--text-2)}
+.heard .sub2{display:block;color:var(--text-3);font-size:11.5px;margin-top:2px}
+.heard b{font-weight:700}
+td.go2{text-align:right;white-space:nowrap}
+.ev{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;position:relative}
+.ev .kebab{width:22px;height:22px}
+.st2{font-size:12px;border-radius:7px;padding:2px 8px;display:inline-block}
+.st2.run{background:var(--accent-bg);color:var(--accent)}
+.st2.ok{background:var(--surface-2);color:var(--text-2)}
+.rh{font-weight:700;font-size:12.5px;margin:14px 2px 2px}
+.rec li{align-items:flex-start}
+.rec li .tm{font:11.5px var(--mono);color:var(--text-3);width:40px;flex:none;padding-top:1px}
+.rec li .tx{flex:1;min-width:0}
+.rec li .tx small{display:block;color:var(--text-3);font-size:11.5px}
+.rec li.bad .tx small{color:var(--warn)}
+.rec li.run .tx small{color:var(--accent)}
+
+/* 좁은 화면 */
+@media (max-width:900px){
+  .ctl{position:static}
+  .stage{padding:8px}
+  .app{flex-direction:column;min-height:0}
+  .side{width:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:4px;border-right:0;border-bottom:1px solid var(--border);padding:8px}
+  .sb-top{padding:0 6px}.where,.sb-g{display:none}
+  .sb-repo{margin:0;min-width:160px}
+  .side .nav{display:flex;flex-wrap:wrap;gap:2px}
+  .sb-foot{margin:0;border:0;padding:0;display:flex;flex-wrap:wrap}
+  .sb-me{display:none}
+  .body{flex-direction:column}
+  .aside{width:auto;border-left:0;border-top:1px solid var(--border)}
+  .krow{flex-wrap:wrap}.krow .nm{width:auto}
+  .g2{grid-template-columns:1fr}
+  .main{padding:14px}
+  .fi .open{padding-left:14px}
+}
+</style>
+</head>
+<body>
+<div class="ctl" id="ctl">
+  <span class="ttl">kmd 목업 <small>눌러 보기 · v0.6 · 2026-10-22</small></span>
+  <span class="grp"><span class="lb">① 누구로 볼까</span>
+    <button data-p="kimTeam">김 · 팀 화면</button>
+    <button data-p="kimPc">김 · 내 PC 프로그램</button>
+    <button data-p="park">박 · 팀 화면(정리하는 사람)</button>
+    <button data-p="lee">이 · 팀 화면(관리자 · PC 프로그램 없음)</button>
+  </span>
+  <span class="grp"><span class="lb">② 상황 켜기</span>
+    <label data-cl="backup"><input type="checkbox" data-c="backup">E: 드라이브 빠짐(백업 멈춤)</label>
+    <label data-cl="pcOff"><input type="checkbox" data-c="pcOff">내 PC 프로그램 꺼짐</label>
+    <label data-cl="serverDown"><input type="checkbox" data-c="serverDown">팀 서버에 닿지 않음</label>
+    <label data-cl="loginRest"><input type="checkbox" data-c="loginRest">정리 전용 로그인 쉼</label>
+  </span>
+  <button class="rs" id="reset">③ 처음으로</button>
+</div>
+<div class="stage"><div class="app" id="app"></div></div>
+<div id="toastHost"></div>
+
+<script>
+'use strict';
+// ───────────── 도우미 ─────────────
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=s=>esc(s).replace(/`([^`]+)`/g,'<code>$1</code>');
+const clone=o=>JSON.parse(JSON.stringify(o));
+const norm=s=>String(s).replace(/\s+/g,'').toLowerCase();
+let UID=1; const uid=()=>'u'+(UID++);
+const C=(x,y,r)=>`M${x-r} ${y}a${r} ${r} 0 1 0 ${2*r} 0a${r} ${r} 0 1 0 -${2*r} 0`;
+const IC={doc:'M6 3h9l3 3v15H6z M14 3v4h4',list:'M8 6h12 M8 12h12 M8 18h12 M4 6h.01 M4 12h.01 M4 18h.01',
+ check:'M5 12l4 4 10-10',plug:'M9 3v5 M15 3v5 M6 8h12v3a6 6 0 0 1-12 0z M12 17v4',pair:'M4 8h13l-3-3 M20 16H7l3 3',
+ hour:'M7 3h10 M7 21h10 M8 3c0 5 8 5 8 9s-8 4-8 9 M16 3c0 5-8 5-8 9s8 4 8 9',users:C(9,8,3)+'M3 20c0-4 3-6 6-6s6 2 6 6 M16 5a3 3 0 0 1 0 6 M21 20c0-3-2-5-4-5.5',
+ server:'M4 4h16v6H4z M4 14h16v6H4z M8 7h.01 M8 17h.01',book:'M4 5c3-1 5-1 8 1 3-2 5-2 8-1v14c-3-1-5-1-8 1-3-2-5-2-8-1z M12 6v14',
+ shield:'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',search:'M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13 M15.5 15.5L20 20',
+ user:'M12 12a4 4 0 1 0 0-8a4 4 0 1 0 0 8 M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5',sync:'M4 12a8 8 0 0 1 14-5l2 2 M20 12a8 8 0 0 1-14 5l-2-2 M20 4v5h-5 M4 20v-5h5',
+ lock:'M6 11h12v10H6z M9 11V8a3 3 0 0 1 6 0v3'};
+const svg=(k,c)=>`<svg viewBox="0 0 24 24"${c?` class="${c}"`:''}><path d="${IC[k]||IC.doc}"/></svg>`;
+
+// ───────────── 시계(이야기 시각 10-22 11:10 에서 시작) ─────────────
+let T0=Date.now();
+const nowMin=()=>11*60+10+Math.floor((Date.now()-T0)/60000)+S.tick;
+const hhmm=m=>{m=((m%1440)+1440)%1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')};
+const now=()=>hhmm(nowMin());
+const bump=()=>{S.tick++};
+
+// ───────────── 사람 ─────────────
+const PERS={
+ kimTeam:{key:'kimTeam',who:'김',id:'kim',where:'team',hasPc:true},
+ kimPc:{key:'kimPc',who:'김',id:'kim',where:'pc',hasPc:true},
+ park:{key:'park',who:'박',id:'park',where:'team',hasPc:false,curator:true},
+ lee:{key:'lee',who:'이',id:'lee',where:'team',hasPc:false,curator:true,admin:true}
+};
+const P=()=>PERS[S.persona];
+const isTeam=()=>P().where==='team';
+
+// ───────────── 처음 상태 ─────────────
+function sec(h,b,x){return Object.assign({h,b},x||{})}
+function doc(id,title,when,secs,x){return Object.assign({id,title,when,secs},x||{})}
+function filler(names,text){return names.map(n=>doc(n,n,'10-0'+(1+names.indexOf(n)%9),[sec('개요',text(n))]))}
+function makeState(){
+ const st={persona:'kimTeam',tick:0,
+  cond:{backup:false,pcOff:false,serverDown:false,loginRest:false},
+  logged:{kimTeam:false,park:false,lee:false},
+  route:{scr:'home',kn:'*',doc:null,hl:null,q:null},
+  lastKn:{kimTeam:'dpms',kimPc:'bn',park:'dpms',lee:'dpms'},
+  kns:{
+   dpms:{name:'DPMS 지식',type:'team',owner:'박',curators:['박'],tidyAt:'02:30',noClaude:false,lastTidy:'어젯밤 02:31 정리 — 7건 넣음'},
+   gdi:{name:'GDI 지식',type:'team',owner:'이',curators:['이'],tidyAt:'02:30',noClaude:false},
+   bn:{name:'배포노트',type:'pc',owner:'김',path:'D:\\kmd\\배포노트',dest:['dpms'],when:'오늘 11:05'},
+   sm:{name:'설계메모',type:'pc',owner:'김',path:'D:\\kmd\\설계메모',dest:['gdi','dpms'],when:'오늘 09:30'},
+   gm:{name:'개인메모',type:'pc',owner:'김',path:'D:\\kmd\\개인메모',dest:[],when:'10-17'},
+   ib:{name:'받은편지함',type:'pc',owner:'김',path:'D:\\kmd\\받은편지함',dest:[],when:'오늘 10:15',memo:2},
+   leeib:{name:'받은편지함',type:'srv',owner:'이',when:'오늘 11:20'}
+  },
+  order:['dpms','gdi','bn','sm','gm','ib','leeib'],
+  autos:{
+   dpmsapi:{src:'dpms-api 코드',since:'어제 16:05',checked:'오늘 11:00',cols:['꾸러미','판'],rows:[['spring-boot','3.3.4'],['mybatis-spring','3.0.3'],['postgresql','42.7.4'],['jackson-databind','2.17.2']],chg:null},
+   gdidb:{src:'gdi DB',since:'10-04',checked:'오늘 06:00',cols:['칸','형','길이'],rows:[['작업 순번','NUMBER','10'],['작업 내용','VARCHAR','100'],['작업자','VARCHAR','20']],chg:null}
+  },
+  docs:{
+   dpms:[
+    doc('배포절차','배포절차','오늘 02:31',[
+     sec('준비','배포 창은 화 · 목 14:00 ~ 17:00 이다. DB 커넥션 풀은 40 으로 둔다.\n이미지 이름은 날짜-순번으로 짓는다(예 1022-01).',{by:'오늘 02:31 kmd 가 정리 — 김의 기록에서'}),
+     sec('카나리','`canary-1` 에 먼저 올리고, 첫 30분은 요청의 10% 만 보낸다. 오류율이 1% 를 넘으면 멈추고 롤백으로 간다.'),
+     sec('헬스 체크','각 서버의 `/health` 를 30초마다 부른다. 시간 초과는 3초 — 3초 안에 200 이 와야 통과. 배포 뒤 서버 상태는 이것으로 본다.',{by:'오늘 02:31 kmd 가 정리 — 김의 기록에서',alias:['상태 점검']}),
+     sec('롤백','DB 를 먼저 되돌리고, 그다음 앱을 이전 판으로 내린다.'),
+     sec('꾸러미 판','배포 전에 운영 서버의 판이 아래 표와 같은지 본다. 다르면 배포를 미룬다.',{auto:'dpmsapi'})
+    ],{chip:'새로 바뀜',sub:'DPMS 를 운영에 올리는 차례 — 팀이 같이 본다.'}),
+    doc('운영','운영','오늘 02:31',[sec('알람','CPU 경고는 85% 에서 울린다. 알람 받는 곳은 운영 채널 #ops-alert.'),sec('서버 상태','서버 상태 화면은 운영 대시보드 첫 장이다 — 초록 · 노랑 · 빨강.')],{chip:'새로 바뀜'}),
+    doc('서버목록','서버목록','어제 17:02',[sec('운영 서버','app-1 ~ app-4 · canary-1 · 시험은 stg-2.'),sec('점검 시간','정기 점검은 매달 첫 토요일 02:00 ~ 04:00.')]),
+    doc('꾸러미판','꾸러미 판','어제 16:05',[sec('판 목록','운영에 올라간 꾸러미의 판.',{auto:'dpmsapi'})],{autoDoc:'dpmsapi'}),
+    doc('장애대응','장애 대응','10-20',[sec('처음 10분','장애가 의심되면 먼저 상태 점검 — 대시보드에서 서버별 응답 시간과 오류 수를 본다.'),sec('연락 순서','당번 → 박 → 이. 30분이 지나도 안 풀리면 고객 공지.')]),
+    doc('롤백절차','롤백 절차','10-19',[sec('되돌리기','이전 이미지로 내리고 DB 를 되돌린다.'),sec('되돌린 뒤 확인','되돌린 뒤 각 서버의 상태를 헬스 체크로 다시 본다 — 모두 200 이면 끝.')]),
+    doc('백업절차','백업 절차','10-19',[sec('매일 백업','DB 는 매일 01:00 에 백업한다. 7일치를 둔다.'),sec('복구 점검','매주 월요일 복구를 한 번 해 본다.')]),
+    doc('모니터링','모니터링','10-18',[sec('경보 기준','응답이 2초를 넘거나 오류가 1% 를 넘으면 경보 — 서버 상태 화면에 빨갛게 뜬다.'),sec('대시보드','응답 시간 · 오류 수 · 디스크를 한 장에 본다.')]),
+    doc('로그보관','로그 보관','10-14',[sec('보관 기간','앱 로그는 30일, 감사 로그는 1년 둔다.'),sec('디스크 점검','로그 디스크가 80% 를 넘는지 매일 본다.')]),
+    doc('접속안내','접속 안내','10-10',[sec('VPN','운영 서버는 사내 VPN 뒤에서만 열린다.')]),
+    doc('용어모음','용어 모음','10-02',[sec('헬스 체크','서버가 살아 있는지 보는 짧은 부름 — 상태 점검이라고도 한다.')]),
+    ...filler(['배포 체크리스트','인증서 갱신','캐시 정책','배치 일정','권한 신청','릴리스 노트','회의 규칙'],n=>({'배포 체크리스트':'배포 전에 이미지 이름 · 배포 창 · 당번을 본다.','인증서 갱신':'인증서는 만료 30일 전에 갱신한다.','캐시 정책':'API 응답 캐시는 5분 둔다.','배치 일정':'정산 배치는 매일 03:00 에 돈다.','권한 신청':'운영 접속 권한은 박에게 신청한다.','릴리스 노트':'판마다 바뀐 것을 한 줄씩 적는다.','회의 규칙':'주간 회의는 월요일 10:00.'})[n])
+   ],
+   gdi:[
+    doc('테이블정의서','테이블정의서','오늘 06:00',[sec('개요','GDI 의 테이블과 칸을 적는다. 표는 gdi DB 에서 저절로 채운다.'),sec('작업 이력','작업 이력 테이블.',{auto:'gdidb'})],{chip:'새로 바뀜'}),
+    ...filler(['공통코드','화면 목록','배치 목록','코드 규칙','권한','메뉴 구조','에러 코드','API 목록','인터페이스','결의서','결의서작성자마스터','예산','집행','회계 전표','거래처','사용자','부서','결재선','알림','파일 첨부','감사 로그','데이터 이관','운영 절차'],n=>'GDI '+n+' — 팀이 정리한 글.')
+   ],
+   bn:[
+    doc('절차','절차','오늘 11:05',[
+     sec('준비','배포 전 마지막 확인은 `stg-2` 에서 한다. 이미지 이름은 날짜-순번으로 짓는다(예 1022-01).'),
+     sec('카나리','`canary-1` 에 먼저 올리고, 첫 30분은 요청의 20% 만 보낸다. 오류율이 1% 를 넘으면 멈추고 롤백으로 간다.',{tidy:'kmd 가 정리했다 — 되돌릴 수 있다 · 어젯밤 02:10 · 10% → 20%'}),
+     sec('헬스 체크','각 서버의 `/health` 를 30초마다 부른다. 시간 초과는 3초 — 로드밸런서(4초)보다 짧게 둔다.\nDB 확인이 무거운 서버는 `/health?light=1` 로 부른다.',{by:'오늘 11:05 세션에서 저장',alias:['상태 점검']}),
+     sec('롤백','앱을 먼저 이전 판으로 내리고, 그다음 DB 를 되돌린다.')
+    ],{sub:'DPMS 를 배포할 때 내가 밟는 차례 — 내 메모.'}),
+    doc('도커-네트워크','도커-네트워크','어제',[sec('브리지','컨테이너끼리는 `dpms-net` 브리지로 잇는다.')]),
+    ...filler(['개인-체크리스트','로그-보관','이미지 이름','stg 메모','당번 표','장애 회고','배포 시각','DB 접속','쿠버 명령','읽을 것'],n=>n+' — 내 메모.')
+   ],
+   sm:[
+    doc('화면흐름','화면 흐름','오늘 09:30',[sec('들어간 뒤','첫 화면은 지식 목록 — 마지막에 연 지식을 맨 위에 둔다.',{by:'09:30 편집기에서 고침 — 저절로 저장'}),sec('문서 열기','찾기로 연 문서는 찾은 곳까지 내려가 옅게 칠한다.'),sec('나가기','따로 나가지 않는다 — 이 PC 의 kmd 는 들어가기가 없다.')]),
+    ...filler(['캐시-정책','찾기 화면','색 규칙','단추 규칙','알림 문구','오류 문구'],n=>n+' — 설계 메모.')
+   ],
+   gm:filler(['읽을거리','휴가 계획','책 목록','운동','장보기'],n=>n+' — 개인 메모.'),
+   ib:[doc('회의록-1021','회의록-1021','오늘 10:15',[sec('정한 것','배포 창을 화 · 목 오후로 둔다. 원본 회의록-1021.docx 는 첨부로 두었다.')])],
+   leeib:[doc('회의-10-22','회의-10-22','오늘 11:20',[sec('메모','GDI 회의 — 테이블정의서 칸 이름을 맞춘다.')])]
+  },
+  edit:null,
+  pending:[], // 김이 남긴 기록(문서 옆 보라 줄) — inbox 와 id 를 같이 쓴다
+  inbox:{
+   dpms:[
+    {id:'i1',who:'김',tm:'11:07',title:'롤백 순서 — 앱을 먼저 이전 판으로 내리고, 그다음 DB',small:'세션에서 남긴 기록',kind:'put',target:'배포절차 › 롤백',eff:{type:'replace',kn:'dpms',doc:'배포절차',sec:'롤백',from:'DB 를 먼저 되돌리고, 그다음 앱을 이전 판으로 내린다.',to:'앱을 먼저 이전 판으로 내리고, 그다음 DB 를 되돌린다.'}},
+    {id:'i2',who:'이',tm:'10:40',title:'알람 받는 곳 — #ops-oncall 도 같이',small:'세션에서 남긴 기록',kind:'put',target:'운영 › 알람',eff:{type:'replace',kn:'dpms',doc:'운영',sec:'알람',from:'운영 채널 #ops-alert.',to:'운영 채널 #ops-alert · 당번 채널 #ops-oncall.'}},
+    {id:'i3',who:'이',tm:'10:52',title:'앱 로그 보관 기간',small:'세션에서 남긴 기록',kind:'changed',vfrom:'30일',vto:'90일',target:'로그 보관 › 보관 기간',eff:{type:'replace',kn:'dpms',doc:'로그보관',sec:'보관 기간',from:'앱 로그는 30일',to:'앱 로그는 90일'}}
+   ],
+   gdi:[]
+  },
+  runs:{
+   dpms:[{id:'r0',tm:'어젯밤 02:31',auto:true,open:false,total:8,rows:[
+    {id:'y1',who:'김',title:'헬스 체크 — 3초 안에 200 이 와야 통과',small:'어제 16:05',kind:'put',target:'배포절차 › 헬스 체크'},
+    {id:'y2',who:'박',title:'배포 창 — 화 · 목 14:00 ~ 17:00',small:'어제 15:20',kind:'put',target:'배포절차 › 준비'},
+    {id:'y3',who:'이',title:'알람 받는 곳 — 운영 채널 #ops-alert',small:'어제 16:40',kind:'put',target:'운영 › 알람'},
+    {id:'y4',who:'여럿',title:'인증서 갱신 — 새 항목',small:'자주 찾는데 정리 안 된 글 · 기록 3 에서 모았다',kind:'put',target:'인증서 갱신'},
+    {id:'y5',who:'김',title:'DB 커넥션 풀 크기',small:'어제 17:10 · 김에게 알렸다',kind:'changed',vfrom:'20',vto:'40',target:'배포절차 › 준비',eff:{type:'replace',kn:'dpms',doc:'배포절차',sec:'준비',from:'풀은 20',to:'풀은 40'},applied:true},
+    {id:'y6',who:'이',title:'CPU 경고 기준',small:'두 기록이 달랐다 — 늦은 것을 따름 · 이에게 알렸다',kind:'changed',vfrom:'80%',vto:'85%',target:'운영 › 알람',eff:{type:'replace',kn:'dpms',doc:'운영',sec:'알람',from:'CPU 경고는 80%',to:'CPU 경고는 85%'},applied:true},
+    {id:'y7',who:'김 · 이',title:'‘상태 점검’ 으로 찾아도 헬스 체크가 나오게',small:'다른 이름 — 둘이 어제 그 말로 찾아 헬스 체크를 골랐다',kind:'put',target:'배포절차 › 헬스 체크'},
+    {id:'y8',who:'이',title:'헬스 체크 주소 — /health · /healthz 가 둘 다 적혀 있다',small:'기록끼리 맞지 않는다 — kmd 가 넣지 않았다',kind:'keep',target:'넣지 않음'}
+   ]}],
+   gdi:[]
+  },
+  tidyRun:null, tidyMsg:{},
+  today:{
+   kim:[
+    {id:'k1',tm:'02:10',kt:'me',yl:true,b:'어젯밤 kmd 가 값을 바꿨다 — 배포노트 › 카나리 10% → 20%',small:'kmd 가 정리했다 — 되돌릴 수 있다 · 어제 17:40 세션 기록에서',eff:{type:'replace',kn:'bn',doc:'절차',sec:'카나리',from:'요청의 10%',to:'요청의 20%'},applied:true,go:{kn:'bn',doc:'절차',hl:'카나리'}},
+    {id:'k2',tm:'02:31',kt:'team',yl:true,b:'kmd 가 정리하며 값을 바꿨다 — DPMS 지식 › 배포절차 › 준비 · DB 커넥션 풀 20 → 40',small:'내 기록에서(어제 17:10) — 되돌릴 수 있다',eff:{type:'replace',kn:'dpms',doc:'배포절차',sec:'준비',from:'풀은 20',to:'풀은 40'},applied:true,go:{kn:'dpms',doc:'배포절차',hl:'준비'},link:'y5'},
+    {id:'k3',tm:'어제<br>18:02',kt:'team',dot:'acc',text:'새 기기가 이어졌다 — LAPTOP-KIM · kim',small:'설치 한 줄로 · 내가 한 것이 아니면 [보기] 에서 끊는다',device:'LAPTOP-KIM'},
+    {id:'k4',tm:'11:07',kt:'team',dot:'pend',text:'DPMS 지식에 기록 — 세션에서 「롤백 순서」',small:'오늘 밤 02:30 정리 때 문서에',go:{kn:'dpms',doc:'배포절차',hl:'롤백'}},
+    {id:'k5',tm:'11:05',kt:'me',dot:'acc',text:'세션에서 저장 — 배포노트 › 절차 「헬스 체크」',small:'dpms 코드 폴더의 세션에서',go:{kn:'bn',doc:'절차',hl:'헬스 체크'}},
+    {id:'k6',tm:'10:15',kt:'me',dot:'acc',text:'회의록-1021.docx 를 문서로 — 받은편지함',small:'원본은 첨부로 두었다',go:{kn:'ib',doc:'회의록-1021'}},
+    {id:'k7',tm:'09:30',kt:'me',dot:'acc',text:'편집기에서 고친 것이 저절로 저장 — 설계메모 › 화면 흐름',small:'파일을 직접 고쳤다',go:{kn:'sm',doc:'화면흐름'}},
+    {id:'k8',tm:'02:31',kt:'team',dot:'acc',text:'kmd 가 정리했다 — DPMS 지식 › 배포절차 › 헬스 체크',small:'어제 세션에서 남긴 내 기록',go:{kn:'dpms',doc:'배포절차',hl:'헬스 체크'}},
+    {id:'k9',tm:'02:10',kt:'me',dot:'acc',text:'어젯밤 kmd 가 알아서 한 것 2',subs:['‘상태 점검’ 으로 찾아도 헬스 체크가 나오게 했다 — 이틀 그렇게 찾았다','받은편지함 메모 1개를 내 배포노트로 옮겼다']}
+   ],
+   park:[
+    {id:'p1',tm:'02:31',kt:'team',dot:'acc',text:'DPMS 지식 — kmd 가 정리하며 7건을 문서에 넣었다',small:'배포절차 외 · 값이 바뀐 것 2 포함 · 그대로 둔 것 1',goScr:'tidy'},
+    {id:'p2',tm:'어제<br>16:05',kt:'team',dot:'',text:'DPMS 지식에 dpms-api 코드를 더했다 — 내 부탁 · 이가 더했다',small:'꾸러미 판 표를 1시간마다',goScr:'import'}
+   ],
+   lee:[
+    {id:'l1',tm:'02:31',kt:'team',yl:true,b:'두 기록이 달랐다 — 늦은 것을 따랐다 · 운영 › 알람 CPU 경고 80% → 85%',small:'DPMS 지식 · kmd 가 정리했다 · 늦은 것은 내 기록(어제 16:40) — 되돌릴 수 있다',eff:{type:'replace',kn:'dpms',doc:'운영',sec:'알람',from:'CPU 경고는 80%',to:'CPU 경고는 85%'},applied:true,go:{kn:'dpms',doc:'운영',hl:'알람'},link:'y6'},
+    {id:'l2',tm:'11:20',kt:'me',dot:'acc',text:'세션에서 저장 — 받은편지함 › 회의-10-22',small:'팀 서버 안 내 지식',go:{kn:'leeib',doc:'회의-10-22'}},
+    {id:'l3',tm:'10:12',kt:'team',dot:'bad',text:'GDI 지식 백업이 지워졌다 — 다시 올렸다',small:'09:52 지워져 있었다 · 잃은 것 없음 — 누가 지웠는지는 사내 GitLab 에서'},
+    {id:'l4',tm:'06:00',kt:'team',dot:'acc',text:'gdi DB 에서 바뀐 줄 2 — GDI 지식 › 테이블정의서',small:'테이블 둘의 칸 길이 · 저절로 채우는 표',go:{kn:'gdi',doc:'테이블정의서'}}
+   ]
+  },
+  sources:[
+   {id:'s1',name:'gdi DB',kind:'DB',sub:'읽기만 · 10-04 부터',kn:'gdi',doc:'테이블정의서',auto:'gdidb',every:{t:'daily',at:'06:00'},last:'오늘 06:00',lastNote:'바뀐 줄 2',run:null,changesLeft:1,scope:'team'},
+   {id:'s2',name:'dpms-api 코드',kind:'코드',sub:'git · 어제 16:05 부터 · 박의 부탁',kn:'dpms',doc:'꾸러미 판',auto:'dpmsapi',every:{t:'hourly'},last:'오늘 11:00',lastNote:'그대로',run:null,changesLeft:1,scope:'team'}
+  ],
+  imports:{team:[],pc:[]},
+  srcDraft:'', addDraft:'', menu:null, modal:null, pal:null,
+  sendq:[
+   {id:'q1',title:'절차 — 카나리 · 헬스 체크',from:'배포노트',when:'오늘 11:05',note:'값이 바뀜 — 카나리 10% → 20%(어젯밤 kmd)',to:'고친 것 → 배포절차',on:true,
+    item:{who:'김',title:'카나리 — 첫 30분 비율',small:'배포노트에서 보냄',kind:'changed',vfrom:'10%',vto:'20%',target:'배포절차 › 카나리',eff:{type:'replace',kn:'dpms',doc:'배포절차',sec:'카나리',from:'요청의 10%',to:'요청의 20%'}}},
+   {id:'q2',title:'도커-네트워크',from:'배포노트',when:'어제',to:'새 문서로',on:true,
+    item:{who:'김',title:'도커-네트워크 — 새 문서',small:'배포노트에서 보냄',kind:'put',target:'도커-네트워크(새 문서)',eff:{type:'newdoc',kn:'dpms',doc:'도커-네트워크',title:'도커-네트워크',secs:[{h:'브리지',b:'컨테이너끼리는 `dpms-net` 브리지로 잇는다.'}]}}}
+  ],
+  cand:[{id:'c1',title:'장애 대응 — 연락 순서',to:'→ 장애 대응',
+    item:{who:'김',title:'장애 대응 — 연락 순서(메모)',small:'받은편지함 메모에서',kind:'put',target:'장애 대응 › 연락 순서',eff:{type:'replace',kn:'dpms',doc:'장애대응',sec:'연락 순서',from:'당번 → 박 → 이.',to:'당번 → 박 → 이 → 최.'}}}],
+  sent:[{tm:'어제',txt:'팀 서버로 3개를 보냈다'}],
+  sendWait:null,
+  roster:['최','김','정','한','이'],
+  picker:false,
+  autoSet:{kimPc:{save:true,file:true,src:true,claude:true,find:true,alias:true,check:true},kimTeam:{alias:true,file:true,find:true},park:{alias:true,file:true,find:true},lee:{alias:true,file:true,find:true}},
+  devices:{kim:[{n:'DESKTOP-KIM',s:'이 PC · Claude Code · 지금'},{n:'LAPTOP-KIM',s:'Claude Code · 어제 18:02 새로 이어졌다'}],park:[{n:'PARK-PC',s:'Claude Code · 오늘 09:10'}],lee:[{n:'LEE-PC',s:'Claude Code · 마지막 사용 오늘 11:20'},{n:'LEE-NOTE',s:'Claude Code · 마지막 사용 10-15'}]},
+  admin:{nopw:true,lock:true,oldkey:true,requests:[]},
+  pwErr:false
+ };
+ return st;
+}
+let S=makeState();
+
+// ───────────── 지식 ─────────────
+const KN=k=>S.kns[k];
+function visibleKns(){
+ const p=P();
+ return S.order.filter(k=>{const n=KN(k);
+  if(p.where==='pc') return n.type==='pc'&&n.owner==='김';
+  if(n.type==='team') return true;
+  if(n.type==='pc') return p.hasPc&&n.owner===p.who;
+  if(n.type==='srv') return n.owner===p.who;
+  return false;});
+}
+function roleIn(k){const n=KN(k),p=P(); if(n.type!=='team') return '주인'; return n.owner===p.who?'주인':'기록';}
+function isMine(k){return KN(k).type!=='team'}
+function pcBlocked(k){return isTeam()&&KN(k).type==='pc'&&S.cond.pcOff}
+function docsOf(k){return S.docs[k]||(S.docs[k]=[])}
+function findDoc(k,id){return docsOf(k).find(d=>d.id===id)}
+function findSec(k,id,h){const d=findDoc(k,id);return d&&d.secs.find(s=>s.h===h)}
+function personKey(){return P().who==='김'?'kim':P().who==='박'?'park':'lee'}
+function whoKey(w){return w==='김'?'kim':w==='박'?'park':w==='이'?'lee':null}
+
+// ───────────── 효과(넣기 · 되돌리기) ─────────────
+function applyEff(e){ if(!e) return;
+ if(e.type==='replace'){const s=findSec(e.kn,e.doc,e.sec); if(s&&s.b.includes(e.from)){s.b=s.b.replace(e.from,e.to); delete s.tidy; s.by='오늘 '+now()+' kmd 가 정리 — 되돌릴 수 있다';}}
+ else if(e.type==='secs'){const d=findDoc(e.kn,e.doc); if(d){const bm={}; e.before.forEach(s=>bm[s.h]=s.b); d.secs=clone(e.after); d.secs.forEach(s=>{if(!s.auto&&bm[s.h]!==s.b) s.by='오늘 '+now()+' kmd 가 정리 — 되돌릴 수 있다';});}}
+ else if(e.type==='newdoc'){ if(!findDoc(e.kn,e.doc)) docsOf(e.kn).unshift(doc(e.doc,e.title,'방금',clone(e.secs),{chip:'새로 바뀜'})); }
+ const d=findDoc(e.kn,e.doc); if(d&&e.type!=='newdoc'){d.when='오늘 '+now();}
+}
+function revertEff(e){ if(!e) return;
+ if(e.type==='replace'){const s=findSec(e.kn,e.doc,e.sec); if(s&&s.b.includes(e.to)){s.b=s.b.replace(e.to,e.from); delete s.by; s.tidy='되돌렸다 — 넣기 전으로 · '+now();}}
+ else if(e.type==='secs'){const d=findDoc(e.kn,e.doc); if(d) d.secs=clone(e.before);}
+ else if(e.type==='newdoc'){S.docs[e.kn]=docsOf(e.kn).filter(d=>d.id!==e.doc);}
+}
+function diffHtml(e,label){
+ if(!e) return '';
+ if(e.type==='replace') return `<div class="diff"><div class="fh">${esc(label||(docTitle(e.kn,e.doc)+' › '+e.sec))}</div><div class="ln2 del">${esc(e.from)}</div><div class="ln2 add">${esc(e.to)}</div></div>`;
+ if(e.type==='newdoc') return `<div class="diff"><div class="fh">새 문서 — ${esc(e.title)}</div>${e.secs.map(s=>`<div class="ln2 add">${esc(s.h)} — ${esc(s.b)}</div>`).join('')}</div>`;
+ if(e.type==='secs'){const out=[];const bm={};e.before.forEach(s=>bm[s.h]=s.b);
+  e.after.forEach(s=>{if(s.auto) return; if(bm[s.h]!==s.b){ out.push(`<div class="fh">${esc(s.h)}</div>`+(bm[s.h]!=null?`<div class="ln2 del">${esc(bm[s.h])}</div>`:'')+`<div class="ln2 add">${esc(s.b)}</div>`);} });
+  return `<div class="diff">${out.join('')||'<div class="ln2">바뀐 글이 없다</div>'}</div>`;}
+ return '';
+}
+function docTitle(k,id){const d=findDoc(k,id);return d?d.title:id}
+function addToday(pk,it){it.id=it.id||uid(); (S.today[pk]=S.today[pk]||[]).unshift(it);}
+
+// ───────────── 멈춤 한 줄 ─────────────
+function stops(){
+ const p=P(),c=S.cond,out=[];
+ if(c.backup&&p.who==='김') out.push({cls:'warn',b:(p.where==='team'?'내 PC 백업이 멈췄다':'백업이 멈췄다')+' · 3시간',t:'E: 드라이브를 꽂으면 이어서 보낸다',r:'08:05 부터 · 저장은 그대로 된다',chip:'c-warn'});
+ if(c.pcOff&&p.key==='kimTeam') out.push({cls:'gray',b:'내 PC 프로그램이 꺼져 있다',t:'켜면 내 PC 줄이 저절로 다시 열린다',chip:'c-mute'});
+ if(c.serverDown){ if(p.where==='team') out.push({cls:'gray',b:'팀 서버에 닿지 않는다',t:'닿으면 저절로 다시 이어진다 · 보던 글은 그대로 읽힌다',chip:'c-mute'});
+  else out.push({cls:'gray',b:'팀 서버에 닿지 않는다',t:'닿으면 저절로 보낸다',chip:'c-mute'}); }
+ if(c.loginRest&&p.curator){ if(p.admin) out.push({cls:'warn',b:'자동 정리가 쉬고 있다 · 2일',t:'서버에서 다시 로그인하면 이어서 한다 — 관리 화면에 한 줄',chip:'c-warn'});
+  else out.push({cls:'gray',b:'자동 정리가 쉬고 있다 · 2일',t:'관리자에게 알렸다',chip:'c-mute'}); }
+ return out;
+}
+const stopHtml=s=>`<div class="callout ${s.cls} stop" data-t="stop"><i></i><span><b>${esc(s.b)}</b> — ${esc(s.t)}</span>${s.r?`<span class="r">${esc(s.r)}</span>`:''}</div>`;
+
+// ───────────── 토스트 ─────────────
+let toastTimer=null;
+function toast(html,ms){const h=$('#toastHost');h.innerHTML=`<div class="toast" data-t="toast">${html}</div>`;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{h.innerHTML=''},ms||4500);}
+
+// ───────────── 그리기 ─────────────
+function go(r){S.route=Object.assign({scr:'home',kn:S.route.kn,doc:null,hl:null,q:null},r);S.menu=null;S.edit=null;S.picker=false;
+ if(S.route.kn&&S.route.kn!=='*') S.lastKn[S.persona]=S.route.kn; render(); const m=$('#app .main'); if(m) m.scrollTop=0;
+ if(S.route.hl){ setTimeout(()=>{const el=$('#app .lit'); if(el) el.scrollIntoView({block:'center'});},30); }
+}
+function render(){
+ // 조종판
+ document.querySelectorAll('#ctl [data-p]').forEach(b=>b.classList.toggle('on',b.dataset.p===S.persona));
+ document.querySelectorAll('#ctl [data-c]').forEach(i=>{i.checked=!!S.cond[i.dataset.c]; i.parentElement.classList.toggle('on',i.checked);});
+ const app=$('#app'); const p=P();
+ if(p.key==='kimPc'&&S.cond.pcOff){ app.innerHTML=`<div class="col"><div class="main" style="display:grid;place-items:center"><div class="card" style="max-width:420px;text-align:center"><div class="cb" style="padding:26px"><div class="logo me" style="margin:0 auto 10px;width:34px;height:34px;font-size:16px">K</div><div class="big">내 PC 프로그램이 꺼져 있다</div><p class="lead">켜면 이 창이 저절로 다시 열린다 — 글은 D:\\kmd 에 그대로 있다.</p><p class="muted small">조종판에서 「내 PC 프로그램 꺼짐」 을 끄면 다시 켜진다.</p></div></div></div></div>`; return; }
+ const anon=isTeam()&&!S.logged[S.persona];
+ let scr=anon?{crumb:'들어가기',main:viewLogin()}:viewOf(S.route.scr);
+ app.innerHTML=sideHtml(anon)+`<div class="col">${hdrHtml(anon,scr.crumb)}${anon?'':bandHtml()}<div class="body"><div class="main" data-t="main">${scr.main}</div>${scr.aside?`<div class="aside">${scr.aside}</div>`:''}</div>${statusHtml(anon)}</div>${S.modal?modalHtml():''}${S.pal?palHtml():''}`;
+ if(S.pal){const i=$('#palIn'); if(i&&document.activeElement!==i){i.focus(); i.setSelectionRange(i.value.length,i.value.length);}}
+ if(S._focus){const el=document.getElementById(S._focus); if(el){el.focus(); try{el.setSelectionRange(el.value.length,el.value.length)}catch(e){}} S._focus=null;}
+}
+function viewOf(s){
+ const f={home:viewHome,docs:viewDocs,today:viewToday,import:viewImport,send:viewSend,tidy:viewTidy,members:viewMembers,settings:viewSettings,admin:viewAdmin,add:viewAdd}[s]||viewHome;
+ return f();
+}
+function sideHtml(anon){
+ const p=P(),r=S.route,team=isTeam();
+ const vk=visibleKns(); const cur=r.kn&&r.kn!=='*'?KN(r.kn):null;
+ const ktag=k=>{const n=KN(k); if(n.type==='team') return '<span class="kt team">팀</span>'; if(n.type==='pc'&&team) return '<span class="kt me">내 PC</span>'; return '<span class="kt me">개인</span>';};
+ let h=`<aside class="side${anon?' dim':''}"><div class="sb-top"><div class="logo${team?'':' me'}">K</div><span class="brand">kmd</span></div><div class="where">${team?'팀 서버에서 돈다 · kmd.team.local':'이 PC 에서 돈다'}</div>`;
+ if(!anon){
+  const cnt=team?(()=>{const t=vk.filter(k=>KN(k).type==='team').length,m=vk.length-t;return '팀 '+t+(m?(p.hasPc?' · 내 PC ':' · 개인 ')+m:'')})():'내 지식 '+vk.length;
+  h+=`<div class="sb-repo" data-a="kmenu" data-t="kpick">${cur?`<span class="rk">${esc(cur.name.slice(0,2))}</span><span class="rn">${esc(cur.name)} <small>${cur.type==='team'?'팀 서버':cur.type==='pc'?(team?'내 PC 프로그램이 연다':cur.path):'팀 서버 안 · 나만'}</small></span>`:`<span class="rk">전체</span><span class="rn">지식 전체<small>${cnt}</small></span>`}<span class="rc">▾</span>${S.menu==='kmenu'?`<div class="kmenu"><div class="mi" data-a="pickKn" data-k="*">지식 전체</div>${vk.map(k=>`<div class="mi" data-a="pickKn" data-k="${k}">${esc(KN(k).name)} ${ktag(k)}</div>`).join('')}</div>`:''}</div>`;
+ }
+ const sendN=S.sendq.filter(q=>q.on).length+(S.sendWait?0:0);
+ const inboxN=(S.inbox.dpms||[]).length+(S.inbox.gdi||[]).length;
+ const it=(key,l,ic,bd)=>`<div class="sb-i${!anon&&r.scr===key?' on':''}" data-a="nav" data-s="${key}" data-t="nav-${key}">${svg(ic)}<span>${l}</span>${bd?`<span class="bd">${bd}</span>`:''}</div>`;
+ h+='<div class="nav">';
+ h+=it('home','지식 목록','list')+it('docs','문서','doc')+it('today','오늘 바뀐 것','check')+it('import','자료 가져오기','plug');
+ if(p.who==='김') h+=it('send','보내기','pair',S.sendWait?'…':(sendN||''));
+ if(p.curator){h+='<div class="sb-g">정리하는 사람</div>'+it('tidy','정리','hour',inboxN||'')+it('members','이 지식의 사람','users');}
+ h+='</div><div class="sb-foot"><div class="nav">'+it('settings','설정','server')+(p.admin?it('admin','관리','shield'):'')+'<div class="sb-i deco">'+svg('book')+'<span>설명서</span></div></div>';
+ h+=anon?'<div class="sb-me"><span class="av">?</span><span class="muted">아직 들어오지 않았다</span></div>':`<div class="sb-me"><span class="av">${p.who}</span><span>${p.who} <small>· ${team?'팀 서버':'이 PC'}</small></span></div>`;
+ return h+'</div></aside>';
+}
+function hdrHtml(anon,crumb){
+ const r=S.route; const kn=r.kn&&r.kn!=='*'&&['docs','tidy','members'].includes(r.scr)?KN(r.kn).name:'';
+ const parts=String(crumb||'').split(' › ').filter(Boolean);
+ const c=(kn&&parts[0]!==kn?'<span>'+esc(kn)+'</span> › ':'')+parts.map((x,i)=>i===parts.length-1?'<b>'+esc(x)+'</b>':esc(x)).join(' › ');
+ return `<header class="hdr"><span class="crumb">${c}</span>${anon?'':`<div class="search" data-a="openSearch" data-t="search">${svg('search')}<span style="margin-left:6px">찾기</span><span style="margin-left:auto;font-size:11px">Ctrl K</span></div>`}</header>`;
+}
+function bandHtml(){
+ const p=P(),r=S.route,team=isTeam(); const k=r.kn&&r.kn!=='*'&&['docs','tidy','members'].includes(r.scr)?r.kn:null;
+ let left; if(!k) left=team?'팀 서버의 kmd · 같이 쓴다':'이 PC 의 kmd · 나만 쓴다';
+ else {const n=KN(k); left=n.type==='team'?'팀 지식 · 팀 서버 · 나: '+(roleIn(k)==='주인'?'주인':'기록'):n.type==='srv'?'내 지식 · 팀 서버 안 · 나만':(team?'내 PC 지식 · 내 PC 프로그램이 연다':'내 지식 · '+n.path+' · 나만');}
+ const st=stops();
+ const right=st.length?st.map(s=>`<span class="chip ${s.chip}" data-t="bandchip">${esc(s.b)} — ${esc(s.t)}</span>`).join(''):(team?'':'<span class="muted">밖으로 나가는 것은 보내기 · 백업 · Claude 정리뿐</span>');
+ return `<div class="band ${k&&KN(k).type==='team'||(!k&&team)?'team':'me'}"><span class="who"><i></i>${esc(left)}</span><span class="out">${right}</span></div>`;
+}
+function statusHtml(anon){
+ const p=P(); let l=isTeam()?(anon?'':'들어옴 · '+p.who+(p.admin?' · 관리자':'')):'이 PC';
+ if(S.route.scr==='tidy'&&!anon){const k=tidyKn(); l+=' <span style="margin-left:14px">다음 정리 '+KN(k).tidyAt+'</span>';}
+ return `<div class="status"><span>${l}</span><span class="r">kmd v1.13 · 10-22(목) ${now()}</span></div>`;
+}
+
+// ── 들어가기 ──
+function viewLogin(){
+ const p=P();
+ return `<div class="gatewrap"><div class="gate"><div class="card"><div class="cb">
+  <div class="mk">${svg('user')}</div><div class="big">팀 kmd 에 들어간다</div><p class="lead">한 번 들어오면 일주일쯤 이어진다.</p>
+  <form data-f="login" autocomplete="on">
+  <div class="field"><label for="lgId">아이디</label><input class="inp af" id="lgId" name="username" autocomplete="username" value="${esc(p.id)}"></div>
+  <div class="field"><label for="lgPw">비밀번호</label><input class="inp af" id="lgPw" type="password" name="password" autocomplete="current-password" value="mock-password-1022"><div class="hint">브라우저가 채웠다 — Enter 만 누르면 된다</div></div>
+  ${S.pwErr?'<div class="callout danger" data-t="loginErr">아이디나 비밀번호를 확인하세요 — 여러 번 틀리면 잠시 막힌다</div>':''}
+  <button class="btn pri" type="submit" data-t="loginBtn">들어가기</button></form>
+  <div class="links">잊었으면 관리자에게 — 새 링크를 보내 준다</div>
+ </div></div></div></div>`;
+}
+
+// ── 지식 목록 ──
+function knMeta(k){
+ const n=KN(k),d=docsOf(k);
+ if(n.type==='team'){
+  const srcs=S.sources.filter(s=>s.kn===k);
+  let m='문서 '+d.length+' · 팀 모두 기록 · 정리는 '+n.owner;
+  if(srcs.length) m='문서 '+d.length+' · 표는 '+srcs.map(s=>s.name).join(' · ')+' 에서 저절로 · '+srcs[0].last+' 확인';
+  return m;}
+ if(k==='ib') return '문서 '+d.length+' · 메모 2 — 그중 1개는 내 배포노트로 옮겼다';
+ return '문서 '+d.length+' · '+(n.when||'');
+}
+function viewHome(){
+ const p=P(),team=isTeam(),vk=visibleKns();
+ const sendN=S.sendq.filter(q=>q.on).length;
+ const btn=p.who==='김'&&sendN&&!S.sendWait?`<button class="btn pri" data-a="nav" data-s="send">${sendN}개 보내기</button>`:'';
+ let rows=vk.map(k=>{const n=KN(k); const dim=pcBlocked(k);
+  let tag=n.type==='team'?'<span class="kt team">팀</span>':(n.type==='pc'&&team?'<span class="kt me">내 PC</span>':(team?'<span class="kt me">개인</span>':''));
+  let rr='';
+  if(n.type==='team'){
+   if(p.curator&&n.owner===p.who) rr+='<span class="dst">나: 정리</span>';
+   if(p.curator&&n.lastTidy&&n.owner===p.who) rr+=`<span class="chip c-acc">${esc(n.lastTidy)}</span>`;
+   else { const ch=docsOf(k).filter(d=>d.chip).length; if(ch) rr+=`<span class="chip c-acc">새로 바뀜 ${ch}</span>`; }
+   const ib=(S.inbox[k]||[]).length; if(p.curator&&ib) rr+=`<span class="chip c-pend">받은 것 ${ib}</span>`;
+  } else {
+   const sq=S.sendq.filter(q=>q.on&&q.from===n.name).length; if(sq) rr+=`<span class="chip c-pend">보낼 것 ${sq}</span><span class="dst">→ DPMS</span>`;
+  }
+  const path=n.type==='pc'&&n.path&&!/^D:\\kmd\\/.test(n.path)?`<small>${esc(n.path)}</small>`:'';
+  return `<div class="krow${dim?' dim':''}${n._new?' new':''}" data-a="openKn" data-k="${k}" data-t="krow" data-name="${esc(n.name)}"><span class="nm">${esc(n.name)} ${tag}${path}</span><span class="meta">${esc(dim?'내 PC 프로그램이 켜지면 열린다':knMeta(k))}</span><span class="rr">${rr}</span></div>`;}).join('');
+ vk.forEach(k=>{delete KN(k)._new});
+ return {crumb:'지식 목록',main:`<div style="max-width:960px"><div class="top"><div><div class="big">지식 목록</div>${team?'':'<p class="lead">내 지식 '+vk.length+' — D:\\kmd</p>'}</div><div class="acts">${btn}</div></div>
+  ${stops().map(stopHtml).join('')}
+  <div class="card" data-t="klist">${rows}</div>
+  <p class="tl"><a data-a="nav" data-s="add">+ 지식 추가</a><a data-a="nav" data-s="import">+ 자료 가져오기</a>${p.key==='kimPc'?'<span class="r">팀 지식(DPMS · GDI)은 팀 화면에서 연다</span>':''}</p></div>`};
+}
+
+// ── 문서 목록 · 읽기 · 고치기 ──
+function pickKn(){let k=S.route.kn; const vk=visibleKns(); if(!k||k==='*'||!vk.includes(k)){k=vk.includes(S.lastKn[S.persona])?S.lastKn[S.persona]:vk[0]; S.route.kn=k;} return k;}
+function myPendingIn(k,docId){return S.pending.filter(x=>x.kn===k&&(!docId||x.doc===docId)&&(S.inbox[k]||[]).some(i=>i.id===x.id))}
+function viewDocs(){
+ const k=pickKn(),n=KN(k);
+ if(pcBlocked(k)) return {crumb:'문서',main:`<div class="big">${esc(n.name)}</div><div class="callout gray stop"><i></i><span><b>내 PC 프로그램이 꺼져 있다</b> — 켜면 저절로 다시 열린다</span></div>`};
+ if(S.route.doc) return viewDoc(k);
+ const ds=docsOf(k); const showAll=S.route.all;
+ const list=(showAll?ds:ds.slice(0,11));
+ const pend=myPendingIn(k);
+ const srcs=S.sources.filter(s=>s.kn===k);
+ const main=`<div class="big">${esc(n.name)}</div><p class="lead">${n.type==='team'?'팀 모두 기록 — 정리는 '+esc(n.owner):n.type==='srv'?'팀 서버 안 내 지식 — 나만 쓴다':'내 지식 · '+esc(n.path)+' · 나만'}</p>
+  <div class="tabs"><span class="on">문서</span><span class="ord">최근 바뀐 순 · 문서 ${ds.length}</span></div>
+  ${pend.length?`<div class="wait" data-t="wait"><i></i>${pend.map(x=>esc(x.tm)+' 에 쓴 기록 1 — 오늘 밤 '+KN(k).tidyAt+' 정리 때 문서에 들어간다 · '+esc(docTitle(k,x.doc))+' › '+esc(x.secs.join(' · '))).join('<br>')} · 그동안도 문서 옆에 같이 읽힌다 <a data-a="tidyNow" data-k="${k}">지금 정리</a></div>`:''}
+  <div class="card"><div class="cb" style="padding:2px 14px 4px"><ul class="plain dl">${list.map(d=>{const a=d.autoDoc&&S.autos[d.autoDoc];
+   const pc=myPendingIn(k,d.id).length;
+   return `<li data-a="openDoc" data-k="${k}" data-d="${esc(d.id)}" data-t="doc" data-name="${esc(d.title)}">${svg('doc','di')}<span class="nm">${esc(d.title)}${d.chip?`<span class="chip c-acc">${esc(d.chip)}</span>`:''}${pc?`<span class="chip c-pend">안 넣은 기록 ${pc} · 내 것</span>`:''}${a?`<small>저절로 채우는 표 · ${esc(a.src)} · ${esc(a.checked)} 확인</small>`:''}</span><span class="when${/오늘|방금/.test(d.when)?' td':''}">${esc(d.when)}</span></li>`}).join('')}
+  ${!showAll&&ds.length>11?`<li class="more" data-a="allDocs" data-t="moreDocs">${ds.length-11}개 더</li>`:''}</ul></div></div>`;
+ const aside=`<h4>이 지식</h4><div class="kv">${n.type==='team'?`<span>정리</span><span>${esc(n.owner)} — 이 지식을 세운 사람</span><span>쓰는 사람</span><span>팀 모두 기록</span><span>다음 정리</span><span>오늘 밤 ${esc(n.tidyAt)}</span>`:`<span>주인</span><span>나 — 정리하면 바로 바뀐다</span>`}
+  <span>자동으로 가져오는 곳</span><span>${srcs.length?srcs.map(s=>esc(s.name)+'<small>'+esc(s.last)+' 확인 · '+everyTxt(s.every)+'</small>').join(''):'없음'}<small><a data-a="nav" data-s="import">자료 가져오기 ›</a></small></span></div>`;
+ return {crumb:'문서',main,aside};
+}
+function autoHtml(aid,lock){
+ const a=S.autos[aid]; if(!a) return '';
+ const rows=a.rows.map((r,ri)=>'<tr>'+r.map((c,ci)=>`<td${a.chg&&a.chg[0]===ri&&a.chg[1]===ci?' class="chg"':''}>${esc(c)}</td>`).join('')+'</tr>').join('');
+ return `<div class="auto${lock?' lock':''}" data-t="${lock?'autoLock':'auto'}"><div class="ah">${svg('sync')} <b>저절로 채우는 표</b> · ${esc(a.src)} · ${esc(a.since)} 부터 · ${esc(a.checked)} 확인</div><table class="t"><tr>${a.cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr>${rows}</table>${lock?`<div class="lkl">${svg('lock')} ${esc(a.src)}에서 저절로 — 여기서는 고치지 않는다</div>`:''}</div>`;
+}
+function paras(b){return String(b).split('\n').map(x=>`<p>${fmt(x)}</p>`).join('')}
+function viewDoc(k){
+ const n=KN(k),d=findDoc(k,S.route.doc); if(!d){S.route.doc=null; return viewDocs();}
+ const hl=S.route.hl, q=S.route.q, editing=S.edit&&S.edit.kn===k&&S.edit.doc===d.id;
+ const pend=myPendingIn(k,d.id);
+ const loc=n.type==='team'?n.name+' › '+d.title:(n.type==='pc'?(isTeam()?'내 PC › ':'')+n.name+' › '+d.title+'.md':'받은편지함 › '+d.title);
+ let body='';
+ if(editing){
+  const txt=d.secs.filter(s=>!s.auto).map(s=>'## '+s.h+'\n'+s.b).join('\n\n');
+  const locks=d.secs.filter(s=>s.auto);
+  body=`<div class="ed" data-t="editor"><div class="lbl"><b>고치는 중</b> · 「## 」 으로 시작하는 줄이 항목 이름이다</div><div class="toolbar"><span>제목</span><span>굵게</span><span>목록</span><span>표</span><span>링크</span></div><textarea id="edTx" data-t="edTx" spellcheck="false">${esc(txt)}</textarea>
+   ${locks.map(s=>`<div class="lockh">항목 「${esc(s.h)}」 의 표 — 회색은 잠겨 있다</div>${autoHtml(s.auto,true)}`).join('')}
+   <div class="row" style="margin-top:10px"><button class="btn pri" data-a="saveDoc" data-t="saveBtn">저장</button><a class="muted" data-a="cancelEdit">그만두기</a><span class="r small muted">${isMine(k)||roleIn(k)==='주인'?'저장하면 바로 문서에 들어간다':'팀 지식 — 저장하면 기록으로 남고 정리 때 문서에 들어간다'}</span></div></div>`;
+ } else {
+  body=d.secs.map(s=>{
+   const lit=hl&&s.h===hl;
+   const inner=paras(s.b)+(s.auto?autoHtml(s.auto,false):'');
+   const mine=pend.filter(x=>x.secs.includes(s.h));
+   return `<h2>${esc(s.h)}</h2>${lit?`<div class="lit" data-t="lit"><span class="tag">찾은 곳</span>${inner}</div>`:inner}${s.tidy?`<div class="hc"><span class="hchip tidy">${esc(s.tidy.split(' · ')[0])}</span><span>${esc(s.tidy.split(' · ').slice(1).join(' · '))}</span></div>`:''}${s.by?`<div class="hc"><span class="hchip">${esc(s.by)}</span></div>`:''}${mine.map(x=>`<div class="penrec" data-t="penrec"><i></i><span><b>아직 문서에 안 넣은 기록 1</b> · ${esc(x.tm)} · 나 — 「${esc(x.preview[s.h]||'')}」 · 같이 읽힌다</span></div>`).join('')}`;
+  }).join('');
+ }
+ const main=`<div style="max-width:820px">
+  ${q?`<div class="found" data-t="found"><span>찾기 <b>‘${esc(q)}’</b> 로 열었다</span><a data-a="reopenSearch">찾은 것으로 돌아가기</a></div>`:''}
+  <div class="ttl"><div class="path"><span>${esc(loc)}</span><span class="r">마지막으로 바뀐 때 ${esc(d.when)}</span></div>${editing?'':`<button class="btn pri" data-a="editDoc" data-t="editBtn">고치기</button>`}</div>
+  ${pend.length&&!editing?`<div class="wait" data-t="wait"><i></i>${esc(pend[0].tm)} 에 쓴 기록 ${pend.length} — 오늘 밤 ${esc(n.tidyAt)} 정리 때 문서에 들어간다 · 그동안도 문서 옆에 같이 읽힌다 <a data-a="tidyNow" data-k="${k}">지금 정리</a></div>`:''}
+  <div class="paper"><h1>${esc(d.title)}</h1>${d.sub?`<p class="muted small">${esc(d.sub)}</p>`:''}${body}</div>
+  <p class="tl" style="margin-top:10px"><a data-a="backDocs">‹ ${esc(n.name)} 문서 목록</a></p></div>`;
+ return {crumb:'문서 › '+d.title,main};
+}
+
+// ── 찾기 ──
+function scopeKns(){const k=S.route.kn; const vk=visibleKns().filter(x=>!pcBlocked(x)); if(k&&k!=='*'&&vk.includes(k)&&['docs','tidy','members'].includes(S.route.scr)) return [k]; return vk;}
+function doSearch(q){
+ q=String(q||'').trim(); if(!q) return null;
+ const nq=norm(q), ks=scopeKns(), all=[];
+ ks.forEach(k=>docsOf(k).forEach(d=>d.secs.forEach(s=>all.push({k,d,s}))));
+ const exact=all.filter(x=>norm(x.s.h)===nq||(norm(x.d.title)===nq&&x.d.secs[0]===x.s));
+ if(exact.length) return {mode:'exact',hits:exact,ks};
+ const toks=q.split(/\s+/).filter(t=>t.length>=1);
+ // 낱말의 절반 이상이 든 글만 — 「배포」 하나만 맞은 글은 비슷한 글이 아니다
+ const need=Math.ceil(toks.length/2);
+ const sc=all.map(x=>{let v=0,m=0; const hay=x.s.h+' '+x.s.b;
+  const al=(x.s.alias||[]).some(a=>norm(a)===nq); if(al) v+=100;
+  if(norm(hay+x.d.title).includes(nq)) v+=30;
+  toks.forEach(t=>{if(hay.includes(t)){v+=10;m++;} if(x.s.h.includes(t)) v+=5;});
+  return Object.assign({v,ok:al||v>=30||m>=need},x);}).filter(x=>x.v>0&&x.ok).sort((a,b)=>b.v-a.v);
+ if(sc.length) return {mode:'sim',hits:sc,ks,toks};
+ return {mode:'none',ks};
+}
+function snip(b,toks){let t=String(b).replace(/`/g,''); let h=esc(t); (toks||[]).forEach(x=>{if(!x) return; h=h.split(esc(x)).join('<mark>'+esc(x)+'</mark>');}); return h;}
+function palHtml(){
+ const ks=scopeKns(); const where=ks.length===1?KN(ks[0]).name+'에서':'지식 전체에서';
+ return `<div class="pscrim" data-a="palClose" data-self="1"><div class="pal" data-t="pal"><div class="pin">${svg('search')}<input id="palIn" data-in="pal" data-t="palIn" value="${esc(S.pal.q||'')}" placeholder="찾기" autocomplete="off"><span class="r">${esc(where)} · Esc</span></div><div id="palBody">${palBody()}</div></div></div>`;
+}
+function palBody(){
+ const q=S.pal.q||''; const r=doSearch(q);
+ let body='';
+ if(!r) body='<div class="tip">문서의 항목 이름이나 낱말을 친다 — 예: 헬스 체크 · 상태 점검</div>';
+ else if(r.mode==='none') body=`<div class="empty" data-t="none"><b>이 말로는 못 찾았다 — 없다는 뜻은 아니다</b>다른 이름이나 문서 목록으로<br><a data-a="palDocs">문서 목록 ›</a><a data-a="palClear">다른 말로 다시 ›</a></div>`;
+ else {
+  const hit=(x,i)=>{const n=KN(x.k); const tags=(x.s.by&&/kmd/.test(x.s.by)?`<span class="tg kmd">kmd 가 정리</span>`:'')+((x.s.alias||[]).some(a=>norm(a)===norm(q))?'<span class="tg nm">다른 이름</span>':'')+(x.s.auto?'<span class="tg">저절로 채우는 표</span>':'');
+   return `<div class="hit${i===0?' sel':''}" data-a="openHit" data-k="${x.k}" data-d="${esc(x.d.id)}" data-h="${esc(x.s.h)}" data-t="hit"><div class="ht"><b>${esc(x.d.title)} › ${esc(x.s.h)}</b>${tags}<span class="r">${esc(n.name)}</span></div><div class="tx">${snip(x.s.b,r.mode==='sim'?r.toks:[q])}</div></div>`;};
+  if(r.mode==='exact') body=`<div class="g" data-t="gExact">문서의 항목</div>${r.hits.map(hit).join('')}`;
+  else { const N=r.hits.length, more=S.pal.more; const sh=more?r.hits:r.hits.slice(0,5);
+   body=`<div class="g" data-t="gSim">딱 맞는 항목이 없어 비슷한 글에서 찾았다</div>${sh.map(hit).join('')}<div class="ft" data-t="simCount">비슷한 글 ${N}개${N>5?(more?' — 모두 보인다':` — 5개 · <a data-a="palMore" data-t="palMore">${N-5}개 더 보기</a>`):''}</div>`; }
+ }
+ return body;
+}
+
+// ── 오늘 바뀐 것 ──
+function viewToday(){
+ const p=P(),pk=personKey(); let items=S.today[pk]||[];
+ if(p.key==='kimPc') items=items.filter(x=>x.kt==='me');
+ const li=x=>{const open=S.openToday===x.id;
+  const tag=x.kt==='team'?'<span class="kt team">팀</span>':(p.where==='team'&&p.hasPc?'<span class="kt me">내 PC</span>':'<span class="kt me">'+(p.where==='pc'?'내 지식':'개인')+'</span>');
+  let ex='';
+  if(open){
+   ex+=`<div class="open" data-t="todayOpen">`;
+   if(x.eff) ex+=`<div class="small muted">비교</div>${diffHtml(x.eff)}`;
+   if(x.eff&&x.applied) ex+=`<button class="btn sm" data-a="revertToday" data-id="${x.id}" data-t="revertBtn">되돌리기</button> <span class="small muted">그 줄만 넣기 전으로</span>`;
+   if(x.eff&&!x.applied) ex+=`<span class="chip c-mute">되돌렸다</span>`;
+   if(x.device) ex+=(S.devices.kim.some(d=>d.n===x.device)?`<button class="btn sm" data-a="unlinkDev" data-n="${x.device}">끊기</button> <span class="small muted">내가 한 것이 아니면 — 그 기기의 Claude Code 는 다시 이어야 한다</span>`:'<span class="chip c-mute">끊었다</span>');
+   if(!x.eff&&!x.device&&x.small) ex+=`<div class="small muted">${esc(x.small)}</div>`;
+   if(x.go) ex+=` <a class="small" data-a="todayGo" data-id="${x.id}" style="margin-left:8px">문서 열기 ›</a>`;
+   if(x.goScr) ex+=` <a class="small" data-a="nav" data-s="${x.goScr}" style="margin-left:8px">열기 ›</a>`;
+   ex+='</div>';
+  }
+  const reverted=x.eff&&!x.applied;
+  return `<div class="fi${x.yl?' yl':''}${reverted?' done':''}" data-t="fi" data-id="${x.id}"><div class="ln"><span class="tm">${x.tm}</span><span class="dot ${x.yl?'warn':(x.dot||'')}"></span><div class="tx">${tag}${x.b?'<b>'+esc(x.b)+'</b>':esc(x.text)}${reverted?' <span class="chip c-mute" data-t="reverted">되돌렸다</span>':''}${x.small?'<small>'+esc(x.small)+'</small>':''}${x.subs?'<ul class="sub">'+x.subs.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul>':''}</div><span class="act" data-a="toggleToday" data-id="${x.id}" data-t="viewBtn">${open?'접기':'보기'}</span></div>${ex}</div>`;};
+ return {crumb:'오늘 바뀐 것',main:`<div style="max-width:760px;margin:0 auto"><div class="big">오늘 바뀐 것</div><p class="lead">kmd 가 알아서 한 일 · 다른 곳에서 바뀐 것. 마음에 들지 않으면 그 줄의 [보기] 에서.</p>
+  ${stops().filter(s=>s.cls==='warn').map(stopHtml).join('')}
+  <div class="feed" data-t="feed"><div class="fh">오늘<small>10-22(목)</small></div>${items.map(li).join('')||'<div class="fi"><div class="ln muted">오늘은 바뀐 것이 없다</div></div>'}</div></div>`};
+}
+
+// ── 자료 가져오기 ──
+function everyTxt(e){return e.t==='hourly'?'1시간마다':e.t==='daily'?'매일 '+e.at:e.t==='weekly'?'매주 월':'바뀔 때만';}
+function nextTxt(e){const m=nowMin(); if(e.t==='hourly') return hhmm((Math.floor(m/60)+1)*60); if(e.t==='daily'){const [h,mi]=e.at.split(':').map(Number);return (h*60+mi>m?'오늘 ':'내일 ')+e.at;} if(e.t==='weekly') return '10-26(월) 06:00'; return '바뀌면 바로';}
+function canEditSrc(){const p=P(); return p.where==='pc'||p.admin;}
+function srcScope(){return P().where==='pc'?'pc':'team'}
+function parseSrc(t){
+ t=String(t||'').trim(); if(!t) return null;
+ const kmatch=s=>{s=s.toLowerCase(); if(P().where==='pc') return S.route.kn&&S.route.kn!=='*'&&KN(S.route.kn).type==='pc'?S.route.kn:'bn'; if(/gdi/.test(s)) return 'gdi'; if(/dpms/.test(s)) return 'dpms'; return S.route.kn&&S.route.kn!=='*'&&KN(S.route.kn).type==='team'?S.route.kn:'dpms';};
+ const why=(s,k)=>(/gdi|dpms/i.test(s)&&P().where==='team'?'이름이 맞아서':'가장 최근에 연 지식이라서');
+ let m;
+ if((m=t.match(/^(postgres(?:ql)?|mysql|oracle|mssql|sqlserver):\/\/[^/]*\/([^?\s/]+)/i))){const nm=m[2]; const k=kmatch(nm); return {kind:'DB',name:nm+' DB',kn:k,doc:'테이블정의서',every:{t:'daily',at:'06:00'},what:'저절로 채우는 표 · 테이블마다',why:why(nm,k)};}
+ if(/^(git@|https?:\/\/|ssh:\/\/).+\.git$/i.test(t)||/^git@/i.test(t)){const nm=t.replace(/\.git$/i,'').split(/[\/:]/).pop(); const k=kmatch(nm); return {kind:'코드',name:nm+' 코드',kn:k,doc:'꾸러미 판',every:{t:'hourly'},what:'꾸러미 판 표(package.json · pom.xml 에서)',why:why(nm,k)};}
+ if(/^[A-Za-z]:\\/.test(t)||/^\/[^\s]+/.test(t)){const nm=t.replace(/[\\\/]+$/,'').split(/[\\\/]/).pop(); const k=kmatch(nm); return {kind:'코드 폴더',name:nm+' 코드 폴더',kn:k,doc:'꾸러미 판',every:{t:'hourly'},what:'꾸러미 판 표(폴더 안의 package.json · pom.xml 에서)',why:why(nm,k),local:/^[A-Za-z]:\\/.test(t)};}
+ return {bad:true};
+}
+function viewImport(){
+ const p=P(),team=isTeam(),admin=canEditSrc(),scope=srcScope();
+ const srcs=S.sources.filter(s=>s.scope===scope);
+ const rowsHtml=srcs.map(s=>{
+  const run=s.run==='run'?'<span class="st2 run" data-t="srcRun">가져오는 중…</span>':s.run?`<span class="st2 ok" data-t="srcOk">${esc(s.run)}</span>`:'';
+  const menu=S.menu==='every:'+s.id?`<div class="menu" style="right:0;top:26px" data-t="everyMenu">
+    <div class="mi${s.every.t==='hourly'?' on':''}" data-a="setEvery" data-id="${s.id}" data-v="hourly">${s.every.t==='hourly'?'✓ ':''}1시간마다</div>
+    <div class="mi${s.every.t==='daily'?' on':''}" data-a="setEvery" data-id="${s.id}" data-v="daily">${s.every.t==='daily'?'✓ ':''}매일 <input type="time" id="evAt" data-t="evAt" value="${esc(s.every.at||'06:00')}" data-stop="1"></div>
+    <div class="mi${s.every.t==='weekly'?' on':''}" data-a="setEvery" data-id="${s.id}" data-v="weekly">${s.every.t==='weekly'?'✓ ':''}매주 월</div>
+    <div class="mi${s.every.t==='change'?' on':''}" data-a="setEvery" data-id="${s.id}" data-v="change">${s.every.t==='change'?'✓ ':''}바뀔 때만<small>코드가 바뀌면 바로</small></div>
+    <div class="sep"></div><div class="gray">한꺼번에 크게 바뀌면 쓰지 않고 멈춘다 — 「지금 가져오기」 는 언제든</div></div>`:'';
+  return `<tr data-t="srcRow" data-id="${s.id}" data-name="${esc(s.name)}"><td><b>${esc(s.name)}</b><small>${esc(s.sub)}</small></td><td>${esc(KN(s.kn).name)} › ${esc(s.doc)}</td><td><span class="ev" data-t="every">${everyTxt(s.every)}${admin?`<button class="kebab" data-a="menu" data-m="every:${s.id}" data-t="everyKebab" title="언제 바꾸기">⋯</button>`:''}${menu}</span></td><td data-t="last">${esc(s.last)}<small>${esc(s.lastNote)}</small></td><td data-t="next">${esc(nextTxt(s.every))}</td><td class="go2">${run||''} ${s.run==='run'?'':`<a class="lk" data-a="fetch" data-id="${s.id}" data-t="fetchBtn">지금 가져오기</a>`}</td></tr>`;}).join('');
+ const sh=srcHeard(); const heard=`<div id="srcHeardBox">${sh.heard}</div>`, addBtn=`<span id="srcBtnBox">${sh.btn}</span>`;
+ const imps=S.imports[scope];
+ const target=impTarget();
+ const main=`<div style="max-width:980px"><div class="big">자료 가져오기</div><p class="lead">코드 · DB 에서 표를 저절로 채우고, 파일이나 폴더를 문서로 들인다.</p>
+  ${stops().map(stopHtml).join('')}
+  <div class="card"><div class="ch">자동으로 가져오는 곳 <small>정한 때마다 확인 · 바뀐 것만 고친다</small>${admin?`<span class="r"><button class="btn pri" data-a="fetchAll" data-t="fetchAll"${srcs.length?'':' disabled'}>지금 모두 가져오기</button></span>`:''}</div>
+   <div class="cb" style="padding:2px 14px 4px;overflow-x:auto">${srcs.length?`<table class="t" data-t="srcTable"><thead><tr><th>가져오는 곳</th><th>넣는 곳</th><th>언제</th><th>마지막 확인</th><th>다음</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>`:'<p class="muted" style="margin:10px 0">아직 더한 곳 없음 — 아래 칸에 코드 폴더 · git 주소 · DB 주소를 붙인다</p>'}</div>
+   <div class="cf">바뀐 줄은 그 지식의 「오늘 바뀐 것」 에 · 한꺼번에 크게 바뀌면 쓰지 않고 멈춘다 · ${admin?'언제 바꾸기는 줄의 ⋯':'언제 바꾸기 · 더하기 · 끊기는 관리자(이)'}</div></div>
+  <div class="card"><div class="ch">자동으로 가져올 곳 더하기 <small>코드 폴더 · git 주소 · DB 주소 — 한 칸</small></div><div class="cb">
+   <div class="paste"><input class="inp mono" id="srcIn" data-in="src" data-t="srcIn" value="${esc(S.srcDraft)}" placeholder="붙여 넣기 — 예: postgres://읽기전용@db.team.local/gdi · git@gitlab.team.local:dpms/dpms-batch.git" autocomplete="off">${addBtn}</div>${heard}</div></div>
+  <div class="card"><div class="ch">파일 · 폴더 넣기 <small>한 번 들여온다 — 원본은 첨부로</small></div><div class="cb">
+   <div class="drop" id="drop" data-t="drop"><b>파일이나 폴더를 여기에 끌어다 놓으면 문서가 된다</b>md · docx · pptx · xlsx · hwpx · pdf · 원본은 첨부로 · 넣을 곳 — ${esc(target.label)}
+    <div class="lks"><label>파일 고르기<input type="file" multiple id="fileIn" data-t="fileIn"></label> · <label>폴더 고르기<input type="file" webkitdirectory directory multiple id="dirIn" data-t="dirIn"></label></div></div>
+   <p class="gl">${team?'md · docx · pptx · xlsx 는 바로 바꾼다 — hwpx · pdf 는 내 PC 프로그램이 있는 PC 에서 · 원본은 먼저 첨부로.':'md · docx · pptx · xlsx · hwpx · pdf 모두 이 PC 에서 바로 바꾼다.'} 폴더 안의 짜임은 그대로 · 한 번에 300 파일 · 200MB 까지.</p>
+   <div class="rh">최근 넣은 것</div><ul class="plain rec" data-t="recent">${imps.map(x=>`<li class="${x.cls||''}" data-t="impRow"><span class="tm">${esc(x.tm)}</span><span class="tx">${esc(x.title)}<small data-t="impMsg">${esc(x.msg)}</small></span>${x.go?`<a class="lk" data-a="impGo" data-k="${x.go.kn}" data-d="${esc(x.go.doc)}">보기</a>`:''}</li>`).join('')||'<li class="muted">아직 없다</li>'}</ul>
+  </div></div></div>`;
+ return {crumb:'자료 가져오기',main};
+}
+function srcHeard(){
+ const team=isTeam(),admin=canEditSrc(),pr=parseSrc(S.srcDraft);
+ let heard='';
+ if(pr&&pr.bad) heard=`<div class="heard bad" data-t="srcHeard">알아듣지 못했다 — 코드 폴더 · git 주소 · DB 주소를 붙인다</div>`;
+ else if(pr) heard=`<div class="heard" data-t="srcHeard"><span class="kt src">${esc(pr.kind)}</span><span><b>${esc(pr.name)} → ${esc(KN(pr.kn).name)} › ${esc(pr.doc)} · ${everyTxt(pr.every)}</b><span class="sub2">${esc(pr.what)} · 바뀐 것만 고친다 · 넣을 곳은 kmd 가 골랐다 — ${esc(pr.why)}${pr.kind==='DB'?' · DB 비밀번호는 여기서 받지 않는다 — 서버에 있다 ✓':''}${pr.local&&team?' · 내 PC 폴더는 내 PC 프로그램이 한 번 묻는다':''}</span></span></div>`;
+ const btn=admin?`<button class="btn" data-a="addSrc" data-t="addSrcBtn"${pr&&!pr.bad?'':' disabled'}>더하기</button>`:`<button class="btn pri" data-a="askSrc" data-t="askSrcBtn"${pr&&!pr.bad?'':' disabled'}>관리자에게 부탁</button>`;
+ return {heard,btn};
+}
+function impTarget(){
+ const p=P(),k=S.route.kn;
+ if(k&&k!=='*'&&visibleKns().includes(k)&&!pcBlocked(k)) return {kn:k,label:KN(k).name+'(지금 연 지식)'};
+ const ib=visibleKns().find(x=>KN(x).name==='받은편지함'&&!pcBlocked(x));
+ if(ib) return {kn:ib,label:'받은편지함'};
+ return {kn:null,label:'받은편지함(처음 넣으면 생긴다)'};
+}
+function ensureInbox(){
+ let t=impTarget(); if(t.kn) return t.kn;
+ const p=P(),id='ib_'+p.id; S.kns[id]={name:'받은편지함',type:'srv',owner:p.who,when:'방금'}; S.order.push(id); S.docs[id]=[]; return id;
+}
+
+// ── 보내기 ──
+function viewSend(){
+ const p=P(),team=isTeam();
+ const on=S.sendq.filter(q=>q.on), off=S.sendq.filter(q=>!q.on);
+ const blocked=team&&S.cond.pcOff;
+ let top='';
+ if(blocked) top=`<div class="callout gray stop"><i></i><span><b>내 PC 프로그램이 꺼져 있다</b> — 켜면 저절로 다시 열린다 · 보내기는 내 PC 프로그램이 한다</span></div>`;
+ if(S.sendWait) top+=`<div class="callout gray stop" data-t="sendWait"><i></i><span><b>팀 서버에 닿지 않는다</b> — 닿으면 저절로 보낸다 · ${S.sendWait.items.length}개 · ${esc(S.sendWait.tm)} 에 누른 것</span></div>`;
+ const list=on.length?`<div class="card"><div class="ch"><span class="kt team">팀</span>DPMS 지식으로 <span class="chip c-pend">${on.length}</span><small>정리하는 사람 박</small></div><div class="cb" style="padding:2px 14px 8px"><ul class="plain">${on.map(q=>`<li data-t="sendItem"><span style="display:flex;flex-direction:column;min-width:0"><b>${esc(q.title)}</b><small class="muted">${esc(q.from)}에서 · ${esc(q.when)}${q.note?' · <span style="color:var(--warn);font-weight:600">'+esc(q.note)+'</span>':''}</small></span><span class="r small muted" style="white-space:nowrap">${esc(q.to)}</span><button class="kebab" data-a="menu" data-m="sq:${q.id}" title="이번에 빼기">⋯${S.menu==='sq:'+q.id?`<div class="menu" style="right:0;top:28px"><div class="mi" data-a="dropSend" data-id="${q.id}">이번에 빼기<small>다음에 다시 모인다</small></div></div>`:''}</button></li>`).join('')}</ul>
+   ${S.cand.length?`<div style="border-top:1px solid var(--border);margin-top:4px;padding-top:8px;font-size:12px;color:var(--text-2)"><div class="muted">받은편지함에서 — 넣으면 같이 간다</div>${S.cand.map(c=>`<div class="row" style="margin-top:4px"><span class="kn none">메모</span><b>${esc(c.title)}</b><span class="muted">${esc(c.to)}</span><a class="lk r" data-a="addCand" data-id="${c.id}" data-t="addCand">보낼 것에 넣기</a></div>`).join('')}</div>`:''}
+   ${off.length?`<div class="small muted" style="margin-top:8px">이번에 뺀 것 ${off.length} — ${off.map(q=>esc(q.title)+' <a data-a="undropSend" data-id="'+q.id+'">다시 넣기</a>').join(' · ')}</div>`:''}
+  </div></div>
+  <div class="row" style="margin:12px 0 0;padding-top:10px;border-top:1px solid var(--border)"><span class="muted small">오늘 밤 ${esc(KN('dpms').tidyAt)} 정리 때 문서에 들어간다</span><button class="btn pri r" data-a="doSend" data-t="sendBtn"${blocked||S.sendWait?' disabled':''}>${on.length}개 보내기</button></div>`
+  :`<p class="muted" data-t="sendEmpty">보낼 것이 없다 — 내 지식에서 고치면 여기에 저절로 모인다.</p>`;
+ return {crumb:'보내기',main:`<div style="max-width:720px"><div class="big">보내기</div>${on.length?`<p class="lead">바뀐 문서 ${on.length}개를 골라 두었다 — 누르면 DPMS 지식으로 간다.</p>`:''}
+  ${stops().filter(s=>s.cls==='warn').map(stopHtml).join('')}${top}${list}
+  <div class="feed" style="margin-top:14px" data-t="sentFeed"><div class="fh">보낸 것</div>${S.sent.map(x=>`<div class="fi" data-t="sentRow"><div class="ln"><span class="tm">${esc(x.tm)}</span><span class="dot ${x.small?'acc':''}"></span><span class="tx">${esc(x.txt)}${x.small?'<small>'+esc(x.small)+'</small>':''}</span></div></div>`).join('')}</div>
+  <details class="more"><summary>자세히</summary><div class="in">김 이름으로 간다 — 이 PC 가 설치 때 팀에 이어진 대로. 정리 때 kmd 가 바로 문서에 넣고(누구나 [지금 정리]), 값이 바뀌면 나에게 「오늘 바뀐 것」 노란 줄로 알린다. 내 글은 그대로다.</div></details></div>`};
+}
+
+// ── 정리 ──
+function tidyKn(){const k=S.route.kn; return k&&k!=='*'&&KN(k)&&KN(k).type==='team'?k:'dpms';}
+function rowHtml(row,runId){
+ const yl=row.kind==='changed'&&!row.reverted, dim=row.kind==='keep';
+ const menu=S.menu==='row:'+row.id?`<div class="menu" style="right:0;top:28px" data-t="rowMenu"><div class="mi" data-a="cmpRow" data-id="${row.id}" data-t="cmpBtn">비교<small>넣기 전 · 넣은 뒤</small></div>${!dim&&row.eff&&!row.reverted?`<div class="mi" data-a="revertRow" data-id="${row.id}" data-t="revertRow">되돌리기<small>그 줄만 넣기 전으로</small></div>`:''}</div>`:'';
+ const cmp=S.cmp===row.id?`<div class="cmp" data-t="cmp">${row.eff?diffHtml(row.eff):`<div class="diff"><div class="fh">${esc(row.target)}</div><div class="ln2">${esc(row.title)} — ${esc(row.small||'')}</div></div>`}</div>`:'';
+ return `<li class="${yl?'yl':''}${dim?' dim':''}${row.reverted?' rv':''}" data-t="tidyRow" data-kind="${row.kind}"><span class="k">${esc(row.who)}</span><span class="nm">${esc(row.title)}<small>${esc(row.small||'')}</small></span>${row.kind==='changed'?`<span class="chip c-warn">${esc(row.vfrom)} → ${esc(row.vto)}</span>`:''}${row.reverted?'<span class="chip c-mute" data-t="rowReverted">되돌렸다</span>':''}<span class="to${dim?' mute':''}">${dim?'넣지 않음':'→ '+esc(row.target)}</span><button class="kebab" data-a="menu" data-m="row:${row.id}" data-t="rowKebab" title="비교 · 되돌리기">⋯${menu}</button>${cmp}</li>`;
+}
+function runHtml(run){
+ const put=run.rows.filter(r=>r.kind==='put'),chg=run.rows.filter(r=>r.kind==='changed'),keep=run.rows.filter(r=>r.kind==='keep');
+ const done=put.length+chg.length;
+ const grp=(t,small,rows)=>rows.length?`<div class="sub">${t} ${rows.length} <small>${small}</small></div><ul class="plain tl2">${rows.map(r=>rowHtml(r,run.id)).join('')}</ul>`:'';
+ const open=run.open!==false;
+ return `<div class="card" data-t="run" data-id="${run.id}" style="overflow:visible"><div class="ch2" data-a="toggleRun" data-id="${run.id}"><b>${esc(run.tm)} ${run.auto?'kmd 가 ':''}정리한 것 ${done}</b><small>${run.total?'받은 것 '+run.total+' 중 · ':''}건마다 따로 저장 · 되돌리기는 줄마다 ⋯ 안에</small><span class="r">${open?'접기':'펼치기'}</span></div>
+  ${open?grp('넣은 것','숫자 · 이름 모두 확인 ✓',put)+grp('값이 바뀐 것','쓴 사람에게 알렸다 — 오늘 바뀐 것 맨 위',chg)+grp('그대로 둔 것','문서 옆에 같이 읽힌다 · 다음 정리 때 다시',keep):''}</div>`;
+}
+function viewTidy(){
+ const k=tidyKn(),n=KN(k),ib=S.inbox[k]||[],run=S.tidyRun&&S.tidyRun.kn===k?S.tidyRun:null;
+ const msg=S.tidyMsg[k];
+ const goBox=`<div class="go" data-t="goBox"><span class="tx"><b data-t="nextTidy">다음 정리 오늘 밤 ${esc(n.tidyAt)} · 받은 것 ${ib.length}</b><small>이 지식에 기록할 수 있는 사람 누구나 지금 정리할 수 있다 · 1~2분</small></span>${run?`<span class="prog" data-t="prog"><i></i>정리하는 중 — ${run.n}건 중 ${run.i}…</span>`:`<button class="btn pri" data-a="tidyNow" data-k="${k}" data-t="tidyBtn"${ib.length?'':' disabled'}>지금 정리</button>`}</div>`;
+ const inboxCard=ib.length?`<div class="card" data-t="inbox"><div class="ch">받은 것 ${ib.length} <small>정리 때 kmd 가 바로 문서에 넣는다</small></div><ul class="plain tl2">${ib.map(i=>`<li><span class="k">${esc(i.who)}</span><span class="nm">${esc(i.title)}<small>${esc(i.tm)} · ${esc(i.small||'')}</small></span><span class="to">→ ${esc(i.target)}</span></li>`).join('')}</ul></div>`:'';
+ const runs=(S.runs[k]||[]).map(runHtml).join('');
+ return {crumb:'정리',main:`<div style="max-width:800px"><div class="row" style="align-items:baseline"><span class="big">정리 — ${esc(n.name)}</span><span class="r muted small">매일 ${esc(n.tidyAt)} · 바꾸려면 <a data-a="nav" data-s="members">이 지식의 사람</a></span></div>
+  <p class="lead">받은 기록은 kmd 가 정해진 시간에 바로 문서에 넣는다. 기다리기 싫으면 지금 정리.</p>
+  ${stops().filter(s=>/정리/.test(s.b)).map(stopHtml).join('')}
+  ${goBox}${msg?`<div class="callout ${msg.cls}" data-t="tidyMsg">${esc(msg.t)}</div>`:''}${inboxCard}${runs}
+  <details class="more"><summary>자세히</summary><div class="in">kmd 의 검사(값 · 이름 대조 · 크기 · 표지)를 못 넘은 글은 넣지 않고 그대로 둔다 — 문서 옆에 같이 읽히고 다음 정리 때 다시 해 본다. 이름 바꾸기 · 합치기 · 없애기는 넣지 않는다 — 제안 한 줄로만 선다.</div></details></div>`};
+}
+function runTidy(k,from){
+ if(S.tidyRun) return;
+ const ib=S.inbox[k]||[]; if(!ib.length){toast('받은 것이 없다 — 정리할 것이 없다');return;}
+ let todo=ib.slice(), rest=[];
+ if(S.cond.loginRest){const puts=ib.filter(i=>i.kind==='put').slice(0,2); rest=ib.filter(i=>!puts.includes(i)); todo=puts;}
+ if(!todo.length){S.tidyMsg[k]={cls:'warn',t:'규칙으로 되는 것이 없었다 — 0건 · 나머지는 로그인이 돌아오면'};render();return;}
+ S.tidyRun={kn:k,i:1,n:todo.length}; S.tidyMsg[k]=null; render();
+ const step=()=>{
+  if(!S.tidyRun) return;
+  if(S.tidyRun.i<S.tidyRun.n){S.tidyRun.i++; render(); setTimeout(step,1100); return;}
+  // 끝 — 넣기
+  bump(); const tm=now();
+  const rows=todo.map(i=>{const r=Object.assign({},clone(i),{id:uid(),src:i}); r.small=(i.small||'')+' · '+i.tm; if(i.kind!=='keep'){applyEff(i.eff); r.applied=true;}
+   // 쓴 사람에게
+   const pk=whoKey(i.who);
+   if(pk){ if(i.kind==='changed') addToday(pk,{tm,kt:'team',yl:true,b:'kmd 가 정리하며 값을 바꿨다 — '+KN(k).name+' › '+i.target+' · '+i.vfrom+' → '+i.vto,small:'내 기록에서('+i.tm+') — 되돌릴 수 있다',eff:i.eff,applied:true,link:r.id,go:i.eff&&i.eff.type!=='newdoc'?{kn:k,doc:i.eff.doc,hl:i.eff.sec}:null});
+     else if(i.kind==='put') addToday(pk,{tm,kt:'team',dot:'acc',text:'kmd 가 정리했다 — '+KN(k).name+' › '+i.target,small:'내 기록에서('+i.tm+')',eff:i.eff,applied:true,link:r.id,go:i.eff?{kn:k,doc:i.eff.doc,hl:i.eff.sec||null}:null}); }
+   return r;});
+  rows.forEach(r=>{const d=r.eff&&findDoc(k,r.eff.doc); if(d){d.chip='새로 바뀜';}});
+  S.inbox[k]=rest; S.pending=S.pending.filter(x=>rest.some(i=>i.id===x.id)||x.kn!==k);
+  (S.runs[k]=S.runs[k]||[]).forEach(r=>r.open=false);
+  S.runs[k].unshift({id:uid(),tm:'방금 '+tm,rows,open:true});
+  KN(k).lastTidy='방금 '+tm+' 정리 — '+rows.filter(r=>r.kind!=='keep').length+'건 넣음';
+  S.tidyMsg[k]=S.cond.loginRest?{cls:'warn',t:'규칙으로 되는 것만 넣었다 — '+rows.length+'건 · 나머지는 로그인이 돌아오면'}:null;
+  S.tidyRun=null; render();
+  if(from==='toast'||S.route.scr!=='tidy') toast('정리했다 — '+rows.length+'건을 '+esc(KN(k).name)+'에 넣었다'+(S.cond.loginRest?' · 규칙으로 되는 것만':''));
+ };
+ setTimeout(step,1100);
+}
+function findRow(id){for(const k in S.runs) for(const run of S.runs[k]) for(const r of run.rows) if(r.id===id) return {k,run,r}; return null;}
+
+// ── 이 지식의 사람 ──
+const TIMES=['00:30','01:30','02:30','03:30','05:00','07:00','12:00','18:00','22:00'];
+function viewMembers(){
+ const k=tidyKn(),n=KN(k),own=n.owner===P().who;
+ const tmenu=S.menu==='tidyAt'?`<div class="menu" style="right:0;top:28px" data-t="timeMenu"><div class="gray">정리 시각 — 매일</div>${TIMES.map(t=>`<div class="mi${t===n.tidyAt?' on':''}" data-a="setTidyAt" data-v="${t}" data-t="time-${t}">${t===n.tidyAt?'✓ ':''}${t}</div>`).join('')}<div class="sep"></div><div class="mi" data-a="toggleNoClaude">Claude 에 보내지 않기 <span class="sw${n.noClaude?' on':''}" style="margin-left:auto"></span></div></div>`:'';
+ const others=n.curators.filter(c=>c!==n.owner);
+ const picker=S.picker?`<div class="pk" data-t="picker"><div class="muted" style="padding:2px 6px 6px">팀 kmd 사람 목록에서 한 사람</div>${S.roster.map(r=>{const has=n.curators.includes(r)||r===n.owner;return `<div class="o${has?' off':''}" ${has?'':`data-a="addCur" data-v="${r}"`} data-t="pick-${r}"><span class="av2" style="width:20px;height:20px;font-size:10.5px">${r}</span>${r}${has?' — 이미 정리하는 사람':''}</div>`}).join('')}</div>`:'';
+ return {crumb:'이 지식의 사람',main:`<div style="max-width:780px"><div class="big">이 지식의 사람 — ${esc(n.name)}</div><p class="lead">누가 정리하고 누가 기록을 남기는지, kmd 가 언제 정리하는지 주인이 정한다.</p>
+  ${own?'':`<div class="callout gray">바꾸기는 주인(${esc(n.owner)})이 한다 — 여기서는 읽기만</div>`}
+  <div class="card" style="overflow:visible"><div class="ch">정리하는 사람 <small>문서를 고치고 제안을 본다</small></div>
+   <ul class="plain pl" data-t="curList"><li><span class="av2">${esc(n.owner)}</span><span class="nm">${esc(n.owner)}<small>세운 사람${others.length?'':' · 지금은 혼자 정리한다'}</small></span><span class="kt role">주인</span></li>
+   ${others.map(c=>`<li data-t="curRow"><span class="av2">${esc(c)}</span><span class="nm">${esc(c)}<small>${esc(n.name)} 정리하는 사람 · 방금 더함</small></span><span class="kt role">정리</span>${own?`<a class="lk q" data-a="rmCur" data-v="${esc(c)}">빼기</a>`:''}</li>`).join('')}</ul>
+   <div class="sub">kmd</div>
+   <ul class="plain pl"><li><span class="av2 k">K</span><span class="nm" data-t="kmdRow">kmd — 정해진 시간과 [지금 정리] 로 바로 넣는다 · 매일 ${esc(n.tidyAt)}<small>다음 정리 오늘 밤 ${esc(n.tidyAt)} — 받은 것 ${(S.inbox[k]||[]).length} · 값이 바뀌면 쓴 사람에게 알린다${n.noClaude?' · Claude 에 보내지 않음':''}</small></span><span class="kt role">자동 정리</span>${own?`<button class="kebab${S.menu==='tidyAt'?' on':''}" data-a="menu" data-m="tidyAt" data-t="tidyKebab" title="정리 시각 바꾸기">⋯${tmenu}</button>`:''}</li></ul>
+   <div class="sub">기록을 남기는 사람 <small>남긴 기록은 받은 것으로 온다</small></div>
+   <ul class="plain pl"><li><span class="av2 all">팀</span><span class="nm">팀 모두<small>팀 kmd 에 들어오는 사람은 누구나 읽고 기록을 남긴다</small></span><span class="kt role">기록</span></li></ul>
+   ${picker}
+   <div class="cf">${own?`<button class="btn pri" data-a="togglePicker" data-t="addCurBtn">정리하는 사람 더하기</button><span>팀 kmd 사람 목록에서 고른다</span>`:'<span>사람 목록에 없는 사람은 관리자(이)에게</span>'}</div></div>
+  <details class="more"><summary>이 설정은 지식 안에 적혀 백업과 같이 간다</summary><div class="in">정해진 시간의 정리는 팀 서버의 정리 전용 Claude 로그인으로 한다 — 로그인해 두는 것은 관리자(이).</div></details></div>`};
+}
+
+// ── 설정 ──
+function viewSettings(){
+ const p=P(),pk=personKey(),team=isTeam();
+ const as=S.autoSet[S.persona];
+ const AUTO=team?[['alias','다른 이름 저절로','이틀 같은 말로 찾으면 그 말로도 나오게'],['file','넣은 파일을 문서로','md · docx · pptx · xlsx 는 팀 서버에서 바로'],['find','찾기','딱 맞는 항목이 없으면 비슷한 글에서']]
+  :[['save','편집기에서 고친 것 저장','30초 조용하면 저절로 · 오늘 09:30 설계메모'],['file','넣은 파일을 문서로','docx · pdf 를 지식 폴더에 넣으면 · 오늘 회의록-1021.docx'],['src','자동으로 가져오는 곳','더해 둔 곳에서 때마다 표를 다시 채운다'],['claude','자동 정리 — Claude 로','PC 가 쉴 때 내 Claude 로그인으로 · 이번 달 23건'],['find','찾기','딱 맞는 항목이 없으면 비슷한 글에서'],['alias','다른 이름 저절로','어젯밤 ‘상태 점검’ → 헬스 체크'],['check','찾기 점검','찾기가 나빠지지 않았나 매일 본다']];
+ const autoCard=`<div class="card"><div class="ch">저절로 하는 일 <small>${AUTO.every(a=>as[a[0]])?'모두 켬':'일부 끔'}</small></div><div class="cb" style="padding:2px 14px">${AUTO.map(a=>`<div class="set" data-t="auto-${a[0]}"><span class="tx"><b>${a[1]}</b><small>${as[a[0]]?a[2]:'꺼 두었다 — 켜면 다시 한다'}</small></span><button class="sw${as[a[0]]?' on':''}" data-a="toggleAuto" data-v="${a[0]}" data-t="sw-${a[0]}" aria-label="${a[1]}"></button></div>`).join('')}</div><div class="cf">멈추면 맨 위에 한 줄로 알린다.</div></div>`;
+ const devs=S.devices[pk]||[];
+ const devCard=`<div class="card" style="overflow:visible"><div class="ch">내 기기 <small>내 이름으로 팀 kmd 를 쓰는 곳</small></div><div class="cb" style="padding:2px 14px"><ul class="plain" data-t="devList">${devs.map(d=>`<li data-t="devRow" data-name="${d.n}"><span style="flex:1"><b>${esc(d.n)}</b><small class="muted" style="display:block">${esc(d.s)}</small></span>${/이 PC/.test(d.s)?'':`<button class="kebab" data-a="menu" data-m="dev:${d.n}" data-t="devKebab">⋯${S.menu==='dev:'+d.n?`<div class="menu" style="right:0;top:28px"><div class="mi" data-a="unlinkDev" data-n="${d.n}" data-t="unlinkBtn">끊기<small>그 기기의 Claude Code 는 다시 이어야 한다</small></div></div>`:''}</button>`}</li>`).join('')||'<li class="muted">이어진 기기가 없다</li>'}</ul><p class="small muted">90일 안 쓰면 저절로 끊긴다.</p></div></div>`;
+ let left;
+ if(team) left=`<div class="card" style="overflow:visible"><div class="ch">이 팀 서버 <small class="mono">kmd.team.local</small></div><div class="cb"><div class="kv"><span>들어가기</span><span>아이디 ${esc(p.id)} · 비밀번호는 브라우저가 기억한다 <a class="small" data-a="logout" data-t="logout">나가기</a></span><span>내 지식</span><span>${p.hasPc?'내 PC 지식 넷 — 내 PC 프로그램이 연다':'받은편지함 — 이 서버 안 · 나만 쓴다'}</span><span>백업</span><span>사내 GitLab · 저장할 때마다 저절로</span><span>판</span><span>kmd v1.13</span></div></div>${p.admin?'<div class="cf"><a class="lk" data-a="nav" data-s="admin">관리 — 문제 · 사람 · 백업 →</a></div>':''}</div>`+devCard;
+ else left=`<div class="card"><div class="ch">이 PC</div><div class="cb"><div class="kv"><span>지식 폴더</span><span><span class="mono">D:\\kmd</span> — 지식 ${visibleKns().length}</span><span>백업 자리</span><span><span class="mono">E:\\kmd-백업</span> ${S.cond.backup?'<span class="chip c-warn">멈췄다 · 3시간</span><small>08:05 부터 E: 드라이브가 빠져 있다 · 저장은 그대로 된다</small>':'<span class="chip c-acc">잘 된다</span>'}</span><span>보낼 곳</span><span>배포노트 → DPMS · 설계메모 → GDI 와 DPMS</span><span>판</span><span>kmd v1.13 — 새 판은 다음 시작에 저절로</span></div></div></div>
+  <div class="card" style="overflow:visible"><div class="ch">이어진 것</div><div class="cb" style="padding:2px 14px"><ul class="plain"><li><span style="flex:1"><b>Claude Code</b><small class="muted" style="display:block">이어짐 · 갈 곳 둘 — 팀 · 내 PC</small></span></li><li><span style="flex:1"><b>팀 kmd</b><small class="muted" style="display:block">kmd.team.local · kim 으로 · ${S.cond.serverDown?'지금 닿지 않는다':'이어짐'}</small></span></li></ul><p class="small muted">밖으로 나가는 것은 보내기 · 백업 · Claude 정리뿐이다.</p></div></div>`+devCard;
+ return {crumb:'설정',main:`<div style="max-width:980px"><div class="big">설정</div><div class="g2"><div>${left}</div><div>${autoCard}</div></div></div>`};
+}
+
+// ── 관리 ──
+function viewAdmin(){
+ const a=S.admin, rows=[];
+ if(a.nopw) rows.push(`<li class="hot" data-t="adm-nopw"><span class="dot warn"></span><span class="tx"><b>비밀번호를 안 정한 사람 3</b><small>최 · 정 · 한 — 처음 들어오기 링크를 한꺼번에 만든다</small></span><a class="lk" data-a="admLinks" data-t="admLinks">링크 만들기</a></li>`);
+ if(a.lock) rows.push(`<li data-t="adm-lock"><span class="dot"></span><span class="tx"><b>김(kim) · 다른 자리에서 5번 틀림 — 잠시 막혔다</b><small>10:21 · 10.10.31.7 · 10:36 에 저절로 풀린다 · 김은 그대로 쓴다</small></span><a class="lk" data-a="admUnlock" data-t="admUnlock">풀기</a></li>`);
+ a.requests.forEach(r=>rows.push(`<li data-t="adm-req"><span class="dot pu"></span><span class="tx"><b>${esc(r.who)}이 ${esc(r.src.name)}를 더해 달라고 했다</b><small>${esc(r.tm)} · → ${esc(KN(r.src.kn).name)} › ${esc(r.src.doc)} · ${everyTxt(r.src.every)}</small></span><a class="lk" data-a="admAddReq" data-id="${r.id}" data-t="admAddReq">더하기</a></li>`));
+ if(S.cond.loginRest) rows.push(`<li data-t="adm-rest"><span class="dot warn"></span><span class="tx"><b>자동 정리가 쉬고 있다 · 2일</b><small>정리 전용 Claude 로그인이 끝났다 — 서버에서 한 줄 — <code>claude</code> 다시 로그인 · 그동안은 규칙으로 되는 것만 넣는다</small></span></li>`);
+ if(S.cond.serverDown) rows.push(`<li><span class="dot"></span><span class="tx"><b>팀 서버에 닿지 않는 PC 가 있다</b><small>닿으면 저절로 보낸다 — 할 것 없음</small></span></li>`);
+ return {crumb:'관리',main:`<div style="max-width:780px"><div class="big">관리</div><p class="lead">문제가 있을 때만 줄이 선다 — 풀리면 저절로 사라진다.</p>
+  <div class="card"><div class="ch">오늘 ${rows.length} <small>${now()}</small></div><ul class="plain pl" data-t="admList">${rows.join('')||'<li class="muted" data-t="admEmpty">오늘은 문제가 없다</li>'}</ul><div class="cf">아직 https 가 아니다 — 사내 인증서가 생기면 켤 수 있다</div></div>
+  <details class="more" data-t="admMore"><summary>잘 도는 것 — 지식 ${S.order.filter(k=>KN(k).type==='team').length+1} · 사람 6 · 자동으로 가져오는 곳 ${S.sources.filter(s=>s.scope==='team').length} · 백업 확인 10-20 · 자세히</summary><div class="in">
+   <div>자동으로 가져오는 곳 — ${S.sources.filter(s=>s.scope==='team').map(s=>esc(s.name)+' '+esc(s.last)).join(' · ')} · <a data-a="nav" data-s="import">자료 가져오기 ›</a></div>
+   <div style="margin-top:4px">자동 정리 — Claude 로 · 어젯밤 12건 · 이번 달 $8 · 정리 전용 로그인 ${S.cond.loginRest?'<b style="color:var(--warn)">쉼</b>':'있음'}</div>
+   <div style="margin-top:4px">찾기 점검 — DPMS 27/30 · GDI 26/30 · 지난주보다 나빠진 것 0</div>
+   <div style="margin-top:4px">백업 — 사내 GitLab 그룹 team · 10-20 되살려 봤다 · 이상 없음 · 다음 10-27</div>
+   <div style="margin-top:4px">사람 — 김 · 박 · 이 · (최 · 정 · 한 비밀번호 ${a.nopw?'안 정함':'링크 보냄'})</div></div></details></div>`};
+}
+
+// ── 지식 추가 ──
+function parseAdd(t){
+ t=String(t||'').trim(); if(!t) return null;
+ const p=P();
+ if(/^(postgres(ql)?|mysql|oracle|mssql):\/\//i.test(t)||/\.git$/i.test(t)||/^git@/i.test(t)) return {kind:'src'};
+ let m;
+ if((m=t.match(/^https?:\/\/kmd\.team\.local\/r\/([^\/\s?#]+)/i))){const id=m[1].replace(/_wiki$/,'').toLowerCase(); const k=S.kns[id]&&S.kns[id].type==='team'?id:null; return {kind:'team',k,slug:m[1]};}
+ if(/^[A-Za-z]:\\/.test(t)){const nm=t.replace(/[\\]+$/,'').split('\\').pop()||t; return {kind:'folder',path:t,name:nm};}
+ if(/^https?:\/\//i.test(t)) return {kind:'bad'};
+ return {kind:'new',name:t};
+}
+function viewAdd(){
+ const p=P(),ah=addHeard();
+ return {crumb:'지식 추가',main:`<div style="max-width:820px"><div class="big">지식 추가</div><p class="lead">새 이름 · 내 PC 폴더 · 팀 지식 주소 — 무엇이든 붙인다. kmd 가 알아서 가른다.</p>
+  ${S.addMsg?`<div class="callout ${S.addMsg.cls} stop" data-t="addMsg"><i></i><span>${S.addMsg.t}</span></div>`:''}
+  <div class="paste"><input class="inp mono" id="addIn" data-in="add" data-t="addIn" value="${esc(S.addDraft)}" placeholder="예: 회의 · D:\\옛자료 · http://kmd.team.local/r/dpms_wiki" autocomplete="off"><span id="addBtnBox">${ah.btn}</span></div><div id="addHeardBox">${ah.heard}</div>
+  <div class="card" style="margin-top:16px"><div class="ch">이렇게도 붙인다</div><div class="cb" style="padding:2px 14px"><ul class="plain">
+   <li><code data-a="fillAdd" data-v="회의" style="cursor:pointer">회의</code> → <b>새 지식 만들기</b> — ${p.hasPc?'D:\\kmd\\회의 · 나만':'팀 서버 안 내 지식'}</li>
+   <li><code data-a="fillAdd" data-v="D:\\옛자료" style="cursor:pointer">D:\\옛자료</code> → <b>내 폴더를 지식으로</b> — 그 자리에서 따라간다 · 복사하지 않는다</li>
+   <li><code data-a="fillAdd" data-v="http://kmd.team.local/r/dpms_wiki" style="cursor:pointer">http://kmd.team.local/r/dpms_wiki</code> → <b>팀 지식 들어가기</b></li>
+   <li><code data-a="fillAdd" data-v="git@gitlab.team.local:dpms/dpms-batch.git" style="cursor:pointer">git@gitlab.team.local:dpms/dpms-batch.git</code> → 코드 · DB 는 <a data-a="nav" data-s="import">자료 가져오기</a>에서</li>
+  </ul></div><div class="cf">예를 누르면 칸에 들어간다</div></div></div>`};
+}
+function addHeard(){
+ const p=P(),team=isTeam(),pr=parseAdd(S.addDraft);
+ let heard='',ok=false;
+ if(pr){
+  if(pr.kind==='src') heard=`<div class="heard bad" data-t="addHeard"><span class="kt src">코드 · DB</span><span>코드 · DB 는 자료 가져오기에서 더한다 <a data-a="addToImport" data-t="addToImport">→</a><span class="sub2">지식 안에 표를 저절로 채우는 일이라 여기서는 더하지 않는다</span></span></div>`;
+  else if(pr.kind==='team'){ok=true; heard=`<div class="heard" data-t="addHeard"><span class="kt team">팀</span><span><b>팀 지식 들어가기</b> — ${pr.k?esc(KN(pr.k).name)+' · 이미 목록에 있다 — 그 지식으로 간다':esc(pr.slug)+' 를 목록에 더한다'}</span></div>`;}
+  else if(pr.kind==='folder'){
+   if(!p.hasPc) heard=`<div class="heard bad" data-t="addHeard"><span class="kt me">내 PC</span><span>경로는 내 PC 프로그램이 연다 — 이 PC 에는 없다<span class="sub2">새 이름을 붙이면 팀 서버 안 내 지식이 선다</span></span></div>`;
+   else {ok=true; heard=`<div class="heard" data-t="addHeard"><span class="kt me">내 PC</span><span><b>내 폴더를 지식으로 — 그 자리에서 따라간다</b> · ${esc(pr.name)}<span class="sub2">파일은 그 자리 그대로 · 복사하지 않는다${team?' · 내 PC 창이 한 번 묻는다':''}</span></span></div>`;}
+  }
+  else if(pr.kind==='new'){ok=true; heard=`<div class="heard" data-t="addHeard"><span class="kt me">${p.hasPc?'내 PC':'개인'}</span><span><b>새 지식 만들기</b> — ${p.hasPc?'D:\\kmd\\'+esc(pr.name)+' · 나만':'팀 서버 안 내 지식 「'+esc(pr.name)+'」 · 나만(관리자는 볼 수 있다)'}${p.hasPc&&team?'<span class="sub2">내 PC 창이 한 번 묻는다</span>':''}</span></div>`;}
+  else heard=`<div class="heard bad" data-t="addHeard">알아듣지 못했다 — 이름 · 내 PC 폴더 경로 · 팀 지식 주소를 붙인다</div>`;
+ }
+ const btn=`<button class="btn pri" data-a="doAdd" data-t="addBtn"${ok?"":" disabled"}>추가</button>`;
+ return {heard,btn,ok};
+}
+function modalHtml(){
+ const m=S.modal;
+ if(m.type==='pcAsk') return `<div class="scrim" data-t="pcModal"><div class="modal win"><div class="tb"><span class="logo me">K</span><b>kmd — 이 PC</b><button class="x" data-a="closeModal">×</button></div><div class="wb"><div class="ask">팀 화면 <b>kmd.team.local</b> 에서<br>${esc(m.label)}</div><div class="what"><span class="p">${esc(m.path)}</span><span>→</span><span class="kn">내 지식 「${esc(m.name)}」</span><span class="muted">· 파일은 그 자리 그대로</span></div><p class="only">이 PC 에서만 열린다 — 폴더 내용은 팀 서버로 가지 않는다</p></div><div class="wf"><button class="btn pri" data-a="pcAskOk" data-t="pcAskOk">추가</button></div></div></div>`;
+ return '';
+}
+
+// ───────────── 동작 ─────────────
+const ACT={
+ nav(el){const s=el.dataset.s; if(s==='home') go({scr:'home',kn:'*'}); else if(s==='docs') go({scr:'docs',kn:S.route.kn,doc:null}); else go({scr:s,kn:['tidy','members'].includes(s)?S.route.kn:S.route.kn});},
+ kmenu(el,ev){ if(ev.target.closest('.kmenu')) return; S.menu=S.menu==='kmenu'?null:'kmenu'; render();},
+ pickKn(el){const k=el.dataset.k; S.menu=null; if(k==='*') go({scr:'home',kn:'*'}); else go({scr:['tidy','members'].includes(S.route.scr)&&KN(k).type==='team'?S.route.scr:'docs',kn:k});},
+ openKn(el){const k=el.dataset.k; if(pcBlocked(k)){toast('내 PC 프로그램이 꺼져 있다 — 켜면 저절로 다시 열린다');return;} go({scr:'docs',kn:k});},
+ allDocs(){S.route.all=true; render();},
+ openDoc(el){go({scr:'docs',kn:el.dataset.k,doc:el.dataset.d});},
+ backDocs(){go({scr:'docs',kn:S.route.kn,doc:null});},
+ editDoc(){S.edit={kn:S.route.kn,doc:S.route.doc}; S.route.hl=null; render(); S._focus='edTx'; const t=$('#edTx'); if(t) t.focus();},
+ cancelEdit(){S.edit=null; render();},
+ saveDoc(){saveDoc();},
+ openSearch(){S.pal={q:'',more:false}; render();},
+ reopenSearch(){S.pal={q:S.route.q||'',more:false}; render();},
+ palClose(el,ev){ if(ev.target!==el) return; S.pal=null; render();},
+ palMore(){S.pal.more=true; render();},
+ palDocs(){S.pal=null; go({scr:'docs',kn:S.route.kn,doc:null});},
+ palClear(){S.pal.q=''; S.pal.more=false; render();},
+ openHit(el){const q=S.pal.q; S.pal=null; go({scr:'docs',kn:el.dataset.k,doc:el.dataset.d,hl:el.dataset.h,q});},
+ toggleToday(el){S.openToday=S.openToday===el.dataset.id?null:el.dataset.id; render();},
+ revertToday(el){const pk=personKey(); const x=(S.today[pk]||[]).find(i=>i.id===el.dataset.id); if(!x||!x.applied) return; revertEff(x.eff); x.applied=false; x.small='되돌렸다 — '+now()+' · 문서는 넣기 전으로';
+  if(x.link){const f=findRow(x.link); if(f&&!f.r.reverted){f.r.reverted=true;}} toast('되돌렸다 — '+esc(x.eff.sec?docTitle(x.eff.kn,x.eff.doc)+' › '+x.eff.sec:'')); render();},
+ todayGo(el){const pk=personKey(); const x=(S.today[pk]||[]).find(i=>i.id===el.dataset.id); if(x&&x.go){ if(!visibleKns().includes(x.go.kn)){toast('이 화면에서는 열 수 없는 지식이다');return;} go({scr:'docs',kn:x.go.kn,doc:x.go.doc,hl:x.go.hl||null});}},
+ unlinkDev(el){const n=el.dataset.n,pk=personKey(); S.devices[pk]=(S.devices[pk]||[]).filter(d=>d.n!==n); S.menu=null; toast('끊었다 — '+esc(n)+' · 그 기기의 Claude Code 는 다시 이어야 한다'); render();},
+ menu(el,ev){ if(ev.target.closest('.menu')) return; const m=el.dataset.m; S.menu=S.menu===m?null:m; render();},
+ fetch(el){fetchSrc(el.dataset.id);},
+ fetchAll(){S.sources.filter(s=>s.scope===srcScope()).forEach(s=>fetchSrc(s.id));},
+ setEvery(el,ev){ if(ev.target.dataset.stop) return; const s=S.sources.find(x=>x.id===el.dataset.id); const v=el.dataset.v; s.every=v==='daily'?{t:'daily',at:($('#evAt')&&$('#evAt').value)||'06:00'}:{t:v}; S.menu=null; toast(esc(s.name)+' — 이제 '+everyTxt(s.every)+' 가져온다'); render();},
+ addSrc(){const pr=parseSrc(S.srcDraft); if(!pr||pr.bad) return; addSource(pr,P().who); S.srcDraft=''; toast('더했다 — '+esc(pr.name)+' · '+everyTxt(pr.every)+' 가져온다'); render();},
+ askSrc(){const pr=parseSrc(S.srcDraft); if(!pr||pr.bad) return; bump(); S.admin.requests.push({id:uid(),who:P().who,src:pr,tm:'오늘 '+now()}); S.srcDraft=''; toast('관리자에게 부탁했다 — '+esc(pr.name)+' · 더하면 오늘 바뀐 것에 뜬다'); render();},
+ doSend(){doSend();},
+ dropSend(el){const q=S.sendq.find(x=>x.id===el.dataset.id); q.on=false; S.menu=null; render();},
+ undropSend(el){const q=S.sendq.find(x=>x.id===el.dataset.id); q.on=true; render();},
+ addCand(el){const c=S.cand.find(x=>x.id===el.dataset.id); S.cand=S.cand.filter(x=>x!==c); S.sendq.push({id:uid(),title:c.title,from:'받은편지함',when:'메모',to:c.to,on:true,item:c.item}); render();},
+ tidyNow(el){const k=el.dataset.k||tidyKn(); if(S.route.scr==='tidy') runTidy(k); else {runTidy(k,'toast'); toast('정리하는 중 — 1~2분 · 다 되면 알린다');}},
+ toggleRun(el,ev){ if(ev.target.closest('button,.menu')) return; const f=(S.runs[tidyKn()]||[]).find(r=>r.id===el.dataset.id); if(f){f.open=f.open===false; render();}},
+ cmpRow(el){S.cmp=S.cmp===el.dataset.id?null:el.dataset.id; S.menu=null; render();},
+ revertRow(el){const f=findRow(el.dataset.id); if(!f||f.r.reverted) return; revertEff(f.r.eff); f.r.reverted=true; S.menu=null;
+  const back=Object.assign(clone(f.r.src||f.r),{id:uid(),tm:now(),small:'되돌린 것 — 다시 받은 것으로'}); delete back.reverted; delete back.applied; delete back.src; (S.inbox[f.k]=S.inbox[f.k]||[]).push(back);
+  for(const pk in S.today) S.today[pk].forEach(t=>{if(t.link===f.r.id&&t.applied){t.applied=false;}});
+  const pk=whoKey(f.r.who); if(pk&&pk!==personKey()) addToday(pk,{tm:now(),kt:'team',dot:'',text:P().who+'이 되돌렸다 — '+KN(f.k).name+' › '+f.r.target,small:'kmd 가 넣은 것을 넣기 전으로'});
+  toast('되돌렸다 — '+esc(f.r.target)+' · 받은 것 +1'); render();},
+ setTidyAt(el){const k=tidyKn(); KN(k).tidyAt=el.dataset.v; S.menu=null; toast('정리 시각을 매일 '+el.dataset.v+' 로 바꿨다'); render();},
+ toggleNoClaude(){const k=tidyKn(); KN(k).noClaude=!KN(k).noClaude; render();},
+ togglePicker(){S.picker=!S.picker; render();},
+ addCur(el){const k=tidyKn(); KN(k).curators.push(el.dataset.v); S.picker=false; toast(esc(el.dataset.v)+' 을 정리하는 사람으로 더했다'); render();},
+ rmCur(el){const k=tidyKn(); KN(k).curators=KN(k).curators.filter(c=>c!==el.dataset.v); render();},
+ toggleAuto(el){const a=S.autoSet[S.persona]; a[el.dataset.v]=!a[el.dataset.v]; render();},
+ logout(){S.logged[S.persona]=false; S.pwErr=false; go({scr:'home',kn:'*'});},
+ admLinks(){const t='http://kmd.team.local/first/choi-7f3a\nhttp://kmd.team.local/first/jung-2c91\nhttp://kmd.team.local/first/han-b40e'; try{navigator.clipboard&&navigator.clipboard.writeText(t).catch(()=>{});}catch(e){} S.admin.nopw=false; toast('링크 3개를 복사했다 — 최 · 정 · 한에게 보낸다 · 10분 동안 한 번만'); render();},
+ admUnlock(){S.admin.lock=false; toast('풀었다 — 김(kim)'); render();},
+ admAddReq(el){const r=S.admin.requests.find(x=>x.id===el.dataset.id); S.admin.requests=S.admin.requests.filter(x=>x!==r); addSource(r.src,r.who); const pk=whoKey(r.who); if(pk) addToday(pk,{tm:now(),kt:'team',dot:'acc',text:KN(r.src.kn).name+'에 '+r.src.name+'를 더했다 — 내 부탁 · 이가 더했다',small:everyTxt(r.src.every)+' 가져온다',goScr:'import'}); toast('더했다 — '+esc(r.src.name)); render();},
+ fillAdd(el){S.addDraft=el.dataset.v; S.addMsg=null; S._focus='addIn'; render();},
+ addToImport(){S.srcDraft=S.addDraft; S.addDraft=''; go({scr:'import'});},
+ doAdd(){doAdd();},
+ closeModal(){S.modal=null; render();},
+ pcAskOk(){const m=S.modal; S.modal=null; makePcKn(m.name,m.path); S.addDraft=''; S.addMsg={cls:'',t:'<b>추가했다 — '+esc(m.name)+'</b> · 지식 목록에 「내 PC」 줄이 생겼다 <a data-a="nav" data-s="home">지식 목록 ›</a>'}; render();},
+ impGo(el){go({scr:'docs',kn:el.dataset.k,doc:el.dataset.d});}
+};
+
+function saveDoc(){
+ const k=S.edit.kn,d=findDoc(k,S.edit.doc); const txt=$('#edTx').value;
+ // 글을 항목으로 다시 가른다
+ const parts=[]; let cur=null;
+ txt.split('\n').forEach(line=>{const m=line.match(/^##\s+(.+)$/); if(m){cur={h:m[1].trim(),b:[]}; parts.push(cur);} else { if(!cur){cur={h:'머리말',b:[]}; parts.push(cur);} cur.b.push(line);} });
+ const oldMap={}; d.secs.forEach(s=>oldMap[s.h]=s);
+ let newSecs=parts.map(p=>{const b=p.b.join('\n').replace(/^\n+|\n+$/g,''); const o=oldMap[p.h]; const s=o&&!o.auto?Object.assign(clone(o),{b}):{h:p.h,b}; if(o&&o.b!==b){delete s.by; delete s.tidy;} return s;});
+ d.secs.forEach((s,i)=>{if(s.auto) newSecs.splice(Math.min(i,newSecs.length),0,clone(s));});
+ const changed=newSecs.filter(s=>!s.auto&&(!oldMap[s.h]||oldMap[s.h].b!==s.b)).map(s=>s.h);
+ S.edit=null;
+ if(!changed.length){toast('바뀐 글이 없다 — 그대로 두었다'); render(); return;}
+ bump(); const tm=now(); const before=clone(d.secs);
+ const direct=isMine(k)||roleIn(k)==='주인';
+ if(direct){
+  newSecs.forEach(s=>{if(changed.includes(s.h)) s.by=tm+' 화면에서 고침 — 저장';});
+  d.secs=newSecs; d.when='오늘 '+tm;
+  addToday(personKey(),{tm,kt:isMine(k)?'me':'team',dot:'acc',text:'화면에서 고침 — '+KN(k).name+' › '+d.title+' 「'+changed.join(' · ')+'」',small:'저장했다 — 문서에도 넣었다',go:{kn:k,doc:d.id,hl:changed[0]}});
+  // 보낼 곳이 있는 내 지식이면 보낼 것에 모인다
+  const n=KN(k);
+  if(n.type==='pc'&&n.dest&&n.dest.length&&!S.sendq.some(q=>q.docKey===k+'/'+d.id&&q.on)){
+   const eff={type:'newdoc',kn:'dpms',doc:d.title+'-'+n.name,title:d.title+'('+n.name+')',secs:clone(newSecs.filter(s=>!s.auto))};
+   S.sendq.push({id:uid(),docKey:k+'/'+d.id,title:d.title+' — '+changed.join(' · '),from:n.name,when:'오늘 '+tm,to:'고친 것 → DPMS',on:true,item:{who:'김',title:d.title+' — '+changed.join(' · '),small:n.name+'에서 보냄',kind:'put',target:d.title+'('+n.name+')',eff}});
+  }
+  toast('저장했다 — 문서에도 넣었다');
+ } else {
+  const id=uid(); const preview={}; newSecs.forEach(s=>{if(changed.includes(s.h)) preview[s.h]=s.b.slice(0,40)+(s.b.length>40?'…':'');});
+  const item={id,who:P().who,tm,title:d.title+' › '+changed.join(' · ')+' 고침',small:'팀 화면에서 남긴 기록',kind:'put',target:d.title+' › '+changed[0],eff:{type:'secs',kn:k,doc:d.id,before,after:newSecs}};
+  (S.inbox[k]=S.inbox[k]||[]).push(item);
+  S.pending.push({id,kn:k,doc:d.id,tm,secs:changed,preview});
+  addToday(personKey(),{tm,kt:'team',dot:'pend',text:KN(k).name+'에 기록 — '+d.title+' 「'+changed.join(' · ')+'」',small:'오늘 밤 '+KN(k).tidyAt+' 정리 때 문서에',go:{kn:k,doc:d.id,hl:changed[0]}});
+  toast('기록했다 — 오늘 밤 '+KN(k).tidyAt+' 정리 때 문서에 들어간다 · 바로 넣으려면 <a data-a="tidyNow" data-k="'+k+'" data-t="toastTidy">지금 정리</a>',7000);
+ }
+ render();
+}
+function fetchSrc(id){
+ const s=S.sources.find(x=>x.id===id); if(!s||s.run==='run') return;
+ s.run='run'; render();
+ setTimeout(()=>{bump(); const tm=now(); const a=S.autos[s.auto]; let msg;
+  if(a&&s.changesLeft>0){ s.changesLeft--; const r=a.rows.length-1; const v=a.rows[r]; const ci=v.length-1; v[ci]=bumpVer(v[ci]); a.chg=[r,ci]; msg='가져왔다 — 바뀐 표 1 · '+tm; s.lastNote='바뀐 표 1';
+   const d=docsOf(s.kn).find(x=>x.title===s.doc); if(d){d.chip='새로 바뀜'; d.when='오늘 '+tm;}
+   addToday(personKey(),{tm,kt:'team',dot:'acc',text:s.name+'에서 바뀐 표 1 — '+KN(s.kn).name+' › '+s.doc,small:'저절로 채우는 표 · 지금 가져오기',go:d?{kn:s.kn,doc:d.id}:null}); }
+  else {msg='가져왔다 — 그대로 · '+tm; s.lastNote='그대로';}
+  if(a) a.checked='오늘 '+tm;
+  s.last='오늘 '+tm; s.run=msg; render();},1500);
+}
+function bumpVer(v){const m=String(v).match(/^(.*?)(\d+)$/); return m?m[1]+(Number(m[2])+1):v+'.1';}
+function addSource(pr,who){
+ bump(); const scope=srcScope(); const id=uid(); const aid='a'+id;
+ S.autos[aid]={src:pr.name,since:'오늘 '+now(),checked:'오늘 '+now(),cols:pr.kind==='DB'?['칸','형','길이']:['꾸러미','판'],rows:pr.kind==='DB'?[['순번','NUMBER','10'],['이름','VARCHAR','50']]:[['spring-boot','3.3.4'],['lombok','1.18.34']],chg:null};
+ S.sources.push({id,name:pr.name,kind:pr.kind,sub:(pr.kind==='DB'?'읽기만 · ':pr.kind==='코드'?'git · ':'')+'오늘 '+now()+' 부터'+(who!==P().who?' · '+who+'의 부탁':''),kn:pr.kn,doc:pr.doc,auto:aid,every:clone(pr.every),last:'오늘 '+now(),lastNote:'처음 가져옴',run:null,changesLeft:1,scope});
+ // 넣는 문서
+ let d=docsOf(pr.kn).find(x=>x.title===pr.doc);
+ if(!d){d=doc(pr.doc,pr.doc,'오늘 '+now(),[sec('표',pr.name+'에서 저절로 채운다.',{auto:aid})],{chip:'새로 바뀜',autoDoc:aid}); docsOf(pr.kn).unshift(d);}
+ else if(!d.secs.some(s=>s.auto===aid)) d.secs.push(sec(pr.name,pr.name+'에서 저절로 채운다.',{auto:aid}));
+}
+function doSend(){
+ const items=S.sendq.filter(q=>q.on); if(!items.length) return;
+ bump(); const tm=now();
+ S.sendq=S.sendq.filter(q=>!q.on);
+ if(S.cond.serverDown){S.sendWait={items,tm}; toast('팀 서버에 닿지 않는다 — 닿으면 저절로 보낸다'); render(); return;}
+ finishSend(items,tm);
+}
+function finishSend(items,tm0){
+ bump(); const tm=now();
+ items.forEach(q=>{(S.inbox.dpms=S.inbox.dpms||[]).push(Object.assign(clone(q.item),{id:uid(),tm}));});
+ S.sent.unshift({tm,txt:'팀 서버로 '+items.length+'개를 보냈다',small:(tm0&&tm0!==tm?tm0+' 에 누른 것 · ':'')+'오늘 밤 '+KN('dpms').tidyAt+' 정리 때 문서에 들어간다'});
+ addToday('kim',{tm,kt:'me',dot:'acc',text:'팀 서버로 '+items.length+'개를 보냈다 — DPMS 지식',small:'오늘 밤 '+KN('dpms').tidyAt+' 정리 때 문서에 들어간다'});
+ S.sendWait=null;
+ toast('보냈다 — '+items.length+'개 · 오늘 밤 '+KN('dpms').tidyAt+' 정리 때 문서에 들어간다');
+ render();
+}
+function makePcKn(name,path){
+ const id='k'+uid(); S.kns[id]={name,type:'pc',owner:'김',path,dest:[],when:'방금',_new:true}; S.order.push(id);
+ S.docs[id]=[doc('처음','처음','방금',[sec('개요',path?'이 폴더의 md 파일이 문서가 된다 — '+path:'새 지식 — 첫 문서를 쓴다.')])];
+ bump(); addToday('kim',{tm:now(),kt:'me',dot:'acc',text:'지식을 추가했다 — '+name,small:path?'그 자리에서 따라간다 · '+path:'D:\\kmd\\'+name});
+ return id;
+}
+function doAdd(){
+ const p=P(),team=isTeam(),pr=parseAdd(S.addDraft); if(!pr) return; S.addMsg=null;
+ if(pr.kind==='team'){ if(pr.k){S.addDraft=''; go({scr:'docs',kn:pr.k}); return;}
+  const id=pr.slug.toLowerCase(); S.kns[id]={name:pr.slug.replace(/_wiki$/,'').toUpperCase()+' 지식',type:'team',owner:'이',curators:['이'],tidyAt:'02:30',_new:true}; S.order.push(id); S.docs[id]=[doc('처음','처음','방금',[sec('개요','새 팀 지식.')])]; S.inbox[id]=[]; S.runs[id]=[];
+  S.addDraft=''; S.addMsg={cls:'',t:'<b>목록에 더했다 — '+esc(S.kns[id].name)+'</b>'}; render(); return;}
+ if(pr.kind==='folder'||pr.kind==='new'){
+  if(!p.hasPc){ if(pr.kind==='folder') return; const id='s'+uid(); S.kns[id]={name:pr.name,type:'srv',owner:p.who,when:'방금',_new:true}; S.order.push(id); S.docs[id]=[doc('처음','처음','방금',[sec('개요','새 지식 — 첫 문서를 쓴다.')])]; S.addDraft=''; S.addMsg={cls:'',t:'<b>만들었다 — '+esc(pr.name)+'</b> · 팀 서버 안 내 지식 <a data-a="nav" data-s="home">지식 목록 ›</a>'}; render(); return;}
+  if(team){
+   if(S.cond.pcOff){S.addMsg={cls:'gray',t:'<b>내 PC 프로그램이 꺼져 있다</b> — 켜면 저절로 다시 열린다'}; render(); return;}
+   S.modal={type:'pcAsk',name:pr.name,path:pr.kind==='folder'?pr.path:'D:\\kmd\\'+pr.name,label:pr.kind==='folder'?pr.name+' 폴더를 내 지식으로 추가한다':'D:\\kmd\\'+pr.name+' 에 새 지식을 연다'}; render(); return;}
+  makePcKn(pr.name,pr.kind==='folder'?pr.path:'D:\\kmd\\'+pr.name); S.addDraft=''; S.addMsg={cls:'',t:'<b>추가했다 — '+esc(pr.name)+'</b> <a data-a="nav" data-s="home">지식 목록 ›</a>'}; render();
+ }
+}
+
+// ── 파일 · 폴더 넣기 ──
+const DOCX=['md','docx','pptx','xlsx'], IMG=['png','jpg','jpeg','gif','svg','webp','bmp'], PCONLY=['hwpx','pdf','hwp'];
+function extOf(n){const m=String(n).toLowerCase().match(/\.([a-z0-9]+)$/); return m?m[1]:'';}
+function baseOf(n){return String(n).split(/[\\\/]/).pop().replace(/\.[^.]+$/,'');}
+function classify(n){const e=extOf(n),pc=P().where==='pc'; if(DOCX.includes(e)||(pc&&PCONLY.includes(e))) return 'doc'; if(IMG.includes(e)||(!pc&&PCONLY.includes(e))) return 'att'; return 'skip';}
+function takeFiles(files){
+ files=[...files]; if(!files.length) return;
+ const scope=srcScope(); const groups={}; const singles=[];
+ files.forEach(f=>{const rp=f.webkitRelativePath||f._rel||''; if(rp&&rp.includes('/')){const top=rp.split('/')[0]; (groups[top]=groups[top]||[]).push(f);} else singles.push(f);});
+ const tKn=ensureInbox(), tName=KN(tKn).name, teamKn=KN(tKn).type==='team';
+ bump(); const tm=now();
+ Object.keys(groups).forEach(top=>{
+  const fs=groups[top]; const row={tm,title:top+' 폴더 → '+tName+' › '+top,msg:'바꾸는 중…',cls:'run'}; S.imports[scope].unshift(row);
+  setTimeout(()=>{let dn=0,at=0,sk=0; fs.forEach(f=>{const c=classify(f.name); if(c==='doc'){dn++; const rel=(f.webkitRelativePath||f._rel).split('/'); addImportedDoc(tKn,rel.slice(0,-1).join(' › ')+' › '+baseOf(f.name),f.name);} else if(c==='att') at++; else sk++;});
+   row.msg=top+' 폴더 — 문서 '+dn+' · 첨부 '+at+' · 넣지 않은 파일 '+sk; row.cls=sk?'bad':''; row.title=top+' 폴더 → '+tName+' › '+top;
+   addToday(personKey(),{tm:now(),kt:teamKn?'team':'me',dot:'acc',text:top+' 폴더를 '+tName+'에 넣었다',small:row.msg}); render();},1000);
+ });
+ singles.forEach((f,i)=>{
+  const row={tm,title:f.name,msg:'바꾸는 중…',cls:'run'}; S.imports[scope].unshift(row);
+  setTimeout(()=>{const c=classify(f.name),e=extOf(f.name),b=baseOf(f.name);
+   if(c==='doc'){const d=addImportedDoc(tKn,b,f.name); row.title=f.name+' → '+tName+' › '+b; row.msg=teamKn?'기록이 됐다 — '+tName+' › '+b+' · 다음 정리 때 문서에':'문서가 됐다 — '+tName+' › '+b; row.cls=''; row.go=teamKn?null:{kn:tKn,doc:d.id};
+     addToday(personKey(),{tm:now(),kt:teamKn?'team':'me',dot:'acc',text:f.name+' 를 문서로 — '+tName,small:'원본은 첨부로 두었다',go:teamKn?null:{kn:tKn,doc:d.id}});}
+   else if(c==='att'&&PCONLY.includes(e)){row.title=f.name+' → '+tName+' › '+b; row.msg='원본은 첨부로 두었다 — 내 PC 프로그램이 있는 PC 에서 바꾼다'; row.cls='bad';}
+   else if(c==='att'){row.msg='그림은 첨부로 두었다 — '+tName; row.cls='';}
+   else {row.msg='넣지 않은 파일 — 읽지 못하는 종류(.'+(e||'?')+')'; row.cls='bad';}
+   render();},800+i*250);
+ });
+ render();
+}
+function addImportedDoc(k,title,fname){
+ const id=title; let d=findDoc(k,id);
+ if(!d){d=doc(id,title,'방금',[sec('내용',fname+' 에서 바꾼 글 — 목업이라 내용은 비워 둔다. 원본은 첨부로 두었다.')],{chip:'새로 바뀜'});
+  if(KN(k).type==='team'){(S.inbox[k]=S.inbox[k]||[]).push({id:uid(),who:P().who,tm:now(),title:fname+' — 넣은 파일',small:'자료 가져오기',kind:'put',target:title+'(새 문서)',eff:{type:'newdoc',kn:k,doc:id,title,secs:clone(d.secs)}});}
+  else docsOf(k).unshift(d);}
+ return d;
+}
+function readEntries(entry,path,out){
+ return new Promise(res=>{
+  if(entry.isFile){entry.file(f=>{f._rel=path+f.name; out.push(f); res();},()=>res());}
+  else if(entry.isDirectory){const rd=entry.createReader(); const all=[]; const next=()=>rd.readEntries(es=>{ if(!es.length){Promise.all(all.map(e=>readEntries(e,path+entry.name+'/',out))).then(res);} else {all.push(...es); next();}},()=>res()); next();}
+  else res();
+ });
+}
+
+// ───────────── 이벤트 ─────────────
+document.addEventListener('click',ev=>{
+ const el=ev.target.closest('[data-a]');
+ if(!el){ if(S.menu&&!ev.target.closest('.menu')){S.menu=null; render();} return;}
+ if(el.dataset.self&&ev.target!==el) return;
+ const f=ACT[el.dataset.a]; if(!f) return;
+ if(el.tagName==='A') ev.preventDefault();
+ if(S.menu&&!['menu','kmenu','setEvery','pickKn'].includes(el.dataset.a)&&!ev.target.closest('.menu')) S.menu=null;
+ f(el,ev);
+});
+document.addEventListener('submit',ev=>{
+ const f=ev.target; if(f.dataset.f!=='login') return; ev.preventDefault();
+ const id=$('#lgId').value.trim(), pw=$('#lgPw').value;
+ if(!id||!pw){S.pwErr=true; render(); return;}
+ S.pwErr=false; S.logged[S.persona]=true; go({scr:'home',kn:'*'});
+});
+document.addEventListener('input',ev=>{
+ const t=ev.target; const k=t.dataset&&t.dataset.in; if(!k) return;
+ // 칸은 다시 그리지 않는다(한글 입력이 끊기지 않게) — 결과 자리만 바꾼다
+ if(k==='pal'){S.pal.q=t.value; S.pal.more=false; $('#palBody').innerHTML=palBody();}
+ if(k==='src'){S.srcDraft=t.value; const h=srcHeard(); $('#srcHeardBox').innerHTML=h.heard; $('#srcBtnBox').innerHTML=h.btn;}
+ if(k==='add'){S.addDraft=t.value; const h=addHeard(); $('#addHeardBox').innerHTML=h.heard; $('#addBtnBox').innerHTML=h.btn; const m=$('[data-t=addMsg]'); if(m){S.addMsg=null; m.remove();}}
+});
+document.addEventListener('change',ev=>{
+ const t=ev.target;
+ if(t.id==='fileIn'||t.id==='dirIn'){takeFiles(t.files); return;}
+ if(t.id==='evAt'){const m=S.menu&&S.menu.split(':')[1]; const s=S.sources.find(x=>x.id===m); if(s){s.every={t:'daily',at:t.value||'06:00'}; S.menu=null; toast(esc(s.name)+' — 이제 매일 '+s.every.at+' 가져온다'); render();}}
+ if(t.dataset&&t.dataset.c){S.cond[t.dataset.c]=t.checked; onCond(t.dataset.c,t.checked); render();}
+});
+document.addEventListener('keydown',ev=>{
+ if((ev.ctrlKey||ev.metaKey)&&(ev.key==='k'||ev.key==='K')){ if(isTeam()&&!S.logged[S.persona]) return; ev.preventDefault(); S.pal={q:'',more:false}; render(); return;}
+ if(ev.key==='Escape'){ if(S.pal){S.pal=null; render();} else if(S.modal){S.modal=null; render();} else if(S.menu){S.menu=null; render();} }
+ if(ev.key==='Enter'&&ev.target.id==='palIn'){const h=$('#app .hit'); if(h) h.click();}
+ if(ev.key==='Enter'&&ev.target.id==='addIn'){const b=$('[data-t=addBtn]'); if(b&&!b.disabled) b.click();}
+});
+document.addEventListener('dragover',ev=>{const d=ev.target.closest&&ev.target.closest('#drop'); if(d){ev.preventDefault(); d.classList.add('over');}});
+document.addEventListener('dragleave',ev=>{const d=ev.target.closest&&ev.target.closest('#drop'); if(d) d.classList.remove('over');});
+document.addEventListener('drop',ev=>{const d=ev.target.closest&&ev.target.closest('#drop'); if(!d) return; ev.preventDefault(); d.classList.remove('over');
+ const items=ev.dataTransfer.items; const ents=items?[...items].map(i=>i.webkitGetAsEntry&&i.webkitGetAsEntry()).filter(Boolean):[];
+ if(ents.some(e=>e.isDirectory)){const out=[]; Promise.all(ents.map(e=>readEntries(e,'',out))).then(()=>takeFiles(out));}
+ else takeFiles(ev.dataTransfer.files);
+});
+function onCond(c,on){
+ if(c==='serverDown'&&!on&&S.sendWait){const w=S.sendWait; setTimeout(()=>finishSend(w.items,w.tm),600);}
+}
+document.querySelectorAll('#ctl [data-p]').forEach(b=>b.addEventListener('click',()=>{S.persona=b.dataset.p; S.pal=null; S.modal=null; S.menu=null; S.edit=null; S.pwErr=false; S.addMsg=null; S.route={scr:'home',kn:'*',doc:null,hl:null,q:null}; render();}));
+$('#reset').addEventListener('click',()=>{S=makeState(); T0=Date.now(); $('#toastHost').innerHTML=''; render();});
+setInterval(()=>{const s=$('#app .status .r'); if(s) s.textContent='kmd v1.13 · 10-22(목) '+now();},15000);
+render();
+</script>
+</body>
+</html>
