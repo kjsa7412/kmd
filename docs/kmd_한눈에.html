@@ -88,7 +88,7 @@ svg .dot-k{fill:var(--kmd)} svg .dot-t{fill:var(--team)} svg .dot-w{fill:var(--w
 <nav class="toc">
   <a href="#map">0 전체 지도</a><a href="#life">1 데이터의 일생</a><a href="#in">2 들어온다</a><a href="#pile">3 쌓인다</a>
   <a href="#cur">4 정리된다</a><a href="#find">5 찾아 쓴다</a><a href="#send">6 보낸다</a><a href="#keep">7 지킨다</a>
-  <a href="#src">8 가져오는 곳</a><a href="#login">9 들어가기</a><a href="#day">10 하루</a><a href="#words">11 말 대응</a>
+  <a href="#src">8 자동으로 가져오는 곳</a><a href="#login">9 들어가기</a><a href="#day">10 하루</a><a href="#words">11 말 대응</a>
 </nav>
 
 <main>
@@ -212,10 +212,10 @@ svg .dot-k{fill:var(--kmd)} svg .dot-t{fill:var(--team)} svg .dot-w{fill:var(--w
     <tr><th>입구</th><th>어디서 하나</th><th>목업 화면</th></tr>
     <tr><td>Claude Code 세션</td><td>세션이 한다(화면 없음)</td><td>M7 세션 저장</td></tr>
     <tr><td>편집기 · 화면에서 고침</td><td>브라우저의 문서 화면 · 바깥 편집기</td><td>M6 읽기 · 고치기</td></tr>
-    <tr><td>파일 넣기</td><td>브라우저 — <b>가져오기 화면</b>에 끌어다 놓기</td><td><b>M14 가져오기</b></td></tr>
-    <tr><td>가져오는 곳(코드 · DB)</td><td>브라우저 — <b>가져오기 화면</b>에서 잇기 · 주기 · 지금 맞추기</td><td><b>M14 가져오기</b></td></tr>
+    <tr><td>파일 넣기</td><td>브라우저 — <b>자료 가져오기</b> 화면에 끌어다 놓기</td><td><b>M14 자료 가져오기</b></td></tr>
+    <tr><td>자동으로 가져오는 곳(코드 · DB)</td><td>브라우저 — <b>자료 가져오기</b> 화면에서 더하기 · 주기 · 지금 가져오기</td><td><b>M14 자료 가져오기</b></td></tr>
   </table>
-  <p style="font-size:13.5px;color:var(--ink2)">세션 말고 브라우저에서 하는 들이기는 중요도가 높아 <b>따로 한 화면(가져오기)</b>으로 모았다 — 운영자 지시.</p>
+  <p style="font-size:13.5px;color:var(--ink2)">세션 말고 브라우저에서 하는 들이기는 중요도가 높아 <b>따로 한 화면(자료 가져오기)</b>으로 모았다 — 운영자 지시. 지식 자체를 목록에 더하는 일(새로 만들기 · 내 폴더를 지식으로 · 팀 지식 들어가기)은 <b>지식 추가</b>(M3)로 갈랐다.</p>
 </section>
 
 <!-- 3 쌓인다 -->
@@ -394,13 +394,13 @@ svg .dot-k{fill:var(--kmd)} svg .dot-t{fill:var(--team)} svg .dot-w{fill:var(--w
 
 <!-- 8 가져오는 곳 -->
 <section id="src">
-  <h2><span class="n">8</span>가져오는 곳 — 표는 원천에서 저절로</h2>
-  <p class="lead">테이블 컬럼 · 꾸러미 판 · 파일 목록 같은 표는 사람이 옮겨 적으면 낡는다. 코드 폴더 · git 주소 · DB 를 <b>[잇기] 에 한 번</b> 붙이면 kmd 가 때마다 다시 읽어 <b>문서 안의 정해진 표만</b> 고친다. 언제 읽을지는 <b>정해진 시간</b>(1시간마다 · 매일 06:00 · 매주 · 바뀔 때만)과 <b>[지금 맞추기]</b> 둘 다 된다 — 둘은 같은 길을 타서, 누른 실행도 바뀐 것만 쓰고 크게 바뀌면 멈춘다. 이 모든 것은 <b>가져오기 화면(M14)</b> 한 곳에서 본다.</p>
+  <h2><span class="n">8</span>자동으로 가져오는 곳 — 표는 원천에서 저절로</h2>
+  <p class="lead">테이블 컬럼 · 꾸러미 판 · 파일 목록 같은 표는 사람이 옮겨 적으면 낡는다. 코드 폴더 · git 주소 · DB 를 <b>자료 가져오기 화면에 한 번</b> 더하면 kmd 가 때마다 다시 읽어 <b>문서 안의 정해진 표만</b> 고친다. 언제 읽을지는 <b>정해진 시간</b>(1시간마다 · 매일 06:00 · 매주 · 바뀔 때만)과 <b>[지금 가져오기]</b> 둘 다 된다 — 둘은 같은 길을 타서, 누른 실행도 바뀐 것만 쓰고 크게 바뀌면 멈춘다. 이 모든 것은 <b>자료 가져오기 화면(M14)</b> 한 곳에서 본다.</p>
   <figure>
   <svg viewBox="0 0 960 260">
     <rect x="10" y="40" width="170" height="70" rx="10" class="box"/><text x="26" y="68" class="t">gdi DB</text><text x="26" y="90" class="s">읽기 전용 · 매일 06:00</text>
     <rect x="10" y="130" width="170" height="70" rx="10" class="box"/><text x="26" y="158" class="t">dpms-api 코드</text><text x="26" y="180" class="s">git · 1시간마다</text>
-    <rect x="10" y="214" width="170" height="38" rx="19" fill="var(--team)"/><text x="40" y="238" style="fill:#fff;font-size:13px;font-weight:700">지금 맞추기</text>
+    <rect x="10" y="214" width="170" height="38" rx="19" fill="var(--team)"/><text x="34" y="238" style="fill:#fff;font-size:13px;font-weight:700">지금 가져오기</text>
     <path d="M182,232 L240,162" class="ar t" marker-end="url(#at)"/>
     <rect x="230" y="80" width="150" height="80" rx="12" class="kmd"/><text x="246" y="110" class="t">읽는다</text><text x="246" y="132" class="s">정해진 규칙만</text><text x="246" y="148" class="xs">스크립트 실행 없음</text>
     <rect x="430" y="80" width="140" height="80" rx="12" class="box"/><text x="446" y="112" class="t">바뀌었나</text><text x="446" y="134" class="s">이전 표와 견준다</text>
@@ -411,7 +411,7 @@ svg .dot-k{fill:var(--kmd)} svg .dot-t{fill:var(--team)} svg .dot-w{fill:var(--w
     <path d="M382,120 L428,120" class="ar k" marker-end="url(#ak)"/>
     <path d="M572,105 L618,40" class="ar" marker-end="url(#a)"/><path d="M572,120 L618,120" class="ar k" marker-end="url(#ak)"/><path d="M572,135 L618,200" class="ar w" marker-end="url(#aw)"/>
   </svg>
-  <figcaption>그림 8 — 표에는 늘 라벨이 붙는다: 「저절로 채우는 표 · gdi DB · 10-04 부터 그대로 · 오늘 06:00 확인」. 사람은 그 표를 고치지 않는다(회색으로 잠김). 팀에서 원천을 잇는 것은 관리자 — 다른 사람은 [관리자에게 부탁].</figcaption>
+  <figcaption>그림 8 — 표에는 늘 라벨이 붙는다: 「저절로 채우는 표 · gdi DB · 10-04 부터 그대로 · 오늘 06:00 확인」. 사람은 그 표를 고치지 않는다(회색으로 잠김). 팀에서 자동으로 가져올 곳을 더하는 것은 관리자 — 다른 사람은 [관리자에게 부탁].</figcaption>
   </figure>
 </section>
 
@@ -489,9 +489,10 @@ svg .dot-k{fill:var(--kmd)} svg .dot-t{fill:var(--team)} svg .dot-w{fill:var(--w
     <tr><td>정리 · 받은 것 · 지금 정리</td><td>큐레이션 · 대기열 · 판정</td><td>기록을 항목에 녹이는 일</td></tr>
     <tr><td>kmd 가 정리했다</td><td>정리 일꾼 · 초안 · curate-auto</td><td>Claude 가 쓴 글을 kmd 가 검사한 뒤 승인 없이 넣음</td></tr>
     <tr><td>비슷한 글에서 찾았다</td><td>RAG 폴백 · 찾기 사다리</td><td>이름이 안 맞을 때 넓게 찾기</td></tr>
-    <tr><td>저절로 채우는 표 · 가져오는 곳</td><td>기준선 블록 · 원천</td><td>코드 · DB 에서 읽은 표</td></tr>
+    <tr><td>저절로 채우는 표 · 자동으로 가져오는 곳</td><td>기준선 블록 · 원천</td><td>코드 · DB 에서 읽은 표</td></tr>
     <tr><td>바로잡은 기록</td><td>supersedes · 정정</td><td>틀린 기록을 고치지 않고 새로 바로잡음</td></tr>
-    <tr><td>가져오기 화면 · 지금 맞추기</td><td>원천 관리 · 동기화</td><td>파일 넣기와 가져오는 곳을 모은 화면 · 누르면 바로 다시 읽기</td></tr>
+    <tr><td>지식 추가 · [추가]</td><td>잇기(v0.4 ~ v0.6 초안)</td><td>지식을 목록에 더하기 — 새로 만들기 · 내 폴더를 지식으로 · 팀 지식 들어가기</td></tr>
+    <tr><td>자료 가져오기 · 지금 가져오기</td><td>원천 관리 · 동기화 · 들이기</td><td>파일 · 폴더와 자동으로 가져오는 곳을 모은 화면 · 누르면 바로 다시 읽기</td></tr>
     <tr><td>내 기기 · 설치 한 줄</td><td>기기 열쇠 · 설치 표</td><td>Claude Code 가 팀에 붙는 자격</td></tr>
     <tr><td>백업이 멈췄다</td><td>미러 lag · gone · rewound</td><td>git 백업이 못 갔다</td></tr>
   </table>
