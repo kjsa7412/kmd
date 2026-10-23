@@ -351,7 +351,11 @@ function docPane(t, right) {
   const hl = right ? null : t.hl, q = right ? null : t.q
   const loc = isTeam() ? n.name + ' › ' + d.title : n.name + ' › ' + d.path.replace(/^docs\//, '')
   const mine = d.sections.flatMap((s) => s.pend.filter((x) => x.author === S.me.user))
-  const body = d.sections.map((s) => {
+  const editing = !right && S.edit && S.edit.tab === t.id
+  const body = editing
+    ? `<div class="ed" data-t="editor"><div class="lbl"><b>고치는 중</b> · 「## 」 으로 시작하는 줄이 항목 이름이다</div><div class="toolbar"><span>제목</span><span>굵게</span><span>목록</span><span>표</span><span>링크</span></div><textarea id="edTx" data-t="edTx" spellcheck="false">${esc(d.sections.map((s) => '## ' + s.h + '\n' + s.md).join('\n\n'))}</textarea>
+   <div class="row" style="margin-top:10px"><button class="btn pri" data-a="saveDoc" data-t="saveBtn">저장</button><a class="muted" data-a="cancelEdit">그만두기</a><span class="r small muted">${d.direct ? '저장하면 바로 문서에 들어간다' : '팀 지식 — 저장하면 기록으로 남고 정리 때 문서에 들어간다'}</span></div></div>`
+    : d.sections.map((s) => {
     const lit = hl && s.h === hl
     const it = M(k) && M(k).items.find((x) => x.doc === d.id && x.sec === s.h)
     const hn = it ? `<span class="hn" data-a="openItem" data-k="${esc(k)}" data-n="${esc(it.key)}" data-t="hn" title="항목으로 보기">${s.pend.length ? '<i class="pd"></i>' : ''}기록 ${s.recs}</span>` : ''
@@ -362,10 +366,10 @@ function docPane(t, right) {
   }).join('')
   const main = `<div class="docw" data-t="docPane" data-name="${esc(d.title)}">${right ? rpHead() : ''}
   ${q ? `<div class="found" data-t="found"><span>찾기 <b>‘${esc(q)}’</b> 로 열었다</span><a data-a="reopenSearch">찾은 것으로 돌아가기</a></div>` : ''}
-  <div class="ttl"><div class="path"><span>${esc(loc)}</span><span class="r">마지막으로 바뀐 때 ${esc(whenTxt(d.when))}</span></div></div>
-  ${mine.length ? `<div class="wait" data-t="wait"><i></i>${esc(whenTxt(mine[0].date))} 에 쓴 기록 ${mine.length} — 정리 때 문서에 들어간다 · 그동안도 문서 옆에 같이 읽힌다</div>` : ''}
+  <div class="ttl"><div class="path"><span>${esc(loc)}</span><span class="r">마지막으로 바뀐 때 ${esc(whenTxt(d.when))}</span></div>${editing || right ? '' : '<button class="btn pri" data-a="editDoc" data-t="editBtn">고치기</button>'}</div>
+  ${mine.length && !editing ? `<div class="wait" data-t="wait"><i></i>${esc(whenTxt(mine[0].date))} 에 쓴 기록 ${mine.length} — 정리 때 문서에 들어간다 · 그동안도 문서 옆에 같이 읽힌다</div>` : ''}
   <div class="paper"><h1>${esc(d.title)}</h1>${d.intro ? d.intro.replace(/<p>/g, '<p class="muted small">') : ''}${body}
-  ${d.links.length ? `<div class="dlinks" data-t="dlinks">이 문서가 가리키는 문서 — ${d.links.map((x) => `<span class="dlink" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(x.id)}" data-t="dlink">${esc(x.title)}</span>`).join(' · ')}</div>` : ''}</div></div>`
+  ${d.links.length && !editing ? `<div class="dlinks" data-t="dlinks">이 문서가 가리키는 문서 — ${d.links.map((x) => `<span class="dlink" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(x.id)}" data-t="dlink">${esc(x.title)}</span>`).join(' · ')}</div>` : ''}</div></div>`
   return { html: main, aside: right ? null : docAside(k, d), title: d.title }
 }
 function recPane(t, right) {
@@ -840,6 +844,33 @@ document.addEventListener('pointermove', (ev) => {
 document.addEventListener('pointerup', () => { if (!GD) return; const g = GD; GD = null; g.sv.style.cursor = ''; if (g.moved) { if (g.node) relax(g.node); return } if (g.node) gClick(g.node) })
 document.addEventListener('wheel', (ev) => { const sv = ev.target.closest && ev.target.closest('#gsvg'); if (!sv) return; ev.preventDefault(); zoomAt(svgPt(sv, ev), Math.exp(-ev.deltaY * 0.0015)) }, { passive: false })
 
+// ───────────── 고치기 저장 — 글을 항목으로 다시 갈라 바뀐 항목만 보낸다 ─────────────
+function forgetKn(k) { for (const key of Object.keys(S.cache)) if (key.startsWith(`tree:${k}`) || key.startsWith(`doc:${k}:`) || key.startsWith(`rec:${k}:`) || key.startsWith(`model:${k}`) || key.startsWith(`item:${k}:`)) delete S.cache[key] }
+async function saveDoc() {
+  const e = S.edit
+  if (!e) return
+  const d = S.cache[`doc:${e.kn}:${e.doc}`]
+  const txt = $('#edTx').value
+  const parts = []
+  let cur = null
+  txt.split('\n').forEach((line) => {
+    const m = line.match(/^##\s+(.+)$/)
+    if (m) { cur = { h: m[1].trim(), b: [] }; parts.push(cur) } else { if (!cur) { cur = { h: '머리말', b: [] }; parts.push(cur) } cur.b.push(line) }
+  })
+  const old = new Map(d.sections.map((s) => [s.h, s]))
+  const changed = parts.map((p) => ({ h: p.h, body: p.b.join('\n').replace(/^\n+|\n+$/g, '') })).filter((p) => !old.has(p.h) || old.get(p.h).md.replace(/\s+$/, '') !== p.body.replace(/\s+$/, ''))
+  if (!changed.length) { S.edit = null; toast('바뀐 글이 없다 — 그대로 두었다'); render(); return }
+  try {
+    const r = await postJSON(`/api/k/${encodeURIComponent(e.kn)}/edit`, { doc: e.doc, sections: changed.map((p) => ({ h: p.h, body: p.body, ...(old.has(p.h) ? { base: old.get(p.h).base } : {}) })) })
+    S.edit = null
+    forgetKn(e.kn)
+    toast(r.direct ? '저장했다 — 문서에도 넣었다' : '기록했다 — 정리 때 문서에 들어간다 · 그동안도 문서 옆에 같이 읽힌다', 7000)
+    render()
+  } catch (err) {
+    toast(esc(err.message), 7000)
+  }
+}
+
 // ───────────── 들어오기 전 — 들어가기 · 처음 들어오기 링크 · 첫 설정 ─────────────
 // 서버는 비밀번호를 받지 않는다 — 여기서 전처리(prehash)한 값을 보낸다.
 function gateView() {
@@ -979,6 +1010,9 @@ function openDocAt(k, d, h, q) {
   if (!h) scrollTopMain()
 }
 const ACT = {
+  editDoc: () => { const t = activeTab(); if (t) { S.edit = { tab: t.id, kn: t.kn, doc: t.ref }; S._focus = 'edTx'; render() } },
+  cancelEdit: () => { S.edit = null; render() },
+  saveDoc: () => saveDoc(),
   openItem: (el) => { openTab({ kind: 'item', kn: el.dataset.k, ref: el.dataset.n }); render(); scrollTopMain() },
   itemFilt: (el) => { S.ifilt[el.dataset.v] = !S.ifilt[el.dataset.v]; render() },
   foldKind: (el) => { const kd = el.dataset.v; S.kfold[kd] = !kindFolded(S.route.kn, kd); render() },

@@ -46,15 +46,29 @@ export function parseRecord(text, file) {
     touches: list(data.touches),
     tags: list(data.tags),
     fixes: data.supersedes != null ? list(typeof data.supersedes === 'object' && !Array.isArray(data.supersedes) ? data.supersedes.id : data.supersedes) : [],
+    curates: normCurates(data.curates),
+    reopens: list(data.reopens),
     body: body.replace(/^\n+/, ''),
   }
 }
 
-export function renderRecord({ id, title, date, author, touches, tags, fixes }, body) {
+// 정리 판정 — kmd 가 쓰는 정리 기록의 칸. { id, verdict: keep, reason, rule } 의 목록(읽을 때는 너그럽게 모양만)
+export const VERDICTS = ['keep']
+function normCurates(v) {
+  if (v == null) return []
+  return (Array.isArray(v) ? v : [v])
+    .filter((x) => x && typeof x === 'object' && x.id)
+    .map((x) => ({ id: nfc(String(x.id).trim()), verdict: String(x.verdict || '').trim(), reason: x.reason != null ? String(x.reason) : null, rule: x.rule != null ? String(x.rule) : null }))
+    .filter((x) => VERDICTS.includes(x.verdict))
+}
+
+export function renderRecord({ id, title, date, author, touches, tags, fixes, curates, reopens }, body) {
   const head = { id, title, date, author }
   if (touches?.length) head.touches = touches
   if (tags?.length) head.tags = tags
   if (fixes?.length) head.supersedes = fixes.length === 1 ? fixes[0] : fixes
+  if (curates?.length) head.curates = curates.map((c) => ({ id: c.id, verdict: c.verdict, ...(c.rule ? { rule: c.rule } : {}), ...(c.reason ? { reason: c.reason } : {}) }))
+  if (reopens?.length) head.reopens = reopens
   const y = yaml.dump(head, { lineWidth: -1, quotingType: '"', forceQuotes: false }).replace(/\n$/, '')
   return `---\n${y}\n---\n\n# ${title}\n\n${String(body).replace(/^\n+|\s+$/g, '')}\n`
 }

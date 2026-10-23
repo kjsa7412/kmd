@@ -19,11 +19,8 @@ import { makeAuth } from '../../core/auth.js'
 import { put as kput, get as kget, keyName } from '../../core/keystore.js'
 import { setSecret, listSecrets } from '../../core/secrets.js'
 import { prehash } from '../../app/prehash.js'
-import { fileURLToPath } from 'node:url'
 
-const KEY_HELPER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'kmd-key.mjs')
-// Claude Code 에 잇는 한 줄 — 열쇠는 헤더 도우미(kmd-key)가 자격 저장소에서 꺼낸다(설정 파일에 열쇠가 없다)
-const mcpLine = (url) => `claude mcp add-json kmd '${JSON.stringify({ type: 'http', url: url + '/mcp', headersHelper: `node "${KEY_HELPER}" ${url}` })}' --scope user`
+import { addMcp } from '../../core/claudecfg.js'
 
 const HELP = `kmd ${VERSION}
 
@@ -122,7 +119,8 @@ async function main() {
       key = await s.auth.deviceKeyFor(s.pcUser, { host: os.hostname(), osuser: os.userInfo().username })
       await kput(name, key).catch((e) => console.error(e.message))
     }
-    console.log(`Claude Code 에 잇기: ${mcpLine(s.url)}`)
+    const c = await addMcp('kmd', s.url)
+    console.log(c.ok ? '✓ Claude Code 에 이었다 — 이 PC 의 kmd(kmd)' : `Claude Code 에 잇기(한 번): ${c.line}`)
     if (o.open !== false) openBrowser(`${s.url}/#once=${s.auth.once(s.pcUser)}`)
   }
   const stop = () => s.close().then(() => process.exit(0))
@@ -296,7 +294,14 @@ async function connectCmd(o) {
     if (!r.ok) throw new Error(j.message || '잇지 못했다')
     await kput(keyName(url), j.key)
     console.log(`✓ 팀에 이었다 — ${j.user} · 열쇠는 이 PC 의 자격 저장소에`)
-    console.log(`Claude Code 에 잇기: ${mcpLine(url)}`)
+    // 이 PC 의 kmd 가 팀 주소를 미리 허락하게 적어 둔다(E8 — 팀 화면의 「내 PC」 줄)
+    const pcData = path.join(defaultPcRoot(), '.kmd')
+    fs.mkdirSync(pcData, { recursive: true })
+    const tf = path.join(pcData, 'teams.json')
+    const teams = fs.existsSync(tf) ? JSON.parse(fs.readFileSync(tf, 'utf8')) : []
+    if (!teams.includes(url)) fs.writeFileSync(tf, JSON.stringify([...teams, url], null, 1))
+    const c = await addMcp('kmd-team', url)
+    console.log(c.ok ? '✓ Claude Code 에 이었다 — 팀(kmd-team)' : `Claude Code 에 잇기(한 번): ${c.line}`)
   } catch (e) {
     console.error(e.message)
     process.exitCode = 1

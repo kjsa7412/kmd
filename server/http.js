@@ -59,10 +59,10 @@ function readBody(req) {
 
 export async function startServer({ root, data = null, mode = 'team', user = os.userInfo().username, host = '127.0.0.1', port = 7373, log, scryptN = null }) {
   const dataDir = data || defaultDataDir(root)
-  const hub = await makeHub({ root, dataDir, mode, log })
+  const pcUser = mode === 'pc' ? String(user).toLowerCase().replace(/[^a-z0-9._-]/g, '') || 'me' : null
+  const hub = await makeHub({ root, dataDir, mode, pcUser, log })
   const auth = await makeAuth({ dataDir, mode, scryptN: scryptN || hub.config.scryptN || null })
   const mcp = makeMcp(hub)
-  const pcUser = mode === 'pc' ? String(user).toLowerCase().replace(/[^a-z0-9._-]/g, '') || 'me' : null
   if (pcUser) await auth.ensurePc(pcUser)
 
   const ipOf = (req) => (hub.config.trustProxy && req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']).split(',')[0].trim() : req.socket.remoteAddress)
@@ -176,17 +176,19 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, { ok: (await auth.setAdmin(id, !!(await readBody(req)).admin)) ?? true })
     }
 
-    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|backup|backup\/pull|owner|learn)$/)
+    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|backup|backup\/pull|owner|learn|edit|revert)$/)
     if (!m) throw new KmdError('E_NOTFOUND', '그런 길은 없다')
     const id = decodeURIComponent(m[1])
     const what = m[2]
-    if (['save', 'backup', 'backup/pull', 'owner', 'learn'].includes(what)) {
+    if (['save', 'backup', 'backup/pull', 'owner', 'learn', 'edit', 'revert'].includes(what)) {
       if (what === 'backup' && req.method === 'GET') return out(200, (await hub.backupState(ctx, id)) || { off: true })
       if (what === 'owner' && req.method === 'GET') return out(200, hub.owner(id) || {})
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       const body = await readBody(req)
       if (what === 'save') return out(200, await hub.save(ctx, id, body))
       if (what === 'learn') return out(200, await hub.learn(ctx, id, body))
+      if (what === 'edit') return out(200, await hub.edit(ctx, id, body))
+      if (what === 'revert') return out(200, await hub.revert(ctx, id, body))
       if (what === 'owner') return out(200, await hub.setOwner(ctx, id, body))
       admin(ctx)
       if (what === 'backup') return out(200, await hub.backupAttach(ctx, id, String(body.url || '')))
@@ -211,7 +213,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (what === 'doc') {
       const v = V.docView(k, url.searchParams.get('d'))
       if (!v) throw new KmdError('E_NOTFOUND', '이 문서는 이제 없다')
-      return out(200, v)
+      return out(200, { ...v, direct: hub.canDirect(ctx, k.id) })
     }
     const v = V.recView(k, url.searchParams.get('r'))
     if (!v) throw new KmdError('E_NOTFOUND', '이 기록은 이제 없다')

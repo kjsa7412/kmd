@@ -103,6 +103,16 @@ export async function loadKnowledge({ id, name, dir }, { cache = null } = {}) {
   const k = { id, name, dir, docs, works, atts, vocab, registry }
   k.byDocPath = new Map(docs.map((d) => [d.path, d]))
   k.byWork = new Map(works.map((w) => [w.id, w]))
+  // 정리 판정 — 날짜 순으로 「두기(keep)」 를 쌓고 「거두기(reopen)」 로 걷는다. 거둔 기록은 「주인이 되돌림」(다시 초안하지 않는다)
+  k.kept = new Map()
+  k.reverted = new Set()
+  for (const w of [...works].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))) {
+    for (const c of w.curates) k.kept.set(c.id, { by: w.id, rule: c.rule, reason: c.reason })
+    for (const id of w.reopens) {
+      k.kept.delete(id)
+      k.reverted.add(id)
+    }
+  }
   for (const w of works) w.state = recordState(k, w)
   return k
 }
@@ -156,7 +166,15 @@ export function coordsOfSection(k, doc, h) {
 
 // 기록이 문서에 들어갔나 — 건드린 이름이 장부로 문서 항목에 닿고, 그 항목의 표지가
 // 이 기록보다 앞선 기록(또는 없음)이면 아직 안 넣은 기록(pend)
+// kmd 가 스스로 쓰는 기록(고친 기록 · 정리 · 가져오기)은 넣을 것이 아니다
+export const SYSTEM_TAGS = ['edit', 'curate-auto', 'curate-llm', 'alias-auto', 'sources']
+export const isSystemRecord = (w) => w.tags.some((t) => SYSTEM_TAGS.includes(t))
+const INGEST = (w) => w.tags.some((t) => /^(ingest|touches\??)\//.test(t))
+
+// 상태 — in(문서에 들어감) · pend(아직 안 넣음) · kept(넣지 않기로 둠) · nowhere(넣을 곳이 없는 메모 — 이름이 없다) · none
 export function recordState(k, w) {
+  if (k.kept?.has(w.id)) return 'kept'
+  if (!w.touches.length) return isSystemRecord(w) || INGEST(w) || w.curates.length || w.reopens.length ? 'none' : 'nowhere'
   let any = false
   for (const c of w.touches) {
     const s = sectionOf(k, c)

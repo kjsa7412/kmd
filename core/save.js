@@ -75,7 +75,7 @@ function docPath(dir, doc) {
 }
 
 const locks = new Map()
-function serial(key, f) {
+export function serial(key, f) {
   const prev = locks.get(key) || Promise.resolve()
   const run = prev.then(f, f)
   locks.set(key, run.catch(() => {}))
@@ -89,7 +89,35 @@ export function save(dir, input, { user, now = new Date(), system = false } = {}
   const secs = check(input)
   const bad = (input.record.tags || []).filter(isReservedTag)
   if (bad.length && !system) fail('E_FORBIDDEN', `kmd 가 쓰는 태그다 — ${bad.join(' · ')}`)
-  return serial(path.resolve(dir), () => saveNow(dir, input.record, secs, { user: nfc(user), now }))
+  if (!system && (input.record.curates?.length || input.record.reopens?.length)) fail('E_FORBIDDEN', '정리 판정은 kmd 가 쓴다')
+  return serial(path.resolve(dir), () => saveNow(dir, input.record, secs, { user: nfc(user), now, system }))
+}
+
+// 값 장부 — 글 속의 수 · `코드` · 따옴표 값(같은 값이면 새 사실이 아니다)
+export function valuesOf(text) {
+  const out = new Set()
+  for (const m of String(text || '').matchAll(/`([^`]+)`|「([^」]+)」|"([^"]+)"|(\d+(?:[.,]\d+)*\s*(?:%|초|분|시간|일|개|건|자|MB|GB|KB|ms|s)?)/g)) out.add((m[1] || m[2] || m[3] || m[4]).replace(/\s+/g, ''))
+  return out
+}
+
+// 좌표정정(R-A2)인가 — 서버가 구조로 판정한다: 바로잡는 기록 하나 · 이름 ⊆ 원 기록의 이름 · 원문을 다시 싣지 않는
+// 짧은 글(값이 원 기록 안의 값뿐). 참이면 서버가 예약 태그 touches-fix 를 붙인다(세션이 붙이면 E_FORBIDDEN)
+async function isTouchesFix(dir, r, touches, registry) {
+  if (!r.fixes || r.fixes.length !== 1) return false
+  const orig = await fs.readFile(path.join(dir, 'work', `${r.fixes[0]}.md`), 'utf8').then(readText, () => null)
+  const o = orig && parseRecord(orig, `${r.fixes[0]}.md`)
+  if (!o || !touches.length) return false
+  // 원 기록이 반영된 이름 — 원 기록의 이름이거나, 그 항목의 표지가 원 기록인 이름
+  for (const c of touches) {
+    if (o.touches.includes(c)) continue
+    const loc = locate(registry, c)
+    const text = loc && (await fs.readFile(path.join(dir, ...loc.doc.split('/')), 'utf8').then(readText, () => null))
+    const sec = text && parseDoc(text, '').sections.find((x) => headingMatches(x.h, loc.heading))
+    if (!sec || sec.applied !== o.id) return false
+  }
+  if (String(r.body).length > 400) return false
+  const ov = valuesOf(o.body + ' ' + o.title)
+  return [...valuesOf(r.body)].every((v) => ov.has(v))
 }
 
 // 항목 지문 — 읽을 때 준 base 와 같은 계산(applied 표지는 뺀 글 · 항목이 없으면 빈 글)
@@ -99,7 +127,7 @@ export function sectionBase(text, heading) {
   return sha16(sec ? sec.body : '')
 }
 
-async function saveNow(dir, r, secs, { user, now }) {
+async function saveNow(dir, r, secs, { user, now, system = false }) {
   const registry = parseRegistry(await fs.readFile(path.join(dir, '_managed.md'), 'utf8').then(readText, () => ''))
   const vocab = parseVocab(await fs.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => ''))
   const date = r.date || localStamp(now)
@@ -112,10 +140,19 @@ async function saveNow(dir, r, secs, { user, now }) {
       const loc = locate(registry, coord)
       if (!loc) fail('E_NOTFOUND', `「${vocab.coords.get(coord)?.label || coord}」 이 들어갈 문서가 정해져 있지 않다 — 기록만 보내거나 문서 · 머리로 가리킨다`)
       if (!touches.includes(coord)) touches.push(coord)
-      return { ...docPath(dir, loc.doc), level: loc.level, heading: loc.heading, content: s.content, base: s.base }
+      return { ...docPath(dir, loc.doc), level: loc.level, heading: loc.heading, content: s.content, base: s.base, ...(system && s.applied !== undefined ? { applied: s.applied } : {}) }
     }
-    return { ...docPath(dir, s.doc), level: 2, heading: nfc(s.heading.trim()), content: s.content, base: s.base }
+    return { ...docPath(dir, s.doc), level: 2, heading: nfc(s.heading.trim()), content: s.content, base: s.base, ...(system && s.applied !== undefined ? { applied: s.applied } : {}) }
   })
+  // 고친 기록(edit)은 표지를 뒤로 돌리지 않는다 — 그 항목에 이미 든 기록보다 옛 날짜면 거절
+  if ((r.tags || []).includes('edit') && r.date) {
+    for (const p of plan) {
+      const cur = await fs.readFile(p.full, 'utf8').then(readText, () => null)
+      const sec = cur && parseDoc(cur, '').sections.find((x) => headingMatches(x.h, p.heading))
+      const a = sec?.applied && parseRecord(await fs.readFile(path.join(dir, 'work', `${sec.applied}.md`), 'utf8').then(readText, () => ''), `${sec.applied}.md`)
+      if (a && a.date > date) fail('E_CONFLICT', `「${p.heading}」 에는 더 늦은 기록(${a.date})이 이미 들어 있다 — 옛 날짜로 고치지 않는다`)
+    }
+  }
   // 읽은 뒤 바뀌었나(F4) — base 를 보낸 항목만. 하나라도 어긋나면 아무것도 쓰지 않는다
   for (const p of plan) {
     if (p.base == null) continue
@@ -130,7 +167,8 @@ async function saveNow(dir, r, secs, { user, now }) {
   let id = base
   for (let n = 2; await fs.stat(path.join(dir, 'work', `${id}.md`)).then(() => true, () => false); n++) id = `${base}-${n}`
 
-  const rec = { id, title: nfc(r.title.trim()), date, author: user, touches, tags: (r.tags || []).map((t) => nfc(t.trim())), fixes: (r.fixes || []).map((x) => nfc(x.trim())) }
+  const rec = { id, title: nfc(r.title.trim()), date, author: user, touches, tags: (r.tags || []).map((t) => nfc(t.trim())), fixes: (r.fixes || []).map((x) => nfc(x.trim())), curates: r.curates || [], reopens: r.reopens || [] }
+  if (!system && (await isTouchesFix(dir, { ...rec, body: r.body }, touches, registry))) rec.tags.push('touches-fix')
   const workRel = `work/${id}.md`
   const workFull = path.join(dir, 'work', `${id}.md`)
   // 중간에 넘어지면 쓴 것을 되돌린다 — 반쯤 쓴 저장은 남기지 않는다
@@ -145,7 +183,7 @@ async function saveNow(dir, r, secs, { user, now }) {
     for (const p of plan) {
       const raw = await fs.readFile(p.full, 'utf8').catch(() => null)
       const start = raw == null ? `# ${path.basename(p.rel, '.md')}\n` : readText(raw)
-      const after = replaceSection(start, { level: p.level, heading: p.heading, body: nfc(p.content), applied: id })
+      const after = replaceSection(start, { level: p.level, heading: p.heading, body: nfc(p.content), applied: p.applied !== undefined ? p.applied : id })
       if (!docs.includes(p.rel)) {
         undo.push(() => (raw == null ? fs.rm(p.full, { force: true }) : fs.writeFile(p.full, raw, 'utf8')))
         docs.push(p.rel)

@@ -6,6 +6,7 @@
 import MarkdownIt from 'markdown-it'
 import path from 'node:path'
 import { coordsOfSection, labelOf, sectionOf, pendPick } from '../core/knowledge.js'
+import { sha16 } from '../core/text.js'
 
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
@@ -120,6 +121,8 @@ export function docView(k, docId) {
     return {
       h: s.h,
       html: render(k, d.path, s.body),
+      md: s.body,
+      base: sha16(s.body),
       recs: recs.length,
       pend: pendRecs.map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title })),
       pendMore,
