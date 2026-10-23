@@ -29,7 +29,7 @@ import { sha16 } from '../core/text.js'
 import { isSystemRecord, labelOf } from '../core/knowledge.js'
 import { restore as restoreFrom, checkUrl } from '../core/restore.js'
 import { ensureProject } from '../core/gitlab.js'
-import { getSecret } from '../core/secrets.js'
+import { getSecret, listSecrets, delSecret } from '../core/secrets.js'
 
 // serve.json — 살림 자리의 설정(없어도 된다)
 async function loadConfig(dataDir) {
@@ -138,7 +138,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (!empty) await fs.writeFile(path.join(d, 'docs', '처음.md'), `# 처음\n\n## 개요\n새 지식 — 첫 문서를 쓴다.\n`, 'utf8')
         await commitPaths(d, empty ? ['README.md'] : ['README.md', 'docs/처음.md'], `지식 만듦 — ${nm}`, ctx.user)
         list = null
-        if (mode === 'pc' && started) watchers.push(collect.watch(d, () => hub.collect(id))) // 편집기에서 고친 것 거두기 — 켤 때 없던 지식도
+        if (mode === 'pc' && started) watchers.push(Object.assign(collect.watch(d, () => hub.collect(id)), { dir: d })) // 편집기에서 고친 것 거두기 — 켤 때 없던 지식도
         if (mode === 'team') await hub.setOwner({ ...ctx, shell: true }, id, { owner: ctx.user, private: true })
         await hub.gitlabAttach(id).catch((e) => log('GitLab 백업 자리', id, e.message))
         feed.add(dataDir, ctx.user, { kn: id, dot: 'acc', text: `지식을 추가했다 — ${nm}`, small: mode === 'team' ? '팀 서버 안 내 지식 · 나만' : d }).catch(() => {})
@@ -186,6 +186,45 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         return { ...made, from: full, summary: r.summary }
       }
       throw new KmdError('E_INPUT', '알아듣지 못했다 — 이름 · 내 PC 폴더 경로를 붙인다')
+    },
+    // 지식 지우기 — 보관하지 않고 완전히. 지식 폴더 · kmd 가 그 지식에 대해 둔 살림(백업 연결 · 색인 · 보내기 · 정리 · 가져오기 상태 · 주인 줄)을
+    // 모두 지운다. 확인은 지식 이름을 그대로 다시 쓰는 것. 백업 자리에 이미 보낸 이력은 kmd 가 지우지 않는다(백업 자리의 일).
+    // 누가 — 이 PC 의 주인 · 팀은 관리자 또는 개인 지식의 주인
+    async deleteKnowledge(ctx, id, { confirm } = {}) {
+      const meta = await hub.meta(id, ctx)
+      if (await looksLikeKnowledge(root)) throw new KmdError('E_INPUT', '이 kmd 는 지식 하나만 연다 — 지울 수 없다')
+      const row = owners.rowOf(reg, id)
+      const mine = row?.owner && row.owner === ctx.user && row.private
+      if (mode !== 'pc' && !ctx.pc && !ctx.admin && !ctx.shell && !mine) throw new KmdError('E_FORBIDDEN', '팀 지식은 관리자가 지운다')
+      if (String(confirm ?? '').trim().normalize('NFC') !== meta.name.normalize('NFC')) throw new KmdError('E_INPUT', `지우려면 지식 이름 「${meta.name}」 을 그대로 쓴다`)
+      const dir = path.resolve(meta.dir)
+      const inRoot = dir.startsWith(path.resolve(root) + path.sep)
+      // 붙어 있는 것부터 떼고(감시 · 백업 · 일감 · 시계) 폴더를 지운다
+      for (const w of watchers.filter((x) => x.dir && path.resolve(x.dir) === dir)) w.close()
+      watchers.splice(0, watchers.length, ...watchers.filter((x) => !(x.dir && path.resolve(x.dir) === dir)))
+      clearTimeout(decideTimers.get(id))
+      decideTimers.delete(id)
+      for (const [jid, j] of jobs) if (j.kn === id) jobs.delete(jid)
+      await backup.detach(meta).catch(() => {})
+      cache.delete(id)
+      files.delete(id)
+      indexes.delete(id)
+      // 지식 폴더 안의 것만 폴더째 지운다(예전에 밖에서 이어 둔 것은 잇기만 끊는다 — 남의 폴더를 지우지 않게)
+      if (inRoot) await fs.rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+      const e = encodeURIComponent(id)
+      for (const p of [`backup/${e}.json`, `send/${e}.json`, `inbox/${e}.json`, `tidy/${e}.json`, `baseline/${e}.json`, `searchcheck/${e}.json`, `learn/${e}.json`, `index/${e}`, `sources/${e}`]) await fs.rm(path.join(dataDir, p), { recursive: true, force: true }).catch(() => {})
+      for (const x of await listSecrets(dataDir).catch(() => [])) if (x.name.startsWith(`src/${id}/`)) await delSecret(dataDir, x.name).catch(() => {}) // 가져오는 곳의 자격
+      const lf = path.join(dataDir, 'links.json')
+      const links = await fs.readFile(lf, 'utf8').then(JSON.parse, () => null)
+      if (links) await fs.writeFile(lf, JSON.stringify(links.filter((l) => l.id !== id), null, 1))
+      if (reg.knowledge[id]) {
+        delete reg.knowledge[id]
+        await owners.store(dataDir, reg)
+      }
+      list = null
+      feed.add(dataDir, ctx.user || 'kmd', { dot: 'acc', text: `지식을 지웠다 — ${meta.name}`, small: inRoot ? '보관하지 않고 완전히' : '잇기만 끊었다 — 폴더는 그 자리에 그대로' }).catch(() => {})
+      log(`지식을 지웠다 — ${meta.name}${inRoot ? '' : ' (잇기만 끊음)'}`)
+      return { id, name: meta.name, removed: inRoot }
     },
     autoOf(user, key) {
       return mode === 'pc' ? prefs.pc?.[key] !== false : prefs.users?.[user]?.[key] !== false
@@ -937,7 +976,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // GitLab 봇 — 백업 자리가 없는 지식마다(켤 때 한 번 · 지식 추가 때)
       if (config.gitlab) setTimeout(async () => { for (const m of await hub.list().catch(() => [])) await hub.gitlabAttach(m.id).catch((e) => log('GitLab 백업 자리', m.id, e.message)) }, 500).unref?.()
       // 거두기 — PC(또는 serve.json collect)에서 편집기로 고친 문서를 30초 고요 뒤 들인다
-      if (mode === 'pc' || config.collect) for (const m of await hub.list()) watchers.push(collect.watch(m.dir, () => hub.collect(m.id)))
+      if (mode === 'pc' || config.collect) for (const m of await hub.list()) watchers.push(Object.assign(collect.watch(m.dir, () => hub.collect(m.id)), { dir: m.dir }))
       // 가져오는 곳 — 할 일 시계(분마다 본다 · 각자의 every) · 켤 때 한 번
       const dueSources = async (all) => {
         for (const m of await hub.list().catch(() => [])) {

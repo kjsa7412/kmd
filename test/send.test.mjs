@@ -205,3 +205,23 @@ test('지식 추가 — 지식 폴더 밖의 폴더는 지식 폴더 안의 새 
     await pc.close()
   }
 })
+
+test('지식 지우기 — 이름을 그대로 써야 · 팀은 관리자나 개인 지식의 주인만 · 보관 없이 폴더 · 살림까지 완전히', async () => {
+  const dir = path.join(tmp, 'kn', 'inbox')
+  const data = path.join(tmp, 'kn', '.kmd')
+  assert.ok(fs.existsSync(dir))
+  await assert.rejects(s.hub.deleteKnowledge(KIM, 'inbox', { confirm: '아무거나' }), { code: 'E_INPUT' })
+  await assert.rejects(s.hub.deleteKnowledge({ user: 'lee' }, 'dpms', { confirm: 'DPMS 지식' }), { code: 'E_FORBIDDEN' })
+  const r = await s.hub.deleteKnowledge({ user: 'kim' }, 'inbox', { confirm: 'inbox' }) // 개인 지식의 주인 — 관리자가 아니어도
+  assert.equal(r.removed, true)
+  assert.ok(!fs.existsSync(dir), '폴더가 통째로 없다(보관 없음)')
+  assert.ok(!fs.existsSync(path.join(data, 'inbox', 'inbox.json')), '받은편지함 정리 상태도 없다')
+  assert.equal(s.hub.owner('inbox'), null, '주인 줄도 없다')
+  assert.ok(!(await s.hub.list()).some((k) => k.id === 'inbox'))
+  await assert.rejects(s.hub.get('inbox'), { code: 'E_NOTFOUND' })
+  // 팀 지식은 관리자 — HTTP 길은 비밀번호 한 번 더
+  const lee2 = await fetch(`${s.url}/api/k/dpms/delete`, { method: 'POST', headers: { 'content-type': 'application/json', cookie: (await signIn(s, { id: 'admin2', admin: true })).cookie }, body: JSON.stringify({ confirm: 'DPMS 지식' }) })
+  assert.equal(lee2.status, 403)
+  assert.equal((await lee2.json()).error, 'E_SUDO')
+  assert.ok(fs.existsSync(path.join(tmp, 'kn', 'dpms')))
+})

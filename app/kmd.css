@@ -576,3 +576,6 @@ html,body{background:var(--bg)}
 /* 탭 줄 — 탭의 top:1px 가 세로 넘침을 만들어 실제 브라우저에서 위아래 화살표가 보인다(목업 화면은 스크롤 막대를 감춘 채 찍었다) */
 .tabs-s{overflow-y:hidden}
 @media (max-width:900px){.app{height:auto;min-height:100vh}}
+/* 지식 지우기 — 목업에 없는 단추(완전 삭제)의 위험 색 */
+.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff;font-weight:600}
+.btn.danger[disabled]{opacity:.45;cursor:not-allowed}

@@ -182,7 +182,7 @@ function render() {
   const center = scr.tabs
     ? `<div class="center">${tabbarHtml()}<div class="panes"><div class="main${scr.full ? ' full' : ''}" data-t="main">${scr.main}</div>${scr.right != null ? `<div class="main rp" data-t="rightPane">${scr.right}</div>` : ''}</div></div>`
     : `<div class="main" data-t="main">${scr.main}</div>`
-  app.innerHTML = ribbonHtml() + sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${anon() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside">${scr.aside}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}`
+  app.innerHTML = ribbonHtml() + sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${anon() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside">${scr.aside}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}`
   if (anon()) { const g = $('[data-focus]'); if (g && document.activeElement !== g) g.focus(); return }
   const fi = $('#palIn') || $('#qoIn') || $('#cmdIn')
   if (fi && document.activeElement !== fi) { fi.focus(); fi.setSelectionRange(fi.value.length, fi.value.length) }
@@ -275,7 +275,9 @@ function viewHome() {
   const rows = [...S.kns, ...offPc].map((n) => {
     const tag = n.pc ? '<span class="kt me">내 PC</span>' : team ? (n.private ? '<span class="kt me">개인</span>' : '<span class="kt team">팀</span>') : ''
     const rr = team && !n.pc && n.role && n.role !== '기록' ? `<span class="dst">나: 정리</span>${n.pend ? `<span class="chip c-pend">받은 것 ${n.pend}</span>` : ''}` : n.sendN ? `<span class="chip c-pend">보낼 것 ${n.sendN}</span><span class="dst">→ ${esc((n.dests || []).join(' · '))}</span>` : ''
-    return `<div class="krow${n.dim ? ' dim' : ''}" data-a="openKn" data-k="${esc(n.id)}" data-t="krow" data-name="${esc(n.name)}"><span class="nm">${esc(n.name)} ${tag}</span><span class="meta">${esc(n.dim ? '내 PC 프로그램이 켜지면 열린다' : n.pc ? '문서 ' + n.docs + ' · 내 PC 프로그램이 연다' : knMeta(n))}</span><span class="rr">${rr}</span></div>`
+    const mk = 'kn:' + n.id
+    const kebab = canDelete(n) ? `<button class="kebab${S.menu === mk ? ' on' : ''}" data-a="menu" data-m="${esc(mk)}" data-t="knKebab" title="지식 지우기">⋯${S.menu === mk ? `<div class="menu" style="right:0;top:28px"><div class="mi" data-a="delOpen" data-k="${esc(n.id)}" data-t="delOpen" style="color:var(--danger)">지식 지우기<small>보관하지 않고 완전히</small></div></div>` : ''}</button>` : ''
+    return `<div class="krow${n.dim ? ' dim' : ''}" data-a="openKn" data-k="${esc(n.id)}" data-t="krow" data-name="${esc(n.name)}" style="overflow:visible"><span class="nm">${esc(n.name)} ${tag}</span><span class="meta">${esc(n.dim ? '내 PC 프로그램이 켜지면 열린다' : n.pc ? '문서 ' + n.docs + ' · 내 PC 프로그램이 연다' : knMeta(n))}</span><span class="rr">${rr}${kebab}</span></div>`
   }).join('')
   const pcLine = !team || !S.pc ? '' : S.pc.off && (S.pc.seen || offPc.length) ? '<div class="callout gray stop" data-t="pcOff"><i></i><span><b>내 PC 프로그램이 꺼져 있다</b> — 켜면 저절로 다시 열린다</span></div>' : S.pc.allow ? `<div class="callout gray stop" data-t="pcAllow"><i></i><span><b>이 PC 의 내 지식을 여기서도 연다</b> — 내 PC 프로그램 창에서 한 번 허락한다</span><a class="lk r" data-a="pcAllow" data-t="pcAllowBtn">허락</a></div>` : ''
   const none = team ? '<div class="cb"><div class="empty2"><b>아직 지식이 없다</b>폴더 안에 md 폴더를 두면 지식이 된다</div></div>' : '<div class="cb"><div class="empty2" data-t="pcEmpty"><b>아직 내 지식이 없다</b><a data-a="nav" data-s="add">내 지식 세우기 ›</a></div></div>'
@@ -1698,6 +1700,57 @@ async function admDone() {
   render()
 }
 
+// ── 지식 지우기 — 보관하지 않고 완전히 · 지식 이름을 그대로 써야 단추가 선다 ──
+function canDelete(n) {
+  if (!n || n.pc) return false
+  if (!isTeam()) return true
+  return !!S.me.admin || (n.private && n.role === '주인')
+}
+function delHtml() {
+  const n = KN(S.del.kn)
+  if (!n) return ''
+  const ok = (S.del.typed || '').trim() === n.name
+  const where = isTeam() ? '팀 서버의 이 지식 폴더가 통째로 사라진다 — 팀 모두가 더는 보지 못한다' : `지식 폴더의 「${n.dir || n.name}」 폴더가 통째로 사라진다`
+  return `<div class="pscrim" data-a="delClose" data-self="1"><div class="modal win" data-t="delWin" style="width:min(560px,94%)"><div class="tb"><b>지식 지우기 — ${esc(n.name)}</b><button class="x" data-a="delClose" title="닫기" style="margin-left:auto;border:0;background:none;cursor:pointer;font-size:16px">×</button></div><div class="wb">
+  <div class="callout danger" data-t="delWarn" style="margin:0 0 12px"><i></i><span><b>보관하지 않고 완전히 지운다 — 되돌릴 수 없다</b></span></div>
+  <ul class="plain small" style="margin:0 0 12px;line-height:1.7">
+   <li>문서 ${n.docs} · 기록 ${n.records} · 첨부를 모두 지운다 — 휴지통 · 보관함에 남기지 않는다</li>
+   <li>${esc(where)}</li>
+   <li>이 지식의 정리 · 보낼 곳 · 자동으로 가져오는 곳 · 찾기 색인 · 사람 설정도 함께 사라진다</li>
+   <li>백업 자리에 이미 보낸 이력은 kmd 가 지우지 않는다 — 그것까지 없애려면 백업 자리에서 지운다</li>
+  </ul>
+  <label for="delIn" class="small">지우려면 지식 이름을 그대로 쓴다 — <b>${esc(n.name)}</b></label>
+  <input class="inp" id="delIn" data-in="del" data-t="delIn" value="${esc(S.del.typed || '')}" autocomplete="off" style="width:100%;margin-top:6px">
+  ${S.del.needPw ? '<label for="delPw" class="small" style="display:block;margin-top:10px">비밀번호 한 번 더 — 관리자 확인</label><input class="inp" type="password" id="delPw" data-t="delPw" autocomplete="current-password" style="width:100%;margin-top:6px">' : ''}
+  ${S.del.err ? `<div class="callout danger" style="margin-top:10px"><i></i><span>${esc(S.del.err)}</span></div>` : ''}
+  </div><div class="wf"><a class="muted" data-a="delClose" style="align-self:center;margin-right:auto">그만두기</a><span id="delBtnBox">${delBtn(ok)}</span></div></div></div>`
+}
+const delBtn = (ok) => `<button class="btn danger" data-a="delDo" data-t="delDo"${ok && !S.del.busy ? '' : ' disabled'}>${S.del.busy ? '지우는 중…' : '완전히 지우기'}</button>`
+async function delDo() {
+  const n = KN(S.del.kn)
+  if (!n || (S.del.typed || '').trim() !== n.name) return
+  S.del.busy = true
+  S.del.err = null
+  render()
+  try {
+    if (S.del.needPw) await postJSON('/api/sudo', { pw: prehash(S.me.user, ($('#delPw') || {}).value || '') })
+    await postJSON(`/api/k/${encodeURIComponent(n.id)}/delete`, { confirm: S.del.typed.trim() })
+    S.tabs = S.tabs.filter((t) => t.kn !== n.id)
+    if (!S.tabs.some((t) => t.id === S.active)) S.active = S.tabs[0] ? S.tabs[0].id : null
+    forgetKn(n.id)
+    S.del = null
+    S.kns = await getJSON('/api/knowledge')
+    delete S.cache.today
+    go({ scr: 'home', kn: '*' })
+    toast(`지웠다 — ${esc(n.name)} · 보관하지 않고 완전히`)
+  } catch (e) {
+    if (e.code === 'E_SUDO') { S.del.needPw = true; S.del.err = null; S._focus = 'delPw' }
+    else S.del.err = e.code === 'E_AUTH' ? '비밀번호를 확인하세요' : e.message
+    S.del.busy = false
+    render()
+  }
+}
+
 // ───────────── 이벤트 ─────────────
 function openDocAt(k, d, h, q) {
   openTab({ kind: 'doc', kn: k, ref: d, hl: h || null, q: q || null })
@@ -1750,6 +1803,9 @@ const ACT = {
   addSrc: () => addSrc(false),
   askSrc: () => addSrc(true),
   impGo: (el) => { openTab({ kind: 'doc', kn: el.dataset.k, ref: el.dataset.d }, { view: 'docs' }); render() },
+  delOpen: (el, ev) => { ev.stopPropagation(); S.menu = null; S.del = { kn: el.dataset.k, typed: '' }; S._focus = 'delIn'; render() },
+  delClose: () => { if (S.del && !S.del.busy) { S.del = null; render() } },
+  delDo: () => delDo(),
   copyRoot: () => { copyText(pcRoot()); toast('지식 폴더 경로를 복사했다') },
   fillAdd: (el) => { S.addDraft = el.dataset.v; S.addMsg = null; S._focus = 'addIn'; render() },
   addToImport: () => { S.srcDraft = S.addDraft; S.addDraft = ''; go({ scr: 'import' }) },
@@ -1876,6 +1932,7 @@ document.addEventListener('input', (ev) => {
   if (k === 'cmd') { S.cmd.q = t.value; S.cmd.sel = 0; $('#cmdBody').innerHTML = cmdBody() }
   if (k === 'itemQ') { S.iq = t.value; $('#itemListBody').innerHTML = itemListBody(S.route.kn) }
   if (k === 'gQ') { S.g.f.q = t.value; gHighlight() }
+  if (k === 'del' && S.del) { S.del.typed = t.value; const n = KN(S.del.kn); $('#delBtnBox').innerHTML = delBtn(!!n && t.value.trim() === n.name) }
   if (k === 'ag') { S.agDraft = t.value; $('#agBtnBox').innerHTML = agBtn() }
   if (k === 'admCode') { S.admCode = t.value; $('#admDoneBox').innerHTML = admDoneBtn() }
   if (k === 'src') { S.srcDraft = t.value; const h = srcHeard(); $('#srcHeardBox').innerHTML = h.heard; $('#srcBtnBox').innerHTML = h.btn }
@@ -1918,6 +1975,7 @@ document.addEventListener('keydown', (ev) => {
     if (ev.key === '\\' || code === 'Backslash') { ev.preventDefault(); toggleSplit(); return }
   }
   if (ev.altKey && !ctrl && (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') && !/^(TEXTAREA|INPUT)$/.test(ev.target.tagName)) { ev.preventDefault(); histGo(ev.key === 'ArrowLeft' ? -1 : 1); return }
+  if (ev.key === 'Escape' && S.del && !S.del.busy) { S.del = null; render(); return }
   if (ev.key === 'Escape') { if (S.qo) S.qo = null; else if (S.cmd) S.cmd = null; else if (S.pal) S.pal = null; else if (S.menu) S.menu = null; else return; render() }
   if (ev.key === 'Enter' && !ev.isComposing && ev.target.id === 'palIn') { const h = $('#app .hit'); if (h) h.click() }
   if (ev.key === 'Enter' && !ev.isComposing && ev.target.id === 'addIn') { ev.preventDefault(); doAdd() }

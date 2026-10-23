@@ -398,6 +398,14 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const files = (Array.isArray(b.files) ? b.files : []).map((f) => ({ path: String(f.path || f.name || ''), data: Buffer.from(String(f.b64 || ''), 'base64') }))
       return out(200, await hub.importFiles(ctx, decodeURIComponent(im[1]), files))
     }
+    // 지식 지우기 — 보관하지 않고 완전히 · 확인은 지식 이름 · 팀 관리자는 비밀번호 한 번 더(개인 지식의 주인은 이름 확인만)
+    const dl = p.match(/^\/api\/k\/([^/]+)\/delete$/)
+    if (dl && req.method === 'POST') {
+      const id = decodeURIComponent(dl[1])
+      const b = await readBody(req)
+      if (mode === 'team' && ctx?.admin && hub.owner(id)?.owner !== ctx.user) admin(ctx)
+      return out(200, await hub.deleteKnowledge(ctx, id, b))
+    }
     // 보내기 — 보낼 것 · 보낼 곳 · 이번에 빼기 · 보내기 · 받기 · 받은편지함 정리
     const sd = p.match(/^\/api\/k\/([^/]+)\/(send|send\/dests|send\/drop|receive|inbox\/tidy|inbox\/send)$/)
     if (sd) {
