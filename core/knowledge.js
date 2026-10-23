@@ -1,7 +1,8 @@
 // 지식 하나 읽기 — md 폴더 하나가 지식 하나다.
 //
 //   docs/**.md    문서(항목 = ## 머리)
-//   work/<id>.md  기록(머리에 id · title · date · author · touches)
+//   work/<id>.md  기록(머리에 id · title · date · author · touches) — 그 자체로 지식이 될 글
+//   log/<id>.md   이력 — kmd 가 지식을 다룬 일(가져옴 · 가져오는 곳 · 바로 고침 · 정리) · 기록과 같은 모양
 //   _vocab.md     이름 장부 · _managed.md 자리 장부
 //   그 밖          첨부(docs/assets · work/assets 의 파일) · 나머지는 보지 않는다
 //
@@ -14,6 +15,7 @@ import { parseRecord } from './frontmatter.js'
 import { parseDoc, headingMatches } from './sections.js'
 import { parseVocab } from './vocab.js'
 import { parseRegistry, locate } from './registry.js'
+import { LOG_TAGS, isLogRecord } from './names.js'
 
 const isDir = (p) => fs.stat(p).then((s) => s.isDirectory(), () => false)
 const readOr = (p) => fs.readFile(p, 'utf8').then(readText, () => null)
@@ -65,6 +67,7 @@ export async function loadKnowledge({ id, name, dir }, { cache = null } = {}) {
   const files = await walk(dir, '', [])
   const docs = []
   const works = []
+  const logs = []
   const atts = []
   const seen = new Set()
   const parsed = async (f, p, parse) => {
@@ -87,26 +90,30 @@ export async function loadKnowledge({ id, name, dir }, { cache = null } = {}) {
     if (/^docs\/.+\.md$/i.test(p)) {
       const docId = p.slice(5, -3)
       docs.push(await parsed(f, p, (text, st) => ({ id: docId, path: p, mtime: st.mtime.toISOString(), ...parseDoc(text, path.basename(docId)) })))
-    } else if (/^work\/[^/]+\.md$/i.test(p)) {
+    } else if (/^(work|log)\/[^/]+\.md$/i.test(p)) {
       const r = await parsed(f, p, (text) => {
         const x = parseRecord(text, path.basename(p))
         return x ? { ...x, path: p, body: stripTitle(x.body, x.title) } : null
       })
-      if (r) works.push({ ...r })
+      // 이력 — log/ 의 것과 예전에 work/ 에 쓴 kmd 의 일(태그로 가른다)
+      if (r) (p.startsWith('log/') || isLogRecord(r.tags) ? logs : works).push({ ...r })
     }
   }
   if (cache) for (const k of cache.keys()) if (!seen.has(k)) cache.delete(k)
   docs.sort((a, b) => b.mtime.localeCompare(a.mtime) || a.id.localeCompare(b.id, 'ko'))
   works.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+  logs.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
   const vocab = parseVocab(await readOr(path.join(dir, '_vocab.md')))
   const registry = parseRegistry(await readOr(path.join(dir, '_managed.md')))
-  const k = { id, name, dir, docs, works, atts, vocab, registry }
+  const k = { id, name, dir, docs, works, logs, atts, vocab, registry }
   k.byDocPath = new Map(docs.map((d) => [d.path, d]))
-  k.byWork = new Map(works.map((w) => [w.id, w]))
+  // byWork — 기록 · 이력 모두(항목 표지 · 판정 · 바로잡기가 이력의 id 를 가리킨다)
+  k.byWork = new Map([...works, ...logs].map((w) => [w.id, w]))
+  const all = [...works, ...logs].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
   // 정리 판정 — 날짜 순으로 「두기(keep)」 를 쌓고 「거두기(reopen)」 로 걷는다. 거둔 기록은 「주인이 되돌림」(다시 초안하지 않는다)
   k.kept = new Map()
   k.reverted = new Set()
-  for (const w of [...works].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))) {
+  for (const w of all) {
     for (const c of w.curates) k.kept.set(c.id, { by: w.id, rule: c.rule, reason: c.reason })
     for (const id of w.reopens) {
       k.kept.delete(id)
@@ -114,7 +121,7 @@ export async function loadKnowledge({ id, name, dir }, { cache = null } = {}) {
     }
   }
   // 좌표정정 — 이름만 바로잡은 기록(touches-fix)이 있으면 원 기록의 이름을 그것으로 읽는다(늦은 것이 이긴다 · ownTouches 에 원래 이름)
-  for (const w of [...works].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))) {
+  for (const w of all) {
     if (!w.tags.includes('touches-fix') || w.fixes.length !== 1) continue
     const o = k.byWork.get(w.fixes[0])
     if (o) {
@@ -176,8 +183,8 @@ export function coordsOfSection(k, doc, h) {
 // 기록이 문서에 들어갔나 — 건드린 이름이 장부로 문서 항목에 닿고, 그 항목의 표지가
 // 이 기록보다 앞선 기록(또는 없음)이면 아직 안 넣은 기록(pend)
 // kmd 가 스스로 쓰는 기록(고친 기록 · 정리 · 가져오기)은 넣을 것이 아니다
-export const SYSTEM_TAGS = ['edit', 'curate-auto', 'curate-llm', 'alias-auto', 'sources']
-export const isSystemRecord = (w) => w.tags.some((t) => SYSTEM_TAGS.includes(t))
+export const SYSTEM_TAGS = LOG_TAGS
+export const isSystemRecord = (w) => isLogRecord(w.tags)
 const INGEST = (w) => w.tags.some((t) => /^(ingest|touches\??)\//.test(t))
 
 // 상태 — in(문서에 들어감) · pend(아직 안 넣음) · kept(넣지 않기로 둠) · nowhere(넣을 곳이 없는 메모 — 이름이 없다) · none

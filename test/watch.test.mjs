@@ -13,12 +13,21 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { stats, scanFolder, readLedger } from '../core/watch.js'
 import { copyDir } from './helpers.mjs'
+import { writeDecl, readDecl } from '../core/sources.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s, src, repo, kdir
 const ADMIN = { user: 'kim', admin: true }
 const G = (dir, ...a) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'core.autocrlf=false', ...a], { cwd: dir, encoding: 'utf8' }).trim()
 const commits = () => Number(G(kdir, 'rev-list', '--count', 'HEAD'))
+// 표 규칙 · 코드 폴더는 새로 더하지 않는다(소스 코드는 git 커밋) — 감시 엔진은 예전 선언을 직접 적어 본다
+const legacyAdd = async (x) => {
+  const src0 = { ...x, by: 'kim', since: '2026-10-23' }
+  await writeDecl(kdir, [...(await readDecl(kdir)), src0], { user: 'kim', title: `가져오는 곳 더함 — ${x.name}` })
+  s.hub.forget('dpms')
+  s.hub.watchSource('dpms', src0)
+  return { source: src0, run: await s.hub.sourceRun('dpms', x.name, { first: true }) }
+}
 const csv = (dir, i, v = '') => fs.writeFileSync(path.join(dir, 'data', `코드${String(i).padStart(2, '0')}.csv`), `코드,이름\nC${i},가${i}${v}\n`)
 async function until(f, ms = 15000) {
   const end = Date.now() + ms
@@ -52,7 +61,7 @@ after(async () => {
 })
 
 test('폴더 — 바뀐 파일만 읽고 그 표만 · 그대로면 0 · 시각만 바뀌면 1 읽고 묶음 0 · 지우면 「원천에 없다」', async () => {
-  const r0 = await s.hub.sourceAdd(ADMIN, 'dpms', { name: 'api 코드', kind: 'folder', at: src, every: 'manual', rules: [{ rule: 'deps', into: { doc: '라이브러리' } }, { rule: 'tables', paths: ['data'], into: { doc: '코드표' } }] })
+  const r0 = await legacyAdd({ name: 'api 코드', kind: 'folder', at: src, every: 'manual', rules: [{ rule: 'deps', into: { doc: '라이브러리' } }, { rule: 'tables', paths: ['data'], into: { doc: '코드표' } }] })
   assert.equal(r0.run[0].state, 'changed')
   assert.equal(r0.run[0].n, 21, '라이브러리 표 1 + 코드표 20')
   const L = await readLedger(path.join(tmp, 'kn', '.kmd'), 'dpms', 'api 코드')
@@ -90,7 +99,7 @@ test('폴더 — 바뀐 파일만 읽고 그 표만 · 그대로면 0 · 시각�
 })
 
 test('git — 두 커밋의 차이로 바뀐 파일만 읽는다', async () => {
-  const r0 = await s.hub.sourceAdd(ADMIN, 'dpms', { name: 'repo 코드', kind: 'git', at: repo, every: 'manual', rules: [{ rule: 'tables', paths: ['data'], into: { doc: '저장소 코드표' } }] })
+  const r0 = await legacyAdd({ name: 'repo 코드', kind: 'git', at: repo, every: 'manual', rules: [{ rule: 'tables', paths: ['data'], into: { doc: '저장소 코드표' } }] })
   assert.equal(r0.run[0].n, 20)
   csv(repo, 11, ' 바뀜')
   G(repo, 'commit', '-q', '-am', 'c2')

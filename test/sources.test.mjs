@@ -2,6 +2,7 @@
 //
 // 같은 원천 두 번 → 묶음 0 · 옛 표가 규칙 결과와 같으면 블록으로 · 바뀐 판 → 묶음 1 · 사라짐 10% 초과 → 묶음 0 · 멈춤 줄 ·
 // ext:: · file:// · 허락 밖 폴더 · 지식 폴더 거절 · 자격 든 주소 → 선언 · 로그에 0 · 세션은 표를 못 고친다 · 기계 열쇠 길.
+// 코드 폴더 · 표 규칙은 새로 더하지 않는다(소스 코드는 git 커밋으로) — 표 엔진(DB · 바깥 생성기가 쓴다)은 예전 선언을 직접 적어 본다.
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -12,6 +13,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { copyDir, signIn } from './helpers.mjs'
+import { writeDecl, readDecl } from '../core/sources.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s, me, src, kdir
@@ -41,9 +43,11 @@ after(async () => {
 })
 
 test('잇기 — 첫 배치 · 옛 표가 같으면 블록으로 · 같은 원천 두 번 → 묶음 0 · 바뀐 판 → 묶음 1', async () => {
-  const pr = await s.hub.sourceProbe(ADMIN, 'dpms', { at: src })
-  assert.deepEqual(pr.rules.map((r) => r.rule).sort(), ['deps', 'tables'])
-  const r = await s.hub.sourceAdd(ADMIN, 'dpms', { name: 'dpms-api 코드', at: src, rules: [{ rule: 'deps', into: { doc: '배포절차', heading: '꾸러미 판' } }, { rule: 'tables', paths: ['data'], into: { doc: '코드표' } }] })
+  // 코드 폴더는 새로 더하지 못한다 — 예전 선언은 그대로 돈다
+  assert.equal(await code(s.hub.sourceAdd(ADMIN, 'dpms', { name: 'x', kind: 'folder', at: src, rules: [] })), 'E_INPUT')
+  await writeDecl(kdir, [...(await readDecl(kdir)), { name: 'dpms-api 코드', kind: 'folder', at: src, every: 'hourly', rules: [{ rule: 'deps', into: { doc: '배포절차', heading: '꾸러미 판' } }, { rule: 'tables', paths: ['data'], into: { doc: '코드표' } }], by: 'kim', since: '2026-10-23' }], { user: 'kim', title: '가져오는 곳 더함 — dpms-api 코드' })
+  s.hub.forget('dpms')
+  const r = { run: await s.hub.sourceRun('dpms', 'dpms-api 코드', { first: true }) }
   assert.equal(r.run[0].state, 'changed')
   const d = doc('배포절차')
   assert.match(d, /<!-- baseline: src="dpms-api 코드" rule=deps/)
@@ -61,7 +65,8 @@ test('잇기 — 첫 배치 · 옛 표가 같으면 블록으로 · 같은 원�
   assert.equal(commits(), n0 + 1)
   assert.match(doc('배포절차'), /\| spring-boot \| 3\.3\.5 \|/)
   const k = await s.hub.get('dpms')
-  assert.equal(k.works.filter((w) => w.tags.includes('sources') && w.state === 'pend').length, 0, '가져오기는 대기열에 세우지 않는다')
+  assert.equal(k.works.filter((w) => w.tags.includes('sources')).length, 0, '가져오기는 기록이 아니다 — 이력으로')
+  assert.ok(k.logs.some((w) => w.title.startsWith('가져옴 — dpms-api 코드')))
 })
 
 test('브레이크 — 사라짐 10% 초과면 쓰지 않고 멈춤 줄 · [그대로 반영] 은 「원천에 없다」', async () => {

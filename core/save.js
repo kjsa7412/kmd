@@ -7,12 +7,13 @@
 // 갈아 끼우고 「이 기록을 넣었다」 표지를 단다. 같은 지식의 저장은 한 줄로 선다.
 
 import fs from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fail } from './errors.js'
 import { nfc, oneLine, readText, sha16 } from './text.js'
 import { renderRecord, parseRecord } from './frontmatter.js'
 import { replaceSection, parseDoc, headingMatches } from './sections.js'
-import { isReservedUser, isReservedTag } from './names.js'
+import { isReservedUser, isReservedTag, isLogRecord, LOG_DIR } from './names.js'
 import { isReservedFile } from './owners.js'
 import { keepBlocks, hasBlockMarker } from './baseline.js'
 import { locate, parseRegistry } from './registry.js'
@@ -76,6 +77,17 @@ function docPath(dir, doc) {
   return { rel: p, full: path.join(dir, ...p.split('/')) }
 }
 
+// 기록 · 이력 파일 — id 하나로(work/ 먼저 · 없으면 log/)
+export async function readRecordFile(dir, id, none = '') {
+  for (const sub of ['work', LOG_DIR]) {
+    const t = await fs.readFile(path.join(dir, sub, `${id}.md`), 'utf8').catch(() => null)
+    if (t != null) return readText(t)
+  }
+  return none
+}
+export const recordTaken = async (dir, id) => (await Promise.all(['work', LOG_DIR].map((sub) => fs.stat(path.join(dir, sub, `${id}.md`)).then(() => true, () => false)))).some(Boolean)
+export const recordTakenSync = (dir, id) => ['work', LOG_DIR].some((sub) => existsSync(path.join(dir, sub, `${id}.md`)))
+
 const locks = new Map()
 export function serial(key, f) {
   const prev = locks.get(key) || Promise.resolve()
@@ -107,7 +119,7 @@ export function valuesOf(text) {
 // 짧은 글(값이 원 기록 안의 값뿐). 참이면 서버가 예약 태그 touches-fix 를 붙인다(세션이 붙이면 E_FORBIDDEN)
 async function isTouchesFix(dir, r, touches, registry) {
   if (!r.fixes || r.fixes.length !== 1) return false
-  const orig = await fs.readFile(path.join(dir, 'work', `${r.fixes[0]}.md`), 'utf8').then(readText, () => null)
+  const orig = await readRecordFile(dir, r.fixes[0], null)
   const o = orig && parseRecord(orig, `${r.fixes[0]}.md`)
   if (!o || !touches.length) return false
   // 원 기록이 반영된 이름 — 원 기록의 이름이거나, 그 항목의 표지가 원 기록인 이름
@@ -152,7 +164,7 @@ async function saveNow(dir, r, secs, { user, now, system = false }) {
     for (const p of plan) {
       const cur = await fs.readFile(p.full, 'utf8').then(readText, () => null)
       const sec = cur && parseDoc(cur, '').sections.find((x) => headingMatches(x.h, p.heading))
-      const a = sec?.applied && parseRecord(await fs.readFile(path.join(dir, 'work', `${sec.applied}.md`), 'utf8').then(readText, () => ''), `${sec.applied}.md`)
+      const a = sec?.applied && parseRecord(await readRecordFile(dir, sec.applied), `${sec.applied}.md`)
       if (a && a.date > date) fail('E_CONFLICT', `「${p.heading}」 에는 더 늦은 기록(${a.date})이 이미 들어 있다 — 옛 날짜로 고치지 않는다`)
     }
   }
@@ -173,14 +185,16 @@ async function saveNow(dir, r, secs, { user, now, system = false }) {
   await ensureRepo(dir)
   const day = date.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2$3')
   const base = `${day}-${slugOf(r.title)}`
-  await fs.mkdir(path.join(dir, 'work'), { recursive: true })
+  // 이력(kmd 가 지식을 다룬 일)은 log/ · 그 밖은 기록(work/) — id 는 둘을 합쳐 겹치지 않게
+  const sub = isLogRecord(r.tags) ? LOG_DIR : 'work'
+  await fs.mkdir(path.join(dir, sub), { recursive: true })
   let id = base
-  for (let n = 2; await fs.stat(path.join(dir, 'work', `${id}.md`)).then(() => true, () => false); n++) id = `${base}-${n}`
+  for (let n = 2; await recordTaken(dir, id); n++) id = `${base}-${n}`
 
   const rec = { id, title: nfc(r.title.trim()), date, author: user, touches, tags: (r.tags || []).map((t) => nfc(t.trim())), fixes: (r.fixes || []).map((x) => nfc(x.trim())), curates: r.curates || [], reopens: r.reopens || [], reflects: r.reflects || [] }
   if (!system && (await isTouchesFix(dir, { ...rec, body: r.body }, touches, registry))) rec.tags.push('touches-fix')
-  const workRel = `work/${id}.md`
-  const workFull = path.join(dir, 'work', `${id}.md`)
+  const workRel = `${sub}/${id}.md`
+  const workFull = path.join(dir, sub, `${id}.md`)
   // 중간에 넘어지면 쓴 것을 되돌린다 — 반쯤 쓴 저장은 남기지 않는다
   const undo = [() => fs.rm(workFull, { force: true })]
   try {

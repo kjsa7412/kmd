@@ -15,7 +15,7 @@ import crypto from 'node:crypto'
 import net from 'node:net'
 import { material, check as checkDraft, planSave } from '../core/tidy.js'
 import * as feed from '../core/feed.js'
-import { checkTarget, readSource, probe, readDecl, writeDecl, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs } from '../core/sources.js'
+import { checkTarget, readSource, probe, readDecl, writeDecl, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit } from '../core/sources.js'
 import { check } from '../core/check.js'
 import { commitPaths, ensureRepo, tryGit, maskUrl } from '../core/git.js'
 import { stopLine, ageText } from '../core/stopline.js'
@@ -31,7 +31,7 @@ import { isSystemRecord, labelOf } from '../core/knowledge.js'
 import { restore as restoreFrom, checkUrl } from '../core/restore.js'
 import { watchedOf } from '../core/watchmark.js'
 import { applyDocs, wantDoc, watchedCount } from '../core/docwatch.js'
-import { connect as dbConnect, checkAccount, catalog as dbCatalog } from '../core/db.js'
+import { connect as dbConnect, catalog as dbCatalog } from '../core/db.js'
 import { listPushes, addPush, removePush, runPush, readPushState } from '../core/push.js'
 import { ensureProject } from '../core/gitlab.js'
 import { getSecret, setSecret, listSecrets, delSecret } from '../core/secrets.js'
@@ -82,7 +82,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   async function recentReverts(id, doc) {
     const k = await hub.get(id)
     const cut = Date.now() - 7 * 864e5
-    return k.works.filter((w) => w.reopens.length && w.title.startsWith('되돌림') && w.body.includes(doc.replace(/^docs\/|\.md$/g, '')) && (stampMs(w.date) || 0) >= cut).length
+    return k.logs.filter((w) => w.reopens.length && w.title.startsWith('되돌림') && w.body.includes(doc.replace(/^docs\/|\.md$/g, '')) && (stampMs(w.date) || 0) >= cut).length
   }
   async function saveRun(id, run) {
     const f = path.join(dataDir, 'tidy', `${encodeURIComponent(id)}.json`)
@@ -440,9 +440,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 살펴보기 — 주소를 받아 어떤 규칙이 무엇을 내는지(쓰지 않는다)
     async sourceProbe(ctx, id, { at, kind = null }) {
       await hub.meta(id, ctx)
-      const k2 = kind || (/^(https?|ssh):\/\//i.test(String(at)) || /\.git$/i.test(String(at)) ? 'git' : 'folder')
+      const k2 = kind || 'git'
       const t = checkTarget(at, { kind: k2, ...(await hub.sourceCtx(id)) })
       const src = { name: 'probe', kind: k2, at: t.url || t.folder, folder: t.folder, rules: [] }
+      // 소스 코드(git) — 닿나 · 마지막 커밋(그것이 기준이 된다)
+      if (k2 === 'git') {
+        const h = await probeGit(src, { dataDir, kn: id })
+        return { kind: k2, at: maskUrl(t.url || t.folder), asof: h.asof, head: h.head }
+      }
       const r = await readSource(src, { dataDir, kn: id })
       const files = await r.read()
       return { kind: k2, at: maskUrl(t.url || t.folder), asof: r.asof, files: files.length, rules: probe(files).map((x) => ({ rule: x.rule, items: x.items.length, sample: x.items.slice(0, 3).map((i) => i.key || `${i.rows.length}줄`) })) }
@@ -456,18 +461,22 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!name || name.length > 60 || /[\r\n"]/.test(name)) throw new KmdError('E_INPUT', '이름은 한 줄 60자 안')
       const pcScreen = mode === 'pc' || ctx.pc
       if ((cred?.password || cred?.token || db?.password) && !pcScreen) throw new KmdError('E_FORBIDDEN', `자격은 화면으로 받지 않는다 — 서버에서 한 줄: kmd secret set ${secretName(id, name)}`)
-      const k2 = kind || (db ? 'db' : /^(https?|ssh):\/\//i.test(String(at)) ? 'git' : 'folder')
+      const k2 = kind || (db ? 'db' : 'git')
+      // 소스 코드는 git 하나 — 커밋 이력으로 바뀐 것만(정정 2026-10-23 · 코드 폴더 · 라이브러리 버전 · 표 파일은 걷었다)
+      if (k2 === 'folder') throw new KmdError('E_INPUT', '소스 코드는 git 저장소로 받는다 — 올라온 묶음으로 바뀐 것을 본다 · 이 PC 폴더면 그 폴더의 git 저장소 경로를 넣는다')
+      if (k2 === 'git') rules = []
+      if (k2 === 'pc' && pcMode !== 'docs') throw new KmdError('E_INPUT', '내 PC 폴더는 문서만 보낸다')
       // 파일 목록(files)은 걷었다(감시 검토 v0.1 — 값보다 소음) · 표 파일(tables)은 사람이 고른 파일 · 폴더만
       // docs — 문서 폴더(지식 안 그 폴더로 사본 문서) · pc — 내 PC 폴더(팀 · 관리자 · PC 프로그램이 기계 열쇠로 보낸다 · 결정 ④)
       if (k2 === 'pc' && (mode !== 'team' || !ctx.admin)) throw new KmdError('E_FORBIDDEN', '내 PC 폴더는 팀에서 관리자가 허락한다')
-      const okRules = k2 === 'db' ? ['dbtables'] : k2 === 'docs' || (k2 === 'pc' && pcMode === 'docs') ? ['docs'] : ['deps', 'tables']
+      const okRules = k2 === 'db' ? ['dbtables'] : ['docs']
       for (const r of Array.isArray(rules) ? rules : []) {
         if (r?.rule !== 'tables') continue
         const ps = (Array.isArray(r.paths) ? r.paths : []).map((x) => String(x).trim().replace(/\\/g, '/').replace(/^\.?\/+|\/+$/g, '')).filter(Boolean)
         if (!ps.length || ps.some((x) => x.split('/').includes('..') || /^[A-Za-z]:|^\//.test(x))) throw new KmdError('E_INPUT', '표로 만들 파일 · 폴더를 그 안의 경로로 하나 이상 적는다(예: codes/상태코드.csv · data/)')
         r.paths = ps.slice(0, 50)
       }
-      if (!Array.isArray(rules) || !rules.length || rules.some((r) => !okRules.includes(r.rule) || !r.into?.doc)) throw new KmdError('E_INPUT', `무엇을 채우나는 ${okRules.join(' · ')} 중 · 넣을 문서와 함께`)
+      if (k2 !== 'git' && (!Array.isArray(rules) || !rules.length || rules.some((r) => !okRules.includes(r.rule) || !r.into?.doc))) throw new KmdError('E_INPUT', `무엇을 채우나는 ${okRules.join(' · ')} 중 · 넣을 문서와 함께`)
       const decl = await readDecl(meta.dir)
       if (decl.some((s) => s.name === name)) throw new KmdError('E_CONFLICT', '같은 이름의 가져오는 곳이 있다')
       let shown
@@ -493,7 +502,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       // DB 주소는 계정 이름까지 둔다(비밀번호는 처음부터 없다) · 그 밖은 주소에 든 자격을 가린다
       // 뜻 갱신(소스 변경 → 기록 → 정리)은 코드 폴더 · git 만 — 내 PC 폴더는 코드가 팀으로 가지 않게 하지 않는다
-      const src = { name, kind: k2, ...(meaning && (k2 === 'folder' || k2 === 'git') ? { meaning: true } : {}), ...(k2 === 'pc' ? { mode: pcMode === 'docs' ? 'docs' : 'code' } : {}), at: k2 === 'db' || k2 === 'pc' ? shown : maskUrl(shown), every: k2 === 'pc' ? 'manual' : every, rules: rules.map((r) => ({ rule: r.rule, ...(r.paths ? { paths: r.paths } : {}), into: { doc: String(r.into.doc), ...(r.into.heading ? { heading: String(r.into.heading) } : {}) } })), by: ctx.user, since: new Date().toISOString().slice(0, 10) }
+      const src = { name, kind: k2, ...(k2 === 'pc' ? { mode: 'docs' } : {}), at: k2 === 'db' || k2 === 'pc' ? shown : maskUrl(shown), every: k2 === 'pc' ? 'manual' : every, rules: rules.map((r) => ({ rule: r.rule, ...(r.paths ? { paths: r.paths } : {}), into: { doc: String(r.into.doc), ...(r.into.heading ? { heading: String(r.into.heading) } : {}) } })), by: ctx.user, since: new Date().toISOString().slice(0, 10) }
       const addKey = `${id}\n${name}`
       adding.add(addKey)
       try {
@@ -603,7 +612,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       return { state: r.commit ? 'changed' : 'same', docs: r.docs, missing: r.missing, rows: r.rows }
     },
-    // DB 연결 확인 — 호스트 · 포트에 닿나만(읽기는 다음 판 · S10 계정) · 관리자 · PC 만(아무나 포트를 두드리지 않게)
+    // DB 연결 확인 — 닿나 · 비밀번호(또는 든 비밀)가 있으면 붙어서 테이블 수까지 · 관리자 · PC 만(아무나 포트를 두드리지 않게)
     async sourceCheckDb(ctx, id, { host, port = 5432, database = null, user = null, schema = 'public', password = null, name = null }) {
       await hub.meta(id, ctx)
       if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '관리자가 한다')
@@ -624,9 +633,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       try {
         const c = await dbConnect({ host: String(host), port: Number(port) || 5432, database: String(database), user: String(user), password: pw })
         try {
-          const acct = await checkAccount(c, String(schema || 'public'))
           const t = await dbCatalog(c, String(schema || 'public'))
-          return { reach, ms: Date.now() - t0, login: true, tables: t.size, problems: acct.problems, allowUnsafe: !!config.dbAllowUnsafeAccount }
+          return { reach, ms: Date.now() - t0, login: true, tables: t.size }
         } finally { await c.end().catch(() => {}) }
       } catch (e) {
         return { reach, ms: Date.now() - t0, login: false, why: e.message }
@@ -647,12 +655,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const prev = srcRuns.get(key) || Promise.resolve()
         const job = prev.catch(() => {}).then(async () => {
           const k = await hub.get(id)
-          const src = { ...s, folder: s.kind === 'folder' || !/^(https?|ssh):\/\//i.test(s.at) ? s.at : undefined }
-          const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, meaning: hub.meaningOk(id), dbAllowUnsafe: !!config.dbAllowUnsafeAccount, save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
+          const src = { ...s, folder: s.kind === 'folder' || !(/^(https?|ssh):\/\//i.test(s.at) || /^[^/\\\s]+@[^/\\\s]+:/.test(s.at)) ? s.at : undefined }
+          const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, meaning: hub.meaningOk(id), save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
           cache.delete(id)
           // 코드가 바뀌어 기록을 남겼다 — 그 지식의 정리를 바로 건다(정리 검사를 그대로 탄다 · 값이 바뀌면 노랑 · 되돌릴 수 있다)
-          if (r.codeRecords) hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
-          if (r.state === 'changed') for (const u of await hub.curatorsOf(id)) await feed.add(dataDir, u, { kn: id, dot: 'acc', text: `${s.name}에서 바뀐 표 ${r.n} — ${meta.name}`, small: `바뀐 파일 ${r.files} · 저절로 채우는 표` })
+          // 「Claude 에 보내지 않음」 지식 · 이 PC 의 자동 정리 끔이면 기록만 남는다(사람이 정리할 때 들어간다)
+          if (r.codeRecords && hub.meaningOk(id)) hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
+          if (r.state === 'changed') for (const u of await hub.curatorsOf(id)) await feed.add(dataDir, u, { kn: id, dot: 'acc', text: r.commits != null ? `${s.name}에서 새 묶음 ${r.commits} · 코드 바뀜 기록 ${r.codeRecords} — ${meta.name}` : `${s.name}에서 바뀐 표 ${r.n} — ${meta.name}`, small: r.commits != null ? '정리가 걸린 항목 글을 맞춘다' : `바뀐 파일 ${r.files} · 저절로 채우는 표` })
           return r
         })
         srcRuns.set(key, job)
@@ -668,7 +677,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '전체 다시 맞추기는 관리자가 한다')
       const s = (await readDecl(meta.dir)).find((x) => x.name === name)
       if (!s) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
-      if (s.kind === 'db') throw new KmdError('E_INPUT', 'DB 읽기는 아직 열리지 않았다')
+      if (s.kind === 'git' && !s.rules?.length) throw new KmdError('E_INPUT', '소스 코드는 묶음으로 본다 — 다시 맞출 것이 없다')
       const key = `${id}\n${name}`
       if (resyncs.get(key)?.state === 'running') return resyncs.get(key)
       const st = await readSourceState(dataDir, id)

@@ -3,8 +3,7 @@
 // 접속 정보는 레포에 두지 않는다 — 환경변수 KMD_TEST_PG = postgres://계정:비밀번호@호스트:포트/DB(?schema=public) 로만 준다.
 // 없으면 건너뛴다. DB 에는 읽기 전용 세션으로 카탈로그 SELECT 만 한다(쓰지 않는다).
 //
-// 읽기 전용이 아닌 계정 → 거절(그 까닭) · 시험 허락(dbAllowUnsafeAccount)이면 읽기 전용 세션으로 테이블마다 정의 표 ·
-// 이름 장부의 table:* 자리로 · 그대로면 0 · 지문이 다른 테이블만 「바뀐 테이블」 로 센다(같은 정의면 쓰지 않는다) · 연결 확인
+// 계정은 가리지 않는다(슈퍼유저도) — 읽기 전용 세션으로 테이블마다 정의 표 · 이름 장부의 table:* 자리로 · 그대로면 0 · 지문이 다른 테이블만 「바뀐 테이블」 로 센다(같은 정의면 쓰지 않는다) · 연결 확인
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -16,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { setSecret } from '../core/secrets.js'
 import { secretName } from '../core/sources.js'
-import { readDb, parseDbUrl } from '../core/db.js'
+import { parseDbUrl } from '../core/db.js'
 import { readLedger, writeLedger } from '../core/watch.js'
 import { copyDir } from './helpers.mjs'
 
@@ -36,7 +35,7 @@ before(async () => {
   // 이름 장부의 자리 — table:* 은 테이블정의서의 ## {값}
   fs.writeFileSync(path.join(tmp, 'kn', 'gdi', '_managed.md'), '# 자리 장부\n\n| 이름 | 문서 | 머리 |\n|---|---|---|\n| `table:*` | `docs/테이블정의서.md` | `## {값}` |\n')
   fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })
-  fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sourceTickMs: 3600000, dbAllowUnsafeAccount: true }))
+  fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sourceTickMs: 3600000 }))
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
 })
 after(async () => {
@@ -44,14 +43,7 @@ after(async () => {
   if (tmp) try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('DB — 읽기 전용이 아니면 거절 · 시험 허락이면 테이블마다 정의 표(이름 장부 자리) · 바뀐 테이블만', { skip: !PG && 'KMD_TEST_PG 가 없다' }, async () => {
-  // 기본은 거절 — 까닭을 쉬운 말로
-  let why = null
-  try { await readDb(conn) } catch (e) { why = e }
-  if (why) {
-    assert.equal(why.code, 'E_FORBIDDEN')
-    assert.match(why.message, /읽기 전용 계정이 아니다/)
-  }
+test('DB — 계정을 가리지 않고 테이블마다 정의 표(이름 장부 자리) · 바뀐 테이블만 · 가져옴은 이력으로', { skip: !PG && 'KMD_TEST_PG 가 없다' }, async () => {
   const name = '시험 DB'
   await setSecret(path.join(tmp, 'kn', '.kmd'), secretName('gdi', name), conn.password)
   const db = { host: conn.host, port: conn.port, database: conn.database, schema: conn.schema, user: conn.user }
@@ -67,6 +59,10 @@ test('DB — 읽기 전용이 아니면 거절 · 시험 허락이면 테이블�
   assert.match(doc, /<!-- baseline: src="시험 DB" rule=dbtables[^>]*-->\n\| 칸 \| 형 \| 널 \| 키 \| 설명 \|/)
   assert.equal((doc.match(/<!-- baseline: src="시험 DB"/g) || []).length, ck.tables, '이름 장부 자리(테이블정의서)로')
   assert.ok(Date.now() - t0 < 120000)
+  // 가져옴은 기록이 아니라 이력(log/) — 기록(work/)에는 남지 않는다
+  const logs = fs.readdirSync(path.join(tmp, 'kn', 'gdi', 'log'))
+  assert.ok(logs.some((f) => f.includes('가져옴')), '가져옴은 이력으로')
+  assert.ok(!(fs.existsSync(path.join(tmp, 'kn', 'gdi', 'work')) ? fs.readdirSync(path.join(tmp, 'kn', 'gdi', 'work')) : []).some((f) => f.includes('가져옴') || f.includes('가져오는-곳')), '기록에는 없다')
 
   // 그대로면 0
   assert.equal((await s.hub.sourceRun('gdi', name))[0].state, 'same')

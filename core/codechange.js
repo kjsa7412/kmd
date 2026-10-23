@@ -1,4 +1,5 @@
-// 소스 변경 → 기록 — 감시 검토 v0.1 단계 4(결정 ③: 지식마다 켬/끔 · 「Claude 에 보내지 않음」 지식은 하지 않는다).
+// 소스 변경 → 기록 — 감시 검토 v0.1 단계 4 · 정정(2026-10-23): 소스 코드는 git 하나로 · 새 커밋마다 기록 하나(commitRecord).
+//   아래 codeRecord(파일마다) · 폴더 사본은 예전에 더한 코드 폴더 · 뜻 갱신 켬 가져오는 곳만 쓴다
 //
 //   바뀐 코드 파일마다 기록 하나 — 「코드가 바뀌었다 — RetryPolicy.java (+12 −3)」 · 글에 바뀐 값(「3초 → 5초」) · 차이(4,000자까지)
 //   이름   바뀐 줄 · 파일 이름에 나오는 이 지식의 항목 이름(이름 장부 · 다른 이름)을 단다 — 이름이 걸리면 그 항목 정리로(pend),
@@ -109,4 +110,31 @@ export function codeRecord(k, src, rel, d, status) {
     '```',
   ].join('\n')
   return { title: title.slice(0, 200), body, touches: namesOf(k, rel, d), tags: ['code-change'] }
+}
+
+// 커밋 기록 한 장 — 소스 코드(git)의 새 커밋마다. 제목은 커밋 메시지(왜 바꿨나) · 첫 줄은 바뀐 값 · 차이는 근거로
+//   { sha, author, date, subject } · diffs [{ rel, status, d }] · skipped — 한 번에 넘친 앞선 커밋 수
+export const CODE_FILES = 20
+export function commitRecord(k, src, c, diffs, { skipped = 0, more = 0 } = {}) {
+  const vc = [...new Set(diffs.flatMap((f) => valueChanges(f.d)))]
+  const plus = diffs.reduce((a, f) => a + f.d.plus, 0)
+  const minus = diffs.reduce((a, f) => a + f.d.minus, 0)
+  const base = (r) => r.split('/').pop()
+  const what = diffs.slice(0, 3).map((f) => base(f.rel)).join(' · ') + (diffs.length > 3 ? ` 외 ${diffs.length - 3}` : '')
+  const mark = { added: ' (새로)', removed: ' (지움)' }
+  let patch = diffs.map((f) => `# ${f.rel}${mark[f.status] || ''}\n${f.d.patch}`).join('\n\n')
+  if (patch.length > MAX_DIFF) patch = patch.slice(0, MAX_DIFF) + '\n… (뒤는 줄였다)'
+  const touches = []
+  for (const f of diffs) for (const x of namesOf(k, f.rel, f.d)) if (!touches.includes(x) && touches.length < 5) touches.push(x)
+  const body = [
+    vc.length ? `바뀐 값: ${vc.join(' · ')} — ${what}` : `바뀐 코드: ${what} (+${plus} −${minus})`,
+    '',
+    `${src.name} · 묶음 ${c.sha} · ${c.author} · ${c.date}${more ? ` · 그 밖에 바뀐 코드 파일 ${more}` : ''}`,
+    ...(skipped ? ['', `앞선 새 묶음 ${skipped} 은 기록하지 않았다 — 한 번에 ${MAX_FILES} 묶음까지`] : []),
+    '',
+    '```diff',
+    patch || '(바뀐 줄 없음)',
+    '```',
+  ].join('\n')
+  return { title: `${String(c.subject || '코드 바뀜').trim() || '코드 바뀜'} — ${src.name} ${c.sha}`.slice(0, 200), body, touches, tags: ['code-change'] }
 }

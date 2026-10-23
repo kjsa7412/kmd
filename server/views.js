@@ -175,8 +175,19 @@ export function recView(k, id) {
     return { coord: c, name: labelOf(k, c), kind: c.split(':')[0], doc: x?.doc?.id || null, docTitle: x?.doc?.title || null, h: x?.sec?.h || null }
   })
   const fixes = w.fixes.map((f) => k.byWork.get(f)).filter(Boolean).map(recRow)
-  const fixedBy = k.works.filter((o) => o.fixes.includes(w.id)).map(recRow)
-  return { ...recRow(w), html: render(k, w.path, w.body), tags: w.tags, items, fixes, fixedBy }
+  const fixedBy = [...k.works, ...k.logs].filter((o) => o.fixes.includes(w.id)).map(recRow)
+  return { ...recRow(w), html: render(k, w.path, w.body), tags: w.tags, items, fixes, fixedBy, ...(k.logs.includes(w) ? { log: logKind(w) } : {}) }
+}
+
+// 이력의 갈래 — 가져오기 · 가져오는 곳(설정) · 바로 고침 · 정리
+export function logKind(w) {
+  if (w.tags.includes('sources')) return w.title.startsWith('가져오는 곳') ? '설정' : '가져오기'
+  if (w.tags.includes('edit')) return '바로 고침'
+  return '정리'
+}
+// 이력 — 지식마다 날짜 순(새 것 위) · 화면 「이력」 한 곳에서 본다
+export function logRows(k, { limit = 300 } = {}) {
+  return k.logs.slice(0, limit).map((w) => ({ kn: k.id, knName: k.name, id: w.id, date: w.date, author: w.author, title: w.title, kind: logKind(w), body: w.body.replace(/\s+/g, ' ').slice(0, 240) }))
 }
 
 // 찾기 — 사다리 결과(core/search.js)를 화면의 찾은 것 줄로. 정확한 이름이면 「문서의 항목」, 아니면 비슷한 글

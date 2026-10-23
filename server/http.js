@@ -217,6 +217,13 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     const jm = p.match(/^\/api\/job\/([0-9a-f]+)$/)
     if (jm) return out(200, hub.job(jm[1]) || { state: 'gone' })
     // 자동으로 가져오는 곳 — 목록 · 더하기(관리자 · PC) · 살펴보기 · 지금 가져오기 · 관리자에게 부탁
+    // 이력 — 보는 지식들의 kmd 가 한 일(가져옴 · 가져오는 곳 · 바로 고침 · 정리) 한 곳에 · 새 것 위
+    if (p === '/api/logs') {
+      const rows = []
+      for (const m of await hub.visible(ctx)) rows.push(...V.logRows(await hub.get(m.id, ctx)))
+      rows.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+      return out(200, { items: rows.slice(0, 500) })
+    }
     if (p === '/api/sources') return out(200, { items: await hub.allSources(ctx), can: hub.mode === 'pc' || !!ctx.admin })
     // 팀으로 보내는 폴더(이 PC) — 목록 · 더하기(팀 주소 · 열쇠 · 폴더) · 지금 보내기 · 전체 다시 맞추기 · 빼기
     const pu = p.match(/^\/api\/pushes(?:\/(run|resync|remove))?$/)
@@ -237,7 +244,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const keys = mode === 'pc' ? ['save', 'file', 'src', 'claude', 'find'] : ['file', 'find']
       const month = new Date().toISOString().slice(0, 7)
       let tidied = 0
-      for (const k of ks) tidied += (await hub.get(k.id)).works.filter((w) => w.tags.includes('curate-llm') && String(w.date).startsWith(month)).length
+      for (const k of ks) tidied += (await hub.get(k.id)).logs.filter((w) => w.tags.includes('curate-llm') && String(w.date).startsWith(month)).length
       return out(200, {
         host: req.headers.host,
         root: mode === 'pc' ? path.resolve(root) : undefined,

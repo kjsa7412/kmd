@@ -1,7 +1,7 @@
 // 거두기 — 편집기로 직접 고친 문서를 30초 고요 뒤 저장 한 번으로 들인다(KM32).
 //
 //   docs/ 의 md(고침 · 새 파일 · 지움)  → 고친 기록 하나(태그 edit · 작성자 그 PC 사용자) + 바뀐 항목에 그 기록의 표지 + git 한 묶음
-//   work/ 의 손 고침                    → 원래대로 되돌린다(기록은 고치지 않는다 — 바로잡으려면 바로잡는 기록을 쓴다)
+//   work/ · log/ 의 손 고침             → 원래대로 되돌린다(기록은 고치지 않는다 — 바로잡으려면 바로잡는 기록을 쓴다)
 //   _vocab.md · _managed.md 손 고침       → 되돌리고 알린다(장부는 kmd 가 쓴다)
 //
 // 감시는 지식 폴더마다 하나(fs.watch 재귀). kmd 자신이 쓰는 동안의 변화는 save 뒤 git 이 깨끗하니 저절로 빠진다.
@@ -17,7 +17,7 @@ import { parseDoc, replaceSection, headingMatches } from './sections.js'
 import { parseRegistry, locate } from './registry.js'
 import { parseVocab } from './vocab.js'
 import { renderRecord } from './frontmatter.js'
-import { localStamp } from './save.js'
+import { localStamp, recordTakenSync } from './save.js'
 import { watchedOf } from './watchmark.js'
 
 let cfg = { quietMs: 30_000 }
@@ -59,7 +59,7 @@ export async function collectNow(dir, { user, save }) {
   if (!files.length) return null
   const reverted = []
   for (const f of files) {
-    if (/^work\//.test(f.path) || f.path === '_vocab.md' || f.path === '_managed.md') {
+    if (/^(work|log)\//.test(f.path) || f.path === '_vocab.md' || f.path === '_managed.md') {
       if (f.code.includes('?')) continue // 새로 만든 기록 파일은 건드리지 않는다
       await tryGit(dir, ['checkout', '--', f.path])
       reverted.push(f.path)
@@ -107,9 +107,10 @@ export async function writeCollect(dir, { user, title, body, touches, heads, doc
   const date = localStamp()
   const day = date.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2$3')
   let id = `${day}-편집기에서-고침`
-  for (let n = 2; fs.existsSync(path.join(dir, 'work', `${id}.md`)); n++) id = `${day}-편집기에서-고침-${n}`
-  await fsp.mkdir(path.join(dir, 'work'), { recursive: true })
-  await fsp.writeFile(path.join(dir, 'work', `${id}.md`), renderRecord({ id, title, date, author: user, touches, tags: ['edit'] }, body), 'utf8')
+  for (let n = 2; recordTakenSync(dir, id); n++) id = `${day}-편집기에서-고침-${n}`
+  // 이력(log/) — 편집기로 바로 고친 일은 기록이 아니다(글은 이미 문서에 있다)
+  await fsp.mkdir(path.join(dir, 'log'), { recursive: true })
+  await fsp.writeFile(path.join(dir, 'log', `${id}.md`), renderRecord({ id, title, date, author: user, touches, tags: ['edit'] }, body), 'utf8')
   for (const p of docs) {
     const full = path.join(dir, ...p.split('/'))
     let t = await fsp.readFile(full, 'utf8').then(readText, () => null)
@@ -121,7 +122,7 @@ export async function writeCollect(dir, { user, title, body, touches, heads, doc
     await fsp.writeFile(full, t, 'utf8')
   }
   // 지운 문서도 같은 묶음에(git add 가 지움을 싣는다)
-  const commit = await commitPaths(dir, [`work/${id}.md`, ...docs], title, user)
+  const commit = await commitPaths(dir, [`log/${id}.md`, ...docs], title, user)
   return { id, commit, docs }
 }
 

@@ -1,6 +1,7 @@
 // 자동으로 가져오는 곳 — `_sources.json`(지식 안 · 예약 파일)에 선언하고 원천 실행기가 할 일 시계에 맞춰 읽는다(v0.6 §5).
 //
-//   선언   { name, kind: git | folder, at(가린 주소 · 폴더), every, rules[{ rule, into: { doc, heading? } }], by, since }
+//   선언   { name, kind: git | docs | db | pc (| folder — 예전), at(가린 주소 · 폴더), every, rules[{ rule, into: { doc, heading? } }], by, since }
+//          소스 코드는 git 하나 — 규칙 없이 커밋 이력으로(runCode) · 코드 폴더 · 라이브러리 버전 · 표 파일은 새로 더하지 않는다
 //          자격 · 상태 · bare 사본은 넣지 않는다 — `<data>`(자격은 secrets · 상태는 baseline/<지식>.json)
 //   한 번  ① 바뀌었나(git 은 받은 sha · 폴더는 지문 — 같으면 확인 시각만) ② 규칙 → 항목 ③ 지금 블록과 견줌
 //          ④ 브레이크(새 항목 10 초과 · 사라짐 10% 초과면 쓰지 않고 멈춤 — 처음 잇기는 첫 배치 확인이라 예외)
@@ -18,7 +19,7 @@ import { tryGit, maskUrl, commitPaths, ensureRepo } from './git.js'
 import { readText, nfc } from './text.js'
 import { parseDoc, headingMatches } from './sections.js'
 import { renderRecord } from './frontmatter.js'
-import { localStamp, save as coreSave, serial } from './save.js'
+import { localStamp, save as coreSave, serial, recordTakenSync } from './save.js'
 import { RULES, splitBlocks, putBlock, tableMd, sameTable, sameRows, probe, parseTable } from './baseline.js'
 import { getSecret, setSecret } from './secrets.js'
 import { KmdError } from './errors.js'
@@ -27,7 +28,7 @@ import { readLedger, writeLedger, scanFolder, scanGit, changeCount } from './wat
 import { applyDocs, wantDoc } from './docwatch.js'
 import { parseDbUrl, readDb } from './db.js'
 import { locate } from './registry.js'
-import { wantCode, codeRecord, diffFolder, diffGit, syncSnap, hasSnap, MAX_FILES as CODE_MAX } from './codechange.js'
+import { wantCode, codeRecord, commitRecord, diffFolder, diffGit, syncSnap, hasSnap, MAX_FILES as CODE_MAX, CODE_FILES } from './codechange.js'
 
 export const DECL = '_sources.json'
 const MAX_FILE = 1 << 20
@@ -47,18 +48,18 @@ export async function readDecl(dir) {
   }
 }
 
-// 선언을 바꾸는 저장 — 기록 하나 + _sources.json · 작성자 그 사람 · 태그 sources
+// 선언을 바꾸는 저장 — 이력 하나(log/) + _sources.json · 작성자 그 사람 · 태그 sources
 async function writeDecl(dir, list, { user, title }) {
   return serial(path.resolve(dir), async () => {
     await ensureRepo(dir)
     const date = localStamp()
     const day = date.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2$3')
     let id = `${day}-가져오는-곳`
-    for (let n = 2; existsSync(path.join(dir, 'work', `${id}.md`)); n++) id = `${day}-가져오는-곳-${n}`
-    await fs.mkdir(path.join(dir, 'work'), { recursive: true })
-    await fs.writeFile(path.join(dir, 'work', `${id}.md`), renderRecord({ id, title, date, author: user, tags: ['sources'] }, title), 'utf8')
+    for (let n = 2; recordTakenSync(dir, id); n++) id = `${day}-가져오는-곳-${n}`
+    await fs.mkdir(path.join(dir, 'log'), { recursive: true })
+    await fs.writeFile(path.join(dir, 'log', `${id}.md`), renderRecord({ id, title, date, author: user, tags: ['sources'] }, title), 'utf8')
     await fs.writeFile(path.join(dir, DECL), JSON.stringify(list, null, 1) + '\n', 'utf8')
-    return commitPaths(dir, [`work/${id}.md`, DECL], title, user)
+    return commitPaths(dir, [`log/${id}.md`, DECL], title, user)
   })
 }
 
@@ -302,7 +303,80 @@ async function gitFetch(src, { dataDir, kn }) {
   if (!f.ok) throw new KmdError('E_SOURCE', f.timedOut ? '원천이 답하지 않는다' : /auth|denied|403|401/i.test(f.err) ? '원천 자격이 맞지 않는다' : '원천에 닿지 않는다')
   const commit = (await tryGit(bare, ['rev-parse', 'refs/heads/kmd-src'])).out.trim()
   const asof = (await tryGit(bare, ['log', '-1', '--format=%ci', commit])).out.trim().slice(0, 16)
-  return { bare, commit, asof }
+  // 더 받기 — 얕게 받은 이력을 n 커밋 더(기준 커밋에 닿을 때까지)
+  const deepen = (n) => tryGit(bare, [...guard, 'fetch', '-q', `--deepen=${n}`, remote, '+HEAD:refs/heads/kmd-src'], { timeout: 120_000, env })
+  return { bare, commit, asof, deepen }
+}
+
+// 소스 코드 — git 커밋 이력으로 바뀐 것만(정정 2026-10-23: 코드 폴더 · 라이브러리 버전 · 표 파일은 걷고 git 하나로)
+//   처음   지금 커밋을 기준으로 둔다(기록 없음) — 다음부터 기준 뒤의 새 커밋마다 바뀐 코드로 기록 하나(커밋 메시지 · 바뀐 값 · 차이)
+//   이력   얕게 받고 새 커밋이 있으면 기준에 닿을 때까지 50 씩 더 받는다(200 까지) · 닿지 않으면(강제 밀기 · 너무 멀다) 기준 ↔ 지금 차이 하나로
+//   커밋   합침 커밋은 건너뛴다 · 코드 파일(시험 · 빌드 결과 · 잠금 파일 빼고)이 안 바뀐 커밋은 기록하지 않는다 · 한 번에 20 커밋 · 커밋마다 20 파일
+//   정리   기록을 남기면 hub 가 그 지식의 정리를 건다(Claude 에 보내지 않는 지식 · 이 PC 의 자동 정리 끔이면 기록만 남는다)
+const DEEPEN = 50
+const DEEPEN_MAX = 200
+async function runCode(k, src, { dataDir, save, first = false, full = false }) {
+  const st = await readState(dataDir, k.id)
+  const s0 = (st[src.name] ||= {})
+  const now = new Date().toISOString()
+  try {
+    const L = await readLedger(dataDir, k.id, src.name)
+    const g = await gitFetch(src, { dataDir, kn: k.id })
+    const base = L.commit && (await tryGit(g.bare, ['cat-file', '-e', `${L.commit}^{commit}`])).ok ? L.commit : null
+    const keep = async (note, extra = {}) => {
+      await writeLedger(dataDir, k.id, src.name, { v: 1, files: {}, out: {}, rules: '', commit: g.commit })
+      await tryGit(g.bare, ['update-ref', 'refs/heads/kmd-seen', g.commit]) // 다음 차이의 기준 — 받아 오기에 지워지지 않게
+      Object.assign(s0, { sig: g.commit, asof: g.asof, checkedAt: now, failures: 0, failingSince: null, stopped: null, lastNote: note, ...extra })
+      await writeState(dataDir, k.id, st)
+    }
+    if (first || full || !base) {
+      await keep(`기준 묶음 ${g.commit.slice(0, 7)} — 다음 묶음부터 바뀐 코드를 기록한다`)
+      return { state: 'same', n: 0, files: 0, codeRecords: 0, commits: 0 }
+    }
+    if (base === g.commit) {
+      Object.assign(s0, { checkedAt: now, failures: 0, failingSince: null, lastNote: '그대로' })
+      await writeState(dataDir, k.id, st)
+      return { state: 'same', n: 0, files: 0, codeRecords: 0, commits: 0 }
+    }
+    const linkedNow = async () => (await tryGit(g.bare, ['merge-base', '--is-ancestor', base, g.commit])).ok
+    let linked = await linkedNow()
+    for (let d = DEEPEN; !linked && d <= DEEPEN_MAX; d += DEEPEN) {
+      await g.deepen(DEEPEN)
+      linked = await linkedNow()
+    }
+    const commits = linked ? (await tryGit(g.bare, ['rev-list', '--reverse', '--no-merges', `${base}..${g.commit}`])).out.split('\n').filter(Boolean) : [g.commit]
+    const pairs = linked ? commits.map((c) => [`${c}^`, c]) : [[base, g.commit]]
+    const skipped = Math.max(0, pairs.length - CODE_MAX)
+    let codeRecords = 0
+    let files = 0
+    for (const [i, [a, b]] of pairs.slice(-CODE_MAX).entries()) {
+      const names = (await tryGit(g.bare, ['diff', '--name-status', '--no-renames', '-z', a, b])).out.split('\0').filter(Boolean)
+      const ch = []
+      for (let j = 0; j + 1 < names.length; j += 2) ch.push({ status: names[j][0] === 'A' ? 'added' : names[j][0] === 'D' ? 'removed' : 'changed', rel: nfc(names[j + 1]) })
+      const code = ch.filter((x) => wantCode(x.rel))
+      if (!code.length) continue
+      files += code.length
+      const diffs = []
+      for (const x of code.slice(0, CODE_FILES)) {
+        const d = await diffGit(g.bare, a, b, x.rel)
+        if (d.plus || d.minus) diffs.push({ ...x, d })
+      }
+      if (!diffs.length) continue
+      const [sha, author, date, subject] = (await tryGit(g.bare, ['log', '-1', '--format=%h%x00%an%x00%ci%x00%s', b])).out.trim().split('\0')
+      const info = linked ? { sha, author, date: String(date).slice(0, 16), subject } : { sha: `${base.slice(0, 7)}..${sha}`, author, date: String(date).slice(0, 16), subject: `여러 묶음 — 마지막: ${subject}` }
+      await save({ record: commitRecord(k, src, info, diffs, { skipped: i === 0 ? skipped : 0, more: code.length - diffs.length }) })
+      codeRecords++
+    }
+    const note = `새 묶음 ${pairs.length}${codeRecords ? ` · 코드 바뀜 기록 ${codeRecords}` : ' · 코드는 그대로'}${skipped ? ` · 앞선 ${skipped} 은 건너뜀` : ''}`
+    await keep(note, { lastChange: { at: now, commits: pairs.length, files, records: codeRecords, tables: 0 }, ...(codeRecords ? { lastCode: { at: now, n: codeRecords } } : {}) })
+    return { state: codeRecords ? 'changed' : 'same', n: codeRecords, files, codeRecords, commits: pairs.length }
+  } catch (e) {
+    s0.failures = (s0.failures || 0) + 1
+    s0.failingSince ||= now
+    s0.lastNote = e.message
+    await writeState(dataDir, k.id, st)
+    return { state: 'failed', n: 0, why: e.message }
+  }
 }
 
 // 한 번 돌기 — { state: 'same' | 'changed' | 'stopped' | 'failed', n, files }
@@ -310,21 +384,23 @@ async function gitFetch(src, { dataDir, kn }) {
 export async function runSource(k, src, opt) {
   if (src.kind === 'docs') return runDocs(k, src, opt)
   if (src.kind === 'db') return runDb(k, src, opt)
+  // 소스 코드(git · 규칙 없음) — 커밋 이력 · 예전에 더한 코드 폴더 · 표 규칙이 있는 git 은 그대로 표를 채운다
+  if (src.kind === 'git' && !src.rules?.length) return runCode(k, src, opt)
   return runTables(k, src, opt)
 }
 
 // DB — 카탈로그를 읽어 테이블마다 지문 · 바뀐 테이블만 「바뀐 것」 으로 센다 · 표는 테이블마다 하나(테이블 정의)
 //   자리 — 이름 장부에 `table:*` 자리가 있으면 그 문서 · 머리 · 없으면 넣을 문서 아래 「테이블 — 설명」 머리
-//   계정 — 읽기 전용이 아니면 거절(시험 DB 만 serve.json dbAllowUnsafeAccount) · 비밀번호는 비밀에서
-async function runDb(k, src, { dataDir, save, first = false, force = false, full = false, dbAllowUnsafe = false }) {
+//   계정 — 가리지 않는다(세션이 읽기 전용) · 비밀번호는 비밀에서
+async function runDb(k, src, { dataDir, save, first = false, force = false, full = false }) {
   const st = await readState(dataDir, k.id)
   const s0 = (st[src.name] ||= {})
   const now = new Date().toISOString()
   try {
     const conn = parseDbUrl(src.at)
     conn.password = await getSecret(dataDir, secretName(k.id, src.name))
-    const { acct, tables } = await readDb(conn, { allowUnsafe: dbAllowUnsafe })
-    s0.account = { problems: acct.problems, at: now }
+    const { tables } = await readDb(conn)
+    delete s0.account
     const L = await readLedger(dataDir, k.id, src.name)
     const prev = L.files || {}
     const files = Object.fromEntries([...tables.values()].map((t) => [t.name, { hash: t.hash }]))
@@ -356,7 +432,7 @@ async function runDb(k, src, { dataDir, save, first = false, force = false, full
     }
     await writeLedger(dataDir, k.id, src.name, { v: 1, files, out: {}, rules: ruleSig })
     const lastChange = plan.changed.length ? { at: now, files: full ? 0 : n, tables: plan.changed.length, added: changes.added.length, changed: changes.changed.length, removed: changes.removed.length } : s0.lastChange
-    Object.assign(s0, { checkedAt: now, asof: now.slice(0, 16).replace('T', ' '), items: plan.items, failures: 0, failingSince: null, stopped: null, lastChange, lastNote: `${full ? '다시 맞춤 — ' : ''}${plan.changed.length ? `바뀐 테이블 ${plan.changed.length}` : '그대로'} · 테이블 ${tables.size}${acct.problems.length ? ' · 읽기 전용 계정이 아니다(시험용)' : ''}` })
+    Object.assign(s0, { checkedAt: now, asof: now.slice(0, 16).replace('T', ' '), items: plan.items, failures: 0, failingSince: null, stopped: null, lastChange, lastNote: `${full ? '다시 맞춤 — ' : ''}${plan.changed.length ? `바뀐 테이블 ${plan.changed.length}` : '그대로'} · 테이블 ${tables.size}` })
     await writeState(dataDir, k.id, st)
     return { state: plan.changed.length ? 'changed' : 'same', n: plan.changed.length, files: n, tables: tables.size }
   } catch (e) {
@@ -516,3 +592,10 @@ export function sourceLines(k, decl, st, { now = Date.now(), admin = false } = {
 }
 
 export { probe, writeDecl, stateFile, writeState }
+
+// 살펴보기(git) — 닿나 · 마지막 커밋
+export async function probeGit(src, ctx) {
+  const g = await gitFetch(src, ctx)
+  const [sha, subject] = (await tryGit(g.bare, ['log', '-1', '--format=%h%x00%s', g.commit])).out.trim().split('\0')
+  return { asof: g.asof, head: { sha, subject } }
+}

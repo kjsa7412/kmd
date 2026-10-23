@@ -101,7 +101,7 @@ async function cookieOf(s) {
   return cookie
 }
 
-test('내 PC 폴더 → 팀 — 관리자만 허락 · 문서는 바뀐 파일만 보내 팀이 문서로 · 코드는 PC 가 만든 표만', async () => {
+test('내 PC 폴더 → 팀 — 관리자만 허락 · 문서는 바뀐 파일만 보내 팀이 문서로 · 코드는 보내지 않는다', async () => {
   await assert.rejects(team.hub.sourceAdd({ user: 'lee' }, 'gdi', { name: 'x', kind: 'pc', mode: 'docs', rules: [{ rule: 'docs', into: { doc: 'x' } }] }), { code: 'E_FORBIDDEN' })
   const d = await team.hub.sourceAdd(ADMIN, 'gdi', { name: '김 설계문서', kind: 'pc', mode: 'docs', rules: [{ rule: 'docs', into: { doc: '설계' } }] })
   assert.match(d.key, /^kmdm_/)
@@ -124,13 +124,8 @@ test('내 PC 폴더 → 팀 — 관리자만 허락 · 문서는 바뀐 파일�
   // 그대로면 아무것도 안 보낸다
   assert.equal((await pc.hub.pushRun(a.push.id)).state, 'same')
 
-  // 코드 — 표만 간다(코드 파일은 팀에 0)
-  const c = await team.hub.sourceAdd(ADMIN, 'gdi', { name: '김 배치 코드', kind: 'pc', mode: 'code', rules: [{ rule: 'deps', into: { doc: '배치 라이브러리' } }] })
-  const b = await pc.hub.pushAdd(KIMPC, { team: team.url, key: c.key, folder: pcCode })
-  assert.equal(b.run.state, 'changed')
-  const lib = R(path.join(tmp, 'kn', 'gdi', 'docs', '배치 라이브러리.md'))
-  assert.match(lib, /baseline: src="김 배치 코드"[\s\S]*\| quartz \| 2\.3\.2 \|/)
-  assert.ok(!fs.readdirSync(path.join(tmp, 'kn', 'gdi'), { recursive: true }).some((f) => String(f).endsWith('Main.java')), '코드 파일은 팀으로 가지 않는다')
+  // 코드는 내 PC 폴더로 보내지 않는다 — 소스 코드는 git 저장소로
+  await assert.rejects(team.hub.sourceAdd(ADMIN, 'gdi', { name: '김 배치 코드', kind: 'pc', mode: 'code', rules: [] }), { code: 'E_INPUT' })
   // 다른 지식에는 그 열쇠가 안 듣는다
   const bad = await fetch(`${team.url}/api/k/dpms/watched`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${d.key}` }, body: JSON.stringify({ files: [] }) })
   assert.equal(bad.status, 403)

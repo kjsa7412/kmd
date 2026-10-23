@@ -80,7 +80,7 @@ test('결정 규칙 — 이름을 빠뜨린 기록은 두지 않고 일감 · �
   assert.equal(k2.byWork.get(fix.id).state, 'kept')
   assert.notEqual(k2.byWork.get(fresh.id).state, 'kept', '새 값이 든 정정 기록 → 저절로 두기 0')
   assert.ok(r.tasks >= 1, '이름 바로잡기 일감')
-  const dec = k2.works.find((w) => w.tags.includes('curate-auto') && w.curates.length)
+  const dec = k2.logs.find((w) => w.tags.includes('curate-auto') && w.curates.length) // 정리 판정은 이력(log/)
   assert.equal(dec.author, 'kmd-auto')
 })
 
@@ -119,10 +119,12 @@ test('거두기 — 편집기로 고친 문서는 고요 뒤 묶음 1 · 기록 
     await wait(200) // 묶음 뒤 캐시를 걷는 것까지
     pc.hub.forget('dpms')
     const k = await pc.hub.get('dpms')
-    const w = k.works.find((x) => x.tags.includes('edit') && x.title.startsWith('편집기에서 고침'))
+    // 편집기로 바로 고친 일은 기록이 아니라 이력(log/) — 기록 목록에 아직 안 넣은 기록이 생기지 않는다
+    const w = k.logs.find((x) => x.tags.includes('edit') && x.title.startsWith('편집기에서 고침'))
     assert.equal(w.author, 'kim')
     assert.deepEqual(w.touches, ['term:VPN'])
-    assert.equal(w.state, 'in', '자기 반영 — 아직 안 넣은 기록이 생기지 않는다')
+    assert.ok(w.path.startsWith('log/'))
+    assert.ok(!k.works.some((x) => x.title.startsWith('편집기에서 고침')))
   } finally {
     await pc.close()
   }

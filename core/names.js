@@ -8,3 +8,9 @@ export const RESERVED_TAGS = ['edit', 'curate-auto', 'curate-llm', 'alias-auto',
 
 export const isReservedUser = (u) => RESERVED_USERS.includes(String(u || '').trim().toLowerCase())
 export const isReservedTag = (t) => RESERVED_TAGS.includes(String(t || '').trim().toLowerCase())
+
+// 이력 — kmd 가 지식을 다룬 일(가져옴 · 가져오는 곳 바꿈 · 화면 · 편집기에서 바로 고침 · 정리)은 기록이 아니다.
+// 기록(`work/`)은 그 자체로 지식이 될 글만 · 이런 일은 이력(`log/`)에 · 화면은 「이력」 한 곳에서 본다
+export const LOG_TAGS = ['edit', 'curate-auto', 'curate-llm', 'alias-auto', 'sources']
+export const LOG_DIR = 'log'
+export const isLogRecord = (tags) => (tags || []).some((t) => LOG_TAGS.includes(t))

@@ -2,9 +2,7 @@
 //
 //   붙기     읽기 전용 세션만(`SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY`) · 질의 15초 · 붙기 8초 ·
 //            질의는 고정된 카탈로그 SELECT 뿐(pg_catalog) — 테이블의 행은 읽지 않는다
-//   계정     읽기 전용 계정이어야 한다 — 슈퍼유저 · DB/역할 만들기 · 스키마 CREATE · 테이블 쓰기 권한 · 위험한 역할 멤버십
-//            (pg_write_all_data · pg_read_server_files · pg_execute_server_program · pg_signal_backend)이 있으면 problems 에 적는다.
-//            호출하는 쪽이 거절한다(시험 DB 만 serve.json `dbAllowUnsafeAccount` 로 넘긴다 — 그래도 세션은 읽기 전용)
+//   계정     가리지 않는다(슈퍼유저도 받는다) — 어떤 계정이든 세션을 읽기 전용으로 열어 쓰기를 막는다
 //   읽기     스키마 하나의 테이블(r · p)마다 칸 · 형 · 널 · 키 · 설명 · 테이블 설명 · 앞머리 bak_ bk_ qrtz_ tmp_ stg_ 는 뺀다
 //   지문     테이블마다 정의의 해시 — 감시 엔진이 바뀐 테이블만 안다
 
@@ -38,23 +36,6 @@ export async function connect({ host, port, database, user, password }) {
   return c
 }
 
-// 계정 확인 — { super, problems: [쉬운 말] , writeTables }
-export async function checkAccount(c, schema) {
-  const q = async (s, a) => (await c.query(s, a)).rows
-  const [role] = await q('select rolsuper, rolcreatedb, rolcreaterole from pg_roles where rolname = current_user')
-  const problems = []
-  if (role?.rolsuper) problems.push('슈퍼유저다')
-  if (role?.rolcreatedb) problems.push('DB 를 만들 수 있다')
-  if (role?.rolcreaterole) problems.push('역할을 만들 수 있다')
-  const [sc] = await q("select has_schema_privilege($1, 'CREATE') c", [schema])
-  if (sc?.c) problems.push(`스키마 ${schema} 에 만들 수 있다`)
-  const [w] = await q("select count(*)::int n from pg_class t join pg_namespace n on n.oid = t.relnamespace where n.nspname = $1 and t.relkind in ('r','p') and (has_table_privilege(t.oid,'INSERT') or has_table_privilege(t.oid,'UPDATE') or has_table_privilege(t.oid,'DELETE') or has_table_privilege(t.oid,'TRUNCATE'))", [schema])
-  if (w?.n) problems.push(`테이블 ${w.n} 에 쓸 수 있다`)
-  const risky = await q("select r.rolname from pg_roles r where r.rolname in ('pg_write_all_data','pg_read_server_files','pg_execute_server_program','pg_signal_backend') and pg_has_role(current_user, r.oid, 'MEMBER')")
-  for (const r of risky) problems.push(`${r.rolname} 역할이 있다`)
-  return { super: !!role?.rolsuper, writeTables: w?.n || 0, problems }
-}
-
 // 카탈로그 — Map(테이블 → { name, comment, cols, rows, hash })
 export async function catalog(c, schema) {
   const rows = (await c.query(`select c.relname as tbl, obj_description(c.oid, 'pg_class') as tcomment, a.attnum, a.attname as col,
@@ -77,14 +58,11 @@ export async function catalog(c, schema) {
   return out
 }
 
-// 한 번에 — 붙고 · 계정 확인 · 카탈로그 · 끊기
-export async function readDb(conn, { allowUnsafe = false } = {}) {
+// 한 번에 — 붙고 · 카탈로그 · 끊기
+export async function readDb(conn) {
   const c = await connect(conn)
   try {
-    const acct = await checkAccount(c, conn.schema)
-    if (acct.problems.length && !allowUnsafe) throw new KmdError('E_FORBIDDEN', `읽기 전용 계정이 아니다 — ${acct.problems.join(' · ')} · 읽기 전용 계정으로 바꾼다`)
-    const tables = await catalog(c, conn.schema)
-    return { acct, tables }
+    return { tables: await catalog(c, conn.schema) }
   } finally {
     await c.end().catch(() => {})
   }

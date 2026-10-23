@@ -11,7 +11,7 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { planImport } from './importer.js'
 import { renderRecord } from './frontmatter.js'
-import { localStamp, serial } from './save.js'
+import { localStamp, serial, recordTakenSync } from './save.js'
 import { ensureRepo, commitPaths } from './git.js'
 import { readText } from './text.js'
 import { watchedOf } from './watchmark.js'
@@ -67,12 +67,13 @@ export async function applyDocs(k, { src, prefix = '', files = [], removed = [],
     const date = localStamp()
     const day = date.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2$3')
     let id = `${day}-문서-감시`
-    for (let n = 2; existsSync(path.join(dir, 'work', `${id}.md`)); n++) id = `${day}-문서-감시-${n}`
+    for (let n = 2; recordTakenSync(dir, id); n++) id = `${day}-문서-감시-${n}`
     const title = `가져옴 — ${src.name} · 문서 ${docsN}${attsN ? ' · 첨부 ' + attsN : ''}${missing.length ? ' · 원본에 없다 ' + missing.length : ''}`
     const body = [...files.map((f) => `- ${f.rel}`), ...missing.map((r) => `- ${r} — 원본에 없다`)].slice(0, 200).join('\n')
-    await fs.mkdir(path.join(dir, 'work'), { recursive: true })
-    await fs.writeFile(path.join(dir, 'work', `${id}.md`), renderRecord({ id, title, date, author: user, tags: ['sources'] }, body), 'utf8')
-    return commitPaths(dir, [`work/${id}.md`, ...paths], title, user)
+    // 이력(log/) — kmd 가 가져온 일은 기록이 아니다
+    await fs.mkdir(path.join(dir, 'log'), { recursive: true })
+    await fs.writeFile(path.join(dir, 'log', `${id}.md`), renderRecord({ id, title, date, author: user, tags: ['sources'] }, body), 'utf8')
+    return commitPaths(dir, [`log/${id}.md`, ...paths], title, user)
   })
   return { docs: docsN, atts: attsN, missing: missing.length, rows, commit }
 }

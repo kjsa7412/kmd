@@ -369,7 +369,7 @@ function passage(k, p) {
     out.record = id
     out.label = `그때의 기록 · 정리 전 · ${w ? w.date : ''}`
     // 정정 동봉 — 이 기록을 바로잡은 기록을 위에
-    const by = k.works.filter((o) => o.fixes.includes(id))
+    const by = [...k.works, ...k.logs].filter((o) => o.fixes.includes(id))
     if (by.length) {
       out.correctedBy = by.map((o) => ({ id: o.id, title: o.title, date: o.date, head: o.body.split('\n').filter(Boolean).slice(0, 2).join(' ') }))
       out.label += ' · 정정 앞'
