@@ -448,7 +448,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 더하기 — 유형마다(folder 코드 폴더 · git 저장소 · db). 나가는 자격(git 토큰 · DB 비밀번호)은 이 PC 화면만 받는다 —
     // 팀 화면은 받지 않고 셸 한 줄(`kmd secret set <자격 이름>`)과 상태만 보인다(v0.6 정정 ③)
-    async sourceAdd(ctx, id, { name, at, kind = null, every = 'hourly', rules, cred = null, db = null, mode: pcMode = 'docs' }) {
+    async sourceAdd(ctx, id, { name, at, kind = null, every = 'hourly', rules, cred = null, db = null, mode: pcMode = 'docs', meaning = false }) {
       const meta = await hub.meta(id, ctx)
       if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 관리자가 더한다 — [관리자에게 부탁]')
       name = String(name || '').trim()
@@ -491,7 +491,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         shown = t.url ? await stripCreds(t.url, { dataDir, kn: id, name }) : t.folder
       }
       // DB 주소는 계정 이름까지 둔다(비밀번호는 처음부터 없다) · 그 밖은 주소에 든 자격을 가린다
-      const src = { name, kind: k2, ...(k2 === 'pc' ? { mode: pcMode === 'docs' ? 'docs' : 'code' } : {}), at: k2 === 'db' || k2 === 'pc' ? shown : maskUrl(shown), every: k2 === 'pc' ? 'manual' : every, rules: rules.map((r) => ({ rule: r.rule, ...(r.paths ? { paths: r.paths } : {}), into: { doc: String(r.into.doc), ...(r.into.heading ? { heading: String(r.into.heading) } : {}) } })), by: ctx.user, since: new Date().toISOString().slice(0, 10) }
+      // 뜻 갱신(소스 변경 → 기록 → 정리)은 코드 폴더 · git 만 — 내 PC 폴더는 코드가 팀으로 가지 않게 하지 않는다
+      const src = { name, kind: k2, ...(meaning && (k2 === 'folder' || k2 === 'git') ? { meaning: true } : {}), ...(k2 === 'pc' ? { mode: pcMode === 'docs' ? 'docs' : 'code' } : {}), at: k2 === 'db' || k2 === 'pc' ? shown : maskUrl(shown), every: k2 === 'pc' ? 'manual' : every, rules: rules.map((r) => ({ rule: r.rule, ...(r.paths ? { paths: r.paths } : {}), into: { doc: String(r.into.doc), ...(r.into.heading ? { heading: String(r.into.heading) } : {}) } })), by: ctx.user, since: new Date().toISOString().slice(0, 10) }
       const addKey = `${id}\n${name}`
       adding.add(addKey)
       try {
@@ -632,8 +633,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const job = prev.catch(() => {}).then(async () => {
           const k = await hub.get(id)
           const src = { ...s, folder: s.kind === 'folder' || !/^(https?|ssh):\/\//i.test(s.at) ? s.at : undefined }
-          const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
+          const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, meaning: hub.meaningOk(id), save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
           cache.delete(id)
+          // 코드가 바뀌어 기록을 남겼다 — 그 지식의 정리를 바로 건다(정리 검사를 그대로 탄다 · 값이 바뀌면 노랑 · 되돌릴 수 있다)
+          if (r.codeRecords) hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
           if (r.state === 'changed') for (const u of await hub.curatorsOf(id)) await feed.add(dataDir, u, { kn: id, dot: 'acc', text: `${s.name}에서 바뀐 표 ${r.n} — ${meta.name}`, small: `바뀐 파일 ${r.files} · 저절로 채우는 표` })
           return r
         })
@@ -667,6 +670,27 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         .catch((e) => Object.assign(job, { state: 'failed', why: e.message }))
       return job
     },
+    // 뜻 갱신을 해도 되는 지식 — 「Claude 에 보내지 않음」 이 아니고(결정 ③) · 이 PC 는 「자동 정리 — Claude 로」 를 켰을 때
+    meaningOk(id) {
+      if (owners.rowOf(reg, id)?.noClaude) return false
+      return mode === 'pc' ? hub.autoOf(pcUser, 'claude') : true
+    },
+    async sourceMeaning(ctx, id, { name, on }) {
+      const meta = await hub.meta(id, ctx)
+      if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '관리자가 한다')
+      const decl = await readDecl(meta.dir)
+      const s = decl.find((x) => x.name === name)
+      if (!s) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
+      if (s.kind !== 'folder' && s.kind !== 'git') throw new KmdError('E_INPUT', '뜻 갱신은 코드 폴더 · git 만')
+      if (!!s.meaning === !!on) return s
+      if (on) s.meaning = true
+      else delete s.meaning
+      await writeDecl(meta.dir, decl, { user: ctx.user, title: `가져오는 곳 뜻 갱신 ${on ? '켬' : '끔'} — ${name}` })
+      cache.delete(id)
+      // 켜면 지금 코드로 사본 · 장부를 맞춘다(그 뒤 바뀐 것부터 기록)
+      if (on) await hub.sourceRun(id, name)
+      return s
+    },
     // 실시간 감시 — 이 PC(팀이면 서버)의 코드 폴더는 바뀌면 조용해진 뒤(기본 10초) 그곳만 확인한다 · git 은 정한 때마다
     watchSource(id, s) {
       const key = `${id}\n${s.name}`
@@ -693,7 +717,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const st = await readSourceState(dataDir, id)
       const have = new Set((await listSecrets(dataDir).catch(() => [])).map((x) => x.name))
       // watch — live(실시간 감시) · poll(정한 때마다) · none · resync — 전체 다시 맞추기(도는 중 · 끝 · 끊김)
-      return decl.map((s) => ({ ...s, watch: s.kind === 'pc' ? 'pc' : s.kind === 'folder' || s.kind === 'docs' ? (srcWatch.has(`${id}\n${s.name}`) ? 'live' : 'poll') : s.kind === 'git' ? 'poll' : 'none', resync: resyncs.get(`${id}\n${s.name}`) || (st[s.name]?.resync ? { state: 'paused', ...st[s.name].resync } : null), state: s.kind === 'db' ? { ...(st[s.name] || {}), lastNote: 'DB 읽기는 아직 — 연결 정보는 저장했다' } : st[s.name] || {}, secret: { name: secretName(id, s.name), has: have.has(secretName(id, s.name)) } }))
+      const noClaude = !hub.meaningOk(id)
+      return decl.map((s) => ({ ...s, meaningBlocked: noClaude, watch: s.kind === 'pc' ? 'pc' : s.kind === 'folder' || s.kind === 'docs' ? (srcWatch.has(`${id}\n${s.name}`) ? 'live' : 'poll') : s.kind === 'git' ? 'poll' : 'none', resync: resyncs.get(`${id}\n${s.name}`) || (st[s.name]?.resync ? { state: 'paused', ...st[s.name].resync } : null), state: s.kind === 'db' ? { ...(st[s.name] || {}), lastNote: 'DB 읽기는 아직 — 연결 정보는 저장했다' } : st[s.name] || {}, secret: { name: secretName(id, s.name), has: have.has(secretName(id, s.name)) } }))
     },
     // 자료 가져오기 화면 — 그 사람이 보는 지식들의 가져오는 곳 모두
     async allSources(ctx) {

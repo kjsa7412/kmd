@@ -81,7 +81,7 @@ async function eight(mode) {
     for (const f of fs.readdirSync(path.join(dir, 'work'))) {
       const w = parseRecord(fs.readFileSync(path.join(dir, 'work', f), 'utf8'), f)
       if (!w || !['kmd', 'kmd-auto', 'kmd-worker'].includes(w.author)) continue
-      if (!w.tags.some((t) => [...SYSTEM_TAGS, 'sources'].includes(t))) bad.push(`${w.author} ${f} [${w.tags}]`)
+      if (!w.tags.some((t) => [...SYSTEM_TAGS, 'sources', 'code-change'].includes(t))) bad.push(`${w.author} ${f} [${w.tags}]`)
     }
     // 사람 아닌 작성자의 묶음마다 — 자동 쓰기 표의 기록(work/*.md)을 싣거나, kmd 가 쓰는 파일만 건드리거나, 처음 묶음
     const loose = []

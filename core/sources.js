@@ -25,6 +25,7 @@ import { KmdError } from './errors.js'
 import { stopLine, ageText } from './stopline.js'
 import { readLedger, writeLedger, scanFolder, scanGit, changeCount } from './watch.js'
 import { applyDocs, wantDoc } from './docwatch.js'
+import { wantCode, codeRecord, diffFolder, diffGit, syncSnap, hasSnap, MAX_FILES as CODE_MAX } from './codechange.js'
 
 export const DECL = '_sources.json'
 const MAX_FILE = 1 << 20
@@ -355,14 +356,17 @@ async function runDocs(k, src, { dataDir, first = false, force = false, full = f
 // 문서가 들어갈 지식 안의 폴더 — 선언의 into.doc(비면 감시 이름)
 export const docPrefix = (src) => String(src.rules?.[0]?.into?.doc ?? src.name).replace(/^docs\/|\/+$/g, '').replace(/[<>:"|?*\\]/g, '').trim()
 
-async function runTables(k, src, { dataDir, save, first = false, force = false, full = false, pass = null, onProgress = null }) {
+// meaning — 뜻 갱신(소스 변경 → 기록)을 해도 되나(지식이 「Claude 에 보내지 않음」 이면 hub 가 false)
+async function runTables(k, src, { dataDir, save, first = false, force = false, full = false, pass = null, onProgress = null, meaning = true }) {
   const st = await readState(dataDir, k.id)
   const s0 = (st[src.name] ||= {})
   const now = new Date().toISOString()
   try {
     const L = await readLedger(dataDir, k.id, src.name)
-    const want = wantOf(src)
-    const ruleSig = JSON.stringify(src.rules)
+    // 뜻 갱신이 켜졌으면 규칙이 보지 않는 코드 파일도 지켜본다
+    const ruleWant = wantOf(src)
+    const want = src.meaning ? (p) => ruleWant(p) || wantCode(p) : ruleWant
+    const ruleSig = JSON.stringify(src.rules) + (src.meaning ? '+meaning' : '')
     let scan
     let commit = null
     let asof
@@ -397,15 +401,36 @@ async function runTables(k, src, { dataDir, save, first = false, force = false, 
       const part = plan.changed.slice(i, i + 200)
       await save({ record: { title: `가져옴 — ${src.name} · 바뀐 표 ${part.length}`, body: [`바뀐 파일 ${n} — ${[...scan.changes.added, ...scan.changes.changed, ...scan.changes.removed].slice(0, 20).join(' · ')}${n > 20 ? ' …' : ''}`, '', ...part.map((c) => `- ${c.doc.replace(/^docs\/|\.md$/g, '')} › ${c.heading}`)].join('\n'), tags: ['sources'] }, sections: part.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) })
     }
+    // 뜻 갱신 — 바뀐 코드 파일마다 기록 하나(이름이 걸리면 그 항목 정리로) · 처음 · 전체 다시 맞추기는 사본만 맞춘다
+    let codeRecords = 0
+    if (src.meaning) {
+      const code = (xs) => xs.filter(wantCode)
+      const ch = { added: code(scan.changes.added), changed: code(scan.changes.changed), removed: code(scan.changes.removed) }
+      const folder = src.kind === 'folder'
+      if (folder && (first || full || !(await hasSnap(dataDir, k.id, src.name)))) await syncSnap(dataDir, k.id, src.name, Object.keys(scan.files).filter(wantCode), scan.readBuf)
+      else if (meaning && !first && !full) {
+        const todo = [...ch.changed.map((r) => [r, 'changed']), ...ch.added.map((r) => [r, 'added']), ...ch.removed.map((r) => [r, 'removed'])]
+        for (const [rel, status] of todo.slice(0, CODE_MAX)) {
+          const d = folder ? await diffFolder(dataDir, k.id, src.name, rel, status === 'removed' ? null : path.join(src.folder || src.at, ...rel.split('/'))) : await diffGit(scan.bare, L.commit, commit, rel)
+          if (!d.plus && !d.minus) continue
+          const rec = codeRecord(k, src, rel, d, status)
+          if (rel === todo[Math.min(todo.length, CODE_MAX) - 1][0] && todo.length > CODE_MAX) rec.body += `\n\n그 밖에 바뀐 코드 ${todo.length - CODE_MAX} — ${todo.slice(CODE_MAX).map((x) => x[0]).slice(0, 40).join(' · ')}`
+          await save({ record: rec })
+          codeRecords++
+        }
+        if (folder) await syncSnap(dataDir, k.id, src.name, [...ch.added, ...ch.changed], scan.readBuf, ch.removed)
+      } else if (folder) await syncSnap(dataDir, k.id, src.name, [...ch.added, ...ch.changed], scan.readBuf, ch.removed)
+    }
     await writeLedger(dataDir, k.id, src.name, { v: 1, files: scan.files, out: out.cache, rules: ruleSig, ...(commit ? { commit } : {}) })
     if (commit) await tryGit(scan.bare, ['update-ref', 'refs/heads/kmd-seen', commit]) // 다음 차이의 기준 — 받아 오기에 지워지지 않게
     // 전체 다시 맞추기는 모든 파일을 다시 읽어 「고침」 으로 세므로 바뀐 파일 수로 알리지 않는다 — 실제로 다른 표만 말한다
     const real = full ? 0 : n
     const lastChange = real || plan.changed.length ? { at: now, files: real, tables: plan.changed.length, added: full ? 0 : scan.changes.added.length, changed: full ? 0 : scan.changes.changed.length, removed: scan.changes.removed.length } : s0.lastChange
-    const note = full ? (plan.changed.length ? `다시 맞춤 — 바뀐 표 ${plan.changed.length}` : '다시 맞춤 — 그대로') : plan.changed.length ? `바뀐 표 ${plan.changed.length}` : n ? `바뀐 파일 ${n} · 표는 그대로` : '그대로'
+    const note = (full ? (plan.changed.length ? `다시 맞춤 — 바뀐 표 ${plan.changed.length}` : '다시 맞춤 — 그대로') : plan.changed.length ? `바뀐 표 ${plan.changed.length}` : n ? `바뀐 파일 ${n} · 표는 그대로` : '그대로') + (codeRecords ? ` · 코드 바뀜 기록 ${codeRecords} — 정리가 항목 글을 맞춘다` : '')
     Object.assign(s0, { sig: commit || null, asof, checkedAt: now, items: plan.items, failures: 0, failingSince: null, stopped: null, lastChange, lastNote: note })
+    if (codeRecords) s0.lastCode = { at: now, n: codeRecords }
     await writeState(dataDir, k.id, st)
-    return { state: plan.changed.length ? 'changed' : 'same', n: plan.changed.length, files: n }
+    return { state: plan.changed.length || codeRecords ? 'changed' : 'same', n: plan.changed.length, files: n, codeRecords }
   } catch (e) {
     s0.failures = (s0.failures || 0) + 1
     s0.failingSince ||= now

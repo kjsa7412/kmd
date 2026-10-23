@@ -11,6 +11,8 @@
 // 값이 바뀐 것(옛 글의 값이 빠지고 새 값이 들어감)은 그 기록을 쓴 사람의 「오늘 바뀐 것」 노란 줄이 된다.
 
 import { valuesOf } from './save.js'
+// 코드 바뀜 기록(code-change)은 차이 속의 수를 다 볼 수 없다 — 「바뀐 값」 의 새 값만 글에 있어야 한다
+import { newValuesOf } from './codechange.js'
 import { sha16 } from './text.js'
 import { sectionOf, coordsOfSection, labelOf } from './knowledge.js'
 
@@ -43,10 +45,10 @@ export function material(k, { candidates = () => [] } = {}) {
       const key = `${x.loc.doc}\n${x.sec ? x.sec.h : x.loc.heading}`
       if (!groups.has(key)) groups.set(key, { kind: 'section', coord: c, doc: x.loc.doc, heading: x.sec ? x.sec.h : x.loc.heading, name: labelOf(k, c), content: x.sec ? x.sec.body : '', base: sha16(x.sec ? x.sec.body : ''), records: [] })
       const g = groups.get(key)
-      if (!g.records.some((r) => r.id === w.id)) g.records.push({ id: w.id, date: w.date, author: w.author, title: w.title, body: w.body })
+      if (!g.records.some((r) => r.id === w.id)) g.records.push({ id: w.id, date: w.date, author: w.author, title: w.title, body: w.body, ...(w.tags.includes('code-change') ? { code: true } : {}) })
     }
   }
-  const out = [...groups.values()].map((g) => ({ ...g, records: g.records.sort((a, b) => a.date.localeCompare(b.date)), values: [...new Set(g.records.flatMap((r) => [...valuesOf(r.body + ' ' + r.title)]))] }))
+  const out = [...groups.values()].map((g) => ({ ...g, records: g.records.sort((a, b) => a.date.localeCompare(b.date)), values: [...new Set(g.records.flatMap((r) => (r.code ? newValuesOf(r.body) : [...valuesOf(r.body + ' ' + r.title)])))] }))
   for (const w of k.works) {
     if (w.state !== 'nowhere' || isPrivate(w) || k.reverted.has(w.id)) continue
     out.push({ kind: 'touches', record: { id: w.id, date: w.date, author: w.author, title: w.title, body: w.body }, candidates: candidates(w).slice(0, 8) })
@@ -103,7 +105,8 @@ export function check(k, g, d) {
   const now = valuesOf(d.content)
   const oldV = valuesOf(cur)
   const recV = new Set(used.flatMap((r) => [...valuesOf(r.body + ' ' + r.title)]))
-  const missing = [...valuesOf(used.map((r) => r.body).join('\n'))].filter((v) => !now.has(v) && !drop.has(v))
+  // 코드 바뀜 기록은 「바뀐 값」 의 새 값만 글에 있어야 한다(차이 속의 다른 수 · 옛 값까지 요구하면 늘 남는다)
+  const missing = [...new Set(used.flatMap((r) => (r.code ? newValuesOf(r.body) : [...valuesOf(r.body)])))].filter((v) => !now.has(v) && !drop.has(v))
   if (missing.length) return { ok: false, why: `기록의 값이 글에 없다 — ${missing.slice(0, 3).join(' · ')}` }
   const invented = [...now].filter((v) => !oldV.has(v) && !recV.has(v))
   if (invented.length) return { ok: false, why: `근거에 없는 값이 있다 — ${invented.slice(0, 3).join(' · ')}` }

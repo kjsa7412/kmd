@@ -1244,9 +1244,10 @@ function srcRow(s, can) {
   const runH = run === 'run' ? '<span class="st2 run" data-t="srcRun">가져오는 중…</span>' : run ? `<span class="st2 ok" data-t="srcOk">${esc(run)}</span>` : ''
   const ev = String(s.every || 'hourly'), at = ev.startsWith('daily ') ? ev.slice(6) : '06:00'
   const mi = (val, l, sm) => `<div class="mi${ev.split(' ')[0] === val ? ' on' : ''}" data-a="setEvery" data-id="${esc(id)}" data-v="${val}">${ev.split(' ')[0] === val ? '✓ ' : ''}${l}${sm || ''}</div>`
-  const menu = S.menu === 'every:' + id ? `<div class="menu" style="right:0;top:26px" data-t="everyMenu">${mi('hourly', '1시간마다')}${mi('daily', `매일 <input type="time" id="evAt" data-t="evAt" value="${esc(at)}" data-stop="1">`)}${mi('weekly', '매주 월')}${mi('change', '바뀔 때만', '<small>코드가 바뀌면 바로</small>')}<div class="sep"></div><div class="gray">한꺼번에 크게 바뀌면 쓰지 않고 멈춘다 — 「지금 가져오기」 는 언제든</div></div>` : ''
+  const menu = S.menu === 'every:' + id ? `<div class="menu" style="right:0;top:26px" data-t="everyMenu">${mi('hourly', '1시간마다')}${mi('daily', `매일 <input type="time" id="evAt" data-t="evAt" value="${esc(at)}" data-stop="1">`)}${mi('weekly', '매주 월')}${mi('change', '바뀔 때만', '<small>코드가 바뀌면 바로</small>')}${s.kind === 'folder' || s.kind === 'git' ? `<div class="sep"></div><div class="mi" data-a="toggleMeaning" data-id="${esc(id)}" data-v="${s.meaning ? '' : '1'}" data-t="toggleMeaning">${s.meaning ? '뜻 갱신 끄기' : '뜻 갱신 켜기'}<small>바뀐 코드로 관련 항목 글도 맞춘다 — Claude 로</small></div>` : ''}<div class="sep"></div><div class="gray">한꺼번에 크게 바뀌면 쓰지 않고 멈춘다 — 「지금 가져오기」 는 언제든</div></div>` : ''
   const cred = (s.kind === 'git' || s.kind === 'db') && s.secret && s.secret.has ? ' · 자격 있음' : ''
-  const sub = s.kind === 'pc' ? `내 PC 폴더 · ${s.mode === 'docs' ? '문서' : '표'} · ${st.host ? st.host + ' 에서 보낸다' : '아직 받은 것 없음 — 그 PC 에 열쇠를 넣으면 온다'}` : `${KIND_T[s.kind] || s.kind} · ${String(s.since || '').slice(5)} 부터${s.by && s.by !== S.me.user ? ' · ' + s.by : ''}${cred}`
+  const mean = s.meaning ? (s.meaningBlocked ? ' · 뜻 갱신(쉼 — Claude 에 보내지 않는 지식)' : ' · 뜻 갱신 — Claude') : ''
+  const sub = s.kind === 'pc' ? `내 PC 폴더 · ${s.mode === 'docs' ? '문서' : '표'} · ${st.host ? st.host + ' 에서 보낸다' : '아직 받은 것 없음 — 그 PC 에 열쇠를 넣으면 온다'}` : `${KIND_T[s.kind] || s.kind} · ${String(s.since || '').slice(5)} 부터${s.by && s.by !== S.me.user ? ' · ' + s.by : ''}${cred}${mean}`
   const need = (s.kind === 'db' || s.kind === 'git') && s.secret && !s.secret.has && isTeam() ? `<small class="mono" data-t="credLine">자격이 필요하면 서버에서 — kmd secret set ${esc(s.secret.name)}</small>` : ''
   const into = (s.rules && s.rules[0] && s.rules[0].into && s.rules[0].into.doc) || ''
   // 감시 — 실시간(폴더 · 바뀌면 조용해진 뒤 그곳만) · 정한 때마다(git) · 마지막 변화는 바뀐 파일 · 표 수로
@@ -1293,12 +1294,13 @@ function sfForm(can) {
   const paths = f.rule === 'tables' ? full(fld('표로 만들 파일 · 폴더 — 그 안의 경로 · 쉼표로 여럿', 'paths', f.paths, '예: data/ · codes/상태코드.csv', { need: 1, mono: 1 })) : ''
   const when = f.type === 'pc' ? '' : `<div class="field" style="margin:0"><label for="sf-every">언제</label>${sel('every', [['hourly', '1시간마다'], ['daily 06:00', '매일 06:00'], ['weekly', '매주 월'], ['change', '바뀔 때만 — 5분마다 보고 바뀐 것만']], f.every)}${f.type === 'docs' || f.type === 'folder' ? '<div class="hint">폴더는 실시간으로도 지켜본다 — 이것은 놓친 것을 잡는 때</div>' : ''}</div>`
   const nm = fld('이름', 'name', f.name, f.type === 'pc' ? '예: 김 설계문서' : sfAutoName(f) || '예: dpms-api 코드', f.type === 'pc' ? { need: 1 } : {})
+  const meaning = f.type === 'folder' || f.type === 'git' ? `<div style="grid-column:1/-1" data-t="meaningBox"><label class="small" style="display:flex;gap:8px;align-items:flex-start;cursor:pointer"><input type="checkbox" data-sf="meaning" data-t="sfMeaning"${f.meaning ? ' checked' : ''} style="margin-top:2px"><span><b>바뀐 코드로 관련 항목 글도 맞춘다 — Claude 로</b><span class="muted" style="display:block">코드가 바뀌면 파일마다 기록을 남기고 정리가 그 항목 글을 고친다 · 정리 검사(숫자 · 이름 대조)를 그대로 타고 값이 바뀌면 노란 줄 · 되돌릴 수 있다 · 「Claude 에 보내지 않음」 지식은 켜도 하지 않는다</span></span></label></div>` : ''
   const dbNote = f.type === 'db' ? '<div class="callout gray" data-t="dbNote" style="margin:12px 0 0"><i></i><span><b>DB 에서 표 채우기는 아직 열리지 않았다</b> — 지금은 연결 정보만 저장하고 [연결 확인] 으로 닿는지만 본다 · 읽기 전용 계정 확인과 테이블 정의 채우기는 다음 판에</span></div>' : ''
   const probe = f.type === 'db' ? '<button class="btn" data-a="sfCheck" data-t="sfCheck">연결 확인</button>' : can && (f.type === 'folder' || f.type === 'git') ? '<button class="btn" data-a="sfProbe" data-t="sfProbe">살펴보기</button>' : ''
   const go = can ? `<button class="btn pri" data-a="sfAdd" data-t="sfAdd" style="width:auto">${f.type === 'pc' ? '허락하고 열쇠 받기' : '더하기'}</button>` : '<button class="btn pri" data-a="sfAsk" data-t="sfAsk" style="width:auto">관리자에게 부탁</button>'
   return `<div class="card" data-t="sfCard"><div class="ch">가져올 곳 더하기 <small>유형을 고르고 칸을 채운다</small></div>
    <div class="cb">${tabs}
-   ${where ? grid(where) + '<div style="border-top:1px solid var(--border);margin:14px 0"></div>' : ''}${grid(what + into + paths + when + nm)}${dbNote}${res}</div>
+   ${where ? grid(where) + '<div style="border-top:1px solid var(--border);margin:14px 0"></div>' : ''}${grid(what + into + paths + when + nm + meaning)}${dbNote}${res}</div>
    <div class="cf" style="display:flex;gap:8px;align-items:center"><span class="muted small">${f.type === 'pc' ? '열쇠는 지금 한 번만 보인다' : can ? '더하면 바로 한 번 가져온다' : '관리자 화면에 「더해 달라」 한 줄로 간다'}</span><span style="margin-left:auto;display:flex;gap:8px">${probe}${go}</span></div></div>`
 }
 // 이 PC — 팀으로 보내는 폴더 목록
@@ -1389,6 +1391,7 @@ function sfCard() {
   const doc = String(f.doc || '').trim() || (docsLike ? name : SF_DOC[f.rule])
   const card = { name, kind: f.type, every: f.every, rules: [{ rule: docsLike ? 'docs' : f.rule, ...(f.rule === 'tables' ? { paths: String(f.paths).split(/[,\n]/).map((x) => x.trim()).filter(Boolean) } : {}), into: { doc } }] }
   if (f.type === 'pc') card.mode = f.rule === 'docs' ? 'docs' : 'code'
+  if ((f.type === 'folder' || f.type === 'git') && f.meaning) card.meaning = true
   if (f.type === 'db') card.db = { engine: 'postgres', host: f.host.trim(), port: Number(f.port) || 5432, database: f.database.trim(), schema: (f.schema || 'public').trim(), user: f.user.trim(), ...(isTeam() || !f.password ? {} : { password: f.password }) }
   else if (f.type !== 'pc') card.at = f.at.trim()
   if (f.type === 'git' && !isTeam() && (f.gitUser || f.gitToken)) card.cred = { user: f.gitUser || '', token: f.gitToken || '' }
@@ -1938,6 +1941,7 @@ const ACT = {
   admDone: () => admDone(),
   fetchSrc: (el) => fetchSrc(el.dataset.id),
   resyncSrc: (el) => resyncSrc(el.dataset.id),
+  toggleMeaning: async (el) => { const [kn, name] = el.dataset.id.split('|'); S.menu = null; try { await postJSON(`/api/k/${encodeURIComponent(kn)}/sources/meaning`, { name, on: !!el.dataset.v }); delete S.cache.sources; toast(el.dataset.v ? '뜻 갱신을 켰다 — 이제 바뀐 코드로 관련 항목 글도 맞춘다' : '뜻 갱신을 껐다 — 표만 채운다') } catch (e) { toast(esc(e.message)) } render() },
   copyPcKey: (el) => { copyText(el.dataset.v); toast('열쇠를 복사했다 — 그 사람에게만 건넨다') },
   pushRun: async (el) => { toast('보내는 중…'); try { const r = await postJSON('/api/pushes/run', { id: el.dataset.id }); toast(r.state === 'changed' ? (r.docs != null ? `보냈다 — 문서 ${r.docs}` : `보냈다 — 표 ${r.tables}`) : r.state === 'failed' ? esc(r.why) : '보낼 것이 없다') } catch (e) { toast(esc(e.message)) } delete S.cache.pushes; render() },
   pushResync: async (el) => { try { await postJSON('/api/pushes/resync', { id: el.dataset.id }); toast('전체 다시 맞추기를 시작했다 — 다른 것만 보낸다'); const t = setInterval(async () => { delete S.cache.pushes; const v = await getJSON('/api/pushes').catch(() => null); if (v) S.cache.pushes = v; if (S.route.scr === 'import') render(); if (!v || !v.some((p) => p.resync && p.resync.state === 'running')) clearInterval(t) }, 1000) } catch (e) { toast(esc(e.message)) } },
@@ -2093,7 +2097,7 @@ document.addEventListener('input', (ev) => {
   if (k === 'add') { S.addDraft = t.value; const h = addHeard(); $('#addHeardBox').innerHTML = h.heard; $('#addBtnBox').innerHTML = h.btn; const m = $('[data-t=addMsg]'); if (m) { S.addMsg = null; m.remove() } }
 })
 // 파일 · 폴더 — 고르기 · 끌어다 놓기
-document.addEventListener('change', (ev) => { const t = ev.target; if (t.dataset && t.dataset.sf) { sfState()[t.dataset.sf] = t.value; if (t.dataset.sf === 'rule') render(); return } if (t.id === 'fileIn' || t.id === 'dirIn') { takeFiles(t.files); t.value = '' } })
+document.addEventListener('change', (ev) => { const t = ev.target; if (t.dataset && t.dataset.sf) { sfState()[t.dataset.sf] = t.type === 'checkbox' ? t.checked : t.value; if (t.dataset.sf === 'rule') render(); return } if (t.id === 'fileIn' || t.id === 'dirIn') { takeFiles(t.files); t.value = '' } })
 document.addEventListener('dragover', (ev) => { const d = ev.target.closest && ev.target.closest('#drop'); if (d) { ev.preventDefault(); d.classList.add('over') } })
 document.addEventListener('dragleave', (ev) => { const d = ev.target.closest && ev.target.closest('#drop'); if (d) d.classList.remove('over') })
 document.addEventListener('drop', async (ev) => {
