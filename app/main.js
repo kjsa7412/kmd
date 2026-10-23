@@ -19,10 +19,11 @@ const S = {
   menu: null, pal: null, qo: null, cmd: null,
   cache: {}, wait: {}, err: null,
   stops: [],
+  openToday: null, tidyRun: null, tidyMsg: {}, runOpen: {}, cmp: null, picker: false,
   iq: '', ifilt: { pend: false, recent: false, mine: false }, kfold: {}, tablesAll: false, nbOpen: false,
   g: { kn: null, pos: {}, view: { x: 0, y: 0, k: 1 }, sel: null, bundle: false, layoutKey: '', f: { q: '', item: true, doc: true, rec: false, src: false, pend: false, recent: false, orph: false, depth: 0 } },
 }
-const KNSCR = ['docs', 'items', 'graph']
+const KNSCR = ['docs', 'items', 'graph', 'tidy', 'members']
 const KN = (k) => S.kns.find((x) => x.id === k) || null
 const isTeam = () => S.me && S.me.mode === 'team'
 // 들어오기 전 — 들어가기 · 처음 들어오기 링크 · 첫 설정 화면
@@ -178,7 +179,7 @@ function render() {
   }
 }
 function viewOf(s) {
-  const f = { home: viewHome, docs: viewDocsV, items: viewItems, graph: viewGraph }[s]
+  const f = { home: viewHome, docs: viewDocsV, items: viewItems, graph: viewGraph, today: viewToday, tidy: viewTidy, members: viewMembers }[s]
   return f ? f() : viewLater(s)
 }
 function ribbonHtml() {
@@ -195,7 +196,13 @@ function sideHtml(left) {
   const cnt = team ? '팀 ' + S.kns.length : '내 지식 ' + S.kns.length
   if (!dim) h += `<div class="sb-repo" data-a="kmenu" data-t="kpick">${cur ? `<span class="rk">${esc(cur.name.slice(0, 2))}</span><span class="rn">${esc(cur.name)} <small>${team ? '팀 서버' : esc(cur.dir || '')}</small></span>` : `<span class="rk">전체</span><span class="rn">지식 전체<small>${cnt}</small></span>`}<span class="rc">▾</span>${S.menu === 'kmenu' ? `<div class="kmenu"><div class="mi" data-a="pickKn" data-k="*" data-t="nav-home">${svg('list')} 지식 목록 — 전체</div>${S.kns.map((k) => `<div class="mi" data-a="pickKn" data-k="${esc(k.id)}">${esc(k.name)} ${ktag()}</div>`).join('')}</div>` : ''}</div>`
   const it = (key, l, ic) => `<div class="sb-i${!dim && r.scr === key ? ' on' : ''}" data-a="nav" data-s="${key}" data-t="nav-${key}">${svg(ic)}<span>${l}</span></div>`
-  h += '<div class="nav">' + it('today', '오늘 바뀐 것', 'check') + it('import', '자료 가져오기', 'plug') + '</div>'
+  // 정리하는 사람 — 주인 · 정리하는 지식이 하나라도 있거나 관리자
+  const curator = !dim && (S.kns.some((x) => x.role && x.role !== '기록') || S.me.admin)
+  const tk = curator && KN(tidyKn())
+  const it2 = (key, l, ic, bd) => `<div class="sb-i${!dim && r.scr === key ? ' on' : ''}" data-a="nav" data-s="${key}" data-t="nav-${key}">${svg(ic)}<span>${l}</span>${bd ? `<span class="bd">${bd}</span>` : ''}</div>`
+  h += '<div class="nav">' + it('today', '오늘 바뀐 것', 'check') + it('import', '자료 가져오기', 'plug')
+  if (curator) h += '<div class="sb-g">정리하는 사람</div>' + it2('tidy', '정리', 'hour', tk && tk.pend ? tk.pend : '') + it2('members', '이 지식의 사람', 'users')
+  h += '</div>'
   if (left) h += `<div class="lp" data-t="leftPane">${left}</div>`
   h += '<div class="sb-foot"><div class="nav"><div class="sb-i deco">' + svg('book') + '<span>설명서</span></div></div>'
   h += dim ? '<div class="sb-me"><span class="av">?</span><span class="muted">아직 들어오지 않았다</span></div>' : `<div class="sb-me"><span class="av">${esc(String(S.me.user).slice(0, 1))}</span><span>${esc(S.me.user)} <small>· ${team ? '팀 서버' : '이 PC'}</small></span></div>`
@@ -215,7 +222,7 @@ function bandHtml() {
   const k = r.kn && r.kn !== '*' && KNSCR.includes(r.scr) ? r.kn : null
   let left
   if (!k) left = team ? '팀 서버의 kmd · 같이 쓴다' : '이 PC 의 kmd · 나만 쓴다'
-  else left = team ? '팀 지식 · 팀 서버 · 나: 기록' : '내 지식 · ' + ((KN(k) && KN(k).dir) || '') + ' · 나만'
+  else left = team ? '팀 지식 · 팀 서버 · 나: ' + (KN(k) && KN(k).role === '주인' ? '주인' : '기록') : '내 지식 · ' + ((KN(k) && KN(k).dir) || '') + ' · 나만'
   const st = stopsFor(k)
   const right = st.length ? st.map((x) => `<span class="chip ${x.level === 'bad' ? 'c-danger' : 'c-warn'}" data-t="bandchip">${esc(x.b)} — ${esc(x.t)}</span>`).join('') : team ? '' : '<span class="muted">밖으로 나가는 것은 보내기 · 백업 · Claude 정리뿐</span>'
   return `<div class="band ${team ? 'team' : 'me'}"><span class="who"><i></i>${esc(left)}</span><span class="out">${right}</span></div>`
@@ -243,7 +250,7 @@ function viewHome() {
   const team = isTeam()
   const rows = S.kns.map((n) => {
     const tag = team ? '<span class="kt team">팀</span>' : ''
-    const rr = ''
+    const rr = team && n.role && n.role !== '기록' ? `<span class="dst">나: 정리</span>${n.pend ? `<span class="chip c-pend">받은 것 ${n.pend}</span>` : ''}` : ''
     return `<div class="krow" data-a="openKn" data-k="${esc(n.id)}" data-t="krow" data-name="${esc(n.name)}"><span class="nm">${esc(n.name)} ${tag}</span><span class="meta">${esc(knMeta(n))}</span><span class="rr">${rr}</span></div>`
   }).join('')
   const none = '<div class="cb"><div class="empty2"><b>아직 지식이 없다</b>폴더 안에 md 폴더를 두면 지식이 된다</div></div>'
@@ -871,6 +878,163 @@ async function saveDoc() {
   }
 }
 
+// ───────────── 오늘 바뀐 것(목업 M9) ─────────────
+const todayOf = () => need('today', '/api/today')
+const pad2 = (n) => String(n).padStart(2, '0')
+function tmOf(iso) {
+  const d = new Date(iso)
+  const hm = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+  return isToday(iso) ? hm : `${whenTxt(iso).split(' ')[0]}<br>${hm}`
+}
+function diffHtml(list, label) {
+  if (!list) return loadingHtml
+  if (!list.length) return '<div class="diff"><div class="ln2">바뀐 글이 없다</div></div>'
+  return list.map((x) => `<div class="diff"><div class="fh">${esc(label || x.title + ' › ' + x.heading)}</div>${String(x.before || '').split('\n').filter((l) => l.trim()).map((l) => `<div class="ln2 del">${esc(l)}</div>`).join('')}${String(x.after || '').split('\n').filter((l) => l.trim()).map((l) => `<div class="ln2 add">${esc(l)}</div>`).join('')}</div>`).join('')
+}
+const diffOf = (k, record) => need(`diff:${k}:${record}`, `/api/k/${encodeURIComponent(k)}/diff?record=${encodeURIComponent(record)}`)
+function viewToday() {
+  const all = todayOf()
+  if (!all) return { crumb: '오늘 바뀐 것', main: loadingHtml }
+  const items = (all.error ? [] : all).filter((x) => Date.now() - Date.parse(x.at) < 36 * 3600_000)
+  const li = (x) => {
+    const open = S.openToday === x.id
+    const team = isTeam() && KN(x.kn)
+    const tag = team ? '<span class="kt team">팀</span>' : `<span class="kt me">${isTeam() ? '개인' : '내 지식'}</span>`
+    let ex = ''
+    if (open) {
+      ex += '<div class="open" data-t="todayOpen">'
+      if (x.revert) ex += `<div class="small muted">비교</div>${diffHtml(diffOf(x.kn, x.revert))}`
+      if (x.revert && !x.reverted) ex += `<button class="btn sm" data-a="revertToday" data-id="${esc(x.id)}" data-t="revertBtn">되돌리기</button> <span class="small muted">그 줄만 넣기 전으로</span>`
+      if (x.revert && x.reverted) ex += '<span class="chip c-mute">되돌렸다</span>'
+      if (x.device) ex += x.unlinked ? '<span class="chip c-mute">끊었다</span>' : `<button class="btn sm" data-a="unlinkDev" data-id="${esc(x.id)}">끊기</button> <span class="small muted">내가 한 것이 아니면 — 그 기기의 Claude Code 는 다시 이어야 한다</span>`
+      if (!x.revert && !x.device && x.small) ex += `<div class="small muted">${esc(x.small)}</div>`
+      if (x.go) ex += ` <a class="small" data-a="todayGo" data-id="${esc(x.id)}" style="margin-left:8px">문서 열기 ›</a>`
+      ex += '</div>'
+    }
+    const reverted = x.revert && x.reverted
+    return `<div class="fi${x.yl ? ' yl' : ''}${reverted ? ' done' : ''}" data-t="fi" data-id="${esc(x.id)}"><div class="ln"><span class="tm">${tmOf(x.at)}</span><span class="dot ${x.yl ? 'warn' : x.dot || ''}"></span><div class="tx">${tag}${x.b ? '<b>' + esc(x.b) + '</b>' : esc(x.text)}${reverted ? ' <span class="chip c-mute" data-t="reverted">되돌렸다</span>' : ''}${x.small ? '<small>' + esc(x.small) + '</small>' : ''}</div><span class="act" data-a="toggleToday" data-id="${esc(x.id)}" data-t="viewBtn">${open ? '접기' : '보기'}</span></div>${ex}</div>`
+  }
+  const d = new Date()
+  return {
+    crumb: '오늘 바뀐 것',
+    main: `<div style="max-width:760px;margin:0 auto"><div class="big">오늘 바뀐 것</div><p class="lead">kmd 가 알아서 한 일 · 다른 곳에서 바뀐 것. 마음에 들지 않으면 그 줄의 [보기] 에서.</p>
+  ${S.stops.filter((s) => s.level === 'warn').map(stopHtml).join('')}
+  <div class="feed" data-t="feed"><div class="fh">오늘<small>${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}(${'일월화수목금토'[d.getDay()]})</small></div>${items.map(li).join('') || '<div class="fi"><div class="ln muted">오늘은 바뀐 것이 없다</div></div>'}</div></div>`,
+  }
+}
+
+// ───────────── 정리(목업 M12) ─────────────
+const tidyOf = (k) => need('tidy:' + k, `/api/k/${encodeURIComponent(k)}/tidy`)
+function tidyKn() { const k = S.route.kn; return k && k !== '*' && KN(k) ? k : (S.kns.find((x) => x.role !== '기록') || S.kns[0] || {}).id }
+function recTitle(k, id) { const tr = treeOf(k); const r = tr && tr.records && tr.records.find((x) => x.id === id); return r || { title: id, author: '', date: '' } }
+function rowHtml(k, row, key) {
+  const kind = row.kind === 'left' ? 'keep' : row.kind === 'touches' ? 'put' : row.kind
+  const yl = kind === 'changed' && !row.reverted, dim = kind === 'keep'
+  const first = recTitle(k, (row.records || [])[0])
+  const who = [...new Set((row.records || []).map((id) => recTitle(k, id).author).filter(Boolean))].join(' · ') || 'kmd'
+  const title = row.kind === 'touches' ? `${first.title} — 이름을 골랐다` : first.title || row.target
+  const small = row.why || (first.date ? recDt(first.date) : '')
+  const menu = S.menu === 'row:' + key ? `<div class="menu" style="right:0;top:28px" data-t="rowMenu"><div class="mi" data-a="cmpRow" data-id="${esc(key)}" data-t="cmpBtn">비교<small>넣기 전 · 넣은 뒤</small></div>${!dim && row.record && !row.reverted ? `<div class="mi" data-a="revertRow" data-id="${esc(key)}" data-t="revertRow">되돌리기<small>그 줄만 넣기 전으로</small></div>` : ''}</div>` : ''
+  const cmp = S.cmp === key ? `<div class="cmp" data-t="cmp">${row.record ? diffHtml(diffOf(k, row.record)) : `<div class="diff"><div class="fh">${esc(row.target)}</div><div class="ln2">${esc(title)} — ${esc(small)}</div></div>`}</div>` : ''
+  return `<li class="${yl ? 'yl' : ''}${dim ? ' dim' : ''}${row.reverted ? ' rv' : ''}" data-t="tidyRow" data-kind="${kind}"><span class="k">${esc(who)}</span><span class="nm">${esc(title)}<small>${esc(small)}</small></span>${kind === 'changed' ? `<span class="chip c-warn">${esc(row.from)} → ${esc(row.to)}</span>` : ''}${row.reverted ? '<span class="chip c-mute" data-t="rowReverted">되돌렸다</span>' : ''}<span class="to${dim ? ' mute' : ''}">${dim ? '넣지 않음' : '→ ' + esc(row.target)}</span><button class="kebab" data-a="menu" data-m="row:${esc(key)}" data-t="rowKebab" title="비교 · 되돌리기">⋯${menu}</button>${cmp}</li>`
+}
+function runHtml(k, run, ri) {
+  const rows = run.rows.map((r, i) => ({ r, key: `${ri}:${i}` }))
+  const put = rows.filter((x) => x.r.kind === 'put' || x.r.kind === 'touches'), chg = rows.filter((x) => x.r.kind === 'changed'), keep = rows.filter((x) => x.r.kind === 'left')
+  const done = put.length + chg.length
+  const grp = (t, small, list) => (list.length ? `<div class="sub">${t} ${list.length} <small>${small}</small></div><ul class="plain tl2">${list.map((x) => rowHtml(k, x.r, x.key)).join('')}</ul>` : '')
+  const open = S.runOpen[`${k}:${ri}`] !== undefined ? S.runOpen[`${k}:${ri}`] : ri === 0
+  return `<div class="card" data-t="run" style="overflow:visible"><div class="ch2" data-a="toggleRun" data-id="${k}:${ri}"><b>${esc(whenTxt(run.at))} ${run.auto ? 'kmd 가 ' : ''}정리한 것 ${done}</b><small>건마다 따로 저장 · 되돌리기는 줄마다 ⋯ 안에</small><span class="r">${open ? '접기' : '펼치기'}</span></div>
+  ${open ? grp('넣은 것', '숫자 · 이름 모두 확인 ✓', put) + grp('값이 바뀐 것', '쓴 사람에게 알렸다 — 오늘 바뀐 것 맨 위', chg) + grp('그대로 둔 것', '문서 옆에 같이 읽힌다 · 다음 정리 때 다시', keep) : ''}</div>`
+}
+function viewTidy() {
+  const k = tidyKn()
+  if (!k) return { crumb: '정리', main: viewHome().main }
+  const n = KN(k), t = tidyOf(k), tr = treeOf(k)
+  if (!t || !tr) return { crumb: '정리', main: loadingHtml }
+  if (t.error) return { crumb: '정리', main: errHtml(t) }
+  const run = S.tidyRun && S.tidyRun.kn === k ? S.tidyRun : null
+  const inbox = tr.records.filter((r) => r.state === 'pend' || r.state === 'nowhere')
+  const target = (r) => { const m = M(k); const it = m && m.items.find((i) => m.recsByItem.get(i.key)?.some((x) => x.id === r.id)); return it ? (it.doc ? `${(m.docById.get(it.doc) || {}).title || it.doc} › ${it.sec}` : it.name) : '넣을 곳을 찾는다' }
+  const goBox = `<div class="go" data-t="goBox"><span class="tx"><b data-t="nextTidy">다음 정리 ${t.tidyAt > clock().slice(-5) ? '오늘' : '내일'} ${esc(t.tidyAt)} · 받은 것 ${inbox.length}</b><small>이 지식에 기록할 수 있는 사람 누구나 지금 정리할 수 있다 · 1~2분</small></span>${run ? `<span class="prog" data-t="prog"><i></i>정리하는 중 — 받은 것 ${inbox.length}…</span>` : `<button class="btn pri" data-a="tidyNow" data-k="${esc(k)}" data-t="tidyBtn"${inbox.length ? '' : ' disabled'}>지금 정리</button>`}</div>`
+  const inboxCard = inbox.length ? `<div class="card" data-t="inbox"><div class="ch">받은 것 ${inbox.length} <small>정리 때 kmd 가 바로 문서에 넣는다</small></div><ul class="plain tl2">${inbox.map((r) => `<li><span class="k">${esc(r.author)}</span><span class="nm">${esc(r.title)}<small>${esc(recDt(r.date))}${r.state === 'nowhere' ? ' · 넣을 곳이 없는 메모' : ''}</small></span><span class="to">→ ${esc(target(r))}</span></li>`).join('')}</ul></div>` : ''
+  const msg = S.tidyMsg[k]
+  return {
+    crumb: '정리',
+    main: `<div style="max-width:800px"><div class="row" style="align-items:baseline"><span class="big">정리 — ${esc(n.name)}</span><span class="r muted small">매일 ${esc(t.tidyAt)} · 바꾸려면 <a data-a="nav" data-s="members">이 지식의 사람</a></span></div>
+  <p class="lead">받은 기록은 kmd 가 정해진 시간에 바로 문서에 넣는다. 기다리기 싫으면 지금 정리.</p>
+  ${S.stops.filter((s) => s.kind === 'worker').map(stopHtml).join('')}
+  ${goBox}${msg ? `<div class="callout ${msg.cls}" data-t="tidyMsg">${esc(msg.t)}</div>` : ''}${inboxCard}${t.runs.map((r, i) => runHtml(k, r, i)).join('')}
+  <details class="more"><summary>자세히</summary><div class="in">kmd 의 검사(값 · 이름 대조 · 크기 · 표지)를 못 넘은 글은 넣지 않고 그대로 둔다 — 문서 옆에 같이 읽히고 다음 정리 때 다시 해 본다. 이름 바꾸기 · 합치기 · 없애기는 넣지 않는다 — 제안 한 줄로만 선다.</div></details></div>`,
+  }
+}
+async function tidyNow(k) {
+  if (S.tidyRun) return
+  try {
+    const j = await postJSON(`/api/k/${encodeURIComponent(k)}/tidy`, {})
+    S.tidyRun = { kn: k, job: j.id }
+    S.tidyMsg[k] = null
+    render()
+    const poll = setInterval(async () => {
+      const st = await getJSON('/api/job/' + j.id).catch(() => ({ state: 'gone' }))
+      if (st.state === 'queued' || st.state === 'running') return
+      clearInterval(poll)
+      S.tidyRun = null
+      forgetKn(k)
+      delete S.cache['tidy:' + k]
+      delete S.cache.today
+      if (st.state === 'failed') S.tidyMsg[k] = { cls: 'warn', t: '정리하지 못했다 — 정리 전용 로그인이 쉬고 있다 · 받은 기록은 문서 옆에 같이 읽힌다' }
+      else toast(`정리했다 — ${(st.summary?.put || 0) + (st.summary?.changed || 0)}건을 ${esc(KN(k).name)}에 넣었다`)
+      S.kns = await getJSON('/api/knowledge').catch(() => S.kns)
+      loadStops()
+      render()
+    }, 1500)
+  } catch (e) { toast(esc(e.message)) }
+}
+
+// ───────────── 이 지식의 사람(목업 M11) ─────────────
+const TIMES = ['00:30', '01:30', '02:30', '03:30', '05:00', '07:00', '12:00', '18:00', '22:00']
+const ownerOf = (k) => need('owner:' + k, `/api/k/${encodeURIComponent(k)}/owner`)
+const peopleOf = () => need('people', '/api/people')
+function viewMembers() {
+  const k = tidyKn()
+  if (!k) return { crumb: '이 지식의 사람', main: viewHome().main }
+  const n = KN(k), row = ownerOf(k), t = tidyOf(k), tr = treeOf(k)
+  if (!row || !t || !tr) return { crumb: '이 지식의 사람', main: loadingHtml }
+  const owner = row.owner || null
+  const own = (owner && owner === S.me.user) || S.me.admin
+  const tidyAt = row.tidyAt || t.tidyAt
+  const curators = (row.curators || []).filter((c) => c !== owner)
+  const inboxN = tr.records.filter((r) => r.state === 'pend' || r.state === 'nowhere').length
+  const tmenu = S.menu === 'tidyAt' ? `<div class="menu" style="right:0;top:28px" data-t="timeMenu"><div class="gray">정리 시각 — 매일</div>${TIMES.map((x) => `<div class="mi${x === tidyAt ? ' on' : ''}" data-a="setTidyAt" data-v="${x}" data-t="time-${x}">${x === tidyAt ? '✓ ' : ''}${x}</div>`).join('')}<div class="sep"></div><div class="mi" data-a="toggleNoClaude">Claude 에 보내지 않기 <span class="sw${row.noClaude ? ' on' : ''}" style="margin-left:auto"></span></div></div>` : ''
+  const people = peopleOf() || []
+  const picker = S.picker ? `<div class="pk" data-t="picker"><div class="muted" style="padding:2px 6px 6px">팀 kmd 사람 목록에서 한 사람</div>${(Array.isArray(people) ? people : []).map((r) => { const has = curators.includes(r) || r === owner; return `<div class="o${has ? ' off' : ''}" ${has ? '' : `data-a="addCur" data-v="${esc(r)}"`} data-t="pick-${esc(r)}"><span class="av2" style="width:20px;height:20px;font-size:10.5px">${esc(r.slice(0, 1))}</span>${esc(r)}${has ? ' — 이미 정리하는 사람' : ''}</div>` }).join('')}</div>` : ''
+  return {
+    crumb: '이 지식의 사람',
+    main: `<div style="max-width:780px"><div class="big">이 지식의 사람 — ${esc(n.name)}</div><p class="lead">누가 정리하고 누가 기록을 남기는지, kmd 가 언제 정리하는지 주인이 정한다.</p>
+  ${own ? '' : `<div class="callout gray">바꾸기는 주인(${esc(owner || '관리자')})이 한다 — 여기서는 읽기만</div>`}
+  <div class="card" style="overflow:visible"><div class="ch">정리하는 사람 <small>문서를 고치고 제안을 본다</small></div>
+   <ul class="plain pl" data-t="curList"><li><span class="av2">${esc((owner || '관').slice(0, 1))}</span><span class="nm">${esc(owner || '관리자')}<small>${owner ? '세운 사람' : '주인을 정하지 않았다 — 관리자가 정리한다'}${curators.length ? '' : ' · 지금은 혼자 정리한다'}</small></span><span class="kt role">주인</span></li>
+   ${curators.map((c) => `<li data-t="curRow"><span class="av2">${esc(c.slice(0, 1))}</span><span class="nm">${esc(c)}<small>${esc(n.name)} 정리하는 사람</small></span><span class="kt role">정리</span>${own ? `<a class="lk q" data-a="rmCur" data-v="${esc(c)}">빼기</a>` : ''}</li>`).join('')}</ul>
+   <div class="sub">kmd</div>
+   <ul class="plain pl"><li><span class="av2 k">K</span><span class="nm" data-t="kmdRow">kmd — 정해진 시간과 [지금 정리] 로 바로 넣는다 · 매일 ${esc(tidyAt)}<small>다음 정리 ${esc(tidyAt)} — 받은 것 ${inboxN} · 값이 바뀌면 쓴 사람에게 알린다${row.noClaude ? ' · Claude 에 보내지 않음' : ''}</small></span><span class="kt role">자동 정리</span>${own ? `<button class="kebab${S.menu === 'tidyAt' ? ' on' : ''}" data-a="menu" data-m="tidyAt" data-t="tidyKebab" title="정리 시각 바꾸기">⋯${tmenu}</button>` : ''}</li></ul>
+   <div class="sub">기록을 남기는 사람 <small>남긴 기록은 받은 것으로 온다</small></div>
+   <ul class="plain pl"><li><span class="av2 all">팀</span><span class="nm">팀 모두<small>팀 kmd 에 들어오는 사람은 누구나 읽고 기록을 남긴다</small></span><span class="kt role">기록</span></li></ul>
+   ${picker}
+   <div class="cf">${own ? '<button class="btn pri" data-a="togglePicker" data-t="addCurBtn">정리하는 사람 더하기</button><span>팀 kmd 사람 목록에서 고른다</span>' : '<span>사람 목록에 없는 사람은 관리자에게</span>'}</div></div>
+  <details class="more"><summary>이 설정은 지식 안에 적혀 백업과 같이 간다</summary><div class="in">정해진 시간의 정리는 팀 서버의 정리 전용 Claude 로그인으로 한다 — 로그인해 두는 것은 관리자.</div></details></div>`,
+  }
+}
+async function setOwnerRow(k, patch) {
+  try {
+    await postJSON(`/api/k/${encodeURIComponent(k)}/owner`, patch)
+    delete S.cache['owner:' + k]
+    delete S.cache['tidy:' + k]
+    S.menu = null
+    render()
+  } catch (e) { toast(esc(e.message)) }
+}
+
 // ───────────── 들어오기 전 — 들어가기 · 처음 들어오기 링크 · 첫 설정 ─────────────
 // 서버는 비밀번호를 받지 않는다 — 여기서 전처리(prehash)한 값을 보낸다.
 function gateView() {
@@ -1010,6 +1174,31 @@ function openDocAt(k, d, h, q) {
   if (!h) scrollTopMain()
 }
 const ACT = {
+  toggleToday: (el) => { S.openToday = S.openToday === el.dataset.id ? null : el.dataset.id; render() },
+  todayGo: (el) => { const x = (S.cache.today || []).find((e) => e.id === el.dataset.id); if (x && x.go) { openTab({ kind: 'doc', kn: x.go.kn, ref: x.go.doc, hl: x.go.hl || null }, { view: 'docs' }); if (x.go.hl) S._lit = true; render() } },
+  revertToday: async (el) => {
+    const x = (S.cache.today || []).find((e) => e.id === el.dataset.id)
+    if (!x) return
+    try { await postJSON(`/api/k/${encodeURIComponent(x.kn)}/revert`, { record: x.revert }); x.reverted = true; forgetKn(x.kn); delete S.cache['tidy:' + x.kn]; toast('되돌렸다 — 넣기 전 글로 · 그 기록은 다시 문서 옆에 같이 읽힌다'); render() } catch (e) { toast(esc(e.message)) }
+  },
+  unlinkDev: async (el) => {
+    const x = (S.cache.today || []).find((e) => e.id === el.dataset.id)
+    if (!x) return
+    try { await postJSON('/api/me/devices/revoke', { id: x.device }); x.unlinked = true; toast('끊었다 — 그 기기의 Claude Code 는 다시 이어야 한다'); render() } catch (e) { toast(esc(e.message)) }
+  },
+  tidyNow: (el) => tidyNow(el.dataset.k || tidyKn()),
+  toggleRun: (el) => { const cur = S.runOpen[el.dataset.id]; const ri = Number(el.dataset.id.split(':').pop()); S.runOpen[el.dataset.id] = !(cur !== undefined ? cur : ri === 0); render() },
+  cmpRow: (el) => { S.cmp = S.cmp === el.dataset.id ? null : el.dataset.id; S.menu = null; render() },
+  revertRow: async (el) => {
+    const k = tidyKn(), [ri, i] = el.dataset.id.split(':').map(Number), row = S.cache['tidy:' + k]?.runs?.[ri]?.rows?.[i]
+    if (!row || !row.record) return
+    try { await postJSON(`/api/k/${encodeURIComponent(k)}/revert`, { record: row.record }); forgetKn(k); delete S.cache['tidy:' + k]; S.menu = null; toast('되돌렸다 — 그 줄만 넣기 전으로'); render() } catch (e) { toast(esc(e.message)) }
+  },
+  setTidyAt: (el) => setOwnerRow(tidyKn(), { tidyAt: el.dataset.v }),
+  toggleNoClaude: () => { const r = S.cache['owner:' + tidyKn()] || {}; setOwnerRow(tidyKn(), { noClaude: !r.noClaude }) },
+  togglePicker: () => { S.picker = !S.picker; render() },
+  addCur: (el) => { const r = S.cache['owner:' + tidyKn()] || {}; S.picker = false; setOwnerRow(tidyKn(), { curators: [...new Set([...(r.curators || []), el.dataset.v])] }) },
+  rmCur: (el) => { const r = S.cache['owner:' + tidyKn()] || {}; setOwnerRow(tidyKn(), { curators: (r.curators || []).filter((c) => c !== el.dataset.v) }) },
   editDoc: () => { const t = activeTab(); if (t) { S.edit = { tab: t.id, kn: t.kn, doc: t.ref }; S._focus = 'edTx'; render() } },
   cancelEdit: () => { S.edit = null; render() },
   saveDoc: () => saveDoc(),

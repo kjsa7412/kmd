@@ -227,7 +227,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 되돌리기 — 그 기록을 넣은 항목을 넣기 전 글로 쓰고 판정을 거둔다(그 기록은 다시 아직 안 넣은 기록)
     async revert(ctx, id, { record }) {
       const k = await hub.get(id, ctx)
-      if (!hub.canDirect(ctx, id) && !owners.rowOf(reg, id)?.curators?.includes(ctx.user) && !ctx.admin) throw new KmdError('E_FORBIDDEN', '주인 · 정리하는 사람만 되돌린다')
+      // 주인 · 정리하는 사람 · 관리자 — 또는 그 정리가 넣은 기록을 쓴 사람(「내 기록에서 값이 바뀌었다 — 되돌릴 수 있다」)
+      const mine = (k.byWork.get(record)?.reflects || []).some((x) => k.byWork.get(x)?.author === ctx.user)
+      if (!hub.canDirect(ctx, id) && !owners.rowOf(reg, id)?.curators?.includes(ctx.user) && !ctx.admin && !mine) throw new KmdError('E_FORBIDDEN', '주인 · 정리하는 사람만 되돌린다')
       const plan = await revertPlan(k, record)
       const w = plan.record
       // 정리 기록을 되돌리면 그 정리가 넣은 기록들도 「주인이 되돌림」 — 다음 정리가 같은 초안을 다시 넣지 않게
@@ -235,7 +237,21 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       return hub.save(ctx, id, {
         record: { title: `되돌림 — ${w.title}`, body: plan.sections.length ? plan.sections.map((s) => `- ${s.doc.replace(/^docs\/|\.md$/g, '')} › ${s.heading} — 넣기 전 글로`).join('\n') : '넣은 항목이 없다 — 판정만 거둔다', tags: ['curate-auto'], reopens: [w.id, ...used] },
         sections: plan.sections.map((s) => ({ doc: s.doc, heading: s.heading, content: s.content, applied: s.applied })),
-      }, { system: true })
+      }, { system: true }).then(async (r) => {
+        // 그 사람의 「오늘 바뀐 것」 줄에 「되돌렸다」
+        for (const x of await feed.list(dataDir, ctx.user)) if (x.revert === record) await feed.mark(dataDir, ctx.user, x.id, { reverted: true })
+        return r
+      })
+    },
+    // 비교 — 그 기록이 넣은 항목의 넣기 전 · 지금
+    async diff(ctx, id, record) {
+      const k = await hub.get(id, ctx)
+      const plan = await revertPlan(k, record)
+      return plan.sections.map((s) => {
+        const d = k.byDocPath.get(s.doc)
+        const now = d?.sections.find((x) => x.h === s.heading)
+        return { doc: s.doc.replace(/^docs\/|\.md$/g, ''), title: d?.title || s.doc, heading: s.heading, before: s.content, after: now ? now.body : '' }
+      })
     },
     // 결정 규칙 — 저장 뒤 잠시(기본 1분) 뒤에 한 번 · 누름 없음
     async decide(id) {

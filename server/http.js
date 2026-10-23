@@ -154,6 +154,10 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     }
     need(ctx)
     if (p === '/api/today') return out(200, await hub.today(ctx))
+    // 사람 목록 — 아이디만(정리하는 사람 고르기)
+    if (p === '/api/people') return out(200, auth.users().filter((u) => u.kind === 'person').map((u) => u.id))
+    const dm = p.match(/^\/api\/k\/([^/]+)\/diff$/)
+    if (dm) return out(200, await hub.diff(ctx, decodeURIComponent(dm[1]), url.searchParams.get('record') || ''))
     const jm = p.match(/^\/api\/job\/([0-9a-f]+)$/)
     if (jm) return out(200, hub.job(jm[1]) || { state: 'gone' })
     const tm = p.match(/^\/api\/k\/([^/]+)\/tidy$/)
@@ -162,7 +166,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (req.method === 'POST') return out(200, await hub.tidyNow(ctx, id))
       await hub.meta(id, ctx)
       const k = await hub.get(id, ctx)
-      return out(200, { tidyAt: hub.tidyAtOf(id), jobs: hub.jobsOf(id), runs: await hub.runs(id), pend: k.works.filter((w) => w.state === 'pend').length, nowhere: k.works.filter((w) => w.state === 'nowhere').length })
+      const runs = (await hub.runs(id)).map((run) => ({ ...run, rows: run.rows.map((r) => ({ ...r, reverted: !!r.record && k.reverted.has(r.record) })) }))
+      return out(200, { tidyAt: hub.tidyAtOf(id), jobs: hub.jobsOf(id), runs, pend: k.works.filter((w) => w.state === 'pend').length, nowhere: k.works.filter((w) => w.state === 'nowhere').length })
     }
     if (p === '/api/knowledge') return out(200, (await hub.all(ctx)).map((k) => ({ ...V.knowledgeRow(k), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}) })))
     if (p === '/api/stops') return out(200, await hub.stops(ctx))
@@ -186,7 +191,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     }
     // ── 관리 — 사람 ──
     if (p === '/api/admin/users') {
-      if (req.method === 'GET') return out(200, { users: auth.users(), locked: auth.locked() })
+      if (req.method === 'GET') return out(200, { users: admin(ctx, { sudo: false }) && auth.users(), locked: auth.locked() })
       admin(ctx)
       const b = await readBody(req)
       const r = await auth.addUser({ id: b.id, admin: b.admin })

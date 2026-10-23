@@ -12,6 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright-core'
 import { startServer } from '../server/http.js'
 import { copyDir, signIn } from './helpers.mjs'
+import { workOnce } from '../core/worker.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const MOCK = pathToFileURL(path.join(HERE, '..', 'docs', 'kmd_목업_인터랙션.html')).href
@@ -76,7 +77,8 @@ test('셸 · 지식 목록 · 문서로 보기 — 목업과 같은 글 · 단�
   await page.waitForSelector('[data-t=klist] [data-t=krow]')
   // 셸 — 리본 넷(문서 · 항목 · 그래프 · 설정) · 옆 메뉴 · 머리 · 띠 · 아래 줄
   assert.deepEqual(await page.locator('.ribbon .rb span').allInnerTexts(), ['문서', '항목', '그래프', '설정'])
-  assert.deepEqual(await page.locator('.side .nav .sb-i span').allInnerTexts(), ['오늘 바뀐 것', '자료 가져오기', '설명서'])
+  // 관리자라 「정리하는 사람」 묶음(정리 · 이 지식의 사람)이 선다
+  assert.deepEqual(await page.locator('.side .nav .sb-i').evaluateAll((els) => els.map((e) => e.querySelector('span').textContent)), ['오늘 바뀐 것', '자료 가져오기', '정리', '이 지식의 사람', '설명서'])
   assert.match(await page.locator('.hdr').innerText(), /빨리 열기[\s\S]*Ctrl O[\s\S]*찾기[\s\S]*Ctrl K/)
   assert.equal(await page.locator('.band .who').innerText(), '팀 서버의 kmd · 같이 쓴다')
   assert.deepEqual(await page.locator('[data-t=krow]').evaluateAll((els) => els.map((e) => e.dataset.name)), ['DPMS 지식', 'GDI 지식'])
@@ -158,6 +160,44 @@ test('셸 · 지식 목록 · 문서로 보기 — 목업과 같은 글 · 단�
   await page.locator('[data-t=hit]').first().click()
   await page.waitForSelector('[data-t=found]')
   await page.waitForSelector('[data-t=lit]')
+  assert.deepEqual(await bannedIn(page), [])
+  assert.deepEqual(errors, [])
+  await page.close()
+})
+
+test('정리 · 이 지식의 사람 · 오늘 바뀐 것(M12 · M11 · M9) — 목업 글 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+  process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
+  const wkey = (await s.auth.workerAdd()).key
+  await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '카나리 비율', body: '첫 30분 요청 10% → 20%', touches: ['proc:카나리'] } })
+  const page = await browser.newPage({ viewport: VIEW })
+  const errors = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  await page.goto(s.url)
+  await page.fill('#lgId', 'kim')
+  await page.fill('#lgPw', me.pw)
+  await page.click('[data-t=loginBtn]')
+  await page.waitForSelector('[data-t=klist]')
+  await page.click('[data-t=krow][data-name="DPMS 지식"]')
+  await page.click('[data-t=nav-tidy]')
+  await page.waitForSelector('[data-t=goBox]')
+  assert.match(await page.locator('[data-t=nextTidy]').innerText(), /다음 정리 .* 02:30 · 받은 것 \d+/)
+  assert.match(await page.locator('[data-t=inbox] .ch').innerText(), /받은 것 \d+/)
+  await page.click('[data-t=tidyBtn]')
+  await page.waitForSelector('[data-t=prog]')
+  await workOnce({ server: s.url, key: wkey })
+  await page.waitForSelector('[data-t=run]', { timeout: 20000 })
+  assert.ok((await page.locator('[data-t=tidyRow][data-kind=changed]').count()) >= 1)
+  assert.match(await page.locator('[data-t=run] .sub').first().innerText(), /넣은 것|값이 바뀐 것/)
+  assert.deepEqual(await bannedIn(page), [])
+  await page.screenshot({ path: path.join(SHOTS, 'app-tidy.png') })
+  await page.click('[data-t=nav-members]')
+  await page.waitForSelector('[data-t=kmdRow]')
+  assert.match(await page.locator('[data-t=kmdRow]').innerText(), /kmd — 정해진 시간과 \[지금 정리\] 로 바로 넣는다 · 매일 02:30/)
+  assert.deepEqual(await bannedIn(page), [])
+  await s.hub.save({ user: 'kim', admin: true }, 'dpms', { record: { title: '메모 — 화면 시험', body: '오늘 바뀐 것에 한 줄.' } })
+  await page.click('[data-t=nav-today]')
+  await page.waitForSelector('[data-t=feed]')
+  assert.ok((await page.locator('[data-t=fi]').count()) >= 1)
   assert.deepEqual(await bannedIn(page), [])
   assert.deepEqual(errors, [])
   await page.close()
