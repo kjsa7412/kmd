@@ -360,7 +360,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (ctx.device || ctx.legacy) throw new KmdError('E_FORBIDDEN', '열쇠로는 다른 열쇠를 만들지 못한다')
       const t = auth.ticket(ctx, { ip: ipOf(req) })
       const origin = `http://${req.headers.host}`
-      return out(200, { ticket: t, line: `kmd connect ${origin} --ticket ${t}`, expires: 10 })
+      return out(200, { ticket: t, line: `irm ${origin}/i/${t} | iex`, sh: `curl -fsSL ${origin}/i/${t}.sh | sh`, kmd: `kmd connect ${origin} --ticket ${t}`, expires: 10 })
     }
     if (p === '/api/me/devices') return out(200, auth.devices(ctx.user))
     if (p === '/api/me/devices/revoke') return out(200, { revoked: await auth.revokeDevice(ctx.user, String((await readBody(req)).id || '')) })
@@ -492,6 +492,14 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (p === '/healthz') {
         const lines = await hub.stops({ user: null, admin: true })
         return send(res, 200, { ok: true, version: VERSION, mode, stops: lines.map((l) => ({ level: l.level, text: l.text })) })
+      }
+      // 설치 한 줄이 받는 작은 스크립트 — `irm <팀>/i/<표> | iex`(PowerShell) · `curl -fsSL <팀>/i/<표>.sh | sh`. 표는 여기서 쓰지 않는다(설치가 /device/keys 로 한 번)
+      const im = mode === 'team' && req.method === 'GET' && p.match(/^\/i\/(kmdt_[A-Za-z0-9_-]{10,80})(\.sh)?$/)
+      if (im) {
+        const origin = `http://${req.headers.host}`
+        const ps = `$ErrorActionPreference = 'Stop'\r\nif (Get-Command kmd -ErrorAction SilentlyContinue) { kmd connect '${origin}' --ticket '${im[1]}' }\r\nelse { Write-Host 'kmd 가 이 PC 에 없다 — 먼저 깐다: ${origin}/dl' }\r\n`
+        const sh = `#!/bin/sh\nif command -v kmd >/dev/null 2>&1; then kmd connect '${origin}' --ticket '${im[1]}'; else echo 'kmd 가 이 PC 에 없다 — 먼저 깐다: ${origin}/dl'; fi\n`
+        return send(res, 200, im[2] ? sh : ps, 'text/plain; charset=utf-8')
       }
       if (req.method === 'POST' && ['/login', '/logout', '/first', '/setup', '/once', '/device/keys'].includes(p)) return await gate(req, res, p)
       const { ctx, set } = who(req)

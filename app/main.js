@@ -1137,8 +1137,9 @@ function copyText(t) {
 async function copyInstall() {
   try {
     const r = await postJSON('/api/device/ticket')
-    copyText(r.line)
-    S.lastInstall = r.line
+    const line = /Win/i.test(navigator.platform || navigator.userAgent) ? r.line : r.sh
+    copyText(line)
+    S.lastInstall = line
     toast('설치 한 줄을 복사했다 — 10분 동안 한 번만 · 작업 폴더의 터미널에 붙여 넣는다')
   } catch (e) { toast(esc(e.message)) }
 }

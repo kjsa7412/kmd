@@ -92,7 +92,10 @@ test('세션 판 — 모든 기기에서 나가기 · 다시 정하기가 옛 �
 test('기기 열쇠 — 설치 표는 한 번 · 열쇠로는 들어가기 · 표 만들기 · 관리 불가', async () => {
   const c = (await login('kim', kim.pw, { ip: '10.0.2.1' })).cookie
   const t = await req('/api/device/ticket', { body: {}, cookie: c })
-  assert.match(t.body.line, /kmd connect http:\/\/.+ --ticket kmdt_/)
+  assert.match(t.body.line, /^irm http:\/\/.+\/i\/kmdt_\S+ \| iex$/)
+  // 설치 한 줄이 받는 스크립트 — 표를 그대로 kmd connect 에 넘긴다(받기만으로는 표가 쓰이지 않는다)
+  const sc = await fetch(t.body.line.split(' ')[1]).then((x) => x.text())
+  assert.match(sc, new RegExp(`kmd connect '.+' --ticket '${t.body.ticket}'`))
   const k1 = await req('/device/keys', { body: { ticket: t.body.ticket, host: 'LAPTOP-KIM', osuser: 'kim' } })
   assert.match(k1.body.key, /^kmdk_/)
   assert.equal((await req('/device/keys', { body: { ticket: t.body.ticket } })).status, 401, '표는 한 번')

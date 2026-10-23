@@ -20,8 +20,10 @@ import { put as kput, get as kget, keyName } from '../../core/keystore.js'
 import { setSecret, listSecrets, getSecret } from '../../core/secrets.js'
 import { prehash } from '../../app/prehash.js'
 
-import { addMcp } from '../../core/claudecfg.js'
+import { addMcp, mcpLine } from '../../core/claudecfg.js'
 import { taskXml, upgrade } from '../../core/pcops.js'
+import { installLines, pickBackupDir } from '../../core/install.js'
+import { ensureRepo } from '../../core/git.js'
 
 const HELP = `kmd ${VERSION}
 
@@ -49,6 +51,7 @@ function parse(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--no-open') o.open = false
+    else if (a.startsWith('--no-')) o[a.slice(5)] = 'false' // --no-backup · --no-task · --no-worker
     else if (a === '--private' || a === '--team') o.private = a === '--private'
     else if (a.startsWith('--')) {
       const [k, v] = a.slice(2).split('=')
@@ -328,12 +331,43 @@ async function workerCmd(o) {
   }
 }
 
-// 이 PC 를 팀 kmd 에 잇는다 — 설치 표(팀 화면의 한 줄) 또는 아이디 · 비밀번호 한 번 → 기기 열쇠 → 자격 저장소
+// 설치 한 줄 — 이 PC 에 세우고(D:\kmd · 다른 드라이브의 백업) · 팀에 잇고(설치 표 또는 아이디 · 비밀번호 한 번 → 기기 열쇠 → 자격 저장소)
+// · Claude Code 에 잇고 · 늘 켠다. 묻는 것 없이 끝나고 ✓ 넷을 찍는다(목업 M1). --no-backup · --no-task 는 시험 · 손 설치용.
 async function connectCmd(o) {
   const [url0] = o._
+  if (!url0) {
+    console.error('kmd connect <팀 주소> [--ticket kmdt_…]')
+    process.exitCode = 1
+    return
+  }
+  const url = new URL(url0).origin
+  const root = path.resolve(o.root || defaultPcRoot())
+  fs.mkdirSync(root, { recursive: true })
+  const pcData = o.data ? path.resolve(o.data) : path.join(root, '.kmd')
+  fs.mkdirSync(pcData, { recursive: true })
+  // ① 세우기 — 지식 폴더 · 다른 드라이브의 백업 자리(지식마다 저장소 하나)
+  const hub = await makeHub({ root, dataDir: pcData, mode: 'pc', log: () => {} })
+  const kns = await hub.list()
+  let backupDir = o.backup === 'false' ? null : pickBackupDir(root)
+  if (backupDir) {
+    try {
+      fs.mkdirSync(backupDir, { recursive: true })
+      for (const k of kns) {
+        if (await hub.backupState(SHELL, k.id)) continue
+        const bare = path.join(backupDir, `${k.id}.git`)
+        if (!fs.existsSync(bare)) await new Promise((ok) => spawn('git', ['init', '-q', '--bare', '-b', 'main', bare], { stdio: 'ignore', windowsHide: true }).on('exit', ok))
+        await ensureRepo(k.dir)
+        await hub.backupAttach(SHELL, k.id, bare).catch(() => {})
+      }
+    } catch {
+      backupDir = null
+    }
+  }
+  hub.stop()
+  // ② 팀에 잇기
+  let team
+  let who = null
   try {
-    if (!url0) throw new Error('kmd connect <팀 주소> [--ticket kmdt_…]')
-    const url = new URL(url0).origin
     let body = { ticket: o.ticket, host: os.hostname(), osuser: os.userInfo().username }
     if (!o.ticket) {
       const user = o.user || (await hidden('아이디: '))
@@ -343,19 +377,30 @@ async function connectCmd(o) {
     const j = await r.json()
     if (!r.ok) throw new Error(j.message || '잇지 못했다')
     await kput(keyName(url), j.key)
-    console.log(`✓ 팀에 이었다 — ${j.user} · 열쇠는 이 PC 의 자격 저장소에`)
+    who = j.user
     // 이 PC 의 kmd 가 팀 주소를 미리 허락하게 적어 둔다(E8 — 팀 화면의 「내 PC」 줄)
-    const pcData = path.join(defaultPcRoot(), '.kmd')
-    fs.mkdirSync(pcData, { recursive: true })
     const tf = path.join(pcData, 'teams.json')
     const teams = fs.existsSync(tf) ? JSON.parse(fs.readFileSync(tf, 'utf8')) : []
     if (!teams.includes(url)) fs.writeFileSync(tf, JSON.stringify([...teams, url], null, 1))
-    const c = await addMcp('kmd-team', url)
-    console.log(c.ok ? '✓ Claude Code 에 이었다 — 팀(kmd-team)' : `Claude Code 에 잇기(한 번): ${c.line}`)
+    team = { ok: true, host: new URL(url).host }
   } catch (e) {
-    console.error(e.message)
+    team = { ok: false, why: e.message }
     process.exitCode = 1
   }
+  // ③ Claude Code — 팀(kmd-team) · 이 PC(kmd 는 늘 켜기가 kmd up 으로 열 때 잇는다)
+  const c = team.ok ? await addMcp('kmd-team', url) : { ok: false, line: mcpLine('kmd-team', url) }
+  // ④ 늘 켜기 — 로그온 작업 + 지금 한 번
+  let task = { ok: false, why: '이 PC 에서 kmd up 으로 켠다' }
+  if (o.task !== 'false' && process.platform === 'win32') {
+    const f = path.join(os.tmpdir(), 'kmd-task.xml')
+    fs.writeFileSync(f, '\ufeff' + taskXml({ script: process.argv[1], root }), 'utf16le')
+    const code = await new Promise((ok) => spawn('schtasks', ['/Create', '/F', '/TN', 'kmd', '/XML', f], { stdio: 'ignore', windowsHide: true }).on('exit', ok).on('error', () => ok(1)))
+    if (code === 0) {
+      spawn('schtasks', ['/Run', '/TN', 'kmd'], { stdio: 'ignore', windowsHide: true }).on('error', () => {})
+      task = { ok: true }
+    } else task = { ok: false, why: '작업을 만들지 못했다 — kmd pc task 로 다시' }
+  }
+  for (const l of installLines({ version: VERSION, root, backup: backupDir, kns: kns.map((k) => k.name), team, user: who, host: os.hostname(), osuser: os.userInfo().username, claude: c, task })) console.log(l)
 }
 
 // 되살리기 — 백업 자리에서 새 폴더로(새 PC 의 「이 PC 로 되살리기」 · 지식 받아 오기)
