@@ -222,8 +222,8 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   // 자료 가져오기 — 표 · 한 칸 · 알아들은 한 줄 · 끌어다 놓기
   await page.click('[data-t=nav-import]')
   await page.waitForSelector('[data-t=drop]')
-  // 두 영역 — ① 문서로 들이기 ② 표를 저절로 채우기 · 더하기는 유형마다 칸
-  assert.deepEqual((await page.locator('[data-t=impSec]').allInnerTexts()).map((t) => t.split(' ').slice(0, 2).join(' ')), ['문서로 들이기', '지켜보며 맞추기'])
+  // 두 영역 — 파일로 들이기(기록으로) · 지켜보며 맞추기 · 더하기는 유형마다 칸
+  assert.deepEqual((await page.locator('[data-t=impSec]').allInnerTexts()).map((t) => t.split(' ').slice(0, 2).join(' ')), ['파일로 들이기', '지켜보며 맞추기'])
   assert.deepEqual(await page.locator('[data-t=sfTabs] span').allInnerTexts(), ['문서 폴더', '소스 코드(git)', 'DB'], '파일을 팀으로 나르는 내 PC 폴더는 없다')
   await page.click('[data-t=sf-git]')
   assert.match(await page.locator('[data-t=codeWhat]').innerText(), /묶음 — 더한 뒤 저장소에 새로 올라온 묶음마다 바뀐 코드로 기록 하나/, '소스 코드는 커밋 이력으로 — 채울 표를 고르지 않는다')
@@ -256,8 +256,10 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   // 파일 고르기 — 지금 연 지식이 없으면 받은편지함(처음 넣으면 생긴다)
   assert.match(await page.locator('[data-t=drop]').innerText(), /받은편지함\(처음 넣으면 생긴다\)/)
   await page.setInputFiles('#fileIn', { name: '회의록-1021.md', mimeType: 'text/markdown', buffer: Buffer.from('# 회의록-1021\n\n## 정한 것\n배포 창은 화 · 목.\n') })
-  await page.waitForFunction(() => /문서가 됐다/.test(document.querySelector('[data-t=impMsg]')?.textContent || ''), null, { timeout: 90000 })
-  assert.match(await page.locator('[data-t=impRow]').first().innerText(), /회의록-1021\.md → 받은편지함 › 회의록-1021/)
+  // 넣은 파일은 기록이 된다 — 정리가 기존 문서에 넣거나 새 문서로 세운다 · [보기] 는 그 기록
+  await page.waitForFunction(() => /기록이 됐다/.test(document.querySelector('[data-t=impMsg]')?.textContent || ''), null, { timeout: 90000 })
+  assert.match(await page.locator('[data-t=impRow]').first().innerText(), /회의록-1021\.md → 받은편지함 › 기록[\s\S]*정리가 기존 문서에 넣거나 새 문서로 세운다/)
+  assert.equal(await page.locator('[data-t=impRow] [data-t=impRec]').count(), 1)
   await page.setInputFiles('#fileIn', { name: '스캔.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4') })
   await page.waitForFunction(() => /내 PC 프로그램/.test(document.querySelector('[data-t=impMsg]')?.textContent || ''))
   assert.deepEqual(await bannedIn(page), [])

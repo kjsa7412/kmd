@@ -76,6 +76,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       x.candidates = [...r.exact, ...r.coords].filter((c) => c.coord).slice(0, 8).map((c) => ({ coord: c.coord, name: c.name }))
       return x
     }
+    if (g.kind === 'ingest') return all.find((y) => y.kind === 'ingest' && y.record.id === g.record?.id) || null
     return all.find((y) => y.kind === 'section' && y.coord === g.coord) || null
   }
   // 되돌림 — 그 문서에서 7일 안에 되돌린 수
@@ -185,7 +186,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         let nm = path.basename(full).normalize('NFC')
         for (let n = 2; all.some((k) => k.id.toLowerCase() === nm.toLowerCase()); n++) nm = `${path.basename(full).normalize('NFC')}-${n}`
         const made = await hub.addKnowledge(ctx, { kind: 'new', name: nm, empty: true })
-        const r = await hub.importFiles(ctx, made.id, await Promise.all(files.map(async (f) => ({ path: f.path, data: await fs.readFile(f.full) }))))
+        const r = await hub.importFiles(ctx, made.id, await Promise.all(files.map(async (f) => ({ path: f.path, data: await fs.readFile(f.full) }))), { asDocs: true })
         for (const x of ['_vocab.md', '_managed.md']) {
           const t = await fs.readFile(path.join(full, x)).catch(() => null)
           if (t) await fs.writeFile(path.join(made.dir, x), t)
@@ -784,31 +785,33 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           continue
         }
         const r = item.error ? { ok: false, why: item.error === 'login' ? '정리 전용 로그인이 끝났다' : item.error === 'limit' ? '사용 한도에 닿았다' : '초안을 받지 못했다' } : checkDraft(k, g, d)
-        const target = g.kind === 'touches' ? g.record.title : `${g.doc.replace(/^docs\/|\.md$/g, '')} › ${g.heading}`
+        const target = g.kind === 'touches' || g.kind === 'ingest' ? g.record.title : `${g.doc.replace(/^docs\/|\.md$/g, '')} › ${g.heading}`
         // 원본이 주인인 문서에는 정리도 넣지 않는다 — 기록은 문서 옆에 그대로 읽힌다
         if (g.doc && watchedOf(await fs.readFile(path.join(meta.dir, ...g.doc.split('/')), 'utf8').catch(() => ''))) {
           rows.push({ kind: 'left', target, why: '원본이 주인인 문서 — 원본 파일을 고친다 · 기록은 옆에 그대로 읽힌다', records: (g.records || [g.record]).map((x) => x.id) })
           continue
         }
-        const recs = g.kind === 'touches' ? [g.record] : g.records
+        const recs = g.kind === 'touches' || g.kind === 'ingest' ? [g.record] : g.records
         if (!r.ok) {
           rows.push({ kind: 'left', target, why: r.why, records: recs.map((x) => x.id) })
           continue
         }
         // 되돌림이 잦은 문서는 7일 동안 값 바뀜을 넣지 않는다
-        if (r.changed.length && (await recentReverts(id, g.doc)) >= 2) {
+        if (r.changed.length && g.doc && (await recentReverts(id, g.doc)) >= 2) {
           rows.push({ kind: 'left', target, why: '이 문서는 되돌림이 잦아 값이 바뀌는 것은 7일 동안 넣지 않는다', records: recs.map((x) => x.id) })
           continue
         }
         try {
           const saved = await coreSave(meta.dir, planSave(k, g, d, { model: item.model }), { user: 'kmd-auto', system: true })
-          const used = g.kind === 'touches' ? [] : g.records.filter((x) => d.used.includes(x.id))
+          const used = g.kind === 'touches' ? [] : g.kind === 'ingest' ? [g.record] : g.records.filter((x) => d.used.includes(x.id))
+          // 넣은 파일 — 「문서 열기」 는 새 문서 또는 처음 고친 항목으로
+          const at = g.kind === 'ingest' ? (d.newDoc ? { doc: String(d.newDoc.path).replace(/\\/g, '/').replace(/^docs\/|\.md$/g, '').trim(), heading: d.newDoc.sections[0]?.heading } : { doc: String(d.updates[0].doc).replace(/^docs\/|\.md$/g, ''), heading: d.updates[0].heading }) : g.doc ? { doc: g.doc.replace(/^docs\/|\.md$/g, ''), heading: g.heading } : null
           rows.push({ kind: g.kind === 'touches' ? 'touches' : r.changed.length ? 'changed' : 'put', target, record: saved.id, from: r.changed[0]?.from, to: r.changed[0]?.to, records: used.map((x) => x.id), left: (d.left || []).map((x) => x.id) })
           // 그 기록을 쓴 사람의 「오늘 바뀐 것」 — 값이 바뀌었으면 노랑
           for (const u of [...new Set(used.map((x) => x.author))]) {
             await feed.add(dataDir, u, r.changed.length
-              ? { kind: 'tidy', rec: saved.id, kn: id, yl: true, b: `kmd 가 정리하며 값을 바꿨다 — ${meta.name} › ${target} · ${r.changed[0].from} → ${r.changed[0].to}`, small: '내 기록에서 — 되돌릴 수 있다', go: { kn: id, doc: g.doc.replace(/^docs\/|\.md$/g, ''), hl: g.heading }, revert: saved.id }
-              : { kind: 'tidy', rec: saved.id, kn: id, dot: 'acc', text: `kmd 가 정리했다 — ${meta.name} › ${target}`, small: '내가 남긴 기록', go: { kn: id, doc: g.doc.replace(/^docs\/|\.md$/g, ''), hl: g.heading } })
+              ? { kind: 'tidy', rec: saved.id, kn: id, yl: true, b: `kmd 가 정리하며 값을 바꿨다 — ${meta.name} › ${target} · ${r.changed[0].from} → ${r.changed[0].to}`, small: '내 기록에서 — 되돌릴 수 있다', go: { kn: id, doc: at.doc, hl: at.heading }, revert: saved.id }
+              : { kind: 'tidy', rec: saved.id, kn: id, dot: 'acc', text: g.kind === 'ingest' ? `kmd 가 넣은 파일을 문서에 들였다 — ${meta.name} › ${at.doc}` : `kmd 가 정리했다 — ${meta.name} › ${target}`, small: g.kind === 'ingest' ? `${d.newDoc ? '새 문서' : '기존 문서에'} · ${g.record.title.split(' — ')[0]}` : '내가 남긴 기록', go: { kn: id, doc: at.doc, hl: at.heading } })
           }
         } catch (e) {
           rows.push({ kind: 'left', target, why: e.message, records: recs.map((x) => x.id) })
@@ -881,13 +884,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
 
     // ── 파일 · 폴더 넣기(KM82 — 한 번 들여온다) ──
-    async importFiles(ctx, id, files) {
+    // asDocs — 옛 폴더로 지식을 세울 때(지식 추가)만 바로 문서 · 그 밖은 기록으로 들이고 정리가 문서에 넣는다
+    async importFiles(ctx, id, files, { asDocs = false } = {}) {
       const meta = await hub.meta(id, ctx)
       const shut = backup.closed(meta)
       if (shut) throw new KmdError('E_BEHIND', shut.message)
       const k = await hub.get(id)
       const direct = hub.canDirect(ctx, id)
-      const plan = await planImport(k, files, { direct, convert: hub.autoOf(ctx.user, 'file'), read: (rel) => fs.readFile(path.join(meta.dir, rel)).catch(() => null) })
+      const plan = await planImport(k, files, { direct, asRecord: !asDocs, convert: hub.autoOf(ctx.user, 'file'), read: (rel) => fs.readFile(path.join(meta.dir, rel)).catch(() => null) })
       if (plan.docs.length || plan.atts.length) {
         await serial(path.resolve(meta.dir), async () => {
           await ensureRepo(meta.dir)
@@ -903,9 +907,16 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         })
         cache.delete(id)
       }
-      for (const r of plan.records) await hub.save(ctx, id, { record: r })
+      // 기록 줄에 그 기록 id — 화면의 [보기] 가 연다
+      const recRows = plan.rows.filter((x) => x.kind === 'record')
+      for (const [i, r] of plan.records.entries()) {
+        const sv = await hub.save(ctx, id, { record: r })
+        if (recRows[i]) recRows[i].rec = sv.id
+      }
       const s = summary(plan.rows)
-      if (s.doc || s.record) feed.add(dataDir, ctx.user, { kind: 'import', kn: id, dot: 'acc', text: `파일 ${s.doc + s.record}개를 ${s.doc ? '문서로' : '기록으로'} — ${meta.name}`, small: s.fail ? `바꾸지 못한 파일 ${s.fail}` : s.doc ? '원본은 첨부로 두었다' : '다음 정리 때 문서에' }).catch(() => {})
+      if (s.doc || s.record) feed.add(dataDir, ctx.user, { kind: 'import', kn: id, dot: 'acc', text: `파일 ${s.doc + s.record}개를 ${s.doc ? '문서로' : '기록으로'} — ${meta.name}`, small: s.fail ? `바꾸지 못한 파일 ${s.fail}` : s.doc ? '원본은 첨부로 두었다' : '정리가 기존 문서에 넣거나 새 문서로 세운다' }).catch(() => {})
+      // 넣은 파일의 기록 — 정리를 바로 건다(Claude 에 보내지 않는 지식 · 이 PC 의 자동 정리 끔이면 기록으로 기다린다)
+      if (s.record && hub.meaningOk(id)) hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
       if ((plan.docs.length || plan.atts.length) && backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
       return { direct, summary: s, rows: plan.rows }
     },

@@ -15,6 +15,7 @@ import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
 import { post } from '../core/send.js'
 import { copyDir, signIn } from './helpers.mjs'
+import { workOnce } from '../core/worker.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s
@@ -83,13 +84,14 @@ before(async () => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-e7-'))
   process.env.HOME = process.env.USERPROFILE = process.env.APPDATA = tmp
   process.env.KMD_NO_CLAUDE = '1'
+  process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
   copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'kn'))
   mkKnowledge(path.join(tmp, 'kn', 'inbox'), '')
   mkKnowledge(path.join(tmp, 'kn', 'memo'), '## term\n\n- `term:주간 회의` — 주간 회의')
   mkKnowledge(path.join(tmp, 'kn', 'note'), '')
   fs.writeFileSync(path.join(tmp, 'kn', 'note', 'docs', '배포메모.md'), '# 배포메모\n\n## 카나리\n첫 30분은 요청의 10%.\n')
   fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })
-  fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sendTickMs: 3600000 }))
+  fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sendTickMs: 3600000, tidyTickMs: 3600000 }))
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
   for (const id of ['inbox', 'memo', 'note']) await s.hub.setOwner(SHELL, id, { owner: 'kim', private: true })
 })
@@ -98,15 +100,33 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('파일 넣기 — docx → 문서 1 · 같은 파일 → 커밋 0 · 스캔 pdf → 바꾸지 못한 파일 1 · 상한 넘는 docx → 거절', async () => {
+test('파일 넣기 — 기록으로 들이고 정리가 새 문서로 세우거나 기존 문서에 넣는다 · 같은 파일 → 0 · 스캔 pdf → 바꾸지 못한 파일 1 · 상한 넘는 docx → 거절', async () => {
   const dir = path.join(tmp, 'kn', 'dpms')
   const file = docx([['Heading1', '목적'], ['', '회의에서 정한 것을 남긴다.'], ['Heading1', '정한 것'], ['', '배포 창은 화 · 목.']])
   const r = await s.hub.importFiles(KIM, 'dpms', [{ path: '회의/회의록-1021.docx', data: file }])
-  assert.equal(r.summary.doc, 1)
-  const md = fs.readFileSync(path.join(dir, 'docs', '회의', '회의록-1021.md'), 'utf8')
-  assert.match(md, /^# 회의록-1021\n\n## 목적\n\n회의에서 정한 것을 남긴다\./)
+  assert.equal(r.summary.doc, 0, '바로 문서가 되지 않는다')
+  assert.equal(r.summary.record, 1, '기록이 된다')
+  assert.ok(!fs.existsSync(path.join(dir, 'docs', '회의', '회의록-1021.md')))
   assert.ok(fs.existsSync(path.join(dir, 'docs', 'assets', '회의', '회의록-1021.docx')), '원본은 첨부')
-  assert.ok((await s.hub.get('dpms')).docs.some((d) => d.id === '회의/회의록-1021'))
+  const rec = (await s.hub.get('dpms')).works.find((w) => w.tags.includes('ingest/회의/회의록-1021.docx'))
+  assert.match(rec.body, /## 목적\n\n회의에서 정한 것을 남긴다\./)
+  assert.equal(rec.state, 'pend', '정리가 넣을 때까지 아직 안 넣은 기록')
+  // 정리(큐레이션) — 이어지는 문서가 없으니 새 문서로
+  const job = s.hub.jobsOf('dpms').find((j) => j.state === 'queued')
+  assert.ok(job && job.auto, '넣으면 정리가 저절로 걸린다')
+  const wkey = (await s.auth.workerAdd()).key
+  await workOnce({ server: s.url, key: wkey })
+  const md = fs.readFileSync(path.join(dir, 'docs', '회의록-1021.md'), 'utf8')
+  assert.match(md, /## 목적\n(<!-- applied: [^>]+ -->\n)?회의에서 정한 것을 남긴다\./)
+  assert.match(md, /배포 창은 화 · 목\./)
+  let k = await s.hub.get('dpms')
+  assert.equal(k.byWork.get(rec.id).state, 'in', '넣은 뒤 「넣음」')
+  assert.ok(k.logs.some((w) => w.title === '정리 — 회의록-1021.docx 들임' && w.reflects.includes(rec.id)), '정리는 이력에')
+  // 기존 문서와 이어지는 파일 — 그 문서의 항목을 고친다(새 문서를 세우지 않는다)
+  await s.hub.importFiles(KIM, 'dpms', [{ path: '카나리-갱신.md', data: Buffer.from('# 카나리 갱신\n\n## 카나리\n`canary-1` 에 먼저 올리고, 첫 30분은 요청의 20% 만 보낸다.\n') }])
+  await workOnce({ server: s.url, key: wkey })
+  assert.match(fs.readFileSync(path.join(dir, 'docs', '배포절차.md'), 'utf8'), /## 카나리\n<!-- applied: [^>]+ -->\n`canary-1` 에 먼저 올리고, 첫 30분은 요청의 20% 만 보낸다\./)
+  assert.ok(!fs.existsSync(path.join(dir, 'docs', '카나리-갱신.md')), '새 문서를 세우지 않았다')
 
   const n0 = count(dir)
   const again = await s.hub.importFiles(KIM, 'dpms', [{ path: '회의/회의록-1021.docx', data: file }])

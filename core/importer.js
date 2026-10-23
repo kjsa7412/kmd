@@ -6,7 +6,9 @@
 //   그림              → 첨부
 //   그 밖              → 「넣지 않은 파일」
 //   한 번에 300 파일 · 200MB. 같은 글이면 다시 쓰지 않는다(묶음 0).
-// 팀 지식에서 바로 넣지 못하는 사람은 문서 대신 기록(태그 ingest/<경로>)으로 남긴다 — 정리하는 사람이 문서로.
+// 넣은 파일은 기록이 된다(태그 ingest/<경로> · asRecord — 지식 만들기의 파일 · 폴더 넣기) — 정리(큐레이션)가 그 기록을 읽어
+// 기존 문서 항목에 넣거나 새 문서로 세운다. 바로 문서로 서는 것은 옛 폴더로 지식을 세울 때(지식 추가)와 문서 폴더 감시뿐.
+// 팀 지식에서 바로 넣지 못하는 사람도 기록으로 남긴다.
 
 import path from 'node:path'
 import { convert } from './ooxml.js'
@@ -30,7 +32,7 @@ function cleanPath(p) {
 // files: [{ path, data(Buffer) }] → 계획 { docs, atts, records, rows }
 // read(rel) → 지금 글(Buffer) 또는 null — 같은 파일이면 쓰지 않는다
 // convert — docx · pptx · xlsx 를 md 로 바꾸나(설정 「넣은 파일을 문서로」 · 끄면 원본 첨부만)
-export async function planImport(k, files, { direct = true, convert: conv = true, read = async () => null } = {}) {
+export async function planImport(k, files, { direct = true, asRecord = false, convert: conv = true, read = async () => null } = {}) {
   if (!Array.isArray(files) || !files.length) throw new KmdError('E_INPUT', '넣을 파일이 없다')
   if (files.length > MAX_FILES) throw new KmdError('E_INPUT', `한 번에 ${MAX_FILES} 파일까지 — 나눠 넣는다`)
   const total = files.reduce((a, f) => a + (f.data?.length || 0), 0)
@@ -52,13 +54,15 @@ export async function planImport(k, files, { direct = true, convert: conv = true
       continue
     }
     if (md != null) {
-      if (!direct) {
+      if (!direct || asRecord) {
+        // 원본(docx · pptx · xlsx)은 첨부로 둔다 — 바로 넣을 수 있는 사람만
+        if (direct && ext !== 'md' && ext !== 'markdown' && !(await read(attRel))?.equals(f.data)) plan.atts.push({ rel: attRel, data: f.data })
         const tag = `ingest/${rel}`.slice(0, 60)
         const same = k.works.some((w) => w.tags.includes(tag) && w.body.trim() === md.trim())
         if (same) row('same', '같은 파일 — 그대로 두었다')
         else {
           plan.records.push({ title: `${path.posix.basename(rel)} — 넣은 파일`, body: md, tags: [tag] })
-          row('record', `기록이 됐다 — ${k.name} › ${path.posix.basename(base)} · 다음 정리 때 문서에`)
+          row('record', `기록이 됐다 — ${k.name} › 기록 · 정리가 기존 문서에 넣거나 새 문서로 세운다`)
         }
         continue
       }

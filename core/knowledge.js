@@ -129,6 +129,8 @@ export async function loadKnowledge({ id, name, dir }, { cache = null } = {}) {
       o.touches = w.touches
     }
   }
+  // 정리가 넣었다고 적은 기록(reflects) — 이름 없이 들어간 넣은 파일의 기록도 「넣음」 이 된다
+  k.reflected = new Set([...works, ...logs].flatMap((w) => w.reflects || []))
   for (const w of works) w.state = recordState(k, w)
   return k
 }
@@ -191,6 +193,8 @@ const INGEST = (w) => w.tags.some((t) => /^(ingest|touches\??)\//.test(t))
 export function recordState(k, w) {
   if (k.kept?.has(w.id)) return 'kept'
   if (w.tags.some((t) => t === 'curate-auto' || t === 'curate-llm')) return 'none' // 정리 기록 자신은 넣을 것이 아니다
+  // 넣은 파일(ingest/)의 기록 — 정리가 기존 문서에 넣거나 새 문서로 세울 때까지 「아직 안 넣음」
+  if (!w.touches.length && w.tags.some((t) => t.startsWith('ingest/'))) return k.reflected?.has(w.id) ? 'in' : 'pend'
   if (!w.touches.length) return isSystemRecord(w) || INGEST(w) || w.curates.length || w.reopens.length ? 'none' : 'nowhere'
   let any = false
   for (const c of w.touches) {

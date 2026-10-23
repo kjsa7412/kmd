@@ -7,7 +7,7 @@
 //   로그인이 끝났거나 한도면 다시 시도하지 않고 멈춘 뒤 서버에 알린다(멈춤 한 줄 「자동 정리가 쉬고 있다」)
 
 import { runClaude } from './claude.js'
-import { promptOf, DRAFT_SCHEMA, TOUCH_SCHEMA } from './tidy.js'
+import { promptOf, DRAFT_SCHEMA, TOUCH_SCHEMA, INGEST_SCHEMA } from './tidy.js'
 
 async function call(server, key, p, body) {
   const r = await fetch(server + p, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
@@ -37,7 +37,7 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5 }) {
       items.push({ group: g, error: stop })
       continue
     }
-    const r = await runClaude({ prompt: promptOf(g), schema: g.kind === 'touches' ? TOUCH_SCHEMA : DRAFT_SCHEMA, budget })
+    const r = await runClaude({ prompt: promptOf(g), schema: g.kind === 'touches' ? TOUCH_SCHEMA : g.kind === 'ingest' ? INGEST_SCHEMA : DRAFT_SCHEMA, budget })
     if (r.error === 'login' || r.error === 'limit') {
       stop = r.error
       log(`정리 일꾼이 쉰다 — ${r.error === 'login' ? '로그인이 끝났다' : '한도에 닿았다'}`)

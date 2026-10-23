@@ -1357,14 +1357,14 @@ function viewImport() {
   const can = v && !v.error ? v.can : !team || S.me.admin
   const target = impTarget()
   const sec = (n, t, small) => `<div class="rh" data-t="impSec" style="margin:22px 0 8px;font-size:14px;color:var(--text)">${n ? n + ' ' : ''}${t} <small class="muted" style="font-weight:400">${small}</small></div>`
-  const main = `<div style="max-width:980px"><div class="big">지식 만들기</div><p class="lead">무엇을 만드나에 따라 둘 — 파일 · 폴더는 한 번 들여 문서로, 문서 폴더 · 소스 코드 · DB 는 지켜보다 바뀐 것만 지식에 맞춘다. 빈 지식을 새로 세우려면 <a data-a="nav" data-s="add" data-t="toAdd">지식 추가 ›</a></p>
+  const main = `<div style="max-width:980px"><div class="big">지식 만들기</div><p class="lead">무엇을 만드나에 따라 둘 — 파일 · 폴더는 한 번 들여 기록으로(정리가 기존 문서에 넣거나 새 문서로 세운다), 문서 폴더 · 소스 코드 · DB 는 지켜보다 바뀐 것만 지식에 맞춘다. 빈 지식을 새로 세우려면 <a data-a="nav" data-s="add" data-t="toAdd">지식 추가 ›</a></p>
   ${S.stops.map(stopHtml).join('')}
-  ${sec('', '문서로 들이기', '파일 · 폴더 — 한 번 들여온다 · 원본은 첨부로')}
-  <div class="card"><div class="ch">파일 · 폴더 넣기 <small>md · docx · pptx · xlsx 는 문서로 · hwpx · pdf · 그림은 첨부로</small></div><div class="cb">
-   <div class="drop" id="drop" data-t="drop"><b>파일이나 폴더를 여기에 끌어다 놓으면 문서가 된다</b>넣을 곳 — ${esc(target.label)}
+  ${sec('', '파일로 들이기', '파일 · 폴더 → 기록 → 정리가 문서로 · 원본은 첨부로')}
+  <div class="card"><div class="ch">파일 · 폴더 넣기 <small>md · docx · pptx · xlsx 는 기록으로 · hwpx · pdf · 그림은 첨부로</small></div><div class="cb">
+   <div class="drop" id="drop" data-t="drop"><b>파일이나 폴더를 여기에 끌어다 놓으면 기록이 된다 — 정리가 기존 문서에 넣거나 새 문서로 세운다</b>넣을 곳 — ${esc(target.label)}
     <div class="lks"><label>파일 고르기<input type="file" multiple id="fileIn" data-t="fileIn"></label> · <label>폴더 고르기<input type="file" webkitdirectory directory multiple id="dirIn" data-t="dirIn"></label></div></div>
-   <p class="gl">${team ? 'md · docx · pptx · xlsx 는 바로 바꾼다 — hwpx · pdf 는 내 PC 프로그램이 있는 PC 에서 · 원본은 먼저 첨부로.' : 'md · docx · pptx · xlsx 는 바로 바꾼다 — hwpx · pdf 는 원본을 첨부로 두었다가 바꾼다.'} 폴더 안의 짜임은 그대로 · 한 번에 300 파일 · 200MB 까지.</p>
-   <div class="rh">최근 넣은 것</div><ul class="plain rec" data-t="recent">${S.imports.map((x) => `<li class="${x.cls || ''}" data-t="impRow"><span class="tm">${esc(x.tm)}</span><span class="tx">${esc(x.title)}<small data-t="impMsg">${esc(x.msg)}</small></span>${x.go ? `<a class="lk" data-a="impGo" data-k="${esc(x.go.kn)}" data-d="${esc(x.go.doc)}">보기</a>` : ''}</li>`).join('') || '<li class="muted">아직 없다</li>'}</ul>
+   <p class="gl">${team ? 'md · docx · pptx · xlsx 는 글로 바꿔 파일마다 기록 하나 — 정리(Claude)가 읽어 이어지는 문서의 항목에 넣거나 새 문서로 세운다 · hwpx · pdf 는 내 PC 프로그램이 있는 PC 에서 · 원본은 첨부로.' : 'md · docx · pptx · xlsx 는 글로 바꿔 파일마다 기록 하나 — 정리(Claude)가 읽어 이어지는 문서의 항목에 넣거나 새 문서로 세운다 · hwpx · pdf 는 원본을 첨부로 두었다가 바꾼다.'} 한 번에 300 파일 · 200MB 까지.</p>
+   <div class="rh">최근 넣은 것</div><ul class="plain rec" data-t="recent">${S.imports.map((x) => `<li class="${x.cls || ''}" data-t="impRow"><span class="tm">${esc(x.tm)}</span><span class="tx">${esc(x.title)}<small data-t="impMsg">${esc(x.msg)}</small></span>${x.go ? `<a class="lk" data-a="impGo" data-k="${esc(x.go.kn)}" data-d="${esc(x.go.doc)}">보기</a>` : x.rec ? `<a class="lk" data-a="openRec" data-k="${esc(x.rec.kn)}" data-r="${esc(x.rec.id)}" data-t="impRec">보기</a>` : ''}</li>`).join('') || '<li class="muted">아직 없다</li>'}</ul>
   </div></div>
   ${sec('', '지켜보며 맞추기', '문서 폴더 · 소스 코드(git 묶음) · DB — 바뀐 것만 읽어 지식에 맞춘다')}
   <div class="card"><div class="ch">자동으로 가져오는 곳 <small>정한 때마다 확인 · 바뀐 것만 고친다</small>${can ? `<span class="r"><button class="btn pri" data-a="fetchAll" data-t="fetchAll" style="width:auto"${srcs.some((s) => s.kind !== 'db') ? '' : ' disabled'}>지금 모두 가져오기</button></span>` : ''}</div>
@@ -1493,8 +1493,9 @@ async function takeFiles(files) {
       row.msg = x.msg
       row.cls = x.kind === 'fail' || x.kind === 'skip' ? 'bad' : ''
       if (x.kind === 'doc') { row.title = files[0].name + ' → ' + name + ' › ' + x.doc; row.go = { kn: t.kn, doc: x.doc } }
+      if (x.kind === 'record') { row.title = files[0].name + ' → ' + name + ' › 기록'; row.rec = x.rec ? { kn: t.kn, id: x.rec } : null }
     } else {
-      row.msg = `${tops[0] ? tops[0] + ' 폴더 — ' : ''}문서 ${s.doc}${s.record ? ' · 기록 ' + s.record : ''} · 첨부 ${s.att}${s.same ? ' · 그대로 ' + s.same : ''}${s.fail ? ' · 바꾸지 못한 파일 ' + s.fail : ''} · 넣지 않은 파일 ${s.skip}`
+      row.msg = `${tops[0] ? tops[0] + ' 폴더 — ' : ''}${s.record ? '기록 ' + s.record + ' — 정리가 기존 문서에 넣거나 새 문서로 세운다 · ' : ''}${s.doc ? '문서 ' + s.doc + ' · ' : ''}첨부 ${s.att}${s.same ? ' · 그대로 ' + s.same : ''}${s.fail ? ' · 바꾸지 못한 파일 ' + s.fail : ''} · 넣지 않은 파일 ${s.skip}`
       row.cls = s.skip || s.fail ? 'bad' : ''
     }
     row.tm = nowHm()

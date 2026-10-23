@@ -21,6 +21,22 @@ process.stdin.on('end', () => {
   const ok = args.includes('-p') && args.includes('--tools') && val('--tools') === '' && args.includes('--strict-mcp-config') && JSON.parse(val('--mcp-config') || '{}').mcpServers && val('--json-schema') && fs.readdirSync(process.cwd()).length === 0
   if (!ok) return say({ is_error: true, subtype: 'error', result: '가짜 claude: 도구 0 · 빈 MCP · 스키마 · 빈 폴더를 지키지 않았다' })
   if (process.env.FAKE_CLAUDE_MODE === 'logout') return say({ is_error: true, subtype: 'error', result: 'Invalid API key · Please run /login' })
+  // 넣은 파일 — 파일의 머리(##)가 후보 문서의 항목과 같으면 그 항목을 파일 글로 · 아니면 새 문서(경로 = 파일 이름)
+  if (prompt.startsWith('넣은 파일(기록)을 지식에 들인다')) {
+    const cands = (prompt.split('문서 후보:\n')[1] || '').split('\n\n넣은 파일(')[0]
+    const head = /넣은 파일\(기록 [^ ]+ · ([^)]+)\):\n/.exec(prompt)
+    const body = prompt.split(/넣은 파일\(기록 [^)]+\):\n/)[1] || ''
+    const secs = [...body.matchAll(/^## (.+)\n([\s\S]*?)(?=\n## |(?![\s\S]))/gm)].map((m) => ({ heading: m[1].trim(), content: m[2].trim() }))
+    const docs = [...cands.matchAll(/^\[doc ([^\]]+)\]/gm)].map((m) => m[1])
+    const updates = []
+    for (const s of secs) {
+      const d = docs.find((p) => cands.split(`[doc ${p}]`)[1]?.split('\n[doc ')[0].includes(`\n## ${s.heading}\n`))
+      if (d) updates.push({ doc: d, heading: s.heading, content: s.content })
+    }
+    const rest = secs.filter((s) => !updates.some((u) => u.heading === s.heading))
+    const name = (head ? head[1] : '넣은 파일').split('/').pop().replace(/\.[^.]+$/, '')
+    return say({ structured_output: { updates, newDoc: rest.length ? { path: name, sections: rest } : null, why: updates.length ? '같은 항목이 있다' : '이어지는 문서가 없다' } })
+  }
   if (prompt.startsWith('아래 기록이 바꾼 항목을')) {
     const first = /^- (\S+:[^ ]+(?: [^—]+)?) — /m.exec(prompt.split('후보:')[1] || '')
     return say({ structured_output: { touches: first ? [first[1].trim()] : [], why: '제목이 그 항목을 말한다' } })
