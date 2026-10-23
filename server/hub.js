@@ -47,6 +47,8 @@ const isLocalPath = (u) => !/^[a-z][a-z0-9+.-]*:\/\//i.test(u) && !/^[^/\\]+@[^/
 export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log = (...a) => console.log('[kmd]', ...a) }) {
   const config = await loadConfig(dataDir)
   let reg = await owners.load(dataDir)
+  // 저절로 하는 일 켬 · 끔(설정) — PC 는 하나 · 팀은 사람마다. 없으면 켬
+  let prefs = await fs.readFile(path.join(dataDir, 'prefs.json'), 'utf8').then(JSON.parse, () => ({}))
   const cache = new Map() // 지식 → 읽은 지식(promise)
   const files = new Map() // 지식 → 파일 캐시
   const indexes = new Map() // 지식 → { k, p: 색인 promise }
@@ -164,6 +166,20 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       throw new KmdError('E_INPUT', '알아듣지 못했다 — 이름 · 내 PC 폴더 경로를 붙인다')
     },
+    autoOf(user, key) {
+      return mode === 'pc' ? prefs.pc?.[key] !== false : prefs.users?.[user]?.[key] !== false
+    },
+    async setAuto(ctx, key, on) {
+      const ok = mode === 'pc' ? ['save', 'file', 'src', 'claude', 'find'] : ['file', 'find']
+      if (!ok.includes(key)) throw new KmdError('E_INPUT', '그런 일은 없다')
+      const next = structuredClone(prefs)
+      if (mode === 'pc') (next.pc ||= {})[key] = !!on
+      else ((next.users ||= {})[ctx.user] ||= {})[key] = !!on
+      await fs.mkdir(dataDir, { recursive: true })
+      await fs.writeFile(path.join(dataDir, 'prefs.json'), JSON.stringify(next, null, 1))
+      prefs = next
+      return { key, on: !!on }
+    },
     // 그 사람이 보는 지식들
     async visible(ctx) {
       return (await hub.list()).filter((k) => owners.visible(reg, k.id, ctx))
@@ -256,7 +272,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const out = []
       for (const m of ks) {
         const k = await hub.get(m.id)
-        const r = await ladder(k, await hub.index(m.id), { q, words, max, learned: await loadLearned(dataDir, m.id) })
+        const r = await ladder(k, await hub.index(m.id), { q, words, max, learned: await loadLearned(dataDir, m.id), passagesMax: hub.autoOf(ctx.user, 'find') ? 5 : 0 })
         out.push({ knowledge: m.id, name: m.name, ...r })
       }
       return out
@@ -591,7 +607,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (shut) throw new KmdError('E_BEHIND', shut.message)
       const k = await hub.get(id)
       const direct = hub.canDirect(ctx, id)
-      const plan = await planImport(k, files, { direct, read: (rel) => fs.readFile(path.join(meta.dir, rel)).catch(() => null) })
+      const plan = await planImport(k, files, { direct, convert: hub.autoOf(ctx.user, 'file'), read: (rel) => fs.readFile(path.join(meta.dir, rel)).catch(() => null) })
       if (plan.docs.length || plan.atts.length) {
         await serial(path.resolve(meta.dir), async () => {
           await ensureRepo(meta.dir)
@@ -890,6 +906,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       log(`${meta.name} — GitLab 백업 자리를 ${p.created ? '만들어' : '찾아'} 붙였다`)
       return p
     },
+    backupStateSync: (meta) => backup.stateOf(meta),
     async backupState(ctx, id) {
       return backup.stateOf(await hub.meta(id, ctx))
     },
@@ -911,7 +928,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             const daily = String(s.every || '').startsWith('daily ') && String(s.every).slice(6)
             const hm = new Date().toTimeString().slice(0, 5)
             const due = all || !c || (daily ? hm >= daily && new Date(c).toDateString() !== new Date().toDateString() : Date.now() - Date.parse(c) >= everyMs(s.every))
-            if (due && s.every !== 'manual') await hub.sourceRun(m.id, s.name).catch(() => {})
+            if (due && s.every !== 'manual' && (mode !== 'pc' || hub.autoOf(pcUser, 'src'))) await hub.sourceRun(m.id, s.name).catch(() => {})
           }
         }
       }
@@ -929,7 +946,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           // 받은편지함 — 정리 시각에 같은 주인의 개인 지식으로 옮긴다
           if (m.name === '받은편지함') await hub.inboxTidy({ user: owners.rowOf(reg, m.id)?.owner || pcUser || 'kmd', pc: mode === 'pc' }, m.id).catch(() => {})
           const k = await hub.get(m.id).catch(() => null)
-          if (k && k.works.some((w) => w.state === 'pend' || w.state === 'nowhere')) hub.tidyNow({ user: 'kmd', admin: true }, m.id, { by: 'kmd', auto: true }).catch(() => {})
+          if (k && (mode !== 'pc' || hub.autoOf(pcUser, 'claude')) && k.works.some((w) => w.state === 'pend' || w.state === 'nowhere')) hub.tidyNow({ user: 'kmd', admin: true }, m.id, { by: 'kmd', auto: true }).catch(() => {})
         }
       }, config.tidyTickMs || 60_000)
       tidyTimer.unref?.()
@@ -943,6 +960,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     async collect(id) {
       const meta = await hub.meta(id)
+      if (!hub.autoOf(pcUser, 'save')) return null // 설정에서 「편집기에서 고친 것 저장」 을 껐다
       const user = pcUser || 'kmd'
       const r = await serial(path.resolve(meta.dir), () => collect.collectNow(meta.dir, { user, save: (x) => collect.writeCollect(meta.dir, { ...x, user }) }))
       if (r) {

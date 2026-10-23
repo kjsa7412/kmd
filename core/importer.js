@@ -29,7 +29,8 @@ function cleanPath(p) {
 
 // files: [{ path, data(Buffer) }] → 계획 { docs, atts, records, rows }
 // read(rel) → 지금 글(Buffer) 또는 null — 같은 파일이면 쓰지 않는다
-export async function planImport(k, files, { direct = true, read = async () => null } = {}) {
+// convert — docx · pptx · xlsx 를 md 로 바꾸나(설정 「넣은 파일을 문서로」 · 끄면 원본 첨부만)
+export async function planImport(k, files, { direct = true, convert: conv = true, read = async () => null } = {}) {
   if (!Array.isArray(files) || !files.length) throw new KmdError('E_INPUT', '넣을 파일이 없다')
   if (files.length > MAX_FILES) throw new KmdError('E_INPUT', `한 번에 ${MAX_FILES} 파일까지 — 나눠 넣는다`)
   const total = files.reduce((a, f) => a + (f.data?.length || 0), 0)
@@ -45,7 +46,7 @@ export async function planImport(k, files, { direct = true, read = async () => n
     let md = null
     try {
       if (ext === 'md' || ext === 'markdown') md = readText(f.data.toString('utf8'))
-      else if (DOCX.includes(ext)) md = `# ${path.posix.basename(base)}\n\n${convert(rel, f.data)}\n`
+      else if (DOCX.includes(ext) && conv) md = `# ${path.posix.basename(base)}\n\n${convert(rel, f.data)}\n`
     } catch (e) {
       row('fail', e.message)
       continue
@@ -69,6 +70,11 @@ export async function planImport(k, files, { direct = true, read = async () => n
       plan.docs.push({ rel: docRel, text: md })
       if (ext !== 'md' && ext !== 'markdown') plan.atts.push({ rel: attRel, data: f.data })
       row('doc', `문서가 됐다 — ${k.name} › ${base.split('/').join(' › ')}`, { doc: base })
+      continue
+    }
+    if (DOCX.includes(ext) && !conv) {
+      if (direct && !(await read(attRel))?.equals(f.data)) plan.atts.push({ rel: attRel, data: f.data })
+      row(direct ? 'att' : 'skip', direct ? '원본은 첨부로 두었다 — 문서로 바꾸기를 꺼 두었다' : '문서로 바꾸기를 꺼 두었다')
       continue
     }
     if (PCONLY.includes(ext)) {

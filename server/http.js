@@ -17,6 +17,9 @@ import { makeMcp } from './mcp.js'
 import { makeHub, defaultDataDir } from './hub.js'
 import { VERSION } from './version.js'
 import * as V from './views.js'
+import * as kit from '../core/kit.js'
+import { pcLogin, makeTeamLogin } from '../core/claudelogin.js'
+import { getSecret } from '../core/secrets.js'
 
 const APP = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'app')
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.json': 'application/json' }
@@ -65,6 +68,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const auth = await makeAuth({ dataDir, mode, scryptN: scryptN || hub.config.scryptN || null })
   const mcp = makeMcp(hub)
   if (pcUser) await auth.ensurePc(pcUser)
+  const teamLogin = makeTeamLogin({ dataDir })
 
   // ── 팀 화면 ↔ 내 PC(E8 · v0.5 §5 · v0.6 ⑫) — PC 프로그램만 ──
   // 설치(kmd connect)가 적은 팀 주소(<data>/teams.json)의 화면이 물으면 Origin 을 대조해 12시간 짝 열쇠(kmdp_)를 응답으로
@@ -203,6 +207,92 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (jm) return out(200, hub.job(jm[1]) || { state: 'gone' })
     // 자동으로 가져오는 곳 — 목록 · 더하기(관리자 · PC) · 살펴보기 · 지금 가져오기 · 관리자에게 부탁
     if (p === '/api/sources') return out(200, { items: await hub.allSources(ctx), can: hub.mode === 'pc' || !!ctx.admin })
+    // ── 설정(S7) — 이 팀 서버 · 이 PC · 저절로 하는 일 · Claude 연결 · 에이전트 설치 ──
+    if (p === '/api/settings') {
+      const ks = await hub.visible(ctx)
+      const bk = ks.map((k) => hub.backupStateSync(k)).filter(Boolean)
+      const ws = await fs.readFile(path.join(dataDir, 'worker.json'), 'utf8').then(JSON.parse, () => null)
+      const keys = mode === 'pc' ? ['save', 'file', 'src', 'claude', 'find'] : ['file', 'find']
+      const month = new Date().toISOString().slice(0, 7)
+      let tidied = 0
+      for (const k of ks) tidied += (await hub.get(k.id)).works.filter((w) => w.tags.includes('curate-llm') && String(w.date).startsWith(month)).length
+      return out(200, {
+        host: req.headers.host,
+        root: mode === 'pc' ? path.resolve(root) : undefined,
+        kns: ks.length,
+        backup: { n: bk.length, of: ks.length, urls: [...new Set(bk.map((b) => b.url))].slice(0, 3), bad: bk.filter((b) => b.verdict && b.verdict !== 'ok').length },
+        dests: mode === 'pc' ? (await Promise.all(ks.map(async (k) => ({ name: k.name, to: (await hub.sendQueue(ctx, k.id).catch(() => ({ dests: [] }))).dests.map((d) => d.kn) })))).filter((x) => x.to.length) : undefined,
+        teams: mode === 'pc' ? await teamsOf() : undefined,
+        auto: Object.fromEntries(keys.map((x) => [x, hub.autoOf(ctx.user, x)])),
+        claude: { off: !!process.env.KMD_NO_CLAUDE && !process.env.KMD_CLAUDE, worker: ws, month: tidied, team: mode === 'team' ? { token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), flow: teamLogin.state } : undefined },
+        version: VERSION,
+      })
+    }
+    if (p === '/api/settings/auto' && req.method === 'POST') { const b = await readBody(req); return out(200, await hub.setAuto(ctx, String(b.key), !!b.on)) }
+    if (p === '/api/claude/login' && req.method === 'POST') {
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀 정리 로그인은 관리 › Claude 연결에서')
+      return out(200, pcLogin())
+    }
+    // 에이전트 설치 — 이 PC 의 작업 폴더마다(스킬 · 연결 · CLAUDE.md 안 kmd 덩이)
+    const ag = p.match(/^\/api\/agent(?:\/(add|up|rm))?$/)
+    if (ag) {
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '에이전트 설치는 내 PC 프로그램이 한다 — 팀 화면은 설치 한 줄 복사')
+      const list = await kit.folders(dataDir)
+      if (!ag[1]) return out(200, { latest: await kit.kitVersion(), folders: await Promise.all(list.map(async (f) => ({ ...f, ...(await kit.status(f.path)) }))) })
+      const b = await readBody(req)
+      const urls = { pcUrl: `http://${req.headers.host}`, teamUrl: (await teamsOf())[0] || null }
+      if (ag[1] === 'add') {
+        const r = await kit.install(String(b.dir || ''), urls)
+        if (list.some((f) => path.resolve(f.path).toLowerCase() === r.dir.toLowerCase())) return out(200, { ...r, again: true })
+        await kit.setFolders(dataDir, [...list, { name: path.basename(r.dir), path: r.dir, at: new Date().toISOString() }])
+        return out(200, r)
+      }
+      const pick = b.dir ? list.filter((f) => path.resolve(f.path).toLowerCase() === path.resolve(String(b.dir)).toLowerCase()) : list
+      if (ag[1] === 'up') { for (const f of pick) await kit.install(f.path, urls); return out(200, { n: pick.length }) }
+      for (const f of pick) await kit.remove(f.path)
+      await kit.setFolders(dataDir, list.filter((f) => !pick.includes(f)))
+      return out(200, { n: pick.length })
+    }
+    // 관리 — 문제 줄만 · 정리 전용 로그인 · 링크 한꺼번에
+    if (p === '/api/admin/overview') {
+      admin(ctx, { sudo: false })
+      const users = auth.users()
+      const ws = await fs.readFile(path.join(dataDir, 'worker.json'), 'utf8').then(JSON.parse, () => null)
+      const ks = await hub.list()
+      const checks = []
+      for (const k of ks) { const c = await fs.readFile(path.join(dataDir, 'searchcheck', `${encodeURIComponent(k.id)}.json`), 'utf8').then(JSON.parse, () => null); if (c?.score) checks.push({ name: k.name, in: c.score.in, n: c.score.n, at: c.at }) }
+      return out(200, {
+        nopw: users.filter((u) => u.kind === 'person' && !u.password && !u.firstOpen).map((u) => u.id),
+        waiting: users.filter((u) => u.kind === 'person' && u.firstOpen).map((u) => u.id),
+        locked: auth.locked(),
+        requests: await hub.requests(),
+        worker: ws,
+        people: users.filter((u) => u.kind === 'person').map((u) => u.id),
+        kns: ks.length,
+        sources: (await hub.allSources(ctx)).map((s) => ({ name: s.name, kn: s.knName, last: s.state?.checkedAt || null })),
+        backups: ks.map((k) => ({ name: k.name, ...(hub.backupStateSync(k) || { off: true }) })),
+        checks,
+        claude: { token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), flow: teamLogin.state },
+        https: req.headers['x-forwarded-proto'] === 'https',
+      })
+    }
+    if (p === '/api/admin/links' && req.method === 'POST') {
+      admin(ctx)
+      const ids = (await readBody(req)).users
+      const links = []
+      for (const id of Array.isArray(ids) ? ids.slice(0, 100) : []) links.push({ id, link: `http://${req.headers.host}/first#code=${(await auth.reset(id, { by: ctx.user })).code}` })
+      return out(200, { links })
+    }
+    const ac = p.match(/^\/api\/admin\/claude\/(start|code|cancel)$/)
+    if (ac && req.method === 'POST') {
+      admin(ctx)
+      if (mode !== 'team') throw new KmdError('E_FORBIDDEN', '팀 서버에서만')
+      if (ac[1] === 'start') return out(200, await teamLogin.start())
+      if (ac[1] === 'cancel') return out(200, { ok: !!teamLogin.cancel() || true })
+      const r = await teamLogin.code((await readBody(req)).code)
+      await fs.rm(path.join(dataDir, 'worker.json'), { force: true }).catch(() => {}) // 쉼 줄을 걷는다 — 다음 일감에서 다시 잰다
+      return out(200, r)
+    }
     // 되살리기 · 이 백업 이어 쓰기 — 관리자(비밀번호 한 번 더) · PC 는 그 PC 의 주인
     if (p === '/api/restore' && req.method === 'POST') {
       admin(ctx)

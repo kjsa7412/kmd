@@ -198,7 +198,7 @@ function render() {
   }
 }
 function viewOf(s) {
-  const f = { home: viewHome, docs: viewDocsV, items: viewItems, graph: viewGraph, today: viewToday, tidy: viewTidy, members: viewMembers, import: viewImport, add: viewAdd, send: viewSend }[s]
+  const f = { home: viewHome, docs: viewDocsV, items: viewItems, graph: viewGraph, today: viewToday, tidy: viewTidy, members: viewMembers, import: viewImport, add: viewAdd, send: viewSend, settings: viewSettings, admin: viewAdmin }[s]
   return f ? f() : viewLater(s)
 }
 function ribbonHtml() {
@@ -225,7 +225,7 @@ function sideHtml(left) {
   if (curator) h += '<div class="sb-g">정리하는 사람</div>' + it2('tidy', '정리', 'hour', tk && tk.pend ? tk.pend : '') + it2('members', '이 지식의 사람', 'users')
   h += '</div>'
   if (left) h += `<div class="lp" data-t="leftPane">${left}</div>`
-  h += '<div class="sb-foot"><div class="nav"><div class="sb-i deco">' + svg('book') + '<span>설명서</span></div></div>'
+  h += '<div class="sb-foot"><div class="nav">' + (!dim && S.me.admin && team ? it('admin', '관리', 'shield') : '') + '<div class="sb-i deco">' + svg('book') + '<span>설명서</span></div></div>'
   h += dim ? '<div class="sb-me"><span class="av">?</span><span class="muted">아직 들어오지 않았다</span></div>' : `<div class="sb-me"><span class="av">${esc(String(S.me.user).slice(0, 1))}</span><span>${esc(S.me.user)} <small>· ${team ? '팀 서버' : '이 PC'}</small></span></div>`
   return h + '</div></aside>'
 }
@@ -288,7 +288,7 @@ function viewHome() {
 }
 
 // ── 아직 없는 화면(뒤 판) ──
-const LATER = { settings: '설정' }
+const LATER = {}
 function viewLater(s) {
   return { crumb: LATER[s] || '지식 목록', main: `<div style="max-width:760px"><div class="big">${esc(LATER[s] || '')}</div><div class="callout gray" data-t="later">이 화면은 다음 판에 열린다 — 지금은 문서로 보기에서 읽는다. <a data-a="view" data-v="docs">문서로 보기 ›</a></div></div>` }
 }
@@ -1533,6 +1533,142 @@ async function pairOk(from) {
   } catch (e) { toast(esc(e.message)) }
 }
 
+// ── 설정(목업 M13) — 일반 · Claude 연결 · 에이전트 설치 ──
+const settingsOf = () => need('settings', '/api/settings')
+const devicesOf = () => need('devices', '/api/me/devices')
+const AUTO_T = {
+  team: [['file', '넣은 파일을 문서로', 'md · docx · pptx · xlsx 는 팀 서버에서 바로'], ['find', '찾기', '딱 맞는 항목이 없으면 비슷한 글에서']],
+  pc: [['save', '편집기에서 고친 것 저장', '30초 조용하면 저절로'], ['file', '넣은 파일을 문서로', 'md · docx · pptx · xlsx 를 넣으면 바로'], ['src', '자동으로 가져오는 곳', '더해 둔 곳에서 때마다 표를 다시 채운다'], ['claude', '자동 정리 — Claude 로', '정해진 시각에 내 Claude 로그인으로'], ['find', '찾기', '딱 맞는 항목이 없으면 비슷한 글에서']],
+}
+function viewSettings() {
+  const team = isTeam(), st = settingsOf(), tab = S.setTab || 'gen'
+  const ST = [['gen', '일반'], ['claude', 'Claude 연결'], ['agent', '에이전트 설치']]
+  const tabs = `<div class="tabs" data-t="setTabs">${ST.map(([v, l]) => `<span class="${tab === v ? 'on' : ''}" data-a="setTab" data-v="${v}" data-t="st-${v}">${l}</span>`).join('')}</div>`
+  if (!st || st.error) return { crumb: '설정', main: `<div style="max-width:980px"><div class="big">설정</div>${tabs}${st ? errHtml(st) : loadingHtml}</div>` }
+  const body = tab === 'claude' ? `<div style="max-width:720px">${claudeCard(st)}</div>` : tab === 'agent' ? `<div style="max-width:760px">${agentCard()}</div>` : `<div class="g2"><div>${setLeft(st)}</div><div>${autoCard(st)}</div></div>`
+  return { crumb: '설정' + (tab === 'gen' ? '' : ' › ' + ST.find((x) => x[0] === tab)[1]), main: `<div style="max-width:980px"><div class="big">설정</div>${tabs}${body}</div>` }
+}
+function autoCard(st) {
+  const A = AUTO_T[isTeam() ? 'team' : 'pc']
+  const all = A.every((a) => st.auto[a[0]])
+  return `<div class="card"><div class="ch">저절로 하는 일 <small>${all ? '모두 켬' : '일부 끔'}</small></div><div class="cb" style="padding:2px 14px">${A.map((a) => `<div class="set" data-t="auto-${a[0]}"><span class="tx"><b>${a[1]}</b><small>${st.auto[a[0]] ? a[2] : '꺼 두었다 — 켜면 다시 한다'}</small></span><button class="sw${st.auto[a[0]] ? ' on' : ''}" data-a="toggleAuto" data-v="${a[0]}" data-t="sw-${a[0]}" aria-label="${a[1]}"></button></div>`).join('')}</div><div class="cf">멈추면 맨 위에 한 줄로 알린다.</div></div>`
+}
+function devCard() {
+  const devs = devicesOf()
+  const rows = !devs ? '<li class="muted">읽는 중…</li>' : devs.error ? '' : devs.map((d) => `<li data-t="devRow" data-name="${esc(d.host || d.id)}"><span style="flex:1"><b>${esc(d.host || '이름 없는 기기')}</b><small class="muted" style="display:block">Claude Code · ${d.used ? '마지막 사용 ' + esc(whenTxt(d.used)) : '이은 때 ' + esc(whenTxt(d.at))}</small></span><button class="kebab" data-a="menu" data-m="dev:${esc(d.id)}" data-t="devKebab">⋯${S.menu === 'dev:' + d.id ? `<div class="menu" style="right:0;top:28px"><div class="mi" data-a="unlinkMyDev" data-id="${esc(d.id)}" data-t="unlinkBtn">끊기<small>그 기기의 Claude Code 는 다시 이어야 한다</small></div></div>` : ''}</button></li>`).join('')
+  return `<div class="card" style="overflow:visible"><div class="ch">내 기기 <small>내 이름으로 ${isTeam() ? '팀 kmd' : '이 kmd'} 를 쓰는 곳</small></div><div class="cb" style="padding:2px 14px"><ul class="plain" data-t="devList">${rows || '<li class="muted">이어진 기기가 없다</li>'}</ul><p class="small muted">90일 안 쓰면 저절로 끊긴다.</p></div></div>`
+}
+function setLeft(st) {
+  const bk = st.backup.n ? `${esc(st.backup.urls.join(' · '))} · 저장할 때마다 저절로${st.backup.n < st.backup.of ? ` · 지식 ${st.backup.of - st.backup.n} 은 아직 없다` : ''}` : '아직 없다 — 관리자가 붙인다'
+  if (isTeam()) return `<div class="card" style="overflow:visible"><div class="ch">이 팀 서버 <small class="mono">${esc(st.host)}</small></div><div class="cb"><div class="kv"><span>들어가기</span><span>아이디 ${esc(S.me.user)} · 비밀번호는 브라우저가 기억한다 <a class="small" data-a="logout" data-t="logout">나가기</a></span><span>내 지식</span><span>${S.pc && S.pc.kns.length ? '내 PC 지식 ' + S.pc.kns.length + ' — 내 PC 프로그램이 연다' : S.kns.some((k) => k.private) ? '받은편지함 · 내 지식 — 이 서버 안 · 나만 쓴다' : '아직 없다 — 지식 추가에서'}</span><span>백업</span><span>${bk}</span><span>판</span><span>kmd v${esc(st.version)}</span></div></div>${S.me.admin ? '<div class="cf"><a class="lk" data-a="nav" data-s="admin">관리 — 문제 · 사람 · 백업 →</a></div>' : ''}</div>` + devCard()
+  const pcBad = S.stops.find((x) => x.kind === 'backup')
+  return `<div class="card"><div class="ch">이 PC</div><div class="cb"><div class="kv"><span>지식 폴더</span><span><span class="mono">${esc(st.root)}</span> — 지식 ${st.kns}</span><span>백업 자리</span><span>${st.backup.n ? `<span class="mono">${esc(st.backup.urls.join(' · '))}</span> ${pcBad ? `<span class="chip c-warn">${esc(pcBad.b)}</span><small>${esc(pcBad.t)}</small>` : '<span class="chip c-acc">잘 된다</span>'}` : '아직 없다'}</span><span>보낼 곳</span><span>${(st.dests || []).map((d) => esc(d.name) + ' → ' + esc(d.to.join(' · '))).join(' · ') || '없다 — 보내기 › 자세히에서'}</span><span>판</span><span>kmd v${esc(st.version)}</span></div></div></div>
+  <div class="card" style="overflow:visible"><div class="ch">이어진 것</div><div class="cb" style="padding:2px 14px"><ul class="plain"><li><span style="flex:1"><b>Claude Code</b><small class="muted" style="display:block">작업 폴더 ${(S.cache.agent && S.cache.agent.folders ? S.cache.agent.folders.length : 0)} <a data-a="setTab" data-v="agent">에이전트 설치 ›</a></small></span></li><li><span style="flex:1"><b>팀 kmd</b><small class="muted" style="display:block">${st.teams && st.teams.length ? esc(st.teams.map((u) => u.replace(/^https?:\/\//, '')).join(' · ')) + ' · 이어짐' : '아직 잇지 않았다 — 팀 화면의 설치 한 줄'}</small></span></li></ul><p class="small muted">밖으로 나가는 것은 보내기 · 백업 · Claude 정리뿐이다.</p></div></div>` + devCard()
+}
+function claudeCard(st) {
+  const c = st.claude, w = c.worker
+  if (!isTeam()) {
+    let row
+    if (S.claudeOpening) row = '<div class="set"><span class="tx"><b data-t="claudeState">로그인하는 중</b><span class="prog" data-t="claudeProg" style="margin-top:4px"><i></i>창이 열렸다 — Claude 에 들어가면 끝</span></span></div>'
+    else if (w && w.ok === false && w.reason === 'login') row = '<div class="set"><span class="tx"><b data-t="claudeState">로그인 안 됨</b><small>정리 · 기록 만들기는 규칙으로 되는 것만 한다</small></span><button class="btn pri" data-a="claudeLogin" data-t="claudeLogin">Claude 로그인</button></div>'
+    else row = `<div class="set"><span class="tx"><b data-t="claudeState">${w && w.ok ? '로그인됨' : '이 PC 의 Claude Code 로그인을 쓴다'}</b><small>이번 달 정리 ${c.month}건 · 기록 만들기 · 정리에 쓴다 · 로그인은 이 PC 의 Claude Code 에</small></span><button class="kebab${S.menu === 'claude' ? ' on' : ''}" data-a="menu" data-m="claude" data-t="claudeKebab" title="다시 로그인 · 쓰지 않기">⋯${S.menu === 'claude' ? '<div class="menu" style="right:0;top:28px"><div class="mi" data-a="claudeLogin" data-t="claudeRelogin">다시 로그인<small>창이 열린다</small></div><div class="mi" data-a="claudeOff" data-t="claudeOff">Claude 쓰지 않기<small>규칙으로 되는 것만</small></div></div>' : ''}</button></div>`
+    return `<div class="card" data-t="claudeCard" style="overflow:visible"><div class="ch">Claude 연결 <small>이 프로그램이 쓰는 Claude Code 로그인</small></div><div class="cb" style="padding:2px 14px">${row}</div><div class="cf">기록 문서를 만들거나 정리할 때 이 PC 의 Claude Code 를 부른다 · 오래 가는 로그인을 쓴다</div></div>`
+  }
+  const rest = w && w.ok === false
+  const days = rest ? Math.max(1, Math.round((Date.now() - Date.parse(w.since)) / 864e5)) : 0
+  const pcLine = S.pc ? `<div class="set"><span class="tx"><b>내 PC 프로그램의 Claude</b><small data-t="claudePcLine">${S.pc.off ? '내 PC 프로그램이 꺼져 있다' : '내 PC 프로그램의 설정에서'}</small></span></div>` : ''
+  return `<div class="card" data-t="claudeCard"><div class="ch">Claude 연결 <small>읽기만</small></div><div class="cb" style="padding:2px 14px"><div class="set"><span class="tx"><b data-t="claudeRead">팀 정리는 정리 전용 로그인으로 돈다 — 쉬면 관리자에게 알린다</b><small>${rest ? `지금 쉬고 있다 · ${days}일 — 관리자에게 알렸다` : c.team && c.team.token ? '지금 돈다 · 로그인해 두는 것은 관리자' : '아직 로그인하지 않았다 — 관리자가 한다'}</small></span></div>${pcLine}</div>${S.me.admin ? '<div class="cf"><a class="lk" data-a="nav" data-s="admin" data-t="toAdmClaude">관리 › Claude 연결 →</a></div>' : ''}</div>`
+}
+const agentOf = () => need('agent', '/api/agent')
+function agBtn() { const ok = /^([A-Za-z]:\\|\/)./.test((S.agDraft || '').trim()); return `<button class="btn pri" data-a="agentAddOk" data-t="agentAddOk"${ok ? '' : ' disabled'}>더하기</button>` }
+function agentCard() {
+  if (!isTeam()) {
+    const A = agentOf()
+    if (!A) return loadingHtml
+    if (A.error) return errHtml(A)
+    const oldN = A.folders.filter((f) => f.state !== 'latest').length
+    const rows = A.folders.map((f) => {
+      const old = f.state !== 'latest', mk = 'ag:' + f.path
+      return `<li data-t="agentRow" data-name="${esc(f.name)}"><span style="flex:1;min-width:0"><b>${esc(f.name)}</b><small class="muted mono" style="display:block">${esc(f.path)}</small></span>${old ? `<span class="chip c-warn" data-t="agentState">${f.state === 'none' ? '없음 — 다시 붙인다' : '옛 판 — 고침 있음'}</span><small class="muted">${esc(f.ver || '')}</small>` : `<span class="chip c-acc" data-t="agentState">최신 · ${esc(A.latest)}</span>`}<button class="kebab${S.menu === mk ? ' on' : ''}" data-a="menu" data-m="${esc(mk)}" data-t="agentKebab" title="최신으로 · 빼기">⋯${S.menu === mk ? `<div class="menu" style="right:0;top:28px">${old ? `<div class="mi" data-a="agentUp" data-v="${esc(f.path)}" data-t="agentUp">최신으로<small>kmd 덩이만 바꾼다</small></div>` : ''}<div class="mi" data-a="agentRm" data-v="${esc(f.path)}" data-t="agentRm">빼기<small>스킬 · 연결 · kmd 덩이를 걷는다</small></div></div>` : ''}</button></li>`
+    }).join('')
+    const add = S.agAdding ? `<div class="paste" style="margin-top:10px"><input class="inp mono" id="agIn" data-in="ag" data-t="agIn" value="${esc(S.agDraft || '')}" placeholder="작업 폴더 경로 — 예: D:\\work\\dpms-batch" autocomplete="off"><span id="agBtnBox">${agBtn()}</span></div>` : '<button class="btn pri" data-a="agentAdd" data-t="agentAddBtn" style="margin-top:10px">폴더 더하기</button>'
+    return `<div class="card" data-t="agentCard" style="overflow:visible"><div class="ch">에이전트 설치 <small>Claude Code 에 kmd 를 붙인다 — 작업 폴더마다</small><span class="r"><button class="kebab${S.menu === 'agAll' ? ' on' : ''}" data-a="menu" data-m="agAll" data-t="agentAllKebab" title="지금 모두 최신으로">⋯${S.menu === 'agAll' ? `<div class="menu" style="right:0;top:28px"><div class="mi" data-a="agentAllNew" data-t="agentAllNew">지금 모두 최신으로<small>${oldN ? '옛 판 ' + oldN : '모두 최신'}</small></div></div>` : ''}</button></span></div><div class="cb" style="padding:2px 14px 12px">${S.agMsg ? `<div class="callout" data-t="agentMsg">${S.agMsg}</div>` : ''}<ul class="plain" data-t="agentList">${rows || '<li class="muted">아직 붙인 폴더가 없다</li>'}</ul>${add}
+   <details class="more" data-t="agentMore"><summary>자세히 — 무엇이 깔리나</summary><div class="in">스킬 둘 — <code>kmd-work</code> · <code>kmd-save</code><br>연결 둘 — 팀 kmd · 이 PC 의 kmd · 열쇠는 이 PC 의 자격 저장소에서 꺼낸다<br>안내 한 덩이 — <code>CLAUDE.md</code> 안 kmd 덩이 · 사람이 고친 줄은 그대로 두고 kmd 덩이만 바꾼다</div></details></div></div>`
+  }
+  const devs = devicesOf()
+  return `<div class="card" data-t="agentCard"><div class="ch">에이전트 설치 <small>Claude Code 에 kmd 를 붙인다</small></div><div class="cb" style="padding:2px 14px 12px"><div class="set"><span class="tx"><b>이 PC 의 Claude Code 로 쓰려면 — 설치 한 줄 복사</b><small>작업 폴더의 터미널에 붙여 넣는다 · 10분 동안 한 번만 · 내 PC 프로그램이 있으면 그 프로그램에 폴더를 더한다</small></span><button class="btn pri" data-a="copyInstall" data-t="copyInstall">설치 한 줄 복사</button></div>
+  <div class="rh">내 기기</div><ul class="plain" data-t="agentDevs">${(devs && !devs.error ? devs : []).map((d) => `<li data-t="agentDev" data-name="${esc(d.host || d.id)}"><span style="flex:1"><b>${esc(d.host || '이름 없는 기기')}</b><small class="muted" style="display:block">Claude Code · ${d.used ? '마지막 사용 ' + esc(whenTxt(d.used)) : '이은 때 ' + esc(whenTxt(d.at))}</small></span></li>`).join('') || '<li class="muted">아직 붙인 기기가 없다</li>'}</ul><p class="small muted">기기의 kmd 스킬은 그 기기의 내 PC 프로그램이 최신으로 맞춘다.</p></div></div>`
+}
+async function agentDo(what, dir) {
+  try {
+    const r = await postJSON('/api/agent/' + what, dir ? { dir } : {})
+    if (what === 'add') { S.agAdding = false; S.agDraft = ''; S.agMsg = r.again ? '<b>이미 붙어 있다 — 최신으로 맞췄다</b>' : `<b>Claude Code 에 kmd 를 붙였다 — 스킬 · 연결 둘 · 안내 한 덩이</b> · ${esc(r.dir)}` }
+    else S.agMsg = what === 'rm' ? '<b>뺐다 — 스킬 · 연결 · kmd 덩이를 걷었다</b>' : `<b>최신으로 — ${r.n}곳</b>`
+  } catch (e) { S.agMsg = `<b>${esc(e.message)}</b>` }
+  S.menu = null
+  delete S.cache.agent
+  render()
+}
+
+// ── 관리(목업 M14) — 문제 줄만 ──
+const overviewOf = () => need('admin', '/api/admin/overview')
+function viewAdmin() {
+  if (!S.me.admin) return { crumb: '관리', main: '<div class="callout gray">관리자만 본다</div>' }
+  const a = overviewOf()
+  if (!a || a.error) return { crumb: '관리', main: `<div style="max-width:780px"><div class="big">관리</div>${a ? errHtml(a) : loadingHtml}</div>` }
+  const rows = []
+  if (a.nopw.length) rows.push(`<li class="hot" data-t="adm-nopw"><span class="dot warn"></span><span class="tx"><b>비밀번호를 안 정한 사람 ${a.nopw.length}</b><small>${esc(a.nopw.join(' · '))} — 처음 들어오기 링크를 한꺼번에 만든다</small></span><a class="lk" data-a="admLinks" data-t="admLinks">링크 만들기</a></li>`)
+  if (S.admLinks) rows.push(`<li data-t="adm-links"><span class="dot"></span><span class="tx"><b>링크를 만들었다 — 사람마다 따로 보낸다(24시간 · 한 번)</b>${S.admLinks.map((l) => `<small class="mono">${esc(l.id)} — ${esc(l.link)}</small>`).join('')}</span><a class="lk" data-a="admCopyLinks">복사</a></li>`)
+  for (const l of a.locked) rows.push(`<li data-t="adm-lock"><span class="dot"></span><span class="tx"><b>${esc(l.user)} · ${l.ip === '*' ? '여러 자리에서' : '다른 자리에서'} 여러 번 틀림 — 잠시 막혔다</b><small>${l.ip === '*' ? '' : esc(l.ip) + ' · '}${esc(hhmmOf(l.until))} 에 저절로 풀린다 · 맞는 사람은 그대로 쓴다</small></span><a class="lk" data-a="admUnlock" data-v="${esc(l.user)}" data-t="admUnlock">풀기</a></li>`)
+  for (const r of a.requests.slice(0, 10)) rows.push(`<li data-t="adm-req"><span class="dot pu"></span><span class="tx"><b>${esc(r.by)}이 ${esc(r.name)}를 더해 달라고 했다</b><small>${esc(whenTxt(r.at))} · → ${esc((KN(r.kn) || {}).name || r.kn)} › ${esc((r.rules[0] && r.rules[0].into && r.rules[0].into.doc) || '')} · ${esc(r.at2)}</small></span><a class="lk" data-a="admAddReq" data-id="${esc(r.id)}" data-t="admAddReq">더하기</a></li>`)
+  if (a.worker && a.worker.ok === false) rows.push(`<li data-t="adm-rest"><span class="dot warn"></span><span class="tx"><b>자동 정리가 쉬고 있다 · ${Math.max(1, Math.round((Date.now() - Date.parse(a.worker.since)) / 864e5))}일</b><small>${a.worker.reason === 'limit' ? '사용 한도에 닿았다' : '정리 전용 Claude 로그인이 끝났다'} — 아래 「Claude 연결」 에서 다시 로그인 · 그동안은 규칙으로 되는 것만 넣는다</small></span></li>`)
+  for (const b of a.backups.filter((x) => x.verdict && x.verdict !== 'ok' && x.verdict !== 'lag')) rows.push(`<li data-t="adm-backup"><span class="dot warn"></span><span class="tx"><b>${esc(b.name)} — 백업과 ${b.verdict === 'behind' ? '백업이 앞섰다' : b.verdict === 'moved' ? '갈라졌다' : '맞지 않는다'}</b><small>어느 쪽이 맞는지 정한다 — 백업이 맞으면 이어 쓰기(지금 것은 가지로 남는다)</small></span><a class="lk" data-a="admAdopt" data-v="${esc(b.name)}">${b.verdict === 'behind' ? '백업에서 받기' : '이 백업 이어 쓰기'}</a></li>`)
+  const now = clock().split(' ').pop()
+  return { crumb: '관리', main: `<div style="max-width:780px"><div class="big">관리</div><p class="lead">문제가 있을 때만 줄이 선다 — 풀리면 저절로 사라진다.</p>
+  <div class="card"><div class="ch">오늘 ${rows.length} <small>${esc(now)}</small></div><ul class="plain pl" data-t="admList">${rows.join('') || '<li class="muted" data-t="admEmpty">오늘은 문제가 없다</li>'}</ul>${a.https ? '' : '<div class="cf">아직 https 가 아니다 — 사내 인증서가 생기면 켤 수 있다</div>'}</div>
+  ${admClaudeCard(a)}
+  <details class="more" data-t="admMore"><summary>잘 도는 것 — 지식 ${a.kns} · 사람 ${a.people.length} · 자동으로 가져오는 곳 ${a.sources.length} · 자세히</summary><div class="in">
+   <div>자동으로 가져오는 곳 — ${a.sources.map((s) => esc(s.name) + ' ' + esc(s.last ? whenTxt(s.last) : '아직')).join(' · ') || '없다'} · <a data-a="nav" data-s="import">자료 가져오기 ›</a></div>
+   <div style="margin-top:4px">자동 정리 — 정리 전용 로그인 ${a.claude.token ? '있음' : '없음'}${a.worker && a.worker.ok === false ? ' · <b style="color:var(--warn)">쉼</b>' : ''}</div>
+   <div style="margin-top:4px">찾기 점검 — ${a.checks.map((c) => `${esc(c.name)} ${c.in}%(${c.n})`).join(' · ') || '아직 재지 않았다'}</div>
+   <div style="margin-top:4px">백업 — ${a.backups.map((b) => esc(b.name) + ' ' + (b.off ? '없음' : esc(b.url))).join(' · ')}</div>
+   <div style="margin-top:4px">사람 — ${esc(a.people.join(' · '))}${a.waiting.length ? ' · (' + esc(a.waiting.join(' · ')) + ' 링크 보냄)' : ''}</div></div></details></div>` }
+}
+const hhmmOf = (iso) => { const d = new Date(iso); return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) }
+function admDoneBtn() { const ok = !!(S.admCode || '').trim(); return `<button class="btn pri" data-a="admDone" data-t="admDone"${ok ? '' : ' disabled'}>마치기</button>` }
+function admClaudeCard(a) {
+  const rest = a.worker && a.worker.ok === false, step = S.admStep
+  let flow = ''
+  if (step === 'pw') flow = `<div class="flow" data-t="admPw"><div class="field"><label for="admPw">비밀번호 한 번 더 — 관리자 확인</label><input class="inp af" type="password" id="admPw" data-t="admPwIn" autocomplete="current-password"><div class="hint">브라우저가 채우면 확인만 누르면 된다</div></div>${S.admErr ? `<div class="callout danger">${esc(S.admErr)}</div>` : ''}<div class="row"><button class="btn pri" data-a="admPwOk" data-t="admPwOk">확인</button><a class="muted" data-a="admFlowCancel">그만두기</a></div></div>`
+  else if (step === 'wait') flow = '<div class="flow"><span class="prog" data-t="admWait"><i></i>팀 서버가 정리용 로그인을 띄우는 중…</span></div>'
+  else if (step === 'code') flow = `<div class="flow" data-t="admCode"><p style="margin:0 0 6px"><b>이 주소를 열어 Claude 에 들어가고 받은 번호를 붙여 넣으세요</b></p><div class="path"><span data-t="admUrl">${esc(S.admUrl)}</span><a class="r lk" data-a="admCopyUrl">복사</a></div><div class="paste" style="margin-top:8px"><input class="inp mono" id="admCodeIn" data-in="admCode" data-t="admCodeIn" value="${esc(S.admCode || '')}" placeholder="받은 번호 붙여 넣기" autocomplete="off"><span id="admDoneBox">${admDoneBtn()}</span></div><p class="hint">한 번용 번호 — 저장하지 않는다${a.https ? '' : ' · 아직 https 가 아니다 — 사내 https 뒤 권장'} · <a data-a="admFlowCancel">그만두기</a></p>${S.admErr ? `<div class="callout danger">${esc(S.admErr)}</div>` : ''}</div>`
+  const state = rest ? `쉬고 있다 · ${Math.max(1, Math.round((Date.now() - Date.parse(a.worker.since)) / 864e5))}일 — 로그인이 끝났다` : a.claude.token ? '로그인됨 · 정리 전용' : '아직 로그인하지 않았다'
+  return `<div class="card" data-t="admClaude"><div class="ch">Claude 연결 <small>정리 전용 로그인 — 팀 서버의 정리 일꾼이 쓴다</small></div><div class="cb" style="padding:2px 14px 10px"><div class="set"><span class="tx"><b data-t="admClaudeState">${state}</b><small>쓰는 곳 — 정해진 정리 · 지금 정리 · 기록 만들기${rest ? ' · 그동안은 규칙으로 되는 것만 넣는다' : ''}</small></span>${step ? '' : `<button class="btn${rest || !a.claude.token ? ' pri' : ''}" data-a="admLoginStart" data-t="admLoginStart">${rest || !a.claude.token ? '로그인 시작' : '다시 로그인'}</button>`}</div>${flow}</div></div>`
+}
+async function admPwOk() {
+  const pw = ($('#admPw') || {}).value || ''
+  try {
+    await postJSON('/api/sudo', { pw: prehash(S.me.user, pw) })
+    S.admErr = null
+    S.admStep = 'wait'
+    render()
+    const r = await postJSON('/api/admin/claude/start', {})
+    S.admUrl = r.url
+    S.admStep = 'code'
+  } catch (e) { S.admErr = e.code === 'E_AUTH' ? '비밀번호를 확인하세요' : e.message; if (S.admStep === 'wait') S.admStep = null }
+  render()
+}
+async function admDone() {
+  try {
+    await postJSON('/api/admin/claude/code', { code: S.admCode })
+    S.admStep = null; S.admCode = ''; S.admErr = null
+    delete S.cache.admin
+    loadStops()
+    toast('로그인됨 — 정리 전용 · 자동 정리가 이어서 한다')
+  } catch (e) { S.admErr = e.message }
+  render()
+}
+
 // ───────────── 이벤트 ─────────────
 function openDocAt(k, d, h, q) {
   openTab({ kind: 'doc', kn: k, ref: d, hl: h || null, q: q || null })
@@ -1541,6 +1677,37 @@ function openDocAt(k, d, h, q) {
   if (!h) scrollTopMain()
 }
 const ACT = {
+  setTab: (el) => { S.setTab = el.dataset.v; S.menu = null; if (S.route.scr !== 'settings') go({ scr: 'settings' }); else render() },
+  toggleAuto: async (el) => { const st = settingsOf(); if (!st) return; try { const r = await postJSON('/api/settings/auto', { key: el.dataset.v, on: !st.auto[el.dataset.v] }); st.auto[r.key] = r.on } catch (e) { toast(esc(e.message)) } render() },
+  unlinkMyDev: async (el) => { S.menu = null; try { await postJSON('/api/me/devices/revoke', { id: el.dataset.id }); toast('끊었다 — 그 기기의 Claude Code 는 다시 이어야 한다') } catch (e) { toast(esc(e.message)) } delete S.cache.devices; render() },
+  claudeLogin: async () => { S.menu = null; try { await postJSON('/api/claude/login', {}); S.claudeOpening = true; setTimeout(() => { S.claudeOpening = false; delete S.cache.settings; render() }, 60000) } catch (e) { toast(esc(e.message)) } render() },
+  claudeOff: async () => { S.menu = null; try { await postJSON('/api/settings/auto', { key: 'claude', on: false }); delete S.cache.settings; toast('Claude 쓰지 않기 — 규칙으로 되는 것만 한다 · 저절로 하는 일에서 다시 켠다') } catch (e) { toast(esc(e.message)) } render() },
+  agentAdd: () => { S.agAdding = true; S._focus = 'agIn'; render() },
+  agentAddOk: () => agentDo('add', (S.agDraft || '').trim()),
+  agentUp: (el) => agentDo('up', el.dataset.v),
+  agentRm: (el) => agentDo('rm', el.dataset.v),
+  agentAllNew: () => agentDo('up'),
+  logout: async () => { await postJSON('/logout', {}).catch(() => {}); try { sessionStorage.removeItem('kmdPair') } catch {} location.href = '/' },
+  admLinks: async () => { const a = overviewOf(); if (!a) return; try { S.admLinks = (await postJSON('/api/admin/links', { users: a.nopw })).links; delete S.cache.admin } catch (e) { toast(e.code === 'E_SUDO' ? '비밀번호를 한 번 더 넣는다 — Claude 연결의 「로그인 시작」 처럼' : esc(e.message)) } render() },
+  admCopyLinks: () => { copyText((S.admLinks || []).map((l) => l.id + ' ' + l.link).join('\n')); toast('복사했다') },
+  admUnlock: async (el) => { try { await postJSON(`/api/admin/users/${encodeURIComponent(el.dataset.v)}/unlock`, {}); delete S.cache.admin; toast('풀었다') } catch (e) { toast(esc(e.message)) } render() },
+  admAddReq: async (el) => {
+    const r = ((overviewOf() || {}).requests || []).find((x) => x.id === el.dataset.id)
+    if (!r) return
+    try { await postJSON(`/api/k/${encodeURIComponent(r.kn)}/sources`, { name: r.name, at: r.at2, kind: r.kind, rules: r.rules }); delete S.cache.admin; delete S.cache.sources; toast('더했다 — ' + esc(r.name)) } catch (e) { toast(esc(e.message), 7000) }
+    render()
+  },
+  admAdopt: async (el) => {
+    const k = S.kns.find((x) => x.name === el.dataset.v)
+    if (!k) return
+    try { const b = (overviewOf() || {}).backups.find((x) => x.name === el.dataset.v); await postJSON(`/api/k/${encodeURIComponent(k.id)}/${b && b.verdict === 'behind' ? 'backup/pull' : 'backup/adopt'}`, {}); delete S.cache.admin; forgetKn(k.id); loadStops(); toast('맞췄다 — ' + esc(k.name)) } catch (e) { toast(esc(e.message), 7000) }
+    render()
+  },
+  admLoginStart: () => { S.admStep = 'pw'; S.admErr = null; S._focus = 'admPw'; render() },
+  admPwOk: () => admPwOk(),
+  admFlowCancel: () => { if (S.admStep === 'code') postJSON('/api/admin/claude/cancel', {}).catch(() => {}); S.admStep = null; S.admErr = null; S.admCode = ''; render() },
+  admCopyUrl: () => { copyText(S.admUrl || ''); toast('복사했다') },
+  admDone: () => admDone(),
   fetchSrc: (el) => fetchSrc(el.dataset.id),
   fetchAll: async () => { for (const s of (sourcesOf() || {}).items || []) await fetchSrc(s.kn + '|' + s.name) },
   setEvery: async (el, ev) => {
@@ -1679,6 +1846,8 @@ document.addEventListener('input', (ev) => {
   if (k === 'cmd') { S.cmd.q = t.value; S.cmd.sel = 0; $('#cmdBody').innerHTML = cmdBody() }
   if (k === 'itemQ') { S.iq = t.value; $('#itemListBody').innerHTML = itemListBody(S.route.kn) }
   if (k === 'gQ') { S.g.f.q = t.value; gHighlight() }
+  if (k === 'ag') { S.agDraft = t.value; $('#agBtnBox').innerHTML = agBtn() }
+  if (k === 'admCode') { S.admCode = t.value; $('#admDoneBox').innerHTML = admDoneBtn() }
   if (k === 'src') { S.srcDraft = t.value; const h = srcHeard(); $('#srcHeardBox').innerHTML = h.heard; $('#srcBtnBox').innerHTML = h.btn }
   if (k === 'add') { S.addDraft = t.value; const h = addHeard(); $('#addHeardBox').innerHTML = h.heard; $('#addBtnBox').innerHTML = h.btn; const m = $('[data-t=addMsg]'); if (m) { S.addMsg = null; m.remove() } }
 })

@@ -17,7 +17,7 @@ import { VERSION } from '../version.js'
 import { isReservedUser } from '../../core/names.js'
 import { makeAuth } from '../../core/auth.js'
 import { put as kput, get as kget, keyName } from '../../core/keystore.js'
-import { setSecret, listSecrets } from '../../core/secrets.js'
+import { setSecret, listSecrets, getSecret } from '../../core/secrets.js'
 import { prehash } from '../../app/prehash.js'
 
 import { addMcp } from '../../core/claudecfg.js'
@@ -317,6 +317,8 @@ async function workerCmd(o) {
     const url = new URL(sub || '').origin
     const key = o.key || process.env.KMD_WORKER_KEY || (await kget('worker:' + url))
     if (!key) throw new Error('정리 일꾼 열쇠가 없다 — kmd worker key set <팀 주소>')
+    // 팀 서버의 정리 일꾼 — 관리 › Claude 연결에서 받은 정리 전용 로그인(비밀 claude-token)을 이 프로세스에만
+    if (o.data) { const t = await getSecret(path.resolve(o.data), 'claude-token').catch(() => null); if (t) process.env.CLAUDE_CODE_OAUTH_TOKEN = t }
     const { runWorker } = await import('../../core/worker.js')
     runWorker({ server: url, key, poll: o.poll ? Number(o.poll) : 10_000 })
     console.log(`kmd worker — ${url} 의 정리 일감을 기다린다`)
