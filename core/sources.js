@@ -23,6 +23,7 @@ import { RULES, splitBlocks, putBlock, tableMd, sameTable, sameRows, probe, pars
 import { getSecret, setSecret } from './secrets.js'
 import { KmdError } from './errors.js'
 import { stopLine, ageText } from './stopline.js'
+import { readLedger, writeLedger, scanFolder, scanGit, changeCount } from './watch.js'
 
 export const DECL = '_sources.json'
 const MAX_FILE = 1 << 20
@@ -177,12 +178,14 @@ export async function readSource(src, ctx) {
 
 // ── 항목 → 블록 → 저장 계획 ──
 // rules[{ rule, into: { doc, heading? } }] — heading 이 있으면 그 항목 하나에(의존성 판), 없으면 항목마다 머리 = 항목 이름
+const DEFAULT_HEAD = { deps: '라이브러리 버전' }
 function targetsOf(src, items) {
   const out = []
   for (const r of src.rules) {
     const its = items[r.rule] || []
     for (const it of its) {
-      const heading = r.into.heading || it.key
+      // 머리 — 정한 것 · 항목 이름(표 파일마다) · 한 표만 내는 규칙은 그 규칙 이름(라이브러리 버전)
+      const heading = r.into.heading || it.key || DEFAULT_HEAD[r.rule]
       if (!heading) continue
       out.push({ rule: r.rule, doc: it.doc || r.into.doc, heading: nfc(String(heading)), table: tableMd(it.cols, it.rows) })
     }
@@ -226,34 +229,122 @@ export async function planRun(k, src, items, { asof, first = false, prev = [] })
   return { changed, added, vanished: vanished.length, items: [...now], brake, total: targets.length }
 }
 
-// 한 번 돌기 — { state: 'same' | 'changed' | 'stopped' | 'failed', n }
-export async function runSource(k, src, { dataDir, save, first = false, force = false }) {
+// ── 바뀐 것만 — 규칙마다 파일 단위 캐시(지문 장부의 out) ──
+//   deps    — 꾸러미 파일(package.json · go.mod · pom.xml · build.gradle · pyproject.toml)마다 줄 · 모아서 한 표
+//   tables  — 사람이 고른 파일 · 폴더(rule.paths) 안의 csv · tsv · json 마다 표 하나
+//   files   — 예전 규칙(새로는 더하지 않는다) — 바뀐 코드 파일이 있으면 그 규칙만 다시
+const MANIFEST = /(^|\/)(package\.json|go\.mod|pom\.xml|build\.gradle(\.kts)?|pyproject\.toml)$/
+const CODE = /\.(js|mjs|ts|tsx|jsx|java|py|go|kt|cs|sql|xml)$/i
+const underPaths = (p, paths) => !paths?.length || paths.some((x) => { const q = String(x).replace(/\\/g, '/').replace(/^\.?\/+|\/+$/g, ''); return !q || p === q || p.startsWith(q + '/') })
+const wants = {
+  deps: () => (p) => MANIFEST.test(p),
+  tables: (r) => (p) => /\.(csv|tsv|json)$/i.test(p) && underPaths(p, r.paths),
+  files: () => (p) => CODE.test(p),
+}
+export function wantOf(src) {
+  const fs2 = src.rules.map((r) => (wants[r.rule] ? wants[r.rule](r) : () => false))
+  return (p) => fs2.some((f) => f(p))
+}
+async function rulesOut(src, scan, cache, { all }) {
+  const touched = new Set([...scan.changes.added, ...scan.changes.changed])
+  const items = {}
+  const next = {}
+  for (const r of src.rules) {
+    const want = wants[r.rule] ? wants[r.rule](r) : () => false
+    const paths = Object.keys(scan.files).filter(want).sort()
+    if (r.rule === 'files') {
+      const hit = all || !cache.files || paths.some((p) => touched.has(p)) || scan.changes.removed.some(want)
+      next.files = hit ? RULES.files(await Promise.all(paths.map(async (p) => ({ path: p, text: await scan.read(p) })))) : cache.files
+      items.files = next.files
+      continue
+    }
+    if (!RULES[r.rule]) continue
+    const c = all ? {} : { ...(cache[r.rule] || {}) }
+    for (const p of paths) if (all || touched.has(p) || !(p in c)) c[p] = RULES[r.rule]([{ path: p, text: await scan.read(p) }])
+    for (const p of Object.keys(c)) if (!paths.includes(p)) delete c[p]
+    next[r.rule] = c
+    if (r.rule === 'deps') {
+      const m = new Map()
+      for (const p of Object.keys(c).sort()) for (const it of c[p]) for (const row of it.rows) m.set(row[0], row)
+      const rows = [...m.values()].sort((a, b) => a[0].localeCompare(b[0]))
+      items.deps = rows.length ? [{ key: null, cols: ['꾸러미', '판'], rows }] : []
+    } else items[r.rule] = Object.keys(c).sort().flatMap((p) => c[p]).sort((a, b) => String(a.key).localeCompare(String(b.key)))
+  }
+  return { items, cache: next }
+}
+
+// git 받아 오기 — bare 사본 · 새 커밋 · 그 시각
+async function gitFetch(src, { dataDir, kn }) {
+  const bare = path.join(dataDir, 'sources', encodeURIComponent(kn), `${crypto.createHash('sha1').update(src.name).digest('hex').slice(0, 12)}.git`)
+  if (!existsSync(bare)) {
+    await fs.mkdir(bare, { recursive: true })
+    await tryGit(bare, ['init', '-q', '--bare'])
+  }
+  const local = src.folder != null
+  const remote = local ? src.folder : src.at
+  const cred = await getSecret(dataDir, secretName(kn, src.name))
+  const env = cred ? { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.extraHeader', GIT_CONFIG_VALUE_0: `Authorization: Basic ${Buffer.from(cred).toString('base64')}` } : {}
+  const guard = ['-c', 'protocol.allow=never', '-c', 'protocol.https.allow=always', '-c', 'protocol.ssh.allow=always', '-c', `protocol.file.allow=${local ? 'always' : 'never'}`, '-c', 'fetch.recurseSubmodules=false']
+  const f = await tryGit(bare, [...guard, 'fetch', '-q', '--depth=1', remote, '+HEAD:refs/heads/kmd-src'], { timeout: 120_000, env })
+  if (!f.ok) throw new KmdError('E_SOURCE', f.timedOut ? '원천이 답하지 않는다' : /auth|denied|403|401/i.test(f.err) ? '원천 자격이 맞지 않는다' : '원천에 닿지 않는다')
+  const commit = (await tryGit(bare, ['rev-parse', 'refs/heads/kmd-src'])).out.trim()
+  const asof = (await tryGit(bare, ['log', '-1', '--format=%ci', commit])).out.trim().slice(0, 16)
+  return { bare, commit, asof }
+}
+
+// 한 번 돌기 — { state: 'same' | 'changed' | 'stopped' | 'failed', n, files }
+//   full — 전체 다시 맞추기(pass 로 이어하기 · onProgress) · force — 브레이크를 넘어 그대로 반영
+export async function runSource(k, src, { dataDir, save, first = false, force = false, full = false, pass = null, onProgress = null }) {
   const st = await readState(dataDir, k.id)
   const s0 = (st[src.name] ||= {})
   const now = new Date().toISOString()
   try {
-    const r = await readSource(src, { dataDir, kn: k.id })
-    if (!force && !first && s0.sig === r.sig && !s0.stopped) {
+    const L = await readLedger(dataDir, k.id, src.name)
+    const want = wantOf(src)
+    const ruleSig = JSON.stringify(src.rules)
+    let scan
+    let commit = null
+    let asof
+    if (src.kind === 'folder') {
+      scan = await scanFolder(src.folder || src.at, L, { want, maxFile: MAX_FILE, maxFiles: MAX_FILES, full, pass, onProgress, save: (x) => writeLedger(dataDir, k.id, src.name, x) })
+      asof = scan.newest ? localStamp(new Date(scan.newest)) : localStamp()
+    } else if (src.kind === 'git') {
+      const g = await gitFetch(src, { dataDir, kn: k.id })
+      commit = g.commit
+      asof = g.asof
+      scan = await scanGit(g.bare, L, commit, { want, maxFile: MAX_FILE, maxFiles: MAX_FILES, full, onProgress })
+      scan.bare = g.bare
+    } else throw new KmdError('E_INPUT', '모르는 원천 종류')
+    const n = changeCount(scan.changes)
+    const all = first || full || L.rules !== ruleSig || !L.out
+    if (!force && !all && n === 0 && !s0.stopped) {
+      await writeLedger(dataDir, k.id, src.name, { ...L, files: scan.files, ...(commit ? { commit } : {}) })
       Object.assign(s0, { checkedAt: now, failures: 0, failingSince: null, lastNote: '그대로' })
       await writeState(dataDir, k.id, st)
-      return { state: 'same', n: 0 }
+      return { state: 'same', n: 0, files: 0 }
     }
-    const files = await r.read()
-    const items = Object.fromEntries(src.rules.map((x) => [x.rule, RULES[x.rule] ? RULES[x.rule](files) : []]))
-    const plan = await planRun(k, src, items, { asof: r.asof, first, prev: s0.items || [] })
+    const out = await rulesOut(src, scan, L.out || {}, { all })
+    const plan = await planRun(k, src, out.items, { asof, first, prev: s0.items || [] })
     if (plan.brake && !force) {
+      // 장부는 그대로 둔다 — 다음 확인이 같은 바뀐 것을 다시 본다
       s0.stopped = { at: now, added: plan.added, vanished: plan.vanished, of: (s0.items || []).length }
       s0.lastNote = '멈춤'
       await writeState(dataDir, k.id, st)
-      return { state: 'stopped', n: 0, ...s0.stopped }
+      return { state: 'stopped', n: 0, files: n, ...s0.stopped }
     }
     for (let i = 0; i < plan.changed.length; i += 200) {
       const part = plan.changed.slice(i, i + 200)
-      await save({ record: { title: `가져옴 — ${src.name} · 바뀐 표 ${part.length}`, body: part.map((c) => `- ${c.doc.replace(/^docs\/|\.md$/g, '')} › ${c.heading}`).join('\n'), tags: ['sources'] }, sections: part.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) })
+      await save({ record: { title: `가져옴 — ${src.name} · 바뀐 표 ${part.length}`, body: [`바뀐 파일 ${n} — ${[...scan.changes.added, ...scan.changes.changed, ...scan.changes.removed].slice(0, 20).join(' · ')}${n > 20 ? ' …' : ''}`, '', ...part.map((c) => `- ${c.doc.replace(/^docs\/|\.md$/g, '')} › ${c.heading}`)].join('\n'), tags: ['sources'] }, sections: part.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) })
     }
-    Object.assign(s0, { sig: r.sig, asof: r.asof, checkedAt: now, items: plan.items, failures: 0, failingSince: null, stopped: null, lastNote: plan.changed.length ? `바뀐 표 ${plan.changed.length}` : '그대로' })
+    await writeLedger(dataDir, k.id, src.name, { v: 1, files: scan.files, out: out.cache, rules: ruleSig, ...(commit ? { commit } : {}) })
+    if (commit) await tryGit(scan.bare, ['update-ref', 'refs/heads/kmd-seen', commit]) // 다음 차이의 기준 — 받아 오기에 지워지지 않게
+    // 전체 다시 맞추기는 모든 파일을 다시 읽어 「고침」 으로 세므로 바뀐 파일 수로 알리지 않는다 — 실제로 다른 표만 말한다
+    const real = full ? 0 : n
+    const lastChange = real || plan.changed.length ? { at: now, files: real, tables: plan.changed.length, added: full ? 0 : scan.changes.added.length, changed: full ? 0 : scan.changes.changed.length, removed: scan.changes.removed.length } : s0.lastChange
+    const note = full ? (plan.changed.length ? `다시 맞춤 — 바뀐 표 ${plan.changed.length}` : '다시 맞춤 — 그대로') : plan.changed.length ? `바뀐 표 ${plan.changed.length}` : n ? `바뀐 파일 ${n} · 표는 그대로` : '그대로'
+    Object.assign(s0, { sig: commit || null, asof, checkedAt: now, items: plan.items, failures: 0, failingSince: null, stopped: null, lastChange, lastNote: note })
     await writeState(dataDir, k.id, st)
-    return { state: plan.changed.length ? 'changed' : 'same', n: plan.changed.length }
+    return { state: plan.changed.length ? 'changed' : 'same', n: plan.changed.length, files: n }
   } catch (e) {
     s0.failures = (s0.failures || 0) + 1
     s0.failingSince ||= now
@@ -280,4 +371,4 @@ export function sourceLines(k, decl, st, { now = Date.now(), admin = false } = {
   return out
 }
 
-export { probe, writeDecl, stateFile }
+export { probe, writeDecl, stateFile, writeState }

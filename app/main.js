@@ -84,6 +84,7 @@ function go(r) {
   const prevKn = S.route.kn
   S.route = Object.assign({ scr: 'home', kn: S.route.kn }, r)
   S.menu = null
+  if (S.route.scr === 'import') delete S.cache.sources // 감시가 뒤에서 바꾼 것 — 열 때마다 새로
   if (S.route.kn && S.route.kn !== '*') S.lastKn = S.route.kn
   if (r.kn && r.kn !== '*' && r.kn !== prevKn) {
     const t = activeTab()
@@ -1216,10 +1217,10 @@ const sourcesOf = () => need('sources', '/api/sources')
 // 나가는 자격(git 토큰 · DB 비밀번호)은 이 PC 화면만 받는다 — 팀 화면은 받지 않고 셸 한 줄과 「있음」 만(v0.6 정정 ③).
 const SF_TYPES = [['folder', '코드 폴더'], ['git', 'git 저장소'], ['db', 'DB']]
 const SF_RULES = {
-  code: [['deps', '꾸러미 판', 'package.json · pom.xml · build.gradle · go.mod · pyproject.toml 의 꾸러미와 판'], ['tables', '표 파일', 'csv · tsv · 객체 목록 json — 파일마다 표 하나'], ['files', '파일 목록', '같은 종류 코드 파일이 5개 넘는 폴더 — 파일과 첫 설명 줄']],
+  code: [['deps', '라이브러리 버전', 'package.json · pom.xml · build.gradle · go.mod · pyproject.toml 의 라이브러리와 버전 — 그 파일이 바뀔 때만 다시'], ['tables', '표 파일', '고른 파일 · 폴더 안의 csv · tsv · 객체 목록 json — 파일마다 표 하나 · 바뀐 파일의 표만 다시']],
   db: [['dbtables', '테이블 정의', '테이블마다 컬럼 · 형 · 길이 · 키 표']],
 }
-const SF_DOC = { deps: '꾸러미 판', tables: '표', files: '파일 목록', dbtables: '테이블 정의' }
+const SF_DOC = { deps: '라이브러리', tables: '코드표', dbtables: '테이블 정의' }
 function sfState() {
   if (!S.sf) {
     const k = S.route.kn && S.route.kn !== '*' && KN(S.route.kn) && !KN(S.route.kn).pc ? S.route.kn : (S.kns.find((x) => !x.pc) || {}).id
@@ -1241,11 +1242,18 @@ function srcRow(s, can) {
   const ev = String(s.every || 'hourly'), at = ev.startsWith('daily ') ? ev.slice(6) : '06:00'
   const mi = (val, l, sm) => `<div class="mi${ev.split(' ')[0] === val ? ' on' : ''}" data-a="setEvery" data-id="${esc(id)}" data-v="${val}">${ev.split(' ')[0] === val ? '✓ ' : ''}${l}${sm || ''}</div>`
   const menu = S.menu === 'every:' + id ? `<div class="menu" style="right:0;top:26px" data-t="everyMenu">${mi('hourly', '1시간마다')}${mi('daily', `매일 <input type="time" id="evAt" data-t="evAt" value="${esc(at)}" data-stop="1">`)}${mi('weekly', '매주 월')}${mi('change', '바뀔 때만', '<small>코드가 바뀌면 바로</small>')}<div class="sep"></div><div class="gray">한꺼번에 크게 바뀌면 쓰지 않고 멈춘다 — 「지금 가져오기」 는 언제든</div></div>` : ''
-  const cred = s.kind === 'git' || s.kind === 'db' ? (s.secret && s.secret.has ? ' · 자격 있음' : s.kind === 'db' || isTeam() ? '' : '') : ''
+  const cred = (s.kind === 'git' || s.kind === 'db') && s.secret && s.secret.has ? ' · 자격 있음' : ''
   const sub = `${KIND_T[s.kind] || s.kind} · ${String(s.since || '').slice(5)} 부터${s.by && s.by !== S.me.user ? ' · ' + s.by : ''}${cred}`
   const need = (s.kind === 'db' || s.kind === 'git') && s.secret && !s.secret.has && isTeam() ? `<small class="mono" data-t="credLine">자격이 필요하면 서버에서 — kmd secret set ${esc(s.secret.name)}</small>` : ''
   const into = (s.rules && s.rules[0] && s.rules[0].into && s.rules[0].into.doc) || ''
-  return `<tr data-t="srcRow" data-name="${esc(s.name)}"><td><b>${esc(s.name)}</b><small>${esc(sub)}</small>${need}</td><td>${esc(s.knName)} › ${esc(into)}</td><td><span class="ev" data-t="every">${everyTxt(ev)}${can ? `<button class="kebab" data-a="menu" data-m="every:${esc(id)}" data-t="everyKebab" title="언제 바꾸기">⋯</button>` : ''}${menu}</span></td><td data-t="last">${st.checkedAt ? esc(whenTxt(st.checkedAt)) : '—'}<small>${esc(st.lastNote || '')}</small></td><td data-t="next">${s.kind === 'db' ? '—' : esc(nextTxt(ev, st.checkedAt))}</td><td class="go2">${runH} ${run === 'run' || s.kind === 'db' ? '' : `<a class="lk" data-a="fetchSrc" data-id="${esc(id)}" data-t="fetchBtn">지금 가져오기</a>`}</td></tr>`
+  // 감시 — 실시간(폴더 · 바뀌면 조용해진 뒤 그곳만) · 정한 때마다(git) · 마지막 변화는 바뀐 파일 · 표 수로
+  const live = s.watch === 'live'
+  const lc = st.lastChange
+  const change = lc ? `바뀐 파일 ${lc.files}${lc.removed ? '(지움 ' + lc.removed + ')' : ''} · 표 ${lc.tables} · ${whenTxt(lc.at)}` : ''
+  const rs = s.resync
+  const rsH = rs && rs.state === 'running' ? `<span class="st2 run" data-t="resyncRun">다시 맞추는 중 ${rs.done || 0} / ${rs.total || '…'}</span>` : rs && rs.state === 'paused' ? '<span class="st2 run" data-t="resyncPaused">다시 맞추기가 끊겼다 — 이어서 한다</span>' : rs && rs.state === 'done' && S.srcRun[id + '|rs'] ? `<span class="st2 ok" data-t="resyncDone">다시 맞췄다 — ${rs.result && rs.result.n ? '바뀐 표 ' + rs.result.n : '다른 것 없음'}</span>` : ''
+  const acts = s.kind === 'db' ? '' : `${run === 'run' ? '' : `<a class="lk" data-a="fetchSrc" data-id="${esc(id)}" data-t="fetchBtn">지금 가져오기</a>`}${can && !(rs && rs.state === 'running') ? `<a class="lk" data-a="resyncSrc" data-id="${esc(id)}" data-t="resyncBtn" style="margin-left:10px" title="모든 파일을 다시 읽어 맞춘다 — 오래 걸릴 수 있다 · 쓰는 것은 다른 것뿐">전체 다시 맞추기</a>` : ''}`
+  return `<tr data-t="srcRow" data-name="${esc(s.name)}"><td><b>${esc(s.name)}</b><small>${esc(sub)}</small>${need}</td><td>${esc(s.knName)} › ${esc(into)}</td><td><span class="ev" data-t="every">${live ? '<b data-t="live">실시간</b>' : everyTxt(ev)}${can ? `<button class="kebab" data-a="menu" data-m="every:${esc(id)}" data-t="everyKebab" title="언제 바꾸기">⋯</button>` : ''}${menu}</span>${live ? `<small>바뀌면 바로 · 그 밖에 ${esc(everyTxt(ev))}</small>` : ''}</td><td data-t="last">${st.checkedAt ? esc(whenTxt(st.checkedAt)) : '—'}<small>${esc(st.lastNote || '')}</small>${change ? `<small data-t="lastChange">${esc(change)}</small>` : ''}</td><td data-t="next">${s.kind === 'db' ? '—' : live ? '바뀌면' : esc(nextTxt(ev, st.checkedAt))}</td><td class="go2">${runH}${rsH} ${acts}</td></tr>`
 }
 const fld = (label, f, v, ph, opt = {}) => `<div class="field" style="margin:0"><label for="sf-${f}">${label}${opt.need ? '' : ' <span class="muted">(선택)</span>'}</label><input class="inp${opt.mono ? ' mono' : ''}" id="sf-${f}" data-in="sf" data-f="${f}" value="${esc(v || '')}" placeholder="${esc(ph || '')}" autocomplete="${opt.pw ? 'new-password' : 'off'}"${opt.pw ? ' type="password"' : ''} style="width:100%"></div>`
 function sfForm(can) {
@@ -1261,6 +1269,7 @@ function sfForm(can) {
   const sel = (f2, opts, v) => `<select class="inp" id="sf-${f2}" data-sf="${f2}" style="width:100%">${opts.map(([val, l]) => `<option value="${esc(val)}"${val === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`
   const what = `<div class="field" style="margin:0"><label for="sf-rule">무엇을 채우나</label>${sel('rule', rules.map((r) => [r[0], r[1]]), f.rule)}<div class="hint">${esc(rules.find((r) => r[0] === f.rule)[2])}</div></div>`
   const into = `<div class="field" style="margin:0"><label for="sf-kn">넣을 지식 › 문서</label><div style="display:flex;gap:6px">${sel('kn', kns.map((k) => [k.id, k.name]), f.kn)}<input class="inp" id="sf-doc" data-in="sf" data-f="doc" value="${esc(f.doc || '')}" placeholder="${esc(SF_DOC[f.rule])}" style="width:45%"></div><div class="hint">문서가 없으면 새로 선다 · 표는 그 문서 안 「저절로 채우는 표」 상자로</div></div>`
+  const paths = f.rule === 'tables' ? `<div style="grid-column:1/-1">${fld('표로 만들 파일 · 폴더 — 그 안의 경로 · 쉼표로 여럿', 'paths', f.paths, '예: data/ · codes/상태코드.csv', { need: 1, mono: 1 })}</div>` : ''
   const when = `<div class="field" style="margin:0"><label for="sf-every">언제</label>${sel('every', [['hourly', '1시간마다'], ['daily 06:00', '매일 06:00'], ['weekly', '매주 월'], ['change', '바뀔 때만 — 5분마다 보고 바뀐 것만']], f.every)}</div>`
   const nm = fld('이름', 'name', f.name, sfAutoName(f) || '예: dpms-api 코드')
   const dbNote = f.type === 'db' ? '<div class="callout gray" data-t="dbNote" style="margin:12px 0 0"><i></i><span><b>DB 에서 표 채우기는 아직 열리지 않았다</b> — 지금은 연결 정보만 저장하고 [연결 확인] 으로 닿는지만 본다 · 읽기 전용 계정 확인과 테이블 정의 채우기는 다음 판에</span></div>' : ''
@@ -1269,7 +1278,7 @@ function sfForm(can) {
   const go = can ? '<button class="btn pri" data-a="sfAdd" data-t="sfAdd" style="width:auto">더하기</button>' : '<button class="btn pri" data-a="sfAsk" data-t="sfAsk" style="width:auto">관리자에게 부탁</button>'
   return `<div class="card" data-t="sfCard"><div class="ch">가져올 곳 더하기 <small>유형을 고르고 칸을 채운다</small></div>
    <div class="cb"><div class="tabs" data-t="sfTabs" style="margin:0 0 14px">${SF_TYPES.map(([v, l]) => `<span class="${f.type === v ? 'on' : ''}" data-a="sfType" data-v="${v}" data-t="sf-${v}">${l}</span>`).join('')}</div>
-   ${grid(where)}<div style="border-top:1px solid var(--border);margin:14px 0"></div>${grid(what + into + when + nm)}${dbNote}${res}</div>
+   ${grid(where)}<div style="border-top:1px solid var(--border);margin:14px 0"></div>${grid(what + into + paths + when + nm)}${dbNote}${res}</div>
    <div class="cf" style="display:flex;gap:8px;align-items:center"><span class="muted small">${can ? '더하면 바로 한 번 가져온다' : '관리자 화면에 「더해 달라」 한 줄로 간다'}</span><span style="margin-left:auto;display:flex;gap:8px">${probe}${go}</span></div></div>`
 }
 function sfAutoName(f) {
@@ -1300,6 +1309,25 @@ function viewImport() {
   ${sfForm(can)}</div>`
   return { crumb: '자료 가져오기', main }
 }
+// 전체 다시 맞추기 — 뒤에서 돈다 · 도는 동안 1초마다 진행을 다시 받는다
+async function resyncSrc(id) {
+  const [kn, name] = id.split('|')
+  try {
+    await postJSON(`/api/k/${encodeURIComponent(kn)}/sources/resync`, { name })
+    S.srcRun[id + '|rs'] = true
+    toast('전체 다시 맞추기를 시작했다 — 모든 파일을 다시 읽는다 · 쓰는 것은 다른 것뿐')
+  } catch (e) { toast(esc(e.message)); return }
+  const tick = async () => {
+    delete S.cache.sources
+    const v = await getJSON('/api/sources').catch(() => null)
+    if (v) S.cache.sources = v
+    if (S.route.scr === 'import') render()
+    const row = v && v.items.find((x) => x.kn === kn && x.name === name)
+    if (row && row.resync && row.resync.state === 'running') setTimeout(tick, 1000)
+    else { forgetKn(kn); loadStops() }
+  }
+  setTimeout(tick, 300)
+}
 async function fetchSrc(id) {
   const [kn, name] = id.split('|')
   S.srcRun[id] = 'run'
@@ -1321,7 +1349,8 @@ function sfCard() {
   else miss(f.at, f.type === 'git' ? 'git 주소' : '코드 폴더 경로')
   if (!f.kn) throw new Error('넣을 지식이 없다 — 지식 추가에서 먼저 세운다')
   const name = String(f.name || '').trim() || sfAutoName(f)
-  const card = { name, kind: f.type, every: f.every, rules: [{ rule: f.rule, into: { doc: String(f.doc || '').trim() || SF_DOC[f.rule] } }] }
+  if (f.rule === 'tables' && !String(f.paths || '').trim()) throw new Error('표로 만들 파일 · 폴더 칸을 채운다')
+  const card = { name, kind: f.type, every: f.every, rules: [{ rule: f.rule, ...(f.rule === 'tables' ? { paths: String(f.paths).split(/[,\n]/).map((x) => x.trim()).filter(Boolean) } : {}), into: { doc: String(f.doc || '').trim() || SF_DOC[f.rule] } }] }
   if (f.type === 'db') card.db = { engine: 'postgres', host: f.host.trim(), port: Number(f.port) || 5432, database: f.database.trim(), schema: (f.schema || 'public').trim(), user: f.user.trim(), ...(isTeam() || !f.password ? {} : { password: f.password }) }
   else card.at = f.at.trim()
   if (f.type === 'git' && !isTeam() && (f.gitUser || f.gitToken)) card.cred = { user: f.gitUser || '', token: f.gitToken || '' }
@@ -1854,6 +1883,7 @@ const ACT = {
   admCopyUrl: () => { copyText(S.admUrl || ''); toast('복사했다') },
   admDone: () => admDone(),
   fetchSrc: (el) => fetchSrc(el.dataset.id),
+  resyncSrc: (el) => resyncSrc(el.dataset.id),
   fetchAll: async () => { for (const s of (sourcesOf() || {}).items || []) await fetchSrc(s.kn + '|' + s.name) },
   setEvery: async (el, ev) => {
     if (ev.target.closest('[data-stop]')) return
@@ -2050,6 +2080,13 @@ document.addEventListener('keydown', (ev) => {
 
 // 아래 줄 시계 — 분마다
 setInterval(() => { const c = $('[data-t=clock]'); if (c && S.me) c.textContent = `kmd v${S.me.version} · ${clock()}` }, 30000)
+// 자료 가져오기를 보는 동안 — 감시가 뒤에서 바꾼 줄을 20초마다 조용히 다시(칸에 쓰는 중 · 메뉴 · 창이 열려 있으면 그다음에)
+setInterval(async () => {
+  if (!S.me || anon() || S.route.scr !== 'import' || S.menu || S.del || S.pal || S.qo || S.cmd) return
+  if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return
+  const v = await getJSON('/api/sources').catch(() => null)
+  if (v && JSON.stringify(v) !== JSON.stringify(S.cache.sources)) { S.cache.sources = v; render() }
+}, 20000)
 
 // 들어온 사람의 자료 — 목록 · 멈춤 줄
 let stopTimer = null

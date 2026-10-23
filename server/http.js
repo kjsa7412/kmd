@@ -308,7 +308,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       return out(200, await hub.addKnowledge(ctx, await readBody(req)))
     }
-    const sm = p.match(/^\/api\/k\/([^/]+)\/sources(?:\/(probe|run|request|every|checkdb))?$/)
+    const sm = p.match(/^\/api\/k\/([^/]+)\/sources(?:\/(probe|run|request|every|checkdb|resync))?$/)
     if (sm) {
       const id = decodeURIComponent(sm[1])
       if (req.method === 'GET' && !sm[2]) return out(200, await hub.sources(ctx, id))
@@ -316,6 +316,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const b = await readBody(req)
       if (sm[2] === 'every') return out(200, await hub.sourceEvery(ctx, id, b))
       if (sm[2] === 'checkdb') return out(200, await hub.sourceCheckDb(ctx, id, b))
+      if (sm[2] === 'resync') return out(200, await hub.sourceResync(ctx, id, String(b.name || '')))
       if (sm[2] === 'probe') {
         if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 관리자가 더한다')
         return out(200, await hub.sourceProbe(ctx, id, b))

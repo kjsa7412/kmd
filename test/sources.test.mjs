@@ -43,7 +43,7 @@ after(async () => {
 test('잇기 — 첫 배치 · 옛 표가 같으면 블록으로 · 같은 원천 두 번 → 묶음 0 · 바뀐 판 → 묶음 1', async () => {
   const pr = await s.hub.sourceProbe(ADMIN, 'dpms', { at: src })
   assert.deepEqual(pr.rules.map((r) => r.rule).sort(), ['deps', 'tables'])
-  const r = await s.hub.sourceAdd(ADMIN, 'dpms', { name: 'dpms-api 코드', at: src, rules: [{ rule: 'deps', into: { doc: '배포절차', heading: '꾸러미 판' } }, { rule: 'tables', into: { doc: '코드표' } }] })
+  const r = await s.hub.sourceAdd(ADMIN, 'dpms', { name: 'dpms-api 코드', at: src, rules: [{ rule: 'deps', into: { doc: '배포절차', heading: '꾸러미 판' } }, { rule: 'tables', paths: ['data'], into: { doc: '코드표' } }] })
   assert.equal(r.run[0].state, 'changed')
   const d = doc('배포절차')
   assert.match(d, /<!-- baseline: src="dpms-api 코드" rule=deps/)

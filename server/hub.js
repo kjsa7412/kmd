@@ -15,7 +15,7 @@ import crypto from 'node:crypto'
 import net from 'node:net'
 import { material, check as checkDraft, planSave } from '../core/tidy.js'
 import * as feed from '../core/feed.js'
-import { checkTarget, readSource, probe, readDecl, writeDecl, stripCreds, secretName, secretPrefix, runSource, planRun, readState as readSourceState, sourceLines, everyMs } from '../core/sources.js'
+import { checkTarget, readSource, probe, readDecl, writeDecl, stripCreds, secretName, secretPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs } from '../core/sources.js'
 import { check } from '../core/check.js'
 import { commitPaths, ensureRepo, tryGit, maskUrl } from '../core/git.js'
 import { stopLine } from '../core/stopline.js'
@@ -23,7 +23,7 @@ import * as backup from '../core/backup.js'
 import * as owners from '../core/owners.js'
 import { buildIndex, ladder, loadLearned, learn, searchCheck, exact } from '../core/search.js'
 import { planImport, summary, MAX_FILES, MAX_BYTES } from '../core/importer.js'
-import { existsSync } from 'node:fs'
+import { existsSync, watch as fsWatch } from 'node:fs'
 import * as sendLib from '../core/send.js'
 import * as keystore from '../core/keystore.js'
 import { sha16 } from '../core/text.js'
@@ -94,6 +94,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     return sendLib.post(d.url, d.kn, payload, key)
   }
   let sendTimer = null
+  const srcRuns = new Map() // 가져오는 곳마다 도는 중인 것(한 줄로 세운다)
+  const resyncs = new Map() // 전체 다시 맞추기 일감 — 진행률
+  const srcWatch = new Map() // 코드 폴더 실시간 감시
   let started = false
   const watchers = []
   const scheduleDecide = (id) => {
@@ -206,6 +209,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       clearTimeout(decideTimers.get(id))
       decideTimers.delete(id)
       for (const [jid, j] of jobs) if (j.kn === id) jobs.delete(jid)
+      for (const [key, w] of srcWatch) if (key.startsWith(id + '\n')) { w.close(); srcWatch.delete(key) }
       await backup.detach(meta).catch(() => {})
       cache.delete(id)
       files.delete(id)
@@ -213,7 +217,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 지식 폴더 안의 것만 폴더째 지운다(예전에 밖에서 이어 둔 것은 잇기만 끊는다 — 남의 폴더를 지우지 않게)
       if (inRoot) await fs.rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
       const e = encodeURIComponent(id)
-      for (const p of [`backup/${e}.json`, `send/${e}.json`, `inbox/${e}.json`, `tidy/${e}.json`, `baseline/${e}.json`, `searchcheck/${e}.json`, `learn/${e}.json`, `index/${e}`, `sources/${e}`]) await fs.rm(path.join(dataDir, p), { recursive: true, force: true }).catch(() => {})
+      for (const p of [`backup/${e}.json`, `send/${e}.json`, `inbox/${e}.json`, `tidy/${e}.json`, `baseline/${e}.json`, `searchcheck/${e}.json`, `learn/${e}.json`, `index/${e}`, `sources/${e}`, `watch/${e}`]) await fs.rm(path.join(dataDir, p), { recursive: true, force: true }).catch(() => {})
       for (const x of await listSecrets(dataDir).catch(() => [])) if (x.name.startsWith(secretPrefix(id))) await delSecret(dataDir, x.name).catch(() => {}) // 가져오는 곳의 자격
       const lf = path.join(dataDir, 'links.json')
       const links = await fs.readFile(lf, 'utf8').then(JSON.parse, () => null)
@@ -445,7 +449,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const pcScreen = mode === 'pc' || ctx.pc
       if ((cred?.password || cred?.token || db?.password) && !pcScreen) throw new KmdError('E_FORBIDDEN', `자격은 화면으로 받지 않는다 — 서버에서 한 줄: kmd secret set ${secretName(id, name)}`)
       const k2 = kind || (db ? 'db' : /^(https?|ssh):\/\//i.test(String(at)) ? 'git' : 'folder')
-      const okRules = k2 === 'db' ? ['dbtables'] : ['deps', 'tables', 'files']
+      // 파일 목록(files)은 걷었다(감시 검토 v0.1 — 값보다 소음) · 표 파일(tables)은 사람이 고른 파일 · 폴더만
+      const okRules = k2 === 'db' ? ['dbtables'] : ['deps', 'tables']
+      for (const r of Array.isArray(rules) ? rules : []) {
+        if (r?.rule !== 'tables') continue
+        const ps = (Array.isArray(r.paths) ? r.paths : []).map((x) => String(x).trim().replace(/\\/g, '/').replace(/^\.?\/+|\/+$/g, '')).filter(Boolean)
+        if (!ps.length || ps.some((x) => x.split('/').includes('..') || /^[A-Za-z]:|^\//.test(x))) throw new KmdError('E_INPUT', '표로 만들 파일 · 폴더를 그 안의 경로로 하나 이상 적는다(예: codes/상태코드.csv · data/)')
+        r.paths = ps.slice(0, 50)
+      }
       if (!Array.isArray(rules) || !rules.length || rules.some((r) => !okRules.includes(r.rule) || !r.into?.doc)) throw new KmdError('E_INPUT', `무엇을 채우나는 ${okRules.join(' · ')} 중 · 넣을 문서와 함께`)
       const decl = await readDecl(meta.dir)
       if (decl.some((s) => s.name === name)) throw new KmdError('E_CONFLICT', '같은 이름의 가져오는 곳이 있다')
@@ -469,9 +480,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         shown = t.url ? await stripCreds(t.url, { dataDir, kn: id, name }) : t.folder
       }
       // DB 주소는 계정 이름까지 둔다(비밀번호는 처음부터 없다) · 그 밖은 주소에 든 자격을 가린다
-      const src = { name, kind: k2, at: k2 === 'db' ? shown : maskUrl(shown), every, rules: rules.map((r) => ({ rule: r.rule, into: { doc: String(r.into.doc), ...(r.into.heading ? { heading: String(r.into.heading) } : {}) } })), by: ctx.user, since: new Date().toISOString().slice(0, 10) }
+      const src = { name, kind: k2, at: k2 === 'db' ? shown : maskUrl(shown), every, rules: rules.map((r) => ({ rule: r.rule, ...(r.paths ? { paths: r.paths } : {}), into: { doc: String(r.into.doc), ...(r.into.heading ? { heading: String(r.into.heading) } : {}) } })), by: ctx.user, since: new Date().toISOString().slice(0, 10) }
       await writeDecl(meta.dir, [...decl, src], { user: ctx.user, title: `가져오는 곳 더함 — ${name}` })
       cache.delete(id)
+      if (started) hub.watchSource(id, src)
       const r = await hub.sourceRun(id, name, { first: true })
       return { source: src, run: r, secret: secretName(id, name) }
     },
@@ -490,7 +502,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       })
       return { reach, ms: Date.now() - t0 }
     },
-    async sourceRun(id, name = null, { first = false, force = false } = {}) {
+    // 한 곳 돌리기 — 같은 곳은 한 줄로 선다(실시간 감시 · 시계 · [지금 확인] · 전체 다시 맞추기가 겹쳐도 차례로)
+    async sourceRun(id, name = null, { first = false, force = false, full = false, pass = null, onProgress = null } = {}) {
       const meta = await hub.meta(id)
       const decl = await readDecl(meta.dir)
       const out = []
@@ -500,15 +513,64 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           out.push({ name: s.name, state: 'waiting', n: 0, why: 'DB 읽기는 아직 열리지 않았다 — 연결 정보는 저장했다' })
           continue
         }
-        const k = await hub.get(id)
-        const src = { ...s, folder: s.kind === 'folder' || !/^(https?|ssh):\/\//i.test(s.at) ? s.at : undefined }
-        const r = await runSource(k, src, { dataDir, first, force, save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
-        cache.delete(id)
-        out.push({ name: s.name, ...r })
-        if (r.state === 'changed') for (const u of await hub.curatorsOf(id)) await feed.add(dataDir, u, { kn: id, dot: 'acc', text: `${s.name}에서 바뀐 표 ${r.n} — ${meta.name}`, small: '저절로 채우는 표' })
+        const key = `${id}\n${s.name}`
+        const prev = srcRuns.get(key) || Promise.resolve()
+        const job = prev.catch(() => {}).then(async () => {
+          const k = await hub.get(id)
+          const src = { ...s, folder: s.kind === 'folder' || !/^(https?|ssh):\/\//i.test(s.at) ? s.at : undefined }
+          const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
+          cache.delete(id)
+          if (r.state === 'changed') for (const u of await hub.curatorsOf(id)) await feed.add(dataDir, u, { kn: id, dot: 'acc', text: `${s.name}에서 바뀐 표 ${r.n} — ${meta.name}`, small: `바뀐 파일 ${r.files} · 저절로 채우는 표` })
+          return r
+        })
+        srcRuns.set(key, job)
+        out.push({ name: s.name, ...(await job) })
+        if (srcRuns.get(key) === job) srcRuns.delete(key)
       }
       if (out.some((x) => x.state === 'changed') && backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
       return out
+    },
+    // 전체 다시 맞추기 — 뒤에서 일감으로 · 진행률 · 끊기면(서버를 다시 켜면) 같은 pass 로 이어서. 쓰는 것은 다른 것뿐
+    async sourceResync(ctx, id, name) {
+      const meta = await hub.meta(id, ctx)
+      if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '전체 다시 맞추기는 관리자가 한다')
+      const s = (await readDecl(meta.dir)).find((x) => x.name === name)
+      if (!s) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
+      if (s.kind === 'db') throw new KmdError('E_INPUT', 'DB 읽기는 아직 열리지 않았다')
+      const key = `${id}\n${name}`
+      if (resyncs.get(key)?.state === 'running') return resyncs.get(key)
+      const st = await readSourceState(dataDir, id)
+      const pass = st[name]?.resync?.pass || Date.now() // 남은 pass 가 있으면 이어서
+      const job = { state: 'running', done: 0, total: 0, pass, at: new Date().toISOString() }
+      resyncs.set(key, job)
+      const mark = async (v) => { const x = await readSourceState(dataDir, id); (x[name] ||= {}).resync = v; await writeSourceState(dataDir, id, x) }
+      await mark({ pass, at: job.at })
+      hub.sourceRun(id, name, { full: true, pass, onProgress: (d, t) => { job.done = d; job.total = t } })
+        .then(async ([r]) => {
+          Object.assign(job, { state: r?.state === 'failed' ? 'failed' : 'done', result: r, end: new Date().toISOString() })
+          if (r?.state !== 'failed') await mark(undefined)
+        })
+        .catch((e) => Object.assign(job, { state: 'failed', why: e.message }))
+      return job
+    },
+    // 실시간 감시 — 이 PC(팀이면 서버)의 코드 폴더는 바뀌면 조용해진 뒤(기본 10초) 그곳만 확인한다 · git 은 정한 때마다
+    watchSource(id, s) {
+      const key = `${id}\n${s.name}`
+      srcWatch.get(key)?.close()
+      srcWatch.delete(key)
+      if (s.kind !== 'folder' || !s.at) return
+      let timer = null
+      try {
+        const w = fsWatch(s.at, { recursive: true }, (ev, f) => {
+          const p = String(f || '').replace(/\\/g, '/')
+          if (p.split('/').some((x) => x.startsWith('.') || x === 'node_modules')) return
+          clearTimeout(timer)
+          timer = setTimeout(() => hub.sourceRun(id, s.name).catch(() => {}), config.watchQuietMs ?? 10_000)
+          timer.unref?.()
+        })
+        w.on('error', () => {})
+        srcWatch.set(key, { close: () => { clearTimeout(timer); w.close() } })
+      } catch {}
     },
     sourceState: (id) => readSourceState(dataDir, id),
     async sources(ctx, id) {
@@ -516,7 +578,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const decl = await readDecl(meta.dir)
       const st = await readSourceState(dataDir, id)
       const have = new Set((await listSecrets(dataDir).catch(() => [])).map((x) => x.name))
-      return decl.map((s) => ({ ...s, state: s.kind === 'db' ? { ...(st[s.name] || {}), lastNote: 'DB 읽기는 아직 — 연결 정보는 저장했다' } : st[s.name] || {}, secret: { name: secretName(id, s.name), has: have.has(secretName(id, s.name)) } }))
+      // watch — live(실시간 감시) · poll(정한 때마다) · none · resync — 전체 다시 맞추기(도는 중 · 끝 · 끊김)
+      return decl.map((s) => ({ ...s, watch: s.kind === 'folder' ? (srcWatch.has(`${id}\n${s.name}`) ? 'live' : 'poll') : s.kind === 'git' ? 'poll' : 'none', resync: resyncs.get(`${id}\n${s.name}`) || (st[s.name]?.resync ? { state: 'paused', ...st[s.name].resync } : null), state: s.kind === 'db' ? { ...(st[s.name] || {}), lastNote: 'DB 읽기는 아직 — 연결 정보는 저장했다' } : st[s.name] || {}, secret: { name: secretName(id, s.name), has: have.has(secretName(id, s.name)) } }))
     },
     // 자료 가져오기 화면 — 그 사람이 보는 지식들의 가져오는 곳 모두
     async allSources(ctx) {
@@ -1038,6 +1101,16 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
       }
       sourceTimer = setInterval(() => dueSources(false), config.sourceTickMs || 60_000)
+      setTimeout(async () => {
+        for (const m of await hub.list().catch(() => [])) {
+          const decl = await readDecl(m.dir).catch(() => [])
+          const st = await readSourceState(dataDir, m.id).catch(() => ({}))
+          for (const s of decl) {
+            hub.watchSource(m.id, s)
+            if (st[s.name]?.resync) hub.sourceResync({ ...SHELL }, m.id, s.name).catch(() => {})
+          }
+        }
+      }, 1000).unref?.()
       sourceTimer.unref?.()
       setTimeout(() => dueSources(true), 3000).unref?.()
       // 정해진 시간의 정리 — 분마다 본다 · 지식마다 하루 한 번 · 넣을 것이 있을 때만
@@ -1082,6 +1155,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       clearInterval(tidyTimer)
       clearInterval(sourceTimer)
       clearInterval(sendTimer)
+      for (const w of srcWatch.values()) w.close()
+      srcWatch.clear()
     },
   }
   return hub
