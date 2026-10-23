@@ -30,8 +30,13 @@ const TOOLS = [
   },
   {
     name: 'match',
-    description: '이름으로 항목을 찾는다 — 정한 이름 · 다른 이름 · 문서의 머리 · 문서 이름. 찾은 것마다 지식 · 문서 · 머리 · 이름(coord)을 준다.',
-    inputSchema: { type: 'object', properties: { q: str('찾을 이름'), knowledge: str('지식 id(없으면 전체)') }, required: ['q'] },
+    description: '이름으로 항목을 찾는다 — 정한 이름 · 다른 이름 · 항목 머리가 정확히 같으면 found(확정). weak 는 약한 대조다 — 확정하지 말고 같이 실린 후보(ladder)를 보거나 search 로 넓힌다. found 가 비면 「정한 이름에는 없다」 는 뜻이고, ladder 는 비슷한 글이다.',
+    inputSchema: { type: 'object', properties: { q: str('찾을 이름'), knowledge: str('지식 id(없으면 지식마다 따로)') }, required: ['q'] },
+  },
+  {
+    name: 'search',
+    description: '말 → 정리된 항목 후보(coords)와 자리 없는 글의 토막(passages). 사용자 질문은 q 로 그대로 넣는다. 이름(exact)에 없으면 없는 것이다. 낱말 단이 빈손이면 「이 말로는 못 찾았다 — 없다는 뜻은 아니다」 — 다른 이름이나 문서 목록으로. 토막은 정리된 문서가 아니다 — 표지(label)를 답에 옮긴다. 조건에 든 나머지 수는 more 에 있다. 토막이 말하는 항목의 지금 글은 section 으로.',
+    inputSchema: { type: 'object', properties: { q: str('사용자 질문 글 그대로'), words: { type: 'array', items: { type: 'string' }, description: '고른 낱말(10개까지)' }, knowledge: str('지식 id(없으면 지식마다 따로)') } },
   },
   {
     name: 'section',
@@ -92,32 +97,39 @@ export function makeMcp(store) {
 
     async match({ q, knowledge }, ctx) {
       if (!q || typeof q !== 'string') throw new KmdError('E_INPUT', '찾을 이름(q)이 없다')
-      const nq = norm(q)
-      const ks = knowledge ? [await store.get(knowledge, ctx)] : await store.all(ctx)
-      const out = []
-      const score = (names) => Math.min(...names.map((n) => { const x = norm(n); return x === nq ? 0 : x.startsWith(nq) ? 1 : x.includes(nq) ? 2 : 9 }))
-      for (const k of ks) {
-        const seen = new Set()
-        for (const [coord, v] of k.vocab.coords) {
-          const s = score([coord, coord.split(':').slice(1).join(':'), v.label, ...v.aliases])
-          if (s > 2) continue
-          const x = sectionOf(k, coord)
-          if (x?.sec) seen.add(`${x.doc.id}#${x.sec.h}`)
-          out.push({ s, knowledge: k.id, coord, name: v.label, aliases: v.aliases, doc: x?.doc?.id || null, heading: x?.sec?.h || null, inDocs: !!x?.sec })
-        }
-        for (const d of k.docs) {
-          for (const sec of d.sections) {
-            if (seen.has(`${d.id}#${sec.h}`)) continue
-            const s = score([sec.h])
-            if (s <= 2) out.push({ s, knowledge: k.id, coord: coordsOfSection(k, d, sec.h)[0] || null, name: sec.h, doc: d.id, heading: sec.h, inDocs: true })
-          }
-          const s = score([d.title, d.id])
-          if (s <= 2) out.push({ s: s + 0.5, knowledge: k.id, coord: null, name: d.title, doc: d.id, heading: null, inDocs: true })
-        }
+      // 1단(정확한 이름)만 확정이다. 없거나 · 약하거나 · 항목이 비었으면 같은 응답에 2 ~ 4단을 싣는다
+      const rs = await store.search(ctx, knowledge || null, { q })
+      const found = []
+      const weak = []
+      const ladders = []
+      for (const r of rs) {
+        for (const c of r.exact) found.push({ knowledge: r.knowledge, coord: c.coord || null, name: c.name, doc: c.doc, heading: c.heading, exact: true, inDocs: !!c.heading, pending: c.pending || 0 })
+        for (const w of r.weak) weak.push({ knowledge: r.knowledge, ...w })
+        const thin = !r.exact.length || r.exact.some((c) => !c.heading)
+        if (thin) ladders.push({ knowledge: r.knowledge, coords: r.coords, passages: r.passages, more: r.more, exhaustive: false, label: r.label })
       }
-      out.sort((a, b) => a.s - b.s)
-      const found = out.slice(0, 12).map(({ s, ...x }) => ({ ...x, exact: s === 0 }))
-      return found.length ? { found } : { found, note: '이 이름으로는 없다 — 없다는 뜻은 아니다. 다른 이름으로 다시 찾거나 brief 의 문서 목록을 본다' }
+      const out = { found }
+      if (weak.length) out.weak = { items: weak, note: '말이 이름을 품거나 이름이 말을 품어 걸렸다 — 확정하지 말 것' }
+      if (ladders.some((l) => l.coords.length || l.passages.length)) out.ladder = ladders
+      if (!found.length) out.note = '정한 이름 · 다른 이름 · 항목 머리에는 없다 — 아래는 비슷한 글이다(정리된 문서가 아니다). 사용자 질문은 search 의 q 로'
+      return out
+    },
+
+    async search({ q, words, knowledge }, ctx) {
+      if (!q && !(Array.isArray(words) && words.length)) throw new KmdError('E_INPUT', '찾을 말(q 또는 words)이 없다')
+      const rs = await store.search(ctx, knowledge || null, { q: String(q || ''), words: Array.isArray(words) ? words.slice(0, 10).map(String) : null })
+      return {
+        results: rs.map((r) => ({
+          knowledge: r.knowledge,
+          exact: r.exact,
+          coords: r.coords,
+          passages: r.passages,
+          more: r.more,
+          exhaustive: r.exact.length > 0,
+          ...(r.exact.length ? {} : { label: r.label }),
+          ...(r.empty ? { note: '이 말로는 못 찾았다 — 없다는 뜻은 아니다. 다른 이름이나 brief 의 문서 목록으로' } : {}),
+        })),
+      }
     },
 
     async section({ knowledge, coord, doc, heading }, ctx) {

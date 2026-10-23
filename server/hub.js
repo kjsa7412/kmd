@@ -13,6 +13,7 @@ import { check } from '../core/check.js'
 import { commitPaths, ensureRepo } from '../core/git.js'
 import * as backup from '../core/backup.js'
 import * as owners from '../core/owners.js'
+import { buildIndex, ladder, loadLearned, learn, searchCheck } from '../core/search.js'
 
 // serve.json — 살림 자리의 설정(없어도 된다)
 async function loadConfig(dataDir) {
@@ -33,6 +34,7 @@ export async function makeHub({ root, dataDir, mode = 'team', log = (...a) => co
   let reg = await owners.load(dataDir)
   const cache = new Map() // 지식 → 읽은 지식(promise)
   const files = new Map() // 지식 → 파일 캐시
+  const indexes = new Map() // 지식 → { k, p: 색인 promise }
   let list = null
 
   const hub = {
@@ -94,6 +96,35 @@ export async function makeHub({ root, dataDir, mode = 'team', log = (...a) => co
       return { ...r, warnings: backup.lines(meta, { name: meta.name }).map((l) => l.text) }
     },
 
+    // 찾기 — 색인은 지식마다 · 바뀐 파일만 다시(저장 뒤 · 처음 찾을 때) · 지식을 섞지 않는다
+    async index(id) {
+      const k = await hub.get(id)
+      const cur = indexes.get(id)
+      if (cur && cur.k === k) return cur.p
+      const p = buildIndex(k, { dataDir, prev: cur ? await cur.p.catch(() => null) : null })
+      indexes.set(id, { k, p })
+      return p
+    },
+    async search(ctx, id, { q = '', words = null, max = 6 } = {}) {
+      const ks = id ? [await hub.meta(id, ctx)] : await hub.visible(ctx)
+      const out = []
+      for (const m of ks) {
+        const k = await hub.get(m.id)
+        const r = await ladder(k, await hub.index(m.id), { q, words, max, learned: await loadLearned(dataDir, m.id) })
+        out.push({ knowledge: m.id, name: m.name, ...r })
+      }
+      return out
+    },
+    async learn(ctx, id, { q, coord }) {
+      await hub.meta(id, ctx)
+      await learn(dataDir, id, { q, coord, who: ctx.user })
+      return { ok: true }
+    },
+    async searchCheck(ctx, id, { freeze = false } = {}) {
+      const k = await hub.get(id, ctx)
+      return searchCheck(k, await hub.index(id), { dataDir, freeze })
+    },
+
     // 멈춤 줄 — 그 사람이 보는 지식만
     async stops(ctx, id = null) {
       const ks = id ? [await hub.meta(id, ctx)] : await hub.visible(ctx)
@@ -150,6 +181,10 @@ export async function makeHub({ root, dataDir, mode = 'team', log = (...a) => co
     },
     async start() {
       await backup.start(await hub.list(), { dataDir, log })
+      // 찾기 색인 — 뒤에서 미리(지금 찾는 지식은 기다리지 않고 그때 짓는다)
+      setTimeout(async () => {
+        for (const m of await hub.list().catch(() => [])) await hub.index(m.id).catch(() => {})
+      }, 200).unref?.()
     },
     stop() {
       backup.stop()

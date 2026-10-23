@@ -117,15 +117,28 @@ export function sectionOf(k, coord) {
 }
 
 // 항목 하나에 드는 이름들(장부로 거꾸로)
-export function coordsOfSection(k, doc, h) {
-  const out = []
+// 지식마다 한 번 — 「문서 경로 \n 항목 머리」 → 그 항목에 드는 이름들
+const sectionMaps = new WeakMap()
+function sectionMap(k) {
+  let m = sectionMaps.get(k)
+  if (m) return m
+  m = new Map()
   const names = new Set([...k.vocab.coords.keys()])
   for (const w of k.works) for (const c of w.touches) names.add(c)
-  for (const c of names) {
+  for (const c of [...names].sort()) {
     const loc = locate(k.registry, c)
-    if (loc && loc.doc === doc.path && headingMatches(h, loc.heading)) out.push(c)
+    const doc = loc && k.byDocPath.get(loc.doc)
+    const sec = doc && doc.sections.find((s) => headingMatches(s.h, loc.heading))
+    if (!sec) continue
+    const key = `${doc.path}\n${sec.h}`
+    if (!m.has(key)) m.set(key, [])
+    m.get(key).push(c)
   }
-  return out
+  sectionMaps.set(k, m)
+  return m
+}
+export function coordsOfSection(k, doc, h) {
+  return sectionMap(k).get(`${doc.path}\n${h}`) || []
 }
 
 // 기록이 문서에 들어갔나 — 건드린 이름이 장부로 문서 항목에 닿고, 그 항목의 표지가

@@ -76,6 +76,7 @@ async function main() {
   if (cmd === 'machine') return machineCmd(parse(rest))
   if (cmd === 'secret') return secretCmd(parse(rest))
   if (cmd === 'connect') return connectCmd(parse(rest))
+  if (cmd === 'search-check') return searchCheckCmd(parse(rest))
   if (cmd !== 'serve' && cmd !== 'up') {
     console.error(`모르는 명령 — ${cmd}\n`)
     process.stdout.write(HELP)
@@ -259,6 +260,20 @@ async function secretCmd(o) {
       await setSecret(dataOf(o), name, await hidden(`${name} 의 값(보이지 않는다): `))
       console.log(`넣었다 — ${name}`)
     } else for (const x of await listSecrets(dataOf(o))) console.log(`${x.name} — ${x.at.slice(0, 16).replace('T', ' ')} 에 넣음`)
+  } catch (e) {
+    console.error(e.message)
+    process.exitCode = 1
+  }
+}
+
+// 찾기 점검 — 기록 제목으로 그 기록이 건드린 이름을 찾는다. 처음 한 번 얼리고, 그 뒤는 같은 시험지 위에서 나빠진 문항을 센다
+async function searchCheckCmd(o) {
+  const [id] = o._
+  try {
+    if (!id) throw new Error('kmd search-check <지식> [--freeze]')
+    const hub = await makeHub({ root: rootOf(o), dataDir: dataOf(o), log: () => {} })
+    const r = await hub.searchCheck(SHELL, id, { freeze: o.freeze !== undefined })
+    console.log(`${id} — 문항 ${r.score.n} · 6개 안 ${r.score.in}% · 첫째 ${r.score.first}%${r.frozen ? ` · 얼린 시험지보다 나빠진 문항 ${r.worse.length}${r.worse.length ? ' — ' + r.worse.slice(0, 5).join(' · ') : ''}` : ' · 이 시험지를 얼렸다'}`)
   } catch (e) {
     console.error(e.message)
     process.exitCode = 1

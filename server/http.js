@@ -137,9 +137,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (p === '/api/knowledge') return out(200, (await hub.all(ctx)).map((k) => ({ ...V.knowledgeRow(k), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}) })))
     if (p === '/api/stops') return out(200, await hub.stops(ctx))
     if (p === '/api/find') {
-      const id = url.searchParams.get('k')
-      const ks = id ? [await hub.get(id, ctx)] : await hub.all(ctx)
-      return out(200, V.find(ks, url.searchParams.get('q')))
+      const rs = await hub.search(ctx, url.searchParams.get('k') || null, { q: url.searchParams.get('q') || '' })
+      return out(200, V.findView(await Promise.all(rs.map(async (r) => ({ k: await hub.get(r.knowledge), r })))))
     }
     // ── 나 — 재인증 · 설치 표 · 내 기기 · 모든 기기에서 나가기 ──
     if (p === '/api/sudo') return send(res, 200, { ok: true }, undefined, { 'set-cookie': await auth.sudo(ctx, { pw: (await readBody(req)).pw, ip: ipOf(req), cookieHeader: req.headers.cookie }) })
@@ -177,16 +176,17 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, { ok: (await auth.setAdmin(id, !!(await readBody(req)).admin)) ?? true })
     }
 
-    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|save|backup|backup\/pull|owner)$/)
+    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|save|backup|backup\/pull|owner|learn)$/)
     if (!m) throw new KmdError('E_NOTFOUND', '그런 길은 없다')
     const id = decodeURIComponent(m[1])
     const what = m[2]
-    if (['save', 'backup', 'backup/pull', 'owner'].includes(what)) {
+    if (['save', 'backup', 'backup/pull', 'owner', 'learn'].includes(what)) {
       if (what === 'backup' && req.method === 'GET') return out(200, (await hub.backupState(ctx, id)) || { off: true })
       if (what === 'owner' && req.method === 'GET') return out(200, hub.owner(id) || {})
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       const body = await readBody(req)
       if (what === 'save') return out(200, await hub.save(ctx, id, body))
+      if (what === 'learn') return out(200, await hub.learn(ctx, id, body))
       if (what === 'owner') return out(200, await hub.setOwner(ctx, id, body))
       admin(ctx)
       if (what === 'backup') return out(200, await hub.backupAttach(ctx, id, String(body.url || '')))

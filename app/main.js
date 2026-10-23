@@ -481,9 +481,14 @@ function palBody() {
   if (!S.pal.q.trim() || !r) return '<div class="tip">문서의 항목 이름이나 낱말을 친다 — 예: 헬스 체크 · 상태 점검</div>'
   if (r.error) return `<div class="empty"><b>${esc(r.error)}</b></div>`
   if (!r.hits.length) return '<div class="empty" data-t="none"><b>이 말로는 못 찾았다 — 없다는 뜻은 아니다</b>다른 이름이나 문서 목록으로<br><a data-a="palDocs">문서 목록 ›</a><a data-a="palClear">다른 말로 다시 ›</a></div>'
-  const hit = (x, i) => `<div class="hit${i === 0 ? ' sel' : ''}" data-a="openHit" data-k="${esc(x.k)}" data-d="${esc(x.d)}" data-h="${esc(x.h)}" data-t="hit"><div class="ht"><b>${esc(x.title)} › ${esc(x.h)}</b><span class="r">${esc(x.kn)}</span></div><div class="tx">${snip(x.text, r.toks)}</div></div>`
-  if (r.exact) return `<div class="g" data-t="gExact">문서의 항목</div>${r.hits.filter((x) => x.v >= 100).map(hit).join('')}`
-  return `<div class="g" data-t="gSim">딱 맞는 항목이 없어 비슷한 글에서 찾았다</div>${r.hits.map(hit).join('')}<div class="ft" data-t="simCount">비슷한 글 ${r.hits.length}개</div>`
+  const hit = (x, i) => {
+    const tags = (x.alias && x.exact ? '<span class="tg nm">다른 이름</span>' : '') + (x.r ? '<span class="tg">기록</span>' : '')
+    const at = x.r ? `data-r="${esc(x.r)}"` : `data-d="${esc(x.d)}" data-h="${esc(x.h)}"${x.coord ? ` data-c="${esc(x.coord)}"` : ''}`
+    return `<div class="hit${i === 0 ? ' sel' : ''}" data-a="openHit" data-k="${esc(x.k)}" ${at} data-t="hit"><div class="ht"><b>${esc(x.title)}${x.h ? ' › ' + esc(x.h) : ''}</b>${tags}<span class="r">${esc(x.kn)}</span></div><div class="tx">${snip(x.text, r.toks)}</div></div>`
+  }
+  if (r.exact) return `<div class="g" data-t="gExact">문서의 항목</div>${r.hits.map(hit).join('')}`
+  const N = r.hits.length, more = S.pal.more, sh = more ? r.hits : r.hits.slice(0, 5)
+  return `<div class="g" data-t="gSim">딱 맞는 항목이 없어 비슷한 글에서 찾았다</div>${sh.map(hit).join('')}<div class="ft" data-t="simCount">비슷한 글 ${N}개${N > 5 ? (more ? ' — 모두 보인다' : ` — 5개 · <a data-a="palMore" data-t="palMore">${N - 5}개 더 보기</a>`) : ''}</div>`
 }
 
 // ───────────── 들어오기 전 — 들어가기 · 처음 들어오기 링크 · 첫 설정 ─────────────
@@ -657,7 +662,15 @@ const ACT = {
   palClose: () => { S.pal = null; render() },
   palClear: () => { S.pal.q = ''; S.pal.res = null; render() },
   palDocs: () => { S.pal = null; setView('docs') },
-  openHit: (el) => { const q = S.pal && S.pal.q; S.pal = null; openDocAt(el.dataset.k, el.dataset.d, el.dataset.h, q) },
+  openHit: (el) => {
+    const q = S.pal && S.pal.q
+    S.pal = null
+    // 사람이 고른 것 — 다음에 같은 말로 찾으면 약한 후보로 보인다(찾기 후보 배우기)
+    if (el.dataset.c && q) postJSON(`/api/k/${encodeURIComponent(el.dataset.k)}/learn`, { q, coord: el.dataset.c }).catch(() => {})
+    if (el.dataset.r) { openTab({ kind: 'rec', kn: el.dataset.k, ref: el.dataset.r }); render(); return }
+    openDocAt(el.dataset.k, el.dataset.d, el.dataset.h, q)
+  },
+  palMore: () => { S.pal.more = true; paintPal() },
   reopenSearch: () => { const t = activeTab(); openPal(t && t.q) },
 }
 document.addEventListener('click', (ev) => {

@@ -154,21 +154,37 @@ export function recView(k, id) {
   return { ...recRow(w), html: render(k, w.path, w.body), tags: w.tags, items, fixes, fixedBy }
 }
 
-// 찾기(K0) — 항목 머리 · 글에 낱말이 든 곳. 찾기 사다리는 E3 에서 이것을 갈아 끼운다
-export function find(ks, q) {
-  const nq = String(q || '').replace(/\s+/g, '').toLowerCase()
-  if (!nq) return { hits: [] }
-  const toks = String(q).trim().split(/\s+/).filter(Boolean)
+// 찾기 — 사다리 결과(core/search.js)를 화면의 찾은 것 줄로. 정확한 이름이면 「문서의 항목」, 아니면 비슷한 글
+export function findView(pairs) {
   const hits = []
-  for (const k of ks)
-    for (const d of k.docs)
-      for (const s of d.sections) {
-        const hay = `${s.h} ${s.body}`
-        const exact = s.h.replace(/\s+/g, '').toLowerCase() === nq
-        const m = toks.filter((t) => hay.includes(t)).length
-        if (!exact && m < Math.ceil(toks.length / 2)) continue
-        hits.push({ k: k.id, kn: k.name, d: d.id, title: d.title, h: s.h, text: s.body.replace(/`/g, '').slice(0, 220), v: (exact ? 100 : 0) + m * 10 + (toks.some((t) => s.h.includes(t)) ? 5 : 0) })
-      }
-  hits.sort((a, b) => b.v - a.v)
-  return { hits: hits.slice(0, 30), toks, exact: hits.length > 0 && hits[0].v >= 100 }
+  let exact = false
+  const words = []
+  let more = 0
+  for (const { k, r } of pairs) {
+    for (const w of r.words || []) if (!words.includes(w)) words.push(w)
+    const secText = (docId, h) => {
+      const d = k.docs.find((x) => x.id === docId)
+      const sec = d && d.sections.find((x) => x.h === h)
+      return { title: d ? d.title : docId, text: sec ? sec.body.replace(/`/g, '').slice(0, 220) : '' }
+    }
+    for (const c of r.exact) {
+      if (!c.doc || !c.heading) continue
+      exact = true
+      const t = secText(c.doc, c.heading)
+      hits.push({ k: k.id, kn: k.name, d: c.doc, title: t.title, h: c.heading, text: t.text, coord: c.coord || null, exact: true, alias: !!c.coord && !!k.vocab.coords.get(c.coord)?.aliases?.length })
+    }
+    if (exact) continue
+    for (const c of r.coords) {
+      if (!c.doc || !c.heading) continue
+      const t = secText(c.doc, c.heading)
+      hits.push({ k: k.id, kn: k.name, d: c.doc, title: t.title, h: c.heading, text: t.text, coord: c.coord || null })
+    }
+    const body = (p) => p.text.split('\n').slice(1).join(' ').replace(/`/g, '').slice(0, 220)
+    for (const p of r.passages) {
+      if (p.doc) hits.push({ k: k.id, kn: k.name, d: p.doc, title: k.docs.find((x) => x.id === p.doc)?.title || p.doc, h: p.head, text: body(p), label: p.label })
+      else if (p.record) hits.push({ k: k.id, kn: k.name, r: p.record, title: k.byWork.get(p.record)?.title || p.record, h: '', text: body(p), label: p.label })
+    }
+    more += (r.more?.coords?.n || 0) + (r.more?.passages?.n || 0)
+  }
+  return { hits: exact ? hits.filter((h) => h.exact) : hits.slice(0, 30), toks: words, exact, more }
 }

@@ -52,11 +52,11 @@ test('화면 자료 — 지식 목록 · 나무 · 문서 한 장', async () => 
   assert.equal((await j('/api/k/dpms/doc?d=없는문서')).status, 404)
 })
 
-test('MCP — 도구 넷 · brief · match · section', async () => {
+test('MCP — 도구 · brief · match · section', async () => {
   const init = await rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '0' } })
   assert.equal(init.result.serverInfo.name, 'kmd')
   assert.equal(init.result.protocolVersion, '2025-06-18')
-  assert.deepEqual((await rpc('tools/list')).result.tools.map((t) => t.name), ['brief', 'match', 'section', 'save'])
+  assert.deepEqual((await rpc('tools/list')).result.tools.map((t) => t.name), ['brief', 'match', 'search', 'section', 'save'])
   const b = (await tool('brief', {})).structuredContent
   assert.equal(b.knowledge.length, 2)
   const m = (await tool('match', { q: '상태 점검' })).structuredContent
