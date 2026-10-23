@@ -363,12 +363,12 @@ function docsEmpty(k) {
 }
 function treeHtml(k) {
   const n = KN(k), tr = treeOf(k)
-  if (!tr) return `<div class="tree" data-t="tree"><div class="lh">${esc(n.name)}</div>${loadingHtml}</div>`
-  if (tr.error) return `<div class="tree" data-t="tree"><div class="lh">${esc(n.name)}</div>${errHtml(tr)}</div>`
+  if (!tr) return `<div class="tree" data-t="tree">${loadingHtml}</div>`
+  if (tr.error) return `<div class="tree" data-t="tree">${errHtml(tr)}</div>`
   const ds = tr.docs, fk = (f) => !!S.fold[k + ':' + f]
   const all = S.all, list = all ? ds : ds.slice(0, 11)
   const head = (f, l, cnt, extra) => `<div class="tf" data-a="fold" data-f="${f}" data-t="fold-${f}"><span class="ar">${fk(f) ? '▸' : '▾'}</span>${l}${extra || ''}<span class="cnt">${cnt}</span></div>`
-  let h = `<div class="tree" data-t="tree"><div class="lh">${esc(n.name)}</div>` + head('docs', '문서', ds.length)
+  let h = `<div class="tree" data-t="tree">` + head('docs', '문서', ds.length)
   if (!fk('docs')) h += list.map((d) => `<div class="tn${isAct('doc', k, d.id) ? ' on' : ''}" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="doc" data-name="${esc(d.title)}" data-pv="doc|${esc(k)}|${esc(d.id)}">${svg('doc')}<span class="nm">${esc(d.title)}</span>${d.pend ? '<i class="pd" title="아직 문서에 안 넣은 기록이 있다"></i>' : ''}</div>`).join('') + (!all && ds.length > 11 ? `<div class="tn more" data-a="allDocs" data-t="moreDocs">${ds.length - 11}개 더</div>` : '')
   const rs = tr.records
   h += head('recs', '기록', rs.length, ' <small>날짜 순</small>')
@@ -616,8 +616,8 @@ function viewItems() {
   return { crumb: '항목으로 보기' + (c.title ? ' › ' + c.title : ''), main: c.main, aside: c.aside, right: c.right, tabs: true, left: itemListHtml(k) }
 }
 function itemListHtml(k) {
-  if (!M(k)) return `<div class="ilist" data-t="itemList"><div class="lh">${esc(KN(k).name)} — 항목</div>${loadingHtml}</div>`
-  return `<div class="ilist" data-t="itemList"><div class="lh">${esc(KN(k).name)} — 항목</div><input class="inp" id="itemQ" data-in="itemQ" data-t="itemQ" value="${esc(S.iq)}" placeholder="항목 찾기 — 이름 · 다른 이름" autocomplete="off"><div class="fcs">${IFL.map(([v, l]) => `<span class="fc${S.ifilt[v] ? ' on' : ''}" data-a="itemFilt" data-v="${v}" data-t="if-${v}">${l}</span>`).join('')}</div><div id="itemListBody">${itemListBody(k)}</div></div>`
+  if (!M(k)) return `<div class="ilist" data-t="itemList">${loadingHtml}</div>`
+  return `<div class="ilist" data-t="itemList"><input class="inp" id="itemQ" data-in="itemQ" data-t="itemQ" value="${esc(S.iq)}" placeholder="항목 찾기 — 이름 · 다른 이름" autocomplete="off"><div class="fcs">${IFL.map(([v, l]) => `<span class="fc${S.ifilt[v] ? ' on' : ''}" data-a="itemFilt" data-v="${v}" data-t="if-${v}">${l}</span>`).join('')}</div><div id="itemListBody">${itemListBody(k)}</div></div>`
 }
 function itemRecent(k, i) {
   const cut = Date.now() - 3 * 864e5
@@ -809,7 +809,7 @@ function viewGraph() {
   const k = pickKn()
   if (!k) return { crumb: '그래프', main: viewHome().main }
   if (S.g.kn !== k) { S.g.kn = k; S.g.pos = {}; S.g.sel = null; S.g.layoutKey = ''; S.g.bundle = false }
-  if (!M(k)) return { crumb: '그래프', main: loadingHtml, tabs: true, left: `<div class="gf"><div class="lh">${esc(KN(k).name)} — 그래프</div>${loadingHtml}</div>` }
+  if (!M(k)) return { crumb: '그래프', main: loadingHtml, tabs: true, left: `<div class="gf">${loadingHtml}</div>` }
   const G = graphData(k)
   layoutGraph(G)
   CURG = G
@@ -821,7 +821,7 @@ function graphFilter(k) {
   const f = S.g.f, tables = itemsOf(k).filter((i) => i.table).length
   const sw = (v, l, sub) => `<div class="gr"><span class="tx">${l}${sub ? `<small>${sub}</small>` : ''}</span><button class="sw${f[v] ? ' on' : ''}" data-a="gSet" data-v="${v}" data-t="g-${v}" aria-label="${l}"></button></div>`
   const kd = (v, l) => `<div class="gr"><span class="tx"><i class="kd" style="background:${KCOL[v]}"></i>${l}</span><button class="sw${f[v] ? ' on' : ''}" data-a="gSet" data-v="${v}" data-t="gk-${v}" aria-label="${l}"></button></div>`
-  return `<div class="gf" data-t="gFilter"><div class="lh">${esc(KN(k).name)} — 그래프</div>
+  return `<div class="gf" data-t="gFilter">
   <input class="inp" id="gQ" data-in="gQ" data-t="gQ" value="${esc(f.q)}" placeholder="찾기 — 맞는 점을 밝힌다" autocomplete="off">
   <div class="gh">종류</div>${kd('item', '항목')}${kd('doc', '문서')}${kd('rec', '기록')}${kd('src', '가져오는 곳')}
   <div class="gh">거름</div>${sw('pend', '아직 안 넣은 것만')}${sw('recent', '기간 — 최근 30일 기록', f.rec ? '' : '기록을 켜면 쓴다')}${sw('orph', '외톨이 숨기기')}
