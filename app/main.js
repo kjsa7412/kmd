@@ -1774,8 +1774,8 @@ async function pairOk(from) {
 const settingsOf = () => need('settings', '/api/settings')
 const devicesOf = () => need('devices', '/api/me/devices')
 const AUTO_T = {
-  team: [['file', '넣은 파일을 문서로', 'md · docx · pptx · xlsx 는 팀 서버에서 바로'], ['find', '찾기', '딱 맞는 항목이 없으면 비슷한 글에서']],
-  pc: [['save', '편집기에서 고친 것 저장', '30초 조용하면 저절로'], ['file', '넣은 파일을 문서로', 'md · docx · pptx · xlsx 를 넣으면 바로'], ['src', '자동으로 가져오는 곳', '더해 둔 곳에서 때마다 표를 다시 채운다'], ['claude', '자동 정리 — Claude 로', '정해진 시각에 내 Claude 로그인으로'], ['find', '찾기', '딱 맞는 항목이 없으면 비슷한 글에서']],
+  team: [['file', '넣은 파일을 글로', 'md · docx · pptx · xlsx 를 글로 바꿔 기록으로 — 정리가 문서에 넣는다 · 끄면 원본 첨부만'], ['find', '찾기', '딱 맞는 항목이 없으면 비슷한 글에서']],
+  pc: [['save', '편집기에서 고친 것 저장', '30초 조용하면 저절로'], ['file', '넣은 파일을 글로', 'md · docx · pptx · xlsx 를 넣으면 기록 · 문서로 바로(Claude 로 다듬어) · 끄면 원본 첨부만'], ['src', '자동으로 가져오는 곳', '더해 둔 곳에서 때마다 표를 다시 채운다'], ['claude', '자동 정리 — Claude 로', '정해진 시각에 내 Claude 로그인으로'], ['find', '찾기', '딱 맞는 항목이 없으면 비슷한 글에서']],
 }
 function viewSettings() {
   const team = isTeam(), st = settingsOf(), tab = S.setTab || 'gen'
@@ -1808,7 +1808,7 @@ function claudeCard(st) {
     let row
     if (S.claudeOpening) row = '<div class="set"><span class="tx"><b data-t="claudeState">로그인하는 중</b><span class="prog" data-t="claudeProg" style="margin-top:4px"><i></i>창이 열렸다 — Claude 에 들어가면 끝</span></span></div>'
     else if (w && w.ok === false && w.reason === 'login') row = '<div class="set"><span class="tx"><b data-t="claudeState">로그인 안 됨</b><small>정리 · 기록 만들기는 규칙으로 되는 것만 한다</small></span><button class="btn pri" data-a="claudeLogin" data-t="claudeLogin">Claude 로그인</button></div>'
-    else row = `<div class="set"><span class="tx"><b data-t="claudeState">${w && w.ok ? '로그인됨' : '이 PC 의 Claude Code 로그인을 쓴다'}</b><small>이번 달 정리 ${c.month}건 · 기록 만들기 · 정리에 쓴다 · 로그인은 이 PC 의 Claude Code 에</small></span><button class="kebab${S.menu === 'claude' ? ' on' : ''}" data-a="menu" data-m="claude" data-t="claudeKebab" title="다시 로그인 · 쓰지 않기">⋯${S.menu === 'claude' ? '<div class="menu" style="right:0;top:28px"><div class="mi" data-a="claudeLogin" data-t="claudeRelogin">다시 로그인<small>창이 열린다</small></div><div class="mi" data-a="claudeOff" data-t="claudeOff">Claude 쓰지 않기<small>규칙으로 되는 것만</small></div></div>' : ''}</button></div>`
+    else row = `<div class="set"><span class="tx"><b data-t="claudeState">${w && w.ok ? '로그인됨' : w && w.ok === false ? 'Claude 가 쉬고 있다 — ' + (w.reason === 'limit' ? '사용 한도' : '다시 로그인한다') : '아직 확인 전 — 처음이면 로그인한다'}</b><small>파일을 넣으면 Claude 로 다듬어 문서에 넣는다(안 되면 파일 그대로 새 문서) · 이번 달 ${c.month}건 · 로그인은 이 PC 의 Claude Code 에</small></span><button class="btn${w && w.ok ? '' : ' pri'}" data-a="claudeLogin" data-t="claudeLogin" style="width:auto">${w && w.ok ? '다시 로그인' : 'Claude 로그인'}</button><button class="kebab${S.menu === 'claude' ? ' on' : ''}" data-a="menu" data-m="claude" data-t="claudeKebab" title="다시 로그인 · 쓰지 않기">⋯${S.menu === 'claude' ? '<div class="menu" style="right:0;top:28px"><div class="mi" data-a="claudeLogin" data-t="claudeRelogin">다시 로그인<small>창이 열린다</small></div><div class="mi" data-a="claudeOff" data-t="claudeOff">Claude 쓰지 않기<small>규칙으로 되는 것만</small></div></div>' : ''}</button></div>`
     return `<div class="card" data-t="claudeCard" style="overflow:visible"><div class="ch">Claude 연결 <small>이 프로그램이 쓰는 Claude Code 로그인</small></div><div class="cb" style="padding:2px 14px">${row}</div><div class="cf">기록 문서를 만들거나 정리할 때 이 PC 의 Claude Code 를 부른다 · 오래 가는 로그인을 쓴다</div></div>`
   }
   const rest = w && w.ok === false

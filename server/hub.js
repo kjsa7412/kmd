@@ -13,7 +13,8 @@ import { decide, decisionRecord, revertPlan } from '../core/curate.js'
 import * as collect from '../core/collect.js'
 import crypto from 'node:crypto'
 import net from 'node:net'
-import { material, check as checkDraft, planSave } from '../core/tidy.js'
+import { material, check as checkDraft, planSave, promptOf as tidyPrompt, INGEST_SCHEMA, ingestCandidates, ingestRule } from '../core/tidy.js'
+import { runClaude } from '../core/claude.js'
 import * as feed from '../core/feed.js'
 import { checkTarget, readSource, probe, readDecl, writeDecl, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit } from '../core/sources.js'
 import { check } from '../core/check.js'
@@ -884,6 +885,40 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
 
     // ── 파일 · 폴더 넣기(KM82 — 한 번 들여온다) ──
+    // 넣은 파일의 기록 하나를 바로 문서까지(이 PC — 정리가 따로 없다) — Claude 로 다듬고(정리와 같은 검사) · 안 되면 규칙으로 파일 그대로 새 문서.
+    //   어느 쪽이든 그 기록은 「넣음」(reflects) · 넣은 일은 이력에
+    async ingestNow(id, recId, { claude = true } = {}) {
+      const meta = await hub.meta(id)
+      cache.delete(id)
+      const k = await hub.get(id)
+      const w = k.byWork.get(recId)
+      if (!w || w.state !== 'pend') return { why: '들일 기록이 없다' }
+      const g = { kind: 'ingest', record: { id: w.id, date: w.date, author: w.author, title: w.title, body: w.body, file: (w.tags.find((t) => t.startsWith('ingest/')) || 'ingest/파일').slice(7) }, docs: ingestCandidates(k, w) }
+      let why = null
+      if (claude && hub.meaningOk(id)) {
+        const r = await runClaude({ prompt: tidyPrompt(g), schema: INGEST_SCHEMA, budget: 0.5 })
+        if (r.error) {
+          why = r.error === 'login' ? 'Claude 로그인이 없다 — 설정 › Claude 연결' : r.error === 'limit' ? 'Claude 사용 한도' : 'Claude 가 답하지 않았다'
+          if (r.error === 'login' || r.error === 'limit') await hub.workerStatus({ worker: { id: null } }, { ok: false, reason: r.error, message: r.message })
+        } else {
+          const c = checkDraft(k, g, r.value)
+          if (c.ok) {
+            await coreSave(meta.dir, planSave(k, g, r.value, { model: r.model }), { user: 'kmd-auto', system: true })
+            await hub.workerStatus({ worker: { id: null } }, { ok: true })
+            cache.delete(id)
+            const d = r.value
+            const doc = d.newDoc ? String(d.newDoc.path).replace(/\\/g, '/').replace(/^docs\/|\.md$/g, '').trim() : String(d.updates[0].doc).replace(/^docs\/|\.md$/g, '')
+            return { doc, how: 'claude', msg: `기록 · 문서가 됐다 — ${meta.name} › ${doc.split('/').join(' › ')}${d.newDoc ? ' (새 문서)' : ' (기존 문서에 넣음)'} · Claude 로 다듬었다` }
+          }
+          why = `검사를 넘지 못했다 — ${c.why}`
+        }
+      } else if (claude) why = 'Claude 를 쓰지 않는다'
+      const rule = ingestRule(k, g, { why })
+      if (!rule) return { why: '빈 파일이다' }
+      await coreSave(meta.dir, rule.input, { user: 'kmd-auto', system: true })
+      cache.delete(id)
+      return { doc: rule.doc, how: 'rule', msg: `기록 · 문서가 됐다 — ${meta.name} › ${rule.doc.split('/').join(' › ')} (파일 그대로 새 문서${why ? ' · ' + why : ''})` }
+    },
     // asDocs — 옛 폴더로 지식을 세울 때(지식 추가)만 바로 문서 · 그 밖은 기록으로 들이고 정리가 문서에 넣는다
     async importFiles(ctx, id, files, { asDocs = false } = {}) {
       const meta = await hub.meta(id, ctx)
@@ -908,15 +943,23 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         cache.delete(id)
       }
       // 기록 줄에 그 기록 id — 화면의 [보기] 가 연다
+      // 이 PC — 정리가 따로 없다: 넣으면 기록과 문서가 바로(Claude 로 다듬어 · 안 되면 규칙으로 파일 그대로 새 문서) · 팀은 정리가 넣는다
+      const now = mode === 'pc' && direct
       const recRows = plan.rows.filter((x) => x.kind === 'record')
       for (const [i, r] of plan.records.entries()) {
         const sv = await hub.save(ctx, id, { record: r })
-        if (recRows[i]) recRows[i].rec = sv.id
+        if (!recRows[i]) continue
+        recRows[i].rec = sv.id
+        if (now) {
+          const got = await hub.ingestNow(id, sv.id, { claude: i < INGEST_CLAUDE_MAX }).catch((e) => ({ why: e.message }))
+          if (got.doc) Object.assign(recRows[i], { kind: 'doc', doc: got.doc, msg: got.msg })
+          else recRows[i].msg = `기록이 됐다 — 문서로 들이지 못했다 · ${got.why || ''}`
+        }
       }
       const s = summary(plan.rows)
       if (s.doc || s.record) feed.add(dataDir, ctx.user, { kind: 'import', kn: id, dot: 'acc', text: `파일 ${s.doc + s.record}개를 ${s.doc ? '문서로' : '기록으로'} — ${meta.name}`, small: s.fail ? `바꾸지 못한 파일 ${s.fail}` : s.doc ? '원본은 첨부로 두었다' : '정리가 기존 문서에 넣거나 새 문서로 세운다' }).catch(() => {})
-      // 넣은 파일의 기록 — 정리를 바로 건다(Claude 에 보내지 않는 지식 · 이 PC 의 자동 정리 끔이면 기록으로 기다린다)
-      if (s.record && hub.meaningOk(id)) hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
+      // 넣은 파일의 기록 — 팀은 정리를 바로 건다(Claude 에 보내지 않는 지식이면 기록으로 기다린다) · 이 PC 는 위에서 이미 문서까지
+      if (!now && s.record && hub.meaningOk(id)) hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
       if ((plan.docs.length || plan.atts.length) && backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
       return { direct, summary: s, rows: plan.rows }
     },
@@ -1327,4 +1370,6 @@ async function unbacked(k) {
   return v
 }
 // 셸(서버를 띄운 사람)의 자리 — CLI 가 쓴다
+// 이 PC 의 넣기 — 한 번에 Claude 로 다듬는 파일 수(나머지는 규칙으로 — 큰 폴더가 오래 걸리지 않게)
+const INGEST_CLAUDE_MAX = 20
 export const SHELL = Object.freeze({ user: 'kmd', admin: true, shell: true })

@@ -256,6 +256,42 @@ test('지식 추가 — 지식 폴더 밖의 폴더는 지식 폴더 안의 새 
   }
 })
 
+test('이 PC 의 파일 넣기 — 정리가 따로 없다: 기록과 문서가 바로(Claude 로 다듬어) · Claude 로그인이 없으면 파일 그대로 새 문서 · 기록은 늘 「넣음」', async () => {
+  const root = path.join(tmp, 'pcroot-ingest')
+  fs.mkdirSync(root, { recursive: true })
+  const pc = await startServer({ root, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
+  try {
+    const ME = { user: pc.pcUser, admin: true, pc: true }
+    const { id } = await pc.hub.addKnowledge(ME, { kind: 'new', name: '배포노트' })
+    const dir = path.join(root, id)
+    // Claude 로 — 이어지는 문서가 없으니 새 문서 · 그 기록은 넣음 · 정리 일감은 없다
+    const r = await pc.hub.importFiles(ME, id, [{ path: '회의록-1021.md', data: Buffer.from('# 회의록-1021\n\n## 정한 것\n배포 창은 화 · 목.\n') }])
+    assert.equal(r.rows[0].kind, 'doc', r.rows[0].msg)
+    assert.match(r.rows[0].msg, /기록 · 문서가 됐다 — 배포노트 › 회의록-1021 \(새 문서\) · Claude 로 다듬었다/)
+    assert.match(fs.readFileSync(path.join(dir, 'docs', '회의록-1021.md'), 'utf8'), /## 정한 것\n<!-- applied: [^>]+ -->\n배포 창은 화 · 목\./)
+    let k = await pc.hub.get(id)
+    const rec = k.works.find((w) => w.tags.includes('ingest/회의록-1021.md'))
+    assert.equal(rec.state, 'in', '기록은 바로 넣음')
+    assert.equal(pc.hub.jobsOf(id).filter((j) => j.state === 'queued').length, 0, '정리를 따로 걸지 않는다')
+    // Claude 로그인이 없다 — 규칙으로 파일 그대로 새 문서 · 설정의 Claude 연결이 로그인을 부른다
+    process.env.FAKE_CLAUDE_MODE = 'logout'
+    try {
+      const r2 = await pc.hub.importFiles(ME, id, [{ path: '메모.md', data: Buffer.from('머리 없는 메모 — 당번은 박.\n') }])
+      assert.equal(r2.rows[0].kind, 'doc')
+      assert.match(r2.rows[0].msg, /메모 \(파일 그대로 새 문서 · Claude 로그인이 없다/)
+      assert.match(fs.readFileSync(path.join(dir, 'docs', '메모.md'), 'utf8'), /## 개요\n<!-- applied: [^>]+ -->\n머리 없는 메모 — 당번은 박\./)
+    } finally {
+      delete process.env.FAKE_CLAUDE_MODE
+    }
+    k = await pc.hub.get(id)
+    assert.ok(k.works.filter((w) => w.tags.some((t) => t.startsWith('ingest/'))).every((w) => w.state === 'in'), '기록은 모두 넣음')
+    assert.ok(k.logs.some((w) => w.title === '정리 — 메모.md 들임' && /규칙으로/.test(w.body)))
+    assert.equal(JSON.parse(fs.readFileSync(path.join(root, '.kmd', 'worker.json'), 'utf8')).reason, 'login')
+  } finally {
+    await pc.close()
+  }
+})
+
 test('지식 지우기 — 이름을 그대로 써야 · 팀은 관리자나 개인 지식의 주인만 · 보관 없이 폴더 · 살림까지 완전히', async () => {
   const dir = path.join(tmp, 'kn', 'inbox')
   const data = path.join(tmp, 'kn', '.kmd')

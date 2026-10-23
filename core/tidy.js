@@ -214,6 +214,34 @@ function checkIngest(k, g, d) {
   return { ok: true, changed }
 }
 
+// 규칙으로 들이기(Claude 없이 · 이 PC 의 넣기가 바로 문서까지 갈 때) — 파일 그대로 새 문서(이름이 겹치면 -2 …)
+//   머리(##) 앞 글은 「개요」 항목으로 · 머리가 없으면 그 글 하나가 「개요」 · 이력에 「규칙으로」 와 까닭
+export function ingestRule(k, g, { why = null } = {}) {
+  const lines = String(g.record.body).replace(/^# .*\n?/m, '').split('\n')
+  const secs = []
+  let cur = { heading: '개요', content: [] }
+  for (const l of lines) {
+    const m = /^## (.+)$/.exec(l)
+    if (m) {
+      if (cur.content.join('\n').trim()) secs.push(cur)
+      cur = { heading: m[1].trim(), content: [] }
+    } else cur.content.push(l)
+  }
+  if (cur.content.join('\n').trim()) secs.push(cur)
+  if (!secs.length) return null
+  const base = g.record.file.replace(/\.[^./]+$/, '')
+  let p = base
+  for (let n = 2; k.byDocPath.get(docRel(p)); n++) p = `${base}-${n}`
+  const name = g.record.file.split('/').pop()
+  return {
+    doc: p,
+    input: {
+      record: { title: `정리 — ${name} 들임`, body: [`규칙으로 — 파일 그대로 새 문서 ${p} · 항목 ${secs.length}`, ...(why ? [`- Claude 로 하지 못한 까닭 — ${why}`] : [])].join('\n'), tags: ['curate-auto'], reflects: [g.record.id] },
+      sections: secs.map((s) => ({ doc: docRel(p), heading: s.heading, content: s.content.join('\n').trim() })),
+    },
+  }
+}
+
 // 넣기 계획 — 검사를 넘은 초안 하나 → save 입력(작성자 kmd-auto · curate-llm)
 export function planSave(k, g, d, { model = null } = {}) {
   if (g.kind === 'ingest') {
