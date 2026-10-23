@@ -15,10 +15,10 @@ import crypto from 'node:crypto'
 import net from 'node:net'
 import { material, check as checkDraft, planSave } from '../core/tidy.js'
 import * as feed from '../core/feed.js'
-import { checkTarget, readSource, probe, readDecl, writeDecl, stripCreds, secretName, secretPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs } from '../core/sources.js'
+import { checkTarget, readSource, probe, readDecl, writeDecl, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs } from '../core/sources.js'
 import { check } from '../core/check.js'
 import { commitPaths, ensureRepo, tryGit, maskUrl } from '../core/git.js'
-import { stopLine } from '../core/stopline.js'
+import { stopLine, ageText } from '../core/stopline.js'
 import * as backup from '../core/backup.js'
 import * as owners from '../core/owners.js'
 import { buildIndex, ladder, loadLearned, learn, searchCheck, exact } from '../core/search.js'
@@ -29,6 +29,9 @@ import * as keystore from '../core/keystore.js'
 import { sha16 } from '../core/text.js'
 import { isSystemRecord, labelOf } from '../core/knowledge.js'
 import { restore as restoreFrom, checkUrl } from '../core/restore.js'
+import { watchedOf } from '../core/watchmark.js'
+import { applyDocs, wantDoc, watchedCount } from '../core/docwatch.js'
+import { listPushes, addPush, removePush, runPush, readPushState } from '../core/push.js'
 import { ensureProject } from '../core/gitlab.js'
 import { getSecret, setSecret, listSecrets, delSecret } from '../core/secrets.js'
 
@@ -94,7 +97,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     return sendLib.post(d.url, d.kn, payload, key)
   }
   let sendTimer = null
+  let pushTimer = null
   const srcRuns = new Map() // 가져오는 곳마다 도는 중인 것(한 줄로 세운다)
+  const adding = new Set() // 막 더하는 중인 곳 — 시계 · 켤 때 확인이 끼어들지 않게
   const resyncs = new Map() // 전체 다시 맞추기 일감 — 진행률
   const srcWatch = new Map() // 코드 폴더 실시간 감시
   let started = false
@@ -368,6 +373,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const hs = sections.map((s) => String(s.h || '').trim())
       if (hs.some((h) => !h || /[\r\n]/.test(h))) throw new KmdError('E_INPUT', '항목 이름은 한 줄 글이다')
       const coords = [...new Set(hs.flatMap((h) => coordsOfSection(k, d, h)))]
+      const w = watchedOf(await fs.readFile(path.join(k.dir, ...d.path.split('/')), 'utf8').catch(() => ''))
+      if (w) throw new KmdError('E_FORBIDDEN', `이 문서는 원본이 주인이다 — ${w.src} 의 ${w.path} 를 고친다 · 덧붙일 말은 기록으로 남긴다`)
       if (hub.canDirect(ctx, id)) {
         const r = await hub.save(ctx, id, {
           record: { title: `화면에서 고침 — ${d.title} 「${hs.join(' · ')}」`, body: `화면에서 고쳤다 — ${hs.map((h) => `${d.title} › ${h}`).join(' · ')}`, touches: coords, tags: ['edit'] },
@@ -441,7 +448,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 더하기 — 유형마다(folder 코드 폴더 · git 저장소 · db). 나가는 자격(git 토큰 · DB 비밀번호)은 이 PC 화면만 받는다 —
     // 팀 화면은 받지 않고 셸 한 줄(`kmd secret set <자격 이름>`)과 상태만 보인다(v0.6 정정 ③)
-    async sourceAdd(ctx, id, { name, at, kind = null, every = 'hourly', rules, cred = null, db = null }) {
+    async sourceAdd(ctx, id, { name, at, kind = null, every = 'hourly', rules, cred = null, db = null, mode: pcMode = 'docs' }) {
       const meta = await hub.meta(id, ctx)
       if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 관리자가 더한다 — [관리자에게 부탁]')
       name = String(name || '').trim()
@@ -450,7 +457,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if ((cred?.password || cred?.token || db?.password) && !pcScreen) throw new KmdError('E_FORBIDDEN', `자격은 화면으로 받지 않는다 — 서버에서 한 줄: kmd secret set ${secretName(id, name)}`)
       const k2 = kind || (db ? 'db' : /^(https?|ssh):\/\//i.test(String(at)) ? 'git' : 'folder')
       // 파일 목록(files)은 걷었다(감시 검토 v0.1 — 값보다 소음) · 표 파일(tables)은 사람이 고른 파일 · 폴더만
-      const okRules = k2 === 'db' ? ['dbtables'] : ['deps', 'tables']
+      // docs — 문서 폴더(지식 안 그 폴더로 사본 문서) · pc — 내 PC 폴더(팀 · 관리자 · PC 프로그램이 기계 열쇠로 보낸다 · 결정 ④)
+      if (k2 === 'pc' && (mode !== 'team' || !ctx.admin)) throw new KmdError('E_FORBIDDEN', '내 PC 폴더는 팀에서 관리자가 허락한다')
+      const okRules = k2 === 'db' ? ['dbtables'] : k2 === 'docs' || (k2 === 'pc' && pcMode === 'docs') ? ['docs'] : ['deps', 'tables']
       for (const r of Array.isArray(rules) ? rules : []) {
         if (r?.rule !== 'tables') continue
         const ps = (Array.isArray(r.paths) ? r.paths : []).map((x) => String(x).trim().replace(/\\/g, '/').replace(/^\.?\/+|\/+$/g, '')).filter(Boolean)
@@ -474,18 +483,123 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (!word.test(schema)) throw new KmdError('E_INPUT', '스키마 이름이 아니다')
         if (d.password) await setSecret(dataDir, secretName(id, name), String(d.password))
         shown = `postgres://${d.user}@${d.host}:${port}/${d.database}?schema=${schema}`
+      } else if (k2 === 'pc') {
+        shown = '내 PC — 기계 열쇠로 보낸다'
       } else {
-        const t = checkTarget(at, { kind: k2, ...(await hub.sourceCtx(id)) })
+        const t = checkTarget(at, { kind: k2 === 'docs' ? 'folder' : k2, ...(await hub.sourceCtx(id)) })
         if (k2 === 'git' && (cred?.user || cred?.token)) await setSecret(dataDir, secretName(id, name), `${cred.user || 'git'}:${cred.token || ''}`)
         shown = t.url ? await stripCreds(t.url, { dataDir, kn: id, name }) : t.folder
       }
       // DB 주소는 계정 이름까지 둔다(비밀번호는 처음부터 없다) · 그 밖은 주소에 든 자격을 가린다
-      const src = { name, kind: k2, at: k2 === 'db' ? shown : maskUrl(shown), every, rules: rules.map((r) => ({ rule: r.rule, ...(r.paths ? { paths: r.paths } : {}), into: { doc: String(r.into.doc), ...(r.into.heading ? { heading: String(r.into.heading) } : {}) } })), by: ctx.user, since: new Date().toISOString().slice(0, 10) }
-      await writeDecl(meta.dir, [...decl, src], { user: ctx.user, title: `가져오는 곳 더함 — ${name}` })
+      const src = { name, kind: k2, ...(k2 === 'pc' ? { mode: pcMode === 'docs' ? 'docs' : 'code' } : {}), at: k2 === 'db' || k2 === 'pc' ? shown : maskUrl(shown), every: k2 === 'pc' ? 'manual' : every, rules: rules.map((r) => ({ rule: r.rule, ...(r.paths ? { paths: r.paths } : {}), into: { doc: String(r.into.doc), ...(r.into.heading ? { heading: String(r.into.heading) } : {}) } })), by: ctx.user, since: new Date().toISOString().slice(0, 10) }
+      const addKey = `${id}\n${name}`
+      adding.add(addKey)
+      try {
+        await writeDecl(meta.dir, [...decl, src], { user: ctx.user, title: `가져오는 곳 더함 — ${name}` })
+        cache.delete(id)
+        if (k2 === 'pc') {
+          // 그 지식 · 그 이름에만 묶인 열쇠 — 한 번만 보인다 · PC 프로그램 › 자료 가져오기 › 팀으로 보내는 폴더에 넣는다
+          const mk = await hub.machineKey(id, name)
+          return { source: src, run: [{ name, state: 'waiting', n: 0, why: '내 PC 프로그램이 보내기를 기다린다' }], key: mk.key, team: null }
+        }
+        if (started) hub.watchSource(id, src)
+        const r = await hub.sourceRun(id, name, { first: true })
+        return { source: src, run: r, secret: secretName(id, name) }
+      } finally {
+        adding.delete(addKey)
+      }
+    },
+    // ── 팀으로 보내는 폴더(이 PC) — 팀 관리자가 허락한 열쇠로 바뀐 것만 팀 지식에 ──
+    async pushes(ctx) {
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀으로 보내는 폴더는 내 PC 프로그램에서')
+      const st = await readPushState(dataDir)
+      return (await listPushes(dataDir)).map((p) => ({ ...p, state: st[p.id] || {}, watch: srcWatch.has(`push\n${p.id}`) ? 'live' : 'poll', resync: resyncs.get(`push\n${p.id}`) || null }))
+    },
+    async pushAdd(ctx, body) {
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀으로 보내는 폴더는 내 PC 프로그램에서')
+      const p = await addPush(dataDir, body || {})
+      if (started) hub.watchPush(p)
+      const r = await hub.pushRun(p.id)
+      return { push: p, run: r }
+    },
+    async pushRun(id, { full = false, onProgress = null } = {}) {
+      const p = (await listPushes(dataDir)).find((x) => x.id === id)
+      if (!p) throw new KmdError('E_NOTFOUND', '그 폴더가 없다')
+      const key = `push\n${id}`
+      const job = (srcRuns.get(key) || Promise.resolve()).catch(() => {}).then(() => runPush(dataDir, p, { full, onProgress }))
+      srcRuns.set(key, job)
+      const r = await job
+      if (srcRuns.get(key) === job) srcRuns.delete(key)
+      return r
+    },
+    async pushResync(ctx, id) {
+      const key = `push\n${id}`
+      if (resyncs.get(key)?.state === 'running') return resyncs.get(key)
+      const job = { state: 'running', done: 0, total: 0, at: new Date().toISOString() }
+      resyncs.set(key, job)
+      hub.pushRun(id, { full: true, onProgress: (d, t) => { job.done = d; job.total = t } }).then((r) => Object.assign(job, { state: r.state === 'failed' ? 'failed' : 'done', result: r, end: new Date().toISOString() }))
+      return job
+    },
+    async pushRemove(ctx, id) {
+      srcWatch.get(`push\n${id}`)?.close()
+      srcWatch.delete(`push\n${id}`)
+      await removePush(dataDir, id)
+      return { ok: true }
+    },
+    watchPush(p) {
+      const key = `push\n${p.id}`
+      srcWatch.get(key)?.close()
+      let timer = null
+      try {
+        const w = fsWatch(p.folder, { recursive: true }, (ev, f) => {
+          const q = String(f || '').replace(/\\/g, '/')
+          if (q.split('/').some((x) => x.startsWith('.') || x.startsWith('~$') || x === 'node_modules')) return
+          clearTimeout(timer)
+          timer = setTimeout(() => hub.pushRun(p.id).catch(() => {}), config.watchQuietMs ?? 10_000)
+          timer.unref?.()
+        })
+        w.on('error', () => {})
+        srcWatch.set(key, { close: () => { clearTimeout(timer); w.close() } })
+      } catch {}
+    },
+    // 기계 열쇠 — http 가 auth 를 이어 준다(내 PC 폴더를 허락할 때 그 지식 · 그 이름에만)
+    machineKey: async () => { throw new KmdError('E_INPUT', '기계 열쇠를 만들 수 없다') },
+    // 내 PC 폴더 — PC 프로그램이 묻는 선언(무엇을 · 어디로) · 기계 열쇠의 그 이름만
+    async pcDecl(ctx, id) {
+      const meta = await hub.meta(id)
+      if (!ctx.machine || ctx.machine.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
+      const s = (await readDecl(meta.dir)).find((x) => x.name === ctx.machine.source && x.kind === 'pc')
+      if (!s) throw new KmdError('E_NOTFOUND', '팀에서 이 폴더를 뺐다 — 관리자에게 묻는다')
+      return { kn: id, knName: meta.name, name: s.name, mode: s.mode, rules: s.rules }
+    },
+    // 내 PC 폴더 — 바뀐 문서를 받는다(원본이 주인 · 지운 것은 「원본에 없다」 · 한꺼번에 많이 사라지면 멈춤)
+    async receiveWatched(ctx, id, { files = [], removed = [], host = '', first = false } = {}) {
+      const meta = await hub.meta(id)
+      if (!ctx.machine || ctx.machine.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
+      const s = (await readDecl(meta.dir)).find((x) => x.name === ctx.machine.source && x.kind === 'pc' && x.mode === 'docs')
+      if (!s) throw new KmdError('E_NOTFOUND', '팀에서 이 문서 폴더를 뺐다 — 관리자에게 묻는다')
+      if (!Array.isArray(files) || !Array.isArray(removed) || files.length > MAX_FILES) throw new KmdError('E_INPUT', `한 번에 ${MAX_FILES} 파일까지`)
+      const k = await hub.get(id)
+      const st = await readSourceState(dataDir, id)
+      const s0 = (st[s.name] ||= {})
+      const now = new Date().toISOString()
+      const before = await watchedCount(k, s.name)
+      if (!first && before && removed.length / before > 0.1) {
+        s0.stopped = { at: now, added: 0, vanished: removed.length, of: before }
+        s0.lastNote = '멈춤'
+        await writeSourceState(dataDir, id, st)
+        return { state: 'stopped', ...s0.stopped }
+      }
+      const clean = (p) => String(p || '').replace(/\\/g, '/').split('/').filter((x) => x && x !== '.' && x !== '..').join('/')
+      const r = await applyDocs(k, { src: s, prefix: docPrefix(s), files: files.map((f) => ({ rel: clean(f.path), data: Buffer.from(String(f.b64 || ''), 'base64') })).filter((f) => f.rel && wantDoc(f.rel)), removed: removed.map(clean).filter(Boolean) })
       cache.delete(id)
-      if (started) hub.watchSource(id, src)
-      const r = await hub.sourceRun(id, name, { first: true })
-      return { source: src, run: r, secret: secretName(id, name) }
+      Object.assign(s0, { checkedAt: now, host: String(host).slice(0, 60), failures: 0, stopped: null, lastNote: r.commit ? `문서 ${r.docs}${r.missing ? ' · 원본에 없다 ' + r.missing : ''}` : '그대로', ...(r.commit ? { lastChange: { at: now, files: files.length + removed.length, docs: r.docs, removed: r.missing, tables: 0 } } : {}) })
+      await writeSourceState(dataDir, id, st)
+      if (r.commit) {
+        for (const u of await hub.curatorsOf(id)) await feed.add(dataDir, u, { kn: id, dot: 'acc', text: `${s.name}에서 문서 ${r.docs}${r.missing ? ' · 원본에 없다 ' + r.missing : ''} — ${meta.name}`, small: `내 PC 폴더${host ? ' · ' + host : ''}` })
+        if (backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
+      }
+      return { state: r.commit ? 'changed' : 'same', docs: r.docs, missing: r.missing, rows: r.rows }
     },
     // DB 연결 확인 — 호스트 · 포트에 닿나만(읽기는 다음 판 · S10 계정) · 관리자 · PC 만(아무나 포트를 두드리지 않게)
     async sourceCheckDb(ctx, id, { host, port = 5432 }) {
@@ -509,8 +623,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const out = []
       for (const s of decl.filter((x) => !name || x.name === name)) {
         // DB 읽기(pg · 읽기 전용 확인)는 S10 계정이 생기면 연다 — 그때까지는 연결 정보만 두고 쉰다(실패로 세지 않는다 · 멈춤 줄 없음)
-        if (s.kind === 'db') {
-          out.push({ name: s.name, state: 'waiting', n: 0, why: 'DB 읽기는 아직 열리지 않았다 — 연결 정보는 저장했다' })
+        if (s.kind === 'db' || s.kind === 'pc') {
+          out.push({ name: s.name, state: 'waiting', n: 0, why: s.kind === 'db' ? 'DB 읽기는 아직 열리지 않았다 — 연결 정보는 저장했다' : '내 PC 프로그램이 바뀐 것을 보낸다 — 여기서는 기다린다' })
           continue
         }
         const key = `${id}\n${s.name}`
@@ -558,7 +672,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const key = `${id}\n${s.name}`
       srcWatch.get(key)?.close()
       srcWatch.delete(key)
-      if (s.kind !== 'folder' || !s.at) return
+      if ((s.kind !== 'folder' && s.kind !== 'docs') || !s.at) return
       let timer = null
       try {
         const w = fsWatch(s.at, { recursive: true }, (ev, f) => {
@@ -579,7 +693,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const st = await readSourceState(dataDir, id)
       const have = new Set((await listSecrets(dataDir).catch(() => [])).map((x) => x.name))
       // watch — live(실시간 감시) · poll(정한 때마다) · none · resync — 전체 다시 맞추기(도는 중 · 끝 · 끊김)
-      return decl.map((s) => ({ ...s, watch: s.kind === 'folder' ? (srcWatch.has(`${id}\n${s.name}`) ? 'live' : 'poll') : s.kind === 'git' ? 'poll' : 'none', resync: resyncs.get(`${id}\n${s.name}`) || (st[s.name]?.resync ? { state: 'paused', ...st[s.name].resync } : null), state: s.kind === 'db' ? { ...(st[s.name] || {}), lastNote: 'DB 읽기는 아직 — 연결 정보는 저장했다' } : st[s.name] || {}, secret: { name: secretName(id, s.name), has: have.has(secretName(id, s.name)) } }))
+      return decl.map((s) => ({ ...s, watch: s.kind === 'pc' ? 'pc' : s.kind === 'folder' || s.kind === 'docs' ? (srcWatch.has(`${id}\n${s.name}`) ? 'live' : 'poll') : s.kind === 'git' ? 'poll' : 'none', resync: resyncs.get(`${id}\n${s.name}`) || (st[s.name]?.resync ? { state: 'paused', ...st[s.name].resync } : null), state: s.kind === 'db' ? { ...(st[s.name] || {}), lastNote: 'DB 읽기는 아직 — 연결 정보는 저장했다' } : st[s.name] || {}, secret: { name: secretName(id, s.name), has: have.has(secretName(id, s.name)) } }))
     },
     // 자료 가져오기 화면 — 그 사람이 보는 지식들의 가져오는 곳 모두
     async allSources(ctx) {
@@ -617,7 +731,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     requests: async () => fs.readFile(path.join(dataDir, 'requests.json'), 'utf8').then(JSON.parse, () => []),
     // 바깥 생성기 — 기계 열쇠로 그 원천의 표만(이름의 종류도 열쇠의 것과 대조)
-    async baseline(ctx, id, { source, items = [], asof = null }) {
+    async baseline(ctx, id, { source, items = [], asof = null, host = '', files = 0 }) {
       const meta = await hub.meta(id)
       if (!ctx.machine || ctx.machine.kn !== id) throw new KmdError('E_FORBIDDEN', '기계 열쇠로만 쓴다', { need: 'machine' })
       if (String(source) !== ctx.machine.source) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 원천의 것이다')
@@ -640,7 +754,16 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       const srcDecl = { name: source, rules: [{ rule: 'outside', into: { doc: targets[0]?.doc || '' } }] }
       const plan = await planRun(k, srcDecl, { outside: targets.map((t) => ({ key: t.heading, cols: t.cols, rows: t.rows, doc: t.doc })) }, { asof: asof || new Date().toISOString().slice(0, 16).replace('T', ' ') })
-      if (!plan.changed.length) return { changed: 0 }
+      // 줄의 상태(내 PC 폴더 · 바깥 생성기) — 받은 때 · 마지막 변화
+      const mark = async (n) => {
+        const st = await readSourceState(dataDir, id)
+        const s0 = (st[source] ||= {})
+        const now = new Date().toISOString()
+        Object.assign(s0, { checkedAt: now, host: String(host || '').slice(0, 60), failures: 0, lastNote: n ? `바뀐 표 ${n}` : '그대로', ...(n ? { lastChange: { at: now, files: files || 0, tables: n } } : {}) })
+        await writeSourceState(dataDir, id, st)
+      }
+      if (!plan.changed.length) { await mark(0); return { changed: 0 } }
+      await mark(plan.changed.length)
       await coreSave(meta.dir, { record: { title: `가져옴 — ${source} · 바뀐 표 ${plan.changed.length}`, body: plan.changed.map((c) => `- ${c.doc} › ${c.heading}`).join('\n'), tags: ['sources'] }, sections: plan.changed.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) }, { user: 'kmd-auto', system: true })
       cache.delete(id)
       return { changed: plan.changed.length }
@@ -710,6 +833,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
         const r = item.error ? { ok: false, why: item.error === 'login' ? '정리 전용 로그인이 끝났다' : item.error === 'limit' ? '사용 한도에 닿았다' : '초안을 받지 못했다' } : checkDraft(k, g, d)
         const target = g.kind === 'touches' ? g.record.title : `${g.doc.replace(/^docs\/|\.md$/g, '')} › ${g.heading}`
+        // 원본이 주인인 문서에는 정리도 넣지 않는다 — 기록은 문서 옆에 그대로 읽힌다
+        if (g.doc && watchedOf(await fs.readFile(path.join(meta.dir, ...g.doc.split('/')), 'utf8').catch(() => ''))) {
+          rows.push({ kind: 'left', target, why: '원본이 주인인 문서 — 원본 파일을 고친다 · 기록은 옆에 그대로 읽힌다', records: (g.records || [g.record]).map((x) => x.id) })
+          continue
+        }
         const recs = g.kind === 'touches' ? [g.record] : g.records
         if (!r.ok) {
           rows.push({ kind: 'left', target, why: r.why, records: recs.map((x) => x.id) })
@@ -976,6 +1104,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const days = Math.max(1, Math.round((Date.now() - Date.parse(ws.since)) / 864e5))
         out.push(stopLine({ kind: 'worker', level: 'warn', what: '자동 정리가 쉬고 있다', amount: `${days}일`, fix: ctx.admin ? '관리 › Claude 연결에서 다시 로그인하면 이어서 한다' : null, told: ctx.admin ? null : '관리자에게 알렸다' }))
       }
+      if (mode === 'pc' && !id) {
+        const pst = await readPushState(dataDir).catch(() => ({}))
+        for (const p of await listPushes(dataDir).catch(() => [])) {
+          const x = pst[p.id]
+          if (x && x.failures >= 2 && Date.now() - Date.parse(x.failingSince) > 10 * 60_000) out.push(stopLine({ kind: 'push', level: 'warn', what: `${p.name} 을 팀에 못 보냈다`, amount: ageText(Date.now() - Date.parse(x.failingSince)), fix: '닿으면 바뀐 것을 이어서 보낸다', told: x.lastNote }))
+        }
+      }
       for (const k of ks) {
         out.push(...backup.lines(k, { name: k.name }))
         const sw = (await sendLib.readState(dataDir, k.id)).wait
@@ -1096,6 +1231,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             const daily = String(s.every || '').startsWith('daily ') && String(s.every).slice(6)
             const hm = new Date().toTimeString().slice(0, 5)
             const due = all || !c || (daily ? hm >= daily && new Date(c).toDateString() !== new Date().toDateString() : Date.now() - Date.parse(c) >= everyMs(s.every))
+            if (adding.has(`${m.id}\n${s.name}`)) continue // 막 더하는 중 — 더하기의 첫 확인이 한다
             if (due && s.every !== 'manual' && (mode !== 'pc' || hub.autoOf(pcUser, 'src'))) await hub.sourceRun(m.id, s.name).catch(() => {})
           }
         }
@@ -1109,6 +1245,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             hub.watchSource(m.id, s)
             if (st[s.name]?.resync) hub.sourceResync({ ...SHELL }, m.id, s.name).catch(() => {})
           }
+        }
+        // 팀으로 보내는 폴더(이 PC) — 실시간 감시 · 켤 때 한 번 · 5분마다 다시(닿지 않았던 것 · 놓친 신호)
+        if (mode === 'pc') {
+          for (const p of await listPushes(dataDir).catch(() => [])) { hub.watchPush(p); hub.pushRun(p.id).catch(() => {}) }
+          pushTimer = setInterval(async () => { for (const p of await listPushes(dataDir).catch(() => [])) await hub.pushRun(p.id).catch(() => {}) }, config.pushTickMs || 300_000)
+          pushTimer.unref?.()
         }
       }, 1000).unref?.()
       sourceTimer.unref?.()
@@ -1155,6 +1297,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       clearInterval(tidyTimer)
       clearInterval(sourceTimer)
       clearInterval(sendTimer)
+      clearInterval(pushTimer)
       for (const w of srcWatch.values()) w.close()
       srcWatch.clear()
     },

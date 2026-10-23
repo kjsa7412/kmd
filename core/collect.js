@@ -18,6 +18,7 @@ import { parseRegistry, locate } from './registry.js'
 import { parseVocab } from './vocab.js'
 import { renderRecord } from './frontmatter.js'
 import { localStamp } from './save.js'
+import { watchedOf } from './watchmark.js'
 
 let cfg = { quietMs: 30_000 }
 export function configure(o) {
@@ -64,7 +65,16 @@ export async function collectNow(dir, { user, save }) {
       reverted.push(f.path)
     }
   }
-  const docs = files.filter((f) => /^docs\/.+\.md$/i.test(f.path)).map((f) => f.path)
+  // 원본이 주인인 문서(문서 감시가 단 것) — 편집기 손 고침은 되돌린다(고치려면 원본 파일을 고친다)
+  for (const f of files) {
+    if (!/^docs\/.+\.md$/i.test(f.path) || f.code.includes('?')) continue
+    const head = (await tryGit(dir, ['show', `HEAD:${f.path}`])).out
+    if (watchedOf(head)) {
+      await tryGit(dir, ['checkout', '--', f.path])
+      reverted.push(f.path)
+    }
+  }
+  const docs = files.filter((f) => /^docs\/.+\.md$/i.test(f.path) && !reverted.includes(f.path)).map((f) => f.path)
   if (!docs.length) return reverted.length ? { reverted } : null
   // 바뀐 항목 — HEAD 의 글과 지금 글을 항목마다 견준다
   const reg = parseRegistry(await fsp.readFile(path.join(dir, '_managed.md'), 'utf8').then(readText, () => ''))

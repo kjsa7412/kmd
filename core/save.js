@@ -18,6 +18,7 @@ import { keepBlocks, hasBlockMarker } from './baseline.js'
 import { locate, parseRegistry } from './registry.js'
 import { parseVocab } from './vocab.js'
 import { ensureRepo, commitPaths } from './git.js'
+import { watchedOf } from './watchmark.js'
 
 const DATE = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/
 const COORD = /^[^\s:`]+:[^\n`]+$/
@@ -153,6 +154,13 @@ async function saveNow(dir, r, secs, { user, now, system = false }) {
       const sec = cur && parseDoc(cur, '').sections.find((x) => headingMatches(x.h, p.heading))
       const a = sec?.applied && parseRecord(await fs.readFile(path.join(dir, 'work', `${sec.applied}.md`), 'utf8').then(readText, () => ''), `${sec.applied}.md`)
       if (a && a.date > date) fail('E_CONFLICT', `「${p.heading}」 에는 더 늦은 기록(${a.date})이 이미 들어 있다 — 옛 날짜로 고치지 않는다`)
+    }
+  }
+  // 원본이 주인 — 문서 감시로 들어온 문서는 사람 · 세션이 고치지 못한다(원본 파일을 고친다 · 덧붙일 말은 기록으로)
+  if (!system) {
+    for (const p of plan) {
+      const w = watchedOf(await fs.readFile(p.full, 'utf8').catch(() => ''))
+      if (w) fail('E_FORBIDDEN', `이 문서는 원본이 주인이다 — ${w.src} 의 ${w.path} 를 고친다 · 덧붙일 말은 기록으로 남긴다`, { need: 'source' })
     }
   }
   // 읽은 뒤 바뀌었나(F4) — base 를 보낸 항목만. 하나라도 어긋나면 아무것도 쓰지 않는다

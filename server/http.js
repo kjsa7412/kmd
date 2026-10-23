@@ -18,6 +18,7 @@ import { makeHub, defaultDataDir } from './hub.js'
 import { VERSION } from './version.js'
 import * as V from './views.js'
 import * as kit from '../core/kit.js'
+import { watchedOf } from '../core/watchmark.js'
 import { pcLogin, makeTeamLogin } from '../core/claudelogin.js'
 import { getSecret } from '../core/secrets.js'
 
@@ -69,6 +70,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const mcp = makeMcp(hub)
   if (pcUser) await auth.ensurePc(pcUser)
   const teamLogin = makeTeamLogin({ dataDir })
+  hub.machineKey = (kn, source) => auth.machineAdd({ kn, source }) // 내 PC 폴더를 허락할 때
 
   // ── 팀 화면 ↔ 내 PC(E8 · v0.5 §5 · v0.6 ⑫) — PC 프로그램만 ──
   // 설치(kmd connect)가 적은 팀 주소(<data>/teams.json)의 화면이 물으면 Origin 을 대조해 12시간 짝 열쇠(kmdp_)를 응답으로
@@ -185,6 +187,15 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (!hub.baseline) throw new KmdError('E_NOTFOUND', '아직 없는 길이다')
       return out(200, await hub.baseline(ctx, decodeURIComponent(bl[1]), await readBody(req)))
     }
+    // 내 PC 폴더 — PC 프로그램이 기계 열쇠로: 선언 묻기 · 바뀐 문서 보내기(표는 위의 baseline 길)
+    if (p === '/api/pcwho' && ctx?.machine) return out(200, { kn: ctx.machine.kn, source: ctx.machine.source })
+    const pcm = p.match(/^\/api\/k\/([^/]+)\/(pcdecl|watched)$/)
+    if (pcm && ctx?.machine) {
+      const id = decodeURIComponent(pcm[1])
+      if (pcm[2] === 'pcdecl') return out(200, await hub.pcDecl(ctx, id))
+      if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
+      return out(200, await hub.receiveWatched(ctx, id, await readBody(req, 280 << 20)))
+    }
     // 정리 일꾼 — 일감 받기 · 상태 알리기(kmdw_) · 재료 · 초안(kmdd_)
     if (p === '/api/worker/next' || p === '/api/worker/status') {
       if (!ctx?.worker) throw new KmdError('E_FORBIDDEN', '정리 일꾼 열쇠로 부른다')
@@ -207,6 +218,17 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (jm) return out(200, hub.job(jm[1]) || { state: 'gone' })
     // 자동으로 가져오는 곳 — 목록 · 더하기(관리자 · PC) · 살펴보기 · 지금 가져오기 · 관리자에게 부탁
     if (p === '/api/sources') return out(200, { items: await hub.allSources(ctx), can: hub.mode === 'pc' || !!ctx.admin })
+    // 팀으로 보내는 폴더(이 PC) — 목록 · 더하기(팀 주소 · 열쇠 · 폴더) · 지금 보내기 · 전체 다시 맞추기 · 빼기
+    const pu = p.match(/^\/api\/pushes(?:\/(run|resync|remove))?$/)
+    if (pu) {
+      if (req.method === 'GET' && !pu[1]) return out(200, await hub.pushes(ctx))
+      if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
+      const b = await readBody(req)
+      if (!pu[1]) return out(200, await hub.pushAdd(ctx, b))
+      if (pu[1] === 'run') return out(200, await hub.pushRun(String(b.id || '')))
+      if (pu[1] === 'resync') return out(200, await hub.pushResync(ctx, String(b.id || '')))
+      return out(200, await hub.pushRemove(ctx, String(b.id || '')))
+    }
     // ── 설정(S7) — 이 팀 서버 · 이 PC · 저절로 하는 일 · Claude 연결 · 에이전트 설치 ──
     if (p === '/api/settings') {
       const ks = await hub.visible(ctx)
@@ -459,7 +481,10 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (what === 'doc') {
       const v = V.docView(k, url.searchParams.get('d'), { src: await hub.sourceState(k.id) })
       if (!v) throw new KmdError('E_NOTFOUND', '이 문서는 이제 없다')
-      return out(200, { ...v, direct: hub.canDirect(ctx, k.id) })
+      // 원본이 주인인 문서 — 어디서 왔나 · 고치기 없음
+      const dd = k.docs.find((x) => x.id === url.searchParams.get('d'))
+      const watched = dd ? watchedOf(await fs.readFile(path.join(k.dir, ...dd.path.split('/')), 'utf8').catch(() => '')) : null
+      return out(200, { ...v, watched, direct: hub.canDirect(ctx, k.id) && !watched })
     }
     const v = V.recView(k, url.searchParams.get('r'))
     if (!v) throw new KmdError('E_NOTFOUND', '이 기록은 이제 없다')

@@ -45,7 +45,8 @@ before(async () => {
 after(async () => {
   await browser?.close()
   await s?.close()
-  if (tmp) fs.rmSync(tmp, { recursive: true, force: true })
+  // Windows — 감시 · git 손잡이가 늦게 풀려 지우기가 EBUSY 일 때가 있다(임시 폴더라 남겨도 된다)
+  try { if (tmp) fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
 async function bannedIn(page) {
@@ -216,8 +217,8 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   await page.click('[data-t=nav-import]')
   await page.waitForSelector('[data-t=drop]')
   // 두 영역 — ① 문서로 들이기 ② 표를 저절로 채우기 · 더하기는 유형마다 칸
-  assert.deepEqual((await page.locator('[data-t=impSec]').allInnerTexts()).map((t) => t.split(' ').slice(0, 2).join(' ')), ['① 문서로', '② 표를'])
-  assert.deepEqual(await page.locator('[data-t=sfTabs] span').allInnerTexts(), ['코드 폴더', 'git 저장소', 'DB'])
+  assert.deepEqual((await page.locator('[data-t=impSec]').allInnerTexts()).map((t) => t.split(' ').slice(0, 2).join(' ')), ['① 문서로', '② 지켜보며'])
+  assert.deepEqual(await page.locator('[data-t=sfTabs] span').allInnerTexts(), ['문서 폴더', '코드 폴더', 'git 저장소', 'DB', '내 PC 폴더'], '관리자는 내 PC 폴더를 허락할 수 있다')
   await page.click('[data-t=sf-git]')
   assert.match(await page.locator('[data-t=credNote]').innerText(), /화면으로는 받지 않는다/, '팀 화면은 git 자격을 받지 않는다')
   await page.click('[data-t=sf-db]')

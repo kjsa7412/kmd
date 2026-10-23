@@ -86,6 +86,10 @@ export async function scanFolder(root, L, { want, maxFile = 1 << 20, maxFiles = 
       stats.reads++
       return readText(await fs.readFile(byPath.get(p), 'utf8'))
     },
+    readBuf: async (p) => {
+      stats.reads++
+      return fs.readFile(byPath.get(p))
+    },
   }
 }
 

@@ -24,6 +24,7 @@ import { getSecret, setSecret } from './secrets.js'
 import { KmdError } from './errors.js'
 import { stopLine, ageText } from './stopline.js'
 import { readLedger, writeLedger, scanFolder, scanGit, changeCount } from './watch.js'
+import { applyDocs, wantDoc } from './docwatch.js'
 
 export const DECL = '_sources.json'
 const MAX_FILE = 1 << 20
@@ -179,6 +180,15 @@ export async function readSource(src, ctx) {
 // ── 항목 → 블록 → 저장 계획 ──
 // rules[{ rule, into: { doc, heading? } }] — heading 이 있으면 그 항목 하나에(의존성 판), 없으면 항목마다 머리 = 항목 이름
 const DEFAULT_HEAD = { deps: '라이브러리 버전' }
+// 규칙 결과 → 보낼 표들(내 PC 폴더 → 팀의 baseline 길) — 넣을 문서 · 머리 · 칸 · 줄
+export function pushItems(src, items) {
+  const out = []
+  for (const r of src.rules) for (const it of items[r.rule] || []) {
+    const heading = r.into.heading || it.key || DEFAULT_HEAD[r.rule]
+    if (heading) out.push({ doc: it.doc || r.into.doc, heading: nfc(String(heading)), cols: it.cols, rows: it.rows })
+  }
+  return out
+}
 function targetsOf(src, items) {
   const out = []
   for (const r of src.rules) {
@@ -245,7 +255,7 @@ export function wantOf(src) {
   const fs2 = src.rules.map((r) => (wants[r.rule] ? wants[r.rule](r) : () => false))
   return (p) => fs2.some((f) => f(p))
 }
-async function rulesOut(src, scan, cache, { all }) {
+export async function rulesOut(src, scan, cache, { all }) {
   const touched = new Set([...scan.changes.added, ...scan.changes.changed])
   const items = {}
   const next = {}
@@ -294,7 +304,58 @@ async function gitFetch(src, { dataDir, kn }) {
 
 // 한 번 돌기 — { state: 'same' | 'changed' | 'stopped' | 'failed', n, files }
 //   full — 전체 다시 맞추기(pass 로 이어하기 · onProgress) · force — 브레이크를 넘어 그대로 반영
-export async function runSource(k, src, { dataDir, save, first = false, force = false, full = false, pass = null, onProgress = null }) {
+export async function runSource(k, src, opt) {
+  if (src.kind === 'docs') return runDocs(k, src, opt)
+  return runTables(k, src, opt)
+}
+
+// 문서 폴더 — 바뀐 파일만 지식 안의 사본 문서로(원본이 주인) · 지운 파일은 「원본에 없다」 · 브레이크는 한꺼번에 많이 사라질 때만
+// (문서는 묶음으로 더해지는 일이 흔하고 더함은 아무것도 지우지 않는다 — 사라짐 10% 초과만 멈춘다)
+const DOC_MAX_FILE = 32 << 20
+async function runDocs(k, src, { dataDir, first = false, force = false, full = false, pass = null, onProgress = null }) {
+  const st = await readState(dataDir, k.id)
+  const s0 = (st[src.name] ||= {})
+  const now = new Date().toISOString()
+  try {
+    const L = await readLedger(dataDir, k.id, src.name)
+    const scan = await scanFolder(src.folder || src.at, L, { want: wantDoc, maxFile: DOC_MAX_FILE, maxFiles: MAX_FILES, full, pass, onProgress, save: (x) => writeLedger(dataDir, k.id, src.name, x) })
+    const n = changeCount(scan.changes)
+    if (!force && !first && !full && n === 0 && !s0.stopped) {
+      await writeLedger(dataDir, k.id, src.name, { ...L, files: scan.files })
+      Object.assign(s0, { checkedAt: now, failures: 0, failingSince: null, lastNote: '그대로' })
+      await writeState(dataDir, k.id, st)
+      return { state: 'same', n: 0, files: 0 }
+    }
+    const before = Object.keys(L.files || {}).length
+    const gone = scan.changes.removed.length
+    if (!force && !first && before && gone / before > 0.1) {
+      s0.stopped = { at: now, added: 0, vanished: gone, of: before }
+      s0.lastNote = '멈춤'
+      await writeState(dataDir, k.id, st)
+      return { state: 'stopped', n: 0, files: n, ...s0.stopped }
+    }
+    const files = []
+    for (const rel of [...scan.changes.added, ...scan.changes.changed]) files.push({ rel, data: await scan.readBuf(rel) })
+    const r = await applyDocs(k, { src, prefix: docPrefix(src), files, removed: scan.changes.removed })
+    await writeLedger(dataDir, k.id, src.name, { v: 1, files: scan.files, out: {}, rules: JSON.stringify(src.rules) })
+    const real = full ? 0 : n
+    const lastChange = r.commit ? { at: now, files: real, docs: r.docs, tables: 0, atts: r.atts, removed: r.missing, added: full ? 0 : scan.changes.added.length, changed: full ? 0 : scan.changes.changed.length } : s0.lastChange
+    const note = r.commit ? `${full ? '다시 맞춤 — ' : ''}문서 ${r.docs}${r.atts ? ' · 첨부 ' + r.atts : ''}${r.missing ? ' · 원본에 없다 ' + r.missing : ''}` : full ? '다시 맞춤 — 그대로' : n ? `바뀐 파일 ${n} · 문서는 그대로` : '그대로'
+    Object.assign(s0, { checkedAt: now, failures: 0, failingSince: null, stopped: null, lastChange, lastNote: note })
+    await writeState(dataDir, k.id, st)
+    return { state: r.commit ? 'changed' : 'same', n: r.docs + r.missing, files: n, docs: r.docs, missing: r.missing, rows: r.rows }
+  } catch (e) {
+    s0.failures = (s0.failures || 0) + 1
+    s0.failingSince ||= now
+    s0.lastNote = e.message
+    await writeState(dataDir, k.id, st)
+    return { state: 'failed', n: 0, why: e.message }
+  }
+}
+// 문서가 들어갈 지식 안의 폴더 — 선언의 into.doc(비면 감시 이름)
+export const docPrefix = (src) => String(src.rules?.[0]?.into?.doc ?? src.name).replace(/^docs\/|\/+$/g, '').replace(/[<>:"|?*\\]/g, '').trim()
+
+async function runTables(k, src, { dataDir, save, first = false, force = false, full = false, pass = null, onProgress = null }) {
   const st = await readState(dataDir, k.id)
   const s0 = (st[src.name] ||= {})
   const now = new Date().toISOString()
