@@ -198,6 +198,7 @@ function render() {
   }
 }
 function viewOf(s) {
+  if (!isTeam() && (s === 'tidy' || s === 'members' || s === 'admin')) s = 'home' // 팀의 일 — 이 PC 에는 없다
   const f = { home: viewHome, docs: viewDocsV, items: viewItems, graph: viewGraph, today: viewToday, tidy: viewTidy, members: viewMembers, import: viewImport, add: viewAdd, send: viewSend, settings: viewSettings, admin: viewAdmin }[s]
   return f ? f() : viewLater(s)
 }
@@ -215,8 +216,8 @@ function sideHtml(left) {
   const cnt = team ? '팀 ' + S.kns.length : '내 지식 ' + S.kns.length
   if (!dim) h += `<div class="sb-repo" data-a="kmenu" data-t="kpick">${cur ? `<span class="rk">${esc(cur.name.slice(0, 2))}</span><span class="rn">${esc(cur.name)} <small>${team ? '팀 서버' : esc(cur.dir || '')}</small></span>` : `<span class="rk">전체</span><span class="rn">지식 전체<small>${cnt}</small></span>`}<span class="rc">▾</span>${S.menu === 'kmenu' ? `<div class="kmenu"><div class="mi" data-a="pickKn" data-k="*" data-t="nav-home">${svg('list')} 지식 목록 — 전체</div>${S.kns.map((k) => `<div class="mi" data-a="pickKn" data-k="${esc(k.id)}">${esc(k.name)} ${ktag()}</div>`).join('')}</div>` : ''}</div>`
   const it = (key, l, ic) => `<div class="sb-i${!dim && r.scr === key ? ' on' : ''}" data-a="nav" data-s="${key}" data-t="nav-${key}">${svg(ic)}<span>${l}</span></div>`
-  // 정리하는 사람 — 주인 · 정리하는 지식이 하나라도 있거나 관리자
-  const curator = !dim && (S.kns.some((x) => x.role && x.role !== '기록') || S.me.admin)
+  // 정리하는 사람 — 팀에서 주인 · 정리하는 지식이 하나라도 있거나 관리자. 이 PC 는 없다(목업 kimPc — 정리는 저절로 · 켬/끔은 설정 · 결과는 오늘 바뀐 것)
+  const curator = !dim && team && (S.kns.some((x) => x.role && x.role !== '기록') || S.me.admin)
   const tk = curator && KN(tidyKn())
   const it2 = (key, l, ic, bd) => `<div class="sb-i${!dim && r.scr === key ? ' on' : ''}" data-a="nav" data-s="${key}" data-t="nav-${key}">${svg(ic)}<span>${l}</span>${bd ? `<span class="bd">${bd}</span>` : ''}</div>`
   h += '<div class="nav">' + it('today', '오늘 바뀐 것', 'check') + it('import', '자료 가져오기', 'plug')
