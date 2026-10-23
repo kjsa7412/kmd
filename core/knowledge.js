@@ -195,6 +195,8 @@ export function recordState(k, w) {
   if (w.tags.some((t) => t === 'curate-auto' || t === 'curate-llm')) return 'none' // 정리 기록 자신은 넣을 것이 아니다
   // 넣은 파일(ingest/)의 기록 — 정리가 기존 문서에 넣거나 새 문서로 세울 때까지 「아직 안 넣음」
   if (!w.touches.length && w.tags.some((t) => t.startsWith('ingest/'))) return k.reflected?.has(w.id) ? 'in' : 'pend'
+  // 이름 없는 기록도 정리 · 바로 넣기가 문서로 들였으면(reflects) 「넣음」
+  if (!w.touches.length && k.reflected?.has(w.id)) return 'in'
   if (!w.touches.length) return isSystemRecord(w) || INGEST(w) || w.curates.length || w.reopens.length ? 'none' : 'nowhere'
   let any = false
   for (const c of w.touches) {

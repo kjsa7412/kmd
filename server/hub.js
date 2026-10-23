@@ -13,7 +13,7 @@ import { decide, decisionRecord, revertPlan } from '../core/curate.js'
 import * as collect from '../core/collect.js'
 import crypto from 'node:crypto'
 import net from 'node:net'
-import { material, check as checkDraft, planSave, promptOf as tidyPrompt, INGEST_SCHEMA, ingestCandidates, ingestRule } from '../core/tidy.js'
+import { material, check as checkDraft, planSave, promptOf as tidyPrompt, INGEST_SCHEMA, DRAFT_SCHEMA, TOUCH_SCHEMA, ingestCandidates, ingestRule } from '../core/tidy.js'
 import { runClaude } from '../core/claude.js'
 import * as feed from '../core/feed.js'
 import { checkTarget, readSource, probe, readDecl, writeDecl, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit } from '../core/sources.js'
@@ -66,6 +66,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   let sourceTimer = null
   const lastTidy = new Map()
   const drafts = new Map() // 초안 전용 단기 열쇠(sha → { job, kn, exp })
+  const curateRuns = new Map() // 이 PC — 지식마다 바로 넣기 한 줄
   const sha = (t) => crypto.createHash('sha256').update(String(t)).digest('hex')
   async function groupFor(k, id, g) {
     if (!g) return null
@@ -325,6 +326,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         : { kind: 'save', rec: r0.id, kn: id, dot: 'acc', text: `저장 — ${meta.name} › ${r0.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')).join(' · ')} 「${title.split(' — ')[0]}」`, small: '문서에도 넣었다' }).catch(() => {})
       cache.delete(id)
       scheduleDecide(id)
+      // 이 PC — 남은 기록은 바로 문서에(뒤에서)
+      if (mode === 'pc' && !opt.system && !opt.noCurate) hub.curateSoon(id).catch(() => {})
       // 백업은 기다리되 길게는 아니다 — 늦으면 다음 판정이 줄을 낸다
       if (backup.attached(meta)) await Promise.race([backup.enqueue(meta, { log }), new Promise((ok) => setTimeout(ok, 3000).unref?.())])
       return { ...r, warnings: backup.lines(meta, { name: meta.name }).map((l) => l.text) }
@@ -565,7 +568,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           cache.delete(id)
           // 코드가 바뀌어 기록을 남겼다 — 그 지식의 정리를 바로 건다(정리 검사를 그대로 탄다 · 값이 바뀌면 노랑 · 되돌릴 수 있다)
           // 「Claude 에 보내지 않음」 지식 · 이 PC 의 자동 정리 끔이면 기록만 남는다(사람이 정리할 때 들어간다)
-          if (r.codeRecords && hub.meaningOk(id)) hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
+          if (r.codeRecords && mode === 'pc') hub.curateSoon(id).catch(() => {})
+          else if (r.codeRecords && hub.meaningOk(id)) hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
           if (r.state === 'changed') for (const u of await hub.curatorsOf(id)) await feed.add(dataDir, u, { kind: 'source', kn: id, dot: 'acc', text: r.commits != null ? `${s.name}에서 새 묶음 ${r.commits} · 코드 바뀜 기록 ${r.codeRecords} — ${meta.name}` : `${s.name}에서 바뀐 표 ${r.n} — ${meta.name}`, small: r.commits != null ? '정리가 걸린 항목 글을 맞춘다' : `바뀐 파일 ${r.files} · 저절로 채우는 표` })
           return r
         })
@@ -885,40 +889,127 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
 
     // ── 파일 · 폴더 넣기(KM82 — 한 번 들여온다) ──
-    // 넣은 파일의 기록 하나를 바로 문서까지(이 PC — 정리가 따로 없다) — Claude 로 다듬고(정리와 같은 검사) · 안 되면 규칙으로 파일 그대로 새 문서.
-    //   어느 쪽이든 그 기록은 「넣음」(reflects) · 넣은 일은 이력에
+    // ── 이 PC — 정리가 따로 없다: 「아직 안 넣은 기록」 은 남는 즉시 문서에 ──
+    //   Claude(claude -p · 정리와 같은 프롬프트 · 같은 검사)로 다듬어 넣고, 로그인 없음 · 한도 · 검사 실패 · Claude 끔이면 규칙으로:
+    //   항목이 정해진 기록 → 그 항목 끝에 글을 붙인다 · 이름 없는 기록(넣은 파일 · 세션 메모) → 이어지는 문서 또는 새 문서(규칙이면 새 문서)
+    //   어느 쪽이든 그 기록은 「넣음」(reflects) · 넣은 일은 이력에 · 지식마다 한 줄로(저장은 바로 돌려주고 뒤에서)
+    async askClaude(id, prompt, schema) {
+      if (!hub.meaningOk(id)) return { why: 'Claude 를 쓰지 않는다' }
+      const r = await runClaude({ prompt, schema, budget: 0.5 })
+      if (r.error) {
+        if (r.error === 'login' || r.error === 'limit') await hub.workerStatus({ worker: { id: null } }, { ok: false, reason: r.error, message: r.message })
+        return { why: r.error === 'login' ? 'Claude 로그인이 없다 — 설정 › Claude 연결' : r.error === 'limit' ? 'Claude 사용 한도' : 'Claude 가 답하지 않았다' }
+      }
+      await hub.workerStatus({ worker: { id: null } }, { ok: true })
+      return { value: r.value, model: r.model }
+    },
+    // 이름 없는 기록 하나(넣은 파일 · 세션 메모)를 문서로 — 이어지는 문서의 항목에 넣거나 새 문서
     async ingestNow(id, recId, { claude = true } = {}) {
       const meta = await hub.meta(id)
       cache.delete(id)
       const k = await hub.get(id)
       const w = k.byWork.get(recId)
-      if (!w || w.state !== 'pend') return { why: '들일 기록이 없다' }
-      const g = { kind: 'ingest', record: { id: w.id, date: w.date, author: w.author, title: w.title, body: w.body, file: (w.tags.find((t) => t.startsWith('ingest/')) || 'ingest/파일').slice(7) }, docs: ingestCandidates(k, w) }
-      let why = null
-      if (claude && hub.meaningOk(id)) {
-        const r = await runClaude({ prompt: tidyPrompt(g), schema: INGEST_SCHEMA, budget: 0.5 })
-        if (r.error) {
-          why = r.error === 'login' ? 'Claude 로그인이 없다 — 설정 › Claude 연결' : r.error === 'limit' ? 'Claude 사용 한도' : 'Claude 가 답하지 않았다'
-          if (r.error === 'login' || r.error === 'limit') await hub.workerStatus({ worker: { id: null } }, { ok: false, reason: r.error, message: r.message })
-        } else {
-          const c = checkDraft(k, g, r.value)
+      if (!w || (w.state !== 'pend' && w.state !== 'nowhere') || w.touches.length) return { why: '들일 기록이 없다' }
+      const tag = w.tags.find((t) => t.startsWith('ingest/'))
+      const file = tag ? tag.slice(7) : `${w.title.split(' — ')[0].replace(/[\\/<>:"|?*\u0000-\u001f]/g, '').trim() || '메모'}.md`
+      const g = { kind: 'ingest', record: { id: w.id, date: w.date, author: w.author, title: w.title, body: w.body, file }, docs: ingestCandidates(k, w) }
+      let why = 'Claude 를 쓰지 않는다'
+      if (claude) {
+        const a = await hub.askClaude(id, tidyPrompt(g), INGEST_SCHEMA)
+        why = a.why || null
+        if (a.value) {
+          const c = checkDraft(k, g, a.value)
           if (c.ok) {
-            await coreSave(meta.dir, planSave(k, g, r.value, { model: r.model }), { user: 'kmd-auto', system: true })
-            await hub.workerStatus({ worker: { id: null } }, { ok: true })
+            await coreSave(meta.dir, planSave(k, g, a.value, { model: a.model }), { user: 'kmd-auto', system: true })
             cache.delete(id)
-            const d = r.value
+            const d = a.value
             const doc = d.newDoc ? String(d.newDoc.path).replace(/\\/g, '/').replace(/^docs\/|\.md$/g, '').trim() : String(d.updates[0].doc).replace(/^docs\/|\.md$/g, '')
             return { doc, how: 'claude', msg: `기록 · 문서가 됐다 — ${meta.name} › ${doc.split('/').join(' › ')}${d.newDoc ? ' (새 문서)' : ' (기존 문서에 넣음)'} · Claude 로 다듬었다` }
           }
           why = `검사를 넘지 못했다 — ${c.why}`
         }
-      } else if (claude) why = 'Claude 를 쓰지 않는다'
+      }
       const rule = ingestRule(k, g, { why })
-      if (!rule) return { why: '빈 파일이다' }
+      if (!rule) return { why: '빈 기록이다' }
       await coreSave(meta.dir, rule.input, { user: 'kmd-auto', system: true })
       cache.delete(id)
-      return { doc: rule.doc, how: 'rule', msg: `기록 · 문서가 됐다 — ${meta.name} › ${rule.doc.split('/').join(' › ')} (파일 그대로 새 문서${why ? ' · ' + why : ''})` }
+      return { doc: rule.doc, how: 'rule', msg: `기록 · 문서가 됐다 — ${meta.name} › ${rule.doc.split('/').join(' › ')} (${tag ? '파일' : '기록'} 그대로 새 문서${why ? ' · ' + why : ''})` }
     },
+    // 묶음 하나 넣기 — 항목(section) · 이름 고르기(touches) · 이름 없는 기록(ingest) · 넣었으면 true
+    async placeGroup(id, g) {
+      const meta = await hub.meta(id)
+      if (g.kind === 'ingest') return !!(await hub.ingestNow(id, g.record.id)).doc
+      const k = await hub.get(id)
+      if (g.kind === 'touches') {
+        // 이름 고르기 — 고르면 다음 차례에 그 항목으로 · 못 고르면 이어지는 문서 · 새 문서로
+        if (hub.meaningOk(id)) {
+          const r = await ladder(k, await hub.index(id), { q: `${g.record.title} ${g.record.body}`.slice(0, 300), learned: await loadLearned(dataDir, id), max: 8 })
+          g.candidates = [...r.exact, ...r.coords].filter((c) => c.coord).slice(0, 8).map((c) => ({ coord: c.coord, name: c.name }))
+          if (g.candidates.length) {
+            const a = await hub.askClaude(id, tidyPrompt(g), TOUCH_SCHEMA)
+            if (a.value && checkDraft(k, g, a.value).ok && a.value.touches.length) {
+              await coreSave(meta.dir, planSave(k, g, a.value, { model: a.model }), { user: 'kmd-auto', system: true })
+              cache.delete(id)
+              return true
+            }
+          }
+        }
+        return !!(await hub.ingestNow(id, g.record.id)).doc
+      }
+      // 항목 — 원본이 주인인 문서에는 넣지 않는다
+      if (watchedOf(await fs.readFile(path.join(meta.dir, ...g.doc.split('/')), 'utf8').catch(() => ''))) return false
+      const target = `${g.doc.replace(/^docs\/|\.md$/g, '')} › ${g.heading}`
+      const a = await hub.askClaude(id, tidyPrompt(g), DRAFT_SCHEMA)
+      let why = a.why || null
+      if (a.value) {
+        const c = checkDraft(k, g, a.value)
+        if (c.ok) {
+          const saved = await coreSave(meta.dir, planSave(k, g, a.value, { model: a.model }), { user: 'kmd-auto', system: true })
+          cache.delete(id)
+          const used = g.records.filter((x) => a.value.used.includes(x.id))
+          for (const u of [...new Set(used.map((x) => x.author))])
+            await feed.add(dataDir, u, c.changed.length
+              ? { kind: 'tidy', rec: saved.id, kn: id, yl: true, b: `kmd 가 문서에 넣으며 값을 바꿨다 — ${meta.name} › ${target} · ${c.changed[0].from} → ${c.changed[0].to}`, small: '내 기록에서 — 되돌릴 수 있다', go: { kn: id, doc: g.doc.replace(/^docs\/|\.md$/g, ''), hl: g.heading }, revert: saved.id }
+              : { kind: 'tidy', rec: saved.id, kn: id, dot: 'acc', text: `kmd 가 문서에 넣었다 — ${meta.name} › ${target}`, small: '내가 남긴 기록', go: { kn: id, doc: g.doc.replace(/^docs\/|\.md$/g, ''), hl: g.heading } })
+          // 넣지 않고 둔 기록(left)이 있으면 다음 차례에 규칙으로
+          return true
+        }
+        why = `검사를 넘지 못했다 — ${c.why}`
+      }
+      // 규칙 — 기록 글을 항목 끝에 붙인다(머리 줄은 굵은 글로 · 표지는 뺀다)
+      const add = g.records.map((r) => r.body.replace(/<!--[\s\S]*?-->/g, '').replace(/^#{1,6}\s+(.+)$/gm, '**$1**').trim()).filter(Boolean).join('\n\n')
+      const content = [g.content.trim(), add].filter(Boolean).join('\n\n')
+      await coreSave(meta.dir, { record: { title: `정리 — ${g.name}`, body: ['규칙으로 — 기록 글을 항목 끝에 붙였다', ...g.records.map((r) => `- 넣음 ${r.id} — ${r.title}`), ...(why ? [`- Claude 로 하지 못한 까닭 — ${why}`] : [])].join('\n'), touches: [g.coord], tags: ['curate-auto'], reflects: g.records.map((r) => r.id) }, sections: [{ coord: g.coord, content, base: g.base }] }, { user: 'kmd-auto', system: true })
+      cache.delete(id)
+      return true
+    },
+    // 그 지식의 「아직 안 넣은 기록」 모두 — 이름을 고른 기록은 다음 차례에 그 항목으로(세 차례까지)
+    async curatePending(id) {
+      if (mode !== 'pc') return { n: 0 }
+      let n = 0
+      for (let round = 0; round < 3; round++) {
+        cache.delete(id)
+        const k = await hub.get(id)
+        const groups = material(k)
+        let did = 0
+        for (const g of groups) if (await hub.placeGroup(id, g).catch((e) => (log(`바로 넣기 ${id}: ${e.message}`), false))) did++
+        n += did
+        if (!did) break
+      }
+      if (n) {
+        const meta = await hub.meta(id)
+        if (backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
+      }
+      return { n }
+    },
+    // 저장 뒤 — 지식마다 한 줄로 뒤에서(저장은 기다리지 않는다) · 시험은 curateIdle 로 기다린다
+    curateSoon(id) {
+      if (mode !== 'pc') return Promise.resolve()
+      const run = (curateRuns.get(id) || Promise.resolve()).catch(() => {}).then(() => hub.curatePending(id))
+      curateRuns.set(id, run)
+      return run
+    },
+    curateIdle: (id) => (curateRuns.get(id) || Promise.resolve()).catch(() => {}),
     // asDocs — 옛 폴더로 지식을 세울 때(지식 추가)만 바로 문서 · 그 밖은 기록으로 들이고 정리가 문서에 넣는다
     async importFiles(ctx, id, files, { asDocs = false } = {}) {
       const meta = await hub.meta(id, ctx)
@@ -947,7 +1038,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const now = mode === 'pc' && direct
       const recRows = plan.rows.filter((x) => x.kind === 'record')
       for (const [i, r] of plan.records.entries()) {
-        const sv = await hub.save(ctx, id, { record: r })
+        const sv = await hub.save(ctx, id, { record: r }, { noCurate: now })
         if (!recRows[i]) continue
         recRows[i].rec = sv.id
         if (now) {
@@ -1299,6 +1390,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }, 1000).unref?.()
       sourceTimer.unref?.()
       setTimeout(() => dueSources(true), 3000).unref?.()
+      // 이 PC — 켤 때 쌓여 있던 「아직 안 넣은 기록」 을 바로 문서에(뒤에서 · 지식마다 한 줄)
+      if (mode === 'pc' && config.curateOnStart !== false) setTimeout(async () => { for (const m of await hub.list().catch(() => [])) hub.curateSoon(m.id).catch(() => {}) }, 2000).unref?.()
       // 정해진 시간의 정리 — 분마다 본다 · 지식마다 하루 한 번 · 넣을 것이 있을 때만
       tidyTimer = setInterval(async () => {
         const d = new Date()

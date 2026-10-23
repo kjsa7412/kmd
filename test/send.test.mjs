@@ -292,6 +292,48 @@ test('이 PC 의 파일 넣기 — 정리가 따로 없다: 기록과 문서가 
   }
 })
 
+test('이 PC — 「아직 안 넣은 기록」 은 남는 즉시 문서에(켤 때 쌓인 것 · 세션 기록 · 이름 없는 메모 · Claude 로그인이 없으면 규칙으로)', async () => {
+  const root = path.join(tmp, 'pcroot-curate')
+  copyDir(path.join(HERE, 'fixture', 'kmd'), root)
+  const pc = await startServer({ root, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
+  const pending = async () => (pc.hub.forget('dpms'), (await pc.hub.get('dpms')).works.filter((w) => w.state === 'pend' || w.state === 'nowhere'))
+  const doc = () => fs.readFileSync(path.join(root, 'dpms', 'docs', '배포절차.md'), 'utf8')
+  try {
+    const ME = { user: pc.pcUser, admin: true, pc: true }
+    // 켤 때 쌓여 있던 기록 — 저절로 문서에
+    const t0 = Date.now()
+    while ((await pending()).length && Date.now() - t0 < 90_000) await new Promise((r) => setTimeout(r, 500))
+    await pc.hub.curateIdle('dpms')
+    assert.deepEqual((await pending()).map((w) => w.title), [], '켤 때 쌓인 기록은 모두 넣었다')
+    // 세션이 남긴 기록(항목이 정해진) — 저장은 바로 돌려주고 뒤에서 그 항목에(Claude)
+    const r = await pc.hub.save(ME, 'dpms', { record: { title: '카나리 — 첫 30분 20%', body: '첫 30분은 요청의 20% 만 보낸다.', touches: ['proc:카나리'] } })
+    await pc.hub.curateIdle('dpms')
+    let k = await pc.hub.get('dpms')
+    assert.equal(k.byWork.get(r.id).state, 'in')
+    assert.match(doc(), /첫 30분은 요청의 20% 만 보낸다\./)
+    // 이름 없는 메모 — 이어지는 문서 · 새 문서로
+    const m = await pc.hub.save(ME, 'dpms', { record: { title: '당번 — 이번 주', body: '이번 주 당번은 박.' } })
+    await pc.hub.curateIdle('dpms')
+    k = await pc.hub.get('dpms')
+    assert.equal(k.byWork.get(m.id).state, 'in', '이름 없는 메모도 넣음')
+    // Claude 로그인이 없다 — 규칙으로 기록 글을 그 항목 끝에
+    process.env.FAKE_CLAUDE_MODE = 'logout'
+    try {
+      const h = await pc.hub.save(ME, 'dpms', { record: { title: '헬스 체크 — 경로', body: '## 경로\n헬스 체크 경로는 `/healthz` 로 바꾼다.' , touches: ['proc:헬스 체크'] } })
+      await pc.hub.curateIdle('dpms')
+      k = await pc.hub.get('dpms')
+      assert.equal(k.byWork.get(h.id).state, 'in')
+      assert.match(doc(), /## 헬스 체크\n<!-- applied: [^>]+ -->\n[\s\S]*\*\*경로\*\*\n헬스 체크 경로는 `\/healthz` 로 바꾼다\./, '머리 줄은 굵은 글로 붙였다')
+      assert.ok(k.logs.some((w) => w.title === '정리 — 헬스 체크' && /규칙으로 — 기록 글을 항목 끝에 붙였다/.test(w.body)))
+    } finally {
+      delete process.env.FAKE_CLAUDE_MODE
+    }
+    assert.deepEqual((await pending()).map((w) => w.title), [], '남은 기록 0')
+  } finally {
+    await pc.close()
+  }
+})
+
 test('지식 지우기 — 이름을 그대로 써야 · 팀은 관리자나 개인 지식의 주인만 · 보관 없이 폴더 · 살림까지 완전히', async () => {
   const dir = path.join(tmp, 'kn', 'inbox')
   const data = path.join(tmp, 'kn', '.kmd')

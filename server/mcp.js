@@ -196,7 +196,7 @@ export function makeMcp(store) {
       const k = await store.get(knowledge, ctx)
       const r = await store.save(ctx, k.id, { record, sections })
       const n = r.docs.length
-      return { saved: r.id, date: r.date, docs: r.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')), note: r.queued ? '기록했다 — 항목 글은 정리 때 문서에 들어간다(그동안도 그 항목 옆에 같이 읽힌다)' : n ? `저장했다 — 기록 1 · 문서 ${n}` : '저장했다 — 기록 1', warnings: r.warnings }
+      return { saved: r.id, date: r.date, docs: r.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')), note: r.queued ? '기록했다 — 항목 글은 정리 때 문서에 들어간다(그동안도 그 항목 옆에 같이 읽힌다)' : n ? `저장했다 — 기록 1 · 문서 ${n}` : store.mode === 'pc' ? '기록했다 — 이 PC 는 kmd 가 곧바로 문서에 넣는다(정리를 기다리지 않는다)' : '저장했다 — 기록 1', warnings: r.warnings }
     },
   }
 

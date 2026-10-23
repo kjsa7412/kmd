@@ -38,7 +38,7 @@ async function eight(mode) {
   const root = path.join(tmp, mode)
   copyDir(path.join(HERE, 'fixture', 'kmd'), root)
   fs.mkdirSync(path.join(root, '.kmd'), { recursive: true })
-  fs.writeFileSync(path.join(root, '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sourceRoots: [path.join(tmp, 'src')], tidyTickMs: 3600000, sourceTickMs: 3600000 }))
+  fs.writeFileSync(path.join(root, '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sourceRoots: [path.join(tmp, 'src')], tidyTickMs: 3600000, sourceTickMs: 3600000, curateOnStart: false }))
   const s = await startServer({ root, mode, user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
   try {
     const KIM = mode === 'pc' ? { user: s.pcUser, admin: true, pc: true } : { user: 'kim', admin: true }
@@ -65,12 +65,17 @@ async function eight(mode) {
     await s.hub.edit(KIM, 'gdi', { doc: gdoc.id, sections: [{ h: gdoc.sections[0].h, body: '보내기 시험 — 고친 글.' }] })
     const sent = await s.hub.send(KIM, 'gdi')
     out.send = { sent: sent.sent, got: (await s.hub.get('dpms')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/'))).length }
-    // ⑧ 정리 — 팀 모두의 기록 → [지금 정리] → 일꾼(가짜 claude) → 넣음
-    await s.hub.save(mode === 'pc' ? KIM : { user: 'lee' }, 'dpms', { record: { title: '헬스 체크 — 시간 초과 5초', body: '헬스 체크는 5초 안에 200 이 와야 통과.', touches: ['proc:헬스 체크'] } })
-    const job = await s.hub.tidyNow(KIM, 'dpms')
-    await workOnce({ server: s.url, key: (await s.auth.workerAdd()).key })
-    const j = s.hub.job(job.id)
-    out.tidy = { state: j.state, done: !!j.summary && j.summary.put + j.summary.changed >= 1 }
+    // ⑧ 기록이 문서로 — 팀: 팀 모두의 기록 → [지금 정리] → 일꾼(가짜 claude) → 넣음 · 이 PC: 정리가 따로 없다 — 남는 즉시 kmd 가 넣는다
+    const rec = await s.hub.save(mode === 'pc' ? KIM : { user: 'lee' }, 'dpms', { record: { title: '헬스 체크 — 시간 초과 5초', body: '헬스 체크는 5초 안에 200 이 와야 통과.', touches: ['proc:헬스 체크'] } })
+    if (mode === 'pc') await s.hub.curateIdle('dpms')
+    else {
+      const job = await s.hub.tidyNow(KIM, 'dpms')
+      await workOnce({ server: s.url, key: (await s.auth.workerAdd()).key })
+      assert.equal(s.hub.job(job.id).state, 'done')
+    }
+    s.hub.forget('dpms')
+    const hk = await s.hub.get('dpms')
+    out.tidy = { state: hk.byWork.get(rec.id).state, doc: hk.docs.find((d) => d.id === '배포절차').sections.find((x) => x.h === '헬스 체크').body.includes('5초 안에 200') }
     // ⑧ 소스 코드 — git 저장소(이 PC 폴더) · 더하면 지금 커밋이 기준 · 새 커밋 → 기록 하나(커밋 메시지가 제목)
     const repo = path.join(tmp, 'src', 'dpms-api')
     const a = await s.hub.sourceAdd(KIM, 'dpms', { name: 'dpms-api 코드', at: repo, kind: 'git' })
@@ -111,7 +116,7 @@ test('여덟 칸 — 팀 모드와 PC 모드의 결과가 같다 · 자동 쓰�
   assert.equal(team.find.alias[0], 'proc:헬스 체크')
   assert.deepEqual(team.edit, { direct: true, log: true, doc: true }, '화면에서 바로 고친 일은 이력')
   assert.deepEqual(team.send, { sent: 1, got: 1 })
-  assert.deepEqual(team.tidy, { state: 'done', done: true })
+  assert.deepEqual(team.tidy, { state: 'in', doc: true })
   assert.deepEqual(team.code, { first: 'same', records: 1, title: true })
   pc.code.title = team.code.title // 커밋 메시지는 모드마다 다르게 적었다
   assert.equal(team.session.ok, true)
