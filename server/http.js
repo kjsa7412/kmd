@@ -6,6 +6,7 @@
 // 쓰는 요청(POST)은 같은 화면(Origin)이나 Origin 없는 프로그램만 받는다.
 
 import http from 'node:http'
+import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -64,6 +65,45 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const auth = await makeAuth({ dataDir, mode, scryptN: scryptN || hub.config.scryptN || null })
   const mcp = makeMcp(hub)
   if (pcUser) await auth.ensurePc(pcUser)
+
+  // ── 팀 화면 ↔ 내 PC(E8 · v0.5 §5 · v0.6 ⑫) — PC 프로그램만 ──
+  // 설치(kmd connect)가 적은 팀 주소(<data>/teams.json)의 화면이 물으면 Origin 을 대조해 12시간 짝 열쇠(kmdp_)를 응답으로
+  // 준다(누름 없음 · 화면은 탭 메모리에만 · 여기는 해시만). 적히지 않은 주소는 이 PC 화면의 [허락] 한 번.
+  // 짝 열쇠 · CORS 는 그 출처의 읽기 · save 길에만 — 가져오는 곳 · 넣기 권한 · 보내지 않음 끄기 · 백업 주소 · 설정 · 관리 · /mcp 는 403.
+  const pairs = new Map()
+  // 팀 화면이 부를 내 PC 프로그램 주소(serve.json pcUrl · 기본 이 PC 의 7373) — CSP connect-src 에 이 하나만
+  const pcUrl = (() => { try { return new URL(hub.config.pcUrl || 'http://127.0.0.1:7373').origin } catch { return 'http://127.0.0.1:7373' } })()
+  const PAIR_MS = 12 * 3600_000
+  const teamsFile = path.join(dataDir, 'teams.json')
+  const teamsOf = async () => (await fs.readFile(teamsFile, 'utf8').then(JSON.parse, () => [])).map((u) => { try { return new URL(u).origin } catch { return null } }).filter(Boolean)
+  const CORS_OK = [/^GET \/api\/knowledge$/, /^GET \/api\/k\/[^/]+\/(tree|doc|rec|model|item)$/, /^POST \/api\/k\/[^/]+\/(save|edit)$/]
+  const pairSha = (t) => crypto.createHash('sha256').update(String(t)).digest('hex')
+  const issuePair = (origin) => {
+    const token = 'kmdp_' + crypto.randomBytes(24).toString('base64url')
+    pairs.set(pairSha(token), { origin, exp: Date.now() + PAIR_MS })
+    return { token, user: pcUser, exp: Date.now() + PAIR_MS }
+  }
+  // 다른 출처에서 온 요청 — 짝 지은 팀 화면이면 { ctx } · 아니면 throw · 같은 출처면 null
+  async function crossOrigin(req, res, p) {
+    const origin = req.headers.origin
+    if (mode !== 'pc' || !origin || sameOrigin(req)) return null
+    if (p === '/healthz') { res.setHeader('access-control-allow-origin', '*'); return { open: true } }
+    const known = (await teamsOf()).includes(origin)
+    if (!known) throw new KmdError('E_FORBIDDEN', '이 주소의 화면은 아직 허락하지 않았다 — 이 PC 화면에서 [허락]', { need: 'allow' })
+    res.setHeader('access-control-allow-origin', origin)
+    res.setHeader('vary', 'Origin')
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, { 'access-control-allow-methods': 'GET, POST', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-private-network': 'true', 'access-control-max-age': '600' })
+      res.end()
+      return { done: true }
+    }
+    if (p === '/pair' && req.method === 'POST') return { pair: true, origin }
+    if (!CORS_OK.some((re) => re.test(`${req.method} ${p}`))) throw new KmdError('E_FORBIDDEN', '팀 화면에서는 읽기 · 저장만 — 이 일은 이 PC 화면에서 한다')
+    const m = String(req.headers.authorization || '').match(/^Bearer\s+(kmdp_\S+)$/)
+    const pr = m && pairs.get(pairSha(m[1]))
+    if (!pr || pr.exp < Date.now() || pr.origin !== origin) throw new KmdError('E_AUTH', '짝 열쇠가 끝났다 — 화면을 다시 연다')
+    return { ctx: { user: pcUser, admin: true, pc: true, pair: true } }
+  }
 
   const ipOf = (req) => (hub.config.trustProxy && req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']).split(',')[0].trim() : req.socket.remoteAddress)
 
@@ -130,8 +170,9 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     const p = url.pathname
     const out = (status, body) => send(res, status, body, undefined, set ? { 'set-cookie': set } : {})
     if (p === '/api/me') {
+      // pcUrl — 내 PC 프로그램으로 이은 기기(설치 한 줄 · osuser 가 실린 것)가 있는 사람에게만 · 없으면 화면이 PC 를 묻지 않는다
       if (!ctx) return out(200, { mode, anon: true, setup: !auth.hasUsers(), legacy: auth.legacyWaiting(), version: VERSION, host: req.headers.host })
-      return out(200, { mode, user: ctx.user, admin: !!ctx.admin, sudo: !!ctx.sudo, password: ctx.password !== false, version: VERSION, host: req.headers.host, ...(mode === 'pc' ? { root: path.resolve(root) } : {}) })
+      return out(200, { mode, user: ctx.user, admin: !!ctx.admin, sudo: !!ctx.sudo, password: ctx.password !== false, version: VERSION, host: req.headers.host, ...(mode === 'pc' ? { root: path.resolve(root) } : auth.devices(ctx.user).some((d) => d.osuser) ? { pcUrl } : {}) })
     }
     // 기계 열쇠 — 그 지식의 기준선 길 하나만(E6 이 채운다)
     const bl = p.match(/^\/api\/k\/([^/]+)\/baseline$/)
@@ -317,19 +358,37 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
 
   const staticFile = async (res, p) => {
     // 화면 길(/first · /setup)은 같은 화면 한 장이 연다
-    const rel = p === '/' || p === '/first' || p === '/setup' ? 'index.html' : p.slice(1)
+    const rel = p === '/' || p === '/first' || p === '/setup' || (p === '/pair' && mode === 'pc') ? 'index.html' : p.slice(1)
     const full = path.join(APP, ...rel.split('/'))
     if (!full.startsWith(APP + path.sep) || rel.split('/').includes('..')) return send(res, 404, '없다', 'text/plain; charset=utf-8')
     const buf = await fs.readFile(full).catch(() => null)
     if (!buf) return send(res, 404, '없다', 'text/plain; charset=utf-8')
-    send(res, 200, buf, TYPES[path.extname(full)] || 'application/octet-stream', rel === 'index.html' ? { 'content-security-policy': "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'" } : {})
+    send(res, 200, buf, TYPES[path.extname(full)] || 'application/octet-stream', rel === 'index.html' ? { 'content-security-policy': `default-src 'self'; connect-src 'self'${mode === 'team' ? ' ' + pcUrl : ''}; img-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'` } : {})
   }
 
   const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://x')
       const p = url.pathname
-      if (req.method === 'POST' && req.headers.origin && !sameOrigin(req)) throw new KmdError('E_FORBIDDEN', '다른 곳의 화면에서 온 요청은 받지 않는다')
+      const xo = await crossOrigin(req, res, p)
+      if (xo?.done) return
+      if (xo?.pair) return send(res, 200, issuePair(xo.origin))
+      if (xo?.ctx) {
+        if (p.startsWith('/api/')) return await api(req, res, url, xo.ctx, null)
+        throw new KmdError('E_FORBIDDEN', '팀 화면에서는 읽기 · 저장만')
+      }
+      if (req.method === 'POST' && req.headers.origin && !sameOrigin(req) && !xo?.open) throw new KmdError('E_FORBIDDEN', '다른 곳의 화면에서 온 요청은 받지 않는다')
+      // 이 PC 화면의 [허락] — 적히지 않은 팀 주소를 teams.json 에 더하고 짝 열쇠를 준다(그 창이 opener 에게 넘긴다)
+      if (p === '/api/pair/allow' && mode === 'pc' && req.method === 'POST') {
+        const { ctx: me } = who(req)
+        need(me)
+        let origin
+        try { origin = new URL(String((await readBody(req)).origin || '')).origin } catch { throw new KmdError('E_INPUT', '팀 주소가 아니다') }
+        if (!/^https?:$/.test(new URL(origin).protocol)) throw new KmdError('E_INPUT', '팀 주소가 아니다')
+        const teams = await fs.readFile(teamsFile, 'utf8').then(JSON.parse, () => [])
+        if (!teams.includes(origin)) await fs.writeFile(teamsFile, JSON.stringify([...teams, origin], null, 1))
+        return send(res, 200, issuePair(origin))
+      }
       if (p === '/healthz') {
         const lines = await hub.stops({ user: null, admin: true })
         return send(res, 200, { ok: true, version: VERSION, mode, stops: lines.map((l) => ({ level: l.level, text: l.text })) })

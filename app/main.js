@@ -32,8 +32,22 @@ const anon = () => !!S.me && (!!S.me.anon || !!S.gate)
 const knType = () => (isTeam() ? 'team' : 'pc')
 
 // ───────────── 자료 ─────────────
+// 내 PC 지식(id 가 ~ 로 시작)은 내 PC 프로그램으로만 간다 — 팀 서버로 가려 하면 멈춘다(fail-closed · v0.5 §5.3 ⑤)
+function reqTo(p) {
+  const m = String(p).match(/^\/api\/k\/(?:~|%7e)([^/?]+)(.*)$/i)
+  if (m) {
+    if (!S.pc || !S.pc.token) throw Object.assign(new Error('내 PC 프로그램이 꺼져 있다 — 켜면 저절로 다시 열린다'), { code: 'E_PC' })
+    return { url: S.pc.url + '/api/k/' + m[1] + m[2], headers: { authorization: 'Bearer ' + S.pc.token } }
+  }
+  if (/^\/api\/k\/|[?&]k=/.test(p) && /~|%7e/i.test(p)) throw new Error('내 PC 지식의 조각을 팀 서버로 보내지 않는다')
+  if (S.pc && S.pc.kns.some((k) => k.dir && (String(p).includes(k.dir) || String(p).includes(encodeURIComponent(k.dir))))) throw new Error('내 PC 지식의 조각을 팀 서버로 보내지 않는다')
+  return { url: p, headers: {} }
+}
 async function getJSON(p) {
-  const r = await fetch(p, { headers: { accept: 'application/json' } })
+  const t = reqTo(p)
+  const r = await fetch(t.url, { headers: { accept: 'application/json', ...t.headers } })
+  if (t.headers.authorization && r.status === 401) { S.pc.token = null; try { sessionStorage.removeItem('kmdPair') } catch {} }
+  if (t.headers.authorization && !r.ok) { const j = await r.json().catch(() => ({})); throw Object.assign(new Error(j.message || '내 PC 프로그램에 닿지 않는다'), { code: j.error }) }
   const j = await r.json().catch(() => ({}))
   if (r.status === 401 && S.me && !S.me.anon) { S.me = { ...S.me, anon: true }; setTimeout(render) }
   if (!r.ok) throw Object.assign(new Error(j.message || '서버에 닿지 않는다'), { code: j.error })
@@ -164,7 +178,7 @@ function render() {
   const app = $('#app')
   if (!S.me) { app.innerHTML = `<div class="col"><div class="main">${S.err ? errHtml({ error: S.err }) : loadingHtml}</div></div>`; return }
   hidePv()
-  const scr = anon() ? gateView() : viewOf(S.route.scr)
+  const scr = anon() ? gateView() : S.pairPage ? viewPair() : viewOf(S.route.scr)
   const center = scr.tabs
     ? `<div class="center">${tabbarHtml()}<div class="panes"><div class="main${scr.full ? ' full' : ''}" data-t="main">${scr.main}</div>${scr.right != null ? `<div class="main rp" data-t="rightPane">${scr.right}</div>` : ''}</div></div>`
     : `<div class="main" data-t="main">${scr.main}</div>`
@@ -174,6 +188,10 @@ function render() {
   if (fi && document.activeElement !== fi) { fi.focus(); fi.setSelectionRange(fi.value.length, fi.value.length) }
   if (S._focus) { const el = document.getElementById(S._focus); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length) } catch {} } S._focus = null }
   if (S.route.scr === 'graph') gHighlight()
+  // 내 PC 지식의 주소는 해시 조각으로만 — 팀 서버 요청 · Referer 에 실리지 않는다
+  const at = activeTab()
+  const want = at && String(at.kn).startsWith('~') && ['docs', 'items'].includes(S.route.scr) ? '#' + encodeURIComponent(at.kn).replace('%7E', '~') + '/' + encodeURIComponent(at.ref) : ''
+  if (want !== location.hash && (want || location.hash.startsWith('#~'))) history.replaceState(null, '', location.pathname + (want || ''))
   if (S._lit) {
     const el = $('#app .main[data-t=main] .lit')
     if (el) { S._lit = false; setTimeout(() => el.scrollIntoView({ block: 'center' }), 30) }
@@ -251,16 +269,19 @@ function knMeta(n) {
 }
 function viewHome() {
   const team = isTeam()
-  const rows = S.kns.map((n) => {
-    const tag = team ? '<span class="kt team">팀</span>' : ''
-    const rr = team && n.role && n.role !== '기록' ? `<span class="dst">나: 정리</span>${n.pend ? `<span class="chip c-pend">받은 것 ${n.pend}</span>` : ''}` : ''
-    return `<div class="krow" data-a="openKn" data-k="${esc(n.id)}" data-t="krow" data-name="${esc(n.name)}"><span class="nm">${esc(n.name)} ${tag}</span><span class="meta">${esc(knMeta(n))}</span><span class="rr">${rr}</span></div>`
+  // 팀 화면의 「내 PC」 줄 — 내 PC 프로그램이 꺼져 있으면 지난번 이름만 흐리게(이 탭 안의 것 · 서버로 가지 않는다)
+  const offPc = team && S.pc && S.pc.off ? pcRemembered().map((x) => ({ ...x, pc: true, dim: true })) : []
+  const rows = [...S.kns, ...offPc].map((n) => {
+    const tag = n.pc ? '<span class="kt me">내 PC</span>' : team ? (n.private ? '<span class="kt me">개인</span>' : '<span class="kt team">팀</span>') : ''
+    const rr = team && !n.pc && n.role && n.role !== '기록' ? `<span class="dst">나: 정리</span>${n.pend ? `<span class="chip c-pend">받은 것 ${n.pend}</span>` : ''}` : n.sendN ? `<span class="chip c-pend">보낼 것 ${n.sendN}</span><span class="dst">→ ${esc((n.dests || []).join(' · '))}</span>` : ''
+    return `<div class="krow${n.dim ? ' dim' : ''}" data-a="openKn" data-k="${esc(n.id)}" data-t="krow" data-name="${esc(n.name)}"><span class="nm">${esc(n.name)} ${tag}</span><span class="meta">${esc(n.dim ? '내 PC 프로그램이 켜지면 열린다' : n.pc ? '문서 ' + n.docs + ' · 내 PC 프로그램이 연다' : knMeta(n))}</span><span class="rr">${rr}</span></div>`
   }).join('')
+  const pcLine = !team || !S.pc ? '' : S.pc.off && (S.pc.seen || offPc.length) ? '<div class="callout gray stop" data-t="pcOff"><i></i><span><b>내 PC 프로그램이 꺼져 있다</b> — 켜면 저절로 다시 열린다</span></div>' : S.pc.allow ? `<div class="callout gray stop" data-t="pcAllow"><i></i><span><b>이 PC 의 내 지식을 여기서도 연다</b> — 내 PC 프로그램 창에서 한 번 허락한다</span><a class="lk r" data-a="pcAllow" data-t="pcAllowBtn">허락</a></div>` : ''
   const none = '<div class="cb"><div class="empty2"><b>아직 지식이 없다</b>폴더 안에 md 폴더를 두면 지식이 된다</div></div>'
   return {
     crumb: '지식 목록',
     main: `<div style="max-width:960px"><div class="top"><div><div class="big">지식 목록</div>${team ? '' : '<p class="lead">내 지식 ' + S.kns.length + '</p>'}</div><div class="acts"></div></div>
-  ${S.stops.map(stopHtml).join('')}
+  ${S.stops.map(stopHtml).join('')}${pcLine}
   <div class="card" data-t="klist">${rows || none}</div>
   <p class="tl"><a data-a="nav" data-s="add">+ 지식 추가</a><a data-a="nav" data-s="import">+ 자료 가져오기</a></p></div>`,
   }
@@ -1093,7 +1114,8 @@ function viewSetup() {
  </div></div></div></div>`
 }
 async function postJSON(p, body) {
-  const r = await fetch(p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) })
+  const t = reqTo(p)
+  const r = await fetch(t.url, { method: 'POST', headers: { 'content-type': 'application/json', ...t.headers }, body: JSON.stringify(body || {}) })
   const j = await r.json().catch(() => ({}))
   if (!r.ok) throw Object.assign(new Error(j.message || '서버에 닿지 않는다'), { code: j.error })
   return j
@@ -1454,6 +1476,63 @@ async function doSend() {
   render()
 }
 
+// ── 팀 화면 ↔ 내 PC(E8 · v0.5 §5 · v0.6 ⑫) ──
+// 설치가 팀 주소를 내 PC 프로그램에 적어 두었으면 물으면 바로 12시간 짝 열쇠를 준다(누름 없음 · 탭 메모리만).
+// 내 PC 지식의 id 는 ~ 로 시작하고 그 요청은 reqTo 가 내 PC 프로그램으로만 보낸다.
+function pcRemembered() { try { return JSON.parse(localStorage.getItem('kmdPcKns') || '[]') } catch { return [] } }
+async function pcConnect(again) {
+  const url = S.me.pcUrl
+  if (!url) return
+  let seen = false, tok = null
+  try { seen = !!localStorage.getItem('kmdPcSeen'); tok = sessionStorage.getItem('kmdPair') } catch {}
+  S.pc = { url, token: null, kns: [], off: false, allow: false, seen }
+  S.kns = S.kns.filter((k) => !k.pc)
+  try {
+    if (!tok) {
+      const r = await fetch(url + '/pair', { method: 'POST' })
+      const j = await r.json().catch(() => ({}))
+      if (r.status === 403 && j.need === 'allow') { S.pc.allow = true; return }
+      if (!r.ok) throw new Error(j.message || '')
+      tok = j.token
+      try { sessionStorage.setItem('kmdPair', tok); localStorage.setItem('kmdPcSeen', '1') } catch {}
+    }
+    S.pc.token = tok
+    const r2 = await fetch(url + '/api/knowledge', { headers: { authorization: 'Bearer ' + tok } })
+    if (r2.status === 401 && !again) { try { sessionStorage.removeItem('kmdPair') } catch {} return pcConnect(true) }
+    if (!r2.ok) throw new Error('')
+    S.pc.kns = (await r2.json()).map((k) => ({ ...k, id: '~' + k.id, pc: true, role: null, dests: null, sendN: 0 }))
+    S.kns = [...S.kns, ...S.pc.kns]
+    try { localStorage.setItem('kmdPcKns', JSON.stringify(S.pc.kns.map((k) => ({ id: k.id, name: k.name, docs: k.docs })))) } catch {}
+  } catch { S.pc.off = true; S.pc.token = null }
+}
+// 적히지 않은 팀 주소 — 내 PC 프로그램 창이 [허락] 을 묻고 짝 열쇠를 이 창에만 넘긴다(대상 출처 고정)
+function pcAllow() {
+  const w = window.open(S.pc.url + '/pair?from=' + encodeURIComponent(location.origin), 'kmdpair', 'width=520,height=360')
+  const on = async (ev) => {
+    if (ev.origin !== S.pc.url || !ev.data || !ev.data.kmdPair) return
+    window.removeEventListener('message', on)
+    try { sessionStorage.setItem('kmdPair', ev.data.kmdPair); localStorage.setItem('kmdPcSeen', '1') } catch {}
+    await pcConnect()
+    render()
+  }
+  window.addEventListener('message', on)
+  if (!w) toast('창이 막혔다 — 이 사이트의 팝업을 허락한다')
+}
+// 내 PC 프로그램 쪽 — /pair?from=<팀 주소> 창
+function viewPair() {
+  const from = (() => { try { return new URL(new URLSearchParams(location.search).get('from') || '').origin } catch { return '' } })()
+  if (!from) return { crumb: '허락', main: '<div class="callout gray">팀 주소가 없다</div>' }
+  return { crumb: '허락', main: `<div class="modal win" style="margin:24px auto;position:static" data-t="pairWin"><div class="tb"><span class="logo me">K</span><b>kmd — 이 PC</b></div><div class="wb"><div class="ask">팀 화면 <b>${esc(new URL(from).host)}</b> 에서<br>내 PC 지식을 연다</div><p class="only">이 PC 에서만 열린다 — 내 지식은 팀 서버로 가지 않는다 · 읽기와 저장만</p></div><div class="wf"><button class="btn pri" data-a="pairOk" data-v="${esc(from)}" data-t="pairOk">허락</button></div></div>` }
+}
+async function pairOk(from) {
+  try {
+    const r = await postJSON('/api/pair/allow', { origin: from })
+    if (window.opener) window.opener.postMessage({ kmdPair: r.token }, from)
+    toast('허락했다 — 팀 화면에서 내 PC 지식이 열린다')
+    setTimeout(() => window.close(), 600)
+  } catch (e) { toast(esc(e.message)) }
+}
+
 // ───────────── 이벤트 ─────────────
 function openDocAt(k, d, h, q) {
   openTab({ kind: 'doc', kn: k, ref: d, hl: h || null, q: q || null })
@@ -1545,7 +1624,9 @@ const ACT = {
   nav: (el) => go({ scr: el.dataset.s }),
   kmenu: () => { S.menu = S.menu === 'kmenu' ? null : 'kmenu'; render() },
   pickKn: (el, ev) => { ev.stopPropagation(); S.menu = null; const k = el.dataset.k; if (k === '*') go({ scr: 'home', kn: '*' }); else go({ scr: KNSCR.includes(S.route.scr) ? S.route.scr : 'docs', kn: k }) },
-  openKn: (el) => go({ scr: 'docs', kn: el.dataset.k }),
+  openKn: (el) => { if (el.classList.contains('dim')) { toast('내 PC 프로그램이 꺼져 있다 — 켜면 저절로 다시 열린다'); return } go({ scr: 'docs', kn: el.dataset.k }) },
+  pcAllow: () => pcAllow(),
+  pairOk: (el) => pairOk(el.dataset.v),
   histGo: (el) => histGo(Number(el.dataset.v)),
   openQo: () => openQo(),
   openSearch: () => openPal(),
@@ -1654,6 +1735,9 @@ async function loadAll() {
   if (S.me.anon) { render(); return }
   S.kns = await getJSON('/api/knowledge')
   S.cache = {}
+  if (isTeam()) await pcConnect()
+  const hm = location.hash.match(/^#(~[^/]+)\/(.+)$/)
+  if (hm && KN(decodeURIComponent(hm[1]))) { openTab({ kind: 'doc', kn: decodeURIComponent(hm[1]), ref: decodeURIComponent(hm[2]) }, { view: 'docs' }) }
   loadStops()
   clearInterval(stopTimer)
   stopTimer = setInterval(loadStops, 60000)
@@ -1675,6 +1759,8 @@ async function boot() {
       S.gate = 'first'
       S.gateCode = code ? decodeURIComponent(code) : ''
       S.gateUser = S.gateCode ? (await postJSON('/first', { check: true, code: S.gateCode }).catch(() => ({}))).user || null : null
+    } else if (location.pathname === '/pair') {
+      S.pairPage = true
     } else if (location.pathname === '/setup') {
       S.gate = 'setup'
       S.gateCode = code ? decodeURIComponent(code) : ''
