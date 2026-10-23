@@ -1819,7 +1819,7 @@ function claudeCard(st) {
   const rest = w && w.ok === false
   const days = rest ? Math.max(1, Math.round((Date.now() - Date.parse(w.since)) / 864e5)) : 0
   const pcLine = S.pc ? `<div class="set"><span class="tx"><b>내 PC 프로그램의 Claude</b><small data-t="claudePcLine">${S.pc.off ? '내 PC 프로그램이 꺼져 있다' : '내 PC 프로그램의 설정에서'}</small></span></div>` : ''
-  return `<div class="card" data-t="claudeCard"><div class="ch">Claude 연결 <small>읽기만</small></div><div class="cb" style="padding:2px 14px"><div class="set"><span class="tx"><b data-t="claudeRead">팀 정리는 정리 전용 로그인으로 돈다 — 쉬면 관리자에게 알린다</b><small>${rest ? `지금 쉬고 있다 · ${days}일 — 관리자에게 알렸다` : c.team && c.team.token ? '지금 돈다 · 로그인해 두는 것은 관리자' : '아직 로그인하지 않았다 — 관리자가 한다'}</small></span></div>${pcLine}</div>${S.me.admin ? '<div class="cf"><a class="lk" data-a="nav" data-s="admin" data-t="toAdmClaude">관리 › Claude 연결 →</a></div>' : ''}</div>`
+  return `<div class="card" data-t="claudeCard"><div class="ch">Claude 연결 <small>읽기만</small></div><div class="cb" style="padding:2px 14px"><div class="set"><span class="tx"><b data-t="claudeRead">팀 정리는 정리 전용 로그인으로 돈다 — 쉬면 관리자에게 알린다</b><small>${rest ? `지금 쉬고 있다 · ${days}일 — 관리자에게 알렸다` : (c.team && c.team.token) || (w && w.ok) ? '지금 돈다 · 로그인해 두는 것은 관리자' : '아직 로그인하지 않았다 — 관리자가 한다'}</small></span></div>${pcLine}</div>${S.me.admin ? '<div class="cf"><a class="lk" data-a="nav" data-s="admin" data-t="toAdmClaude">관리 › Claude 연결 →</a></div>' : ''}</div>`
 }
 // 로그인 확인 — 작은 부르기 한 번 · 됐으면 흐름을 닫는다
 async function pcLoginCheck(byHand) {
@@ -1905,9 +1905,12 @@ function admClaudeCard(a) {
   let flow = ''
   if (step === 'pw') flow = `<div class="flow" data-t="admPw"><div class="field"><label for="admPw">비밀번호 한 번 더 — 관리자 확인</label><input class="inp af" type="password" id="admPw" data-t="admPwIn" autocomplete="current-password"><div class="hint">브라우저가 채우면 확인만 누르면 된다</div></div>${S.admErr ? `<div class="callout danger">${esc(S.admErr)}</div>` : ''}<div class="row"><button class="btn pri" data-a="admPwOk" data-t="admPwOk">확인</button><a class="muted" data-a="admFlowCancel">그만두기</a></div></div>`
   else if (step === 'wait') flow = '<div class="flow"><span class="prog" data-t="admWait"><i></i>팀 서버가 정리용 로그인을 띄우는 중…</span></div>'
+  else if (step === 'window') flow = `<div class="flow" data-t="admWindow"><p style="margin:0 0 6px"><b>팀 서버 PC 화면에 「kmd — Claude 로그인」 창</b>이 떴다 — 그 창이 브라우저를 연다. 그 PC 의 브라우저에서 Claude 에 들어가면 끝이다.</p><p class="small muted" style="margin:0 0 8px">창이 안 보이면 그 PC 의 작업 표시줄에서 그 창을 누른다 · 정리 일꾼은 그 PC 의 Claude Code 로그인을 쓴다 · 다 되면 그 창은 닫아도 된다</p><div class="row"><span class="prog" data-t="admWinWait"><i></i>${S.admChecking ? '로그인을 확인하는 중…' : S.admLast ? esc(S.admLast) : '로그인을 기다린다 — 몇 초마다 저절로 확인한다'}</span><button class="btn sm" data-a="admCheck" data-t="admCheck" style="margin-left:auto">지금 확인</button><a class="lk" data-a="admFlowCancel" style="margin-left:10px">그만두기</a></div></div>`
+  else if (!step && S.admErr) flow = `<div class="flow"><div class="callout danger" data-t="admErr">${esc(S.admErr)}</div></div>`
   else if (step === 'code') flow = `<div class="flow" data-t="admCode"><p style="margin:0 0 6px"><b>이 주소를 열어 Claude 에 들어가고 받은 번호를 붙여 넣으세요</b></p><div class="path"><span data-t="admUrl">${esc(S.admUrl)}</span><a class="r lk" data-a="admCopyUrl">복사</a></div><div class="paste" style="margin-top:8px"><input class="inp mono" id="admCodeIn" data-in="admCode" data-t="admCodeIn" value="${esc(S.admCode || '')}" placeholder="받은 번호 붙여 넣기" autocomplete="off"><span id="admDoneBox">${admDoneBtn()}</span></div><p class="hint">한 번용 번호 — 저장하지 않는다${a.https ? '' : ' · 아직 https 가 아니다 — 사내 https 뒤 권장'} · <a data-a="admFlowCancel">그만두기</a></p>${S.admErr ? `<div class="callout danger">${esc(S.admErr)}</div>` : ''}</div>`
-  const state = rest ? `쉬고 있다 · ${Math.max(1, Math.round((Date.now() - Date.parse(a.worker.since)) / 864e5))}일 — 로그인이 끝났다` : a.claude.token ? '로그인됨 · 정리 전용' : '아직 로그인하지 않았다'
-  return `<div class="card" data-t="admClaude"><div class="ch">Claude 연결 <small>정리 전용 로그인 — 팀 서버의 정리 일꾼이 쓴다</small></div><div class="cb" style="padding:2px 14px 10px"><div class="set"><span class="tx"><b data-t="admClaudeState">${state}</b><small>쓰는 곳 — 정해진 정리 · 지금 정리 · 기록 만들기${rest ? ' · 그동안은 규칙으로 되는 것만 넣는다' : ''}</small></span>${step ? '' : `<button class="btn${rest || !a.claude.token ? ' pri' : ''}" data-a="admLoginStart" data-t="admLoginStart">${rest || !a.claude.token ? '로그인 시작' : '다시 로그인'}</button>`}</div>${flow}</div></div>`
+  const state = rest ? `쉬고 있다 · ${Math.max(1, Math.round((Date.now() - Date.parse(a.worker.since)) / 864e5))}일 — 로그인이 끝났다` : a.claude.token ? '로그인됨 · 정리 전용' : a.worker && a.worker.ok ? '로그인됨 — 팀 서버 PC 의 Claude Code' : '아직 로그인하지 않았다'
+  const inn = a.claude.token || (a.worker && a.worker.ok)
+  return `<div class="card" data-t="admClaude"><div class="ch">Claude 연결 <small>정리 전용 로그인 — 팀 서버의 정리 일꾼이 쓴다</small></div><div class="cb" style="padding:2px 14px 10px"><div class="set"><span class="tx"><b data-t="admClaudeState">${state}</b><small>쓰는 곳 — 정해진 정리 · 지금 정리 · 기록 만들기${rest ? ' · 그동안은 규칙으로 되는 것만 넣는다' : ''}</small></span>${step ? '' : `<button class="btn${rest || !inn ? ' pri' : ''}" data-a="admLoginStart" data-t="admLoginStart">${rest || !inn ? '로그인 시작' : '다시 로그인'}</button>`}</div>${flow}</div></div>`
 }
 async function admPwOk() {
   const pw = ($('#admPw') || {}).value || ''
@@ -1917,10 +1920,30 @@ async function admPwOk() {
     S.admStep = 'wait'
     render()
     const r = await postJSON('/api/admin/claude/start', {})
-    S.admUrl = r.url
-    S.admStep = 'code'
+    if (r.window) { S.admStep = 'window'; S.admLast = null; S.admSince = Date.now(); admPoll() } // 화면 있는 서버 PC — 보이는 창 · 번호 칸 없음
+    else { S.admUrl = r.url; S.admStep = 'code' }
   } catch (e) { S.admErr = e.code === 'E_AUTH' ? '비밀번호를 확인하세요' : e.message; if (S.admStep === 'wait') S.admStep = null }
   render()
+}
+// 화면 있는 서버 PC — 그 PC 의 Claude Code 로그인을 작은 부르기로 확인 · 8초마다(10분까지)
+async function admCheck(byHand) {
+  S.admChecking = true
+  render()
+  let r = null
+  try { r = await postJSON('/api/admin/claude/check', {}) } catch (e) { r = { ok: false, reason: e.message } }
+  S.admChecking = false
+  if (r.ok) { S.admStep = null; S.admLast = null; delete S.cache.admin; loadStops(); toast('로그인됨 — 팀 서버 PC 의 Claude Code · 자동 정리가 이어서 한다') }
+  else if (S.admStep === 'window') S.admLast = r.reason === 'login' ? '아직 로그인 전 — 그 창 · 브라우저에서 마치면 저절로 확인한다' : r.reason === 'limit' ? 'Claude 사용 한도에 닿았다' : '확인하지 못했다 — 다시 본다'
+  else if (byHand) toast('확인하지 못했다')
+  render()
+  return r.ok
+}
+function admPoll() {
+  const since = S.admSince
+  setTimeout(async () => {
+    if (S.admStep !== 'window' || S.admSince !== since || Date.now() - since > 10 * 60_000) return
+    if (!(await admCheck(false))) admPoll()
+  }, 8000)
 }
 async function admDone() {
   try {
@@ -2029,7 +2052,8 @@ const ACT = {
   },
   admLoginStart: () => { S.admStep = 'pw'; S.admErr = null; S._focus = 'admPw'; render() },
   admPwOk: () => admPwOk(),
-  admFlowCancel: () => { if (S.admStep === 'code') postJSON('/api/admin/claude/cancel', {}).catch(() => {}); S.admStep = null; S.admErr = null; S.admCode = ''; render() },
+  admCheck: () => admCheck(true),
+  admFlowCancel: () => { if (S.admStep === 'code' || S.admStep === 'window') postJSON('/api/admin/claude/cancel', {}).catch(() => {}); S.admStep = null; S.admErr = null; S.admCode = ''; render() },
   admCopyUrl: () => { copyText(S.admUrl || ''); toast('복사했다') },
   admDone: () => admDone(),
   fetchSrc: (el) => fetchSrc(el.dataset.id),
