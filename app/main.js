@@ -1295,7 +1295,7 @@ function sfForm(can) {
   const when = f.type === 'pc' ? '' : `<div class="field" style="margin:0"><label for="sf-every">언제</label>${sel('every', [['hourly', '1시간마다'], ['daily 06:00', '매일 06:00'], ['weekly', '매주 월'], ['change', '바뀔 때만 — 5분마다 보고 바뀐 것만']], f.every)}${f.type === 'docs' || f.type === 'folder' ? '<div class="hint">폴더는 실시간으로도 지켜본다 — 이것은 놓친 것을 잡는 때</div>' : ''}</div>`
   const nm = fld('이름', 'name', f.name, f.type === 'pc' ? '예: 김 설계문서' : sfAutoName(f) || '예: dpms-api 코드', f.type === 'pc' ? { need: 1 } : {})
   const meaning = f.type === 'folder' || f.type === 'git' ? `<div style="grid-column:1/-1" data-t="meaningBox"><label class="small" style="display:flex;gap:8px;align-items:flex-start;cursor:pointer"><input type="checkbox" data-sf="meaning" data-t="sfMeaning"${f.meaning ? ' checked' : ''} style="margin-top:2px"><span><b>바뀐 코드로 관련 항목 글도 맞춘다 — Claude 로</b><span class="muted" style="display:block">코드가 바뀌면 파일마다 기록을 남기고 정리가 그 항목 글을 고친다 · 정리 검사(숫자 · 이름 대조)를 그대로 타고 값이 바뀌면 노란 줄 · 되돌릴 수 있다 · 「Claude 에 보내지 않음」 지식은 켜도 하지 않는다</span></span></label></div>` : ''
-  const dbNote = f.type === 'db' ? '<div class="callout gray" data-t="dbNote" style="margin:12px 0 0"><i></i><span><b>DB 에서 표 채우기는 아직 열리지 않았다</b> — 지금은 연결 정보만 저장하고 [연결 확인] 으로 닿는지만 본다 · 읽기 전용 계정 확인과 테이블 정의 채우기는 다음 판에</span></div>' : ''
+  const dbNote = f.type === 'db' ? '<div class="callout gray" data-t="dbNote" style="margin:12px 0 0"><i></i><span><b>테이블마다 정의 표를 채우고 바뀐 테이블만 고친다</b> — 읽기 전용으로만 붙어 카탈로그(테이블 · 칸 · 형 · 키 · 설명)만 읽는다 · 행은 읽지 않는다 · 읽기 전용 계정이 아니면 거절한다 · [연결 확인] 으로 먼저 붙어 본다</span></div>' : ''
   const probe = f.type === 'db' ? '<button class="btn" data-a="sfCheck" data-t="sfCheck">연결 확인</button>' : can && (f.type === 'folder' || f.type === 'git') ? '<button class="btn" data-a="sfProbe" data-t="sfProbe">살펴보기</button>' : ''
   const go = can ? `<button class="btn pri" data-a="sfAdd" data-t="sfAdd" style="width:auto">${f.type === 'pc' ? '허락하고 열쇠 받기' : '더하기'}</button>` : '<button class="btn pri" data-a="sfAsk" data-t="sfAsk" style="width:auto">관리자에게 부탁</button>'
   return `<div class="card" data-t="sfCard"><div class="ch">가져올 곳 더하기 <small>유형을 고르고 칸을 채운다</small></div>
@@ -1429,7 +1429,7 @@ async function sfAdd(ask) {
       const st = r.run && r.run[0]
       if (card.kind === 'pc') {
         S.sfMsg = { cls: 'warn', t: `<b>허락했다 — ${esc(card.name)}</b> · 이 열쇠는 지금 한 번만 보인다 — 그 사람의 내 PC 프로그램 › 자료 가져오기 › 팀으로 보내기에 팀 주소(<span class="mono">${esc(location.origin)}</span>)와 함께 넣는다<div class="path" style="margin-top:8px"><span class="mono" data-t="pcKey">${esc(r.key)}</span><a class="r lk" data-a="copyPcKey" data-v="${esc(r.key)}">복사</a></div>` }
-      } else S.sfMsg = { t: `<b>더했다 — ${esc(card.name)}</b>${st && st.state === 'changed' ? (card.kind === 'docs' ? ` · 문서 ${st.docs}` : ` · 처음 가져온 표 ${st.n}`) : st && st.state === 'waiting' ? ' · 연결 정보를 저장했다 — 표 채우기는 다음 판에' : ''}${isTeam() && (card.kind === 'git' || card.kind === 'db') ? ` · 자격이 필요하면 서버에서 <code>kmd secret set ${esc(r.secret)}</code>` : ''}` }
+      } else S.sfMsg = { t: `<b>더했다 — ${esc(card.name)}</b>${st && st.state === 'changed' ? (card.kind === 'docs' ? ` · 문서 ${st.docs}` : ` · 처음 가져온 표 ${st.n}`) : st && st.state === 'waiting' ? '' : st && st.state === 'failed' ? ` · 그러나 못 가져왔다 — ${esc(st.why || '')}` : ''}${isTeam() && (card.kind === 'git' || card.kind === 'db') ? ` · 자격이 필요하면 서버에서 <code>kmd secret set ${esc(r.secret)}</code>` : ''}` }
       forgetKn(f.kn)
     }
     S.sf = { ...f, at: '', name: '', doc: '', gitUser: '', gitToken: '', password: '', host: '', database: '', user: '', paths: '' }
@@ -1452,8 +1452,15 @@ async function sfCheck() {
   const f = sfState()
   if (!String(f.host || '').trim()) { S.sfMsg = { cls: 'danger', t: '호스트 칸을 채운다' }; render(); return }
   try {
-    const r = await postJSON(`/api/k/${encodeURIComponent(f.kn)}/sources/checkdb`, { host: f.host.trim(), port: Number(f.port) || 5432 })
-    S.sfMsg = r.reach ? { t: `<b>닿는다 — ${esc(f.host)}:${esc(f.port || 5432)}</b> · ${r.ms}ms · 계정 · 권한 확인은 표 채우기와 함께 다음 판에` } : { cls: 'danger', t: `<b>닿지 않는다 — ${esc(f.host)}:${esc(f.port || 5432)}</b> · 주소 · 포트 · 방화벽을 본다` }
+    S.sfMsg = { cls: 'gray', t: '<b>붙어 보는 중…</b>' }
+    render()
+    const r = await postJSON(`/api/k/${encodeURIComponent(f.kn)}/sources/checkdb`, { host: f.host.trim(), port: Number(f.port) || 5432, database: (f.database || '').trim() || null, user: (f.user || '').trim() || null, schema: (f.schema || 'public').trim(), name: (f.name || '').trim() || sfAutoName(f) || null, ...(isTeam() || !f.password ? {} : { password: f.password }) })
+    const where = `${esc(f.host)}:${esc(f.port || 5432)}`
+    if (!r.reach) S.sfMsg = { cls: 'danger', t: `<b>닿지 않는다 — ${where}</b> · 주소 · 포트 · 방화벽을 본다` }
+    else if (r.login === null || r.login === undefined) S.sfMsg = { t: `<b>닿는다 — ${where}</b> · ${r.ms}ms · ${isTeam() ? '계정 확인은 서버에 비밀번호를 넣은 뒤(kmd secret set)' : '비밀번호를 넣으면 붙어서 계정까지 본다'}` }
+    else if (!r.login) S.sfMsg = { cls: 'danger', t: `<b>닿지만 붙지 못했다</b> — ${esc(r.why)}` }
+    else if (r.problems.length) S.sfMsg = { cls: 'warn', t: `<b>붙었다 — 테이블 ${r.tables} · 그러나 읽기 전용 계정이 아니다</b> — ${esc(r.problems.join(' · '))} · ${r.allowUnsafe ? '이 서버는 시험용으로 허락해 두었다(세션은 읽기 전용)' : '더하면 거절된다 — 읽기 전용 계정으로 바꾼다'}` }
+    else S.sfMsg = { t: `<b>붙었다 — 테이블 ${r.tables} · 읽기 전용 계정 ✓</b>` }
   } catch (e) { S.sfMsg = { cls: 'danger', t: esc(e.message) } }
   render()
 }

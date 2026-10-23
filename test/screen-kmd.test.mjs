@@ -79,7 +79,7 @@ test('셸 · 지식 목록 · 문서로 보기 — 목업과 같은 글 · 단�
   // 셸 — 리본 넷(문서 · 항목 · 그래프 · 설정) · 옆 메뉴 · 머리 · 띠 · 아래 줄
   assert.deepEqual(await page.locator('.ribbon .rb span').allInnerTexts(), ['문서', '항목', '그래프', '설정'])
   // 관리자라 「정리하는 사람」 묶음(정리 · 이 지식의 사람)이 선다
-  assert.deepEqual(await page.locator('.side .nav .sb-i').evaluateAll((els) => els.map((e) => e.querySelector('span').textContent)), ['오늘 바뀐 것', '자료 가져오기', '정리', '이 지식의 사람', '설명서'])
+  assert.deepEqual(await page.locator('.side .nav .sb-i').evaluateAll((els) => els.map((e) => e.querySelector('span').textContent)), ['오늘 바뀐 것', '자료 가져오기', '정리', '이 지식의 사람', '관리', '설명서'])
   assert.match(await page.locator('.hdr').innerText(), /빨리 열기[\s\S]*Ctrl O[\s\S]*찾기[\s\S]*Ctrl K/)
   assert.equal(await page.locator('.band .who').innerText(), '팀 서버의 kmd · 같이 쓴다')
   assert.deepEqual(await page.locator('[data-t=krow]').evaluateAll((els) => els.map((e) => e.dataset.name)), ['DPMS 지식', 'GDI 지식'])
@@ -224,7 +224,7 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   await page.click('[data-t=sf-db]')
   for (const f of ['host', 'port', 'database', 'schema', 'user']) assert.equal(await page.locator(`#sf-${f}`).count(), 1)
   assert.equal(await page.locator('#sf-password').count(), 0, '팀 화면은 DB 비밀번호 칸이 없다')
-  assert.match(await page.locator('[data-t=dbNote]').innerText(), /DB 에서 표 채우기는 아직 열리지 않았다/)
+  assert.match(await page.locator('[data-t=dbNote]').innerText(), /테이블마다 정의 표를 채우고 바뀐 테이블만 고친다[\s\S]*읽기 전용 계정이 아니면 거절한다/)
   await page.click('[data-t=sfAdd]')
   assert.match(await page.locator('[data-t=sfMsg]').innerText(), /호스트 칸을 채운다/)
   await page.fill('#sf-host', 'db.team.local')

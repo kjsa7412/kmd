@@ -31,6 +31,7 @@ import { isSystemRecord, labelOf } from '../core/knowledge.js'
 import { restore as restoreFrom, checkUrl } from '../core/restore.js'
 import { watchedOf } from '../core/watchmark.js'
 import { applyDocs, wantDoc, watchedCount } from '../core/docwatch.js'
+import { connect as dbConnect, checkAccount, catalog as dbCatalog } from '../core/db.js'
 import { listPushes, addPush, removePush, runPush, readPushState } from '../core/push.js'
 import { ensureProject } from '../core/gitlab.js'
 import { getSecret, setSecret, listSecrets, delSecret } from '../core/secrets.js'
@@ -603,7 +604,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       return { state: r.commit ? 'changed' : 'same', docs: r.docs, missing: r.missing, rows: r.rows }
     },
     // DB 연결 확인 — 호스트 · 포트에 닿나만(읽기는 다음 판 · S10 계정) · 관리자 · PC 만(아무나 포트를 두드리지 않게)
-    async sourceCheckDb(ctx, id, { host, port = 5432 }) {
+    async sourceCheckDb(ctx, id, { host, port = 5432, database = null, user = null, schema = 'public', password = null, name = null }) {
       await hub.meta(id, ctx)
       if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '관리자가 한다')
       if (!/^[A-Za-z0-9.-]{1,253}$/.test(String(host || ''))) throw new KmdError('E_INPUT', '호스트가 아니다')
@@ -615,7 +616,21 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         sock.once('connect', () => done(true))
         sock.once('error', () => done(false))
       })
-      return { reach, ms: Date.now() - t0 }
+      if (!reach || !database || !user) return { reach, ms: Date.now() - t0 }
+      // 팀 화면은 비밀번호를 받지 않는다 — 이미 넣은 비밀(그 이름)이 있으면 그것으로
+      if (password && mode !== 'pc' && !ctx.pc) throw new KmdError('E_FORBIDDEN', '비밀번호는 화면으로 받지 않는다 — 서버에서 kmd secret set')
+      const pw = password || (name ? await getSecret(dataDir, secretName(id, name)) : null)
+      if (!pw) return { reach, ms: Date.now() - t0, login: null }
+      try {
+        const c = await dbConnect({ host: String(host), port: Number(port) || 5432, database: String(database), user: String(user), password: pw })
+        try {
+          const acct = await checkAccount(c, String(schema || 'public'))
+          const t = await dbCatalog(c, String(schema || 'public'))
+          return { reach, ms: Date.now() - t0, login: true, tables: t.size, problems: acct.problems, allowUnsafe: !!config.dbAllowUnsafeAccount }
+        } finally { await c.end().catch(() => {}) }
+      } catch (e) {
+        return { reach, ms: Date.now() - t0, login: false, why: e.message }
+      }
     },
     // 한 곳 돌리기 — 같은 곳은 한 줄로 선다(실시간 감시 · 시계 · [지금 확인] · 전체 다시 맞추기가 겹쳐도 차례로)
     async sourceRun(id, name = null, { first = false, force = false, full = false, pass = null, onProgress = null } = {}) {
@@ -624,8 +639,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const out = []
       for (const s of decl.filter((x) => !name || x.name === name)) {
         // DB 읽기(pg · 읽기 전용 확인)는 S10 계정이 생기면 연다 — 그때까지는 연결 정보만 두고 쉰다(실패로 세지 않는다 · 멈춤 줄 없음)
-        if (s.kind === 'db' || s.kind === 'pc') {
-          out.push({ name: s.name, state: 'waiting', n: 0, why: s.kind === 'db' ? 'DB 읽기는 아직 열리지 않았다 — 연결 정보는 저장했다' : '내 PC 프로그램이 바뀐 것을 보낸다 — 여기서는 기다린다' })
+        if (s.kind === 'pc') {
+          out.push({ name: s.name, state: 'waiting', n: 0, why: '내 PC 프로그램이 바뀐 것을 보낸다 — 여기서는 기다린다' })
           continue
         }
         const key = `${id}\n${s.name}`
@@ -633,7 +648,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const job = prev.catch(() => {}).then(async () => {
           const k = await hub.get(id)
           const src = { ...s, folder: s.kind === 'folder' || !/^(https?|ssh):\/\//i.test(s.at) ? s.at : undefined }
-          const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, meaning: hub.meaningOk(id), save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
+          const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, meaning: hub.meaningOk(id), dbAllowUnsafe: !!config.dbAllowUnsafeAccount, save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
           cache.delete(id)
           // 코드가 바뀌어 기록을 남겼다 — 그 지식의 정리를 바로 건다(정리 검사를 그대로 탄다 · 값이 바뀌면 노랑 · 되돌릴 수 있다)
           if (r.codeRecords) hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
@@ -718,7 +733,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const have = new Set((await listSecrets(dataDir).catch(() => [])).map((x) => x.name))
       // watch — live(실시간 감시) · poll(정한 때마다) · none · resync — 전체 다시 맞추기(도는 중 · 끝 · 끊김)
       const noClaude = !hub.meaningOk(id)
-      return decl.map((s) => ({ ...s, meaningBlocked: noClaude, watch: s.kind === 'pc' ? 'pc' : s.kind === 'folder' || s.kind === 'docs' ? (srcWatch.has(`${id}\n${s.name}`) ? 'live' : 'poll') : s.kind === 'git' ? 'poll' : 'none', resync: resyncs.get(`${id}\n${s.name}`) || (st[s.name]?.resync ? { state: 'paused', ...st[s.name].resync } : null), state: s.kind === 'db' ? { ...(st[s.name] || {}), lastNote: 'DB 읽기는 아직 — 연결 정보는 저장했다' } : st[s.name] || {}, secret: { name: secretName(id, s.name), has: have.has(secretName(id, s.name)) } }))
+      return decl.map((s) => ({ ...s, meaningBlocked: noClaude, watch: s.kind === 'pc' ? 'pc' : s.kind === 'folder' || s.kind === 'docs' ? (srcWatch.has(`${id}\n${s.name}`) ? 'live' : 'poll') : s.kind === 'git' ? 'poll' : 'none', resync: resyncs.get(`${id}\n${s.name}`) || (st[s.name]?.resync ? { state: 'paused', ...st[s.name].resync } : null), state: st[s.name] || {}, secret: { name: secretName(id, s.name), has: have.has(secretName(id, s.name)) } }))
     },
     // 자료 가져오기 화면 — 그 사람이 보는 지식들의 가져오는 곳 모두
     async allSources(ctx) {

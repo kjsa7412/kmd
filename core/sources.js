@@ -25,6 +25,8 @@ import { KmdError } from './errors.js'
 import { stopLine, ageText } from './stopline.js'
 import { readLedger, writeLedger, scanFolder, scanGit, changeCount } from './watch.js'
 import { applyDocs, wantDoc } from './docwatch.js'
+import { parseDbUrl, readDb } from './db.js'
+import { locate } from './registry.js'
 import { wantCode, codeRecord, diffFolder, diffGit, syncSnap, hasSnap, MAX_FILES as CODE_MAX } from './codechange.js'
 
 export const DECL = '_sources.json'
@@ -307,7 +309,63 @@ async function gitFetch(src, { dataDir, kn }) {
 //   full — 전체 다시 맞추기(pass 로 이어하기 · onProgress) · force — 브레이크를 넘어 그대로 반영
 export async function runSource(k, src, opt) {
   if (src.kind === 'docs') return runDocs(k, src, opt)
+  if (src.kind === 'db') return runDb(k, src, opt)
   return runTables(k, src, opt)
+}
+
+// DB — 카탈로그를 읽어 테이블마다 지문 · 바뀐 테이블만 「바뀐 것」 으로 센다 · 표는 테이블마다 하나(테이블 정의)
+//   자리 — 이름 장부에 `table:*` 자리가 있으면 그 문서 · 머리 · 없으면 넣을 문서 아래 「테이블 — 설명」 머리
+//   계정 — 읽기 전용이 아니면 거절(시험 DB 만 serve.json dbAllowUnsafeAccount) · 비밀번호는 비밀에서
+async function runDb(k, src, { dataDir, save, first = false, force = false, full = false, dbAllowUnsafe = false }) {
+  const st = await readState(dataDir, k.id)
+  const s0 = (st[src.name] ||= {})
+  const now = new Date().toISOString()
+  try {
+    const conn = parseDbUrl(src.at)
+    conn.password = await getSecret(dataDir, secretName(k.id, src.name))
+    const { acct, tables } = await readDb(conn, { allowUnsafe: dbAllowUnsafe })
+    s0.account = { problems: acct.problems, at: now }
+    const L = await readLedger(dataDir, k.id, src.name)
+    const prev = L.files || {}
+    const files = Object.fromEntries([...tables.values()].map((t) => [t.name, { hash: t.hash }]))
+    const changes = { added: [], changed: [], removed: [] }
+    for (const [n, x] of Object.entries(files)) if (!prev[n]) changes.added.push(n); else if (prev[n].hash !== x.hash) changes.changed.push(n)
+    for (const n of Object.keys(prev)) if (!files[n]) changes.removed.push(n)
+    const n = changes.added.length + changes.changed.length + changes.removed.length
+    const ruleSig = JSON.stringify(src.rules)
+    if (!force && !first && !full && n === 0 && !s0.stopped && L.rules === ruleSig) {
+      Object.assign(s0, { checkedAt: now, failures: 0, failingSince: null, lastNote: '그대로' })
+      await writeState(dataDir, k.id, st)
+      return { state: 'same', n: 0, files: 0 }
+    }
+    const into = src.rules[0]?.into?.doc || '테이블 정의'
+    const items = { dbtables: [...tables.values()].map((t) => {
+      const loc = locate(k.registry, `table:${t.name}`)
+      return { key: loc ? loc.heading : t.comment ? `${t.name} — ${t.comment}` : t.name, doc: loc ? loc.doc : into, cols: t.cols, rows: t.rows }
+    }) }
+    const plan = await planRun(k, src, items, { asof: now.slice(0, 16).replace('T', ' '), first, prev: s0.items || [] })
+    if (plan.brake && !force) {
+      s0.stopped = { at: now, added: plan.added, vanished: plan.vanished, of: (s0.items || []).length }
+      s0.lastNote = '멈춤'
+      await writeState(dataDir, k.id, st)
+      return { state: 'stopped', n: 0, files: n, ...s0.stopped }
+    }
+    for (let i = 0; i < plan.changed.length; i += 200) {
+      const part = plan.changed.slice(i, i + 200)
+      await save({ record: { title: `가져옴 — ${src.name} · 바뀐 테이블 ${part.length}`, body: [`바뀐 테이블 ${n} — ${[...changes.added.map((x) => x + '(새로)'), ...changes.changed, ...changes.removed.map((x) => x + '(없어짐)')].slice(0, 30).join(' · ')}${n > 30 ? ' …' : ''}`, '', ...part.map((c) => `- ${c.doc.replace(/^docs\/|\.md$/g, '')} › ${c.heading}`)].join('\n'), tags: ['sources'] }, sections: part.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) })
+    }
+    await writeLedger(dataDir, k.id, src.name, { v: 1, files, out: {}, rules: ruleSig })
+    const lastChange = plan.changed.length ? { at: now, files: full ? 0 : n, tables: plan.changed.length, added: changes.added.length, changed: changes.changed.length, removed: changes.removed.length } : s0.lastChange
+    Object.assign(s0, { checkedAt: now, asof: now.slice(0, 16).replace('T', ' '), items: plan.items, failures: 0, failingSince: null, stopped: null, lastChange, lastNote: `${full ? '다시 맞춤 — ' : ''}${plan.changed.length ? `바뀐 테이블 ${plan.changed.length}` : '그대로'} · 테이블 ${tables.size}${acct.problems.length ? ' · 읽기 전용 계정이 아니다(시험용)' : ''}` })
+    await writeState(dataDir, k.id, st)
+    return { state: plan.changed.length ? 'changed' : 'same', n: plan.changed.length, files: n, tables: tables.size }
+  } catch (e) {
+    s0.failures = (s0.failures || 0) + 1
+    s0.failingSince ||= now
+    s0.lastNote = e.message
+    await writeState(dataDir, k.id, st)
+    return { state: 'failed', n: 0, why: e.message }
+  }
 }
 
 // 문서 폴더 — 바뀐 파일만 지식 안의 사본 문서로(원본이 주인) · 지운 파일은 「원본에 없다」 · 브레이크는 한꺼번에 많이 사라질 때만

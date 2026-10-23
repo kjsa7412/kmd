@@ -103,7 +103,9 @@ test('DB 가져오는 곳 — 팀은 비밀번호를 받지 않는다 · 선언�
   await assert.rejects(s.hub.sourceAdd(KIM, 'gdi', { name: 'gdi DB', kind: 'db', db: { ...db, password: 'pw' }, rules }), { code: 'E_FORBIDDEN' })
   await assert.rejects(s.hub.sourceAdd(KIM, 'gdi', { name: 'gdi DB', kind: 'db', db, rules: [{ rule: 'deps', into: { doc: 'x' } }] }), { code: 'E_INPUT' })
   const r = await s.hub.sourceAdd(KIM, 'gdi', { name: 'gdi DB', kind: 'db', db, rules })
-  assert.equal(r.run[0].state, 'waiting')
+  // 팀 서버에 비밀번호(kmd secret set)가 아직 없으면 붙지 않고 그 까닭을 남긴다 — 한 번 실패는 멈춤 줄이 아니다
+  assert.equal(r.run[0].state, 'failed')
+  assert.match(r.run[0].why, /비밀번호가 없다/)
   assert.match(r.secret, /^src\/gdi\/gdi-db-[0-9a-f]{6}$/)
   const decl = fs.readFileSync(path.join(tmp, 'kn', 'gdi', '_sources.json'), 'utf8')
   assert.match(decl, /postgres:\/\/kmd_read@127\.0\.0\.1:5432\/gdi\?schema=public/)
