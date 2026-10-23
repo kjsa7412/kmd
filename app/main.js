@@ -30,6 +30,10 @@ const isTeam = () => S.me && S.me.mode === 'team'
 // 들어오기 전 — 들어가기 · 처음 들어오기 링크 · 첫 설정 화면
 const anon = () => !!S.me && (!!S.me.anon || !!S.gate)
 const knType = () => (isTeam() ? 'team' : 'pc')
+// 지식 하나의 갈래 — 내 PC 지식 · 팀 서버의 개인 지식 · 이 PC 프로그램의 지식은 개인, 그 밖은 팀 지식
+const isPersonal = (n) => !n || !!n.pc || !!n.private || !isTeam()
+const knWhere = (n) => (!n ? '' : n.pc ? '내 PC' + (n.dir ? ' · ' + n.dir : '') : !isTeam() ? n.dir || '' : n.private ? '팀 서버 · 개인' : '팀 서버')
+const knTag = (n) => (n && n.pc ? '<span class="kt me">내 PC</span>' : isPersonal(n) ? '<span class="kt me">개인</span>' : '<span class="kt team">팀</span>')
 
 // ───────────── 자료 ─────────────
 // 내 PC 지식(id 가 ~ 로 시작)은 내 PC 프로그램으로만 간다 — 팀 서버로 가려 하면 멈춘다(fail-closed · v0.5 §5.3 ⑤)
@@ -231,25 +235,26 @@ function sideHtml(left) {
   const vt = VIEWS3.includes(r.scr) ? r.scr : S.ktab || 'docs'
   const k = dim ? null : defaultKn()
   const cur = k ? KN(k) : null
-  const ktag = () => (team ? '<span class="kt team">팀</span>' : '<span class="kt me">개인</span>')
   let h = `<aside class="side${dim ? ' dim' : ''}"><div class="sb-top"><div class="logo${team ? '' : ' me'}">K</div><span class="brand">kmd</span></div><div class="where">${team ? '팀 서버에서 돈다 · ' + esc(S.me.host) : '이 PC 에서 돈다'}</div>`
   if (!dim) {
     // 지식 고르기 영역
     const cnt = team ? '팀 ' + S.kns.length : '내 지식 ' + S.kns.length
     const home = r.scr === 'home'
-    h += `<div class="sb-know" data-t="knowArea"><div class="sb-repo" data-a="kmenu" data-t="kpick">${cur && !home ? `<span class="rk">${esc(cur.name.slice(0, 2))}</span><span class="rn">${esc(cur.name)} <small>${team ? '팀 서버' : esc(cur.dir || '')}</small></span>` : `<span class="rk">전체</span><span class="rn">지식 전체<small>${cnt}</small></span>`}<span class="rc">▾</span>${S.menu === 'kmenu' ? `<div class="kmenu"><div class="mi" data-a="pickKn" data-k="*" data-t="nav-home">${svg('list')} 지식 목록 — 전체</div>${S.kns.map((x) => `<div class="mi" data-a="pickKn" data-k="${esc(x.id)}">${esc(x.name)} ${ktag()}</div>`).join('')}<div class="sep"></div><div class="mi" data-a="nav" data-s="add" data-t="nav-add">+ 지식 추가</div></div>` : ''}</div>`
+    h += `<div class="sb-know" data-t="knowArea"><div class="sb-repo" data-a="kmenu" data-t="kpick">${cur && !home ? `<span class="rk">${esc(cur.name.slice(0, 2))}</span><span class="rn">${esc(cur.name)} <small>${esc(knWhere(cur))}</small></span>` : `<span class="rk">전체</span><span class="rn">지식 전체<small>${cnt}</small></span>`}<span class="rc">▾</span>${S.menu === 'kmenu' ? `<div class="kmenu"><div class="mi" data-a="pickKn" data-k="*" data-t="nav-home">${svg('list')} 지식 목록 — 전체</div>${S.kns.map((x) => `<div class="mi" data-a="pickKn" data-k="${esc(x.id)}" data-t="kmenuKn">${esc(x.name)} ${knTag(x)}</div>`).join('')}<div class="sep"></div><div class="mi" data-a="nav" data-s="add" data-t="nav-add">+ 지식 추가</div></div>` : ''}</div>`
     h += `<div class="ktabs" data-t="ktabs">${[['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['graph', '그래프', 'graph']].map(([v, l, ic]) => `<span class="${VIEWS3.includes(r.scr) && vt === v ? 'on' : vt === v ? 'cur' : ''}" data-a="view" data-v="${v}" data-t="rb-${v}" title="${l}로 보기">${svg(ic)}${l}</span>`).join('')}</div>`
     h += `<div class="lp" data-t="leftPane">${left || sideList(vt, k)}</div></div>`
   }
   // 지식 관리 영역 — 공통
   const it = (key, l, ic, bd) => `<div class="sb-i${!dim && (r.scr === key || (key === 'today' && r.scr === 'log')) ? ' on' : ''}" data-a="nav" data-s="${key}" data-t="nav-${key}">${svg(ic)}<span>${l}</span>${bd ? `<span class="bd">${bd}</span>` : ''}</div>`
-  // 정리하는 사람 — 팀에서 주인 · 정리하는 지식이 하나라도 있거나 관리자. 이 PC 는 없다(정리는 저절로 · 켬/끔은 설정)
-  const curator = !dim && team && (S.kns.some((x) => x.role && x.role !== '기록') || S.me.admin)
-  const tk = curator && KN(tidyKn())
-  h += '<div class="sb-mg" data-t="manageArea"><div class="sb-g">지식 관리</div><div class="nav">' + it('today', '이력', 'check') + it('import', '지식 만들기', 'plug')
-  // 지식 보내기 — 이 PC 이거나 보낼 곳이 있는 지식이 있을 때
-  if (!dim && (!team || S.kns.some((x) => x.dests))) h += it('send', '지식 보내기', 'pair', S.kns.some((x) => x.sendWait) ? '…' : S.kns.reduce((a, x) => a + (x.sendN || 0), 0) || '')
+  // 지식 관리 — 고른 지식의 갈래에 따라: 모두 이력 · 지식 만들기 · 설정 / 개인 지식은 + 지식 보내기(개인 → 팀) /
+  //   팀 지식은 + 정리 · 이 지식의 사람(주인 · 정리하는 사람 · 관리자) · 관리는 팀 서버 전체의 일이라 관리자에게 늘
+  const personal = isPersonal(cur)
+  const curator = !dim && team && !personal && ((cur && cur.role && cur.role !== '기록') || S.me.admin)
+  const tk = curator && cur
+  h += `<div class="sb-mg" data-t="manageArea" data-kind="${personal ? 'personal' : 'team'}"><div class="sb-g">지식 관리 <span data-t="manageKind">${dim ? '' : personal ? (cur && cur.pc ? '· 내 PC 지식' : '· 개인 지식') : '· 팀 지식'}</span></div><div class="nav">` + it('today', '이력', 'check') + it('import', '지식 만들기', 'plug')
+  if (!dim && personal) h += it('send', '지식 보내기', 'pair', S.kns.some((x) => x.sendWait) ? '…' : S.kns.filter(isPersonal).reduce((a, x) => a + (x.sendN || 0), 0) || '')
   if (curator) h += it('tidy', '정리', 'hour', tk && tk.pend ? tk.pend : '') + it('members', '이 지식의 사람', 'users')
+  // 관리는 팀 서버 전체의 일 — 고른 지식과 상관없이 관리자에게
   if (!dim && S.me.admin && team) h += it('admin', '관리', 'shield')
   h += it('settings', '설정', 'gear') + '</div></div>'
   return h + '</aside>'
@@ -270,6 +275,8 @@ function bandHtml() {
   const k = r.kn && r.kn !== '*' && KNSCR.includes(r.scr) ? r.kn : null
   let left
   if (!k) left = team ? '팀 서버의 kmd · 같이 쓴다' : '이 PC 의 kmd · 나만 쓴다'
+  else if (KN(k) && KN(k).pc) left = '내 PC 지식 · ' + (KN(k).dir || '이 PC') + ' · 나만'
+  else if (team && KN(k) && KN(k).private) left = '개인 지식 · 팀 서버 · 나만'
   else left = team ? '팀 지식 · 팀 서버 · 나: ' + (KN(k) && KN(k).role === '주인' ? '주인' : '기록') : '내 지식 · ' + ((KN(k) && KN(k).dir) || '') + ' · 나만'
   const st = stopsFor(k)
   const right = st.length ? st.map((x) => `<span class="chip ${x.level === 'bad' ? 'c-danger' : 'c-warn'}" data-t="bandchip">${esc(x.b)} — ${esc(x.t)}</span>`).join('') : team ? '' : '<span class="muted">밖으로 나가는 것은 보내기 · 백업 · Claude 정리뿐</span>'
@@ -292,7 +299,7 @@ function statusHtml() {
 
 // ── 지식 목록 ──
 function knMeta(n) {
-  return isTeam() ? '문서 ' + n.docs + ' · 팀 모두 기록' : '문서 ' + n.docs + (n.when ? ' · ' + whenTxt(n.when) : '')
+  return isTeam() && !isPersonal(n) ? '문서 ' + n.docs + ' · 팀 모두 기록' : '문서 ' + n.docs + (n.when ? ' · ' + whenTxt(n.when) : '')
 }
 function viewHome() {
   const team = isTeam()
@@ -354,7 +361,7 @@ function viewDocsV() {
   return { crumb: '문서로 보기' + (c.title ? ' › ' + c.title : ''), main: c.main, aside: c.aside, right: c.right, tabs: true, left: treeHtml(k) }
 }
 function knAside(k) {
-  const team = isTeam()
+  const team = isTeam() && !isPersonal(KN(k))
   return `<h4>이 지식</h4><div class="kv">${team ? '<span>쓰는 사람</span><span>팀 모두 기록</span>' : '<span>주인</span><span>나 — 정리하면 바로 바뀐다</span>'}
   <span>자동으로 가져오는 곳</span><span>없음<small><a data-a="nav" data-s="import">지식 만들기 ›</a></small></span></div>`
 }
@@ -366,7 +373,7 @@ function waitHtml(k, tr) {
 function docsEmpty(k) {
   const n = KN(k), tr = treeOf(k)
   const ds = tr && tr.docs ? tr.docs : []
-  return `<div style="max-width:760px"><div class="big">${esc(n.name)}</div><p class="lead">${isTeam() ? '팀 모두 기록' : '내 지식 · ' + esc(n.dir || '') + ' · 나만'}</p>${waitHtml(k, tr)}
+  return `<div style="max-width:760px"><div class="big">${esc(n.name)}</div><p class="lead">${isPersonal(n) ? (n.pc ? '내 PC 지식' : '내 지식') + (n.dir ? ' · ' + esc(n.dir) : '') + ' · 나만' : '팀 모두 기록'}</p>${waitHtml(k, tr)}
   <div class="callout gray" data-t="docsEmpty">왼쪽 나무에서 문서나 기록을 연다 — 여러 개를 탭으로 띄우고, <b>Ctrl \\</b> 로 둘을 나란히 본다. 이름으로 바로 열려면 <b>Ctrl O</b>.</div>
   <div class="card"><div class="ch">최근 바뀐 문서 <small>문서 ${ds.length}</small></div><div class="cb" style="padding:2px 14px 4px"><ul class="plain dl">${tr ? ds.slice(0, 5).map((d) => `<li data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="recentDoc" data-pv="doc|${esc(k)}|${esc(d.id)}">${svg('doc', 'di')}<span class="nm">${esc(d.title)}</span><span class="when${isToday(d.when) ? ' td' : ''}">${esc(whenTxt(d.when))}</span></li>`).join('') : `<li>${loadingHtml}</li>`}</ul></div></div></div>`
 }
@@ -1739,7 +1746,7 @@ async function pcConnect(again) {
     const r2 = await fetch(url + '/api/knowledge', { headers: { authorization: 'Bearer ' + tok } })
     if (r2.status === 401 && !again) { try { sessionStorage.removeItem('kmdPair') } catch {} return pcConnect(true) }
     if (!r2.ok) throw new Error('')
-    S.pc.kns = (await r2.json()).map((k) => ({ ...k, id: '~' + k.id, pc: true, role: null, dests: null, sendN: 0 }))
+    S.pc.kns = (await r2.json()).map((k) => ({ ...k, id: '~' + k.id, pc: true, role: null, dests: k.dests || null, sendN: k.sendN || 0 }))
     S.kns = [...S.kns, ...S.pc.kns]
     try { localStorage.setItem('kmdPcKns', JSON.stringify(S.pc.kns.map((k) => ({ id: k.id, name: k.name, docs: k.docs })))) } catch {}
   } catch { S.pc.off = true; S.pc.token = null }
@@ -2149,7 +2156,8 @@ const ACT = {
   view: (el) => setView(el.dataset.v),
   nav: (el) => go({ scr: el.dataset.s }),
   kmenu: () => { S.menu = S.menu === 'kmenu' ? null : 'kmenu'; render() },
-  pickKn: (el, ev) => { ev.stopPropagation(); S.menu = null; const k = el.dataset.k; if (k === '*') go({ scr: 'home', kn: '*' }); else go({ scr: KNSCR.includes(S.route.scr) ? S.route.scr : 'docs', kn: k }) },
+  // 개인 지식을 고르면 팀 지식에만 있는 화면(정리 · 이 지식의 사람)에서 그 지식의 문서로
+  pickKn: (el, ev) => { ev.stopPropagation(); S.menu = null; const k = el.dataset.k; if (k === '*') go({ scr: 'home', kn: '*' }); else go({ scr: KNSCR.includes(S.route.scr) && !(isPersonal(KN(k)) && ['tidy', 'members'].includes(S.route.scr)) ? S.route.scr : 'docs', kn: k }) },
   openKn: (el) => { if (el.classList.contains('dim')) { toast('내 PC 프로그램이 꺼져 있다 — 켜면 저절로 다시 열린다'); return } go({ scr: 'docs', kn: el.dataset.k }) },
   pcAllow: () => pcAllow(),
   pairOk: (el) => pairOk(el.dataset.v),
