@@ -175,3 +175,33 @@ test('받은편지함 정리 — 같은 주인의 개인 지식으로 옮김 · 
   // 두 번 해도 다시 옮기지 않는다
   assert.equal((await s.hub.inboxTidy(KIM, 'inbox')).moved.length, 0)
 })
+
+test('지식 추가 — 지식 폴더 밖의 폴더는 지식 폴더 안의 새 지식으로 들여온다(원본은 그대로 · 따라가지 않는다)', async () => {
+  const root = path.join(tmp, 'pcroot')
+  fs.mkdirSync(root, { recursive: true })
+  const old = path.join(tmp, '옛자료')
+  fs.mkdirSync(path.join(old, '회의'), { recursive: true })
+  fs.writeFileSync(path.join(old, '배포 절차.md'), '# 배포 절차\n\n## 순서\n빌드 → 배포.\n')
+  fs.writeFileSync(path.join(old, '회의', '10월.md'), '# 10월\n\n## 정한 것\n화 · 목 배포.\n')
+  fs.writeFileSync(path.join(old, '그림.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+  const before = fs.readdirSync(old, { recursive: true }).sort()
+  const pc = await startServer({ root, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
+  try {
+    const ME = { user: pc.pcUser, admin: true, pc: true }
+    const r = await pc.hub.addKnowledge(ME, { kind: 'folder', dir: old })
+    assert.equal(r.dir, path.join(root, '옛자료'), '지식 폴더 안에 선다')
+    assert.equal(r.summary.doc, 2)
+    assert.ok(fs.existsSync(path.join(root, '옛자료', 'docs', '회의', '10월.md')))
+    assert.ok(!fs.existsSync(path.join(root, '옛자료', 'docs', '처음.md')), '들여온 지식에는 빈 처음 문서가 없다')
+    assert.deepEqual(fs.readdirSync(old, { recursive: true }).sort(), before, '원본 폴더는 그대로(.git · work 를 만들지 않는다)')
+    assert.ok(!fs.existsSync(path.join(root, '.kmd', 'links.json')) || !JSON.parse(fs.readFileSync(path.join(root, '.kmd', 'links.json'), 'utf8')).length, '따라가는 줄 0')
+    assert.deepEqual((await pc.hub.get('옛자료')).docs.map((d) => d.id).sort(), ['배포 절차', '회의/10월'])
+    // 같은 폴더를 또 — 이름이 겹치면 -2 · 지식 폴더 안 · 지식 폴더를 품은 폴더는 거절
+    assert.equal((await pc.hub.addKnowledge(ME, { kind: 'folder', dir: old })).id, '옛자료-2')
+    await assert.rejects(pc.hub.addKnowledge(ME, { kind: 'folder', dir: path.join(root, '옛자료') }), { code: 'E_INPUT' })
+    await assert.rejects(pc.hub.addKnowledge(ME, { kind: 'folder', dir: tmp }), { code: 'E_INPUT' })
+    await assert.rejects(s.hub.addKnowledge(KIM, { kind: 'folder', dir: old }), { code: 'E_FORBIDDEN' }, '팀 서버는 경로를 받지 않는다')
+  } finally {
+    await pc.close()
+  }
+})

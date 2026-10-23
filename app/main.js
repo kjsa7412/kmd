@@ -1376,29 +1376,33 @@ function addHeard() {
       else heard = `<div class="heard bad" data-t="addHeard"><span class="kt team">팀</span><span>${pr.other ? '다른 kmd 의 팀 지식 — 이 PC 에서 설치 한 줄(kmd connect)로 잇는다' : esc(pr.slug) + ' — 이 kmd 에 그런 지식이 없다'}</span></div>`
     } else if (pr.kind === 'folder') {
       if (!hasPc) heard = '<div class="heard bad" data-t="addHeard"><span class="kt me">내 PC</span><span>경로는 내 PC 프로그램이 연다 — 이 PC 에는 없다<span class="sub2">새 이름을 붙이면 팀 서버 안 내 지식이 선다</span></span></div>'
-      else { ok = true; heard = `<div class="heard" data-t="addHeard"><span class="kt me">내 PC</span><span><b>내 폴더를 지식으로 — 그 자리에서 따라간다</b> · ${esc(pr.name)}<span class="sub2">파일은 그 자리 그대로 · 복사하지 않는다</span></span></div>` }
+      else { ok = true; heard = `<div class="heard" data-t="addHeard"><span class="kt me">내 PC</span><span><b>새 지식으로 들여오기</b> — 지식 폴더 안 「${esc(pr.name)}」 로<span class="sub2">md · docx · pptx · xlsx 는 문서가 되고 그 밖은 첨부 · 원본 폴더는 그대로 둔다 · 한 번에 300 파일 · 200MB</span></span></div>` }
     } else if (pr.kind === 'new') { ok = true; heard = `<div class="heard" data-t="addHeard"><span class="kt me">${hasPc ? '내 PC' : '개인'}</span><span><b>${hasPc && !S.kns.length ? '첫 지식 세우기' : '새 지식 만들기'}</b> — ${hasPc ? esc(pcRoot() + '\\' + pr.name) + ' · 나만' : '팀 서버 안 내 지식 「' + esc(pr.name) + '」 · 나만(관리자는 볼 수 있다)'}</span></div>` }
     else heard = `<div class="heard bad" data-t="addHeard">알아듣지 못했다 — ${hasPc ? '이름이나 내 PC 폴더 경로를' : '이름 · 내 PC 폴더 경로 · 팀 지식 주소를'} 붙인다</div>`
   }
   return { heard, btn: `<button class="btn pri" data-a="doAdd" data-t="addBtn"${ok ? '' : ' disabled'}>${hasPc && !S.kns.length ? '세우기' : '추가'}</button>`, ok }
 }
-// 이 PC — 내 지식만 다룬다(팀 지식 주소는 팀 화면의 일). 내 지식이 하나도 없으면 「내 지식 세우기」 — 어디에 서는지 먼저 보이고 첫 이름 하나
+// 이 PC — 내 지식만 다룬다(팀 지식 주소는 팀 화면의 일). 지식은 모두 지식 폴더 안에 — 밖의 폴더는 새 지식으로 들여온다(원본은 그대로).
+// 내 지식이 하나도 없으면 「내 지식 세우기」 — 지식 폴더를 먼저 보이고 첫 이름 하나
+function rootCard(first) {
+  const root = pcRoot()
+  return `<div class="card" data-t="addRoot"><div class="ch">지식 폴더 <small>내 지식은 모두 이 안에 — 지식 하나 = 폴더 하나</small></div><div class="cb"><div class="path" data-t="rootPath"><span class="mono">${esc(root)}</span><a class="r lk" data-a="copyRoot" data-t="copyRoot">경로 복사</a></div>${first ? '<div class="kv" style="margin-top:10px"><span>누가</span><span>나만 — 이 PC 밖으로는 백업 · 보내기 · Claude 정리만 나간다</span></div>' : ''}</div><div class="cf">탐색기 · 편집기에서 열 때 이 경로를 붙인다 · 다른 자리로 하려면 kmd 를 그 폴더로 다시 연다 — <code>kmd up D:\\다른자리</code></div></div>`
+}
 function viewAddPc() {
   const ah = addHeard(), root = pcRoot(), first = S.kns.length === 0
   const msg = S.addMsg ? `<div class="callout ${S.addMsg.cls} stop" data-t="addMsg"><i></i><span>${S.addMsg.t}</span></div>` : ''
   const box = (ph) => `<div class="paste"><input class="inp mono" id="addIn" data-in="add" data-t="addIn" value="${esc(S.addDraft)}" placeholder="${ph}" autocomplete="off"><span id="addBtnBox">${ah.btn}</span></div><div id="addHeardBox">${ah.heard}</div>`
-  if (first) return { crumb: '내 지식 세우기', main: `<div style="max-width:820px"><div class="big">내 지식 세우기</div><p class="lead">아직 내 지식이 없다. 이 PC 의 내 지식은 모두 한 폴더 안에 지식 하나 = 폴더 하나로 선다.</p>
-  ${msg}
-  <div class="card" data-t="addRoot"><div class="ch">내 지식 자리</div><div class="cb"><div class="kv"><span>폴더</span><span><span class="mono">${esc(root)}</span></span><span>누가</span><span>나만 — 이 PC 밖으로는 백업 · 보내기 · Claude 정리만 나간다</span></div></div><div class="cf">다른 자리로 하려면 kmd 를 그 폴더로 다시 연다 — <code>kmd up D:\\다른자리</code></div></div>
+  if (first) return { crumb: '내 지식 세우기', main: `<div style="max-width:820px"><div class="big">내 지식 세우기</div><p class="lead">아직 내 지식이 없다. 첫 지식의 이름을 정하면 지식 폴더 안에 선다.</p>
+  ${msg}${rootCard(true)}
   <div class="rh" style="margin-top:16px">첫 지식 이름</div>${box('예: 메모')}
-  <p class="small muted" style="margin-top:10px">md 를 모아 둔 폴더가 이미 있으면 그 경로를 붙인다(예: <code data-a="fillAdd" data-v="D:\\옛자료" style="cursor:pointer">D:\\옛자료</code>) — 그 자리에서 따라간다 · 복사하지 않는다.</p></div>` }
-  return { crumb: '지식 추가', main: `<div style="max-width:820px"><div class="big">지식 추가</div><p class="lead">새 이름이나 내 PC 폴더를 붙인다 — 내 지식 ${S.kns.length} 옆에 선다.</p>
-  ${msg}${box('예: 회의 · D:\\옛자료')}
+  <p class="small muted" style="margin-top:10px">md 를 모아 둔 폴더가 이미 있으면 그 경로를 붙인다(예: <code data-a="fillAdd" data-v="D:\\옛자료" style="cursor:pointer">D:\\옛자료</code>) — 지식 폴더 안의 새 지식으로 들여온다 · 원본은 그대로.</p></div>` }
+  return { crumb: '지식 추가', main: `<div style="max-width:820px"><div class="big">지식 추가</div><p class="lead">새 이름이나 내 PC 폴더를 붙인다 — 지식 폴더 안에 내 지식 ${S.kns.length} 옆으로 선다.</p>
+  ${msg}${rootCard(false)}<div style="margin-top:16px">${box('예: 회의 · D:\\옛자료')}</div>
   <div class="card" style="margin-top:16px"><div class="ch">이렇게도 붙인다</div><div class="cb" style="padding:2px 14px"><ul class="plain">
-   <li><code data-a="fillAdd" data-v="회의" style="cursor:pointer">회의</code> → <b>새 지식 만들기</b> — ${esc(root + '\\회의')} · 나만</li>
-   <li><code data-a="fillAdd" data-v="D:\\옛자료" style="cursor:pointer">D:\\옛자료</code> → <b>내 폴더를 지식으로</b> — 그 자리에서 따라간다 · 복사하지 않는다</li>
+   <li><code data-a="fillAdd" data-v="회의" style="cursor:pointer">회의</code> → <b>새 지식 만들기</b> — 지식 폴더 안 「회의」 · 나만</li>
+   <li><code data-a="fillAdd" data-v="D:\\옛자료" style="cursor:pointer">D:\\옛자료</code> → <b>새 지식으로 들여오기</b> — 지식 폴더 안 「옛자료」 로 · 원본은 그대로</li>
    <li>코드 폴더 · git · DB 주소 → <a data-a="nav" data-s="import">자료 가져오기</a>에서 — 표를 저절로 채운다</li>
-  </ul></div><div class="cf">예를 누르면 칸에 들어간다 · 내 지식 자리 <span class="mono">${esc(root)}</span></div></div></div>` }
+  </ul></div><div class="cf">예를 누르면 칸에 들어간다</div></div></div>` }
 }
 function viewAdd() {
   if (!isTeam()) return viewAddPc()
@@ -1425,7 +1429,9 @@ async function doAdd() {
     S.addDraft = ''
     delete S.cache.today
     const firstPc = !isTeam() && S.kns.length === 1
-    S.addMsg = { cls: '', t: `<b>${firstPc ? '세웠다' : pr.kind === 'new' && isTeam() ? '만들었다' : '추가했다'} — ${esc(r.name)}</b>${isTeam() ? ' · 팀 서버 안 내 지식' : r.dir ? ' · ' + esc(r.dir) : ''} <a data-a="openKn" data-k="${esc(r.id)}">${firstPc ? '열어서 첫 문서 쓰기' : '열기'} ›</a>` }
+    const s = r.summary
+    const got = s ? ` · 문서 ${s.doc}${s.att ? ' · 첨부 ' + s.att : ''}${s.fail ? ' · 바꾸지 못한 파일 ' + s.fail : ''}${s.skip ? ' · 넣지 않은 파일 ' + s.skip : ''} — 원본은 그대로` : ''
+    S.addMsg = { cls: '', t: `<b>${r.from ? '들여왔다' : firstPc ? '세웠다' : pr.kind === 'new' && isTeam() ? '만들었다' : '추가했다'} — ${esc(r.name)}</b>${isTeam() ? ' · 팀 서버 안 내 지식' : got || (r.dir ? ' · ' + esc(r.dir) : '')} <a data-a="openKn" data-k="${esc(r.id)}">${firstPc && !r.from ? '열어서 첫 문서 쓰기' : '열기'} ›</a>` }
   } catch (e) { S.addMsg = { cls: 'gray', t: `<b>${esc(e.message)}</b>` } }
   render()
 }
@@ -1744,6 +1750,7 @@ const ACT = {
   addSrc: () => addSrc(false),
   askSrc: () => addSrc(true),
   impGo: (el) => { openTab({ kind: 'doc', kn: el.dataset.k, ref: el.dataset.d }, { view: 'docs' }); render() },
+  copyRoot: () => { copyText(pcRoot()); toast('지식 폴더 경로를 복사했다') },
   fillAdd: (el) => { S.addDraft = el.dataset.v; S.addMsg = null; S._focus = 'addIn'; render() },
   addToImport: () => { S.srcDraft = S.addDraft; S.addDraft = ''; go({ scr: 'import' }) },
   doAdd: () => doAdd(),

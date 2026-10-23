@@ -21,7 +21,8 @@ import { stopLine } from '../core/stopline.js'
 import * as backup from '../core/backup.js'
 import * as owners from '../core/owners.js'
 import { buildIndex, ladder, loadLearned, learn, searchCheck, exact } from '../core/search.js'
-import { planImport, summary } from '../core/importer.js'
+import { planImport, summary, MAX_FILES, MAX_BYTES } from '../core/importer.js'
+import { existsSync } from 'node:fs'
 import * as sendLib from '../core/send.js'
 import * as keystore from '../core/keystore.js'
 import { sha16 } from '../core/text.js'
@@ -118,8 +119,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       return list
     },
-    // 지식 추가 — 새 이름(PC: 루트 아래 · 팀: 서버 안 내 지식 · 나만) · 내 폴더(PC 만 · 그 자리에서 따라간다 · 복사 안 함)
-    async addKnowledge(ctx, { kind, name, dir }) {
+    // 지식 추가 — 새 이름(PC: 지식 폴더 안 · 팀: 서버 안 내 지식 · 나만) · 내 폴더(PC 만 · 지식 폴더 안의 새 지식으로 들여온다 · 원본은 그대로)
+    async addKnowledge(ctx, { kind, name, dir, empty = false }) {
       if (await looksLikeKnowledge(root)) throw new KmdError('E_INPUT', '이 kmd 는 지식 하나만 연다 — 여러 지식을 두려면 위 폴더에서 띄운다')
       if (kind === 'new') {
         const nm = String(name || '').normalize('NFC').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').trim()
@@ -134,35 +135,55 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         await fs.mkdir(path.join(d, 'docs'), { recursive: true })
         await fs.mkdir(path.join(d, 'work'), { recursive: true })
         await fs.writeFile(path.join(d, 'README.md'), `# ${nm}\n`, 'utf8')
-        await fs.writeFile(path.join(d, 'docs', '처음.md'), `# 처음\n\n## 개요\n새 지식 — 첫 문서를 쓴다.\n`, 'utf8')
-        await commitPaths(d, ['README.md', 'docs/처음.md'], `지식 만듦 — ${nm}`, ctx.user)
+        if (!empty) await fs.writeFile(path.join(d, 'docs', '처음.md'), `# 처음\n\n## 개요\n새 지식 — 첫 문서를 쓴다.\n`, 'utf8')
+        await commitPaths(d, empty ? ['README.md'] : ['README.md', 'docs/처음.md'], `지식 만듦 — ${nm}`, ctx.user)
         list = null
+        if (mode === 'pc' && started) watchers.push(collect.watch(d, () => hub.collect(id))) // 편집기에서 고친 것 거두기 — 켤 때 없던 지식도
         if (mode === 'team') await hub.setOwner({ ...ctx, shell: true }, id, { owner: ctx.user, private: true })
         await hub.gitlabAttach(id).catch((e) => log('GitLab 백업 자리', id, e.message))
         feed.add(dataDir, ctx.user, { kn: id, dot: 'acc', text: `지식을 추가했다 — ${nm}`, small: mode === 'team' ? '팀 서버 안 내 지식 · 나만' : d }).catch(() => {})
         return { id, name: nm, dir: mode === 'pc' ? d : undefined }
       }
+      // 지식 폴더 밖의 폴더 — 그 자리에서 따라가지 않는다(남의 폴더에 쓰지 않게 · 지식은 지식 폴더 안에만).
+      // 지식 폴더 안에 같은 이름의 새 지식을 세우고 그 폴더의 파일을 한 번 들여온다(파일 넣기와 같은 길 · 원본은 그대로)
       if (kind === 'folder') {
         if (mode !== 'pc' && !ctx.pc) throw new KmdError('E_FORBIDDEN', '경로는 내 PC 프로그램이 연다')
         const full = path.resolve(String(dir || ''))
         if (!path.isAbsolute(String(dir || '')) || !(await fs.stat(full).then((s) => s.isDirectory(), () => false))) throw new KmdError('E_NOTFOUND', '그 폴더가 없다')
-        if (full === path.resolve(dataDir) || full.startsWith(path.resolve(dataDir) + path.sep)) throw new KmdError('E_INPUT', 'kmd 살림 자리는 지식이 아니다')
-        if (!(await looksLikeKnowledge(full))) throw new KmdError('E_INPUT', '이 폴더에는 docs 폴더가 없다 — md 를 docs 폴더에 두면 지식이 된다')
+        const inside = (a, b) => a === b || a.startsWith(b + path.sep)
+        if (inside(full, path.resolve(root))) throw new KmdError('E_INPUT', '이미 지식 폴더 안이다 — 지식 목록에서 연다')
+        if (inside(path.resolve(root), full)) throw new KmdError('E_INPUT', '지식 폴더를 품은 폴더는 들여오지 않는다')
+        // 이미 지식 모양(docs 폴더)이면 그 docs 안을 · 아니면 폴더 전체를 문서로 · 숨김 · node_modules 는 보지 않는다
+        const src = (await fs.stat(path.join(full, 'docs')).then((s) => s.isDirectory(), () => false)) ? path.join(full, 'docs') : full
+        const files = []
+        let bytes = 0
+        const walk = async (d, rel) => {
+          for (const e of await fs.readdir(d, { withFileTypes: true }).catch(() => [])) {
+            if (e.name.startsWith('.') || e.name === 'node_modules') continue
+            const r = rel ? `${rel}/${e.name}` : e.name
+            if (e.isDirectory()) await walk(path.join(d, e.name), r)
+            else if (e.isFile()) {
+              const st = await fs.stat(path.join(d, e.name))
+              bytes += st.size
+              files.push({ path: r, full: path.join(d, e.name) })
+              if (files.length > MAX_FILES || bytes > MAX_BYTES) throw new KmdError('E_INPUT', `한 번에 ${MAX_FILES} 파일 · 200MB 까지 — 자료 가져오기에서 나눠 넣는다`)
+            }
+          }
+        }
+        await walk(src, '')
+        if (!files.some((f) => /\.(md|markdown|docx|pptx|xlsx)$/i.test(f.path))) throw new KmdError('E_INPUT', '이 폴더에는 문서가 될 파일(md · docx · pptx · xlsx)이 없다')
         const all = await hub.list()
-        if (all.some((k) => path.resolve(k.dir) === full)) throw new KmdError('E_CONFLICT', '이미 목록에 있는 지식이다')
-        let id = path.basename(full).normalize('NFC')
-        for (let n = 2; all.some((k) => k.id === id); n++) id = `${path.basename(full)}-${n}`
-        const f = path.join(dataDir, 'links.json')
-        const links = await fs.readFile(f, 'utf8').then(JSON.parse, () => [])
-        links.push({ id, dir: full, at: new Date().toISOString() })
-        await fs.mkdir(dataDir, { recursive: true })
-        await fs.writeFile(f, JSON.stringify(links, null, 1))
-        await ensureRepo(full)
-        list = null
-        const m = (await hub.list()).find((k) => k.id === id)
-        if (config.collect !== false && mode === 'pc' && started) watchers.push(collect.watch(m.dir, () => hub.collect(m.id)))
-        feed.add(dataDir, ctx.user, { kn: id, dot: 'acc', text: `지식을 추가했다 — ${m.name}`, small: `그 자리에서 따라간다 · ${full}` }).catch(() => {})
-        return { id, name: m.name, dir: full }
+        let nm = path.basename(full).normalize('NFC')
+        for (let n = 2; all.some((k) => k.id.toLowerCase() === nm.toLowerCase()); n++) nm = `${path.basename(full).normalize('NFC')}-${n}`
+        const made = await hub.addKnowledge(ctx, { kind: 'new', name: nm, empty: true })
+        const r = await hub.importFiles(ctx, made.id, await Promise.all(files.map(async (f) => ({ path: f.path, data: await fs.readFile(f.full) }))))
+        for (const x of ['_vocab.md', '_managed.md']) {
+          const t = await fs.readFile(path.join(full, x)).catch(() => null)
+          if (t) await fs.writeFile(path.join(made.dir, x), t)
+        }
+        if (src !== full) await commitPaths(made.dir, ['_vocab.md', '_managed.md'].filter((x) => existsSync(path.join(made.dir, x))), '이름 장부 들여옴', ctx.user).catch(() => {})
+        cache.delete(made.id)
+        return { ...made, from: full, summary: r.summary }
       }
       throw new KmdError('E_INPUT', '알아듣지 못했다 — 이름 · 내 PC 폴더 경로를 붙인다')
     },
