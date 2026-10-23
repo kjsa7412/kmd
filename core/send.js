@@ -2,7 +2,8 @@
 //
 // 보낼 곳은 지식 폴더의 `.kmd.json` { send: [{ kn, url? }] } — url 이 없으면 같은 kmd(save 하나), 있으면 그 kmd 로
 // 기기 열쇠 HTTP(`POST <url>/api/k/<kn>/receive`). 닿지 않으면 `<data>/send/<지식>.json` 의 wait 에 두고 닿을 때 저절로.
-// 보낼 것 = 보낸 뒤(또는 보낼 곳을 정한 뒤) 바뀐 문서 — 항목마다 지문을 견줘 바뀐 항목만 글로 싣는다.
+// 보낼 것 = ① 변경사항 — 보낸 뒤(또는 보낼 곳을 정한 뒤) 바뀐 문서(새 문서는 전체 · 아니면 바뀐 항목만) · 그 뒤 새로 남은 기록(전체)
+//          ② 지식 — 사람이 고른 문서(전체) · 기록(전체). 화면이 고른 것만 보낸다(고르지 않은 변경사항은 다음에 그대로 남는다).
 // 받는 쪽은 기록 하나(태그 `sent/<지문>` — 같은 것을 두 번 받으면 0) · 이름은 받는 지식의 이름 장부로 정확히 맞는 것만.
 
 import fs from 'node:fs/promises'
@@ -42,7 +43,7 @@ export function checkDest(d) {
 const stateFile = (dataDir, id) => path.join(dataDir, 'send', `${encodeURIComponent(id)}.json`)
 export async function readState(dataDir, id) {
   const s = await fs.readFile(stateFile(dataDir, id), 'utf8').then(JSON.parse, () => ({}))
-  return { sent: s.sent || {}, dropped: s.dropped || {}, wait: s.wait || [], log: s.log || [] }
+  return { sent: s.sent || {}, dropped: s.dropped || {}, sentRecs: s.sentRecs || {}, recSince: s.recSince || null, wait: s.wait || [], log: s.log || [] }
 }
 export async function writeState(dataDir, id, st) {
   await fs.mkdir(path.join(dataDir, 'send'), { recursive: true })
@@ -72,12 +73,29 @@ export function queue(k, st) {
     if (prev && prev.sha === m.sha) continue
     const heads = Object.keys(m.secs).filter((h) => !prev || prev.secs[h] !== m.secs[h])
     if (!heads.length) continue
-    out.push({ doc: d.id, path: d.path, title: d.title, heads, isNew: !prev, sha: m.sha, on: st.dropped[d.path] !== m.sha, when: d.mtime })
+    out.push({ kind: 'doc', key: `doc:${d.path}`, doc: d.id, path: d.path, title: d.title, heads, isNew: !prev, sha: m.sha, on: st.dropped[d.path] !== m.sha, when: d.mtime })
   }
   return out.sort((a, b) => String(b.when).localeCompare(String(a.when)))
 }
 
-// 보낼 글 하나 — 바뀐 항목만
+// 변경사항의 기록 — 보낼 곳을 정한 뒤 이 지식에 새로 남은 기록(받아 온 것 · 이력은 빼고 · 보낸 것은 다시 모이지 않는다)
+export function recQueue(k, st) {
+  if (!st.recSince) return []
+  return k.works
+    .filter((w) => w.date >= st.recSince && !st.sentRecs[w.id] && !w.tags.some((t) => t.startsWith('sent/')))
+    .map((w) => ({ kind: 'rec', key: `rec:${w.id}`, id: w.id, title: w.title, author: w.author, when: w.date, on: true }))
+}
+// 기록 하나 — 전체
+export function recItem(k, w) {
+  return { title: w.title.slice(0, 200), body: w.body, sha: sha16(`${k.id}\nrec\n${w.id}`) }
+}
+// 문서 하나 — 전체(머리글 · 항목 모두)
+export function docItem(k, d) {
+  const body = [clean(d.intro), ...d.sections.filter((s) => s.h).map((s) => `## ${s.h}\n${clean(s.body)}`)].filter(Boolean).join('\n\n')
+  return { title: `${d.title} — 문서 전체`.slice(0, 200), body, sha: sha16(`${k.id}\n${d.path}\n${marks(d).sha}\nall`) }
+}
+
+// 보낼 글 하나 — 바뀐 항목만(새 문서면 모든 항목)
 export function itemOf(k, q) {
   const d = k.byDocPath.get(q.path)
   const body = q.heads.map((h) => `## ${h}\n${clean(d.sections.find((s) => s.h === h)?.body)}`).join('\n\n')

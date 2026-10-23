@@ -8,7 +8,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { listKnowledge, loadKnowledge, coordsOfSection, sectionOf, looksLikeKnowledge } from '../core/knowledge.js'
 import { KmdError } from '../core/errors.js'
-import { save as coreSave, serial } from '../core/save.js'
+import { save as coreSave, serial, localStamp } from '../core/save.js'
 import { decide, decisionRecord, revertPlan } from '../core/curate.js'
 import * as collect from '../core/collect.js'
 import crypto from 'node:crypto'
@@ -889,17 +889,23 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         await fs.writeFile(path.join(meta.dir, sendLib.CONF), JSON.stringify({ ...conf, send: dests.map((d) => ({ kn: d.kn, ...(d.url ? { url: String(d.url).replace(/\/+$/, '') } : {}) })) }, null, 2) + '\n')
         await commitPaths(meta.dir, [sendLib.CONF], `보낼 곳 — ${dests.map((d) => d.kn).join(' · ') || '없음'}`, ctx.user).catch(() => {})
       })
-      // 처음 정하면 지금 글을 보낸 것으로 — 그 뒤 고친 것만 모인다
+      // 처음 정하면 지금 글 · 기록을 보낸 것으로 — 그 뒤 고친 문서 · 새 기록만 변경사항에 모인다
       const st = await sendLib.readState(dataDir, id)
-      if (!Object.keys(st.sent).length) await sendLib.writeState(dataDir, id, { ...st, sent: sendLib.baseline(await hub.get(id)) })
+      if (!Object.keys(st.sent).length || !st.recSince) await sendLib.writeState(dataDir, id, { ...st, sent: Object.keys(st.sent).length ? st.sent : sendLib.baseline(await hub.get(id)), recSince: st.recSince || localStamp() })
       return sendLib.destsOf(meta.dir)
     },
     async sendQueue(ctx, id) {
       const meta = await hub.meta(id, ctx)
       const dests = await sendLib.destsOf(meta.dir)
       const st = await sendLib.readState(dataDir, id)
-      const items = dests.length ? sendLib.queue(await hub.get(id), st) : []
-      return { dests, items, wait: st.wait.map((w) => ({ to: w.to.kn, n: w.payload.items.length, at: w.at, why: w.why })), log: st.log }
+      const k = await hub.get(id)
+      // 예전에 정한 보낼 곳 — 기록의 기준 시각이 없으면 지금부터(옛 기록이 한꺼번에 모이지 않게)
+      if (dests.length && !st.recSince) await sendLib.writeState(dataDir, id, (st.recSince = localStamp(), st))
+      // ① 변경사항(문서 · 기록) ② 지식(문서 · 기록 목록 — 골라서 전체로)
+      const items = dests.length ? [...sendLib.queue(k, st), ...sendLib.recQueue(k, st)].sort((a, b) => String(b.when).localeCompare(String(a.when))) : []
+      const docs = dests.length ? k.docs.map((d) => ({ path: d.path, id: d.id, title: d.title, when: d.mtime })) : []
+      const recs = dests.length ? k.works.filter((w) => !w.tags.some((t) => t.startsWith('sent/'))).map((w) => ({ id: w.id, title: w.title, author: w.author, when: w.date })) : []
+      return { dests, items, docs, recs, wait: st.wait.map((w) => ({ to: w.to.kn, n: w.payload.items.length, at: w.at, why: w.why })), log: st.log }
     },
     async sendDrop(ctx, id, { path: p, on }) {
       await hub.meta(id, ctx)
@@ -911,15 +917,26 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       await sendLib.writeState(dataDir, id, st)
       return { ok: true }
     },
-    async send(ctx, id, { extra = [] } = {}) {
+    // 보내기 — changes(변경사항의 key) · docs(문서 경로 — 전체) · recs(기록 id — 전체) · 셋 다 없으면 변경사항 모두(예전 길)
+    async send(ctx, id, { extra = [], changes = null, docs = [], recs = [] } = {}) {
       const meta = await hub.meta(id, ctx)
       if (!hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '내 지식에서만 보낸다')
       const dests = await sendLib.destsOf(meta.dir)
       if (!dests.length) throw new KmdError('E_INPUT', '보낼 곳이 없다 — 지식 설정에서 정한다')
       const k = await hub.get(id)
       const st = await sendLib.readState(dataDir, id)
-      const qs = sendLib.queue(k, st).filter((q) => q.on)
-      const items = [...qs.map((q) => sendLib.itemOf(k, q)), ...(Array.isArray(extra) ? extra : []).map((x) => ({ title: String(x.title || '').slice(0, 200), body: String(x.body || ''), sha: sha16(`${id}\n${x.title}\n${x.body}`) }))]
+      const pick = Array.isArray(changes) ? new Set(changes.map(String)) : null
+      // 지식에서 문서 전체를 고르면 그 문서의 변경사항(바뀐 항목만) 대신 전체로 간다
+      const wholeDocs = [...new Set((Array.isArray(docs) ? docs : []).map(String))].map((p) => k.byDocPath.get(p)).filter(Boolean)
+      const qs = sendLib.queue(k, st).filter((q) => (pick ? pick.has(q.key) : q.on) && !wholeDocs.some((d) => d.path === q.path))
+      const rq = sendLib.recQueue(k, st).filter((q) => (pick ? pick.has(q.key) : true))
+      const recIds = [...new Set([...rq.map((q) => q.id), ...(Array.isArray(recs) ? recs : []).map(String)])].filter((x) => k.works.some((w) => w.id === x))
+      const items = [
+        ...qs.map((q) => sendLib.itemOf(k, q)),
+        ...wholeDocs.map((d) => sendLib.docItem(k, d)),
+        ...recIds.map((x) => sendLib.recItem(k, k.byWork.get(x))),
+        ...(Array.isArray(extra) ? extra : []).map((x) => ({ title: String(x.title || '').slice(0, 200), body: String(x.body || ''), sha: sha16(`${id}\n${x.title}\n${x.body}`) })),
+      ]
       if (!items.length) return { sent: 0, wait: 0 }
       const payload = { from: meta.name, items }
       let sent = 0
@@ -933,10 +950,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           wait += items.length
         }
       }
-      for (const q of qs) {
-        st.sent[q.path] = sendLib.marks(k.byDocPath.get(q.path))
-        delete st.dropped[q.path]
+      // 보낸 문서는 지금 글이 「보낸 것」 · 보낸 기록은 다시 모이지 않는다
+      for (const p of [...qs.map((q) => q.path), ...wholeDocs.map((d) => d.path)]) {
+        st.sent[p] = sendLib.marks(k.byDocPath.get(p))
+        delete st.dropped[p]
       }
+      for (const x of recIds) st.sentRecs[x] = true
       st.log.unshift({ at: new Date().toISOString(), n: items.length, to: dests.map((d) => d.kn), wait: !!wait })
       await sendLib.writeState(dataDir, id, st)
       if (sent) feed.add(dataDir, ctx.user, { kn: id, dot: 'acc', text: `${items.length}개를 보냈다 — ${dests.map((d) => d.kn).join(' · ')}`, small: '정리 때 문서에 들어간다' }).catch(() => {})
