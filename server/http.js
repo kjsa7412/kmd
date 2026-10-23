@@ -71,6 +71,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   function who(req) {
     const m = String(req.headers.authorization || '').match(/^Bearer\s+(\S+)$/i)
     if (m) {
+      // 초안 전용 단기 열쇠(kmdd_) — 그 일감 · 그 지식의 재료 · 초안 길만
+      if (m[1].startsWith('kmdd_')) {
+        const dctx = hub.draftCtx(m[1])
+        if (!dctx) throw new KmdError('E_AUTH', '이 일감의 열쇠가 끝났다')
+        return { ctx: dctx }
+      }
       const ctx = auth.bearer(m[1])
       if (!ctx) throw new KmdError('E_AUTH', '열쇠가 맞지 않는다 — 끊겼거나 90일 동안 쓰지 않았다. 팀 화면 › 설치 한 줄을 다시 붙여 넣는다')
       return { ctx }
@@ -81,6 +87,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const need = (ctx) => {
     if (!ctx) throw new KmdError('E_AUTH', '들어온 뒤 쓴다')
     if (ctx.machine) throw new KmdError('E_FORBIDDEN', '기계 열쇠는 기준선 길만 쓴다', { need: 'person' })
+    if (ctx.draft || ctx.worker) throw new KmdError('E_FORBIDDEN', '정리 일꾼은 초안만 올린다', { need: 'person' })
     return ctx
   }
   const admin = (ctx, { sudo = true } = {}) => {
@@ -133,7 +140,30 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (!hub.baseline) throw new KmdError('E_NOTFOUND', '아직 없는 길이다')
       return out(200, await hub.baseline(ctx, decodeURIComponent(bl[1]), await readBody(req)))
     }
+    // 정리 일꾼 — 일감 받기 · 상태 알리기(kmdw_) · 재료 · 초안(kmdd_)
+    if (p === '/api/worker/next' || p === '/api/worker/status') {
+      if (!ctx?.worker) throw new KmdError('E_FORBIDDEN', '정리 일꾼 열쇠로 부른다')
+      if (p === '/api/worker/next') return out(200, hub.workerNext(ctx) || { job: null })
+      return out(200, await hub.workerStatus(ctx, await readBody(req)))
+    }
+    const wk = p.match(/^\/api\/k\/([^/]+)\/worker\/(material|drafts)$/)
+    if (wk) {
+      if (!ctx?.draft) throw new KmdError('E_FORBIDDEN', '이 일감의 열쇠로 부른다')
+      if (wk[2] === 'material') return out(200, await hub.material(ctx, decodeURIComponent(wk[1])))
+      return out(200, await hub.drafts(ctx, decodeURIComponent(wk[1]), (await readBody(req)).drafts))
+    }
     need(ctx)
+    if (p === '/api/today') return out(200, await hub.today(ctx))
+    const jm = p.match(/^\/api\/job\/([0-9a-f]+)$/)
+    if (jm) return out(200, hub.job(jm[1]) || { state: 'gone' })
+    const tm = p.match(/^\/api\/k\/([^/]+)\/tidy$/)
+    if (tm) {
+      const id = decodeURIComponent(tm[1])
+      if (req.method === 'POST') return out(200, await hub.tidyNow(ctx, id))
+      await hub.meta(id, ctx)
+      const k = await hub.get(id, ctx)
+      return out(200, { tidyAt: hub.tidyAtOf(id), jobs: hub.jobsOf(id), runs: await hub.runs(id), pend: k.works.filter((w) => w.state === 'pend').length, nowhere: k.works.filter((w) => w.state === 'nowhere').length })
+    }
     if (p === '/api/knowledge') return out(200, (await hub.all(ctx)).map((k) => ({ ...V.knowledgeRow(k), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}) })))
     if (p === '/api/stops') return out(200, await hub.stops(ctx))
     if (p === '/api/find') {

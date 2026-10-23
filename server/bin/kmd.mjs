@@ -74,6 +74,7 @@ async function main() {
   if (cmd === 'secret') return secretCmd(parse(rest))
   if (cmd === 'connect') return connectCmd(parse(rest))
   if (cmd === 'search-check') return searchCheckCmd(parse(rest))
+  if (cmd === 'worker') return workerCmd(parse(rest))
   if (cmd !== 'serve' && cmd !== 'up') {
     console.error(`모르는 명령 — ${cmd}\n`)
     process.stdout.write(HELP)
@@ -121,6 +122,16 @@ async function main() {
     }
     const c = await addMcp('kmd', s.url)
     console.log(c.ok ? '✓ Claude Code 에 이었다 — 이 PC 의 kmd(kmd)' : `Claude Code 에 잇기(한 번): ${c.line}`)
+    // 이 PC 의 정리 일꾼 — 내 Claude 로그인으로(자식 프로세스 · 서버 프로세스는 Claude 를 부르지 않는다)
+    if (o.worker !== 'false') {
+      let wk = await kget('worker:' + s.url).catch(() => null)
+      if (!wk || !s.auth.bearer(wk)) {
+        wk = (await s.auth.workerAdd()).key
+        await kput('worker:' + s.url, wk).catch(() => {})
+      }
+      const child = spawn(process.execPath, [process.argv[1], 'worker', s.url], { stdio: 'inherit', windowsHide: true, env: { ...process.env, KMD_WORKER_KEY: wk } })
+      process.on('exit', () => child.kill())
+    }
     if (o.open !== false) openBrowser(`${s.url}/#once=${s.auth.once(s.pcUser)}`)
   }
   const stop = () => s.close().then(() => process.exit(0))
@@ -272,6 +283,35 @@ async function searchCheckCmd(o) {
     const hub = await makeHub({ root: rootOf(o), dataDir: dataOf(o), log: () => {} })
     const r = await hub.searchCheck(SHELL, id, { freeze: o.freeze !== undefined })
     console.log(`${id} — 문항 ${r.score.n} · 6개 안 ${r.score.in}% · 첫째 ${r.score.first}%${r.frozen ? ` · 얼린 시험지보다 나빠진 문항 ${r.worse.length}${r.worse.length ? ' — ' + r.worse.slice(0, 5).join(' · ') : ''}` : ' · 이 시험지를 얼렸다'}`)
+  } catch (e) {
+    console.error(e.message)
+    process.exitCode = 1
+  }
+}
+
+// 정리 일꾼 — `kmd worker add`(셸 · 열쇠를 한 번 보인다) · `kmd worker key set <팀 주소>`(숨김 입력 → 자격 저장소) ·
+// `kmd worker <팀 주소>`(늘 돈다 · 그 OS 사용자의 Claude Code 로그인으로)
+async function workerCmd(o) {
+  const [sub, arg] = o._
+  try {
+    if (sub === 'add') {
+      const auth = await makeAuth({ dataDir: dataOf(o) })
+      const r = await auth.workerAdd()
+      console.log(`정리 일꾼 열쇠 — ${r.id}\n${r.key}\n(지금 한 번만 보인다 — 정리용 OS 사용자로 「kmd worker key set <팀 주소>」 에 붙인다)`)
+      return
+    }
+    if (sub === 'key') {
+      const url = new URL(o._[2] || '').origin
+      await kput('worker:' + url, (await hidden('정리 일꾼 열쇠(보이지 않는다): ')).trim())
+      console.log(`넣었다 — ${url} 의 정리 일꾼 열쇠`)
+      return
+    }
+    const url = new URL(sub || '').origin
+    const key = o.key || process.env.KMD_WORKER_KEY || (await kget('worker:' + url))
+    if (!key) throw new Error('정리 일꾼 열쇠가 없다 — kmd worker key set <팀 주소>')
+    const { runWorker } = await import('../../core/worker.js')
+    runWorker({ server: url, key, poll: o.poll ? Number(o.poll) : 10_000 })
+    console.log(`kmd worker — ${url} 의 정리 일감을 기다린다`)
   } catch (e) {
     console.error(e.message)
     process.exitCode = 1

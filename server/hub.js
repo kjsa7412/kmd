@@ -11,6 +11,9 @@ import { KmdError } from '../core/errors.js'
 import { save as coreSave, serial } from '../core/save.js'
 import { decide, decisionRecord, revertPlan } from '../core/curate.js'
 import * as collect from '../core/collect.js'
+import crypto from 'node:crypto'
+import { material, check as checkDraft, planSave } from '../core/tidy.js'
+import * as feed from '../core/feed.js'
 import { check } from '../core/check.js'
 import { commitPaths, ensureRepo, tryGit } from '../core/git.js'
 import { stopLine } from '../core/stopline.js'
@@ -40,6 +43,36 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const indexes = new Map() // 지식 → { k, p: 색인 promise }
   let list = null
   const decideTimers = new Map()
+  const jobs = new Map() // 정리 일감
+  let tidyTimer = null
+  const lastTidy = new Map()
+  const drafts = new Map() // 초안 전용 단기 열쇠(sha → { job, kn, exp })
+  const sha = (t) => crypto.createHash('sha256').update(String(t)).digest('hex')
+  async function groupFor(k, id, g) {
+    if (!g) return null
+    const all = material(k)
+    if (g.kind === 'touches') {
+      const x = all.find((y) => y.kind === 'touches' && y.record.id === g.record?.id)
+      if (!x) return null
+      const r = await ladder(k, await hub.index(id), { q: `${x.record.title} ${x.record.body}`.slice(0, 300), learned: await loadLearned(dataDir, id), max: 8 })
+      x.candidates = [...r.exact, ...r.coords].filter((c) => c.coord).slice(0, 8).map((c) => ({ coord: c.coord, name: c.name }))
+      return x
+    }
+    return all.find((y) => y.kind === 'section' && y.coord === g.coord) || null
+  }
+  // 되돌림 — 그 문서에서 7일 안에 되돌린 수
+  async function recentReverts(id, doc) {
+    const k = await hub.get(id)
+    const cut = Date.now() - 7 * 864e5
+    return k.works.filter((w) => w.reopens.length && w.title.startsWith('되돌림') && w.body.includes(doc.replace(/^docs\/|\.md$/g, '')) && (stampMs(w.date) || 0) >= cut).length
+  }
+  async function saveRun(id, run) {
+    const f = path.join(dataDir, 'tidy', `${encodeURIComponent(id)}.json`)
+    const all = await fs.readFile(f, 'utf8').then(JSON.parse, () => [])
+    all.unshift(run)
+    await fs.mkdir(path.dirname(f), { recursive: true })
+    await fs.writeFile(f, JSON.stringify(all.slice(0, 30)))
+  }
   const watchers = []
   const scheduleDecide = (id) => {
     clearTimeout(decideTimers.get(id))
@@ -123,6 +156,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       const r0 = await coreSave(meta.dir, input, { user: ctx.user, system: !!opt.system })
       const r = queued ? { ...r0, queued: true } : r0
+      // 그 사람의 「오늘 바뀐 것」 한 줄
+      const title = input?.record?.title || ''
+      feed.add(dataDir, ctx.user, queued || !r0.docs.length
+        ? { kn: id, dot: r0.docs.length ? 'acc' : 'pend', text: `${meta.name}에 기록 — 「${title.split(' — ')[0]}」`, small: r0.docs.length ? '' : '정리 때 문서에 들어간다' }
+        : { kn: id, dot: 'acc', text: `저장 — ${meta.name} › ${r0.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')).join(' · ')} 「${title.split(' — ')[0]}」`, small: '문서에도 넣었다' }).catch(() => {})
       cache.delete(id)
       scheduleDecide(id)
       // 백업은 기다리되 길게는 아니다 — 늦으면 다음 판정이 줄을 낸다
@@ -192,8 +230,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!hub.canDirect(ctx, id) && !owners.rowOf(reg, id)?.curators?.includes(ctx.user) && !ctx.admin) throw new KmdError('E_FORBIDDEN', '주인 · 정리하는 사람만 되돌린다')
       const plan = await revertPlan(k, record)
       const w = plan.record
+      // 정리 기록을 되돌리면 그 정리가 넣은 기록들도 「주인이 되돌림」 — 다음 정리가 같은 초안을 다시 넣지 않게
+      const used = w.tags.includes('curate-llm') ? [...w.body.matchAll(/^- 넣음 (\S+) — /gm)].map((m) => m[1]) : []
       return hub.save(ctx, id, {
-        record: { title: `되돌림 — ${w.title}`, body: plan.sections.length ? plan.sections.map((s) => `- ${s.doc.replace(/^docs\/|\.md$/g, '')} › ${s.heading} — 넣기 전 글로`).join('\n') : '넣은 항목이 없다 — 판정만 거둔다', tags: ['curate-auto'], reopens: [w.id] },
+        record: { title: `되돌림 — ${w.title}`, body: plan.sections.length ? plan.sections.map((s) => `- ${s.doc.replace(/^docs\/|\.md$/g, '')} › ${s.heading} — 넣기 전 글로`).join('\n') : '넣은 항목이 없다 — 판정만 거둔다', tags: ['curate-auto'], reopens: [w.id, ...used] },
         sections: plan.sections.map((s) => ({ doc: s.doc, heading: s.heading, content: s.content, applied: s.applied })),
       }, { system: true })
     },
@@ -209,10 +249,139 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     tasks: async (id) => decide(await hub.get(id)).tasks,
 
+    // ── 정리(KM81 — 검사를 넘으면 승인 없이 바로) ──
+    // 일감은 서버가 낸다(정해진 시간 · [지금 정리]). 일꾼은 일감마다 받은 초안 전용 단기 열쇠로 재료를 받고 초안만 올린다
+    tidyAtOf: (id) => owners.rowOf(reg, id)?.tidyAt || config.tidyAt || '02:30',
+    async tidyNow(ctx, id, { by = ctx.user, auto = false } = {}) {
+      await hub.meta(id, ctx)
+      const cur = [...jobs.values()].find((j) => j.kn === id && (j.state === 'queued' || j.state === 'running'))
+      if (cur) return cur
+      const j = { id: crypto.randomBytes(6).toString('hex'), kn: id, by, auto, at: new Date().toISOString(), state: 'queued' }
+      jobs.set(j.id, j)
+      return j
+    },
+    job: (jid) => jobs.get(jid) || null,
+    jobsOf: (id) => [...jobs.values()].filter((j) => j.kn === id),
+    // 일꾼 — 다음 일감 하나 + 그 일감 · 그 지식에만 쓰는 단기 열쇠(30분 · 한 일감)
+    workerNext(wctx) {
+      const j = [...jobs.values()].find((x) => x.state === 'queued')
+      if (!j) return null
+      j.state = 'running'
+      j.worker = wctx.worker.id
+      j.started = new Date().toISOString()
+      const key = 'kmdd_' + crypto.randomBytes(24).toString('base64url')
+      drafts.set(sha(key), { job: j.id, kn: j.kn, exp: Date.now() + 30 * 60_000 })
+      return { job: { id: j.id, kn: j.kn }, key }
+    },
+    draftCtx(token) {
+      const d = drafts.get(sha(token))
+      if (!d || d.exp < Date.now()) return null
+      return { user: 'kmd-worker', admin: false, draft: d, token }
+    },
+    async material(dctx, id) {
+      if (dctx.draft.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
+      const row = owners.rowOf(reg, id)
+      // 나가기 전에 막는다 — 「Claude 에 보내지 않음」 · 남의 개인 지식은 주인이 켠 것만
+      if (row?.noClaude) throw new KmdError('E_FORBIDDEN', '이 지식은 Claude 에 보내지 않는다')
+      if (row?.private && !row.workerOk) throw new KmdError('E_FORBIDDEN', '개인 지식은 주인이 켠 것만 정리한다')
+      const k = await hub.get(id)
+      const idx = await hub.index(id)
+      const learned = await loadLearned(dataDir, id)
+      const cands = []
+      const groups = material(k, { candidates: (w) => cands.find((c) => c.id === w.id)?.list || [] })
+      // 이름 없는 기록의 후보 이름 — 찾기 사다리(제목 + 글)
+      for (const g of groups.filter((x) => x.kind === 'touches')) {
+        const r = await ladder(k, idx, { q: `${g.record.title} ${g.record.body}`.slice(0, 300), learned, max: 8 })
+        g.candidates = [...r.exact, ...r.coords].filter((c) => c.coord).slice(0, 8).map((c) => ({ coord: c.coord, name: c.name }))
+      }
+      return { kn: id, groups }
+    },
+    async drafts(dctx, id, list) {
+      if (dctx.draft.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
+      const j = jobs.get(dctx.draft.job)
+      const meta = await hub.meta(id)
+      const rows = []
+      for (const item of Array.isArray(list) ? list : []) {
+        cache.delete(id)
+        const k = await hub.get(id)
+        // 묶음은 일꾼이 보낸 것을 믿지 않고 지금 지식에서 다시 만든다(열쇠를 빼앗겨도 재료 · 근거를 바꾸지 못하게)
+        const g = await groupFor(k, id, item.group)
+        const d = item.draft
+        if (!g) {
+          rows.push({ kind: 'left', target: String(item.group?.heading || item.group?.record?.title || ''), why: '그사이 넣을 것이 없어졌다', records: [] })
+          continue
+        }
+        const r = item.error ? { ok: false, why: item.error === 'login' ? '정리 전용 로그인이 끝났다' : item.error === 'limit' ? '사용 한도에 닿았다' : '초안을 받지 못했다' } : checkDraft(k, g, d)
+        const target = g.kind === 'touches' ? g.record.title : `${g.doc.replace(/^docs\/|\.md$/g, '')} › ${g.heading}`
+        const recs = g.kind === 'touches' ? [g.record] : g.records
+        if (!r.ok) {
+          rows.push({ kind: 'left', target, why: r.why, records: recs.map((x) => x.id) })
+          continue
+        }
+        // 되돌림이 잦은 문서는 7일 동안 값 바뀜을 넣지 않는다
+        if (r.changed.length && (await recentReverts(id, g.doc)) >= 2) {
+          rows.push({ kind: 'left', target, why: '이 문서는 되돌림이 잦아 값이 바뀌는 것은 7일 동안 넣지 않는다', records: recs.map((x) => x.id) })
+          continue
+        }
+        try {
+          const saved = await coreSave(meta.dir, planSave(k, g, d, { model: item.model }), { user: 'kmd-auto', system: true })
+          const used = g.kind === 'touches' ? [] : g.records.filter((x) => d.used.includes(x.id))
+          rows.push({ kind: g.kind === 'touches' ? 'touches' : r.changed.length ? 'changed' : 'put', target, record: saved.id, from: r.changed[0]?.from, to: r.changed[0]?.to, records: used.map((x) => x.id), left: (d.left || []).map((x) => x.id) })
+          // 그 기록을 쓴 사람의 「오늘 바뀐 것」 — 값이 바뀌었으면 노랑
+          for (const u of [...new Set(used.map((x) => x.author))]) {
+            await feed.add(dataDir, u, r.changed.length
+              ? { kn: id, yl: true, b: `kmd 가 정리하며 값을 바꿨다 — ${meta.name} › ${target} · ${r.changed[0].from} → ${r.changed[0].to}`, small: '내 기록에서 — 되돌릴 수 있다', go: { kn: id, doc: g.doc.replace(/^docs\/|\.md$/g, ''), hl: g.heading }, revert: saved.id }
+              : { kn: id, dot: 'acc', text: `kmd 가 정리했다 — ${meta.name} › ${target}`, small: '내가 남긴 기록', go: { kn: id, doc: g.doc.replace(/^docs\/|\.md$/g, ''), hl: g.heading } })
+          }
+        } catch (e) {
+          rows.push({ kind: 'left', target, why: e.message, records: recs.map((x) => x.id) })
+        }
+      }
+      cache.delete(id)
+      const run = { at: new Date().toISOString(), by: j?.by || null, auto: !!j?.auto, rows }
+      await saveRun(id, run)
+      if (j) {
+        j.state = 'done'
+        j.done = run.at
+        j.summary = { put: rows.filter((x) => x.kind === 'put' || x.kind === 'touches').length, changed: rows.filter((x) => x.kind === 'changed').length, left: rows.filter((x) => x.kind === 'left').length }
+      }
+      drafts.delete(sha(dctx.token || ''))
+      if (backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
+      return { rows, summary: j?.summary || null }
+    },
+    async workerStatus(wctx, { ok = true, reason = null, message = null } = {}) {
+      const prev = await fs.readFile(path.join(dataDir, 'worker.json'), 'utf8').then(JSON.parse, () => ({}))
+      const next = ok ? { ok: true, at: new Date().toISOString() } : { ok: false, reason, message: String(message || '').slice(0, 200), since: prev.ok === false ? prev.since : new Date().toISOString(), at: new Date().toISOString() }
+      await fs.mkdir(dataDir, { recursive: true })
+      await fs.writeFile(path.join(dataDir, 'worker.json'), JSON.stringify(next))
+      for (const j of jobs.values()) if (j.state === 'running' && j.worker === wctx.worker.id && !ok) j.state = 'failed'
+      return next
+    },
+    async runs(id) {
+      return fs.readFile(path.join(dataDir, 'tidy', `${encodeURIComponent(id)}.json`), 'utf8').then(JSON.parse, () => [])
+    },
+    // 새 기기가 이어졌다 — 그 사람의 오늘 바뀐 것 · 다음 대화 첫 안내(다른 대역에서 받은 표면 노랑)
+    async notifyDevice(user, dev) {
+      await feed.add(dataDir, user, { brief: true, yl: !!dev.yellow, dot: 'acc', text: `새 기기가 이어졌다 — ${dev.host || '이름 없는 기기'} · ${user}`, small: '설치 한 줄로 · 내가 한 것이 아니면 [보기] 에서 끊는다', device: dev.id })
+    },
+    async today(ctx) {
+      return feed.list(dataDir, ctx.user)
+    },
+    async notices(ctx) {
+      return feed.takeNotices(dataDir, ctx.user)
+    },
+
     // 멈춤 줄 — 그 사람이 보는 지식만
     async stops(ctx, id = null) {
       const ks = id ? [await hub.meta(id, ctx)] : await hub.visible(ctx)
       const out = []
+      // 정리 일꾼이 쉬고 있다(로그인 끝 · 한도) — 관리자 · 정리하는 사람에게
+      const ws = await fs.readFile(path.join(dataDir, 'worker.json'), 'utf8').then(JSON.parse, () => null)
+      const curates = ctx.admin || ks.some((k) => owners.rowOf(reg, k.id)?.curators?.includes(ctx.user) || owners.rowOf(reg, k.id)?.owner === ctx.user)
+      if (ws && ws.ok === false && curates && !id) {
+        const days = Math.max(1, Math.round((Date.now() - Date.parse(ws.since)) / 864e5))
+        out.push(stopLine({ kind: 'worker', level: 'warn', what: '자동 정리가 쉬고 있다', amount: `${days}일`, fix: ctx.admin ? '관리 › Claude 연결에서 다시 로그인하면 이어서 한다' : null, told: ctx.admin ? null : '관리자에게 알렸다' }))
+      }
       for (const k of ks) {
         out.push(...backup.lines(k, { name: k.name }))
         if (!backup.attached(k)) {
@@ -275,6 +444,19 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       await backup.start(await hub.list(), { dataDir, log })
       // 거두기 — PC(또는 serve.json collect)에서 편집기로 고친 문서를 30초 고요 뒤 들인다
       if (mode === 'pc' || config.collect) for (const m of await hub.list()) watchers.push(collect.watch(m.dir, () => hub.collect(m.id)))
+      // 정해진 시간의 정리 — 분마다 본다 · 지식마다 하루 한 번 · 넣을 것이 있을 때만
+      tidyTimer = setInterval(async () => {
+        const d = new Date()
+        const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+        const day = d.toISOString().slice(0, 10)
+        for (const m of await hub.list().catch(() => [])) {
+          if (hm < hub.tidyAtOf(m.id) || lastTidy.get(m.id) === day) continue
+          lastTidy.set(m.id, day)
+          const k = await hub.get(m.id).catch(() => null)
+          if (k && k.works.some((w) => w.state === 'pend' || w.state === 'nowhere')) hub.tidyNow({ user: 'kmd', admin: true }, m.id, { by: 'kmd', auto: true }).catch(() => {})
+        }
+      }, config.tidyTickMs || 60_000)
+      tidyTimer.unref?.()
       // 찾기 색인 — 뒤에서 미리(지금 찾는 지식은 기다리지 않고 그때 짓는다)
       setTimeout(async () => {
         for (const m of await hub.list().catch(() => [])) await hub.index(m.id).catch(() => {})
@@ -295,12 +477,17 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       backup.stop()
       for (const w of watchers) w.close()
       for (const t of decideTimers.values()) clearTimeout(t)
+      clearInterval(tidyTimer)
     },
   }
   return hub
 }
 
 export const defaultDataDir = (root) => path.join(root, '.kmd')
+const stampMs = (s) => {
+  const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2}))?/)
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)).getTime() : null
+}
 
 // 백업 자리가 없는 지식 — 저장이 50 을 넘거나 첫 저장이 7일 넘었으면 노랑 한 줄(v0.5 §4.2). HEAD 마다 한 번 잰다
 const unbackedCache = new Map()

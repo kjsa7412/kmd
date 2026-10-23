@@ -113,6 +113,15 @@ export async function loadKnowledge({ id, name, dir }, { cache = null } = {}) {
       k.reverted.add(id)
     }
   }
+  // 좌표정정 — 이름만 바로잡은 기록(touches-fix)이 있으면 원 기록의 이름을 그것으로 읽는다(늦은 것이 이긴다 · ownTouches 에 원래 이름)
+  for (const w of [...works].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))) {
+    if (!w.tags.includes('touches-fix') || w.fixes.length !== 1) continue
+    const o = k.byWork.get(w.fixes[0])
+    if (o) {
+      o.ownTouches ||= o.touches
+      o.touches = w.touches
+    }
+  }
   for (const w of works) w.state = recordState(k, w)
   return k
 }
@@ -174,6 +183,7 @@ const INGEST = (w) => w.tags.some((t) => /^(ingest|touches\??)\//.test(t))
 // 상태 — in(문서에 들어감) · pend(아직 안 넣음) · kept(넣지 않기로 둠) · nowhere(넣을 곳이 없는 메모 — 이름이 없다) · none
 export function recordState(k, w) {
   if (k.kept?.has(w.id)) return 'kept'
+  if (w.tags.some((t) => t === 'curate-auto' || t === 'curate-llm')) return 'none' // 정리 기록 자신은 넣을 것이 아니다
   if (!w.touches.length) return isSystemRecord(w) || INGEST(w) || w.curates.length || w.reopens.length ? 'none' : 'nowhere'
   let any = false
   for (const c of w.touches) {
@@ -183,7 +193,9 @@ export function recordState(k, w) {
     if (!s.sec || !s.sec.applied) return 'pend'
     if (s.sec.applied === w.id) continue
     const a = k.byWork.get(s.sec.applied)
-    if (!a || a.date < w.date || (a.date === w.date && a.id < w.id)) return 'pend'
+    if (a?.reflects?.includes(w.id)) continue // 정리 기록이 이 기록을 넣었다고 적었다
+    // 같은 분이면 순서를 모른다 — 넣었다고 적지 않은 한 아직 안 넣은 것으로(조용히 「넣음」 이 되지 않게)
+    if (!a || a.date <= w.date) return 'pend'
   }
   return any ? 'in' : 'none'
 }

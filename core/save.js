@@ -89,7 +89,7 @@ export function save(dir, input, { user, now = new Date(), system = false } = {}
   const secs = check(input)
   const bad = (input.record.tags || []).filter(isReservedTag)
   if (bad.length && !system) fail('E_FORBIDDEN', `kmd 가 쓰는 태그다 — ${bad.join(' · ')}`)
-  if (!system && (input.record.curates?.length || input.record.reopens?.length)) fail('E_FORBIDDEN', '정리 판정은 kmd 가 쓴다')
+  if (!system && (input.record.curates?.length || input.record.reopens?.length || input.record.reflects?.length)) fail('E_FORBIDDEN', '정리 판정은 kmd 가 쓴다')
   return serial(path.resolve(dir), () => saveNow(dir, input.record, secs, { user: nfc(user), now, system }))
 }
 
@@ -167,7 +167,7 @@ async function saveNow(dir, r, secs, { user, now, system = false }) {
   let id = base
   for (let n = 2; await fs.stat(path.join(dir, 'work', `${id}.md`)).then(() => true, () => false); n++) id = `${base}-${n}`
 
-  const rec = { id, title: nfc(r.title.trim()), date, author: user, touches, tags: (r.tags || []).map((t) => nfc(t.trim())), fixes: (r.fixes || []).map((x) => nfc(x.trim())), curates: r.curates || [], reopens: r.reopens || [] }
+  const rec = { id, title: nfc(r.title.trim()), date, author: user, touches, tags: (r.tags || []).map((t) => nfc(t.trim())), fixes: (r.fixes || []).map((x) => nfc(x.trim())), curates: r.curates || [], reopens: r.reopens || [], reflects: r.reflects || [] }
   if (!system && (await isTouchesFix(dir, { ...rec, body: r.body }, touches, registry))) rec.tags.push('touches-fix')
   const workRel = `work/${id}.md`
   const workFull = path.join(dir, 'work', `${id}.md`)

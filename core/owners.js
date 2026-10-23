@@ -48,9 +48,14 @@ export function visible(reg, id, ctx = {}) {
 
 export const rowOf = (reg, id) => reg?.knowledge?.[id] || null
 
-export function setOwner(reg, id, { owner = null, private: priv, curators } = {}) {
+// tidyAt — 정해진 정리 시각(HH:MM · 기본 02:30) · noClaude — Claude 에 보내지 않음 · workerOk — 개인 지식을 정리 일꾼에 맡김
+export function setOwner(reg, id, { owner = null, private: priv, curators, tidyAt, noClaude, workerOk } = {}) {
   const prev = reg.knowledge[id] || {}
+  if (tidyAt != null && !/^([01]\d|2[0-3]):[0-5]\d$/.test(tidyAt)) throw Object.assign(new Error('정리 시각은 HH:MM 이다'), { code: 'E_INPUT' })
   const row = { ...prev, owner: owner ?? prev.owner ?? null, private: priv ?? prev.private ?? false, curators: curators ?? prev.curators ?? [], at: new Date().toISOString() }
+  if (tidyAt != null) row.tidyAt = tidyAt
+  if (noClaude != null) row.noClaude = !!noClaude
+  if (workerOk != null) row.workerOk = !!workerOk
   if (row.owner) delete row.restored
   reg.knowledge[id] = row
   return row

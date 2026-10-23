@@ -82,6 +82,8 @@ export function makeMcp(store) {
           knowledge: ks.map((k) => ({ id: k.id, name: k.name, docs: k.docs.length, records: k.works.length, notYetInDocs: k.works.filter((w) => w.state === 'pend').length })),
           next: ks.length ? 'brief { knowledge } 로 지식 하나를 본다' : '아직 지식이 없다',
           stops: (await store.stops(ctx)).map((l) => l.text),
+          // 노란 줄 — kmd 가 값을 바꾼 것 · 새 기기(한 번 실린다 · 사용자에게 그대로 전한다)
+          notices: (await store.notices(ctx)).map((x) => x.b || x.text),
         }
       }
       const k = await store.get(knowledge, ctx)

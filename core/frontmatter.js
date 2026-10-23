@@ -48,6 +48,7 @@ export function parseRecord(text, file) {
     fixes: data.supersedes != null ? list(typeof data.supersedes === 'object' && !Array.isArray(data.supersedes) ? data.supersedes.id : data.supersedes) : [],
     curates: normCurates(data.curates),
     reopens: list(data.reopens),
+    reflects: list(data.reflects),
     body: body.replace(/^\n+/, ''),
   }
 }
@@ -62,13 +63,14 @@ function normCurates(v) {
     .filter((x) => VERDICTS.includes(x.verdict))
 }
 
-export function renderRecord({ id, title, date, author, touches, tags, fixes, curates, reopens }, body) {
+export function renderRecord({ id, title, date, author, touches, tags, fixes, curates, reopens, reflects }, body) {
   const head = { id, title, date, author }
   if (touches?.length) head.touches = touches
   if (tags?.length) head.tags = tags
   if (fixes?.length) head.supersedes = fixes.length === 1 ? fixes[0] : fixes
   if (curates?.length) head.curates = curates.map((c) => ({ id: c.id, verdict: c.verdict, ...(c.rule ? { rule: c.rule } : {}), ...(c.reason ? { reason: c.reason } : {}) }))
   if (reopens?.length) head.reopens = reopens
+  if (reflects?.length) head.reflects = reflects
   const y = yaml.dump(head, { lineWidth: -1, quotingType: '"', forceQuotes: false }).replace(/\n$/, '')
   return `---\n${y}\n---\n\n# ${title}\n\n${String(body).replace(/^\n+|\s+$/g, '')}\n`
 }
