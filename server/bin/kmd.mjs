@@ -11,9 +11,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { startServer } from '../http.js'
-import { makeHub, defaultDataDir } from '../hub.js'
+import { makeHub, defaultDataDir, SHELL } from '../hub.js'
 import { enqueue } from '../../core/backup.js'
 import { VERSION } from '../version.js'
+import { isReservedUser } from '../../core/names.js'
 
 const HELP = `kmd ${VERSION}
 
@@ -21,6 +22,13 @@ const HELP = `kmd ${VERSION}
       팀 서버로 연다 — 폴더 안의 폴더 하나하나가 지식이다
   kmd up [폴더] [--port 7373] [--no-open]
       이 PC 의 kmd 를 연다 — 폴더 기본 D:\\kmd(없으면 집 폴더의 kmd)
+  kmd backup [--root 폴더]                     백업 상태 — 지식마다 한 줄
+  kmd backup add <지식> <주소> [--root 폴더]    백업 자리를 붙이고 지금 보낸다
+  kmd backup pull <지식> [--root 폴더]          백업에서 받기(앞으로만 · 받은 뒤 검사)
+  kmd owner <지식> [사람] [--private] [--curators 가,나] [--root 폴더]
+      지식의 주인 · 개인(주인만 본다) · 정리하는 사람
+
+  공통: --data <폴더>  kmd 의 살림 자리(기본 <폴더>/.kmd)
 
   Claude Code 에 잇기:  claude mcp add --transport http kmd http://127.0.0.1:7373/mcp
 `
@@ -30,6 +38,7 @@ function parse(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--no-open') o.open = false
+    else if (a === '--private' || a === '--team') o.private = a === '--private'
     else if (a.startsWith('--')) {
       const [k, v] = a.slice(2).split('=')
       o[k] = v ?? argv[++i]
@@ -53,6 +62,7 @@ async function main() {
   if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') return void process.stdout.write(HELP)
   if (cmd === '--version' || cmd === '-v') return void console.log(VERSION)
   if (cmd === 'backup') return backupCmd(parse(rest))
+  if (cmd === 'owner') return ownerCmd(parse(rest))
   if (cmd !== 'serve' && cmd !== 'up') {
     console.error(`모르는 명령 — ${cmd}\n`)
     process.stdout.write(HELP)
@@ -72,6 +82,10 @@ async function main() {
     process.exit(2)
   }
   const user = String(o.user || os.userInfo().username)
+  if (isReservedUser(user)) {
+    console.error(`「${user}」 는 kmd 가 쓰는 이름이다 — --user 로 다른 이름을 준다`)
+    process.exit(2)
+  }
   let s
   try {
     s = await startServer({ root, data: o.data ? path.resolve(o.data) : null, mode: pc ? 'pc' : 'team', user, host: o.host || '127.0.0.1', port })
@@ -98,19 +112,19 @@ async function backupCmd(o) {
   try {
     if (sub === 'add') {
       if (!id || !url) throw new Error('kmd backup add <지식> <주소>')
-      const r = await hub.backupAttach(id, url)
+      const r = await hub.backupAttach(SHELL, id, url)
       console.log(r.ok ? `붙였다 — ${id} → ${r.backup.url} · 지금까지 보냈다` : `붙였다 — ${id} · 아직 못 보냈다(다시 보내기를 건다)`)
     } else if (sub === 'pull') {
       if (!id) throw new Error('kmd backup pull <지식>')
-      const r = await hub.backupPull(id)
+      const r = await hub.backupPull(SHELL, id)
       console.log(r.pulled ? `받았다 — ${r.pulled}개 · 이제 다시 저장된다` : '받을 것이 없다')
     } else {
       await hub.start()
       for (const k of await hub.list()) {
-        const st = await hub.backupState(k.id)
+        const st = await hub.backupState(SHELL, k.id)
         if (!st) { console.log(`${k.name} — 백업 자리 없음`); continue }
         await enqueue(k)
-        const lines = await hub.stops(k.id)
+        const lines = await hub.stops(SHELL, k.id)
         console.log(`${k.name} — ${st.url} · ${lines.length ? lines.map((l) => l.text).join(' / ') : '잘 보내고 있다'}`)
       }
     }
@@ -119,6 +133,21 @@ async function backupCmd(o) {
     process.exitCode = 1
   } finally {
     hub.stop()
+  }
+}
+
+// 주인 · 개인 · 정리하는 사람 — 셸(서버를 띄운 사람)이 바로 정한다
+async function ownerCmd(o) {
+  const root = path.resolve(o.root || (fs.existsSync(defaultPcRoot()) ? defaultPcRoot() : '.'))
+  const [id, who] = o._
+  try {
+    if (!id) throw new Error('kmd owner <지식> [사람] [--private | --team] [--curators 가,나]')
+    const hub = await makeHub({ root, dataDir: o.data ? path.resolve(o.data) : defaultDataDir(root), log: () => {} })
+    const row = await hub.setOwner(SHELL, id, { owner: who || undefined, private: o.private, curators: o.curators ? String(o.curators).split(',').map((x) => x.trim()).filter(Boolean) : undefined })
+    console.log(`${id} — 주인 ${row.owner || '없음'} · ${row.private ? '개인(주인만 본다)' : '팀'} · 정리 ${row.curators.join(', ') || '없음'}`)
+  } catch (e) {
+    console.error(e.message)
+    process.exitCode = 1
   }
 }
 

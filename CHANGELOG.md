@@ -2,6 +2,14 @@
 
 ## (다음 판)
 
+### E1 고침판 · 권한
+
+- **F1** 기록 머리는 한 줄 모양만 받고, 쓴 뒤 다시 읽어 보낸 값과 대조한다(어긋나면 되돌림). **F4** `section` 이 항목 지문(base)을 주고, save 가 base 를 받으면 읽은 뒤 바뀐 항목은 덮지 않는다(`E_CONFLICT` · 묶음 0). **F12** 파일 캐시는 요청 밖 · 저장 뒤엔 바뀐 파일만 다시 읽는다. **I7** 아직 안 넣은 기록은 최신 8 · 날짜 순 · 넘친 수 — 화면과 MCP 가 같은 계산.
+- **예약** — 이름(kmd · kmd-auto · kmd-worker) · 태그(edit · curate-auto · curate-llm · alias-auto · sources · touches-fix) · 파일(`_members.md` · `_format.json` · `_sources.json`)은 사람 · 세션이 못 쓴다.
+- **주인 · 개인**(`core/owners.js` · `<data>/owners.json`) — 개인 지식은 주인만 본다(관리자도 가림 · 목록 · 찾기 · 읽기 · 저장 · MCP 같은 판정). 주인을 바꾸면 `_members.md` 가 따라간다. `kmd owner <지식> [사람] [--private]`.
+- **백업 자리 권한** — 붙이기 · 받기는 관리자만 · 팀 서버에서 이 PC 폴더 주소는 `serve.json` 의 `backupRoots` 안만.
+- 시험 `test/fixpack.test.mjs`.
+
 ### E0 백업이 조용히 멈추지 않는다
 
 - **백업 자리**(`core/backup.js`) — 지식마다 붙인 백업 자리(원격 `kmd-backup`)에만 보낸다 · 상태 파일 `<data>/backup/<지식>.json` · 원격의 실제 sha 로 판정 여섯(ok · lag · gone · rewound · behind · moved) · `<sha>:refs/heads/<가지>` 로 적어 민다(지워진 백업도 다시 올린다) · 다시 보내기 1 · 5 · 15 · 60분 그 뒤 시간마다 · 시작할 때 한 번 · 매일 한 번.

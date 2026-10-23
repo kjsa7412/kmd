@@ -5,7 +5,7 @@
 
 import MarkdownIt from 'markdown-it'
 import path from 'node:path'
-import { coordsOfSection, labelOf, sectionOf } from '../core/knowledge.js'
+import { coordsOfSection, labelOf, sectionOf, pendPick } from '../core/knowledge.js'
 
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
@@ -115,13 +115,14 @@ export function docView(k, docId) {
   const sections = d.sections.map((s) => {
     const coords = coordsOfSection(k, d, s.h)
     const recs = k.works.filter((w) => w.touches.some((c) => coords.includes(c)))
-    const pendRecs = recs.filter((w) => w.state === 'pend')
+    const { pick: pendRecs, more: pendMore } = pendPick(recs)
     const by = s.applied && k.byWork.get(s.applied)
     return {
       h: s.h,
       html: render(k, d.path, s.body),
       recs: recs.length,
       pend: pendRecs.map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title })),
+      pendMore,
       by: by ? { id: by.id, date: by.date, author: by.author } : null,
       named: coords.length > 0,
     }

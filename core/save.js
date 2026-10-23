@@ -9,9 +9,11 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fail } from './errors.js'
-import { nfc, oneLine, readText } from './text.js'
-import { renderRecord } from './frontmatter.js'
-import { replaceSection } from './sections.js'
+import { nfc, oneLine, readText, sha16 } from './text.js'
+import { renderRecord, parseRecord } from './frontmatter.js'
+import { replaceSection, parseDoc, headingMatches } from './sections.js'
+import { isReservedUser, isReservedTag } from './names.js'
+import { isReservedFile } from './owners.js'
 import { locate, parseRegistry } from './registry.js'
 import { parseVocab } from './vocab.js'
 import { ensureRepo, commitPaths } from './git.js'
@@ -57,6 +59,7 @@ function check(input) {
     if (s.coord != null && !(typeof s.coord === 'string' && COORD.test(s.coord.trim()))) fail('E_INPUT', `이름 모양이 아니다 — ${s.coord}`)
     if (s.heading != null && !(oneLine(s.heading) && s.heading.trim())) fail('E_INPUT', '머리는 한 줄 글이다')
     if (s.content.length > MAX_BODY) fail('E_INPUT', '항목 글이 너무 길다')
+    if (s.base != null && !(typeof s.base === 'string' && /^[0-9a-f]{16}$/.test(s.base))) fail('E_INPUT', 'base 는 읽을 때 받은 16자 지문이다')
   }
   return secs
 }
@@ -67,6 +70,7 @@ function docPath(dir, doc) {
   if (!p.startsWith('docs/')) p = `docs/${p}`
   if (!p.endsWith('.md')) p += '.md'
   if (p.split('/').some((x) => x === '..' || x === '.' || x === '') || /[\u0000-\u001f]/.test(p)) fail('E_INPUT', `문서 자리가 아니다 — ${doc}`)
+  if (isReservedFile(p)) fail('E_FORBIDDEN', `kmd 가 쓰는 파일이다 — ${doc}`)
   return { rel: p, full: path.join(dir, ...p.split('/')) }
 }
 
@@ -78,10 +82,21 @@ function serial(key, f) {
   return run
 }
 
-export function save(dir, input, { user, now = new Date() } = {}) {
+// system — kmd 자신이 쓰는 저장(고친 기록 · 정리 · 가져오기). 예약 이름 · 태그는 system 만
+export function save(dir, input, { user, now = new Date(), system = false } = {}) {
   if (!user || !oneLine(user)) fail('E_INPUT', '누가 쓰는지 모른다')
+  if (isReservedUser(user) && !system) fail('E_FORBIDDEN', `「${user}」 는 kmd 가 쓰는 이름이다`)
   const secs = check(input)
+  const bad = (input.record.tags || []).filter(isReservedTag)
+  if (bad.length && !system) fail('E_FORBIDDEN', `kmd 가 쓰는 태그다 — ${bad.join(' · ')}`)
   return serial(path.resolve(dir), () => saveNow(dir, input.record, secs, { user: nfc(user), now }))
+}
+
+// 항목 지문 — 읽을 때 준 base 와 같은 계산(applied 표지는 뺀 글 · 항목이 없으면 빈 글)
+export function sectionBase(text, heading) {
+  const d = text == null ? null : parseDoc(text, '')
+  const sec = d && d.sections.find((x) => headingMatches(x.h, heading))
+  return sha16(sec ? sec.body : '')
 }
 
 async function saveNow(dir, r, secs, { user, now }) {
@@ -97,10 +112,16 @@ async function saveNow(dir, r, secs, { user, now }) {
       const loc = locate(registry, coord)
       if (!loc) fail('E_NOTFOUND', `「${vocab.coords.get(coord)?.label || coord}」 이 들어갈 문서가 정해져 있지 않다 — 기록만 보내거나 문서 · 머리로 가리킨다`)
       if (!touches.includes(coord)) touches.push(coord)
-      return { ...docPath(dir, loc.doc), level: loc.level, heading: loc.heading, content: s.content }
+      return { ...docPath(dir, loc.doc), level: loc.level, heading: loc.heading, content: s.content, base: s.base }
     }
-    return { ...docPath(dir, s.doc), level: 2, heading: nfc(s.heading.trim()), content: s.content }
+    return { ...docPath(dir, s.doc), level: 2, heading: nfc(s.heading.trim()), content: s.content, base: s.base }
   })
+  // 읽은 뒤 바뀌었나(F4) — base 를 보낸 항목만. 하나라도 어긋나면 아무것도 쓰지 않는다
+  for (const p of plan) {
+    if (p.base == null) continue
+    const cur = await fs.readFile(p.full, 'utf8').then(readText, () => null)
+    if (sectionBase(cur, p.heading) !== p.base) fail('E_CONFLICT', `「${p.heading}」 이 읽은 뒤 바뀌었다 — 다시 읽고 고친다`)
+  }
 
   await ensureRepo(dir)
   const day = date.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2$3')
@@ -116,6 +137,10 @@ async function saveNow(dir, r, secs, { user, now }) {
   const undo = [() => fs.rm(workFull, { force: true })]
   try {
     await fs.writeFile(workFull, renderRecord(rec, nfc(r.body)), 'utf8')
+    // 다시 읽어 대조(F1) — 쓴 머리가 보낸 값 그대로 읽혀야 한다
+    const back = parseRecord(readText(await fs.readFile(workFull, 'utf8')), `${id}.md`)
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
+    if (!back || back.id !== id || back.title !== rec.title || back.date !== date || back.author !== user || !same(back.touches, touches) || !same(back.tags, rec.tags)) fail('E_INPUT', '기록 머리가 보낸 값과 다르게 읽힌다 — 제목 · 이름 · 태그의 글자를 확인한다')
     const docs = []
     for (const p of plan) {
       const raw = await fs.readFile(p.full, 'utf8').catch(() => null)

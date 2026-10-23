@@ -7,9 +7,11 @@
 // 기억하지 않으므로(무상태) 다시 띄워도 세션이 끊기지 않는다.
 
 import { KmdError } from '../core/errors.js'
-import { labelOf, sectionOf, coordsOfSection } from '../core/knowledge.js'
+import { labelOf, sectionOf, coordsOfSection, pendPick } from '../core/knowledge.js'
 import { headingMatches } from '../core/sections.js'
 import { VERSION } from './version.js'
+import { sha16 } from '../core/text.js'
+
 
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05']
 
@@ -33,7 +35,7 @@ const TOOLS = [
   },
   {
     name: 'section',
-    description: '항목 하나의 지금 글과 그 항목을 건드린 기록. 이름(coord) 또는 문서 · 머리로 가리킨다.',
+    description: '항목 하나의 지금 글 · 지문(base) · 그 항목을 건드린 기록(아직 문서에 안 넣은 것은 최신 8). 이름(coord) 또는 문서 · 머리로 가리킨다. 그 항목을 고쳐 save 할 때 base 를 같이 보내면 그사이 남이 바꿨을 때 덮지 않는다.',
     inputSchema: { type: 'object', properties: { knowledge: str('지식 id'), coord: str('이름 — 예 proc:헬스 체크'), doc: str('문서 — 예 배포절차'), heading: str('머리 — 예 헬스 체크') }, required: ['knowledge'] },
   },
   {
@@ -56,7 +58,7 @@ const TOOLS = [
         },
         sections: {
           type: 'array',
-          items: { type: 'object', properties: { coord: str('이름'), doc: str('문서'), heading: str('머리'), content: str('항목의 새 글 전체(머리 줄 빼고)') }, required: ['content'] },
+          items: { type: 'object', properties: { coord: str('이름'), doc: str('문서'), heading: str('머리'), content: str('항목의 새 글 전체(머리 줄 빼고)'), base: str('section 이 준 지문 — 읽은 뒤 바뀌었으면 거절') }, required: ['content'] },
         },
       },
       required: ['knowledge', 'record'],
@@ -68,30 +70,30 @@ const norm = (s) => String(s || '').replace(/\s+/g, '').toLowerCase()
 
 export function makeMcp(store) {
   const tools = {
-    async brief({ knowledge } = {}) {
+    async brief({ knowledge } = {}, ctx) {
       if (!knowledge) {
-        const ks = await store.all()
+        const ks = await store.all(ctx)
         return {
           knowledge: ks.map((k) => ({ id: k.id, name: k.name, docs: k.docs.length, records: k.works.length, notYetInDocs: k.works.filter((w) => w.state === 'pend').length })),
           next: ks.length ? 'brief { knowledge } 로 지식 하나를 본다' : '아직 지식이 없다',
-          stops: (await store.stops()).map((l) => l.text),
+          stops: (await store.stops(ctx)).map((l) => l.text),
         }
       }
-      const k = await store.get(knowledge)
+      const k = await store.get(knowledge, ctx)
       return {
         id: k.id,
         name: k.name,
         docs: k.docs.map((d) => ({ doc: d.id, title: d.title, headings: d.sections.map((s) => s.h) })),
         recent: k.works.slice(0, 10).map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title })),
         notYetInDocs: k.works.filter((w) => w.state === 'pend').map((w) => ({ id: w.id, date: w.date, title: w.title })),
-        stops: (await store.stops(k.id)).map((l) => l.text),
+        stops: (await store.stops(ctx, k.id)).map((l) => l.text),
       }
     },
 
-    async match({ q, knowledge }) {
+    async match({ q, knowledge }, ctx) {
       if (!q || typeof q !== 'string') throw new KmdError('E_INPUT', '찾을 이름(q)이 없다')
       const nq = norm(q)
-      const ks = knowledge ? [await store.get(knowledge)] : await store.all()
+      const ks = knowledge ? [await store.get(knowledge, ctx)] : await store.all(ctx)
       const out = []
       const score = (names) => Math.min(...names.map((n) => { const x = norm(n); return x === nq ? 0 : x.startsWith(nq) ? 1 : x.includes(nq) ? 2 : 9 }))
       for (const k of ks) {
@@ -118,8 +120,8 @@ export function makeMcp(store) {
       return found.length ? { found } : { found, note: '이 이름으로는 없다 — 없다는 뜻은 아니다. 다른 이름으로 다시 찾거나 brief 의 문서 목록을 본다' }
     },
 
-    async section({ knowledge, coord, doc, heading }) {
-      const k = await store.get(knowledge)
+    async section({ knowledge, coord, doc, heading }, ctx) {
+      const k = await store.get(knowledge, ctx)
       let d = null
       let sec = null
       let coords = []
@@ -149,14 +151,16 @@ export function makeMcp(store) {
         heading: sec.h,
         coords,
         content: sec.body,
+        base: sha16(sec.body),
         lastPut: sec.applied || null,
-        notYetInDocs: recs.filter((w) => w.state === 'pend').map((w) => ({ ...recOut(w), body: w.body })),
+        notYetInDocs: pendPick(recs).pick.map((w) => ({ ...recOut(w), body: w.body })),
+        notYetMore: pendPick(recs).more,
         records: recs.slice(0, 10).map(recOut),
       }
     },
 
     async save({ knowledge, record, sections }, ctx) {
-      const k = await store.get(knowledge)
+      const k = await store.get(knowledge, ctx)
       const r = await store.save(ctx, k.id, { record, sections })
       const n = r.docs.length
       return { saved: r.id, date: r.date, docs: r.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')), note: n ? `저장했다 — 기록 1 · 문서 ${n}` : '저장했다 — 기록 1', warnings: r.warnings }

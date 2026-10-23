@@ -60,11 +60,11 @@ export async function startServer({ root, data = null, mode = 'team', user, host
   const api = async (req, res, url, ctx) => {
     const p = url.pathname
     if (p === '/api/me') return send(res, 200, { mode, user: ctx.user, version: VERSION, host: req.headers.host })
-    if (p === '/api/knowledge') return send(res, 200, (await hub.all()).map((k) => ({ ...V.knowledgeRow(k), ...(mode === 'pc' ? { dir: k.dir } : {}) })))
-    if (p === '/api/stops') return send(res, 200, await hub.stops())
+    if (p === '/api/knowledge') return send(res, 200, (await hub.all(ctx)).map((k) => ({ ...V.knowledgeRow(k), ...(mode === 'pc' ? { dir: k.dir } : {}) })))
+    if (p === '/api/stops') return send(res, 200, await hub.stops(ctx))
     if (p === '/api/find') {
       const id = url.searchParams.get('k')
-      const ks = id ? [await hub.get(id)] : await hub.all()
+      const ks = id ? [await hub.get(id, ctx)] : await hub.all(ctx)
       return send(res, 200, V.find(ks, url.searchParams.get('q')))
     }
     const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|save|backup|backup\/pull)$/)
@@ -72,14 +72,14 @@ export async function startServer({ root, data = null, mode = 'team', user, host
     const id = decodeURIComponent(m[1])
     const what = m[2]
     if (what === 'save' || what.startsWith('backup')) {
-      if (what === 'backup' && req.method === 'GET') return send(res, 200, (await hub.backupState(id)) || { off: true })
+      if (what === 'backup' && req.method === 'GET') return send(res, 200, (await hub.backupState(ctx, id)) || { off: true })
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       const body = await readBody(req)
       if (what === 'save') return send(res, 200, await hub.save(ctx, id, body))
-      if (what === 'backup') return send(res, 200, await hub.backupAttach(id, String(body.url || '')))
-      return send(res, 200, await hub.backupPull(id))
+      if (what === 'backup') return send(res, 200, await hub.backupAttach(ctx, id, String(body.url || '')))
+      return send(res, 200, await hub.backupPull(ctx, id))
     }
-    const k = await hub.get(id)
+    const k = await hub.get(id, ctx)
     if (what === 'tree') return send(res, 200, V.tree(k))
     if (what === 'att') {
       // 첨부 — 나무에 보인 그림만 그대로 보낸다
@@ -112,9 +112,9 @@ export async function startServer({ root, data = null, mode = 'team', user, host
     try {
       const url = new URL(req.url, 'http://x')
       if (req.method === 'POST' && req.headers.origin && !sameOrigin(req)) throw new KmdError('E_FORBIDDEN', '다른 곳의 화면에서 온 요청은 받지 않는다')
-      const ctx = { user }
+      const ctx = { user, admin: true }
       if (url.pathname === '/healthz') {
-        const lines = await hub.stops()
+        const lines = await hub.stops({ user: null, admin: true })
         return send(res, 200, { ok: true, version: VERSION, mode, stops: lines.map((l) => ({ level: l.level, text: l.text })) })
       }
       if (url.pathname === '/mcp') {

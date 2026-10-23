@@ -57,11 +57,27 @@ async function walk(dir, rel, out) {
 
 const stripTitle = (body, title) => body.replace(/^#\s+(.+)\n+/, (all, h) => (h.trim() === title ? '' : all))
 
-export async function loadKnowledge({ id, name, dir }) {
+// 읽은 파일 수 — 시험이 「둘째 요청은 바뀐 파일만 읽는다」 를 센다(F12)
+export const readStats = { files: 0 }
+
+// cache — 지식마다 하나 { 경로 → { mtimeMs, size, value } }. 저장 뒤에는 바뀐 파일만 다시 읽는다
+export async function loadKnowledge({ id, name, dir }, { cache = null } = {}) {
   const files = await walk(dir, '', [])
   const docs = []
   const works = []
   const atts = []
+  const seen = new Set()
+  const parsed = async (f, p, parse) => {
+    const full = path.join(dir, f)
+    const st = await fs.stat(full)
+    const hit = cache?.get(p)
+    seen.add(p)
+    if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) return hit.value
+    readStats.files++
+    const value = parse(await readOr(full), st)
+    cache?.set(p, { mtimeMs: st.mtimeMs, size: st.size, value })
+    return value
+  }
   for (const f of files) {
     const p = nfc(f)
     if (/^(docs|work)\/assets\//i.test(p)) {
@@ -69,15 +85,17 @@ export async function loadKnowledge({ id, name, dir }) {
       continue
     }
     if (/^docs\/.+\.md$/i.test(p)) {
-      const full = path.join(dir, f)
-      const [text, st] = await Promise.all([readOr(full), fs.stat(full)])
       const docId = p.slice(5, -3)
-      docs.push({ id: docId, path: p, mtime: st.mtime.toISOString(), ...parseDoc(text, path.basename(docId)) })
+      docs.push(await parsed(f, p, (text, st) => ({ id: docId, path: p, mtime: st.mtime.toISOString(), ...parseDoc(text, path.basename(docId)) })))
     } else if (/^work\/[^/]+\.md$/i.test(p)) {
-      const r = parseRecord(await readOr(path.join(dir, f)), path.basename(p))
-      if (r) works.push({ ...r, path: p, body: stripTitle(r.body, r.title) })
+      const r = await parsed(f, p, (text) => {
+        const x = parseRecord(text, path.basename(p))
+        return x ? { ...x, path: p, body: stripTitle(x.body, x.title) } : null
+      })
+      if (r) works.push({ ...r })
     }
   }
+  if (cache) for (const k of cache.keys()) if (!seen.has(k)) cache.delete(k)
   docs.sort((a, b) => b.mtime.localeCompare(a.mtime) || a.id.localeCompare(b.id, 'ko'))
   works.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
   const vocab = parseVocab(await readOr(path.join(dir, '_vocab.md')))
@@ -130,4 +148,11 @@ export function recordState(k, w) {
 export function labelOf(k, coord) {
   const v = k.vocab.coords.get(coord)
   return v ? v.label : coord.split(':').slice(1).join(':')
+}
+
+// 안 넣은 기록 — 최신 8 을 골라 날짜 순으로 · 넘친 수를 센다(I7 · 화면과 MCP 가 같은 계산)
+export const PEND_MAX = 8
+export function pendPick(recs) {
+  const p = recs.filter((w) => w.state === 'pend').sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+  return { pick: p.slice(0, PEND_MAX).reverse(), more: Math.max(0, p.length - PEND_MAX) }
 }

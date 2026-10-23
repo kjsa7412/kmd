@@ -20,8 +20,9 @@ let tmp, s, kn, bare
 const G = (cwd, ...a) => execFileSync('git', ['-c', 'user.name=남', '-c', 'user.email=nam@x', '-c', 'core.autocrlf=false', ...a], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
 const rec = (title) => ({ record: { title, body: title + ' — 본문', touches: ['proc:카나리'] } })
 const ctx = { user: '김' }
+const ADMIN = { user: '이', admin: true }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-async function until(f, ms = 8000) {
+async function until(f, ms = 20000) {
   const t = Date.now()
   while (Date.now() - t < ms) {
     if (await f()) return true
@@ -36,6 +37,9 @@ before(async () => {
   copyDir(FIX, path.join(tmp, 'kn'))
   bare = path.join(tmp, 'remote.git')
   G(tmp, 'init', '-q', '--bare', '-b', 'main', bare)
+  // 이 PC 의 폴더를 백업 자리로 쓰려면 허락된 루트 안이어야 한다(E1)
+  fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })
+  fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ backupRoots: [tmp] }))
   backup.configure({ delays: [150], lsTimeout: 5000 })
   s = await startServer({ root: path.join(tmp, 'kn'), user: '김', port: 0, log: () => {} })
   kn = { id: 'dpms', dir: path.join(tmp, 'kn', 'dpms') }
@@ -56,14 +60,14 @@ const remoteHead = () => {
 const head = () => G(kn.dir, 'rev-parse', 'HEAD')
 
 test('붙이면 지금까지 보낸다 · 상태 파일이 남는다 · 잘 될 때 줄 0', async () => {
-  const r = await s.hub.backupAttach('dpms', bare)
+  const r = await s.hub.backupAttach(ADMIN, 'dpms', bare)
   assert.equal(r.ok, true)
   assert.equal(remoteHead(), head())
   assert.ok(fs.existsSync(path.join(tmp, 'kn', '.kmd', 'backup', 'dpms.json')))
-  assert.deepEqual(await s.hub.stops(), [])
+  assert.deepEqual(await s.hub.stops(ADMIN), [])
   const r2 = await s.hub.save(ctx, 'dpms', rec('둘째 저장'))
   assert.deepEqual(r2.warnings, [])
-  assert.equal(remoteHead(), head(), '저장하면 바로 보낸다')
+  assert.ok(await until(() => remoteHead() === head(), 30000), '저장하면 저절로 보낸다')
 })
 
 test('지워진 백업 → 다시 올리고 하루 빨강 · 판정은 순수 함수', async () => {
@@ -71,7 +75,7 @@ test('지워진 백업 → 다시 올리고 하루 빨강 · 판정은 순수 �
   const r = await backup.enqueue(kn)
   assert.equal(r.ok, true)
   assert.equal(remoteHead(), head(), '다시 올렸다')
-  const st = await s.hub.stops()
+  const st = await s.hub.stops(ADMIN)
   assert.equal(st.length, 1)
   assert.equal(st[0].level, 'bad')
   assert.match(st[0].text, /지워졌다/)
@@ -108,20 +112,21 @@ test('남이 앞서 민 백업 → 읽기만(E_BEHIND) → 백업에서 받기 �
   const res = await fetch(s.url + '/api/k/dpms/save', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(rec('막힐 저장')) })
   assert.equal(res.status, 409)
   assert.equal((await res.json()).error, 'E_BEHIND')
-  const p = await s.hub.backupPull('dpms')
+  const p = await s.hub.backupPull(ADMIN, 'dpms')
   assert.equal(p.pulled, 1)
   assert.match(fs.readFileSync(path.join(kn.dir, 'docs', '운영.md'), 'utf8'), /남이 더한 줄/)
   const r = await s.hub.save(ctx, 'dpms', rec('받은 뒤 저장'))
   assert.ok(!r.warnings.some((w) => /읽기만|멈췄다/.test(w)), r.warnings.join())
-  assert.equal(remoteHead(), head())
+  assert.ok(await until(() => remoteHead() === head(), 30000))
 
   // 갈라짐 — 남이 또 밀었는데 여기서도 저장했다 → moved · 읽기만
   G(other, 'pull', '-q', 'origin', 'main')
   fs.appendFileSync(path.join(other, 'docs', '운영.md'), '\n또 남의 줄\n')
   G(other, 'commit', '-qam', '남의 둘째 저장')
   G(other, 'push', '-q', 'origin', 'HEAD:main')
-  const r3 = await s.hub.save(ctx, 'dpms', rec('갈라지는 저장'))
-  assert.match(r3.warnings.join(' '), /다른 서버/)
+  await s.hub.save(ctx, 'dpms', rec('갈라지는 저장'))
+  await backup.enqueue(kn) // 저장은 백업을 3초까지만 기다린다 — 바쁜 PC 에서도 판정이 끝나게
+  assert.match((await s.hub.stops(ADMIN)).map((l) => l.text).join(' '), /다른 서버/)
   assert.equal(backup.stateOf(kn).verdict, 'moved')
   await assert.rejects(s.hub.save(ctx, 'dpms', rec('또')), (e) => e.code === 'E_BEHIND')
 })
