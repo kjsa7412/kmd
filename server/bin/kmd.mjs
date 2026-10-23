@@ -55,7 +55,7 @@ function parse(argv) {
     else if (a === '--private' || a === '--team') o.private = a === '--private'
     else if (a.startsWith('--')) {
       const [k, v] = a.slice(2).split('=')
-      o[k] = v ?? argv[++i]
+      o[k] = v ?? (argv[i + 1] == null || argv[i + 1].startsWith('--') ? 'true' : argv[++i])
     } else o._.push(a)
   }
   return o
@@ -277,7 +277,9 @@ async function secretCmd(o) {
   try {
     if (sub === 'set') {
       if (!name) throw new Error('kmd secret set <이름>')
-      await setSecret(dataOf(o), name, await hidden(`${name} 의 값(보이지 않는다): `))
+      // --stdin — 설치 스크립트가 숨김 입력으로 받은 것을 관으로 넘긴다(인자 · 셸 기록에 남지 않게)
+      const v = o.stdin != null ? fs.readFileSync(0, 'utf8').trim() : await hidden(`${name} 의 값(보이지 않는다): `)
+      await setSecret(dataOf(o), name, v)
       console.log(`넣었다 — ${name}`)
     } else for (const x of await listSecrets(dataOf(o))) console.log(`${x.name} — ${x.at.slice(0, 16).replace('T', ' ')} 에 넣음`)
   } catch (e) {

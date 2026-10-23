@@ -5,12 +5,15 @@
   "type": "module",
   "description": "kmd — 팀과 내 PC 의 지식(문서 · 기록 · 정리) · Claude Code 세션이 MCP 로 읽고 쓴다",
   "bin": {
-    "kmd": "server/bin/kmd.mjs"
+    "kmd": "server/bin/kmd.mjs",
+    "kmd-key": "server/bin/kmd-key.mjs",
+    "ctx": "server/bin/ctx.mjs"
   },
   "scripts": {
     "kmd": "node server/bin/kmd.mjs",
     "demo": "node test/demo.mjs",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "pack": "node scripts/pack.mjs"
   },
   "dependencies": {
     "js-yaml": "^4.1.0",

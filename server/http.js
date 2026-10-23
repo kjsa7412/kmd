@@ -501,6 +501,15 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         const sh = `#!/bin/sh\nif command -v kmd >/dev/null 2>&1; then kmd connect '${origin}' --ticket '${im[1]}'; else echo 'kmd 가 이 PC 에 없다 — 먼저 깐다: ${origin}/dl'; fi\n`
         return send(res, 200, im[2] ? sh : ps, 'text/plain; charset=utf-8')
       }
+      // 꾸러미 받기 — 관리자가 둔 PC 꾸러미(serve.json dl · 기본 <살림 자리>/dl). 비밀이 아니라 들어오지 않아도 받는다
+      if (mode === 'team' && req.method === 'GET' && (p === '/dl' || p.startsWith('/dl/'))) {
+        const dl = path.resolve(hub.config.dl || path.join(dataDir, 'dl'))
+        const files = (await fs.readdir(dl).catch(() => [])).filter((n) => /\.(zip|tgz|exe|msi)$/i.test(n))
+        if (p === '/dl') return send(res, 200, `<!doctype html><meta charset="utf-8"><title>kmd 받기</title><body style="font:15px system-ui;margin:40px"><h1>kmd 받기</h1>${files.length ? `<ul>${files.map((n) => `<li><a href="/dl/${encodeURIComponent(n)}">${n.replace(/[<>&"]/g, '')}</a></li>`).join('')}</ul><p>PC 꾸러미를 풀어 PATH 에 더한 뒤, 팀 화면 › 설치 한 줄을 다시 붙여 넣는다.</p>` : '<p>아직 꾸러미가 없다 — 관리자에게 묻는다.</p>'}</body>`, 'text/html; charset=utf-8')
+        const n = decodeURIComponent(p.slice(4))
+        if (!files.includes(n)) return send(res, 404, '없다', 'text/plain; charset=utf-8')
+        return send(res, 200, await fs.readFile(path.join(dl, n)), 'application/octet-stream', { 'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(n)}` })
+      }
       if (req.method === 'POST' && ['/login', '/logout', '/first', '/setup', '/once', '/device/keys'].includes(p)) return await gate(req, res, p)
       const { ctx, set } = who(req)
       if (p === '/mcp') {
