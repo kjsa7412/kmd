@@ -27,7 +27,8 @@ import { stopLine, ageText } from './stopline.js'
 export const DECL = '_sources.json'
 const MAX_FILE = 1 << 20
 const MAX_FILES = 3000
-const EVERY_MS = { hourly: 3600_000, daily: 86400_000, weekly: 7 * 86400_000 }
+// change — 「바뀔 때만」: 5분마다 보고 바뀐 것만 쓴다(같으면 묶음 0 이라 자주 봐도 조용하다)
+const EVERY_MS = { change: 300_000, hourly: 3600_000, daily: 86400_000, weekly: 7 * 86400_000 }
 export const everyMs = (e) => EVERY_MS[String(e || 'hourly').split(' ')[0]] || 3600_000
 
 export async function readDecl(dir) {

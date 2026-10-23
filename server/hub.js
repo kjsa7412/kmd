@@ -6,7 +6,7 @@
 
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { listKnowledge, loadKnowledge, coordsOfSection, sectionOf } from '../core/knowledge.js'
+import { listKnowledge, loadKnowledge, coordsOfSection, sectionOf, looksLikeKnowledge } from '../core/knowledge.js'
 import { KmdError } from '../core/errors.js'
 import { save as coreSave, serial } from '../core/save.js'
 import { decide, decisionRecord, revertPlan } from '../core/curate.js'
@@ -87,6 +87,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     return sendLib.post(d.url, d.kn, payload, key)
   }
   let sendTimer = null
+  let started = false
   const watchers = []
   const scheduleDecide = (id) => {
     clearTimeout(decideTimers.get(id))
@@ -101,8 +102,63 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     mode,
     config,
     log,
+    // 루트 아래 지식 + 이 PC 에서 이은 폴더(`<data>/links.json` — 그 자리에서 따라간다)
     async list() {
-      return (list ||= await listKnowledge(root))
+      if (!list) {
+        const own = await listKnowledge(root)
+        const links = await fs.readFile(path.join(dataDir, 'links.json'), 'utf8').then(JSON.parse, () => [])
+        const more = []
+        for (const l of links) if (!own.some((k) => k.id === l.id) && (await looksLikeKnowledge(l.dir))) more.push({ id: l.id, name: (await listKnowledge(l.dir))[0]?.name || l.id, dir: l.dir })
+        list = [...own, ...more]
+      }
+      return list
+    },
+    // 지식 추가 — 새 이름(PC: 루트 아래 · 팀: 서버 안 내 지식 · 나만) · 내 폴더(PC 만 · 그 자리에서 따라간다 · 복사 안 함)
+    async addKnowledge(ctx, { kind, name, dir }) {
+      if (await looksLikeKnowledge(root)) throw new KmdError('E_INPUT', '이 kmd 는 지식 하나만 연다 — 여러 지식을 두려면 위 폴더에서 띄운다')
+      if (kind === 'new') {
+        const nm = String(name || '').normalize('NFC').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').trim()
+        if (!nm || nm.length > 60 || nm.startsWith('.')) throw new KmdError('E_INPUT', '이름은 한 줄 60자 안')
+        const all = await hub.list()
+        let id = nm
+        if (mode === 'team') id = `${nm}-${ctx.user}`.replace(/[<>:"/\\|?*\s]+/g, '-')
+        if (all.some((k) => k.id.toLowerCase() === id.toLowerCase())) throw new KmdError('E_CONFLICT', `「${nm}」 지식이 이미 있다`)
+        const d = path.join(root, id)
+        await fs.mkdir(d, { recursive: true })
+        await ensureRepo(d) // 빈 폴더에서 먼저 — 만든 묶음이 만든 사람 이름으로 남게
+        await fs.mkdir(path.join(d, 'docs'), { recursive: true })
+        await fs.mkdir(path.join(d, 'work'), { recursive: true })
+        await fs.writeFile(path.join(d, 'README.md'), `# ${nm}\n`, 'utf8')
+        await fs.writeFile(path.join(d, 'docs', '처음.md'), `# 처음\n\n## 개요\n새 지식 — 첫 문서를 쓴다.\n`, 'utf8')
+        await commitPaths(d, ['README.md', 'docs/처음.md'], `지식 만듦 — ${nm}`, ctx.user)
+        list = null
+        if (mode === 'team') await hub.setOwner({ ...ctx, shell: true }, id, { owner: ctx.user, private: true })
+        feed.add(dataDir, ctx.user, { kn: id, dot: 'acc', text: `지식을 추가했다 — ${nm}`, small: mode === 'team' ? '팀 서버 안 내 지식 · 나만' : d }).catch(() => {})
+        return { id, name: nm, dir: mode === 'pc' ? d : undefined }
+      }
+      if (kind === 'folder') {
+        if (mode !== 'pc' && !ctx.pc) throw new KmdError('E_FORBIDDEN', '경로는 내 PC 프로그램이 연다')
+        const full = path.resolve(String(dir || ''))
+        if (!path.isAbsolute(String(dir || '')) || !(await fs.stat(full).then((s) => s.isDirectory(), () => false))) throw new KmdError('E_NOTFOUND', '그 폴더가 없다')
+        if (full === path.resolve(dataDir) || full.startsWith(path.resolve(dataDir) + path.sep)) throw new KmdError('E_INPUT', 'kmd 살림 자리는 지식이 아니다')
+        if (!(await looksLikeKnowledge(full))) throw new KmdError('E_INPUT', '이 폴더에는 docs 폴더가 없다 — md 를 docs 폴더에 두면 지식이 된다')
+        const all = await hub.list()
+        if (all.some((k) => path.resolve(k.dir) === full)) throw new KmdError('E_CONFLICT', '이미 목록에 있는 지식이다')
+        let id = path.basename(full).normalize('NFC')
+        for (let n = 2; all.some((k) => k.id === id); n++) id = `${path.basename(full)}-${n}`
+        const f = path.join(dataDir, 'links.json')
+        const links = await fs.readFile(f, 'utf8').then(JSON.parse, () => [])
+        links.push({ id, dir: full, at: new Date().toISOString() })
+        await fs.mkdir(dataDir, { recursive: true })
+        await fs.writeFile(f, JSON.stringify(links, null, 1))
+        await ensureRepo(full)
+        list = null
+        const m = (await hub.list()).find((k) => k.id === id)
+        if (config.collect !== false && mode === 'pc' && started) watchers.push(collect.watch(m.dir, () => hub.collect(m.id)))
+        feed.add(dataDir, ctx.user, { kn: id, dot: 'acc', text: `지식을 추가했다 — ${m.name}`, small: `그 자리에서 따라간다 · ${full}` }).catch(() => {})
+        return { id, name: m.name, dir: full }
+      }
+      throw new KmdError('E_INPUT', '알아듣지 못했다 — 이름 · 내 PC 폴더 경로를 붙인다')
     },
     // 그 사람이 보는 지식들
     async visible(ctx) {
@@ -336,6 +392,26 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const decl = await readDecl(meta.dir)
       const st = await readSourceState(dataDir, id)
       return decl.map((s) => ({ ...s, state: st[s.name] || {} }))
+    },
+    // 자료 가져오기 화면 — 그 사람이 보는 지식들의 가져오는 곳 모두
+    async allSources(ctx) {
+      const out = []
+      for (const m of await hub.visible(ctx)) for (const s of await hub.sources(ctx, m.id)) out.push({ kn: m.id, knName: m.name, ...s })
+      return out
+    },
+    // 언제 — hourly · daily HH:MM · weekly · change(바뀔 때만) · manual
+    async sourceEvery(ctx, id, { name, every }) {
+      const meta = await hub.meta(id, ctx)
+      if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '언제 바꾸기는 관리자가 한다')
+      if (!/^(hourly|weekly|change|manual|daily ([01]\d|2[0-3]):[0-5]\d)$/.test(String(every))) throw new KmdError('E_INPUT', '언제는 hourly · daily HH:MM · weekly · change')
+      const decl = await readDecl(meta.dir)
+      const s = decl.find((x) => x.name === name)
+      if (!s) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
+      if (s.every === every) return s
+      s.every = every
+      await writeDecl(meta.dir, decl, { user: ctx.user, title: `가져오는 곳 언제 — ${name} · ${every}` })
+      cache.delete(id)
+      return s
     },
     async curatorsOf(id) {
       const r = owners.rowOf(reg, id)
@@ -643,7 +719,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       return { saved, same }
     },
     // 받은편지함 정리 — 같은 주인의 개인 지식으로만 옮긴다 · 팀 지식에 이름이 걸리면 보내기 후보 · private 은 그대로
-    async inboxTidy(ctx, id) {
+    async inboxTidy(ctx, id, { dry = false } = {}) {
       const meta = await hub.meta(id, ctx)
       if (!hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '받은편지함은 주인이 정리한다')
       const owner = owners.rowOf(reg, id)?.owner || ctx.user
@@ -667,6 +743,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           return null
         }
         const to = await hit(mine)
+        if (to && dry) {
+          moved.push({ record: w.id, title: w.title, to: to.m.id })
+          continue
+        }
         if (to) {
           await hub.save(ctx, to.m.id, { record: { title: w.title, body: `받은편지함에서 옮김\n\n${w.body}`.trim(), touches: to.coords, tags: w.tags.filter((t) => !t.startsWith('sent/')) } })
           st.moved[w.id] = to.m.id
@@ -676,10 +756,25 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const t2 = await hit(team)
         if (t2) candidates.push({ record: w.id, title: w.title, to: t2.m.id, name: labelOf(await hub.get(t2.m.id), t2.coords[0]) })
       }
+      if (dry) return { moved, candidates }
       await fs.mkdir(path.dirname(f), { recursive: true })
       await fs.writeFile(f, JSON.stringify(st))
       if (moved.length) feed.add(dataDir, ctx.user, { kn: id, dot: 'acc', text: `받은편지함 메모 ${moved.length}개를 옮겼다`, small: [...new Set(moved.map((x) => x.to))].join(' · ') }).catch(() => {})
       return { moved, candidates, left: k.works.filter((w) => !isSystemRecord(w) && !st.moved[w.id]).length - candidates.length }
+    },
+    // 받은편지함 메모 하나를 팀 지식으로(보내기 화면의 「보낼 것에 넣기」) — 같은 kmd 의 받기 길 · 다시 옮기지 않게 표시
+    async inboxSend(ctx, id, { record, to }) {
+      await hub.meta(id, ctx)
+      if (!hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '받은편지함은 주인이 보낸다')
+      const w = (await hub.get(id)).byWork.get(record)
+      if (!w || w.tags.includes('private')) throw new KmdError('E_NOTFOUND', '보낼 메모가 없다')
+      const r = await hub.receive(ctx, to, { from: '받은편지함', items: [{ title: w.title, body: w.body, sha: sha16(`${id}\n${w.id}`) }] })
+      const f = path.join(dataDir, 'inbox', `${encodeURIComponent(id)}.json`)
+      const st = await fs.readFile(f, 'utf8').then(JSON.parse, () => ({ moved: {} }))
+      st.moved[w.id] = to
+      await fs.mkdir(path.dirname(f), { recursive: true })
+      await fs.writeFile(f, JSON.stringify(st))
+      return r
     },
 
     // 멈춤 줄 — 그 사람이 보는 지식만
@@ -756,6 +851,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       return backup.stateOf(await hub.meta(id, ctx))
     },
     async start() {
+      started = true
       await backup.start(await hub.list(), { dataDir, log })
       // 거두기 — PC(또는 serve.json collect)에서 편집기로 고친 문서를 30초 고요 뒤 들인다
       if (mode === 'pc' || config.collect) for (const m of await hub.list()) watchers.push(collect.watch(m.dir, () => hub.collect(m.id)))
@@ -785,6 +881,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         for (const m of await hub.list().catch(() => [])) {
           if (hm < hub.tidyAtOf(m.id) || lastTidy.get(m.id) === day) continue
           lastTidy.set(m.id, day)
+          // 받은편지함 — 정리 시각에 같은 주인의 개인 지식으로 옮긴다
+          if (m.name === '받은편지함') await hub.inboxTidy({ user: owners.rowOf(reg, m.id)?.owner || pcUser || 'kmd', pc: mode === 'pc' }, m.id).catch(() => {})
           const k = await hub.get(m.id).catch(() => null)
           if (k && k.works.some((w) => w.state === 'pend' || w.state === 'nowhere')) hub.tidyNow({ user: 'kmd', admin: true }, m.id, { by: 'kmd', auto: true }).catch(() => {})
         }

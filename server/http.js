@@ -131,7 +131,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     const out = (status, body) => send(res, status, body, undefined, set ? { 'set-cookie': set } : {})
     if (p === '/api/me') {
       if (!ctx) return out(200, { mode, anon: true, setup: !auth.hasUsers(), legacy: auth.legacyWaiting(), version: VERSION, host: req.headers.host })
-      return out(200, { mode, user: ctx.user, admin: !!ctx.admin, sudo: !!ctx.sudo, password: ctx.password !== false, version: VERSION, host: req.headers.host })
+      return out(200, { mode, user: ctx.user, admin: !!ctx.admin, sudo: !!ctx.sudo, password: ctx.password !== false, version: VERSION, host: req.headers.host, ...(mode === 'pc' ? { root: path.resolve(root) } : {}) })
     }
     // 기계 열쇠 — 그 지식의 기준선 길 하나만(E6 이 채운다)
     const bl = p.match(/^\/api\/k\/([^/]+)\/baseline$/)
@@ -161,12 +161,19 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     const jm = p.match(/^\/api\/job\/([0-9a-f]+)$/)
     if (jm) return out(200, hub.job(jm[1]) || { state: 'gone' })
     // 자동으로 가져오는 곳 — 목록 · 더하기(관리자 · PC) · 살펴보기 · 지금 가져오기 · 관리자에게 부탁
-    const sm = p.match(/^\/api\/k\/([^/]+)\/sources(?:\/(probe|run|request))?$/)
+    if (p === '/api/sources') return out(200, { items: await hub.allSources(ctx), can: hub.mode === 'pc' || !!ctx.admin })
+    // 지식 추가 — 새 이름 · 내 폴더(PC)
+    if (p === '/api/knowledge/add') {
+      if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
+      return out(200, await hub.addKnowledge(ctx, await readBody(req)))
+    }
+    const sm = p.match(/^\/api\/k\/([^/]+)\/sources(?:\/(probe|run|request|every))?$/)
     if (sm) {
       const id = decodeURIComponent(sm[1])
       if (req.method === 'GET' && !sm[2]) return out(200, await hub.sources(ctx, id))
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       const b = await readBody(req)
+      if (sm[2] === 'every') return out(200, await hub.sourceEvery(ctx, id, b))
       if (sm[2] === 'probe') {
         if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 관리자가 더한다')
         return out(200, await hub.sourceProbe(ctx, id, b))
@@ -193,7 +200,14 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const runs = (await hub.runs(id)).map((run) => ({ ...run, rows: run.rows.map((r) => ({ ...r, reverted: !!r.record && k.reverted.has(r.record) })) }))
       return out(200, { tidyAt: hub.tidyAtOf(id), jobs: hub.jobsOf(id), runs, pend: k.works.filter((w) => w.state === 'pend').length, nowhere: k.works.filter((w) => w.state === 'nowhere').length })
     }
-    if (p === '/api/knowledge') return out(200, (await hub.all(ctx)).map((k) => ({ ...V.knowledgeRow(k), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}) })))
+    if (p === '/api/knowledge') {
+      const ks = await hub.all(ctx)
+      return out(200, await Promise.all(ks.map(async (k) => {
+        // 보낼 곳이 있는 지식 — 보낼 것 수(옆 메뉴 「보내기」 의 수)
+        const sq = hub.canDirect(ctx, k.id) ? await hub.sendQueue(ctx, k.id).catch(() => null) : null
+        return { ...V.knowledgeRow(k), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sq?.dests.length ? { dests: sq.dests.map((d) => d.kn), sendN: sq.items.filter((x) => x.on).length, sendWait: sq.wait.length } : {}), private: !!hub.owner(k.id)?.private, tidyAt: hub.tidyAtOf(k.id) }
+      })))
+    }
     if (p === '/api/stops') return out(200, await hub.stops(ctx))
     if (p === '/api/find') {
       const rs = await hub.search(ctx, url.searchParams.get('k') || null, { q: url.searchParams.get('q') || '' })
@@ -244,7 +258,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, await hub.importFiles(ctx, decodeURIComponent(im[1]), files))
     }
     // 보내기 — 보낼 것 · 보낼 곳 · 이번에 빼기 · 보내기 · 받기 · 받은편지함 정리
-    const sd = p.match(/^\/api\/k\/([^/]+)\/(send|send\/dests|send\/drop|receive|inbox\/tidy)$/)
+    const sd = p.match(/^\/api\/k\/([^/]+)\/(send|send\/dests|send\/drop|receive|inbox\/tidy|inbox\/send)$/)
     if (sd) {
       const id = decodeURIComponent(sd[1])
       if (sd[2] === 'send' && req.method === 'GET') return out(200, await hub.sendQueue(ctx, id))
@@ -254,7 +268,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (sd[2] === 'send/dests') return out(200, await hub.sendDests(ctx, id, b.dests))
       if (sd[2] === 'send/drop') return out(200, await hub.sendDrop(ctx, id, b))
       if (sd[2] === 'receive') return out(200, await hub.receive(ctx, id, b))
-      return out(200, await hub.inboxTidy(ctx, id))
+      if (sd[2] === 'inbox/send') return out(200, await hub.inboxSend(ctx, id, b))
+      return out(200, await hub.inboxTidy(ctx, id, { dry: !!b.dry }))
     }
     const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|backup|backup\/pull|owner|learn|edit|revert)$/)
     if (!m) throw new KmdError('E_NOTFOUND', '그런 길은 없다')

@@ -19,6 +19,7 @@ const S = {
   menu: null, pal: null, qo: null, cmd: null,
   cache: {}, wait: {}, err: null,
   stops: [],
+  srcDraft: '', srcRun: {}, imports: [], addDraft: '', addMsg: null, cand: null, sending: false,
   openToday: null, tidyRun: null, tidyMsg: {}, runOpen: {}, cmp: null, picker: false,
   iq: '', ifilt: { pend: false, recent: false, mine: false }, kfold: {}, tablesAll: false, nbOpen: false,
   g: { kn: null, pos: {}, view: { x: 0, y: 0, k: 1 }, sel: null, bundle: false, layoutKey: '', f: { q: '', item: true, doc: true, rec: false, src: false, pend: false, recent: false, orph: false, depth: 0 } },
@@ -179,7 +180,7 @@ function render() {
   }
 }
 function viewOf(s) {
-  const f = { home: viewHome, docs: viewDocsV, items: viewItems, graph: viewGraph, today: viewToday, tidy: viewTidy, members: viewMembers }[s]
+  const f = { home: viewHome, docs: viewDocsV, items: viewItems, graph: viewGraph, today: viewToday, tidy: viewTidy, members: viewMembers, import: viewImport, add: viewAdd, send: viewSend }[s]
   return f ? f() : viewLater(s)
 }
 function ribbonHtml() {
@@ -201,6 +202,8 @@ function sideHtml(left) {
   const tk = curator && KN(tidyKn())
   const it2 = (key, l, ic, bd) => `<div class="sb-i${!dim && r.scr === key ? ' on' : ''}" data-a="nav" data-s="${key}" data-t="nav-${key}">${svg(ic)}<span>${l}</span>${bd ? `<span class="bd">${bd}</span>` : ''}</div>`
   h += '<div class="nav">' + it('today', '오늘 바뀐 것', 'check') + it('import', '자료 가져오기', 'plug')
+  // 보내기 — 이 PC 이거나 보낼 곳이 있는 지식이 있을 때
+  if (!dim && (!team || S.kns.some((x) => x.dests))) h += it2('send', '보내기', 'pair', S.kns.some((x) => x.sendWait) ? '…' : S.kns.reduce((a, x) => a + (x.sendN || 0), 0) || '')
   if (curator) h += '<div class="sb-g">정리하는 사람</div>' + it2('tidy', '정리', 'hour', tk && tk.pend ? tk.pend : '') + it2('members', '이 지식의 사람', 'users')
   h += '</div>'
   if (left) h += `<div class="lp" data-t="leftPane">${left}</div>`
@@ -264,7 +267,7 @@ function viewHome() {
 }
 
 // ── 아직 없는 화면(뒤 판) ──
-const LATER = { today: '오늘 바뀐 것', import: '자료 가져오기', add: '지식 추가', settings: '설정' }
+const LATER = { settings: '설정' }
 function viewLater(s) {
   return { crumb: LATER[s] || '지식 목록', main: `<div style="max-width:760px"><div class="big">${esc(LATER[s] || '')}</div><div class="callout gray" data-t="later">이 화면은 다음 판에 열린다 — 지금은 문서로 보기에서 읽는다. <a data-a="view" data-v="docs">문서로 보기 ›</a></div></div>` }
 }
@@ -1168,6 +1171,289 @@ document.addEventListener('submit', (ev) => {
   submitGate(f)
 })
 
+// ── 자료 가져오기(목업 M15) ──
+const nowHm = () => { const d = new Date(); return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) }
+const EVERY_T = { hourly: '1시간마다', weekly: '매주 월', change: '바뀔 때만', manual: '손으로만' }
+function everyTxt(e) { e = String(e || 'hourly'); return e.startsWith('daily ') ? '매일 ' + e.slice(6) : EVERY_T[e] || e }
+function nextTxt(e, last) {
+  e = String(e || 'hourly')
+  const d = new Date(), m = d.getHours() * 60 + d.getMinutes()
+  if (e === 'hourly') { const t = last ? new Date(Date.parse(last) + 3600e3) : null; return t && t > d ? pad2(t.getHours()) + ':' + pad2(t.getMinutes()) : '곧' }
+  if (e.startsWith('daily ')) { const [h, mi] = e.slice(6).split(':').map(Number); return (h * 60 + mi > m ? '오늘 ' : '내일 ') + e.slice(6) }
+  if (e === 'weekly') return '다음 월요일'
+  if (e === 'change') return '바뀌면 바로'
+  return '—'
+}
+const sourcesOf = () => need('sources', '/api/sources')
+function srcKn(nm) {
+  const s = String(nm || '').toLowerCase()
+  const hit = S.kns.find((k) => s && (s.includes(k.id.toLowerCase()) || s.includes(String(k.name).toLowerCase())))
+  if (hit) return { kn: hit.id, why: '이름이 맞아서' }
+  const k = S.route.kn && S.route.kn !== '*' && KN(S.route.kn) ? S.route.kn : S.lastKn && KN(S.lastKn) ? S.lastKn : (S.kns[0] || {}).id
+  return { kn: k, why: '가장 최근에 연 지식이라서' }
+}
+function parseSrc(t) {
+  t = String(t || '').trim()
+  if (!t) return null
+  let m
+  if ((m = t.match(/^(postgres(?:ql)?|mysql|oracle|mssql|sqlserver):\/\/[^/]*\/([^?\s/]+)/i))) return { kind: 'DB', name: m[2] + ' DB', db: true }
+  if (/^(git@|https?:\/\/|ssh:\/\/).+\.git$/i.test(t) || /^git@/i.test(t) || /^(https?|ssh):\/\//i.test(t)) {
+    const nm = t.replace(/\.git$/i, '').split(/[/:]/).filter(Boolean).pop()
+    return { kind: '코드', name: nm + ' 코드', at: t, src: 'git', ...srcKn(nm), doc: '꾸러미 판', every: 'hourly', what: '꾸러미 판 표(package.json · pom.xml 에서)' }
+  }
+  if (/^[A-Za-z]:\\/.test(t) || /^\/[^\s]+/.test(t)) {
+    const nm = t.replace(/[\\/]+$/, '').split(/[\\/]/).pop()
+    return { kind: '코드 폴더', name: nm + ' 코드 폴더', at: t, src: 'folder', ...srcKn(nm), doc: '꾸러미 판', every: 'hourly', what: '꾸러미 판 표(폴더 안의 package.json · pom.xml 에서)', local: true }
+  }
+  return { bad: true }
+}
+function srcHeard() {
+  const v = sourcesOf(), can = v && !v.error ? v.can : !isTeam() || S.me.admin, pr = parseSrc(S.srcDraft)
+  let heard = '', ok = false
+  if (pr && pr.bad) heard = '<div class="heard bad" data-t="srcHeard">알아듣지 못했다 — 코드 폴더 · git 주소 · DB 주소를 붙인다</div>'
+  else if (pr && pr.db) heard = `<div class="heard bad" data-t="srcHeard"><span class="kt src">DB</span><span>DB 에서 가져오기는 아직 열리지 않았다<span class="sub2">서버의 DB 읽기 계정이 정해지면 연다 · 코드 폴더 · git 주소는 지금 된다</span></span></div>`
+  else if (pr) { ok = true; heard = `<div class="heard" data-t="srcHeard"><span class="kt src">${esc(pr.kind)}</span><span><b>${esc(pr.name)} → ${esc((KN(pr.kn) || {}).name || pr.kn)} › ${esc(pr.doc)} · ${everyTxt(pr.every)}</b><span class="sub2">${esc(pr.what)} · 바뀐 것만 고친다 · 넣을 곳은 kmd 가 골랐다 — ${esc(pr.why)}${pr.local && isTeam() ? ' · 이 경로는 팀 서버의 폴더다' : ''}</span></span></div>` }
+  const btn = can ? `<button class="btn" data-a="addSrc" data-t="addSrcBtn"${ok ? '' : ' disabled'}>더하기</button>` : `<button class="btn pri" data-a="askSrc" data-t="askSrcBtn"${ok ? '' : ' disabled'}>관리자에게 부탁</button>`
+  return { heard, btn }
+}
+function impTarget() {
+  const k = S.route.kn
+  if (k && k !== '*' && KN(k)) return { kn: k, label: KN(k).name + '(지금 연 지식)' }
+  const ib = S.kns.find((x) => x.name === '받은편지함')
+  if (ib) return { kn: ib.id, label: '받은편지함' }
+  return { kn: null, label: '받은편지함(처음 넣으면 생긴다)' }
+}
+function viewImport() {
+  const team = isTeam(), v = sourcesOf()
+  const srcs = v && !v.error ? v.items : []
+  const can = v && !v.error ? v.can : !team || S.me.admin
+  const rowsHtml = srcs.map((s) => {
+    const id = s.kn + '|' + s.name, st = s.state || {}, run = S.srcRun[id]
+    const runH = run === 'run' ? '<span class="st2 run" data-t="srcRun">가져오는 중…</span>' : run ? `<span class="st2 ok" data-t="srcOk">${esc(run)}</span>` : ''
+    const ev = String(s.every || 'hourly'), at = ev.startsWith('daily ') ? ev.slice(6) : '06:00'
+    const mi = (val, l, sm) => `<div class="mi${ev.split(' ')[0] === val ? ' on' : ''}" data-a="setEvery" data-id="${esc(id)}" data-v="${val}">${ev.split(' ')[0] === val ? '✓ ' : ''}${l}${sm || ''}</div>`
+    const menu = S.menu === 'every:' + id ? `<div class="menu" style="right:0;top:26px" data-t="everyMenu">${mi('hourly', '1시간마다')}${mi('daily', `매일 <input type="time" id="evAt" data-t="evAt" value="${esc(at)}" data-stop="1">`)}${mi('weekly', '매주 월')}${mi('change', '바뀔 때만', '<small>코드가 바뀌면 바로</small>')}<div class="sep"></div><div class="gray">한꺼번에 크게 바뀌면 쓰지 않고 멈춘다 — 「지금 가져오기」 는 언제든</div></div>` : ''
+    const sub = `${s.kind === 'git' ? 'git · ' : '폴더 · '}${String(s.since || '').slice(5).replace('-', '-')} 부터${s.by && s.by !== S.me.user ? ' · ' + s.by : ''}`
+    const into = (s.rules && s.rules[0] && s.rules[0].into && s.rules[0].into.doc) || ''
+    return `<tr data-t="srcRow" data-name="${esc(s.name)}"><td><b>${esc(s.name)}</b><small>${esc(sub)}</small></td><td>${esc(s.knName)} › ${esc(into)}</td><td><span class="ev" data-t="every">${everyTxt(ev)}${can ? `<button class="kebab" data-a="menu" data-m="every:${esc(id)}" data-t="everyKebab" title="언제 바꾸기">⋯</button>` : ''}${menu}</span></td><td data-t="last">${st.checkedAt ? esc(whenTxt(st.checkedAt)) : '—'}<small>${esc(st.lastNote || '')}</small></td><td data-t="next">${esc(nextTxt(ev, st.checkedAt))}</td><td class="go2">${runH} ${run === 'run' ? '' : `<a class="lk" data-a="fetchSrc" data-id="${esc(id)}" data-t="fetchBtn">지금 가져오기</a>`}</td></tr>`
+  }).join('')
+  const sh = srcHeard(), target = impTarget()
+  const main = `<div style="max-width:980px"><div class="big">자료 가져오기</div><p class="lead">코드 · DB 에서 표를 저절로 채우고, 파일이나 폴더를 문서로 들인다.</p>
+  ${S.stops.map(stopHtml).join('')}
+  <div class="card"><div class="ch">자동으로 가져오는 곳 <small>정한 때마다 확인 · 바뀐 것만 고친다</small>${can ? `<span class="r"><button class="btn pri" data-a="fetchAll" data-t="fetchAll"${srcs.length ? '' : ' disabled'}>지금 모두 가져오기</button></span>` : ''}</div>
+   <div class="cb" style="padding:2px 14px 4px;overflow-x:auto">${!v ? loadingHtml : srcs.length ? `<table class="t" data-t="srcTable"><thead><tr><th>가져오는 곳</th><th>넣는 곳</th><th>언제</th><th>마지막 확인</th><th>다음</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>` : '<p class="muted" style="margin:10px 0">아직 더한 곳 없음 — 아래 칸에 코드 폴더 · git 주소 · DB 주소를 붙인다</p>'}</div>
+   <div class="cf">바뀐 줄은 그 지식의 「오늘 바뀐 것」 에 · 한꺼번에 크게 바뀌면 쓰지 않고 멈춘다 · ${can ? '언제 바꾸기는 줄의 ⋯' : '언제 바꾸기 · 더하기 · 끊기는 관리자'}</div></div>
+  <div class="card"><div class="ch">자동으로 가져올 곳 더하기 <small>코드 폴더 · git 주소 · DB 주소 — 한 칸</small></div><div class="cb">
+   <div class="paste"><input class="inp mono" id="srcIn" data-in="src" data-t="srcIn" value="${esc(S.srcDraft)}" placeholder="붙여 넣기 — 예: postgres://읽기전용@db.team.local/gdi · git@gitlab.team.local:dpms/dpms-batch.git" autocomplete="off"><span id="srcBtnBox">${sh.btn}</span></div><div id="srcHeardBox">${sh.heard}</div></div></div>
+  <div class="card"><div class="ch">파일 · 폴더 넣기 <small>한 번 들여온다 — 원본은 첨부로</small></div><div class="cb">
+   <div class="drop" id="drop" data-t="drop"><b>파일이나 폴더를 여기에 끌어다 놓으면 문서가 된다</b>md · docx · pptx · xlsx · hwpx · pdf · 원본은 첨부로 · 넣을 곳 — ${esc(target.label)}
+    <div class="lks"><label>파일 고르기<input type="file" multiple id="fileIn" data-t="fileIn"></label> · <label>폴더 고르기<input type="file" webkitdirectory directory multiple id="dirIn" data-t="dirIn"></label></div></div>
+   <p class="gl">${team ? 'md · docx · pptx · xlsx 는 바로 바꾼다 — hwpx · pdf 는 내 PC 프로그램이 있는 PC 에서 · 원본은 먼저 첨부로.' : 'md · docx · pptx · xlsx 는 바로 바꾼다 — hwpx · pdf 는 원본을 첨부로 두었다가 바꾼다.'} 폴더 안의 짜임은 그대로 · 한 번에 300 파일 · 200MB 까지.</p>
+   <div class="rh">최근 넣은 것</div><ul class="plain rec" data-t="recent">${S.imports.map((x) => `<li class="${x.cls || ''}" data-t="impRow"><span class="tm">${esc(x.tm)}</span><span class="tx">${esc(x.title)}<small data-t="impMsg">${esc(x.msg)}</small></span>${x.go ? `<a class="lk" data-a="impGo" data-k="${esc(x.go.kn)}" data-d="${esc(x.go.doc)}">보기</a>` : ''}</li>`).join('') || '<li class="muted">아직 없다</li>'}</ul>
+  </div></div></div>`
+  return { crumb: '자료 가져오기', main }
+}
+async function fetchSrc(id) {
+  const [kn, name] = id.split('|')
+  S.srcRun[id] = 'run'
+  render()
+  try {
+    const r = (await postJSON(`/api/k/${encodeURIComponent(kn)}/sources/run`, { name }))[0] || {}
+    S.srcRun[id] = r.state === 'changed' ? `가져왔다 — 바뀐 표 ${r.n} · ${nowHm()}` : r.state === 'stopped' ? '멈췄다 — 한꺼번에 크게 바뀌었다' : r.state === 'failed' ? '못 가져왔다 — ' + (r.why || '') : `가져왔다 — 그대로 · ${nowHm()}`
+    if (r.state === 'changed') { forgetKn(kn); delete S.cache.today }
+  } catch (e) { S.srcRun[id] = '못 가져왔다 — ' + e.message }
+  delete S.cache.sources
+  loadStops()
+  render()
+}
+async function addSrc(ask) {
+  const pr = parseSrc(S.srcDraft)
+  if (!pr || pr.bad || pr.db) return
+  const card = { name: pr.name, at: pr.at, kind: pr.src, every: pr.every, rules: [{ rule: 'deps', into: { doc: pr.doc } }] }
+  try {
+    if (ask) { await postJSON(`/api/k/${encodeURIComponent(pr.kn)}/sources/request`, card); toast('관리자에게 부탁했다 — 관리 화면에 보인다'); S.srcDraft = ''; render(); return }
+    toast('가져오는 중…')
+    const r = await postJSON(`/api/k/${encodeURIComponent(pr.kn)}/sources`, card)
+    S.srcDraft = ''
+    delete S.cache.sources
+    forgetKn(pr.kn)
+    const st = r.run && r.run[0]
+    toast(st && st.state === 'changed' ? `더했다 — ${esc(pr.name)} · 처음 가져온 표 ${st.n}` : `더했다 — ${esc(pr.name)}`)
+    render()
+  } catch (e) { toast(esc(e.message), 7000) }
+}
+const fileB64 = (f) => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1] || ''); r.onerror = () => no(r.error); r.readAsDataURL(f) })
+async function takeFiles(files) {
+  files = [...files]
+  if (!files.length) return
+  let t = impTarget()
+  try {
+    if (!t.kn) { const r = await postJSON('/api/knowledge/add', { kind: 'new', name: '받은편지함' }); S.kns = await getJSON('/api/knowledge'); t = { kn: r.id, label: '받은편지함' } }
+  } catch (e) { toast(esc(e.message)); return }
+  const name = (KN(t.kn) || {}).name || t.kn
+  const tops = [...new Set(files.map((f) => (f.webkitRelativePath || f._rel || '').split('/')).filter((p) => p.length > 1).map((p) => p[0]))]
+  const row = { tm: nowHm(), title: tops.length ? tops[0] + ' 폴더 → ' + name + ' › ' + tops[0] : files.length === 1 ? files[0].name : `파일 ${files.length}개 → ${name}`, msg: '바꾸는 중…', cls: 'run' }
+  S.imports.unshift(row)
+  render()
+  try {
+    const list = await Promise.all(files.map(async (f) => ({ path: f.webkitRelativePath || f._rel || f.name, b64: await fileB64(f) })))
+    const r = await postJSON(`/api/k/${encodeURIComponent(t.kn)}/import`, { files: list })
+    const s = r.summary
+    if (files.length === 1 && r.rows[0]) {
+      const x = r.rows[0]
+      row.msg = x.msg
+      row.cls = x.kind === 'fail' || x.kind === 'skip' ? 'bad' : ''
+      if (x.kind === 'doc') { row.title = files[0].name + ' → ' + name + ' › ' + x.doc; row.go = { kn: t.kn, doc: x.doc } }
+    } else {
+      row.msg = `${tops[0] ? tops[0] + ' 폴더 — ' : ''}문서 ${s.doc}${s.record ? ' · 기록 ' + s.record : ''} · 첨부 ${s.att}${s.same ? ' · 그대로 ' + s.same : ''}${s.fail ? ' · 바꾸지 못한 파일 ' + s.fail : ''} · 넣지 않은 파일 ${s.skip}`
+      row.cls = s.skip || s.fail ? 'bad' : ''
+    }
+    row.tm = nowHm()
+    forgetKn(t.kn)
+    delete S.cache.today
+    S.kns = await getJSON('/api/knowledge')
+  } catch (e) { row.msg = e.message; row.cls = 'bad' }
+  render()
+}
+function readEntries(entry, p, out) {
+  return new Promise((res) => {
+    if (entry.isFile) entry.file((f) => { f._rel = p + f.name; out.push(f); res() }, () => res())
+    else if (entry.isDirectory) { const rd = entry.createReader(), all = []; const next = () => rd.readEntries((es) => { if (!es.length) Promise.all(all.map((e) => readEntries(e, p + entry.name + '/', out))).then(res); else { all.push(...es); next() } }, () => res()); next() }
+    else res()
+  })
+}
+
+// ── 지식 추가(목업 M3) ──
+function parseAdd(t) {
+  t = String(t || '').trim()
+  if (!t) return null
+  if (/^(postgres(ql)?|mysql|oracle|mssql):\/\//i.test(t) || /\.git$/i.test(t) || /^git@/i.test(t)) return { kind: 'src' }
+  if (/^https?:\/\//i.test(t)) {
+    let u
+    try { u = new URL(t) } catch { return { kind: 'bad' } }
+    const slug = decodeURIComponent((u.pathname.match(/^\/r\/([^/?#]+)/) || u.hash.match(/^#~([^/]+)/) || [])[1] || '')
+    if (!slug) return { kind: 'bad' }
+    const id = slug.replace(/_wiki$/i, '')
+    const k = S.kns.find((x) => x.id.toLowerCase() === id.toLowerCase())
+    return { kind: 'team', k: u.host === location.host && k ? k.id : null, slug, other: u.host !== location.host }
+  }
+  if (/^[A-Za-z]:\\/.test(t) || /^\/[^\s]/.test(t)) { const nm = t.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || t; return { kind: 'folder', path: t, name: nm } }
+  return { kind: 'new', name: t }
+}
+const pcRoot = () => (S.me.root || '').replace(/[\\/]+$/, '')
+function addHeard() {
+  const hasPc = !isTeam(), pr = parseAdd(S.addDraft)
+  let heard = '', ok = false
+  if (pr) {
+    if (pr.kind === 'src') heard = '<div class="heard bad" data-t="addHeard"><span class="kt src">코드 · DB</span><span>코드 · DB 는 자료 가져오기에서 더한다 <a data-a="addToImport" data-t="addToImport">→</a><span class="sub2">지식 안에 표를 저절로 채우는 일이라 여기서는 더하지 않는다</span></span></div>'
+    else if (pr.kind === 'team') {
+      if (pr.k) { ok = true; heard = `<div class="heard" data-t="addHeard"><span class="kt team">팀</span><span><b>팀 지식 들어가기</b> — ${esc(KN(pr.k).name)} · 이미 목록에 있다 — 그 지식으로 간다</span></div>` }
+      else heard = `<div class="heard bad" data-t="addHeard"><span class="kt team">팀</span><span>${pr.other ? '다른 kmd 의 팀 지식 — 이 PC 에서 설치 한 줄(kmd connect)로 잇는다' : esc(pr.slug) + ' — 이 kmd 에 그런 지식이 없다'}</span></div>`
+    } else if (pr.kind === 'folder') {
+      if (!hasPc) heard = '<div class="heard bad" data-t="addHeard"><span class="kt me">내 PC</span><span>경로는 내 PC 프로그램이 연다 — 이 PC 에는 없다<span class="sub2">새 이름을 붙이면 팀 서버 안 내 지식이 선다</span></span></div>'
+      else { ok = true; heard = `<div class="heard" data-t="addHeard"><span class="kt me">내 PC</span><span><b>내 폴더를 지식으로 — 그 자리에서 따라간다</b> · ${esc(pr.name)}<span class="sub2">파일은 그 자리 그대로 · 복사하지 않는다</span></span></div>` }
+    } else if (pr.kind === 'new') { ok = true; heard = `<div class="heard" data-t="addHeard"><span class="kt me">${hasPc ? '내 PC' : '개인'}</span><span><b>새 지식 만들기</b> — ${hasPc ? esc(pcRoot() + '\\' + pr.name) + ' · 나만' : '팀 서버 안 내 지식 「' + esc(pr.name) + '」 · 나만(관리자는 볼 수 있다)'}</span></div>` }
+    else heard = '<div class="heard bad" data-t="addHeard">알아듣지 못했다 — 이름 · 내 PC 폴더 경로 · 팀 지식 주소를 붙인다</div>'
+  }
+  return { heard, btn: `<button class="btn pri" data-a="doAdd" data-t="addBtn"${ok ? '' : ' disabled'}>추가</button>`, ok }
+}
+function viewAdd() {
+  const hasPc = !isTeam(), ah = addHeard(), ex = location.origin + '/r/' + ((S.kns.find((k) => !k.private) || S.kns[0] || {}).id || 'dpms')
+  return { crumb: '지식 추가', main: `<div style="max-width:820px"><div class="big">지식 추가</div><p class="lead">새 이름 · 내 PC 폴더 · 팀 지식 주소 — 무엇이든 붙인다. kmd 가 알아서 가른다.</p>
+  ${S.addMsg ? `<div class="callout ${S.addMsg.cls} stop" data-t="addMsg"><i></i><span>${S.addMsg.t}</span></div>` : ''}
+  <div class="paste"><input class="inp mono" id="addIn" data-in="add" data-t="addIn" value="${esc(S.addDraft)}" placeholder="예: 회의 · D:\\옛자료 · ${esc(ex)}" autocomplete="off"><span id="addBtnBox">${ah.btn}</span></div><div id="addHeardBox">${ah.heard}</div>
+  <div class="card" style="margin-top:16px"><div class="ch">이렇게도 붙인다</div><div class="cb" style="padding:2px 14px"><ul class="plain">
+   <li><code data-a="fillAdd" data-v="회의" style="cursor:pointer">회의</code> → <b>새 지식 만들기</b> — ${hasPc ? esc(pcRoot() + '\\회의') + ' · 나만' : '팀 서버 안 내 지식'}</li>
+   <li><code data-a="fillAdd" data-v="D:\\옛자료" style="cursor:pointer">D:\\옛자료</code> → <b>내 폴더를 지식으로</b> — 그 자리에서 따라간다 · 복사하지 않는다</li>
+   <li><code data-a="fillAdd" data-v="${esc(ex)}" style="cursor:pointer">${esc(ex)}</code> → <b>팀 지식 들어가기</b></li>
+   <li><code data-a="fillAdd" data-v="git@gitlab.team.local:dpms/dpms-batch.git" style="cursor:pointer">git@gitlab.team.local:dpms/dpms-batch.git</code> → 코드 · DB 는 <a data-a="nav" data-s="import">자료 가져오기</a>에서</li>
+  </ul></div><div class="cf">예를 누르면 칸에 들어간다</div></div></div>` }
+}
+async function doAdd() {
+  const pr = parseAdd(S.addDraft)
+  if (!pr) return
+  S.addMsg = null
+  if (pr.kind === 'team') { if (pr.k) { S.addDraft = ''; go({ scr: 'docs', kn: pr.k }) } return }
+  if (pr.kind !== 'new' && pr.kind !== 'folder') return
+  try {
+    const r = await postJSON('/api/knowledge/add', pr.kind === 'new' ? { kind: 'new', name: pr.name } : { kind: 'folder', dir: pr.path })
+    S.kns = await getJSON('/api/knowledge')
+    S.addDraft = ''
+    delete S.cache.today
+    S.addMsg = { cls: '', t: `<b>${pr.kind === 'new' && isTeam() ? '만들었다' : '추가했다'} — ${esc(r.name)}</b>${isTeam() ? ' · 팀 서버 안 내 지식' : r.dir ? ' · ' + esc(r.dir) : ''} <a data-a="nav" data-s="home">지식 목록 ›</a>` }
+  } catch (e) { S.addMsg = { cls: 'gray', t: `<b>${esc(e.message)}</b>` } }
+  render()
+}
+
+// ── 보내기(목업 M10) ──
+const sendOf = (k) => need('send:' + k, `/api/k/${encodeURIComponent(k)}/send`)
+const sendKns = () => S.kns.filter((k) => k.dests && k.dests.length)
+function viewSend() {
+  if (S.cand === null) setTimeout(loadCand)
+  const ks = sendKns(), qs = ks.map((k) => ({ k, v: sendOf(k.id) }))
+  const loading = qs.some((x) => !x.v)
+  const on = [], off = [], wait = [], log = []
+  for (const { k, v } of qs) {
+    if (!v || v.error) continue
+    for (const q of v.items) (q.on ? on : off).push({ ...q, kn: k.id, from: k.name, to: v.dests.map((d) => d.kn) })
+    for (const w of v.wait) wait.push({ ...w, from: k.name })
+    for (const l of v.log) log.push({ ...l, from: k.name })
+  }
+  log.sort((a, b) => String(b.at).localeCompare(String(a.at)))
+  const dests = [...new Set(on.flatMap((q) => q.to))]
+  const dn = dests.map((d) => (KN(d) || {}).name || d).join(' · ') || '팀'
+  const dnK = /지식$/.test(dn) ? dn : dn + ' 지식'
+  const cand = S.cand || []
+  const tidyAt = dests.length === 1 && KN(dests[0]) && KN(dests[0]).tidyAt
+  let top = ''
+  if (wait.length) top += `<div class="callout gray stop" data-t="sendWait"><i></i><span><b>팀 서버에 닿지 않는다</b> — 닿으면 저절로 보낸다 · ${wait.reduce((a, w) => a + w.n, 0)}개 · ${esc(whenTxt(wait[0].at))} 에 누른 것</span></div>`
+  const li = (q) => `<li data-t="sendItem"><span style="display:flex;flex-direction:column;min-width:0"><b>${esc(q.isNew ? q.title : q.title + ' — ' + q.heads.join(' · '))}</b><small class="muted">${esc(q.from)}에서 · ${esc(whenTxt(q.when))}</small></span><span class="r small muted" style="white-space:nowrap">${q.isNew ? '새 문서로' : '고친 것 → ' + esc(q.title)}</span><button class="kebab" data-a="menu" data-m="sq:${esc(q.kn + '|' + q.path)}" title="이번에 빼기">⋯${S.menu === 'sq:' + q.kn + '|' + q.path ? `<div class="menu" style="right:0;top:28px"><div class="mi" data-a="dropSend" data-k="${esc(q.kn)}" data-p="${esc(q.path)}">이번에 빼기<small>다음에 다시 모인다</small></div></div>` : ''}</button></li>`
+  const list = on.length + cand.filter((c) => c.on).length ? `<div class="card"><div class="ch"><span class="kt team">팀</span>${esc(dnK)}으로 <span class="chip c-pend">${on.length + cand.filter((c) => c.on).length}</span></div><div class="cb" style="padding:2px 14px 8px"><ul class="plain">${on.map(li).join('')}${cand.filter((c) => c.on).map((c) => `<li data-t="sendItem"><span style="display:flex;flex-direction:column;min-width:0"><b>${esc(c.title)}</b><small class="muted">받은편지함에서 · 메모</small></span><span class="r small muted" style="white-space:nowrap">→ ${esc(c.name || c.to)}</span></li>`).join('')}</ul>
+   ${cand.some((c) => !c.on) ? `<div style="border-top:1px solid var(--border);margin-top:4px;padding-top:8px;font-size:12px;color:var(--text-2)"><div class="muted">받은편지함에서 — 넣으면 같이 간다</div>${cand.filter((c) => !c.on).map((c) => `<div class="row" style="margin-top:4px"><span class="kn none">메모</span><b>${esc(c.title)}</b><span class="muted">→ ${esc(c.name || c.to)}</span><a class="lk r" data-a="addCand" data-id="${esc(c.record)}" data-t="addCand">보낼 것에 넣기</a></div>`).join('')}</div>` : ''}
+   ${off.length ? `<div class="small muted" style="margin-top:8px">이번에 뺀 것 ${off.length} — ${off.map((q) => esc(q.title) + ` <a data-a="undropSend" data-k="${esc(q.kn)}" data-p="${esc(q.path)}">다시 넣기</a>`).join(' · ')}</div>` : ''}
+  </div></div>
+  <div class="row" style="margin:12px 0 0;padding-top:10px;border-top:1px solid var(--border)"><span class="muted small">${tidyAt ? '오늘 밤 ' + esc(tidyAt) + ' 정리 때 문서에 들어간다' : '받는 지식의 정리 때 문서에 들어간다'}</span><button class="btn pri r" data-a="doSend" data-t="sendBtn"${wait.length || S.sending ? ' disabled' : ''}>${on.length + cand.filter((c) => c.on).length}개 보내기</button></div>`
+    : loading ? loadingHtml : `<p class="muted" data-t="sendEmpty">보낼 것이 없다 — 내 지식에서 고치면 여기에 저절로 모인다.</p>${off.length ? `<div class="small muted">이번에 뺀 것 ${off.length} — ${off.map((q) => esc(q.title) + ` <a data-a="undropSend" data-k="${esc(q.kn)}" data-p="${esc(q.path)}">다시 넣기</a>`).join(' · ')}</div>` : ''}`
+  const destRows = S.kns.filter((k) => k.role === '주인' || !isTeam()).map((k) => `<div class="row" style="margin-top:6px" data-t="destRow"><span style="min-width:110px"><b>${esc(k.name)}</b></span><input class="inp mono" style="flex:1" id="dest-${esc(k.id)}" value="${esc((k.dests || []).join(', '))}" placeholder="보낼 지식 — 예: dpms · 다른 kmd 면 http://kmd.team.local/r/dpms"><a class="lk" data-a="setDests" data-k="${esc(k.id)}">저장</a></div>`).join('')
+  return { crumb: '보내기', main: `<div style="max-width:720px"><div class="big">보내기</div>${on.length ? `<p class="lead">바뀐 문서 ${on.length}개를 골라 두었다 — 누르면 ${esc(dnK)}으로 간다.</p>` : ''}
+  ${S.stops.filter((s) => s.level === 'warn' && s.kind !== 'send').map(stopHtml).join('')}${top}${list}
+  <div class="feed" style="margin-top:14px" data-t="sentFeed"><div class="fh">보낸 것</div>${log.map((x) => `<div class="fi" data-t="sentRow"><div class="ln"><span class="tm">${esc(whenTxt(x.at))}</span><span class="dot ${x.late || x.wait ? 'acc' : ''}"></span><span class="tx">${esc(x.to.map((d) => (KN(d) || {}).name || d).join(' · '))}로 ${x.n}개를 ${x.wait ? '보내려 했다' : '보냈다'}${x.late ? `<small>${esc(whenTxt(x.late))} 에 누른 것</small>` : x.wait ? '<small>닿으면 저절로 보낸다</small>' : ''}</span></div></div>`).join('') || '<div class="fi"><div class="ln"><span class="tx muted">아직 없다</span></div></div>'}</div>
+  <details class="more"${ks.length ? '' : ' open'}><summary>자세히</summary><div class="in">${esc(S.me.user)} 이름으로 간다${isTeam() ? '' : ' — 이 PC 가 설치 때 팀에 이어진 대로'}. 정리 때 kmd 가 바로 문서에 넣고(누구나 [지금 정리]), 값이 바뀌면 나에게 「오늘 바뀐 것」 노란 줄로 알린다. 내 글은 그대로다.<div class="rh" style="margin-top:10px">보낼 곳</div>${destRows || '<span class="muted">내 지식이 없다</span>'}</div></details></div>` }
+}
+async function loadCand() {
+  const ib = S.kns.find((k) => k.name === '받은편지함')
+  if (!ib || S.cand) return
+  S.cand = []
+  try { S.cand = (await postJSON(`/api/k/${encodeURIComponent(ib.id)}/inbox/tidy`, { dry: true })).candidates.map((c) => ({ ...c, on: false, from: ib.id })) } catch {}
+  render()
+}
+async function doSend() {
+  S.sending = true
+  render()
+  let n = 0, w = 0
+  try {
+    for (const k of sendKns()) {
+      const v = S.cache['send:' + k.id]
+      if (!v || v.error || !v.items.some((q) => q.on)) continue
+      const r = await postJSON(`/api/k/${encodeURIComponent(k.id)}/send`, {})
+      n += r.sent
+      w += r.wait
+    }
+    for (const c of (S.cand || []).filter((x) => x.on)) {
+      await postJSON(`/api/k/${encodeURIComponent(c.from)}/inbox/send`, { record: c.record, to: c.to })
+      n++
+    }
+    S.cand = null
+    toast(w ? `닿지 않는다 — ${w}개는 닿으면 저절로 보낸다` : `보냈다 — ${n}개 · 정리 때 문서에 들어간다`)
+  } catch (e) { toast(esc(e.message), 7000) }
+  S.sending = false
+  for (const key of Object.keys(S.cache)) if (key.startsWith('send:')) delete S.cache[key]
+  delete S.cache.today
+  S.kns = await getJSON('/api/knowledge').catch(() => S.kns)
+  loadStops()
+  render()
+}
+
 // ───────────── 이벤트 ─────────────
 function openDocAt(k, d, h, q) {
   openTab({ kind: 'doc', kn: k, ref: d, hl: h || null, q: q || null })
@@ -1176,6 +1462,32 @@ function openDocAt(k, d, h, q) {
   if (!h) scrollTopMain()
 }
 const ACT = {
+  fetchSrc: (el) => fetchSrc(el.dataset.id),
+  fetchAll: async () => { for (const s of (sourcesOf() || {}).items || []) await fetchSrc(s.kn + '|' + s.name) },
+  setEvery: async (el, ev) => {
+    if (ev.target.closest('[data-stop]')) return
+    const [kn, name] = el.dataset.id.split('|'), at = ($('#evAt') || {}).value || '06:00'
+    const every = el.dataset.v === 'daily' ? 'daily ' + at : el.dataset.v
+    S.menu = null
+    try { await postJSON(`/api/k/${encodeURIComponent(kn)}/sources/every`, { name, every }); delete S.cache.sources; toast('언제를 바꿨다 — ' + everyTxt(every)) } catch (e) { toast(esc(e.message)) }
+    render()
+  },
+  addSrc: () => addSrc(false),
+  askSrc: () => addSrc(true),
+  impGo: (el) => { openTab({ kind: 'doc', kn: el.dataset.k, ref: el.dataset.d }, { view: 'docs' }); render() },
+  fillAdd: (el) => { S.addDraft = el.dataset.v; S.addMsg = null; S._focus = 'addIn'; render() },
+  addToImport: () => { S.srcDraft = S.addDraft; S.addDraft = ''; go({ scr: 'import' }) },
+  doAdd: () => doAdd(),
+  dropSend: async (el) => { S.menu = null; await postJSON(`/api/k/${encodeURIComponent(el.dataset.k)}/send/drop`, { path: el.dataset.p, on: false }).catch((e) => toast(esc(e.message))); delete S.cache['send:' + el.dataset.k]; S.kns = await getJSON('/api/knowledge'); render() },
+  undropSend: async (el) => { await postJSON(`/api/k/${encodeURIComponent(el.dataset.k)}/send/drop`, { path: el.dataset.p, on: true }).catch((e) => toast(esc(e.message))); delete S.cache['send:' + el.dataset.k]; S.kns = await getJSON('/api/knowledge'); render() },
+  addCand: (el) => { const c = (S.cand || []).find((x) => x.record === el.dataset.id); if (c) c.on = true; render() },
+  doSend: () => doSend(),
+  setDests: async (el) => {
+    const k = el.dataset.k, raw = ($('#dest-' + CSS.escape(k)) || {}).value || ''
+    const dests = raw.split(/[,\s]+/).filter(Boolean).map((x) => { const m = x.match(/^(https?:\/\/[^/]+)(?:\/r)?\/([^/?#]+)/i); return m ? { kn: decodeURIComponent(m[2]).replace(/_wiki$/i, ''), url: m[1] } : { kn: x } })
+    try { await postJSON(`/api/k/${encodeURIComponent(k)}/send/dests`, { dests }); S.kns = await getJSON('/api/knowledge'); delete S.cache['send:' + k]; toast(dests.length ? '보낼 곳을 정했다 — 이제부터 고친 것이 모인다' : '보낼 곳을 뺐다') } catch (e) { toast(esc(e.message)) }
+    render()
+  },
   toggleToday: (el) => { S.openToday = S.openToday === el.dataset.id ? null : el.dataset.id; render() },
   todayGo: (el) => { const x = (S.cache.today || []).find((e) => e.id === el.dataset.id); if (x && x.go) { openTab({ kind: 'doc', kn: x.go.kn, ref: x.go.doc, hl: x.go.hl || null }, { view: 'docs' }); if (x.go.hl) S._lit = true; render() } },
   revertToday: async (el) => {
@@ -1286,6 +1598,23 @@ document.addEventListener('input', (ev) => {
   if (k === 'cmd') { S.cmd.q = t.value; S.cmd.sel = 0; $('#cmdBody').innerHTML = cmdBody() }
   if (k === 'itemQ') { S.iq = t.value; $('#itemListBody').innerHTML = itemListBody(S.route.kn) }
   if (k === 'gQ') { S.g.f.q = t.value; gHighlight() }
+  if (k === 'src') { S.srcDraft = t.value; const h = srcHeard(); $('#srcHeardBox').innerHTML = h.heard; $('#srcBtnBox').innerHTML = h.btn }
+  if (k === 'add') { S.addDraft = t.value; const h = addHeard(); $('#addHeardBox').innerHTML = h.heard; $('#addBtnBox').innerHTML = h.btn; const m = $('[data-t=addMsg]'); if (m) { S.addMsg = null; m.remove() } }
+})
+// 파일 · 폴더 — 고르기 · 끌어다 놓기
+document.addEventListener('change', (ev) => { const t = ev.target; if (t.id === 'fileIn' || t.id === 'dirIn') { takeFiles(t.files); t.value = '' } })
+document.addEventListener('dragover', (ev) => { const d = ev.target.closest && ev.target.closest('#drop'); if (d) { ev.preventDefault(); d.classList.add('over') } })
+document.addEventListener('dragleave', (ev) => { const d = ev.target.closest && ev.target.closest('#drop'); if (d) d.classList.remove('over') })
+document.addEventListener('drop', async (ev) => {
+  const d = ev.target.closest && ev.target.closest('#drop')
+  if (!d) return
+  ev.preventDefault()
+  d.classList.remove('over')
+  const items = [...(ev.dataTransfer.items || [])].map((i) => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean)
+  if (!items.length) { takeFiles(ev.dataTransfer.files); return }
+  const out = []
+  await Promise.all(items.map((e) => readEntries(e, '', out)))
+  takeFiles(out)
 })
 function listKeys(ev, st, bodyId, bodyFn, pick) {
   if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
@@ -1311,6 +1640,8 @@ document.addEventListener('keydown', (ev) => {
   if (ev.altKey && !ctrl && (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') && !/^(TEXTAREA|INPUT)$/.test(ev.target.tagName)) { ev.preventDefault(); histGo(ev.key === 'ArrowLeft' ? -1 : 1); return }
   if (ev.key === 'Escape') { if (S.qo) S.qo = null; else if (S.cmd) S.cmd = null; else if (S.pal) S.pal = null; else if (S.menu) S.menu = null; else return; render() }
   if (ev.key === 'Enter' && !ev.isComposing && ev.target.id === 'palIn') { const h = $('#app .hit'); if (h) h.click() }
+  if (ev.key === 'Enter' && !ev.isComposing && ev.target.id === 'addIn') { ev.preventDefault(); doAdd() }
+  if (ev.key === 'Enter' && !ev.isComposing && ev.target.id === 'srcIn') { ev.preventDefault(); const b = $('#srcBtnBox button'); if (b && !b.disabled) b.click() }
 })
 
 // 아래 줄 시계 — 분마다
