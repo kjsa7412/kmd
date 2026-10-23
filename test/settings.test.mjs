@@ -82,35 +82,32 @@ test('정리 전용 로그인 — 비밀번호 한 번 더 → 주소 → 번호
   assert.equal(ov.claude.token, true)
 })
 
-test('이 PC 의 Claude 로그인 — 프로그램 안에서: 주소 · 콘솔 글 → 받은 번호 → 열쇠는 비밀에만 · 이 프로그램의 Claude 에 쓴다', async () => {
+test('이 PC 의 Claude 로그인 — 「kmd — Claude 로그인」 창(claude auth login)을 띄우고 · 작은 부르기로 확인한다 · 팀에는 없다', async () => {
   const root = path.join(tmp, 'pc-login')
   fs.mkdirSync(root, { recursive: true })
-  const plogs = []
-  const pc = await startServer({ root, mode: 'pc', user: 'kim', port: 0, log: (...a) => plogs.push(a.join(' ')), scryptN: 1 << 15 })
-  const before = process.env.CLAUDE_CODE_OAUTH_TOKEN
+  const pc = await startServer({ root, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
+  const fake = process.env.KMD_CLAUDE
+  process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
   try {
     const H = { 'content-type': 'application/json', authorization: `Bearer ${await pc.auth.deviceKeyFor(pc.pcUser, { host: 'T' })}` }
     const post = (p, b) => fetch(pc.url + p, { method: 'POST', headers: H, body: JSON.stringify(b || {}) })
-    const st = await (await post('/api/claude/login/start')).json()
-    assert.match(st.url, /^https:\/\/claude\.ai\/oauth\/authorize/)
-    assert.match(st.log, /Paste code here/, '콘솔 글을 화면에')
-    const bad = await post('/api/claude/login/code', { code: '' })
-    assert.equal(bad.status, 400)
-    await post('/api/claude/login/start')
-    const done = await post('/api/claude/login/code', { code: 'abc#123' })
-    const body = await done.text()
-    assert.equal(done.status, 200)
-    assert.ok(!body.includes('sk-ant'), '응답에 열쇠 0')
-    assert.equal(await getSecret(path.join(root, '.kmd'), 'claude-token'), 'sk-ant-oat01-TESTTOKEN0123456789abcdefABCDEF')
-    assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN, 'sk-ant-oat01-TESTTOKEN0123456789abcdefABCDEF', '이 프로그램이 부르는 Claude 에')
-    assert.ok(!plogs.join('\n').includes('sk-ant'), '로그에 열쇠 0')
-    const set = await (await fetch(pc.url + '/api/settings', { headers: H })).json()
-    assert.equal(set.claude.token, true)
+    assert.deepEqual(await (await post('/api/claude/login')).json(), { opened: true })
+    // 로그인이 끝났다 — 확인이 「login」 · 설정의 Claude 연결이 쉼으로
+    process.env.FAKE_CLAUDE_MODE = 'logout'
+    assert.deepEqual(await (await post('/api/claude/check')).json(), { ok: false, reason: 'login' })
+    let set = await (await fetch(pc.url + '/api/settings', { headers: H })).json()
+    assert.equal(set.claude.worker.ok, false)
+    delete process.env.FAKE_CLAUDE_MODE
+    // 창에서 로그인했다 — 확인이 됨 · 쉼 줄이 걷힌다
+    assert.deepEqual(await (await post('/api/claude/check')).json(), { ok: true, reason: null })
+    set = await (await fetch(pc.url + '/api/settings', { headers: H })).json()
+    assert.equal(set.claude.worker.ok, true)
     // 팀 서버에는 이 길이 없다
-    assert.equal((await fetch(s.url + '/api/claude/login/start', { method: 'POST', headers: { 'content-type': 'application/json', cookie: me.cookie }, body: '{}' })).status, 403)
+    assert.equal((await fetch(s.url + '/api/claude/check', { method: 'POST', headers: { 'content-type': 'application/json', cookie: me.cookie }, body: '{}' })).status, 403)
   } finally {
-    if (before == null) delete process.env.CLAUDE_CODE_OAUTH_TOKEN
-    else process.env.CLAUDE_CODE_OAUTH_TOKEN = before
+    delete process.env.FAKE_CLAUDE_MODE
+    if (fake == null) delete process.env.KMD_CLAUDE
+    else process.env.KMD_CLAUDE = fake
     await pc.close()
   }
 })

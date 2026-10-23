@@ -1807,23 +1807,41 @@ function setLeft(st) {
 function claudeCard(st) {
   const c = st.claude, w = c.worker
   if (!isTeam()) {
-    // 로그인 흐름 — 프로그램 안에서: 시작 → 주소 열기 · 콘솔 글 → 받은 번호 붙여 넣기 → 끝(열쇠는 이 PC 비밀에만)
+    // 로그인 — 「kmd — Claude 로그인」 창(claude auth login)이 브라우저를 연다 · 화면은 그 창을 알려 주고 저절로 확인한다
     const L = S.pcLogin || null
     let flow = ''
-    if (L && L.step === 'wait') flow = '<div class="flow"><span class="prog" data-t="claudeWait"><i></i>Claude Code 의 로그인을 띄우는 중…</span></div>'
-    else if (L && L.step === 'code') flow = `<div class="flow" data-t="claudeFlow"><p style="margin:0 0 6px"><b>1. 이 주소를 열어 Claude 에 들어간다</b></p><div class="path"><span class="mono" data-t="claudeUrl" style="word-break:break-all">${esc(L.url)}</span><a class="r lk" href="${esc(L.url)}" target="_blank" rel="noopener" data-t="claudeOpen">열기</a><a class="lk" data-a="pcLoginCopy" style="margin-left:10px">복사</a></div>
-      <p style="margin:12px 0 6px"><b>2. 들어가면 보이는 번호를 붙여 넣는다</b></p><div class="row"><input class="inp mono" id="pcCode" data-in="pcCode" data-t="claudeCode" value="${esc(L.code || '')}" placeholder="번호 붙여 넣기" autocomplete="off" style="flex:1"><button class="btn pri" data-a="pcLoginDone" data-t="claudeDone" style="width:auto">마치기</button><a class="lk" data-a="pcLoginCancel" style="margin-left:6px">그만두기</a></div>
-      ${L.err ? `<div class="callout warn" style="margin:8px 0 0"><i></i><span>${esc(L.err)}</span></div>` : ''}
-      <details class="more" style="margin-top:8px"${L.err ? ' open' : ''}><summary>Claude Code 가 쓴 글</summary><pre class="mono small" data-t="claudeLog" style="white-space:pre-wrap;margin:6px 0 0;max-height:180px;overflow:auto">${esc(L.log || '')}</pre></details></div>`
-    const has = c.token || (w && w.ok)
-    const state = w && w.ok === false ? 'Claude 가 쉬고 있다 — ' + (w.reason === 'limit' ? '사용 한도' : '다시 로그인한다') : c.token ? '로그인됨 — 이 프로그램 안에서 받은 로그인' : w && w.ok ? '로그인됨 — 이 PC 의 Claude Code 로그인' : '아직 로그인하지 않았다'
-    const row = `<div class="set"><span class="tx"><b data-t="claudeState">${state}</b><small>파일 · 기록을 Claude 로 다듬어 문서에 넣는다(안 되면 규칙으로) · 이번 달 ${c.month}건</small></span>${L ? '' : `<button class="btn${has && !(w && w.ok === false) ? '' : ' pri'}" data-a="pcLoginStart" data-t="claudeLogin" style="width:auto">${has ? '다시 로그인' : 'Claude 로그인'}</button>`}<button class="kebab${S.menu === 'claude' ? ' on' : ''}" data-a="menu" data-m="claude" data-t="claudeKebab" title="쓰지 않기 · 창으로 열기">⋯${S.menu === 'claude' ? '<div class="menu" style="right:0;top:28px"><div class="mi" data-a="claudeLogin" data-t="claudeWindow">명령 창으로 로그인<small>창을 따로 띄운다 — 이 PC 의 Claude Code 에</small></div><div class="mi" data-a="claudeOff" data-t="claudeOff">Claude 쓰지 않기<small>규칙으로 되는 것만</small></div></div>' : ''}</button></div>`
-    return `<div class="card" data-t="claudeCard" style="overflow:visible"><div class="ch">Claude 연결 <small>이 프로그램이 쓰는 Claude 로그인</small></div><div class="cb" style="padding:2px 14px 10px">${row}${flow}</div><div class="cf">로그인은 이 화면에서 끝난다 — 주소를 열어 들어가고 받은 번호를 붙여 넣는다 · 열쇠는 이 PC 의 비밀 저장소에만 두고 화면 · 로그에 남기지 않는다</div></div>`
+    if (L) flow = `<div class="flow" data-t="claudeFlow"><p style="margin:0 0 6px"><b>작업 표시줄의 「kmd — Claude 로그인」 창</b>이 떴다 — 그 창이 브라우저를 연다. 브라우저에서 Claude 에 들어가면 끝이다.</p><p class="small muted" style="margin:0 0 8px">창이 안 보이면 작업 표시줄에서 그 창을 누른다 · 브라우저가 안 열리면 그 창에 나온 주소를 연다 · 다 되면 그 창은 닫아도 된다</p><div class="row"><span class="prog" data-t="claudeWait"><i></i>${L.checking ? '로그인을 확인하는 중…' : L.last ? esc(L.last) : '로그인을 기다린다 — 몇 초마다 저절로 확인한다'}</span><button class="btn sm" data-a="pcLoginCheck" data-t="claudeCheck" style="margin-left:auto">지금 확인</button><a class="lk" data-a="pcLoginCancel" style="margin-left:10px">그만두기</a></div></div>`
+    const ok = w && w.ok, bad = w && w.ok === false
+    const state = bad ? (w.reason === 'limit' ? 'Claude 사용 한도에 닿았다' : '로그인이 끝났다 — 다시 로그인한다') : ok ? '로그인됨 — 이 PC 의 Claude Code' : '아직 확인 전 — [로그인 확인] 으로 본다'
+    const row = `<div class="set"><span class="tx"><b data-t="claudeState">${state}</b><small>파일 · 기록을 Claude 로 다듬어 문서에 넣는다(안 되면 규칙으로) · 이번 달 ${c.month}건 · 로그인은 이 PC 의 Claude Code 로그인</small></span>${L ? '' : `<button class="btn" data-a="pcLoginCheck" data-t="claudeCheck" style="width:auto">로그인 확인</button><button class="btn${ok ? '' : ' pri'}" data-a="pcLoginStart" data-t="claudeLogin" style="width:auto">${ok ? '다시 로그인' : 'Claude 로그인'}</button>`}<button class="kebab${S.menu === 'claude' ? ' on' : ''}" data-a="menu" data-m="claude" data-t="claudeKebab" title="쓰지 않기">⋯${S.menu === 'claude' ? '<div class="menu" style="right:0;top:28px"><div class="mi" data-a="claudeOff" data-t="claudeOff">Claude 쓰지 않기<small>규칙으로 되는 것만</small></div></div>' : ''}</button></div>`
+    return `<div class="card" data-t="claudeCard" style="overflow:visible"><div class="ch">Claude 연결 <small>이 프로그램이 쓰는 Claude 로그인</small></div><div class="cb" style="padding:2px 14px 10px">${row}${flow}</div><div class="cf">Claude Code 의 로그인은 진짜 터미널 창에서 돈다 — [Claude 로그인] 이 「kmd — Claude 로그인」 창을 띄우고, 이 화면이 저절로 확인한다</div></div>`
   }
   const rest = w && w.ok === false
   const days = rest ? Math.max(1, Math.round((Date.now() - Date.parse(w.since)) / 864e5)) : 0
   const pcLine = S.pc ? `<div class="set"><span class="tx"><b>내 PC 프로그램의 Claude</b><small data-t="claudePcLine">${S.pc.off ? '내 PC 프로그램이 꺼져 있다' : '내 PC 프로그램의 설정에서'}</small></span></div>` : ''
   return `<div class="card" data-t="claudeCard"><div class="ch">Claude 연결 <small>읽기만</small></div><div class="cb" style="padding:2px 14px"><div class="set"><span class="tx"><b data-t="claudeRead">팀 정리는 정리 전용 로그인으로 돈다 — 쉬면 관리자에게 알린다</b><small>${rest ? `지금 쉬고 있다 · ${days}일 — 관리자에게 알렸다` : c.team && c.team.token ? '지금 돈다 · 로그인해 두는 것은 관리자' : '아직 로그인하지 않았다 — 관리자가 한다'}</small></span></div>${pcLine}</div>${S.me.admin ? '<div class="cf"><a class="lk" data-a="nav" data-s="admin" data-t="toAdmClaude">관리 › Claude 연결 →</a></div>' : ''}</div>`
+}
+// 로그인 확인 — 작은 부르기 한 번 · 됐으면 흐름을 닫는다
+async function pcLoginCheck(byHand) {
+  if (S.pcLogin) S.pcLogin.checking = true
+  render()
+  let r = null
+  try { r = await postJSON('/api/claude/check', {}) } catch (e) { r = { ok: false, reason: e.message } }
+  delete S.cache.settings
+  if (r.ok) { S.pcLogin = null; toast('로그인됨 — 이제 파일 · 기록을 Claude 로 다듬어 넣는다') }
+  else if (S.pcLogin) { S.pcLogin.checking = false; S.pcLogin.last = r.reason === 'login' ? '아직 로그인 전 — 그 창 · 브라우저에서 마치면 저절로 확인한다' : r.reason === 'limit' ? 'Claude 사용 한도에 닿았다' : '확인하지 못했다 — 다시 본다' }
+  else if (byHand) toast(r.reason === 'login' ? '로그인이 끝났다 — [Claude 로그인] 으로 다시 들어간다' : r.reason === 'limit' ? 'Claude 사용 한도에 닿았다' : '확인하지 못했다')
+  render()
+  return r.ok
+}
+// 창을 띄운 뒤 — 8초마다 확인(10분까지)
+function pcLoginPoll() {
+  const L = S.pcLogin
+  if (!L) return
+  setTimeout(async () => {
+    if (S.pcLogin !== L || Date.now() - L.since > 10 * 60_000) return
+    if (!(await pcLoginCheck(false))) pcLoginPoll()
+  }, 8000)
 }
 const agentOf = () => need('agent', '/api/agent')
 function agBtn() { const ok = /^([A-Za-z]:\\|\/)./.test((S.agDraft || '').trim()); return `<button class="btn pri" data-a="agentAddOk" data-t="agentAddOk"${ok ? '' : ' disabled'}>더하기</button>` }
@@ -1979,21 +1997,13 @@ const ACT = {
   unlinkMyDev: async (el) => { S.menu = null; try { await postJSON('/api/me/devices/revoke', { id: el.dataset.id }); toast('끊었다 — 그 기기의 Claude Code 는 다시 이어야 한다') } catch (e) { toast(esc(e.message)) } delete S.cache.devices; render() },
   pcLoginStart: async () => {
     S.menu = null
-    S.pcLogin = { step: 'wait' }
+    try { await postJSON('/api/claude/login', {}) } catch (e) { toast(esc(e.message)); return }
+    S.pcLogin = { since: Date.now() }
     render()
-    try { const r = await postJSON('/api/claude/login/start', {}); S.pcLogin = { step: 'code', url: r.url, log: r.log || '', code: '' } } catch (e) { S.pcLogin = null; toast(esc(e.message), 7000) }
-    render()
+    pcLoginPoll()
   },
-  pcLoginDone: async () => {
-    const L = S.pcLogin
-    if (!L) return
-    L.code = (($('#pcCode') || {}).value || L.code || '').trim()
-    if (!L.code) { L.err = '받은 번호를 붙여 넣는다'; render(); return }
-    try { await postJSON('/api/claude/login/code', { code: L.code }); S.pcLogin = null; delete S.cache.settings; toast('로그인됨 — 이제 파일 · 기록을 Claude 로 다듬어 넣는다') } catch (e) { L.err = e.message + ' — 주소를 다시 열어 새 번호를 받는다'; L.step = 'code' }
-    render()
-  },
-  pcLoginCancel: async () => { await postJSON('/api/claude/login/cancel', {}).catch(() => {}); S.pcLogin = null; render() },
-  pcLoginCopy: () => { copyText((S.pcLogin || {}).url || ''); toast('주소를 복사했다 — 브라우저에 붙여 넣는다') },
+  pcLoginCheck: () => pcLoginCheck(true),
+  pcLoginCancel: () => { S.pcLogin = null; render() },
   claudeLogin: async () => { S.menu = null; try { await postJSON('/api/claude/login', {}); S.claudeOpening = true; setTimeout(() => { S.claudeOpening = false; delete S.cache.settings; render() }, 60000) } catch (e) { toast(esc(e.message)) } render() },
   claudeOff: async () => { S.menu = null; try { await postJSON('/api/settings/auto', { key: 'claude', on: false }); delete S.cache.settings; toast('Claude 쓰지 않기 — 규칙으로 되는 것만 한다 · 저절로 하는 일에서 다시 켠다') } catch (e) { toast(esc(e.message)) } render() },
   agentAdd: () => { S.agAdding = true; S._focus = 'agIn'; render() },
@@ -2176,7 +2186,6 @@ document.addEventListener('input', (ev) => {
   if (k === 'ag') { S.agDraft = t.value; $('#agBtnBox').innerHTML = agBtn() }
   if (k === 'admCode') { S.admCode = t.value; $('#admDoneBox').innerHTML = admDoneBtn() }
   if (k === 'sf') sfState()[t.dataset.f] = t.value
-  if (k === 'pcCode' && S.pcLogin) S.pcLogin.code = t.value
   if (k === 'sendQ') { S.sendQ = t.value; const q = t.value.trim().toLowerCase(); for (const r of document.querySelectorAll('[data-t=sendDoc],[data-t=sendRec]')) r.style.display = !q || r.textContent.toLowerCase().includes(q) ? '' : 'none' }
   if (k === 'add') { S.addDraft = t.value; const h = addHeard(); $('#addHeardBox').innerHTML = h.heard; $('#addBtnBox').innerHTML = h.btn; const m = $('[data-t=addMsg]'); if (m) { S.addMsg = null; m.remove() } }
 })

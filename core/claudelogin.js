@@ -1,8 +1,8 @@
 // Claude 연결 — 정리 · 기록 만들기에 쓰는 Claude Code 로그인.
 //
-//   이 PC      설정 › Claude 연결 [Claude 로그인] — 팀과 같은 흐름을 프로그램 안에서: `claude setup-token` 을 띄워 나온 주소 · 콘솔 글을
-//              화면에 → 사람이 브라우저로 들어가 받은 번호를 붙여 넣으면 그 프로세스의 입력으로만 → 나온 열쇠는 비밀 `claude-token` 으로만
-//              → 이 프로그램이 부르는 Claude 에만 쓴다(CLAUDE_CODE_OAUTH_TOKEN · 켤 때 다시 읽는다) · 새 창(pcLogin)은 예비 길
+//   이 PC      설정 › Claude 연결 [Claude 로그인] — 「kmd — Claude 로그인」 창에서 `claude auth login`(그 창이 브라우저를 연다 ·
+//              이 PC 의 Claude Code 로그인을 새로 받는다 — `claude -p` 가 그것을 쓴다). Claude Code 의 로그인은 진짜 터미널이 있어야 돌아
+//              프로그램 안에 넣지 못한다 — 대신 화면이 그 창을 알려 주고 작은 부르기로 저절로 확인한다(core/claude.js checkClaude)
 //   팀 서버    관리 › Claude 연결 — 비밀번호 한 번 더 → 서버가 정리 전용 OS 사용자로 `claude setup-token` 을 띄우고 나온
 //              주소를 화면에 → 관리자가 그 주소에서 받은 번호를 붙여 넣으면 그 프로세스의 입력으로만 넘긴다(저장 안 함)
 //              → 나온 오래 가는 열쇠는 비밀 `claude-token` 으로만(화면 · 로그 · 응답에 0) → 정리 일꾼이 그것으로 돈다
@@ -26,12 +26,12 @@ function launch(args, opt = {}) {
 // 이 PC — 보이는 창으로 띄우고 손 뗀다(로그인은 사람이 그 창 · 브라우저에서)
 export function pcLogin() {
   if (process.env.KMD_CLAUDE_LOGIN) {
-    const p = launch(['setup-token'], { stdio: 'ignore', detached: true })
+    const p = launch(['auth', 'login'], { stdio: 'ignore', detached: true })
     p.on('error', () => {})
     p.unref()
     return { opened: true }
   }
-  const [cmd, args] = process.platform === 'win32' ? ['cmd', ['/c', 'start', 'kmd — Claude 로그인', 'cmd', '/k', 'claude', 'setup-token']] : process.platform === 'darwin' ? ['open', ['-a', 'Terminal', '--args', 'claude', 'setup-token']] : ['x-terminal-emulator', ['-e', 'claude setup-token']]
+  const [cmd, args] = process.platform === 'win32' ? ['cmd', ['/c', 'start', 'kmd — Claude 로그인', 'cmd', '/k', 'claude', 'auth', 'login']] : process.platform === 'darwin' ? ['open', ['-a', 'Terminal', '--args', 'claude', 'auth', 'login']] : ['x-terminal-emulator', ['-e', 'claude auth login']]
   const p = spawn(cmd, args, { stdio: 'ignore', detached: true })
   p.on('error', () => {})
   p.unref()

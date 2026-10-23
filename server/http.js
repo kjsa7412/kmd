@@ -20,6 +20,7 @@ import * as V from './views.js'
 import * as kit from '../core/kit.js'
 import { watchedOf } from '../core/watchmark.js'
 import { pcLogin, makeTeamLogin } from '../core/claudelogin.js'
+import { checkClaude } from '../core/claude.js'
 import { getSecret } from '../core/secrets.js'
 
 const APP = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'app')
@@ -244,16 +245,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀 정리 로그인은 관리 › Claude 연결에서')
       return out(200, pcLogin())
     }
-    // 이 PC — 프로그램 안의 로그인 흐름(시작 → 주소 · 콘솔 글 → 받은 번호 → 열쇠는 비밀에만)
-    const pl = p.match(/^\/api\/claude\/login\/(start|code|cancel)$/)
-    if (pl && req.method === 'POST') {
+    // 이 PC — 로그인 확인(작은 부르기 한 번) · 됐으면 쉼 줄을 걷는다
+    if (p === '/api/claude/check' && req.method === 'POST') {
       if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀 정리 로그인은 관리 › Claude 연결에서')
-      if (pl[1] === 'start') return out(200, await teamLogin.start())
-      if (pl[1] === 'cancel') return out(200, { ok: !!teamLogin.cancel() || true })
-      const r = await teamLogin.code((await readBody(req)).code)
-      process.env.CLAUDE_CODE_OAUTH_TOKEN = r.token
-      await fs.rm(path.join(dataDir, 'worker.json'), { force: true }).catch(() => {}) // 쉼 줄을 걷는다 — 다음에 다시 잰다
-      return out(200, { ok: true })
+      const r = await checkClaude()
+      await hub.workerStatus({ worker: { id: null } }, r.ok ? { ok: true } : { ok: false, reason: r.reason, message: r.message })
+      return out(200, { ok: r.ok, reason: r.reason || null })
     }
     // 에이전트 설치 — 이 PC 의 작업 폴더마다(스킬 · 연결 · CLAUDE.md 안 kmd 덩이)
     const ag = p.match(/^\/api\/agent(?:\/(add|up|rm))?$/)

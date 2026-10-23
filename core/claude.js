@@ -67,3 +67,9 @@ export function parse({ code, so, se }) {
   }
   return { value: v, cost: j.total_cost_usd || 0, model: j.model || null }
 }
+
+// 로그인 확인 — 아주 작은 부르기 한 번(`claude auth status` 는 끝난 로그인도 「됨」 으로 말해서 실제로 불러 본다)
+export async function checkClaude() {
+  const r = await runClaude({ prompt: '이 물음에는 {"ok": true} 로만 답한다.', schema: { type: 'object', properties: { ok: { type: 'boolean' } }, required: ['ok'] }, budget: 0.05, timeoutMs: 90_000 })
+  return r.error ? { ok: false, reason: r.error, message: r.message } : { ok: true }
+}
