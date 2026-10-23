@@ -80,6 +80,17 @@ test('팀 화면이 내 PC 지식을 연다 — 팀 서버 쪽에 PC 지식 조�
     return [(await fetch(`${u}/api/k/${kn}/sources`, { headers: h })).status, (await fetch(`${u}/api/k/${kn}/tree`, { headers: h })).status, (await fetch(`${u}/api/k/${kn}/backup`, { headers: h })).status, (await fetch(`${u}/api/k/${kn}/tree`)).status]
   }, pc.url)
   assert.deepEqual(st, [403, 200, 403, 401])
+  // 내 PC 지식을 고른 채 지식 관리 — 팀 서버의 이력 · 가져오는 곳 · 보낼 것을 그 지식의 것처럼 보이지 않는다(내 PC 화면에서 한다) · 지식 수는 갈래마다
+  assert.match(await page.locator('[data-t=manageKind]').innerText(), /내 PC 지식/)
+  for (const [nav, title] of [['nav-today', '이력'], ['nav-import', '지식 만들기'], ['nav-send', '지식 보내기']]) {
+    await page.click(`[data-t=${nav}]`)
+    await page.waitForSelector('[data-t=pcOnly]')
+    assert.match(await page.locator('[data-t=pcOnly]').innerText(), new RegExp(`내 PC 지식 「${SECRET}」 — ${title}(은|는) 내 PC 프로그램 화면에서 한다`))
+    assert.equal(await page.locator('[data-t=srcTable], [data-t=feed], [data-t=drop]').count(), 0, title)
+  }
+  await page.click('[data-t=kpick]')
+  await page.click('[data-t=nav-home]')
+  assert.match(await page.locator('[data-t=kpick]').innerText(), /팀 \d+ · 내 PC 1/)
   // 팀 서버로 간 요청 · 팀 서버 로그에 PC 지식 이름 · 경로 · ~ 조각 0
   const leak = toTeam.filter((x) => x.includes(SECRET) || x.includes(encodeURIComponent(SECRET)) || x.includes(path.join(tmp, 'pc')) || /\/api\/k\/(~|%7e)/i.test(x))
   assert.deepEqual(leak, [])

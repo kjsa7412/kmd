@@ -6,7 +6,7 @@
 //       김의 「오늘 바뀐 것」 에 「새 기기가 이어졌다 — DESKTOP-KIM · kim」 한 줄이 남는다
 //   ✓ Claude Code 에 이었다 — 새로 여는 것부터
 //   ✓ 늘 켜기 · 새 판 저절로
-//       밤에 내 지식 정리에 Claude 를 쓴다 — 끄려면 설정
+//       기록이 남으면 곧바로 Claude 로 다듬어 문서에 넣는다 — 끄려면 설정
 // 안 된 단계는 ✓ 대신 · 와 사람이 붙일 한 줄.
 
 import fs from 'node:fs'
@@ -36,12 +36,12 @@ export function installLines({ version, root, backup = null, kns = [], team = nu
   if (kns.length) dim(`폴더 ${NUM[kns.length] || kns.length}${kns.length === 1 ? '가' : kns.length <= 10 ? '이' : '개가'} 그대로 지식이 됐다 — ${kns.slice(0, 6).join(' · ')}${kns.length > 6 ? ' …' : ''}`)
   if (team?.ok) {
     ok(`팀 ${team.host} 에 ${user}로 이었다`)
-    dim(`${user}의 「오늘 바뀐 것」 에 「새 기기가 이어졌다 — ${host} · ${osuser}」 한 줄이 남는다`)
+    dim(`${user}의 「이력」 에 「새 기기가 이어졌다 — ${host} · ${osuser}」 한 줄이 남는다`)
   } else if (team) no(`팀에 잇지 못했다 — ${team.why} · 팀 화면에서 설치 한 줄을 다시 복사한다`)
   if (claude.ok) ok('Claude Code 에 이었다 — 새로 여는 것부터')
   else no(`Claude Code 에 잇기(한 번): ${claude.line}`)
   if (task.ok) ok('늘 켜기 · 새 판 저절로')
   else no(`늘 켜기는 못 했다 — ${task.why || '이 PC 에서 kmd up 으로 켠다'}`)
-  if (claudeTidy) dim('밤에 내 지식 정리에 Claude 를 쓴다 — 끄려면 설정')
+  if (claudeTidy) dim('기록이 남으면 곧바로 Claude 로 다듬어 문서에 넣는다 — 끄려면 설정')
   return L
 }

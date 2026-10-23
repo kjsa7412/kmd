@@ -933,7 +933,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!rule) return { why: '빈 기록이다' }
       await coreSave(meta.dir, rule.input, { user: 'kmd-auto', system: true })
       cache.delete(id)
-      return { doc: rule.doc, how: 'rule', msg: `기록 · 문서가 됐다 — ${meta.name} › ${rule.doc.split('/').join(' › ')} (${tag ? '파일' : '기록'} 그대로 새 문서${why ? ' · ' + why : ''})` }
+      return { doc: rule.doc, how: 'rule', msg: `기록 · 문서가 됐다 — ${meta.name} › ${rule.doc.split('/').join(' › ')} (규칙으로 ${rule.note}${why ? ' · ' + why : ''})` }
     },
     // 묶음 하나 넣기 — 항목(section) · 이름 고르기(touches) · 이름 없는 기록(ingest) · 넣었으면 true
     async placeGroup(id, g) {

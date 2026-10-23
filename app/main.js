@@ -71,8 +71,8 @@ const treeOf = (k) => need('tree:' + k, `/api/k/${encodeURIComponent(k)}/tree`)
 const docOf = (k, d) => need(`doc:${k}:${d}`, `/api/k/${encodeURIComponent(k)}/doc?d=${encodeURIComponent(d)}`)
 const recOf = (k, r) => need(`rec:${k}:${r}`, `/api/k/${encodeURIComponent(k)}/rec?r=${encodeURIComponent(r)}`)
 const loadingHtml = '<p class="muted small">읽는 중…</p>'
-// 아직 안 넣은 기록이 언제 문서에 — 팀은 정리 때 · 이 PC 는 kmd 가 곧바로
-const pendWhen = () => (isTeam() ? '정리 때 문서에 들어간다' : 'kmd 가 곧바로 문서에 넣는다')
+// 아직 안 넣은 기록이 언제 문서에 — 지식마다: 팀 서버의 지식은 정리 때 · 내 PC 지식(팀 화면에서 열어도)과 이 PC 는 kmd 가 곧바로
+const pendWhen = (k) => (isTeam() && !(KN(k) && KN(k).pc) ? '정리 때 문서에 들어간다' : 'kmd 가 곧바로 문서에 넣는다')
 const errHtml = (v) => `<div class="callout gray stop"><i></i><span><b>${esc(v.error)}</b></span></div>`
 
 // ───────────── 토스트 ─────────────
@@ -238,7 +238,9 @@ function sideHtml(left) {
   let h = `<aside class="side${dim ? ' dim' : ''}"><div class="sb-top"><div class="logo${team ? '' : ' me'}">K</div><span class="brand">kmd</span></div><div class="where">${team ? '팀 서버에서 돈다 · ' + esc(S.me.host) : '이 PC 에서 돈다'}</div>`
   if (!dim) {
     // 지식 고르기 영역
-    const cnt = team ? '팀 ' + S.kns.length : '내 지식 ' + S.kns.length
+    // 팀 화면의 지식 수는 갈래마다 — 내 PC · 개인 지식까지 「팀」 으로 세지 않는다
+    const nPc = S.kns.filter((x) => x.pc).length, nMine = S.kns.filter((x) => !x.pc && x.private).length
+    const cnt = team ? ['팀 ' + (S.kns.length - nPc - nMine), nMine ? '개인 ' + nMine : '', nPc ? '내 PC ' + nPc : ''].filter(Boolean).join(' · ') : '내 지식 ' + S.kns.length
     const home = r.scr === 'home'
     h += `<div class="sb-know" data-t="knowArea"><div class="sb-repo" data-a="kmenu" data-t="kpick">${cur && !home ? `<span class="rk">${esc(cur.name.slice(0, 2))}</span><span class="rn">${esc(cur.name)} <small>${esc(knWhere(cur))}</small></span>` : `<span class="rk">전체</span><span class="rn">지식 전체<small>${cnt}</small></span>`}<span class="rc">▾</span>${S.menu === 'kmenu' ? `<div class="kmenu"><div class="mi" data-a="pickKn" data-k="*" data-t="nav-home">${svg('list')} 지식 목록 — 전체</div>${S.kns.map((x) => `<div class="mi" data-a="pickKn" data-k="${esc(x.id)}" data-t="kmenuKn">${esc(x.name)} ${knTag(x)}</div>`).join('')}<div class="sep"></div><div class="mi" data-a="nav" data-s="add" data-t="nav-add">+ 지식 추가</div></div>` : ''}</div>`
     h += `<div class="ktabs" data-t="ktabs">${[['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['graph', '그래프', 'graph']].map(([v, l, ic]) => `<span class="${VIEWS3.includes(r.scr) && vt === v ? 'on' : vt === v ? 'cur' : ''}" data-a="view" data-v="${v}" data-t="rb-${v}" title="${l}로 보기">${svg(ic)}${l}</span>`).join('')}</div>`
@@ -362,13 +364,13 @@ function viewDocsV() {
 }
 function knAside(k) {
   const team = isTeam() && !isPersonal(KN(k))
-  return `<h4>이 지식</h4><div class="kv">${team ? '<span>쓰는 사람</span><span>팀 모두 기록</span>' : '<span>주인</span><span>나 — 정리하면 바로 바뀐다</span>'}
+  return `<h4>이 지식</h4><div class="kv">${team ? '<span>쓰는 사람</span><span>팀 모두 기록</span>' : '<span>주인</span><span>나 — 저장하면 바로 문서에 들어간다</span>'}
   <span>자동으로 가져오는 곳</span><span>없음<small><a data-a="nav" data-s="import">지식 만들기 ›</a></small></span></div>`
 }
 function myPend(tr) { return (tr && tr.records ? tr.records : []).filter((r) => r.state === 'pend' && r.author === S.me.user) }
 function waitHtml(k, tr) {
   const p = myPend(tr)
-  return p.length ? `<div class="wait" data-t="wait"><i></i>${p.map((x) => esc(whenTxt(x.date)) + ' 에 쓴 기록 1 — ' + pendWhen() + ' · ' + esc(x.title.split(' — ')[0])).join('<br>')} · 그동안도 문서 옆에 같이 읽힌다</div>` : ''
+  return p.length ? `<div class="wait" data-t="wait"><i></i>${p.map((x) => esc(whenTxt(x.date)) + ' 에 쓴 기록 1 — ' + pendWhen(k) + ' · ' + esc(x.title.split(' — ')[0])).join('<br>')} · 그동안도 문서 옆에 같이 읽힌다</div>` : ''
 }
 function docsEmpty(k) {
   const n = KN(k), tr = treeOf(k)
@@ -436,7 +438,7 @@ function docPane(t, right) {
   ${q ? `<div class="found" data-t="found"><span>찾기 <b>‘${esc(q)}’</b> 로 열었다</span><a data-a="reopenSearch">찾은 것으로 돌아가기</a></div>` : ''}
   <div class="ttl"><div class="path"><span>${esc(loc)}</span><span class="r">마지막으로 바뀐 때 ${esc(whenTxt(d.when))}</span></div>${editing || right || d.watched ? '' : '<button class="btn pri" data-a="editDoc" data-t="editBtn">고치기</button>'}</div>
   ${d.watched ? `<div class="callout ${d.watched.missing ? 'warn' : 'gray'} stop" data-t="watched"><i></i><span><b>${d.watched.missing ? `원본에 없다 — ${esc(d.watched.missing)} 부터` : '원본이 주인이다'}</b> — ${esc(d.watched.src)} 의 <span class="mono">${esc(d.watched.path)}</span> 에서 온다 · 고치려면 원본 파일을 고친다 · 덧붙일 말은 기록으로 남긴다</span></div>` : ''}
-  ${mine.length && !editing ? `<div class="wait" data-t="wait"><i></i>${esc(whenTxt(mine[0].date))} 에 쓴 기록 ${mine.length} — ${pendWhen()} · 그동안도 문서 옆에 같이 읽힌다</div>` : ''}
+  ${mine.length && !editing ? `<div class="wait" data-t="wait"><i></i>${esc(whenTxt(mine[0].date))} 에 쓴 기록 ${mine.length} — ${pendWhen(t.kn)} · 그동안도 문서 옆에 같이 읽힌다</div>` : ''}
   <div class="paper"><h1>${esc(d.title)}</h1>${d.intro ? d.intro.replace(/<p>/g, '<p class="muted small">') : ''}${body}
   ${d.links.length && !editing ? `<div class="dlinks" data-t="dlinks">이 문서가 가리키는 문서 — ${d.links.map((x) => `<span class="dlink" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(x.id)}" data-t="dlink">${esc(x.title)}</span>`).join(' · ')}</div>` : ''}</div></div>`
   return { html: main, aside: right ? null : docAside(k, d), title: d.title }
@@ -449,7 +451,7 @@ function recPane(t, right) {
   const html = `<div class="docw" data-t="recPane" data-name="${esc(r.title)}">${right ? rpHead() : ''}<div class="ttl"><div class="path"><span>${esc(KN(k).name)} › ${r.log ? '이력' : '기록'} › ${esc(r.date)}</span><span class="r">${r.log ? `<span class="chip c-mute" data-t="recLog">이력 · ${esc(r.log)} — kmd 가 한 일</span>` : ''}${r.state === 'pend' ? '<span class="chip c-pend" data-t="recState">아직 문서에 안 넣은 기록</span>' : r.state === 'in' ? '<span class="chip c-mute" data-t="recState">문서에 들어감</span>' : ''}</span></div></div>
   <div class="paper"><h1>${esc(r.title)}</h1><p class="muted small">${esc(r.author)} · ${esc(r.date)}</p>${linkify(r.html, k, null)}
   ${fx ? `<div class="callout warn">이 기록은 ${esc(whenTxt(fx.date))} ${esc(who(fx.author))}의 기록을 바로잡았다 — <a data-a="openRec" data-k="${esc(k)}" data-r="${esc(fx.id)}">${esc(fx.title)}</a></div>` : ''}${fb.map((x) => `<div class="callout gray">${esc(whenTxt(x.date))} ${esc(who(x.author))}이 이 기록을 바로잡았다 — <a data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}">${esc(x.title)}</a></div>`).join('')}
-  ${r.state === 'pend' ? `<div class="callout pend">${pendWhen()} — 그동안도 그 항목 옆에 같이 읽힌다</div>` : ''}</div></div>`
+  ${r.state === 'pend' ? `<div class="callout pend">${pendWhen(k)} — 그동안도 그 항목 옆에 같이 읽힌다</div>` : ''}</div></div>`
   const aside = `<div class="ap" data-t="recItems"><h4>${r.log ? '이 일이 건드린 항목' : '이 기록이 건드린 항목'} <small>${r.items.length}</small></h4>${r.items.map((i) => `<div class="alr" data-a="openItem" data-k="${esc(k)}" data-n="${esc(i.coord)}" data-t="recItem" data-pv="item|${esc(k)}|${esc(i.coord)}">${svg('tag')}<span class="nm">${esc(i.name)}<small>${esc(i.docTitle ? i.docTitle : '문서가 없는 항목')}</small></span></div>`).join('') || '<div class="muted small alr">없다</div>'}</div>
   <div class="ap" data-t="recFix"><h4>바로잡은 / 바로잡힌 기록</h4>${fx ? `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(fx.id)}" data-t="fixRow"><span class="dt">${esc(whenTxt(fx.date).replace(/^(오늘|어제) /, ''))}</span><span class="nm">바로잡음 — ${esc(fx.title)}</span></div>` : ''}${fb.map((x) => `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}" data-t="fixRow"><span class="dt">${esc(whenTxt(x.date).replace(/^(오늘|어제) /, ''))}</span><span class="nm">바로잡힘 — ${esc(x.title)}</span></div>`).join('')}${fx || fb.length ? '' : '<div class="muted small alr">없다</div>'}</div>
   ${nbGraph(k, 'r:' + r.id)}`
@@ -936,7 +938,7 @@ async function saveDoc() {
     const r = await postJSON(`/api/k/${encodeURIComponent(e.kn)}/edit`, { doc: e.doc, sections: changed.map((p) => ({ h: p.h, body: p.body, ...(old.has(p.h) ? { base: old.get(p.h).base } : {}) })) })
     S.edit = null
     forgetKn(e.kn)
-    toast(r.direct ? '저장했다 — 문서에도 넣었다' : '기록했다 — ' + pendWhen() + ' · 그동안도 문서 옆에 같이 읽힌다', 7000)
+    toast(r.direct ? '저장했다 — 문서에도 넣었다' : '기록했다 — ' + pendWhen(e.kn) + ' · 그동안도 문서 옆에 같이 읽힌다', 7000)
     render()
   } catch (err) {
     toast(esc(err.message), 7000)
@@ -988,7 +990,17 @@ function histRow(x) {
   const kind = isCheck(x) ? '확인할 것' : x.kind
   return `<div class="hrow${isCheck(x) ? ' yl' : ''}${x.reverted ? ' done' : ''}" data-t="histRow" data-kind="${esc(x.kind)}" data-id="${esc(x.id)}"><div class="hl" data-a="toggleToday" data-id="${esc(x.id)}"><span class="tm">${esc(tmOf(x.at))}</span><span class="chip ${isCheck(x) ? 'c-warn' : 'c-mute'}" style="flex:none">${esc(kind)}</span><span class="tx"><b>${esc(x.title)}</b>${x.reverted ? ' <span class="chip c-mute" data-t="reverted">되돌렸다</span>' : ''}${x.sub && !open ? `<small>${esc(x.sub)}</small>` : ''}</span><span class="kn2">${esc(x.knName || '')}</span><span class="who">${esc(x.who || '')}</span><span class="act" data-t="viewBtn">${open ? '접기' : '보기'}</span></div>${ex}</div>`
 }
+// 팀 화면에서 내 PC 지식을 골랐을 때 — 그 지식의 이력 · 지식 만들기 · 지식 보내기는 내 PC 프로그램 화면의 일이다
+//   (팀 화면은 내 PC 지식을 읽고 저장하는 길만 잇는다 · 팀 서버의 이력 · 가져오는 곳 · 보낼 것을 그 지식의 것처럼 보이지 않는다)
+function pcOnly(title, subj, other) {
+  const n = isTeam() ? KN(defaultKn()) : null
+  if (!n || !n.pc) return null
+  const open = S.pc && S.pc.url ? `<a class="lk r" href="${esc(S.pc.url)}/" target="_blank" rel="noopener" data-t="pcOpen">내 PC 화면 열기 ›</a>` : ''
+  return { crumb: title, main: `<div style="max-width:820px"><div class="big">${esc(title)}</div><div class="callout gray stop" data-t="pcOnly"><i></i><span><b>내 PC 지식 「${esc(n.name)}」 — ${esc(subj)} 내 PC 프로그램 화면에서 한다</b> · 팀 화면은 내 PC 지식을 읽고 저장하는 것만 잇는다 · 팀 서버에는 한 조각도 가지 않는다</span>${open}</div><p class="small muted">${esc(other || '팀 지식의 ' + subj + ' 지식 고르기에서 팀 지식을 고르면 여기서 본다.')}</p></div>` }
+}
 function viewToday() {
+  const po = pcOnly('이력', '이력은')
+  if (po) return po
   const v = historyOf()
   const head = '<div class="big">이력</div><p class="lead">모든 지식에서 바뀐 것 — 내가 저장 · 가져오기 · 보내기 한 것, kmd 가 가져오고 정리한 것, 화면 · 편집기에서 바로 고친 것. 내 값이 바뀐 줄은 맨 위 「확인할 것」 에 — 마음에 들지 않으면 [보기] 에서 되돌린다.</p>'
   if (!v) return { crumb: '이력', main: `<div style="max-width:980px">${head}${loadingHtml}</div>` }
@@ -1037,7 +1049,7 @@ function runHtml(k, run, ri) {
   const grp = (t, small, list) => (list.length ? `<div class="sub">${t} ${list.length} <small>${small}</small></div><ul class="plain tl2">${list.map((x) => rowHtml(k, x.r, x.key)).join('')}</ul>` : '')
   const open = S.runOpen[`${k}:${ri}`] !== undefined ? S.runOpen[`${k}:${ri}`] : ri === 0
   return `<div class="card" data-t="run" style="overflow:visible"><div class="ch2" data-a="toggleRun" data-id="${k}:${ri}"><b>${esc(whenTxt(run.at))} ${run.auto ? 'kmd 가 ' : ''}정리한 것 ${done}</b><small>건마다 따로 저장 · 되돌리기는 줄마다 ⋯ 안에</small><span class="r">${open ? '접기' : '펼치기'}</span></div>
-  ${open ? grp('넣은 것', '숫자 · 이름 모두 확인 ✓', put) + grp('값이 바뀐 것', '쓴 사람에게 알렸다 — 오늘 바뀐 것 맨 위', chg) + grp('그대로 둔 것', '문서 옆에 같이 읽힌다 · 다음 정리 때 다시', keep) : ''}</div>`
+  ${open ? grp('넣은 것', '숫자 · 이름 모두 확인 ✓', put) + grp('값이 바뀐 것', '쓴 사람의 이력 맨 위 「확인할 것」 에 알렸다', chg) + grp('그대로 둔 것', '문서 옆에 같이 읽힌다 · 다음 정리 때 다시', keep) : ''}</div>`
 }
 function viewTidy() {
   const k = tidyKn()
@@ -1361,18 +1373,20 @@ function sfAutoName(f) {
   return f.type === 'docs' ? base : base + ' 코드'
 }
 function viewImport() {
+  const po = pcOnly('지식 만들기', '지식 만들기는')
+  if (po) return po
   const team = isTeam(), v = sourcesOf()
   const srcs = v && !v.error ? v.items : []
   const can = v && !v.error ? v.can : !team || S.me.admin
   const target = impTarget()
   const sec = (n, t, small) => `<div class="rh" data-t="impSec" style="margin:22px 0 8px;font-size:14px;color:var(--text)">${n ? n + ' ' : ''}${t} <small class="muted" style="font-weight:400">${small}</small></div>`
-  const main = `<div style="max-width:980px"><div class="big">지식 만들기</div><p class="lead">무엇을 만드나에 따라 둘 — 파일 · 폴더는 한 번 들여 기록으로(정리가 기존 문서에 넣거나 새 문서로 세운다), 문서 폴더 · 소스 코드 · DB 는 지켜보다 바뀐 것만 지식에 맞춘다. 빈 지식을 새로 세우려면 <a data-a="nav" data-s="add" data-t="toAdd">지식 추가 ›</a></p>
+  const main = `<div style="max-width:980px"><div class="big">지식 만들기</div><p class="lead">무엇을 만드나에 따라 둘 — 파일 · 폴더는 한 번 들여 기록으로(${team ? '정리가 기존 문서에 넣거나 새 문서로 세운다' : 'kmd 가 곧바로 기존 문서에 넣거나 새 문서로 세운다'}), 문서 폴더 · 소스 코드 · DB 는 지켜보다 바뀐 것만 지식에 맞춘다. 빈 지식을 새로 세우려면 <a data-a="nav" data-s="add" data-t="toAdd">지식 추가 ›</a></p>
   ${S.stops.map(stopHtml).join('')}
-  ${sec('', '파일로 들이기', '파일 · 폴더 → 기록 → 정리가 문서로 · 원본은 첨부로')}
+  ${sec('', '파일로 들이기', team ? '파일 · 폴더 → 기록 → 정리가 문서로 · 원본은 첨부로' : '파일 · 폴더 → 기록 → 곧바로 문서로 · 원본은 첨부로')}
   <div class="card"><div class="ch">파일 · 폴더 넣기 <small>md · docx · pptx · xlsx 는 기록으로 · hwpx · pdf · 그림은 첨부로</small></div><div class="cb">
-   <div class="drop" id="drop" data-t="drop"><b>파일이나 폴더를 여기에 끌어다 놓으면 기록이 된다 — 정리가 기존 문서에 넣거나 새 문서로 세운다</b>넣을 곳 — ${esc(target.label)}
+   <div class="drop" id="drop" data-t="drop"><b>파일이나 폴더를 여기에 끌어다 놓으면 기록이 된다 — ${team ? '정리가 기존 문서에 넣거나 새 문서로 세운다' : 'kmd 가 곧바로 기존 문서에 넣거나 새 문서로 세운다'}</b>넣을 곳 — ${esc(target.label)}
     <div class="lks"><label>파일 고르기<input type="file" multiple id="fileIn" data-t="fileIn"></label> · <label>폴더 고르기<input type="file" webkitdirectory directory multiple id="dirIn" data-t="dirIn"></label></div></div>
-   <p class="gl">${team ? 'md · docx · pptx · xlsx 는 글로 바꿔 파일마다 기록 하나 — 정리(Claude)가 읽어 이어지는 문서의 항목에 넣거나 새 문서로 세운다 · hwpx · pdf 는 내 PC 프로그램이 있는 PC 에서 · 원본은 첨부로.' : 'md · docx · pptx · xlsx 는 글로 바꿔 파일마다 기록 하나 — 정리(Claude)가 읽어 이어지는 문서의 항목에 넣거나 새 문서로 세운다 · hwpx · pdf 는 원본을 첨부로 두었다가 바꾼다.'} 한 번에 300 파일 · 200MB 까지.</p>
+   <p class="gl">${team ? 'md · docx · pptx · xlsx 는 글로 바꿔 파일마다 기록 하나 — 정리(Claude)가 읽어 이어지는 문서의 항목에 넣거나 새 문서로 세운다 · hwpx · pdf 는 내 PC 프로그램이 있는 PC 에서 · 원본은 첨부로.' : 'md · docx · pptx · xlsx 는 글로 바꿔 파일마다 기록 하나 — 정리가 따로 없어 kmd 가 곧바로 Claude 로 다듬어 이어지는 문서의 항목에 넣거나 갈래 · 주제 문서로 세운다(Claude 가 안 되면 규칙으로) · hwpx · pdf 는 원본을 첨부로 두었다가 바꾼다.'} 한 번에 300 파일 · 200MB 까지.</p>
    <div class="rh">최근 넣은 것</div><ul class="plain rec" data-t="recent">${S.imports.map((x) => `<li class="${x.cls || ''}" data-t="impRow"><span class="tm">${esc(x.tm)}</span><span class="tx">${esc(x.title)}<small data-t="impMsg">${esc(x.msg)}</small></span>${x.go ? `<a class="lk" data-a="impGo" data-k="${esc(x.go.kn)}" data-d="${esc(x.go.doc)}">보기</a>` : x.rec ? `<a class="lk" data-a="openRec" data-k="${esc(x.rec.kn)}" data-r="${esc(x.rec.id)}" data-t="impRec">보기</a>` : ''}</li>`).join('') || '<li class="muted">아직 없다</li>'}</ul>
   </div></div>
   ${sec('', '지켜보며 맞추기', '문서 폴더 · 소스 코드(git 묶음) · DB — 바뀐 것만 읽어 지식에 맞춘다')}
@@ -1544,16 +1558,16 @@ function addHeard() {
   const hasPc = !isTeam(), pr = parseAdd(S.addDraft)
   let heard = '', ok = false
   if (pr) {
-    if (pr.kind === 'src') heard = '<div class="heard bad" data-t="addHeard"><span class="kt src">코드 · DB</span><span>코드 · DB 는 지식 만들기에서 더한다 <a data-a="addToImport" data-t="addToImport">→</a><span class="sub2">지식 안에 표를 저절로 채우는 일이라 여기서는 더하지 않는다</span></span></div>'
+    if (pr.kind === 'src') heard = '<div class="heard bad" data-t="addHeard"><span class="kt src">소스 · DB</span><span>소스 코드(git) · DB 는 지식 만들기에서 더한다 <a data-a="addToImport" data-t="addToImport">→</a><span class="sub2">지켜보다 바뀐 것만 지식에 맞추는 일이라 여기서는 더하지 않는다</span></span></div>'
     else if (pr.kind === 'team' && hasPc) heard = '<div class="heard bad" data-t="addHeard"><span class="kt team">팀</span><span>팀 지식은 팀 화면에서 연다<span class="sub2">이 PC 에서는 내 지식만 더한다 · 팀에 잇기는 팀 화면 › 설치 한 줄</span></span></div>'
     else if (pr.kind === 'team') {
       if (pr.k) { ok = true; heard = `<div class="heard" data-t="addHeard"><span class="kt team">팀</span><span><b>팀 지식 들어가기</b> — ${esc(KN(pr.k).name)} · 이미 목록에 있다 — 그 지식으로 간다</span></div>` }
       else heard = `<div class="heard bad" data-t="addHeard"><span class="kt team">팀</span><span>${pr.other ? '다른 kmd 의 팀 지식 — 이 PC 에서 설치 한 줄(kmd connect)로 잇는다' : esc(pr.slug) + ' — 이 kmd 에 그런 지식이 없다'}</span></div>`
     } else if (pr.kind === 'folder') {
-      if (!hasPc) heard = '<div class="heard bad" data-t="addHeard"><span class="kt me">내 PC</span><span>경로는 내 PC 프로그램이 연다 — 이 PC 에는 없다<span class="sub2">새 이름을 붙이면 팀 서버 안 내 지식이 선다</span></span></div>'
+      if (!hasPc) heard = '<div class="heard bad" data-t="addHeard"><span class="kt me">내 PC</span><span>내 PC 의 폴더는 내 PC 프로그램의 지식 추가에서 들여온다<span class="sub2">새 이름을 붙이면 팀 서버 안 내 지식이 선다</span></span></div>'
       else { ok = true; heard = `<div class="heard" data-t="addHeard"><span class="kt me">내 PC</span><span><b>새 지식으로 들여오기</b> — 지식 폴더 안 「${esc(pr.name)}」 로<span class="sub2">md · docx · pptx · xlsx 는 문서가 되고 그 밖은 첨부 · 원본 폴더는 그대로 둔다 · 한 번에 300 파일 · 200MB</span></span></div>` }
     } else if (pr.kind === 'new') { ok = true; heard = `<div class="heard" data-t="addHeard"><span class="kt me">${hasPc ? '내 PC' : '개인'}</span><span><b>${hasPc && !S.kns.length ? '첫 지식 세우기' : '새 지식 만들기'}</b> — ${hasPc ? esc(pcRoot() + '\\' + pr.name) + ' · 나만' : '팀 서버 안 내 지식 「' + esc(pr.name) + '」 · 나만(관리자는 볼 수 있다)'}</span></div>` }
-    else heard = `<div class="heard bad" data-t="addHeard">알아듣지 못했다 — ${hasPc ? '이름이나 내 PC 폴더 경로를' : '이름 · 내 PC 폴더 경로 · 팀 지식 주소를'} 붙인다</div>`
+    else heard = `<div class="heard bad" data-t="addHeard">알아듣지 못했다 — ${hasPc ? '이름이나 내 PC 폴더 경로를' : '이름이나 팀 지식 주소를'} 붙인다</div>`
   }
   return { heard, btn: `<button class="btn pri" data-a="doAdd" data-t="addBtn"${ok ? '' : ' disabled'}>${hasPc && !S.kns.length ? '세우기' : '추가'}</button>`, ok }
 }
@@ -1576,20 +1590,20 @@ function viewAddPc() {
   <div class="card" style="margin-top:16px"><div class="ch">이렇게도 붙인다</div><div class="cb" style="padding:2px 14px"><ul class="plain">
    <li><code data-a="fillAdd" data-v="회의" style="cursor:pointer">회의</code> → <b>새 지식 만들기</b> — 지식 폴더 안 「회의」 · 나만</li>
    <li><code data-a="fillAdd" data-v="D:\\옛자료" style="cursor:pointer">D:\\옛자료</code> → <b>새 지식으로 들여오기</b> — 지식 폴더 안 「옛자료」 로 · 원본은 그대로</li>
-   <li>코드 폴더 · git · DB 주소 → <a data-a="nav" data-s="import">지식 만들기</a>에서 — 표를 저절로 채운다</li>
+   <li>문서 폴더 · 소스 코드(git) · DB → <a data-a="nav" data-s="import">지식 만들기</a>에서 — 지켜보다 바뀐 것만 지식에 맞춘다</li>
   </ul></div><div class="cf">예를 누르면 칸에 들어간다</div></div></div>` }
 }
 function viewAdd() {
   if (!isTeam()) return viewAddPc()
   const hasPc = !isTeam(), ah = addHeard(), ex = location.origin + '/r/' + ((S.kns.find((k) => !k.private) || S.kns[0] || {}).id || 'dpms')
-  return { crumb: '지식 추가', main: `<div style="max-width:820px"><div class="big">지식 추가</div><p class="lead">새 이름 · 내 PC 폴더 · 팀 지식 주소 — 무엇이든 붙인다. kmd 가 알아서 가른다.</p>
+  return { crumb: '지식 추가', main: `<div style="max-width:820px"><div class="big">지식 추가</div><p class="lead">새 이름 · 팀 지식 주소를 붙인다 — kmd 가 알아서 가른다. 내 PC 의 폴더는 내 PC 프로그램의 지식 추가에서 들여온다.</p>
   ${S.addMsg ? `<div class="callout ${S.addMsg.cls} stop" data-t="addMsg"><i></i><span>${S.addMsg.t}</span></div>` : ''}
-  <div class="paste"><input class="inp mono" id="addIn" data-in="add" data-t="addIn" value="${esc(S.addDraft)}" placeholder="예: 회의 · D:\\옛자료 · ${esc(ex)}" autocomplete="off"><span id="addBtnBox">${ah.btn}</span></div><div id="addHeardBox">${ah.heard}</div>
+  <div class="paste"><input class="inp mono" id="addIn" data-in="add" data-t="addIn" value="${esc(S.addDraft)}" placeholder="예: 회의 · ${esc(ex)}" autocomplete="off"><span id="addBtnBox">${ah.btn}</span></div><div id="addHeardBox">${ah.heard}</div>
   <div class="card" style="margin-top:16px"><div class="ch">이렇게도 붙인다</div><div class="cb" style="padding:2px 14px"><ul class="plain">
    <li><code data-a="fillAdd" data-v="회의" style="cursor:pointer">회의</code> → <b>새 지식 만들기</b> — ${hasPc ? esc(pcRoot() + '\\회의') + ' · 나만' : '팀 서버 안 내 지식'}</li>
-   <li><code data-a="fillAdd" data-v="D:\\옛자료" style="cursor:pointer">D:\\옛자료</code> → <b>내 폴더를 지식으로</b> — 그 자리에서 따라간다 · 복사하지 않는다</li>
+   <li>내 PC 의 폴더(예: <code>D:\\옛자료</code>) → <b>내 PC 프로그램</b>의 지식 추가에서 — 지식 폴더 안의 새 지식으로 들여온다 · 원본은 그대로</li>
    <li><code data-a="fillAdd" data-v="${esc(ex)}" style="cursor:pointer">${esc(ex)}</code> → <b>팀 지식 들어가기</b></li>
-   <li><code data-a="fillAdd" data-v="git@gitlab.team.local:dpms/dpms-batch.git" style="cursor:pointer">git@gitlab.team.local:dpms/dpms-batch.git</code> → 코드 · DB 는 <a data-a="nav" data-s="import">지식 만들기</a>에서</li>
+   <li><code data-a="fillAdd" data-v="git@gitlab.team.local:dpms/dpms-batch.git" style="cursor:pointer">git@gitlab.team.local:dpms/dpms-batch.git</code> → 소스 코드(git) · DB 는 <a data-a="nav" data-s="import">지식 만들기</a>에서</li>
   </ul></div><div class="cf">예를 누르면 칸에 들어간다</div></div></div>` }
 }
 async function doAdd() {
@@ -1631,6 +1645,8 @@ function sendCount(qs, area) {
   return area === 'changes' ? n + (S.cand || []).filter((c) => c.on).length : n
 }
 function viewSend() {
+  const po = pcOnly('지식 보내기', '지식 보내기는', '팀 서버의 개인 지식은 지식 고르기에서 그 지식을 고르면 여기서 팀 지식으로 보낸다.')
+  if (po) return po
   if (S.cand === null) setTimeout(loadCand)
   const ks = sendKns(), qs = ks.map((k) => ({ k, v: sendOf(k.id) }))
   const loading = qs.some((x) => !x.v)
@@ -1784,7 +1800,7 @@ const settingsOf = () => need('settings', '/api/settings')
 const devicesOf = () => need('devices', '/api/me/devices')
 const AUTO_T = {
   team: [['file', '넣은 파일을 글로', 'md · docx · pptx · xlsx 를 글로 바꿔 기록으로 — 정리가 문서에 넣는다 · 끄면 원본 첨부만'], ['find', '찾기', '딱 맞는 항목이 없으면 비슷한 글에서']],
-  pc: [['save', '편집기에서 고친 것 저장', '30초 조용하면 저절로'], ['file', '넣은 파일을 글로', 'md · docx · pptx · xlsx 를 넣으면 기록 · 문서로 바로(Claude 로 다듬어) · 끄면 원본 첨부만'], ['src', '자동으로 가져오는 곳', '더해 둔 곳에서 때마다 표를 다시 채운다'], ['claude', '자동 정리 — Claude 로', '정해진 시각에 내 Claude 로그인으로'], ['find', '찾기', '딱 맞는 항목이 없으면 비슷한 글에서']],
+  pc: [['save', '편집기에서 고친 것 저장', '30초 조용하면 저절로'], ['file', '넣은 파일을 글로', 'md · docx · pptx · xlsx 를 넣으면 기록 · 문서로 바로(Claude 로 다듬어) · 끄면 원본 첨부만'], ['src', '자동으로 가져오는 곳', '더해 둔 곳에서 때마다 표를 다시 채운다'], ['claude', '기록을 문서로 — Claude 로', '기록이 남으면 곧바로 내 Claude 로그인으로 다듬어 넣는다 · 끄면 규칙으로'], ['find', '찾기', '딱 맞는 항목이 없으면 비슷한 글에서']],
 }
 function viewSettings() {
   const team = isTeam(), st = settingsOf(), tab = S.setTab || 'gen'

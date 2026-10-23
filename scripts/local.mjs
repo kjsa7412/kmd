@@ -16,8 +16,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = path.join(ROOT, '.kmd-data', 'local')
 const TEAM = path.join(BASE, 'team')
 const PC = path.join(BASE, 'pc')
-const TEAM_PORT = 7381
-const PC_PORT = 7382
+const TEAM_PORT = Number(process.env.KMD_LOCAL_PORT) || 7381 // 다른 작업 폴더의 로컬 환경과 겹치면 KMD_LOCAL_PORT 로 옮긴다
+const PC_PORT = TEAM_PORT + 1
 const PW = { kim: 'kim-password-1', park: 'park-password-1', lee: 'lee-password-1' }
 
 process.env.KMD_NO_CLAUDE = '1' // claude mcp add 를 부르지 않는다

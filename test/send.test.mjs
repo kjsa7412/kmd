@@ -256,7 +256,7 @@ test('지식 추가 — 지식 폴더 밖의 폴더는 지식 폴더 안의 새 
   }
 })
 
-test('이 PC 의 파일 넣기 — 정리가 따로 없다: 기록과 문서가 바로(Claude 로 다듬어) · Claude 로그인이 없으면 파일 그대로 새 문서 · 기록은 늘 「넣음」', async () => {
+test('이 PC 의 파일 넣기 — 정리가 따로 없다: 기록과 문서가 바로(Claude 로 다듬어) · Claude 로그인이 없으면 규칙으로 갈래 · 주제 문서(파일 이름 아님) · 기록은 늘 「넣음」', async () => {
   const root = path.join(tmp, 'pcroot-ingest')
   fs.mkdirSync(root, { recursive: true })
   const pc = await startServer({ root, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
@@ -278,8 +278,19 @@ test('이 PC 의 파일 넣기 — 정리가 따로 없다: 기록과 문서가 
     try {
       const r2 = await pc.hub.importFiles(ME, id, [{ path: '메모.md', data: Buffer.from('머리 없는 메모 — 당번은 박.\n') }])
       assert.equal(r2.rows[0].kind, 'doc')
-      assert.match(r2.rows[0].msg, /메모 \(파일 그대로 새 문서 · Claude 로그인이 없다/)
+      assert.match(r2.rows[0].msg, /메모 \(규칙으로 주제로 새 문서 · Claude 로그인이 없다/)
       assert.match(fs.readFileSync(path.join(dir, 'docs', '메모.md'), 'utf8'), /## 개요\n<!-- applied: [^>]+ -->\n머리 없는 메모 — 당번은 박\./)
+      // 규칙으로도 문서 이름은 파일 이름이 아니라 갈래 · 주제 — 통화 · 회의 파일은 「회의록」 의 새 항목 「언제 · 무엇」 · 날짜 · 판 조각은 걷는다
+      const r3 = await pc.hub.importFiles(ME, id, [{ path: '2026-10-21 HNC 통화.md', data: Buffer.from('# HNC 통화\n\n## 정한 것\n납기는 11-02.\n') }])
+      assert.match(r3.rows[0].msg, /배포노트 › 회의록 \(규칙으로 갈래 「회의록」 새 문서 2026-10-21 HNC 통화/)
+      const r4 = await pc.hub.importFiles(ME, id, [{ path: '회의_20261022_v2(최종).md', data: Buffer.from('주간 회의 — 당번 표를 바꾼다.\n') }])
+      assert.match(r4.rows[0].msg, /배포노트 › 회의록 \(규칙으로 갈래 「회의록」 문서에 새 항목 2026-10-22/)
+      const mins = fs.readFileSync(path.join(dir, 'docs', '회의록.md'), 'utf8')
+      assert.match(mins, /## 2026-10-21 HNC 통화\n<!-- applied: [^>]+ -->\n\*\*정한 것\*\*\n납기는 11-02\./, '글 속 머리는 굵은 글')
+      assert.match(mins, /## 2026-10-22 회의\n/)
+      assert.ok(!fs.existsSync(path.join(dir, 'docs', '2026-10-21 HNC 통화.md')), '파일 이름 문서는 서지 않는다')
+      const r5 = await pc.hub.importFiles(ME, id, [{ path: '01_배포 절차_v2(최종).md', data: Buffer.from('## 순서\n앱 먼저.\n') }])
+      assert.match(r5.rows[0].msg, /배포노트 › 배포 절차 \(규칙으로 주제로 새 문서/)
     } finally {
       delete process.env.FAKE_CLAUDE_MODE
     }

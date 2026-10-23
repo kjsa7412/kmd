@@ -222,9 +222,61 @@ function checkIngest(k, g, d) {
   return { ok: true, changed }
 }
 
-// 규칙으로 들이기(Claude 없이 · 이 PC 의 넣기가 바로 문서까지 갈 때) — 파일 그대로 새 문서(이름이 겹치면 -2 …)
-//   머리(##) 앞 글은 「개요」 항목으로 · 머리가 없으면 그 글 하나가 「개요」 · 이력에 「규칙으로」 와 까닭
+// 갈래 — 파일 이름 · 제목에 든 말로 고른다(Claude 없이). 문서 이름은 파일 이름이 아니라 갈래 · 주제(요구 15)
+const KINDS = [
+  [/회의록|회의|미팅|통화|면담|minutes|meeting/i, '회의록'],
+  [/장애|사고|incident|postmortem/i, '장애 대응'],
+  [/보고서|주간\s*보고|월간\s*보고|report/i, '보고서'],
+]
+export function kindOfName(s) {
+  const hit = KINDS.find(([re]) => re.test(String(s)))
+  return hit ? hit[1] : null
+}
+// 날짜 — 파일 이름의 YYYY-MM-DD · YYYYMMDD · YYYY.MM.DD
+const DATE_RE = /(20\d\d)[-._ ]?(0[1-9]|1[0-2])[-._ ]?(0[1-9]|[12]\d|3[01])/
+// 주제 — 파일 이름에서 날짜 · 번호 · 판 · 「최종」 같은 조각을 걷은 것(남는 것이 없으면 파일 이름)
+export function topicOfName(file) {
+  const base = String(file).split('/').pop().replace(/\.[^.]+$/, '')
+  const t = base
+    .replace(/_+/g, ' ')
+    .replace(DATE_RE, ' ')
+    .replace(/[([](?:최종|final|사본|copy|\d+)[)\]]/gi, ' ')
+    .replace(/(^|[\s-])[vV]\d+(\.\d+)*(?=$|[\s-])|\d+\s*판|최종|final|사본|copy/gi, ' ')
+    .replace(/^\s*\d+[. -]+/, ' ')
+    .replace(/[\s-]\d{2,8}\s*$/, ' ')
+    .replace(/\s*[-·]\s*$|^\s*[-·]\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return t || base
+}
+
+// 규칙으로 들이기(Claude 없이 · 이 PC 의 넣기가 바로 문서까지 갈 때) — 이름은 파일 이름이 아니라 갈래 · 주제로
+//   갈래(회의록 · 장애 대응 · 보고서)가 보이면 그 갈래 문서의 새 항목 「언제 · 무엇」(갈래 문서가 없으면 세운다) — 글 속 머리는 굵은 글로
+//   갈래가 없으면 주제(날짜 · 번호 · 판을 걷은 이름)로 새 문서(이름이 겹치면 -2 …) — 머리(##) 앞 글은 「개요」 · 머리마다 항목
+//   이력에 「규칙으로」 와 까닭
 export function ingestRule(k, g, { why = null } = {}) {
+  const name = g.record.file.split('/').pop()
+  const topic = topicOfName(g.record.file)
+  const kind = kindOfName(name) || kindOfName(g.record.title)
+  const why1 = why ? [`- Claude 로 하지 못한 까닭 — ${why}`] : []
+  if (kind) {
+    const text = String(g.record.body).replace(/^# .*\n?/m, '').replace(/^#{2,6} (.+)$/gm, '**$1**').trim()
+    if (!text) return null
+    const dm = DATE_RE.exec(name)
+    const when = dm ? `${dm[1]}-${dm[2]}-${dm[3]}` : String(g.record.date || '').slice(0, 10)
+    const what = topic.replace(new RegExp(`^${kind}\\s*`), '').trim() || topic
+    const doc = k.byDocPath.get(docRel(kind))
+    let heading = [when, what].filter(Boolean).join(' ') || kind
+    for (let n = 2; doc && doc.sections.some((s) => s.h === heading); n++) heading = `${[when, what].filter(Boolean).join(' ')} (${n})`
+    return {
+      doc: kind,
+      note: `갈래 「${kind}」 ${doc ? '문서에 새 항목' : '새 문서'} ${heading}`,
+      input: {
+        record: { title: `정리 — ${name} 들임`, body: [`규칙으로 — 갈래 「${kind}」 ${doc ? '문서에 새 항목' : '새 문서'} ${heading}`, ...why1].join('\n'), tags: ['curate-auto'], reflects: [g.record.id] },
+        sections: [{ doc: docRel(kind), heading, content: text }],
+      },
+    }
+  }
   const lines = String(g.record.body).replace(/^# .*\n?/m, '').split('\n')
   const secs = []
   let cur = { heading: '개요', content: [] }
@@ -237,14 +289,16 @@ export function ingestRule(k, g, { why = null } = {}) {
   }
   if (cur.content.join('\n').trim()) secs.push(cur)
   if (!secs.length) return null
-  const base = g.record.file.replace(/\.[^./]+$/, '')
+  // 폴더 짜임은 그대로 · 마지막 이름만 주제로
+  const dir = g.record.file.includes('/') ? g.record.file.slice(0, g.record.file.lastIndexOf('/') + 1) : ''
+  const base = dir + topic
   let p = base
   for (let n = 2; k.byDocPath.get(docRel(p)); n++) p = `${base}-${n}`
-  const name = g.record.file.split('/').pop()
   return {
     doc: p,
+    note: '주제로 새 문서',
     input: {
-      record: { title: `정리 — ${name} 들임`, body: [`규칙으로 — 파일 그대로 새 문서 ${p} · 항목 ${secs.length}`, ...(why ? [`- Claude 로 하지 못한 까닭 — ${why}`] : [])].join('\n'), tags: ['curate-auto'], reflects: [g.record.id] },
+      record: { title: `정리 — ${name} 들임`, body: [`규칙으로 — 주제 문서 ${p} · 항목 ${secs.length}`, ...why1].join('\n'), tags: ['curate-auto'], reflects: [g.record.id] },
       sections: secs.map((s) => ({ doc: docRel(p), heading: s.heading, content: s.content.join('\n').trim() })),
     },
   }

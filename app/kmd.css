@@ -607,6 +607,9 @@ html,body{background:var(--bg)}
   .sb-mg{flex-basis:100%;margin:0;border:0;padding:0}
   .sb-mg .nav{display:flex;flex-wrap:wrap;gap:2px}
   .hright .hlink{display:none}
+  /* 좁은 폭은 창 전체가 길어진다 — 가운데(문서 본문)가 0 높이로 접히지 않고 글만큼 선다 */
+  .body{overflow:visible}
+  .panes .main{flex:1 1 auto;overflow:visible}
 }
 .hright{min-width:max-content}
 .hmid .search{min-width:0;overflow:hidden}
