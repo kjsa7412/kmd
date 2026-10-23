@@ -108,13 +108,26 @@ export async function loadKnowledge({ id, name, dir }, { cache = null } = {}) {
 }
 
 // 이름 → 문서 · 항목(있으면)
+const secCache = new WeakMap()
 export function sectionOf(k, coord) {
+  let m = secCache.get(k)
+  if (!m) secCache.set(k, (m = new Map()))
+  if (m.has(coord)) return m.get(coord)
   const loc = locate(k.registry, coord)
-  if (!loc) return null
-  const doc = k.byDocPath.get(loc.doc) || null
-  const sec = doc ? doc.sections.find((s) => headingMatches(s.h, loc.heading)) || null : null
-  return { loc, doc, sec }
+  let out = null
+  if (loc) {
+    const doc = k.byDocPath.get(loc.doc) || null
+    // 머리 → 항목 표 — 문서마다 한 번(정확히 같은 머리 먼저 · 「값 」 으로 시작하는 머리는 다음)
+    let heads = doc && headIndex.get(doc)
+    if (doc && !heads) headIndex.set(doc, (heads = new Map(doc.sections.map((s) => [s.h.normalize('NFC'), s]).reverse())))
+    const want = loc.heading.normalize('NFC')
+    const sec = doc ? heads.get(want) || doc.sections.find((s) => headingMatches(s.h, want)) || null : null
+    out = { loc, doc, sec }
+  }
+  m.set(coord, out)
+  return out
 }
+const headIndex = new WeakMap()
 
 // 항목 하나에 드는 이름들(장부로 거꾸로)
 // 지식마다 한 번 — 「문서 경로 \n 항목 머리」 → 그 항목에 드는 이름들
@@ -126,9 +139,9 @@ function sectionMap(k) {
   const names = new Set([...k.vocab.coords.keys()])
   for (const w of k.works) for (const c of w.touches) names.add(c)
   for (const c of [...names].sort()) {
-    const loc = locate(k.registry, c)
-    const doc = loc && k.byDocPath.get(loc.doc)
-    const sec = doc && doc.sections.find((s) => headingMatches(s.h, loc.heading))
+    const x = sectionOf(k, c)
+    const doc = x?.doc
+    const sec = x?.sec
     if (!sec) continue
     const key = `${doc.path}\n${sec.h}`
     if (!m.has(key)) m.set(key, [])

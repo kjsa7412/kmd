@@ -176,7 +176,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, { ok: (await auth.setAdmin(id, !!(await readBody(req)).admin)) ?? true })
     }
 
-    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|save|backup|backup\/pull|owner|learn)$/)
+    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|backup|backup\/pull|owner|learn)$/)
     if (!m) throw new KmdError('E_NOTFOUND', '그런 길은 없다')
     const id = decodeURIComponent(m[1])
     const what = m[2]
@@ -194,6 +194,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     }
     const k = await hub.get(id, ctx)
     if (what === 'tree') return out(200, V.tree(k))
+    if (what === 'model') return out(200, V.model(k))
+    if (what === 'item') {
+      const v = V.itemView(k, url.searchParams.get('key') || '')
+      if (!v) throw new KmdError('E_NOTFOUND', '이 항목은 이제 없다')
+      return out(200, v)
+    }
     if (what === 'att') {
       // 첨부 — 나무에 보인 그림만 그대로 보낸다
       const name = url.searchParams.get('a') || ''

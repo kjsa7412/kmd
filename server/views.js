@@ -188,3 +188,87 @@ export function findView(pairs) {
   }
   return { hits: exact ? hits.filter((h) => h.exact) : hits.slice(0, 30), toks: words, exact, more }
 }
+
+// ── 지식 한 벌의 모양 — 항목으로 보기 · 그래프 · 글 속 항목 이름 · 미리보기 카드가 같이 쓴다 ──
+//
+// 항목 = 이름 장부의 이름(그 이름이 드는 문서 항목이 있으면 거기) + 장부에 없는 문서 항목 머리.
+// 항목 열쇠(key)는 이름(coord)이 있으면 그것, 없으면 `#문서#머리`.
+const KIND = { table: '테이블', screen: '화면', api: 'API', term: '용어', proc: '절차', code: '코드', module: '모듈', issue: '이슈', ops: '운영', prog: '프로그램', batch: '배치', req: '요구사항', func: '기능', arch: '구조', test: '시험', scenario: '시나리오', domain: '업무 영역' }
+export const kindOf = (coord) => (coord ? KIND[coord.split(':')[0]] || coord.split(':')[0] : '항목')
+const firstOf = (body) => String(body || '').slice(0, 1500).split('\n').map((l) => l.replace(/[`*#>|]/g, '').trim()).find((l) => l && !/^[-:| ]+$/.test(l)) || ''
+const keyOf = (coord, doc, h) => coord || `#${doc}#${h}`
+
+const models = new WeakMap()
+export function model(k) {
+  if (models.has(k)) return models.get(k)
+  const items = []
+  const byKey = new Map()
+  const add = (it) => {
+    if (byKey.has(it.key)) return
+    byKey.set(it.key, it)
+    items.push(it)
+  }
+  for (const [coord, v] of k.vocab.coords) {
+    if (v.deprecated) continue
+    const s = sectionOf(k, coord)
+    add({ key: coord, coord, name: v.label, kind: kindOf(coord), doc: s?.sec ? s.doc.id : null, sec: s?.sec?.h || null, aliases: v.aliases, table: coord.startsWith('table:'), first: firstOf(s?.sec?.body) })
+  }
+  for (const d of k.docs)
+    for (const s of d.sections) {
+      if (coordsOfSection(k, d, s.h).length) continue
+      add({ key: keyOf(null, d.id, s.h), coord: null, name: s.h, kind: '항목', doc: d.id, sec: s.h, aliases: [], table: false, first: firstOf(s.body) })
+    }
+  // 기록이 건드렸지만 장부에도 문서에도 없는 이름 — 「문서가 없는 항목」
+  for (const w of k.works)
+    for (const c of w.touches) if (!byKey.has(c) && !c.startsWith('domain:')) add({ key: c, coord: c, name: labelOf(k, c), kind: kindOf(c), doc: null, sec: null, aliases: [], table: c.startsWith('table:'), first: '' })
+  const itemOfSec = new Map(items.filter((i) => i.doc).map((i) => [`${i.doc}\n${i.sec}`, i.key]))
+  const recs = k.works.map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title, body: w.body.replace(/\s+/g, ' ').slice(0, 200), state: w.state, fixes: w.fixes, items: w.touches.filter((c) => byKey.has(c)) }))
+  const docs = k.docs.map((d) => ({ id: d.id, title: d.title, when: d.mtime, first: firstOf(d.intro || d.sections[0]?.body), links: linksOf(d).filter((x) => k.docs.some((o) => o.id === x)), items: d.sections.map((s) => itemOfSec.get(`${d.id}\n${s.h}`)).filter(Boolean) }))
+  // 이 항목을 쓰는 곳 — 다른 항목의 글에 이 항목 이름 · 다른 이름이 나온다(테이블 빼고)
+  const uses = {}
+  const bodies = items.filter((i) => i.doc && !i.table).map((i) => {
+    const d = k.docs.find((x) => x.id === i.doc)
+    return { key: i.key, text: d?.sections.find((s) => s.h === i.sec)?.body || '' }
+  })
+  // 2글자 조각 → 그 조각이 든 글들 — 이름마다 가장 드문 조각의 글만 대조한다(gdi 1,200 항목에서 2초 → 수십 ms)
+  const grams = new Map()
+  bodies.forEach((b, i) => {
+    const t = b.text.toLowerCase()
+    const seen = new Set()
+    for (let j = 0; j < t.length - 1; j++) {
+      const g = t.slice(j, j + 2)
+      if (seen.has(g)) continue
+      seen.add(g)
+      if (!grams.has(g)) grams.set(g, [])
+      grams.get(g).push(i)
+    }
+  })
+  for (const it of items) {
+    if (it.table) continue
+    const names = [it.name, ...it.aliases].filter((x) => x && x.length >= 2)
+    const hit = new Set()
+    for (const n of names) {
+      const low = n.toLowerCase()
+      let best = null
+      for (let j = 0; j < low.length - 1; j++) {
+        const l = grams.get(low.slice(j, j + 2)) || []
+        if (!best || l.length < best.length) best = l
+      }
+      for (const i of best || []) if (bodies[i].key !== it.key && bodies[i].text.includes(n)) hit.add(bodies[i].key)
+    }
+    if (hit.size) uses[it.key] = [...hit].sort()
+  }
+  const m = { items, docs, recs, uses }
+  models.set(k, m)
+  return m
+}
+
+// 항목 한 장 — 지금 글(그 문서 안의 그 부분)
+export function itemView(k, key) {
+  const it = model(k).items.find((x) => x.key === key)
+  if (!it) return null
+  const d = it.doc && k.docs.find((x) => x.id === it.doc)
+  const s = d && d.sections.find((x) => x.h === it.sec)
+  const by = s?.applied && k.byWork.get(s.applied)
+  return { ...it, docTitle: d ? d.title : null, html: s ? render(k, d.path, s.body) : null, by: by ? { id: by.id, date: by.date, author: by.author } : null }
+}

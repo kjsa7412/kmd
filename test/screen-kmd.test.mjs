@@ -117,6 +117,35 @@ test('셸 · 지식 목록 · 문서로 보기 — 목업과 같은 글 · 단�
   assert.equal(await page.locator('[data-t=recState]').innerText(), '아직 문서에 안 넣은 기록')
   assert.equal(await page.locator('[data-t=recItem]').count(), 1)
 
+  // 글 속 항목 이름 → 항목 링크 · 마우스를 올리면 미리보기 카드
+  await page.click('[data-t=tab][data-name="배포절차"]')
+  await page.waitForSelector('[data-t=docPane][data-name="배포절차"] .ilink')
+  await page.hover('[data-t=docPane] .ilink >> nth=0')
+  await page.waitForSelector('[data-t=pv]')
+
+  // 항목으로 보기(M6) — 종류별 목록 · 항목 한 화면 · 옆 칸
+  await page.click('[data-t=rb-items]')
+  await page.waitForSelector('[data-t=itemList] [data-t=itemRow]')
+  assert.deepEqual(await page.locator('.fcs .fc').allInnerTexts(), ['아직 안 넣은 것', '최근 바뀐 것', '내가 쓴 것'])
+  await page.click('[data-t=itemRow][data-name="헬스 체크"]')
+  await page.waitForSelector('[data-t=itemPage]')
+  assert.deepEqual(await page.locator('[data-t=itemPage] .isec > h3').evaluateAll((els) => els.map((e) => e.firstChild.textContent.trim())), ['지금', '아직 문서에 안 넣은 기록', '지난 기록', '이 항목을 쓰는 곳', '다른 이름'])
+  assert.ok((await page.locator('[data-t=itemHistRow]').count()) >= 5)
+  assert.ok((await page.locator('[data-t=coItem]').count()) >= 1)
+  await page.screenshot({ path: path.join(SHOTS, 'app-items.png') })
+
+  // 그래프(M7) — 점 · 선 · 거름 · 범례 · 점을 누르면 카드
+  await page.click('[data-t=rb-graph]')
+  await page.waitForSelector('#gsvg [data-t=gnode]')
+  assert.ok((await page.locator('#gsvg [data-t=gnode]').count()) > 10)
+  assert.equal(await page.locator('[data-t=gLegend] .lgr').count(), 10)
+  await page.locator('#gsvg [data-node="i:proc:헬스 체크"]').dispatchEvent('pointerdown', { button: 0, clientX: 1, clientY: 1 })
+  await page.dispatchEvent('body', 'pointerup')
+  await page.waitForSelector('[data-t=gCard][data-name="헬스 체크"]')
+  await page.screenshot({ path: path.join(SHOTS, 'app-graph.png') })
+  await page.click('[data-t=gOpenDocs]')
+  await page.waitForSelector('[data-t=docPane][data-name="배포절차"]')
+
   // 빨리 열기 · 찾기
   await page.keyboard.press('Control+o')
   await page.fill('#qoIn', '서버')
@@ -154,6 +183,13 @@ test('목업과 나란히 — 같은 크기로 지식 목록 · 문서 한 장�
   }))
   assert.deepEqual(mockShell.ribbon, ['문서', '항목', '그래프', '설정'])
   assert.deepEqual(mockShell.aside.slice(0, 3), ['개요', '이 문서를 가리키는 것', '속성'])
+  await page.click('[data-t=rb-items]')
+  await page.click('[data-t=itemRow][data-name="헬스 체크"]')
+  await page.waitForSelector('[data-t=itemPage]')
+  await page.locator('#app').screenshot({ path: path.join(SHOTS, 'mock-items.png') })
+  await page.click('[data-t=rb-graph]')
+  await page.waitForSelector('#gsvg')
+  await page.locator('#app').screenshot({ path: path.join(SHOTS, 'mock-graph.png') })
   await page.close()
   console.log(`# 나란히 볼 그림 — ${SHOTS}`)
 })

@@ -10,7 +10,8 @@ import { listKnowledge, loadKnowledge } from '../core/knowledge.js'
 import { KmdError } from '../core/errors.js'
 import { save as coreSave } from '../core/save.js'
 import { check } from '../core/check.js'
-import { commitPaths, ensureRepo } from '../core/git.js'
+import { commitPaths, ensureRepo, tryGit } from '../core/git.js'
+import { stopLine } from '../core/stopline.js'
 import * as backup from '../core/backup.js'
 import * as owners from '../core/owners.js'
 import { buildIndex, ladder, loadLearned, learn, searchCheck } from '../core/search.js'
@@ -128,7 +129,15 @@ export async function makeHub({ root, dataDir, mode = 'team', log = (...a) => co
     // 멈춤 줄 — 그 사람이 보는 지식만
     async stops(ctx, id = null) {
       const ks = id ? [await hub.meta(id, ctx)] : await hub.visible(ctx)
-      return ks.flatMap((k) => backup.lines(k, { name: k.name }))
+      const out = []
+      for (const k of ks) {
+        out.push(...backup.lines(k, { name: k.name }))
+        if (!backup.attached(k)) {
+          const u = await unbacked(k)
+          if (u) out.push(stopLine({ kind: 'backup', kn: k.id, level: 'warn', what: `${k.name} — 백업 자리가 없다`, amount: `저장 ${u.n}`, fix: '관리자가 백업 자리를 붙이면 그동안의 것을 모두 보낸다', since: `${u.since} 부터` }))
+        }
+      }
+      return out
     },
 
     // 주인 · 개인 · 정리하는 사람 — 관리자 또는 지금 주인. `_members.md` 도 같이 바꿔 백업 · 되살림에 따라가게
@@ -194,5 +203,21 @@ export async function makeHub({ root, dataDir, mode = 'team', log = (...a) => co
 }
 
 export const defaultDataDir = (root) => path.join(root, '.kmd')
+
+// 백업 자리가 없는 지식 — 저장이 50 을 넘거나 첫 저장이 7일 넘었으면 노랑 한 줄(v0.5 §4.2). HEAD 마다 한 번 잰다
+const unbackedCache = new Map()
+async function unbacked(k) {
+  const head = (await tryGit(k.dir, ['rev-parse', '-q', '--verify', 'HEAD'])).out.trim()
+  if (!head) return null
+  const hit = unbackedCache.get(k.dir)
+  if (hit && hit.head === head) return hit.v
+  const n = Number((await tryGit(k.dir, ['rev-list', '--count', 'HEAD'])).out.trim()) || 0
+  const first = Number((await tryGit(k.dir, ['log', '--reverse', '--format=%ct', '--max-parents=0'])).out.trim().split('\n')[0]) * 1000
+  const old = first && Date.now() - first > 7 * 864e5
+  const d = new Date(first)
+  const v = n >= 50 || old ? { n, since: `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` } : null
+  unbackedCache.set(k.dir, { head, v })
+  return v
+}
 // 셸(서버를 띄운 사람)의 자리 — CLI 가 쓴다
 export const SHELL = Object.freeze({ user: 'kmd', admin: true, shell: true })
