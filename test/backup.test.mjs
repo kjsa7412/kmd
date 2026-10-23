@@ -13,10 +13,10 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import * as backup from '../core/backup.js'
-import { copyDir } from './helpers.mjs'
+import { copyDir, signIn } from './helpers.mjs'
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixture', 'kmd')
-let tmp, s, kn, bare
+let tmp, s, kn, bare, me
 const G = (cwd, ...a) => execFileSync('git', ['-c', 'user.name=남', '-c', 'user.email=nam@x', '-c', 'core.autocrlf=false', ...a], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
 const rec = (title) => ({ record: { title, body: title + ' — 본문', touches: ['proc:카나리'] } })
 const ctx = { user: '김' }
@@ -41,7 +41,8 @@ before(async () => {
   fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })
   fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ backupRoots: [tmp] }))
   backup.configure({ delays: [150], lsTimeout: 5000 })
-  s = await startServer({ root: path.join(tmp, 'kn'), user: '김', port: 0, log: () => {} })
+  s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {} })
+  me = await signIn(s, { id: 'kim' })
   kn = { id: 'dpms', dir: path.join(tmp, 'kn', 'dpms') }
   await s.hub.save(ctx, 'dpms', rec('첫 저장'))
 })
@@ -58,6 +59,17 @@ const remoteHead = () => {
   }
 }
 const head = () => G(kn.dir, 'rev-parse', 'HEAD')
+// Windows — 도는 git 이 폴더를 쥐고 있으면 이름 바꾸기가 EPERM · EBUSY 로 넘어진다. 잠깐 기다려 다시
+async function rename(a, b) {
+  for (let i = 0; ; i++) {
+    try {
+      return fs.renameSync(a, b)
+    } catch (e) {
+      if (i > 50 || !['EPERM', 'EBUSY', 'EACCES'].includes(e.code)) throw e
+      await wait(100)
+    }
+  }
+}
 
 test('붙이면 지금까지 보낸다 · 상태 파일이 남는다 · 잘 될 때 줄 0', async () => {
   const r = await s.hub.backupAttach(ADMIN, 'dpms', bare)
@@ -90,14 +102,15 @@ test('지워진 백업 → 다시 올리고 하루 빨강 · 판정은 순수 �
 
 test('끊긴 동안 저장은 그대로 · 나이 경보 · 닿으면 저절로 다시 보낸다', async () => {
   const off = bare + '.off'
-  fs.renameSync(bare, off)
+  await backup.enqueue(kn)
+  await rename(bare, off)
   const r = await s.hub.save(ctx, 'dpms', rec('끊긴 동안'))
   assert.ok(r.id, '저장은 막히지 않는다')
   assert.notEqual(backup.stateOf(kn).last.ok, true)
   const later = backup.lines(kn, { now: Date.now() + 7 * 3600000 }).find((l) => /멈췄다/.test(l.text))
   assert.equal(later?.level, 'warn', '6시간이면 노랑')
   assert.equal(backup.lines(kn, { now: Date.now() + 25 * 3600000 }).find((l) => /멈췄다/.test(l.text))?.level, 'bad', '24시간이면 빨강')
-  fs.renameSync(off, bare)
+  await rename(off, bare)
   assert.ok(await until(() => remoteHead() === head()), '다시 보내기가 저절로 보냈다')
 })
 
@@ -109,7 +122,7 @@ test('남이 앞서 민 백업 → 읽기만(E_BEHIND) → 백업에서 받기 �
   G(other, 'push', '-q', 'origin', 'HEAD:main')
   await backup.enqueue(kn)
   assert.equal(backup.stateOf(kn).verdict, 'behind')
-  const res = await fetch(s.url + '/api/k/dpms/save', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(rec('막힐 저장')) })
+  const res = await fetch(s.url + '/api/k/dpms/save', { method: 'POST', headers: { 'content-type': 'application/json', cookie: me.cookie }, body: JSON.stringify(rec('막힐 저장')) })
   assert.equal(res.status, 409)
   assert.equal((await res.json()).error, 'E_BEHIND')
   const p = await s.hub.backupPull(ADMIN, 'dpms')

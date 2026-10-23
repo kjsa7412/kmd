@@ -10,13 +10,14 @@ import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
-import { copyDir } from './helpers.mjs'
+import { copyDir, signIn } from './helpers.mjs'
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixture', 'kmd')
-let tmp, s
+let tmp, s, me
 
 const j = async (p, body, headers = {}) => {
-  const r = await fetch(s.url + p, body ? { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) } : undefined)
+  const auth = p === '/mcp' ? { authorization: `Bearer ${me.key}` } : { cookie: me.cookie }
+  const r = await fetch(s.url + p, body ? { method: 'POST', headers: { 'content-type': 'application/json', ...auth, ...headers }, body: JSON.stringify(body) } : { headers: auth })
   return { status: r.status, body: await r.json() }
 }
 let rpcId = 0
@@ -28,7 +29,8 @@ before(async () => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-k0-'))
   process.env.HOME = process.env.USERPROFILE = process.env.APPDATA = tmp
   copyDir(FIX, path.join(tmp, 'kn'))
-  s = await startServer({ root: path.join(tmp, 'kn'), user: '김', port: 0 })
+  s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {} })
+  me = await signIn(s, { id: 'kim' })
 })
 after(async () => {
   await s?.close()
@@ -77,13 +79,13 @@ test('MCP save — 기록 + 항목 갈아 끼우기가 git 한 묶음 · 나쁜 
   const dir = path.join(tmp, 'kn', 'dpms')
   const w = fs.readFileSync(path.join(dir, 'work', `${id}.md`), 'utf8')
   assert.match(w, /^---\nid: /)
-  assert.match(w, /author: 김/)
+  assert.match(w, /author: kim/)
   const doc = fs.readFileSync(path.join(dir, 'docs', '배포절차.md'), 'utf8')
   assert.match(doc, new RegExp(`## 롤백\\n<!-- applied: ${id} -->\\n앱을 먼저 이전 판으로 내리고`))
   assert.match(doc, /## 꾸러미 판/, '다른 항목은 그대로')
   const log = git('log', '--format=%an|%s').trim().split('\n')
   assert.equal(log.length, 2, '처음 묶음 + 저장 한 묶음')
-  assert.equal(log[0], '김|롤백 순서 — 앱 먼저 내린다')
+  assert.equal(log[0], 'kim|롤백 순서 — 앱 먼저 내린다')
   assert.deepEqual(git('show', '--name-only', '--format=', 'HEAD').trim().split('\n').sort(), ['docs/배포절차.md', `work/${id}.md`].sort())
   assert.equal(git('status', '--porcelain').trim(), '')
   // 화면 자료도 바로 바뀐다

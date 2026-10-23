@@ -7,6 +7,7 @@
 // 문서 · 기록 · 첨부 · 옆 칸) · 빨리 열기 · 찾기 · 명령 창. 항목 · 그래프 · 일 화면은 뒤 판이 채운다.
 
 import { $, esc, norm, uid, svg, whenTxt, isToday, hhmm, clock } from './ui.js'
+import { prehash } from './prehash.js'
 
 const S = {
   me: null,
@@ -22,12 +23,15 @@ const S = {
 const KNSCR = ['docs', 'items', 'graph']
 const KN = (k) => S.kns.find((x) => x.id === k) || null
 const isTeam = () => S.me && S.me.mode === 'team'
+// 들어오기 전 — 들어가기 · 처음 들어오기 링크 · 첫 설정 화면
+const anon = () => !!S.me && (!!S.me.anon || !!S.gate)
 const knType = () => (isTeam() ? 'team' : 'pc')
 
 // ───────────── 자료 ─────────────
 async function getJSON(p) {
   const r = await fetch(p, { headers: { accept: 'application/json' } })
   const j = await r.json().catch(() => ({}))
+  if (r.status === 401 && S.me && !S.me.anon) { S.me = { ...S.me, anon: true }; setTimeout(render) }
   if (!r.ok) throw Object.assign(new Error(j.message || '서버에 닿지 않는다'), { code: j.error })
   return j
 }
@@ -154,11 +158,12 @@ function histGo(d) {
 function render() {
   const app = $('#app')
   if (!S.me) { app.innerHTML = `<div class="col"><div class="main">${S.err ? errHtml({ error: S.err }) : loadingHtml}</div></div>`; return }
-  const scr = viewOf(S.route.scr)
+  const scr = anon() ? gateView() : viewOf(S.route.scr)
   const center = scr.tabs
     ? `<div class="center">${tabbarHtml()}<div class="panes"><div class="main" data-t="main">${scr.main}</div>${scr.right != null ? `<div class="main rp" data-t="rightPane">${scr.right}</div>` : ''}</div></div>`
     : `<div class="main" data-t="main">${scr.main}</div>`
-  app.innerHTML = ribbonHtml() + sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside">${scr.aside}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}`
+  app.innerHTML = ribbonHtml() + sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${anon() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside">${scr.aside}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}`
+  if (anon()) { const g = $('[data-focus]'); if (g && document.activeElement !== g) g.focus(); return }
   const fi = $('#palIn') || $('#qoIn') || $('#cmdIn')
   if (fi && document.activeElement !== fi) { fi.focus(); fi.setSelectionRange(fi.value.length, fi.value.length) }
   if (S._lit) {
@@ -171,22 +176,23 @@ function viewOf(s) {
   return f ? f() : viewLater(s)
 }
 function ribbonHtml() {
-  const r = S.route.scr
+  const r = anon() ? null : S.route.scr
   const b = (v, l, ic) => `<button class="rb${r === v ? ' on' : ''}" data-a="view" data-v="${v}" data-t="rb-${v}" title="${l}로 보기">${svg(ic)}<span>${l}</span></button>`
-  return `<nav class="ribbon" data-t="ribbon">${b('docs', '문서', 'doc')}${b('items', '항목', 'tag')}${b('graph', '그래프', 'graph')}<span class="sp"></span><button class="rb${r === 'settings' ? ' on' : ''}" data-a="nav" data-s="settings" data-t="nav-settings" title="설정">${svg('gear')}<span>설정</span></button></nav>`
+  return `<nav class="ribbon${anon() ? ' dim' : ''}" data-t="ribbon">${b('docs', '문서', 'doc')}${b('items', '항목', 'tag')}${b('graph', '그래프', 'graph')}<span class="sp"></span><button class="rb${r === 'settings' ? ' on' : ''}" data-a="nav" data-s="settings" data-t="nav-settings" title="설정">${svg('gear')}<span>설정</span></button></nav>`
 }
 function sideHtml(left) {
   const r = S.route, team = isTeam()
   const cur = r.kn && r.kn !== '*' ? KN(r.kn) : null
   const ktag = () => (team ? '<span class="kt team">팀</span>' : '<span class="kt me">개인</span>')
-  let h = `<aside class="side"><div class="sb-top"><div class="logo${team ? '' : ' me'}">K</div><span class="brand">kmd</span></div><div class="where">${team ? '팀 서버에서 돈다 · ' + esc(S.me.host) : '이 PC 에서 돈다'}</div>`
+  const dim = anon()
+  let h = `<aside class="side${dim ? ' dim' : ''}"><div class="sb-top"><div class="logo${team ? '' : ' me'}">K</div><span class="brand">kmd</span></div><div class="where">${team ? '팀 서버에서 돈다 · ' + esc(S.me.host) : '이 PC 에서 돈다'}</div>`
   const cnt = team ? '팀 ' + S.kns.length : '내 지식 ' + S.kns.length
-  h += `<div class="sb-repo" data-a="kmenu" data-t="kpick">${cur ? `<span class="rk">${esc(cur.name.slice(0, 2))}</span><span class="rn">${esc(cur.name)} <small>${team ? '팀 서버' : esc(cur.dir || '')}</small></span>` : `<span class="rk">전체</span><span class="rn">지식 전체<small>${cnt}</small></span>`}<span class="rc">▾</span>${S.menu === 'kmenu' ? `<div class="kmenu"><div class="mi" data-a="pickKn" data-k="*" data-t="nav-home">${svg('list')} 지식 목록 — 전체</div>${S.kns.map((k) => `<div class="mi" data-a="pickKn" data-k="${esc(k.id)}">${esc(k.name)} ${ktag()}</div>`).join('')}</div>` : ''}</div>`
-  const it = (key, l, ic) => `<div class="sb-i${r.scr === key ? ' on' : ''}" data-a="nav" data-s="${key}" data-t="nav-${key}">${svg(ic)}<span>${l}</span></div>`
+  if (!dim) h += `<div class="sb-repo" data-a="kmenu" data-t="kpick">${cur ? `<span class="rk">${esc(cur.name.slice(0, 2))}</span><span class="rn">${esc(cur.name)} <small>${team ? '팀 서버' : esc(cur.dir || '')}</small></span>` : `<span class="rk">전체</span><span class="rn">지식 전체<small>${cnt}</small></span>`}<span class="rc">▾</span>${S.menu === 'kmenu' ? `<div class="kmenu"><div class="mi" data-a="pickKn" data-k="*" data-t="nav-home">${svg('list')} 지식 목록 — 전체</div>${S.kns.map((k) => `<div class="mi" data-a="pickKn" data-k="${esc(k.id)}">${esc(k.name)} ${ktag()}</div>`).join('')}</div>` : ''}</div>`
+  const it = (key, l, ic) => `<div class="sb-i${!dim && r.scr === key ? ' on' : ''}" data-a="nav" data-s="${key}" data-t="nav-${key}">${svg(ic)}<span>${l}</span></div>`
   h += '<div class="nav">' + it('today', '오늘 바뀐 것', 'check') + it('import', '자료 가져오기', 'plug') + '</div>'
   if (left) h += `<div class="lp" data-t="leftPane">${left}</div>`
   h += '<div class="sb-foot"><div class="nav"><div class="sb-i deco">' + svg('book') + '<span>설명서</span></div></div>'
-  h += `<div class="sb-me"><span class="av">${esc(String(S.me.user).slice(0, 1))}</span><span>${esc(S.me.user)} <small>· ${team ? '팀 서버' : '이 PC'}</small></span></div>`
+  h += dim ? '<div class="sb-me"><span class="av">?</span><span class="muted">아직 들어오지 않았다</span></div>' : `<div class="sb-me"><span class="av">${esc(String(S.me.user).slice(0, 1))}</span><span>${esc(S.me.user)} <small>· ${team ? '팀 서버' : '이 PC'}</small></span></div>`
   return h + '</div></aside>'
 }
 function hdrHtml(crumb) {
@@ -195,6 +201,7 @@ function hdrHtml(crumb) {
   const parts = String(crumb || '').split(' › ').filter(Boolean)
   const c = (kn && parts[0] !== kn ? '<span>' + esc(kn) + '</span> › ' : '') + parts.map((x, i) => (i === parts.length - 1 ? '<b>' + esc(x) + '</b>' : esc(x))).join(' › ')
   const hb = `<span class="hist"><button class="hb" data-a="histGo" data-v="-1" data-t="histBack" title="이전 (Alt ←)"${S.hpos > 0 ? '' : ' disabled'}>‹</button><button class="hb" data-a="histGo" data-v="1" data-t="histFwd" title="다음 (Alt →)"${S.hpos < S.hist.length - 1 ? '' : ' disabled'}>›</button></span>`
+  if (anon()) return `<header class="hdr"><span class="crumb">${c}</span></header>`
   return `<header class="hdr">${hb}<span class="crumb">${c}</span><div class="qbtn" data-a="openQo" data-t="qoBtn" title="문서 · 항목 · 기록 이름으로 바로 연다">빨리 열기 <kbd>Ctrl O</kbd></div><div class="search" data-a="openSearch" data-t="search">${svg('search')}<span style="margin-left:6px">찾기</span><span style="margin-left:auto;font-size:11px">Ctrl K</span></div></header>`
 }
 function bandHtml() {
@@ -218,7 +225,7 @@ async function loadStops() {
 }
 
 function statusHtml() {
-  const l = isTeam() ? '들어옴 · ' + esc(S.me.user) : '이 PC'
+  const l = anon() ? (S.gate === 'setup' ? '첫 설정 · 아직 관리자가 없다' : '') : isTeam() ? '들어옴 · ' + esc(S.me.user) : '이 PC'
   return `<div class="status"><span>${l}</span><span class="r" data-t="clock">kmd v${esc(S.me.version)} · ${clock()}</span></div>`
 }
 
@@ -479,6 +486,137 @@ function palBody() {
   return `<div class="g" data-t="gSim">딱 맞는 항목이 없어 비슷한 글에서 찾았다</div>${r.hits.map(hit).join('')}<div class="ft" data-t="simCount">비슷한 글 ${r.hits.length}개</div>`
 }
 
+// ───────────── 들어오기 전 — 들어가기 · 처음 들어오기 링크 · 첫 설정 ─────────────
+// 서버는 비밀번호를 받지 않는다 — 여기서 전처리(prehash)한 값을 보낸다.
+function gateView() {
+  if (S.gate === 'first' || S.gate === 'done') return { crumb: '처음', main: viewFirst() }
+  if (S.gate === 'setup') return { crumb: '처음', main: viewSetup() }
+  return { crumb: '들어가기', main: viewLogin() }
+}
+const gateErr = () => (S.gateErr ? `<div class="callout danger" data-t="loginErr">${esc(S.gateErr)}</div>` : '')
+function viewLogin() {
+  const legacy = S.legacyOpen
+  const form = legacy
+    ? `<form data-f="legacy" autocomplete="off">
+  <div class="field"><label for="lgTok">예전 열쇠</label><input class="inp mono" id="lgTok" type="password" autocomplete="off" data-focus><div class="hint">붙여 넣으면 곧바로 비밀번호를 정한다 — 그 뒤로는 아이디 · 비밀번호로 들어온다</div></div>
+  ${gateErr()}<button class="btn pri" type="submit" data-t="legacyBtn">다음</button></form>`
+    : `<form data-f="login" autocomplete="on">
+  <div class="field"><label for="lgId">아이디</label><input class="inp" id="lgId" name="username" autocomplete="username" value="${esc(S.gateUser || '')}" data-focus></div>
+  <div class="field"><label for="lgPw">비밀번호</label><input class="inp" id="lgPw" type="password" name="password" autocomplete="current-password"><div class="hint">브라우저가 채웠다 — Enter 만 누르면 된다</div></div>
+  ${gateErr()}<button class="btn pri" type="submit" data-t="loginBtn">들어가기</button></form>`
+  const old = S.me.legacy && !legacy ? ` <a data-a="legacyOpen" data-t="legacyOpen">예전 열쇠로 들어가기</a>` : legacy ? ` <a data-a="legacyClose">아이디 · 비밀번호로</a>` : ''
+  return `<div class="gatewrap"><div class="gate"><div class="card"><div class="cb">
+  <div class="mk">${svg('user')}</div><div class="big">팀 kmd 에 들어간다</div><p class="lead">한 번 들어오면 일주일쯤 이어진다.</p>
+  ${form}
+  <div class="links">잊었으면 관리자에게 — 새 링크를 보내 준다${old}</div>
+ </div></div></div></div>`
+}
+function viewFirst() {
+  if (S.gate === 'done')
+    return `<div class="gatewrap"><div class="gate"><div class="card"><div class="cb" data-t="firstDone">
+  <div class="mk">${svg('check')}</div><div class="big">✓ 정했다 — 들어왔다.</div>
+  <p class="lead">이 PC 의 Claude Code 로도 쓰려면 — <a data-a="copyInstall" data-t="copyInstall">한 줄 복사</a><br><span class="muted small">10분 동안 한 번만 · 남에게 주지 마세요</span></p>
+  <div class="links"><a data-a="gateHome" data-t="gateHome">지식 목록 ›</a></div>
+ </div></div></div></div>`
+  const who = S.gateUser
+  if (!who) return `<div class="gatewrap"><div class="gate"><div class="card"><div class="cb"><div class="big">처음 들어오기</div><div class="callout gray" data-t="firstGone">이 링크는 이제 쓸 수 없다 — 관리자에게 새 링크를 부탁한다</div><div class="links"><a data-a="gateLogin">들어가기 ›</a></div></div></div></div></div>`
+  return `<div class="gatewrap"><div class="gate"><div class="card"><div class="cb">
+  <div class="mk">${svg('lock')}</div><div class="big">${esc(who)}의 비밀번호를 정한다</div><p class="lead">처음 들어오기 링크 — 관리자가 보냈다</p>
+  <form data-f="first" autocomplete="on">
+  <div class="field"><label for="fsId">아이디</label><input class="inp" id="fsId" name="username" autocomplete="username" value="${esc(who)}" readonly></div>
+  <div class="field"><label for="fsPw">비밀번호</label><input class="inp" id="fsPw" type="password" name="new-password" autocomplete="new-password" data-focus><div class="hint">브라우저가 제안하는 비밀번호를 쓰면 외울 것이 없다 — 직접 정하면 10자 이상 · 회사 메일 · 윈도 비밀번호와 다르게</div></div>
+  ${gateErr()}<button class="btn pri" type="submit" data-t="firstBtn">정하기</button></form>
+ </div></div></div></div>`
+}
+function viewSetup() {
+  return `<div class="gatewrap"><div class="gate"><div class="card"><div class="cb">
+  <div class="mk">${svg('shield')}</div><div class="big">팀 kmd 의 관리자를 만든다</div><p class="lead">이 주소에서 한 번만 묻는다.</p>
+  <form data-f="setup" autocomplete="on">
+  <div class="field"><label for="suId">관리자 아이디</label><input class="inp" id="suId" name="username" autocomplete="username" data-focus></div>
+  <div class="field"><label for="suPw">비밀번호</label><input class="inp" id="suPw" type="password" name="new-password" autocomplete="new-password"><div class="hint">브라우저가 제안하는 비밀번호를 쓰면 외울 것이 없다</div></div>
+  ${gateErr()}<button class="btn pri" type="submit" data-t="setupBtn">관리자 만들기</button></form>
+  <details class="more"><summary>자세히</summary><div class="in">Claude · DB · GitLab 의 열쇠는 이 화면에서 받지 않는다 — 서버에서 한 번 넣어 둔다. 들어오면 사람마다 「처음 들어오기 링크」 를 만들어 메신저로 전하면 끝 — 비밀번호는 그 사람이 정한다.</div></details>
+ </div></div></div></div>`
+}
+async function postJSON(p, body) {
+  const r = await fetch(p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) throw Object.assign(new Error(j.message || '서버에 닿지 않는다'), { code: j.error })
+  return j
+}
+// 화면 밖에서 복사 — http 화면은 navigator.clipboard 가 없을 수 있다
+function copyText(t) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t)
+  } catch {}
+  const ta = document.createElement('textarea')
+  ta.value = t
+  ta.style.position = 'fixed'
+  ta.style.opacity = '0'
+  document.body.appendChild(ta)
+  ta.select()
+  try { document.execCommand('copy') } catch {}
+  ta.remove()
+}
+async function copyInstall() {
+  try {
+    const r = await postJSON('/api/device/ticket')
+    copyText(r.line)
+    S.lastInstall = r.line
+    toast('설치 한 줄을 복사했다 — 10분 동안 한 번만 · 작업 폴더의 터미널에 붙여 넣는다')
+  } catch (e) { toast(esc(e.message)) }
+}
+async function afterLogin(notice) {
+  S.gate = S.gate === 'done' ? 'done' : null
+  S.gateErr = null
+  S.legacyOpen = false
+  if (location.pathname !== '/' || location.hash) history.replaceState(null, '', '/')
+  await loadAll()
+  if (notice) toast(esc(notice), 9000)
+}
+async function submitGate(kind) {
+  S.gateErr = null
+  const v = (id) => ($('#' + id) ? $('#' + id).value : '')
+  try {
+    if (kind === 'login') {
+      const user = v('lgId').trim()
+      if (!user || !v('lgPw')) throw new Error('아이디나 비밀번호를 확인하세요 — 여러 번 틀리면 잠시 막힌다')
+      S.gateUser = user
+      const r = await postJSON('/login', { user, pw: prehash(user, v('lgPw')) })
+      await afterLogin(r.notice)
+    } else if (kind === 'legacy') {
+      const r = await postJSON('/login', { token: v('lgTok').trim() })
+      S.gate = 'first'
+      S.gateCode = r.code
+      S.gateUser = r.user
+      S.legacyOpen = false
+      render()
+    } else if (kind === 'first') {
+      const pw = v('fsPw')
+      if (pw.length < 10) throw new Error('10자 이상 — 회사 메일 · 윈도 비밀번호와 다르게')
+      await postJSON('/first', { code: S.gateCode, pw: prehash(S.gateUser, pw) })
+      S.gate = 'done'
+      await afterLogin()
+    } else if (kind === 'setup') {
+      const user = v('suId').trim()
+      const pw = v('suPw')
+      if (pw.length < 10) throw new Error('10자 이상 — 회사 메일 · 윈도 비밀번호와 다르게')
+      await postJSON('/setup', { code: S.gateCode, name: user, pw: prehash(user, pw) })
+      S.gate = null
+      await afterLogin()
+    }
+  } catch (e) {
+    S.gateErr = e.message
+    render()
+  }
+}
+document.addEventListener('submit', (ev) => {
+  const f = ev.target.dataset && ev.target.dataset.f
+  if (!f) return
+  ev.preventDefault()
+  submitGate(f)
+})
+
 // ───────────── 이벤트 ─────────────
 function openDocAt(k, d, h, q) {
   openTab({ kind: 'doc', kn: k, ref: d, hl: h || null, q: q || null })
@@ -487,6 +625,11 @@ function openDocAt(k, d, h, q) {
   if (!h) scrollTopMain()
 }
 const ACT = {
+  legacyOpen: () => { S.legacyOpen = true; S.gateErr = null; render() },
+  legacyClose: () => { S.legacyOpen = false; S.gateErr = null; render() },
+  copyInstall: () => copyInstall(),
+  gateHome: () => { S.gate = null; history.replaceState(null, '', '/'); go({ scr: 'home', kn: '*' }) },
+  gateLogin: () => { S.gate = null; history.replaceState(null, '', '/'); render() },
   view: (el) => setView(el.dataset.v),
   nav: (el) => go({ scr: el.dataset.s }),
   kmenu: () => { S.menu = S.menu === 'kmenu' ? null : 'kmenu'; render() },
@@ -547,7 +690,7 @@ function listKeys(ev, st, bodyId, bodyFn, pick) {
 }
 document.addEventListener('keydown', (ev) => {
   const ctrl = ev.ctrlKey || ev.metaKey, low = String(ev.key).toLowerCase(), code = ev.code
-  if (!S.me) return
+  if (!S.me || anon()) return
   if (S.qo && ev.target.id === 'qoIn' && listKeys(ev, S.qo, 'qoBody', qoBody, qoPick)) return
   if (S.cmd && ev.target.id === 'cmdIn' && listKeys(ev, S.cmd, 'cmdBody', cmdBody, cmdPick)) return
   if (ctrl && !ev.altKey) {
@@ -564,19 +707,42 @@ document.addEventListener('keydown', (ev) => {
 // 아래 줄 시계 — 분마다
 setInterval(() => { const c = $('[data-t=clock]'); if (c && S.me) c.textContent = `kmd v${S.me.version} · ${clock()}` }, 30000)
 
+// 들어온 사람의 자료 — 목록 · 멈춤 줄
+let stopTimer = null
+async function loadAll() {
+  S.me = await getJSON('/api/me')
+  if (S.me.anon) { render(); return }
+  S.kns = await getJSON('/api/knowledge')
+  S.cache = {}
+  loadStops()
+  clearInterval(stopTimer)
+  stopTimer = setInterval(loadStops, 60000)
+  document.title = isTeam() ? 'kmd — 팀' : 'kmd'
+  if (!S.hist.length) pushHist()
+  render()
+}
+
 // ───────────── 시작 ─────────────
 async function boot() {
   try {
-    const [me, kns] = await Promise.all([getJSON('/api/me'), getJSON('/api/knowledge')])
-    S.me = me
-    S.kns = kns
-    loadStops()
-    setInterval(loadStops, 60000)
-    document.title = isTeam() ? 'kmd — 팀' : 'kmd'
-    pushHist()
+    const code = (location.hash.match(/(?:^#|&)code=([^&]+)/) || [])[1]
+    const once = (location.hash.match(/(?:^#|&)once=([^&]+)/) || [])[1]
+    if (once) {
+      await postJSON('/once', { code: once }).catch(() => {})
+      history.replaceState(null, '', '/')
+    }
+    if (location.pathname === '/first') {
+      S.gate = 'first'
+      S.gateCode = code ? decodeURIComponent(code) : ''
+      S.gateUser = S.gateCode ? (await postJSON('/first', { check: true, code: S.gateCode }).catch(() => ({}))).user || null : null
+    } else if (location.pathname === '/setup') {
+      S.gate = 'setup'
+      S.gateCode = code ? decodeURIComponent(code) : ''
+    }
+    await loadAll()
   } catch (e) {
     S.err = 'kmd 에 닿지 않는다 — ' + e.message
+    render()
   }
-  render()
 }
 boot()

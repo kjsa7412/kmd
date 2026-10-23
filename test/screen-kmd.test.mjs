@@ -11,7 +11,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright-core'
 import { startServer } from '../server/http.js'
-import { copyDir } from './helpers.mjs'
+import { copyDir, signIn } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const MOCK = pathToFileURL(path.join(HERE, '..', 'docs', 'kmd_목업_인터랙션.html')).href
@@ -21,7 +21,7 @@ const CHROME = [process.env.KMD_CHROME, 'C:\\Program Files\\Google\\Chrome\\Appl
 // 사람 화면에 쓰지 않는 말(절차서 §0 「화면 말」)
 const BANNED = ['좌표', '섹션', '원천', '기준선', '큐레이션', '대기열', '판정', '토큰', '커밋', '레포', '미러', '동기화', 'LLM', 'RAG', '노드', '엣지', '백링크', 'coord', 'commit']
 
-let tmp, s, browser
+let tmp, s, browser, me
 const VIEW = { width: 1300, height: 820 }
 
 before(async () => {
@@ -30,7 +30,8 @@ before(async () => {
   const env = { ...process.env } // Chrome 은 원래 집 폴더로 띄운다(임시 APPDATA 면 프로필을 거절한다)
   process.env.HOME = process.env.USERPROFILE = process.env.APPDATA = tmp
   copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'kn'))
-  s = await startServer({ root: path.join(tmp, 'kn'), user: '김', port: 0 })
+  s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
+  me = await signIn(s, { id: 'kim' })
   // Chrome 은 한글이 든 임시 경로(세정아~1)의 프로필 폴더를 받지 않는다 — 그때만 레포의 .kmd-data/tmp(무시 목록)로
   if (!/^[\x20-\x7e]*$/.test(os.tmpdir())) {
     const ascii = path.join(HERE, '..', '.kmd-data', 'tmp')
@@ -57,7 +58,21 @@ test('셸 · 지식 목록 · 문서로 보기 — 목업과 같은 글 · 단�
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
   page.on('pageerror', (e) => errors.push(e.message))
 
+  // 들어가기 — 두 칸 + [들어가기] · 리본 · 옆 메뉴는 흐리게 · 틀리면 한 줄
   await page.goto(s.url)
+  await page.waitForSelector('[data-t=loginBtn]')
+  assert.match(await page.locator('.gate').innerText(), /팀 kmd 에 들어간다[\s\S]*한 번 들어오면 일주일쯤 이어진다/)
+  assert.equal(await page.locator('.ribbon.dim').count(), 1)
+  assert.equal(await page.getAttribute('#lgPw', 'autocomplete'), 'current-password')
+  await page.fill('#lgId', 'kim')
+  await page.fill('#lgPw', 'wrong-password')
+  await page.click('[data-t=loginBtn]')
+  await page.waitForSelector('[data-t=loginErr]')
+  assert.equal(await page.locator('[data-t=loginErr]').innerText(), '아이디나 비밀번호를 확인하세요 — 여러 번 틀리면 잠시 막힌다')
+  await page.screenshot({ path: path.join(SHOTS, 'app-login.png') })
+  errors.length = 0 // 일부러 틀린 들어가기의 401 은 브라우저가 콘솔에 적는다
+  await page.fill('#lgPw', me.pw)
+  await page.click('[data-t=loginBtn]')
   await page.waitForSelector('[data-t=klist] [data-t=krow]')
   // 셸 — 리본 넷(문서 · 항목 · 그래프 · 설정) · 옆 메뉴 · 머리 · 띠 · 아래 줄
   assert.deepEqual(await page.locator('.ribbon .rb span').allInnerTexts(), ['문서', '항목', '그래프', '설정'])
@@ -122,6 +137,7 @@ test('셸 · 지식 목록 · 문서로 보기 — 목업과 같은 글 · 단�
 test('목업과 나란히 — 같은 크기로 지식 목록 · 문서 한 장을 찍는다', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   const page = await browser.newPage({ viewport: VIEW })
   await page.goto(MOCK)
+  await page.locator('#app').screenshot({ path: path.join(SHOTS, 'mock-login.png') })
   await page.click('[data-t=loginBtn]')
   await page.waitForSelector('[data-t=klist]')
   await page.locator('#app').screenshot({ path: path.join(SHOTS, 'mock-home.png') })

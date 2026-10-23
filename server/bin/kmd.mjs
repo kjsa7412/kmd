@@ -15,6 +15,15 @@ import { makeHub, defaultDataDir, SHELL } from '../hub.js'
 import { enqueue } from '../../core/backup.js'
 import { VERSION } from '../version.js'
 import { isReservedUser } from '../../core/names.js'
+import { makeAuth } from '../../core/auth.js'
+import { put as kput, get as kget, keyName } from '../../core/keystore.js'
+import { setSecret, listSecrets } from '../../core/secrets.js'
+import { prehash } from '../../app/prehash.js'
+import { fileURLToPath } from 'node:url'
+
+const KEY_HELPER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'kmd-key.mjs')
+// Claude Code 에 잇는 한 줄 — 열쇠는 헤더 도우미(kmd-key)가 자격 저장소에서 꺼낸다(설정 파일에 열쇠가 없다)
+const mcpLine = (url) => `claude mcp add-json kmd '${JSON.stringify({ type: 'http', url: url + '/mcp', headersHelper: `node "${KEY_HELPER}" ${url}` })}' --scope user`
 
 const HELP = `kmd ${VERSION}
 
@@ -63,6 +72,10 @@ async function main() {
   if (cmd === '--version' || cmd === '-v') return void console.log(VERSION)
   if (cmd === 'backup') return backupCmd(parse(rest))
   if (cmd === 'owner') return ownerCmd(parse(rest))
+  if (cmd === 'user') return userCmd(parse(rest))
+  if (cmd === 'machine') return machineCmd(parse(rest))
+  if (cmd === 'secret') return secretCmd(parse(rest))
+  if (cmd === 'connect') return connectCmd(parse(rest))
   if (cmd !== 'serve' && cmd !== 'up') {
     console.error(`모르는 명령 — ${cmd}\n`)
     process.stdout.write(HELP)
@@ -97,8 +110,20 @@ async function main() {
   const ks = await s.store.list()
   console.log(`kmd ${VERSION} — ${pc ? '이 PC' : '팀 서버'} · ${s.url}`)
   console.log(`지식 ${ks.length} — ${root}${ks.length ? ' · ' + ks.map((k) => k.name).join(' · ') : ''}`)
-  console.log(`Claude Code 에 잇기: claude mcp add --transport http kmd ${s.url}/mcp`)
-  if (pc && o.open !== false) openBrowser(s.url)
+  if (!pc) {
+    const code = await s.auth.setupCode()
+    if (code) console.log(`첫 관리자 — 이 주소를 브라우저로 연다(24시간 · 한 번): ${s.url}/setup#code=${code}`)
+  } else {
+    // 이 PC 의 Claude Code 가 쓸 열쇠 — 자격 저장소에 없거나 끊겼으면 새로
+    const name = keyName(s.url)
+    let key = await kget(name).catch(() => null)
+    if (!key || !s.auth.bearer(key)) {
+      key = await s.auth.deviceKeyFor(s.pcUser, { host: os.hostname(), osuser: os.userInfo().username })
+      await kput(name, key).catch((e) => console.error(e.message))
+    }
+    console.log(`Claude Code 에 잇기: ${mcpLine(s.url)}`)
+    if (o.open !== false) openBrowser(`${s.url}/#once=${s.auth.once(s.pcUser)}`)
+  }
   const stop = () => s.close().then(() => process.exit(0))
   process.on('SIGINT', stop)
   process.on('SIGTERM', stop)
@@ -145,6 +170,118 @@ async function ownerCmd(o) {
     const hub = await makeHub({ root, dataDir: o.data ? path.resolve(o.data) : defaultDataDir(root), log: () => {} })
     const row = await hub.setOwner(SHELL, id, { owner: who || undefined, private: o.private, curators: o.curators ? String(o.curators).split(',').map((x) => x.trim()).filter(Boolean) : undefined })
     console.log(`${id} — 주인 ${row.owner || '없음'} · ${row.private ? '개인(주인만 본다)' : '팀'} · 정리 ${row.curators.join(', ') || '없음'}`)
+  } catch (e) {
+    console.error(e.message)
+    process.exitCode = 1
+  }
+}
+
+const rootOf = (o) => path.resolve(o.root || (fs.existsSync(defaultPcRoot()) ? defaultPcRoot() : '.'))
+const dataOf = (o) => (o.data ? path.resolve(o.data) : defaultDataDir(rootOf(o)))
+
+// 사람 — 더하기 · 다시 정하기(마지막 관리자가 잊었을 때도) · 목록. 링크를 그 사람에게 건넨다
+async function userCmd(o) {
+  const [sub, id] = o._
+  try {
+    const auth = await makeAuth({ dataDir: dataOf(o) })
+    const base = o.url || 'http://<팀 서버>'
+    if (sub === 'add') {
+      const r = await auth.addUser({ id, admin: o.admin !== undefined })
+      console.log(`더했다 — ${r.id} · 처음 들어오기 링크(24시간 · 한 번): ${base}/first#code=${r.code}`)
+    } else if (sub === 'reset') {
+      const r = await auth.reset(id, { by: '셸' })
+      console.log(`다시 정하게 했다 — ${r.id} · 새 링크(24시간 · 한 번): ${base}/first#code=${r.code} · 기기 열쇠는 그대로`)
+    } else {
+      for (const u of auth.users()) console.log(`${u.id} — ${u.kind === 'machine' ? '기계 열쇠 · ' + u.machine.kn + ' · ' + u.machine.source : (u.admin ? '관리자' : '사람') + (u.password ? '' : ' · 비밀번호 안 정함') + ` · 기기 ${u.devices}`}`)
+    }
+  } catch (e) {
+    console.error(e.message)
+    process.exitCode = 1
+  }
+}
+
+// 기계 열쇠 — 바깥 생성기 · 원천 실행기용. 열쇠는 이때 한 번만 보인다
+async function machineCmd(o) {
+  const [sub, kn, source] = o._
+  try {
+    const auth = await makeAuth({ dataDir: dataOf(o) })
+    if (sub === 'add') {
+      const r = await auth.machineAdd({ kn, source, types: o.types ? String(o.types).split(',') : [] })
+      console.log(`기계 열쇠 — ${r.id} · ${kn} · ${source} · 1년
+${r.key}
+(지금 한 번만 보인다 — 그 생성기의 비밀 칸에 붙인다)`)
+    } else if (sub === 'revoke') {
+      await auth.machineRevoke(kn)
+      console.log(`끊었다 — ${kn}`)
+    } else throw new Error('kmd machine add <지식> <원천 이름> [--types 종류,종류] · kmd machine revoke <machine-…>')
+  } catch (e) {
+    console.error(e.message)
+    process.exitCode = 1
+  }
+}
+
+// 숨김 입력 — 화면에 찍지 않는다
+function hidden(prompt) {
+  return new Promise((resolve) => {
+    process.stderr.write(prompt)
+    const stdin = process.stdin
+    let buf = ''
+    if (!stdin.isTTY) {
+      stdin.setEncoding('utf8')
+      stdin.on('data', (d) => (buf += d))
+      stdin.on('end', () => resolve(buf.replace(/\r?\n$/, '')))
+      return
+    }
+    stdin.setRawMode(true)
+    stdin.setEncoding('utf8')
+    const on = (ch) => {
+      if (ch === '\r' || ch === '\n' || ch === '\u0004') {
+        stdin.setRawMode(false)
+        stdin.off('data', on)
+        stdin.pause()
+        process.stderr.write('\n')
+        resolve(buf)
+      } else if (ch === '\u0003') process.exit(130)
+      else if (ch === '\u007f' || ch === '\b') buf = buf.slice(0, -1)
+      else buf += ch
+    }
+    stdin.on('data', on)
+    stdin.resume()
+  })
+}
+
+// 나가는 자격 — 셸의 숨김 입력으로만(화면으로 받지 않는다)
+async function secretCmd(o) {
+  const [sub, name] = o._
+  try {
+    if (sub === 'set') {
+      if (!name) throw new Error('kmd secret set <이름>')
+      await setSecret(dataOf(o), name, await hidden(`${name} 의 값(보이지 않는다): `))
+      console.log(`넣었다 — ${name}`)
+    } else for (const x of await listSecrets(dataOf(o))) console.log(`${x.name} — ${x.at.slice(0, 16).replace('T', ' ')} 에 넣음`)
+  } catch (e) {
+    console.error(e.message)
+    process.exitCode = 1
+  }
+}
+
+// 이 PC 를 팀 kmd 에 잇는다 — 설치 표(팀 화면의 한 줄) 또는 아이디 · 비밀번호 한 번 → 기기 열쇠 → 자격 저장소
+async function connectCmd(o) {
+  const [url0] = o._
+  try {
+    if (!url0) throw new Error('kmd connect <팀 주소> [--ticket kmdt_…]')
+    const url = new URL(url0).origin
+    let body = { ticket: o.ticket, host: os.hostname(), osuser: os.userInfo().username }
+    if (!o.ticket) {
+      const user = o.user || (await hidden('아이디: '))
+      body = { ...body, ticket: undefined, user, pw: prehash(user, await hidden('비밀번호(보이지 않는다): ')) }
+    }
+    const r = await fetch(url + '/device/keys', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+    const j = await r.json()
+    if (!r.ok) throw new Error(j.message || '잇지 못했다')
+    await kput(keyName(url), j.key)
+    console.log(`✓ 팀에 이었다 — ${j.user} · 열쇠는 이 PC 의 자격 저장소에`)
+    console.log(`Claude Code 에 잇기: ${mcpLine(url)}`)
   } catch (e) {
     console.error(e.message)
     process.exitCode = 1

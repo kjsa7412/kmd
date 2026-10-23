@@ -10,16 +10,16 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { makeHub, SHELL } from '../server/hub.js'
 import { readStats } from '../core/knowledge.js'
-import { copyDir } from './helpers.mjs'
+import { copyDir, signIn } from './helpers.mjs'
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixture', 'kmd')
-let tmp, s
+let tmp, s, me
 const KIM = { user: '김' }
 const ADMIN = { user: '이', admin: true }
 const PARK = { user: '박' }
 let rpcId = 0
 async function tool(name, args) {
-  const r = await fetch(s.url + '/mcp', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method: 'tools/call', params: { name, arguments: args } }) })
+  const r = await fetch(s.url + '/mcp', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${me.key}` }, body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method: 'tools/call', params: { name, arguments: args } }) })
   return (await r.json()).result
 }
 const commits = (id) => execFileSync('git', ['rev-list', '--count', 'HEAD'], { cwd: path.join(tmp, 'kn', id), encoding: 'utf8' }).trim() * 1
@@ -29,7 +29,8 @@ before(async () => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-e1-'))
   process.env.HOME = process.env.USERPROFILE = process.env.APPDATA = tmp
   copyDir(FIX, path.join(tmp, 'kn'))
-  s = await startServer({ root: path.join(tmp, 'kn'), user: '김', port: 0, log: () => {} })
+  s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {} })
+  me = await signIn(s, { id: 'kim' })
 })
 after(async () => {
   await s?.close()
@@ -79,7 +80,7 @@ test('I7 — 안 넣은 기록은 최신 8 · 날짜 순 · 넘친 수', async (
   assert.equal(sec.notYetInDocs.length, 8)
   assert.equal(sec.notYetMore, 4)
   assert.deepEqual(sec.notYetInDocs.map((x) => x.title), [5, 6, 7, 8, 9, 10, 11, 12].map((i) => `준비 메모 ${i}`))
-  const doc = await (await fetch(s.url + '/api/k/dpms/doc?d=' + encodeURIComponent('배포절차'))).json()
+  const doc = await (await fetch(s.url + '/api/k/dpms/doc?d=' + encodeURIComponent('배포절차'), { headers: { cookie: me.cookie } })).json()
   assert.deepEqual(doc.sections.find((x) => x.h === '준비').pend.map((x) => x.title), sec.notYetInDocs.map((x) => x.title), '화면과 같은 고름')
 })
 
