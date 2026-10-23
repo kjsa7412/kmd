@@ -73,6 +73,13 @@ test('[지금 정리] — 넣음 · 값 바뀜 · 그대로 둠(지어낸 값 ·
   // 값이 바뀐 것은 그 기록을 쓴 사람(lee)의 오늘 바뀐 것에 노랑
   const feedLee = await s.hub.today(LEE)
   assert.ok(feedLee.some((x) => x.yl && /10% → .*20%/.test(x.b)))
+  // 이력 — 같은 일은 한 줄: lee 에게는 되돌리기가 있는 내 줄이 그 정리의 이력 줄을 대신한다 · 다른 사람에게는 이력 줄
+  const hl = await s.hub.history(LEE)
+  const yl = hl.find((x) => x.yl && x.revert)
+  assert.equal(yl.kind, '정리')
+  assert.ok(yl.rec && !hl.some((x) => x.id.startsWith('l:') && x.rec === yl.rec), '같은 일은 한 줄')
+  const hk = await s.hub.history({ user: 'kim', admin: true })
+  assert.ok(hk.some((x) => x.id.startsWith('l:') && x.rec === yl.rec && x.kind === '정리'))
   assert.equal((await s.hub.job(job.id)).state, 'done')
 })
 

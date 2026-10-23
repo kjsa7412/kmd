@@ -200,6 +200,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     }
     need(ctx)
     if (p === '/api/today') return out(200, await hub.today(ctx))
+    if (p === '/api/history') return out(200, await hub.history(ctx))
     // 사람 목록 — 아이디만(정리하는 사람 고르기)
     if (p === '/api/people') return out(200, auth.users().filter((u) => u.kind === 'person').map((u) => u.id))
     const dm = p.match(/^\/api\/k\/([^/]+)\/diff$/)
