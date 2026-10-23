@@ -22,9 +22,9 @@ export function git(cwd, args, { input } = {}) {
 }
 
 // 실패해도 던지지 않는 판 — 백업처럼 실패 사유(stderr)를 갈라 써야 하는 곳
-export function tryGit(cwd, args, { timeout = 0 } = {}) {
+export function tryGit(cwd, args, { timeout = 0, env: extra = {} } = {}) {
   return new Promise((resolve) => {
-    const env = { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never', GIT_ASKPASS: '', SSH_ASKPASS: '', LANG: 'C.UTF-8' }
+    const env = { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never', GIT_ASKPASS: '', SSH_ASKPASS: '', LANG: 'C.UTF-8', ...extra }
     execFile('git', [...BASE, ...args], { cwd, env, maxBuffer: 64 << 20, windowsHide: true, timeout }, (err, stdout, stderr) => {
       resolve({ ok: !err, out: String(stdout || ''), err: String(stderr || (err && err.killed ? 'timeout' : err?.message) || ''), timedOut: !!err?.killed })
     })

@@ -14,8 +14,9 @@ import * as collect from '../core/collect.js'
 import crypto from 'node:crypto'
 import { material, check as checkDraft, planSave } from '../core/tidy.js'
 import * as feed from '../core/feed.js'
+import { checkTarget, readSource, probe, readDecl, writeDecl, stripCreds, runSource, planRun, readState as readSourceState, sourceLines, everyMs } from '../core/sources.js'
 import { check } from '../core/check.js'
-import { commitPaths, ensureRepo, tryGit } from '../core/git.js'
+import { commitPaths, ensureRepo, tryGit, maskUrl } from '../core/git.js'
 import { stopLine } from '../core/stopline.js'
 import * as backup from '../core/backup.js'
 import * as owners from '../core/owners.js'
@@ -45,6 +46,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const decideTimers = new Map()
   const jobs = new Map() // 정리 일감
   let tidyTimer = null
+  let sourceTimer = null
   const lastTidy = new Map()
   const drafts = new Map() // 초안 전용 단기 열쇠(sha → { job, kn, exp })
   const sha = (t) => crypto.createHash('sha256').update(String(t)).digest('hex')
@@ -265,6 +267,109 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     tasks: async (id) => decide(await hub.get(id)).tasks,
 
+    // ── 자동으로 가져오는 곳(v0.6 §5) — 더하기는 관리자(팀) · 주인(PC) · 그 밖은 [관리자에게 부탁] ──
+    async sourceCtx(id) {
+      const metas = await hub.list()
+      const backups = metas.map((m) => backup.stateOf(m)?.url).filter(Boolean)
+      return { roots: (config.sourceRoots || []).map((r) => path.resolve(r)), dataDir, knowledgeDirs: metas.map((m) => m.dir), backups, pc: mode === 'pc' }
+    },
+    canSource(ctx, id) {
+      return mode === 'pc' || ctx.pc || !!ctx.admin
+    },
+    // 살펴보기 — 주소를 받아 어떤 규칙이 무엇을 내는지(쓰지 않는다)
+    async sourceProbe(ctx, id, { at, kind = null }) {
+      await hub.meta(id, ctx)
+      const k2 = kind || (/^(https?|ssh):\/\//i.test(String(at)) || /\.git$/i.test(String(at)) ? 'git' : 'folder')
+      const t = checkTarget(at, { kind: k2, ...(await hub.sourceCtx(id)) })
+      const src = { name: 'probe', kind: k2, at: t.url || t.folder, folder: t.folder, rules: [] }
+      const r = await readSource(src, { dataDir, kn: id })
+      const files = await r.read()
+      return { kind: k2, at: maskUrl(t.url || t.folder), asof: r.asof, files: files.length, rules: probe(files).map((x) => ({ rule: x.rule, items: x.items.length, sample: x.items.slice(0, 3).map((i) => i.key || `${i.rows.length}줄`) })) }
+    },
+    async sourceAdd(ctx, id, { name, at, kind = null, every = 'hourly', rules }) {
+      const meta = await hub.meta(id, ctx)
+      if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 관리자가 더한다 — [관리자에게 부탁]')
+      name = String(name || '').trim()
+      if (!name || name.length > 60 || /[\r\n"]/.test(name)) throw new KmdError('E_INPUT', '이름은 한 줄 60자 안')
+      if (!Array.isArray(rules) || !rules.length || rules.some((r) => !['deps', 'tables', 'files'].includes(r.rule) || !r.into?.doc)) throw new KmdError('E_INPUT', '규칙은 deps · tables · files 중 · 넣을 문서(into.doc)와 함께')
+      const k2 = kind || (/^(https?|ssh):\/\//i.test(String(at)) ? 'git' : 'folder')
+      const t = checkTarget(at, { kind: k2, ...(await hub.sourceCtx(id)) })
+      const decl = await readDecl(meta.dir)
+      if (decl.some((s) => s.name === name)) throw new KmdError('E_CONFLICT', '같은 이름의 가져오는 곳이 있다')
+      const shown = t.url ? await stripCreds(t.url, { dataDir, kn: id, name }) : t.folder
+      const src = { name, kind: k2, at: maskUrl(shown), every, rules: rules.map((r) => ({ rule: r.rule, into: { doc: String(r.into.doc), ...(r.into.heading ? { heading: String(r.into.heading) } : {}) } })), by: ctx.user, since: new Date().toISOString().slice(0, 10) }
+      await writeDecl(meta.dir, [...decl, src], { user: ctx.user, title: `가져오는 곳 더함 — ${name}` })
+      cache.delete(id)
+      const r = await hub.sourceRun(id, name, { first: true })
+      return { source: src, run: r }
+    },
+    async sourceRun(id, name = null, { first = false, force = false } = {}) {
+      const meta = await hub.meta(id)
+      const decl = await readDecl(meta.dir)
+      const out = []
+      for (const s of decl.filter((x) => !name || x.name === name)) {
+        const k = await hub.get(id)
+        const src = { ...s, folder: s.kind === 'folder' || !/^(https?|ssh):\/\//i.test(s.at) ? s.at : undefined }
+        const r = await runSource(k, src, { dataDir, first, force, save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
+        cache.delete(id)
+        out.push({ name: s.name, ...r })
+        if (r.state === 'changed') for (const u of await hub.curatorsOf(id)) await feed.add(dataDir, u, { kn: id, dot: 'acc', text: `${s.name}에서 바뀐 표 ${r.n} — ${meta.name}`, small: '저절로 채우는 표' })
+      }
+      if (out.some((x) => x.state === 'changed') && backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
+      return out
+    },
+    sourceState: (id) => readSourceState(dataDir, id),
+    async sources(ctx, id) {
+      const meta = await hub.meta(id, ctx)
+      const decl = await readDecl(meta.dir)
+      const st = await readSourceState(dataDir, id)
+      return decl.map((s) => ({ ...s, state: st[s.name] || {} }))
+    },
+    async curatorsOf(id) {
+      const r = owners.rowOf(reg, id)
+      return [...new Set([r?.owner, ...(r?.curators || [])].filter(Boolean))]
+    },
+    // 관리자에게 부탁 — 관리 화면 · 관리자의 오늘 바뀐 것에
+    async sourceRequest(ctx, id, card) {
+      await hub.meta(id, ctx)
+      const f = path.join(dataDir, 'requests.json')
+      const all = await fs.readFile(f, 'utf8').then(JSON.parse, () => [])
+      const req = { id: crypto.randomBytes(5).toString('hex'), at: new Date().toISOString(), by: ctx.user, kn: id, name: String(card.name || '').slice(0, 60), at2: maskUrl(String(card.at || '')), kind: card.kind || null, rules: card.rules || [] }
+      all.unshift(req)
+      await fs.writeFile(f, JSON.stringify(all.slice(0, 100)))
+      return req
+    },
+    requests: async () => fs.readFile(path.join(dataDir, 'requests.json'), 'utf8').then(JSON.parse, () => []),
+    // 바깥 생성기 — 기계 열쇠로 그 원천의 표만(이름의 종류도 열쇠의 것과 대조)
+    async baseline(ctx, id, { source, items = [], asof = null }) {
+      const meta = await hub.meta(id)
+      if (!ctx.machine || ctx.machine.kn !== id) throw new KmdError('E_FORBIDDEN', '기계 열쇠로만 쓴다', { need: 'machine' })
+      if (String(source) !== ctx.machine.source) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 원천의 것이다')
+      const k = await hub.get(id)
+      const types = ctx.machine.types || []
+      const targets = []
+      for (const it of Array.isArray(items) ? items : []) {
+        if (!Array.isArray(it.cols) || !Array.isArray(it.rows)) throw new KmdError('E_INPUT', '항목마다 cols · rows')
+        let doc = it.doc
+        let heading = it.heading
+        if (it.coord) {
+          if (types.length && !types.includes(String(it.coord).split(':')[0])) throw new KmdError('E_FORBIDDEN', `이 열쇠는 ${types.join(' · ')} 종류만 쓴다`)
+          const x = sectionOf(k, it.coord)
+          if (!x?.loc) throw new KmdError('E_NOTFOUND', `「${it.coord}」 이 들어갈 문서가 정해져 있지 않다`)
+          doc = x.loc.doc
+          heading = x.sec ? x.sec.h : x.loc.heading
+        }
+        if (!doc || !heading) throw new KmdError('E_INPUT', '항목마다 coord 또는 doc · heading')
+        targets.push({ doc: String(doc).replace(/^docs\/|\.md$/g, ''), heading, cols: it.cols.map(String), rows: it.rows.map((r) => r.map((c) => String(c ?? ''))) })
+      }
+      const srcDecl = { name: source, rules: [{ rule: 'outside', into: { doc: targets[0]?.doc || '' } }] }
+      const plan = await planRun(k, srcDecl, { outside: targets.map((t) => ({ key: t.heading, cols: t.cols, rows: t.rows, doc: t.doc })) }, { asof: asof || new Date().toISOString().slice(0, 16).replace('T', ' ') })
+      if (!plan.changed.length) return { changed: 0 }
+      await coreSave(meta.dir, { record: { title: `가져옴 — ${source} · 바뀐 표 ${plan.changed.length}`, body: plan.changed.map((c) => `- ${c.doc} › ${c.heading}`).join('\n'), tags: ['sources'] }, sections: plan.changed.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) }, { user: 'kmd-auto', system: true })
+      cache.delete(id)
+      return { changed: plan.changed.length }
+    },
+
     // ── 정리(KM81 — 검사를 넘으면 승인 없이 바로) ──
     // 일감은 서버가 낸다(정해진 시간 · [지금 정리]). 일꾼은 일감마다 받은 초안 전용 단기 열쇠로 재료를 받고 초안만 올린다
     tidyAtOf: (id) => owners.rowOf(reg, id)?.tidyAt || config.tidyAt || '02:30',
@@ -400,6 +505,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       for (const k of ks) {
         out.push(...backup.lines(k, { name: k.name }))
+        const decl = await readDecl(k.dir)
+        if (decl.length) out.push(...sourceLines(k, decl, await readSourceState(dataDir, k.id), { admin: !!ctx.admin || mode === 'pc' }))
         if (!backup.attached(k)) {
           const u = await unbacked(k)
           if (u) out.push(stopLine({ kind: 'backup', kn: k.id, level: 'warn', what: `${k.name} — 백업 자리가 없다`, amount: `저장 ${u.n}`, fix: '관리자가 백업 자리를 붙이면 그동안의 것을 모두 보낸다', since: `${u.since} 부터` }))
@@ -460,6 +567,24 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       await backup.start(await hub.list(), { dataDir, log })
       // 거두기 — PC(또는 serve.json collect)에서 편집기로 고친 문서를 30초 고요 뒤 들인다
       if (mode === 'pc' || config.collect) for (const m of await hub.list()) watchers.push(collect.watch(m.dir, () => hub.collect(m.id)))
+      // 가져오는 곳 — 할 일 시계(분마다 본다 · 각자의 every) · 켤 때 한 번
+      const dueSources = async (all) => {
+        for (const m of await hub.list().catch(() => [])) {
+          const decl = await readDecl(m.dir)
+          if (!decl.length) continue
+          const st = await readSourceState(dataDir, m.id)
+          for (const s of decl) {
+            const c = st[s.name]?.checkedAt
+            const daily = String(s.every || '').startsWith('daily ') && String(s.every).slice(6)
+            const hm = new Date().toTimeString().slice(0, 5)
+            const due = all || !c || (daily ? hm >= daily && new Date(c).toDateString() !== new Date().toDateString() : Date.now() - Date.parse(c) >= everyMs(s.every))
+            if (due && s.every !== 'manual') await hub.sourceRun(m.id, s.name).catch(() => {})
+          }
+        }
+      }
+      sourceTimer = setInterval(() => dueSources(false), config.sourceTickMs || 60_000)
+      sourceTimer.unref?.()
+      setTimeout(() => dueSources(true), 3000).unref?.()
       // 정해진 시간의 정리 — 분마다 본다 · 지식마다 하루 한 번 · 넣을 것이 있을 때만
       tidyTimer = setInterval(async () => {
         const d = new Date()
@@ -494,6 +619,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       for (const w of watchers) w.close()
       for (const t of decideTimers.values()) clearTimeout(t)
       clearInterval(tidyTimer)
+      clearInterval(sourceTimer)
     },
   }
   return hub

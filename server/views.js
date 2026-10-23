@@ -7,6 +7,7 @@ import MarkdownIt from 'markdown-it'
 import path from 'node:path'
 import { coordsOfSection, labelOf, sectionOf, pendPick } from '../core/knowledge.js'
 import { sha16 } from '../core/text.js'
+import { splitBlocks, parseTable } from '../core/baseline.js'
 
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
@@ -26,9 +27,29 @@ function linkTarget(k, fromPath, href) {
 }
 
 // 문단 안의 줄바꿈은 줄마다 문단으로 — 목업(paras)이 줄 하나를 <p> 하나로 그린다
-export function render(k, fromPath, text) {
+// 저절로 채우는 표(기준선 블록)는 목업의 auto 상자로(편집기에서는 회색 잠금)
+const SYNC = '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5l2 2 M20 12a8 8 0 0 1-14 5l-2-2 M20 4v5h-5 M4 20v-5h5"/></svg>'
+const LOCK = '<svg viewBox="0 0 24 24"><path d="M6 11h12v10H6z M9 11V8a3 3 0 0 1 6 0v3"/></svg>'
+const hm = (iso) => {
+  if (!iso) return '아직'
+  const d = new Date(iso)
+  const p = (n) => String(n).padStart(2, '0')
+  return isNaN(d) ? String(iso).slice(5, 16) : `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+export function autoHtml(b, { checked = null, lock = false } = {}) {
+  const t = parseTable(b.table)
+  return `<div class="auto${lock ? ' lock' : ''}" data-t="${lock ? 'autoLock' : 'auto'}"><div class="ah">${SYNC} <b>저절로 채우는 표</b> · ${esc(b.src)} · ${esc(String(b.asof).slice(5, 16))} 부터 · ${esc(hm(checked))} 확인</div><table class="t"><tr>${t.cols.map((c) => `<th>${esc(c)}</th>`).join('')}</tr>${t.rows.map((r) => `<tr>${t.cols.map((_, i) => `<td>${esc(r[i] ?? '')}</td>`).join('')}</tr>`).join('')}</table>${lock ? `<div class="lkl">${LOCK} ${esc(b.src)}에서 저절로 — 여기서는 고치지 않는다</div>` : ''}${b.missing ? `<div class="lkl">원천에 없다 — ${esc(b.missing.slice(5))} 확인</div>` : ''}</div>`
+}
+export function render(k, fromPath, text, { src = {} } = {}) {
   const env = { k, fromPath }
-  return md.render(String(text || ''), env).replace(/<p>([\s\S]*?)<\/p>/g, (all, inner) => inner.split('<br>\n').map((x) => `<p>${x}</p>`).join('\n'))
+  const { text: t, blocks } = splitBlocks(String(text || ''))
+  const html = md.render(t.replace(/\u0000block(\d+)\u0000/g, '\n\nKMDBLOCK$1\n\n'), env).replace(/<p>([\s\S]*?)<\/p>/g, (all, inner) => inner.split('<br>\n').map((x) => `<p>${x}</p>`).join('\n'))
+  return html.replace(/<p>KMDBLOCK(\d+)<\/p>/g, (_, n) => autoHtml(blocks[Number(n)], { checked: src[blocks[Number(n)].src]?.checkedAt }))
+}
+// 편집기용 — 블록 뺀 글 · 잠긴 표
+export function editParts(body, { src = {} } = {}) {
+  const { text, blocks } = splitBlocks(String(body || ''))
+  return { md: text.replace(/\u0000block\d+\u0000/g, '').replace(/\n{3,}/g, '\n\n').trim(), locks: blocks.map((b) => autoHtml(b, { checked: src[b.src]?.checkedAt, lock: true })).join('') }
 }
 
 md.renderer.rules.link_open = (tokens, i, opts, env, self) => {
@@ -109,7 +130,7 @@ function backlinks(k, d) {
   return { recs: recs.map(recRow), linkers: linkers.map((o) => ({ id: o.id, title: o.title })), ments }
 }
 
-export function docView(k, docId) {
+export function docView(k, docId, { src = {} } = {}) {
   const d = k.docs.find((x) => x.id === docId)
   if (!d) return null
   const last = d.sections.map((s) => s.applied && k.byWork.get(s.applied)).filter(Boolean).sort((a, b) => b.date.localeCompare(a.date))[0]
@@ -120,8 +141,9 @@ export function docView(k, docId) {
     const by = s.applied && k.byWork.get(s.applied)
     return {
       h: s.h,
-      html: render(k, d.path, s.body),
-      md: s.body,
+      html: render(k, d.path, s.body, { src }),
+      ...editParts(s.body, { src }),
+
       base: sha16(s.body),
       recs: recs.length,
       pend: pendRecs.map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title })),
@@ -261,17 +283,25 @@ export function model(k) {
     }
     if (hit.size) uses[it.key] = [...hit].sort()
   }
-  const m = { items, docs, recs, uses }
+  // 가져오는 곳 — 항목 글 안 블록의 원천 이름(그래프의 「채운다」 선)
+  const sources = {}
+  for (const it of items) {
+    if (!it.doc) continue
+    const d = k.docs.find((x) => x.id === it.doc)
+    const s = d?.sections.find((x) => x.h === it.sec)
+    for (const b of s ? splitBlocks(s.body).blocks : []) (sources[b.src] ||= []).push(it.key)
+  }
+  const m = { items, docs, recs, uses, sources: Object.entries(sources).map(([name, keys]) => ({ id: name, name, items: keys })) }
   models.set(k, m)
   return m
 }
 
 // 항목 한 장 — 지금 글(그 문서 안의 그 부분)
-export function itemView(k, key) {
+export function itemView(k, key, { src = {} } = {}) {
   const it = model(k).items.find((x) => x.key === key)
   if (!it) return null
   const d = it.doc && k.docs.find((x) => x.id === it.doc)
   const s = d && d.sections.find((x) => x.h === it.sec)
   const by = s?.applied && k.byWork.get(s.applied)
-  return { ...it, docTitle: d ? d.title : null, html: s ? render(k, d.path, s.body) : null, by: by ? { id: by.id, date: by.date, author: by.author } : null }
+  return { ...it, docTitle: d ? d.title : null, html: s ? render(k, d.path, s.body, { src }) : null, by: by ? { id: by.id, date: by.date, author: by.author } : null }
 }

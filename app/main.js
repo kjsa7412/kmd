@@ -361,6 +361,7 @@ function docPane(t, right) {
   const editing = !right && S.edit && S.edit.tab === t.id
   const body = editing
     ? `<div class="ed" data-t="editor"><div class="lbl"><b>고치는 중</b> · 「## 」 으로 시작하는 줄이 항목 이름이다</div><div class="toolbar"><span>제목</span><span>굵게</span><span>목록</span><span>표</span><span>링크</span></div><textarea id="edTx" data-t="edTx" spellcheck="false">${esc(d.sections.map((s) => '## ' + s.h + '\n' + s.md).join('\n\n'))}</textarea>
+   ${d.sections.filter((s) => s.locks).map((s) => `<div class="lockh">항목 「${esc(s.h)}」 의 표 — 회색은 잠겨 있다</div>${s.locks}`).join('')}
    <div class="row" style="margin-top:10px"><button class="btn pri" data-a="saveDoc" data-t="saveBtn">저장</button><a class="muted" data-a="cancelEdit">그만두기</a><span class="r small muted">${d.direct ? '저장하면 바로 문서에 들어간다' : '팀 지식 — 저장하면 기록으로 남고 정리 때 문서에 들어간다'}</span></div></div>`
     : d.sections.map((s) => {
     const lit = hl && s.h === hl
@@ -653,7 +654,7 @@ function graphData(k, fo, bundle) {
   const f = fo || S.g.f, B = bundle === undefined ? S.g.bundle : bundle
   const m = M(k)
   if (!m) return { nodes: [], edges: [] }
-  const its = m.items, ds = m.docs, rs = m.recs, srcs = []
+  const its = m.items, ds = m.docs, rs = m.recs, srcs = m.sources || []
   const N = [], has = {}
   const add = (id, kind, label, x) => { N.push(Object.assign({ id, kind, label }, x || {})); has[id] = 1 }
   const pendI = new Set()
@@ -676,6 +677,7 @@ function graphData(k, fo, bundle) {
   rs.forEach((r) => { r.items.forEach((key) => { const i = m.byKey.get(key); if (i) edge('r:' + r.id, iid(i), 'touch') }); r.fixes.forEach((x) => edge('r:' + r.id, 'r:' + x, 'fix')) })
   ds.forEach((d) => d.links.forEach((b) => edge('d:' + d.id, 'd:' + b, 'point')))
   its.filter((i) => !i.table).forEach((i) => usesOf(k, i).forEach((u) => edge('i:' + u.key, 'i:' + i.key, 'point')))
+  srcs.forEach((s) => s.items.forEach((key) => { const i = m.byKey.get(key); if (i) edge('s:' + s.id, iid(i), 'fill') }))
   let nodes = N
   if (f.pend) nodes = nodes.filter((n) => n.pend)
   let ids = new Set(nodes.map((n) => n.id))

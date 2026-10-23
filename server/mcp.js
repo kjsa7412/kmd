@@ -11,6 +11,8 @@ import { labelOf, sectionOf, coordsOfSection, pendPick } from '../core/knowledge
 import { headingMatches } from '../core/sections.js'
 import { VERSION } from './version.js'
 import { sha16 } from '../core/text.js'
+import { splitBlocks } from '../core/baseline.js'
+import { readDecl, everyMs } from '../core/sources.js'
 
 
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05']
@@ -72,6 +74,21 @@ const TOOLS = [
 ]
 
 const norm = (s) => String(s || '').replace(/\s+/g, '').toLowerCase()
+
+async function baselineInfo(k, body, store) {
+  const { blocks } = splitBlocks(body)
+  if (!blocks.length) return {}
+  const decl = await readDecl(k.dir)
+  const st = await store.sourceState(k.id)
+  return {
+    baseline: blocks.map((b) => {
+      const d = decl.find((x) => x.name === b.src)
+      const s = st[b.src] || {}
+      const stale = !!s.checkedAt && (s.failures || 0) >= 2 && Date.now() - Date.parse(s.checkedAt) >= 2 * everyMs(d?.every)
+      return { src: b.src, asof: b.asof, checkedAt: s.checkedAt || null, every: d?.every || null, stale, ...(b.missing ? { missing: `원천에 없다 — ${b.missing} 확인` } : {}) }
+    }),
+  }
+}
 
 export function makeMcp(store) {
   const tools = {
@@ -166,6 +183,8 @@ export function makeMcp(store) {
         coords,
         content: sec.body,
         base: sha16(sec.body),
+        // 저절로 채우는 표 — 원천 · 원천 기준 시각 · 확인 시각 · 낡음(낡았으면 답에 그 사실을 옮긴다)
+        ...(await baselineInfo(k, sec.body, store)),
         lastPut: sec.applied || null,
         notYetInDocs: pendPick(recs).pick.map((w) => ({ ...recOut(w), body: w.body })),
         notYetMore: pendPick(recs).more,

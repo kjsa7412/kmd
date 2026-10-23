@@ -14,6 +14,7 @@ import { renderRecord, parseRecord } from './frontmatter.js'
 import { replaceSection, parseDoc, headingMatches } from './sections.js'
 import { isReservedUser, isReservedTag } from './names.js'
 import { isReservedFile } from './owners.js'
+import { keepBlocks, hasBlockMarker } from './baseline.js'
 import { locate, parseRegistry } from './registry.js'
 import { parseVocab } from './vocab.js'
 import { ensureRepo, commitPaths } from './git.js'
@@ -90,6 +91,7 @@ export function save(dir, input, { user, now = new Date(), system = false } = {}
   const bad = (input.record.tags || []).filter(isReservedTag)
   if (bad.length && !system) fail('E_FORBIDDEN', `kmd 가 쓰는 태그다 — ${bad.join(' · ')}`)
   if (!system && (input.record.curates?.length || input.record.reopens?.length || input.record.reflects?.length)) fail('E_FORBIDDEN', '정리 판정은 kmd 가 쓴다')
+  if (!system && secs.some((s) => hasBlockMarker(s.content))) fail('E_FORBIDDEN', '저절로 채우는 표는 kmd 가 원천에서 채운다 — 고치지 않는다', { need: 'machine' })
   return serial(path.resolve(dir), () => saveNow(dir, input.record, secs, { user: nfc(user), now, system }))
 }
 
@@ -183,7 +185,13 @@ async function saveNow(dir, r, secs, { user, now, system = false }) {
     for (const p of plan) {
       const raw = await fs.readFile(p.full, 'utf8').catch(() => null)
       const start = raw == null ? `# ${path.basename(p.rel, '.md')}\n` : readText(raw)
-      const after = replaceSection(start, { level: p.level, heading: p.heading, body: nfc(p.content), applied: p.applied !== undefined ? p.applied : id })
+      // 사람 · 세션의 저장은 그 항목의 저절로 채우는 표를 그대로 둔다(블록 안은 원천 실행기 · 기계 열쇠만)
+      let content = nfc(p.content)
+      if (!system) {
+        const old = parseDoc(start, '').sections.find((x) => headingMatches(x.h, p.heading))
+        if (old) content = keepBlocks(old.body, content)
+      }
+      const after = replaceSection(start, { level: p.level, heading: p.heading, body: content, applied: p.applied !== undefined ? p.applied : id })
       if (!docs.includes(p.rel)) {
         undo.push(() => (raw == null ? fs.rm(p.full, { force: true }) : fs.writeFile(p.full, raw, 'utf8')))
         docs.push(p.rel)

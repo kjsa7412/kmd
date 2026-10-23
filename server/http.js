@@ -160,6 +160,30 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (dm) return out(200, await hub.diff(ctx, decodeURIComponent(dm[1]), url.searchParams.get('record') || ''))
     const jm = p.match(/^\/api\/job\/([0-9a-f]+)$/)
     if (jm) return out(200, hub.job(jm[1]) || { state: 'gone' })
+    // 자동으로 가져오는 곳 — 목록 · 더하기(관리자 · PC) · 살펴보기 · 지금 가져오기 · 관리자에게 부탁
+    const sm = p.match(/^\/api\/k\/([^/]+)\/sources(?:\/(probe|run|request))?$/)
+    if (sm) {
+      const id = decodeURIComponent(sm[1])
+      if (req.method === 'GET' && !sm[2]) return out(200, await hub.sources(ctx, id))
+      if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
+      const b = await readBody(req)
+      if (sm[2] === 'probe') {
+        if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 관리자가 더한다')
+        return out(200, await hub.sourceProbe(ctx, id, b))
+      }
+      if (sm[2] === 'request') return out(200, await hub.sourceRequest(ctx, id, b))
+      if (sm[2] === 'run') {
+        await hub.meta(id, ctx)
+        if (b.force && !hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '[그대로 반영] 은 관리자가 한다')
+        return out(200, await hub.sourceRun(id, b.name || null, { force: !!b.force }))
+      }
+      if (hub.mode === 'team') admin(ctx, { sudo: false })
+      return out(200, await hub.sourceAdd(ctx, id, b))
+    }
+    if (p === '/api/requests') {
+      admin(ctx, { sudo: false })
+      return out(200, await hub.requests())
+    }
     const tm = p.match(/^\/api\/k\/([^/]+)\/tidy$/)
     if (tm) {
       const id = decodeURIComponent(tm[1])
@@ -233,7 +257,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (what === 'tree') return out(200, V.tree(k))
     if (what === 'model') return out(200, V.model(k))
     if (what === 'item') {
-      const v = V.itemView(k, url.searchParams.get('key') || '')
+      const v = V.itemView(k, url.searchParams.get('key') || '', { src: await hub.sourceState(k.id) })
       if (!v) throw new KmdError('E_NOTFOUND', '이 항목은 이제 없다')
       return out(200, v)
     }
@@ -246,7 +270,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return send(res, 200, await fs.readFile(path.join(k.dir, ...rel.split('/'))), type)
     }
     if (what === 'doc') {
-      const v = V.docView(k, url.searchParams.get('d'))
+      const v = V.docView(k, url.searchParams.get('d'), { src: await hub.sourceState(k.id) })
       if (!v) throw new KmdError('E_NOTFOUND', '이 문서는 이제 없다')
       return out(200, { ...v, direct: hub.canDirect(ctx, k.id) })
     }
