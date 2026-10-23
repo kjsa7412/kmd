@@ -70,6 +70,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const mcp = makeMcp(hub)
   if (pcUser) await auth.ensurePc(pcUser)
   const teamLogin = makeTeamLogin({ dataDir })
+  // 이 PC — 프로그램 안에서 받은 Claude 로그인(비밀 claude-token)을 이 프로그램이 부르는 Claude 에만
+  if (mode === 'pc') getSecret(dataDir, 'claude-token').then((t) => { if (t) process.env.CLAUDE_CODE_OAUTH_TOKEN = t }, () => {})
 
   // ── 팀 화면 ↔ 내 PC(E8 · v0.5 §5 · v0.6 ⑫) — PC 프로그램만 ──
   // 설치(kmd connect)가 적은 팀 주소(<data>/teams.json)의 화면이 물으면 Origin 을 대조해 12시간 짝 열쇠(kmdp_)를 응답으로
@@ -233,7 +235,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         dests: mode === 'pc' ? (await Promise.all(ks.map(async (k) => ({ name: k.name, to: (await hub.sendQueue(ctx, k.id).catch(() => ({ dests: [] }))).dests.map((d) => d.kn) })))).filter((x) => x.to.length) : undefined,
         teams: mode === 'pc' ? await teamsOf() : undefined,
         auto: Object.fromEntries(keys.map((x) => [x, hub.autoOf(ctx.user, x)])),
-        claude: { off: !!process.env.KMD_NO_CLAUDE && !process.env.KMD_CLAUDE, worker: ws, month: tidied, team: mode === 'team' ? { token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), flow: teamLogin.state } : undefined },
+        claude: { off: !!process.env.KMD_NO_CLAUDE && !process.env.KMD_CLAUDE, worker: ws, month: tidied, token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), team: mode === 'team' ? { token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), flow: teamLogin.state } : undefined },
         version: VERSION,
       })
     }
@@ -241,6 +243,17 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (p === '/api/claude/login' && req.method === 'POST') {
       if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀 정리 로그인은 관리 › Claude 연결에서')
       return out(200, pcLogin())
+    }
+    // 이 PC — 프로그램 안의 로그인 흐름(시작 → 주소 · 콘솔 글 → 받은 번호 → 열쇠는 비밀에만)
+    const pl = p.match(/^\/api\/claude\/login\/(start|code|cancel)$/)
+    if (pl && req.method === 'POST') {
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀 정리 로그인은 관리 › Claude 연결에서')
+      if (pl[1] === 'start') return out(200, await teamLogin.start())
+      if (pl[1] === 'cancel') return out(200, { ok: !!teamLogin.cancel() || true })
+      const r = await teamLogin.code((await readBody(req)).code)
+      process.env.CLAUDE_CODE_OAUTH_TOKEN = r.token
+      await fs.rm(path.join(dataDir, 'worker.json'), { force: true }).catch(() => {}) // 쉼 줄을 걷는다 — 다음에 다시 잰다
+      return out(200, { ok: true })
     }
     // 에이전트 설치 — 이 PC 의 작업 폴더마다(스킬 · 연결 · CLAUDE.md 안 kmd 덩이)
     const ag = p.match(/^\/api\/agent(?:\/(add|up|rm))?$/)
@@ -300,7 +313,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (ac[1] === 'cancel') return out(200, { ok: !!teamLogin.cancel() || true })
       const r = await teamLogin.code((await readBody(req)).code)
       await fs.rm(path.join(dataDir, 'worker.json'), { force: true }).catch(() => {}) // 쉼 줄을 걷는다 — 다음 일감에서 다시 잰다
-      return out(200, r)
+      return out(200, { ok: r.ok })
     }
     // 되살리기 · 이 백업 이어 쓰기 — 관리자(비밀번호 한 번 더) · PC 는 그 PC 의 주인
     if (p === '/api/restore' && req.method === 'POST') {
