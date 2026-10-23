@@ -218,7 +218,7 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   await page.waitForSelector('[data-t=drop]')
   // 두 영역 — ① 문서로 들이기 ② 표를 저절로 채우기 · 더하기는 유형마다 칸
   assert.deepEqual((await page.locator('[data-t=impSec]').allInnerTexts()).map((t) => t.split(' ').slice(0, 2).join(' ')), ['① 문서로', '② 지켜보며'])
-  assert.deepEqual(await page.locator('[data-t=sfTabs] span').allInnerTexts(), ['문서 폴더', '소스 코드(git)', 'DB', '내 PC 폴더'], '관리자는 내 PC 폴더를 허락할 수 있다')
+  assert.deepEqual(await page.locator('[data-t=sfTabs] span').allInnerTexts(), ['문서 폴더', '소스 코드(git)', 'DB'], '파일을 팀으로 나르는 내 PC 폴더는 없다')
   await page.click('[data-t=sf-git]')
   assert.match(await page.locator('[data-t=codeWhat]').innerText(), /묶음 — 더한 뒤 저장소에 새로 올라온 묶음마다 바뀐 코드로 기록 하나/, '소스 코드는 커밋 이력으로 — 채울 표를 고르지 않는다')
   assert.equal(await page.locator('#sf-rule').count(), 0)

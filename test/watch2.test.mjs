@@ -1,7 +1,7 @@
-// 감시 단계 2 필수 — 문서 폴더 감시 · 원본이 주인 · 내 PC 폴더 → 팀.
+// 감시 단계 2 필수 — 문서 폴더 감시 · 원본이 주인 · 내 PC 폴더 → 팀은 걷었다.
 //
 // 문서 폴더: 처음 → 문서 · 첨부 · 표지 / 한 파일 고침 → 그 파일만 / 지움 → 「원본에 없다」 / 화면 · 세션 고치기 거절 · 편집기 고침 되돌림 /
-// 한꺼번에 많이 사라지면 멈춤 · 내 PC 폴더(관리자만 · 기계 열쇠): 문서 — 바뀐 파일만 보내 팀이 문서로 / 코드 — PC 가 표만 만들어 보냄
+// 한꺼번에 많이 사라지면 멈춤 · 내 PC 폴더(파일을 팀으로 나르기)는 없다 — 지식은 「보내기」 로(send.test)
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -14,7 +14,7 @@ import { stats } from '../core/watch.js'
 import { copyDir } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
-let tmp, team, pc, docsDir, pcDocs, pcCode
+let tmp, team, pc, docsDir
 const ADMIN = { user: 'kim', admin: true }
 const W = (f, t) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, t) }
 const R = (f) => fs.readFileSync(f, 'utf8')
@@ -32,15 +32,8 @@ before(async () => {
   fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })
   fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ sourceRoots: [path.join(tmp, 'src')], decideMs: 3600000, sourceTickMs: 3600000, watchQuietMs: 600000 }))
   team = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
-  // 내 PC — 팀으로 보낼 폴더 둘
-  pcDocs = path.join(tmp, 'pcsrc', '설계문서')
-  W(path.join(pcDocs, '배치 설계.md'), '# 배치 설계\n\n## 재시도\n5분 뒤 한 번.\n')
-  W(path.join(pcDocs, '화면 설계.md'), '# 화면 설계\n\n## 목록\n열 다섯.\n')
-  pcCode = path.join(tmp, 'pcsrc', 'batch')
-  W(path.join(pcCode, 'package.json'), JSON.stringify({ dependencies: { quartz: '2.3.2', lombok: '1.18.34' } }))
-  W(path.join(pcCode, 'src', 'Main.java'), '// 코드는 팀으로 가지 않는다\nclass Main {}\n')
   fs.mkdirSync(path.join(tmp, 'pc', '.kmd'), { recursive: true })
-  fs.writeFileSync(path.join(tmp, 'pc', '.kmd', 'serve.json'), JSON.stringify({ watchQuietMs: 600000, pushTickMs: 3600000 }))
+  fs.writeFileSync(path.join(tmp, 'pc', '.kmd', 'serve.json'), JSON.stringify({ watchQuietMs: 600000 }))
   pc = await startServer({ root: path.join(tmp, 'pc'), mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
 })
 after(async () => {
@@ -101,32 +94,9 @@ async function cookieOf(s) {
   return cookie
 }
 
-test('내 PC 폴더 → 팀 — 관리자만 허락 · 문서는 바뀐 파일만 보내 팀이 문서로 · 코드는 보내지 않는다', async () => {
-  await assert.rejects(team.hub.sourceAdd({ user: 'lee' }, 'gdi', { name: 'x', kind: 'pc', mode: 'docs', rules: [{ rule: 'docs', into: { doc: 'x' } }] }), { code: 'E_FORBIDDEN' })
-  const d = await team.hub.sourceAdd(ADMIN, 'gdi', { name: '김 설계문서', kind: 'pc', mode: 'docs', rules: [{ rule: 'docs', into: { doc: '설계' } }] })
-  assert.match(d.key, /^kmdm_/)
-  const KIMPC = { user: pc.pcUser, admin: true, pc: true }
-  const a = await pc.hub.pushAdd(KIMPC, { team: team.url, key: d.key, folder: pcDocs })
-  assert.equal(a.push.mode, 'docs')
-  assert.equal(a.run.state, 'changed')
-  const gd = path.join(tmp, 'kn', 'gdi', 'docs', '설계')
-  assert.match(R(path.join(gd, '배치 설계.md')), /^<!-- watched: src="김 설계문서" path="배치 설계\.md" -->/)
-  // PC 에서 한 파일 고침 → 그 파일만 보낸다
-  W(path.join(pcDocs, '배치 설계.md'), '# 배치 설계\n\n## 재시도\n10분 뒤 두 번.\n')
-  const n0 = stats.reads
-  const r = await pc.hub.pushRun(a.push.id)
-  assert.deepEqual([r.state, r.files, r.docs], ['changed', 1, 1])
-  assert.equal(stats.reads - n0, 2)
-  assert.match(R(path.join(gd, '배치 설계.md')), /10분 뒤 두 번/)
-  const row = (await team.hub.sources(ADMIN, 'gdi')).find((x) => x.name === '김 설계문서')
-  assert.equal(row.watch, 'pc')
-  assert.equal(row.state.host, os.hostname())
-  // 그대로면 아무것도 안 보낸다
-  assert.equal((await pc.hub.pushRun(a.push.id)).state, 'same')
-
-  // 코드는 내 PC 폴더로 보내지 않는다 — 소스 코드는 git 저장소로
-  await assert.rejects(team.hub.sourceAdd(ADMIN, 'gdi', { name: '김 배치 코드', kind: 'pc', mode: 'code', rules: [] }), { code: 'E_INPUT' })
-  // 다른 지식에는 그 열쇠가 안 듣는다
-  const bad = await fetch(`${team.url}/api/k/dpms/watched`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${d.key}` }, body: JSON.stringify({ files: [] }) })
-  assert.equal(bad.status, 403)
+test('내 PC 폴더 → 팀은 없다 — 팀은 더하지 못하고 · PC 에는 팀으로 보내는 길이 없다', async () => {
+  await assert.rejects(team.hub.sourceAdd(ADMIN, 'gdi', { name: '김 설계문서', kind: 'pc', mode: 'docs', rules: [{ rule: 'docs', into: { doc: '설계' } }] }), { code: 'E_INPUT' })
+  const r = await fetch(`${pc.url}/api/pushes`)
+  assert.ok(!r.ok, "길이 없다")
+  assert.equal(pc.hub.pushAdd, undefined)
 })

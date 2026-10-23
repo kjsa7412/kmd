@@ -32,7 +32,6 @@ import { restore as restoreFrom, checkUrl } from '../core/restore.js'
 import { watchedOf } from '../core/watchmark.js'
 import { applyDocs, wantDoc, watchedCount } from '../core/docwatch.js'
 import { connect as dbConnect, catalog as dbCatalog } from '../core/db.js'
-import { listPushes, addPush, removePush, runPush, readPushState } from '../core/push.js'
 import { ensureProject } from '../core/gitlab.js'
 import { getSecret, setSecret, listSecrets, delSecret } from '../core/secrets.js'
 
@@ -98,7 +97,6 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     return sendLib.post(d.url, d.kn, payload, key)
   }
   let sendTimer = null
-  let pushTimer = null
   const srcRuns = new Map() // 가져오는 곳마다 도는 중인 것(한 줄로 세운다)
   const adding = new Set() // 막 더하는 중인 곳 — 시계 · 켤 때 확인이 끼어들지 않게
   const resyncs = new Map() // 전체 다시 맞추기 일감 — 진행률
@@ -465,7 +463,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 소스 코드는 git 하나 — 커밋 이력으로 바뀐 것만(정정 2026-10-23 · 코드 폴더 · 라이브러리 버전 · 표 파일은 걷었다)
       if (k2 === 'folder') throw new KmdError('E_INPUT', '소스 코드는 git 저장소로 받는다 — 올라온 묶음으로 바뀐 것을 본다 · 이 PC 폴더면 그 폴더의 git 저장소 경로를 넣는다')
       if (k2 === 'git') rules = []
-      if (k2 === 'pc' && pcMode !== 'docs') throw new KmdError('E_INPUT', '내 PC 폴더는 문서만 보낸다')
+      // 내 PC 폴더(PC 가 파일을 팀으로 보내기)는 걷었다 — 파일을 나르는 것은 이 서비스의 일이 아니다 · 지식은 「보내기」 로
+      if (k2 === 'pc') throw new KmdError('E_INPUT', '내 PC 폴더는 없다 — 내 지식에서 만든 기록 · 문서를 「보내기」 로 보낸다')
       // 파일 목록(files)은 걷었다(감시 검토 v0.1 — 값보다 소음) · 표 파일(tables)은 사람이 고른 파일 · 폴더만
       // docs — 문서 폴더(지식 안 그 폴더로 사본 문서) · pc — 내 PC 폴더(팀 · 관리자 · PC 프로그램이 기계 열쇠로 보낸다 · 결정 ④)
       if (k2 === 'pc' && (mode !== 'team' || !ctx.admin)) throw new KmdError('E_FORBIDDEN', '내 PC 폴더는 팀에서 관리자가 허락한다')
@@ -502,115 +501,18 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       // DB 주소는 계정 이름까지 둔다(비밀번호는 처음부터 없다) · 그 밖은 주소에 든 자격을 가린다
       // 뜻 갱신(소스 변경 → 기록 → 정리)은 코드 폴더 · git 만 — 내 PC 폴더는 코드가 팀으로 가지 않게 하지 않는다
-      const src = { name, kind: k2, ...(k2 === 'pc' ? { mode: 'docs' } : {}), at: k2 === 'db' || k2 === 'pc' ? shown : maskUrl(shown), every: k2 === 'pc' ? 'manual' : every, rules: rules.map((r) => ({ rule: r.rule, ...(r.paths ? { paths: r.paths } : {}), into: { doc: String(r.into.doc), ...(r.into.heading ? { heading: String(r.into.heading) } : {}) } })), by: ctx.user, since: new Date().toISOString().slice(0, 10) }
+      const src = { name, kind: k2, at: k2 === 'db' ? shown : maskUrl(shown), every, rules: rules.map((r) => ({ rule: r.rule, ...(r.paths ? { paths: r.paths } : {}), into: { doc: String(r.into.doc), ...(r.into.heading ? { heading: String(r.into.heading) } : {}) } })), by: ctx.user, since: new Date().toISOString().slice(0, 10) }
       const addKey = `${id}\n${name}`
       adding.add(addKey)
       try {
         await writeDecl(meta.dir, [...decl, src], { user: ctx.user, title: `가져오는 곳 더함 — ${name}` })
         cache.delete(id)
-        if (k2 === 'pc') {
-          // 그 지식 · 그 이름에만 묶인 열쇠 — 한 번만 보인다 · PC 프로그램 › 자료 가져오기 › 팀으로 보내는 폴더에 넣는다
-          const mk = await hub.machineKey(id, name)
-          return { source: src, run: [{ name, state: 'waiting', n: 0, why: '내 PC 프로그램이 보내기를 기다린다' }], key: mk.key, team: null }
-        }
         if (started) hub.watchSource(id, src)
         const r = await hub.sourceRun(id, name, { first: true })
         return { source: src, run: r, secret: secretName(id, name) }
       } finally {
         adding.delete(addKey)
       }
-    },
-    // ── 팀으로 보내는 폴더(이 PC) — 팀 관리자가 허락한 열쇠로 바뀐 것만 팀 지식에 ──
-    async pushes(ctx) {
-      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀으로 보내는 폴더는 내 PC 프로그램에서')
-      const st = await readPushState(dataDir)
-      return (await listPushes(dataDir)).map((p) => ({ ...p, state: st[p.id] || {}, watch: srcWatch.has(`push\n${p.id}`) ? 'live' : 'poll', resync: resyncs.get(`push\n${p.id}`) || null }))
-    },
-    async pushAdd(ctx, body) {
-      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀으로 보내는 폴더는 내 PC 프로그램에서')
-      const p = await addPush(dataDir, body || {})
-      if (started) hub.watchPush(p)
-      const r = await hub.pushRun(p.id)
-      return { push: p, run: r }
-    },
-    async pushRun(id, { full = false, onProgress = null } = {}) {
-      const p = (await listPushes(dataDir)).find((x) => x.id === id)
-      if (!p) throw new KmdError('E_NOTFOUND', '그 폴더가 없다')
-      const key = `push\n${id}`
-      const job = (srcRuns.get(key) || Promise.resolve()).catch(() => {}).then(() => runPush(dataDir, p, { full, onProgress }))
-      srcRuns.set(key, job)
-      const r = await job
-      if (srcRuns.get(key) === job) srcRuns.delete(key)
-      return r
-    },
-    async pushResync(ctx, id) {
-      const key = `push\n${id}`
-      if (resyncs.get(key)?.state === 'running') return resyncs.get(key)
-      const job = { state: 'running', done: 0, total: 0, at: new Date().toISOString() }
-      resyncs.set(key, job)
-      hub.pushRun(id, { full: true, onProgress: (d, t) => { job.done = d; job.total = t } }).then((r) => Object.assign(job, { state: r.state === 'failed' ? 'failed' : 'done', result: r, end: new Date().toISOString() }))
-      return job
-    },
-    async pushRemove(ctx, id) {
-      srcWatch.get(`push\n${id}`)?.close()
-      srcWatch.delete(`push\n${id}`)
-      await removePush(dataDir, id)
-      return { ok: true }
-    },
-    watchPush(p) {
-      const key = `push\n${p.id}`
-      srcWatch.get(key)?.close()
-      let timer = null
-      try {
-        const w = fsWatch(p.folder, { recursive: true }, (ev, f) => {
-          const q = String(f || '').replace(/\\/g, '/')
-          if (q.split('/').some((x) => x.startsWith('.') || x.startsWith('~$') || x === 'node_modules')) return
-          clearTimeout(timer)
-          timer = setTimeout(() => hub.pushRun(p.id).catch(() => {}), config.watchQuietMs ?? 10_000)
-          timer.unref?.()
-        })
-        w.on('error', () => {})
-        srcWatch.set(key, { close: () => { clearTimeout(timer); w.close() } })
-      } catch {}
-    },
-    // 기계 열쇠 — http 가 auth 를 이어 준다(내 PC 폴더를 허락할 때 그 지식 · 그 이름에만)
-    machineKey: async () => { throw new KmdError('E_INPUT', '기계 열쇠를 만들 수 없다') },
-    // 내 PC 폴더 — PC 프로그램이 묻는 선언(무엇을 · 어디로) · 기계 열쇠의 그 이름만
-    async pcDecl(ctx, id) {
-      const meta = await hub.meta(id)
-      if (!ctx.machine || ctx.machine.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
-      const s = (await readDecl(meta.dir)).find((x) => x.name === ctx.machine.source && x.kind === 'pc')
-      if (!s) throw new KmdError('E_NOTFOUND', '팀에서 이 폴더를 뺐다 — 관리자에게 묻는다')
-      return { kn: id, knName: meta.name, name: s.name, mode: s.mode, rules: s.rules }
-    },
-    // 내 PC 폴더 — 바뀐 문서를 받는다(원본이 주인 · 지운 것은 「원본에 없다」 · 한꺼번에 많이 사라지면 멈춤)
-    async receiveWatched(ctx, id, { files = [], removed = [], host = '', first = false } = {}) {
-      const meta = await hub.meta(id)
-      if (!ctx.machine || ctx.machine.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
-      const s = (await readDecl(meta.dir)).find((x) => x.name === ctx.machine.source && x.kind === 'pc' && x.mode === 'docs')
-      if (!s) throw new KmdError('E_NOTFOUND', '팀에서 이 문서 폴더를 뺐다 — 관리자에게 묻는다')
-      if (!Array.isArray(files) || !Array.isArray(removed) || files.length > MAX_FILES) throw new KmdError('E_INPUT', `한 번에 ${MAX_FILES} 파일까지`)
-      const k = await hub.get(id)
-      const st = await readSourceState(dataDir, id)
-      const s0 = (st[s.name] ||= {})
-      const now = new Date().toISOString()
-      const before = await watchedCount(k, s.name)
-      if (!first && before && removed.length / before > 0.1) {
-        s0.stopped = { at: now, added: 0, vanished: removed.length, of: before }
-        s0.lastNote = '멈춤'
-        await writeSourceState(dataDir, id, st)
-        return { state: 'stopped', ...s0.stopped }
-      }
-      const clean = (p) => String(p || '').replace(/\\/g, '/').split('/').filter((x) => x && x !== '.' && x !== '..').join('/')
-      const r = await applyDocs(k, { src: s, prefix: docPrefix(s), files: files.map((f) => ({ rel: clean(f.path), data: Buffer.from(String(f.b64 || ''), 'base64') })).filter((f) => f.rel && wantDoc(f.rel)), removed: removed.map(clean).filter(Boolean) })
-      cache.delete(id)
-      Object.assign(s0, { checkedAt: now, host: String(host).slice(0, 60), failures: 0, stopped: null, lastNote: r.commit ? `문서 ${r.docs}${r.missing ? ' · 원본에 없다 ' + r.missing : ''}` : '그대로', ...(r.commit ? { lastChange: { at: now, files: files.length + removed.length, docs: r.docs, removed: r.missing, tables: 0 } } : {}) })
-      await writeSourceState(dataDir, id, st)
-      if (r.commit) {
-        for (const u of await hub.curatorsOf(id)) await feed.add(dataDir, u, { kn: id, dot: 'acc', text: `${s.name}에서 문서 ${r.docs}${r.missing ? ' · 원본에 없다 ' + r.missing : ''} — ${meta.name}`, small: `내 PC 폴더${host ? ' · ' + host : ''}` })
-        if (backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
-      }
-      return { state: r.commit ? 'changed' : 'same', docs: r.docs, missing: r.missing, rows: r.rows }
     },
     // DB 연결 확인 — 닿나 · 비밀번호(또는 든 비밀)가 있으면 붙어서 테이블 수까지 · 관리자 · PC 만(아무나 포트를 두드리지 않게)
     async sourceCheckDb(ctx, id, { host, port = 5432, database = null, user = null, schema = 'public', password = null, name = null }) {
@@ -648,7 +550,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       for (const s of decl.filter((x) => !name || x.name === name)) {
         // DB 읽기(pg · 읽기 전용 확인)는 S10 계정이 생기면 연다 — 그때까지는 연결 정보만 두고 쉰다(실패로 세지 않는다 · 멈춤 줄 없음)
         if (s.kind === 'pc') {
-          out.push({ name: s.name, state: 'waiting', n: 0, why: '내 PC 프로그램이 바뀐 것을 보낸다 — 여기서는 기다린다' })
+          out.push({ name: s.name, state: 'waiting', n: 0, why: '내 PC 폴더는 걷었다 — 지식은 「보내기」 로 받는다' })
           continue
         }
         const key = `${id}\n${s.name}`
@@ -1153,13 +1055,6 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const days = Math.max(1, Math.round((Date.now() - Date.parse(ws.since)) / 864e5))
         out.push(stopLine({ kind: 'worker', level: 'warn', what: '자동 정리가 쉬고 있다', amount: `${days}일`, fix: ctx.admin ? '관리 › Claude 연결에서 다시 로그인하면 이어서 한다' : null, told: ctx.admin ? null : '관리자에게 알렸다' }))
       }
-      if (mode === 'pc' && !id) {
-        const pst = await readPushState(dataDir).catch(() => ({}))
-        for (const p of await listPushes(dataDir).catch(() => [])) {
-          const x = pst[p.id]
-          if (x && x.failures >= 2 && Date.now() - Date.parse(x.failingSince) > 10 * 60_000) out.push(stopLine({ kind: 'push', level: 'warn', what: `${p.name} 을 팀에 못 보냈다`, amount: ageText(Date.now() - Date.parse(x.failingSince)), fix: '닿으면 바뀐 것을 이어서 보낸다', told: x.lastNote }))
-        }
-      }
       for (const k of ks) {
         out.push(...backup.lines(k, { name: k.name }))
         const sw = (await sendLib.readState(dataDir, k.id)).wait
@@ -1295,12 +1190,6 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             if (st[s.name]?.resync) hub.sourceResync({ ...SHELL }, m.id, s.name).catch(() => {})
           }
         }
-        // 팀으로 보내는 폴더(이 PC) — 실시간 감시 · 켤 때 한 번 · 5분마다 다시(닿지 않았던 것 · 놓친 신호)
-        if (mode === 'pc') {
-          for (const p of await listPushes(dataDir).catch(() => [])) { hub.watchPush(p); hub.pushRun(p.id).catch(() => {}) }
-          pushTimer = setInterval(async () => { for (const p of await listPushes(dataDir).catch(() => [])) await hub.pushRun(p.id).catch(() => {}) }, config.pushTickMs || 300_000)
-          pushTimer.unref?.()
-        }
       }, 1000).unref?.()
       sourceTimer.unref?.()
       setTimeout(() => dueSources(true), 3000).unref?.()
@@ -1346,7 +1235,6 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       clearInterval(tidyTimer)
       clearInterval(sourceTimer)
       clearInterval(sendTimer)
-      clearInterval(pushTimer)
       for (const w of srcWatch.values()) w.close()
       srcWatch.clear()
     },
