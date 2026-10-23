@@ -35,13 +35,13 @@ function sameOrigin(req) {
   }
 }
 
-function readBody(req) {
+function readBody(req, max = MAX_BODY) {
   return new Promise((resolve, reject) => {
     const parts = []
     let n = 0
     req.on('data', (c) => {
       n += c.length
-      if (n > MAX_BODY) {
+      if (n > max) {
         reject(new KmdError('E_INPUT', '보낸 글이 너무 크다'))
         req.destroy()
       } else parts.push(c)
@@ -235,6 +235,27 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, { ok: (await auth.setAdmin(id, !!(await readBody(req)).admin)) ?? true })
     }
 
+    // 파일 · 폴더 넣기 — { files: [{ path, b64 }] } · 한 번에 300 파일 · 200MB(글자로 바꾸면 커져 길 상한은 280MB)
+    const im = p.match(/^\/api\/k\/([^/]+)\/import$/)
+    if (im) {
+      if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
+      const b = await readBody(req, 280 << 20)
+      const files = (Array.isArray(b.files) ? b.files : []).map((f) => ({ path: String(f.path || f.name || ''), data: Buffer.from(String(f.b64 || ''), 'base64') }))
+      return out(200, await hub.importFiles(ctx, decodeURIComponent(im[1]), files))
+    }
+    // 보내기 — 보낼 것 · 보낼 곳 · 이번에 빼기 · 보내기 · 받기 · 받은편지함 정리
+    const sd = p.match(/^\/api\/k\/([^/]+)\/(send|send\/dests|send\/drop|receive|inbox\/tidy)$/)
+    if (sd) {
+      const id = decodeURIComponent(sd[1])
+      if (sd[2] === 'send' && req.method === 'GET') return out(200, await hub.sendQueue(ctx, id))
+      if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
+      const b = await readBody(req, sd[2] === 'receive' ? 8 << 20 : MAX_BODY)
+      if (sd[2] === 'send') return out(200, await hub.send(ctx, id, b))
+      if (sd[2] === 'send/dests') return out(200, await hub.sendDests(ctx, id, b.dests))
+      if (sd[2] === 'send/drop') return out(200, await hub.sendDrop(ctx, id, b))
+      if (sd[2] === 'receive') return out(200, await hub.receive(ctx, id, b))
+      return out(200, await hub.inboxTidy(ctx, id))
+    }
     const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|backup|backup\/pull|owner|learn|edit|revert)$/)
     if (!m) throw new KmdError('E_NOTFOUND', '그런 길은 없다')
     const id = decodeURIComponent(m[1])

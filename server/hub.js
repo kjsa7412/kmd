@@ -20,7 +20,12 @@ import { commitPaths, ensureRepo, tryGit, maskUrl } from '../core/git.js'
 import { stopLine } from '../core/stopline.js'
 import * as backup from '../core/backup.js'
 import * as owners from '../core/owners.js'
-import { buildIndex, ladder, loadLearned, learn, searchCheck } from '../core/search.js'
+import { buildIndex, ladder, loadLearned, learn, searchCheck, exact } from '../core/search.js'
+import { planImport, summary } from '../core/importer.js'
+import * as sendLib from '../core/send.js'
+import * as keystore from '../core/keystore.js'
+import { sha16 } from '../core/text.js'
+import { isSystemRecord, labelOf } from '../core/knowledge.js'
 
 // serve.json — 살림 자리의 설정(없어도 된다)
 async function loadConfig(dataDir) {
@@ -75,6 +80,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     await fs.mkdir(path.dirname(f), { recursive: true })
     await fs.writeFile(f, JSON.stringify(all.slice(0, 30)))
   }
+  // 보내기 한 곳 — 같은 kmd 면 받기 길 그대로 · 다른 kmd 면 그 주소의 기기 열쇠로
+  async function deliver(ctx, d, payload) {
+    if (!d.url) return hub.receive(ctx, d.kn, payload)
+    const key = process.env.KMD_SEND_KEY || (await keystore.get(keystore.keyName(d.url)).catch(() => null))
+    return sendLib.post(d.url, d.kn, payload, key)
+  }
+  let sendTimer = null
   const watchers = []
   const scheduleDecide = (id) => {
     clearTimeout(decideTimers.get(id))
@@ -492,6 +504,184 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       return feed.takeNotices(dataDir, ctx.user)
     },
 
+    // ── 파일 · 폴더 넣기(KM82 — 한 번 들여온다) ──
+    async importFiles(ctx, id, files) {
+      const meta = await hub.meta(id, ctx)
+      const shut = backup.closed(meta)
+      if (shut) throw new KmdError('E_BEHIND', shut.message)
+      const k = await hub.get(id)
+      const direct = hub.canDirect(ctx, id)
+      const plan = await planImport(k, files, { direct, read: (rel) => fs.readFile(path.join(meta.dir, rel)).catch(() => null) })
+      if (plan.docs.length || plan.atts.length) {
+        await serial(path.resolve(meta.dir), async () => {
+          await ensureRepo(meta.dir)
+          const paths = []
+          for (const x of [...plan.docs.map((d) => ({ rel: d.rel, data: Buffer.from(d.text, 'utf8') })), ...plan.atts]) {
+            const full = path.join(meta.dir, x.rel)
+            if (!path.resolve(full).startsWith(path.resolve(meta.dir) + path.sep) || owners.isReservedFile(x.rel)) continue
+            await fs.mkdir(path.dirname(full), { recursive: true })
+            await fs.writeFile(full, x.data)
+            paths.push(x.rel)
+          }
+          if (paths.length) await commitPaths(meta.dir, paths, `파일 넣기 — ${ctx.user} · ${paths.length}`, ctx.user)
+        })
+        cache.delete(id)
+      }
+      for (const r of plan.records) await hub.save(ctx, id, { record: r })
+      const s = summary(plan.rows)
+      if (s.doc || s.record) feed.add(dataDir, ctx.user, { kn: id, dot: 'acc', text: `파일 ${s.doc + s.record}개를 ${s.doc ? '문서로' : '기록으로'} — ${meta.name}`, small: s.fail ? `바꾸지 못한 파일 ${s.fail}` : s.doc ? '원본은 첨부로 두었다' : '다음 정리 때 문서에' }).catch(() => {})
+      if ((plan.docs.length || plan.atts.length) && backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
+      return { direct, summary: s, rows: plan.rows }
+    },
+
+    // ── 보내기(M10) — 보낼 곳 · 보낼 것 · 보내기 · 받기 ──
+    async sendDests(ctx, id, dests) {
+      const meta = await hub.meta(id, ctx)
+      if (!hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '보낼 곳은 주인이 정한다')
+      if (!Array.isArray(dests)) throw new KmdError('E_INPUT', '보낼 곳은 목록이다')
+      dests.forEach(sendLib.checkDest)
+      const conf = await sendLib.readConf(meta.dir)
+      await serial(path.resolve(meta.dir), async () => {
+        await ensureRepo(meta.dir)
+        await fs.writeFile(path.join(meta.dir, sendLib.CONF), JSON.stringify({ ...conf, send: dests.map((d) => ({ kn: d.kn, ...(d.url ? { url: String(d.url).replace(/\/+$/, '') } : {}) })) }, null, 2) + '\n')
+        await commitPaths(meta.dir, [sendLib.CONF], `보낼 곳 — ${dests.map((d) => d.kn).join(' · ') || '없음'}`, ctx.user).catch(() => {})
+      })
+      // 처음 정하면 지금 글을 보낸 것으로 — 그 뒤 고친 것만 모인다
+      const st = await sendLib.readState(dataDir, id)
+      if (!Object.keys(st.sent).length) await sendLib.writeState(dataDir, id, { ...st, sent: sendLib.baseline(await hub.get(id)) })
+      return sendLib.destsOf(meta.dir)
+    },
+    async sendQueue(ctx, id) {
+      const meta = await hub.meta(id, ctx)
+      const dests = await sendLib.destsOf(meta.dir)
+      const st = await sendLib.readState(dataDir, id)
+      const items = dests.length ? sendLib.queue(await hub.get(id), st) : []
+      return { dests, items, wait: st.wait.map((w) => ({ to: w.to.kn, n: w.payload.items.length, at: w.at, why: w.why })), log: st.log }
+    },
+    async sendDrop(ctx, id, { path: p, on }) {
+      await hub.meta(id, ctx)
+      const st = await sendLib.readState(dataDir, id)
+      const q = sendLib.queue(await hub.get(id), st).find((x) => x.path === p)
+      if (!q) throw new KmdError('E_NOTFOUND', '보낼 것에 없다')
+      if (on) delete st.dropped[p]
+      else st.dropped[p] = q.sha
+      await sendLib.writeState(dataDir, id, st)
+      return { ok: true }
+    },
+    async send(ctx, id, { extra = [] } = {}) {
+      const meta = await hub.meta(id, ctx)
+      if (!hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '내 지식에서만 보낸다')
+      const dests = await sendLib.destsOf(meta.dir)
+      if (!dests.length) throw new KmdError('E_INPUT', '보낼 곳이 없다 — 지식 설정에서 정한다')
+      const k = await hub.get(id)
+      const st = await sendLib.readState(dataDir, id)
+      const qs = sendLib.queue(k, st).filter((q) => q.on)
+      const items = [...qs.map((q) => sendLib.itemOf(k, q)), ...(Array.isArray(extra) ? extra : []).map((x) => ({ title: String(x.title || '').slice(0, 200), body: String(x.body || ''), sha: sha16(`${id}\n${x.title}\n${x.body}`) }))]
+      if (!items.length) return { sent: 0, wait: 0 }
+      const payload = { from: meta.name, items }
+      let sent = 0
+      let wait = 0
+      for (const d of dests) {
+        try {
+          await deliver(ctx, d, payload)
+          sent += items.length
+        } catch (e) {
+          st.wait.push({ to: d, payload, at: new Date().toISOString(), why: e.message.slice(0, 120) })
+          wait += items.length
+        }
+      }
+      for (const q of qs) {
+        st.sent[q.path] = sendLib.marks(k.byDocPath.get(q.path))
+        delete st.dropped[q.path]
+      }
+      st.log.unshift({ at: new Date().toISOString(), n: items.length, to: dests.map((d) => d.kn), wait: !!wait })
+      await sendLib.writeState(dataDir, id, st)
+      if (sent) feed.add(dataDir, ctx.user, { kn: id, dot: 'acc', text: `${items.length}개를 보냈다 — ${dests.map((d) => d.kn).join(' · ')}`, small: '정리 때 문서에 들어간다' }).catch(() => {})
+      return { sent, wait }
+    },
+    // 닿지 않아 둔 것 — 닿을 때 저절로(분마다)
+    async sendRetry() {
+      let n = 0
+      for (const m of await hub.list().catch(() => [])) {
+        const st = await sendLib.readState(dataDir, m.id)
+        if (!st.wait.length) continue
+        const left = []
+        for (const w of st.wait) {
+          try {
+            await deliver({ user: pcUser || 'kmd', pc: mode === 'pc' }, w.to, w.payload)
+            n += w.payload.items.length
+            st.log.unshift({ at: new Date().toISOString(), n: w.payload.items.length, to: [w.to.kn], late: w.at })
+          } catch (e) {
+            left.push({ ...w, why: e.message.slice(0, 120) })
+          }
+        }
+        st.wait = left
+        await sendLib.writeState(dataDir, m.id, st)
+      }
+      return n
+    },
+    // 받기 — 기록 하나씩(같은 지문이면 0) · 이름은 이 지식의 장부에 정확히 맞는 것만
+    async receive(ctx, id, { from = '', items = [] } = {}) {
+      await hub.meta(id, ctx)
+      if (!Array.isArray(items) || !items.length || items.length > 200) throw new KmdError('E_INPUT', '받을 것은 1 ~ 200 개')
+      let saved = 0
+      let same = 0
+      for (const it of items) {
+        const k = await hub.get(id)
+        const sha = /^[0-9a-f]{16}$/.test(String(it.sha)) ? it.sha : sha16(`${it.title}\n${it.body}`)
+        const tag = `sent/${sha}`
+        if (k.works.some((w) => w.tags.includes(tag))) {
+          same++
+          continue
+        }
+        const heads = [...String(it.body || '').matchAll(/^## (.+)$/gm)].map((m) => m[1].trim())
+        const words = [...heads, ...String(it.title || '').split(/\s+—\s+/)]
+        const touches = [...new Set(words.flatMap((w) => exact(k, w).map((x) => x.coord)).filter(Boolean))]
+        await hub.save(ctx, id, { record: { title: String(it.title || '보낸 것').slice(0, 200), body: `${String(from).slice(0, 80)}에서 보냄\n\n${String(it.body || '')}`.trim(), touches, tags: [tag] } })
+        saved++
+      }
+      return { saved, same }
+    },
+    // 받은편지함 정리 — 같은 주인의 개인 지식으로만 옮긴다 · 팀 지식에 이름이 걸리면 보내기 후보 · private 은 그대로
+    async inboxTidy(ctx, id) {
+      const meta = await hub.meta(id, ctx)
+      if (!hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '받은편지함은 주인이 정리한다')
+      const owner = owners.rowOf(reg, id)?.owner || ctx.user
+      const k = await hub.get(id)
+      const f = path.join(dataDir, 'inbox', `${encodeURIComponent(id)}.json`)
+      const st = await fs.readFile(f, 'utf8').then(JSON.parse, () => ({ moved: {} }))
+      const others = (await hub.visible(ctx)).filter((m) => m.id !== id)
+      const mine = others.filter((m) => mode === 'pc' || (owners.rowOf(reg, m.id)?.owner === owner && owners.rowOf(reg, m.id)?.private))
+      const team = others.filter((m) => !mine.includes(m))
+      const moved = []
+      const candidates = []
+      for (const w of k.works) {
+        if (isSystemRecord(w) || w.tags.includes('private') || st.moved[w.id]) continue
+        const words = [...w.touches.map((c) => labelOf(k, c)), ...w.title.split(/\s+—\s+/)].filter(Boolean)
+        const hit = async (ms) => {
+          for (const m of ms) {
+            const k2 = await hub.get(m.id)
+            const coords = [...new Set(words.flatMap((x) => exact(k2, x).map((y) => y.coord)).filter(Boolean))]
+            if (coords.length) return { m, coords }
+          }
+          return null
+        }
+        const to = await hit(mine)
+        if (to) {
+          await hub.save(ctx, to.m.id, { record: { title: w.title, body: `받은편지함에서 옮김\n\n${w.body}`.trim(), touches: to.coords, tags: w.tags.filter((t) => !t.startsWith('sent/')) } })
+          st.moved[w.id] = to.m.id
+          moved.push({ record: w.id, title: w.title, to: to.m.id })
+          continue
+        }
+        const t2 = await hit(team)
+        if (t2) candidates.push({ record: w.id, title: w.title, to: t2.m.id, name: labelOf(await hub.get(t2.m.id), t2.coords[0]) })
+      }
+      await fs.mkdir(path.dirname(f), { recursive: true })
+      await fs.writeFile(f, JSON.stringify(st))
+      if (moved.length) feed.add(dataDir, ctx.user, { kn: id, dot: 'acc', text: `받은편지함 메모 ${moved.length}개를 옮겼다`, small: [...new Set(moved.map((x) => x.to))].join(' · ') }).catch(() => {})
+      return { moved, candidates, left: k.works.filter((w) => !isSystemRecord(w) && !st.moved[w.id]).length - candidates.length }
+    },
+
     // 멈춤 줄 — 그 사람이 보는 지식만
     async stops(ctx, id = null) {
       const ks = id ? [await hub.meta(id, ctx)] : await hub.visible(ctx)
@@ -505,6 +695,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       for (const k of ks) {
         out.push(...backup.lines(k, { name: k.name }))
+        const sw = (await sendLib.readState(dataDir, k.id)).wait
+        if (sw.length) out.push(stopLine({ kind: 'send', kn: k.id, level: 'warn', what: `${k.name} — 보낼 곳에 닿지 않는다`, amount: `${sw.reduce((a, w) => a + w.payload.items.length, 0)}개`, fix: '닿으면 저절로 보낸다', since: `${sw[0].at.slice(5, 10)} ${new Date(sw[0].at).toTimeString().slice(0, 5)} 에 누른 것` }))
         const decl = await readDecl(k.dir)
         if (decl.length) out.push(...sourceLines(k, decl, await readSourceState(dataDir, k.id), { admin: !!ctx.admin || mode === 'pc' }))
         if (!backup.attached(k)) {
@@ -598,6 +790,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
       }, config.tidyTickMs || 60_000)
       tidyTimer.unref?.()
+      // 보내기 — 닿지 않아 둔 것을 분마다 다시
+      sendTimer = setInterval(() => hub.sendRetry().catch(() => {}), config.sendTickMs || 60_000)
+      sendTimer.unref?.()
       // 찾기 색인 — 뒤에서 미리(지금 찾는 지식은 기다리지 않고 그때 짓는다)
       setTimeout(async () => {
         for (const m of await hub.list().catch(() => [])) await hub.index(m.id).catch(() => {})
@@ -620,6 +815,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       for (const t of decideTimers.values()) clearTimeout(t)
       clearInterval(tidyTimer)
       clearInterval(sourceTimer)
+      clearInterval(sendTimer)
     },
   }
   return hub
