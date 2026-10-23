@@ -12,9 +12,10 @@ import { save as coreSave, serial } from '../core/save.js'
 import { decide, decisionRecord, revertPlan } from '../core/curate.js'
 import * as collect from '../core/collect.js'
 import crypto from 'node:crypto'
+import net from 'node:net'
 import { material, check as checkDraft, planSave } from '../core/tidy.js'
 import * as feed from '../core/feed.js'
-import { checkTarget, readSource, probe, readDecl, writeDecl, stripCreds, runSource, planRun, readState as readSourceState, sourceLines, everyMs } from '../core/sources.js'
+import { checkTarget, readSource, probe, readDecl, writeDecl, stripCreds, secretName, secretPrefix, runSource, planRun, readState as readSourceState, sourceLines, everyMs } from '../core/sources.js'
 import { check } from '../core/check.js'
 import { commitPaths, ensureRepo, tryGit, maskUrl } from '../core/git.js'
 import { stopLine } from '../core/stopline.js'
@@ -29,7 +30,7 @@ import { sha16 } from '../core/text.js'
 import { isSystemRecord, labelOf } from '../core/knowledge.js'
 import { restore as restoreFrom, checkUrl } from '../core/restore.js'
 import { ensureProject } from '../core/gitlab.js'
-import { getSecret, listSecrets, delSecret } from '../core/secrets.js'
+import { getSecret, setSecret, listSecrets, delSecret } from '../core/secrets.js'
 
 // serve.json — 살림 자리의 설정(없어도 된다)
 async function loadConfig(dataDir) {
@@ -213,7 +214,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (inRoot) await fs.rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
       const e = encodeURIComponent(id)
       for (const p of [`backup/${e}.json`, `send/${e}.json`, `inbox/${e}.json`, `tidy/${e}.json`, `baseline/${e}.json`, `searchcheck/${e}.json`, `learn/${e}.json`, `index/${e}`, `sources/${e}`]) await fs.rm(path.join(dataDir, p), { recursive: true, force: true }).catch(() => {})
-      for (const x of await listSecrets(dataDir).catch(() => [])) if (x.name.startsWith(`src/${id}/`)) await delSecret(dataDir, x.name).catch(() => {}) // 가져오는 곳의 자격
+      for (const x of await listSecrets(dataDir).catch(() => [])) if (x.name.startsWith(secretPrefix(id))) await delSecret(dataDir, x.name).catch(() => {}) // 가져오는 곳의 자격
       const lf = path.join(dataDir, 'links.json')
       const links = await fs.readFile(lf, 'utf8').then(JSON.parse, () => null)
       if (links) await fs.writeFile(lf, JSON.stringify(links.filter((l) => l.id !== id), null, 1))
@@ -434,28 +435,71 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const files = await r.read()
       return { kind: k2, at: maskUrl(t.url || t.folder), asof: r.asof, files: files.length, rules: probe(files).map((x) => ({ rule: x.rule, items: x.items.length, sample: x.items.slice(0, 3).map((i) => i.key || `${i.rows.length}줄`) })) }
     },
-    async sourceAdd(ctx, id, { name, at, kind = null, every = 'hourly', rules }) {
+    // 더하기 — 유형마다(folder 코드 폴더 · git 저장소 · db). 나가는 자격(git 토큰 · DB 비밀번호)은 이 PC 화면만 받는다 —
+    // 팀 화면은 받지 않고 셸 한 줄(`kmd secret set <자격 이름>`)과 상태만 보인다(v0.6 정정 ③)
+    async sourceAdd(ctx, id, { name, at, kind = null, every = 'hourly', rules, cred = null, db = null }) {
       const meta = await hub.meta(id, ctx)
       if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 관리자가 더한다 — [관리자에게 부탁]')
       name = String(name || '').trim()
       if (!name || name.length > 60 || /[\r\n"]/.test(name)) throw new KmdError('E_INPUT', '이름은 한 줄 60자 안')
-      if (!Array.isArray(rules) || !rules.length || rules.some((r) => !['deps', 'tables', 'files'].includes(r.rule) || !r.into?.doc)) throw new KmdError('E_INPUT', '규칙은 deps · tables · files 중 · 넣을 문서(into.doc)와 함께')
-      const k2 = kind || (/^(https?|ssh):\/\//i.test(String(at)) ? 'git' : 'folder')
-      const t = checkTarget(at, { kind: k2, ...(await hub.sourceCtx(id)) })
+      const pcScreen = mode === 'pc' || ctx.pc
+      if ((cred?.password || cred?.token || db?.password) && !pcScreen) throw new KmdError('E_FORBIDDEN', `자격은 화면으로 받지 않는다 — 서버에서 한 줄: kmd secret set ${secretName(id, name)}`)
+      const k2 = kind || (db ? 'db' : /^(https?|ssh):\/\//i.test(String(at)) ? 'git' : 'folder')
+      const okRules = k2 === 'db' ? ['dbtables'] : ['deps', 'tables', 'files']
+      if (!Array.isArray(rules) || !rules.length || rules.some((r) => !okRules.includes(r.rule) || !r.into?.doc)) throw new KmdError('E_INPUT', `무엇을 채우나는 ${okRules.join(' · ')} 중 · 넣을 문서와 함께`)
       const decl = await readDecl(meta.dir)
       if (decl.some((s) => s.name === name)) throw new KmdError('E_CONFLICT', '같은 이름의 가져오는 곳이 있다')
-      const shown = t.url ? await stripCreds(t.url, { dataDir, kn: id, name }) : t.folder
-      const src = { name, kind: k2, at: maskUrl(shown), every, rules: rules.map((r) => ({ rule: r.rule, into: { doc: String(r.into.doc), ...(r.into.heading ? { heading: String(r.into.heading) } : {}) } })), by: ctx.user, since: new Date().toISOString().slice(0, 10) }
+      let shown
+      if (k2 === 'db') {
+        const d = db || {}
+        const word = /^[A-Za-z_][A-Za-z0-9_$-]{0,62}$/
+        if ((d.engine || 'postgres') !== 'postgres') throw new KmdError('E_INPUT', 'DB 는 PostgreSQL 만 — 다른 DB 는 바깥 생성기(기계 열쇠)로')
+        if (!/^[A-Za-z0-9.-]{1,253}$/.test(String(d.host || ''))) throw new KmdError('E_INPUT', '호스트가 아니다')
+        const port = Number(d.port || 5432)
+        if (!Number.isInteger(port) || port < 1 || port > 65535) throw new KmdError('E_INPUT', '포트는 1 ~ 65535')
+        if (!word.test(String(d.database || ''))) throw new KmdError('E_INPUT', 'DB 이름이 아니다')
+        if (!word.test(String(d.user || ''))) throw new KmdError('E_INPUT', '계정이 아니다')
+        const schema = String(d.schema || 'public')
+        if (!word.test(schema)) throw new KmdError('E_INPUT', '스키마 이름이 아니다')
+        if (d.password) await setSecret(dataDir, secretName(id, name), String(d.password))
+        shown = `postgres://${d.user}@${d.host}:${port}/${d.database}?schema=${schema}`
+      } else {
+        const t = checkTarget(at, { kind: k2, ...(await hub.sourceCtx(id)) })
+        if (k2 === 'git' && (cred?.user || cred?.token)) await setSecret(dataDir, secretName(id, name), `${cred.user || 'git'}:${cred.token || ''}`)
+        shown = t.url ? await stripCreds(t.url, { dataDir, kn: id, name }) : t.folder
+      }
+      // DB 주소는 계정 이름까지 둔다(비밀번호는 처음부터 없다) · 그 밖은 주소에 든 자격을 가린다
+      const src = { name, kind: k2, at: k2 === 'db' ? shown : maskUrl(shown), every, rules: rules.map((r) => ({ rule: r.rule, into: { doc: String(r.into.doc), ...(r.into.heading ? { heading: String(r.into.heading) } : {}) } })), by: ctx.user, since: new Date().toISOString().slice(0, 10) }
       await writeDecl(meta.dir, [...decl, src], { user: ctx.user, title: `가져오는 곳 더함 — ${name}` })
       cache.delete(id)
       const r = await hub.sourceRun(id, name, { first: true })
-      return { source: src, run: r }
+      return { source: src, run: r, secret: secretName(id, name) }
+    },
+    // DB 연결 확인 — 호스트 · 포트에 닿나만(읽기는 다음 판 · S10 계정) · 관리자 · PC 만(아무나 포트를 두드리지 않게)
+    async sourceCheckDb(ctx, id, { host, port = 5432 }) {
+      await hub.meta(id, ctx)
+      if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '관리자가 한다')
+      if (!/^[A-Za-z0-9.-]{1,253}$/.test(String(host || ''))) throw new KmdError('E_INPUT', '호스트가 아니다')
+      const t0 = Date.now()
+      const reach = await new Promise((ok) => {
+        const sock = net.connect({ host: String(host), port: Number(port) || 5432 })
+        const done = (v) => { sock.destroy(); ok(v) }
+        sock.setTimeout(3000, () => done(false))
+        sock.once('connect', () => done(true))
+        sock.once('error', () => done(false))
+      })
+      return { reach, ms: Date.now() - t0 }
     },
     async sourceRun(id, name = null, { first = false, force = false } = {}) {
       const meta = await hub.meta(id)
       const decl = await readDecl(meta.dir)
       const out = []
       for (const s of decl.filter((x) => !name || x.name === name)) {
+        // DB 읽기(pg · 읽기 전용 확인)는 S10 계정이 생기면 연다 — 그때까지는 연결 정보만 두고 쉰다(실패로 세지 않는다 · 멈춤 줄 없음)
+        if (s.kind === 'db') {
+          out.push({ name: s.name, state: 'waiting', n: 0, why: 'DB 읽기는 아직 열리지 않았다 — 연결 정보는 저장했다' })
+          continue
+        }
         const k = await hub.get(id)
         const src = { ...s, folder: s.kind === 'folder' || !/^(https?|ssh):\/\//i.test(s.at) ? s.at : undefined }
         const r = await runSource(k, src, { dataDir, first, force, save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
@@ -471,7 +515,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const meta = await hub.meta(id, ctx)
       const decl = await readDecl(meta.dir)
       const st = await readSourceState(dataDir, id)
-      return decl.map((s) => ({ ...s, state: st[s.name] || {} }))
+      const have = new Set((await listSecrets(dataDir).catch(() => [])).map((x) => x.name))
+      return decl.map((s) => ({ ...s, state: s.kind === 'db' ? { ...(st[s.name] || {}), lastNote: 'DB 읽기는 아직 — 연결 정보는 저장했다' } : st[s.name] || {}, secret: { name: secretName(id, s.name), has: have.has(secretName(id, s.name)) } }))
     },
     // 자료 가져오기 화면 — 그 사람이 보는 지식들의 가져오는 곳 모두
     async allSources(ctx) {
@@ -502,7 +547,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       await hub.meta(id, ctx)
       const f = path.join(dataDir, 'requests.json')
       const all = await fs.readFile(f, 'utf8').then(JSON.parse, () => [])
-      const req = { id: crypto.randomBytes(5).toString('hex'), at: new Date().toISOString(), by: ctx.user, kn: id, name: String(card.name || '').slice(0, 60), at2: maskUrl(String(card.at || '')), kind: card.kind || null, rules: card.rules || [] }
+      const req = { id: crypto.randomBytes(5).toString('hex'), at: new Date().toISOString(), by: ctx.user, kn: id, name: String(card.name || '').slice(0, 60), at2: maskUrl(String(card.at || '')), kind: card.kind || null, rules: card.rules || [], every: card.every || 'hourly', ...(card.db ? { db: { engine: 'postgres', host: String(card.db.host || '').slice(0, 253), port: Number(card.db.port) || 5432, database: String(card.db.database || '').slice(0, 63), schema: String(card.db.schema || 'public').slice(0, 63), user: String(card.db.user || '').slice(0, 63) } } : {}) }
       all.unshift(req)
       await fs.writeFile(f, JSON.stringify(all.slice(0, 100)))
       return req

@@ -93,11 +93,20 @@ export function checkTarget(at, { kind, roots = [], dataDir, knowledgeDirs = [],
 }
 
 // 주소의 자격(사용자:비밀@)은 떼어 비밀로 — 선언 · 로그 · 화면에는 가린 주소
+// 가져오는 곳의 자격 이름 — 셸에서 치기 쉽게 영문 소문자로. 한글 · 그 밖의 글자가 있으면 짧은 지문을 붙여 겹치지 않게
+//   dpms · dpms-api → src/dpms/dpms-api   ·   배포노트 · 운영 DB → src/k-1a2b3c/db-4d5e6f
+const part = (x) => {
+  const t = String(x).normalize('NFC')
+  const a = t.toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/-+/g, '-').replace(/^[-.]+|[-.]+$/g, '')
+  return /^[A-Za-z0-9._-]+$/.test(t) && a ? a.slice(0, 24) : `${(a || 'k').slice(0, 16)}-${crypto.createHash('sha1').update(t).digest('hex').slice(0, 6)}`
+}
+export const secretPrefix = (kn) => `src/${part(kn)}/`
+export const secretName = (kn, name) => secretPrefix(kn) + part(name)
 export async function stripCreds(at, { dataDir, kn, name }) {
   try {
     const u = new URL(at)
     if (!u.username && !u.password) return at
-    await setSecret(dataDir, `src/${kn}/${name}`.toLowerCase().replace(/[^a-z0-9._/-]/g, '-'), `${decodeURIComponent(u.username)}:${decodeURIComponent(u.password)}`)
+    await setSecret(dataDir, secretName(kn, name), `${decodeURIComponent(u.username)}:${decodeURIComponent(u.password)}`)
     u.username = ''
     u.password = ''
     return u.toString()
@@ -143,7 +152,7 @@ async function readGit(src, { dataDir, kn }) {
   }
   const local = src.folder != null
   const remote = local ? src.folder : src.at
-  const cred = await getSecret(dataDir, `src/${kn}/${src.name}`.toLowerCase().replace(/[^a-z0-9._/-]/g, '-'))
+  const cred = await getSecret(dataDir, secretName(kn, src.name))
   const env = cred ? { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.extraHeader', GIT_CONFIG_VALUE_0: `Authorization: Basic ${Buffer.from(cred).toString('base64')}` } : {}
   const guard = ['-c', 'protocol.allow=never', '-c', 'protocol.https.allow=always', '-c', 'protocol.ssh.allow=always', '-c', `protocol.file.allow=${local ? 'always' : 'never'}`, '-c', 'fetch.recurseSubmodules=false']
   const f = await tryGit(bare, [...guard, 'fetch', '-q', '--depth=1', remote, '+HEAD:refs/heads/kmd-src'], { timeout: 120_000, env })

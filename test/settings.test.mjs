@@ -95,3 +95,21 @@ test('저절로 하는 일 — 「넣은 파일을 문서로」 를 끄면 docx 
   assert.equal(s.hub.autoOf('lee', 'file'), true, '사람마다 따로')
   await assert.rejects(s.hub.setAuto(KIM, 'save', false), { code: 'E_INPUT' })
 })
+
+test('DB 가져오는 곳 — 팀은 비밀번호를 받지 않는다 · 선언에 비밀 0 · 실패로 세지 않고 쉰다 · 연결 확인은 닿는지만', async () => {
+  const KIM = { user: 'kim', admin: true }
+  const db = { host: '127.0.0.1', port: 5432, database: 'gdi', schema: 'public', user: 'kmd_read' }
+  const rules = [{ rule: 'dbtables', into: { doc: '테이블 정의' } }]
+  await assert.rejects(s.hub.sourceAdd(KIM, 'gdi', { name: 'gdi DB', kind: 'db', db: { ...db, password: 'pw' }, rules }), { code: 'E_FORBIDDEN' })
+  await assert.rejects(s.hub.sourceAdd(KIM, 'gdi', { name: 'gdi DB', kind: 'db', db, rules: [{ rule: 'deps', into: { doc: 'x' } }] }), { code: 'E_INPUT' })
+  const r = await s.hub.sourceAdd(KIM, 'gdi', { name: 'gdi DB', kind: 'db', db, rules })
+  assert.equal(r.run[0].state, 'waiting')
+  assert.match(r.secret, /^src\/gdi\/gdi-db-[0-9a-f]{6}$/)
+  const decl = fs.readFileSync(path.join(tmp, 'kn', 'gdi', '_sources.json'), 'utf8')
+  assert.match(decl, /postgres:\/\/kmd_read@127\.0\.0\.1:5432\/gdi\?schema=public/)
+  assert.ok(!/pw/.test(decl.replace(/postgres/g, '')), '선언에 비밀번호 0')
+  assert.deepEqual((await s.hub.stops(KIM)).filter((l) => l.kind === 'source'), [], '멈춤 줄 없음')
+  assert.equal((await s.hub.sourceCheckDb(KIM, 'gdi', { host: '127.0.0.1', port: s.port })).reach, true)
+  assert.equal((await s.hub.sourceCheckDb(KIM, 'gdi', { host: '127.0.0.1', port: 9 })).reach, false)
+  await assert.rejects(s.hub.sourceCheckDb({ user: 'lee' }, 'gdi', { host: '127.0.0.1', port: 9 }), { code: 'E_FORBIDDEN' })
+})

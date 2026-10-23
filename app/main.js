@@ -19,7 +19,7 @@ const S = {
   menu: null, pal: null, qo: null, cmd: null,
   cache: {}, wait: {}, err: null,
   stops: [],
-  srcDraft: '', srcRun: {}, imports: [], addDraft: '', addMsg: null, cand: null, sending: false,
+  srcRun: {}, sf: null, sfMsg: null, imports: [], addDraft: '', addMsg: null, cand: null, sending: false,
   openToday: null, tidyRun: null, tidyMsg: {}, runOpen: {}, cmp: null, picker: false,
   iq: '', ifilt: { pend: false, recent: false, mine: false }, kfold: {}, tablesAll: false, nbOpen: false,
   g: { kn: null, pos: {}, view: { x: 0, y: 0, k: 1 }, sel: null, bundle: false, layoutKey: '', f: { q: '', item: true, doc: true, rec: false, src: false, pend: false, recent: false, orph: false, depth: 0 } },
@@ -1211,36 +1211,21 @@ function nextTxt(e, last) {
   return '—'
 }
 const sourcesOf = () => need('sources', '/api/sources')
-function srcKn(nm) {
-  const s = String(nm || '').toLowerCase()
-  const hit = S.kns.find((k) => s && (s.includes(k.id.toLowerCase()) || s.includes(String(k.name).toLowerCase())))
-  if (hit) return { kn: hit.id, why: '이름이 맞아서' }
-  const k = S.route.kn && S.route.kn !== '*' && KN(S.route.kn) ? S.route.kn : S.lastKn && KN(S.lastKn) ? S.lastKn : (S.kns[0] || {}).id
-  return { kn: k, why: '가장 최근에 연 지식이라서' }
+// 자료 가져오기는 무엇을 만드나로 두 영역 — ① 파일 · 폴더 → 문서(한 번 들여온다) ② 코드 · DB → 저절로 채우는 표(때마다 바뀐 것만).
+// ② 의 더하기는 유형마다 칸이 다르다 — 코드 폴더(경로) · git 저장소(주소 · 자격) · DB(호스트 · 포트 · DB · 스키마 · 계정 · 비밀번호).
+// 나가는 자격(git 토큰 · DB 비밀번호)은 이 PC 화면만 받는다 — 팀 화면은 받지 않고 셸 한 줄과 「있음」 만(v0.6 정정 ③).
+const SF_TYPES = [['folder', '코드 폴더'], ['git', 'git 저장소'], ['db', 'DB']]
+const SF_RULES = {
+  code: [['deps', '꾸러미 판', 'package.json · pom.xml · build.gradle · go.mod · pyproject.toml 의 꾸러미와 판'], ['tables', '표 파일', 'csv · tsv · 객체 목록 json — 파일마다 표 하나'], ['files', '파일 목록', '같은 종류 코드 파일이 5개 넘는 폴더 — 파일과 첫 설명 줄']],
+  db: [['dbtables', '테이블 정의', '테이블마다 컬럼 · 형 · 길이 · 키 표']],
 }
-function parseSrc(t) {
-  t = String(t || '').trim()
-  if (!t) return null
-  let m
-  if ((m = t.match(/^(postgres(?:ql)?|mysql|oracle|mssql|sqlserver):\/\/[^/]*\/([^?\s/]+)/i))) return { kind: 'DB', name: m[2] + ' DB', db: true }
-  if (/^(git@|https?:\/\/|ssh:\/\/).+\.git$/i.test(t) || /^git@/i.test(t) || /^(https?|ssh):\/\//i.test(t)) {
-    const nm = t.replace(/\.git$/i, '').split(/[/:]/).filter(Boolean).pop()
-    return { kind: '코드', name: nm + ' 코드', at: t, src: 'git', ...srcKn(nm), doc: '꾸러미 판', every: 'hourly', what: '꾸러미 판 표(package.json · pom.xml 에서)' }
+const SF_DOC = { deps: '꾸러미 판', tables: '표', files: '파일 목록', dbtables: '테이블 정의' }
+function sfState() {
+  if (!S.sf) {
+    const k = S.route.kn && S.route.kn !== '*' && KN(S.route.kn) && !KN(S.route.kn).pc ? S.route.kn : (S.kns.find((x) => !x.pc) || {}).id
+    S.sf = { type: 'folder', kn: k, rule: 'deps', every: 'hourly', port: '5432', schema: 'public' }
   }
-  if (/^[A-Za-z]:\\/.test(t) || /^\/[^\s]+/.test(t)) {
-    const nm = t.replace(/[\\/]+$/, '').split(/[\\/]/).pop()
-    return { kind: '코드 폴더', name: nm + ' 코드 폴더', at: t, src: 'folder', ...srcKn(nm), doc: '꾸러미 판', every: 'hourly', what: '꾸러미 판 표(폴더 안의 package.json · pom.xml 에서)', local: true }
-  }
-  return { bad: true }
-}
-function srcHeard() {
-  const v = sourcesOf(), can = v && !v.error ? v.can : !isTeam() || S.me.admin, pr = parseSrc(S.srcDraft)
-  let heard = '', ok = false
-  if (pr && pr.bad) heard = '<div class="heard bad" data-t="srcHeard">알아듣지 못했다 — 코드 폴더 · git 주소 · DB 주소를 붙인다</div>'
-  else if (pr && pr.db) heard = `<div class="heard bad" data-t="srcHeard"><span class="kt src">DB</span><span>DB 에서 가져오기는 아직 열리지 않았다<span class="sub2">서버의 DB 읽기 계정이 정해지면 연다 · 코드 폴더 · git 주소는 지금 된다</span></span></div>`
-  else if (pr) { ok = true; heard = `<div class="heard" data-t="srcHeard"><span class="kt src">${esc(pr.kind)}</span><span><b>${esc(pr.name)} → ${esc((KN(pr.kn) || {}).name || pr.kn)} › ${esc(pr.doc)} · ${everyTxt(pr.every)}</b><span class="sub2">${esc(pr.what)} · 바뀐 것만 고친다 · 넣을 곳은 kmd 가 골랐다 — ${esc(pr.why)}${pr.local && isTeam() ? ' · 이 경로는 팀 서버의 폴더다' : ''}</span></span></div>` }
-  const btn = can ? `<button class="btn" data-a="addSrc" data-t="addSrcBtn"${ok ? '' : ' disabled'}>더하기</button>` : `<button class="btn pri" data-a="askSrc" data-t="askSrcBtn"${ok ? '' : ' disabled'}>관리자에게 부탁</button>`
-  return { heard, btn }
+  return S.sf
 }
 function impTarget() {
   const k = S.route.kn
@@ -1249,34 +1234,70 @@ function impTarget() {
   if (ib) return { kn: ib.id, label: '받은편지함' }
   return { kn: null, label: '받은편지함(처음 넣으면 생긴다)' }
 }
+const KIND_T = { folder: '코드 폴더', git: 'git', db: 'DB · 읽기만' }
+function srcRow(s, can) {
+  const id = s.kn + '|' + s.name, st = s.state || {}, run = S.srcRun[id]
+  const runH = run === 'run' ? '<span class="st2 run" data-t="srcRun">가져오는 중…</span>' : run ? `<span class="st2 ok" data-t="srcOk">${esc(run)}</span>` : ''
+  const ev = String(s.every || 'hourly'), at = ev.startsWith('daily ') ? ev.slice(6) : '06:00'
+  const mi = (val, l, sm) => `<div class="mi${ev.split(' ')[0] === val ? ' on' : ''}" data-a="setEvery" data-id="${esc(id)}" data-v="${val}">${ev.split(' ')[0] === val ? '✓ ' : ''}${l}${sm || ''}</div>`
+  const menu = S.menu === 'every:' + id ? `<div class="menu" style="right:0;top:26px" data-t="everyMenu">${mi('hourly', '1시간마다')}${mi('daily', `매일 <input type="time" id="evAt" data-t="evAt" value="${esc(at)}" data-stop="1">`)}${mi('weekly', '매주 월')}${mi('change', '바뀔 때만', '<small>코드가 바뀌면 바로</small>')}<div class="sep"></div><div class="gray">한꺼번에 크게 바뀌면 쓰지 않고 멈춘다 — 「지금 가져오기」 는 언제든</div></div>` : ''
+  const cred = s.kind === 'git' || s.kind === 'db' ? (s.secret && s.secret.has ? ' · 자격 있음' : s.kind === 'db' || isTeam() ? '' : '') : ''
+  const sub = `${KIND_T[s.kind] || s.kind} · ${String(s.since || '').slice(5)} 부터${s.by && s.by !== S.me.user ? ' · ' + s.by : ''}${cred}`
+  const need = (s.kind === 'db' || s.kind === 'git') && s.secret && !s.secret.has && isTeam() ? `<small class="mono" data-t="credLine">자격이 필요하면 서버에서 — kmd secret set ${esc(s.secret.name)}</small>` : ''
+  const into = (s.rules && s.rules[0] && s.rules[0].into && s.rules[0].into.doc) || ''
+  return `<tr data-t="srcRow" data-name="${esc(s.name)}"><td><b>${esc(s.name)}</b><small>${esc(sub)}</small>${need}</td><td>${esc(s.knName)} › ${esc(into)}</td><td><span class="ev" data-t="every">${everyTxt(ev)}${can ? `<button class="kebab" data-a="menu" data-m="every:${esc(id)}" data-t="everyKebab" title="언제 바꾸기">⋯</button>` : ''}${menu}</span></td><td data-t="last">${st.checkedAt ? esc(whenTxt(st.checkedAt)) : '—'}<small>${esc(st.lastNote || '')}</small></td><td data-t="next">${s.kind === 'db' ? '—' : esc(nextTxt(ev, st.checkedAt))}</td><td class="go2">${runH} ${run === 'run' || s.kind === 'db' ? '' : `<a class="lk" data-a="fetchSrc" data-id="${esc(id)}" data-t="fetchBtn">지금 가져오기</a>`}</td></tr>`
+}
+const fld = (label, f, v, ph, opt = {}) => `<div class="field" style="margin:0"><label for="sf-${f}">${label}${opt.need ? '' : ' <span class="muted">(선택)</span>'}</label><input class="inp${opt.mono ? ' mono' : ''}" id="sf-${f}" data-in="sf" data-f="${f}" value="${esc(v || '')}" placeholder="${esc(ph || '')}" autocomplete="${opt.pw ? 'new-password' : 'off'}"${opt.pw ? ' type="password"' : ''} style="width:100%"></div>`
+function sfForm(can) {
+  const f = sfState(), team = isTeam(), code = f.type !== 'db'
+  const rules = SF_RULES[code ? 'code' : 'db']
+  if (!rules.some((r) => r[0] === f.rule)) f.rule = rules[0][0]
+  const grid = (x) => `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px">${x}</div>`
+  let where = ''
+  if (f.type === 'folder') where = `<div style="grid-column:1/-1">${fld(team ? '서버의 코드 폴더 경로' : '코드 폴더 경로', 'at', f.at, team ? '예: /srv/code/dpms-api — 서버에서 허락된 폴더 안만' : '예: D:\\work\\dpms-api', { need: 1, mono: 1 })}</div>`
+  if (f.type === 'git') where = `<div style="grid-column:1/-1">${fld('git 주소', 'at', f.at, '예: https://gitlab.team.local/dpms/dpms-api.git', { need: 1, mono: 1 })}</div>` + (team ? '<div class="small muted" style="grid-column:1/-1" data-t="credNote">들어가야 하는 저장소면 — 더한 뒤 서버에서 자격 한 줄(표의 그 줄에 보인다) · 화면으로는 받지 않는다</div>' : fld('계정', 'gitUser', f.gitUser, '사내 저장소에 들어가는 계정') + fld('토큰', 'gitToken', f.gitToken, '읽기 권한 토큰', { pw: 1 }))
+  if (f.type === 'db') where = fld('호스트', 'host', f.host, '예: db.team.local', { need: 1, mono: 1 }) + fld('포트', 'port', f.port, '5432', { need: 1, mono: 1 }) + fld('DB 이름', 'database', f.database, '예: gdi', { need: 1, mono: 1 }) + fld('스키마', 'schema', f.schema, 'public', { mono: 1 }) + fld('계정 — 읽기 전용', 'user', f.user, '예: kmd_read', { need: 1, mono: 1 }) + (team ? '<div class="small muted" data-t="credNote" style="align-self:end">비밀번호는 화면으로 받지 않는다 — 더한 뒤 서버에서 한 줄(표의 그 줄에 보인다)</div>' : fld('비밀번호', 'password', f.password, '이 PC 의 자격 저장소에만', { need: 1, pw: 1 }))
+  const kns = S.kns.filter((k) => !k.pc)
+  const sel = (f2, opts, v) => `<select class="inp" id="sf-${f2}" data-sf="${f2}" style="width:100%">${opts.map(([val, l]) => `<option value="${esc(val)}"${val === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`
+  const what = `<div class="field" style="margin:0"><label for="sf-rule">무엇을 채우나</label>${sel('rule', rules.map((r) => [r[0], r[1]]), f.rule)}<div class="hint">${esc(rules.find((r) => r[0] === f.rule)[2])}</div></div>`
+  const into = `<div class="field" style="margin:0"><label for="sf-kn">넣을 지식 › 문서</label><div style="display:flex;gap:6px">${sel('kn', kns.map((k) => [k.id, k.name]), f.kn)}<input class="inp" id="sf-doc" data-in="sf" data-f="doc" value="${esc(f.doc || '')}" placeholder="${esc(SF_DOC[f.rule])}" style="width:45%"></div><div class="hint">문서가 없으면 새로 선다 · 표는 그 문서 안 「저절로 채우는 표」 상자로</div></div>`
+  const when = `<div class="field" style="margin:0"><label for="sf-every">언제</label>${sel('every', [['hourly', '1시간마다'], ['daily 06:00', '매일 06:00'], ['weekly', '매주 월'], ['change', '바뀔 때만 — 5분마다 보고 바뀐 것만']], f.every)}</div>`
+  const nm = fld('이름', 'name', f.name, sfAutoName(f) || '예: dpms-api 코드')
+  const dbNote = f.type === 'db' ? '<div class="callout gray" data-t="dbNote" style="margin:12px 0 0"><i></i><span><b>DB 에서 표 채우기는 아직 열리지 않았다</b> — 지금은 연결 정보만 저장하고 [연결 확인] 으로 닿는지만 본다 · 읽기 전용 계정 확인과 테이블 정의 채우기는 다음 판에</span></div>' : ''
+  const res = S.sfMsg ? `<div class="callout ${S.sfMsg.cls || ''}" data-t="sfMsg" style="margin:12px 0 0"><i></i><span>${S.sfMsg.t}</span></div>` : ''
+  const probe = f.type === 'db' ? '<button class="btn" data-a="sfCheck" data-t="sfCheck">연결 확인</button>' : can ? '<button class="btn" data-a="sfProbe" data-t="sfProbe">살펴보기</button>' : ''
+  const go = can ? '<button class="btn pri" data-a="sfAdd" data-t="sfAdd" style="width:auto">더하기</button>' : '<button class="btn pri" data-a="sfAsk" data-t="sfAsk" style="width:auto">관리자에게 부탁</button>'
+  return `<div class="card" data-t="sfCard"><div class="ch">가져올 곳 더하기 <small>유형을 고르고 칸을 채운다</small></div>
+   <div class="cb"><div class="tabs" data-t="sfTabs" style="margin:0 0 14px">${SF_TYPES.map(([v, l]) => `<span class="${f.type === v ? 'on' : ''}" data-a="sfType" data-v="${v}" data-t="sf-${v}">${l}</span>`).join('')}</div>
+   ${grid(where)}<div style="border-top:1px solid var(--border);margin:14px 0"></div>${grid(what + into + when + nm)}${dbNote}${res}</div>
+   <div class="cf" style="display:flex;gap:8px;align-items:center"><span class="muted small">${can ? '더하면 바로 한 번 가져온다' : '관리자 화면에 「더해 달라」 한 줄로 간다'}</span><span style="margin-left:auto;display:flex;gap:8px">${probe}${go}</span></div></div>`
+}
+function sfAutoName(f) {
+  const at = String(f.at || '').trim()
+  if (f.type === 'db') return f.database ? `${f.database} DB` : ''
+  if (!at) return ''
+  return at.replace(/\.git$/i, '').replace(/[\\/]+$/, '').split(/[\\/:]/).filter(Boolean).pop() + ' 코드'
+}
 function viewImport() {
   const team = isTeam(), v = sourcesOf()
   const srcs = v && !v.error ? v.items : []
   const can = v && !v.error ? v.can : !team || S.me.admin
-  const rowsHtml = srcs.map((s) => {
-    const id = s.kn + '|' + s.name, st = s.state || {}, run = S.srcRun[id]
-    const runH = run === 'run' ? '<span class="st2 run" data-t="srcRun">가져오는 중…</span>' : run ? `<span class="st2 ok" data-t="srcOk">${esc(run)}</span>` : ''
-    const ev = String(s.every || 'hourly'), at = ev.startsWith('daily ') ? ev.slice(6) : '06:00'
-    const mi = (val, l, sm) => `<div class="mi${ev.split(' ')[0] === val ? ' on' : ''}" data-a="setEvery" data-id="${esc(id)}" data-v="${val}">${ev.split(' ')[0] === val ? '✓ ' : ''}${l}${sm || ''}</div>`
-    const menu = S.menu === 'every:' + id ? `<div class="menu" style="right:0;top:26px" data-t="everyMenu">${mi('hourly', '1시간마다')}${mi('daily', `매일 <input type="time" id="evAt" data-t="evAt" value="${esc(at)}" data-stop="1">`)}${mi('weekly', '매주 월')}${mi('change', '바뀔 때만', '<small>코드가 바뀌면 바로</small>')}<div class="sep"></div><div class="gray">한꺼번에 크게 바뀌면 쓰지 않고 멈춘다 — 「지금 가져오기」 는 언제든</div></div>` : ''
-    const sub = `${s.kind === 'git' ? 'git · ' : '폴더 · '}${String(s.since || '').slice(5).replace('-', '-')} 부터${s.by && s.by !== S.me.user ? ' · ' + s.by : ''}`
-    const into = (s.rules && s.rules[0] && s.rules[0].into && s.rules[0].into.doc) || ''
-    return `<tr data-t="srcRow" data-name="${esc(s.name)}"><td><b>${esc(s.name)}</b><small>${esc(sub)}</small></td><td>${esc(s.knName)} › ${esc(into)}</td><td><span class="ev" data-t="every">${everyTxt(ev)}${can ? `<button class="kebab" data-a="menu" data-m="every:${esc(id)}" data-t="everyKebab" title="언제 바꾸기">⋯</button>` : ''}${menu}</span></td><td data-t="last">${st.checkedAt ? esc(whenTxt(st.checkedAt)) : '—'}<small>${esc(st.lastNote || '')}</small></td><td data-t="next">${esc(nextTxt(ev, st.checkedAt))}</td><td class="go2">${runH} ${run === 'run' ? '' : `<a class="lk" data-a="fetchSrc" data-id="${esc(id)}" data-t="fetchBtn">지금 가져오기</a>`}</td></tr>`
-  }).join('')
-  const sh = srcHeard(), target = impTarget()
-  const main = `<div style="max-width:980px"><div class="big">자료 가져오기</div><p class="lead">코드 · DB 에서 표를 저절로 채우고, 파일이나 폴더를 문서로 들인다.</p>
+  const target = impTarget()
+  const sec = (n, t, small) => `<div class="rh" data-t="impSec" style="margin:22px 0 8px;font-size:14px;color:var(--text)">${n} ${t} <small class="muted" style="font-weight:400">${small}</small></div>`
+  const main = `<div style="max-width:980px"><div class="big">자료 가져오기</div><p class="lead">무엇을 만드나에 따라 둘 — 파일 · 폴더는 한 번 들여 문서로, 코드 · DB 는 때마다 읽어 표를 저절로 채운다.</p>
   ${S.stops.map(stopHtml).join('')}
-  <div class="card"><div class="ch">자동으로 가져오는 곳 <small>정한 때마다 확인 · 바뀐 것만 고친다</small>${can ? `<span class="r"><button class="btn pri" data-a="fetchAll" data-t="fetchAll"${srcs.length ? '' : ' disabled'}>지금 모두 가져오기</button></span>` : ''}</div>
-   <div class="cb" style="padding:2px 14px 4px;overflow-x:auto">${!v ? loadingHtml : srcs.length ? `<table class="t" data-t="srcTable"><thead><tr><th>가져오는 곳</th><th>넣는 곳</th><th>언제</th><th>마지막 확인</th><th>다음</th><th></th></tr></thead><tbody>${rowsHtml}</tbody></table>` : '<p class="muted" style="margin:10px 0">아직 더한 곳 없음 — 아래 칸에 코드 폴더 · git 주소 · DB 주소를 붙인다</p>'}</div>
-   <div class="cf">바뀐 줄은 그 지식의 「오늘 바뀐 것」 에 · 한꺼번에 크게 바뀌면 쓰지 않고 멈춘다 · ${can ? '언제 바꾸기는 줄의 ⋯' : '언제 바꾸기 · 더하기 · 끊기는 관리자'}</div></div>
-  <div class="card"><div class="ch">자동으로 가져올 곳 더하기 <small>코드 폴더 · git 주소 · DB 주소 — 한 칸</small></div><div class="cb">
-   <div class="paste"><input class="inp mono" id="srcIn" data-in="src" data-t="srcIn" value="${esc(S.srcDraft)}" placeholder="붙여 넣기 — 예: postgres://읽기전용@db.team.local/gdi · git@gitlab.team.local:dpms/dpms-batch.git" autocomplete="off"><span id="srcBtnBox">${sh.btn}</span></div><div id="srcHeardBox">${sh.heard}</div></div></div>
-  <div class="card"><div class="ch">파일 · 폴더 넣기 <small>한 번 들여온다 — 원본은 첨부로</small></div><div class="cb">
-   <div class="drop" id="drop" data-t="drop"><b>파일이나 폴더를 여기에 끌어다 놓으면 문서가 된다</b>md · docx · pptx · xlsx · hwpx · pdf · 원본은 첨부로 · 넣을 곳 — ${esc(target.label)}
+  ${sec('①', '문서로 들이기', '파일 · 폴더 — 한 번 들여온다 · 원본은 첨부로')}
+  <div class="card"><div class="ch">파일 · 폴더 넣기 <small>md · docx · pptx · xlsx 는 문서로 · hwpx · pdf · 그림은 첨부로</small></div><div class="cb">
+   <div class="drop" id="drop" data-t="drop"><b>파일이나 폴더를 여기에 끌어다 놓으면 문서가 된다</b>넣을 곳 — ${esc(target.label)}
     <div class="lks"><label>파일 고르기<input type="file" multiple id="fileIn" data-t="fileIn"></label> · <label>폴더 고르기<input type="file" webkitdirectory directory multiple id="dirIn" data-t="dirIn"></label></div></div>
    <p class="gl">${team ? 'md · docx · pptx · xlsx 는 바로 바꾼다 — hwpx · pdf 는 내 PC 프로그램이 있는 PC 에서 · 원본은 먼저 첨부로.' : 'md · docx · pptx · xlsx 는 바로 바꾼다 — hwpx · pdf 는 원본을 첨부로 두었다가 바꾼다.'} 폴더 안의 짜임은 그대로 · 한 번에 300 파일 · 200MB 까지.</p>
    <div class="rh">최근 넣은 것</div><ul class="plain rec" data-t="recent">${S.imports.map((x) => `<li class="${x.cls || ''}" data-t="impRow"><span class="tm">${esc(x.tm)}</span><span class="tx">${esc(x.title)}<small data-t="impMsg">${esc(x.msg)}</small></span>${x.go ? `<a class="lk" data-a="impGo" data-k="${esc(x.go.kn)}" data-d="${esc(x.go.doc)}">보기</a>` : ''}</li>`).join('') || '<li class="muted">아직 없다</li>'}</ul>
-  </div></div></div>`
+  </div></div>
+  ${sec('②', '표를 저절로 채우기', '코드 폴더 · git · DB — 정한 때마다 읽어 바뀐 것만 고친다')}
+  <div class="card"><div class="ch">자동으로 가져오는 곳 <small>정한 때마다 확인 · 바뀐 것만 고친다</small>${can ? `<span class="r"><button class="btn pri" data-a="fetchAll" data-t="fetchAll" style="width:auto"${srcs.some((s) => s.kind !== 'db') ? '' : ' disabled'}>지금 모두 가져오기</button></span>` : ''}</div>
+   <div class="cb" style="padding:2px 14px 4px;overflow-x:auto">${!v ? loadingHtml : srcs.length ? `<table class="t" data-t="srcTable"><thead><tr><th>가져오는 곳</th><th>넣는 곳</th><th>언제</th><th>마지막 확인</th><th>다음</th><th></th></tr></thead><tbody>${srcs.map((s) => srcRow(s, can)).join('')}</tbody></table>` : '<p class="muted" style="margin:10px 0">아직 더한 곳 없음 — 아래에서 유형을 골라 더한다</p>'}</div>
+   <div class="cf">바뀐 줄은 그 지식의 「오늘 바뀐 것」 에 · 한꺼번에 크게 바뀌면 쓰지 않고 멈춘다 · ${can ? '언제 바꾸기는 줄의 ⋯' : '언제 바꾸기 · 더하기 · 끊기는 관리자'}</div></div>
+  ${sfForm(can)}</div>`
   return { crumb: '자료 가져오기', main }
 }
 async function fetchSrc(id) {
@@ -1285,28 +1306,70 @@ async function fetchSrc(id) {
   render()
   try {
     const r = (await postJSON(`/api/k/${encodeURIComponent(kn)}/sources/run`, { name }))[0] || {}
-    S.srcRun[id] = r.state === 'changed' ? `가져왔다 — 바뀐 표 ${r.n} · ${nowHm()}` : r.state === 'stopped' ? '멈췄다 — 한꺼번에 크게 바뀌었다' : r.state === 'failed' ? '못 가져왔다 — ' + (r.why || '') : `가져왔다 — 그대로 · ${nowHm()}`
+    S.srcRun[id] = r.state === 'changed' ? `가져왔다 — 바뀐 표 ${r.n} · ${nowHm()}` : r.state === 'stopped' ? '멈췄다 — 한꺼번에 크게 바뀌었다' : r.state === 'failed' ? '못 가져왔다 — ' + (r.why || '') : r.state === 'waiting' ? r.why : `가져왔다 — 그대로 · ${nowHm()}`
     if (r.state === 'changed') { forgetKn(kn); delete S.cache.today }
   } catch (e) { S.srcRun[id] = '못 가져왔다 — ' + e.message }
   delete S.cache.sources
   loadStops()
   render()
 }
-async function addSrc(ask) {
-  const pr = parseSrc(S.srcDraft)
-  if (!pr || pr.bad || pr.db) return
-  const card = { name: pr.name, at: pr.at, kind: pr.src, every: pr.every, rules: [{ rule: 'deps', into: { doc: pr.doc } }] }
+// 칸 → 보낼 카드(검사는 화면에서 먼저 — 빈 칸이면 어느 칸인지 말한다)
+function sfCard() {
+  const f = sfState()
+  const miss = (x, l) => { if (!String(x || '').trim()) throw new Error(`${l} 칸을 채운다`) }
+  if (f.type === 'db') { miss(f.host, '호스트'); miss(f.database, 'DB 이름'); miss(f.user, '계정'); if (!isTeam() && !S.sfAsking) miss(f.password, '비밀번호') }
+  else miss(f.at, f.type === 'git' ? 'git 주소' : '코드 폴더 경로')
+  if (!f.kn) throw new Error('넣을 지식이 없다 — 지식 추가에서 먼저 세운다')
+  const name = String(f.name || '').trim() || sfAutoName(f)
+  const card = { name, kind: f.type, every: f.every, rules: [{ rule: f.rule, into: { doc: String(f.doc || '').trim() || SF_DOC[f.rule] } }] }
+  if (f.type === 'db') card.db = { engine: 'postgres', host: f.host.trim(), port: Number(f.port) || 5432, database: f.database.trim(), schema: (f.schema || 'public').trim(), user: f.user.trim(), ...(isTeam() || !f.password ? {} : { password: f.password }) }
+  else card.at = f.at.trim()
+  if (f.type === 'git' && !isTeam() && (f.gitUser || f.gitToken)) card.cred = { user: f.gitUser || '', token: f.gitToken || '' }
+  return card
+}
+async function sfAdd(ask) {
+  const f = sfState()
+  let card
+  S.sfAsking = ask
+  try { card = sfCard() } catch (e) { S.sfMsg = { cls: 'danger', t: esc(e.message) }; render(); return }
   try {
-    if (ask) { await postJSON(`/api/k/${encodeURIComponent(pr.kn)}/sources/request`, card); toast('관리자에게 부탁했다 — 관리 화면에 보인다'); S.srcDraft = ''; render(); return }
-    toast('가져오는 중…')
-    const r = await postJSON(`/api/k/${encodeURIComponent(pr.kn)}/sources`, card)
-    S.srcDraft = ''
+    if (ask) {
+      delete card.cred
+      if (card.db) delete card.db.password
+      await postJSON(`/api/k/${encodeURIComponent(f.kn)}/sources/request`, card)
+      S.sfMsg = { t: `<b>관리자에게 부탁했다 — ${esc(card.name)}</b> · 관리 화면에 「더해 달라」 한 줄로 갔다` }
+    } else {
+      S.sfMsg = { cls: 'gray', t: '<b>더하는 중…</b> 처음 한 번 가져온다' }
+      render()
+      const r = await postJSON(`/api/k/${encodeURIComponent(f.kn)}/sources`, card)
+      const st = r.run && r.run[0]
+      S.sfMsg = { t: `<b>더했다 — ${esc(card.name)}</b>${st && st.state === 'changed' ? ` · 처음 가져온 표 ${st.n}` : st && st.state === 'waiting' ? ' · 연결 정보를 저장했다 — 표 채우기는 다음 판에' : ''}${isTeam() && (card.kind === 'git' || card.kind === 'db') ? ` · 자격이 필요하면 서버에서 <code>kmd secret set ${esc(r.secret)}</code>` : ''}` }
+      forgetKn(f.kn)
+    }
+    S.sf = { ...f, at: '', name: '', doc: '', gitUser: '', gitToken: '', password: '', host: '', database: '', user: '' }
     delete S.cache.sources
-    forgetKn(pr.kn)
-    const st = r.run && r.run[0]
-    toast(st && st.state === 'changed' ? `더했다 — ${esc(pr.name)} · 처음 가져온 표 ${st.n}` : `더했다 — ${esc(pr.name)}`)
-    render()
-  } catch (e) { toast(esc(e.message), 7000) }
+  } catch (e) { S.sfMsg = { cls: 'danger', t: esc(e.message) } }
+  render()
+}
+async function sfProbe() {
+  const f = sfState()
+  if (!String(f.at || '').trim()) { S.sfMsg = { cls: 'danger', t: `${f.type === 'git' ? 'git 주소' : '코드 폴더 경로'} 칸을 채운다` }; render(); return }
+  S.sfMsg = { cls: 'gray', t: '<b>살펴보는 중…</b>' }
+  render()
+  try {
+    const r = await postJSON(`/api/k/${encodeURIComponent(f.kn)}/sources/probe`, { at: f.at.trim(), kind: f.type })
+    S.sfMsg = { t: r.rules.length ? `<b>파일 ${r.files} · 채울 수 있는 표</b> — ${r.rules.map((x) => `${esc((SF_RULES.code.find((c) => c[0] === x.rule) || [0, x.rule])[1])} ${x.items}${x.sample.length ? ' (' + x.sample.map(esc).join(' · ') + ')' : ''}`).join(' / ')}` : `<b>파일 ${r.files} — 채울 표가 없다</b> · 꾸러미 파일 · 표 파일 · 코드 파일 묶음이 보이지 않는다` }
+  } catch (e) { S.sfMsg = { cls: 'danger', t: esc(e.message) } }
+  render()
+}
+async function sfCheck() {
+  const f = sfState()
+  if (!String(f.host || '').trim()) { S.sfMsg = { cls: 'danger', t: '호스트 칸을 채운다' }; render(); return }
+  try {
+    const r = await postJSON(`/api/k/${encodeURIComponent(f.kn)}/sources/checkdb`, { host: f.host.trim(), port: Number(f.port) || 5432 })
+    S.sfMsg = r.reach ? { t: `<b>닿는다 — ${esc(f.host)}:${esc(f.port || 5432)}</b> · ${r.ms}ms · 계정 · 권한 확인은 표 채우기와 함께 다음 판에` } : { cls: 'danger', t: `<b>닿지 않는다 — ${esc(f.host)}:${esc(f.port || 5432)}</b> · 주소 · 포트 · 방화벽을 본다` }
+  } catch (e) { S.sfMsg = { cls: 'danger', t: esc(e.message) } }
+  render()
 }
 const fileB64 = (f) => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1] || ''); r.onerror = () => no(r.error); r.readAsDataURL(f) })
 async function takeFiles(files) {
@@ -1776,7 +1839,7 @@ const ACT = {
   admAddReq: async (el) => {
     const r = ((overviewOf() || {}).requests || []).find((x) => x.id === el.dataset.id)
     if (!r) return
-    try { await postJSON(`/api/k/${encodeURIComponent(r.kn)}/sources`, { name: r.name, at: r.at2, kind: r.kind, rules: r.rules }); delete S.cache.admin; delete S.cache.sources; toast('더했다 — ' + esc(r.name)) } catch (e) { toast(esc(e.message), 7000) }
+    try { await postJSON(`/api/k/${encodeURIComponent(r.kn)}/sources`, { name: r.name, at: r.at2, kind: r.kind, rules: r.rules, every: r.every, db: r.db }); delete S.cache.admin; delete S.cache.sources; toast('더했다 — ' + esc(r.name)) } catch (e) { toast(esc(e.message), 7000) }
     render()
   },
   admAdopt: async (el) => {
@@ -1800,15 +1863,18 @@ const ACT = {
     try { await postJSON(`/api/k/${encodeURIComponent(kn)}/sources/every`, { name, every }); delete S.cache.sources; toast('언제를 바꿨다 — ' + everyTxt(every)) } catch (e) { toast(esc(e.message)) }
     render()
   },
-  addSrc: () => addSrc(false),
-  askSrc: () => addSrc(true),
+  sfType: (el) => { const f = sfState(); f.type = el.dataset.v; f.rule = f.type === 'db' ? 'dbtables' : f.rule === 'dbtables' ? 'deps' : f.rule; S.sfMsg = null; render() },
+  sfAdd: () => sfAdd(false),
+  sfAsk: () => sfAdd(true),
+  sfProbe: () => sfProbe(),
+  sfCheck: () => sfCheck(),
   impGo: (el) => { openTab({ kind: 'doc', kn: el.dataset.k, ref: el.dataset.d }, { view: 'docs' }); render() },
   delOpen: (el, ev) => { ev.stopPropagation(); S.menu = null; S.del = { kn: el.dataset.k, typed: '' }; S._focus = 'delIn'; render() },
   delClose: () => { if (S.del && !S.del.busy) { S.del = null; render() } },
   delDo: () => delDo(),
   copyRoot: () => { copyText(pcRoot()); toast('지식 폴더 경로를 복사했다') },
   fillAdd: (el) => { S.addDraft = el.dataset.v; S.addMsg = null; S._focus = 'addIn'; render() },
-  addToImport: () => { S.srcDraft = S.addDraft; S.addDraft = ''; go({ scr: 'import' }) },
+  addToImport: () => { const f = sfState(), t = S.addDraft.trim(); if (/^(postgres(ql)?|mysql|oracle|mssql):\/\//i.test(t)) f.type = 'db'; else { f.type = 'git'; f.at = t } S.addDraft = ''; go({ scr: 'import' }) },
   doAdd: () => doAdd(),
   dropSend: async (el) => { S.menu = null; await postJSON(`/api/k/${encodeURIComponent(el.dataset.k)}/send/drop`, { path: el.dataset.p, on: false }).catch((e) => toast(esc(e.message))); delete S.cache['send:' + el.dataset.k]; S.kns = await getJSON('/api/knowledge'); render() },
   undropSend: async (el) => { await postJSON(`/api/k/${encodeURIComponent(el.dataset.k)}/send/drop`, { path: el.dataset.p, on: true }).catch((e) => toast(esc(e.message))); delete S.cache['send:' + el.dataset.k]; S.kns = await getJSON('/api/knowledge'); render() },
@@ -1935,11 +2001,11 @@ document.addEventListener('input', (ev) => {
   if (k === 'del' && S.del) { S.del.typed = t.value; const n = KN(S.del.kn); $('#delBtnBox').innerHTML = delBtn(!!n && t.value.trim() === n.name) }
   if (k === 'ag') { S.agDraft = t.value; $('#agBtnBox').innerHTML = agBtn() }
   if (k === 'admCode') { S.admCode = t.value; $('#admDoneBox').innerHTML = admDoneBtn() }
-  if (k === 'src') { S.srcDraft = t.value; const h = srcHeard(); $('#srcHeardBox').innerHTML = h.heard; $('#srcBtnBox').innerHTML = h.btn }
+  if (k === 'sf') sfState()[t.dataset.f] = t.value
   if (k === 'add') { S.addDraft = t.value; const h = addHeard(); $('#addHeardBox').innerHTML = h.heard; $('#addBtnBox').innerHTML = h.btn; const m = $('[data-t=addMsg]'); if (m) { S.addMsg = null; m.remove() } }
 })
 // 파일 · 폴더 — 고르기 · 끌어다 놓기
-document.addEventListener('change', (ev) => { const t = ev.target; if (t.id === 'fileIn' || t.id === 'dirIn') { takeFiles(t.files); t.value = '' } })
+document.addEventListener('change', (ev) => { const t = ev.target; if (t.dataset && t.dataset.sf) { sfState()[t.dataset.sf] = t.value; if (t.dataset.sf === 'rule') render(); return } if (t.id === 'fileIn' || t.id === 'dirIn') { takeFiles(t.files); t.value = '' } })
 document.addEventListener('dragover', (ev) => { const d = ev.target.closest && ev.target.closest('#drop'); if (d) { ev.preventDefault(); d.classList.add('over') } })
 document.addEventListener('dragleave', (ev) => { const d = ev.target.closest && ev.target.closest('#drop'); if (d) d.classList.remove('over') })
 document.addEventListener('drop', async (ev) => {
@@ -1979,7 +2045,7 @@ document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape') { if (S.qo) S.qo = null; else if (S.cmd) S.cmd = null; else if (S.pal) S.pal = null; else if (S.menu) S.menu = null; else return; render() }
   if (ev.key === 'Enter' && !ev.isComposing && ev.target.id === 'palIn') { const h = $('#app .hit'); if (h) h.click() }
   if (ev.key === 'Enter' && !ev.isComposing && ev.target.id === 'addIn') { ev.preventDefault(); doAdd() }
-  if (ev.key === 'Enter' && !ev.isComposing && ev.target.id === 'srcIn') { ev.preventDefault(); const b = $('#srcBtnBox button'); if (b && !b.disabled) b.click() }
+  if (ev.key === 'Enter' && !ev.isComposing && ev.target.dataset && ev.target.dataset.in === 'sf') { ev.preventDefault(); const b = $('[data-t=sfAdd]') || $('[data-t=sfAsk]'); if (b) b.click() }
 })
 
 // 아래 줄 시계 — 분마다
