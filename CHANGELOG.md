@@ -2,6 +2,11 @@
 
 ## (다음 판)
 
+### 팀 서버의 정리 전용 로그인 — 진짜 Claude Code 로
+
+- 관리 › Claude 연결의 [로그인 시작] 이 진짜 Claude Code 에서도 주소를 낸다 — `claude setup-token` 은 진짜 터미널이 있어야 돌아 `script` 의 가짜 터미널로 띄운다(Linux · macOS, 새 꾸러미 없이). 터미널 색 · 커서 글을 지우고 claude.com · claude.ai · anthropic.com 의 주소만 고른다(전에는 ink 의 「Raw mode is not supported」 안내 주소를 잡았다).
+- 가짜 터미널을 못 다는 서버에서는 자기 터미널에서 `claude setup-token` 으로 받은 열쇠를 서버에서 `kmd secret set claude-token` 으로 넣으라고 알린다.
+
 ### 이 PC 의 Claude 로그인 — 창을 알리고 저절로 확인 · 들이기는 갈래 · 주제로
 
 - [Claude 로그인] 이 「kmd — Claude 로그인」 창(`claude auth login`)을 띄우고, 설정 › Claude 연결이 그 창을 알려 주며 몇 초마다 저절로 확인한다([지금 확인] · [로그인 확인] — 작은 부르기 한 번). Claude Code 의 로그인은 진짜 터미널이 있어야 돌아 화면 안에는 넣지 않았다.
