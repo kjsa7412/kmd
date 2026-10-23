@@ -330,6 +330,35 @@ export async function pull(kn, { check = null } = {}) {
   return { ok: true, pulled: (await oldestAfter(e.dir, before)).count, state: 'ok' }
 }
 
+// 이 백업 이어 쓰기 — 백업과 갈라졌을 때(moved · behind) 사람이 「백업 쪽이 맞다」 고 정하면, 지금 머리는 가지
+// `kmd-before-<시각>` 로 남겨 두고 백업의 머리로 옮긴다. 받은 머리를 검사해 새 오류면 되돌린다. 지우는 것은 없다.
+export async function adopt(kn, { check = null } = {}) {
+  const e = E(kn)
+  if (!e.state) throw new KmdError('E_INPUT', '이 지식에는 백업 자리가 없다')
+  const v = await inspect(e)
+  if (v.unreachable) throw new KmdError('E_INPUT', `백업 자리에 닿지 않는다 — ${REASON[v.reason] || v.reason}`)
+  if (!v.remote) throw new KmdError('E_INPUT', '백업 자리가 비었다 — 이어 쓸 것이 없다(다음 보내기가 다시 올린다)')
+  if (v.state === 'ok' || v.state === 'lag') return { ok: true, kept: null, state: v.state }
+  const before = v.head
+  const errs0 = check ? await check(e.dir) : []
+  const kept = `kmd-before-${new Date().toISOString().replace(/[-:]/g, '').slice(0, 13)}`
+  if (before) await tryGit(e.dir, ['branch', '-f', kept, before])
+  const r = await tryGit(e.dir, ['reset', '--hard', '-q', v.remote])
+  if (!r.ok) throw new KmdError('E_CONFLICT', '백업의 머리로 옮기지 못했다')
+  if (check) {
+    const fresh = (await check(e.dir)).filter((x) => !errs0.includes(x))
+    if (fresh.length) {
+      if (before) await tryGit(e.dir, ['reset', '--hard', '-q', before])
+      throw new KmdError('E_CHECK', `백업의 글에 새 오류가 있어 그대로 두었다 — ${fresh.slice(0, 3).join(' · ')}`)
+    }
+  }
+  e.state.pushed = v.remote
+  await persist(e)
+  e.verdict = { ...v, state: 'ok', head: v.remote, ahead: 0, oldest: null }
+  e.last = { at: Date.now(), ok: true, state: 'ok' }
+  return { ok: true, kept: before ? kept : null, state: 'ok' }
+}
+
 // 서버 시작 — 붙은 지식을 올리고 한 번씩 판정 · 매일 한 번 더
 let daily = null
 export async function start(kns, { dataDir, log = null }) {

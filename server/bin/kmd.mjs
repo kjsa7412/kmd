@@ -21,6 +21,7 @@ import { setSecret, listSecrets } from '../../core/secrets.js'
 import { prehash } from '../../app/prehash.js'
 
 import { addMcp } from '../../core/claudecfg.js'
+import { taskXml, upgrade } from '../../core/pcops.js'
 
 const HELP = `kmd ${VERSION}
 
@@ -31,6 +32,10 @@ const HELP = `kmd ${VERSION}
   kmd backup [--root 폴더]                     백업 상태 — 지식마다 한 줄
   kmd backup add <지식> <주소> [--root 폴더]    백업 자리를 붙이고 지금 보낸다
   kmd backup pull <지식> [--root 폴더]          백업에서 받기(앞으로만 · 받은 뒤 검사)
+  kmd restore <백업 주소> [이름] [--root 폴더]  백업 자리에서 지식을 새 폴더로 되살린다
+  kmd auth reapply <auth.log>                  옛 명부로 되살린 뒤 늦은 일을 다시 적용
+  kmd pc task [폴더]                           로그온 때 켜고 멈추면 다시(작업 스케줄러)
+  kmd pc update <새 판 폴더> <판>              새 판을 켜 보고 될 때만 바꾼다
   kmd owner <지식> [사람] [--private] [--curators 가,나] [--root 폴더]
       지식의 주인 · 개인(주인만 본다) · 정리하는 사람
 
@@ -75,6 +80,9 @@ async function main() {
   if (cmd === 'connect') return connectCmd(parse(rest))
   if (cmd === 'search-check') return searchCheckCmd(parse(rest))
   if (cmd === 'worker') return workerCmd(parse(rest))
+  if (cmd === 'restore') return restoreCmd(parse(rest))
+  if (cmd === 'auth') return authCmd(parse(rest))
+  if (cmd === 'pc') return pcCmd(parse(rest))
   if (cmd !== 'serve' && cmd !== 'up') {
     console.error(`모르는 명령 — ${cmd}\n`)
     process.stdout.write(HELP)
@@ -342,6 +350,68 @@ async function connectCmd(o) {
     if (!teams.includes(url)) fs.writeFileSync(tf, JSON.stringify([...teams, url], null, 1))
     const c = await addMcp('kmd-team', url)
     console.log(c.ok ? '✓ Claude Code 에 이었다 — 팀(kmd-team)' : `Claude Code 에 잇기(한 번): ${c.line}`)
+  } catch (e) {
+    console.error(e.message)
+    process.exitCode = 1
+  }
+}
+
+// 되살리기 — 백업 자리에서 새 폴더로(새 PC 의 「이 PC 로 되살리기」 · 지식 받아 오기)
+async function restoreCmd(o) {
+  const [url, name] = o._
+  const root = path.resolve(o.root || (fs.existsSync(defaultPcRoot()) ? defaultPcRoot() : '.'))
+  fs.mkdirSync(root, { recursive: true })
+  const hub = await makeHub({ root, dataDir: o.data ? path.resolve(o.data) : defaultDataDir(root), mode: o.team ? 'team' : 'pc', log: (...a) => console.log(...a) })
+  try {
+    if (!url) throw new Error('kmd restore <백업 주소> [이름] [--root 폴더]')
+    const r = await hub.restore(SHELL, { url, name })
+    console.log(`되살렸다 — ${r.id} · 문서 ${r.docs} · 기록 ${r.records} · 첨부 ${r.atts} · 이름 장부 ${r.vocab ? '있음' : '없음'} · 사람 ${r.owner || '관리자만 본다'}`)
+    if (r.errors.length) console.log(`검사 줄 ${r.errors.length} — ${r.errors.slice(0, 3).join(' · ')}`)
+  } catch (e) {
+    console.error(e.message)
+    process.exitCode = 1
+  } finally {
+    hub.stop()
+  }
+}
+
+// 명부 다시 적용 — 옛 auth.json 으로 되살린 뒤 더 늦은 auth.log 를 준다
+async function authCmd(o) {
+  const [sub, file] = o._
+  try {
+    if (sub !== 'reapply' || !file) throw new Error('kmd auth reapply <auth.log> [--root 폴더 | --data 폴더]')
+    const root = path.resolve(o.root || '.')
+    const auth = await makeAuth({ dataDir: o.data ? path.resolve(o.data) : defaultDataDir(root) })
+    const r = await auth.reapply(fs.readFileSync(file, 'utf8'))
+    console.log(`다시 적용했다 — 일 ${r.to - r.from} · 끊은 기기 ${r.revoked} · 모두 내보냄 ${r.sv} · 기계 열쇠 끊음 ${r.machines}`)
+    if (r.reset.length) console.log(`비밀번호를 다시 정한다(관리자가 링크를 새로): ${r.reset.join(' · ')}`)
+    if (r.devices.length) console.log(`다시 이을 기기: ${r.devices.join(' · ')}`)
+    if (r.missing.length) console.log(`다시 만들 사람: ${r.missing.join(' · ')}`)
+  } catch (e) {
+    console.error(e.message)
+    process.exitCode = 1
+  }
+}
+
+// 이 PC — 늘 켜기(작업 스케줄러) · 새 판 올리기(healthz 뒤 바꾸고 안 되면 앞 판 그대로)
+async function pcCmd(o) {
+  const [sub, a, b] = o._
+  try {
+    if (sub === 'task') {
+      const root = path.resolve(a || defaultPcRoot())
+      const xml = taskXml({ script: process.argv[1], root })
+      const f = path.join(os.tmpdir(), 'kmd-task.xml')
+      fs.writeFileSync(f, '\ufeff' + xml, 'utf16le')
+      if (process.platform !== 'win32' || o.print) return void console.log(xml)
+      const r = spawn('schtasks', ['/Create', '/F', '/TN', 'kmd', '/XML', f], { stdio: 'inherit', windowsHide: true })
+      r.on('exit', (c) => { console.log(c === 0 ? '✓ 로그온 때 켜고 멈추면 1분마다 다시 켠다 — 작업 이름 kmd' : '작업을 만들지 못했다'); process.exitCode = c || 0 })
+    } else if (sub === 'update') {
+      if (!a || !b) throw new Error('kmd pc update <새 판 폴더> <판> [--home 폴더]')
+      const home = path.resolve(o.home || path.join(os.homedir(), '.kmd-app'))
+      const r = await upgrade({ home, from: path.resolve(a), ver: b })
+      console.log(r.ok ? `✓ 새 판 ${r.ver} 로 바꿨다 — 앞 판 ${r.prev || '없음'} 은 그대로 둔다` : `새 판 ${r.tried} 이 켜지지 않아 그대로 ${r.ver || '앞 판'} 을 쓴다`)
+      if (!r.ok) process.exitCode = 1
+    } else throw new Error('kmd pc task [폴더] · kmd pc update <새 판 폴더> <판>')
   } catch (e) {
     console.error(e.message)
     process.exitCode = 1

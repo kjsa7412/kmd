@@ -101,10 +101,13 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
     await writeJson(file, db)
     try { seenMtime = statSync(file).mtimeMs } catch {}
   }
+  // 일마다 번호(seq)를 붙여 적고 명부에도 그 번호를 남긴다 — 옛 명부로 되살린 뒤 그보다 큰 번호의 일만 다시 적용한다(reapply)
   const note = async (what) => {
-    const line = JSON.stringify({ at: new Date(now()).toISOString(), ...what })
+    db.seq = (db.seq || 0) + 1
+    const line = JSON.stringify({ at: new Date(now()).toISOString(), seq: db.seq, ...what })
     log.push(line)
     await fs.appendFile(logFile, line + '\n', { mode: 0o600 }).catch(() => {})
+    await persist()
   }
   const sign = (payload) => crypto.createHmac('sha256', secret).update(payload).digest('base64url')
   const seal = (o) => {
@@ -351,6 +354,29 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
       await persist()
       await note({ what: 'device', user: id, device: dev.id, host: dev.host })
       return { key, user: id, device: { ...dev, sha: undefined } }
+    },
+    // 되살린 뒤 — 명부(auth.json)보다 늦은 auth.log 의 일을 다시 적용한다(v0.6 L6). 비밀번호 · 열쇠 값은 로그에 없으므로
+    // 늦게 바꾼 비밀번호 · 늦게 만든 링크는 「다시 정하기」 로(관리자가 링크를 새로) · 늦게 이은 기기 · 늦게 만든 사람은 다시 잇는다.
+    async reapply(text) {
+      const base = db.seq || 0
+      const out = { revoked: 0, sv: 0, reset: [], missing: [], devices: [], machines: 0, from: base, to: base }
+      for (const line of String(text || '').split('\n')) {
+        let x
+        try { x = JSON.parse(line) } catch { continue }
+        if (!x || !(x.seq > base)) continue
+        out.to = Math.max(out.to, x.seq)
+        const u = db.users[x.user]
+        if (x.what === 'revoke' && u) { const n = (u.keys || []).length; u.keys = (u.keys || []).filter((d) => x.device !== '*' && d.id !== x.device); out.revoked += n - u.keys.length; u.sv = (u.sv || 0) + 1 }
+        else if (x.what === 'sv' && u) { u.sv = (u.sv || 0) + 1; out.sv++ }
+        else if ((x.what === 'password' || x.what === 'reset') && u) { delete u.pw; delete u.first; u.sv = (u.sv || 0) + 1; if (!out.reset.includes(x.user)) out.reset.push(x.user) }
+        else if (x.what === 'machine-revoke' && u) { delete db.users[x.user]; out.machines++ }
+        else if (x.what === 'device') out.devices.push(`${x.user} · ${x.host || x.device}`)
+        else if ((x.what === 'add' || x.what === 'setup') && !u) out.missing.push(x.user)
+      }
+      db.seq = out.to
+      await persist()
+      await note({ what: 'reapply', from: out.from, to: out.to })
+      return out
     },
     devices(id) {
       return (userOf(id)?.keys || []).map((d) => ({ id: d.id, host: d.host, osuser: d.osuser, at: d.at, used: used[d.sha] || null, yellow: !!d.yellow }))

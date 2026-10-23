@@ -26,6 +26,9 @@ import * as sendLib from '../core/send.js'
 import * as keystore from '../core/keystore.js'
 import { sha16 } from '../core/text.js'
 import { isSystemRecord, labelOf } from '../core/knowledge.js'
+import { restore as restoreFrom, checkUrl } from '../core/restore.js'
+import { ensureProject } from '../core/gitlab.js'
+import { getSecret } from '../core/secrets.js'
 
 // serve.json — 살림 자리의 설정(없어도 된다)
 async function loadConfig(dataDir) {
@@ -133,6 +136,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         await commitPaths(d, ['README.md', 'docs/처음.md'], `지식 만듦 — ${nm}`, ctx.user)
         list = null
         if (mode === 'team') await hub.setOwner({ ...ctx, shell: true }, id, { owner: ctx.user, private: true })
+        await hub.gitlabAttach(id).catch((e) => log('GitLab 백업 자리', id, e.message))
         feed.add(dataDir, ctx.user, { kn: id, dot: 'acc', text: `지식을 추가했다 — ${nm}`, small: mode === 'team' ? '팀 서버 안 내 지식 · 나만' : d }).catch(() => {})
         return { id, name: nm, dir: mode === 'pc' ? d : undefined }
       }
@@ -847,12 +851,53 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       cache.delete(id)
       return r
     },
+    // 이 백업 이어 쓰기 — 갈라졌을 때 백업 쪽이 맞다고 사람이 정한다(지금 머리는 가지로 남긴다)
+    async backupAdopt(ctx, id) {
+      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '백업 이어 쓰기는 관리자가 한다')
+      const meta = await hub.meta(id, ctx)
+      const r = await backup.adopt(meta, { check })
+      cache.delete(id)
+      return r
+    },
+    // 되살리기 — 백업 자리에서 새 폴더로(지식 받아 오기 · 새 PC 의 [이 PC 로 되살리기]) · 받은 곳을 그대로 백업 자리로 붙인다
+    async restore(ctx, { url, name }) {
+      if (!ctx.admin && !ctx.shell && mode !== 'pc') throw new KmdError('E_FORBIDDEN', '되살리기는 관리자가 한다')
+      if (await looksLikeKnowledge(root)) throw new KmdError('E_INPUT', '이 kmd 는 지식 하나만 연다')
+      const t = checkUrl(url, { roots: config.backupRoots || [], pc: mode === 'pc' })
+      const nm = String(name || '').normalize('NFC').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').trim() || path.basename(t.url).replace(/\.git$/i, '')
+      if (!nm || nm.startsWith('.')) throw new KmdError('E_INPUT', '이름을 정한다')
+      if ((await hub.list()).some((k) => k.id.toLowerCase() === nm.toLowerCase())) throw new KmdError('E_CONFLICT', `「${nm}」 지식이 이미 있다`)
+      const dir = path.join(root, nm)
+      const r = await restoreFrom({ url: t.url, dir, check, local: t.local })
+      list = null
+      const meta = await hub.meta(nm)
+      await backup.attach(meta, t.url, { dataDir }).catch((e) => log('되살린 지식 백업 붙이기', nm, e.message))
+      const owner = await hub.adoptRestored(nm)
+      feed.add(dataDir, ctx.user || 'kmd', { kn: nm, dot: 'acc', text: `되살렸다 — ${meta.name}`, small: `문서 ${r.docs} · 기록 ${r.records} · 첨부 ${r.atts}${r.errors.length ? ' · 검사 줄 ' + r.errors.length : ''}` }).catch(() => {})
+      return { id: nm, ...r, owner: owner?.owner || null }
+    },
+    // GitLab 봇 — 백업 자리가 없는 팀 지식에 저장소를 찾거나 만들어 붙인다(안 되면 지금처럼 · 멈춤 줄이 남는다)
+    async gitlabAttach(id) {
+      const g = config.gitlab
+      if (!g || mode !== 'team') return null
+      const meta = await hub.meta(id)
+      if (backup.attached(meta)) return null
+      const token = await getSecret(dataDir, g.secret || 'gitlab')
+      if (!token) return null
+      const p = await ensureProject({ api: g.api, group: g.group, token, name: meta.id })
+      await ensureRepo(meta.dir) // 아직 git 이 없는 지식이면 있던 글을 첫 묶음으로
+      await backup.attach(meta, p.url, { dataDir })
+      log(`${meta.name} — GitLab 백업 자리를 ${p.created ? '만들어' : '찾아'} 붙였다`)
+      return p
+    },
     async backupState(ctx, id) {
       return backup.stateOf(await hub.meta(id, ctx))
     },
     async start() {
       started = true
       await backup.start(await hub.list(), { dataDir, log })
+      // GitLab 봇 — 백업 자리가 없는 지식마다(켤 때 한 번 · 지식 추가 때)
+      if (config.gitlab) setTimeout(async () => { for (const m of await hub.list().catch(() => [])) await hub.gitlabAttach(m.id).catch((e) => log('GitLab 백업 자리', m.id, e.message)) }, 500).unref?.()
       // 거두기 — PC(또는 serve.json collect)에서 편집기로 고친 문서를 30초 고요 뒤 들인다
       if (mode === 'pc' || config.collect) for (const m of await hub.list()) watchers.push(collect.watch(m.dir, () => hub.collect(m.id)))
       // 가져오는 곳 — 할 일 시계(분마다 본다 · 각자의 every) · 켤 때 한 번

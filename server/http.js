@@ -203,6 +203,16 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (jm) return out(200, hub.job(jm[1]) || { state: 'gone' })
     // 자동으로 가져오는 곳 — 목록 · 더하기(관리자 · PC) · 살펴보기 · 지금 가져오기 · 관리자에게 부탁
     if (p === '/api/sources') return out(200, { items: await hub.allSources(ctx), can: hub.mode === 'pc' || !!ctx.admin })
+    // 되살리기 · 이 백업 이어 쓰기 — 관리자(비밀번호 한 번 더) · PC 는 그 PC 의 주인
+    if (p === '/api/restore' && req.method === 'POST') {
+      admin(ctx)
+      return out(200, await hub.restore(ctx, await readBody(req)))
+    }
+    const ba = p.match(/^\/api\/k\/([^/]+)\/backup\/adopt$/)
+    if (ba && req.method === 'POST') {
+      admin(ctx)
+      return out(200, await hub.backupAdopt(ctx, decodeURIComponent(ba[1])))
+    }
     // 지식 추가 — 새 이름 · 내 폴더(PC)
     if (p === '/api/knowledge/add') {
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
