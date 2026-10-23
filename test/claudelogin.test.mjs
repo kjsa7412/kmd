@@ -8,7 +8,7 @@ import path from 'node:path'
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-claudelogin-'))
 process.env.HOME = tmp
 process.env.APPDATA = tmp
-const { plain, pickUrl, ptyArgs, makeTeamLogin } = await import('../core/claudelogin.js')
+const { plain, pickUrl, ptyArgs, teamLoginKind, makeTeamLogin } = await import('../core/claudelogin.js')
 
 const URL = 'https://claude.com/cai/oauth/authorize?code=true&client_id=9d1c&response_type=code&state=ab4u'
 
@@ -42,10 +42,21 @@ test('가짜 터미널 — Linux · macOS 는 script 로 · 다른 곳은 없다
   assert.equal(ptyArgs('win32'), null)
 })
 
-test('가짜 터미널을 못 다는 서버 — 자기 터미널에서 받은 열쇠를 kmd secret set 으로 넣으라고', { skip: process.platform !== 'win32' }, async () => {
-  const fake = process.env.KMD_CLAUDE_LOGIN
-  delete process.env.KMD_CLAUDE_LOGIN
+test('팀 서버의 로그인 길 — 화면 있는 PC 는 보이는 창 · 헤드리스 Linux 는 가짜 터미널 · KMD_TEAM_LOGIN 으로 정한다', () => {
+  assert.equal(teamLoginKind('win32', {}), 'window')
+  assert.equal(teamLoginKind('darwin', {}), 'window')
+  assert.equal(teamLoginKind('linux', { DISPLAY: ':0' }), 'window')
+  assert.equal(teamLoginKind('linux', { WAYLAND_DISPLAY: 'wayland-0' }), 'window')
+  assert.equal(teamLoginKind('linux', {}), 'pty')
+  assert.equal(teamLoginKind('freebsd', {}), 'none')
+  assert.equal(teamLoginKind('win32', { KMD_TEAM_LOGIN: 'pty' }), 'pty')
+  assert.equal(teamLoginKind('linux', { KMD_TEAM_LOGIN: 'bogus' }), 'pty')
+})
+
+test('창도 가짜 터미널도 못 다는 서버 — 쉬운 말로 · 자기 터미널에서 받은 열쇠를 kmd secret set 으로', async () => {
+  const keep = process.env.KMD_TEAM_LOGIN
+  process.env.KMD_TEAM_LOGIN = 'none'
   try {
-    await assert.rejects(makeTeamLogin({ dataDir: tmp }).start(), /kmd secret set claude-token/)
-  } finally { if (fake) process.env.KMD_CLAUDE_LOGIN = fake }
+    await assert.rejects(makeTeamLogin({ dataDir: tmp }).start(), (e) => /^서버에서 Claude 로그인 창을 띄울 수 없다 — .*kmd secret set claude-token/.test(e.message) && !/https?:/.test(e.message))
+  } finally { if (keep) process.env.KMD_TEAM_LOGIN = keep; else delete process.env.KMD_TEAM_LOGIN }
 })

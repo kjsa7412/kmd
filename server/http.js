@@ -21,7 +21,7 @@ import * as kit from '../core/kit.js'
 import { watchedOf } from '../core/watchmark.js'
 import { pcLogin, makeTeamLogin } from '../core/claudelogin.js'
 import { checkClaude } from '../core/claude.js'
-import { getSecret } from '../core/secrets.js'
+import { getSecret, delSecret } from '../core/secrets.js'
 
 const APP = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'app')
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.json': 'application/json' }
@@ -236,7 +236,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         dests: mode === 'pc' ? (await Promise.all(ks.map(async (k) => ({ name: k.name, to: (await hub.sendQueue(ctx, k.id).catch(() => ({ dests: [] }))).dests.map((d) => d.kn) })))).filter((x) => x.to.length) : undefined,
         teams: mode === 'pc' ? await teamsOf() : undefined,
         auto: Object.fromEntries(keys.map((x) => [x, hub.autoOf(ctx.user, x)])),
-        claude: { off: !!process.env.KMD_NO_CLAUDE && !process.env.KMD_CLAUDE, worker: ws, month: tidied, token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), team: mode === 'team' ? { token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), flow: teamLogin.state } : undefined },
+        claude: { off: !!process.env.KMD_NO_CLAUDE && !process.env.KMD_CLAUDE, worker: ws, month: tidied, token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), team: mode === 'team' ? { token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), flow: teamLogin.state, kind: teamLogin.kind } : undefined },
         version: VERSION,
       })
     }
@@ -291,7 +291,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         sources: (await hub.allSources(ctx)).map((s) => ({ name: s.name, kn: s.knName, last: s.state?.checkedAt || null })),
         backups: ks.map((k) => ({ name: k.name, ...(hub.backupStateSync(k) || { off: true }) })),
         checks,
-        claude: { token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), flow: teamLogin.state },
+        claude: { token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), flow: teamLogin.state, kind: teamLogin.kind },
         https: req.headers['x-forwarded-proto'] === 'https',
       })
     }
@@ -302,12 +302,22 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       for (const id of Array.isArray(ids) ? ids.slice(0, 100) : []) links.push({ id, link: `http://${req.headers.host}/first#code=${(await auth.reset(id, { by: ctx.user })).code}` })
       return out(200, { links })
     }
-    const ac = p.match(/^\/api\/admin\/claude\/(start|code|cancel)$/)
+    const ac = p.match(/^\/api\/admin\/claude\/(start|code|cancel|check)$/)
     if (ac && req.method === 'POST') {
       admin(ctx)
       if (mode !== 'team') throw new KmdError('E_FORBIDDEN', '팀 서버에서만')
       if (ac[1] === 'start') return out(200, await teamLogin.start())
       if (ac[1] === 'cancel') return out(200, { ok: !!teamLogin.cancel() || true })
+      // 화면 있는 서버 PC — 그 PC 의 Claude Code 로그인을 작은 부르기로 확인 · 됐으면 옛 정리 전용 열쇠를 걷어 그 로그인을 쓰게
+      if (ac[1] === 'check') {
+        const r = await checkClaude()
+        if (r.ok) {
+          teamLogin.cancel()
+          await delSecret(dataDir, 'claude-token').catch(() => {})
+        }
+        if (r.ok) await hub.workerStatus({ worker: { id: null } }, { ok: true }) // 아직 로그인 전인 확인은 쉼으로 적지 않는다
+        return out(200, { ok: r.ok, reason: r.reason || null })
+      }
       const r = await teamLogin.code((await readBody(req)).code)
       await fs.rm(path.join(dataDir, 'worker.json'), { force: true }).catch(() => {}) // 쉼 줄을 걷는다 — 다음 일감에서 다시 잰다
       return out(200, { ok: r.ok })

@@ -23,6 +23,7 @@ before(async () => {
   process.env.HOME = process.env.USERPROFILE = process.env.APPDATA = tmp
   process.env.KMD_NO_CLAUDE = '1'
   process.env.KMD_CLAUDE_LOGIN = path.join(HERE, 'fixture', 'fake-claude-login.mjs')
+  process.env.KMD_TEAM_LOGIN = 'pty' // 화면 없는 서버의 길(주소 · 번호) — 화면 있는 길은 따로 본다
   copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'kn'))
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: (...a) => logs.push(a.join(' ')), scryptN: 1 << 15 })
   me = await signIn(s, { id: 'kim' })
@@ -80,6 +81,54 @@ test('정리 전용 로그인 — 비밀번호 한 번 더 → 주소 → 번호
   assert.ok(!logs.join('\n').includes('sk-ant'), '로그에 열쇠 0')
   const ov = await (await fetch(s.url + '/api/admin/overview', { headers: H })).json()
   assert.equal(ov.claude.token, true)
+})
+
+test('화면 있는 팀 서버 PC — 「kmd — Claude 로그인」 창 · 번호 칸 없음 · 작은 부르기로 확인 · 옛 정리 전용 열쇠는 걷는다', async () => {
+  const H = { 'content-type': 'application/json', cookie: me.cookie }
+  const post = (p, b) => fetch(s.url + p, { method: 'POST', headers: H, body: JSON.stringify(b || {}) })
+  const { prehash } = await import('../app/prehash.js')
+  const su = await post('/api/sudo', { pw: prehash('kim', me.pw) })
+  H.cookie = [me.cookie, ...su.headers.getSetCookie().map((c) => c.split(';')[0])].join('; ')
+  const keep = { mode: process.env.KMD_TEAM_LOGIN, claude: process.env.KMD_CLAUDE }
+  process.env.KMD_TEAM_LOGIN = 'window'
+  process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
+  try {
+    const st = await (await post('/api/admin/claude/start')).json()
+    assert.deepEqual(st, { window: true }, '주소도 번호도 없다')
+    const ov = await (await fetch(s.url + '/api/admin/overview', { headers: H })).json()
+    assert.equal(ov.claude.kind, 'window')
+    assert.equal(ov.claude.flow, 'window')
+    assert.equal((await post('/api/admin/claude/code', { code: 'x' })).status, 400, '번호 붙여 넣기는 없다')
+    process.env.FAKE_CLAUDE_MODE = 'logout'
+    assert.deepEqual(await (await post('/api/admin/claude/check')).json(), { ok: false, reason: 'login' })
+    assert.equal(await getSecret(path.join(tmp, 'kn', '.kmd'), 'claude-token'), 'sk-ant-oat01-TESTTOKEN0123456789abcdefABCDEF', '아직 로그인 전이면 그대로')
+    delete process.env.FAKE_CLAUDE_MODE
+    assert.deepEqual(await (await post('/api/admin/claude/check')).json(), { ok: true, reason: null })
+    assert.equal(await getSecret(path.join(tmp, 'kn', '.kmd'), 'claude-token').catch(() => null), null, '그 PC 의 로그인을 쓰게 옛 열쇠를 걷는다')
+    const ov2 = await (await fetch(s.url + '/api/admin/overview', { headers: H })).json()
+    assert.equal(ov2.claude.flow, null)
+    assert.equal(ov2.worker.ok, true)
+  } finally {
+    delete process.env.FAKE_CLAUDE_MODE
+    process.env.KMD_TEAM_LOGIN = keep.mode
+    if (keep.claude) process.env.KMD_CLAUDE = keep.claude; else delete process.env.KMD_CLAUDE
+  }
+})
+
+test('화면 없고 가짜 터미널도 못 다는 서버 — 쉬운 말 · 셸 한 줄', async () => {
+  const H = { 'content-type': 'application/json', cookie: me.cookie }
+  const post = (p, b) => fetch(s.url + p, { method: 'POST', headers: H, body: JSON.stringify(b || {}) })
+  const { prehash } = await import('../app/prehash.js')
+  const su = await post('/api/sudo', { pw: prehash('kim', me.pw) })
+  H.cookie = [me.cookie, ...su.headers.getSetCookie().map((c) => c.split(';')[0])].join('; ')
+  process.env.KMD_TEAM_LOGIN = 'none'
+  try {
+    const r = await post('/api/admin/claude/start')
+    const b = await r.json()
+    assert.equal(r.status, 400)
+    assert.match(JSON.stringify(b), /서버에서 Claude 로그인 창을 띄울 수 없다.*kmd secret set claude-token/)
+    assert.ok(!/https?:/.test(JSON.stringify(b)), '주소를 집지 않는다')
+  } finally { process.env.KMD_TEAM_LOGIN = 'pty' }
 })
 
 test('이 PC 의 Claude 로그인 — 「kmd — Claude 로그인」 창(claude auth login)을 띄우고 · 작은 부르기로 확인한다 · 팀에는 없다', async () => {

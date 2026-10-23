@@ -3,7 +3,9 @@
 //   이 PC      설정 › Claude 연결 [Claude 로그인] — 「kmd — Claude 로그인」 창에서 `claude auth login`(그 창이 브라우저를 연다 ·
 //              이 PC 의 Claude Code 로그인을 새로 받는다 — `claude -p` 가 그것을 쓴다). Claude Code 의 로그인은 진짜 터미널이 있어야 돌아
 //              프로그램 안에 넣지 못한다 — 대신 화면이 그 창을 알려 주고 작은 부르기로 저절로 확인한다(core/claude.js checkClaude)
-//   팀 서버    관리 › Claude 연결 — 비밀번호 한 번 더 → 서버가 정리 전용 OS 사용자로 `claude setup-token` 을 띄우고 나온
+//   팀 서버    관리 › Claude 연결 — 비밀번호 한 번 더 → 서버 PC 에 화면이 있으면(Windows · macOS · 화면 있는 Linux) 이 PC 와 같은
+//              「kmd — Claude 로그인」 창 → 그 PC 의 Claude Code 로그인을 정리 일꾼이 쓴다 · 화면이 작은 부르기로 확인
+//              화면 없는 서버(헤드리스 Linux)만 — 서버가 정리 전용 OS 사용자로 `claude setup-token` 을 띄우고 나온
 //              주소를 화면에 → 관리자가 그 주소에서 받은 번호를 붙여 넣으면 그 프로세스의 입력으로만 넘긴다(저장 안 함)
 //              → 나온 오래 가는 열쇠는 비밀 `claude-token` 으로만(화면 · 로그 · 응답에 0) → 정리 일꾼이 그것으로 돈다
 //              setup-token 은 진짜 터미널이 있어야 돌아 `script` 의 가짜 터미널로 띄운다(Linux · macOS) — 못 다는 곳은
@@ -18,7 +20,7 @@ import { KmdError } from './errors.js'
 const URL_RE = /https:\/\/[^\s"'<>]+(?=\s)/g // 뒤에 빈칸이 와야 — 반쯤 받은 주소를 잡지 않게
 const TOKEN_RE = /sk-ant-[A-Za-z0-9_-]{20,}/
 const ANSI_RE = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_]/g
-const NO_TTY = '이 서버에서는 화면 안 로그인을 띄우지 못한다 — 자기 터미널에서 `claude setup-token` 으로 받은 열쇠를 서버에서 `kmd secret set claude-token` 으로 넣는다'
+const NO_TTY = '서버에서 Claude 로그인 창을 띄울 수 없다 — 자기 터미널에서 `claude setup-token` 으로 받은 열쇠를 서버에서 `kmd secret set claude-token` 으로 넣는다'
 
 // 터미널 글 → 맨글(색 · 커서 · 링크 표시를 지운다 · ink 는 띄어쓰기를 「오른쪽으로 n 칸」 으로 낸다)
 export const plain = (s) => String(s).replace(/\x1b\[(\d*)C/g, (_, n) => ' '.repeat(Math.min(+n || 1, 200))).replace(ANSI_RE, '').replace(/\r/g, '')
@@ -37,6 +39,14 @@ export function ptyArgs(platform = process.platform) {
   if (platform === 'linux') return ['script', ['-qfec', run, '/dev/null']]
   if (platform === 'darwin') return ['script', ['-q', '/dev/null', 'sh', '-c', run]]
   return null
+}
+
+// 팀 서버의 로그인 길 — 'window'(화면 있는 PC · 보이는 창) · 'pty'(헤드리스 · 주소 + 번호) · 'none'(셸 한 줄 안내)
+// KMD_TEAM_LOGIN 으로 정할 수 있다(시험 · 화면은 있으나 서비스로 도는 서버)
+export function teamLoginKind(platform = process.platform, env = process.env) {
+  if (['window', 'pty', 'none'].includes(env.KMD_TEAM_LOGIN)) return env.KMD_TEAM_LOGIN
+  if (platform === 'win32' || platform === 'darwin' || env.DISPLAY || env.WAYLAND_DISPLAY) return 'window'
+  return ptyArgs(platform) ? 'pty' : 'none'
 }
 
 function launch(args, opt = {}) {
@@ -61,14 +71,22 @@ export function pcLogin() {
   return { opened: true }
 }
 
-// 팀 서버 — 주소 · 번호 흐름
+// 팀 서버 — 화면 있는 PC 는 보이는 창 · 헤드리스는 주소 · 번호 흐름
 export function makeTeamLogin({ dataDir, timeoutMs = 10 * 60_000 }) {
   let cur = null
-  const stop = () => { if (cur) { clearTimeout(cur.timer); try { cur.p.kill() } catch {} cur = null } }
+  const stop = () => { if (cur) { clearTimeout(cur.timer); try { cur.p?.kill() } catch {} cur = null } }
   return {
-    get state() { return cur ? (cur.url ? 'code' : 'wait') : null },
+    get kind() { return teamLoginKind() },
+    get state() { return cur ? (cur.window ? 'window' : cur.url ? 'code' : 'wait') : null },
     async start() {
       stop()
+      const kind = teamLoginKind()
+      if (kind === 'none') throw new KmdError('E_INPUT', NO_TTY)
+      if (kind === 'window') {
+        pcLogin()
+        cur = { window: true, timer: setTimeout(stop, timeoutMs) }
+        return { window: true }
+      }
       const pty = process.env.KMD_CLAUDE_LOGIN ? null : ptyArgs()
       if (!process.env.KMD_CLAUDE_LOGIN && !pty) throw new KmdError('E_INPUT', NO_TTY)
       const p = pty ? spawn(pty[0], pty[1], { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, TERM: process.env.TERM || 'xterm-256color' } }) : launch(['setup-token'], { stdio: ['pipe', 'pipe', 'pipe'] })
@@ -82,7 +100,8 @@ export function makeTeamLogin({ dataDir, timeoutMs = 10 * 60_000 }) {
       while (!c.url && Date.now() < end && cur === c) await new Promise((r) => setTimeout(r, 100))
       if (!c.url) {
         stop()
-        const why = c.err?.code === 'ENOENT' || /raw mode is not supported|not a tty|command not found|not found/i.test(plain(c.out)) ? NO_TTY : '로그인 주소가 나오지 않았다 — 서버에 Claude Code 가 깔렸나 본다 · 안 되면 ' + NO_TTY.split(' — ')[1]
+        // 오류 글의 주소는 집지 않는다 — 쉬운 말로만
+        const why = c.err?.code === 'ENOENT' || /raw mode is not supported|not a tty|not found/i.test(plain(c.out)) ? NO_TTY : '서버에서 Claude 로그인 창을 띄울 수 없다 — 로그인 주소가 나오지 않았다(서버에 Claude Code 가 깔렸나 본다) · 안 되면 ' + NO_TTY.split(' — ')[1]
         throw new KmdError('E_INPUT', why)
       }
       // 콘솔 글(열쇠 모양은 지운다) — 화면이 그대로 보여 준다
