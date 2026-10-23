@@ -581,7 +581,7 @@ export function sourceLines(k, decl, st, { now = Date.now(), admin = false } = {
     const s = st[src.name] || {}
     if (s.stopped) {
       const what = s.stopped.vanished ? `${src.name} 에서 항목 ${s.stopped.vanished}개가 한꺼번에 사라졌다` : `${src.name} 에서 새 항목 ${s.stopped.added}개가 한꺼번에 생겼다`
-      out.push(stopLine({ kind: 'source', kn: k.id, level: 'warn', what, fix: '표는 그대로 둠', told: admin ? '[그대로 반영] 은 자료 가져오기에서' : '관리자에게 알렸다' }))
+      out.push(stopLine({ kind: 'source', kn: k.id, level: 'warn', what, fix: '표는 그대로 둠', told: admin ? '[그대로 반영] 은 지식 만들기에서' : '관리자에게 알렸다' }))
       continue
     }
     if ((s.failures || 0) >= 2 && s.checkedAt && now - Date.parse(s.checkedAt) >= 2 * everyMs(src.every)) {

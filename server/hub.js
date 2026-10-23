@@ -174,7 +174,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
               const st = await fs.stat(path.join(d, e.name))
               bytes += st.size
               files.push({ path: r, full: path.join(d, e.name) })
-              if (files.length > MAX_FILES || bytes > MAX_BYTES) throw new KmdError('E_INPUT', `한 번에 ${MAX_FILES} 파일 · 200MB 까지 — 자료 가져오기에서 나눠 넣는다`)
+              if (files.length > MAX_FILES || bytes > MAX_BYTES) throw new KmdError('E_INPUT', `한 번에 ${MAX_FILES} 파일 · 200MB 까지 — 지식 만들기에서 나눠 넣는다`)
             }
           }
         }

@@ -60,11 +60,11 @@ test('셸 · 지식 목록 · 문서로 보기 — 목업과 같은 글 · 단�
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
   page.on('pageerror', (e) => errors.push(e.message))
 
-  // 들어가기 — 두 칸 + [들어가기] · 리본 · 옆 메뉴는 흐리게 · 틀리면 한 줄
+  // 들어가기 — 두 칸 + [들어가기] · 옆 메뉴는 흐리게 · 틀리면 한 줄
   await page.goto(s.url)
   await page.waitForSelector('[data-t=loginBtn]')
   assert.match(await page.locator('.gate').innerText(), /팀 kmd 에 들어간다[\s\S]*한 번 들어오면 일주일쯤 이어진다/)
-  assert.equal(await page.locator('.ribbon.dim').count(), 1)
+  assert.equal(await page.locator('.side.dim').count(), 1)
   assert.equal(await page.getAttribute('#lgPw', 'autocomplete'), 'current-password')
   await page.fill('#lgId', 'kim')
   await page.fill('#lgPw', 'wrong-password')
@@ -76,14 +76,16 @@ test('셸 · 지식 목록 · 문서로 보기 — 목업과 같은 글 · 단�
   await page.fill('#lgPw', me.pw)
   await page.click('[data-t=loginBtn]')
   await page.waitForSelector('[data-t=klist] [data-t=krow]')
-  // 셸 — 리본 넷(문서 · 항목 · 그래프 · 설정) · 옆 메뉴 · 머리 · 띠 · 아래 줄
-  assert.deepEqual(await page.locator('.ribbon .rb span').allInnerTexts(), ['문서', '항목', '그래프', '설정'])
-  // 관리자라 「정리하는 사람」 묶음(정리 · 이 지식의 사람)이 선다
-  assert.deepEqual(await page.locator('.side .nav .sb-i').evaluateAll((els) => els.map((e) => e.querySelector('span').textContent)), ['오늘 바뀐 것', '자료 가져오기', '이력', '정리', '이 지식의 사람', '관리', '설명서'])
-  assert.match(await page.locator('.hdr').innerText(), /빨리 열기[\s\S]*Ctrl O[\s\S]*찾기[\s\S]*Ctrl K/)
+  // 셸 — 리본 없음 · 옆 메뉴 두 영역(지식 고르기: 고르기 · 문서 · 항목 · 그래프 탭 · 목록 / 지식 관리: 공통 메뉴) · 머리(찾기 가운데 · 설명서 · 나 오른쪽) · 띠 · 아래 줄
+  assert.equal(await page.locator('.ribbon').count(), 0)
+  assert.deepEqual(await page.locator('[data-t=ktabs] span').allInnerTexts(), ['문서', '항목', '그래프'])
+  // 관리자라 「정리 · 이 지식의 사람 · 관리」 도 지식 관리에 선다
+  assert.deepEqual(await page.locator('[data-t=manageArea] .sb-i').evaluateAll((els) => els.map((e) => e.querySelector('span').textContent)), ['바뀐 것 · 이력', '지식 만들기', '정리', '이 지식의 사람', '관리', '설정'])
+  assert.match(await page.locator('.hdr .hmid').innerText(), /빨리 열기[\s\S]*Ctrl O[\s\S]*찾기[\s\S]*Ctrl K/)
+  assert.match(await page.locator('.hdr .hright').innerText(), /설명서[\s\S]*kim\s*· 팀 서버/)
   assert.equal(await page.locator('.band .who').innerText(), '팀 서버의 kmd · 같이 쓴다')
   assert.deepEqual(await page.locator('[data-t=krow]').evaluateAll((els) => els.map((e) => e.dataset.name)), ['DPMS 지식', 'GDI 지식'])
-  assert.deepEqual(await page.locator('.tl a').allInnerTexts(), ['+ 지식 추가', '+ 자료 가져오기'])
+  assert.deepEqual(await page.locator('.tl a').allInnerTexts(), ['+ 지식 추가', '+ 지식 만들기'])
   assert.deepEqual(await bannedIn(page), [])
   await page.screenshot({ path: path.join(SHOTS, 'app-home.png') })
 
@@ -217,7 +219,7 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   await page.click('[data-t=nav-import]')
   await page.waitForSelector('[data-t=drop]')
   // 두 영역 — ① 문서로 들이기 ② 표를 저절로 채우기 · 더하기는 유형마다 칸
-  assert.deepEqual((await page.locator('[data-t=impSec]').allInnerTexts()).map((t) => t.split(' ').slice(0, 2).join(' ')), ['① 문서로', '② 지켜보며'])
+  assert.deepEqual((await page.locator('[data-t=impSec]').allInnerTexts()).map((t) => t.split(' ').slice(0, 2).join(' ')), ['문서로 들이기', '지켜보며 맞추기'])
   assert.deepEqual(await page.locator('[data-t=sfTabs] span').allInnerTexts(), ['문서 폴더', '소스 코드(git)', 'DB'], '파일을 팀으로 나르는 내 PC 폴더는 없다')
   await page.click('[data-t=sf-git]')
   assert.match(await page.locator('[data-t=codeWhat]').innerText(), /묶음 — 더한 뒤 저장소에 새로 올라온 묶음마다 바뀐 코드로 기록 하나/, '소스 코드는 커밋 이력으로 — 채울 표를 고르지 않는다')
@@ -239,7 +241,7 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   await page.waitForSelector('[data-t=srcRow][data-name="gdi DB"]')
   assert.match(await page.locator('[data-t=srcRow][data-name="gdi DB"]').innerText(), /DB · 읽기만[\s\S]*kmd secret set/)
   // 이력 — 가져오는 곳을 더한 일은 기록이 아니라 이력 한 곳에
-  await page.click('[data-t=nav-log]')
+  await page.click('[data-t=nav-today]') // 바뀐 것 · 이력 — 한 화면
   await page.waitForSelector('[data-t=logTable]')
   assert.match(await page.locator('[data-t=logRow][data-kind="설정"]').first().innerText(), /가져오는 곳 더함 — gdi DB/)
   await page.click('[data-t=logKind-가져오기]')
@@ -261,7 +263,7 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   await page.click('text=+ 지식 추가')
   await page.waitForSelector('[data-t=addIn]')
   await page.fill('#addIn', 'git@gitlab.team.local:dpms/dpms-batch.git')
-  assert.match(await page.locator('[data-t=addHeard]').innerText(), /코드 · DB 는 자료 가져오기에서 더한다/)
+  assert.match(await page.locator('[data-t=addHeard]').innerText(), /코드 · DB 는 지식 만들기에서 더한다/)
   await page.fill('#addIn', 'D:\\옛자료')
   assert.match(await page.locator('[data-t=addHeard]').innerText(), /경로는 내 PC 프로그램이 연다/)
   await page.fill('#addIn', '설계메모')
@@ -284,19 +286,23 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   assert.match(await page.locator('.main .lead').innerText(), /만들어진 지식만 보낸다 — 바뀐 것은 골라 두었다[\s\S]*누르면 DPMS 지식으로 간다/)
   // ① 변경사항 — 고친 문서는 바뀐 항목만 · 처음엔 골라 둔다 · 전체 해제 / 전체 체크
   assert.match(await page.locator('[data-t=sendItem][data-kind=doc]').innerText(), /고친 항목만 — 개요/)
-  assert.equal(await page.locator('[data-t=sendBtn]').innerText(), '1개 보내기')
+  assert.equal(await page.locator('[data-t=sendBtn]').innerText(), '변경사항 1개 보내기')
   await page.click('[data-t=sendAllOff]')
-  assert.equal(await page.locator('[data-t=sendBtn]').innerText(), '0개 보내기')
+  assert.equal(await page.locator('[data-t=sendBtn]').innerText(), '변경사항 0개 보내기')
   assert.equal(await page.locator('[data-t=sendBtn]').isDisabled(), true)
   await page.click('[data-t=sendAllOn]')
-  assert.equal(await page.locator('[data-t=sendBtn]').innerText(), '1개 보내기')
+  assert.equal(await page.locator('[data-t=sendBtn]').innerText(), '변경사항 1개 보내기')
   // ② 지식 — 문서 목록 · 기록 목록(여럿 골라 전체로)
   assert.ok((await page.locator('[data-t=sendDocs] [data-t=sendDoc]').count()) >= 1)
   assert.equal(await page.locator('[data-t=sendRecs]').count(), 1)
+  // 영역마다 보내기 단추 — 지식에서 고른 것은 그 영역의 단추로
+  assert.equal(await page.locator('[data-t=sendKnowBtn]').isDisabled(), true)
   await page.locator('[data-t=sendDoc]').first().click()
-  assert.equal(await page.locator('[data-t=sendBtn]').innerText(), '2개 보내기')
+  assert.equal(await page.locator('[data-t=sendKnowBtn]').innerText(), '고른 1개 보내기')
+  assert.equal(await page.locator('[data-t=sendBtn]').innerText(), '변경사항 1개 보내기')
   await page.locator('[data-t=sendDoc]').first().click()
-  assert.equal(await page.locator('[data-t=sendBtn]').innerText(), '1개 보내기')
+  assert.equal(await page.locator('[data-t=sendKnowBtn]').innerText(), '고른 0개 보내기')
+  assert.equal(await page.evaluate(() => /[\u2460-\u2473]/.test(document.querySelector('.main').innerText)), false, '① ② 같은 글자를 쓰지 않는다')
   await page.screenshot({ path: path.join(SHOTS, 'app-send.png') })
   await page.click('[data-t=sendBtn]')
   await page.waitForSelector('[data-t=sendEmpty]')

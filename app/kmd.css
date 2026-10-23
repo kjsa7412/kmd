@@ -579,3 +579,35 @@ html,body{background:var(--bg)}
 /* 지식 지우기 — 목업에 없는 단추(완전 삭제)의 위험 색 */
 .btn.danger{background:var(--danger);border-color:var(--danger);color:#fff;font-weight:600}
 .btn.danger[disabled]{opacity:.45;cursor:not-allowed}
+
+/* ── 옆 메뉴 두 영역 · 머리(정정 2026-10-23 — 리본을 걷었다) ── */
+.sb-know{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.ktabs{display:flex;gap:2px;background:var(--surface-2);border-radius:9px;padding:3px;margin:0 0 2px}
+.ktabs span{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:5px 0;border-radius:7px;font-size:12.5px;color:var(--text-2);cursor:pointer;user-select:none}
+.app .ktabs svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.ktabs span:hover{color:var(--text)}
+.ktabs span.on{background:var(--surface);color:var(--accent);font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.ktabs span.cur{color:var(--text);font-weight:600}
+.sb-know .lp{margin-top:6px}
+.sb-mg{flex:none;border-top:1px solid var(--border);padding-top:6px;margin-top:8px}
+.sb-mg .sb-g{margin-top:4px}
+.kmenu .sep{height:1px;background:var(--border);margin:4px 0}
+.hdr .crumb{flex:1 1 0}
+.hmid{flex:0 1 460px;display:flex;align-items:center;gap:6px;min-width:0}
+.hmid .qbtn{margin-left:0}
+.hmid .search{flex:1 1 auto;margin-left:0}
+.hright{flex:1 1 0;display:flex;align-items:center;justify-content:flex-end;gap:14px;min-width:0;white-space:nowrap}
+.hlink{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--text-2);cursor:default}
+.app .hlink svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.hme{display:flex;align-items:center;gap:6px;font-size:12.5px}
+.hme small{color:var(--text-3)}
+.hme .av{width:22px;height:22px;border-radius:50%;background:var(--surface-3);color:var(--text-2);display:grid;place-items:center;font-weight:700;font-size:11px;flex:none}
+@media (max-width:900px){
+  .sb-know{flex-basis:100%}
+  .sb-mg{flex-basis:100%;margin:0;border:0;padding:0}
+  .sb-mg .nav{display:flex;flex-wrap:wrap;gap:2px}
+  .hright .hlink{display:none}
+}
+.hright{min-width:max-content}
+.hmid .search{min-width:0;overflow:hidden}
+.hmid{flex-basis:380px}
