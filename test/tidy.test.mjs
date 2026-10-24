@@ -31,7 +31,7 @@ before(async () => {
   process.env.FAKE_CLAUDE_LOG = calls
   copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'kn'))
   fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })
-  fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000 }))
+  fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, tidyTickMs: 3600000 }))
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
   me = await signIn(s, { id: 'kim' })
   wkey = (await s.auth.workerAdd()).key
