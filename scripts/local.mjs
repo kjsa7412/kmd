@@ -13,7 +13,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const BASE = path.join(ROOT, '.kmd-data', 'local')
+const BASE = process.env.KMD_LOCAL_DIR ? path.resolve(process.env.KMD_LOCAL_DIR) : path.join(ROOT, '.kmd-data', 'local') // 다른 사본으로 따로 띄우려면 KMD_LOCAL_DIR
 const TEAM = path.join(BASE, 'team')
 const PC = path.join(BASE, 'pc')
 const TEAM_PORT = Number(process.env.KMD_LOCAL_PORT) || 7381 // 다른 작업 폴더의 로컬 환경과 겹치면 KMD_LOCAL_PORT 로 옮긴다

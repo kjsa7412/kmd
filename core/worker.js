@@ -2,18 +2,42 @@
 //
 //   1  일꾼 열쇠(kmdw_)로 다음 일감을 받는다 — 그 일감 · 그 지식에만 쓰는 단기 열쇠(kmdd_)가 같이 온다
 //   2  단기 열쇠로 재료를 받는다(「Claude 에 보내지 않음」 지식은 서버가 재료를 내주지 않는다)
-//   3  묶음마다 claude -p 한 번(도구 0) → JSON 초안
+//   3  묶음마다 claude -p 한 번(도구 0) → JSON 초안 · 넣은 파일은 에이전트(Claude Code + 서버 MCP · 단기 열쇠)가 세션처럼 넣는다
 //   4  초안을 올린다 — 서버가 검사하고 넣는다(일꾼은 쓰지 않는다)
 //   로그인이 끝났거나 한도면 다시 시도하지 않고 멈춘 뒤 서버에 알린다(멈춤 한 줄 「자동 정리가 쉬고 있다」)
 
 import { runClaude } from './claude.js'
 import { promptOf, DRAFT_SCHEMA, TOUCH_SCHEMA, INGEST_SCHEMA } from './tidy.js'
+import { runAgent, agentAvailable } from './agent.js'
 
 async function call(server, key, p, body) {
   const r = await fetch(server + p, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
   const j = await r.json().catch(() => ({}))
   if (!r.ok) throw Object.assign(new Error(j.message || `${r.status}`), { code: j.error, status: r.status })
   return j
+}
+
+// 넣은 파일 하나 — 서버에서 일(일 설명 · 스킬 · 파일 · 단기 열쇠)을 받아 에이전트를 띄우고, 줄은 1초마다 올리고, 끝을 알린다
+async function agentIngest({ server, dkey, kn, g, log }) {
+  const t = await call(server, dkey, `/api/k/${kn}/worker/agent`, { rec: g.record.id })
+  let buf = []
+  const flush = async () => {
+    if (!buf.length) return
+    const lines = buf
+    buf = []
+    await call(server, dkey, `/api/k/${kn}/worker/agent/log`, { run: t.run, lines }).catch(() => {})
+  }
+  const timer = setInterval(flush, 1000)
+  let r
+  try {
+    r = await runAgent({ prompt: t.prompt, system: t.system, files: t.files.map((f) => ({ name: f.name, data: Buffer.from(f.b64, 'base64') })), mcp: { url: `${server}/mcp`, token: t.token }, budget: 3, onLine: (l) => buf.push(l) })
+  } finally {
+    clearInterval(timer)
+    await flush()
+  }
+  const d = await call(server, dkey, `/api/k/${kn}/worker/agent/done`, { run: t.run, ok: r.ok, why: r.ok ? null : r.message })
+  log(`${decodeURIComponent(kn)} — 넣은 파일 ${g.record.file} ${d.placed ? '에이전트로 넣음' : '에이전트가 넣지 못함'}`)
+  return { placed: !!d.placed, error: r.ok ? null : r.error }
 }
 
 // 일감 하나 — 없으면 null
@@ -36,6 +60,17 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5 }) {
     if (stop) {
       items.push({ group: g, error: stop })
       continue
+    }
+    // 넣은 파일 — 세션처럼 일하는 에이전트로(이 PC 의 Claude Code · MCP 는 서버 · 단기 열쇠). 넣었으면 초안은 없다 · 못 넣으면 아래 초안 길로
+    if (g.kind === 'ingest' && agentAvailable()) {
+      const a = await agentIngest({ server, dkey, kn, g, log }).catch((e) => ({ placed: false, error: null, why: e.message }))
+      if (a.error === 'login' || a.error === 'limit') {
+        stop = a.error
+        log(`정리 일꾼이 쉰다 — ${a.error === 'login' ? '로그인이 끝났다' : '한도에 닿았다'}`)
+        items.push({ group: g, error: stop })
+        continue
+      }
+      if (a.placed) continue
     }
     const r = await runClaude({ prompt: promptOf(g), schema: g.kind === 'touches' ? TOUCH_SCHEMA : g.kind === 'ingest' ? INGEST_SCHEMA : DRAFT_SCHEMA, budget })
     if (r.error === 'login' || r.error === 'limit') {

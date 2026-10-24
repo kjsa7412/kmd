@@ -47,7 +47,7 @@ const TOOLS = [
   },
   {
     name: 'save',
-    description: '기록을 남긴다 — 제목 · 글 · 건드린 이름. 항목 글을 고쳤으면 sections 에 새 글 전체를 같이 보낸다(그 항목이 갈아 끼워진다). 한 번에 한 묶음으로 남는다.',
+    description: '기록을 남긴다 — 제목 · 글 · 건드린 이름. 항목 글을 고쳤으면 sections 에 새 글 전체를 같이 보낸다(그 항목이 갈아 끼워진다). 새 이름(테이블 · 화면 · API · 절차 · 용어 …)을 세웠으면 names 로 이름 장부 · 자리 장부에 같이 올린다 — 그 항목이 항목으로 보기 · 찾기에 그 종류로 선다. 한 번에 한 묶음으로 남는다.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -66,6 +66,11 @@ const TOOLS = [
         sections: {
           type: 'array',
           items: { type: 'object', properties: { coord: str('이름'), doc: str('문서'), heading: str('머리'), content: str('항목의 새 글 전체(머리 줄 빼고)'), base: str('section 이 준 지문 — 읽은 뒤 바뀌었으면 거절') }, required: ['content'] },
+        },
+        names: {
+          type: 'array',
+          description: '세울 이름 — 종류는 영문 소문자(table · screen · api · proc · term · code · module · batch · req · func · issue · ops). 이미 있는 이름이면 다른 이름만 보탠다. doc · heading 을 주면 그 항목이 이 이름의 자리가 된다',
+          items: { type: 'object', properties: { coord: str('종류:값 — 예 table:tb_user · proc:배포 승인'), label: str('보이는 이름 — 예 사용자 테이블'), aliases: { type: 'array', items: { type: 'string' }, description: '다른 이름' }, doc: str('그 이름의 항목이 든 문서'), heading: str('그 항목 머리') }, required: ['coord', 'label'] },
         },
       },
       required: ['knowledge', 'record'],
@@ -192,9 +197,9 @@ export function makeMcp(store) {
       }
     },
 
-    async save({ knowledge, record, sections }, ctx) {
+    async save({ knowledge, record, sections, names }, ctx) {
       const k = await store.get(knowledge, ctx)
-      const r = await store.save(ctx, k.id, { record, sections })
+      const r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}) })
       const n = r.docs.length
       return { saved: r.id, date: r.date, docs: r.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')), note: r.queued ? '기록했다 — 항목 글은 정리 때 문서에 들어간다(그동안도 그 항목 옆에 같이 읽힌다)' : n ? `저장했다 — 기록 1 · 문서 ${n}` : store.mode === 'pc' ? '기록했다 — 이 PC 는 kmd 가 곧바로 문서에 넣는다(정리를 기다리지 않는다)' : '저장했다 — 기록 1', warnings: r.warnings }
     },

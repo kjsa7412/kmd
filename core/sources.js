@@ -409,15 +409,18 @@ async function runDb(k, src, { dataDir, save, first = false, force = false, full
     for (const n of Object.keys(prev)) if (!files[n]) changes.removed.push(n)
     const n = changes.added.length + changes.changed.length + changes.removed.length
     const ruleSig = JSON.stringify(src.rules)
-    if (!force && !first && !full && n === 0 && !s0.stopped && L.rules === ruleSig) {
+    // 테이블 이름 — 이름 장부에 없는 `table:<테이블>` 은 이번에 세운다(요구 v0.2 R7 · 예전에 들어와 이름이 빠진 지식도 다음 확인 때 채운다)
+    const into = src.rules[0]?.into?.doc || '테이블 정의'
+    const headOf = (t) => { const loc = locate(k.registry, `table:${t.name}`); return loc ? { doc: loc.doc, heading: loc.heading } : { doc: into, heading: t.comment ? `${t.name} — ${t.comment}` : t.name } }
+    const newNames = [...tables.values()].filter((t) => !k.vocab.coords.has(`table:${t.name}`) || !locate(k.registry, `table:${t.name}`)).map((t) => ({ coord: `table:${t.name}`, label: t.comment ? `${t.name} — ${t.comment}` : t.name, aliases: t.comment ? [t.comment] : [], ...headOf(t) }))
+    if (!force && !first && !full && n === 0 && !s0.stopped && L.rules === ruleSig && !newNames.length) {
       Object.assign(s0, { checkedAt: now, failures: 0, failingSince: null, lastNote: '그대로' })
       await writeState(dataDir, k.id, st)
       return { state: 'same', n: 0, files: 0 }
     }
-    const into = src.rules[0]?.into?.doc || '테이블 정의'
     const items = { dbtables: [...tables.values()].map((t) => {
-      const loc = locate(k.registry, `table:${t.name}`)
-      return { key: loc ? loc.heading : t.comment ? `${t.name} — ${t.comment}` : t.name, doc: loc ? loc.doc : into, cols: t.cols, rows: t.rows }
+      const h = headOf(t)
+      return { key: h.heading, doc: h.doc, cols: t.cols, rows: t.rows }
     }) }
     const plan = await planRun(k, src, items, { asof: now.slice(0, 16).replace('T', ' '), first, prev: s0.items || [] })
     if (plan.brake && !force) {
@@ -429,6 +432,11 @@ async function runDb(k, src, { dataDir, save, first = false, force = false, full
     for (let i = 0; i < plan.changed.length; i += 200) {
       const part = plan.changed.slice(i, i + 200)
       await save({ record: { title: `가져옴 — ${src.name} · 바뀐 테이블 ${part.length}`, body: [`바뀐 테이블 ${n} — ${[...changes.added.map((x) => x + '(새로)'), ...changes.changed, ...changes.removed.map((x) => x + '(없어짐)')].slice(0, 30).join(' · ')}${n > 30 ? ' …' : ''}`, '', ...part.map((c) => `- ${c.doc.replace(/^docs\/|\.md$/g, '')} › ${c.heading}`)].join('\n'), tags: ['sources'] }, sections: part.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) })
+    }
+    // 이름은 표가 들어간 뒤 — 자리 장부가 그 항목을 가리킨다(항목으로 보기에서 「테이블」 로 선다)
+    for (let i = 0; i < newNames.length; i += 500) {
+      const part = newNames.slice(i, i + 500)
+      await save({ record: { title: `이름 세움 — ${src.name} · 테이블 ${part.length}`, body: `테이블 이름을 이름 장부 · 자리 장부에 세웠다 — ${part.slice(0, 20).map((x) => x.coord.slice(6)).join(' · ')}${part.length > 20 ? ' …' : ''}`, tags: ['sources'] }, names: part })
     }
     await writeLedger(dataDir, k.id, src.name, { v: 1, files, out: {}, rules: ruleSig })
     const lastChange = plan.changed.length ? { at: now, files: full ? 0 : n, tables: plan.changed.length, added: changes.added.length, changed: changes.changed.length, removed: changes.removed.length } : s0.lastChange
@@ -447,7 +455,7 @@ async function runDb(k, src, { dataDir, save, first = false, force = false, full
 // 문서 폴더 — 바뀐 파일만 지식 안의 사본 문서로(원본이 주인) · 지운 파일은 「원본에 없다」 · 브레이크는 한꺼번에 많이 사라질 때만
 // (문서는 묶음으로 더해지는 일이 흔하고 더함은 아무것도 지우지 않는다 — 사라짐 10% 초과만 멈춘다)
 const DOC_MAX_FILE = 32 << 20
-async function runDocs(k, src, { dataDir, first = false, force = false, full = false, pass = null, onProgress = null }) {
+async function runDocs(k, src, { dataDir, first = false, force = false, full = false, pass = null, onProgress = null, mdOf = null }) {
   const st = await readState(dataDir, k.id)
   const s0 = (st[src.name] ||= {})
   const now = new Date().toISOString()
@@ -471,7 +479,7 @@ async function runDocs(k, src, { dataDir, first = false, force = false, full = f
     }
     const files = []
     for (const rel of [...scan.changes.added, ...scan.changes.changed]) files.push({ rel, data: await scan.readBuf(rel) })
-    const r = await applyDocs(k, { src, prefix: docPrefix(src), files, removed: scan.changes.removed })
+    const r = await applyDocs(k, { src, prefix: docPrefix(src), files, removed: scan.changes.removed, mdOf })
     await writeLedger(dataDir, k.id, src.name, { v: 1, files: scan.files, out: {}, rules: JSON.stringify(src.rules) })
     const real = full ? 0 : n
     const lastChange = r.commit ? { at: now, files: real, docs: r.docs, tables: 0, atts: r.atts, removed: r.missing, added: full ? 0 : scan.changes.added.length, changed: full ? 0 : scan.changes.changed.length } : s0.lastChange

@@ -141,10 +141,43 @@ export function xlsxToMd(buf) {
   return out.join('\n\n')
 }
 
+// ── hwpx(한글 · OWPML) — Contents/section*.xml 의 문단 · 표 ──
+//   표는 문단 안에 든다 — 자리표로 먼저 빼 두고 문단을 차례로 읽는다 · 글은 <hp:t> 만
+const hText = (x) =>
+  ent(
+    (x.match(/<hp:t(?:\s[^>]*)?>[\s\S]*?<\/hp:t>/g) || [])
+      .map((t) => t.replace(/<hp:tab[^>]*\/>/g, '\t').replace(/<hp:lineBreak[^>]*\/>/g, '\n').replace(/<[^>]+>/g, ''))
+      .join(''),
+  )
+export function hwpxToMd(buf) {
+  const z = unzip(buf, (n) => /^Contents\/section\d+\.xml$/.test(n))
+  const secs = [...z.keys()].sort((a, b) => Number(a.match(/\d+/)[0]) - Number(b.match(/\d+/)[0]))
+  if (!secs.length) throw new KmdError('E_INPUT', 'hwpx 모양이 아니다')
+  const out = []
+  for (const n of secs) {
+    const tables = []
+    const xml = z.get(n).toString('utf8').replace(/<hp:tbl[ >][\s\S]*?<\/hp:tbl>/g, (t) => {
+      tables.push(t)
+      return `<hp:t>\u0000T${tables.length - 1}\u0000</hp:t>`
+    })
+    for (const m of xml.matchAll(/<hp:p[ >][\s\S]*?<\/hp:p>/g)) {
+      for (const part of hText(m[0]).split(/(\u0000T\d+\u0000)/)) {
+        const tm = /^\u0000T(\d+)\u0000$/.exec(part)
+        if (tm) {
+          const rows = [...tables[Number(tm[1])].matchAll(/<hp:tr[ >][\s\S]*?<\/hp:tr>/g)].map((r) => [...r[0].matchAll(/<hp:tc[ >][\s\S]*?<\/hp:tc>/g)].map((c) => hText(c[0]).replace(/\s+/g, ' ').trim()))
+          if (rows.length) out.push(mdTable(rows))
+        } else if (part.trim()) out.push(part.trim())
+      }
+    }
+  }
+  return out.join('\n\n')
+}
+
 export function convert(name, buf) {
   const ext = String(name).toLowerCase().split('.').pop()
   if (ext === 'docx') return docxToMd(buf)
   if (ext === 'pptx') return pptxToMd(buf)
   if (ext === 'xlsx') return xlsxToMd(buf)
+  if (ext === 'hwpx') return hwpxToMd(buf)
   throw new KmdError('E_INPUT', '바꿀 수 없는 종류')
 }

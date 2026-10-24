@@ -120,6 +120,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     const m = String(req.headers.authorization || '').match(/^Bearer\s+(\S+)$/i)
     if (m) {
       // 초안 전용 단기 열쇠(kmdd_) — 그 일감 · 그 지식의 재료 · 초안 길만
+      // 에이전트 단기 열쇠(kmda_) — 그 지식 · 그 일의 MCP 길만(요구 v0.2 R8)
+      if (m[1].startsWith('kmda_')) {
+        const actx = hub.agentCtx(m[1])
+        if (!actx) throw new KmdError('E_AUTH', '이 일의 열쇠가 끝났다')
+        return { ctx: actx }
+      }
       if (m[1].startsWith('kmdd_')) {
         const dctx = hub.draftCtx(m[1])
         if (!dctx) throw new KmdError('E_AUTH', '이 일감의 열쇠가 끝났다')
@@ -177,10 +183,11 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const api = async (req, res, url, ctx, set) => {
     const p = url.pathname
     const out = (status, body) => send(res, status, body, undefined, set ? { 'set-cookie': set } : {})
+    if (ctx?.agent) throw new KmdError('E_FORBIDDEN', '에이전트 열쇠는 MCP 길만 쓴다')
     if (p === '/api/me') {
       // pcUrl — 내 PC 프로그램으로 이은 기기(설치 한 줄 · osuser 가 실린 것)가 있는 사람에게만 · 없으면 화면이 PC 를 묻지 않는다
       if (!ctx) return out(200, { mode, anon: true, setup: !auth.hasUsers(), legacy: auth.legacyWaiting(), version: VERSION, host: req.headers.host })
-      return out(200, { mode, user: ctx.user, admin: !!ctx.admin, sudo: !!ctx.sudo, password: ctx.password !== false, version: VERSION, host: req.headers.host, ...(mode === 'pc' ? { root: path.resolve(root) } : auth.devices(ctx.user).some((d) => d.osuser) ? { pcUrl } : {}) })
+      return out(200, { mode, user: ctx.user, admin: !!ctx.admin, sudo: !!ctx.sudo, password: ctx.password !== false, version: VERSION, host: req.headers.host, ...(mode === 'pc' ? { root: path.resolve(root) } : auth.devices(ctx.user).some((d) => d.osuser) ? { pcUrl } : {}), ...(mode === 'team' && ctx.admin ? { root: path.resolve(root) } : {}) })
     }
     // 기계 열쇠 — 그 지식의 기준선 길 하나만(E6 이 채운다)
     const bl = p.match(/^\/api\/k\/([^/]+)\/baseline$/)
@@ -201,10 +208,14 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (!ctx?.device) throw new KmdError('E_FORBIDDEN', '이은 PC 의 기기 열쇠로 부른다')
       return out(200, { key: (await auth.workerAdd({ owner: ctx.user, device: ctx.device })).key })
     }
-    const wk = p.match(/^\/api\/k\/([^/]+)\/worker\/(material|drafts)$/)
+    const wk = p.match(/^\/api\/k\/([^/]+)\/worker\/(material|drafts|agent|agent\/log|agent\/done)$/)
     if (wk) {
       if (!ctx?.draft) throw new KmdError('E_FORBIDDEN', '이 일감의 열쇠로 부른다')
       if (wk[2] === 'material') return out(200, await hub.material(ctx, decodeURIComponent(wk[1])))
+      // 넣은 파일 하나를 에이전트로 — 일 받기 · 줄 올리기 · 끝(요구 v0.2 F)
+      if (wk[2] === 'agent') return out(200, await hub.workerAgent(ctx, decodeURIComponent(wk[1]), await readBody(req)))
+      if (wk[2] === 'agent/log') return out(200, hub.workerAgentLog(ctx, decodeURIComponent(wk[1]), await readBody(req, 4 << 20)))
+      if (wk[2] === 'agent/done') return out(200, await hub.workerAgentDone(ctx, decodeURIComponent(wk[1]), await readBody(req)))
       return out(200, await hub.drafts(ctx, decodeURIComponent(wk[1]), (await readBody(req)).drafts))
     }
     need(ctx)
@@ -343,13 +354,15 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       return out(200, await hub.addKnowledge(ctx, await readBody(req)))
     }
-    const sm = p.match(/^\/api\/k\/([^/]+)\/sources(?:\/(probe|run|request|every|checkdb|resync|meaning))?$/)
+    const sm = p.match(/^\/api\/k\/([^/]+)\/sources(?:\/(probe|run|request|every|checkdb|resync|meaning|edit|remove))?$/)
     if (sm) {
       const id = decodeURIComponent(sm[1])
       if (req.method === 'GET' && !sm[2]) return out(200, await hub.sources(ctx, id))
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       const b = await readBody(req)
       if (sm[2] === 'every') return out(200, await hub.sourceEvery(ctx, id, b))
+      if (sm[2] === 'edit') return out(200, await hub.sourceEdit(ctx, id, b))
+      if (sm[2] === 'remove') return out(200, await hub.sourceRemove(ctx, id, { name: String(b.name || '') }))
       if (sm[2] === 'checkdb') return out(200, await hub.sourceCheckDb(ctx, id, b))
       if (sm[2] === 'resync') return out(200, await hub.sourceResync(ctx, id, String(b.name || '')))
       if (sm[2] === 'meaning') return out(200, await hub.sourceMeaning(ctx, id, { name: String(b.name || ''), on: !!b.on }))
@@ -379,14 +392,32 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const runs = (await hub.runs(id)).map((run) => ({ ...run, rows: run.rows.map((r) => ({ ...r, reverted: !!r.record && k.reverted.has(r.record) })) }))
       return out(200, { tidyAt: hub.tidyAtOf(id), tidyMode: hub.tidyModeOf(id), jobs: hub.jobsOf(id), runs, pend: k.works.filter((w) => w.state === 'pend').length, nowhere: k.works.filter((w) => w.state === 'nowhere').length })
     }
+    // 메뉴 — 사람마다 순서 · 뺀 지식 · 동기화(지식 폴더 다시 읽기)
+    if (p === '/api/knowledge/menu') {
+      if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
+      need(ctx)
+      return out(200, await hub.menuSet(ctx, await readBody(req)))
+    }
+    if (p === '/api/knowledge/sync') {
+      if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
+      need(ctx)
+      return out(200, await hub.sync(ctx))
+    }
     if (p === '/api/knowledge') {
-      const ks = await hub.all(ctx)
+      const ks0 = await hub.all(ctx)
+      // 메뉴 순서대로 · 뺀 지식은 hidden(목록 아래 「뺀 지식」 · 옆 메뉴에는 안 나온다)
+      const menu = await hub.menuOf(ctx, ks0.map((k) => k.id))
+      const ks = [...ks0].sort((a, b) => menu.order.indexOf(a.id) - menu.order.indexOf(b.id))
       return out(200, await Promise.all(ks.map(async (k) => {
         // 보낼 곳이 있는 지식 — 보낼 것 수(옆 메뉴 「보내기」 의 수)
         const sq = hub.canDirect(ctx, k.id) ? await hub.sendQueue(ctx, k.id).catch(() => null) : null
-        return { ...V.knowledgeRow(k), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sq?.dests.length ? { dests: sq.dests.map((d) => d.kn), sendN: sq.items.filter((x) => x.on).length, sendWait: sq.wait.length } : {}), private: !!hub.owner(k.id)?.private, tidyAt: hub.tidyAtOf(k.id) }
+        return { ...V.knowledgeRow(k), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sq?.dests.length ? { dests: sq.dests.map((d) => d.kn), sendN: sq.items.filter((x) => x.on).length, sendWait: sq.wait.length } : {}), private: !!hub.owner(k.id)?.private, tidyAt: hub.tidyAtOf(k.id), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
       })))
     }
+    // 에이전트 일 — 목록 · 줄(터미널)
+    if (p === '/api/runs') { need(ctx); return out(200, hub.runList(ctx, url.searchParams.get('k') || null)) }
+    const rn = p.match(/^\/api\/runs\/([0-9a-f]{12})$/)
+    if (rn) { need(ctx); return out(200, hub.runGet(ctx, rn[1], Number(url.searchParams.get('from')) || 0)) }
     if (p === '/api/stops') return out(200, await hub.stops(ctx))
     if (p === '/api/find') {
       const rs = await hub.search(ctx, url.searchParams.get('k') || null, { q: url.searchParams.get('q') || '' })
@@ -586,6 +617,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     server.once('error', reject)
     server.listen(port, host, resolve)
   })
+  // 에이전트가 이 kmd 의 MCP 에 닿는 주소(같은 PC 안)
+  hub.selfUrl = `http://127.0.0.1:${server.address().port}`
   await hub.start()
   const a = server.address()
   const shown = host === '0.0.0.0' || host === '::' ? 'localhost' : host

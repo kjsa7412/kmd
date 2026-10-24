@@ -50,7 +50,8 @@ after(async () => {
 })
 
 async function bannedIn(page) {
-  const text = await page.evaluate(() => document.body.innerText + ' ' + [...document.querySelectorAll('[title],[placeholder]')].map((e) => (e.title || '') + ' ' + (e.placeholder || '')).join(' '))
+  // 지식 폴더 띠의 [동기화] · 그 설명 줄은 운영자가 정한 이름이라 뺀다(요구 v0.2 R2.5 · 디자인 컨벤션 §9)
+  const text = await page.evaluate(() => { const c = document.body.cloneNode(true); c.querySelectorAll('[data-t=syncKn], [data-t=addRoot] small, [data-t=syncMsg]').forEach((x) => x.remove()); document.body.appendChild(c); c.style.display = 'block'; const t = c.innerText; c.remove(); return t + ' ' + [...document.querySelectorAll('[title],[placeholder]')].map((e) => (e.title || '') + ' ' + (e.placeholder || '')).join(' ') })
   return BANNED.filter((w) => text.includes(w))
 }
 
@@ -85,7 +86,10 @@ test('셸 · 지식 목록 · 문서로 보기 — 목업과 같은 글 · 단�
   assert.match(await page.locator('.hdr .hright').innerText(), /설명서[\s\S]*kim\s*· 팀 서버/)
   assert.equal(await page.locator('.band .who').innerText(), '팀 서버의 kmd · 같이 쓴다')
   assert.deepEqual(await page.locator('[data-t=krow]').evaluateAll((els) => els.map((e) => e.dataset.name)), ['DPMS 지식', 'GDI 지식'])
-  assert.deepEqual(await page.locator('.tl a').allInnerTexts(), ['+ 지식 추가', '+ 지식 만들기'])
+  assert.equal(await page.locator('[data-t=addCard]').count(), 1, '그리드 끝 「+ 지식 추가」 카드')
+  assert.equal(await page.locator('text=+ 지식 만들기').count(), 0, '지식 목록의 「지식 만들기」 단추는 걷었다')
+  assert.match(await page.locator('[data-t=rootPath]').innerText(), /kn/, '팀 관리자에게는 서버의 지식 폴더 · [동기화]')
+  assert.equal(await page.locator('[data-t=syncKn]').count(), 1)
   assert.deepEqual(await bannedIn(page), [])
   await page.screenshot({ path: path.join(SHOTS, 'app-home.png') })
 
@@ -223,7 +227,10 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   await page.click('[data-t=nav-import]')
   await page.waitForSelector('[data-t=drop]')
   // 두 영역 — 파일로 들이기(기록으로) · 지켜보며 맞추기 · 더하기는 유형마다 칸
-  assert.deepEqual((await page.locator('[data-t=impSec]').allInnerTexts()).map((t) => t.split(' ').slice(0, 2).join(' ')), ['파일로 들이기', '지켜보며 맞추기'])
+  assert.deepEqual(await page.locator('[data-t=impSec] b').allInnerTexts(), ['파일로 들이기', '지켜보며 맞추기'])
+  // 가져올 곳 더하기는 팝업 — 머리의 단추로 연다(단추는 단추로 · 요구 v0.2 R5)
+  await page.click('[data-t=sfOpen]')
+  await page.waitForSelector('[data-t=sfCard]')
   assert.deepEqual(await page.locator('[data-t=sfTabs] span').allInnerTexts(), ['문서 폴더', '소스 코드(git)', 'DB'], '파일을 팀으로 나르는 내 PC 폴더는 없다')
   await page.click('[data-t=sf-git]')
   assert.match(await page.locator('[data-t=codeWhat]').innerText(), /묶음 — 더한 뒤 저장소에 새로 올라온 묶음마다 바뀐 코드로 기록 하나/, '소스 코드는 커밋 이력으로 — 채울 표를 고르지 않는다')
@@ -240,10 +247,15 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   await page.fill('#sf-user', 'kmd_read')
   await page.click('[data-t=sfAdd]')
   // 처음 쓰는 지식은 git 이력을 세우며 첫 묶음을 만든다 — 이 PC(Windows · 바쁨)에서 몇 초 걸린다
-  await page.waitForFunction(() => /더했다 — gdi DB/.test(document.querySelector('[data-t=sfMsg]')?.textContent || ''), null, { timeout: 90000 })
-  assert.match(await page.locator('[data-t=sfMsg]').innerText(), /kmd secret set src\/dpms\/gdi-db-[0-9a-f]{6}|kmd secret set src\/\S+/)
-  await page.waitForSelector('[data-t=srcRow][data-name="gdi DB"]')
-  assert.match(await page.locator('[data-t=srcRow][data-name="gdi DB"]').innerText(), /DB · 읽기만[\s\S]*kmd secret set/)
+  await page.waitForSelector('[data-t=srcRow][data-name="gdi DB"]', { timeout: 90000 })
+  assert.equal(await page.locator('[data-t=sfCard]').count(), 0, '더하면 팝업이 닫힌다')
+  assert.match(await page.locator('[data-t=srcRow][data-name="gdi DB"]').innerText(), /DB · 읽기만/)
+  // 줄을 누르면 자세히 — 보기 · 고치기 · 지우기 · 자격 한 줄(팀은 화면으로 받지 않는다)
+  await page.click('[data-t=srcRow][data-name="gdi DB"]')
+  await page.waitForSelector('[data-t=srcModal]')
+  assert.match(await page.locator('[data-t=credLine]').innerText(), /kmd secret set src\/\S+/)
+  assert.deepEqual(await page.locator('[data-t=srcModal] .mf button').allInnerTexts(), ['지우기', '지금 가져오기', '전체 다시 맞추기', '고친 것 저장'])
+  await page.click('[data-t=srcModal] .mh .x')
   // 이력 — 가져오는 곳을 더한 일은 기록이 아니라 이력 한 곳에
   await page.click('[data-t=nav-today]') // 이력 — 오늘 바뀐 것과 kmd 가 다룬 일이 한 흐름
   await page.waitForSelector('[data-t=histRow]')
@@ -264,22 +276,28 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   await page.waitForFunction(() => /내 PC 프로그램/.test(document.querySelector('[data-t=impMsg]')?.textContent || ''))
   assert.deepEqual(await bannedIn(page), [])
   await page.screenshot({ path: path.join(SHOTS, 'app-import.png') })
-  // 지식 추가 — 한 칸 · 알아들은 한 줄 · [추가]
+  // 지식 추가 — 지식 목록의 카드 → 팝업(이름만 · 요구 v0.2 R2)
   await page.goto(s.url + '/')
   await page.waitForSelector('[data-t=klist]')
-  await page.click('text=+ 지식 추가')
-  await page.waitForSelector('[data-t=addIn]')
-  await page.fill('#addIn', 'git@gitlab.team.local:dpms/dpms-batch.git')
-  assert.match(await page.locator('[data-t=addHeard]').innerText(), /소스 코드\(git\) · DB 는 지식 만들기에서 더한다/)
-  await page.fill('#addIn', 'D:\\옛자료')
-  assert.match(await page.locator('[data-t=addHeard]').innerText(), /내 PC 의 폴더는 내 PC 프로그램의 지식 추가에서 들여온다/)
-  // 지식 폴더 밖의 폴더를 그 자리에서 따라가지 않는다(요구 2) — 걷은 길의 예가 남지 않는다
-  assert.doesNotMatch(await page.locator('[data-t=main]').innerText(), /그 자리에서 따라간다|내 폴더를 지식으로|표를 저절로 채운다/)
-  await page.fill('#addIn', '설계메모')
-  assert.match(await page.locator('[data-t=addHeard]').innerText(), /새 지식 만들기 — 팀 서버 안 내 지식 「설계메모」/)
+  await page.click('[data-t=addCard]')
+  await page.waitForSelector('[data-t=addPop] #addIn')
+  assert.match(await page.locator('[data-t=addPop]').innerText(), /팀 서버 안에 내 지식으로 선다/)
   await page.click('[data-t=addBtn]')
-  await page.waitForSelector('[data-t=addMsg]')
-  assert.match(await page.locator('[data-t=addMsg]').innerText(), /만들었다 — 설계메모/)
+  assert.match(await page.locator('[data-t=addMsg]').innerText(), /이름을 쓴다/)
+  await page.fill('#addIn', '설계메모')
+  await page.click('[data-t=addBtn]')
+  await page.waitForSelector('[data-t=syncMsg]')
+  assert.match(await page.locator('[data-t=syncMsg]').innerText(), /추가했다 — 설계메모/)
+  assert.equal(await page.locator('[data-t=addPop]').count(), 0)
+  // 메뉴에서 빼기 → 아래 「뺀 지식」 · 옆 메뉴에 없다 → 메뉴에 올리기
+  await page.locator('[data-t=krow][data-name="GDI 지식"] [data-t=knKebab]').click()
+  await page.click('.pop [data-t=knHide]')
+  await page.waitForSelector('[data-t=hidList] [data-t=kHid][data-name="GDI 지식"]')
+  await page.click('[data-t=kpick]')
+  assert.equal(await page.locator('[data-t=kmenuKn]').filter({ hasText: 'GDI 지식' }).count(), 0, '뺀 지식은 지식 고르기에 없다')
+  await page.keyboard.press('Escape')
+  await page.click('[data-t=hidList] [data-t=knShow]')
+  await page.waitForFunction(() => !document.querySelector('[data-t=hidList]'))
   assert.deepEqual(await bannedIn(page), [])
   await page.screenshot({ path: path.join(SHOTS, 'app-add.png') })
   // 보내기 — 보낼 곳을 정한 내 지식에서 고친 것이 모인다 → [1개 보내기]
@@ -287,6 +305,8 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   const KIM = { user: 'kim', admin: true }
   await s.hub.sendDests(KIM, mine, [{ kn: 'dpms' }])
   await s.hub.edit(KIM, mine, { doc: '처음', sections: [{ h: '개요', body: '카나리는 첫 30분 20%.' }] })
+  // 새 지식은 메뉴 맨 아래에 들어온다 — 맨 앞으로 올리면 처음 고른 지식이 된다
+  await s.hub.menuSet(KIM, { order: [mine] })
   await page.goto(s.url + '/')
   await page.waitForSelector('[data-t=nav-send]')
   assert.match(await page.locator('[data-t=nav-send]').innerText(), /보내기\s*1/)
@@ -438,23 +458,25 @@ test('이 PC 화면 — 정리가 따로 없다는 말(지식 만들기 · 설�
   try {
     await page.goto(`${pc.url}/#once=${pc.auth.once(pc.pcUser)}`)
     await page.waitForSelector('[data-t=klist]')
-    // 지식 만들기 — 넣으면 kmd 가 곧바로 문서에(요구 16) · 「정리가 문서로」 라고 하지 않는다
+    // 지식 만들기 — 넣으면 Claude Code 가 곧바로 항목으로(요구 16 · v0.2 R8) · 「정리가 문서로」 라고 하지 않는다
     await page.click('[data-t=nav-import]')
     await page.waitForSelector('[data-t=drop]')
     const imp = await page.locator('[data-t=main]').innerText()
-    assert.match(imp, /곧바로 문서로/)
+    assert.match(imp, /Claude Code 가 문서의 항목으로/)
+    assert.match(imp, /\[터미널\]/)
     assert.doesNotMatch(imp.split('지켜보며 맞추기')[0], /정리가 (기존 문서|문서로)/)
     // 설정 — Claude 스위치는 「정해진 시각의 자동 정리」 가 아니라 기록을 곧바로 문서로
     await page.click('[data-t=nav-settings]')
     await page.waitForSelector('[data-t=auto-claude]')
     assert.match(await page.locator('[data-t=auto-claude]').innerText(), /기록을 문서로 — Claude 로[\s\S]*곧바로/)
-    // 지식 추가 — 소스 코드는 git 하나 · 표를 채우는 것이 아니라 바뀐 것만(요구 7)
+    // 지식 추가 — 지식 고르기의 「+ 지식 추가」 → 지식 목록 위 팝업(이름만) · 지식 폴더 띠(경로 · 동기화) — 요구 v0.2 R2
     await page.click('[data-t=kpick]')
     await page.click('[data-t=nav-add]')
-    await page.waitForSelector('[data-t=addIn]')
-    const add = await page.locator('[data-t=main]').innerText()
-    assert.match(add, /문서 폴더 · 소스 코드\(git\) · DB/)
-    assert.doesNotMatch(add, /코드 폴더|표를 저절로 채운다/)
+    await page.waitForSelector('[data-t=addPop] #addIn')
+    assert.match(await page.locator('[data-t=addPop]').innerText(), /지식 폴더 안에 이 이름의 폴더로 선다/)
+    assert.equal(await page.locator('[data-t=rootPath]').innerText(), root)
+    await page.keyboard.press('Escape')
+    assert.equal(await page.locator('[data-t=addPop]').count(), 0)
     // 좁은 폭 — 가운데 문서 본문이 0 높이로 접히지 않는다 · 가로로 넘치지 않는다(요구 18)
     await page.setViewportSize({ width: 420, height: 820 })
     await page.click('[data-t=kpick]')

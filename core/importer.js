@@ -1,8 +1,8 @@
 // 파일 · 폴더 넣기 — 한 번 들여온다(폴더 잇기와 다르다 · KM82).
 //
 //   md                → 그대로 문서(폴더 짜임 = 문서 경로)
-//   docx · pptx · xlsx → 서버가 바로 md 로(core/ooxml.js · 압축 해제 상한) + 원본은 첨부
-//   hwpx · hwp · pdf  → 원본만 첨부 · 「바꾸지 못한 파일」(바꾸기는 PC 프로그램 몫)
+//   docx · pptx · xlsx · hwpx → 서버가 바로 md 로(core/ooxml.js · 압축 해제 상한) + 원본은 첨부
+//   pdf · hwp         → mdOf(바꾼 글 보관 · Claude Code 가 원본을 읽어 옮긴 것)가 있으면 그 글로 · 없으면 원본만 첨부 · 「바꾸지 못한 파일」
 //   그림              → 첨부
 //   그 밖              → 「넣지 않은 파일」
 //   한 번에 300 파일 · 200MB. 같은 글이면 다시 쓰지 않는다(묶음 0).
@@ -17,8 +17,8 @@ import { KmdError } from './errors.js'
 
 export const MAX_FILES = 300
 export const MAX_BYTES = 200 << 20
-const DOCX = ['docx', 'pptx', 'xlsx']
-const PCONLY = ['hwpx', 'hwp', 'pdf']
+const DOCX = ['docx', 'pptx', 'xlsx', 'hwpx']
+export const PCONLY = ['hwp', 'pdf']
 const IMG = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp']
 
 const extOf = (n) => (String(n).toLowerCase().match(/\.([a-z0-9]+)$/) || [])[1] || ''
@@ -32,7 +32,8 @@ function cleanPath(p) {
 // files: [{ path, data(Buffer) }] → 계획 { docs, atts, records, rows }
 // read(rel) → 지금 글(Buffer) 또는 null — 같은 파일이면 쓰지 않는다
 // convert — docx · pptx · xlsx 를 md 로 바꾸나(설정 「넣은 파일을 문서로」 · 끄면 원본 첨부만)
-export async function planImport(k, files, { direct = true, asRecord = false, convert: conv = true, read = async () => null } = {}) {
+// mdOf(rel, data) — pdf · hwp 의 바꾼 글(없으면 null · 요구 v0.2 R6)
+export async function planImport(k, files, { direct = true, asRecord = false, convert: conv = true, read = async () => null, mdOf = null } = {}) {
   if (!Array.isArray(files) || !files.length) throw new KmdError('E_INPUT', '넣을 파일이 없다')
   if (files.length > MAX_FILES) throw new KmdError('E_INPUT', `한 번에 ${MAX_FILES} 파일까지 — 나눠 넣는다`)
   const total = files.reduce((a, f) => a + (f.data?.length || 0), 0)
@@ -49,6 +50,10 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
     try {
       if (ext === 'md' || ext === 'markdown') md = readText(f.data.toString('utf8'))
       else if (DOCX.includes(ext) && conv) md = `# ${path.posix.basename(base)}\n\n${convert(rel, f.data)}\n`
+      else if (PCONLY.includes(ext) && conv && mdOf) {
+        const got = await mdOf(rel, f.data)
+        if (got) md = `# ${path.posix.basename(base)}\n\n${String(got).replace(/^# .*\n+/, '')}\n`
+      }
     } catch (e) {
       row('fail', e.message)
       continue

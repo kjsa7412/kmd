@@ -29,14 +29,14 @@ const strip = (t) => (watchedOf(t) ? String(t).split('\n').slice(1).join('\n') :
 const docRelOf = (prefix, rel) => `docs/${prefix ? prefix + '/' : ''}${rel.replace(/\.[^./]+$/, '')}.md`
 
 // files: [{ rel, data }] (더함 · 고침) · removed: [rel] — 지식 폴더에 쓴다 · { docs, atts, missing, rows, commit }
-export async function applyDocs(k, { src, prefix = '', files = [], removed = [], user = 'kmd' }) {
+export async function applyDocs(k, { src, prefix = '', files = [], removed = [], user = 'kmd', mdOf = null }) {
   const dir = k.dir
   const read = (rel) => fs.readFile(path.join(dir, ...rel.split('/'))).then((b) => (rel.endsWith('.md') ? Buffer.from(strip(b.toString('utf8'))) : b), () => null)
   const writes = []
   const rows = []
   for (const f of files) {
     const pathIn = prefix ? `${prefix}/${f.rel}` : f.rel
-    const plan = await planImport(k, [{ path: pathIn, data: f.data }], { direct: true, read })
+    const plan = await planImport(k, [{ path: pathIn, data: f.data }], { direct: true, read, mdOf })
     rows.push(...plan.rows)
     for (const d of plan.docs) writes.push({ rel: d.rel, data: Buffer.from(`${markLine({ src: src.name, path: f.rel })}\n${d.text}`, 'utf8') })
     for (const a of plan.atts) writes.push({ rel: a.rel, data: a.data })

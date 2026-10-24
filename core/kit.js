@@ -1,6 +1,6 @@
-// 에이전트 설치 — 작업 폴더의 Claude Code 에 kmd 를 붙인다(스킬 둘 · 연결 둘 · CLAUDE.md 안 kmd 덩이).
+// 에이전트 설치 — 작업 폴더의 Claude Code 에 kmd 를 붙인다(스킬 셋 · 연결 둘 · CLAUDE.md 안 kmd 덩이).
 //
-//   스킬   <폴더>/.claude/skills/kmd-work · kmd-save (레포의 agent/skills 그대로)
+//   스킬   <폴더>/.claude/skills/kmd-work · kmd-save · kmd-build (레포의 agent/skills 그대로)
 //   연결   <폴더>/.mcp.json 의 mcpServers.kmd(이 PC) · kmd-team(이은 팀) — 열쇠는 넣지 않고 헤더 도우미(kmd-key)가 꺼낸다
 //   안내   <폴더>/CLAUDE.md 안 `<!-- kmd:begin v=… -->` ~ `<!-- kmd:end -->` — 표지 밖의 줄은 바이트 그대로 둔다
 //   판     덩이 표지의 v · 스킬 파일의 지문 — 지금 판과 다르면 「옛 판」 · 없으면 「없음」
@@ -14,7 +14,7 @@ import { mcpConfig } from './claudecfg.js'
 import { KmdError } from './errors.js'
 
 const KIT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'agent')
-export const SKILLS = ['kmd-work', 'kmd-save']
+export const SKILLS = ['kmd-work', 'kmd-save', 'kmd-build']
 const BEGIN = /<!--\s*kmd:begin(?:\s+v=(\S+))?\s*-->/
 const END = /<!--\s*kmd:end\s*-->/
 

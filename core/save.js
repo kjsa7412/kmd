@@ -1,7 +1,8 @@
 // 저장 하나 — 기록 하나 + (있으면) 문서 항목들 + git 한 묶음.
 //
 //   { record: { title, body, touches?, tags?, date?, fixes? },
-//     sections?: [{ coord, content }  또는  { doc, heading, content }] }
+//     sections?: [{ coord, content }  또는  { doc, heading, content }],
+//     names?: [{ coord, label, aliases?, doc?, heading? }] }   ← 이름 장부 · 자리 장부에 이름을 세운다(같은 묶음)
 //
 // 기록은 늘 남는다(누가 왜 바꿨나의 유일한 자리). 항목을 같이 보내면 그 항목 글을
 // 갈아 끼우고 「이 기록을 넣었다」 표지를 단다. 같은 지식의 저장은 한 줄로 선다.
@@ -20,6 +21,7 @@ import { locate, parseRegistry } from './registry.js'
 import { parseVocab } from './vocab.js'
 import { ensureRepo, commitPaths } from './git.js'
 import { watchedOf } from './watchmark.js'
+import { upsertVocab, upsertRegistry, cleanNames } from './namebook.js'
 
 const DATE = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/
 const COORD = /^[^\s:`]+:[^\n`]+$/
@@ -97,15 +99,19 @@ export function serial(key, f) {
 }
 
 // system — kmd 자신이 쓰는 저장(고친 기록 · 정리 · 가져오기). 예약 이름 · 태그는 system 만
-export function save(dir, input, { user, now = new Date(), system = false } = {}) {
+// agent — kmd 가 띄운 에이전트(요구 v0.2 R8): 작성자 kmd-auto · 태그 curate-llm · 들인 기록의 reflects 는 쓰되,
+//         원본이 주인인 문서 · 저절로 채우는 표 · kmd 파일은 사람 · 세션과 같이 막힌다(system 이 아니다)
+export function save(dir, input, { user, now = new Date(), system = false, agent = false } = {}) {
   if (!user || !oneLine(user)) fail('E_INPUT', '누가 쓰는지 모른다')
-  if (isReservedUser(user) && !system) fail('E_FORBIDDEN', `「${user}」 는 kmd 가 쓰는 이름이다`)
+  if (isReservedUser(user) && !system && !agent) fail('E_FORBIDDEN', `「${user}」 는 kmd 가 쓰는 이름이다`)
   const secs = check(input)
   const bad = (input.record.tags || []).filter(isReservedTag)
-  if (bad.length && !system) fail('E_FORBIDDEN', `kmd 가 쓰는 태그다 — ${bad.join(' · ')}`)
-  if (!system && (input.record.curates?.length || input.record.reopens?.length || input.record.reflects?.length)) fail('E_FORBIDDEN', '정리 판정은 kmd 가 쓴다')
+  if (bad.length && !system && !(agent && bad.every((t) => t === 'curate-llm'))) fail('E_FORBIDDEN', `kmd 가 쓰는 태그다 — ${bad.join(' · ')}`)
+  if (!system && (input.record.curates?.length || input.record.reopens?.length || (input.record.reflects?.length && !agent))) fail('E_FORBIDDEN', '정리 판정은 kmd 가 쓴다')
   if (!system && secs.some((s) => hasBlockMarker(s.content))) fail('E_FORBIDDEN', '저절로 채우는 표는 kmd 가 원천에서 채운다 — 고치지 않는다', { need: 'machine' })
-  return serial(path.resolve(dir), () => saveNow(dir, input.record, secs, { user: nfc(user), now, system }))
+  const names = cleanNames(input.names)
+  if (!names) fail('E_INPUT', 'names 는 { coord: "종류:값", label, aliases?, doc?, heading? } 의 목록이다(종류는 영문 소문자)')
+  return serial(path.resolve(dir), () => saveNow(dir, input.record, secs, { user: nfc(user), now, system, names }))
 }
 
 // 값 장부 — 글 속의 수 · `코드` · 따옴표 값(같은 값이면 새 사실이 아니다)
@@ -142,9 +148,14 @@ export function sectionBase(text, heading) {
   return sha16(sec ? sec.body : '')
 }
 
-async function saveNow(dir, r, secs, { user, now, system = false }) {
-  const registry = parseRegistry(await fs.readFile(path.join(dir, '_managed.md'), 'utf8').then(readText, () => ''))
-  const vocab = parseVocab(await fs.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => ''))
+async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) {
+  const regRaw = await fs.readFile(path.join(dir, '_managed.md'), 'utf8').then(readText, () => null)
+  const vocRaw = await fs.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => null)
+  // 이번에 세우는 이름은 이 저장의 항목 자리(coord)로도 쓴다
+  const regNext = names.length ? upsertRegistry(regRaw || '', names) : regRaw || ''
+  const vocNext = names.length ? upsertVocab(vocRaw || '', names) : vocRaw || ''
+  const registry = parseRegistry(regNext)
+  const vocab = parseVocab(vocNext)
   const date = r.date || localStamp(now)
   const touches = [...new Set((r.touches || []).map((x) => nfc(x.trim())))]
 
@@ -221,8 +232,16 @@ async function saveNow(dir, r, secs, { user, now, system = false }) {
       await fs.mkdir(path.dirname(p.full), { recursive: true })
       await fs.writeFile(p.full, after, 'utf8')
     }
-    const commit = await commitPaths(dir, [workRel, ...docs], rec.title, user)
-    return { id, record: workRel, docs, commit, date }
+    // 이름 장부 · 자리 장부 — 바뀐 것만
+    const books = []
+    for (const [rel, raw, next] of [['_vocab.md', vocRaw, vocNext], ['_managed.md', regRaw, regNext]]) {
+      if (!names.length || (raw || '') === next) continue
+      undo.push(() => (raw == null ? fs.rm(path.join(dir, rel), { force: true }) : fs.writeFile(path.join(dir, rel), raw, 'utf8')))
+      await fs.writeFile(path.join(dir, rel), next, 'utf8')
+      books.push(rel)
+    }
+    const commit = await commitPaths(dir, [workRel, ...docs, ...books], rec.title, user)
+    return { id, record: workRel, docs, commit, date, ...(books.length ? { names: names.length } : {}) }
   } catch (e) {
     for (const u of undo.reverse()) await u().catch(() => {})
     throw e

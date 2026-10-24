@@ -90,7 +90,7 @@ function go(r) {
   const prevKn = S.route.kn
   S.route = Object.assign({ scr: 'home', kn: S.route.kn }, r)
   S.menu = null
-  if (S.route.scr === 'import') delete S.cache.sources
+  if (S.route.scr === 'import') { delete S.cache.sources; setTimeout(pollRuns, 0) }
   if (S.route.scr === 'today' || S.route.scr === 'log') delete S.cache.history // 감시가 뒤에서 바꾼 것 — 열 때마다 새로
   if (S.route.kn && S.route.kn !== '*') S.lastKn = S.route.kn
   if (r.kn && r.kn !== '*' && r.kn !== prevKn) {
@@ -109,7 +109,7 @@ function scrollTopMain() { const m = $('#app .main'); if (m) m.scrollTop = 0 }
 function defaultKn() {
   const k = S.route.kn
   if (k && k !== '*' && KN(k)) return k
-  return KN(S.lastKn) ? S.lastKn : S.kns[0] && S.kns[0].id
+  return KN(S.lastKn) ? S.lastKn : (shownKns()[0] || S.kns[0] || {}).id
 }
 function setView(v) { if (VIEWS3.includes(v)) S.ktab = v; go({ scr: v, kn: defaultKn() }) }
 function activeTab() { return S.tabs.find((t) => t.id === S.active) || null }
@@ -186,6 +186,7 @@ function render() {
   const app = $('#app')
   if (!S.me) { app.innerHTML = `<div class="col"><div class="main">${S.err ? errHtml({ error: S.err }) : loadingHtml}</div></div>`; return }
   hidePv()
+  S._pop = null
   const scr = anon() ? gateView() : S.pairPage ? viewPair() : viewOf(S.route.scr)
   const center = scr.tabs
     ? `<div class="center">${tabbarHtml()}<div class="panes"><div class="main${scr.full ? ' full' : ''}" data-t="main">${scr.main}</div>${scr.right != null ? `<div class="main rp" data-t="rightPane">${scr.right}</div>` : ''}</div></div>`
@@ -196,13 +197,15 @@ function render() {
   const keep = ['.main[data-t=main]', '[data-t=rightPane]', '[data-t=leftPane]', '[data-t=aside]'].map((q) => { const el = app.querySelector(q); return el ? [q, el.scrollTop] : null }).filter((x) => x && (x[0] === '[data-t=leftPane]' ? S._lpView === lpView : S._view === view))
   S._view = view
   S._lpView = lpView
-  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${anon() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside">${scr.aside}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}`
+  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${anon() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside">${scr.aside}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}`
+  placePop()
   for (const [q, top] of keep) { const el = app.querySelector(q); if (el) el.scrollTop = top }
   if (anon()) { const g = $('[data-focus]'); if (g && document.activeElement !== g) g.focus(); return }
   const fi = $('#palIn') || $('#qoIn') || $('#cmdIn')
   if (fi && document.activeElement !== fi) { fi.focus(); fi.setSelectionRange(fi.value.length, fi.value.length) }
   if (S._focus) { const el = document.getElementById(S._focus); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length) } catch {} } S._focus = null }
   if (S.route.scr === 'graph') gHighlight()
+  for (const t of app.querySelectorAll('.term')) t.scrollTop = t.scrollHeight
   // 내 PC 지식의 주소는 해시 조각으로만 — 팀 서버 요청 · Referer 에 실리지 않는다
   const at = activeTab()
   const want = at && String(at.kn).startsWith('~') && ['docs', 'items'].includes(S.route.scr) ? '#' + encodeURIComponent(at.kn).replace('%7E', '~') + '/' + encodeURIComponent(at.ref) : ''
@@ -212,9 +215,22 @@ function render() {
     if (el) { S._lit = false; setTimeout(() => el.scrollIntoView({ block: 'center' }), 30) }
   }
 }
+function placePop() {
+  const p = $('#app .pop')
+  if (!p) return
+  const a = [...document.querySelectorAll('[data-m]')].find((x) => x.dataset.m === p.dataset.pop)
+  if (!a) { p.remove(); return }
+  const r = a.getBoundingClientRect(), w = p.offsetWidth, h = p.offsetHeight
+  let x = r.right - w
+  if (x < 8) x = Math.min(r.left, innerWidth - w - 8)
+  let y = r.bottom + 4
+  if (y + h > innerHeight - 8 && r.top - h - 4 > 8) y = r.top - h - 4
+  p.style.left = Math.max(8, x) + 'px'
+  p.style.top = Math.max(8, y) + 'px'
+}
 function viewOf(s) {
   if (!isTeam() && (s === 'tidy' || s === 'members' || s === 'admin')) s = 'home' // 팀의 일 — 이 PC 에는 없다
-  const f = { home: viewHome, docs: viewDocsV, items: viewItems, graph: viewGraph, today: viewToday, log: viewToday, tidy: viewTidy, members: viewMembers, import: viewImport, add: viewAdd, send: viewSend, settings: viewSettings, admin: viewAdmin }[s]
+  const f = { home: viewHome, docs: viewDocsV, items: viewItems, graph: viewGraph, today: viewToday, log: viewToday, tidy: viewTidy, members: viewMembers, import: viewImport, add: viewHome, send: viewSend, settings: viewSettings, admin: viewAdmin }[s]
   return f ? f() : viewLater(s)
 }
 // 옆 메뉴 — 두 영역(정정 2026-10-23 · 리본을 걷었다)
@@ -223,7 +239,7 @@ function viewOf(s) {
 const VIEWS3 = ['docs', 'items', 'graph']
 function sideList(vt, k) {
   // 지식 목록(전체) 화면 — 지식을 고르면 그 지식의 문서 · 항목이 선다
-  if (S.route.scr === 'home') return '<div class="lh">지식을 고른다</div>' + S.kns.map((x) => `<div class="tn" style="padding-left:8px" data-a="openKn" data-k="${esc(x.id)}" data-t="sideKn">${svg('doc')}<span class="nm">${esc(x.name)}</span></div>`).join('')
+  if (S.route.scr === 'home') return '<div class="lh">지식을 고른다</div>' + shownKns().map((x) => `<div class="tn" style="padding-left:8px" data-a="openKn" data-k="${esc(x.id)}" data-t="sideKn">${svg('doc')}<span class="nm">${esc(x.name)}</span></div>`).join('')
   if (!k || !KN(k)) return '<p class="muted small" style="padding:6px 8px">지식이 없다 — 지식 관리 › 지식 만들기에서 세운다</p>'
   if (vt === 'items') return itemListHtml(k)
   if (vt === 'graph') return `<div class="muted small" style="padding:6px 8px" data-t="graphHint">그래프는 가운데에 그린다 — <a data-a="view" data-v="graph">열기</a></div>`
@@ -239,10 +255,10 @@ function sideHtml(left) {
   if (!dim) {
     // 지식 고르기 영역
     // 팀 화면의 지식 수는 갈래마다 — 내 PC · 개인 지식까지 「팀」 으로 세지 않는다
-    const nPc = S.kns.filter((x) => x.pc).length, nMine = S.kns.filter((x) => !x.pc && x.private).length
-    const cnt = team ? ['팀 ' + (S.kns.length - nPc - nMine), nMine ? '개인 ' + nMine : '', nPc ? '내 PC ' + nPc : ''].filter(Boolean).join(' · ') : '내 지식 ' + S.kns.length
+    const vk = shownKns(), nPc = vk.filter((x) => x.pc).length, nMine = vk.filter((x) => !x.pc && x.private).length
+    const cnt = team ? ['팀 ' + (vk.length - nPc - nMine), nMine ? '개인 ' + nMine : '', nPc ? '내 PC ' + nPc : ''].filter(Boolean).join(' · ') : '내 지식 ' + vk.length
     const home = r.scr === 'home'
-    h += `<div class="sb-know" data-t="knowArea"><div class="sb-repo" data-a="kmenu" data-t="kpick">${cur && !home ? `<span class="rk">${esc(cur.name.slice(0, 2))}</span><span class="rn">${esc(cur.name)} <small>${esc(knWhere(cur))}</small></span>` : `<span class="rk">전체</span><span class="rn">지식 전체<small>${cnt}</small></span>`}<span class="rc">▾</span>${S.menu === 'kmenu' ? `<div class="kmenu"><div class="mi" data-a="pickKn" data-k="*" data-t="nav-home">${svg('list')} 지식 목록 — 전체</div>${S.kns.map((x) => `<div class="mi" data-a="pickKn" data-k="${esc(x.id)}" data-t="kmenuKn">${esc(x.name)} ${knTag(x)}</div>`).join('')}<div class="sep"></div><div class="mi" data-a="nav" data-s="add" data-t="nav-add">+ 지식 추가</div></div>` : ''}</div>`
+    h += `<div class="sb-know" data-t="knowArea"><div class="sb-repo" data-a="kmenu" data-t="kpick">${cur && !home ? `<span class="rk">${esc(cur.name.slice(0, 2))}</span><span class="rn">${esc(cur.name)} <small>${esc(knWhere(cur))}</small></span>` : `<span class="rk">전체</span><span class="rn">지식 전체<small>${cnt}</small></span>`}<span class="rc">▾</span>${S.menu === 'kmenu' ? `<div class="kmenu"><div class="mi" data-a="pickKn" data-k="*" data-t="nav-home">${svg('list')} 지식 목록 — 전체</div>${shownKns().map((x) => `<div class="mi" data-a="pickKn" data-k="${esc(x.id)}" data-t="kmenuKn">${esc(x.name)} ${knTag(x)}</div>`).join('')}<div class="sep"></div><div class="mi" data-a="openAdd" data-t="nav-add">+ 지식 추가</div></div>` : ''}</div>`
     h += `<div class="ktabs" data-t="ktabs">${[['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['graph', '그래프', 'graph']].map(([v, l, ic]) => `<span class="${VIEWS3.includes(r.scr) && vt === v ? 'on' : vt === v ? 'cur' : ''}" data-a="view" data-v="${v}" data-t="rb-${v}" title="${l}로 보기">${svg(ic)}${l}</span>`).join('')}</div>`
     h += `<div class="lp" data-t="leftPane">${left || sideList(vt, k)}</div></div>`
   }
@@ -303,26 +319,106 @@ function statusHtml() {
 function knMeta(n) {
   return isTeam() && !isPersonal(n) ? '문서 ' + n.docs + ' · 팀 모두 기록' : '문서 ' + n.docs + (n.when ? ' · ' + whenTxt(n.when) : '')
 }
+// 지식 목록 — 지식 추가와 한 화면(요구 v0.2 R2): 지식 폴더 띠 · 그리드(메뉴 순서 · 끌어 옮기기) · + 지식 추가(팝업 · 이름만) · 뺀 지식
+const shownKns = () => S.kns.filter((x) => !x.hidden)
+const knRoot = () => (isTeam() ? (S.me.admin ? S.me.root || '' : '') : pcRoot())
+function kcardHtml(n, team) {
+  const tag = n.pc ? '<span class="kt me">내 PC</span>' : team ? (n.private ? '<span class="kt me">개인</span>' : '<span class="kt team">팀</span>') : ''
+  const chips = team && !n.pc && n.role && n.role !== '기록' ? `<span class="chip c-mute">나: 정리</span>${n.pend ? `<span class="chip c-pend">받은 것 ${n.pend}</span>` : ''}` : n.sendN ? `<span class="chip c-pend">보낼 것 ${n.sendN}</span>` : ''
+  const mk = 'kn:' + n.id
+  const own = !n.pc && !n.dim
+  const items = own ? [
+    n.hidden ? '' : `<div class="mi" data-a="knMove" data-k="${esc(n.id)}" data-v="-1" data-t="knUp">앞으로<small>메뉴 순서</small></div><div class="mi" data-a="knMove" data-k="${esc(n.id)}" data-v="1" data-t="knDown">뒤로</div>`,
+    `<div class="mi" data-a="knHide" data-k="${esc(n.id)}" data-v="${n.hidden ? '' : '1'}" data-t="knHide">${n.hidden ? '메뉴에 올리기' : '메뉴에서 빼기'}<small>${n.hidden ? '옆 메뉴에 다시' : '지우지 않는다'}</small></div>`,
+    canDelete(n) ? `<div class="sep"></div><div class="mi dan" data-a="delOpen" data-k="${esc(n.id)}" data-t="delOpen">지식 지우기<small>보관하지 않고 완전히</small></div>` : '',
+  ].join('') : ''
+  if (S.menu === mk && items) S._pop = { key: mk, html: items }
+  const kebab = items ? `<button class="kebab${S.menu === mk ? ' on' : ''}" data-a="menu" data-m="${esc(mk)}" data-t="knKebab" title="순서 · 메뉴에서 빼기 · 지우기">⋯</button>` : ''
+  const meta = n.dim ? '내 PC 프로그램이 켜지면 열린다' : n.pc ? '문서 ' + n.docs + ' · 내 PC 프로그램이 연다' : knMeta(n)
+  const drag = own && !n.hidden ? ` draggable="true" data-drag="${esc(n.id)}"` : ''
+  return `<div class="kcard${n.dim ? ' dim' : ''}${n.hidden ? ' hid' : ''}" data-a="openKn" data-k="${esc(n.id)}" data-t="${n.hidden ? 'kHid' : 'krow'}" data-name="${esc(n.name)}"${drag}>${drag ? '<span class="grip" title="끌어서 순서를 바꾼다">⋮⋮</span>' : ''}<div class="kh"><span class="kn3">${esc(n.name)}</span>${kebab}</div><div class="km">${tag} ${esc(meta)}</div>${chips || n.hidden ? `<div class="kf">${chips}${n.hidden ? `<button class="btn sm" data-a="knHide" data-k="${esc(n.id)}" data-v="" data-t="knShow">메뉴에 올리기</button>` : ''}</div>` : ''}</div>`
+}
 function viewHome() {
   const team = isTeam()
-  // 팀 화면의 「내 PC」 줄 — 내 PC 프로그램이 꺼져 있으면 지난번 이름만 흐리게(이 탭 안의 것 · 서버로 가지 않는다)
+  // 팀 화면의 「내 PC」 카드 — 내 PC 프로그램이 꺼져 있으면 지난번 이름만 흐리게(이 탭 안의 것 · 서버로 가지 않는다)
   const offPc = team && S.pc && S.pc.off ? pcRemembered().map((x) => ({ ...x, pc: true, dim: true })) : []
-  const rows = [...S.kns, ...offPc].map((n) => {
-    const tag = n.pc ? '<span class="kt me">내 PC</span>' : team ? (n.private ? '<span class="kt me">개인</span>' : '<span class="kt team">팀</span>') : ''
-    const rr = team && !n.pc && n.role && n.role !== '기록' ? `<span class="dst">나: 정리</span>${n.pend ? `<span class="chip c-pend">받은 것 ${n.pend}</span>` : ''}` : n.sendN ? `<span class="chip c-pend">보낼 것 ${n.sendN}</span><span class="dst">→ ${esc((n.dests || []).join(' · '))}</span>` : ''
-    const mk = 'kn:' + n.id
-    const kebab = canDelete(n) ? `<button class="kebab${S.menu === mk ? ' on' : ''}" data-a="menu" data-m="${esc(mk)}" data-t="knKebab" title="지식 지우기">⋯${S.menu === mk ? `<div class="menu" style="right:0;top:28px"><div class="mi" data-a="delOpen" data-k="${esc(n.id)}" data-t="delOpen" style="color:var(--danger)">지식 지우기<small>보관하지 않고 완전히</small></div></div>` : ''}</button>` : ''
-    return `<div class="krow${n.dim ? ' dim' : ''}" data-a="openKn" data-k="${esc(n.id)}" data-t="krow" data-name="${esc(n.name)}" style="overflow:visible"><span class="nm">${esc(n.name)} ${tag}</span><span class="meta">${esc(n.dim ? '내 PC 프로그램이 켜지면 열린다' : n.pc ? '문서 ' + n.docs + ' · 내 PC 프로그램이 연다' : knMeta(n))}</span><span class="rr">${rr}${kebab}</span></div>`
-  }).join('')
-  const pcLine = !team || !S.pc ? '' : S.pc.off && (S.pc.seen || offPc.length) ? '<div class="callout gray stop" data-t="pcOff"><i></i><span><b>내 PC 프로그램이 꺼져 있다</b> — 켜면 저절로 다시 열린다</span></div>' : S.pc.allow ? `<div class="callout gray stop" data-t="pcAllow"><i></i><span><b>이 PC 의 내 지식을 여기서도 연다</b> — 내 PC 프로그램 창에서 한 번 허락한다</span><a class="lk r" data-a="pcAllow" data-t="pcAllowBtn">허락</a></div>` : ''
-  const none = team ? '<div class="cb"><div class="empty2"><b>아직 지식이 없다</b>폴더 안에 md 폴더를 두면 지식이 된다</div></div>' : '<div class="cb"><div class="empty2" data-t="pcEmpty"><b>아직 내 지식이 없다</b><a data-a="nav" data-s="add">내 지식 세우기 ›</a></div></div>'
+  const shown = [...shownKns(), ...offPc], hid = S.kns.filter((x) => x.hidden)
+  const root = knRoot()
+  const fbar = root ? `<div class="fbar" data-t="addRoot"><span class="fl">${svg('doc')}지식 폴더</span><span class="fp" data-t="rootPath">${esc(root)}</span><span class="acts"><button class="btn" data-a="copyRoot" data-t="copyRoot">경로 복사</button><button class="btn" data-a="syncKn" data-t="syncKn"${S.syncing ? ' disabled' : ''}>${S.syncing ? '읽는 중…' : '동기화'}</button></span><small>지식 하나 = 이 폴더 안의 폴더 하나 · 다른 곳에서 만든 지식은 폴더째 여기에 놓고 [동기화] — 메뉴 맨 아래에 들어온다</small></div>` : ''
+  const pcLine = !team || !S.pc ? '' : S.pc.off && (S.pc.seen || offPc.length) ? '<div class="callout gray stop" data-t="pcOff"><i></i><span><b>내 PC 프로그램이 꺼져 있다</b> — 켜면 저절로 다시 열린다</span></div>' : S.pc.allow ? `<div class="callout gray stop" data-t="pcAllow"><i></i><span><b>이 PC 의 내 지식을 여기서도 연다</b> — 내 PC 프로그램 창에서 한 번 허락한다</span><button class="btn sm r" data-a="pcAllow" data-t="pcAllowBtn">허락</button></div>` : ''
+  const msg = S.syncMsg ? `<div class="callout ${S.syncMsg.cls || ''} stop" data-t="syncMsg"><i></i><span>${S.syncMsg.t}</span></div>` : ''
+  const add = `<div class="kcard add" data-a="openAdd" data-t="addCard"><span class="pl">+</span>${!team && !S.kns.length ? '첫 지식 세우기' : '지식 추가'}</div>`
   return {
     crumb: '지식 목록',
-    main: `<div style="max-width:960px"><div class="top"><div><div class="big">지식 목록</div>${team ? '' : '<p class="lead">내 지식 ' + S.kns.length + '</p>'}</div><div class="acts"></div></div>
-  ${S.stops.map(stopHtml).join('')}${pcLine}
-  <div class="card" data-t="klist">${rows || none}</div>
-  <p class="tl"><a data-a="nav" data-s="add">+ 지식 추가</a><a data-a="nav" data-s="import">+ 지식 만들기</a></p></div>`,
+    main: `<div style="max-width:1100px"><div class="pg-h"><div><div class="big">지식 목록</div><p class="lead">${team ? '팀 서버의 지식 · 내 지식' : '내 지식 ' + S.kns.length} — 옆 메뉴에 이 순서로 보인다 · 카드를 끌어 순서를 바꾼다</p></div></div>
+  ${S.stops.map(stopHtml).join('')}${pcLine}${fbar}${msg}
+  <div class="kgrid" data-t="klist">${shown.map((n) => kcardHtml(n, team)).join('')}${add}</div>
+  ${hid.length ? `<div class="sec-h" data-t="hidSec"><b>뺀 지식</b><small>옆 메뉴에 보이지 않는다 · 지우지 않았다 — [메뉴에 올리기] 로 다시</small></div><div class="kgrid" data-t="hidList">${hid.map((n) => kcardHtml(n, team)).join('')}</div>` : ''}</div>`,
   }
+}
+// 지식 추가 팝업 — 이름만(PC: 지식 폴더 안 새 지식 · 팀: 팀 서버 안 내 지식)
+function openAdd() { S.menu = null; S.addPop = { name: '', err: null, busy: false }; S._focus = 'addIn'; if (S.route.scr !== 'home') go({ scr: 'home', kn: '*' }); else render() }
+function addPopHtml() {
+  const a = S.addPop, team = isTeam()
+  return `<div class="scrim fix" data-a="addClose" data-self="1"><div class="modal w420" data-t="addPop"><div class="mh">지식 추가<button class="x" data-a="addClose" title="닫기">×</button></div><div class="mb"><div class="field" style="margin:0"><label for="addIn">이름</label><input class="inp" id="addIn" data-in="addName" data-t="addIn" value="${esc(a.name)}" placeholder="예: 회의" autocomplete="off"><div class="hint">${team ? '팀 서버 안에 내 지식으로 선다 — 나만(관리자는 볼 수 있다)' : '지식 폴더 안에 이 이름의 폴더로 선다 — 나만'}</div></div>${a.err ? `<div class="callout danger" data-t="addMsg">${esc(a.err)}</div>` : ''}</div><div class="mf"><span class="l">새 지식은 메뉴 맨 아래에 들어온다</span><span class="acts"><button class="btn ghost" data-a="addClose">취소</button><button class="btn pri" data-a="doAdd" data-t="addBtn"${a.busy ? ' disabled' : ''}>${a.busy ? '만드는 중…' : '추가'}</button></span></div></div></div>`
+}
+async function doAdd() {
+  const a = S.addPop
+  if (!a || a.busy) return
+  const name = String(a.name || '').trim()
+  if (!name) { a.err = '이름을 쓴다'; render(); return }
+  a.busy = true; a.err = null; render()
+  try {
+    const r = await postJSON('/api/knowledge/add', { kind: 'new', name })
+    S.addPop = null
+    S.kns = await getJSON('/api/knowledge')
+    delete S.cache.history
+    S.syncMsg = { t: `<b>추가했다 — ${esc(r.name)}</b>${r.dir ? ' · ' + esc(r.dir) : isTeam() ? ' · 팀 서버 안 내 지식' : ''} <a data-a="openKn" data-k="${esc(r.id)}">열기 ›</a>` }
+  } catch (e) { a.busy = false; a.err = e.message }
+  render()
+}
+async function syncKn() {
+  S.syncing = true; S.syncMsg = null; render()
+  try {
+    const r = await postJSON('/api/knowledge/sync', {})
+    S.kns = await getJSON('/api/knowledge')
+    S.cache = {}
+    S.syncMsg = r.added.length ? { t: `<b>새 지식 ${r.added.length} — ${r.added.map((x) => esc(x.name)).join(' · ')}</b> · 메뉴 맨 아래에 두었다${r.gone.length ? ' · 없어진 폴더 ' + r.gone.length : ''}` } : { cls: 'gray', t: `<b>새로 놓인 지식이 없다</b> — 지식 ${r.total}${r.gone.length ? ' · 없어진 폴더 ' + r.gone.length + '(목록에서 뺐다)' : ''}` }
+  } catch (e) { S.syncMsg = { cls: 'danger', t: esc(e.message) } }
+  S.syncing = false
+  render()
+}
+// 메뉴 순서 · 뺌 — 화면은 바로 바꾸고 서버에 적는다(사람마다)
+async function saveMenu() {
+  const own = S.kns.filter((x) => !x.pc)
+  try { await postJSON('/api/knowledge/menu', { order: own.map((x) => x.id), hidden: own.filter((x) => x.hidden).map((x) => x.id) }) } catch (e) { toast(esc(e.message)) }
+}
+function knMove(id, d) {
+  const own = S.kns.filter((x) => !x.pc && !x.hidden), i = own.findIndex((x) => x.id === id), j = i + d
+  if (i < 0 || j < 0 || j >= own.length) return
+  knPlace(id, own[j].id, d > 0)
+}
+// id 를 to 앞(after 면 뒤)으로
+function knPlace(id, to, after) {
+  if (id === to) return
+  const x = S.kns.find((k) => k.id === id)
+  const rest = S.kns.filter((k) => k.id !== id)
+  const at = rest.findIndex((k) => k.id === to)
+  if (!x || at < 0) return
+  rest.splice(after ? at + 1 : at, 0, x)
+  S.kns = rest
+  render()
+  saveMenu()
+}
+function knHide(id, on) {
+  const x = KN(id)
+  if (!x) return
+  if (on) x.hidden = true; else delete x.hidden
+  // 다시 올린 지식은 메뉴 맨 아래로
+  if (!on) S.kns = [...S.kns.filter((k) => k.id !== id && !k.hidden), x, ...S.kns.filter((k) => k.id !== id && k.hidden)]
+  if (on && S.lastKn === id) S.lastKn = null
+  render()
+  saveMenu()
 }
 
 // ── 아직 없는 화면(뒤 판) ──
@@ -508,7 +604,7 @@ function openCmd() { S.pal = null; S.qo = null; S.menu = null; S.cmd = { q: '', 
 function cmdDefs() {
   return [
     { n: '지식 만들기', s: '파일 · 문서 폴더 · 소스 코드 · DB', f: () => go({ scr: 'import' }) },
-    { n: '지식 추가', s: '새 이름 · 폴더 · 팀 주소', f: () => go({ scr: 'add' }) },
+    { n: '지식 추가', s: '이름 하나로 새 지식', f: () => openAdd() },
     { n: '나누어 보기', s: 'Ctrl \\ — 두 탭을 나란히', f: () => toggleSplit() },
     { n: '그래프 열기', s: '옆 메뉴 — 그래프 탭', f: () => setView('graph') },
     { n: '문서로 보기', s: '옆 메뉴 — 문서 탭', f: () => setView('docs') },
@@ -1314,26 +1410,94 @@ function impTarget() {
   return { kn: null, label: '받은편지함(처음 넣으면 생긴다)' }
 }
 const KIND_T = { docs: '문서 폴더', folder: '코드 폴더(예전)', git: '소스 코드 · git', db: 'DB · 읽기만', pc: '내 PC 폴더' }
+const KIND_I = { docs: 'doc', folder: 'doc', git: 'sync', db: 'server', pc: 'pair' }
 const isCode = (s) => s.kind === 'git' && !(s.rules && s.rules.length)
+const srcId = (s) => s.kn + '|' + s.name
+// 마지막으로 바뀐 것 — 바뀐 파일 · 표 · 묶음 수
+function srcChange(s) {
+  const lc = (s.state || {}).lastChange
+  return lc && lc.commits != null ? `새 묶음 ${lc.commits} · 기록 ${lc.records} · ${whenTxt(lc.at)}` : lc ? `바뀐 파일 ${lc.files}${lc.removed ? '(지움 ' + lc.removed + ')' : ''} · ${lc.docs != null ? '문서 ' + lc.docs : '표 ' + lc.tables} · ${whenTxt(lc.at)}` : ''
+}
+// 상태 칩 하나 — 도는 중 · 다시 맞추는 중 · 멈춤 · 못 가져옴 · 그대로 · 바뀜
+function srcChip(s) {
+  const id = srcId(s), st = s.state || {}, run = S.srcRun[id], rs = s.resync
+  if (run === 'run') return '<span class="chip c-pend" data-t="srcRun">가져오는 중…</span>'
+  if (rs && rs.state === 'running') return `<span class="chip c-pend" data-t="resyncRun">다시 맞추는 중 ${rs.done || 0} / ${rs.total || '…'}</span>`
+  if (rs && rs.state === 'paused') return '<span class="chip c-warn" data-t="resyncPaused">다시 맞추기 끊김</span>'
+  if (st.stopped) return '<span class="chip c-warn">멈춤 — 크게 바뀜</span>'
+  if (st.failures) return `<span class="chip c-danger" title="${esc(st.lastNote || '')}">못 가져옴</span>`
+  if (!st.checkedAt) return '<span class="chip c-mute">아직</span>'
+  return `<span class="chip ${/바뀐|새 묶음 [1-9]/.test(st.lastNote || '') ? 'c-acc' : 'c-mute'}" title="${esc(st.lastNote || '')}">${esc(String(st.lastNote || '그대로').split(' · ')[0])}</span>`
+}
 function srcRow(s, can) {
-  const id = s.kn + '|' + s.name, st = s.state || {}, run = S.srcRun[id]
-  const runH = run === 'run' ? '<span class="st2 run" data-t="srcRun">가져오는 중…</span>' : run ? `<span class="st2 ok" data-t="srcOk">${esc(run)}</span>` : ''
-  const ev = String(s.every || 'hourly'), at = ev.startsWith('daily ') ? ev.slice(6) : '06:00'
-  const mi = (val, l, sm) => `<div class="mi${ev.split(' ')[0] === val ? ' on' : ''}" data-a="setEvery" data-id="${esc(id)}" data-v="${val}">${ev.split(' ')[0] === val ? '✓ ' : ''}${l}${sm || ''}</div>`
-  const menu = S.menu === 'every:' + id ? `<div class="menu" style="right:0;top:26px" data-t="everyMenu">${mi('hourly', '1시간마다')}${mi('daily', `매일 <input type="time" id="evAt" data-t="evAt" value="${esc(at)}" data-stop="1">`)}${mi('weekly', '매주 월')}${mi('change', '바뀔 때만', '<small>코드가 바뀌면 바로</small>')}${(s.kind === 'folder' || s.kind === 'git') && !isCode(s) ? `<div class="sep"></div><div class="mi" data-a="toggleMeaning" data-id="${esc(id)}" data-v="${s.meaning ? '' : '1'}" data-t="toggleMeaning">${s.meaning ? '뜻 갱신 끄기' : '뜻 갱신 켜기'}<small>바뀐 코드로 관련 항목 글도 맞춘다 — Claude 로</small></div>` : ''}<div class="sep"></div><div class="gray">한꺼번에 크게 바뀌면 쓰지 않고 멈춘다 — 「지금 가져오기」 는 언제든</div></div>` : ''
-  const cred = (s.kind === 'git' || s.kind === 'db') && s.secret && s.secret.has ? ' · 자격 있음' : ''
-  const mean = isCode(s) ? (s.meaningBlocked ? ' · 기록만(Claude 에 보내지 않는 지식)' : ' · 정리가 항목 글을 맞춘다') : s.meaning ? (s.meaningBlocked ? ' · 뜻 갱신(쉼 — Claude 에 보내지 않는 지식)' : ' · 뜻 갱신 — Claude') : ''
-  const sub = s.kind === 'pc' ? '내 PC 폴더 — 걷은 기능 · 쉰다' : `${KIND_T[s.kind] || s.kind} · ${String(s.since || '').slice(5)} 부터${s.by && s.by !== S.me.user ? ' · ' + s.by : ''}${cred}${mean}`
-  const need = (s.kind === 'db' || s.kind === 'git') && s.secret && !s.secret.has && isTeam() ? `<small class="mono" data-t="credLine">자격이 필요하면 서버에서 — kmd secret set ${esc(s.secret.name)}</small>` : ''
+  const id = srcId(s), st = s.state || {}, run = S.srcRun[id]
+  const ev = String(s.every || 'hourly'), live = s.watch === 'live'
   const into = isCode(s) ? '코드 바뀜 기록' : (s.rules && s.rules[0] && s.rules[0].into && s.rules[0].into.doc) || ''
-  // 감시 — 실시간(폴더 · 바뀌면 조용해진 뒤 그곳만) · 정한 때마다(git) · 마지막 변화는 바뀐 파일 · 표 수로
-  const live = s.watch === 'live'
-  const lc = st.lastChange
-  const change = lc && lc.commits != null ? `새 묶음 ${lc.commits} · 기록 ${lc.records} · ${whenTxt(lc.at)}` : lc ? `바뀐 파일 ${lc.files}${lc.removed ? '(지움 ' + lc.removed + ')' : ''} · ${lc.docs != null ? '문서 ' + lc.docs : '표 ' + lc.tables} · ${whenTxt(lc.at)}` : ''
-  const rs = s.resync
-  const rsH = rs && rs.state === 'running' ? `<span class="st2 run" data-t="resyncRun">다시 맞추는 중 ${rs.done || 0} / ${rs.total || '…'}</span>` : rs && rs.state === 'paused' ? '<span class="st2 run" data-t="resyncPaused">다시 맞추기가 끊겼다 — 이어서 한다</span>' : rs && rs.state === 'done' && S.srcRun[id + '|rs'] ? `<span class="st2 ok" data-t="resyncDone">다시 맞췄다 — ${rs.result && rs.result.n ? '바뀐 표 ' + rs.result.n : '다른 것 없음'}</span>` : ''
-  const acts = s.kind === 'db' || s.kind === 'pc' ? '' : `${run === 'run' ? '' : `<a class="lk" data-a="fetchSrc" data-id="${esc(id)}" data-t="fetchBtn">지금 가져오기</a>`}${can && !isCode(s) && !(rs && rs.state === 'running') ? `<a class="lk" data-a="resyncSrc" data-id="${esc(id)}" data-t="resyncBtn" style="margin-left:10px" title="모든 파일을 다시 읽어 맞춘다 — 오래 걸릴 수 있다 · 쓰는 것은 다른 것뿐">전체 다시 맞추기</a>` : ''}`
-  return `<tr data-t="srcRow" data-name="${esc(s.name)}"><td><b>${esc(s.name)}</b><small>${esc(sub)}</small>${need}</td><td>${esc(s.knName)} › ${esc(into)}</td><td><span class="ev" data-t="every">${live ? '<b data-t="live">실시간</b>' : everyTxt(ev)}${can ? `<button class="kebab" data-a="menu" data-m="every:${esc(id)}" data-t="everyKebab" title="언제 바꾸기">⋯</button>` : ''}${menu}</span>${live ? `<small>바뀌면 바로 · 그 밖에 ${esc(everyTxt(ev))}</small>` : ''}</td><td data-t="last">${st.checkedAt ? esc(whenTxt(st.checkedAt)) : '—'}<small>${esc(st.lastNote || '')}</small>${change ? `<small data-t="lastChange">${esc(change)}</small>` : ''}</td><td data-t="next">${s.kind === 'db' ? '—' : s.kind === 'pc' ? '보내면' : live ? '바뀌면' : esc(nextTxt(ev, st.checkedAt))}</td><td class="go2">${runH}${rsH} ${acts}</td></tr>`
+  const sub = s.kind === 'pc' ? '내 PC 폴더 — 걷은 기능 · 쉰다' : `${KIND_T[s.kind] || s.kind} · ${s.at || ''}`
+  const msg = run && run !== 'run' ? `<small data-t="srcOk">${esc(run)}</small>` : ''
+  const fetch = s.kind === 'pc' ? '' : `<button class="btn sm" data-a="fetchSrc" data-id="${esc(id)}" data-t="fetchBtn"${run === 'run' ? ' disabled' : ''}>${run === 'run' ? '가져오는 중…' : '지금 가져오기'}</button>`
+  return `<div class="srow" data-a="srcOpen" data-id="${esc(id)}" data-t="srcRow" data-name="${esc(s.name)}"><span class="si">${svg(KIND_I[s.kind] || 'doc')}</span><span class="sn"><b>${esc(s.name)}</b><small>${esc(sub)}</small></span><span class="sc">${esc(s.knName)} › ${esc(into)}<small data-t="every">${live ? '<b data-t="live">실시간</b> · 그 밖에 ' + esc(everyTxt(ev)) : esc(everyTxt(ev))} · 마지막 ${st.checkedAt ? esc(whenTxt(st.checkedAt)) : '—'}</small>${msg}</span><span class="ss">${srcChip(s)}</span><span class="sa">${can ? fetch : ''}</span></div>`
+}
+// 가져오는 곳 자세히 — 보고 · 고치고 · 지운다(요구 v0.2 R4)
+function srcOf(id) { const v = sourcesOf(); return v && !v.error ? v.items.find((s) => srcId(s) === id) || null : null }
+function srcOpen(id) {
+  const s = srcOf(id)
+  if (!s) return
+  const ev = String(s.every || 'hourly'), db = (() => { try { const u = new URL(s.at); return { host: u.hostname, port: u.port || '5432', database: decodeURIComponent(u.pathname.slice(1)), user: decodeURIComponent(u.username), schema: u.searchParams.get('schema') || 'public' } } catch { return {} } })()
+  S.se = { id, at: s.kind === 'db' ? '' : s.at || '', doc: (s.rules && s.rules[0] && s.rules[0].into && s.rules[0].into.doc) || '', every: ev.startsWith('daily ') ? 'daily' : ev, at2: ev.startsWith('daily ') ? ev.slice(6) : '06:00', meaning: !!s.meaning, ...db, password: '', gitUser: '', gitToken: '', msg: null, busy: false, del: false }
+  render()
+}
+const seFld = (label, f, v, ph, opt = {}) => `<div class="field"><label for="se-${f}">${label}</label><input class="inp${opt.mono ? ' mono' : ''}" id="se-${f}" data-in="se" data-f="${f}" value="${esc(v || '')}" placeholder="${esc(ph || '')}" autocomplete="${opt.pw ? 'new-password' : 'off'}"${opt.pw ? ' type="password"' : ''}${opt.ro ? ' readonly' : ''}>${opt.hint ? `<div class="hint">${opt.hint}</div>` : ''}</div>`
+function srcModalHtml() {
+  const e = S.se, s = srcOf(e.id)
+  if (!s) return ''
+  const v = sourcesOf(), can = v && !v.error ? v.can : false, team = isTeam(), st = s.state || {}, id = e.id
+  const ro = !can
+  const evSel = `<div class="field"><label for="se-every">언제</label><div class="row"><select class="inp" id="se-every" data-se="every" style="flex:1"${ro ? ' disabled' : ''}>${[['hourly', '1시간마다'], ['daily', '매일'], ['weekly', '매주 월'], ['change', '바뀔 때만 — 5분마다 보고 바뀐 것만'], ['manual', '손으로만']].map(([x, l]) => `<option value="${x}"${e.every === x ? ' selected' : ''}>${l}</option>`).join('')}</select>${e.every === 'daily' ? `<input class="inp mono" type="time" id="se-at2" data-in="se" data-f="at2" value="${esc(e.at2)}" style="width:120px"${ro ? ' disabled' : ''}>` : ''}</div>${s.kind === 'docs' ? '<div class="hint">폴더는 실시간으로도 지켜본다 — 이것은 놓친 것을 잡는 때</div>' : ''}</div>`
+  let where = ''
+  if (s.kind === 'db') where = `<div class="fgrid">${seFld('호스트', 'host', e.host, 'db.team.local', { mono: 1, ro })}${seFld('포트', 'port', e.port, '5432', { mono: 1, ro })}${seFld('DB 이름', 'database', e.database, '', { mono: 1, ro })}${seFld('스키마', 'schema', e.schema, 'public', { mono: 1, ro })}${seFld('계정', 'user', e.user, '', { mono: 1, ro })}${team ? `<div class="field"><label>비밀번호</label><div class="hint" data-t="credLine">화면으로 받지 않는다 — 서버에서 <code>kmd secret set ${esc(s.secret.name)}</code> · ${s.secret.has ? '있음' : '없음'}</div></div>` : seFld('비밀번호', 'password', e.password, s.secret && s.secret.has ? '그대로(바꿀 때만 쓴다)' : '이 PC 의 자격 저장소에만', { pw: 1, ro })}</div>`
+  else where = seFld(s.kind === 'git' ? 'git 주소 · 저장소 폴더' : '문서 폴더 경로', 'at', e.at, '', { mono: 1, ro }) + (s.kind === 'git' && !team ? `<div class="fgrid">${seFld('계정', 'gitUser', e.gitUser, s.secret && s.secret.has ? '그대로' : '들어가야 하는 저장소면', { ro })}${seFld('토큰', 'gitToken', e.gitToken, s.secret && s.secret.has ? '그대로(바꿀 때만 쓴다)' : '읽기 권한 토큰', { pw: 1, ro })}</div>` : '')
+  const into = isCode(s) ? `<div class="field"><label>넣는 곳</label><div class="small" style="padding:6px 0">${esc(s.knName)} › 코드 바뀜 기록 — 묶음마다 기록 하나 · 걸린 항목 글은 정리가 맞춘다</div></div>` : seFld(`넣을 문서 — ${esc(s.knName)} 안`, 'doc', e.doc, '', { ro, hint: s.kind === 'docs' ? '이 이름의 폴더로 문서가 선다 · 바꾸면 처음부터 다시 가져온다' : '테이블마다 이 문서의 항목으로 · 바꾸면 처음부터 다시 가져온다' })
+  const mean = s.kind === 'git' ? `<div class="field"><label>뜻 갱신</label><div class="row"><button class="sw${e.meaning ? ' on' : ''}" data-a="seMeaning" data-t="seMeaning"${ro ? ' disabled' : ''}></button><span class="small muted">바뀐 코드로 걸린 항목 글도 맞춘다 — Claude 로${s.meaningBlocked ? ' · 이 지식은 Claude 에 보내지 않아 쉰다' : ''}</span></div></div>` : ''
+  const stat = `<div class="kv" style="margin-bottom:14px" data-t="seState"><span>유형</span><span>${esc(KIND_T[s.kind] || s.kind)} · ${esc(String(s.since || ''))} 부터${s.by ? ' · ' + esc(s.by) : ''}</span><span>상태</span><span>${srcChip(s)} <small>${esc(st.lastNote || '')}</small></span><span>마지막 확인</span><span>${st.checkedAt ? esc(whenTxt(st.checkedAt)) : '—'}</span><span>다음</span><span>${s.watch === 'live' ? '바뀌면 바로 · ' + esc(nextTxt(s.every, st.checkedAt)) : esc(nextTxt(s.every, st.checkedAt))}</span>${srcChange(s) ? `<span>마지막 바뀜</span><span data-t="lastChange">${esc(srcChange(s))}</span>` : ''}</div>`
+  const msg = e.msg ? `<div class="callout ${e.msg.cls || ''}" data-t="seMsg"><i></i><span>${e.msg.t}</span></div>` : ''
+  const rs = s.resync, run = S.srcRun[id]
+  const foot = e.del
+    ? `<span class="l" style="color:var(--danger)">「${esc(s.name)}」 을 지운다 — 들어온 문서 · 기록은 그대로 둔다</span><span class="acts"><button class="btn ghost" data-a="seDelNo">취소</button><button class="btn danger" data-a="seDelOk" data-t="seDelOk"${e.busy ? ' disabled' : ''}>지우기</button></span>`
+    : `<span class="acts" style="margin-left:0">${can ? `<button class="btn ghost" data-a="seDel" data-t="seDel" style="color:var(--danger)">지우기</button>` : ''}</span><span class="acts">${s.kind !== 'pc' ? `<button class="btn" data-a="fetchSrc" data-id="${esc(id)}" data-t="seFetch"${run === 'run' ? ' disabled' : ''}>${run === 'run' ? '가져오는 중…' : '지금 가져오기'}</button>` : ''}${can && !isCode(s) ? `<button class="btn" data-a="resyncSrc" data-id="${esc(id)}" data-t="resyncBtn" title="모든 파일을 다시 읽어 맞춘다 — 오래 걸릴 수 있다 · 쓰는 것은 다른 것뿐"${rs && rs.state === 'running' ? ' disabled' : ''}>전체 다시 맞추기</button>` : ''}${can ? `<button class="btn pri" data-a="seSave" data-t="seSave"${e.busy ? ' disabled' : ''}>${e.busy ? '고치는 중…' : '고친 것 저장'}</button>` : ''}</span>`
+  return `<div class="scrim fix" data-a="seClose" data-self="1"><div class="modal w560" data-t="srcModal"><div class="mh">${svg(KIND_I[s.kind] || 'doc')} ${esc(s.name)} <small>가져오는 곳</small><button class="x" data-a="seClose" title="닫기">×</button></div><div class="mb">${msg}${stat}${where}${into}${evSel}${mean}${!can ? '<div class="hint">고치기 · 지우기는 관리자가 한다</div>' : ''}</div><div class="mf">${foot}</div></div></div>`
+}
+async function seSave() {
+  const e = S.se, s = srcOf(e.id)
+  if (!s || e.busy) return
+  const body = { name: s.name, every: e.every === 'daily' ? 'daily ' + (e.at2 || '06:00') : e.every }
+  if (s.kind === 'db') body.db = { host: e.host, port: Number(e.port) || 5432, database: e.database, schema: e.schema, user: e.user, ...(e.password ? { password: e.password } : {}) }
+  else if (e.at.trim()) body.at = e.at.trim()
+  if (!isCode(s)) body.doc = e.doc
+  if (s.kind === 'git') { body.meaning = !!e.meaning; if (e.gitUser || e.gitToken) body.cred = { user: e.gitUser, token: e.gitToken } }
+  e.busy = true; e.msg = { cls: 'gray', t: '<b>고치는 중…</b>' }; render()
+  try {
+    const r = await postJSON(`/api/k/${encodeURIComponent(s.kn)}/sources/edit`, body)
+    const st = r.run && r.run[0]
+    e.msg = { t: `<b>고쳤다</b>${st ? (st.state === 'failed' ? ' · 그러나 못 가져왔다 — ' + esc(st.why || '') : ' · 처음부터 다시 가져왔다') : ''}` }
+    e.password = ''; e.gitToken = ''
+    delete S.cache.sources
+    forgetKn(s.kn)
+  } catch (x) { e.msg = { cls: 'danger', t: esc(x.message) } }
+  e.busy = false
+  render()
+}
+async function seDelOk() {
+  const e = S.se, s = srcOf(e.id)
+  if (!s || e.busy) return
+  e.busy = true; render()
+  try {
+    await postJSON(`/api/k/${encodeURIComponent(s.kn)}/sources/remove`, { name: s.name })
+    S.se = null
+    delete S.cache.sources
+    toast(`지웠다 — ${esc(s.name)} · 들어온 문서는 그대로`)
+  } catch (x) { e.busy = false; e.msg = { cls: 'danger', t: esc(x.message) } }
+  render()
 }
 const fld = (label, f, v, ph, opt = {}) => `<div class="field" style="margin:0"><label for="sf-${f}">${label}${opt.need ? '' : ' <span class="muted">(선택)</span>'}</label><input class="inp${opt.mono ? ' mono' : ''}" id="sf-${f}" data-in="sf" data-f="${f}" value="${esc(v || '')}" placeholder="${esc(ph || '')}" autocomplete="${opt.pw ? 'new-password' : 'off'}"${opt.pw ? ' type="password"' : ''} style="width:100%"></div>`
 function sfForm(can) {
@@ -1363,18 +1527,73 @@ function sfForm(can) {
   const meaning = '' // 뜻 갱신 체크는 걷었다 — 소스 코드(git)는 묶음마다 기록이 그 일이다
   const dbNote = f.type === 'db' ? '<div class="callout gray" data-t="dbNote" style="margin:12px 0 0"><i></i><span><b>테이블마다 정의 표를 채우고 바뀐 테이블만 고친다</b> — 읽기 전용으로만 붙어 카탈로그(테이블 · 칸 · 형 · 키 · 설명)만 읽는다 · 행은 읽지 않는다 · 어떤 계정이든 세션을 읽기 전용으로 열어 쓰지 않는다 · [연결 확인] 으로 먼저 붙어 본다</span></div>' : ''
   const probe = f.type === 'db' ? '<button class="btn" data-a="sfCheck" data-t="sfCheck">연결 확인</button>' : can && f.type === 'git' ? '<button class="btn" data-a="sfProbe" data-t="sfProbe">살펴보기</button>' : ''
-  const go = can ? `<button class="btn pri" data-a="sfAdd" data-t="sfAdd" style="width:auto">더하기</button>` : '<button class="btn pri" data-a="sfAsk" data-t="sfAsk" style="width:auto">관리자에게 부탁</button>'
-  return `<div class="card" data-t="sfCard"><div class="ch">가져올 곳 더하기 <small>유형을 고르고 칸을 채운다</small></div>
-   <div class="cb">${tabs}
+  const go = can ? `<button class="btn pri" data-a="sfAdd" data-t="sfAdd">더하기</button>` : '<button class="btn pri" data-a="sfAsk" data-t="sfAsk">관리자에게 부탁</button>'
+  return `<div class="scrim fix" data-a="sfClose" data-self="1"><div class="modal w760" data-t="sfCard"><div class="mh">가져올 곳 더하기 <small>유형을 고르고 칸을 채운다</small><button class="x" data-a="sfClose" title="닫기">×</button></div>
+   <div class="mb">${tabs}
    ${where ? grid(where) + '<div style="border-top:1px solid var(--border);margin:14px 0"></div>' : ''}${grid(what + into + paths + when + nm + meaning)}${dbNote}${res}</div>
-   <div class="cf" style="display:flex;gap:8px;align-items:center"><span class="muted small">${can ? '더하면 바로 한 번 가져온다' : '관리자 화면에 「더해 달라」 한 줄로 간다'}</span><span style="margin-left:auto;display:flex;gap:8px">${probe}${go}</span></div></div>`
+   <div class="mf"><span class="l">${can ? '더하면 바로 한 번 가져온다' : '관리자 화면에 「더해 달라」 한 줄로 간다'}</span><span class="acts">${probe}${go}</span></div></div></div>`
 }
+function sfModal() { const v = sourcesOf(); return sfForm(v && !v.error ? v.can : !isTeam() || S.me.admin) }
 function sfAutoName(f) {
   const at = String(f.at || '').trim()
   if (f.type === 'db') return f.database ? `${f.database} DB` : ''
   if (!at) return ''
   const base = at.replace(/\.git$/i, '').replace(/[\\/]+$/, '').split(/[\\/:]/).filter(Boolean).pop()
   return f.type === 'docs' ? base : base + ' 코드'
+}
+// ── 넣은 일 · 터미널(요구 v0.2 R8) — 서버의 일 목록(새로 열어도 남는다) · 줄을 펼치면 Claude Code 가 하는 일이 보인다 ──
+const RUN_T = { wait: ['c-mute', '기다림'], run: ['c-pend', '들이는 중'], done: ['c-acc', '넣음'], rule: ['c-warn', '규칙으로 넣음'], fail: ['c-danger', '못 넣음'] }
+const runActive = (r) => r && (r.state === 'wait' || r.state === 'run')
+function termHtml(id) {
+  const L = (S.runLines || {})[id]
+  if (!L) return '<div class="term" data-t="term"><span class="sys">불러오는 중…</span></div>'
+  const t = (ms) => { const s = Math.floor(ms / 1000); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0') }
+  const mark = { tool: '▸ ', ok: '✓ ', err: '✗ ', sys: '· ', cost: '■ ', say: '' }
+  return `<div class="term" data-t="term" data-run="${esc(id)}">${L.lines.map((l) => `<div class="${esc(l.k)}"><span class="tm">${t(l.t)}</span>${mark[l.k] || ''}${esc(l.x)}</div>`).join('') || '<span class="sys">아직 줄이 없다 — 차례를 기다린다</span>'}</div>`
+}
+function jobsHtml() {
+  const rs = S.cache.runs || []
+  const runRows = rs.map((r) => {
+    const [cls, lab] = RUN_T[r.state] || RUN_T.wait
+    const open = !!(S.termOpen || {})[r.id]
+    const kn = KN(r.kn)
+    return `<div class="jrow" data-t="runRow" data-run="${esc(r.id)}"><div class="jl"><span class="tm">${esc(hhmm(r.startedAt))}</span><span class="tx">${esc(r.title)} → ${esc(kn ? kn.name : r.kn)} <span class="chip ${cls}" data-t="runState">${lab}</span><small data-t="runMsg">${esc(r.msg || (runActive(r) ? 'Claude Code 가 지식을 둘러보고 항목에 넣는다' : ''))}</small></span><span class="acts">${r.docs && r.docs[0] ? `<button class="btn sm" data-a="impGo" data-k="${esc(r.kn)}" data-d="${esc(r.docs[0])}" data-t="runGo">보기</button>` : ''}<button class="btn sm ghost" data-a="termToggle" data-id="${esc(r.id)}" data-t="termBtn">${open ? '터미널 닫기' : '터미널'}</button></span></div>${open ? termHtml(r.id) : ''}</div>`
+  }).join('')
+  const local = S.imports.filter((x) => !x.run).map((x) => `<div class="jrow ${x.cls || ''}" data-t="impRow"><div class="jl"><span class="tm">${esc(x.tm)}</span><span class="tx">${esc(x.title)}<small data-t="impMsg">${esc(x.msg)}</small></span><span class="acts">${x.go ? `<button class="btn sm" data-a="impGo" data-k="${esc(x.go.kn)}" data-d="${esc(x.go.doc)}">보기</button>` : x.rec ? `<button class="btn sm" data-a="openRec" data-k="${esc(x.rec.kn)}" data-r="${esc(x.rec.id)}" data-t="impRec">보기</button>` : ''}</span></div></div>`).join('')
+  return runRows + local || '<div class="muted small" style="padding:6px 2px">아직 없다</div>'
+}
+function paintJobs() {
+  const box = document.getElementById('jobs')
+  if (!box) return
+  // 터미널을 보던 자리 — 맨 아래였으면 새 줄을 따라간다
+  const stick = {}
+  for (const t of box.querySelectorAll('.term')) stick[t.dataset.run] = t.scrollHeight - t.scrollTop - t.clientHeight < 24 ? 'end' : t.scrollTop
+  box.innerHTML = jobsHtml()
+  for (const t of box.querySelectorAll('.term')) { const v = stick[t.dataset.run]; t.scrollTop = v === undefined || v === 'end' ? t.scrollHeight : v }
+}
+let runTimer = null
+async function pollRuns() {
+  clearTimeout(runTimer)
+  if (!S.me || anon() || S.route.scr !== 'import') return
+  try {
+    const rs = await getJSON('/api/runs')
+    S.cache.runs = rs
+    for (const id of Object.keys(S.termOpen || {})) {
+      if (!S.termOpen[id]) continue
+      const L = ((S.runLines ||= {})[id] ||= { lines: [], n: 0 })
+      const r = rs.find((x) => x.id === id)
+      if (!r || (L.n >= r.n && !runActive(r) && L.done)) continue
+      const g = await getJSON(`/api/runs/${id}?from=${L.n}`)
+      L.lines.push(...g.lines)
+      L.n = g.n
+      L.done = !runActive(g)
+    }
+    // 들이기가 끝난 일이 있으면 그 지식의 나무 · 목록을 새로
+    for (const r of rs) if (!runActive(r) && (S.runSeen || {})[r.id] === 'active') { forgetKn(r.kn); delete S.cache.history; S.kns = await getJSON('/api/knowledge').catch(() => S.kns) }
+    S.runSeen = Object.fromEntries(rs.map((r) => [r.id, runActive(r) ? 'active' : 'end']))
+    paintJobs()
+    if (rs.some(runActive)) runTimer = setTimeout(pollRuns, 900)
+  } catch {}
 }
 function viewImport() {
   const po = pcOnly('지식 만들기', '지식 만들기는')
@@ -1383,21 +1602,18 @@ function viewImport() {
   const srcs = v && !v.error ? v.items : []
   const can = v && !v.error ? v.can : !team || S.me.admin
   const target = impTarget()
-  const sec = (n, t, small) => `<div class="rh" data-t="impSec" style="margin:22px 0 8px;font-size:14px;color:var(--text)">${n ? n + ' ' : ''}${t} <small class="muted" style="font-weight:400">${small}</small></div>`
-  const main = `<div style="max-width:980px"><div class="big">지식 만들기</div><p class="lead">무엇을 만드나에 따라 둘 — 파일 · 폴더는 한 번 들여 기록으로(${team ? '정리가 기존 문서에 넣거나 새 문서로 세운다' : 'kmd 가 곧바로 기존 문서에 넣거나 새 문서로 세운다'}), 문서 폴더 · 소스 코드 · DB 는 지켜보다 바뀐 것만 지식에 맞춘다. 빈 지식을 새로 세우려면 <a data-a="nav" data-s="add" data-t="toAdd">지식 추가 ›</a></p>
+  const main = `<div style="max-width:980px"><div class="pg-h"><div><div class="big">지식 만들기</div><p class="lead">파일 · 폴더는 한 번 들여 지식으로(${team ? '정리가 기존 문서에 넣거나 새 문서로 세운다' : 'Claude Code 가 지식을 둘러보고 갈래 · 주제 문서의 항목으로 넣고 이름을 세운다'}), 문서 폴더 · 소스 코드 · DB 는 지켜보다 바뀐 것만 맞춘다. 빈 지식을 새로 세우려면 <a data-a="openAdd" data-t="toAdd">지식 목록 › 지식 추가</a></p></div></div>
   ${S.stops.map(stopHtml).join('')}
-  ${sec('', '파일로 들이기', team ? '파일 · 폴더 → 기록 → 정리가 문서로 · 원본은 첨부로' : '파일 · 폴더 → 기록 → 곧바로 문서로 · 원본은 첨부로')}
-  <div class="card"><div class="ch">파일 · 폴더 넣기 <small>md · docx · pptx · xlsx 는 기록으로 · hwpx · pdf · 그림은 첨부로</small></div><div class="cb">
-   <div class="drop" id="drop" data-t="drop"><b>파일이나 폴더를 여기에 끌어다 놓으면 기록이 된다 — ${team ? '정리가 기존 문서에 넣거나 새 문서로 세운다' : 'kmd 가 곧바로 기존 문서에 넣거나 새 문서로 세운다'}</b>넣을 곳 — ${esc(target.label)}
+  <div class="sec-h" data-t="impSec"><b>파일로 들이기</b><small>${team ? '파일 · 폴더 → 기록 → 정리가 문서로 · 원본은 첨부로' : '파일 · 폴더 → 기록 → Claude Code 가 문서의 항목으로 · 원본은 첨부로'}</small></div>
+  <div class="card"><div class="cb">
+   <div class="drop" id="drop" data-t="drop"><b>파일이나 폴더를 여기에 끌어다 놓는다</b>넣을 곳 — ${esc(target.label)} · md · docx · pptx · xlsx · hwpx${team ? '' : ' · pdf · hwp'} 는 글로 바꿔 들이고 원본은 첨부로
     <div class="lks"><label>파일 고르기<input type="file" multiple id="fileIn" data-t="fileIn"></label> · <label>폴더 고르기<input type="file" webkitdirectory directory multiple id="dirIn" data-t="dirIn"></label></div></div>
-   <p class="gl">${team ? 'md · docx · pptx · xlsx 는 글로 바꿔 파일마다 기록 하나 — 정리(Claude)가 읽어 이어지는 문서의 항목에 넣거나 새 문서로 세운다 · hwpx · pdf 는 내 PC 프로그램이 있는 PC 에서 · 원본은 첨부로.' : 'md · docx · pptx · xlsx 는 글로 바꿔 파일마다 기록 하나 — 정리가 따로 없어 kmd 가 곧바로 Claude 로 다듬어 이어지는 문서의 항목에 넣거나 갈래 · 주제 문서로 세운다(Claude 가 안 되면 규칙으로) · hwpx · pdf 는 원본을 첨부로 두었다가 바꾼다.'} 한 번에 300 파일 · 200MB 까지.</p>
-   <div class="rh">최근 넣은 것</div><ul class="plain rec" data-t="recent">${S.imports.map((x) => `<li class="${x.cls || ''}" data-t="impRow"><span class="tm">${esc(x.tm)}</span><span class="tx">${esc(x.title)}<small data-t="impMsg">${esc(x.msg)}</small></span>${x.go ? `<a class="lk" data-a="impGo" data-k="${esc(x.go.kn)}" data-d="${esc(x.go.doc)}">보기</a>` : x.rec ? `<a class="lk" data-a="openRec" data-k="${esc(x.rec.kn)}" data-r="${esc(x.rec.id)}" data-t="impRec">보기</a>` : ''}</li>`).join('') || '<li class="muted">아직 없다</li>'}</ul>
+   <p class="gl">${team ? 'md · docx · pptx · xlsx · hwpx 는 글로 바꿔 파일마다 기록 하나 — 정리(Claude)가 읽어 이어지는 문서의 항목에 넣거나 새 문서로 세운다 · pdf · hwp 는 내 PC 프로그램에서 넣는다 · 원본은 첨부로.' : '파일마다 Claude Code 가 세션처럼 일한다 — 지식을 둘러보고, 글 속 이름을 맞추고, 회의록 › 「2026-10-21 HNC 통화」 처럼 갈래 · 주제 문서의 항목으로 넣고, 새 이름을 세운다. 하는 일은 줄마다 [터미널] 에 보인다 · Claude 가 안 되면 규칙으로.'} 한 번에 300 파일 · 200MB 까지.</p>
+   <div class="rh">최근 넣은 것</div><div data-t="recent" id="jobs">${jobsHtml()}</div>
   </div></div>
-  ${sec('', '지켜보며 맞추기', '문서 폴더 · 소스 코드(git 묶음) · DB — 바뀐 것만 읽어 지식에 맞춘다')}
-  <div class="card"><div class="ch">자동으로 가져오는 곳 <small>정한 때마다 확인 · 바뀐 것만 고친다</small>${can ? `<span class="r"><button class="btn pri" data-a="fetchAll" data-t="fetchAll" style="width:auto"${srcs.some((s) => s.kind !== 'db') ? '' : ' disabled'}>지금 모두 가져오기</button></span>` : ''}</div>
-   <div class="cb" style="padding:2px 14px 4px;overflow-x:auto">${!v ? loadingHtml : srcs.length ? `<table class="t" data-t="srcTable"><thead><tr><th>가져오는 곳</th><th>넣는 곳</th><th>언제</th><th>마지막 확인</th><th>다음</th><th></th></tr></thead><tbody>${srcs.map((s) => srcRow(s, can)).join('')}</tbody></table>` : '<p class="muted" style="margin:10px 0">아직 더한 곳 없음 — 아래에서 유형을 골라 더한다</p>'}</div>
-   <div class="cf">바뀐 줄은 그 지식의 「이력」 에 · 한꺼번에 크게 바뀌면 쓰지 않고 멈춘다 · ${can ? '언제 바꾸기는 줄의 ⋯' : '언제 바꾸기 · 더하기 · 끊기는 관리자'}</div></div>
-  ${sfForm(can)}</div>`
+  <div class="sec-h" data-t="impSec"><b>지켜보며 맞추기</b><small>문서 폴더 · 소스 코드(git 묶음) · DB — 정한 때마다 확인하고 바뀐 것만 지식에 맞춘다 · 줄을 누르면 자세히 · 고치기 · 지우기</small><span class="acts">${can ? `<button class="btn" data-a="fetchAll" data-t="fetchAll"${srcs.some((s) => s.kind !== 'pc') ? '' : ' disabled'}>지금 모두 가져오기</button><button class="btn pri" data-a="sfOpen" data-t="sfOpen">+ 가져올 곳 더하기</button>` : '<button class="btn" data-a="sfOpen" data-t="sfOpen">+ 더해 달라고 부탁</button>'}</span></div>
+  <div class="slist" data-t="srcTable">${!v ? loadingHtml : srcs.length ? srcs.map((s) => srcRow(s, can)).join('') : '<div class="none">아직 더한 곳 없음 — [+ 가져올 곳 더하기] 로 문서 폴더 · 소스 코드(git) · DB 를 더한다</div>'}</div>
+  <p class="gl">바뀐 줄은 그 지식의 「이력」 에 · 한꺼번에 크게 바뀌면 쓰지 않고 멈춘다 — 자세히에서 [지금 가져오기] 는 언제든</p></div>`
   return { crumb: '지식 만들기', main }
 }
 // 전체 다시 맞추기 — 뒤에서 돈다 · 도는 동안 1초마다 진행을 다시 받는다
@@ -1464,7 +1680,9 @@ async function sfAdd(ask) {
       render()
       const r = await postJSON(`/api/k/${encodeURIComponent(f.kn)}/sources`, card)
       const st = r.run && r.run[0]
+      S.sfOpen = false
       S.sfMsg = { t: `<b>더했다 — ${esc(card.name)}</b>${st && st.state === 'changed' ? (card.kind === 'docs' ? ` · 문서 ${st.docs}` : ` · 처음 가져온 표 ${st.n}`) : card.kind === 'git' && st && st.state === 'same' ? ' · 지금 묶음을 기준으로 두었다 — 다음 묶음부터 바뀐 코드를 기록한다' : st && st.state === 'waiting' ? '' : st && st.state === 'failed' ? ` · 그러나 못 가져왔다 — ${esc(st.why || '')}` : ''}${isTeam() && (card.kind === 'git' || card.kind === 'db') ? ` · 자격이 필요하면 서버에서 <code>kmd secret set ${esc(r.secret)}</code>` : ''}` }
+      toast(S.sfMsg.t, 8000)
       forgetKn(f.kn)
     }
     S.sf = { ...f, at: '', name: '', doc: '', gitUser: '', gitToken: '', password: '', host: '', database: '', user: '', paths: '' }
@@ -1521,16 +1739,20 @@ async function takeFiles(files) {
       row.cls = x.kind === 'fail' || x.kind === 'skip' ? 'bad' : ''
       if (x.kind === 'doc') { row.title = files[0].name + ' → ' + name + ' › ' + x.doc; row.go = { kn: t.kn, doc: x.doc } }
       if (x.kind === 'record') { row.title = files[0].name + ' → ' + name + ' › 기록'; row.rec = x.rec ? { kn: t.kn, id: x.rec } : null }
+      if (x.kind === 'run') row.run = x.run
     } else {
       row.msg = `${tops[0] ? tops[0] + ' 폴더 — ' : ''}${s.record ? '기록 ' + s.record + ' — 정리가 기존 문서에 넣거나 새 문서로 세운다 · ' : ''}${s.doc ? '문서 ' + s.doc + ' · ' : ''}첨부 ${s.att}${s.same ? ' · 그대로 ' + s.same : ''}${s.fail ? ' · 바꾸지 못한 파일 ' + s.fail : ''} · 넣지 않은 파일 ${s.skip}`
       row.cls = s.skip || s.fail ? 'bad' : ''
     }
     row.tm = nowHm()
+    const runIds = r.rows.filter((x) => x.kind === 'run').map((x) => x.run)
+    if (runIds.length) { row.run = row.run || runIds[0]; (S.termOpen ||= {})[runIds[0]] = true }
     forgetKn(t.kn)
     delete S.cache.history
     S.kns = await getJSON('/api/knowledge')
   } catch (e) { row.msg = e.message; row.cls = 'bad' }
   render()
+  pollRuns()
 }
 function readEntries(entry, p, out) {
   return new Promise((res) => {
@@ -1540,94 +1762,7 @@ function readEntries(entry, p, out) {
   })
 }
 
-// ── 지식 추가(목업 M3) ──
-function parseAdd(t) {
-  t = String(t || '').trim()
-  if (!t) return null
-  if (/^(postgres(ql)?|mysql|oracle|mssql):\/\//i.test(t) || /\.git$/i.test(t) || /^git@/i.test(t)) return { kind: 'src' }
-  if (/^https?:\/\//i.test(t)) {
-    let u
-    try { u = new URL(t) } catch { return { kind: 'bad' } }
-    const slug = decodeURIComponent((u.pathname.match(/^\/r\/([^/?#]+)/) || u.hash.match(/^#~([^/]+)/) || [])[1] || '')
-    if (!slug) return { kind: 'bad' }
-    const id = slug.replace(/_wiki$/i, '')
-    const k = S.kns.find((x) => x.id.toLowerCase() === id.toLowerCase())
-    return { kind: 'team', k: u.host === location.host && k ? k.id : null, slug, other: u.host !== location.host }
-  }
-  if (/^[A-Za-z]:\\/.test(t) || /^\/[^\s]/.test(t)) { const nm = t.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || t; return { kind: 'folder', path: t, name: nm } }
-  return { kind: 'new', name: t }
-}
 const pcRoot = () => (S.me.root || '').replace(/[\\/]+$/, '')
-function addHeard() {
-  const hasPc = !isTeam(), pr = parseAdd(S.addDraft)
-  let heard = '', ok = false
-  if (pr) {
-    if (pr.kind === 'src') heard = '<div class="heard bad" data-t="addHeard"><span class="kt src">소스 · DB</span><span>소스 코드(git) · DB 는 지식 만들기에서 더한다 <a data-a="addToImport" data-t="addToImport">→</a><span class="sub2">지켜보다 바뀐 것만 지식에 맞추는 일이라 여기서는 더하지 않는다</span></span></div>'
-    else if (pr.kind === 'team' && hasPc) heard = '<div class="heard bad" data-t="addHeard"><span class="kt team">팀</span><span>팀 지식은 팀 화면에서 연다<span class="sub2">이 PC 에서는 내 지식만 더한다 · 팀에 잇기는 팀 화면 › 설치 한 줄</span></span></div>'
-    else if (pr.kind === 'team') {
-      if (pr.k) { ok = true; heard = `<div class="heard" data-t="addHeard"><span class="kt team">팀</span><span><b>팀 지식 들어가기</b> — ${esc(KN(pr.k).name)} · 이미 목록에 있다 — 그 지식으로 간다</span></div>` }
-      else heard = `<div class="heard bad" data-t="addHeard"><span class="kt team">팀</span><span>${pr.other ? '다른 kmd 의 팀 지식 — 이 PC 에서 설치 한 줄(kmd connect)로 잇는다' : esc(pr.slug) + ' — 이 kmd 에 그런 지식이 없다'}</span></div>`
-    } else if (pr.kind === 'folder') {
-      if (!hasPc) heard = '<div class="heard bad" data-t="addHeard"><span class="kt me">내 PC</span><span>내 PC 의 폴더는 내 PC 프로그램의 지식 추가에서 들여온다<span class="sub2">새 이름을 붙이면 팀 서버 안 내 지식이 선다</span></span></div>'
-      else { ok = true; heard = `<div class="heard" data-t="addHeard"><span class="kt me">내 PC</span><span><b>새 지식으로 들여오기</b> — 지식 폴더 안 「${esc(pr.name)}」 로<span class="sub2">md · docx · pptx · xlsx 는 문서가 되고 그 밖은 첨부 · 원본 폴더는 그대로 둔다 · 한 번에 300 파일 · 200MB</span></span></div>` }
-    } else if (pr.kind === 'new') { ok = true; heard = `<div class="heard" data-t="addHeard"><span class="kt me">${hasPc ? '내 PC' : '개인'}</span><span><b>${hasPc && !S.kns.length ? '첫 지식 세우기' : '새 지식 만들기'}</b> — ${hasPc ? esc(pcRoot() + '\\' + pr.name) + ' · 나만' : '팀 서버 안 내 지식 「' + esc(pr.name) + '」 · 나만(관리자는 볼 수 있다)'}</span></div>` }
-    else heard = `<div class="heard bad" data-t="addHeard">알아듣지 못했다 — ${hasPc ? '이름이나 내 PC 폴더 경로를' : '이름이나 팀 지식 주소를'} 붙인다</div>`
-  }
-  return { heard, btn: `<button class="btn pri" data-a="doAdd" data-t="addBtn"${ok ? '' : ' disabled'}>${hasPc && !S.kns.length ? '세우기' : '추가'}</button>`, ok }
-}
-// 이 PC — 내 지식만 다룬다(팀 지식 주소는 팀 화면의 일). 지식은 모두 지식 폴더 안에 — 밖의 폴더는 새 지식으로 들여온다(원본은 그대로).
-// 내 지식이 하나도 없으면 「내 지식 세우기」 — 지식 폴더를 먼저 보이고 첫 이름 하나
-function rootCard(first) {
-  const root = pcRoot()
-  return `<div class="card" data-t="addRoot"><div class="ch">지식 폴더 <small>내 지식은 모두 이 안에 — 지식 하나 = 폴더 하나</small></div><div class="cb"><div class="path" data-t="rootPath"><span class="mono">${esc(root)}</span><a class="r lk" data-a="copyRoot" data-t="copyRoot">경로 복사</a></div>${first ? '<div class="kv" style="margin-top:10px"><span>누가</span><span>나만 — 이 PC 밖으로는 백업 · 보내기 · Claude 정리만 나간다</span></div>' : ''}</div><div class="cf">탐색기 · 편집기에서 열 때 이 경로를 붙인다 · 다른 자리로 하려면 kmd 를 그 폴더로 다시 연다 — <code>kmd up D:\\다른자리</code></div></div>`
-}
-function viewAddPc() {
-  const ah = addHeard(), root = pcRoot(), first = S.kns.length === 0
-  const msg = S.addMsg ? `<div class="callout ${S.addMsg.cls} stop" data-t="addMsg"><i></i><span>${S.addMsg.t}</span></div>` : ''
-  const box = (ph) => `<div class="paste"><input class="inp mono" id="addIn" data-in="add" data-t="addIn" value="${esc(S.addDraft)}" placeholder="${ph}" autocomplete="off"><span id="addBtnBox">${ah.btn}</span></div><div id="addHeardBox">${ah.heard}</div>`
-  if (first) return { crumb: '내 지식 세우기', main: `<div style="max-width:820px"><div class="big">내 지식 세우기</div><p class="lead">아직 내 지식이 없다. 첫 지식의 이름을 정하면 지식 폴더 안에 선다.</p>
-  ${msg}${rootCard(true)}
-  <div class="rh" style="margin-top:16px">첫 지식 이름</div>${box('예: 메모')}
-  <p class="small muted" style="margin-top:10px">md 를 모아 둔 폴더가 이미 있으면 그 경로를 붙인다(예: <code data-a="fillAdd" data-v="D:\\옛자료" style="cursor:pointer">D:\\옛자료</code>) — 지식 폴더 안의 새 지식으로 들여온다 · 원본은 그대로.</p></div>` }
-  return { crumb: '지식 추가', main: `<div style="max-width:820px"><div class="big">지식 추가</div><p class="lead">새 이름이나 내 PC 폴더를 붙인다 — 지식 폴더 안에 내 지식 ${S.kns.length} 옆으로 선다.</p>
-  ${msg}${rootCard(false)}<div style="margin-top:16px">${box('예: 회의 · D:\\옛자료')}</div>
-  <div class="card" style="margin-top:16px"><div class="ch">이렇게도 붙인다</div><div class="cb" style="padding:2px 14px"><ul class="plain">
-   <li><code data-a="fillAdd" data-v="회의" style="cursor:pointer">회의</code> → <b>새 지식 만들기</b> — 지식 폴더 안 「회의」 · 나만</li>
-   <li><code data-a="fillAdd" data-v="D:\\옛자료" style="cursor:pointer">D:\\옛자료</code> → <b>새 지식으로 들여오기</b> — 지식 폴더 안 「옛자료」 로 · 원본은 그대로</li>
-   <li>문서 폴더 · 소스 코드(git) · DB → <a data-a="nav" data-s="import">지식 만들기</a>에서 — 지켜보다 바뀐 것만 지식에 맞춘다</li>
-  </ul></div><div class="cf">예를 누르면 칸에 들어간다</div></div></div>` }
-}
-function viewAdd() {
-  if (!isTeam()) return viewAddPc()
-  const hasPc = !isTeam(), ah = addHeard(), ex = location.origin + '/r/' + ((S.kns.find((k) => !k.private) || S.kns[0] || {}).id || 'dpms')
-  return { crumb: '지식 추가', main: `<div style="max-width:820px"><div class="big">지식 추가</div><p class="lead">새 이름 · 팀 지식 주소를 붙인다 — kmd 가 알아서 가른다. 내 PC 의 폴더는 내 PC 프로그램의 지식 추가에서 들여온다.</p>
-  ${S.addMsg ? `<div class="callout ${S.addMsg.cls} stop" data-t="addMsg"><i></i><span>${S.addMsg.t}</span></div>` : ''}
-  <div class="paste"><input class="inp mono" id="addIn" data-in="add" data-t="addIn" value="${esc(S.addDraft)}" placeholder="예: 회의 · ${esc(ex)}" autocomplete="off"><span id="addBtnBox">${ah.btn}</span></div><div id="addHeardBox">${ah.heard}</div>
-  <div class="card" style="margin-top:16px"><div class="ch">이렇게도 붙인다</div><div class="cb" style="padding:2px 14px"><ul class="plain">
-   <li><code data-a="fillAdd" data-v="회의" style="cursor:pointer">회의</code> → <b>새 지식 만들기</b> — ${hasPc ? esc(pcRoot() + '\\회의') + ' · 나만' : '팀 서버 안 내 지식'}</li>
-   <li>내 PC 의 폴더(예: <code>D:\\옛자료</code>) → <b>내 PC 프로그램</b>의 지식 추가에서 — 지식 폴더 안의 새 지식으로 들여온다 · 원본은 그대로</li>
-   <li><code data-a="fillAdd" data-v="${esc(ex)}" style="cursor:pointer">${esc(ex)}</code> → <b>팀 지식 들어가기</b></li>
-   <li><code data-a="fillAdd" data-v="git@gitlab.team.local:dpms/dpms-batch.git" style="cursor:pointer">git@gitlab.team.local:dpms/dpms-batch.git</code> → 소스 코드(git) · DB 는 <a data-a="nav" data-s="import">지식 만들기</a>에서</li>
-  </ul></div><div class="cf">예를 누르면 칸에 들어간다</div></div></div>` }
-}
-async function doAdd() {
-  const pr = parseAdd(S.addDraft)
-  if (!pr) return
-  S.addMsg = null
-  if (pr.kind === 'team') { if (pr.k) { S.addDraft = ''; go({ scr: 'docs', kn: pr.k }) } return }
-  if (pr.kind !== 'new' && pr.kind !== 'folder') return
-  try {
-    const r = await postJSON('/api/knowledge/add', pr.kind === 'new' ? { kind: 'new', name: pr.name } : { kind: 'folder', dir: pr.path })
-    S.kns = await getJSON('/api/knowledge')
-    S.addDraft = ''
-    delete S.cache.history
-    const firstPc = !isTeam() && S.kns.length === 1
-    const s = r.summary
-    const got = s ? ` · 문서 ${s.doc}${s.att ? ' · 첨부 ' + s.att : ''}${s.fail ? ' · 바꾸지 못한 파일 ' + s.fail : ''}${s.skip ? ' · 넣지 않은 파일 ' + s.skip : ''} — 원본은 그대로` : ''
-    S.addMsg = { cls: '', t: `<b>${r.from ? '들여왔다' : firstPc ? '세웠다' : pr.kind === 'new' && isTeam() ? '만들었다' : '추가했다'} — ${esc(r.name)}</b>${isTeam() ? ' · 팀 서버 안 내 지식' : got || (r.dir ? ' · ' + esc(r.dir) : '')} <a data-a="openKn" data-k="${esc(r.id)}">${firstPc && !r.from ? '열어서 첫 문서 쓰기' : '열기'} ›</a>` }
-  } catch (e) { S.addMsg = { cls: 'gray', t: `<b>${esc(e.message)}</b>` } }
-  render()
-}
 
 // ── 보내기(목업 M10 · 정정 2026-10-23) ──
 // 두 영역 — 영역마다 보내기 단추
@@ -1884,7 +2019,7 @@ function agentCard() {
     }).join('')
     const add = S.agAdding ? `<div class="paste" style="margin-top:10px"><input class="inp mono" id="agIn" data-in="ag" data-t="agIn" value="${esc(S.agDraft || '')}" placeholder="작업 폴더 경로 — 예: D:\\work\\dpms-batch" autocomplete="off"><span id="agBtnBox">${agBtn()}</span></div>` : '<button class="btn pri" data-a="agentAdd" data-t="agentAddBtn" style="margin-top:10px">폴더 더하기</button>'
     return `<div class="card" data-t="agentCard" style="overflow:visible"><div class="ch">에이전트 설치 <small>Claude Code 에 kmd 를 붙인다 — 작업 폴더마다</small><span class="r"><button class="kebab${S.menu === 'agAll' ? ' on' : ''}" data-a="menu" data-m="agAll" data-t="agentAllKebab" title="지금 모두 최신으로">⋯${S.menu === 'agAll' ? `<div class="menu" style="right:0;top:28px"><div class="mi" data-a="agentAllNew" data-t="agentAllNew">지금 모두 최신으로<small>${oldN ? '옛 판 ' + oldN : '모두 최신'}</small></div></div>` : ''}</button></span></div><div class="cb" style="padding:2px 14px 12px">${S.agMsg ? `<div class="callout" data-t="agentMsg">${S.agMsg}</div>` : ''}<ul class="plain" data-t="agentList">${rows || '<li class="muted">아직 붙인 폴더가 없다</li>'}</ul>${add}
-   <details class="more" data-t="agentMore"><summary>자세히 — 무엇이 깔리나</summary><div class="in">스킬 둘 — <code>kmd-work</code> · <code>kmd-save</code><br>연결 둘 — 팀 kmd · 이 PC 의 kmd · 열쇠는 이 PC 의 자격 저장소에서 꺼낸다<br>안내 한 덩이 — <code>CLAUDE.md</code> 안 kmd 덩이 · 사람이 고친 줄은 그대로 두고 kmd 덩이만 바꾼다</div></details></div></div>`
+   <details class="more" data-t="agentMore"><summary>자세히 — 무엇이 깔리나</summary><div class="in">스킬 셋 — <code>kmd-work</code> · <code>kmd-save</code> · <code>kmd-build</code>(파일을 지식에 들이기)<br>연결 둘 — 팀 kmd · 이 PC 의 kmd · 열쇠는 이 PC 의 자격 저장소에서 꺼낸다<br>안내 한 덩이 — <code>CLAUDE.md</code> 안 kmd 덩이 · 사람이 고친 줄은 그대로 두고 kmd 덩이만 바꾼다</div></details></div></div>`
   }
   const devs = devicesOf()
   return `<div class="card" data-t="agentCard"><div class="ch">에이전트 설치 <small>Claude Code 에 kmd 를 붙인다</small></div><div class="cb" style="padding:2px 14px 12px"><div class="set"><span class="tx"><b>이 PC 의 Claude Code 로 쓰려면 — 설치 한 줄 복사</b><small>작업 폴더의 터미널에 붙여 넣는다 · 10분 동안 한 번만 · 내 PC 프로그램이 있으면 그 프로그램에 폴더를 더한다</small></span><button class="btn pri" data-a="copyInstall" data-t="copyInstall">설치 한 줄 복사</button></div>
@@ -2086,7 +2221,7 @@ const ACT = {
   fetchSrc: (el) => fetchSrc(el.dataset.id),
   resyncSrc: (el) => resyncSrc(el.dataset.id),
   toggleMeaning: async (el) => { const [kn, name] = el.dataset.id.split('|'); S.menu = null; try { await postJSON(`/api/k/${encodeURIComponent(kn)}/sources/meaning`, { name, on: !!el.dataset.v }); delete S.cache.sources; toast(el.dataset.v ? '뜻 갱신을 켰다 — 이제 바뀐 코드로 관련 항목 글도 맞춘다' : '뜻 갱신을 껐다 — 표만 채운다') } catch (e) { toast(esc(e.message)) } render() },
-  fetchAll: async () => { for (const s of (sourcesOf() || {}).items || []) await fetchSrc(s.kn + '|' + s.name) },
+  fetchAll: async () => { for (const s of ((sourcesOf() || {}).items || []).filter((x) => x.kind !== 'pc')) await fetchSrc(s.kn + '|' + s.name) },
   setEvery: async (el, ev) => {
     if (ev.target.closest('[data-stop]')) return
     const [kn, name] = el.dataset.id.split('|'), at = ($('#evAt') || {}).value || '06:00'
@@ -2096,7 +2231,17 @@ const ACT = {
     render()
   },
   sfType: (el) => { const f = sfState(); f.type = el.dataset.v; f.rule = f.type === 'db' ? 'dbtables' : f.rule === 'dbtables' ? 'deps' : f.rule; S.sfMsg = null; render() },
+  termToggle: (el) => { const id = el.dataset.id; (S.termOpen ||= {})[id] = !S.termOpen[id]; paintJobs(); pollRuns() },
   sfAdd: () => sfAdd(false),
+  sfOpen: () => { S.sfOpen = true; S.sfMsg = null; render() },
+  sfClose: () => { S.sfOpen = false; render() },
+  srcOpen: (el) => srcOpen(el.dataset.id),
+  seClose: () => { if (S.se && !S.se.busy) { S.se = null; render() } },
+  seSave: () => seSave(),
+  seDel: () => { S.se.del = true; render() },
+  seDelNo: () => { S.se.del = false; render() },
+  seDelOk: () => seDelOk(),
+  seMeaning: () => { S.se.meaning = !S.se.meaning; render() },
   sfAsk: () => sfAdd(true),
   sfProbe: () => sfProbe(),
   sfCheck: () => sfCheck(),
@@ -2105,9 +2250,12 @@ const ACT = {
   delClose: () => { if (S.del && !S.del.busy) { S.del = null; render() } },
   delDo: () => delDo(),
   copyRoot: () => { copyText(pcRoot()); toast('지식 폴더 경로를 복사했다') },
-  fillAdd: (el) => { S.addDraft = el.dataset.v; S.addMsg = null; S._focus = 'addIn'; render() },
-  addToImport: () => { const f = sfState(), t = S.addDraft.trim(); if (/^(postgres(ql)?|mysql|oracle|mssql):\/\//i.test(t)) f.type = 'db'; else { f.type = 'git'; f.at = t } S.addDraft = ''; go({ scr: 'import' }) },
   doAdd: () => doAdd(),
+  openAdd: () => openAdd(),
+  addClose: () => { if (S.addPop && !S.addPop.busy) { S.addPop = null; render() } },
+  syncKn: () => syncKn(),
+  knMove: (el, ev) => { ev.stopPropagation(); S.menu = null; knMove(el.dataset.k, Number(el.dataset.v)) },
+  knHide: (el, ev) => { ev.stopPropagation(); S.menu = null; knHide(el.dataset.k, !!el.dataset.v) },
   // 보내기 — 변경사항 체크(처음엔 모두) · 전체 체크 / 해제 · 지식에서 고르기 · 받은편지함 메모
   sendCh: (el) => { (S.sendOff ||= {})[sendKey(el.dataset.k, el.dataset.v)] = !el.checked; render() },
   sendPick: (el) => { (S.sendSel ||= {})[sendKey(el.dataset.k, el.dataset.v)] = el.checked; render() },
@@ -2175,11 +2323,13 @@ const ACT = {
   gateHome: () => { S.gate = null; history.replaceState(null, '', '/'); go({ scr: 'home', kn: '*' }) },
   gateLogin: () => { S.gate = null; history.replaceState(null, '', '/'); render() },
   view: (el) => setView(el.dataset.v),
-  nav: (el) => go({ scr: el.dataset.s }),
+  nav: (el) => (el.dataset.s === 'add' ? openAdd() : go({ scr: el.dataset.s })),
   kmenu: () => { S.menu = S.menu === 'kmenu' ? null : 'kmenu'; render() },
   // 개인 지식을 고르면 팀 지식에만 있는 화면(정리 · 이 지식의 사람)에서 그 지식의 문서로
   pickKn: (el, ev) => { ev.stopPropagation(); S.menu = null; const k = el.dataset.k; if (k === '*') go({ scr: 'home', kn: '*' }); else go({ scr: KNSCR.includes(S.route.scr) && !(isPersonal(KN(k)) && ['tidy', 'members'].includes(S.route.scr)) ? S.route.scr : 'docs', kn: k }) },
-  openKn: (el) => { if (el.classList.contains('dim')) { toast('내 PC 프로그램이 꺼져 있다 — 켜면 저절로 다시 열린다'); return } go({ scr: 'docs', kn: el.dataset.k }) },
+  openKn: (el, ev) => {
+    if (ev.target.closest('.kebab,.btn')) return
+    if (el.classList.contains('dim')) { toast('내 PC 프로그램이 꺼져 있다 — 켜면 저절로 다시 열린다'); return } go({ scr: 'docs', kn: el.dataset.k }) },
   pcAllow: () => pcAllow(),
   pairOk: (el) => pairOk(el.dataset.v),
   histGo: (el) => histGo(Number(el.dataset.v)),
@@ -2218,12 +2368,12 @@ const ACT = {
 }
 document.addEventListener('click', (ev) => {
   const el = ev.target.closest('[data-a]')
-  if (!el) { if (S.menu && !ev.target.closest('.menu')) { S.menu = null; render() } return }
+  if (!el) { if (S.menu && !ev.target.closest('.menu,.pop')) { S.menu = null; render() } return }
   if (el.dataset.self && ev.target !== el) return
   const f = ACT[el.dataset.a]
   if (!f) return
   if (el.tagName === 'A') ev.preventDefault()
-  if (S.menu && !['menu', 'kmenu', 'pickKn'].includes(el.dataset.a) && !ev.target.closest('.menu')) S.menu = null
+  if (S.menu && !['menu', 'kmenu', 'pickKn'].includes(el.dataset.a) && !ev.target.closest('.menu,.pop')) S.menu = null
   f(el, ev)
 })
 document.addEventListener('input', (ev) => {
@@ -2239,11 +2389,19 @@ document.addEventListener('input', (ev) => {
   if (k === 'ag') { S.agDraft = t.value; $('#agBtnBox').innerHTML = agBtn() }
   if (k === 'admCode') { S.admCode = t.value; $('#admDoneBox').innerHTML = admDoneBtn() }
   if (k === 'sf') sfState()[t.dataset.f] = t.value
+  if (k === 'se' && S.se) S.se[t.dataset.f] = t.value
   if (k === 'sendQ') { S.sendQ = t.value; const q = t.value.trim().toLowerCase(); for (const r of document.querySelectorAll('[data-t=sendDoc],[data-t=sendRec]')) r.style.display = !q || r.textContent.toLowerCase().includes(q) ? '' : 'none' }
-  if (k === 'add') { S.addDraft = t.value; const h = addHeard(); $('#addHeardBox').innerHTML = h.heard; $('#addBtnBox').innerHTML = h.btn; const m = $('[data-t=addMsg]'); if (m) { S.addMsg = null; m.remove() } }
+  if (k === 'addName' && S.addPop) { S.addPop.name = t.value; if (S.addPop.err) { S.addPop.err = null; const m = $('[data-t=addMsg]'); if (m) m.remove() } }
 })
 // 파일 · 폴더 — 고르기 · 끌어다 놓기
-document.addEventListener('change', (ev) => { const t = ev.target; if (t.dataset && t.dataset.sf) { sfState()[t.dataset.sf] = t.type === 'checkbox' ? t.checked : t.value; if (t.dataset.sf === 'rule') render(); return } if (t.id === 'logKn') { S.logKn = t.value; render(); return } if (t.id === 'fileIn' || t.id === 'dirIn') { takeFiles(t.files); t.value = '' } })
+document.addEventListener('change', (ev) => { const t = ev.target; if (t.dataset && t.dataset.se && S.se) { S.se[t.dataset.se] = t.value; render(); return } if (t.dataset && t.dataset.sf) { sfState()[t.dataset.sf] = t.type === 'checkbox' ? t.checked : t.value; if (t.dataset.sf === 'rule') render(); return } if (t.id === 'logKn') { S.logKn = t.value; render(); return } if (t.id === 'fileIn' || t.id === 'dirIn') { takeFiles(t.files); t.value = '' } })
+document.addEventListener('dragstart', (ev) => { const c = ev.target.closest && ev.target.closest('[data-drag]'); if (!c) return; S.dragK = c.dataset.drag; c.classList.add('drag'); ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', c.dataset.drag) } catch {} })
+document.addEventListener('dragend', () => { S.dragK = null; for (const x of document.querySelectorAll('.kcard.drag,.kcard.over')) x.classList.remove('drag', 'over') })
+document.addEventListener('dragover', (ev) => { const c = S.dragK && ev.target.closest && ev.target.closest('[data-drag]'); if (c) { ev.preventDefault(); for (const x of document.querySelectorAll('.kcard.over')) if (x !== c) x.classList.remove('over'); if (c.dataset.drag !== S.dragK) c.classList.add('over') } })
+document.addEventListener('drop', (ev) => { const c = S.dragK && ev.target.closest && ev.target.closest('[data-drag]'); if (!c) return; ev.preventDefault(); const r = c.getBoundingClientRect(); knPlace(S.dragK, c.dataset.drag, ev.clientX > r.left + r.width / 2); S.dragK = null })
+// 팝업은 스크롤해도 단추를 따라간다
+document.addEventListener('scroll', () => { if (S.menu) placePop() }, true)
+window.addEventListener('resize', () => { if (S.menu) placePop() })
 document.addEventListener('dragover', (ev) => { const d = ev.target.closest && ev.target.closest('#drop'); if (d) { ev.preventDefault(); d.classList.add('over') } })
 document.addEventListener('dragleave', (ev) => { const d = ev.target.closest && ev.target.closest('#drop'); if (d) d.classList.remove('over') })
 document.addEventListener('drop', async (ev) => {
@@ -2280,6 +2438,9 @@ document.addEventListener('keydown', (ev) => {
   }
   if (ev.altKey && !ctrl && (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') && !/^(TEXTAREA|INPUT)$/.test(ev.target.tagName)) { ev.preventDefault(); histGo(ev.key === 'ArrowLeft' ? -1 : 1); return }
   if (ev.key === 'Escape' && S.del && !S.del.busy) { S.del = null; render(); return }
+  if (ev.key === 'Escape' && S.addPop && !S.addPop.busy) { S.addPop = null; render(); return }
+  if (ev.key === 'Escape' && S.se && !S.se.busy) { S.se = null; render(); return }
+  if (ev.key === 'Escape' && S.sfOpen) { S.sfOpen = false; render(); return }
   if (ev.key === 'Escape') { if (S.qo) S.qo = null; else if (S.cmd) S.cmd = null; else if (S.pal) S.pal = null; else if (S.menu) S.menu = null; else return; render() }
   if (ev.key === 'Enter' && !ev.isComposing && ev.target.id === 'palIn') { const h = $('#app .hit'); if (h) h.click() }
   if (ev.key === 'Enter' && !ev.isComposing && ev.target.id === 'addIn') { ev.preventDefault(); doAdd() }
@@ -2290,7 +2451,7 @@ document.addEventListener('keydown', (ev) => {
 setInterval(() => { const c = $('[data-t=clock]'); if (c && S.me) c.textContent = `kmd v${S.me.version} · ${clock()}` }, 30000)
 // 자료 가져오기를 보는 동안 — 감시가 뒤에서 바꾼 줄을 20초마다 조용히 다시(칸에 쓰는 중 · 메뉴 · 창이 열려 있으면 그다음에)
 setInterval(async () => {
-  if (!S.me || anon() || S.route.scr !== 'import' || S.menu || S.del || S.pal || S.qo || S.cmd) return
+  if (!S.me || anon() || S.route.scr !== 'import' || S.menu || S.del || S.pal || S.qo || S.cmd || S.se || S.sfOpen) return
   if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return
   const v = await getJSON('/api/sources').catch(() => null)
   if (v && JSON.stringify(v) !== JSON.stringify(S.cache.sources)) { S.cache.sources = v; render() }
