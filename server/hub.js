@@ -66,7 +66,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   let sourceTimer = null
   const lastTidy = new Map()
   const drafts = new Map() // 초안 전용 단기 열쇠(sha → { job, kn, exp })
-  const curateRuns = new Map() // 이 PC — 지식마다 바로 넣기 한 줄
+  const curateRuns = new Map() // 이 PC · 팀 서버의 개인 지식 — 지식마다 바로 넣기 한 줄
+  const liveTimers = new Map() // 팀 지식 「실시간」 정리 — 조용해진 뒤 한 번
+  const privTimers = new Map() // 개인 지식 일감 — 주인의 PC 일꾼이 오래 받지 않으면 규칙으로
+  const seenFile = path.join(dataDir, 'worker-seen.json') // 사람마다 PC 일꾼이 마지막으로 일감을 물은 때
+  let seen = null
+  const seenOf = async () => (seen ??= await fs.readFile(seenFile, 'utf8').then(JSON.parse, () => ({})))
   const sha = (t) => crypto.createHash('sha256').update(String(t)).digest('hex')
   async function groupFor(k, id, g) {
     if (!g) return null
@@ -322,12 +327,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 그 사람의 「오늘 바뀐 것」 한 줄
       const title = input?.record?.title || ''
       feed.add(dataDir, ctx.user, queued || !r0.docs.length
-        ? { kind: 'save', rec: r0.id, kn: id, dot: r0.docs.length ? 'acc' : 'pend', text: `${meta.name}에 기록 — 「${title.split(' — ')[0]}」`, small: r0.docs.length ? '' : '정리 때 문서에 들어간다' }
+        ? { kind: 'save', rec: r0.id, kn: id, dot: r0.docs.length ? 'acc' : 'pend', text: `${meta.name}에 기록 — 「${title.split(' — ')[0]}」`, small: r0.docs.length ? '' : mode === 'pc' || hub.teamPrivate(id) ? 'kmd 가 곧바로 문서에 넣는다' : '정리 때 문서에 들어간다' }
         : { kind: 'save', rec: r0.id, kn: id, dot: 'acc', text: `저장 — ${meta.name} › ${r0.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')).join(' · ')} 「${title.split(' — ')[0]}」`, small: '문서에도 넣었다' }).catch(() => {})
       cache.delete(id)
       scheduleDecide(id)
-      // 이 PC — 남은 기록은 바로 문서에(뒤에서)
-      if (mode === 'pc' && !opt.system && !opt.noCurate) hub.curateSoon(id).catch(() => {})
+      // 이 PC · 팀 서버의 개인 지식 — 남은 기록은 바로 문서에(뒤에서) · 팀 지식은 정리 방식이 「실시간」 이면 조용해진 뒤
+      if ((mode === 'pc' || hub.teamPrivate(id)) && !opt.system && !opt.noCurate) hub.curateSoon(id).catch(() => {})
+      else if (mode === 'team' && !opt.system && hub.tidyModeOf(id) === 'live') hub.liveSoon(id)
       // 백업은 기다리되 길게는 아니다 — 늦으면 다음 판정이 줄을 낸다
       if (backup.attached(meta)) await Promise.race([backup.enqueue(meta, { log }), new Promise((ok) => setTimeout(ok, 3000).unref?.())])
       return { ...r, warnings: backup.lines(meta, { name: meta.name }).map((l) => l.text) }
@@ -569,7 +575,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           // 코드가 바뀌어 기록을 남겼다 — 그 지식의 정리를 바로 건다(정리 검사를 그대로 탄다 · 값이 바뀌면 노랑 · 되돌릴 수 있다)
           // 「Claude 에 보내지 않음」 지식 · 이 PC 의 자동 정리 끔이면 기록만 남는다(사람이 정리할 때 들어간다)
           if (r.codeRecords && mode === 'pc') hub.curateSoon(id).catch(() => {})
-          else if (r.codeRecords && hub.meaningOk(id)) hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
+          else if (r.codeRecords && hub.teamPrivate(id)) hub.curateSoon(id).catch(() => {})
+          else if (r.codeRecords && hub.meaningOk(id) && hub.tidyModeOf(id) !== 'manual') hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
           if (r.state === 'changed') for (const u of await hub.curatorsOf(id)) await feed.add(dataDir, u, { kind: 'source', kn: id, dot: 'acc', text: r.commits != null ? `${s.name}에서 새 묶음 ${r.commits} · 코드 바뀜 기록 ${r.codeRecords} — ${meta.name}` : `${s.name}에서 바뀐 표 ${r.n} — ${meta.name}`, small: r.commits != null ? '정리가 걸린 항목 글을 맞춘다' : `바뀐 파일 ${r.files} · 저절로 채우는 표` })
           return r
         })
@@ -730,8 +737,17 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // ── 정리(KM81 — 검사를 넘으면 승인 없이 바로) ──
     // 일감은 서버가 낸다(정해진 시간 · [지금 정리]). 일꾼은 일감마다 받은 초안 전용 단기 열쇠로 재료를 받고 초안만 올린다
     tidyAtOf: (id) => owners.rowOf(reg, id)?.tidyAt || config.tidyAt || '02:30',
+    // 팀 지식의 정리 방식 — time 정해진 시각(기본) · live 실시간(기록이 남고 조용해진 뒤) · manual 손으로만([지금 정리])
+    tidyModeOf: (id) => owners.rowOf(reg, id)?.tidyMode || 'time',
+    teamPrivate: (id) => mode === 'team' && !!owners.rowOf(reg, id)?.private,
+    liveSoon(id) {
+      clearTimeout(liveTimers.get(id))
+      const t = setTimeout(() => { liveTimers.delete(id); if (hub.meaningOk(id) && hub.tidyModeOf(id) === 'live') hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {}) }, config.liveQuietMs ?? 5 * 60_000)
+      t.unref?.()
+      liveTimers.set(id, t)
+    },
     async tidyNow(ctx, id, { by = ctx.user, auto = false } = {}) {
-      await hub.meta(id, ctx)
+      await hub.meta(id, auto && ctx.user === 'kmd' ? undefined : ctx)
       const cur = [...jobs.values()].find((j) => j.kn === id && (j.state === 'queued' || j.state === 'running'))
       if (cur) return cur
       const j = { id: crypto.randomBytes(6).toString('hex'), kn: id, by, auto, at: new Date().toISOString(), state: 'queued' }
@@ -742,13 +758,20 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     jobsOf: (id) => [...jobs.values()].filter((j) => j.kn === id),
     // 일꾼 — 다음 일감 하나 + 그 일감 · 그 지식에만 쓰는 단기 열쇠(30분 · 한 일감)
     workerNext(wctx) {
-      const j = [...jobs.values()].find((x) => x.state === 'queued')
+      const own = wctx.worker.owner || null
+      if (own) {
+        const now = new Date().toISOString()
+        seenOf().then((m) => { if (!m[own] || Date.parse(now) - Date.parse(m[own]) > 60_000) { m[own] = now; return fs.writeFile(seenFile, JSON.stringify(m)) } }).catch(() => {})
+      }
+      const mine = (j) => { const row = owners.rowOf(reg, j.kn); return own ? !!row?.private && row.owner === own : !row?.private }
+      const j = [...jobs.values()].find((x) => x.state === 'queued' && mine(x))
       if (!j) return null
+      clearTimeout(privTimers.get(j.kn))
       j.state = 'running'
       j.worker = wctx.worker.id
       j.started = new Date().toISOString()
       const key = 'kmdd_' + crypto.randomBytes(24).toString('base64url')
-      drafts.set(sha(key), { job: j.id, kn: j.kn, exp: Date.now() + 30 * 60_000 })
+      drafts.set(sha(key), { job: j.id, kn: j.kn, owner: own, exp: Date.now() + 30 * 60_000 })
       return { job: { id: j.id, kn: j.kn }, key }
     },
     draftCtx(token) {
@@ -761,7 +784,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const row = owners.rowOf(reg, id)
       // 나가기 전에 막는다 — 「Claude 에 보내지 않음」 · 남의 개인 지식은 주인이 켠 것만
       if (row?.noClaude) throw new KmdError('E_FORBIDDEN', '이 지식은 Claude 에 보내지 않는다')
-      if (row?.private && !row.workerOk) throw new KmdError('E_FORBIDDEN', '개인 지식은 주인이 켠 것만 정리한다')
+      // 개인 지식은 그 사람의 PC 일꾼(그 사람의 Claude)만 — 팀의 정리 전용 로그인으로는 나가지 않는다
+      if (row?.private ? dctx.draft.owner !== row.owner : dctx.draft.owner) throw new KmdError('E_FORBIDDEN', '개인 지식은 그 사람의 PC 일꾼만 정리한다')
       const k = await hub.get(id)
       const idx = await hub.index(id)
       const learned = await loadLearned(dataDir, id)
@@ -831,10 +855,19 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         j.summary = { put: rows.filter((x) => x.kind === 'put' || x.kind === 'touches').length, changed: rows.filter((x) => x.kind === 'changed').length, left: rows.filter((x) => x.kind === 'left').length }
       }
       drafts.delete(sha(dctx.token || ''))
+      if (hub.teamPrivate(id)) hub.curateRules(id).catch(() => {})
       if (backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
       return { rows, summary: j?.summary || null }
     },
     async workerStatus(wctx, { ok = true, reason = null, message = null } = {}) {
+      if (wctx.worker.owner) {
+        for (const j of jobs.values()) {
+          if (j.state !== 'running' || j.worker !== wctx.worker.id || ok) continue
+          j.state = 'failed'
+          hub.curateRules(j.kn).catch(() => {})
+        }
+        return { ok, reason }
+      }
       const prev = await fs.readFile(path.join(dataDir, 'worker.json'), 'utf8').then(JSON.parse, () => ({}))
       const next = ok ? { ok: true, at: new Date().toISOString() } : { ok: false, reason, message: String(message || '').slice(0, 200), since: prev.ok === false ? prev.since : new Date().toISOString(), at: new Date().toISOString() }
       await fs.mkdir(dataDir, { recursive: true })
@@ -894,6 +927,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     //   항목이 정해진 기록 → 그 항목 끝에 글을 붙인다 · 이름 없는 기록(넣은 파일 · 세션 메모) → 이어지는 문서 또는 새 문서(규칙이면 새 문서)
     //   어느 쪽이든 그 기록은 「넣음」(reflects) · 넣은 일은 이력에 · 지식마다 한 줄로(저장은 바로 돌려주고 뒤에서)
     async askClaude(id, prompt, schema) {
+      if (mode !== 'pc') return { why: 'PC 일꾼이 받지 못했다' }
       if (!hub.meaningOk(id)) return { why: 'Claude 를 쓰지 않는다' }
       const r = await runClaude({ prompt, schema, budget: 0.5 })
       if (r.error) {
@@ -985,7 +1019,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 그 지식의 「아직 안 넣은 기록」 모두 — 이름을 고른 기록은 다음 차례에 그 항목으로(세 차례까지)
     async curatePending(id) {
-      if (mode !== 'pc') return { n: 0 }
+      if (mode !== 'pc' && !hub.teamPrivate(id)) return { n: 0 }
       let n = 0
       for (let round = 0; round < 3; round++) {
         cache.delete(id)
@@ -1003,8 +1037,33 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       return { n }
     },
     // 저장 뒤 — 지식마다 한 줄로 뒤에서(저장은 기다리지 않는다) · 시험은 curateIdle 로 기다린다
+    // 팀 서버의 개인 지식 — 주인의 PC 일꾼(그 사람의 Claude)에 일감을 건다. PC 일꾼을 7일 안에 본 적이 없거나(브라우저만 쓴다) ·
+    //   Claude 에 보내지 않는 지식이면 곧바로 규칙으로 · 일감을 privateWaitMs(기본 하루) 안에 받지 않으면(PC 가 꺼져 있다) 규칙으로
     curateSoon(id) {
-      if (mode !== 'pc') return Promise.resolve()
+      if (mode !== 'pc' && !hub.teamPrivate(id)) return Promise.resolve()
+      const run = (curateRuns.get(id) || Promise.resolve()).catch(() => {}).then(async () => {
+        if (mode === 'pc') return hub.curatePending(id)
+        const owner = owners.rowOf(reg, id)?.owner
+        const last = (await seenOf())[owner]
+        if (!owner || !hub.meaningOk(id) || !last || Date.now() - Date.parse(last) > 7 * 24 * 3600_000) return hub.curatePending(id)
+        const j = await hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true })
+        if (!privTimers.has(id) && j.state === 'queued') {
+          const t = setTimeout(() => {
+            privTimers.delete(id)
+            if (j.state !== 'queued') return
+            Object.assign(j, { state: 'failed', why: 'PC 일꾼이 받지 않았다' })
+            hub.curateRules(id).catch(() => {})
+          }, config.privateWaitMs ?? 24 * 3600_000)
+          t.unref?.()
+          privTimers.set(id, t)
+        }
+        return { job: j.id }
+      })
+      curateRuns.set(id, run)
+      return run
+    },
+    // 규칙으로만 — 지식마다 한 줄
+    curateRules(id) {
       const run = (curateRuns.get(id) || Promise.resolve()).catch(() => {}).then(() => hub.curatePending(id))
       curateRuns.set(id, run)
       return run
@@ -1050,7 +1109,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const s = summary(plan.rows)
       if (s.doc || s.record) feed.add(dataDir, ctx.user, { kind: 'import', kn: id, dot: 'acc', text: `파일 ${s.doc + s.record}개를 ${s.doc ? '문서로' : '기록으로'} — ${meta.name}`, small: s.fail ? `바꾸지 못한 파일 ${s.fail}` : s.doc ? '원본은 첨부로 두었다' : '정리가 기존 문서에 넣거나 새 문서로 세운다' }).catch(() => {})
       // 넣은 파일의 기록 — 팀은 정리를 바로 건다(Claude 에 보내지 않는 지식이면 기록으로 기다린다) · 이 PC 는 위에서 이미 문서까지
-      if (!now && s.record && hub.meaningOk(id)) hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
+      if (!now && s.record && hub.teamPrivate(id)) hub.curateSoon(id).catch(() => {})
+      else if (!now && s.record && hub.meaningOk(id) && hub.tidyModeOf(id) !== 'manual') hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
       if ((plan.docs.length || plan.atts.length) && backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
       return { direct, summary: s, rows: plan.rows }
     },
@@ -1273,6 +1333,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!ctx.admin && !(cur?.owner && cur.owner === ctx.user) && !ctx.shell) throw new KmdError('E_FORBIDDEN', '주인이나 관리자만 바꾼다')
       const next = structuredClone(reg)
       owners.setOwner(next, id, row)
+      if (next.knowledge[id]?.tidyMode !== 'live') { clearTimeout(liveTimers.get(id)); liveTimers.delete(id) } // 실시간을 끄면 기다리던 한 번도 걷는다
       await ensureRepo(meta.dir)
       await fs.writeFile(path.join(meta.dir, '_members.md'), owners.renderMembers(next.knowledge[id]), 'utf8')
       await commitPaths(meta.dir, ['_members.md'], '이 지식의 사람 — 주인 · 정리', 'kmd').catch(() => {})
@@ -1391,7 +1452,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       sourceTimer.unref?.()
       setTimeout(() => dueSources(true), 3000).unref?.()
       // 이 PC — 켤 때 쌓여 있던 「아직 안 넣은 기록」 을 바로 문서에(뒤에서 · 지식마다 한 줄)
-      if (mode === 'pc' && config.curateOnStart !== false) setTimeout(async () => { for (const m of await hub.list().catch(() => [])) hub.curateSoon(m.id).catch(() => {}) }, 2000).unref?.()
+      if (config.curateOnStart !== false) setTimeout(async () => { for (const m of await hub.list().catch(() => [])) if (mode === 'pc' || hub.teamPrivate(m.id)) hub.curateSoon(m.id).catch(() => {}) }, 2000).unref?.()
       // 정해진 시간의 정리 — 분마다 본다 · 지식마다 하루 한 번 · 넣을 것이 있을 때만
       tidyTimer = setInterval(async () => {
         const d = new Date()
@@ -1403,7 +1464,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           // 받은편지함 — 정리 시각에 같은 주인의 개인 지식으로 옮긴다
           if (m.name === '받은편지함') await hub.inboxTidy({ user: owners.rowOf(reg, m.id)?.owner || pcUser || 'kmd', pc: mode === 'pc' }, m.id).catch(() => {})
           const k = await hub.get(m.id).catch(() => null)
-          if (k && (mode !== 'pc' || hub.autoOf(pcUser, 'claude')) && k.works.some((w) => w.state === 'pend' || w.state === 'nowhere')) hub.tidyNow({ user: 'kmd', admin: true }, m.id, { by: 'kmd', auto: true }).catch(() => {})
+          if (k && (mode !== 'pc' || hub.autoOf(pcUser, 'claude')) && !hub.teamPrivate(m.id) && (mode === 'pc' || hub.tidyModeOf(m.id) === 'time') && k.works.some((w) => w.state === 'pend' || w.state === 'nowhere')) hub.tidyNow({ user: 'kmd', admin: true }, m.id, { by: 'kmd', auto: true }).catch(() => {})
         }
       }, config.tidyTickMs || 60_000)
       tidyTimer.unref?.()
@@ -1431,6 +1492,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       backup.stop()
       for (const w of watchers) w.close()
       for (const t of decideTimers.values()) clearTimeout(t)
+      for (const t of [...liveTimers.values(), ...privTimers.values()]) clearTimeout(t)
       clearInterval(tidyTimer)
       clearInterval(sourceTimer)
       clearInterval(sendTimer)

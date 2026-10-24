@@ -142,6 +142,12 @@ async function main() {
       }
       const child = spawn(process.execPath, [process.argv[1], 'worker', s.url], { stdio: 'inherit', windowsHide: true, env: { ...process.env, KMD_WORKER_KEY: wk } })
       process.on('exit', () => child.kill())
+      // 이은 팀 서버의 내 개인 지식도 이 PC 의 Claude 로(팀의 정리 전용 로그인으로는 나가지 않는다)
+      const data = o.data ? path.resolve(o.data) : defaultDataDir(root)
+      if (fs.existsSync(path.join(data, 'teams.json'))) {
+        const mine = spawn(process.execPath, [process.argv[1], 'worker', 'mine', '--data', data], { stdio: 'inherit', windowsHide: true })
+        process.on('exit', () => mine.kill())
+      }
     }
     if (o.open !== false) openBrowser(`${s.url}/#once=${s.auth.once(s.pcUser)}`)
   }
@@ -303,10 +309,18 @@ async function searchCheckCmd(o) {
 }
 
 // 정리 일꾼 — `kmd worker add`(셸 · 열쇠를 한 번 보인다) · `kmd worker key set <팀 주소>`(숨김 입력 → 자격 저장소) ·
-// `kmd worker <팀 주소>`(늘 돈다 · 그 OS 사용자의 Claude Code 로그인으로)
+// `kmd worker <팀 주소>`(늘 돈다 · 그 OS 사용자의 Claude Code 로그인으로) · `kmd worker mine`(이 PC 가 이은 팀의 내 개인 지식 — kmd up 이 띄운다)
 async function workerCmd(o) {
   const [sub, arg] = o._
   try {
+    // 내 개인 지식 — 이 PC 가 이은 팀 서버마다(teams.json · 기기 열쇠로 일꾼 열쇠를 받는다)
+    if (sub === 'mine') {
+      const tf = path.join(path.resolve(o.data || defaultDataDir(defaultPcRoot())), 'teams.json')
+      const teams = fs.existsSync(tf) ? JSON.parse(fs.readFileSync(tf, 'utf8')) : []
+      const { runPersonalWorkers } = await import('../../core/worker.js')
+      runPersonalWorkers({ teams, deviceKey: (u) => kget(keyName(u)).catch(() => null), poll: o.poll ? Number(o.poll) : 10_000 })
+      return
+    }
     if (sub === 'add') {
       const auth = await makeAuth({ dataDir: dataOf(o) })
       const r = await auth.workerAdd()

@@ -426,10 +426,13 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
     },
 
     // ── 정리 일꾼 열쇠(kmdw_) — 일감을 받고 상태를 알리는 것만. 재료 · 초안은 일감마다의 단기 열쇠(서버 메모리)로 ──
-    async workerAdd() {
+    //   owner 가 있으면 그 사람의 PC 일꾼 — 그 사람의 개인 지식 일감만 받는다(그 사람의 Claude 로) · 같은 기기는 열쇠를 새로 갈아 끼운다
+    async workerAdd({ owner = null, device = null } = {}) {
+      reload()
+      if (owner) for (const [wid, u] of Object.entries(db.users)) if (u.kind === 'worker' && u.owner === owner && u.device === device) delete db.users[wid]
       const id = `worker-${crypto.randomBytes(4).toString('hex')}`
       const key = 'kmdw_' + crypto.randomBytes(32).toString('base64url')
-      db.users[id] = { kind: 'worker', keys: [{ id: 'w', sha: pw.sha(key), at: new Date(now()).toISOString() }] }
+      db.users[id] = { kind: 'worker', ...(owner ? { owner, device } : {}), keys: [{ id: 'w', sha: pw.sha(key), at: new Date(now()).toISOString() }] }
       await persist()
       await note({ what: 'worker', user: id })
       return { id, key }
@@ -442,7 +445,7 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
       const s = pw.sha(t)
       for (const [id, u] of Object.entries(db.users)) {
         if (u.kind === 'worker') {
-          if (t.startsWith('kmdw_') && u.keys.some((k) => k.sha === s)) return { user: 'kmd-worker', admin: false, worker: { id } }
+          if (t.startsWith('kmdw_') && u.keys.some((k) => k.sha === s)) return { user: 'kmd-worker', admin: false, worker: { id, owner: u.owner || null } }
           continue
         }
         if (u.kind === 'machine') {

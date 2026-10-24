@@ -48,12 +48,15 @@ export function visible(reg, id, ctx = {}) {
 
 export const rowOf = (reg, id) => reg?.knowledge?.[id] || null
 
-// tidyAt — 정해진 정리 시각(HH:MM · 기본 02:30) · noClaude — Claude 에 보내지 않음 · workerOk — 개인 지식을 정리 일꾼에 맡김
-export function setOwner(reg, id, { owner = null, private: priv, curators, tidyAt, noClaude, workerOk } = {}) {
+// tidyAt — 정해진 정리 시각(HH:MM · 기본 02:30) · tidyMode — 정리 방식(time 정해진 시각 · live 실시간 · manual 손으로만) ·
+// noClaude — Claude 에 보내지 않음 · workerOk — (예전 · 쓰지 않는다 — 개인 지식은 늘 그 사람의 PC 일꾼이)
+export function setOwner(reg, id, { owner = null, private: priv, curators, tidyAt, tidyMode, noClaude, workerOk } = {}) {
   const prev = reg.knowledge[id] || {}
   if (tidyAt != null && !/^([01]\d|2[0-3]):[0-5]\d$/.test(tidyAt)) throw Object.assign(new Error('정리 시각은 HH:MM 이다'), { code: 'E_INPUT' })
+  if (tidyMode != null && !['time', 'live', 'manual'].includes(tidyMode)) throw Object.assign(new Error('정리 방식은 정해진 시각 · 실시간 · 손으로 중 하나'), { code: 'E_INPUT' })
   const row = { ...prev, owner: owner ?? prev.owner ?? null, private: priv ?? prev.private ?? false, curators: curators ?? prev.curators ?? [], at: new Date().toISOString() }
   if (tidyAt != null) row.tidyAt = tidyAt
+  if (tidyMode != null) row.tidyMode = tidyMode
   if (noClaude != null) row.noClaude = !!noClaude
   if (workerOk != null) row.workerOk = !!workerOk
   if (row.owner) delete row.restored

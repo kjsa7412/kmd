@@ -84,6 +84,8 @@ const kimKey = await team.auth.deviceKeyFor('kim', { host: 'LOCAL-PC', osuser: '
 process.env.KMD_SEND_KEY = kimKey
 runWorker({ server: team.url, key: (await team.auth.workerAdd()).key, poll: 3000, log })
 runWorker({ server: pc.url, key: (await pc.auth.workerAdd()).key, poll: 3000, log })
+// kim 의 PC 일꾼 — 팀 서버의 kim 개인 지식 일감을 이 PC 의 Claude 로(kmd up 의 `kmd worker mine` 과 같은 일)
+runWorker({ server: team.url, key: (await team.auth.workerAdd({ owner: 'kim', device: 'LOCAL-PC' })).key, poll: 3000, log })
 
 // PC 화면은 들어가기가 없다 — 한 번용 번호(60초)가 든 주소로 연다. 50초마다 새로 적는다
 const linkFile = path.join(BASE, 'PC-열기.txt')

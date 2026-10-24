@@ -185,9 +185,11 @@ test('보내기 고르기 — 변경사항(새 기록은 전체 · 고친 문서
   await s.hub.sendDests(KIM, 'note', [{ kn: 'dpms' }])
   await s.hub.save(KIM, 'note', { record: { title: '롤백 순서 — 쓰기 먼저 멈춤', body: '롤백 전에 쓰기를 멈춘다.' } })
   await s.hub.edit(KIM, 'note', { doc: '배포메모', sections: [{ h: '카나리', body: '첫 30분은 요청의 30%.' }] })
+  // 팀 서버의 개인 지식은 기록이 남는 즉시 문서에(PC 일꾼이 없으면 규칙으로) — 그 문서도 변경사항에 선다
+  await s.hub.curateIdle('note')
   const q = await s.hub.sendQueue(KIM, 'note')
   const rec = q.items.find((x) => x.kind === 'rec')
-  const doc = q.items.find((x) => x.kind === 'doc')
+  const doc = q.items.find((x) => x.kind === 'doc' && /배포메모/.test(x.title))
   assert.equal(rec.title, '롤백 순서 — 쓰기 먼저 멈춤', '새 기록은 변경사항에')
   assert.deepEqual(doc.heads, ['카나리'], '고친 문서는 바뀐 항목만')
   assert.ok(q.docs.some((d) => d.path === 'docs/배포메모.md'), '지식 — 문서 목록')
@@ -200,15 +202,17 @@ test('보내기 고르기 — 변경사항(새 기록은 전체 · 고친 문서
   const got = (await s.hub.get('dpms')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/')))
   assert.ok(got.some((w) => w.title === '롤백 순서 — 쓰기 먼저 멈춤' && /롤백 전에 쓰기를 멈춘다/.test(w.body)), '기록은 전체로')
   assert.ok(got.some((w) => w.title === '배포메모 — 문서 전체' && /## 카나리\n첫 30분은 요청의 30%/.test(w.body)), '문서는 전체로')
-  assert.equal((await s.hub.sendQueue(KIM, 'note')).items.length, 0, '보낸 기록 · 문서는 변경사항에서 빠진다')
+  assert.equal((await s.hub.sendQueue(KIM, 'note')).items.filter((x) => x.key === rec.key || /배포메모/.test(x.title)).length, 0, '보낸 기록 · 문서는 변경사항에서 빠진다')
 
   // 고르지 않은 변경사항은 다음에 그대로 남는다
   await s.hub.save(KIM, 'note', { record: { title: '헬스 체크 — 5초', body: '5초 안에 200.' } })
   await s.hub.edit(KIM, 'note', { doc: '배포메모', sections: [{ h: '카나리', body: '첫 30분은 요청의 40%.' }] })
+  await s.hub.curateIdle('note')
   const q2 = await s.hub.sendQueue(KIM, 'note')
-  const r2 = await s.hub.send(KIM, 'note', { changes: [q2.items.find((x) => x.kind === 'doc').key] })
+  const r2 = await s.hub.send(KIM, 'note', { changes: [q2.items.find((x) => x.kind === 'doc' && /배포메모/.test(x.title)).key] })
   assert.equal(r2.sent, 1)
-  assert.deepEqual((await s.hub.sendQueue(KIM, 'note')).items.map((x) => x.title), ['헬스 체크 — 5초'])
+  const left = (await s.hub.sendQueue(KIM, 'note')).items.map((x) => x.title)
+  assert.ok(left.includes('헬스 체크 — 5초') && !left.some((t) => /배포메모/.test(t)), '고르지 않은 것은 남는다 ' + left)
 })
 
 test('받은편지함 정리 — 같은 주인의 개인 지식으로 옮김 · private 메모 → 옮김 0 · 팀 이름은 보내기 후보', async () => {

@@ -195,6 +195,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (p === '/api/worker/next') return out(200, hub.workerNext(ctx) || { job: null })
       return out(200, await hub.workerStatus(ctx, await readBody(req)))
     }
+    // 내 PC 일꾼 열쇠 — 설치 한 줄로 이은 PC(기기 열쇠)가 묻는다 · 그 사람의 개인 지식 일감만 받는다(그 사람의 Claude 로)
+    if (p === '/api/me/worker' && req.method === 'POST') {
+      if (mode !== 'team') throw new KmdError('E_NOTFOUND', '팀 서버의 길이다')
+      if (!ctx?.device) throw new KmdError('E_FORBIDDEN', '이은 PC 의 기기 열쇠로 부른다')
+      return out(200, { key: (await auth.workerAdd({ owner: ctx.user, device: ctx.device })).key })
+    }
     const wk = p.match(/^\/api\/k\/([^/]+)\/worker\/(material|drafts)$/)
     if (wk) {
       if (!ctx?.draft) throw new KmdError('E_FORBIDDEN', '이 일감의 열쇠로 부른다')
@@ -371,7 +377,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       await hub.meta(id, ctx)
       const k = await hub.get(id, ctx)
       const runs = (await hub.runs(id)).map((run) => ({ ...run, rows: run.rows.map((r) => ({ ...r, reverted: !!r.record && k.reverted.has(r.record) })) }))
-      return out(200, { tidyAt: hub.tidyAtOf(id), jobs: hub.jobsOf(id), runs, pend: k.works.filter((w) => w.state === 'pend').length, nowhere: k.works.filter((w) => w.state === 'nowhere').length })
+      return out(200, { tidyAt: hub.tidyAtOf(id), tidyMode: hub.tidyModeOf(id), jobs: hub.jobsOf(id), runs, pend: k.works.filter((w) => w.state === 'pend').length, nowhere: k.works.filter((w) => w.state === 'nowhere').length })
     }
     if (p === '/api/knowledge') {
       const ks = await hub.all(ctx)
