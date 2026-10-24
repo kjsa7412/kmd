@@ -23,9 +23,10 @@ let tmp
 const G = (dir, ...a) => execFileSync('git', ['-c', 'core.quotepath=false', ...a], { cwd: dir, encoding: 'utf8' }).trim()
 const KIM = { user: 'kim', admin: true }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-async function until(f, ms = 15000) {
+// git 한 번이 수 초씩 걸리는 PC 가 있다 — 지식 둘을 차례로 붙이고 보내는 데도 15초를 넘는다
+async function until(f, ms = 60000) {
   const end = Date.now() + ms
-  while (Date.now() < end) { if (await f()) return true; await wait(200) }
+  while (Date.now() < end) { if (await Promise.resolve().then(f).catch(() => false)) return true; await wait(200) }
   return false
 }
 

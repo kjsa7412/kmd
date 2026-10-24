@@ -22,7 +22,8 @@ const rec = (title) => ({ record: { title, body: title + ' — 본문', touches:
 const ctx = { user: '김' }
 const ADMIN = { user: '이', admin: true }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-async function until(f, ms = 20000) {
+// git 한 번이 수 초씩 걸리는 PC(보안 프로그램 · 다른 시험)가 있다 — 기다림은 넉넉히, 판정은 끝난 보내기로
+async function until(f, ms = 60000) {
   const t = Date.now()
   while (Date.now() - t < ms) {
     if (await f()) return true
@@ -39,8 +40,9 @@ before(async () => {
   G(tmp, 'init', '-q', '--bare', '-b', 'main', bare)
   // 이 PC 의 폴더를 백업 자리로 쓰려면 허락된 루트 안이어야 한다(E1)
   fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })
-  fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ backupRoots: [tmp] }))
-  backup.configure({ delays: [150], lsTimeout: 5000 })
+  fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ backupRoots: [tmp], decideMs: 3600000 }))
+  // ls-remote 를 5초에 끊으면 느린 PC 에서 판정마다 'timeout' 이 되어 다시 보내기만 되풀이한다
+  backup.configure({ delays: [150], lsTimeout: 30000 })
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {} })
   me = await signIn(s, { id: 'kim' })
   kn = { id: 'dpms', dir: path.join(tmp, 'kn', 'dpms') }
@@ -79,7 +81,7 @@ test('붙이면 지금까지 보낸다 · 상태 파일이 남는다 · 잘 될 
   assert.deepEqual(await s.hub.stops(ADMIN), [])
   const r2 = await s.hub.save(ctx, 'dpms', rec('둘째 저장'))
   assert.deepEqual(r2.warnings, [])
-  assert.ok(await until(() => remoteHead() === head(), 30000), '저장하면 저절로 보낸다')
+  assert.ok(await until(() => remoteHead() === head()), '저장하면 저절로 보낸다')
 })
 
 test('지워진 백업 → 다시 올리고 하루 빨강 · 판정은 순수 함수', async () => {
@@ -104,13 +106,18 @@ test('끊긴 동안 저장은 그대로 · 나이 경보 · 닿으면 저절로 
   const off = bare + '.off'
   await backup.enqueue(kn)
   await rename(bare, off)
-  const r = await s.hub.save(ctx, 'dpms', rec('끊긴 동안'))
-  assert.ok(r.id, '저장은 막히지 않는다')
-  assert.notEqual(backup.stateOf(kn).last.ok, true)
-  const later = backup.lines(kn, { now: Date.now() + 7 * 3600000 }).find((l) => /멈췄다/.test(l.text))
-  assert.equal(later?.level, 'warn', '6시간이면 노랑')
-  assert.equal(backup.lines(kn, { now: Date.now() + 25 * 3600000 }).find((l) => /멈췄다/.test(l.text))?.level, 'bad', '24시간이면 빨강')
-  await rename(off, bare)
+  try {
+    const r = await s.hub.save(ctx, 'dpms', rec('끊긴 동안'))
+    assert.ok(r.id, '저장은 막히지 않는다')
+    // 저장은 백업을 3초까지만 기다린다 — 저장 뒤의 보내기가 끝난 것을 보고 판정한다
+    assert.notEqual((await backup.enqueue(kn)).ok, true)
+    assert.notEqual(backup.stateOf(kn).last.ok, true)
+    const later = backup.lines(kn, { now: Date.now() + 7 * 3600000 }).find((l) => /멈췄다/.test(l.text))
+    assert.equal(later?.level, 'warn', '6시간이면 노랑')
+    assert.equal(backup.lines(kn, { now: Date.now() + 25 * 3600000 }).find((l) => /멈췄다/.test(l.text))?.level, 'bad', '24시간이면 빨강')
+  } finally {
+    await rename(off, bare) // 넘어져도 다음 시험이 백업 자리를 잃지 않게
+  }
   assert.ok(await until(() => remoteHead() === head()), '다시 보내기가 저절로 보냈다')
 })
 
@@ -130,7 +137,7 @@ test('남이 앞서 민 백업 → 읽기만(E_BEHIND) → 백업에서 받기 �
   assert.match(fs.readFileSync(path.join(kn.dir, 'docs', '운영.md'), 'utf8'), /남이 더한 줄/)
   const r = await s.hub.save(ctx, 'dpms', rec('받은 뒤 저장'))
   assert.ok(!r.warnings.some((w) => /읽기만|멈췄다/.test(w)), r.warnings.join())
-  assert.ok(await until(() => remoteHead() === head(), 30000))
+  assert.ok(await until(() => remoteHead() === head()))
 
   // 갈라짐 — 남이 또 밀었는데 여기서도 저장했다 → moved · 읽기만
   G(other, 'pull', '-q', 'origin', 'main')
