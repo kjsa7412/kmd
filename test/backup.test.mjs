@@ -98,8 +98,9 @@ test('지워진 백업 → 다시 올리고 하루 빨강 · 판정은 순수 �
   assert.equal(backup.judge({ head: 'b', remote: null }), 'lag', '빈 자리는 첫 보내기')
   assert.equal(backup.judge({ head: 'b', remote: 'c', headInRemote: true }), 'behind')
   assert.equal(backup.judge({ head: 'b', remote: 'c' }), 'moved')
+  // healthz 는 들어오지 않아도 받으므로 살아 있나 · 판만 — 멈춤 줄(지식 이름이 든다)은 들어온 사람의 /api/stops 로만
   const h = await (await fetch(s.url + '/healthz')).json()
-  assert.match(h.stops[0].text, /지워졌다/, 'healthz 도 같은 줄')
+  assert.deepEqual(Object.keys(h).sort(), ['mode', 'ok', 'version'])
 })
 
 test('끊긴 동안 저장은 그대로 · 나이 경보 · 닿으면 저절로 다시 보낸다', async () => {

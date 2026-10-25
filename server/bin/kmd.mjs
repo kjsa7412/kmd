@@ -386,7 +386,7 @@ async function ownerCmd(o) {
     if (!id) throw new Error('kmd owner <지식> [사람] [--private | --team] [--curators 가,나]')
     const hub = await makeHub({ root, dataDir: o.data ? path.resolve(o.data) : defaultDataDir(root), log: () => {} })
     const row = await hub.setOwner(SHELL, id, { owner: who || undefined, private: o.private, curators: o.curators ? String(o.curators).split(',').map((x) => x.trim()).filter(Boolean) : undefined })
-    console.log(`${id} — 주인 ${row.owner || '없음'} · ${row.private ? '개인(주인만 본다)' : '팀'} · 정리 ${row.curators.join(', ') || '없음'}`)
+    console.log(`${id} — 주인 ${row.owner || '없음'} · ${row.private ? '개인(주인만 본다)' : '팀'} · 정리 ${row.curators.join(', ') || '없음'} — 도는 서버에도 곧 보인다`)
   } catch (e) {
     console.error(e.message)
     process.exitCode = 1
@@ -642,7 +642,8 @@ async function restoreCmd(o) {
   try {
     if (!url) throw new Error('kmd restore <백업 주소> [이름] [--root 폴더]')
     const r = await hub.restore(SHELL, { url, name })
-    console.log(`되살렸다 — ${r.id} · 문서 ${r.docs} · 기록 ${r.records} · 첨부 ${r.atts} · 이름 장부 ${r.vocab ? '있음' : '없음'} · 사람 ${r.owner || '관리자만 본다'}`)
+    console.log(`되살렸다 — ${r.id} · 문서 ${r.docs} · 기록 ${r.records} · 첨부 ${r.atts} · 이름 장부 ${r.vocab ? '있음' : '없음'} · ${r.owner ? `주인 ${r.owner}${r.private ? ' · 개인(주인만 본다)' : ''}` : '팀 지식(_members.md 없음)'} — 도는 서버에는 관리자의 [동기화] 로 목록에 선다(개인 지식은 그 전에도 가려져 있다)`)
+    if (r.check) console.log('· 옛 백업이라 정리 설정이 없어 「손으로만 · Claude 에 보내지 않음」 으로 두었다 — 이 지식의 사람에서 다시 정한다')
     if (r.errors.length) console.log(`검사 줄 ${r.errors.length} — ${r.errors.slice(0, 3).join(' · ')}`)
   } catch (e) {
     console.error(e.message)

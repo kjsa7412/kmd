@@ -403,7 +403,9 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       admin(ctx, { sudo: false })
       const users = auth.users()
       const ws = await fs.readFile(path.join(dataDir, 'worker.json'), 'utf8').then(JSON.parse, () => null)
-      const ks = await hub.list()
+      // 관리자가 보는 지식만 이름으로 — 남의 개인 지식은 수로만(이름 · 백업 상태를 보이지 않는다)
+      const all = await hub.list()
+      const ks = await hub.visible(ctx)
       const checks = []
       for (const k of ks) { const c = await fs.readFile(path.join(dataDir, 'searchcheck', `${encodeURIComponent(k.id)}.json`), 'utf8').then(JSON.parse, () => null); if (c?.score) checks.push({ name: k.name, in: c.score.in, n: c.score.n, at: c.at }) }
       return out(200, {
@@ -414,6 +416,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         worker: ws,
         people: users.filter((u) => u.kind === 'person').map((u) => u.id),
         kns: ks.length,
+        knsPrivate: all.length - ks.length,
         sources: (await hub.allSources(ctx)).map((s) => ({ name: s.name, kn: s.knName, last: s.state?.checkedAt || null })),
         backups: ks.map((k) => ({ name: k.name, ...(hub.backupStateSync(k) || { off: true }) })),
         checks,
@@ -604,14 +607,20 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     const what = m[2]
     if (['save', 'backup', 'backup/pull', 'owner', 'learn', 'edit', 'revert'].includes(what)) {
       if (what === 'backup' && req.method === 'GET') return out(200, (await hub.backupState(ctx, id)) || { off: true })
-      if (what === 'owner' && req.method === 'GET') return out(200, hub.owner(id) || {})
+      // 주인 줄 — 그 지식을 보는 사람에게만(개인 지식의 주인 · 설정을 남에게 보이지 않게)
+      if (what === 'owner' && req.method === 'GET') { await hub.meta(id, ctx); return out(200, hub.owner(id) || {}) }
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       const body = await readBody(req)
       if (what === 'save') return out(200, await hub.save(ctx, id, body))
       if (what === 'learn') return out(200, await hub.learn(ctx, id, body))
       if (what === 'edit') return out(200, await hub.edit(ctx, id, body))
       if (what === 'revert') return out(200, await hub.revert(ctx, id, body))
-      if (what === 'owner') return out(200, await hub.setOwner(ctx, id, body))
+      if (what === 'owner') {
+        // 주인 · 정리하는 사람은 명부에 있는 사람만
+        const people = new Set(auth.users().filter((u) => u.kind === 'person').map((u) => u.id))
+        for (const u of [body.owner, ...(Array.isArray(body.curators) ? body.curators : [])].filter((x) => x != null && x !== '')) if (!people.has(String(u))) throw new KmdError('E_INPUT', `그런 사람은 없다 — ${String(u).slice(0, 40)}`)
+        return out(200, await hub.setOwner(ctx, id, body))
+      }
       admin(ctx)
       if (what === 'backup') return out(200, await hub.backupAttach(ctx, id, String(body.url || '')))
       return out(200, await hub.backupPull(ctx, id))
@@ -679,10 +688,9 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         return send(res, 200, issuePair(origin))
       }
       if (p === '/healthz') {
-        // ?live=1 — 살아 있나만(멈춤 줄을 재지 않는다 · kmd open · 시작 메뉴 · pc update 가 바쁜 kmd 를 꺼짐으로 보지 않게)
-        if (url.searchParams.get('live')) return send(res, 200, { ok: true, version: VERSION, mode })
-        const lines = await hub.stops({ user: null, admin: true })
-        return send(res, 200, { ok: true, version: VERSION, mode, stops: lines.map((l) => ({ level: l.level, text: l.text })) })
+        // 살아 있나 · 판 · 갈래만 — 들어오지 않아도 받으므로 지식 이름 · 멈춤 줄은 싣지 않는다(그것은 들어온 사람의 /api/stops).
+        // 지식마다 git 을 재지 않아 가볍다(?live=1 은 예전 판과의 호환)
+        return send(res, 200, { ok: true, version: VERSION, mode })
       }
       // 설명서 — /manual(이 서버 갈래의 첫 설명서) · /manual/<이름>
       const mm = req.method === 'GET' && p.match(/^\/manual(?:\/([^/]+))?$/)

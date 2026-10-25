@@ -370,7 +370,7 @@ function viewHome() {
 function openAdd() { S.menu = null; S.addPop = { name: '', err: null, busy: false }; S._focus = 'addIn'; if (S.route.scr !== 'home') go({ scr: 'home', kn: '*' }); else render() }
 function addPopHtml() {
   const a = S.addPop, team = isTeam()
-  return `<div class="scrim fix" data-a="addClose" data-self="1"><div class="modal w420" data-t="addPop"><div class="mh">지식 추가<button class="x" data-a="addClose" title="닫기">×</button></div><div class="mb"><div class="field" style="margin:0"><label for="addIn">이름</label><input class="inp" id="addIn" data-in="addName" data-t="addIn" value="${esc(a.name)}" placeholder="예: 회의" autocomplete="off"><div class="hint">${team ? '팀 서버 안에 내 지식으로 선다 — 나만(관리자는 볼 수 있다)' : '지식 폴더 안에 이 이름의 폴더로 선다 — 나만'}</div></div>${a.err ? `<div class="callout danger" data-t="addMsg">${esc(a.err)}</div>` : ''}</div><div class="mf"><span class="l">새 지식은 메뉴 맨 아래에 들어온다</span><span class="acts"><button class="btn ghost" data-a="addClose">취소</button><button class="btn pri" data-a="doAdd" data-t="addBtn"${a.busy ? ' disabled' : ''}>${a.busy ? '만드는 중…' : '추가'}</button></span></div></div></div>`
+  return `<div class="scrim fix" data-a="addClose" data-self="1"><div class="modal w420" data-t="addPop"><div class="mh">지식 추가<button class="x" data-a="addClose" title="닫기">×</button></div><div class="mb"><div class="field" style="margin:0"><label for="addIn">이름</label><input class="inp" id="addIn" data-in="addName" data-t="addIn" value="${esc(a.name)}" placeholder="예: 회의" autocomplete="off"><div class="hint">${team ? '팀 서버 안에 내 지식으로 선다 — 나만 본다 — 화면 · 찾기 · Claude Code 에서는 관리자도 보지 못한다(서버를 돌보는 사람 · 백업 그룹은 디스크 · 백업으로 볼 수 있다)' : '지식 폴더 안에 이 이름의 폴더로 선다 — 나만'}</div></div>${a.err ? `<div class="callout danger" data-t="addMsg">${esc(a.err)}</div>` : ''}</div><div class="mf"><span class="l">새 지식은 메뉴 맨 아래에 들어온다</span><span class="acts"><button class="btn ghost" data-a="addClose">취소</button><button class="btn pri" data-a="doAdd" data-t="addBtn"${a.busy ? ' disabled' : ''}>${a.busy ? '만드는 중…' : '추가'}</button></span></div></div></div>`
 }
 async function doAdd() {
   const a = S.addPop
@@ -2116,7 +2116,7 @@ function viewAdmin() {
   return { crumb: '관리', main: `<div style="max-width:780px"><div class="big">관리</div><p class="lead">문제가 있을 때만 줄이 선다 — 풀리면 저절로 사라진다.</p>
   <div class="card"><div class="ch">오늘 ${rows.length} <small>${esc(now)}</small></div><ul class="plain pl" data-t="admList">${rows.join('') || '<li class="muted" data-t="admEmpty">오늘은 문제가 없다</li>'}</ul>${a.https ? '' : '<div class="cf">아직 https 가 아니다 — 사내 인증서가 생기면 켤 수 있다</div>'}</div>
   ${admClaudeCard(a)}
-  <details class="more" data-t="admMore"><summary>잘 도는 것 — 지식 ${a.kns} · 사람 ${a.people.length} · 자동으로 가져오는 곳 ${a.sources.length} · 자세히</summary><div class="in">
+  <details class="more" data-t="admMore"><summary>잘 도는 것 — 지식 ${a.kns}${a.knsPrivate ? ` · 남의 개인 지식 ${a.knsPrivate}` : ''} · 사람 ${a.people.length} · 자동으로 가져오는 곳 ${a.sources.length} · 자세히</summary><div class="in">
    <div>자동으로 가져오는 곳 — ${a.sources.map((s) => esc(s.name) + ' ' + esc(s.last ? whenTxt(s.last) : '아직')).join(' · ') || '없다'} · <a data-a="nav" data-s="import">지식 만들기 ›</a></div>
    <div style="margin-top:4px">자동 정리 — 정리 전용 로그인 ${a.claude.token ? '있음' : '없음'}${a.worker && a.worker.ok === false ? ' · <b style="color:var(--warn)">쉼</b>' : ''}</div>
    <div style="margin-top:4px">찾기 점검 — ${a.checks.map((c) => `${esc(c.name)} ${c.in}%(${c.n})`).join(' · ') || '아직 재지 않았다'}</div>
