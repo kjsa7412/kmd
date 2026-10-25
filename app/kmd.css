@@ -597,7 +597,8 @@ html,body{background:var(--bg)}
 .hmid .qbtn{margin-left:0}
 .hmid .search{flex:1 1 auto;margin-left:0}
 .hright{flex:1 1 0;display:flex;align-items:center;justify-content:flex-end;gap:14px;min-width:0;white-space:nowrap}
-.hlink{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--text-2);cursor:default}
+.hlink{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--text-2);cursor:pointer;text-decoration:none}
+.hlink:hover{color:var(--accent)}
 .app .hlink svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .hme{display:flex;align-items:center;gap:6px;font-size:12.5px}
 .hme small{color:var(--text-3)}
@@ -606,7 +607,7 @@ html,body{background:var(--bg)}
   .sb-know{flex-basis:100%}
   .sb-mg{flex-basis:100%;margin:0;border:0;padding:0}
   .sb-mg .nav{display:flex;flex-wrap:wrap;gap:2px}
-  .hright .hlink{display:none}
+  .hright .hlink span{display:none} /* 좁은 폭은 책 그림만 — 설명서 입구는 남긴다 */
   /* 좁은 폭은 창 전체가 길어진다 — 가운데(문서 본문)가 0 높이로 접히지 않고 글만큼 선다 */
   .body{overflow:visible}
   .panes .main{flex:1 1 auto;overflow:visible}

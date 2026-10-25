@@ -240,7 +240,11 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
       const t = now()
       if (s.pc) {
         if (mode !== 'pc' || t - s.iat > PC_MS) return null
-        return { ctx: { user: s.u, admin: true, pc: true } }
+        // 모든 곳에서 나가기 · 다시 정하기로 sv 가 오르면 이 쿠키도 끊긴다(늘리기 전에 본다)
+        const pu = userOf(s.u)
+        if (!pu || (pu.sv || 0) !== s.sv) return null
+        // 쓰는 동안 늘린다 — 하루에 한 번 새 쿠키(마지막으로 쓴 날부터 30일)
+        return { ctx: { user: s.u, admin: true, pc: true }, ...(t - s.iat > 24 * H ? { set: cookie('kmd_s', seal({ ...s, iat: t, lst: t }), PC_MS) } : {}) }
       }
       const u = userOf(s.u)
       if (!u || (u.sv || 0) !== s.sv) return null
@@ -269,7 +273,8 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
       await note({ what: 'sv', user: id })
     },
 
-    // ── PC — 한 번용 번호(60초) → 루프백 쿠키 30일 ──
+    // ── PC — 한 번용 번호(60초) → 루프백 쿠키 30일(쓰는 동안 늘어난다) ──
+    // 번호는 이 PC 의 kmd 가 연다 — `kmd up` 의 첫 창 · `kmd open`(시작 메뉴 kmd) · 설치 한 줄의 끝
     once(user) {
       const code = crypto.randomBytes(18).toString('base64url')
       onces.set(code, { user, exp: now() + 60_000 })
@@ -278,7 +283,7 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
     takeOnce(code) {
       const o = onces.get(code)
       onces.delete(code)
-      if (!o || o.exp < now()) throw new KmdError('E_AUTH', '이 주소는 이제 쓸 수 없다 — kmd up 을 다시 연다')
+      if (!o || o.exp < now()) throw new KmdError('E_AUTH', '이 주소는 지났거나 이미 썼다 — 시작 메뉴의 kmd(또는 터미널에서 kmd open)로 다시 연다')
       return issue(o.user, { pc: true })
     },
 

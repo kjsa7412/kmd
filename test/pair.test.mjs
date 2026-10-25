@@ -72,6 +72,11 @@ test('팀 화면이 내 PC 지식을 연다 — 팀 서버 쪽에 PC 지식 조�
   await page.waitForSelector('[data-t=docPane]')
   assert.match(await page.locator('[data-t=docPane]').innerText(), /첫 30분은 요청의 10%/)
   assert.match(page.url(), /#~/)
+  // 새로 고쳐도 그 문서 — 내 PC 연결은 뒤에서 잇지만 주소(#~지식/문서)를 잃지 않는다
+  await page.reload()
+  await page.waitForSelector('[data-t=docPane]')
+  assert.match(await page.locator('[data-t=docPane]').innerText(), /첫 30분은 요청의 10%/)
+  assert.match(page.url(), /#~/)
   // 짝 열쇠로 CORS 밖 길 — 가져오는 곳 · 설정 → 403
   const st = await page.evaluate(async (u) => {
     const t = sessionStorage.getItem('kmdPair')

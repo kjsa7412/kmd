@@ -27,8 +27,10 @@ const S = {
 const KNSCR = ['docs', 'items', 'graph', 'tidy', 'members']
 const KN = (k) => S.kns.find((x) => x.id === k) || null
 const isTeam = () => S.me && S.me.mode === 'team'
-// 들어오기 전 — 들어가기 · 처음 들어오기 링크 · 첫 설정 화면
-const anon = () => !!S.me && (!!S.me.anon || !!S.gate)
+// 들어오기 전 — 아직 들어오지 않았다(머리 · 옆 메뉴 · 아래 줄은 이것을 본다)
+const anon = () => !!S.me && !!S.me.anon
+// 들어가기 화면 — 들어오지 않았거나 · 처음 들어오기 링크 · 첫 설정을 보는 중(들어온 채 링크를 열어도 이 화면)
+const gated = () => !!S.me && (!!S.me.anon || !!S.gate)
 const knType = () => (isTeam() ? 'team' : 'pc')
 // 지식 하나의 갈래 — 내 PC 지식 · 팀 서버의 개인 지식 · 이 PC 프로그램의 지식은 개인, 그 밖은 팀 지식
 const isPersonal = (n) => !n || !!n.pc || !!n.private || !isTeam()
@@ -85,7 +87,14 @@ function toast(html, ms) {
 }
 
 // ───────────── 길 · 탭 · 이전/다음 ─────────────
+// 들어온 채 보던 들어가기 화면(✓ 정했다 · 쓴 링크 · 남의 링크) — 다른 곳으로 옮기면 닫는다(옆 메뉴 · 머리 · 단축키가 그대로 듣게)
+function leaveGate() {
+  if (!S.gate || anon()) return
+  S.gate = null
+  if (location.pathname !== '/') history.replaceState(null, '', '/')
+}
 function go(r) {
+  leaveGate()
   r = r || {}
   const prevKn = S.route.kn
   S.route = Object.assign({ scr: 'home', kn: S.route.kn }, r)
@@ -170,6 +179,7 @@ function pushHist() {
   S.hpos = S.hist.length - 1
 }
 function histGo(d) {
+  leaveGate()
   const i = S.hpos + d
   if (i < 0 || i >= S.hist.length) return
   S.hpos = i
@@ -187,20 +197,20 @@ function render() {
   if (!S.me) { app.innerHTML = `<div class="col"><div class="main">${S.err ? errHtml({ error: S.err }) : loadingHtml}</div></div>`; return }
   hidePv()
   S._pop = null
-  const scr = anon() ? gateView() : S.pairPage ? viewPair() : viewOf(S.route.scr)
+  const scr = gated() ? gateView() : S.pairPage ? viewPair() : viewOf(S.route.scr)
   const center = scr.tabs
     ? `<div class="center">${tabbarHtml()}<div class="panes"><div class="main${scr.full ? ' full' : ''}" data-t="main">${scr.main}</div>${scr.right != null ? `<div class="main rp" data-t="rightPane">${scr.right}</div>` : ''}</div></div>`
     : `<div class="main" data-t="main">${scr.main}</div>`
   // 다시 그려도 보던 자리 그대로 — 같은 화면 · 같은 탭이면 가운데 · 옆 목록 · 옆 칸의 스크롤을 지킨다(go 로 다른 화면에 가면 맨 위)
   const view = `${S.route.scr}|${S.route.kn}|${S.active || ''}|${S.split || ''}`
-  const lpView = `${anon() ? '' : defaultKn()}|${VIEWS3.includes(S.route.scr) ? S.route.scr : S.ktab || 'docs'}`
+  const lpView = `${gated() ? '' : defaultKn()}|${VIEWS3.includes(S.route.scr) ? S.route.scr : S.ktab || 'docs'}`
   const keep = ['.main[data-t=main]', '[data-t=rightPane]', '[data-t=leftPane]', '[data-t=aside]'].map((q) => { const el = app.querySelector(q); return el ? [q, el.scrollTop] : null }).filter((x) => x && (x[0] === '[data-t=leftPane]' ? S._lpView === lpView : S._view === view))
   S._view = view
   S._lpView = lpView
-  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${anon() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside">${scr.aside}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}`
+  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${gated() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside">${scr.aside}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}`
   placePop()
   for (const [q, top] of keep) { const el = app.querySelector(q); if (el) el.scrollTop = top }
-  if (anon()) { const g = $('[data-focus]'); if (g && document.activeElement !== g) g.focus(); return }
+  if (gated()) { const g = $('[data-focus]'); if (g && document.activeElement !== g) g.focus(); return }
   const fi = $('#palIn') || $('#qoIn') || $('#cmdIn')
   if (fi && document.activeElement !== fi) { fi.focus(); fi.setSelectionRange(fi.value.length, fi.value.length) }
   if (S._focus) { const el = document.getElementById(S._focus); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length) } catch {} } S._focus = null }
@@ -284,7 +294,7 @@ function hdrHtml(crumb) {
   const c = (kn && parts[0] !== kn ? '<span>' + esc(kn) + '</span> › ' : '') + parts.map((x, i) => (i === parts.length - 1 ? '<b>' + esc(x) + '</b>' : esc(x))).join(' › ')
   const hb = `<span class="hist"><button class="hb" data-a="histGo" data-v="-1" data-t="histBack" title="이전 (Alt ←)"${S.hpos > 0 ? '' : ' disabled'}>‹</button><button class="hb" data-a="histGo" data-v="1" data-t="histFwd" title="다음 (Alt →)"${S.hpos < S.hist.length - 1 ? '' : ' disabled'}>›</button></span>`
   const me = anon() ? '<span class="hme muted" data-t="me">아직 들어오지 않았다</span>' : `<span class="hme" data-t="me"><span class="av">${esc(String(S.me.user).slice(0, 1))}</span>${esc(S.me.user)} <small>· ${isTeam() ? '팀 서버' : '이 PC'}</small></span>`
-  const right = `<div class="hright"><span class="hlink" data-t="manual">${svg('book')}설명서</span>${me}</div>`
+  const right = `<div class="hright"><a class="hlink" data-t="manual" href="/manual" target="_blank" rel="noopener" title="설명서 — 새 탭">${svg('book')}<span>설명서</span></a>${me}</div>`
   if (anon()) return `<header class="hdr"><span class="crumb">${c}</span><div class="hmid"></div>${right}</header>`
   return `<header class="hdr">${hb}<span class="crumb">${c}</span><div class="hmid"><div class="qbtn" data-a="openQo" data-t="qoBtn" title="문서 · 항목 · 기록 이름으로 바로 연다">빨리 열기 <kbd>Ctrl O</kbd></div><div class="search" data-a="openSearch" data-t="search">${svg('search')}<span style="margin-left:6px">찾기</span><span style="margin-left:auto;font-size:11px">Ctrl K</span></div></div>${right}</header>`
 }
@@ -306,7 +316,7 @@ const stopHtml = (x) => `<div class="callout ${x.level === 'bad' ? 'danger' : 'w
 async function loadStops() {
   try {
     const st = await getJSON('/api/stops')
-    if (JSON.stringify(st) !== JSON.stringify(S.stops)) { S.stops = st; if (!S.qo && !S.pal && !S.cmd) render() }
+    if (JSON.stringify(st) !== JSON.stringify(S.stops)) { S.stops = st; if (!S.qo && !S.pal && !S.cmd && !gated()) render() }
   } catch {}
 }
 
@@ -345,7 +355,7 @@ function viewHome() {
   const shown = [...shownKns(), ...offPc], hid = S.kns.filter((x) => x.hidden)
   const root = knRoot()
   const fbar = root ? `<div class="fbar" data-t="addRoot"><span class="fl">${svg('doc')}지식 폴더</span><span class="fp" data-t="rootPath">${esc(root)}</span><span class="acts"><button class="btn" data-a="copyRoot" data-t="copyRoot">경로 복사</button><button class="btn" data-a="syncKn" data-t="syncKn"${S.syncing ? ' disabled' : ''}>${S.syncing ? '읽는 중…' : '동기화'}</button></span><small>지식 하나 = 이 폴더 안의 폴더 하나 · 다른 곳에서 만든 지식은 폴더째 여기에 놓고 [동기화] — 메뉴 맨 아래에 들어온다</small></div>` : ''
-  const pcLine = !team || !S.pc ? '' : S.pc.off && (S.pc.seen || offPc.length) ? '<div class="callout gray stop" data-t="pcOff"><i></i><span><b>내 PC 프로그램이 꺼져 있다</b> — 켜면 저절로 다시 열린다</span></div>' : S.pc.allow ? `<div class="callout gray stop" data-t="pcAllow"><i></i><span><b>이 PC 의 내 지식을 여기서도 연다</b> — 내 PC 프로그램 창에서 한 번 허락한다</span><button class="btn sm r" data-a="pcAllow" data-t="pcAllowBtn">허락</button></div>` : ''
+  const pcLine = !team || !S.pc ? '' : S.pc.wait ? '<div class="callout gray stop" data-t="pcWait"><i></i><span>내 PC 프로그램에 잇는 중…</span></div>' : S.pc.off ? '<div class="callout gray stop" data-t="pcOff"><i></i><span><b>내 PC 프로그램이 꺼져 있다</b> — 켜면 저절로 다시 열린다</span></div>' : S.pc.allow ? `<div class="callout gray stop" data-t="pcAllow"><i></i><span><b>이 PC 의 내 지식을 여기서도 연다</b> — 내 PC 프로그램 창에서 한 번 허락한다</span><button class="btn sm r" data-a="pcAllow" data-t="pcAllowBtn">허락</button></div>` : ''
   const msg = S.syncMsg ? `<div class="callout ${S.syncMsg.cls || ''} stop" data-t="syncMsg"><i></i><span>${S.syncMsg.t}</span></div>` : ''
   const add = `<div class="kcard add" data-a="openAdd" data-t="addCard"><span class="pl">+</span>${!team && !S.kns.length ? '첫 지식 세우기' : '지식 추가'}</div>`
   return {
@@ -565,7 +575,7 @@ function attPane(t, right) {
 }
 
 // ── 빨리 열기(Ctrl O) ──
-function openQo() { S.pal = null; S.cmd = null; S.menu = null; S.qo = { q: '', sel: 0 }; render() }
+function openQo() { leaveGate(); S.pal = null; S.cmd = null; S.menu = null; S.qo = { q: '', sel: 0 }; render() }
 function qoList() {
   const q = (S.qo.q || '').trim(), nq = norm(q)
   const ks = S.route.kn && S.route.kn !== '*' ? [S.route.kn] : S.kns.map((x) => x.id), out = []
@@ -600,7 +610,7 @@ function qoPick(i) {
 }
 
 // ── 명령 창(Ctrl P) ──
-function openCmd() { S.pal = null; S.qo = null; S.menu = null; S.cmd = { q: '', sel: 0 }; render() }
+function openCmd() { leaveGate(); S.pal = null; S.qo = null; S.menu = null; S.cmd = { q: '', sel: 0 }; render() }
 function cmdDefs() {
   return [
     { n: '지식 만들기', s: '파일 · 문서 폴더 · 소스 코드 · DB', f: () => go({ scr: 'import' }) },
@@ -633,7 +643,7 @@ function cmdPick(i) { const c = S.cmd && S.cmd.list && S.cmd.list[i]; S.cmd = nu
 
 // ── 찾기(Ctrl K) ──
 function scopeKn() { const k = S.route.kn; return k && k !== '*' && KN(k) && KNSCR.includes(S.route.scr) ? k : null }
-function openPal(q) { S.qo = null; S.cmd = null; S.menu = null; S.pal = { q: q || '', res: null }; render(); if (q) runFind() }
+function openPal(q) { leaveGate(); S.qo = null; S.cmd = null; S.menu = null; S.pal = { q: q || '', res: null }; render(); if (q) runFind() }
 let findT = null
 function runFind() {
   clearTimeout(findT)
@@ -1242,11 +1252,24 @@ async function setOwnerRow(k, patch) {
 // ───────────── 들어오기 전 — 들어가기 · 처음 들어오기 링크 · 첫 설정 ─────────────
 // 서버는 비밀번호를 받지 않는다 — 여기서 전처리(prehash)한 값을 보낸다.
 function gateView() {
+  // 이 PC 의 kmd — 들어가기(아이디 · 비밀번호)가 없다. 한 번용 주소로만 들어온다
+  if (S.me.mode === 'pc' && S.me.anon) return { crumb: '이 PC 의 kmd', main: viewPcGate() }
   if (S.gate === 'first' || S.gate === 'done') return { crumb: '처음', main: viewFirst() }
   if (S.gate === 'setup') return { crumb: '처음', main: viewSetup() }
   return { crumb: '들어가기', main: viewLogin() }
 }
 const gateErr = () => (S.gateErr ? `<div class="callout danger" data-t="loginErr">${esc(S.gateErr)}</div>` : '')
+// 이 PC 의 kmd 화면 — 들어온 적 없는 브라우저 · 지난 주소. 화면은 이 PC 의 kmd 가 연 한 번용 주소로만 들어온다
+function viewPcGate() {
+  return `<div class="gatewrap"><div class="gate"><div class="card"><div class="cb" data-t="pcGate">
+  <div class="mk">${svg('lock')}</div><div class="big">이 PC 의 kmd 화면을 연다</div>
+  <p class="lead">이 화면은 이 PC 의 kmd 가 여는 한 번용 주소로 들어온다 — 아이디 · 비밀번호는 없다.</p>
+  ${S.onceErr ? `<div class="callout gray" data-t="onceErr">${esc(S.onceErr)}</div>` : ''}
+  <p><b>시작 메뉴 › kmd</b> 를 누른다 — 꺼져 있으면 켜고 이 화면을 새로 연다.</p>
+  <p class="small muted">터미널이면 <span class="mono">kmd open</span> · 꾸러미를 손으로 풀어 쓰면 그 폴더의 <span class="mono">kmd.cmd open</span> · 한 번 들어온 브라우저는 쓰는 동안 30일 이어진다</p>
+  <div class="links">팀 kmd 는 팀 서버 주소에서 아이디 · 비밀번호로 들어간다 · <a href="/manual" target="_blank" rel="noopener" data-t="pcGateManual">설명서</a></div>
+ </div></div></div></div>`
+}
 function viewLogin() {
   const legacy = S.legacyOpen
   const form = legacy
@@ -1272,9 +1295,12 @@ function viewFirst() {
   <div class="links"><a data-a="gateHome" data-t="gateHome">지식 목록 ›</a></div>
  </div></div></div></div>`
   const who = S.gateUser
-  if (!who) return `<div class="gatewrap"><div class="gate"><div class="card"><div class="cb"><div class="big">처음 들어오기</div><div class="callout gray" data-t="firstGone">이 링크는 이제 쓸 수 없다 — 관리자에게 새 링크를 부탁한다</div><div class="links"><a data-a="gateLogin">들어가기 ›</a></div></div></div></div></div>`
+  // 쓴 링크 · 지난 링크 — 서버는 둘을 가르지 않는다. 들어와 있으면 그대로 이어 쓰고, 아니면 비밀번호로 들어가거나 새 링크
+  if (!who && !S.me.anon) return `<div class="gatewrap"><div class="gate"><div class="card"><div class="cb"><div class="big">처음 들어오기</div><div class="callout gray" data-t="firstGone">이 링크는 쓸 수 없다(이미 썼거나 지났다) — 지금 ${esc(S.me.user)}로 들어와 있다 · 다른 사람에게 줄 링크면 관리자가 새로 만든다</div><div class="links"><a data-a="gateHome" data-t="gateHome">지식 목록 ›</a></div></div></div></div></div>`
+  if (!who) return `<div class="gatewrap"><div class="gate"><div class="card"><div class="cb"><div class="big">처음 들어오기</div><div class="callout gray" data-t="firstGone">이 링크는 이미 썼거나 24시간이 지났다 — 비밀번호를 정했으면 들어가고, 아니면 관리자에게 새 링크를 부탁한다</div><div class="links"><a data-a="gateLogin">들어가기 ›</a></div></div></div></div></div>`
+  const other = !S.me.anon && S.me.user !== who ? `<div class="callout gray" data-t="firstOther">지금 ${esc(S.me.user)}로 들어와 있다 — 정하면 ${esc(who)}로 바뀐다</div>` : ''
   return `<div class="gatewrap"><div class="gate"><div class="card"><div class="cb">
-  <div class="mk">${svg('lock')}</div><div class="big">${esc(who)}의 비밀번호를 정한다</div><p class="lead">처음 들어오기 링크 — 관리자가 보냈다</p>
+  <div class="mk">${svg('lock')}</div><div class="big">${esc(who)}의 비밀번호를 정한다</div><p class="lead">처음 들어오기 링크 — 관리자가 보냈다</p>${other}
   <form data-f="first" autocomplete="on">
   <div class="field"><label for="fsId">아이디</label><input class="inp" id="fsId" name="username" autocomplete="username" value="${esc(who)}" readonly></div>
   <div class="field"><label for="fsPw">비밀번호</label><input class="inp" id="fsPw" type="password" name="new-password" autocomplete="new-password" data-focus><div class="hint">브라우저가 제안하는 비밀번호를 쓰면 외울 것이 없다 — 직접 정하면 10자 이상 · 회사 메일 · 윈도 비밀번호와 다르게</div></div>
@@ -1330,6 +1356,15 @@ async function afterLogin(notice) {
   if (notice) toast(esc(notice), 9000)
 }
 async function submitGate(kind) {
+  // 도는 중이면 단추를 막고 「… 중」(두 번 누름 막기) — 비밀번호 전처리가 무거워 한 번 그린 뒤에 시작한다
+  const btn = document.querySelector(`form[data-f="${kind}"] button[type=submit]`)
+  if (btn && btn.disabled) return
+  const label = btn ? btn.textContent : ''
+  if (btn) {
+    btn.disabled = true
+    btn.textContent = { login: '들어가는 중…', first: '정하는 중…', setup: '만드는 중…' }[kind] || '여는 중…'
+    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)))
+  }
   S.gateErr = null
   const v = (id) => ($('#' + id) ? $('#' + id).value : '')
   try {
@@ -1363,6 +1398,8 @@ async function submitGate(kind) {
   } catch (e) {
     S.gateErr = e.message
     render()
+  } finally {
+    if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = label }
   }
 }
 document.addEventListener('submit', (ev) => {
@@ -1574,7 +1611,7 @@ function paintJobs() {
 let runTimer = null
 async function pollRuns() {
   clearTimeout(runTimer)
-  if (!S.me || anon() || S.route.scr !== 'import') return
+  if (!S.me || gated() || S.route.scr !== 'import') return
   try {
     const rs = await getJSON('/api/runs')
     S.cache.runs = rs
@@ -1881,31 +1918,57 @@ async function doSend(area) {
 // 설치가 팀 주소를 내 PC 프로그램에 적어 두었으면 물으면 바로 12시간 짝 열쇠를 준다(누름 없음 · 탭 메모리만).
 // 내 PC 지식의 id 는 ~ 로 시작하고 그 요청은 reqTo 가 내 PC 프로그램으로만 보낸다.
 function pcRemembered() { try { return JSON.parse(localStorage.getItem('kmdPcKns') || '[]') } catch { return [] } }
-async function pcConnect(again) {
+// 내 PC 프로그램은 이 PC 안이라 보통 곧 답한다 — 늦어도 팀 화면은 기다리지 않는다(뒤에서 잇는다) · 넣기 · 정리로 바쁜 PC 를
+// 꺼짐으로 보지 않게 넉넉히 기다린다 · 꺼져 있었으면 15초마다 · 창으로 돌아올 때 다시 잇는다(「켜면 저절로 다시 열린다」)
+const PC_MS = 15000
+function fetchPc(u, opt = {}) {
+  const c = new AbortController()
+  const t = setTimeout(() => c.abort(), PC_MS)
+  return fetch(u, { ...opt, signal: c.signal }).finally(() => clearTimeout(t))
+}
+// quiet — 다시 잇기. 붙을 때까지 지금 상태(꺼짐 줄 · 흐린 카드)를 그대로 둔다(「잇는 중」 으로 깜박이지 않게)
+async function pcConnect(again, { quiet = false } = {}) {
   const url = S.me.pcUrl
   if (!url) return
   let seen = false, tok = null
   try { seen = !!localStorage.getItem('kmdPcSeen'); tok = sessionStorage.getItem('kmdPair') } catch {}
-  S.pc = { url, token: null, kns: [], off: false, allow: false, seen }
-  S.kns = S.kns.filter((k) => !k.pc)
+  const pc = { url, token: null, kns: [], off: false, allow: false, seen, wait: true }
+  if (!quiet) { S.pc = pc; S.kns = S.kns.filter((k) => !k.pc) }
   try {
     if (!tok) {
-      const r = await fetch(url + '/pair', { method: 'POST' })
+      const r = await fetchPc(url + '/pair', { method: 'POST' })
       const j = await r.json().catch(() => ({}))
-      if (r.status === 403 && j.need === 'allow') { S.pc.allow = true; return }
+      if (r.status === 403 && j.need === 'allow') { pc.allow = true; pc.wait = false; S.pc = pc; return }
       if (!r.ok) throw new Error(j.message || '')
       tok = j.token
       try { sessionStorage.setItem('kmdPair', tok); localStorage.setItem('kmdPcSeen', '1') } catch {}
     }
-    S.pc.token = tok
-    const r2 = await fetch(url + '/api/knowledge', { headers: { authorization: 'Bearer ' + tok } })
-    if (r2.status === 401 && !again) { try { sessionStorage.removeItem('kmdPair') } catch {} return pcConnect(true) }
+    pc.token = tok
+    const r2 = await fetchPc(url + '/api/knowledge', { headers: { authorization: 'Bearer ' + tok } })
+    if (r2.status === 401 && !again) { try { sessionStorage.removeItem('kmdPair') } catch {} return pcConnect(true, { quiet }) }
     if (!r2.ok) throw new Error('')
-    S.pc.kns = (await r2.json()).map((k) => ({ ...k, id: '~' + k.id, pc: true, role: null, dests: k.dests || null, sendN: k.sendN || 0 }))
-    S.kns = [...S.kns, ...S.pc.kns]
-    try { localStorage.setItem('kmdPcKns', JSON.stringify(S.pc.kns.map((k) => ({ id: k.id, name: k.name, docs: k.docs })))) } catch {}
-  } catch { S.pc.off = true; S.pc.token = null }
+    pc.kns = (await r2.json()).map((k) => ({ ...k, id: '~' + k.id, pc: true, role: null, dests: k.dests || null, sendN: k.sendN || 0 }))
+    pc.wait = false
+    S.pc = pc
+    S.kns = [...S.kns.filter((k) => !k.pc), ...pc.kns]
+    try { localStorage.setItem('kmdPcKns', JSON.stringify(pc.kns.map((k) => ({ id: k.id, name: k.name, docs: k.docs })))) } catch {}
+  } catch {
+    pc.off = true
+    pc.token = null
+    pc.wait = false
+    if (!quiet) S.pc = pc
+  }
 }
+// 칸에 쓰는 중이면 다시 그리지 않는다(상태는 바뀌었으니 다음에 그릴 때 보인다)
+const typing = () => !!document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)
+function pcRetry() {
+  if (!S.me || gated() || !isTeam() || !S.pc || !S.pc.off || S.pc.wait || S._pcRetry) return
+  S._pcRetry = true
+  pcConnect(false, { quiet: true }).then(() => { S._pcRetry = false; if (!S.pc.off && !typing()) render() })
+}
+setInterval(pcRetry, 15000)
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pcRetry() })
+window.addEventListener('focus', pcRetry)
 // 적히지 않은 팀 주소 — 내 PC 프로그램 창이 [허락] 을 묻고 짝 열쇠를 이 창에만 넘긴다(대상 출처 고정)
 function pcAllow() {
   const w = window.open(S.pc.url + '/pair?from=' + encodeURIComponent(location.origin), 'kmdpair', 'width=520,height=360')
@@ -2451,7 +2514,7 @@ document.addEventListener('keydown', (ev) => {
 setInterval(() => { const c = $('[data-t=clock]'); if (c && S.me) c.textContent = `kmd v${S.me.version} · ${clock()}` }, 30000)
 // 자료 가져오기를 보는 동안 — 감시가 뒤에서 바꾼 줄을 20초마다 조용히 다시(칸에 쓰는 중 · 메뉴 · 창이 열려 있으면 그다음에)
 setInterval(async () => {
-  if (!S.me || anon() || S.route.scr !== 'import' || S.menu || S.del || S.pal || S.qo || S.cmd || S.se || S.sfOpen) return
+  if (!S.me || gated() || S.route.scr !== 'import' || S.menu || S.del || S.pal || S.qo || S.cmd || S.se || S.sfOpen) return
   if (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return
   const v = await getJSON('/api/sources').catch(() => null)
   if (v && JSON.stringify(v) !== JSON.stringify(S.cache.sources)) { S.cache.sources = v; render() }
@@ -2464,26 +2527,55 @@ async function loadAll() {
   if (S.me.anon) { render(); return }
   S.kns = await getJSON('/api/knowledge')
   S.cache = {}
-  if (isTeam()) await pcConnect()
-  const hm = location.hash.match(/^#(~[^/]+)\/(.+)$/)
-  if (hm && KN(decodeURIComponent(hm[1]))) { openTab({ kind: 'doc', kn: decodeURIComponent(hm[1]), ref: decodeURIComponent(hm[2]) }, { view: 'docs' }) }
   loadStops()
   clearInterval(stopTimer)
   stopTimer = setInterval(loadStops, 60000)
   document.title = isTeam() ? 'kmd — 팀' : 'kmd'
   if (!S.hist.length) pushHist()
-  render()
+  // 팀 지식은 바로 그리고, 내 PC 프로그램은 뒤에서 잇는다(붙으면 다시 그린다) — PC 가 늦어도 팀 화면이 기다리지 않는다.
+  // 내 PC 문서 주소(#~지식/문서)는 첫 그리기가 지우기 전에 잡아 두고, 붙은 뒤 그사이 다른 곳으로 옮기지 않았으면 연다
+  const hm = location.hash.match(/^#(~[^/]+)\/(.+)$/)
+  const openHash = () => { if (hm && KN(decodeURIComponent(hm[1]))) { openTab({ kind: 'doc', kn: decodeURIComponent(hm[1]), ref: decodeURIComponent(hm[2]) }, { view: 'docs' }); return true } return false }
+  const pc = isTeam() && S.me.pcUrl ? pcConnect() : null
+  if (!pc) openHash()
+  render() // openTab 은 그리지 않는다 — 열었든 아니든 여기서 그린다
+  if (!pc) return
+  const at = [S.hpos, S.active, S.route.scr]
+  pc.then(() => {
+    const still = at[0] === S.hpos && at[1] === S.active && at[2] === S.route.scr
+    // 들어가기 화면(처음 들어오기 · 남의 링크)은 PC 상태를 쓰지 않는다 — 비밀번호 칸을 다시 그려 지우지 않게
+    if (gated()) return
+    if (still && openHash()) return render()
+    if (!typing()) render()
+  })
 }
 
 // ───────────── 시작 ─────────────
+// 이 PC 화면의 한 번용 번호(#once=) — 받으면 들어온다 · 지났거나 쓴 번호면 그 까닭을 들어가기 화면에 보인다
+async function takeOnce() {
+  const once = (location.hash.match(/(?:^#|&)once=([^&]+)/) || [])[1]
+  if (!once) return false
+  S.onceErr = null
+  await postJSON('/once', { code: once }).catch((e) => { S.onceErr = e.message })
+  history.replaceState(null, '', location.pathname === '/pair' ? location.pathname + location.search : '/')
+  return true
+}
+// 같은 탭에 새 번호를 붙여도(시작 메뉴 kmd 가 이미 열린 탭을 다시 쓸 때) 들어온다
+window.addEventListener('hashchange', async () => {
+  if (!/(?:^#|&)once=/.test(location.hash)) return
+  try {
+    await takeOnce()
+    await loadAll()
+  } catch (e) {
+    S.err = 'kmd 에 닿지 않는다 — ' + e.message
+    render()
+  }
+})
 async function boot() {
+  render() // 처음 읽는 동안 흰 화면 대신 「읽는 중」
   try {
     const code = (location.hash.match(/(?:^#|&)code=([^&]+)/) || [])[1]
-    const once = (location.hash.match(/(?:^#|&)once=([^&]+)/) || [])[1]
-    if (once) {
-      await postJSON('/once', { code: once }).catch(() => {})
-      history.replaceState(null, '', '/')
-    }
+    await takeOnce()
     if (location.pathname === '/first') {
       S.gate = 'first'
       S.gateCode = code ? decodeURIComponent(code) : ''

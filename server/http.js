@@ -22,6 +22,10 @@ import { watchedOf } from '../core/watchmark.js'
 import { pcLogin, makeTeamLogin } from '../core/claudelogin.js'
 import { checkClaude } from '../core/claude.js'
 import { getSecret, delSecret } from '../core/secrets.js'
+import { safeOrigin } from '../core/claudecfg.js'
+import { createReadStream } from 'node:fs'
+import { pipeline } from 'node:stream/promises'
+import MarkdownIt from 'markdown-it'
 
 const APP = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'app')
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.json': 'application/json' }
@@ -63,7 +67,94 @@ function readBody(req, max = MAX_BODY) {
   })
 }
 
-export async function startServer({ root, data = null, mode = 'team', user = os.userInfo().username, host = '127.0.0.1', port = 7373, log, scryptN = null }) {
+// 설명서 — 저장소 · 꾸러미의 docs/ 를 화면 밖 한 장으로(들어오지 않아도 본다 · 비밀이 아니다)
+const DOCS = path.join(APP, '..', 'docs')
+const MANUALS = [
+  { slug: '사용자', file: '설명서_사용자.md', title: '쓰는 사람', modes: ['team', 'pc'] },
+  { slug: '정리하는사람', file: '설명서_정리하는사람.md', title: '정리하는 사람', modes: ['team'] },
+  { slug: '관리자', file: '설명서_관리자.md', title: '관리자', modes: ['team'] },
+  { slug: '운영', file: 'kmd_운영.md', title: '운영 · 되살리기', modes: ['team', 'pc'] },
+]
+const manualMd = new MarkdownIt({ html: false, linkify: true })
+async function manualPage(mode, slug) {
+  const list = MANUALS.filter((m) => m.modes.includes(mode))
+  const m = list.find((x) => x.slug === slug) || (slug ? null : list[0])
+  if (!m) return null
+  const src = await fs.readFile(path.join(DOCS, m.file), 'utf8').catch(() => null)
+  if (src == null) return null
+  // 설명서끼리의 링크는 /manual/… 로 · 꾸러미에 없는 문서 링크는 글만
+  const body = src.replace(/\[([^\]]+)\]\(([^)#\s]+\.md)(#[^)\s]*)?\)/g, (_, t, f, h) => { const x = MANUALS.find((y) => y.file === f); return x ? `[${t}](/manual/${encodeURIComponent(x.slug)}${h || ''})` : t })
+  const esc = (s) => String(s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c])
+  const nav = list.map((x) => (x === m ? `<b>${esc(x.title)}</b>` : `<a href="/manual/${encodeURIComponent(x.slug)}">${esc(x.title)}</a>`)).join(' · ')
+  return `<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>kmd 설명서 — ${esc(m.title)}</title>
+<style>body{font:14px/1.65 system-ui,-apple-system,'Malgun Gothic',sans-serif;margin:0;background:#f6f7f9;color:#1d232b}main{max-width:820px;margin:0 auto;padding:22px 16px 60px;background:#fff;min-height:100vh;box-sizing:border-box}nav{font-size:13px;color:#5b6573;margin-bottom:18px;padding-bottom:10px;border-bottom:1px solid #e3e6ea}a{color:#2f6fd6}h1{font-size:20px}h2{font-size:16px;margin-top:26px}table{border-collapse:collapse;width:100%;font-size:13px;display:block;overflow-x:auto}th,td{border:1px solid #e3e6ea;padding:5px 8px;text-align:left;vertical-align:top}code{background:#f1f3f5;padding:1px 4px;border-radius:4px;font-size:12.5px}pre{background:#f1f3f5;padding:10px;border-radius:7px;overflow-x:auto;white-space:pre-wrap}</style>
+<main><nav>kmd 설명서 — ${nav}</nav>${manualMd.render(body)}</main></html>`
+}
+
+// 설치 한 줄의 PowerShell 본문 — kmd 가 있으면 잇기만 · 없으면 받기 → 풀기(<집>/versions/<판>) → 실행기 · 사용자 PATH → 잇기.
+// 시험은 KMD_APP_HOME(집) · KMD_NO_PATH(사용자 PATH 를 건드리지 않는다)로 이 PC 를 바꾸지 않고 돌린다
+export function installPs({ origin, ticket, pkg }) {
+  const q = (s) => "'" + String(s).replace(/'/g, "''") + "'"
+  const L = [
+    "$ErrorActionPreference = 'Stop'",
+    "$ProgressPreference = 'SilentlyContinue'",
+    `$o = ${q(origin)}; $t = ${q(ticket)}`,
+    '$k = Get-Command kmd -ErrorAction SilentlyContinue',
+  ]
+  if (!pkg) {
+    L.push(`if ($k) { $k = $k.Source } else { Write-Host ${q(`· kmd 가 이 PC 에 없고 팀 서버에도 PC 꾸러미가 없다 — 관리자에게 「PC 꾸러미를 받기 자리에 둔다」 를 부탁한 뒤 이 줄을 다시 붙여 넣는다 · ${origin}/dl`)} }`)
+  } else {
+    L.push(
+      'if ($k) { $k = $k.Source } else {',
+      `  $v = ${q(pkg.ver)}; $n = ${q(pkg.name)}`,
+      "  $a = if ($env:KMD_APP_HOME) { $env:KMD_APP_HOME } else { Join-Path $env:USERPROFILE '.kmd-app' }",
+      // 이미 깐 kmd(실행기)가 있으면 그것을 쓴다 — PATH 를 아직 모르는 창에서 다시 붙여도 더 새 판을 옛 판으로 되돌리지 않는다(새 판은 kmd pc update)
+      "  $e = Join-Path $a 'bin\\kmd.cmd'",
+      "  if (Test-Path $e) { $k = $e; $env:Path = \"$(Split-Path $e);$env:Path\"; Write-Host '· 이 PC 에 이미 깐 kmd 를 쓴다 — 새 판은 kmd pc update' } else {",
+      '  $d = Join-Path $a "versions\\$v"',
+      "  if (-not (Test-Path (Join-Path $d 'server\\bin\\kmd.mjs'))) {",
+      '    Write-Host "kmd $v 을 받는다 — $o/dl"',
+      '    $z = Join-Path $env:TEMP $n',
+      '    Invoke-WebRequest "$o/dl/$n" -OutFile $z -UseBasicParsing',
+      // 판 폴더에 바로 푼다(zip 안의 kmd-<판>-pc 폴더 한 겹을 걷는다) — 막 푼 폴더를 옮기면 백신 검사가 잡고 있어 「액세스 거부」 일 때가 있다.
+      // Windows 10 1803 부터 있는 tar 가 빨리 푼다 — 없거나 실패하면 Expand-Archive 로 풀어 복사한다
+      '    if (Test-Path $d) { Remove-Item $d -Recurse -Force }',
+      '    New-Item -ItemType Directory -Force $d | Out-Null',
+      "    $tar = Join-Path $env:SystemRoot 'System32\\tar.exe'",
+      '    $ok = $false',
+      '    if (Test-Path $tar) { & $tar -xf $z -C $d --strip-components 1; $ok = ($LASTEXITCODE -eq 0) }',
+      '    if (-not $ok) {',
+      '      $x = Join-Path $env:TEMP "kmd-unz-$v"',
+      '      if (Test-Path $x) { Remove-Item $x -Recurse -Force }',
+      '      Expand-Archive $z $x -Force',
+      '      $i = Get-ChildItem $x -Directory | Select-Object -First 1',
+      "      Copy-Item (Join-Path $i.FullName '*') $d -Recurse -Force",
+      '      Remove-Item $x -Recurse -Force -ErrorAction SilentlyContinue',
+      '    }',
+      '    Remove-Item $z -Force -ErrorAction SilentlyContinue',
+      '  }',
+      "  & (Join-Path $d 'kmd.cmd') pc link $v",
+      "  if ($LASTEXITCODE) { throw 'kmd 실행기를 세우지 못했다' }",
+      "  $b = Join-Path $a 'bin'",
+      // 사용자 PATH — 원문(%변수% 그대로)과 종류(REG_EXPAND_SZ)를 지켜 끝에 더한다 · 바뀜 알림은 없는 변수를 지우는 부르기로 보낸다
+      '  if (-not $env:KMD_NO_PATH) {',
+      "    $r = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Environment')",
+      "    $p = [string]$r.GetValue('Path', '', 'DoNotExpandEnvironmentNames')",
+      "    if (-not (($p -split ';') -contains $b)) { $r.SetValue('Path', ((@($p.TrimEnd(';'), $b) | Where-Object { $_ }) -join ';'), 'ExpandString'); [Environment]::SetEnvironmentVariable('KMD_PATH_SET', $null, 'User') }",
+      '    $r.Close()',
+      '  }',
+      '  $env:Path = "$b;$env:Path"',
+      "  $k = Join-Path $b 'kmd.cmd'",
+      '  Write-Host "✓ kmd $v 을 깔았다 — $d · 새로 여는 터미널부터 kmd 명령이 선다"',
+      '  }',
+      '}',
+    )
+  }
+  L.push('if ($k) { & $k connect $o --ticket $t }', '')
+  return L.join('\r\n')
+}
+
+export async function startServer({ root, data = null, mode = 'team', user = os.userInfo().username, host = '127.0.0.1', port = 7373, log, scryptN = null, onStop = null }) {
   const dataDir = data || defaultDataDir(root)
   const pcUser = mode === 'pc' ? String(user).toLowerCase().replace(/[^a-z0-9._-]/g, '') || 'me' : null
   const hub = await makeHub({ root, dataDir, mode, pcUser, log })
@@ -71,6 +162,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const mcp = makeMcp(hub)
   if (pcUser) await auth.ensurePc(pcUser)
   const teamLogin = makeTeamLogin({ dataDir })
+  // 받기 자리의 PC 꾸러미 — kmd-<판>-pc.zip · 이 서버와 같은 판을 먼저, 없으면 가장 높은 판
+  const dlDir = () => path.resolve(hub.config.dl || path.join(dataDir, 'dl'))
+  const pcPackage = async () => {
+    const all = (await fs.readdir(dlDir()).catch(() => [])).map((n) => [n, n.match(/^kmd-([0-9A-Za-z._-]{1,40})-pc\.zip$/i)]).filter(([, m]) => m).map(([name, m]) => ({ name, ver: m[1] }))
+    return all.find((x) => x.ver === VERSION) || all.sort((a, b) => b.ver.localeCompare(a.ver, undefined, { numeric: true }))[0] || null
+  }
   // 이 PC — 프로그램 안에서 받은 Claude 로그인(비밀 claude-token)을 이 프로그램이 부르는 Claude 에만
   if (mode === 'pc') getSecret(dataDir, 'claude-token').then((t) => { if (t) process.env.CLAUDE_CODE_OAUTH_TOKEN = t }, () => {})
 
@@ -188,6 +285,18 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       // pcUrl — 내 PC 프로그램으로 이은 기기(설치 한 줄 · osuser 가 실린 것)가 있는 사람에게만 · 없으면 화면이 PC 를 묻지 않는다
       if (!ctx) return out(200, { mode, anon: true, setup: !auth.hasUsers(), legacy: auth.legacyWaiting(), version: VERSION, host: req.headers.host })
       return out(200, { mode, user: ctx.user, admin: !!ctx.admin, sudo: !!ctx.sudo, password: ctx.password !== false, version: VERSION, host: req.headers.host, ...(mode === 'pc' ? { root: path.resolve(root) } : auth.devices(ctx.user).some((d) => d.osuser) ? { pcUrl } : {}), ...(mode === 'team' && ctx.admin ? { root: path.resolve(root) } : {}) })
+    }
+    // 이 PC 화면의 한 번용 번호 · 멈추기 — `kmd open` · `kmd pc update` 가 이 PC 의 열쇠(자격 저장소의 기기 열쇠)로 부른다.
+    // 같은 PC 의 같은 OS 사용자만 그 열쇠를 푼다 · 팀 화면의 짝 열쇠는 CORS 목록 밖이라 닿지 않는다
+    if (mode === 'pc' && (p === '/api/pc/once' || p === '/api/pc/stop')) {
+      need(ctx)
+      if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
+      if (ctx.user !== pcUser || ctx.pair) throw new KmdError('E_FORBIDDEN', '이 PC 의 kmd 만 한다')
+      if (p === '/api/pc/once') return out(200, { code: auth.once(pcUser) })
+      if (!onStop) throw new KmdError('E_NOTFOUND', '이 kmd 는 여기서 멈추지 않는다')
+      out(200, { ok: true })
+      setTimeout(() => onStop(), 200)
+      return
     }
     // 기계 열쇠 — 그 지식의 기준선 길 하나만(E6 이 채운다)
     const bl = p.match(/^\/api\/k\/([^/]+)\/baseline$/)
@@ -562,33 +671,48 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (p === '/api/pair/allow' && mode === 'pc' && req.method === 'POST') {
         const { ctx: me } = who(req)
         need(me)
-        let origin
-        try { origin = new URL(String((await readBody(req)).origin || '')).origin } catch { throw new KmdError('E_INPUT', '팀 주소가 아니다') }
-        if (!/^https?:$/.test(new URL(origin).protocol)) throw new KmdError('E_INPUT', '팀 주소가 아니다')
+        // 이름 · IP 와 포트만 — teams.json 의 주소는 Claude Code 잇기(셸)로도 가므로 그 밖의 글자는 받지 않는다
+        const origin = safeOrigin((await readBody(req)).origin || '')
+        if (!origin) throw new KmdError('E_INPUT', '팀 주소가 아니다')
         const teams = await fs.readFile(teamsFile, 'utf8').then(JSON.parse, () => [])
         if (!teams.includes(origin)) await fs.writeFile(teamsFile, JSON.stringify([...teams, origin], null, 1))
         return send(res, 200, issuePair(origin))
       }
       if (p === '/healthz') {
+        // ?live=1 — 살아 있나만(멈춤 줄을 재지 않는다 · kmd open · 시작 메뉴 · pc update 가 바쁜 kmd 를 꺼짐으로 보지 않게)
+        if (url.searchParams.get('live')) return send(res, 200, { ok: true, version: VERSION, mode })
         const lines = await hub.stops({ user: null, admin: true })
         return send(res, 200, { ok: true, version: VERSION, mode, stops: lines.map((l) => ({ level: l.level, text: l.text })) })
       }
+      // 설명서 — /manual(이 서버 갈래의 첫 설명서) · /manual/<이름>
+      const mm = req.method === 'GET' && p.match(/^\/manual(?:\/([^/]+))?$/)
+      if (mm) {
+        const page = await manualPage(mode, mm[1] ? decodeURIComponent(mm[1]) : null)
+        if (!page) return send(res, 404, '없다', 'text/plain; charset=utf-8')
+        return send(res, 200, page, 'text/html; charset=utf-8', { 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'" })
+      }
       // 설치 한 줄이 받는 작은 스크립트 — `irm <팀>/i/<표> | iex`(PowerShell) · `curl -fsSL <팀>/i/<표>.sh | sh`. 표는 여기서 쓰지 않는다(설치가 /device/keys 로 한 번)
+      // kmd 가 없는 Windows PC 면 받기 자리의 PC 꾸러미를 받아 <집>/versions/<판> 에 풀고 실행기(<집>/bin)를 사용자 PATH 에 더한 뒤 잇는다
       const im = mode === 'team' && req.method === 'GET' && p.match(/^\/i\/(kmdt_[A-Za-z0-9_-]{10,80})(\.sh)?$/)
       if (im) {
         const origin = `http://${req.headers.host}`
-        const ps = `$ErrorActionPreference = 'Stop'\r\nif (Get-Command kmd -ErrorAction SilentlyContinue) { kmd connect '${origin}' --ticket '${im[1]}' }\r\nelse { Write-Host 'kmd 가 이 PC 에 없다 — 먼저 깐다: ${origin}/dl' }\r\n`
-        const sh = `#!/bin/sh\nif command -v kmd >/dev/null 2>&1; then kmd connect '${origin}' --ticket '${im[1]}'; else echo 'kmd 가 이 PC 에 없다 — 먼저 깐다: ${origin}/dl'; fi\n`
+        const pkg = await pcPackage()
+        const ps = installPs({ origin, ticket: im[1], pkg })
+        const sh = `#!/bin/sh\nif command -v kmd >/dev/null 2>&1; then kmd connect '${origin}' --ticket '${im[1]}'; else echo '· kmd 가 이 PC 에 없다 — 받을 수 있는 꾸러미는 Windows 용뿐이다. 저장소에서 kmd 를 깔고(node 20 이상) 이 줄을 다시 붙여 넣는다: ${origin}/dl'; fi\n`
         return send(res, 200, im[2] ? sh : ps, 'text/plain; charset=utf-8')
       }
-      // 꾸러미 받기 — 관리자가 둔 PC 꾸러미(serve.json dl · 기본 <살림 자리>/dl). 비밀이 아니라 들어오지 않아도 받는다
+      // 꾸러미 받기 — PC 꾸러미(serve.json dl · 기본 <살림 자리>/dl · 팀 설치가 꾸러미 안의 것을 둔다). 비밀이 아니라 들어오지 않아도 받는다
       if (mode === 'team' && req.method === 'GET' && (p === '/dl' || p.startsWith('/dl/'))) {
-        const dl = path.resolve(hub.config.dl || path.join(dataDir, 'dl'))
+        const dl = dlDir()
         const files = (await fs.readdir(dl).catch(() => [])).filter((n) => /\.(zip|tgz|exe|msi)$/i.test(n))
-        if (p === '/dl') return send(res, 200, `<!doctype html><meta charset="utf-8"><title>kmd 받기</title><body style="font:15px system-ui;margin:40px"><h1>kmd 받기</h1>${files.length ? `<ul>${files.map((n) => `<li><a href="/dl/${encodeURIComponent(n)}">${n.replace(/[<>&"]/g, '')}</a></li>`).join('')}</ul><p>PC 꾸러미를 풀어 PATH 에 더한 뒤, 팀 화면 › 설치 한 줄을 다시 붙여 넣는다.</p>` : '<p>아직 꾸러미가 없다 — 관리자에게 묻는다.</p>'}</body>`, 'text/html; charset=utf-8')
+        if (p === '/dl') return send(res, 200, `<!doctype html><meta charset="utf-8"><title>kmd 받기</title><body style="font:15px system-ui;margin:40px;max-width:760px"><h1>kmd 받기</h1>${files.length ? `<ul>${files.map((n) => `<li><a href="/dl/${encodeURIComponent(n)}">${n.replace(/[<>&"]/g, '')}</a></li>`).join('')}</ul><p>보통은 받을 일이 없다 — 팀 화면 › 설정 › 에이전트 설치의 <b>설치 한 줄</b>을 PowerShell 에 붙여 넣으면 이 꾸러미를 저절로 받아 깔고 팀에 잇는다.</p><p>손으로 깔려면: zip 을 풀고 그 폴더에서 <code>kmd.cmd up</code> 으로 켠다.</p>` : '<p>아직 PC 꾸러미가 없다 — 관리자가 팀 꾸러미로 설치하면 함께 놓인다. 관리자에게 묻는다.</p>'}<p><a href="/manual">설명서</a></p></body>`, 'text/html; charset=utf-8')
         const n = decodeURIComponent(p.slice(4))
         if (!files.includes(n)) return send(res, 404, '없다', 'text/plain; charset=utf-8')
-        return send(res, 200, await fs.readFile(path.join(dl, n)), 'application/octet-stream', { 'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(n)}` })
+        // 꾸러미는 수십 MB — 메모리에 다 읽지 않고 흘려 보낸다(여럿이 함께 깔아도 서버 메모리가 받는 사람 수만큼 늘지 않게)
+        const file = path.join(dl, n)
+        const st = await fs.stat(file)
+        res.writeHead(200, { 'content-type': 'application/octet-stream', 'content-length': st.size, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(n)}` })
+        return void (await pipeline(createReadStream(file), res).catch(() => res.destroy()))
       }
       if (req.method === 'POST' && ['/login', '/logout', '/first', '/setup', '/once', '/device/keys'].includes(p)) return await gate(req, res, p)
       const { ctx, set } = who(req)

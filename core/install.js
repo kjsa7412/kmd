@@ -1,13 +1,14 @@
-// 설치 한 줄의 출력 — ✓ 넷과 값이 있는 흐린 줄 셋(목업 M1). 묻는 것 없이 끝난다.
+// 설치 한 줄의 출력 — ✓ 넷과 값이 있는 흐린 줄(목업 M1). 묻는 것 없이 끝난다.
 //
 //   ✓ D:\kmd 에 세웠다 · 백업은 E:\kmd-백업 — 바꾸려면 설정
 //       폴더 넷이 그대로 지식이 됐다 — 배포노트 · 설계메모 · …
 //   ✓ 팀 kmd.team.local 에 김으로 이었다
-//       김의 「오늘 바뀐 것」 에 「새 기기가 이어졌다 — DESKTOP-KIM · kim」 한 줄이 남는다
+//       김의 「이력」 에 「새 기기가 이어졌다 — DESKTOP-KIM · kim」 한 줄이 남는다
 //   ✓ Claude Code 에 이었다 — 새로 여는 것부터
-//   ✓ 늘 켜기 · 새 판 저절로
+//   ✓ 늘 켜기 — 로그온 때 켜고 멈추면 다시 켠다
+//       이 PC 의 kmd 화면을 열었다 — 다음부터는 시작 메뉴의 kmd(또는 kmd open)
 //       기록이 남으면 곧바로 Claude 로 다듬어 문서에 넣는다 — 끄려면 설정
-// 안 된 단계는 ✓ 대신 · 와 사람이 붙일 한 줄.
+// 안 된 단계는 ✓ 대신 · 와 사람이 붙일 한 줄. 새 판은 저절로 오지 않는다 — `kmd pc update`(운영 §5).
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -26,7 +27,7 @@ export function pickBackupDir(root, { exists = fs.existsSync, sys = process.env.
   return null
 }
 
-export function installLines({ version, root, backup = null, kns = [], team = null, user = null, host = '', osuser = '', claude = { ok: true }, task = { ok: true }, claudeTidy = true }) {
+export function installLines({ version, root, backup = null, kns = [], team = null, user = null, host = '', osuser = '', claude = { ok: true }, task = { ok: true }, screen = null, claudeTidy = true }) {
   const L = []
   const ok = (t) => L.push(`✓ ${t}`)
   const no = (t) => L.push(`· ${t}`)
@@ -40,8 +41,16 @@ export function installLines({ version, root, backup = null, kns = [], team = nu
   } else if (team) no(`팀에 잇지 못했다 — ${team.why} · 팀 화면에서 설치 한 줄을 다시 복사한다`)
   if (claude.ok) ok('Claude Code 에 이었다 — 새로 여는 것부터')
   else no(`Claude Code 에 잇기(한 번): ${claude.line}`)
-  if (task.ok) ok('늘 켜기 · 새 판 저절로')
-  else no(`늘 켜기는 못 했다 — ${task.why || '이 PC 에서 kmd up 으로 켠다'}`)
+  if (task.ok) {
+    ok('늘 켜기 — 로그온 때 켜고 멈추면 다시 켠다')
+    // 시작 메뉴 바로가기를 만들지 못했으면 그 길을 말하지 않는다
+    const via = task.shortcut === false ? 'kmd open' : '시작 메뉴의 kmd(또는 kmd open)'
+    dim(screen?.ok ? `이 PC 의 kmd 화면을 열었다 — 다음부터는 ${via}` : `이 PC 의 kmd 화면은 ${via}로 연다${screen?.why ? ' — ' + screen.why : ''}`)
+    if (task.shortcut === false) dim('시작 메뉴 바로가기는 만들지 못했다 — kmd pc task 로 다시')
+  } else {
+    no(`늘 켜기는 못 했다 — ${task.why || '이 PC 에서 kmd up 으로 켠다'}`)
+    dim('이 PC 의 kmd 화면은 kmd up 으로 켜면 열린다 · 켜 둔 뒤에는 kmd open')
+  }
   if (claudeTidy) dim('기록이 남으면 곧바로 Claude 로 다듬어 문서에 넣는다 — 끄려면 설정')
   return L
 }
