@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "kmd-local",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/local.mjs"],
+      "port": 7381,
+      "url": "http://localhost:7381"
+    }
+  ]
+}

@@ -58,7 +58,9 @@ if (first) {
 }
 
 const log = () => {}
-const pc = await startServer({ root: PC, mode: 'pc', user: 'kim', port: PC_PORT, log, scryptN: 1 << 15 })
+// 이 PC 의 기기 열쇠 — 짝을 지을 때 팀 서버에 「들어온 사람 = 이 PC 를 이은 사람」 인지 묻는다(진짜 자격 저장소 대신 메모리로)
+let kimKey = null
+const pc = await startServer({ root: PC, mode: 'pc', user: 'kim', port: PC_PORT, log, scryptN: 1 << 15, deviceKey: async () => kimKey })
 const team = await startServer({ root: TEAM, port: TEAM_PORT, log, scryptN: 1 << 15 })
 // 쿠키는 포트를 가리지 않는다 — 팀은 localhost · PC 는 127.0.0.1 로 호스트 이름을 갈라 두 화면의 들어가기가 서로 덮지 않게
 const TEAM_URL = `http://localhost:${TEAM_PORT}`
@@ -80,12 +82,12 @@ if (first) {
   for (const k of ['배포노트', '설계메모', '받은편지함']) { const b = path.join(BASE, 'pc-bk', `${k}.git`); fs.mkdirSync(path.dirname(b), { recursive: true }); bare(b); await pc.hub.backupAttach(SHELL, k, b).catch(() => {}) }
 }
 // kim 의 「설치 한 줄로 이은 PC」 — 팀 화면이 내 PC 를 묻고, PC 의 보내기가 이 열쇠로 팀에 닿는다
-const kimKey = await team.auth.deviceKeyFor('kim', { host: 'LOCAL-PC', osuser: 'kim' })
+kimKey = await team.auth.deviceKeyFor('kim', { host: 'LOCAL-PC', osuser: 'kim' })
 process.env.KMD_SEND_KEY = kimKey
 runWorker({ server: team.url, key: (await team.auth.workerAdd()).key, poll: 3000, log })
 runWorker({ server: pc.url, key: (await pc.auth.workerAdd()).key, poll: 3000, log })
 // kim 의 PC 일꾼 — 팀 서버의 kim 개인 지식 일감을 이 PC 의 Claude 로(kmd up 의 `kmd worker mine` 과 같은 일)
-runWorker({ server: team.url, key: (await team.auth.workerAdd({ owner: 'kim', device: 'LOCAL-PC' })).key, poll: 3000, log })
+runWorker({ server: team.url, key: (await team.auth.workerAdd({ owner: 'kim', device: team.auth.bearer(kimKey).device })).key, poll: 3000, log })
 
 // PC 화면은 들어가기가 없다 — 한 번용 번호(60초)가 든 주소로 연다. 50초마다 새로 적는다
 const linkFile = path.join(BASE, 'PC-열기.txt')
