@@ -42,11 +42,11 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('보통 글 파일 — txt · log 그대로 · csv 는 md 표(따옴표 칸) · html 은 글 · json 은 코드 덩이', () => {
+test('보통 글 파일 — txt · log 그대로 · csv 는 md 표(따옴표 칸) · html 은 짜임을 살린 md(문단마다 빈 줄) · json 은 코드 덩이', () => {
   assert.equal(textToMd('txt', Buffer.from('한 줄\n두 줄')), '한 줄\n두 줄')
   assert.equal(textToMd('csv', Buffer.from('이름,값\n"가, 나",1\n"따옴""표",2\n')), '| 이름 | 값 |\n| --- | --- |\n| 가, 나 | 1 |\n| 따옴"표 | 2 |')
   assert.equal(textToMd('tsv', Buffer.from('a\tb|c\n1\t2')), '| a | b\\|c |\n| --- | --- |\n| 1 | 2 |')
-  assert.equal(textToMd('html', Buffer.from('<p>첫 &amp; 둘</p><script>x()</script><div>셋</div>')), '첫 & 둘\n셋')
+  assert.equal(textToMd('html', Buffer.from('<p>첫 &amp; 둘</p><script>x()</script><div>셋</div>')), '첫 & 둘\n\n셋')
   assert.match(textToMd('json', Buffer.from('{"a":1}')), /^```json\n\{"a":1\}\n```$/)
 })
 

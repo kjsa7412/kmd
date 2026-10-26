@@ -228,7 +228,7 @@ function render() {
   const keep = ['.main[data-t=main]', '[data-t=rightPane]', '[data-t=leftPane]', '[data-t=aside]'].map((q) => { const el = app.querySelector(q); return el ? [q, el.scrollTop] : null }).filter((x) => x && (x[0] === '[data-t=leftPane]' ? S._lpView === lpView : S._view === view))
   S._view = view
   S._lpView = lpView
-  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${gated() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside">${scr.aside}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.sudo ? sudoHtml() : ''}`
+  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${gated() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside">${scr.aside}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.sudo ? sudoHtml() : ''}`
   placePop()
   for (const [q, top] of keep) { const el = app.querySelector(q); if (el) el.scrollTop = top }
   if (gated()) { const g = $('[data-focus]'); if (g && document.activeElement !== g) g.focus(); return }
@@ -318,7 +318,7 @@ function hdrHtml(crumb) {
   const hb = `<span class="hist"><button class="hb" data-a="histGo" data-v="-1" data-t="histBack" title="이전 (Alt ←)"${S.hpos > 0 ? '' : ' disabled'}>‹</button><button class="hb" data-a="histGo" data-v="1" data-t="histFwd" title="다음 (Alt →)"${S.hpos < S.hist.length - 1 ? '' : ' disabled'}>›</button></span>`
   const meMenu = S.menu === 'me' ? `<div class="menu" style="right:0;top:30px" data-t="meMenu"><div class="mi" data-a="nav" data-s="settings" data-t="meSettings">설정</div>${isTeam() ? '<div class="sep"></div><div class="mi" data-a="logout" data-t="meLogout">나가기<small>이 브라우저에서</small></div><div class="mi" data-a="logoutAll" data-t="meLogoutAll">모든 곳에서 나가기<small>다른 기기 · 브라우저도</small></div>' : ''}</div>` : ''
   const me = anon() ? '<span class="hme muted" data-t="me">아직 들어오지 않았다</span>' : `<span class="hme" data-a="menu" data-m="me" data-t="me" title="설정 · 나가기" style="cursor:pointer;position:relative">${meMenu}<span class="av">${esc(String(S.me.user).slice(0, 1))}</span>${esc(S.me.user)} <small>· ${isTeam() ? '팀 서버' : '이 PC'}</small></span>`
-  const right = `<div class="hright"><a class="hlink" data-t="manual" href="/manual" target="_blank" rel="noopener" title="설명서 — 새 탭">${svg('book')}<span>설명서</span></a>${me}</div>`
+  const right = `<div class="hright">${anon() ? '' : claudeChip()}<a class="hlink" data-t="manual" href="/manual" target="_blank" rel="noopener" title="설명서 — 새 탭">${svg('book')}<span>설명서</span></a>${me}</div>`
   if (anon()) return `<header class="hdr"><span class="crumb">${c}</span><div class="hmid"></div>${right}</header>`
   return `<header class="hdr">${hb}<span class="crumb">${c}</span><div class="hmid"><div class="qbtn" data-a="openQo" data-t="qoBtn" title="문서 · 항목 · 기록 이름으로 바로 연다">빨리 열기 <kbd>Ctrl O</kbd></div><div class="search" data-a="openSearch" data-t="search">${svg('search')}<span style="margin-left:6px">찾기</span><span style="margin-left:auto;font-size:11px">Ctrl K</span></div></div>${right}</header>`
 }
@@ -555,7 +555,11 @@ function docAside(k, d) {
   const recs = bl.recs.map((r) => `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="blRec" data-pv="rec|${esc(k)}|${esc(r.id)}"><span class="dt">${r.state === 'pend' ? '●' : esc(whenTxt(r.date).replace(/^(오늘|어제) /, ''))}</span><span class="nm">${esc(r.title)}</span></div>`).join('')
   const docs = bl.linkers.map((o) => `<div class="alr" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(o.id)}" data-t="blDoc" data-pv="doc|${esc(k)}|${esc(o.id)}">${svg('doc')}<span class="nm">${esc(o.title)}</span></div>`).join('')
   const ments = bl.ments.map((x) => `<div class="alr" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(x.d)}" data-h="${esc(x.h)}" data-t="blMent" data-pv="doc|${esc(k)}|${esc(x.d)}">${svg('doc')}<span class="nm">${esc(x.title)} › ${esc(x.h)}<small>「${esc(x.x)}」</small></span></div>`).join('')
+  // 이 문서가 온 곳 — 항목에 넣은 기록(넣은 파일 · 기록)과 그 기록을 넣은 정리
+  const og = d.origins || []
+  const ogRow = (r) => `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="originRow" data-how="${r.how}" data-pv="rec|${esc(k)}|${esc(r.id)}"><span class="dt">${r.how === 'tidy' ? '정리' : '기록'}</span><span class="nm">${esc(r.title.split(' — ')[0])}<small>${esc(whenTxt(r.date))} · ${esc(r.author)} · 항목 ${r.hs.length}${r.hs.length ? ' — ' + esc(r.hs.slice(0, 2).join(' · ')) + (r.hs.length > 2 ? ' …' : '') : ''}</small></span></div>`
   return `<div class="ap" data-t="outline"><h4>개요</h4>${ol}</div>
+  <div class="ap" data-t="origins"><h4>이 문서가 온 곳 <small data-t="originN">${og.length}</small></h4>${og.map(ogRow).join('') || '<div class="muted small alr">없다 — 손으로 쓴 문서이거나 표지가 없다</div>'}</div>
   <div class="ap" data-t="backlinks"><h4>이 문서를 가리키는 것</h4>
    <div class="bg">기록 <b data-t="blRecN">${bl.recs.length}</b> <small>이 문서의 항목을 건드린 것</small></div>${recs || none}
    <div class="bg">문서 <b data-t="blDocN">${bl.linkers.length}</b> <small>이 문서를 링크한 것</small></div>${docs || none}
@@ -598,11 +602,14 @@ function recPane(t, right) {
   if (!r) return { html: loadingHtml, title: tabTitle(t) }
   if (r.error) return { html: '<p class="muted">이 기록은 이제 없다 — 정리되어 다른 이름으로 남았을 수 있다</p>', title: '기록' }
   const fx = r.fixes[0], fb = r.fixedBy, who = (w) => (w === S.me.user ? '나' : w)
-  const html = `<div class="docw" data-t="recPane" data-name="${esc(r.title)}">${right ? rpHead() : ''}<div class="ttl"><div class="path"><span>${esc(KN(k).name)} › ${r.log ? '이력' : '기록'} › ${esc(r.date)}</span><span class="r">${r.log ? `<span class="chip c-mute" data-t="recLog">이력 · ${esc(r.log)} — kmd 가 한 일</span>` : ''}${r.state === 'pend' ? '<span class="chip c-pend" data-t="recState">아직 문서에 안 넣은 기록</span>' : r.state === 'in' ? '<span class="chip c-mute" data-t="recState">문서에 들어감</span>' : ''}</span></div></div>
+  const html = `<div class="docw" data-t="recPane" data-name="${esc(r.title)}">${right ? rpHead() : ''}<div class="ttl"><div class="path"><span>${esc(KN(k).name)} › ${r.log ? '이력' : '기록'} › ${esc(r.date)}</span><span class="r">${r.ingest && !r.ingest.read && !isTeam() && !right ? `<button class="btn sm" data-a="readRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="readRec"${S.reading && S.reading[r.id] ? ' disabled' : ''} title="넣은 파일을 Claude 가 읽고 무엇 · 핵심 · 정한 것 · 남은 것 + 본문으로 기록을 다시 쓴다">${S.reading && S.reading[r.id] ? 'Claude 가 읽는 중…' : 'Claude 로 기록 정리'}</button> ` : ''}${r.log ? `<span class="chip c-mute" data-t="recLog">이력 · ${esc(r.log)} — kmd 가 한 일</span>` : ''}${r.state === 'pend' ? '<span class="chip c-pend" data-t="recState">아직 문서에 안 넣은 기록</span>' : r.state === 'in' ? '<span class="chip c-mute" data-t="recState">문서에 들어감</span>' : ''}</span></div></div>
   <div class="paper"><h1>${esc(r.title)}</h1><p class="muted small">${esc(r.author)} · ${esc(r.date)}</p>${linkify(r.html, k, null)}
   ${fx ? `<div class="callout warn">이 기록은 ${esc(whenTxt(fx.date))} ${esc(who(fx.author))}의 기록을 바로잡았다 — <a data-a="openRec" data-k="${esc(k)}" data-r="${esc(fx.id)}">${esc(fx.title)}</a></div>` : ''}${fb.map((x) => `<div class="callout gray">${esc(whenTxt(x.date))} ${esc(who(x.author))}이 이 기록을 바로잡았다 — <a data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}">${esc(x.title)}</a></div>`).join('')}
   ${r.state === 'pend' ? `<div class="callout pend">${pendWhen(k)} — 그동안도 그 항목 옆에 같이 읽힌다</div>` : ''}</div></div>`
-  const aside = `<div class="ap" data-t="recItems"><h4>${r.log ? '이 일이 건드린 항목' : '이 기록이 건드린 항목'} <small>${r.items.length}</small></h4>${r.items.map((i) => `<div class="alr" data-a="openItem" data-k="${esc(k)}" data-n="${esc(i.coord)}" data-t="recItem" data-pv="item|${esc(k)}|${esc(i.coord)}">${svg('tag')}<span class="nm">${esc(i.name)}<small>${esc(i.docTitle ? i.docTitle : '문서가 없는 항목')}</small></span></div>`).join('') || '<div class="muted small alr">없다</div>'}</div>
+  // 이 기록이 간 문서 — 이 기록(또는 이 기록을 넣은 정리)이 넣은 항목 · 정리 기록이면 그 정리가 넣은 기록
+  const went = r.went || [], via = r.via || [], from = r.from || []
+  const wentHtml = `<div class="ap" data-t="recWent"><h4>${r.log ? '이 일이 넣은 문서' : '이 기록이 간 문서'} <small data-t="recWentN">${went.length}</small></h4>${went.map((d) => `<div class="alr" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-h="${esc(d.hs[0] || '')}" data-t="wentDoc" data-pv="doc|${esc(k)}|${esc(d.id)}">${svg('doc')}<span class="nm">${esc(d.title)}<small>항목 ${d.hs.length} — ${esc(d.hs.slice(0, 3).join(' · '))}${d.hs.length > 3 ? ' …' : ''}</small></span></div>`).join('') || `<div class="muted small alr">${r.state === 'pend' ? '아직 문서에 들어가지 않았다' : '없다'}</div>`}${via.map((x) => `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}" data-t="viaRec"><span class="dt">정리</span><span class="nm">${esc(x.title.split(' — ')[0])}<small>${esc(whenTxt(x.date))} · ${esc(x.author)} 가 넣었다</small></span></div>`).join('')}${from.map((x) => `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}" data-t="fromRec"><span class="dt">기록</span><span class="nm">${esc(x.title.split(' — ')[0])}<small>이 일이 넣은 기록 · ${esc(whenTxt(x.date))} · ${esc(x.author)}</small></span></div>`).join('')}</div>`
+  const aside = wentHtml + `<div class="ap" data-t="recItems"><h4>${r.log ? '이 일이 건드린 항목' : '이 기록이 건드린 항목'} <small>${r.items.length}</small></h4>${r.items.map((i) => `<div class="alr" data-a="openItem" data-k="${esc(k)}" data-n="${esc(i.coord)}" data-t="recItem" data-pv="item|${esc(k)}|${esc(i.coord)}">${svg('tag')}<span class="nm">${esc(i.name)}<small>${esc(i.docTitle ? i.docTitle : '문서가 없는 항목')}</small></span></div>`).join('') || '<div class="muted small alr">없다</div>'}</div>
   <div class="ap" data-t="recFix"><h4>바로잡은 / 바로잡힌 기록</h4>${fx ? `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(fx.id)}" data-t="fixRow"><span class="dt">${esc(whenTxt(fx.date).replace(/^(오늘|어제) /, ''))}</span><span class="nm">바로잡음 — ${esc(fx.title)}</span></div>` : ''}${fb.map((x) => `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}" data-t="fixRow"><span class="dt">${esc(whenTxt(x.date).replace(/^(오늘|어제) /, ''))}</span><span class="nm">바로잡힘 — ${esc(x.title)}</span></div>`).join('')}${fx || fb.length ? '' : '<div class="muted small alr">없다</div>'}</div>
   ${nbGraph(k, 'r:' + r.id)}`
   return { html, aside: right ? null : aside, title: r.title.split(' — ')[0] }
@@ -2217,11 +2224,49 @@ async function pcLoginCheck(byHand) {
   let r = null
   try { r = await postJSON('/api/claude/check', {}) } catch (e) { r = { ok: false, reason: e.message } }
   delete S.cache.settings
-  if (r.ok) { S.pcLogin = null; toast('로그인됨 — 이제 파일 · 기록을 Claude 로 다듬어 넣는다') }
+  if (S.claude && r.reason !== undefined) Object.assign(S.claude, { ok: !!r.ok, reason: r.reason || null, at: new Date().toISOString() })
+  if (r.ok) { S.pcLogin = null; toast('로그인됨 — 이제 가져온 지식을 Claude 가 읽고 기록 · 문서로 쓴다') }
   else if (S.pcLogin) { S.pcLogin.checking = false; S.pcLogin.last = r.reason === 'login' ? '아직 로그인 전 — 그 창 · 브라우저에서 마치면 저절로 확인한다' : r.reason === 'limit' ? 'Claude 사용 한도에 닿았다' : '확인하지 못했다 — 다시 본다' }
   else if (byHand) toast(r.reason === 'login' ? '로그인이 끝났다 — [Claude 로그인] 으로 다시 들어간다' : r.reason === 'limit' ? 'Claude 사용 한도에 닿았다' : '확인하지 못했다')
   render()
   return r.ok
+}
+// ── Claude 연결 — 머리의 칩 · 창 ──
+//   가져온 지식(넣은 파일 · git 커밋)은 Claude 가 읽고 기록으로 쓰고, 그 기록으로 문서를 세운다 — 구독형 Claude 로그인이 있어야 한다.
+//   로그인은 이 PC 의 Claude Code 에 남아 저절로 이어진다. 화면은 30분마다 상태를 읽고, 6시간이 지났으면 작은 부르기로 확인하고,
+//   끝났으면(로그인 · 한도) 칩이 빨갛게 · 들어올 때 창을 한 번 띄운다
+async function loadClaude({ verify = false } = {}) {
+  try { S.claude = await getJSON('/api/claude/state') } catch { return }
+  const c = S.claude
+  if (verify && c.pc && !c.off && (c.ok !== true || !c.at || Date.now() - Date.parse(c.at) > 6 * 3600_000)) {
+    const r = await postJSON('/api/claude/check', {}).catch(() => null)
+    if (r) Object.assign(c, { ok: r.ok, reason: r.reason || null, at: new Date().toISOString() })
+  }
+  if (c.pc && !c.off && c.ok === false && !S.claudeAsked) { S.claudeAsked = true; S.claudeWin = true }
+  render()
+}
+function claudeOpen() { S.claudeWin = true; render() }
+function claudeTone(c) { return !c ? 'unk' : c.off ? 'off' : c.ok === true ? 'ok' : c.ok === false ? 'bad' : 'unk' }
+function claudeChip() {
+  const c = S.claude, st = claudeTone(c)
+  const tip = { ok: 'Claude 연결됨', bad: c && c.reason === 'limit' ? 'Claude 사용 한도에 닿았다' : 'Claude 로그인이 필요하다', off: 'Claude 쓰지 않음', unk: 'Claude 연결 — 아직 확인 전' }[st]
+  return `<a class="hlink cchip ${st}" data-a="claudeOpen" data-t="claudeChip" data-state="${st}" title="${tip} — 누르면 연결 창">${'<i class="cdot"></i>'}<span>Claude</span></a>`
+}
+function claudeWinHtml() {
+  const c = S.claude || {}, st = claudeTone(S.claude), L = S.pcLogin
+  const stateTxt = { ok: '연결됨 — 이 PC 의 Claude Code 로그인', bad: c.reason === 'limit' ? 'Claude 사용 한도에 닿았다 — 한도가 풀리면 저절로 이어진다' : '로그인이 필요하다 — 아래 [Claude 로그인]', off: 'Claude 쓰지 않기로 해 두었다 — 설정 › 저절로 하는 일에서 켠다', unk: '아직 확인 전 — [로그인 확인] 으로 본다' }[st]
+  const when = c.at ? ` · ${esc(whenTxt(c.at))} 확인` : ''
+  const why = '<p class="small" style="margin:0 0 8px">kmd 는 가져온 지식 — <b>넣은 파일 · git 커밋</b> — 을 Claude 가 읽고 분석해 <b>기록</b>으로 쓰고, 그 기록으로 <b>문서</b>를 세운다. 그래서 구독형 Claude(Pro · Max · Team · Enterprise) 로그인이 있어야 한다. 로그인이 없으면 받은 글 그대로 기록하고 규칙으로만 넣는다.</p>'
+  let body, foot
+  if (c.pc) {
+    const flow = L ? `<div class="callout gray" data-t="claudeWinFlow" style="display:block"><b>작업 표시줄의 「kmd — Claude 로그인」 창</b>이 떴다 — 그 창이 브라우저를 연다.<ol class="small"><li>브라우저에서 Claude 계정(구독)으로 들어가 <b>허락</b>을 누른다</li><li>「로그인됨」 이 나오면 그 창은 닫아도 된다</li><li>이 창이 몇 초마다 저절로 확인한다</li></ol><div class="row" style="margin-top:8px"><span class="prog" data-t="claudeWait"><i></i>${L.checking ? '로그인을 확인하는 중…' : L.last ? esc(L.last) : '로그인을 기다린다'}</span><a class="lk" data-a="pcLoginCancel" style="margin-left:auto">그만두기</a></div><p class="small muted" style="margin:6px 0 0">창이 안 보이면 작업 표시줄에서 누른다 · 브라우저가 안 열리면 그 창에 나온 주소를 연다</p></div>` : ''
+    body = `${why}<div class="cst cchip ${st}" data-t="claudeWinState"><i class="cdot"></i><b>${stateTxt}</b><small class="muted">${when}</small></div>${flow}<p class="small muted" style="margin:8px 0 0">로그인은 이 PC 의 Claude Code 에 남아 다시 켜도 이어진다 · kmd 가 때때로 확인하고 끝나면 이 창을 다시 띄운다</p>`
+    foot = `<a class="muted" data-a="claudeClose" style="align-self:center;margin-right:auto">닫기</a><button class="btn" data-a="pcLoginCheck" data-t="claudeWinCheck"${L && L.checking ? ' disabled' : ''}>로그인 확인</button>${L ? '' : `<button class="btn${st === 'ok' ? '' : ' pri'}" data-a="pcLoginStart" data-t="claudeWinLogin">${st === 'ok' ? '다시 로그인' : 'Claude 로그인'}</button>`}`
+  } else {
+    body = `${why}<div class="cst cchip ${st}" data-t="claudeWinState"><i class="cdot"></i><b>${st === 'ok' ? '팀 정리 로그인이 돈다' : st === 'bad' ? '팀 정리 로그인이 쉬고 있다 — 관리자에게 알렸다' : '팀 정리 로그인 — 관리자가 해 둔다'}</b><small class="muted">${when}</small></div><p class="small muted" style="margin:8px 0 0">팀 지식은 팀 서버의 정리 전용 Claude 로그인으로 · 내 개인 지식은 내 PC 프로그램의 Claude 로그인으로 한다(내 PC 프로그램 화면의 머리 「Claude」).</p>`
+    foot = `<a class="muted" data-a="claudeClose" style="align-self:center;margin-right:auto">닫기</a>${S.me.admin ? '<button class="btn pri" data-a="claudeToAdmin" data-t="claudeToAdmin">관리 › Claude 연결</button>' : ''}`
+  }
+  return `<div class="pscrim" data-a="claudeClose" data-self="1"><div class="modal win cwin" data-t="claudeWin" style="width:min(520px,94%)"><div class="tb"><b>Claude 연결</b><button class="x" data-a="claudeClose" title="닫기" style="margin-left:auto;border:0;background:none;cursor:pointer;font-size:16px">×</button></div><div class="wb">${body}</div><div class="wf">${foot}</div></div></div>`
 }
 // 창을 띄운 뒤 — 8초마다 확인(10분까지)
 function pcLoginPoll() {
@@ -2443,6 +2488,9 @@ const ACT = {
   },
   pcLoginCheck: () => pcLoginCheck(true),
   pcLoginCancel: () => { S.pcLogin = null; render() },
+  claudeOpen: () => { claudeOpen(); loadClaude() },
+  claudeClose: () => { S.claudeWin = false; render() },
+  claudeToAdmin: () => { S.claudeWin = false; go({ scr: 'admin' }) },
   claudeLogin: async () => { S.menu = null; try { await postJSON('/api/claude/login', {}); S.claudeOpening = true; setTimeout(() => { S.claudeOpening = false; delete S.cache.settings; render() }, 60000) } catch (e) { toast(esc(e.message)) } render() },
   claudeOff: async () => { S.menu = null; try { await postJSON('/api/settings/auto', { key: 'claude', on: false }); delete S.cache.settings; toast('Claude 쓰지 않기 — 규칙으로 되는 것만 한다 · 저절로 하는 일에서 다시 켠다') } catch (e) { toast(esc(e.message)) } render() },
   agentAdd: () => { S.agAdding = true; S._focus = 'agIn'; render() },
@@ -2505,6 +2553,15 @@ const ACT = {
   impOpen: (el) => { S.impOpen = S.impOpen === el.dataset.v ? null : el.dataset.v; render() },
   palQo: () => { const q = S.pal ? S.pal.q : ''; S.pal = null; openQo(); if (S.qo) S.qo.q = q; render() },
   palName: (el) => { S.pal = null; openTab({ kind: el.dataset.kind, kn: el.dataset.k, ref: el.dataset.v }); render(); scrollTopMain() },
+  // 넣은 파일의 기록 — Claude 가 읽고 사람이 읽을 기록으로 다시 쓴다(로그인이 없으면 Claude 연결 창)
+  readRec: async (el) => {
+    const k = el.dataset.k, r = el.dataset.r
+    S.reading = { ...(S.reading || {}), [r]: true }
+    render()
+    try { const x = await postJSON(`/api/k/${encodeURIComponent(k)}/rec/read`, { r }); forgetKn(k); toast(`기록을 정리했다 — ${esc(x.title || '')}`) } catch (e) { if (/로그인/.test(e.message)) claudeOpen(); toast(esc(e.message)) }
+    delete S.reading[r]
+    render()
+  },
   unwatchDoc: async (el) => {
     if (!confirm('원본이 없어진 사본이다 — 「원본이 주인」 표지를 걷어 내 문서로 고친다')) return
     try { await postJSON(`/api/k/${encodeURIComponent(el.dataset.k)}/unwatch`, { doc: el.dataset.d }); forgetKn(el.dataset.k); toast('내 문서로 했다 — 이제 고칠 수 있다') } catch (e) { toast(esc(e.message)) }
@@ -2845,6 +2902,7 @@ setInterval(async () => {
 
 // 들어온 사람의 자료 — 목록 · 멈춤 줄
 let stopTimer = null
+let claudeTimer = null
 async function loadAll() {
   S.me = await getJSON('/api/me')
   if (S.me.anon) { render(); return }
@@ -2853,6 +2911,9 @@ async function loadAll() {
   loadStops()
   clearInterval(stopTimer)
   stopTimer = setInterval(loadStops, 60000)
+  loadClaude({ verify: true })
+  clearInterval(claudeTimer)
+  claudeTimer = setInterval(() => loadClaude({ verify: true }), 30 * 60_000)
   document.title = isTeam() ? 'kmd — 팀' : 'kmd'
   if (!S.hist.length) pushHist()
   // 팀 지식은 바로 그리고, 내 PC 프로그램은 뒤에서 잇는다(붙으면 다시 그린다) — PC 가 늦어도 팀 화면이 기다리지 않는다.

@@ -12,6 +12,7 @@
 // 팀 지식에서 바로 넣지 못하는 사람도 기록으로 남긴다.
 
 import path from 'node:path'
+import crypto from 'node:crypto'
 import { convert } from './ooxml.js'
 import { readText, nfc } from './text.js'
 import { KmdError } from './errors.js'
@@ -27,10 +28,7 @@ export function textToMd(ext, buf) {
   const t = readText(buf.toString('utf8')).replace(/^\uFEFF/, '')
   if (ext === 'txt' || ext === 'log') return t
   if (ext === 'json') return '```json\n' + t.trim() + '\n```'
-  if (ext === 'html' || ext === 'htm') {
-    return t.replace(/<(script|style)[\s\S]*?<\/\1>/gi, '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|h[1-6]|tr)>/gi, '\n').replace(/<[^>]+>/g, '')
-      .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&').replace(/\n{3,}/g, '\n\n').trim()
-  }
+  if (ext === 'html' || ext === 'htm') return htmlToMd(t)
   // csv · tsv — 따옴표 칸(쉼표 · 줄바꿈 · "" ) 을 읽어 md 표로
   const sep = ext === 'tsv' ? '\t' : ','
   const rows = []
@@ -53,6 +51,73 @@ export function textToMd(ext, buf) {
   const w = Math.max(...live.map((r) => r.length))
   const md = (r) => '| ' + Array.from({ length: w }, (_, i) => String(r[i] ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ').trim()).join(' | ') + ' |'
   return [md(live[0]), '|' + ' --- |'.repeat(w), ...live.slice(1).map(md)].join('\n')
+}
+
+// html → md — 짜임(머리 · 문단 · 목록 · 표 · 코드 · 굵게 · 그림 설명)을 살린다. 꾸밈(script · style · svg · nav · 단추)은 뺀다.
+//   태그만 지우면 머리 · 표가 한 덩이 글이 되어 기록으로 읽히지 않았다
+const ENT = { nbsp: ' ', lt: '<', gt: '>', quot: '"', apos: "'", amp: '&', middot: '·', ndash: '–', mdash: '—', hellip: '…', rarr: '→', larr: '←', harr: '↔', times: '×', le: '≤', ge: '≥', ne: '≠', bull: '•' }
+const decode = (s) => s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e) => (e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : +e.slice(1)) : ENT[e.toLowerCase()] ?? m))
+const BLOCK = new Set(['p', 'div', 'section', 'article', 'header', 'footer', 'main', 'aside', 'figure', 'figcaption', 'blockquote', 'details', 'summary', 'dl', 'dt', 'dd', 'hr', 'address', 'center', 'caption', 'body'])
+export function htmlToMd(html) {
+  const src = String(html || '')
+    .replace(/<!--[\s\S]*?-->|<![^>]*>|<\?[^>]*>/g, '')
+    .replace(/<(script|style|svg|noscript|template|head|nav|button|select|textarea|iframe|object|canvas)\b[\s\S]*?<\/\1\s*>/gi, '')
+  let out = ''
+  let cell = null // 표 칸 안이면 그 칸의 글
+  const tables = [] // { rows: [[칸]], head: bool }
+  const lists = [] // 'ul' | 'ol' 와 번호
+  let pre = null
+  let bold = 0
+  const put = (s) => { if (cell != null) cell += s; else out += s }
+  const nl = (n = 2) => { if (cell != null) { cell += ' '; return } out = out.replace(/[ \t]+$/, ''); const have = (out.match(/\n*$/) || [''])[0].length; if (out && have < n) out += '\n'.repeat(n - have) }
+  const re = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)([^>]*)>|([^<]+)/g
+  let m
+  while ((m = re.exec(src))) {
+    const [, close, tag0, attrs, text] = m
+    if (text != null) {
+      if (pre != null) { pre += decode(text); continue }
+      const s = decode(text).replace(/\s+/g, ' ')
+      if (!s.trim() && !/\S$/.test(cell ?? out)) continue
+      put(s)
+      continue
+    }
+    const tag = tag0.toLowerCase()
+    if (pre != null && !(close && tag === 'pre')) continue
+    if (/^h[1-6]$/.test(tag)) { nl(); if (!close && cell == null) put('#'.repeat(+tag[1]) + ' '); continue }
+    if (tag === 'br') { if (cell != null) cell += ' '; else out += '\n'; continue }
+    if (tag === 'pre') {
+      if (!close) { nl(); pre = '' } else { out += '```\n' + pre.replace(/^\n+|\s+$/g, '') + '\n```'; pre = null; nl() }
+      continue
+    }
+    if (tag === 'code') { put('`'); continue }
+    if (tag === 'strong' || tag === 'b') { if (close ? bold > 0 : true) { bold += close ? -1 : 1; put('**') } continue }
+    if (tag === 'img') { const alt = (attrs.match(/\balt\s*=\s*"([^"]*)"/i) || [])[1]; if (alt) put(`[그림: ${decode(alt)}]`); continue }
+    if (tag === 'ul' || tag === 'ol') { if (close) { lists.pop(); if (!lists.length) nl() } else { if (!lists.length) nl(); lists.push({ tag, n: 0 }) } continue }
+    if (tag === 'li') {
+      if (!close && cell == null) { const L = lists[lists.length - 1] || { tag: 'ul', n: 0 }; out = out.replace(/[ \t]+$/, ''); out += (out && !out.endsWith('\n') ? '\n' : '') + '  '.repeat(Math.max(0, lists.length - 1)) + (L.tag === 'ol' ? `${++L.n}. ` : '- ') }
+      else if (cell != null) cell += ' '
+      continue
+    }
+    if (tag === 'table') {
+      if (!close) { if (cell != null) { tables.push({ rows: [], nested: cell }); cell = null } else { nl(); tables.push({ rows: [] }) } continue }
+      const T = tables.pop()
+      if (!T) continue
+      const rows = T.rows.filter((r) => r.some((x) => x.trim()))
+      const w = Math.max(0, ...rows.map((r) => r.length))
+      const md = !rows.length ? '' : rows.length === 1 || w === 1 ? rows.map((r) => r.map((x) => x.trim()).filter(Boolean).join(' · ')).join('\n') : [rows[0], null, ...rows.slice(1)].map((r) => (r ? '| ' + Array.from({ length: w }, (_, i) => (r[i] || '').replace(/\s+/g, ' ').trim().replace(/\|/g, '\\|')).join(' | ') + ' |' : '|' + ' --- |'.repeat(w))).join('\n')
+      if (T.nested != null) { cell = T.nested + ' ' + md.replace(/\n/g, ' ') } else { out += md; nl() }
+      continue
+    }
+    if (tag === 'tr') { const T = tables[tables.length - 1]; if (T && !close) T.rows.push([]); continue }
+    if (tag === 'td' || tag === 'th') {
+      const T = tables[tables.length - 1]
+      if (!T) continue
+      if (!close) { if (!T.rows.length) T.rows.push([]); cell = '' } else if (cell != null) { T.rows[T.rows.length - 1].push(cell); cell = null }
+      continue
+    }
+    if (BLOCK.has(tag) || tag === 'li') { nl(); continue }
+  }
+  return out.split('\n').map((l) => l.replace(/[ \t]+$/, '').replace(/^ (?=\S)/, '')).join('\n').replace(/\*\*\s*\*\*/g, '').replace(/\n{3,}/g, '\n\n').trim()
 }
 
 const extOf = (n) => (String(n).toLowerCase().match(/\.([a-z0-9]+)$/) || [])[1] || ''
@@ -98,10 +163,12 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
         // 원본(docx · pptx · xlsx)은 첨부로 둔다 — 바로 넣을 수 있는 사람만
         if (direct && ext !== 'md' && ext !== 'markdown' && !TEXT.includes(ext) && !(await read(attRel))?.equals(f.data)) plan.atts.push({ rel: attRel, data: f.data })
         const tag = `ingest/${rel}`.slice(0, 60)
-        const same = k.works.some((w) => w.tags.includes(tag) && w.body.trim() === md.trim())
+        // 받은 글의 지문 — Claude 가 기록을 정리해 글이 바뀌어도(ingest-read) 같은 파일을 다시 넣으면 「같은 파일」
+        const dig = `md/${crypto.createHash('sha256').update(md.trim()).digest('hex').slice(0, 16)}`
+        const same = k.works.some((w) => w.tags.includes(tag) && (w.tags.includes(dig) || w.body.trim() === md.trim()))
         if (same) row('same', '같은 파일 — 그대로 두었다')
         else {
-          plan.records.push({ title: `${path.posix.basename(rel)} — 넣은 파일`, body: md, tags: [tag] })
+          plan.records.push({ title: `${path.posix.basename(rel)} — 넣은 파일`, body: md, tags: [tag, dig] })
           row('record', `기록이 됐다 — ${k.name} › 기록 · 정리가 기존 문서에 넣거나 새 문서로 세운다`)
         }
         continue

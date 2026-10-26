@@ -99,7 +99,7 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
         const text = `${last?.result || ''} ${se}`
         if (!last || last.is_error || code) {
           const error = /login|log in|api key|auth|unauthori|credential|401/i.test(text) ? 'login' : /limit|quota|rate|usage|budget|429/i.test(text) ? 'limit' : 'fail'
-          line('err', error === 'login' ? 'Claude 로그인이 없다 — 설정 › Claude 연결' : error === 'limit' ? 'Claude 한도 · 예산에 닿았다' : `Claude 가 끝을 내지 못했다 — ${short(text.trim() || '종료 ' + code, 160)}`)
+          line('err', error === 'login' ? 'Claude 로그인이 없다 — 머리의 「Claude」 에서 로그인' : error === 'limit' ? 'Claude 한도 · 예산에 닿았다' : `Claude 가 끝을 내지 못했다 — ${short(text.trim() || '종료 ' + code, 160)}`)
           resolve({ ok: false, error, message: text.trim().slice(0, 300), cost: last?.total_cost_usd || 0 })
           return
         }

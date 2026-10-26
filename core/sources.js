@@ -9,7 +9,8 @@
 //   대상   git 은 bare · protocol https · ssh 만(ext:: · file:// 거절 · 이 PC 폴더는 허락된 원천 루트 안만) · 서브모듈 끔
 //          폴더는 허락된 원천 루트 안만(팀) · <data> · 지식 폴더 · 백업 주소 거절 · 숨김 · .git · node_modules 는 읽지 않음 · 1MB
 //
-// 원천 실행기는 판정하지 않고 대기열에 세우지 않고 블록 밖 글 · 표지 · 다른 이름을 바꾸지 않는다. LLM 을 부르지 않는다.
+// 원천 실행기는 판정하지 않고 대기열에 세우지 않고 블록 밖 글 · 표지 · 다른 이름을 바꾸지 않는다.
+// LLM 은 스스로 부르지 않는다 — 커밋 기록의 분석만 hub 가 넘긴 analyze 로(runCode).
 
 import fs from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
@@ -238,7 +239,10 @@ const docPath = (doc) => `docs/${String(doc).replace(/^docs\/|\.md$/g, '')}.md`
 export async function planRun(k, src, items, { asof, first = false, prev = [] }) {
   const targets = targetsOf(src, items)
   const changed = []
-  const now = new Set(targets.map((t) => `${t.doc}\n${t.heading}`))
+  // 항목 키는 늘 `docs/문서.md` 꼴 — 자리 장부가 선 뒤에는 doc 이 `docs/….md` 로 와서, 꼴이 다르면 모든 항목이 「사라짐」 으로 셌다
+  const keyOf = (doc, heading) => `${docPath(doc)}\n${heading}`
+  const now = new Set(targets.map((t) => keyOf(t.doc, t.heading)))
+  prev = prev.map((key) => { const i = key.indexOf('\n'); return i < 0 ? key : keyOf(key.slice(0, i), key.slice(i + 1)) })
   let added = 0
   for (const t of targets) {
     const d = k.byDocPath.get(docPath(t.doc))
@@ -342,7 +346,8 @@ async function gitFetch(src, { dataDir, kn }) {
 //   정리   기록을 남기면 hub 가 그 지식의 정리를 건다(Claude 에 보내지 않는 지식 · 이 PC 의 자동 정리 끔이면 기록만 남는다)
 const DEEPEN = 50
 const DEEPEN_MAX = 200
-async function runCode(k, src, { dataDir, save, first = false, full = false }) {
+//   분석   analyze(c, diffs, rec) 가 있으면 Claude 가 차이를 읽고 무엇이 왜 바뀌었는지 쓴 기록으로(core/analyze.js) · 없거나 실패면 차이 그대로
+async function runCode(k, src, { dataDir, save, first = false, full = false, analyze = null }) {
   const st = await readState(dataDir, k.id)
   const s0 = (st[src.name] ||= {})
   const now = new Date().toISOString()
@@ -391,7 +396,9 @@ async function runCode(k, src, { dataDir, save, first = false, full = false }) {
       if (!diffs.length) continue
       const [sha, author, date, subject] = (await tryGit(g.bare, ['log', '-1', '--format=%h%x00%an%x00%ci%x00%s', b])).out.trim().split('\0')
       const info = linked ? { sha, author, date: String(date).slice(0, 16), subject } : { sha: `${base.slice(0, 7)}..${sha}`, author, date: String(date).slice(0, 16), subject: `여러 묶음 — 마지막: ${subject}` }
-      await save({ record: commitRecord(k, src, info, diffs, { skipped: i === 0 ? skipped : 0, more: code.length - diffs.length }) })
+      let rec = commitRecord(k, src, info, diffs, { skipped: i === 0 ? skipped : 0, more: code.length - diffs.length })
+      if (analyze) rec = (await analyze(info, diffs, rec).catch(() => null)) || rec
+      await save({ record: rec })
       codeRecords++
     }
     const note = `새 묶음 ${pairs.length}${codeRecords ? ` · 코드 바뀜 기록 ${codeRecords}` : ' · 코드는 그대로'}${skipped ? ` · 앞선 ${skipped} 은 건너뜀` : ''}`

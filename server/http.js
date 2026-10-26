@@ -296,7 +296,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   }
 
   const GET_OK = [
-    /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|send\/targets)$/,
+    /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|send\/targets|claude\/state)$/,
     /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/,
     /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|sources|send|backup|backup\/lost|owner|worker\/material)$/,
   ]
@@ -409,6 +409,11 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       })
     }
     if (p === '/api/settings/auto' && req.method === 'POST') { const b = await readBody(req); return out(200, await hub.setAuto(ctx, String(b.key), !!b.on)) }
+    // Claude 연결 상태 — 머리의 칩(가볍게 · 마지막으로 Claude 를 쓴 결과 · worker.json)
+    if (p === '/api/claude/state') {
+      const ws = await fs.readFile(path.join(dataDir, 'worker.json'), 'utf8').then(JSON.parse, () => null)
+      return out(200, { pc: mode === 'pc', ok: ws ? ws.ok : null, reason: ws?.reason || null, since: ws?.since || null, at: ws?.at || null, off: mode === 'pc' ? !hub.autoOf(ctx.user, 'claude') : false })
+    }
     if (p === '/api/claude/login' && req.method === 'POST') {
       if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀 정리 로그인은 관리 › Claude 연결에서')
       return out(200, pcLogin())
@@ -680,6 +685,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (sd[2] === 'receive') return out(200, await hub.receive(ctx, id, b))
       if (sd[2] === 'inbox/send') return out(200, await hub.inboxSend(ctx, id, b))
       return out(200, await hub.inboxTidy(ctx, id, { dry: !!b.dry }))
+    }
+    // 넣은 파일의 기록을 Claude 로 정리 — { r: 기록 id }
+    const rr = p.match(/^\/api\/k\/([^/]+)\/rec\/read$/)
+    if (rr) {
+      if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
+      return out(200, await hub.readRecord(ctx, decodeURIComponent(rr[1]), (await readBody(req)).r))
     }
     const uw = p.match(/^\/api\/k\/([^/]+)\/unwatch$/)
     if (uw) return out(200, await hub.unwatch(ctx, decodeURIComponent(uw[1]), await readBody(req)))

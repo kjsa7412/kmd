@@ -146,6 +146,35 @@ function backlinks(k, d) {
   return { recs: recs.map(recRow), linkers: linkers.map((o) => ({ id: o.id, title: o.title })), ments }
 }
 
+// 기록 ↔ 문서 — 항목 표지(applied)와 정리 기록의 reflects 로 잇는다. 이름(touches)이 없는 넣은 파일 기록도
+// 어느 문서 · 항목으로 갔는지, 문서가 어느 기록에서 왔는지 보인다(touches 만 보면 둘 다 0 이었다)
+const placedBy = (k, w) => [...k.works, ...k.logs].filter((o) => o !== w && o.reflects?.includes(w.id))
+function landedIn(k, ids) {
+  const out = new Map()
+  for (const d of k.docs) for (const s of d.sections) {
+    if (!s.applied || !ids.has(s.applied)) continue
+    if (!out.has(d.id)) out.set(d.id, { id: d.id, title: d.title, hs: [] })
+    out.get(d.id).hs.push(s.h)
+  }
+  return [...out.values()]
+}
+// 이 문서가 온 곳 — 항목마다 넣은 기록(how: rec) 과 그 기록을 넣은 정리(how: tidy) · 넣은 항목 머리
+function originsOf(k, d) {
+  const m = new Map()
+  const add = (w, how, h) => {
+    if (!m.has(w.id)) m.set(w.id, { ...recRow(w), how, hs: [] })
+    const x = m.get(w.id)
+    if (!x.hs.includes(h)) x.hs.push(h)
+  }
+  for (const s of d.sections) {
+    const a = s.applied && k.byWork.get(s.applied)
+    if (!a) continue
+    for (const r of a.reflects || []) { const o = k.byWork.get(r); if (o) add(o, 'rec', s.h) }
+    add(a, k.logs.includes(a) ? 'tidy' : 'rec', s.h)
+  }
+  return [...m.values()].sort((a, b) => (a.how === b.how ? b.date.localeCompare(a.date) : a.how === 'rec' ? -1 : 1))
+}
+
 export const atTag = (docId, heading) => 'at/' + sha16(`${docId}\n${String(heading).normalize('NFC')}`).slice(0, 12)
 export function docView(k, docId, { src = {} } = {}) {
   const d = k.docs.find((x) => x.id === docId)
@@ -181,6 +210,7 @@ export function docView(k, docId, { src = {} } = {}) {
     sections,
     links,
     backlinks: backlinks(k, d),
+    origins: originsOf(k, d),
     last: last ? { date: last.date, author: last.author } : null,
     items: sections.filter((s) => s.named).length,
   }
@@ -195,7 +225,12 @@ export function recView(k, id) {
   })
   const fixes = w.fixes.map((f) => k.byWork.get(f)).filter(Boolean).map(recRow)
   const fixedBy = [...k.works, ...k.logs].filter((o) => o.fixes.includes(w.id)).map(recRow)
-  return { ...recRow(w), html: render(k, w.path, w.body), tags: w.tags, items, fixes, fixedBy, ...(k.logs.includes(w) ? { log: logKind(w) } : {}) }
+  // 이 기록이 간 곳 — 이 기록(또는 이 기록을 넣은 정리)이 표지로 남은 항목 · 정리 기록이면 그 정리가 넣은 기록
+  const via = placedBy(k, w)
+  const went = landedIn(k, new Set([w.id, ...via.map((o) => o.id)]))
+  const from = (w.reflects || []).map((x) => k.byWork.get(x)).filter(Boolean).map(recRow)
+  const ingest = w.tags.some((t) => t.startsWith('ingest/')) && !k.logs.includes(w)
+  return { ...recRow(w), html: render(k, w.path, w.body), tags: w.tags, items, fixes, fixedBy, went, via: via.map(recRow), from, ...(ingest ? { ingest: { read: w.tags.includes('ingest-read') } } : {}), ...(k.logs.includes(w) ? { log: logKind(w) } : {}) }
 }
 
 // 이력의 갈래 — 가져오기 · 가져오는 곳(설정) · 바로 고침 · 정리

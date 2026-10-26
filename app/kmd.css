@@ -600,6 +600,11 @@ html,body{background:var(--bg)}
 .hright{flex:1 1 0;display:flex;align-items:center;justify-content:flex-end;gap:14px;min-width:0;white-space:nowrap}
 .hlink{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--text-2);cursor:pointer;text-decoration:none}
 .hlink:hover{color:var(--accent)}
+.cchip .cdot{width:8px;height:8px;border-radius:50%;background:var(--text-3);flex:none}
+.cchip.ok .cdot{background:#2e9b5b}.cchip.bad .cdot{background:var(--danger)}.cchip.off .cdot{background:transparent;border:1px solid var(--text-3)}
+.cchip.bad{color:var(--danger)}
+.cwin .cst{display:flex;align-items:center;gap:8px;margin:4px 0 10px}.cwin .cst .cdot{width:10px;height:10px}
+.cwin ol{margin:6px 0 0;padding-left:20px}.cwin li{margin:2px 0}
 .app .hlink svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .hme{display:flex;align-items:center;gap:6px;font-size:12.5px}
 .hme small{color:var(--text-3)}

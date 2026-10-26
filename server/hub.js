@@ -26,6 +26,8 @@ import * as owners from '../core/owners.js'
 import { buildIndex, ladder, loadLearned, learn, searchCheck, exact } from '../core/search.js'
 import { planImport, summary, MAX_FILES, MAX_BYTES, PCONLY } from '../core/importer.js'
 import { runAgent, agentAvailable } from '../core/agent.js'
+import { FILE_SCHEMA, filePrompt, fileRecord, COMMIT_SCHEMA, commitPrompt, commitAnalyzed } from '../core/analyze.js'
+import { renderRecord } from '../core/frontmatter.js'
 import { fileURLToPath } from 'node:url'
 import { existsSync, readFileSync, statSync, watch as fsWatch } from 'node:fs'
 import * as sendLib from '../core/send.js'
@@ -817,7 +819,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const job = prev.catch(() => {}).then(async () => {
           const k = await hub.get(id)
           const src = { ...s, folder: s.kind === 'folder' || !(/^(https?|ssh):\/\//i.test(s.at) || /^[^/\\\s]+@[^/\\\s]+:/.test(s.at)) ? s.at : undefined }
-          const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, meaning: hub.meaningOk(id), mdOf: mode === 'pc' ? (rel, data) => hub.mdOf(rel, data) : null, save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
+          const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, meaning: hub.meaningOk(id), mdOf: mode === 'pc' ? (rel, data) => hub.mdOf(rel, data) : null, analyze: mode === 'pc' && hub.meaningOk(id) ? (c, diffs, rec) => hub.analyzeCommit(id, s.name, c, diffs, rec) : null, save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
           cache.delete(id)
           if (s.kind === 'docs' && hub.agentOk(id)) for (const x of (r.rows || []).filter((y) => y.kind === 'fail' && PCONLY.includes(y.name.split('.').pop().toLowerCase()))) {
             const pre = docPrefix(s)
@@ -1384,13 +1386,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     //   Claude(claude -p · 정리와 같은 프롬프트 · 같은 검사)로 다듬어 넣고, 로그인 없음 · 한도 · 검사 실패 · Claude 끔이면 규칙으로:
     //   항목이 정해진 기록 → 그 항목 끝에 글을 붙인다 · 이름 없는 기록(넣은 파일 · 세션 메모) → 이어지는 문서 또는 새 문서(규칙이면 새 문서)
     //   어느 쪽이든 그 기록은 「넣음」(reflects) · 넣은 일은 이력에 · 지식마다 한 줄로(저장은 바로 돌려주고 뒤에서)
-    async askClaude(id, prompt, schema) {
+    async askClaude(id, prompt, schema, { budget = 0.5, timeoutMs } = {}) {
       if (mode !== 'pc') return { why: 'PC 일꾼이 받지 못했다' }
       if (!hub.meaningOk(id)) return { why: 'Claude 를 쓰지 않는다' }
-      const r = await runClaude({ prompt, schema, budget: 0.5 })
+      const r = await runClaude({ prompt, schema, budget, ...(timeoutMs ? { timeoutMs } : {}) })
       if (r.error) {
         if (r.error === 'login' || r.error === 'limit') await hub.workerStatus({ worker: { id: null } }, { ok: false, reason: r.error, message: r.message })
-        return { why: r.error === 'login' ? 'Claude 로그인이 없다 — 설정 › Claude 연결' : r.error === 'limit' ? 'Claude 사용 한도' : 'Claude 가 답하지 않았다' }
+        return { why: r.error === 'login' ? 'Claude 로그인이 없다 — 머리의 「Claude」 에서 로그인' : r.error === 'limit' ? 'Claude 사용 한도' : 'Claude 가 답하지 않았다' }
       }
       await hub.workerStatus({ worker: { id: null } }, { ok: true })
       return { value: r.value, model: r.model }
@@ -1498,7 +1500,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         return { doc: run.docs[0] || null, how: 'agent', msg: run.msg }
       }
       if (r.error === 'login' || r.error === 'limit') await hub.workerStatus({ worker: { id: null } }, { ok: false, reason: r.error, message: r.message })
-      const why = r.ok ? 'Claude Code 가 이 기록을 문서에 넣지 않았다' : r.error === 'login' ? 'Claude 로그인이 없다 — 설정 › Claude 연결' : r.error === 'limit' ? 'Claude 한도 · 예산' : 'Claude Code 가 끝을 내지 못했다'
+      const why = r.ok ? 'Claude Code 가 이 기록을 문서에 넣지 않았다' : r.error === 'login' ? 'Claude 로그인이 없다 — 머리의 「Claude」 에서 로그인' : r.error === 'limit' ? 'Claude 한도 · 예산' : 'Claude Code 가 끝을 내지 못했다'
       hub.runLine(run, 'sys', `규칙으로 넣는다 — ${why}`)
       const got = await hub.ingestNow(id, w.id, { claude: false, why })
       run.state = got.doc ? 'rule' : 'fail'
@@ -1509,6 +1511,61 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     ingestFileOf(w) {
       const tag = w.tags.find((t) => t.startsWith('ingest/'))
       return tag ? tag.slice(7) : `${w.title.split(' — ')[0]}.md`
+    },
+    // 넣은 파일의 기록을 Claude 가 읽고 사람이 읽을 기록으로 — 무엇 · 핵심 · 정한 것 · 남은 것 + 본문(원문 짜임 그대로).
+    //   기록은 그 자체로 지식이고 나중에 문서를 다시 세우는 재료다 — 받은 글(html 태그만 뺀 글 따위)을 그대로 두지 않는다.
+    //   같은 기록(id)을 고쳐 쓰고 태그 ingest-read 를 단다(두 번 하지 않는다) · Claude 가 없거나 답이 틀리면 받은 글 그대로
+    async polishRecord(id, recId, run = null) {
+      const meta = await hub.meta(id)
+      cache.delete(id)
+      const w = (await hub.get(id)).byWork.get(recId)
+      if (!w || !w.tags.some((t) => t.startsWith('ingest/')) || w.tags.includes('ingest-read')) return { ok: false, why: '정리할 넣은 파일 기록이 아니다' }
+      const file = hub.ingestFileOf(w)
+      if (run) hub.runLine(run, 'sys', `${file.split('/').pop()} — Claude 가 읽고 기록을 정리한다(무엇 · 핵심 · 정한 것 · 남은 것 + 본문)`)
+      const src = { file, author: w.author, date: w.date, md: w.body }
+      const prompt = filePrompt(src)
+      // 분석은 살림 자리에 남긴다(<살림>/convert/<지문>.read.json) — 쓰기가 넘어져 다시 해도 Claude 를 또 부르지 않는다
+      const keep = path.join(dataDir, 'convert', `${crypto.createHash('sha256').update(prompt).digest('hex')}.read.json`)
+      let a = await fs.readFile(keep, 'utf8').then((t) => ({ value: JSON.parse(t) }), () => null)
+      if (!a) {
+        a = await hub.askClaude(id, prompt, FILE_SCHEMA, { budget: 2, timeoutMs: 600_000 })
+        if (a.value) await fs.mkdir(path.dirname(keep), { recursive: true }).then(() => fs.writeFile(keep, JSON.stringify(a.value))).catch(() => {})
+      }
+      const rec = fileRecord(src, a.value)
+      if (!rec) {
+        if (run) hub.runLine(run, 'err', `기록은 받은 글 그대로 둔다 — ${a.why || 'Claude 의 답이 기록 모양이 아니었다'}`)
+        return { ok: false, why: a.why || 'Claude 의 답이 기록 모양이 아니었다' }
+      }
+      await serial(path.resolve(meta.dir), async () => {
+        // 옆 임시 파일에 쓰고 이름을 바꾼다 — 감시 · 백신이 기록 파일을 잡고 있으면(EBUSY · EPERM) 잠깐 기다려 다시
+        const f = path.join(meta.dir, ...w.path.split('/'))
+        const tmp = `${f}.${process.pid}.tmp`
+        await fs.writeFile(tmp, renderRecord({ ...w, title: rec.title, tags: [...w.tags, 'ingest-read'] }, rec.body), 'utf8')
+        for (let i = 0; ; i++) {
+          try { await fs.rename(tmp, f); break } catch (e) {
+            if (i >= 12 || !['EPERM', 'EBUSY', 'EACCES'].includes(e.code)) { await fs.rm(tmp, { force: true }).catch(() => {}); throw e }
+            await new Promise((ok) => setTimeout(ok, 100 * (i + 1)))
+          }
+        }
+        await commitPaths(meta.dir, [w.path], `기록 정리 — ${rec.title}`, 'kmd-auto')
+      })
+      cache.delete(id)
+      if (run) hub.runLine(run, 'ok', `기록을 정리했다 — 「${rec.title}」`)
+      return { ok: true, title: rec.title }
+    },
+    // 화면의 [Claude 로 기록 정리] — 이 PC · 바로 넣을 수 있는 사람만
+    async readRecord(ctx, id, recId) {
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '기록 정리는 내 PC 프로그램이 내 Claude 로 한다')
+      await hub.meta(id, ctx)
+      if (!hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '이 지식에 바로 넣을 수 없다')
+      const r = await hub.queueRun(id, () => hub.polishRecord(id, String(recId || '')))
+      if (!r.ok) throw new KmdError('E_INPUT', `기록을 정리하지 못했다 — ${r.why}`)
+      return r
+    },
+    // 새 커밋 하나 — Claude 가 차이를 읽고 무엇이 왜 바뀌었는지 쓴 기록으로(안 되면 null · 차이 그대로)
+    async analyzeCommit(id, srcName, c, diffs, rec) {
+      const a = await hub.askClaude(id, commitPrompt({ src: srcName, c, diffs, names: rec.touches || [] }), COMMIT_SCHEMA, { budget: 1, timeoutMs: 300_000 })
+      return a.value ? commitAnalyzed(rec, a.value, { src: srcName, c }) : null
     },
     // 에이전트에게 줄 일 — 일 설명 · 스킬(kmd-build) · 일 폴더 파일(바꾼 글 · 원본). 이 PC 와 팀 정리 일꾼이 같은 것을 쓴다
     async agentTask(meta, w, original = null) {
@@ -1588,6 +1645,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           run.rec = recId
           hub.runLine(run, 'ok', `기록이 됐다 — ${recId}`)
         }
+        await hub.polishRecord(id, recId, run).catch((e) => hub.runLine(run, 'err', `기록 정리 — ${e.message}`))
         if (!hub.agentOk(id)) {
           const got = await hub.ingestNow(id, recId)
           run.state = got.doc ? (got.how === 'claude' ? 'done' : 'rule') : 'fail'
@@ -1798,6 +1856,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           continue
         }
         if (now) {
+          if (i < INGEST_CLAUDE_MAX) await hub.polishRecord(id, sv.id).catch(() => null)
           const got = await hub.ingestNow(id, sv.id, { claude: i < INGEST_CLAUDE_MAX }).catch((e) => ({ why: e.message }))
           if (got.doc) Object.assign(recRows[i], { kind: 'doc', doc: got.doc, msg: got.msg })
           else recRows[i].msg = `기록이 됐다 — 문서로 들이지 못했다 · ${got.why || ''}`
