@@ -27,8 +27,10 @@ function copy(from, to) {
     for (const n of fs.readdirSync(from)) copy(path.join(from, n), path.join(to, n))
   } else fs.copyFileSync(from, to)
 }
-// 쓰는 꾸러미만(lock 의 dev 아닌 것)
-const prodModules = () => Object.entries(lock.packages || {}).filter(([k, v]) => k.startsWith('node_modules/') && !v.dev).map(([k]) => k)
+// 쓰는 꾸러미만(lock 의 dev 아닌 것) — pdf.js 의 그리기(@napi-rs/canvas · 고른 꾸러미)는 글만 꺼내므로 뺀다
+const prodModules = () => Object.entries(lock.packages || {}).filter(([k, v]) => k.startsWith('node_modules/') && !v.dev && !k.startsWith('node_modules/@napi-rs/')).map(([k]) => k)
+// 큰 꾸러미는 쓰는 파일만 — pdf.js 는 Node 판(legacy) · 글자 표(cmaps) · 기본 글꼴(37MB → 몇 MB)
+const ONLY = { 'node_modules/pdfjs-dist': ['package.json', 'LICENSE', 'legacy/build/pdf.mjs', 'legacy/build/pdf.worker.mjs', 'cmaps', 'standard_fonts'] }
 
 function base(dir) {
   fs.rmSync(dir, { recursive: true, force: true })
@@ -36,7 +38,13 @@ function base(dir) {
   for (const s of SRC) copy(path.join(ROOT, s), path.join(dir, s))
   fs.mkdirSync(path.join(dir, 'docs'), { recursive: true })
   for (const d of MANUAL_DOCS) copy(path.join(ROOT, 'docs', d), path.join(dir, 'docs', d))
-  for (const m of prodModules()) copy(path.join(ROOT, m), path.join(dir, m))
+  for (const m of prodModules()) {
+    if (!ONLY[m]) copy(path.join(ROOT, m), path.join(dir, m))
+    else for (const f of ONLY[m]) {
+      fs.mkdirSync(path.dirname(path.join(dir, m, f)), { recursive: true })
+      copy(path.join(ROOT, m, f), path.join(dir, m, f))
+    }
+  }
 }
 
 // 판 폴더 하나(node 빼고) — 시험이 `kmd pc update` 에 줄 새 판을 만든다

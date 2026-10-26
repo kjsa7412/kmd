@@ -2,7 +2,8 @@
 //
 //   md                → 그대로 문서(폴더 짜임 = 문서 경로)
 //   docx · pptx · xlsx · hwpx → 서버가 바로 md 로(core/ooxml.js · 압축 해제 상한) + 원본은 첨부
-//   pdf · hwp         → mdOf(바꾼 글 보관 · Claude Code 가 원본을 읽어 옮긴 것)가 있으면 그 글로 · 없으면 원본만 첨부 · 「바꾸지 못한 파일」
+//   pdf · hwp         → 서버가 바로 글로(core/pdf.js · core/hwp.js) + 원본은 첨부. 글 층이 없는 pdf(스캔) · 암호 · 배포용 · 깨진 파일만
+//                       mdOf(바꾼 글 보관 · Claude Code 가 원본을 읽어 옮긴 것)로 · 그것도 없으면 원본만 첨부 · 「바꾸지 못한 파일」
 //   txt · log         → 글 그대로 · csv · tsv → md 표 · html → 글(태그 뺌) · json → 코드 덩이
 //   그림              → 첨부
 //   그 밖              → 「넣지 않은 파일」
@@ -14,13 +15,24 @@
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { convert } from './ooxml.js'
+import { hwpToMd } from './hwp.js'
+import { pdfToMd } from './pdf.js'
 import { readText, nfc } from './text.js'
 import { KmdError } from './errors.js'
 
 export const MAX_FILES = 300
 export const MAX_BYTES = 200 << 20
 const DOCX = ['docx', 'pptx', 'xlsx', 'hwpx']
+// 서버가 글을 꺼내 보고 못 꺼내면(스캔 · 암호 · 배포용) 내 PC 의 Claude 로 옮기는 종류
 export const PCONLY = ['hwp', 'pdf']
+// pdf · hwp 의 글 — Claude 없이(못 꺼내면 '')
+export async function localMd(ext, buf) {
+  try {
+    return ext === 'hwp' ? hwpToMd(buf) : ext === 'pdf' ? await pdfToMd(buf) : ''
+  } catch {
+    return ''
+  }
+}
 const IMG = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp']
 // 보통 글 파일 — 서버가 바로 md 로(원본은 첨부로 두지 않는다 — 글이 곧 원본이다)
 const TEXT = ['txt', 'log', 'csv', 'tsv', 'html', 'htm', 'json']
@@ -150,8 +162,8 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
       if (ext === 'md' || ext === 'markdown') md = readText(f.data.toString('utf8'))
       else if (TEXT.includes(ext)) md = `# ${path.posix.basename(base)}\n\n${textToMd(ext, f.data)}\n`
       else if (DOCX.includes(ext) && conv) md = `# ${path.posix.basename(base)}\n\n${convert(rel, f.data)}\n`
-      else if (PCONLY.includes(ext) && conv && mdOf) {
-        const got = await mdOf(rel, f.data)
+      else if (PCONLY.includes(ext) && conv) {
+        const got = (await localMd(ext, f.data)).trim() || (mdOf ? await mdOf(rel, f.data) : null)
         if (got) md = `# ${path.posix.basename(base)}\n\n${String(got).replace(/^# .*\n+/, '')}\n`
       }
     } catch (e) {
@@ -190,7 +202,7 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
     }
     if (PCONLY.includes(ext)) {
       if (direct && !(await read(attRel))?.equals(f.data)) plan.atts.push({ rel: attRel, data: f.data })
-      row('fail', direct ? '원본은 첨부로 두었다 — 내 PC 프로그램이 있는 PC 에서 바꾼다' : '바꾸지 못한 파일 — 내 PC 프로그램이 있는 PC 에서 넣는다')
+      row('fail', !conv ? (direct ? '원본은 첨부로 두었다 — 문서로 바꾸기를 꺼 두었다' : '문서로 바꾸기를 꺼 두었다') : direct ? '원본은 첨부로 두었다 — 글이 없는 파일(스캔 · 암호 · 배포용)이라 내 PC 프로그램이 Claude 로 옮긴다' : '바꾸지 못한 파일(스캔 · 암호 · 배포용) — 내 PC 프로그램이 있는 PC 에서 넣는다')
       continue
     }
     if (IMG.includes(ext)) {
