@@ -164,9 +164,11 @@ test('kmd pc update — 그 판으로 켜 보고 · 지금 폴더 · 포트로 �
 test('서버 길 — 번호 · 멈추기는 PC 의 kmd 에만 · 짝 열쇠는 닿지 않는다 · PC 쿠키는 쓰는 동안 늘고 모든 곳에서 나가기로 끊긴다', async () => {
   const pcRoot = path.join(tmp, 'pc2')
   fs.mkdirSync(path.join(pcRoot, '.kmd'), { recursive: true })
-  fs.writeFileSync(path.join(pcRoot, '.kmd', 'teams.json'), JSON.stringify(['http://team.example']))
-  const pc = await startServer({ root: pcRoot, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
+  let tk = null
+  const pc = await startServer({ root: pcRoot, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15, deviceKey: async () => tk })
   const team = await startServer({ root: path.join(tmp, 'team2'), port: 0, log: () => {}, scryptN: 1 << 15 })
+  const teamO = new URL(team.url).origin
+  fs.writeFileSync(path.join(pcRoot, '.kmd', 'teams.json'), JSON.stringify([teamO]))
   try {
     const key = await pc.auth.deviceKeyFor('kim', { host: 'KIM-PC', osuser: 'kim' })
     const post = (u, p, headers = {}, body = '{}') => fetch(u + p, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body })
@@ -176,22 +178,27 @@ test('서버 길 — 번호 · 멈추기는 PC 의 kmd 에만 · 짝 열쇠는 �
     const in1 = await once(pc.url, code)
     assert.equal(in1.status, 200, '받은 번호로 들어온다')
     assert.equal((await post(pc.url, '/api/pc/once')).status, 401, '열쇠 없이는 안 된다')
-    assert.equal((await fetch(pc.url + '/api/pc/once', { headers: { authorization: 'Bearer ' + key } })).status, 400, 'POST 로만')
+    assert.equal((await fetch(pc.url + '/api/pc/once', { headers: { authorization: 'Bearer ' + key } })).status, 405, 'POST 로만')
     const st = await post(pc.url, '/api/pc/stop', { authorization: 'Bearer ' + key })
     assert.equal(st.status, 404, '멈출 길이 없는 kmd(시험 안의 서버)는 멈추지 않는다')
     // 살아 있나는 가볍게 — 멈춤 줄 없이 곧바로
     const live = await fetch(pc.url + '/healthz?live=1').then((x) => x.json())
     assert.deepEqual(Object.keys(live).sort(), ['mode', 'ok', 'version'])
     // 팀 화면의 짝 열쇠 — 읽기 · 저장만이라 번호를 받지 못한다
-    const pr = await fetch(pc.url + '/pair', { method: 'POST', headers: { origin: 'http://team.example' } })
+    const kim = await signIn(team, { id: 'kim' })
+    tk = kim.key
+    const pass = (await post(team.url, '/api/me/pcpass', { cookie: kim.cookie }).then((x) => x.json())).pass
+    const pr = await post(pc.url, '/pair', { origin: teamO }, JSON.stringify({ pass }))
     assert.equal(pr.status, 200)
     const pair = (await pr.json()).token
-    assert.equal((await post(pc.url, '/api/pc/once', { origin: 'http://team.example', authorization: 'Bearer ' + pair })).status, 403)
-    // [허락] 은 이름 · IP 와 포트만 — teams.json 의 주소가 셸 명령이 되지 않게
+    assert.equal((await post(pc.url, '/api/pc/once', { origin: teamO, authorization: 'Bearer ' + pair })).status, 403)
+    // 허락한 팀 화면 끊기 — 이 PC 화면에서만 · 이름 · IP 와 포트만 · 받은 짝 열쇠도 끊긴다
     const ck = cookieOf(in1)
-    assert.equal((await post(pc.url, '/api/pair/allow', { cookie: ck }, JSON.stringify({ origin: 'http://x&calc.example' }))).status, 400)
-    assert.equal((await post(pc.url, '/api/pair/allow', { cookie: ck }, JSON.stringify({ origin: 'http://kmd.team.local:7373' }))).status, 200)
-    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(pcRoot, '.kmd', 'teams.json'), 'utf8')), ['http://team.example', 'http://kmd.team.local:7373'])
+    assert.equal((await post(pc.url, '/api/pair/forget', { cookie: ck }, JSON.stringify({ origin: 'http://x&calc.example' }))).status, 400)
+    assert.equal((await post(pc.url, '/api/pair/forget', { origin: teamO, authorization: 'Bearer ' + pair }, JSON.stringify({ origin: teamO }))).status, 403)
+    assert.equal((await post(pc.url, '/api/pair/forget', { cookie: ck }, JSON.stringify({ origin: teamO }))).status, 200)
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(pcRoot, '.kmd', 'teams.json'), 'utf8')), [])
+    assert.equal((await fetch(pc.url + '/api/knowledge', { headers: { origin: teamO, authorization: 'Bearer ' + pair } })).status, 403)
     // 팀 서버에는 이 길이 없다
     const lee = await signIn(team, { id: 'lee' })
     assert.notEqual((await post(team.url, '/api/pc/once', { cookie: lee.cookie })).status, 200)

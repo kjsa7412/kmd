@@ -85,7 +85,8 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5 }) {
 }
 
 // 늘 — poll 마다 일감을 본다
-export async function runWorker({ server, key, poll = 10_000, log = (...a) => console.log('[kmd worker]', ...a) }) {
+// onLost — 서버가 열쇠를 끊었다(401 · 기기 끊기 · 다시 정하기 · 떠남) · 멈추고 알린다(PC 일꾼은 기기 열쇠로 다시 받는다)
+export function runWorker({ server, key, poll = 10_000, log = (...a) => console.log('[kmd worker]', ...a), onLost = null }) {
   let stopped = false
   const loop = async () => {
     while (!stopped) {
@@ -96,6 +97,7 @@ export async function runWorker({ server, key, poll = 10_000, log = (...a) => co
           continue
         }
       } catch (e) {
+        if (e.status === 401 && onLost) { stopped = true; log('일꾼 열쇠가 끊겼다 — 다시 받는다'); onLost(); return }
         log(`서버에 닿지 않는다 — ${e.message}`)
       }
       await new Promise((ok) => setTimeout(ok, poll))
@@ -117,7 +119,7 @@ export function runPersonalWorkers({ teams, deviceKey, poll = 10_000, retryMs = 
         const r = await fetch(server + '/api/me/worker', { method: 'POST', headers: { authorization: `Bearer ${dk}`, 'content-type': 'application/json' }, body: '{}' })
         const j = await r.json().catch(() => ({}))
         if (!r.ok) throw new Error(j.message || `${r.status}`)
-        stops.push(runWorker({ server, key: j.key, poll, log }))
+        stops.push(runWorker({ server, key: j.key, poll, log, onLost: () => { const t = setTimeout(start, 5000); t.unref?.(); stops.push({ stop: () => clearTimeout(t) }) } }))
         log(`${server} — 내 개인 지식의 정리 일감을 이 PC 의 Claude 로 받는다`)
       } catch (e) {
         log(`${server} — 내 개인 지식 일꾼을 띄우지 못했다(${e.message}) · 다시 한다`)

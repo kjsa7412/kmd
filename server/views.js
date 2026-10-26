@@ -67,6 +67,22 @@ md.renderer.rules.link_open = (tokens, i, opts, env, self) => {
   return self.renderToken(tokens, i, opts)
 }
 
+// 글 속 그림 — 이 지식의 첨부(docs|work/assets)만 그린다. 주소는 화면이 채운다(data-att · data-ak) — 팀 화면의 내 PC 지식은
+// 짝 열쇠로 PC 에서 받는다. 그 밖의 주소(/api/… 등)는 그리지 않는다(같은 출처 그림이 연 사람의 쿠키로 길을 부르지 않게)
+md.renderer.rules.image = (tokens, i, opts, env) => {
+  const t = tokens[i]
+  const src = t.attrGet('src') || ''
+  const alt = esc(t.content || '')
+  if (/^data:image\/(png|jpe?g|gif|webp);/i.test(src)) return `<img src="${esc(src)}" alt="${alt}">`
+  const k = env?.k
+  let rel = null
+  if (k && src && !/^[a-z]+:|^\/|^#/i.test(src)) {
+    try { rel = path.posix.normalize(path.posix.join(path.posix.dirname(env.fromPath || ''), decodeURIComponent(src.split(/[?#]/)[0]))).normalize('NFC') } catch {}
+  }
+  if (rel && (k.atts || []).includes(rel)) return `<img data-att="${esc(rel.replace(/^(docs|work)\/assets\//i, ''))}" data-ak="${esc(k.id)}" alt="${alt}">`
+  return `<span class="muted">[그림${alt ? ' — ' + alt : ''}]</span>`
+}
+
 export function linksOf(doc) {
   const out = []
   const all = [doc.intro, ...doc.sections.map((s) => s.body)].join('\n')

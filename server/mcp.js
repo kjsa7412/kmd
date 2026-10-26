@@ -115,6 +115,10 @@ export function makeMcp(store) {
         docs: k.docs.map((d) => ({ doc: d.id, title: d.title, headings: d.sections.map((s) => s.h) })),
         recent: k.works.slice(0, 10).map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title })),
         notYetInDocs: k.works.filter((w) => w.state === 'pend').map((w) => ({ id: w.id, date: w.date, title: w.title })),
+        // 이 지식에서의 내 자리 — direct 면 sections · names 가 곧바로 문서 · 이름 장부에, 아니면 기록에 실려 정리 때 들어간다
+        you: { role: store.mode === 'pc' ? '주인' : store.roleIn(k.id, ctx), direct: store.mode === 'pc' || store.canDirect(ctx, k.id) },
+        tidy: store.mode === 'pc' ? 'kmd 가 곧바로 문서에 넣는다' : ({ live: '실시간 — 기록이 남고 5분 조용하면', manual: '손으로만 — 주인 · 정리하는 사람이 [지금 정리]' }[store.tidyModeOf(k.id)] || `정해진 시각 ${store.tidyAtOf(k.id)}`),
+        ...(store.owner(k.id)?.noClaude ? { noClaude: '이 지식은 자동 정리에 Claude 를 쓰지 않는다(주인이 정했다) — 이 대화로 옮기는 글은 꼭 필요한 것만' } : {}),
         stops: (await store.stops(ctx, k.id)).map((l) => l.text),
       }
     },
@@ -201,7 +205,7 @@ export function makeMcp(store) {
       const k = await store.get(knowledge, ctx)
       const r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}) })
       const n = r.docs.length
-      return { saved: r.id, date: r.date, docs: r.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')), note: r.queued ? '기록했다 — 항목 글은 정리 때 문서에 들어간다(그동안도 그 항목 옆에 같이 읽힌다)' : n ? `저장했다 — 기록 1 · 문서 ${n}` : store.mode === 'pc' ? '기록했다 — 이 PC 는 kmd 가 곧바로 문서에 넣는다(정리를 기다리지 않는다)' : '저장했다 — 기록 1', warnings: r.warnings }
+      return { saved: r.id, date: r.date, docs: r.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')), note: r.queued ? `기록했다 — 항목 글은 정리 때 문서에 들어간다(그동안도 그 항목 옆에 같이 읽힌다)${r.namesHeld ? ` · 이름 ${r.namesHeld} 은 아직 세우지 않았다 — 기록에 실어 두었고 주인 · 정리하는 사람이 정리 때 세운다(그 전에는 match 로 찾지 못한다)` : ''}` : n ? `저장했다 — 기록 1 · 문서 ${n}` : store.mode === 'pc' ? '기록했다 — 이 PC 는 kmd 가 곧바로 문서에 넣는다(정리를 기다리지 않는다)' : '저장했다 — 기록 1', warnings: r.warnings }
     },
   }
 
