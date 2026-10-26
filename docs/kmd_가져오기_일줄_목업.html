@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>가져오기 일 줄 목업</title>
+<style>
+/* 토큰 · 부품은 app/kmd.css 와 같은 값 — 목업에서 새로 생긴 것만 아래 「새 부품」 */
+:root{
+  --bg:#f6f7f9;--surface:#fff;--surface-2:#f1f3f7;--surface-3:#e6eaf0;--border:#e2e6ed;--border-strong:#c9d1dd;
+  --text:#11151c;--text-2:#515a68;--text-3:#858e9d;--accent:#3358e6;--accent-bg:#e9eeff;--accent-line:#c3d0fb;
+  --danger:#cb3a2c;--danger-bg:#fdeceb;--warn:#8c5c00;--warn-bg:#fcf3e0;--pending:#6247c4;--pending-bg:#efedfd;
+  --ok:#2e9b5b;--ok-bg:#e6f5ec;
+  --shadow-1:0 1px 2px rgba(15,23,42,.05),0 1px 3px rgba(15,23,42,.07);
+  --shadow-2:0 2px 6px -1px rgba(15,23,42,.08),0 14px 32px -8px rgba(15,23,42,.18);
+  --font:Pretendard,-apple-system,"Segoe UI",system-ui,"Malgun Gothic",sans-serif;
+  --mono:Consolas,"Cascadia Mono",D2Coding,"Malgun Gothic",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#dfe3ea;color:var(--text);font:13px/1.55 var(--font)}
+button,input,select{font:inherit}
+a{color:var(--accent);cursor:pointer}
+svg.i{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;flex:none}
+
+/* ── 목업 조종판(목업 밖) ── */
+.mframe{display:flex;min-height:100vh}
+.mnav{width:250px;flex:none;background:#1b2130;color:#cfd6e4;padding:18px 12px;position:sticky;top:0;height:100vh;overflow:auto}
+.mnav h1{font-size:14px;margin:0 6px 4px;color:#fff}
+.mnav p{margin:0 6px 12px;font-size:11.5px;color:#8f9bb3}
+.mnav .g{font-size:11px;color:#6f7a90;margin:16px 6px 6px;text-transform:none}
+.mnav button{display:block;width:100%;text-align:left;background:none;border:0;color:inherit;padding:6px 10px;border-radius:6px;font-size:12.5px;cursor:pointer}
+.mnav button:hover{background:#2a3246}
+.mnav button.on{background:#3358e6;color:#fff}
+.mnav button small{display:block;color:#7f8aa1;font-size:11px}
+.mnav button.on small{color:#dfe6ff}
+.mstage{flex:1;min-width:0;padding:20px}
+
+/* ── 앱 프레임 · 부품(kmd.css 와 같다) ── */
+.app{max-width:1360px;margin:0 auto;background:var(--bg);border:1px solid var(--border-strong);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,.18);display:flex;min-height:calc(100vh - 40px)}
+.side{width:220px;flex:none;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:12px 10px}
+.sb-top{display:flex;align-items:center;gap:8px;padding:2px 6px 10px}
+.logo{width:22px;height:22px;border-radius:6px;background:#11151c;color:#fff;display:grid;place-items:center;font-weight:700;font-size:12px}
+.brand{font-weight:700;font-size:15px}
+.busy{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ok);font-weight:600}
+.busy i{width:8px;height:8px;border-radius:50%;background:var(--ok);animation:blink 1.4s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.sb-repo{border:1px solid var(--border-strong);border-radius:10px;padding:8px 10px;margin-bottom:8px;display:flex;gap:8px;align-items:center}
+.sb-repo .rk{font:700 10.5px var(--mono);background:var(--accent-bg);color:var(--accent);border-radius:5px;padding:2px 5px}
+.sb-repo small{display:block;font-size:10.5px;color:var(--text-3)}
+.sb-g{font-size:11.5px;color:var(--text-3);margin:12px 8px 4px}
+.sb-i{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;color:var(--text)}
+.sb-i.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.sb-i .bd{margin-left:auto;background:var(--pending-bg);color:var(--pending);font-size:11px;font-weight:700;border-radius:999px;padding:0 7px}
+.sb-foot{margin-top:auto;border-top:1px solid var(--border);padding-top:6px}
+.col{flex:1;min-width:0;display:flex;flex-direction:column}
+.hdr{height:46px;display:flex;align-items:center;gap:10px;padding:0 14px;background:var(--surface);border-bottom:1px solid var(--border)}
+.crumb{font-size:13px;color:var(--text-3)}.crumb b{color:var(--text)}
+.band{display:flex;align-items:center;gap:10px;padding:6px 14px;font-size:12px;border-bottom:1px solid var(--border);background:var(--surface-2);color:var(--text-2)}
+.band b{color:var(--text)}
+.main{flex:1;padding:18px 22px;overflow:auto;min-width:0}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.c-warn{background:var(--warn-bg);color:var(--warn)}.c-pend{background:var(--pending-bg);color:var(--pending)}.c-mute{background:var(--surface-3);color:var(--text-2)}
+.c-acc{background:var(--accent-bg);color:var(--accent)}.c-danger{background:var(--danger-bg);color:var(--danger)}.c-ok{background:var(--ok-bg);color:var(--ok)}
+.btn{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 11px;border-radius:7px;border:1px solid var(--border-strong);background:var(--surface);font-size:12px;cursor:pointer;color:var(--text);white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}.btn.pri:hover{background:#2a4bd0}
+.btn.sm{height:24px;padding:0 8px;font-size:11.5px}
+.btn.ghost{border-color:transparent;background:none}.btn.ghost:hover{background:var(--surface-2)}
+.btn.dz{color:var(--danger)}
+.btn[disabled]{opacity:.45;cursor:default}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1);margin-bottom:14px}
+.big{font-size:20px;font-weight:700;margin:0 0 4px}
+.lead{color:var(--text-2);margin:0}
+.pg-h{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px}
+.pg-h .acts{margin-left:auto;display:flex;gap:8px;flex:none}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin:0 0 14px}
+.tabs span{padding:8px 14px;font-size:13px;color:var(--text-2);border-bottom:2px solid transparent;cursor:pointer;display:flex;gap:6px;align-items:center}
+.tabs span.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.tabs span em{font-style:normal;font-size:11px;font-weight:700;background:var(--surface-3);color:var(--text-2);border-radius:999px;padding:0 6px}
+.tabs span.on em{background:var(--accent-bg);color:var(--accent)}
+.tabs span em.w{background:var(--warn-bg);color:var(--warn)}
+.term{background:#0f141c;color:#d7dde8;border-radius:10px;font:12px/1.6 var(--mono);padding:10px 12px;height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.term .say{color:#e8ecf3}.term .tool{color:#8fb0ff}.term .ok{color:#7fd69a}.term .err{color:#ff8f86}.term .sys,.term .cost{color:#7d8696}
+.term .tm{color:#5c6574;margin-right:8px}
+.term .sg{display:inline-block;min-width:44px;color:#5c6574;margin-right:6px}
+.term .cur::after{content:'▍';color:#8fb0ff;animation:blink 1s steps(2) infinite}
+.inp{min-height:28px;border:1px solid var(--border-strong);border-radius:7px;padding:3px 8px;font-size:12px;background:#fff}
+.gl{font-size:11.5px;color:var(--text-3);margin:8px 2px 0;line-height:1.7}
+.slist{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1)}
+.srow{display:flex;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid var(--border)}
+.srow:first-child{border-top:0}
+.srow .si{width:30px;height:30px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;flex:none;color:var(--text-2)}
+.srow .sn{min-width:0;flex:1 1 220px}.srow .sn b{display:block}.srow .sn small,.srow .sc small{display:block;color:var(--text-3);font-size:11.5px}
+.srow .sc{flex:0 1 230px;font-size:12px;color:var(--text-2)}
+.srow .sa{flex:none;display:flex;gap:6px}
+
+/* ── 새 부품 ── */
+/* 들이기 막대 — 끌어다 놓기는 화면 어디든 되고 이 막대는 한 줄 */
+.dropbar{display:flex;align-items:center;gap:10px;border:2px dashed var(--border-strong);border-radius:10px;padding:8px 12px;background:var(--surface);font-size:12.5px;color:var(--text-2);margin-bottom:12px;flex-wrap:wrap}
+.dropbar b{color:var(--text)}
+.dropbar .r{margin-left:auto;display:flex;gap:8px;align-items:center}
+.dropbar.over{background:var(--accent-bg);border-color:var(--accent)}
+/* 일 줄 머리 — 갈래 거르기 · 동시에 도는 수 · 줄 멈춤 */
+.qbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.qf{border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;color:var(--text-2);display:flex;gap:5px;align-items:center}
+.qf.on{border-color:var(--accent);background:var(--accent-bg);color:var(--accent);font-weight:600}
+.qf b{font-weight:700}
+.qbar .r{margin-left:auto;display:flex;gap:8px;align-items:center;font-size:12px;color:var(--text-3)}
+.lane{display:inline-flex;gap:4px;align-items:center;border:1px solid var(--border);border-radius:7px;padding:2px 8px;background:var(--surface);color:var(--text-2)}
+.lane i{width:7px;height:7px;border-radius:50%;background:var(--surface-3)}.lane i.on{background:var(--ok)}
+.paused-band{display:flex;gap:10px;align-items:center;background:var(--warn-bg);border:1px solid #ecd39c;color:var(--warn);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12.5px}
+.paused-band .btn{margin-left:auto}
+/* 두 칸 — 왼쪽 줄 · 오른쪽 자세히 */
+.qwrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:14px;align-items:start}
+.qlist{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1);overflow:hidden}
+.qg{display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--surface-2);border-top:1px solid var(--border);font-size:11.5px;font-weight:700;color:var(--text-2)}
+.qg:first-child{border-top:0}
+.qg small{font-weight:400;color:var(--text-3)}
+.qg .r{margin-left:auto;font-weight:400}
+.qrow{display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid var(--border);cursor:pointer;position:relative}
+.qrow:hover{background:#fafbfd}
+.qrow.sel{background:var(--accent-bg)}
+.qrow.sel::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
+.qrow .grip{color:var(--text-3);cursor:grab;width:10px;font-size:12px;letter-spacing:-2px;flex:none}
+.qrow .ord{font:600 11px var(--mono);color:var(--text-3);width:14px;text-align:right;flex:none}
+.qrow .ic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;flex:none;background:var(--surface-2);color:var(--text-2)}
+.qrow .ic.file{background:#eef2ff;color:var(--accent)}.qrow .ic.git{background:#f2eefe;color:var(--pending)}.qrow .ic.docs{background:#eaf6ef;color:var(--ok)}.qrow .ic.db{background:#fdf3e2;color:var(--warn)}
+.qrow .tx{min-width:0;flex:1}
+.qrow .tx b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qrow .tx small{display:block;color:var(--text-3);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qrow .ac{display:flex;gap:4px;flex:none}
+.qrow .el{font:11px var(--mono);color:var(--text-3);width:44px;text-align:right;flex:none}
+.auto{font-size:10.5px;font-weight:700;color:var(--text-3);border:1px solid var(--border);border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:1px}
+/* 작은 단계 막대 — 네 칸 */
+.mini{display:flex;gap:2px;flex:none;width:76px}
+.mini i{flex:1;height:6px;border-radius:2px;background:var(--surface-3)}
+.mini i.done{background:var(--ok)}.mini i.run{background:var(--accent);animation:blink 1.2s ease-in-out infinite}
+.mini i.pause,.mini i.check{background:#d39a2c}.mini i.fail{background:var(--danger)}.mini i.cancel{background:var(--text-3)}
+.mini-l{font-size:11px;color:var(--text-3);margin-top:3px;white-space:nowrap}
+.qmore{padding:8px 12px;border-top:1px solid var(--border);font-size:12px;color:var(--text-3);text-align:center}
+/* 자세히 */
+.det{position:sticky;top:0}
+.det .dh{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start}
+.det .dh .t{min-width:0;flex:1}
+.det .dh b{font-size:14.5px;display:block}
+.det .dh small{color:var(--text-3);font-size:12px}
+.det .ctl{display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--border);align-items:center}
+.det .ctl .note{font-size:11.5px;color:var(--text-3);margin-left:auto}
+.det .sec{padding:12px 14px;border-bottom:1px solid var(--border)}
+.det .sec:last-child{border-bottom:0}
+.det .sh{font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:8px;display:flex;gap:8px;align-items:center}
+.det .sh .r{margin-left:auto;font-weight:400}
+.meta{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:4px 12px;font-size:12px}
+.meta dt{color:var(--text-3)}.meta dd{margin:0;color:var(--text)}
+/* 흐름 그림 — 단계 상자와 화살표 */
+.flow{display:flex;align-items:stretch;gap:0}
+.st{flex:1;min-width:0;border:1.5px solid var(--border);border-radius:10px;padding:8px 9px;background:var(--surface);cursor:pointer;position:relative}
+.st:hover{border-color:var(--border-strong)}
+.st .n{font-size:10.5px;color:var(--text-3);font-weight:700;display:flex;justify-content:space-between}
+.st .nm{font-weight:700;font-size:13px;margin:1px 0 4px}
+.st ul{list-style:none;margin:0;padding:0;font-size:11px;color:var(--text-2)}
+.st li{display:flex;gap:5px;align-items:baseline;line-height:1.5}
+.st li::before{content:'○';color:var(--text-3);font-size:9px}
+.st li.d::before{content:'✓';color:var(--ok);font-weight:700}
+.st li.r::before{content:'●';color:var(--accent);animation:blink 1s infinite}
+.st li.x::before{content:'✕';color:var(--danger);font-weight:700}
+.st li.p::before{content:'Ⅱ';color:var(--warn);font-weight:700}
+.st .tt{font:10.5px var(--mono);color:var(--text-3);margin-top:5px}
+.st.done{border-color:#bfe3cc;background:#f6fbf8}.st.done .n{color:var(--ok)}
+.st.run{border-color:var(--accent);background:#f7f9ff;box-shadow:0 0 0 3px var(--accent-bg)}.st.run .n{color:var(--accent)}
+.st.pause,.st.check{border-color:#e6c27a;background:#fffbf2}.st.pause .n,.st.check .n{color:var(--warn)}
+.st.fail{border-color:#efb7b1;background:#fff8f7}.st.fail .n{color:var(--danger)}
+.st.cancel{opacity:.55}
+.st.focus{outline:2px solid var(--text);outline-offset:1px}
+.arr{flex:none;width:16px;display:grid;place-items:center;color:var(--border-strong);font-size:14px}
+.arr.done{color:var(--ok)}
+.callout{border-radius:8px;padding:9px 12px;font-size:12.5px;margin:0 0 10px;display:flex;gap:10px;align-items:flex-start}
+.callout.warn{background:var(--warn-bg);border:1px solid #ecd39c;color:var(--warn)}
+.callout.danger{background:var(--danger-bg);border:1px solid #efb7b1;color:var(--danger)}
+.callout.gray{background:var(--surface-2);border:1px solid var(--border);color:var(--text-2)}
+.callout .acts{margin-left:auto;display:flex;gap:6px;flex:none}
+.tfil{display:flex;gap:2px;margin-left:auto}
+.tfil span{font-size:11px;padding:1px 7px;border-radius:5px;cursor:pointer;color:var(--text-3);font-weight:400}
+.tfil span.on{background:#0f141c;color:#fff}
+.res{list-style:none;margin:0;padding:0;font-size:12px}
+.res li{display:flex;gap:8px;align-items:center;padding:4px 0;border-top:1px dashed var(--border)}
+.res li:first-child{border-top:0}
+.res li .k{width:46px;flex:none}
+.res li a{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.children{max-height:150px;overflow:auto;font-size:11.5px;border:1px solid var(--border);border-radius:8px}
+.children div{display:flex;gap:8px;padding:4px 8px;border-top:1px solid var(--border);align-items:center}
+.children div:first-child{border-top:0}
+.children .mono{font-family:var(--mono);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty{padding:40px 20px;text-align:center;color:var(--text-3)}
+.empty b{display:block;color:var(--text);font-size:14px;margin-bottom:4px}
+/* 끝난 일 표 */
+table.done{width:100%;border-collapse:collapse;font-size:12.5px}
+table.done th{text-align:left;font-weight:600;color:var(--text-3);font-size:11.5px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface-2)}
+table.done td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+table.done tr.day td{background:#fafbfd;font-weight:700;font-size:11.5px;color:var(--text-2);padding:5px 12px}
+table.done td.m{font:11.5px var(--mono);color:var(--text-3);white-space:nowrap}
+.pager{display:flex;gap:4px;justify-content:center;padding:10px;font-size:12px}
+.pager span{padding:2px 8px;border-radius:5px;cursor:pointer;color:var(--text-2)}.pager span.on{background:var(--accent);color:#fff}
+/* 창 */
+.scrim{position:fixed;inset:0;background:rgba(15,23,42,.35);display:grid;place-items:center;z-index:50}
+.modal{background:var(--surface);border-radius:12px;box-shadow:var(--shadow-2);width:min(460px,92vw)}
+.modal .mh{padding:14px 16px 6px;font-weight:700;font-size:14.5px}
+.modal .mb{padding:4px 16px 12px;font-size:12.5px;color:var(--text-2)}
+.modal .mb ul{margin:8px 0;padding-left:18px}
+.modal .mf{display:flex;gap:8px;justify-content:flex-end;padding:10px 16px;border-top:1px solid var(--border)}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#11151c;color:#fff;padding:8px 14px;border-radius:8px;font-size:12.5px;z-index:60;box-shadow:var(--shadow-2)}
+
+/* ── 검토안 ── */
+.doc{max-width:980px;margin:0 auto;background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;padding:28px 36px;box-shadow:0 10px 30px rgba(15,23,42,.12)}
+.doc h2{font-size:20px;margin:0 0 4px}
+.doc h3{font-size:15px;margin:26px 0 8px;padding-top:14px;border-top:1px solid var(--border)}
+.doc p,.doc li{color:var(--text-2);line-height:1.75}
+.doc li b,.doc p b{color:var(--text)}
+.doc table{width:100%;border-collapse:collapse;font-size:12.5px;margin:6px 0}
+.doc th,.doc td{border:1px solid var(--border);padding:6px 9px;text-align:left;vertical-align:top}
+.doc th{background:var(--surface-2);font-weight:600}
+.doc code{font:12px var(--mono);background:var(--surface-2);border-radius:4px;padding:0 4px}
+.sm-flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px;margin:8px 0}
+.sm-flow span{border:1.5px solid var(--border-strong);border-radius:8px;padding:4px 10px;font-weight:600;background:#fff}
+.sm-flow .a{border:0;color:var(--text-3);padding:0;font-weight:400;background:none}
+.ask{background:var(--pending-bg);border:1px solid #d9d2fb;border-radius:10px;padding:10px 16px}
+.ask li{color:var(--pending)}
+@media (max-width:1100px){.qwrap{grid-template-columns:1fr}.det{position:static}.side{display:none}}
+@media (max-width:760px){.mframe{flex-direction:column}.mnav{width:auto;height:auto;position:static}.mstage{padding:10px}.meta{grid-template-columns:auto 1fr}.flow{flex-direction:column}.arr{transform:rotate(90deg);height:14px;width:auto}}
+</style>
+</head>
+<body>
+<div class="mframe">
+ <nav class="mnav" id="mnav"></nav>
+ <div class="mstage" id="stage"></div>
+</div>
+<script>
+// ───────────── 아이콘 ─────────────
+const IC = {
+  file:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
+  git:'<circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="9" r="2.2"/><path d="M6 8.2v7.6M18 11.2c0 3-3 3.8-10 5"/>',
+  docs:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  db:'<ellipse cx="12" cy="6" rx="7" ry="2.6"/><path d="M5 6v12c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V6M5 12c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6"/>',
+  folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 13h8"/>',
+  pause:'<path d="M9 5v14M15 5v14"/>', play:'<path d="M7 5l12 7-12 7z"/>', x:'<path d="M6 6l12 12M18 6L6 18"/>',
+  redo:'<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>', up:'<path d="M12 19V5M6 11l6-6 6 6"/>', term:'<path d="M4 6l5 6-5 6M12 18h8"/>',
+}
+const svg = (n) => `<svg class="i" viewBox="0 0 24 24">${IC[n]}</svg>`
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]))
+
+// ───────────── 단계 — 어디서 왔든 네 단계(수집 › 검토 › 기록 생성 › 문서 생성) · 안의 작은 걸음은 갈래마다 ─────────────
+const STG = ['수집', '검토', '기록 생성', '문서 생성']
+const STG_S = ['수집', '검토', '기록', '문서']
+const SUB = {
+  file: [['받기', '글로 바꾸기(pdf · hwp)'], ['지식 둘러보기', '이름 맞추기', '겹침 확인'], ['기록 쓰기', '원본 첨부'], ['항목에 넣기', '새 이름 세우기']],
+  docs: [['바뀐 파일 찾기', '글로 바꾸기'], ['크게 바뀜 문턱', '지운 파일 확인'], ['파일마다 기록'], ['폴더 문서 맞추기']],
+  git:  [['새 묶음 받기', '차이 뽑기'], ['합친 · 빌드 묶음 거르기', '걸린 항목 찾기'], ['묶음마다 코드 바뀜 기록'], ['Claude 가 항목 글 맞추기']],
+  db:   [['읽기 전용으로 붙기', '테이블 목록 읽기'], ['지난 것과 견주기'], ['바뀐 테이블 기록'], ['테이블 정의 표 채우기']],
+}
+const KIND = { file: '파일 들이기', docs: '문서 폴더', git: '소스 코드 · git', db: 'DB' }
+// 어느 길(동시에 도는 자리)을 쓰나 — Claude 는 하나씩 · 가져오기(읽기)는 둘
+const LANE = (j) => (j.origin === 'file' || (j.origin === 'git' && j.stage === 3)) ? 'claude' : 'fetch'
+
+// 터미널 줄 — 단계마다 흉내 낼 줄
+const LINES = {
+  file: [
+    [['sys', '일 폴더 준비 — 원본 1 · 글로 바꾼 글 18,204자'], ['tool', '읽기 원본.md'], ['ok', '글 18,204자 · 표 3 · 그림 2']],
+    [['tool', '지식 둘러보기 회의'], ['ok', '문서 7 · 항목 112'], ['tool', '이름 맞추기 「HNC 송장 연계」'], ['ok', '맞는 이름 2 — HNC 연계 · 송장 번호'], ['tool', '찾기 「설계 검토 회의」'], ['ok', '같은 주제 항목 1 — 회의록 › 2026-10-19 설계 검토'], ['say', '같은 회의의 이어지는 내용이다 — 기존 항목 아래에 덧붙인다']],
+    [['tool', '저장 「2026-10-26 설계 회의」 · 항목 1(회의록 › 2026-10-19 설계 검토) · 이름 2'], ['ok', '기록 r-8f2a 저장했다'], ['sys', '원본 첨부 — 설계회의_1026.docx']],
+    [['tool', '항목 읽기 회의록 › 2026-10-19 설계 검토'], ['ok', '항목 글 2,310자'], ['tool', '저장 항목 덧붙임 · 새 이름 「출하 검수 단계」'], ['ok', '문서 회의록 고쳤다 · 이름 1 세움'], ['cost', '비용 $0.06 · 9턴 · 1분 48초']],
+  ],
+  docs: [
+    [['sys', '폴더 C:\\Users\\…\\Desktop\\테스트문서 확인'], ['ok', '바뀐 파일 3 · 지운 파일 0'], ['tool', '글로 바꾸기 릴리즈노트_v0.2.docx'], ['ok', '글 4,120자']],
+    [['sys', '크게 바뀜 문턱 — 바뀐 비율 4% (문턱 30%)'], ['ok', '문턱 아래 — 계속']],
+    [['tool', '기록 「릴리즈노트_v0.2 바뀜」'], ['ok', '기록 3 저장']],
+    [['tool', '폴더 문서 맞추기 테스트 › 릴리즈노트'], ['ok', '문서 3 고쳤다'], ['cost', '9초']],
+  ],
+  git: [
+    [['sys', 'git fetch https://github.com/kjsa7412/kmd.git'], ['ok', '새 묶음 3 — 74afa91 · ec6c589 · 33ad4c4'], ['tool', '차이 뽑기 3 묶음'], ['ok', '바뀐 파일 11 · +412 −96']],
+    [['sys', '합친 묶음 · 빌드 결과 거르기'], ['ok', '남은 묶음 3'], ['tool', '이름 장부로 걸린 항목 찾기'], ['ok', '걸린 항목 4 — kmd-소스 › 가져오기 · 넣기 에이전트 …']],
+    [['tool', '묶음마다 코드 바뀜 기록'], ['ok', '기록 3 저장']],
+    [['tool', '항목 읽기 kmd-소스 › 가져오기'], ['tool', '저장 항목 글 맞춤(값 바뀜 1 — 노란 줄)'], ['ok', '항목 4 고쳤다'], ['cost', '비용 $0.09 · 14턴']],
+  ],
+  db: [
+    [['sys', 'postgres://kmd_read@10.10.1.100:5466/GDI_SERVICE (읽기 전용 세션)'], ['ok', '테이블 128']],
+    [['tool', '지난 것과 견주기'], ['ok', '바뀐 테이블 2 — TB_ORDER(칸 +1) · TB_SHIP(형 바뀜)']],
+    [['tool', '기록 「테이블 2 바뀜」'], ['ok', '기록 1 저장']],
+    [['tool', '테이블 정의 표 채우기'], ['ok', '표 2 고쳤다'], ['cost', '3초']],
+  ],
+}
+
+// ───────────── 일 — 목업 데이터 ─────────────
+// state: run 도는 중 · wait 기다림 · pausing 멈추는 중 · pause 멈춤 · check 확인할 것 · fail 못함 · done 끝남 · cancel 그만둠
+let seq = 100
+function mk(o) {
+  const j = { id: 'j' + (++seq), stage: 0, lines: [], st: [], took: [], auto: false, kn: '회의', ...o }
+  j.st = STG.map((_, i) => i < j.stage ? 'done' : i === j.stage ? (j.state === 'wait' ? 'wait' : j.state === 'pausing' ? 'run' : j.state) : 'wait')
+  j.took = STG.map((_, i) => i < j.stage ? ['0:04', '0:31', '0:06', '0:42'][i] : '')
+  // 지난 단계의 줄은 미리 채운다
+  for (let s = 0; s < j.stage; s++) for (const [k, x] of LINES[j.origin][s]) j.lines.push({ s, k, x })
+  if (j.state === 'run' || j.state === 'pausing') { const L = LINES[j.origin][j.stage]; for (const [k, x] of L.slice(0, Math.ceil(L.length / 2))) j.lines.push({ s: j.stage, k, x }); j.cur = Math.ceil(L.length / 2) } else j.cur = 0
+  return j
+}
+let JOBS, DONE
+function seed(kind) {
+  seq = 100
+  JOBS = [
+    mk({ origin: 'file', title: '설계회의_1026.docx', kn: '회의', state: 'run', stage: 1, since: '07:52', el: 64 }),
+    mk({ origin: 'git', title: 'kmd-소스 — 새 묶음 3', kn: 'kmd-소스', state: 'run', stage: 2, auto: '1시간마다', since: '07:50', el: 142 }),
+    mk({ origin: 'file', title: '요구사항_v0.3.pdf', kn: '회의', state: 'wait', note: '글이 없는 pdf(스캔) — Claude 가 읽는다' }),
+    mk({ origin: 'file', title: '폴더 회의록_2026 — 24 파일', kn: '회의', state: 'wait', group: 24, note: '파일 24 — 하나씩 차례로' }),
+    mk({ origin: 'file', title: 'PLC연계규격서.hwp', kn: 'PLC 연계 규격서', state: 'wait' }),
+    mk({ origin: 'db', title: 'gdi개발db — 테이블 정의', kn: '테이블 정의', state: 'wait', auto: '1시간마다' }),
+    mk({ origin: 'docs', title: '테스트문서 — 바뀐 파일 12', kn: '테스트', state: 'check', stage: 1, auto: '실시간', since: '07:31',
+      why: '한꺼번에 크게 바뀌었다 — 지운 파일 12(배포노트 백업 · 설계메모 백업 …) · 문턱 30% 넘음 · 아직 아무것도 쓰지 않았다' }),
+    mk({ origin: 'file', title: '운영매뉴얼_v2.pptx', kn: '회의', state: 'pause', stage: 2, since: '07:20', why: '사람이 멈췄다 07:24 — 「기록 생성」 에서 이어 간다' }),
+    mk({ origin: 'file', title: '배포용_계약서.pdf', kn: '회의', state: 'fail', stage: 0, since: '07:12', why: '암호가 걸린 pdf — 글을 꺼내지 못했다. 원본만 첨부로 둘 수 있다' }),
+  ]
+  JOBS[3].children = Array.from({ length: 24 }, (_, i) => ({ n: `2026-${String(Math.floor(i / 4) + 1).padStart(2, '0')}-${String((i % 4) * 7 + 3).padStart(2, '0')} 주간회의.docx`, s: 'wait' }))
+  JOBS[8].lines.push({ s: 0, k: 'err', x: 'pdf 열기 실패 — 암호 걸림(배포용)' })
+  JOBS[7].lines.push({ s: 2, k: 'sys', x: '멈춤 요청 — 「검토」 를 마치고 멈췄다' })
+  JOBS[6].lines.push({ s: 0, k: 'sys', x: '폴더 확인 — 바뀐 파일 12 · 지운 파일 12' }, { s: 1, k: 'err', x: '크게 바뀜 문턱 넘음(지운 비율 41%) — 쓰지 않고 멈춘다' })
+  DONE = [
+    ['오늘', '07:43', 'file', 'pdf · hwp 서버에서 글로 바꾸기', 'kmd-소스 기능', '이름 1', 'done', '1:48'],
+    ['오늘', '07:33', 'file', '일마다 Claude 모델 선택 기능 추가', 'kmd-소스 기능', '이름 2', 'done', '2:10'],
+    ['오늘', '07:21', 'file', '「지금 하는 일」 점 · 팝업 추가 및 Windows EBUSY 수정', 'kmd-소스 기능', '', 'done', '1:22'],
+    ['오늘', '07:17', 'file', '넣기 에이전트용 from/append 추가', 'kmd-소스 기능', '', 'done', '0:58'],
+    ['오늘', '07:10', 'git', 'kmd-소스 — 새 묶음 1', 'kmd-소스', '항목 2', 'done', '0:41'],
+    ['오늘', '06:48', 'file', '테스트문서 › 킥오프_발표문_v0.1.pdf', '테스트', '첨부', 'done', '0:33'],
+    ['오늘', '06:28', 'file', '테스트문서 › 킥오프_발표문_v0.1.pdf', '테스트', 'EBUSY: resource busy or locked', 'fail', '0:02'],
+    ['오늘', '06:21', 'file', '걸린 항목 없는 코드 바뀜 기록을 에이전트가 문서에 반영', 'kmd-소스 기능', '', 'done', '2:44'],
+    ['오늘', '06:14', 'db', 'gdi개발db — 테이블 정의', '테이블 정의', '그대로', 'done', '0:03'],
+    ['어제', '16:10', 'file', '팀 서버에 지식을 세우는 것만 관리자만', 'kmd-소스 기능', '이름 2', 'done', '1:51'],
+    ['어제', '14:07', 'file', 'Claude 양식 기록 · 기록↔문서 출처 주석', 'kmd-소스 기능', '이름 6', 'done', '3:02'],
+    ['어제', '11:29', 'file', 'DPMS_3.2.1_PLC연계규격서_조인.html', 'PLC 연계 규격서', '이름 11', 'cancel', '0:12'],
+  ]
+  if (kind === 'empty') { JOBS = []; }
+  if (kind === 'long') {
+    for (let i = 0; i < 26; i++) JOBS.push(mk({ origin: i % 5 === 0 ? 'docs' : 'file', title: `옛자료/2025_보고서_${String(i + 1).padStart(2, '0')}.docx`, kn: '회의', state: 'wait' }))
+  }
+}
+
+// ───────────── 화면 상태 ─────────────
+const M = { view: 'screen', tab: 'queue', filter: 'all', sel: null, tfil: 'all', sim: true, hold: false, modal: null, toast: null, lim: 8, focusStage: null, dataset: 'normal' }
+seed('normal')
+M.sel = JOBS[0] && JOBS[0].id
+
+const stateChip = (j) => ({
+  run: '<span class="chip c-acc">도는 중</span>', wait: '<span class="chip c-mute">기다림</span>', pausing: '<span class="chip c-warn">멈추는 중…</span>',
+  pause: '<span class="chip c-warn">멈춤</span>', check: '<span class="chip c-warn">확인할 것</span>', fail: '<span class="chip c-danger">못함</span>',
+  done: '<span class="chip c-ok">끝남</span>', cancel: '<span class="chip c-mute">그만둠</span>',
+}[j.state])
+const fmt = (s) => s == null ? '' : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+const order = () => JOBS.filter((j) => j.state === 'wait')
+const GROUPS = [
+  ['run', '도는 중', (j) => j.state === 'run' || j.state === 'pausing'],
+  ['attn', '멈춤 · 확인할 것 · 못함', (j) => ['pause', 'check', 'fail'].includes(j.state)],
+  ['wait', '기다림', (j) => j.state === 'wait'],
+]
+const FIL = [['all', '전체', () => true], ['run', '도는 중', GROUPS[0][2]], ['wait', '기다림', GROUPS[2][2]], ['attn', '멈춤 · 확인', GROUPS[1][2]]]
+
+function miniHtml(j) {
+  return `<div><div class="mini">${j.st.map((s) => `<i class="${s}"></i>`).join('')}</div><div class="mini-l">${j.state === 'wait' ? (j.stage ? STG[j.stage] + '부터' : '차례 기다림') : STG[j.stage]}</div></div>`
+}
+function actHtml(j, small = true) {
+  const b = (a, ic, t, cls = '') => `<button class="btn ${small ? 'sm ' : ''}${cls}" data-a="${a}" data-id="${j.id}" title="${t}">${svg(ic)}${small ? '' : ' ' + t}</button>`
+  const o = []
+  if (j.state === 'run') o.push(b('pause', 'pause', '멈춤'), b('cancel', 'x', '그만두기', 'dz'))
+  if (j.state === 'pausing') o.push(b('cancel', 'x', '바로 그만두기', 'dz'))
+  if (j.state === 'wait') o.push(b('top', 'up', '맨 앞으로'), b('cancel', 'x', '빼기', 'dz'))
+  if (j.state === 'pause') o.push(b('resume', 'play', '이어서'), b('cancel', 'x', '그만두기', 'dz'))
+  if (j.state === 'fail') o.push(b('retry', 'redo', '다시'), b('cancel', 'x', '지우기', 'dz'))
+  if (j.state === 'check') o.push(b('resume', 'play', '그대로 맞추기'), b('cancel', 'x', '이번은 건너뛰기', 'dz'))
+  return o.join('')
+}
+function rowHtml(j) {
+  const n = order().indexOf(j) + 1
+  const sub = `${KIND[j.origin]}${j.auto ? `<span class="auto">자동 · ${esc(j.auto)}</span>` : ''} → ${esc(j.kn)}${j.note ? ' · ' + esc(j.note) : ''}${j.why && j.state !== 'run' ? ' · ' + esc(j.why.split(' — ')[0]) : ''}`
+  return `<div class="qrow${M.sel === j.id ? ' sel' : ''}" data-a="sel" data-id="${j.id}">
+    ${j.state === 'wait' ? `<span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span><span class="ord">${n}</span>` : '<span class="grip"></span><span class="ord"></span>'}
+    <span class="ic ${j.origin}">${svg(j.group ? 'folder' : j.origin)}</span>
+    <span class="tx"><b>${esc(j.title)}</b><small>${sub}</small></span>
+    ${miniHtml(j)}<span class="el">${j.el != null ? fmt(j.el) : ''}</span>
+    <span class="ac">${actHtml(j)}</span></div>`
+}
+
+// ───────────── 자세히 ─────────────
+function detHtml() {
+  const j = JOBS.find((x) => x.id === M.sel)
+  if (!j) return `<div class="card det"><div class="empty"><b>왼쪽에서 일을 고른다</b>단계 · 터미널 · 만든 것이 여기 보인다</div></div>`
+  const sub = SUB[j.origin]
+  const flow = STG.map((nm, i) => {
+    const s = j.st[i]
+    const lab = { done: '끝남', run: j.state === 'pausing' ? '멈추는 중' : '도는 중', wait: '기다림', pause: '멈춤', check: '확인할 것', fail: '못함', cancel: '그만둠' }[s]
+    const items = sub[i].map((x, k) => {
+      let c = ''
+      if (s === 'done') c = 'd'
+      else if (s === 'run') c = k < Math.min(sub[i].length - 1, Math.floor(j.cur / Math.max(1, LINES[j.origin][i].length / sub[i].length))) ? 'd' : k === Math.min(sub[i].length - 1, Math.floor(j.cur / Math.max(1, LINES[j.origin][i].length / sub[i].length))) ? 'r' : ''
+      else if (s === 'fail' && k === 0) c = 'x'
+      else if ((s === 'pause' || s === 'check') && k === 0) c = 'p'
+      return `<li class="${c}">${esc(x)}</li>`
+    }).join('')
+    return `${i ? `<span class="arr ${j.st[i - 1] === 'done' ? 'done' : ''}">→</span>` : ''}<div class="st ${s}${M.focusStage === i ? ' focus' : ''}" data-a="stg" data-v="${i}" title="이 단계의 줄만 터미널에"><div class="n"><span>${i + 1}</span><span>${lab}</span></div><div class="nm">${nm}</div><ul>${items}</ul><div class="tt">${j.took[i] || (s === 'run' ? '…' : '')}</div></div>`
+  }).join('')
+  const why = j.state === 'check' ? `<div class="callout warn"><span>⚠</span><span><b>확인할 것</b> — ${esc(j.why)}</span><span class="acts"><button class="btn sm">지운 파일 12 보기</button></span></div>`
+    : j.state === 'fail' ? `<div class="callout danger"><span>✕</span><span><b>못함 — ${STG[j.stage]}</b> · ${esc(j.why)}</span><span class="acts"><button class="btn sm" data-a="retry" data-id="${j.id}">다시</button><button class="btn sm">원본만 첨부로</button></span></div>`
+    : j.state === 'pause' ? `<div class="callout warn"><span>Ⅱ</span><span><b>멈춤</b> — ${esc(j.why)}</span></div>`
+    : j.state === 'pausing' ? `<div class="callout warn"><span>Ⅱ</span><span><b>멈추는 중</b> — 지금 단계(「${STG[j.stage]}」)를 마치면 멈춘다 · 바로 끊으려면 [바로 그만두기]</span></div>` : ''
+  const tl = j.lines.filter((l) => M.tfil === 'all' || String(l.s) === M.tfil)
+  const tm = (i) => `00:${String(2 + i * 4).padStart(2, '0')}`
+  const mark = { tool: '▸ ', ok: '✓ ', err: '✗ ', sys: '· ', cost: '■ ', say: '' }
+  const term = tl.map((l, i) => `<div class="${l.k}"><span class="tm">${tm(i)}</span><span class="sg">[${STG_S[l.s]}]</span>${mark[l.k]}${esc(l.x)}</div>`).join('')
+    + (j.state === 'run' ? '<div class="sys cur"><span class="tm">     </span></div>' : '') || '<div class="sys">아직 줄이 없다 — 차례를 기다린다</div>'
+  const isAgent = LANE(j) === 'claude' || j.origin === 'file'
+  const kids = j.children ? `<div class="sec"><div class="sh">안의 파일 ${j.children.length}<span class="r"><span class="chip c-ok">끝남 ${j.children.filter((c) => c.s === 'done').length}</span> <span class="chip c-mute">기다림 ${j.children.filter((c) => c.s === 'wait').length}</span></span></div><div class="children">${j.children.map((c) => `<div><span class="mono">${esc(c.n)}</span>${c.s === 'done' ? '<span class="chip c-ok">끝남</span>' : c.s === 'run' ? '<span class="chip c-acc">도는 중</span>' : '<span class="chip c-mute">기다림</span>'}<button class="btn sm ghost">빼기</button></div>`).join('')}</div><div class="gl" style="margin-top:6px">폴더는 한 일로 묶고 안의 파일마다 네 단계를 돈다 · 멈추면 지금 파일을 마치고 멈춘다</div></div>` : ''
+  const res = j.stage >= 2 || j.state === 'done' ? `<div class="sec"><div class="sh">만든 것</div><ul class="res">
+    <li><span class="k"><span class="chip c-pend">기록</span></span><a>${j.origin === 'git' ? '코드 바뀜 — 74afa91 지식은 늘 기록 → 문서' : '2026-10-26 설계 회의'}</a><button class="btn sm">보기</button></li>
+    ${j.stage >= 3 ? '<li><span class="k"><span class="chip c-acc">문서</span></span><a>회의록 › 2026-10-19 설계 검토 (덧붙임)</a><button class="btn sm">보기</button></li>' : ''}
+    ${j.origin === 'file' ? '<li><span class="k"><span class="chip c-mute">첨부</span></span><a>설계회의_1026.docx</a><button class="btn sm">보기</button></li>' : ''}</ul></div>` : ''
+  return `<div class="card det">
+   <div class="dh"><span class="qrow" style="padding:0;border:0;cursor:default;background:none"><span class="ic ${j.origin}">${svg(j.group ? 'folder' : j.origin)}</span></span><div class="t"><b>${esc(j.title)}</b><small>${KIND[j.origin]}${j.auto ? ' · 자동 ' + esc(j.auto) : ' · 사람이 넣음(kjsa)'} → ${esc(j.kn)}</small></div>${stateChip(j)}</div>
+   <div class="ctl">${actHtml(j, false)}<span class="note">${j.state === 'run' ? '멈춤은 지금 단계를 마치고 · 그만두기는 바로 끊는다' : j.state === 'wait' ? `줄의 ${order().indexOf(j) + 1}번째 · 앞에 ${order().indexOf(j)} 일` : ''}</span></div>
+   <div class="sec"><dl class="meta"><dt>시작</dt><dd>${j.since || '—'}</dd><dt>걸린 시간</dt><dd>${j.el != null ? fmt(j.el) : '—'}</dd><dt>도는 길</dt><dd>${isAgent ? 'Claude Code (하나씩)' : '가져오기 (둘까지)'}</dd><dt>모델</dt><dd>${isAgent ? 'claude-sonnet-5-5' : '—'}</dd></dl></div>
+   <div class="sec"><div class="sh">흐름<span class="r small" style="font-size:11px;color:var(--text-3)">단계를 누르면 그 단계의 줄만</span></div>${why}<div class="flow">${flow}</div></div>
+   ${kids}
+   <div class="sec"><div class="sh">터미널 <span style="font-weight:400;color:var(--text-3)">${isAgent ? 'Claude Code 가 하는 일' : 'kmd 가 하는 일'}</span><span class="tfil">${[['all', '전체'], ...STG_S.map((x, i) => [String(i), x])].map(([v, l]) => `<span class="${M.tfil === v ? 'on' : ''}" data-a="tfil" data-v="${v}">${l}</span>`).join('')}</span></div><div class="term" id="term">${term}</div></div>
+   ${res}
+  </div>`
+}
+
+// ───────────── 탭: 일 줄 ─────────────
+function queueHtml() {
+  const f = FIL.find((x) => x[0] === M.filter)
+  const counts = Object.fromEntries(FIL.map(([k, , fn]) => [k, JOBS.filter(fn).length]))
+  const running = JOBS.filter((j) => j.state === 'run' || j.state === 'pausing')
+  const lanes = `<span class="lane" title="Claude Code 일은 하나씩">Claude <i class="${running.some((j) => LANE(j) === 'claude') ? 'on' : ''}"></i> 1</span><span class="lane" title="폴더 · git · DB 읽기는 둘까지">가져오기 ${[0, 1].map((k) => `<i class="${running.filter((j) => LANE(j) === 'fetch').length > k ? 'on' : ''}"></i>`).join('')} 2</span>`
+  let list = ''
+  for (const [gk, gl, fn] of GROUPS) {
+    const xs = JOBS.filter((j) => fn(j) && f[2](j))
+    if (!xs.length) continue
+    const shown = gk === 'wait' ? xs.slice(0, M.lim) : xs
+    list += `<div class="qg">${gl} <small>${xs.length}</small>${gk === 'wait' ? '<span class="r"><small>위에서부터 차례로 · 끌어서 순서 바꾸기</small></span>' : ''}</div>${shown.map(rowHtml).join('')}${xs.length > shown.length ? `<div class="qmore">기다림 ${xs.length - shown.length} 더 — <a data-a="more">모두 보기</a></div>` : ''}`
+  }
+  if (!list) list = `<div class="empty"><b>${JOBS.length ? '이 갈래에 일이 없다' : '줄이 비었다'}</b>${JOBS.length ? '' : '파일을 끌어다 놓거나, 가져올 곳이 정한 때가 되면 여기에 선다'}</div>`
+  return `
+  <div class="dropbar${M.over ? ' over' : ''}" id="drop"><b>파일 · 폴더를 이 화면 어디든 끌어다 놓는다</b> · 넣을 곳 <select class="inp"><option>회의 · 나만</option><option>kmd-소스</option><option>테스트</option></select><span class="r"><a>파일 고르기</a> · <a>폴더 고르기</a> <small style="color:var(--text-3)">한 번에 300 파일 · 200MB</small></span></div>
+  ${M.hold ? `<div class="paused-band">Ⅱ <span><b>줄 멈춤</b> — 도는 일은 지금 단계를 마치고 서고, 기다리는 일은 시작하지 않는다 · 자동(정한 때 · 실시간)으로 오는 일도 줄에만 선다</span><button class="btn sm" data-a="hold">줄 다시 돌리기</button></div>` : ''}
+  <div class="qbar">${FIL.map(([k, l]) => `<span class="qf${M.filter === k ? ' on' : ''}" data-a="fil" data-v="${k}">${l} <b>${counts[k]}</b></span>`).join('')}
+   <span class="r">동시에 ${lanes}<button class="btn sm" data-a="hold">${svg(M.hold ? 'play' : 'pause')} ${M.hold ? '줄 다시 돌리기' : '줄 멈춤'}</button><button class="btn sm dz" data-a="clearWait"${order().length ? '' : ' disabled'}>기다림 모두 빼기</button></span></div>
+  <div class="qwrap"><div class="qlist">${list}</div>${detHtml()}</div>`
+}
+
+// ───────────── 탭: 가져올 곳 ─────────────
+function srcHtml() {
+  const S = [
+    ['git', 'kmd-소스', '소스 코드 · git · https://github.com/kjsa7412/kmd.git', 'kmd-소스 › 코드 바뀜 기록', '1시간마다 · 마지막 07:50', '<span class="chip c-acc">줄에서 도는 중</span>', true],
+    ['db', 'gdi개발db', 'DB · 읽기만 · postgres://sjinc@10.10.1.100:5466/GDI_SERVICE', '테이블 정의 › 테이블 정의', '1시간마다 · 다음 08:14', '<span class="chip c-mute">줄에서 기다림</span>', true],
+    ['docs', '테스트문서', '문서 폴더 · C:\\Users\\…\\Desktop\\테스트문서', '테스트 › 테스트', '실시간 · 그 밖에 1시간마다', '<span class="chip c-warn">확인할 것 — 크게 바뀜</span>', true],
+    ['docs', '옛 공유폴더', '문서 폴더 · D:\\공유\\운영문서', '회의 › 운영문서', '매일 06:00 · 쉬는 중', '<span class="chip c-mute">쉼</span>', false],
+  ]
+  return `<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><span class="lead">정한 때가 되면 <b>일 줄에 일 하나를 세운다</b> — 도는 모습 · 멈춤 · 그만두기는 일 줄에서. 여기서는 곳을 더하고 · 고치고 · 쉬게 한다.</span><span style="margin-left:auto;display:flex;gap:8px"><button class="btn">지금 모두 가져오기</button><button class="btn pri">+ 가져올 곳 더하기</button></span></div>
+  <div class="slist">${S.map(([k, n, sub, into, ev, chip, on]) => `<div class="srow"><span class="si">${svg(k)}</span><span class="sn"><b>${n}</b><small>${esc(sub)}</small></span><span class="sc">${esc(into)}<small>${ev}</small></span><span>${chip}</span><span class="sa"><button class="btn sm">지금 가져오기</button><button class="btn sm">${on ? '쉬기' : '다시 지켜보기'}</button><button class="btn sm ghost">자세히</button></span></div>`).join('')}</div>
+  <p class="gl">[쉬기] — 정한 때 · 실시간 감시 모두 멈춘다(설정은 남는다). 한꺼번에 크게 바뀌면 쓰지 않고 일 줄에 「확인할 것」 으로 선다 — 지금 위쪽 빨간 띠를 대신한다.</p>`
+}
+
+// ───────────── 탭: 끝난 일 ─────────────
+function doneHtml() {
+  let last = '', rows = ''
+  for (const [d, t, o, ti, kn, msg, st, took] of DONE) {
+    if (d !== last) { rows += `<tr class="day"><td colspan="6">${d}</td></tr>`; last = d }
+    rows += `<tr><td class="m">${t}</td><td><span class="qrow" style="padding:0;border:0;display:inline-flex;vertical-align:middle;background:none"><span class="ic ${o}" style="width:22px;height:22px">${svg(o)}</span></span> ${esc(ti)}<div style="font-size:11.5px;color:var(--text-3)">${KIND[o]} → ${esc(kn)}${msg ? ' · ' + esc(msg) : ''}</div></td><td><div class="mini">${STG.map((_, i) => `<i class="${st === 'done' ? 'done' : st === 'fail' ? (i === 0 ? 'fail' : '') : i === 0 ? 'cancel' : ''}"></i>`).join('')}</div></td><td>${st === 'done' ? '<span class="chip c-ok">넣음</span>' : st === 'fail' ? '<span class="chip c-danger">못함</span>' : '<span class="chip c-mute">그만둠</span>'}</td><td class="m">${took}</td><td style="text-align:right;white-space:nowrap">${st === 'done' ? '<button class="btn sm">보기</button> ' : '<button class="btn sm">다시</button> '}<button class="btn sm ghost">${svg('term')} 터미널</button></td></tr>`
+  }
+  return `<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap"><input class="inp" placeholder="파일 · 제목 찾기" style="width:220px"><select class="inp"><option>모든 갈래</option><option>파일 들이기</option><option>문서 폴더</option><option>소스 코드</option><option>DB</option></select><select class="inp"><option>모든 결과</option><option>넣음</option><option>못함</option><option>그만둠</option></select><select class="inp"><option>최근 7일</option><option>최근 30일</option></select><span style="margin-left:auto;font-size:12px;color:var(--text-3)">30일이 지난 일은 터미널 줄을 접고 결과만 남는다</span></div>
+  <div class="card" style="overflow:hidden"><table class="done"><thead><tr><th style="width:60px">시각</th><th>일</th><th style="width:90px">단계</th><th style="width:70px">결과</th><th style="width:56px">걸림</th><th></th></tr></thead><tbody>${rows}</tbody></table><div class="pager"><span class="on">1</span><span>2</span><span>3</span><span>›</span></div></div>`
+}
+
+// ───────────── 앱 프레임 ─────────────
+function appHtml() {
+  const attn = JOBS.filter((j) => ['pause', 'check', 'fail'].includes(j.state)).length
+  const live = JOBS.filter((j) => !['done', 'cancel'].includes(j.state)).length
+  const body = M.tab === 'queue' ? queueHtml() : M.tab === 'src' ? srcHtml() : doneHtml()
+  return `<div class="app">
+  <aside class="side"><div class="sb-top"><span class="logo">K</span><span class="brand">kmd</span><span class="busy"><i></i>${JOBS.filter((j) => j.state === 'run').length}</span></div>
+   <div class="sb-repo"><span class="rk">회의</span><span><b>회의</b><small>C:\\project\\kmd\\kmd-databox</small></span></div>
+   <div class="sb-g">문서</div><div class="sb-i">kmd-소스 기능</div><div class="sb-i">킥오프_발표문_v0.1</div><div class="sb-i">테이블 정의</div><div class="sb-i">PLC 연계 규격서</div>
+   <div class="sb-foot"><div class="sb-g">지식 관리 · 개인 지식</div><div class="sb-i">이력</div><div class="sb-i on">가져오기${live ? `<span class="bd">${live}</span>` : ''}</div><div class="sb-i">지식 보내기</div><div class="sb-i">설정</div></div></aside>
+  <div class="col"><div class="hdr"><span class="crumb"><b>가져오기</b></span></div>
+   <div class="band"><b>● 이 PC 의 kmd</b> · 나만 쓴다</div>
+   <div class="main" id="main">
+    <div class="pg-h"><div><div class="big">가져오기</div><p class="lead">들여오는 일은 모두 <b>일 줄</b>에 서서 차례로 돈다 — 수집 › 검토 › 기록 생성 › 문서 생성. 도는 일은 멈추거나 그만둘 수 있고, 줄을 고르면 흐름과 터미널이 보인다.</p></div></div>
+    <div class="tabs"><span class="${M.tab === 'queue' ? 'on' : ''}" data-a="tab" data-v="queue">일 줄 <em>${live}</em>${attn ? `<em class="w">확인 ${attn}</em>` : ''}</span><span class="${M.tab === 'src' ? 'on' : ''}" data-a="tab" data-v="src">가져올 곳 <em>4</em></span><span class="${M.tab === 'done' ? 'on' : ''}" data-a="tab" data-v="done">끝난 일 <em>${DONE.length}</em></span></div>
+    ${body}
+   </div></div></div>`
+}
+
+// ───────────── 검토안 ─────────────
+function reviewHtml() {
+  return `<div class="doc">
+  <h2>가져오기 — 일 줄(큐) 개선안</h2><p>2026-10-26 · 실제 개발 전 확인용 · 오른쪽 화면은 <b>왼쪽 조종판 › 화면 목업</b> 에서 눌러 볼 수 있다(멈춤 · 이어서 · 그만두기 · 다시 · 맨 앞으로 · 줄 멈춤이 움직인다).</p>
+
+  <h3>1. 지금의 문제</h3>
+  <ul>
+   <li><b>한 화면에 세 가지가 세로로 쌓인다</b> — 입력(끌어다 놓기) · 이력(최근 넣은 것) · 설정(지켜보며 맞추기). 이력이 길어질수록 「지켜보며 맞추기」 가 아래로 밀려 안 보인다.</li>
+   <li><b>일이 네 군데에 따로 산다</b> — 서버의 <code>srcBusy</code>(지켜보기 가져오기) · <code>runs</code>(Claude Code 일) · <code>jobs</code>(정리) · <code>curating</code>(기록 → 문서). 화면도 「최근 넣은 것」 · 줄의 칩 · 「지금 하는 일」 팝업 · 위쪽 빨간 띠로 흩어진다.</li>
+   <li><b>기다림 · 도는 중 · 끝남이 한 목록에 섞인다</b> — 무엇이 차례를 기다리는지, 몇 번째인지 알 수 없다.</li>
+   <li><b>멈출 수 없다</b> — 여러 파일 넣기의 [그만두기](화면 쪽 반복만 멈춘다) 말고는 도는 Claude Code 일 · 가져오기를 끊을 길이 없다. 서버에는 끊는 손잡이(<code>runAgent</code> 의 <code>stop()</code> — taskkill /T)가 있지만 시간 넘김에만 쓴다.</li>
+   <li><b>어느 단계인지 모른다</b> — 칩은 「들이는 중」 하나. 터미널을 열어 줄을 읽어야 수집인지 · 기록을 쓰는지 안다.</li>
+   <li><b>멈춤(크게 바뀜)이 화면 위 띠로만</b> — 어떤 일이 왜 멈췄는지, 어떻게 이어 가는지가 그 일과 떨어져 있다.</li>
+  </ul>
+
+  <h3>2. 개선 방향</h3>
+  <ul>
+   <li><b>모든 들여오기를 「일」 하나로</b> — 파일 · 폴더 넣기, 문서 폴더 · git · DB 의 정한 때 · 실시간 감시, 사람이 누른 [지금 가져오기] 모두 일 줄에 일 하나로 선다.</li>
+   <li><b>일은 늘 네 단계</b> — <b>수집 › 검토 › 기록 생성 › 문서 생성</b>. 안의 작은 걸음은 갈래마다 다르다(아래 표). 지식은 늘 기록 → 문서(74afa91)와 맞는다.</li>
+   <li><b>화면을 탭 셋으로</b> — <b>일 줄</b>(도는 중 · 멈춤/확인 · 기다림) · <b>가져올 곳</b>(지켜보며 맞추기 설정) · <b>끝난 일</b>(찾기 · 거르기 · 쪽 넘김). 끝난 일이 줄을 밀어내지 않는다.</li>
+   <li><b>일 줄은 두 칸</b> — 왼쪽 목록(줄마다 작은 네 칸 막대), 오른쪽 자세히(흐름 그림 · 터미널 · 만든 것). 끌어다 놓기는 화면 어디서든, 맨 위 한 줄 막대.</li>
+   <li><b>손잡이</b> — 일마다 멈춤 · 이어서 · 그만두기 · 다시 · 맨 앞으로 · 빼기, 줄 전체 멈춤.</li>
+  </ul>
+
+  <h3>3. 일의 상태와 손잡이</h3>
+  <div class="sm-flow"><span>기다림</span><span class="a">→</span><span>도는 중</span><span class="a">→</span><span>끝남</span><span class="a">　|　도는 중 →</span><span>멈추는 중</span><span class="a">→</span><span>멈춤</span><span class="a">→ 이어서 →</span><span>기다림</span><span class="a">　|　어디서든 →</span><span>그만둠</span></div>
+  <table><tr><th>상태</th><th>뜻</th><th>손잡이</th></tr>
+   <tr><td>기다림</td><td>차례를 기다린다 · 번호가 붙는다</td><td>맨 앞으로 · 끌어서 순서 · 빼기</td></tr>
+   <tr><td>도는 중</td><td>지금 단계 · 걸음이 흐름 그림에 깜빡인다</td><td><b>멈춤</b>(지금 단계를 마치고) · <b>그만두기</b>(바로 끊는다)</td></tr>
+   <tr><td>멈추는 중</td><td>멈춤을 눌렀고 지금 단계를 마무리한다</td><td>바로 그만두기</td></tr>
+   <tr><td>멈춤</td><td>사람이 멈췄다 · 다음 단계 앞에 서 있다</td><td>이어서(그 단계부터 줄 뒤로) · 그만두기</td></tr>
+   <tr><td>확인할 것</td><td>kmd 가 스스로 멈췄다 — 크게 바뀜 문턱 · 이름이 겹침 등</td><td>그대로 맞추기 · 이번은 건너뛰기 · 자세히</td></tr>
+   <tr><td>못함</td><td>어느 단계에서 실패 — 까닭이 그 단계에</td><td>다시(그 단계부터) · 원본만 첨부로 · 지우기</td></tr>
+   <tr><td>끝남 · 그만둠</td><td>「끝난 일」 탭으로 간다</td><td>보기 · 터미널 · 다시</td></tr></table>
+  <p><b>그만두면 무엇이 남나</b> — 끝난 단계의 결과는 남는다(이미 쓴 기록은 「이력」 에서 되돌릴 수 있다). 도는 단계에서 쓰던 것은 버린다. 그래서 단계 경계가 「되돌림 없이 멈출 수 있는 자리」 다 — 멈춤은 늘 단계 경계에서.</p>
+
+  <h3>4. 갈래마다 단계 안의 걸음</h3>
+  <table><tr><th>갈래</th><th>수집</th><th>검토</th><th>기록 생성</th><th>문서 생성</th></tr>
+   ${Object.keys(SUB).map((k) => `<tr><td><b>${KIND[k]}</b></td>${SUB[k].map((s) => `<td>${s.join(' · ')}</td>`).join('')}</tr>`).join('')}</table>
+  <p>Claude Code 일(파일 들이기 · git 의 문서 생성)은 터미널 줄의 도구로 단계를 가른다 — <code>brief · match · search · section</code> = 검토, <code>save</code> 의 record = 기록 생성, sections = 문서 생성.</p>
+
+  <h3>5. 동시에 도는 수</h3>
+  <p><b>Claude 길 1 · 가져오기 길 2</b>. Claude 를 쓰는 단계(파일 들이기 전체, git 의 문서 생성)는 한 번에 하나, 폴더 · git · DB 읽기는 둘까지. 줄 머리에 길마다 점으로 보인다. 같은 곳의 일은 지금처럼 겹쳐 돌지 않는다(같은 곳 = 한 줄).</p>
+
+  <h3>6. 바꿀 것 — 서버</h3>
+  <table><tr><th>무엇</th><th>어떻게</th></tr>
+   <tr><td>일 줄 하나</td><td><code>core/queue.js</code> 새로 — 일 <code>{ id, origin, kn, title, auto, state, stage, stages[], lane, lines, children?, result }</code>. 지금의 runs · srcBusy · curating 을 이 위로. 정리(팀 jobs)는 2차.</td></tr>
+   <tr><td>남기기</td><td><code>&lt;살림&gt;/queue.json</code> — 다시 켜도 기다림 · 멈춤이 남는다. 도는 중이던 일은 켤 때 「멈춤 — 프로그램이 꺼졌다」 로.</td></tr>
+   <tr><td>단계 쪼개기</td><td>importer · watch · codechange · curate 의 한 덩어리 함수를 단계 함수 넷으로 — 단계 사이에 멈춤 · 그만두기를 본다. 단계의 중간 결과(바꾼 글 · 차이)는 일 폴더에 둔다.</td></tr>
+   <tr><td>끊기</td><td><code>runAgent</code> 에 <code>signal</code>(AbortSignal) — 그만두기면 지금의 <code>stop()</code>(taskkill /T) · git fetch · DB 질의도 같은 signal.</td></tr>
+   <tr><td>여러 파일</td><td>지금은 화면이 파일마다 보낸다 — 서버가 폴더를 한 일(안에 파일 줄)로 받아, 화면을 닫아도 계속.</td></tr>
+   <tr><td>길</td><td><code>GET /api/queue</code> · <code>POST /api/queue/:id/(pause|resume|cancel|retry|top|move)</code> · <code>POST /api/queue/hold</code> · <code>GET /api/queue/:id/lines?from=</code>(지금 runs 와 같은 꼴)</td></tr>
+   <tr><td>지금 하는 일</td><td>왼쪽 위 점 팝업은 <code>/api/queue</code> 의 도는 중 · 확인할 것을 그대로 — 누르면 일 줄의 그 일로.</td></tr>
+   <tr><td>멈춤(stops)</td><td>크게 바뀜 멈춤은 그 일의 「확인할 것」 으로 — 위쪽 빨간 띠는 걷는다(다른 화면에는 「확인할 것 n」 칩만).</td></tr></table>
+
+  <h3>7. 나눠서 만든다</h3>
+  <ol>
+   <li><b>화면 먼저</b> — 탭 셋 · 끝난 일 탭 · 두 칸 자세히(지금 데이터로: runs 의 줄로 단계를 어림). 멈춤 없이도 「지켜보며 맞추기가 밀려나는」 문제는 여기서 풀린다.</li>
+   <li><b>일 줄 · 그만두기</b> — queue.js · 남기기 · 기다림 순서 · 그만두기(signal) · 여러 파일을 서버로.</li>
+   <li><b>단계 · 멈춤</b> — 단계 함수로 쪼개기 · 멈춤/이어서 · 다시(그 단계부터) · 확인할 것(stops 옮김).</li>
+   <li><b>팀 정리(jobs)</b> 까지 같은 줄로 — 팀 화면.</li>
+  </ol>
+
+  <h3>8. 확인받을 것</h3>
+  <div class="ask"><ol>
+   <li>탭 셋(일 줄 · 가져올 곳 · 끝난 일)으로 가르는 것 — 아니면 한 화면에 「가져올 곳」 을 오른쪽 좁은 칸으로 둘까?</li>
+   <li>단계 이름 넷(수집 › 검토 › 기록 생성 › 문서 생성) — 「검토」 에 이름 맞추기 · 겹침 · 크게 바뀜 문턱을 넣는 것이 맞나?</li>
+   <li>멈춤은 <b>단계 경계</b>에서만(지금 단계를 마치고) — 바로 끊는 것은 「그만두기」 하나. 이 둘로 충분한가?</li>
+   <li>동시에 도는 수(Claude 1 · 가져오기 2)를 설정에서 바꾸게 할까?</li>
+   <li>끝난 일은 몇 날까지 터미널 줄을 남길까(목업은 30일)?</li>
+  </ol></div>
+  </div>`
+}
+
+// ───────────── 조종판 ─────────────
+function navHtml() {
+  const b = (on, a, v, t, s) => `<button class="${on ? 'on' : ''}" data-a="${a}" data-v="${v}">${t}${s ? `<small>${s}</small>` : ''}</button>`
+  return `<h1>가져오기 · 일 줄 목업</h1><p>개발 전 확인용 · 2026-10-26</p>
+   <div class="g">보기</div>${b(M.view === 'review', 'view', 'review', '검토안', '문제 · 개선 · 서버 바꿀 것 · 물을 것')}${b(M.view === 'screen', 'view', 'screen', '화면 목업', '눌러 볼 수 있다')}
+   <div class="g">데이터</div>${b(M.dataset === 'normal', 'data', 'normal', '보통', '도는 중 2 · 기다림 4 · 확인 3')}${b(M.dataset === 'long', 'data', 'long', '줄이 긴 때', '옛 자료 26 파일을 더 넣음')}${b(M.dataset === 'empty', 'data', 'empty', '빈 줄', '')}
+   <div class="g">흉내</div>${b(M.sim, 'sim', '', M.sim ? 'Ⅱ 진행 흉내 끄기' : '▶ 진행 흉내 켜기', '도는 일이 1.2초마다 한 줄씩 나아간다')}
+   <div class="g">해 볼 것</div><p>· 줄을 눌러 자세히<br>· 흐름의 단계를 눌러 터미널 거르기<br>· 도는 일 [멈춤] → 단계 끝에서 멈춘다<br>· 확인할 것 [그대로 맞추기]<br>· 못함 [다시]<br>· 기다림 [맨 앞으로] · [빼기]<br>· 줄 머리 [줄 멈춤]</p>`
+}
+
+function render() {
+  document.getElementById('mnav').innerHTML = navHtml()
+  const t = document.getElementById('term'), stick = !t || t.scrollHeight - t.scrollTop - t.clientHeight < 24
+  document.getElementById('stage').innerHTML = (M.view === 'review' ? reviewHtml() : appHtml())
+    + (M.modal ? modalHtml() : '') + (M.toast ? `<div class="toast">${esc(M.toast)}</div>` : '')
+  const t2 = document.getElementById('term')
+  if (t2 && stick) t2.scrollTop = t2.scrollHeight
+}
+function modalHtml() {
+  const j = JOBS.find((x) => x.id === M.modal)
+  const run = j.state === 'run' || j.state === 'pausing'
+  return `<div class="scrim" data-a="mclose" data-self="1"><div class="modal"><div class="mh">「${esc(j.title)}」 ${j.state === 'wait' ? '줄에서 뺄까?' : j.state === 'check' ? '이번은 건너뛸까?' : '그만둘까?'}</div><div class="mb">${run ? `지금 「${STG[j.stage]}」 단계를 하고 있다. 바로 끊는다:<ul><li>끝난 단계(${j.stage ? STG.slice(0, j.stage).join(' · ') : '없음'})의 결과는 남는다${j.stage >= 3 ? ' — 기록은 「이력」 에서 되돌릴 수 있다' : ''}</li><li>지금 단계에서 쓰던 것은 버린다${LANE(j) === 'claude' ? ' · Claude Code 를 끈다' : ''}</li></ul>` : j.state === 'check' ? '이번 바뀜은 쓰지 않는다. 다음 정한 때에 다시 본다.' : j.state === 'wait' ? '아직 아무것도 하지 않았다 — 빼면 끝난 일에 「그만둠」 으로 남는다.' : '끝난 단계의 결과는 남는다.'}</div><div class="mf"><button class="btn" data-a="mclose">두기</button><button class="btn pri" style="background:var(--danger);border-color:var(--danger)" data-a="mok" data-id="${j.id}">${j.state === 'wait' ? '빼기' : j.state === 'check' ? '건너뛰기' : '그만두기'}</button></div></div></div>`
+}
+function toast(t) { M.toast = t; render(); clearTimeout(toast.t); toast.t = setTimeout(() => { M.toast = null; render() }, 2200) }
+
+// ───────────── 움직임 ─────────────
+function finish(j, st) {
+  JOBS = JOBS.filter((x) => x !== j)
+  DONE.unshift(['오늘', new Date().toTimeString().slice(0, 5), j.origin, j.title, j.kn, st === 'done' ? (j.origin === 'file' ? '이름 1' : '') : st === 'cancel' ? `${STG[j.stage]} 에서 그만둠` : '', st, fmt(j.el || 0)])
+  if (M.sel === j.id) M.sel = (JOBS.find((x) => x.state === 'run') || JOBS[0] || {}).id
+}
+function startNext() {
+  if (M.hold) return
+  for (const j of order()) {
+    const busy = JOBS.filter((x) => x.state === 'run' || x.state === 'pausing')
+    const lane = LANE(j), cap = lane === 'claude' ? 1 : 2
+    if (busy.filter((x) => LANE(x) === lane).length >= cap) continue
+    j.state = 'run'; j.st[j.stage] = 'run'; j.cur = 0; j.el = j.el || 0; j.since = j.since || new Date().toTimeString().slice(0, 5)
+  }
+}
+function tick() {
+  for (const j of [...JOBS]) {
+    if (j.state !== 'run' && j.state !== 'pausing') continue
+    j.el = (j.el || 0) + 1
+    const L = LINES[j.origin][j.stage]
+    if (j.cur < L.length) { const [k, x] = L[j.cur++]; j.lines.push({ s: j.stage, k, x }); continue }
+    // 단계 끝
+    j.st[j.stage] = 'done'; j.took[j.stage] = fmt(Math.max(3, j.cur * 4))
+    if (j.children && j.stage === 3) { const c = j.children.find((c) => c.s !== 'done'); if (c) c.s = 'done' }
+    if (j.stage === 3) { if (j.children && j.children.some((c) => c.s !== 'done')) { j.stage = 0; j.st = STG.map(() => 'wait'); j.st[0] = 'run'; j.cur = 0; j.children.find((c) => c.s === 'wait').s = 'run'; j.lines.push({ s: 0, k: 'sys', x: '다음 파일' }); continue } finish(j, 'done'); continue }
+    j.stage++
+    if (j.state === 'pausing' || M.hold) { j.state = 'pause'; j.st[j.stage] = 'pause'; j.why = `${M.hold ? '줄 멈춤' : '사람이 멈췄다'} — 「${STG[j.stage]}」 에서 이어 간다`; j.lines.push({ s: j.stage - 1, k: 'sys', x: `멈춤 — 「${STG[j.stage - 1]}」 를 마치고 멈췄다` }); continue }
+    j.st[j.stage] = 'run'; j.cur = 0
+    if (LANE(j) === 'claude' && JOBS.some((x) => x !== j && x.state === 'run' && LANE(x) === 'claude')) { j.state = 'wait'; j.st[j.stage] = 'wait' }
+  }
+  startNext()
+  render()
+}
+setInterval(() => { if (M.sim && M.view === 'screen') tick() }, 1200)
+
+const ACT = {
+  view: (v) => { M.view = v }, tab: (v) => { M.tab = v }, fil: (v) => { M.filter = v }, sel: (v, id) => { M.sel = id; M.focusStage = null; M.tfil = 'all' },
+  data: (v) => { M.dataset = v; seed(v); M.sel = JOBS[0] && JOBS[0].id; M.lim = 8; M.view = 'screen'; M.tab = 'queue' },
+  sim: () => { M.sim = !M.sim }, more: () => { M.lim = 999 },
+  tfil: (v) => { M.tfil = v; M.focusStage = v === 'all' ? null : +v },
+  stg: (v) => { M.focusStage = M.focusStage === +v ? null : +v; M.tfil = M.focusStage == null ? 'all' : String(v) },
+  hold: () => { M.hold = !M.hold; for (const j of JOBS) if (j.state === 'run' && M.hold) j.state = 'pausing'; if (!M.hold) { for (const j of JOBS) if (j.state === 'pausing') j.state = 'run'; for (const j of JOBS) if (j.state === 'pause' && /줄 멈춤/.test(j.why || '')) { j.state = 'wait'; j.st[j.stage] = 'wait' } startNext() } toast(M.hold ? '줄 멈춤 — 도는 일은 지금 단계를 마치고 선다' : '줄을 다시 돌린다') },
+  pause: (v, id) => { const j = JOBS.find((x) => x.id === id); j.state = 'pausing'; toast('지금 단계를 마치면 멈춘다') },
+  resume: (v, id) => { const j = JOBS.find((x) => x.id === id); const was = j.state; j.state = 'wait'; j.st[j.stage] = 'wait'; if (was === 'check') { j.stage = 2; j.st = ['done', 'done', 'wait', 'wait']; j.lines.push({ s: 1, k: 'ok', x: '사람이 「그대로 맞추기」 — 계속' }) } j.why = null; startNext(); toast(`「${STG[j.stage]}」 부터 이어 간다`) },
+  retry: (v, id) => { const j = JOBS.find((x) => x.id === id); j.state = 'wait'; j.st[j.stage] = 'wait'; j.why = null; j.lines.push({ s: j.stage, k: 'sys', x: '다시 — 이 단계부터' }); startNext(); toast(`「${STG[j.stage]}」 부터 다시 — 줄 뒤에 섰다`) },
+  top: (v, id) => { const j = JOBS.find((x) => x.id === id); JOBS = [j, ...JOBS.filter((x) => x !== j)]; toast('기다림 맨 앞으로') },
+  cancel: (v, id) => { M.modal = id },
+  mclose: () => { M.modal = null },
+  mok: (v, id) => { const j = JOBS.find((x) => x.id === id); M.modal = null; j.st[j.stage] = 'cancel'; finish(j, 'cancel'); startNext(); toast('그만뒀다 — 끝난 일에 남는다') },
+  clearWait: () => { for (const j of order()) finish(j, 'cancel'); toast('기다리던 일을 모두 뺐다') },
+}
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-a]')
+  if (!el) return
+  if (el.dataset.self && e.target !== el) return
+  const f = ACT[el.dataset.a]
+  if (!f) return
+  if (el.closest('.qrow') && el.tagName === 'BUTTON') e.stopPropagation()
+  f(el.dataset.v, el.dataset.id)
+  render()
+})
+document.addEventListener('dragover', (e) => { e.preventDefault(); if (!M.over) { M.over = true; render() } })
+document.addEventListener('dragleave', (e) => { if (!e.relatedTarget) { M.over = false; render() } })
+document.addEventListener('drop', (e) => { e.preventDefault(); M.over = false; const fs = [...(e.dataTransfer.files || [])]; for (const f of fs.slice(0, 20)) JOBS.push(mk({ origin: 'file', title: f.name, kn: '회의', state: 'wait' })); startNext(); toast(fs.length ? `${fs.length} 파일이 줄에 섰다` : '') })
+render()
+</script>
+</body>
+</html>

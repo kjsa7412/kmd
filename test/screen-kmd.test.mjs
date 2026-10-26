@@ -226,8 +226,9 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   // 자료 가져오기 — 표 · 한 칸 · 알아들은 한 줄 · 끌어다 놓기
   await page.click('[data-t=nav-import]')
   await page.waitForSelector('[data-t=drop]')
-  // 두 영역 — 파일로 들이기(기록으로) · 지켜보며 맞추기 · 더하기는 유형마다 칸
-  assert.deepEqual(await page.locator('[data-t=impSec] b').allInnerTexts(), ['파일로 들이기', '지켜보며 맞추기'])
+  // 탭 셋 — 일 줄(넣는 칸 · 도는 일 · 자세히) · 가져올 곳(지켜보며 맞추기) · 끝난 일 · 더하기는 유형마다 칸
+  assert.deepEqual((await page.locator('[data-t=impTabs] > span').allInnerTexts()).map((x) => x.replace(/\s*\d.*$/s, '')), ['일 줄', '가져올 곳', '끝난 일'])
+  assert.match(await page.locator('[data-t=queue]').innerText(), /줄이 비었다/)
   // 가져올 곳 더하기는 팝업 — 머리의 단추로 연다(단추는 단추로 · 요구 v0.2 R5)
   await page.click('[data-t=sfOpen]')
   await page.waitForSelector('[data-t=sfCard]')
@@ -264,6 +265,9 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   assert.equal(await page.locator('[data-t=histRow]:not([data-kind="설정"])').count(), 0, '갈래로 거른다')
   await page.click('[data-t=logKind-all]')
   await page.click('[data-t=nav-import]')
+  // 더한 뒤라 가져올 곳 탭이 열려 있다 — 일 줄로
+  await page.waitForSelector('[data-t=srcTable]')
+  await page.click('[data-t=impTab-queue]')
   await page.waitForSelector('[data-t=drop]')
   // 넣을 곳 — 옆 메뉴에서 고른 지식이 기본 · 드롭 영역에서 바꾼다 · 받은편지함은 고를 때만 만든다
   assert.equal(await page.locator('#impKn').count(), 1)
@@ -271,11 +275,14 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   await page.selectOption('#impKn', '')
   assert.match(await page.locator('[data-t=drop]').innerText(), /받은편지함\(새로/)
   await page.setInputFiles('#fileIn', { name: '회의록-1021.md', mimeType: 'text/markdown', buffer: Buffer.from('# 회의록-1021\n\n## 정한 것\n배포 창은 화 · 목.\n') })
-  // 넣은 파일은 기록이 된다 — 정리가 기존 문서에 넣거나 새 문서로 세운다 · [보기] 는 그 기록
+  // 넣은 파일은 기록이 된다 — 정리가 기존 문서에 넣거나 새 문서로 세운다 · [보기] 는 그 기록 · 끝난 일은 「끝난 일」 탭에
+  await page.click('[data-t=impTab-done]')
   await page.waitForFunction(() => /기록이 됐다/.test(document.querySelector('[data-t=impMsg]')?.textContent || ''), null, { timeout: 90000 })
   assert.match(await page.locator('[data-t=impRow]').first().innerText(), /회의록-1021\.md → 받은편지함 › 기록[\s\S]*정리가 기존 문서에 넣거나 새 문서로 세운다/)
   assert.equal(await page.locator('[data-t=impRow] [data-t=impRec]').count(), 1)
+  await page.click('[data-t=impTab-queue]')
   await page.setInputFiles('#fileIn', { name: '스캔.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4') })
+  await page.click('[data-t=impTab-done]')
   await page.waitForFunction(() => /내 PC 프로그램/.test(document.querySelector('[data-t=impMsg]')?.textContent || ''))
   assert.deepEqual(await bannedIn(page), [])
   await page.screenshot({ path: path.join(SHOTS, 'app-import.png') })
@@ -469,9 +476,9 @@ test('이 PC 화면 — 정리가 따로 없다는 말(지식 만들기 · 설�
     await page.click('[data-t=nav-import]')
     await page.waitForSelector('[data-t=drop]')
     const imp = await page.locator('[data-t=main]').innerText()
-    assert.match(imp, /Claude Code 가 문서의 항목으로/)
-    assert.match(imp, /\[터미널\]/)
-    assert.doesNotMatch(imp.split('지켜보며 맞추기')[0], /정리가 (기존 문서|문서로)/)
+    assert.match(imp, /Claude Code 가 지식을 둘러보고 갈래 · 주제 문서의 항목으로/)
+    assert.match(imp, /흐름과 터미널/)
+    assert.doesNotMatch(imp, /정리가 (기존 문서|문서로|이어지는)/)
     // 설정 — Claude 스위치는 「정해진 시각의 자동 정리」 가 아니라 기록을 곧바로 문서로
     await page.click('[data-t=nav-settings]')
     await page.waitForSelector('[data-t=auto-claude]')
