@@ -29,6 +29,13 @@ export async function writeLedger(dataDir, kn, name, L) {
   await fs.rename(f + '.tmp', f)
 }
 export const dropLedger = (dataDir, kn, name) => fs.rm(fileOf(dataDir, kn, name), { force: true })
+// 파일 하나를 장부에서 걷는다 — 다음 확인이 그 파일을 「더함」 으로 다시 본다(뒤에서 하던 일이 도중에 깨졌을 때)
+export async function forgetFile(dataDir, kn, name, rel) {
+  const L = await readLedger(dataDir, kn, name)
+  if (!L.files?.[rel]) return
+  delete L.files[rel]
+  await writeLedger(dataDir, kn, name, L)
+}
 
 const sortChanges = (c) => ({ added: c.added.sort(), changed: c.changed.sort(), removed: c.removed.sort() })
 export const changeCount = (c) => c.added.length + c.changed.length + c.removed.length

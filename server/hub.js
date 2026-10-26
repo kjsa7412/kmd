@@ -18,6 +18,7 @@ import { material, check as checkDraft, planSave, promptOf as tidyPrompt, INGEST
 import { runClaude } from '../core/claude.js'
 import * as feed from '../core/feed.js'
 import { checkTarget, readSource, probe, readDecl, writeDecl, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit } from '../core/sources.js'
+import { forgetFile } from '../core/watch.js'
 import { check } from '../core/check.js'
 import { commitPaths, ensureRepo, tryGit, maskUrl } from '../core/git.js'
 import { stopLine, ageText } from '../core/stopline.js'
@@ -859,7 +860,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
                 run.msg = a.docs ? `문서가 됐다 — ${pre ? pre + ' › ' : ''}${rel.replace(/\.[^.]+$/, '')}(원본이 주인)` : '그대로'
                 if (a.docs) run.docs.push(`${pre ? pre + '/' : ''}${rel.replace(/\.[^.]+$/, '')}`)
                 hub.runLine(run, 'ok', run.msg)
-              } catch (e) { run.state = 'fail'; run.msg = e.message; hub.runLine(run, 'err', e.message) } finally { run.endedAt = new Date().toISOString(); cache.delete(id); hub.runSave(run) }
+              } catch (e) {
+                // 일이 도중에 깨졌다(파일 잠김 · 읽기 실패) — 장부에서 걷어 다음 확인(실시간 · 정한 때)이 다시 한다. 글로 못 바꾼 것(위)은 다시 하지 않는다
+                await forgetFile(dataDir, id, s.name, rel).catch(() => {})
+                run.state = 'fail'; run.msg = `${e.message} — 다음 확인 때 다시 한다`; hub.runLine(run, 'err', run.msg)
+              } finally { run.endedAt = new Date().toISOString(); cache.delete(id); hub.runSave(run) }
             })
           }
           // 코드가 바뀌어 기록을 남겼다 — 그 지식의 정리를 바로 건다(정리 검사를 그대로 탄다 · 값이 바뀌면 노랑 · 되돌릴 수 있다)
