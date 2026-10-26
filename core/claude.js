@@ -10,13 +10,15 @@ import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { modelArgs } from './models.js'
 
 export const ENV_ALLOW = ['PATH', 'Path', 'PATHEXT', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'SystemRoot', 'SYSTEMROOT', 'ComSpec', 'TEMP', 'TMP', 'LANG', 'CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY', 'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY', 'NODE_EXTRA_CA_CERTS', 'FAKE_CLAUDE_MODE', 'FAKE_CLAUDE_LOG', 'FAKE_AGENT_MODE']
 
-export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_000 }) {
+// model — 별칭(haiku · sonnet · opus) · 비면 그 PC 의 기본 모델(core/models.js)
+export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_000, model = '' }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-worker-'))
   const env = Object.fromEntries(ENV_ALLOW.filter((k) => process.env[k] != null).map((k) => [k, process.env[k]]))
-  const args = ['-p', '--output-format', 'json', '--tools', '', '--strict-mcp-config', '--mcp-config', JSON.stringify({ mcpServers: {} }), '--no-session-persistence', '--max-budget-usd', String(budget), '--json-schema', JSON.stringify(schema)]
+  const args = ['-p', '--output-format', 'json', '--tools', '', '--strict-mcp-config', '--mcp-config', JSON.stringify({ mcpServers: {} }), '--no-session-persistence', '--max-budget-usd', String(budget), '--json-schema', JSON.stringify(schema), ...modelArgs(model)]
   if (process.env.ANTHROPIC_API_KEY) args.push('--bare')
   const fake = process.env.KMD_CLAUDE
   const win = process.platform === 'win32'
@@ -70,6 +72,6 @@ export function parse({ code, so, se }) {
 
 // 로그인 확인 — 아주 작은 부르기 한 번(`claude auth status` 는 끝난 로그인도 「됨」 으로 말해서 실제로 불러 본다)
 export async function checkClaude() {
-  const r = await runClaude({ prompt: '이 물음에는 {"ok": true} 로만 답한다.', schema: { type: 'object', properties: { ok: { type: 'boolean' } }, required: ['ok'] }, budget: 0.05, timeoutMs: 90_000 })
+  const r = await runClaude({ prompt: '이 물음에는 {"ok": true} 로만 답한다.', schema: { type: 'object', properties: { ok: { type: 'boolean' } }, required: ['ok'] }, budget: 0.05, timeoutMs: 90_000, model: 'haiku' })
   return r.error ? { ok: false, reason: r.error, message: r.message } : { ok: true }
 }

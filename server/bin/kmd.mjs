@@ -528,7 +528,10 @@ async function workerCmd(o) {
       const tf = path.join(path.resolve(o.data || defaultDataDir(defaultPcRoot())), 'teams.json')
       const teams = fs.existsSync(tf) ? JSON.parse(fs.readFileSync(tf, 'utf8')) : []
       const { runPersonalWorkers } = await import('../../core/worker.js')
-      runPersonalWorkers({ teams, deviceKey: (u) => kget(keyName(u)).catch(() => null), poll: o.poll ? Number(o.poll) : 10_000 })
+      // 내 개인 지식 — 이 PC 의 설정 › Claude 모델을 따른다
+      const pf = path.join(path.resolve(o.data || defaultDataDir(defaultPcRoot())), 'prefs.json')
+      const models = fs.existsSync(pf) ? JSON.parse(fs.readFileSync(pf, 'utf8')).pc?.models || null : null
+      runPersonalWorkers({ teams, deviceKey: (u) => kget(keyName(u)).catch(() => null), poll: o.poll ? Number(o.poll) : 10_000, models })
       return
     }
     if (sub === 'add') {

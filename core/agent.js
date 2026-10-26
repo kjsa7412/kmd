@@ -13,6 +13,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { ENV_ALLOW } from './claude.js'
+import { modelArgs } from './models.js'
 
 export function agentAvailable() {
   return !!process.env.KMD_CLAUDE_AGENT || !process.env.KMD_CLAUDE
@@ -46,7 +47,7 @@ function resultLine(c) {
 
 // 한 번 돌기 — { ok, text(마지막 답), cost, turns, error: login|limit|fail|null, message }
 //   mcp: { url, token } 이 없으면 MCP 없이(바꾸기만) · files: 일 폴더에 둘 파일 [{ name, data }]
-export async function runAgent({ prompt, system = '', files = [], mcp = null, budget = 2, timeoutMs = 20 * 60_000, onLine = () => {} }) {
+export async function runAgent({ prompt, system = '', files = [], mcp = null, budget = 2, timeoutMs = 20 * 60_000, model = '', onLine = () => {} }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-agent-'))
   const cfgDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-agent-cfg-')) // 단기 열쇠 · 스킬 — 일 폴더 밖(에이전트가 읽는 자리가 아니다)
   const t0 = Date.now()
@@ -62,13 +63,13 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
     const cfgFile = path.join(cfgDir, 'mcp.json')
     fs.writeFileSync(cfgFile, JSON.stringify({ mcpServers: mcp ? { kmd: { type: 'http', url: mcp.url, headers: { Authorization: `Bearer ${mcp.token}` } } } : {} }))
     const tools = ['Read', 'Glob', 'Grep']
-    const args = ['-p', '--output-format', 'stream-json', '--verbose', '--tools', tools.join(','), '--allowedTools', [...tools, ...(mcp ? ['mcp__kmd'] : [])].join(','), '--permission-mode', 'dontAsk', '--strict-mcp-config', '--mcp-config', cfgFile, '--no-session-persistence', '--max-budget-usd', String(budget), '--append-system-prompt-file', sysFile]
+    const args = ['-p', '--output-format', 'stream-json', '--verbose', '--tools', tools.join(','), '--allowedTools', [...tools, ...(mcp ? ['mcp__kmd'] : [])].join(','), '--permission-mode', 'dontAsk', '--strict-mcp-config', '--mcp-config', cfgFile, '--no-session-persistence', '--max-budget-usd', String(budget), '--append-system-prompt-file', sysFile, ...modelArgs(model)]
     const env = Object.fromEntries(ENV_ALLOW.filter((k) => process.env[k] != null).map((k) => [k, process.env[k]]))
     const fake = process.env.KMD_CLAUDE_AGENT
     const win = process.platform === 'win32'
     const [cmd, argv, opt] = fake ? [process.execPath, [fake, ...args], {}] : [win ? 'claude.cmd' : 'claude', args, win ? { shell: true } : {}]
     const quoted = opt.shell ? argv.map((a) => (a === '' ? '""' : /[\s"{}&|<>^]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a)) : argv
-    line('sys', `Claude Code 를 띄운다 — 도구 ${tools.join(' · ')}${mcp ? ' · kmd' : ''} · 예산 $${budget}`)
+    line('sys', `Claude Code 를 띄운다 — 도구 ${tools.join(' · ')}${mcp ? ' · kmd' : ''}${model ? ` · 모델 ${model}` : ''} · 예산 $${budget}`)
     return await new Promise((resolve) => {
       const p = spawn(cmd, quoted, { cwd: dir, env, windowsHide: true, ...opt })
       let buf = ''

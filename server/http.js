@@ -403,11 +403,13 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         dests: mode === 'pc' ? (await Promise.all(ks.map(async (k) => ({ name: k.name, to: (await hub.sendQueue(ctx, k.id).catch(() => ({ dests: [] }))).dests.map((d) => d.kn) })))).filter((x) => x.to.length) : undefined,
         teams: mode === 'pc' ? await teamsOf() : undefined,
         auto: Object.fromEntries(keys.map((x) => [x, hub.autoOf(ctx.user, x)])),
+        ...(mode === 'pc' ? { models: hub.models() } : {}),
         claude: { off: !!process.env.KMD_NO_CLAUDE && !process.env.KMD_CLAUDE, worker: ws, month: tidied, token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), team: mode === 'team' ? { token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), flow: teamLogin.state, kind: teamLogin.kind } : undefined },
         ...(mode === 'team' ? { pcWorker: (await hub.pcWorkerSeen(ctx.user)) || null } : {}),
         version: VERSION,
       })
     }
+    if (p === '/api/settings/model' && req.method === 'POST') { const b = await readBody(req); return out(200, await hub.setModel(ctx, String(b.role), String(b.model ?? ''))) }
     if (p === '/api/settings/auto' && req.method === 'POST') { const b = await readBody(req); return out(200, await hub.setAuto(ctx, String(b.key), !!b.on)) }
     // Claude 연결 상태 — 머리의 칩(가볍게 · 마지막으로 Claude 를 쓴 결과 · worker.json)
     if (p === '/api/claude/state') {

@@ -20,7 +20,7 @@ process.stdin.on('end', async () => {
   const ok = args.includes('-p') && val('--output-format') === 'stream-json' && val('--tools') === 'Read,Glob,Grep' && val('--permission-mode') === 'dontAsk' && args.includes('--strict-mcp-config') && fs.existsSync(val('--mcp-config')) && fs.existsSync(val('--append-system-prompt-file'))
   if (!ok) return end({ is_error: true, subtype: 'error', result: '가짜 에이전트: 도구 · 허락 · 설정을 지키지 않았다' })
   const cfg = JSON.parse(fs.readFileSync(val('--mcp-config'), 'utf8')).mcpServers.kmd
-  out({ type: 'system', subtype: 'init', model: 'fake-agent', mcp_servers: cfg ? [{ name: 'kmd', status: 'connected' }] : [] })
+  out({ type: 'system', subtype: 'init', model: args.includes('--model') ? `fake-agent(${val('--model')})` : 'fake-agent', mcp_servers: cfg ? [{ name: 'kmd', status: 'connected' }] : [] })
   if (!cfg) {
     const f = fs.readdirSync(path.join(process.cwd(), '원본'))[0]
     out({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 't1', name: 'Read', input: { file_path: path.join(process.cwd(), '원본', f) } }] } })

@@ -26,6 +26,7 @@ import * as owners from '../core/owners.js'
 import { buildIndex, ladder, loadLearned, learn, searchCheck, exact } from '../core/search.js'
 import { planImport, summary, MAX_FILES, MAX_BYTES, PCONLY } from '../core/importer.js'
 import { runAgent, agentAvailable } from '../core/agent.js'
+import { modelOf, ROLES, CHOICES } from '../core/models.js'
 import { FILE_SCHEMA, filePrompt, fileRecord, COMMIT_SCHEMA, commitPrompt, commitAnalyzed } from '../core/analyze.js'
 import { renderRecord } from '../core/frontmatter.js'
 import { fileURLToPath } from 'node:url'
@@ -370,6 +371,24 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       feed.add(dataDir, ctx.user || 'kmd', { kind: 'kn', dot: 'acc', text: `지식을 지웠다 — ${meta.name}`, small: inRoot ? '보관하지 않고 완전히' : '잇기만 끊었다 — 폴더는 그 자리에 그대로' }).catch(() => {})
       log(`지식을 지웠다 — ${meta.name}${inRoot ? '' : ' (잇기만 끊음)'}`)
       return { id, name: meta.name, removed: inRoot }
+    },
+    // 일마다 모델 — 이 PC 의 설정(pc.models) · 없으면 기본 배분
+    modelOf(role) {
+      return modelOf(role, mode === 'pc' ? prefs.pc?.models : null)
+    },
+    models() {
+      return Object.fromEntries(ROLES.map((r) => [r, hub.modelOf(r)]))
+    },
+    async setModel(ctx, role, model) {
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', 'Claude 모델은 내 PC 프로그램에서 고른다')
+      if (!ROLES.includes(role)) throw new KmdError('E_INPUT', '그런 일은 없다')
+      if (!CHOICES.includes(model)) throw new KmdError('E_INPUT', '고를 수 있는 모델이 아니다 — haiku · sonnet · opus · 기본')
+      const next = structuredClone(prefs)
+      ;((next.pc ||= {}).models ||= {})[role] = model
+      await fs.mkdir(dataDir, { recursive: true })
+      await fs.writeFile(path.join(dataDir, 'prefs.json'), JSON.stringify(next, null, 1))
+      prefs = next
+      return { role, model }
     },
     autoOf(user, key) {
       return mode === 'pc' ? prefs.pc?.[key] !== false : prefs.users?.[user]?.[key] !== false
@@ -1390,10 +1409,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     //   Claude(claude -p · 정리와 같은 프롬프트 · 같은 검사)로 다듬어 넣고, 로그인 없음 · 한도 · 검사 실패 · Claude 끔이면 규칙으로:
     //   항목이 정해진 기록 → 그 항목 끝에 글을 붙인다 · 이름 없는 기록(넣은 파일 · 세션 메모) → 이어지는 문서 또는 새 문서(규칙이면 새 문서)
     //   어느 쪽이든 그 기록은 「넣음」(reflects) · 넣은 일은 이력에 · 지식마다 한 줄로(저장은 바로 돌려주고 뒤에서)
-    async askClaude(id, prompt, schema, { budget = 0.5, timeoutMs } = {}) {
+    // role — 그 일의 모델(core/models.js · 설정 › Claude 모델)
+    async askClaude(id, prompt, schema, { budget = 0.5, timeoutMs, role = 'tidy' } = {}) {
       if (mode !== 'pc') return { why: 'PC 일꾼이 받지 못했다' }
       if (!hub.meaningOk(id)) return { why: 'Claude 를 쓰지 않는다' }
-      const r = await runClaude({ prompt, schema, budget, ...(timeoutMs ? { timeoutMs } : {}) })
+      const r = await runClaude({ prompt, schema, budget, model: hub.modelOf(role), ...(timeoutMs ? { timeoutMs } : {}) })
       if (r.error) {
         if (r.error === 'login' || r.error === 'limit') await hub.workerStatus({ worker: { id: null } }, { ok: false, reason: r.error, message: r.message })
         return { why: r.error === 'login' ? 'Claude 로그인이 없다 — 머리의 「Claude」 에서 로그인' : r.error === 'limit' ? 'Claude 사용 한도' : 'Claude 가 답하지 않았다' }
@@ -1465,6 +1485,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         prompt: [`일 폴더의 「원본/${name}」 을 Read 로 끝까지 읽고(쪽이 많으면 나눠 읽는다) 글 그대로 md 로 옮긴다.`, '- 머리 · 표 · 목록 짜임을 살린다(표는 md 표). 수 · 날짜 · 이름은 그대로. 요약하지 않는다.', '- 쪽 번호 · 머리글 · 바닥글 · 표지 장식은 뺀다. 그림은 [그림: 무엇] 한 줄로.', '- 마지막 답에는 md 글만 쓴다(설명 · 머리말 없이).'].join('\n'),
         files: [{ name: `원본/${name}`, data }],
         budget: 3,
+        model: hub.modelOf('convert'),
         onLine: (l) => hub.runLine(run, l.k, l.x),
       })
       if (!r.ok || !r.text.trim()) return null
@@ -1488,7 +1509,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const token = hub.agentToken(id, w.id, run.id)
       let r
       try {
-        r = await runAgent({ ...(await hub.agentTask(meta, w, original)), mcp: { url: `${hub.selfUrl}/mcp`, token }, budget: 3, onLine: (l) => hub.runLine(run, l.k, l.x) })
+        r = await runAgent({ ...(await hub.agentTask(meta, w, original)), mcp: { url: `${hub.selfUrl}/mcp`, token }, budget: 3, model: hub.modelOf('agent'), onLine: (l) => hub.runLine(run, l.k, l.x) })
       } finally {
         agentKeys.delete(token)
       }
@@ -1553,7 +1574,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const keep = path.join(dataDir, 'convert', `${crypto.createHash('sha256').update(prompt).digest('hex')}.read.json`)
       let a = await fs.readFile(keep, 'utf8').then((t) => ({ value: JSON.parse(t) }), () => null)
       if (!a) {
-        a = await hub.askClaude(id, prompt, FILE_SCHEMA, { budget: 2, timeoutMs: 600_000 })
+        a = await hub.askClaude(id, prompt, FILE_SCHEMA, { budget: 2, timeoutMs: 600_000, role: 'read' })
         if (a.value) await fs.mkdir(path.dirname(keep), { recursive: true }).then(() => fs.writeFile(keep, JSON.stringify(a.value))).catch(() => {})
       }
       const rec = fileRecord(src, a.value)
@@ -1589,7 +1610,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 새 커밋 하나 — Claude 가 차이를 읽고 무엇이 왜 바뀌었는지 쓴 기록으로(안 되면 null · 차이 그대로)
     async analyzeCommit(id, srcName, c, diffs, rec) {
-      const a = await hub.askClaude(id, commitPrompt({ src: srcName, c, diffs, names: rec.touches || [] }), COMMIT_SCHEMA, { budget: 1, timeoutMs: 300_000 })
+      const a = await hub.askClaude(id, commitPrompt({ src: srcName, c, diffs, names: rec.touches || [] }), COMMIT_SCHEMA, { budget: 1, timeoutMs: 300_000, role: 'commit' })
       return a.value ? commitAnalyzed(rec, a.value, { src: srcName, c }) : null
     },
     // 에이전트에게 줄 일 — 일 설명 · 스킬(kmd-build) · 일 폴더 파일(바꾼 글 · 원본). 이 PC 와 팀 정리 일꾼이 같은 것을 쓴다
@@ -1760,7 +1781,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           const r = await ladder(k, await hub.index(id), { q: `${g.record.title} ${g.record.body}`.slice(0, 300), learned: await loadLearned(dataDir, id), max: 8 })
           g.candidates = [...r.exact, ...r.coords].filter((c) => c.coord).slice(0, 8).map((c) => ({ coord: c.coord, name: c.name }))
           if (g.candidates.length) {
-            const a = await hub.askClaude(id, tidyPrompt(g), TOUCH_SCHEMA)
+            const a = await hub.askClaude(id, tidyPrompt(g), TOUCH_SCHEMA, { role: 'touch' })
             if (a.value && checkDraft(k, g, a.value).ok && a.value.touches.length) {
               await coreSave(meta.dir, planSave(k, g, a.value, { model: a.model }), { user: 'kmd-auto', system: true })
               cache.delete(id)

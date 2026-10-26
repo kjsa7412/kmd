@@ -177,3 +177,21 @@ async function pcCookie() {
   const r = await fetch(s.url + '/once', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: s.auth.once(s.pcUser) }) })
   return r.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ')
 }
+
+test('일마다 모델 — 에이전트는 기본 sonnet · 설정으로 바꾸면 그 모델', async () => {
+  assert.equal(s.hub.models().agent, 'sonnet')
+  assert.equal(s.hub.models().read, 'haiku')
+  const one = async (name) => {
+    const r = await s.hub.importFiles(ME, '회의', [{ path: name, data: Buffer.from(HNC.replace('3초', `${name.length}초`)) }])
+    await s.hub.curateIdle('회의')
+    return s.hub.runGet(ME, r.rows[0].run)
+  }
+  assert.ok((await one('모델-하나.md')).lines.some((l) => /fake-agent\(sonnet\)/.test(l.x)))
+  await s.hub.setModel(ME, 'agent', 'opus')
+  assert.equal(JSON.parse(fs.readFileSync(path.join(tmp, 'kn', '.kmd', 'prefs.json'), 'utf8')).pc.models.agent, 'opus')
+  assert.ok((await one('모델-둘.md')).lines.some((l) => /fake-agent\(opus\)/.test(l.x)))
+  await assert.rejects(s.hub.setModel(ME, 'agent', 'gpt-4'), /고를 수 있는 모델이 아니다/)
+  await assert.rejects(s.hub.setModel(ME, 'nope', 'haiku'), /그런 일은 없다/)
+  await s.hub.setModel(ME, 'agent', '')
+  assert.ok(!(await one('모델-셋.md')).lines.some((l) => /fake-agent\(/.test(l.x)), '「기본」 이면 --model 을 넘기지 않는다')
+})
