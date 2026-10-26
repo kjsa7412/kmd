@@ -58,8 +58,9 @@ const HELP = `kmd ${VERSION}
   kmd auth reapply <auth.log>                  옛 명부로 되살린 뒤 늦은 일을 다시 적용
 
   둘 다
-  kmd backup [add <지식> <주소> | pull <지식>]  백업 상태 · 백업 자리 붙이기 · 백업에서 받기(앞으로만)
-  kmd restore <백업 주소> [이름]               백업 자리에서 지식을 새 폴더로 되살린다
+  kmd backup [add <지식> <주소> | pull <지식>]  백업 상태 · 백업 자리 붙이기 · 백업에서 받기(앞으로만) — 개인 지식도(관리 권한)
+  kmd restore <백업 주소> [이름] [--practice | --attach]
+      백업 자리에서 지식을 새 폴더로 되살린다 — 원래 이름이면 같은 백업으로 이어 보낸다 · 다른 이름 · --practice 는 읽기만 사본
 
   공통: --root <폴더>  지식 폴더 · --data <폴더>  kmd 의 살림 자리(기본 <폴더>/.kmd)
   설명서: 화면 오른쪽 위 「설명서」 · <서버 주소>/manual
@@ -351,7 +352,8 @@ async function main() {
 // 백업 — 서버를 띄우지 않고 지식 폴더 · 살림 자리에 바로 한다(서버가 돌고 있으면 다시 띄울 때 붙는다)
 async function backupCmd(o) {
   const root = path.resolve(o.root || (fs.existsSync(defaultPcRoot()) ? defaultPcRoot() : '.'))
-  const hub = await makeHub({ root, dataDir: o.data ? path.resolve(o.data) : defaultDataDir(root), log: (...a) => console.log(...a) })
+  const pc = !o.team && (o.pc !== undefined || path.resolve(root) === path.resolve(defaultPcRoot()))
+  const hub = await makeHub({ root, dataDir: o.data ? path.resolve(o.data) : defaultDataDir(root), mode: pc ? 'pc' : 'team', log: (...a) => console.log(...a) })
   const [sub, id, url] = o._
   try {
     if (sub === 'add') {
@@ -365,11 +367,15 @@ async function backupCmd(o) {
     } else {
       await hub.start()
       for (const k of await hub.list()) {
-        const st = await hub.backupState(SHELL, k.id)
-        if (!st) { console.log(`${k.name} — 백업 자리 없음`); continue }
-        await enqueue(k)
-        const lines = await hub.stops(SHELL, k.id)
-        console.log(`${k.name} — ${st.url} · ${lines.length ? lines.map((l) => l.text).join(' / ') : '잘 보내고 있다'}`)
+        try {
+          const st = await hub.backupState(SHELL, k.id)
+          if (!st) { console.log(`${k.name} — 백업 자리 없음`); continue }
+          await enqueue(k)
+          const lines = await hub.stops({ ...SHELL, admin: true }, k.id).catch(() => [])
+          console.log(`${k.name} — ${st.url} · ${lines.length ? lines.map((l) => l.text).join(' / ') : '잘 보내고 있다'}`)
+        } catch (e) {
+          console.log(`${k.name} — 보지 못했다(${e.message})`)
+        }
       }
     }
   } catch (e) {
@@ -578,6 +584,10 @@ async function connectCmd(o) {
   if (backupDir) {
     try {
       fs.mkdirSync(backupDir, { recursive: true })
+      // 이 PC 의 백업 자리로 적는다 — 뒤에 만드는 지식 · 되살린 지식도 저절로 그 아래에 붙는다
+      const sj = path.join(pcData, 'serve.json')
+      const cur = fs.existsSync(sj) ? JSON.parse(fs.readFileSync(sj, 'utf8')) : {}
+      if (!cur.backupRoot) fs.writeFileSync(sj, JSON.stringify({ ...cur, backupRoot: backupDir }, null, 1))
       for (const k of kns) {
         if (await hub.backupState(SHELL, k.id)) continue
         const bare = path.join(backupDir, `${k.id}.git`)
@@ -654,8 +664,9 @@ async function restoreCmd(o) {
   fs.mkdirSync(root, { recursive: true })
   const hub = await makeHub({ root, dataDir: o.data ? path.resolve(o.data) : defaultDataDir(root), mode: o.team ? 'team' : 'pc', log: (...a) => console.log(...a) })
   try {
-    if (!url) throw new Error('kmd restore <백업 주소> [이름] [--root 폴더]')
-    const r = await hub.restore(SHELL, { url, name })
+    if (!url) throw new Error('kmd restore <백업 주소> [이름] [--root 폴더] [--practice | --attach]')
+    const r = await hub.restore(SHELL, { url, name, attach: o.practice !== undefined ? false : o.attach !== undefined ? true : null })
+    console.log(r.attached ? `· 같은 백업 자리로 이어 보낸다` : `· 읽기만 사본 — 원래 백업 자리에는 보내지 않는다(연습 · 다른 이름 · 같은 자리를 다른 지식이 쓴다 · 붙이려면 --attach)`)
     console.log(`되살렸다 — ${r.id} · 문서 ${r.docs} · 기록 ${r.records} · 첨부 ${r.atts} · 이름 장부 ${r.vocab ? '있음' : '없음'} · ${r.owner ? `주인 ${r.owner}${r.private ? ' · 개인(주인만 본다)' : ''}` : '팀 지식(_members.md 없음)'} — 도는 서버에는 관리자의 [동기화] 로 목록에 선다(개인 지식은 그 전에도 가려져 있다)`)
     if (r.check) console.log('· 옛 백업이라 정리 설정이 없어 「손으로만 · Claude 에 보내지 않음」 으로 두었다 — 이 지식의 사람에서 다시 정한다')
     if (r.errors.length) console.log(`검사 줄 ${r.errors.length} — ${r.errors.slice(0, 3).join(' · ')}`)

@@ -13,7 +13,7 @@ import path from 'node:path'
 import { fail } from './errors.js'
 import { nfc, oneLine, readText, sha16 } from './text.js'
 import { renderRecord, parseRecord } from './frontmatter.js'
-import { replaceSection, parseDoc, headingMatches } from './sections.js'
+import { replaceSection, removeSection, renameSection, parseDoc, headingMatches } from './sections.js'
 import { isReservedUser, isReservedTag, isLogRecord, LOG_DIR } from './names.js'
 import { isReservedFile } from './owners.js'
 import { keepBlocks, hasBlockMarker } from './baseline.js'
@@ -59,11 +59,12 @@ function check(input) {
   const secs = input.sections ?? []
   if (!Array.isArray(secs)) fail('E_INPUT', 'sections 는 목록이다')
   for (const s of secs) {
-    if (!s || typeof s.content !== 'string') fail('E_INPUT', '항목마다 content(새 글)가 있다')
+    if (!s || (typeof s.content !== 'string' && !s.remove && s.rename == null)) fail('E_INPUT', '항목마다 content(새 글)가 있다')
+    if (s.rename != null && !(oneLine(s.rename) && String(s.rename).trim())) fail('E_INPUT', '새 머리는 한 줄 글이다')
     if (s.coord == null && (s.doc == null || s.heading == null)) fail('E_INPUT', '항목은 이름(coord) 또는 문서 · 머리(doc · heading)로 가리킨다')
     if (s.coord != null && !(typeof s.coord === 'string' && COORD.test(s.coord.trim()))) fail('E_INPUT', `이름 모양이 아니다 — ${s.coord}`)
     if (s.heading != null && !(oneLine(s.heading) && s.heading.trim())) fail('E_INPUT', '머리는 한 줄 글이다')
-    if (s.content.length > MAX_BODY) fail('E_INPUT', '항목 글이 너무 길다')
+    if (String(s.content ?? '').length > MAX_BODY) fail('E_INPUT', '항목 글이 너무 길다')
     if (s.base != null && !(typeof s.base === 'string' && /^[0-9a-f]{16}$/.test(s.base))) fail('E_INPUT', 'base 는 읽을 때 받은 16자 지문이다')
   }
   return secs
@@ -108,7 +109,9 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
   const bad = (input.record.tags || []).filter(isReservedTag)
   if (bad.length && !system && !(agent && bad.every((t) => t === 'curate-llm'))) fail('E_FORBIDDEN', `kmd 가 쓰는 태그다 — ${bad.join(' · ')}`)
   if (!system && (input.record.curates?.length || input.record.reopens?.length || (input.record.reflects?.length && !agent))) fail('E_FORBIDDEN', '정리 판정은 kmd 가 쓴다')
-  if (!system && secs.some((s) => hasBlockMarker(s.content))) fail('E_FORBIDDEN', '저절로 채우는 표는 kmd 가 원천에서 채운다 — 고치지 않는다', { need: 'machine' })
+  // 항목 지우기 · 이름 바꾸기 — 화면의 고치기(주인 · 정리하는 사람)만 · kmd 가 대신 쓴다
+  if (!system && secs.some((s) => s.remove || s.rename != null)) fail('E_FORBIDDEN', '항목 지우기 · 이름 바꾸기는 화면의 고치기로 한다')
+  if (!system && secs.some((s) => hasBlockMarker(s.content ?? ''))) fail('E_FORBIDDEN', '저절로 채우는 표는 kmd 가 원천에서 채운다 — 고치지 않는다', { need: 'machine' })
   const names = cleanNames(input.names)
   if (!names) fail('E_INPUT', 'names 는 { coord: "종류:값", label, aliases?, doc?, heading? } 의 목록이다(종류는 영문 소문자)')
   return serial(path.resolve(dir), () => saveNow(dir, input.record, secs, { user: nfc(user), now, system, names }))
@@ -168,7 +171,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
       if (!touches.includes(coord)) touches.push(coord)
       return { ...docPath(dir, loc.doc), level: loc.level, heading: loc.heading, content: s.content, base: s.base, ...(system && s.applied !== undefined ? { applied: s.applied } : {}) }
     }
-    return { ...docPath(dir, s.doc), level: 2, heading: nfc(s.heading.trim()), content: s.content, base: s.base, ...(system && s.applied !== undefined ? { applied: s.applied } : {}) }
+    return { ...docPath(dir, s.doc), level: 2, heading: nfc(s.heading.trim()), content: s.content ?? '', base: s.base, ...(s.remove ? { remove: true } : {}), ...(s.rename != null ? { rename: nfc(String(s.rename).trim()) } : {}), ...(system && s.applied !== undefined ? { applied: s.applied } : {}) }
   })
   // 고친 기록(edit)은 표지를 뒤로 돌리지 않는다 — 그 항목에 이미 든 기록보다 옛 날짜면 거절
   if ((r.tags || []).includes('edit') && r.date) {
@@ -219,12 +222,12 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
       const raw = await fs.readFile(p.full, 'utf8').catch(() => null)
       const start = raw == null ? `# ${path.basename(p.rel, '.md')}\n` : readText(raw)
       // 사람 · 세션의 저장은 그 항목의 저절로 채우는 표를 그대로 둔다(블록 안은 원천 실행기 · 기계 열쇠만)
-      let content = nfc(p.content)
+      let content = nfc(p.content ?? '')
       if (!system) {
         const old = parseDoc(start, '').sections.find((x) => headingMatches(x.h, p.heading))
         if (old) content = keepBlocks(old.body, content)
       }
-      const after = replaceSection(start, { level: p.level, heading: p.heading, body: content, applied: p.applied !== undefined ? p.applied : id })
+      const after = p.remove ? removeSection(start, { level: p.level, heading: p.heading }) : p.rename ? renameSection(start, { level: p.level, heading: p.heading, to: p.rename }) : replaceSection(start, { level: p.level, heading: p.heading, body: content, applied: p.applied !== undefined ? p.applied : id })
       if (!docs.includes(p.rel)) {
         undo.push(() => (raw == null ? fs.rm(p.full, { force: true }) : fs.writeFile(p.full, raw, 'utf8')))
         docs.push(p.rel)
@@ -239,6 +242,18 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
       undo.push(() => (raw == null ? fs.rm(path.join(dir, rel), { force: true }) : fs.writeFile(path.join(dir, rel), raw, 'utf8')))
       await fs.writeFile(path.join(dir, rel), next, 'utf8')
       books.push(rel)
+    }
+    // 항목 이름을 바꿨으면 자리 장부의 그 항목 줄도 새 머리로(이름은 그대로 · 항목이 문서에서 떨어지지 않게)
+    const renames = plan.filter((p) => p.rename)
+    const regNow = books.includes('_managed.md') ? regNext : regRaw
+    if (renames.length && regNow) {
+      let t = regNow
+      for (const p of renames) t = t.split('\n').map((l) => (l.includes(`\`${p.rel}\``) && l.includes(`\`## ${p.heading}\``) ? l.replace(`\`## ${p.heading}\``, `\`## ${p.rename}\``) : l)).join('\n')
+      if (t !== regNow) {
+        if (!books.includes('_managed.md')) undo.push(() => fs.writeFile(path.join(dir, '_managed.md'), regRaw, 'utf8'))
+        await fs.writeFile(path.join(dir, '_managed.md'), t, 'utf8')
+        if (!books.includes('_managed.md')) books.push('_managed.md')
+      }
     }
     const commit = await commitPaths(dir, [workRel, ...docs, ...books], rec.title, user)
     return { id, record: workRel, docs, commit, date, ...(books.length ? { names: names.length } : {}) }

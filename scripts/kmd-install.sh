@@ -56,10 +56,32 @@ cat > /usr/local/bin/kmd <<WRAP
 exec sudo -u kmd $NODE $APP/server/bin/kmd.mjs "\$@" --root $ROOT
 WRAP
 chmod 755 /usr/local/bin/kmd
+# 정리 일꾼 — 일꾼 열쇠를 한 번 만들어 /etc/kmd/worker.env(root 만 읽는다 · systemd 가 넘긴다)에 두고 kmd-worker.service 로 늘 켠다.
+# 정리 전용 Claude 로그인은 관리 › Claude 연결에서(일꾼이 살림 자리의 비밀에서 받는다) — 그 전에는 일감을 받아도 「쉼」 으로 알리고 서버가 규칙으로 넣는다
+mkdir -p /etc/kmd
+if [ ! -s /etc/kmd/worker.env ]; then
+  WK=$(sudo -u kmd "$NODE" "$APP/server/bin/kmd.mjs" worker add --root "$ROOT" | grep -o 'kmdw_[A-Za-z0-9_-]*' | head -1)
+  ( umask 077; printf 'KMD_WORKER_KEY=%s\n' "$WK" > /etc/kmd/worker.env )
+fi
+cat > /etc/systemd/system/kmd-worker.service <<EOF
+[Unit]
+Description=kmd 정리 일꾼
+After=kmd.service
+[Service]
+User=kmd
+EnvironmentFile=/etc/kmd/worker.env
+ExecStart=$NODE $APP/server/bin/kmd.mjs worker http://127.0.0.1:$PORT --data $ROOT/.kmd
+Restart=always
+RestartSec=10
+[Install]
+WantedBy=multi-user.target
+EOF
 systemctl daemon-reload
 systemctl enable kmd >/dev/null
+systemctl enable kmd-worker >/dev/null
 # 처음이면 켜고, 다시 돌리면(새 판) 새 코드로 다시 켠다
 systemctl restart kmd
+systemctl restart kmd-worker
 sleep 2
 CODE=$(journalctl -u kmd -n 50 --no-pager | grep -o 'setup#code=[^ ]*' | tail -1 | cut -d= -f2)
 if [ -n "$CODE" ]; then echo "✓ 깔았다 — 브라우저에서 이 주소를 열면 첫 설정(한 번만): ${URL:-http://$(hostname):$PORT}/setup#code=$CODE"

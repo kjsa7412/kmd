@@ -146,14 +146,17 @@ function backlinks(k, d) {
   return { recs: recs.map(recRow), linkers: linkers.map((o) => ({ id: o.id, title: o.title })), ments }
 }
 
+export const atTag = (docId, heading) => 'at/' + sha16(`${docId}\n${String(heading).normalize('NFC')}`).slice(0, 12)
 export function docView(k, docId, { src = {} } = {}) {
   const d = k.docs.find((x) => x.id === docId)
   if (!d) return null
   const last = d.sections.map((s) => s.applied && k.byWork.get(s.applied)).filter(Boolean).sort((a, b) => b.date.localeCompare(a.date))[0]
   const sections = d.sections.map((s) => {
     const coords = coordsOfSection(k, d, s.h)
-    const recs = k.works.filter((w) => w.touches.some((c) => coords.includes(c)))
-    const { pick: pendRecs, more: pendMore } = pendPick(recs)
+    // 이름 장부에 없는 항목을 화면에서 고친 기록 — 「at/<문서 · 머리 지문>」 으로 이 항목에 선다(넣을 곳은 정리하는 사람이 고른다)
+    const at = atTag(d.id, s.h)
+    const recs = k.works.filter((w) => w.touches.some((c) => coords.includes(c)) || w.tags.includes(at))
+    const { pick: pendRecs, more: pendMore } = pendPick(recs.map((w) => (w.state === 'nowhere' && w.tags.includes(at) ? { ...w, state: 'pend', nowhere: true } : w)))
     const by = s.applied && k.byWork.get(s.applied)
     return {
       h: s.h,
@@ -162,7 +165,7 @@ export function docView(k, docId, { src = {} } = {}) {
 
       base: sha16(s.body),
       recs: recs.length,
-      pend: pendRecs.map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title })),
+      pend: pendRecs.map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title, ...(w.nowhere ? { nowhere: true } : {}) })),
       pendMore,
       by: by ? { id: by.id, date: by.date, author: by.author } : null,
       named: coords.length > 0,

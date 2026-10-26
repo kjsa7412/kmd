@@ -12,7 +12,7 @@
   "scripts": {
     "kmd": "node server/bin/kmd.mjs",
     "demo": "node test/demo.mjs",
-    "test": "node --test test/*.test.mjs",
+    "test": "node --test --test-concurrency=4 test/*.test.mjs",
     "pack": "node scripts/pack.mjs"
   },
   "dependencies": {

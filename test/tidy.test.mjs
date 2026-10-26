@@ -107,10 +107,16 @@ test('초안 전용 열쇠로는 쓰지 못한다 · 「Claude 에 보내지 않
   await s.hub.setOwner(SHELL, 'gdi', { noClaude: true })
   await s.hub.save({ user: 'kim', admin: true }, 'gdi', { record: { title: '어디 넣을지 모르는 메모', body: '작업 순번을 늘린다.' } })
   const c0 = callsN()
-  await s.hub.tidyNow({ user: 'kim', admin: true }, 'gdi')
-  const r = await workOnce({ server: s.url, key: wkey })
-  assert.match(r.skipped, /Claude 에 보내지 않는다/)
+  // 일꾼에게 내지 않고 서버가 규칙으로 넣는다(전에는 빈 초안 · 「정리했다 — 0건」 만 쌓였다)
+  const j = await s.hub.tidyNow({ user: 'kim', admin: true }, 'gdi')
+  assert.equal(j.rule, true)
+  assert.match(j.why, /자동 정리에 Claude 를 쓰지 않는 지식 — 규칙으로/)
+  await s.hub.curateIdle('gdi')
+  assert.equal(s.hub.job(j.id).state, 'done')
+  assert.ok(!(await s.hub.get('gdi')).works.some((w) => w.title === '어디 넣을지 모르는 메모' && w.state === 'pend'), '규칙으로 들어갔다')
+  assert.equal(await workOnce({ server: s.url, key: wkey }), null, '일꾼에게는 일감이 없다')
   assert.equal(callsN(), c0, 'claude 를 부르지 않았다')
+  await s.hub.setOwner(SHELL, 'gdi', { noClaude: false })
 })
 
 test('로그인이 끝나면 멈춘다 — 「자동 정리가 쉬고 있다」 · 관리자에게 길', async () => {
@@ -122,8 +128,17 @@ test('로그인이 끝나면 멈춘다 — 「자동 정리가 쉬고 있다」 
     assert.ok(r.rows.every((x) => x.kind === 'left'))
     const st = await s.hub.stops({ user: 'kim', admin: true })
     assert.ok(st.some((l) => l.kind === 'worker' && /자동 정리가 쉬고 있다/.test(l.text) && /Claude 연결/.test(l.text)))
+    // 기록만 하는 사람에게도 — 쉬는 동안은 규칙으로 넣는다(고칠 길은 관리자에게)
     const st2 = await s.hub.stops({ user: 'lee' })
-    assert.ok(!st2.some((l) => l.kind === 'worker'), '정리하지 않는 사람에게는 줄이 없다')
+    assert.ok(st2.some((l) => l.kind === 'worker' && /그동안은 규칙으로 넣는다/.test(l.text) && !/Claude 연결/.test(l.text)))
+    // 모든 묶음이 로그인 끝으로 끝난 일감은 「정리했다 — 0건」 이 아니라 failed · 까닭
+    const last = s.hub.jobsOf('dpms').filter((x) => !x.rule).pop()
+    assert.deepEqual([last.state, /로그인이 끝났다/.test(last.why)], ['failed', true])
+    // 쉬는 동안 [지금 정리] 는 일꾼에게 내지 않고 규칙으로
+    const j2 = await s.hub.tidyNow({ user: 'kim', admin: true }, 'dpms')
+    assert.equal(j2.rule, true)
+    await s.hub.curateIdle('dpms')
+    await s.hub.workerStatus({ worker: { id: null } }, { ok: true }) // 다음 시험을 위해 — 다시 로그인했다
   } finally {
     delete process.env.FAKE_CLAUDE_MODE
   }

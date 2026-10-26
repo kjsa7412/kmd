@@ -66,11 +66,35 @@ async function writeDecl(dir, list, { user, title }) {
 // ── 상태 — <data>/baseline/<지식>.json ──
 const stateFile = (dataDir, kn) => path.join(dataDir, 'baseline', `${encodeURIComponent(kn)}.json`)
 export async function readState(dataDir, kn) {
-  return fs.readFile(stateFile(dataDir, kn), 'utf8').then(JSON.parse, () => ({}))
+  for (let i = 0; ; i++) {
+    const t = await fs.readFile(stateFile(dataDir, kn), 'utf8').catch(() => null)
+    if (t == null) return {}
+    try {
+      return JSON.parse(t)
+    } catch {
+      if (i >= 3) return {}
+      await new Promise((ok) => setTimeout(ok, 40))
+    }
+  }
 }
+// 쓰기 — 옆 임시 파일에 쓰고 이름을 바꾼다(감시 · 시계 · 화면이 반쯤 쓴 파일을 읽지 않게 · 백신이 잡은 EPERM 이면 몇 번 더)
 async function writeState(dataDir, kn, st) {
-  await fs.mkdir(path.dirname(stateFile(dataDir, kn)), { recursive: true })
-  await fs.writeFile(stateFile(dataDir, kn), JSON.stringify(st, null, 1))
+  const f = stateFile(dataDir, kn)
+  await fs.mkdir(path.dirname(f), { recursive: true })
+  const tmp = `${f}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`
+  await fs.writeFile(tmp, JSON.stringify(st, null, 1))
+  for (let i = 0; ; i++) {
+    try {
+      await fs.rename(tmp, f)
+      return
+    } catch (e) {
+      if (i >= 8 || !['EPERM', 'EBUSY', 'EACCES'].includes(e.code)) {
+        await fs.rm(tmp, { force: true }).catch(() => {})
+        throw e
+      }
+      await new Promise((ok) => setTimeout(ok, 50 * (i + 1)))
+    }
+  }
 }
 
 // ── 대상 제한 ──
@@ -373,6 +397,7 @@ async function runCode(k, src, { dataDir, save, first = false, full = false }) {
   } catch (e) {
     s0.failures = (s0.failures || 0) + 1
     s0.failingSince ||= now
+    s0.triedAt = now
     s0.lastNote = e.message
     await writeState(dataDir, k.id, st)
     return { state: 'failed', n: 0, why: e.message }
@@ -446,6 +471,7 @@ async function runDb(k, src, { dataDir, save, first = false, force = false, full
   } catch (e) {
     s0.failures = (s0.failures || 0) + 1
     s0.failingSince ||= now
+    s0.triedAt = now
     s0.lastNote = e.message
     await writeState(dataDir, k.id, st)
     return { state: 'failed', n: 0, why: e.message }
@@ -490,6 +516,7 @@ async function runDocs(k, src, { dataDir, first = false, force = false, full = f
   } catch (e) {
     s0.failures = (s0.failures || 0) + 1
     s0.failingSince ||= now
+    s0.triedAt = now
     s0.lastNote = e.message
     await writeState(dataDir, k.id, st)
     return { state: 'failed', n: 0, why: e.message }
@@ -576,6 +603,7 @@ async function runTables(k, src, { dataDir, save, first = false, force = false, 
   } catch (e) {
     s0.failures = (s0.failures || 0) + 1
     s0.failingSince ||= now
+    s0.triedAt = now
     s0.lastNote = e.message
     await writeState(dataDir, k.id, st)
     return { state: 'failed', n: 0, why: e.message }
@@ -594,6 +622,9 @@ export function sourceLines(k, decl, st, { now = Date.now(), admin = false } = {
     }
     if ((s.failures || 0) >= 2 && s.checkedAt && now - Date.parse(s.checkedAt) >= 2 * everyMs(src.every)) {
       out.push(stopLine({ kind: 'source', kn: k.id, level: 'warn', what: `${src.name} 표를 못 가져왔다`, amount: ageText(now - Date.parse(s.checkedAt)), fix: `표는 ${String(s.asof || '').slice(5, 10)} 것`, told: admin ? s.lastNote : '관리자에게 알렸다' }))
+    } else if ((s.failures || 0) >= 2 && !s.checkedAt) {
+      // 처음부터 한 번도 가져오지 못했다 — 두 번째 실패부터 줄을 세운다(주소 · 자격이 틀렸다)
+      out.push(stopLine({ kind: 'source', kn: k.id, level: 'warn', what: `${src.name} 을 아직 한 번도 가져오지 못했다`, amount: `${s.failures}번`, fix: admin ? '지식 만들기 › 가져오는 곳에서 주소 · 자격을 고친다' : null, told: admin ? s.lastNote : '관리자에게 알렸다' }))
     }
   }
   return out

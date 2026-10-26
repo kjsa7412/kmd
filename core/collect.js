@@ -58,9 +58,20 @@ export async function collectNow(dir, { user, save }) {
   const files = await changed(dir)
   if (!files.length) return null
   const reverted = []
+  // 되돌리기 전에 손 고침의 사본을 둔다(.git/kmd-rescued/ — 글을 잃지 않게 · 화면 「이력」 이 그 자리를 알린다)
+  const rescued = []
+  const rescue = async (p, why) => {
+    const t = await fsp.readFile(path.join(dir, ...p.split('/')), 'utf8').catch(() => null)
+    if (t == null) return
+    const to = path.join(dir, '.git', 'kmd-rescued', `${localStamp().replace(/[^0-9]/g, '')}-${p.replace(/[\\/]/g, '_')}`)
+    await fsp.mkdir(path.dirname(to), { recursive: true })
+    await fsp.writeFile(to, t, 'utf8')
+    rescued.push({ path: p, copy: to, why })
+  }
   for (const f of files) {
     if (/^(work|log)\//.test(f.path) || f.path === '_vocab.md' || f.path === '_managed.md') {
       if (f.code.includes('?')) continue // 새로 만든 기록 파일은 건드리지 않는다
+      await rescue(f.path, /^(work|log)\//.test(f.path) ? '기록 · 이력은 고치지 않는다 — 바로잡으려면 바로잡는 기록을 남긴다' : '이름 · 자리 장부는 kmd 가 쓴다 — 화면의 이름 세우기로')
       await tryGit(dir, ['checkout', '--', f.path])
       reverted.push(f.path)
     }
@@ -69,13 +80,15 @@ export async function collectNow(dir, { user, save }) {
   for (const f of files) {
     if (!/^docs\/.+\.md$/i.test(f.path) || f.code.includes('?')) continue
     const head = (await tryGit(dir, ['show', `HEAD:${f.path}`])).out
-    if (watchedOf(head)) {
+    const w = watchedOf(head)
+    if (w) {
+      await rescue(f.path, `원본이 주인인 문서다 — ${w.src} 의 ${w.path} 를 고친다`)
       await tryGit(dir, ['checkout', '--', f.path])
       reverted.push(f.path)
     }
   }
   const docs = files.filter((f) => /^docs\/.+\.md$/i.test(f.path) && !reverted.includes(f.path)).map((f) => f.path)
-  if (!docs.length) return reverted.length ? { reverted } : null
+  if (!docs.length) return reverted.length ? { reverted, rescued } : null
   // 바뀐 항목 — HEAD 의 글과 지금 글을 항목마다 견준다
   const reg = parseRegistry(await fsp.readFile(path.join(dir, '_managed.md'), 'utf8').then(readText, () => ''))
   const vocab = parseVocab(await fsp.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => ''))
@@ -99,7 +112,7 @@ export async function collectNow(dir, { user, save }) {
   const title = `편집기에서 고침 — ${docs.map((p) => path.basename(p, '.md')).slice(0, 3).join(' · ')}${docs.length > 3 ? ` 외 ${docs.length - 3}` : ''}`
   const body = heads.length ? heads.map((x) => `- ${x.p.replace(/^docs\/|\.md$/g, '')} › ${x.h}`).join('\n') : docs.map((p) => `- ${p}`).join('\n')
   // 저장 — 기록 하나 · 바뀐 항목에 그 기록의 표지(자기 반영 — 아직 안 넣은 기록이 생기지 않는다)
-  return save({ title, body, touches: touched, heads, docs, reverted })
+  return { ...(await save({ title, body, touches: touched, heads, docs, reverted })), reverted, rescued }
 }
 
 // 저장 한 번(collectNow 의 save 로 쓴다) — 고친 파일은 손댄 글 그대로 두고 표지만 붙인다

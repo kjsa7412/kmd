@@ -295,9 +295,9 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   }
 
   const GET_OK = [
-    /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users)$/,
+    /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|send\/targets)$/,
     /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/,
-    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|sources|send|backup|owner|worker\/material)$/,
+    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|sources|send|backup|backup\/lost|owner|worker\/material)$/,
   ]
   const api = async (req, res, url, ctx, set) => {
     const p = url.pathname
@@ -398,11 +398,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         host: req.headers.host,
         root: mode === 'pc' ? path.resolve(root) : undefined,
         kns: ks.length,
-        backup: { n: bk.length, of: ks.length, urls: [...new Set(bk.map((b) => b.url))].slice(0, 3), bad: bk.filter((b) => b.verdict && b.verdict !== 'ok').length },
+        backup: { n: bk.length, of: ks.length, urls: [...new Set(bk.map((b) => b.url))].slice(0, 3), bad: bk.filter((b) => b.verdict && b.verdict !== 'ok' && b.verdict !== 'lag').length, ...(mode === 'pc' ? { root: hub.config.backupRoot || null, list: ks.map((k) => { const b = hub.backupStateSync(k); return { id: k.id, name: k.name, url: b?.url || null, verdict: b?.verdict || null } }) } : {}) },
         dests: mode === 'pc' ? (await Promise.all(ks.map(async (k) => ({ name: k.name, to: (await hub.sendQueue(ctx, k.id).catch(() => ({ dests: [] }))).dests.map((d) => d.kn) })))).filter((x) => x.to.length) : undefined,
         teams: mode === 'pc' ? await teamsOf() : undefined,
         auto: Object.fromEntries(keys.map((x) => [x, hub.autoOf(ctx.user, x)])),
         claude: { off: !!process.env.KMD_NO_CLAUDE && !process.env.KMD_CLAUDE, worker: ws, month: tidied, token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), team: mode === 'team' ? { token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), flow: teamLogin.state, kind: teamLogin.kind } : undefined },
+        ...(mode === 'team' ? { pcWorker: (await hub.pcWorkerSeen(ctx.user)) || null } : {}),
         version: VERSION,
       })
     }
@@ -458,6 +459,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         off: users.filter((u) => u.off).map((u) => u.id),
         kns: ks.length,
         knsPrivate: all.length - ks.length,
+        // 개인 지식 중 백업 자리가 없는 것 — 수로만(관리자는 그 지식을 보지 못한다)
+        privateUnbacked: all.filter((k) => hub.owner(k.id)?.private && !hub.backupStateSync(k)).length,
         sources: (await hub.allSources(ctx)).map((s) => ({ name: s.name, kn: s.knName, last: s.state?.checkedAt || null })),
         backups: ks.map((k) => ({ name: k.name, ...(hub.backupStateSync(k) || { off: true }) })),
         checks,
@@ -496,6 +499,16 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (p === '/api/restore' && req.method === 'POST') {
       admin(ctx)
       return out(200, await hub.restore(ctx, await readBody(req)))
+    }
+    if (p === '/api/pc/backup') {
+      if (mode !== 'pc') throw new KmdError('E_NOTFOUND', '이 PC 의 길이다')
+      return out(200, await hub.setBackupRoot(ctx, (await readBody(req)).root))
+    }
+    const bl2 = p.match(/^\/api\/k\/([^/]+)\/backup\/(lost|keep)$/)
+    if (bl2) {
+      admin(ctx, { sudo: bl2[2] === 'keep' })
+      if (bl2[2] === 'lost') return out(200, await hub.backupLost(ctx, decodeURIComponent(bl2[1])))
+      return out(200, await hub.backupKeep(ctx, decodeURIComponent(bl2[1])))
     }
     const ba = p.match(/^\/api\/k\/([^/]+)\/backup\/adopt$/)
     if (ba && req.method === 'POST') {
@@ -570,7 +583,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, await Promise.all(ks.map(async (k) => {
         // 보낼 곳이 있는 지식 — 보낼 것 수(옆 메뉴 「보내기」 의 수)
         const sq = hub.canDirect(ctx, k.id) ? await hub.sendQueue(ctx, k.id).catch(() => null) : null
-        return { ...V.knowledgeRow(k), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sq?.dests.length ? { dests: sq.dests.map((d) => d.kn), sendN: sq.items.filter((x) => x.on).length, sendWait: sq.wait.length } : {}), private: !!hub.owner(k.id)?.private, tidyAt: hub.tidyAtOf(k.id), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
+        return { ...V.knowledgeRow(k), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sq?.dests.length ? { dests: sq.dests.map((d) => (d.url ? `${d.url}/r/${encodeURIComponent(d.kn)}` : d.kn)), sendN: sq.items.filter((x) => x.on).length, sendWait: sq.wait.length } : {}), private: !!hub.owner(k.id)?.private, tidyAt: hub.tidyAtOf(k.id), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
       })))
     }
     // 에이전트 일 — 목록 · 줄(터미널)
@@ -651,7 +664,9 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, await hub.deleteKnowledge(ctx, id, b))
     }
     // 보내기 — 보낼 것 · 보낼 곳 · 이번에 빼기 · 보내기 · 받기 · 받은편지함 정리
-    const sd = p.match(/^\/api\/k\/([^/]+)\/(send|send\/dests|send\/drop|receive|inbox\/tidy|inbox\/send)$/)
+    // 보낼 곳 고르기 — 이 PC 가 이은 팀마다 그 팀의 지식(이 PC 의 기기 열쇠로)
+    if (p === '/api/send/targets') return out(200, await hub.sendTargets(ctx))
+    const sd = p.match(/^\/api\/k\/([^/]+)\/(send|send\/dests|send\/drop|send\/wait|receive|inbox\/tidy|inbox\/send)$/)
     if (sd) {
       const id = decodeURIComponent(sd[1])
       if (sd[2] === 'send' && req.method === 'GET') return out(200, await hub.sendQueue(ctx, id))
@@ -660,6 +675,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (sd[2] === 'send') return out(200, await hub.send(ctx, id, b))
       if (sd[2] === 'send/dests') return out(200, await hub.sendDests(ctx, id, b.dests))
       if (sd[2] === 'send/drop') return out(200, await hub.sendDrop(ctx, id, b))
+      if (sd[2] === 'send/wait') return out(200, await hub.sendWaitAct(ctx, id, { wid: b.id, act: b.act }))
       if (sd[2] === 'receive') return out(200, await hub.receive(ctx, id, b))
       if (sd[2] === 'inbox/send') return out(200, await hub.inboxSend(ctx, id, b))
       return out(200, await hub.inboxTidy(ctx, id, { dry: !!b.dry }))

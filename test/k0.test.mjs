@@ -68,10 +68,12 @@ test('MCP — 도구 · brief · match · section', async () => {
 })
 
 test('MCP save — 기록 + 항목 갈아 끼우기가 git 한 묶음 · 나쁜 입력은 아무것도 안 쓴다', async () => {
+  // 이미 있는 항목을 갈아 끼우려면 section 이 준 base 를 같이(그사이 남이 고친 글을 덮지 않게)
+  const base = (await tool('section', { knowledge: 'dpms', coord: 'proc:롤백' })).structuredContent.base
   const r = await tool('save', {
     knowledge: 'dpms',
     record: { title: '롤백 순서 — 앱 먼저 내린다', body: '앱을 먼저 이전 판으로 내려야 새 판이 옛 DB 칸을 쓰지 않는다.', touches: ['proc:롤백'] },
-    sections: [{ coord: 'proc:롤백', content: '앱을 먼저 이전 판으로 내리고, 그다음 DB 를 되돌린다.' }],
+    sections: [{ coord: 'proc:롤백', content: '앱을 먼저 이전 판으로 내리고, 그다음 DB 를 되돌린다.', base }],
   })
   assert.ok(!r.isError, JSON.stringify(r.structuredContent))
   const id = r.structuredContent.saved

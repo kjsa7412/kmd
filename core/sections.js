@@ -66,6 +66,22 @@ export function headingMatches(heading, want) {
   return a === b || a.startsWith(b + ' ')
 }
 
+// 항목 하나를 뺀다(머리째) — 없으면 그대로. 다른 줄은 바이트 그대로 둔다
+export function removeSection(text, { level = 2, heading }) {
+  const lines = text.split('\n')
+  const h = headsOf(lines).find((x) => x.level === level && headingMatches(x.heading, heading))
+  if (!h) return text
+  return [...lines.slice(0, h.line), ...lines.slice(h.end)].join('\n').replace(/\n*$/, '\n')
+}
+// 항목 이름만 바꾼다 — 글 · 표지는 그대로
+export function renameSection(text, { level = 2, heading, to }) {
+  const lines = text.split('\n')
+  const h = headsOf(lines).find((x) => x.level === level && headingMatches(x.heading, heading))
+  if (!h) return text
+  lines[h.line] = `${'#'.repeat(level)} ${to}`
+  return lines.join('\n')
+}
+
 // 항목 하나를 갈아 끼운다 — 없으면 문서 끝에 새로 붙인다. 다른 줄은 바이트 그대로 둔다
 export function replaceSection(text, { level = 2, heading, body, applied }) {
   const lines = text.split('\n')

@@ -10,15 +10,34 @@ import { KmdError } from './errors.js'
 
 const BASE = ['-c', 'core.autocrlf=false', '-c', 'core.safecrlf=false', '-c', 'core.quotepath=false', '-c', 'commit.gpgsign=false']
 
-export function git(cwd, args, { input } = {}) {
+function git1(cwd, args, { input } = {}) {
   return new Promise((resolve, reject) => {
     const env = { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never', LANG: 'C.UTF-8' }
     const p = execFile('git', [...BASE, ...args], { cwd, env, maxBuffer: 64 << 20, windowsHide: true }, (err, stdout, stderr) => {
-      if (err) reject(new KmdError('E_GIT', `git ${args[0]} 이 실패했다 — ${String(stderr || err.message).trim().split('\n')[0]}`))
+      if (err) reject(Object.assign(new KmdError('E_GIT', `git ${args[0]} 이 실패했다 — ${String(stderr || err.message).trim().split('\n')[0]}`), { lock: /index\.lock'?:? File exists|Unable to create '.*index\.lock'/.test(String(stderr)) }))
       else resolve(stdout)
     })
     if (input != null) p.stdin.end(input)
   })
+}
+// 저장소 잠금(.git/index.lock) — 다른 git 이 쓰는 중이면 잠깐 기다려 다시 · 30초 넘게 남은 잠금은 꺼진 kmd 가 남긴 것이라 치우고 다시.
+// 그래도 막히면 쉬운 말로(E_BUSY) — 서버가 커밋 중에 꺼져 남은 잠금이 그 지식의 저장을 영영 막지 않게
+export const LOCK_STALE_MS = 30_000
+export async function git(cwd, args, opt = {}) {
+  for (let i = 0; ; i++) {
+    try {
+      return await git1(cwd, args, opt)
+    } catch (e) {
+      if (!e.lock || i >= 20) {
+        if (e.lock) throw new KmdError('E_BUSY', '이 지식의 저장소를 다른 일이 쓰고 있다 — 잠시 뒤 다시 한다(계속되면 관리자에게 — .git/index.lock)')
+        throw e
+      }
+      const lock = path.join(cwd, '.git', 'index.lock')
+      const st = await fs.stat(lock).catch(() => null)
+      if (st && Date.now() - st.mtimeMs > LOCK_STALE_MS) await fs.rm(lock, { force: true }).catch(() => {})
+      else await new Promise((ok) => setTimeout(ok, 250))
+    }
+  }
 }
 
 // 실패해도 던지지 않는 판 — 백업처럼 실패 사유(stderr)를 갈라 써야 하는 곳

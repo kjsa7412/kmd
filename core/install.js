@@ -33,7 +33,11 @@ export function installLines({ version, root, backup = null, kns = [], team = nu
   const no = (t) => L.push(`· ${t}`)
   const dim = (t) => L.push(`    ${t}`)
   L.push(`kmd v${version} 을 이 PC 에 깐다 — 나만 쓴다 · 망 없이도 된다`)
-  ok(`${root} 에 세웠다 · ${backup ? `백업은 ${backup}` : '백업 자리는 아직 — 다른 드라이브가 생기면 설정에서'} — 바꾸려면 설정`)
+  if (backup) ok(`${root} 에 세웠다 · 백업은 ${backup} — 바꾸려면 설정`)
+  else {
+    ok(`${root} 에 세웠다`)
+    no('백업 자리가 없다 — 이 PC 를 잃으면 지식도 잃는다 · 이 PC 의 kmd 화면 › 설정 › 백업에서 정한다(다른 드라이브 · 네트워크 폴더 · USB)')
+  }
   if (kns.length) dim(`폴더 ${NUM[kns.length] || kns.length}${kns.length === 1 ? '가' : kns.length <= 10 ? '이' : '개가'} 그대로 지식이 됐다 — ${kns.slice(0, 6).join(' · ')}${kns.length > 6 ? ' …' : ''}`)
   if (team?.ok) {
     ok(`팀 ${team.host} 에 ${user}로 이었다`)

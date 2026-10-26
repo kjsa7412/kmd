@@ -43,7 +43,9 @@ export function checkDest(d) {
 const stateFile = (dataDir, id) => path.join(dataDir, 'send', `${encodeURIComponent(id)}.json`)
 export async function readState(dataDir, id) {
   const s = await fs.readFile(stateFile(dataDir, id), 'utf8').then(JSON.parse, () => ({}))
-  return { sent: s.sent || {}, dropped: s.dropped || {}, sentRecs: s.sentRecs || {}, recSince: s.recSince || null, wait: s.wait || [], log: s.log || [] }
+  // wait — 보내지 못한 것: state 'wait'(닿지 않음 — 저절로 다시) · 'fail'(거절 — 사람이 [다시] · [버리기]) · 줄마다 id
+  const wait = (s.wait || []).map((w, i) => ({ id: w.id || `w${i}${String(w.at || '').replace(/\D/g, '').slice(-8)}`, state: w.state || 'wait', ...w }))
+  return { sent: s.sent || {}, dropped: s.dropped || {}, sentRecs: s.sentRecs || {}, recSince: s.recSince || null, wait, log: s.log || [] }
 }
 export async function writeState(dataDir, id, st) {
   await fs.mkdir(path.join(dataDir, 'send'), { recursive: true })
@@ -104,15 +106,42 @@ export function itemOf(k, q) {
 }
 
 // 다른 kmd 로 — 기기 열쇠(Bearer). 닿지 않으면 throw(호출하는 쪽이 wait 에 둔다)
-export async function post(url, kn, payload, key, { timeoutMs = 10_000 } = {}) {
+//   닿지 않음(연결 · 시간 넘김 · 5xx) → reach: false(저절로 다시) · 받는 쪽이 거절(4xx) → reach: true · status · code(사람이 고친다)
+//   시간 제한은 묶음 크기에 맞춘다(받는 쪽은 기록마다 저장 · git 묶음을 한다 — 늦게 끝나도 같은 지문이라 다시 보내면 0)
+export async function post(url, kn, payload, key, { timeoutMs = null } = {}) {
   const ac = new AbortController()
-  const t = setTimeout(() => ac.abort(), timeoutMs)
+  const n = Array.isArray(payload?.items) ? payload.items.length : 1
+  const t = setTimeout(() => ac.abort(), timeoutMs ?? Math.min(180_000, 15_000 + 3_000 * n))
   try {
-    const r = await fetch(`${url}/api/k/${encodeURIComponent(kn)}/receive`, { method: 'POST', headers: { 'content-type': 'application/json', ...(key ? { authorization: `Bearer ${key}` } : {}) }, body: JSON.stringify(payload), signal: ac.signal })
+    const r = await fetch(`${url}/api/k/${encodeURIComponent(kn)}/receive`, { method: 'POST', headers: { 'content-type': 'application/json', ...(key ? { authorization: `Bearer ${key}` } : {}) }, body: JSON.stringify(payload), signal: ac.signal }).catch((e) => {
+      throw Object.assign(new Error(e.name === 'AbortError' ? '팀 서버가 제때 답하지 않았다' : '팀 서버에 닿지 않는다'), { reach: false })
+    })
     const j = await r.json().catch(() => ({}))
-    if (!r.ok) throw Object.assign(new Error(j?.error?.message || `HTTP ${r.status}`), { status: r.status })
+    if (!r.ok) throw Object.assign(new Error(j?.message || j?.error?.message || `HTTP ${r.status}`), { status: r.status, code: typeof j?.error === 'string' ? j.error : null, reach: r.status < 500 })
     return j
   } finally {
     clearTimeout(t)
   }
+}
+// 거절의 까닭 → 고칠 곳(사람이 읽는 한 줄)
+export function fixOf(e) {
+  if (e.status === 401) return '이 PC 의 열쇠를 팀이 받지 않는다 — 팀 화면 › 설치 한 줄로 다시 잇는다'
+  if (e.status === 403) return '그 팀 지식에 보낼 수 없다 — 팀 지식의 주인 · 관리자에게'
+  if (e.status === 404) return '팀에 그 지식이 없다 — 보낼 곳을 다시 고른다'
+  if (e.status === 409) return '팀 지식이 백업 뒤에 멈춰 있다 — 관리자가 맞춘 뒤 [다시]'
+  return '보낼 곳 · 글을 확인하고 [다시]'
+}
+// 나눠 보내기 — 받는 쪽 한 번에 200 개 · 8MB 까지 → 150 개 · 6MB 로 자른다
+export function chunks(items, { max = 150, bytes = 6 << 20 } = {}) {
+  const out = []
+  let cur = []
+  let size = 0
+  for (const it of items) {
+    const b = Buffer.byteLength(JSON.stringify(it))
+    if (cur.length && (cur.length >= max || size + b > bytes)) { out.push(cur); cur = []; size = 0 }
+    cur.push(it)
+    size += b
+  }
+  if (cur.length) out.push(cur)
+  return out
 }

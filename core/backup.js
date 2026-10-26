@@ -13,7 +13,7 @@
 
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { tryGit, headSha, currentBranch, hasCommit, isAncestor, remoteUrl, maskUrl, oldestAfter } from './git.js'
+import { tryGit, headSha, currentBranch, hasCommit, isAncestor, remoteUrl, maskUrl, oldestAfter, ensureRepo } from './git.js'
 import { stopLine, ageText } from './stopline.js'
 import { KmdError } from './errors.js'
 
@@ -73,6 +73,8 @@ export async function attach(kn, url, { dataDir }) {
   const e = E(kn)
   e.file = stateFile(dataDir, kn.id)
   const dir = e.dir
+  // 지식 폴더에 .git 이 없으면 git 이 위로 올라가 바깥 저장소를 잡는다 — 먼저 이 폴더에 세운다
+  await ensureRepo(dir)
   const branch = (await currentBranch(dir)) || 'main'
   const head = await headSha(dir)
   if (!head) throw new KmdError('E_INPUT', '아직 저장된 것이 없다 — 한 번 저장한 뒤 붙인다')
@@ -103,7 +105,7 @@ export async function detach(kn) {
   const e = E(kn)
   clearTimeout(e.retry.timer)
   if (e.file) await fs.rm(e.file, { force: true }).catch(() => {})
-  await tryGit(e.dir, ['remote', 'remove', REMOTE])
+  if (await fs.stat(path.join(e.dir, '.git')).then(() => true, () => false)) await tryGit(e.dir, ['remote', 'remove', REMOTE])
   entries.delete(e.dir)
 }
 
@@ -328,6 +330,39 @@ export async function pull(kn, { check = null } = {}) {
   e.verdict = { ...v, state: 'ok', head: v.remote, ahead: 0, oldest: null }
   e.last = { at: Date.now(), ok: true, state: 'ok' }
   return { ok: true, pulled: (await oldestAfter(e.dir, before)).count, state: 'ok' }
+}
+
+// 갈라졌을 때 — 이어 쓰기가 지식에서 빼는 것(서버에만 있는 기록 · 고친 문서) · 서버 것으로 백업을 덮기(force-with-lease)
+export async function lostIfAdopt(kn) {
+  const e = E(kn)
+  if (!e.state) return { records: [], docs: [] }
+  const v = await inspect(e)
+  if (!v.remote || !v.head) return { records: [], docs: [] }
+  await tryGit(e.dir, ['fetch', '-q', REMOTE, e.state.branch || 'main'])
+  const r = await tryGit(e.dir, ['log', '--format=', '--name-status', `${v.remote}..${v.head}`])
+  const added = [...new Set(r.out.split('\n').map((l) => l.split('\t')).filter((x) => x[0] === 'A' && /^work\/[^/]+\.md$/.test(x[1] || '')).map((x) => x[1]))]
+  const docs = [...new Set(r.out.split('\n').map((l) => l.split('\t')).filter((x) => /^[AM]/.test(x[0] || '') && /^docs\/.+\.md$/.test(x[1] || '')).map((x) => x[1]))]
+  const records = []
+  for (const p of added) {
+    const t = await fs.readFile(path.join(e.dir, ...p.split('/')), 'utf8').catch(() => '')
+    const val = (k) => ((t.match(new RegExp(`^${k}:\\s*(.+)$`, 'm')) || [])[1] || '').replace(/^["']|["']$/g, '') || null
+    records.push({ path: p, title: val('title') || p, author: val('author') })
+  }
+  return { records, docs }
+}
+export async function keepServer(kn) {
+  const e = E(kn)
+  if (!e.state) throw new KmdError('E_INPUT', '이 지식에는 백업 자리가 없다')
+  const v = await inspect(e)
+  if (v.unreachable) throw new KmdError('E_INPUT', `백업 자리에 닿지 않는다 — ${REASON[v.reason] || v.reason}`)
+  const branch = e.state.branch || 'main'
+  const r = await tryGit(e.dir, ['push', '-q', `--force-with-lease=${branch}:${v.remote || ''}`, REMOTE, `HEAD:${branch}`], { timeout: 120_000 })
+  if (!r.ok) throw new KmdError('E_CONFLICT', `백업을 덮지 못했다 — 그사이 백업이 또 바뀌었거나 보호된 가지다 · ${classify(r.err)}`)
+  e.state.pushed = v.head
+  await persist(e)
+  e.verdict = { ...v, state: 'ok', remote: v.head, ahead: 0, oldest: null }
+  e.last = { at: Date.now(), ok: true, state: 'ok' }
+  return { ok: true, state: 'ok', replaced: v.remote }
 }
 
 // 이 백업 이어 쓰기 — 백업과 갈라졌을 때(moved · behind) 사람이 「백업 쪽이 맞다」 고 정하면, 지금 머리는 가지
