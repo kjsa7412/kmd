@@ -15,6 +15,7 @@ import { startServer } from '../server/http.js'
 import { upsertVocab, upsertRegistry } from '../core/namebook.js'
 import { parseVocab } from '../core/vocab.js'
 import { parseRegistry, locate } from '../core/registry.js'
+import { makeMcp } from '../server/mcp.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ME = { user: 'kim', admin: true, pc: true }
@@ -194,4 +195,36 @@ test('일마다 모델 — 에이전트는 기본 sonnet · 설정으로 바꾸�
   await assert.rejects(s.hub.setModel(ME, 'nope', 'haiku'), /그런 일은 없다/)
   await s.hub.setModel(ME, 'agent', '')
   assert.ok(!(await one('모델-셋.md')).lines.some((l) => /fake-agent\(/.test(l.x)), '「기본」 이면 --model 을 넘기지 않는다')
+})
+
+test('파일 글은 kmd 가 옮긴다 — 에이전트는 from(전체 · 머리) · append(있는 항목 끝)만 · 세션은 쓰지 못한다', async () => {
+  await s.hub.addKnowledge(ME, { kind: 'new', name: '회의셋' })
+  const dir = path.join(tmp, 'kn', '회의셋')
+  const one = async (name, mode, text) => {
+    process.env.FAKE_AGENT_MODE = mode
+    try {
+      const r = await s.hub.importFiles(ME, '회의셋', [{ path: name, data: Buffer.from(text) }])
+      await s.hub.curateIdle('회의셋')
+      return s.hub.runGet(ME, r.rows[0].run)
+    } finally {
+      delete process.env.FAKE_AGENT_MODE
+    }
+  }
+  const a = await one('HNC_통화_from.md', 'from', HNC)
+  assert.equal(a.state, 'done', a.msg)
+  let doc = fs.readFileSync(path.join(dir, 'docs', '회의록.md'), 'utf8')
+  assert.match(doc, /^## 2026-10-21 HNC 통화\n(?:<!--.*-->\n)?HNC 와 통화했다\.\n\n/m, '잇는 말이 먼저')
+  assert.match(doc, /^### 원격 명령$/m, '파일의 머리는 ### 로')
+  assert.match(doc, /\| 상대 \| HNC 권순용 차장 \|/, '표는 원문 그대로')
+  assert.match(doc, /3초 동안 1을 쓰고 0으로 되돌린다/)
+  const b = await one('HNC_통화_보탬.md', 'append', HNC.replace('3초 동안', '5초 동안'))
+  assert.equal(b.state, 'done', b.msg)
+  doc = fs.readFileSync(path.join(dir, 'docs', '회의록.md'), 'utf8')
+  assert.match(doc, /3초 동안[\s\S]*5초 동안/, '있는 글 뒤에 보탰다')
+  assert.equal((doc.match(/HNC 와 통화했다/g) || []).length, 1, '있는 글은 그대로 한 번')
+  assert.doesNotMatch(doc.split('5초 동안')[0].split('3초 동안').pop(), /권순용/, '보탠 것은 「원격 명령」 아래만')
+  // 사람의 세션은 from · append 를 쓰지 못한다
+  const out = await makeMcp(s.hub).call({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'save', arguments: { knowledge: '회의셋', record: { title: 'x', body: 'y' }, sections: [{ doc: '회의록', heading: '새 항목', from: '*' }] } } }, { user: 'kim', admin: true, pc: true })
+  assert.ok(out.result.isError)
+  assert.match(out.result.content[0].text, /넣기 에이전트만/)
 })

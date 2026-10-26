@@ -1470,7 +1470,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const ks = new Map((await hub.visible(ctx)).map((k) => [k.id, k.name]))
       const nm = (id) => ks.get(id)
       const out = []
-      for (const b of srcBusy.values()) if (nm(b.kn)) out.push({ kind: 'source', kn: b.kn, knName: nm(b.kn), title: `${b.name} 가져오는 중${b.full ? ' — 전체 다시 맞추기' : ''}`, small: { git: '소스 코드', db: 'DB', docs: '문서 폴더', folder: '폴더' }[b.kind] || b.kind, since: b.since })
+      for (const b of srcBusy.values()) if (nm(b.kn)) out.push({ kind: 'source', kn: b.kn, knName: nm(b.kn), name: b.name, title: `${b.name} 가져오는 중${b.full ? ' — 전체 다시 맞추기' : ''}`, small: { git: '소스 코드', db: 'DB', docs: '문서 폴더', folder: '폴더' }[b.kind] || b.kind, since: b.since })
       for (const r of runs.values()) if ((r.state === 'wait' || r.state === 'run') && nm(r.kn) && hub.runOk(r, ctx)) out.push({ kind: 'run', kn: r.kn, knName: nm(r.kn), title: r.title, small: r.state === 'wait' ? '차례를 기다린다' : `Claude Code 가 들이는 중 · 줄 ${r.lines.length}`, since: r.startedAt, run: r.id })
       for (const j of jobs.values()) if ((j.state === 'queued' || j.state === 'running') && nm(j.kn)) out.push({ kind: 'tidy', kn: j.kn, knName: nm(j.kn), title: '정리', small: j.state === 'queued' ? '정리 일꾼을 기다린다' : '정리하는 중', since: j.at })
       for (const [id, since] of curating) if (nm(id) && !out.some((x) => x.kn === id && x.kind === 'run')) out.push({ kind: 'curate', kn: id, knName: nm(id), title: '기록을 문서에 넣는 중', small: '아직 안 넣은 기록', since })

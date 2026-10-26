@@ -65,7 +65,7 @@ const TOOLS = [
         },
         sections: {
           type: 'array',
-          items: { type: 'object', properties: { coord: str('이름'), doc: str('문서'), heading: str('머리'), content: str('항목의 새 글 전체(머리 줄 빼고)'), base: str('section 이 준 지문 — 이미 있는 항목이면 꼭 · 읽은 뒤 바뀌었으면 거절') }, required: ['content'] },
+          items: { type: 'object', properties: { coord: str('이름'), doc: str('문서'), heading: str('머리'), content: str('항목의 새 글 전체(머리 줄 빼고) — from · append 를 쓰면 잇는 말 · 바뀐 값만'), base: str('section 이 준 지문 — 이미 있는 항목이면 꼭 · 읽은 뒤 바뀌었으면 거절'), from: str('넣기 에이전트만 — 넣은 파일 글을 서버가 그대로 옮긴다: "*" 는 전체 · 머리 글이면 그 머리 아래(content 다음에 붙는다)'), append: { type: 'boolean', description: '넣기 에이전트만 — 지금 항목 글 끝에 보탠다(지금 글을 다시 보내지 않는다)' } } },
         },
         names: {
           type: 'array',
@@ -206,6 +206,7 @@ export function makeMcp(store) {
       // 이미 있는 항목을 갈아 끼우는 글에는 base 가 있어야 한다 — 없으면 그사이 남이 고친 글을 덮는다
       // (kmd 가 띄운 넣기 에이전트는 그 파일의 글을 들이는 일이라 뺀다 — 사람의 세션이 남의 고침을 덮지 않게 하는 것)
       for (const x of Array.isArray(sections) && !ctx?.agent ? sections : []) {
+        if (x && (x.from != null || x.append)) throw new KmdError('E_INPUT', 'from · append 는 kmd 넣기 에이전트만 쓴다 — 항목의 새 글 전체를 content 로 보낸다')
         if (!x || x.base) continue
         const has = x.coord ? !!sectionOf(k, String(x.coord).trim().normalize('NFC'))?.sec : !!k.docs.find((d) => d.id === String(x.doc || '').replace(/^docs\/|\.md$/g, ''))?.sections.some((y) => headingMatches(y.h, String(x.heading || '')))
         if (has) throw new KmdError('E_CONFLICT', `「${x.coord || x.heading}」 은 이미 있는 항목이다 — section 으로 다시 읽고 그 base 를 같이 보낸다(그사이 남이 고친 글을 덮지 않게)`)

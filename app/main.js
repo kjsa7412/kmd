@@ -1600,10 +1600,12 @@ function srcChange(s) {
   const lc = (s.state || {}).lastChange
   return lc && lc.commits != null ? `새 묶음 ${lc.commits} · 기록 ${lc.records} · ${whenTxt(lc.at)}` : lc ? `바뀐 파일 ${lc.files}${lc.removed ? '(지움 ' + lc.removed + ')' : ''} · ${lc.docs != null ? '문서 ' + lc.docs : '표 ' + lc.tables} · ${whenTxt(lc.at)}` : ''
 }
+// 지금 도는 중 — 이 화면에서 누른 [지금 가져오기] 이거나, 뒤에서(시계 · 실시간 감시) 도는 것(「지금 하는 일」 과 같은 값)
+const srcRunning = (s) => S.srcRun[srcId(s)] === 'run' || ((S.busy && S.busy.items) || []).some((x) => x.kind === 'source' && x.kn === s.kn && x.name === s.name)
 // 상태 칩 하나 — 도는 중 · 다시 맞추는 중 · 멈춤 · 못 가져옴 · 그대로 · 바뀜
 function srcChip(s) {
-  const id = srcId(s), st = s.state || {}, run = S.srcRun[id], rs = s.resync
-  if (run === 'run') return '<span class="chip c-pend" data-t="srcRun">가져오는 중…</span>'
+  const st = s.state || {}, rs = s.resync
+  if (srcRunning(s)) return '<span class="chip c-pend" data-t="srcRun">가져오는 중…</span>'
   if (rs && rs.state === 'running') return `<span class="chip c-pend" data-t="resyncRun">다시 맞추는 중 ${rs.done || 0} / ${rs.total || '…'}</span>`
   if (rs && rs.state === 'paused') return '<span class="chip c-warn" data-t="resyncPaused">다시 맞추기 끊김</span>'
   if (st.stopped) return '<span class="chip c-warn">멈춤 — 크게 바뀜</span>'
@@ -1617,7 +1619,8 @@ function srcRow(s, can) {
   const into = isCode(s) ? '코드 바뀜 기록' : (s.rules && s.rules[0] && s.rules[0].into && s.rules[0].into.doc) || ''
   const sub = s.kind === 'pc' ? '내 PC 폴더 — 걷은 기능 · 쉰다' : `${KIND_T[s.kind] || s.kind} · ${s.at || ''}`
   const msg = run && run !== 'run' ? `<small data-t="srcOk">${esc(run)}</small>` : ''
-  const fetch = s.kind === 'pc' ? '' : `<button class="btn sm" data-a="fetchSrc" data-id="${esc(id)}" data-t="fetchBtn"${run === 'run' ? ' disabled' : ''}>${run === 'run' ? '가져오는 중…' : '지금 가져오기'}</button>`
+  const going = srcRunning(s)
+  const fetch = s.kind === 'pc' ? '' : `<button class="btn sm" data-a="fetchSrc" data-id="${esc(id)}" data-t="fetchBtn"${going ? ' disabled' : ''}>${going ? '가져오는 중…' : '지금 가져오기'}</button>`
   return `<div class="srow" data-a="srcOpen" data-id="${esc(id)}" data-t="srcRow" data-name="${esc(s.name)}"><span class="si">${svg(KIND_I[s.kind] || 'doc')}</span><span class="sn"><b>${esc(s.name)}</b><small>${esc(sub)}</small></span><span class="sc">${esc(s.knName)} › ${esc(into)}<small data-t="every">${live ? '<b data-t="live">실시간</b> · 그 밖에 ' + esc(everyTxt(ev)) : esc(everyTxt(ev))} · 마지막 ${st.checkedAt ? esc(whenTxt(st.checkedAt)) : '—'}</small>${msg}</span><span class="ss">${srcChip(s)}</span><span class="sa">${can ? fetch : ''}</span></div>`
 }
 // 가져오는 곳 자세히 — 보고 · 고치고 · 지운다(요구 v0.2 R4)
@@ -2262,6 +2265,12 @@ async function loadBusy() {
   const before = JSON.stringify((S.busy && S.busy.items) || [])
   const v = await getJSON('/api/busy').catch(() => null)
   if (v) {
+    // 뒤에서 돌던 가져오기가 끝났다 — 가져오기 화면의 줄(마지막 · 그대로 · 바뀜)도 새로
+    const was = ((S.busy && S.busy.items) || []).filter((x) => x.kind === 'source')
+    if (S.route.scr === 'import' && was.some((x) => !v.items.some((y) => y.kind === 'source' && y.kn === x.kn && y.name === x.name))) {
+      const src = await getJSON('/api/sources').catch(() => null)
+      if (src) S.cache.sources = src
+    }
     S.busy = v
     // 바뀌었거나 팝업이 열려 있으면(지난 시간) 다시 그린다 — 쓰는 중인 칸은 건드리지 않는다
     const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)

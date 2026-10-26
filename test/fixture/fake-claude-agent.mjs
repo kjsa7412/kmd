@@ -47,7 +47,8 @@ process.stdin.on('end', async () => {
   await mcp('save', {
     knowledge: kn,
     record: { title: 'HNC 통화 — 회의록에 새 항목', body: '회의록 갈래 · 펄스 명령 이름을 세웠다', touches: ['term:펄스 명령'] },
-    sections: [{ doc: '회의록', heading: '2026-10-21 HNC 통화', content: body.replace(/^#{1,2} .*$/gm, '').trim() }],
+    // =from → 파일 글은 kmd 가 옮긴다(잇는 말만 쓴다) · =append → 있는 항목 끝에 「원격 명령」 아래만 보탠다
+    sections: [process.env.FAKE_AGENT_MODE === 'from' ? { doc: '회의록', heading: '2026-10-21 HNC 통화', content: 'HNC 와 통화했다.', from: '*' } : process.env.FAKE_AGENT_MODE === 'append' ? { doc: '회의록', heading: '2026-10-21 HNC 통화', append: true, from: '원격 명령' } : { doc: '회의록', heading: '2026-10-21 HNC 통화', content: body.replace(/^#{1,2} .*$/gm, '').trim() }],
     names: [{ coord: 'term:펄스 명령', label: '펄스 명령', aliases: ['펄스 방식'], doc: '회의록', heading: '2026-10-21 HNC 통화' }],
   })
   end({ result: '회의록 › 2026-10-21 HNC 통화 · 이름 1' })

@@ -1,7 +1,8 @@
 // 비용 · 속도 — 문서 변환 비용 절감(2026-10-26).
 //
 // 일마다 Claude 모델(옮겨 적기 · 고르기는 haiku · 판단은 sonnet · 설정으로 바꾼다 · 「기본」 이면 --model 을 넘기지 않는다) ·
-// pdf · hwp 는 서버가 글로(Claude 는 글 층이 없는 스캔 · 배포용 · 깨진 파일만).
+// pdf · hwp 는 서버가 글로(Claude 는 글 층이 없는 스캔 · 배포용 · 깨진 파일만) ·
+// 넣기 에이전트는 파일 글을 다시 쓰지 않는다(from · append — kmd 가 원문을 옮긴다).
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -16,6 +17,8 @@ import zlib from 'node:zlib'
 import { hwpToMd } from '../core/hwp.js'
 import { pdfToMd, cleanPages } from '../core/pdf.js'
 import { planImport } from '../core/importer.js'
+import { excerpt, fileText } from '../core/excerpt.js'
+import { fileRecord } from '../core/analyze.js'
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixture')
 
@@ -196,4 +199,21 @@ test('넣기 — pdf · hwp 는 Claude 없이 기록이 된다 · 스캔 pdf 만
   const team = await planImport(k, [{ path: '스캔.pdf', data: textPdf([[[700, ' ']]]) }], { asRecord: true })
   assert.equal(team.rows[0].kind, 'fail')
   assert.match(team.rows[0].msg, /스캔/)
+})
+
+test('파일 글 옮기기 — 정리한 기록의 「본문」 · 머리 아래만 · 머리는 ### 로 · 없는 머리는 있는 머리를 알려 준다', () => {
+  const md = '# 배포 절차\n\n## 1. 준비\n\n백업을 먼저 한다.\n\n### 1.1 점검\n\n- 디스크 80%\n\n## 2. 승인\n\n| 단계 | 사람 |\n|---|---|\n| 1 | 팀장 |\n\n```\n## 코드 안의 머리 아님\n```\n'
+  const rec = fileRecord({ file: 'a/배포 절차.docx', author: 'kim', date: '2026-10-26', md }, { title: '배포 절차', summary: '배포 순서다.', points: ['백업 먼저'] })
+  assert.ok(!fileText(rec.body).includes('무엇인가'), '분석은 옮기지 않는다')
+  assert.ok(!fileText(rec.body).includes('짜임 그대로'), '안내 줄도')
+  const all = excerpt(rec.body, '*')
+  assert.match(all, /^### 1\. 준비$/m)
+  assert.match(all, /^#### 1\.1 점검$/m)
+  assert.match(all, /\| 1 \| 팀장 \|/)
+  assert.match(all, /^## 코드 안의 머리 아님$/m, '코드 덩이 안은 그대로')
+  const one = excerpt(rec.body, '1. 준비')
+  assert.match(one, /^백업을 먼저 한다\.\n\n### 1\.1 점검\n\n- 디스크 80%$/)
+  assert.equal(excerpt(rec.body, '## 2. 승인').split('\n')[0], '| 단계 | 사람 |')
+  assert.throws(() => excerpt(rec.body, '3. 배포'), /그 머리가 없다 — 「3\. 배포」 · 있는 머리: 1\. 준비 · 1\.1 점검 · 2\. 승인/)
+  assert.match(excerpt('# 제목\n\n그냥 글', '*'), /^그냥 글$/, '정리 전 기록은 # 제목 줄만 뺀다')
 })
