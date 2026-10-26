@@ -48,7 +48,19 @@ test('문서 폴더 — 바뀐 파일만 문서로 · 원본이 주인(고치기
   assert.equal(r0.run[0].state, 'changed')
   assert.equal(r0.run[0].docs, 13, 'md 13 → 문서 13(잠금 파일 ~$ 는 뺀다)')
   const t = R(path.join(kd, 'docs', '운영문서', '회의', '10월.md'))
-  assert.match(t, /^<!-- watched: src="운영문서" path="회의\/10월\.md" -->\n# 10월/)
+  const m0 = t.match(/^<!-- watched: src="운영문서" path="회의\/10월\.md" rec="([^"]+)" -->\n# 10월/)
+  assert.ok(m0, '표지에 그 문서가 온 기록(rec)')
+  // 대원칙 — 기록 → 문서: 파일마다 기록(work/ · 태그 watched · 글 그대로)이 먼저 있고 「문서에 들어감」 · 문서의 「온 곳」 이 그 기록
+  const k0 = await team.hub.get('dpms')
+  const w0 = k0.byWork.get(m0[1])
+  assert.ok(w0 && k0.works.includes(w0), '기록(이력 아님)')
+  assert.ok(w0.tags.includes('watched') && /화 · 목 배포/.test(w0.body))
+  assert.equal(w0.state, 'in')
+  assert.equal(k0.works.filter((w) => w.tags.includes('watched')).length, 13, '문서 13 → 기록 13')
+  const v0 = await fetch(`${team.url}/api/k/dpms/doc?d=${encodeURIComponent('운영문서/회의/10월')}`, { headers: { cookie: await cookieOf(team) } }).then((x) => x.json())
+  assert.deepEqual(v0.origins.map((o) => o.id), [m0[1]])
+  const rv = await fetch(`${team.url}/api/k/dpms/rec?r=${encodeURIComponent(m0[1])}`, { headers: { cookie: await cookieOf(team) } }).then((x) => x.json())
+  assert.deepEqual(rv.went?.map((d) => d.id), ['운영문서/회의/10월'], '이 기록이 간 문서')
   assert.ok(fs.existsSync(path.join(kd, 'docs', 'assets', '운영문서', '구성도.png')), '그림은 첨부')
   assert.ok(!fs.existsSync(path.join(kd, 'docs', '운영문서', '~$열린문서.md')))
 
@@ -79,11 +91,31 @@ test('문서 폴더 — 바뀐 파일만 문서로 · 원본이 주인(고치기
   fs.rmSync(path.join(docsDir, '절차12.md'))
   const r2 = (await team.hub.sourceRun('dpms', '운영문서'))[0]
   assert.equal(r2.missing, 1)
-  assert.match(R(path.join(kd, 'docs', '운영문서', '절차12.md')), /^<!-- watched: src="운영문서" path="절차12\.md" missing="\d{4}-\d{2}-\d{2}" -->/)
+  assert.match(R(path.join(kd, 'docs', '운영문서', '절차12.md')), /^<!-- watched: src="운영문서" path="절차12\.md" missing="\d{4}-\d{2}-\d{2}" rec="[^"]+" -->/)
+  assert.ok((await team.hub.get('dpms')).works.some((w) => w.tags.includes('watched') && /^절차12\.md — 원본에서 없어짐/.test(w.title)), '지움도 기록')
   // 한꺼번에 많이 사라지면 멈춤
   for (let i = 1; i <= 3; i++) fs.rmSync(path.join(docsDir, `절차${String(i).padStart(2, '0')}.md`))
   assert.equal((await team.hub.sourceRun('dpms', '운영문서'))[0].state, 'stopped')
-  assert.match(R(path.join(kd, 'docs', '운영문서', '절차01.md')), /^<!-- watched: src="운영문서" path="절차01\.md" -->/, '멈추면 쓰지 않는다')
+  assert.match(R(path.join(kd, 'docs', '운영문서', '절차01.md')), /^<!-- watched: src="운영문서" path="절차01\.md" rec="[^"]+" -->/, '멈추면 쓰지 않는다')
+})
+
+test('문서 폴더 — 기록 없이 들어온 예전 사본은 다음 확인 때 한 번 기록을 세운다(글이 같아도)', async () => {
+  const kd = path.join(tmp, 'kn', 'dpms')
+  const f = path.join(kd, 'docs', '운영문서', '절차05.md')
+  // 대원칙 전의 사본 — 표지에 rec 가 없다 · 장부에도 「기록 세움」 표시가 없다
+  fs.writeFileSync(f, R(f).replace(/ rec="[^"]+"/, ''))
+  const lf = fs.readdirSync(path.join(tmp, 'kn', '.kmd', 'watch', encodeURIComponent('dpms'))).map((x) => path.join(tmp, 'kn', '.kmd', 'watch', encodeURIComponent('dpms'), x))
+  for (const x of lf) { const j = JSON.parse(R(x)); delete j.recs; fs.writeFileSync(x, JSON.stringify(j)) }
+  const before = (await team.hub.get('dpms')).works.length
+  const r = (await team.hub.sourceRun('dpms', '운영문서', { force: true }))[0]
+  assert.equal(r.docs, 1, r.lastNote || JSON.stringify(r))
+  const m = R(f).match(/^<!-- watched: src="운영문서" path="절차05\.md" rec="([^"]+)" -->/)
+  assert.ok(m)
+  const k = await team.hub.get('dpms')
+  assert.equal(k.works.length, before + 4, '예전 사본 1 + 멈췄던 지움 3(force)')
+  assert.equal(k.byWork.get(m[1]).state, 'in')
+  // 다음 확인은 그대로
+  assert.equal((await team.hub.sourceRun('dpms', '운영문서'))[0].state, 'same')
 })
 
 let cookie = null

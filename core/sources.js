@@ -27,7 +27,7 @@ import { getSecret, setSecret } from './secrets.js'
 import { KmdError } from './errors.js'
 import { stopLine, ageText } from './stopline.js'
 import { readLedger, writeLedger, scanFolder, scanGit, changeCount } from './watch.js'
-import { applyDocs, wantDoc } from './docwatch.js'
+import { applyDocs, wantDoc, noRecPaths } from './docwatch.js'
 import { parseDbUrl, readDb } from './db.js'
 import { locate } from './registry.js'
 import { wantCode, codeRecord, commitRecord, diffFolder, diffGit, syncSnap, hasSnap, MAX_FILES as CODE_MAX, CODE_FILES } from './codechange.js'
@@ -499,7 +499,8 @@ async function runDocs(k, src, { dataDir, first = false, force = false, full = f
     const L = await readLedger(dataDir, k.id, src.name)
     const scan = await scanFolder(src.folder || src.at, L, { want: wantDoc, maxFile: DOC_MAX_FILE, maxFiles: MAX_FILES, full, pass, onProgress, save: (x) => writeLedger(dataDir, k.id, src.name, x) })
     const n = changeCount(scan.changes)
-    if (!force && !first && !full && n === 0 && !s0.stopped) {
+    // L.recs — 기록 없이 들어온 예전 사본에 기록을 한 번 세웠다(대원칙 · 기록 → 문서)
+    if (!force && !first && !full && n === 0 && !s0.stopped && L.recs) {
       await writeLedger(dataDir, k.id, src.name, { ...L, files: scan.files })
       Object.assign(s0, { checkedAt: now, failures: 0, failingSince: null, lastNote: '그대로' })
       await writeState(dataDir, k.id, st)
@@ -515,14 +516,18 @@ async function runDocs(k, src, { dataDir, first = false, force = false, full = f
     }
     const files = []
     for (const rel of [...scan.changes.added, ...scan.changes.changed]) files.push({ rel, data: await scan.readBuf(rel) })
+    if (!L.recs) {
+      const seen = new Set(files.map((f) => f.rel))
+      for (const rel of await noRecPaths(k, src.name)) if (!seen.has(rel) && scan.files[rel]) files.push({ rel, data: await scan.readBuf(rel) })
+    }
     const r = await applyDocs(k, { src, prefix: docPrefix(src), files, removed: scan.changes.removed, mdOf })
-    await writeLedger(dataDir, k.id, src.name, { v: 1, files: scan.files, out: {}, rules: JSON.stringify(src.rules) })
+    await writeLedger(dataDir, k.id, src.name, { v: 1, files: scan.files, out: {}, rules: JSON.stringify(src.rules), recs: 1 })
     const real = full ? 0 : n
     const lastChange = r.commit ? { at: now, files: real, docs: r.docs, tables: 0, atts: r.atts, removed: r.missing, added: full ? 0 : scan.changes.added.length, changed: full ? 0 : scan.changes.changed.length } : s0.lastChange
     const note = r.commit ? `${full ? '다시 맞춤 — ' : ''}문서 ${r.docs}${r.atts ? ' · 첨부 ' + r.atts : ''}${r.missing ? ' · 원본에 없다 ' + r.missing : ''}` : full ? '다시 맞춤 — 그대로' : n ? `바뀐 파일 ${n} · 문서는 그대로` : '그대로'
     Object.assign(s0, { checkedAt: now, failures: 0, failingSince: null, stopped: null, lastChange, lastNote: note })
     await writeState(dataDir, k.id, st)
-    return { state: r.commit ? 'changed' : 'same', n: r.docs + r.missing, files: n, docs: r.docs, missing: r.missing, rows: r.rows }
+    return { state: r.commit ? 'changed' : 'same', n: r.docs + r.missing, files: n, docs: r.docs, missing: r.missing, recs: r.recs, rows: r.rows }
   } catch (e) {
     s0.failures = (s0.failures || 0) + 1
     s0.failingSince ||= now

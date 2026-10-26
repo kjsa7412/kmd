@@ -133,7 +133,7 @@ export function tree(k) {
 
 // 이 문서를 가리키는 것 — 기록(이 문서의 항목을 건드린 것) · 문서(이 문서를 링크한 것) · 이름만 나온 곳
 function backlinks(k, d) {
-  const recs = k.works.filter((w) => w.touches.some((c) => sectionOf(k, c)?.loc?.doc === d.path))
+  const recs = k.works.filter((w) => w.id === d.rec || w.touches.some((c) => sectionOf(k, c)?.loc?.doc === d.path))
   const linkers = k.docs.filter((o) => o !== d && linksOf(o).includes(d.id))
   const names = [d.title, ...d.sections.flatMap((s) => coordsOfSection(k, d, s.h).flatMap((c) => [labelOf(k, c), ...(k.vocab.coords.get(c)?.aliases || [])]))].filter((x) => x && x.length >= 2)
   const uniq = [...new Set(names)]
@@ -151,10 +151,17 @@ function backlinks(k, d) {
 const placedBy = (k, w) => [...k.works, ...k.logs].filter((o) => o !== w && o.reflects?.includes(w.id))
 function landedIn(k, ids) {
   const out = new Map()
-  for (const d of k.docs) for (const s of d.sections) {
-    if (!s.applied || !ids.has(s.applied)) continue
-    if (!out.has(d.id)) out.set(d.id, { id: d.id, title: d.title, hs: [] })
-    out.get(d.id).hs.push(s.h)
+  for (const d of k.docs) {
+    // 문서 감시의 사본 — 문서 전체가 표지의 기록(rec)에서 왔다
+    if (d.rec && ids.has(d.rec)) {
+      out.set(d.id, { id: d.id, title: d.title, hs: d.sections.map((s) => s.h) })
+      continue
+    }
+    for (const s of d.sections) {
+      if (!s.applied || !ids.has(s.applied)) continue
+      if (!out.has(d.id)) out.set(d.id, { id: d.id, title: d.title, hs: [] })
+      out.get(d.id).hs.push(s.h)
+    }
   }
   return [...out.values()]
 }
@@ -164,7 +171,13 @@ function originsOf(k, d) {
   const add = (w, how, h) => {
     if (!m.has(w.id)) m.set(w.id, { ...recRow(w), how, hs: [] })
     const x = m.get(w.id)
-    if (!x.hs.includes(h)) x.hs.push(h)
+    if (h != null && !x.hs.includes(h)) x.hs.push(h)
+  }
+  // 문서 감시의 사본 — 표지의 기록(rec) 이 문서 전체를 들였다
+  const r0 = d.rec && k.byWork.get(d.rec)
+  if (r0) {
+    add(r0, 'rec', null)
+    for (const s of d.sections) add(r0, 'rec', s.h)
   }
   for (const s of d.sections) {
     const a = s.applied && k.byWork.get(s.applied)
@@ -179,7 +192,7 @@ export const atTag = (docId, heading) => 'at/' + sha16(`${docId}\n${String(headi
 export function docView(k, docId, { src = {} } = {}) {
   const d = k.docs.find((x) => x.id === docId)
   if (!d) return null
-  const last = d.sections.map((s) => s.applied && k.byWork.get(s.applied)).filter(Boolean).sort((a, b) => b.date.localeCompare(a.date))[0]
+  const last = [...d.sections.map((s) => s.applied && k.byWork.get(s.applied)), d.rec && k.byWork.get(d.rec)].filter(Boolean).sort((a, b) => b.date.localeCompare(a.date))[0]
   const sections = d.sections.map((s) => {
     const coords = coordsOfSection(k, d, s.h)
     // 이름 장부에 없는 항목을 화면에서 고친 기록 — 「at/<문서 · 머리 지문>」 으로 이 항목에 선다(넣을 곳은 정리하는 사람이 고른다)

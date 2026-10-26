@@ -95,3 +95,19 @@ export function replaceSection(text, { level = 2, heading, body, applied }) {
   const base = text.replace(/\s+$/, '')
   return `${base}${base ? '\n\n' : ''}${'#'.repeat(level)} ${heading}\n${block.join('\n')}\n`
 }
+
+// 모든 항목(## 머리)에 같은 표지를 단다 — 있던 표지는 걷는다(통째로 들인 문서 · 그 문서가 온 기록). 다른 줄은 그대로
+export function stampAll(text, applied) {
+  const lines = String(text).split('\n')
+  const heads = new Set(headsOf(lines).filter((h) => h.level === 2).map((h) => h.line))
+  const out = []
+  let fence = null
+  lines.forEach((ln, i) => {
+    const f = ln.match(/^\s{0,3}(`{3,}|~{3,})/)
+    if (f) fence = !fence ? f[1] : f[1][0] === fence[0] && f[1].length >= fence.length ? null : fence
+    if (!fence && !f && APPLIED.test(ln)) return
+    out.push(ln)
+    if (heads.has(i)) out.push(`<!-- applied: ${applied} -->`)
+  })
+  return out.join('\n')
+}

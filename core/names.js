@@ -4,7 +4,8 @@
 // 사람 · 세션이 같은 이름 · 태그를 쓰면 기계가 쓴 것으로 보이므로 막는다.
 
 export const RESERVED_USERS = ['kmd', 'kmd-auto', 'kmd-worker']
-export const RESERVED_TAGS = ['edit', 'curate-auto', 'curate-llm', 'alias-auto', 'sources', 'touches-fix', 'code-change']
+// watched — 문서 폴더 감시가 들인 파일의 기록(원본이 주인인 문서의 앞 기록)
+export const RESERVED_TAGS = ['edit', 'curate-auto', 'curate-llm', 'alias-auto', 'sources', 'touches-fix', 'code-change', 'watched']
 
 export const isReservedUser = (u) => RESERVED_USERS.includes(String(u || '').trim().toLowerCase())
 export const isReservedTag = (t) => RESERVED_TAGS.includes(String(t || '').trim().toLowerCase())

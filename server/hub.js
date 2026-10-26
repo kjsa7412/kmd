@@ -9,7 +9,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { listKnowledge, loadKnowledge, coordsOfSection, sectionOf, looksLikeKnowledge } from '../core/knowledge.js'
 import { KmdError, httpStatusOf } from '../core/errors.js'
-import { save as coreSave, serial, localStamp } from '../core/save.js'
+import { save as coreSave, serial, localStamp, recordTakenSync } from '../core/save.js'
 import { decide, decisionRecord, revertPlan } from '../core/curate.js'
 import * as collect from '../core/collect.js'
 import crypto from 'node:crypto'
@@ -31,6 +31,7 @@ import { modelOf, ROLES, CHOICES } from '../core/models.js'
 import { expandSections } from '../core/excerpt.js'
 import { FILE_SCHEMA, filePrompt, fileRecord, COMMIT_SCHEMA, commitPrompt, commitAnalyzed } from '../core/analyze.js'
 import { renderRecord } from '../core/frontmatter.js'
+import { stampAll } from '../core/sections.js'
 import { fileURLToPath } from 'node:url'
 import { existsSync, readFileSync, statSync, watch as fsWatch } from 'node:fs'
 import * as sendLib from '../core/send.js'
@@ -876,7 +877,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
                 if (!md) { run.state = 'fail'; run.msg = '글로 바꾸지 못했다 — 원본은 첨부로'; return }
                 const a = await applyDocs(await hub.get(id), { src: s, prefix: pre, files: [{ rel, data }], mdOf: async () => md })
                 run.state = 'done'
-                run.msg = a.docs ? `문서가 됐다 — ${pre ? pre + ' › ' : ''}${rel.replace(/\.[^.]+$/, '')}(원본이 주인)` : '그대로'
+                run.msg = a.docs ? `기록 · 문서가 됐다 — ${pre ? pre + ' › ' : ''}${rel.replace(/\.[^.]+$/, '')}(원본이 주인)` : '그대로'
                 if (a.docs) run.docs.push(`${pre ? pre + '/' : ''}${rel.replace(/\.[^.]+$/, '')}`)
                 hub.runLine(run, 'ok', run.msg)
               } catch (e) {
@@ -891,7 +892,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           if (r.codeRecords && mode === 'pc') hub.curateSoon(id).catch(() => {})
           else if (r.codeRecords && hub.teamPrivate(id)) hub.curateSoon(id).catch(() => {})
           else if (r.codeRecords && hub.meaningOk(id) && hub.tidyModeOf(id) !== 'manual') hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
-          if (r.state === 'changed') for (const u of await hub.curatorsOf(id)) await feed.add(dataDir, u, { kind: 'source', kn: id, dot: 'acc', text: r.commits != null ? `${s.name}에서 새 묶음 ${r.commits} · 코드 바뀜 기록 ${r.codeRecords} — ${meta.name}` : `${s.name}에서 바뀐 표 ${r.n} — ${meta.name}`, small: r.commits != null ? '정리가 걸린 항목 글을 맞춘다' : `바뀐 파일 ${r.files} · 저절로 채우는 표` })
+          if (r.state === 'changed') for (const u of await hub.curatorsOf(id)) await feed.add(dataDir, u, { kind: 'source', kn: id, dot: 'acc', text: r.commits != null ? `${s.name}에서 새 묶음 ${r.commits} · 코드 바뀜 기록 ${r.codeRecords} — ${meta.name}` : s.kind === 'docs' ? `${s.name}에서 기록 ${r.recs || 0} · 문서 ${r.docs || 0} — ${meta.name}` : `${s.name}에서 바뀐 표 ${r.n} — ${meta.name}`, small: r.commits != null ? '정리가 걸린 항목 글을 맞춘다' : s.kind === 'docs' ? `바뀐 파일 ${r.files} · 파일마다 기록을 남기고 원본이 주인인 문서로` : `바뀐 파일 ${r.files} · 저절로 채우는 표` })
           return r
           } finally {
             srcBusy.delete(key)
@@ -1980,14 +1981,44 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         await serial(path.resolve(meta.dir), async () => {
           await ensureRepo(meta.dir)
           const paths = []
-          for (const x of [...plan.docs.map((d) => ({ rel: d.rel, data: Buffer.from(d.text, 'utf8') })), ...plan.atts]) {
-            const full = path.join(meta.dir, x.rel)
-            if (!path.resolve(full).startsWith(path.resolve(meta.dir) + path.sep) || owners.isReservedFile(x.rel)) continue
+          const put = async (rel, data) => {
+            const full = path.join(meta.dir, rel)
+            if (!path.resolve(full).startsWith(path.resolve(meta.dir) + path.sep) || owners.isReservedFile(rel)) return false
             await fs.mkdir(path.dirname(full), { recursive: true })
-            await fs.writeFile(full, x.data)
-            paths.push(x.rel)
+            await fs.writeFile(full, data)
+            paths.push(rel)
+            return true
           }
-          if (paths.length) await commitPaths(meta.dir, paths, `파일 넣기 — ${ctx.user} · ${paths.length}`, ctx.user)
+          // 대원칙 — 지식은 기록 → 문서. 옛 폴더로 세울 때도 파일마다 기록 하나(글 그대로)를 먼저 남기고,
+          // 그 문서의 항목에 그 기록을 표지로 단다 · 이력 하나가 그 기록들을 넣었다고 적는다(reflects — 「문서에 들어감」)
+          const docs = plan.docs.filter((d) => !owners.isReservedFile(d.rel))
+          let title = `파일 넣기 — ${ctx.user} · ${docs.length + plan.atts.length}`
+          if (docs.length) {
+            const date = localStamp()
+            const day = date.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2$3')
+            const taken = new Set()
+            const idOf = (base) => {
+              let x = base
+              for (let n = 2; taken.has(x) || recordTakenSync(meta.dir, x); n++) x = `${base}-${n}`
+              taken.add(x)
+              return x
+            }
+            const ids = []
+            const stamped = []
+            for (const d of docs) {
+              const file = d.rel.replace(/^docs\//, '')
+              const rid = idOf(`${day}-${(file.split('/').pop().replace(/\.md$/, '').replace(/[\\/:*?"<>|#%`'\s]+/g, '-').slice(0, 40).replace(/^-+|[-.]+$/g, '') || '문서')}`)
+              if (!(await put(`work/${rid}.md`, renderRecord({ id: rid, title: `${file.split('/').pop()} — 들여온 문서 · ${meta.name}`, date, author: ctx.user, tags: [] }, d.text)))) continue
+              ids.push(rid)
+              stamped.push({ rel: d.rel, data: Buffer.from(stampAll(d.text, rid), 'utf8') })
+            }
+            title = `들여옴 — 옛 폴더 · 문서 ${ids.length}${plan.atts.length ? ' · 첨부 ' + plan.atts.length : ''}`
+            const lid = idOf(`${day}-옛-폴더-들여옴`)
+            await put(`log/${lid}.md`, renderRecord({ id: lid, title, date, author: ctx.user, tags: ['sources'], reflects: ids }, ids.map((x) => `- ${x}`).slice(0, 300).join('\n')))
+            for (const x of stamped) await put(x.rel, x.data)
+          }
+          for (const x of plan.atts) await put(x.rel, x.data)
+          if (paths.length) await commitPaths(meta.dir, paths, title, ctx.user)
         })
         cache.delete(id)
       }

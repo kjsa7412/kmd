@@ -250,6 +250,14 @@ test('지식 추가 — 지식 폴더 밖의 폴더는 지식 폴더 안의 새 
     assert.deepEqual(fs.readdirSync(old, { recursive: true }).sort(), before, '원본 폴더는 그대로(.git · work 를 만들지 않는다)')
     assert.ok(!fs.existsSync(path.join(root, '.kmd', 'links.json')) || !JSON.parse(fs.readFileSync(path.join(root, '.kmd', 'links.json'), 'utf8')).length, '따라가는 줄 0')
     assert.deepEqual((await pc.hub.get('옛자료')).docs.map((d) => d.id).sort(), ['배포 절차', '회의/10월'])
+    // 대원칙 — 기록 → 문서: 파일마다 기록(글 그대로)이 먼저 · 문서 항목은 그 기록을 표지로 · 기록은 「문서에 들어감」
+    const k = await pc.hub.get('옛자료')
+    const recs = k.works.filter((w) => / — 들여온 문서 · /.test(w.title))
+    assert.equal(recs.length, 2)
+    assert.ok(recs.every((w) => w.state === 'in'), recs.map((w) => w.state).join())
+    const d10 = k.docs.find((d) => d.id === '회의/10월')
+    assert.equal(k.byWork.get(d10.sections[0].applied)?.title, '10월.md — 들여온 문서 · 옛자료')
+    assert.ok(k.logs.some((w) => w.title.startsWith('들여옴 — 옛 폴더 · 문서 2') && w.reflects.length === 2), '이력 하나가 그 기록들을 넣었다')
     // 같은 폴더를 또 — 이름이 겹치면 -2 · 지식 폴더 안 · 지식 폴더를 품은 폴더는 거절
     assert.equal((await pc.hub.addKnowledge(ME, { kind: 'folder', dir: old })).id, '옛자료-2')
     await assert.rejects(pc.hub.addKnowledge(ME, { kind: 'folder', dir: path.join(root, '옛자료') }), { code: 'E_INPUT' })
