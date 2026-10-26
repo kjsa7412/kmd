@@ -135,6 +135,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const agentKeys = new Map() // kmda_ 단기 열쇠 → { kn, rec, run, exp }
   const importing = new Set() // 파일을 넣는 중인 지식 — 정리 줄이 막 남은 기록을 따로 집지 않게
   const queuedRecs = new Set() // 일(run)이 맡은 기록
+  const codeTried = new Set() // 에이전트가 한 번 맡았던 코드 바뀜 기록 — 정리가 세 차례 돌아도 Claude Code 를 다시 띄우지 않는다(다시 켜면 다시)
   const liveTimers = new Map() // 팀 지식 「실시간」 정리 — 조용해진 뒤 한 번
   const privTimers = new Map() // 개인 지식 일감 — 주인의 PC 일꾼이 오래 받지 않으면 규칙으로
   const seenFile = path.join(dataDir, 'worker-seen.json') // 사람마다 PC 일꾼이 마지막으로 일감을 물은 때
@@ -1309,6 +1310,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       drafts.delete(sha(dctx.token || ''))
       if (hub.teamPrivate(id)) hub.curateRules(id).catch(() => {})
+      // 이 PC — 일꾼은 이름만 고른다. 걸린 항목이 없는 코드 바뀜 기록은 Claude Code 가 문서에 들인다(codeToDoc)
+      cache.delete(id)
+      if (mode === 'pc' && hub.agentOk(id) && (await hub.get(id)).works.some((w) => w.state === 'nowhere' && w.tags.includes('code-change') && !codeTried.has(w.id))) hub.curateSoon(id).catch(() => {})
       if (backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
       return { rows, summary: j?.summary || null }
     },
@@ -1508,6 +1512,27 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (got.doc) run.docs.push(got.doc)
       return got
     },
+    // 코드 바뀜 기록 하나를 문서로 — Claude Code(에이전트)가 지식을 둘러보고 그 저장소가 만드는 시스템의 기능 · 설계 문서에
+    //   넣는다(바뀐 기능의 항목을 지금 동작으로 고치거나 새 항목). 커밋마다 새 문서를 세우지 않는다. 에이전트가 없으면 기록으로 둔다
+    async codeToDoc(id, w) {
+      if (!hub.agentOk(id) || codeTried.has(w.id) || queuedRecs.has(w.id)) return false
+      codeTried.add(w.id)
+      queuedRecs.add(w.id)
+      const run = hub.newRun(id, { title: w.title.split(' — ')[0], file: hub.ingestFileOf(w), by: w.author, quiet: true })
+      try {
+        await hub.ingestAgent(id, w.id, run)
+      } catch (e) {
+        run.state = 'fail'
+        run.msg = e.message
+        hub.runLine(run, 'err', e.message)
+      } finally {
+        queuedRecs.delete(w.id)
+        run.endedAt = new Date().toISOString()
+        hub.runSave(run)
+        cache.delete(id)
+      }
+      return run.state === 'done'
+    },
     ingestFileOf(w) {
       const tag = w.tags.find((t) => t.startsWith('ingest/'))
       return tag ? tag.slice(7) : `${w.title.split(' — ')[0]}.md`
@@ -1573,6 +1598,24 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const name = file.split('/').pop()
       const mdName = name.replace(/\.[^.]+$/, '') + '.md'
       const skill = await fs.readFile(path.join(AGENT_DIR, 'skills', 'kmd-build', 'SKILL.md'), 'utf8').catch(() => '')
+      // 코드 바뀜 — 파일이 아니라 커밋 하나의 분석 기록이다. 자리는 그 저장소가 만드는 시스템의 기능 · 설계 문서
+      if (w.tags.includes('code-change')) {
+        const src = (w.title.match(/ — (\S+) [0-9a-f]{7}(?:\.\.[0-9a-f]+)?$/) || [])[1] || '그 저장소'
+        return {
+          prompt: [
+            `지식 「${meta.name}」(knowledge id: ${meta.id}) 에 소스 코드 커밋 하나의 기록을 들인다 — kmd-build 순서대로, 다만 넣은 파일이 아니라 코드 바뀜이다.`,
+            `- 기록: 「${mdName}」(일 폴더) — Claude 가 커밋 차이를 읽고 쓴 분석(무엇이 바뀌었나 · 바뀐 것 · 영향 · 문서에서 맞춰 볼 것) · 끝에 커밋 메시지와 차이(근거)`,
+            `- 저장소: ${src} · 기록 id: ${w.id} — save 하면 kmd 가 이 기록을 「넣음」 으로 단다`,
+            `- 자리: ${src} 가 만드는 시스템의 기능 · 설계 문서. brief 로 둘러보고 그 시스템을 다루는 문서가 있으면 거기에 — 바뀐 기능의 항목이 있으면 section 으로 읽고 base 와 함께 지금 동작으로 고치고, 없으면 그 기능 이름으로 새 항목을 더한다.`,
+            `  그런 문서가 없을 때만 「${src} 기능」 처럼 시스템 이름의 새 문서 하나를 세운다. 커밋 · 판 · 날짜로 문서나 항목을 세우지 않는다.`,
+            '- 항목 글은 바뀐 이력 나열이 아니라 「지금 어떻게 동작하나」 로 쓴다 — 기능 · 화면 · API · 설정 · 데이터. 차이 · 분석에 없는 것은 지어내지 않는다. 코드 줄 · 차이는 항목에 옮기지 않는다.',
+            '- 이 지식의 다른 주제(이 저장소와 상관없는 문서)는 고치지 않는다.',
+            '도구의 knowledge 는 늘 위 id 를 쓴다.',
+          ].join('\n'),
+          system: skill.replace(/^---[\s\S]*?---\s*/, ''),
+          files: [{ name: mdName, data: Buffer.from(w.body.replace(/^# .*\n+/, ''), 'utf8') }],
+        }
+      }
       return {
         prompt: [`지식 「${meta.name}」(knowledge id: ${meta.id}) 에 넣은 파일 하나를 들인다 — kmd-build 순서대로.`, `- 바꾼 글: 「${mdName}」(일 폴더)${original ? ` · 원본: 「원본/${name}」` : ''}`, `- 파일 이름: ${file}`, `- 넣은 사람: ${w.author} · ${w.date}`, `- 이 파일의 기록 id: ${w.id} — save 하면 kmd 가 이 기록을 「넣음」 으로 단다(따로 적지 않아도 된다)`, '도구의 knowledge 는 늘 위 id 를 쓴다.'].join('\n'),
         system: skill.replace(/^---[\s\S]*?---\s*/, ''),
@@ -1725,6 +1768,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             }
           }
         }
+        // 코드 바뀜 기록 — 걸린 항목이 없으면 Claude Code 가 그 저장소의 기능 · 설계 문서에 들인다(규칙으로는 문서를 세우지 않는다)
+        const w0 = k.byWork.get(g.record.id)
+        if (w0?.tags.includes('code-change')) return hub.codeToDoc(id, w0)
         return !!(await hub.ingestNow(id, g.record.id)).doc
       }
       // 항목 — 원본이 주인인 문서에는 넣지 않는다
