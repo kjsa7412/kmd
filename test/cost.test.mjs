@@ -2,7 +2,8 @@
 //
 // 일마다 Claude 모델(옮겨 적기 · 고르기는 haiku · 판단은 sonnet · 설정으로 바꾼다 · 「기본」 이면 --model 을 넘기지 않는다) ·
 // pdf · hwp 는 서버가 글로(Claude 는 글 층이 없는 스캔 · 배포용 · 깨진 파일만) ·
-// 넣기 에이전트는 파일 글을 다시 쓰지 않는다(from · append — kmd 가 원문을 옮긴다).
+// 넣기 에이전트는 파일 글을 다시 쓰지 않는다(from · append — kmd 가 원문을 옮긴다) ·
+// 읽는 양 줄이기 — 목차 덩이 · 모든 줄이 빈 열은 뺀다.
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -19,6 +20,8 @@ import { pdfToMd, cleanPages } from '../core/pdf.js'
 import { planImport } from '../core/importer.js'
 import { excerpt, fileText } from '../core/excerpt.js'
 import { fileRecord } from '../core/analyze.js'
+import { dropToc } from '../core/text.js'
+import { xlsxToMd, docxToMd } from '../core/ooxml.js'
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixture')
 
@@ -216,4 +219,56 @@ test('파일 글 옮기기 — 정리한 기록의 「본문」 · 머리 아래
   assert.equal(excerpt(rec.body, '## 2. 승인').split('\n')[0], '| 단계 | 사람 |')
   assert.throws(() => excerpt(rec.body, '3. 배포'), /그 머리가 없다 — 「3\. 배포」 · 있는 머리: 1\. 준비 · 1\.1 점검 · 2\. 승인/)
   assert.match(excerpt('# 제목\n\n그냥 글', '*'), /^그냥 글$/, '정리 전 기록은 # 제목 줄만 뺀다')
+})
+
+// zip — 저장(압축 없음) · kmd 의 풀기는 CRC 를 보지 않는다
+function storedZip(entries) {
+  const locals = []
+  const centrals = []
+  let off = 0
+  for (const [n, d] of entries) {
+    const name = Buffer.from(n)
+    const data = Buffer.from(d)
+    const head = (central) => {
+      const h = Buffer.alloc(central ? 46 : 30)
+      h.writeUInt32LE(central ? 0x02014b50 : 0x04034b50, 0)
+      const q = central ? 6 : 4
+      h.writeUInt16LE(0x800, q + 2)
+      h.writeUInt32LE(data.length, q + 14)
+      h.writeUInt32LE(data.length, q + 18)
+      h.writeUInt16LE(name.length, q + 22)
+      if (central) h.writeUInt32LE(off, 42)
+      return h
+    }
+    const l = Buffer.concat([head(false), name, data])
+    centrals.push(Buffer.concat([head(true), name]))
+    locals.push(l)
+    off += l.length
+  }
+  const cd = Buffer.concat(centrals)
+  const end = Buffer.alloc(22)
+  end.writeUInt32LE(0x06054b50, 0)
+  end.writeUInt16LE(entries.length, 8)
+  end.writeUInt16LE(entries.length, 10)
+  end.writeUInt32LE(cd.length, 12)
+  end.writeUInt32LE(off, 16)
+  return Buffer.concat([...locals, cd, end])
+}
+
+test('읽는 양 줄이기 — 목차 덩이(셋 넘게 이어질 때만) · docx 목차 필드 · xlsx 빈 열 · 속성 차례가 다른 xlsx', () => {
+  const toc = '목 차\n\n1. 목적\t1\n\n2. 범위\t2\n\n3. 규칙 ........ 4\n\n목적\n\n본문이다.\n\n포트\t502\n주기\t3'
+  const out = dropToc(toc)
+  assert.doesNotMatch(out, /1\. 목적\t1|규칙 \.{3}/)
+  assert.match(out, /^목 차\n\n목적\n\n본문이다\.\n\n포트\t502\n주기\t3$/, '두 줄짜리는 표의 줄일 수 있어 둔다')
+  const doc = storedZip([['word/document.xml', '<w:document><w:body>' +
+    '<w:p><w:pPr><w:pStyle w:val="TOC1"/></w:pPr><w:hyperlink w:anchor="_Toc1"><w:r><w:t>1. 목적</w:t></w:r><w:r><w:instrText> PAGEREF _Toc1 \\h </w:instrText></w:r><w:r><w:t>3</w:t></w:r></w:hyperlink></w:p>' +
+    '<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>목적</w:t></w:r></w:p><w:p><w:r><w:t>본문이다.</w:t></w:r></w:p></w:body></w:document>']])
+  assert.equal(docxToMd(doc), '## 목적\n\n본문이다.')
+  const sheet = '<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>코드</t></is></c><c r="C1" t="inlineStr"><is><t>이름</t></is></c></row><row r="2"><c r="A2"><v>7</v></c><c r="C2" t="inlineStr"><is><t>창고</t></is></c></row></sheetData></worksheet>'
+  const xl = storedZip([
+    ['xl/workbook.xml', '<workbook><sheets><sheet xmlns:r="x" name="목록" sheetId="1" r:id="rId1"/></sheets></workbook>'],
+    ['xl/_rels/workbook.xml.rels', '<Relationships><Relationship Type="t" Target="/xl/worksheets/sheet1.xml" Id="rId1"/></Relationships>'],
+    ['xl/worksheets/sheet1.xml', sheet],
+  ])
+  assert.equal(xlsxToMd(xl), '## 목록\n\n| 코드 | 이름 |\n|---|---|\n| 7 | 창고 |', '빈 B 열은 뺀다 · Target 이 Id 앞이어도 시트를 찾는다')
 })

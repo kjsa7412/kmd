@@ -37,6 +37,21 @@ process.stdin.on('end', () => {
     const name = (head ? head[1] : '넣은 파일').split('/').pop().replace(/\.[^.]+$/, '')
     return say({ structured_output: { updates, newDoc: rest.length ? { path: name, sections: rest } : null, why: updates.length ? '같은 항목이 있다' : '이어지는 문서가 없다' } })
   }
+  // 넣은 파일의 기록 정리 — FAKE_CLAUDE_READ=<ms> 일 때만 답한다. FAKE_CLAUDE_SPANS 에 시작(s)을 적고, 함께 도는 부르기가
+  //   둘이 되거나 그 ms 가 지나면 「e 함께 돈 수」 를 적고 답한다(띄우는 시간이 느린 PC 에서도 겹침을 그대로 잰다)
+  if (prompt.startsWith('너는 지식 관리 도구 kmd 의 기록 작성자다') && process.env.FAKE_CLAUDE_READ) {
+    const f = process.env.FAKE_CLAUDE_SPANS
+    const live = () => { const ls = f && fs.existsSync(f) ? fs.readFileSync(f, 'utf8').split('\n') : []; return ls.filter((l) => l === 's').length - ls.filter((l) => l.startsWith('e ')).length }
+    if (f) fs.appendFileSync(f, 's\n')
+    const until = Date.now() + Number(process.env.FAKE_CLAUDE_READ)
+    const tick = () => {
+      if (live() < 2 && Date.now() < until) return setTimeout(tick, 50)
+      if (f) fs.appendFileSync(f, `e ${live()}\n`)
+      const file = (/^파일 이름: (.+)$/m.exec(prompt) || [, '파일'])[1]
+      say({ structured_output: { title: file.replace(/\.[^.]+$/, ''), kind: '메모', summary: `${file} 이다.`, points: ['핵심 한 줄'], decisions: [], open: [] } })
+    }
+    return tick()
+  }
   if (prompt.startsWith('아래 기록이 바꾼 항목을')) {
     const first = /^- (\S+:[^ ]+(?: [^—]+)?) — /m.exec(prompt.split('후보:')[1] || '')
     return say({ structured_output: { touches: first ? [first[1].trim()] : [], why: '제목이 그 항목을 말한다' } })

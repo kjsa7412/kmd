@@ -17,7 +17,7 @@ import crypto from 'node:crypto'
 import { convert } from './ooxml.js'
 import { hwpToMd } from './hwp.js'
 import { pdfToMd } from './pdf.js'
-import { readText, nfc } from './text.js'
+import { readText, nfc, dropToc } from './text.js'
 import { KmdError } from './errors.js'
 
 export const MAX_FILES = 300
@@ -28,7 +28,7 @@ export const PCONLY = ['hwp', 'pdf']
 // pdf · hwp 의 글 — Claude 없이(못 꺼내면 '')
 export async function localMd(ext, buf) {
   try {
-    return ext === 'hwp' ? hwpToMd(buf) : ext === 'pdf' ? await pdfToMd(buf) : ''
+    return dropToc(ext === 'hwp' ? hwpToMd(buf) : ext === 'pdf' ? await pdfToMd(buf) : '')
   } catch {
     return ''
   }
@@ -161,7 +161,7 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
     try {
       if (ext === 'md' || ext === 'markdown') md = readText(f.data.toString('utf8'))
       else if (TEXT.includes(ext)) md = `# ${path.posix.basename(base)}\n\n${textToMd(ext, f.data)}\n`
-      else if (DOCX.includes(ext) && conv) md = `# ${path.posix.basename(base)}\n\n${convert(rel, f.data)}\n`
+      else if (DOCX.includes(ext) && conv) md = `# ${path.posix.basename(base)}\n\n${dropToc(convert(rel, f.data))}\n`
       else if (PCONLY.includes(ext) && conv) {
         const got = (await localMd(ext, f.data)).trim() || (mdOf ? await mdOf(rel, f.data) : null)
         if (got) md = `# ${path.posix.basename(base)}\n\n${String(got).replace(/^# .*\n+/, '')}\n`

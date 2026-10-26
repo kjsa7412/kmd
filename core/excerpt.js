@@ -76,6 +76,7 @@ export function expandSections(k, w, sections) {
   return sections.map((s) => {
     if (!s || (s.from == null && !s.append)) return s
     const { from, append, ...rest } = s
+    if (from != null && !w) throw new KmdError('E_NOTFOUND', '옮길 파일 글(이 일의 기록)이 없다')
     let content = [typeof s.content === 'string' ? s.content.trim() : '', from != null ? excerpt(w?.body, from) : ''].filter(Boolean).join('\n\n')
     if (!content) throw new KmdError('E_INPUT', '항목 글이 비었다 — content 또는 from 을 준다')
     if (append) {

@@ -53,10 +53,13 @@ export function unzip(buf, want = () => true) {
 
 const ent = (s) => String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n)).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16))).replace(/&amp;/g, '&')
 const cell = (s) => String(s).replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim()
+// 모든 줄이 빈 열은 뺀다(병합 · 띄움 열 — 빈 칸 「|  |」 만 Claude 에 보내지 않게)
 const mdTable = (rows) => {
   if (!rows.length) return ''
   const w = Math.max(...rows.map((r) => r.length))
-  const full = rows.map((r) => [...r, ...Array(w - r.length).fill('')])
+  const keep = Array.from({ length: w }, (_, i) => rows.some((r) => cell(r[i] ?? '')))
+  if (!keep.some(Boolean)) return ''
+  const full = rows.map((r) => Array.from({ length: w }, (_, i) => r[i] ?? '').filter((_, i) => keep[i]))
   return [`| ${full[0].map(cell).join(' | ')} |`, `|${full[0].map(() => '---').join('|')}|`, ...full.slice(1).map((r) => `| ${r.map(cell).join(' | ')} |`)].join('\n')
 }
 
@@ -84,6 +87,8 @@ export function docxToMd(buf) {
       if (rows.length) out.push(mdTable(rows))
       continue
     }
+    // 목차 줄(목차 필드 · _Toc 책갈피로 가는 쪽 번호) — 본문 머리를 되풀이할 뿐이다
+    if (/PAGEREF\s+_Toc|w:anchor="_Toc/.test(x)) continue
     const t = wText(x).trim()
     if (!t) continue
     const st = (x.match(/<w:pStyle w:val="([^"]+)"/) || [])[1] || ''
@@ -116,7 +121,9 @@ export function xlsxToMd(buf) {
   const wb = z.get('xl/workbook.xml')?.toString('utf8')
   if (!wb) throw new KmdError('E_INPUT', 'xlsx 모양이 아니다')
   const shared = [...(z.get('xl/sharedStrings.xml')?.toString('utf8') || '').matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => ent((m[1].match(/<t(?:\s[^>]*)?>[^<]*<\/t>/g) || []).map((t) => t.replace(/<[^>]+>/g, '')).join('')))
-  const rels = Object.fromEntries([...(z.get('xl/_rels/workbook.xml.rels')?.toString('utf8') || '').matchAll(/<Relationship [^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g)].map((m) => [m[1], m[2]]))
+  // 속성 차례는 만든 프로그램마다 다르다(Target 이 Id 앞에 오기도)
+  const attr = (tag, n) => (new RegExp(`\\s${n}="([^"]*)"`).exec(tag) || [])[1]
+  const rels = Object.fromEntries([...(z.get('xl/_rels/workbook.xml.rels')?.toString('utf8') || '').matchAll(/<Relationship\s[^>]*>/g)].map((m) => [attr(m[0], 'Id'), attr(m[0], 'Target')]).filter(([k, v]) => k && v))
   const sheets = [...wb.matchAll(/<sheet [^>]*name="([^"]+)"[^>]*r:id="([^"]+)"/g)].map((m) => ({ name: ent(m[1]), file: 'xl/' + String(rels[m[2]] || '').replace(/^\/?xl\//, '') }))
   const col = (ref) => [...ref.replace(/\d+/g, '')].reduce((a, c) => a * 26 + c.charCodeAt(0) - 64, 0) - 1
   const out = []

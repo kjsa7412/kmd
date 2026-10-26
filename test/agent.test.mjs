@@ -228,3 +228,26 @@ test('파일 글은 kmd 가 옮긴다 — 에이전트는 from(전체 · 머리)
   assert.ok(out.result.isError)
   assert.match(out.result.content[0].text, /넣기 에이전트만/)
 })
+
+test('앞일은 함께 · 들이기는 한 줄 — 파일 넷의 기록 정리가 셋까지 겹치고 넷 모두 들어간다 · curateIdle 은 앞일까지 기다린다', async () => {
+  await s.hub.addKnowledge(ME, { kind: 'new', name: '넣기넷' })
+  const spans = path.join(tmp, 'spans.log')
+  process.env.FAKE_CLAUDE_READ = '20000' // 둘이 함께 돌 때까지 기다린다(차례로 돌면 20초 뒤 혼자 답한다)
+  process.env.FAKE_CLAUDE_SPANS = spans
+  try {
+    const files = [1, 2, 3, 4].map((n) => ({ path: `통화-${n}.md`, data: Buffer.from(HNC.replace('3초', `${n + 10}초`)) }))
+    const r = await s.hub.importFiles(ME, '넣기넷', files)
+    await s.hub.curateIdle('넣기넷')
+    const runs = r.rows.map((x) => s.hub.runGet(ME, x.run))
+    assert.deepEqual(runs.map((x) => x.state), ['done', 'done', 'done', 'done'], runs.map((x) => x.msg).join(' / '))
+    const ls = fs.readFileSync(spans, 'utf8').trim().split('\n')
+    assert.equal(ls.filter((l) => l === 's').length, 4)
+    const most = Math.max(...ls.filter((l) => l.startsWith('e ')).map((l) => Number(l.slice(2))))
+    assert.ok(most >= 2 && most <= 3, `함께 돈 기록 정리 ${most}`)
+    const k = await s.hub.get('넣기넷')
+    assert.ok(r.rows.every((x) => k.byWork.get(x.rec).state !== 'pend'), '넷 모두 들어갔다')
+  } finally {
+    delete process.env.FAKE_CLAUDE_READ
+    delete process.env.FAKE_CLAUDE_SPANS
+  }
+})

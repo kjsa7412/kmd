@@ -28,6 +28,7 @@ import { buildIndex, ladder, loadLearned, learn, searchCheck, exact } from '../c
 import { planImport, summary, MAX_FILES, MAX_BYTES, PCONLY } from '../core/importer.js'
 import { runAgent, agentAvailable } from '../core/agent.js'
 import { modelOf, ROLES, CHOICES } from '../core/models.js'
+import { expandSections } from '../core/excerpt.js'
 import { FILE_SCHEMA, filePrompt, fileRecord, COMMIT_SCHEMA, commitPrompt, commitAnalyzed } from '../core/analyze.js'
 import { renderRecord } from '../core/frontmatter.js'
 import { fileURLToPath } from 'node:url'
@@ -137,6 +138,21 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const agentKeys = new Map() // kmda_ 단기 열쇠 → { kn, rec, run, exp }
   const importing = new Set() // 파일을 넣는 중인 지식 — 정리 줄이 막 남은 기록을 따로 집지 않게
   const queuedRecs = new Set() // 일(run)이 맡은 기록
+  // 넣은 파일의 앞일(글로 바꾸기 · 기록 정리) — 파일끼리 따로라 몇 개씩 함께(Claude 를 기다리는 동안 다음 파일도) · 들이기는 문서를 고치므로 지식마다 한 줄
+  const PREP_MAX = config.prepMax ?? 3
+  let prepN = 0
+  const prepWait = []
+  const preps = new Map() // 지식 → 앞일이 도는 파일들(curateIdle 이 기다린다)
+  const prepSlot = async (f) => {
+    while (prepN >= PREP_MAX) await new Promise((ok) => prepWait.push(ok))
+    prepN++
+    try {
+      return await f()
+    } finally {
+      prepN--
+      prepWait.shift()?.()
+    }
+  }
   const codeTried = new Map() // 에이전트가 맡았던 코드 바뀜 기록 → 시각 — 정리가 세 차례 돌아도 다시 띄우지 않고, 못 넣었으면 한 시간 뒤 정리 때 다시
   const codeFresh = (id) => Date.now() - (codeTried.get(id) || 0) < 3600_000
   const liveTimers = new Map() // 팀 지식 「실시간」 정리 — 조용해진 뒤 한 번
@@ -516,7 +532,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const meta = await hub.meta(id, ctx)
       if (ctx.agent) {
         const rec = input?.record || {}
-        input = { ...input, record: { ...rec, tags: [...new Set([...(Array.isArray(rec.tags) ? rec.tags : []).filter((t) => !RESERVED_TAGS.includes(String(t).trim().toLowerCase())), 'curate-llm'])], reflects: [ctx.agent.rec] } }
+        // 항목 글의 from(파일 글을 서버가 옮김) · append(지금 글 끝에 보탬)를 푼다 — 모델은 파일 글을 다시 쓰지 않는다
+        const k0 = await hub.get(id)
+        input = { ...input, sections: expandSections(k0, k0.byWork.get(ctx.agent.rec), input?.sections), record: { ...rec, tags: [...new Set([...(Array.isArray(rec.tags) ? rec.tags : []).filter((t) => !RESERVED_TAGS.includes(String(t).trim().toLowerCase())), 'curate-llm'])], reflects: [ctx.agent.rec] } }
         const r0 = await coreSave(meta.dir, input, { user: 'kmd-auto', agent: true })
         cache.delete(id)
         const run = runs.get(ctx.agent.run)
@@ -1719,8 +1737,20 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       curateRuns.set(id, job)
       return job
     },
-    // 파일 하나 — (pdf · hwp 면 글로 바꿔 기록부터) → 에이전트로 들이기
-    async ingestFileRun(ctx, id, { rel, data = null, recId = null, run }) {
+    // 파일 하나 — 앞일(pdf · hwp 면 글로 바꿔 기록부터 · 기록 정리) → 들이기(에이전트 · 안 되면 규칙)
+    async ingestFileRun(ctx, id, args) {
+      const p = await hub.ingestPrep(ctx, id, args)
+      if (p) await hub.ingestPlace(ctx, id, p)
+    },
+    // 뒤에서 — 앞일은 PREP_MAX 개씩 함께 · 들이기는 앞일이 끝난 차례로 지식마다 한 줄(queueRun)
+    ingestFileLater(ctx, id, args) {
+      const job = prepSlot(() => hub.ingestPrep(ctx, id, args)).then((p) => p && hub.queueRun(id, () => hub.ingestPlace(ctx, id, p)))
+      const mine = preps.get(id) || preps.set(id, new Set()).get(id)
+      mine.add(job)
+      return job.finally(() => mine.delete(job))
+    },
+    // 앞일 — 들일 것이 남으면 { rel, data, recId, run } · 끝났으면(못 바꿈 · 같은 파일 · 넘어짐) null
+    async ingestPrep(ctx, id, { rel, data = null, recId = null, run }) {
       const meta = await hub.meta(id)
       try {
         if (!recId && data) {
@@ -1729,17 +1759,36 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             run.state = 'fail'
             run.msg = '글로 바꾸지 못했다 — 원본은 첨부로 두었다'
             await coreSave(meta.dir, { record: { title: `글로 바꾸지 못한 파일 — ${rel.split('/').pop()}`, body: `원본은 첨부로 두었다 — docs/assets/${rel}\n- 까닭: ${hub.agentOk(id) ? 'Claude Code 가 글로 옮기지 못했다' : 'Claude 를 쓰지 않는다(로그인 · 「Claude 에 보내지 않음」)'}\n- 다시: 지식 만들기 › 파일 넣기에 같은 파일을 다시 넣는다`, tags: ['curate-auto'] } }, { user: 'kmd-auto', system: true })
-            cache.delete(id)
-            return
+            hub.ingestEnd(id, run, null, meta)
+            return null
           }
           const plan = await planImport(await hub.get(id), [{ path: rel, data }], { direct: true, asRecord: true, mdOf: async () => md, read: (r2) => fs.readFile(path.join(meta.dir, r2)).catch(() => null) })
           const rec = plan.records[0]
-          if (!rec) { run.state = 'done'; run.msg = '같은 파일 — 그대로 두었다'; return }
+          if (!rec) {
+            run.state = 'done'
+            run.msg = '같은 파일 — 그대로 두었다'
+            hub.ingestEnd(id, run, null, meta)
+            return null
+          }
           recId = (await hub.save(ctx, id, { record: rec }, { noCurate: true })).id
+          queuedRecs.add(recId) // 들이기 차례를 기다리는 동안 정리 줄이 따로 집지 않게
           run.rec = recId
           hub.runLine(run, 'ok', `기록이 됐다 — ${recId}`)
         }
         await hub.polishRecord(id, recId, run).catch((e) => hub.runLine(run, 'err', `기록 정리 — ${e.message}`))
+        return { rel, data, recId, run }
+      } catch (e) {
+        run.state = 'fail'
+        run.msg = e.message
+        hub.runLine(run, 'err', e.message)
+        hub.ingestEnd(id, run, recId, meta)
+        return null
+      }
+    },
+    // 들이기 — 에이전트(없으면 규칙 · Claude 한 번)
+    async ingestPlace(ctx, id, { rel, data, recId, run }) {
+      const meta = await hub.meta(id)
+      try {
         if (!hub.agentOk(id)) {
           const got = await hub.ingestNow(id, recId)
           run.state = got.doc ? (got.how === 'claude' ? 'done' : 'rule') : 'fail'
@@ -1754,12 +1803,15 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         run.msg = e.message
         hub.runLine(run, 'err', e.message)
       } finally {
-        if (recId) queuedRecs.delete(recId)
-        run.endedAt = new Date().toISOString()
-        hub.runSave(run)
-        cache.delete(id)
-        if (backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
+        hub.ingestEnd(id, run, recId, meta)
       }
+    },
+    ingestEnd(id, run, recId, meta) {
+      if (recId) queuedRecs.delete(recId)
+      run.endedAt = new Date().toISOString()
+      hub.runSave(run)
+      cache.delete(id)
+      if (backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
     },
     // 이름 없는 기록 하나(넣은 파일 · 세션 메모)를 문서로 — 이어지는 문서의 항목에 넣거나 새 문서
     async ingestNow(id, recId, { claude = true, why: why0 = null } = {}) {
@@ -1908,7 +1960,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       curateRuns.set(id, run)
       return run
     },
-    curateIdle: (id) => (curateRuns.get(id) || Promise.resolve()).catch(() => {}),
+    // 앞일(파일을 글로 · 기록 정리)과 줄이 모두 빌 때까지
+    async curateIdle(id) {
+      for (;;) {
+        await Promise.allSettled([...(preps.get(id) || [])])
+        await (curateRuns.get(id) || Promise.resolve()).catch(() => {})
+        if (!preps.get(id)?.size) return
+      }
+    },
     // asDocs — 옛 폴더로 지식을 세울 때(지식 추가)만 바로 문서 · 그 밖은 기록으로 들이고 정리가 문서에 넣는다
     async importFiles(ctx, id, files, { asDocs = false } = {}) {
       const meta = await hub.meta(id, ctx)
@@ -1953,7 +2012,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           const rel = r.tags[0].slice(7)
           const run = hub.newRun(id, { title: recRows[i].name.split('/').pop(), file: recRows[i].name, by: ctx.user, quiet: files.length > 1 })
           queuedRecs.add(sv.id)
-          hub.queueRun(id, () => hub.ingestFileRun(ctx, id, { rel, recId: sv.id, run }))
+          hub.ingestFileLater(ctx, id, { rel, recId: sv.id, run })
           Object.assign(recRows[i], { kind: 'run', run: run.id, msg: 'Claude Code 가 들이는 중 — 터미널에서 본다' })
           continue
         }
@@ -1972,7 +2031,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const fd = files.find((y) => String(y.path || y.name).replace(/\\/g, '/').endsWith(x.name.split('/').pop()))
         if (!fd) continue
         const run = hub.newRun(id, { title: x.name.split('/').pop(), file: x.name, by: ctx.user })
-        hub.queueRun(id, () => hub.ingestFileRun(ctx, id, { rel: x.name, data: fd.data, run }))
+        hub.ingestFileLater(ctx, id, { rel: x.name, data: fd.data, run })
         Object.assign(x, { kind: 'run', run: run.id, msg: 'Claude Code 가 글로 바꿔 들이는 중 — 터미널에서 본다 · 원본은 첨부로' })
       }
       const s = summary(plan.rows)
