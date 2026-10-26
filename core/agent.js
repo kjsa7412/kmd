@@ -48,7 +48,8 @@ function resultLine(c) {
 
 // 한 번 돌기 — { ok, text(마지막 답), cost, turns, error: login|limit|fail|null, message }
 //   mcp: { url, token } 이 없으면 MCP 없이(바꾸기만) · files: 일 폴더에 둘 파일 [{ name, data }]
-export async function runAgent({ prompt, system = '', files = [], mcp = null, budget = 2, timeoutMs = 20 * 60_000, model = '', onLine = () => {} }) {
+//   signal — 그만두기(일 줄). 끊기면 Claude Code 를 나무째 끄고 { ok: false, error: 'cancel' }
+export async function runAgent({ prompt, system = '', files = [], mcp = null, budget = 2, timeoutMs = 20 * 60_000, model = '', onLine = () => {}, signal = null }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-agent-'))
   const cfgDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-agent-cfg-')) // 단기 열쇠 · 스킬 — 일 폴더 밖(에이전트가 읽는 자리가 아니다)
   const t0 = Date.now()
@@ -79,8 +80,9 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
     line('sys', `Claude Code 를 띄운다 — 도구 ${tools.join(' · ')}${mcp ? ' · kmd' : ''}${model ? ` · 모델 ${model}` : ''} · 예산 $${budget}`)
     // kmd 연결이 아직 서지 않은 채 시작하면(init 에 kmd 가 connected 가 아니다) 도구 없이 헤매므로 곧바로 끊고 다시 띄운다(세 번까지)
     for (let attempt = 1; ; attempt++) {
+      if (signal?.aborted) return { ok: false, error: 'cancel', message: '그만뒀다' }
       const r = await once()
-      if (!r.mcpDown) return r
+      if (!r.mcpDown || signal?.aborted) return r.mcpDown ? { ok: false, error: 'cancel', message: '그만뒀다' } : r
       if (attempt >= 3) { line('err', 'kmd 연결이 서지 않았다 — 세 번 띄워도 · 다음 정리 때 다시'); return { ok: false, error: 'fail', message: 'kmd MCP 가 이어지지 않았다' } }
       line('sys', `kmd 연결이 아직 서지 않았다 — 끊고 다시 띄운다(${attempt + 1}번째)`)
       await new Promise((ok) => setTimeout(ok, 3000 * attempt))
@@ -94,6 +96,8 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
       let se = ''
       let last = null
       const kill = setTimeout(() => { line('err', `시간이 넘었다(${Math.round(timeoutMs / 60000)}분) — 멈춘다`); stop() }, timeoutMs)
+      const onAbort = () => { line('err', '그만두기 — Claude Code 를 끈다'); stop() }
+      signal?.addEventListener('abort', onAbort, { once: true })
       const eat = (raw) => {
         let j
         try { j = JSON.parse(raw) } catch { return }
@@ -118,6 +122,8 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
       p.on('error', (e) => { clearTimeout(kill); resolve({ ok: false, error: 'fail', message: e.message }) })
       p.on('close', (code) => {
         clearTimeout(kill)
+        signal?.removeEventListener('abort', onAbort)
+        if (signal?.aborted) { resolve({ ok: false, error: 'cancel', message: '그만뒀다', cost: last?.total_cost_usd || 0 }); return }
         if (mcpDown) { resolve({ mcpDown: true }); return }
         if (buf.trim()) eat(buf)
         const text = `${last?.result || ''} ${se}`

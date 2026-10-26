@@ -27,6 +27,7 @@ import * as owners from '../core/owners.js'
 import { buildIndex, ladder, loadLearned, learn, searchCheck, exact } from '../core/search.js'
 import { planImport, summary, MAX_FILES, MAX_BYTES, PCONLY } from '../core/importer.js'
 import { runAgent, agentAvailable } from '../core/agent.js'
+import { createQueue, Cancelled, isFinal, STAGES } from '../core/queue.js'
 import { modelOf, ROLES, CHOICES } from '../core/models.js'
 import { expandSections } from '../core/excerpt.js'
 import { FILE_SCHEMA, filePrompt, fileRecord, COMMIT_SCHEMA, commitPrompt, commitAnalyzed } from '../core/analyze.js'
@@ -136,6 +137,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const curateRuns = new Map() // 이 PC · 팀 서버의 개인 지식 — 지식마다 바로 넣기 한 줄
   const editDup = new Map() // 화면 고치기 — 같은 글 두 번 누름(1분)
   const runs = new Map() // 에이전트 일 — 터미널 줄(요구 v0.2 R8)
+  // 일 줄 — 파일 들이기(run 그대로) · 가져오기 · 기록을 문서에 넣기 · 여러 파일 묶음을 한 줄로(core/queue.js · 가져오기 일 줄 검토안)
+  const Q = createQueue({ file: path.join(dataDir, 'queue.json'), log: (...a) => log('일 줄', ...a) })
+  const srcPend = new Map() // 가져오는 곳 → 아직 차례를 기다리는 일(겹치면 그 일에 붙는다)
+  const binOf = (jid) => path.join(dataDir, 'queue', `${jid}.bin`) // 기록이 서기 전에 멈춘 파일의 원본(다시 하기 · 다시 켠 뒤 이어서)
   const agentKeys = new Map() // kmda_ 단기 열쇠 → { kn, rec, run, exp }
   const importing = new Set() // 파일을 넣는 중인 지식 — 정리 줄이 막 남은 기록을 따로 집지 않게
   const queuedRecs = new Set() // 일(run)이 맡은 기록
@@ -847,7 +852,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
     },
     // 한 곳 돌리기 — 같은 곳은 한 줄로 선다(실시간 감시 · 시계 · [지금 확인] · 전체 다시 맞추기가 겹쳐도 차례로)
-    async sourceRun(id, name = null, { first = false, force = false, full = false, pass = null, onProgress = null } = {}) {
+    async sourceRun(id, name = null, { first = false, force = false, full = false, pass = null, onProgress = null, by = null, live = false } = {}) {
       const meta = await hub.meta(id)
       const decl = await readDecl(meta.dir)
       const out = []
@@ -858,13 +863,19 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           continue
         }
         const key = `${id}\n${s.name}`
+        // 같은 곳이 아직 차례를 기다리면 그 일에 붙는다(실시간 · 시계 · [지금 가져오기] 가 겹쳐도 한 줄)
+        const pend = srcPend.get(key)
+        if (pend && !force && !full && !first && pend.qj.state === 'wait') { out.push({ name: s.name, ...(await pend.job) }); continue }
+        const qj = Q.add({ kind: 'source', origin: s.kind === 'folder' ? 'docs' : s.kind, kn: id, title: full ? `${s.name} — 전체 다시 맞추기` : s.name, by: by || 'kmd', auto: by ? null : live ? 'live' : String(s.every || 'hourly'), spec: { type: 'source', kn: id, name: s.name, force, full } })
         const prev = srcRuns.get(key) || Promise.resolve()
         const job = prev.catch(() => {}).then(async () => {
+          try { await Q.step(qj, 0, { lane: 'fetch' }) } catch (e) { Q.end(qj, 'cancel', e.message); return { state: 'cancelled', n: 0, why: e.message } }
+          Q.line(qj, 'sys', `${s.name} — ${{ git: '저장소에서 받는다', db: 'DB 에 읽기 전용으로 붙는다', docs: '폴더를 읽는다', folder: '폴더를 읽는다' }[s.kind] || '읽는다'}${force ? ' · 그대로 맞춘다' : ''}`)
           srcBusy.set(key, { kn: id, name: s.name, kind: s.kind, since: new Date().toISOString(), full })
           try {
           const k = await hub.get(id)
           const src = { ...s, folder: s.kind === 'folder' || !(/^(https?|ssh):\/\//i.test(s.at) || /^[^/\\\s]+@[^/\\\s]+:/.test(s.at)) ? s.at : undefined }
-          const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, meaning: hub.meaningOk(id), mdOf: mode === 'pc' ? (rel, data) => hub.mdOf(rel, data) : null, analyze: mode === 'pc' && hub.meaningOk(id) ? (c, diffs, rec) => hub.analyzeCommit(id, s.name, c, diffs, rec) : null, save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
+          const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, onStage: (i) => (i >= 3 ? Q.mark(qj, 3) : Q.step(qj, i)), line: (kk, x) => Q.line(qj, kk, x), meaning: hub.meaningOk(id), mdOf: mode === 'pc' ? (rel, data) => hub.mdOf(rel, data) : null, analyze: mode === 'pc' && hub.meaningOk(id) ? (c, diffs, rec) => hub.analyzeCommit(id, s.name, c, diffs, rec) : null, save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
           cache.delete(id)
           if (s.kind === 'docs' && hub.agentOk(id)) for (const x of (r.rows || []).filter((y) => y.kind === 'fail' && PCONLY.includes(y.name.split('.').pop().toLowerCase()))) {
             const pre = docPrefix(s)
@@ -872,10 +883,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             const run = hub.newRun(id, { title: `${s.name} › ${rel}`, file: rel, by: 'kmd' })
             hub.queueRun(id, async () => {
               try {
+                await Q.step(run, 0)
                 const data = await fs.readFile(path.join(s.at, ...rel.split('/')))
                 const md = await hub.mdOf(rel, data, run)
                 if (!md) { run.state = 'fail'; run.msg = '글로 바꾸지 못했다 — 원본은 첨부로'; return }
+                await Q.step(run, 2)
                 const a = await applyDocs(await hub.get(id), { src: s, prefix: pre, files: [{ rel, data }], mdOf: async () => md })
+                Q.mark(run, 3)
                 run.state = 'done'
                 run.msg = a.docs ? `기록 · 문서가 됐다 — ${pre ? pre + ' › ' : ''}${rel.replace(/\.[^.]+$/, '')}(원본이 주인)` : '그대로'
                 if (a.docs) run.docs.push(`${pre ? pre + '/' : ''}${rel.replace(/\.[^.]+$/, '')}`)
@@ -883,7 +897,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
               } catch (e) {
                 // 일이 도중에 깨졌다(파일 잠김 · 읽기 실패) — 장부에서 걷어 다음 확인(실시간 · 정한 때)이 다시 한다. 글로 못 바꾼 것(위)은 다시 하지 않는다
                 await forgetFile(dataDir, id, s.name, rel).catch(() => {})
-                run.state = 'fail'; run.msg = `${e.message} — 다음 확인 때 다시 한다`; hub.runLine(run, 'err', run.msg)
+                run.state = e?.cancelled ? 'cancel' : 'fail'; run.msg = e?.cancelled ? '그만뒀다 — 다음 확인 때 다시 한다' : `${e.message} — 다음 확인 때 다시 한다`; hub.runLine(run, e?.cancelled ? 'sys' : 'err', run.msg)
               } finally { run.endedAt = new Date().toISOString(); cache.delete(id); hub.runSave(run) }
             })
           }
@@ -893,14 +907,21 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           else if (r.codeRecords && hub.teamPrivate(id)) hub.curateSoon(id).catch(() => {})
           else if (r.codeRecords && hub.meaningOk(id) && hub.tidyModeOf(id) !== 'manual') hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
           if (r.state === 'changed') for (const u of await hub.curatorsOf(id)) await feed.add(dataDir, u, { kind: 'source', kn: id, dot: 'acc', text: r.commits != null ? `${s.name}에서 새 묶음 ${r.commits} · 코드 바뀜 기록 ${r.codeRecords} — ${meta.name}` : s.kind === 'docs' ? `${s.name}에서 기록 ${r.recs || 0} · 문서 ${r.docs || 0} — ${meta.name}` : `${s.name}에서 바뀐 표 ${r.n} — ${meta.name}`, small: r.commits != null ? '정리가 걸린 항목 글을 맞춘다' : s.kind === 'docs' ? `바뀐 파일 ${r.files} · 파일마다 기록을 남기고 원본이 주인인 문서로` : `바뀐 파일 ${r.files} · 저절로 채우는 표` })
+          hub.sourceJobEnd(qj, s, r)
           return r
+          } catch (e) {
+            if (e?.cancelled) { Q.end(qj, 'cancel', e.message); return { state: 'cancelled', n: 0, why: e.message } }
+            Q.end(qj, 'fail', e.message)
+            throw e
           } finally {
             srcBusy.delete(key)
           }
         })
         srcRuns.set(key, job)
+        srcPend.set(key, { qj, job })
         out.push({ name: s.name, ...(await job) })
         if (srcRuns.get(key) === job) srcRuns.delete(key)
+        if (srcPend.get(key)?.job === job) srcPend.delete(key)
       }
       if (out.some((x) => x.state === 'changed') && backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
       return out
@@ -920,10 +941,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       resyncs.set(key, job)
       const mark = async (v) => { const x = await readSourceState(dataDir, id); (x[name] ||= {}).resync = v; await writeSourceState(dataDir, id, x) }
       await mark({ pass, at: job.at })
-      hub.sourceRun(id, name, { full: true, pass, onProgress: (d, t) => { job.done = d; job.total = t } })
+      hub.sourceRun(id, name, { full: true, pass, by: ctx.user, onProgress: (d, t) => { job.done = d; job.total = t } })
         .then(async ([r]) => {
-          Object.assign(job, { state: r?.state === 'failed' ? 'failed' : 'done', result: r, end: new Date().toISOString() })
-          if (r?.state !== 'failed') await mark(undefined)
+          Object.assign(job, { state: r?.state === 'failed' ? 'failed' : r?.state === 'cancelled' ? 'paused' : 'done', result: r, end: new Date().toISOString() })
+          if (r?.state !== 'failed' && r?.state !== 'cancelled') await mark(undefined)
         })
         .catch((e) => Object.assign(job, { state: 'failed', why: e.message }))
       return job
@@ -961,7 +982,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           const p = String(f || '').replace(/\\/g, '/')
           if (p.split('/').some((x) => x.startsWith('.') || x === 'node_modules')) return
           clearTimeout(timer)
-          timer = setTimeout(() => hub.sourceRun(id, s.name).catch(() => {}), config.watchQuietMs ?? 10_000)
+          timer = setTimeout(() => hub.sourceRun(id, s.name, { live: true }).catch(() => {}), config.watchQuietMs ?? 10_000)
           timer.unref?.()
         })
         w.on('error', () => {})
@@ -1455,20 +1476,27 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // ── 에이전트로 지식 세우기 · 터미널(요구 v0.2 R6 · R8) ──
     //   일(run) 하나 = 파일 하나를 들이는 일 — 줄(터미널) · 상태 · 넣은 문서. 지식마다 최근 30 · 서버를 다시 켜면 비운다(이력은 log/)
-    newRun(id, { title, file = null, by = null, quiet = false }) {
-      const run = { id: crypto.randomBytes(6).toString('hex'), kn: id, title, file, by, quiet, state: 'wait', startedAt: new Date().toISOString(), endedAt: null, lines: [], docs: [], names: 0, msg: '' }
+    newRun(id, { title, file = null, by = null, quiet = false, parent = null }) {
+      const run = { id: crypto.randomBytes(6).toString('hex'), kn: id, title, file, by, quiet, state: 'wait', startedAt: new Date().toISOString(), endedAt: null, lines: [], docs: [], names: 0, msg: '', kind: 'file', origin: by === 'kmd' ? 'docs' : 'file', ...(parent ? { parent } : {}) }
       runs.set(run.id, run)
-      const mine = [...runs.values()].filter((r) => r.kn === id)
-      for (const r of mine.slice(0, Math.max(0, mine.length - 30))) runs.delete(r.id)
+      Q.add(run)
+      // 끝난 일은 지식마다 최근 200 까지 메모리에(파일에는 30일)
+      const mine = [...runs.values()].filter((r) => r.kn === id && r.endedAt)
+      for (const r of mine.slice(0, Math.max(0, mine.length - 200))) runs.delete(r.id)
+      Q.forget((j) => j.kind === 'file' && j.kn === id && !runs.has(j.id))
       return run
     },
     runLine(run, k, x) {
-      run.lines.push({ t: Date.now() - Date.parse(run.startedAt), k, x: String(x).slice(0, 4000) })
-      if (run.lines.length > 2000) run.lines.splice(0, run.lines.length - 2000)
+      Q.line(run, k, x) // 줄마다 그때의 단계(s)
     },
-    // 끝난 일은 지식마다 파일로(<살림>/runs/<지식>.json · 최근 30 · 줄은 400 까지) — 다시 켜도 「최근 넣은 것」 · 터미널이 남는다
+    // 끝난 일은 지식마다 파일로(<살림>/runs/<지식>.json · 30일 · 200 · 줄은 400 까지) — 다시 켜도 「끝난 일」 · 터미널이 남는다
+    //   일 줄에서도 닫는다(못함은 줄에 남아 [다시] 를 기다린다) · 묶음의 마지막 파일이면 묶음도 닫는다
     runSave(run) {
-      const mine = [...runs.values()].filter((r) => r.kn === run.kn && r.endedAt).slice(-30).map((r) => ({ ...r, lines: r.lines.slice(-400) }))
+      Q.end(run)
+      if (isFinal(run)) fs.rm(binOf(run.id), { force: true }).catch(() => {})
+      if (run.parent) hub.groupCheck(Q.get(run.parent))
+      const cut = Date.now() - 30 * 864e5
+      const mine = [...runs.values()].filter((r) => r.kn === run.kn && r.endedAt && Date.parse(r.endedAt) >= cut).slice(-200).map((r) => ({ ...r, lines: r.lines.slice(-400) }))
       const f = path.join(dataDir, 'runs', `${encodeURIComponent(run.kn)}.json`)
       fs.mkdir(path.dirname(f), { recursive: true }).then(() => fs.writeFile(f, JSON.stringify(mine))).catch(() => {})
     },
@@ -1484,6 +1512,145 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     runList(ctx, kn = null) {
       return [...runs.values()].filter((r) => (!kn || r.kn === kn) && hub.runOk(r, ctx)).reverse().slice(0, 40).map(({ lines, ...r }) => ({ ...r, n: lines.length }))
     },
+    // ── 일 줄(가져오기 화면 · core/queue.js) ──
+    // 가져오기 한 번이 끝났다 — 그대로 · 바뀜 = 끝남 · 브레이크 = 확인할 것 · 못 가져옴 = 못함
+    sourceJobEnd(qj, s, r) {
+      const st = r.state === 'stopped' ? 'check' : r.state === 'failed' ? 'fail' : 'done'
+      const msg = r.state === 'stopped' ? `한꺼번에 크게 바뀌었다 — ${r.vanished ? `사라진 항목 ${r.vanished}` : `새 항목 ${r.added}`}${r.of ? ` / ${r.of}` : ''} · 아직 아무것도 쓰지 않았다`
+        : r.state === 'failed' ? `못 가져왔다 — ${r.why || ''}`
+        : r.state === 'waiting' ? r.why || '쉰다'
+        : r.commits != null ? (r.commits ? `새 묶음 ${r.commits} · 코드 바뀜 기록 ${r.codeRecords}` : '새 묶음 없음')
+        : r.state === 'changed' ? (r.docs != null ? `기록 ${r.recs ?? 0} · 문서 ${r.docs}${r.missing ? ` · 원본에 없다 ${r.missing}` : ''}` : `바뀐 표 ${r.n}`)
+        : '그대로'
+      qj.same = st === 'done' && r.state !== 'changed'
+      Q.line(qj, st === 'done' ? 'ok' : 'err', msg)
+      Q.end(qj, st, msg)
+      // 같은 곳의 지난 확인할 것 · 못함은 걷는다(이번 것이 맞췄거나 새 줄로 섰다) · 그대로였던 확인은 마지막 것만 남긴다
+      for (const j of Q.list()) {
+        if (j === qj || j.kind !== 'source' || j.kn !== qj.kn || j.spec?.name !== s.name) continue
+        if (j.state === 'fail' || j.state === 'check' || (qj.same && j.same && isFinal(j))) Q.drop(j)
+      }
+    },
+    // 파일 묶음 — 화면이 여러 파일을 나눠 보내는 것을 일 하나로(안의 파일마다 들이는 일이 아래에 선다) · id 는 화면이 정해 온다(첫 조각이 그 id 로 세운다)
+    groupJob(ctx, id, g) {
+      const old = g.id ? Q.get(String(g.id)) : null
+      if (old) {
+        if (old.kind !== 'group' || old.kn !== id) throw new KmdError('E_INPUT', '그 묶음이 아니다')
+        return old
+      }
+      const j = Q.add({ ...(/^[0-9a-f]{12}$/.test(String(g.id || '')) ? { id: String(g.id) } : {}), kind: 'group', origin: 'file', kn: id, title: String(g.title || '파일 묶음').slice(0, 200), by: ctx.user, total: Math.max(0, Number(g.total) || 0), sent: 0, children: [], rows: [], touched: new Date().toISOString() })
+      Q.mark(j, 0)
+      Q.line(j, 'sys', `파일 ${j.total} — 화면이 나눠 보낸다`)
+      return j
+    },
+    groupAdd(j, rows, n, last) {
+      j.sent += n
+      j.touched = new Date().toISOString()
+      for (const r of rows) {
+        j.rows.push({ name: r.name, kind: r.kind, msg: r.msg || '', ...(r.run ? { run: r.run } : {}) })
+        if (r.run) j.children.push(r.run)
+      }
+      if (j.rows.length > 2000) j.rows.splice(0, j.rows.length - 2000)
+      const c = (k) => j.rows.filter((x) => x.kind === k).length
+      j.msg = `받았다 ${j.sent}/${j.total || j.sent} · 문서 ${c('doc')} · 기록 ${c('record')} · Claude 일 ${c('run')} · 첨부 ${c('att')}${c('same') ? ' · 그대로 ' + c('same') : ''}${c('fail') ? ' · 못 넣음 ' + c('fail') : ''}${c('skip') ? ' · 읽지 못하는 종류 ' + c('skip') : ''}`
+      Q.line(j, c('fail') ? 'err' : 'ok', j.msg)
+      if (last || (j.total && j.sent >= j.total)) { j.uploaded = true; if (j.state !== 'pause') Q.mark(j, 3) }
+      hub.groupCheck(j)
+    },
+    // 다 보냈고 안의 일이 모두 끝났다(못함은 줄에 남는다) — 묶음을 닫는다
+    groupCheck(j) {
+      if (!j || j.kind !== 'group' || !j.uploaded || isFinal(j)) return
+      const kids = j.children.map((id) => Q.get(id)).filter(Boolean)
+      if (kids.some((x) => !isFinal(x) && x.state !== 'fail')) return
+      const bad = kids.filter((x) => x.state === 'fail').length
+      Q.end(j, 'done', `${j.msg}${bad ? ` · 들이지 못한 파일 ${bad}` : ''}`)
+    },
+    groupAct(j, act) {
+      const kids = j.children.map((x) => Q.get(x)).filter((x) => x && !isFinal(x))
+      if (act === 'cancel') {
+        for (const x of kids) if (x.state !== 'fail') Q.cancel(x.id, '그만뒀다 — 묶음째')
+        return Q.end(j, 'cancel', `그만뒀다 — ${j.sent}/${j.total} 에서 · 남은 파일은 보내지 않는다`)
+      }
+      if (act === 'pause') { for (const x of kids) Q.pause(x.id); Object.assign(j, { paused: true, state: 'pause', msg: '멈췄다 — 안의 파일이 지금 단계를 마치고 선다' }); return j }
+      if (act === 'resume') { for (const x of kids) if (x.state === 'pause' || x.state === 'pausing') Q.resume(x.id); Object.assign(j, { paused: false, state: 'run' }); hub.groupCheck(j); return j }
+      throw new KmdError('E_INPUT', '묶음은 멈춤 · 이어서 · 그만두기만 한다')
+    },
+    queueItem(j, knName = null) {
+      const { lines, spec, rows, children, ...x } = j
+      return { ...x, knName, n: (lines || []).length, fin: isFinal(j) || !!j.legacy, retry: ['ingest', 'source'].includes(spec?.type) || j.kind === 'curate', ...(spec?.name ? { src: spec.name } : {}), ...(spec?.recId ? { rec: spec.recId } : {}), ...(j.kind === 'group' ? { rows: (rows || []).slice(-300), children: (children || []).length } : {}) }
+    },
+    async queueList(ctx) {
+      const ks = new Map((await hub.visible(ctx)).map((k) => [k.id, k.name]))
+      const items = []
+      for (const j of Q.list()) {
+        if (!ks.has(j.kn) || (j.kind === 'file' && !hub.runOk(j, ctx))) continue
+        if (j.kind === 'group' && !j.uploaded && !isFinal(j) && Date.now() - Date.parse(j.touched || j.at) > 10 * 60_000) Q.end(j, 'fail', `화면이 나머지 파일을 보내지 않았다 — ${j.sent}/${j.total}`)
+        // 못함 — 정리가 뒤에서 그 기록을 넣었으면 걷는다
+        if (j.kind === 'file' && j.state === 'fail' && !j.legacy && j.spec?.recId) {
+          const w = (await hub.get(j.kn).catch(() => null))?.byWork.get(j.spec.recId)
+          if (w && w.state !== 'pend' && w.state !== 'nowhere') Q.end(j, 'done', '정리가 뒤에서 문서에 넣었다')
+        }
+        items.push(hub.queueItem(j, ks.get(j.kn)))
+      }
+      // 팀 정리 일감 — 정리 일꾼이 맡는다(같은 줄에 보이고 · 기다리는 것은 뺄 수 있다)
+      for (const t of jobs.values()) {
+        if (!ks.has(t.kn)) continue
+        const state = { queued: 'wait', running: 'run', failed: 'fail', cancelled: 'cancel' }[t.state] || 'done'
+        const sum = t.summary ? `넣음 ${t.summary.put ?? 0}${t.summary.changed ? ` · 값 바뀜 ${t.summary.changed}` : ''}${t.summary.left ? ` · 남김 ${t.summary.left}` : ''}` : ''
+        items.push({ id: 't:' + t.id, kind: 'tidy', origin: 'kmd', kn: t.kn, knName: ks.get(t.kn), title: '정리', by: t.by || 'kmd', auto: t.auto ? 'tidy' : null, state, stage: 3, stages: [{ state: 'skip' }, { state: 'skip' }, { state: 'skip' }, { state: state === 'cancel' ? 'cancel' : state }], order: 1e9, at: t.at, startedAt: t.at, endedAt: t.done || null, msg: t.why || (t.state === 'queued' ? '정리 일꾼을 기다린다' : t.state === 'running' ? '정리 일꾼이 하는 중' : sum), n: 0, fin: !['queued', 'running', 'failed'].includes(t.state), retry: false })
+      }
+      return { hold: Q.hold, caps: Q.caps, lanes: Q.lanes(), can: mode === 'pc' || !!ctx.admin, items }
+    },
+    async queueGet(ctx, id, from = 0) {
+      const j = Q.get(id)
+      if (!j || !(await hub.visible(ctx)).some((k) => k.id === j.kn) || (j.kind === 'file' && !hub.runOk(j, ctx))) throw new KmdError('E_NOTFOUND', '그 일은 이제 없다')
+      return { ...hub.queueItem(j), lines: (j.lines || []).slice(Math.max(0, from)) }
+    },
+    // 손잡이 — 멈춤 · 이어서 · 그만두기 · 다시 · 그대로 맞추기(force) · 맨 앞으로 · 옮기기. 넣은 사람 · 정리하는 사람 · 관리자(이 PC 는 누구나)
+    async queueAct(ctx, id, act, b = {}) {
+      const mine = async (kn, by) => mode === 'pc' || ctx.admin || by === ctx.user || (await hub.curatorsOf(kn)).includes(ctx.user)
+      if (id.startsWith('t:')) {
+        const t = jobs.get(id.slice(2))
+        if (!t || !(await hub.visible(ctx)).some((k) => k.id === t.kn)) throw new KmdError('E_NOTFOUND', '그 일은 이제 없다')
+        if (act !== 'cancel') throw new KmdError('E_INPUT', '정리 일감은 기다릴 때 빼기만 한다')
+        if (!(await mine(t.kn, t.by))) throw new KmdError('E_FORBIDDEN', '넣은 사람 · 정리하는 사람 · 관리자가 한다')
+        if (t.state !== 'queued') throw new KmdError('E_CONFLICT', '정리 일꾼이 이미 맡았다')
+        Object.assign(t, { state: 'cancelled', why: `뺐다 — ${ctx.user}`, done: new Date().toISOString() })
+        saveJobs()
+        return { ok: true }
+      }
+      const j = Q.get(id)
+      if (!j || !(await hub.visible(ctx)).some((k) => k.id === j.kn)) throw new KmdError('E_NOTFOUND', '그 일은 이제 없다')
+      if (!(await mine(j.kn, j.by))) throw new KmdError('E_FORBIDDEN', '넣은 사람 · 정리하는 사람 · 관리자가 한다')
+      try {
+        if (j.kind === 'group') return hub.queueItem(hub.groupAct(j, act))
+        if (act === 'force' && mode !== 'pc' && !hub.canSource(ctx, j.kn)) throw new KmdError('E_FORBIDDEN', '[그대로 맞추기] 는 관리자가 한다')
+        const again = act === 'retry' || act === 'force' || (act === 'resume' && j.parked === 'restart')
+        // 가져오기 · 넣기는 새로 한 번 — 지난 일은 걷는다
+        if (again && j.kind === 'source') {
+          Q.drop(j)
+          hub.sourceRun(j.spec.kn, j.spec.name, { force: act === 'force', full: !!j.spec.full, by: ctx.user }).catch(() => {})
+          return { ok: true, again: true }
+        }
+        if (again && j.kind === 'curate') { Q.drop(j); hub.curateSoon(j.kn).catch(() => {}); return { ok: true, again: true } }
+        if (act === 'force') throw new KmdError('E_INPUT', '그대로 맞추기는 가져오기만 한다')
+        const r = act === 'pause' ? Q.pause(id) : act === 'resume' ? Q.resume(id) : act === 'cancel' ? Q.cancel(id, `그만뒀다 — ${ctx.user}`) : act === 'retry' ? Q.retry(id) : act === 'top' ? Q.top(id) : act === 'move' ? Q.move(id, String(b.before || '')) : null
+        if (!r) throw new KmdError('E_INPUT', '그런 손잡이는 없다')
+        return hub.queueItem(r)
+      } catch (e) {
+        if (e.code && !(e instanceof KmdError)) throw new KmdError(e.code, e.message)
+        throw e
+      }
+    },
+    queueHold(ctx, on) {
+      if (mode !== 'pc' && !ctx.admin) throw new KmdError('E_FORBIDDEN', '줄 멈춤은 관리자가 한다')
+      return Q.setHold(on)
+    },
+    queueCaps(ctx, x) {
+      if (mode !== 'pc' && !ctx.admin) throw new KmdError('E_FORBIDDEN', '동시에 도는 수는 관리자가 정한다')
+      return Q.setCaps({ claude: x?.claude, fetch: x?.fetch })
+    },
+    queue: Q,
     // 지금 하는 일 — 가져오기(지켜보며 맞추기) · Claude Code 일(넣은 파일 · 코드 바뀜) · 정리 일감 · 바로 넣기 · 전체 다시 맞추기.
     //   왼쪽 위 「kmd」 의 점멸 점과 작은 팝업이 읽는다(가볍게 — 메모리만)
     async busy(ctx) {
@@ -1536,7 +1703,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         budget: 3,
         model: hub.modelOf('convert'),
         onLine: (l) => hub.runLine(run, l.k, l.x),
+        signal: Q.signal(run),
       })
+      if (r.error === 'cancel') throw new Cancelled()
       if (!r.ok || !r.text.trim()) return null
       const md = r.text.replace(/^```(?:md|markdown)?\s*\n([\s\S]*?)\n```\s*$/m, '$1').trim()
       await fs.mkdir(path.dirname(f), { recursive: true })
@@ -1553,15 +1722,16 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const w = k.byWork.get(recId)
       if (!w || (w.state !== 'pend' && w.state !== 'nowhere')) { run.state = 'done'; run.msg = '이미 넣은 기록이다'; return { doc: null } }
       const name = hub.ingestFileOf(w).split('/').pop()
-      run.state = 'run'
+      await Q.step(run, 3)
       hub.runLine(run, 'sys', `${meta.name} 에 들인다 — 기록 ${w.id}`)
       const token = hub.agentToken(id, w.id, run.id)
       let r
       try {
-        r = await runAgent({ ...(await hub.agentTask(meta, w, original)), mcp: { url: `${hub.selfUrl}/mcp`, token }, budget: 3, model: hub.modelOf('agent'), onLine: (l) => hub.runLine(run, l.k, l.x) })
+        r = await runAgent({ ...(await hub.agentTask(meta, w, original)), mcp: { url: `${hub.selfUrl}/mcp`, token }, budget: 3, model: hub.modelOf('agent'), onLine: (l) => hub.runLine(run, l.k, l.x), signal: Q.signal(run) })
       } finally {
         agentKeys.delete(token)
       }
+      if (r.error === 'cancel') throw new Cancelled()
       cache.delete(id)
       const k2 = await hub.get(id)
       const w2 = k2.byWork.get(w.id)
@@ -1592,9 +1762,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       try {
         await hub.ingestAgent(id, w.id, run)
       } catch (e) {
-        run.state = 'fail'
-        run.msg = e.message
-        hub.runLine(run, 'err', e.message)
+        run.state = e?.cancelled ? 'cancel' : 'fail'
+        run.msg = e?.cancelled ? '그만뒀다 — 기록은 남았다' : e.message
+        hub.runLine(run, e?.cancelled ? 'sys' : 'err', run.msg)
       } finally {
         queuedRecs.delete(w.id)
         run.endedAt = new Date().toISOString()
@@ -1745,7 +1915,15 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 뒤에서 — 앞일은 PREP_MAX 개씩 함께 · 들이기는 앞일이 끝난 차례로 지식마다 한 줄(queueRun)
     ingestFileLater(ctx, id, args) {
-      const job = prepSlot(() => hub.ingestPrep(ctx, id, args)).then((p) => p && hub.queueRun(id, () => hub.ingestPlace(ctx, id, p)))
+      const run = args.run
+      if (args.data && !args.recId) fs.mkdir(path.dirname(binOf(run.id)), { recursive: true }).then(() => fs.writeFile(binOf(run.id), args.data)).catch(() => {})
+      const stop = async (e, recId) => { run.state = 'cancel'; run.msg = e.message; hub.ingestEnd(id, run, recId, await hub.meta(id)) }
+      // 멈춘 일 · 줄 멈춤은 앞일 자리를 잡기 전에 선다(멈춘 일이 앞일 자리를 쥐지 않게)
+      const job = Q.gate(run).then(() => prepSlot(() => hub.ingestPrep(ctx, id, args)), (e) => stop(e, args.recId).then(() => null)).then(async (p) => {
+        if (!p) return
+        try { await Q.step(run, 3, { lane: 'claude' }) } catch (e) { return stop(e, p.recId) }
+        return hub.queueRun(id, () => hub.ingestPlace(ctx, id, p))
+      })
       const mine = preps.get(id) || preps.set(id, new Set()).get(id)
       mine.add(job)
       return job.finally(() => mine.delete(job))
@@ -1754,7 +1932,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async ingestPrep(ctx, id, { rel, data = null, recId = null, run }) {
       const meta = await hub.meta(id)
       try {
+        run.spec ||= { type: 'ingest', kn: id, rel, recId, user: ctx.user }
         if (!recId && data) {
+          await Q.step(run, 0)
           const md = await hub.mdOf(rel, data, run)
           if (!md) {
             run.state = 'fail'
@@ -1763,6 +1943,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             hub.ingestEnd(id, run, null, meta)
             return null
           }
+          await Q.step(run, 1)
           const plan = await planImport(await hub.get(id), [{ path: rel, data }], { direct: true, asRecord: true, mdOf: async () => md, read: (r2) => fs.readFile(path.join(meta.dir, r2)).catch(() => null) })
           const rec = plan.records[0]
           if (!rec) {
@@ -1771,17 +1952,21 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             hub.ingestEnd(id, run, null, meta)
             return null
           }
+          await Q.step(run, 2)
           recId = (await hub.save(ctx, id, { record: rec }, { noCurate: true })).id
+          run.spec.recId = recId
+          fs.rm(binOf(run.id), { force: true }).catch(() => {})
           queuedRecs.add(recId) // 들이기 차례를 기다리는 동안 정리 줄이 따로 집지 않게
           run.rec = recId
           hub.runLine(run, 'ok', `기록이 됐다 — ${recId}`)
         }
+        else await Q.step(run, 2)
         await hub.polishRecord(id, recId, run).catch((e) => hub.runLine(run, 'err', `기록 정리 — ${e.message}`))
         return { rel, data, recId, run }
       } catch (e) {
-        run.state = 'fail'
-        run.msg = e.message
-        hub.runLine(run, 'err', e.message)
+        run.state = e?.cancelled ? 'cancel' : 'fail'
+        run.msg = e?.cancelled ? `그만뒀다 — 「${STAGES[run.stage ?? 0]}」 에서` : e.message
+        hub.runLine(run, e?.cancelled ? 'sys' : 'err', run.msg)
         hub.ingestEnd(id, run, recId, meta)
         return null
       }
@@ -1790,6 +1975,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async ingestPlace(ctx, id, { rel, data, recId, run }) {
       const meta = await hub.meta(id)
       try {
+        await Q.step(run, 3)
         if (!hub.agentOk(id)) {
           const got = await hub.ingestNow(id, recId)
           run.state = got.doc ? (got.how === 'claude' ? 'done' : 'rule') : 'fail'
@@ -1800,9 +1986,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
         await hub.ingestAgent(id, recId, run, { original: data && PCONLY.includes(rel.split('.').pop().toLowerCase()) ? data : null })
       } catch (e) {
-        run.state = 'fail'
-        run.msg = e.message
-        hub.runLine(run, 'err', e.message)
+        run.state = e?.cancelled ? 'cancel' : 'fail'
+        run.msg = e?.cancelled ? '그만뒀다 — 「문서 생성」 에서 · 기록은 남았다(정리 때 다시 넣는다)' : e.message
+        hub.runLine(run, e?.cancelled ? 'sys' : 'err', run.msg)
       } finally {
         hub.ingestEnd(id, run, recId, meta)
       }
@@ -1908,19 +2094,30 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async curatePending(id) {
       if (mode !== 'pc' && !hub.teamPrivate(id) && !hub.ruleOnly(id)) return { n: 0 }
       let n = 0
+      let cj = null
+      let stop = false
       curating.set(id, new Date().toISOString())
       try {
-        for (let round = 0; round < 3; round++) {
+        for (let round = 0; round < 3 && !stop; round++) {
           cache.delete(id)
           const k = await hub.get(id)
           const groups = material(k)
           let did = 0
-          for (const g of groups) if (await hub.placeGroup(id, g).catch((e) => (log(`바로 넣기 ${id}: ${e.message}`), false))) did++
+          for (const g of groups) {
+            cj ||= Q.add({ kind: 'curate', origin: 'kmd', kn: id, title: '기록을 문서에 넣기', by: 'kmd', auto: 'curate' })
+            try { await Q.step(cj, 3) } catch { stop = true; break }
+            const what = g.kind === 'section' ? `${String(g.doc).replace(/^docs\/|\.md$/g, '')} › ${g.heading}` : g.record?.title || g.kind
+            const ok = await hub.placeGroup(id, g).catch((e) => (log(`바로 넣기 ${id}: ${e.message}`), Q.line(cj, 'err', `${what} — ${e.message}`), false))
+            if (ok) { did++; Q.line(cj, 'ok', `넣었다 — ${what}`) }
+          }
           n += did
           if (!did) break
         }
       } finally {
         curating.delete(id)
+        // 넣은 것이 없으면(다른 일이 맡은 기록뿐) 줄에 남기지 않는다
+        if (cj && !n && !stop) Q.drop(cj)
+        else if (cj) Q.end(cj, stop ? 'cancel' : 'done', stop ? '그만뒀다 — 남은 기록은 다음 정리 때 넣는다' : `넣은 기록 ${n}`)
       }
       if (n) {
         const meta = await hub.meta(id)
@@ -1970,7 +2167,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
     },
     // asDocs — 옛 폴더로 지식을 세울 때(지식 추가)만 바로 문서 · 그 밖은 기록으로 들이고 정리가 문서에 넣는다
-    async importFiles(ctx, id, files, { asDocs = false } = {}) {
+    async importFiles(ctx, id, files, { asDocs = false, group = null } = {}) {
+      const gj = group ? hub.groupJob(ctx, id, group) : null
+      if (gj && isFinal(gj)) return { stopped: true, group: gj.id, summary: summary([]), rows: [] }
       const meta = await hub.meta(id, ctx)
       const shut = backup.closed(meta)
       if (shut) throw new KmdError('E_BEHIND', shut.message)
@@ -2041,7 +2240,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         recRows[i].rec = sv.id
         if (agent && i < INGEST_CLAUDE_MAX) {
           const rel = r.tags[0].slice(7)
-          const run = hub.newRun(id, { title: recRows[i].name.split('/').pop(), file: recRows[i].name, by: ctx.user, quiet: files.length > 1 })
+          const run = hub.newRun(id, { title: recRows[i].name.split('/').pop(), file: recRows[i].name, by: ctx.user, quiet: files.length > 1, parent: gj?.id })
+          if (gj?.paused) Q.pause(run.id)
+          run.stages[0].state = run.stages[1].state = 'done' // 받기 · 겹침 확인은 이 부름에서 끝났다
+          run.spec = { type: 'ingest', kn: id, rel, recId: sv.id, user: ctx.user }
           queuedRecs.add(sv.id)
           hub.ingestFileLater(ctx, id, { rel, recId: sv.id, run })
           Object.assign(recRows[i], { kind: 'run', run: run.id, msg: 'Claude Code 가 들이는 중 — 터미널에서 본다' })
@@ -2061,7 +2263,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (agent && hub.autoOf(ctx.user, 'file')) for (const x of plan.rows.filter((r) => r.kind === 'fail' && PCONLY.includes(r.name.split('.').pop().toLowerCase()))) {
         const fd = files.find((y) => String(y.path || y.name).replace(/\\/g, '/').endsWith(x.name.split('/').pop()))
         if (!fd) continue
-        const run = hub.newRun(id, { title: x.name.split('/').pop(), file: x.name, by: ctx.user })
+        const run = hub.newRun(id, { title: x.name.split('/').pop(), file: x.name, by: ctx.user, parent: gj?.id })
         hub.ingestFileLater(ctx, id, { rel: x.name, data: fd.data, run })
         Object.assign(x, { kind: 'run', run: run.id, msg: 'Claude Code 가 글로 바꿔 들이는 중 — 터미널에서 본다 · 원본은 첨부로' })
       }
@@ -2072,7 +2274,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!now && s.record && hub.teamPrivate(id)) hub.curateSoon(id).catch(() => {})
       else if (!now && s.record && (hub.meaningOk(id) || hub.ruleOnly(id)) && hub.tidyModeOf(id) !== 'manual') hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
       if ((plan.docs.length || plan.atts.length) && backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
-      return { direct, summary: s, rows: plan.rows }
+      if (gj) hub.groupAdd(gj, plan.rows, files.length, !!group.last)
+      return { direct, summary: s, rows: plan.rows, ...(gj ? { group: gj.id } : {}) }
     },
 
     // ── 보내기(M10) — 보낼 곳 · 보낼 것 · 보내기 · 받기 ──
@@ -2609,6 +2812,18 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 장부를 지식 안의 `_members.md` 와 맞춘다 — 밤 묶음으로 살림 자리를 되돌렸거나 장부 줄을 잃었어도 개인 지식은 다시 가린다
       await hub.reconcileOwners().catch((e) => log('주인 장부 맞추기', e.message))
       await hub.runLoad()
+      // 일 줄 — 남은 일 · 끝난 일을 읽는다 · 예전 runs 는 끝난 일로 · 꺼질 때 돌던 파일은 곧 그 단계부터 다시(가져오기 · 넣기는 정한 때가 다시 한다)
+      for (const j of await Q.load()) if (j.kind === 'file') runs.set(j.id, j)
+      for (const r of runs.values()) Q.adopt(r)
+      setTimeout(() => {
+        if (!started) return
+        for (const j of Q.list()) {
+          if (j.parked !== 'restart') continue
+          if (j.kind === 'file' && j.spec?.type === 'ingest') { try { Q.retry(j.id) } catch (e) { Q.end(j, 'fail', e.message) } }
+          else if (j.kind === 'group') Q.end(j, 'fail', `프로그램이 꺼져 나머지 파일을 받지 못했다 — ${j.sent}/${j.total}`)
+          else Q.drop(j)
+        }
+      }, config.queueResumeMs ?? 1500).unref?.()
       started = true
       await backup.start(await hub.list(), { dataDir, log })
       // GitLab 봇 — 백업 자리가 없는 지식마다(켤 때 한 번 · 지식 추가 때)
@@ -2702,6 +2917,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     stop() {
       started = false
+      Q.close().catch(() => {})
       backup.stop()
       for (const w of watchers) w.close()
       for (const t of decideTimers.values()) clearTimeout(t)
@@ -2713,6 +2929,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       srcWatch.clear()
     },
   }
+  Q.runner('ingest', async (j) => {
+    const sp = j.spec
+    const data = sp.recId ? null : await fs.readFile(binOf(j.id)).catch(() => null)
+    if (!sp.recId && !data) throw new Error('원본이 남아 있지 않다 — 파일을 다시 넣는다')
+    if (sp.recId) queuedRecs.add(sp.recId)
+    runs.set(j.id, j)
+    await hub.ingestFileLater({ user: sp.user || j.by || 'kmd' }, sp.kn, { rel: sp.rel, data, recId: sp.recId, run: j })
+  })
   return hub
 }
 

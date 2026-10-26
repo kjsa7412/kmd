@@ -347,13 +347,15 @@ async function gitFetch(src, { dataDir, kn }) {
 const DEEPEN = 50
 const DEEPEN_MAX = 200
 //   분석   analyze(c, diffs, rec) 가 있으면 Claude 가 차이를 읽고 무엇이 왜 바뀌었는지 쓴 기록으로(core/analyze.js) · 없거나 실패면 차이 그대로
-async function runCode(k, src, { dataDir, save, first = false, full = false, analyze = null }) {
+async function runCode(k, src, { dataDir, save, first = false, full = false, analyze = null, onStage = async () => {}, line = () => {} }) {
   const st = await readState(dataDir, k.id)
   const s0 = (st[src.name] ||= {})
   const now = new Date().toISOString()
   try {
     const L = await readLedger(dataDir, k.id, src.name)
     const g = await gitFetch(src, { dataDir, kn: k.id })
+    line('ok', `받았다 — 마지막 묶음 ${g.commit.slice(0, 7)}`)
+    await onStage(1)
     const base = L.commit && (await tryGit(g.bare, ['cat-file', '-e', `${L.commit}^{commit}`])).ok ? L.commit : null
     const keep = async (note, extra = {}) => {
       await writeLedger(dataDir, k.id, src.name, { v: 1, files: {}, out: {}, rules: '', commit: g.commit })
@@ -379,6 +381,8 @@ async function runCode(k, src, { dataDir, save, first = false, full = false, ana
     const commits = linked ? (await tryGit(g.bare, ['rev-list', '--reverse', '--no-merges', `${base}..${g.commit}`])).out.split('\n').filter(Boolean) : [g.commit]
     const pairs = linked ? commits.map((c) => [`${c}^`, c]) : [[base, g.commit]]
     const skipped = Math.max(0, pairs.length - CODE_MAX)
+    line('ok', `새 묶음 ${pairs.length}${skipped ? ` · 앞선 ${skipped} 은 건너뜀` : ''}`)
+    await onStage(2)
     let codeRecords = 0
     let files = 0
     for (const [i, [a, b]] of pairs.slice(-CODE_MAX).entries()) {
@@ -402,9 +406,12 @@ async function runCode(k, src, { dataDir, save, first = false, full = false, ana
       codeRecords++
     }
     const note = `새 묶음 ${pairs.length}${codeRecords ? ` · 코드 바뀜 기록 ${codeRecords}` : ' · 코드는 그대로'}${skipped ? ` · 앞선 ${skipped} 은 건너뜀` : ''}`
+    line('ok', note)
+    await onStage(3)
     await keep(note, { lastChange: { at: now, commits: pairs.length, files, records: codeRecords, tables: 0 }, ...(codeRecords ? { lastCode: { at: now, n: codeRecords } } : {}) })
     return { state: codeRecords ? 'changed' : 'same', n: codeRecords, files, codeRecords, commits: pairs.length }
   } catch (e) {
+    if (e?.cancelled) throw e // 그만두기(일 줄) — 못 가져옴으로 세지 않는다
     s0.failures = (s0.failures || 0) + 1
     s0.failingSince ||= now
     s0.triedAt = now
@@ -427,7 +434,7 @@ export async function runSource(k, src, opt) {
 // DB — 카탈로그를 읽어 테이블마다 지문 · 바뀐 테이블만 「바뀐 것」 으로 센다 · 표는 테이블마다 하나(테이블 정의)
 //   자리 — 이름 장부에 `table:*` 자리가 있으면 그 문서 · 머리 · 없으면 넣을 문서 아래 「테이블 — 설명」 머리
 //   계정 — 가리지 않는다(세션이 읽기 전용) · 비밀번호는 비밀에서
-async function runDb(k, src, { dataDir, save, first = false, force = false, full = false }) {
+async function runDb(k, src, { dataDir, save, first = false, force = false, full = false, onStage = async () => {}, line = () => {} }) {
   const st = await readState(dataDir, k.id)
   const s0 = (st[src.name] ||= {})
   const now = new Date().toISOString()
@@ -443,6 +450,8 @@ async function runDb(k, src, { dataDir, save, first = false, force = false, full
     for (const [n, x] of Object.entries(files)) if (!prev[n]) changes.added.push(n); else if (prev[n].hash !== x.hash) changes.changed.push(n)
     for (const n of Object.keys(prev)) if (!files[n]) changes.removed.push(n)
     const n = changes.added.length + changes.changed.length + changes.removed.length
+    line('ok', `테이블 ${tables.size} · 바뀐 테이블 ${n}`)
+    await onStage(1)
     const ruleSig = JSON.stringify(src.rules)
     // 테이블 이름 — 이름 장부에 없는 `table:<테이블>` 은 이번에 세운다(요구 v0.2 R7 · 예전에 들어와 이름이 빠진 지식도 다음 확인 때 채운다)
     const into = src.rules[0]?.into?.doc || '테이블 정의'
@@ -464,6 +473,7 @@ async function runDb(k, src, { dataDir, save, first = false, force = false, full
       await writeState(dataDir, k.id, st)
       return { state: 'stopped', n: 0, files: n, ...s0.stopped }
     }
+    await onStage(2)
     for (let i = 0; i < plan.changed.length; i += 200) {
       const part = plan.changed.slice(i, i + 200)
       await save({ record: { title: `가져옴 — ${src.name} · 바뀐 테이블 ${part.length}`, body: [`바뀐 테이블 ${n} — ${[...changes.added.map((x) => x + '(새로)'), ...changes.changed, ...changes.removed.map((x) => x + '(없어짐)')].slice(0, 30).join(' · ')}${n > 30 ? ' …' : ''}`, '', ...part.map((c) => `- ${c.doc.replace(/^docs\/|\.md$/g, '')} › ${c.heading}`)].join('\n'), tags: ['sources'] }, sections: part.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) })
@@ -473,12 +483,14 @@ async function runDb(k, src, { dataDir, save, first = false, force = false, full
       const part = newNames.slice(i, i + 500)
       await save({ record: { title: `이름 세움 — ${src.name} · 테이블 ${part.length}`, body: `테이블 이름을 이름 장부 · 자리 장부에 세웠다 — ${part.slice(0, 20).map((x) => x.coord.slice(6)).join(' · ')}${part.length > 20 ? ' …' : ''}`, tags: ['sources'] }, names: part })
     }
+    await onStage(3)
     await writeLedger(dataDir, k.id, src.name, { v: 1, files, out: {}, rules: ruleSig })
     const lastChange = plan.changed.length ? { at: now, files: full ? 0 : n, tables: plan.changed.length, added: changes.added.length, changed: changes.changed.length, removed: changes.removed.length } : s0.lastChange
     Object.assign(s0, { checkedAt: now, asof: now.slice(0, 16).replace('T', ' '), items: plan.items, failures: 0, failingSince: null, stopped: null, lastChange, lastNote: `${full ? '다시 맞춤 — ' : ''}${plan.changed.length ? `바뀐 테이블 ${plan.changed.length}` : '그대로'} · 테이블 ${tables.size}` })
     await writeState(dataDir, k.id, st)
     return { state: plan.changed.length ? 'changed' : 'same', n: plan.changed.length, files: n, tables: tables.size }
   } catch (e) {
+    if (e?.cancelled) throw e // 그만두기(일 줄) — 못 가져옴으로 세지 않는다
     s0.failures = (s0.failures || 0) + 1
     s0.failingSince ||= now
     s0.triedAt = now
@@ -491,7 +503,7 @@ async function runDb(k, src, { dataDir, save, first = false, force = false, full
 // 문서 폴더 — 바뀐 파일만 지식 안의 사본 문서로(원본이 주인) · 지운 파일은 「원본에 없다」 · 브레이크는 한꺼번에 많이 사라질 때만
 // (문서는 묶음으로 더해지는 일이 흔하고 더함은 아무것도 지우지 않는다 — 사라짐 10% 초과만 멈춘다)
 const DOC_MAX_FILE = 32 << 20
-async function runDocs(k, src, { dataDir, first = false, force = false, full = false, pass = null, onProgress = null, mdOf = null }) {
+async function runDocs(k, src, { dataDir, first = false, force = false, full = false, pass = null, onProgress = null, mdOf = null, onStage = async () => {}, line = () => {} }) {
   const st = await readState(dataDir, k.id)
   const s0 = (st[src.name] ||= {})
   const now = new Date().toISOString()
@@ -499,6 +511,8 @@ async function runDocs(k, src, { dataDir, first = false, force = false, full = f
     const L = await readLedger(dataDir, k.id, src.name)
     const scan = await scanFolder(src.folder || src.at, L, { want: wantDoc, maxFile: DOC_MAX_FILE, maxFiles: MAX_FILES, full, pass, onProgress, save: (x) => writeLedger(dataDir, k.id, src.name, x) })
     const n = changeCount(scan.changes)
+    line('ok', `바뀐 파일 ${n}${scan.changes.removed.length ? ` · 지운 파일 ${scan.changes.removed.length}` : ''}`)
+    await onStage(1)
     // L.recs — 기록 없이 들어온 예전 사본에 기록을 한 번 세웠다(대원칙 · 기록 → 문서)
     if (!force && !first && !full && n === 0 && !s0.stopped && L.recs) {
       await writeLedger(dataDir, k.id, src.name, { ...L, files: scan.files })
@@ -514,6 +528,7 @@ async function runDocs(k, src, { dataDir, first = false, force = false, full = f
       await writeState(dataDir, k.id, st)
       return { state: 'stopped', n: 0, files: n, ...s0.stopped }
     }
+    await onStage(2)
     const files = []
     for (const rel of [...scan.changes.added, ...scan.changes.changed]) files.push({ rel, data: await scan.readBuf(rel) })
     if (!L.recs) {
@@ -521,6 +536,8 @@ async function runDocs(k, src, { dataDir, first = false, force = false, full = f
       for (const rel of await noRecPaths(k, src.name)) if (!seen.has(rel) && scan.files[rel]) files.push({ rel, data: await scan.readBuf(rel) })
     }
     const r = await applyDocs(k, { src, prefix: docPrefix(src), files, removed: scan.changes.removed, mdOf })
+    line('ok', `기록 ${r.recs ?? 0} · 문서 ${r.docs}${r.missing ? ` · 원본에 없다 ${r.missing}` : ''}`)
+    await onStage(3)
     await writeLedger(dataDir, k.id, src.name, { v: 1, files: scan.files, out: {}, rules: JSON.stringify(src.rules), recs: 1 })
     const real = full ? 0 : n
     const lastChange = r.commit ? { at: now, files: real, docs: r.docs, tables: 0, atts: r.atts, removed: r.missing, added: full ? 0 : scan.changes.added.length, changed: full ? 0 : scan.changes.changed.length } : s0.lastChange
@@ -529,6 +546,7 @@ async function runDocs(k, src, { dataDir, first = false, force = false, full = f
     await writeState(dataDir, k.id, st)
     return { state: r.commit ? 'changed' : 'same', n: r.docs + r.missing, files: n, docs: r.docs, missing: r.missing, recs: r.recs, rows: r.rows }
   } catch (e) {
+    if (e?.cancelled) throw e // 그만두기(일 줄) — 못 가져옴으로 세지 않는다
     s0.failures = (s0.failures || 0) + 1
     s0.failingSince ||= now
     s0.triedAt = now
@@ -541,7 +559,7 @@ async function runDocs(k, src, { dataDir, first = false, force = false, full = f
 export const docPrefix = (src) => String(src.rules?.[0]?.into?.doc ?? src.name).replace(/^docs\/|\/+$/g, '').replace(/[<>:"|?*\\]/g, '').trim()
 
 // meaning — 뜻 갱신(소스 변경 → 기록)을 해도 되나(지식이 「Claude 에 보내지 않음」 이면 hub 가 false)
-async function runTables(k, src, { dataDir, save, first = false, force = false, full = false, pass = null, onProgress = null, meaning = true }) {
+async function runTables(k, src, { dataDir, save, first = false, force = false, full = false, pass = null, onProgress = null, meaning = true, onStage = async () => {}, line = () => {} }) {
   const st = await readState(dataDir, k.id)
   const s0 = (st[src.name] ||= {})
   const now = new Date().toISOString()
@@ -565,6 +583,8 @@ async function runTables(k, src, { dataDir, save, first = false, force = false, 
       scan.bare = g.bare
     } else throw new KmdError('E_INPUT', '모르는 가져오는 곳 종류')
     const n = changeCount(scan.changes)
+    line('ok', `바뀐 파일 ${n}`)
+    await onStage(1)
     const all = first || full || L.rules !== ruleSig || !L.out
     if (!force && !all && n === 0 && !s0.stopped) {
       await writeLedger(dataDir, k.id, src.name, { ...L, files: scan.files, ...(commit ? { commit } : {}) })
@@ -581,6 +601,7 @@ async function runTables(k, src, { dataDir, save, first = false, force = false, 
       await writeState(dataDir, k.id, st)
       return { state: 'stopped', n: 0, files: n, ...s0.stopped }
     }
+    await onStage(2)
     for (let i = 0; i < plan.changed.length; i += 200) {
       const part = plan.changed.slice(i, i + 200)
       await save({ record: { title: `가져옴 — ${src.name} · 바뀐 표 ${part.length}`, body: [`바뀐 파일 ${n} — ${[...scan.changes.added, ...scan.changes.changed, ...scan.changes.removed].slice(0, 20).join(' · ')}${n > 20 ? ' …' : ''}`, '', ...part.map((c) => `- ${c.doc.replace(/^docs\/|\.md$/g, '')} › ${c.heading}`)].join('\n'), tags: ['sources'] }, sections: part.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) })
@@ -605,6 +626,7 @@ async function runTables(k, src, { dataDir, save, first = false, force = false, 
         if (folder) await syncSnap(dataDir, k.id, src.name, [...ch.added, ...ch.changed], scan.readBuf, ch.removed)
       } else if (folder) await syncSnap(dataDir, k.id, src.name, [...ch.added, ...ch.changed], scan.readBuf, ch.removed)
     }
+    await onStage(3)
     await writeLedger(dataDir, k.id, src.name, { v: 1, files: scan.files, out: out.cache, rules: ruleSig, ...(commit ? { commit } : {}) })
     if (commit) await tryGit(scan.bare, ['update-ref', 'refs/heads/kmd-seen', commit]) // 다음 차이의 기준 — 받아 오기에 지워지지 않게
     // 전체 다시 맞추기는 모든 파일을 다시 읽어 「고침」 으로 세므로 바뀐 파일 수로 알리지 않는다 — 실제로 다른 표만 말한다
@@ -616,6 +638,7 @@ async function runTables(k, src, { dataDir, save, first = false, force = false, 
     await writeState(dataDir, k.id, st)
     return { state: plan.changed.length || codeRecords ? 'changed' : 'same', n: plan.changed.length, files: n, codeRecords }
   } catch (e) {
+    if (e?.cancelled) throw e // 그만두기(일 줄) — 못 가져옴으로 세지 않는다
     s0.failures = (s0.failures || 0) + 1
     s0.failingSince ||= now
     s0.triedAt = now
@@ -632,7 +655,7 @@ export function sourceLines(k, decl, st, { now = Date.now(), admin = false } = {
     const s = st[src.name] || {}
     if (s.stopped) {
       const what = s.stopped.vanished ? `${src.name} 에서 항목 ${s.stopped.vanished}개가 한꺼번에 사라졌다` : `${src.name} 에서 새 항목 ${s.stopped.added}개가 한꺼번에 생겼다`
-      out.push(stopLine({ kind: 'source', kn: k.id, level: 'warn', what, fix: '표는 그대로 둠', told: admin ? '[그대로 반영] 은 지식 만들기에서' : '관리자에게 알렸다' }))
+      out.push(stopLine({ kind: 'source', kn: k.id, level: 'warn', what, fix: '표는 그대로 둠', told: admin ? '[그대로 맞추기] 는 가져오기 › 일 줄의 「확인할 것」 에서' : '관리자에게 알렸다' }))
       continue
     }
     if ((s.failures || 0) >= 2 && s.checkedAt && now - Date.parse(s.checkedAt) >= 2 * everyMs(src.every)) {

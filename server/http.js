@@ -297,7 +297,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
 
   const GET_OK = [
     /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|send\/targets|claude\/state|busy)$/,
-    /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/,
+    /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/,
     /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|sources|send|backup|backup\/lost|owner|worker\/material)$/,
   ]
   const api = async (req, res, url, ctx, set) => {
@@ -548,7 +548,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (sm[2] === 'run') {
         await hub.meta(id, ctx)
         if (b.force && !hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '[그대로 반영] 은 관리자가 한다')
-        return out(200, await hub.sourceRun(id, b.name || null, { force: !!b.force }))
+        return out(200, await hub.sourceRun(id, b.name || null, { force: !!b.force, by: ctx.user }))
       }
       if (hub.mode === 'team') admin(ctx, { sudo: false })
       return out(200, await hub.sourceAdd(ctx, id, b))
@@ -597,6 +597,17 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     // 에이전트 일 — 목록 · 줄(터미널)
     if (p === '/api/busy') { need(ctx); return out(200, await hub.busy(ctx)) }
     if (p === '/api/runs') { need(ctx); return out(200, hub.runList(ctx, url.searchParams.get('k') || null)) }
+    // 일 줄 — 들여오는 일 모두(가져오기 화면) · 일 하나의 줄(from 부터) · 손잡이 · 줄 멈춤 · 동시에 도는 수
+    if (p === '/api/queue') { need(ctx); return out(200, await hub.queueList(ctx)) }
+    if (p === '/api/queue/hold' && req.method === 'POST') { need(ctx); return out(200, hub.queueHold(ctx, !!(await readBody(req)).on)) }
+    if (p === '/api/queue/caps' && req.method === 'POST') { need(ctx); return out(200, hub.queueCaps(ctx, await readBody(req))) }
+    const qa = p.match(/^\/api\/queue\/([0-9a-f]{12}|t:[0-9a-f]+)(?:\/(pause|resume|cancel|retry|force|top|move))?$/)
+    if (qa) {
+      need(ctx)
+      if (!qa[2]) return out(200, await hub.queueGet(ctx, qa[1], Number(url.searchParams.get('from')) || 0))
+      if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
+      return out(200, await hub.queueAct(ctx, qa[1], qa[2], await readBody(req)))
+    }
     const rn = p.match(/^\/api\/runs\/([0-9a-f]{12})$/)
     if (rn) { need(ctx); return out(200, hub.runGet(ctx, rn[1], Number(url.searchParams.get('from')) || 0)) }
     if (p === '/api/stops') return out(200, await hub.stops(ctx))
@@ -661,7 +672,9 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       const b = await readBody(req, 280 << 20)
       const files = (Array.isArray(b.files) ? b.files : []).map((f) => ({ path: String(f.path || f.name || ''), data: Buffer.from(String(f.b64 || ''), 'base64') }))
-      return out(200, await hub.importFiles(ctx, decodeURIComponent(im[1]), files))
+      // group — 여러 파일을 나눠 보낼 때 한 일로 묶는다({ title, total } → 받은 id 로 이어 보내고 마지막에 last)
+      const group = b.group && typeof b.group === 'object' ? { id: b.group.id ? String(b.group.id) : null, title: String(b.group.title || ''), total: Number(b.group.total) || 0, last: !!b.group.last } : null
+      return out(200, await hub.importFiles(ctx, decodeURIComponent(im[1]), files, { group }))
     }
     // 지식 지우기 — 보관하지 않고 완전히 · 확인은 지식 이름 · 팀 관리자는 비밀번호 한 번 더(개인 지식의 주인은 이름 확인만)
     const dl = p.match(/^\/api\/k\/([^/]+)\/delete$/)

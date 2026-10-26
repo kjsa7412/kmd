@@ -1728,29 +1728,32 @@ function sfAutoName(f) {
   const base = at.replace(/\.git$/i, '').replace(/[\\/]+$/, '').split(/[\\/:]/).filter(Boolean).pop()
   return f.type === 'docs' ? base : base + ' 코드'
 }
-// ── 가져오기 — 일 줄(목업 docs/kmd_가져오기_일줄_목업.html · 1단계: 화면) ──
-//   들여오는 일을 한 줄로 본다 — 화면이 올리는 파일 · Claude Code 일(runs) · 지켜보기 가져오기 · 문서에 넣기 · 정리.
-//   일은 늘 네 단계(수집 › 검토 › 기록 생성 › 문서 생성). 아직 서버가 단계를 주지 않아 Claude Code 일은 터미널 줄로 어림한다.
+// ── 가져오기 — 일 줄(목업 docs/kmd_가져오기_일줄_목업.html · 서버 일 줄 /api/queue) ──
+//   들여오는 일은 모두 서버의 일 줄에 선다 — 파일 들이기 · 여러 파일 묶음 · 가져오기 · 기록을 문서에 넣기 · 팀 정리 일감.
+//   일은 늘 네 단계(수집 › 검토 › 기록 생성 › 문서 생성) · 멈춤은 단계 사이에서 · 그만두기는 바로 · 다시는 그 단계부터.
 //   탭 셋 — 일 줄(도는 중 · 멈춤/확인/못함 · 기다림 + 자세히) · 가져올 곳(지켜보며 맞추기) · 끝난 일(찾기 · 거르기 · 쪽)
-const RUN_T = { wait: ['c-mute', '기다림'], run: ['c-pend', '들이는 중'], done: ['c-acc', '넣음'], rule: ['c-warn', '규칙으로 넣음'], fail: ['c-danger', '못 넣음'] }
 const runActive = (r) => r && (r.state === 'wait' || r.state === 'run')
 const STG = ['수집', '검토', '기록 생성', '문서 생성']
 const STG_S = ['수집', '검토', '기록', '문서']
 const STG_SUB = {
-  file: [['받기', '글로 바꾸기'], ['지식 둘러보기', '이름 맞추기', '겹침 확인'], ['기록 쓰기', '원본 첨부'], ['항목에 넣기', '새 이름 세우기']],
-  docs: [['바뀐 파일 찾기', '글로 바꾸기'], ['크게 바뀜 문턱', '지운 파일 확인'], ['파일마다 기록'], ['폴더 문서 맞추기']],
-  git: [['새 묶음 받기', '차이 뽑기'], ['합친 · 빌드 묶음 거르기', '걸린 항목 찾기'], ['묶음마다 코드 바뀜 기록'], ['Claude 가 항목 글 맞추기']],
-  db: [['읽기 전용으로 붙기', '테이블 목록 읽기'], ['지난 것과 견주기'], ['바뀐 테이블 기록'], ['테이블 정의 표 채우기']],
-  kmd: [['기록 모으기'], ['넣을 곳 고르기'], ['기록 있음'], ['문서에 넣기']],
+  file: [['받기', '글로 바꾸기'], ['같은 파일 확인', '원본 첨부'], ['기록 쓰기', '기록 정리'], ['지식 둘러보기 · 이름 맞추기', '항목에 넣기 · 새 이름']],
+  docs: [['폴더 읽기', '바뀐 파일 찾기'], ['크게 바뀜 문턱(지운 파일)'], ['파일마다 기록 · 글로 바꾸기'], ['사본 문서 맞추기 · 장부 적기']],
+  git: [['저장소에서 받기'], ['새 묶음 찾기', '합친 묶음 거르기'], ['묶음마다 코드 바뀜 기록'], ['기준 묶음 옮기기 · 정리에 넘김']],
+  db: [['읽기 전용으로 붙기', '테이블 목록 읽기'], ['지난 것과 견주기', '크게 바뀜 문턱'], ['바뀐 테이블 기록'], ['테이블 정의 표 채우기']],
+  group: [['화면이 나눠 보내기'], ['같은 파일 확인'], ['파일마다 기록'], ['파일마다 들이기']],
+  kmd: [['—'], ['—'], ['—'], ['기록을 항목 · 문서에 넣기']],
 }
-const ORG_T = { file: '파일 들이기', docs: '문서 폴더', git: '소스 코드 · git', db: 'DB', kmd: '정리' }
-const ORG_I = { file: 'doc', docs: 'doc', git: 'sync', db: 'server', kmd: 'list' }
+const ORG_T = { file: '파일 들이기', group: '여러 파일', docs: '문서 폴더', git: '소스 코드 · git', db: 'DB', kmd: '정리' }
+const ORG_I = { file: 'doc', group: 'clip', docs: 'doc', git: 'sync', db: 'server', kmd: 'list' }
+const QAUTO_T = { live: '실시간', curate: '저장 뒤', tidy: '정리', manual: '손으로만' }
+const autoTxt = (a) => QAUTO_T[a] || everyTxt(a)
 const knName = (k) => (KN(k) || {}).name || k || ''
 const durTxt = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return s < 3600 ? `${Math.floor(s / 60)}:${pad2(s % 60)}` : `${Math.floor(s / 3600)}시간 ${Math.floor((s % 3600) / 60)}분` }
-// 터미널 줄 → 단계(어림) — 기록에 들이기 시작 · 둘러보기 · 이름 · 찾기 · 항목 읽기 = 검토, 저장 = 기록 생성, 저장 뒤 결과 · 규칙으로 = 문서 생성
+// 예전 터미널 줄(단계 표지가 없는 것)만 줄로 어림한다 — 둘러보기 · 이름 · 찾기 · 항목 읽기 = 검토 … (지금 줄은 서버가 s 를 단다)
 function stageLines(lines) {
   let s = 0, saved = false
   return lines.map((l) => {
+    if (l.s != null) return l
     const x = String(l.x || '')
     if (l.k === 'tool' && /^저장/.test(x)) { s = Math.max(s, 2); saved = true }
     else if (saved && (l.k === 'ok' || l.k === 'cost')) s = 3
@@ -1759,64 +1762,59 @@ function stageLines(lines) {
     return { ...l, s }
   })
 }
-// 모든 일 — { id, origin, title, kn, state(run · wait · pause · check · fail · done), fin(끝났다 → 끝난 일 탭), stage(0~3 · 끝나면 4), at, end, msg, auto, run · src · imp }
+// 모든 일 — 서버 일 줄 + 아직 서버에 닿지 않은 올리기(화면이 보내는 중)
 function impJobs() {
-  const out = []
-  for (const r of S.cache.runs || []) {
-    const L = (S.runLines || {})[r.id]
-    const tl = L ? stageLines(L.lines) : []
-    const cur = tl.length ? tl[tl.length - 1].s : 0
-    const fin = !runActive(r)
-    const state = r.state === 'rule' ? 'done' : r.state
-    out.push({ id: 'r:' + r.id, run: r, origin: r.by === 'kmd' ? 'docs' : 'file', title: r.title, kn: r.kn, state, fin, stage: state === 'done' ? 4 : cur, known: !!L || state === 'done', at: r.startedAt, end: r.endedAt, msg: r.msg || (r.state === 'wait' ? '차례를 기다린다' : r.state === 'run' ? 'Claude Code 가 지식을 둘러보고 항목에 넣는다' : ''), auto: r.by === 'kmd' ? '지켜보기' : '' })
-  }
-  const v = sourcesOf()
-  for (const s of v && !v.error ? v.items : []) {
-    if (s.kind === 'pc') continue
-    const st = s.state || {}, rs = s.resync, id = srcId(s)
-    const b = { src: s, origin: s.kind === 'folder' ? 'docs' : s.kind, title: s.name, kn: s.kn, auto: s.watch === 'live' ? '실시간' : everyTxt(s.every), known: true }
-    const busy = ((S.busy && S.busy.items) || []).find((x) => x.kind === 'source' && x.kn === s.kn && x.name === s.name)
-    if (srcRunning(s)) out.push({ ...b, id: 's:' + id, state: 'run', stage: 0, at: busy ? busy.since : null, msg: '가져오는 중 — 바뀐 것을 찾는다' })
-    else if (rs && rs.state === 'running') out.push({ ...b, id: 's:' + id, title: s.name + ' — 전체 다시 맞추기', state: 'run', stage: 0, msg: `다시 맞추는 중 ${rs.done || 0} / ${rs.total || '…'}` })
-    else if (rs && rs.state === 'paused') out.push({ ...b, id: 's:' + id, title: s.name + ' — 전체 다시 맞추기', state: 'pause', stage: 0, msg: `다시 맞추기가 끊겼다 — ${rs.done || 0} / ${rs.total || '…'}` })
-    else if (st.stopped) out.push({ ...b, id: 's:' + id, state: 'check', stage: 1, at: st.checkedAt, msg: `한꺼번에 크게 바뀌었다 — 쓰지 않고 멈췄다${st.lastNote ? ' · ' + st.lastNote : ''}` })
-    else if (st.failures) out.push({ ...b, id: 's:' + id, state: 'fail', stage: 0, at: st.checkedAt, msg: st.lastNote || '못 가져왔다' })
-    else if (st.checkedAt) out.push({ ...b, id: 's:' + id, state: 'done', fin: true, stage: 4, at: st.checkedAt, end: st.checkedAt, msg: S.srcRun[id] && S.srcRun[id] !== 'run' ? S.srcRun[id] : st.lastNote || '그대로' })
-  }
-  for (const b of (S.busy && S.busy.items) || []) {
-    if (b.kind !== 'curate' && b.kind !== 'tidy') continue
-    out.push({ id: `b:${b.kind}:${b.kn}`, origin: 'kmd', title: b.title, kn: b.kn, state: b.kind === 'tidy' && /기다린다/.test(b.small) ? 'wait' : 'run', stage: 3, known: true, at: b.since, msg: b.small, auto: b.kind === 'tidy' ? '정리' : '' })
-  }
+  const v = S.cache.queue
+  const out = (v && !v.error ? v.items : []).map((x) => ({ ...x, origin: x.kind === 'group' ? 'group' : x.origin || 'file', known: !!x.stages, at: x.startedAt || x.at, end: x.endedAt, run: x.kind === 'file' ? x : null }))
   for (const x of S.imports) {
-    if (x.run && !x.many) continue // Claude Code 일이 맡았다 — 그 일 줄로
+    if (x.run && !x.many) continue // Claude Code 일이 맡았다 — 그 일로
+    if (x.gid && v && !v.error && v.items.some((y) => y.id === x.gid)) continue // 서버의 묶음 일로
     const bad = x.cls === 'bad'
-    out.push({ id: 'i:' + x.id, imp: x, origin: 'file', title: x.title, kn: x.kn, state: x.fin ? (bad ? 'fail' : 'done') : 'run', fin: !!x.fin, stage: x.fin ? (bad ? 0 : 4) : 0, known: !bad, at: x.at, end: x.end, msg: x.msg })
+    out.push({ id: 'i:' + x.id, imp: x, kind: 'local', origin: x.many ? 'group' : 'file', title: x.title, kn: x.kn, state: x.fin ? (bad ? 'fail' : 'done') : 'run', fin: !!x.fin, stage: 0, known: false, at: x.at, end: x.end, msg: x.msg })
   }
   return out
 }
-const IMP_G = [['run', '도는 중', (j) => j.state === 'run'], ['attn', '멈춤 · 확인할 것 · 못함', (j) => ['pause', 'check', 'fail'].includes(j.state)], ['wait', '기다림', (j) => j.state === 'wait']]
+const isRun = (j) => j.state === 'run' || j.state === 'pausing'
+const IMP_G = [['run', '도는 중', isRun], ['attn', '멈춤 · 확인할 것 · 못함', (j) => ['pause', 'check', 'fail'].includes(j.state)], ['wait', '기다림', (j) => j.state === 'wait']]
 const IMP_F = [['all', '전체', () => true], ['run', '도는 중', IMP_G[0][2]], ['wait', '기다림', IMP_G[2][2]], ['attn', '멈춤 · 확인', IMP_G[1][2]]]
-const stCls = (j, i) => j.state === 'done' ? 'done' : !j.known ? '' : i < j.stage ? 'done' : i > j.stage ? '' : ({ run: 'run', pause: 'pause', check: 'check', fail: 'fail' })[j.state] || ''
+const stCls = (j, i) => {
+  if (!j.known) return j.state === 'done' ? 'done' : ''
+  const s = (j.stages[i] || {}).state
+  return { done: 'done', run: j.state === 'pausing' ? 'pause' : 'run', pause: 'pause', check: 'check', fail: 'fail', cancel: 'fail', skip: 'skip' }[s] || ''
+}
 function miniHtml(j) {
-  const lab = j.state === 'wait' ? '차례 기다림' : j.state === 'done' ? '끝남' : j.known ? STG[Math.min(j.stage, 3)] : '—'
+  const lab = j.state === 'wait' ? (j.stage ? `${STG[j.stage]}부터` : '차례 기다림') : j.fin ? { done: '끝남', rule: '끝남', cancel: '그만둠', fail: '못함' }[j.state] || '끝남' : j.known ? STG[Math.min(j.stage, 3)] : '—'
   return `<span class="qmini" data-t="qmini" data-stage="${j.known ? j.stage : ''}"><span class="mini">${STG.map((_, i) => `<i class="${stCls(j, i)}"></i>`).join('')}</span><small>${lab}</small></span>`
 }
-// 일마다 손잡이 — 1단계는 지금 있는 것만(멈춤 · 이어서 · 그만두기는 서버 일 줄과 함께)
+// 일마다 손잡이 — 상태대로(멈춤은 단계 사이에서 · 그만두기는 바로 · 다시는 그 단계부터)
 function impActs(j, small = true) {
   const sm = small ? ' sm' : ''
+  const b = (act, t, cls = '') => `<button class="btn${sm}${cls}" data-a="qAct" data-v="${act}" data-id="${esc(j.id)}" data-t="q-${act}" title="${t}">${t}</button>`
   const o = []
-  if (j.imp && j.imp.many && !j.fin && !j.imp.stop) o.push(`<button class="btn${sm}" data-a="impStop" data-v="${esc(j.imp.id)}" data-t="impStop">그만두기</button>`)
-  if (j.src && (j.state === 'check' || j.state === 'fail')) o.push(`<button class="btn${sm}" data-a="fetchSrc" data-id="${esc(srcId(j.src))}" data-t="qFetch">${j.state === 'fail' ? '다시' : '지금 가져오기'}</button>`)
-  if (j.src && j.state === 'pause') o.push(`<button class="btn${sm}" data-a="resyncSrc" data-id="${esc(srcId(j.src))}">다시 맞추기</button>`)
-  if (j.src && !small) o.push(`<button class="btn${sm} ghost" data-a="srcOpen" data-id="${esc(srcId(j.src))}">가져올 곳 자세히</button>`)
-  if (j.run && j.run.docs && j.run.docs[0]) o.push(`<button class="btn${sm}" data-a="impGo" data-k="${esc(j.run.kn)}" data-d="${esc(j.run.docs[0])}" data-t="runGo">보기</button>`)
+  if (j.kind === 'local') { if (j.imp && j.imp.many && !j.fin && !j.imp.stop) o.push(`<button class="btn${sm}" data-a="impStop" data-v="${esc(j.imp.id)}" data-t="impStop">그만두기</button>`) }
+  else if (j.kind === 'tidy') { if (j.state === 'wait') o.push(b('cancel', '빼기', ' dz')) }
+  else if (!j.fin) {
+    if (j.state === 'run') o.push(b('pause', '멈춤'), b('cancel', '그만두기', ' dz'))
+    if (j.state === 'pausing') o.push(b('resume', '멈추지 않기'), b('cancel', '바로 그만두기', ' dz'))
+    if (j.state === 'wait') o.push(b('top', '맨 앞으로'), b('pause', '멈춤'), b('cancel', '빼기', ' dz'))
+    if (j.state === 'pause') o.push(b('resume', '이어서'), b('cancel', '그만두기', ' dz'))
+    if (j.state === 'check') o.push(b('force', '그대로 맞추기'), b('cancel', '이번은 건너뛰기', ' dz'))
+    if (j.state === 'fail') o.push(...(j.retry ? [b('retry', '다시')] : []), b('cancel', '지우기', ' dz'))
+  } else if ((j.state === 'cancel' || j.state === 'fail') && j.retry) o.push(b('retry', '다시'))
+  if (j.kind === 'source' && !small) o.push(`<button class="btn${sm} ghost" data-a="srcOpenQ" data-k="${esc(j.kn)}" data-v="${esc(j.src || '')}">가져올 곳 자세히</button>`)
+  if (j.docs && j.docs[0]) o.push(`<button class="btn${sm}" data-a="impGo" data-k="${esc(j.kn)}" data-d="${esc(j.docs[0])}" data-t="runGo">보기</button>`)
   if (j.imp && j.imp.go) o.push(`<button class="btn${sm}" data-a="impGo" data-k="${esc(j.imp.go.kn)}" data-d="${esc(j.imp.go.doc)}">보기</button>`)
   if (j.imp && j.imp.rec) o.push(`<button class="btn${sm}" data-a="openRec" data-k="${esc(j.imp.rec.kn)}" data-r="${esc(j.imp.rec.id)}" data-t="impRec">보기</button>`)
   return o.join('')
 }
+function subTxt(j) {
+  const who = j.auto ? `<span class="auto">자동 · ${esc(autoTxt(j.auto))}</span>` : ''
+  return `${ORG_T[j.origin] || j.origin}${who} → ${esc(knName(j.kn))}${!isRun(j) && j.msg ? ' · ' + esc(j.msg) : ''}`
+}
 function qrowHtml(j, n) {
-  const el = j.state === 'run' && j.at ? durTxt(Date.now() - Date.parse(j.at)) : ''
-  return `<div class="qrow${S.impSel === j.id ? ' sel' : ''}" data-a="impSel" data-id="${esc(j.id)}" data-t="qrow" data-state="${j.state}"><span class="ord">${n || ''}</span><span class="ic o-${j.origin}">${svg(ORG_I[j.origin])}</span><span class="tx"><b>${esc(j.title)}</b><small>${ORG_T[j.origin]}${j.auto ? `<span class="auto">자동 · ${esc(j.auto)}</span>` : ''} → ${esc(knName(j.kn))}${j.state !== 'run' && j.msg ? ' · ' + esc(j.msg) : ''}</small></span>${miniHtml(j)}<span class="el">${el}</span><span class="ac">${impActs(j)}</span></div>`
+  const el = isRun(j) && j.at ? durTxt(Date.now() - Date.parse(j.at)) : ''
+  const drag = j.state === 'wait' && j.kind !== 'tidy' && j.kind !== 'local'
+  return `<div class="qrow${S.impSel === j.id ? ' sel' : ''}" data-a="impSel" data-id="${esc(j.id)}" data-t="qrow" data-state="${j.state}"${drag ? ` draggable="true" data-qdrag="${esc(j.id)}" title="끌어서 순서를 바꾼다"` : ''}><span class="ord">${drag ? '<i class="grip">⋮⋮</i>' : ''}${n || ''}</span><span class="ic o-${j.origin}">${svg(ORG_I[j.origin])}</span><span class="tx"><b>${esc(j.title)}</b><small>${subTxt(j)}</small></span>${miniHtml(j)}<span class="el">${el}</span><span class="ac">${impActs(j)}</span></div>`
 }
 function termHtml(id, fil = 'all') {
   const L = (S.runLines || {})[id]
@@ -1824,65 +1822,89 @@ function termHtml(id, fil = 'all') {
   const t = (ms) => { const s = Math.floor(ms / 1000); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0') }
   const mark = { tool: '▸ ', ok: '✓ ', err: '✗ ', sys: '· ', cost: '■ ', say: '' }
   const ls = stageLines(L.lines).filter((l) => fil === 'all' || String(l.s) === fil)
-  return `<div class="term" data-t="term" data-run="${esc(id)}">${ls.map((l) => `<div class="${esc(l.k)}"><span class="tm">${t(l.t)}</span><span class="sg">[${STG_S[l.s]}]</span>${mark[l.k] || ''}${esc(l.x)}</div>`).join('') || `<span class="sys">${L.lines.length ? '이 단계의 줄이 없다' : '아직 줄이 없다 — 차례를 기다린다'}</span>`}</div>`
+  return `<div class="term" data-t="term" data-run="${esc(id)}">${ls.map((l) => `<div class="${esc(l.k)}"><span class="tm">${t(l.t)}</span><span class="sg">[${STG_S[l.s] || '—'}]</span>${mark[l.k] || ''}${esc(l.x)}</div>`).join('') || `<span class="sys">${L.lines.length ? '이 단계의 줄이 없다' : '아직 줄이 없다 — 차례를 기다린다'}</span>`}</div>`
 }
 const IMP_K = { doc: '문서', record: '기록', run: 'Claude 일', att: '첨부', same: '그대로', fail: '못 넣음', skip: '읽지 못하는 종류' }
+const ST_T = { done: '끝남', run: '도는 중', pause: '멈춤', check: '확인할 것', fail: '못함', cancel: '그만둠', skip: '건너뜀', wait: '기다림' }
 // 자세히 — 흐름 그림(네 단계 · 안의 걸음) · 안의 파일 · 터미널(단계로 거른다) · 만든 것
 function impDetHtml(j) {
   if (!j) return '<div class="card det" data-t="impDet"><div class="none">왼쪽에서 일을 고른다 — 단계 · 터미널 · 만든 것이 여기 보인다</div></div>'
-  const sub = STG_SUB[j.origin] || STG_SUB.file
+  const sub = STG_SUB[j.kind === 'tidy' || j.kind === 'curate' ? 'kmd' : j.origin] || STG_SUB.file
   const fil = S.impTfil || 'all'
-  const lab = { done: '끝남', run: '도는 중', pause: '멈춤', check: '확인할 것', fail: '못함' }
   const flow = STG.map((nm, i) => {
     const c = stCls(j, i)
-    const items = sub[i].map((x, k) => `<li class="${c === 'done' ? 'd' : k ? '' : c === 'run' ? 'r' : c === 'fail' ? 'x' : c === 'pause' || c === 'check' ? 'p' : ''}">${esc(x)}</li>`).join('')
-    return `${i ? `<span class="arr${stCls(j, i - 1) === 'done' ? ' done' : ''}">→</span>` : ''}<div class="st ${c}${fil === String(i) ? ' focus' : ''}" data-a="impStg" data-v="${i}" data-t="impStg" title="이 단계의 줄만 터미널에"><div class="n"><span>${i + 1}</span><span>${lab[c] || (j.known ? '기다림' : '')}</span></div><div class="nm">${nm}</div><ul>${items}</ul></div>`
+    const items = sub[i].map((x, k) => `<li class="${c === 'done' ? 'd' : c === 'skip' ? 's' : k ? '' : c === 'run' ? 'r' : c === 'fail' ? 'x' : c === 'pause' || c === 'check' ? 'p' : ''}">${esc(x)}</li>`).join('')
+    const st = j.known ? (j.stages[i] || {}).state : ''
+    return `${i ? `<span class="arr${stCls(j, i - 1) === 'done' ? ' done' : ''}">→</span>` : ''}<div class="st ${c}${fil === String(i) ? ' focus' : ''}" data-a="impStg" data-v="${i}" data-t="impStg" title="이 단계의 줄만 터미널에"><div class="n"><span>${i + 1}</span><span>${st === 'run' && j.state === 'pausing' ? '멈추는 중' : ST_T[st] || ''}</span></div><div class="nm">${nm}</div><ul>${items}</ul>${j.known && j.stages[i] && j.stages[i].at && j.stages[i].end ? `<div class="tt">${durTxt(Date.parse(j.stages[i].end) - Date.parse(j.stages[i].at))}</div>` : ''}</div>`
   }).join('')
-  const why = j.state === 'check' ? `<div class="callout warn"><span><b>확인할 것</b> — ${esc(j.msg)}</span></div>`
-    : j.state === 'fail' ? `<div class="callout danger"><span><b>못함</b> — ${esc(j.msg)}</span></div>`
+  const why = j.state === 'check' ? `<div class="callout warn" data-t="whyCheck"><span><b>확인할 것</b> — ${esc(j.msg)} · [그대로 맞추기] 는 브레이크를 넘어 쓴다 · [이번은 건너뛰기] 는 다음 정한 때에 다시 본다</span></div>`
+    : j.state === 'fail' ? `<div class="callout danger"><span><b>못함 — ${STG[Math.min(j.stage, 3)]}</b> · ${esc(j.msg)}${j.retry ? ' · [다시] 는 이 단계부터' : ''}</span></div>`
     : j.state === 'pause' ? `<div class="callout warn"><span><b>멈춤</b> — ${esc(j.msg)}</span></div>`
-    : !j.known ? '<div class="callout gray"><span>단계를 알 수 없다 — 터미널 줄이 남지 않은 일이다</span></div>' : ''
-  const x = j.imp
-  const kids = x && x.many ? `<div class="sec"><div class="sh">안의 파일 ${x.total}<span class="r">${x.done}/${x.total}</span></div><div class="kids" data-t="impFiles">${[...x.rows].sort((a, b) => (a.kind === 'fail' || a.kind === 'skip' ? 0 : 1) - (b.kind === 'fail' || b.kind === 'skip' ? 0 : 1)).map((r) => `<div><span class="chip ${r.kind === 'fail' || r.kind === 'skip' ? 'c-warn' : 'c-mute'}">${IMP_K[r.kind] || r.kind}</span><span class="mono">${esc(r.name)}</span><small>${esc(r.msg || '')}</small></div>`).join('') || '<div class="muted">아직 보낸 파일이 없다</div>'}</div></div>` : ''
-  const term = j.run
-    ? `<div class="sec"><div class="sh">터미널 <small>Claude Code 가 하는 일</small><span class="tfil">${[['all', '전체'], ...STG_S.map((s, i) => [String(i), s])].map(([v, l]) => `<span class="${fil === v ? 'on' : ''}" data-a="impTfil" data-v="${v}">${l}</span>`).join('')}</span></div>${termHtml(j.run.id, fil)}</div>`
-    : `<div class="sec"><div class="sh">하는 일 <small>${j.origin === 'file' ? '화면이 올린다' : 'kmd 가 한다'}</small></div><div class="term"><div class="sys">· ${esc(j.msg || '—')}</div></div></div>`
+    : j.state === 'pausing' ? `<div class="callout warn"><span><b>멈추는 중</b> — 지금 단계(「${STG[Math.min(j.stage, 3)]}」)를 마치면 선다 · 바로 끊으려면 [바로 그만두기]</span></div>`
+    : !j.known ? '<div class="callout gray"><span>단계를 알 수 없다 — 화면이 보내는 중이거나 줄이 남지 않은 일이다</span></div>' : ''
+  const rows = j.kind === 'group' ? j.rows || [] : j.imp && j.imp.many ? j.imp.rows : null
+  const kids = rows ? `<div class="sec"><div class="sh">안의 파일 ${j.total || (j.imp && j.imp.total) || rows.length}<span class="r">${j.kind === 'group' ? `보냄 ${j.sent}/${j.total}` : `${j.imp.done}/${j.imp.total}`}</span></div><div class="kids" data-t="impFiles">${[...rows].sort((a, b) => (a.kind === 'fail' || a.kind === 'skip' ? 0 : 1) - (b.kind === 'fail' || b.kind === 'skip' ? 0 : 1)).map((r) => `<div${r.run ? ` data-a="impSel" data-id="${esc(r.run)}"` : ''}><span class="chip ${r.kind === 'fail' || r.kind === 'skip' ? 'c-warn' : 'c-mute'}">${IMP_K[r.kind] || r.kind}</span><span class="mono">${esc(r.name)}</span><small>${esc(r.msg || '')}</small></div>`).join('') || '<div class="muted">아직 보낸 파일이 없다</div>'}</div></div>` : ''
+  const live = j.kind !== 'local' && j.kind !== 'tidy'
+  const term = live
+    ? `<div class="sec"><div class="sh">터미널 <small>${j.kind === 'file' ? 'Claude Code · kmd 가 하는 일' : 'kmd 가 하는 일'}</small><span class="tfil">${[['all', '전체'], ...STG_S.map((s, i) => [String(i), s])].map(([v, l]) => `<span class="${fil === v ? 'on' : ''}" data-a="impTfil" data-v="${v}">${l}</span>`).join('')}</span></div>${termHtml(j.id, fil)}</div>`
+    : `<div class="sec"><div class="sh">하는 일 <small>${j.kind === 'tidy' ? '정리 일꾼이 한다' : '화면이 올린다'}</small></div><div class="term"><div class="sys">· ${esc(j.msg || '—')}</div></div></div>`
   const made = []
-  if (j.run) for (const d of j.run.docs || []) made.push(`<li><span class="chip c-acc">문서</span><a data-a="impGo" data-k="${esc(j.run.kn)}" data-d="${esc(d)}">${esc(d)}</a></li>`)
+  for (const d of j.docs || []) made.push(`<li><span class="chip c-acc">문서</span><a data-a="impGo" data-k="${esc(j.kn)}" data-d="${esc(d)}">${esc(d)}</a></li>`)
+  if (j.rec) made.push(`<li><span class="chip c-pend">기록</span><a data-a="openRec" data-k="${esc(j.kn)}" data-r="${esc(j.rec)}">${esc(j.title)}</a></li>`)
+  const x = j.imp
   if (x && x.go) made.push(`<li><span class="chip c-acc">문서</span><a data-a="impGo" data-k="${esc(x.go.kn)}" data-d="${esc(x.go.doc)}">${esc(x.go.doc)}</a></li>`)
   if (x && x.rec) made.push(`<li><span class="chip c-pend">기록</span><a data-a="openRec" data-k="${esc(x.rec.kn)}" data-r="${esc(x.rec.id)}">${esc(x.title)}</a></li>`)
-  if (j.run && j.run.names) made.push(`<li><span class="chip c-mute">이름</span><span>새 이름 ${j.run.names}</span></li>`)
+  if (j.names) made.push(`<li><span class="chip c-mute">이름</span><span>새 이름 ${j.names}</span></li>`)
   const took = j.at ? durTxt((j.end ? Date.parse(j.end) : Date.now()) - Date.parse(j.at)) : '—'
+  const acts = impActs(j, false)
   return `<div class="card det" data-t="impDet" data-id="${esc(j.id)}">
-   <div class="dh"><span class="ic o-${j.origin}">${svg(ORG_I[j.origin])}</span><div class="t"><b>${esc(j.title)}</b><small>${ORG_T[j.origin]}${j.auto ? ' · 자동 ' + esc(j.auto) : j.run && j.run.by ? ' · ' + esc(j.run.by) + ' 이 넣음' : ''} → ${esc(knName(j.kn))}</small></div>${impChip(j)}</div>
-   ${impActs(j, false) ? `<div class="ctl">${impActs(j, false)}</div>` : ''}
-   <div class="sec"><dl class="meta"><dt>시작</dt><dd>${j.at ? esc(whenTxt(j.at)) : '—'}</dd><dt>걸린 시간</dt><dd>${took}</dd><dt>하는 것</dt><dd>${j.run ? 'Claude Code' : 'kmd'}</dd><dt>상태</dt><dd>${esc(j.msg || '—')}</dd></dl></div>
+   <div class="dh"><span class="ic o-${j.origin}">${svg(ORG_I[j.origin])}</span><div class="t"><b>${esc(j.title)}</b><small>${ORG_T[j.origin] || ''}${j.auto ? ' · 자동 ' + esc(autoTxt(j.auto)) : j.by && j.by !== 'kmd' ? ' · ' + esc(j.by) + ' 이 넣음' : ''} → ${esc(knName(j.kn))}</small></div>${impChip(j)}</div>
+   ${acts ? `<div class="ctl">${acts}<span class="note">${isRun(j) ? '멈춤은 지금 단계를 마치고 · 그만두기는 바로 끊는다' : ''}</span></div>` : ''}
+   <div class="sec"><dl class="meta"><dt>시작</dt><dd>${j.at ? esc(whenTxt(j.at)) : '—'}</dd><dt>걸린 시간</dt><dd>${took}</dd><dt>하는 것</dt><dd>${j.kind === 'file' ? 'Claude Code · kmd' : j.kind === 'tidy' ? '정리 일꾼' : j.kind === 'local' ? '화면' : 'kmd'}</dd><dt>상태</dt><dd>${esc(j.msg || ST_T[j.state] || '—')}</dd></dl></div>
    <div class="sec"><div class="sh">흐름 <span class="r">단계를 누르면 그 단계의 줄만</span></div>${why}<div class="flow">${flow}</div></div>
    ${kids}${term}
    ${made.length ? `<div class="sec"><div class="sh">만든 것</div><ul class="res">${made.join('')}</ul></div>` : ''}
   </div>`
 }
 function impChip(j) {
-  if (j.run && j.run.state === 'rule') return '<span class="chip c-warn">규칙으로 넣음</span>'
-  return { run: '<span class="chip c-acc">도는 중</span>', wait: '<span class="chip c-mute">기다림</span>', pause: '<span class="chip c-warn">멈춤</span>', check: '<span class="chip c-warn">확인할 것</span>', fail: '<span class="chip c-danger">못함</span>', done: '<span class="chip c-ok">끝남</span>' }[j.state] || ''
+  if (j.state === 'rule') return '<span class="chip c-warn">규칙으로 넣음</span>'
+  return { run: '<span class="chip c-acc">도는 중</span>', pausing: '<span class="chip c-warn">멈추는 중</span>', wait: '<span class="chip c-mute">기다림</span>', pause: '<span class="chip c-warn">멈춤</span>', check: '<span class="chip c-warn">확인할 것</span>', fail: '<span class="chip c-danger">못함</span>', done: '<span class="chip c-ok">끝남</span>', cancel: '<span class="chip c-mute">그만둠</span>' }[j.state] || ''
+}
+// 고른 일 — 줄의 id · 「지금 하는 일」 에서 온 가져오는 곳(src:지식|이름)
+function impPicked(js, q) {
+  const s = S.impSel || ''
+  if (s.startsWith('src:')) {
+    const [kn, name] = s.slice(4).split('|')
+    const m = js.filter((j) => j.kind === 'source' && j.kn === kn && j.src === name)
+    const j = m.find((x) => !x.fin) || m.sort((a, b) => String(b.end || '').localeCompare(String(a.end || '')))[0]
+    if (j) S.impSel = j.id
+    return j || null
+  }
+  return js.find((j) => j.id === s) || q.find(isRun) || q[0] || null
 }
 function impQueueHtml(js) {
+  const v = S.cache.queue
   const q = js.filter((j) => !j.fin)
   const f = IMP_F.find((x) => x[0] === (S.impFil || 'all')) || IMP_F[0]
   let list = ''
-  for (const [, gl, fn] of IMP_G) {
-    const xs = q.filter((j) => fn(j) && f[2](j))
-    if (xs.length) list += `<div class="qg">${gl} <small>${xs.length}</small></div>` + xs.map((j, i) => qrowHtml(j, fn === IMP_G[2][2] ? i + 1 : 0)).join('')
+  for (const [gk, gl, fn] of IMP_G) {
+    const xs = q.filter((j) => fn(j) && f[2](j)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    if (xs.length) list += `<div class="qg">${gl} <small>${xs.length}</small>${gk === 'wait' ? '<span class="r">위에서부터 차례로 · 끌어서 순서를 바꾼다</span>' : ''}</div>` + xs.map((j, i) => qrowHtml(j, gk === 'wait' ? i + 1 : 0)).join('')
   }
   if (!list) list = `<div class="none" data-t="qEmpty">${q.length ? '이 갈래에 일이 없다' : '줄이 비었다 — 파일을 끌어다 놓거나, 가져올 곳이 정한 때가 되면 여기에 선다'}</div>`
-  const sel = js.find((j) => j.id === S.impSel) || q.find((j) => j.state === 'run') || q[0] || null
-  return `<div class="qbar">${IMP_F.map(([k, l, fn]) => `<span class="qf${(S.impFil || 'all') === k ? ' on' : ''}" data-a="impFil" data-v="${k}" data-t="impFil-${k}">${l} <b>${q.filter(fn).length}</b></span>`).join('')}</div>
+  const sel = impPicked(js, q)
+  const can = v && !v.error && v.can
+  const lane = (k, l) => { const x = (v && v.lanes && v.lanes[k]) || { cap: 1, busy: 0 }; return `<span class="lane" title="${l} — 한 번에 도는 수">${l} ${Array.from({ length: Math.min(x.cap, 4) }, (_, i) => `<i class="${i < x.busy ? 'on' : ''}"></i>`).join('')}${can ? `<select class="inp" data-t="cap-${k}" data-cap="${k}">${[1, 2, 3, 4].map((n) => `<option${n === x.cap ? ' selected' : ''}>${n}</option>`).join('')}</select>` : ` ${x.cap}`}</span>` }
+  const hold = v && v.hold
+  return `${hold ? `<div class="callout warn hold" data-t="holdBand"><span><b>줄 멈춤</b> — 도는 일은 지금 단계를 마치고 서고, 기다리는 일은 시작하지 않는다 · 정한 때 · 실시간으로 오는 일도 줄에만 선다</span>${can ? '<button class="btn sm" data-a="qHold" data-v="0">줄 다시 돌리기</button>' : ''}</div>` : ''}
+   <div class="qbar">${IMP_F.map(([k, l, fn]) => `<span class="qf${(S.impFil || 'all') === k ? ' on' : ''}" data-a="impFil" data-v="${k}" data-t="impFil-${k}">${l} <b>${q.filter(fn).length}</b></span>`).join('')}
+    <span class="r">동시에 ${lane('claude', 'Claude')}${lane('fetch', '가져오기')}${can ? `<button class="btn sm" data-a="qHold" data-v="${hold ? 0 : 1}" data-t="qHold">${hold ? '줄 다시 돌리기' : '줄 멈춤'}</button>` : ''}</span></div>
    <div class="qwrap"><div class="qlist" data-t="queue">${list}</div>${impDetHtml(sel)}</div>`
 }
 // 끝난 일 — 찾기 · 갈래 · 결과로 거르고 20 줄씩
 function impDoneList(js) {
   const q = norm(S.impQ || ''), o = S.impOrg || '', r = S.impRes || ''
-  return js.filter((j) => j.fin && (!q || norm(j.title + ' ' + j.msg + ' ' + knName(j.kn)).includes(q)) && (!o || j.origin === o) && (!r || j.state === r))
+  return js.filter((j) => j.fin && (!q || norm(j.title + ' ' + (j.msg || '') + ' ' + knName(j.kn)).includes(q)) && (!o || j.origin === o || (o === 'kmd' && j.kind === 'tidy')) && (!r || j.state === r || (r === 'done' && j.state === 'rule')))
     .sort((a, b) => String(b.end || b.at || '').localeCompare(String(a.end || a.at || '')))
 }
 function impDoneRows(js) {
@@ -1892,9 +1914,9 @@ function impDoneRows(js) {
   for (const j of all.slice(pg * per, pg * per + per)) {
     const t = j.end || j.at, day = t ? (isToday(t) ? '오늘' : whenTxt(t).split(' ')[0]) : '—'
     if (day !== last) { rows += `<tr class="day"><td colspan="5">${esc(day)}</td></tr>`; last = day }
-    const open = j.run && !!(S.termOpen || {})[j.run.id]
-    const tr = j.imp ? ' data-t="impRow"' : j.run ? ` data-t="runRow" data-run="${esc(j.run.id)}"` : ' data-t="srcDone"'
-    rows += `<tr${tr}><td class="m">${t ? esc(hhmmOf(t)) : ''}</td><td><span class="ic o-${j.origin}">${svg(ORG_I[j.origin])}</span> <b>${esc(j.title)}</b><small${j.imp ? ' data-t="impMsg"' : j.run ? ' data-t="runMsg"' : ''}>${ORG_T[j.origin]} → ${esc(knName(j.kn))}${j.msg ? ' · ' + esc(j.msg) : ''}</small></td><td>${miniHtml(j)}</td><td>${impChip(j)}</td><td class="acts">${impActs(j)}${j.run ? `<button class="btn sm ghost" data-a="termToggle" data-id="${esc(j.run.id)}" data-t="termBtn">${open ? '터미널 닫기' : '터미널'}</button>` : ''}</td></tr>${open ? `<tr class="tr-term"><td></td><td colspan="4">${termHtml(j.run.id)}</td></tr>` : ''}`
+    const open = !!(S.termOpen || {})[j.id] && j.kind !== 'local' && j.kind !== 'tidy'
+    const tr = j.imp ? ' data-t="impRow"' : j.kind === 'file' ? ` data-t="runRow" data-run="${esc(j.id)}"` : ` data-t="doneRow" data-kind="${esc(j.kind)}"`
+    rows += `<tr${tr}><td class="m">${t ? esc(hhmmOf(t)) : ''}</td><td><span class="ic o-${j.origin}">${svg(ORG_I[j.origin])}</span> <b>${esc(j.title)}</b><small${j.imp ? ' data-t="impMsg"' : j.kind === 'file' ? ' data-t="runMsg"' : ''}>${subTxt(j)}${!j.imp && j.msg && isRun(j) ? ' · ' + esc(j.msg) : ''}</small></td><td>${miniHtml(j)}</td><td>${impChip(j)}</td><td class="acts">${impActs(j)}${j.kind !== 'local' && j.kind !== 'tidy' && j.n ? `<button class="btn sm ghost" data-a="termToggle" data-id="${esc(j.id)}" data-t="termBtn">${open ? '터미널 닫기' : '터미널'}</button>` : ''}</td></tr>${open ? `<tr class="tr-term"><td></td><td colspan="4">${termHtml(j.id)}</td></tr>` : ''}`
   }
   if (!rows) rows = `<tr><td colspan="5" class="none">${js.some((j) => j.fin) ? '맞는 일이 없다' : '아직 끝난 일이 없다'}</td></tr>`
   const pager = pages > 1 ? `<div class="pager">${Array.from({ length: pages }, (_, i) => `<span class="${i === pg ? 'on' : ''}" data-a="impPage" data-v="${i}">${i + 1}</span>`).join('')}</div>` : ''
@@ -1902,11 +1924,11 @@ function impDoneRows(js) {
 }
 function impDoneHtml(js) {
   const sel = (id, v, opts) => `<select class="inp" id="${id}" style="width:auto">${opts.map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${l}</option>`).join('')}</select>`
-  return `<div class="qbar"><input class="inp" data-in="impQ" id="impQ" value="${esc(S.impQ || '')}" placeholder="파일 · 제목 찾기" style="width:220px" autocomplete="off">${sel('impOrg', S.impOrg || '', [['', '모든 갈래'], ...Object.entries(ORG_T)])}${sel('impRes', S.impRes || '', [['', '모든 결과'], ['done', '끝남'], ['fail', '못함']])}<span class="r">Claude Code 일은 지식마다 최근 30 · 다른 일은 마지막 한 번</span></div>
+  return `<div class="qbar"><input class="inp" data-in="impQ" id="impQ" value="${esc(S.impQ || '')}" placeholder="파일 · 제목 찾기" style="width:220px" autocomplete="off">${sel('impOrg', S.impOrg || '', [['', '모든 갈래'], ...Object.entries(ORG_T)])}${sel('impRes', S.impRes || '', [['', '모든 결과'], ['done', '끝남'], ['cancel', '그만둠'], ['fail', '못함']])}<span class="r">30일 동안 남는다(터미널 줄까지)</span></div>
    <div class="card" style="overflow:hidden" id="impDone" data-t="doneTable">${impDoneRows(js)}</div>`
 }
 function impSrcHtml(srcs, v, can) {
-  return `<div class="qbar"><span class="lead">정한 때마다 확인하고 바뀐 것만 지식에 맞춘다 — 도는 모습은 「일 줄」 에서 · 줄을 누르면 자세히 · 고치기 · 지우기</span><span class="r">${can ? `<button class="btn" data-a="fetchAll" data-t="fetchAll"${srcs.some((s) => s.kind !== 'pc') ? '' : ' disabled'}>지금 모두 가져오기</button>` : ''}</span></div>
+  return `<div class="qbar"><span class="lead">정한 때마다 확인하고 바뀐 것만 지식에 맞춘다 — 도는 모습 · 멈춤 · 그만두기는 「일 줄」 에서 · 줄을 누르면 자세히 · 고치기 · 지우기</span><span class="r">${can ? `<button class="btn" data-a="fetchAll" data-t="fetchAll"${srcs.some((s) => s.kind !== 'pc') ? '' : ' disabled'}>지금 모두 가져오기</button>` : ''}</span></div>
   <div class="slist" data-t="srcTable">${!v ? loadingHtml : srcs.length ? srcs.map((s) => srcRow(s, can)).join('') : '<div class="none">아직 더한 곳 없음 — [+ 가져올 곳 더하기] 로 문서 폴더 · 소스 코드(git) · DB 를 더한다</div>'}</div>
   <p class="gl">바뀐 줄은 그 지식의 「이력」 에 · 한꺼번에 크게 바뀌면 쓰지 않고 멈춘다(일 줄의 「확인할 것」) — 자세히에서 [지금 가져오기] 는 언제든</p>`
 }
@@ -1921,7 +1943,8 @@ function paintJobs() {
   const box = document.getElementById('impBody')
   if (!box) return
   const a = document.activeElement
-  if (a && box.contains(a) && /^(INPUT|SELECT)$/.test(a.tagName)) return // 찾는 중 — 칸을 다시 그리지 않는다
+  if (a && box.contains(a) && /^(INPUT|SELECT)$/.test(a.tagName)) return // 찾는 중 · 고르는 중 — 칸을 다시 그리지 않는다
+  if (S.dragQ) return // 순서를 끄는 중
   // 터미널을 보던 자리 — 맨 아래였으면 새 줄을 따라간다
   const stick = {}
   for (const t of box.querySelectorAll('.term')) stick[t.dataset.run] = t.scrollHeight - t.scrollTop - t.clientHeight < 24 ? 'end' : t.scrollTop
@@ -1930,32 +1953,55 @@ function paintJobs() {
   if (th) th.outerHTML = impTabsHtml()
   for (const t of box.querySelectorAll('.term')) { const v = stick[t.dataset.run]; t.scrollTop = v === undefined || v === 'end' ? t.scrollHeight : v }
 }
+// 일 줄 읽기 — 도는 일이 있으면 1초 · 없으면 8초마다(정한 때 · 실시간 일이 서면 보인다) · 가져오기 화면에서만
 let runTimer = null
 async function pollRuns() {
   clearTimeout(runTimer)
   if (!S.me || gated() || S.route.scr !== 'import') return
+  let busy = false
   try {
-    const rs = await getJSON('/api/runs')
-    S.cache.runs = rs
-    // 도는 일 · 고른 일은 줄을 받아 둔다 — 단계를 어림하고 자세히에 터미널로 보인다
+    const v = await getJSON('/api/queue')
+    const was = new Map(((S.cache.queue && S.cache.queue.items) || []).map((x) => [x.id, x]))
+    S.cache.queue = v
+    // 고른 일 · 도는 일 · 펼친 터미널 — 줄을 이어 받는다
     S.termOpen ||= {}
-    for (const r of rs) if (runActive(r) || S.impSel === 'r:' + r.id) S.termOpen[r.id] = true
-    for (const id of Object.keys(S.termOpen)) {
-      if (!S.termOpen[id]) continue
+    const want = new Set(v.items.filter((x) => !x.fin && x.n && x.kind !== 'tidy' && (isRun(x) || x.id === S.impSel)).map((x) => x.id))
+    if (S.impSel && v.items.some((x) => x.id === S.impSel && x.kind !== 'tidy')) want.add(S.impSel)
+    for (const id of Object.keys(S.termOpen)) if (S.termOpen[id]) want.add(id)
+    for (const id of want) {
+      const x = v.items.find((y) => y.id === id)
+      if (!x) continue
       const L = ((S.runLines ||= {})[id] ||= { lines: [], n: 0 })
-      const r = rs.find((x) => x.id === id)
-      if (!r || (L.n >= r.n && !runActive(r) && L.done)) continue
-      const g = await getJSON(`/api/runs/${id}?from=${L.n}`)
+      if (L.n >= x.n && L.done) continue
+      const g = await getJSON(`/api/queue/${id}?from=${L.n}`)
       L.lines.push(...g.lines)
       L.n = g.n
-      L.done = !runActive(g)
+      L.done = !!g.fin
     }
-    // 들이기가 끝난 일이 있으면 그 지식의 나무 · 목록을 새로
-    for (const r of rs) if (!runActive(r) && (S.runSeen || {})[r.id] === 'active') { forgetKn(r.kn); delete S.cache.history; await reloadKns() }
-    S.runSeen = Object.fromEntries(rs.map((r) => [r.id, runActive(r) ? 'active' : 'end']))
+    // 끝난 일이 있으면 그 지식의 나무 · 목록을 새로
+    const ended = v.items.filter((x) => x.fin && was.get(x.id) && !was.get(x.id).fin)
+    for (const kn of new Set(ended.map((x) => x.kn))) { forgetKn(kn); delete S.cache.history; await reloadKns() }
+    if (ended.some((x) => x.kind === 'source')) { delete S.cache.sources; sourcesOf() }
+    busy = v.items.some((x) => !x.fin && ['run', 'pausing', 'wait'].includes(x.state)) || S.imports.some((x) => !x.fin)
     paintJobs()
-    if (rs.some(runActive)) runTimer = setTimeout(pollRuns, 900)
   } catch {}
+  runTimer = setTimeout(pollRuns, busy ? 1000 : 8000)
+}
+async function qAct(id, act) {
+  const j = impJobs().find((x) => x.id === id)
+  if (!j) return
+  if (act === 'cancel' && isRun(j) && !confirm(`「${j.title}」 을 그만둘까?\n\n지금 「${STG[Math.min(j.stage, 3)]}」 단계를 바로 끊는다 — 끝난 단계의 결과(남긴 기록)는 그대로 남는다`)) return
+  if (act === 'force' && !confirm(`「${j.title}」 을 그대로 맞출까?\n\n${j.msg}\n\n브레이크를 넘어 원본대로 쓴다 — 쓴 것은 「이력」 에서 되돌릴 수 있다`)) return
+  try {
+    const r = await postJSON(`/api/queue/${encodeURIComponent(id)}/${act}`, {})
+    toast({ pause: '지금 단계를 마치면 멈춘다', resume: '이어 간다', cancel: j.state === 'check' ? '건너뛰었다 — 다음 정한 때에 다시 본다' : j.state === 'wait' ? '줄에서 뺐다' : '그만뒀다', retry: '다시 — 그 단계부터 줄 뒤에 섰다', force: '그대로 맞춘다 — 새 일로 섰다', top: '기다림 맨 앞으로' }[act] || '했다')
+    if (r && r.again) S.impSel = `src:${j.kn}|${j.src || ''}`
+  } catch (e) { toast(esc(e.message)) }
+  pollRuns()
+}
+async function qMove(id, before) {
+  try { await postJSON(`/api/queue/${encodeURIComponent(id)}/move`, { before }) } catch (e) { toast(esc(e.message)) }
+  pollRuns()
 }
 // 탭 머리 — 일 줄(남은 일 · 확인할 것) · 가져올 곳 · 끝난 일의 수
 function impTabsHtml() {
@@ -1975,7 +2021,7 @@ function viewImport() {
   const drop = tab === 'queue' ? `<div class="drop bar" id="drop" data-t="drop"><b>파일 · 폴더를 이 화면 어디든 끌어다 놓는다</b><span>넣을 곳 ${impPick(target)}</span><span class="lks"><label>파일 고르기<input type="file" multiple id="fileIn" data-t="fileIn"></label> · <label>폴더 고르기<input type="file" webkitdirectory directory multiple id="dirIn" data-t="dirIn"></label></span>
     <small>md · txt · csv · html · json · docx · pptx · xlsx · hwpx · pdf · hwp 는 글로 바꿔 들이고 원본은 첨부로 · ${team ? '파일마다 기록 하나 — 정리가 이어지는 문서의 항목에 넣거나 새 문서로 세운다 · 글이 없는 pdf(스캔)는 내 PC 프로그램에서' : '파일마다 Claude Code 가 지식을 둘러보고 갈래 · 주제 문서의 항목으로 넣는다 · 안 되면 규칙으로'} · 한 번에 300 파일 · 200MB</small></div>` : ''
   const main = `<div class="imp"><div class="pg-h"><div><div class="big">가져오기</div><p class="lead">들여오는 일은 모두 <b>일 줄</b>에 서서 차례로 돈다 — 수집 › 검토 › 기록 생성 › 문서 생성. 줄을 고르면 흐름과 터미널이 보인다. 빈 지식을 새로 세우려면 <a data-a="openAdd" data-t="toAdd">지식 목록 › 새 지식</a></p></div><span class="acts">${can ? '<button class="btn pri" data-a="sfOpen" data-t="sfOpen">+ 가져올 곳 더하기</button>' : '<button class="btn" data-a="sfOpen" data-t="sfOpen">+ 더해 달라고 부탁</button>'}</span></div>
-  ${S.stops.map(stopHtml).join('')}
+  ${S.stops.filter((x) => x.kind !== 'source').map(stopHtml).join('')}
   ${impTabsHtml()}
   ${drop}<div id="impBody">${impBodyHtml()}</div></div>`
   return { crumb: '가져오기', main }
@@ -2113,7 +2159,7 @@ async function takeFiles(files) {
     }
     row.tm = nowHm()
     const runIds = r.rows.filter((x) => x.kind === 'run').map((x) => x.run)
-    if (runIds.length) { row.run = row.run || runIds[0]; (S.termOpen ||= {})[runIds[0]] = true; if (!row.many && files.length === 1) S.impSel = 'r:' + row.run }
+    if (runIds.length) { row.run = row.run || runIds[0]; if (!row.many && files.length === 1) S.impSel = row.run }
     forgetKn(t.kn)
     delete S.cache.history
     await reloadKns()
@@ -2122,23 +2168,28 @@ async function takeFiles(files) {
   render()
   pollRuns()
 }
-// 여럿 — 10 개(또는 40MB)씩 나눠 보낸다 · 묶음 한 줄에 n/N · 문서 · 기록 · Claude 일 · 못 넣음 [보기] · [그만두기] 는 남은 묶음을 보내지 않는다
+// 여럿 — 10 개(또는 40MB)씩 나눠 보낸다 · 서버의 「여러 파일」 일 하나로 묶인다(첫 조각이 세우고 마지막 조각에 last) ·
+//   그 일을 그만두면 다음 조각은 stopped 로 돌아와 남은 파일을 보내지 않는다
 async function takeMany(files, t) {
   const name = (KN(t.kn) || {}).name || t.kn
   const tops = [...new Set(files.map((f) => (f.webkitRelativePath || f._rel || '').split('/')).filter((p) => p.length > 1).map((p) => p[0]))]
   const row = { tm: nowHm(), title: tops.length ? tops[0] + ' 폴더 → ' + name : `파일 ${files.length}개 → ${name}`, msg: `넣는 중 — 0/${files.length}`, cls: 'run', many: true, done: 0, total: files.length, rows: [], id: uid(), at: new Date().toISOString(), kn: t.kn }
+  row.gid = Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, '0')).join('') // 묶음 일의 id — 첫 조각이 이 id 로 세운다
   S.imports.unshift(row)
-  S.impSel = 'i:' + row.id
+  S.impSel = row.gid
   render()
   const parts = []
   let cur = [], size = 0
   for (const f of files) { if (cur.length && (cur.length >= 10 || size + f.size > 40 << 20)) { parts.push(cur); cur = []; size = 0 } cur.push(f); size += f.size }
   if (cur.length) parts.push(cur)
-  for (const part of parts) {
+  for (const [i, part] of parts.entries()) {
     if (row.stop) break
     try {
       const list = await Promise.all(part.map(async (f) => ({ path: f.webkitRelativePath || f._rel || f.name, b64: await fileB64(f) })))
-      const r = await postJSON(`/api/k/${encodeURIComponent(t.kn)}/import`, { files: list })
+      const last = i === parts.length - 1
+      const r = await postJSON(`/api/k/${encodeURIComponent(t.kn)}/import`, { files: list, group: { id: row.gid, title: row.title, total: files.length, last } })
+      if (r.stopped) { row.stop = true; break }
+      if (i === 0) pollRuns()
       row.rows.push(...r.rows)
     } catch (e) { row.rows.push(...part.map((f) => ({ name: f.webkitRelativePath || f._rel || f.name, kind: 'fail', msg: e.message }))) }
     row.done += part.length
@@ -2149,7 +2200,7 @@ async function takeMany(files, t) {
   row.cls = row.rows.some((x) => x.kind === 'fail' || x.kind === 'skip') ? 'bad' : ''
   row.tm = nowHm()
   const runIds = row.rows.filter((x) => x.kind === 'run').map((x) => x.run)
-  if (runIds.length) { row.run = runIds[0]; (S.termOpen ||= {})[runIds[0]] = true }
+  if (runIds.length) row.run = runIds[0]
   Object.assign(row, { fin: true, end: new Date().toISOString() })
   forgetKn(t.kn)
   delete S.cache.history
@@ -2776,7 +2827,10 @@ const ACT = {
   impStop: (el) => { const x = S.imports.find((r) => r.id === el.dataset.v); if (x) { x.stop = true; x.msg = '그만두는 중 — 보내던 묶음까지 넣는다'; render() } },
   impTab: (el) => { S.impTab = el.dataset.v; render() },
   impFil: (el) => { S.impFil = el.dataset.v; paintJobs() },
-  impSel: (el) => { S.impSel = el.dataset.id; S.impTfil = 'all'; paintJobs(); if (el.dataset.id.startsWith('r:')) pollRuns() },
+  impSel: (el) => { S.impSel = el.dataset.id; S.impTfil = 'all'; paintJobs(); pollRuns() },
+  qAct: (el) => qAct(el.dataset.id, el.dataset.v),
+  qHold: async (el) => { try { await postJSON('/api/queue/hold', { on: el.dataset.v === '1' }); toast(el.dataset.v === '1' ? '줄 멈춤 — 도는 일은 지금 단계를 마치고 선다' : '줄을 다시 돌린다') } catch (e) { toast(esc(e.message)) } pollRuns() },
+  srcOpenQ: (el) => { const s = (sourcesOf()?.items || []).find((x) => x.kn === el.dataset.k && x.name === el.dataset.v); if (s) srcOpen(srcId(s)) },
   impStg: (el) => { S.impTfil = S.impTfil === el.dataset.v ? 'all' : el.dataset.v; paintJobs() },
   impTfil: (el) => { S.impTfil = el.dataset.v; paintJobs() },
   impPage: (el) => { S.impPage = +el.dataset.v; paintJobs() },
@@ -2866,8 +2920,8 @@ const ACT = {
   busyGo: (el) => {
     S.menu = null
     const { kind, k, run } = el.dataset
-    if (kind === 'run' && run) { (S.termOpen ||= {})[run] = true; Object.assign(S, { impTab: 'queue', impSel: 'r:' + run }); go({ scr: 'import' }); pollRuns(); return }
-    if (kind === 'source') { Object.assign(S, { impTab: 'queue', impSel: `s:${k}|${el.dataset.name || ''}` }); go({ scr: 'import' }); return }
+    if (kind === 'run' && run) { Object.assign(S, { impTab: 'queue', impSel: run }); go({ scr: 'import' }); pollRuns(); return }
+    if (kind === 'source') { Object.assign(S, { impTab: 'queue', impSel: `src:${k}|${el.dataset.name || ''}` }); go({ scr: 'import' }); return }
     go({ scr: 'docs', kn: k })
   },
   termToggle: (el) => { const id = el.dataset.id; (S.termOpen ||= {})[id] = !S.termOpen[id]; paintJobs(); pollRuns() },
@@ -3070,7 +3124,7 @@ document.addEventListener('input', (ev) => {
   if (k === 'addName' && S.addPop) { S.addPop.name = t.value; if (S.addPop.err) { S.addPop.err = null; const m = $('[data-t=addMsg]'); if (m) m.remove() } }
 })
 // 파일 · 폴더 — 고르기 · 끌어다 놓기
-document.addEventListener('change', (ev) => { const t = ev.target; if (t.dataset && t.dataset.model != null) { ACT.pickModel(t); return } if (t.dataset && t.dataset.t === 'destPick') { ACT.destPick(t); return } if (t.id === 'impKn') { S.impKn = t.value; render(); return } if (t.dataset && t.dataset.se && S.se) { S.se[t.dataset.se] = t.value; render(); return } if (t.dataset && t.dataset.sf) { sfState()[t.dataset.sf] = t.type === 'checkbox' ? t.checked : t.value; if (t.dataset.sf === 'rule') render(); return } if (t.id === 'logKn') { S.logKn = t.value; render(); return } if (t.id === 'impOrg' || t.id === 'impRes') { S[t.id] = t.value; S.impPage = 0; render(); return } if (t.id === 'fileIn' || t.id === 'dirIn') { takeFiles(t.files); t.value = '' } })
+document.addEventListener('change', (ev) => { const t = ev.target; if (t.dataset && t.dataset.model != null) { ACT.pickModel(t); return } if (t.dataset && t.dataset.t === 'destPick') { ACT.destPick(t); return } if (t.id === 'impKn') { S.impKn = t.value; render(); return } if (t.dataset && t.dataset.se && S.se) { S.se[t.dataset.se] = t.value; render(); return } if (t.dataset && t.dataset.sf) { sfState()[t.dataset.sf] = t.type === 'checkbox' ? t.checked : t.value; if (t.dataset.sf === 'rule') render(); return } if (t.id === 'logKn') { S.logKn = t.value; render(); return } if (t.id === 'impOrg' || t.id === 'impRes') { S[t.id] = t.value; S.impPage = 0; render(); return } if (t.dataset && t.dataset.cap) { postJSON('/api/queue/caps', { [t.dataset.cap]: Number(t.value) }).then(() => toast(`동시에 도는 수 — ${t.dataset.cap === 'claude' ? 'Claude' : '가져오기'} ${t.value}`), (e) => toast(esc(e.message))).finally(() => { t.blur(); pollRuns() }); return } if (t.id === 'fileIn' || t.id === 'dirIn') { takeFiles(t.files); t.value = '' } })
 document.addEventListener('dragstart', (ev) => { const c = ev.target.closest && ev.target.closest('[data-drag]'); if (!c) return; S.dragK = c.dataset.drag; c.classList.add('drag'); ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', c.dataset.drag) } catch {} })
 document.addEventListener('dragend', () => { S.dragK = null; for (const x of document.querySelectorAll('.kcard.drag,.kcard.over')) x.classList.remove('drag', 'over') })
 document.addEventListener('dragover', (ev) => { const c = S.dragK && ev.target.closest && ev.target.closest('[data-drag]'); if (c) { ev.preventDefault(); for (const x of document.querySelectorAll('.kcard.over')) if (x !== c) x.classList.remove('over'); if (c.dataset.drag !== S.dragK) c.classList.add('over') } })
@@ -3078,8 +3132,13 @@ document.addEventListener('drop', (ev) => { const c = S.dragK && ev.target.close
 // 팝업은 스크롤해도 단추를 따라간다
 document.addEventListener('scroll', () => { if (S.menu) placePop() }, true)
 window.addEventListener('resize', () => { if (S.menu) placePop() })
+// 일 줄의 순서 — 기다리는 줄을 끌어 다른 기다리는 줄 위에 놓으면 그 앞으로
+document.addEventListener('dragstart', (ev) => { const r = ev.target.closest && ev.target.closest('[data-qdrag]'); if (!r) return; S.dragQ = r.dataset.qdrag; ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', S.dragQ) })
+document.addEventListener('dragend', () => { S.dragQ = null; for (const x of document.querySelectorAll('.qrow.over')) x.classList.remove('over') })
+document.addEventListener('dragover', (ev) => { const r = S.dragQ && ev.target.closest && ev.target.closest('[data-qdrag]'); if (!r) return; ev.preventDefault(); for (const x of document.querySelectorAll('.qrow.over')) if (x !== r) x.classList.remove('over'); if (r.dataset.qdrag !== S.dragQ) r.classList.add('over') })
+document.addEventListener('drop', (ev) => { const r = S.dragQ && ev.target.closest && ev.target.closest('[data-qdrag]'); if (!r) return; ev.preventDefault(); const id = S.dragQ; S.dragQ = null; if (r.dataset.qdrag !== id) qMove(id, r.dataset.qdrag) })
 // 끌어다 놓기 — 넣는 칸이거나, 가져오기 화면이면 가운데 어디든(파일을 끌 때만)
-const dropAt = (ev) => (ev.target.closest && ev.target.closest('#drop')) || (S.route.scr === 'import' && !S.dragK && ev.dataTransfer && [...ev.dataTransfer.types].includes('Files') && ev.target.closest && ev.target.closest('.main') ? $('#drop') : null)
+const dropAt = (ev) => (ev.target.closest && ev.target.closest('#drop')) || (S.route.scr === 'import' && !S.dragK && !S.dragQ && ev.dataTransfer && [...ev.dataTransfer.types].includes('Files') && ev.target.closest && ev.target.closest('.main') ? $('#drop') : null)
 document.addEventListener('dragover', (ev) => { const d = dropAt(ev); if (d) { ev.preventDefault(); d.classList.add('over') } })
 document.addEventListener('dragleave', (ev) => { const d = dropAt(ev), to = ev.relatedTarget; if (d && !(to && to.closest && (to.closest('#drop') || (S.route.scr === 'import' && to.closest('.main'))))) d.classList.remove('over') })
 document.addEventListener('drop', async (ev) => {

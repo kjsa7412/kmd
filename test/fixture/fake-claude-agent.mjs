@@ -42,6 +42,8 @@ process.stdin.on('end', async () => {
   const body = fs.readFileSync(path.join(process.cwd(), md), 'utf8')
   out({ type: 'assistant', message: { content: [{ type: 'text', text: '파일을 읽고 지식을 둘러본다.' }] } })
   await mcp('brief', { knowledge: kn })
+  // FAKE_AGENT_WAIT_MS — 둘러본 뒤 그만큼 쉰다(일 줄의 그만두기 · 멈춤 · 차례를 본다)
+  if (process.env.FAKE_AGENT_WAIT_MS) await new Promise((ok) => setTimeout(ok, Number(process.env.FAKE_AGENT_WAIT_MS)))
   if (process.env.FAKE_AGENT_MODE === 'idle') return end({ result: '넣을 곳을 못 찾았다' })
   if (process.env.FAKE_AGENT_MODE === 'other') await mcp('save', { knowledge: 'dpms', record: { title: '엉뚱한 곳', body: 'x' } })
   await mcp('save', {

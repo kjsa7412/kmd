@@ -821,6 +821,19 @@ html,body{background:var(--bg)}
 .st.pause,.st.check{border-color:#e6c27a;background:#fffbf2}.st.pause .n,.st.check .n{color:var(--warn)}
 .st.fail{border-color:#efb7b1;background:#fff8f7}.st.fail .n{color:var(--danger)}
 .st.focus{outline:2px solid var(--text);outline-offset:1px}
+.st.skip{opacity:.55;background:var(--surface-2)}
+.st li.s::before{content:"–";color:var(--text-3)}
+.st .tt{font:10.5px var(--mono);color:var(--text-3);margin-top:5px}
+.det .ctl .note{font-size:11.5px;color:var(--text-3);margin-left:auto}
+.lane{display:inline-flex;gap:4px;align-items:center;border:1px solid var(--border);border-radius:7px;padding:1px 4px 1px 8px;background:var(--surface);color:var(--text-2)}
+.lane i{width:7px;height:7px;border-radius:50%;background:var(--surface-3)}.lane i.on{background:#2e9b5b}
+.lane select.inp{width:auto;min-height:22px;height:22px;padding:0 4px;font-size:11.5px;border-color:var(--border)}
+.qrow .grip{font-style:normal;color:var(--text-3);letter-spacing:-2px;margin-right:3px;cursor:grab}
+.qrow.over{box-shadow:inset 0 2px 0 var(--accent)}
+.qrow[draggable=true]{cursor:grab}
+.callout.hold{display:flex;gap:10px;align-items:center;margin:0 0 10px}.callout.hold .btn{margin-left:auto}
+.mini i.skip{background:var(--surface-2)}
+.qrow .ord{width:auto;min-width:14px}
 .arr{flex:none;width:16px;display:grid;place-items:center;color:var(--border-strong);font-size:13px}
 .arr.done{color:#2e9b5b}
 .tfil{display:flex;gap:2px;margin-left:auto}

@@ -479,6 +479,11 @@ test('이 PC 화면 — 정리가 따로 없다는 말(지식 만들기 · 설�
     assert.match(imp, /Claude Code 가 지식을 둘러보고 갈래 · 주제 문서의 항목으로/)
     assert.match(imp, /흐름과 터미널/)
     assert.doesNotMatch(imp, /정리가 (기존 문서|문서로|이어지는)/)
+    // 일 줄 머리 — 동시에 도는 수(이 PC 는 누구나 고른다) · 줄 멈춤
+    await page.waitForSelector('[data-t=cap-claude]')
+    assert.equal(await page.locator('[data-t=cap-claude]').inputValue(), '1')
+    assert.equal(await page.locator('[data-t=cap-fetch]').inputValue(), '2')
+    assert.equal(await page.locator('[data-t=qHold]').innerText(), '줄 멈춤')
     // 설정 — Claude 스위치는 「정해진 시각의 자동 정리」 가 아니라 기록을 곧바로 문서로
     await page.click('[data-t=nav-settings]')
     await page.waitForSelector('[data-t=auto-claude]')
