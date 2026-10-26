@@ -3,6 +3,7 @@
 //   md                → 그대로 문서(폴더 짜임 = 문서 경로)
 //   docx · pptx · xlsx · hwpx → 서버가 바로 md 로(core/ooxml.js · 압축 해제 상한) + 원본은 첨부
 //   pdf · hwp         → mdOf(바꾼 글 보관 · Claude Code 가 원본을 읽어 옮긴 것)가 있으면 그 글로 · 없으면 원본만 첨부 · 「바꾸지 못한 파일」
+//   txt · log         → 글 그대로 · csv · tsv → md 표 · html → 글(태그 뺌) · json → 코드 덩이
 //   그림              → 첨부
 //   그 밖              → 「넣지 않은 파일」
 //   한 번에 300 파일 · 200MB. 같은 글이면 다시 쓰지 않는다(묶음 0).
@@ -20,6 +21,39 @@ export const MAX_BYTES = 200 << 20
 const DOCX = ['docx', 'pptx', 'xlsx', 'hwpx']
 export const PCONLY = ['hwp', 'pdf']
 const IMG = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp']
+// 보통 글 파일 — 서버가 바로 md 로(원본은 첨부로 두지 않는다 — 글이 곧 원본이다)
+const TEXT = ['txt', 'log', 'csv', 'tsv', 'html', 'htm', 'json']
+export function textToMd(ext, buf) {
+  const t = readText(buf.toString('utf8')).replace(/^\uFEFF/, '')
+  if (ext === 'txt' || ext === 'log') return t
+  if (ext === 'json') return '```json\n' + t.trim() + '\n```'
+  if (ext === 'html' || ext === 'htm') {
+    return t.replace(/<(script|style)[\s\S]*?<\/\1>/gi, '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|h[1-6]|tr)>/gi, '\n').replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&').replace(/\n{3,}/g, '\n\n').trim()
+  }
+  // csv · tsv — 따옴표 칸(쉼표 · 줄바꿈 · "" ) 을 읽어 md 표로
+  const sep = ext === 'tsv' ? '\t' : ','
+  const rows = []
+  let row = []
+  let cell = ''
+  let q = false
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i]
+    if (q) {
+      if (c === '"' && t[i + 1] === '"') { cell += '"'; i++ } else if (c === '"') q = false
+      else cell += c
+    } else if (c === '"') q = true
+    else if (c === sep) { row.push(cell); cell = '' }
+    else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = '' }
+    else if (c !== '\r') cell += c
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row) }
+  const live = rows.filter((r) => r.some((x) => x.trim()))
+  if (!live.length) return ''
+  const w = Math.max(...live.map((r) => r.length))
+  const md = (r) => '| ' + Array.from({ length: w }, (_, i) => String(r[i] ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ').trim()).join(' | ') + ' |'
+  return [md(live[0]), '|' + ' --- |'.repeat(w), ...live.slice(1).map(md)].join('\n')
+}
 
 const extOf = (n) => (String(n).toLowerCase().match(/\.([a-z0-9]+)$/) || [])[1] || ''
 // 넣은 경로 — 폴더 짜임 그대로 · 폴더 밖으로 못 나간다 · 파일 이름에 못 쓰는 글자 뺌
@@ -49,6 +83,7 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
     let md = null
     try {
       if (ext === 'md' || ext === 'markdown') md = readText(f.data.toString('utf8'))
+      else if (TEXT.includes(ext)) md = `# ${path.posix.basename(base)}\n\n${textToMd(ext, f.data)}\n`
       else if (DOCX.includes(ext) && conv) md = `# ${path.posix.basename(base)}\n\n${convert(rel, f.data)}\n`
       else if (PCONLY.includes(ext) && conv && mdOf) {
         const got = await mdOf(rel, f.data)
@@ -61,7 +96,7 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
     if (md != null) {
       if (!direct || asRecord) {
         // 원본(docx · pptx · xlsx)은 첨부로 둔다 — 바로 넣을 수 있는 사람만
-        if (direct && ext !== 'md' && ext !== 'markdown' && !(await read(attRel))?.equals(f.data)) plan.atts.push({ rel: attRel, data: f.data })
+        if (direct && ext !== 'md' && ext !== 'markdown' && !TEXT.includes(ext) && !(await read(attRel))?.equals(f.data)) plan.atts.push({ rel: attRel, data: f.data })
         const tag = `ingest/${rel}`.slice(0, 60)
         const same = k.works.some((w) => w.tags.includes(tag) && w.body.trim() === md.trim())
         if (same) row('same', '같은 파일 — 그대로 두었다')
@@ -77,7 +112,7 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
         continue
       }
       plan.docs.push({ rel: docRel, text: md })
-      if (ext !== 'md' && ext !== 'markdown') plan.atts.push({ rel: attRel, data: f.data })
+      if (ext !== 'md' && ext !== 'markdown' && !TEXT.includes(ext)) plan.atts.push({ rel: attRel, data: f.data })
       row('doc', `문서가 됐다 — ${k.name} › ${base.split('/').join(' › ')}`, { doc: base })
       continue
     }
@@ -106,5 +141,5 @@ const tidy = (t) => readText(t).split('\n').map((l) => l.replace(/\s+$/, '')).jo
 
 export function summary(rows) {
   const n = (k) => rows.filter((r) => r.kind === k).length
-  return { doc: n('doc'), record: n('record'), att: n('att'), same: n('same'), fail: n('fail'), skip: n('skip') }
+  return { doc: n('doc'), record: n('record'), att: n('att'), same: n('same'), fail: n('fail'), skip: n('skip'), run: n('run') }
 }

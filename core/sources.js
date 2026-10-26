@@ -14,6 +14,7 @@
 import fs from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
 import path from 'node:path'
+import os from 'node:os'
 import crypto from 'node:crypto'
 import { tryGit, maskUrl, commitPaths, ensureRepo } from './git.js'
 import { readText, nfc } from './text.js'
@@ -98,10 +99,11 @@ async function writeState(dataDir, kn, st) {
 }
 
 // ── 대상 제한 ──
-const inside = (p, root) => {
+export const inside = (p, root) => {
   const a = path.resolve(p).toLowerCase()
   const b = path.resolve(root).toLowerCase()
-  return a === b || a.startsWith(b + path.sep)
+  const r = path.relative(b, a)
+  return r === '' || (!r.startsWith('..') && !path.isAbsolute(r))
 }
 export function checkTarget(at, { kind, roots = [], dataDir, knowledgeDirs = [], backups = [], pc = false }) {
   const s = String(at || '').trim()
@@ -117,8 +119,9 @@ export function checkTarget(at, { kind, roots = [], dataDir, knowledgeDirs = [],
   } catch {
     throw new KmdError('E_INPUT', '그 폴더가 없다')
   }
+  if (path.parse(real).root.toLowerCase() === real.toLowerCase() || real.toLowerCase() === os.homedir().toLowerCase()) throw new KmdError('E_INPUT', '드라이브 통째 · 사용자 집 폴더 통째는 받지 않는다 — 그 안의 폴더를 고른다')
   if (inside(real, dataDir) || knowledgeDirs.some((d) => inside(real, d) || inside(d, real))) throw new KmdError('E_INPUT', 'kmd 의 살림 자리 · 지식 폴더는 가져오는 곳이 될 수 없다')
-  if (!pc && !roots.some((r) => inside(real, r))) throw new KmdError('E_FORBIDDEN', '이 폴더는 가져오는 곳으로 허락되지 않았다 — serve.json 의 sourceRoots 에 더한다')
+  if (!pc && !roots.some((r) => inside(real, r))) throw new KmdError('E_FORBIDDEN', `이 폴더는 가져오는 곳으로 허락되지 않았다 — 허락된 곳: ${roots.length ? roots.join(' · ') : '아직 없다(관리자가 정한다)'}`)
   return { folder: real }
 }
 
@@ -186,7 +189,7 @@ async function readGit(src, { dataDir, kn }) {
   const env = cred ? { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.extraHeader', GIT_CONFIG_VALUE_0: `Authorization: Basic ${Buffer.from(cred).toString('base64')}` } : {}
   const guard = ['-c', 'protocol.allow=never', '-c', 'protocol.https.allow=always', '-c', 'protocol.ssh.allow=always', '-c', `protocol.file.allow=${local ? 'always' : 'never'}`, '-c', 'fetch.recurseSubmodules=false']
   const f = await tryGit(bare, [...guard, 'fetch', '-q', '--depth=1', remote, '+HEAD:refs/heads/kmd-src'], { timeout: 120_000, env })
-  if (!f.ok) throw new KmdError('E_SOURCE', f.timedOut ? '원천이 답하지 않는다' : /auth|denied|403|401/i.test(f.err) ? '원천 자격이 맞지 않는다' : '원천에 닿지 않는다')
+  if (!f.ok) throw new KmdError('E_SOURCE', f.timedOut ? '저장소가 답하지 않는다 — 주소 · 사내망을 본다' : /auth|denied|403|401/i.test(f.err) ? '저장소의 읽기 자격이 맞지 않는다 — 자격을 다시 넣는다' : '저장소에 닿지 않는다 — 주소 · 사내망 · 자격을 본다')
   const sig = (await tryGit(bare, ['rev-parse', 'refs/heads/kmd-src'])).out.trim()
   const asof = (await tryGit(bare, ['log', '-1', '--format=%ci', 'refs/heads/kmd-src'])).out.trim().slice(0, 16)
   const tree = (await tryGit(bare, ['ls-tree', '-r', '-l', 'refs/heads/kmd-src'])).out.split('\n').filter(Boolean)
@@ -202,7 +205,7 @@ async function readGit(src, { dataDir, kn }) {
 export async function readSource(src, ctx) {
   if (src.kind === 'folder') return readFolder(src.folder || src.at)
   if (src.kind === 'git') return readGit(src, ctx)
-  throw new KmdError('E_INPUT', src.kind === 'db' ? 'DB 원천은 다음 판에서 연다' : '모르는 원천 종류')
+  throw new KmdError('E_INPUT', src.kind === 'db' ? 'DB 는 다음 판에서 연다' : '모르는 가져오는 곳 종류')
 }
 
 // ── 항목 → 블록 → 저장 계획 ──
@@ -324,7 +327,7 @@ async function gitFetch(src, { dataDir, kn }) {
   const env = cred ? { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.extraHeader', GIT_CONFIG_VALUE_0: `Authorization: Basic ${Buffer.from(cred).toString('base64')}` } : {}
   const guard = ['-c', 'protocol.allow=never', '-c', 'protocol.https.allow=always', '-c', 'protocol.ssh.allow=always', '-c', `protocol.file.allow=${local ? 'always' : 'never'}`, '-c', 'fetch.recurseSubmodules=false']
   const f = await tryGit(bare, [...guard, 'fetch', '-q', '--depth=1', remote, '+HEAD:refs/heads/kmd-src'], { timeout: 120_000, env })
-  if (!f.ok) throw new KmdError('E_SOURCE', f.timedOut ? '원천이 답하지 않는다' : /auth|denied|403|401/i.test(f.err) ? '원천 자격이 맞지 않는다' : '원천에 닿지 않는다')
+  if (!f.ok) throw new KmdError('E_SOURCE', f.timedOut ? '저장소가 답하지 않는다 — 주소 · 사내망을 본다' : /auth|denied|403|401/i.test(f.err) ? '저장소의 읽기 자격이 맞지 않는다 — 자격을 다시 넣는다' : '저장소에 닿지 않는다 — 주소 · 사내망 · 자격을 본다')
   const commit = (await tryGit(bare, ['rev-parse', 'refs/heads/kmd-src'])).out.trim()
   const asof = (await tryGit(bare, ['log', '-1', '--format=%ci', commit])).out.trim().slice(0, 16)
   // 더 받기 — 얕게 받은 이력을 n 커밋 더(기준 커밋에 닿을 때까지)
@@ -548,7 +551,7 @@ async function runTables(k, src, { dataDir, save, first = false, force = false, 
       asof = g.asof
       scan = await scanGit(g.bare, L, commit, { want, maxFile: MAX_FILE, maxFiles: MAX_FILES, full, onProgress })
       scan.bare = g.bare
-    } else throw new KmdError('E_INPUT', '모르는 원천 종류')
+    } else throw new KmdError('E_INPUT', '모르는 가져오는 곳 종류')
     const n = changeCount(scan.changes)
     const all = first || full || L.rules !== ruleSig || !L.out
     if (!force && !all && n === 0 && !s0.stopped) {

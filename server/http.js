@@ -254,7 +254,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   }
   const need = (ctx) => {
     if (!ctx) throw new KmdError('E_AUTH', '들어온 뒤 쓴다')
-    if (ctx.machine) throw new KmdError('E_FORBIDDEN', '기계 열쇠는 기준선 길만 쓴다', { need: 'person' })
+    if (ctx.machine) throw new KmdError('E_FORBIDDEN', '기계 열쇠는 저절로 채우는 표의 길만 쓴다', { need: 'person' })
     if (ctx.draft || ctx.worker) throw new KmdError('E_FORBIDDEN', '정리 일꾼은 초안만 올린다', { need: 'person' })
     return ctx
   }
@@ -528,7 +528,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const b = await readBody(req)
       if (sm[2] === 'every') return out(200, await hub.sourceEvery(ctx, id, b))
       if (sm[2] === 'edit') return out(200, await hub.sourceEdit(ctx, id, b))
-      if (sm[2] === 'remove') return out(200, await hub.sourceRemove(ctx, id, { name: String(b.name || '') }))
+      if (sm[2] === 'remove') return out(200, await hub.sourceRemove(ctx, id, { name: String(b.name || ''), copies: b.copies === 'drop' ? 'drop' : 'keep' }))
       if (sm[2] === 'checkdb') return out(200, await hub.sourceCheckDb(ctx, id, b))
       if (sm[2] === 'resync') return out(200, await hub.sourceResync(ctx, id, String(b.name || '')))
       if (sm[2] === 'meaning') return out(200, await hub.sourceMeaning(ctx, id, { name: String(b.name || ''), on: !!b.on }))
@@ -583,7 +583,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, await Promise.all(ks.map(async (k) => {
         // 보낼 곳이 있는 지식 — 보낼 것 수(옆 메뉴 「보내기」 의 수)
         const sq = hub.canDirect(ctx, k.id) ? await hub.sendQueue(ctx, k.id).catch(() => null) : null
-        return { ...V.knowledgeRow(k), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sq?.dests.length ? { dests: sq.dests.map((d) => (d.url ? `${d.url}/r/${encodeURIComponent(d.kn)}` : d.kn)), sendN: sq.items.filter((x) => x.on).length, sendWait: sq.wait.length } : {}), private: !!hub.owner(k.id)?.private, tidyAt: hub.tidyAtOf(k.id), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
+        return { ...V.knowledgeRow(k), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sq?.dests.length ? { dests: sq.dests.map((d) => (d.url ? `${d.url}/r/${encodeURIComponent(d.kn)}` : d.kn)), sendN: sq.items.filter((x) => x.on).length, sendWait: sq.wait.length } : {}), private: !!hub.owner(k.id)?.private, tidyAt: hub.tidyAtOf(k.id), tidyMode: hub.tidyModeOf(k.id), pendText: hub.pendText(k.id), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
       })))
     }
     // 에이전트 일 — 목록 · 줄(터미널)
@@ -680,6 +680,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (sd[2] === 'inbox/send') return out(200, await hub.inboxSend(ctx, id, b))
       return out(200, await hub.inboxTidy(ctx, id, { dry: !!b.dry }))
     }
+    const uw = p.match(/^\/api\/k\/([^/]+)\/unwatch$/)
+    if (uw) return out(200, await hub.unwatch(ctx, decodeURIComponent(uw[1]), await readBody(req)))
     const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|backup|backup\/pull|owner|learn|edit|revert)$/)
     if (!m) throw new KmdError('E_NOTFOUND', '그런 길은 없다')
     const id = decodeURIComponent(m[1])
@@ -729,7 +731,9 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       // 원본이 주인인 문서 — 어디서 왔나 · 고치기 없음
       const dd = k.docs.find((x) => x.id === url.searchParams.get('d'))
       const watched = dd ? watchedOf(await fs.readFile(path.join(k.dir, ...dd.path.split('/')), 'utf8').catch(() => '')) : null
-      return out(200, { ...v, watched, direct: hub.canDirect(ctx, k.id) && !watched })
+      // 원본이 주인인 문서 — 그 가져오는 곳이 이제 없으면 「원본이 없어졌다」(표지를 걷을 수 있다)
+      const orphan = watched ? !(await hub.sources(ctx, k.id).catch(() => [])).some((s) => s.name === watched.src) : false
+      return out(200, { ...v, watched: watched ? { ...watched, ...(orphan ? { orphan: true } : {}) } : null, direct: hub.canDirect(ctx, k.id) && !watched })
     }
     const v = V.recView(k, url.searchParams.get('r'))
     if (!v) throw new KmdError('E_NOTFOUND', '이 기록은 이제 없다')

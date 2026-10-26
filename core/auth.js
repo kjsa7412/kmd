@@ -428,7 +428,7 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
 
     // ── 기계 열쇠 — 지식 하나 · 원천 이름 하나 · 종류 · 1년 ──
     async machineAdd({ kn, source, types = [] }) {
-      if (!kn || !source) throw new KmdError('E_INPUT', '지식과 원천 이름이 있다')
+      if (!kn || !source) throw new KmdError('E_INPUT', '지식과 가져오는 곳 이름이 있다')
       const id = `machine-${crypto.randomBytes(4).toString('hex')}`
       const key = pw.newKey(pw.MACHINE_PREFIX)
       db.users[id] = { kind: 'machine', machine: { kn, source, types, exp: new Date(now() + pw.MACHINE_DAYS * 24 * H).toISOString() }, keys: [{ id: 'm', sha: pw.sha(key), at: new Date(now()).toISOString() }] }

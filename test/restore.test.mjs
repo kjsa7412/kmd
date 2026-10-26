@@ -40,7 +40,7 @@ after(() => { try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 1
 function serve(root, extra = {}) {
   fs.mkdirSync(path.join(root, '.kmd'), { recursive: true })
   fs.writeFileSync(path.join(root, '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, backupRoots: [path.join(tmp, 'bk')], ...extra }))
-  return startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
+  return startServer({ root, port: 0, log: process.env.KMD_TEST_LOG ? (...a) => console.error('[srv]', ...a) : () => {}, scryptN: 1 << 15 })
 }
 
 test('재난 시험 — 지우고 백업에서 되살린다(첨부 · 이름 장부 · 사람 · 한글 경로 · fsck · 트리 해시) · 다시 백업된다', async () => {
@@ -151,11 +151,15 @@ test('GitLab 봇 — 백업 자리가 없는 지식에 저장소를 찾거나 �
   fs.mkdirSync(path.join(root, '.kmd'), { recursive: true })
   await setSecret(path.join(root, '.kmd'), 'gitlab', 'bot-token')
   const s = await serve(root, { gitlab: { api: `http://127.0.0.1:${gl.address().port}`, group: 'kmd-backup' } })
-  assert.ok(await until(async () => !!(await s.hub.backupState(SHELL, 'dpms')) && !!(await s.hub.backupState(SHELL, 'gdi'))), '두 지식 모두 붙었다')
-  assert.deepEqual(made.sort(), ['dpms', 'gdi'])
-  assert.ok(!fs.readFileSync(path.join(root, '.kmd', 'backup', 'dpms.json'), 'utf8').includes('bot-token'), '열쇠는 상태 파일에 0')
-  await s.close()
-  gl.close()
+  try {
+    // 처음 붙이기가 잠깐 닿지 않아도 30초 뒤 다시 한다(GitLab · 저장소가 늦는 때)
+    assert.ok(await until(async () => !!(await s.hub.backupState(SHELL, 'dpms')) && !!(await s.hub.backupState(SHELL, 'gdi')), 90_000), '두 지식 모두 붙었다')
+    assert.deepEqual([...new Set(made)].sort(), ['dpms', 'gdi'])
+    assert.ok(!fs.readFileSync(path.join(root, '.kmd', 'backup', 'dpms.json'), 'utf8').includes('bot-token'), '열쇠는 상태 파일에 0')
+  } finally {
+    await s.close()
+    gl.close()
+  }
 })
 
 test('PC 운영 — 늘 켜기 작업 · 깨진 판으로 올리면 앞 판 그대로', async () => {
