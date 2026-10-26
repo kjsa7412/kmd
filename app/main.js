@@ -283,7 +283,7 @@ function sideHtml(left) {
   const vt = VIEWS3.includes(r.scr) ? r.scr : S.ktab || 'docs'
   const k = dim ? null : defaultKn()
   const cur = k ? KN(k) : null
-  let h = `<aside class="side${dim ? ' dim' : ''}"><div class="sb-top"><div class="logo${team ? '' : ' me'}">K</div><span class="brand">kmd</span></div><div class="where">${team ? '팀 서버에서 돈다 · ' + esc(S.me.host) : '이 PC 에서 돈다'}</div>`
+  let h = `<aside class="side${dim ? ' dim' : ''}"><div class="sb-top"><div class="logo${team ? '' : ' me'}">K</div><span class="brand">kmd</span>${busyDot()}</div><div class="where">${team ? '팀 서버에서 돈다 · ' + esc(S.me.host) : '이 PC 에서 돈다'}</div>`
   if (!dim) {
     // 지식 고르기 영역
     // 팀 화면의 지식 수는 갈래마다 — 내 PC · 개인 지식까지 「팀」 으로 세지 않는다
@@ -1422,6 +1422,8 @@ function viewSetup() {
  </div></div></div></div>`
 }
 async function postJSON(p, body) {
+  // 일을 거는 요청일 수 있다 — 곧 「지금 하는 일」 을 다시 읽는다(가져오기 · 넣기가 도는 동안 점이 바로 깜빡이게)
+  if (S.me && !anon()) { clearTimeout(busyTimer); busyTimer = setTimeout(loadBusy, 500) }
   const t = reqTo(p)
   const r = await fetch(t.url, { method: 'POST', headers: { 'content-type': 'application/json', ...t.headers }, body: JSON.stringify(body || {}) })
   const j = await r.json().catch(() => ({}))
@@ -2238,6 +2240,35 @@ async function pcLoginCheck(byHand) {
   render()
   return r.ok
 }
+// ── 지금 하는 일 — 왼쪽 위 「kmd」 옆 점(일이 있으면 깜빡인다) · 누르면 작은 팝업에 내역 ──
+//   가져오기(지켜보며 맞추기) · Claude Code 일(넣은 파일 · 코드 바뀜) · 정리 일감 · 기록을 문서에 넣는 중. 일이 있으면 3초 · 없으면 15초마다 읽는다
+const BUSY_K = { source: '가져오기', run: 'Claude Code', tidy: '정리', curate: '문서에 넣기' }
+function busyDot() {
+  if (anon() || gated()) return ''
+  const n = ((S.busy && S.busy.items) || []).length
+  if (S.menu === 'busy') S._pop = { key: 'busy', html: busyPopHtml() }
+  return `<button class="busy${n ? ' on' : ''}${S.menu === 'busy' ? ' open' : ''}" data-a="menu" data-m="busy" data-t="busyDot" data-n="${n}" title="${n ? `지금 하는 일 ${n} — 누르면 내역` : '지금 하는 일 없음'}"><i></i>${n ? `<span>${n}</span>` : ''}</button>`
+}
+function busyPopHtml() {
+  const xs = (S.busy && S.busy.items) || []
+  const ago = (t) => { const s = Math.max(0, Math.round((Date.now() - Date.parse(t)) / 1000)); return s < 60 ? `${s}초` : s < 3600 ? `${Math.floor(s / 60)}분` : `${Math.floor(s / 3600)}시간 ${Math.floor((s % 3600) / 60)}분` }
+  const rows = xs.map((x) => `<div class="mi brow" data-a="busyGo" data-kind="${esc(x.kind)}" data-k="${esc(x.kn)}" data-run="${esc(x.run || '')}" data-t="busyRow"><i class="bd"></i><span class="bt"><b>${esc(x.title)}</b><small>${esc(BUSY_K[x.kind] || x.kind)} · ${esc(x.knName)} · ${esc(x.small || '')}</small></span><small>${ago(x.since)}</small></div>`).join('')
+  return `<div class="gray" style="padding-top:2px"><b style="color:var(--text)">지금 하는 일</b> ${xs.length ? xs.length : ''}</div>${rows || '<div class="gray" data-t="busyNone">지금 하는 일이 없다 — 가져오기 · 정리 · Claude Code 일이 돌면 여기 보인다</div>'}`
+}
+let busyTimer = null
+async function loadBusy() {
+  clearTimeout(busyTimer)
+  if (!S.me || anon()) return
+  const before = JSON.stringify((S.busy && S.busy.items) || [])
+  const v = await getJSON('/api/busy').catch(() => null)
+  if (v) {
+    S.busy = v
+    // 바뀌었거나 팝업이 열려 있으면(지난 시간) 다시 그린다 — 쓰는 중인 칸은 건드리지 않는다
+    const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)
+    if ((JSON.stringify(v.items) !== before || S.menu === 'busy') && !typing) render()
+  }
+  busyTimer = setTimeout(loadBusy, v && v.items.length ? 3000 : 15000)
+}
 // ── Claude 연결 — 머리의 칩 · 창 ──
 //   가져온 지식(넣은 파일 · git 커밋)은 Claude 가 읽고 기록으로 쓰고, 그 기록으로 문서를 세운다 — 구독형 Claude 로그인이 있어야 한다.
 //   로그인은 이 PC 의 Claude Code 에 남아 저절로 이어진다. 화면은 30분마다 상태를 읽고, 6시간이 지났으면 작은 부르기로 확인하고,
@@ -2641,6 +2672,14 @@ const ACT = {
     render()
   },
   sfType: (el) => { const f = sfState(); f.type = el.dataset.v; f.rule = f.type === 'db' ? 'dbtables' : f.rule === 'dbtables' ? 'deps' : f.rule; S.sfMsg = null; render() },
+  // 지금 하는 일 팝업의 줄 — Claude Code 일은 가져오기 화면의 그 터미널 · 가져오기는 가져오기 화면 · 정리는 그 지식의 문서
+  busyGo: (el) => {
+    S.menu = null
+    const { kind, k, run } = el.dataset
+    if (kind === 'run' && run) { (S.termOpen ||= {})[run] = true; go({ scr: 'import' }); pollRuns(); return }
+    if (kind === 'source') { go({ scr: 'import' }); return }
+    go({ scr: 'docs', kn: k })
+  },
   termToggle: (el) => { const id = el.dataset.id; (S.termOpen ||= {})[id] = !S.termOpen[id]; paintJobs(); pollRuns() },
   sfAdd: () => sfAdd(false),
   sfOpen: () => { S.sfOpen = true; S.sfMsg = null; render() },
@@ -2920,6 +2959,7 @@ async function loadAll() {
   clearInterval(stopTimer)
   stopTimer = setInterval(loadStops, 60000)
   loadClaude({ verify: true })
+  loadBusy()
   clearInterval(claudeTimer)
   claudeTimer = setInterval(() => loadClaude({ verify: true }), 30 * 60_000)
   document.title = isTeam() ? 'kmd — 팀' : 'kmd'

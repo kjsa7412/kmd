@@ -209,6 +209,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   }
   let sendTimer = null
   const srcRuns = new Map() // 가져오는 곳마다 도는 중인 것(한 줄로 세운다)
+  const srcBusy = new Map() // 그중 지금 실제로 도는 것 — 「지금 하는 일」 팝업
+  const curating = new Map() // 바로 넣기(정리)가 도는 지식 → 시작 시각
   const adding = new Set() // 막 더하는 중인 곳 — 시계 · 켤 때 확인이 끼어들지 않게
   const resyncs = new Map() // 전체 다시 맞추기 일감 — 진행률
   const srcWatch = new Map() // 코드 폴더 실시간 감시
@@ -837,6 +839,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const key = `${id}\n${s.name}`
         const prev = srcRuns.get(key) || Promise.resolve()
         const job = prev.catch(() => {}).then(async () => {
+          srcBusy.set(key, { kn: id, name: s.name, kind: s.kind, since: new Date().toISOString(), full })
+          try {
           const k = await hub.get(id)
           const src = { ...s, folder: s.kind === 'folder' || !(/^(https?|ssh):\/\//i.test(s.at) || /^[^/\\\s]+@[^/\\\s]+:/.test(s.at)) ? s.at : undefined }
           const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, meaning: hub.meaningOk(id), mdOf: mode === 'pc' ? (rel, data) => hub.mdOf(rel, data) : null, analyze: mode === 'pc' && hub.meaningOk(id) ? (c, diffs, rec) => hub.analyzeCommit(id, s.name, c, diffs, rec) : null, save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
@@ -865,6 +869,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           else if (r.codeRecords && hub.meaningOk(id) && hub.tidyModeOf(id) !== 'manual') hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
           if (r.state === 'changed') for (const u of await hub.curatorsOf(id)) await feed.add(dataDir, u, { kind: 'source', kn: id, dot: 'acc', text: r.commits != null ? `${s.name}에서 새 묶음 ${r.commits} · 코드 바뀜 기록 ${r.codeRecords} — ${meta.name}` : `${s.name}에서 바뀐 표 ${r.n} — ${meta.name}`, small: r.commits != null ? '정리가 걸린 항목 글을 맞춘다' : `바뀐 파일 ${r.files} · 저절로 채우는 표` })
           return r
+          } finally {
+            srcBusy.delete(key)
+          }
         })
         srcRuns.set(key, job)
         out.push({ name: s.name, ...(await job) })
@@ -1452,6 +1459,18 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     runList(ctx, kn = null) {
       return [...runs.values()].filter((r) => (!kn || r.kn === kn) && hub.runOk(r, ctx)).reverse().slice(0, 40).map(({ lines, ...r }) => ({ ...r, n: lines.length }))
     },
+    // 지금 하는 일 — 가져오기(지켜보며 맞추기) · Claude Code 일(넣은 파일 · 코드 바뀜) · 정리 일감 · 바로 넣기 · 전체 다시 맞추기.
+    //   왼쪽 위 「kmd」 의 점멸 점과 작은 팝업이 읽는다(가볍게 — 메모리만)
+    async busy(ctx) {
+      const ks = new Map((await hub.visible(ctx)).map((k) => [k.id, k.name]))
+      const nm = (id) => ks.get(id)
+      const out = []
+      for (const b of srcBusy.values()) if (nm(b.kn)) out.push({ kind: 'source', kn: b.kn, knName: nm(b.kn), title: `${b.name} 가져오는 중${b.full ? ' — 전체 다시 맞추기' : ''}`, small: { git: '소스 코드', db: 'DB', docs: '문서 폴더', folder: '폴더' }[b.kind] || b.kind, since: b.since })
+      for (const r of runs.values()) if ((r.state === 'wait' || r.state === 'run') && nm(r.kn) && hub.runOk(r, ctx)) out.push({ kind: 'run', kn: r.kn, knName: nm(r.kn), title: r.title, small: r.state === 'wait' ? '차례를 기다린다' : `Claude Code 가 들이는 중 · 줄 ${r.lines.length}`, since: r.startedAt, run: r.id })
+      for (const j of jobs.values()) if ((j.state === 'queued' || j.state === 'running') && nm(j.kn)) out.push({ kind: 'tidy', kn: j.kn, knName: nm(j.kn), title: '정리', small: j.state === 'queued' ? '정리 일꾼을 기다린다' : '정리하는 중', since: j.at })
+      for (const [id, since] of curating) if (nm(id) && !out.some((x) => x.kn === id && x.kind === 'run')) out.push({ kind: 'curate', kn: id, knName: nm(id), title: '기록을 문서에 넣는 중', small: '아직 안 넣은 기록', since })
+      return { items: out.sort((a, b) => String(a.since).localeCompare(String(b.since))) }
+    },
     runGet(ctx, rid, from = 0) {
       const r = runs.get(rid)
       if (!r || !hub.runOk(r, ctx)) throw new KmdError('E_NOTFOUND', '그 일은 이제 없다')
@@ -1825,14 +1844,19 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async curatePending(id) {
       if (mode !== 'pc' && !hub.teamPrivate(id) && !hub.ruleOnly(id)) return { n: 0 }
       let n = 0
-      for (let round = 0; round < 3; round++) {
-        cache.delete(id)
-        const k = await hub.get(id)
-        const groups = material(k)
-        let did = 0
-        for (const g of groups) if (await hub.placeGroup(id, g).catch((e) => (log(`바로 넣기 ${id}: ${e.message}`), false))) did++
-        n += did
-        if (!did) break
+      curating.set(id, new Date().toISOString())
+      try {
+        for (let round = 0; round < 3; round++) {
+          cache.delete(id)
+          const k = await hub.get(id)
+          const groups = material(k)
+          let did = 0
+          for (const g of groups) if (await hub.placeGroup(id, g).catch((e) => (log(`바로 넣기 ${id}: ${e.message}`), false))) did++
+          n += did
+          if (!did) break
+        }
+      } finally {
+        curating.delete(id)
       }
       if (n) {
         const meta = await hub.meta(id)

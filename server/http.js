@@ -296,7 +296,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   }
 
   const GET_OK = [
-    /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|send\/targets|claude\/state)$/,
+    /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|send\/targets|claude\/state|busy)$/,
     /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/,
     /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|sources|send|backup|backup\/lost|owner|worker\/material)$/,
   ]
@@ -595,6 +595,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       })))
     }
     // 에이전트 일 — 목록 · 줄(터미널)
+    if (p === '/api/busy') { need(ctx); return out(200, await hub.busy(ctx)) }
     if (p === '/api/runs') { need(ctx); return out(200, hub.runList(ctx, url.searchParams.get('k') || null)) }
     const rn = p.match(/^\/api\/runs\/([0-9a-f]{12})$/)
     if (rn) { need(ctx); return out(200, hub.runGet(ctx, rn[1], Number(url.searchParams.get('from')) || 0)) }

@@ -41,7 +41,7 @@ export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_
     })
     return parse(out)
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true })
+    try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {} // Windows 의 EBUSY — 남겨도 답은 버리지 않는다
   }
 }
 

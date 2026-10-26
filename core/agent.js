@@ -110,7 +110,7 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
       p.stdin.end(prompt)
     })
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true })
-    fs.rmSync(cfgDir, { recursive: true, force: true })
+    // 일 폴더 치우기 — Windows 는 끝난 Claude Code 가 잠깐 폴더를 잡고 있다(EBUSY). 몇 번 기다려 지우고, 그래도 안 되면 남긴다(일은 실패로 만들지 않는다)
+    for (const d of [dir, cfgDir]) try { fs.rmSync(d, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
   }
 }
