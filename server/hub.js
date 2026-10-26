@@ -137,7 +137,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const agentKeys = new Map() // kmda_ 단기 열쇠 → { kn, rec, run, exp }
   const importing = new Set() // 파일을 넣는 중인 지식 — 정리 줄이 막 남은 기록을 따로 집지 않게
   const queuedRecs = new Set() // 일(run)이 맡은 기록
-  const codeTried = new Set() // 에이전트가 한 번 맡았던 코드 바뀜 기록 — 정리가 세 차례 돌아도 Claude Code 를 다시 띄우지 않는다(다시 켜면 다시)
+  const codeTried = new Map() // 에이전트가 맡았던 코드 바뀜 기록 → 시각 — 정리가 세 차례 돌아도 다시 띄우지 않고, 못 넣었으면 한 시간 뒤 정리 때 다시
+  const codeFresh = (id) => Date.now() - (codeTried.get(id) || 0) < 3600_000
   const liveTimers = new Map() // 팀 지식 「실시간」 정리 — 조용해진 뒤 한 번
   const privTimers = new Map() // 개인 지식 일감 — 주인의 PC 일꾼이 오래 받지 않으면 규칙으로
   const seenFile = path.join(dataDir, 'worker-seen.json') // 사람마다 PC 일꾼이 마지막으로 일감을 물은 때
@@ -1343,7 +1344,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (hub.teamPrivate(id)) hub.curateRules(id).catch(() => {})
       // 이 PC — 일꾼은 이름만 고른다. 걸린 항목이 없는 코드 바뀜 기록은 Claude Code 가 문서에 들인다(codeToDoc)
       cache.delete(id)
-      if (mode === 'pc' && hub.agentOk(id) && (await hub.get(id)).works.some((w) => w.state === 'nowhere' && w.tags.includes('code-change') && !codeTried.has(w.id))) hub.curateSoon(id).catch(() => {})
+      if (mode === 'pc' && hub.agentOk(id) && (await hub.get(id)).works.some((w) => w.state === 'nowhere' && w.tags.includes('code-change') && !codeFresh(w.id))) hub.curateSoon(id).catch(() => {})
       if (backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
       return { rows, summary: j?.summary || null }
     },
@@ -1473,7 +1474,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       for (const b of srcBusy.values()) if (nm(b.kn)) out.push({ kind: 'source', kn: b.kn, knName: nm(b.kn), name: b.name, title: `${b.name} 가져오는 중${b.full ? ' — 전체 다시 맞추기' : ''}`, small: { git: '소스 코드', db: 'DB', docs: '문서 폴더', folder: '폴더' }[b.kind] || b.kind, since: b.since })
       for (const r of runs.values()) if ((r.state === 'wait' || r.state === 'run') && nm(r.kn) && hub.runOk(r, ctx)) out.push({ kind: 'run', kn: r.kn, knName: nm(r.kn), title: r.title, small: r.state === 'wait' ? '차례를 기다린다' : `Claude Code 가 들이는 중 · 줄 ${r.lines.length}`, since: r.startedAt, run: r.id })
       for (const j of jobs.values()) if ((j.state === 'queued' || j.state === 'running') && nm(j.kn)) out.push({ kind: 'tidy', kn: j.kn, knName: nm(j.kn), title: '정리', small: j.state === 'queued' ? '정리 일꾼을 기다린다' : '정리하는 중', since: j.at })
-      for (const [id, since] of curating) if (nm(id) && !out.some((x) => x.kn === id && x.kind === 'run')) out.push({ kind: 'curate', kn: id, knName: nm(id), title: '기록을 문서에 넣는 중', small: '아직 안 넣은 기록', since })
+      // 바로 넣기 — 차례를 기다리는 기록 수(코드 바뀜은 Claude Code 가 하나씩 넣어 몇 분씩 걸린다)
+      for (const [id, since] of curating) {
+        if (!nm(id)) continue
+        const wait = (await hub.get(id)).works.filter((w) => (w.state === 'pend' || w.state === 'nowhere') && !queuedRecs.has(w.id)).length
+        out.push({ kind: 'curate', kn: id, knName: nm(id), title: '기록을 문서에 넣는 중', small: wait ? `차례를 기다리는 기록 ${wait}` : '마무리하는 중', since })
+      }
       return { items: out.sort((a, b) => String(a.since).localeCompare(String(b.since))) }
     },
     runGet(ctx, rid, from = 0) {
@@ -1560,8 +1566,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 코드 바뀜 기록 하나를 문서로 — Claude Code(에이전트)가 지식을 둘러보고 그 저장소가 만드는 시스템의 기능 · 설계 문서에
     //   넣는다(바뀐 기능의 항목을 지금 동작으로 고치거나 새 항목). 커밋마다 새 문서를 세우지 않는다. 에이전트가 없으면 기록으로 둔다
     async codeToDoc(id, w) {
-      if (!hub.agentOk(id) || codeTried.has(w.id) || queuedRecs.has(w.id)) return false
-      codeTried.add(w.id)
+      if (!hub.agentOk(id) || codeFresh(w.id) || queuedRecs.has(w.id)) return false
+      codeTried.set(w.id, Date.now())
       queuedRecs.add(w.id)
       const run = hub.newRun(id, { title: w.title.split(' — ')[0], file: hub.ingestFileOf(w), by: w.author, quiet: true })
       try {

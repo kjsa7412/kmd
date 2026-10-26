@@ -2,7 +2,8 @@
 //
 // `claude -p --output-format stream-json` 한 번:
 //   도구      내장은 Read · Glob · Grep 만(일 폴더 안 원본 · 바꾼 글을 읽는다) · MCP 는 kmd 하나(그 지식 · 그 일감의 단기 열쇠)
-//   허락      --permission-mode dontAsk + --allowedTools — 적힌 것 밖은 묻지 않고 거절(쓰기 · 셸 · 웹 없음)
+//   허락      --permission-mode dontAsk + --allowedTools mcp__kmd — 읽기는 일 폴더 안만(기본) · 그 밖은 묻지 않고 거절(쓰기 · 셸 · 웹 없음)
+//   연결      init 에 kmd 가 connected 가 아니면 끊고 다시 띄운다(세 번까지 — 도구 없이 헤매지 않게)
 //   일 순서   --append-system-prompt-file 에 스킬(agent/skills/kmd-build) · 일 설명은 표준 입력
 //   줄        stream-json 한 줄마다 터미널 줄(말 · 도구 · 결과 · 비용)로 바꿔 onLine 에 준다
 // 환경변수는 허용 목록만(claude.js 와 같다). 시험은 KMD_CLAUDE_AGENT 에 가짜(node 스크립트)를 준다 —
@@ -63,23 +64,44 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
     const cfgFile = path.join(cfgDir, 'mcp.json')
     fs.writeFileSync(cfgFile, JSON.stringify({ mcpServers: mcp ? { kmd: { type: 'http', url: mcp.url, headers: { Authorization: `Bearer ${mcp.token}` } } } : {} }))
     const tools = ['Read', 'Glob', 'Grep']
-    const args = ['-p', '--output-format', 'stream-json', '--verbose', '--tools', tools.join(','), '--allowedTools', [...tools, ...(mcp ? ['mcp__kmd'] : [])].join(','), '--permission-mode', 'dontAsk', '--strict-mcp-config', '--mcp-config', cfgFile, '--no-session-persistence', '--max-budget-usd', String(budget), '--append-system-prompt-file', sysFile, ...modelArgs(model)]
+    // 읽기 도구는 미리 허락하지 않는다 — 일 폴더(cwd) 안 읽기는 기본으로 되고, 밖(사용자 폴더의 설정 · 열쇠 파일)은 dontAsk 가 거절한다.
+    //   (Read · Glob · Grep 을 통째로 허락했더니 kmd 연결이 없던 에이전트가 ~/.claude.json · .mcp.json 을 읽으며 헤맸다)
+    //   -p 에서는 읽기가 어디서나 되므로 사용자 집 폴더의 숨은 파일 · 폴더(.claude · .claude.json · .ssh · .kmd-app …)와 AppData\Roaming 은 막는다
+    const deny = ['Read(~/.*)', 'Read(~/.*/**)', 'Read(~/AppData/Roaming/**)', 'Read(~/AppData/Local/Packages/**)']
+    const args = ['-p', '--output-format', 'stream-json', '--verbose', '--tools', tools.join(','), ...(mcp ? ['--allowedTools', 'mcp__kmd'] : []), '--disallowedTools', deny.join(','), '--permission-mode', 'dontAsk', '--strict-mcp-config', '--mcp-config', cfgFile, '--no-session-persistence', '--max-budget-usd', String(budget), '--append-system-prompt-file', sysFile, ...modelArgs(model)]
     const env = Object.fromEntries(ENV_ALLOW.filter((k) => process.env[k] != null).map((k) => [k, process.env[k]]))
+    // kmd 연결을 기다리는 시간 — 정리가 도는 동안 kmd 가 늦게 답하면 기본 대기로는 「pending」 인 채 시작했다
+    env.MCP_TIMEOUT ||= process.env.MCP_TIMEOUT || '60000'
     const fake = process.env.KMD_CLAUDE_AGENT
     const win = process.platform === 'win32'
     const [cmd, argv, opt] = fake ? [process.execPath, [fake, ...args], {}] : [win ? 'claude.cmd' : 'claude', args, win ? { shell: true } : {}]
     const quoted = opt.shell ? argv.map((a) => (a === '' ? '""' : /[\s"{}&|<>^]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a)) : argv
     line('sys', `Claude Code 를 띄운다 — 도구 ${tools.join(' · ')}${mcp ? ' · kmd' : ''}${model ? ` · 모델 ${model}` : ''} · 예산 $${budget}`)
-    return await new Promise((resolve) => {
+    // kmd 연결이 아직 서지 않은 채 시작하면(init 에 kmd 가 connected 가 아니다) 도구 없이 헤매므로 곧바로 끊고 다시 띄운다(세 번까지)
+    for (let attempt = 1; ; attempt++) {
+      const r = await once()
+      if (!r.mcpDown) return r
+      if (attempt >= 3) { line('err', 'kmd 연결이 서지 않았다 — 세 번 띄워도 · 다음 정리 때 다시'); return { ok: false, error: 'fail', message: 'kmd MCP 가 이어지지 않았다' } }
+      line('sys', `kmd 연결이 아직 서지 않았다 — 끊고 다시 띄운다(${attempt + 1}번째)`)
+      await new Promise((ok) => setTimeout(ok, 3000 * attempt))
+    }
+    function once() { return new Promise((resolve) => {
       const p = spawn(cmd, quoted, { cwd: dir, env, windowsHide: true, ...opt })
+      // 끊기 — Windows 는 cmd 를 거쳐 띄우므로 p.kill() 은 cmd 만 죽고 Claude Code 는 남는다 · 나무째(taskkill /T)
+      const stop = () => { if (win && !fake && p.pid) spawn('taskkill', ['/pid', String(p.pid), '/T', '/F'], { windowsHide: true }).on('error', () => p.kill()); else p.kill() }
+      let mcpDown = false
       let buf = ''
       let se = ''
       let last = null
-      const kill = setTimeout(() => { line('err', `시간이 넘었다(${Math.round(timeoutMs / 60000)}분) — 멈춘다`); p.kill() }, timeoutMs)
+      const kill = setTimeout(() => { line('err', `시간이 넘었다(${Math.round(timeoutMs / 60000)}분) — 멈춘다`); stop() }, timeoutMs)
       const eat = (raw) => {
         let j
         try { j = JSON.parse(raw) } catch { return }
-        if (j.type === 'system' && j.subtype === 'init') line('sys', `시작 — ${j.model || 'Claude'}${j.mcp_servers?.length ? ' · ' + j.mcp_servers.map((s) => `${s.name} ${s.status === 'connected' ? '이어짐' : s.status}`).join(' · ') : ''}`)
+        if (j.type === 'system' && j.subtype === 'init') {
+          line('sys', `시작 — ${j.model || 'Claude'}${j.mcp_servers?.length ? ' · ' + j.mcp_servers.map((s) => `${s.name} ${s.status === 'connected' ? '이어짐' : s.status}`).join(' · ') : ''}`)
+          const k = (j.mcp_servers || []).find((s) => s.name === 'kmd')
+          if (mcp && k && k.status !== 'connected') { mcpDown = true; stop() }
+        }
         if (j.type === 'assistant') for (const c of j.message?.content || []) {
           if (c.type === 'text' && c.text.trim()) line('say', c.text.trim())
           if (c.type === 'tool_use') line('tool', toolLine(c.name, c.input))
@@ -96,6 +118,7 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
       p.on('error', (e) => { clearTimeout(kill); resolve({ ok: false, error: 'fail', message: e.message }) })
       p.on('close', (code) => {
         clearTimeout(kill)
+        if (mcpDown) { resolve({ mcpDown: true }); return }
         if (buf.trim()) eat(buf)
         const text = `${last?.result || ''} ${se}`
         if (!last || last.is_error || code) {
@@ -108,7 +131,7 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
         resolve({ ok: true, text: String(last.result || ''), cost: last.total_cost_usd || 0, turns: last.num_turns || 0, model: last.model || null })
       })
       p.stdin.end(prompt)
-    })
+    }) }
   } finally {
     // 일 폴더 치우기 — Windows 는 끝난 Claude Code 가 잠깐 폴더를 잡고 있다(EBUSY). 몇 번 기다려 지우고, 그래도 안 되면 남긴다(일은 실패로 만들지 않는다)
     for (const d of [dir, cfgDir]) try { fs.rmSync(d, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}

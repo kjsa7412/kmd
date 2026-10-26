@@ -79,6 +79,23 @@ test('커밋 기록 — Claude 분석을 앞에 · 첫 줄(바뀐 값)과 차이
   assert.equal(commitAnalyzed(rec, { title: 't', summary: 's', changes: [] }, { src: 'gw', c }), rec)
 })
 
+test('코드 바뀜 기록 — 장부 밖 이름만 걸리면 「넣을 곳 찾는 중」(none 에 갇히지 않는다) · 정리가 넣었다고 적으면 「넣음」', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-code-'))
+  try {
+    fs.mkdirSync(path.join(dir, 'work'), { recursive: true })
+    fs.mkdirSync(path.join(dir, 'log'))
+    const rec = (id, extra = '') => `---\nid: ${id}\ntitle: 바뀜 — src abc1234\ndate: 2026-10-26 16:11\nauthor: kmd\ntouches:\n  - org:HNC\ntags:\n  - code-change\n${extra}---\n\n# 바뀜\n\n글\n`
+    fs.writeFileSync(path.join(dir, 'work', 'c1.md'), rec('c1'))
+    fs.writeFileSync(path.join(dir, 'work', 'c2.md'), rec('c2'))
+    fs.writeFileSync(path.join(dir, 'log', 't.md'), '---\nid: t\ntitle: 정리\ndate: 2026-10-26 16:20\nauthor: kmd-auto\ntags:\n  - curate-llm\nreflects:\n  - c2\n---\n\n# 정리\n\n넣었다\n')
+    const k = await loadKnowledge({ id: 't', name: 't', dir })
+    assert.equal(k.byWork.get('c1').state, 'nowhere')
+    assert.equal(k.byWork.get('c2').state, 'in')
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('출처 — 넣은 파일 기록 → 간 문서 · 문서 → 온 기록(정리 기록의 reflects · 항목 표지)', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-origin-'))
   try {

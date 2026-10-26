@@ -210,6 +210,8 @@ export function recordState(k, w) {
     // 같은 분이면 순서를 모른다 — 넣었다고 적지 않은 한 아직 안 넣은 것으로(조용히 「넣음」 이 되지 않게)
     if (!a || a.date <= w.date) return 'pend'
   }
+  // 코드 바뀜 — 걸린 이름이 어느 항목에도 닿지 않으면(장부 밖 이름만 걸렸다) 넣을 곳을 찾는 기록이다(Claude Code 가 기능 문서에 넣는다)
+  if (!any && w.tags.includes('code-change')) return k.reflected?.has(w.id) ? 'in' : 'nowhere'
   return any ? 'in' : 'none'
 }
 
