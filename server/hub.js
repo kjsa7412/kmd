@@ -244,7 +244,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         let id = nm
         // 팀 서버 — 관리자가 고르면 팀 지식(이름 그대로 · 주인은 만든 관리자 · 팀 모두 본다), 아니면 내 지식(이름-아이디 · 나만)
         const teamKn = mode === 'team' && !!team
-        if (teamKn && !ctx.admin) throw new KmdError('E_FORBIDDEN', '팀 지식은 관리자가 세운다 — 내 지식으로 만들고 관리자에게 부탁한다')
+        // 팀 서버에 지식을 세우는 것은 관리자만(팀 지식 · 팀 서버 안 내 지식) — 사람의 내 지식은 내 PC 프로그램의 지식 폴더에(새 지식 › 내 PC)
+        if (mode === 'team' && !ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '팀 서버에 지식을 세우는 것은 관리자가 한다 — 내 지식은 내 PC 에(새 지식 › 내 PC · 내 PC 프로그램이 있어야 한다)')
         if (mode === 'team') id = (teamKn ? nm : `${nm}-${ctx.user}`).replace(/[<>:"/\\|?*\s]+/g, '-')
         if (all.some((k) => k.id.toLowerCase() === id.toLowerCase())) throw new KmdError('E_CONFLICT', `「${nm}」 지식이 이미 있다`)
         const d = path.join(root, id)
@@ -306,7 +307,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
               const st = await fs.stat(path.join(d, e.name))
               bytes += st.size
               files.push({ path: r, full: path.join(d, e.name) })
-              if (files.length > MAX_FILES || bytes > MAX_BYTES) throw new KmdError('E_INPUT', `한 번에 ${MAX_FILES} 파일 · 200MB 까지 — 지식 만들기에서 나눠 넣는다`)
+              if (files.length > MAX_FILES || bytes > MAX_BYTES) throw new KmdError('E_INPUT', `한 번에 ${MAX_FILES} 파일 · 200MB 까지 — 가져오기에서 나눠 넣는다`)
             }
           }
         }

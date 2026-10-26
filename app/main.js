@@ -316,7 +316,8 @@ function hdrHtml(crumb) {
   const parts = String(crumb || '').split(' › ').filter(Boolean)
   const c = (kn && parts[0] !== kn ? '<span>' + esc(kn) + '</span> › ' : '') + parts.map((x, i) => (i === parts.length - 1 ? '<b>' + esc(x) + '</b>' : esc(x))).join(' › ')
   const hb = `<span class="hist"><button class="hb" data-a="histGo" data-v="-1" data-t="histBack" title="이전 (Alt ←)"${S.hpos > 0 ? '' : ' disabled'}>‹</button><button class="hb" data-a="histGo" data-v="1" data-t="histFwd" title="다음 (Alt →)"${S.hpos < S.hist.length - 1 ? '' : ' disabled'}>›</button></span>`
-  const me = anon() ? '<span class="hme muted" data-t="me">아직 들어오지 않았다</span>' : `<span class="hme" data-t="me"><span class="av">${esc(String(S.me.user).slice(0, 1))}</span>${esc(S.me.user)} <small>· ${isTeam() ? '팀 서버' : '이 PC'}</small></span>`
+  const meMenu = S.menu === 'me' ? `<div class="menu" style="right:0;top:30px" data-t="meMenu"><div class="mi" data-a="nav" data-s="settings" data-t="meSettings">설정</div>${isTeam() ? '<div class="sep"></div><div class="mi" data-a="logout" data-t="meLogout">나가기<small>이 브라우저에서</small></div><div class="mi" data-a="logoutAll" data-t="meLogoutAll">모든 곳에서 나가기<small>다른 기기 · 브라우저도</small></div>' : ''}</div>` : ''
+  const me = anon() ? '<span class="hme muted" data-t="me">아직 들어오지 않았다</span>' : `<span class="hme" data-a="menu" data-m="me" data-t="me" title="설정 · 나가기" style="cursor:pointer;position:relative">${meMenu}<span class="av">${esc(String(S.me.user).slice(0, 1))}</span>${esc(S.me.user)} <small>· ${isTeam() ? '팀 서버' : '이 PC'}</small></span>`
   const right = `<div class="hright"><a class="hlink" data-t="manual" href="/manual" target="_blank" rel="noopener" title="설명서 — 새 탭">${svg('book')}<span>설명서</span></a>${me}</div>`
   if (anon()) return `<header class="hdr"><span class="crumb">${c}</span><div class="hmid"></div>${right}</header>`
   return `<header class="hdr">${hb}<span class="crumb">${c}</span><div class="hmid"><div class="qbtn" data-a="openQo" data-t="qoBtn" title="문서 · 항목 · 기록 이름으로 바로 연다">빨리 열기 <kbd>Ctrl O</kbd></div><div class="search" data-a="openSearch" data-t="search">${svg('search')}<span style="margin-left:6px">찾기</span><span style="margin-left:auto;font-size:11px">Ctrl K</span></div></div>${right}</header>`
@@ -390,23 +391,43 @@ function viewHome() {
   }
 }
 // 새 지식 팝업 — 이름만(PC: 지식 폴더 안 새 지식 · 팀: 팀 서버 안 내 지식)
-function openAdd() { S.menu = null; S.addPop = { name: '', err: null, busy: false }; S._focus = 'addIn'; if (S.route.scr !== 'home') go({ scr: 'home', kn: '*' }); else render() }
+function openAdd() { S.menu = null; S.addPop = { name: '', dir: '', where: isTeam() ? (S.me.admin ? 'team' : 'pc') : 'local', err: null, busy: false }; S._focus = 'addIn'; if (S.route.scr !== 'home') go({ scr: 'home', kn: '*' }); else render() }
 function addPopHtml() {
   const a = S.addPop, team = isTeam()
-  return `<div class="scrim fix" data-a="addClose" data-self="1"><div class="modal w420" data-t="addPop"><div class="mh">새 지식<button class="x" data-a="addClose" title="닫기">×</button></div><div class="mb"><div class="field" style="margin:0"><label for="addIn">이름</label><input class="inp" id="addIn" data-in="addName" data-t="addIn" value="${esc(a.name)}" placeholder="예: 회의" autocomplete="off">${team && S.me.admin ? `<div class="seg" data-t="addKind" style="margin:8px 0 2px"><button class="${a.team ? 'on' : ''}" data-a="addKind" data-v="team" data-t="addKindTeam">팀 지식</button><button class="${a.team ? '' : 'on'}" data-a="addKind" data-v="mine" data-t="addKindMine">내 지식</button></div>` : ''}<div class="hint">${team && a.team ? '팀 지식 — 팀 모두 보고 기록한다 · 주인은 나(이 지식의 사람에서 넘긴다)' : team ? '팀 서버 안에 내 지식으로 선다 — 나만 본다 — 화면 · 찾기 · Claude Code 에서는 관리자도 보지 못한다(서버를 돌보는 사람 · 백업 그룹은 디스크 · 백업으로 볼 수 있다) · 떠나면 관리자가 넘겨받는다' : '지식 폴더 안에 이 이름의 폴더로 선다 — 나만'}</div></div>${a.err ? `<div class="callout danger" data-t="addMsg">${esc(a.err)}</div>` : ''}</div><div class="mf"><span class="l">새 지식은 메뉴 맨 아래에 들어온다</span><span class="acts"><button class="btn ghost" data-a="addClose">취소</button><button class="btn pri" data-a="doAdd" data-t="addBtn"${a.busy ? ' disabled' : ''}>${a.busy ? '만드는 중…' : '추가'}</button></span></div></div></div>`
+  const onPc = a.where === 'pc' || a.where === 'local'
+  const pcOff = team && a.where === 'pc' && !(S.pc && S.pc.token)
+  const kinds = team ? `<div class="seg" data-t="addKind" style="margin:0 0 10px"><button class="${a.where === 'pc' ? 'on' : ''}" data-a="addKind" data-v="pc" data-t="addKindPc">내 PC</button>${S.me.admin ? `<button class="${a.where === 'team' ? 'on' : ''}" data-a="addKind" data-v="team" data-t="addKindTeam">팀 지식</button><button class="${a.where === 'mine' ? 'on' : ''}" data-a="addKind" data-v="mine" data-t="addKindMine">팀 서버 · 나만</button>` : ''}</div>` : ''
+  const hint = a.where === 'team' ? '팀 서버에 팀 지식으로 선다 — 팀 모두 보고 기록한다 · 주인은 나(이 지식의 사람에서 넘긴다)'
+    : a.where === 'mine' ? '팀 서버 안에 내 지식으로 선다 — 나만 본다(관리자 · 서버를 돌보는 사람은 디스크 · 백업으로 볼 수 있다) · 떠나면 관리자가 넘겨받는다'
+    : `내 PC 의 지식 폴더 안에 선다 — 나만 · 팀 서버에는 가지 않는다${team ? ' · 팀 화면에서도 「내 PC」 로 열린다' : ''} · 폴더 경로를 쓰면 그 폴더의 글(md · docx · pptx · xlsx)을 한 번 들인다(원본은 그대로)`
+  const dirFld = onPc ? `<div class="field" style="margin:10px 0 0"><label for="addDir">내 PC 폴더 경로 <span class="muted">(선택 — 쓰면 이름은 폴더 이름)</span></label><input class="inp mono" id="addDir" data-in="addDir" data-t="addDir" value="${esc(a.dir || '')}" placeholder="예: D:\\문서\\배포 노트" autocomplete="off"></div>` : ''
+  return `<div class="scrim fix" data-a="addClose" data-self="1"><div class="modal w420" data-t="addPop"><div class="mh">새 지식<button class="x" data-a="addClose" title="닫기">×</button></div><div class="mb">${kinds}<div class="field" style="margin:0"><label for="addIn">이름</label><input class="inp" id="addIn" data-in="addName" data-t="addIn" value="${esc(a.name)}" placeholder="예: 회의" autocomplete="off"></div>${dirFld}<div class="hint" style="margin-top:8px">${esc(hint)}</div>${pcOff ? '<div class="callout gray" data-t="addPcOff" style="margin-top:8px">내 PC 프로그램에 닿지 않는다 — 켜 두거나, 없으면 설정 › 에이전트 설치의 설치 한 줄로 깐다</div>' : ''}${a.err ? `<div class="callout danger" data-t="addMsg">${esc(a.err)}</div>` : ''}</div><div class="mf"><span class="l">새 지식은 메뉴 맨 아래에 들어온다</span><span class="acts"><button class="btn ghost" data-a="addClose">취소</button><button class="btn pri" data-a="doAdd" data-t="addBtn"${a.busy || pcOff ? ' disabled' : ''}>${a.busy ? '만드는 중…' : '추가'}</button></span></div></div></div>`
+}
+// 내 PC 프로그램에 바로(짝 열쇠) — 팀 화면의 「새 지식 › 내 PC」
+async function pcPost(p, body) {
+  if (!S.pc || !S.pc.token) throw new Error('내 PC 프로그램에 닿지 않는다 — 켜 두거나 설치 한 줄로 깐다')
+  const r = await fetch(S.pc.url + p, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + S.pc.token }, body: JSON.stringify(body || {}) })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) throw Object.assign(new Error(j.message || '내 PC 프로그램이 받지 않았다'), { code: j.error })
+  return j
 }
 async function doAdd() {
   const a = S.addPop
   if (!a || a.busy) return
   const name = String(a.name || '').trim()
-  if (!name) { a.err = '이름을 쓴다'; render(); return }
+  const dir = String(a.dir || '').trim()
+  const onPc = a.where === 'pc' || a.where === 'local'
+  if (!name && !(onPc && dir)) { a.err = '이름을 쓴다(또는 내 PC 폴더 경로)'; render(); return }
   a.busy = true; a.err = null; render()
   try {
-    const r = await postJSON('/api/knowledge/add', { kind: 'new', name, ...(a.team ? { team: true } : {}) })
+    const body = onPc && dir ? { kind: 'folder', dir } : { kind: 'new', name, ...(a.where === 'team' ? { team: true } : {}) }
+    const r = a.where === 'pc' ? await pcPost('/api/knowledge/add', body) : await postJSON('/api/knowledge/add', body)
     S.addPop = null
+    if (a.where === 'pc') await pcConnect(false, { quiet: true }) // 팀 화면의 「내 PC」 목록을 새로
     await reloadKns()
     delete S.cache.history
-    S.syncMsg = { t: `<b>추가했다 — ${esc(r.name)}</b>${r.dir ? ' · ' + esc(r.dir) : isTeam() ? (a.team ? ' · 팀 지식 · 팀 모두 본다' : ' · 팀 서버 안 내 지식') : ''} <a data-a="openKn" data-k="${esc(r.id)}">열기 ›</a>` }
+    const id = a.where === 'pc' ? '~' + r.id : r.id
+    S.syncMsg = { t: `<b>추가했다 — ${esc(r.name)}</b>${a.where === 'pc' ? ' · 내 PC' : a.where === 'team' ? ' · 팀 지식 · 팀 모두 본다' : a.where === 'mine' ? ' · 팀 서버 안 내 지식' : r.dir ? ' · ' + esc(r.dir) : ''}${r.summary ? ` · 문서 ${r.summary.doc || 0}` : ''} <a data-a="openKn" data-k="${esc(id)}">열기 ›</a>` }
   } catch (e) { a.busy = false; a.err = e.message }
   render()
 }
@@ -1559,7 +1580,7 @@ function impTarget() {
   return { kn: null, label: '받은편지함(처음 넣으면 생긴다)' }
 }
 function impPick(target) {
-  return `<select class="inp" data-t="impKn" id="impKn" style="width:auto;margin:0 4px">${impKns().map((x) => `<option value="${esc(x.id)}"${x.id === target.kn ? ' selected' : ''}>${esc(x.name)}${isPersonal(x) ? ' · 나만' : ' · 팀'}</option>`).join('')}${impKns().some((x) => x.name === '받은편지함') ? '' : `<option value=""${target.kn ? '' : ' selected'}>받은편지함(새로 — 정리 시각에 이름이 걸리는 지식으로 옮긴다)</option>`}</select>`
+  return `<select class="inp" data-t="impKn" id="impKn" style="width:auto;margin:0 4px">${impKns().map((x) => `<option value="${esc(x.id)}"${x.id === target.kn ? ' selected' : ''}>${esc(x.name)}${isPersonal(x) ? ' · 나만' : ' · 팀'}</option>`).join('')}${impKns().some((x) => x.name === '받은편지함') || (isTeam() && !S.me.admin) ? '' : `<option value=""${target.kn ? '' : ' selected'}>받은편지함(새로 — 정리 시각에 이름이 걸리는 지식으로 옮긴다)</option>`}</select>`
 }
 const KIND_T = { docs: '문서 폴더', folder: '코드 폴더(예전)', git: '소스 코드 · git', db: 'DB · 읽기만', pc: '내 PC 폴더' }
 const KIND_I = { docs: 'doc', folder: 'doc', git: 'sync', db: 'server', pc: 'pair' }
@@ -2429,6 +2450,7 @@ const ACT = {
   agentUp: (el) => agentDo('up', el.dataset.v),
   agentRm: (el) => { if (!confirm('이 작업 폴더에서 kmd 를 뺀다 — 스킬 · 연결 · CLAUDE.md 의 kmd 안내를 걷는다')) { S.menu = null; return render() } agentDo('rm', el.dataset.v) },
   agentAllNew: () => agentDo('up'),
+  logoutAll: async () => { S.menu = null; if (!confirm('모든 곳에서 나간다 — 이 브라우저와 다른 기기 · 브라우저의 들어온 것이 모두 끊긴다(Claude Code 의 기기 열쇠는 그대로)')) return render(); try { await postJSON('/api/me/logout-all', {}) } catch {} try { sessionStorage.removeItem('kmdPair'); localStorage.removeItem('kmdPcKns'); localStorage.removeItem('kmdPcSeen') } catch {} location.href = '/' },
   logout: async () => { await postJSON('/logout', {}).catch(() => {}); try { sessionStorage.removeItem('kmdPair'); localStorage.removeItem('kmdPcKns'); localStorage.removeItem('kmdPcSeen') } catch {} location.href = '/' },
   admAddOpen: () => { S.admAdd = { id: '', admin: false }; S._focus = 'admAddIn'; render() },
   admAddCancel: () => { S.admAdd = null; render() },
@@ -2475,7 +2497,7 @@ const ACT = {
     try { await postJSON(`/api/requests/${encodeURIComponent(el.dataset.id)}/close`, { state: 'no', why }); delete S.cache.admin; toast('거절했다 — 부탁한 사람에게 알렸다') } catch (e) { toast(esc(e.message)) }
     render()
   },
-  addKind: (el) => { if (S.addPop) { S.addPop.team = el.dataset.v === 'team'; render() } },
+  addKind: (el) => { if (S.addPop) { S.addPop.where = el.dataset.v; S.addPop.err = null; render() } },
   ownGive: async () => { const to = ($('#ownSel') || {}).value; const k = tidyKn(); if (!to || !confirm(`주인을 ${to} 에게 넘긴다`)) return; await setOwnerRow(k, { owner: to }); await reloadKns(); render() },
   ownKind: async (el) => { const k = tidyKn(); const toTeam = el.dataset.v === 'team'; if (!confirm(toTeam ? '팀 지식으로 내놓는다 — 팀 모두 읽고 기록한다' : '개인으로 돌린다 — 주인만 본다(팀원의 화면 · 찾기 · Claude Code 에서 사라진다)')) return; await setOwnerRow(k, { private: !toTeam }); await reloadKns(); render() },
   sudoOk: () => sudoOk(),
@@ -2748,6 +2770,7 @@ document.addEventListener('input', (ev) => {
   if (k === 'se' && S.se) S.se[t.dataset.f] = t.value
   if (k === 'sendQ') { S.sendQ = t.value; const q = t.value.trim().toLowerCase(); for (const r of document.querySelectorAll('[data-t=sendDoc],[data-t=sendRec]')) r.style.display = !q || r.textContent.toLowerCase().includes(q) ? '' : 'none' }
   if (k === 'edTx' && S.edit) { S.edit.text = t.value; try { sessionStorage.setItem(edKey(S.edit), t.value) } catch {} return }
+  if (k === 'addDir' && S.addPop) S.addPop.dir = t.value
   if (k === 'admAddId' && S.admAdd) S.admAdd.id = t.value
   if (k === 'addName' && S.addPop) { S.addPop.name = t.value; if (S.addPop.err) { S.addPop.err = null; const m = $('[data-t=addMsg]'); if (m) m.remove() } }
 })

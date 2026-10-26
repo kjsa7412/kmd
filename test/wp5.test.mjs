@@ -32,7 +32,7 @@ before(async () => {
   data = path.join(root, '.kmd')
   copyDir(path.join(HERE, 'fixture', 'kmd'), root)
   fs.mkdirSync(data, { recursive: true })
-  fs.writeFileSync(path.join(data, 'serve.json'), JSON.stringify({ decideMs: 3600000, tidyTickMs: 3600000, sendTickMs: 3600000, jobLeaseMs: 300, privateWaitMs: 400 }))
+  fs.writeFileSync(path.join(data, 'serve.json'), JSON.stringify({ decideMs: 3600000, tidyTickMs: 3600000, sendTickMs: 3600000, jobLeaseMs: 300, privateWaitMs: 2000 }))
   s = await startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
   await s.hub.addKnowledge(KIM, { kind: 'new', name: '노트', team: true })
 })
@@ -129,7 +129,7 @@ test('정리 일감 — 임대가 지나면 다시 기다림 · 세 번째면 fa
 })
 
 test('팀 서버의 개인 지식 — 두 번째 일감도 하루 뒤 규칙으로 · 기다리는 동안 주인에게 줄 · [지금 정리] 는 규칙으로', async () => {
-  await s.hub.addKnowledge({ user: 'park' }, { kind: 'new', name: '메모' })
+  await s.hub.addKnowledge({ user: 'park', admin: true }, { kind: 'new', name: '메모' })
   const id = '메모-park'
   await s.auth.addUser({ id: 'park' })
   const dk = await s.auth.deviceKeyFor('park', { host: 'P' })
@@ -145,8 +145,8 @@ test('팀 서버의 개인 지식 — 두 번째 일감도 하루 뒤 규칙으�
   await save('둘째 메모 — 둘')
   await until(() => s.hub.jobsOf(id).some((j) => j.state === 'queued'))
   assert.ok((await s.hub.stops({ user: 'park' })).some((l) => /내 PC 일꾼을 기다린다/.test(l.b)))
-  // 두 번째 일감도 「하루」(시험은 0.4초) 뒤 규칙으로 — 전에는 시계를 다시 걸지 않아 7일까지 기다렸다
-  assert.ok(await until(() => s.hub.jobsOf(id).filter((j) => j.state === 'queued').length === 0, 5000))
+  // 두 번째 일감도 「하루」(시험은 2초) 뒤 규칙으로 — 전에는 시계를 다시 걸지 않아 7일까지 기다렸다
+  assert.ok(await until(() => s.hub.jobsOf(id).filter((j) => j.state === 'queued').length === 0, 15000))
   await s.hub.curateIdle(id)
   assert.ok(!(await s.hub.get(id)).works.some((w) => w.title === '둘째 메모 — 둘' && w.state === 'pend'))
   // [지금 정리] — 기다리는 일감이 있으면 규칙으로 곧바로

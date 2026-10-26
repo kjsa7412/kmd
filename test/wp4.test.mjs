@@ -68,7 +68,7 @@ test('떠남 — 한 번에 끊고 아이디를 남긴다 · 지식은 넘기거
   const lk = s.auth.devices('lee')[0]
   const leeKey = lee.key
   const w = await s.auth.workerAdd({ owner: 'lee', device: lk.id })
-  await s.hub.addKnowledge({ user: 'lee' }, { kind: 'new', name: '고객메모' })
+  await s.hub.addKnowledge({ user: 'lee', admin: true }, { kind: 'new', name: '고객메모' }) // 팀 서버의 개인 지식은 관리자일 때 세운 것
   await s.hub.setOwner(SHELL, 'dpms', { curators: ['lee'] })
   await s.hub.setOwner(SHELL, 'gdi', { owner: 'lee' })
   // 비밀번호 한 번 더 없이는 안 된다 · 나 자신은 안 된다
@@ -111,6 +111,10 @@ test('관리자는 화면에서 팀 지식을 세운다 · 주인 넘기기 · �
   assert.equal(r.id, '보안점검')
   assert.ok((await get('/api/knowledge', park).then((x) => x.json())).some((k) => k.id === '보안점검' && !k.private), '팀 모두 본다')
   assert.equal(await code(s.hub.addKnowledge({ user: 'park' }, { kind: 'new', name: '몰래팀', team: true })), 'E_FORBIDDEN')
+  // 팀 서버에 지식을 세우는 것은 관리자만 — 사람의 내 지식은 내 PC 에(팀 화면의 새 지식 › 내 PC)
+  const r2 = await post('/api/knowledge/add', park, { kind: 'new', name: '내 메모' }).then((x) => x.json())
+  assert.equal(r2.error, 'E_FORBIDDEN')
+  assert.match(r2.message, /팀 서버에 지식을 세우는 것은 관리자가 한다 — 내 지식은 내 PC 에/)
   // 비밀번호 한 번 더가 끝난 관리자 — 주인 넘기기 · 개인으로 돌리기 · 지우기는 E_SUDO
   const kim2 = { ...kim }
   kim2.cookie = (await fetch(s.url + '/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ user: 'kim', pw: prehash('kim', kim.pw) }) })).headers.getSetCookie().map((c) => c.split(';')[0]).join('; ')
@@ -131,7 +135,7 @@ test('부탁 — 같은 것은 합친다 · 개인 지식에는 받지 않는다
   assert.equal(b.again, true)
   assert.equal((await s.hub.requests()).length, 1)
   assert.equal((await s.hub.requests())[0].by, 'park, choi')
-  await s.hub.addKnowledge({ user: 'park' }, { kind: 'new', name: '내메모' })
+  await s.hub.addKnowledge({ user: 'park', admin: true }, { kind: 'new', name: '내메모' })
   assert.equal(await code(s.hub.sourceRequest({ user: 'park' }, '내메모-park', card)), 'E_INPUT')
   const c = await s.hub.sourceRequest({ user: 'park' }, 'dpms', { ...card, name: '다른것' })
   // 거절 — 부탁한 사람의 이력에 · 목록에서 빠진다

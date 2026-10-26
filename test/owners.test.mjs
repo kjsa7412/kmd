@@ -52,7 +52,7 @@ test('_members.md — 주인 · 개인 · 정리하는 사람 · 정리 방식 �
 
 test('한 줄로 서서 고친다 — 여럿이 같은 때 개인 지식을 만들고 정리 시각을 바꿔도 「나만」 줄을 잃지 않는다', async () => {
   const jobs = []
-  for (let i = 0; i < 6; i++) jobs.push(s.hub.addKnowledge(i % 2 ? PARK : LEE, { kind: 'new', name: `일기${i}` }))
+  for (let i = 0; i < 6; i++) jobs.push(s.hub.addKnowledge({ ...(i % 2 ? PARK : LEE), admin: true }, { kind: 'new', name: `일기${i}` }))
   for (let i = 0; i < 4; i++) jobs.push(s.hub.setOwner(SHELL, 'dpms', { tidyAt: `0${i}:30` }))
   const r = await Promise.allSettled(jobs)
   assert.deepEqual(r.filter((x) => x.status === 'rejected').map((x) => x.reason?.message), [], '쓰기가 다투다 넘어지지 않는다')
@@ -150,7 +150,7 @@ test('셸과 서버가 겹쳐 써도 — 파일 잠금 안에서 다시 읽고 �
   // private 은 참 · 거짓으로만 — 문자열 'false' 가 지식을 가리지 않는다
   assert.equal((await s.hub.setOwner(SHELL, 'gdi', { private: 'false' })).private, false)
   // 같은 이름 두 번 — 둘째만 E_CONFLICT · 첫째의 「나만」 줄은 남는다
-  const r = await Promise.allSettled([s.hub.addKnowledge(LEE, { kind: 'new', name: '두번' }), s.hub.addKnowledge(LEE, { kind: 'new', name: '두번' })])
+  const r = await Promise.allSettled([s.hub.addKnowledge({ ...LEE, admin: true }, { kind: 'new', name: '두번' }), s.hub.addKnowledge({ ...LEE, admin: true }, { kind: 'new', name: '두번' })])
   assert.deepEqual(r.map((x) => x.status).sort(), ['fulfilled', 'rejected'])
   assert.equal(r.find((x) => x.status === 'rejected').reason.code, 'E_CONFLICT')
   assert.equal(ledger()['두번-lee']?.private, true)

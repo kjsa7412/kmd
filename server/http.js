@@ -182,7 +182,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const PAIR_MS = 12 * 3600_000
   const teamsFile = path.join(dataDir, 'teams.json')
   const teamsOf = async () => (await fs.readFile(teamsFile, 'utf8').then(JSON.parse, () => [])).map((u) => { try { return new URL(u).origin } catch { return null } }).filter(Boolean)
-  const CORS_OK = [/^GET \/api\/knowledge$/, /^GET \/api\/k\/[^/]+\/(tree|doc|rec|att|model|item)$/, /^POST \/api\/k\/[^/]+\/(save|edit)$/]
+  // 팀 화면에서 내 PC 지식 — 읽기 · 저장 · 새 지식(이름 · 내 PC 폴더 경로). 같은 사람인지 짝을 지을 때 대조했다
+  const CORS_OK = [/^GET \/api\/knowledge$/, /^POST \/api\/knowledge\/add$/,/^GET \/api\/k\/[^/]+\/(tree|doc|rec|att|model|item)$/, /^POST \/api\/k\/[^/]+\/(save|edit)$/]
   const pairSha = (t) => crypto.createHash('sha256').update(String(t)).digest('hex')
   const issuePair = (origin) => {
     const token = 'kmdp_' + crypto.randomBytes(24).toString('base64url')

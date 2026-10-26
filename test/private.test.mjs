@@ -50,7 +50,7 @@ after(async () => {
 test('개인 지식 — 주인의 PC 일꾼(그 사람의 Claude)만 받는다 · 팀 일꾼 · 남의 일꾼은 못 받는다 · PC 일꾼이 없는 사람은 규칙으로 곧바로', async () => {
   const kimKey = await myWorker('kim')
   const leeKey = await myWorker('lee')
-  const { id } = await s.hub.addKnowledge(KIM, { kind: 'new', name: '김메모' })
+  const { id } = await s.hub.addKnowledge({ ...KIM, admin: true }, { kind: 'new', name: '김메모' })
   const state = async (k, rid) => (s.hub.forget(k), (await s.hub.get(k)).byWork.get(rid)?.state)
   // kim 의 PC 일꾼이 한 번 물었다(켜져 있다)
   assert.equal(await workOnce({ server: s.url, key: kimKey }), null)
@@ -68,7 +68,7 @@ test('개인 지식 — 주인의 PC 일꾼(그 사람의 Claude)만 받는다 �
   assert.ok(await until(async () => (await state(id, a.id)) === 'in'), '기록은 넣음')
 
   // park 은 PC 일꾼을 띄운 적이 없다(브라우저만) — 규칙으로 곧바로(파일 이름이 아니라 갈래 · 주제)
-  const { id: lid } = await s.hub.addKnowledge({ user: 'park' }, { kind: 'new', name: '박메모' })
+  const { id: lid } = await s.hub.addKnowledge({ user: 'park', admin: true }, { kind: 'new', name: '박메모' })
   const n1 = callsN()
   const b = await s.hub.save({ user: 'park' }, lid, { record: { title: '2026-10-21 HNC 통화 — 메모', body: '납기는 11-02.' } })
   assert.ok(await until(async () => (await state(lid, b.id)) === 'in'), '규칙으로 문서에')

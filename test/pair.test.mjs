@@ -123,6 +123,15 @@ test('팀 화면이 내 PC 지식을 연다 — 팀 서버 쪽에 PC 지식 조�
   assert.equal((await fetch(team.url + '/api/me/pcpass', { headers: { cookie: me.cookie } })).status, 405)
   assert.equal((await fetch(team.url + '/api/me/pcpass/check', { method: 'POST', headers: { cookie: me.cookie, 'content-type': 'application/json' }, body: JSON.stringify({ pass: await passOf(me) }) })).status, 403)
 
+  // 팀 화면의 새 지식 › 내 PC — 짝 열쇠로 내 PC 프로그램에 바로 세운다(팀 서버에는 가지 않는다)
+  const added = await page.evaluate(async (u) => {
+    const t = sessionStorage.getItem('kmdPair')
+    const r = await fetch(`${u}/api/knowledge/add`, { method: 'POST', headers: { authorization: 'Bearer ' + t, 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'new', name: '팀화면에서' }) })
+    return [r.status, (await r.json()).id]
+  }, pc.url)
+  assert.deepEqual(added, [200, '팀화면에서'])
+  assert.ok(fs.existsSync(path.join(tmp, 'pc', '팀화면에서', 'README.md')))
+
   // 내 PC 프로그램이 꺼지면 — 새 탭에서 한 줄 · 지난번 이름은 흐리게
   await pc.close()
   pc = null

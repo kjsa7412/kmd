@@ -92,7 +92,7 @@ test('폴더 — 바뀐 파일만 읽고 그 표만 · 그대로면 0 · 시각�
   // 지움 — 표를 지우지 않고 「원천에 없다」(20 중 1 = 5% · 브레이크 아래)
   fs.rmSync(path.join(src, 'data', '코드20.csv'))
   const r2 = (await s.hub.sourceRun('dpms', 'api 코드'))[0]
-  assert.equal(r2.state, 'changed')
+  assert.ok(['changed', 'same'].includes(r2.state), r2.state) // 실시간 감시가 먼저 거뒀으면 same — 결과(원천에 없다 표지 · removed 1)는 아래에서 본다
   assert.match(fs.readFileSync(path.join(kdir, 'docs', '코드표.md'), 'utf8'), /missing="\d{4}-\d{2}-\d{2}"/)
   const st = (await s.hub.sources(ADMIN, 'dpms')).find((x) => x.name === 'api 코드')
   assert.equal(st.state.lastChange.removed, 1)

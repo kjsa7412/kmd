@@ -78,7 +78,7 @@ test('.git 없는 지식 폴더가 다른 저장소 안에 있어도 — 붙이�
 })
 
 test('팀 서버의 개인 지식 — privateBackup 아래 주인마다 자리로 저절로 · GitLab 봇은 팀 그룹에 두지 않는다 · 셸 · 관리자는 상태를 본다', async () => {
-  await s.hub.addKnowledge({ user: 'lee' }, { kind: 'new', name: '메모' })
+  await s.hub.addKnowledge({ user: 'lee', admin: true }, { kind: 'new', name: '메모' })
   const st = await s.hub.backupState(SHELL, '메모-lee')
   assert.ok(st && st.url.replace(/\\/g, '/').endsWith('개인/lee/메모-lee.git'), JSON.stringify(st))
   assert.equal(await s.hub.backupState({ user: 'park' }, '메모-lee').catch((e) => e.code), 'E_FORBIDDEN')
