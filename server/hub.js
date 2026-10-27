@@ -9,7 +9,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { listKnowledge, loadKnowledge, coordsOfSection, sectionOf, looksLikeKnowledge } from '../core/knowledge.js'
 import { KmdError, httpStatusOf } from '../core/errors.js'
-import { save as coreSave, serial, localStamp, recordTakenSync } from '../core/save.js'
+import { save as coreSave, saveRecords, serial, localStamp, recordTakenSync } from '../core/save.js'
 import { decide, decisionRecord, revertPlan } from '../core/curate.js'
 import * as collect from '../core/collect.js'
 import crypto from 'node:crypto'
@@ -638,8 +638,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if ((mode === 'pc' || hub.teamPrivate(id)) && !opt.system && !opt.noCurate) hub.curateSoon(id).catch(() => {})
       else if (mode === 'team' && !opt.system && hub.tidyModeOf(id) === 'live') hub.liveSoon(id)
       // 백업은 기다리되 길게는 아니다 — 늦으면 다음 판정이 줄을 낸다
-      // 백업 — 보통은 3초까지 기다린다(경고를 응답에 싣게) · 여럿을 받는 길(later)은 끝에 한 번
-      if (backup.attached(meta) && !opt.later) await Promise.race([backup.enqueue(meta, { log }), new Promise((ok) => setTimeout(ok, 3000).unref?.())])
+      // 백업 — 3초까지 기다린다(경고를 응답에 싣게) · 여럿을 받는 길(receive)은 끝에 한 번
+      if (backup.attached(meta)) await Promise.race([backup.enqueue(meta, { log }), new Promise((ok) => setTimeout(ok, 3000).unref?.())])
       return { ...r, warnings: backup.lines(meta, { name: meta.name }).map((l) => l.text) }
     },
 
@@ -2640,36 +2640,54 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 받기 — 기록 하나씩(같은 지문이면 0) · 이름은 이 지식의 장부에 정확히 맞는 것만
     //   같은 지식의 받기는 한 줄로 — 시간 넘김 뒤 같은 묶음이 겹쳐 와도 지문 검사와 저장 사이에 끼어들지 않는다
-    //   글 하나가 거절되면(너무 긴 글 등 E_INPUT) 그것만 bad 로 두고 나머지는 받는다 · 지식 전체의 거절(멈춤 · 권한)은 그대로 던진다
+    //   묶음 하나 = 지식 읽기 1번 · git 커밋 1번(글마다 커밋하면 150개에 2분이 넘는다)
+    //   글 하나가 거절되면(너무 긴 글 등) 그것만 bad 로 두고 나머지는 받는다 · 지식 전체의 거절(멈춤 · 권한)은 그대로 던진다
     async receive(ctx, id, { from = '', items = [] } = {}) {
       const meta = await hub.meta(id, ctx)
       if (!Array.isArray(items) || !items.length || items.length > 200) throw new KmdError('E_INPUT', '받을 것은 1 ~ 200 개')
+      if (ctx.machine && ctx.machine.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
       return serial(`receive:${path.resolve(meta.dir)}`, async () => {
-        let saved = 0
+        const shut = backup.closed(meta)
+        if (shut) throw new KmdError('E_BEHIND', shut.message)
+        const k = await hub.get(id)
+        const seen = new Set(k.works.flatMap((w) => w.tags.filter((t) => t.startsWith('sent/'))))
         let same = 0
         const bad = []
+        const recs = []
+        const at = [] // recs[j] 는 items[at[j]]
         for (const [i, it] of items.entries()) {
           if (!it || typeof it !== 'object') { bad.push({ i, why: '글이 아니다' }); continue }
-          const k = await hub.get(id)
           const sha = /^[0-9a-f]{16}$/.test(String(it.sha)) ? it.sha : sha16(`${it.title}\n${it.body}`)
           const tag = `sent/${sha}`
-          if (k.works.some((w) => w.tags.includes(tag))) {
+          if (seen.has(tag)) {
             same++
             continue
           }
+          seen.add(tag) // 같은 묶음 안의 같은 지문도 하나만
           const heads = [...String(it.body || '').matchAll(/^## (.+)$/gm)].map((m) => m[1].trim())
           const words = [...heads, ...String(it.title || '').split(/\s+—\s+/)]
           const touches = [...new Set(words.flatMap((w) => exact(k, w).map((x) => x.coord)).filter(Boolean))]
-          try {
-            await hub.save(ctx, id, { record: { title: String(it.title || '보낸 것').slice(0, 200), body: `${String(from).slice(0, 80)}에서 보냄\n\n${String(it.body || '')}`.trim(), touches, tags: [tag] } }, { later: true })
-            saved++
-          } catch (e) {
-            if (e.code !== 'E_INPUT') throw e
-            bad.push({ i, why: `${String(it.title || '').slice(0, 60)} — ${e.message}` })
+          recs.push({ title: String(it.title || '보낸 것').slice(0, 200), body: `${String(from).slice(0, 80)}에서 보냄\n\n${String(it.body || '')}`.trim(), touches, tags: [tag] })
+          at.push(i)
+        }
+        let saved = 0
+        if (recs.length) {
+          const r = await saveRecords(meta.dir, recs, { user: ctx.user })
+          for (const x of r.records) {
+            if (x.error) bad.push({ i: at[x.i], why: `${recs[x.i].title.slice(0, 60)} — ${x.error.message}` })
+            else saved++
+          }
+          cache.delete(id)
+          if (saved) {
+            feed.add(dataDir, ctx.user, { kind: 'save', rec: r.records.find((x) => x.id)?.id, kn: id, dot: 'pend', text: `${meta.name}에 기록 ${saved}개 — ${String(from).slice(0, 80)}에서 받음`, small: hub.pendText(id) }).catch(() => {})
+            scheduleDecide(id)
+            // hub.save 와 같이 — 개인 지식은 바로 문서에(뒤에서) · 팀 지식은 정리 방식이 「실시간」 이면 조용해진 뒤
+            if (mode === 'pc' || hub.teamPrivate(id)) hub.curateSoon(id).catch(() => {})
+            else if (mode === 'team' && hub.tidyModeOf(id) === 'live') hub.liveSoon(id)
+            if (backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
           }
         }
-        const m = await hub.meta(id)
-        if (saved && backup.attached(m)) backup.enqueue(m, { log }).catch(() => {})
+        bad.sort((a, b) => a.i - b.i)
         return { saved, same, ...(bad.length ? { bad } : {}) }
       })
     },

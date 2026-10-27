@@ -10,7 +10,7 @@
 import fs from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
-import { fail } from './errors.js'
+import { fail, KmdError } from './errors.js'
 import { nfc, oneLine, readText, sha16 } from './text.js'
 import { renderRecord, parseRecord } from './frontmatter.js'
 import { replaceSection, removeSection, renameSection, parseDoc, headingMatches, splitLog, joinLog, logLine, logHas } from './sections.js'
@@ -115,6 +115,67 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
   const names = cleanNames(input.names)
   if (!names) fail('E_INPUT', 'names 는 { coord: "종류:값", label, aliases?, doc?, heading? } 의 목록이다(종류는 영문 소문자)')
   return serial(path.resolve(dir), () => saveNow(dir, input.record, secs, { user: nfc(user), now, system, names }))
+}
+
+// 기록 여럿 — 문서 항목 없이 기록만 · git 한 묶음(받기 — 보낸 것 150개가 커밋 150번이 되지 않게)
+//   글마다 검사하고 거절된 것은 { i, error } 로 돌려준다(나머지는 남긴다) · 커밋이 넘어지면 쓴 기록을 모두 지운다
+//   { records: [{ i, id } | { i, error }], commit } — 남긴 것이 없으면 commit null
+export function saveRecords(dir, records, { user, now = new Date() } = {}) {
+  if (!user || !oneLine(user)) fail('E_INPUT', '누가 쓰는지 모른다')
+  if (isReservedUser(user)) fail('E_FORBIDDEN', `「${user}」 는 kmd 가 쓰는 이름이다`)
+  return serial(path.resolve(dir), async () => {
+    await ensureRepo(dir)
+    // 쓰인 id — 처음에 폴더를 한 번 읽는다(같은 제목이 많으면 -2 · -3 … 을 찾느라 글마다 stat 수백 번이 된다)
+    const taken = new Set()
+    for (const sub of ['work', LOG_DIR]) for (const f of await fs.readdir(path.join(dir, sub)).catch(() => [])) if (f.endsWith('.md')) taken.add(nfc(f.slice(0, -3)).toLowerCase()) // 키는 소문자 — Windows 파일 이름은 대소문자를 가리지 않는다
+    const out = []
+    const written = []
+    try {
+      for (const [i, r] of records.entries()) {
+        try {
+          if ((r?.sections?.length ?? 0) || (r?.names?.length ?? 0)) fail('E_INPUT', '기록 여럿 저장은 기록만 받는다')
+          check({ record: r })
+          const bad = (r.tags || []).filter(isReservedTag)
+          if (bad.length) fail('E_FORBIDDEN', `kmd 가 쓰는 태그다 — ${bad.join(' · ')}`)
+          if (r.curates?.length || r.reopens?.length || r.reflects?.length) fail('E_FORBIDDEN', '정리 판정은 kmd 가 쓴다')
+          const w = await writeRecord(dir, r, { user: nfc(user), now, taken })
+          written.push(w)
+          out.push({ i, id: w.id })
+        } catch (e) {
+          if (!(e instanceof KmdError)) throw e // 디스크 · git 은 묶음 전체의 실패
+          out.push({ i, error: e })
+        }
+      }
+      const commit = written.length ? await commitPaths(dir, written.map((w) => w.rel), written.length === 1 ? written[0].title : `${written[0].title} 외 ${written.length - 1}개`, nfc(user)) : null
+      return { records: out, commit }
+    } catch (e) {
+      for (const w of written) await fs.rm(w.full, { force: true }).catch(() => {})
+      throw e
+    }
+  })
+}
+
+// 기록 파일 하나 쓰기(커밋 없이) — id 를 정하고 쓰고 다시 읽어 대조한다 · 대조가 어긋나면 지우고 던진다
+async function writeRecord(dir, r, { user, now, taken }) {
+  const date = r.date || localStamp(now)
+  const day = date.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2$3')
+  const base = `${day}-${slugOf(r.title)}`
+  const sub = isLogRecord(r.tags) ? LOG_DIR : 'work'
+  await fs.mkdir(path.join(dir, sub), { recursive: true })
+  let id = base
+  for (let n = 2; taken.has(id.toLowerCase()); n++) id = `${base}-${n}`
+  taken.add(id.toLowerCase())
+  const touches = [...new Set((r.touches || []).map((x) => nfc(x.trim())))]
+  const rec = { id, title: nfc(r.title.trim()), date, author: user, touches, tags: (r.tags || []).map((t) => nfc(t.trim())), fixes: (r.fixes || []).map((x) => nfc(x.trim())), curates: [], reopens: [], reflects: [] }
+  const full = path.join(dir, sub, `${id}.md`)
+  await fs.writeFile(full, renderRecord(rec, nfc(r.body)), 'utf8')
+  const back = parseRecord(readText(await fs.readFile(full, 'utf8')), `${id}.md`)
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
+  if (!back || back.id !== id || back.title !== rec.title || back.date !== date || back.author !== user || !same(back.touches, touches) || !same(back.tags, rec.tags)) {
+    await fs.rm(full, { force: true })
+    fail('E_INPUT', '기록 머리가 보낸 값과 다르게 읽힌다 — 제목 · 이름 · 태그의 글자를 확인한다')
+  }
+  return { id, rel: `${sub}/${id}.md`, full, title: rec.title }
 }
 
 // 값 장부 — 글 속의 수 · `코드` · 따옴표 값(같은 값이면 새 사실이 아니다)

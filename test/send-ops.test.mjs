@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import http from 'node:http'
+import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
@@ -102,6 +103,20 @@ test('받기 — 너무 긴 글 하나는 bad 로 빼고 그 앞뒤는 받는다
   assert.match(r.bad[0].why, /너무 길다/)
   const titles = (await sentRecs('dpms')).map((w) => w.title)
   assert.ok(titles.includes('앞 — 받는다') && titles.includes('뒤 — 받는다') && !titles.includes('긴 글'))
+})
+
+test('받기 — 묶음 하나는 git 커밋 하나 · 거절된 글 · 묶음 안의 같은 지문은 빼고', async () => {
+  const dir = path.join(tmp, 'kn', 'dpms')
+  const count = () => Number(execFileSync('git', ['rev-list', '--count', 'HEAD'], { cwd: dir, encoding: 'utf8' }))
+  const n0 = count()
+  const items = [1, 2, 3, 4].map((i) => ({ title: `묶음 — ${i}`, body: `글 ${i}`, sha: `cccccccccccccc0${i}` }))
+  const r = await s.hub.receive(KIM, 'dpms', { from: 'note', items: [...items, { title: '긴 글', body: '가'.repeat(250_000), sha: 'cccccccccccccc05' }, items[0]] })
+  assert.equal(r.saved, 4)
+  assert.equal(r.same, 1, '묶음 안에서 두 번 온 것')
+  assert.deepEqual(r.bad.map((b) => b.i), [4])
+  assert.equal(count() - n0, 1, '커밋 하나')
+  assert.equal(execFileSync('git', ['status', '--porcelain', 'work'], { cwd: dir, encoding: 'utf8' }).trim(), '', '거절된 글의 파일은 남지 않는다')
+  assert.deepEqual((await sentRecs('dpms')).filter((w) => w.title.startsWith('묶음 — ')).map((w) => w.title).sort(), ['묶음 — 1', '묶음 — 2', '묶음 — 3', '묶음 — 4'])
 })
 
 test('받기 — 같은 묶음이 동시에 두 번 와도 기록은 하나씩', async () => {
