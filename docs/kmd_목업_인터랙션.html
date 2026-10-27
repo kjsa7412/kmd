@@ -1140,7 +1140,7 @@ function viewDocsV(){
 }
 function knAside(k){
  const n=KN(k),srcs=S.sources.filter(s=>s.kn===k);
- return `<h4>이 지식</h4><div class="kv">${n.type==='team'?`<span>정리</span><span>${esc(n.owner)} — 이 지식을 세운 사람</span><span>쓰는 사람</span><span>팀 모두 기록</span><span>다음 정리</span><span>오늘 밤 ${esc(n.tidyAt)}</span>`:`<span>주인</span><span>나 — 정리하면 바로 바뀐다</span>`}
+ return `<h4>속성</h4><div class="kv">${n.type==='team'?`<span>정리</span><span>${esc(n.owner)} — 이 지식을 세운 사람</span><span>쓰는 사람</span><span>팀 모두 기록</span><span>다음 정리</span><span>오늘 밤 ${esc(n.tidyAt)}</span>`:`<span>주인</span><span>나 — 정리하면 바로 바뀐다</span>`}
   <span>자동으로 가져오는 곳</span><span>${srcs.length?srcs.map(s=>esc(s.name)+'<small>'+esc(s.last)+' 확인 · '+everyTxt(s.every)+'</small>').join(''):'없음'}<small><a data-a="nav" data-s="import">자료 가져오기 ›</a></small></span></div>`;
 }
 function waitHtml(k){const pend=myPendingIn(k); return pend.length?`<div class="wait" data-t="wait"><i></i>${pend.map(x=>esc(x.tm)+' 에 쓴 기록 1 — 오늘 밤 '+KN(k).tidyAt+' 정리 때 문서에 들어간다 · '+esc(docTitle(k,x.doc))+' › '+esc(x.secs.join(' · '))).join('<br>')} · 그동안도 문서 옆에 같이 읽힌다 <a data-a="tidyNow" data-k="${k}">지금 정리</a></div>`:'';}
@@ -1165,7 +1165,7 @@ function treeHtml(k){
  return h+'</div>';
 }
 function rpHead(){return `<div class="rph"><i class="pd"></i>나란히 보기 — 읽기만<a class="r small" data-a="closeSplit" data-t="closeSplit">나누기 닫기 ×</a></div>`}
-function nbGraph(k,center){return `<details class="ap nb" data-t="nbGraph"${S.nbOpen?' open':''}><summary data-a="nbToggle">이웃 그래프 <small>한 겹 · 누르면 그래프로</small></summary>${S.nbOpen?miniGraph(k,center):''}</details>`;}
+function nbGraph(k,center){return `<details class="ap nb" data-t="nbGraph"${S.nbOpen?' open':''}><summary data-a="nbToggle">그래프</summary>${S.nbOpen?miniGraph(k,center):''}</details>`;}
 function miniGraph(k,c){
  const G=graphData(k,{q:'',item:true,doc:true,rec:true,src:true,pend:false,recent:false,orph:false,depth:0},false);
  const nb=[]; G.edges.forEach(e=>{if(e.a===c&&!nb.includes(e.b)) nb.push(e.b); if(e.b===c&&!nb.includes(e.a)) nb.push(e.a);});
@@ -1185,10 +1185,10 @@ function docAside(k,d){
  const ments=bl.ments.map(x=>`<div class="alr" data-a="openDoc" data-k="${k}" data-d="${esc(x.d.id)}" data-h="${esc(x.h)}" data-t="blMent" data-pv="doc|${k}|${esc(x.d.id)}">${svg('doc')}<span class="nm">${esc(x.d.title)} › ${esc(x.h)}<small>「${esc(x.x)}」</small></span></div>`).join('');
  const as=d.secs.find(s=>s.auto), a=as&&S.autos[as.auto], n=KN(k), lastBy=(d.secs.find(s=>s.by)||{}).by;
  return `<div class="ap" data-t="outline"><h4>개요</h4>${ol}</div>
-  <div class="ap" data-t="backlinks"><h4>이 문서를 가리키는 것</h4>
-   <div class="bg">기록 <b data-t="blRecN">${bl.recs.length}</b> <small>이 문서의 항목을 건드린 것</small></div>${recs||none}
-   <div class="bg">문서 <b data-t="blDocN">${bl.linkers.length}</b> <small>이 문서를 링크한 것</small></div>${docs||none}
-   <div class="bg">이름만 나온 곳 <b data-t="blMentN">${bl.ments.length}</b> <small>링크 없이 이름만</small></div>${ments||none}</div>
+  <div class="ap" data-t="backlinks"><h4>연결</h4>
+   <div class="bg">기록 <b data-t="blRecN">${bl.recs.length}</b></div>${recs||none}
+   <div class="bg">문서 <b data-t="blDocN">${bl.linkers.length}</b></div>${docs||none}
+   <div class="bg">언급 <b data-t="blMentN">${bl.ments.length}</b></div>${ments||none}</div>
   <div class="ap" data-t="props"><h4>속성</h4><div class="kv"><span>마지막 정리</span><span>${esc(lastBy||d.when)}</span><span>가져오는 곳</span><span>${a?esc(a.src)+'<small>'+esc(a.checked)+' 확인</small>':'없음'}</span><span>주인</span><span>${n.type==='team'?esc(n.owner)+' — 정리하는 사람':'나'}</span><span>자리</span><span>${n.type==='team'?'팀':n.type==='pc'?'내 PC':'팀 서버 안 · 나만'}</span><span>항목</span><span>${its.length}</span></div></div>
   ${nbGraph(k,'d:'+d.id)}`;
 }
@@ -1200,8 +1200,8 @@ function recPane(t,right){
   <div class="paper"><h1>${esc(r.title)}</h1><p class="muted small">${esc(r.who)} · ${esc(r.date)}${r.tm?' '+esc(r.tm):''}</p><p>${linkify(fmt(r.body),k,'')}</p>
   ${fx?`<div class="callout warn">이 기록은 ${esc(fx.date)} ${esc(fx.who)}의 기록을 바로잡았다 — <a data-a="openRec" data-k="${k}" data-r="${fx.id}">${esc(fx.title)}</a></div>`:''}${fb.map(x=>`<div class="callout gray">${esc(x.date)} ${esc(x.who)}이 이 기록을 바로잡았다 — <a data-a="openRec" data-k="${k}" data-r="${x.id}">${esc(x.title)}</a></div>`).join('')}
   ${r.state==='pend'?`<div class="callout pend">오늘 밤 ${esc(KN(k).tidyAt||'02:30')} 정리 때 문서에 들어간다 — 그동안도 그 항목 옆에 같이 읽힌다</div>`:''}</div></div>`;
- const aside=`<div class="ap" data-t="recItems"><h4>이 기록이 건드린 항목 <small>${its.length}</small></h4>${its.map(i=>`<div class="alr" data-a="openItem" data-k="${k}" data-n="${esc(i.name)}" data-t="recItem" data-pv="item|${k}|${esc(i.name)}">${svg('tag')}<span class="nm">${esc(i.name)}<small>${esc(i.kind)}</small></span></div>`).join('')||'<div class="muted small alr">없다</div>'}</div>
-  <div class="ap" data-t="recFix"><h4>바로잡은 / 바로잡힌 기록</h4>${fx?`<div class="alr" data-a="openRec" data-k="${k}" data-r="${fx.id}" data-t="fixRow"><span class="dt">${esc(fx.date)}</span><span class="nm">바로잡음 — ${esc(fx.title)}</span></div>`:''}${fb.map(x=>`<div class="alr" data-a="openRec" data-k="${k}" data-r="${x.id}" data-t="fixRow"><span class="dt">${esc(x.date)}</span><span class="nm">바로잡힘 — ${esc(x.title)}</span></div>`).join('')}${fx||fb.length?'':'<div class="muted small alr">없다</div>'}</div>
+ const aside=`<div class="ap" data-t="recItems"><h4>항목 <small>${its.length}</small></h4>${its.map(i=>`<div class="alr" data-a="openItem" data-k="${k}" data-n="${esc(i.name)}" data-t="recItem" data-pv="item|${k}|${esc(i.name)}">${svg('tag')}<span class="nm">${esc(i.name)}<small>${esc(i.kind)}</small></span></div>`).join('')||'<div class="muted small alr">없다</div>'}</div>
+  <div class="ap" data-t="recFix"><h4>정정</h4>${fx?`<div class="alr" data-a="openRec" data-k="${k}" data-r="${fx.id}" data-t="fixRow"><span class="dt">${esc(fx.date)}</span><span class="nm">바로잡음 — ${esc(fx.title)}</span></div>`:''}${fb.map(x=>`<div class="alr" data-a="openRec" data-k="${k}" data-r="${x.id}" data-t="fixRow"><span class="dt">${esc(x.date)}</span><span class="nm">바로잡힘 — ${esc(x.title)}</span></div>`).join('')}${fx||fb.length?'':'<div class="muted small alr">없다</div>'}</div>
   ${nbGraph(k,'r:'+r.id)}`;
  return {html,aside:right?null:aside,title:r.title.split(' — ')[0]};
 }
@@ -1269,9 +1269,9 @@ function itemPane(t,right){
   <section class="isec" data-t="itemUses"><h3>이 항목을 쓰는 곳 <span class="chip c-mute">${uses.length}</span></h3>${uses.length?`<ul class="rl">${uses.map(u=>`<li data-a="openItem" data-k="${k}" data-n="${esc(u.name)}" data-t="useRow" data-pv="item|${k}|${esc(u.name)}"><span class="tx"><b>${esc(docTitle(k,u.doc))} › ${esc(u.name)}</b><small>${esc(firstLine(k,u))}</small></span></li>`).join('')}</ul>`:'<p class="muted small">없다</p>'}</section>
   <section class="isec" data-t="itemAlias"><h3>다른 이름</h3>${al.length?al.map(a=>`<span class="kn">${esc(a)}</span>`).join(' '):'<p class="muted small">없다 — 같은 말로 이틀 찾으면 저절로 붙는다</p>'}</section></div>`;
  const co=coItems(k,it);
- const aside=`<div class="ap" data-t="coItems"><h4>같이 나오는 항목 <small>같은 기록이 함께 건드린 것</small></h4>${co.length?co.map(c=>`<div class="alr" data-a="openItem" data-k="${k}" data-n="${esc(c.it.name)}" data-t="coItem" data-pv="item|${k}|${esc(c.it.name)}">${svg('tag')}<span class="nm">${esc(c.it.name)}</span><span class="rc">${c.n}</span></div>`).join(''):'<div class="muted small alr">없다</div>'}</div>
-  <div class="ap"><h4>들어 있는 문서</h4>${d?`<div class="alr" data-a="openDoc" data-k="${k}" data-d="${esc(d.id)}" data-h="${esc(it.sec)}" data-t="inDoc" data-pv="doc|${k}|${esc(d.id)}">${svg('doc')}<span class="nm">${esc(d.title)}</span></div>`:'<div class="muted small alr">아직 없다 — 정리 때 kmd 가 자리를 찾는다</div>'}</div>
-  ${s&&s.auto?`<div class="ap"><h4>저절로 채우는 표</h4><div class="small">${esc(S.autos[s.auto].src)} · ${esc(S.autos[s.auto].checked)} 확인</div></div>`:''}
+ const aside=`<div class="ap" data-t="coItems"><h4>항목 <small>${co.length}</small></h4>${co.length?co.map(c=>`<div class="alr" data-a="openItem" data-k="${k}" data-n="${esc(c.it.name)}" data-t="coItem" data-pv="item|${k}|${esc(c.it.name)}">${svg('tag')}<span class="nm">${esc(c.it.name)}</span><span class="rc">${c.n}</span></div>`).join(''):'<div class="muted small alr">없다</div>'}</div>
+  <div class="ap"><h4>문서</h4>${d?`<div class="alr" data-a="openDoc" data-k="${k}" data-d="${esc(d.id)}" data-h="${esc(it.sec)}" data-t="inDoc" data-pv="doc|${k}|${esc(d.id)}">${svg('doc')}<span class="nm">${esc(d.title)}</span></div>`:'<div class="muted small alr">아직 없다 — 정리 때 kmd 가 자리를 찾는다</div>'}</div>
+  ${s&&s.auto?`<div class="ap"><h4>표</h4><div class="small">${esc(S.autos[s.auto].src)} · ${esc(S.autos[s.auto].checked)} 확인</div></div>`:''}
   ${nbGraph(k,'i:'+it.name)}`;
  return {html,aside:right?null:aside,title:it.name};
 }
