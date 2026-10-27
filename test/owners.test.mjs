@@ -42,15 +42,15 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('_members.md — 주인 · 개인 · 정리하는 사람 · 정리 방식 · Claude 에 보내지 않음을 싣고 다시 읽는다', () => {
+test('_members.md: 주인 · 개인 · 정리하는 사람 · 정리 방식 · Claude 에 보내지 않음을 싣고 다시 읽는다', () => {
   const t = owners.renderMembers({ owner: 'kim', private: true, curators: ['park', 'lee'], tidyMode: 'time', tidyAt: '05:10', noClaude: true })
   assert.match(t, /- 주인: kim\n- 개인: 예\n- 정리: park, lee\n- 정리 방식: 정해진 시각 05:10\n- Claude 에 보내지 않음: 예/)
   assert.deepEqual(owners.parseMembers(t), { owner: 'kim', private: true, curators: ['park', 'lee'], settings: true, tidyMode: 'time', tidyAt: '05:10', noClaude: true })
   assert.equal(owners.parseMembers(owners.renderMembers({ owner: 'a', tidyMode: 'live' })).tidyMode, 'live')
-  assert.equal(owners.parseMembers('- 주인: kim\n- 개인: 예\n').settings, false, '옛 꼴 — 설정 줄 없음')
+  assert.equal(owners.parseMembers('- 주인: kim\n- 개인: 예\n').settings, false, '옛 꼴: 설정 줄 없음')
 })
 
-test('한 줄로 서서 고친다 — 여럿이 같은 때 개인 지식을 만들고 정리 시각을 바꿔도 「나만」 줄을 잃지 않는다', async () => {
+test('한 줄로 서서 고친다. 여럿이 같은 때 개인 지식을 만들고 정리 시각을 바꿔도 「나만」 줄을 잃지 않는다', async () => {
   const jobs = []
   for (let i = 0; i < 6; i++) jobs.push(s.hub.addKnowledge({ ...(i % 2 ? PARK : LEE), admin: true }, { kind: 'new', name: `일기${i}` }))
   for (let i = 0; i < 4; i++) jobs.push(s.hub.setOwner(SHELL, 'dpms', { tidyAt: `0${i}:30` }))
@@ -66,7 +66,7 @@ test('한 줄로 서서 고친다 — 여럿이 같은 때 개인 지식을 만�
   assert.ok(!(await ids(KIM)).includes('일기1-park'), '관리자에게도')
 })
 
-test('셸이 쓴 장부를 도는 서버가 곧바로 본다 — 다음 화면 쓰기가 그것을 지우지 않는다', async () => {
+test('셸이 쓴 장부를 도는 서버가 곧바로 본다. 다음 화면 쓰기가 그것을 지우지 않는다', async () => {
   const shell = await makeHub({ root, dataDir: data, log: () => {} }) // kmd owner 와 같은 길(다른 프로세스 대신 다른 hub)
   await new Promise((r) => setTimeout(r, 30))
   await shell.setOwner(SHELL, 'gdi', { owner: 'park', private: true })
@@ -81,7 +81,7 @@ test('셸이 쓴 장부를 도는 서버가 곧바로 본다 — 다음 화면 �
   shell.stop()
 })
 
-test('주인은 정리 설정 · 정리하는 사람만 — 개인 · 주인은 관리자 · 셸이 바꾼다', async () => {
+test('주인은 정리 설정 · 정리하는 사람만: 개인 · 주인은 관리자 · 셸이 바꾼다', async () => {
   await s.hub.setOwner(SHELL, 'dpms', { owner: 'park' })
   assert.equal(await code(s.hub.setOwner(PARK, 'dpms', { private: true })), 'E_FORBIDDEN', '주인 혼자 팀 지식을 감추지 못한다')
   assert.equal(await code(s.hub.setOwner(PARK, 'dpms', { owner: 'lee' })), 'E_FORBIDDEN', '주인 넘기기는 관리자')
@@ -92,7 +92,7 @@ test('주인은 정리 설정 · 정리하는 사람만 — 개인 · 주인은 
   assert.match(fs.readFileSync(path.join(root, 'dpms', '_members.md'), 'utf8'), /- 주인: park\n- 개인: 아니오\n- 정리: park, lee\n- 정리 방식: 정해진 시각/)
 })
 
-test('장부를 잃어도 _members.md 가 다시 가린다 — 켤 때(밤 묶음으로 되돌림) · 동기화 때(새로 놓인 개인 지식)', async () => {
+test('장부를 잃어도 _members.md 가 다시 가린다. 켤 때(밤 묶음으로 되돌림) · 동기화 때(새로 놓인 개인 지식)', async () => {
   // 밤 묶음 뒤에 만든 개인 지식 — 장부에서 줄이 빠진 채 다시 켠다
   await s.close()
   const L = ledger()
@@ -104,7 +104,7 @@ test('장부를 잃어도 _members.md 가 다시 가린다 — 켤 때(밤 묶�
   s = await startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
   assert.equal(ledger()['일기0-lee']?.private, true, '켤 때 _members.md 로 다시 가렸다')
   assert.ok(!(await ids(PARK)).includes('일기0-lee'))
-  assert.equal(ledger()['team-old']?.restored, true, '앞 판의 「되살림 — 관리자만」 표지는 말없이 열지 않는다')
+  assert.equal(ledger()['team-old']?.restored, true, '앞 판의 「되살림: 관리자만」 표지는 말없이 열지 않는다')
   assert.ok(!(await ids(LEE)).includes('team-old'))
   // 옛 꼴 _members.md(설정 줄 없음)는 켤 때 장부의 값으로 새 꼴로 고쳐 쓴다 — 정리 설정은 건드리지 않는다
   assert.match(fs.readFileSync(path.join(root, 'dpms', '_members.md'), 'utf8'), /- 정리 방식: /)
@@ -121,7 +121,7 @@ test('장부를 잃어도 _members.md 가 다시 가린다 — 켤 때(밤 묶�
   assert.deepEqual([ledger()['새팀']?.owner, !!ledger()['새팀']?.private], ['kim', false], '_members.md 없는 새 폴더는 누른 관리자의 팀 지식')
 })
 
-test('줄이 없는 틈에도 가린다 — 개인 _members.md 가 있는 폴더는 동기화 · 맞추기 전에도 남에게 0 · 주인 칸이 비면 관리자만', async () => {
+test('줄이 없는 틈에도 가린다. 개인 _members.md 가 있는 폴더는 동기화 · 맞추기 전에도 남에게 0 · 주인 칸이 비면 관리자만', async () => {
   copyDir(path.join(root, '일기2-lee'), path.join(root, '놓인일기-lee'))
   fs.rmSync(path.join(root, '놓인일기-lee', '.git'), { recursive: true, force: true })
   s.hub.forget() // 목록을 다시 읽는다(누군가의 요청이 목록을 새로 만든 때)
@@ -138,7 +138,7 @@ test('줄이 없는 틈에도 가린다 — 개인 _members.md 가 있는 폴더
   s.hub.forget()
 })
 
-test('셸과 서버가 겹쳐 써도 — 파일 잠금 안에서 다시 읽고 고쳐 써 어느 쪽도 잃지 않는다', async () => {
+test('셸과 서버가 겹쳐 써도: 파일 잠금 안에서 다시 읽고 고쳐 써 어느 쪽도 잃지 않는다', async () => {
   const shell = await makeHub({ root, dataDir: data, log: () => {} })
   await Promise.all([s.hub.setOwner(SHELL, 'dpms', { tidyAt: '06:00' }), shell.setOwner(SHELL, 'gdi', { owner: 'park', private: true }), s.hub.setOwner(SHELL, 'gdi', { curators: ['park'] })])
   const L = ledger()
@@ -157,7 +157,7 @@ test('셸과 서버가 겹쳐 써도 — 파일 잠금 안에서 다시 읽고 �
   assert.ok(!(await ids(PARK)).includes('두번-lee'))
 })
 
-test('이 PC 의 kmd 는 장부를 _members.md 로 맞추지 않는다 — 팀에서 받아 온 지식의 사람 칸이 이 PC 주인을 가리지 않는다', async () => {
+test('이 PC 의 kmd 는 장부를 _members.md 로 맞추지 않는다. 팀에서 받아 온 지식의 사람 칸이 이 PC 주인을 가리지 않는다', async () => {
   const pcRoot = path.join(tmp, 'pcroot')
   copyDir(path.join(HERE, 'fixture', 'kmd', 'dpms'), path.join(pcRoot, '받은지식'))
   fs.writeFileSync(path.join(pcRoot, '받은지식', '_members.md'), owners.renderMembers({ owner: 'park', private: true, noClaude: true }))
@@ -170,7 +170,7 @@ test('이 PC 의 kmd 는 장부를 _members.md 로 맞추지 않는다 — 팀�
   }
 })
 
-test('되살릴 때 — _members.md 를 따른다 · 없으면 팀 지식 · 옛 꼴이면 「손으로만 · Claude 에 보내지 않음」', async () => {
+test('되살릴 때: _members.md 를 따른다 · 없으면 팀 지식 · 옛 꼴이면 「손으로만 · Claude 에 보내지 않음」', async () => {
   const mk = (name, members) => {
     const d = path.join(tmp, 'restored', name)
     fs.mkdirSync(d, { recursive: true })
@@ -188,10 +188,10 @@ test('되살릴 때 — _members.md 를 따른다 · 없으면 팀 지식 · 옛
   assert.deepEqual([cur.owner, cur.private, cur.tidyMode, cur.noClaude, cur.check], ['park', false, 'live', true, undefined], '정리 설정을 그대로')
 })
 
-test('지운 지식의 일(넣은 파일 이름 · 터미널 줄)은 남지 않는다 — 다시 켜도', async () => {
+test('지운 지식의 일(넣은 파일 이름 · 터미널 줄)은 남지 않는다. 다시 켜도', async () => {
   const id = '일기4-lee'
   const run = s.hub.newRun(id, { title: '연봉협상-메모.md', by: 'lee' })
-  s.hub.runLine(run, 'say', '파일을 읽었다 — 연봉 협상 메모')
+  s.hub.runLine(run, 'say', '파일을 읽었다. 연봉 협상 메모')
   run.endedAt = new Date().toISOString()
   run.state = 'done'
   s.hub.runSave(run)
@@ -206,7 +206,7 @@ test('지운 지식의 일(넣은 파일 이름 · 터미널 줄)은 남지 않�
   assert.equal(ledger()[id], undefined)
 })
 
-test('HTTP — 개인 지식의 주인 줄 · 이름은 남에게 0 · 없는 사람은 주인 · 정리가 되지 않는다 · /healthz 는 살아 있나 · 판만', async () => {
+test('HTTP: 개인 지식의 주인 줄 · 이름은 남에게 0 · 없는 사람은 주인 · 정리가 되지 않는다 · /healthz 는 살아 있나 · 판만', async () => {
   const kim = await signIn(s, { id: 'kim', admin: true })
   const park = await signIn(s, { id: 'park', admin: false })
   await signIn(s, { id: 'lee', admin: false })
@@ -219,7 +219,7 @@ test('HTTP — 개인 지식의 주인 줄 · 이름은 남에게 0 · 없는 �
   assert.equal((await post('/api/k/dpms/owner', park, { private: true })).status, 403, '주인이 API 로 감추지 못한다')
   const ov = await get('/api/admin/overview', kim).then((x) => x.json())
   const names = ov.backups.map((b) => b.name)
-  assert.ok(!names.some((n) => /일기/.test(n)), '관리 개관에 남의 개인 지식 이름 0 — ' + names.join(','))
+  assert.ok(!names.some((n) => /일기/.test(n)), '관리 개관에 남의 개인 지식 이름 0: ' + names.join(','))
   assert.ok(ov.knsPrivate >= 4, '수로만 ' + ov.knsPrivate)
   const h = await fetch(s.url + '/healthz').then((x) => x.json())
   assert.deepEqual(Object.keys(h).sort(), ['mode', 'ok', 'version'])

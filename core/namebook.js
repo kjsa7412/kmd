@@ -32,7 +32,7 @@ export function upsertVocab(text, names) {
       continue
     }
     const type = n.coord.slice(0, n.coord.indexOf(':'))
-    const entry = [`- \`${n.coord}\` — ${n.label || n.coord.slice(type.length + 1)}`, ...((n.aliases || []).length ? [`  aliases: ${n.aliases.join(', ')}`] : [])]
+    const entry = [`- \`${n.coord}\`: ${n.label || n.coord.slice(type.length + 1)}`, ...((n.aliases || []).length ? [`  aliases: ${n.aliases.join(', ')}`] : [])]
     const h = lines.findIndex((l) => l.trim() === `## ${type}`)
     if (h < 0) {
       t = `${t.replace(/\n*$/, '\n')}\n## ${type}\n\n${entry.join('\n')}\n`

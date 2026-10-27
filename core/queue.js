@@ -93,7 +93,7 @@ export function createQueue({ file = null, caps = {}, keepDays = 30, keepMax = 3
     j.stage = i
     setStage(j, i, 'pause')
     j.parked = why
-    j.msg = why === 'hold' ? `줄 멈춤 — 「${STAGES[i]}」 에서 이어 간다` : `멈췄다 — 「${STAGES[i]}」 에서 이어 간다`
+    j.msg = why === 'hold' ? `줄 멈춤: 「${STAGES[i]}」 에서 이어 간다` : `멈췄다. 「${STAGES[i]}」 에서 이어 간다`
     q.line(j, 'sys', j.msg)
     save()
     await new Promise((ok, no) => { c.wake = ok; c.fail = no })
@@ -228,7 +228,7 @@ export function createQueue({ file = null, caps = {}, keepDays = 30, keepMax = 3
       const c = C(j)
       c.pause = true
       if (j.state === 'run') j.state = 'pausing'
-      else { j.state = 'pause'; j.parked = 'user'; j.msg = `멈췄다 — 「${STAGES[j.stage ?? 0]}」 에서 이어 간다` }
+      else { j.state = 'pause'; j.parked = 'user'; j.msg = `멈췄다. 「${STAGES[j.stage ?? 0]}」 에서 이어 간다` }
       save()
       return j
     },
@@ -249,7 +249,7 @@ export function createQueue({ file = null, caps = {}, keepDays = 30, keepMax = 3
       const j = need(id)
       if (isFinal(j)) return j
       const c = C(j)
-      if (j.state === 'fail' || j.state === 'check' || (!c.active && !waiting.some((w) => w.j === j))) return q.end(j, 'cancel', j.state === 'check' ? '건너뛰었다 — 다음 정한 때에 다시 본다' : msg)
+      if (j.state === 'fail' || j.state === 'check' || (!c.active && !waiting.some((w) => w.j === j))) return q.end(j, 'cancel', j.state === 'check' ? '건너뛰었다. 다음 정한 때에 다시 본다' : msg)
       c.ac.abort()
       const w = waiting.find((x) => x.j === j)
       if (w) { waiting.splice(waiting.indexOf(w), 1); w.no(new Cancelled(msg)) }
@@ -264,12 +264,12 @@ export function createQueue({ file = null, caps = {}, keepDays = 30, keepMax = 3
     retry(id, { force = false } = {}) {
       const j = need(id)
       const run = runners[j.spec?.type]
-      if (!run) throw Object.assign(new Error('이 일은 다시 할 수 없다 — 파일을 다시 넣거나 [지금 가져오기]'), { code: 'E_INPUT' })
+      if (!run) throw Object.assign(new Error('이 일은 다시 할 수 없다. 파일을 다시 넣거나 [지금 가져오기]'), { code: 'E_INPUT' })
       const from = Math.min(j.stage ?? 0, 3)
       ctl.delete(j.id)
       const c = C(j)
       c.active = true
-      Object.assign(j, { state: 'wait', endedAt: null, parked: null, msg: `다시 — 「${STAGES[from]}」 부터${force ? ' · 그대로 맞춘다' : ''}` })
+      Object.assign(j, { state: 'wait', endedAt: null, parked: null, msg: `다시: 「${STAGES[from]}」 부터${force ? ' · 그대로 맞춘다' : ''}` })
       for (let k = from; k < 4; k++) j.stages[k] = { state: 'wait' }
       j.order = ++order
       q.line(j, 'sys', j.msg)
@@ -343,7 +343,7 @@ export function createQueue({ file = null, caps = {}, keepDays = 30, keepMax = 3
       for (const j of j0.jobs || []) {
         if (!j?.id || jobs.has(j.id)) continue
         // 도는 중 · 기다리던 일 — 일을 하는 쪽이 없다 · 멈춤으로 세우고 [이어서] 를 기다린다(그 단계부터 다시)
-        if (['run', 'pausing', 'wait'].includes(j.state)) Object.assign(j, { state: 'pause', parked: 'restart', msg: `프로그램이 꺼졌다 — [이어서] 로 「${STAGES[Math.min(j.stage ?? 0, 3)]}」 부터` })
+        if (['run', 'pausing', 'wait'].includes(j.state)) Object.assign(j, { state: 'pause', parked: 'restart', msg: `프로그램이 꺼졌다. [이어서] 로 「${STAGES[Math.min(j.stage ?? 0, 3)]}」 부터` })
         if (j.state === 'pause') { const s = j.stages?.[Math.min(j.stage ?? 0, 3)]; if (s && s.state !== 'pause') s.state = 'pause' }
         jobs.set(j.id, j)
         order = Math.max(order, j.order || 0)

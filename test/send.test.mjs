@@ -87,7 +87,7 @@ before(async () => {
   process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
   copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'kn'))
   mkKnowledge(path.join(tmp, 'kn', 'inbox'), '')
-  mkKnowledge(path.join(tmp, 'kn', 'memo'), '## term\n\n- `term:주간 회의` — 주간 회의')
+  mkKnowledge(path.join(tmp, 'kn', 'memo'), '## term\n\n- `term:주간 회의`: 주간 회의')
   mkKnowledge(path.join(tmp, 'kn', 'note'), '')
   fs.writeFileSync(path.join(tmp, 'kn', 'note', 'docs', '배포메모.md'), '# 배포메모\n\n## 카나리\n첫 30분은 요청의 10%.\n')
   fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })
@@ -100,7 +100,7 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('파일 넣기 — 기록으로 들이고 정리가 새 문서로 세우거나 기존 문서에 넣는다 · 같은 파일 → 0 · 스캔 pdf → 바꾸지 못한 파일 1 · 상한 넘는 docx → 거절', async () => {
+test('파일 넣기: 기록으로 들이고 정리가 새 문서로 세우거나 기존 문서에 넣는다 · 같은 파일 → 0 · 스캔 pdf → 바꾸지 못한 파일 1 · 상한 넘는 docx → 거절', async () => {
   const dir = path.join(tmp, 'kn', 'dpms')
   const file = docx([['Heading1', '목적'], ['', '회의에서 정한 것을 남긴다.'], ['Heading1', '정한 것'], ['', '배포 창은 화 · 목.']])
   const r = await s.hub.importFiles(KIM, 'dpms', [{ path: '회의/회의록-1021.docx', data: file }])
@@ -121,7 +121,7 @@ test('파일 넣기 — 기록으로 들이고 정리가 새 문서로 세우거
   assert.match(md, /배포 창은 화 · 목\./)
   let k = await s.hub.get('dpms')
   assert.equal(k.byWork.get(rec.id).state, 'in', '넣은 뒤 「넣음」')
-  assert.ok(k.logs.some((w) => w.title === '정리 — 회의록-1021.docx 들임' && w.reflects.includes(rec.id)), '정리는 이력에')
+  assert.ok(k.logs.some((w) => w.title === '정리: 회의록-1021.docx 들임' && w.reflects.includes(rec.id)), '정리는 이력에')
   // 기존 문서와 이어지는 파일 — 그 문서의 항목을 고친다(새 문서를 세우지 않는다)
   await s.hub.importFiles(KIM, 'dpms', [{ path: '카나리-갱신.md', data: Buffer.from('# 카나리 갱신\n\n## 카나리\n`canary-1` 에 먼저 올리고, 첫 30분은 요청의 20% 만 보낸다.\n') }])
   await workOnce({ server: s.url, key: wkey })
@@ -151,7 +151,7 @@ test('파일 넣기 — 기록으로 들이고 정리가 새 문서로 세우거
   assert.ok(!fs.existsSync(path.join(dir, 'docs', '메모.md')))
 })
 
-test('보내기 — 고친 문서 → 보낼 것 1 → 받는 지식에 기록 1 · 같은 것 다시 → 0 · 닿지 않으면 둠', async () => {
+test('보내기: 고친 문서 → 보낼 것 1 → 받는 지식에 기록 1 · 같은 것 다시 → 0 · 닿지 않으면 둠', async () => {
   await s.hub.sendDests(KIM, 'note', [{ kn: 'dpms' }])
   assert.equal((await s.hub.sendQueue(KIM, 'note')).items.length, 0, '정한 때의 글은 보낸 것')
   await s.hub.edit(KIM, 'note', { doc: '배포메모', sections: [{ h: '카나리', body: '첫 30분은 요청의 20%.' }] })
@@ -181,41 +181,41 @@ test('보내기 — 고친 문서 → 보낼 것 1 → 받는 지식에 기록 1
   assert.ok((await s.hub.stops(KIM)).some((l) => l.kind === 'send' && /닿지 않는다/.test(l.b)))
 })
 
-test('보내기 고르기 — 변경사항(새 기록은 전체 · 고친 문서는 바뀐 항목만) · 지식에서 문서 · 기록을 골라 전체로 · 고르지 않은 것은 남는다', async () => {
+test('보내기 고르기: 변경사항(새 기록은 전체 · 고친 문서는 바뀐 항목만) · 지식에서 문서 · 기록을 골라 전체로 · 고르지 않은 것은 남는다', async () => {
   await s.hub.sendDests(KIM, 'note', [{ kn: 'dpms' }])
-  await s.hub.save(KIM, 'note', { record: { title: '롤백 순서 — 쓰기 먼저 멈춤', body: '롤백 전에 쓰기를 멈춘다.' } })
+  await s.hub.save(KIM, 'note', { record: { title: '롤백 순서: 쓰기 먼저 멈춤', body: '롤백 전에 쓰기를 멈춘다.' } })
   await s.hub.edit(KIM, 'note', { doc: '배포메모', sections: [{ h: '카나리', body: '첫 30분은 요청의 30%.' }] })
   // 팀 서버의 개인 지식은 기록이 남는 즉시 문서에(PC 일꾼이 없으면 규칙으로) — 그 문서도 변경사항에 선다
   await s.hub.curateIdle('note')
   const q = await s.hub.sendQueue(KIM, 'note')
   const rec = q.items.find((x) => x.kind === 'rec')
   const doc = q.items.find((x) => x.kind === 'doc' && /배포메모/.test(x.title))
-  assert.equal(rec.title, '롤백 순서 — 쓰기 먼저 멈춤', '새 기록은 변경사항에')
+  assert.equal(rec.title, '롤백 순서: 쓰기 먼저 멈춤', '새 기록은 변경사항에')
   assert.deepEqual(doc.heads, ['카나리'], '고친 문서는 바뀐 항목만')
-  assert.ok(q.docs.some((d) => d.path === 'docs/배포메모.md'), '지식 — 문서 목록')
-  assert.ok(q.recs.some((r) => r.id === rec.id), '지식 — 기록 목록')
+  assert.ok(q.docs.some((d) => d.path === 'docs/배포메모.md'), '지식: 문서 목록')
+  assert.ok(q.recs.some((r) => r.id === rec.id), '지식: 기록 목록')
   assert.ok(!q.items.some((x) => /화면에서 고침/.test(x.title)), '이력은 보낼 것이 아니다')
 
   // 변경사항에서는 기록만 고르고 · 지식에서 같은 문서를 전체로 고른다
   const r = await s.hub.send(KIM, 'note', { changes: [rec.key], docs: ['docs/배포메모.md'], recs: [] })
   assert.deepEqual(r, { sent: 2, wait: 0 })
   const got = (await s.hub.get('dpms')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/')))
-  assert.ok(got.some((w) => w.title === '롤백 순서 — 쓰기 먼저 멈춤' && /롤백 전에 쓰기를 멈춘다/.test(w.body)), '기록은 전체로')
-  assert.ok(got.some((w) => w.title === '배포메모 — 문서 전체' && /## 카나리\n첫 30분은 요청의 30%/.test(w.body)), '문서는 전체로')
+  assert.ok(got.some((w) => w.title === '롤백 순서: 쓰기 먼저 멈춤' && /롤백 전에 쓰기를 멈춘다/.test(w.body)), '기록은 전체로')
+  assert.ok(got.some((w) => w.title === '배포메모: 문서 전체' && /## 카나리\n첫 30분은 요청의 30%/.test(w.body)), '문서는 전체로')
   assert.equal((await s.hub.sendQueue(KIM, 'note')).items.filter((x) => x.key === rec.key || /배포메모/.test(x.title)).length, 0, '보낸 기록 · 문서는 변경사항에서 빠진다')
 
   // 고르지 않은 변경사항은 다음에 그대로 남는다
-  await s.hub.save(KIM, 'note', { record: { title: '헬스 체크 — 5초', body: '5초 안에 200.' } })
+  await s.hub.save(KIM, 'note', { record: { title: '헬스 체크: 5초', body: '5초 안에 200.' } })
   await s.hub.edit(KIM, 'note', { doc: '배포메모', sections: [{ h: '카나리', body: '첫 30분은 요청의 40%.' }] })
   await s.hub.curateIdle('note')
   const q2 = await s.hub.sendQueue(KIM, 'note')
   const r2 = await s.hub.send(KIM, 'note', { changes: [q2.items.find((x) => x.kind === 'doc' && /배포메모/.test(x.title)).key] })
   assert.equal(r2.sent, 1)
   const left = (await s.hub.sendQueue(KIM, 'note')).items.map((x) => x.title)
-  assert.ok(left.includes('헬스 체크 — 5초') && !left.some((t) => /배포메모/.test(t)), '고르지 않은 것은 남는다 ' + left)
+  assert.ok(left.includes('헬스 체크: 5초') && !left.some((t) => /배포메모/.test(t)), '고르지 않은 것은 남는다 ' + left)
 })
 
-test('지식 보내기(팀 화면) — 보내는 길은 개인 지식마다 팀 지식 하나 · 바꾸려면 새 이름을 친다 · 화면이 본 길과 다르면 보내지 않는다 · 문서는 처음 전체 그 뒤 고친 항목만', async () => {
+test('지식 보내기(팀 화면): 보내는 길은 개인 지식마다 팀 지식 하나 · 바꾸려면 새 이름을 친다 · 화면이 본 길과 다르면 보내지 않는다 · 문서는 통째로만', async () => {
   const code = (p) => p.then(() => null, (e) => e.code)
   fs.writeFileSync(path.join(tmp, 'kn', 'memo', 'docs', '점검.md'), '# 점검\n\n## 순서\n전원부터 본다.\n\n## 기록\n날마다 남긴다.\n')
   s.hub.forget('memo')
@@ -229,16 +229,16 @@ test('지식 보내기(팀 화면) — 보내는 길은 개인 지식마다 팀 
   assert.equal(v.route.kn, 'dpms')
   assert.ok(v.route.since, '정한 때가 남는다')
 
-  await s.hub.save(KIM, 'memo', { record: { title: '전원 점검 — 아침', body: '아침마다 전원부터.' } })
+  await s.hub.save(KIM, 'memo', { record: { title: '전원 점검: 아침', body: '아침마다 전원부터.' } })
   v = await s.hub.sendView(KIM, 'memo')
-  const rec = v.recs.find((r) => r.title === '전원 점검 — 아침')
+  const rec = v.recs.find((r) => r.title === '전원 점검: 아침')
   assert.ok(rec && !rec.sent, '보내지 않은 기록')
   assert.equal(await code(s.hub.sendPicked(KIM, 'memo', { to: 'gdi', recs: [rec.id] })), 'E_CONFLICT', '화면이 본 받는 지식과 다르면 보내지 않는다')
   const r = await s.hub.sendPicked(KIM, 'memo', { to: 'dpms', recs: [rec.id], docs: [{ path: 'docs/점검.md' }] })
   assert.equal(r.sent, 2)
   let got = (await s.hub.get('dpms')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/')))
-  assert.ok(got.some((w) => w.title === '전원 점검 — 아침'), '기록은 전체로')
-  assert.ok(got.some((w) => w.title === '점검 — 문서 전체'), '처음 문서는 전체로')
+  assert.ok(got.some((w) => w.title === '전원 점검: 아침'), '기록은 전체로')
+  assert.ok(got.some((w) => w.title === '점검: 문서 전체'), '처음 문서는 전체로')
   v = await s.hub.sendView(KIM, 'memo')
   assert.ok(v.recs.find((x) => x.id === rec.id).sent, '보낸 기록은 「보냄」')
   assert.equal(v.docs.find((d) => d.path === 'docs/점검.md').st, 'same')
@@ -248,9 +248,10 @@ test('지식 보내기(팀 화면) — 보내는 길은 개인 지식마다 팀 
   v = await s.hub.sendView(KIM, 'memo')
   const d = v.docs.find((x) => x.path === 'docs/점검.md')
   assert.deepEqual([d.st, d.heads], ['chg', ['순서']])
-  await s.hub.sendPicked(KIM, 'memo', { to: 'dpms', docs: [{ path: 'docs/점검.md' }] })
+  await s.hub.sendPicked(KIM, 'memo', { to: 'dpms', docs: [{ path: 'docs/점검.md', whole: false }] })
   got = (await s.hub.get('dpms')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/')))
-  assert.ok(got.some((w) => w.title === '점검 — 순서' && /통신/.test(w.body)), '그 뒤로는 고친 항목만')
+  assert.ok(got.some((w) => w.title === '점검: 문서 전체' && /통신/.test(w.body) && /날마다 남긴다/.test(w.body)), '고친 뒤에도 문서는 통째로 간다(고친 항목만은 없다)')
+  assert.ok(!got.some((w) => w.title === '점검: 순서'), '항목 조각은 보내지 않는다')
 
   // 바꾸기 — 새 이름을 그대로 쳐야
   assert.equal(await code(s.hub.sendRoute(KIM, 'memo', { to: 'gdi' })), 'E_INPUT')
@@ -259,10 +260,10 @@ test('지식 보내기(팀 화면) — 보내는 길은 개인 지식마다 팀 
   assert.equal((await s.hub.sendRoute(KIM, 'memo', { to: 'gdi', confirm: gname })).route.kn, 'gdi')
 })
 
-test('받은편지함 정리 — 같은 주인의 개인 지식으로 옮김 · private 메모 → 옮김 0 · 팀 이름은 보내기 후보', async () => {
-  await s.hub.save(KIM, 'inbox', { record: { title: '주간 회의 — 안건', body: '다음 주 안건 셋.' } })
-  await s.hub.save(KIM, 'inbox', { record: { title: '주간 회의 — 개인 생각', body: '나만 본다.', tags: ['private'] } })
-  await s.hub.save(KIM, 'inbox', { record: { title: '카나리 — 비율 메모', body: '20% 가 낫다.' } })
+test('받은편지함 정리: 같은 주인의 개인 지식으로 옮김 · private 메모 → 옮김 0 · 팀 이름은 보내기 후보', async () => {
+  await s.hub.save(KIM, 'inbox', { record: { title: '주간 회의: 안건', body: '다음 주 안건 셋.' } })
+  await s.hub.save(KIM, 'inbox', { record: { title: '주간 회의: 개인 생각', body: '나만 본다.', tags: ['private'] } })
+  await s.hub.save(KIM, 'inbox', { record: { title: '카나리: 비율 메모', body: '20% 가 낫다.' } })
   const r = await s.hub.inboxTidy(KIM, 'inbox')
   assert.equal(r.moved.length, 1)
   assert.equal(r.moved[0].to, 'memo')
@@ -274,7 +275,7 @@ test('받은편지함 정리 — 같은 주인의 개인 지식으로 옮김 · 
   assert.equal((await s.hub.inboxTidy(KIM, 'inbox')).moved.length, 0)
 })
 
-test('지식 추가 — 지식 폴더 밖의 폴더는 지식 폴더 안의 새 지식으로 들여온다(원본은 그대로 · 따라가지 않는다)', async () => {
+test('지식 추가: 지식 폴더 밖의 폴더는 지식 폴더 안의 새 지식으로 들여온다(원본은 그대로 · 따라가지 않는다)', async () => {
   const root = path.join(tmp, 'pcroot')
   fs.mkdirSync(root, { recursive: true })
   const old = path.join(tmp, '옛자료')
@@ -296,12 +297,12 @@ test('지식 추가 — 지식 폴더 밖의 폴더는 지식 폴더 안의 새 
     assert.deepEqual((await pc.hub.get('옛자료')).docs.map((d) => d.id).sort(), ['배포 절차', '회의/10월'])
     // 대원칙 — 기록 → 문서: 파일마다 기록(글 그대로)이 먼저 · 문서 항목은 그 기록을 표지로 · 기록은 「문서에 들어감」
     const k = await pc.hub.get('옛자료')
-    const recs = k.works.filter((w) => / — 들여온 문서 · /.test(w.title))
+    const recs = k.works.filter((w) => /들여온 문서 · /.test(w.title))
     assert.equal(recs.length, 2)
     assert.ok(recs.every((w) => w.state === 'in'), recs.map((w) => w.state).join())
     const d10 = k.docs.find((d) => d.id === '회의/10월')
-    assert.equal(k.byWork.get(d10.sections[0].applied)?.title, '10월.md — 들여온 문서 · 옛자료')
-    assert.ok(k.logs.some((w) => w.title.startsWith('들여옴 — 옛 폴더 · 문서 2') && w.reflects.length === 2), '이력 하나가 그 기록들을 넣었다')
+    assert.equal(k.byWork.get(d10.sections[0].applied)?.title, '10월.md: 들여온 문서 · 옛자료')
+    assert.ok(k.logs.some((w) => w.title.startsWith('들여옴: 옛 폴더 · 문서 2') && w.reflects.length === 2), '이력 하나가 그 기록들을 넣었다')
     // 같은 폴더를 또 — 이름이 겹치면 -2 · 지식 폴더 안 · 지식 폴더를 품은 폴더는 거절
     assert.equal((await pc.hub.addKnowledge(ME, { kind: 'folder', dir: old })).id, '옛자료-2')
     await assert.rejects(pc.hub.addKnowledge(ME, { kind: 'folder', dir: path.join(root, '옛자료') }), { code: 'E_INPUT' })
@@ -312,7 +313,7 @@ test('지식 추가 — 지식 폴더 밖의 폴더는 지식 폴더 안의 새 
   }
 })
 
-test('이 PC 의 파일 넣기 — 정리가 따로 없다: 기록과 문서가 바로(Claude 로 다듬어) · Claude 로그인이 없으면 규칙으로 갈래 · 주제 문서(파일 이름 아님) · 기록은 늘 「넣음」', async () => {
+test('이 PC 의 파일 넣기: 정리가 따로 없다: 기록과 문서가 바로(Claude 로 다듬어) · Claude 로그인이 없으면 규칙으로 갈래 · 주제 문서(파일 이름 아님) · 기록은 늘 「넣음」', async () => {
   const root = path.join(tmp, 'pcroot-ingest')
   fs.mkdirSync(root, { recursive: true })
   const pc = await startServer({ root, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
@@ -323,7 +324,7 @@ test('이 PC 의 파일 넣기 — 정리가 따로 없다: 기록과 문서가 
     // Claude 로 — 이어지는 문서가 없으니 새 문서 · 그 기록은 넣음 · 정리 일감은 없다
     const r = await pc.hub.importFiles(ME, id, [{ path: '회의록-1021.md', data: Buffer.from('# 회의록-1021\n\n## 정한 것\n배포 창은 화 · 목.\n') }])
     assert.equal(r.rows[0].kind, 'doc', r.rows[0].msg)
-    assert.match(r.rows[0].msg, /기록 · 문서가 됐다 — 배포노트 › 회의록-1021 \(새 문서\) · Claude 로 다듬었다/)
+    assert.match(r.rows[0].msg, /기록 · 문서가 됐다. 배포노트 › 회의록-1021 \(새 문서\) · Claude 로 다듬었다/)
     assert.match(fs.readFileSync(path.join(dir, 'docs', '회의록-1021.md'), 'utf8'), /## 정한 것\n<!-- applied: [^>]+ -->\n배포 창은 화 · 목\./)
     let k = await pc.hub.get(id)
     const rec = k.works.find((w) => w.tags.includes('ingest/회의록-1021.md'))
@@ -335,7 +336,7 @@ test('이 PC 의 파일 넣기 — 정리가 따로 없다: 기록과 문서가 
       const r2 = await pc.hub.importFiles(ME, id, [{ path: '메모.md', data: Buffer.from('머리 없는 메모 — 당번은 박.\n') }])
       assert.equal(r2.rows[0].kind, 'doc')
       assert.match(r2.rows[0].msg, /메모 \(규칙으로 주제로 새 문서 · Claude 로그인이 없다/)
-      assert.match(fs.readFileSync(path.join(dir, 'docs', '메모.md'), 'utf8'), /## 개요\n<!-- applied: [^>]+ -->\n머리 없는 메모 — 당번은 박\./)
+      assert.match(fs.readFileSync(path.join(dir, 'docs', '메모.md'), 'utf8'), /## 개요\n<!-- applied: [^>]+ -->\n머리 없는 메모: 당번은 박\./)
       // 규칙으로도 문서 이름은 파일 이름이 아니라 갈래 · 주제 — 통화 · 회의 파일은 「회의록」 의 새 항목 「언제 · 무엇」 · 날짜 · 판 조각은 걷는다
       const r3 = await pc.hub.importFiles(ME, id, [{ path: '2026-10-21 HNC 통화.md', data: Buffer.from('# HNC 통화\n\n## 정한 것\n납기는 11-02.\n') }])
       assert.match(r3.rows[0].msg, /배포노트 › 회의록 \(규칙으로 갈래 「회의록」 새 문서 2026-10-21 HNC 통화/)
@@ -352,14 +353,14 @@ test('이 PC 의 파일 넣기 — 정리가 따로 없다: 기록과 문서가 
     }
     k = await pc.hub.get(id)
     assert.ok(k.works.filter((w) => w.tags.some((t) => t.startsWith('ingest/'))).every((w) => w.state === 'in'), '기록은 모두 넣음')
-    assert.ok(k.logs.some((w) => w.title === '정리 — 메모.md 들임' && /규칙으로/.test(w.body)))
+    assert.ok(k.logs.some((w) => w.title === '정리: 메모.md 들임' && /규칙으로/.test(w.body)))
     assert.equal(JSON.parse(fs.readFileSync(path.join(root, '.kmd', 'worker.json'), 'utf8')).reason, 'login')
   } finally {
     await pc.close()
   }
 })
 
-test('이 PC — 「아직 안 넣은 기록」 은 남는 즉시 문서에(켤 때 쌓인 것 · 세션 기록 · 이름 없는 메모 · Claude 로그인이 없으면 규칙으로)', async () => {
+test('이 PC: 「아직 안 넣은 기록」 은 남는 즉시 문서에(켤 때 쌓인 것 · 세션 기록 · 이름 없는 메모 · Claude 로그인이 없으면 규칙으로)', async () => {
   const root = path.join(tmp, 'pcroot-curate')
   copyDir(path.join(HERE, 'fixture', 'kmd'), root)
   const pc = await startServer({ root, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
@@ -373,25 +374,25 @@ test('이 PC — 「아직 안 넣은 기록」 은 남는 즉시 문서에(켤 
     await pc.hub.curateIdle('dpms')
     assert.deepEqual((await pending()).map((w) => w.title), [], '켤 때 쌓인 기록은 모두 넣었다')
     // 세션이 남긴 기록(항목이 정해진) — 저장은 바로 돌려주고 뒤에서 그 항목에(Claude)
-    const r = await pc.hub.save(ME, 'dpms', { record: { title: '카나리 — 첫 30분 20%', body: '첫 30분은 요청의 20% 만 보낸다.', touches: ['proc:카나리'] } })
+    const r = await pc.hub.save(ME, 'dpms', { record: { title: '카나리: 첫 30분 20%', body: '첫 30분은 요청의 20% 만 보낸다.', touches: ['proc:카나리'] } })
     await pc.hub.curateIdle('dpms')
     let k = await pc.hub.get('dpms')
     assert.equal(k.byWork.get(r.id).state, 'in')
     assert.match(doc(), /첫 30분은 요청의 20% 만 보낸다\./)
     // 이름 없는 메모 — 이어지는 문서 · 새 문서로
-    const m = await pc.hub.save(ME, 'dpms', { record: { title: '당번 — 이번 주', body: '이번 주 당번은 박.' } })
+    const m = await pc.hub.save(ME, 'dpms', { record: { title: '당번: 이번 주', body: '이번 주 당번은 박.' } })
     await pc.hub.curateIdle('dpms')
     k = await pc.hub.get('dpms')
     assert.equal(k.byWork.get(m.id).state, 'in', '이름 없는 메모도 넣음')
     // Claude 로그인이 없다 — 규칙으로 기록 글을 그 항목 끝에
     process.env.FAKE_CLAUDE_MODE = 'logout'
     try {
-      const h = await pc.hub.save(ME, 'dpms', { record: { title: '헬스 체크 — 경로', body: '## 경로\n헬스 체크 경로는 `/healthz` 로 바꾼다.' , touches: ['proc:헬스 체크'] } })
+      const h = await pc.hub.save(ME, 'dpms', { record: { title: '헬스 체크: 경로', body: '## 경로\n헬스 체크 경로는 `/healthz` 로 바꾼다.' , touches: ['proc:헬스 체크'] } })
       await pc.hub.curateIdle('dpms')
       k = await pc.hub.get('dpms')
       assert.equal(k.byWork.get(h.id).state, 'in')
       assert.match(doc(), /## 헬스 체크\n<!-- applied: [^>]+ -->\n[\s\S]*\*\*경로\*\*\n헬스 체크 경로는 `\/healthz` 로 바꾼다\./, '머리 줄은 굵은 글로 붙였다')
-      assert.ok(k.logs.some((w) => w.title === '정리 — 헬스 체크' && /규칙으로 — 기록 글을 항목 끝에 붙였다/.test(w.body)))
+      assert.ok(k.logs.some((w) => w.title === '정리: 헬스 체크' && /규칙으로: 기록 글을 항목 끝에 붙였다/.test(w.body)))
     } finally {
       delete process.env.FAKE_CLAUDE_MODE
     }
@@ -401,7 +402,7 @@ test('이 PC — 「아직 안 넣은 기록」 은 남는 즉시 문서에(켤 
   }
 })
 
-test('지식 지우기 — 이름을 그대로 써야 · 팀은 관리자나 개인 지식의 주인만 · 보관 없이 폴더 · 살림까지 완전히', async () => {
+test('지식 지우기: 이름을 그대로 써야 · 팀은 관리자나 개인 지식의 주인만 · 보관 없이 폴더 · 살림까지 완전히', async () => {
   const dir = path.join(tmp, 'kn', 'inbox')
   const data = path.join(tmp, 'kn', '.kmd')
   assert.ok(fs.existsSync(dir))

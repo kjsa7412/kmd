@@ -37,7 +37,7 @@ after(async () => {
   fs.rmSync(tmp, { recursive: true, force: true })
 })
 
-test('F1 — 머리 주입 · 날짜 모양 · 예약 이름 · 태그 · 파일은 받지 않는다', async () => {
+test('F1: 머리 주입 · 날짜 모양 · 예약 이름 · 태그 · 파일은 받지 않는다', async () => {
   const h = s.hub
   const rec = (x) => ({ record: { title: '제목', body: '글', ...x } })
   assert.equal(await code(h.save(KIM, 'dpms', rec({ date: '2026-10-23\nbaseline: 가짜' }))), 'E_INPUT')
@@ -52,10 +52,10 @@ test('F1 — 머리 주입 · 날짜 모양 · 예약 이름 · 태그 · 파일
   assert.match(w, /title: .*따옴표/)
 })
 
-test('F4 — 읽은 뒤 바뀐 항목은 덮지 않는다', async () => {
+test('F4: 읽은 뒤 바뀐 항목은 덮지 않는다', async () => {
   const sec = (await tool('section', { knowledge: 'dpms', coord: 'proc:헬스 체크' })).structuredContent
   assert.match(sec.base, /^[0-9a-f]{16}$/)
-  const put = (content, base) => tool('save', { knowledge: 'dpms', record: { title: '헬스 체크 — 고침', body: content }, sections: [{ coord: 'proc:헬스 체크', content, base }] })
+  const put = (content, base) => tool('save', { knowledge: 'dpms', record: { title: '헬스 체크: 고침', body: content }, sections: [{ coord: 'proc:헬스 체크', content, base }] })
   const n0 = commits('dpms')
   assert.ok(!(await put('3초 안에 200 · 고친 글', sec.base)).isError)
   const late = await put('늦게 온 글', sec.base)
@@ -63,18 +63,18 @@ test('F4 — 읽은 뒤 바뀐 항목은 덮지 않는다', async () => {
   assert.equal(commits('dpms'), n0 + 1, '늦은 저장은 묶음 0')
 })
 
-test('F12 — 캐시는 요청 밖 · 둘째 요청은 다시 읽지 않는다 · 저장 뒤엔 바뀐 파일만', async () => {
+test('F12: 캐시는 요청 밖 · 둘째 요청은 다시 읽지 않는다 · 저장 뒤엔 바뀐 파일만', async () => {
   await tool('brief', { knowledge: 'dpms' })
   const a = readStats.files
   await tool('section', { knowledge: 'dpms', coord: 'proc:카나리' })
   assert.ok(readStats.files - a <= 10, `둘째 요청 파일 읽기 ${readStats.files - a}`)
-  await tool('save', { knowledge: 'dpms', record: { title: '카나리 — 메모', body: '메모' } })
+  await tool('save', { knowledge: 'dpms', record: { title: '카나리: 메모', body: '메모' } })
   const b = readStats.files
   await tool('section', { knowledge: 'dpms', coord: 'proc:카나리' })
   assert.ok(readStats.files - b <= 3, `저장 뒤 파일 읽기 ${readStats.files - b}`)
 })
 
-test('I7 — 안 넣은 기록은 최신 8 · 날짜 순 · 넘친 수', async () => {
+test('I7: 안 넣은 기록은 최신 8 · 날짜 순 · 넘친 수', async () => {
   for (let i = 1; i <= 12; i++) await s.hub.save(KIM, 'dpms', { record: { title: `준비 메모 ${i}`, body: `${i}`, touches: ['proc:준비'], date: `2026-10-22 10:${String(i).padStart(2, '0')}` } })
   const sec = (await tool('section', { knowledge: 'dpms', coord: 'proc:준비' })).structuredContent
   assert.equal(sec.notYetInDocs.length, 8)
@@ -84,7 +84,7 @@ test('I7 — 안 넣은 기록은 최신 8 · 날짜 순 · 넘친 수', async (
   assert.deepEqual(doc.sections.find((x) => x.h === '준비').pend.map((x) => x.title), sec.notYetInDocs.map((x) => x.title), '화면과 같은 고름')
 })
 
-test('주인 · 개인 — 관리자의 모두도 가린다 · _members.md 가 따라간다', async () => {
+test('주인 · 개인: 관리자의 모두도 가린다 · _members.md 가 따라간다', async () => {
   const row = await s.hub.setOwner(SHELL, 'gdi', { owner: '박', private: true, curators: ['박'] })
   assert.equal(row.private, true)
   assert.match(fs.readFileSync(path.join(tmp, 'kn', 'gdi', '_members.md'), 'utf8'), /- 주인: 박\n- 개인: 예/)
@@ -103,7 +103,7 @@ test('주인 · 개인 — 관리자의 모두도 가린다 · _members.md 가 �
   await assert.rejects(makeHub({ root: path.join(tmp, 'kn'), dataDir: d2 }), /owners\.json/)
 })
 
-test('허용 백업 루트 — 팀 서버는 허락된 폴더만 · 지식 안은 안 된다', async () => {
+test('허용 백업 루트: 팀 서버는 허락된 폴더만 · 지식 안은 안 된다', async () => {
   assert.equal(await code(s.hub.backupAttach(ADMIN, 'dpms', path.join(tmp, 'elsewhere.git'))), 'E_FORBIDDEN')
   assert.equal(await code(s.hub.backupAttach(ADMIN, 'dpms', path.join(tmp, 'kn', 'dpms', 'b.git'))), 'E_INPUT')
   assert.equal(await code(s.hub.backupAttach(KIM, 'dpms', 'https://git.example/x.git')), 'E_FORBIDDEN', '관리자만')

@@ -55,7 +55,7 @@ async function bannedIn(page) {
   return BANNED.filter((w) => text.includes(w))
 }
 
-test('셸 · 지식 목록 · 문서로 보기 — 목업과 같은 글 · 단추 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   const page = await browser.newPage({ viewport: VIEW })
   const errors = []
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
@@ -71,7 +71,7 @@ test('셸 · 지식 목록 · 문서로 보기 — 목업과 같은 글 · 단�
   await page.fill('#lgPw', 'wrong-password')
   await page.click('[data-t=loginBtn]')
   await page.waitForSelector('[data-t=loginErr]')
-  assert.equal(await page.locator('[data-t=loginErr]').innerText(), '아이디나 비밀번호를 확인하세요 — 여러 번 틀리면 잠시 막힌다')
+  assert.equal(await page.locator('[data-t=loginErr]').innerText(), '아이디나 비밀번호를 확인하세요. 여러 번 틀리면 잠시 막힌다')
   await page.screenshot({ path: path.join(SHOTS, 'app-login.png') })
   errors.length = 0 // 일부러 틀린 들어가기의 401 은 브라우저가 콘솔에 적는다
   await page.fill('#lgPw', me.pw)
@@ -80,8 +80,8 @@ test('셸 · 지식 목록 · 문서로 보기 — 목업과 같은 글 · 단�
   // 셸 — 리본 없음 · 옆 메뉴 두 영역(지식 고르기: 고르기 · 문서 · 항목 · 그래프 탭 · 목록 / 지식 관리: 공통 메뉴) · 머리(찾기 가운데 · 설명서 · 나 오른쪽) · 띠 · 아래 줄
   assert.equal(await page.locator('.ribbon').count(), 0)
   assert.deepEqual(await page.locator('[data-t=ktabs] span').allInnerTexts(), ['문서', '항목', '그래프'])
-  // 관리자라 「정리 · 이 지식의 사람 · 관리」 도 지식 관리에 선다
-  assert.deepEqual(await page.locator('[data-t=manageArea] .sb-i').evaluateAll((els) => els.map((e) => e.querySelector('span').textContent)), ['이력', '가져오기', '지식 보내기', '정리', '이 지식의 사람', '관리', '설정'])
+  // 지식 목록(전체)에서는 지식 관리에 이력과 설정 둘(팀 · 개인)
+  assert.deepEqual(await page.locator('[data-t=manageArea] .sb-i').evaluateAll((els) => els.map((e) => e.querySelector('span').textContent)), ['이력', '가져오기', '설정 · 팀', '설정 · 개인'])
   assert.match(await page.locator('.hdr .hmid').innerText(), /빨리 열기[\s\S]*Ctrl O[\s\S]*찾기[\s\S]*Ctrl K/)
   assert.match(await page.locator('.hdr .hright').innerText(), /Claude[\s\S]*설명서/)
   // 들어온 사람은 왼쪽 메뉴 맨 위(누르면 설정 · 나가기)
@@ -92,8 +92,8 @@ test('셸 · 지식 목록 · 문서로 보기 — 목업과 같은 글 · 단�
   assert.deepEqual(await page.locator('.sec-h b').allInnerTexts(), ['팀 지식', '개인 지식'])
   assert.equal(await page.locator('[data-t=klist] [data-t=addCardTeam]').count(), 1, '팀 지식 끝 「+ 새 팀 지식」')
   assert.equal(await page.locator('[data-t=meList] [data-t=addCard]').count(), 1, '개인 지식 끝 「+ 새 개인 지식」')
-  assert.match(await page.locator('[data-t=meWhere]').innerText(), /개인 지식은 여기에[\s\S]*지식 폴더를 따로 정하지 않는다/)
-  assert.match(await page.locator('[data-t=mePath]').innerText(), /kn[\\/]이름-kim$/, '관리자에게는 서버의 경로')
+  // 개인 지식은 내 PC 프로그램의 지식 폴더 — 팀 서버에 세우지 않는다(이 시험에는 내 PC 프로그램이 없다)
+  assert.match(await page.locator('[data-t=meWhere]').innerText(), /내 PC 지식 폴더[\s\S]*내 PC 프로그램이 켜지면 보인다[\s\S]*팀 서버에는 가지 않는다/)
   assert.equal(await page.locator('text=+ 지식 만들기').count(), 0, '지식 목록의 「지식 만들기」 단추는 걷었다')
   assert.match(await page.locator('[data-t=rootPath]').innerText(), /kn/, '팀 관리자에게는 서버의 지식 폴더 · [동기화]')
   assert.equal(await page.locator('[data-t=syncKn]').count(), 1)
@@ -103,7 +103,7 @@ test('셸 · 지식 목록 · 문서로 보기 — 목업과 같은 글 · 단�
   // 문서로 보기 — 나무 · 빈 가운데 · 이 지식
   await page.click('[data-t=krow][data-name="DPMS 지식"]')
   await page.waitForSelector('[data-t=tree] [data-t=doc]')
-  assert.equal(await page.locator('.tabbar .none').innerText(), '열린 탭이 없다 — 왼쪽에서 열거나 Ctrl O')
+  assert.equal(await page.locator('.tabbar .none').innerText(), '열린 탭이 없다. 왼쪽에서 열거나 Ctrl O')
   assert.match(await page.locator('[data-t=docsEmpty]').innerText(), /왼쪽 나무에서 문서나 기록을 연다/)
   assert.deepEqual(await page.locator('.tree .tf').evaluateAll((els) => els.map((e) => e.dataset.t)), ['fold-docs', 'fold-recs', 'fold-atts'])
   assert.equal(await page.locator('[data-t=moreDocs]').innerText(), '6개 더')
@@ -179,7 +179,7 @@ test('셸 · 지식 목록 · 문서로 보기 — 목업과 같은 글 · 단�
   await page.close()
 })
 
-test('정리 · 이 지식의 사람 · 오늘 바뀐 것(M12 · M11 · M9) — 목업 글 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('정리 · 이 지식의 사람 · 오늘 바뀐 것(M12 · M11 · M9): 목업 글 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
   const wkey = (await s.auth.workerAdd()).key
   await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '카나리 비율', body: '첫 30분 요청 10% → 20%', touches: ['proc:카나리'] } })
@@ -204,11 +204,14 @@ test('정리 · 이 지식의 사람 · 오늘 바뀐 것(M12 · M11 · M9) — 
   assert.match(await page.locator('[data-t=run] .sub').first().innerText(), /넣은 것|값이 바뀐 것/)
   assert.deepEqual(await bannedIn(page), [])
   await page.screenshot({ path: path.join(SHOTS, 'app-tidy.png') })
-  await page.click('[data-t=nav-members]')
-  await page.waitForSelector('[data-t=kmdRow]')
-  assert.match(await page.locator('[data-t=kmdRow]').innerText(), /kmd — 정해진 시간과 \[지금 정리\] 로 바로 넣는다 · 매일 02:30/)
+  // 정리 때 바꾸기는 정리 화면의 ⋯(관리자) — 「이 지식의 사람」 은 걷었다(팀 권한은 관리자 · 일반 둘뿐)
+  assert.equal(await page.locator('[data-t=nav-members]').count(), 0)
+  await page.click('[data-t=tidyKebab]')
+  await page.waitForSelector('[data-t=timeMenu]')
+  assert.match(await page.locator('[data-t=timeMenu]').innerText(), /정리 방식[\s\S]*정해진 시각[\s\S]*정리 시각/)
+  await page.keyboard.press('Escape')
   assert.deepEqual(await bannedIn(page), [])
-  await s.hub.save({ user: 'kim', admin: true }, 'dpms', { record: { title: '메모 — 화면 시험', body: '오늘 바뀐 것에 한 줄.' } })
+  await s.hub.save({ user: 'kim', admin: true }, 'dpms', { record: { title: '메모: 화면 시험', body: '오늘 바뀐 것에 한 줄.' } })
   // 이력 — 한 흐름(날마다) · 내가 남긴 기록 줄 · 다른 화면과 같은 짜임(왼쪽 정렬 · 제목 · 설명)
   await page.click('[data-t=nav-today]')
   await page.waitForSelector('[data-t=feed] [data-t=histDay]')
@@ -221,7 +224,7 @@ test('정리 · 이 지식의 사람 · 오늘 바뀐 것(M12 · M11 · M9) — 
   await page.close()
 })
 
-test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — 목업 글 · 파일 넣기 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10): 목업 글 · 파일 넣기 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   const page = await browser.newPage({ viewport: VIEW })
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
@@ -241,7 +244,7 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   await page.waitForSelector('[data-t=sfCard]')
   assert.deepEqual(await page.locator('[data-t=sfTabs] span').allInnerTexts(), ['문서 폴더', '소스 코드(git)', 'DB'], '파일을 팀으로 나르는 내 PC 폴더는 없다')
   await page.click('[data-t=sf-git]')
-  assert.match(await page.locator('[data-t=codeWhat]').innerText(), /묶음 — 더한 뒤 저장소에 새로 올라온 묶음마다 바뀐 코드로 기록 하나/, '소스 코드는 커밋 이력으로 — 채울 표를 고르지 않는다')
+  assert.match(await page.locator('[data-t=codeWhat]').innerText(), /묶음. 더한 뒤 저장소에 새로 올라온 묶음마다 바뀐 코드로 기록 하나/, '소스 코드는 커밋 이력으로: 채울 표를 고르지 않는다')
   assert.equal(await page.locator('#sf-rule').count(), 0)
   assert.match(await page.locator('[data-t=credNote]').innerText(), /화면으로는 받지 않는다/, '팀 화면은 git 자격을 받지 않는다')
   await page.click('[data-t=sf-db]')
@@ -267,7 +270,7 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   // 이력 — 가져오는 곳을 더한 일은 기록이 아니라 이력 한 곳에
   await page.click('[data-t=nav-today]') // 이력 — 오늘 바뀐 것과 kmd 가 다룬 일이 한 흐름
   await page.waitForSelector('[data-t=histRow]')
-  assert.match(await page.locator('[data-t=histRow][data-kind="설정"]').first().innerText(), /가져오는 곳 더함 — gdi DB/)
+  assert.match(await page.locator('[data-t=histRow][data-kind="설정"]').first().innerText(), /가져오는 곳 더함. gdi DB/)
   await page.click('[data-t=logKind-설정]')
   assert.equal(await page.locator('[data-t=histRow]:not([data-kind="설정"])').count(), 0, '갈래로 거른다')
   await page.click('[data-t=logKind-all]')
@@ -276,16 +279,16 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   await page.waitForSelector('[data-t=srcTable]')
   await page.click('[data-t=impTab-queue]')
   await page.waitForSelector('[data-t=drop]')
-  // 넣을 곳 — 옆 메뉴에서 고른 지식이 기본 · 드롭 영역에서 바꾼다 · 받은편지함은 고를 때만 만든다
+  // 넣을 곳 — 옆 메뉴에서 고른 지식이 기본 · 드롭 영역에서 바꾼다 · 팀 화면에는 받은편지함(새로)이 없다(개인 지식은 내 PC 에)
   assert.equal(await page.locator('#impKn').count(), 1)
   assert.match(await page.locator('#impKn').inputValue(), /\S/, '고른 지식이 기본')
-  await page.selectOption('#impKn', '')
-  assert.match(await page.locator('[data-t=drop]').innerText(), /받은편지함\(새로/)
+  assert.equal(await page.locator('#impKn option[value=""]').count(), 0, '팀 서버에 받은편지함을 세우지 않는다')
+  await page.selectOption('#impKn', 'dpms')
   await page.setInputFiles('#fileIn', { name: '회의록-1021.md', mimeType: 'text/markdown', buffer: Buffer.from('# 회의록-1021\n\n## 정한 것\n배포 창은 화 · 목.\n') })
   // 넣은 파일은 기록이 된다 — 정리가 기존 문서에 넣거나 새 문서로 세운다 · [보기] 는 그 기록 · 끝난 일은 「끝난 일」 탭에
   await page.click('[data-t=impTab-done]')
   await page.waitForFunction(() => /기록이 됐다/.test(document.querySelector('[data-t=impMsg]')?.textContent || ''), null, { timeout: 90000 })
-  assert.match(await page.locator('[data-t=impRow]').first().innerText(), /회의록-1021\.md → 받은편지함 › 기록[\s\S]*정리가 기존 문서에 넣거나 새 문서로 세운다/)
+  assert.match(await page.locator('[data-t=impRow]').first().innerText(), /회의록-1021\.md → DPMS 지식 › 기록[\s\S]*정리가 기존 문서에 넣거나 새 문서로 세운다/)
   assert.equal(await page.locator('[data-t=impRow] [data-t=impRec]').count(), 1)
   await page.click('[data-t=impTab-queue]')
   await page.setInputFiles('#fileIn', { name: '스캔.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4') })
@@ -298,25 +301,33 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   await page.waitForSelector('[data-t=klist]')
   await page.click('[data-t=addCardTeam]')
   await page.waitForSelector('[data-t=addPop] #addIn')
-  // 영역 — 개인 지식(팀 서버 · 나만 · 누구나) / 팀 지식(관리자만) · 관리자는 팀 지식이 기본
-  assert.deepEqual(await page.locator('[data-t=addArea] button').allInnerTexts(), ['개인 지식', '팀 지식'])
+  // 영역 — 개인 지식(내 PC 프로그램의 지식 폴더 · 누구나) / 팀 지식(팀 서버 · 관리자만) · 관리자는 팀 지식이 기본
+  assert.deepEqual(await page.locator('[data-t=addArea] button').allInnerTexts(), ['개인 지식 · 내 PC', '팀 지식'])
   assert.match(await page.locator('[data-t=addPop]').innerText(), /팀 서버에 팀 지식으로 선다/)
   assert.equal(await page.locator('[data-t=addTo]').count(), 0, '팀 지식에는 받는 팀 지식 칸이 없다')
   await page.click('[data-t=addAreaMe]')
-  assert.match(await page.locator('[data-t=addPop]').innerText(), /개인 지식 — 팀 서버의 지식 폴더 안 「이름-kim」 폴더로 선다[\s\S]*나만 본다/)
-  assert.equal(await page.locator('[data-t=addTo]').count(), 1, '개인 지식은 받는 팀 지식을 함께 정할 수 있다(나중에도)')
+  assert.match(await page.locator('[data-t=addPop]').innerText(), /내 PC 의 지식 폴더 안에 선다[\s\S]*팀 서버에는 가지 않는다/)
+  assert.equal(await page.locator('[data-t=addPcOff]').count(), 1, '내 PC 프로그램이 없으면 개인 지식을 세우지 못한다(팀 서버가 대신하지 않는다)')
+  assert.equal(await page.locator('[data-t=addBtn]').isDisabled(), true)
+  await page.click('[data-t=addKindTeam]')
   await page.click('[data-t=addBtn]')
   assert.match(await page.locator('[data-t=addMsg]').innerText(), /이름을 쓴다/)
-  await page.fill('#addIn', '설계메모')
+  await page.fill('#addIn', '보안점검')
   await page.click('[data-t=addBtn]')
   await page.waitForSelector('[data-t=syncMsg]')
-  assert.match(await page.locator('[data-t=syncMsg]').innerText(), /추가했다 — 설계메모 · 개인 지식/)
+  assert.match(await page.locator('[data-t=syncMsg]').innerText(), /추가했다: 보안점검 · 팀 지식/)
   assert.equal(await page.locator('[data-t=addPop]').count(), 0)
-  assert.equal(await page.locator('[data-t=meList] [data-t=krow][data-name="설계메모"]').count(), 1, '새 개인 지식은 아래 개인 지식에')
+  assert.equal(await page.locator('[data-t=klist] [data-t=krow][data-name="보안점검"]').count(), 1, '새 팀 지식은 위 팀 지식에')
   // 아래 「+ 새 개인 지식」 은 개인 지식으로 열린다
   await page.click('[data-t=meList] [data-t=addCard]')
   assert.equal(await page.locator('[data-t=addAreaMe].on').count(), 1)
   await page.click('[data-t=addPop] .x')
+  // 팀 서버에 남은 옛 개인 지식 — 개인 칸에 「옛 개인」 · [내 PC 로 옮기기](내 PC 프로그램이 있어야)
+  await s.hub.addKnowledge({ user: 'kim', admin: true }, { kind: 'new', name: '설계메모' })
+  await page.goto(s.url + '/')
+  await page.waitForSelector('[data-t=meList] [data-t=krow][data-name="설계메모"]')
+  assert.match(await page.locator('[data-t=meList] [data-t=krow][data-name="설계메모"]').innerText(), /옛 개인[\s\S]*내 PC 로 옮기기/)
+  assert.match(await page.locator('[data-t=oldNote]').innerText(), /팀 서버에 옛 개인 지식 1/)
   // 메뉴에서 빼기 → 아래 「뺀 지식」 · 옆 메뉴에 없다 → 메뉴에 올리기
   await page.locator('[data-t=krow][data-name="GDI 지식"] [data-t=knKebab]').click()
   await page.click('.pop [data-t=knHide]')
@@ -331,22 +342,22 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   // 지식 보내기 — 보내는 길(내 개인 지식 → 팀 지식 하나)부터 · 정하기 전에는 보낼 것이 열리지 않는다
   const mine = (await s.hub.list()).find((k) => k.name === '설계메모').id
   const KIM = { user: 'kim', admin: true }
-  await s.hub.save(KIM, mine, { record: { title: '카나리 — 첫 30분 20%', body: '카나리는 첫 30분 20%.' } })
+  await s.hub.save(KIM, mine, { record: { title: '카나리: 첫 30분 20%', body: '카나리는 첫 30분 20%.' } })
   // 새 지식은 메뉴 맨 아래에 들어온다 — 맨 앞으로 올리면 처음 고른 지식이 된다
   await s.hub.menuSet(KIM, { order: [mine] })
   await page.goto(s.url + '/')
-  await page.waitForSelector('[data-t=nav-send]')
-  // 지식마다 팀 / 개인 표지 · 지식 보내기는 팀 화면에 늘 · 팀 지식은 + 정리 · 이 지식의 사람
+  await page.waitForSelector('[data-t=kpick]')
+  // 지식마다 팀 / 개인 표지 · 지식 관리는 갈래마다(개인: 지식 보내기 · 설정 · 개인 / 팀: 정리 · 설정 · 팀)
   await page.click('[data-t=kpick]')
   assert.match(await page.locator('[data-t=kmenuKn]').filter({ hasText: '설계메모' }).innerText(), /개인/)
   assert.match(await page.locator('[data-t=kmenuKn]').filter({ hasText: 'DPMS 지식' }).innerText(), /팀/)
   await page.locator('[data-t=kmenuKn]').filter({ hasText: '설계메모' }).click()
   await page.waitForSelector('[data-t=manageArea][data-kind=personal]')
-  assert.deepEqual(await page.locator('[data-t=manageArea] .sb-i span:first-of-type').allInnerTexts(), ['이력', '가져오기', '지식 보내기', '관리', '설정'])
+  assert.deepEqual(await page.locator('[data-t=manageArea] .sb-i span:first-of-type').allInnerTexts(), ['이력', '가져오기', '지식 보내기', '설정 · 개인'])
   await page.click('[data-t=kpick]')
   await page.locator('[data-t=kmenuKn]').filter({ hasText: 'DPMS 지식' }).click()
   await page.waitForSelector('[data-t=manageArea][data-kind=team]')
-  assert.deepEqual(await page.locator('[data-t=manageArea] .sb-i span:first-of-type').allInnerTexts(), ['이력', '가져오기', '지식 보내기', '정리', '이 지식의 사람', '관리', '설정'])
+  assert.deepEqual(await page.locator('[data-t=manageArea] .sb-i span:first-of-type').allInnerTexts(), ['이력', '가져오기', '정리', '설정 · 팀'])
   await page.click('[data-t=kpick]')
   await page.locator('[data-t=kmenuKn]').filter({ hasText: '설계메모' }).click()
   await page.waitForSelector('[data-t=nav-send]')
@@ -364,11 +375,12 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   assert.match(await page.locator('[data-t=sendRoute]').innerText(), /설계메모 에서 보내는 것은 모두 DPMS 지식으로만 간다/)
   // 기록 탭(먼저) — 보내지 않은 기록 · 단추에 받는 지식 이름
   assert.equal(await page.locator('[data-t=sendBtn]').innerText(), '보낼 것을 고른다')
-  await page.locator('[data-t=sendRec]').filter({ hasText: '카나리 — 첫 30분 20%' }).click()
+  await page.locator('[data-t=sendRec]').filter({ hasText: '카나리: 첫 30분 20%' }).click()
   assert.equal(await page.locator('[data-t=sendBtn]').innerText(), 'DPMS 지식으로 1개 보내기')
-  // 문서 탭 — 처음은 「보낸 적 없음」 · 전체로
+  // 문서 탭 — 처음은 「보낸 적 없음」 · 문서는 통째로만
   await page.click('[data-t=sendTab-doc]')
-  assert.match(await page.locator('[data-t=sendDoc]').first().innerText(), /보낸 적 없음/)
+  assert.match(await page.locator('[data-t=sendDoc]').first().innerText(), /보낸 적 없음[\s\S]*문서 통째로/)
+  assert.equal(await page.locator('[data-t=sendHow]').count(), 0)
   assert.equal(await page.evaluate(() => /[①-⑳]/.test(document.querySelector('.main').innerText)), false, '① ② 같은 글자를 쓰지 않는다')
   await page.screenshot({ path: path.join(SHOTS, 'app-send.png') })
   // 확인 창 — 어디서 어디로 크게
@@ -379,7 +391,7 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   await page.click('[data-t=sendGo]')
   await page.waitForFunction(() => !document.querySelector('[data-t=sendConfirm]'))
   await page.waitForSelector('[data-t=sendBody]')
-  assert.ok((await s.hub.get('dpms')).works.some((w) => w.tags.some((t) => t.startsWith('sent/')) && w.title === '카나리 — 첫 30분 20%'))
+  assert.ok((await s.hub.get('dpms')).works.some((w) => w.tags.some((t) => t.startsWith('sent/')) && w.title === '카나리: 첫 30분 20%'))
   await page.click('[data-t=sendTab-log]')
   assert.match(await page.locator('[data-t=sentRow]').first().innerText(), /DPMS 지식으로 1개를 보냈다/)
   // 받는 지식 바꾸기 — 새 이름을 그대로 쳐야 단추가 선다
@@ -405,7 +417,7 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   await mock.close()
 })
 
-test('설정 · 관리(M13 · M14) — 탭 셋 · 저절로 하는 일 · 정리 전용 로그인 흐름 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 정리 전용 로그인 흐름 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   process.env.KMD_CLAUDE_LOGIN = path.join(HERE, 'fixture', 'fake-claude-login.mjs')
   process.env.KMD_TEAM_LOGIN = 'pty' // 화면 없는 서버의 길(주소 · 번호)
   const page = await browser.newPage({ viewport: VIEW })
@@ -416,9 +428,10 @@ test('설정 · 관리(M13 · M14) — 탭 셋 · 저절로 하는 일 · 정리
   await page.fill('#lgPw', me.pw)
   await page.click('[data-t=loginBtn]')
   await page.waitForSelector('[data-t=klist]')
-  await page.click('[data-t=nav-settings]')
+  await page.click('[data-t=nav-settings-team]')
   await page.waitForSelector('[data-t=setTabs]')
-  assert.deepEqual(await page.locator('[data-t=setTabs] span').allInnerTexts(), ['일반', 'Claude 연결', '에이전트 설치'])
+  assert.equal(await page.locator('[data-t=setTitle]').innerText(), '설정 · 팀')
+  assert.deepEqual(await page.locator('[data-t=setTabs] span').allInnerTexts(), ['일반', '사람', 'Claude 연결', '에이전트 설치', '관리'])
   await page.waitForSelector('[data-t=auto-find]')
   assert.match(await page.locator('.main .card .ch').first().innerText(), /이 팀 서버/)
   await page.click('[data-t=sw-find]')
@@ -431,10 +444,20 @@ test('설정 · 관리(M13 · M14) — 탭 셋 · 저절로 하는 일 · 정리
   assert.match(await page.locator('[data-t=claudeRead]').innerText(), /팀 정리는 정리 전용 로그인으로 돈다/)
   await page.click('[data-t=st-agent]')
   assert.equal(await page.locator('[data-t=copyInstall]').innerText(), '설치 한 줄 복사')
+  assert.match(await page.locator('[data-t=agentCard]').innerText(), /에이전트 설치 · 팀[\s\S]*붙일 팀 지식/)
+  assert.ok((await page.locator('#agKn option').allInnerTexts()).includes('DPMS 지식'), '붙일 팀 지식을 고른다')
+  await page.click('[data-t=st-people]')
+  assert.match(await page.locator('[data-t=roleRule]').innerText(), /관리자[\s\S]*일반[\s\S]*지식마다 따로 주는 권한은 없다/)
+  // 설정 · 개인 — 내 PC 프로그램의 것(이 시험에는 내 PC 프로그램이 없다)
+  await page.click('[data-t=nav-settings-me]')
+  assert.equal(await page.locator('[data-t=setTitle]').innerText(), '설정 · 개인')
+  assert.deepEqual(await page.locator('[data-t=setTabs] span').allInnerTexts(), ['일반', '에이전트 설치'])
+  assert.match(await page.locator('[data-t=pcCard]').innerText(), /내 PC 프로그램/)
   // 관리 — 문제 줄 · Claude 연결(비밀번호 한 번 더 → 주소 → 번호 → 로그인됨)
-  await page.click('[data-t=nav-admin]')
+  await page.click('[data-t=nav-settings-team]')
+  await page.click('[data-t=st-admin]')
   await page.waitForSelector('[data-t=admClaude]')
-  assert.match(await page.locator('.main .lead').innerText(), /문제가 있을 때만 줄이 선다/)
+  assert.match(await page.locator('.main .lead').last().innerText(), /문제가 있을 때만 줄이 선다/)
   await page.click('[data-t=admLoginStart]')
   await page.fill('#admPw', me.pw)
   await page.click('[data-t=admPwOk]')
@@ -457,7 +480,7 @@ test('설정 · 관리(M13 · M14) — 탭 셋 · 저절로 하는 일 · 정리
   await mock.close()
 })
 
-test('목업과 나란히 — 같은 크기로 지식 목록 · 문서 한 장을 찍는다', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('목업과 나란히: 같은 크기로 지식 목록 · 문서 한 장을 찍는다', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   const page = await browser.newPage({ viewport: VIEW })
   await page.goto(MOCK)
   await page.locator('#app').screenshot({ path: path.join(SHOTS, 'mock-login.png') })
@@ -485,10 +508,10 @@ test('목업과 나란히 — 같은 크기로 지식 목록 · 문서 한 장�
   await page.waitForSelector('#gsvg')
   await page.locator('#app').screenshot({ path: path.join(SHOTS, 'mock-graph.png') })
   await page.close()
-  console.log(`# 나란히 볼 그림 — ${SHOTS}`)
+  console.log(`# 나란히 볼 그림: ${SHOTS}`)
 })
 
-test('이 PC 화면 — 정리가 따로 없다는 말(지식 만들기 · 설정) · 지식 추가 예 · 좁은 폭에서도 문서 본문이 선다', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('이 PC 화면: 정리가 따로 없다는 말(지식 만들기 · 설정) · 지식 추가 예 · 좁은 폭에서도 문서 본문이 선다', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   const root = path.join(tmp, 'pc-screen')
   fs.mkdirSync(path.join(root, '배포노트', 'docs'), { recursive: true })
   fs.writeFileSync(path.join(root, '배포노트', 'README.md'), '# 배포노트\n')
@@ -513,12 +536,12 @@ test('이 PC 화면 — 정리가 따로 없다는 말(지식 만들기 · 설�
     // 설정 — Claude 스위치는 「정해진 시각의 자동 정리」 가 아니라 기록을 곧바로 문서로
     await page.click('[data-t=nav-settings]')
     await page.waitForSelector('[data-t=auto-claude]')
-    assert.match(await page.locator('[data-t=auto-claude]').innerText(), /기록을 문서로 — Claude 로[\s\S]*곧바로/)
+    assert.match(await page.locator('[data-t=auto-claude]').innerText(), /기록을 문서로: Claude 로[\s\S]*곧바로/)
     // 지식 추가 — 지식 고르기의 「+ 지식 추가」 → 지식 목록 위 팝업(이름만) · 지식 폴더 띠(경로 · 동기화) — 요구 v0.2 R2
     await page.click('[data-t=kpick]')
     await page.click('[data-t=nav-add]')
     await page.waitForSelector('[data-t=addPop] #addIn')
-    assert.match(await page.locator('[data-t=addPop]').innerText(), /내 PC 의 지식 폴더 안에 선다 — 나만[\s\S]*폴더 경로를 쓰면/)
+    assert.match(await page.locator('[data-t=addPop]').innerText(), /내 PC 의 지식 폴더 안에 선다. 나만[\s\S]*폴더 경로를 쓰면/)
     assert.equal(await page.locator('[data-t=rootPath]').innerText(), root)
     await page.keyboard.press('Escape')
     assert.equal(await page.locator('[data-t=addPop]').count(), 0)

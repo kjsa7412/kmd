@@ -62,7 +62,7 @@ test('정정 동봉 · 토막이 말하는 이름', async () => {
   assert.equal(p.correctedBy[0].id, '2026-1020-헬스-체크-주소는-health-그대로')
 })
 
-test('표 토막 — 행 경계에서 자르고 머리 줄 · 표 머리 행을 붙인다', () => {
+test('표 토막: 행 경계에서 자르고 머리 줄 · 표 머리 행을 붙인다', () => {
   const rows = Array.from({ length: 80 }, (_, i) => `| 칸${i} | VARCHAR | 설명 ${'가'.repeat(20)} |`)
   const text = ['# 문서', '', '## 테이블', '| 칸 | 형 | 설명 |', '|---|---|---|', ...rows].join('\n')
   const ch = chunkText(text).filter((c) => c.head === '테이블')
@@ -102,19 +102,19 @@ test('남의 개인 지식 토막 0', async () => {
   assert.ok((await r.json()).hits.every((h) => h.k !== 'gdi'))
 })
 
-test('찾기 후보 배우기 — 사람이 고른 것은 다음에 약한 후보로', async () => {
+test('찾기 후보 배우기: 사람이 고른 것은 다음에 약한 후보로', async () => {
   await s.hub.learn(KIM, 'dpms', { q: '배포 시간대', coord: 'proc:준비' })
   const r = (await s.hub.search(KIM, 'dpms', { q: '배포 시간대' }))[0]
   assert.ok(r.weak.some((w) => w.coord === 'proc:준비' && w.via === '배운 이름'))
 })
 
-test('gdi 사본 — 6개 안 ≥ 88(위 한계)', { skip: !fs.existsSync(path.join(GDI, '_vocab.md')) && 'gdi 사본이 없다' }, async () => {
+test('gdi 사본: 6개 안 ≥ 88(위 한계)', { skip: !fs.existsSync(path.join(GDI, '_vocab.md')) && 'gdi 사본이 없다' }, async () => {
   const dir = path.join(tmp, 'gdi')
   for (const d of ['docs', 'work']) copyDir(path.join(GDI, d), path.join(dir, d))
   for (const f of ['_vocab.md', '_managed.md']) fs.copyFileSync(path.join(GDI, f), path.join(dir, f))
   const k = await loadKnowledge({ id: 'gdi', name: 'gdi', dir })
   const idx = await buildIndex(k, {})
   const r = await searchCheck(k, idx, {})
-  console.log(`# gdi 찾기 점검 — 문항 ${r.score.n} · 6개 안 ${r.score.in}% · 첫째 ${r.score.first}%`)
+  console.log(`# gdi 찾기 점검: 문항 ${r.score.n} · 6개 안 ${r.score.in}% · 첫째 ${r.score.first}%`)
   assert.ok(r.score.in >= 88, JSON.stringify(r.score))
 })

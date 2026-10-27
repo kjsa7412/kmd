@@ -40,16 +40,16 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('저장이 곧 반영 — 한 save → 대기 0 · 옛 날짜 고친 기록은 거절', async () => {
-  const r = await s.hub.save(KIM, 'dpms', { record: { title: '롤백 — 앱 먼저', body: '앱을 먼저 내린다.' }, sections: [{ coord: 'proc:롤백', content: '앱을 먼저 이전 판으로 내리고, 그다음 DB 를 되돌린다.' }] })
+test('저장이 곧 반영: 한 save → 대기 0 · 옛 날짜 고친 기록은 거절', async () => {
+  const r = await s.hub.save(KIM, 'dpms', { record: { title: '롤백: 앱 먼저', body: '앱을 먼저 내린다.' }, sections: [{ coord: 'proc:롤백', content: '앱을 먼저 이전 판으로 내리고, 그다음 DB 를 되돌린다.' }] })
   assert.equal(await stateOf(s, 'dpms', r.id), 'in')
-  const old = await code(s.hub.save(KIM, 'dpms', { record: { title: '헬스 체크 — 옛 날짜 고침', body: 'x', tags: ['edit'], date: '2026-01-02' }, sections: [{ coord: 'proc:헬스 체크', content: '옛 글' }] }, { system: true }))
+  const old = await code(s.hub.save(KIM, 'dpms', { record: { title: '헬스 체크: 옛 날짜 고침', body: 'x', tags: ['edit'], date: '2026-01-02' }, sections: [{ coord: 'proc:헬스 체크', content: '옛 글' }] }, { system: true }))
   assert.equal(old, 'E_CONFLICT')
 })
 
-test('팀 지식 — 주인 · 정리하는 사람이 아니면 항목 글은 기록에 실려 정리를 기다린다', async () => {
+test('팀 지식: 주인 · 정리하는 사람이 아니면 항목 글은 기록에 실려 정리를 기다린다', async () => {
   const before = fs.readFileSync(path.join(tmp, 'kn', 'dpms', 'docs', '운영.md'), 'utf8')
-  const r = await s.hub.save(LEE, 'dpms', { record: { title: '알람 — 당번 채널도', body: '#ops-oncall 도 받는다.' }, sections: [{ coord: 'term:알람', content: 'CPU 경고는 85% 에서 울린다. 받는 곳은 #ops-alert · #ops-oncall.' }] })
+  const r = await s.hub.save(LEE, 'dpms', { record: { title: '알람: 당번 채널도', body: '#ops-oncall 도 받는다.' }, sections: [{ coord: 'term:알람', content: 'CPU 경고는 85% 에서 울린다. 받는 곳은 #ops-alert · #ops-oncall.' }] })
   assert.equal(r.queued, true)
   assert.equal(fs.readFileSync(path.join(tmp, 'kn', 'dpms', 'docs', '운영.md'), 'utf8'), before, '문서는 그대로')
   assert.equal(await stateOf(s, 'dpms', r.id), 'pend')
@@ -63,9 +63,9 @@ test('팀 지식 — 주인 · 정리하는 사람이 아니면 항목 글은 �
   assert.match(fs.readFileSync(path.join(tmp, 'kn', 'dpms', 'docs', '서버목록.md'), 'utf8'), new RegExp(`<!-- applied: ${k.id} -->\\napp-1 ~ app-5`))
 })
 
-test('결정 규칙 — 이름을 빠뜨린 기록은 두지 않고 일감 · 사람이 답한 것만 두기 · 좌표정정은 구조로', async () => {
+test('결정 규칙: 이름을 빠뜨린 기록은 두지 않고 일감 · 사람이 답한 것만 두기 · 좌표정정은 구조로', async () => {
   const a = await s.hub.save(KIM, 'dpms', { record: { title: '어디에 넣을지 모르는 메모', body: '서버 이름 규칙을 바꾸자는 이야기.' } })
-  const b = await s.hub.save(KIM, 'dpms', { record: { title: '넣을 곳 없음 — 회의 잡담', body: `커피 이야기.\n${HUMAN_ANSWER}` } })
+  const b = await s.hub.save(KIM, 'dpms', { record: { title: '넣을 곳 없음. 회의 잡담', body: `커피 이야기.\n${HUMAN_ANSWER}` } })
   // 좌표정정 — 앞 기록(헬스 체크 주소 /healthz)의 이름만 바로잡는 짧은 글 → 서버가 touches-fix 를 붙인다
   const fix = await s.hub.save(KIM, 'dpms', { record: { title: '이름 바로잡음', body: '/healthz 이야기는 헬스 체크 항목이다.', touches: ['proc:헬스 체크'], fixes: ['2026-1020-헬스-체크-주소'] } })
   const fresh = await s.hub.save(KIM, 'dpms', { record: { title: '새 값이 든 정정', body: '시간 초과는 5초 로 바꾼다.', touches: ['proc:헬스 체크'], fixes: ['2026-1021-헬스-체크'] } })
@@ -84,9 +84,9 @@ test('결정 규칙 — 이름을 빠뜨린 기록은 두지 않고 일감 · �
   assert.equal(dec.author, 'kmd-auto')
 })
 
-test('되돌리기 — 옛 본문 + 판정 거두기 · 원 기록은 다시 대기', async () => {
+test('되돌리기: 옛 본문 + 판정 거두기 · 원 기록은 다시 대기', async () => {
   const doc = path.join(tmp, 'kn', 'dpms', 'docs', '배포절차.md')
-  const r = await s.hub.save(KIM, 'dpms', { record: { title: '카나리 — 20%', body: '첫 30분은 20%.', touches: ['proc:카나리'] }, sections: [{ coord: 'proc:카나리', content: '`canary-1` 에 먼저 올리고, 첫 30분은 요청의 20% 만 보낸다.' }] })
+  const r = await s.hub.save(KIM, 'dpms', { record: { title: '카나리: 20%', body: '첫 30분은 20%.', touches: ['proc:카나리'] }, sections: [{ coord: 'proc:카나리', content: '`canary-1` 에 먼저 올리고, 첫 30분은 요청의 20% 만 보낸다.' }] })
   assert.match(fs.readFileSync(doc, 'utf8'), /요청의 20%/)
   await s.hub.revert(KIM, 'dpms', { record: r.id })
   const t = fs.readFileSync(doc, 'utf8')
@@ -94,10 +94,10 @@ test('되돌리기 — 옛 본문 + 판정 거두기 · 원 기록은 다시 대
   assert.match(t, /<!-- applied: 2026-1017-카나리 -->/)
   const k = await s.hub.get('dpms')
   assert.equal(k.byWork.get(r.id).state, 'pend', '되돌린 기록은 다시 아직 안 넣은 기록')
-  assert.ok(k.reverted.has(r.id), '주인이 되돌림 — 다시 초안하지 않는다')
+  assert.ok(k.reverted.has(r.id), '주인이 되돌림: 다시 초안하지 않는다')
 })
 
-test('거두기 — 편집기로 고친 문서는 고요 뒤 묶음 1 · 기록 손 고침은 되돌린다', async () => {
+test('거두기: 편집기로 고친 문서는 고요 뒤 묶음 1 · 기록 손 고침은 되돌린다', async () => {
   collect.configure({ quietMs: 300 })
   const pc = await startServer({ root: path.join(tmp, 'kn'), data: path.join(tmp, 'pcdata'), mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
   try {

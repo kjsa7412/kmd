@@ -74,7 +74,7 @@ export function valueChanges(d) {
 // 기록 글의 「바뀐 값」 줄 → 새 값들(정리 검사가 「기록의 값이 글에 있나」 로 볼 값 — 차이 속 다른 수는 보지 않는다)
 export function newValuesOf(body) {
   const m = String(body || '').match(/바뀐 값:? ([^\n]+)/)
-  return m ? m[1].split(' — ')[0].split(' · ').map((p) => p.split(' → ')[1]).filter(Boolean).map((x) => x.trim()) : []
+  return m ? m[1].split(/ — |: /)[0].split(' · ').map((p) => p.split(' → ')[1]).filter(Boolean).map((x) => x.trim()) : []
 }
 
 // 이름 — 바뀐 줄 · 파일 이름에 나오는 항목(이름 장부 · 다른 이름 · 3글자 넘는 것만 · 다섯까지)
@@ -97,13 +97,13 @@ export function codeRecord(k, src, rel, d, status) {
   const base = rel.split('/').pop()
   const vc = valueChanges(d)
   const what = status === 'removed' ? '지워졌다' : status === 'added' ? '새로 생겼다' : '바뀌었다'
-  const title = `코드가 ${what} — ${base} (+${d.plus} −${d.minus})`
+  const title = `코드가 ${what}: ${base} (+${d.plus} −${d.minus})`
   const patch = d.patch.length > MAX_DIFF ? d.patch.slice(0, MAX_DIFF) + '\n… (뒤는 줄였다)' : d.patch
   // 첫 줄은 한 줄 요약(바뀐 값 먼저) — 사람도 정리도 첫 줄로 안다
   const body = [
-    vc.length ? `바뀐 값: ${vc.join(' · ')} — ${rel}` : `${rel} 이 ${what}`,
+    vc.length ? `바뀐 값: ${vc.join(' · ')}: ${rel}` : `${rel} 이 ${what}`,
     '',
-    `${src.name} 의 코드가 ${what}. 이 항목 글이 코드와 맞는지 보고, 코드가 바꾼 값이 글에 있으면 새 값으로 고친다 — 코드에 없는 값은 지어내지 않는다.`,
+    `${src.name} 의 코드가 ${what}. 이 항목 글이 코드와 맞는지 보고, 코드가 바꾼 값이 글에 있으면 새 값으로 고친다. 코드에 없는 값은 지어내지 않는다.`,
     '',
     '```diff',
     patch || '(바뀐 줄 없음)',
@@ -127,14 +127,14 @@ export function commitRecord(k, src, c, diffs, { skipped = 0, more = 0 } = {}) {
   const touches = []
   for (const f of diffs) for (const x of namesOf(k, f.rel, f.d)) if (!touches.includes(x) && touches.length < 5) touches.push(x)
   const body = [
-    vc.length ? `바뀐 값: ${vc.join(' · ')} — ${what}` : `바뀐 코드: ${what} (+${plus} −${minus})`,
+    vc.length ? `바뀐 값: ${vc.join(' · ')}: ${what}` : `바뀐 코드: ${what} (+${plus} −${minus})`,
     '',
     `${src.name} · 묶음 ${c.sha} · ${c.author} · ${c.date}${more ? ` · 그 밖에 바뀐 코드 파일 ${more}` : ''}`,
-    ...(skipped ? ['', `앞선 새 묶음 ${skipped} 은 기록하지 않았다 — 한 번에 ${MAX_FILES} 묶음까지`] : []),
+    ...(skipped ? ['', `앞선 새 묶음 ${skipped} 은 기록하지 않았다. 한 번에 ${MAX_FILES} 묶음까지`] : []),
     '',
     '```diff',
     patch || '(바뀐 줄 없음)',
     '```',
   ].join('\n')
-  return { title: `${String(c.subject || '코드 바뀜').trim() || '코드 바뀜'} — ${src.name} ${c.sha}`.slice(0, 200), body, touches, tags: ['code-change'] }
+  return { title: `${String(c.subject || '코드 바뀜').trim() || '코드 바뀜'}: ${src.name} ${c.sha}`.slice(0, 200), body, touches, tags: ['code-change'] }
 }

@@ -130,7 +130,7 @@ const linkId = (id) => encodeURI(id).replace(/\(/g, '%28').replace(/\)/g, '%29')
 // 기록 하나의 경과 줄 — 링크는 그 문서에서 본 상대 경로(docs/X.md 면 ../work/…)
 export function logLine(docRel, w) {
   const up = '../'.repeat(String(docRel).split('/').length - 1)
-  const title = String(w.title || w.id).split(' — ')[0].replace(/[[\]]/g, '').trim()
+  const title = String(w.title || w.id).split(/ — |: /)[0].replace(/[[\]]/g, '').trim()
   return `- ${String(w.date || '').slice(0, 10)} [${title}](${up}${w.sub || 'work'}/${linkId(w.id)}.md)`
 }
 export const logHas = (log, id) => log.some((l) => l.includes(`/${linkId(id)}.md)`) || l.includes(`/${id}.md)`))

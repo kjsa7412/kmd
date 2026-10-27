@@ -13,6 +13,8 @@ import { chromium } from 'playwright-core'
 import { startServer } from '../server/http.js'
 import { copyDir, signIn } from './helpers.mjs'
 
+const until = async (f, ms = 30_000) => { const t0 = Date.now(); while (!(await f())) { if (Date.now() - t0 > ms) return false; await new Promise((r) => setTimeout(r, 150)) } return true }
+
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const CHROME = [process.env.KMD_CHROME, 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe', '/usr/bin/google-chrome', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find((p) => p && fs.existsSync(p))
 const SECRET = '배포노트비밀'
@@ -38,6 +40,7 @@ before(async () => {
   team = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: (...a) => teamLog.push(a.join(' ')), scryptN: 1 << 15 })
   me = await signIn(team, { id: 'kim' })
   dkey = await team.auth.deviceKeyFor('kim', { host: 'KIM-PC', osuser: 'kim' }) // 설치 한 줄로 이은 PC
+  process.env.KMD_SEND_KEY = dkey // 내 PC 프로그램이 팀 서버에 보낼 때 쓰는 이 PC 의 기기 열쇠(설치 한 줄이 자격 저장소에 둔다)
   // 설치(kmd connect)가 적는 것과 같게 — 이 PC 가 팀 주소를 미리 허락
   fs.writeFileSync(path.join(tmp, 'pc', '.kmd', 'teams.json'), JSON.stringify([team.url]))
   if (!/^[\x20-\x7e]*$/.test(os.tmpdir())) {
@@ -54,7 +57,7 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('팀 화면이 내 PC 지식을 연다 — 팀 서버 쪽에 PC 지식 조각 0 · CORS 는 읽기 · 저장만 · 꺼지면 한 줄', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('팀 화면이 내 PC 지식을 연다. 팀 서버 쪽에 PC 지식 조각 0 · CORS 는 읽기 · 저장만 · 꺼지면 한 줄', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   const ctx = await browser.newContext({ viewport: { width: 1300, height: 820 } })
   const page = await ctx.newPage()
   const errors = []
@@ -87,25 +90,57 @@ test('팀 화면이 내 PC 지식을 연다 — 팀 서버 쪽에 PC 지식 조�
   }, pc.url)
   assert.deepEqual(st, [403, 200, 403, 401])
   // 내 PC 지식을 고른 채 지식 관리 — 팀 서버의 이력 · 가져오는 곳 · 보낼 것을 그 지식의 것처럼 보이지 않는다(내 PC 화면에서 한다) · 지식 수는 갈래마다
-  assert.match(await page.locator('[data-t=manageKind]').innerText(), /내 PC 지식/)
+  assert.match(await page.locator('[data-t=manageKind]').innerText(), /개인 · 내 PC/)
   for (const [nav, title] of [['nav-today', '이력'], ['nav-import', '가져오기']]) {
     await page.click(`[data-t=${nav}]`)
     await page.waitForSelector('[data-t=pcOnly]')
-    assert.match(await page.locator('[data-t=pcOnly]').innerText(), new RegExp(`내 PC 지식 「${SECRET}」 — ${title}(은|는) 내 PC 프로그램 화면에서 한다`))
+    assert.match(await page.locator('[data-t=pcOnly]').innerText(), new RegExp(`내 PC 지식 「${SECRET}」: ${title}(은|는) 내 PC 프로그램 화면에서 한다`))
     assert.equal(await page.locator('[data-t=srcTable], [data-t=feed], [data-t=drop]').count(), 0, title)
   }
-  // 지식 보내기는 팀 서버의 내 개인 지식에서만 — 내 PC 지식은 보내는 지식으로 나오지 않는다
-  await page.click('[data-t=nav-send]')
-  await page.waitForSelector('[data-t=sendNone], [data-t=sendRoute]')
-  assert.ok(!(await page.locator('.main').innerText()).includes(SECRET), '내 PC 지식은 지식 보내기에 없다')
   await page.click('[data-t=kpick]')
   await page.click('[data-t=nav-home]')
-  assert.match(await page.locator('[data-t=kpick]').innerText(), /팀 \d+ · 내 PC 1/)
+  assert.match(await page.locator('[data-t=kpick]').innerText(), /팀 \d+ · 개인 1/)
   // 팀 서버로 간 요청 · 팀 서버 로그에 PC 지식 이름 · 경로 · ~ 조각 0
   const leak = toTeam.filter((x) => x.includes(SECRET) || x.includes(encodeURIComponent(SECRET)) || x.includes(path.join(tmp, 'pc')) || /\/api\/k\/(~|%7e)/i.test(x))
   assert.deepEqual(leak, [])
   assert.deepEqual(teamLog.filter((l) => l.includes(SECRET)), [])
   assert.deepEqual(errors, [])
+
+  // 지식 보내기 — 보내는 지식은 내 PC 의 개인 지식 · 받는 길은 팀 지식 하나 · 내 PC 프로그램이 이 PC 의 열쇠로 팀 서버에 보낸다
+  //   보낼 것은 기록 · 문서(통째로)뿐
+  await page.click(`[data-t=sideKn][data-name="${SECRET}"], [data-t=krow][data-name="${SECRET}"]`)
+  await page.click('[data-t=nav-send]')
+  await page.waitForSelector('[data-t=sendSetup]')
+  assert.match(await page.locator('[data-t=sendRoute]').innerText(), new RegExp(`${SECRET}[\\s\\S]*내 PC · 나만`))
+  await page.locator('[data-t=sendTeam]').filter({ hasText: 'DPMS 지식' }).click()
+  await page.click('[data-t=sendSetRoute]')
+  await page.waitForSelector('[data-t=sendTo][data-kn=dpms]')
+  assert.equal(JSON.parse(fs.readFileSync(path.join(tmp, 'pc', SECRET, '.kmd.json'), 'utf8')).send[0].url, team.url, '받는 길은 내 PC 지식에 적힌다')
+  await page.click('[data-t=sendTab-doc]')
+  assert.match(await page.locator('[data-t=sendDoc]').first().innerText(), /문서 통째로/)
+  assert.equal(await page.locator('[data-t=sendHow]').count(), 0, '고친 항목만 보내기는 없다')
+  await page.locator('[data-t=sendDoc]').filter({ hasText: '카나리절차' }).locator('input').check()
+  await page.click('[data-t=sendBtn]')
+  await page.click('[data-t=sendGo]')
+  assert.ok(await until(async () => (await team.hub.get('dpms')).works.some((w) => /^카나리절차/.test(w.title) && /첫 30분은 요청의 10%/.test(w.body))), '팀 지식에 기록으로 들어갔다')
+
+  // 팀 서버의 옛 개인 지식 → 내 PC — 통째로 옮기고 팀 서버 쪽을 지운다 · 남의 것은 받지 못한다
+  const old = await team.hub.addKnowledge({ user: 'kim', admin: true }, { kind: 'new', name: '옛메모' })
+  await team.hub.addKnowledge({ user: 'lee', admin: true }, { kind: 'new', name: '남의메모' })
+  await page.goto(team.url + '/')
+  await page.waitForSelector(`[data-t=meList] [data-t=krow][data-name="${SECRET}"]`)
+  assert.equal(await page.locator(`[data-t=meList] [data-t=moveToPc][data-k="${old.id}"]`).count(), 1, '내 옛 개인 지식에 [내 PC 로 옮기기]')
+  const mv = await page.evaluate(async ([u, kn]) => {
+    const t = sessionStorage.getItem('kmdPair')
+    const go = (k) => fetch(`${u}/api/knowledge/fromteam`, { method: 'POST', headers: { authorization: 'Bearer ' + t, 'content-type': 'application/json' }, body: JSON.stringify({ kn: k }) }).then(async (r) => [r.status, await r.json()])
+    return [await go(kn), await go('남의메모-lee')]
+  }, [pc.url, old.id])
+  assert.equal(mv[0][0], 200)
+  assert.equal(mv[0][1].removed, true)
+  assert.ok(fs.existsSync(path.join(tmp, 'pc', '옛메모', 'docs', '처음.md')), '내 PC 지식 폴더에 섰다')
+  assert.ok(!fs.existsSync(path.join(tmp, 'pc', '옛메모', '_members.md')), '팀 서버의 주인 줄은 걷었다')
+  assert.ok(!(await team.hub.list()).some((k) => k.id === old.id), '팀 서버 쪽은 지웠다')
+  assert.notEqual(mv[1][0], 200, '남의 옛 개인 지식은 받지 못한다')
 
   // 적히지 않은 주소의 화면 → 잇지 않았다(허락 창은 없다)
   const evil = await fetch(pc.url + '/pair', { method: 'POST', headers: { origin: 'http://evil.example' } })
@@ -142,7 +177,7 @@ test('팀 화면이 내 PC 지식을 연다 — 팀 서버 쪽에 PC 지식 조�
   const p2 = await ctx.newPage()
   await p2.goto(team.url)
   await p2.waitForSelector('[data-t=pcOff]')
-  assert.match(await p2.locator('[data-t=pcOff]').innerText(), /내 PC 프로그램이 꺼져 있다 — 켜면 저절로 다시 열린다/)
+  assert.match(await p2.locator('[data-t=pcOff]').innerText(), /내 PC 프로그램이 꺼져 있다. 켜면 개인 지식이 저절로 다시 열린다/)
   assert.equal(await p2.locator(`[data-t=krow][data-name="${SECRET}"].dim`).count(), 1)
   await ctx.close()
 })

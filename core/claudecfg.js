@@ -74,7 +74,7 @@ function run(args) {
 // 지우고 다시 더한다(따옴표 · claude 없음으로 실패해도 있던 연결이 사라지지 않게)
 export async function addMcp(name, url, helper) {
   const origin = safeOrigin(url)
-  if (!origin || origin !== String(url)) return { ok: false, line: '', why: `주소가 아니다 — ${String(url).slice(0, 80)}` }
+  if (!origin || origin !== String(url)) return { ok: false, line: '', why: `주소가 아니다: ${String(url).slice(0, 80)}` }
   if (process.env.KMD_NO_CLAUDE) return { ok: false, skipped: true, line: mcpLine(name, url, helper) }
   const add = () => run(['mcp', 'add-json', name, JSON.stringify(mcpConfig(url, helper)), '--scope', 'user'])
   let r = await add()

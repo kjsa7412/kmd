@@ -77,14 +77,14 @@ export async function attach(kn, url, { dataDir }) {
   await ensureRepo(dir)
   const branch = (await currentBranch(dir)) || 'main'
   const head = await headSha(dir)
-  if (!head) throw new KmdError('E_INPUT', '아직 저장된 것이 없다 — 한 번 저장한 뒤 붙인다')
+  if (!head) throw new KmdError('E_INPUT', '아직 저장된 것이 없다. 한 번 저장한 뒤 붙인다')
   const had = await remoteUrl(dir, REMOTE)
   const set = await tryGit(dir, had ? ['remote', 'set-url', REMOTE, url] : ['remote', 'add', REMOTE, url])
   if (!set.ok) throw new KmdError('E_INPUT', '백업 자리 주소를 받지 못했다')
   const ls = await lsRemote(dir, branch)
   if (!ls.ok) {
     if (!had) await tryGit(dir, ['remote', 'remove', REMOTE])
-    throw new KmdError('E_INPUT', `백업 자리에 닿지 않는다 — ${REASON[ls.reason] || ls.reason}`)
+    throw new KmdError('E_INPUT', `백업 자리에 닿지 않는다: ${REASON[ls.reason] || ls.reason}`)
   }
   if (ls.sha && ls.sha !== head) {
     if (!(await hasCommit(dir, ls.sha))) await tryGit(dir, ['fetch', '-q', REMOTE, branch])
@@ -92,7 +92,7 @@ export async function attach(kn, url, { dataDir }) {
     if (!have || !(await isAncestor(dir, ls.sha, head))) {
       const ahead = have && (await isAncestor(dir, head, ls.sha))
       if (!had) await tryGit(dir, ['remote', 'remove', REMOTE])
-      throw new KmdError('E_CONFLICT', ahead ? '백업 자리가 앞서 있다 — 먼저 백업에서 받는다' : '백업 자리와 갈라졌다 — 사람이 맞춘 뒤 다시 붙인다')
+      throw new KmdError('E_CONFLICT', ahead ? '백업 자리가 앞서 있다. 먼저 백업에서 받는다' : '백업 자리와 갈라졌다. 사람이 맞춘 뒤 다시 붙인다')
     }
   }
   e.state = { url: maskUrl(url), branch, pushed: ls.sha || null, at: new Date().toISOString() }
@@ -218,7 +218,7 @@ async function pushOnce(e, { log = null } = {}) {
   const v = await inspect(e)
   if (v.state === 'ok') return done({ ok: true, state: 'ok' })
   if (CLOSED.has(v.state)) {
-    log?.(`백업 ${e.id}: ${v.state === 'behind' ? '백업에 이 서버가 모르는 글이 있다' : '백업을 다른 서버가 쓴다'} — 저장을 닫았다`)
+    log?.(`백업 ${e.id}: ${v.state === 'behind' ? '백업에 이 서버가 모르는 글이 있다' : '백업을 다른 서버가 쓴다'}: 저장을 닫았다`)
     return done({ ok: false, state: v.state })
   }
   if (v.unreachable) {
@@ -229,7 +229,7 @@ async function pushOnce(e, { log = null } = {}) {
   const p = await tryGit(e.dir, ['push', '-q', REMOTE, `${v.head}:refs/heads/${s.branch}`], { timeout: 120000 })
   if (v.state === 'gone' || v.state === 'rewound') {
     s.notice = { kind: v.state, at: new Date().toISOString(), repushed: p.ok }
-    log?.(`백업 ${e.id}: ${v.state === 'gone' ? '지워져 있었다' : '옛것으로 되감겨 있었다'} — ${p.ok ? '다시 올렸다' : '다시 올리지 못했다'}`)
+    log?.(`백업 ${e.id}: ${v.state === 'gone' ? '지워져 있었다' : '옛것으로 되감겨 있었다'}: ${p.ok ? '다시 올렸다' : '다시 올리지 못했다'}`)
   }
   if (p.ok) {
     s.pushed = v.head
@@ -272,7 +272,7 @@ export function closed(kn) {
   if (!e?.state || !v || !CLOSED.has(v.state)) return null
   return {
     state: v.state,
-    message: v.state === 'behind' ? '이 지식은 지금 읽기만 된다 — 백업에 이 서버가 모르는 글이 있다. 관리자가 「백업에서 받기」 를 한 뒤 다시 저장한다' : '이 지식은 지금 읽기만 된다 — 백업을 다른 서버가 이어 쓴다. 어느 쪽이 맞는지 관리자가 정한다',
+    message: v.state === 'behind' ? '이 지식은 지금 읽기만 된다. 백업에 이 서버가 모르는 글이 있다. 관리자가 「백업에서 받기」 를 한 뒤 다시 저장한다' : '이 지식은 지금 읽기만 된다. 백업을 다른 서버가 이어 쓴다. 어느 쪽이 맞는지 관리자가 정한다',
   }
 }
 
@@ -288,7 +288,7 @@ export function lines(kn, { now = Date.now(), name = kn.id } = {}) {
   const v = e.verdict
   const L = (o) => out.push(stopLine({ kind: 'backup', kn: kn.id, ...o }))
   if (v && CLOSED.has(v.state)) {
-    L({ level: 'bad', what: v.state === 'behind' ? `${name} — 백업에 이 서버가 모르는 글이 있다` : `${name} — 백업을 다른 서버가 쓴다`, fix: '관리자가 맞추면 다시 저장된다', told: '그동안 읽기만' })
+    L({ level: 'bad', what: v.state === 'behind' ? `${name}: 백업에 이 서버가 모르는 글이 있다` : `${name}: 백업을 다른 서버가 쓴다`, fix: '관리자가 맞추면 다시 저장된다', told: '그동안 읽기만' })
     return out
   }
   const n = e.state.notice
@@ -312,17 +312,17 @@ export async function pull(kn, { check = null } = {}) {
   if (!e.state) throw new KmdError('E_INPUT', '이 지식에는 백업 자리가 없다')
   const v = await inspect(e)
   if (v.state === 'ok' || v.state === 'lag' || v.state === 'gone' || v.state === 'rewound') return { ok: true, pulled: 0, state: v.state }
-  if (v.state === 'moved') throw new KmdError('E_CONFLICT', '백업과 갈라졌다 — 앞으로만 받을 수 없다. 어느 쪽이 맞는지 사람이 정한다')
+  if (v.state === 'moved') throw new KmdError('E_CONFLICT', '백업과 갈라졌다. 앞으로만 받을 수 없다. 어느 쪽이 맞는지 사람이 정한다')
   const before = v.head
   const errs0 = check ? await check(e.dir) : []
   const ff = await tryGit(e.dir, ['merge', '--ff-only', '-q', v.remote])
-  if (!ff.ok) throw new KmdError('E_CONFLICT', '앞으로만 받지 못했다 — 손으로 고친 파일이 있으면 먼저 치운다')
+  if (!ff.ok) throw new KmdError('E_CONFLICT', '앞으로만 받지 못했다. 손으로 고친 파일이 있으면 먼저 치운다')
   if (check) {
     const errs1 = await check(e.dir)
     const fresh = errs1.filter((x) => !errs0.includes(x))
     if (fresh.length) {
       await tryGit(e.dir, ['reset', '--hard', '-q', before])
-      throw new KmdError('E_CHECK', `받은 글에 새 오류가 있어 되돌렸다 — ${fresh.slice(0, 3).join(' · ')}`)
+      throw new KmdError('E_CHECK', `받은 글에 새 오류가 있어 되돌렸다: ${fresh.slice(0, 3).join(' · ')}`)
     }
   }
   e.state.pushed = v.remote
@@ -354,10 +354,10 @@ export async function keepServer(kn) {
   const e = E(kn)
   if (!e.state) throw new KmdError('E_INPUT', '이 지식에는 백업 자리가 없다')
   const v = await inspect(e)
-  if (v.unreachable) throw new KmdError('E_INPUT', `백업 자리에 닿지 않는다 — ${REASON[v.reason] || v.reason}`)
+  if (v.unreachable) throw new KmdError('E_INPUT', `백업 자리에 닿지 않는다: ${REASON[v.reason] || v.reason}`)
   const branch = e.state.branch || 'main'
   const r = await tryGit(e.dir, ['push', '-q', `--force-with-lease=${branch}:${v.remote || ''}`, REMOTE, `HEAD:${branch}`], { timeout: 120_000 })
-  if (!r.ok) throw new KmdError('E_CONFLICT', `백업을 덮지 못했다 — 그사이 백업이 또 바뀌었거나 보호된 가지다 · ${classify(r.err)}`)
+  if (!r.ok) throw new KmdError('E_CONFLICT', `백업을 덮지 못했다. 그사이 백업이 또 바뀌었거나 보호된 가지다 · ${classify(r.err)}`)
   e.state.pushed = v.head
   await persist(e)
   e.verdict = { ...v, state: 'ok', remote: v.head, ahead: 0, oldest: null }
@@ -371,8 +371,8 @@ export async function adopt(kn, { check = null } = {}) {
   const e = E(kn)
   if (!e.state) throw new KmdError('E_INPUT', '이 지식에는 백업 자리가 없다')
   const v = await inspect(e)
-  if (v.unreachable) throw new KmdError('E_INPUT', `백업 자리에 닿지 않는다 — ${REASON[v.reason] || v.reason}`)
-  if (!v.remote) throw new KmdError('E_INPUT', '백업 자리가 비었다 — 이어 쓸 것이 없다(다음 보내기가 다시 올린다)')
+  if (v.unreachable) throw new KmdError('E_INPUT', `백업 자리에 닿지 않는다: ${REASON[v.reason] || v.reason}`)
+  if (!v.remote) throw new KmdError('E_INPUT', '백업 자리가 비었다. 이어 쓸 것이 없다(다음 보내기가 다시 올린다)')
   if (v.state === 'ok' || v.state === 'lag') return { ok: true, kept: null, state: v.state }
   const before = v.head
   const errs0 = check ? await check(e.dir) : []
@@ -384,7 +384,7 @@ export async function adopt(kn, { check = null } = {}) {
     const fresh = (await check(e.dir)).filter((x) => !errs0.includes(x))
     if (fresh.length) {
       if (before) await tryGit(e.dir, ['reset', '--hard', '-q', before])
-      throw new KmdError('E_CHECK', `백업의 글에 새 오류가 있어 그대로 두었다 — ${fresh.slice(0, 3).join(' · ')}`)
+      throw new KmdError('E_CHECK', `백업의 글에 새 오류가 있어 그대로 두었다: ${fresh.slice(0, 3).join(' · ')}`)
     }
   }
   e.state.pushed = v.remote

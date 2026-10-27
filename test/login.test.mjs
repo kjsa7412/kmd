@@ -44,7 +44,7 @@ after(async () => {
   fs.rmSync(tmp, { recursive: true, force: true })
 })
 
-test('첫 관리자 — 셸이 받은 주소 한 번 · 토큰 원문 없음 · 두 번은 안 된다', async () => {
+test('첫 관리자: 셸이 받은 주소 한 번 · 토큰 원문 없음 · 두 번은 안 된다', async () => {
   assert.equal((await req('/api/me')).body.setup, true)
   assert.equal((await req('/api/knowledge')).status, 401, '들어오기 전에는 자료 0')
   const code = await s.auth.setupCode()
@@ -56,7 +56,7 @@ test('첫 관리자 — 셸이 받은 주소 한 번 · 토큰 원문 없음 · 
   assert.equal(await s.auth.setupCode(), null)
 })
 
-test('들어가기 — 같은 실패 문구 · 잠김 응답 같음 · 남의 IP 5번 → 전에 들어온 브라우저는 들어감', async () => {
+test('들어가기: 같은 실패 문구 · 잠김 응답 같음 · 남의 IP 5번 → 전에 들어온 브라우저는 들어감', async () => {
   kim = await signIn(s, { id: 'kim', admin: false })
   const unknown = await login('nobody', 'whatever-123', { ip: '10.0.0.1' })
   const wrong = await login('kim', 'wrong-pw-123', { ip: '10.0.0.1' })
@@ -72,7 +72,7 @@ test('들어가기 — 같은 실패 문구 · 잠김 응답 같음 · 남의 IP
   assert.equal((await rpc(kim.key)).status, 200, '잠겨도 기기 열쇠는 멈추지 않는다')
 })
 
-test('세션 판 — 모든 기기에서 나가기 · 다시 정하기가 옛 쿠키를 끊는다 · 새 링크 알림', async () => {
+test('세션 판: 모든 기기에서 나가기 · 다시 정하기가 옛 쿠키를 끊는다 · 새 링크 알림', async () => {
   const a = (await login('kim', kim.pw, { ip: '10.0.1.1' })).cookie
   assert.equal((await req('/api/knowledge', { cookie: a })).status, 200)
   await req('/api/me/logout-all', { body: {}, cookie: a })
@@ -89,7 +89,7 @@ test('세션 판 — 모든 기기에서 나가기 · 다시 정하기가 옛 �
   assert.match(r.body.notice || '', /관리자가 새 링크를 만들었다/)
 })
 
-test('기기 열쇠 — 설치 표는 한 번 · 열쇠로는 들어가기 · 표 만들기 · 관리 불가', async () => {
+test('기기 열쇠: 설치 표는 한 번 · 열쇠로는 들어가기 · 표 만들기 · 관리 불가', async () => {
   const c = (await login('kim', kim.pw, { ip: '10.0.2.1' })).cookie
   const t = await req('/api/device/ticket', { body: {}, cookie: c })
   assert.match(t.body.line, /^irm http:\/\/.+\/i\/kmdt_\S+ \| iex$/)
@@ -112,7 +112,7 @@ test('기기 열쇠 — 설치 표는 한 번 · 열쇠로는 들어가기 · �
   assert.match(k2.body.key, /^kmdk_/)
 })
 
-test('관리 — 사람 더하기는 관리자 + 재인증 · 기계 열쇠는 기준선 길 하나만', async () => {
+test('관리: 사람 더하기는 관리자 + 재인증 · 기계 열쇠는 기준선 길 하나만', async () => {
   const lee = (await login('lee', 'admin-pw-1234', { ip: '10.0.3.1' })).cookie
   const no = await req('/api/admin/users', { body: { id: 'park' }, cookie: lee })
   assert.equal(no.body.error, 'E_SUDO')
@@ -128,7 +128,7 @@ test('관리 — 사람 더하기는 관리자 + 재인증 · 기계 열쇠는 �
   assert.equal((await req('/api/admin/users', { body: { id: 'kmd-auto' }, cookie: su.cookie })).status, 400, '예약 이름')
 })
 
-test('예전 열쇠 — 비밀번호를 안 정한 사람만 · 곧바로 비밀번호 정하기 · 그 뒤 화면 불가 · MCP 는 그대로', async () => {
+test('예전 열쇠: 비밀번호를 안 정한 사람만 · 곧바로 비밀번호 정하기 · 그 뒤 화면 불가 · MCP 는 그대로', async () => {
   const { code: c0 } = await s.auth.addUser({ id: 'old' })
   const legacy = crypto.randomBytes(32).toString('base64url')
   await s.auth.addLegacy('old', legacy)
@@ -141,7 +141,7 @@ test('예전 열쇠 — 비밀번호를 안 정한 사람만 · 곧바로 비밀
   assert.ok(c0)
 })
 
-test('PC — 한 번용 번호(60초) → 루프백 쿠키 · 팀 쿠키는 PC 에서 안 된다', async () => {
+test('PC: 한 번용 번호(60초) → 루프백 쿠키 · 팀 쿠키는 PC 에서 안 된다', async () => {
   const pc = await startServer({ root: path.join(tmp, 'kn'), data: path.join(tmp, 'pcdata'), mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: N })
   try {
     const once = pc.auth.once(pc.pcUser)

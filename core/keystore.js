@@ -27,7 +27,7 @@ const PS = (body) => ['-NoProfile', '-NonInteractive', '-Command', `$ErrorAction
 export async function put(name, value) {
   if (process.platform === 'win32') {
     const r = await run('powershell.exe', PS("[Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Protect([Convert]::FromBase64String($in.Trim()),$null,'CurrentUser'))"), Buffer.from(String(value), 'utf8').toString('base64'))
-    if (!r.ok) throw new Error('자격 저장소에 넣지 못했다 — ' + r.err.trim().split('\n')[0])
+    if (!r.ok) throw new Error('자격 저장소에 넣지 못했다: ' + r.err.trim().split('\n')[0])
     await fs.mkdir(winDir(), { recursive: true })
     await fs.writeFile(path.join(winDir(), slug(name) + '.dpapi'), r.out.trim() + '\n', { mode: 0o600 })
     return

@@ -26,10 +26,10 @@ export async function ensureProject({ api, group, token, name, timeoutMs = 15_00
   const path = slug(name)
   const got = await call('GET', `/projects/${encodeURIComponent(`${group}/${path}`)}`)
   if (got.status === 200) return { url: got.j.ssh_url_to_repo || got.j.http_url_to_repo, created: false, path }
-  if (got.status !== 404) throw new KmdError('E_INPUT', `GitLab 이 답하지 않는다 — ${got.status}`)
+  if (got.status !== 404) throw new KmdError('E_INPUT', `GitLab 이 답하지 않는다: ${got.status}`)
   const g = await call('GET', `/groups/${encodeURIComponent(group)}`)
-  if (g.status !== 200) throw new KmdError('E_INPUT', `GitLab 그룹 「${group}」 을 보지 못했다 — ${g.status}`)
+  if (g.status !== 200) throw new KmdError('E_INPUT', `GitLab 그룹 「${group}」 을 보지 못했다: ${g.status}`)
   const made = await call('POST', '/projects', { name: path, path, namespace_id: g.j.id, visibility: 'private', initialize_with_readme: false })
-  if (made.status !== 201) throw new KmdError('E_INPUT', `GitLab 저장소를 만들지 못했다 — ${made.status}`)
+  if (made.status !== 201) throw new KmdError('E_INPUT', `GitLab 저장소를 만들지 못했다: ${made.status}`)
   return { url: made.j.ssh_url_to_repo || made.j.http_url_to_repo, created: true, path }
 }

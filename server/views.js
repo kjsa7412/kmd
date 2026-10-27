@@ -38,7 +38,7 @@ const hm = (iso) => {
 }
 export function autoHtml(b, { checked = null, lock = false } = {}) {
   const t = parseTable(b.table)
-  return `<div class="auto${lock ? ' lock' : ''}" data-t="${lock ? 'autoLock' : 'auto'}"><div class="ah">${SYNC} <b>저절로 채우는 표</b> · ${esc(b.src)} · ${esc(String(b.asof).slice(5, 16))} 부터 · ${esc(hm(checked))} 확인</div><table class="t"><tr>${t.cols.map((c) => `<th>${esc(c)}</th>`).join('')}</tr>${t.rows.map((r) => `<tr>${t.cols.map((_, i) => `<td>${esc(r[i] ?? '')}</td>`).join('')}</tr>`).join('')}</table>${lock ? `<div class="lkl">${LOCK} ${esc(b.src)}에서 저절로 — 여기서는 고치지 않는다</div>` : ''}${b.missing ? `<div class="lkl">원천에 없다 — ${esc(b.missing.slice(5))} 확인</div>` : ''}</div>`
+  return `<div class="auto${lock ? ' lock' : ''}" data-t="${lock ? 'autoLock' : 'auto'}"><div class="ah">${SYNC} <b>저절로 채우는 표</b> · ${esc(b.src)} · ${esc(String(b.asof).slice(5, 16))} 부터 · ${esc(hm(checked))} 확인</div><table class="t"><tr>${t.cols.map((c) => `<th>${esc(c)}</th>`).join('')}</tr>${t.rows.map((r) => `<tr>${t.cols.map((_, i) => `<td>${esc(r[i] ?? '')}</td>`).join('')}</tr>`).join('')}</table>${lock ? `<div class="lkl">${LOCK} ${esc(b.src)}에서 저절로: 여기서는 고치지 않는다</div>` : ''}${b.missing ? `<div class="lkl">원천에 없다: ${esc(b.missing.slice(5))} 확인</div>` : ''}</div>`
 }
 export function render(k, fromPath, text, { src = {} } = {}) {
   const env = { k, fromPath }
@@ -80,7 +80,7 @@ md.renderer.rules.image = (tokens, i, opts, env) => {
     try { rel = path.posix.normalize(path.posix.join(path.posix.dirname(env.fromPath || ''), decodeURIComponent(src.split(/[?#]/)[0]))).normalize('NFC') } catch {}
   }
   if (rel && (k.atts || []).includes(rel)) return `<img data-att="${esc(rel.replace(/^(docs|work)\/assets\//i, ''))}" data-ak="${esc(k.id)}" alt="${alt}">`
-  return `<span class="muted">[그림${alt ? ' — ' + alt : ''}]</span>`
+  return `<span class="muted">[그림${alt ? ': ' + alt : ''}]</span>`
 }
 
 export function linksOf(doc) {
@@ -195,7 +195,7 @@ export function docView(k, docId, { src = {} } = {}) {
   const last = [...d.sections.map((s) => s.applied && k.byWork.get(s.applied)), d.rec && k.byWork.get(d.rec)].filter(Boolean).sort((a, b) => b.date.localeCompare(a.date))[0]
   const sections = d.sections.map((s) => {
     const coords = coordsOfSection(k, d, s.h)
-    // 이름 장부에 없는 항목을 화면에서 고친 기록 — 「at/<문서 · 머리 지문>」 으로 이 항목에 선다(넣을 곳은 정리하는 사람이 고른다)
+    // 이름 장부에 없는 항목을 화면에서 고친 기록 — 「at/<문서 · 머리 지문>」 으로 이 항목에 선다(넣을 곳은 관리자가 고른다)
     const at = atTag(d.id, s.h)
     const recs = k.works.filter((w) => w.touches.some((c) => coords.includes(c)) || w.tags.includes(at))
     const { pick: pendRecs, more: pendMore } = pendPick(recs.map((w) => (w.state === 'nowhere' && w.tags.includes(at) ? { ...w, state: 'pend', nowhere: true } : w)))

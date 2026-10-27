@@ -26,7 +26,7 @@ export async function readConf(dir) {
 }
 export async function destsOf(dir) {
   const c = await readConf(dir)
-  return (Array.isArray(c.send) ? c.send : []).filter((d) => d && typeof d.kn === 'string' && d.kn).map((d) => ({ kn: d.kn, ...(d.url ? { url: String(d.url).replace(/\/+$/, '') } : {}) }))
+  return (Array.isArray(c.send) ? c.send : []).filter((d) => d && typeof d.kn === 'string' && d.kn).map((d) => ({ kn: d.kn, ...(d.url ? { url: String(d.url).replace(/\/+$/, '') } : {}), ...(d.name ? { name: String(d.name) } : {}) }))
 }
 export function checkDest(d) {
   if (!d || typeof d.kn !== 'string' || !/^[^\s/\\]{1,80}$/.test(d.kn)) throw new KmdError('E_INPUT', '보낼 곳은 지식 이름이다')
@@ -96,7 +96,7 @@ export function recItem(k, w) {
 // 문서 하나 — 전체(머리글 · 항목 모두)
 export function docItem(k, d) {
   const body = [clean(d.intro), ...d.sections.filter((s) => s.h).map((s) => `## ${s.h}\n${clean(s.body)}`)].filter(Boolean).join('\n\n')
-  return { title: `${d.title} — 문서 전체`.slice(0, 200), body, sha: sha16(`${k.id}\n${d.path}\n${marks(d).sha}\nall`) }
+  return { title: `${d.title}: 문서 전체`.slice(0, 200), body, sha: sha16(`${k.id}\n${d.path}\n${marks(d).sha}\nall`) }
 }
 
 // 받는 쪽 기록 한도(200,000자) 안으로 — 넘는 글은 항목(## 머리)마다 묶어 나누고 · 항목 하나가 넘으면 글자로 자른다(제목 끝 (1/n))
@@ -127,7 +127,7 @@ export function split(it, max = ITEM_MAX) {
 export function itemOf(k, q) {
   const d = k.byDocPath.get(q.path)
   const body = q.heads.map((h) => `## ${h}\n${clean(d.sections.find((s) => s.h === h)?.body)}`).join('\n\n')
-  const title = q.isNew ? `${d.title} — 새 문서` : `${d.title} — ${q.heads.join(' · ')}`
+  const title = q.isNew ? `${d.title}: 새 문서` : `${d.title}: ${q.heads.join(' · ')}`
   return { title: title.slice(0, 200), body, sha: sha16(`${k.id}\n${q.path}\n${q.sha}`) }
 }
 
@@ -151,10 +151,10 @@ export async function post(url, kn, payload, key, { timeoutMs = null } = {}) {
 }
 // 거절의 까닭 → 고칠 곳(사람이 읽는 한 줄)
 export function fixOf(e) {
-  if (e.status === 401) return '이 PC 의 열쇠를 팀이 받지 않는다 — 팀 화면 › 설치 한 줄로 다시 잇는다'
-  if (e.status === 403) return '그 팀 지식에 보낼 수 없다 — 팀 지식의 주인 · 관리자에게'
-  if (e.status === 404) return '팀에 그 지식이 없다 — 보낼 곳을 다시 고른다'
-  if (e.status === 409) return '팀 지식이 백업 뒤에 멈춰 있다 — 관리자가 맞춘 뒤 [다시]'
+  if (e.status === 401) return '이 PC 의 열쇠를 팀이 받지 않는다. 팀 화면 › 설치 한 줄로 다시 잇는다'
+  if (e.status === 403) return '그 팀 지식에 보낼 수 없다. 팀 지식의 주인 · 관리자에게'
+  if (e.status === 404) return '팀에 그 지식이 없다. 보낼 곳을 다시 고른다'
+  if (e.status === 409) return '팀 지식이 백업 뒤에 멈춰 있다. 관리자가 맞춘 뒤 [다시]'
   return '보낼 곳 · 글을 확인하고 [다시]'
 }
 // 나눠 보내기 — 받는 쪽 한 번에 200 개 · 8MB 까지 → 150 개 · 6MB 로 자른다

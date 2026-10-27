@@ -60,7 +60,7 @@ export function pack({ out = DIST } = {}) {
   fs.copyFileSync(process.execPath, path.join(pc, 'node.exe'))
   fs.writeFileSync(path.join(pc, 'kmd.cmd'), '@echo off\r\n"%~dp0node.exe" "%~dp0server\\bin\\kmd.mjs" %*\r\n')
   fs.writeFileSync(path.join(pc, 'kmd-key.cmd'), '@echo off\r\n"%~dp0node.exe" "%~dp0server\\bin\\kmd-key.mjs" %*\r\n')
-  fs.writeFileSync(path.join(pc, '처음.txt'), `kmd ${v} — 이 PC\r\n\r\n보통은 이 꾸러미를 손으로 깔 일이 없다 — 팀 화면 › 설정 › 에이전트 설치의 「설치 한 줄」 을 PowerShell 에 붙여 넣으면\r\n팀 서버에서 이 꾸러미를 받아 %USERPROFILE%\\.kmd-app 에 깔고, 팀에 잇고, 늘 켜고, 화면을 연다.\r\n\r\n팀 없이 쓰려면: 이 폴더에서 kmd.cmd up — 화면은 그 뒤 kmd.cmd open 으로 다시 연다.\r\n`)
+  fs.writeFileSync(path.join(pc, '처음.txt'), `kmd ${v}: 이 PC\r\n\r\n보통은 이 꾸러미를 손으로 깔 일이 없다. 팀 화면 › 설정 › 에이전트 설치의 「설치 한 줄」 을 PowerShell 에 붙여 넣으면\r\n팀 서버에서 이 꾸러미를 받아 %USERPROFILE%\\.kmd-app 에 깔고, 팀에 잇고, 늘 켜고, 화면을 연다.\r\n\r\n팀 없이 쓰려면: 이 폴더에서 kmd.cmd up: 화면은 그 뒤 kmd.cmd open 으로 다시 연다.\r\n`)
   const zip = path.join(out, `kmd-${v}-pc.zip`)
   const tgz = path.join(out, `kmd-${v}-team.tgz`)
   fs.rmSync(zip, { force: true })
@@ -80,5 +80,5 @@ export function pack({ out = DIST } = {}) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const r = pack()
-  console.log(`✓ ${path.relative(ROOT, r.zip)} · ${path.relative(ROOT, r.tgz)} — 꾸러미 ${r.modules}`)
+  console.log(`✓ ${path.relative(ROOT, r.zip)} · ${path.relative(ROOT, r.tgz)}: 꾸러미 ${r.modules}`)
 }

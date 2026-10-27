@@ -24,43 +24,45 @@ import { addMcp, mcpLine, safeOrigin } from '../../core/claudecfg.js'
 import { taskXml, upgrade, appHomeOf, launcherOf, linkVersion, makeShortcut } from '../../core/pcops.js'
 import { installLines, pickBackupDir } from '../../core/install.js'
 import { ensureRepo } from '../../core/git.js'
+import { install as kitInstall, folders as kitFolders, setFolders as kitSetFolders } from '../../core/kit.js'
 
 // 명령 목록 — 여기 줄과 아래 main 의 갈래가 같아야 한다(test/open.test.mjs 가 센다). 관리자 설명서의 셸 표도 이 줄에서 고른다
 const HELP = `kmd ${VERSION}
 
   이 PC
   kmd up [폴더] [--port 7373] [--no-open]
-      이 PC 의 kmd 를 켜고 화면을 연다 — 폴더 기본 D:\\kmd(없으면 집 폴더의 kmd) · 이미 켜져 있으면 화면만 연다
-  kmd open [폴더]                              이 PC 의 kmd 화면을 연다(꺼져 있으면 켠다) — 시작 메뉴의 kmd 와 같다
-  kmd connect <팀 주소> [--ticket kmdt_…]       팀에 잇는다 — 설치 한 줄이 부른다(아이디 · 비밀번호로도)
+      이 PC 의 kmd 를 켜고 화면을 연다. 폴더 기본 D:\\kmd(없으면 집 폴더의 kmd) · 이미 켜져 있으면 화면만 연다
+  kmd open [폴더]                              이 PC 의 kmd 화면을 연다(꺼져 있으면 켠다). 시작 메뉴의 kmd 와 같다
+  kmd connect <팀 주소> [--ticket kmdt_…]       팀에 잇는다. 설치 한 줄이 부른다(아이디 · 비밀번호로도)
+                                               --kn <팀 지식>: 지금 폴더를 그 팀 지식에 붙인다(에이전트 설치 · 팀)
   kmd pc task [폴더]                           로그온 때 켜고 멈추면 다시(작업 스케줄러) · 시작 메뉴의 kmd
   kmd pc update <새 판 폴더> <판> [--root 폴더]
-      새 판을 켜 보고 될 때만 바꾸고 다시 켠다(안 켜지면 앞 판으로) — 폴더는 늘 켜기 작업 · 도는 kmd 의 것
+      새 판을 켜 보고 될 때만 바꾸고 다시 켠다(안 켜지면 앞 판으로): 폴더는 늘 켜기 작업 · 도는 kmd 의 것
   kmd pc restart                               도는 이 PC 의 kmd 를 멈추고 다시 켠다(꺼져 있으면 켠다)
-  kmd pc link [판]                             판 자리(~/.kmd-app/versions)의 이 판을 지금 판으로 — 설치 한 줄이 부른다
+  kmd pc link [판]                             판 자리(~/.kmd-app/versions)의 이 판을 지금 판으로: 설치 한 줄이 부른다
 
   팀 서버
   kmd serve [폴더] [--port 7373] [--host 127.0.0.1] [--user 이름]
-      팀 서버로 연다 — 폴더 안의 폴더 하나하나가 지식이다
+      팀 서버로 연다. 폴더 안의 폴더 하나하나가 지식이다
   kmd user [add <아이디> [--admin] | reset <아이디> | off <아이디> [--to 받을 사람]] [--url 팀 주소]
-      사람 목록 · 더하기 · 비밀번호 다시 정하기 — 처음 들어오기 링크(24시간 · 한 번)를 찍는다
-      off — 떠남: 들어가기 · 기기 · PC 일꾼을 끊고 아이디를 남긴다(되쓰지 않는다) · 그 사람이 주인인 지식은 --to 에게,
+      사람 목록 · 더하기 · 비밀번호 다시 정하기: 처음 들어오기 링크(24시간 · 한 번)를 찍는다
+      off: 떠남: 들어가기 · 기기 · PC 일꾼을 끊고 아이디를 남긴다(되쓰지 않는다) · 그 사람이 주인인 지식은 --to 에게,
             없으면 주인 칸을 비운다(개인 지식은 관리자만 본다)
   kmd owner <지식> [사람] [--private | --team] [--curators 가,나]
       지식의 주인 · 개인(주인만 본다) · 정리하는 사람
   kmd worker add                               정리 일꾼 열쇠를 만든다(한 번만 보인다)
   kmd worker key set <팀 주소>                 정리 일꾼 열쇠를 이 OS 사용자의 자격 저장소에(숨김 입력)
-  kmd worker <팀 주소>                         정리 일꾼 — 늘 돈다(이 OS 사용자의 Claude Code 로그인으로)
+  kmd worker <팀 주소>                         정리 일꾼: 늘 돈다(이 OS 사용자의 Claude Code 로그인으로)
   kmd secret set <이름>                        비밀 넣기(숨김 입력) · kmd secret 은 목록
   kmd machine add <지식> <원천> [--types 가,나] · kmd machine revoke <machine-…>
       바깥 생성기용 기계 열쇠(그 지식 · 그 표만 · 1년)
-  kmd search-check <지식> [--freeze]           찾기 점검 — 얼린 시험지 위에서 나빠진 문항
+  kmd search-check <지식> [--freeze]           찾기 점검: 얼린 시험지 위에서 나빠진 문항
   kmd auth reapply <auth.log>                  옛 명부로 되살린 뒤 늦은 일을 다시 적용
 
   둘 다
-  kmd backup [add <지식> <주소> | pull <지식>]  백업 상태 · 백업 자리 붙이기 · 백업에서 받기(앞으로만) — 개인 지식도(관리 권한)
+  kmd backup [add <지식> <주소> | pull <지식>]  백업 상태 · 백업 자리 붙이기 · 백업에서 받기(앞으로만): 개인 지식도(관리 권한)
   kmd restore <백업 주소> [이름] [--practice | --attach]
-      백업 자리에서 지식을 새 폴더로 되살린다 — 원래 이름이면 같은 백업으로 이어 보낸다 · 다른 이름 · --practice 는 읽기만 사본
+      백업 자리에서 지식을 새 폴더로 되살린다. 원래 이름이면 같은 백업으로 이어 보낸다 · 다른 이름 · --practice 는 읽기만 사본
 
   공통: --root <폴더>  지식 폴더 · --data <폴더>  kmd 의 살림 자리(기본 <폴더>/.kmd)
   설명서: 화면 오른쪽 위 「설명서」 · <서버 주소>/manual
@@ -152,11 +154,11 @@ async function waitPc(root, o, ms) {
 }
 async function pcCall(url, p) {
   const key = await kget(keyName(url)).catch(() => null)
-  if (!key) throw Object.assign(new Error('이 PC 의 열쇠가 없다 — kmd up 으로 한 번 켠다'), { status: 0 })
+  if (!key) throw Object.assign(new Error('이 PC 의 열쇠가 없다. kmd up 으로 한 번 켠다'), { status: 0 })
   const r = await fetch(url + p, { method: 'POST', headers: { authorization: 'Bearer ' + key, 'content-type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(15_000) })
   const j = await r.json().catch(() => ({}))
   // 404 — 도는 kmd 가 이 길이 없는 앞 판이다(이 판 전에 깐 kmd)
-  if (r.status === 404) throw Object.assign(new Error('도는 kmd 가 앞 판이다 — 로그아웃했다 들어오면(늘 켜기) 새 판으로 켜지고 그 뒤 kmd open 이 된다'), { status: 404 })
+  if (r.status === 404) throw Object.assign(new Error('도는 kmd 가 앞 판이다. 로그아웃했다 들어오면(늘 켜기) 새 판으로 켜지고 그 뒤 kmd open 이 된다'), { status: 404 })
   if (!r.ok) throw Object.assign(new Error(j.message || `HTTP ${r.status}`), { status: r.status })
   return j
 }
@@ -185,7 +187,7 @@ async function stopPc(url) {
 async function restartPc(root, o, url, { node, script } = {}) {
   const oldPid = readUp(root, o)?.pid
   const why = await stopPc(url)
-  if (why) return { ok: false, why: `도는 kmd 를 멈추지 못했다 — ${why}` }
+  if (why) return { ok: false, why: `도는 kmd 를 멈추지 못했다: ${why}` }
   const port = Number(new URL(url).port)
   await startPc(root, port === 7373 ? o : { ...o, port }, { node, script })
   for (let i = 0; i < 90; i++) {
@@ -193,7 +195,7 @@ async function restartPc(root, o, url, { node, script } = {}) {
     if (up && up.pid !== oldPid && (await pcAlive(up.url)) === 'up') return { ok: true, up }
     await new Promise((r) => setTimeout(r, 500))
   }
-  return { ok: false, why: '다시 켜지 않았다 — kmd open 으로 켠다' }
+  return { ok: false, why: '다시 켜지 않았다. kmd open 으로 켠다' }
 }
 // 지금 이 PC 의 kmd 가 쓰는 지식 폴더 — --root · 늘 켜기 작업의 인자 · 도는 kmd 에게 묻기 · 기본 폴더 순
 async function pcRootNow(o) {
@@ -214,20 +216,20 @@ async function openCmd(o) {
   const root = path.resolve(o._[0] || o.root || defaultPcRoot())
   let url = await runningPc(root, o)
   if (!url) {
-    console.log('이 PC 의 kmd 가 꺼져 있다 — 켠다')
+    console.log('이 PC 의 kmd 가 꺼져 있다. 켠다')
     await startPc(root, o)
     url = await waitPc(root, o, 60_000)
     if (!url) {
-      console.error('kmd 가 켜지지 않았다 — 터미널에서 kmd up 으로 켜 보면 까닭이 보인다')
+      console.error('kmd 가 켜지지 않았다. 터미널에서 kmd up 으로 켜 보면 까닭이 보인다')
       process.exitCode = 1
       return
     }
   }
   try {
     await openPc(url)
-    console.log(`✓ 이 PC 의 kmd 화면을 열었다 — ${url}`)
+    console.log(`✓ 이 PC 의 kmd 화면을 열었다: ${url}`)
   } catch (e) {
-    console.error(`화면을 열지 못했다 — ${e.message}`)
+    console.error(`화면을 열지 못했다: ${e.message}`)
     process.exitCode = 1
   }
 }
@@ -249,7 +251,7 @@ async function main() {
   if (cmd === 'pc') return pcCmd(parse(rest))
   if (cmd === 'open') return openCmd(parse(rest))
   if (cmd !== 'serve' && cmd !== 'up') {
-    console.error(`모르는 명령 — ${cmd}\n`)
+    console.error(`모르는 명령: ${cmd}\n`)
     process.stdout.write(HELP)
     process.exit(2)
   }
@@ -258,17 +260,17 @@ async function main() {
   const root = path.resolve(o._[0] || o.root || (pc ? defaultPcRoot() : '.'))
   if (pc) fs.mkdirSync(root, { recursive: true })
   if (!fs.existsSync(root)) {
-    console.error(`폴더가 없다 — ${root}`)
+    console.error(`폴더가 없다: ${root}`)
     process.exit(2)
   }
   const port = o.port != null ? Number(o.port) : 7373
   if (!Number.isInteger(port) || port < 0 || port > 65535) {
-    console.error(`포트는 0 ~ 65535 의 수다 — ${o.port}`)
+    console.error(`포트는 0 ~ 65535 의 수다: ${o.port}`)
     process.exit(2)
   }
   const user = String(o.user || os.userInfo().username)
   if (isReservedUser(user)) {
-    console.error(`「${user}」 는 kmd 가 쓰는 이름이다 — --user 로 다른 이름을 준다`)
+    console.error(`「${user}」 는 kmd 가 쓰는 이름이다. --user 로 다른 이름을 준다`)
     process.exit(2)
   }
   let s
@@ -283,31 +285,31 @@ async function main() {
       const st = pc ? await pcAlive(url) : null
       const theirs = st === 'up' ? await pcRootOf(url) : null
       if (st === 'up' && theirs && !sameDir(theirs, root)) {
-        console.error(`포트 ${port} 에서 다른 폴더의 kmd 가 돈다(${theirs}) — 그 kmd 를 쓰거나 --port 로 다른 수를 준다`)
+        console.error(`포트 ${port} 에서 다른 폴더의 kmd 가 돈다(${theirs}): 그 kmd 를 쓰거나 --port 로 다른 수를 준다`)
         process.exit(1)
       }
       if (st === 'busy' || (st === 'up' && theirs)) {
-        console.log(`이 PC 의 kmd 가 이미 켜져 있다 — ${url}`)
+        console.log(`이 PC 의 kmd 가 이미 켜져 있다: ${url}`)
         if (o.open !== false) {
           try {
             await openPc(url)
             console.log('✓ 화면을 열었다')
           } catch (er) {
-            console.error(`화면을 열지 못했다 — ${er.message}`)
+            console.error(`화면을 열지 못했다: ${er.message}`)
           }
         }
         process.exit(0)
       }
-      console.error(`포트 ${port} 를 이미 다른 프로그램이 쓴다 — --port 로 다른 수를 준다`)
+      console.error(`포트 ${port} 를 이미 다른 프로그램이 쓴다. --port 로 다른 수를 준다`)
     } else console.error(e.message)
     process.exit(1)
   }
   const ks = await s.store.list()
-  console.log(`kmd ${VERSION} — ${pc ? '이 PC' : '팀 서버'} · ${s.url}`)
-  console.log(`지식 ${ks.length} — ${root}${ks.length ? ' · ' + ks.map((k) => k.name).join(' · ') : ''}`)
+  console.log(`kmd ${VERSION}: ${pc ? '이 PC' : '팀 서버'} · ${s.url}`)
+  console.log(`지식 ${ks.length}: ${root}${ks.length ? ' · ' + ks.map((k) => k.name).join(' · ') : ''}`)
   if (!pc) {
     const code = await s.auth.setupCode()
-    if (code) console.log(`첫 관리자 — 이 주소를 브라우저로 연다(24시간 · 한 번): ${s.url}/setup#code=${code}`)
+    if (code) console.log(`첫 관리자: 이 주소를 브라우저로 연다(24시간 · 한 번): ${s.url}/setup#code=${code}`)
   } else {
     // 이 PC 의 Claude Code 가 쓸 열쇠 — 자격 저장소에 없거나 끊겼으면 새로
     const name = keyName(s.url)
@@ -317,7 +319,7 @@ async function main() {
       await kput(name, key).catch((e) => console.error(e.message))
     }
     const c = await addMcp('kmd', s.url)
-    console.log(c.ok ? '✓ Claude Code 에 이었다 — 이 PC 의 kmd(kmd)' : `Claude Code 에 잇기(한 번): ${c.line}`)
+    console.log(c.ok ? '✓ Claude Code 에 이었다. 이 PC 의 kmd(kmd)' : `Claude Code 에 잇기(한 번): ${c.line}`)
     // 이 PC 의 정리 일꾼 — 내 Claude 로그인으로(자식 프로세스 · 서버 프로세스는 Claude 를 부르지 않는다)
     if (o.worker !== 'false') {
       let wk = await kget('worker:' + s.url).catch(() => null)
@@ -342,7 +344,7 @@ async function main() {
     // 다시 여는 길 — 설치 한 줄로 깐 PC 는 시작 메뉴 · PATH 의 kmd, 손으로 푼 꾸러미 · 저장소는 부른 그대로
     const pkgCmd = path.resolve(path.dirname(process.argv[1]), '..', '..', 'kmd.cmd')
     const again = appHomeOf() ? '시작 메뉴의 kmd(또는 kmd open)' : fs.existsSync(pkgCmd) ? `"${pkgCmd}" open` : `node "${process.argv[1]}" open`
-    console.log(`화면은 ${again} 로 다시 연다 — 끄기 Ctrl C`)
+    console.log(`화면은 ${again} 로 다시 연다. 끄기 Ctrl C`)
   }
   stop = () => s.close().then(() => process.exit(0))
   process.on('SIGINT', stop)
@@ -359,22 +361,22 @@ async function backupCmd(o) {
     if (sub === 'add') {
       if (!id || !url) throw new Error('kmd backup add <지식> <주소>')
       const r = await hub.backupAttach(SHELL, id, url)
-      console.log(r.ok ? `붙였다 — ${id} → ${r.backup.url} · 지금까지 보냈다` : `붙였다 — ${id} · 아직 못 보냈다(다시 보내기를 건다)`)
+      console.log(r.ok ? `붙였다: ${id} → ${r.backup.url} · 지금까지 보냈다` : `붙였다: ${id} · 아직 못 보냈다(다시 보내기를 건다)`)
     } else if (sub === 'pull') {
       if (!id) throw new Error('kmd backup pull <지식>')
       const r = await hub.backupPull(SHELL, id)
-      console.log(r.pulled ? `받았다 — ${r.pulled}개 · 이제 다시 저장된다` : '받을 것이 없다')
+      console.log(r.pulled ? `받았다: ${r.pulled}개 · 이제 다시 저장된다` : '받을 것이 없다')
     } else {
       await hub.start()
       for (const k of await hub.list()) {
         try {
           const st = await hub.backupState(SHELL, k.id)
-          if (!st) { console.log(`${k.name} — 백업 자리 없음`); continue }
+          if (!st) { console.log(`${k.name}: 백업 자리 없음`); continue }
           await enqueue(k)
           const lines = await hub.stops({ ...SHELL, admin: true }, k.id).catch(() => [])
-          console.log(`${k.name} — ${st.url} · ${lines.length ? lines.map((l) => l.text).join(' / ') : '잘 보내고 있다'}`)
+          console.log(`${k.name}: ${st.url} · ${lines.length ? lines.map((l) => l.text).join(' / ') : '잘 보내고 있다'}`)
         } catch (e) {
-          console.log(`${k.name} — 보지 못했다(${e.message})`)
+          console.log(`${k.name}: 보지 못했다(${e.message})`)
         }
       }
     }
@@ -394,7 +396,7 @@ async function ownerCmd(o) {
     if (!id) throw new Error('kmd owner <지식> [사람] [--private | --team] [--curators 가,나]')
     const hub = await makeHub({ root, dataDir: o.data ? path.resolve(o.data) : defaultDataDir(root), log: () => {} })
     const row = await hub.setOwner(SHELL, id, { owner: who || undefined, private: o.private, curators: o.curators ? String(o.curators).split(',').map((x) => x.trim()).filter(Boolean) : undefined })
-    console.log(`${id} — 주인 ${row.owner || '없음'} · ${row.private ? '개인(주인만 본다)' : '팀'} · 정리 ${row.curators.join(', ') || '없음'} — 도는 서버에도 곧 보인다`)
+    console.log(`${id}: 주인 ${row.owner || '없음'} · ${row.private ? '개인(주인만 본다)' : '팀'} · 정리 ${row.curators.join(', ') || '없음'}: 도는 서버에도 곧 보인다`)
   } catch (e) {
     console.error(e.message)
     process.exitCode = 1
@@ -412,24 +414,24 @@ async function userCmd(o) {
     const base = o.url || 'http://<팀 서버>'
     if (sub === 'add') {
       const r = await auth.addUser({ id, admin: o.admin !== undefined })
-      console.log(`더했다 — ${r.id} · 처음 들어오기 링크(24시간 · 한 번): ${base}/first#code=${r.code}`)
+      console.log(`더했다: ${r.id} · 처음 들어오기 링크(24시간 · 한 번): ${base}/first#code=${r.code}`)
     } else if (sub === 'reset') {
       const r = await auth.reset(id, { by: '셸' })
-      console.log(`다시 정하게 했다 — ${r.id} · 새 링크(24시간 · 한 번): ${base}/first#code=${r.code} · 기기 열쇠는 그대로 · PC 일꾼 열쇠는 걷었다`)
+      console.log(`다시 정하게 했다: ${r.id} · 새 링크(24시간 · 한 번): ${base}/first#code=${r.code} · 기기 열쇠는 그대로 · PC 일꾼 열쇠는 걷었다`)
     } else if (sub === 'off') {
       if (!id) throw new Error('kmd user off <아이디> [--to 받을 사람]')
-      if (o.to && !auth.people().includes(String(o.to))) throw new Error(`그런 사람은 없다 — ${o.to}`)
+      if (o.to && !auth.people().includes(String(o.to))) throw new Error(`그런 사람은 없다: ${o.to}`)
       const r = await auth.off(id, { by: '셸' })
-      if (r.already) { console.log(`${id} — 이미 떠났다`); return }
+      if (r.already) { console.log(`${id}: 이미 떠났다`); return }
       const hub = await makeHub({ root: rootOf(o), dataDir: dataOf(o), log: () => {} })
       const k = await hub.handOver(id, { to: o.to ? String(o.to) : null })
-      console.log(`떠났다 — ${id} · 끊은 기기 ${r.devices} · PC 일꾼 ${r.workers} · 아이디는 남겨 두고 되쓰지 않는다`)
-      console.log(`지식 — 주인인 팀 지식 ${k.team} · 개인 지식 ${k.private} · 정리하는 지식 ${k.curate} → ${k.to ? k.to + ' 이 주인을 잇는다' : '주인 칸을 비웠다(개인 지식은 관리자만 본다 — 관리 화면에서 넘기거나 지운다)'}`)
+      console.log(`떠났다: ${id} · 끊은 기기 ${r.devices} · PC 일꾼 ${r.workers} · 아이디는 남겨 두고 되쓰지 않는다`)
+      console.log(`지식: 주인인 팀 지식 ${k.team} · 개인 지식 ${k.private} · 정리하는 지식 ${k.curate} → ${k.to ? k.to + ' 이 주인을 잇는다' : '주인 칸을 비웠다(개인 지식은 관리자만 본다. 관리 화면에서 넘기거나 지운다)'}`)
     } else {
       const all = auth.users()
-      for (const u of all.filter((x) => x.kind !== 'worker')) console.log(`${u.id} — ${u.kind === 'machine' ? '기계 열쇠 · ' + u.machine.kn + ' · ' + u.machine.source : u.off ? '떠남 · ' + String(u.off.at).slice(0, 10) : (u.admin ? '관리자' : '사람') + (u.password ? '' : ' · 비밀번호 안 정함') + ` · 기기 ${u.devices}` + (all.some((w) => w.owner === u.id) ? ` · PC 일꾼 ${all.filter((w) => w.owner === u.id).length}` : '')}`)
+      for (const u of all.filter((x) => x.kind !== 'worker')) console.log(`${u.id}: ${u.kind === 'machine' ? '기계 열쇠 · ' + u.machine.kn + ' · ' + u.machine.source : u.off ? '떠남 · ' + String(u.off.at).slice(0, 10) : (u.admin ? '관리자' : '사람') + (u.password ? '' : ' · 비밀번호 안 정함') + ` · 기기 ${u.devices}` + (all.some((w) => w.owner === u.id) ? ` · PC 일꾼 ${all.filter((w) => w.owner === u.id).length}` : '')}`)
       const team = all.filter((x) => x.kind === 'worker' && !x.owner)
-      if (team.length) console.log(`정리 일꾼 열쇠(팀) — ${team.map((x) => x.id).join(' · ')}`)
+      if (team.length) console.log(`정리 일꾼 열쇠(팀): ${team.map((x) => x.id).join(' · ')}`)
     }
   } catch (e) {
     console.error(e.message)
@@ -444,12 +446,12 @@ async function machineCmd(o) {
     const auth = await makeAuth({ dataDir: dataOf(o) })
     if (sub === 'add') {
       const r = await auth.machineAdd({ kn, source, types: o.types ? String(o.types).split(',') : [] })
-      console.log(`기계 열쇠 — ${r.id} · ${kn} · ${source} · 1년
+      console.log(`기계 열쇠: ${r.id} · ${kn} · ${source} · 1년
 ${r.key}
-(지금 한 번만 보인다 — 그 생성기의 비밀 칸에 붙인다)`)
+(지금 한 번만 보인다. 그 생성기의 비밀 칸에 붙인다)`)
     } else if (sub === 'revoke') {
       await auth.machineRevoke(kn)
-      console.log(`끊었다 — ${kn}`)
+      console.log(`끊었다: ${kn}`)
     } else throw new Error('kmd machine add <지식> <원천 이름> [--types 종류,종류] · kmd machine revoke <machine-…>')
   } catch (e) {
     console.error(e.message)
@@ -496,8 +498,8 @@ async function secretCmd(o) {
       // --stdin — 설치 스크립트가 숨김 입력으로 받은 것을 관으로 넘긴다(인자 · 셸 기록에 남지 않게)
       const v = o.stdin != null ? fs.readFileSync(0, 'utf8').trim() : await hidden(`${name} 의 값(보이지 않는다): `)
       await setSecret(dataOf(o), name, v)
-      console.log(`넣었다 — ${name}`)
-    } else for (const x of await listSecrets(dataOf(o))) console.log(`${x.name} — ${x.at.slice(0, 16).replace('T', ' ')} 에 넣음`)
+      console.log(`넣었다: ${name}`)
+    } else for (const x of await listSecrets(dataOf(o))) console.log(`${x.name}: ${x.at.slice(0, 16).replace('T', ' ')} 에 넣음`)
   } catch (e) {
     console.error(e.message)
     process.exitCode = 1
@@ -511,7 +513,7 @@ async function searchCheckCmd(o) {
     if (!id) throw new Error('kmd search-check <지식> [--freeze]')
     const hub = await makeHub({ root: rootOf(o), dataDir: dataOf(o), log: () => {} })
     const r = await hub.searchCheck(SHELL, id, { freeze: o.freeze !== undefined })
-    console.log(`${id} — 문항 ${r.score.n} · 6개 안 ${r.score.in}% · 첫째 ${r.score.first}%${r.frozen ? ` · 얼린 시험지보다 나빠진 문항 ${r.worse.length}${r.worse.length ? ' — ' + r.worse.slice(0, 5).join(' · ') : ''}` : ' · 이 시험지를 얼렸다'}`)
+    console.log(`${id}: 문항 ${r.score.n} · 6개 안 ${r.score.in}% · 첫째 ${r.score.first}%${r.frozen ? ` · 얼린 시험지보다 나빠진 문항 ${r.worse.length}${r.worse.length ? ': ' + r.worse.slice(0, 5).join(' · ') : ''}` : ' · 이 시험지를 얼렸다'}`)
   } catch (e) {
     console.error(e.message)
     process.exitCode = 1
@@ -537,23 +539,23 @@ async function workerCmd(o) {
     if (sub === 'add') {
       const auth = await makeAuth({ dataDir: dataOf(o) })
       const r = await auth.workerAdd()
-      console.log(`정리 일꾼 열쇠 — ${r.id}\n${r.key}\n(지금 한 번만 보인다 — 정리용 OS 사용자로 「kmd worker key set <팀 주소>」 에 붙인다)`)
+      console.log(`정리 일꾼 열쇠: ${r.id}\n${r.key}\n(지금 한 번만 보인다. 정리용 OS 사용자로 「kmd worker key set <팀 주소>」 에 붙인다)`)
       return
     }
     if (sub === 'key') {
       const url = new URL(o._[2] || '').origin
       await kput('worker:' + url, (await hidden('정리 일꾼 열쇠(보이지 않는다): ')).trim())
-      console.log(`넣었다 — ${url} 의 정리 일꾼 열쇠`)
+      console.log(`넣었다: ${url} 의 정리 일꾼 열쇠`)
       return
     }
     const url = new URL(sub || '').origin
     const key = o.key || process.env.KMD_WORKER_KEY || (await kget('worker:' + url))
-    if (!key) throw new Error('정리 일꾼 열쇠가 없다 — kmd worker key set <팀 주소>')
+    if (!key) throw new Error('정리 일꾼 열쇠가 없다. kmd worker key set <팀 주소>')
     // 팀 서버의 정리 일꾼 — 관리 › Claude 연결에서 받은 정리 전용 로그인(비밀 claude-token)을 이 프로세스에만
     if (o.data) { const t = await getSecret(path.resolve(o.data), 'claude-token').catch(() => null); if (t) process.env.CLAUDE_CODE_OAUTH_TOKEN = t }
     const { runWorker } = await import('../../core/worker.js')
     runWorker({ server: url, key, poll: o.poll ? Number(o.poll) : 10_000 })
-    console.log(`kmd worker — ${url} 의 정리 일감을 기다린다`)
+    console.log(`kmd worker: ${url} 의 정리 일감을 기다린다`)
   } catch (e) {
     console.error(e.message)
     process.exitCode = 1
@@ -572,7 +574,7 @@ async function connectCmd(o) {
   // 팀 주소 — 이름 · IP 와 포트만(teams.json 과 Claude Code 잇기로 가므로 그 밖의 글자는 받지 않는다)
   const url = safeOrigin(url0)
   if (!url) {
-    console.error(`팀 주소가 아니다 — ${url0}`)
+    console.error(`팀 주소가 아니다: ${url0}`)
     process.exitCode = 1
     return
   }
@@ -627,7 +629,23 @@ async function connectCmd(o) {
     process.exitCode = 1
   }
   // ③ Claude Code — 팀(kmd-team) · 이 PC(kmd 는 늘 켜기가 kmd up 으로 열 때 잇는다)
-  const c = team.ok ? await addMcp('kmd-team', url) : { ok: false, line: mcpLine('kmd-team', url) }
+  //   --kn(에이전트 설치 · 팀): 설치 한 줄을 붙여 넣은 작업 폴더만 그 팀 지식에 붙인다(연결 kmd-team 하나 · 기본 지식 한 줄)
+  let c
+  if (team.ok && o.kn && o.kn !== 'true') {
+    try {
+      const key = await kget(keyName(url))
+      const ks = await fetch(url + '/api/knowledge', { headers: { authorization: `Bearer ${key}` } }).then((r) => (r.ok ? r.json() : []), () => [])
+      const k = ks.find((x) => x.id === o.kn && !x.private)
+      if (!k) throw new Error(`팀에 「${o.kn}」 팀 지식이 없다`)
+      const dir = path.resolve(o.dir || process.cwd())
+      const r = await kitInstall(dir, { teamUrl: url, area: 'team', kn: k.id, knName: k.name })
+      const list = (await kitFolders(pcData)).filter((f) => path.resolve(f.path).toLowerCase() !== r.dir.toLowerCase())
+      await kitSetFolders(pcData, [...list, { name: path.basename(r.dir), path: r.dir, at: new Date().toISOString(), area: 'team', kn: k.id, knName: k.name, team: url }])
+      c = { ok: true, folder: r.dir, kn: k.name }
+    } catch (e) {
+      c = { ok: false, line: `${e.message}. 팀 화면 › 설정 › 에이전트 설치에서 설치 한 줄을 다시 복사한다` }
+    }
+  } else c = team.ok ? await addMcp('kmd-team', url) : { ok: false, line: mcpLine('kmd-team', url) }
   // ④ 늘 켜기 — 로그온 작업 + 시작 메뉴의 kmd + 지금 한 번 켜고 화면을 연다
   let task = { ok: false, why: '이 PC 에서 kmd up 으로 켠다' }
   let screen = null
@@ -641,7 +659,7 @@ async function connectCmd(o) {
         url = await waitPc(root, { ...o, data: pcData }, 45_000)
       }
       screen = url ? await openPc(url).then(() => ({ ok: true }), (e) => ({ ok: false, why: e.message })) : { ok: false, why: '아직 켜지는 중이다' }
-    } else task = { ok: false, why: '작업을 만들지 못했다 — kmd pc task 로 다시' }
+    } else task = { ok: false, why: '작업을 만들지 못했다. kmd pc task 로 다시' }
   }
   for (const l of installLines({ version: VERSION, root, backup: backupDir, kns: kns.map((k) => k.name), team, user: who, host: os.hostname(), osuser: os.userInfo().username, claude: c, task, screen })) console.log(l)
 }
@@ -669,10 +687,10 @@ async function restoreCmd(o) {
   try {
     if (!url) throw new Error('kmd restore <백업 주소> [이름] [--root 폴더] [--practice | --attach]')
     const r = await hub.restore(SHELL, { url, name, attach: o.practice !== undefined ? false : o.attach !== undefined ? true : null })
-    console.log(r.attached ? `· 같은 백업 자리로 이어 보낸다` : `· 읽기만 사본 — 원래 백업 자리에는 보내지 않는다(연습 · 다른 이름 · 같은 자리를 다른 지식이 쓴다 · 붙이려면 --attach)`)
-    console.log(`되살렸다 — ${r.id} · 문서 ${r.docs} · 기록 ${r.records} · 첨부 ${r.atts} · 이름 장부 ${r.vocab ? '있음' : '없음'} · ${r.owner ? `주인 ${r.owner}${r.private ? ' · 개인(주인만 본다)' : ''}` : '팀 지식(_members.md 없음)'} — 도는 서버에는 관리자의 [동기화] 로 목록에 선다(개인 지식은 그 전에도 가려져 있다)`)
-    if (r.check) console.log('· 옛 백업이라 정리 설정이 없어 「손으로만 · Claude 에 보내지 않음」 으로 두었다 — 이 지식의 사람에서 다시 정한다')
-    if (r.errors.length) console.log(`검사 줄 ${r.errors.length} — ${r.errors.slice(0, 3).join(' · ')}`)
+    console.log(r.attached ? `· 같은 백업 자리로 이어 보낸다` : `· 읽기만 사본: 원래 백업 자리에는 보내지 않는다(연습 · 다른 이름 · 같은 자리를 다른 지식이 쓴다 · 붙이려면 --attach)`)
+    console.log(`되살렸다: ${r.id} · 문서 ${r.docs} · 기록 ${r.records} · 첨부 ${r.atts} · 이름 장부 ${r.vocab ? '있음' : '없음'} · ${r.owner ? `주인 ${r.owner}${r.private ? ' · 개인(주인만 본다)' : ''}` : '팀 지식(_members.md 없음)'}: 도는 서버에는 관리자의 [동기화] 로 목록에 선다(개인 지식은 그 전에도 가려져 있다)`)
+    if (r.check) console.log('· 옛 백업이라 정리 설정이 없어 「손으로만 · Claude 에 보내지 않음」 으로 두었다. 이 지식의 사람에서 다시 정한다')
+    if (r.errors.length) console.log(`검사 줄 ${r.errors.length}: ${r.errors.slice(0, 3).join(' · ')}`)
   } catch (e) {
     console.error(e.message)
     process.exitCode = 1
@@ -689,7 +707,7 @@ async function authCmd(o) {
     const root = path.resolve(o.root || '.')
     const auth = await makeAuth({ dataDir: o.data ? path.resolve(o.data) : defaultDataDir(root) })
     const r = await auth.reapply(fs.readFileSync(file, 'utf8'))
-    console.log(`다시 적용했다 — 일 ${r.to - r.from} · 끊은 기기 ${r.revoked} · 모두 내보냄 ${r.sv} · 기계 열쇠 끊음 ${r.machines}`)
+    console.log(`다시 적용했다. 일 ${r.to - r.from} · 끊은 기기 ${r.revoked} · 모두 내보냄 ${r.sv} · 기계 열쇠 끊음 ${r.machines}`)
     if (r.reset.length) console.log(`비밀번호를 다시 정한다(관리자가 링크를 새로): ${r.reset.join(' · ')}`)
     if (r.devices.length) console.log(`다시 이을 기기: ${r.devices.join(' · ')}`)
     if (r.missing.length) console.log(`다시 만들 사람: ${r.missing.join(' · ')}`)
@@ -710,25 +728,25 @@ async function pcCmd(o) {
       const c = await makeTask(root)
       if (c !== 0) { console.log('작업을 만들지 못했다'); process.exitCode = c || 1; return }
       const sc = await makeShortcut(shortcutFor(root))
-      console.log(`✓ 로그온 때 켜고 멈추면 1분마다 다시 켠다 — 작업 이름 kmd${sc.ok ? ' · 시작 메뉴에 kmd(화면 열기)' : ' · 시작 메뉴 바로가기는 만들지 못했다'}`)
+      console.log(`✓ 로그온 때 켜고 멈추면 1분마다 다시 켠다. 작업 이름 kmd${sc.ok ? ' · 시작 메뉴에 kmd(화면 열기)' : ' · 시작 메뉴 바로가기는 만들지 못했다'}`)
     } else if (sub === 'link') {
       // 처음 설치 — 실행기가 아직 없으니 판 자리 모양만 본다
       const h = appHomeOf(process.argv[1], { shape: true })
-      if (!h) throw new Error('판 자리(~/.kmd-app/versions/<판>)의 kmd 로 부른다 — 설치 한 줄이 부른다')
+      if (!h) throw new Error('판 자리(~/.kmd-app/versions/<판>)의 kmd 로 부른다. 설치 한 줄이 부른다')
       const r = await linkVersion(h.home, a || h.ver)
-      console.log(`✓ 지금 판 ${r.ver} — 실행기 ${r.bin}`)
+      console.log(`✓ 지금 판 ${r.ver}: 실행기 ${r.bin}`)
     } else if (sub === 'restart') {
       const root = await pcRootNow(o)
       const url = await runningPc(root, o)
       if (!url) {
         await startPc(root, o)
         const u = await waitPc(root, o, 60_000)
-        console.log(u ? `✓ 켰다 — ${u}` : 'kmd 가 켜지지 않았다 — 터미널에서 kmd up 으로 켜 보면 까닭이 보인다')
+        console.log(u ? `✓ 켰다: ${u}` : 'kmd 가 켜지지 않았다. 터미널에서 kmd up 으로 켜 보면 까닭이 보인다')
         if (!u) process.exitCode = 1
         return
       }
       const r = await restartPc(root, o, url)
-      console.log(r.ok ? `✓ 다시 켰다 — 판 ${r.up.ver} · ${r.up.url}` : `· ${r.why}`)
+      console.log(r.ok ? `✓ 다시 켰다. 판 ${r.up.ver} · ${r.up.url}` : `· ${r.why}`)
       if (!r.ok) process.exitCode = 1
     } else if (sub === 'update') {
       if (!a || !b) throw new Error('kmd pc update <새 판 폴더> <판> [--root 지식 폴더] [--home 판 자리]')
@@ -737,11 +755,11 @@ async function pcCmd(o) {
       const root = await pcRootNow(o)
       const r = await upgrade({ home, from: path.resolve(a), ver: b })
       if (!r.ok) {
-        console.log(`새 판 ${r.tried} 이 켜지지 않았다 — 그대로 ${r.ver || '앞 판'} 을 쓴다`)
+        console.log(`새 판 ${r.tried} 이 켜지지 않았다. 그대로 ${r.ver || '앞 판'} 을 쓴다`)
         process.exitCode = 1
         return
       }
-      console.log(`✓ 새 판 ${r.ver} 이 켜지는 것을 보고 지금 판으로 했다 — 실행기 ${r.bin}${r.prev ? ` · 앞 판 ${r.prev} 폴더는 그대로 둔다` : ''}`)
+      console.log(`✓ 새 판 ${r.ver} 이 켜지는 것을 보고 지금 판으로 했다. 실행기 ${r.bin}${r.prev ? ` · 앞 판 ${r.prev} 폴더는 그대로 둔다` : ''}`)
       // 늘 켜기 작업 · 시작 메뉴 · Claude Code 헤더 도우미를 실행기로(옛 설치는 판 폴더를 가리킨다) — 폴더는 그대로
       const kmdL = launcherOf(home)
       const where = sameDir(root, defaultPcRoot()) ? '' : ` "${root}"`
@@ -760,16 +778,16 @@ async function pcCmd(o) {
       for (const t of teams) if (await kget(keyName(t)).catch(() => null)) team = t
       for (const [name, u] of [['kmd', url || `http://127.0.0.1:${o.port || 7373}`], ...(team ? [['kmd-team', team]] : [])]) {
         const c = await addMcp(name, u, helper)
-        if (!c.ok && !c.skipped) console.log(`· Claude Code 의 ${name} 을 다시 걸지 못했다${c.why ? ' — ' + c.why : ''}${c.line ? ` · 한 번: ${c.line}` : ''}`)
+        if (!c.ok && !c.skipped) console.log(`· Claude Code 의 ${name} 을 다시 걸지 못했다${c.why ? ': ' + c.why : ''}${c.line ? ` · 한 번: ${c.line}` : ''}`)
       }
       // 다시 켜기 — 도는 kmd 를 이 PC 의 열쇠로 멈추고 새 판으로 · 안 켜지면 앞 판으로 되돌려 켠다
-      if (!url) return void console.log('이 PC 의 kmd 가 꺼져 있다 — 다음에 켤 때부터 새 판이다')
+      if (!url) return void console.log('이 PC 의 kmd 가 꺼져 있다. 다음에 켤 때부터 새 판이다')
       const dir = path.join(home, 'versions', r.ver)
       const node = fs.existsSync(path.join(dir, 'node.exe')) ? path.join(dir, 'node.exe') : process.execPath
       const back = await restartPc(root, o, url, { node, script: path.join(dir, 'server', 'bin', 'kmd.mjs') })
-      if (back.ok) console.log(`✓ 다시 켰다 — 판 ${back.up.ver} · ${back.up.url}`)
+      if (back.ok) console.log(`✓ 다시 켰다. 판 ${back.up.ver} · ${back.up.url}`)
       else if (/멈추지 못했다/.test(back.why)) {
-        console.log(`· ${back.why} — 로그아웃했다 들어오면(늘 켜기) 새 판으로 켜진다`)
+        console.log(`· ${back.why}: 로그아웃했다 들어오면(늘 켜기) 새 판으로 켜진다`)
         process.exitCode = 1
       } else {
         process.exitCode = 1
@@ -778,9 +796,9 @@ async function pcCmd(o) {
         const pd = path.join(home, 'versions', p.ver)
         await startPc(root, o, { node: fs.existsSync(path.join(pd, 'node.exe')) ? path.join(pd, 'node.exe') : process.execPath, script: path.join(pd, 'server', 'bin', 'kmd.mjs') })
         const u = await waitPc(root, o, 60_000)
-        console.log(`· 새 판이 다시 켜지지 않아 앞 판 ${p.ver} 으로 되돌렸다${u ? ' — ' + u : ' — kmd open 으로 켠다'}`)
+        console.log(`· 새 판이 다시 켜지지 않아 앞 판 ${p.ver} 으로 되돌렸다${u ? ': ' + u : ': kmd open 으로 켠다'}`)
       }
-      if (!appHomeOf()) console.log(`· 터미널의 kmd 명령도 새 판으로 — PATH 에 ${r.bin} 을 더한다`)
+      if (!appHomeOf()) console.log(`· 터미널의 kmd 명령도 새 판으로: PATH 에 ${r.bin} 을 더한다`)
     } else throw new Error('kmd pc task [폴더] · kmd pc update <새 판 폴더> <판> · kmd pc restart · kmd pc link [판]')
   } catch (e) {
     console.error(e.message)

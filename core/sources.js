@@ -120,9 +120,9 @@ export function checkTarget(at, { kind, roots = [], dataDir, knowledgeDirs = [],
   } catch {
     throw new KmdError('E_INPUT', '그 폴더가 없다')
   }
-  if (path.parse(real).root.toLowerCase() === real.toLowerCase() || real.toLowerCase() === os.homedir().toLowerCase()) throw new KmdError('E_INPUT', '드라이브 통째 · 사용자 집 폴더 통째는 받지 않는다 — 그 안의 폴더를 고른다')
+  if (path.parse(real).root.toLowerCase() === real.toLowerCase() || real.toLowerCase() === os.homedir().toLowerCase()) throw new KmdError('E_INPUT', '드라이브 통째 · 사용자 집 폴더 통째는 받지 않는다. 그 안의 폴더를 고른다')
   if (inside(real, dataDir) || knowledgeDirs.some((d) => inside(real, d) || inside(d, real))) throw new KmdError('E_INPUT', 'kmd 의 살림 자리 · 지식 폴더는 가져오는 곳이 될 수 없다')
-  if (!pc && !roots.some((r) => inside(real, r))) throw new KmdError('E_FORBIDDEN', `이 폴더는 가져오는 곳으로 허락되지 않았다 — 허락된 곳: ${roots.length ? roots.join(' · ') : '아직 없다(관리자가 정한다)'}`)
+  if (!pc && !roots.some((r) => inside(real, r))) throw new KmdError('E_FORBIDDEN', `이 폴더는 가져오는 곳으로 허락되지 않았다. 허락된 곳: ${roots.length ? roots.join(' · ') : '아직 없다(관리자가 정한다)'}`)
   return { folder: real }
 }
 
@@ -190,7 +190,7 @@ async function readGit(src, { dataDir, kn }) {
   const env = cred ? { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.extraHeader', GIT_CONFIG_VALUE_0: `Authorization: Basic ${Buffer.from(cred).toString('base64')}` } : {}
   const guard = ['-c', 'protocol.allow=never', '-c', 'protocol.https.allow=always', '-c', 'protocol.ssh.allow=always', '-c', `protocol.file.allow=${local ? 'always' : 'never'}`, '-c', 'fetch.recurseSubmodules=false']
   const f = await tryGit(bare, [...guard, 'fetch', '-q', '--depth=1', remote, '+HEAD:refs/heads/kmd-src'], { timeout: 120_000, env })
-  if (!f.ok) throw new KmdError('E_SOURCE', f.timedOut ? '저장소가 답하지 않는다 — 주소 · 사내망을 본다' : /auth|denied|403|401/i.test(f.err) ? '저장소의 읽기 자격이 맞지 않는다 — 자격을 다시 넣는다' : '저장소에 닿지 않는다 — 주소 · 사내망 · 자격을 본다')
+  if (!f.ok) throw new KmdError('E_SOURCE', f.timedOut ? '저장소가 답하지 않는다. 주소 · 사내망을 본다' : /auth|denied|403|401/i.test(f.err) ? '저장소의 읽기 자격이 맞지 않는다. 자격을 다시 넣는다' : '저장소에 닿지 않는다. 주소 · 사내망 · 자격을 본다')
   const sig = (await tryGit(bare, ['rev-parse', 'refs/heads/kmd-src'])).out.trim()
   const asof = (await tryGit(bare, ['log', '-1', '--format=%ci', 'refs/heads/kmd-src'])).out.trim().slice(0, 16)
   const tree = (await tryGit(bare, ['ls-tree', '-r', '-l', 'refs/heads/kmd-src'])).out.split('\n').filter(Boolean)
@@ -331,7 +331,7 @@ async function gitFetch(src, { dataDir, kn }) {
   const env = cred ? { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.extraHeader', GIT_CONFIG_VALUE_0: `Authorization: Basic ${Buffer.from(cred).toString('base64')}` } : {}
   const guard = ['-c', 'protocol.allow=never', '-c', 'protocol.https.allow=always', '-c', 'protocol.ssh.allow=always', '-c', `protocol.file.allow=${local ? 'always' : 'never'}`, '-c', 'fetch.recurseSubmodules=false']
   const f = await tryGit(bare, [...guard, 'fetch', '-q', '--depth=1', remote, '+HEAD:refs/heads/kmd-src'], { timeout: 120_000, env })
-  if (!f.ok) throw new KmdError('E_SOURCE', f.timedOut ? '저장소가 답하지 않는다 — 주소 · 사내망을 본다' : /auth|denied|403|401/i.test(f.err) ? '저장소의 읽기 자격이 맞지 않는다 — 자격을 다시 넣는다' : '저장소에 닿지 않는다 — 주소 · 사내망 · 자격을 본다')
+  if (!f.ok) throw new KmdError('E_SOURCE', f.timedOut ? '저장소가 답하지 않는다. 주소 · 사내망을 본다' : /auth|denied|403|401/i.test(f.err) ? '저장소의 읽기 자격이 맞지 않는다. 자격을 다시 넣는다' : '저장소에 닿지 않는다. 주소 · 사내망 · 자격을 본다')
   const commit = (await tryGit(bare, ['rev-parse', 'refs/heads/kmd-src'])).out.trim()
   const asof = (await tryGit(bare, ['log', '-1', '--format=%ci', commit])).out.trim().slice(0, 16)
   // 더 받기 — 얕게 받은 이력을 n 커밋 더(기준 커밋에 닿을 때까지)
@@ -354,7 +354,7 @@ async function runCode(k, src, { dataDir, save, first = false, full = false, ana
   try {
     const L = await readLedger(dataDir, k.id, src.name)
     const g = await gitFetch(src, { dataDir, kn: k.id })
-    line('ok', `받았다 — 마지막 묶음 ${g.commit.slice(0, 7)}`)
+    line('ok', `받았다. 마지막 묶음 ${g.commit.slice(0, 7)}`)
     await onStage(1)
     const base = L.commit && (await tryGit(g.bare, ['cat-file', '-e', `${L.commit}^{commit}`])).ok ? L.commit : null
     const keep = async (note, extra = {}) => {
@@ -364,7 +364,7 @@ async function runCode(k, src, { dataDir, save, first = false, full = false, ana
       await writeState(dataDir, k.id, st)
     }
     if (first || full || !base) {
-      await keep(`기준 묶음 ${g.commit.slice(0, 7)} — 다음 묶음부터 바뀐 코드를 기록한다`)
+      await keep(`기준 묶음 ${g.commit.slice(0, 7)}: 다음 묶음부터 바뀐 코드를 기록한다`)
       return { state: 'same', n: 0, files: 0, codeRecords: 0, commits: 0 }
     }
     if (base === g.commit) {
@@ -402,7 +402,7 @@ async function runCode(k, src, { dataDir, save, first = false, full = false, ana
       }
       if (!diffs.length) { quiet++; continue }
       const [sha, author, date, subject] = (await tryGit(g.bare, ['log', '-1', '--format=%h%x00%an%x00%ci%x00%s', b])).out.trim().split('\0')
-      const info = linked ? { sha, author, date: String(date).slice(0, 16), subject } : { sha: `${base.slice(0, 7)}..${sha}`, author, date: String(date).slice(0, 16), subject: `여러 묶음 — 마지막: ${subject}` }
+      const info = linked ? { sha, author, date: String(date).slice(0, 16), subject } : { sha: `${base.slice(0, 7)}..${sha}`, author, date: String(date).slice(0, 16), subject: `여러 묶음. 마지막: ${subject}` }
       // 묶음마다 세 줄 — 무엇(묶음 · 파일) · 요약(Claude) · 기록과 걸린 항목
       const plus = diffs.reduce((n, f) => n + f.d.plus, 0)
       const minus = diffs.reduce((n, f) => n + f.d.minus, 0)
@@ -411,11 +411,11 @@ async function runCode(k, src, { dataDir, save, first = false, full = false, ana
       let rec = raw
       if (analyze) {
         rec = (await analyze(info, diffs, raw).catch(() => null)) || raw
-        line(rec === raw ? 'err' : 'ok', rec === raw ? '요약 못함 — 차이 그대로 기록한다' : `요약 — ${rec.title.split(' — ')[0]}`)
+        line(rec === raw ? 'err' : 'ok', rec === raw ? '요약 못함. 차이 그대로 기록한다' : `요약: ${rec.title.split(/ — |: /)[0]}`)
       }
       const saved = await save({ record: rec })
       if (saved?.id) recIds.push(saved.id)
-      line('ok', `기록 저장 · ${rec.touches?.length ? `걸린 항목 ${rec.touches.join(' · ')}` : '걸린 항목 없음 — 넣을 문서를 정리가 찾는다'}`)
+      line('ok', `기록 저장 · ${rec.touches?.length ? `걸린 항목 ${rec.touches.join(' · ')}` : '걸린 항목 없음. 넣을 문서를 정리가 찾는다'}`)
       codeRecords++
     }
     const note = `새 묶음 ${pairs.length}${codeRecords ? ` · 코드 바뀜 기록 ${codeRecords}` : ' · 코드는 그대로'}${quiet ? ` · 코드 안 바뀐 묶음 ${quiet}` : ''}${skipped ? ` · 앞선 ${skipped} 은 건너뜀` : ''}`
@@ -468,8 +468,8 @@ async function runDb(k, src, { dataDir, save, first = false, force = false, full
     const ruleSig = JSON.stringify(src.rules)
     // 테이블 이름 — 이름 장부에 없는 `table:<테이블>` 은 이번에 세운다(요구 v0.2 R7 · 예전에 들어와 이름이 빠진 지식도 다음 확인 때 채운다)
     const into = src.rules[0]?.into?.doc || '테이블 정의'
-    const headOf = (t) => { const loc = locate(k.registry, `table:${t.name}`); return loc ? { doc: loc.doc, heading: loc.heading } : { doc: into, heading: t.comment ? `${t.name} — ${t.comment}` : t.name } }
-    const newNames = [...tables.values()].filter((t) => !k.vocab.coords.has(`table:${t.name}`) || !locate(k.registry, `table:${t.name}`)).map((t) => ({ coord: `table:${t.name}`, label: t.comment ? `${t.name} — ${t.comment}` : t.name, aliases: t.comment ? [t.comment] : [], ...headOf(t) }))
+    const headOf = (t) => { const loc = locate(k.registry, `table:${t.name}`); return loc ? { doc: loc.doc, heading: loc.heading } : { doc: into, heading: t.comment ? `${t.name}: ${t.comment}` : t.name } }
+    const newNames = [...tables.values()].filter((t) => !k.vocab.coords.has(`table:${t.name}`) || !locate(k.registry, `table:${t.name}`)).map((t) => ({ coord: `table:${t.name}`, label: t.comment ? `${t.name}: ${t.comment}` : t.name, aliases: t.comment ? [t.comment] : [], ...headOf(t) }))
     if (!force && !first && !full && n === 0 && !s0.stopped && L.rules === ruleSig && !newNames.length) {
       Object.assign(s0, { checkedAt: now, failures: 0, failingSince: null, lastNote: '그대로' })
       await writeState(dataDir, k.id, st)
@@ -489,17 +489,17 @@ async function runDb(k, src, { dataDir, save, first = false, force = false, full
     await onStage(2)
     for (let i = 0; i < plan.changed.length; i += 200) {
       const part = plan.changed.slice(i, i + 200)
-      await save({ record: { title: `가져옴 — ${src.name} · 바뀐 테이블 ${part.length}`, body: [`바뀐 테이블 ${n} — ${[...changes.added.map((x) => x + '(새로)'), ...changes.changed, ...changes.removed.map((x) => x + '(없어짐)')].slice(0, 30).join(' · ')}${n > 30 ? ' …' : ''}`, '', ...part.map((c) => `- ${c.doc.replace(/^docs\/|\.md$/g, '')} › ${c.heading}`)].join('\n'), tags: ['sources'] }, sections: part.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) })
+      await save({ record: { title: `가져옴: ${src.name} · 바뀐 테이블 ${part.length}`, body: [`바뀐 테이블 ${n}: ${[...changes.added.map((x) => x + '(새로)'), ...changes.changed, ...changes.removed.map((x) => x + '(없어짐)')].slice(0, 30).join(' · ')}${n > 30 ? ' …' : ''}`, '', ...part.map((c) => `- ${c.doc.replace(/^docs\/|\.md$/g, '')} › ${c.heading}`)].join('\n'), tags: ['sources'] }, sections: part.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) })
     }
     // 이름은 표가 들어간 뒤 — 자리 장부가 그 항목을 가리킨다(항목으로 보기에서 「테이블」 로 선다)
     for (let i = 0; i < newNames.length; i += 500) {
       const part = newNames.slice(i, i + 500)
-      await save({ record: { title: `이름 세움 — ${src.name} · 테이블 ${part.length}`, body: `테이블 이름을 이름 장부 · 자리 장부에 세웠다 — ${part.slice(0, 20).map((x) => x.coord.slice(6)).join(' · ')}${part.length > 20 ? ' …' : ''}`, tags: ['sources'] }, names: part })
+      await save({ record: { title: `이름 세움: ${src.name} · 테이블 ${part.length}`, body: `테이블 이름을 이름 장부 · 자리 장부에 세웠다: ${part.slice(0, 20).map((x) => x.coord.slice(6)).join(' · ')}${part.length > 20 ? ' …' : ''}`, tags: ['sources'] }, names: part })
     }
     await onStage(3)
     await writeLedger(dataDir, k.id, src.name, { v: 1, files, out: {}, rules: ruleSig })
     const lastChange = plan.changed.length ? { at: now, files: full ? 0 : n, tables: plan.changed.length, added: changes.added.length, changed: changes.changed.length, removed: changes.removed.length } : s0.lastChange
-    Object.assign(s0, { checkedAt: now, asof: now.slice(0, 16).replace('T', ' '), items: plan.items, failures: 0, failingSince: null, stopped: null, lastChange, lastNote: `${full ? '다시 맞춤 — ' : ''}${plan.changed.length ? `바뀐 테이블 ${plan.changed.length}` : '그대로'} · 테이블 ${tables.size}` })
+    Object.assign(s0, { checkedAt: now, asof: now.slice(0, 16).replace('T', ' '), items: plan.items, failures: 0, failingSince: null, stopped: null, lastChange, lastNote: `${full ? '다시 맞춤: ' : ''}${plan.changed.length ? `바뀐 테이블 ${plan.changed.length}` : '그대로'} · 테이블 ${tables.size}` })
     await writeState(dataDir, k.id, st)
     return { state: plan.changed.length ? 'changed' : 'same', n: plan.changed.length, files: n, tables: tables.size }
   } catch (e) {
@@ -554,7 +554,7 @@ async function runDocs(k, src, { dataDir, first = false, force = false, full = f
     await writeLedger(dataDir, k.id, src.name, { v: 1, files: scan.files, out: {}, rules: JSON.stringify(src.rules), recs: 1 })
     const real = full ? 0 : n
     const lastChange = r.commit ? { at: now, files: real, docs: r.docs, tables: 0, atts: r.atts, removed: r.missing, added: full ? 0 : scan.changes.added.length, changed: full ? 0 : scan.changes.changed.length } : s0.lastChange
-    const note = r.commit ? `${full ? '다시 맞춤 — ' : ''}문서 ${r.docs}${r.atts ? ' · 첨부 ' + r.atts : ''}${r.missing ? ' · 원본에 없다 ' + r.missing : ''}` : full ? '다시 맞춤 — 그대로' : n ? `바뀐 파일 ${n} · 문서는 그대로` : '그대로'
+    const note = r.commit ? `${full ? '다시 맞춤: ' : ''}문서 ${r.docs}${r.atts ? ' · 첨부 ' + r.atts : ''}${r.missing ? ' · 원본에 없다 ' + r.missing : ''}` : full ? '다시 맞춤: 그대로' : n ? `바뀐 파일 ${n} · 문서는 그대로` : '그대로'
     Object.assign(s0, { checkedAt: now, failures: 0, failingSince: null, stopped: null, lastChange, lastNote: note })
     await writeState(dataDir, k.id, st)
     return { state: r.commit ? 'changed' : 'same', n: r.docs + r.missing, files: n, docs: r.docs, missing: r.missing, recs: r.recs, rows: r.rows }
@@ -617,7 +617,7 @@ async function runTables(k, src, { dataDir, save, first = false, force = false, 
     await onStage(2)
     for (let i = 0; i < plan.changed.length; i += 200) {
       const part = plan.changed.slice(i, i + 200)
-      await save({ record: { title: `가져옴 — ${src.name} · 바뀐 표 ${part.length}`, body: [`바뀐 파일 ${n} — ${[...scan.changes.added, ...scan.changes.changed, ...scan.changes.removed].slice(0, 20).join(' · ')}${n > 20 ? ' …' : ''}`, '', ...part.map((c) => `- ${c.doc.replace(/^docs\/|\.md$/g, '')} › ${c.heading}`)].join('\n'), tags: ['sources'] }, sections: part.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) })
+      await save({ record: { title: `가져옴: ${src.name} · 바뀐 표 ${part.length}`, body: [`바뀐 파일 ${n}: ${[...scan.changes.added, ...scan.changes.changed, ...scan.changes.removed].slice(0, 20).join(' · ')}${n > 20 ? ' …' : ''}`, '', ...part.map((c) => `- ${c.doc.replace(/^docs\/|\.md$/g, '')} › ${c.heading}`)].join('\n'), tags: ['sources'] }, sections: part.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) })
     }
     // 뜻 갱신 — 바뀐 코드 파일마다 기록 하나(이름이 걸리면 그 항목 정리로) · 처음 · 전체 다시 맞추기는 사본만 맞춘다
     let codeRecords = 0
@@ -632,7 +632,7 @@ async function runTables(k, src, { dataDir, save, first = false, force = false, 
           const d = folder ? await diffFolder(dataDir, k.id, src.name, rel, status === 'removed' ? null : path.join(src.folder || src.at, ...rel.split('/'))) : await diffGit(scan.bare, L.commit, commit, rel)
           if (!d.plus && !d.minus) continue
           const rec = codeRecord(k, src, rel, d, status)
-          if (rel === todo[Math.min(todo.length, CODE_MAX) - 1][0] && todo.length > CODE_MAX) rec.body += `\n\n그 밖에 바뀐 코드 ${todo.length - CODE_MAX} — ${todo.slice(CODE_MAX).map((x) => x[0]).slice(0, 40).join(' · ')}`
+          if (rel === todo[Math.min(todo.length, CODE_MAX) - 1][0] && todo.length > CODE_MAX) rec.body += `\n\n그 밖에 바뀐 코드 ${todo.length - CODE_MAX}: ${todo.slice(CODE_MAX).map((x) => x[0]).slice(0, 40).join(' · ')}`
           await save({ record: rec })
           codeRecords++
         }
@@ -645,7 +645,7 @@ async function runTables(k, src, { dataDir, save, first = false, force = false, 
     // 전체 다시 맞추기는 모든 파일을 다시 읽어 「고침」 으로 세므로 바뀐 파일 수로 알리지 않는다 — 실제로 다른 표만 말한다
     const real = full ? 0 : n
     const lastChange = real || plan.changed.length ? { at: now, files: real, tables: plan.changed.length, added: full ? 0 : scan.changes.added.length, changed: full ? 0 : scan.changes.changed.length, removed: scan.changes.removed.length } : s0.lastChange
-    const note = (full ? (plan.changed.length ? `다시 맞춤 — 바뀐 표 ${plan.changed.length}` : '다시 맞춤 — 그대로') : plan.changed.length ? `바뀐 표 ${plan.changed.length}` : n ? `바뀐 파일 ${n} · 표는 그대로` : '그대로') + (codeRecords ? ` · 코드 바뀜 기록 ${codeRecords} — 정리가 항목 글을 맞춘다` : '')
+    const note = (full ? (plan.changed.length ? `다시 맞춤: 바뀐 표 ${plan.changed.length}` : '다시 맞춤: 그대로') : plan.changed.length ? `바뀐 표 ${plan.changed.length}` : n ? `바뀐 파일 ${n} · 표는 그대로` : '그대로') + (codeRecords ? ` · 코드 바뀜 기록 ${codeRecords}: 정리가 항목 글을 맞춘다` : '')
     Object.assign(s0, { sig: commit || null, asof, checkedAt: now, items: plan.items, failures: 0, failingSince: null, stopped: null, lastChange, lastNote: note })
     if (codeRecords) s0.lastCode = { at: now, n: codeRecords }
     await writeState(dataDir, k.id, st)

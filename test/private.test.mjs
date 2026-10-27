@@ -47,7 +47,7 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('개인 지식 — 주인의 PC 일꾼(그 사람의 Claude)만 받는다 · 팀 일꾼 · 남의 일꾼은 못 받는다 · PC 일꾼이 없는 사람은 규칙으로 곧바로', async () => {
+test('개인 지식: 주인의 PC 일꾼(그 사람의 Claude)만 받는다 · 팀 일꾼 · 남의 일꾼은 못 받는다 · PC 일꾼이 없는 사람은 규칙으로 곧바로', async () => {
   const kimKey = await myWorker('kim')
   const leeKey = await myWorker('lee')
   const { id } = await s.hub.addKnowledge({ ...KIM, admin: true }, { kind: 'new', name: '김메모' })
@@ -56,7 +56,7 @@ test('개인 지식 — 주인의 PC 일꾼(그 사람의 Claude)만 받는다 �
   assert.equal(await workOnce({ server: s.url, key: kimKey }), null)
   await new Promise((r) => setTimeout(r, 300))
 
-  const a = await s.hub.save(KIM, id, { record: { title: '당번 — 이번 주', body: '이번 주 당번은 박.' } })
+  const a = await s.hub.save(KIM, id, { record: { title: '당번: 이번 주', body: '이번 주 당번은 박.' } })
   assert.ok(await until(() => s.hub.jobsOf(id).some((j) => j.state === 'queued')), '정해진 시각을 기다리지 않고 곧바로 일감')
   const n0 = callsN()
   assert.equal(await workOnce({ server: s.url, key: teamKey }), null, '팀의 정리 전용 로그인으로는 나가지 않는다')
@@ -70,7 +70,7 @@ test('개인 지식 — 주인의 PC 일꾼(그 사람의 Claude)만 받는다 �
   // park 은 PC 일꾼을 띄운 적이 없다(브라우저만) — 규칙으로 곧바로(파일 이름이 아니라 갈래 · 주제)
   const { id: lid } = await s.hub.addKnowledge({ user: 'park', admin: true }, { kind: 'new', name: '박메모' })
   const n1 = callsN()
-  const b = await s.hub.save({ user: 'park' }, lid, { record: { title: '2026-10-21 HNC 통화 — 메모', body: '납기는 11-02.' } })
+  const b = await s.hub.save({ user: 'park' }, lid, { record: { title: '2026-10-21 HNC 통화: 메모', body: '납기는 11-02.' } })
   assert.ok(await until(async () => (await state(lid, b.id)) === 'in'), '규칙으로 문서에')
   assert.equal(callsN(), n1, '팀 서버 프로세스는 Claude 를 부르지 않는다')
   assert.ok(fs.existsSync(path.join(tmp, 'kn', lid, 'docs', '회의록.md')))
@@ -78,22 +78,22 @@ test('개인 지식 — 주인의 PC 일꾼(그 사람의 Claude)만 받는다 �
   assert.equal((await fetch(s.url + '/api/me/worker', { method: 'POST', headers: { authorization: `Bearer ${teamKey}` } })).status, 403)
 })
 
-test('팀 지식의 정리 방식 — 정해진 시각(저장해도 기다림) · 실시간(조용해진 뒤 한 번) · 손으로만(넣은 파일에도 일감 없음)', async () => {
+test('팀 지식의 정리 방식: 정해진 시각(저장해도 기다림) · 실시간(조용해진 뒤 한 번) · 손으로만(넣은 파일에도 일감 없음)', async () => {
   const jobs = () => s.hub.jobsOf('dpms').filter((j) => j.state === 'queued').length
-  await s.hub.save(LEE, 'dpms', { record: { title: '알람 — 채널', body: '받는 곳에 #ops 도.' } })
+  await s.hub.save(LEE, 'dpms', { record: { title: '알람: 채널', body: '받는 곳에 #ops 도.' } })
   await new Promise((r) => setTimeout(r, 1500))
-  assert.equal(jobs(), 0, '정해진 시각 — 저장은 기다린다')
+  assert.equal(jobs(), 0, '정해진 시각: 저장은 기다린다')
   await assert.rejects(s.hub.setOwner(SHELL, 'dpms', { tidyMode: 'often' }), { code: 'E_INPUT' })
   await s.hub.setOwner(SHELL, 'dpms', { tidyMode: 'live' })
   assert.equal((await (await fetch(s.url + '/api/k/dpms/tidy', { headers: { authorization: `Bearer ${await s.auth.deviceKeyFor('kim', { host: 'K' })}` } })).json()).tidyMode, 'live')
   const t0 = Date.now()
-  await s.hub.save(LEE, 'dpms', { record: { title: '알람 — 채널 둘', body: '#ops-oncall 도.' } })
-  await s.hub.save(LEE, 'dpms', { record: { title: '알람 — 채널 셋', body: '#ops-db 도.' } })
+  await s.hub.save(LEE, 'dpms', { record: { title: '알람: 채널 둘', body: '#ops-oncall 도.' } })
+  await s.hub.save(LEE, 'dpms', { record: { title: '알람: 채널 셋', body: '#ops-db 도.' } })
   if (Date.now() - t0 < 6000) assert.equal(jobs(), 0, '조용해지기 전') // 이 PC 의 느린 git 으로 저장이 늦으면 건너뛴다
   assert.ok(await until(() => jobs() === 1, 30_000), '조용해진 뒤 한 번')
   for (const j of s.hub.jobsOf('dpms')) j.state = 'done'
   await s.hub.setOwner(SHELL, 'dpms', { tidyMode: 'manual' })
   await s.hub.importFiles({ user: 'kim', admin: true }, 'dpms', [{ path: '회의.md', data: Buffer.from('## 정한 것\n배포 창은 화 · 목.\n') }])
   await new Promise((r) => setTimeout(r, 1500))
-  assert.equal(jobs(), 0, '손으로만 — 넣은 파일에도 일감을 걸지 않는다')
+  assert.equal(jobs(), 0, '손으로만: 넣은 파일에도 일감을 걸지 않는다')
 })

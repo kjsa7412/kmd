@@ -11,7 +11,7 @@ export function stopLine({ kind, kn = null, level = 'warn', what, amount = null,
   if (!what) return null
   const b = amount ? `${what} · ${amount}` : what
   const t = [fix, told].filter(Boolean).join(' / ')
-  return { kind, kn, level, b, t, r: since || null, text: t ? `${b} — ${t}` : b }
+  return { kind, kn, level, b, t, r: since || null, text: t ? `${b}: ${t}` : b }
 }
 
 // 나이 — 1시간 아래는 분, 2일 아래는 시간, 그 위는 일

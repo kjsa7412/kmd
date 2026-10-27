@@ -83,8 +83,8 @@ export function ingestCandidates(k, w, max = 5) {
 export const INGEST_SCHEMA = {
   type: 'object',
   properties: {
-    updates: { type: 'array', items: { type: 'object', properties: { doc: { type: 'string' }, heading: { type: 'string' }, content: { type: 'string' } }, required: ['doc', 'heading', 'content'] }, description: '기존 문서(후보)의 항목에 넣을 것 — 항목의 새 글 전체 · 없는 머리면 그 문서에 새 항목' },
-    newDoc: { type: ['object', 'null'], properties: { path: { type: 'string' }, sections: { type: 'array', items: { type: 'object', properties: { heading: { type: 'string' }, content: { type: 'string' } }, required: ['heading', 'content'] } } }, description: '새 문서가 맞으면 — 경로(폴더/이름 · .md 없이)와 항목들' },
+    updates: { type: 'array', items: { type: 'object', properties: { doc: { type: 'string' }, heading: { type: 'string' }, content: { type: 'string' } }, required: ['doc', 'heading', 'content'] }, description: '기존 문서(후보)의 항목에 넣을 것: 항목의 새 글 전체 · 없는 머리면 그 문서에 새 항목' },
+    newDoc: { type: ['object', 'null'], properties: { path: { type: 'string' }, sections: { type: 'array', items: { type: 'object', properties: { heading: { type: 'string' }, content: { type: 'string' } }, required: ['heading', 'content'] } } }, description: '새 문서가 맞으면: 경로(폴더/이름 · .md 없이)와 항목들' },
     why: { type: 'string' },
   },
   required: ['updates'],
@@ -93,20 +93,20 @@ export const INGEST_SCHEMA = {
 // 항목 글 쓰기 규칙(agent/skills/kmd-build/작성가이드.md 의 줄임) — 정리 · 들이기 프롬프트가 같이 쓴다
 const WRITE_RULES = [
   '항목 글 쓰기:',
-  '- 항목 하나는 대상 하나(기능 · 화면 · 테이블 · 절차 · 회의 한 번)의 지금이다. 기록을 날짜별로 덧붙이지 말고 지금 글에 녹여 다시 쓴다 — 「추가했다 · 고쳤다」 가 아니라 「…한다 · …이다」.',
-  '- 뒤집힌 내용은 지운다. 기록의 경위 · 논의 · 「바뀐 것 · 영향 · 맞춰 볼 것」 목록 · 커밋 메시지 · 코드 차이는 옮기지 않는다 — 기록에 남아 있다.',
-  '- 항목 머리(# · ##)와 표지(<!-- -->)는 쓰지 않는다. 항목 안의 소제목은 ### 아래나 굵은 글로 — 지금 글의 소제목은 그대로 둔다.',
-  '- 끝의 「**경과**」 목록은 kmd 가 단다 — 쓰지 않는다.',
+  '- 항목 하나는 대상 하나(기능 · 화면 · 테이블 · 절차 · 회의 한 번)의 지금이다. 기록을 날짜별로 덧붙이지 말고 지금 글에 녹여 다시 쓴다. 「추가했다 · 고쳤다」 가 아니라 「…한다 · …이다」.',
+  '- 뒤집힌 내용은 지운다. 기록의 경위 · 논의 · 「바뀐 것 · 영향 · 맞춰 볼 것」 목록 · 커밋 메시지 · 코드 차이는 옮기지 않는다. 기록에 남아 있다.',
+  '- 항목 머리(# · ##)와 표지(<!-- -->)는 쓰지 않는다. 항목 안의 소제목은 ### 아래나 굵은 글로: 지금 글의 소제목은 그대로 둔다.',
+  '- 끝의 「**경과**」 목록은 kmd 가 단다. 쓰지 않는다.',
 ].join('\n')
 
 export function promptOf(g) {
   if (g.kind === 'ingest')
     return [
-      '넣은 파일(기록)을 지식에 들인다. 후보 문서에 이어지는 내용이면 그 문서의 항목을 고쳐 쓰고(updates — 항목의 새 글 전체 · 후보에 없는 머리면 그 문서에 새 항목), 이어지는 문서가 없으면 새 문서를 세운다(newDoc — 경로와 항목들). 둘 다 해도 된다.',
+      '넣은 파일(기록)을 지식에 들인다. 후보 문서에 이어지는 내용이면 그 문서의 항목을 고쳐 쓰고(updates: 항목의 새 글 전체 · 후보에 없는 머리면 그 문서에 새 항목), 이어지는 문서가 없으면 새 문서를 세운다(newDoc: 경로와 항목들). 둘 다 해도 된다.',
       [
         '자리 고르기:',
         '- 문서 이름은 파일 이름이 아니라 그 글의 갈래 · 주제로 짓는다(예: 회의록 · 게이트웨이 설계 · 장애 대응). 날짜 · 번호 · 판 · 회사 약어 같은 파일 이름 조각은 문서 이름에 쓰지 않는다.',
-        '- 같은 갈래의 문서가 후보에 있으면(예: 회의록) 새 문서를 세우지 않고 그 문서에 새 항목으로 넣는다 — 항목 머리는 「언제 · 무엇」(예: 2026-10-21 HNC 통화).',
+        '- 같은 갈래의 문서가 후보에 있으면(예: 회의록) 새 문서를 세우지 않고 그 문서에 새 항목으로 넣는다. 항목 머리는 「언제 · 무엇」(예: 2026-10-21 HNC 통화).',
         '- 갈래 문서가 없으면 그 갈래 이름으로 새 문서를 세우고(예: newDoc.path = 회의록), 이 파일은 그 안의 항목 하나(머리 「언제 · 무엇」)로 둔다.',
         '- 파일에 정한 것 · 바뀐 값 · 할 일이 있고 그 주제의 문서가 후보에 있으면, 그 문서의 해당 항목에도 그 내용을 고쳐 넣는다(updates).',
         '- 표 · 목록은 그대로 둔다.',
@@ -120,16 +120,16 @@ export function promptOf(g) {
     return [
       '아래 기록이 바꾼 항목을 후보 중에서 고른다. 후보에 맞는 것이 없으면 빈 목록. JSON 으로만 답한다.',
       `기록: ${g.record.title}\n${g.record.body}`,
-      `후보:\n${g.candidates.map((c) => `- ${c.coord} — ${c.name}`).join('\n') || '(없음)'}`,
+      `후보:\n${g.candidates.map((c) => `- ${c.coord}: ${c.name}`).join('\n') || '(없음)'}`,
     ].join('\n\n')
   return [
     `문서 항목 「${g.name}」 의 글을 새 기록에 맞게 고쳐 쓴다. 기록에 있는 값(수 · 이름 · 코드)은 그대로 옮기고, 기록에 없는 값을 지어내지 않는다.`,
     '옛 글의 값을 새 기록이 바꿨으면 새 값으로 바꾸고 drop 에 옛 값을 적는다. 넣을 것이 없는 기록은 left 에 까닭과 함께 둔다.',
-    ...(g.records.some((r) => r.code) ? ['코드 커밋 기록은 「바뀐 값」 줄과 차이를 본다 — 글에 옛 값이 있으면 새 값으로 고치고, 코드에 없는 설명은 지어내지 않는다. 이 항목 글과 상관없는 커밋은 left 에 둔다.'] : []),
+    ...(g.records.some((r) => r.code) ? ['코드 커밋 기록은 「바뀐 값」 줄과 차이를 본다. 글에 옛 값이 있으면 새 값으로 고치고, 코드에 없는 설명은 지어내지 않는다. 이 항목 글과 상관없는 커밋은 left 에 둔다.'] : []),
     WRITE_RULES,
     'JSON 으로만 답한다.',
     `지금 글:\n${g.content || '(아직 없음)'}`,
-    `기록(오래된 것부터):\n${g.records.map((r) => `[${r.id}] ${r.date} ${r.author} — ${r.title}\n${r.body}`).join('\n\n')}`,
+    `기록(오래된 것부터):\n${g.records.map((r) => `[${r.id}] ${r.date} ${r.author}: ${r.title}\n${r.body}`).join('\n\n')}`,
   ].join('\n\n')
 }
 
@@ -151,10 +151,10 @@ export function check(k, g, d) {
   // G2 — 지금 글이 재료를 줄 때와 같나
   const x = sectionOf(k, g.coord)
   const whole = x?.sec ? x.sec.body : ''
-  if (sha16(whole) !== g.base) return { ok: false, why: '그사이 항목이 바뀌었다 — 다음 정리 때 다시 만든다', stale: true }
+  if (sha16(whole) !== g.base) return { ok: false, why: '그사이 항목이 바뀌었다. 다음 정리 때 다시 만든다', stale: true }
   // 그사이 같은 항목에 새 기록이 왔으면 같이 넣어야 한다(표지가 그 기록까지 「넣음」 으로 보이게 되므로)
   const pendNow = k.works.filter((w) => w.state === 'pend' && w.touches.includes(g.coord)).map((w) => w.id)
-  if (pendNow.some((x) => !ids.includes(x))) return { ok: false, why: '그사이 새 기록이 왔다 — 다음 정리 때 같이 넣는다', stale: true }
+  if (pendNow.some((x) => !ids.includes(x))) return { ok: false, why: '그사이 새 기록이 왔다. 다음 정리 때 같이 넣는다', stale: true }
   // 값 · 크기는 본문끼리 견준다(경과 줄은 저장이 지킨다)
   const cur = splitLog(whole).body
   // G6 — 표지 · 항목 머리 · 프런트매터 · script(소제목 ### 아래는 된다)
@@ -171,9 +171,9 @@ export function check(k, g, d) {
   const recV = new Set(used.flatMap((r) => [...valuesOf(r.body + ' ' + r.title)]))
   // 코드 바뀜 기록은 「바뀐 값」 의 새 값만 글에 있어야 한다(차이 속의 다른 수 · 옛 값까지 요구하면 늘 남는다)
   const missing = [...new Set(used.flatMap((r) => (r.code ? newValuesOf(r.body) : [...valuesOf(r.body)])))].filter((v) => !now.has(v) && !drop.has(v))
-  if (missing.length) return { ok: false, why: `기록의 값이 글에 없다 — ${missing.slice(0, 3).join(' · ')}` }
+  if (missing.length) return { ok: false, why: `기록의 값이 글에 없다: ${missing.slice(0, 3).join(' · ')}` }
   const invented = [...now].filter((v) => !oldV.has(v) && !recV.has(v))
-  if (invented.length) return { ok: false, why: `근거에 없는 값이 있다 — ${invented.slice(0, 3).join(' · ')}` }
+  if (invented.length) return { ok: false, why: `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` }
   const gone = [...oldV].filter((v) => !now.has(v))
   const came = [...now].filter((v) => !oldV.has(v))
   const changed = gone.length && came.length ? [{ from: gone.join(' · '), to: came.join(' · ') }] : []
@@ -199,7 +199,7 @@ function checkIngest(k, g, d) {
     const s = c.sections.find((x) => x.h === u.heading.trim())
     // 그사이 그 항목이 바뀌었나
     const cur = k.byDocPath.get(c.doc)?.sections.find((x) => x.h === u.heading.trim())
-    if (s && (!cur || sha16(cur.body) !== s.base)) return { ok: false, why: '그사이 항목이 바뀌었다 — 다음 정리 때 다시 만든다', stale: true }
+    if (s && (!cur || sha16(cur.body) !== s.base)) return { ok: false, why: '그사이 항목이 바뀌었다. 다음 정리 때 다시 만든다', stale: true }
     const curBody = cur ? splitLog(cur.body).body : ''
     if (s && !u.content.trim() && curBody.trim()) return { ok: false, why: '글을 비웠다' }
     if (cur) {
@@ -215,7 +215,7 @@ function checkIngest(k, g, d) {
   if (nd) {
     const p = String(nd.path || '').replace(/\\/g, '/').replace(/^docs\/|\.md$/g, '').trim()
     if (!p || p.split('/').some((x) => !x.trim() || x === '.' || x === '..' || x.length > 80) || /[<>:"|?*\u0000-\u001f]/.test(p)) return { ok: false, why: '새 문서 경로가 아니다' }
-    if (k.byDocPath.get(docRel(p))) return { ok: false, why: '이미 있는 문서다 — 새 문서가 아니라 고치기로' }
+    if (k.byDocPath.get(docRel(p))) return { ok: false, why: '이미 있는 문서다. 새 문서가 아니라 고치기로' }
     for (const s of nd.sections) {
       if (!oneLineH(s?.heading) || typeof s.content !== 'string') return { ok: false, why: '초안 모양이 아니다' }
       outs.push(s.content)
@@ -233,9 +233,9 @@ function checkIngest(k, g, d) {
   // 파일의 값은 빠짐없이 — 다른 후보 문서에 이미 있는 값 · 새 문서 이름에 든 값은 거기 있으므로 괜찮다 · 파일의 제목 줄(# …)은 문서 이름이 된다
   const elsewhere = valuesOf(g.docs.flatMap((c) => c.sections.map((s) => s.body)).join('\n') + ' ' + (nd ? nd.path : ''))
   const missing = [...valuesOf(g.record.body.replace(/^# .*$/gm, ''))].filter((v) => !now.has(v) && !elsewhere.has(v))
-  if (missing.length) return { ok: false, why: `파일의 값이 글에 없다 — ${missing.slice(0, 3).join(' · ')}` }
+  if (missing.length) return { ok: false, why: `파일의 값이 글에 없다: ${missing.slice(0, 3).join(' · ')}` }
   const invented = [...now].filter((v) => !recV.has(v) && !oldV.has(v))
-  if (invented.length) return { ok: false, why: `근거에 없는 값이 있다 — ${invented.slice(0, 3).join(' · ')}` }
+  if (invented.length) return { ok: false, why: `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` }
   return { ok: true, changed }
 }
 
@@ -275,7 +275,7 @@ export function ingestRule(k, g, { why = null } = {}) {
   const name = g.record.file.split('/').pop()
   const topic = topicOfName(g.record.file)
   const kind = kindOfName(name) || kindOfName(g.record.title)
-  const why1 = why ? [`- Claude 로 하지 못한 까닭 — ${why}`] : []
+  const why1 = why ? [`- Claude 로 하지 못한 까닭: ${why}`] : []
   if (kind) {
     const text = String(g.record.body).replace(/^# .*\n?/m, '').replace(/^#{2,6} (.+)$/gm, '**$1**').trim()
     if (!text) return null
@@ -289,7 +289,7 @@ export function ingestRule(k, g, { why = null } = {}) {
       doc: kind,
       note: `갈래 「${kind}」 ${doc ? '문서에 새 항목' : '새 문서'} ${heading}`,
       input: {
-        record: { title: `정리 — ${name} 들임`, body: [`규칙으로 — 갈래 「${kind}」 ${doc ? '문서에 새 항목' : '새 문서'} ${heading}`, ...why1].join('\n'), tags: ['curate-auto'], reflects: [g.record.id] },
+        record: { title: `정리: ${name} 들임`, body: [`규칙으로: 갈래 「${kind}」 ${doc ? '문서에 새 항목' : '새 문서'} ${heading}`, ...why1].join('\n'), tags: ['curate-auto'], reflects: [g.record.id] },
         sections: [{ doc: docRel(kind), heading, content: text }],
       },
     }
@@ -315,7 +315,7 @@ export function ingestRule(k, g, { why = null } = {}) {
     doc: p,
     note: '주제로 새 문서',
     input: {
-      record: { title: `정리 — ${name} 들임`, body: [`규칙으로 — 주제 문서 ${p} · 항목 ${secs.length}`, ...why1].join('\n'), tags: ['curate-auto'], reflects: [g.record.id] },
+      record: { title: `정리: ${name} 들임`, body: [`규칙으로: 주제 문서 ${p} · 항목 ${secs.length}`, ...why1].join('\n'), tags: ['curate-auto'], reflects: [g.record.id] },
       sections: secs.map((s) => ({ doc: docRel(p), heading: s.heading, content: s.content.join('\n').trim() })),
     },
   }
@@ -334,8 +334,8 @@ export function planSave(k, g, d, { model = null } = {}) {
     const name = g.record.file.split('/').pop()
     return {
       record: {
-        title: `정리 — ${name} 들임`,
-        body: [`초안: 정리 일꾼${model ? `(${model})` : ''} · 넣음: kmd · 넣은 파일 ${g.record.id}`, ...(p ? [`- 새 문서 ${p} — 항목 ${news.length}`] : []), ...ups.map((u) => `- 고침 ${u.doc.replace(/^docs\/|\.md$/g, '')} › ${u.heading}`), ...(d.why ? [`- 까닭 — ${d.why}`] : [])].join('\n'),
+        title: `정리: ${name} 들임`,
+        body: [`초안: 정리 일꾼${model ? `(${model})` : ''} · 넣음: kmd · 넣은 파일 ${g.record.id}`, ...(p ? [`- 새 문서 ${p}: 항목 ${news.length}`] : []), ...ups.map((u) => `- 고침 ${u.doc.replace(/^docs\/|\.md$/g, '')} › ${u.heading}`), ...(d.why ? [`- 까닭: ${d.why}`] : [])].join('\n'),
         tags: ['curate-llm'],
         reflects: [g.record.id],
       },
@@ -343,12 +343,12 @@ export function planSave(k, g, d, { model = null } = {}) {
     }
   }
   if (g.kind === 'touches')
-    return { record: { title: `이름 바로잡음 — ${g.record.title.split(' — ')[0]}`, body: `정리 일꾼이 이 기록이 바꾼 항목을 골랐다${d.why ? ` — ${d.why}` : ''}`, touches: d.touches, tags: ['curate-llm', 'touches-fix'], fixes: [g.record.id], date: g.record.date } }
+    return { record: { title: `이름 바로잡음: ${g.record.title.split(/ — |: /)[0]}`, body: `정리 일꾼이 이 기록이 바꾼 항목을 골랐다${d.why ? `: ${d.why}` : ''}`, touches: d.touches, tags: ['curate-llm', 'touches-fix'], fixes: [g.record.id], date: g.record.date } }
   const used = g.records.filter((r) => d.used.includes(r.id))
   return {
     record: {
-      title: `정리 — ${g.name}`,
-      body: [`초안: 정리 일꾼${model ? `(${model})` : ''} · 넣음: kmd`, ...used.map((r) => `- 넣음 ${r.id} — ${r.title}`), ...d.left.map((x) => `- 둠 ${x.id} — ${x.why}`)].join('\n'),
+      title: `정리: ${g.name}`,
+      body: [`초안: 정리 일꾼${model ? `(${model})` : ''} · 넣음: kmd`, ...used.map((r) => `- 넣음 ${r.id}: ${r.title}`), ...d.left.map((x) => `- 둠 ${x.id}: ${x.why}`)].join('\n'),
       touches: [g.coord],
       tags: ['curate-llm'],
       curates: d.left.map((x) => ({ id: x.id, verdict: 'keep', rule: 'tidy', reason: x.why })),

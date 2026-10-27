@@ -1,7 +1,9 @@
-// 에이전트 설치 — 작업 폴더의 Claude Code 에 kmd 를 붙인다(스킬 셋 · 연결 둘 · CLAUDE.md 안 kmd 덩이).
+// 에이전트 설치 — 작업 폴더의 Claude Code 에 kmd 를 붙인다(스킬 셋 · 연결 하나 · CLAUDE.md 안 kmd 덩이).
 //
+//   영역   폴더 하나는 한 영역: 팀(kmd-team · 팀 지식 하나) 또는 개인(kmd 이 PC · 개인 지식 하나). 다른 쪽 연결은 걷는다
 //   스킬   <폴더>/.claude/skills/kmd-work · kmd-save · kmd-build (레포의 agent/skills 그대로)
-//   연결   <폴더>/.mcp.json 의 mcpServers.kmd(이 PC) · kmd-team(이은 팀) — 열쇠는 넣지 않고 헤더 도우미(kmd-key)가 꺼낸다
+//   연결   <폴더>/.mcp.json 의 mcpServers.kmd(이 PC) 또는 kmd-team(이은 팀). 열쇠는 넣지 않고 헤더 도우미(kmd-key)가 꺼낸다
+//   기본 지식  덩이 끝에 한 줄. 기록 · 저장은 그 지식에 남긴다
 //   안내   <폴더>/CLAUDE.md 안 `<!-- kmd:begin v=… -->` ~ `<!-- kmd:end -->` — 표지 밖의 줄은 바이트 그대로 둔다
 //   판     덩이 표지의 v · 스킬 파일의 지문 — 지금 판과 다르면 「옛 판」 · 없으면 「없음」
 //   목록   이 PC 의 붙인 폴더는 <data>/agent.json
@@ -31,6 +33,12 @@ async function kitParts() {
 }
 export const kitVersion = async () => (await kitParts()).ver
 
+// 이 폴더의 기본 지식 몇 줄(덩이 안 · 판 지문에는 들지 않는다)
+export function knLine({ area, kn, knName } = {}) {
+  if (!area || !kn) return ''
+  const via = area === 'team' ? 'kmd-team(팀 서버)' : 'kmd(이 PC 의 개인 지식)'
+  return `\n\n## 이 폴더의 기본 지식\n\n- 영역: ${area === 'team' ? '팀' : '개인'} · 연결: ${via}\n- 기본 지식: 「${knName || kn}」 (id: ${kn})\n- 기록 · 저장은 이 지식에 남긴다. 다른 지식은 사람이 말할 때만 읽는다.`
+}
 function withBlock(text, block, ver) {
   const body = `<!-- kmd:begin v=${ver} -->\n${block}\n<!-- kmd:end -->`
   const t = String(text || '')
@@ -54,7 +62,7 @@ async function checkDir(dir) {
 }
 
 // 붙이기 · 최신으로 — 같은 일(덮어쓰기는 kmd 의 것만)
-export async function install(dir, { pcUrl = null, teamUrl = null } = {}) {
+export async function install(dir, { pcUrl = null, teamUrl = null, area = null, kn = null, knName = null } = {}) {
   const full = await checkDir(dir)
   const { skills, block, ver } = await kitParts()
   for (const s of skills) {
@@ -65,12 +73,14 @@ export async function install(dir, { pcUrl = null, teamUrl = null } = {}) {
   const mf = path.join(full, '.mcp.json')
   const cur = await fs.readFile(mf, 'utf8').then(JSON.parse, () => ({}))
   const servers = { ...(cur.mcpServers || {}) }
-  if (pcUrl) servers.kmd = mcpConfig(pcUrl)
-  if (teamUrl) servers['kmd-team'] = mcpConfig(teamUrl)
+  if (area !== 'team' && pcUrl) servers.kmd = mcpConfig(pcUrl)
+  if (area !== 'me' && teamUrl) servers['kmd-team'] = mcpConfig(teamUrl)
+  if (area === 'team') delete servers.kmd
+  if (area === 'me') delete servers['kmd-team']
   await fs.writeFile(mf, JSON.stringify({ ...cur, mcpServers: servers }, null, 2) + '\n')
   const cf = path.join(full, 'CLAUDE.md')
-  await fs.writeFile(cf, withBlock(await fs.readFile(cf, 'utf8').catch(() => ''), block, ver))
-  return { dir: full, ver }
+  await fs.writeFile(cf, withBlock(await fs.readFile(cf, 'utf8').catch(() => ''), block + knLine({ area, kn, knName }), ver))
+  return { dir: full, ver, area, kn }
 }
 
 export async function status(dir) {

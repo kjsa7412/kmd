@@ -37,7 +37,7 @@ async function agentIngest({ server, dkey, kn, g, log, models }) {
     await flush()
   }
   const d = await call(server, dkey, `/api/k/${kn}/worker/agent/done`, { run: t.run, ok: r.ok, why: r.ok ? null : r.message })
-  log(`${decodeURIComponent(kn)} — 넣은 파일 ${g.record.file} ${d.placed ? '에이전트로 넣음' : '에이전트가 넣지 못함'}`)
+  log(`${decodeURIComponent(kn)}: 넣은 파일 ${g.record.file} ${d.placed ? '에이전트로 넣음' : '에이전트가 넣지 못함'}`)
   return { placed: !!d.placed, error: r.ok ? null : r.error }
 }
 
@@ -51,7 +51,7 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
   try {
     groups = (await call(server, dkey, `/api/k/${kn}/worker/material`)).groups
   } catch (e) {
-    log(`재료를 받지 못했다 — ${job.kn}: ${e.message}`)
+    log(`재료를 받지 못했다: ${job.kn}: ${e.message}`)
     await call(server, dkey, `/api/k/${kn}/worker/drafts`, { drafts: [] }).catch(() => {})
     return { job, rows: [], skipped: e.message }
   }
@@ -67,7 +67,7 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
       const a = await agentIngest({ server, dkey, kn, g, log, models }).catch((e) => ({ placed: false, error: null, why: e.message }))
       if (a.error === 'login' || a.error === 'limit') {
         stop = a.error
-        log(`정리 일꾼이 쉰다 — ${a.error === 'login' ? '로그인이 끝났다' : '한도에 닿았다'}`)
+        log(`정리 일꾼이 쉰다: ${a.error === 'login' ? '로그인이 끝났다' : '한도에 닿았다'}`)
         items.push({ group: g, error: stop })
         continue
       }
@@ -76,7 +76,7 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
     const r = await runClaude({ prompt: promptOf(g), schema: g.kind === 'touches' ? TOUCH_SCHEMA : g.kind === 'ingest' ? INGEST_SCHEMA : DRAFT_SCHEMA, budget, model: modelOf(g.kind === 'touches' ? 'touch' : 'tidy', models) })
     if (r.error === 'login' || r.error === 'limit') {
       stop = r.error
-      log(`정리 일꾼이 쉰다 — ${r.error === 'login' ? '로그인이 끝났다' : '한도에 닿았다'}`)
+      log(`정리 일꾼이 쉰다: ${r.error === 'login' ? '로그인이 끝났다' : '한도에 닿았다'}`)
     }
     items.push({ group: g, draft: r.value ?? null, model: r.model, error: r.error || null })
   }
@@ -94,12 +94,12 @@ export function runWorker({ server, key, poll = 10_000, log = (...a) => console.
       try {
         const r = await workOnce({ server, key, log, models })
         if (r) {
-          log(`${r.job.kn} — 넣음 ${r.summary?.put ?? 0} · 값 바뀜 ${r.summary?.changed ?? 0} · 그대로 둠 ${r.summary?.left ?? 0}`)
+          log(`${r.job.kn}: 넣음 ${r.summary?.put ?? 0} · 값 바뀜 ${r.summary?.changed ?? 0} · 그대로 둠 ${r.summary?.left ?? 0}`)
           continue
         }
       } catch (e) {
-        if (e.status === 401 && onLost) { stopped = true; log('일꾼 열쇠가 끊겼다 — 다시 받는다'); onLost(); return }
-        log(`서버에 닿지 않는다 — ${e.message}`)
+        if (e.status === 401 && onLost) { stopped = true; log('일꾼 열쇠가 끊겼다. 다시 받는다'); onLost(); return }
+        log(`서버에 닿지 않는다: ${e.message}`)
       }
       await new Promise((ok) => setTimeout(ok, poll))
     }
@@ -116,14 +116,14 @@ export function runPersonalWorkers({ teams, deviceKey, poll = 10_000, retryMs = 
     const start = async () => {
       try {
         const dk = await deviceKey(server)
-        if (!dk) return log(`${server} — 이은 기기 열쇠가 없다 · 개인 지식은 팀 서버가 규칙으로 넣는다`)
+        if (!dk) return log(`${server}: 이은 기기 열쇠가 없다 · 개인 지식은 팀 서버가 규칙으로 넣는다`)
         const r = await fetch(server + '/api/me/worker', { method: 'POST', headers: { authorization: `Bearer ${dk}`, 'content-type': 'application/json' }, body: '{}' })
         const j = await r.json().catch(() => ({}))
         if (!r.ok) throw new Error(j.message || `${r.status}`)
         stops.push(runWorker({ server, key: j.key, poll, log, models, onLost: () => { const t = setTimeout(start, 5000); t.unref?.(); stops.push({ stop: () => clearTimeout(t) }) } }))
-        log(`${server} — 내 개인 지식의 정리 일감을 이 PC 의 Claude 로 받는다`)
+        log(`${server}: 내 개인 지식의 정리 일감을 이 PC 의 Claude 로 받는다`)
       } catch (e) {
-        log(`${server} — 내 개인 지식 일꾼을 띄우지 못했다(${e.message}) · 다시 한다`)
+        log(`${server}: 내 개인 지식 일꾼을 띄우지 못했다(${e.message}) · 다시 한다`)
         const t = setTimeout(start, retryMs)
         t.unref?.()
         stops.push({ stop: () => clearTimeout(t) })

@@ -47,10 +47,10 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('소스 코드(git) — 지금 커밋이 기준 · 새 커밋마다 기록(커밋 메시지 · 바뀐 값 · 차이 · 이름) → 정리가 저절로 걸려 항목 글의 값이 바뀐다', async () => {
+test('소스 코드(git): 지금 커밋이 기준 · 새 커밋마다 기록(커밋 메시지 · 바뀐 값 · 차이 · 이름) → 정리가 저절로 걸려 항목 글의 값이 바뀐다', async () => {
   const r0 = await s.hub.sourceAdd(ADMIN, 'dpms', { name: 'api 코드', kind: 'git', at: repo, every: 'manual' })
-  assert.deepEqual(r0.source.rules, [], '무엇을 채우나가 없다 — 커밋만 본다')
-  assert.equal(r0.run[0].codeRecords, 0, '처음은 기준만 — 기록 0')
+  assert.deepEqual(r0.source.rules, [], '무엇을 채우나가 없다. 커밋만 본다')
+  assert.equal(r0.run[0].codeRecords, 0, '처음은 기준만: 기록 0')
   assert.match((await s.hub.sources(ADMIN, 'dpms')).find((x) => x.name === 'api 코드').state.lastNote, /^기준 묶음 [0-9a-f]{7}/)
 
   W(path.join(repo, 'HealthCheck.java'), '// 헬스 체크 — 시간 초과는 5초\nclass HealthCheck {\n  int timeoutSec = 5;\n}\n')
@@ -60,15 +60,15 @@ test('소스 코드(git) — 지금 커밋이 기준 · 새 커밋마다 기록(
   assert.equal(r1.commits, 1)
   assert.equal(r1.codeRecords, 1)
   const [rec] = await codeRecs('dpms')
-  assert.match(rec.title, /^헬스 체크 시간 초과를 늘림 — api 코드 [0-9a-f]{7}$/, '제목은 커밋 메시지')
+  assert.match(rec.title, /^헬스 체크 시간 초과를 늘림: api 코드 [0-9a-f]{7}$/, '제목은 커밋 메시지')
   assert.deepEqual(rec.touches, ['proc:헬스 체크'])
-  assert.match(rec.body, /^바뀐 값: 3초 → 5초 — HealthCheck\.java/)
+  assert.match(rec.body, /^바뀐 값: 3초 → 5초: HealthCheck\.java/)
   assert.match(rec.body, /api 코드 · 묶음 [0-9a-f]{7} · 박개발 · \d{4}-\d{2}-\d{2} \d{2}:\d{2}/)
   assert.match(rec.body, /```diff\n# HealthCheck\.java[\s\S]*-\/\/ 헬스 체크 — 시간 초과는 3초[\s\S]*\+\/\/ 헬스 체크 — 시간 초과는 5초/)
   assert.ok(!rec.body.includes('HealthCheckTest'), '시험 파일은 보지 않는다')
   assert.equal(rec.author, 'kmd')
   assert.equal(rec.state, 'pend')
-  assert.ok(rec.path.startsWith('work/'), '커밋 기록은 기록(지식이 될 글) — 이력이 아니다')
+  assert.ok(rec.path.startsWith('work/'), '커밋 기록은 기록(지식이 될 글): 이력이 아니다')
 
   // 정리가 저절로 걸렸다 → 일꾼(가짜 claude)이 항목 글의 3초 를 5초 로
   const job = s.hub.jobsOf('dpms').find((j) => j.state === 'queued')
@@ -106,12 +106,12 @@ test('「Claude 에 보내지 않음」 지식은 기록만 · 코드 폴더 · 
   W(path.join(repo, 'HealthCheck.java'), '// 헬스 체크 — 시간 초과는 7초\nclass HealthCheck {\n  int timeoutSec = 7;\n}\n')
   commit('헬스 체크 7초')
   const r = (await s.hub.sourceRun('dpms', 'api 코드'))[0]
-  assert.equal(r.codeRecords, 1, '기록은 남는다 — 무엇이 바뀌었나는 지식')
+  assert.equal(r.codeRecords, 1, '기록은 남는다. 무엇이 바뀌었나는 지식')
   assert.equal(queued(), q0, '정리(Claude)는 걸지 않는다')
   assert.equal((await s.hub.sources(ADMIN, 'dpms')).find((x) => x.name === 'api 코드').meaningBlocked, true)
   await s.hub.setOwner(SHELL, 'dpms', { noClaude: false })
 
-  await assert.rejects(s.hub.sourceAdd(ADMIN, 'dpms', { name: '폴더', kind: 'folder', at: repo, rules: [] }), { code: 'E_INPUT' }, '코드 폴더는 없다 — git 으로')
-  await assert.rejects(s.hub.sourceResync(ADMIN, 'dpms', 'api 코드'), { code: 'E_INPUT' }, '커밋으로 본다 — 다시 맞출 것이 없다')
+  await assert.rejects(s.hub.sourceAdd(ADMIN, 'dpms', { name: '폴더', kind: 'folder', at: repo, rules: [] }), { code: 'E_INPUT' }, '코드 폴더는 없다. git 으로')
+  await assert.rejects(s.hub.sourceResync(ADMIN, 'dpms', 'api 코드'), { code: 'E_INPUT' }, '커밋으로 본다. 다시 맞출 것이 없다')
   await assert.rejects(s.hub.save(ADMIN, 'dpms', { record: { title: '흉내', body: 'x', tags: ['code-change'] } }), { code: 'E_FORBIDDEN' })
 })

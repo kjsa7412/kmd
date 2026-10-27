@@ -141,6 +141,7 @@ code{font:12px var(--mono);background:var(--surface-2);padding:1px 5px;border-ra
 .kt.me{background:#11151c;color:#fff}
 .kt.team{background:var(--accent-bg);color:var(--accent)}
 .kt.role{background:var(--surface);color:var(--text-2);border:1px solid var(--border-strong);font-weight:500}
+.kt.gone{background:var(--surface-3);color:var(--text-3)}
 .kt.src{background:var(--surface);border:1px solid var(--border-strong);color:var(--text-2);font-weight:500}
 .kn{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:1px 8px;white-space:nowrap}
 .kn.none{color:var(--text-3);border-style:dashed}
@@ -734,6 +735,8 @@ html,body{background:var(--bg)}
 .kcard.over{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-line)}
 .kcard.add{border:1.5px dashed var(--border-strong);background:none;box-shadow:none;align-items:center;justify-content:center;color:var(--text-2);font-weight:600;gap:4px}
 .kcard.add:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-bg)}
+.kcard.add.dim{opacity:.6}
+.kcard.old{border-style:dashed}
 .kcard.add .pl{font-size:22px;line-height:1;font-weight:400}
 .kcard .grip{position:absolute;left:4px;top:50%;transform:translateY(-50%);color:var(--border-strong);font-size:11px;letter-spacing:-2px;cursor:grab;user-select:none}
 /* 가져오는 곳 줄 */

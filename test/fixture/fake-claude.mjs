@@ -62,7 +62,7 @@ process.stdin.on('end', () => {
   let content = cur === '(아직 없음)' ? '' : cur
   const drop = []
   for (const r of recs) {
-    const sw = /(\S+) → (\S+)/.exec(r.body)
+    const sw = /(\S+) → ([^\s:]+)/.exec(r.body)
     if (sw && content.includes(sw[1])) {
       content = content.split(sw[1]).join(sw[2])
       drop.push(sw[1])

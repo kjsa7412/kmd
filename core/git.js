@@ -14,7 +14,7 @@ function git1(cwd, args, { input } = {}) {
   return new Promise((resolve, reject) => {
     const env = { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never', LANG: 'C.UTF-8' }
     const p = execFile('git', [...BASE, ...args], { cwd, env, maxBuffer: 64 << 20, windowsHide: true }, (err, stdout, stderr) => {
-      if (err) reject(Object.assign(new KmdError('E_GIT', `git ${args[0]} 이 실패했다 — ${String(stderr || err.message).trim().split('\n')[0]}`), { lock: /index\.lock'?:? File exists|Unable to create '.*index\.lock'/.test(String(stderr)) }))
+      if (err) reject(Object.assign(new KmdError('E_GIT', `git ${args[0]} 이 실패했다: ${String(stderr || err.message).trim().split('\n')[0]}`), { lock: /index\.lock'?:? File exists|Unable to create '.*index\.lock'/.test(String(stderr)) }))
       else resolve(stdout)
     })
     if (input != null) p.stdin.end(input)
@@ -29,7 +29,7 @@ export async function git(cwd, args, opt = {}) {
       return await git1(cwd, args, opt)
     } catch (e) {
       if (!e.lock || i >= 20) {
-        if (e.lock) throw new KmdError('E_BUSY', '이 지식의 저장소를 다른 일이 쓰고 있다 — 잠시 뒤 다시 한다(계속되면 관리자에게 — .git/index.lock)')
+        if (e.lock) throw new KmdError('E_BUSY', '이 지식의 저장소를 다른 일이 쓰고 있다. 잠시 뒤 다시 한다(계속되면 관리자에게: .git/index.lock)')
         throw e
       }
       const lock = path.join(cwd, '.git', 'index.lock')
@@ -85,7 +85,7 @@ export async function ensureRepo(dir) {
   await git(dir, ['init', '-q', '-b', 'main'])
   await git(dir, ['add', '-A'])
   const staged = (await git(dir, ['diff', '--cached', '--name-only'])).trim()
-  if (staged) await git(dir, [...who('kmd'), 'commit', '-q', '-m', '처음 — 있던 글'])
+  if (staged) await git(dir, [...who('kmd'), 'commit', '-q', '-m', '처음. 있던 글'])
   return true
 }
 

@@ -76,7 +76,7 @@ if (first) {
   for (const k of ['dpms', 'gdi']) { const b = path.join(BASE, 'bk', `${k}.git`); bare(b); await team.hub.backupAttach(SHELL, k, b).catch(() => {}) }
   // 정리할 것 몇 개 — lee 가 남긴 기록
   await team.hub.save({ user: 'lee' }, 'dpms', { record: { title: '카나리 비율', body: '첫 30분 요청 10% → 20%', touches: ['proc:카나리'] } })
-  await team.hub.save({ user: 'lee' }, 'dpms', { record: { title: '알람 — 당번 채널', body: '받는 곳에 #ops-oncall 도 더한다.', touches: ['term:알람'] } })
+  await team.hub.save({ user: 'lee' }, 'dpms', { record: { title: '알람: 당번 채널', body: '받는 곳에 #ops-oncall 도 더한다.', touches: ['term:알람'] } })
   // PC — 배포노트는 팀 dpms 로 보낸다 · 백업은 다른 폴더
   await pc.hub.sendDests({ user: pc.pcUser, pc: true }, '배포노트', [{ kn: 'dpms', url: TEAM_URL }])
   for (const k of ['배포노트', '설계메모', '받은편지함']) { const b = path.join(BASE, 'pc-bk', `${k}.git`); fs.mkdirSync(path.dirname(b), { recursive: true }); bare(b); await pc.hub.backupAttach(SHELL, k, b).catch(() => {}) }
@@ -96,11 +96,11 @@ const u = freshLink()
 setInterval(freshLink, 50_000)
 
 console.log(`
-kmd 로컬 시험 환경${first ? ' — 처음 세움' : ''}
+kmd 로컬 시험 환경${first ? ': 처음 세움' : ''}
   팀  ${TEAM_URL}   kim / ${PW.kim} (관리자) · park / ${PW.park} (dpms 주인) · lee / ${PW.lee}
   PC  ${u}
-      (60초 안에 연다 — 새 주소는 ${path.relative(ROOT, linkFile)} 에 50초마다)
-  자리 ${path.relative(ROOT, BASE)} — 지우면 처음 상태로 · 끄기 Ctrl C
+      (60초 안에 연다. 새 주소는 ${path.relative(ROOT, linkFile)} 에 50초마다)
+  자리 ${path.relative(ROOT, BASE)}: 지우면 처음 상태로 · 끄기 Ctrl C
 `)
 const stop = async () => { await team.close(); await pc.close(); process.exit(0) }
 process.on('SIGINT', stop)

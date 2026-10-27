@@ -55,7 +55,7 @@ async function loadConfig(dataDir) {
   try {
     return JSON.parse(t)
   } catch (e) {
-    throw new Error(`serve.json 이 깨졌다 — ${e.message}`)
+    throw new Error(`serve.json 이 깨졌다: ${e.message}`)
   }
 }
 
@@ -76,7 +76,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         regAt = m
         list = null // 셸이 되살렸거나 고친 지식 — 목록도 다시 읽는다
       } catch (e) {
-        log('owners.json 을 다시 읽지 못했다 — 앞의 것을 쓴다', e.message)
+        log('owners.json 을 다시 읽지 못했다. 앞의 것을 쓴다', e.message)
       }
     }
     return reg
@@ -186,7 +186,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (j.state !== 'running' || !(j.leaseUntil < Date.now())) continue
       j.tries = (j.tries || 0) + 1
       changed = true
-      if (j.tries >= 3) Object.assign(j, { state: 'failed', why: '정리 일꾼이 세 번 끝내지 못했다 — 일꾼 기록을 본다', done: new Date().toISOString() })
+      if (j.tries >= 3) Object.assign(j, { state: 'failed', why: '정리 일꾼이 세 번 끝내지 못했다. 일꾼 기록을 본다', done: new Date().toISOString() })
       else Object.assign(j, { state: 'queued', worker: null, why: '정리 일꾼이 끝내지 못해 다시 기다린다' })
     }
     if (changed) saveJobs()
@@ -254,12 +254,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         try {
           const b = badOf(d, payload, await deliver(ctx, d, payload))
           sent += part.length - (b ? b.payload.items.length : 0)
-          if (b) { waits.push(b); fail += b.payload.items.length; why.push(`${d.kn} — ${b.why}`) }
+          if (b) { waits.push(b); fail += b.payload.items.length; why.push(`${d.kn}: ${b.why}`) }
         } catch (e) {
           const w = waitOf(d, payload, e)
           waits.push(w)
           if (w.state === 'wait') wait += part.length
-          else { fail += part.length; why.push(`${d.kn} — ${w.why}`) }
+          else { fail += part.length; why.push(`${d.kn}: ${w.why}`) }
         }
       }
     }
@@ -309,7 +309,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 지식 추가 — 새 이름(PC: 지식 폴더 안 · 팀: 서버 안 내 지식 · 나만) · 내 폴더(PC 만 · 지식 폴더 안의 새 지식으로 들여온다 · 원본은 그대로)
     async addKnowledge(ctx, { kind, name, dir, empty = false, team = false }) {
-      if (await looksLikeKnowledge(root)) throw new KmdError('E_INPUT', '이 kmd 는 지식 하나만 연다 — 여러 지식을 두려면 위 폴더에서 띄운다')
+      if (await looksLikeKnowledge(root)) throw new KmdError('E_INPUT', '이 kmd 는 지식 하나만 연다. 여러 지식을 두려면 위 폴더에서 띄운다')
       if (kind === 'new') {
         const nm = String(name || '').normalize('NFC').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').trim()
         if (!nm || nm.length > 60 || nm.startsWith('.')) throw new KmdError('E_INPUT', '이름은 한 줄 60자 안')
@@ -318,7 +318,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         // 팀 서버 — 관리자가 고르면 팀 지식(이름 그대로 · 주인은 만든 관리자 · 팀 모두 본다), 아니면 내 지식(이름-아이디 · 나만)
         const teamKn = mode === 'team' && !!team
         // 팀 지식은 관리자만 세운다 · 팀 서버 안 내 지식(개인 지식 · 나만)은 누구나 — 거기서 쓰고 가져오고 팀 지식으로 보낸다
-        if (teamKn && !ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '팀 지식은 팀 서버 관리자가 세운다 — 개인 지식은 누구나 세운다')
+        if (teamKn && !ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '팀 지식은 팀 서버 관리자가 세운다')
         if (mode === 'team') id = (teamKn ? nm : `${nm}-${ctx.user}`).replace(/[<>:"/\\|?*\s]+/g, '-')
         if (all.some((k) => k.id.toLowerCase() === id.toLowerCase())) throw new KmdError('E_CONFLICT', `「${nm}」 지식이 이미 있다`)
         const d = path.join(root, id)
@@ -340,8 +340,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           await fs.mkdir(path.join(d, 'docs'), { recursive: true })
           await fs.mkdir(path.join(d, 'work'), { recursive: true })
           await fs.writeFile(path.join(d, 'README.md'), `# ${nm}\n`, 'utf8')
-          if (!empty) await fs.writeFile(path.join(d, 'docs', '처음.md'), `# 처음\n\n## 개요\n새 지식 — 첫 문서를 쓴다.\n`, 'utf8')
-          await commitPaths(d, [...(empty ? ['README.md'] : ['README.md', 'docs/처음.md']), ...(mode === 'team' ? ['_members.md'] : [])], `지식 만듦 — ${nm}`, ctx.user)
+          if (!empty) await fs.writeFile(path.join(d, 'docs', '처음.md'), `# 처음\n\n## 개요\n새 지식: 첫 문서를 쓴다.\n`, 'utf8')
+          await commitPaths(d, [...(empty ? ['README.md'] : ['README.md', 'docs/처음.md']), ...(mode === 'team' ? ['_members.md'] : [])], `지식 만듦: ${nm}`, ctx.user)
         } catch (e) {
           // 내가 차지한 폴더를 지운 뒤에만 줄을 지운다(폴더가 남으면 「나만」 줄도 남긴다)
           const gone = await fs.rm(d, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).then(() => true, () => false)
@@ -354,7 +354,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (mode === 'pc' && started) watchers.push(Object.assign(collect.watch(d, () => hub.collect(id)), { dir: d })) // 편집기에서 고친 것 거두기 — 켤 때 없던 지식도
         await hub.gitlabAttach(id).catch((e) => log('GitLab 백업 자리', id, e.message))
         await hub.autoBackup(id).catch((e) => log('백업 자리', id, e.message))
-        feed.add(dataDir, ctx.user, { kind: 'kn', kn: id, dot: 'acc', text: `지식을 추가했다 — ${nm}`, small: mode === 'team' ? (teamKn ? `팀 지식 · 팀 모두 본다 · 주인 ${ctx.user}` : '팀 서버 안 내 지식 · 나만') : d }).catch(() => {})
+        feed.add(dataDir, ctx.user, { kind: 'kn', kn: id, dot: 'acc', text: `지식을 추가했다: ${nm}`, small: mode === 'team' ? (teamKn ? `팀 지식 · 팀 모두 본다 · 주인 ${ctx.user}` : '팀 서버 안 내 지식 · 나만') : d }).catch(() => {})
         return { id, name: nm, dir: mode === 'pc' ? d : undefined }
       }
       // 지식 폴더 밖의 폴더 — 그 자리에서 따라가지 않는다(남의 폴더에 쓰지 않게 · 지식은 지식 폴더 안에만).
@@ -364,8 +364,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const full = path.resolve(String(dir || ''))
         if (!path.isAbsolute(String(dir || '')) || !(await fs.stat(full).then((s) => s.isDirectory(), () => false))) throw new KmdError('E_NOTFOUND', '그 폴더가 없다')
         const inside = (a, b) => { const r = path.relative(b.toLowerCase(), a.toLowerCase()); return r === '' || (!r.startsWith('..') && !path.isAbsolute(r)) }
-        if (path.parse(full).root.toLowerCase() === full.toLowerCase() || full.toLowerCase() === os.homedir().toLowerCase()) throw new KmdError('E_INPUT', '드라이브 통째 · 사용자 집 폴더 통째는 들여오지 않는다 — 그 안의 폴더를 고른다')
-        if (inside(full, path.resolve(root))) throw new KmdError('E_INPUT', '이미 지식 폴더 안이다 — 지식 목록에서 연다')
+        if (path.parse(full).root.toLowerCase() === full.toLowerCase() || full.toLowerCase() === os.homedir().toLowerCase()) throw new KmdError('E_INPUT', '드라이브 통째 · 사용자 집 폴더 통째는 들여오지 않는다. 그 안의 폴더를 고른다')
+        if (inside(full, path.resolve(root))) throw new KmdError('E_INPUT', '이미 지식 폴더 안이다. 지식 목록에서 연다')
         if (inside(path.resolve(root), full)) throw new KmdError('E_INPUT', '지식 폴더를 품은 폴더는 들여오지 않는다')
         // 이미 지식 모양(docs 폴더)이면 그 docs 안을 · 아니면 폴더 전체를 문서로 · 숨김 · node_modules 는 보지 않는다
         const src = (await fs.stat(path.join(full, 'docs')).then((s) => s.isDirectory(), () => false)) ? path.join(full, 'docs') : full
@@ -380,7 +380,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
               const st = await fs.stat(path.join(d, e.name))
               bytes += st.size
               files.push({ path: r, full: path.join(d, e.name) })
-              if (files.length > MAX_FILES || bytes > MAX_BYTES) throw new KmdError('E_INPUT', `한 번에 ${MAX_FILES} 파일 · 200MB 까지 — 가져오기에서 나눠 넣는다`)
+              if (files.length > MAX_FILES || bytes > MAX_BYTES) throw new KmdError('E_INPUT', `한 번에 ${MAX_FILES} 파일 · 200MB 까지: 가져오기에서 나눠 넣는다`)
             }
           }
         }
@@ -399,14 +399,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         cache.delete(made.id)
         return { ...made, from: full, summary: r.summary }
       }
-      throw new KmdError('E_INPUT', '알아듣지 못했다 — 이름 · 내 PC 폴더 경로를 붙인다')
+      throw new KmdError('E_INPUT', '알아듣지 못했다. 이름 · 내 PC 폴더 경로를 붙인다')
     },
     // 지식 지우기 — 보관하지 않고 완전히. 지식 폴더 · kmd 가 그 지식에 대해 둔 살림(백업 연결 · 색인 · 보내기 · 정리 · 가져오기 상태 · 주인 줄)을
     // 모두 지운다. 확인은 지식 이름을 그대로 다시 쓰는 것. 백업 자리에 이미 보낸 이력은 kmd 가 지우지 않는다(백업 자리의 일).
     // 누가 — 이 PC 의 주인 · 팀은 관리자 또는 개인 지식의 주인
     async deleteKnowledge(ctx, id, { confirm } = {}) {
       const meta = await hub.meta(id, ctx)
-      if (await looksLikeKnowledge(root)) throw new KmdError('E_INPUT', '이 kmd 는 지식 하나만 연다 — 지울 수 없다')
+      if (await looksLikeKnowledge(root)) throw new KmdError('E_INPUT', '이 kmd 는 지식 하나만 연다. 지울 수 없다')
       const row = rowFor(id)
       const mine = row?.owner && row.owner === ctx.user && row.private
       if (mode !== 'pc' && !ctx.pc && !ctx.admin && !ctx.shell && !mine) throw new KmdError('E_FORBIDDEN', '팀 지식은 관리자가 지운다')
@@ -437,9 +437,61 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (links) await fs.writeFile(lf, JSON.stringify(links.filter((l) => l.id !== id), null, 1))
       if (rowFor(id)) await mutateReg((next) => { delete next.knowledge[id] })
       list = null
-      feed.add(dataDir, ctx.user || 'kmd', { kind: 'kn', dot: 'acc', text: `지식을 지웠다 — ${meta.name}`, small: inRoot ? '보관하지 않고 완전히' : '잇기만 끊었다 — 폴더는 그 자리에 그대로' }).catch(() => {})
-      log(`지식을 지웠다 — ${meta.name}${inRoot ? '' : ' (잇기만 끊음)'}`)
+      feed.add(dataDir, ctx.user || 'kmd', { kind: 'kn', dot: 'acc', text: `지식을 지웠다: ${meta.name}`, small: inRoot ? '보관하지 않고 완전히' : '잇기만 끊었다. 폴더는 그 자리에 그대로' }).catch(() => {})
+      log(`지식을 지웠다: ${meta.name}${inRoot ? '' : ' (잇기만 끊음)'}`)
       return { id, name: meta.name, removed: inRoot }
+    },
+    // 팀 서버의 옛 개인 지식을 내 PC 로 옮기기. 개인 지식은 이제 내 PC 프로그램에만 둔다
+    //   팀 서버: 주인에게 그 지식의 git 을 통째로(bundle) 준다 · 내 PC 가 다 받으면 주인이 지운다(deleteKnowledge)
+    //   내 PC: 이 PC 의 기기 열쇠로 bundle 을 받아 지식 폴더에 세우고(이력 · 기록 · 첨부 그대로) 팀 서버 쪽을 지운다
+    async bundleOf(ctx, id) {
+      const meta = await hub.meta(id, ctx)
+      const row = rowFor(id)
+      if (mode !== 'team' || !row?.private || row.owner !== ctx.user) throw new KmdError('E_FORBIDDEN', '내 옛 개인 지식만 내 PC 로 옮긴다')
+      const tmp = path.join(dataDir, 'tmp', `bundle-${crypto.randomBytes(6).toString('hex')}.git`)
+      await fs.mkdir(path.dirname(tmp), { recursive: true })
+      return serial(path.resolve(meta.dir), async () => {
+        await ensureRepo(meta.dir)
+        const r = await tryGit(meta.dir, ['bundle', 'create', tmp, '--all'], { timeout: 300_000 })
+        if (!r.ok) throw new KmdError('E_INTERNAL', '지식의 이력을 묶지 못했다')
+        try { return { name: meta.name, buf: await fs.readFile(tmp) } } finally { await fs.rm(tmp, { force: true }).catch(() => {}) }
+      })
+    },
+    async fromTeam(ctx, { kn, url } = {}) {
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '내 PC 프로그램이 받는다')
+      if (await looksLikeKnowledge(root)) throw new KmdError('E_INPUT', '이 kmd 는 지식 하나만 연다')
+      kn = String(kn || '')
+      const u = await hub.teamUrlFor(ctx, url)
+      const key = process.env.KMD_SEND_KEY || (await keystore.get(keystore.keyName(u)).catch(() => null))
+      if (!key) throw new KmdError('E_INPUT', '이 PC 가 그 팀에 이어지지 않았다. 팀 화면의 설치 한 줄로 잇는다')
+      const auth = { authorization: `Bearer ${key}` }
+      const r = await fetch(`${u}/api/k/${encodeURIComponent(kn)}/bundle`, { headers: auth, signal: AbortSignal.timeout(300_000) }).catch(() => null)
+      if (!r) throw new KmdError('E_INPUT', '팀 서버에 닿지 않는다')
+      if (!r.ok) throw new KmdError('E_INPUT', (await r.json().catch(() => ({}))).message || `팀 서버가 주지 않았다(${r.status})`)
+      const name = decodeURIComponent(r.headers.get('x-kmd-name') || '') || kn
+      const tmp = path.join(dataDir, 'tmp', `from-${crypto.randomBytes(6).toString('hex')}.git`)
+      await fs.mkdir(path.dirname(tmp), { recursive: true })
+      await fs.writeFile(tmp, Buffer.from(await r.arrayBuffer()))
+      try {
+        const base = name.normalize('NFC').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').trim() || 'kn'
+        const ids = (await hub.list()).map((k) => k.id.toLowerCase())
+        let nm = base
+        for (let i = 2; ids.includes(nm.toLowerCase()); i++) nm = `${base}-${i}`
+        const dir = path.join(root, nm)
+        const got = await restoreFrom({ url: tmp, dir, check, local: true })
+        // 받은 곳(임시 묶음)은 떼고 · 팀 서버의 주인 줄(_members.md)은 걷는다 · 보내는 길은 같은 서버 길이라 다시 정한다
+        await tryGit(dir, ['remote', 'remove', backup.REMOTE])
+        const conf = await sendLib.readConf(dir)
+        await fs.rm(path.join(dir, '_members.md'), { force: true })
+        if (conf.send) { delete conf.send; await fs.writeFile(path.join(dir, sendLib.CONF), JSON.stringify(conf, null, 2) + '\n') }
+        await commitPaths(dir, ['_members.md', sendLib.CONF], '팀 서버에서 옮겨 옴', ctx.user).catch(() => {})
+        list = null
+        await hub.autoBackup(nm).catch(() => {})
+        // 다 받았다 — 팀 서버 쪽을 지운다(못 지우면 팀 화면에 그대로 남아 다시 지울 수 있다)
+        const del = await fetch(`${u}/api/k/${encodeURIComponent(kn)}/delete`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify({ confirm: name }), signal: AbortSignal.timeout(60_000) }).catch(() => null)
+        feed.add(dataDir, ctx.user, { kind: 'kn', kn: nm, dot: 'acc', text: `팀 서버에서 옮겨 왔다: ${name}`, small: `문서 ${got.docs} · 기록 ${got.records} · 첨부 ${got.atts}${del?.ok ? ' · 팀 서버 쪽은 지웠다' : ' · 팀 서버 쪽은 아직 남았다'}` }).catch(() => {})
+        return { id: nm, name: nm, docs: got.docs, records: got.records, removed: !!del?.ok }
+      } finally { await fs.rm(tmp, { force: true }).catch(() => {}) }
     },
     // 일마다 모델 — 이 PC 의 설정(pc.models) · 없으면 기본 배분
     modelOf(role) {
@@ -451,7 +503,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async setModel(ctx, role, model) {
       if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', 'Claude 모델은 내 PC 프로그램에서 고른다')
       if (!ROLES.includes(role)) throw new KmdError('E_INPUT', '그런 일은 없다')
-      if (!CHOICES.includes(model)) throw new KmdError('E_INPUT', '고를 수 있는 모델이 아니다 — haiku · sonnet · opus · 기본')
+      if (!CHOICES.includes(model)) throw new KmdError('E_INPUT', '고를 수 있는 모델이 아니다. haiku · sonnet · opus · 기본')
       const next = structuredClone(prefs)
       ;((next.pc ||= {}).models ||= {})[role] = model
       await fs.mkdir(dataDir, { recursive: true })
@@ -523,7 +575,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 새로 놓인 지식 — `_members.md` 가 있으면 그것을 따른다(되살렸거나 다른 서버에서 옮긴 개인 지식을 누른 사람의 팀 지식으로
       // 바꾸지 않게) · 없으면 팀 지식이고 누른 관리자가 주인이다. 그 뒤 모든 지식의 장부를 `_members.md` 와 맞춘다
       for (const k of added) {
-        await ensureRepo(k.dir).catch((e) => log('동기화 — git', k.id, e.message))
+        await ensureRepo(k.dir).catch((e) => log('동기화: git', k.id, e.message))
         if (mode === 'pc' && started) watchers.push(Object.assign(collect.watch(k.dir, () => hub.collect(k.id)), { dir: k.dir }))
         if (mode === 'team' && !rowFor(k.id) && !existsSync(path.join(k.dir, '_members.md'))) await hub.setOwner({ ...ctx, shell: true }, k.id, { owner: ctx.user }).catch(() => {})
       }
@@ -534,7 +586,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       const m = await hub.menuOf(ctx)
       await hub.menuSet(ctx, { order: [...m.order.filter((x) => now.some((k) => k.id === x)), ...added.map((k) => k.id)], hidden: m.hidden.filter((x) => now.some((k) => k.id === x)) })
-      if (added.length) feed.add(dataDir, ctx.user, { kind: 'kn', dot: 'acc', text: `지식 폴더를 다시 읽었다 — 새 지식 ${added.length}`, small: added.map((k) => k.name).join(' · ') }).catch(() => {})
+      if (added.length) feed.add(dataDir, ctx.user, { kind: 'kn', dot: 'acc', text: `지식 폴더를 다시 읽었다. 새 지식 ${added.length}`, small: added.map((k) => k.name).join(' · ') }).catch(() => {})
       return { added: added.map((k) => ({ id: k.id, name: k.name })), gone, total: now.length }
     },
     // 그 사람이 보는 지식들
@@ -568,13 +620,16 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     owner(id) {
       return rowFor(id)
     },
-    // 지식 안에서의 내 자리 — 주인 · 정리 · 기록
+    // 지식 안에서의 내 자리. 팀 지식의 권한은 관리자 · 일반 둘뿐이다(관리자 = 정리 · 일반 = 기록)
+    //   팀 서버에 남은 옛 개인 지식만 주인이 있다
     roleIn(id, ctx) {
       const r = rowFor(id)
+      if (mode === 'team' && !r?.private) return ctx.admin ? '정리' : '기록'
       if (r?.owner && r.owner === ctx.user) return '주인'
-      if (r?.curators?.includes(ctx.user)) return '정리'
       return '기록'
     },
+    // 팀 서버의 관리자 아이디(http 가 auth 로 채운다) · 팀 지식의 정리 알림을 받는 사람
+    admins: () => [],
 
     // 저장 하나 — ctx.user 가 쓴다
     async save(ctx, id, input, opt = {}) {
@@ -596,11 +651,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (ctx.machine && ctx.machine.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
       const shut = backup.closed(meta)
       if (shut) throw new KmdError('E_BEHIND', shut.message)
-      // 팀 지식에서 주인 · 정리하는 사람이 아니면 항목 글은 기록에 싣는다 — 정리 때 문서에 들어간다
+      // 팀 지식에서 관리자가 아니면 항목 글은 기록에 싣는다 — 정리 때 문서에 들어간다
       let queued = false
       let namesHeld = 0
       if (input?.sections?.some((s) => s?.doc && owners.isReservedFile(String(s.doc).replace(/\.md$/, '') + '.md'))) throw new KmdError('E_FORBIDDEN', 'kmd 가 쓰는 파일이다')
-      // 이름 · 자리 장부(names)도 항목 글과 같은 자리 — 기록만 하는 사람의 것은 기록 본문에 「세울 이름」 으로 실어 정리 재료로 넘긴다
+      // 이름 · 자리 장부(names)도 항목 글과 같은 자리 — 일반의 것은 기록 본문에 「세울 이름」 으로 실어 정리 재료로 넘긴다
       // (팀 지식의 이름을 엉뚱한 자리로 옮겨 모두의 match · section 을 깨뜨리지 않게). 없는 이름 · 문서는 자리와 상관없이 같은 검사
       if ((input?.sections?.length || input?.names?.length) && !opt.system && !hub.canDirect(ctx, id)) {
         const k = await hub.get(id)
@@ -609,13 +664,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         for (const s of input.sections || []) {
           if (s.coord) {
             const x = sectionOf(k, String(s.coord).trim().normalize('NFC'))
-            if (!x) throw new KmdError('E_NOTFOUND', `「${s.coord}」 이 들어갈 문서가 정해져 있지 않다 — 기록만 보내거나 문서 · 머리로 가리킨다`)
+            if (!x) throw new KmdError('E_NOTFOUND', `「${s.coord}」 이 들어갈 문서가 정해져 있지 않다. 기록만 보내거나 문서 · 머리로 가리킨다`)
             add.push(s.coord)
             lines.push(`## ${x.sec?.h || x.loc?.heading || s.coord}\n${String(s.content || '').trim()}`)
             continue
           }
           const d = s.doc && k.docs.find((x) => x.id === String(s.doc).replace(/^docs\/|\.md$/g, ''))
-          if (!d) throw new KmdError('E_NOTFOUND', `「${s.doc || ''}」 문서가 없다 — 기록만 보내거나 있는 문서 · 머리로 가리킨다`)
+          if (!d) throw new KmdError('E_NOTFOUND', `「${s.doc || ''}」 문서가 없다. 기록만 보내거나 있는 문서 · 머리로 가리킨다`)
           lines.push(`## ${s.heading}\n${String(s.content || '').trim()}`)
           if (s.heading) add.push(...coordsOfSection(k, d, s.heading))
         }
@@ -630,8 +685,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 그 사람의 「오늘 바뀐 것」 한 줄
       const title = input?.record?.title || ''
       feed.add(dataDir, ctx.user, queued || !r0.docs.length
-        ? { kind: 'save', rec: r0.id, kn: id, dot: r0.docs.length ? 'acc' : 'pend', text: `${meta.name}에 기록 — 「${title.split(' — ')[0]}」`, small: r0.docs.length ? '' : hub.pendText(id) }
-        : { kind: 'save', rec: r0.id, kn: id, dot: 'acc', text: `저장 — ${meta.name} › ${r0.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')).join(' · ')} 「${title.split(' — ')[0]}」`, small: '문서에도 넣었다' }).catch(() => {})
+        ? { kind: 'save', rec: r0.id, kn: id, dot: r0.docs.length ? 'acc' : 'pend', text: `${meta.name}에 기록: 「${title.split(/ — |: /)[0]}」`, small: r0.docs.length ? '' : hub.pendText(id) }
+        : { kind: 'save', rec: r0.id, kn: id, dot: 'acc', text: `저장: ${meta.name} › ${r0.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')).join(' · ')} 「${title.split(/ — |: /)[0]}」`, small: '문서에도 넣었다' }).catch(() => {})
       cache.delete(id)
       scheduleDecide(id)
       // 이 PC · 팀 서버의 개인 지식 — 남은 기록은 바로 문서에(뒤에서) · 팀 지식은 정리 방식이 「실시간」 이면 조용해진 뒤
@@ -677,12 +732,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (mode === 'pc' || ctx.pc) return true
       if (ctx.agent) return ctx.agent.kn === id
       const r = rowFor(id)
-      if (r?.owner && r.owner === ctx.user) return true
-      if (r?.curators?.includes(ctx.user)) return true
-      return !r?.owner && !!ctx.admin // 주인을 정하지 않은 팀 지식은 관리자가 정리한다
+      if (!r?.private) return !!ctx.admin // 팀 지식은 관리자가 바로 고치고 정리한다 · 일반이 고친 것은 기록으로
+      return r.owner === ctx.user
     },
     // 화면의 고치기 — sections(고친 항목) · remove(지운 항목 이름) · rename([{ from, to }] — 글은 그대로 이름만)
-    //   주인 · 정리하는 사람은 곧바로 문서에 · 그 밖은 기록으로(지우기 · 이름 바꾸기도 기록 글에 — 정리하는 사람이 한다)
+    //   관리자는 곧바로 문서에 · 그 밖은 기록으로(지우기 · 이름 바꾸기도 기록 글에 — 관리자가 한다)
     //   같은 사람이 같은 글을 1분 안에 다시 보내면(두 번 누름) 앞의 것을 돌려준다
     async edit(ctx, id, { doc, sections = [], remove = [], rename = [] }) {
       const k = await hub.get(id, ctx)
@@ -694,18 +748,18 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!sections.length && !remove.length && !rename.length) throw new KmdError('E_INPUT', '바뀐 항목이 없다')
       const hs = sections.map((s) => String(s.h || '').trim())
       if ([...hs, ...remove, ...rename.flatMap((x) => [x.from, x.to])].some((h) => !h || /[\r\n]/.test(h))) throw new KmdError('E_INPUT', '항목 이름은 한 줄 글이다')
-      for (const h of [...remove, ...rename.map((x) => x.from)]) if (!d.sections.some((s) => s.h === h)) throw new KmdError('E_CONFLICT', `「${h}」 항목이 읽은 뒤 바뀌었다 — 다시 읽고 고친다`)
+      for (const h of [...remove, ...rename.map((x) => x.from)]) if (!d.sections.some((s) => s.h === h)) throw new KmdError('E_CONFLICT', `「${h}」 항목이 읽은 뒤 바뀌었다. 다시 읽고 고친다`)
       const dupKey = sha(JSON.stringify([ctx.user, id, doc, sections, remove, rename]))
       const dup = editDup.get(dupKey)
       if (dup && Date.now() - dup.at < 60_000) return dup.r
       const coords = [...new Set([...hs, ...remove, ...rename.map((x) => x.from)].flatMap((h) => coordsOfSection(k, d, h)))]
       const w = watchedOf(await fs.readFile(path.join(k.dir, ...d.path.split('/')), 'utf8').catch(() => ''))
-      if (w) throw new KmdError('E_FORBIDDEN', `이 문서는 원본이 주인이다 — ${w.src} 의 ${w.path} 를 고친다 · 덧붙일 말은 기록으로 남긴다`)
+      if (w) throw new KmdError('E_FORBIDDEN', `이 문서는 원본이 주인이다: ${w.src} 의 ${w.path} 를 고친다 · 덧붙일 말은 기록으로 남긴다`)
       const what = [...hs, ...remove.map((h) => `${h} 지움`), ...rename.map((x) => `${x.from} → ${x.to}`)]
       let out
       if (hub.canDirect(ctx, id)) {
         const r = await hub.save(ctx, id, {
-          record: { title: `화면에서 고침 — ${d.title} 「${what.join(' · ')}」`, body: `화면에서 고쳤다 — ${what.map((h) => `${d.title} › ${h}`).join(' · ')}`, touches: coords, tags: ['edit'] },
+          record: { title: `화면에서 고침: ${d.title} 「${what.join(' · ')}」`, body: `화면에서 고쳤다: ${what.map((h) => `${d.title} › ${h}`).join(' · ')}`, touches: coords, tags: ['edit'] },
           sections: [
             ...sections.map((s) => ({ doc: d.path, heading: s.h, content: String(s.body ?? ''), ...(s.base ? { base: s.base } : {}) })),
             ...remove.map((h) => ({ doc: d.path, heading: h, remove: true, base: sha16(d.sections.find((s) => s.h === h).body) })),
@@ -721,7 +775,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         ].join('\n\n')
         // 이름 장부에 없는 항목도 그 항목에 선다(at/ — 문서 · 항목 화면이 「아직 안 넣은 기록」 으로 보인다)
         const ats = [...new Set([...hs, ...remove, ...rename.map((x) => x.from)].filter((h) => d.sections.some((s) => s.h === h)).map((h) => atTag(d.id, h)))]
-        const r = await hub.save(ctx, id, { record: { title: `${d.title} › ${what.join(' · ')} 고침`, body: `화면에서 남긴 기록 — 정리 때 문서에 넣는다\n\n${body}`, touches: coords, ...(ats.length ? { tags: ats } : {}) } })
+        const r = await hub.save(ctx, id, { record: { title: `${d.title} › ${what.join(' · ')} 고침`, body: `화면에서 남긴 기록: 정리 때 문서에 넣는다\n\n${body}`, touches: coords, ...(ats.length ? { tags: ats } : {}) } })
         out = { direct: false, ...r }
       }
       editDup.set(dupKey, { at: Date.now(), r: out })
@@ -731,21 +785,21 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 되돌리기 — 그 기록을 넣은 항목을 넣기 전 글로 쓰고 판정을 거둔다(그 기록은 다시 아직 안 넣은 기록)
     async revert(ctx, id, { record }) {
       const k = await hub.get(id, ctx)
-      // 주인 · 정리하는 사람 · 관리자 — 또는 그 정리가 넣은 기록을 쓴 사람(「내 기록에서 값이 바뀌었다 — 되돌릴 수 있다」)
-      // 기록만 하는 사람은 자기 기록만 든 정리만 — 남의 기록이 섞였으면 정리하는 사람에게(남의 반영을 말없이 거두지 않게)
+      // 관리자 — 또는 그 정리가 넣은 기록을 쓴 사람(「내 기록에서 값이 바뀌었다 — 되돌릴 수 있다」)
+      // 일반은 자기 기록만 든 정리만 — 남의 기록이 섞였으면 관리자에게(남의 반영을 말없이 거두지 않게)
       const authors = new Set((k.byWork.get(record)?.reflects || []).map((x) => k.byWork.get(x)?.author).filter(Boolean))
-      const curator = hub.canDirect(ctx, id) || !!rowFor(id)?.curators?.includes(ctx.user) || !!ctx.admin
-      if (!curator && !authors.has(ctx.user)) throw new KmdError('E_FORBIDDEN', '주인 · 정리하는 사람만 되돌린다')
-      if (!curator && [...authors].some((a) => a !== ctx.user)) throw new KmdError('E_FORBIDDEN', '이 정리에는 다른 사람의 기록도 들어 있다 — 주인 · 정리하는 사람에게 되돌려 달라고 한다')
+      const curator = hub.canDirect(ctx, id) || !!ctx.admin
+      if (!curator && !authors.has(ctx.user)) throw new KmdError('E_FORBIDDEN', '관리자만 되돌린다')
+      if (!curator && [...authors].some((a) => a !== ctx.user)) throw new KmdError('E_FORBIDDEN', '이 정리에는 다른 사람의 기록도 들어 있다. 관리자에게 되돌려 달라고 한다')
       if (k.reverted?.has(record)) throw new KmdError('E_CONFLICT', '이미 되돌렸다')
       const plan = await revertPlan(k, record)
       const w = plan.record
       // 정리 기록을 되돌리면 그 정리가 넣은 기록들도 「주인이 되돌림」 — 다음 정리가 같은 초안을 다시 넣지 않게
-      const used = w.tags.includes('curate-llm') ? [...w.body.matchAll(/^- 넣음 (\S+) — /gm)].map((m) => m[1]) : []
+      const used = w.tags.includes('curate-llm') ? [...w.body.matchAll(/^- 넣음 (\S+)(?: —|:) /gm)].map((m) => m[1]) : []
       // 함께 든 기록의 주인에게 — 내 기록의 반영이 거둬졌다
-      for (const a of new Set([...used, ...(w.reflects || [])].map((x) => k.byWork.get(x)?.author).filter((a) => a && a !== ctx.user && !/^kmd/.test(a)))) feed.add(dataDir, a, { kind: 'tidy', kn: id, dot: 'warn', text: `${ctx.user} 이 정리를 되돌렸다 — 내 기록도 문서에서 빠졌다 · ${k.name}`, small: `「${w.title.split(' — ')[0]}」 · 다시 넣으려면 기록을 고쳐 남긴다` }).catch(() => {})
+      for (const a of new Set([...used, ...(w.reflects || [])].map((x) => k.byWork.get(x)?.author).filter((a) => a && a !== ctx.user && !/^kmd/.test(a)))) feed.add(dataDir, a, { kind: 'tidy', kn: id, dot: 'warn', text: `${ctx.user} 이 정리를 되돌렸다. 내 기록도 문서에서 빠졌다 · ${k.name}`, small: `「${w.title.split(/ — |: /)[0]}」 · 다시 넣으려면 기록을 고쳐 남긴다` }).catch(() => {})
       return hub.save(ctx, id, {
-        record: { title: `되돌림 — ${w.title}`, body: plan.sections.length ? plan.sections.map((s) => `- ${s.doc.replace(/^docs\/|\.md$/g, '')} › ${s.heading} — 넣기 전 글로`).join('\n') : '넣은 항목이 없다 — 판정만 거둔다', tags: ['curate-auto'], reopens: [w.id, ...used] },
+        record: { title: `되돌림: ${w.title}`, body: plan.sections.length ? plan.sections.map((s) => `- ${s.doc.replace(/^docs\/|\.md$/g, '')} › ${s.heading}: 넣기 전 글로`).join('\n') : '넣은 항목이 없다. 판정만 거둔다', tags: ['curate-auto'], reopens: [w.id, ...used] },
         sections: plan.sections.map((s) => ({ doc: s.doc, heading: s.heading, content: s.content, applied: s.applied })),
       }, { system: true }).then(async (r) => {
         // 「오늘 바뀐 것」 줄에 「되돌렸다」 — 되돌린 사람과 그 정리에 든 기록을 쓴 사람 모두(남은 [되돌리기] 가 빈 되돌림을 만들지 않게)
@@ -804,17 +858,17 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 팀 화면은 받지 않고 셸 한 줄(`kmd secret set <자격 이름>`)과 상태만 보인다(v0.6 정정 ③)
     async sourceAdd(ctx, id, { name, at, kind = null, every = 'hourly', rules, cred = null, db = null, mode: pcMode = 'docs', meaning = false }) {
       const meta = await hub.meta(id, ctx)
-      if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 관리자가 더한다 — [관리자에게 부탁]')
+      if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 관리자가 더한다. [관리자에게 부탁]')
       name = String(name || '').trim()
       if (!name || name.length > 60 || /[\r\n"]/.test(name)) throw new KmdError('E_INPUT', '이름은 한 줄 60자 안')
       const pcScreen = mode === 'pc' || ctx.pc
-      if ((cred?.password || cred?.token || db?.password) && !pcScreen) throw new KmdError('E_FORBIDDEN', `자격은 화면으로 받지 않는다 — 서버에서 한 줄: kmd secret set ${secretName(id, name)}`)
+      if ((cred?.password || cred?.token || db?.password) && !pcScreen) throw new KmdError('E_FORBIDDEN', `자격은 화면으로 받지 않는다. 서버에서 한 줄: kmd secret set ${secretName(id, name)}`)
       const k2 = kind || (db ? 'db' : 'git')
       // 소스 코드는 git 하나 — 커밋 이력으로 바뀐 것만(정정 2026-10-23 · 코드 폴더 · 라이브러리 버전 · 표 파일은 걷었다)
-      if (k2 === 'folder') throw new KmdError('E_INPUT', '소스 코드는 git 저장소로 받는다 — 올라온 묶음으로 바뀐 것을 본다 · 이 PC 폴더면 그 폴더의 git 저장소 경로를 넣는다')
+      if (k2 === 'folder') throw new KmdError('E_INPUT', '소스 코드는 git 저장소로 받는다. 올라온 묶음으로 바뀐 것을 본다 · 이 PC 폴더면 그 폴더의 git 저장소 경로를 넣는다')
       if (k2 === 'git') rules = []
       // 내 PC 폴더(PC 가 파일을 팀으로 보내기)는 걷었다 — 파일을 나르는 것은 이 서비스의 일이 아니다 · 지식은 「보내기」 로
-      if (k2 === 'pc') throw new KmdError('E_INPUT', '내 PC 폴더는 없다 — 내 지식에서 만든 기록 · 문서를 「보내기」 로 보낸다')
+      if (k2 === 'pc') throw new KmdError('E_INPUT', '내 PC 폴더는 없다. 내 지식에서 만든 기록 · 문서를 「보내기」 로 보낸다')
       // 파일 목록(files)은 걷었다(감시 검토 v0.1 — 값보다 소음) · 표 파일(tables)은 사람이 고른 파일 · 폴더만
       // docs — 문서 폴더(지식 안 그 폴더로 사본 문서) · pc — 내 PC 폴더(팀 · 관리자 · PC 프로그램이 기계 열쇠로 보낸다 · 결정 ④)
       if (k2 === 'pc' && (mode !== 'team' || !ctx.admin)) throw new KmdError('E_FORBIDDEN', '내 PC 폴더는 팀에서 관리자가 허락한다')
@@ -832,7 +886,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (k2 === 'db') {
         const d = db || {}
         const word = /^[A-Za-z_][A-Za-z0-9_$-]{0,62}$/
-        if ((d.engine || 'postgres') !== 'postgres') throw new KmdError('E_INPUT', 'DB 는 PostgreSQL 만 — 다른 DB 는 바깥 생성기(기계 열쇠)로')
+        if ((d.engine || 'postgres') !== 'postgres') throw new KmdError('E_INPUT', 'DB 는 PostgreSQL 만: 다른 DB 는 바깥 생성기(기계 열쇠)로')
         if (!/^[A-Za-z0-9.-]{1,253}$/.test(String(d.host || ''))) throw new KmdError('E_INPUT', '호스트가 아니다')
         const port = Number(d.port || 5432)
         if (!Number.isInteger(port) || port < 1 || port > 65535) throw new KmdError('E_INPUT', '포트는 1 ~ 65535')
@@ -843,7 +897,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (d.password) await setSecret(dataDir, secretName(id, name), String(d.password))
         shown = `postgres://${d.user}@${d.host}:${port}/${d.database}?schema=${schema}`
       } else if (k2 === 'pc') {
-        shown = '내 PC — 기계 열쇠로 보낸다'
+        shown = '내 PC: 기계 열쇠로 보낸다'
       } else {
         const t = checkTarget(at, { kind: k2 === 'docs' ? 'folder' : k2, ...(await hub.sourceCtx(id)) })
         if (k2 === 'git' && (cred?.user || cred?.token)) await setSecret(dataDir, secretName(id, name), `${cred.user || 'git'}:${cred.token || ''}`)
@@ -855,7 +909,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const addKey = `${id}\n${name}`
       adding.add(addKey)
       try {
-        await writeDecl(meta.dir, [...decl, src], { user: ctx.user, title: `가져오는 곳 더함 — ${name}` })
+        await writeDecl(meta.dir, [...decl, src], { user: ctx.user, title: `가져오는 곳 더함: ${name}` })
         cache.delete(id)
         if (started) hub.watchSource(id, src)
         const r = await hub.sourceRun(id, name, { first: true })
@@ -881,7 +935,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       })
       if (!reach || !database || !user) return { reach, ms: Date.now() - t0 }
       // 팀 화면은 비밀번호를 받지 않는다 — 이미 넣은 비밀(그 이름)이 있으면 그것으로
-      if (password && mode !== 'pc' && !ctx.pc) throw new KmdError('E_FORBIDDEN', '비밀번호는 화면으로 받지 않는다 — 서버에서 kmd secret set')
+      if (password && mode !== 'pc' && !ctx.pc) throw new KmdError('E_FORBIDDEN', '비밀번호는 화면으로 받지 않는다. 서버에서 kmd secret set')
       const pw = password || (name ? await getSecret(dataDir, secretName(id, name)) : null)
       if (!pw) return { reach, ms: Date.now() - t0, login: null }
       try {
@@ -902,18 +956,18 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       for (const s of decl.filter((x) => !name || x.name === name)) {
         // DB 읽기(pg · 읽기 전용 확인)는 S10 계정이 생기면 연다 — 그때까지는 연결 정보만 두고 쉰다(실패로 세지 않는다 · 멈춤 줄 없음)
         if (s.kind === 'pc') {
-          out.push({ name: s.name, state: 'waiting', n: 0, why: '내 PC 폴더는 걷었다 — 지식은 「보내기」 로 받는다' })
+          out.push({ name: s.name, state: 'waiting', n: 0, why: '내 PC 폴더는 걷었다. 지식은 「보내기」 로 받는다' })
           continue
         }
         const key = `${id}\n${s.name}`
         // 같은 곳이 아직 차례를 기다리면 그 일에 붙는다(실시간 · 시계 · [지금 가져오기] 가 겹쳐도 한 줄)
         const pend = srcPend.get(key)
         if (pend && !force && !full && !first && pend.qj.state === 'wait') { out.push({ name: s.name, ...(await pend.job) }); continue }
-        const qj = Q.add({ kind: 'source', origin: s.kind === 'folder' ? 'docs' : s.kind, kn: id, title: full ? `${s.name} — 전체 다시 맞추기` : s.name, by: by || 'kmd', auto: by ? null : live ? 'live' : String(s.every || 'hourly'), spec: { type: 'source', kn: id, name: s.name, force, full } })
+        const qj = Q.add({ kind: 'source', origin: s.kind === 'folder' ? 'docs' : s.kind, kn: id, title: full ? `${s.name}: 전체 다시 맞추기` : s.name, by: by || 'kmd', auto: by ? null : live ? 'live' : String(s.every || 'hourly'), spec: { type: 'source', kn: id, name: s.name, force, full } })
         const prev = srcRuns.get(key) || Promise.resolve()
         const job = prev.catch(() => {}).then(async () => {
           try { await Q.step(qj, 0, { lane: 'fetch' }) } catch (e) { Q.end(qj, 'cancel', e.message); return { state: 'cancelled', n: 0, why: e.message } }
-          Q.line(qj, 'sys', `${s.name} — ${{ git: '저장소에서 받는다', db: 'DB 에 읽기 전용으로 붙는다', docs: '폴더를 읽는다', folder: '폴더를 읽는다' }[s.kind] || '읽는다'}${force ? ' · 그대로 맞춘다' : ''}`)
+          Q.line(qj, 'sys', `${s.name}: ${{ git: '저장소에서 받는다', db: 'DB 에 읽기 전용으로 붙는다', docs: '폴더를 읽는다', folder: '폴더를 읽는다' }[s.kind] || '읽는다'}${force ? ' · 그대로 맞춘다' : ''}`)
           srcBusy.set(key, { kn: id, name: s.name, kind: s.kind, since: new Date().toISOString(), full })
           try {
           const k = await hub.get(id)
@@ -929,18 +983,18 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
                 await Q.step(run, 0)
                 const data = await fs.readFile(path.join(s.at, ...rel.split('/')))
                 const md = await hub.mdOf(rel, data, run)
-                if (!md) { run.state = 'fail'; run.msg = '글로 바꾸지 못했다 — 원본은 첨부로'; return }
+                if (!md) { run.state = 'fail'; run.msg = '글로 바꾸지 못했다. 원본은 첨부로'; return }
                 await Q.step(run, 2)
                 const a = await applyDocs(await hub.get(id), { src: s, prefix: pre, files: [{ rel, data }], mdOf: async () => md })
                 Q.mark(run, 3)
                 run.state = 'done'
-                run.msg = a.docs ? `기록 · 문서가 됐다 — ${pre ? pre + ' › ' : ''}${rel.replace(/\.[^.]+$/, '')}(원본이 주인)` : '그대로'
+                run.msg = a.docs ? `기록 · 문서가 됐다: ${pre ? pre + ' › ' : ''}${rel.replace(/\.[^.]+$/, '')}(원본이 주인)` : '그대로'
                 if (a.docs) run.docs.push(`${pre ? pre + '/' : ''}${rel.replace(/\.[^.]+$/, '')}`)
                 hub.runLine(run, 'ok', run.msg)
               } catch (e) {
                 // 일이 도중에 깨졌다(파일 잠김 · 읽기 실패) — 장부에서 걷어 다음 확인(실시간 · 정한 때)이 다시 한다. 글로 못 바꾼 것(위)은 다시 하지 않는다
                 await forgetFile(dataDir, id, s.name, rel).catch(() => {})
-                run.state = e?.cancelled ? 'cancel' : 'fail'; run.msg = e?.cancelled ? '그만뒀다 — 다음 확인 때 다시 한다' : `${e.message} — 다음 확인 때 다시 한다`; hub.runLine(run, e?.cancelled ? 'sys' : 'err', run.msg)
+                run.state = e?.cancelled ? 'cancel' : 'fail'; run.msg = e?.cancelled ? '그만뒀다. 다음 확인 때 다시 한다' : `${e.message}: 다음 확인 때 다시 한다`; hub.runLine(run, e?.cancelled ? 'sys' : 'err', run.msg)
               } finally { run.endedAt = new Date().toISOString(); cache.delete(id); hub.runSave(run) }
             })
           }
@@ -951,7 +1005,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           if (r.codeRecords && mode === 'pc') hub.curateSoon(id).catch(() => {})
           else if (r.codeRecords && hub.teamPrivate(id)) hub.curateSoon(id).catch(() => {})
           else if (r.codeRecords && hub.meaningOk(id) && hub.tidyModeOf(id) !== 'manual') hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
-          if (r.state === 'changed') for (const u of await hub.curatorsOf(id)) await feed.add(dataDir, u, { kind: 'source', kn: id, dot: 'acc', text: r.commits != null ? `${s.name}에서 새 묶음 ${r.commits} · 코드 바뀜 기록 ${r.codeRecords} — ${meta.name}` : s.kind === 'docs' ? `${s.name}에서 기록 ${r.recs || 0} · 문서 ${r.docs || 0} — ${meta.name}` : `${s.name}에서 바뀐 표 ${r.n} — ${meta.name}`, small: r.commits != null ? '정리가 걸린 항목 글을 맞춘다' : s.kind === 'docs' ? `바뀐 파일 ${r.files} · 파일마다 기록을 남기고 원본이 주인인 문서로` : `바뀐 파일 ${r.files} · 저절로 채우는 표` })
+          if (r.state === 'changed') for (const u of await hub.curatorsOf(id)) await feed.add(dataDir, u, { kind: 'source', kn: id, dot: 'acc', text: r.commits != null ? `${s.name}에서 새 묶음 ${r.commits} · 코드 바뀜 기록 ${r.codeRecords}: ${meta.name}` : s.kind === 'docs' ? `${s.name}에서 기록 ${r.recs || 0} · 문서 ${r.docs || 0}: ${meta.name}` : `${s.name}에서 바뀐 표 ${r.n}: ${meta.name}`, small: r.commits != null ? '정리가 걸린 항목 글을 맞춘다' : s.kind === 'docs' ? `바뀐 파일 ${r.files} · 파일마다 기록을 남기고 원본이 주인인 문서로` : `바뀐 파일 ${r.files} · 저절로 채우는 표` })
           hub.sourceJobEnd(qj, s, r)
           return r
           } catch (e) {
@@ -977,7 +1031,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '전체 다시 맞추기는 관리자가 한다')
       const s = (await readDecl(meta.dir)).find((x) => x.name === name)
       if (!s) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
-      if (s.kind === 'git' && !s.rules?.length) throw new KmdError('E_INPUT', '소스 코드는 묶음으로 본다 — 다시 맞출 것이 없다')
+      if (s.kind === 'git' && !s.rules?.length) throw new KmdError('E_INPUT', '소스 코드는 묶음으로 본다. 다시 맞출 것이 없다')
       const key = `${id}\n${name}`
       if (resyncs.get(key)?.state === 'running') return resyncs.get(key)
       const st = await readSourceState(dataDir, id)
@@ -1009,7 +1063,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!!s.meaning === !!on) return s
       if (on) s.meaning = true
       else delete s.meaning
-      await writeDecl(meta.dir, decl, { user: ctx.user, title: `가져오는 곳 뜻 갱신 ${on ? '켬' : '끔'} — ${name}` })
+      await writeDecl(meta.dir, decl, { user: ctx.user, title: `가져오는 곳 뜻 갱신 ${on ? '켬' : '끔'}: ${name}` })
       cache.delete(id)
       // 켜면 지금 코드로 사본 · 장부를 맞춘다(그 뒤 바뀐 것부터 기록)
       if (on) await hub.sourceRun(id, name)
@@ -1060,7 +1114,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!s) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
       if (s.every === every) return s
       s.every = every
-      await writeDecl(meta.dir, decl, { user: ctx.user, title: `가져오는 곳 언제 — ${name} · ${every}` })
+      await writeDecl(meta.dir, decl, { user: ctx.user, title: `가져오는 곳 언제: ${name} · ${every}` })
       cache.delete(id)
       return s
     },
@@ -1077,7 +1131,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if ((await readDecl(tm.dir)).some((x) => x.name === name)) throw new KmdError('E_CONFLICT', '옮겨 갈 지식에 같은 이름의 가져오는 곳이 있다')
       }
       const pcScreen = mode === 'pc' || ctx.pc
-      if ((cred?.token || db?.password) && !pcScreen) throw new KmdError('E_FORBIDDEN', `자격은 화면으로 받지 않는다 — 서버에서 한 줄: kmd secret set ${secretName(id, name)}`)
+      if ((cred?.token || db?.password) && !pcScreen) throw new KmdError('E_FORBIDDEN', `자격은 화면으로 받지 않는다. 서버에서 한 줄: kmd secret set ${secretName(id, name)}`)
       const decl = await readDecl(meta.dir)
       const s = decl.find((x) => x.name === name)
       if (!s) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
@@ -1126,7 +1180,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const addKey = `${to}\n${name}`
         adding.add(addKey)
         try {
-          await writeDecl(tm.dir, [...(await readDecl(tm.dir)), s], { user: ctx.user, title: `가져오는 곳 옮겨 옴 — ${name} · ${meta.name || id} 에서` })
+          await writeDecl(tm.dir, [...(await readDecl(tm.dir)), s], { user: ctx.user, title: `가져오는 곳 옮겨 옴: ${name} · ${meta.name || id} 에서` })
           cache.delete(to)
           if (started) hub.watchSource(to, s)
           const run = await hub.sourceRun(to, name, { first: true }).catch((e) => [{ state: 'failed', why: e.message }])
@@ -1136,7 +1190,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
       }
       if (JSON.stringify(s) !== was) {
-        await writeDecl(meta.dir, decl, { user: ctx.user, title: `가져오는 곳 고침 — ${name}` })
+        await writeDecl(meta.dir, decl, { user: ctx.user, title: `가져오는 곳 고침: ${name}` })
         cache.delete(id)
         if (started) hub.watchSource(id, s)
       }
@@ -1157,7 +1211,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const key = `${id}\n${name}`
       srcWatch.get(key)?.close()
       srcWatch.delete(key)
-      await writeDecl(meta.dir, decl.filter((x) => x.name !== name), { user: ctx.user, title: `가져오는 곳 지움 — ${name}` })
+      await writeDecl(meta.dir, decl.filter((x) => x.name !== name), { user: ctx.user, title: `가져오는 곳 지움: ${name}` })
       const st = await readSourceState(dataDir, id)
       delete st[name]
       await writeSourceState(dataDir, id, st)
@@ -1176,7 +1230,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             if (copies === 'drop') await fs.rm(full, { force: true })
             else await fs.writeFile(full, t.split('\n').slice(1).join('\n').replace(/^\n+/, ''), 'utf8')
           }
-          await commitPaths(meta.dir, mine.map((x) => x.d.path), `가져오는 곳 지움 — ${name} · 사본 ${mine.length} ${copies === 'drop' ? '지움' : '내 문서로'}`, ctx.user).catch((e) => log('사본 정리', id, e.message))
+          await commitPaths(meta.dir, mine.map((x) => x.d.path), `가져오는 곳 지움: ${name} · 사본 ${mine.length} ${copies === 'drop' ? '지움' : '내 문서로'}`, ctx.user).catch((e) => log('사본 정리', id, e.message))
         })
       }
       cache.delete(id)
@@ -1185,31 +1239,31 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 원본이 없어진 사본 — 「원본이 주인」 표지를 걷어 내 문서로(고칠 수 있게)
     async unwatch(ctx, id, { doc }) {
       const meta = await hub.meta(id, ctx)
-      if (!hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '주인 · 정리하는 사람이 한다')
+      if (!hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '관리자가 한다')
       const d = (await hub.get(id)).docs.find((x) => x.id === doc)
       if (!d) throw new KmdError('E_NOTFOUND', '이 문서는 이제 없다')
       const full = path.join(meta.dir, ...d.path.split('/'))
       const t = await fs.readFile(full, 'utf8')
       const w = watchedOf(t)
       if (!w) return { ok: true }
-      if ((await readDecl(meta.dir)).some((s) => s.name === w.src)) throw new KmdError('E_CONFLICT', `원본이 아직 있다 — ${w.src} 에서 가져온다 · 가져오는 곳을 지우면 내 문서로 남는다`)
+      if ((await readDecl(meta.dir)).some((s) => s.name === w.src)) throw new KmdError('E_CONFLICT', `원본이 아직 있다: ${w.src} 에서 가져온다 · 가져오는 곳을 지우면 내 문서로 남는다`)
       await serial(path.resolve(meta.dir), async () => {
         await fs.writeFile(full, t.split('\n').slice(1).join('\n').replace(/^\n+/, ''), 'utf8')
-        await commitPaths(meta.dir, [d.path], `원본이 없어진 사본 — 내 문서로 · ${d.title}`, ctx.user)
+        await commitPaths(meta.dir, [d.path], `원본이 없어진 사본: 내 문서로 · ${d.title}`, ctx.user)
       })
       cache.delete(id)
       return { ok: true }
     },
     async curatorsOf(id) {
       const r = rowFor(id)
-      return [...new Set([r?.owner, ...(r?.curators || [])].filter(Boolean))]
+      return r?.private ? [r.owner].filter(Boolean) : hub.admins()
     },
     // 관리자에게 부탁 — 관리 화면 · 관리자의 오늘 바뀐 것에
     // 부탁 — 상태(기다림 wait · 더함 done · 거절 no) · 같은 부탁은 합친다 · 주소는 받을 때 검사한다 · 결과는 부탁한 사람 이력에.
     // 개인 지식은 관리자가 볼 수 없어 처리할 수 없다 — 받지 않고 길을 안내한다
     async sourceRequest(ctx, id, card) {
       await hub.meta(id, ctx)
-      if (mode === 'team' && rowFor(id)?.private) throw new KmdError('E_INPUT', '개인 지식은 관리자가 열 수 없어 부탁을 처리하지 못한다 — 내 PC 지식에서 지켜보며 맞추기로 받은 뒤 보내기로 옮긴다')
+      if (mode === 'team' && rowFor(id)?.private) throw new KmdError('E_INPUT', '개인 지식은 관리자가 열 수 없어 부탁을 처리하지 못한다. 내 PC 지식에서 지켜보며 맞추기로 받은 뒤 보내기로 옮긴다')
       const name = String(card.name || '').trim().slice(0, 60)
       if (!name) throw new KmdError('E_INPUT', '이름이 있다')
       const kind = card.kind || (card.db ? 'db' : 'git')
@@ -1243,7 +1297,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         Object.assign(r, { state, closedBy: ctx.user, closedAt: new Date().toISOString(), ...(why ? { why: String(why).slice(0, 200) } : {}) })
         await fs.writeFile(f, JSON.stringify(all))
         const kn = (await hub.list()).find((k) => k.id === r.kn)?.name || r.kn
-        for (const u of r.by.split(', ')) await feed.add(dataDir, u, { kind: 'source', kn: r.kn, dot: state === 'done' ? 'acc' : 'warn', text: state === 'done' ? `부탁한 가져오는 곳을 더했다 — ${r.name} · ${kn}` : `부탁한 가져오는 곳을 더하지 않았다 — ${r.name} · ${kn}`, small: state === 'done' ? `${ctx.user} 이 더했다` : `${ctx.user}${why ? ' — ' + String(why).slice(0, 200) : ''}` }).catch(() => {})
+        for (const u of r.by.split(', ')) await feed.add(dataDir, u, { kind: 'source', kn: r.kn, dot: state === 'done' ? 'acc' : 'warn', text: state === 'done' ? `부탁한 가져오는 곳을 더했다: ${r.name} · ${kn}` : `부탁한 가져오는 곳을 더하지 않았다: ${r.name} · ${kn}`, small: state === 'done' ? `${ctx.user} 이 더했다` : `${ctx.user}${why ? ': ' + String(why).slice(0, 200) : ''}` }).catch(() => {})
         return r
       })
     },
@@ -1281,7 +1335,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       if (!plan.changed.length) { await mark(0); return { changed: 0 } }
       await mark(plan.changed.length)
-      await coreSave(meta.dir, { record: { title: `가져옴 — ${source} · 바뀐 표 ${plan.changed.length}`, body: plan.changed.map((c) => `- ${c.doc} › ${c.heading}`).join('\n'), tags: ['sources'] }, sections: plan.changed.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) }, { user: 'kmd-auto', system: true })
+      await coreSave(meta.dir, { record: { title: `가져옴: ${source} · 바뀐 표 ${plan.changed.length}`, body: plan.changed.map((c) => `- ${c.doc} › ${c.heading}`).join('\n'), tags: ['sources'] }, sections: plan.changed.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) }, { user: 'kmd-auto', system: true })
       cache.delete(id)
       return { changed: plan.changed.length }
     },
@@ -1296,7 +1350,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (mode === 'pc' || hub.teamPrivate(id)) return 'kmd 가 곧바로 문서에 넣는다'
       const m = hub.tidyModeOf(id)
       if (m === 'live') return '조용해지면 바로 문서에 들어간다'
-      if (m === 'manual') return '정리하는 사람이 [지금 정리] 를 누를 때 문서에 들어간다'
+      if (m === 'manual') return '관리자가 [지금 정리] 를 누를 때 문서에 들어간다'
       return `정해진 시각 ${hub.tidyAtOf(id)} 정리 때 문서에 들어간다`
     },
     ruleOnly: (id) => mode === 'team' && !rowFor(id)?.private && (!!rowFor(id)?.noClaude || workerRests()),
@@ -1320,7 +1374,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       if (cur) return cur
       // 규칙으로만 — 일꾼에게 내지 않고 서버가 넣는다(넣은 것이 없으면 「정리한 것」 카드를 남기지 않는다)
-      if (hub.ruleOnly(id)) return hub.ruleJob(id, { by, auto, why: rowFor(id)?.noClaude ? '자동 정리에 Claude 를 쓰지 않는 지식 — 규칙으로 넣었다' : '정리 일꾼이 쉬고 있어 규칙으로 넣었다' })
+      if (hub.ruleOnly(id)) return hub.ruleJob(id, { by, auto, why: rowFor(id)?.noClaude ? '자동 정리에 Claude 를 쓰지 않는 지식: 규칙으로 넣었다' : '정리 일꾼이 쉬고 있어 규칙으로 넣었다' })
       const j = { id: crypto.randomBytes(6).toString('hex'), kn: id, by, auto, at: new Date().toISOString(), state: 'queued' }
       jobs.set(j.id, j)
       saveJobs()
@@ -1409,7 +1463,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const target = g.kind === 'touches' || g.kind === 'ingest' ? g.record.title : `${g.doc.replace(/^docs\/|\.md$/g, '')} › ${g.heading}`
         // 원본이 주인인 문서에는 정리도 넣지 않는다 — 기록은 문서 옆에 그대로 읽힌다
         if (g.doc && watchedOf(await fs.readFile(path.join(meta.dir, ...g.doc.split('/')), 'utf8').catch(() => ''))) {
-          rows.push({ kind: 'left', target, why: '원본이 주인인 문서 — 원본 파일을 고친다 · 기록은 옆에 그대로 읽힌다', records: (g.records || [g.record]).map((x) => x.id) })
+          rows.push({ kind: 'left', target, why: '원본이 주인인 문서: 원본 파일을 고친다 · 기록은 옆에 그대로 읽힌다', records: (g.records || [g.record]).map((x) => x.id) })
           continue
         }
         const recs = g.kind === 'touches' || g.kind === 'ingest' ? [g.record] : g.records
@@ -1431,8 +1485,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           // 그 기록을 쓴 사람의 「오늘 바뀐 것」 — 값이 바뀌었으면 노랑
           for (const u of [...new Set(used.map((x) => x.author))]) {
             await feed.add(dataDir, u, r.changed.length
-              ? { kind: 'tidy', rec: saved.id, kn: id, yl: true, b: `kmd 가 정리하며 값을 바꿨다 — ${meta.name} › ${target} · ${r.changed[0].from} → ${r.changed[0].to}`, small: '내 기록에서 — 되돌릴 수 있다', go: { kn: id, doc: at.doc, hl: at.heading }, revert: saved.id }
-              : { kind: 'tidy', rec: saved.id, kn: id, dot: 'acc', text: g.kind === 'ingest' ? `kmd 가 넣은 파일을 문서에 들였다 — ${meta.name} › ${at.doc}` : `kmd 가 정리했다 — ${meta.name} › ${target}`, small: g.kind === 'ingest' ? `${d.newDoc ? '새 문서' : '기존 문서에'} · ${g.record.title.split(' — ')[0]}` : '내가 남긴 기록', go: { kn: id, doc: at.doc, hl: at.heading } })
+              ? { kind: 'tidy', rec: saved.id, kn: id, yl: true, b: `kmd 가 정리하며 값을 바꿨다: ${meta.name} › ${target} · ${r.changed[0].from} → ${r.changed[0].to}`, small: '내 기록에서: 되돌릴 수 있다', go: { kn: id, doc: at.doc, hl: at.heading }, revert: saved.id }
+              : { kind: 'tidy', rec: saved.id, kn: id, dot: 'acc', text: g.kind === 'ingest' ? `kmd 가 넣은 파일을 문서에 들였다: ${meta.name} › ${at.doc}` : `kmd 가 정리했다: ${meta.name} › ${target}`, small: g.kind === 'ingest' ? `${d.newDoc ? '새 문서' : '기존 문서에'} · ${g.record.title.split(/ — |: /)[0]}` : '내가 남긴 기록', go: { kn: id, doc: at.doc, hl: at.heading } })
           }
         } catch (e) {
           rows.push({ kind: 'left', target, why: e.message, records: recs.map((x) => x.id) })
@@ -1446,7 +1500,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const allStop = rows.length > 0 && stop.length === rows.length
         j.state = allStop ? 'failed' : 'done'
         j.done = run.at
-        if (allStop) j.why = stop[0].error === 'login' ? '정리 전용 로그인이 끝났다 — 관리 › Claude 연결' : '사용 한도에 닿았다 — 풀리면 이어서 한다'
+        if (allStop) j.why = stop[0].error === 'login' ? '정리 전용 로그인이 끝났다. 관리 › Claude 연결' : '사용 한도에 닿았다. 풀리면 이어서 한다'
         j.summary = { put: rows.filter((x) => x.kind === 'put' || x.kind === 'touches').length, changed: rows.filter((x) => x.kind === 'changed').length, left: rows.filter((x) => x.kind === 'left').length }
         saveJobs()
       }
@@ -1482,7 +1536,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 새 기기가 이어졌다 — 그 사람의 오늘 바뀐 것 · 다음 대화 첫 안내(다른 대역에서 받은 표면 노랑)
     async notifyDevice(user, dev) {
-      await feed.add(dataDir, user, { kind: 'device', brief: true, yl: !!dev.yellow, dot: 'acc', text: `새 기기가 이어졌다 — ${dev.host || '이름 없는 기기'} · ${user}`, small: '설치 한 줄로 · 내가 한 것이 아니면 [보기] 에서 끊는다', device: dev.id })
+      await feed.add(dataDir, user, { kind: 'device', brief: true, yl: !!dev.yellow, dot: 'acc', text: `새 기기가 이어졌다: ${dev.host || '이름 없는 기기'} · ${user}`, small: '설치 한 줄로 · 내가 한 것이 아니면 [보기] 에서 끊는다', device: dev.id })
     },
     async today(ctx) {
       return feed.list(dataDir, ctx.user)
@@ -1512,7 +1566,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (kind === 'save' && (x.rec ? logIds.has(x.rec) : /「화면에서 고침/.test(x.text || ''))) continue // 바로 고침 — 이력 줄이 같은 일
         if (x.rec && logIds.has(x.rec)) taken.add(x.rec)
         const w = kind === 'save' && x.rec && kById[x.kn]?.byWork.get(x.rec)
-        const sub = !w ? x.small || '' : w.state === 'pend' ? hub.pendText(x.kn) : w.state === 'nowhere' ? '넣을 곳을 찾는 중 — 정리하는 사람이 고른다' : '문서에 들어갔다'
+        const sub = !w ? x.small || '' : w.state === 'pend' ? hub.pendText(x.kn) : w.state === 'nowhere' ? '넣을 곳을 찾는 중: 관리자가 고른다' : '문서에 들어갔다'
         rows.push({ id: `f:${x.id}`, at: x.at, kind: FEED_KIND[kind], kn: x.kn || null, title: x.b || x.text, sub, who: kind === 'tidy' ? 'kmd' : kind === 'device' ? '' : ctx.user, yl: !!x.yl, revert: x.revert || null, device: x.device || null, go: x.go || null, rec: x.rec || null })
       }
       for (const { k, w } of logs) {
@@ -1539,7 +1593,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const r = await runClaude({ prompt, schema, budget, model: hub.modelOf(role), ...(timeoutMs ? { timeoutMs } : {}) })
       if (r.error) {
         if (r.error === 'login' || r.error === 'limit') await hub.workerStatus({ worker: { id: null } }, { ok: false, reason: r.error, message: r.message })
-        return { why: r.error === 'login' ? 'Claude 로그인이 없다 — 머리의 「Claude」 에서 로그인' : r.error === 'limit' ? 'Claude 사용 한도' : 'Claude 가 답하지 않았다' }
+        return { why: r.error === 'login' ? 'Claude 로그인이 없다. 머리의 「Claude」 에서 로그인' : r.error === 'limit' ? 'Claude 사용 한도' : 'Claude 가 답하지 않았다' }
       }
       await hub.workerStatus({ worker: { id: null } }, { ok: true })
       return { value: r.value, model: r.model }
@@ -1586,15 +1640,15 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 가져오기 한 번이 끝났다 — 그대로 · 바뀜 = 끝남 · 브레이크 = 확인할 것 · 못 가져옴 = 못함
     sourceJobEnd(qj, s, r) {
       const st = r.state === 'stopped' ? 'check' : r.state === 'failed' ? 'fail' : 'done'
-      const msg = r.state === 'stopped' ? `한꺼번에 크게 바뀌었다 — ${r.vanished ? `사라진 항목 ${r.vanished}` : `새 항목 ${r.added}`}${r.of ? ` / ${r.of}` : ''} · 아직 아무것도 쓰지 않았다`
-        : r.state === 'failed' ? `못 가져왔다 — ${r.why || ''}`
+      const msg = r.state === 'stopped' ? `한꺼번에 크게 바뀌었다: ${r.vanished ? `사라진 항목 ${r.vanished}` : `새 항목 ${r.added}`}${r.of ? ` / ${r.of}` : ''} · 아직 아무것도 쓰지 않았다`
+        : r.state === 'failed' ? `못 가져왔다: ${r.why || ''}`
         : r.state === 'waiting' ? r.why || '쉰다'
         : r.commits != null ? (r.commits ? `새 묶음 ${r.commits} · 코드 바뀜 기록 ${r.codeRecords}` : '새 묶음 없음')
         : r.state === 'changed' ? (r.docs != null ? `기록 ${r.recs ?? 0} · 문서 ${r.docs}${r.missing ? ` · 원본에 없다 ${r.missing}` : ''}` : `바뀐 표 ${r.n}`)
         : '그대로'
       qj.same = st === 'done' && r.state !== 'changed'
       // 코드 바뀜 기록 — 요약은 [기록] 에 찍었다. 문서에 넣는 것은 정리가 뒤에서 하고 넣으면 이 아래에 기록마다 한 줄
-      Q.line(qj, st === 'done' ? (r.codeRecords ? 'sys' : 'ok') : 'err', r.codeRecords ? `정리에 넘겼다 — 기록 ${r.codeRecords} 을 문서에 넣으면 여기에 한 줄씩` : msg)
+      Q.line(qj, st === 'done' ? (r.codeRecords ? 'sys' : 'ok') : 'err', r.codeRecords ? `정리에 넘겼다. 기록 ${r.codeRecords} 을 문서에 넣으면 여기에 한 줄씩` : msg)
       Q.end(qj, st, msg)
       // 같은 곳의 지난 확인할 것 · 못함은 걷는다(이번 것이 맞췄거나 새 줄로 섰다) · 그대로였던 확인은 마지막 것만 남긴다
       for (const j of Q.list()) {
@@ -1611,7 +1665,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       const j = Q.add({ ...(/^[0-9a-f]{12}$/.test(String(g.id || '')) ? { id: String(g.id) } : {}), kind: 'group', origin: 'file', kn: id, title: String(g.title || '파일 묶음').slice(0, 200), by: ctx.user, total: Math.max(0, Number(g.total) || 0), sent: 0, children: [], rows: [], touched: new Date().toISOString() })
       Q.mark(j, 0)
-      Q.line(j, 'sys', `파일 ${j.total} — 화면이 나눠 보낸다`)
+      Q.line(j, 'sys', `파일 ${j.total}: 화면이 나눠 보낸다`)
       return j
     },
     groupAdd(j, rows, n, last) {
@@ -1639,10 +1693,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     groupAct(j, act) {
       const kids = j.children.map((x) => Q.get(x)).filter((x) => x && !isFinal(x))
       if (act === 'cancel') {
-        for (const x of kids) if (x.state !== 'fail') Q.cancel(x.id, '그만뒀다 — 묶음째')
-        return Q.end(j, 'cancel', `그만뒀다 — ${j.sent}/${j.total} 에서 · 남은 파일은 보내지 않는다`)
+        for (const x of kids) if (x.state !== 'fail') Q.cancel(x.id, '그만뒀다. 묶음째')
+        return Q.end(j, 'cancel', `그만뒀다: ${j.sent}/${j.total} 에서 · 남은 파일은 보내지 않는다`)
       }
-      if (act === 'pause') { for (const x of kids) Q.pause(x.id); Object.assign(j, { paused: true, state: 'pause', msg: '멈췄다 — 안의 파일이 지금 단계를 마치고 선다' }); return j }
+      if (act === 'pause') { for (const x of kids) Q.pause(x.id); Object.assign(j, { paused: true, state: 'pause', msg: '멈췄다. 안의 파일이 지금 단계를 마치고 선다' }); return j }
       if (act === 'resume') { for (const x of kids) if (x.state === 'pause' || x.state === 'pausing') Q.resume(x.id); Object.assign(j, { paused: false, state: 'run' }); hub.groupCheck(j); return j }
       throw new KmdError('E_INPUT', '묶음은 멈춤 · 이어서 · 그만두기만 한다')
     },
@@ -1655,7 +1709,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const items = []
       for (const j of Q.list()) {
         if (!ks.has(j.kn) || (j.kind === 'file' && !hub.runOk(j, ctx))) continue
-        if (j.kind === 'group' && !j.uploaded && !isFinal(j) && Date.now() - Date.parse(j.touched || j.at) > 10 * 60_000) Q.end(j, 'fail', `화면이 나머지 파일을 보내지 않았다 — ${j.sent}/${j.total}`)
+        if (j.kind === 'group' && !j.uploaded && !isFinal(j) && Date.now() - Date.parse(j.touched || j.at) > 10 * 60_000) Q.end(j, 'fail', `화면이 나머지 파일을 보내지 않았다: ${j.sent}/${j.total}`)
         // 못함 — 정리가 뒤에서 그 기록을 넣었으면 걷는다
         if (j.kind === 'file' && j.state === 'fail' && !j.legacy && j.spec?.recId) {
           const w = (await hub.get(j.kn).catch(() => null))?.byWork.get(j.spec.recId)
@@ -1677,22 +1731,22 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!j || !(await hub.visible(ctx)).some((k) => k.id === j.kn) || (j.kind === 'file' && !hub.runOk(j, ctx))) throw new KmdError('E_NOTFOUND', '그 일은 이제 없다')
       return { ...hub.queueItem(j), lines: (j.lines || []).slice(Math.max(0, from)) }
     },
-    // 손잡이 — 멈춤 · 이어서 · 그만두기 · 다시 · 그대로 맞추기(force) · 맨 앞으로 · 옮기기. 넣은 사람 · 정리하는 사람 · 관리자(이 PC 는 누구나)
+    // 손잡이 — 멈춤 · 이어서 · 그만두기 · 다시 · 그대로 맞추기(force) · 맨 앞으로 · 옮기기. 넣은 사람 · 관리자(이 PC 는 누구나)
     async queueAct(ctx, id, act, b = {}) {
       const mine = async (kn, by) => mode === 'pc' || ctx.admin || by === ctx.user || (await hub.curatorsOf(kn)).includes(ctx.user)
       if (id.startsWith('t:')) {
         const t = jobs.get(id.slice(2))
         if (!t || !(await hub.visible(ctx)).some((k) => k.id === t.kn)) throw new KmdError('E_NOTFOUND', '그 일은 이제 없다')
         if (act !== 'cancel') throw new KmdError('E_INPUT', '정리 일감은 기다릴 때 빼기만 한다')
-        if (!(await mine(t.kn, t.by))) throw new KmdError('E_FORBIDDEN', '넣은 사람 · 정리하는 사람 · 관리자가 한다')
+        if (!(await mine(t.kn, t.by))) throw new KmdError('E_FORBIDDEN', '넣은 사람 · 관리자가 한다')
         if (t.state !== 'queued') throw new KmdError('E_CONFLICT', '정리 일꾼이 이미 맡았다')
-        Object.assign(t, { state: 'cancelled', why: `뺐다 — ${ctx.user}`, done: new Date().toISOString() })
+        Object.assign(t, { state: 'cancelled', why: `뺐다: ${ctx.user}`, done: new Date().toISOString() })
         saveJobs()
         return { ok: true }
       }
       const j = Q.get(id)
       if (!j || !(await hub.visible(ctx)).some((k) => k.id === j.kn)) throw new KmdError('E_NOTFOUND', '그 일은 이제 없다')
-      if (!(await mine(j.kn, j.by))) throw new KmdError('E_FORBIDDEN', '넣은 사람 · 정리하는 사람 · 관리자가 한다')
+      if (!(await mine(j.kn, j.by))) throw new KmdError('E_FORBIDDEN', '넣은 사람 · 관리자가 한다')
       try {
         if (j.kind === 'group') return hub.queueItem(hub.groupAct(j, act))
         if (act === 'force' && mode !== 'pc' && !hub.canSource(ctx, j.kn)) throw new KmdError('E_FORBIDDEN', '[그대로 맞추기] 는 관리자가 한다')
@@ -1705,7 +1759,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
         if (again && j.kind === 'curate') { Q.drop(j); hub.curateSoon(j.kn).catch(() => {}); return { ok: true, again: true } }
         if (act === 'force') throw new KmdError('E_INPUT', '그대로 맞추기는 가져오기만 한다')
-        const r = act === 'pause' ? Q.pause(id) : act === 'resume' ? Q.resume(id) : act === 'cancel' ? Q.cancel(id, `그만뒀다 — ${ctx.user}`) : act === 'retry' ? Q.retry(id) : act === 'top' ? Q.top(id) : act === 'move' ? Q.move(id, String(b.before || '')) : null
+        const r = act === 'pause' ? Q.pause(id) : act === 'resume' ? Q.resume(id) : act === 'cancel' ? Q.cancel(id, `그만뒀다: ${ctx.user}`) : act === 'retry' ? Q.retry(id) : act === 'top' ? Q.top(id) : act === 'move' ? Q.move(id, String(b.before || '')) : null
         if (!r) throw new KmdError('E_INPUT', '그런 손잡이는 없다')
         return hub.queueItem(r)
       } catch (e) {
@@ -1728,7 +1782,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const ks = new Map((await hub.visible(ctx)).map((k) => [k.id, k.name]))
       const nm = (id) => ks.get(id)
       const out = []
-      for (const b of srcBusy.values()) if (nm(b.kn)) out.push({ kind: 'source', kn: b.kn, knName: nm(b.kn), name: b.name, title: `${b.name} 가져오는 중${b.full ? ' — 전체 다시 맞추기' : ''}`, small: { git: '소스 코드', db: 'DB', docs: '문서 폴더', folder: '폴더' }[b.kind] || b.kind, since: b.since })
+      for (const b of srcBusy.values()) if (nm(b.kn)) out.push({ kind: 'source', kn: b.kn, knName: nm(b.kn), name: b.name, title: `${b.name} 가져오는 중${b.full ? ': 전체 다시 맞추기' : ''}`, small: { git: '소스 코드', db: 'DB', docs: '문서 폴더', folder: '폴더' }[b.kind] || b.kind, since: b.since })
       for (const r of runs.values()) if ((r.state === 'wait' || r.state === 'run') && nm(r.kn) && hub.runOk(r, ctx)) out.push({ kind: 'run', kn: r.kn, knName: nm(r.kn), title: r.title, small: r.state === 'wait' ? '차례를 기다린다' : `Claude Code 가 들이는 중 · 줄 ${r.lines.length}`, since: r.startedAt, run: r.id })
       for (const j of jobs.values()) if ((j.state === 'queued' || j.state === 'running') && nm(j.kn)) out.push({ kind: 'tidy', kn: j.kn, knName: nm(j.kn), title: '정리', small: j.state === 'queued' ? '정리 일꾼을 기다린다' : '정리하는 중', since: j.at })
       // 바로 넣기 — 차례를 기다리는 기록 수(코드 바뀜은 Claude Code 가 하나씩 넣어 몇 분씩 걸린다)
@@ -1767,7 +1821,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (have) return have
       if (!run) return null
       const name = rel.split('/').pop()
-      hub.runLine(run, 'sys', `${name} — 글로 바꾼다(Claude Code 가 원본을 읽는다)`)
+      hub.runLine(run, 'sys', `${name}: 글로 바꾼다(Claude Code 가 원본을 읽는다)`)
       const r = await runAgent({
         prompt: [`일 폴더의 「원본/${name}」 을 Read 로 끝까지 읽고(쪽이 많으면 나눠 읽는다) 글 그대로 md 로 옮긴다.`, '- 머리 · 표 · 목록 짜임을 살린다(표는 md 표). 수 · 날짜 · 이름은 그대로. 요약하지 않는다.', '- 쪽 번호 · 머리글 · 바닥글 · 표지 장식은 뺀다. 그림은 [그림: 무엇] 한 줄로.', '- 마지막 답에는 md 글만 쓴다(설명 · 머리말 없이).'].join('\n'),
         files: [{ name: `원본/${name}`, data }],
@@ -1781,7 +1835,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const md = r.text.replace(/^```(?:md|markdown)?\s*\n([\s\S]*?)\n```\s*$/m, '$1').trim()
       await fs.mkdir(path.dirname(f), { recursive: true })
       await fs.writeFile(f, md + '\n', 'utf8')
-      hub.runLine(run, 'ok', `글로 바꿨다 — ${md.split('\n').length}줄`)
+      hub.runLine(run, 'ok', `글로 바꿨다: ${md.split('\n').length}줄`)
       return md
     },
     // 들인 기록 하나를 에이전트로 — 세션처럼 둘러보고 · 이름을 맞추고 · 항목에 넣고 · 이름을 세운다.
@@ -1794,7 +1848,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!w || (w.state !== 'pend' && w.state !== 'nowhere')) { run.state = 'done'; run.msg = '이미 넣은 기록이다'; return { doc: null } }
       const name = hub.ingestFileOf(w).split('/').pop()
       await Q.step(run, 3)
-      hub.runLine(run, 'sys', `${meta.name} 에 들인다 — 기록 ${w.id}`)
+      hub.runLine(run, 'sys', `${meta.name} 에 들인다. 기록 ${w.id}`)
       const token = hub.agentToken(id, w.id, run.id)
       let r
       try {
@@ -1808,18 +1862,18 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const w2 = k2.byWork.get(w.id)
       if (r.ok && w2 && w2.state !== 'pend' && w2.state !== 'nowhere') {
         run.state = 'done'
-        run.msg = `문서에 넣었다 — ${run.docs.join(' · ') || meta.name}${run.names ? ` · 이름 ${run.names}` : ''}`
+        run.msg = `문서에 넣었다: ${run.docs.join(' · ') || meta.name}${run.names ? ` · 이름 ${run.names}` : ''}`
         if (r.error === 'login' || r.error === 'limit') await hub.workerStatus({ worker: { id: null } }, { ok: false, reason: r.error, message: r.message })
         else await hub.workerStatus({ worker: { id: null } }, { ok: true })
-        if (!run.quiet) feed.add(dataDir, w.author, { kind: 'tidy', kn: id, dot: 'acc', text: `kmd 가 넣은 파일을 문서에 들였다 — ${meta.name} › ${run.docs[0] || ''}`, small: `${name} · Claude Code 로`, ...(run.docs[0] ? { go: { kn: id, doc: run.docs[0] } } : {}) }).catch(() => {})
+        if (!run.quiet) feed.add(dataDir, w.author, { kind: 'tidy', kn: id, dot: 'acc', text: `kmd 가 넣은 파일을 문서에 들였다: ${meta.name} › ${run.docs[0] || ''}`, small: `${name} · Claude Code 로`, ...(run.docs[0] ? { go: { kn: id, doc: run.docs[0] } } : {}) }).catch(() => {})
         return { doc: run.docs[0] || null, how: 'agent', msg: run.msg }
       }
       if (r.error === 'login' || r.error === 'limit') await hub.workerStatus({ worker: { id: null } }, { ok: false, reason: r.error, message: r.message })
-      const why = r.ok ? 'Claude Code 가 이 기록을 문서에 넣지 않았다' : r.error === 'login' ? 'Claude 로그인이 없다 — 머리의 「Claude」 에서 로그인' : r.error === 'limit' ? 'Claude 한도 · 예산' : 'Claude Code 가 끝을 내지 못했다'
-      hub.runLine(run, 'sys', `규칙으로 넣는다 — ${why}`)
+      const why = r.ok ? 'Claude Code 가 이 기록을 문서에 넣지 않았다' : r.error === 'login' ? 'Claude 로그인이 없다. 머리의 「Claude」 에서 로그인' : r.error === 'limit' ? 'Claude 한도 · 예산' : 'Claude Code 가 끝을 내지 못했다'
+      hub.runLine(run, 'sys', `규칙으로 넣는다: ${why}`)
       const got = await hub.ingestNow(id, w.id, { claude: false, why })
       run.state = got.doc ? 'rule' : 'fail'
-      run.msg = got.doc ? `규칙으로 넣었다 — ${got.doc} · ${why}` : `넣지 못했다 — ${got.why || why}`
+      run.msg = got.doc ? `규칙으로 넣었다: ${got.doc} · ${why}` : `넣지 못했다: ${got.why || why}`
       if (got.doc) run.docs.push(got.doc)
       return got
     },
@@ -1829,12 +1883,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!hub.agentOk(id) || codeFresh(w.id) || queuedRecs.has(w.id)) return false
       codeTried.set(w.id, Date.now())
       queuedRecs.add(w.id)
-      const run = hub.newRun(id, { title: w.title.split(' — ')[0], file: hub.ingestFileOf(w), by: w.author, quiet: true })
+      const run = hub.newRun(id, { title: w.title.split(/ — |: /)[0], file: hub.ingestFileOf(w), by: w.author, quiet: true })
       try {
         await hub.ingestAgent(id, w.id, run)
       } catch (e) {
         run.state = e?.cancelled ? 'cancel' : 'fail'
-        run.msg = e?.cancelled ? '그만뒀다 — 기록은 남았다' : e.message
+        run.msg = e?.cancelled ? '그만뒀다. 기록은 남았다' : e.message
         hub.runLine(run, e?.cancelled ? 'sys' : 'err', run.msg)
       } finally {
         queuedRecs.delete(w.id)
@@ -1843,13 +1897,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         cache.delete(id)
         // 못 넣었으면 한 시간 뒤 정리 때 다시 맡는다 — 그때 줄도 이 일에
         const ok = run.state === 'done' || run.state === 'rule'
-        codeNote([w.id], ok ? 'ok' : 'err', `문서 — 「${w.title.split(' — ')[0]}」 ${ok ? `→ ${run.docs.join(' · ') || '넣었다'}(Claude Code)` : `못 넣었다 · ${run.msg || ''} — 한 시간 뒤 다시`}`, { keep: !ok })
+        codeNote([w.id], ok ? 'ok' : 'err', `문서: 「${w.title.split(/ — |: /)[0]}」 ${ok ? `→ ${run.docs.join(' · ') || '넣었다'}(Claude Code)` : `못 넣었다 · ${run.msg || ''}: 한 시간 뒤 다시`}`, { keep: !ok })
       }
       return run.state === 'done'
     },
     ingestFileOf(w) {
       const tag = w.tags.find((t) => t.startsWith('ingest/'))
-      return tag ? tag.slice(7) : `${w.title.split(' — ')[0]}.md`
+      return tag ? tag.slice(7) : `${w.title.split(/ — |: /)[0]}.md`
     },
     // 넣은 파일의 기록을 Claude 가 읽고 사람이 읽을 기록으로 — 무엇 · 핵심 · 정한 것 · 남은 것 + 본문(원문 짜임 그대로).
     //   기록은 그 자체로 지식이고 나중에 문서를 다시 세우는 재료다 — 받은 글(html 태그만 뺀 글 따위)을 그대로 두지 않는다.
@@ -1860,7 +1914,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const w = (await hub.get(id)).byWork.get(recId)
       if (!w || !w.tags.some((t) => t.startsWith('ingest/')) || w.tags.includes('ingest-read')) return { ok: false, why: '정리할 넣은 파일 기록이 아니다' }
       const file = hub.ingestFileOf(w)
-      if (run) hub.runLine(run, 'sys', `${file.split('/').pop()} — Claude 가 읽고 기록을 정리한다(무엇 · 핵심 · 정한 것 · 남은 것 + 본문)`)
+      if (run) hub.runLine(run, 'sys', `${file.split('/').pop()}: Claude 가 읽고 기록을 정리한다(무엇 · 핵심 · 정한 것 · 남은 것 + 본문)`)
       const src = { file, author: w.author, date: w.date, md: w.body }
       const prompt = filePrompt(src)
       // 분석은 살림 자리에 남긴다(<살림>/convert/<지문>.read.json) — 쓰기가 넘어져 다시 해도 Claude 를 또 부르지 않는다
@@ -1872,7 +1926,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       const rec = fileRecord(src, a.value)
       if (!rec) {
-        if (run) hub.runLine(run, 'err', `기록은 받은 글 그대로 둔다 — ${a.why || 'Claude 의 답이 기록 모양이 아니었다'}`)
+        if (run) hub.runLine(run, 'err', `기록은 받은 글 그대로 둔다: ${a.why || 'Claude 의 답이 기록 모양이 아니었다'}`)
         return { ok: false, why: a.why || 'Claude 의 답이 기록 모양이 아니었다' }
       }
       await serial(path.resolve(meta.dir), async () => {
@@ -1886,10 +1940,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             await new Promise((ok) => setTimeout(ok, 100 * (i + 1)))
           }
         }
-        await commitPaths(meta.dir, [w.path], `기록 정리 — ${rec.title}`, 'kmd-auto')
+        await commitPaths(meta.dir, [w.path], `기록 정리: ${rec.title}`, 'kmd-auto')
       })
       cache.delete(id)
-      if (run) hub.runLine(run, 'ok', `기록을 정리했다 — 「${rec.title}」`)
+      if (run) hub.runLine(run, 'ok', `기록을 정리했다. 「${rec.title}」`)
       return { ok: true, title: rec.title }
     },
     // 화면의 [Claude 로 기록 정리] — 이 PC · 바로 넣을 수 있는 사람만
@@ -1898,7 +1952,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       await hub.meta(id, ctx)
       if (!hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '이 지식에 바로 넣을 수 없다')
       const r = await hub.queueRun(id, () => hub.polishRecord(id, String(recId || '')))
-      if (!r.ok) throw new KmdError('E_INPUT', `기록을 정리하지 못했다 — ${r.why}`)
+      if (!r.ok) throw new KmdError('E_INPUT', `기록을 정리하지 못했다: ${r.why}`)
       return r
     },
     // 새 커밋 하나 — Claude 가 차이를 읽고 무엇이 왜 바뀌었는지 쓴 기록으로(안 되면 null · 차이 그대로)
@@ -1916,16 +1970,16 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const skill = [await fs.readFile(path.join(AGENT_DIR, 'skills', 'kmd-build', 'SKILL.md'), 'utf8').catch(() => ''), guide].filter(Boolean).join('\n\n')
       // 코드 바뀜 — 파일이 아니라 커밋 하나의 분석 기록이다. 자리는 그 저장소가 만드는 시스템의 기능 · 설계 문서
       if (w.tags.includes('code-change')) {
-        const src = (w.title.match(/ — (\S+) [0-9a-f]{7}(?:\.\.[0-9a-f]+)?$/) || [])[1] || '그 저장소'
+        const src = (w.title.match(/(?: —|:) (\S+) [0-9a-f]{7}(?:\.\.[0-9a-f]+)?$/) || [])[1] || '그 저장소'
         return {
           prompt: [
-            `지식 「${meta.name}」(knowledge id: ${meta.id}) 에 소스 코드 커밋 하나의 기록을 들인다 — kmd-build 순서대로, 다만 넣은 파일이 아니라 코드 바뀜이다.`,
-            `- 기록: 「${mdName}」(일 폴더) — Claude 가 커밋 차이를 읽고 쓴 분석(무엇이 바뀌었나 · 바뀐 것 · 영향 · 문서에서 맞춰 볼 것) · 끝에 커밋 메시지와 차이(근거)`,
-            `- 저장소: ${src} · 기록 id: ${w.id} — save 하면 kmd 가 이 기록을 「넣음」 으로 단다`,
-            `- 자리: ${src} 가 만드는 시스템의 기능 · 설계 문서. brief 로 둘러보고 그 시스템을 다루는 문서가 있으면 거기에 — 바뀐 기능의 항목이 있으면 section 으로 읽고 base 와 함께 지금 동작으로 고치고, 없으면 그 기능 이름으로 새 항목을 더한다.`,
+            `지식 「${meta.name}」(knowledge id: ${meta.id}) 에 소스 코드 커밋 하나의 기록을 들인다. kmd-build 순서대로, 다만 넣은 파일이 아니라 코드 바뀜이다.`,
+            `- 기록: 「${mdName}」(일 폴더): Claude 가 커밋 차이를 읽고 쓴 분석(무엇이 바뀌었나 · 바뀐 것 · 영향 · 문서에서 맞춰 볼 것) · 끝에 커밋 메시지와 차이(근거)`,
+            `- 저장소: ${src} · 기록 id: ${w.id}: save 하면 kmd 가 이 기록을 「넣음」 으로 단다`,
+            `- 자리: ${src} 가 만드는 시스템의 기능 · 설계 문서. brief 로 둘러보고 그 시스템을 다루는 문서가 있으면 거기에: 바뀐 기능의 항목이 있으면 section 으로 읽고 base 와 함께 지금 동작으로 고치고, 없으면 그 기능 이름으로 새 항목을 더한다.`,
             `  그런 문서가 없을 때만 「${src} 기능」 처럼 시스템 이름의 새 문서 하나를 세운다. 커밋 · 판 · 날짜로 문서나 항목을 세우지 않는다.`,
-            '- 항목 글은 바뀐 이력 나열이 아니라 「지금 어떻게 동작하나」 로 쓴다 — 기능 · 화면 · API · 설정 · 데이터. 차이 · 분석에 없는 것은 지어내지 않는다. 코드 줄 · 차이는 항목에 옮기지 않는다.',
-            '- from · append 는 쓰지 않는다(kmd 가 거절한다) — 기록의 「무엇이 바뀌었나 · 바뀐 것 · 영향 · 맞춰 볼 것 · 근거」 는 항목 글이 아니다. 고칠 항목을 section 으로 읽고 그 글을 지금 동작으로 고친 새 글 전체를 content · base 로 보낸다. 경과 줄은 kmd 가 단다.',
+            '- 항목 글은 바뀐 이력 나열이 아니라 「지금 어떻게 동작하나」 로 쓴다. 기능 · 화면 · API · 설정 · 데이터. 차이 · 분석에 없는 것은 지어내지 않는다. 코드 줄 · 차이는 항목에 옮기지 않는다.',
+            '- from · append 는 쓰지 않는다(kmd 가 거절한다). 기록의 「무엇이 바뀌었나 · 바뀐 것 · 영향 · 맞춰 볼 것 · 근거」 는 항목 글이 아니다. 고칠 항목을 section 으로 읽고 그 글을 지금 동작으로 고친 새 글 전체를 content · base 로 보낸다. 경과 줄은 kmd 가 단다.',
             '- 이 지식의 다른 주제(이 저장소와 상관없는 문서)는 고치지 않는다.',
             '도구의 knowledge 는 늘 위 id 를 쓴다.',
           ].join('\n'),
@@ -1934,7 +1988,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
       }
       return {
-        prompt: [`지식 「${meta.name}」(knowledge id: ${meta.id}) 에 넣은 파일 하나를 들인다 — kmd-build 순서대로.`, `- 바꾼 글: 「${mdName}」(일 폴더)${original ? ` · 원본: 「원본/${name}」` : ''}`, `- 파일 이름: ${file}`, `- 넣은 사람: ${w.author} · ${w.date}`, `- 이 파일의 기록 id: ${w.id} — save 하면 kmd 가 이 기록을 「넣음」 으로 단다(따로 적지 않아도 된다)`, '도구의 knowledge 는 늘 위 id 를 쓴다.'].join('\n'),
+        prompt: [`지식 「${meta.name}」(knowledge id: ${meta.id}) 에 넣은 파일 하나를 들인다. kmd-build 순서대로.`, `- 바꾼 글: 「${mdName}」(일 폴더)${original ? ` · 원본: 「원본/${name}」` : ''}`, `- 파일 이름: ${file}`, `- 넣은 사람: ${w.author} · ${w.date}`, `- 이 파일의 기록 id: ${w.id}: save 하면 kmd 가 이 기록을 「넣음」 으로 단다(따로 적지 않아도 된다)`, '도구의 knowledge 는 늘 위 id 를 쓴다.'].join('\n'),
         system: skill.replace(/^---[\s\S]*?---\s*/, ''),
         files: [{ name: mdName, data: Buffer.from(w.body.replace(/^# .*\n+/, ''), 'utf8') }, ...(original ? [{ name: `원본/${name}`, data: original }] : [])],
       }
@@ -1952,7 +2006,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!w || w.state !== 'pend' || !w.tags.some((t) => t.startsWith('ingest/'))) throw new KmdError('E_NOTFOUND', '들일 넣은 파일 기록이 없다')
       const run = hub.newRun(id, { title: hub.ingestFileOf(w).split('/').pop(), file: hub.ingestFileOf(w), by: w.author })
       run.state = 'run'
-      hub.runLine(run, 'sys', `정리 일꾼이 ${meta.name} 에 들인다 — 기록 ${w.id}`)
+      hub.runLine(run, 'sys', `정리 일꾼이 ${meta.name} 에 들인다. 기록 ${w.id}`)
       const task = await hub.agentTask(meta, w)
       return { run: run.id, token: hub.agentToken(id, w.id, run.id), prompt: task.prompt, system: task.system, files: task.files.map((f) => ({ name: f.name, b64: f.data.toString('base64') })) }
     },
@@ -1970,7 +2024,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 넣었나 — 에이전트의 save 가 이 일에 문서를 남겼다(그 save 가 기록을 「넣음」 으로 달았다)
       const placed = !!ok && run.docs.length > 0
       run.state = placed ? 'done' : 'fail'
-      run.msg = placed ? `문서에 넣었다 — ${run.docs.join(' · ')}${run.names ? ` · 이름 ${run.names}` : ''}` : `에이전트가 넣지 못했다 — ${String(why || '정리 초안으로 다시 한다').slice(0, 200)}`
+      run.msg = placed ? `문서에 넣었다: ${run.docs.join(' · ')}${run.names ? ` · 이름 ${run.names}` : ''}` : `에이전트가 넣지 못했다: ${String(why || '정리 초안으로 다시 한다').slice(0, 200)}`
       run.endedAt = new Date().toISOString()
       hub.runSave(run)
       if (placed) {
@@ -2015,8 +2069,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           const md = await hub.mdOf(rel, data, run)
           if (!md) {
             run.state = 'fail'
-            run.msg = '글로 바꾸지 못했다 — 원본은 첨부로 두었다'
-            await coreSave(meta.dir, { record: { title: `글로 바꾸지 못한 파일 — ${rel.split('/').pop()}`, body: `원본은 첨부로 두었다 — docs/assets/${rel}\n- 까닭: ${hub.agentOk(id) ? 'Claude Code 가 글로 옮기지 못했다' : 'Claude 를 쓰지 않는다(로그인 · 「Claude 에 보내지 않음」)'}\n- 다시: 지식 만들기 › 파일 넣기에 같은 파일을 다시 넣는다`, tags: ['curate-auto'] } }, { user: 'kmd-auto', system: true })
+            run.msg = '글로 바꾸지 못했다. 원본은 첨부로 두었다'
+            await coreSave(meta.dir, { record: { title: `글로 바꾸지 못한 파일: ${rel.split('/').pop()}`, body: `원본은 첨부로 두었다. docs/assets/${rel}\n- 까닭: ${hub.agentOk(id) ? 'Claude Code 가 글로 옮기지 못했다' : 'Claude 를 쓰지 않는다(로그인 · 「Claude 에 보내지 않음」)'}\n- 다시: 지식 만들기 › 파일 넣기에 같은 파일을 다시 넣는다`, tags: ['curate-auto'] } }, { user: 'kmd-auto', system: true })
             hub.ingestEnd(id, run, null, meta)
             return null
           }
@@ -2025,7 +2079,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           const rec = plan.records[0]
           if (!rec) {
             run.state = 'done'
-            run.msg = '같은 파일 — 그대로 두었다'
+            run.msg = '같은 파일: 그대로 두었다'
             hub.ingestEnd(id, run, null, meta)
             return null
           }
@@ -2035,14 +2089,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           fs.rm(binOf(run.id), { force: true }).catch(() => {})
           queuedRecs.add(recId) // 들이기 차례를 기다리는 동안 정리 줄이 따로 집지 않게
           run.rec = recId
-          hub.runLine(run, 'ok', `기록이 됐다 — ${recId}`)
+          hub.runLine(run, 'ok', `기록이 됐다: ${recId}`)
         }
         else await Q.step(run, 2)
-        await hub.polishRecord(id, recId, run).catch((e) => hub.runLine(run, 'err', `기록 정리 — ${e.message}`))
+        await hub.polishRecord(id, recId, run).catch((e) => hub.runLine(run, 'err', `기록 정리: ${e.message}`))
         return { rel, data, recId, run }
       } catch (e) {
         run.state = e?.cancelled ? 'cancel' : 'fail'
-        run.msg = e?.cancelled ? `그만뒀다 — 「${STAGES[run.stage ?? 0]}」 에서` : e.message
+        run.msg = e?.cancelled ? `그만뒀다. 「${STAGES[run.stage ?? 0]}」 에서` : e.message
         hub.runLine(run, e?.cancelled ? 'sys' : 'err', run.msg)
         hub.ingestEnd(id, run, recId, meta)
         return null
@@ -2064,7 +2118,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         await hub.ingestAgent(id, recId, run, { original: data && PCONLY.includes(rel.split('.').pop().toLowerCase()) ? data : null })
       } catch (e) {
         run.state = e?.cancelled ? 'cancel' : 'fail'
-        run.msg = e?.cancelled ? '그만뒀다 — 「문서 생성」 에서 · 기록은 남았다(정리 때 다시 넣는다)' : e.message
+        run.msg = e?.cancelled ? '그만뒀다. 「문서 생성」 에서 · 기록은 남았다(정리 때 다시 넣는다)' : e.message
         hub.runLine(run, e?.cancelled ? 'sys' : 'err', run.msg)
       } finally {
         hub.ingestEnd(id, run, recId, meta)
@@ -2084,9 +2138,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const k = await hub.get(id)
       const w = k.byWork.get(recId)
       if (!w || (w.state !== 'pend' && w.state !== 'nowhere') || w.touches.length) return { why: '들일 기록이 없다' }
-      if (w.tags.includes('code-change')) return { why: '코드 바뀜은 기록으로 둔다 — 걸린 항목 글은 정리가 맞춘다' }
+      if (w.tags.includes('code-change')) return { why: '코드 바뀜은 기록으로 둔다. 걸린 항목 글은 정리가 맞춘다' }
       const tag = w.tags.find((t) => t.startsWith('ingest/'))
-      const file = tag ? tag.slice(7) : `${w.title.split(' — ')[0].replace(/[\\/<>:"|?*\u0000-\u001f]/g, '').trim() || '메모'}.md`
+      const file = tag ? tag.slice(7) : `${w.title.split(/ — |: /)[0].replace(/[\\/<>:"|?*\u0000-\u001f]/g, '').trim() || '메모'}.md`
       const g = { kind: 'ingest', record: { id: w.id, date: w.date, author: w.author, title: w.title, body: w.body, file }, docs: ingestCandidates(k, w) }
       let why = why0 || 'Claude 를 쓰지 않는다'
       if (claude) {
@@ -2099,16 +2153,16 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             cache.delete(id)
             const d = a.value
             const doc = d.newDoc ? String(d.newDoc.path).replace(/\\/g, '/').replace(/^docs\/|\.md$/g, '').trim() : String(d.updates[0].doc).replace(/^docs\/|\.md$/g, '')
-            return { doc, how: 'claude', msg: `기록 · 문서가 됐다 — ${meta.name} › ${doc.split('/').join(' › ')}${d.newDoc ? ' (새 문서)' : ' (기존 문서에 넣음)'} · Claude 로 다듬었다` }
+            return { doc, how: 'claude', msg: `기록 · 문서가 됐다: ${meta.name} › ${doc.split('/').join(' › ')}${d.newDoc ? ' (새 문서)' : ' (기존 문서에 넣음)'} · Claude 로 다듬었다` }
           }
-          why = `검사를 넘지 못했다 — ${c.why}`
+          why = `검사를 넘지 못했다: ${c.why}`
         }
       }
       const rule = ingestRule(k, g, { why })
       if (!rule) return { why: '빈 기록이다' }
       await coreSave(meta.dir, rule.input, { user: 'kmd-auto', system: true })
       cache.delete(id)
-      return { doc: rule.doc, how: 'rule', msg: `기록 · 문서가 됐다 — ${meta.name} › ${rule.doc.split('/').join(' › ')} (규칙으로 ${rule.note}${why ? ' · ' + why : ''})` }
+      return { doc: rule.doc, how: 'rule', msg: `기록 · 문서가 됐다: ${meta.name} › ${rule.doc.split('/').join(' › ')} (규칙으로 ${rule.note}${why ? ' · ' + why : ''})` }
     },
     // 묶음 하나 넣기 — 항목(section) · 이름 고르기(touches) · 이름 없는 기록(ingest) · 넣었으면 true
     async placeGroup(id, g) {
@@ -2131,7 +2185,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             if (a.value && checkDraft(k, g, a.value).ok && a.value.touches.length) {
               await coreSave(meta.dir, planSave(k, g, a.value, { model: a.model }), { user: 'kmd-auto', system: true })
               cache.delete(id)
-              codeNote([g.record.id], 'ok', `항목 — 「${g.record.title.split(' — ')[0]}」 → ${a.value.touches.join(' · ')} · 그 항목 글을 맞춘다`, { keep: true })
+              codeNote([g.record.id], 'ok', `항목: 「${g.record.title.split(/ — |: /)[0]}」 → ${a.value.touches.join(' · ')} · 그 항목 글을 맞춘다`, { keep: true })
               return true
             }
           }
@@ -2152,27 +2206,27 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           const saved = await coreSave(meta.dir, planSave(k, g, a.value, { model: a.model }), { user: 'kmd-auto', system: true })
           cache.delete(id)
           const used = g.records.filter((x) => a.value.used.includes(x.id))
-          for (const x of used) codeNote([x.id], c.changed.length ? 'err' : 'ok', `문서 — 「${x.title.split(' — ')[0]}」 → ${target} 글을 고쳤다(Claude)${c.changed.length ? ` · 값이 바뀜 ${c.changed[0].from} → ${c.changed[0].to}` : ''}`)
+          for (const x of used) codeNote([x.id], c.changed.length ? 'err' : 'ok', `문서: 「${x.title.split(/ — |: /)[0]}」 → ${target} 글을 고쳤다(Claude)${c.changed.length ? ` · 값이 바뀜 ${c.changed[0].from} → ${c.changed[0].to}` : ''}`)
           for (const u of [...new Set(used.map((x) => x.author))])
             await feed.add(dataDir, u, c.changed.length
-              ? { kind: 'tidy', rec: saved.id, kn: id, yl: true, b: `kmd 가 문서에 넣으며 값을 바꿨다 — ${meta.name} › ${target} · ${c.changed[0].from} → ${c.changed[0].to}`, small: '내 기록에서 — 되돌릴 수 있다', go: { kn: id, doc: g.doc.replace(/^docs\/|\.md$/g, ''), hl: g.heading }, revert: saved.id }
-              : { kind: 'tidy', rec: saved.id, kn: id, dot: 'acc', text: `kmd 가 문서에 넣었다 — ${meta.name} › ${target}`, small: '내가 남긴 기록', go: { kn: id, doc: g.doc.replace(/^docs\/|\.md$/g, ''), hl: g.heading } })
+              ? { kind: 'tidy', rec: saved.id, kn: id, yl: true, b: `kmd 가 문서에 넣으며 값을 바꿨다: ${meta.name} › ${target} · ${c.changed[0].from} → ${c.changed[0].to}`, small: '내 기록에서: 되돌릴 수 있다', go: { kn: id, doc: g.doc.replace(/^docs\/|\.md$/g, ''), hl: g.heading }, revert: saved.id }
+              : { kind: 'tidy', rec: saved.id, kn: id, dot: 'acc', text: `kmd 가 문서에 넣었다: ${meta.name} › ${target}`, small: '내가 남긴 기록', go: { kn: id, doc: g.doc.replace(/^docs\/|\.md$/g, ''), hl: g.heading } })
           // 넣지 않고 둔 기록(left)이 있으면 다음 차례에 규칙으로
           return true
         }
-        why = `검사를 넘지 못했다 — ${c.why}`
+        why = `검사를 넘지 못했다: ${c.why}`
       }
       // 규칙 — 기록 글을 항목 끝에 붙인다(머리 줄은 굵은 글로 · 표지는 뺀다) · 붙인 글 앞에 어느 기록인지 한 줄.
       //   코드 바뀜 기록(분석 · 커밋 메시지 · 차이)은 붙이지 않는다 — 항목 글이 아니다. 경과 줄로만 잇는다(저장이 단다)
       const up = '../'.repeat(g.doc.split('/').length - 1)
       const add = g.records.filter((r) => !r.code).map((r) => {
         const body = r.body.replace(/<!--[\s\S]*?-->/g, '').replace(/^#{1,6}\s+(.+)$/gm, '**$1**').trim()
-        return body && `> 기록 그대로 — [${r.title.split(' — ')[0].replace(/[[\]]/g, '')}](${up}work/${encodeURI(r.id).replace(/\(/g, '%28').replace(/\)/g, '%29')}.md) · Claude 로 다듬지 못했다\n\n${body}`
+        return body && `> 기록 그대로: [${r.title.split(/ — |: /)[0].replace(/[[\]]/g, '')}](${up}work/${encodeURI(r.id).replace(/\(/g, '%28').replace(/\)/g, '%29')}.md) · Claude 로 다듬지 못했다\n\n${body}`
       }).filter(Boolean).join('\n\n')
       const content = [g.content.trim(), add].filter(Boolean).join('\n\n')
-      await coreSave(meta.dir, { record: { title: `정리 — ${g.name}`, body: ['규칙으로 — 기록 글을 항목 끝에 붙였다(코드 바뀜 기록은 경과 줄만)', ...g.records.map((r) => `- 넣음 ${r.id} — ${r.title}`), ...(why ? [`- Claude 로 하지 못한 까닭 — ${why}`] : [])].join('\n'), touches: [g.coord], tags: ['curate-auto'], reflects: g.records.map((r) => r.id) }, sections: [{ coord: g.coord, content, base: g.base }] }, { user: 'kmd-auto', system: true })
+      await coreSave(meta.dir, { record: { title: `정리: ${g.name}`, body: ['규칙으로: 기록 글을 항목 끝에 붙였다(코드 바뀜 기록은 경과 줄만)', ...g.records.map((r) => `- 넣음 ${r.id}: ${r.title}`), ...(why ? [`- Claude 로 하지 못한 까닭: ${why}`] : [])].join('\n'), touches: [g.coord], tags: ['curate-auto'], reflects: g.records.map((r) => r.id) }, sections: [{ coord: g.coord, content, base: g.base }] }, { user: 'kmd-auto', system: true })
       cache.delete(id)
-      for (const x of g.records) codeNote([x.id], 'sys', `문서 — 「${x.title.split(' — ')[0]}」 → ${target} 에 경과 줄만 달았다(규칙)${why ? ` · ${why}` : ''}`)
+      for (const x of g.records) codeNote([x.id], 'sys', `문서: 「${x.title.split(/ — |: /)[0]}」 → ${target} 에 경과 줄만 달았다(규칙)${why ? ` · ${why}` : ''}`)
       return true
     },
     // 그 지식의 「아직 안 넣은 기록」 모두 — 이름을 고른 기록은 다음 차례에 그 항목으로(세 차례까지)
@@ -2192,8 +2246,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             cj ||= Q.add({ kind: 'curate', origin: 'kmd', kn: id, title: '기록을 문서에 넣기', by: 'kmd', auto: 'curate' })
             try { await Q.step(cj, 3) } catch { stop = true; break }
             const what = g.kind === 'section' ? `${String(g.doc).replace(/^docs\/|\.md$/g, '')} › ${g.heading}` : g.record?.title || g.kind
-            const ok = await hub.placeGroup(id, g).catch((e) => (log(`바로 넣기 ${id}: ${e.message}`), Q.line(cj, 'err', `${what} — ${e.message}`), false))
-            if (ok) { did++; Q.line(cj, 'ok', `넣었다 — ${what}`) }
+            const ok = await hub.placeGroup(id, g).catch((e) => (log(`바로 넣기 ${id}: ${e.message}`), Q.line(cj, 'err', `${what}: ${e.message}`), false))
+            if (ok) { did++; Q.line(cj, 'ok', `넣었다: ${what}`) }
           }
           n += did
           if (!did) break
@@ -2202,7 +2256,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         curating.delete(id)
         // 넣은 것이 없으면(다른 일이 맡은 기록뿐) 줄에 남기지 않는다
         if (cj && !n && !stop) Q.drop(cj)
-        else if (cj) Q.end(cj, stop ? 'cancel' : 'done', stop ? '그만뒀다 — 남은 기록은 다음 정리 때 넣는다' : `넣은 기록 ${n}`)
+        else if (cj) Q.end(cj, stop ? 'cancel' : 'done', stop ? '그만뒀다. 남은 기록은 다음 정리 때 넣는다' : `넣은 기록 ${n}`)
       }
       if (n) {
         const meta = await hub.meta(id)
@@ -2276,7 +2330,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           // 대원칙 — 지식은 기록 → 문서. 옛 폴더로 세울 때도 파일마다 기록 하나(글 그대로)를 먼저 남기고,
           // 그 문서의 항목에 그 기록을 표지로 단다 · 이력 하나가 그 기록들을 넣었다고 적는다(reflects — 「문서에 들어감」)
           const docs = plan.docs.filter((d) => !owners.isReservedFile(d.rel))
-          let title = `파일 넣기 — ${ctx.user} · ${docs.length + plan.atts.length}`
+          let title = `파일 넣기: ${ctx.user} · ${docs.length + plan.atts.length}`
           if (docs.length) {
             const date = localStamp()
             const day = date.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2$3')
@@ -2292,11 +2346,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             for (const d of docs) {
               const file = d.rel.replace(/^docs\//, '')
               const rid = idOf(`${day}-${(file.split('/').pop().replace(/\.md$/, '').replace(/[\\/:*?"<>|#%`'\s]+/g, '-').slice(0, 40).replace(/^-+|[-.]+$/g, '') || '문서')}`)
-              if (!(await put(`work/${rid}.md`, renderRecord({ id: rid, title: `${file.split('/').pop()} — 들여온 문서 · ${meta.name}`, date, author: ctx.user, tags: [] }, d.text)))) continue
+              if (!(await put(`work/${rid}.md`, renderRecord({ id: rid, title: `${file.split('/').pop()}: 들여온 문서 · ${meta.name}`, date, author: ctx.user, tags: [] }, d.text)))) continue
               ids.push(rid)
               stamped.push({ rel: d.rel, data: Buffer.from(stampAll(d.text, rid), 'utf8') })
             }
-            title = `들여옴 — 옛 폴더 · 문서 ${ids.length}${plan.atts.length ? ' · 첨부 ' + plan.atts.length : ''}`
+            title = `들여옴: 옛 폴더 · 문서 ${ids.length}${plan.atts.length ? ' · 첨부 ' + plan.atts.length : ''}`
             const lid = idOf(`${day}-옛-폴더-들여옴`)
             await put(`log/${lid}.md`, renderRecord({ id: lid, title, date, author: ctx.user, tags: ['sources'], reflects: ids }, ids.map((x) => `- ${x}`).slice(0, 300).join('\n')))
             for (const x of stamped) await put(x.rel, x.data)
@@ -2318,7 +2372,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         try {
           sv = await hub.save(ctx, id, { record: r }, { noCurate: now })
         } catch (e) {
-          if (recRows[i]) Object.assign(recRows[i], { kind: 'fail', msg: `넣지 못했다 — ${e.message}` })
+          if (recRows[i]) Object.assign(recRows[i], { kind: 'fail', msg: `넣지 못했다: ${e.message}` })
           continue
         }
         if (!recRows[i]) continue
@@ -2331,14 +2385,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           run.spec = { type: 'ingest', kn: id, rel, recId: sv.id, user: ctx.user }
           queuedRecs.add(sv.id)
           hub.ingestFileLater(ctx, id, { rel, recId: sv.id, run })
-          Object.assign(recRows[i], { kind: 'run', run: run.id, msg: 'Claude Code 가 들이는 중 — 터미널에서 본다' })
+          Object.assign(recRows[i], { kind: 'run', run: run.id, msg: 'Claude Code 가 들이는 중: 터미널에서 본다' })
           continue
         }
         if (now) {
           if (i < INGEST_CLAUDE_MAX) await hub.polishRecord(id, sv.id).catch(() => null)
           const got = await hub.ingestNow(id, sv.id, { claude: i < INGEST_CLAUDE_MAX }).catch((e) => ({ why: e.message }))
           if (got.doc) Object.assign(recRows[i], { kind: 'doc', doc: got.doc, msg: got.msg })
-          else recRows[i].msg = `기록이 됐다 — 문서로 들이지 못했다 · ${got.why || ''}`
+          else recRows[i].msg = `기록이 됐다. 문서로 들이지 못했다 · ${got.why || ''}`
         }
       }
       } finally {
@@ -2350,11 +2404,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (!fd) continue
         const run = hub.newRun(id, { title: x.name.split('/').pop(), file: x.name, by: ctx.user, parent: gj?.id })
         hub.ingestFileLater(ctx, id, { rel: x.name, data: fd.data, run })
-        Object.assign(x, { kind: 'run', run: run.id, msg: 'Claude Code 가 글로 바꿔 들이는 중 — 터미널에서 본다 · 원본은 첨부로' })
+        Object.assign(x, { kind: 'run', run: run.id, msg: 'Claude Code 가 글로 바꿔 들이는 중: 터미널에서 본다 · 원본은 첨부로' })
       }
       const s = summary(plan.rows)
       // 이력 — 넣기 한 번이 한 줄(파일마다 줄을 쌓지 않는다) · 못 넣은 파일과 까닭도
-      if (s.doc || s.record || s.run || s.fail || s.skip) feed.add(dataDir, ctx.user, { kind: 'import', kn: id, dot: s.fail ? 'warn' : 'acc', text: `파일 ${plan.rows.length}개를 넣었다 — ${meta.name}`, small: [s.doc ? `문서 ${s.doc}` : '', s.record ? `기록 ${s.record}` : '', s.run ? `Claude Code 일 ${s.run}` : '', s.att ? `첨부 ${s.att}` : '', s.fail ? `못 넣음 ${s.fail} — ${plan.rows.filter((x) => x.kind === 'fail').slice(0, 3).map((x) => `${x.name}: ${x.msg}`).join(' · ')}` : '', s.skip ? `읽지 못하는 종류 ${s.skip}` : ''].filter(Boolean).join(' · ') }).catch(() => {})
+      if (s.doc || s.record || s.run || s.fail || s.skip) feed.add(dataDir, ctx.user, { kind: 'import', kn: id, dot: s.fail ? 'warn' : 'acc', text: `파일 ${plan.rows.length}개를 넣었다: ${meta.name}`, small: [s.doc ? `문서 ${s.doc}` : '', s.record ? `기록 ${s.record}` : '', s.run ? `Claude Code 일 ${s.run}` : '', s.att ? `첨부 ${s.att}` : '', s.fail ? `못 넣음 ${s.fail}: ${plan.rows.filter((x) => x.kind === 'fail').slice(0, 3).map((x) => `${x.name}: ${x.msg}`).join(' · ')}` : '', s.skip ? `읽지 못하는 종류 ${s.skip}` : ''].filter(Boolean).join(' · ') }).catch(() => {})
       // 넣은 파일의 기록 — 팀은 정리를 바로 건다(Claude 에 보내지 않는 지식이면 기록으로 기다린다) · 이 PC 는 위에서 이미 문서까지
       if (!now && s.record && hub.teamPrivate(id)) hub.curateSoon(id).catch(() => {})
       else if (!now && s.record && (hub.meaningOk(id) || hub.ruleOnly(id)) && hub.tidyModeOf(id) !== 'manual') hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
@@ -2373,18 +2427,18 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       for (const d of dests) {
         if (!d.url) {
           if (d.kn === id) throw new KmdError('E_INPUT', '자기 자신으로는 보내지 않는다')
-          if (!(await hub.list()).some((k) => k.id === d.kn)) throw new KmdError('E_INPUT', `「${d.kn}」 지식이 없다 — 다른 kmd(팀)의 지식이면 그 팀 › 지식으로 고른다`)
+          if (!(await hub.list()).some((k) => k.id === d.kn)) throw new KmdError('E_INPUT', `「${d.kn}」 지식이 없다. 다른 kmd(팀)의 지식이면 그 팀 › 지식으로 고른다`)
           continue
         }
         const t = await hub.teamKns(d.url).catch(() => null)
-        if (t?.error === 401) throw new KmdError('E_INPUT', '이 PC 의 열쇠를 그 팀이 받지 않는다 — 팀 화면 › 설치 한 줄로 다시 잇는다')
-        if (t?.kns && !t.kns.some((k) => k.id === d.kn)) throw new KmdError('E_INPUT', `그 팀에 「${d.kn}」 지식이 없다 — 팀 › 지식 목록에서 고른다`)
+        if (t?.error === 401) throw new KmdError('E_INPUT', '이 PC 의 열쇠를 그 팀이 받지 않는다. 팀 화면 › 설치 한 줄로 다시 잇는다')
+        if (t?.kns && !t.kns.some((k) => k.id === d.kn)) throw new KmdError('E_INPUT', `그 팀에 「${d.kn}」 지식이 없다. 팀 › 지식 목록에서 고른다`)
       }
       const conf = await sendLib.readConf(meta.dir)
       await serial(path.resolve(meta.dir), async () => {
         await ensureRepo(meta.dir)
         await fs.writeFile(path.join(meta.dir, sendLib.CONF), JSON.stringify({ ...conf, send: dests.map((d) => ({ kn: d.kn, ...(d.url ? { url: String(d.url).replace(/\/+$/, '') } : {}) })) }, null, 2) + '\n')
-        await commitPaths(meta.dir, [sendLib.CONF], `보낼 곳 — ${dests.map((d) => d.kn).join(' · ') || '없음'}`, ctx.user).catch(() => {})
+        await commitPaths(meta.dir, [sendLib.CONF], `보낼 곳: ${dests.map((d) => d.kn).join(' · ') || '없음'}`, ctx.user).catch(() => {})
       })
       // 처음 정하면 지금 글 · 기록을 보낸 것으로 — 그 뒤 고친 문서 · 새 기록만 변경사항에 모인다
       // 대기 — 뺀 보낼 곳의 것은 걷고 · 주소를 바꾼 곳은 새 주소로
@@ -2411,7 +2465,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       for (const u of teams) {
         const url = String(u).replace(/\/+$/, '')
         const t = await hub.teamKns(url).catch(() => ({ error: 'reach' }))
-        out.push({ url, ...(t.kns ? { kns: t.kns } : { error: t.error === 401 ? '이 PC 의 열쇠를 그 팀이 받지 않는다 — 다시 잇는다' : t.error === 'nokey' ? '이 PC 가 그 팀에 이어지지 않았다 — 팀 화면 › 설치 한 줄' : '그 팀에 닿지 않는다' }) })
+        out.push({ url, ...(t.kns ? { kns: t.kns } : { error: t.error === 401 ? '이 PC 의 열쇠를 그 팀이 받지 않는다. 다시 잇는다' : t.error === 'nokey' ? '이 PC 가 그 팀에 이어지지 않았다. 팀 화면 › 설치 한 줄' : '그 팀에 닿지 않는다' }) })
       }
       return { teams: out, local: mode === 'team' ? [] : (await hub.list()).map((k) => ({ id: k.id, name: k.name })) }
     },
@@ -2439,21 +2493,37 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         return { ok: true }
       })
     },
-    // ── 지식 보내기(팀 화면) — 보내는 길: 내 개인 지식 하나 → 팀 지식 하나 ──
-    //   길은 개인 지식마다 하나(.kmd.json send — 주소 없이 같은 서버) · 화면이 그때그때 고르지 않는다 · 바꾸려면 새 이름을 그대로 친다
-    //   보낼 것은 그 길 안에서 — 기록(보내지 않은 것) · 문서(처음은 전체 · 그 뒤로는 고친 항목만, 고르면 전체)
+    // ── 지식 보내기 — 보내는 길: 내 개인 지식 하나 → 팀 지식 하나 ──
+    //   개인 지식은 내 PC 프로그램에 있다. 내 PC 프로그램이 이 PC 의 기기 열쇠로 팀 서버에 보낸다(팀 화면은 짝 열쇠로 부른다)
+    //   길은 개인 지식마다 하나(.kmd.json send: 팀 주소 · 지식 · 이름) · 바꾸려면 새 이름을 그대로 친다
+    //   보낼 것은 기록(보내지 않은 것) · 문서(통째로) 둘뿐이다
+    //   팀 서버에 남은 옛 개인 지식도 내 PC 로 옮기기 전까지는 같은 서버의 팀 지식으로 보낸다
     async routeMeta(ctx, id) {
-      if (mode !== 'team') throw new KmdError('E_FORBIDDEN', '지식 보내기는 팀 화면에서 한다 — 내 PC 지식은 가져오기로 팀 서버의 개인 지식에 옮긴 뒤 보낸다')
       const meta = await hub.meta(id, ctx)
+      if (mode === 'pc') return meta
       const row = rowFor(id)
       if (!row?.private || row.owner !== ctx.user) throw new KmdError('E_FORBIDDEN', '내 개인 지식에서만 보낸다')
       return meta
     },
     async routeOf(meta) {
-      const d = (await sendLib.destsOf(meta.dir)).find((x) => !x.url)
+      const d = (await sendLib.destsOf(meta.dir)).find((x) => (mode === 'pc' ? !!x.url : !x.url))
       if (!d) return null
+      if (d.url) return { kn: d.kn, name: d.name || d.kn, url: d.url }
       const tm = await hub.meta(d.kn).catch(() => null)
-      return tm && !rowFor(d.kn)?.private ? { kn: d.kn, name: tm.name, owner: rowFor(d.kn)?.owner || null, tidyAt: hub.tidyAtOf(d.kn), tidyMode: hub.tidyModeOf(d.kn) } : { kn: d.kn, name: d.kn, gone: true }
+      return tm && !rowFor(d.kn)?.private ? { kn: d.kn, name: tm.name, tidyAt: hub.tidyAtOf(d.kn), tidyMode: hub.tidyModeOf(d.kn) } : { kn: d.kn, name: d.kn, gone: true }
+    },
+    // 이 PC 가 이은 팀 주소(kmd connect 가 teams.json 에 적었다). 짝 지은 팀 화면이 부르면 그 화면의 주소
+    async teamUrlFor(ctx, url) {
+      const teams = (await fs.readFile(path.join(dataDir, 'teams.json'), 'utf8').then(JSON.parse, () => [])).map((u) => String(u).replace(/\/+$/, ''))
+      const want = String(url || ctx.origin || '').replace(/\/+$/, '')
+      const originOf = (u) => { try { return new URL(u).origin } catch { return u } }
+      if (want) {
+        const hit = teams.find((u) => u === want || originOf(u) === want)
+        if (!hit) throw new KmdError('E_INPUT', '이 PC 가 이은 팀이 아니다. 팀 화면의 설치 한 줄로 잇는다')
+        return hit
+      }
+      if (teams.length !== 1) throw new KmdError('E_INPUT', teams.length ? '팀이 여럿이다. 팀 화면에서 정한다' : '이 PC 가 이은 팀이 없다. 팀 화면의 설치 한 줄로 잇는다')
+      return teams[0]
     },
     async sendView(ctx, id) {
       const meta = await hub.routeMeta(ctx, id)
@@ -2475,50 +2545,58 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       return { route, recs, docs, wait: st.wait.map((w) => ({ id: w.id, state: w.state, to: w.to.kn, n: w.payload.items.length, at: w.at, why: w.why, fix: w.fix || null })), log: st.log }
     },
     // 길 정하기 · 바꾸기 — 받는 지식은 같은 서버의 팀 지식 · 이미 길이 있으면 confirm 에 새 이름을 그대로
-    async sendRoute(ctx, id, { to, confirm } = {}) {
+    async sendRoute(ctx, id, { to, confirm, url } = {}) {
       const meta = await hub.routeMeta(ctx, id)
       to = String(to || '')
-      if (!to || to === id || !(await hub.list()).some((k) => k.id === to) || rowFor(to)?.private) throw new KmdError('E_INPUT', '받는 지식은 이 팀 서버의 팀 지식 하나다')
-      const tm = await hub.meta(to, ctx)
+      let tm, dest
+      if (mode === 'pc') {
+        // 받는 지식은 이은 팀 서버의 팀 지식(이 PC 의 기기 열쇠로 그 팀의 목록을 본다)
+        const u = await hub.teamUrlFor(ctx, url)
+        const t = await hub.teamKns(u).catch(() => ({ error: 'reach' }))
+        if (t.error) throw new KmdError('E_INPUT', t.error === 401 ? '이 PC 의 열쇠를 그 팀이 받지 않는다. 팀 화면의 설치 한 줄로 다시 잇는다' : t.error === 'nokey' ? '이 PC 가 그 팀에 이어지지 않았다. 팀 화면의 설치 한 줄로 잇는다' : '그 팀 서버에 닿지 않는다')
+        const hit = t.kns.find((k) => k.id === to && !k.private)
+        if (!hit) throw new KmdError('E_INPUT', '받는 지식은 그 팀 서버의 팀 지식 하나다')
+        tm = { name: hit.name }
+        dest = { kn: to, url: u, name: hit.name }
+      } else {
+        if (!to || to === id || !(await hub.list()).some((k) => k.id === to) || rowFor(to)?.private) throw new KmdError('E_INPUT', '받는 지식은 이 팀 서버의 팀 지식 하나다')
+        tm = await hub.meta(to, ctx)
+        dest = { kn: to }
+      }
       const cur = await hub.routeOf(meta)
-      if (cur?.kn === to) return hub.sendView(ctx, id)
+      if (cur?.kn === to && (cur.url || '') === (dest.url || '')) return hub.sendView(ctx, id)
       if (cur && String(confirm || '').trim() !== tm.name) throw new KmdError('E_INPUT', `받는 지식을 바꾸려면 새 이름 「${tm.name}」 을 그대로 친다`)
       const conf = await sendLib.readConf(meta.dir)
       await serial(path.resolve(meta.dir), async () => {
         await ensureRepo(meta.dir)
-        await fs.writeFile(path.join(meta.dir, sendLib.CONF), JSON.stringify({ ...conf, send: [{ kn: to }] }, null, 2) + '\n')
-        await commitPaths(meta.dir, [sendLib.CONF], `받는 지식 — ${cur ? cur.kn + ' → ' : ''}${to}`, ctx.user).catch(() => {})
+        await fs.writeFile(path.join(meta.dir, sendLib.CONF), JSON.stringify({ ...conf, send: [dest] }, null, 2) + '\n')
+        await commitPaths(meta.dir, [sendLib.CONF], `받는 지식: ${cur ? cur.kn + ' → ' : ''}${to}`, ctx.user).catch(() => {})
       })
       // 옛 받는 지식으로 가려던 대기는 걷는다(새 곳으로 옮겨 가지 않게)
       await sendState(id, (st) => {
-        st.wait = st.wait.filter((w) => w.to.kn === to && !w.to.url)
+        st.wait = st.wait.filter((w) => w.to.kn === to && (w.to.url || '') === (dest.url || ''))
         st.route = { kn: to, since: localStamp() }
       })
-      feed.add(dataDir, ctx.user, { kind: 'send', kn: id, dot: 'acc', text: cur ? `받는 지식을 바꿨다 — ${cur.name} → ${tm.name}` : `받는 지식을 정했다 — ${tm.name}`, small: `${meta.name} 에서 보내는 것은 모두 ${tm.name} 로만 간다` }).catch(() => {})
+      feed.add(dataDir, ctx.user, { kind: 'send', kn: id, dot: 'acc', text: cur ? `받는 지식을 바꿨다: ${cur.name} → ${tm.name}` : `받는 지식을 정했다: ${tm.name}`, small: `${meta.name} 에서 보내는 것은 모두 ${tm.name} 로만 간다` }).catch(() => {})
       return hub.sendView(ctx, id)
     },
-    // 보내기 — to(화면이 본 받는 지식 — 그새 바뀌었으면 보내지 않는다) · docs([{ path, whole }]) · recs(기록 id)
+    // 보내기 — to(화면이 본 받는 지식 · 그새 바뀌었으면 보내지 않는다) · docs([{ path }] 문서는 통째로) · recs(기록 id)
     async sendPicked(ctx, id, { to, docs = [], recs = [] } = {}) {
       const meta = await hub.routeMeta(ctx, id)
       const route = await hub.routeOf(meta)
       if (!route) throw new KmdError('E_INPUT', '받는 지식을 먼저 정한다')
-      if (route.gone) throw new KmdError('E_INPUT', `받는 지식 「${route.kn}」 이 이제 없다 — 받는 지식을 다시 정한다`)
-      if (String(to || '') !== route.kn) throw new KmdError('E_CONFLICT', `받는 지식이 「${route.name}」 로 바뀌었다 — 화면을 다시 보고 보낸다`)
+      if (route.gone) throw new KmdError('E_INPUT', `받는 지식 「${route.kn}」 이 이제 없다. 받는 지식을 다시 정한다`)
+      if (String(to || '') !== route.kn) throw new KmdError('E_CONFLICT', `받는 지식이 「${route.name}」 로 바뀌었다. 화면을 다시 보고 보낸다`)
       const k = await hub.get(id)
       const st = await sendLib.readState(dataDir, id)
-      const pickDocs = (Array.isArray(docs) ? docs : []).map((x) => ({ d: k.byDocPath.get(String(x?.path || '')), whole: !!x?.whole })).filter((x) => x.d)
+      const pickDocs = (Array.isArray(docs) ? docs : []).map((x) => ({ d: k.byDocPath.get(String(x?.path || '')) })).filter((x) => x.d)
       const recIds = [...new Set((Array.isArray(recs) ? recs : []).map(String))].filter((x) => { const w = k.byWork.get(x); return w && !isSystemRecord(w) && !w.tags.some((t) => t.startsWith('sent/')) })
       const items = [
-        ...pickDocs.map(({ d, whole }) => {
-          const m = sendLib.marks(d)
-          const prev = st.sent[d.path]
-          const heads = prev ? Object.keys(m.secs).filter((h) => prev.secs[h] !== m.secs[h]) : []
-          return prev && !whole && heads.length && prev.sha !== m.sha ? sendLib.itemOf(k, { path: d.path, heads, isNew: false, sha: m.sha }) : sendLib.docItem(k, d)
-        }),
+        ...pickDocs.map(({ d }) => sendLib.docItem(k, d)),
         ...recIds.map((x) => sendLib.recItem(k, k.byWork.get(x))),
       ].flatMap((it) => sendLib.split(it))
       if (!items.length) throw new KmdError('E_INPUT', '보낼 것을 고른다')
-      const dest = { kn: route.kn }
+      const dest = { kn: route.kn, ...(route.url ? { url: route.url } : {}) }
       const { sent, wait, fail, why, waits } = await deliverAll(ctx, meta, [dest], items)
       const at = localStamp()
       await sendState(id, (st) => {
@@ -2532,7 +2610,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
         st.log.unshift({ at: new Date().toISOString(), n: items.length, to: [route.kn], recs: recIds.length, docs: pickDocs.length, wait: !!wait, ...(fail ? { fail } : {}), titles: items.slice(0, 5).map((x) => x.title) })
       })
-      if (sent) feed.add(dataDir, ctx.user, { kind: 'send', kn: id, dot: 'acc', text: `${sent}개를 보냈다 — ${meta.name} → ${route.name}`, small: '정리 때 문서에 들어간다' }).catch(() => {})
+      if (sent) feed.add(dataDir, ctx.user, { kind: 'send', kn: id, dot: 'acc', text: `${sent}개를 보냈다: ${meta.name} → ${route.name}`, small: '정리 때 문서에 들어간다' }).catch(() => {})
       return { sent, wait, to: route.kn, ...(fail ? { fail, why } : {}) }
     },
     // 보내기 — changes(변경사항의 key) · docs(문서 경로 — 전체) · recs(기록 id — 전체) · 셋 다 없으면 변경사항 모두(예전 길)
@@ -2540,7 +2618,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const meta = await hub.meta(id, ctx)
       if (!hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '내 지식에서만 보낸다')
       const dests = await sendLib.destsOf(meta.dir)
-      if (!dests.length) throw new KmdError('E_INPUT', '보낼 곳이 없다 — 지식 설정에서 정한다')
+      if (!dests.length) throw new KmdError('E_INPUT', '보낼 곳이 없다. 지식 설정에서 정한다')
       const k = await hub.get(id)
       const st = await sendLib.readState(dataDir, id)
       const pick = Array.isArray(changes) ? new Set(changes.map(String)) : null
@@ -2570,7 +2648,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
         st.log.unshift({ at: new Date().toISOString(), n: items.length, to: dests.map((d) => d.kn), wait: !!wait, ...(fail ? { fail } : {}), titles: items.slice(0, 5).map((x) => x.title) })
       })
-      if (sent) feed.add(dataDir, ctx.user, { kind: 'send', kn: id, dot: 'acc', text: `${sent}개를 보냈다 — ${dests.map((d) => d.kn).join(' · ')}`, small: '정리 때 문서에 들어간다' }).catch(() => {})
+      if (sent) feed.add(dataDir, ctx.user, { kind: 'send', kn: id, dot: 'acc', text: `${sent}개를 보냈다: ${dests.map((d) => d.kn).join(' · ')}`, small: '정리 때 문서에 들어간다' }).catch(() => {})
       return { sent, wait, ...(fail ? { fail, why } : {}) }
     },
     // 닿지 않아 둔 것 — 닿을 때 저절로(분마다) · 거절된 것(fail)은 사람이 [다시] · [버리기]
@@ -2635,7 +2713,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         st.wait = st.wait.flatMap((x) => (x.id !== wid ? [x] : next ? [{ ...next, id: wid, at: w.at }] : []))
         if (sentN) st.log.unshift({ at: new Date().toISOString(), n: sentN, to: [w.to.kn], late: w.at })
       })
-      if (next) throw new KmdError('E_INPUT', `보내지 못했다 — ${next.why}${next.fix ? ' · ' + next.fix : ''}${sentN ? ` · ${sentN}개는 보냈다` : ''}`)
+      if (next) throw new KmdError('E_INPUT', `보내지 못했다: ${next.why}${next.fix ? ' · ' + next.fix : ''}${sentN ? ` · ${sentN}개는 보냈다` : ''}`)
       return { sent: sentN }
     },
     // 받기 — 기록 하나씩(같은 지문이면 0) · 이름은 이 지식의 장부에 정확히 맞는 것만
@@ -2665,7 +2743,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           }
           seen.add(tag) // 같은 묶음 안의 같은 지문도 하나만
           const heads = [...String(it.body || '').matchAll(/^## (.+)$/gm)].map((m) => m[1].trim())
-          const words = [...heads, ...String(it.title || '').split(/\s+—\s+/)]
+          const words = [...heads, ...String(it.title || '').split(/\s+—\s+|:\s+/)]
           const touches = [...new Set(words.flatMap((w) => exact(k, w).map((x) => x.coord)).filter(Boolean))]
           recs.push({ title: String(it.title || '보낸 것').slice(0, 200), body: `${String(from).slice(0, 80)}에서 보냄\n\n${String(it.body || '')}`.trim(), touches, tags: [tag] })
           at.push(i)
@@ -2674,12 +2752,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (recs.length) {
           const r = await saveRecords(meta.dir, recs, { user: ctx.user })
           for (const x of r.records) {
-            if (x.error) bad.push({ i: at[x.i], why: `${recs[x.i].title.slice(0, 60)} — ${x.error.message}` })
+            if (x.error) bad.push({ i: at[x.i], why: `${recs[x.i].title.slice(0, 60)}: ${x.error.message}` })
             else saved++
           }
           cache.delete(id)
           if (saved) {
-            feed.add(dataDir, ctx.user, { kind: 'save', rec: r.records.find((x) => x.id)?.id, kn: id, dot: 'pend', text: `${meta.name}에 기록 ${saved}개 — ${String(from).slice(0, 80)}에서 받음`, small: hub.pendText(id) }).catch(() => {})
+            feed.add(dataDir, ctx.user, { kind: 'save', rec: r.records.find((x) => x.id)?.id, kn: id, dot: 'pend', text: `${meta.name}에 기록 ${saved}개: ${String(from).slice(0, 80)}에서 받음`, small: hub.pendText(id) }).catch(() => {})
             scheduleDecide(id)
             // hub.save 와 같이 — 개인 지식은 바로 문서에(뒤에서) · 팀 지식은 정리 방식이 「실시간」 이면 조용해진 뒤
             if (mode === 'pc' || hub.teamPrivate(id)) hub.curateSoon(id).catch(() => {})
@@ -2706,7 +2784,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const candidates = []
       for (const w of k.works) {
         if (isSystemRecord(w) || w.tags.includes('private') || st.moved[w.id]) continue
-        const words = [...w.touches.map((c) => labelOf(k, c)), ...w.title.split(/\s+—\s+/)].filter(Boolean)
+        const words = [...w.touches.map((c) => labelOf(k, c)), ...w.title.split(/\s+—\s+|:\s+/)].filter(Boolean)
         const hit = async (ms) => {
           for (const m of ms) {
             const k2 = await hub.get(m.id)
@@ -2754,9 +2832,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async stops(ctx, id = null) {
       const ks = id ? [await hub.meta(id, ctx)] : await hub.visible(ctx)
       const out = []
-      // 정리 일꾼이 쉬고 있다(로그인 끝 · 한도) — 관리자 · 정리하는 사람에게
+      // 정리 일꾼이 쉬고 있다(로그인 끝 · 한도) — 관리자에게
       const ws = await fs.readFile(path.join(dataDir, 'worker.json'), 'utf8').then(JSON.parse, () => null)
-      const curates = ctx.admin || ks.some((k) => rowFor(k.id)?.curators?.includes(ctx.user) || rowFor(k.id)?.owner === ctx.user)
+      const curates = !!ctx.admin
       if (ws && ws.ok === false && !id) {
         const d = (Date.now() - Date.parse(ws.since)) / 864e5
         out.push(stopLine({ kind: 'worker', level: 'warn', what: '자동 정리가 쉬고 있다', amount: d < 1 ? '오늘부터' : `${Math.round(d)}일`, fix: mode === 'pc' ? '설정 › Claude 연결에서 다시 로그인하면 이어서 한다 · 그동안은 규칙으로 넣는다' : ctx.admin ? '관리 › Claude 연결에서 다시 로그인하면 이어서 한다 · 그동안은 규칙으로 넣는다' : '그동안은 규칙으로 넣는다', told: ctx.admin ? null : curates ? '관리자에게 알렸다' : null }))
@@ -2765,30 +2843,30 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (mode === 'team' && curates && !id && !(ws && ws.ok === false)) {
         const w = hub.workerSeen()
         const old = w.queued.filter((j) => Date.now() - Date.parse(j.at) > 10 * 60_000)
-        if (old.length && (!w.at || Date.now() - Date.parse(w.at) > 10 * 60_000)) out.push(stopLine({ kind: 'worker', level: 'warn', what: '정리 일꾼이 일감을 받지 않는다', amount: `기다리는 정리 ${old.length}`, fix: ctx.admin ? '서버에서 정리 일꾼을 띄운다 — 관리자 설명서 › Claude 연결' : null, told: ctx.admin ? (w.at ? `마지막으로 본 때 ${w.at.slice(5, 16).replace('T', ' ')}` : '한 번도 묻지 않았다') : '관리자에게 알렸다' }))
+        if (old.length && (!w.at || Date.now() - Date.parse(w.at) > 10 * 60_000)) out.push(stopLine({ kind: 'worker', level: 'warn', what: '정리 일꾼이 일감을 받지 않는다', amount: `기다리는 정리 ${old.length}`, fix: ctx.admin ? '서버에서 정리 일꾼을 띄운다. 관리자 설명서 › Claude 연결' : null, told: ctx.admin ? (w.at ? `마지막으로 본 때 ${w.at.slice(5, 16).replace('T', ' ')}` : '한 번도 묻지 않았다') : '관리자에게 알렸다' }))
       }
       for (const k of ks) {
         out.push(...backup.lines(k, { name: k.name }))
         // 팀 서버의 내 개인 지식 — 내 PC 일꾼을 기다린다(PC 가 꺼져 있다)
-        if (hub.teamPrivate(k.id) && rowFor(k.id)?.owner === ctx.user && [...jobs.values()].some((j) => j.kn === k.id && j.state === 'queued')) out.push(stopLine({ kind: 'tidy', kn: k.id, level: 'warn', what: `${k.name} — 내 PC 일꾼을 기다린다`, fix: 'PC 를 켜면 내 Claude 로 들어간다 · 기다리지 않으려면 정리에서 [지금 정리](규칙으로)' }))
+        if (hub.teamPrivate(k.id) && rowFor(k.id)?.owner === ctx.user && [...jobs.values()].some((j) => j.kn === k.id && j.state === 'queued')) out.push(stopLine({ kind: 'tidy', kn: k.id, level: 'warn', what: `${k.name}: 내 PC 일꾼을 기다린다`, fix: 'PC 를 켜면 내 Claude 로 들어간다 · 기다리지 않으려면 정리에서 [지금 정리](규칙으로)' }))
         // 보내기 멈춤은 팀 화면에만(내 PC 프로그램에는 보내기가 없다)
         const all = mode === 'team' ? (await sendLib.readState(dataDir, k.id)).wait : []
         const sw = all.filter((w) => w.state === 'wait')
         const sf = all.filter((w) => w.state !== 'wait')
-        if (sw.length) out.push(stopLine({ kind: 'send', kn: k.id, level: 'warn', what: `${k.name} — 보낼 곳에 닿지 않는다`, amount: `${sw.reduce((a, w) => a + w.payload.items.length, 0)}개`, fix: '닿으면 저절로 보낸다', since: `${sw[0].at.slice(5, 10)} ${new Date(sw[0].at).toTimeString().slice(0, 5)} 에 누른 것` }))
-        if (sf.length) out.push(stopLine({ kind: 'send', kn: k.id, level: 'warn', what: `${k.name} — 보내지 못했다(${sf[0].to.kn})`, amount: `${sf.reduce((a, w) => a + w.payload.items.length, 0)}개`, fix: sf[0].fix || '지식 보내기에서 [다시] · [버리기]', told: sf[0].why }))
+        if (sw.length) out.push(stopLine({ kind: 'send', kn: k.id, level: 'warn', what: `${k.name}: 보낼 곳에 닿지 않는다`, amount: `${sw.reduce((a, w) => a + w.payload.items.length, 0)}개`, fix: '닿으면 저절로 보낸다', since: `${sw[0].at.slice(5, 10)} ${new Date(sw[0].at).toTimeString().slice(0, 5)} 에 누른 것` }))
+        if (sf.length) out.push(stopLine({ kind: 'send', kn: k.id, level: 'warn', what: `${k.name}: 보내지 못했다(${sf[0].to.kn})`, amount: `${sf.reduce((a, w) => a + w.payload.items.length, 0)}개`, fix: sf[0].fix || '지식 보내기에서 [다시] · [버리기]', told: sf[0].why }))
         const decl = await readDecl(k.dir)
         if (decl.length) out.push(...sourceLines(k, decl, await readSourceState(dataDir, k.id), { admin: !!ctx.admin || mode === 'pc' }))
         if (!backup.attached(k)) {
           const u = await unbacked(k)
-          if (u) out.push(stopLine({ kind: 'backup', kn: k.id, level: 'warn', what: `${k.name} — 백업 자리가 없다`, amount: `백업 안 된 저장 ${u.n}번`, fix: mode === 'pc' ? '설정 › 이 PC 에서 백업 자리를 정하면 저절로 붙고 그동안의 것을 모두 보낸다' : rowFor(k.id)?.private ? '관리자가 개인 지식 백업 자리(serve.json 의 privateBackup)를 정하면 저절로 붙는다' : '관리자가 백업 자리를 붙이면 그동안의 것을 모두 보낸다', since: `${u.since} 부터` }))
+          if (u) out.push(stopLine({ kind: 'backup', kn: k.id, level: 'warn', what: `${k.name}: 백업 자리가 없다`, amount: `백업 안 된 저장 ${u.n}번`, fix: mode === 'pc' ? '설정 › 이 PC 에서 백업 자리를 정하면 저절로 붙고 그동안의 것을 모두 보낸다' : rowFor(k.id)?.private ? '관리자가 개인 지식 백업 자리(serve.json 의 privateBackup)를 정하면 저절로 붙는다' : '관리자가 백업 자리를 붙이면 그동안의 것을 모두 보낸다', since: `${u.since} 부터` }))
         }
       }
       return out
     },
 
-    // 주인 · 개인 · 정리하는 사람 · 정리 설정 — 관리자 또는 지금 주인. `_members.md` 도 같이 바꿔 백업 · 되살림에 따라가게.
-    // 주인이 바꾸는 것은 정리 설정과 정리하는 사람까지 — 「개인」 과 「주인」 은 관리자(· 셸)만(주인 혼자 팀 지식을 감추거나 넘기지 않게).
+    // 주인 · 개인 · 관리자 · 정리 설정 — 관리자 또는 지금 주인. `_members.md` 도 같이 바꿔 백업 · 되살림에 따라가게.
+    // 주인이 바꾸는 것은 정리 설정과 관리자까지 — 「개인」 과 「주인」 은 관리자(· 셸)만(주인 혼자 팀 지식을 감추거나 넘기지 않게).
     // 권한은 잠금 안의 지금 줄로 다시 본다(관리자가 막 바꾼 것을 옛 줄로 되돌리지 않게). 셸(서버를 띄운 사람)은 가림을 건너뛴다 — 감춰진 지식을 되찾는 길
     async setOwner(ctx, id, row) {
       const meta = await hub.meta(id, ctx.shell ? null : ctx)
@@ -2817,12 +2895,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if ((await fs.readFile(mf, 'utf8').catch(() => null)) !== text) {
           await fs.writeFile(mf, text, 'utf8')
           membersRows.delete(id)
-          await commitPaths(meta.dir, ['_members.md'], '이 지식의 사람 — 주인 · 정리', 'kmd').catch((e) => { cerr = e })
+          await commitPaths(meta.dir, ['_members.md'], '이 지식의 사람: 주인 · 정리', 'kmd').catch((e) => { cerr = e })
         }
         return r
       })
       if (out.tidyMode !== 'live') { clearTimeout(liveTimers.get(id)); liveTimers.delete(id) } // 실시간을 끄면 기다리던 한 번도 걷는다
-      if (cerr) throw new KmdError('E_INTERNAL', `사람 칸을 지식에 묶지 못했다 — ${String(cerr.message).split('\n')[0]} · 다시 한다`)
+      if (cerr) throw new KmdError('E_INTERNAL', `사람 칸을 지식에 묶지 못했다: ${String(cerr.message).split('\n')[0]} · 다시 한다`)
       return out
     },
     // 되살린 지식 — `_members.md` 로 주인 · 개인 · 정리 설정을 다시 건다(없으면 팀 지식 · 옛 꼴이면 안전한 쪽)
@@ -2841,18 +2919,18 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         for (const k of ks) if (await owners.reconcile(next, k.id, k.dir)) out.push(k.name)
         return out
       })
-      if (fixed.length) log(`주인 장부를 지식 안의 _members.md 와 맞췄다 — ${fixed.join(' · ')}`)
+      if (fixed.length) log(`주인 장부를 지식 안의 _members.md 와 맞췄다: ${fixed.join(' · ')}`)
       for (const k of ks) {
         const text = await fs.readFile(path.join(k.dir, '_members.md'), 'utf8').catch(() => null)
         const row = owners.rowOf(R(), k.id)
         if (text == null || !row || owners.parseMembers(text).settings) continue
         await fs.writeFile(path.join(k.dir, '_members.md'), owners.renderMembers(row), 'utf8')
         membersRows.delete(k.id)
-        await commitPaths(k.dir, ['_members.md'], '이 지식의 사람 — 정리 설정도 싣는다', 'kmd').catch((e) => log('사람 칸 새 꼴', k.id, e.message))
+        await commitPaths(k.dir, ['_members.md'], '이 지식의 사람: 정리 설정도 싣는다', 'kmd').catch((e) => log('사람 칸 새 꼴', k.id, e.message))
       }
       return fixed
     },
-    // 떠난 사람의 지식 — 주인 · 정리하는 사람 칸에서 뺀다. to 가 있으면 그 사람이 주인을 잇고(개인 지식이면 이제 그 사람만 본다),
+    // 떠난 사람의 지식 — 관리자 칸에서 뺀다. to 가 있으면 그 사람이 주인을 잇고(개인 지식이면 이제 그 사람만 본다),
     // 없으면 주인 칸을 비운다(개인 지식은 관리자만 본다 — 관리자가 이 지식의 사람에서 넘기거나 지운다). `_members.md` 도 같이
     async handOver(user, { to = null } = {}) {
       const ks = await hub.list()
@@ -2874,7 +2952,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       for (const c of changed) {
         await fs.writeFile(path.join(c.dir, '_members.md'), owners.renderMembers(c.row), 'utf8').catch(() => {})
         membersRows.delete(c.id)
-        await commitPaths(c.dir, ['_members.md'], `이 지식의 사람 — ${user} 이 떠났다`, 'kmd').catch((e) => log('사람 칸', c.id, e.message))
+        await commitPaths(c.dir, ['_members.md'], `이 지식의 사람: ${user} 이 떠났다`, 'kmd').catch((e) => log('사람 칸', c.id, e.message))
       }
       list = null
       return { team: changed.filter((c) => c.own && !c.private).length, private: changed.filter((c) => c.own && c.private).length, curate: changed.filter((c) => !c.own).length, to }
@@ -2902,7 +2980,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const full = path.resolve(url)
         const meta = await hub.meta(id)
         if (full === path.resolve(meta.dir) || full.startsWith(path.resolve(meta.dir) + path.sep) || full.startsWith(path.resolve(dataDir) + path.sep)) throw new KmdError('E_INPUT', '지식 폴더 · 살림 자리 안에는 백업을 둘 수 없다')
-        if (!roots.some((r) => full === r || full.startsWith(r + path.sep))) throw new KmdError('E_FORBIDDEN', '이 폴더는 백업 자리로 허락되지 않았다 — serve.json 의 backupRoots 에 더한다')
+        if (!roots.some((r) => full === r || full.startsWith(r + path.sep))) throw new KmdError('E_FORBIDDEN', '이 폴더는 백업 자리로 허락되지 않았다. serve.json 의 backupRoots 에 더한다')
       }
       const meta = await hub.meta(id)
       const r = await backup.attach(meta, url, { dataDir })
@@ -2925,7 +3003,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       cache.delete(id)
       const by = {}
       for (const x of lost.records) if (x.author && !/^kmd/.test(x.author)) (by[x.author] ||= []).push(x)
-      if (r.kept) for (const [u, recs] of Object.entries(by)) await feed.add(dataDir, u, { kind: 'kn', kn: id, yl: true, b: `${meta.name} 을 백업의 글로 되돌렸다 — 내 기록 ${recs.length} 이 지식에서 빠졌다`, small: `${recs.slice(0, 3).map((x) => x.title).join(' · ')} · 가지 ${r.kept} 에 남아 있다 — 필요하면 다시 남긴다` }).catch(() => {})
+      if (r.kept) for (const [u, recs] of Object.entries(by)) await feed.add(dataDir, u, { kind: 'kn', kn: id, yl: true, b: `${meta.name} 을 백업의 글로 되돌렸다. 내 기록 ${recs.length} 이 지식에서 빠졌다`, small: `${recs.slice(0, 3).map((x) => x.title).join(' · ')} · 가지 ${r.kept} 에 남아 있다. 필요하면 다시 남긴다` }).catch(() => {})
       return { ...r, lost: lost.records.length }
     },
     // 되살리기 — 백업 자리에서 새 폴더로(지식 받아 오기 · 새 PC 의 [이 PC 로 되살리기]) · 받은 곳을 그대로 백업 자리로 붙인다
@@ -2940,7 +3018,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 백업에 이어 붙이나 — 같은 주소를 이 kmd 의 다른 지식이 쓰면 붙이지 않는다(연습 사본이 운영 백업에 밀어 넣지 않게) ·
       // 정하지 않았으면 원래 이름(주소의 끝)으로 되살릴 때만 붙인다 · 다른 이름이면 읽기만 사본
       const used = (await hub.list()).find((k) => backup.stateOf(k)?.url === maskUrl(t.url))
-      if (attach === true && used) throw new KmdError('E_CONFLICT', `같은 백업 자리를 「${used.name}」 이 쓰고 있다 — 연습이면 붙이지 않고 되살린다(--practice)`)
+      if (attach === true && used) throw new KmdError('E_CONFLICT', `같은 백업 자리를 「${used.name}」 이 쓰고 있다. 연습이면 붙이지 않고 되살린다(--practice)`)
       const same = nm.toLowerCase() === path.basename(String(t.url).replace(/[\\/]+$/, '')).replace(/\.git$/i, '').toLowerCase()
       const doAttach = attach === false ? false : attach === true ? true : !used && same
       const r = await restoreFrom({ url: t.url, dir, check, local: t.local })
@@ -2955,8 +3033,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         await hub.autoBackup(nm).catch(() => {})
       }
       // 받을 사람 — 되살린 사람과(셸이면 없다) 주인에게 · 주인이 명부에 없으면 되살린 사람만
-      if (owner?.check) for (const who of new Set([ctx.shell ? null : ctx.user, owner.owner].filter(Boolean))) feed.add(dataDir, who, { kind: 'kn', kn: nm, dot: 'warn', text: `되살린 지식의 정리 설정을 다시 본다 — ${meta.name}`, small: '옛 백업이라 정리 방식 · Claude 에 보내지 않음이 없어 「손으로만 · 보내지 않음」 으로 두었다 — 이 지식의 사람에서 바꾼다' }).catch(() => {})
-      feed.add(dataDir, ctx.user || 'kmd', { kind: 'kn', kn: nm, dot: 'acc', text: `되살렸다 — ${meta.name}`, small: `문서 ${r.docs} · 기록 ${r.records} · 첨부 ${r.atts}${r.errors.length ? ' · 검사 줄 ' + r.errors.length : ''}` }).catch(() => {})
+      if (owner?.check) for (const who of new Set([ctx.shell ? null : ctx.user, owner.owner].filter(Boolean))) feed.add(dataDir, who, { kind: 'kn', kn: nm, dot: 'warn', text: `되살린 지식의 정리 설정을 다시 본다: ${meta.name}`, small: '옛 백업이라 정리 방식 · Claude 에 보내지 않음이 없어 「손으로만 · 보내지 않음」 으로 두었다. 이 지식의 사람에서 바꾼다' }).catch(() => {})
+      feed.add(dataDir, ctx.user || 'kmd', { kind: 'kn', kn: nm, dot: 'acc', text: `되살렸다: ${meta.name}`, small: `문서 ${r.docs} · 기록 ${r.records} · 첨부 ${r.atts}${r.errors.length ? ' · 검사 줄 ' + r.errors.length : ''}` }).catch(() => {})
       return { id: nm, ...r, owner: owner?.owner || null, private: !!owner?.private, check: !!owner?.check, attached: doAttach }
     },
     // GitLab 봇 — 백업 자리가 없는 팀 지식에 저장소를 찾거나 만들어 붙인다(안 되면 지금처럼 · 멈춤 줄이 남는다)
@@ -2972,7 +3050,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const p = await ensureProject({ api: g.api, group: row?.private ? g.privateGroup : g.group, token, name: row?.private ? `${row.owner || '_'}-${meta.id}` : meta.id })
       await ensureRepo(meta.dir) // 아직 git 이 없는 지식이면 있던 글을 첫 묶음으로
       await backup.attach(meta, p.url, { dataDir })
-      log(`${meta.name} — GitLab 백업 자리를 ${p.created ? '만들어' : '찾아'} 붙였다`)
+      log(`${meta.name}: GitLab 백업 자리를 ${p.created ? '만들어' : '찾아'} 붙였다`)
       return p
     },
     backupStateSync: (meta) => backup.stateOf(meta),
@@ -2991,7 +3069,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       await fs.mkdir(path.dirname(bare), { recursive: true })
       if (!existsSync(bare)) {
         const r = await tryGit(path.dirname(bare), ['init', '-q', '--bare', '-b', 'main', bare])
-        if (!r.ok) throw new KmdError('E_INPUT', `백업 자리를 만들지 못했다 — ${r.err.split('\n')[0]}`)
+        if (!r.ok) throw new KmdError('E_INPUT', `백업 자리를 만들지 못했다: ${r.err.split('\n')[0]}`)
       }
       await backup.attach(meta, bare, { dataDir })
       return bare
@@ -3003,14 +3081,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!String(dir || '').trim()) throw new KmdError('E_INPUT', '백업 자리 폴더를 쓴다')
       const inside = (a, b) => a === b || a.startsWith(b + path.sep)
       if (inside(full, path.resolve(root)) || inside(full, path.resolve(dataDir)) || inside(path.resolve(root), full)) throw new KmdError('E_INPUT', '지식 폴더 · 살림 자리와 겹치지 않는 곳에 둔다(다른 드라이브 · 네트워크 폴더)')
-      await fs.mkdir(full, { recursive: true }).catch((e) => { throw new KmdError('E_INPUT', `그 폴더를 만들 수 없다 — ${e.code || e.message}`) })
+      await fs.mkdir(full, { recursive: true }).catch((e) => { throw new KmdError('E_INPUT', `그 폴더를 만들 수 없다: ${e.code || e.message}`) })
       const cur = await loadConfig(dataDir)
       await fs.writeFile(path.join(dataDir, 'serve.json'), JSON.stringify({ ...cur, backupRoot: full }, null, 1))
       config.backupRoot = full
       let attached = 0
       const failed = []
       for (const m of await hub.list()) {
-        try { if (await hub.autoBackup(m.id)) attached++ } catch (e) { failed.push(`${m.name} — ${e.message}`) }
+        try { if (await hub.autoBackup(m.id)) attached++ } catch (e) { failed.push(`${m.name}: ${e.message}`) }
       }
       return { root: full, attached, failed }
     },
@@ -3025,7 +3103,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     async start() {
       // 기다리던 정리 · 마지막 정리 날 · 정리 일꾼 상태 — 다시 켜도 잇는다(맡았던 일감은 기다림으로)
-      for (const j of await fs.readFile(jobsFile, 'utf8').then(JSON.parse, () => [])) jobs.set(j.id, j.state === 'running' ? { ...j, state: j.rule ? 'failed' : 'queued', worker: null, ...(j.rule ? { why: '다시 켜며 멈췄다 — [지금 정리]' } : {}) } : j)
+      for (const j of await fs.readFile(jobsFile, 'utf8').then(JSON.parse, () => [])) jobs.set(j.id, j.state === 'running' ? { ...j, state: j.rule ? 'failed' : 'queued', worker: null, ...(j.rule ? { why: '다시 켜며 멈췄다. [지금 정리]' } : {}) } : j)
       for (const [k, v] of Object.entries(await fs.readFile(path.join(dataDir, 'tidy-last.json'), 'utf8').then(JSON.parse, () => ({})))) lastTidy.set(k, v)
       wsNow = await fs.readFile(path.join(dataDir, 'worker.json'), 'utf8').then(JSON.parse, () => null)
       // 장부를 지식 안의 `_members.md` 와 맞춘다 — 밤 묶음으로 살림 자리를 되돌렸거나 장부 줄을 잃었어도 개인 지식은 다시 가린다
@@ -3039,7 +3117,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         for (const j of Q.list()) {
           if (j.parked !== 'restart') continue
           if (j.kind === 'file' && j.spec?.type === 'ingest') { try { Q.retry(j.id) } catch (e) { Q.end(j, 'fail', e.message) } }
-          else if (j.kind === 'group') Q.end(j, 'fail', `프로그램이 꺼져 나머지 파일을 받지 못했다 — ${j.sent}/${j.total}`)
+          else if (j.kind === 'group') Q.end(j, 'fail', `프로그램이 꺼져 나머지 파일을 받지 못했다: ${j.sent}/${j.total}`)
           else Q.drop(j)
         }
       }, config.queueResumeMs ?? 1500).unref?.()
@@ -3112,8 +3190,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
       }, config.tidyTickMs || 60_000)
       tidyTimer.unref?.()
-      // 보내기 — 닿지 않아 둔 것을 분마다 다시(팀 서버만 — 내 PC 프로그램에는 보내기가 없다)
-      if (mode === 'team') sendTimer = setInterval(() => hub.sendRetry().catch(() => {}), config.sendTickMs || 60_000)
+      // 보내기 — 닿지 않아 둔 것을 분마다 다시(내 PC 프로그램 → 팀 서버 · 팀 서버의 옛 개인 지식)
+      sendTimer = setInterval(() => hub.sendRetry().catch(() => {}), config.sendTickMs || 60_000)
       sendTimer?.unref?.()
       // 찾기 색인 — 뒤에서 미리(지금 찾는 지식은 기다리지 않고 그때 짓는다)
       setTimeout(async () => {
@@ -3127,9 +3205,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const r = await serial(path.resolve(meta.dir), () => collect.collectNow(meta.dir, { user, save: (x) => collect.writeCollect(meta.dir, { ...x, user }) }))
       if (r) {
         cache.delete(id)
-        if (r.reverted?.length) log(`${meta.name} — 손으로 고친 기록 · 장부를 되돌렸다: ${r.reverted.join(' · ')}`)
+        if (r.reverted?.length) log(`${meta.name}: 손으로 고친 기록 · 장부를 되돌렸다: ${r.reverted.join(' · ')}`)
         // 되돌린 손 고침 — 이력에 노란 줄(까닭 · 사본 자리) · 글은 사본으로 남았다
-        for (const x of r.rescued || []) await feed.add(dataDir, user, { kind: 'edit', kn: id, yl: true, b: `편집기 고침을 되돌렸다 — ${meta.name} › ${x.path}`, small: `${x.why} · 고친 글의 사본: ${x.copy}` }).catch(() => {})
+        for (const x of r.rescued || []) await feed.add(dataDir, user, { kind: 'edit', kn: id, yl: true, b: `편집기 고침을 되돌렸다: ${meta.name} › ${x.path}`, small: `${x.why} · 고친 글의 사본: ${x.copy}` }).catch(() => {})
         if (r.id && backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
       }
       return r
@@ -3151,7 +3229,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   Q.runner('ingest', async (j) => {
     const sp = j.spec
     const data = sp.recId ? null : await fs.readFile(binOf(j.id)).catch(() => null)
-    if (!sp.recId && !data) throw new Error('원본이 남아 있지 않다 — 파일을 다시 넣는다')
+    if (!sp.recId && !data) throw new Error('원본이 남아 있지 않다. 파일을 다시 넣는다')
     if (sp.recId) queuedRecs.add(sp.recId)
     runs.set(j.id, j)
     await hub.ingestFileLater({ user: sp.user || j.by || 'kmd' }, sp.kn, { rel: sp.rel, data, recId: sp.recId, run: j })

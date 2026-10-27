@@ -16,7 +16,7 @@ import { commitRecord } from '../core/codechange.js'
 import { loadKnowledge } from '../core/knowledge.js'
 import { docView, recView } from '../server/views.js'
 
-test('DB 두 번째 확인 — 이름 장부가 선 뒤에도 같은 항목이다(멈추지 않는다)', async () => {
+test('DB 두 번째 확인: 이름 장부가 선 뒤에도 같은 항목이다(멈추지 않는다)', async () => {
   const tables = Array.from({ length: 30 }, (_, i) => `t${i}`)
   const sec = (h) => ({ h, body: '', applied: null })
   const doc = { path: 'docs/테이블 정의.md', sections: tables.map((t) => sec(t)) }
@@ -31,7 +31,7 @@ test('DB 두 번째 확인 — 이름 장부가 선 뒤에도 같은 항목이�
   assert.ok(plan.items.every((x) => x.startsWith('docs/테이블 정의.md\n')))
 })
 
-test('html → md — 머리 · 표 · 목록 · 코드 · 굵게를 살리고 꾸밈은 뺀다', () => {
+test('html → md: 머리 · 표 · 목록 · 코드 · 굵게를 살리고 꾸밈은 뺀다', () => {
   const md = htmlToMd(`<!doctype html><html><head><title>x</title><style>p{}</style></head><body><nav>목차 1 2 3</nav>
     <h1>PLC 연계 규격서</h1><p>게이트웨이가 <b>Modbus TCP</b>로 &amp; 읽는다</p>
     <h2>값</h2><table><tr><th>항목</th><th>값</th></tr><tr><td>포트</td><td>502</td></tr><tr><td>주기</td><td>0.5<br>초</td></tr></table>
@@ -48,10 +48,10 @@ b = 2</code></pre><button>복사</button><script>alert(1)</script></body></html>
   assert.doesNotMatch(md, /목차|복사|alert|doctype|p\{\}/)
 })
 
-test('넣은 파일 기록 — 분석(무엇 · 핵심 · 정한 것 · 남은 것) + 본문(머리를 내린 원문) · 답이 틀리면 null', () => {
+test('넣은 파일 기록: 분석(무엇 · 핵심 · 정한 것 · 남은 것) + 본문(머리를 내린 원문) · 답이 틀리면 null', () => {
   const src = { file: '설계/DPMS_3.2.1_PLC연계규격서_초안.html', author: 'kim', date: '2026-10-26 13:29', md: '# DPMS_3.2.1\n\n# 규격\n\n## 값\n\n| a | b |\n| --- | --- |\n| 포트 | 502 |\n\n```\n# 코드 속 머리는 그대로\n```' }
   const r = fileRecord(src, { title: 'PLC 연계 규격서 v0.6', kind: '규격서', summary: '게이트웨이와 PLC 사이의 규격이다.', points: ['포트 502'], decisions: ['2026-10-14 PLC 직결 확정'], open: [] })
-  assert.equal(r.title, 'PLC 연계 규격서 v0.6 — 넣은 파일')
+  assert.equal(r.title, 'PLC 연계 규격서 v0.6: 넣은 파일')
   for (const h of ['## 무엇인가', '## 핵심', '## 정한 것', '## 본문']) assert.ok(r.body.includes(`\n${h}\n`), h)
   assert.ok(!r.body.includes('## 남은 것'))
   assert.match(r.body, /^### 규격$/m)
@@ -63,23 +63,23 @@ test('넣은 파일 기록 — 분석(무엇 · 핵심 · 정한 것 · 남은 �
   assert.equal(demote('# 제목\n\n# 하나'), '### 하나')
 })
 
-test('커밋 기록 — Claude 분석을 앞에 · 첫 줄(바뀐 값)과 차이는 그대로 · 답이 틀리면 원래 기록', () => {
+test('커밋 기록: Claude 분석을 앞에 · 첫 줄(바뀐 값)과 차이는 그대로 · 답이 틀리면 원래 기록', () => {
   const d = { patch: '-  retry: 3초\n+  retry: 5초', plus: 1, minus: 1, added: ['  retry: 5초'], removed: ['  retry: 3초'] }
   const k = { vocab: { coords: new Map() }, registry: { rows: [] }, docs: [], works: [] }
   const c = { sha: 'abc1234', author: 'kjsa', date: '2026-10-26 13:00', subject: 'fix' }
   const rec = { ...commitRecord(k, { name: 'gw' }, c, [{ rel: 'cfg/app.yml', status: 'changed', d }]), touches: [] }
   const a = commitAnalyzed(rec, { title: '재시도 간격을 5초로', summary: '재시도 간격을 늘렸다.', changes: [{ what: 'retry 3초 → 5초', why: '현장 회선이 느리다' }], impact: ['명령 재시도'], check: [] }, { src: 'gw', c })
-  assert.equal(a.title, '재시도 간격을 5초로 — gw abc1234')
+  assert.equal(a.title, '재시도 간격을 5초로: gw abc1234')
   assert.equal(a.body.split('\n')[0], rec.body.split('\n')[0])
   assert.match(a.body.split('\n')[0], /^바뀐 값: 3초 → 5초/)
   assert.match(a.body, /## 무엇이 바뀌었나\n재시도 간격을 늘렸다\./)
-  assert.match(a.body, /- retry 3초 → 5초 — 왜: 현장 회선이 느리다/)
+  assert.match(a.body, /- retry 3초 → 5초: 왜: 현장 회선이 느리다/)
   assert.match(a.body, /커밋 메시지: fix/)
   assert.match(a.body, /```diff\n# cfg\/app\.yml\n-  retry: 3초/)
   assert.equal(commitAnalyzed(rec, { title: 't', summary: 's', changes: [] }, { src: 'gw', c }), rec)
 })
 
-test('코드 바뀜 기록 — 장부 밖 이름만 걸리면 「넣을 곳 찾는 중」(none 에 갇히지 않는다) · 정리가 넣었다고 적으면 「넣음」', async () => {
+test('코드 바뀜 기록: 장부 밖 이름만 걸리면 「넣을 곳 찾는 중」(none 에 갇히지 않는다) · 정리가 넣었다고 적으면 「넣음」', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-code-'))
   try {
     fs.mkdirSync(path.join(dir, 'work'), { recursive: true })
@@ -96,7 +96,7 @@ test('코드 바뀜 기록 — 장부 밖 이름만 걸리면 「넣을 곳 찾�
   }
 })
 
-test('출처 — 넣은 파일 기록 → 간 문서 · 문서 → 온 기록(정리 기록의 reflects · 항목 표지)', async () => {
+test('출처: 넣은 파일 기록 → 간 문서 · 문서 → 온 기록(정리 기록의 reflects · 항목 표지)', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-origin-'))
   try {
     fs.mkdirSync(path.join(dir, 'docs'))

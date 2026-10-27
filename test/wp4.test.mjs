@@ -46,7 +46,7 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('PC 일꾼 열쇠는 받은 기기에 묶인다 — 기기 끊기 · 모든 곳에서 나가기 · 다시 정하기로 끊긴다', async () => {
+test('PC 일꾼 열쇠는 받은 기기에 묶인다. 기기 끊기 · 모든 곳에서 나가기 · 다시 정하기로 끊긴다', async () => {
   await signIn(s, { id: 'yoon', admin: false })
   const dev = s.auth.devices('yoon')[0]
   const w1 = await s.auth.workerAdd({ owner: 'yoon', device: dev.id })
@@ -64,7 +64,7 @@ test('PC 일꾼 열쇠는 받은 기기에 묶인다 — 기기 끊기 · 모든
   assert.ok(s.auth.bearer(k2), '기기 열쇠는 다시 정하기에도 그대로(설명서대로)')
 })
 
-test('떠남 — 한 번에 끊고 아이디를 남긴다 · 지식은 넘기거나 관리자만 · 떠난 사람은 목록 · 링크 · 고르기에서 빠진다', async () => {
+test('떠남: 한 번에 끊고 아이디를 남긴다 · 지식은 넘기거나 관리자만 · 떠난 사람은 목록 · 링크 · 고르기에서 빠진다', async () => {
   const lk = s.auth.devices('lee')[0]
   const leeKey = lee.key
   const w = await s.auth.workerAdd({ owner: 'lee', device: lk.id })
@@ -82,7 +82,7 @@ test('떠남 — 한 번에 끊고 아이디를 남긴다 · 지식은 넘기거
   assert.equal(s.auth.bearer(leeKey), null, '기기 열쇠')
   assert.equal(s.auth.bearer(w.key), null, 'PC 일꾼')
   assert.equal(await code(s.auth.addUser({ id: 'lee' })), 'E_CONFLICT')
-  await assert.rejects(s.auth.addUser({ id: 'lee' }), /떠난 사람의 아이디다 — 되쓰지 않는다\(예: lee2\)/)
+  await assert.rejects(s.auth.addUser({ id: 'lee' }), /떠난 사람의 아이디다. 되쓰지 않는다\(예: lee2\)/)
   assert.equal(await code(s.auth.reset('lee')), 'E_FORBIDDEN')
   assert.ok(!(await get('/api/people', kim).then((x) => x.json())).includes('lee'))
   const ov = await get('/api/admin/overview', kim).then((x) => x.json())
@@ -92,7 +92,7 @@ test('떠남 — 한 번에 끊고 아이디를 남긴다 · 지식은 넘기거
   assert.deepEqual([L['고객메모-lee'].owner, L['고객메모-lee'].private, L.gdi.owner, L.dpms.curators], [null, true, null, []])
   assert.match(fs.readFileSync(path.join(root, '고객메모-lee', '_members.md'), 'utf8'), /- 주인: \n/)
   const vis = async (who) => (await get('/api/knowledge', who).then((x) => x.json())).map((k) => k.id)
-  assert.ok((await vis(kim)).includes('고객메모-lee'), '관리자는 본다 — 넘기거나 지운다')
+  assert.ok((await vis(kim)).includes('고객메모-lee'), '관리자는 본다. 넘기거나 지운다')
   assert.ok(!(await vis(park)).includes('고객메모-lee'))
   // 관리자가 넘긴다(비밀번호 한 번 더 — 지금은 15분 안) · 떠난 사람에게는 못 넘긴다
   assert.equal((await post('/api/k/' + encodeURIComponent('고객메모-lee') + '/owner', kim, { owner: 'lee' })).status, 400)
@@ -111,8 +111,12 @@ test('관리자는 화면에서 팀 지식을 세운다 · 주인 넘기기 · �
   assert.equal(r.id, '보안점검')
   assert.ok((await get('/api/knowledge', park).then((x) => x.json())).some((k) => k.id === '보안점검' && !k.private), '팀 모두 본다')
   assert.equal(await code(s.hub.addKnowledge({ user: 'park' }, { kind: 'new', name: '몰래팀', team: true })), 'E_FORBIDDEN')
-  // 팀 지식은 관리자만 — 개인 지식(팀 서버 · 나만)은 누구나 세운다 · 남에게는 보이지 않는다
-  const r2 = await post('/api/knowledge/add', park, { kind: 'new', name: '내 메모' }).then((x) => x.json())
+  // 팀 서버에는 팀 지식만 선다(관리자) — 개인 지식은 내 PC 프로그램에. 화면 길은 일반 · 관리자 모두 개인 지식을 받지 않는다
+  assert.equal((await post('/api/knowledge/add', park, { kind: 'new', name: '내 메모' }).then((x) => x.json())).error, 'E_FORBIDDEN')
+  assert.equal((await post('/api/knowledge/add', kim, { kind: 'new', name: '내 메모' }).then((x) => x.json())).error, 'E_FORBIDDEN')
+  assert.equal((await post('/api/knowledge/add', park, { kind: 'new', name: '몰래팀', team: true }).then((x) => x.json())).error, 'E_FORBIDDEN')
+  // 옛 개인 지식(예전에 팀 서버에 세운 것) — 주인만 본다
+  const r2 = await s.hub.addKnowledge({ user: 'park', admin: true }, { kind: 'new', name: '내 메모' })
   assert.equal(r2.id, '내-메모-park')
   assert.ok((await get('/api/knowledge', park).then((x) => x.json())).some((k) => k.id === r2.id && k.private), '개인 지식')
   assert.ok(!(await get('/api/knowledge', kim).then((x) => x.json())).some((k) => k.id === r2.id), '주인만 본다')
@@ -128,7 +132,7 @@ test('관리자는 화면에서 팀 지식을 세운다 · 주인 넘기기 · �
   assert.equal((await post('/api/k/' + encodeURIComponent('보안점검') + '/delete', kim2, { confirm: '보안점검' })).status, 200)
 })
 
-test('부탁 — 같은 것은 합친다 · 개인 지식에는 받지 않는다 · 더하면 닫힌다 · 거절하면 부탁한 사람에게', async () => {
+test('부탁: 같은 것은 합친다 · 개인 지식에는 받지 않는다 · 더하면 닫힌다 · 거절하면 부탁한 사람에게', async () => {
   const card = { name: '회의록', at: 'https://git.example/team/minutes.git', kind: 'git', rules: [] }
   const a = await s.hub.sourceRequest({ user: 'park' }, 'dpms', card)
   const b = await s.hub.sourceRequest({ user: 'choi' }, 'dpms', card)
@@ -141,10 +145,10 @@ test('부탁 — 같은 것은 합친다 · 개인 지식에는 받지 않는다
   const c = await s.hub.sourceRequest({ user: 'park' }, 'dpms', { ...card, name: '다른것' })
   // 거절 — 부탁한 사람의 이력에 · 목록에서 빠진다
   assert.equal((await post(`/api/requests/${c.id}/close`, kim, { state: 'no', why: '이미 백업에서 받는다' })).status, 200)
-  assert.ok((await feed.list(data, 'park')).some((x) => /더하지 않았다 — 다른것/.test(x.text) && /이미 백업에서 받는다/.test(x.small)))
+  assert.ok((await feed.list(data, 'park')).some((x) => /더하지 않았다. 다른것/.test(x.text) && /이미 백업에서 받는다/.test(x.small)))
   assert.deepEqual((await s.hub.requests()).map((r) => r.name), ['회의록'])
   // 더함은 부탁을 닫는다 — 같은 지식 · 같은 이름(여기서는 닫기만 시험)
   await s.hub.requestClose({ user: 'kim' }, a.id, { state: 'done' })
   assert.deepEqual(await s.hub.requests(), [])
-  for (const u of ['park', 'choi']) assert.ok((await feed.list(data, u)).some((x) => /부탁한 가져오는 곳을 더했다 — 회의록/.test(x.text)), u)
+  for (const u of ['park', 'choi']) assert.ok((await feed.list(data, u)).some((x) => /부탁한 가져오는 곳을 더했다. 회의록/.test(x.text)), u)
 })

@@ -31,7 +31,7 @@ export function unzip(buf, want = () => true) {
     const name = b.slice(p + 46, p + 46 + nlen).toString('utf8')
     p += 46 + nlen + elen + clen
     if (!want(name)) continue
-    if (usize > ITEM_MAX || (csize > 0 && usize / csize > 200 && usize > 1 << 20)) throw new KmdError('E_INPUT', `압축을 풀면 너무 크다 — ${name}`)
+    if (usize > ITEM_MAX || (csize > 0 && usize / csize > 200 && usize > 1 << 20)) throw new KmdError('E_INPUT', `압축을 풀면 너무 크다: ${name}`)
     total += usize
     if (total > TOTAL_MAX) throw new KmdError('E_INPUT', '압축을 풀면 너무 크다')
     const lnlen = b.readUInt16LE(off + 26)
@@ -43,7 +43,7 @@ export function unzip(buf, want = () => true) {
       try {
         raw = zlib.inflateRawSync(data, { maxOutputLength: ITEM_MAX })
       } catch {
-        throw new KmdError('E_INPUT', `압축을 풀지 못했다 — ${name}`)
+        throw new KmdError('E_INPUT', `압축을 풀지 못했다: ${name}`)
       }
     } else throw new KmdError('E_INPUT', '모르는 압축 방식')
     out.set(name, raw)
@@ -110,7 +110,7 @@ export function pptxToMd(buf) {
     .map((n, i) => {
       const xml = z.get(n).toString('utf8')
       const paras = [...xml.matchAll(/<a:p>[\s\S]*?<\/a:p>/g)].map((p) => ent((p[0].match(/<a:t>[^<]*<\/a:t>/g) || []).map((t) => t.replace(/<[^>]+>/g, '')).join(''))).filter((t) => t.trim())
-      return [`## 슬라이드 ${i + 1}${paras[0] ? ` — ${paras[0]}` : ''}`, ...paras.slice(1)].join('\n\n')
+      return [`## 슬라이드 ${i + 1}${paras[0] ? `: ${paras[0]}` : ''}`, ...paras.slice(1)].join('\n\n')
     })
     .join('\n\n')
 }

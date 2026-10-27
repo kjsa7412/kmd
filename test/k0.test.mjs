@@ -37,7 +37,7 @@ after(async () => {
   fs.rmSync(tmp, { recursive: true, force: true })
 })
 
-test('화면 자료 — 지식 목록 · 나무 · 문서 한 장', async () => {
+test('화면 자료: 지식 목록 · 나무 · 문서 한 장', async () => {
   const ks = (await j('/api/knowledge')).body
   assert.deepEqual(ks.map((k) => [k.id, k.name, k.docs, k.records, k.pend]), [['dpms', 'DPMS 지식', 17, 15, 1], ['gdi', 'GDI 지식', 5, 0, 0]])
   const tr = (await j('/api/k/dpms/tree')).body
@@ -52,7 +52,7 @@ test('화면 자료 — 지식 목록 · 나무 · 문서 한 장', async () => 
   assert.equal((await j('/api/k/dpms/doc?d=없는문서')).status, 404)
 })
 
-test('MCP — 도구 · brief · match · section', async () => {
+test('MCP: 도구 · brief · match · section', async () => {
   const init = await rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '0' } })
   assert.equal(init.result.serverInfo.name, 'kmd')
   assert.equal(init.result.protocolVersion, '2025-06-18')
@@ -67,12 +67,12 @@ test('MCP — 도구 · brief · match · section', async () => {
   assert.equal(sec.notYetInDocs.length, 1)
 })
 
-test('MCP save — 기록 + 항목 갈아 끼우기가 git 한 묶음 · 나쁜 입력은 아무것도 안 쓴다', async () => {
+test('MCP save: 기록 + 항목 갈아 끼우기가 git 한 묶음 · 나쁜 입력은 아무것도 안 쓴다', async () => {
   // 이미 있는 항목을 갈아 끼우려면 section 이 준 base 를 같이(그사이 남이 고친 글을 덮지 않게)
   const base = (await tool('section', { knowledge: 'dpms', coord: 'proc:롤백' })).structuredContent.base
   const r = await tool('save', {
     knowledge: 'dpms',
-    record: { title: '롤백 순서 — 앱 먼저 내린다', body: '앱을 먼저 이전 판으로 내려야 새 판이 옛 DB 칸을 쓰지 않는다.', touches: ['proc:롤백'] },
+    record: { title: '롤백 순서: 앱 먼저 내린다', body: '앱을 먼저 이전 판으로 내려야 새 판이 옛 DB 칸을 쓰지 않는다.', touches: ['proc:롤백'] },
     sections: [{ coord: 'proc:롤백', content: '앱을 먼저 이전 판으로 내리고, 그다음 DB 를 되돌린다.', base }],
   })
   assert.ok(!r.isError, JSON.stringify(r.structuredContent))
@@ -87,7 +87,7 @@ test('MCP save — 기록 + 항목 갈아 끼우기가 git 한 묶음 · 나쁜 
   assert.match(doc, /## 꾸러미 판/, '다른 항목은 그대로')
   const log = git('log', '--format=%an|%s').trim().split('\n')
   assert.equal(log.length, 2, '처음 묶음 + 저장 한 묶음')
-  assert.equal(log[0], 'kim|롤백 순서 — 앱 먼저 내린다')
+  assert.equal(log[0], 'kim|롤백 순서: 앱 먼저 내린다')
   assert.deepEqual(git('show', '--name-only', '--format=', 'HEAD').trim().split('\n').sort(), ['docs/배포절차.md', `work/${id}.md`].sort())
   assert.equal(git('status', '--porcelain').trim(), '')
   // 화면 자료도 바로 바뀐다

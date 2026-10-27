@@ -20,7 +20,7 @@ import { makeMcp } from '../server/mcp.js'
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ME = { user: 'kim', admin: true, pc: true }
 let tmp, s
-const HNC = '# DPMS 통화 기록\n\n## 요약\n\n| 일자 | 2026-10-21 |\n|---|---|\n| 상대 | HNC 권순용 차장 |\n\n## 원격 명령\n펄스 방식 — 게이트웨이가 3초 동안 1을 쓰고 0으로 되돌린다.\n'
+const HNC = '# DPMS 통화 기록\n\n## 요약\n\n| 일자 | 2026-10-21 |\n|---|---|\n| 상대 | HNC 권순용 차장 |\n\n## 원격 명령\n펄스 방식: 게이트웨이가 3초 동안 1을 쓰고 0으로 되돌린다.\n'
 const wait = async (f, ms = 15000) => { const t = Date.now(); for (;;) { const v = await f(); if (v) return v; if (Date.now() - t > ms) throw new Error('기다림 초과'); await new Promise((r) => setTimeout(r, 100)) } }
 
 before(async () => {
@@ -39,14 +39,14 @@ after(async () => {
   fs.rmSync(tmp, { recursive: true, force: true })
 })
 
-test('이름 장부 · 자리 장부 — 더하고 · 다른 이름만 보태고 · 자리는 바꾼다', () => {
+test('이름 장부 · 자리 장부: 더하고 · 다른 이름만 보태고 · 자리는 바꾼다', () => {
   let v = upsertVocab('', [{ coord: 'table:tb_user', label: '사용자', aliases: [] }])
   v = upsertVocab(v, [{ coord: 'table:tb_user', label: '다른 이름표', aliases: ['회원'] }, { coord: 'proc:배포', label: '배포', aliases: [] }])
   const c = parseVocab(v).coords
   assert.equal(c.get('table:tb_user').label, '사용자')
   assert.deepEqual(c.get('table:tb_user').aliases, ['회원'])
   assert.ok(c.get('proc:배포'))
-  let r = upsertRegistry('', [{ coord: 'table:tb_user', doc: '테이블 정의', heading: 'tb_user — 사용자' }])
+  let r = upsertRegistry('', [{ coord: 'table:tb_user', doc: '테이블 정의', heading: 'tb_user: 사용자' }])
   r = upsertRegistry(r, [{ coord: 'table:tb_user', doc: '테이블 정의', heading: 'tb_user' }])
   assert.deepEqual(locate(parseRegistry(r), 'table:tb_user'), { doc: 'docs/테이블 정의.md', level: 2, heading: 'tb_user' })
   assert.equal(parseRegistry(r).rows.length, 1)
@@ -67,14 +67,14 @@ test('파일 넣기 → 에이전트가 회의록 항목 · 이름을 세운다 
   const doc = fs.readFileSync(path.join(dir, 'docs', '회의록.md'), 'utf8')
   assert.match(doc, /^## 2026-10-21 HNC 통화$/m)
   assert.match(doc, /3초 동안 1을 쓰고/)
-  assert.match(fs.readFileSync(path.join(dir, '_vocab.md'), 'utf8'), /`term:펄스 명령` — 펄스 명령\n  aliases: 펄스 방식/)
+  assert.match(fs.readFileSync(path.join(dir, '_vocab.md'), 'utf8'), /`term:펄스 명령`: 펄스 명령\n  aliases: 펄스 방식/)
   assert.match(fs.readFileSync(path.join(dir, '_managed.md'), 'utf8'), /\| `term:펄스 명령` \| `docs\/회의록.md` \| `## 2026-10-21 HNC 통화` \|/)
   const k = await s.hub.get('회의')
   assert.notEqual(k.byWork.get(r.rows[0].rec).state, 'pend')
   assert.ok(!fs.existsSync(path.join(dir, 'docs', 'DPMS_회의록_261021_HNC_통화.md')), '파일 이름 문서가 서지 않는다')
 })
 
-test('단기 열쇠 — 화면 길 거절 · 다른 지식 거절 · 일이 끝나면 끝', async () => {
+test('단기 열쇠: 화면 길 거절 · 다른 지식 거절 · 일이 끝나면 끝', async () => {
   const run = s.hub.newRun('회의', { title: 'x' })
   const key = s.hub.agentToken('회의', 'none', run.id)
   const api = await fetch(s.url + '/api/knowledge', { headers: { authorization: `Bearer ${key}` } })
@@ -89,7 +89,7 @@ test('단기 열쇠 — 화면 길 거절 · 다른 지식 거절 · 일이 끝�
   assert.equal(bad.status, 401)
 })
 
-test('넣지 않고 끝나면 규칙으로 — 까닭이 터미널 · 갈래 문서', async () => {
+test('넣지 않고 끝나면 규칙으로: 까닭이 터미널 · 갈래 문서', async () => {
   process.env.FAKE_AGENT_MODE = 'idle'
   try {
     const r = await s.hub.importFiles(ME, '회의', [{ path: '회의_20261022_v2(최종).md', data: Buffer.from('# 회의\n\n## 안건\n카나리 20%\n') }])
@@ -103,7 +103,7 @@ test('넣지 않고 끝나면 규칙으로 — 까닭이 터미널 · 갈래 문
   }
 })
 
-test('pdf — Claude Code 가 글로 바꾼 뒤 기록 · 들이기 · 원본은 첨부 · 같은 pdf 는 다시 바꾸지 않는다', async () => {
+test('pdf: Claude Code 가 글로 바꾼 뒤 기록 · 들이기 · 원본은 첨부 · 같은 pdf 는 다시 바꾸지 않는다', async () => {
   const pdf = Buffer.from('%PDF-1.4 점검 보고 시험')
   const r = await s.hub.importFiles(ME, '회의', [{ path: '점검 보고.pdf', data: pdf }])
   assert.equal(r.rows[0].kind, 'run')
@@ -121,7 +121,7 @@ test('pdf — Claude Code 가 글로 바꾼 뒤 기록 · 들이기 · 원본은
   assert.match(again, /펌프 3대 정상/)
 })
 
-test('메뉴 — 순서 · 뺌은 사람마다 · 동기화는 새로 놓인 지식을 맨 아래로', async () => {
+test('메뉴: 순서 · 뺌은 사람마다 · 동기화는 새로 놓인 지식을 맨 아래로', async () => {
   const ids = async () => (await (await fetch(s.url + '/api/knowledge', { headers: { cookie: await pcCookie() } })).json()).map((k) => k.id + (k.hidden ? '(뺌)' : ''))
   await s.hub.menuSet(ME, { order: ['다른', '회의'], hidden: ['다른'] })
   assert.deepEqual(await ids(), ['다른(뺌)', '회의'])
@@ -134,7 +134,7 @@ test('메뉴 — 순서 · 뺌은 사람마다 · 동기화는 새로 놓인 지
   assert.deepEqual((await s.hub.sync(ME)).added, [])
 })
 
-test('가져오는 곳 — 고치기(언제 · 넣을 문서) · 지우기(문서는 둔다)', async () => {
+test('가져오는 곳: 고치기(언제 · 넣을 문서) · 지우기(문서는 둔다)', async () => {
   const src = path.join(tmp, 'src-docs')
   fs.mkdirSync(src, { recursive: true })
   fs.writeFileSync(path.join(src, '운영.md'), '# 운영\n\n## 점검\n매주\n')
@@ -148,7 +148,7 @@ test('가져오는 곳 — 고치기(언제 · 넣을 문서) · 지우기(문�
   assert.ok(fs.existsSync(path.join(tmp, 'kn', '회의', 'docs', '운영2', '운영.md')), '들어온 문서는 그대로')
 })
 
-test('가져오는 곳 — 넣을 지식 · 문서를 함께 바꾸면 옮겨 처음부터 · 옛 사본은 고른 대로', async () => {
+test('가져오는 곳: 넣을 지식 · 문서를 함께 바꾸면 옮겨 처음부터 · 옛 사본은 고른 대로', async () => {
   const src = path.join(tmp, 'src-move')
   fs.mkdirSync(src, { recursive: true })
   fs.writeFileSync(path.join(src, '설계.md'), '# 설계\n\n## 구조\n셋\n')
@@ -165,7 +165,7 @@ test('가져오는 곳 — 넣을 지식 · 문서를 함께 바꾸면 옮겨 �
   await s.hub.sourceRemove(ME, '다른', { name: '설계 문서' })
 })
 
-test('팀 — 정리 일꾼이 넣은 파일을 에이전트로(서버 MCP · 단기 열쇠) · 터미널 줄은 서버 일 목록에', async () => {
+test('팀: 정리 일꾼이 넣은 파일을 에이전트로(서버 MCP · 단기 열쇠) · 터미널 줄은 서버 일 목록에', async () => {
   const { workOnce } = await import('../core/worker.js')
   const root = path.join(tmp, 'team')
   fs.mkdirSync(path.join(root, 'ops', 'docs'), { recursive: true })
@@ -196,7 +196,7 @@ async function pcCookie() {
   return r.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ')
 }
 
-test('일마다 모델 — 에이전트는 기본 sonnet · 설정으로 바꾸면 그 모델', async () => {
+test('일마다 모델: 에이전트는 기본 sonnet · 설정으로 바꾸면 그 모델', async () => {
   assert.equal(s.hub.models().agent, 'sonnet')
   assert.equal(s.hub.models().read, 'haiku')
   const one = async (name) => {
@@ -214,7 +214,7 @@ test('일마다 모델 — 에이전트는 기본 sonnet · 설정으로 바꾸�
   assert.ok(!(await one('모델-셋.md')).lines.some((l) => /fake-agent\(/.test(l.x)), '「기본」 이면 --model 을 넘기지 않는다')
 })
 
-test('파일 글은 kmd 가 옮긴다 — 에이전트는 from(전체 · 머리) · append(있는 항목 끝)만 · 세션은 쓰지 못한다', async () => {
+test('파일 글은 kmd 가 옮긴다. 에이전트는 from(전체 · 머리) · append(있는 항목 끝)만 · 세션은 쓰지 못한다', async () => {
   await s.hub.addKnowledge(ME, { kind: 'new', name: '회의셋' })
   const dir = path.join(tmp, 'kn', '회의셋')
   const one = async (name, mode, text) => {
@@ -246,7 +246,7 @@ test('파일 글은 kmd 가 옮긴다 — 에이전트는 from(전체 · 머리)
   assert.match(out.result.content[0].text, /넣기 에이전트만/)
 })
 
-test('앞일은 함께 · 들이기는 한 줄 — 파일 넷의 기록 정리가 셋까지 겹치고 넷 모두 들어간다 · curateIdle 은 앞일까지 기다린다', async () => {
+test('앞일은 함께 · 들이기는 한 줄: 파일 넷의 기록 정리가 셋까지 겹치고 넷 모두 들어간다 · curateIdle 은 앞일까지 기다린다', async () => {
   await s.hub.addKnowledge(ME, { kind: 'new', name: '넣기넷' })
   const spans = path.join(tmp, 'spans.log')
   process.env.FAKE_CLAUDE_READ = '20000' // 둘이 함께 돌 때까지 기다린다(차례로 돌면 20초 뒤 혼자 답한다)

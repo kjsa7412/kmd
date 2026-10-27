@@ -11,7 +11,7 @@ export function parseVocab(text) {
   const coords = new Map()
   let cur = null
   for (const raw of String(text || '').split('\n')) {
-    const m = raw.match(/^\s*-\s+`([^`\s:]+:[^`]+)`\s*(?:[—–-]\s*(.*))?$/)
+    const m = raw.match(/^\s*-\s+`([^`\s:]+:[^`]+)`\s*(?:[—–:-]\s*(.*))?$/)
     if (m) {
       const coord = nfc(m[1].trim())
       cur = { coord, label: nfc((m[2] || '').replace(/\s*\((?:구|example)\)\s*$/, '').trim()) || coord.split(':').slice(1).join(':'), aliases: [], deprecated: null }

@@ -174,7 +174,7 @@ export function hwpToMd(buf) {
   if (!head || !head.subarray(0, 17).toString('latin1').startsWith('HWP Document File')) throw new KmdError('E_INPUT', 'hwp 모양이 아니다')
   const prop = head.readUInt32LE(36)
   if (prop & 2) throw new KmdError('E_INPUT', '암호가 걸린 hwp')
-  if (prop & 4) throw new KmdError('E_INPUT', '배포용 hwp — 글을 꺼낼 수 없다')
+  if (prop & 4) throw new KmdError('E_INPUT', '배포용 hwp: 글을 꺼낼 수 없다')
   const secs = [...files.keys()].filter((n) => /^BodyText\/Section\d+$/.test(n)).sort((a, b) => Number(a.match(/\d+$/)[0]) - Number(b.match(/\d+$/)[0]))
   if (!secs.length) throw new KmdError('E_INPUT', 'hwp 본문이 없다')
   const out = []
@@ -184,7 +184,7 @@ export function hwpToMd(buf) {
       try {
         data = zlib.inflateRawSync(data, { maxOutputLength: MAX })
       } catch {
-        throw new KmdError('E_INPUT', `hwp 본문을 풀지 못했다 — ${n}`)
+        throw new KmdError('E_INPUT', `hwp 본문을 풀지 못했다: ${n}`)
       }
     }
     out.push(...sectionMd(data))

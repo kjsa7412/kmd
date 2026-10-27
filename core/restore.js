@@ -18,7 +18,7 @@ export function checkUrl(url, { roots = [], pc = false } = {}) {
   if (!url || /[\s\0]/.test(url) || /^-|^ext::/i.test(url) || /^file:/i.test(url)) throw new KmdError('E_INPUT', '백업 자리 주소가 아니다')
   if (isLocal(url)) {
     const full = path.resolve(url)
-    if (!pc && !roots.map((r) => path.resolve(r)).some((r) => full === r || full.startsWith(r + path.sep))) throw new KmdError('E_FORBIDDEN', '이 폴더는 백업 자리로 허락되지 않았다 — serve.json 의 backupRoots')
+    if (!pc && !roots.map((r) => path.resolve(r)).some((r) => full === r || full.startsWith(r + path.sep))) throw new KmdError('E_FORBIDDEN', '이 폴더는 백업 자리로 허락되지 않았다. serve.json 의 backupRoots')
     return { url: full, local: true }
   }
   if (!/^(https?|ssh):\/\//i.test(url) && !/^[^/\\]+@[^/\\]+:/.test(url)) throw new KmdError('E_INPUT', '주소는 https · ssh 만')
@@ -34,12 +34,12 @@ export async function restore({ url, dir, check = null, local = false }) {
   const clean = () => fs.rm(dir, { recursive: true, force: true }).catch(() => {})
   if (!r.ok) {
     await clean()
-    throw new KmdError('E_INPUT', `백업 자리에서 받지 못했다 — ${String(r.err || '').split('\n')[0].replace(/\/\/[^/@\s]+@/, '//').slice(0, 160)}`)
+    throw new KmdError('E_INPUT', `백업 자리에서 받지 못했다: ${String(r.err || '').split('\n')[0].replace(/\/\/[^/@\s]+@/, '//').slice(0, 160)}`)
   }
   const fsck = await tryGit(dir, ['fsck', '--no-progress'], { timeout: 300_000 })
   if (!fsck.ok) {
     await clean()
-    throw new KmdError('E_CHECK', '받은 이력이 깨졌다(fsck) — 다른 백업에서 받는다')
+    throw new KmdError('E_CHECK', '받은 이력이 깨졌다(fsck): 다른 백업에서 받는다')
   }
   for (const k of ['core.autocrlf', 'core.quotepath']) await tryGit(dir, ['config', k, 'false'])
   const head = (await tryGit(dir, ['rev-parse', 'HEAD'])).out.trim()

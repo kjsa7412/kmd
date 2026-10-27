@@ -43,7 +43,7 @@ function serve(root, extra = {}) {
   return startServer({ root, port: 0, log: process.env.KMD_TEST_LOG ? (...a) => console.error('[srv]', ...a) : () => {}, scryptN: 1 << 15 })
 }
 
-test('재난 시험 — 지우고 백업에서 되살린다(첨부 · 이름 장부 · 사람 · 한글 경로 · fsck · 트리 해시) · 다시 백업된다', async () => {
+test('재난 시험: 지우고 백업에서 되살린다(첨부 · 이름 장부 · 사람 · 한글 경로 · fsck · 트리 해시) · 다시 백업된다', async () => {
   const root = path.join(tmp, 'home1')
   copyDir(path.join(HERE, 'fixture', 'kmd'), root)
   const kd = path.join(root, 'dpms')
@@ -72,7 +72,7 @@ test('재난 시험 — 지우고 백업에서 되살린다(첨부 · 이름 장
   assert.equal(r.tree, tree, '트리 해시가 같다')
   assert.ok(r.atts >= 1 && r.vocab && r.members)
   assert.equal(r.owner, 'kim', '_members.md 로 주인을 다시 건다')
-  assert.ok(fs.existsSync(path.join(root2, 'dpms', 'docs', '운영 절차', '장애 — 첫 10분.md')), '한글 경로')
+  assert.ok(fs.existsSync(path.join(root2, 'dpms', 'docs', '운영 절차', '장애: 첫 10분.md')), '한글 경로')
   assert.deepEqual(r.errors, [])
   const k = await s.hub.get('dpms')
   assert.ok(k.works.some((w) => w.title === '재난 전 마지막 저장'))
@@ -100,7 +100,7 @@ test('재난 시험 — 지우고 백업에서 되살린다(첨부 · 이름 장
   await s.close()
 })
 
-test('auth.log 다시 적용 — 옛 명부로 되살린 뒤 끊은 기기 · 바꾼 비밀번호가 돌아오지 않는다', async () => {
+test('auth.log 다시 적용: 옛 명부로 되살린 뒤 끊은 기기 · 바꾼 비밀번호가 돌아오지 않는다', async () => {
   const d = path.join(tmp, 'authdata')
   let auth = await makeAuth({ dataDir: d, scryptN: 1 << 14 })
   await auth.addUser({ id: 'lee' })
@@ -122,7 +122,7 @@ test('auth.log 다시 적용 — 옛 명부로 되살린 뒤 끊은 기기 · �
   assert.equal((await auth.reapply(log)).revoked, 0, '두 번 적용해도 같은 일은 한 번')
 })
 
-test('GitLab 봇 — 백업 자리가 없는 지식에 저장소를 찾거나 만들어 붙인다', async () => {
+test('GitLab 봇: 백업 자리가 없는 지식에 저장소를 찾거나 만들어 붙인다', async () => {
   const bk = path.join(tmp, 'bk')
   fs.mkdirSync(bk, { recursive: true })
   const made = []
@@ -162,7 +162,7 @@ test('GitLab 봇 — 백업 자리가 없는 지식에 저장소를 찾거나 �
   }
 })
 
-test('PC 운영 — 늘 켜기 작업 · 깨진 판으로 올리면 앞 판 그대로', async () => {
+test('PC 운영: 늘 켜기 작업 · 깨진 판으로 올리면 앞 판 그대로', async () => {
   const xml = taskXml({ node: 'C:\\node\\node.exe', script: 'C:\\kmd\\server\\bin\\kmd.mjs', root: 'D:\\kmd', user: 'kim' })
   assert.match(xml, /<LogonTrigger>/)
   assert.match(xml, /<RestartOnFailure><Interval>PT1M<\/Interval>/)

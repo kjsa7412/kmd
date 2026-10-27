@@ -68,7 +68,7 @@ export function textToMd(ext, buf) {
 
 // html → md — 짜임(머리 · 문단 · 목록 · 표 · 코드 · 굵게 · 그림 설명)을 살린다. 꾸밈(script · style · svg · nav · 단추)은 뺀다.
 //   태그만 지우면 머리 · 표가 한 덩이 글이 되어 기록으로 읽히지 않았다
-const ENT = { nbsp: ' ', lt: '<', gt: '>', quot: '"', apos: "'", amp: '&', middot: '·', ndash: '–', mdash: '—', hellip: '…', rarr: '→', larr: '←', harr: '↔', times: '×', le: '≤', ge: '≥', ne: '≠', bull: '•' }
+const ENT = { nbsp: ' ', lt: '<', gt: '>', quot: '"', apos: "'", amp: '&', middot: '·', ndash: '–', mdash: '-', hellip: '…', rarr: '→', larr: '←', harr: '↔', times: '×', le: '≤', ge: '≥', ne: '≠', bull: '•' }
 const decode = (s) => s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e) => (e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : +e.slice(1)) : ENT[e.toLowerCase()] ?? m))
 const BLOCK = new Set(['p', 'div', 'section', 'article', 'header', 'footer', 'main', 'aside', 'figure', 'figcaption', 'blockquote', 'details', 'summary', 'dl', 'dt', 'dd', 'hr', 'address', 'center', 'caption', 'body'])
 export function htmlToMd(html) {
@@ -147,9 +147,9 @@ function cleanPath(p) {
 // mdOf(rel, data) — pdf · hwp 의 바꾼 글(없으면 null · 요구 v0.2 R6)
 export async function planImport(k, files, { direct = true, asRecord = false, convert: conv = true, read = async () => null, mdOf = null } = {}) {
   if (!Array.isArray(files) || !files.length) throw new KmdError('E_INPUT', '넣을 파일이 없다')
-  if (files.length > MAX_FILES) throw new KmdError('E_INPUT', `한 번에 ${MAX_FILES} 파일까지 — 나눠 넣는다`)
+  if (files.length > MAX_FILES) throw new KmdError('E_INPUT', `한 번에 ${MAX_FILES} 파일까지: 나눠 넣는다`)
   const total = files.reduce((a, f) => a + (f.data?.length || 0), 0)
-  if (total > MAX_BYTES) throw new KmdError('E_INPUT', '한 번에 200MB 까지 — 나눠 넣는다')
+  if (total > MAX_BYTES) throw new KmdError('E_INPUT', '한 번에 200MB 까지: 나눠 넣는다')
   const plan = { docs: [], atts: [], records: [], rows: [] }
   for (const f of files) {
     const rel = cleanPath(f.path || f.name)
@@ -179,39 +179,39 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
         // 받은 글의 지문 — Claude 가 기록을 정리해 글이 바뀌어도(ingest-read) 같은 파일을 다시 넣으면 「같은 파일」
         const dig = `md/${crypto.createHash('sha256').update(md.trim()).digest('hex').slice(0, 16)}`
         const same = k.works.some((w) => w.tags.includes(tag) && (w.tags.includes(dig) || w.body.trim() === md.trim()))
-        if (same) row('same', '같은 파일 — 그대로 두었다')
+        if (same) row('same', '같은 파일: 그대로 두었다')
         else {
-          plan.records.push({ title: `${path.posix.basename(rel)} — 넣은 파일`, body: md, tags: [tag, dig] })
-          row('record', `기록이 됐다 — ${k.name} › 기록 · 정리가 기존 문서에 넣거나 새 문서로 세운다`)
+          plan.records.push({ title: `${path.posix.basename(rel)}: 넣은 파일`, body: md, tags: [tag, dig] })
+          row('record', `기록이 됐다: ${k.name} › 기록 · 정리가 기존 문서에 넣거나 새 문서로 세운다`)
         }
         continue
       }
       const cur = await read(docRel)
       if (cur && tidy(cur.toString('utf8')) === tidy(md)) {
-        row('same', '같은 파일 — 그대로 두었다')
+        row('same', '같은 파일: 그대로 두었다')
         continue
       }
       plan.docs.push({ rel: docRel, text: md })
       if (ext !== 'md' && ext !== 'markdown' && !TEXT.includes(ext)) plan.atts.push({ rel: attRel, data: f.data })
-      row('doc', `문서가 됐다 — ${k.name} › ${base.split('/').join(' › ')}`, { doc: base })
+      row('doc', `문서가 됐다: ${k.name} › ${base.split('/').join(' › ')}`, { doc: base })
       continue
     }
     if (DOCX.includes(ext) && !conv) {
       if (direct && !(await read(attRel))?.equals(f.data)) plan.atts.push({ rel: attRel, data: f.data })
-      row(direct ? 'att' : 'skip', direct ? '원본은 첨부로 두었다 — 문서로 바꾸기를 꺼 두었다' : '문서로 바꾸기를 꺼 두었다')
+      row(direct ? 'att' : 'skip', direct ? '원본은 첨부로 두었다. 문서로 바꾸기를 꺼 두었다' : '문서로 바꾸기를 꺼 두었다')
       continue
     }
     if (PCONLY.includes(ext)) {
       if (direct && !(await read(attRel))?.equals(f.data)) plan.atts.push({ rel: attRel, data: f.data })
-      row('fail', !conv ? (direct ? '원본은 첨부로 두었다 — 문서로 바꾸기를 꺼 두었다' : '문서로 바꾸기를 꺼 두었다') : direct ? '원본은 첨부로 두었다 — 글이 없는 파일(스캔 · 암호 · 배포용)이라 내 PC 프로그램이 Claude 로 옮긴다' : '바꾸지 못한 파일(스캔 · 암호 · 배포용) — 내 PC 프로그램이 있는 PC 에서 넣는다')
+      row('fail', !conv ? (direct ? '원본은 첨부로 두었다. 문서로 바꾸기를 꺼 두었다' : '문서로 바꾸기를 꺼 두었다') : direct ? '원본은 첨부로 두었다. 글이 없는 파일(스캔 · 암호 · 배포용)이라 내 PC 프로그램이 Claude 로 옮긴다' : '바꾸지 못한 파일(스캔 · 암호 · 배포용): 내 PC 프로그램이 있는 PC 에서 넣는다')
       continue
     }
     if (IMG.includes(ext)) {
       if (direct && !(await read(attRel))?.equals(f.data)) plan.atts.push({ rel: attRel, data: f.data })
-      row(direct ? 'att' : 'skip', direct ? `그림은 첨부로 두었다 — ${k.name}` : '그림은 정리하는 사람이 넣는다')
+      row(direct ? 'att' : 'skip', direct ? `그림은 첨부로 두었다: ${k.name}` : '그림은 관리자가 넣는다')
       continue
     }
-    row('skip', `넣지 않은 파일 — 읽지 못하는 종류(.${ext || '?'})`)
+    row('skip', `넣지 않은 파일: 읽지 못하는 종류(.${ext || '?'})`)
   }
   return plan
 }

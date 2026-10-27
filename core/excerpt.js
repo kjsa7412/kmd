@@ -66,7 +66,7 @@ export function excerpt(body, part) {
       return lower(lines.slice(start + 1, i).join('\n').trim())
     }
   }
-  if (start < 0) throw new KmdError('E_INPUT', `파일 글에 그 머리가 없다 — 「${want}」 · 있는 머리: ${heads.slice(0, 30).join(' · ') || '없음(전체는 "*")'}`)
+  if (start < 0) throw new KmdError('E_INPUT', `파일 글에 그 머리가 없다. 「${want}」 · 있는 머리: ${heads.slice(0, 30).join(' · ') || '없음(전체는 "*")'}`)
   return lower(lines.slice(start + 1).join('\n').trim())
 }
 
@@ -78,9 +78,9 @@ export function expandSections(k, w, sections) {
     const { from, append, ...rest } = s
     if (from != null && !w) throw new KmdError('E_NOTFOUND', '옮길 파일 글(이 일의 기록)이 없다')
     // 코드 바뀜 기록은 분석 · 커밋 메시지 · 차이다 — 항목에 옮기거나 덧붙이지 않고 그 기능의 지금 동작으로 다시 쓴다
-    if (w?.tags?.includes('code-change')) throw new KmdError('E_INPUT', '코드 바뀜 기록은 from · append 로 넣지 않는다 — section 으로 읽고 그 기능의 지금 동작으로 고친 새 글 전체를 content 와 base 로 보낸다')
+    if (w?.tags?.includes('code-change')) throw new KmdError('E_INPUT', '코드 바뀜 기록은 from · append 로 넣지 않는다. section 으로 읽고 그 기능의 지금 동작으로 고친 새 글 전체를 content 와 base 로 보낸다')
     let content = [typeof s.content === 'string' ? s.content.trim() : '', from != null ? excerpt(w?.body, from) : ''].filter(Boolean).join('\n\n')
-    if (!content) throw new KmdError('E_INPUT', '항목 글이 비었다 — content 또는 from 을 준다')
+    if (!content) throw new KmdError('E_INPUT', '항목 글이 비었다. content 또는 from 을 준다')
     if (append) {
       const cur = s.coord ? sectionOf(k, String(s.coord).trim().normalize('NFC'))?.sec : k.docs.find((d) => d.id === String(s.doc || '').replace(/^docs\/|\.md$/g, ''))?.sections.find((y) => headingMatches(y.h, String(s.heading || '')))
       // section 이 주는 content 와 같은 글(sec.body) 끝에 — 경과 목록 앞에(경과는 늘 항목 끝)

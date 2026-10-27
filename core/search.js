@@ -308,8 +308,8 @@ export async function ladder(k, index, { q = '', words = null, learned = {}, max
     if (!e.via.includes(info.v)) e.via.push(info.v)
     rrf.set(key, e)
   }
-  weak.forEach((x, i) => x.coord && add('c:' + x.coord, i, { coord: x.coord, v: `이름 — ${x.via}`, hits: [] }))
-  weak.forEach((x, i) => !x.coord && add(`s:${x.doc}#${x.heading}`, i, { doc: x.doc, heading: x.heading, v: `이름 — ${x.via}`, hits: [] }))
+  weak.forEach((x, i) => x.coord && add('c:' + x.coord, i, { coord: x.coord, v: `이름: ${x.via}`, hits: [] }))
+  weak.forEach((x, i) => !x.coord && add(`s:${x.doc}#${x.heading}`, i, { doc: x.doc, heading: x.heading, v: `이름: ${x.via}`, hits: [] }))
   step3.forEach((x, i) => add('c:' + x.c.coord, i, { coord: x.c.coord, v: '항목 글', hits: x.hits }))
   const passages = []
   step4.forEach((x, i) => {

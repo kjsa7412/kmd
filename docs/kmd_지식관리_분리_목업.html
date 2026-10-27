@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>지식 관리 분리 목업</title>
+<style>
+/* 토큰 · 부품은 app/kmd.css 와 같은 값: 목업에서 새로 생긴 것만 아래 「새 부품」 */
+:root{
+  --bg:#f6f7f9;--surface:#fff;--surface-2:#f1f3f7;--surface-3:#e6eaf0;--border:#e2e6ed;--border-strong:#c9d1dd;
+  --text:#11151c;--text-2:#515a68;--text-3:#858e9d;--accent:#3358e6;--accent-bg:#e9eeff;--accent-line:#c3d0fb;
+  --danger:#cb3a2c;--danger-bg:#fdeceb;--warn:#8c5c00;--warn-bg:#fcf3e0;--pending:#6247c4;--pending-bg:#efedfd;
+  --ok:#2e9b5b;--ok-bg:#e6f5ec;
+  --shadow-1:0 1px 2px rgba(15,23,42,.05),0 1px 3px rgba(15,23,42,.07);
+  --shadow-2:0 2px 6px -1px rgba(15,23,42,.08),0 14px 32px -8px rgba(15,23,42,.18);
+  --font:Pretendard,-apple-system,"Segoe UI",system-ui,"Malgun Gothic",sans-serif;
+  --mono:Consolas,"Cascadia Mono",D2Coding,"Malgun Gothic",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#dfe3ea;color:var(--text);font:13px/1.55 var(--font)}
+button,input,select{font:inherit}
+a{color:var(--accent);cursor:pointer}
+svg.i{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;flex:none}
+
+/* ── 목업 조종판(목업 밖) ── */
+.mframe{display:flex;min-height:100vh}
+.mnav{width:250px;flex:none;background:#1b2130;color:#cfd6e4;padding:18px 12px;position:sticky;top:0;height:100vh;overflow:auto}
+.mnav h1{font-size:14px;margin:0 6px 4px;color:#fff}
+.mnav p{margin:0 6px 12px;font-size:11.5px;color:#8f9bb3}
+.mnav .g{font-size:11px;color:#6f7a90;margin:16px 6px 6px;text-transform:none}
+.mnav button{display:block;width:100%;text-align:left;background:none;border:0;color:inherit;padding:6px 10px;border-radius:6px;font-size:12.5px;cursor:pointer}
+.mnav button:hover{background:#2a3246}
+.mnav button.on{background:#3358e6;color:#fff}
+.mnav button small{display:block;color:#7f8aa1;font-size:11px}
+.mnav button.on small{color:#dfe6ff}
+.mstage{flex:1;min-width:0;padding:20px}
+
+/* ── 앱 프레임 · 부품(kmd.css 와 같다) ── */
+.app{max-width:1360px;margin:0 auto;background:var(--bg);border:1px solid var(--border-strong);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,.18);display:flex;min-height:calc(100vh - 40px)}
+.side{width:220px;flex:none;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:12px 10px}
+.sb-top{display:flex;align-items:center;gap:8px;padding:2px 6px 10px}
+.logo{width:22px;height:22px;border-radius:6px;background:#11151c;color:#fff;display:grid;place-items:center;font-weight:700;font-size:12px}
+.brand{font-weight:700;font-size:15px}
+.busy{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ok);font-weight:600}
+.busy i{width:8px;height:8px;border-radius:50%;background:var(--ok);animation:blink 1.4s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.sb-repo{border:1px solid var(--border-strong);border-radius:10px;padding:8px 10px;margin-bottom:8px;display:flex;gap:8px;align-items:center}
+.sb-repo .rk{font:700 10.5px var(--mono);background:var(--accent-bg);color:var(--accent);border-radius:5px;padding:2px 5px}
+.sb-repo small{display:block;font-size:10.5px;color:var(--text-3)}
+.sb-g{font-size:11.5px;color:var(--text-3);margin:12px 8px 4px}
+.sb-i{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;color:var(--text)}
+.sb-i.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.sb-i .bd{margin-left:auto;background:var(--pending-bg);color:var(--pending);font-size:11px;font-weight:700;border-radius:999px;padding:0 7px}
+.sb-foot{margin-top:auto;border-top:1px solid var(--border);padding-top:6px}
+.col{flex:1;min-width:0;display:flex;flex-direction:column}
+.hdr{height:46px;display:flex;align-items:center;gap:10px;padding:0 14px;background:var(--surface);border-bottom:1px solid var(--border)}
+.crumb{font-size:13px;color:var(--text-3)}.crumb b{color:var(--text)}
+.band{display:flex;align-items:center;gap:10px;padding:6px 14px;font-size:12px;border-bottom:1px solid var(--border);background:var(--surface-2);color:var(--text-2)}
+.band b{color:var(--text)}
+.main{flex:1;padding:18px 22px;overflow:auto;min-width:0}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.c-warn{background:var(--warn-bg);color:var(--warn)}.c-pend{background:var(--pending-bg);color:var(--pending)}.c-mute{background:var(--surface-3);color:var(--text-2)}
+.c-acc{background:var(--accent-bg);color:var(--accent)}.c-danger{background:var(--danger-bg);color:var(--danger)}.c-ok{background:var(--ok-bg);color:var(--ok)}
+.btn{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 11px;border-radius:7px;border:1px solid var(--border-strong);background:var(--surface);font-size:12px;cursor:pointer;color:var(--text);white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}.btn.pri:hover{background:#2a4bd0}
+.btn.sm{height:24px;padding:0 8px;font-size:11.5px}
+.btn.ghost{border-color:transparent;background:none}.btn.ghost:hover{background:var(--surface-2)}
+.btn.dz{color:var(--danger)}
+.btn[disabled]{opacity:.45;cursor:default}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1);margin-bottom:14px}
+.big{font-size:20px;font-weight:700;margin:0 0 4px}
+.lead{color:var(--text-2);margin:0}
+.pg-h{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px}
+.pg-h .acts{margin-left:auto;display:flex;gap:8px;flex:none}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin:0 0 14px}
+.tabs span{padding:8px 14px;font-size:13px;color:var(--text-2);border-bottom:2px solid transparent;cursor:pointer;display:flex;gap:6px;align-items:center}
+.tabs span.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.tabs span em{font-style:normal;font-size:11px;font-weight:700;background:var(--surface-3);color:var(--text-2);border-radius:999px;padding:0 6px}
+.tabs span.on em{background:var(--accent-bg);color:var(--accent)}
+.tabs span em.w{background:var(--warn-bg);color:var(--warn)}
+.term{background:#0f141c;color:#d7dde8;border-radius:10px;font:12px/1.6 var(--mono);padding:10px 12px;height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.term .say{color:#e8ecf3}.term .tool{color:#8fb0ff}.term .ok{color:#7fd69a}.term .err{color:#ff8f86}.term .sys,.term .cost{color:#7d8696}
+.term .tm{color:#5c6574;margin-right:8px}
+.term .sg{display:inline-block;min-width:44px;color:#5c6574;margin-right:6px}
+.term .cur::after{content:'▍';color:#8fb0ff;animation:blink 1s steps(2) infinite}
+.inp{min-height:28px;border:1px solid var(--border-strong);border-radius:7px;padding:3px 8px;font-size:12px;background:#fff}
+.gl{font-size:11.5px;color:var(--text-3);margin:8px 2px 0;line-height:1.7}
+.slist{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1)}
+.srow{display:flex;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid var(--border)}
+.srow:first-child{border-top:0}
+.srow .si{width:30px;height:30px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;flex:none;color:var(--text-2)}
+.srow .sn{min-width:0;flex:1 1 220px}.srow .sn b{display:block}.srow .sn small,.srow .sc small{display:block;color:var(--text-3);font-size:11.5px}
+.srow .sc{flex:0 1 230px;font-size:12px;color:var(--text-2)}
+.srow .sa{flex:none;display:flex;gap:6px}
+
+
+/* ── 새 부품 ── */
+.kt{font-size:10.5px;font-weight:700;border-radius:4px;padding:1px 5px;flex:none}
+.kt.me{background:var(--pending-bg);color:var(--pending)}.kt.team{background:var(--accent-bg);color:var(--accent)}
+.mnav .q{margin:18px 6px 0;padding:10px;border:1px solid #333c52;border-radius:8px;font-size:11.5px;color:#b9c2d6;line-height:1.6}
+.mnav .q b{color:#fff;display:block;margin-bottom:4px}
+.mnav .q ul{margin:0;padding-left:16px}
+.ch{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);font-weight:700}
+.ch small{font-weight:400;color:var(--text-3);font-size:11.5px}
+.ch .r{margin-left:auto;display:flex;gap:8px;align-items:center;font-weight:400}
+.cb{padding:10px 14px}
+.cf{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--border);background:var(--surface-2);border-radius:0 0 12px 12px;flex-wrap:wrap}
+.muted{color:var(--text-3)}.small{font-size:11.5px}
+.wrap{max-width:980px}
+/* 보내는 길: 보내는 지식 → 받는 지식(개인 지식마다 하나로 묶였다) */
+.route{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+.rbox{flex:1 1 260px;min-width:0;padding:12px 14px;position:relative}
+.rbox+.rbox{border-left:1px solid var(--border)}
+.rbox .lb{font-size:11.5px;color:var(--text-3);margin-bottom:4px;display:flex;gap:6px;align-items:center}
+.rbox .nm{font-size:17px;font-weight:700;display:flex;align-items:center;gap:8px}
+.rbox .sub{font-size:11.5px;color:var(--text-3);margin-top:2px}
+.rbox.pick{cursor:pointer}.rbox.pick:hover{background:var(--surface-2)}
+.rbox.todo{background:repeating-linear-gradient(135deg,#fff,#fff 8px,#f7f8fb 8px,#f7f8fb 16px)}
+.rarr{flex:none;width:44px;display:grid;place-items:center;color:var(--accent);border-left:1px solid var(--border)}
+.rarr svg{width:22px;height:22px}
+.rarr+.rbox{border-left:0}
+.rinfo{padding:8px 14px;border-top:1px solid var(--border);font-size:12px;color:var(--text-2);background:var(--surface-2);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.rinfo .r{margin-left:auto}
+.pmenu{position:absolute;left:10px;top:calc(100% - 6px);z-index:5;background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;box-shadow:var(--shadow-2);min-width:320px;padding:6px}
+.pmenu .mi{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;font-size:12.5px;cursor:pointer}
+.pmenu .mi:hover{background:var(--surface-2)}.pmenu .mi.on{background:var(--accent-bg)}
+.pmenu .mi .to{margin-left:auto;color:var(--text-3);font-size:11.5px;display:flex;align-items:center;gap:4px}
+.pmenu .sep{height:1px;background:var(--border);margin:4px 0}
+.drow{display:flex;align-items:center;gap:10px;padding:8px 14px;border-top:1px solid var(--border);cursor:pointer}
+.drow:first-child{border-top:0}
+.drow:hover{background:var(--surface-2)}
+.drow.on{background:#f5f7ff}
+.drow.dim{cursor:default;color:var(--text-3)}.drow.dim:hover{background:none}
+.drow input{margin:0;flex:none}
+.drow .si{width:26px;height:26px;border-radius:7px;background:var(--surface-2);display:grid;place-items:center;flex:none;color:var(--text-2)}
+.drow .dn{flex:1;min-width:0}.drow .dn b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drow.dim .dn b{font-weight:400}
+.drow .dn small{display:block;color:var(--text-3);font-size:11.5px}
+.seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:7px;overflow:hidden;flex:none}
+.seg button{border:0;background:var(--surface);font-size:11px;padding:2px 8px;cursor:pointer;color:var(--text-2)}
+.seg button+button{border-left:1px solid var(--border-strong)}
+.seg button.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.seg button[disabled]{opacity:.4;cursor:default}
+.tabs.in{margin:0;padding:0 8px;flex-wrap:wrap}
+.tabs.in span{white-space:nowrap}
+.tabs.in span.off{color:var(--text-3);cursor:default}
+.tbar{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.tbar .r{margin-left:auto;display:flex;gap:10px;align-items:center}
+.dlist{max-height:360px;overflow:auto}
+.trow{display:flex;align-items:flex-start;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:9px;margin-bottom:6px;cursor:pointer}
+.trow:hover{border-color:var(--border-strong)}
+.trow.on{border-color:var(--accent);background:var(--accent-bg)}
+.trow input{margin:3px 0 0}
+.trow .tn2{flex:1;min-width:0}.trow .tn2 b{display:block}.trow .tn2 small{display:block;color:var(--text-3);font-size:11.5px}
+.mini{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600}
+.mini svg{color:var(--accent)}
+.sum{list-style:none;margin:0;padding:0}
+.sum li{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px}
+.sum li span{flex:1;min-width:0}
+.callout{display:flex;gap:8px;align-items:flex-start;padding:9px 12px;border-radius:9px;font-size:12px;margin-bottom:12px}
+.callout.gray{background:var(--surface-2);color:var(--text-2)}
+.callout.ok{background:var(--ok-bg);color:#1d6b3e}
+.callout.warn{background:var(--warn-bg);color:var(--warn)}
+.feed .fi{display:flex;gap:10px;padding:8px 14px;border-top:1px solid var(--border);font-size:12px}
+.feed .fi:first-child{border-top:0}
+.feed .tm{color:var(--text-3);font-family:var(--mono);width:84px;flex:none}
+.feed small{display:block;color:var(--text-3)}
+.empty{padding:28px 14px;text-align:center;color:var(--text-2)}
+.scrim{position:fixed;inset:0;background:rgba(15,23,42,.35);display:grid;place-items:center;z-index:10}
+.modal{background:var(--surface);border-radius:12px;box-shadow:var(--shadow-2);width:560px;max-width:calc(100% - 24px)}
+.mh{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);font-weight:700}
+.mh small{font-weight:400;color:var(--text-3);margin-left:8px;font-size:11.5px}
+.mh .xx{margin-left:auto;border:0;background:none;font-size:18px;cursor:pointer;color:var(--text-3)}
+.mb{padding:14px 16px}.mf{display:flex;gap:8px;align-items:center;padding:10px 16px;border-top:1px solid var(--border)}
+.field{margin-bottom:12px}.field label{display:block;font-size:12px;font-weight:600;margin-bottom:4px}
+.field .hint{font-size:11.5px;color:var(--text-3);margin-top:4px}
+.field .inp{width:100%}
+.seg.big button{font-size:12.5px;padding:6px 14px}
+.bigroute{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);margin-bottom:12px}
+.bigroute .e{flex:1;min-width:0}.bigroute .e small{display:block;color:var(--text-3);font-size:11.5px}.bigroute .e b{font-size:15px}
+.bigroute svg{width:20px;height:20px;color:var(--accent)}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.cmp .side{min-height:420px;border:1px solid var(--border);border-radius:12px}
+.note{font-size:12px;color:var(--text-2);background:var(--warn-bg);border-radius:8px;padding:8px 10px;margin-top:10px}
+/* ── 이 목업의 새 부품 ── */
+.sb-i{cursor:pointer}
+.sb-i:hover{background:var(--surface-2)}
+.sb-i.on:hover{background:var(--accent-bg)}
+.sb-i.off{color:var(--text-3);text-decoration:line-through;cursor:default}
+.sb-mg{margin-top:auto;border-top:1px solid var(--border);padding-top:6px}
+.sb-g .kt{margin-left:4px}
+.sb-know .lst{margin:6px 0 0}
+.sb-know .lst div{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:7px;font-size:12.5px;cursor:pointer}
+.sb-know .lst div:hover{background:var(--surface-2)}
+.sb-know .lst div.on{background:var(--surface-3);font-weight:600}
+.sb-know .lh{font-size:11px;color:var(--text-3);margin:10px 8px 2px}
+.kt.pc{background:#e8f6ee;color:#1d6b3e}.kt.gone{background:var(--surface-3);color:var(--text-3)}.kt.adm{background:#11151c;color:#fff}
+.kgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:6px}
+.kcard{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1);padding:12px 14px;min-height:92px;cursor:pointer}
+.kcard b{display:block;font-size:14px;margin-bottom:6px}
+.kcard small{color:var(--text-3);font-size:11.5px;display:flex;gap:6px;align-items:center}
+.kcard.add{border-style:dashed;box-shadow:none;background:none;display:grid;place-items:center;color:var(--text-2);text-align:center}
+.kcard.add .pl{font-size:18px;display:block}
+.kcard.dis{opacity:.55;cursor:default}
+.sec-h{display:flex;align-items:baseline;gap:10px;margin:18px 0 8px}
+.sec-h b{font-size:15px}.sec-h small{color:var(--text-3);font-size:12px}
+.fbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:12px;box-shadow:var(--shadow-1)}
+.fbar .fl{font-weight:700;display:flex;gap:6px;align-items:center}
+.fbar .fp{font-family:var(--mono);background:var(--surface-2);border-radius:6px;padding:3px 8px;flex:1;min-width:200px}
+.fbar small{flex-basis:100%;color:var(--text-3);font-size:11.5px}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:8px 12px;font-size:12.5px}
+.kv>span:nth-child(odd){color:var(--text-3)}
+.set{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--border)}
+.set:first-child{border-top:0}
+.set .tx{flex:1;min-width:0}.set .tx b{display:block;font-weight:600}.set .tx small{display:block;color:var(--text-3);font-size:11.5px}
+.sw{width:34px;height:20px;border-radius:999px;background:var(--surface-3);border:0;position:relative;flex:none;cursor:pointer}
+.sw::after{content:'';position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.sw.on{background:var(--accent)}.sw.on::after{left:17px}
+table.t{width:100%;border-collapse:collapse;font-size:12.5px}
+table.t th{font-weight:600;text-align:left;color:var(--text-3);font-size:11.5px;padding:6px 10px;border-bottom:1px solid var(--border)}
+table.t td{padding:8px 10px;border-top:1px solid var(--border);vertical-align:middle}
+table.t tr:first-child td{border-top:0}
+.rv h2{font-size:16px;margin:18px 0 8px}
+.rv h2:first-child{margin-top:0}
+.rv table.t td{vertical-align:top}
+.rv .was{color:var(--text-3)}
+.rv ol,.rv ul{margin:4px 0 8px;padding-left:20px}
+.rv li{margin:3px 0}
+.pill{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:1px 8px}
+.pill.cut{background:var(--danger-bg);color:var(--danger)}.pill.new{background:var(--ok-bg);color:var(--ok)}.pill.mv{background:var(--accent-bg);color:var(--accent)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:1100px){.g2,.cmp{grid-template-columns:1fr}}
+.who-sw{display:flex;gap:6px;margin:6px 6px 0}
+.who-sw button{flex:1;border:1px solid #333c52;background:none;color:#cfd6e4;border-radius:6px;padding:4px 0;font-size:11.5px;cursor:pointer}
+.who-sw button.on{background:#3358e6;border-color:#3358e6;color:#fff}
+.ro{background:var(--surface-2);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--text-2);margin-bottom:12px}
+.agrow{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border)}
+.agrow:first-child{border-top:0}
+.agrow .an{flex:1;min-width:0}.agrow .an b{display:block}.agrow .an small{display:block;color:var(--text-3);font-size:11.5px;font-family:var(--mono)}
+.agrow .ak{display:flex;gap:6px;align-items:center;flex:none;font-size:12px}
+.code{font-family:var(--mono);background:#0f141c;color:#d7dde8;border-radius:8px;padding:8px 10px;font-size:12px;overflow-wrap:anywhere}
+.radio{display:flex;flex-direction:column;gap:6px}
+.radio label{display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border:1px solid var(--border);border-radius:9px;cursor:pointer;font-weight:400}
+.radio label.on{border-color:var(--accent);background:var(--accent-bg)}
+.radio label small{display:block;color:var(--text-3);font-size:11.5px}
+.radio label.dis{opacity:.5;cursor:default}
+</style>
+</head>
+<body>
+<div class="mframe">
+ <nav class="mnav" id="mnav"></nav>
+ <div class="mstage" id="stage"></div>
+</div>
+<script>
+const IC = {
+  doc:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
+  rec:'<path d="M5 4h14v16H5z"/><path d="M9 9h6M9 13h6M9 17h3"/>',
+  arrow:'<path d="M5 12h14M13 6l6 6-6 6"/>', check:'<path d="M5 12l4 4 10-10"/>', plug:'<path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/>',
+  hour:'<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>', users:'<circle cx="9" cy="9" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 6a3 3 0 0 1 0 6M18 20a6 6 0 0 0-3-5"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
+  shield:'<path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/>', pc:'<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+  folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>', bot:'<rect x="5" y="8" width="14" height="11" rx="2"/><path d="M12 4v4M9 13h.01M15 13h.01"/>',
+}
+const svg = (n) => `<svg class="i" viewBox="0 0 24 24">${IC[n]}</svg>`
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]))
+
+// ───────────── 목업 데이터 ─────────────
+const TEAM = [{ id: 'dpms', name: 'DPMS 지식', docs: 17, pend: 3, mode: '매일 18:00' }, { id: 'gdi', name: 'GDI 지식', docs: 5, pend: 0, mode: '실시간' }]
+const PC_ROOT = 'D:\\kmd'
+const MINE = [{ id: '회의', name: '회의', docs: 5, to: 'DPMS 지식', unsent: 2 }, { id: '배포노트', name: '배포노트', docs: 1, to: 'DPMS 지식', unsent: 0 }, { id: '설계메모', name: '설계메모', docs: 1, to: null, unsent: 1 }]
+const OLD = [{ id: '테스트1-park', name: '테스트1', docs: 1 }] // 팀 서버에 서 있던 옛 개인 지식: 옮길 것
+const PEOPLE = [{ id: 'kim', admin: true, at: '오늘 10:40' }, { id: 'park', admin: false, at: '오늘 13:46' }, { id: 'lee', admin: false, at: '어제 17:05' }, { id: 'yoon', admin: false, at: '10-24' }]
+const FOLDERS = [
+  { name: 'dpms-batch', path: 'D:\\work\\dpms-batch', area: 'team', kn: 'DPMS 지식' },
+  { name: 'kmd', path: 'C:\\project\\kmd', area: 'me', kn: '설계메모' },
+  { name: 'gdi-web', path: 'D:\\work\\gdi-web', area: 'team', kn: 'GDI 지식' },
+]
+
+// ───────────── 상태 ─────────────
+const S = { scene: 'review', who: 'admin', cur: 'dpms', pop: null, setTab: 'gen', sendTab: 'rec', agArea: 'team', agKn: 'DPMS 지식', newArea: 'me' }
+const admin = () => S.who === 'admin'
+const isMe = (id) => MINE.some((k) => k.id === id) || OLD.some((k) => k.id === id)
+const curKn = () => TEAM.find((k) => k.id === S.cur) || MINE.find((k) => k.id === S.cur) || OLD.find((k) => k.id === S.cur) || null
+const kind = () => (S.cur === '*' ? null : isMe(S.cur) ? 'me' : 'team')
+
+const SCENES = [
+  ['g', '검토'],
+  ['review', '검토: 지금 · 바꿀 것 · 정할 것', '목업 전에 읽는다'],
+  ['g', '팀 화면 · 지식 고르기'],
+  ['home', '지식 목록: 팀 / 개인', '개인 = 내 PC 지식 폴더'],
+  ['newKn', '새 지식: 개인은 내 PC 에', '팀은 관리자만'],
+  ['g', '지식 관리: 팀 지식을 골랐을 때'],
+  ['teamMenu', '왼쪽 메뉴: 팀', '관리자 / 일반 차이'],
+  ['teamSet', '설정 › 팀', '일반 · 사람 · 에이전트 설치'],
+  ['teamPeople', '설정 › 팀 › 사람', '관리자 / 일반 둘뿐'],
+  ['teamAgent', '설정 › 팀 › 에이전트 설치', '어느 팀 지식에 붙일지'],
+  ['g', '지식 관리: 개인 지식을 골랐을 때'],
+  ['meMenu', '왼쪽 메뉴: 개인', '내 PC 프로그램이 한다'],
+  ['meSet', '설정 › 개인', '지식 폴더 · 백업 · Claude'],
+  ['meAgent', '설정 › 개인 › 에이전트 설치', '어느 개인 지식에 붙일지'],
+  ['send', '지식 보내기: 기록 · 문서만', '개인 → 팀'],
+  ['g', '옮기는 길'],
+  ['move', '팀 서버의 옛 개인 지식 옮기기', '한 번만'],
+]
+const SCENE_CUR = { teamMenu: 'dpms', teamSet: 'dpms', teamPeople: 'dpms', teamAgent: 'dpms', meMenu: '회의', meSet: '회의', meAgent: '회의', send: '회의', home: '*', newKn: '*', move: '*' }
+const SCENE_TAB = { teamSet: 'gen', teamPeople: 'people', teamAgent: 'agent', meSet: 'gen', meAgent: 'agent' }
+
+function go(sc) {
+  S.scene = sc; S.pop = sc === 'newKn' ? 'new' : null
+  if (SCENE_CUR[sc]) S.cur = SCENE_CUR[sc]
+  if (SCENE_TAB[sc]) S.setTab = SCENE_TAB[sc]
+  render()
+}
+function navHtml() {
+  return `<h1>지식 관리 분리: 변경안</h1><p>팀 / 개인을 나눈다 · 개인 지식은 내 PC(개인 서버) · 팀 권한은 관리자 / 일반</p>
+  <div class="who-sw"><button class="${admin() ? 'on' : ''}" data-who="admin">관리자 kim</button><button class="${admin() ? '' : 'on'}" data-who="user">일반 park</button></div>
+  ${SCENES.map(([v, l, s]) => v === 'g' ? `<div class="g">${l}</div>` : `<button class="${S.scene === v ? 'on' : ''}" data-go="${v}">${l}${s ? `<small>${s}</small>` : ''}</button>`).join('')}
+  <div class="q"><b>보는 법</b><ul><li>위 단추로 관리자 / 일반을 바꿔 본다</li><li>왼쪽 메뉴에서 지식을 고르면 아래 「지식 관리」 가 그 갈래로 바뀐다</li><li>회색 줄친 메뉴는 걷는 것</li></ul></div>`
+}
+
+// ───────────── 앱 프레임 ─────────────
+function side() {
+  const k = kind(), c = curKn()
+  const kn = (x, tag) => `<div class="${S.cur === x.id ? 'on' : ''}" data-cur="${esc(x.id)}">${svg('doc')}${esc(x.name)} ${tag}</div>`
+  let h = `<aside class="side"><div class="sb-top"><span class="logo">${esc(S.who === 'admin' ? 'k' : 'p')}</span><span style="font-weight:700">${admin() ? 'kim' : 'park'} <small class="muted" style="font-weight:400;display:block;font-size:10.5px">팀 서버${admin() ? ' · 관리자' : ' · 일반'}</small></span></div>
+  <div class="sb-know"><div class="sb-repo" data-cur="*"><span class="rk">${c ? esc(c.name.slice(0, 2)) : '전체'}</span><span style="flex:1;min-width:0"><b style="font-size:12.5px">${c ? esc(c.name) : '지식 전체'}</b><small>${!c ? `팀 ${TEAM.length} · 개인 ${MINE.length}` : k === 'me' ? '개인 · 내 PC' : '팀'}</small></span></div>
+  <div class="lh">팀 지식</div><div class="lst">${TEAM.map((x) => kn(x, '<span class="kt team">팀</span>')).join('')}</div>
+  <div class="lh">개인 지식 · 내 PC</div><div class="lst">${MINE.map((x) => kn(x, '<span class="kt pc">개인</span>')).join('')}</div></div>`
+  h += `<div class="sb-mg">${mgMenu()}</div></aside>`
+  return h
+}
+// 지식 관리: 고른 지식의 갈래마다 메뉴가 다르다(팀 / 개인). 전체를 고르면 둘 다 한 줄씩
+function mgMenu() {
+  const k = kind()
+  const it = (sc, l, ic, bd, off) => `<div class="sb-i${S.scene === sc ? ' on' : ''}${off ? ' off' : ''}" ${off ? '' : `data-go="${sc}"`}>${svg(ic)}<span>${l}</span>${bd ? `<span class="bd">${bd}</span>` : ''}</div>`
+  if (k === 'team') {
+    return `<div class="sb-g">지식 관리 <span class="kt team">팀</span>${admin() ? '<span class="kt adm">관리자</span>' : ''}</div>`
+      + it('teamLog', '이력', 'check') + (admin() ? it('teamImp', '가져오기', 'plug') : '') + (admin() ? it('teamTidy', '정리', 'hour', curKn().pend || '') : '')
+      + it('x', '이 지식의 사람', 'users', '', true) + it('x', '관리', 'shield', '', true)
+      + it(S.scene === 'teamPeople' ? 'teamPeople' : S.scene === 'teamAgent' ? 'teamAgent' : 'teamSet', '설정: 팀', 'gear')
+  }
+  if (k === 'me') {
+    const n = MINE.reduce((a, x) => a + x.unsent, 0)
+    return `<div class="sb-g">지식 관리 <span class="kt pc">개인 · 내 PC</span></div>`
+      + it('meLog', '이력', 'check') + it('meImp', '가져오기', 'plug') + it('send', '지식 보내기', 'arrow', n || '')
+      + it(S.scene === 'meAgent' ? 'meAgent' : 'meSet', '설정: 개인', 'gear')
+  }
+  return `<div class="sb-g">지식 관리</div><div class="small muted" style="padding:2px 10px 8px">지식을 고르면 그 갈래(팀 / 개인)의 메뉴가 선다</div>${it('teamSet', '설정: 팀', 'gear')}${it('meSet', '설정: 개인', 'gear')}`
+}
+function frame(crumb, main, band) {
+  return `<div class="app">${side()}<div class="col"><div class="hdr"><span class="crumb">${crumb}</span></div>
+  <div class="band">${band || (kind() === 'me' ? '<b>● 개인: 내 PC 프로그램(이 PC 의 kmd)</b> · 팀 서버에는 가지 않는다 · 팀 화면은 내 PC 프로그램을 불러 보여 준다' : '<b style="color:var(--accent)">● 팀 서버의 kmd · 같이 쓴다</b>')}</div>
+  <div class="main">${main}</div></div></div>${popHtml()}`
+}
+
+// ───────────── 검토 ─────────────
+function review() {
+  return `<div class="app" style="display:block"><div class="main rv" style="max-width:1040px">
+  <div class="big">검토: 지식 관리 영역을 팀 / 개인으로 나눈다</div>
+  <p class="lead">요청 네 가지를 지금 코드(v0.1.0 · main 665f2d0)에 대 보고, 무엇이 바뀌는지 · 정할 것을 적었다. 오른쪽 목업은 이 변경안대로 그렸다.</p>
+
+  <h2>1. 개인 지식은 팀 서버가 아니라 개인 서버(내 PC)에</h2>
+  <table class="t"><tr><th style="width:120px">지금</th><td class="was">팀 화면 「+ 새 개인 지식」 은 <b>팀 서버의 지식 폴더 안</b>에 <span class="mono">이름-아이디</span> 폴더를 세운다(_members.md 「개인: 예」). 지식 폴더를 정하지 않아도 저절로 생긴 까닭이 이것이다. 개인 서비스(이 PC 의 kmd)의 지식 폴더(예: <span class="mono">D:\\kmd</span>)와는 따로 논다. 지식 보내기도 이 팀 서버 개인 지식에서만 된다(ecd805c).</td></tr>
+  <tr><th>바꾼다</th><td><b>개인 지식 = 내 PC 프로그램의 지식 폴더 안</b>(개인 서비스에서 쓰던 그 경로). 팀 화면의 개인 지식 칸은 그 폴더를 짝 열쇠로 불러 보여 준다. 팀 서버에는 한 조각도 남지 않는다.
+   <ul><li>새 개인 지식 → 내 PC 프로그램에 만든다(이름 · 또는 내 PC 폴더 경로) <span class="pill new">있음</span> 지금 「내 PC」 길을 기본으로</li>
+   <li>팀 서버에 개인 지식을 세우는 길을 걷는다. 화면 · API(<span class="mono">team: false</span> 로 세우기) <span class="pill cut">걷음</span></li>
+   <li>이미 팀 서버에 있는 개인 지식(테스트1-park 등)은 「내 PC 로 옮기기」 한 번 <span class="pill mv">옮김</span> → 목업 「옮기는 길」</li>
+   <li>내 PC 프로그램이 꺼져 있으면 개인 칸은 흐린 이름만 · [켜기 안내]: 팀 서버가 대신 만들지 않는다</li></ul></td></tr></table>
+
+  <h2>2. 팀 지식 관리 설정 / 개인 지식 관리 설정을 나눈다</h2>
+  <table class="t"><tr><th style="width:120px">지금</th><td class="was">설정은 화면 하나(일반 · Claude 연결 · 에이전트 설치)이고 팀 / PC 에 따라 내용만 갈린다. 팀 화면의 설정에는 개인 것(내 PC 일꾼 · 내 지식 줄)과 팀 것(백업 · 정리 로그인)이 섞여 있다. 정리 방식 · 정리 시각은 「이 지식의 사람」 에, 사람 · 백업은 「관리」 에 흩어져 있다.</td></tr>
+  <tr><th>바꾼다</th><td>지식 관리 영역의 메뉴가 <b>고른 지식의 갈래</b>를 따른다. 팀 지식을 고르면 <b>설정: 팀</b>, 개인 지식을 고르면 <b>설정: 개인</b>.
+   <ul><li><b>설정: 팀</b>(팀 서버): 일반(팀 지식마다 정리 방식 · 백업 · 저절로 하는 일) · 사람(관리자 / 일반) · Claude 연결(정리 전용 로그인) · 에이전트 설치(팀). 관리자는 바꾸고 일반은 읽기만 + 자기 에이전트 설치.</li>
+   <li><b>설정: 개인</b>(내 PC 프로그램): 지식 폴더 경로 · 백업 자리 · Claude 로그인 · 모델 · 저절로 하는 일 · 보내는 길 · 에이전트 설치(개인).</li>
+   <li>「관리」 메뉴는 설정: 팀 안으로 <span class="pill mv">옮김</span> · 「이 지식의 사람」 은 걷음 <span class="pill cut">걷음</span>(3 번)</li></ul></td></tr></table>
+
+  <h2>3. 에이전트 설치도 팀 / 개인으로: 어느 지식에 붙일지 고른다</h2>
+  <table class="t"><tr><th style="width:120px">지금</th><td class="was">작업 폴더 하나에 연결 둘(<span class="mono">kmd-team</span> · <span class="mono">kmd</span>)과 스킬 셋을 함께 깐다. 어느 지식에 남길지는 Claude Code 가 그때 고른다(안내 한 단락에 지식이 정해져 있지 않다).</td></tr>
+  <tr><th>바꾼다</th><td>작업 폴더마다 <b>영역 하나 + 지식 하나</b>를 고른다.
+   <ul><li>팀: 연결 <span class="mono">kmd-team</span> 만 · CLAUDE.md 안내에 「기본 지식: DPMS 지식」 · 설치 한 줄에 지식이 들어간다(<span class="mono">kmd connect … --kn dpms</span>)</li>
+   <li>개인: 연결 <span class="mono">kmd</span>(이 PC) 만 · 「기본 지식: 설계메모」 · 내 PC 프로그램의 설정: 개인 › 에이전트 설치에서 폴더 더하기</li>
+   <li>한 폴더는 한 영역: 바꾸면 다른 쪽 연결을 걷는다. 팀 에이전트 설치는 관리자 · 일반 누구나(내 기기 · 내 폴더)</li></ul></td></tr></table>
+
+  <h2>4. 팀 지식 권한은 관리자 / 일반 둘 · 개인이 팀으로 보내는 것은 기록 · 문서만</h2>
+  <table class="t"><tr><th style="width:120px">지금</th><td class="was">팀 서버 관리자 + 지식마다 주인 · 정리하는 사람 · 기록을 남기는 사람(「이 지식의 사람」). 주인이 정리 방식을 정하고 정리하는 사람을 고른다. 보내기는 기록 · 문서(처음은 전체 · 그 뒤로는 고친 항목만)를 고른다.</td></tr>
+  <tr><th>바꾼다</th><td>
+   <table class="t" style="margin:4px 0 8px"><tr><th></th><th>관리자</th><th>일반</th></tr>
+   <tr><td>팀 지식 읽기 · 찾기 · Claude Code</td><td>✓</td><td>✓</td></tr>
+   <tr><td>기록 남기기 · 문서 고치기</td><td>✓ 문서에 바로</td><td>✓ 기록으로 남는다 → 정리가 넣는다</td></tr>
+   <tr><td>정리(받은 것 넣기 · 정리 방식)</td><td>✓</td><td>: </td></tr>
+   <tr><td>팀 지식 만들기 · 지우기 · 가져오기</td><td>✓</td><td>: </td></tr>
+   <tr><td>설정: 팀(사람 · 백업 · Claude)</td><td>✓ 바꾼다</td><td>읽기만</td></tr>
+   <tr><td>에이전트 설치(팀)</td><td>✓</td><td>✓ 내 폴더</td></tr></table>
+   <ul><li>지식마다의 주인 · 정리하는 사람 · 기록을 남기는 사람을 걷는다 <span class="pill cut">걷음</span>: 정리는 관리자 몫 · 이력의 「누가」 는 그대로</li>
+   <li>개인 → 팀 보내기는 <b>기록</b> 과 <b>문서(통째)</b> 둘만. 항목 조각 · 첨부만 · 이름 장부 · 설정은 가지 않는다. 받은 것은 팀 지식의 「받은 것」 → 관리자가 정리</li>
+   <li>보내기는 내 PC 프로그램이 이 PC 의 기기 열쇠로 팀 서버에 보낸다(팀 화면이 단추를 그린다)</li></ul></td></tr></table>
+
+  <h2>정한 것 (2026-10-27 · 안대로 간다)</h2>
+  <ol>
+   <li><b>보내기를 누가 실어 나르나</b>: 안: 내 PC 프로그램 → 팀 서버(기기 열쇠). 팀 화면은 짝 열쇠로 내 PC 에 「보내라」 만 부른다. ecd805c 에서 걷은 PC 보내기 API 를 되살리는 셈이다.</li>
+   <li><b>문서를 보낼 때 「고친 항목만」 을 남기나</b>: 안: 문서는 통째로만(요청 「기록이나 문서」 를 그대로). 받는 쪽 정리가 바뀐 곳을 가른다.</li>
+   <li><b>일반 사용자의 문서 고치기</b>: 안: 고칠 수 있지만 기록으로 남아 정리를 거친다(지금 「기록만 하는 사람」 과 같다). 아예 막을지?</li>
+   <li><b>팀 서버의 옛 개인 지식</b>: 안: 주인이 「내 PC 로 옮기기」 · 옮기면 팀 서버 쪽은 지운다. 주인이 떠났으면 관리자가 지우거나 팀 지식으로 바꾼다.</li>
+   <li><b>내 PC 프로그램이 없는 사람</b>: 개인 지식을 못 갖는다(설치 한 줄 안내). 괜찮은가?</li>
+  </ol>
+  <p class="small muted">걷고 옮길 코드(어림): server/hub.js addKnowledge(team 갈래) · owners(주인 · 정리하는 사람) · send(팀 서버 개인 지식 → PC) · http.js 짝 열쇠 허락 목록(보내기 · 설정 읽기) · app/main.js 지식 관리 메뉴 · viewSettings · viewMembers · agentCard · kmd connect(--kn). 테스트: wp4 · wp5 · send · owners · private · screen-kmd.</p>
+  </div></div>`
+}
+
+// ───────────── 지식 목록 ─────────────
+function home() {
+  const tc = (x) => `<div class="kcard" data-cur="${x.id}"><b>${esc(x.name)}</b><small><span class="kt team">팀</span>문서 ${x.docs} · 팀 모두 기록</small>${admin() && x.pend ? `<div style="margin-top:8px"><span class="chip c-pend">받은 것 ${x.pend}</span></div>` : ''}</div>`
+  const mc = (x) => `<div class="kcard" data-cur="${x.id}"><b>${esc(x.name)}</b><small><span class="kt pc">개인</span>문서 ${x.docs} · <span class="mono">${esc(PC_ROOT)}\\${esc(x.id)}</span></small>${x.unsent ? `<div style="margin-top:8px"><span class="chip c-pend">보내지 않은 기록 ${x.unsent}</span></div>` : ''}</div>`
+  return frame('<b>지식 목록</b>', `<div class="pg-h"><div><div class="big">지식 목록</div><p class="lead">위는 팀 지식(팀 서버) · 아래는 개인 지식(내 PC): 옆 메뉴에 이 순서로 보인다</p></div></div>
+  <div class="sec-h"><b>팀 지식</b><small>팀 서버 · 팀 모두 보고 기록한다${admin() ? '' : ' · 새 팀 지식은 관리자가 세운다'}</small></div>
+  <div class="kgrid">${TEAM.map(tc).join('')}${admin() ? '<div class="kcard add" data-pop="new" data-area="team"><span><span class="pl">+</span>새 팀 지식</span></div>' : ''}</div>
+  <div class="sec-h"><b>개인 지식</b><small>나만 · 내 PC 프로그램(이 PC 의 kmd)의 지식 폴더: 팀 서버에는 가지 않는다</small></div>
+  <div class="fbar"><span class="fl">${svg('pc')}내 PC 지식 폴더</span><span class="fp">${esc(PC_ROOT)}</span><button class="btn sm">경로 복사</button><button class="btn sm" data-go="meSet">바꾸기: 설정 › 개인</button><small>개인 서비스(이 PC 의 kmd)에서 쓰던 그 폴더다 · 지식 하나 = 이 폴더 안의 폴더 하나 · 팀 화면은 내 PC 프로그램을 불러 보여 준다</small></div>
+  ${OLD.length ? `<div class="callout warn">${svg('folder')}<span><b>팀 서버에 옛 개인 지식 ${OLD.length}: ${OLD.map((x) => esc(x.name)).join(' · ')}</b> · 개인 지식은 이제 내 PC 에만 둔다 <a data-go="move">내 PC 로 옮기기 ›</a></span></div>` : ''}
+  <div class="kgrid">${MINE.map(mc).join('')}<div class="kcard add" data-pop="new" data-area="me"><span><span class="pl">+</span>새 개인 지식<small style="display:block;justify-content:center">내 PC 에</small></span></div></div>`)
+}
+
+// ───────────── 지식 관리: 팀 ─────────────
+function teamMenu() {
+  const c = curKn()
+  return frame(`팀 › <b>${esc(c.name)}</b>`, `<div class="big">${esc(c.name)}</div><p class="lead">왼쪽 아래 「지식 관리」 가 팀 메뉴로 바뀌었다. 위 단추로 관리자 / 일반을 바꿔 본다</p>
+  <div class="card" style="margin-top:14px"><div class="ch">팀 지식을 골랐을 때: 지식 관리</div><div class="cb"><table class="t"><tr><th>메뉴</th><th>관리자</th><th>일반</th><th>지금과 다른 점</th></tr>
+  <tr><td>이력</td><td>✓</td><td>✓</td><td>이 팀 지식의 일만</td></tr>
+  <tr><td>가져오기</td><td>✓</td><td>: </td><td>팀 지식에 들이는 것은 관리자</td></tr>
+  <tr><td>정리</td><td>✓</td><td>: </td><td>정리하는 사람 대신 관리자</td></tr>
+  <tr><td>이 지식의 사람</td><td colspan="2" class="muted">걷음</td><td>주인 · 정리하는 사람 · 기록을 남기는 사람이 없다</td></tr>
+  <tr><td>관리</td><td colspan="2" class="muted">설정: 팀 으로</td><td>사람 · 백업 · Claude 는 설정: 팀의 탭</td></tr>
+  <tr><td>설정: 팀</td><td>바꾼다</td><td>읽기 + 에이전트 설치</td><td>개인 것은 빠졌다</td></tr>
+  <tr><td>지식 보내기</td><td colspan="2" class="muted">개인 쪽으로</td><td>개인 지식을 골랐을 때만</td></tr></table></div></div>`)
+}
+function teamSettings() {
+  const T = [['gen', '일반'], ['people', '사람'], ['claude', 'Claude 연결'], ['agent', '에이전트 설치']]
+  const tabs = `<div class="tabs">${T.map(([v, l]) => `<span class="${S.setTab === v ? 'on' : ''}" data-tab="${v}">${l}</span>`).join('')}</div>`
+  const ro = admin() ? '' : '<div class="ro">팀 설정은 관리자가 바꾼다. 여기서는 읽기만 · 에이전트 설치는 내 폴더에 누구나</div>'
+  let body = ''
+  if (S.setTab === 'gen') body = `<div class="g2"><div><div class="card"><div class="ch">이 팀 서버 <small class="mono">kmd.team:7381</small></div><div class="cb"><div class="kv"><span>들어가기</span><span>아이디 ${admin() ? 'kim' : 'park'} · <a>나가기</a></span><span>나</span><span>${admin() ? '<span class="kt adm">관리자</span>' : '일반'}</span><span>팀 지식 폴더</span><span>${admin() ? '<span class="mono">/srv/kmd/kn</span> · <a>동기화</a>' : '관리자만 본다'}</span><span>백업</span><span>gitlab.team/kmd-backup · 저장할 때마다</span><span>판</span><span>kmd v0.1.0</span></div></div></div>
+   <div class="card"><div class="ch">저절로 하는 일 <small>팀</small></div><div class="cb" style="padding:2px 14px">${[['넣은 파일을 글로', 'md · docx · pptx · xlsx → 기록'], ['찾기', '딱 맞는 항목이 없으면 비슷한 글에서']].map(([b, s]) => `<div class="set"><span class="tx"><b>${b}</b><small>${s}</small></span><button class="sw on"${admin() ? '' : ' disabled'}></button></div>`).join('')}</div></div></div>
+   <div><div class="card"><div class="ch">정리: 팀 지식마다 <small>받은 기록을 문서에 넣는 때</small></div><div class="cb"><table class="t"><tr><th>팀 지식</th><th>정리 방식</th><th>받은 것</th></tr>${TEAM.map((k) => `<tr><td><b>${esc(k.name)}</b></td><td>${admin() ? `<select class="inp"><option>${esc(k.mode)}</option><option>실시간</option><option>손으로만</option></select>` : esc(k.mode)}</td><td>${k.pend ? `<span class="chip c-pend">${k.pend}</span>` : '<span class="muted">없음</span>'}</td></tr>`).join('')}</table><p class="small muted" style="margin:8px 0 0">지금은 「이 지식의 사람」 에서 주인이 정했다. 주인이 없어져 여기로 왔다</p></div></div></div></div>`
+  else if (S.setTab === 'people') body = people()
+  else if (S.setTab === 'claude') body = `<div class="card" style="max-width:720px"><div class="ch">Claude 연결 <small>팀 정리 전용 로그인</small></div><div class="cb"><div class="set"><span class="tx"><b>팀 정리 로그인이 돈다</b><small>팀 지식의 정리 · 넣은 파일 읽기에 쓴다 · 쉬면 관리자에게 알린다</small></span>${admin() ? '<button class="btn">다시 로그인</button>' : ''}</div></div><div class="cf small muted">내 개인 지식의 Claude 로그인은 설정: 개인 에 있다(이 PC 의 Claude Code 로그인)</div></div>`
+  else body = agentTeam()
+  return frame(`팀 › <b>설정</b> › ${T.find((x) => x[0] === S.setTab)[1]}`, `<div class="big">설정: 팀</div><p class="lead" style="margin-bottom:10px">팀 서버의 것만: 팀 지식 · 사람 · 정리 로그인 · 팀 에이전트. 내 PC · 개인 지식의 설정은 설정: 개인</p>${tabs}${ro}${body}`)
+}
+function people() {
+  return `<div class="card" style="max-width:820px"><div class="ch">사람 <small>권한은 둘: 관리자 · 일반</small>${admin() ? '<span class="r"><button class="btn sm pri">+ 사람 더하기</button></span>' : ''}</div><div class="cb" style="padding:4px 14px"><table class="t"><tr><th>아이디</th><th>권한</th><th>마지막</th><th></th></tr>${PEOPLE.map((p) => `<tr><td><b>${p.id}</b></td><td>${admin() && p.id !== 'kim' ? `<div class="seg"><button class="${p.admin ? 'on' : ''}">관리자</button><button class="${p.admin ? '' : 'on'}">일반</button></div>` : p.admin ? '<span class="kt adm">관리자</span>' : '일반'}</td><td class="muted">${p.at}</td><td style="text-align:right">${admin() && p.id !== 'kim' ? '<button class="btn sm ghost">새 링크</button><button class="btn sm ghost">기기 끊기</button><button class="btn sm ghost dz">떠남…</button>' : ''}</td></tr>`).join('')}</table></div>
+  <div class="cf small muted"><b style="color:var(--text)">관리자</b> 팀 지식 만들기 · 지우기 · 가져오기 · 정리 · 문서에 바로 고치기 · 팀 설정 &nbsp;·&nbsp; <b style="color:var(--text)">일반</b> 읽기 · 찾기 · 기록 남기기(고친 것은 기록으로 → 정리) · 내 에이전트 설치. 지식마다 따로 주는 권한(주인 · 정리하는 사람)은 없다.</div></div>`
+}
+function agentRows(area) {
+  const xs = FOLDERS.filter((f) => f.area === area)
+  return xs.map((f) => `<div class="agrow"><span class="si">${svg('folder')}</span><span class="an"><b>${esc(f.name)}</b><small>${esc(f.path)}</small></span><span class="ak">${area === 'team' ? '<span class="kt team">팀</span>' : '<span class="kt pc">개인</span>'}<select class="inp">${(area === 'team' ? TEAM : MINE).map((k) => `<option${k.name === f.kn ? ' selected' : ''}>${esc(k.name)}</option>`).join('')}</select><span class="chip c-acc">최신</span><button class="btn sm ghost">빼기</button></span></div>`).join('')
+}
+function agentTeam() {
+  return `<div class="card" style="max-width:820px"><div class="ch">에이전트 설치: 팀 <small>작업 폴더의 Claude Code 가 팀 지식 하나에 붙는다</small></div><div class="cb">
+   <div class="field"><label>붙일 팀 지식</label><select class="inp" style="width:260px">${TEAM.map((k) => `<option${k.name === S.agKn ? ' selected' : ''}>${esc(k.name)}</option>`).join('')}</select><div class="hint">작업 폴더의 CLAUDE.md 안내에 「기본 지식: ${esc(S.agKn)}」: 다른 팀 지식은 읽기만 · 기록은 이 지식에 남긴다</div></div>
+   <div class="field"><label>설치 한 줄 <small class="muted" style="font-weight:400">작업 폴더의 터미널에 붙여 넣는다 · 10분 · 한 번</small></label><div class="code">npx kmd connect https://kmd.team:7381 --kn dpms --pass kmdq_7Hf…</div><div class="row" style="margin-top:6px"><button class="btn pri">설치 한 줄 복사</button></div></div>
+   <div class="rh" style="font-weight:600;margin:12px 0 4px">팀에 붙은 내 작업 폴더</div>${agentRows('team')}
+   <p class="small muted" style="margin:8px 0 0">깔리는 것: 연결 하나(kmd-team) · 스킬 셋 · 안내 한 단락. 이 PC 의 kmd(개인) 연결은 깔지 않는다. 그건 설정: 개인 › 에이전트 설치</p></div></div>`
+}
+
+// ───────────── 지식 관리: 개인 ─────────────
+function meMenu() {
+  const c = curKn()
+  return frame(`개인 › <b>${esc(c.name)}</b>`, `<div class="big">${esc(c.name)} <span class="kt pc">개인 · 내 PC</span></div><p class="lead">왼쪽 아래 「지식 관리」 가 개인 메뉴로: 관리자 / 일반이 같다(개인 지식에는 권한이 없다)</p>
+  <div class="card" style="margin-top:14px"><div class="ch">개인 지식을 골랐을 때: 지식 관리</div><div class="cb"><table class="t"><tr><th>메뉴</th><th>하는 곳</th><th>지금과 다른 점</th></tr>
+  <tr><td>이력</td><td>내 PC 프로그램</td><td>팀 화면에서도 그 자리에서 본다(지금은 PC 화면으로 넘긴다)</td></tr>
+  <tr><td>가져오기</td><td>내 PC 프로그램</td><td>같은 일 줄 · 가져올 곳: 팀 화면에서도</td></tr>
+  <tr><td>지식 보내기</td><td>내 PC 프로그램 → 팀 서버</td><td>보내는 지식이 내 PC 지식 · 기록 · 문서만</td></tr>
+  <tr><td>설정: 개인</td><td>내 PC 프로그램</td><td>지식 폴더 · 백업 · Claude · 에이전트(개인)</td></tr></table>
+  <p class="small muted" style="margin:8px 0 0">팀 화면은 짝 열쇠로 내 PC 프로그램을 불러 이 메뉴를 그린다. 내 PC 프로그램이 꺼져 있으면 「켜면 열린다」 한 줄: 팀 서버가 대신하지 않는다.</p></div></div>`)
+}
+function meSettings() {
+  const T = [['gen', '일반'], ['claude', 'Claude 연결'], ['agent', '에이전트 설치']]
+  const tabs = `<div class="tabs">${T.map(([v, l]) => `<span class="${S.setTab === v ? 'on' : ''}" data-tab="${v}">${l}</span>`).join('')}</div>`
+  let body
+  if (S.setTab === 'gen') body = `<div class="g2"><div><div class="card"><div class="ch">지식 폴더 <small>개인 지식이 서는 곳: 개인 서비스와 같은 폴더</small></div><div class="cb"><div class="row" style="display:flex;gap:6px"><input class="inp mono" style="flex:1" value="${esc(PC_ROOT)}"><button class="btn sm">바꾸기</button></div><p class="small muted" style="margin:6px 0 0">지식 하나 = 이 폴더 안의 폴더 하나 · 다른 곳에서 만든 지식은 폴더째 놓고 [동기화] · 바꾸면 내 PC 프로그램이 그 폴더로 다시 연다(옮기지 않는다)</p><div class="kv" style="margin-top:10px"><span>개인 지식</span><span>${MINE.length}: ${MINE.map((x) => esc(x.name)).join(' · ')}</span><span>내 PC 프로그램</span><span><span class="chip c-ok">켜짐</span> · 127.0.0.1:7373 · v0.1.0</span></div></div></div>
+   <div class="card"><div class="ch">백업 <small>이 PC 를 잃어도 남게</small></div><div class="cb"><div class="row" style="display:flex;gap:6px"><input class="inp mono" style="flex:1" value="E:\\kmd-백업"><button class="btn sm">바꾸기</button></div><p class="small muted" style="margin:6px 0 0">붙음 3/3 · 저장할 때마다</p></div></div></div>
+   <div><div class="card"><div class="ch">보내는 길 <small>개인 지식마다 받는 팀 지식 하나</small></div><div class="cb"><table class="t"><tr><th>개인 지식</th><th>받는 팀 지식</th></tr>${MINE.map((k) => `<tr><td><b>${esc(k.name)}</b></td><td><select class="inp"><option>${k.to ? esc(k.to) : '정하지 않음'}</option>${TEAM.map((t) => `<option>${esc(t.name)}</option>`).join('')}</select></td></tr>`).join('')}</table><p class="small muted" style="margin:8px 0 0">보내는 것은 기록 · 문서뿐 · 팀 서버 주소는 <span class="mono">kmd.team:7381</span>(설치 한 줄로 이었다)</p></div></div>
+   <div class="card"><div class="ch">저절로 하는 일 <small>개인</small></div><div class="cb" style="padding:2px 14px">${[['편집기에서 고친 것 저장', '30초 조용하면'], ['넣은 파일을 글로', 'Claude 로 다듬어'], ['자동으로 가져오는 곳', '때마다'], ['기록을 문서로: Claude 로', '곧바로']].map(([b, s]) => `<div class="set"><span class="tx"><b>${b}</b><small>${s}</small></span><button class="sw on"></button></div>`).join('')}</div></div></div></div>`
+  else if (S.setTab === 'claude') body = `<div class="card" style="max-width:720px"><div class="ch">Claude 연결 <small>이 PC 의 Claude Code 로그인</small></div><div class="cb"><div class="set"><span class="tx"><b>로그인됨. 이 PC 의 Claude Code</b><small>개인 지식의 파일 · 기록을 내 Claude 로 다듬는다 · 팀의 Claude 로는 나가지 않는다</small></span><button class="btn">로그인 확인</button></div><div class="set"><span class="tx"><b>모델: 일마다</b><small>옮겨 적기 · 고르기 Haiku · 판단 Opus</small></span><button class="btn sm">바꾸기</button></div></div></div>`
+  else body = agentMe()
+  return frame(`개인 › <b>설정</b> › ${T.find((x) => x[0] === S.setTab)[1]}`, `<div class="big">설정: 개인</div><p class="lead" style="margin-bottom:10px">내 PC 프로그램(이 PC 의 kmd)의 것만: 팀 화면에서 열어도 내 PC 프로그램에 적힌다 · 팀 서버에는 가지 않는다</p>${tabs}${body}`)
+}
+function agentMe() {
+  return `<div class="card" style="max-width:820px"><div class="ch">에이전트 설치: 개인 <small>작업 폴더의 Claude Code 가 내 개인 지식 하나에 붙는다</small></div><div class="cb">
+   ${agentRows('me')}
+   <div style="display:flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap"><input class="inp mono" style="flex:1;min-width:220px" placeholder="작업 폴더 경로: 예: D:\\work\\메모"><select class="inp">${MINE.map((k) => `<option>${esc(k.name)}</option>`).join('')}</select><button class="btn pri">폴더 더하기</button></div>
+   <p class="small muted" style="margin:8px 0 0">깔리는 것: 연결 하나(이 PC 의 kmd) · 스킬 셋 · 안내 한 단락(「기본 지식: …」). 팀에 붙인 폴더는 여기 없다. 한 폴더는 한 영역. 같은 폴더를 여기에 더하면 팀 연결을 걷는다고 묻는다.</p></div></div>`
+}
+
+// ───────────── 보내기 ─────────────
+function send() {
+  const c = curKn(), m = MINE.find((x) => x.id === c.id) || MINE[0]
+  const recs = [['10-27 배포 점검 메모', '오늘 10:40'], ['10-26 설계 회의 메모', '오늘 10:02']]
+  const docs = [['배포 절차', '오늘 09:12 고침 · 10-20 보냄'], ['카나리 기준', '새 문서']]
+  const T = [['rec', '기록', recs.length], ['doc', '문서', docs.length], ['sent', '보낸 것', 6]]
+  const rows = S.sendTab === 'rec' ? recs.map(([t, w]) => `<div class="drow on"><input type="checkbox" checked><span class="si">${svg('rec')}</span><span class="dn"><b>${t}</b><small>${w} · kjsa</small></span></div>`).join('')
+    : S.sendTab === 'doc' ? docs.map(([t, w]) => `<div class="drow on"><input type="checkbox" checked><span class="si">${svg('doc')}</span><span class="dn"><b>${t}</b><small>${w} · 문서 통째로 간다</small></span></div>`).join('')
+    : '<div class="empty">보낸 것 6: 날짜 · 받는 지식 · 받은 것의 정리 상태</div>'
+  return frame(`개인 › ${esc(m.name)} › <b>지식 보내기</b>`, `<div class="pg-h"><div><div class="big">지식 보내기</div><p class="lead">내 개인 지식(내 PC)의 <b>기록</b> · <b>문서</b>를 팀 지식으로: 그 둘만 간다</p></div></div>
+  <div class="card"><div class="route"><div class="rbox"><div class="lb">${svg('pc')}보내는 지식 · 내 PC</div><div class="nm">${esc(m.name)} <span class="kt pc">개인</span></div><div class="sub mono">${esc(PC_ROOT)}\\${esc(m.id)}</div></div><div class="rarr">${svg('arrow')}</div><div class="rbox"><div class="lb">받는 지식 · 팀 서버</div><div class="nm">${esc(m.to || 'DPMS 지식')} <span class="kt team">팀</span></div><div class="sub">받은 것 → 관리자가 정리해 문서에 넣는다</div></div></div>
+  <div class="rinfo">실어 나르는 것: 내 PC 프로그램 → 팀 서버(이 PC 의 기기 열쇠) · 닿지 않으면 저절로 다시<span class="r"><a data-go="meSet">받는 지식 바꾸기: 설정 › 개인</a></span></div></div>
+  <div class="card"><div class="tabs in" style="margin:0">${T.map(([v, l, n]) => `<span class="${S.sendTab === v ? 'on' : ''}" data-stab="${v}">${l}<em>${n}</em></span>`).join('')}<span class="off" title="걷음">항목 조각 · 첨부: 가지 않는다</span></div><div>${rows}</div>
+  <div class="cf"><span class="small muted">${S.sendTab === 'doc' ? '문서는 통째로: 「고친 항목만」 은 없다(받는 쪽 정리가 바뀐 곳을 가른다)' : '기록은 쓴 그대로 간다'}</span><button class="btn pri" style="margin-left:auto">${S.sendTab === 'sent' ? '보내기' : `${S.sendTab === 'rec' ? '기록 ' + recs.length : '문서 ' + docs.length}개 보내기`}</button></div></div>`)
+}
+
+// ───────────── 옮기기 ─────────────
+function move() {
+  return frame('<b>옛 개인 지식 옮기기</b>', `<div class="big">팀 서버의 옛 개인 지식 → 내 PC</div><p class="lead">개인 지식은 이제 내 PC 에만 둔다. 팀 서버에 세웠던 것은 한 번 옮기고 팀 서버 쪽을 지운다.</p>
+  <div class="card" style="margin-top:14px;max-width:820px"><div class="ch">옮길 것 <small>내가 세운 것만 보인다</small></div><div class="cb"><table class="t"><tr><th>지식</th><th>팀 서버</th><th>옮길 곳(내 PC)</th><th></th></tr>${OLD.map((x) => `<tr><td><b>${esc(x.name)}</b> <span class="kt gone">팀 서버 · 옛 개인</span></td><td class="mono small">kn/${esc(x.id)} · 문서 ${x.docs}</td><td class="mono small">${esc(PC_ROOT)}\\${esc(x.name)}</td><td><button class="btn sm pri">내 PC 로 옮기기</button></td></tr>`).join('')}</table>
+  <ol class="small" style="margin:10px 0 0;padding-left:18px;color:var(--text-2)"><li>내 PC 프로그램이 팀 서버에서 그 지식의 git 을 통째로 받는다(이력 · 기록 · 첨부 그대로)</li><li>내 PC 지식 폴더에 같은 이름으로 세운다. 있으면 「이름-2」</li><li>다 받은 것을 맞춰 본 뒤 팀 서버 쪽을 지운다(받는 지식 · 보낸 것 장부도 따라온다)</li></ol></div>
+  <div class="cf small muted">관리자: 떠난 사람의 옛 개인 지식은 설정: 팀 › 사람 › 떠남에서 지우거나 팀 지식으로 바꾼다 · 내 PC 프로그램이 없는 사람에게는 설치 한 줄을 먼저 안내한다</div></div>`)
+}
+
+// ───────────── 팝업: 새 지식 ─────────────
+function popHtml() {
+  if (S.pop !== 'new') return ''
+  const a = S.newArea
+  const opt = (v, l, s, dis) => `<label class="${a === v ? 'on' : ''}${dis ? ' dis' : ''}" ${dis ? '' : `data-area="${v}"`}><input type="radio" ${a === v ? 'checked' : ''} ${dis ? 'disabled' : ''}><span><b>${l}</b><small>${s}</small></span></label>`
+  return `<div class="scrim" data-close="1"><div class="modal" style="width:480px"><div class="mh">새 지식<button class="xx" data-close="1">×</button></div><div class="mb">
+  <div class="field"><label>영역</label><div class="radio">${opt('me', '개인 지식: 내 PC', `내 PC 프로그램의 지식 폴더(<span class="mono">${esc(PC_ROOT)}</span>) 안에 선다 · 나만 · 팀 서버에는 가지 않는다`)}${opt('team', '팀 지식: 팀 서버', admin() ? '팀 모두 보고 기록한다 · 관리자만 세운다' : '팀 서버 관리자만 세운다', !admin())}</div></div>
+  <div class="field"><label>이름</label><input class="inp" placeholder="예: 회의"></div>
+  ${a === 'me' ? `<div class="field"><label>내 PC 폴더 경로 <small class="muted" style="font-weight:400">선택: 쓰면 그 폴더의 글(md · docx · pptx · xlsx)을 한 번 들인다 · 원본은 그대로</small></label><input class="inp mono" placeholder="예: D:\\문서\\배포 노트"></div><div class="field"><label>받는 팀 지식 <small class="muted" style="font-weight:400">선택: 나중에 설정 › 개인 › 보내는 길</small></label><select class="inp"><option>정하지 않음</option>${TEAM.map((t) => `<option>${esc(t.name)}</option>`).join('')}</select></div><div class="ro">서는 곳: <span class="mono">${esc(PC_ROOT)}\\(이름)</span> · 내 PC 프로그램이 꺼져 있으면 [추가] 가 흐려지고 켜는 길을 알린다</div>` : '<div class="ro">서는 곳: 팀 서버의 팀 지식 폴더 · 이름 그대로</div>'}
+  </div><div class="mf"><span class="small muted">새 지식은 그 칸의 맨 아래에 들어온다</span><button class="btn ghost" style="margin-left:auto" data-close="1">취소</button><button class="btn pri">추가</button></div></div></div>`
+}
+
+const VIEW = { review, home, newKn: home, teamMenu, teamSet: teamSettings, teamPeople: teamSettings, teamAgent: teamSettings, meMenu, meSet: meSettings, meAgent: meSettings, send, move,
+  teamLog: teamMenu, teamImp: teamMenu, teamTidy: teamMenu, meLog: meMenu, meImp: meMenu }
+function render() {
+  document.getElementById('mnav').innerHTML = navHtml()
+  document.getElementById('stage').innerHTML = (VIEW[S.scene] || review)()
+}
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-go],[data-who],[data-cur],[data-tab],[data-stab],[data-pop],[data-area],[data-close]')
+  if (!t) return
+  const d = t.dataset
+  if (d.close !== undefined && e.target.closest('.modal') && !e.target.closest('[data-close].xx,.btn[data-close]')) return
+  if (d.who) { S.who = d.who; if (!admin() && S.newArea === 'team') S.newArea = 'me' }
+  else if (d.go) return go(d.go)
+  else if (d.cur) { S.cur = d.cur; S.scene = d.cur === '*' ? 'home' : isMe(d.cur) ? 'meMenu' : 'teamMenu'; S.pop = null }
+  else if (d.tab) { S.setTab = d.tab; const team = S.scene.startsWith('team'); S.scene = team ? (d.tab === 'people' ? 'teamPeople' : d.tab === 'agent' ? 'teamAgent' : 'teamSet') : (d.tab === 'agent' ? 'meAgent' : 'meSet') }
+  else if (d.stab) S.sendTab = d.stab
+  else if (d.pop) { S.pop = d.pop; S.newArea = d.area === 'team' && admin() ? 'team' : 'me' }
+  else if (d.area) S.newArea = d.area
+  else if (d.close !== undefined) S.pop = null
+  render()
+})
+render()
+</script>
+</body>
+</html>

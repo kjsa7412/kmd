@@ -20,7 +20,7 @@ import { KmdError } from './errors.js'
 const URL_RE = /https:\/\/[^\s"'<>]+(?=\s)/g // 뒤에 빈칸이 와야 — 반쯤 받은 주소를 잡지 않게
 const TOKEN_RE = /sk-ant-[A-Za-z0-9_-]{20,}/
 const ANSI_RE = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_]/g
-const NO_TTY = '서버에서 Claude 로그인 창을 띄울 수 없다 — 자기 터미널에서 `claude setup-token` 으로 받은 열쇠를 서버에서 `kmd secret set claude-token` 으로 넣는다'
+const NO_TTY = '서버에서 Claude 로그인 창을 띄울 수 없다. 자기 터미널에서 `claude setup-token` 으로 받은 열쇠를 서버에서 `kmd secret set claude-token` 으로 넣는다'
 
 // 터미널 글 → 맨글(색 · 커서 · 링크 표시를 지운다 · ink 는 띄어쓰기를 「오른쪽으로 n 칸」 으로 낸다)
 export const plain = (s) => String(s).replace(/\x1b\[(\d*)C/g, (_, n) => ' '.repeat(Math.min(+n || 1, 200))).replace(ANSI_RE, '').replace(/\r/g, '')
@@ -64,7 +64,7 @@ export function pcLogin() {
     p.unref()
     return { opened: true }
   }
-  const [cmd, args] = process.platform === 'win32' ? ['cmd', ['/c', 'start', 'kmd — Claude 로그인', 'cmd', '/k', 'claude', 'auth', 'login']] : process.platform === 'darwin' ? ['open', ['-a', 'Terminal', '--args', 'claude', 'auth', 'login']] : ['x-terminal-emulator', ['-e', 'claude auth login']]
+  const [cmd, args] = process.platform === 'win32' ? ['cmd', ['/c', 'start', 'kmd: Claude 로그인', 'cmd', '/k', 'claude', 'auth', 'login']] : process.platform === 'darwin' ? ['open', ['-a', 'Terminal', '--args', 'claude', 'auth', 'login']] : ['x-terminal-emulator', ['-e', 'claude auth login']]
   const p = spawn(cmd, args, { stdio: 'ignore', detached: true })
   p.on('error', () => {})
   p.unref()
@@ -101,7 +101,7 @@ export function makeTeamLogin({ dataDir, timeoutMs = 10 * 60_000 }) {
       if (!c.url) {
         stop()
         // 오류 글의 주소는 집지 않는다 — 쉬운 말로만
-        const why = c.err?.code === 'ENOENT' || /raw mode is not supported|not a tty|not found/i.test(plain(c.out)) ? NO_TTY : '서버에서 Claude 로그인 창을 띄울 수 없다 — 로그인 주소가 나오지 않았다(서버에 Claude Code 가 깔렸나 본다) · 안 되면 ' + NO_TTY.split(' — ')[1]
+        const why = c.err?.code === 'ENOENT' || /raw mode is not supported|not a tty|not found/i.test(plain(c.out)) ? NO_TTY : '서버에서 Claude 로그인 창을 띄울 수 없다. 로그인 주소가 나오지 않았다(서버에 Claude Code 가 깔렸나 본다) · 안 되면 ' + NO_TTY.split(/ — |: /)[1]
         throw new KmdError('E_INPUT', why)
       }
       // 콘솔 글(열쇠 모양은 지운다) — 화면이 그대로 보여 준다
@@ -122,7 +122,7 @@ export function makeTeamLogin({ dataDir, timeoutMs = 10 * 60_000 }) {
         await new Promise((r) => setTimeout(r, 100))
       }
       stop()
-      if (!tok) throw new KmdError('E_INPUT', '로그인을 마치지 못했다 — 번호를 다시 받아 붙여 넣는다')
+      if (!tok) throw new KmdError('E_INPUT', '로그인을 마치지 못했다. 번호를 다시 받아 붙여 넣는다')
       await setSecret(dataDir, 'claude-token', tok)
       return { ok: true, token: tok }
     },

@@ -18,7 +18,7 @@ import { copyDir, signIn } from './helpers.mjs'
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixture', 'kmd')
 let tmp, s, kn, bare, me
 const G = (cwd, ...a) => execFileSync('git', ['-c', 'user.name=남', '-c', 'user.email=nam@x', '-c', 'core.autocrlf=false', ...a], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
-const rec = (title) => ({ record: { title, body: title + ' — 본문', touches: ['proc:카나리'] } })
+const rec = (title) => ({ record: { title, body: title + '본문', touches: ['proc:카나리'] } })
 const ctx = { user: '김' }
 const ADMIN = { user: '이', admin: true }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -152,7 +152,7 @@ test('남이 앞서 민 백업 → 읽기만(E_BEHIND) → 백업에서 받기 �
   await assert.rejects(s.hub.save(ctx, 'dpms', rec('또')), (e) => e.code === 'E_BEHIND')
 })
 
-test('상태 파일 없는 clone — origin 은 백업이 아니다 · 보내지 않는다', async () => {
+test('상태 파일 없는 clone: origin 은 백업이 아니다 · 보내지 않는다', async () => {
   const before = remoteHead()
   G(path.join(tmp, 'kn'), 'clone', '-q', bare, 'cl')
   s.hub.forget()

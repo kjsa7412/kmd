@@ -35,7 +35,7 @@ export function localStamp(d = new Date()) {
 // 파일 이름 조각 — 제목의 앞부분 · 파일 이름에 못 쓰는 글자는 뺀다
 function slugOf(title) {
   const s = nfc(title)
-    .split(/\s+[—–-]\s+/)[0]
+    .split(/\s+[—–-]\s+|:\s+/)[0]
     .replace(/[\\/:*?"<>|#%`'\u0000-\u001f]/g, '')
     .trim()
     .replace(/\s+/g, '-')
@@ -46,9 +46,9 @@ function slugOf(title) {
 
 function check(input) {
   const r = input?.record
-  if (!r || typeof r !== 'object') fail('E_INPUT', '기록(record)이 없다 — 제목과 글을 보낸다')
+  if (!r || typeof r !== 'object') fail('E_INPUT', '기록(record)이 없다. 제목과 글을 보낸다')
   if (!oneLine(r.title) || !r.title.trim()) fail('E_INPUT', '제목은 한 줄 글이다')
-  if (r.title.length > 200) fail('E_INPUT', '제목이 너무 길다 — 200자 안')
+  if (r.title.length > 200) fail('E_INPUT', '제목이 너무 길다. 200자 안')
   if (typeof r.body !== 'string') fail('E_INPUT', '글(body)이 없다')
   if (r.body.length > MAX_BODY) fail('E_INPUT', '글이 너무 길다')
   if (r.date != null && !(oneLine(r.date) && DATE.test(r.date))) fail('E_INPUT', '날짜는 YYYY-MM-DD 또는 YYYY-MM-DD HH:MM 모양이다')
@@ -62,7 +62,7 @@ function check(input) {
     if (!s || (typeof s.content !== 'string' && !s.remove && s.rename == null)) fail('E_INPUT', '항목마다 content(새 글)가 있다')
     if (s.rename != null && !(oneLine(s.rename) && String(s.rename).trim())) fail('E_INPUT', '새 머리는 한 줄 글이다')
     if (s.coord == null && (s.doc == null || s.heading == null)) fail('E_INPUT', '항목은 이름(coord) 또는 문서 · 머리(doc · heading)로 가리킨다')
-    if (s.coord != null && !(typeof s.coord === 'string' && COORD.test(s.coord.trim()))) fail('E_INPUT', `이름 모양이 아니다 — ${s.coord}`)
+    if (s.coord != null && !(typeof s.coord === 'string' && COORD.test(s.coord.trim()))) fail('E_INPUT', `이름 모양이 아니다: ${s.coord}`)
     if (s.heading != null && !(oneLine(s.heading) && s.heading.trim())) fail('E_INPUT', '머리는 한 줄 글이다')
     if (String(s.content ?? '').length > MAX_BODY) fail('E_INPUT', '항목 글이 너무 길다')
     if (s.base != null && !(typeof s.base === 'string' && /^[0-9a-f]{16}$/.test(s.base))) fail('E_INPUT', 'base 는 읽을 때 받은 16자 지문이다')
@@ -75,8 +75,8 @@ function docPath(dir, doc) {
   let p = nfc(String(doc)).replace(/\\/g, '/').replace(/^\/+/, '')
   if (!p.startsWith('docs/')) p = `docs/${p}`
   if (!p.endsWith('.md')) p += '.md'
-  if (p.split('/').some((x) => x === '..' || x === '.' || x === '') || /[\u0000-\u001f]/.test(p)) fail('E_INPUT', `문서 자리가 아니다 — ${doc}`)
-  if (isReservedFile(p)) fail('E_FORBIDDEN', `kmd 가 쓰는 파일이다 — ${doc}`)
+  if (p.split('/').some((x) => x === '..' || x === '.' || x === '') || /[\u0000-\u001f]/.test(p)) fail('E_INPUT', `문서 자리가 아니다: ${doc}`)
+  if (isReservedFile(p)) fail('E_FORBIDDEN', `kmd 가 쓰는 파일이다: ${doc}`)
   return { rel: p, full: path.join(dir, ...p.split('/')) }
 }
 
@@ -107,11 +107,11 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
   if (isReservedUser(user) && !system && !agent) fail('E_FORBIDDEN', `「${user}」 는 kmd 가 쓰는 이름이다`)
   const secs = check(input)
   const bad = (input.record.tags || []).filter(isReservedTag)
-  if (bad.length && !system && !(agent && bad.every((t) => t === 'curate-llm'))) fail('E_FORBIDDEN', `kmd 가 쓰는 태그다 — ${bad.join(' · ')}`)
+  if (bad.length && !system && !(agent && bad.every((t) => t === 'curate-llm'))) fail('E_FORBIDDEN', `kmd 가 쓰는 태그다: ${bad.join(' · ')}`)
   if (!system && (input.record.curates?.length || input.record.reopens?.length || (input.record.reflects?.length && !agent))) fail('E_FORBIDDEN', '정리 판정은 kmd 가 쓴다')
-  // 항목 지우기 · 이름 바꾸기 — 화면의 고치기(주인 · 정리하는 사람)만 · kmd 가 대신 쓴다
+  // 항목 지우기 · 이름 바꾸기 — 화면의 고치기(관리자)만 · kmd 가 대신 쓴다
   if (!system && secs.some((s) => s.remove || s.rename != null)) fail('E_FORBIDDEN', '항목 지우기 · 이름 바꾸기는 화면의 고치기로 한다')
-  if (!system && secs.some((s) => hasBlockMarker(s.content ?? ''))) fail('E_FORBIDDEN', '저절로 채우는 표는 kmd 가 원천에서 채운다 — 고치지 않는다', { need: 'machine' })
+  if (!system && secs.some((s) => hasBlockMarker(s.content ?? ''))) fail('E_FORBIDDEN', '저절로 채우는 표는 kmd 가 원천에서 채운다. 고치지 않는다', { need: 'machine' })
   const names = cleanNames(input.names)
   if (!names) fail('E_INPUT', 'names 는 { coord: "종류:값", label, aliases?, doc?, heading? } 의 목록이다(종류는 영문 소문자)')
   return serial(path.resolve(dir), () => saveNow(dir, input.record, secs, { user: nfc(user), now, system, names }))
@@ -136,7 +136,7 @@ export function saveRecords(dir, records, { user, now = new Date() } = {}) {
           if ((r?.sections?.length ?? 0) || (r?.names?.length ?? 0)) fail('E_INPUT', '기록 여럿 저장은 기록만 받는다')
           check({ record: r })
           const bad = (r.tags || []).filter(isReservedTag)
-          if (bad.length) fail('E_FORBIDDEN', `kmd 가 쓰는 태그다 — ${bad.join(' · ')}`)
+          if (bad.length) fail('E_FORBIDDEN', `kmd 가 쓰는 태그다: ${bad.join(' · ')}`)
           if (r.curates?.length || r.reopens?.length || r.reflects?.length) fail('E_FORBIDDEN', '정리 판정은 kmd 가 쓴다')
           const w = await writeRecord(dir, r, { user: nfc(user), now, taken })
           written.push(w)
@@ -173,7 +173,7 @@ async function writeRecord(dir, r, { user, now, taken }) {
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
   if (!back || back.id !== id || back.title !== rec.title || back.date !== date || back.author !== user || !same(back.touches, touches) || !same(back.tags, rec.tags)) {
     await fs.rm(full, { force: true })
-    fail('E_INPUT', '기록 머리가 보낸 값과 다르게 읽힌다 — 제목 · 이름 · 태그의 글자를 확인한다')
+    fail('E_INPUT', '기록 머리가 보낸 값과 다르게 읽힌다. 제목 · 이름 · 태그의 글자를 확인한다')
   }
   return { id, rel: `${sub}/${id}.md`, full, title: rec.title }
 }
@@ -228,7 +228,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
     if (s.coord != null) {
       const coord = nfc(s.coord.trim())
       const loc = locate(registry, coord)
-      if (!loc) fail('E_NOTFOUND', `「${vocab.coords.get(coord)?.label || coord}」 이 들어갈 문서가 정해져 있지 않다 — 기록만 보내거나 문서 · 머리로 가리킨다`)
+      if (!loc) fail('E_NOTFOUND', `「${vocab.coords.get(coord)?.label || coord}」 이 들어갈 문서가 정해져 있지 않다. 기록만 보내거나 문서 · 머리로 가리킨다`)
       if (!touches.includes(coord)) touches.push(coord)
       return { ...docPath(dir, loc.doc), level: loc.level, heading: loc.heading, content: s.content, base: s.base, ...(system && s.applied !== undefined ? { applied: s.applied } : {}) }
     }
@@ -240,21 +240,21 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
       const cur = await fs.readFile(p.full, 'utf8').then(readText, () => null)
       const sec = cur && parseDoc(cur, '').sections.find((x) => headingMatches(x.h, p.heading))
       const a = sec?.applied && parseRecord(await readRecordFile(dir, sec.applied), `${sec.applied}.md`)
-      if (a && a.date > date) fail('E_CONFLICT', `「${p.heading}」 에는 더 늦은 기록(${a.date})이 이미 들어 있다 — 옛 날짜로 고치지 않는다`)
+      if (a && a.date > date) fail('E_CONFLICT', `「${p.heading}」 에는 더 늦은 기록(${a.date})이 이미 들어 있다. 옛 날짜로 고치지 않는다`)
     }
   }
   // 원본이 주인 — 문서 감시로 들어온 문서는 사람 · 세션이 고치지 못한다(원본 파일을 고친다 · 덧붙일 말은 기록으로)
   if (!system) {
     for (const p of plan) {
       const w = watchedOf(await fs.readFile(p.full, 'utf8').catch(() => ''))
-      if (w) fail('E_FORBIDDEN', `이 문서는 원본이 주인이다 — ${w.src} 의 ${w.path} 를 고친다 · 덧붙일 말은 기록으로 남긴다`, { need: 'source' })
+      if (w) fail('E_FORBIDDEN', `이 문서는 원본이 주인이다: ${w.src} 의 ${w.path} 를 고친다 · 덧붙일 말은 기록으로 남긴다`, { need: 'source' })
     }
   }
   // 읽은 뒤 바뀌었나(F4) — base 를 보낸 항목만. 하나라도 어긋나면 아무것도 쓰지 않는다
   for (const p of plan) {
     if (p.base == null) continue
     const cur = await fs.readFile(p.full, 'utf8').then(readText, () => null)
-    if (sectionBase(cur, p.heading) !== p.base) fail('E_CONFLICT', `「${p.heading}」 이 읽은 뒤 바뀌었다 — 다시 읽고 고친다`)
+    if (sectionBase(cur, p.heading) !== p.base) fail('E_CONFLICT', `「${p.heading}」 이 읽은 뒤 바뀌었다. 다시 읽고 고친다`)
   }
 
   await ensureRepo(dir)
@@ -277,7 +277,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
     // 다시 읽어 대조(F1) — 쓴 머리가 보낸 값 그대로 읽혀야 한다
     const back = parseRecord(readText(await fs.readFile(workFull, 'utf8')), `${id}.md`)
     const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
-    if (!back || back.id !== id || back.title !== rec.title || back.date !== date || back.author !== user || !same(back.touches, touches) || !same(back.tags, rec.tags)) fail('E_INPUT', '기록 머리가 보낸 값과 다르게 읽힌다 — 제목 · 이름 · 태그의 글자를 확인한다')
+    if (!back || back.id !== id || back.title !== rec.title || back.date !== date || back.author !== user || !same(back.touches, touches) || !same(back.tags, rec.tags)) fail('E_INPUT', '기록 머리가 보낸 값과 다르게 읽힌다. 제목 · 이름 · 태그의 글자를 확인한다')
     const docs = []
     // 경과에 달 기록 — 정리 · 넣기는 넣은 기록들(reflects) · 사람의 기록은 그 자신. 원천이 쓰는 저장(kmd)은 달지 않는다
     const logged = []

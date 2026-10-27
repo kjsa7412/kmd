@@ -42,7 +42,7 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('보통 글 파일 — txt · log 그대로 · csv 는 md 표(따옴표 칸) · html 은 짜임을 살린 md(문단마다 빈 줄) · json 은 코드 덩이', () => {
+test('보통 글 파일: txt · log 그대로 · csv 는 md 표(따옴표 칸) · html 은 짜임을 살린 md(문단마다 빈 줄) · json 은 코드 덩이', () => {
   assert.equal(textToMd('txt', Buffer.from('한 줄\n두 줄')), '한 줄\n두 줄')
   assert.equal(textToMd('csv', Buffer.from('이름,값\n"가, 나",1\n"따옴""표",2\n')), '| 이름 | 값 |\n| --- | --- |\n| 가, 나 | 1 |\n| 따옴"표 | 2 |')
   assert.equal(textToMd('tsv', Buffer.from('a\tb|c\n1\t2')), '| a | b\\|c |\n| --- | --- |\n| 1 | 2 |')
@@ -50,7 +50,7 @@ test('보통 글 파일 — txt · log 그대로 · csv 는 md 표(따옴표 칸
   assert.match(textToMd('json', Buffer.from('{"a":1}')), /^```json\n\{"a":1\}\n```$/)
 })
 
-test('넣기 — 큰 파일 하나가 전체를 끊지 않는다 · 파일마다 결과 · 까닭 · 넣기 한 번이 이력 한 줄', async () => {
+test('넣기: 큰 파일 하나가 전체를 끊지 않는다 · 파일마다 결과 · 까닭 · 넣기 한 번이 이력 한 줄', async () => {
   const big = Buffer.from('가'.repeat(210_000))
   const r = await s.hub.importFiles(KIM, 'dpms', [
     { path: '메모.txt', data: Buffer.from('회의 메모 — 다음 점검은 11월') },
@@ -62,23 +62,23 @@ test('넣기 — 큰 파일 하나가 전체를 끊지 않는다 · 파일마다
   assert.equal(by['메모.txt'].kind, 'record')
   assert.equal(by['표.csv'].kind, 'record')
   assert.equal(by['큰글.txt'].kind, 'fail')
-  assert.match(by['큰글.txt'].msg, /넣지 못했다 — /)
+  assert.match(by['큰글.txt'].msg, /넣지 못했다: /)
   assert.equal(by['모름.xyz'].kind, 'skip')
   const k = await s.hub.get('dpms')
   assert.ok(k.works.some((w) => w.tags.includes('ingest/표.csv') && /\| A \| 활성 \|/.test(w.body)))
   const lines = (await feed.list(data, 'kim')).filter((x) => x.kind === 'import')
-  assert.equal(lines.length, 1, '넣기 한 번 — 이력 한 줄')
-  assert.match(lines[0].small, /못 넣음 1 — 큰글\.txt: /)
+  assert.equal(lines.length, 1, '넣기 한 번: 이력 한 줄')
+  assert.match(lines[0].small, /못 넣음 1: 큰글\.txt: /)
 })
 
-test('가져오는 곳 — 드라이브 통째 · 집 폴더 통째는 받지 않는다(품은 폴더 막기는 path.relative 로)', () => {
+test('가져오는 곳: 드라이브 통째 · 집 폴더 통째는 받지 않는다(품은 폴더 막기는 path.relative 로)', () => {
   const ctx = { kind: 'folder', pc: true, dataDir: data, knowledgeDirs: [path.join(root, 'dpms')] }
   assert.throws(() => checkTarget(path.parse(tmp).root, ctx), /드라이브 통째/)
   assert.throws(() => checkTarget(os.homedir(), ctx), /집 폴더 통째|살림 자리/)
   assert.throws(() => checkTarget(root, ctx), /지식 폴더는 가져오는 곳이 될 수 없다/)
 })
 
-test('가져오는 곳을 지우면 — 사본은 내 문서로(기본) 또는 함께 지움 · 원본이 없어진 사본은 내 문서로 풀린다', async () => {
+test('가져오는 곳을 지우면: 사본은 내 문서로(기본) 또는 함께 지움 · 원본이 없어진 사본은 내 문서로 풀린다', async () => {
   await s.hub.sourceAdd(KIM, 'dpms', { name: '운영', kind: 'docs', at: src, rules: [{ rule: 'docs', into: { doc: '운영' } }] })
   const f = path.join(root, 'dpms', 'docs', '운영', '절차.md')
   assert.match(fs.readFileSync(f, 'utf8'), /^<!-- watched: src="운영"/)

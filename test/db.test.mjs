@@ -43,7 +43,7 @@ after(async () => {
   if (tmp) try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('DB — 계정을 가리지 않고 테이블마다 정의 표(이름 장부 자리) · 바뀐 테이블만 · 가져옴은 이력으로', { skip: !PG && 'KMD_TEST_PG 가 없다' }, async () => {
+test('DB: 계정을 가리지 않고 테이블마다 정의 표(이름 장부 자리) · 바뀐 테이블만 · 가져옴은 이력으로', { skip: !PG && 'KMD_TEST_PG 가 없다' }, async () => {
   const name = '시험 DB'
   await setSecret(path.join(tmp, 'kn', '.kmd'), secretName('gdi', name), conn.password)
   const db = { host: conn.host, port: conn.port, database: conn.database, schema: conn.schema, user: conn.user }

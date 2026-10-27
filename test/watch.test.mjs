@@ -23,7 +23,7 @@ const commits = () => Number(G(kdir, 'rev-list', '--count', 'HEAD'))
 // 표 규칙 · 코드 폴더는 새로 더하지 않는다(소스 코드는 git 커밋) — 감시 엔진은 예전 선언을 직접 적어 본다
 const legacyAdd = async (x) => {
   const src0 = { ...x, by: 'kim', since: '2026-10-23' }
-  await writeDecl(kdir, [...(await readDecl(kdir)), src0], { user: 'kim', title: `가져오는 곳 더함 — ${x.name}` })
+  await writeDecl(kdir, [...(await readDecl(kdir)), src0], { user: 'kim', title: `가져오는 곳 더함: ${x.name}` })
   s.hub.forget('dpms')
   s.hub.watchSource('dpms', src0)
   return { source: src0, run: await s.hub.sourceRun('dpms', x.name, { first: true }) }
@@ -60,7 +60,7 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('폴더 — 바뀐 파일만 읽고 그 표만 · 그대로면 0 · 시각만 바뀌면 1 읽고 묶음 0 · 지우면 「원천에 없다」', async () => {
+test('폴더: 바뀐 파일만 읽고 그 표만 · 그대로면 0 · 시각만 바뀌면 1 읽고 묶음 0 · 지우면 「원천에 없다」', async () => {
   const r0 = await legacyAdd({ name: 'api 코드', kind: 'folder', at: src, every: 'manual', rules: [{ rule: 'deps', into: { doc: '라이브러리' } }, { rule: 'tables', paths: ['data'], into: { doc: '코드표' } }] })
   assert.equal(r0.run[0].state, 'changed')
   assert.equal(r0.run[0].n, 21, '라이브러리 표 1 + 코드표 20')
@@ -76,7 +76,7 @@ test('폴더 — 바뀐 파일만 읽고 그 표만 · 그대로면 0 · 시각�
   let c0 = commits()
   const r1 = (await s.hub.sourceRun('dpms', 'api 코드'))[0]
   assert.deepEqual([r1.state, r1.n, r1.files], ['changed', 1, 1])
-  assert.equal(stats.reads - n0, 2, '바뀐 파일 하나 — 지문 한 번 · 규칙 한 번')
+  assert.equal(stats.reads - n0, 2, '바뀐 파일 하나: 지문 한 번 · 규칙 한 번')
   assert.equal(commits() - c0, 1)
   assert.match(fs.readFileSync(path.join(kdir, 'docs', '코드표.md'), 'utf8'), /가7 고침/)
 
@@ -98,7 +98,7 @@ test('폴더 — 바뀐 파일만 읽고 그 표만 · 그대로면 0 · 시각�
   assert.equal(st.state.lastChange.removed, 1)
 })
 
-test('git — 두 커밋의 차이로 바뀐 파일만 읽는다', async () => {
+test('git: 두 커밋의 차이로 바뀐 파일만 읽는다', async () => {
   const r0 = await legacyAdd({ name: 'repo 코드', kind: 'git', at: repo, every: 'manual', rules: [{ rule: 'tables', paths: ['data'], into: { doc: '저장소 코드표' } }] })
   assert.equal(r0.run[0].n, 20)
   csv(repo, 11, ' 바뀜')
@@ -106,11 +106,11 @@ test('git — 두 커밋의 차이로 바뀐 파일만 읽는다', async () => {
   const n0 = stats.reads
   const r1 = (await s.hub.sourceRun('dpms', 'repo 코드'))[0]
   assert.deepEqual([r1.state, r1.n, r1.files], ['changed', 1, 1])
-  assert.equal(stats.reads - n0, 1, '바뀐 파일 하나만 읽는다(커밋 차이 — 지문 계산 없음)')
+  assert.equal(stats.reads - n0, 1, '바뀐 파일 하나만 읽는다(커밋 차이: 지문 계산 없음)')
   assert.equal((await s.hub.sourceRun('dpms', 'repo 코드'))[0].state, 'same')
 })
 
-test('실시간 감시 — 코드 폴더를 고치면 조용해진 뒤 저절로 그곳만 확인한다', async () => {
+test('실시간 감시: 코드 폴더를 고치면 조용해진 뒤 저절로 그곳만 확인한다', async () => {
   const st0 = (await s.hub.sources(ADMIN, 'dpms')).find((x) => x.name === 'api 코드')
   assert.equal(st0.watch, 'live')
   const before = st0.state.lastChange?.at
@@ -122,7 +122,7 @@ test('실시간 감시 — 코드 폴더를 고치면 조용해진 뒤 저절로
   assert.match(fs.readFileSync(path.join(kdir, 'docs', '코드표.md'), 'utf8'), /가2 실시간/)
 })
 
-test('전체 다시 맞추기 — 진행률 · 다른 것만 씀 · 끊기면 같은 pass 로 이어서(이미 한 파일은 건너뜀)', async () => {
+test('전체 다시 맞추기: 진행률 · 다른 것만 씀 · 끊기면 같은 pass 로 이어서(이미 한 파일은 건너뜀)', async () => {
   const c0 = commits()
   const job = await s.hub.sourceResync(ADMIN, 'dpms', 'api 코드')
   assert.equal(job.state, 'running')

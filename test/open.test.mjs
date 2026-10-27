@@ -49,7 +49,7 @@ async function upPc(args) {
   const st = { p, out: '', exited: new Promise((r) => p.on('exit', (c) => r(c))) }
   p.stdout.on('data', (d) => (st.out += d))
   p.stderr.on('data', (d) => (st.out += d))
-  assert.ok(await until(() => /로 다시 연다 — 끄기 Ctrl C/.test(st.out), 60_000), '켜졌다 — ' + st.out)
+  assert.ok(await until(() => /로 다시 연다. 끄기 Ctrl C/.test(st.out), 60_000), '켜졌다: ' + st.out)
   return st
 }
 const opened = (out) => { const m = String(out).match(/\[열 주소\] (http:\/\/127\.0\.0\.1:\d+)\/#once=(\S+)/); return m ? { url: m[1], code: m[2] } : null }
@@ -65,7 +65,7 @@ after(() => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('kmd up → kmd open → 이미 켜짐 → 멈추기 — 번호는 도는 kmd 에게 이 PC 의 열쇠로 · 지난 번호는 PC 의 말로', async () => {
+test('kmd up → kmd open → 이미 켜짐 → 멈추기: 번호는 도는 kmd 에게 이 PC 의 열쇠로 · 지난 번호는 PC 의 말로', async () => {
   const root = path.join(tmp, 'pc')
   fs.mkdirSync(root, { recursive: true })
   const up = await upPc([root, '--port', '0', '--no-worker'])
@@ -82,7 +82,7 @@ test('kmd up → kmd open → 이미 켜짐 → 멈추기 — 번호는 도는 k
     assert.equal(r1.status, 200)
     const r1b = await once(first.url, first.code)
     assert.equal(r1b.status, 401)
-    assert.match((await r1b.json()).message, /지났거나 이미 썼다 — 시작 메뉴의 kmd\(또는 터미널에서 kmd open\)/)
+    assert.match((await r1b.json()).message, /지났거나 이미 썼다. 시작 메뉴의 kmd\(또는 터미널에서 kmd open\)/)
     // kmd open — 새 번호로 연다(못 찾아도 그 포트로만 켜 본다 — 7373 에 남지 않게)
     const o = await kmd(['open', root, '--port', port])
     assert.equal(o.code, 0, o.out)
@@ -111,7 +111,7 @@ test('kmd up → kmd open → 이미 켜짐 → 멈추기 — 번호는 도는 k
     // 꺼져 있을 때 kmd open — 켜고 연다(따로 띄운 kmd 는 아래에서 멈춘다)
     const o2 = await kmd(['open', root, '--port', '0', '--no-worker'])
     assert.equal(o2.code, 0, o2.out)
-    assert.match(o2.out, /꺼져 있다 — 켠다/)
+    assert.match(o2.out, /꺼져 있다. 켠다/)
     const third = opened(o2.out)
     assert.ok(third, o2.out)
     const r3 = await once(third.url, third.code)
@@ -124,7 +124,7 @@ test('kmd up → kmd open → 이미 켜짐 → 멈추기 — 번호는 도는 k
   }
 })
 
-test('kmd pc update — 그 판으로 켜 보고 · 지금 폴더 · 포트로 다시 켠다 · 지금 판 이름에는 덮어쓰지 않는다', async () => {
+test('kmd pc update: 그 판으로 켜 보고 · 지금 폴더 · 포트로 다시 켠다 · 지금 판 이름에는 덮어쓰지 않는다', async () => {
   const { stage } = await import('../scripts/pack.mjs')
   const home = path.join(tmp, 'app2')
   const nv = stage(path.join(tmp, 'newver'))
@@ -161,7 +161,7 @@ test('kmd pc update — 그 판으로 켜 보고 · 지금 폴더 · 포트로 �
   }
 })
 
-test('서버 길 — 번호 · 멈추기는 PC 의 kmd 에만 · 짝 열쇠는 닿지 않는다 · PC 쿠키는 쓰는 동안 늘고 모든 곳에서 나가기로 끊긴다', async () => {
+test('서버 길: 번호 · 멈추기는 PC 의 kmd 에만 · 짝 열쇠는 닿지 않는다 · PC 쿠키는 쓰는 동안 늘고 모든 곳에서 나가기로 끊긴다', async () => {
   const pcRoot = path.join(tmp, 'pc2')
   fs.mkdirSync(path.join(pcRoot, '.kmd'), { recursive: true })
   let tk = null
@@ -226,7 +226,7 @@ test('서버 길 — 번호 · 멈추기는 PC 의 kmd 에만 · 짝 열쇠는 �
   assert.equal(a.session(c1), null, '모든 곳에서 나가기로 끊긴다')
 })
 
-test('판 자리 · 실행기 — 판을 바꾸면 실행기만 다시 쓴다 · 종료 코드를 그대로 넘긴다 · 작업 · 시작 메뉴 · 헤더 도우미는 실행기를 부른다', async () => {
+test('판 자리 · 실행기: 판을 바꾸면 실행기만 다시 쓴다 · 종료 코드를 그대로 넘긴다 · 작업 · 시작 메뉴 · 헤더 도우미는 실행기를 부른다', async () => {
   const home = path.join(tmp, 'app')
   const mk = (ver, body = null) => {
     const d = path.join(home, 'versions', ver, 'server', 'bin')
@@ -281,7 +281,7 @@ test('판 자리 · 실행기 — 판을 바꾸면 실행기만 다시 쓴다 ·
   assert.equal(JSON.parse(fs.readFileSync(path.join(home, 'current.json'), 'utf8')).ver, '1.2.3')
 })
 
-test('Claude Code 잇기 — 따옴표가 든 헤더 도우미도 JSON 그대로 · 있던 것을 먼저 지우지 않는다 · 주소가 아니면 부르지 않는다', { skip: process.platform !== 'win32' && 'Windows 의 claude.cmd 길' }, async () => {
+test('Claude Code 잇기: 따옴표가 든 헤더 도우미도 JSON 그대로 · 있던 것을 먼저 지우지 않는다 · 주소가 아니면 부르지 않는다', { skip: process.platform !== 'win32' && 'Windows 의 claude.cmd 길' }, async () => {
   // 가짜 claude.cmd(npm 꼴 — %* 를 node 로 넘긴다)를 PATH 맨 앞에 — 진짜 Claude Code 설정은 건드리지 않는다
   const bin = path.join(tmp, 'fakeclaude')
   fs.mkdirSync(bin, { recursive: true })
@@ -296,7 +296,7 @@ test('Claude Code 잇기 — 따옴표가 든 헤더 도우미도 JSON 그대로
     const r = await addMcp('kmd', 'http://127.0.0.1:7373', helper)
     assert.equal(r.ok, true, JSON.stringify(r))
     const calls = fs.readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l))
-    assert.deepEqual(calls.map((c) => c.slice(0, 3)), [['mcp', 'add-json', 'kmd']], '더하기만 — 먼저 지우지 않는다')
+    assert.deepEqual(calls.map((c) => c.slice(0, 3)), [['mcp', 'add-json', 'kmd']], '더하기만: 먼저 지우지 않는다')
     assert.equal(JSON.parse(calls[0][3]).headersHelper, `${helper} http://127.0.0.1:7373`, 'JSON 이 그대로 닿는다')
     const bad = await addMcp('kmd-team', 'http://x&calc.example', helper)
     assert.equal(bad.ok, false)
@@ -309,7 +309,7 @@ test('Claude Code 잇기 — 따옴표가 든 헤더 도우미도 JSON 그대로
   }
 })
 
-test('설치 한 줄 · 받기 · 설명서 — 꾸러미가 있으면 받아 깔고 잇는다 · 없으면 까닭과 할 일 · 설명서는 들어오지 않아도', async () => {
+test('설치 한 줄 · 받기 · 설명서: 꾸러미가 있으면 받아 깔고 잇는다 · 없으면 까닭과 할 일 · 설명서는 들어오지 않아도', async () => {
   const kn = path.join(tmp, 'team3')
   copyDir(path.join(HERE, 'fixture', 'kmd'), kn)
   const team = await startServer({ root: kn, port: 0, log: () => {}, scryptN: 1 << 15 })
@@ -351,7 +351,7 @@ test('설치 한 줄 · 받기 · 설명서 — 꾸러미가 있으면 받아 �
     assert.equal(m0.status, 200)
     assert.match(m0.headers.get('content-security-policy'), /default-src 'none'/)
     const t0 = await m0.text()
-    assert.match(t0, /kmd 설명서 — <b>쓰는 사람<\/b>/)
+    assert.match(t0, /kmd 설명서: <b>쓰는 사람<\/b>/)
     assert.ok(t0.includes('/manual/' + encodeURIComponent('관리자')))
     const adm = await fetch(team.url + '/manual/' + encodeURIComponent('관리자')).then((x) => x.text())
     assert.ok(adm.includes(`href="/manual/${encodeURIComponent('운영')}"`), '관리자 설명서 → 운영 링크')
@@ -364,7 +364,7 @@ test('설치 한 줄 · 받기 · 설명서 — 꾸러미가 있으면 받아 �
   }
 })
 
-test('명령 목록 — main 의 갈래마다 HELP 에 한 줄 · 관리자 설명서의 셸 표도 HELP 안의 것', async () => {
+test('명령 목록: main 의 갈래마다 HELP 에 한 줄 · 관리자 설명서의 셸 표도 HELP 안의 것', async () => {
   const src = fs.readFileSync(KMD, 'utf8')
   const cmds = [...new Set([...src.matchAll(/cmd === '([a-z][a-z-]*)'\) return/g)].map((m) => m[1]).concat(['serve', 'up']))]
   const help = (await kmd(['help'])).out
@@ -376,7 +376,7 @@ test('명령 목록 — main 의 갈래마다 HELP 에 한 줄 · 관리자 설�
   for (const c of inTable) assert.ok(cmds.includes(c), `관리자 표의 kmd ${c} 는 있는 명령`)
 })
 
-test('화면 — PC 전용 안내 · 같은 탭의 새 번호 · 처음 들어오기 뒤 머리 · 내 PC 가 답하지 않아도 목록 · 들어가기 화면에서 벗어나기 · 설명서 입구', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('화면: PC 전용 안내 · 같은 탭의 새 번호 · 처음 들어오기 뒤 머리 · 내 PC 가 답하지 않아도 목록 · 들어가기 화면에서 벗어나기 · 설명서 입구', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   const env = { ...process.env }
   const pc = await startServer({ root: path.join(tmp, 'pc4'), mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
   // 연결은 받고 답하지 않는 「멈춘 내 PC 프로그램」
@@ -423,7 +423,7 @@ test('화면 — PC 전용 안내 · 같은 탭의 새 번호 · 처음 들어�
     assert.equal(await tp.locator('aside.side.dim').count(), 0, '옆 메뉴가 흐리지 않다')
     await tp.goto(`${team.url}/first#code=${code}`)
     await tp.waitForSelector('[data-t=firstGone]')
-    assert.match(await tp.locator('[data-t=firstGone]').innerText(), /쓸 수 없다\(이미 썼거나 지났다\) — 지금 choi로 들어와 있다/)
+    assert.match(await tp.locator('[data-t=firstGone]').innerText(), /쓸 수 없다\(이미 썼거나 지났다\)\. 지금 choi로 들어와 있다/)
     // 들어온 채 보던 들어가기 화면 — 찾기(Ctrl K)로 옮기면 닫히고 찾기가 열린다
     await tp.keyboard.press('Control+KeyK')
     await tp.waitForSelector('[data-t=pal]')

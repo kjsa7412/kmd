@@ -42,10 +42,10 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('잇기 — 첫 배치 · 옛 표가 같으면 블록으로 · 같은 원천 두 번 → 묶음 0 · 바뀐 판 → 묶음 1', async () => {
+test('잇기: 첫 배치 · 옛 표가 같으면 블록으로 · 같은 원천 두 번 → 묶음 0 · 바뀐 판 → 묶음 1', async () => {
   // 코드 폴더는 새로 더하지 못한다 — 예전 선언은 그대로 돈다
   assert.equal(await code(s.hub.sourceAdd(ADMIN, 'dpms', { name: 'x', kind: 'folder', at: src, rules: [] })), 'E_INPUT')
-  await writeDecl(kdir, [...(await readDecl(kdir)), { name: 'dpms-api 코드', kind: 'folder', at: src, every: 'hourly', rules: [{ rule: 'deps', into: { doc: '배포절차', heading: '꾸러미 판' } }, { rule: 'tables', paths: ['data'], into: { doc: '코드표' } }], by: 'kim', since: '2026-10-23' }], { user: 'kim', title: '가져오는 곳 더함 — dpms-api 코드' })
+  await writeDecl(kdir, [...(await readDecl(kdir)), { name: 'dpms-api 코드', kind: 'folder', at: src, every: 'hourly', rules: [{ rule: 'deps', into: { doc: '배포절차', heading: '꾸러미 판' } }, { rule: 'tables', paths: ['data'], into: { doc: '코드표' } }], by: 'kim', since: '2026-10-23' }], { user: 'kim', title: '가져오는 곳 더함. dpms-api 코드' })
   s.hub.forget('dpms')
   const r = { run: await s.hub.sourceRun('dpms', 'dpms-api 코드', { first: true }) }
   assert.equal(r.run[0].state, 'changed')
@@ -65,11 +65,11 @@ test('잇기 — 첫 배치 · 옛 표가 같으면 블록으로 · 같은 원�
   assert.equal(commits(), n0 + 1)
   assert.match(doc('배포절차'), /\| spring-boot \| 3\.3\.5 \|/)
   const k = await s.hub.get('dpms')
-  assert.equal(k.works.filter((w) => w.tags.includes('sources')).length, 0, '가져오기는 기록이 아니다 — 이력으로')
-  assert.ok(k.logs.some((w) => w.title.startsWith('가져옴 — dpms-api 코드')))
+  assert.equal(k.works.filter((w) => w.tags.includes('sources')).length, 0, '가져오기는 기록이 아니다. 이력으로')
+  assert.ok(k.logs.some((w) => w.title.startsWith('가져옴: dpms-api 코드')))
 })
 
-test('브레이크 — 사라짐 10% 초과면 쓰지 않고 멈춤 줄 · [그대로 반영] 은 「원천에 없다」', async () => {
+test('브레이크: 사라짐 10% 초과면 쓰지 않고 멈춤 줄 · [그대로 반영] 은 「원천에 없다」', async () => {
   for (const i of [1, 2, 3]) fs.rmSync(path.join(src, 'data', `코드0${i}.csv`))
   const n0 = commits()
   const r = await s.hub.sourceRun('dpms', 'dpms-api 코드')
@@ -101,9 +101,9 @@ test('대상 제한 · 자격 든 주소는 비밀로', async () => {
   fs.rmSync(out, { recursive: true, force: true })
 })
 
-test('표는 kmd 만 — 세션은 표를 못 고치고, 글을 고쳐도 표는 그대로 · MCP section 에 원천 · 확인 시각', async () => {
+test('표는 kmd 만: 세션은 표를 못 고치고, 글을 고쳐도 표는 그대로 · MCP section 에 원천 · 확인 시각', async () => {
   assert.equal(await code(s.hub.save(ADMIN, 'dpms', { record: { title: 'x', body: 'y' }, sections: [{ coord: 'term:꾸러미 판', content: '<!-- baseline: src="가짜" rule=deps asof="2026-01-01" -->\n| a |\n|---|\n<!-- /baseline -->' }] })), 'E_FORBIDDEN')
-  await s.hub.save(ADMIN, 'dpms', { record: { title: '꾸러미 판 — 설명 고침', body: '설명만' }, sections: [{ coord: 'term:꾸러미 판', content: '배포 전에 운영 서버의 판이 아래 표와 같은지 본다.' }] })
+  await s.hub.save(ADMIN, 'dpms', { record: { title: '꾸러미 판: 설명 고침', body: '설명만' }, sections: [{ coord: 'term:꾸러미 판', content: '배포 전에 운영 서버의 판이 아래 표와 같은지 본다.' }] })
   assert.match(doc('배포절차'), /배포 전에 운영 서버의 판이 아래 표와 같은지 본다\.\n\n<!-- baseline: src="dpms-api 코드"/)
   const r = await fetch(s.url + '/mcp', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${me.key}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'section', arguments: { knowledge: 'dpms', coord: 'term:꾸러미 판' } } }) })
   const sec = (await r.json()).result.structuredContent
@@ -111,7 +111,7 @@ test('표는 kmd 만 — 세션은 표를 못 고치고, 글을 고쳐도 표는
   assert.ok(sec.baseline[0].checkedAt)
 })
 
-test('바깥 생성기 — 기계 열쇠로 그 원천 · 그 종류만 · 같으면 묶음 0', async () => {
+test('바깥 생성기: 기계 열쇠로 그 원천 · 그 종류만 · 같으면 묶음 0', async () => {
   const m = await s.auth.machineAdd({ kn: 'dpms', source: 'gen', types: ['term'] })
   const put = (body) => fetch(s.url + '/api/k/dpms/baseline', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${m.key}` }, body: JSON.stringify(body) })
   const body = { source: 'gen', items: [{ coord: 'term:VPN', cols: ['망', '주소'], rows: [['사내', '10.0.0.0/8']] }] }

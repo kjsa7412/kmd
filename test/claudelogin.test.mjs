@@ -12,7 +12,7 @@ const { plain, pickUrl, ptyArgs, teamLoginKind, makeTeamLogin } = await import('
 
 const URL = 'https://claude.com/cai/oauth/authorize?code=true&client_id=9d1c&response_type=code&state=ab4u'
 
-test('색 · 커서 글을 지우고 로그인 주소만 — ink 의 띄어쓰기(오른쪽 n 칸)도 빈칸으로', () => {
+test('색 · 커서 글을 지우고 로그인 주소만: ink 의 띄어쓰기(오른쪽 n 칸)도 빈칸으로', () => {
   const tty = '\x1b[?25l\x1b[38;5;174mWelcome\x1b[1Cto\x1b[1CClaude\x1b[39m\r\r\n Browser\x1b[1Cdidn\'t\x1b[1Copen?\r\r\n\r\r\n\x1b[38;5;153m' + URL + '\x1b[39m\r\r\n\r\r\n Paste\x1b[1Ccode\x1b[1Chere\x1b[1Cif\x1b[1Cprompted\x1b[1C>\x1b[?25h'
   assert.equal(pickUrl(tty), URL)
   assert.match(plain(tty), /Welcome to Claude/)
@@ -23,7 +23,7 @@ test('색 · 커서 글을 지우고 로그인 주소만 — ink 의 띄어쓰�
   assert.equal(pickUrl(`https://console.anthropic.com/oauth?x=1\n`), 'https://console.anthropic.com/oauth?x=1')
 })
 
-test('claude.com · claude.ai · anthropic.com 이 아닌 주소는 버린다 — 터미널 없음의 ink 안내 · 반쯤 받은 주소', () => {
+test('claude.com · claude.ai · anthropic.com 이 아닌 주소는 버린다. 터미널 없음의 ink 안내 · 반쯤 받은 주소', () => {
   const ink = 'ERROR Raw mode is not supported on the current process.stdin, which Ink uses as input stream by default.\nRead about how to prevent this error on https://github.com/vadimdemedes/ink/#israwmodesupported\n'
   assert.equal(pickUrl(ink), null)
   assert.equal(pickUrl('https://evilclaude.ai/x\nhttps://claude.ai.evil.com/y\n'), null)
@@ -31,7 +31,7 @@ test('claude.com · claude.ai · anthropic.com 이 아닌 주소는 버린다 �
   assert.equal(pickUrl(URL.slice(0, 40)), null, '아직 끝나지 않은 주소')
 })
 
-test('가짜 터미널 — Linux · macOS 는 script 로 · 다른 곳은 없다', () => {
+test('가짜 터미널: Linux · macOS 는 script 로 · 다른 곳은 없다', () => {
   const [lc, la] = ptyArgs('linux')
   assert.equal(lc, 'script')
   assert.deepEqual([la[0], la.at(-1)], ['-qfec', '/dev/null'])
@@ -42,7 +42,7 @@ test('가짜 터미널 — Linux · macOS 는 script 로 · 다른 곳은 없다
   assert.equal(ptyArgs('win32'), null)
 })
 
-test('팀 서버의 로그인 길 — 화면 있는 PC 는 보이는 창 · 헤드리스 Linux 는 가짜 터미널 · KMD_TEAM_LOGIN 으로 정한다', () => {
+test('팀 서버의 로그인 길: 화면 있는 PC 는 보이는 창 · 헤드리스 Linux 는 가짜 터미널 · KMD_TEAM_LOGIN 으로 정한다', () => {
   assert.equal(teamLoginKind('win32', {}), 'window')
   assert.equal(teamLoginKind('darwin', {}), 'window')
   assert.equal(teamLoginKind('linux', { DISPLAY: ':0' }), 'window')
@@ -53,10 +53,10 @@ test('팀 서버의 로그인 길 — 화면 있는 PC 는 보이는 창 · 헤�
   assert.equal(teamLoginKind('linux', { KMD_TEAM_LOGIN: 'bogus' }), 'pty')
 })
 
-test('창도 가짜 터미널도 못 다는 서버 — 쉬운 말로 · 자기 터미널에서 받은 열쇠를 kmd secret set 으로', async () => {
+test('창도 가짜 터미널도 못 다는 서버: 쉬운 말로 · 자기 터미널에서 받은 열쇠를 kmd secret set 으로', async () => {
   const keep = process.env.KMD_TEAM_LOGIN
   process.env.KMD_TEAM_LOGIN = 'none'
   try {
-    await assert.rejects(makeTeamLogin({ dataDir: tmp }).start(), (e) => /^서버에서 Claude 로그인 창을 띄울 수 없다 — .*kmd secret set claude-token/.test(e.message) && !/https?:/.test(e.message))
+    await assert.rejects(makeTeamLogin({ dataDir: tmp }).start(), (e) => /^서버에서 Claude 로그인 창을 띄울 수 없다. .*kmd secret set claude-token/.test(e.message) && !/https?:/.test(e.message))
   } finally { if (keep) process.env.KMD_TEAM_LOGIN = keep; else delete process.env.KMD_TEAM_LOGIN }
 })

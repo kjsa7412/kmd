@@ -16,7 +16,7 @@ import { parseDoc, headingMatches } from './sections.js'
 import { coordsOfSection, isSystemRecord } from './knowledge.js'
 import { KmdError } from './errors.js'
 
-export const HUMAN_ANSWER = '대상 없음 — 사용자 답'
+export const HUMAN_ANSWER = '대상 없음. 사용자 답'
 
 export function decide(k) {
   const curates = []
@@ -26,7 +26,7 @@ export function decide(k) {
     const src = w.tags.find((t) => t.startsWith('ingest/'))
     if (src) {
       const prev = ingest.get(src)
-      if (prev && !k.kept.has(prev.id) && !k.reverted.has(prev.id)) curates.push({ id: prev.id, verdict: 'keep', rule: 'R-A3', reason: `새 판이 있다 — ${w.id}` })
+      if (prev && !k.kept.has(prev.id) && !k.reverted.has(prev.id)) curates.push({ id: prev.id, verdict: 'keep', rule: 'R-A3', reason: `새 판이 있다: ${w.id}` })
       ingest.set(src, w)
     }
     if (k.kept.has(w.id) || k.reverted.has(w.id) || isSystemRecord(w)) continue
@@ -42,8 +42,8 @@ export function decide(k) {
 
 export function decisionRecord(curates) {
   return {
-    title: `정리 — 알아서 한 것 ${curates.length}`,
-    body: curates.map((c) => `- ${c.id} — ${c.reason}`).join('\n'),
+    title: `정리: 알아서 한 것 ${curates.length}`,
+    body: curates.map((c) => `- ${c.id}: ${c.reason}`).join('\n'),
     tags: ['curate-auto'],
     curates,
   }

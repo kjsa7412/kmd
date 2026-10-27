@@ -56,17 +56,17 @@ async function eight(mode) {
     const e = await s.hub.edit(KIM, 'dpms', { doc: '배포절차', sections: [{ h: '카나리', body: '첫 30분은 요청의 20% 만 새 판으로 보낸다.' }] })
     out.edit = { direct: e.direct, log: (await s.hub.get('dpms')).logs.some((w) => w.id === e.id), doc: (await s.hub.get('dpms')).docs.find((d) => d.id === '배포절차').sections.find((x) => x.h === '카나리').body.includes('20%') }
     // ⑤ 세션 저장 — MCP save(기기 열쇠)
-    const r = await fetch(s.url + '/mcp', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'save', arguments: { knowledge: 'dpms', record: { title: '롤백 — DB 먼저 멈춤', body: '세션에서 — 롤백 전에 쓰기를 멈춘다.', touches: ['proc:롤백'] } } } }) }).then((x) => x.json())
+    const r = await fetch(s.url + '/mcp', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'save', arguments: { knowledge: 'dpms', record: { title: '롤백: DB 먼저 멈춤', body: '세션에서: 롤백 전에 쓰기를 멈춘다.', touches: ['proc:롤백'] } } } }) }).then((x) => x.json())
     const sid = r.result.structuredContent.id
     out.session = { ok: !r.result.isError, touches: (await s.hub.get('dpms')).byWork.get(sid)?.touches }
     // ⑥ 보내기 — gdi → dpms(같은 kmd)
     await s.hub.sendDests(KIM, 'gdi', [{ kn: 'dpms' }])
     const gdoc = (await s.hub.get('gdi')).docs[0]
-    await s.hub.edit(KIM, 'gdi', { doc: gdoc.id, sections: [{ h: gdoc.sections[0].h, body: '보내기 시험 — 고친 글.' }] })
+    await s.hub.edit(KIM, 'gdi', { doc: gdoc.id, sections: [{ h: gdoc.sections[0].h, body: '보내기 시험: 고친 글.' }] })
     const sent = await s.hub.send(KIM, 'gdi')
     out.send = { sent: sent.sent, got: (await s.hub.get('dpms')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/'))).length }
     // ⑧ 기록이 문서로 — 팀: 팀 모두의 기록 → [지금 정리] → 일꾼(가짜 claude) → 넣음 · 이 PC: 정리가 따로 없다 — 남는 즉시 kmd 가 넣는다
-    const rec = await s.hub.save(mode === 'pc' ? KIM : { user: 'lee' }, 'dpms', { record: { title: '헬스 체크 — 시간 초과 5초', body: '헬스 체크는 5초 안에 200 이 와야 통과.', touches: ['proc:헬스 체크'] } })
+    const rec = await s.hub.save(mode === 'pc' ? KIM : { user: 'lee' }, 'dpms', { record: { title: '헬스 체크: 시간 초과 5초', body: '헬스 체크는 5초 안에 200 이 와야 통과.', touches: ['proc:헬스 체크'] } })
     if (mode === 'pc') await s.hub.curateIdle('dpms')
     else {
       const job = await s.hub.tidyNow(KIM, 'dpms')
@@ -82,7 +82,7 @@ async function eight(mode) {
     fs.writeFileSync(path.join(repo, 'Retry.java'), `class Retry { int waitSec = ${mode === 'pc' ? 7 : 5}; }\n`)
     execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-am', `재시도 대기 바꿈 ${mode}`], { cwd: repo })
     const cr = (await s.hub.sourceRun('dpms', 'dpms-api 코드'))[0]
-    out.code = { first: a.run[0].state, records: cr.codeRecords, title: (await s.hub.get('dpms')).works.some((w) => w.tags.includes('code-change') && w.title.startsWith(`재시도 대기 바꿈 ${mode} — `)) }
+    out.code = { first: a.run[0].state, records: cr.codeRecords, title: (await s.hub.get('dpms')).works.some((w) => w.tags.includes('code-change') && w.title.startsWith(`재시도 대기 바꿈 ${mode}: `)) }
     // 무인 커밋 — 사람 아닌 작성자의 기록은 자동 쓰기 표의 태그만
     const dir = path.join(root, 'dpms')
     const bad = []
@@ -95,7 +95,7 @@ async function eight(mode) {
     const loose = []
     for (const l of G(dir, 'log', '--format=%H|%an|%s').split('\n')) {
       const [sha, an, subj] = l.split('|')
-      if (!/^kmd(-auto|-worker)?$/.test(an) || subj === '처음 — 있던 글') continue
+      if (!/^kmd(-auto|-worker)?$/.test(an) || subj === '처음. 있던 글') continue
       const files = G(dir, 'show', '--name-only', '--format=', sha).split('\n').filter(Boolean)
       if (files.some((f) => /^(work|log)\/[^/]+\.md$/.test(f)) || files.every((f) => ['_members.md', '_sources.json', '.kmd.json'].includes(f))) continue
       loose.push(`${an} ${subj}`)
@@ -107,7 +107,7 @@ async function eight(mode) {
   }
 }
 
-test('여덟 칸 — 팀 모드와 PC 모드의 결과가 같다 · 자동 쓰기 표 밖의 무인 커밋 0', async () => {
+test('여덟 칸: 팀 모드와 PC 모드의 결과가 같다 · 자동 쓰기 표 밖의 무인 커밋 0', async () => {
   const team = await eight('team')
   const pc = await eight('pc')
   assert.deepEqual(team.unattended, { bad: [], commitsWithoutRecord: [] })

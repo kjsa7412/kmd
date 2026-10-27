@@ -91,22 +91,22 @@ export async function applyDocs(k, { src, prefix = '', files = [], removed = [],
     const docWrites = []
     for (const r of recs) {
       const id = idOf(`${day}-${slug(r.rel)}`)
-      const body = r.text.length > MAX_REC ? `${r.text.slice(0, MAX_REC)}\n\n…(길어서 줄였다 — 문서에 전체)\n` : r.text
-      await put(`work/${id}.md`, renderRecord({ id, title: `${r.rel.split('/').pop()} — 가져온 파일 · ${src.name}`, date, author: user, tags: ['watched'] }, body))
+      const body = r.text.length > MAX_REC ? `${r.text.slice(0, MAX_REC)}\n\n…(길어서 줄였다. 문서에 전체)\n` : r.text
+      await put(`work/${id}.md`, renderRecord({ id, title: `${r.rel.split('/').pop()}: 가져온 파일 · ${src.name}`, date, author: user, tags: ['watched'] }, body))
       ids.push(id)
       docWrites.push({ rel: r.doc, data: Buffer.from(`${markLine({ src: src.name, path: r.rel, rec: id })}\n${r.text}`, 'utf8') })
     }
     for (const g of gone) {
       const id = idOf(`${day}-${slug(g.rel)}-원본에-없다`)
-      await put(`work/${id}.md`, renderRecord({ id, title: `${g.rel.split('/').pop()} — 원본에서 없어짐 · ${src.name}`, date, author: user, tags: ['watched'] }, `${src.name} 의 ${g.rel} 이 원본 폴더에서 없어졌다 — 지식의 문서는 지우지 않고 「원본에 없다」 로 둔다.`))
+      await put(`work/${id}.md`, renderRecord({ id, title: `${g.rel.split('/').pop()}: 원본에서 없어짐 · ${src.name}`, date, author: user, tags: ['watched'] }, `${src.name} 의 ${g.rel} 이 원본 폴더에서 없어졌다. 지식의 문서는 지우지 않고 「원본에 없다」 로 둔다.`))
       ids.push(id)
       docWrites.push({ rel: g.doc, data: Buffer.from(`${markLine({ src: g.w.src, path: g.w.path, missing: today, rec: id })}\n${g.text}`, 'utf8') })
     }
     // ② 이력 — 이 가져옴이 그 기록들을 문서에 넣었다(reflects)
     let lid = `${day}-문서-감시`
     for (let n = 2; taken.has(lid) || recordTakenSync(dir, lid); n++) lid = `${day}-문서-감시-${n}`
-    const title = `가져옴 — ${src.name} · 문서 ${docsN}${attsN ? ' · 첨부 ' + attsN : ''}${gone.length ? ' · 원본에 없다 ' + gone.length : ''}`
-    const lbody = [...files.map((f) => `- ${f.rel}`), ...gone.map((g) => `- ${g.rel} — 원본에 없다`)].slice(0, 200).join('\n')
+    const title = `가져옴: ${src.name} · 문서 ${docsN}${attsN ? ' · 첨부 ' + attsN : ''}${gone.length ? ' · 원본에 없다 ' + gone.length : ''}`
+    const lbody = [...files.map((f) => `- ${f.rel}`), ...gone.map((g) => `- ${g.rel}: 원본에 없다`)].slice(0, 200).join('\n')
     await put(`log/${lid}.md`, renderRecord({ id: lid, title, date, author: user, tags: ['sources'], ...(ids.length ? { reflects: ids } : {}) }, lbody))
     // ③ 문서 · 첨부 — 기록 다음
     for (const w of [...docWrites, ...writes]) await put(w.rel, w.data)

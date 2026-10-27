@@ -24,7 +24,7 @@ export function parseDbUrl(at) {
 }
 
 export async function connect({ host, port, database, user, password }) {
-  if (!password) throw new KmdError('E_AUTH', 'DB 비밀번호가 없다 — 이 PC 는 화면에서 · 팀 서버는 셸에서 kmd secret set')
+  if (!password) throw new KmdError('E_AUTH', 'DB 비밀번호가 없다. 이 PC 는 화면에서 · 팀 서버는 셸에서 kmd secret set')
   const c = new pg.Client({ host, port, database, user, password, connectionTimeoutMillis: 8000, statement_timeout: 15000, query_timeout: 20000, application_name: 'kmd-catalog' })
   try {
     await c.connect()

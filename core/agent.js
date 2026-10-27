@@ -77,14 +77,14 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
     const win = process.platform === 'win32'
     const [cmd, argv, opt] = fake ? [process.execPath, [fake, ...args], {}] : [win ? 'claude.cmd' : 'claude', args, win ? { shell: true } : {}]
     const quoted = opt.shell ? argv.map((a) => (a === '' ? '""' : /[\s"{}&|<>^]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a)) : argv
-    line('sys', `Claude Code 를 띄운다 — 도구 ${tools.join(' · ')}${mcp ? ' · kmd' : ''}${model ? ` · 모델 ${model}` : ''} · 예산 $${budget}`)
+    line('sys', `Claude Code 를 띄운다. 도구 ${tools.join(' · ')}${mcp ? ' · kmd' : ''}${model ? ` · 모델 ${model}` : ''} · 예산 $${budget}`)
     // kmd 연결이 아직 서지 않은 채 시작하면(init 에 kmd 가 connected 가 아니다) 도구 없이 헤매므로 곧바로 끊고 다시 띄운다(세 번까지)
     for (let attempt = 1; ; attempt++) {
       if (signal?.aborted) return { ok: false, error: 'cancel', message: '그만뒀다' }
       const r = await once()
       if (!r.mcpDown || signal?.aborted) return r.mcpDown ? { ok: false, error: 'cancel', message: '그만뒀다' } : r
-      if (attempt >= 3) { line('err', 'kmd 연결이 서지 않았다 — 세 번 띄워도 · 다음 정리 때 다시'); return { ok: false, error: 'fail', message: 'kmd MCP 가 이어지지 않았다' } }
-      line('sys', `kmd 연결이 아직 서지 않았다 — 끊고 다시 띄운다(${attempt + 1}번째)`)
+      if (attempt >= 3) { line('err', 'kmd 연결이 서지 않았다. 세 번 띄워도 · 다음 정리 때 다시'); return { ok: false, error: 'fail', message: 'kmd MCP 가 이어지지 않았다' } }
+      line('sys', `kmd 연결이 아직 서지 않았다. 끊고 다시 띄운다(${attempt + 1}번째)`)
       await new Promise((ok) => setTimeout(ok, 3000 * attempt))
     }
     function once() { return new Promise((resolve) => {
@@ -95,14 +95,14 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
       let buf = ''
       let se = ''
       let last = null
-      const kill = setTimeout(() => { line('err', `시간이 넘었다(${Math.round(timeoutMs / 60000)}분) — 멈춘다`); stop() }, timeoutMs)
-      const onAbort = () => { line('err', '그만두기 — Claude Code 를 끈다'); stop() }
+      const kill = setTimeout(() => { line('err', `시간이 넘었다(${Math.round(timeoutMs / 60000)}분): 멈춘다`); stop() }, timeoutMs)
+      const onAbort = () => { line('err', '그만두기: Claude Code 를 끈다'); stop() }
       signal?.addEventListener('abort', onAbort, { once: true })
       const eat = (raw) => {
         let j
         try { j = JSON.parse(raw) } catch { return }
         if (j.type === 'system' && j.subtype === 'init') {
-          line('sys', `시작 — ${j.model || 'Claude'}${j.mcp_servers?.length ? ' · ' + j.mcp_servers.map((s) => `${s.name} ${s.status === 'connected' ? '이어짐' : s.status}`).join(' · ') : ''}`)
+          line('sys', `시작: ${j.model || 'Claude'}${j.mcp_servers?.length ? ' · ' + j.mcp_servers.map((s) => `${s.name} ${s.status === 'connected' ? '이어짐' : s.status}`).join(' · ') : ''}`)
           const k = (j.mcp_servers || []).find((s) => s.name === 'kmd')
           if (mcp && k && k.status !== 'connected') { mcpDown = true; stop() }
         }
@@ -129,11 +129,11 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
         const text = `${last?.result || ''} ${se}`
         if (!last || last.is_error || code) {
           const error = /login|log in|api key|auth|unauthori|credential|401/i.test(text) ? 'login' : /limit|quota|rate|usage|budget|429/i.test(text) ? 'limit' : 'fail'
-          line('err', error === 'login' ? 'Claude 로그인이 없다 — 머리의 「Claude」 에서 로그인' : error === 'limit' ? 'Claude 한도 · 예산에 닿았다' : `Claude 가 끝을 내지 못했다 — ${short(text.trim() || '종료 ' + code, 160)}`)
+          line('err', error === 'login' ? 'Claude 로그인이 없다. 머리의 「Claude」 에서 로그인' : error === 'limit' ? 'Claude 한도 · 예산에 닿았다' : `Claude 가 끝을 내지 못했다: ${short(text.trim() || '종료 ' + code, 160)}`)
           resolve({ ok: false, error, message: text.trim().slice(0, 300), cost: last?.total_cost_usd || 0 })
           return
         }
-        line('cost', `끝 — ${last.num_turns ?? '?'} 차례 · $${(last.total_cost_usd || 0).toFixed(3)} · ${Math.round((Date.now() - t0) / 1000)}초`)
+        line('cost', `끝: ${last.num_turns ?? '?'} 차례 · $${(last.total_cost_usd || 0).toFixed(3)} · ${Math.round((Date.now() - t0) / 1000)}초`)
         resolve({ ok: true, text: String(last.result || ''), cost: last.total_cost_usd || 0, turns: last.num_turns || 0, model: last.model || null })
       })
       p.stdin.end(prompt)

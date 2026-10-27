@@ -43,23 +43,23 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('되살리기 — 다른 이름 · 연습은 붙이지 않는다 · 같은 자리를 다른 지식이 쓰면 --attach 도 거절', async () => {
+test('되살리기: 다른 이름 · 연습은 붙이지 않는다 · 같은 자리를 다른 지식이 쓰면 --attach 도 거절', async () => {
   const bare = path.join(bk, 'dpms.git')
   G(tmp, 'init', '-q', '--bare', '-b', 'main', bare)
   await s.hub.backupAttach(SHELL, 'dpms', bare)
   assert.ok(await until(() => G(bare, 'rev-parse', 'main') === G(path.join(root, 'dpms'), 'rev-parse', 'HEAD')))
   const r = await s.hub.restore(SHELL, { url: bare, name: 'dpms-연습' })
-  assert.equal(r.attached, false, '다른 이름 — 읽기만 사본')
+  assert.equal(r.attached, false, '다른 이름: 읽기만 사본')
   assert.equal(await code(s.hub.restore(SHELL, { url: bare, name: 'dpms-또', attach: true })), 'E_CONFLICT')
   // 연습 사본에서 저장해도 운영 백업은 그대로
   const head = G(bare, 'rev-parse', 'main')
-  await s.hub.save(KIM, 'dpms-연습', { record: { title: '연습 — 저장', body: '연습' } })
+  await s.hub.save(KIM, 'dpms-연습', { record: { title: '연습: 저장', body: '연습' } })
   await new Promise((ok) => setTimeout(ok, 1500))
   assert.equal(G(bare, 'rev-parse', 'main'), head)
   assert.equal(backup.stateOf(await s.hub.meta('dpms-연습')), null)
 })
 
-test('.git 없는 지식 폴더가 다른 저장소 안에 있어도 — 붙이기는 그 폴더에 저장소를 세운다(바깥 저장소를 밀지 않는다)', async () => {
+test('.git 없는 지식 폴더가 다른 저장소 안에 있어도: 붙이기는 그 폴더에 저장소를 세운다(바깥 저장소를 밀지 않는다)', async () => {
   const outer = path.join(tmp, 'outer')
   fs.mkdirSync(outer)
   G(outer, 'init', '-q', '-b', 'main')
@@ -77,18 +77,18 @@ test('.git 없는 지식 폴더가 다른 저장소 안에 있어도 — 붙이�
   assert.doesNotMatch(G(outer, 'remote'), /kmd-backup/, '바깥 저장소의 설정은 그대로')
 })
 
-test('팀 서버의 개인 지식 — privateBackup 아래 주인마다 자리로 저절로 · GitLab 봇은 팀 그룹에 두지 않는다 · 셸 · 관리자는 상태를 본다', async () => {
+test('팀 서버의 개인 지식: privateBackup 아래 주인마다 자리로 저절로 · GitLab 봇은 팀 그룹에 두지 않는다 · 셸 · 관리자는 상태를 본다', async () => {
   await s.hub.addKnowledge({ user: 'lee', admin: true }, { kind: 'new', name: '메모' })
   const st = await s.hub.backupState(SHELL, '메모-lee')
   assert.ok(st && st.url.replace(/\\/g, '/').endsWith('개인/lee/메모-lee.git'), JSON.stringify(st))
   assert.equal(await s.hub.backupState({ user: 'park' }, '메모-lee').catch((e) => e.code), 'E_FORBIDDEN')
   assert.ok(await s.hub.backupState(KIM, '메모-lee'), '관리자는 개인 지식의 백업 상태를 본다(글은 아니다)')
   s.hub.config.gitlab = { api: 'http://127.0.0.1:9', group: 'team' }
-  assert.equal(await s.hub.gitlabAttach('메모-lee').catch((e) => e.message), null, '개인 지식 — 팀 그룹에 두지 않는다')
+  assert.equal(await s.hub.gitlabAttach('메모-lee').catch((e) => e.message), null, '개인 지식: 팀 그룹에 두지 않는다')
   delete s.hub.config.gitlab
 })
 
-test('갈라졌을 때 — 이어 쓰기가 뺄 기록을 먼저 보이고 쓴 사람에게 알린다 · 서버 것으로 백업을 덮는다', async () => {
+test('갈라졌을 때: 이어 쓰기가 뺄 기록을 먼저 보이고 쓴 사람에게 알린다 · 서버 것으로 백업을 덮는다', async () => {
   const kdir = path.join(root, 'gdi')
   const bare = path.join(bk, 'gdi.git')
   G(tmp, 'init', '-q', '--bare', '-b', 'main', bare)
@@ -118,10 +118,10 @@ test('갈라졌을 때 — 이어 쓰기가 뺄 기록을 먼저 보이고 쓴 �
   await backup.enqueue(await s.hub.meta('gdi'))
   const a = await s.hub.backupAdopt(KIM, 'gdi')
   assert.ok(a.kept && a.lost >= 1)
-  assert.ok((await feed.list(data, 'lee')).some((x) => /백업의 글로 되돌렸다 — 내 기록 \d+ 이 지식에서 빠졌다/.test(x.b || '')))
+  assert.ok((await feed.list(data, 'lee')).some((x) => /백업의 글로 되돌렸다. 내 기록 \d+ 이 지식에서 빠졌다/.test(x.b || '')))
 })
 
-test('이 PC — 백업 자리를 정하면 붙지 않은 지식을 모두 붙이고 · 새 지식도 저절로 · 지식 폴더 안은 받지 않는다', async () => {
+test('이 PC: 백업 자리를 정하면 붙지 않은 지식을 모두 붙이고 · 새 지식도 저절로 · 지식 폴더 안은 받지 않는다', async () => {
   const pcRoot = path.join(tmp, 'pc')
   copyDir(path.join(HERE, 'fixture', 'kmd', 'dpms'), path.join(pcRoot, '설계메모'))
   const pc = await startServer({ root: pcRoot, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })

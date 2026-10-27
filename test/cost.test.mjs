@@ -25,7 +25,7 @@ import { xlsxToMd, docxToMd } from '../core/ooxml.js'
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixture')
 
-test('일마다 모델 — 기본 배분 · 고른 값 · 「기본」 · 모르는 값', () => {
+test('일마다 모델: 기본 배분 · 고른 값 · 「기본」 · 모르는 값', () => {
   assert.deepEqual(ROLES.map((r) => modelOf(r)), ROLES.map((r) => DEFAULT_MODELS[r]))
   assert.equal(modelOf('read'), 'haiku')
   assert.equal(modelOf('agent'), 'sonnet')
@@ -158,11 +158,11 @@ const HWP_RECS = [
   [66, 0], [67, 1, [11]], [71, 1, 'tbl '], [77, 2, [2, 2]],
   [72, 2, [0, 0]], [66, 2], [67, 3, ['항목']], [72, 2, [0, 1]], [66, 2], [67, 3, ['값']],
   [72, 2, [1, 0]], [66, 2], [67, 3, ['포트']], [72, 2, [1, 1]], [66, 2], [67, 3, ['502']],
-  [66, 0], [67, 1, [16]], [71, 1, 'head'], [72, 2, [0, 0]], [66, 2], [67, 3, ['머리말 — 쪽마다']],
+  [66, 0], [67, 1, [16]], [71, 1, 'head'], [72, 2, [0, 0]], [66, 2], [67, 3, ['머리말: 쪽마다']],
   [66, 0], [67, 1, ['끝 문단']],
 ]
 
-test('hwp — 문단 · 탭 · 표는 md 표로 · 머리말은 뺀다 · 압축도 · 배포용은 못 꺼낸다', () => {
+test('hwp: 문단 · 탭 · 표는 md 표로 · 머리말은 뺀다 · 압축도 · 배포용은 못 꺼낸다', () => {
   for (const compress of [false, true]) {
     const md = hwpToMd(fakeHwp(HWP_RECS, { compress }))
     assert.match(md, /^배포 점검 규칙$/m)
@@ -175,19 +175,19 @@ test('hwp — 문단 · 탭 · 표는 md 표로 · 머리말은 뺀다 · 압축
   assert.throws(() => hwpToMd(Buffer.from('not a hwp at all'.repeat(40))), /hwp 모양이 아니다/)
 })
 
-test('pdf — 글을 줄로 · 되풀이 머리글 · 쪽 번호는 뺀다 · 글이 없으면 빈 글(스캔)', async () => {
+test('pdf: 글을 줄로 · 되풀이 머리글 · 쪽 번호는 뺀다 · 글이 없으면 빈 글(스캔)', async () => {
   const pages = [1, 2, 3].map((n) => [[780, 'ACME Confidential'], [700, `Pump ${n} stopped at 14:0${n} for inspection`], [680, `Restart window ${n * 10} minutes`], [40, 'Plant A weekly report'], [20, `- ${n} -`]])
   const md = await pdfToMd(textPdf(pages))
   assert.match(md, /^Pump 1 stopped at 14:01 for inspection\nRestart window 10 minutes$/m)
   assert.match(md, /Pump 3 stopped/)
   assert.doesNotMatch(md, /ACME Confidential|Plant A weekly report/)
   assert.doesNotMatch(md, /^- \d -$/m)
-  assert.equal(await pdfToMd(textPdf([[[700, ' ']]])), '', '글이 없다 — 스캔')
+  assert.equal(await pdfToMd(textPdf([[[700, ' ']]])), '', '글이 없다. 스캔')
   await assert.rejects(pdfToMd(Buffer.from('%PDF-1.4 broken')), /pdf 모양이 아니다/)
   assert.equal(cleanPages([['머리', '본문 하나'], ['머리', '본문 둘']]), '머리\n본문 하나\n\n머리\n본문 둘', '두 쪽은 되풀이로 보지 않는다')
 })
 
-test('넣기 — pdf · hwp 는 Claude 없이 기록이 된다 · 스캔 pdf 만 mdOf(Claude) · 원본은 첨부', async () => {
+test('넣기: pdf · hwp 는 Claude 없이 기록이 된다 · 스캔 pdf 만 mdOf(Claude) · 원본은 첨부', async () => {
   const k = { name: '시험', works: [] }
   const pdf = textPdf([1, 2, 3].map((n) => [[700, `Pump ${n} stopped at 14:0${n} for inspection`]]))
   let asked = 0
@@ -204,7 +204,7 @@ test('넣기 — pdf · hwp 는 Claude 없이 기록이 된다 · 스캔 pdf 만
   assert.match(team.rows[0].msg, /스캔/)
 })
 
-test('파일 글 옮기기 — 정리한 기록의 「본문」 · 머리 아래만 · 머리는 ### 로 · 없는 머리는 있는 머리를 알려 준다', () => {
+test('파일 글 옮기기: 정리한 기록의 「본문」 · 머리 아래만 · 머리는 ### 로 · 없는 머리는 있는 머리를 알려 준다', () => {
   const md = '# 배포 절차\n\n## 1. 준비\n\n백업을 먼저 한다.\n\n### 1.1 점검\n\n- 디스크 80%\n\n## 2. 승인\n\n| 단계 | 사람 |\n|---|---|\n| 1 | 팀장 |\n\n```\n## 코드 안의 머리 아님\n```\n'
   const rec = fileRecord({ file: 'a/배포 절차.docx', author: 'kim', date: '2026-10-26', md }, { title: '배포 절차', summary: '배포 순서다.', points: ['백업 먼저'] })
   assert.ok(!fileText(rec.body).includes('무엇인가'), '분석은 옮기지 않는다')
@@ -217,7 +217,7 @@ test('파일 글 옮기기 — 정리한 기록의 「본문」 · 머리 아래
   const one = excerpt(rec.body, '1. 준비')
   assert.match(one, /^백업을 먼저 한다\.\n\n### 1\.1 점검\n\n- 디스크 80%$/)
   assert.equal(excerpt(rec.body, '## 2. 승인').split('\n')[0], '| 단계 | 사람 |')
-  assert.throws(() => excerpt(rec.body, '3. 배포'), /그 머리가 없다 — 「3\. 배포」 · 있는 머리: 1\. 준비 · 1\.1 점검 · 2\. 승인/)
+  assert.throws(() => excerpt(rec.body, '3. 배포'), /그 머리가 없다. 「3\. 배포」 · 있는 머리: 1\. 준비 · 1\.1 점검 · 2\. 승인/)
   assert.match(excerpt('# 제목\n\n그냥 글', '*'), /^그냥 글$/, '정리 전 기록은 # 제목 줄만 뺀다')
 })
 
@@ -255,7 +255,7 @@ function storedZip(entries) {
   return Buffer.concat([...locals, cd, end])
 }
 
-test('읽는 양 줄이기 — 목차 덩이(셋 넘게 이어질 때만) · docx 목차 필드 · xlsx 빈 열 · 속성 차례가 다른 xlsx', () => {
+test('읽는 양 줄이기: 목차 덩이(셋 넘게 이어질 때만) · docx 목차 필드 · xlsx 빈 열 · 속성 차례가 다른 xlsx', () => {
   const toc = '목 차\n\n1. 목적\t1\n\n2. 범위\t2\n\n3. 규칙 ........ 4\n\n목적\n\n본문이다.\n\n포트\t502\n주기\t3'
   const out = dropToc(toc)
   assert.doesNotMatch(out, /1\. 목적\t1|규칙 \.{3}/)

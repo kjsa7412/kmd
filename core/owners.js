@@ -30,9 +30,9 @@ function parseReg(text) {
   try {
     j = JSON.parse(text)
   } catch (e) {
-    throw new Error(`owners.json 이 깨졌다 — ${e.message} · 고치거나 지운 뒤 다시 띄운다`)
+    throw new Error(`owners.json 이 깨졌다: ${e.message} · 고치거나 지운 뒤 다시 띄운다`)
   }
-  if (!j || typeof j !== 'object' || typeof (j.knowledge ?? {}) !== 'object') throw new Error('owners.json 의 모양이 아니다 — { knowledge: { … } }')
+  if (!j || typeof j !== 'object' || typeof (j.knowledge ?? {}) !== 'object') throw new Error('owners.json 의 모양이 아니다. { knowledge: { … } }')
   return { knowledge: j.knowledge || {} }
 }
 export async function load(dataDir) {
@@ -63,7 +63,7 @@ export async function withLock(dataDir, fn) {
       if (e.code !== 'EEXIST' && !['EPERM', 'EBUSY', 'EACCES'].includes(e.code)) throw e
       const st = await fs.stat(lock).catch(() => null)
       if (st && Date.now() - st.mtimeMs > 30_000) await fs.rm(lock, { force: true }).catch(() => {})
-      else if (i > 400) throw Object.assign(new Error('주인 장부를 다른 kmd 가 쥐고 있다 — 잠시 뒤 다시'), { code: 'E_BUSY' })
+      else if (i > 400) throw Object.assign(new Error('주인 장부를 다른 kmd 가 쥐고 있다. 잠시 뒤 다시'), { code: 'E_BUSY' })
       await new Promise((r) => setTimeout(r, 25))
     }
   }

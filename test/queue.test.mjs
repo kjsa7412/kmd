@@ -39,7 +39,7 @@ after(async () => {
 
 // ── 일 줄 하나만 ──
 
-test('차례 · 길 — 길마다 동시에 도는 수만 · 끝나면 다음 · 맨 앞으로', async () => {
+test('차례 · 길: 길마다 동시에 도는 수만 · 끝나면 다음 · 맨 앞으로', async () => {
   const q = createQueue({ caps: { fetch: 1 } })
   const [a, b, c] = ['a', 'b', 'c'].map((t) => q.add({ kind: 'source', kn: 'k', title: t }))
   const got = []
@@ -59,7 +59,7 @@ test('차례 · 길 — 길마다 동시에 도는 수만 · 끝나면 다음 ·
   assert.deepEqual(a.stages.map((x) => x.state), ['done', 'skip', 'skip', 'skip'])
 })
 
-test('멈춤은 단계 사이에서 — 도는 단계는 마치고 서고 이어서를 기다린다', async () => {
+test('멈춤은 단계 사이에서: 도는 단계는 마치고 서고 이어서를 기다린다', async () => {
   const q = createQueue()
   const j = q.add({ kind: 'file', kn: 'k', title: 'x' })
   await q.step(j, 0)
@@ -78,7 +78,7 @@ test('멈춤은 단계 사이에서 — 도는 단계는 마치고 서고 이어
   assert.deepEqual(j.stages.map((x) => x.state), ['done', 'run', 'wait', 'wait'])
 })
 
-test('그만두기 — 기다리던 일은 곧바로 끝 · 도는 일은 signal · 멈춘 자리에서도 Cancelled', async () => {
+test('그만두기: 기다리던 일은 곧바로 끝 · 도는 일은 signal · 멈춘 자리에서도 Cancelled', async () => {
   const q = createQueue({ caps: { claude: 1 } })
   const a = q.add({ kind: 'file', kn: 'k', title: 'a' })
   const b = q.add({ kind: 'file', kn: 'k', title: 'b' })
@@ -101,7 +101,7 @@ test('그만두기 — 기다리던 일은 곧바로 끝 · 도는 일은 signal
   assert.match(c.msg, /건너뛰었다/)
 })
 
-test('줄 멈춤 — 도는 일은 다음 단계 앞에서 · 새 일은 시작하지 않고 · 풀면 잇는다', async () => {
+test('줄 멈춤: 도는 일은 다음 단계 앞에서 · 새 일은 시작하지 않고 · 풀면 잇는다', async () => {
   const q = createQueue({ caps: { fetch: 2 } })
   const a = q.add({ kind: 'source', kn: 'k', title: 'a' })
   await q.step(a, 0, { lane: 'fetch' })
@@ -123,7 +123,7 @@ test('줄 멈춤 — 도는 일은 다음 단계 앞에서 · 새 일은 시작�
   assert.equal(a.state, 'run')
 })
 
-test('다시 · 남기기 — 못함은 그 단계부터 · 다시 켜면 돌던 일은 멈춤(프로그램이 꺼졌다)', async () => {
+test('다시 · 남기기: 못함은 그 단계부터 · 다시 켜면 돌던 일은 멈춤(프로그램이 꺼졌다)', async () => {
   const file = path.join(tmp, 'q1', 'queue.json')
   const q = createQueue({ file })
   const ran = []
@@ -143,13 +143,13 @@ test('다시 · 남기기 — 못함은 그 단계부터 · 다시 켜면 돌던
   const b2 = back.find((x) => x.id === b.id)
   assert.equal(b2.state, 'pause')
   assert.equal(b2.parked, 'restart')
-  assert.match(b2.msg, /프로그램이 꺼졌다 — \[이어서\] 로 「검토」 부터/)
+  assert.match(b2.msg, /프로그램이 꺼졌다. \[이어서\] 로 「검토」 부터/)
   assert.equal(back.find((x) => x.id === a.id).state, 'done', '끝난 일도 남는다(30일)')
 })
 
 // ── 서버 ──
 
-test('파일 넣기 — 네 단계 · 줄마다 단계 · Claude 길은 하나씩(차례로)', async () => {
+test('파일 넣기: 네 단계 · 줄마다 단계 · Claude 길은 하나씩(차례로)', async () => {
   process.env.FAKE_AGENT_WAIT_MS = '250'
   const r = await s.hub.importFiles(ME, '회의', ['가', '나', '다'].map((t) => ({ path: `${t}.md`, data: MD(`${t} 통화`) })))
   const ids = r.rows.map((x) => x.run)
@@ -170,7 +170,7 @@ test('파일 넣기 — 네 단계 · 줄마다 단계 · Claude 길은 하나�
   delete process.env.FAKE_AGENT_WAIT_MS
 })
 
-test('그만두기 — 도는 Claude Code 를 끈다 · 기록은 남는다 · 멈춘 기다림은 시작하지 않고 이어서로 돈다', async () => {
+test('그만두기: 도는 Claude Code 를 끈다 · 기록은 남는다 · 멈춘 기다림은 시작하지 않고 이어서로 돈다', async () => {
   process.env.FAKE_AGENT_WAIT_MS = '4000'
   const r = await s.hub.importFiles(ME, '회의', [{ path: '라.md', data: MD('라 통화') }, { path: '마.md', data: MD('마 통화') }])
   const [a, b] = r.rows.map((x) => x.run)
@@ -183,7 +183,7 @@ test('그만두기 — 도는 Claude Code 를 끈다 · 기록은 남는다 · �
   const ja = await wait(async () => { const x = await s.hub.queueGet(ME, a); return x.fin && x })
   assert.equal(ja.state, 'cancel')
   assert.ok(Date.now() - t0 < 3000, '쉬던 Claude Code 를 기다리지 않고 끊었다')
-  assert.ok(ja.lines.some((l) => /그만두기 — Claude Code 를 끈다/.test(l.x)))
+  assert.ok(ja.lines.some((l) => /그만두기: Claude Code 를 끈다/.test(l.x)))
   const k = await s.hub.get('회의')
   assert.equal(k.byWork.get(r.rows[0].rec).state, 'pend', '기록은 남았다(정리 때 넣는다)')
   await new Promise((ok) => setTimeout(ok, 400))
@@ -196,7 +196,7 @@ test('그만두기 — 도는 Claude Code 를 끈다 · 기록은 남는다 · �
   delete process.env.FAKE_AGENT_WAIT_MS
 })
 
-test('줄 멈춤 · 맨 앞으로 · 빼기 · 동시에 도는 수 — 화면의 손잡이', async () => {
+test('줄 멈춤 · 맨 앞으로 · 빼기 · 동시에 도는 수: 화면의 손잡이', async () => {
   await s.hub.queueHold(ME, true)
   const r = await s.hub.importFiles(ME, '회의', ['바', '사', '아'].map((t) => ({ path: `${t}.md`, data: MD(`${t} 통화`) })))
   const ids = r.rows.map((x) => x.run)
@@ -218,7 +218,7 @@ test('줄 멈춤 · 맨 앞으로 · 빼기 · 동시에 도는 수 — 화면�
   assert.equal(res.status, 401, '들어오지 않으면 일 줄을 만지지 못한다')
 })
 
-test('여러 파일 묶음 — 나눠 보내도 일 하나 · 안의 파일이 끝나면 닫힌다 · 그만두면 나머지는 받지 않는다', async () => {
+test('여러 파일 묶음. 나눠 보내도 일 하나 · 안의 파일이 끝나면 닫힌다 · 그만두면 나머지는 받지 않는다', async () => {
   const a = await s.hub.importFiles(ME, '회의', [{ path: '묶음/자.md', data: MD('자') }], { group: { title: '묶음 폴더 → 회의', total: 2 } })
   const gid = a.group
   assert.ok(gid)
@@ -240,7 +240,7 @@ test('여러 파일 묶음 — 나눠 보내도 일 하나 · 안의 파일이 �
   await s.hub.curateIdle('회의')
 })
 
-test('가져오기 — 한 번이 일 하나 · 크게 바뀌면 확인할 것 · 그대로 맞추기 · 같은 곳의 지난 확인은 걷는다', async () => {
+test('가져오기: 한 번이 일 하나 · 크게 바뀌면 확인할 것 · 그대로 맞추기 · 같은 곳의 지난 확인은 걷는다', async () => {
   const dir = path.join(tmp, '공유')
   fs.mkdirSync(dir, { recursive: true })
   for (let i = 0; i < 10; i++) fs.writeFileSync(path.join(dir, `메모${i}.md`), `# 메모${i}\n\n## 내용\n${i} 번째.\n`)
@@ -256,7 +256,7 @@ test('가져오기 — 한 번이 일 하나 · 크게 바뀌면 확인할 것 �
   const chk = jobs[0]
   assert.equal(chk.state, 'check')
   assert.equal(chk.stage, 1, '검토 단계에서 섰다')
-  assert.match(chk.msg, /한꺼번에 크게 바뀌었다 — 사라진 항목 4 \/ 10 · 아직 아무것도 쓰지 않았다/)
+  assert.match(chk.msg, /한꺼번에 크게 바뀌었다. 사라진 항목 4 \/ 10 · 아직 아무것도 쓰지 않았다/)
   assert.equal(chk.by, 'kim')
   await s.hub.queueAct(ME, chk.id, 'force')
   await wait(async () => { const v = (await s.hub.queueList(ME)).items.filter((x) => x.kind === 'source' && x.src === '공유'); return !v.some((x) => x.id === chk.id) && v.some((x) => x.fin && /원본에 없다 4/.test(x.msg)) })
@@ -270,7 +270,7 @@ test('가져오기 — 한 번이 일 하나 · 크게 바뀌면 확인할 것 �
   assert.equal(same[0].auto, 'manual', '정한 때(자동)로 돈 일')
 })
 
-test('다시 켜면 — 멈춘 일 · 줄 멈춤은 그대로 · 돌던 일은 그 단계부터 다시', async () => {
+test('다시 켜면: 멈춘 일 · 줄 멈춤은 그대로 · 돌던 일은 그 단계부터 다시', async () => {
   await s.hub.queueHold(ME, true)
   const r = await s.hub.importFiles(ME, '회의', [{ path: '파.md', data: MD('파 통화') }])
   const id = r.rows[0].run
@@ -288,7 +288,7 @@ test('다시 켜면 — 멈춘 일 · 줄 멈춤은 그대로 · 돌던 일은 �
   assert.ok((await s.hub.queueList(ME)).items.some((x) => x.kind === 'group' && x.fin), '끝난 일도 다시 켜도 남는다')
 })
 
-test('팀 — 정리 일감도 같은 줄 · 기다리는 것은 뺀다(일꾼이 받지 않는다) · 맡은 것은 빼지 못한다', async () => {
+test('팀: 정리 일감도 같은 줄 · 기다리는 것은 뺀다(일꾼이 받지 않는다) · 맡은 것은 빼지 못한다', async () => {
   const { copyDir } = await import('./helpers.mjs')
   const { workOnce } = await import('../core/worker.js')
   const troot = path.join(tmp, 'team')

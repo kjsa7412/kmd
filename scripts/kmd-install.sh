@@ -14,8 +14,8 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
-command -v node >/dev/null 2>&1 || { echo "node 22 가 없다 — 먼저 깐다"; exit 1; }
-command -v git >/dev/null 2>&1 || { echo "git 이 없다 — 먼저 깐다"; exit 1; }
+command -v node >/dev/null 2>&1 || { echo "node 22 가 없다. 먼저 깐다"; exit 1; }
+command -v git >/dev/null 2>&1 || { echo "git 이 없다. 먼저 깐다"; exit 1; }
 HERE="$(cd "$(dirname "$0")" && pwd)"
 APP=/opt/kmd
 id kmd >/dev/null 2>&1 || useradd --system --home "$ROOT" --shell /usr/sbin/nologin kmd
@@ -26,13 +26,13 @@ cp -R "$HERE"/. "$APP"/
 # PC 꾸러미 — 팀 꾸러미 안(또는 옆)의 kmd-<판>-pc.zip 을 받기 자리에. 설치 한 줄이 여기서 받아 PC 에 깐다
 for Z in "$HERE"/kmd-*-pc.zip "$HERE"/../kmd-*-pc.zip; do if [ -f "$Z" ]; then cp "$Z" "$ROOT/.kmd/dl/"; fi; done
 rm -f "$APP"/kmd-*-pc.zip
-ls "$ROOT/.kmd/dl"/kmd-*-pc.zip >/dev/null 2>&1 && echo "✓ PC 꾸러미를 받기 자리에 두었다 — 설치 한 줄이 받아 간다" || echo "· PC 꾸러미가 없다 — kmd-<판>-pc.zip 을 $ROOT/.kmd/dl 에 두면 설치 한 줄이 받아 간다"
+ls "$ROOT/.kmd/dl"/kmd-*-pc.zip >/dev/null 2>&1 && echo "✓ PC 꾸러미를 받기 자리에 두었다. 설치 한 줄이 받아 간다" || echo "· PC 꾸러미가 없다. kmd-<판>-pc.zip 을 $ROOT/.kmd/dl 에 두면 설치 한 줄이 받아 간다"
 if [ -n "$GROUP" ]; then
   printf '{\n "gitlab": { "api": "%s", "group": "%s" }\n}\n' "$API" "$GROUP" > "$ROOT/.kmd/serve.json"
   printf 'GitLab 그룹 %s 의 백업 열쇠(입력이 보이지 않는다): ' "$GROUP"
   stty -echo; read -r TOKEN; stty echo; echo
   printf '%s' "$TOKEN" | node "$APP/server/bin/kmd.mjs" secret set gitlab --root "$ROOT" --stdin >/dev/null
-  echo "✓ 백업 열쇠를 넣었다 — 지우기 권한이 없는 열쇠여야 한다"
+  echo "✓ 백업 열쇠를 넣었다. 지우기 권한이 없는 열쇠여야 한다"
 fi
 chown -R kmd "$ROOT"
 cat > /etc/systemd/system/kmd.service <<EOF
@@ -84,5 +84,5 @@ systemctl restart kmd
 systemctl restart kmd-worker
 sleep 2
 CODE=$(journalctl -u kmd -n 50 --no-pager | grep -o 'setup#code=[^ ]*' | tail -1 | cut -d= -f2)
-if [ -n "$CODE" ]; then echo "✓ 깔았다 — 브라우저에서 이 주소를 열면 첫 설정(한 번만): ${URL:-http://$(hostname):$PORT}/setup#code=$CODE"
-else echo "✓ 깔고 다시 켰다 — $("$NODE" "$APP/server/bin/kmd.mjs" --version) · 셸 명령은 kmd(예: kmd user)"; fi
+if [ -n "$CODE" ]; then echo "✓ 깔았다. 브라우저에서 이 주소를 열면 첫 설정(한 번만): ${URL:-http://$(hostname):$PORT}/setup#code=$CODE"
+else echo "✓ 깔고 다시 켰다. $("$NODE" "$APP/server/bin/kmd.mjs" --version) · 셸 명령은 kmd(예: kmd user)"; fi

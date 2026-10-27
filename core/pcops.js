@@ -82,7 +82,7 @@ export async function linkVersion(home, ver) {
 export function shortcutPs({ target, args = '', dir = null, name = 'kmd' }) {
   const q = (s) => "'" + String(s).replace(/'/g, "''") + "'"
   const where = dir ? q(dir) : "[Environment]::GetFolderPath('Programs')"
-  return `$ErrorActionPreference='Stop';$d=${where};New-Item -ItemType Directory -Force $d | Out-Null;$s=(New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $d ${q(name + '.lnk')}));$s.TargetPath=${q(target)};$s.Arguments=${q(args)};$s.WindowStyle=7;$s.Description=${q('kmd — 이 PC 의 지식 화면을 연다')};$s.Save()`
+  return `$ErrorActionPreference='Stop';$d=${where};New-Item -ItemType Directory -Force $d | Out-Null;$s=(New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $d ${q(name + '.lnk')}));$s.TargetPath=${q(target)};$s.Arguments=${q(args)};$s.WindowStyle=7;$s.Description=${q('kmd: 이 PC 의 지식 화면을 연다')};$s.Save()`
 }
 export function makeShortcut(o) {
   if (process.platform !== 'win32') return Promise.resolve({ ok: false, why: 'Windows 가 아니다' })
@@ -99,7 +99,7 @@ export function taskXml({ node = process.execPath, script, root, user = os.userI
   const args = `${launcher ? '' : `"${script}" `}up "${root}" --no-open`
   return `<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <RegistrationInfo><Description>kmd — 이 PC 의 지식(로그온 때 켜고 멈추면 다시)</Description></RegistrationInfo>
+  <RegistrationInfo><Description>kmd: 이 PC 의 지식(로그온 때 켜고 멈추면 다시)</Description></RegistrationInfo>
   <Triggers><LogonTrigger><Enabled>true</Enabled><UserId>${xmlEsc(user)}</UserId></LogonTrigger></Triggers>
   <Principals><Principal id="Author"><UserId>${xmlEsc(user)}</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
   <Settings>
@@ -166,7 +166,7 @@ export async function upgrade({ home, from, ver, waitMs = 20_000, node = null })
   const dest = path.join(home, 'versions', ver)
   await fs.mkdir(path.dirname(dest), { recursive: true })
   if (path.resolve(from) !== path.resolve(dest)) {
-    if ((await readCurrent(home))?.ver === ver) throw new KmdError('E_INPUT', `${ver} 은 지금 판이다 — 다른 판 이름으로 올린다`)
+    if ((await readCurrent(home))?.ver === ver) throw new KmdError('E_INPUT', `${ver} 은 지금 판이다. 다른 판 이름으로 올린다`)
     const stage = `${dest}.tmp-${process.pid}`
     await fs.rm(stage, { recursive: true, force: true })
     try {

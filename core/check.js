@@ -17,11 +17,11 @@ export async function check(dir) {
     const text = await fs.readFile(path.join(dir, 'work', f), 'utf8').then(readText, () => null)
     const r = text == null ? null : parseRecord(text, f)
     if (!r) {
-      errs.push(`기록 머리가 깨졌다 — work/${f}`)
+      errs.push(`기록 머리가 깨졌다. work/${f}`)
       continue
     }
-    if (!DATE.test(r.date)) errs.push(`기록 날짜 모양이 아니다 — work/${f}`)
-    if (seen.has(r.id)) errs.push(`같은 기록 이름이 둘 — ${r.id}`)
+    if (!DATE.test(r.date)) errs.push(`기록 날짜 모양이 아니다. work/${f}`)
+    if (seen.has(r.id)) errs.push(`같은 기록 이름이 둘: ${r.id}`)
     seen.set(r.id, f)
   }
   return errs

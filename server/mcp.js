@@ -18,36 +18,36 @@ import { readDecl, everyMs } from '../core/sources.js'
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05']
 
 const INSTRUCTIONS = [
-  'kmd 는 팀과 내 PC 의 지식이다 — 문서(항목 = ## 머리)와 기록(누가 무엇을 왜 바꿨나).',
+  'kmd 는 팀과 내 PC 의 지식이다. 문서(항목 = ## 머리)와 기록(누가 무엇을 왜 바꿨나).',
   '일을 시작할 때 brief 로 무엇이 있나 본다. 이름을 알면 match 로 그 항목을 찾고 section 으로 지금 글을 읽는다.',
-  '일을 마치면 save 로 기록을 남긴다 — 바뀐 값 · 까닭 · 건드린 이름(touches)을 적는다. 항목 글을 고쳤으면 sections 에 새 글을 같이 보낸다 — 이미 있는 항목이면 section 이 준 base 를 꼭 같이(없으면 받지 않는다 · 그사이 남이 고친 글을 덮지 않게).',
+  '일을 마치면 save 로 기록을 남긴다. 바뀐 값 · 까닭 · 건드린 이름(touches)을 적는다. 항목 글을 고쳤으면 sections 에 새 글을 같이 보낸다. 이미 있는 항목이면 section 이 준 base 를 꼭 같이(없으면 받지 않는다 · 그사이 남이 고친 글을 덮지 않게).',
 ].join('\n')
 
 const str = (description) => ({ type: 'string', description })
 const TOOLS = [
   {
     name: 'brief',
-    description: '지금 kmd 에 무엇이 있나 — 지식 목록 · 지식 하나의 문서 · 최근 기록 · 아직 문서에 안 넣은 기록. 일을 시작할 때 한 번.',
+    description: '지금 kmd 에 무엇이 있나: 지식 목록 · 지식 하나의 문서 · 최근 기록 · 아직 문서에 안 넣은 기록. 일을 시작할 때 한 번.',
     inputSchema: { type: 'object', properties: { knowledge: str('지식 id(없으면 목록)') } },
   },
   {
     name: 'match',
-    description: '이름으로 항목을 찾는다 — 정한 이름 · 다른 이름 · 항목 머리가 정확히 같으면 found(확정). weak 는 약한 대조다 — 확정하지 말고 같이 실린 후보(ladder)를 보거나 search 로 넓힌다. found 가 비면 「정한 이름에는 없다」 는 뜻이고, ladder 는 비슷한 글이다.',
+    description: '이름으로 항목을 찾는다. 정한 이름 · 다른 이름 · 항목 머리가 정확히 같으면 found(확정). weak 는 약한 대조다. 확정하지 말고 같이 실린 후보(ladder)를 보거나 search 로 넓힌다. found 가 비면 「정한 이름에는 없다」 는 뜻이고, ladder 는 비슷한 글이다.',
     inputSchema: { type: 'object', properties: { q: str('찾을 이름'), knowledge: str('지식 id(없으면 지식마다 따로)') }, required: ['q'] },
   },
   {
     name: 'search',
-    description: '말 → 정리된 항목 후보(coords)와 자리 없는 글의 토막(passages). 사용자 질문은 q 로 그대로 넣는다. 이름(exact)에 없으면 없는 것이다. 낱말 단이 빈손이면 「이 말로는 못 찾았다 — 없다는 뜻은 아니다」 — 다른 이름이나 문서 목록으로. 토막은 정리된 문서가 아니다 — 표지(label)를 답에 옮긴다. 조건에 든 나머지 수는 more 에 있다. 토막이 말하는 항목의 지금 글은 section 으로.',
+    description: '말 → 정리된 항목 후보(coords)와 자리 없는 글의 토막(passages). 사용자 질문은 q 로 그대로 넣는다. 이름(exact)에 없으면 없는 것이다. 낱말 단이 빈손이면 「이 말로는 못 찾았다. 없다는 뜻은 아니다」: 다른 이름이나 문서 목록으로. 토막은 정리된 문서가 아니다. 표지(label)를 답에 옮긴다. 조건에 든 나머지 수는 more 에 있다. 토막이 말하는 항목의 지금 글은 section 으로.',
     inputSchema: { type: 'object', properties: { q: str('사용자 질문 글 그대로'), words: { type: 'array', items: { type: 'string' }, description: '고른 낱말(10개까지)' }, knowledge: str('지식 id(없으면 지식마다 따로)') } },
   },
   {
     name: 'section',
     description: '항목 하나의 지금 글 · 지문(base) · 그 항목을 건드린 기록(아직 문서에 안 넣은 것은 최신 8). 이름(coord) 또는 문서 · 머리로 가리킨다. 그 항목을 고쳐 save 할 때 base 를 같이 보내면 그사이 남이 바꿨을 때 덮지 않는다.',
-    inputSchema: { type: 'object', properties: { knowledge: str('지식 id'), coord: str('이름 — 예 proc:헬스 체크'), doc: str('문서 — 예 배포절차'), heading: str('머리 — 예 헬스 체크') }, required: ['knowledge'] },
+    inputSchema: { type: 'object', properties: { knowledge: str('지식 id'), coord: str('이름: 예 proc:헬스 체크'), doc: str('문서: 예 배포절차'), heading: str('머리: 예 헬스 체크') }, required: ['knowledge'] },
   },
   {
     name: 'save',
-    description: '기록을 남긴다 — 제목 · 글 · 건드린 이름. 항목 글을 고쳤으면 sections 에 새 글 전체를 같이 보낸다(그 항목이 갈아 끼워진다). 새 이름(테이블 · 화면 · API · 절차 · 용어 …)을 세웠으면 names 로 이름 장부 · 자리 장부에 같이 올린다 — 그 항목이 항목으로 보기 · 찾기에 그 종류로 선다. 한 번에 한 묶음으로 남는다.',
+    description: '기록을 남긴다. 제목 · 글 · 건드린 이름. 항목 글을 고쳤으면 sections 에 새 글 전체를 같이 보낸다(그 항목이 갈아 끼워진다). 새 이름(테이블 · 화면 · API · 절차 · 용어 …)을 세웠으면 names 로 이름 장부 · 자리 장부에 같이 올린다. 그 항목이 항목으로 보기 · 찾기에 그 종류로 선다. 한 번에 한 묶음으로 남는다.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -55,9 +55,9 @@ const TOOLS = [
         record: {
           type: 'object',
           properties: {
-            title: str('한 줄 제목 — 「무엇 — 어떻게」'),
-            body: str('글 — 바뀐 값 · 까닭'),
-            touches: { type: 'array', items: { type: 'string' }, description: '건드린 이름(coord) — 예 proc:헬스 체크' },
+            title: str('한 줄 제목: 「무엇: 어떻게」'),
+            body: str('글: 바뀐 값 · 까닭'),
+            touches: { type: 'array', items: { type: 'string' }, description: '건드린 이름(coord): 예 proc:헬스 체크' },
             tags: { type: 'array', items: { type: 'string' } },
             fixes: { type: 'array', items: { type: 'string' }, description: '바로잡는 기록 id' },
           },
@@ -65,12 +65,12 @@ const TOOLS = [
         },
         sections: {
           type: 'array',
-          items: { type: 'object', properties: { coord: str('이름'), doc: str('문서'), heading: str('머리'), content: str('항목의 새 글 전체(머리 줄 빼고) — from · append 를 쓰면 잇는 말 · 바뀐 값만'), base: str('section 이 준 지문 — 이미 있는 항목이면 꼭 · 읽은 뒤 바뀌었으면 거절'), from: str('넣기 에이전트만 — 넣은 파일 글을 서버가 그대로 옮긴다: "*" 는 전체 · 머리 글이면 그 머리 아래(content 다음에 붙는다)'), append: { type: 'boolean', description: '넣기 에이전트만 — 지금 항목 글 끝에 보탠다(지금 글을 다시 보내지 않는다)' } } },
+          items: { type: 'object', properties: { coord: str('이름'), doc: str('문서'), heading: str('머리'), content: str('항목의 새 글 전체(머리 줄 빼고): from · append 를 쓰면 잇는 말 · 바뀐 값만'), base: str('section 이 준 지문: 이미 있는 항목이면 꼭 · 읽은 뒤 바뀌었으면 거절'), from: str('넣기 에이전트만: 넣은 파일 글을 서버가 그대로 옮긴다: "*" 는 전체 · 머리 글이면 그 머리 아래(content 다음에 붙는다)'), append: { type: 'boolean', description: '넣기 에이전트만: 지금 항목 글 끝에 보탠다(지금 글을 다시 보내지 않는다)' } } },
         },
         names: {
           type: 'array',
-          description: '세울 이름 — 종류는 영문 소문자(table · screen · api · proc · term · code · module · batch · req · func · issue · ops). 이미 있는 이름이면 다른 이름만 보탠다. doc · heading 을 주면 그 항목이 이 이름의 자리가 된다',
-          items: { type: 'object', properties: { coord: str('종류:값 — 예 table:tb_user · proc:배포 승인'), label: str('보이는 이름 — 예 사용자 테이블'), aliases: { type: 'array', items: { type: 'string' }, description: '다른 이름' }, doc: str('그 이름의 항목이 든 문서'), heading: str('그 항목 머리') }, required: ['coord', 'label'] },
+          description: '세울 이름: 종류는 영문 소문자(table · screen · api · proc · term · code · module · batch · req · func · issue · ops). 이미 있는 이름이면 다른 이름만 보탠다. doc · heading 을 주면 그 항목이 이 이름의 자리가 된다',
+          items: { type: 'object', properties: { coord: str('종류:값: 예 table:tb_user · proc:배포 승인'), label: str('보이는 이름: 예 사용자 테이블'), aliases: { type: 'array', items: { type: 'string' }, description: '다른 이름' }, doc: str('그 이름의 항목이 든 문서'), heading: str('그 항목 머리') }, required: ['coord', 'label'] },
         },
       },
       required: ['knowledge', 'record'],
@@ -90,7 +90,7 @@ async function baselineInfo(k, body, store) {
       const d = decl.find((x) => x.name === b.src)
       const s = st[b.src] || {}
       const stale = !!s.checkedAt && (s.failures || 0) >= 2 && Date.now() - Date.parse(s.checkedAt) >= 2 * everyMs(d?.every)
-      return { src: b.src, asof: b.asof, checkedAt: s.checkedAt || null, every: d?.every || null, stale, ...(b.missing ? { missing: `원천에 없다 — ${b.missing} 확인` } : {}) }
+      return { src: b.src, asof: b.asof, checkedAt: s.checkedAt || null, every: d?.every || null, stale, ...(b.missing ? { missing: `원천에 없다: ${b.missing} 확인` } : {}) }
     }),
   }
 }
@@ -117,8 +117,8 @@ export function makeMcp(store) {
         notYetInDocs: k.works.filter((w) => w.state === 'pend').map((w) => ({ id: w.id, date: w.date, title: w.title })),
         // 이 지식에서의 내 자리 — direct 면 sections · names 가 곧바로 문서 · 이름 장부에, 아니면 기록에 실려 정리 때 들어간다
         you: { role: store.mode === 'pc' ? '주인' : store.roleIn(k.id, ctx), direct: store.mode === 'pc' || store.canDirect(ctx, k.id) },
-        tidy: store.mode === 'pc' ? 'kmd 가 곧바로 문서에 넣는다' : ({ live: '실시간 — 기록이 남고 5분 조용하면', manual: '손으로만 — 주인 · 정리하는 사람이 [지금 정리]' }[store.tidyModeOf(k.id)] || `정해진 시각 ${store.tidyAtOf(k.id)}`),
-        ...(store.owner(k.id)?.noClaude ? { noClaude: '이 지식은 자동 정리에 Claude 를 쓰지 않는다(주인이 정했다) — 이 대화로 옮기는 글은 꼭 필요한 것만' } : {}),
+        tidy: store.mode === 'pc' ? 'kmd 가 곧바로 문서에 넣는다' : ({ live: '실시간: 기록이 남고 5분 조용하면', manual: '손으로만: 관리자가 [지금 정리]' }[store.tidyModeOf(k.id)] || `정해진 시각 ${store.tidyAtOf(k.id)}`),
+        ...(store.owner(k.id)?.noClaude ? { noClaude: '이 지식은 자동 정리에 Claude 를 쓰지 않는다(주인이 정했다). 이 대화로 옮기는 글은 꼭 필요한 것만' } : {}),
         stops: (await store.stops(ctx, k.id)).map((l) => l.text),
       }
     },
@@ -137,9 +137,9 @@ export function makeMcp(store) {
         if (thin) ladders.push({ knowledge: r.knowledge, coords: r.coords, passages: r.passages, more: r.more, exhaustive: false, label: r.label })
       }
       const out = { found }
-      if (weak.length) out.weak = { items: weak, note: '말이 이름을 품거나 이름이 말을 품어 걸렸다 — 확정하지 말 것' }
+      if (weak.length) out.weak = { items: weak, note: '말이 이름을 품거나 이름이 말을 품어 걸렸다. 확정하지 말 것' }
       if (ladders.some((l) => l.coords.length || l.passages.length)) out.ladder = ladders
-      if (!found.length) out.note = '정한 이름 · 다른 이름 · 항목 머리에는 없다 — 아래는 비슷한 글이다(정리된 문서가 아니다). 사용자 질문은 search 의 q 로'
+      if (!found.length) out.note = '정한 이름 · 다른 이름 · 항목 머리에는 없다. 아래는 비슷한 글이다(정리된 문서가 아니다). 사용자 질문은 search 의 q 로'
       return out
     },
 
@@ -155,7 +155,7 @@ export function makeMcp(store) {
           more: r.more,
           exhaustive: r.exact.length > 0,
           ...(r.exact.length ? {} : { label: r.label }),
-          ...(r.empty ? { note: '이 말로는 못 찾았다 — 없다는 뜻은 아니다. 다른 이름이나 brief 의 문서 목록으로' } : {}),
+          ...(r.empty ? { note: '이 말로는 못 찾았다. 없다는 뜻은 아니다. 다른 이름이나 brief 의 문서 목록으로' } : {}),
         })),
       }
     },
@@ -167,7 +167,7 @@ export function makeMcp(store) {
       let coords = []
       if (coord) {
         const x = sectionOf(k, coord)
-        if (!x) throw new KmdError('E_NOTFOUND', `「${labelOf(k, coord)}」 이 들어갈 문서가 정해져 있지 않다 — 기록에만 있다`)
+        if (!x) throw new KmdError('E_NOTFOUND', `「${labelOf(k, coord)}」 이 들어갈 문서가 정해져 있지 않다. 기록에만 있다`)
         d = x.doc
         sec = x.sec
         coords = [coord]
@@ -206,14 +206,14 @@ export function makeMcp(store) {
       // 이미 있는 항목을 갈아 끼우는 글에는 base 가 있어야 한다 — 없으면 그사이 남이 고친 글을 덮는다
       // (kmd 가 띄운 넣기 에이전트는 그 파일의 글을 들이는 일이라 뺀다 — 사람의 세션이 남의 고침을 덮지 않게 하는 것)
       for (const x of Array.isArray(sections) && !ctx?.agent ? sections : []) {
-        if (x && (x.from != null || x.append)) throw new KmdError('E_INPUT', 'from · append 는 kmd 넣기 에이전트만 쓴다 — 항목의 새 글 전체를 content 로 보낸다')
+        if (x && (x.from != null || x.append)) throw new KmdError('E_INPUT', 'from · append 는 kmd 넣기 에이전트만 쓴다. 항목의 새 글 전체를 content 로 보낸다')
         if (!x || x.base) continue
         const has = x.coord ? !!sectionOf(k, String(x.coord).trim().normalize('NFC'))?.sec : !!k.docs.find((d) => d.id === String(x.doc || '').replace(/^docs\/|\.md$/g, ''))?.sections.some((y) => headingMatches(y.h, String(x.heading || '')))
-        if (has) throw new KmdError('E_CONFLICT', `「${x.coord || x.heading}」 은 이미 있는 항목이다 — section 으로 다시 읽고 그 base 를 같이 보낸다(그사이 남이 고친 글을 덮지 않게)`)
+        if (has) throw new KmdError('E_CONFLICT', `「${x.coord || x.heading}」 은 이미 있는 항목이다. section 으로 다시 읽고 그 base 를 같이 보낸다(그사이 남이 고친 글을 덮지 않게)`)
       }
       const r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}) })
       const n = r.docs.length
-      return { saved: r.id, date: r.date, docs: r.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')), note: r.queued ? `기록했다 — 항목 글은 정리 때 문서에 들어간다(그동안도 그 항목 옆에 같이 읽힌다)${r.namesHeld ? ` · 이름 ${r.namesHeld} 은 아직 세우지 않았다 — 기록에 실어 두었고 주인 · 정리하는 사람이 정리 때 세운다(그 전에는 match 로 찾지 못한다)` : ''}` : n ? `저장했다 — 기록 1 · 문서 ${n}` : store.mode === 'pc' ? '기록했다 — 이 PC 는 kmd 가 곧바로 문서에 넣는다(정리를 기다리지 않는다)' : '저장했다 — 기록 1', warnings: r.warnings }
+      return { saved: r.id, date: r.date, docs: r.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')), note: r.queued ? `기록했다. 항목 글은 정리 때 문서에 들어간다(그동안도 그 항목 옆에 같이 읽힌다)${r.namesHeld ? ` · 이름 ${r.namesHeld} 은 아직 세우지 않았다. 기록에 실어 두었고 관리자가 정리 때 세운다(그 전에는 match 로 찾지 못한다)` : ''}` : n ? `저장했다. 기록 1 · 문서 ${n}` : store.mode === 'pc' ? '기록했다. 이 PC 는 kmd 가 곧바로 문서에 넣는다(정리를 기다리지 않는다)' : '저장했다. 기록 1', warnings: r.warnings }
     },
   }
 
@@ -233,17 +233,17 @@ export function makeMcp(store) {
     if (method === 'tools/list') return ok({ tools: TOOLS })
     if (method === 'tools/call') {
       const f = tools[params?.name]
-      if (!f) return err(-32602, `그런 도구는 없다 — ${params?.name}`)
+      if (!f) return err(-32602, `그런 도구는 없다: ${params?.name}`)
       try {
         const out = await f(params.arguments || {}, ctx)
         return ok({ content: [{ type: 'text', text: JSON.stringify(out, null, 1) }], structuredContent: out })
       } catch (e) {
         if (!(e instanceof KmdError)) console.error('[kmd] 도구 오류', params?.name, e)
-        const out = { error: e.code || 'E_INTERNAL', message: e instanceof KmdError ? e.message : '서버 안에서 넘어졌다 — 서버 창의 글을 본다' }
+        const out = { error: e.code || 'E_INTERNAL', message: e instanceof KmdError ? e.message : '서버 안에서 넘어졌다. 서버 창의 글을 본다' }
         return ok({ content: [{ type: 'text', text: JSON.stringify(out) }], structuredContent: out, isError: true })
       }
     }
-    return err(-32601, `모르는 요청 — ${method}`)
+    return err(-32601, `모르는 요청: ${method}`)
   }
 
   return { call, tools }

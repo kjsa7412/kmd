@@ -42,7 +42,7 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('문서 폴더 — 바뀐 파일만 문서로 · 원본이 주인(고치기 거절 · 편집기 고침 되돌림) · 지움은 「원본에 없다」 · 많이 사라지면 멈춤', async () => {
+test('문서 폴더: 바뀐 파일만 문서로 · 원본이 주인(고치기 거절 · 편집기 고침 되돌림) · 지움은 「원본에 없다」 · 많이 사라지면 멈춤', async () => {
   const kd = path.join(tmp, 'kn', 'dpms')
   const r0 = await team.hub.sourceAdd(ADMIN, 'dpms', { name: '운영문서', kind: 'docs', at: docsDir, rules: [{ rule: 'docs', into: { doc: '운영문서' } }] })
   assert.equal(r0.run[0].state, 'changed')
@@ -70,18 +70,18 @@ test('문서 폴더 — 바뀐 파일만 문서로 · 원본이 주인(고치기
   const r1 = (await team.hub.sourceRun('dpms', '운영문서'))[0]
   assert.deepEqual([r1.state, r1.files, r1.docs], ['changed', 1, 1])
   assert.equal(stats.reads - n0, 2, '지문 한 번 · 바꾸기 한 번')
-  assert.match(R(path.join(kd, 'docs', '운영문서', '절차03.md')), /3 번째 — 고침/)
+  assert.match(R(path.join(kd, 'docs', '운영문서', '절차03.md')), /3 번째: 고침/)
 
   // 원본이 주인 — 화면 고치기 · 세션 저장(항목 글) 거절 · 기록만은 된다
   await assert.rejects(team.hub.edit(ADMIN, 'dpms', { doc: '운영문서/절차03', sections: [{ h: '순서', body: '손으로' }] }), { code: 'E_FORBIDDEN' })
-  await assert.rejects(team.hub.save(ADMIN, 'dpms', { record: { title: '절차3 — 손으로', body: 'x' }, sections: [{ doc: 'docs/운영문서/절차03.md', heading: '순서', content: '손으로' }] }), { code: 'E_FORBIDDEN' })
-  assert.ok((await team.hub.save(ADMIN, 'dpms', { record: { title: '절차3 — 메모', body: '기록으로는 남긴다' } })).id)
+  await assert.rejects(team.hub.save(ADMIN, 'dpms', { record: { title: '절차3: 손으로', body: 'x' }, sections: [{ doc: 'docs/운영문서/절차03.md', heading: '순서', content: '손으로' }] }), { code: 'E_FORBIDDEN' })
+  assert.ok((await team.hub.save(ADMIN, 'dpms', { record: { title: '절차3: 메모', body: '기록으로는 남긴다' } })).id)
   // 편집기 손 고침 → 거두기가 되돌린다
   const f3 = path.join(kd, 'docs', '운영문서', '절차03.md')
   fs.writeFileSync(f3, R(f3).replace('고침', '편집기로'))
   const c = await team.hub.collect('dpms')
   assert.ok(c.reverted.includes('docs/운영문서/절차03.md'))
-  assert.match(R(f3), /3 번째 — 고침/)
+  assert.match(R(f3), /3 번째: 고침/)
   // 화면 자료 — 표지 · 고치기 없음
   const v = await fetch(`${team.url}/api/k/dpms/doc?d=${encodeURIComponent('운영문서/절차03')}`, { headers: { cookie: await cookieOf(team) } }).then((x) => x.json())
   assert.equal(v.watched.src, '운영문서')
@@ -92,14 +92,14 @@ test('문서 폴더 — 바뀐 파일만 문서로 · 원본이 주인(고치기
   const r2 = (await team.hub.sourceRun('dpms', '운영문서'))[0]
   assert.equal(r2.missing, 1)
   assert.match(R(path.join(kd, 'docs', '운영문서', '절차12.md')), /^<!-- watched: src="운영문서" path="절차12\.md" missing="\d{4}-\d{2}-\d{2}" rec="[^"]+" -->/)
-  assert.ok((await team.hub.get('dpms')).works.some((w) => w.tags.includes('watched') && /^절차12\.md — 원본에서 없어짐/.test(w.title)), '지움도 기록')
+  assert.ok((await team.hub.get('dpms')).works.some((w) => w.tags.includes('watched') && /^절차12\.md: 원본에서 없어짐/.test(w.title)), '지움도 기록')
   // 한꺼번에 많이 사라지면 멈춤
   for (let i = 1; i <= 3; i++) fs.rmSync(path.join(docsDir, `절차${String(i).padStart(2, '0')}.md`))
   assert.equal((await team.hub.sourceRun('dpms', '운영문서'))[0].state, 'stopped')
   assert.match(R(path.join(kd, 'docs', '운영문서', '절차01.md')), /^<!-- watched: src="운영문서" path="절차01\.md" rec="[^"]+" -->/, '멈추면 쓰지 않는다')
 })
 
-test('문서 폴더 — 기록 없이 들어온 예전 사본은 다음 확인 때 한 번 기록을 세운다(글이 같아도)', async () => {
+test('문서 폴더: 기록 없이 들어온 예전 사본은 다음 확인 때 한 번 기록을 세운다(글이 같아도)', async () => {
   const kd = path.join(tmp, 'kn', 'dpms')
   const f = path.join(kd, 'docs', '운영문서', '절차05.md')
   // 대원칙 전의 사본 — 표지에 rec 가 없다 · 장부에도 「기록 세움」 표시가 없다
@@ -126,7 +126,7 @@ async function cookieOf(s) {
   return cookie
 }
 
-test('내 PC 폴더 → 팀은 없다 — 팀은 더하지 못하고 · PC 에는 팀으로 보내는 길이 없다', async () => {
+test('내 PC 폴더 → 팀은 없다. 팀은 더하지 못하고 · PC 에는 팀으로 보내는 길이 없다', async () => {
   await assert.rejects(team.hub.sourceAdd(ADMIN, 'gdi', { name: '김 설계문서', kind: 'pc', mode: 'docs', rules: [{ rule: 'docs', into: { doc: '설계' } }] }), { code: 'E_INPUT' })
   const r = await fetch(`${pc.url}/api/pushes`)
   assert.ok(!r.ok, "길이 없다")

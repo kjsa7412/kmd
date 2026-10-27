@@ -33,7 +33,7 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('에이전트 설치 — 붙이기 · 옛 판 → 최신 · 빼기 · 사람이 쓴 줄은 그대로', async () => {
+test('에이전트 설치: 붙이기 · 옛 판 → 최신 · 빼기 · 사람이 쓴 줄은 그대로', async () => {
   const w = path.join(tmp, 'work', 'dpms-batch')
   fs.mkdirSync(w, { recursive: true })
   fs.writeFileSync(path.join(w, 'CLAUDE.md'), '# 이 레포\n\n빌드는 gradle 로.\n')
@@ -64,7 +64,7 @@ test('에이전트 설치 — 붙이기 · 옛 판 → 최신 · 빼기 · 사�
   assert.ok(!fs.existsSync(path.join(w, '.claude', 'skills', 'kmd-work')))
 })
 
-test('정리 전용 로그인 — 비밀번호 한 번 더 → 주소 → 번호 → 열쇠는 비밀에만', async () => {
+test('정리 전용 로그인: 비밀번호 한 번 더 → 주소 → 번호 → 열쇠는 비밀에만', async () => {
   const H = { 'content-type': 'application/json', cookie: me.cookie }
   const post = (p, b) => fetch(s.url + p, { method: 'POST', headers: H, body: JSON.stringify(b || {}) })
   assert.equal((await post('/api/admin/claude/start')).status, 403, '비밀번호 한 번 더 없이는 안 된다')
@@ -83,7 +83,7 @@ test('정리 전용 로그인 — 비밀번호 한 번 더 → 주소 → 번호
   assert.equal(ov.claude.token, true)
 })
 
-test('화면 있는 팀 서버 PC — 「kmd — Claude 로그인」 창 · 번호 칸 없음 · 작은 부르기로 확인 · 옛 정리 전용 열쇠는 걷는다', async () => {
+test('화면 있는 팀 서버 PC: 「kmd: Claude 로그인」 창 · 번호 칸 없음 · 작은 부르기로 확인 · 옛 정리 전용 열쇠는 걷는다', async () => {
   const H = { 'content-type': 'application/json', cookie: me.cookie }
   const post = (p, b) => fetch(s.url + p, { method: 'POST', headers: H, body: JSON.stringify(b || {}) })
   const { prehash } = await import('../app/prehash.js')
@@ -115,7 +115,7 @@ test('화면 있는 팀 서버 PC — 「kmd — Claude 로그인」 창 · 번�
   }
 })
 
-test('화면 없고 가짜 터미널도 못 다는 서버 — 쉬운 말 · 셸 한 줄', async () => {
+test('화면 없고 가짜 터미널도 못 다는 서버: 쉬운 말 · 셸 한 줄', async () => {
   const H = { 'content-type': 'application/json', cookie: me.cookie }
   const post = (p, b) => fetch(s.url + p, { method: 'POST', headers: H, body: JSON.stringify(b || {}) })
   const { prehash } = await import('../app/prehash.js')
@@ -131,7 +131,7 @@ test('화면 없고 가짜 터미널도 못 다는 서버 — 쉬운 말 · 셸 
   } finally { process.env.KMD_TEAM_LOGIN = 'pty' }
 })
 
-test('이 PC 의 Claude 로그인 — 「kmd — Claude 로그인」 창(claude auth login)을 띄우고 · 작은 부르기로 확인한다 · 팀에는 없다', async () => {
+test('이 PC 의 Claude 로그인: 「kmd: Claude 로그인」 창(claude auth login)을 띄우고 · 작은 부르기로 확인한다 · 팀에는 없다', async () => {
   const root = path.join(tmp, 'pc-login')
   fs.mkdirSync(root, { recursive: true })
   const pc = await startServer({ root, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
@@ -161,7 +161,7 @@ test('이 PC 의 Claude 로그인 — 「kmd — Claude 로그인」 창(claude 
   }
 })
 
-test('저절로 하는 일 — 「넣은 파일을 문서로」 를 끄면 docx 는 원본 첨부만', async () => {
+test('저절로 하는 일: 「넣은 파일을 문서로」 를 끄면 docx 는 원본 첨부만', async () => {
   const KIM = { user: 'kim', admin: true }
   await s.hub.setAuto(KIM, 'file', false)
   const fake = Buffer.from('PK not really a zip')
@@ -175,7 +175,7 @@ test('저절로 하는 일 — 「넣은 파일을 문서로」 를 끄면 docx 
   await assert.rejects(s.hub.setAuto(KIM, 'save', false), { code: 'E_INPUT' })
 })
 
-test('DB 가져오는 곳 — 팀은 비밀번호를 받지 않는다 · 선언에 비밀 0 · 실패로 세지 않고 쉰다 · 연결 확인은 닿는지만', async () => {
+test('DB 가져오는 곳: 팀은 비밀번호를 받지 않는다 · 선언에 비밀 0 · 실패로 세지 않고 쉰다 · 연결 확인은 닿는지만', async () => {
   const KIM = { user: 'kim', admin: true }
   const db = { host: '127.0.0.1', port: 5432, database: 'gdi', schema: 'public', user: 'kmd_read' }
   const rules = [{ rule: 'dbtables', into: { doc: '테이블 정의' } }]

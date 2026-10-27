@@ -17,7 +17,7 @@ import { KmdError } from './errors.js'
 import { isReservedUser } from './names.js'
 import * as pw from './passwd.js'
 
-export const FAIL = '아이디나 비밀번호를 확인하세요 — 여러 번 틀리면 잠시 막힌다'
+export const FAIL = '아이디나 비밀번호를 확인하세요. 여러 번 틀리면 잠시 막힌다'
 const H = 3600_000
 const IDLE_MS = 12 * H
 const MAX_MS = 7 * 24 * H
@@ -40,7 +40,7 @@ async function readJson(f, fallback) {
   try {
     return JSON.parse(t)
   } catch (e) {
-    throw new Error(`${path.basename(f)} 이 깨졌다 — ${e.message}`)
+    throw new Error(`${path.basename(f)} 이 깨졌다: ${e.message}`)
   }
 }
 async function writeJson(f, v, mode = 0o600) {
@@ -68,7 +68,7 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
   const file = path.join(dataDir, 'auth.json')
   const db = await readJson(file, { v: 1, users: {}, setup: null })
   if (!db || typeof db !== 'object' || typeof db.users !== 'object') throw new Error('auth.json 의 모양이 아니다')
-  for (const id of Object.keys(db.users)) if (isReservedUser(id)) throw new Error(`명부에 kmd 가 쓰는 이름이 있다 — ${id} · 이름을 바꾼 뒤 다시 띄운다`)
+  for (const id of Object.keys(db.users)) if (isReservedUser(id)) throw new Error(`명부에 kmd 가 쓰는 이름이 있다: ${id} · 이름을 바꾼 뒤 다시 띄운다`)
   const keyFile = path.join(dataDir, 'session.key')
   let secret = await fs.readFile(keyFile).catch(() => null)
   if (!secret) {
@@ -158,7 +158,7 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
       return code
     },
     async setup({ code, name, pw: ph }) {
-      if (auth.hasUsers() || !pw.checkCode(db.setup, code, { now: now() })) throw new KmdError('E_AUTH', '이 주소는 이제 쓸 수 없다 — 서버 창에 새 주소가 있다')
+      if (auth.hasUsers() || !pw.checkCode(db.setup, code, { now: now() })) throw new KmdError('E_AUTH', '이 주소는 이제 쓸 수 없다. 서버 창에 새 주소가 있다')
       const id = auth.checkId(name)
       db.users[id] = { kind: 'person', admin: true, pw: await pw.hashPassword(ph, { N }), sv: 1, keys: [], at: new Date(now()).toISOString() }
       db.setup = null
@@ -193,7 +193,7 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
         throw new KmdError('E_AUTH', FAIL)
       }
       locks.ok(id, ip)
-      const notice = known.pwSetBy ? `${localHm(known.pwSetBy.at)} 에 관리자가 새 링크를 만들었다 — 내가 부탁한 것이 아니면 관리자에게` : null
+      const notice = known.pwSetBy ? `${localHm(known.pwSetBy.at)} 에 관리자가 새 링크를 만들었다. 내가 부탁한 것이 아니면 관리자에게` : null
       if (known.pwSetBy) {
         delete known.pwSetBy
         await persist()
@@ -206,7 +206,7 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
       const hit = Object.entries(db.users).find(([, u]) => (u.legacy || []).includes(s))
       if (!hit || hit[1].pw || locks.locked('legacy', ip)) {
         locks.fail('legacy', ip)
-        throw new KmdError('E_AUTH', '이 열쇠로는 들어올 수 없다 — 비밀번호로 들어온다')
+        throw new KmdError('E_AUTH', '이 열쇠로는 들어올 수 없다. 비밀번호로 들어온다')
       }
       const { code, rec } = pw.newCode({ now: now(), ms: 15 * 60_000 })
       hit[1].first = rec
@@ -217,7 +217,7 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
     async first({ code, pw: ph }) {
       reload()
       const hit = Object.entries(db.users).find(([, u]) => (u.kind || 'person') === 'person' && pw.checkCode(u.first, code, { now: now() }))
-      if (!hit) throw new KmdError('E_AUTH', '이 링크는 이제 쓸 수 없다 — 관리자에게 새 링크를 부탁한다')
+      if (!hit) throw new KmdError('E_AUTH', '이 링크는 이제 쓸 수 없다. 관리자에게 새 링크를 부탁한다')
       const [id, u] = hit
       u.pw = await pw.hashPassword(ph, { N })
       u.sv = (u.sv || 0) + 1
@@ -307,14 +307,14 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
     takeOnce(code) {
       const o = onces.get(code)
       onces.delete(code)
-      if (!o || o.exp < now()) throw new KmdError('E_AUTH', '이 주소는 지났거나 이미 썼다 — 시작 메뉴의 kmd(또는 터미널에서 kmd open)로 다시 연다')
+      if (!o || o.exp < now()) throw new KmdError('E_AUTH', '이 주소는 지났거나 이미 썼다. 시작 메뉴의 kmd(또는 터미널에서 kmd open)로 다시 연다')
       return issue(o.user, { pc: true })
     },
 
     // ── 사람 더하기 · 다시 정하기(관리자) — 처음 들어오기 링크 ──
     async addUser({ id: name, admin = false }) {
       const id = auth.checkId(name)
-      if (db.users[id]?.off) throw new KmdError('E_CONFLICT', `「${id}」 는 떠난 사람의 아이디다 — 되쓰지 않는다(예: ${id}2)`)
+      if (db.users[id]?.off) throw new KmdError('E_CONFLICT', `「${id}」 는 떠난 사람의 아이디다. 되쓰지 않는다(예: ${id}2)`)
       if (db.users[id]) throw new KmdError('E_CONFLICT', '이미 있는 아이디다')
       const { code, rec } = pw.newCode({ now: now() })
       db.users[id] = { kind: 'person', admin: !!admin, sv: 1, keys: [], first: rec, at: new Date(now()).toISOString() }
@@ -325,7 +325,7 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
     async reset(id, { by = null } = {}) {
       const u = userOf(id)
       if (!u) throw new KmdError('E_NOTFOUND', '그런 사람은 없다')
-      if (u.off) throw new KmdError('E_FORBIDDEN', '떠난 사람이다 — 링크를 만들지 않는다(아이디는 되쓰지 않는다)')
+      if (u.off) throw new KmdError('E_FORBIDDEN', '떠난 사람이다. 링크를 만들지 않는다(아이디는 되쓰지 않는다)')
       const { code, rec } = pw.newCode({ now: now() })
       u.first = rec
       delete u.pw
@@ -368,7 +368,7 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
         const k = pw.sha(ticket)
         const t = tickets.get(k)
         tickets.delete(k)
-        if (!t || t.exp < now()) throw new KmdError('E_AUTH', '설치 표가 끝났다 — 팀 화면에서 설치 한 줄을 다시 복사한다')
+        if (!t || t.exp < now()) throw new KmdError('E_AUTH', '설치 표가 끝났다. 팀 화면에서 설치 한 줄을 다시 복사한다')
         id = t.user
         yellow = !!t.ip && !!ip && net24(t.ip) !== net24(ip)
       } else {

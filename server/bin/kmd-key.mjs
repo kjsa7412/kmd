@@ -13,6 +13,6 @@ try {
   if (!key) throw new Error('없다')
   process.stdout.write(JSON.stringify({ Authorization: `Bearer ${key}` }))
 } catch {
-  process.stderr.write('이 PC 가 팀 kmd 에 이어져 있지 않다 — 팀 화면 › 설치 한 줄을 한 번 붙여 넣으면 된다\n')
+  process.stderr.write('이 PC 가 팀 kmd 에 이어져 있지 않다. 팀 화면 › 설치 한 줄을 한 번 붙여 넣으면 된다\n')
   process.exit(1)
 }
