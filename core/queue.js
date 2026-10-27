@@ -126,6 +126,7 @@ export function createQueue({ file = null, caps = {}, keepDays = 30, keepMax = 3
     line(j, k, x) {
       j.lines.push({ t: Date.now() - Date.parse(j.startedAt || j.at), k, x: String(x).slice(0, 4000), s: j.stage ?? 0 })
       if (j.lines.length > 2000) j.lines.splice(0, j.lines.length - 2000)
+      if (isFinal(j)) save() // 끝난 일에 뒤늦게 붙는 줄(코드 바뀜 기록이 문서에 들어갔다) — 다시 켜도 남게
     },
     signal: (j) => C(j).ac.signal,
     cancelled: (j) => !!ctl.get(j.id)?.ac.signal.aborted,

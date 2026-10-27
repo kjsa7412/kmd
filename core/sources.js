@@ -385,31 +385,44 @@ async function runCode(k, src, { dataDir, save, first = false, full = false, ana
     await onStage(2)
     let codeRecords = 0
     let files = 0
-    for (const [i, [a, b]] of pairs.slice(-CODE_MAX).entries()) {
+    let quiet = 0 // 코드 파일이 안 바뀐 묶음 — 줄마다 적지 않고 끝에 수로
+    const recIds = []
+    const todo = pairs.slice(-CODE_MAX)
+    for (const [i, [a, b]] of todo.entries()) {
       const names = (await tryGit(g.bare, ['diff', '--name-status', '--no-renames', '-z', a, b])).out.split('\0').filter(Boolean)
       const ch = []
       for (let j = 0; j + 1 < names.length; j += 2) ch.push({ status: names[j][0] === 'A' ? 'added' : names[j][0] === 'D' ? 'removed' : 'changed', rel: nfc(names[j + 1]) })
       const code = ch.filter((x) => wantCode(x.rel))
-      if (!code.length) continue
+      if (!code.length) { quiet++; continue }
       files += code.length
       const diffs = []
       for (const x of code.slice(0, CODE_FILES)) {
         const d = await diffGit(g.bare, a, b, x.rel)
         if (d.plus || d.minus) diffs.push({ ...x, d })
       }
-      if (!diffs.length) continue
+      if (!diffs.length) { quiet++; continue }
       const [sha, author, date, subject] = (await tryGit(g.bare, ['log', '-1', '--format=%h%x00%an%x00%ci%x00%s', b])).out.trim().split('\0')
       const info = linked ? { sha, author, date: String(date).slice(0, 16), subject } : { sha: `${base.slice(0, 7)}..${sha}`, author, date: String(date).slice(0, 16), subject: `여러 묶음 — 마지막: ${subject}` }
-      let rec = commitRecord(k, src, info, diffs, { skipped: i === 0 ? skipped : 0, more: code.length - diffs.length })
-      if (analyze) rec = (await analyze(info, diffs, rec).catch(() => null)) || rec
-      await save({ record: rec })
+      // 묶음마다 세 줄 — 무엇(묶음 · 파일) · 요약(Claude) · 기록과 걸린 항목
+      const plus = diffs.reduce((n, f) => n + f.d.plus, 0)
+      const minus = diffs.reduce((n, f) => n + f.d.minus, 0)
+      line('tool', `${i + 1}/${todo.length} · ${info.sha} ${String(info.subject || '').slice(0, 60)} · 코드 파일 ${diffs.length} (+${plus} −${minus})`)
+      const raw = commitRecord(k, src, info, diffs, { skipped: i === 0 ? skipped : 0, more: code.length - diffs.length })
+      let rec = raw
+      if (analyze) {
+        rec = (await analyze(info, diffs, raw).catch(() => null)) || raw
+        line(rec === raw ? 'err' : 'ok', rec === raw ? '요약 못함 — 차이 그대로 기록한다' : `요약 — ${rec.title.split(' — ')[0]}`)
+      }
+      const saved = await save({ record: rec })
+      if (saved?.id) recIds.push(saved.id)
+      line('ok', `기록 저장 · ${rec.touches?.length ? `걸린 항목 ${rec.touches.join(' · ')}` : '걸린 항목 없음 — 넣을 문서를 정리가 찾는다'}`)
       codeRecords++
     }
-    const note = `새 묶음 ${pairs.length}${codeRecords ? ` · 코드 바뀜 기록 ${codeRecords}` : ' · 코드는 그대로'}${skipped ? ` · 앞선 ${skipped} 은 건너뜀` : ''}`
+    const note = `새 묶음 ${pairs.length}${codeRecords ? ` · 코드 바뀜 기록 ${codeRecords}` : ' · 코드는 그대로'}${quiet ? ` · 코드 안 바뀐 묶음 ${quiet}` : ''}${skipped ? ` · 앞선 ${skipped} 은 건너뜀` : ''}`
     line('ok', note)
     await onStage(3)
     await keep(note, { lastChange: { at: now, commits: pairs.length, files, records: codeRecords, tables: 0 }, ...(codeRecords ? { lastCode: { at: now, n: codeRecords } } : {}) })
-    return { state: codeRecords ? 'changed' : 'same', n: codeRecords, files, codeRecords, commits: pairs.length }
+    return { state: codeRecords ? 'changed' : 'same', n: codeRecords, files, codeRecords, commits: pairs.length, recIds }
   } catch (e) {
     if (e?.cancelled) throw e // 그만두기(일 줄) — 못 가져옴으로 세지 않는다
     s0.failures = (s0.failures || 0) + 1

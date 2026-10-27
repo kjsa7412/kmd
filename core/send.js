@@ -5,6 +5,7 @@
 // 보낼 것 = ① 변경사항 — 보낸 뒤(또는 보낼 곳을 정한 뒤) 바뀐 문서(새 문서는 전체 · 아니면 바뀐 항목만) · 그 뒤 새로 남은 기록(전체)
 //          ② 지식 — 사람이 고른 문서(전체) · 기록(전체). 화면이 고른 것만 보낸다(고르지 않은 변경사항은 다음에 그대로 남는다).
 // 받는 쪽은 기록 하나(태그 `sent/<지문>` — 같은 것을 두 번 받으면 0) · 이름은 받는 지식의 이름 장부로 정확히 맞는 것만.
+// 받는 쪽이 글 몇 개만 거절하면(너무 긴 글 등) 나머지는 받고 { bad: [{ i, why }] } 로 돌려준다 — 보내는 쪽은 그것만 fail 줄로.
 
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -95,6 +96,30 @@ export function recItem(k, w) {
 export function docItem(k, d) {
   const body = [clean(d.intro), ...d.sections.filter((s) => s.h).map((s) => `## ${s.h}\n${clean(s.body)}`)].filter(Boolean).join('\n\n')
   return { title: `${d.title} — 문서 전체`.slice(0, 200), body, sha: sha16(`${k.id}\n${d.path}\n${marks(d).sha}\nall`) }
+}
+
+// 받는 쪽 기록 한도(200,000자) 안으로 — 넘는 글은 항목(## 머리)마다 묶어 나누고 · 항목 하나가 넘으면 글자로 자른다(제목 끝 (1/n))
+//   「○○에서 보냄」 줄이 붙으니 한도보다 조금 작게. 조각의 지문은 원래 지문 + 자리 — 같은 글을 다시 보내면 받는 쪽에서 0
+export const ITEM_MAX = 190_000
+export function split(it, max = ITEM_MAX) {
+  if (it.body.length <= max) return [it]
+  const parts = []
+  let cur = ''
+  for (const b of it.body.split(/\n(?=## )/)) {
+    if (b.length > max) {
+      if (cur) parts.push(cur)
+      cur = ''
+      for (let i = 0; i < b.length; i += max) parts.push(b.slice(i, i + max))
+    } else if (cur && cur.length + 1 + b.length > max) {
+      parts.push(cur)
+      cur = b
+    } else cur = cur ? `${cur}\n${b}` : b
+  }
+  if (cur) parts.push(cur)
+  return parts.map((body, i) => {
+    const tail = ` (${i + 1}/${parts.length})`
+    return { title: it.title.slice(0, 200 - tail.length) + tail, body, sha: sha16(`${it.sha}\n${i + 1}/${parts.length}`) }
+  })
 }
 
 // 보낼 글 하나 — 바뀐 항목만(새 문서면 모든 항목)
