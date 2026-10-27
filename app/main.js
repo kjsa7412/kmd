@@ -404,16 +404,28 @@ function viewHome() {
   const pcLine = !team || !S.pc ? '' : S.pc.wait ? '<div class="callout gray stop" data-t="pcWait"><i></i><span>내 PC 프로그램에 잇는 중…</span></div>' : S.pc.off ? '<div class="callout gray stop" data-t="pcOff"><i></i><span><b>내 PC 프로그램이 꺼져 있다</b> — 켜면 저절로 다시 열린다</span></div>' : S.pc.deny ? `<div class="callout gray stop" data-t="pcDeny"><i></i><span><b>이 PC 의 내 지식은 여기서 열지 않는다</b> — ${esc(S.pc.deny)}</span></div>` : ''
   const msg = S.syncMsg ? `<div class="callout ${S.syncMsg.cls || ''} stop" data-t="syncMsg"><i></i><span>${S.syncMsg.t}</span></div>` : ''
   const add = `<div class="kcard add" data-a="openAdd" data-t="addCard"><span class="pl">+</span>${!team && !S.kns.length ? '첫 지식 세우기' : '새 지식'}</div>`
+  // 팀 화면 — 위 팀 지식 / 아래 개인 지식(팀 서버 · 나만 + 내 PC). 개인 지식이 어디에 서는지 띠에 적는다
+  const teamPart = shown.filter((n) => !isPersonal(n)), mePart = shown.filter((n) => isPersonal(n))
+  const addTeam = S.me.admin ? `<div class="kcard add" data-a="openAdd" data-v="team" data-t="addCardTeam"><span class="pl">+</span>새 팀 지식</div>` : ''
+  const addMe = `<div class="kcard add" data-a="openAdd" data-v="mine" data-t="addCard"><span class="pl">+</span>새 개인 지식</div>`
+  const meBar = `<div class="fbar" data-t="meWhere"><span class="fl">${svg('doc')}개인 지식은 여기에</span><span class="fp" data-t="mePath">${S.me.admin && root ? esc(root.replace(/[\\/]+$/, '') + (root.includes('\\') ? '\\' : '/')) + '이름-' + esc(S.me.user || '') : '팀 서버 › 지식 폴더 › 「이름-' + esc(S.me.user || '') + '」'}</span><small>지식 폴더를 따로 정하지 않는다 — 새 개인 지식은 팀 서버 안에 나만 보는 폴더로 선다(팀원의 화면 · 찾기 · Claude Code 에 보이지 않는다 · 서버를 돌보는 사람은 디스크 · 백업으로 볼 수 있다) · 「내 PC」 표지는 이 PC 의 내 PC 프로그램 지식 폴더에 있는 것</small></div>`
+  const grids = team
+    ? `<div class="sec-h" data-t="teamSec"><b>팀 지식</b><small>팀 서버 · 팀 모두 보고 기록한다${S.me.admin ? '' : ' · 새 팀 지식은 관리자가 세운다'}</small></div>${fbar}
+  <div class="kgrid" data-t="klist">${teamPart.map((n) => kcardHtml(n, team)).join('')}${addTeam}</div>${!teamPart.length && !addTeam ? '<p class="hint" data-t="teamEmpty">아직 팀 지식이 없다 — 관리자가 세운다</p>' : ''}
+  <div class="sec-h" data-t="meSec" style="margin-top:22px"><b>개인 지식</b><small>나만 본다 · 여기서 쓰고 가져오고 팀 지식으로 보낸다</small></div>${meBar}
+  <div class="kgrid" data-t="meList">${mePart.map((n) => kcardHtml(n, team)).join('')}${addMe}</div>`
+    : `${fbar}<div class="kgrid" data-t="klist">${shown.map((n) => kcardHtml(n, team)).join('')}${add}</div>`
   return {
     crumb: '지식 목록',
-    main: `<div style="max-width:1100px"><div class="pg-h"><div><div class="big">지식 목록</div><p class="lead">${team ? '팀 서버의 지식 · 내 지식' : '내 지식 ' + S.kns.length} — 옆 메뉴에 이 순서로 보인다 · 카드를 끌어 순서를 바꾼다</p></div></div>
-  ${pcLine}${fbar}${msg}
-  <div class="kgrid" data-t="klist">${shown.map((n) => kcardHtml(n, team)).join('')}${add}</div>
+    main: `<div style="max-width:1100px"><div class="pg-h"><div><div class="big">지식 목록</div><p class="lead">${team ? '위는 팀 지식 · 아래는 개인 지식' : '내 지식 ' + S.kns.length} — 옆 메뉴에 이 순서로 보인다 · 카드를 끌어 순서를 바꾼다</p></div></div>
+  ${pcLine}${msg}
+  ${grids}
   ${hid.length ? `<div class="sec-h" data-t="hidSec"><b>뺀 지식</b><small>옆 메뉴에 보이지 않는다 · 지우지 않았다 — [메뉴에 올리기] 로 다시</small></div><div class="kgrid" data-t="hidList">${hid.map((n) => kcardHtml(n, team)).join('')}</div>` : ''}</div>`,
   }
 }
 // 새 지식 팝업 — 이름만(PC: 지식 폴더 안 새 지식 · 팀: 팀 서버 안 내 지식)
-function openAdd() { S.menu = null; S.addPop = { name: '', dir: '', where: isTeam() ? (S.me.admin ? 'team' : 'mine') : 'local', to: '', err: null, busy: false }; S._focus = 'addIn'; if (S.route.scr !== 'home') go({ scr: 'home', kn: '*' }); else render() }
+// where — 카드가 정해 준 영역(팀 화면: 위 「새 팀 지식」 · 아래 「새 개인 지식」) · 없으면 관리자는 팀 지식
+function openAdd(where) { S.menu = null; S.addPop = { name: '', dir: '', where: isTeam() ? (where === 'team' && S.me.admin ? 'team' : where === 'mine' ? 'mine' : S.me.admin ? 'team' : 'mine') : 'local', to: '', err: null, busy: false }; S._focus = 'addIn'; if (S.route.scr !== 'home') go({ scr: 'home', kn: '*' }); else render() }
 function addPopHtml() {
   const a = S.addPop, team = isTeam()
   const onPc = a.where === 'pc' || a.where === 'local'
@@ -425,7 +437,7 @@ function addPopHtml() {
   const teamKns = team ? S.kns.filter((k) => !k.pc && !k.private) : []
   const toFld = team && a.where === 'mine' && teamKns.length ? `<div class="field" style="margin:10px 0 0"><label for="addTo">받는 팀 지식 <span class="muted">(선택 — 나중에 지식 보내기에서 정해도 된다)</span></label><select class="inp" id="addTo" data-in="addTo" data-t="addTo"><option value="">정하지 않음</option>${teamKns.map((k) => `<option value="${esc(k.id)}"${a.to === k.id ? ' selected' : ''}>${esc(k.name)}</option>`).join('')}</select><div class="hint">정하면 이 개인 지식에서 보내는 것은 모두 그곳으로만 간다</div></div>` : ''
   const hint = a.where === 'team' ? '팀 서버에 팀 지식으로 선다 — 팀 모두 보고 기록한다 · 주인은 나(이 지식의 사람에서 넘긴다)'
-    : a.where === 'mine' ? '개인 지식 — 팀 서버 안 · 나만 본다(팀원의 화면 · 찾기 · Claude Code 에 보이지 않는다) · 여기서 쓰고 가져오고 팀 지식으로 보낸다 · 내 PC 지식은 내 PC 프로그램에서 만든다'
+    : a.where === 'mine' ? `개인 지식 — 팀 서버의 지식 폴더 안 「${(a.name || '').trim() || '이름'}-${S.me.user}」 폴더로 선다(내 PC 에 폴더를 정하지 않는다) · 나만 본다(팀원의 화면 · 찾기 · Claude Code 에 보이지 않는다) · 여기서 쓰고 가져오고 팀 지식으로 보낸다 · 내 PC 지식은 내 PC 프로그램에서 만든다`
     : `내 PC 의 지식 폴더 안에 선다 — 나만 · 팀 서버에는 가지 않는다${team ? ' · 팀 화면에서도 「내 PC」 로 열린다' : ''} · 폴더 경로를 쓰면 그 폴더의 글(md · docx · pptx · xlsx)을 한 번 들인다(원본은 그대로)`
   const dirFld = onPc ? `<div class="field" style="margin:10px 0 0"><label for="addDir">내 PC 폴더 경로 <span class="muted">(선택 — 쓰면 이름은 폴더 이름)</span></label><input class="inp mono" id="addDir" data-in="addDir" data-t="addDir" value="${esc(a.dir || '')}" placeholder="예: D:\\문서\\배포 노트" autocomplete="off"></div>` : ''
   return `<div class="scrim fix" data-a="addClose" data-self="1"><div class="modal w420" data-t="addPop"><div class="mh">새 지식<button class="x" data-a="addClose" title="닫기">×</button></div><div class="mb">${kinds}<div class="field" style="margin:0"><label for="addIn">이름</label><input class="inp" id="addIn" data-in="addName" data-t="addIn" value="${esc(a.name)}" placeholder="예: 회의" autocomplete="off"></div>${dirFld}${toFld}<div class="hint" style="margin-top:8px">${esc(hint)}</div>${pcOff ? '<div class="callout gray" data-t="addPcOff" style="margin-top:8px">내 PC 프로그램에 닿지 않는다 — 켜 두거나, 없으면 설정 › 에이전트 설치의 설치 한 줄로 깐다</div>' : ''}${a.err ? `<div class="callout danger" data-t="addMsg">${esc(a.err)}</div>` : ''}</div><div class="mf"><span class="l">새 지식은 메뉴 맨 아래에 들어온다</span><span class="acts"><button class="btn ghost" data-a="addClose">취소</button><button class="btn pri" data-a="doAdd" data-t="addBtn"${a.busy || pcOff ? ' disabled' : ''}>${a.busy ? '만드는 중…' : '추가'}</button></span></div></div></div>`
@@ -3018,7 +3030,7 @@ const ACT = {
   delDo: () => delDo(),
   copyRoot: () => { copyText(pcRoot()); toast('지식 폴더 경로를 복사했다') },
   doAdd: () => doAdd(),
-  openAdd: () => openAdd(),
+  openAdd: (el) => openAdd(el.dataset.v),
   addClose: () => { if (S.addPop && !S.addPop.busy) { S.addPop = null; render() } },
   syncKn: () => syncKn(),
   knMove: (el, ev) => { ev.stopPropagation(); S.menu = null; knMove(el.dataset.k, Number(el.dataset.v)) },
