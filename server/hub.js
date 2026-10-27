@@ -1021,9 +1021,16 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 고치기 — 주소(경로 · git) · 넣을 문서 · 언제 · 뜻 갱신 · DB 접속 · 자격(요구 v0.2 R4). 이름은 상태 · 자격의 열쇠라 고치지 않는다.
     //   빈 비밀번호 · 토큰은 「그대로」 · 주소나 접속이 바뀌면 처음부터 다시 한 번 가져온다
-    async sourceEdit(ctx, id, { name, at = null, doc = null, every = null, meaning = null, db = null, cred = null }) {
+    //   넣을 지식(kn)이 바뀌면 옛 지식에서 지우고(사본은 copies 대로) 새 지식에 더해 처음부터 한 번 가져온다
+    async sourceEdit(ctx, id, { name, at = null, doc = null, every = null, meaning = null, db = null, cred = null, kn = null, copies = 'keep' }) {
       const meta = await hub.meta(id, ctx)
       if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 관리자가 고친다')
+      const to = kn && kn !== id ? String(kn) : null
+      if (to) {
+        const tm = await hub.meta(to, ctx)
+        if (!hub.canSource(ctx, to)) throw new KmdError('E_FORBIDDEN', '옮겨 갈 지식에 가져올 곳을 더할 수 없다')
+        if ((await readDecl(tm.dir)).some((x) => x.name === name)) throw new KmdError('E_CONFLICT', '옮겨 갈 지식에 같은 이름의 가져오는 곳이 있다')
+      }
       const pcScreen = mode === 'pc' || ctx.pc
       if ((cred?.token || db?.password) && !pcScreen) throw new KmdError('E_FORBIDDEN', `자격은 화면으로 받지 않는다 — 서버에서 한 줄: kmd secret set ${secretName(id, name)}`)
       const decl = await readDecl(meta.dir)
@@ -1064,6 +1071,24 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const [ou, ...ot] = String(old || '').split(':')
         await setSecret(dataDir, secretName(id, name), `${cred.user || ou || 'git'}:${cred.token || ot.join(':') || ''}`)
         refetch = true
+      }
+      // 다른 지식으로 — 자격을 새 이름으로 옮기고 옛 자리는 지우기와 같게 걷은 뒤 새 지식에 더한다
+      if (to) {
+        const sec = await getSecret(dataDir, secretName(id, name)).catch(() => null)
+        if (sec) await setSecret(dataDir, secretName(to, name), sec)
+        const r = await hub.sourceRemove(ctx, id, { name, copies })
+        const tm = await hub.meta(to, ctx)
+        const addKey = `${to}\n${name}`
+        adding.add(addKey)
+        try {
+          await writeDecl(tm.dir, [...(await readDecl(tm.dir)), s], { user: ctx.user, title: `가져오는 곳 옮겨 옴 — ${name} · ${meta.name || id} 에서` })
+          cache.delete(to)
+          if (started) hub.watchSource(to, s)
+          const run = await hub.sourceRun(to, name, { first: true }).catch((e) => [{ state: 'failed', why: e.message }])
+          return { source: s, run, moved: to, copies: r.copies, kept: r.kept }
+        } finally {
+          adding.delete(addKey)
+        }
       }
       if (JSON.stringify(s) !== was) {
         await writeDecl(meta.dir, decl, { user: ctx.user, title: `가져오는 곳 고침 — ${name}` })

@@ -148,6 +148,23 @@ test('가져오는 곳 — 고치기(언제 · 넣을 문서) · 지우기(문�
   assert.ok(fs.existsSync(path.join(tmp, 'kn', '회의', 'docs', '운영2', '운영.md')), '들어온 문서는 그대로')
 })
 
+test('가져오는 곳 — 넣을 지식 · 문서를 함께 바꾸면 옮겨 처음부터 · 옛 사본은 고른 대로', async () => {
+  const src = path.join(tmp, 'src-move')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, '설계.md'), '# 설계\n\n## 구조\n셋\n')
+  await s.hub.sourceAdd(ME, '회의', { name: '설계 문서', kind: 'docs', at: src, every: 'hourly', rules: [{ rule: 'docs', into: { doc: '설계' } }] })
+  assert.ok(fs.existsSync(path.join(tmp, 'kn', '회의', 'docs', '설계', '설계.md')))
+  const e = await s.hub.sourceEdit(ME, '회의', { name: '설계 문서', kn: '다른', doc: '설계2', copies: 'drop' })
+  assert.equal(e.moved, '다른')
+  assert.equal(e.copies, 1)
+  assert.deepEqual((await s.hub.sources(ME, '회의')).map((x) => x.name).filter((n) => n === '설계 문서'), [])
+  assert.equal((await s.hub.sources(ME, '다른')).find((x) => x.name === '설계 문서').rules[0].into.doc, '설계2')
+  assert.ok(fs.existsSync(path.join(tmp, 'kn', '다른', 'docs', '설계2', '설계.md')), '새 지식에 처음부터')
+  assert.ok(!fs.existsSync(path.join(tmp, 'kn', '회의', 'docs', '설계', '설계.md')), '옛 사본은 지웠다')
+  await assert.rejects(s.hub.sourceEdit(ME, '다른', { name: '설계 문서', kn: '없는지식' }))
+  await s.hub.sourceRemove(ME, '다른', { name: '설계 문서' })
+})
+
 test('팀 — 정리 일꾼이 넣은 파일을 에이전트로(서버 MCP · 단기 열쇠) · 터미널 줄은 서버 일 목록에', async () => {
   const { workOnce } = await import('../core/worker.js')
   const root = path.join(tmp, 'team')

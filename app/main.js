@@ -1649,7 +1649,7 @@ function srcOpen(id) {
   const s = srcOf(id)
   if (!s) return
   const ev = String(s.every || 'hourly'), db = (() => { try { const u = new URL(s.at); return { host: u.hostname, port: u.port || '5432', database: decodeURIComponent(u.pathname.slice(1)), user: decodeURIComponent(u.username), schema: u.searchParams.get('schema') || 'public' } } catch { return {} } })()
-  S.se = { id, at: s.kind === 'db' ? '' : s.at || '', doc: (s.rules && s.rules[0] && s.rules[0].into && s.rules[0].into.doc) || '', every: ev.startsWith('daily ') ? 'daily' : ev, at2: ev.startsWith('daily ') ? ev.slice(6) : '06:00', meaning: !!s.meaning, ...db, password: '', gitUser: '', gitToken: '', msg: null, busy: false, del: false }
+  S.se = { id, at: s.kind === 'db' ? '' : s.at || '', doc: (s.rules && s.rules[0] && s.rules[0].into && s.rules[0].into.doc) || '', every: ev.startsWith('daily ') ? 'daily' : ev, at2: ev.startsWith('daily ') ? ev.slice(6) : '06:00', meaning: !!s.meaning, kn: s.kn, ...db, password: '', gitUser: '', gitToken: '', msg: null, busy: false, del: false }
   render()
 }
 const seFld = (label, f, v, ph, opt = {}) => `<div class="field"><label for="se-${f}">${label}</label><input class="inp${opt.mono ? ' mono' : ''}" id="se-${f}" data-in="se" data-f="${f}" value="${esc(v || '')}" placeholder="${esc(ph || '')}" autocomplete="${opt.pw ? 'new-password' : 'off'}"${opt.pw ? ' type="password"' : ''}${opt.ro ? ' readonly' : ''}>${opt.hint ? `<div class="hint">${opt.hint}</div>` : ''}</div>`
@@ -1662,7 +1662,12 @@ function srcModalHtml() {
   let where = ''
   if (s.kind === 'db') where = `<div class="fgrid">${seFld('호스트', 'host', e.host, 'db.team.local', { mono: 1, ro })}${seFld('포트', 'port', e.port, '5432', { mono: 1, ro })}${seFld('DB 이름', 'database', e.database, '', { mono: 1, ro })}${seFld('스키마', 'schema', e.schema, 'public', { mono: 1, ro })}${seFld('계정', 'user', e.user, '', { mono: 1, ro })}${team ? `<div class="field"><label>비밀번호</label><div class="hint" data-t="credLine">화면으로 받지 않는다 — 서버에서 <code>kmd secret set ${esc(s.secret.name)}</code> · ${s.secret.has ? '있음' : '없음'}</div></div>` : seFld('비밀번호', 'password', e.password, s.secret && s.secret.has ? '그대로(바꿀 때만 쓴다)' : '이 PC 의 자격 저장소에만', { pw: 1, ro })}</div>`
   else where = seFld(s.kind === 'git' ? 'git 주소 · 저장소 폴더' : '문서 폴더 경로', 'at', e.at, '', { mono: 1, ro }) + (s.kind === 'git' && !team ? `<div class="fgrid">${seFld('계정', 'gitUser', e.gitUser, s.secret && s.secret.has ? '그대로' : '들어가야 하는 저장소면', { ro })}${seFld('읽기 열쇠', 'gitToken', e.gitToken, s.secret && s.secret.has ? '그대로(바꿀 때만 쓴다)' : '읽기 권한 열쇠', { pw: 1, ro })}</div>` : '')
-  const into = isCode(s) ? `<div class="field"><label>넣는 곳</label><div class="small" style="padding:6px 0">${esc(s.knName)} › 코드 바뀜 기록 — 묶음마다 기록 하나 · 걸린 항목 글은 정리가 맞춘다</div></div>` : seFld(`넣을 문서 — ${esc(s.knName)} 안`, 'doc', e.doc, '', { ro, hint: s.kind === 'docs' ? '이 이름의 폴더로 문서가 선다 · 바꾸면 처음부터 다시 가져온다' : '테이블마다 이 문서의 항목으로 · 바꾸면 처음부터 다시 가져온다' })
+  // 넣을 지식 › 문서 — 지식을 바꾸면 옛 지식에서 걷고 새 지식으로 처음부터 다시 가져온다
+  const knSel = `<select class="inp" id="se-kn" data-se="kn" data-t="seKn" style="flex:1;min-width:0"${ro ? ' disabled' : ''}>${S.kns.filter((k) => !k.pc || k.id === s.kn).map((k) => `<option value="${esc(k.id)}"${k.id === e.kn ? ' selected' : ''}>${esc(k.name)}</option>`).join('')}</select>`
+  const moved = e.kn !== s.kn ? ' · <b>다른 지식으로 옮기면 처음부터 다시 가져온다</b>' : ''
+  const into = isCode(s)
+    ? `<div class="field"><label for="se-kn">넣을 지식</label><div class="row">${knSel}</div><div class="hint">코드 바뀜 기록 — 묶음마다 기록 하나 · 걸린 항목 글은 정리가 맞춘다${moved}</div></div>`
+    : `<div class="field"><label for="se-kn">넣을 지식 › ${s.kind === 'docs' ? '폴더' : '문서'}</label><div class="row">${knSel}<input class="inp" id="se-doc" data-in="se" data-f="doc" data-t="seDoc" value="${esc(e.doc || '')}" autocomplete="off" style="flex:1;min-width:0"${ro ? ' readonly' : ''}></div><div class="hint">${s.kind === 'docs' ? '지식 안 이 이름의 폴더로 문서가 선다' : '테이블마다 이 문서의 항목으로'} · 바꾸면 처음부터 다시 가져온다${moved}</div></div>`
   const mean = s.kind === 'git' ? `<div class="field"><label>뜻 갱신</label><div class="row"><button class="sw${e.meaning ? ' on' : ''}" data-a="seMeaning" data-t="seMeaning"${ro ? ' disabled' : ''}></button><span class="small muted">바뀐 코드로 걸린 항목 글도 맞춘다 — Claude 로${s.meaningBlocked ? ' · 이 지식은 자동 정리에 Claude 를 쓰지 않아 쉰다' : ''}</span></div></div>` : ''
   const stat = `<div class="kv" style="margin-bottom:14px" data-t="seState"><span>유형</span><span>${esc(KIND_T[s.kind] || s.kind)} · ${esc(String(s.since || ''))} 부터${s.by ? ' · ' + esc(s.by) : ''}</span><span>상태</span><span>${srcChip(s)} <small>${esc(st.lastNote || '')}</small></span><span>마지막 확인</span><span>${st.checkedAt ? esc(whenTxt(st.checkedAt)) : '—'}</span><span>다음</span><span>${s.watch === 'live' ? '바뀌면 바로 · ' + esc(nextTxt(s.every, st.checkedAt)) : esc(nextTxt(s.every, st.checkedAt))}</span>${srcChange(s) ? `<span>마지막 바뀜</span><span data-t="lastChange">${esc(srcChange(s))}</span>` : ''}</div>`
   const msg = e.msg ? `<div class="callout ${e.msg.cls || ''}" data-t="seMsg"><i></i><span>${e.msg.t}</span></div>` : ''
@@ -1680,11 +1685,18 @@ async function seSave() {
   else if (e.at.trim()) body.at = e.at.trim()
   if (!isCode(s)) body.doc = e.doc
   if (s.kind === 'git') { body.meaning = !!e.meaning; if (e.gitUser || e.gitToken) body.cred = { user: e.gitUser, token: e.gitToken } }
+  if (e.kn && e.kn !== s.kn) {
+    const to = (S.kns.find((k) => k.id === e.kn) || {}).name || e.kn
+    if (!confirm(`${s.name} 을 「${to}」 지식으로 옮긴다 — 처음부터 다시 가져온다.\n\n계속할까?`)) return
+    body.kn = e.kn
+    body.copies = confirm(`「${s.knName}」 에 들어와 있던 사본 문서도 지울까?\n\n[확인] 사본도 지운다 · [취소] 사본은 내 문서로 남긴다(고칠 수 있다)`) ? 'drop' : 'keep'
+  }
   e.busy = true; e.msg = { cls: 'gray', t: '<b>고치는 중…</b>' }; render()
   try {
     const r = await postJSON(`/api/k/${encodeURIComponent(s.kn)}/sources/edit`, body)
     const st = r.run && r.run[0]
-    e.msg = { t: `<b>고쳤다</b>${st ? (st.state === 'failed' ? ' · 그러나 못 가져왔다 — ' + esc(st.why || '') : ' · 처음부터 다시 가져왔다') : ''}` }
+    e.msg = { t: `<b>${r.moved ? '옮겼다' : '고쳤다'}</b>${r.moved && r.copies ? ` · 옛 사본 ${r.copies} ${r.kept ? '은 내 문서로 남겼다' : '도 지웠다'}` : ''}${st ? (st.state === 'failed' ? ' · 그러나 못 가져왔다 — ' + esc(st.why || '') : ' · 처음부터 다시 가져왔다') : ''}` }
+    if (r.moved) { forgetKn(r.moved); e.id = r.moved + '|' + s.name; e.kn = r.moved }
     e.password = ''; e.gitToken = ''
     delete S.cache.sources
     forgetKn(s.kn)
