@@ -215,6 +215,50 @@ test('보내기 고르기 — 변경사항(새 기록은 전체 · 고친 문서
   assert.ok(left.includes('헬스 체크 — 5초') && !left.some((t) => /배포메모/.test(t)), '고르지 않은 것은 남는다 ' + left)
 })
 
+test('지식 보내기(팀 화면) — 보내는 길은 개인 지식마다 팀 지식 하나 · 바꾸려면 새 이름을 친다 · 화면이 본 길과 다르면 보내지 않는다 · 문서는 처음 전체 그 뒤 고친 항목만', async () => {
+  const code = (p) => p.then(() => null, (e) => e.code)
+  fs.writeFileSync(path.join(tmp, 'kn', 'memo', 'docs', '점검.md'), '# 점검\n\n## 순서\n전원부터 본다.\n\n## 기록\n날마다 남긴다.\n')
+  s.hub.forget('memo')
+  let v = await s.hub.sendView(KIM, 'memo')
+  assert.equal(v.route, null, '처음에는 받는 지식이 없다')
+  assert.equal(v.docs.find((d) => d.path === 'docs/점검.md').st, 'new', '보낸 적 없는 문서')
+  assert.equal(await code(s.hub.sendPicked(KIM, 'memo', { to: 'dpms', recs: [] })), 'E_INPUT', '길을 정하기 전에는 보내지 않는다')
+  assert.equal(await code(s.hub.sendRoute(KIM, 'memo', { to: 'note' })), 'E_INPUT', '개인 지식으로는 보내지 않는다')
+  assert.equal(await code(s.hub.sendRoute(KIM, 'dpms', { to: 'gdi' })), 'E_FORBIDDEN', '보내는 지식은 내 개인 지식만')
+  v = await s.hub.sendRoute(KIM, 'memo', { to: 'dpms' })
+  assert.equal(v.route.kn, 'dpms')
+  assert.ok(v.route.since, '정한 때가 남는다')
+
+  await s.hub.save(KIM, 'memo', { record: { title: '전원 점검 — 아침', body: '아침마다 전원부터.' } })
+  v = await s.hub.sendView(KIM, 'memo')
+  const rec = v.recs.find((r) => r.title === '전원 점검 — 아침')
+  assert.ok(rec && !rec.sent, '보내지 않은 기록')
+  assert.equal(await code(s.hub.sendPicked(KIM, 'memo', { to: 'gdi', recs: [rec.id] })), 'E_CONFLICT', '화면이 본 받는 지식과 다르면 보내지 않는다')
+  const r = await s.hub.sendPicked(KIM, 'memo', { to: 'dpms', recs: [rec.id], docs: [{ path: 'docs/점검.md' }] })
+  assert.equal(r.sent, 2)
+  let got = (await s.hub.get('dpms')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/')))
+  assert.ok(got.some((w) => w.title === '전원 점검 — 아침'), '기록은 전체로')
+  assert.ok(got.some((w) => w.title === '점검 — 문서 전체'), '처음 문서는 전체로')
+  v = await s.hub.sendView(KIM, 'memo')
+  assert.ok(v.recs.find((x) => x.id === rec.id).sent, '보낸 기록은 「보냄」')
+  assert.equal(v.docs.find((d) => d.path === 'docs/점검.md').st, 'same')
+  assert.equal(v.route.times, 1)
+
+  await s.hub.edit(KIM, 'memo', { doc: '점검', sections: [{ h: '순서', body: '전원 다음 통신을 본다.' }] })
+  v = await s.hub.sendView(KIM, 'memo')
+  const d = v.docs.find((x) => x.path === 'docs/점검.md')
+  assert.deepEqual([d.st, d.heads], ['chg', ['순서']])
+  await s.hub.sendPicked(KIM, 'memo', { to: 'dpms', docs: [{ path: 'docs/점검.md' }] })
+  got = (await s.hub.get('dpms')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/')))
+  assert.ok(got.some((w) => w.title === '점검 — 순서' && /통신/.test(w.body)), '그 뒤로는 고친 항목만')
+
+  // 바꾸기 — 새 이름을 그대로 쳐야
+  assert.equal(await code(s.hub.sendRoute(KIM, 'memo', { to: 'gdi' })), 'E_INPUT')
+  assert.equal(await code(s.hub.sendRoute(KIM, 'memo', { to: 'gdi', confirm: 'dpms' })), 'E_INPUT')
+  const gname = (await s.hub.meta('gdi')).name
+  assert.equal((await s.hub.sendRoute(KIM, 'memo', { to: 'gdi', confirm: gname })).route.kn, 'gdi')
+})
+
 test('받은편지함 정리 — 같은 주인의 개인 지식으로 옮김 · private 메모 → 옮김 0 · 팀 이름은 보내기 후보', async () => {
   await s.hub.save(KIM, 'inbox', { record: { title: '주간 회의 — 안건', body: '다음 주 안건 셋.' } })
   await s.hub.save(KIM, 'inbox', { record: { title: '주간 회의 — 개인 생각', body: '나만 본다.', tags: ['private'] } })

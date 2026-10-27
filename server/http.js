@@ -296,7 +296,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   }
 
   const GET_OK = [
-    /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|send\/targets|claude\/state|busy)$/,
+    /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|claude\/state|busy)$/,
     /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/,
     /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|sources|send|backup|backup\/lost|owner|worker\/material)$/,
   ]
@@ -400,7 +400,6 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         root: mode === 'pc' ? path.resolve(root) : undefined,
         kns: ks.length,
         backup: { n: bk.length, of: ks.length, urls: [...new Set(bk.map((b) => b.url))].slice(0, 3), bad: bk.filter((b) => b.verdict && b.verdict !== 'ok' && b.verdict !== 'lag').length, ...(mode === 'pc' ? { root: hub.config.backupRoot || null, list: ks.map((k) => { const b = hub.backupStateSync(k); return { id: k.id, name: k.name, url: b?.url || null, verdict: b?.verdict || null } }) } : {}) },
-        dests: mode === 'pc' ? (await Promise.all(ks.map(async (k) => ({ name: k.name, to: (await hub.sendQueue(ctx, k.id).catch(() => ({ dests: [] }))).dests.map((d) => d.kn) })))).filter((x) => x.to.length) : undefined,
         teams: mode === 'pc' ? await teamsOf() : undefined,
         auto: Object.fromEntries(keys.map((x) => [x, hub.autoOf(ctx.user, x)])),
         ...(mode === 'pc' ? { models: hub.models() } : {}),
@@ -589,9 +588,10 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const menu = await hub.menuOf(ctx, ks0.map((k) => k.id))
       const ks = [...ks0].sort((a, b) => menu.order.indexOf(a.id) - menu.order.indexOf(b.id))
       return out(200, await Promise.all(ks.map(async (k) => {
-        // 보낼 곳이 있는 지식 — 보낼 것 수(옆 메뉴 「보내기」 의 수)
-        const sq = hub.canDirect(ctx, k.id) ? await hub.sendQueue(ctx, k.id).catch(() => null) : null
-        return { ...V.knowledgeRow(k), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sq?.dests.length ? { dests: sq.dests.map((d) => (d.url ? `${d.url}/r/${encodeURIComponent(d.kn)}` : d.kn)), sendN: sq.items.filter((x) => x.on).length, sendWait: sq.wait.length } : {}), private: !!hub.owner(k.id)?.private, tidyAt: hub.tidyAtOf(k.id), tidyMode: hub.tidyModeOf(k.id), pendText: hub.pendText(k.id), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
+        // 팀 서버의 내 개인 지식 — 받는 지식(보내는 길) · 보내지 않은 기록 수(옆 메뉴 「지식 보내기」 의 수) · 내 PC 프로그램에는 보내기가 없다
+        const row = hub.owner(k.id)
+        const sv = mode === 'team' && row?.private && row.owner === ctx.user ? await hub.sendView(ctx, k.id).catch(() => null) : null
+        return { ...V.knowledgeRow(k), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), private: !!row?.private, ...(mode === 'team' ? { owner: row?.owner || null } : {}), tidyAt: hub.tidyAtOf(k.id), tidyMode: hub.tidyModeOf(k.id), pendText: hub.pendText(k.id), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
       })))
     }
     // 에이전트 일 — 목록 · 줄(터미널)
@@ -685,18 +685,18 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (mode === 'team' && (!row?.private || row.owner !== ctx.user)) admin(ctx)
       return out(200, await hub.deleteKnowledge(ctx, id, b))
     }
-    // 보내기 — 보낼 것 · 보낼 곳 · 이번에 빼기 · 보내기 · 받기 · 받은편지함 정리
-    // 보낼 곳 고르기 — 이 PC 가 이은 팀마다 그 팀의 지식(이 PC 의 기기 열쇠로)
-    if (p === '/api/send/targets') return out(200, await hub.sendTargets(ctx))
-    const sd = p.match(/^\/api\/k\/([^/]+)\/(send|send\/dests|send\/drop|send\/wait|receive|inbox\/tidy|inbox\/send)$/)
+    // 보내기 — 보낼 것(GET send) · 보내는 길(send/route) · 보내기 · 대기 줄 · 받기 · 받은편지함 정리
+    //   보내기는 팀 화면에만 — 내 PC 프로그램은 받기 · 받은편지함 정리만 연다
+    const noSend = () => { if (mode === 'pc') throw new KmdError('E_FORBIDDEN', '지식 보내기는 팀 화면에서 한다 — 내 PC 지식은 가져오기로 팀 서버의 개인 지식에 옮긴 뒤 보낸다') }
+    const sd = p.match(/^\/api\/k\/([^/]+)\/(send|send\/route|send\/wait|receive|inbox\/tidy|inbox\/send)$/)
     if (sd) {
       const id = decodeURIComponent(sd[1])
-      if (sd[2] === 'send' && req.method === 'GET') return out(200, await hub.sendQueue(ctx, id))
+      if (sd[2] !== 'receive' && sd[2] !== 'inbox/tidy') noSend()
+      if (sd[2] === 'send' && req.method === 'GET') return out(200, await hub.sendView(ctx, id))
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       const b = await readBody(req, sd[2] === 'receive' ? 8 << 20 : MAX_BODY)
-      if (sd[2] === 'send') return out(200, await hub.send(ctx, id, b))
-      if (sd[2] === 'send/dests') return out(200, await hub.sendDests(ctx, id, b.dests))
-      if (sd[2] === 'send/drop') return out(200, await hub.sendDrop(ctx, id, b))
+      if (sd[2] === 'send') return out(200, await hub.sendPicked(ctx, id, b))
+      if (sd[2] === 'send/route') return out(200, await hub.sendRoute(ctx, id, b))
       if (sd[2] === 'send/wait') return out(200, await hub.sendWaitAct(ctx, id, { wid: b.id, act: b.act }))
       if (sd[2] === 'receive') return out(200, await hub.receive(ctx, id, b))
       if (sd[2] === 'inbox/send') return out(200, await hub.inboxSend(ctx, id, b))

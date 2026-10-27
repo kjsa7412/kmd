@@ -88,12 +88,16 @@ test('팀 화면이 내 PC 지식을 연다 — 팀 서버 쪽에 PC 지식 조�
   assert.deepEqual(st, [403, 200, 403, 401])
   // 내 PC 지식을 고른 채 지식 관리 — 팀 서버의 이력 · 가져오는 곳 · 보낼 것을 그 지식의 것처럼 보이지 않는다(내 PC 화면에서 한다) · 지식 수는 갈래마다
   assert.match(await page.locator('[data-t=manageKind]').innerText(), /내 PC 지식/)
-  for (const [nav, title] of [['nav-today', '이력'], ['nav-import', '가져오기'], ['nav-send', '지식 보내기']]) {
+  for (const [nav, title] of [['nav-today', '이력'], ['nav-import', '가져오기']]) {
     await page.click(`[data-t=${nav}]`)
     await page.waitForSelector('[data-t=pcOnly]')
     assert.match(await page.locator('[data-t=pcOnly]').innerText(), new RegExp(`내 PC 지식 「${SECRET}」 — ${title}(은|는) 내 PC 프로그램 화면에서 한다`))
     assert.equal(await page.locator('[data-t=srcTable], [data-t=feed], [data-t=drop]').count(), 0, title)
   }
+  // 지식 보내기는 팀 서버의 내 개인 지식에서만 — 내 PC 지식은 보내는 지식으로 나오지 않는다
+  await page.click('[data-t=nav-send]')
+  await page.waitForSelector('[data-t=sendNone], [data-t=sendRoute]')
+  assert.ok(!(await page.locator('.main').innerText()).includes(SECRET), '내 PC 지식은 지식 보내기에 없다')
   await page.click('[data-t=kpick]')
   await page.click('[data-t=nav-home]')
   assert.match(await page.locator('[data-t=kpick]').innerText(), /팀 \d+ · 내 PC 1/)

@@ -878,3 +878,62 @@ table.done tr.tr-term td{background:var(--surface-2)}
 .pager span{padding:2px 8px;border-radius:5px;cursor:pointer;color:var(--text-2)}.pager span.on{background:var(--accent);color:#fff}
 @media (max-width:1100px){.qwrap{grid-template-columns:1fr}.det{position:static}}
 @media (max-width:760px){.flow{flex-direction:column}.arr{height:14px;width:auto;transform:rotate(90deg)}.det .meta{grid-template-columns:auto 1fr}}
+/* ── 지식 보내기(목업 kmd_지식보내기_목업.html v2) — 보내는 길(보내는 지식 → 받는 지식) · 길 안의 탭 ── */
+.snd{max-width:980px}
+.snd .route{overflow:visible}
+.snd .rrow{display:flex;align-items:stretch;flex-wrap:wrap}
+.snd .rbox{flex:1 1 260px;min-width:0;padding:12px 14px}
+.snd .rbox.todo{background:repeating-linear-gradient(135deg,var(--surface),var(--surface) 8px,var(--surface-2) 8px,var(--surface-2) 16px);border-radius:0 12px 0 0}
+.snd .rbox .lb{font-size:11.5px;color:var(--text-3);margin-bottom:4px;display:flex;gap:6px;align-items:center}
+.snd .rbox .lb svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.8}
+.snd .rbox .nm,.snd .rpick{font-size:17px;font-weight:700;color:var(--text)}
+.snd .rbox .nm.muted{color:var(--text-3)}
+.snd .rpick{border:0;background:none;padding:0 6px 0 0;cursor:pointer;display:inline-flex;gap:8px;align-items:center;border-radius:7px;font-family:inherit}
+.snd .rpick:hover{background:var(--surface-2)}
+.snd .rpick .rc{font-size:11px;color:var(--text-3)}
+.snd .rbox .rsub{font-size:11.5px;color:var(--text-3);margin-top:2px}
+.snd .rarr{flex:none;width:44px;display:grid;place-items:center;color:var(--accent);border-left:1px solid var(--border)}
+.snd .rarr svg,.snd .bigroute svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.snd .rinfo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 14px;border-top:1px solid var(--border);background:var(--surface-2);border-radius:0 0 12px 12px;font-size:12px;color:var(--text-2)}
+.snd .rinfo svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.8}
+.snd .rinfo .btn{margin-left:auto}
+.snd .tabs{margin:0;padding:0 8px}
+.snd .tabs span{display:flex;gap:6px;align-items:center;font-size:13px;padding:8px 14px;white-space:nowrap}
+.snd .tabs em{font-style:normal;font-size:11px;font-weight:700;background:var(--surface-3);color:var(--text-2);border-radius:999px;padding:0 6px}
+.snd .tabs span.on em{background:var(--accent-bg);color:var(--accent)}
+.snd .tabs em.w{background:var(--warn-bg);color:var(--warn)}
+.snd .tbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--border)}
+.snd .tbar .r{margin-left:auto;display:flex;gap:10px;align-items:center}
+.seg.in{display:inline-flex;margin:0;flex:none}
+.seg.in button{flex:none;padding:2px 9px;font-size:11.5px}
+.snd .dlist{max-height:420px;overflow:auto}
+.snd .drow{display:flex;align-items:center;gap:10px;padding:8px 14px;border-top:1px solid var(--border);cursor:pointer}
+.snd .drow:first-child{border-top:0}
+.snd .drow:hover{background:var(--surface-2)}
+.snd .drow.on{background:var(--accent-bg)}
+.snd .drow.dim{cursor:default;color:var(--text-3)}.snd .drow.dim:hover{background:none}
+.snd .drow input{margin:0;flex:none}
+.snd .ic2{width:26px;height:26px;border-radius:7px;background:var(--surface-2);display:grid;place-items:center;flex:none;color:var(--text-2)}
+.snd .ic2 svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8}
+.snd .dn{flex:1;min-width:0}.snd .dn b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.snd .drow.dim .dn b{font-weight:400}
+.snd .dn small{display:block;color:var(--text-3);font-size:11.5px}
+.snd .how{width:120px;text-align:right;font-size:11.5px;color:var(--text-3);flex:none}
+.snd .card>.cf{background:var(--surface-2);border-radius:0 0 12px 12px}
+.snd .mini{display:inline-flex;align-items:center;gap:6px;font-weight:600;color:var(--text)}
+.snd .mini svg{width:14px;height:14px;stroke:var(--accent);fill:none;stroke-width:1.8}
+.snd .feed.flat{border:0;border-radius:0;margin:0}
+.trow{display:flex;align-items:flex-start;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:9px;margin-bottom:6px;cursor:pointer}
+.trow:hover{border-color:var(--border-strong)}
+.trow.on{border-color:var(--accent);background:var(--accent-bg)}
+.trow input{margin:3px 0 0}
+.trow .tn{flex:1;min-width:0}.trow .tn b{display:block}.trow .tn small{display:block;color:var(--text-3);font-size:11.5px}
+.bigroute{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);margin-bottom:12px}
+.bigroute .e{flex:1;min-width:0}.bigroute .e small{display:block;color:var(--text-3);font-size:11.5px}.bigroute .e b{font-size:15px}
+.bigroute svg{width:20px;height:20px;stroke:var(--accent);fill:none;stroke-width:1.8;flex:none}
+.sum li{display:block;padding:4px 0;font-size:12.5px}
+.empty3{padding:28px 14px;text-align:center;color:var(--text-2);display:flex;flex-direction:column;align-items:center;gap:6px}
+.empty3 svg{width:22px;height:22px;stroke:var(--text-3);fill:none;stroke-width:1.8}
+.empty3 p{margin:0 0 6px;font-size:11.5px;color:var(--text-3)}
+.empty3.sm{padding:18px 14px;font-size:12px}
+@media (max-width:760px){.snd .rarr{width:100%;height:30px;border-left:0;border-top:1px solid var(--border);transform:rotate(90deg)}}

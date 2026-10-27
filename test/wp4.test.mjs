@@ -111,10 +111,11 @@ test('관리자는 화면에서 팀 지식을 세운다 · 주인 넘기기 · �
   assert.equal(r.id, '보안점검')
   assert.ok((await get('/api/knowledge', park).then((x) => x.json())).some((k) => k.id === '보안점검' && !k.private), '팀 모두 본다')
   assert.equal(await code(s.hub.addKnowledge({ user: 'park' }, { kind: 'new', name: '몰래팀', team: true })), 'E_FORBIDDEN')
-  // 팀 서버에 지식을 세우는 것은 관리자만 — 사람의 내 지식은 내 PC 에(팀 화면의 새 지식 › 내 PC)
+  // 팀 지식은 관리자만 — 개인 지식(팀 서버 · 나만)은 누구나 세운다 · 남에게는 보이지 않는다
   const r2 = await post('/api/knowledge/add', park, { kind: 'new', name: '내 메모' }).then((x) => x.json())
-  assert.equal(r2.error, 'E_FORBIDDEN')
-  assert.match(r2.message, /팀 서버에 지식을 세우는 것은 관리자가 한다 — 내 지식은 내 PC 에/)
+  assert.equal(r2.id, '내-메모-park')
+  assert.ok((await get('/api/knowledge', park).then((x) => x.json())).some((k) => k.id === r2.id && k.private), '개인 지식')
+  assert.ok(!(await get('/api/knowledge', kim).then((x) => x.json())).some((k) => k.id === r2.id), '주인만 본다')
   // 비밀번호 한 번 더가 끝난 관리자 — 주인 넘기기 · 개인으로 돌리기 · 지우기는 E_SUDO
   const kim2 = { ...kim }
   kim2.cookie = (await fetch(s.url + '/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ user: 'kim', pw: prehash('kim', kim.pw) }) })).headers.getSetCookie().map((c) => c.split(';')[0]).join('; ')

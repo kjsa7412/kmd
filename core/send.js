@@ -46,7 +46,8 @@ export async function readState(dataDir, id) {
   const s = await fs.readFile(stateFile(dataDir, id), 'utf8').then(JSON.parse, () => ({}))
   // wait — 보내지 못한 것: state 'wait'(닿지 않음 — 저절로 다시) · 'fail'(거절 — 사람이 [다시] · [버리기]) · 줄마다 id
   const wait = (s.wait || []).map((w, i) => ({ id: w.id || `w${i}${String(w.at || '').replace(/\D/g, '').slice(-8)}`, state: w.state || 'wait', ...w }))
-  return { sent: s.sent || {}, dropped: s.dropped || {}, sentRecs: s.sentRecs || {}, recSince: s.recSince || null, wait, log: s.log || [] }
+  // route — 팀 화면의 보내는 길을 정한 때({ kn, since }) · sentRecs 값은 보낸 때(예전 것은 true)
+  return { sent: s.sent || {}, dropped: s.dropped || {}, sentRecs: s.sentRecs || {}, recSince: s.recSince || null, route: s.route || null, wait, log: s.log || [] }
 }
 export async function writeState(dataDir, id, st) {
   await fs.mkdir(path.join(dataDir, 'send'), { recursive: true })
