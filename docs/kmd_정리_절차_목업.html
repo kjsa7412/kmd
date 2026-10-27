@@ -1,0 +1,907 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>정리 절차 목업</title>
+<style>
+/* 토큰 · 부품은 app/kmd.css 와 같은 값 — 아래 「정리 목업 새 부품」 만 새로 */
+:root{
+  --bg:#f6f7f9;--surface:#fff;--surface-2:#f1f3f7;--surface-3:#e6eaf0;--border:#e2e6ed;--border-strong:#c9d1dd;
+  --text:#11151c;--text-2:#515a68;--text-3:#858e9d;--accent:#3358e6;--accent-bg:#e9eeff;--accent-line:#c3d0fb;
+  --danger:#cb3a2c;--danger-bg:#fdeceb;--warn:#8c5c00;--warn-bg:#fcf3e0;--pending:#6247c4;--pending-bg:#efedfd;
+  --ok:#2e9b5b;--ok-bg:#e6f5ec;
+  --shadow-1:0 1px 2px rgba(15,23,42,.05),0 1px 3px rgba(15,23,42,.07);
+  --shadow-2:0 2px 6px -1px rgba(15,23,42,.08),0 14px 32px -8px rgba(15,23,42,.18);
+  --font:Pretendard,-apple-system,"Segoe UI",system-ui,"Malgun Gothic",sans-serif;
+  --mono:Consolas,"Cascadia Mono",D2Coding,"Malgun Gothic",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#dfe3ea;color:var(--text);font:13px/1.55 var(--font)}
+button,input,select{font:inherit}
+a{color:var(--accent);cursor:pointer}
+svg.i{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;flex:none}
+
+/* ── 목업 조종판(목업 밖) ── */
+.mframe{display:flex;min-height:100vh}
+.mnav{width:250px;flex:none;background:#1b2130;color:#cfd6e4;padding:18px 12px;position:sticky;top:0;height:100vh;overflow:auto}
+.mnav h1{font-size:14px;margin:0 6px 4px;color:#fff}
+.mnav p{margin:0 6px 12px;font-size:11.5px;color:#8f9bb3}
+.mnav .g{font-size:11px;color:#6f7a90;margin:16px 6px 6px;text-transform:none}
+.mnav button{display:block;width:100%;text-align:left;background:none;border:0;color:inherit;padding:6px 10px;border-radius:6px;font-size:12.5px;cursor:pointer}
+.mnav button:hover{background:#2a3246}
+.mnav button.on{background:#3358e6;color:#fff}
+.mnav button small{display:block;color:#7f8aa1;font-size:11px}
+.mnav button.on small{color:#dfe6ff}
+.mstage{flex:1;min-width:0;padding:20px}
+
+/* ── 앱 프레임 · 부품(kmd.css 와 같다) ── */
+.app{max-width:1360px;margin:0 auto;background:var(--bg);border:1px solid var(--border-strong);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,.18);display:flex;min-height:calc(100vh - 40px)}
+.side{width:220px;flex:none;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:12px 10px}
+.sb-top{display:flex;align-items:center;gap:8px;padding:2px 6px 10px}
+.logo{width:22px;height:22px;border-radius:6px;background:#11151c;color:#fff;display:grid;place-items:center;font-weight:700;font-size:12px}
+.brand{font-weight:700;font-size:15px}
+.busy{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ok);font-weight:600}
+.busy i{width:8px;height:8px;border-radius:50%;background:var(--ok);animation:blink 1.4s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.sb-repo{border:1px solid var(--border-strong);border-radius:10px;padding:8px 10px;margin-bottom:8px;display:flex;gap:8px;align-items:center}
+.sb-repo .rk{font:700 10.5px var(--mono);background:var(--accent-bg);color:var(--accent);border-radius:5px;padding:2px 5px}
+.sb-repo small{display:block;font-size:10.5px;color:var(--text-3)}
+.sb-g{font-size:11.5px;color:var(--text-3);margin:12px 8px 4px}
+.sb-i{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;color:var(--text)}
+.sb-i.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.sb-i .bd{margin-left:auto;background:var(--pending-bg);color:var(--pending);font-size:11px;font-weight:700;border-radius:999px;padding:0 7px}
+.sb-foot{margin-top:auto;border-top:1px solid var(--border);padding-top:6px}
+.col{flex:1;min-width:0;display:flex;flex-direction:column}
+.hdr{height:46px;display:flex;align-items:center;gap:10px;padding:0 14px;background:var(--surface);border-bottom:1px solid var(--border)}
+.crumb{font-size:13px;color:var(--text-3)}.crumb b{color:var(--text)}
+.band{display:flex;align-items:center;gap:10px;padding:6px 14px;font-size:12px;border-bottom:1px solid var(--border);background:var(--surface-2);color:var(--text-2)}
+.band b{color:var(--text)}
+.main{flex:1;padding:18px 22px;overflow:auto;min-width:0}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.c-warn{background:var(--warn-bg);color:var(--warn)}.c-pend{background:var(--pending-bg);color:var(--pending)}.c-mute{background:var(--surface-3);color:var(--text-2)}
+.c-acc{background:var(--accent-bg);color:var(--accent)}.c-danger{background:var(--danger-bg);color:var(--danger)}.c-ok{background:var(--ok-bg);color:var(--ok)}
+.btn{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 11px;border-radius:7px;border:1px solid var(--border-strong);background:var(--surface);font-size:12px;cursor:pointer;color:var(--text);white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}.btn.pri:hover{background:#2a4bd0}
+.btn.sm{height:24px;padding:0 8px;font-size:11.5px}
+.btn.ghost{border-color:transparent;background:none}.btn.ghost:hover{background:var(--surface-2)}
+.btn.dz{color:var(--danger)}
+.btn[disabled]{opacity:.45;cursor:default}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1);margin-bottom:14px}
+.big{font-size:20px;font-weight:700;margin:0 0 4px}
+.lead{color:var(--text-2);margin:0}
+.pg-h{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px}
+.pg-h .acts{margin-left:auto;display:flex;gap:8px;flex:none}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin:0 0 14px}
+.tabs span{padding:8px 14px;font-size:13px;color:var(--text-2);border-bottom:2px solid transparent;cursor:pointer;display:flex;gap:6px;align-items:center}
+.tabs span.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.tabs span em{font-style:normal;font-size:11px;font-weight:700;background:var(--surface-3);color:var(--text-2);border-radius:999px;padding:0 6px}
+.tabs span.on em{background:var(--accent-bg);color:var(--accent)}
+.tabs span em.w{background:var(--warn-bg);color:var(--warn)}
+.term{background:#0f141c;color:#d7dde8;border-radius:10px;font:12px/1.6 var(--mono);padding:10px 12px;height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.term .say{color:#e8ecf3}.term .tool{color:#8fb0ff}.term .ok{color:#7fd69a}.term .err{color:#ff8f86}.term .sys,.term .cost{color:#7d8696}
+.term .tm{color:#5c6574;margin-right:8px}
+.term .sg{display:inline-block;min-width:44px;color:#5c6574;margin-right:6px}
+.term .cur::after{content:'▍';color:#8fb0ff;animation:blink 1s steps(2) infinite}
+.inp{min-height:28px;border:1px solid var(--border-strong);border-radius:7px;padding:3px 8px;font-size:12px;background:#fff}
+.gl{font-size:11.5px;color:var(--text-3);margin:8px 2px 0;line-height:1.7}
+.slist{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1)}
+.srow{display:flex;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid var(--border)}
+.srow:first-child{border-top:0}
+.srow .si{width:30px;height:30px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;flex:none;color:var(--text-2)}
+.srow .sn{min-width:0;flex:1 1 220px}.srow .sn b{display:block}.srow .sn small,.srow .sc small{display:block;color:var(--text-3);font-size:11.5px}
+.srow .sc{flex:0 1 230px;font-size:12px;color:var(--text-2)}
+.srow .sa{flex:none;display:flex;gap:6px}
+
+/* ── 새 부품 ── */
+/* 들이기 막대 — 끌어다 놓기는 화면 어디든 되고 이 막대는 한 줄 */
+.dropbar{display:flex;align-items:center;gap:10px;border:2px dashed var(--border-strong);border-radius:10px;padding:8px 12px;background:var(--surface);font-size:12.5px;color:var(--text-2);margin-bottom:12px;flex-wrap:wrap}
+.dropbar b{color:var(--text)}
+.dropbar .r{margin-left:auto;display:flex;gap:8px;align-items:center}
+.dropbar.over{background:var(--accent-bg);border-color:var(--accent)}
+/* 일 줄 머리 — 갈래 거르기 · 동시에 도는 수 · 줄 멈춤 */
+.qbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.qf{border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer;color:var(--text-2);display:flex;gap:5px;align-items:center}
+.qf.on{border-color:var(--accent);background:var(--accent-bg);color:var(--accent);font-weight:600}
+.qf b{font-weight:700}
+.qbar .r{margin-left:auto;display:flex;gap:8px;align-items:center;font-size:12px;color:var(--text-3)}
+.lane{display:inline-flex;gap:4px;align-items:center;border:1px solid var(--border);border-radius:7px;padding:2px 8px;background:var(--surface);color:var(--text-2)}
+.lane i{width:7px;height:7px;border-radius:50%;background:var(--surface-3)}.lane i.on{background:var(--ok)}
+.paused-band{display:flex;gap:10px;align-items:center;background:var(--warn-bg);border:1px solid #ecd39c;color:var(--warn);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12.5px}
+.paused-band .btn{margin-left:auto}
+/* 두 칸 — 왼쪽 줄 · 오른쪽 자세히 */
+.qwrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:14px;align-items:start}
+.qlist{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1);overflow:hidden}
+.qg{display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--surface-2);border-top:1px solid var(--border);font-size:11.5px;font-weight:700;color:var(--text-2)}
+.qg:first-child{border-top:0}
+.qg small{font-weight:400;color:var(--text-3)}
+.qg .r{margin-left:auto;font-weight:400}
+.qrow{display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid var(--border);cursor:pointer;position:relative}
+.qrow:hover{background:#fafbfd}
+.qrow.sel{background:var(--accent-bg)}
+.qrow.sel::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
+.qrow .grip{color:var(--text-3);cursor:grab;width:10px;font-size:12px;letter-spacing:-2px;flex:none}
+.qrow .ord{font:600 11px var(--mono);color:var(--text-3);width:14px;text-align:right;flex:none}
+.qrow .ic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;flex:none;background:var(--surface-2);color:var(--text-2)}
+.qrow .ic.file{background:#eef2ff;color:var(--accent)}.qrow .ic.git{background:#f2eefe;color:var(--pending)}.qrow .ic.docs{background:#eaf6ef;color:var(--ok)}.qrow .ic.db{background:#fdf3e2;color:var(--warn)}
+.qrow .tx{min-width:0;flex:1}
+.qrow .tx b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qrow .tx small{display:block;color:var(--text-3);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qrow .ac{display:flex;gap:4px;flex:none}
+.qrow .el{font:11px var(--mono);color:var(--text-3);width:44px;text-align:right;flex:none}
+.auto{font-size:10.5px;font-weight:700;color:var(--text-3);border:1px solid var(--border);border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:1px}
+/* 작은 단계 막대 — 네 칸 */
+.mini{display:flex;gap:2px;flex:none;width:76px}
+.mini i{flex:1;height:6px;border-radius:2px;background:var(--surface-3)}
+.mini i.done{background:var(--ok)}.mini i.run{background:var(--accent);animation:blink 1.2s ease-in-out infinite}
+.mini i.pause,.mini i.check{background:#d39a2c}.mini i.fail{background:var(--danger)}.mini i.cancel{background:var(--text-3)}
+.mini-l{font-size:11px;color:var(--text-3);margin-top:3px;white-space:nowrap}
+.qmore{padding:8px 12px;border-top:1px solid var(--border);font-size:12px;color:var(--text-3);text-align:center}
+/* 자세히 */
+.det{position:sticky;top:0}
+.det .dh{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start}
+.det .dh .t{min-width:0;flex:1}
+.det .dh b{font-size:14.5px;display:block}
+.det .dh small{color:var(--text-3);font-size:12px}
+.det .ctl{display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--border);align-items:center}
+.det .ctl .note{font-size:11.5px;color:var(--text-3);margin-left:auto}
+.det .sec{padding:12px 14px;border-bottom:1px solid var(--border)}
+.det .sec:last-child{border-bottom:0}
+.det .sh{font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:8px;display:flex;gap:8px;align-items:center}
+.det .sh .r{margin-left:auto;font-weight:400}
+.meta{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:4px 12px;font-size:12px}
+.meta dt{color:var(--text-3)}.meta dd{margin:0;color:var(--text)}
+/* 흐름 그림 — 단계 상자와 화살표 */
+.flow{display:flex;align-items:stretch;gap:0}
+.st{flex:1;min-width:0;border:1.5px solid var(--border);border-radius:10px;padding:8px 9px;background:var(--surface);cursor:pointer;position:relative}
+.st:hover{border-color:var(--border-strong)}
+.st .n{font-size:10.5px;color:var(--text-3);font-weight:700;display:flex;justify-content:space-between}
+.st .nm{font-weight:700;font-size:13px;margin:1px 0 4px}
+.st ul{list-style:none;margin:0;padding:0;font-size:11px;color:var(--text-2)}
+.st li{display:flex;gap:5px;align-items:baseline;line-height:1.5}
+.st li::before{content:'○';color:var(--text-3);font-size:9px}
+.st li.d::before{content:'✓';color:var(--ok);font-weight:700}
+.st li.r::before{content:'●';color:var(--accent);animation:blink 1s infinite}
+.st li.x::before{content:'✕';color:var(--danger);font-weight:700}
+.st li.p::before{content:'Ⅱ';color:var(--warn);font-weight:700}
+.st .tt{font:10.5px var(--mono);color:var(--text-3);margin-top:5px}
+.st.done{border-color:#bfe3cc;background:#f6fbf8}.st.done .n{color:var(--ok)}
+.st.run{border-color:var(--accent);background:#f7f9ff;box-shadow:0 0 0 3px var(--accent-bg)}.st.run .n{color:var(--accent)}
+.st.pause,.st.check{border-color:#e6c27a;background:#fffbf2}.st.pause .n,.st.check .n{color:var(--warn)}
+.st.fail{border-color:#efb7b1;background:#fff8f7}.st.fail .n{color:var(--danger)}
+.st.cancel{opacity:.55}
+.st.focus{outline:2px solid var(--text);outline-offset:1px}
+.arr{flex:none;width:16px;display:grid;place-items:center;color:var(--border-strong);font-size:14px}
+.arr.done{color:var(--ok)}
+.callout{border-radius:8px;padding:9px 12px;font-size:12.5px;margin:0 0 10px;display:flex;gap:10px;align-items:flex-start}
+.callout.warn{background:var(--warn-bg);border:1px solid #ecd39c;color:var(--warn)}
+.callout.danger{background:var(--danger-bg);border:1px solid #efb7b1;color:var(--danger)}
+.callout.gray{background:var(--surface-2);border:1px solid var(--border);color:var(--text-2)}
+.callout .acts{margin-left:auto;display:flex;gap:6px;flex:none}
+.tfil{display:flex;gap:2px;margin-left:auto}
+.tfil span{font-size:11px;padding:1px 7px;border-radius:5px;cursor:pointer;color:var(--text-3);font-weight:400}
+.tfil span.on{background:#0f141c;color:#fff}
+.res{list-style:none;margin:0;padding:0;font-size:12px}
+.res li{display:flex;gap:8px;align-items:center;padding:4px 0;border-top:1px dashed var(--border)}
+.res li:first-child{border-top:0}
+.res li .k{width:46px;flex:none}
+.res li a{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.children{max-height:150px;overflow:auto;font-size:11.5px;border:1px solid var(--border);border-radius:8px}
+.children div{display:flex;gap:8px;padding:4px 8px;border-top:1px solid var(--border);align-items:center}
+.children div:first-child{border-top:0}
+.children .mono{font-family:var(--mono);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty{padding:40px 20px;text-align:center;color:var(--text-3)}
+.empty b{display:block;color:var(--text);font-size:14px;margin-bottom:4px}
+/* 끝난 일 표 */
+table.done{width:100%;border-collapse:collapse;font-size:12.5px}
+table.done th{text-align:left;font-weight:600;color:var(--text-3);font-size:11.5px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface-2)}
+table.done td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+table.done tr.day td{background:#fafbfd;font-weight:700;font-size:11.5px;color:var(--text-2);padding:5px 12px}
+table.done td.m{font:11.5px var(--mono);color:var(--text-3);white-space:nowrap}
+.pager{display:flex;gap:4px;justify-content:center;padding:10px;font-size:12px}
+.pager span{padding:2px 8px;border-radius:5px;cursor:pointer;color:var(--text-2)}.pager span.on{background:var(--accent);color:#fff}
+/* 창 */
+.scrim{position:fixed;inset:0;background:rgba(15,23,42,.35);display:grid;place-items:center;z-index:50}
+.modal{background:var(--surface);border-radius:12px;box-shadow:var(--shadow-2);width:min(460px,92vw)}
+.modal .mh{padding:14px 16px 6px;font-weight:700;font-size:14.5px}
+.modal .mb{padding:4px 16px 12px;font-size:12.5px;color:var(--text-2)}
+.modal .mb ul{margin:8px 0;padding-left:18px}
+.modal .mf{display:flex;gap:8px;justify-content:flex-end;padding:10px 16px;border-top:1px solid var(--border)}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#11151c;color:#fff;padding:8px 14px;border-radius:8px;font-size:12.5px;z-index:60;box-shadow:var(--shadow-2)}
+
+/* ── 검토안 ── */
+.doc{max-width:980px;margin:0 auto;background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;padding:28px 36px;box-shadow:0 10px 30px rgba(15,23,42,.12)}
+.doc h2{font-size:20px;margin:0 0 4px}
+.doc h3{font-size:15px;margin:26px 0 8px;padding-top:14px;border-top:1px solid var(--border)}
+.doc p,.doc li{color:var(--text-2);line-height:1.75}
+.doc li b,.doc p b{color:var(--text)}
+.doc table{width:100%;border-collapse:collapse;font-size:12.5px;margin:6px 0}
+.doc th,.doc td{border:1px solid var(--border);padding:6px 9px;text-align:left;vertical-align:top}
+.doc th{background:var(--surface-2);font-weight:600}
+.doc code{font:12px var(--mono);background:var(--surface-2);border-radius:4px;padding:0 4px}
+.sm-flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px;margin:8px 0}
+.sm-flow span{border:1.5px solid var(--border-strong);border-radius:8px;padding:4px 10px;font-weight:600;background:#fff}
+.sm-flow .a{border:0;color:var(--text-3);padding:0;font-weight:400;background:none}
+.ask{background:var(--pending-bg);border:1px solid #d9d2fb;border-radius:10px;padding:10px 16px}
+.ask li{color:var(--pending)}
+@media (max-width:1100px){.qwrap{grid-template-columns:1fr}.det{position:static}.side{display:none}}
+@media (max-width:760px){.mframe{flex-direction:column}.mnav{width:auto;height:auto;position:static}.mstage{padding:10px}.meta{grid-template-columns:auto 1fr}.flow{flex-direction:column}.arr{transform:rotate(90deg);height:14px;width:auto}}
+
+/* ── 정리 목업 새 부품 ── */
+/* 현황판 — 다섯 칸 같은 꼴 · 단계 이름 · 큰 수 · 단위 · 꼬리 칩 한 줄 · 설명은 칸에 올리면 툴팁 */
+.proc{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1);margin-bottom:14px}
+.proc .ps{position:relative;padding:12px 14px;border-left:1px solid var(--border);display:flex;flex-direction:column;gap:2px;cursor:default;min-width:0}
+.proc .ps:first-child{border-left:0}
+.proc .ps:not(:last-child)::after{content:'›';position:absolute;right:-6px;top:50%;transform:translateY(-50%);width:12px;height:18px;line-height:16px;text-align:center;background:var(--surface);color:var(--text-3);font-size:13px;z-index:1}
+.proc .ps .hd{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--text-2)}
+.proc .ps .hd .no{font:700 10.5px var(--mono);color:var(--text-3)}
+.proc .ps .hd .qi{margin-left:auto;width:15px;height:15px;border-radius:50%;border:1px solid var(--border-strong);color:var(--text-3);font-size:10px;line-height:13px;text-align:center;font-weight:700}
+.proc .ps .vl{display:flex;align-items:baseline;gap:6px}
+.proc .ps .vl em{font-style:normal;font:700 22px/1.2 var(--mono);color:var(--text)}
+.proc .ps .vl small{font-size:11.5px;color:var(--text-3)}
+.proc .ps .ft{height:20px;display:flex;align-items:center}
+.proc .ps.done .hd .no,.proc .ps.done .hd{color:var(--ok)}
+.proc .ps.run{background:#f7f9ff;box-shadow:inset 0 -2px 0 var(--accent)}.proc .ps.run .hd{color:var(--accent)}.proc .ps.run .vl em{color:var(--accent)}
+.proc .ps.warn .vl em{color:var(--warn)}
+.proc .ps .tip{display:none;position:absolute;top:calc(100% + 6px);left:8px;width:260px;background:#11151c;color:#e8ecf3;font-size:11.5px;line-height:1.6;border-radius:8px;padding:8px 10px;box-shadow:var(--shadow-2);z-index:30;font-weight:400}
+.proc .ps:last-child .tip,.proc .ps:nth-last-child(2) .tip{left:auto;right:8px}
+.proc .ps:hover .tip{display:block}
+.proc .ps:hover .qi{border-color:var(--accent);color:var(--accent)}
+/* 받은 기록 그리드 — 머리 줄 하나 · 칸이 같은 자리에 선다 · 좁으면 두 줄로 */
+.gl2{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1);margin-bottom:14px;container-type:inline-size}
+.gr{display:grid;grid-template-columns:20px 28px 62px minmax(0,1fr) 92px 172px 100px 24px;gap:0 10px;align-items:center;padding:8px 14px;border-top:1px solid var(--border)}
+.gl2.h .gr{grid-template-columns:28px minmax(0,1fr) 92px 172px 100px 24px}
+.gr:hover{background:#fafbfd}
+.gr.sel{background:var(--accent-bg)}
+.gr.dim{opacity:.6}
+.gr.chg{background:#fffbf2}
+.gr.hd{border-top:0;background:var(--surface-2);font-size:11.5px;font-weight:600;color:var(--text-3);padding:7px 14px;border-radius:12px 12px 0 0;position:sticky;top:0;z-index:4}
+.gr.hd:hover{background:var(--surface-2)}
+.gr > div{min-width:0}
+.gr .c-tx b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gr .c-tx small{display:block;color:var(--text-3);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gr .c-to{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
+.gr .c-to .to{max-width:100%}
+.gr .nil{color:var(--border-strong)}
+.gh{display:flex;align-items:center;gap:10px;padding:8px 14px;border-top:1px solid var(--border-strong);background:#fafbfd}
+.gh .t{flex:1;min-width:0}.gh .t b{font-size:13px}.gh .t small{display:block;color:var(--text-3);font-size:11.5px}
+.gh .r{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.gh.top{border-top:0;background:var(--surface);border-radius:12px;cursor:pointer}
+.gh.top + .gr.hd{border-radius:0;border-top:1px solid var(--border)}
+/* 트리 — 묶음 줄(사람 · 자리 · 결과) 아래 기록은 살짝 들여 쓰고 왼쪽에 잇는 줄 */
+.gr.hd,.gr.it{padding-left:36px}
+.gr.it{position:relative}
+.gr.it::before{content:'';position:absolute;left:21px;top:0;bottom:0;border-left:1.5px solid var(--border-strong)}
+.gr.it.last::before{bottom:50%}
+.gr.it::after{content:'';position:absolute;left:21px;top:50%;width:8px;border-top:1.5px solid var(--border-strong)}
+.gl2.h .gr.it::before,.gl2.h .gr.it::after{left:23px}
+.gl2.h .gr{grid-template-columns:76px minmax(0,1fr) 84px minmax(120px,180px) 92px 24px}
+.gl2.h .gr .c-av{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden}
+.gl2.h .gr .c-tx .why{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@container (max-width:760px){
+ .gl2:not(.h) .gr{display:flex;flex-wrap:wrap;gap:6px 10px}
+ .gl2:not(.h) .gr.hd{display:none}
+ .gl2:not(.h) .gr .c-ck{order:1}.gl2:not(.h) .gr .c-av{order:2}.gl2:not(.h) .gr .c-tx{order:3;flex:1 1 calc(100% - 110px)}.gl2:not(.h) .gr .c-mk{order:4}
+ .gl2:not(.h) .gr .c-rt{order:5;margin-left:58px}.gl2:not(.h) .gr .c-vl{order:6}.gl2:not(.h) .gr .c-to{order:7}.gl2:not(.h) .gr .c-st{order:8}
+ .gl2:not(.h) .gr .c-vl:has(.nil){display:none}
+}
+@container (max-width:480px){
+ .gl2.h .gr{display:flex;flex-wrap:wrap;gap:6px 10px}
+ .gl2.h .gr.hd{display:none}
+ .gl2.h .gr .c-av{order:1}.gl2.h .gr .c-tx{order:2;flex:1 1 calc(100% - 140px)}.gl2.h .gr .c-mk{order:3}.gl2.h .gr .c-vl{order:4;margin-left:86px}.gl2.h .gr .c-to{order:5}.gl2.h .gr .c-st{order:6}.gl2.h .gr .c-vl:has(.nil){display:none}
+}
+.go{display:flex;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--accent-line);border-radius:12px;padding:10px 14px;margin-bottom:14px;box-shadow:var(--shadow-1)}
+.go .tx{flex:1;min-width:0}.go .tx b{display:block}.go .tx small{color:var(--text-3);font-size:11.5px}
+.go .prog{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--accent);font-weight:600}
+.go .prog i{width:90px;height:6px;border-radius:3px;background:var(--accent-bg);position:relative;overflow:hidden}
+.go .prog i::after{content:'';position:absolute;left:0;top:0;bottom:0;width:44%;background:var(--accent);border-radius:3px}
+.seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:7px;overflow:hidden;background:var(--surface)}
+.seg span{padding:3px 10px;font-size:12px;cursor:pointer;color:var(--text-2);border-left:1px solid var(--border)}
+.seg span:first-child{border-left:0}
+.seg span.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.lbl{font-size:11.5px;color:var(--text-3)}
+/* 들어온 길 표지 */
+.rt{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;border-radius:5px;padding:1px 6px;white-space:nowrap;flex:none}
+.rt.sess{background:#eef2ff;color:var(--accent)}.rt.send{background:#f2eefe;color:var(--pending)}.rt.file{background:#eaf6ef;color:var(--ok)}.rt.code{background:#fdf3e2;color:var(--warn)}.rt.memo{background:var(--surface-3);color:var(--text-2)}
+.rt svg.i{width:12px;height:12px}
+/* 아바타 */
+.av{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:12px;flex:none;background:var(--surface-3);color:var(--text-2)}
+.av.a1{background:#e3ebff;color:#2a4bd0}.av.a2{background:#f1e7ff;color:#7440c9}.av.a3{background:#e2f4ea;color:#23824b}.av.a4{background:#fdeedd;color:#9a5a00}.av.a5{background:#e6eaf0;color:#515a68}
+.av.sm{width:20px;height:20px;font-size:10px}
+.avs{display:flex}.avs .av{border:2px solid #fff;margin-left:-6px}.avs .av:first-child{margin-left:0}
+/* 보낸 사람 카드 · 자리 카드 */
+.pc{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1);margin-bottom:14px}
+.pc .ph{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface-2);border-radius:12px 12px 0 0;border-bottom:1px solid var(--border)}
+.pc .ph .t{flex:1;min-width:0}.pc .ph .t b{font-size:13px}.pc .ph .t small{display:block;color:var(--text-3);font-size:11.5px}
+.pc .ph .r{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.pc .pf{padding:8px 14px;border-top:1px solid var(--border);font-size:11.5px;color:var(--text-3);display:flex;gap:8px;align-items:center}
+.ck{width:15px;height:15px;accent-color:var(--accent);flex:none;margin:0;cursor:pointer}
+.rr{display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid var(--border);position:relative}
+.rr:first-of-type{border-top:0}
+.rr:hover{background:#fafbfd}
+.rr.dim{opacity:.6}
+.rr.sel{background:var(--accent-bg)}
+.rr .tx{min-width:0;flex:1}
+.rr .tx b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rr .tx small{display:block;color:var(--text-3);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rr .who{font-size:12px;color:var(--text-2);width:40px;flex:none}
+.to{display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:600;color:var(--accent);background:var(--accent-bg);border-radius:6px;padding:2px 7px;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis;flex:none}
+.to.none{color:var(--warn);background:var(--warn-bg)}
+.to.off{color:var(--text-3);background:var(--surface-3)}
+.vchg{font:600 11.5px var(--mono);color:var(--warn);white-space:nowrap;flex:none}
+.why{font-size:11.5px;color:var(--warn);margin-top:2px;white-space:normal}
+.kebab{width:24px;height:24px;border-radius:6px;border:0;background:none;cursor:pointer;color:var(--text-3);font-size:14px;flex:none;position:relative}
+.kebab:hover,.kebab.on{background:var(--surface-2);color:var(--text)}
+.pop{position:absolute;right:0;top:26px;z-index:20;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-2);min-width:200px;padding:4px;text-align:left}
+.pop div{padding:6px 10px;border-radius:6px;font-size:12px;color:var(--text);cursor:pointer;white-space:nowrap}
+.pop div small{display:block;color:var(--text-3);font-size:11px}
+.pop div:hover{background:var(--surface-2)}
+.pop .sep{height:1px;background:var(--border);padding:0;margin:4px 0}
+.pop .g{color:var(--text-3);font-size:11px;cursor:default}.pop .g:hover{background:none}
+/* 고른 것 띠 — 아래에 붙는다 */
+.selbar{position:sticky;bottom:0;display:flex;gap:10px;align-items:center;background:#11151c;color:#fff;border-radius:10px;padding:8px 10px 8px 14px;margin-top:4px;box-shadow:var(--shadow-2);font-size:12.5px;z-index:5}
+.selbar small{color:#9aa3b2}
+.selbar .r{margin-left:auto;display:flex;gap:6px}
+.selbar .btn.ghost{color:#cfd6e4}.selbar .btn.ghost:hover{background:#262d3b}
+/* 결과 요약 */
+.sum{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.diff{border:1px solid var(--border);border-radius:8px;font:12px/1.65 var(--mono);overflow:hidden}
+.diff div{padding:1px 10px;white-space:pre-wrap;overflow-wrap:anywhere}
+.diff .h{background:var(--surface-2);color:var(--text-3);font-family:var(--font);font-size:11.5px;padding:4px 10px}
+.diff .d{background:#fdeceb;color:#8f2a20}.diff .d::before{content:'− ';color:var(--danger)}
+.diff .a{background:#e6f5ec;color:#1d6b3e}.diff .a::before{content:'+ ';color:var(--ok)}
+.diff .c{color:var(--text-2)}.diff .c::before{content:'  '}
+.diff .lg{color:var(--text-3);font-style:italic}
+.feed{list-style:none;margin:0;padding:0;font-size:12px}
+.feed li{display:flex;gap:8px;align-items:center;padding:5px 0;border-top:1px dashed var(--border)}
+.feed li:first-child{border-top:0}
+.feed li .tx{flex:1;min-width:0}
+.feed li .tx small{color:var(--text-3)}
+.trow{display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer}
+.trow.on{border-color:var(--accent);background:var(--accent-bg)}
+.trow .tx{flex:1}.trow .tx small{display:block;color:var(--text-3);font-size:11.5px}
+.who-band{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--text-2)}
+.modal.w560{width:min(560px,92vw)}.modal.w760{width:min(760px,94vw)}
+.modal .mh{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);padding-bottom:10px}
+.modal .mh small{font-weight:400;color:var(--text-3);font-size:11.5px}
+.modal .mh .x{margin-left:auto;border:0;background:none;font-size:18px;cursor:pointer;color:var(--text-3)}
+.modal .mb{padding-top:12px}
+.modal .mf .l{margin-right:auto;font-size:11.5px;color:var(--text-3);align-self:center}
+.side .sb-i svg.i{color:var(--text-3)}
+.side .sb-i.on svg.i{color:var(--accent)}
+.sb-kn{font-size:11px;color:var(--text-3);padding:4px 10px 0}
+@media (max-width:1100px){.proc .ps::after{display:none!important}}
+@media (max-width:760px){.proc .ps{border-top:1px solid var(--border)}.pc .ph{flex-wrap:wrap}.go{flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<div class="mframe">
+ <nav class="mnav" id="mnav"></nav>
+ <div class="mstage" id="stage"></div>
+</div>
+<script>
+// ───────────── 아이콘 ─────────────
+const IC = {
+  sess:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  send:'<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/>',
+  file:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
+  code:'<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="8" r="2.5"/><path d="M6 8.5v7M18 10.5c0 4-6 3-10 6"/>',
+  memo:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  doc:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
+  hour:'<path d="M6 2h12M6 22h12M7 2c0 6 10 6 10 10S7 16 7 22M17 2c0 6-10 6-10 10s10 4 10 10"/>',
+  plug:'<path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  term:'<path d="m4 17 6-6-6-6M12 19h8"/>',
+  lock:'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+}
+const svg = (k) => `<svg class="i" viewBox="0 0 24 24">${IC[k] || ''}</svg>`
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+
+// ───────────── 데이터 ─────────────
+// 들어온 길 — 기록의 태그 · 작성 경로로 가른다(서버는 이미 안다: sent/<지문> · ingest/ · code-change · kmd 도구 저장)
+const ROUTE = {
+  sess: ['세션', 'Claude Code 대화에서 kmd 도구로 남김'],
+  send: ['보내기', '개인 지식에서 지식 보내기로 보냄'],
+  memo: ['메모', '화면에서 바로 쓴 메모'],
+  file: ['파일', '가져오기로 들인 파일'],
+  code: ['코드', '가져오기 git 이 남긴 코드 바뀜'],
+}
+const KNS = { dpms: 'DPMS 지식', gdi: 'GDI 지식' }
+const PEOPLE = {
+  lee: { n: 'lee', c: 'a1', role: '일반' },
+  kim2: { n: '김', c: 'a2', role: '일반' },
+  park: { n: 'park', c: 'a3', role: '일반' },
+  choi: { n: '최', c: 'a4', role: '일반' },
+  kim: { n: 'kim', c: 'a1', role: '관리자 · 나' },
+  git: { n: 'kmd-소스', c: 'a5', role: '가져오기 git · 자동' },
+}
+// st: ok(자리 찾음) · again(지난 정리에서 둠 → 다시) · none(자리 못 찾음) · priv(정리 안 함)
+const RECS = [
+  { id: 'r1', who: 'lee', route: 'sess', kn: 'dpms', t: '카나리 비율 10% → 20%', at: '어제 13:13', to: ['배포절차 › 카나리'], st: 'ok', v: '10% → 20%', from: '세션 「배포 점검」' },
+  { id: 'r2', who: 'lee', route: 'sess', kn: 'dpms', t: '알람 — 당번 채널 #dpms-oncall', at: '어제 13:13', to: ['운영 › 알람'], st: 'ok', from: '세션 「배포 점검」' },
+  { id: 'r12', who: 'lee', route: 'sess', kn: 'dpms', t: '헬스 체크 주기 30초 → 10초', at: '오늘 10:02', to: ['운영 › 헬스 체크'], st: 'ok', v: '30초 → 10초', from: '세션 「장애 대응 정리」' },
+  { id: 'r11', who: 'lee', route: 'sess', kn: 'dpms', t: '배포 창 — 금요일은 배포하지 않는다', at: '10-21', to: ['배포절차 › 배포 창'], st: 'again', tries: 2, why: '값 「금요일」 이 지금 글의 「금 18시 이후」 와 맞지 않아 넣지 않았다', from: '세션 「배포 일정」' },
+  { id: 'r3', who: 'kim2', route: 'send', kn: 'dpms', t: '롤백 순서 — 앱 먼저 이전 판으로, 그다음 DB', at: '10-23', to: ['배포절차 › 롤백'], st: 'ok', from: '김-kim2 개인 지식 · 보낸 때 오늘 09:12' },
+  { id: 'r4', who: 'kim2', route: 'send', kn: 'dpms', t: '배포 체크리스트 — 확인 줄 2 고침', at: '10-24', to: ['배포 체크리스트 › 배포 전 확인', '배포 체크리스트 › 배포 후 확인'], st: 'ok', from: '김-kim2 개인 지식 · 보낸 때 오늘 09:12' },
+  { id: 'r5', who: 'park', route: 'sess', kn: 'dpms', t: '헬스 체크 주소는 /healthz 로 바뀜', at: '오늘 09:40', to: ['운영 › 헬스 체크'], st: 'ok', v: '/health → /healthz', from: '세션 「게이트웨이 점검」' },
+  { id: 'r6', who: 'park', route: 'memo', kn: 'dpms', t: '다음 주 점검 공지 돌리기', at: '오늘 11:20', to: [], st: 'none', cands: ['운영 › 점검 일정', '배치 일정 › 정기 점검', '접속 안내 › 공지'], from: '화면 메모' },
+  { id: 'r7', who: 'park', route: 'sess', kn: 'dpms', t: '인증서 갱신 담당 바꾸고 싶다(혼자 메모)', at: '오늘 11:31', to: [], st: 'priv', from: '세션 · 태그 private' },
+  { id: 'r8', who: 'git', route: 'code', kn: 'dpms', t: 'kmd-소스 새 묶음 a1b2c3 — 재시도 3 → 5', at: '오늘 12:00', to: ['운영 › 재시도'], st: 'ok', v: '3 → 5', from: '가져오기 git · 1시간마다' },
+  { id: 'r9', who: 'choi', route: 'send', kn: 'gdi', t: '테이블정의 — TB_ORDER 컬럼 2 더함', at: '오늘 08:50', to: ['테이블정의 › TB_ORDER'], st: 'ok', from: '최-choi 개인 지식 · 보낸 때 오늘 08:55' },
+  { id: 'r10', who: 'kim', route: 'file', kn: 'gdi', t: '설계회의_1026.docx', at: '오늘 07:52', to: ['회의록 › 2026-10-26 설계 회의 (새 항목)'], st: 'ok', from: '가져오기 · 파일 들이기' },
+]
+// 정리 일 줄 — 자리(문서 › 항목) 하나가 한 줄 · Claude 를 한 번 부른다
+const STG = ['모으기', '자리 찾기', '글 쓰기', '검사', '넣기']
+const STG_D = [
+  ['받은 기록 고르기', '비공개 · 되돌린 것 빼기', '값 장부 만들기'],
+  ['넣을 항목 찾기', '자리 없는 메모 묶기', '지금 글 읽기'],
+  ['Claude 초안', '기록마다 넣음 / 둠'],
+  ['글 모양', '그 사이 글이 바뀌지 않았나', '값 맞추기', '크기 · 머리'],
+  ['항목 저장', '경과 줄 더하기', '값 바뀜 알리기'],
+]
+const RUN = {
+  at: '오늘 17:30', by: 'kim', how: '지금 정리(고른 것)', kn: 'dpms',
+  spots: [
+    { id: 's1', to: '운영 › 알람', recs: ['r2'], st: 'done', res: 'put', el: '0:21' },
+    { id: 's2', to: '배포절차 › 카나리', recs: ['r1'], st: 'done', res: 'chg', el: '0:26' },
+    { id: 's3', to: '배포절차 › 롤백', recs: ['r3'], st: 'done', res: 'put', el: '0:19' },
+    { id: 's4', to: '운영 › 헬스 체크', recs: ['r5', 'r12'], st: 'run', at: 2, el: '0:14' },
+    { id: 's5', to: '배포절차 › 배포 창', recs: ['r11'], st: 'check', why: '값 맞추기를 못 넘었다 — 「금요일」 과 지금 글 「금 18시 이후」 · 사람이 정해야 한다', el: '0:24' },
+    { id: 's6', to: '배포 체크리스트 › 배포 전 확인', recs: ['r4'], st: 'wait' },
+    { id: 's7', to: '배포 체크리스트 › 배포 후 확인', recs: ['r4'], st: 'wait' },
+    { id: 's8', to: '운영 › 재시도', recs: ['r8'], st: 'wait' },
+    { id: 's9', to: '자리 고르기(메모)', recs: ['r6'], st: 'wait', note: '넣을 항목을 Claude 가 후보 3 중에서 고른다' },
+  ],
+}
+const HIST = [
+  { id: 'h1', at: '어제 13:16', by: 'kmd 자동(실시간)', kn: 'dpms', rows: [
+    { who: 'lee', t: '알람 — 당번 채널', to: '운영 › 알람', k: 'put' },
+    { who: 'kim2', t: '롤백 순서 — 앱 먼저 이전 판으로, 그다음 DB', to: '배포절차 › 롤백', k: 'put' },
+    { who: 'lee', t: '카나리 비율', to: '배포절차 › 카나리', k: 'chg', v: '10% → 20%' },
+  ] },
+  { id: 'h2', at: '10-22 02:30', by: 'kmd 정해진 시각', kn: 'dpms', rows: [
+    { who: 'park', t: '헬스 체크 주소', to: '운영 › 헬스 체크', k: 'put' },
+    { who: 'lee', t: '배포 창 — 금요일은 배포하지 않는다', to: '배포절차 › 배포 창', k: 'left', why: '값 「금요일」 이 지금 글의 「금 18시 이후」 와 맞지 않는다', tries: 1 },
+    { who: 'git', t: 'kmd-소스 묶음 9f8e7d — 타임아웃 30 → 60', to: '운영 › 타임아웃', k: 'chg', v: '30 → 60' },
+    { who: 'kim2', t: '용어 — SLA 뜻 더함', to: '용어 모음 › SLA', k: 'put', back: true },
+  ] },
+]
+
+// ───────────── 상태 ─────────────
+const M = {
+  view: 'scr', tab: 'inbox', group: 'who', kn: 'all', mine: false, viewer: 'admin',
+  sel: new Set(), menu: null, modal: null, spot: 's4', tfil: 'all', hgroup: 'who', toast: null, mode: 'time', running: false,
+}
+const ME = () => (M.viewer === 'admin' ? 'kim' : 'lee')
+const P = (w) => PEOPLE[w] || { n: w, c: 'a5' }
+const av = (w, sm) => `<span class="av ${P(w).c}${sm ? ' sm' : ''}">${esc(P(w).n.slice(0, 1))}</span>`
+const rt = (r) => `<span class="rt ${r}" title="${esc(ROUTE[r][1])}">${svg(r)}${ROUTE[r][0]}</span>`
+const visible = () => RECS.filter((r) => (M.kn === 'all' || r.kn === M.kn) && (!M.mine || r.who === ME()))
+const canSel = (r) => r.st !== 'priv' && (M.viewer === 'admin' || r.who === ME())
+
+// ───────────── 목업 조종판 ─────────────
+function nav() {
+  const b = (v, t, s, extra = {}) => `<button class="${M.view === v && (!extra.tab || M.tab === extra.tab) && (!extra.g || M.group === extra.g) ? 'on' : ''}" data-a="go" data-v="${v}" data-tab="${extra.tab || ''}" data-g="${extra.g || ''}">${t}<small>${s}</small></button>`
+  return `<h1>정리 · 절차 목업</h1><p>개발 전 확인용 · 2026-10-27<br>새로 짠 목업(기존 목업과 따로)</p>
+  <div class="g">보기</div>
+  ${b('doc', '검토안', '지금 화면 · 문제 · 개선 · 서버 · 물을 것')}
+  <div class="g">화면 목업</div>
+  ${b('scr', '받은 것 — 보낸 사람별', '누가 · 어떤 길로 · 어디로', { tab: 'inbox', g: 'who' })}
+  ${b('scr', '받은 것 — 합칠 자리별', '항목 하나에 누구 기록이 모이나', { tab: 'inbox', g: 'spot' })}
+  ${b('scr', '정리 일 줄', '도는 정리 · 자리마다 다섯 단계 · 터미널', { tab: 'run' })}
+  ${b('scr', '정리한 것', '보낸 사람별 결과 · 비교 · 되돌리기', { tab: 'hist' })}
+  ${b('empty', '빈 상태', '받은 것 0')}
+  <div class="g">보는 사람</div>
+  <button class="${M.viewer === 'admin' ? 'on' : ''}" data-a="viewer" data-v="admin">kim — 관리자<small>모두 보고 · 고르고 · 되돌린다</small></button>
+  <button class="${M.viewer === 'user' ? 'on' : ''}" data-a="viewer" data-v="user">lee — 일반<small>내 기록만 고르고 · 내 것만 되돌린다</small></button>
+  <div class="g">해 볼 것</div>
+  <p style="line-height:1.8">· 보낸 사람 머리 체크 → 아래 띠 [고른 N개 지금 정리]<br>· 묶어 보기 [합칠 자리] 로 바꾸기<br>· 자리 못 찾은 메모 [자리 고르기]<br>· 다시 하는 기록 ⋯ › 까닭 보기<br>· 정리 일 줄에서 자리를 눌러 흐름 · 터미널<br>· 정리한 것 ⋯ › 비교 · 되돌리기<br>· 보는 사람을 lee 로 바꾸기</p>`
+}
+
+// ───────────── 앱 틀 ─────────────
+function frame(body) {
+  const admin = M.viewer === 'admin'
+  const me = ME()
+  const it = (ic, t, on, bd) => `<div class="sb-i${on ? ' on' : ''}">${svg(ic)}${t}${bd ? `<span class="bd">${bd}</span>` : ''}</div>`
+  const pend = RECS.filter((r) => r.st !== 'priv').length
+  return `<div class="app"><aside class="side">
+   <div class="sb-top"><span class="av ${P(me).c}">${me[0]}</span><div><b>${me}</b><div class="lbl">팀 서버 · ${admin ? '관리자' : '일반'}</div></div></div>
+   <div class="sb-repo"><span class="rk">DP</span><div><b>DPMS 지식</b><small>팀 서버</small></div></div>
+   <div class="sb-i">${svg('doc')}문서</div>
+   <div style="flex:1"></div>
+   <div class="sb-foot"><div class="sb-g">지식 관리 · 팀 지식</div>
+   ${it('check', '이력')}${admin ? it('plug', '가져오기') : ''}${it('hour', '정리', true, pend)}${it('gear', '설정 · 팀')}</div>
+  </aside><div class="col">
+   <div class="hdr"><span class="crumb">DPMS 지식 › <b>정리</b></span></div>
+   <div class="band"><span style="width:8px;height:8px;border-radius:50%;background:var(--accent)"></span><b>팀 지식 · 팀 서버 · 나: ${admin ? '관리자' : '기록'}</b>${admin ? '' : '<span style="margin-left:auto">정리는 누구나 본다 · 내 기록만 고르고 되돌린다</span>'}</div>
+   <div class="main" id="main">${body}</div>
+  </div></div>`
+}
+
+// ───────────── 화면 머리 · 절차 띠 ─────────────
+function head() {
+  const admin = M.viewer === 'admin'
+  const modeT = M.mode === 'live' ? '실시간' : M.mode === 'manual' ? '손으로만' : '매일 02:30'
+  return `<div class="pg-h"><div><div class="big">정리</div><p class="lead">팀원이 <b>세션에서 남기거나 · 개인 지식에서 보낸 기록</b>을 팀 지식 문서에 합친다. 기록은 다섯 단계를 차례로 지나고, 합칠 자리(문서 › 항목)마다 따로 넣고 따로 되돌린다.</p></div>
+  <span class="acts"><span class="lbl" style="align-self:center">정리 방식 · ${modeT}</span>${admin ? `<button class="kebab${M.menu === 'mode' ? ' on' : ''}" data-a="menu" data-m="mode" title="정리 방식 · 시각 바꾸기">⋯${M.menu === 'mode' ? `<div class="pop"><div class="g">정리 방식</div>${[['time', '정해진 시각', '매일 02:30 한 번'], ['live', '실시간', '기록이 남고 5분 조용해지면 바로'], ['manual', '손으로만', '[지금 정리] 를 누를 때만']].map(([v, l, d]) => `<div data-a="mode" data-v="${v}">${M.mode === v ? '✓ ' : ''}${l}<small>${d}</small></div>`).join('')}<div class="sep"></div><div>자동 정리에 Claude 쓰지 않기<small>규칙으로 되는 것만 넣는다</small></div></div>` : ''}</button>` : ''}</span></div>`
+}
+function proc() {
+  const v = RECS.filter((r) => M.kn === 'all' || r.kn === M.kn)
+  const live = v.filter((r) => r.st !== 'priv')
+  const priv = v.length - live.length
+  const none = v.filter((r) => r.st === 'none').length, again = v.filter((r) => r.st === 'again').length
+  const spots = new Set(v.filter((r) => r.st === 'ok' || r.st === 'again').flatMap((r) => r.to)).size
+  const run = M.running && M.view !== 'empty', S = RUN.spots
+  const cnt = (st) => S.filter((s) => s.st === st).length
+  // [이름, 수, 단위, 꼬리 칩, 툴팁, 칸 상태]
+  const cells = [
+    ['모으기', live.length, '받은 기록', priv ? `<span class="chip c-mute">비공개 ${priv} 뺌</span>` : '', '팀원이 세션에서 남기거나 개인 지식에서 보낸 기록을 모은다. 태그 private(비공개) · 되돌린 기록은 빼고, 기록 속 값(수 · 이름)으로 값 장부를 만든다.', run ? 'done' : ''],
+    ['자리 찾기', spots, '합칠 자리', none ? `<span class="chip c-warn">못 찾음 ${none}</span>` : '', '기록이 바꾼 문서 › 항목을 찾는다. 한 항목에 여러 사람의 기록이 모이면 한 번에 합친다. 자리를 못 찾은 메모는 Claude 가 후보에서 고르거나 사람이 정한다.', run ? 'done' : ''],
+    ['글 쓰기', run ? cnt('run') : spots, run ? '쓰는 중' : '쓸 자리', run ? `<span class="chip c-mute">기다림 ${cnt('wait')}</span>` : '', '자리마다 Claude 를 한 번 불러 지금 글에 기록을 녹여 다시 쓴다. 기록을 날짜별로 덧붙이지 않는다. 자리 하나에 20초쯤.', run ? 'run' : ''],
+    ['검사', run ? cnt('check') : again, run ? '사람이 볼 것' : '다시 볼 것', '', '글 모양 · 그 사이 글이 바뀌지 않았나 · 값 맞추기(빠진 값 · 지어낸 값) · 크기 · 머리를 본다. 못 넘으면 넣지 않고 두고 다음 정리 때 다시 한다.', (run ? cnt('check') : again) ? 'warn' : ''],
+    ['넣기', run ? cnt('done') : 3, run ? '넣음 · 이번 정리' : '넣음 · 지난 정리', '', '항목을 저장하고 끝에 경과 줄을 단다. 값이 바뀌면 그 기록을 쓴 사람의 이력 맨 위 「확인할 것」 에 알린다. 되돌리기는 자리마다 따로.', ''],
+  ]
+  return `<div class="proc">${cells.map(([nm, n, unit, chip, tip, c], i) => `<div class="ps ${c}"><div class="hd"><span class="no">${i + 1}</span>${nm}${c === 'run' ? ' · 도는 중' : c === 'done' ? ' ✓' : ''}<span class="qi">?</span></div><div class="vl"><em>${n}</em><small>${unit}</small></div><div class="ft">${chip}</div><div class="tip">${tip}</div></div>`).join('')}</div>`
+}
+function goBox() {
+  const v = RECS.filter((r) => (M.kn === 'all' || r.kn === M.kn) && r.st !== 'priv')
+  if (M.running) return `<div class="go"><span class="tx"><b>정리하는 중 · 오늘 17:30 kim 이 지금 정리 · 자리 9 중 3 끝남</b><small>자리마다 따로 넣는다 · 다 끝나기 전에도 끝난 자리는 이미 문서에 있다</small></span><span class="prog"><i></i>3 / 9</span><button class="btn" data-a="tab" data-v="run">정리 일 줄 보기</button></div>`
+  return `<div class="go"><span class="tx"><b>${M.mode === 'live' ? '실시간 · 기록이 남고 5분 조용해지면 바로' : M.mode === 'manual' ? '손으로만 · 지금 정리를 누를 때' : '다음 정리 내일 02:30'} · 정리할 것 ${v.length}</b><small>기다리기 싫으면 지금 정리 · 고른 것만 할 수도 있다 · 자리 하나에 20초쯤</small></span><button class="btn pri" data-a="tidyAll"${v.length ? '' : ' disabled'}>${M.viewer === 'admin' ? `모두 지금 정리 ${v.length}` : `내 기록 지금 정리 ${v.filter((r) => r.who === ME()).length}`}</button></div>`
+}
+function tabs() {
+  const n = RECS.filter((r) => r.st !== 'priv').length
+  const t = (v, l, b) => `<span class="${M.tab === v ? 'on' : ''}" data-a="tab" data-v="${v}">${l}${b}</span>`
+  return `<div class="tabs">${t('inbox', '받은 것', `<em>${n}</em>`)}${t('run', '정리 일 줄', M.running ? '<em class="w">도는 중</em>' : '')}${t('hist', '정리한 것', `<em>${HIST.length + (M.running ? 1 : 0)}</em>`)}</div>`
+}
+
+// ───────────── 받은 것 ─────────────
+function inboxBar() {
+  const cnt = (k) => RECS.filter((r) => (k === 'all' || r.kn === k) && r.st !== 'priv').length
+  const qf = (k, l) => `<span class="qf${M.kn === k ? ' on' : ''}" data-a="kn" data-v="${k}">${l} <b>${cnt(k)}</b></span>`
+  return `<div class="qbar"><span class="lbl">지식</span>${qf('all', '전체')}${qf('dpms', 'DPMS 지식')}${qf('gdi', 'GDI 지식')}
+  <span class="r"><span class="lbl">묶어 보기</span><span class="seg"><span class="${M.group === 'who' ? 'on' : ''}" data-a="group" data-v="who">보낸 사람</span><span class="${M.group === 'spot' ? 'on' : ''}" data-a="group" data-v="spot">합칠 자리</span></span>
+  <span class="seg"><span class="${!M.mine ? 'on' : ''}" data-a="mine" data-v="0">모두</span><span class="${M.mine ? 'on' : ''}" data-a="mine" data-v="1">내 기록</span></span></span></div>`
+}
+function stChip(r) {
+  if (r.st === 'priv') return '<span class="chip c-mute">비공개 · 안 넣음</span>'
+  if (r.st === 'none') return '<span class="chip c-warn">자리 못 찾음</span>'
+  if (r.st === 'again') return `<span class="chip c-warn">다시 · ${r.tries}번째</span>`
+  return '<span class="chip c-pend">정리 기다림</span>'
+}
+function toHtml(r) {
+  if (r.st === 'priv') return '<span class="nil">—</span>'
+  if (r.st === 'none') return M.viewer === 'admin' || r.who === ME() ? `<button class="btn sm" data-a="pick" data-v="${r.id}">자리 고르기</button>` : '<span class="to none">고르는 중</span>'
+  return r.to.map((x) => `<span class="to" title="${esc(x)}">→ ${esc(x)}</span>`).join('')
+}
+// 받은 기록 그리드 — 머리 줄(체크 · 사람 · 들어온 길 · 기록 · 바뀌는 값 · 넣을 자리 · 상태 · ⋯)
+function gridHead() {
+  const rs = visible().filter(canSel)
+  const all = rs.length && rs.every((r) => M.sel.has(r.id))
+  return `<div class="gr hd"><div class="c-ck">${rs.length ? `<input type="checkbox" class="ck" data-a="selAll"${all ? ' checked' : ''} title="보이는 것 모두 고르기">` : ''}</div><div class="c-av">사람</div><div class="c-rt">들어온 길</div><div class="c-tx">기록</div><div class="c-vl">바뀌는 값</div><div class="c-to">넣을 자리</div><div class="c-st">상태</div><div class="c-mk"></div></div>`
+}
+function recRow(r, last) {
+  const can = canSel(r)
+  const on = M.sel.has(r.id)
+  const mine = M.viewer === 'admin' || r.who === ME()
+  const menu = M.menu === 'r:' + r.id ? `<div class="pop"><div>기록 보기<small>${esc(r.from)}</small></div>${r.st === 'again' ? `<div data-a="why" data-v="${r.id}">까닭 보기<small>지난 정리에서 넣지 않은 까닭</small></div>` : ''}${mine && r.st !== 'priv' ? `<div data-a="pick" data-v="${r.id}">자리 바꾸기<small>넣을 항목을 손으로 정한다</small></div><div>이번 정리에서 빼기<small>다음 정리까지 그대로 둔다</small></div>` : ''}${r.st === 'priv' && mine ? '<div>비공개 풀기<small>태그 private 를 떼면 정리에 들어간다</small></div>' : ''}</div>` : ''
+  return `<div class="gr it${last ? ' last' : ''}${on ? ' sel' : ''}${r.st === 'priv' ? ' dim' : ''}">
+   <div class="c-ck">${can ? `<input type="checkbox" class="ck" data-a="sel" data-v="${r.id}"${on ? ' checked' : ''}>` : r.st === 'priv' ? `<span style="color:var(--text-3)">${svg('lock')}</span>` : ''}</div>
+   <div class="c-av" title="${esc(P(r.who).n)}">${av(r.who, true)}</div>
+   <div class="c-rt">${rt(r.route)}</div>
+   <div class="c-tx"><b title="${esc(r.t)}">${esc(r.t)}</b><small title="${esc(r.from)}">${esc(r.at)} · ${esc(P(r.who).n)} · ${esc(KNS[r.kn])} · ${esc(r.from)}</small>${r.st === 'again' ? `<div class="why">지난 정리에서 둠: ${esc(r.why)}</div>` : ''}</div>
+   <div class="c-vl">${r.v ? `<span class="vchg" title="값이 바뀐다 — 쓴 사람의 이력에 알린다">${esc(r.v)}</span>` : '<span class="nil">—</span>'}</div>
+   <div class="c-to">${toHtml(r)}</div>
+   <div class="c-st">${stChip(r)}</div>
+   <div class="c-mk"><button class="kebab${M.menu === 'r:' + r.id ? ' on' : ''}" data-a="menu" data-m="r:${r.id}">⋯${menu}</button></div></div>`
+}
+function inboxWho() {
+  const v = visible()
+  const order = [...new Set(v.map((r) => r.who))]
+  if (!order.length) return emptyBox()
+  return `<div class="gl2">${gridHead()}${order.map((w) => {
+    const rs = v.filter((r) => r.who === w)
+    const sels = rs.filter(canSel)
+    const all = sels.length && sels.every((r) => M.sel.has(r.id))
+    const routes = Object.keys(ROUTE).map((k) => [k, rs.filter((r) => r.route === k).length]).filter(([, n]) => n)
+    const kns = [...new Set(rs.map((r) => KNS[r.kn]))]
+    const chg = rs.filter((r) => r.v).length, none = rs.filter((r) => r.st === 'none').length, again = rs.filter((r) => r.st === 'again').length
+    return `<div class="gh">${sels.length ? `<input type="checkbox" class="ck" data-a="selWho" data-v="${w}"${all ? ' checked' : ''} title="${esc(P(w).n)} 의 기록 모두 고르기">` : '<span style="width:15px"></span>'}${av(w)}
+     <div class="t"><b>${esc(P(w).n)}</b> <span class="lbl">${esc(P(w).role)}</span><small>기록 ${rs.length} · ${routes.map(([k, n]) => `${ROUTE[k][0]} ${n}`).join(' · ')} · ${kns.join(' · ')} · 마지막 ${esc(rs[rs.length - 1].at)}</small></div>
+     <span class="r">${chg ? `<span class="chip c-warn">값 바뀜 ${chg}</span>` : ''}${again ? `<span class="chip c-warn">다시 ${again}</span>` : ''}${none ? `<span class="chip c-warn">자리 못 찾음 ${none}</span>` : ''}</span></div>
+     ${rs.map((r, i) => recRow(r, i === rs.length - 1)).join('')}`
+  }).join('')}</div>`
+}
+function inboxSpot() {
+  const v = visible()
+  if (!v.length) return emptyBox()
+  const spots = new Map()
+  for (const r of v) if (r.st === 'ok' || r.st === 'again') for (const t of r.to) { if (!spots.has(t)) spots.set(t, []); spots.get(t).push(r) }
+  const rest = v.filter((r) => r.st === 'none' || r.st === 'priv')
+  const grp = (t, rs) => {
+    const who = [...new Set(rs.map((r) => r.who))]
+    const sels = rs.filter(canSel)
+    const all = sels.length && sels.every((r) => M.sel.has(r.id))
+    return `<div class="gh">${sels.length ? `<input type="checkbox" class="ck" data-a="selSpot" data-v="${esc(t)}"${all ? ' checked' : ''}>` : '<span style="width:15px"></span>'}<span class="av" style="border-radius:8px;background:var(--accent-bg);color:var(--accent)">${svg('doc')}</span>
+     <div class="t"><b>${esc(t)}</b><small>${esc(KNS[rs[0].kn])} · 기록 ${rs.length} 을 지금 글에 합친다 · Claude 한 번</small></div>
+     <span class="r"><span class="avs">${who.map((w) => av(w, true)).join('')}</span><span class="lbl">${who.map((w) => P(w).n).join(' · ')}</span>${who.length > 1 ? '<span class="chip c-acc">여럿이 합침</span>' : ''}</span></div>
+     ${rs.map((r, i) => recRow(r, i === rs.length - 1)).join('')}`
+  }
+  return `<div class="gl2">${gridHead()}${[...spots].map(([t, rs]) => grp(t, rs)).join('')}${rest.length ? `<div class="gh"><span style="width:15px"></span><span class="av" style="border-radius:8px;background:var(--warn-bg);color:var(--warn)">?</span><div class="t"><b>자리가 없는 것 ${rest.length}</b><small>자리 못 찾은 메모는 Claude 가 후보에서 고르거나 사람이 정한다 · 비공개는 넣지 않는다</small></div></div>${rest.map((r, i) => recRow(r, i === rest.length - 1)).join('')}` : ''}</div>`
+}
+function selBar() {
+  if (!M.sel.size) return ''
+  const rs = RECS.filter((r) => M.sel.has(r.id))
+  const who = [...new Set(rs.map((r) => P(r.who).n))]
+  const spots = new Set(rs.flatMap((r) => (r.to.length ? r.to : ['자리 고르기']))).size
+  return `<div class="selbar"><b>고른 기록 ${rs.length}</b><small>${who.join(' · ')} · 합칠 자리 ${spots} · 약 ${Math.max(1, Math.round(spots * 20 / 60))}분</small><span class="r"><button class="btn sm ghost" data-a="clearSel">고르기 풀기</button><button class="btn sm pri" data-a="tidySel">고른 ${rs.length}개 지금 정리</button></span></div>`
+}
+function emptyBox() {
+  return `<div class="pc"><div class="empty"><b>${M.mine ? '정리를 기다리는 내 기록이 없다' : '정리할 기록이 없다'}</b>세션에서 남기거나 개인 지식에서 보낸 기록이 여기로 온다 · 지난 결과는 <a data-a="tab" data-v="hist">정리한 것</a></div></div>`
+}
+
+// ───────────── 정리 일 줄 ─────────────
+function stIdx(s) { return s.st === 'done' ? 5 : s.st === 'run' ? s.at : s.st === 'check' ? 3 : 0 }
+function mini(s) {
+  return `<div class="mini" style="width:90px">${STG.map((_, i) => {
+    const c = s.st === 'done' ? 'done' : s.st === 'run' ? (i < s.at ? 'done' : i === s.at ? 'run' : '') : s.st === 'check' ? (i < 3 ? 'done' : i === 3 ? 'check' : '') : ''
+    return `<i class="${c}"></i>`
+  }).join('')}</div>`
+}
+function spotChip(s) {
+  if (s.st === 'done') return s.res === 'chg' ? '<span class="chip c-warn">넣음 · 값 바뀜</span>' : '<span class="chip c-ok">넣음</span>'
+  if (s.st === 'run') return `<span class="chip c-acc">${STG[s.at]} 중</span>`
+  if (s.st === 'check') return '<span class="chip c-warn">둠 · 사람이 볼 것</span>'
+  return '<span class="chip c-mute">기다림</span>'
+}
+function runRow(s, i) {
+  const rs = s.recs.map((id) => RECS.find((r) => r.id === id))
+  const who = [...new Set(rs.map((r) => r.who))]
+  return `<div class="qrow${M.spot === s.id ? ' sel' : ''}" data-a="spot" data-v="${s.id}"><span class="ord">${i + 1}</span>
+   <span class="ic" style="background:var(--accent-bg);color:var(--accent)">${svg('doc')}</span>
+   <div class="tx"><b>${esc(s.to)}</b><small>${who.map((w) => P(w).n).join(' · ')} · 기록 ${rs.length}${s.note ? ' · ' + esc(s.note) : ''}</small></div>
+   <div>${mini(s)}<div class="mini-l">${s.st === 'wait' ? '차례 기다림' : s.st === 'done' ? '다섯 단계 끝' : `${stIdx(s) + 1} ${STG[Math.min(stIdx(s), 4)]}`}</div></div>
+   <span class="el">${s.el || ''}</span>${spotChip(s)}</div>`
+}
+const TERM = {
+  s4: [
+    [0, 'sys', '자리 운영 › 헬스 체크 · 받은 기록 2 (park 09:40 · lee 10:02)'],
+    [0, 'ok', '✓ 값 장부: /healthz · 10초 · 비공개 0 · 되돌린 것 0'],
+    [1, 'tool', '▸ 항목 찾기 운영 › 헬스 체크'],
+    [1, 'ok', '✓ 지금 글 5줄 · 지문 7c1e…  · 마지막 정리 10-22'],
+    [2, 'tool', '▸ Claude 초안 · 정리 일꾼(claude-sonnet-5-5)'],
+    [2, 'say', '두 기록이 같은 항목을 바꾼다 — 주소 /health → /healthz, 주기 30초 → 10초. 지금 글의 두 값을 새 값으로 고쳐 쓴다.'],
+    [2, 'cur', ''],
+  ],
+  s5: [
+    [0, 'sys', '자리 배포절차 › 배포 창 · 받은 기록 1 (lee 10-21) · 지난 정리에서 둠 1번'],
+    [1, 'ok', '✓ 지금 글 3줄'],
+    [2, 'ok', '✓ 초안 · 넣음 1 · 둠 0'],
+    [3, 'tool', '▸ 값 맞추기'],
+    [3, 'err', '✗ 지어낸 값이 아니나 지금 글의 「금 18시 이후」 를 지웠다 — 기록은 「금요일」 만 말한다'],
+    [3, 'sys', '넣지 않고 둔다 · 2번째 · 다음 정리 때 다시 · 사람이 정하면 바로 들어간다'],
+  ],
+  s2: [
+    [0, 'sys', '자리 배포절차 › 카나리 · 받은 기록 1 (lee 어제 13:13)'],
+    [1, 'ok', '✓ 지금 글 4줄'],
+    [2, 'ok', '✓ 초안 · 넣음 1'],
+    [3, 'ok', '✓ 글 모양 · 그 사이 바뀌지 않음 · 값 맞음(20%) · 크기 · 머리'],
+    [4, 'ok', '✓ 저장 · 경과 줄 1 · 값 바뀜 10% → 20% → lee 의 이력 맨 위 「확인할 것」'],
+    [4, 'cost', '끝 · 0:26'],
+  ],
+}
+function flowHtml(s) {
+  const at = stIdx(s)
+  return STG.map((nm, i) => {
+    const c = s.st === 'done' || i < at ? 'done' : s.st === 'run' && i === at ? 'run' : s.st === 'check' && i === 3 ? 'check' : ''
+    const st = c === 'done' ? '끝남' : c === 'run' ? '도는 중' : c === 'check' ? '못 넘음' : '기다림'
+    const li = STG_D[i].map((d, j) => `<li class="${c === 'done' ? 'd' : c === 'run' ? (j === 0 ? 'r' : '') : c === 'check' ? (j === 2 ? 'x' : j < 2 ? 'd' : '') : ''}">${d}</li>`).join('')
+    return `${i ? `<span class="arr${c === 'done' || c === 'run' || c === 'check' ? ' done' : ''}">›</span>` : ''}<div class="st ${c}${M.tfil === String(i) ? ' focus' : ''}" data-a="tfil" data-v="${i}"><div class="n"><span>${i + 1}</span><span>${st}</span></div><div class="nm">${nm}</div><ul>${li}</ul></div>`
+  }).join('')
+}
+function runDetail() {
+  const s = RUN.spots.find((x) => x.id === M.spot) || RUN.spots[0]
+  const rs = s.recs.map((id) => RECS.find((r) => r.id === id))
+  const lines = (TERM[s.id] || [[0, 'sys', '차례를 기다린다 — 앞의 자리가 끝나면 시작한다']]).filter(([g]) => M.tfil === 'all' || String(g) === M.tfil)
+  const term = lines.map(([g, c, t]) => `<div class="${c}"><span class="sg">[${STG[g]}]</span>${esc(t)}</div>`).join('')
+  const diff = s.id === 's4' ? `<div class="diff"><div class="h">운영 › 헬스 체크 · 초안(아직 넣지 않음)</div><div class="c">게이트웨이 앞에서 헬스 체크를 돈다.</div><div class="d">주소는 /health, 30초마다 확인한다.</div><div class="a">주소는 /healthz, 10초마다 확인한다.</div><div class="c">세 번 연속 실패하면 당번 채널로 알린다.</div><div class="lg">**경과** 줄은 넣을 때 kmd 가 단다</div></div>`
+    : s.id === 's5' ? `<div class="callout warn"><span><b>사람이 정할 것</b> · ${esc(s.why)}</span><span class="acts"><button class="btn sm">비교</button>${M.viewer === 'admin' || rs.some((r) => r.who === ME()) ? '<button class="btn sm pri">이 초안으로 넣기</button>' : ''}</span></div><div class="diff"><div class="h">배포절차 › 배포 창 · 초안</div><div class="d">금 18시 이후와 공휴일 전날은 배포하지 않는다.</div><div class="a">금요일은 배포하지 않는다.</div></div>`
+    : s.st === 'done' ? `<div class="diff"><div class="h">${esc(s.to)} · 넣은 글</div><div class="d">카나리는 10% 로 시작한다.</div><div class="a">카나리는 20% 로 시작한다.</div></div>` : '<div class="lbl">초안이 아직 없다</div>'
+  return `<div class="card det"><div class="dh"><span class="av" style="border-radius:8px;background:var(--accent-bg);color:var(--accent)">${svg('doc')}</span><div class="t"><b>${esc(s.to)}</b><small>${esc(KNS[RUN.kn])} · ${esc(RUN.at)} ${esc(RUN.by)} 의 ${esc(RUN.how)}</small></div>${spotChip(s)}</div>
+   <div class="sec"><div class="sh">합치는 기록 ${rs.length}<span class="r lbl">보낸 사람 · 들어온 길</span></div><ul class="feed">${rs.map((r) => `<li>${av(r.who, true)}${rt(r.route)}<span class="tx">${esc(r.t)} <small>· ${esc(P(r.who).n)} · ${esc(r.at)}</small></span>${r.v ? `<span class="vchg">${esc(r.v)}</span>` : ''}</li>`).join('')}</ul></div>
+   <div class="sec"><div class="sh">흐름<span class="r lbl">단계를 누르면 그 단계의 줄만</span></div><div class="flow">${flowHtml(s)}</div></div>
+   <div class="sec"><div class="sh">터미널 <span style="font-weight:400;color:var(--text-3)">kmd · 정리 일꾼이 하는 일</span><span class="tfil">${[['all', '전체'], ...STG.map((x, i) => [String(i), x])].map(([v, l]) => `<span class="${M.tfil === v ? 'on' : ''}" data-a="tfil" data-v="${v}">${l}</span>`).join('')}</span></div><div class="term" style="height:170px">${term}</div></div>
+   <div class="sec"><div class="sh">${s.st === 'done' ? '넣은 글' : '초안'}</div>${diff}</div></div>`
+}
+function runTab() {
+  if (!M.running) return `<div class="pc"><div class="empty"><b>도는 정리가 없다</b>다음 정리 내일 02:30 · 받은 것에서 [지금 정리] 를 누르면 여기서 자리마다 흐름이 보인다<br><br><button class="btn" data-a="tidyAll">흉내: 지금 정리 시작</button></div></div>`
+  const g = (t, list, small) => (list.length ? `<div class="qg">${t} ${list.length}<small>${small}</small></div>${list.map((s) => runRow(s, RUN.spots.indexOf(s))).join('')}` : '')
+  const S = RUN.spots
+  return `<div class="qbar"><span class="lbl">이번 정리 · ${esc(RUN.at)} · ${esc(RUN.by)} 의 ${esc(RUN.how)} · ${esc(KNS[RUN.kn])} · 자리 ${S.length}</span><span class="r"><span class="lane"><i class="on"></i>정리 일꾼 1</span><button class="btn sm">기다리는 것 그만두기</button></span></div>
+  <div class="qwrap"><div class="qlist">${g('도는 중', S.filter((s) => s.st === 'run'), ' · 자리 하나씩 차례로')}${g('사람이 볼 것', S.filter((s) => s.st === 'check'), ' · 검사를 못 넘어 넣지 않고 둔 것')}${g('기다림', S.filter((s) => s.st === 'wait'), ' · 위에서부터')}${g('끝남', S.filter((s) => s.st === 'done'), ' · 이미 문서에 있다')}</div>${runDetail()}</div>`
+}
+
+// ───────────── 정리한 것 ─────────────
+function histRow(h, r, i, last) {
+  const mine = M.viewer === 'admin' || r.who === ME()
+  const key = `h:${h.id}:${i}`
+  const chip = r.back ? '<span class="chip c-mute" title="kim 이 10-23 되돌렸다 · 기록은 다시 받은 것으로">되돌림</span>' : r.k === 'put' ? '<span class="chip c-ok" title="숫자 · 이름 모두 확인">넣음</span>' : r.k === 'chg' ? '<span class="chip c-warn" title="쓴 사람의 이력 맨 위 「확인할 것」 에 알렸다">값 바뀜</span>' : `<span class="chip c-warn" title="다음 정리 때 다시">둠 · ${r.tries}번째</span>`
+  const menu = M.menu === key ? `<div class="pop"><div data-a="cmp" data-v="${key}">비교<small>넣기 전 · 넣은 뒤</small></div>${mine && r.k !== 'left' ? '<div data-a="undo">되돌리기<small>이 줄만 · 기록은 다시 받은 것으로</small></div>' : ''}${r.k === 'left' && mine ? '<div>자리 바꾸기<small>다음 정리 때 그 자리로</small></div><div>이 초안으로 넣기<small>검사를 사람이 넘긴다</small></div>' : ''}</div>` : ''
+  return `<div class="gr it${last ? ' last' : ''}${r.k === 'chg' ? ' chg' : ''}">
+   <div class="c-av" title="${esc(P(r.who).n)}">${av(r.who, true)}${esc(P(r.who).n)}</div>
+   <div class="c-tx"><b title="${esc(r.t)}">${esc(r.t)}</b>${r.k === 'left' ? `<div class="why" title="${esc(r.why)}">까닭: ${esc(r.why)}</div>` : ''}</div>
+   <div class="c-vl">${r.v ? `<span class="vchg">${esc(r.v)}</span>` : '<span class="nil">—</span>'}</div>
+   <div class="c-to"><span class="to" title="${esc(r.to)}">→ ${esc(r.to)}</span></div>
+   <div class="c-st">${chip}</div>
+   <div class="c-mk"><button class="kebab${M.menu === key ? ' on' : ''}" data-a="menu" data-m="${key}">⋯${menu}</button></div></div>`
+}
+const HIST_HEAD = '<div class="gr hd"><div class="c-av">사람</div><div class="c-tx">기록</div><div class="c-vl">바뀐 값</div><div class="c-to">넣은 자리</div><div class="c-st">결과</div><div class="c-mk"></div></div>'
+function histCard(h, open) {
+  const rows = h.rows.map((r, i) => ({ r, i })).filter(({ r }) => !M.mine || r.who === ME())
+  const n = (k) => h.rows.filter((r) => r.k === k).length
+  let body = ''
+  if (M.hgroup === 'who') {
+    const who = [...new Set(rows.map(({ r }) => r.who))]
+    body = who.map((w) => {
+      const rr = rows.filter(({ r }) => r.who === w)
+      const c = (k) => rr.filter(({ r }) => r.k === k).length
+      return `<div class="gh">${av(w, true)}<div class="t"><b>${esc(P(w).n)}</b> <span class="lbl">${[c('put') ? `넣음 ${c('put')}` : '', c('chg') ? `값 바뀜 ${c('chg')}` : '', c('left') ? `둠 ${c('left')}` : ''].filter(Boolean).join(' · ')}</span></div></div>${rr.map(({ r, i }, j) => histRow(h, r, i, j === rr.length - 1)).join('')}`
+    }).join('')
+  } else {
+    body = [['put', '넣은 것', '숫자 · 이름 모두 확인'], ['chg', '값이 바뀐 것', '쓴 사람에게 알렸다'], ['left', '그대로 둔 것', '다음 정리 때 다시']].map(([k, t, s]) => {
+      const rr = rows.filter(({ r }) => r.k === k)
+      return rr.length ? `<div class="gh"><div class="t"><b>${t} ${rr.length}</b> <span class="lbl">${s}</span></div></div>${rr.map(({ r, i }, j) => histRow(h, r, i, j === rr.length - 1)).join('')}` : ''
+    }).join('')
+  }
+  return `<div class="gl2 h"><div class="gh top" data-a="hopen" data-v="${h.id}"><div class="t"><b>${esc(h.at)} · ${esc(h.by)}</b><small>${esc(KNS[h.kn])} · 보낸 사람 ${new Set(h.rows.map((r) => r.who)).size} · 자리마다 따로 저장 · 되돌리기는 줄마다 ⋯</small></div>
+   <span class="r">${n('put') ? `<span class="chip c-ok">넣음 ${n('put')}</span>` : ''}${n('chg') ? `<span class="chip c-warn">값 바뀜 ${n('chg')}</span>` : ''}${n('left') ? `<span class="chip c-warn">둠 ${n('left')}</span>` : ''}<span class="lbl">${open ? '접기' : '펼치기'}</span></span></div>${open ? (body ? HIST_HEAD + body : '<div class="empty">이 정리에 내 기록이 없다</div>') : ''}</div>`
+}
+function histTab() {
+  return `<div class="qbar"><span class="lbl">정리 3번 · 지난 30일</span><span class="r"><span class="lbl">묶어 보기</span><span class="seg"><span class="${M.hgroup === 'who' ? 'on' : ''}" data-a="hgroup" data-v="who">보낸 사람</span><span class="${M.hgroup === 'kind' ? 'on' : ''}" data-a="hgroup" data-v="kind">결과</span></span>
+   <span class="seg"><span class="${!M.mine ? 'on' : ''}" data-a="mine" data-v="0">모두</span><span class="${M.mine ? 'on' : ''}" data-a="mine" data-v="1">내 기록</span></span></span></div>
+  ${M.running ? `<div class="callout gray"><span><b>${esc(RUN.at)} · 도는 중</b> · 끝난 자리 3 은 이미 문서에 있다 · 다 끝나면 여기에 한 장으로 선다</span><span class="acts"><button class="btn sm" data-a="tab" data-v="run">정리 일 줄 보기</button></span></div>` : ''}
+  ${HIST.map((h, i) => histCard(h, M['ho:' + h.id] ?? i === 0)).join('')}
+  <div class="gl">같은 문서를 7일 안에 두 번 되돌리면, 그 문서의 값 바뀜은 7일 동안 넣지 않는다 · 이름 바꾸기 · 합치기 · 없애기는 넣지 않고 제안 한 줄로만 선다</div>`
+}
+
+// ───────────── 모달 ─────────────
+function modal() {
+  if (!M.modal) return ''
+  const [k, v] = M.modal
+  if (k === 'pick') {
+    const r = RECS.find((x) => x.id === v)
+    const cands = r.cands || [...r.to, '운영 › 점검 일정', '배치 일정 › 정기 점검']
+    M.pickOn ??= cands[0]
+    return `<div class="scrim" data-a="close" data-self="1"><div class="modal w560"><div class="mh">자리 고르기 <small>${esc(r.t)} · ${esc(P(r.who).n)}</small><button class="x" data-a="close">×</button></div><div class="mb">
+     <p style="margin:0 0 10px">이 기록을 합칠 항목을 고른다. 고른 자리는 이 기록에 붙고, 다음 정리(또는 지금 정리) 때 그 항목 글에 녹아든다.</p>
+     ${cands.map((c, i) => `<div class="trow${M.pickOn === c ? ' on' : ''}" data-a="pickOn" data-v="${esc(c)}"><input type="radio" ${M.pickOn === c ? 'checked' : ''}><span class="tx"><b>${esc(c)}</b><small>${i === 0 ? '말이 가장 많이 겹친다 · 지금 글 6줄' : '지금 글 ' + (3 + i) + '줄'}</small></span><span class="chip c-mute">${esc(KNS[r.kn])}</span></div>`).join('')}
+     <div class="trow"><input type="radio"><span class="tx"><b>새 항목으로</b><small>문서를 고르고 항목 이름을 정한다</small></span></div></div>
+     <div class="mf"><span class="l">고르지 않으면 정리 때 Claude 가 후보에서 고른다</span><button class="btn ghost" data-a="close">취소</button><button class="btn pri" data-a="pickDone" data-v="${r.id}">이 자리로 정하기</button></div></div></div>`
+  }
+  if (k === 'why') {
+    const r = RECS.find((x) => x.id === v)
+    return `<div class="scrim" data-a="close" data-self="1"><div class="modal w560"><div class="mh">넣지 않고 둔 까닭 <small>${esc(r.t)}</small><button class="x" data-a="close">×</button></div><div class="mb">
+     <div class="callout warn"><span>${esc(r.why)} · ${r.tries - 1}번 둠 · 이번이 ${r.tries}번째</span></div>
+     <div class="diff"><div class="h">배포절차 › 배포 창 · 지난 초안</div><div class="d">금 18시 이후와 공휴일 전날은 배포하지 않는다.</div><div class="a">금요일은 배포하지 않는다.</div></div>
+     <p class="gl">기록이 말하지 않은 「공휴일 전날」 이 빠졌다. 기록을 고쳐 다시 남기거나, 이 초안이 맞으면 넣는다.</p></div>
+     <div class="mf"><span class="l">세 번 둔 기록은 정리하는 사람의 「확인할 것」 으로 간다</span><button class="btn ghost" data-a="close">닫기</button><button class="btn pri" data-a="close">이 초안으로 넣기</button></div></div></div>`
+  }
+  if (k === 'cmp') {
+    return `<div class="scrim" data-a="close" data-self="1"><div class="modal w760"><div class="mh">비교 <small>배포절차 › 카나리 · lee 의 기록 · 어제 13:16 정리</small><button class="x" data-a="close">×</button></div><div class="mb">
+     <div class="fgrid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div class="diff"><div class="h">넣기 전</div><div class="c">카나리는 10% 로 시작한다.</div><div class="c">30분 지켜보고 오류율이 1% 아래면 넓힌다.</div></div>
+     <div class="diff"><div class="h">넣은 뒤</div><div class="a">카나리는 20% 로 시작한다.</div><div class="c">30분 지켜보고 오류율이 1% 아래면 넓힌다.</div><div class="lg">**경과** · 10-26 lee: 카나리 비율 10% → 20%</div></div></div>
+     <p class="gl">기록: 「카나리 비율 10% → 20%」 · 세션 「배포 점검」 · 어제 13:13</p></div>
+     <div class="mf"><button class="btn ghost" data-a="close">닫기</button><button class="btn" data-a="undo">이 줄 되돌리기</button></div></div></div>`
+  }
+  return ''
+}
+
+// ───────────── 검토안 ─────────────
+function docView() {
+  return `<div class="doc"><h2>정리 화면 — 절차로 다시 짜기 검토안</h2><p>정리는 팀 지식을 쓰는 사람이 <b>세션에서 남기거나(kmd 도구) · 개인 지식에서 보낸(지식 보내기)</b> 기록을 팀 지식 문서 항목에 합치는 일이다. 가져오기가 「일 줄 · 흐름 · 터미널」 로 들여오는 길을 보이듯, 정리도 <b>누가 · 어떤 길로 · 어디에 · 어느 단계까지</b> 를 한 화면에서 보이게 한다.</p>
+  <div class="sm-flow"><span>모으기</span><span class="a">›</span><span>자리 찾기</span><span class="a">›</span><span>글 쓰기</span><span class="a">›</span><span>검사</span><span class="a">›</span><span>넣기</span></div>
+  <p>다섯 단계는 이미 <code>core/tidy.js</code> 가 하는 일(재료 → 초안 → 검사 G1~G6 → 넣기)을 사람 말로 옮긴 것이다. 새 일을 만들지 않고 보이게만 한다.</p>
+
+  <h3>1. 지금 화면에서 본 것</h3>
+  <table><tr><th>지금</th><th>어려운 점</th></tr>
+  <tr><td>받은 것 카드: 쓴 사람 · 제목 · → 넣을 곳 한 줄씩(평평한 목록)</td><td>세션에서 남긴 것인지 · 보내기로 온 것인지 · 코드 바뀜인지 안 보인다. 한 사람이 여러 개를 보내면 흩어진다</td></tr>
+  <tr><td>[지금 정리] 하나 · 진행 막대 「정리하는 중: 받은 것 N…」</td><td>1~2분 동안 무엇을 하는지 모른다. 어느 항목이 끝났는지 · 어디서 막혔는지 없다. 실패는 한 줄(callout)</td></tr>
+  <tr><td>정리한 것 카드: 시간 순 · 넣은 것 / 값이 바뀐 것 / 그대로 둔 것</td><td>보낸 사람이 「내 기록이 어디로 갔나」 를 찾으려면 카드를 다 펼쳐야 한다. 둔 까닭이 ⋯ 안 · 몇 번째 둔 것인지 없다</td></tr>
+  <tr><td>「넣을 곳을 찾는다」(자리 없는 메모)</td><td>사람이 자리를 정할 길이 없다. Claude 가 고를 때까지 기다린다</td></tr>
+  <tr><td>옆 메뉴 정리는 관리자에게만 선다(main.js 315)</td><td>화면 글은 「기록할 수 있는 사람 누구나 지금 정리」 — 말이 어긋난다. 일반 사용자는 자기 기록 결과를 볼 곳이 없다</td></tr>
+  <tr><td>비공개(private) · 되돌린 기록은 목록에서 빠진다</td><td>왜 안 들어가는지 쓴 사람이 모른다</td></tr>
+  <tr><td>지식 하나씩(옆 메뉴 지식 고르기)</td><td>팀 지식이 여럿이면 관리자가 지식을 바꿔 가며 본다</td></tr></table>
+
+  <h3>2. 바꾸는 것</h3>
+  <table><tr><th>무엇</th><th>어떻게</th></tr>
+  <tr><td><b>절차 띠</b></td><td>화면 머리 아래 다섯 단계 · 지금 받은 것이 각 단계에 몇인지(모으기 N · 합칠 자리 M · 못 찾은 메모 K). 도는 중이면 그 단계에 불</td></tr>
+  <tr><td><b>세 탭</b></td><td>받은 것 · 정리 일 줄 · 정리한 것 — 가져오기의 일 줄 · 가져올 곳 · 끝난 일과 같은 짜임</td></tr>
+  <tr><td><b>받은 것: 묶어 보기</b></td><td>[보낸 사람] — 사람 카드 하나에 그 사람의 기록 · 들어온 길 표지(세션 · 보내기 · 메모 · 파일 · 코드) · 값 바뀜 · 다시 · 못 찾음 수<br>[합칠 자리] — 문서 › 항목 카드 하나에 여러 사람의 기록 · 「여럿이 합침」 · Claude 한 번</td></tr>
+  <tr><td><b>지식 거르기 · 내 기록</b></td><td>지식 칩(전체 · 지식마다) · [모두 / 내 기록]</td></tr>
+  <tr><td><b>고른 것만 지금 정리</b></td><td>줄 · 사람 머리 · 자리 머리 체크 → 아래 띠 「고른 N개 지금 정리 · 합칠 자리 M · 약 몇 분」</td></tr>
+  <tr><td><b>자리 고르기</b></td><td>자리 못 찾은 메모 · 잘못 찾은 기록에 [자리 고르기] 모달(후보 · 새 항목)</td></tr>
+  <tr><td><b>정리 일 줄</b></td><td>자리 하나가 한 줄 · 다섯 칸 작은 막대 · 도는 중 / 사람이 볼 것 / 기다림 / 끝남. 고르면 오른쪽에 합치는 기록 · 흐름 · 터미널 · 초안(차이)</td></tr>
+  <tr><td><b>정리한 것: 보낸 사람별</b></td><td>정리 한 번이 카드 한 장 · [보낸 사람 / 결과] 로 묶기 · 둔 것은 까닭 · 몇 번째를 줄에 바로</td></tr>
+  <tr><td><b>보는 사람</b></td><td>일반: 내 기록만 고르고 · 내 것만 되돌린다 · 정리 방식은 못 바꾼다. 관리자: 모두</td></tr></table>
+
+  <h3>3. 서버에 더할 것</h3>
+  <table><tr><th>무엇</th><th>왜 · 어디</th></tr>
+  <tr><td>받은 기록에 <code>route</code>(sess · send · memo · file · code)와 <code>from</code>(세션 이름 · 보낸 개인 지식 · 보낸 때)</td><td>태그(<code>sent/</code> · <code>ingest/</code> · <code>code-change</code>)와 저장 경로로 이미 가를 수 있다 · <code>/api/k/:kn/tree</code> 줄에 싣기</td></tr>
+  <tr><td>정리 계획 미리 보기 <code>GET /api/k/:kn/tidy/plan</code></td><td><code>material()</code> 의 묶음을 그대로 — 자리 · 기록 id · 값 장부. 합칠 자리 보기와 절차 띠 수</td></tr>
+  <tr><td>고른 것만 정리 <code>POST /tidy {ids:[]}</code></td><td>material 에서 그 id 만. 일반 사용자는 자기 기록 id 만 받는다</td></tr>
+  <tr><td>정리 일감의 단계 이벤트</td><td>지금 job 은 state 하나 · 자리마다 <code>{spot, stage, ok, line}</code> 을 쌓아 1.5초 묻기로 받는다(터미널 · 작은 막대)</td></tr>
+  <tr><td>둔 횟수 · 사람이 넣기</td><td>같은 기록의 curates(keep) 수 = 몇 번째 · 「이 초안으로 넣기」 는 검사를 사람이 넘긴 표시를 남기고 넣는다</td></tr>
+  <tr><td>자리 정하기 <code>POST /api/k/:kn/rec/:id/touches</code></td><td>지금 「이름 바로잡기」(touches 묶음)를 사람이 먼저 할 수 있게</td></tr>
+  <tr><td>옆 메뉴 정리를 일반에게도</td><td>main.js 315 — 관리자 조건은 가져오기에만</td></tr></table>
+
+  <h3>4. 물을 것</h3>
+  <div class="ask"><ul>
+  <li>일반 사용자가 <b>자기 기록만 지금 정리</b> 할 수 있게 할까, 보기만 할까?</li>
+  <li>지식 칩 「전체」 를 둘까(팀 지식 여럿을 한 화면) — 아니면 지금처럼 옆 메뉴에서 고른 지식 하나만?</li>
+  <li>검사를 못 넘은 초안을 사람이 <b>「이 초안으로 넣기」</b> 로 넘기게 할까? 넘기면 누가(관리자만 · 쓴 사람도)?</li>
+  <li>세 번 둔 기록은 어디로 — 쓴 사람의 「확인할 것」 · 관리자의 「확인할 것」 · 둘 다?</li>
+  <li>보내기로 온 기록의 「보낸 사람」 은 받는 팀 kmd 의 아이디로 보이나, 개인 지식 이름(「김-kim2」)으로 보이나?</li>
+  </ul></div></div>`
+}
+
+// ───────────── 그리기 ─────────────
+function screen() {
+  if (M.view === 'doc') return docView()
+  let body = head() + proc() + goBox() + tabs()
+  if (M.view === 'empty') body = head() + proc().replace(/<em>\d+<\/em>/g, '<em>0</em>') + `<div class="go"><span class="tx"><b>다음 정리 내일 02:30 · 정리할 것 0</b><small>받은 기록이 없다</small></span><button class="btn pri" disabled>모두 지금 정리</button></div>` + tabs() + emptyBox()
+  else if (M.tab === 'inbox') body += inboxBar() + (M.group === 'who' ? inboxWho() : inboxSpot()) + selBar()
+  else if (M.tab === 'run') body += runTab()
+  else body += histTab()
+  return frame(`<div style="max-width:1100px">${body}</div>`)
+}
+function render() {
+  document.getElementById('mnav').innerHTML = nav()
+  document.getElementById('stage').innerHTML = screen() + modal() + (M.toast ? `<div class="toast">${M.toast}</div>` : '')
+}
+function toast(t) { M.toast = t; render(); clearTimeout(toast.h); toast.h = setTimeout(() => { M.toast = null; render() }, 3000) }
+
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-a]')
+  if (!el) { if (M.menu) { M.menu = null; render() } return }
+  if (el.dataset.self && e.target !== el) return
+  const a = el.dataset.a, v = el.dataset.v
+  if (a !== 'menu' && !el.closest('.pop')) M.menu = null
+  switch (a) {
+    case 'go': M.view = v; if (el.dataset.tab) M.tab = el.dataset.tab; if (el.dataset.g) M.group = el.dataset.g; if (M.tab === 'run' || M.tab === 'hist') M.running = M.tab === 'run' ? true : M.running; break
+    case 'viewer': M.viewer = v; M.sel.clear(); break
+    case 'tab': M.tab = v; if (M.view === 'empty') M.view = 'scr'; break
+    case 'kn': M.kn = v; break
+    case 'group': M.group = v; break
+    case 'hgroup': M.hgroup = v; break
+    case 'mine': M.mine = v === '1'; break
+    case 'menu': M.menu = M.menu === el.dataset.m ? null : el.dataset.m; e.stopPropagation(); break
+    case 'mode': M.mode = v; M.menu = null; break
+    case 'sel': M.sel.has(v) ? M.sel.delete(v) : M.sel.add(v); break
+    case 'selWho': case 'selSpot': {
+      const rs = visible().filter(canSel).filter((r) => (a === 'selWho' ? r.who === v : r.to.includes(v)))
+      const all = rs.every((r) => M.sel.has(r.id))
+      rs.forEach((r) => (all ? M.sel.delete(r.id) : M.sel.add(r.id)))
+      break
+    }
+    case 'selAll': { const rs = visible().filter(canSel); const all = rs.every((r) => M.sel.has(r.id)); rs.forEach((r) => (all ? M.sel.delete(r.id) : M.sel.add(r.id))); break }
+    case 'clearSel': M.sel.clear(); break
+    case 'tidySel': case 'tidyAll': M.sel.clear(); M.running = true; M.tab = 'run'; M.view = 'scr'; render(); toast('정리를 시작했다 · 자리마다 따로 넣는다'); return
+    case 'spot': M.spot = v; M.tfil = 'all'; break
+    case 'tfil': M.tfil = M.tfil === v ? 'all' : v; e.stopPropagation(); break
+    case 'pick': M.modal = ['pick', v]; M.pickOn = null; break
+    case 'pickOn': M.pickOn = v; break
+    case 'pickDone': { const r = RECS.find((x) => x.id === v); r.to = [M.pickOn]; r.st = 'ok'; M.modal = null; render(); toast(`자리를 정했다 · ${esc(M.pickOn)}`); return }
+    case 'why': M.modal = ['why', v]; break
+    case 'cmp': M.modal = ['cmp', v]; break
+    case 'undo': M.modal = null; render(); toast('되돌렸다 · 그 기록은 다시 받은 것으로 · 다음 정리 때 다시'); return
+    case 'hopen': M['ho:' + v] = !(M['ho:' + v] ?? v === HIST[0].id); break
+    case 'close': M.modal = null; break
+  }
+  render()
+})
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { M.modal = null; M.menu = null; render() } })
+render()
+</script>
+</body>
+</html>
