@@ -293,9 +293,12 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10) — �
   await page.waitForSelector('[data-t=klist]')
   await page.click('[data-t=addCard]')
   await page.waitForSelector('[data-t=addPop] #addIn')
-  // 어디에 — 내 PC(누구나) · 팀 지식 · 팀 서버 · 나만(관리자만) · 관리자는 팀 지식이 기본
-  assert.deepEqual(await page.locator('[data-t=addKind] button').allInnerTexts(), ['내 PC', '팀 지식', '팀 서버 · 나만'])
+  // 영역 — 팀 지식(관리자만) / 개인 지식(내 PC · 팀 서버 · 나만) · 관리자는 팀 지식이 기본
+  assert.deepEqual(await page.locator('[data-t=addArea] button').allInnerTexts(), ['팀 지식', '개인 지식'])
+  assert.equal(await page.locator('[data-t=addKind]').count(), 0, '팀 영역에는 개인 자리 고르기가 없다')
   assert.match(await page.locator('[data-t=addPop]').innerText(), /팀 서버에 팀 지식으로 선다/)
+  await page.click('[data-t=addAreaMe]')
+  assert.deepEqual(await page.locator('[data-t=addKind] button').allInnerTexts(), ['내 PC', '팀 서버 · 나만'])
   await page.click('[data-t=addKindMine]')
   assert.match(await page.locator('[data-t=addPop]').innerText(), /팀 서버 안에 내 지식으로 선다/)
   await page.click('[data-t=addBtn]')

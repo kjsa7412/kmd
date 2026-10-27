@@ -418,7 +418,9 @@ function addPopHtml() {
   const a = S.addPop, team = isTeam()
   const onPc = a.where === 'pc' || a.where === 'local'
   const pcOff = team && a.where === 'pc' && !(S.pc && S.pc.token)
-  const kinds = team ? `<div class="seg" data-t="addKind" style="margin:0 0 10px"><button class="${a.where === 'pc' ? 'on' : ''}" data-a="addKind" data-v="pc" data-t="addKindPc">내 PC</button>${S.me.admin ? `<button class="${a.where === 'team' ? 'on' : ''}" data-a="addKind" data-v="team" data-t="addKindTeam">팀 지식</button><button class="${a.where === 'mine' ? 'on' : ''}" data-a="addKind" data-v="mine" data-t="addKindMine">팀 서버 · 나만</button>` : ''}</div>` : ''
+  // 팀 화면 — 영역부터 가른다: 팀(팀 모두 · 관리자만 세운다) / 개인(나만 — 내 PC · 관리자는 팀 서버 안에도)
+  const admin = !!S.me.admin
+  const kinds = team ? `<div class="field" style="margin:0 0 10px"><label>영역</label><div class="seg" data-t="addArea" style="margin:0"><button class="${a.where === 'team' ? 'on' : ''}" data-a="addArea" data-v="team" data-t="addKindTeam"${admin ? '' : ' disabled title="팀 지식은 팀 서버 관리자만 추가한다"'}>팀 지식${admin ? '' : ' · 관리자만'}</button><button class="${a.where !== 'team' ? 'on' : ''}" data-a="addArea" data-v="me" data-t="addAreaMe">개인 지식</button></div>${a.where !== 'team' && admin ? `<div class="seg" data-t="addKind" style="margin:6px 0 0"><button class="${a.where === 'pc' ? 'on' : ''}" data-a="addKind" data-v="pc" data-t="addKindPc">내 PC</button><button class="${a.where === 'mine' ? 'on' : ''}" data-a="addKind" data-v="mine" data-t="addKindMine">팀 서버 · 나만</button></div>` : ''}${admin ? '' : '<div class="hint" data-t="addTeamNote" style="margin-top:6px">팀 지식은 팀 서버 관리자만 추가한다 — 개인 지식은 내 PC 에 선다</div>'}</div>` : ''
   const hint = a.where === 'team' ? '팀 서버에 팀 지식으로 선다 — 팀 모두 보고 기록한다 · 주인은 나(이 지식의 사람에서 넘긴다)'
     : a.where === 'mine' ? '팀 서버 안에 내 지식으로 선다 — 나만 본다(관리자 · 서버를 돌보는 사람은 디스크 · 백업으로 볼 수 있다) · 떠나면 관리자가 넘겨받는다'
     : `내 PC 의 지식 폴더 안에 선다 — 나만 · 팀 서버에는 가지 않는다${team ? ' · 팀 화면에서도 「내 PC」 로 열린다' : ''} · 폴더 경로를 쓰면 그 폴더의 글(md · docx · pptx · xlsx)을 한 번 들인다(원본은 그대로)`
@@ -2853,6 +2855,13 @@ const ACT = {
     render()
   },
   addKind: (el) => { if (S.addPop) { S.addPop.where = el.dataset.v; S.addPop.err = null; render() } },
+  // 영역 — 팀은 관리자만(서버도 막는다) · 개인은 고르던 곳(내 PC · 팀 서버 · 나만)을 잇는다
+  addArea: (el) => {
+    const a = S.addPop
+    if (!a) return
+    if (el.dataset.v === 'team') { if (!S.me.admin) return; a.where = 'team' } else if (a.where === 'team') a.where = 'pc'
+    a.err = null; render()
+  },
   ownGive: async () => { const to = ($('#ownSel') || {}).value; const k = tidyKn(); if (!to || !confirm(`주인을 ${to} 에게 넘긴다`)) return; await setOwnerRow(k, { owner: to }); await reloadKns(); render() },
   ownKind: async (el) => { const k = tidyKn(); const toTeam = el.dataset.v === 'team'; if (!confirm(toTeam ? '팀 지식으로 내놓는다 — 팀 모두 읽고 기록한다' : '개인으로 돌린다 — 주인만 본다(팀원의 화면 · 찾기 · Claude Code 에서 사라진다)')) return; await setOwnerRow(k, { private: !toTeam }); await reloadKns(); render() },
   sudoOk: () => sudoOk(),
