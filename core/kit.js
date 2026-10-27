@@ -20,7 +20,11 @@ const END = /<!--\s*kmd:end\s*-->/
 
 async function kitParts() {
   const skills = []
-  for (const s of SKILLS) skills.push({ rel: `.claude/skills/${s}/SKILL.md`, text: await fs.readFile(path.join(KIT, 'skills', s, 'SKILL.md'), 'utf8') })
+  // 스킬 폴더의 md 전부(SKILL.md · 작성가이드.md …) — 스킬이 옆 파일을 가리킨다
+  for (const s of SKILLS) {
+    const files = (await fs.readdir(path.join(KIT, 'skills', s))).filter((f) => f.endsWith('.md')).sort()
+    for (const f of files) skills.push({ rel: `.claude/skills/${s}/${f}`, text: await fs.readFile(path.join(KIT, 'skills', s, f), 'utf8') })
+  }
   const block = (await fs.readFile(path.join(KIT, 'CLAUDE-kmd.md'), 'utf8')).replace(/\r/g, '').trim()
   const ver = crypto.createHash('sha256').update(JSON.stringify([skills.map((x) => x.text), block])).digest('hex').slice(0, 8)
   return { skills, block, ver }

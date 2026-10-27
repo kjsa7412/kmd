@@ -1862,7 +1862,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const file = hub.ingestFileOf(w)
       const name = file.split('/').pop()
       const mdName = name.replace(/\.[^.]+$/, '') + '.md'
-      const skill = await fs.readFile(path.join(AGENT_DIR, 'skills', 'kmd-build', 'SKILL.md'), 'utf8').catch(() => '')
+      // 스킬 + 작성 가이드(항목 글의 모양 — 대상 하나 · 지금 동작 · 소제목 ### · 경과는 kmd)
+      const guide = await fs.readFile(path.join(AGENT_DIR, 'skills', 'kmd-build', '작성가이드.md'), 'utf8').catch(() => '')
+      const skill = [await fs.readFile(path.join(AGENT_DIR, 'skills', 'kmd-build', 'SKILL.md'), 'utf8').catch(() => ''), guide].filter(Boolean).join('\n\n')
       // 코드 바뀜 — 파일이 아니라 커밋 하나의 분석 기록이다. 자리는 그 저장소가 만드는 시스템의 기능 · 설계 문서
       if (w.tags.includes('code-change')) {
         const src = (w.title.match(/ — (\S+) [0-9a-f]{7}(?:\.\.[0-9a-f]+)?$/) || [])[1] || '그 저장소'
@@ -1874,6 +1876,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             `- 자리: ${src} 가 만드는 시스템의 기능 · 설계 문서. brief 로 둘러보고 그 시스템을 다루는 문서가 있으면 거기에 — 바뀐 기능의 항목이 있으면 section 으로 읽고 base 와 함께 지금 동작으로 고치고, 없으면 그 기능 이름으로 새 항목을 더한다.`,
             `  그런 문서가 없을 때만 「${src} 기능」 처럼 시스템 이름의 새 문서 하나를 세운다. 커밋 · 판 · 날짜로 문서나 항목을 세우지 않는다.`,
             '- 항목 글은 바뀐 이력 나열이 아니라 「지금 어떻게 동작하나」 로 쓴다 — 기능 · 화면 · API · 설정 · 데이터. 차이 · 분석에 없는 것은 지어내지 않는다. 코드 줄 · 차이는 항목에 옮기지 않는다.',
+            '- from · append 는 쓰지 않는다(kmd 가 거절한다) — 기록의 「무엇이 바뀌었나 · 바뀐 것 · 영향 · 맞춰 볼 것 · 근거」 는 항목 글이 아니다. 고칠 항목을 section 으로 읽고 그 글을 지금 동작으로 고친 새 글 전체를 content · base 로 보낸다. 경과 줄은 kmd 가 단다.',
             '- 이 지식의 다른 주제(이 저장소와 상관없는 문서)는 고치지 않는다.',
             '도구의 knowledge 는 늘 위 id 를 쓴다.',
           ].join('\n'),
@@ -2108,10 +2111,15 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
         why = `검사를 넘지 못했다 — ${c.why}`
       }
-      // 규칙 — 기록 글을 항목 끝에 붙인다(머리 줄은 굵은 글로 · 표지는 뺀다)
-      const add = g.records.map((r) => r.body.replace(/<!--[\s\S]*?-->/g, '').replace(/^#{1,6}\s+(.+)$/gm, '**$1**').trim()).filter(Boolean).join('\n\n')
+      // 규칙 — 기록 글을 항목 끝에 붙인다(머리 줄은 굵은 글로 · 표지는 뺀다) · 붙인 글 앞에 어느 기록인지 한 줄.
+      //   코드 바뀜 기록(분석 · 커밋 메시지 · 차이)은 붙이지 않는다 — 항목 글이 아니다. 경과 줄로만 잇는다(저장이 단다)
+      const up = '../'.repeat(g.doc.split('/').length - 1)
+      const add = g.records.filter((r) => !r.code).map((r) => {
+        const body = r.body.replace(/<!--[\s\S]*?-->/g, '').replace(/^#{1,6}\s+(.+)$/gm, '**$1**').trim()
+        return body && `> 기록 그대로 — [${r.title.split(' — ')[0].replace(/[[\]]/g, '')}](${up}work/${encodeURI(r.id).replace(/\(/g, '%28').replace(/\)/g, '%29')}.md) · Claude 로 다듬지 못했다\n\n${body}`
+      }).filter(Boolean).join('\n\n')
       const content = [g.content.trim(), add].filter(Boolean).join('\n\n')
-      await coreSave(meta.dir, { record: { title: `정리 — ${g.name}`, body: ['규칙으로 — 기록 글을 항목 끝에 붙였다', ...g.records.map((r) => `- 넣음 ${r.id} — ${r.title}`), ...(why ? [`- Claude 로 하지 못한 까닭 — ${why}`] : [])].join('\n'), touches: [g.coord], tags: ['curate-auto'], reflects: g.records.map((r) => r.id) }, sections: [{ coord: g.coord, content, base: g.base }] }, { user: 'kmd-auto', system: true })
+      await coreSave(meta.dir, { record: { title: `정리 — ${g.name}`, body: ['규칙으로 — 기록 글을 항목 끝에 붙였다(코드 바뀜 기록은 경과 줄만)', ...g.records.map((r) => `- 넣음 ${r.id} — ${r.title}`), ...(why ? [`- Claude 로 하지 못한 까닭 — ${why}`] : [])].join('\n'), touches: [g.coord], tags: ['curate-auto'], reflects: g.records.map((r) => r.id) }, sections: [{ coord: g.coord, content, base: g.base }] }, { user: 'kmd-auto', system: true })
       cache.delete(id)
       return true
     },

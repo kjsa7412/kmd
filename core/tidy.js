@@ -5,7 +5,9 @@
 //                    이름이 없는 기록은 「이름 바로잡기」 묶음(후보 이름은 찾기 사다리가 준다).
 //   초안(draft)      일꾼(claude -p)이 JSON 으로 — { content, used[], left[{id, why}], drop[] } / { touches[] }
 //   검사(check)      G1 모양 · 기록마다 넣음(used) 또는 둠(left) · G2 base · G4 값 대조(빠진 값 · 지어낸 값) ·
-//                    G5 크기 · G6 표지(머리 · applied · 프런트매터 · script). 못 넘으면 「그대로 둔 것」(까닭 한 줄)
+//                    G5 크기 · G6 표지(항목 머리 # · ## · applied · 프런트매터 · script — 소제목 ### 아래는 된다).
+//                    못 넘으면 「그대로 둔 것」(까닭 한 줄)
+//   경과            Claude 는 본문만 보고 쓴다 — 항목 끝 `**경과**` 는 저장이 지키고 넣은 기록의 줄을 더한다
 //   넣기(apply)      작성자 kmd-auto · 태그 curate-llm · 항목 글 + 표지 · 둔 기록은 같은 기록의 curates(keep)
 //
 // 값이 바뀐 것(옛 글의 값이 빠지고 새 값이 들어감)은 그 기록을 쓴 사람의 「오늘 바뀐 것」 노란 줄이 된다.
@@ -15,6 +17,7 @@ import { valuesOf } from './save.js'
 import { newValuesOf } from './codechange.js'
 import { sha16 } from './text.js'
 import { sectionOf, coordsOfSection, labelOf } from './knowledge.js'
+import { splitLog } from './sections.js'
 
 export const DRAFT_SCHEMA = {
   type: 'object',
@@ -43,7 +46,7 @@ export function material(k, { candidates = () => [] } = {}) {
       const x = sectionOf(k, c)
       if (!x?.loc) continue
       const key = `${x.loc.doc}\n${x.sec ? x.sec.h : x.loc.heading}`
-      if (!groups.has(key)) groups.set(key, { kind: 'section', coord: c, doc: x.loc.doc, heading: x.sec ? x.sec.h : x.loc.heading, name: labelOf(k, c), content: x.sec ? x.sec.body : '', base: sha16(x.sec ? x.sec.body : ''), records: [] })
+      if (!groups.has(key)) groups.set(key, { kind: 'section', coord: c, doc: x.loc.doc, heading: x.sec ? x.sec.h : x.loc.heading, name: labelOf(k, c), content: splitLog(x.sec ? x.sec.body : '').body, base: sha16(x.sec ? x.sec.body : ''), records: [] })
       const g = groups.get(key)
       if (!g.records.some((r) => r.id === w.id)) g.records.push({ id: w.id, date: w.date, author: w.author, title: w.title, body: w.body, ...(w.tags.includes('code-change') ? { code: true } : {}) })
     }
@@ -75,7 +78,7 @@ export function ingestCandidates(k, w, max = 5) {
   return scored
     .sort((a, b) => b.n - a.n || a.d.id.localeCompare(b.d.id))
     .slice(0, max)
-    .map(({ d }) => ({ doc: d.path, title: d.title, sections: d.sections.filter((s) => s.h).map((s) => ({ h: s.h, body: s.body.slice(0, 1500), base: sha16(s.body) })) }))
+    .map(({ d }) => ({ doc: d.path, title: d.title, sections: d.sections.filter((s) => s.h).map((s) => ({ h: s.h, body: splitLog(s.body).body.slice(0, 1500), base: sha16(s.body) })) }))
 }
 export const INGEST_SCHEMA = {
   type: 'object',
@@ -87,6 +90,15 @@ export const INGEST_SCHEMA = {
   required: ['updates'],
 }
 
+// 항목 글 쓰기 규칙(agent/skills/kmd-build/작성가이드.md 의 줄임) — 정리 · 들이기 프롬프트가 같이 쓴다
+const WRITE_RULES = [
+  '항목 글 쓰기:',
+  '- 항목 하나는 대상 하나(기능 · 화면 · 테이블 · 절차 · 회의 한 번)의 지금이다. 기록을 날짜별로 덧붙이지 말고 지금 글에 녹여 다시 쓴다 — 「추가했다 · 고쳤다」 가 아니라 「…한다 · …이다」.',
+  '- 뒤집힌 내용은 지운다. 기록의 경위 · 논의 · 「바뀐 것 · 영향 · 맞춰 볼 것」 목록 · 커밋 메시지 · 코드 차이는 옮기지 않는다 — 기록에 남아 있다.',
+  '- 항목 머리(# · ##)와 표지(<!-- -->)는 쓰지 않는다. 항목 안의 소제목은 ### 아래나 굵은 글로 — 지금 글의 소제목은 그대로 둔다.',
+  '- 끝의 「**경과**」 목록은 kmd 가 단다 — 쓰지 않는다.',
+].join('\n')
+
 export function promptOf(g) {
   if (g.kind === 'ingest')
     return [
@@ -97,9 +109,10 @@ export function promptOf(g) {
         '- 같은 갈래의 문서가 후보에 있으면(예: 회의록) 새 문서를 세우지 않고 그 문서에 새 항목으로 넣는다 — 항목 머리는 「언제 · 무엇」(예: 2026-10-21 HNC 통화).',
         '- 갈래 문서가 없으면 그 갈래 이름으로 새 문서를 세우고(예: newDoc.path = 회의록), 이 파일은 그 안의 항목 하나(머리 「언제 · 무엇」)로 둔다.',
         '- 파일에 정한 것 · 바뀐 값 · 할 일이 있고 그 주제의 문서가 후보에 있으면, 그 문서의 해당 항목에도 그 내용을 고쳐 넣는다(updates).',
-        '- 항목 글 안의 작은 머리는 머리 줄 대신 굵은 글(**…**)로 쓴다. 표 · 목록은 그대로 둔다.',
+        '- 표 · 목록은 그대로 둔다.',
       ].join('\n'),
-      '파일에 있는 값(수 · 이름 · 코드)은 빠짐없이 그대로 옮기고, 파일에 없는 값을 지어내지 않는다. 옛 글의 값은 파일이 바꾼 것만 바꾼다. 머리 줄(#)과 표지(<!-- -->)는 글에 쓰지 않는다. JSON 으로만 답한다.',
+      WRITE_RULES,
+      '파일에 있는 값(수 · 이름 · 코드)은 빠짐없이 그대로 옮기고, 파일에 없는 값을 지어내지 않는다. 옛 글의 값은 파일이 바꾼 것만 바꾼다. JSON 으로만 답한다.',
       `문서 후보:\n${g.docs.map((d) => `[doc ${d.doc}] ${d.title}\n${d.sections.map((s) => `## ${s.h}\n${s.body}`).join('\n')}`).join('\n\n') || '(없음)'}`,
       `넣은 파일(기록 ${g.record.id} · ${g.record.file}):\n${g.record.body}`,
     ].join('\n\n')
@@ -113,7 +126,8 @@ export function promptOf(g) {
     `문서 항목 「${g.name}」 의 글을 새 기록에 맞게 고쳐 쓴다. 기록에 있는 값(수 · 이름 · 코드)은 그대로 옮기고, 기록에 없는 값을 지어내지 않는다.`,
     '옛 글의 값을 새 기록이 바꿨으면 새 값으로 바꾸고 drop 에 옛 값을 적는다. 넣을 것이 없는 기록은 left 에 까닭과 함께 둔다.',
     ...(g.records.some((r) => r.code) ? ['코드 커밋 기록은 「바뀐 값」 줄과 차이를 본다 — 글에 옛 값이 있으면 새 값으로 고치고, 코드에 없는 설명은 지어내지 않는다. 이 항목 글과 상관없는 커밋은 left 에 둔다.'] : []),
-    '머리 줄(##)과 표지(<!-- -->)는 쓰지 않는다. JSON 으로만 답한다.',
+    WRITE_RULES,
+    'JSON 으로만 답한다.',
     `지금 글:\n${g.content || '(아직 없음)'}`,
     `기록(오래된 것부터):\n${g.records.map((r) => `[${r.id}] ${r.date} ${r.author} — ${r.title}\n${r.body}`).join('\n\n')}`,
   ].join('\n\n')
@@ -136,13 +150,15 @@ export function check(k, g, d) {
   if (ids.some((x) => !said.includes(x))) return { ok: false, why: '빠뜨린 기록이 있다' }
   // G2 — 지금 글이 재료를 줄 때와 같나
   const x = sectionOf(k, g.coord)
-  const cur = x?.sec ? x.sec.body : ''
-  if (sha16(cur) !== g.base) return { ok: false, why: '그사이 항목이 바뀌었다 — 다음 정리 때 다시 만든다', stale: true }
+  const whole = x?.sec ? x.sec.body : ''
+  if (sha16(whole) !== g.base) return { ok: false, why: '그사이 항목이 바뀌었다 — 다음 정리 때 다시 만든다', stale: true }
   // 그사이 같은 항목에 새 기록이 왔으면 같이 넣어야 한다(표지가 그 기록까지 「넣음」 으로 보이게 되므로)
   const pendNow = k.works.filter((w) => w.state === 'pend' && w.touches.includes(g.coord)).map((w) => w.id)
   if (pendNow.some((x) => !ids.includes(x))) return { ok: false, why: '그사이 새 기록이 왔다 — 다음 정리 때 같이 넣는다', stale: true }
-  // G6 — 표지 · 머리 · 프런트매터 · script
-  if (/^#{1,6}\s/m.test(d.content) || /<!--/.test(d.content) || /^---\s*$/m.test(d.content) || /<script/i.test(d.content)) return { ok: false, why: '글에 머리 · 표지가 들었다' }
+  // 값 · 크기는 본문끼리 견준다(경과 줄은 저장이 지킨다)
+  const cur = splitLog(whole).body
+  // G6 — 표지 · 항목 머리 · 프런트매터 · script(소제목 ### 아래는 된다)
+  if (BAD_TEXT(d.content)) return { ok: false, why: '글에 머리 · 표지가 들었다' }
   if (!d.content.trim() && cur.trim()) return { ok: false, why: '글을 비웠다' }
   // G5 — 근거보다 크게 쓰지 않는다
   const used = g.records.filter((r) => d.used.includes(r.id))
@@ -165,7 +181,7 @@ export function check(k, g, d) {
 }
 
 // 넣은 파일 검사 — 모양 · 후보 문서만 고친다 · 새 문서 경로 · 지문(그사이 바뀜) · 표지 · 크기 · 값 대조(빠짐 · 지어냄)
-const BAD_TEXT = (t) => /^#{1,6}\s/m.test(t) || /<!--/.test(t) || /^---\s*$/m.test(t) || /<script/i.test(t)
+const BAD_TEXT = (t) => /^#{1,2}\s/m.test(t) || /<!--/.test(t) || /^---\s*$/m.test(t) || /<script/i.test(t)
 const oneLineH = (h) => typeof h === 'string' && h.trim() && !/[\r\n]/.test(h) && h.length <= 120
 const docRel = (p) => `docs/${String(p).replace(/^docs\/|\.md$/g, '')}.md`
 function checkIngest(k, g, d) {
@@ -184,10 +200,11 @@ function checkIngest(k, g, d) {
     // 그사이 그 항목이 바뀌었나
     const cur = k.byDocPath.get(c.doc)?.sections.find((x) => x.h === u.heading.trim())
     if (s && (!cur || sha16(cur.body) !== s.base)) return { ok: false, why: '그사이 항목이 바뀌었다 — 다음 정리 때 다시 만든다', stale: true }
-    if (s && !u.content.trim() && cur.body.trim()) return { ok: false, why: '글을 비웠다' }
+    const curBody = cur ? splitLog(cur.body).body : ''
+    if (s && !u.content.trim() && curBody.trim()) return { ok: false, why: '글을 비웠다' }
     if (cur) {
-      old += '\n' + cur.body
-      const a = valuesOf(cur.body)
+      old += '\n' + curBody
+      const a = valuesOf(curBody)
       const b = valuesOf(u.content)
       const gone = [...a].filter((v) => !b.has(v))
       const came = [...b].filter((v) => !a.has(v))

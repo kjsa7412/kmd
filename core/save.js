@@ -13,7 +13,7 @@ import path from 'node:path'
 import { fail } from './errors.js'
 import { nfc, oneLine, readText, sha16 } from './text.js'
 import { renderRecord, parseRecord } from './frontmatter.js'
-import { replaceSection, removeSection, renameSection, parseDoc, headingMatches } from './sections.js'
+import { replaceSection, removeSection, renameSection, parseDoc, headingMatches, splitLog, joinLog, logLine, logHas } from './sections.js'
 import { isReservedUser, isReservedTag, isLogRecord, LOG_DIR } from './names.js'
 import { isReservedFile } from './owners.js'
 import { keepBlocks, hasBlockMarker } from './baseline.js'
@@ -218,6 +218,15 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
     const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
     if (!back || back.id !== id || back.title !== rec.title || back.date !== date || back.author !== user || !same(back.touches, touches) || !same(back.tags, rec.tags)) fail('E_INPUT', '기록 머리가 보낸 값과 다르게 읽힌다 — 제목 · 이름 · 태그의 글자를 확인한다')
     const docs = []
+    // 경과에 달 기록 — 정리 · 넣기는 넣은 기록들(reflects) · 사람의 기록은 그 자신. 원천이 쓰는 저장(kmd)은 달지 않는다
+    const logged = []
+    for (const x of rec.reflects.length ? rec.reflects : sub === 'work' && user !== 'kmd' && user !== 'kmd-auto' ? [id] : []) {
+      if (x === id) logged.push({ id, title: rec.title, date, sub })
+      else {
+        const w = parseRecord(await readRecordFile(dir, x), `${x}.md`)
+        if (w) logged.push({ ...w, id: x, sub: existsSync(path.join(dir, 'work', `${x}.md`)) ? 'work' : LOG_DIR })
+      }
+    }
     for (const p of plan) {
       const raw = await fs.readFile(p.full, 'utf8').catch(() => null)
       const start = raw == null ? `# ${path.basename(p.rel, '.md')}\n` : readText(raw)
@@ -226,6 +235,14 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
       if (!system) {
         const old = parseDoc(start, '').sections.find((x) => headingMatches(x.h, p.heading))
         if (old) content = keepBlocks(old.body, content)
+      }
+      // 경과 — 옛 줄은 지키고(보낸 글에 없어도) 이번 기록의 줄을 더한다 · 원본이 주인인 문서는 원본 글 그대로
+      if (!p.remove && p.rename == null && !watchedOf(start)) {
+        const was = splitLog(parseDoc(start, '').sections.find((x) => headingMatches(x.h, p.heading))?.body).log
+        const now = splitLog(content)
+        const log = [...was, ...now.log.filter((l) => !was.includes(l))]
+        for (const w of logged) if (!logHas(log, w.id)) log.push(logLine(p.rel, w))
+        content = joinLog(now.body, log)
       }
       const after = p.remove ? removeSection(start, { level: p.level, heading: p.heading }) : p.rename ? renameSection(start, { level: p.level, heading: p.heading, to: p.rename }) : replaceSection(start, { level: p.level, heading: p.heading, body: content, applied: p.applied !== undefined ? p.applied : id })
       if (!docs.includes(p.rel)) {

@@ -111,3 +111,26 @@ export function stampAll(text, applied) {
   })
   return out.join('\n')
 }
+
+// 경과 — 항목 끝 `**경과**` 아래 한 줄씩 「- YYYY-MM-DD [기록 제목](../work/<id>.md)」.
+//   이 항목에 무엇이 언제 어느 기록에서 들어왔나를 글 안에서 보인다(CDP 의 경과와 같은 모양).
+//   줄은 kmd 가 단다 — 사람 · Claude 는 본문만 쓰고, 저장이 옛 줄을 지키며 이번에 넣은 기록의 줄을 더한다(지우지 않는다).
+const LOG_HEAD = /^\*\*경과\*\*\s*$/
+export function splitLog(body) {
+  const text = String(body ?? '').replace(/\s+$/, '')
+  const lines = text.split('\n')
+  const at = lines.findLastIndex((l) => LOG_HEAD.test(l.trim()))
+  const tail = at < 0 ? [] : lines.slice(at + 1)
+  // 끝까지 목록 줄만이어야 경과다 — 그 밖의 글이 따라오면 본문의 굵은 글로 본다
+  if (at < 0 || tail.some((l) => l.trim() && !/^\s*- /.test(l))) return { body: text.trim(), log: [] }
+  return { body: lines.slice(0, at).join('\n').trim(), log: tail.map((l) => l.trim()).filter(Boolean) }
+}
+export const joinLog = (body, log) => (log.length ? [String(body).trim(), `**경과**\n${log.join('\n')}`].filter(Boolean).join('\n\n') : String(body).trim())
+const linkId = (id) => encodeURI(id).replace(/\(/g, '%28').replace(/\)/g, '%29')
+// 기록 하나의 경과 줄 — 링크는 그 문서에서 본 상대 경로(docs/X.md 면 ../work/…)
+export function logLine(docRel, w) {
+  const up = '../'.repeat(String(docRel).split('/').length - 1)
+  const title = String(w.title || w.id).split(' — ')[0].replace(/[[\]]/g, '').trim()
+  return `- ${String(w.date || '').slice(0, 10)} [${title}](${up}${w.sub || 'work'}/${linkId(w.id)}.md)`
+}
+export const logHas = (log, id) => log.some((l) => l.includes(`/${linkId(id)}.md)`) || l.includes(`/${id}.md)`))

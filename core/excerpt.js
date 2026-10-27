@@ -6,7 +6,7 @@
 //   append  지금 항목 글 끝에 이 글을 보탠다(지금 글을 다시 보내지 않는다).
 // 값은 원문 그대로 남고 모델은 자리 · 잇는 말 · 바뀐 값만 쓴다.
 
-import { headingMatches } from './sections.js'
+import { headingMatches, splitLog, joinLog } from './sections.js'
 import { sectionOf } from './knowledge.js'
 import { KmdError } from './errors.js'
 
@@ -77,12 +77,15 @@ export function expandSections(k, w, sections) {
     if (!s || (s.from == null && !s.append)) return s
     const { from, append, ...rest } = s
     if (from != null && !w) throw new KmdError('E_NOTFOUND', '옮길 파일 글(이 일의 기록)이 없다')
+    // 코드 바뀜 기록은 분석 · 커밋 메시지 · 차이다 — 항목에 옮기거나 덧붙이지 않고 그 기능의 지금 동작으로 다시 쓴다
+    if (w?.tags?.includes('code-change')) throw new KmdError('E_INPUT', '코드 바뀜 기록은 from · append 로 넣지 않는다 — section 으로 읽고 그 기능의 지금 동작으로 고친 새 글 전체를 content 와 base 로 보낸다')
     let content = [typeof s.content === 'string' ? s.content.trim() : '', from != null ? excerpt(w?.body, from) : ''].filter(Boolean).join('\n\n')
     if (!content) throw new KmdError('E_INPUT', '항목 글이 비었다 — content 또는 from 을 준다')
     if (append) {
       const cur = s.coord ? sectionOf(k, String(s.coord).trim().normalize('NFC'))?.sec : k.docs.find((d) => d.id === String(s.doc || '').replace(/^docs\/|\.md$/g, ''))?.sections.find((y) => headingMatches(y.h, String(s.heading || '')))
-      // section 이 주는 content 와 같은 글(sec.body) 끝에
-      content = [String(cur?.body || '').trim(), content].filter(Boolean).join('\n\n')
+      // section 이 주는 content 와 같은 글(sec.body) 끝에 — 경과 목록 앞에(경과는 늘 항목 끝)
+      const now = splitLog(cur?.body)
+      content = joinLog([now.body, content].filter(Boolean).join('\n\n'), now.log)
     }
     return { ...rest, content }
   })
