@@ -313,7 +313,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (p === '/api/me') {
       // pcUrl — 내 PC 프로그램으로 이은 기기(설치 한 줄 · osuser 가 실린 것)가 있는 사람에게만 · 없으면 화면이 PC 를 묻지 않는다
       if (!ctx) return out(200, { mode, anon: true, setup: !auth.hasUsers(), legacy: auth.legacyWaiting(), version: VERSION, host: req.headers.host })
-      return out(200, { mode, user: ctx.user, admin: !!ctx.admin, sudo: !!ctx.sudo, password: ctx.password !== false, version: VERSION, host: req.headers.host, ...(mode === 'pc' ? { root: path.resolve(root) } : auth.devices(ctx.user).some((d) => d.osuser) ? { pcUrl } : {}), ...(mode === 'team' && ctx.admin ? { root: path.resolve(root) } : {}) })
+      return out(200, { mode, user: ctx.user, admin: !!ctx.admin, sudo: !!ctx.sudo, password: ctx.password !== false, version: VERSION, host: req.headers.host, ...(mode === 'pc' ? { root: path.resolve(root) } : auth.devices(ctx.user).some((d) => d.osuser) ? { pcUrl } : {}), ...(mode === 'team' && ctx.admin ? { root: path.resolve(root) } : {}), ...(mode === 'team' ? { personalRoot: hub.personalRoot(ctx.user) } : {}) })
     }
     // 이 PC 화면의 한 번용 번호 · 멈추기 — `kmd open` · `kmd pc update` 가 이 PC 의 열쇠(자격 저장소의 기기 열쇠)로 부른다.
     // 같은 PC 의 같은 OS 사용자만 그 열쇠를 푼다 · 팀 화면의 짝 열쇠는 CORS 목록 밖이라 닿지 않는다
@@ -389,7 +389,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       rows.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
       return out(200, { items: rows.slice(0, 500) })
     }
-    if (p === '/api/sources') return out(200, { items: await hub.allSources(ctx), can: hub.mode === 'pc' || !!ctx.admin })
+    if (p === '/api/sources') return out(200, { items: await hub.allSources(ctx), can: hub.mode === 'pc' || !!ctx.admin, canMine: hub.mode === 'team' && !!hub.personalRoot(ctx.user) })
     // ── 설정(S7) — 이 팀 서버 · 이 PC · 저절로 하는 일 · Claude 연결 · 에이전트 설치 ──
     if (p === '/api/settings') {
       const ks = await hub.visible(ctx)
@@ -547,13 +547,19 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       need(ctx)
       return out(200, await hub.fromTeam(ctx, await readBody(req)))
     }
+    // 개인 지식 폴더 정하기(팀 프로그램 · 사람마다)
+    if (p === '/api/me/personal' && req.method === 'POST') {
+      need(ctx)
+      return out(200, await hub.setPersonalRoot(ctx, (await readBody(req)).root))
+    }
     // 지식 추가 — 새 이름 · 내 폴더(PC)
     if (p === '/api/knowledge/add') {
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       const b = await readBody(req)
-      // 팀 서버에는 팀 지식만 선다(관리자). 개인 지식은 내 PC 프로그램의 지식 폴더에
-      if (mode === 'team' && !b.team) throw new KmdError('E_FORBIDDEN', '개인 지식은 팀 서버에 세우지 않는다. 내 PC 프로그램의 지식 폴더에 만든다')
-      if (mode === 'team') admin(ctx, { sudo: false })
+      // 팀 프로그램 — 팀 지식은 관리자 · 개인 지식은 누구나(그 사람의 개인 지식 폴더에)
+      need(ctx)
+      if (mode === 'team' && b.team) admin(ctx, { sudo: false })
+      if (mode === 'team' && !b.team && !hub.personalRoot(ctx.user)) throw new KmdError('E_INPUT', '개인 지식 폴더를 먼저 정한다(지식 목록 › 개인 지식 폴더)')
       return out(200, await hub.addKnowledge(ctx, b))
     }
     const sm = p.match(/^\/api\/k\/([^/]+)\/sources(?:\/(probe|run|request|every|checkdb|resync|meaning|edit|remove))?$/)
@@ -578,7 +584,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         if (b.force && !hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '[그대로 반영] 은 관리자가 한다')
         return out(200, await hub.sourceRun(id, b.name || null, { force: !!b.force, by: ctx.user }))
       }
-      if (hub.mode === 'team') admin(ctx, { sudo: false })
+      if (hub.mode === 'team' && !hub.canSource(ctx, id)) admin(ctx, { sudo: false })
       return out(200, await hub.sourceAdd(ctx, id, b))
     }
     if (p === '/api/requests') {
@@ -620,7 +626,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         // 팀 서버의 내 개인 지식 — 받는 지식(보내는 길) · 보내지 않은 기록 수(옆 메뉴 「지식 보내기」 의 수) · 내 PC 프로그램에는 보내기가 없다
         const row = hub.owner(k.id)
         const sv = (mode === 'pc' && (await sendLib.destsOf(k.dir)).length) || (row?.private && row.owner === ctx.user) ? await hub.sendView(ctx, k.id).catch(() => null) : null
-        return { ...V.knowledgeRow(k), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), private: !!row?.private, ...(mode === 'team' ? { owner: row?.owner || null } : {}), tidyAt: hub.tidyAtOf(k.id), tidyMode: hub.tidyModeOf(k.id), pendText: hub.pendText(k.id), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
+        return { ...V.knowledgeRow(k), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), private: !!row?.private, ...(mode === 'team' ? { owner: row?.owner || null, ...(hub.isPersonalKn(k.id) ? { personal: true } : {}) } : {}), tidyAt: hub.tidyAtOf(k.id), tidyMode: hub.tidyModeOf(k.id), pendText: hub.pendText(k.id), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
       })))
     }
     // 에이전트 일 — 목록 · 줄(터미널)

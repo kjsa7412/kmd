@@ -68,7 +68,6 @@ test('떠남: 한 번에 끊고 아이디를 남긴다 · 지식은 넘기거나
   const lk = s.auth.devices('lee')[0]
   const leeKey = lee.key
   const w = await s.auth.workerAdd({ owner: 'lee', device: lk.id })
-  await s.hub.addKnowledge({ user: 'lee', admin: true }, { kind: 'new', name: '고객메모' }) // 팀 서버의 개인 지식은 관리자일 때 세운 것
   await s.hub.setOwner(SHELL, 'dpms', { curators: ['lee'] })
   await s.hub.setOwner(SHELL, 'gdi', { owner: 'lee' })
   // 비밀번호 한 번 더 없이는 안 된다 · 나 자신은 안 된다
@@ -77,7 +76,7 @@ test('떠남: 한 번에 끊고 아이디를 남긴다 · 지식은 넘기거나
   assert.equal((await post('/api/admin/users/kim/off', kim)).status, 400)
   assert.equal((await get('/api/admin/users/lee/off', kim)).status, 405)
   const r = await post('/api/admin/users/lee/off', kim, { to: 'none' }).then((x) => x.json())
-  assert.deepEqual([r.devices >= 1, r.workers, r.kn.private, r.kn.team, r.kn.curate], [true, 1, 1, 1, 1])
+  assert.deepEqual([r.devices >= 1, r.workers, r.kn.private, r.kn.team, r.kn.curate], [true, 1, 0, 1, 1])
   assert.equal((await get('/api/me', lee).then((x) => x.json())).anon, true, '세션이 끊긴다')
   assert.equal(s.auth.bearer(leeKey), null, '기기 열쇠')
   assert.equal(s.auth.bearer(w.key), null, 'PC 일꾼')
@@ -89,20 +88,10 @@ test('떠남: 한 번에 끊고 아이디를 남긴다 · 지식은 넘기거나
   assert.ok(!ov.nopw.includes('lee') && !ov.people.includes('lee') && ov.off.includes('lee'))
   // 지식 — 개인 지식은 주인 칸이 비어 관리자만 · 팀 지식 gdi 는 주인 없음 · dpms 정리하는 사람에서 빠짐
   const L = JSON.parse(fs.readFileSync(path.join(data, 'owners.json'), 'utf8')).knowledge
-  assert.deepEqual([L['고객메모-lee'].owner, L['고객메모-lee'].private, L.gdi.owner, L.dpms.curators], [null, true, null, []])
-  assert.match(fs.readFileSync(path.join(root, '고객메모-lee', '_members.md'), 'utf8'), /- 주인: \n/)
-  const vis = async (who) => (await get('/api/knowledge', who).then((x) => x.json())).map((k) => k.id)
-  assert.ok((await vis(kim)).includes('고객메모-lee'), '관리자는 본다. 넘기거나 지운다')
-  assert.ok(!(await vis(park)).includes('고객메모-lee'))
-  // 관리자가 넘긴다(비밀번호 한 번 더 — 지금은 15분 안) · 떠난 사람에게는 못 넘긴다
-  assert.equal((await post('/api/k/' + encodeURIComponent('고객메모-lee') + '/owner', kim, { owner: 'lee' })).status, 400)
-  assert.equal((await post('/api/k/' + encodeURIComponent('고객메모-lee') + '/owner', kim, { owner: 'park' })).status, 200)
-  assert.ok((await vis(park)).includes('고객메모-lee'))
-  assert.ok(!(await vis(kim)).includes('고객메모-lee'), '이제 park 의 개인 지식')
+  assert.deepEqual([L.gdi.owner, L.dpms.curators], [null, []])
   // 사람 카드 — 떠난 사람 표 · 사람마다 지식 수
   const us = await get('/api/admin/users', kim).then((x) => x.json())
   assert.ok(us.users.find((u) => u.id === 'lee').off)
-  assert.equal(us.users.find((u) => u.id === 'park').roles.private, 1)
   assert.ok(!us.users.some((u) => u.kind === 'worker'))
 })
 
@@ -111,15 +100,26 @@ test('관리자는 화면에서 팀 지식을 세운다 · 주인 넘기기 · �
   assert.equal(r.id, '보안점검')
   assert.ok((await get('/api/knowledge', park).then((x) => x.json())).some((k) => k.id === '보안점검' && !k.private), '팀 모두 본다')
   assert.equal(await code(s.hub.addKnowledge({ user: 'park' }, { kind: 'new', name: '몰래팀', team: true })), 'E_FORBIDDEN')
-  // 팀 서버에는 팀 지식만 선다(관리자) — 개인 지식은 내 PC 프로그램에. 화면 길은 일반 · 관리자 모두 개인 지식을 받지 않는다
-  assert.equal((await post('/api/knowledge/add', park, { kind: 'new', name: '내 메모' }).then((x) => x.json())).error, 'E_FORBIDDEN')
-  assert.equal((await post('/api/knowledge/add', kim, { kind: 'new', name: '내 메모' }).then((x) => x.json())).error, 'E_FORBIDDEN')
+  // 개인 지식 — 개인 지식 폴더를 정하기 전에는 못 세운다 · 정하면 누구나 그 폴더에 · 주인만 본다
+  assert.equal((await post('/api/knowledge/add', park, { kind: 'new', name: '내 메모' }).then((x) => x.json())).error, 'E_INPUT')
   assert.equal((await post('/api/knowledge/add', park, { kind: 'new', name: '몰래팀', team: true }).then((x) => x.json())).error, 'E_FORBIDDEN')
-  // 옛 개인 지식(예전에 팀 서버에 세운 것) — 주인만 본다
-  const r2 = await s.hub.addKnowledge({ user: 'park', admin: true }, { kind: 'new', name: '내 메모' })
+  const proot = path.join(root, '..', 'park-personal')
+  assert.equal((await post('/api/me/personal', park, { root: root })).status, 400, '팀 지식 폴더와 겹치면 안 된다')
+  assert.equal((await post('/api/me/personal', park, { root: proot })).status, 200)
+  assert.equal((await get('/api/me', park).then((x) => x.json())).personalRoot, path.resolve(proot))
+  const r2 = await post('/api/knowledge/add', park, { kind: 'new', name: '내 메모' }).then((x) => x.json())
   assert.equal(r2.id, '내-메모-park')
+  assert.ok(fs.existsSync(path.join(proot, '내 메모', 'docs')), '개인 지식 폴더 안에 선다')
   assert.ok((await get('/api/knowledge', park).then((x) => x.json())).some((k) => k.id === r2.id && k.private), '개인 지식')
   assert.ok(!(await get('/api/knowledge', kim).then((x) => x.json())).some((k) => k.id === r2.id), '주인만 본다')
+  // 개인 지식에는 주인이 가져온다(일반 사람도)
+  const imp = await post('/api/k/' + encodeURIComponent(r2.id) + '/import', park, { files: [{ path: '회의.md', b64: Buffer.from('# 회의\n\n## 결정\n목요일 배포\n').toString('base64') }] })
+  assert.equal(imp.status, 200)
+  // 팀 지식 폴더의 옛 개인 지식에는 personal 표지가 없다(화면이 올리지 않는다)
+  await s.hub.addKnowledge({ user: 'park', admin: true }, { kind: 'new', name: '옛것', team: true })
+  await s.hub.setOwner(SHELL, '옛것', { owner: 'park', private: true })
+  const ks = await get('/api/knowledge', park).then((x) => x.json())
+  assert.ok(ks.some((k) => k.id === r2.id && k.personal) && !ks.some((k) => k.id === '옛것' && k.personal))
   // 비밀번호 한 번 더가 끝난 관리자 — 주인 넘기기 · 개인으로 돌리기 · 지우기는 E_SUDO
   const kim2 = { ...kim }
   kim2.cookie = (await fetch(s.url + '/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ user: 'kim', pw: prehash('kim', kim.pw) }) })).headers.getSetCookie().map((c) => c.split(';')[0]).join('; ')
@@ -140,7 +140,7 @@ test('부탁: 같은 것은 합친다 · 개인 지식에는 받지 않는다 ·
   assert.equal(b.again, true)
   assert.equal((await s.hub.requests()).length, 1)
   assert.equal((await s.hub.requests())[0].by, 'park, choi')
-  await s.hub.addKnowledge({ user: 'park', admin: true }, { kind: 'new', name: '내메모' })
+  await s.hub.addKnowledge({ user: 'park' }, { kind: 'new', name: '내메모' })
   assert.equal(await code(s.hub.sourceRequest({ user: 'park' }, '내메모-park', card)), 'E_INPUT')
   const c = await s.hub.sourceRequest({ user: 'park' }, 'dpms', { ...card, name: '다른것' })
   // 거절 — 부탁한 사람의 이력에 · 목록에서 빠진다

@@ -120,7 +120,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     membersRows.set(id, { m, row })
     return row
   }
-  const rowFor = (id) => owners.rowOf(R(), id) || membersRow(id)
+  // 팀 프로그램의 개인 지식 — 사람마다 정한 개인 지식 폴더(personal.json { 아이디: 경로 }) 안의 폴더 하나가 지식 하나.
+  //   id 는 「폴더-아이디」 · 주인만 본다 · 화면은 팀 지식 폴더에 남은 옛 개인 지식을 보이지 않는다(personal 표지가 없다)
+  let personal = mode === 'team' ? await fs.readFile(path.join(dataDir, 'personal.json'), 'utf8').then(JSON.parse, () => ({})) : {}
+  const personalOwner = new Map() // id → 주인(list 가 채운다)
+  const rowFor = (id) => (personalOwner.has(id) ? { owner: personalOwner.get(id), private: true, curators: [] } : owners.rowOf(R(), id) || membersRow(id))
   const visibleTo = (id, ctx) => owners.visible({ knowledge: { [id]: rowFor(id) || undefined } }, id, ctx)
   // 저절로 하는 일 켬 · 끔(설정) — PC 는 하나 · 팀은 사람마다. 없으면 켬
   let prefs = await fs.readFile(path.join(dataDir, 'prefs.json'), 'utf8').then(JSON.parse, () => ({}))
@@ -303,7 +307,19 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const links = await fs.readFile(path.join(dataDir, 'links.json'), 'utf8').then(JSON.parse, () => [])
         const more = []
         for (const l of links) if (!own.some((k) => k.id === l.id) && (await looksLikeKnowledge(l.dir))) more.push({ id: l.id, name: (await listKnowledge(l.dir))[0]?.name || l.id, dir: l.dir })
-        list = [...own, ...more]
+        let all = [...own, ...more]
+        if (mode === 'team') {
+          personalOwner.clear()
+          for (const [user, proot] of Object.entries(personal)) {
+            for (const k of await listKnowledge(proot).catch(() => [])) {
+              const id = `${k.id}-${user}`.replace(/[<>:"/\\|?*\s]+/g, '-')
+              if (all.some((x) => x.id === id)) continue
+              personalOwner.set(id, user)
+              all.push({ id, name: k.name, dir: k.dir })
+            }
+          }
+        }
+        list = all
       }
       return list
     },
@@ -319,16 +335,20 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const teamKn = mode === 'team' && !!team
         // 팀 지식은 관리자만 세운다 · 팀 서버 안 내 지식(개인 지식 · 나만)은 누구나 — 거기서 쓰고 가져오고 팀 지식으로 보낸다
         if (teamKn && !ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '팀 지식은 팀 서버 관리자가 세운다')
+        // 팀 프로그램의 개인 지식 — 그 사람의 개인 지식 폴더 안에(장부 줄 없이 폴더 자리로 주인이 정해진다)
+        //   개인 지식 폴더가 없으면 옛 길(팀 지식 폴더 안 · _members.md 로 가림) — 셸 · 시험만. 화면(http)은 개인 지식 폴더를 먼저 정하게 한다
+        const proot = mode === 'team' && !teamKn ? personal[ctx.user] || null : null
+        const mine = !!proot
         if (mode === 'team') id = (teamKn ? nm : `${nm}-${ctx.user}`).replace(/[<>:"/\\|?*\s]+/g, '-')
         if (all.some((k) => k.id.toLowerCase() === id.toLowerCase())) throw new KmdError('E_CONFLICT', `「${nm}」 지식이 이미 있다`)
-        const d = path.join(root, id)
+        const base = mine ? proot : root
+        const d = path.join(base, mine ? nm.replace(/[<>:"/\\|?*]+/g, '-') : id)
         // 폴더를 먼저 차지한다(같은 이름 두 번 누름 — 둘째는 여기서 E_CONFLICT · 첫째의 줄을 건드리지 않는다).
-        // 팀 서버의 내 지식은 곧바로 `_members.md`(개인: 예)를 두어 목록에 보이는 순간 이미 가려져 있게 한 뒤 장부 줄을 세운다
-        await fs.mkdir(root, { recursive: true })
+        await fs.mkdir(base, { recursive: true })
         await fs.mkdir(d).catch((e) => { throw e.code === 'EEXIST' ? new KmdError('E_CONFLICT', `「${nm}」 지식이 이미 있다`) : e })
         let row = null
         try {
-          if (mode === 'team') {
+          if (mode === 'team' && !mine) {
             row = { owner: ctx.user, private: !teamKn, curators: [] }
             await fs.writeFile(path.join(d, '_members.md'), owners.renderMembers(row), 'utf8')
             row = await mutateReg((next) => {
@@ -341,7 +361,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           await fs.mkdir(path.join(d, 'work'), { recursive: true })
           await fs.writeFile(path.join(d, 'README.md'), `# ${nm}\n`, 'utf8')
           if (!empty) await fs.writeFile(path.join(d, 'docs', '처음.md'), `# 처음\n\n## 개요\n새 지식: 첫 문서를 쓴다.\n`, 'utf8')
-          await commitPaths(d, [...(empty ? ['README.md'] : ['README.md', 'docs/처음.md']), ...(mode === 'team' ? ['_members.md'] : [])], `지식 만듦: ${nm}`, ctx.user)
+          await commitPaths(d, [...(empty ? ['README.md'] : ['README.md', 'docs/처음.md']), ...(mode === 'team' && !mine ? ['_members.md'] : [])], `지식 만듦: ${nm}`, ctx.user)
         } catch (e) {
           // 내가 차지한 폴더를 지운 뒤에만 줄을 지운다(폴더가 남으면 「나만」 줄도 남긴다)
           const gone = await fs.rm(d, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).then(() => true, () => false)
@@ -354,13 +374,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (mode === 'pc' && started) watchers.push(Object.assign(collect.watch(d, () => hub.collect(id)), { dir: d })) // 편집기에서 고친 것 거두기 — 켤 때 없던 지식도
         await hub.gitlabAttach(id).catch((e) => log('GitLab 백업 자리', id, e.message))
         await hub.autoBackup(id).catch((e) => log('백업 자리', id, e.message))
-        feed.add(dataDir, ctx.user, { kind: 'kn', kn: id, dot: 'acc', text: `지식을 추가했다: ${nm}`, small: mode === 'team' ? (teamKn ? `팀 지식 · 팀 모두 본다 · 주인 ${ctx.user}` : '팀 서버 안 내 지식 · 나만') : d }).catch(() => {})
-        return { id, name: nm, dir: mode === 'pc' ? d : undefined }
+        feed.add(dataDir, ctx.user, { kind: 'kn', kn: id, dot: 'acc', text: `지식을 추가했다: ${nm}`, small: mode === 'team' ? (teamKn ? `팀 지식 · 팀 모두 본다 · 주인 ${ctx.user}` : '개인 지식 · 나만 · ' + d) : d }).catch(() => {})
+        return { id, name: nm, dir: mode === 'pc' || mine ? d : undefined }
       }
       // 지식 폴더 밖의 폴더 — 그 자리에서 따라가지 않는다(남의 폴더에 쓰지 않게 · 지식은 지식 폴더 안에만).
       // 지식 폴더 안에 같은 이름의 새 지식을 세우고 그 폴더의 파일을 한 번 들여온다(파일 넣기와 같은 길 · 원본은 그대로)
       if (kind === 'folder') {
-        if (mode !== 'pc' && !ctx.pc) throw new KmdError('E_FORBIDDEN', '경로는 내 PC 프로그램이 연다')
+        if (mode !== 'pc' && !ctx.pc && !personal[ctx.user]) throw new KmdError('E_FORBIDDEN', '경로는 개인 지식 폴더를 정한 뒤에 들인다')
         const full = path.resolve(String(dir || ''))
         if (!path.isAbsolute(String(dir || '')) || !(await fs.stat(full).then((s) => s.isDirectory(), () => false))) throw new KmdError('E_NOTFOUND', '그 폴더가 없다')
         const inside = (a, b) => { const r = path.relative(b.toLowerCase(), a.toLowerCase()); return r === '' || (!r.startsWith('..') && !path.isAbsolute(r)) }
@@ -412,7 +432,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (mode !== 'pc' && !ctx.pc && !ctx.admin && !ctx.shell && !mine) throw new KmdError('E_FORBIDDEN', '팀 지식은 관리자가 지운다')
       if (String(confirm ?? '').trim().normalize('NFC') !== meta.name.normalize('NFC')) throw new KmdError('E_INPUT', `지우려면 지식 이름 「${meta.name}」 을 그대로 쓴다`)
       const dir = path.resolve(meta.dir)
-      const inRoot = dir.startsWith(path.resolve(root) + path.sep)
+      const inRoot = [root, ...(personalOwner.has(id) ? [personal[personalOwner.get(id)]] : [])].some((r) => r && dir.startsWith(path.resolve(r) + path.sep))
       // 붙어 있는 것부터 떼고(감시 · 백업 · 일감 · 시계) 폴더를 지운다
       for (const w of watchers.filter((x) => x.dir && path.resolve(x.dir) === dir)) w.close()
       watchers.splice(0, watchers.length, ...watchers.filter((x) => !(x.dir && path.resolve(x.dir) === dir)))
@@ -616,6 +636,25 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         cache.clear()
         list = null
       }
+    },
+    // 개인 지식 폴더(팀 프로그램 · 사람마다) — 이 프로그램이 도는 PC 의 경로. 없으면 만든다 · 팀 지식 폴더 · 살림 자리와 겹치지 않게
+    personalRoot: (user) => personal[user] || null,
+    isPersonalKn: (id) => personalOwner.has(id),
+    async setPersonalRoot(ctx, dir) {
+      if (mode !== 'team') throw new KmdError('E_NOTFOUND', '팀 프로그램의 길이다')
+      const raw = String(dir || '').trim()
+      if (!raw || !path.isAbsolute(raw)) throw new KmdError('E_INPUT', '이 PC 의 절대 경로를 쓴다(예: D:\\kmd-개인)')
+      const full = path.resolve(raw)
+      const inside = (a, b) => { const r = path.relative(b.toLowerCase(), a.toLowerCase()); return r === '' || (!r.startsWith('..') && !path.isAbsolute(r)) }
+      if (path.parse(full).root.toLowerCase() === full.toLowerCase()) throw new KmdError('E_INPUT', '드라이브 통째는 쓰지 않는다. 그 안의 폴더를 고른다')
+      for (const r of [root, dataDir]) if (inside(full, path.resolve(r)) || inside(path.resolve(r), full)) throw new KmdError('E_INPUT', '팀 지식 폴더 · 살림 자리와 겹치지 않는 곳에 둔다')
+      for (const [u, p] of Object.entries(personal)) if (u !== ctx.user && (inside(full, p) || inside(p, full))) throw new KmdError('E_INPUT', '다른 사람의 개인 지식 폴더와 겹친다')
+      await fs.mkdir(full, { recursive: true })
+      personal = { ...personal, [ctx.user]: full }
+      await fs.mkdir(dataDir, { recursive: true })
+      await fs.writeFile(path.join(dataDir, 'personal.json'), JSON.stringify(personal, null, 1))
+      list = null
+      return { root: full, kns: (await hub.visible(ctx)).filter((k) => personalOwner.get(k.id) === ctx.user).length }
     },
     owner(id) {
       return rowFor(id)
@@ -837,7 +876,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       return { roots: (config.sourceRoots || []).map((r) => path.resolve(r)), dataDir, knowledgeDirs: metas.map((m) => m.dir), backups, pc: mode === 'pc' }
     },
     canSource(ctx, id) {
-      return mode === 'pc' || ctx.pc || !!ctx.admin
+      return mode === 'pc' || ctx.pc || !!ctx.admin || (!!ctx.user && personalOwner.get(id) === ctx.user)
     },
     // 살펴보기 — 주소를 받아 어떤 규칙이 무엇을 내는지(쓰지 않는다)
     async sourceProbe(ctx, id, { at, kind = null }) {
