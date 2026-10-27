@@ -163,7 +163,7 @@ test('편집기: 다시 그려도 · 찾기를 열고 닫아도 쓴 글이 남�
   assert.equal(gone, 404)
   // 관리자 일 — 비밀번호 한 번 더 창이 그 자리에서 뜨고, 맞으면 하던 일(사람 더하기)을 이어서 한다(WP4 F-015)
   await page.click('[data-t=nav-settings-team]')
-  await page.click('[data-t=st-people]')
+  await page.click('[data-t=mg-people]')
   await page.click('[data-t=admAddOpen]')
   await page.fill('[data-t=admAddIn]', 'choi')
   await page.click('[data-t=admAddDo]')
