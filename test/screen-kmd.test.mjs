@@ -83,7 +83,9 @@ test('셸 · 지식 목록 · 문서로 보기 — 목업과 같은 글 · 단�
   // 관리자라 「정리 · 이 지식의 사람 · 관리」 도 지식 관리에 선다
   assert.deepEqual(await page.locator('[data-t=manageArea] .sb-i').evaluateAll((els) => els.map((e) => e.querySelector('span').textContent)), ['이력', '가져오기', '정리', '이 지식의 사람', '관리', '설정'])
   assert.match(await page.locator('.hdr .hmid').innerText(), /빨리 열기[\s\S]*Ctrl O[\s\S]*찾기[\s\S]*Ctrl K/)
-  assert.match(await page.locator('.hdr .hright').innerText(), /설명서[\s\S]*kim\s*· 팀 서버/)
+  assert.match(await page.locator('.hdr .hright').innerText(), /Claude[\s\S]*설명서/)
+  // 들어온 사람은 왼쪽 메뉴 맨 위(누르면 설정 · 나가기)
+  assert.match(await page.locator('.side .sb-top [data-t=me]').innerText(), /kim[\s\S]*팀 서버 · 관리자/)
   assert.equal(await page.locator('.band .who').innerText(), '팀 서버의 kmd · 같이 쓴다')
   assert.deepEqual(await page.locator('[data-t=krow]').evaluateAll((els) => els.map((e) => e.dataset.name)), ['DPMS 지식', 'GDI 지식'])
   assert.equal(await page.locator('[data-t=addCard]').count(), 1, '그리드 끝 「+ 지식 추가」 카드')

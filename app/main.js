@@ -228,7 +228,7 @@ function render() {
   const keep = ['.main[data-t=main]', '[data-t=rightPane]', '[data-t=leftPane]', '[data-t=aside]'].map((q) => { const el = app.querySelector(q); return el ? [q, el.scrollTop] : null }).filter((x) => x && (x[0] === '[data-t=leftPane]' ? S._lpView === lpView : S._view === view))
   S._view = view
   S._lpView = lpView
-  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${gated() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside">${scr.aside}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.sudo ? sudoHtml() : ''}`
+  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${gated() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside">${scr.aside}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.sudo ? sudoHtml() : ''}${S.stopWin ? stopWinHtml() : ''}`
   placePop()
   for (const [q, top] of keep) { const el = app.querySelector(q); if (el) el.scrollTop = top }
   if (gated()) { const g = $('[data-focus]'); if (g && document.activeElement !== g) g.focus(); return }
@@ -283,7 +283,8 @@ function sideHtml(left) {
   const vt = VIEWS3.includes(r.scr) ? r.scr : S.ktab || 'docs'
   const k = dim ? null : defaultKn()
   const cur = k ? KN(k) : null
-  let h = `<aside class="side${dim ? ' dim' : ''}"><div class="sb-top"><div class="logo${team ? '' : ' me'}">K</div><span class="brand">kmd</span>${busyDot()}</div><div class="where">${team ? '팀 서버에서 돈다 · ' + esc(S.me.host) : '이 PC 에서 돈다'}</div>`
+  // 맨 위 — 들어온 사람(누르면 설정 · 나가기) · 지금 하는 일 점 · 들어오기 전에는 kmd
+  let h = `<aside class="side${dim ? ' dim' : ''}"><div class="sb-top">${anon() ? `<div class="logo${team ? '' : ' me'}">K</div><span class="brand">kmd</span>` : meHtml()}${busyDot()}</div><div class="where">${team ? '팀 서버에서 돈다 · ' + esc(S.me.host) : '이 PC 에서 돈다'}</div>`
   if (!dim) {
     // 지식 고르기 영역
     // 팀 화면의 지식 수는 갈래마다 — 내 PC · 개인 지식까지 「팀」 으로 세지 않는다
@@ -310,14 +311,18 @@ function sideHtml(left) {
   h += it('settings', '설정', 'gear') + '</div></div>'
   return h + '</aside>'
 }
+// 들어온 사람 — 왼쪽 메뉴 맨 위 · 누르면 설정 · (팀) 나가기
+function meHtml() {
+  const menu = S.menu === 'me' ? `<div class="menu" style="left:0;top:34px;min-width:200px" data-t="meMenu"><div class="mi" data-a="nav" data-s="settings" data-t="meSettings">설정</div>${isTeam() ? '<div class="sep"></div><div class="mi" data-a="logout" data-t="meLogout">나가기<small>이 브라우저에서</small></div><div class="mi" data-a="logoutAll" data-t="meLogoutAll">모든 곳에서 나가기<small>다른 기기 · 브라우저도</small></div>' : ''}</div>` : ''
+  return `<div class="sb-me-top" data-a="menu" data-m="me" data-t="me" title="설정 · 나가기">${menu}<span class="av">${esc(String(S.me.user).slice(0, 1))}</span><span class="un"><b>${esc(S.me.user)}</b><small>${isTeam() ? "팀 서버" : "이 PC"}${S.me.admin && isTeam() ? " · 관리자" : ""}</small></span><span class="rc">▾</span></div>`
+}
 function hdrHtml(crumb) {
   const r = S.route
   const kn = r.kn && r.kn !== '*' && KNSCR.includes(r.scr) && KN(r.kn) ? KN(r.kn).name : ''
   const parts = String(crumb || '').split(' › ').filter(Boolean)
   const c = (kn && parts[0] !== kn ? '<span>' + esc(kn) + '</span> › ' : '') + parts.map((x, i) => (i === parts.length - 1 ? '<b>' + esc(x) + '</b>' : esc(x))).join(' › ')
   const hb = `<span class="hist"><button class="hb" data-a="histGo" data-v="-1" data-t="histBack" title="이전 (Alt ←)"${S.hpos > 0 ? '' : ' disabled'}>‹</button><button class="hb" data-a="histGo" data-v="1" data-t="histFwd" title="다음 (Alt →)"${S.hpos < S.hist.length - 1 ? '' : ' disabled'}>›</button></span>`
-  const meMenu = S.menu === 'me' ? `<div class="menu" style="right:0;top:30px" data-t="meMenu"><div class="mi" data-a="nav" data-s="settings" data-t="meSettings">설정</div>${isTeam() ? '<div class="sep"></div><div class="mi" data-a="logout" data-t="meLogout">나가기<small>이 브라우저에서</small></div><div class="mi" data-a="logoutAll" data-t="meLogoutAll">모든 곳에서 나가기<small>다른 기기 · 브라우저도</small></div>' : ''}</div>` : ''
-  const me = anon() ? '<span class="hme muted" data-t="me">아직 들어오지 않았다</span>' : `<span class="hme" data-a="menu" data-m="me" data-t="me" title="설정 · 나가기" style="cursor:pointer;position:relative">${meMenu}<span class="av">${esc(String(S.me.user).slice(0, 1))}</span>${esc(S.me.user)} <small>· ${isTeam() ? '팀 서버' : '이 PC'}</small></span>`
+  const me = anon() ? '<span class="hme muted" data-t="me">아직 들어오지 않았다</span>' : ''
   const right = `<div class="hright">${anon() ? '' : claudeChip()}<a class="hlink" data-t="manual" href="/manual" target="_blank" rel="noopener" title="설명서 — 새 탭">${svg('book')}<span>설명서</span></a>${me}</div>`
   if (anon()) return `<header class="hdr"><span class="crumb">${c}</span><div class="hmid"></div>${right}</header>`
   return `<header class="hdr">${hb}<span class="crumb">${c}</span><div class="hmid"><div class="qbtn" data-a="openQo" data-t="qoBtn" title="문서 · 항목 · 기록 이름으로 바로 연다">빨리 열기 <kbd>Ctrl O</kbd></div><div class="search" data-a="openSearch" data-t="search">${svg('search')}<span style="margin-left:6px">찾기</span><span style="margin-left:auto;font-size:11px">Ctrl K</span></div></div>${right}</header>`
@@ -331,12 +336,29 @@ function bandHtml() {
   else if (team && KN(k) && KN(k).private) left = '개인 지식 · 팀 서버 · 나만'
   else left = team ? '팀 지식 · 팀 서버 · 나: ' + (KN(k) && KN(k).role === '주인' ? '주인' : '기록') : '내 지식 · ' + ((KN(k) && KN(k).dir) || '') + ' · 나만'
   const st = stopsFor(k)
-  const right = st.length ? st.map((x) => `<span class="chip ${x.level === 'bad' ? 'c-danger' : 'c-warn'}" data-t="bandchip">${esc(x.b)} — ${esc(x.t)}</span>`).join('') : team ? '' : '<span class="muted">밖으로 나가는 것은 보내기 · 백업 · Claude 정리뿐</span>'
+  const right = st.length ? stopBtnHtml(st) : team ? '' : '<span class="muted">밖으로 나가는 것은 보내기 · 백업 · Claude 정리뿐</span>'
   return `<div class="band ${team ? 'team' : 'me'}"><span class="who"><i></i>${esc(left)}</span><span class="out">${right}</span></div>`
 }
 // ── 멈춤 한 줄(서버가 준 줄 그대로) ──
 function stopsFor(k) { return S.stops.filter((x) => !k || !x.kn || x.kn === k) }
-const stopHtml = (x) => `<div class="callout ${x.level === 'bad' ? 'danger' : 'warn'} stop" data-t="stop"><i></i><span><b>${esc(x.b)}</b>${x.t ? ' — ' + esc(x.t) : ''}</span>${x.r ? `<span class="r">${esc(x.r)}</span>` : ''}</div>`
+// 경고(멈춤 줄) — 화면마다 띠로 깔지 않고 머리 띠의 「경고 n」 단추 하나 · 누르면 팝업에 모두(무엇 · 얼마나 · 풀리는 길 · 그 일로 가기)
+const STOP_T = { backup: ['백업', '설정 › 백업', 'settings'], source: ['가져오기', '가져오기 › 일 줄', 'import'], send: ['지식 보내기', '지식 보내기', 'send'], worker: ['정리 일꾼', '설정 › Claude 연결', 'settings'], tidy: ['정리', '정리', 'tidy'] }
+function stopBtnHtml(st) {
+  if (!st.length) return ''
+  const bad = st.some((x) => x.level === 'bad')
+  return `<button class="chip ${bad ? 'c-danger' : 'c-warn'} stopbtn" data-a="stopOpen" data-t="stopBtn" title="경고를 모두 본다">⚠ 경고 ${st.length}<span>${esc(st[0].b)}${st.length > 1 ? ` 외 ${st.length - 1}` : ''}</span></button>`
+}
+function stopWinHtml() {
+  const st = S.stops
+  const row = (x) => {
+    const [kind, where, scr] = STOP_T[x.kind] || ['kmd', '', '']
+    const kn = x.kn && KN(x.kn) ? KN(x.kn).name : ''
+    return `<div class="callout ${x.level === 'bad' ? 'danger' : 'warn'} stop" data-t="stop" data-kind="${esc(x.kind)}"><i></i><span><b>${esc(x.b)}</b>${x.t ? ' — ' + esc(x.t) : ''}<small>${esc(kind)}${kn ? ' · ' + esc(kn) : ''}${x.r ? ' · ' + esc(x.r) : ''}</small></span>${scr ? `<button class="btn sm" data-a="stopGo" data-v="${scr}" data-k="${esc(x.kn || '')}" data-t="stopGo">${esc(where)} ›</button>` : ''}</div>`
+  }
+  return `<div class="scrim fix" data-a="stopClose" data-self="1"><div class="modal w640" data-t="stopWin"><div class="mh">경고 <small>저절로 하는 일(백업 · 가져오기 · 보내기 · 정리)이 멈췄거나 막혔다 — 풀리는 길과 그 일로 가는 단추</small><button class="x" data-a="stopClose" title="닫기">×</button></div>
+   <div class="mb">${st.length ? st.map(row).join('') : '<div class="muted">경고가 없다 — 모두 잘 돈다</div>'}</div>
+   <div class="mf"><span class="l">잘 될 때는 경고가 없다 · 풀리면 저절로 걷힌다</span><span class="acts"><button class="btn" data-a="stopReload">다시 읽기</button><button class="btn pri" data-a="stopClose">닫기</button></span></div></div></div>`
+}
 async function loadStops() {
   try {
     const st = await getJSON('/api/stops')
@@ -385,7 +407,7 @@ function viewHome() {
   return {
     crumb: '지식 목록',
     main: `<div style="max-width:1100px"><div class="pg-h"><div><div class="big">지식 목록</div><p class="lead">${team ? '팀 서버의 지식 · 내 지식' : '내 지식 ' + S.kns.length} — 옆 메뉴에 이 순서로 보인다 · 카드를 끌어 순서를 바꾼다</p></div></div>
-  ${S.stops.map(stopHtml).join('')}${pcLine}${fbar}${msg}
+  ${pcLine}${fbar}${msg}
   <div class="kgrid" data-t="klist">${shown.map((n) => kcardHtml(n, team)).join('')}${add}</div>
   ${hid.length ? `<div class="sec-h" data-t="hidSec"><b>뺀 지식</b><small>옆 메뉴에 보이지 않는다 · 지우지 않았다 — [메뉴에 올리기] 로 다시</small></div><div class="kgrid" data-t="hidList">${hid.map((n) => kcardHtml(n, team)).join('')}</div>` : ''}</div>`,
   }
@@ -1220,7 +1242,6 @@ function viewToday() {
   const checkCard = checks.length ? `<div class="card" data-t="histCheck"><div class="ch">확인할 것 <span class="chip c-warn">${checks.length}</span><small>kmd 가 정리하며 내 기록의 값을 바꿨다 — 그 줄만 되돌릴 수 있다</small></div><div class="cb" style="padding:0">${checks.map(histRow).join('')}</div></div>` : ''
   const flowCard = `<div class="card" data-t="feed"><div class="cb" style="padding:0">${days.map((g) => `<div class="hday" data-t="histDay">${esc(g.d)}<small>${g.rows.length}</small></div>${g.rows.map(histRow).join('')}`).join('') || '<p class="muted" style="margin:12px 14px" data-t="logEmpty">아직 없다</p>'}</div><div class="cf">줄을 누르면 펼친다 · kmd 가 다룬 일은 지식의 git 에 그대로 남아 되살리기 · 백업에 같이 간다 · 나에게 온 줄은 7일 둔다</div></div>`
   const main = `<div style="max-width:980px">${head}
-  ${S.stops.filter((x) => x.level === 'warn').map(stopHtml).join('')}
   <div style="display:flex;align-items:center;gap:10px;margin:0 0 12px"><div class="tabs" data-t="logKinds" style="margin:0">${chip('', '전체', v.filter((x) => !kn || x.kn === kn).length)}${kinds.map((k) => chip(k, k, cnt(k))).join('')}</div>${knSel}</div>
   ${checkCard}${flowCard}</div>`
   return { crumb: '이력', main }
@@ -1271,7 +1292,6 @@ function viewTidy() {
     crumb: '정리',
     main: `<div style="max-width:800px"><div class="row" style="align-items:baseline"><span class="big">정리 — ${esc(n.name)}</span><span class="r muted small" data-t="tidyMode">${esc(modeTxt(t.tidyMode, t.tidyAt))} · 바꾸려면 <a data-a="nav" data-s="members">이 지식의 사람</a></span></div>
   <p class="lead">${t.tidyMode === 'live' ? '받은 기록은 kmd 가 남는 대로(조용해진 뒤) 바로 문서에 넣는다.' : t.tidyMode === 'manual' ? '받은 기록은 누군가 지금 정리를 누를 때 kmd 가 문서에 넣는다.' : '받은 기록은 kmd 가 정해진 시간에 바로 문서에 넣는다. 기다리기 싫으면 지금 정리.'}</p>
-  ${S.stops.filter((s) => s.kind === 'worker' || (s.kind === 'tidy' && s.kn === k)).map(stopHtml).join('')}
   ${goBox}${msg ? `<div class="callout ${msg.cls}" data-t="tidyMsg">${esc(msg.t)}</div>` : ''}${inboxCard}${t.runs.map((r, i) => runHtml(k, r, i)).join('')}
   <details class="more"><summary>자세히</summary><div class="in">kmd 의 검사(값 · 이름 대조 · 크기 · 표지)를 못 넘은 글은 넣지 않고 그대로 둔다 — 문서 옆에 같이 읽히고 다음 정리 때 다시 해 본다. 이름 바꾸기 · 합치기 · 없애기는 넣지 않는다 — 제안 한 줄로만 선다.</div></details></div>`,
   }
@@ -2021,7 +2041,6 @@ function viewImport() {
   const drop = tab === 'queue' ? `<div class="drop bar" id="drop" data-t="drop"><b>파일 · 폴더를 이 화면 어디든 끌어다 놓는다</b><span>넣을 곳 ${impPick(target)}</span><span class="lks"><label>파일 고르기<input type="file" multiple id="fileIn" data-t="fileIn"></label> · <label>폴더 고르기<input type="file" webkitdirectory directory multiple id="dirIn" data-t="dirIn"></label></span>
     <small>md · txt · csv · html · json · docx · pptx · xlsx · hwpx · pdf · hwp 는 글로 바꿔 들이고 원본은 첨부로 · ${team ? '파일마다 기록 하나 — 정리가 이어지는 문서의 항목에 넣거나 새 문서로 세운다 · 글이 없는 pdf(스캔)는 내 PC 프로그램에서' : '파일마다 Claude Code 가 지식을 둘러보고 갈래 · 주제 문서의 항목으로 넣는다 · 안 되면 규칙으로'} · 한 번에 300 파일 · 200MB</small></div>` : ''
   const main = `<div class="imp"><div class="pg-h"><div><div class="big">가져오기</div><p class="lead">들여오는 일은 모두 <b>일 줄</b>에 서서 차례로 돈다 — 수집 › 검토 › 기록 생성 › 문서 생성. 줄을 고르면 흐름과 터미널이 보인다. 빈 지식을 새로 세우려면 <a data-a="openAdd" data-t="toAdd">지식 목록 › 새 지식</a></p></div><span class="acts">${can ? '<button class="btn pri" data-a="sfOpen" data-t="sfOpen">+ 가져올 곳 더하기</button>' : '<button class="btn" data-a="sfOpen" data-t="sfOpen">+ 더해 달라고 부탁</button>'}</span></div>
-  ${S.stops.filter((x) => x.kind !== 'source').map(stopHtml).join('')}
   ${impTabsHtml()}
   ${drop}<div id="impBody">${impBodyHtml()}</div></div>`
   return { crumb: '가져오기', main }
@@ -2292,7 +2311,7 @@ function viewSend() {
   const destRows = S.kns.filter((k) => k.role === '주인' || !isTeam()).map((k) => `<div class="row" style="margin-top:6px;flex-wrap:wrap" data-t="destRow"><span style="min-width:110px"><b>${esc(k.name)}</b></span><input class="inp mono" style="flex:1;min-width:220px" id="dest-${esc(k.id)}" value="${esc((k.dests || []).join(', '))}" placeholder="보낼 지식 — 오른쪽에서 고른다"><select class="inp" data-k="${esc(k.id)}" data-t="destPick" style="width:auto"><option value="">${targets ? '팀 › 지식 고르기' : '팀 지식 목록을 받는 중…'}</option>${pickOpts}</select><button class="btn sm" data-a="setDests" data-k="${esc(k.id)}" data-t="destSave">저장</button></div>`).join('') + (teamErr ? `<p class="small muted" style="margin-top:6px">${esc(teamErr)}</p>` : '')
   const lead = ks.length ? `<p class="lead">만들어진 지식만 보낸다 — 바뀐 것은 골라 두었다 · 더 보낼 문서 · 기록은 지식에서 고른다 · 영역마다 보내기 단추를 누르면 ${esc(dnK)}으로 간다.</p>` : '<p class="lead">보낼 곳을 정한 내 지식이 없다 — 아래 자세히에서 정한다.</p>'
   return { crumb: '지식 보내기', main: `<div style="max-width:900px"><div class="big">지식 보내기</div>${lead}
-  ${S.stops.filter((s) => s.level === 'warn' && s.kind !== 'send').map(stopHtml).join('')}${top}${ks.length ? changes + knowCard : ''}
+  ${top}${ks.length ? changes + knowCard : ''}
   <div class="feed" style="margin-top:14px" data-t="sentFeed"><div class="fh">보낸 것</div>${log.map((x) => `<div class="fi" data-t="sentRow"><div class="ln"><span class="tm">${esc(whenTxt(x.at))}</span><span class="dot ${x.late || x.wait ? 'acc' : ''}"></span><span class="tx">${esc(x.to.map((d) => (KN(d) || {}).name || d).join(' · '))}로 ${x.n}개를 ${x.wait ? '보내려 했다' : '보냈다'}${x.late ? `<small>${esc(whenTxt(x.late))} 에 누른 것</small>` : x.wait ? '<small>닿으면 저절로 보낸다</small>' : ''}${x.fail ? `<small>${x.fail}개는 보내지 못했다 — 위 줄에서 [다시]</small>` : ''}${x.titles && x.titles.length ? `<small>${esc(x.titles.join(' · '))}${x.n > x.titles.length ? ` 외 ${x.n - x.titles.length}` : ''}</small>` : ''}</span></div></div>`).join('') || '<div class="fi"><div class="ln"><span class="tx muted">아직 없다</span></div></div>'}</div>
   <details class="more"${ks.length ? '' : ' open'}><summary>자세히</summary><div class="in">${esc(S.me.user)} 이름으로 간다${isTeam() ? '' : ' — 이 PC 가 설치 때 팀에 이어진 대로'}. 받는 지식에는 고른 것마다 기록 하나로 들어가고, 정리 때 kmd 가 문서에 넣는다(누구나 [지금 정리]). 값이 바뀌면 나에게 「이력」 노란 줄로 알린다. 내 글은 그대로다.<div class="rh" style="margin-top:10px">보낼 곳</div>${destRows || '<span class="muted">내 지식이 없다</span>'}</div></details></div>` }
 }
@@ -2928,6 +2947,10 @@ const ACT = {
   sfAdd: () => sfAdd(false),
   sfOpen: () => { S.sfOpen = true; S.sfMsg = null; render() },
   sfClose: () => { S.sfOpen = false; render() },
+  stopOpen: () => { S.stopWin = true; S.menu = null; loadStops(); render() },
+  stopClose: () => { S.stopWin = false; render() },
+  stopReload: () => loadStops().then(render),
+  stopGo: (el) => { S.stopWin = false; const scr = el.dataset.v; if (scr === 'import') { S.impTab = 'queue'; S.impFil = 'attn' } go(scr === 'tidy' && el.dataset.k ? { scr, kn: el.dataset.k } : { scr }) },
   srcOpen: (el) => srcOpen(el.dataset.id),
   seClose: () => { if (S.se && !S.se.busy) { S.se = null; render() } },
   seSave: () => seSave(),
