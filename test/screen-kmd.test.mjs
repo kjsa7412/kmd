@@ -510,6 +510,12 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 정리 �
   await page.click('[data-t=admPwOk]')
   await page.waitForSelector('[data-t=admUrl]')
   assert.match(await page.locator('[data-t=admUrl]').innerText(), /^https:\/\/claude\.ai\/oauth\/authorize/)
+  // 두 단계(주소 열기 · 번호 붙여 넣기)가 카드 안에 아래로 선다 — 긴 주소가 카드를 밀어내지 않는다
+  assert.match(await page.locator('[data-t=admOpenUrl]').getAttribute('href'), /^https:\/\/claude\.ai\/oauth\/authorize/)
+  const box = await page.locator('[data-t=admClaude]').boundingBox(), code = await page.locator('[data-t=admCode]').boundingBox()
+  assert.ok(code.x + code.width <= box.x + box.width + 1, '로그인 흐름이 카드 밖으로 나가지 않는다')
+  assert.ok((await page.locator('#admCodeIn').boundingBox()).y > (await page.locator('[data-t=admUrl]').boundingBox()).y, '번호 칸은 주소 아래')
+  await page.locator('[data-t=admClaude]').screenshot({ path: path.join(SHOTS, 'app-admin-login.png') })
   await page.fill('#admCodeIn', 'code-from-browser')
   await page.click('[data-t=admDone]')
   await page.waitForFunction(() => /로그인됨 · 정리 전용/.test(document.querySelector('[data-t=admClaudeState]')?.textContent || ''))
