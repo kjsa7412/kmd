@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kmd 디자인 견본</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="kmd.css">
+<style>
+/* 견본 페이지만의 짜임 — 값은 kmd.css 의 :root 만 쓴다 */
+html,body{background:var(--bg)}
+.sg{max-width:var(--w-grid);margin:0 auto;padding:var(--sp-9) var(--sp-8) 60px}
+.sg-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--sp-4) var(--sp-6);margin-bottom:var(--sp-6)}
+.sg-h h1{font-size:var(--fs-xl);margin:0}
+.sg-nav{display:flex;flex-wrap:wrap;gap:var(--sp-2) var(--sp-6);font-size:var(--fs-mono);margin:0 0 var(--sp-9)}
+.sg section{margin:0 0 var(--sp-9)}
+.sg h2{font-size:var(--fs-md);margin:0 0 var(--sp-4);display:flex;align-items:baseline;gap:var(--sp-4);flex-wrap:wrap}
+.sg h2 small{font-weight:400;color:var(--text-3);font-size:var(--fs-mono)}
+.sg h3{font-size:var(--fs);margin:var(--sp-8) 0 var(--sp-3);color:var(--text-2)}
+.sg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--sp-5)}
+.sg-sw{border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;background:var(--surface);font-size:var(--fs-sm)}
+.sg-sw i{display:block;height:44px;border-bottom:1px solid var(--border)}
+.sg-sw b,.sg-sw code{display:block;padding:var(--sp-1) var(--sp-4);background:none}
+.sg-sw b{padding-top:var(--sp-3);font:600 var(--fs-sm) var(--mono)}
+.sg-sw code{color:var(--text-3);padding-bottom:var(--sp-3)}
+.sg-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-4) var(--sp-6)}
+.sg-cell{display:flex;flex-direction:column;align-items:flex-start;gap:var(--sp-2);font-size:var(--fs-xs);color:var(--text-3)}
+.sg-bar{height:12px;background:var(--accent-line);border-radius:var(--r-xs)}
+.sg-box{width:72px;height:44px;background:var(--surface);border:1px solid var(--border)}
+.sg-stage{background:var(--surface-3);border-radius:var(--r-lg);padding:var(--sp-8);position:relative}
+.sg-stage .scrim{position:relative;inset:auto;z-index:auto;min-height:280px;border-radius:var(--r-md);padding:var(--sp-8) 0}
+.sg-stage .pop{position:relative;z-index:auto;display:inline-block;vertical-align:top}
+.sg-stage .modal .mb{max-height:none}
+.sg .card{margin:0}
+/* 상태 흉내(견본에서만) — 실제 화면은 :hover · :focus-visible 로 그린다 */
+.btn.sg-hover:not([disabled]){background:var(--hover)}
+.btn.pri.sg-hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn.danger.sg-hover{background:var(--danger-bg);border-color:var(--danger)}
+.btn.ghost.sg-hover{background:var(--hover);color:var(--text)}
+.inp.sg-hover{border-color:var(--text-3)}
+.sg-focus{box-shadow:var(--focus-ring)}
+.inp.sg-focus{border-color:var(--accent)}
+.tabs span.sg-hover{color:var(--text);background:var(--hover)}
+.pop .mi.sg-hover{background:var(--surface-2)}
+.lk.sg-hover{text-decoration:underline;text-underline-offset:2px}
+</style>
+</head>
+<body>
+<div class="sg">
+  <div class="sg-h"><h1>kmd 디자인 견본</h1><span class="muted small">docs/kmd_디자인_컨벤션.md v0.2 · 값은 app/kmd.css 맨 위 <code>:root</code> 하나에서 온다</span></div>
+  <nav class="sg-nav" aria-label="견본 차례">
+    <a href="#color">색</a><a href="#size">글 · 간격 · 모서리 · 그림자</a><a href="#btn">단추</a><a href="#inp">칸</a><a href="#chip">칩 · 표지</a><a href="#card">카드</a><a href="#modal">모달 · 팝업</a><a href="#table">표</a><a href="#tabs">탭</a><a href="#state">빈 화면 · 읽는 중 · 오류</a><a href="#link">링크</a><a href="#ref">참고 정보</a><a href="#term">터미널</a><a href="#resp">반응형</a>
+  </nav>
+
+  <section id="color">
+    <h2>색 <small>var(--이름) 로만 쓴다 · 새 색을 만들지 않는다</small></h2>
+    <h3>면 · 선 · 글</h3>
+    <div class="sg-grid">
+      <div class="sg-sw"><i style="background:var(--bg)"></i><b>--bg</b><code data-v="--bg"></code></div>
+      <div class="sg-sw"><i style="background:var(--surface)"></i><b>--surface</b><code data-v="--surface"></code></div>
+      <div class="sg-sw"><i style="background:var(--surface-2)"></i><b>--surface-2</b><code data-v="--surface-2"></code></div>
+      <div class="sg-sw"><i style="background:var(--surface-3)"></i><b>--surface-3</b><code data-v="--surface-3"></code></div>
+      <div class="sg-sw"><i style="background:var(--hover)"></i><b>--hover</b><code data-v="--hover"></code></div>
+      <div class="sg-sw"><i style="background:var(--border)"></i><b>--border</b><code data-v="--border"></code></div>
+      <div class="sg-sw"><i style="background:var(--border-strong)"></i><b>--border-strong</b><code data-v="--border-strong"></code></div>
+      <div class="sg-sw"><i style="background:var(--text)"></i><b>--text</b><code data-v="--text"></code></div>
+      <div class="sg-sw"><i style="background:var(--text-2)"></i><b>--text-2</b><code data-v="--text-2"></code></div>
+      <div class="sg-sw"><i style="background:var(--text-3)"></i><b>--text-3</b><code data-v="--text-3"></code></div>
+      <div class="sg-sw"><i style="background:var(--on-accent)"></i><b>--on-accent</b><code data-v="--on-accent"></code></div>
+    </div>
+    <h3>뜻 색 — 파랑 주 일 · 초록 됨 · 노랑 멈춤 · 빨강 못 함 · 보라 기다림</h3>
+    <div class="sg-grid">
+      <div class="sg-sw"><i style="background:var(--accent)"></i><b>--accent</b><code data-v="--accent"></code></div>
+      <div class="sg-sw"><i style="background:var(--accent-hover)"></i><b>--accent-hover</b><code data-v="--accent-hover"></code></div>
+      <div class="sg-sw"><i style="background:var(--accent-bg)"></i><b>--accent-bg</b><code data-v="--accent-bg"></code></div>
+      <div class="sg-sw"><i style="background:var(--accent-line)"></i><b>--accent-line</b><code data-v="--accent-line"></code></div>
+      <div class="sg-sw"><i style="background:var(--ok)"></i><b>--ok</b><code data-v="--ok"></code></div>
+      <div class="sg-sw"><i style="background:var(--ok-bg)"></i><b>--ok-bg</b><code data-v="--ok-bg"></code></div>
+      <div class="sg-sw"><i style="background:var(--ok-line)"></i><b>--ok-line</b><code data-v="--ok-line"></code></div>
+      <div class="sg-sw"><i style="background:var(--warn)"></i><b>--warn</b><code data-v="--warn"></code></div>
+      <div class="sg-sw"><i style="background:var(--warn-bg)"></i><b>--warn-bg</b><code data-v="--warn-bg"></code></div>
+      <div class="sg-sw"><i style="background:var(--warn-line)"></i><b>--warn-line</b><code data-v="--warn-line"></code></div>
+      <div class="sg-sw"><i style="background:var(--danger)"></i><b>--danger</b><code data-v="--danger"></code></div>
+      <div class="sg-sw"><i style="background:var(--danger-bg)"></i><b>--danger-bg</b><code data-v="--danger-bg"></code></div>
+      <div class="sg-sw"><i style="background:var(--danger-line)"></i><b>--danger-line</b><code data-v="--danger-line"></code></div>
+      <div class="sg-sw"><i style="background:var(--pending)"></i><b>--pending</b><code data-v="--pending"></code></div>
+      <div class="sg-sw"><i style="background:var(--pending-bg)"></i><b>--pending-bg</b><code data-v="--pending-bg"></code></div>
+      <div class="sg-sw"><i style="background:var(--pending-line)"></i><b>--pending-line</b><code data-v="--pending-line"></code></div>
+    </div>
+    <h3>진한 띠 · 터미널</h3>
+    <div class="sg-grid">
+      <div class="sg-sw"><i style="background:var(--ink)"></i><b>--ink</b><code data-v="--ink"></code></div>
+      <div class="sg-sw"><i style="background:var(--ink-2)"></i><b>--ink-2</b><code data-v="--ink-2"></code></div>
+      <div class="sg-sw"><i style="background:var(--ink-text)"></i><b>--ink-text</b><code data-v="--ink-text"></code></div>
+      <div class="sg-sw"><i style="background:var(--term-bg)"></i><b>--term-bg</b><code data-v="--term-bg"></code></div>
+      <div class="sg-sw"><i style="background:var(--term-text)"></i><b>--term-text</b><code data-v="--term-text"></code></div>
+      <div class="sg-sw"><i style="background:var(--term-dim)"></i><b>--term-dim</b><code data-v="--term-dim"></code></div>
+      <div class="sg-sw"><i style="background:var(--term-tool)"></i><b>--term-tool</b><code data-v="--term-tool"></code></div>
+      <div class="sg-sw"><i style="background:var(--term-ok)"></i><b>--term-ok</b><code data-v="--term-ok"></code></div>
+      <div class="sg-sw"><i style="background:var(--term-err)"></i><b>--term-err</b><code data-v="--term-err"></code></div>
+    </div>
+  </section>
+
+  <section id="size">
+    <h2>글 크기 · 간격 · 모서리 · 그림자</h2>
+    <div class="tblwrap"><table class="t">
+      <tr><th>이름</th><th>값</th><th>쓰는 곳</th><th>보기</th></tr>
+      <tr><td class="mono">--fs-xs</td><td data-v="--fs-xs"></td><td>작은 표지</td><td style="font-size:var(--fs-xs)">지식 이름</td></tr>
+      <tr><td class="mono">--fs-sm</td><td data-v="--fs-sm"></td><td>작은 글 · 도움말</td><td style="font-size:var(--fs-sm)">지식 이름</td></tr>
+      <tr><td class="mono">--fs-mono</td><td data-v="--fs-mono"></td><td>모노(경로 · 시각) · 단추</td><td class="mono" style="font-size:var(--fs-mono)">docs/배포절차.md</td></tr>
+      <tr><td class="mono">--fs</td><td data-v="--fs"></td><td>본문</td><td style="font-size:var(--fs)">지식 이름</td></tr>
+      <tr><td class="mono">--fs-md</td><td data-v="--fs-md"></td><td>영역 제목</td><td style="font-size:var(--fs-md)"><b>지식 이름</b></td></tr>
+      <tr><td class="mono">--fs-lg</td><td data-v="--fs-lg"></td><td>큰 수</td><td style="font-size:var(--fs-lg)"><b>128</b></td></tr>
+      <tr><td class="mono">--fs-xl</td><td data-v="--fs-xl"></td><td>화면 제목</td><td style="font-size:var(--fs-xl)"><b>지식 목록</b></td></tr>
+    </table></div>
+    <h3>간격</h3>
+    <div class="sg-row">
+      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-1)"></span>--sp-1 · 2</div>
+      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-2)"></span>--sp-2 · 4</div>
+      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-3)"></span>--sp-3 · 6</div>
+      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-4)"></span>--sp-4 · 8</div>
+      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-5)"></span>--sp-5 · 10</div>
+      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-6)"></span>--sp-6 · 12</div>
+      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-7)"></span>--sp-7 · 14 카드 사이</div>
+      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-8)"></span>--sp-8 · 16</div>
+      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-9)"></span>--sp-9 · 22 영역 사이</div>
+    </div>
+    <h3>모서리</h3>
+    <div class="sg-row">
+      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r-xs)"></span>--r-xs 표지</div>
+      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r-sm)"></span>--r-sm 작은 칩</div>
+      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r)"></span>--r 단추</div>
+      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r-md)"></span>--r-md 칸 · 팝업</div>
+      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r-lg)"></span>--r-lg 카드 · 모달</div>
+      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r-pill)"></span>--r-pill 알약</div>
+    </div>
+    <h3>그림자 · 초점 고리</h3>
+    <div class="sg-row">
+      <div class="sg-cell"><span class="sg-box" style="box-shadow:var(--shadow-1);border-radius:var(--r-md)"></span>--shadow-1 카드</div>
+      <div class="sg-cell"><span class="sg-box" style="box-shadow:var(--shadow-2);border-radius:var(--r-md)"></span>--shadow-2 팝업 · 모달</div>
+      <div class="sg-cell"><span class="sg-box" style="box-shadow:var(--shadow-3);border-radius:var(--r-md)"></span>--shadow-3 찾기 창 · 서랍</div>
+      <div class="sg-cell"><span class="sg-box" style="box-shadow:var(--focus-ring);border-radius:var(--r)"></span>--focus-ring 키보드 초점</div>
+    </div>
+    <p class="hint">층(z): --z-menu 20 · --z-scrim 70(모달 · 찾기 창 · 서랍 바로 아래) · --z-pop 80 · --z-toast 90(모달 위). 폭: --w-text 820 · --w-list 980 · --w-grid 1100 · --w-side 248 · --w-aside 300.</p>
+  </section>
+
+  <section id="btn">
+    <h2>단추 <small>영역마다 .btn.pri 하나까지 · 일을 하는 것은 링크로 만들지 않는다</small></h2>
+    <div class="tblwrap"><table class="t">
+      <tr><th>부품</th><th>기본</th><th>hover</th><th>비활성</th><th>선택</th><th>초점(키보드)</th></tr>
+      <tr><td class="mono">.btn.pri</td><td><button class="btn pri">저장</button></td><td><button class="btn pri sg-hover">저장</button></td><td><button class="btn pri" disabled>저장</button></td><td class="muted">—</td><td><button class="btn pri sg-focus">저장</button></td></tr>
+      <tr><td class="mono">.btn</td><td><button class="btn">연결 확인</button></td><td><button class="btn sg-hover">연결 확인</button></td><td><button class="btn" disabled>연결 확인</button></td><td><button class="btn on" aria-pressed="true">연결 확인</button></td><td><button class="btn sg-focus">연결 확인</button></td></tr>
+      <tr><td class="mono">.btn.ghost</td><td><button class="btn ghost">취소</button></td><td><button class="btn ghost sg-hover">취소</button></td><td><button class="btn ghost" disabled>취소</button></td><td class="muted">—</td><td><button class="btn ghost sg-focus">취소</button></td></tr>
+      <tr><td class="mono">.btn.danger</td><td><button class="btn danger">지우기</button></td><td><button class="btn danger sg-hover">지우기</button></td><td><button class="btn danger" disabled>지우기</button></td><td class="muted">—</td><td><button class="btn danger sg-focus">지우기</button></td></tr>
+      <tr><td class="mono">.btn.sm</td><td><button class="btn sm">보기</button></td><td><button class="btn sm sg-hover">보기</button></td><td><button class="btn sm" disabled>가져오는 중…</button></td><td class="muted">—</td><td><button class="btn sm sg-focus">보기</button></td></tr>
+      <tr><td class="mono">.lk</td><td><button class="lk">문서 열기</button></td><td><button class="lk sg-hover">문서 열기</button></td><td><button class="lk" disabled>문서 열기</button></td><td class="muted">—</td><td><button class="lk sg-focus">문서 열기</button></td></tr>
+    </table></div>
+    <div class="sg-row" style="margin-top:var(--sp-6)"><button class="kebab" aria-label="더 보기">⋯</button><button class="kebab on" aria-label="더 보기">⋯</button><button class="sw" aria-label="꺼짐"></button><button class="sw on" aria-label="켜짐"></button><span class="seg" style="width:180px"><button class="on">하나</button><button>둘</button><button disabled>셋</button></span></div>
+  </section>
+
+  <section id="inp">
+    <h2>칸 <small>.field &gt; label + .inp + .hint</small></h2>
+    <div class="fgrid">
+      <div class="field"><label for="sg1">기본</label><input class="inp" id="sg1" placeholder="이름을 쓴다"><div class="hint">칸 아래 도움말 한 줄</div></div>
+      <div class="field"><label for="sg2">hover</label><input class="inp sg-hover" id="sg2" value="배포노트"></div>
+      <div class="field"><label for="sg3">초점</label><input class="inp sg-focus" id="sg3" value="배포노트"></div>
+      <div class="field"><label for="sg4">비활성</label><input class="inp" id="sg4" value="배포노트" disabled></div>
+      <div class="field"><label for="sg5">읽기만</label><input class="inp" id="sg5" value="kim" readonly></div>
+      <div class="field"><label for="sg6">모노(경로 · 주소)</label><input class="inp mono" id="sg6" value="C:\kmd\배포노트\docs"></div>
+      <div class="field full"><label for="sg7">고르기</label><select class="inp" id="sg7"><option>팀 지식</option><option>내 지식</option></select></div>
+    </div>
+  </section>
+
+  <section id="chip">
+    <h2>칩 · 표지 <small>칩은 상태만(누르지 않는다) · 표지는 갈래만</small></h2>
+    <div class="sg-row"><span class="chip c-acc">됨</span><span class="chip c-mute">그대로</span><span class="chip c-warn">멈춤</span><span class="chip c-danger">못 함</span><span class="chip c-pend">가져오는 중</span><span class="chip c-ok">켜짐</span></div>
+    <div class="sg-row" style="margin-top:var(--sp-5)"><span class="kt team">팀</span><span class="kt me">개인</span><span class="kt role">정리하는 사람</span><span class="kt src">가져온 것</span><span class="kt gone">없어짐</span><span class="kn">DPMS 지식</span><span class="kn none">지식 없음</span></div>
+    <h3>지식 자리 — 읽기 · 쓰기 · 관리</h3>
+    <div class="sg-row"><span class="kt lv-read">읽기</span><span class="kt lv-write">쓰기</span><span class="kt lv-admin">관리</span></div>
+  </section>
+
+  <section id="card">
+    <h2>카드 <small>.card &gt; .ch · .cb · .cf</small></h2>
+    <div class="g2">
+      <div class="card"><div class="ch">가져오는 곳 <small>셋</small><span class="r"><button class="btn sm">더하기</button></span></div><div class="cb">카드 몸. 넓은 표는 <code>.tblwrap</code> 로 감싼다.</div><div class="cf">흐린 도움말 <button class="btn sm pri" style="margin-left:auto">저장</button></div></div>
+      <div class="card on"><div class="ch">고른 카드 <small>.on</small></div><div class="cb">accent-line 선</div></div>
+      <div class="card dim"><div class="ch">쉬는 카드 <small>.dim</small></div><div class="cb">흐리게</div></div>
+      <div class="kcard"><div class="kh"><span class="kn3">DPMS 지식</span><button class="kebab" aria-label="더 보기">⋯</button></div><div class="km">문서 12 · 항목 80</div><div class="kf"><span class="kt team">팀</span><span class="kt lv-write">쓰기</span></div></div>
+    </div>
+  </section>
+
+  <section id="modal">
+    <h2>모달 · 팝업 메뉴 <small>여기서는 펼친 채로 놓았다</small></h2>
+    <div class="sg-stage">
+      <div class="scrim fix" role="presentation">
+        <div class="modal w420" role="dialog" aria-modal="true" aria-labelledby="sgm">
+          <div class="mh" id="sgm">지식 지우기 <small>되돌릴 수 없다</small><button class="x" aria-label="닫기">×</button></div>
+          <div class="mb"><div class="field"><label for="sg8">지울 지식 이름을 다시 쓴다</label><input class="inp" id="sg8"></div><div class="callout danger">이름이 맞지 않는다. 「DPMS 지식」 을 그대로 쓴다</div></div>
+          <div class="mf"><span class="l">지운 지식은 되살릴 수 없다</span><span class="acts"><button class="btn ghost">취소</button><button class="btn danger">지우기</button></span></div>
+        </div>
+      </div>
+    </div>
+    <h3>팝업 메뉴(.pop)</h3>
+    <div class="sg-stage">
+      <div class="pop" role="menu">
+        <div class="mi" role="menuitem">이름 바꾸기 <small>F2</small></div>
+        <div class="mi sg-hover" role="menuitem">메뉴에 올리기</div>
+        <div class="mi on" role="menuitem">✓ 고른 것</div>
+        <div class="mi off" role="menuitem" aria-disabled="true">쓸 수 없는 것</div>
+        <div class="sep"></div>
+        <div class="mi dan" role="menuitem">지우기</div>
+        <div class="gray">메뉴 아래 흐린 도움말 한 줄은 상자 안에서 줄을 바꾼다</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="table">
+    <h2>표 <small>.tblwrap 로 감싸면 표만 가로로 밀린다</small></h2>
+    <div class="tblwrap"><table class="t">
+      <tr><th>이름</th><th>경로</th><th>바뀐 때</th><th>누가</th><th>상태</th><th></th></tr>
+      <tr><td>배포절차</td><td class="mono">docs/운영/배포절차.md</td><td>10-28 14:02</td><td>kim</td><td><span class="chip c-acc">됨</span></td><td style="text-align:right"><button class="btn sm">보기</button></td></tr>
+      <tr class="sel"><td>헬스 체크 <small>고른 줄 .sel</small></td><td class="mono">docs/운영/헬스체크.md</td><td>10-28 13:40</td><td>lee</td><td><span class="chip c-pend">기다림</span></td><td style="text-align:right"><button class="btn sm">보기</button></td></tr>
+      <tr><td>카나리 비율</td><td class="mono">docs/배포/카나리.md</td><td>10-27 18:11</td><td>park</td><td><span class="chip c-warn">멈춤</span></td><td style="text-align:right"><button class="btn sm">보기</button></td></tr>
+    </table></div>
+  </section>
+
+  <section id="tabs">
+    <h2>탭 <small>줄바꿈하지 않고 가로로 밀어 본다</small></h2>
+    <div class="tabs" role="tablist"><span class="on" role="tab" tabindex="0" aria-selected="true">일반</span><span class="sg-hover" role="tab" tabindex="-1">사람</span><span role="tab" tabindex="-1">Claude 연결</span><span role="tab" tabindex="-1">에이전트 설치</span><span class="off" role="tab" aria-disabled="true">관리</span></div>
+  </section>
+
+  <section id="state">
+    <h2>빈 화면 · 읽는 중 · 오류 · 알림</h2>
+    <div class="g2">
+      <div class="empty2"><b>아직 가져오는 곳이 없다</b>폴더나 저장소를 더하면 여기 선다. <button class="btn sm pri" style="margin-top:var(--sp-3)">가져오는 곳 더하기</button></div>
+      <div><p class="loading">읽는 중…</p><div class="prog"><i></i>가져오는 중</div></div>
+    </div>
+    <div class="callout danger err"><b>문서를 읽지 못했다</b><span>서버가 답하지 않는다. 잠시 뒤 다시 읽는다</span><button class="btn sm retry">다시 읽기</button></div>
+    <div class="callout">알림 — 파랑</div>
+    <div class="callout warn">멈춤 — 노랑</div>
+    <div class="callout pend">기다림 — 보라</div>
+    <div class="callout gray">그대로 — 회색</div>
+  </section>
+
+  <section id="link">
+    <h2>링크 종류 <small>옮겨 가기만 · 서버가 문서 본문의 링크에 붙인다</small></h2>
+    <div class="paper">
+      <p><a class="dlink doc" href="#link">배포절차</a> 문서 · <a class="dlink item" href="#link">헬스 체크</a> 항목 · <a class="xlink" href="#link">바깥 주소</a> · <span class="deadlink">없는 곳</span> · <a class="dlink missing" href="#link">아직 없는 문서</a></p>
+      <p class="small muted">.dlink.doc · .dlink.item · .xlink(↗) · .deadlink(흐림 · 누르지 않음) · .dlink.missing(흐림 점선)</p>
+    </div>
+  </section>
+
+  <section id="ref">
+    <h2>참고 정보 <small>항목 옆 칩 · 접는 참고 칸(본문과 다른 꼴)</small></h2>
+    <div class="paper">
+      <h2>헬스 체크 <button class="refchip" aria-expanded="true">출처 3</button><button class="refchip pend">반영 대기 1</button></h2>
+      <p>서버마다 /health 를 30초마다 부른다.</p>
+      <details class="refpanel" open>
+        <summary>출처 <small>이 항목을 만든 기록</small></summary>
+        <ul>
+          <li><time>10-28 14:02</time><span>kim · 헬스 주기를 30초로</span></li>
+          <li><time>10-21 09:15</time><span>lee · 처음 적음</span></li>
+          <li><time>10-20 18:40</time><span>가져온 것 · docs/ops/health.md</span></li>
+        </ul>
+      </details>
+    </div>
+  </section>
+
+  <section id="term">
+    <h2>터미널</h2>
+    <div class="term"><span class="tm">14:02:11</span><span class="say">문서를 둘러본다</span>
+<span class="tm">14:02:12</span><span class="tool">▸ 문서 읽기 docs/배포절차.md</span>
+<span class="tm">14:02:15</span><span class="ok">✓ 항목 둘을 고쳤다</span>
+<span class="tm">14:02:16</span><span class="err">✗ 이름이 겹친다</span>
+<span class="tm">14:02:16</span><span class="sys">kmd · 다음 일로 넘어간다</span></div>
+  </section>
+
+  <section id="resp">
+    <h2>반응형 <small>끊는 점 1024 · 600</small></h2>
+    <div class="tblwrap"><table class="t">
+      <tr><th>폭</th><th>짜임</th><th>여는 단추 · 클래스</th></tr>
+      <tr><td>1025px 이상</td><td>옆 메뉴(248) + 본문 + 오른쪽 칸(300)</td><td class="muted">—</td></tr>
+      <tr><td>601 ~ 1024px</td><td>옆 메뉴 + 본문 · 오른쪽 칸은 오른쪽 서랍</td><td>머리 줄 <code>.hb.aside-btn</code> → <code>.app.aside-open</code> · 덮개 <code>.drawer-scrim</code></td></tr>
+      <tr><td>600px 이하</td><td>본문만 · 옆 메뉴는 왼쪽 서랍 · 창 전체가 스크롤</td><td>머리 줄 ☰ <code>.hb.menu-btn</code> → <code>.app.side-open</code></td></tr>
+    </table></div>
+    <div class="tblwrap" style="margin-top:var(--sp-6)"><table class="t">
+      <tr><th>부품</th><th>좁아질 때</th></tr>
+      <tr><td>표</td><td><code>.tblwrap</code> 로 감싸 표만 가로로 민다</td></tr>
+      <tr><td>탭 줄</td><td>줄바꿈 없이 가로로 민다</td></tr>
+      <tr><td>모달</td><td>폭 min(N, 100% - 24px) · 600 이하 아래에 붙는 시트(높이 최대 90dvh · 몸이 스크롤 · 단추 줄 줄바꿈)</td></tr>
+      <tr><td>찾기 창 · 확인 창</td><td>화면에 고정 — 스크롤해도 화면 안</td></tr>
+      <tr><td>그리드(.kgrid · .tiles · .fgrid · .g2)</td><td>600 이하 1칸 · .tiles 는 1024 이하 2칸</td></tr>
+      <tr><td>화면 머리 · 영역 머리</td><td>단추가 아래 줄로</td></tr>
+      <tr><td>긴 이름 · 경로</td><td>overflow-wrap:anywhere · 말줄임이면 title 로 전체</td></tr>
+      <tr><td>그래프</td><td>높이 min(420px, 60dvh)</td></tr>
+    </table></div>
+  </section>
+</div>
+<script>
+// 견본의 값 칸 — kmd.css 의 :root 에서 바로 읽는다(값을 두 곳에 적지 않게)
+const cs = getComputedStyle(document.documentElement)
+for (const e of document.querySelectorAll('[data-v]')) e.textContent = cs.getPropertyValue(e.dataset.v).trim()
+</script>
+</body>
+</html>
