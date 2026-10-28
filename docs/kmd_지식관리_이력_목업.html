@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>지식 관리 이력 목업</title>
+<style>
+/* 토큰 · 부품은 app/kmd.css 와 같은 값: 목업에서 새로 생긴 것만 아래 「새 부품」 */
+:root{
+  --bg:#f6f7f9;--surface:#fff;--surface-2:#f1f3f7;--surface-3:#e6eaf0;--border:#e2e6ed;--border-strong:#c9d1dd;
+  --text:#11151c;--text-2:#515a68;--text-3:#858e9d;--accent:#3358e6;--accent-bg:#e9eeff;--accent-line:#c3d0fb;
+  --danger:#cb3a2c;--danger-bg:#fdeceb;--warn:#8c5c00;--warn-bg:#fcf3e0;--pending:#6247c4;--pending-bg:#efedfd;
+  --ok:#2e9b5b;--ok-bg:#e6f5ec;
+  --shadow-1:0 1px 2px rgba(15,23,42,.05),0 1px 3px rgba(15,23,42,.07);
+  --shadow-2:0 2px 6px -1px rgba(15,23,42,.08),0 14px 32px -8px rgba(15,23,42,.18);
+  --font:Pretendard,-apple-system,"Segoe UI",system-ui,"Malgun Gothic",sans-serif;
+  --mono:Consolas,"Cascadia Mono",D2Coding,"Malgun Gothic",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#dfe3ea;color:var(--text);font:13px/1.55 var(--font)}
+button,input,select{font:inherit}
+a{color:var(--accent);cursor:pointer}
+svg.i{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;flex:none}
+
+/* ── 목업 조종판(목업 밖) ── */
+.mframe{display:flex;min-height:100vh}
+.mnav{width:250px;flex:none;background:#1b2130;color:#cfd6e4;padding:18px 12px;position:sticky;top:0;height:100vh;overflow:auto}
+.mnav h1{font-size:14px;margin:0 6px 4px;color:#fff}
+.mnav p{margin:0 6px 12px;font-size:11.5px;color:#8f9bb3}
+.mnav .g{font-size:11px;color:#6f7a90;margin:16px 6px 6px;text-transform:none}
+.mnav button{display:block;width:100%;text-align:left;background:none;border:0;color:inherit;padding:6px 10px;border-radius:6px;font-size:12.5px;cursor:pointer}
+.mnav button:hover{background:#2a3246}
+.mnav button.on{background:#3358e6;color:#fff}
+.mnav button small{display:block;color:#7f8aa1;font-size:11px}
+.mnav button.on small{color:#dfe6ff}
+.mstage{flex:1;min-width:0;padding:20px}
+
+/* ── 앱 프레임 · 부품(kmd.css 와 같다) ── */
+.app{max-width:1360px;margin:0 auto;background:var(--bg);border:1px solid var(--border-strong);border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,.18);display:flex;min-height:calc(100vh - 40px)}
+.side{width:220px;flex:none;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:12px 10px}
+.sb-top{display:flex;align-items:center;gap:8px;padding:2px 6px 10px}
+.logo{width:22px;height:22px;border-radius:6px;background:#11151c;color:#fff;display:grid;place-items:center;font-weight:700;font-size:12px}
+.brand{font-weight:700;font-size:15px}
+.busy{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ok);font-weight:600}
+.busy i{width:8px;height:8px;border-radius:50%;background:var(--ok);animation:blink 1.4s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.sb-repo{border:1px solid var(--border-strong);border-radius:10px;padding:8px 10px;margin-bottom:8px;display:flex;gap:8px;align-items:center}
+.sb-repo .rk{font:700 10.5px var(--mono);background:var(--accent-bg);color:var(--accent);border-radius:5px;padding:2px 5px}
+.sb-repo small{display:block;font-size:10.5px;color:var(--text-3)}
+.sb-g{font-size:11.5px;color:var(--text-3);margin:12px 8px 4px}
+.sb-i{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;color:var(--text)}
+.sb-i.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.sb-i .bd{margin-left:auto;background:var(--pending-bg);color:var(--pending);font-size:11px;font-weight:700;border-radius:999px;padding:0 7px}
+.sb-foot{margin-top:auto;border-top:1px solid var(--border);padding-top:6px}
+.col{flex:1;min-width:0;display:flex;flex-direction:column}
+.hdr{height:46px;display:flex;align-items:center;gap:10px;padding:0 14px;background:var(--surface);border-bottom:1px solid var(--border)}
+.crumb{font-size:13px;color:var(--text-3)}.crumb b{color:var(--text)}
+.band{display:flex;align-items:center;gap:10px;padding:6px 14px;font-size:12px;border-bottom:1px solid var(--border);background:var(--surface-2);color:var(--text-2)}
+.band b{color:var(--text)}
+.main{flex:1;padding:18px 22px;overflow:auto;min-width:0}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.c-warn{background:var(--warn-bg);color:var(--warn)}.c-pend{background:var(--pending-bg);color:var(--pending)}.c-mute{background:var(--surface-3);color:var(--text-2)}
+.c-acc{background:var(--accent-bg);color:var(--accent)}.c-danger{background:var(--danger-bg);color:var(--danger)}.c-ok{background:var(--ok-bg);color:var(--ok)}
+.btn{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 11px;border-radius:7px;border:1px solid var(--border-strong);background:var(--surface);font-size:12px;cursor:pointer;color:var(--text);white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}.btn.pri:hover{background:#2a4bd0}
+.btn.sm{height:24px;padding:0 8px;font-size:11.5px}
+.btn.ghost{border-color:transparent;background:none}.btn.ghost:hover{background:var(--surface-2)}
+.btn.dz{color:var(--danger)}
+.btn[disabled]{opacity:.45;cursor:default}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1);margin-bottom:14px}
+.big{font-size:20px;font-weight:700;margin:0 0 4px}
+.lead{color:var(--text-2);margin:0}
+.pg-h{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px}
+.pg-h .acts{margin-left:auto;display:flex;gap:8px;flex:none}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin:0 0 14px}
+.tabs span{padding:8px 14px;font-size:13px;color:var(--text-2);border-bottom:2px solid transparent;cursor:pointer;display:flex;gap:6px;align-items:center}
+.tabs span.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.tabs span em{font-style:normal;font-size:11px;font-weight:700;background:var(--surface-3);color:var(--text-2);border-radius:999px;padding:0 6px}
+.tabs span.on em{background:var(--accent-bg);color:var(--accent)}
+.tabs span em.w{background:var(--warn-bg);color:var(--warn)}
+.term{background:#0f141c;color:#d7dde8;border-radius:10px;font:12px/1.6 var(--mono);padding:10px 12px;height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.term .say{color:#e8ecf3}.term .tool{color:#8fb0ff}.term .ok{color:#7fd69a}.term .err{color:#ff8f86}.term .sys,.term .cost{color:#7d8696}
+.term .tm{color:#5c6574;margin-right:8px}
+.term .sg{display:inline-block;min-width:44px;color:#5c6574;margin-right:6px}
+.term .cur::after{content:'▍';color:#8fb0ff;animation:blink 1s steps(2) infinite}
+.inp{min-height:28px;border:1px solid var(--border-strong);border-radius:7px;padding:3px 8px;font-size:12px;background:#fff}
+.gl{font-size:11.5px;color:var(--text-3);margin:8px 2px 0;line-height:1.7}
+.slist{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1)}
+.srow{display:flex;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid var(--border)}
+.srow:first-child{border-top:0}
+.srow .si{width:30px;height:30px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;flex:none;color:var(--text-2)}
+.srow .sn{min-width:0;flex:1 1 220px}.srow .sn b{display:block}.srow .sn small,.srow .sc small{display:block;color:var(--text-3);font-size:11.5px}
+.srow .sc{flex:0 1 230px;font-size:12px;color:var(--text-2)}
+.srow .sa{flex:none;display:flex;gap:6px}
+
+
+/* ── 새 부품 ── */
+.kt{font-size:10.5px;font-weight:700;border-radius:4px;padding:1px 5px;flex:none}
+.kt.me{background:var(--pending-bg);color:var(--pending)}.kt.team{background:var(--accent-bg);color:var(--accent)}
+.mnav .q{margin:18px 6px 0;padding:10px;border:1px solid #333c52;border-radius:8px;font-size:11.5px;color:#b9c2d6;line-height:1.6}
+.mnav .q b{color:#fff;display:block;margin-bottom:4px}
+.mnav .q ul{margin:0;padding-left:16px}
+.ch{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);font-weight:700}
+.ch small{font-weight:400;color:var(--text-3);font-size:11.5px}
+.ch .r{margin-left:auto;display:flex;gap:8px;align-items:center;font-weight:400}
+.cb{padding:10px 14px}
+.cf{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--border);background:var(--surface-2);border-radius:0 0 12px 12px;flex-wrap:wrap}
+.muted{color:var(--text-3)}.small{font-size:11.5px}
+.wrap{max-width:980px}
+/* 보내는 길: 보내는 지식 → 받는 지식(개인 지식마다 하나로 묶였다) */
+.route{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+.rbox{flex:1 1 260px;min-width:0;padding:12px 14px;position:relative}
+.rbox+.rbox{border-left:1px solid var(--border)}
+.rbox .lb{font-size:11.5px;color:var(--text-3);margin-bottom:4px;display:flex;gap:6px;align-items:center}
+.rbox .nm{font-size:17px;font-weight:700;display:flex;align-items:center;gap:8px}
+.rbox .sub{font-size:11.5px;color:var(--text-3);margin-top:2px}
+.rbox.pick{cursor:pointer}.rbox.pick:hover{background:var(--surface-2)}
+.rbox.todo{background:repeating-linear-gradient(135deg,#fff,#fff 8px,#f7f8fb 8px,#f7f8fb 16px)}
+.rarr{flex:none;width:44px;display:grid;place-items:center;color:var(--accent);border-left:1px solid var(--border)}
+.rarr svg{width:22px;height:22px}
+.rarr+.rbox{border-left:0}
+.rinfo{padding:8px 14px;border-top:1px solid var(--border);font-size:12px;color:var(--text-2);background:var(--surface-2);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.rinfo .r{margin-left:auto}
+.pmenu{position:absolute;left:10px;top:calc(100% - 6px);z-index:5;background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;box-shadow:var(--shadow-2);min-width:320px;padding:6px}
+.pmenu .mi{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;font-size:12.5px;cursor:pointer}
+.pmenu .mi:hover{background:var(--surface-2)}.pmenu .mi.on{background:var(--accent-bg)}
+.pmenu .mi .to{margin-left:auto;color:var(--text-3);font-size:11.5px;display:flex;align-items:center;gap:4px}
+.pmenu .sep{height:1px;background:var(--border);margin:4px 0}
+.drow{display:flex;align-items:center;gap:10px;padding:8px 14px;border-top:1px solid var(--border);cursor:pointer}
+.drow:first-child{border-top:0}
+.drow:hover{background:var(--surface-2)}
+.drow.on{background:#f5f7ff}
+.drow.dim{cursor:default;color:var(--text-3)}.drow.dim:hover{background:none}
+.drow input{margin:0;flex:none}
+.drow .si{width:26px;height:26px;border-radius:7px;background:var(--surface-2);display:grid;place-items:center;flex:none;color:var(--text-2)}
+.drow .dn{flex:1;min-width:0}.drow .dn b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drow.dim .dn b{font-weight:400}
+.drow .dn small{display:block;color:var(--text-3);font-size:11.5px}
+.seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:7px;overflow:hidden;flex:none}
+.seg button{border:0;background:var(--surface);font-size:11px;padding:2px 8px;cursor:pointer;color:var(--text-2)}
+.seg button+button{border-left:1px solid var(--border-strong)}
+.seg button.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.seg button[disabled]{opacity:.4;cursor:default}
+.tabs.in{margin:0;padding:0 8px;flex-wrap:wrap}
+.tabs.in span{white-space:nowrap}
+.tabs.in span.off{color:var(--text-3);cursor:default}
+.tbar{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.tbar .r{margin-left:auto;display:flex;gap:10px;align-items:center}
+.dlist{max-height:360px;overflow:auto}
+.trow{display:flex;align-items:flex-start;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:9px;margin-bottom:6px;cursor:pointer}
+.trow:hover{border-color:var(--border-strong)}
+.trow.on{border-color:var(--accent);background:var(--accent-bg)}
+.trow input{margin:3px 0 0}
+.trow .tn2{flex:1;min-width:0}.trow .tn2 b{display:block}.trow .tn2 small{display:block;color:var(--text-3);font-size:11.5px}
+.mini{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600}
+.mini svg{color:var(--accent)}
+.sum{list-style:none;margin:0;padding:0}
+.sum li{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px}
+.sum li span{flex:1;min-width:0}
+.callout{display:flex;gap:8px;align-items:flex-start;padding:9px 12px;border-radius:9px;font-size:12px;margin-bottom:12px}
+.callout.gray{background:var(--surface-2);color:var(--text-2)}
+.callout.ok{background:var(--ok-bg);color:#1d6b3e}
+.callout.warn{background:var(--warn-bg);color:var(--warn)}
+.feed .fi{display:flex;gap:10px;padding:8px 14px;border-top:1px solid var(--border);font-size:12px}
+.feed .fi:first-child{border-top:0}
+.feed .tm{color:var(--text-3);font-family:var(--mono);width:84px;flex:none}
+.feed small{display:block;color:var(--text-3)}
+.empty{padding:28px 14px;text-align:center;color:var(--text-2)}
+.scrim{position:fixed;inset:0;background:rgba(15,23,42,.35);display:grid;place-items:center;z-index:10}
+.modal{background:var(--surface);border-radius:12px;box-shadow:var(--shadow-2);width:560px;max-width:calc(100% - 24px)}
+.mh{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);font-weight:700}
+.mh small{font-weight:400;color:var(--text-3);margin-left:8px;font-size:11.5px}
+.mh .xx{margin-left:auto;border:0;background:none;font-size:18px;cursor:pointer;color:var(--text-3)}
+.mb{padding:14px 16px}.mf{display:flex;gap:8px;align-items:center;padding:10px 16px;border-top:1px solid var(--border)}
+.field{margin-bottom:12px}.field label{display:block;font-size:12px;font-weight:600;margin-bottom:4px}
+.field .hint{font-size:11.5px;color:var(--text-3);margin-top:4px}
+.field .inp{width:100%}
+.seg.big button{font-size:12.5px;padding:6px 14px}
+.bigroute{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);margin-bottom:12px}
+.bigroute .e{flex:1;min-width:0}.bigroute .e small{display:block;color:var(--text-3);font-size:11.5px}.bigroute .e b{font-size:15px}
+.bigroute svg{width:20px;height:20px;color:var(--accent)}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.cmp .side{min-height:420px;border:1px solid var(--border);border-radius:12px}
+.note{font-size:12px;color:var(--text-2);background:var(--warn-bg);border-radius:8px;padding:8px 10px;margin-top:10px}
+/* ── 이 목업의 새 부품 ── */
+.ch{white-space:nowrap}.ch>small{white-space:normal;flex:1;min-width:0}
+.sb-i{cursor:pointer}
+.sb-i:hover{background:var(--surface-2)}
+.sb-i.on:hover{background:var(--accent-bg)}
+.sb-i.off{color:var(--text-3);text-decoration:line-through;cursor:default}
+.sb-mg{margin-top:auto;border-top:1px solid var(--border);padding-top:6px}
+.sb-g .kt{margin-left:4px}
+.sb-know .lst{margin:6px 0 0}
+.sb-know .lst div{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:7px;font-size:12.5px;cursor:pointer}
+.sb-know .lst div:hover{background:var(--surface-2)}
+.sb-know .lst div.on{background:var(--surface-3);font-weight:600}
+.sb-know .lh{font-size:11px;color:var(--text-3);margin:10px 8px 2px}
+.kt.pc{background:#e8f6ee;color:#1d6b3e}.kt.gone{background:var(--surface-3);color:var(--text-3)}.kt.adm{background:#11151c;color:#fff}
+.kgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:6px}
+.kcard{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1);padding:12px 14px;min-height:92px;cursor:pointer}
+.kcard b{display:block;font-size:14px;margin-bottom:6px}
+.kcard small{color:var(--text-3);font-size:11.5px;display:flex;gap:6px;align-items:center}
+.kcard.add{border-style:dashed;box-shadow:none;background:none;display:grid;place-items:center;color:var(--text-2);text-align:center}
+.kcard.add .pl{font-size:18px;display:block}
+.kcard.dis{opacity:.55;cursor:default}
+.sec-h{display:flex;align-items:baseline;gap:10px;margin:18px 0 8px}
+.sec-h b{font-size:15px}.sec-h small{color:var(--text-3);font-size:12px}
+.fbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:12px;box-shadow:var(--shadow-1)}
+.fbar .fl{font-weight:700;display:flex;gap:6px;align-items:center}
+.fbar .fp{font-family:var(--mono);background:var(--surface-2);border-radius:6px;padding:3px 8px;flex:1;min-width:200px}
+.fbar small{flex-basis:100%;color:var(--text-3);font-size:11.5px}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:8px 12px;font-size:12.5px}
+.kv>span:nth-child(odd){color:var(--text-3)}
+.set{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--border)}
+.set:first-child{border-top:0}
+.set .tx{flex:1;min-width:0}.set .tx b{display:block;font-weight:600}.set .tx small{display:block;color:var(--text-3);font-size:11.5px}
+.sw{width:34px;height:20px;border-radius:999px;background:var(--surface-3);border:0;position:relative;flex:none;cursor:pointer}
+.sw::after{content:'';position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.sw.on{background:var(--accent)}.sw.on::after{left:17px}
+table.t{width:100%;border-collapse:collapse;font-size:12.5px}
+table.t th{font-weight:600;text-align:left;color:var(--text-3);font-size:11.5px;padding:6px 10px;border-bottom:1px solid var(--border)}
+table.t td{padding:8px 10px;border-top:1px solid var(--border);vertical-align:middle}
+table.t tr:first-child td{border-top:0}
+.rv h2{font-size:16px;margin:18px 0 8px}
+.rv h2:first-child{margin-top:0}
+.rv table.t td{vertical-align:top}
+.rv .was{color:var(--text-3)}
+.rv ol,.rv ul{margin:4px 0 8px;padding-left:20px}
+.rv li{margin:3px 0}
+.pill{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:1px 8px}
+.pill.cut{background:var(--danger-bg);color:var(--danger)}.pill.new{background:var(--ok-bg);color:var(--ok)}.pill.mv{background:var(--accent-bg);color:var(--accent)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:1100px){.g2,.cmp{grid-template-columns:1fr}}
+.who-sw{display:flex;gap:6px;margin:6px 6px 0}
+.who-sw button{flex:1;border:1px solid #333c52;background:none;color:#cfd6e4;border-radius:6px;padding:4px 0;font-size:11.5px;cursor:pointer}
+.who-sw button.on{background:#3358e6;border-color:#3358e6;color:#fff}
+.ro{background:var(--surface-2);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--text-2);margin-bottom:12px}
+.agrow{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border)}
+.agrow:first-child{border-top:0}
+.agrow .an{flex:1;min-width:0}.agrow .an b{display:block}.agrow .an small{display:block;color:var(--text-3);font-size:11.5px;font-family:var(--mono)}
+.agrow .ak{display:flex;gap:6px;align-items:center;flex:none;font-size:12px}
+.code{font-family:var(--mono);background:#0f141c;color:#d7dde8;border-radius:8px;padding:8px 10px;font-size:12px;overflow-wrap:anywhere}
+.radio{display:flex;flex-direction:column;gap:6px}
+.radio label{display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border:1px solid var(--border);border-radius:9px;cursor:pointer;font-weight:400}
+.radio label.on{border-color:var(--accent);background:var(--accent-bg)}
+.radio label small{display:block;color:var(--text-3);font-size:11.5px}
+.radio label.dis{opacity:.5;cursor:default}
+/* ── 이 목업(이력 · 지식 관리 독립)의 새 부품 ── */
+.sb-i{cursor:pointer}
+.sb-i:hover{background:var(--surface-2)}
+.sb-i.on:hover{background:var(--accent-bg)}
+.sb-mg{margin-top:18px;border-top:1px solid var(--border);padding-top:6px}
+.sb-know .lst{margin:6px 0 0}
+.sb-know .lst div{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:7px;font-size:12.5px;cursor:pointer}
+.sb-know .lst div:hover{background:var(--surface-2)}
+.sb-know .lst div.on{background:var(--surface-3);font-weight:600}
+.sb-know .lh{font-size:11px;color:var(--text-3);margin:10px 8px 2px}
+.kt.pc{background:#e8f6ee;color:#1d6b3e}
+.mgwrap{display:flex;gap:20px;align-items:flex-start}
+.mgnav{flex:none;width:168px;position:sticky;top:0;border-right:1px solid var(--border);padding-right:12px}
+.mgnav .mgt{font-size:12px;color:var(--text-2);font-weight:600;padding:2px 10px 8px}
+.mgnav .mgi{padding:7px 10px;border-radius:8px;font-size:13px;cursor:pointer;color:var(--text)}
+.mgnav .mgi:hover{background:var(--surface-2)}
+.mgnav .mgi.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.mgnav .mgi.cut{color:var(--text-3);text-decoration:line-through;cursor:default}
+.mgbody{flex:1;min-width:0}
+/* 이력 줄(app/kmd.css 와 같다) + 영역 칸 */
+.hday{display:flex;align-items:center;gap:8px;padding:10px 14px 6px;font-weight:700;font-size:12.5px;background:var(--surface-2);border-top:1px solid var(--border)}
+.hday:first-child{border-top:0}
+.hday small{font-weight:400;color:var(--text-3)}
+.hrow{border-top:1px solid var(--border)}
+.hday+.hrow{border-top:0}
+.hrow .hl{display:flex;align-items:flex-start;gap:10px;padding:9px 14px;cursor:pointer}
+.hrow .hl:hover{background:var(--surface-2)}
+.hrow .tm{font:11.5px var(--mono);color:var(--text-3);width:42px;flex:none;padding-top:2px}
+.hrow .ar{width:54px;flex:none;padding-top:1px}
+.hrow .tx{flex:1;min-width:0;font-size:13px}
+.hrow .tx b{font-weight:600}
+.hrow .tx small{display:block;color:var(--text-3);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hrow .kn2{width:110px;flex:none;font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-top:2px}
+.hrow .who{width:56px;flex:none;font-size:12px;color:var(--text-3);padding-top:2px}
+.hrow .act{flex:none;font-size:12px;color:var(--accent);padding-top:2px}
+.hrow.yl .tx b{color:var(--warn)}
+.hrow .open{padding:2px 14px 12px 128px}
+@media (max-width:1100px){.hrow .kn2,.hrow .who{display:none}.hrow .open{padding-left:14px}}
+.hrow.me .hl{box-shadow:inset 3px 0 0 #9fd8b5}
+.hrow.team .hl{box-shadow:inset 3px 0 0 var(--accent-line)}
+.diff{border:1px solid var(--border);border-radius:8px;overflow:hidden;font:12px/1.6 var(--mono);margin:6px 0 8px}
+.diff .fh{padding:4px 10px;background:var(--surface-2);font-family:var(--font);font-size:11.5px;color:var(--text-2)}
+.diff .del{background:#fdeceb;padding:1px 10px}.diff .add{background:#e6f5ec;padding:1px 10px}
+/* 위 요약 */
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.tile{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-1);padding:10px 14px;cursor:pointer}
+.tile:hover{border-color:var(--border-strong)}
+.tile .l{font-size:11.5px;color:var(--text-3)}
+.tile .n{font-size:22px;font-weight:700;line-height:1.3}
+.tile .s{font-size:11.5px;color:var(--text-2);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tile.w .n{color:var(--warn)}
+@media (max-width:900px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.srcs{display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--text-2);margin:0 0 12px}
+.srcs .d{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:5px}
+.srcs .d.off{background:var(--danger)}
+.fl2{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+.fl2 .tabs{margin:0;border:0}
+.fl2 .tabs span{padding:4px 10px;border:1px solid var(--border);border-radius:999px;font-size:12px}
+.fl2 .tabs span.on{border-color:var(--accent);background:var(--accent-bg)}
+.fl2 .tabs{gap:6px;flex-wrap:wrap}
+.fl2 .r{margin-left:auto;display:flex;gap:8px;align-items:center}
+.seg.big button{font-size:12.5px;padding:5px 12px}
+/* 보낸 기록 따라가기 */
+.trace{list-style:none;margin:6px 0 8px;padding:0;position:relative}
+.trace li{display:flex;gap:10px;align-items:flex-start;padding:5px 0;font-size:12.5px;position:relative}
+.trace li::before{content:'';position:absolute;left:8px;top:22px;bottom:-6px;width:2px;background:var(--border)}
+.trace li:last-child::before{display:none}
+.trace .dot{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;flex:none;font-size:10px;font-weight:700;background:var(--ok-bg);color:var(--ok);z-index:1}
+.trace .dot.w{background:var(--pending-bg);color:var(--pending)}
+.trace .dot.n{background:var(--surface-3);color:var(--text-3)}
+.trace small{display:block;color:var(--text-3);font-size:11.5px}
+.trace .t{font:11.5px var(--mono);color:var(--text-3);width:74px;flex:none;padding-top:1px}
+/* 정리 · 지식 보내기 — 화면 안에서 지식을 고른다 */
+.kstrip{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 14px}
+.kstrip .kc{border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:8px 12px;min-width:180px;cursor:pointer;box-shadow:var(--shadow-1)}
+.kstrip .kc:hover{border-color:var(--border-strong)}
+.kstrip .kc.on{border-color:var(--accent);background:var(--accent-bg)}
+.kstrip .kc b{display:flex;gap:6px;align-items:center}
+.kstrip .kc small{display:block;color:var(--text-3);font-size:11.5px}
+.board{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.board div{border:1px solid var(--border);border-radius:9px;padding:8px 10px;font-size:12px;background:var(--surface-2)}
+.board div b{display:block;font-size:12.5px}
+.ph{border:1px dashed var(--border-strong);border-radius:10px;padding:16px;color:var(--text-3);text-align:center;font-size:12px}
+.anno{display:flex;gap:8px;align-items:flex-start;font-size:12px;background:#fff8e1;border:1px solid #f1d98a;color:#6b5200;border-radius:8px;padding:7px 10px;margin:0 0 12px}
+.anno b{flex:none}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.cmp .pane{border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden}
+.cmp .pane .ph2{padding:8px 12px;border-bottom:1px solid var(--border);font-weight:700;font-size:12.5px;display:flex;gap:8px;align-items:center}
+.cmp .mini{display:flex;min-height:360px}
+.cmp .mini .side{width:200px;min-height:360px;border-right:1px solid var(--border)}
+.cmp .mini .m2{flex:1;padding:12px;font-size:12px;color:var(--text-2)}
+.cut2{color:var(--text-3);text-decoration:line-through}
+.newi{color:var(--ok);font-weight:700}
+</style>
+</head>
+<body>
+<div class="mframe">
+ <nav class="mnav" id="mnav"></nav>
+ <div class="mstage" id="stage"></div>
+</div>
+<script>
+const IC = {
+  doc:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
+  arrow:'<path d="M5 12h14M13 6l6 6-6 6"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
+  hour:'<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
+  pc:'<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+}
+const svg = (n) => `<svg class="i" viewBox="0 0 24 24">${IC[n]}</svg>`
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]))
+
+// ───────────── 목업 데이터 ─────────────
+const TEAM = [{ id: 'dpms', name: 'DPMS 지식', pend: 3, mode: '매일 18:00' }, { id: 'gdi', name: 'GDI 지식', pend: 0, mode: '실시간' }, { id: 'ops', name: '운영 매뉴얼', pend: 1, mode: '손으로만' }]
+const MINE = [{ id: 'meet', name: '회의', to: 'DPMS 지식', unsent: 2 }, { id: 'rel', name: '배포노트', to: 'DPMS 지식', unsent: 0 }, { id: 'memo', name: '설계메모', to: null, unsent: 1 }]
+// 이력 줄 — a: team(팀 서버 /api/history) · me(내 PC 프로그램 /api/history, 짝 열쇠로 읽는다)
+const H = [
+  { id: 'c1', d: '오늘', t: '14:20', a: 'team', k: '정리', kn: 'DPMS 지식', ti: '정리하며 내 기록의 값을 바꿨다: 재시작 대기', sub: '배치 운영 › 재시작 · 30초 → 60초(같은 자리의 lee 기록과 맞춤)', who: 'kmd', check: true, diff: ['재시작 전 30초 기다린다', '재시작 전 60초 기다린다(큐가 비는 데 50초 남짓)'] },
+  { id: 'c2', d: '오늘', t: '09:40', a: 'me', k: '정리', kn: '회의', ti: '기록을 문서에 넣으며 담당자 이름을 바꿨다', sub: '주간회의 › 할 일 · 박대리 → park', who: 'kmd', check: true, diff: ['담당: 박대리', '담당: park'] },
+  { id: 'h1', d: '오늘', t: '14:20', a: 'team', k: '정리', kn: 'DPMS 지식', ti: '정리했다: 받은 기록 4 → 자리 3', sub: '배치 운영 › 재시작 · 장애 대응 › 연락망 · 용어 › SLA', who: 'kmd' },
+  { id: 'h2', d: '오늘', t: '13:46', a: 'team', k: '저장', kn: 'DPMS 지식', ti: '「장애 대응 › 연락망」 기록을 남겼다', sub: '야간 당번 번호가 바뀜 · 다음 정리 때 문서에', who: 'park' },
+  { id: 'h3', d: '오늘', t: '13:10', a: 'me', k: '보내기', kn: '회의', ti: 'DPMS 지식으로 보냈다: 기록 2', sub: '배치 재시작 순서 · 10-27 주간회의 결정', who: 'park', link: 'L1' },
+  { id: 'h4', d: '오늘', t: '13:10', a: 'team', k: '받음', kn: 'DPMS 지식', ti: '개인 지식 「회의」 에서 기록 2 를 받았다', sub: 'park 이 보냄 · 18:00 정리 때 문서에', who: 'park', link: 'L1' },
+  { id: 'h5', d: '오늘', t: '12:30', a: 'me', k: '저장', kn: '회의', ti: '10-27 주간회의 기록', sub: '정한 것 3 · 남은 것 2', who: 'park' },
+  { id: 'h6', d: '오늘', t: '11:05', a: 'team', k: '가져오기', kn: 'GDI 지식', ti: '위키에서 가져왔다: 새 문서 2 · 바뀐 항목 5', sub: '가져오는 곳 · GDI 위키(매일 11:00)', who: 'kmd' },
+  { id: 'h7', d: '오늘', t: '10:40', a: 'team', k: '설정', kn: 'DPMS 지식', ti: '정리 방식을 「매일 18:00」 으로 바꿨다', sub: '실시간 → 정해진 시각', who: 'kim' },
+  { id: 'h8', d: '오늘', t: '09:12', a: 'me', k: '바로 고침', kn: '설계메모', ti: '「저장 구조」 를 편집기에서 고쳤다', sub: 'D:\\kmd\\설계메모\\docs\\저장구조.md · 30초 조용해져 저장', who: 'park' },
+  { id: 'h9', d: '어제', t: '18:00', a: 'team', k: '정리', kn: 'DPMS 지식', ti: '정리했다: 받은 기록 2 → 자리 2', sub: '배치 운영 › 재시작 · 용어 › 배치 창', who: 'kmd', link: 'L0' },
+  { id: 'h10', d: '어제', t: '17:40', a: 'me', k: '가져오기', kn: '배포노트', ti: '폴더에서 파일 3 을 들였다', sub: 'D:\\배포\\10월 · 문서 1 새로', who: 'park' },
+  { id: 'h11', d: '어제', t: '16:02', a: 'team', k: '지식', kn: '운영 매뉴얼', ti: '팀 지식 「운영 매뉴얼」 을 세웠다', sub: '관리자가 세움 · 팀 모두 본다', who: 'kim' },
+  { id: 'h12', d: '어제', t: '15:20', a: 'me', k: '설정', kn: '', ti: '백업 자리를 정했다: E:\\kmd-백업', sub: '붙인 지식 3', who: 'park' },
+  { id: 'h13', d: '어제', t: '11:30', a: 'me', k: '보내기', kn: '배포노트', ti: 'DPMS 지식으로 보냈다: 기록 1 · 문서 1', sub: '10월 배포 체크리스트', who: 'park', link: 'L0' },
+]
+// 보낸 것이 지나간 길 — 개인 줄과 팀 줄을 잇는다
+const TRACE = {
+  L1: [['ok', '10-27 12:58', '개인 · 회의 에 기록을 남겼다', '배치 재시작 순서 · 10-27 주간회의 결정'], ['ok', '10-27 13:10', 'DPMS 지식으로 보냈다', '내 PC 프로그램이 이 PC 의 열쇠로'], ['ok', '10-27 13:10', 'DPMS 지식 · 받은 것에 섰다', '보낸 사람 park · 합칠 자리 2'], ['w', '10-27 18:00', '정리 기다림', '매일 18:00 · 관리자가 [지금 정리] 하면 곧바로'], ['n', '', '문서에 들어간다', '배치 운영 › 재시작']],
+  L0: [['ok', '10-26 11:20', '개인 · 배포노트 에 기록을 남겼다', '10월 배포 체크리스트'], ['ok', '10-26 11:30', 'DPMS 지식으로 보냈다', '기록 1 · 문서 1'], ['ok', '10-26 11:30', 'DPMS 지식 · 받은 것에 섰다', '보낸 사람 park'], ['ok', '10-26 18:00', '정리했다', '자리 2 · 값 바뀜 없음'], ['ok', '10-26 18:00', '문서에 들어갔다', '배치 운영 › 재시작 · 용어 › 배치 창']],
+}
+const KINDS = ['저장', '가져오기', '정리', '바로 고침', '보내기', '받음', '설정', '지식']
+const PC_LAST = '10:02' // 내 PC 프로그램이 꺼졌을 때 마지막으로 읽은 때
+
+// ───────────── 상태 ─────────────
+const S = { scene: 'review', who: 'admin', cur: 'dpms', open: null, ar: '', kind: '', kn: '', pp: '', pcOff: false, mode: 'team', tdKn: 'dpms', sdKn: 'meet', setTab: '' }
+const admin = () => S.who === 'admin'
+const me = () => (admin() ? 'kim' : 'park')
+
+const SCENES = [
+  ['g', '검토'],
+  ['review', '검토: 묶인 곳 · 바꿀 것 · 정할 것', '목업 전에 읽는다'],
+  ['side', '옆 메뉴: 지금 / 바꾼 뒤', '이력이 지식 관리로'],
+  ['g', '이력: 팀 + 개인'],
+  ['hist', '이력: 한 흐름으로', '거르기 · 확인할 것'],
+  ['trace', '이력: 보낸 기록 따라가기', '개인 보냄 ↔ 팀 받음 · 정리'],
+  ['pcOff', '이력: 내 PC 프로그램이 꺼짐', '팀만 · 위에 한 줄'],
+  ['pcHist', '이 PC 프로그램의 이력', '팀 없이 개인만'],
+  ['g', '설정: 고른 지식과 따로'],
+  ['tidy', '설정 · 팀 › 정리', '정리할 팀 지식은 화면 안에서'],
+  ['imp', '설정 · 팀 › 가져오기', '넣을 곳은 화면 안에서'],
+  ['send', '설정 · 개인 › 지식 보내기', '보내는 지식은 화면 안에서'],
+]
+function go(sc) {
+  S.scene = sc; S.open = null
+  S.mode = sc === 'pcHist' ? 'pc' : 'team'
+  S.pcOff = sc === 'pcOff'
+  if (S.mode === 'pc' && !isMine(S.cur)) S.cur = 'meet'
+  if (sc === 'trace') { S.open = 'h3'; S.ar = ''; S.kind = ''; S.kn = '' }
+  if (sc === 'hist' || sc === 'pcOff' || sc === 'pcHist') { S.ar = ''; S.kind = ''; S.kn = ''; S.pp = '' }
+  render()
+}
+function navHtml() {
+  return `<h1>지식 관리: 이력 · 설정 독립</h1><p>지식 관리는 위에서 고른 지식과 따로 · 이력은 설정 밖으로 나와 팀 + 개인을 한 흐름으로</p>
+  <div class="who-sw"><button class="${admin() ? 'on' : ''}" data-who="admin">관리자 kim</button><button class="${admin() ? '' : 'on'}" data-who="user">일반 park</button></div>
+  ${SCENES.map(([v, l, s]) => v === 'g' ? `<div class="g">${l}</div>` : `<button class="${S.scene === v ? 'on' : ''}" data-go="${v}">${l}${s ? `<small>${s}</small>` : ''}</button>`).join('')}
+  <div class="q"><b>보는 법</b><ul><li>옆 메뉴 위쪽에서 지식을 바꿔 골라도 지식 관리 화면은 그대로다(그게 이번에 고치는 것)</li><li>이력의 줄을 누르면 펼친다 · 위 요약 칸을 누르면 거른다</li><li>초록 줄 = 개인(내 PC) · 파란 줄 = 팀</li></ul></div>`
+}
+
+// ───────────── 앱 프레임 ─────────────
+const allKn = () => [...TEAM, ...MINE]
+const knById = (id) => allKn().find((k) => k.id === id)
+const isMine = (id) => MINE.some((k) => k.id === id)
+const MG = () => ['hist', 'trace', 'pcOff', 'pcHist'].includes(S.scene) ? 'hist' : ['tidy', 'imp'].includes(S.scene) || (S.scene === 'stub' && S.stubArea === 'team') ? 'team' : 'me'
+function sideHtml() {
+  const pc = S.mode === 'pc', c = knById(S.cur)
+  const kn = (x, tag) => `<div class="${S.cur === x.id ? 'on' : ''}" data-cur="${esc(x.id)}">${svg('doc')}${esc(x.name)} ${tag}</div>`
+  let h = `<aside class="side"><div class="sb-top"><span class="logo">${esc(me().slice(0, 1))}</span><span style="font-weight:700">${me()} <small class="muted" style="font-weight:400;display:block;font-size:10.5px">${pc ? '이 PC' : '팀 서버' + (admin() ? ' · 관리자' : ' · 일반')}</small></span></div>
+  <div class="sb-know"><div class="sb-repo"><span class="rk">${c ? esc(c.name.slice(0, 2)) : '전체'}</span><span style="flex:1;min-width:0"><b style="font-size:12.5px">${c ? esc(c.name) : '지식 전체'}</b><small>${c ? (isMine(c.id) ? '개인 · 내 PC' : '팀') : ''}</small></span></div>
+  ${pc ? '' : `<div class="lh">팀 지식</div><div class="lst">${TEAM.map((x) => kn(x, '<span class="kt team">팀</span>')).join('')}</div>`}
+  <div class="lh">${pc ? '내 지식' : '개인 지식 · 내 PC'}</div><div class="lst">${MINE.map((x) => kn(x, pc ? '' : '<span class="kt pc">개인</span>')).join('')}</div></div>`
+  const nCheck = H.filter((x) => x.check && (!pc || x.a === 'me')).length
+  const it = (v, l, ic, bd) => `<div class="sb-i${MG() === v ? ' on' : ''}" data-mg="${v}">${svg(ic)}<span>${l}</span>${bd ? `<span class="bd" style="background:var(--warn-bg);color:var(--warn)">${bd}</span>` : ''}</div>`
+  h += `<div class="sb-mg"><div class="sb-g">지식 관리</div>${it('hist', '이력', 'hour', nCheck)}${pc ? it('me', '설정', 'gear') : it('team', '설정 · 팀', 'gear') + it('me', '설정 · 개인', 'gear')}</div></aside>`
+  return h
+}
+function frame(crumb, main) {
+  const pc = S.mode === 'pc'
+  return `<div class="app">${sideHtml()}<div class="col"><header class="hdr"><span class="crumb">${crumb}</span></header><div class="band"><span>${pc ? '이 PC 의 kmd · 나만 쓴다' : '팀 서버의 kmd · 같이 쓴다'}</span><span class="muted" style="margin-left:auto">지식 관리 화면 · 위에서 고른 지식과 상관없다</span></div><div class="main">${main}</div></div></div>`
+}
+// 설정 안 왼쪽 메뉴 — 이력은 빠졌다(옆 메뉴 지식 관리 › 이력)
+function mgItems(area) {
+  if (area === 'team') return [...(admin() ? [['imp', '가져오기']] : []), ['tidy', '정리'], ['gen', '일반'], ['people', '사람'], ['claude', 'Claude 연결'], ['agent', '에이전트 설치'], ...(admin() ? [['admin', '관리']] : [])]
+  return [['imp2', '가져오기'], ['send', '지식 보내기'], ['gen', '일반'], ['agent', '에이전트 설치']]
+}
+function mgWrap(area, cur, body) {
+  const title = area === 'team' ? '설정 · 팀' : '설정 · 개인'
+  return `<div class="mgwrap"><nav class="mgnav"><div class="mgt">${title}</div>${mgItems(area).map(([v, l]) => `<div class="mgi${v === cur ? ' on' : ''}" data-set="${area}:${v}">${l}</div>`).join('')}<div class="mgi cut" title="옆 메뉴 지식 관리 › 이력으로 옮겼다">이력</div></nav><div class="mgbody">${body}</div></div>`
+}
+
+// ───────────── 검토 ─────────────
+function viewReview() {
+  const R = [
+    ['설정 영역(팀 / 개인)', '옆 메뉴 「설정 · 팀 / 설정 · 개인」 을 누르지 않고 들어오면(내 메뉴 › 설정 · 명령 창 · 경고 단추 · 정리 표의 링크) <b>고른 지식이 개인이면 설정 · 개인, 팀이면 설정 · 팀</b>', '영역은 메뉴에서 고른 것만. 처음은 설정 · 팀(이 PC 는 설정 하나) · 마지막에 고른 영역을 기억', 'app/main.js:2771 setArea'],
+    ['정리', '「정리: <b>고른 지식</b>」. 옆 메뉴에서 고른 팀 지식을 정리한다 · 개인 지식을 골라 두면 첫 팀 지식으로 바뀌고, 내 PC 지식이면 화면이 막힌다', '정리 화면 위에 팀 지식 줄(받은 것 · 정리 방식)을 두고 <b>그 안에서 고른다</b> · 처음은 받은 것이 많은 지식', 'app/main.js:1314 tidyKn · 1566 pcOnly'],
+    ['가져오기 · 넣을 곳', '넣을 곳을 고르지 않았으면 <b>고른 지식이 넣을 곳</b> · 내 PC 지식을 골라 두면 가져오기가 통째로 막힌다', '넣을 곳은 화면 안 고르기만 · 처음은 마지막에 넣은 곳 · 막힘 없음', 'app/main.js:1904 impTarget · 2353 pcOnly'],
+    ['지식 보내기 · 보내는 지식', '옆 메뉴에서 개인 지식을 바꾸면 <b>보내는 지식도 따라 바뀐다</b>', '보내는 지식은 화면 안 고르기만(왼쪽에 개인 지식 줄 · 보내지 않은 수)', 'app/main.js:2567 sendSrc'],
+    ['이력', '설정 안 메뉴에 있다 · 내 PC 지식을 고르면 <b>이력 전체가 막힌다</b> · 설정 · 팀은 팀 지식 줄만, 설정 · 개인은 개인 줄만 보인다', '지식 관리 › 이력으로 빼고 팀 서버 + 내 PC 프로그램의 이력을 한 흐름으로', 'app/main.js:1281 viewToday · 394 inArea'],
+    ['머리 줄 · 띠', '정리 · 사람 화면은 머리 줄이 「<b>고른 지식</b> › 정리」, 띠도 그 지식 · 정리 화면에서 지식을 고르면 그 지식의 정리로 남는다', '지식 관리 화면의 머리 줄 · 띠에 고른 지식을 싣지 않는다 · 지식을 고르면 문서 화면으로', 'app/main.js:27 KNSCR · 3539 pickKn'],
+  ]
+  return `<div class="rv" style="max-width:1080px"><div class="big">검토: 지식 관리를 고른 지식에서 떼고, 이력을 밖으로</div><p class="lead">요구 둘 · 지식 관리는 옆 메뉴 위쪽에서 고른 지식에 따르지 않는다 · 설정 안의 이력을 지식 관리로 빼 팀 · 개인 이력을 한곳에서 본다</p>
+  <h2>1. 고른 지식에 묶인 곳: 6</h2>
+  <div class="card"><table class="t"><tr><th style="width:130px">자리</th><th>지금</th><th>바꿀 것</th><th style="width:170px">코드</th></tr>${R.map((r) => `<tr><td><b>${r[0]}</b></td><td class="was">${r[1]}</td><td>${r[2]}</td><td class="mono small muted">${r[3]}</td></tr>`).join('')}</table></div>
+  <p class="small muted">고른 지식에 따르지 않는 것(그대로): 설정의 일반 · 사람 · Claude 연결 · 에이전트 설치 · 관리 · 정리 표 · 보내는 길 표. 에이전트 설치의 「붙일 팀 지식」 은 이미 화면 안 고르기다.</p>
+  <h2>2. 이력을 지식 관리로</h2>
+  <div class="card"><div class="cb"><ul>
+   <li>옆 메뉴 지식 관리 = <span class="newi">이력</span> · 설정 · 팀 · 설정 · 개인(이 PC 프로그램은 이력 · 설정) · 이력에는 「확인할 것」 수를 단다</li>
+   <li>설정 · 팀 / 설정 · 개인 안 왼쪽 메뉴에서 <span class="cut2">이력</span>을 걷는다 · 들어가면 첫 메뉴(팀: 정리 · 개인: 가져오기)가 열린다</li>
+   <li>팀 화면의 이력 = 팀 서버 <code>/api/history</code> + 내 PC 프로그램 <code>/api/history</code>(짝 열쇠 · 에이전트 설치 목록을 읽는 길과 같다)를 시각순으로 합친다</li>
+   <li>줄마다 <span class="kt team">팀</span> / <span class="kt pc">개인</span> · 거르기는 영역 · 갈래 · 지식 · 사람 · 「확인할 것」 은 둘 다 맨 위</li>
+   <li>개인에서 <b>보냄</b> ↔ 팀의 <b>받음 · 정리 · 문서에 들어감</b>을 한 줄로 따라간다(보낸 기록이 지금 어디 있나)</li>
+   <li>내 PC 프로그램이 꺼져 있으면 팀 줄만 · 위에 한 줄(마지막으로 읽은 때 · 다시 잇기)</li>
+  </ul></div></div>
+  <h2>3. 정할 것</h2>
+  <div class="card"><table class="t"><tr><th style="width:240px">물음</th><th>목업이 고른 것</th><th>다른 길</th></tr>
+   <tr><td>팀 화면에서 개인 줄 되돌리기</td><td>팀 화면에서 바로(짝 열쇠로 내 PC 프로그램의 되돌리기를 부른다)</td><td>「내 PC 화면에서 되돌리기 ›」 로 넘긴다: 짝 열쇠 길을 넓히지 않는다</td></tr>
+   <tr><td>일반 사람이 보는 팀 줄</td><td>지금처럼: 팀 지식의 이력 전체 + 나에게 온 줄</td><td>내가 한 일 · 나에게 온 줄만</td></tr>
+   <tr><td>설정 영역의 처음</td><td>설정 · 팀 · 그 뒤로는 마지막에 고른 영역</td><td>늘 설정 · 팀</td></tr>
+   <tr><td>정리 화면의 처음 지식</td><td>받은 것이 가장 많은 팀 지식</td><td>마지막에 정리한 지식</td></tr>
+  </table></div></div>`
+}
+// ───────────── 옆 메뉴: 지금 / 바꾼 뒤 ─────────────
+function viewSide() {
+  const mini = (items, mg, note) => `<div class="mini"><aside class="side" style="padding:10px 8px"><div class="sb-g" style="margin-top:0">지식 고르기</div><div class="sb-repo"><span class="rk">DP</span><b style="font-size:12.5px">DPMS 지식</b></div><div class="sb-mg" style="margin-top:40px"><div class="sb-g">지식 관리</div>${items}</div></aside><div class="m2">${mg}${note}</div></div>`
+  const i = (l, on, cls) => `<div class="sb-i${on ? ' on' : ''}">${svg(l === '이력' ? 'hour' : 'gear')}<span class="${cls || ''}">${l}</span></div>`
+  const nav = (rows) => `<div class="mgnav" style="width:150px;border:0;position:static"><div class="mgt">설정 · 팀</div>${rows}</div>`
+  const now = mini(i('설정 · 팀', true) + i('설정 · 개인'), nav(`<div class="mgi on">이력</div><div class="mgi">가져오기</div><div class="mgi">정리</div><div class="mgi">일반</div><div class="mgi">사람</div><div class="mgi">…</div>`), '<p class="note">이력이 설정 · 팀 / 설정 · 개인에 따로 · 영역으로 걸러져 한쪽만 보인다 · 설정을 고르지 않고 오면 고른 지식(DPMS = 팀)이 영역을 정한다</p>')
+  const aft = mini(i('이력', true, 'newi') + i('설정 · 팀') + i('설정 · 개인'), nav(`<div class="mgi cut">이력</div><div class="mgi">가져오기</div><div class="mgi on">정리</div><div class="mgi">일반</div><div class="mgi">사람</div><div class="mgi">…</div>`), '<p class="small muted" style="margin-top:10px">이력은 팀 + 개인 한 화면 · 설정 · 팀 / 설정 · 개인은 그 영역의 일만 · 셋 다 고른 지식과 상관없다</p>')
+  return `<div style="max-width:1080px"><div class="big">옆 메뉴: 지금 / 바꾼 뒤</div><p class="lead" style="margin-bottom:14px">지식 관리 칸에 이력이 맨 위로 선다. 설정 안 메뉴에서는 이력이 빠진다.</p><div class="cmp"><div class="pane"><div class="ph2">지금</div>${now}</div><div class="pane"><div class="ph2">바꾼 뒤 <span class="chip c-ok">이력 독립</span></div>${aft}</div></div></div>`
+}
+
+// ───────────── 이력: 팀 + 개인 ─────────────
+function rowsAll() {
+  let v = H
+  if (S.mode === 'pc') v = v.filter((x) => x.a === 'me' && x.k !== '받음')
+  return v
+}
+const visible = () => rowsAll().filter((x) => !S.pcOff || x.a !== 'me' || (x.d === '오늘' && x.t <= PC_LAST) || x.d !== '오늘')
+function pass(x, skip) {
+  if (skip !== 'ar' && S.ar && x.a !== S.ar) return false
+  if (skip !== 'kn' && S.kn && x.kn !== S.kn) return false
+  if (skip !== 'pp' && S.pp && (S.pp === 'me' ? x.who !== me() : x.who !== 'kmd')) return false
+  if (skip !== 'kind' && S.kind && (S.kind === '확인할 것' ? !x.check : x.k !== S.kind || x.check)) return false
+  return true
+}
+function hrow(x) {
+  const open = S.open === x.id
+  let ex = ''
+  if (open) {
+    ex = '<div class="open">'
+    if (x.diff) ex += `<div class="diff"><div class="fh">${esc(x.kn)} › ${esc(x.sub.split(' · ')[0])}</div><div class="del">− ${esc(x.diff[0])}</div><div class="add">+ ${esc(x.diff[1])}</div></div><button class="btn sm">되돌리기</button> <span class="small muted">그 줄만 넣기 전으로${x.a === 'me' ? ' · 내 PC 프로그램에서 되돌린다(짝 열쇠)' : ''}</span>`
+    else if (x.link) ex += `<div class="small muted" style="margin-bottom:2px">보낸 기록이 지나간 길 · 개인과 팀의 줄을 잇는다</div><ul class="trace">${TRACE[x.link].map(([s, t, b, sm]) => `<li><span class="t">${esc(t)}</span><span class="dot ${s === 'ok' ? '' : s}">${s === 'ok' ? '✓' : s === 'w' ? '…' : ''}</span><span><b>${esc(b)}</b><small>${esc(sm)}</small></span></li>`).join('')}</ul><div style="display:flex;gap:12px"><a class="small">${x.a === 'me' ? '받은 쪽 줄 보기 ›' : '보낸 쪽 줄 보기 ›'}</a>${x.link === 'L1' && admin() ? '<a class="small">DPMS 지식 정리 열기 ›</a>' : ''}</div>`
+    else ex += `<div class="small muted" style="margin-bottom:6px">${esc(x.sub)}</div><a class="small">${x.k === '설정' ? '그 설정 열기 ›' : '문서 열기 ›'}</a>${x.a === 'me' ? ' <span class="small muted">· 내 PC 지식은 팀 화면에서 읽기 · 저장만</span>' : ''}`
+    ex += '</div>'
+  }
+  const kind = x.check ? '확인할 것' : x.k
+  const area = S.mode === 'pc' ? '' : `<span class="ar">${x.a === 'me' ? '<span class="kt pc">개인</span>' : '<span class="kt team">팀</span>'}</span>`
+  const linked = x.link && !open ? ` <span class="chip c-acc" style="font-size:10.5px">${x.link === 'L1' ? '정리 기다림' : '문서에 들어감'}</span>` : ''
+  return `<div class="hrow ${S.mode === 'pc' ? '' : x.a}${x.check ? ' yl' : ''}"><div class="hl" data-row="${x.id}"><span class="tm">${esc(x.t)}</span>${area}<span class="chip ${x.check ? 'c-warn' : 'c-mute'}" style="flex:none">${esc(kind)}</span><span class="tx"><b>${esc(x.ti)}</b>${linked}${!open ? `<small>${esc(x.sub)}</small>` : ''}</span><span class="kn2">${esc(x.kn)}</span><span class="who">${esc(x.who)}</span><span class="act">${open ? '접기' : '보기'}</span></div>${ex}</div>`
+}
+function viewHist() {
+  const pc = S.mode === 'pc'
+  const all = visible()
+  const rows = all.filter((x) => pass(x))
+  const cnt = (f) => all.filter(f).length
+  const today = (a) => all.filter((x) => x.d === '오늘' && x.a === a && !x.check).length
+  const checks = rows.filter((x) => x.check && S.kind !== '확인할 것' ? true : false)
+  const flow = S.kind === '확인할 것' ? rows : rows.filter((x) => !x.check)
+  const nc = (a) => all.filter((x) => x.check && (!a || x.a === a)).length
+  const wait = all.filter((x) => x.link === 'L1' && x.a === 'me').length
+  const tile = (cls, l, n, s, act) => `<div class="tile ${cls}" data-tile="${act}"><div class="l">${l}</div><div class="n">${n}</div><div class="s">${s}</div></div>`
+  const tiles = pc ? '' : `<div class="tiles">${tile('w', '확인할 것', nc(), `<span class="kt team">팀 ${nc('team')}</span><span class="kt pc">개인 ${nc('me')}</span>`, 'check')}${tile('', '오늘 · 팀', today('team'), '팀 서버의 지식 ' + TEAM.length, 'team')}${tile('', '오늘 · 개인', S.pcOff ? '—' : today('me'), S.pcOff ? '내 PC 프로그램이 꺼짐' : '내 PC 의 지식 ' + MINE.length, 'me')}${tile('', '보낸 것 · 정리 기다림', S.pcOff ? '—' : wait, '보냈지만 아직 문서에 안 들어감', 'send')}</div>`
+  const srcs = pc ? '' : `<div class="srcs"><span><i class="d"></i><b>팀 서버</b> tsv01 · 이어짐</span><span><i class="d${S.pcOff ? ' off' : ''}"></i><b>내 PC 프로그램</b> ${S.pcOff ? `꺼짐 · 마지막으로 읽은 때 오늘 ${PC_LAST}` : '이어짐 · 짝 열쇠로 읽는다'}</span><span class="muted" style="margin-left:auto">팀 줄은 팀 서버 · 개인 줄은 내 PC 에 산다. 둘을 합쳐 보이기만 한다</span></div>`
+  const off = S.pcOff ? `<div class="callout warn"><b>내 PC 프로그램이 꺼져 있다: 개인 이력은 오늘 ${PC_LAST} 까지만 보인다</b><span style="margin-left:auto"><button class="btn sm">다시 잇기</button></span></div>` : ''
+  const seg = pc ? '' : `<span class="seg big">${[['', '전체', cnt((x) => pass(x, 'ar'))], ['team', '팀', cnt((x) => x.a === 'team' && pass(x, 'ar'))], ['me', '개인', cnt((x) => x.a === 'me' && pass(x, 'ar'))]].map(([v, l, n]) => `<button class="${S.ar === v ? 'on' : ''}" data-ar="${v}">${l} <small>${n}</small></button>`).join('')}</span>`
+  const kinds = ['확인할 것', ...KINDS.filter((k) => !(pc && k === '받음'))].filter((k) => cnt((x) => pass(x, 'kind') && (k === '확인할 것' ? x.check : x.k === k && !x.check)))
+  const chips = `<div class="tabs"><span class="${!S.kind ? 'on' : ''}" data-kind="">모든 갈래 <small class="muted">${cnt((x) => pass(x, 'kind'))}</small></span>${kinds.map((k) => `<span class="${S.kind === k ? 'on' : ''}" data-kind="${k}">${k} <small class="muted">${cnt((x) => pass(x, 'kind') && (k === '확인할 것' ? x.check : x.k === k && !x.check))}</small></span>`).join('')}</div>`
+  const knSel = `<select class="inp" id="fKn"><option value="">지식 전체</option>${pc ? MINE.map((k) => `<option${S.kn === k.name ? ' selected' : ''}>${esc(k.name)}</option>`).join('') : `<optgroup label="팀 지식">${TEAM.map((k) => `<option${S.kn === k.name ? ' selected' : ''}>${esc(k.name)}</option>`).join('')}</optgroup><optgroup label="개인 지식 · 내 PC">${MINE.map((k) => `<option${S.kn === k.name ? ' selected' : ''}>${esc(k.name)}</option>`).join('')}</optgroup>`}</select>`
+  const ppSel = `<select class="inp" id="fPp"><option value="">사람 모두</option><option value="me"${S.pp === 'me' ? ' selected' : ''}>나(${me()})</option><option value="kmd"${S.pp === 'kmd' ? ' selected' : ''}>kmd 가 한 일</option></select>`
+  const days = []
+  for (const x of flow) { const g = days[days.length - 1]; if (g && g.d === x.d) g.rows.push(x); else days.push({ d: x.d, rows: [x] }) }
+  const dayLbl = (d) => (d === '오늘' ? '오늘 · 10-27(화)' : '어제 · 10-26(월)')
+  const checkCard = checks.length ? `<div class="card"><div class="ch">확인할 것 <span class="chip c-warn">${checks.length}</span><small>kmd 가 정리하며 내 기록의 값을 바꿨다 · 팀 · 개인 모두 · 그 줄만 되돌릴 수 있다</small></div>${checks.map(hrow).join('')}</div>` : ''
+  const flowCard = `<div class="card">${days.map((g) => `<div class="hday">${dayLbl(g.d)}<small>${g.rows.length}</small>${pc ? '' : `<small style="margin-left:auto">팀 ${g.rows.filter((x) => x.a === 'team').length} · 개인 ${g.rows.filter((x) => x.a === 'me').length}</small>`}</div>${g.rows.map(hrow).join('')}`).join('') || '<p class="muted" style="margin:12px 14px">거른 줄이 없다</p>'}<div class="cf small muted">줄을 누르면 펼친다 · 팀 줄은 팀 지식의 git · 개인 줄은 내 PC 지식의 git 에 남는다 · 나에게 온 줄은 7일 둔다</div></div>`
+  const lead = pc ? '이 PC 의 지식에서 바뀐 것: 저장 · 가져오기 · 보내기 · kmd 가 문서에 넣은 것 · 편집기에서 고친 것.' : '팀 서버와 내 PC 의 이력을 한 흐름으로: 내가 저장 · 가져오기 · 보내기 한 것, kmd 가 가져오고 정리한 것, 보낸 기록이 팀에서 어디까지 갔는지. 내 값이 바뀐 줄은 맨 위 「확인할 것」 에.'
+  const main = `<div style="max-width:1080px"><div class="pg-h"><div><div class="big">이력</div><p class="lead">${lead}</p></div></div>${srcs}${off}${tiles}
+  <div class="fl2">${seg}${seg ? '<span style="width:1px;height:22px;background:var(--border-strong)"></span>' : ''}${chips}<span class="r">${knSel}${ppSel}</span></div>${checkCard}${flowCard}</div>`
+  return frame('지식 관리 › <b>이력</b>', main)
+}
+
+// ───────────── 설정 · 팀 › 정리 ─────────────
+function viewTidy() {
+  const k = TEAM.find((x) => x.id === S.tdKn)
+  const strip = `<div class="kstrip">${[...TEAM].sort((a, b) => b.pend - a.pend).map((x) => `<div class="kc${x.id === S.tdKn ? ' on' : ''}" data-td="${x.id}"><b>${esc(x.name)} ${x.pend ? `<span class="chip c-pend">받은 것 ${x.pend}</span>` : '<span class="chip c-mute">받은 것 없음</span>'}</b><small>정리 · ${esc(x.mode)}</small></div>`).join('')}</div>`
+  const body = `<div class="pg-h"><div><div class="big">정리</div><p class="lead">팀 지식마다 받은 기록을 문서에 합친다. <b>정리할 팀 지식은 여기서 고른다</b>: 옆 메뉴에서 고른 지식과 따로.</p></div></div>
+  <div class="anno"><b>바뀜</b><span>지금은 「정리: 고른 지식」 이라 옆 메뉴에서 개인 지식을 골라 두면 첫 팀 지식으로 바뀌거나(개인) 화면이 막힌다(내 PC). 이제 위 줄에서 고른다 · 처음은 받은 것이 가장 많은 지식.</span></div>
+  ${strip}
+  <div class="card"><div class="ch">${esc(k.name)} <small>정리 · ${esc(k.mode)} · 받은 것 ${k.pend}</small><span class="r">${admin() ? '<button class="btn pri sm">지금 정리</button>' : ''}</span></div><div class="cb"><div class="board">${['모으기', '자리 찾기', '글 쓰기', '검사', '넣기'].map((s, i) => `<div><b>${i + 1}. ${s}</b><span class="muted">${k.pend ? (i === 0 ? '받은 기록 ' + k.pend : '기다림') : '—'}</span></div>`).join('')}</div>
+  <div class="tabs" style="margin-top:12px"><span class="on">받은 것 <em>${k.pend}</em></span><span>정리 일 줄</span><span>정리한 것</span></div><div class="ph">받은 것 · 정리 일 줄 · 정리한 것은 docs/kmd_정리_절차_목업.html 그대로</div></div></div>`
+  return frame('설정 · 팀 › <b>정리</b>', mgWrap('team', 'tidy', body))
+}
+// ───────────── 설정 · 팀 › 가져오기 ─────────────
+function viewImp() {
+  const body = `<div class="pg-h"><div><div class="big">가져오기</div><p class="lead">들여오는 일은 모두 일 줄에 서서 차례로 돈다. <b>넣을 곳은 여기서 고른다</b>.</p></div></div>
+  <div class="anno"><b>바뀜</b><span>지금은 넣을 곳을 고르지 않았으면 옆 메뉴에서 고른 지식이 넣을 곳이 되고, 내 PC 지식을 골라 두면 화면이 막힌다. 이제 넣을 곳은 이 고르기만 · 처음은 마지막에 넣은 곳.</span></div>
+  <div class="card"><div class="cb" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b>파일 · 폴더를 이 화면 어디든 끌어다 놓는다</b><span>넣을 곳 <select class="inp"><optgroup label="팀 지식">${TEAM.map((k) => `<option>${esc(k.name)}</option>`).join('')}</optgroup></select></span><span class="muted small">마지막에 넣은 곳: DPMS 지식</span></div></div>
+  <div class="tabs"><span class="on">일 줄 <em>2</em></span><span>가져오는 곳 <em>4</em></span><span>끝난 일</span></div><div class="ph">일 줄 · 가져오는 곳 · 끝난 일은 지금 화면 그대로</div>`
+  return frame('설정 · 팀 › <b>가져오기</b>', mgWrap('team', 'imp', body))
+}
+// ───────────── 설정 · 개인 › 지식 보내기 ─────────────
+function viewSend() {
+  const k = MINE.find((x) => x.id === S.sdKn)
+  const strip = `<div class="kstrip">${MINE.map((x) => `<div class="kc${x.id === S.sdKn ? ' on' : ''}" data-sd="${x.id}"><b>${esc(x.name)} <span class="kt pc">개인</span>${x.unsent ? `<span class="chip c-pend">${x.unsent}</span>` : ''}</b><small>→ ${x.to ? esc(x.to) : '받는 지식 없음'}</small></div>`).join('')}</div>`
+  const route = `<div class="card"><div class="route"><div class="rbox"><div class="lb">보내는 지식 <span class="kt pc">개인</span></div><div class="nm">${esc(k.name)}</div><div class="sub">내 PC · 나만 · 보내지 않은 기록 ${k.unsent}</div></div><div class="rarr">${svg('arrow')}</div><div class="rbox${k.to ? '' : ' todo'}"><div class="lb">받는 지식 <span class="kt team">팀</span></div><div class="nm">${k.to ? esc(k.to) : '<span class="muted">정하지 않음</span>'}</div><div class="sub">${k.to ? '팀 모두 본다 · 18:00 정리' : '받는 팀 지식을 하나 정한다'}</div></div></div></div>`
+  const body = `<div class="pg-h"><div><div class="big">지식 보내기</div><p class="lead">내 개인 지식의 기록 · 문서를 묶인 팀 지식으로 보낸다. <b>보내는 지식은 여기서 고른다</b>.</p></div></div>
+  <div class="anno"><b>바뀜</b><span>지금은 옆 메뉴에서 개인 지식을 바꾸면 보내는 지식도 따라 바뀐다. 이제 위 줄에서만 고른다 · 보낸 뒤에는 지식 관리 › 이력에서 정리까지 따라간다.</span></div>
+  ${strip}${route}<div class="ph">기록 · 문서 고르기 · 보내기 확인은 docs/kmd_지식보내기_목업.html 그대로</div>`
+  return frame('설정 · 개인 › <b>지식 보내기</b>', mgWrap('me', 'send', body))
+}
+function viewStub() {
+  const [area, v] = S.setTab.split(':')
+  const l = (mgItems(area).find((x) => x[0] === v) || [0, ''])[1]
+  const body = `<div class="big">${esc(l)}</div><div class="ph" style="margin-top:12px">${esc(l)}: 지금 화면 그대로 · 고른 지식에 따르는 것이 없다</div>`
+  return frame(`${area === 'team' ? '설정 · 팀' : '설정 · 개인'} › <b>${esc(l)}</b>`, mgWrap(area, v, body))
+}
+
+// ───────────── 그리기 ─────────────
+function render() {
+  document.getElementById('mnav').innerHTML = navHtml()
+  const s = S.scene
+  const v = s === 'review' ? `<div class="app" style="display:block;padding:22px">${viewReview()}</div>` : s === 'side' ? `<div class="app" style="display:block;padding:22px">${viewSide()}</div>` : s === 'tidy' ? viewTidy() : s === 'imp' ? viewImp() : s === 'send' ? viewSend() : s === 'stub' ? viewStub() : viewHist()
+  document.getElementById('stage').innerHTML = v
+}
+document.addEventListener('click', (ev) => {
+  const t = ev.target.closest('[data-go],[data-who],[data-cur],[data-mg],[data-set],[data-row],[data-ar],[data-kind],[data-tile],[data-td],[data-sd]')
+  if (!t) return
+  const d = t.dataset
+  if (d.go) return go(d.go)
+  if (d.who) { S.who = d.who; return render() }
+  if (d.cur) { S.cur = d.cur; return render() } // 지식 관리 화면은 그대로
+  if (d.mg) { if (d.mg === 'hist') return go(S.mode === 'pc' ? 'pcHist' : 'hist'); if (d.mg === 'team') return go('tidy'); return S.mode === 'pc' ? (S.setTab = 'me:gen', S.scene = 'stub', S.stubArea = 'me', render()) : go('send') }
+  if (d.set) { const [a, v] = d.set.split(':'); if (v === 'tidy') return go('tidy'); if (v === 'imp') return go('imp'); if (v === 'send') return go('send'); S.setTab = d.set; S.stubArea = a; S.scene = 'stub'; return render() }
+  if (d.row) { S.open = S.open === d.row ? null : d.row; return render() }
+  if (d.ar !== undefined) { S.ar = d.ar; return render() }
+  if (d.kind !== undefined) { S.kind = d.kind; return render() }
+  if (d.tile) { S.ar = d.tile === 'team' || d.tile === 'me' ? d.tile : ''; S.kind = d.tile === 'check' ? '확인할 것' : d.tile === 'send' ? '보내기' : ''; S.kn = ''; return render() }
+  if (d.td) { S.tdKn = d.td; return render() }
+  if (d.sd) { S.sdKn = d.sd; return render() }
+})
+document.addEventListener('change', (ev) => {
+  if (ev.target.id === 'fKn') { S.kn = ev.target.value; render() }
+  if (ev.target.id === 'fPp') { S.pp = ev.target.value; render() }
+})
+render()
+</script>
+</body>
+</html>

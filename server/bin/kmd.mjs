@@ -269,7 +269,8 @@ async function main() {
     process.exit(2)
   }
   const user = String(o.user || os.userInfo().username)
-  if (isReservedUser(user)) {
+  // 이 PC 의 사람 이름 — 팀 서버는 쓰지 않는다(들어오는 사람은 명부에서 · 서비스는 OS 사용자 kmd 로 돈다)
+  if (pc && isReservedUser(user)) {
     console.error(`「${user}」 는 kmd 가 쓰는 이름이다. --user 로 다른 이름을 준다`)
     process.exit(2)
   }

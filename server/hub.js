@@ -1596,17 +1596,20 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         for (const w of k.logs.slice(0, 300)) logs.push({ k, w })
       }
       const logIds = new Set(logs.map((x) => x.w.id))
-      const kindOf = (x) => x.kind || (x.revert || /^kmd 가 정리/.test(x.text || '') ? 'tidy' : /^새 기기/.test(x.text || '') ? 'device' : /^(지식을 |되살렸다)/.test(x.text || '') ? 'kn' : /보냈다|옮겼다/.test(x.text || '') ? 'send' : /^파일 /.test(x.text || '') ? 'import' : /에서 (바뀐 표|새 묶음)/.test(x.text || '') ? 'source' : 'save')
-      const FEED_KIND = { save: '저장', import: '가져오기', source: '가져오기', tidy: '정리', send: '보내기', kn: '지식', device: '지식' }
+      // 받음 — 개인 지식에서 보낸 기록이 이 지식에 섰다(예전 줄은 글로) · 보냄 줄과 화면이 잇는다
+      const kindOf = (x) => (x.from != null || (x.kind === 'save' && /에서 받음$/.test(x.text || '')) ? 'recv' : x.kind) || (x.revert || /^kmd 가 정리/.test(x.text || '') ? 'tidy' : /^새 기기/.test(x.text || '') ? 'device' : /^(지식을 |되살렸다)/.test(x.text || '') ? 'kn' : /보냈다|옮겼다/.test(x.text || '') ? 'send' : /^파일 /.test(x.text || '') ? 'import' : /에서 (바뀐 표|새 묶음)/.test(x.text || '') ? 'source' : 'save')
+      const FEED_KIND = { save: '저장', import: '가져오기', source: '가져오기', tidy: '정리', send: '보내기', recv: '받음', kn: '지식', device: '지식' }
       const taken = new Set()
       for (const x of mine) {
         const kind = kindOf(x)
         if (kind === 'source') continue // 지식의 이력 「가져옴」 이 같은 일
         if (kind === 'save' && (x.rec ? logIds.has(x.rec) : /「화면에서 고침/.test(x.text || ''))) continue // 바로 고침 — 이력 줄이 같은 일
         if (x.rec && logIds.has(x.rec)) taken.add(x.rec)
-        const w = kind === 'save' && x.rec && kById[x.kn]?.byWork.get(x.rec)
+        const w = (kind === 'save' || kind === 'recv') && x.rec && kById[x.kn]?.byWork.get(x.rec)
         const sub = !w ? x.small || '' : w.state === 'pend' ? hub.pendText(x.kn) : w.state === 'nowhere' ? '넣을 곳을 찾는 중: 관리자가 고른다' : '문서에 들어갔다'
-        rows.push({ id: `f:${x.id}`, at: x.at, kind: FEED_KIND[kind], kn: x.kn || null, title: x.b || x.text, sub, who: kind === 'tidy' ? 'kmd' : kind === 'device' ? '' : ctx.user, yl: !!x.yl, revert: x.revert || null, device: x.device || null, go: x.go || null, rec: x.rec || null })
+        // 보냄 · 받음 — 어디로 · 어디서 · 받은 기록이 문서에 들어갔나(st)
+        const link = kind === 'send' ? { to: x.to || (String(x.text || '').match(/→ (.+)$/) || [])[1] || null } : kind === 'recv' ? { from: x.from || (String(x.text || '').match(/: (.+)에서 받음$/) || [])[1] || null, st: w ? w.state : null } : {}
+        rows.push({ id: `f:${x.id}`, at: x.at, kind: FEED_KIND[kind], kn: x.kn || null, title: x.b || x.text, sub, who: kind === 'tidy' ? 'kmd' : kind === 'device' ? '' : ctx.user, yl: !!x.yl, revert: x.revert || null, device: x.device || null, go: x.go || null, rec: x.rec || null, ...link })
       }
       for (const { k, w } of logs) {
         if (taken.has(w.id)) continue
@@ -2649,7 +2652,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
         st.log.unshift({ at: new Date().toISOString(), n: items.length, to: [route.kn], recs: recIds.length, docs: pickDocs.length, wait: !!wait, ...(fail ? { fail } : {}), titles: items.slice(0, 5).map((x) => x.title) })
       })
-      if (sent) feed.add(dataDir, ctx.user, { kind: 'send', kn: id, dot: 'acc', text: `${sent}개를 보냈다: ${meta.name} → ${route.name}`, small: '정리 때 문서에 들어간다' }).catch(() => {})
+      if (sent) feed.add(dataDir, ctx.user, { kind: 'send', kn: id, to: route.name, dot: 'acc', text: `${sent}개를 보냈다: ${meta.name} → ${route.name}`, small: '정리 때 문서에 들어간다' }).catch(() => {})
       return { sent, wait, to: route.kn, ...(fail ? { fail, why } : {}) }
     },
     // 보내기 — changes(변경사항의 key) · docs(문서 경로 — 전체) · recs(기록 id — 전체) · 셋 다 없으면 변경사항 모두(예전 길)
@@ -2796,7 +2799,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           }
           cache.delete(id)
           if (saved) {
-            feed.add(dataDir, ctx.user, { kind: 'save', rec: r.records.find((x) => x.id)?.id, kn: id, dot: 'pend', text: `${meta.name}에 기록 ${saved}개: ${String(from).slice(0, 80)}에서 받음`, small: hub.pendText(id) }).catch(() => {})
+            feed.add(dataDir, ctx.user, { kind: 'save', rec: r.records.find((x) => x.id)?.id, kn: id, from: String(from).slice(0, 80), dot: 'pend', text: `${meta.name}에 기록 ${saved}개: ${String(from).slice(0, 80)}에서 받음`, small: hub.pendText(id) }).catch(() => {})
             scheduleDecide(id)
             // hub.save 와 같이 — 개인 지식은 바로 문서에(뒤에서) · 팀 지식은 정리 방식이 「실시간」 이면 조용해진 뒤
             if (mode === 'pc' || hub.teamPrivate(id)) hub.curateSoon(id).catch(() => {})

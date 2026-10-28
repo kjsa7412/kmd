@@ -49,7 +49,8 @@ after(async () => {
   try { if (tmp) fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-// 지식 관리 — 옆 메뉴의 설정 · 팀 / 설정 · 개인(이 PC 는 설정)을 누르고 본문 왼쪽 메뉴에서 고른다
+// 지식 관리 — 옆 메뉴의 설정 · 팀 / 설정 · 개인(이 PC 는 설정)을 누르고 본문 왼쪽 메뉴에서 고른다 · 이력은 옆 메뉴에 따로
+const hist = (page) => page.click('[data-t=nav-history]')
 async function mg(page, area, item) {
   await page.click(`[data-t=nav-settings-${area}]`)
   await page.click(`[data-t=mgNav] [data-t=mg-${item}]`)
@@ -87,8 +88,8 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   // 셸 — 리본 없음 · 옆 메뉴 두 영역(지식 고르기: 고르기 · 문서 · 항목 · 그래프 탭 · 목록 / 지식 관리: 공통 메뉴) · 머리(찾기 가운데 · 설명서 · 나 오른쪽) · 띠 · 아래 줄
   assert.equal(await page.locator('.ribbon').count(), 0)
   assert.deepEqual(await page.locator('[data-t=ktabs] span').allInnerTexts(), ['문서', '항목', '그래프'])
-  // 지식 목록(전체)에서는 지식 관리에 이력과 설정 둘(팀 · 개인)
-  assert.deepEqual(await page.locator('[data-t=manageArea] .sb-i').evaluateAll((els) => els.map((e) => e.querySelector('span').textContent)), ['설정 · 팀', '설정 · 개인'])
+  // 지식 관리 — 이력(팀 + 개인 한 화면)과 설정 둘(팀 · 개인)
+  assert.deepEqual(await page.locator('[data-t=manageArea] .sb-i').evaluateAll((els) => els.map((e) => e.querySelector('span').textContent)), ['이력', '설정 · 팀', '설정 · 개인'])
   assert.match(await page.locator('.hdr .hmid').innerText(), /빨리 열기[\s\S]*Ctrl O[\s\S]*찾기[\s\S]*Ctrl K/)
   assert.match(await page.locator('.hdr .hright').innerText(), /Claude[\s\S]*설명서/)
   // 들어온 사람은 왼쪽 메뉴 맨 위(누르면 설정 · 나가기)
@@ -201,7 +202,11 @@ test('정리 · 이 지식의 사람 · 오늘 바뀐 것(M12 · M11 · M9): 목
   await page.waitForSelector('[data-t=klist]')
   await page.click('[data-t=krow][data-name="DPMS 지식"]')
   await mg(page, 'team', 'tidy')
+  // 정리할 팀 지식은 정리 화면 위 줄에서 고른다 · 머리 줄에 위에서 고른 지식을 싣지 않는다
+  await page.click('[data-t=tdKn][data-name="DPMS 지식"]')
   await page.waitForSelector('[data-t=goBox]')
+  assert.match(await page.locator('.hdr .crumb').innerText(), /^설정 · 팀 › 정리/)
+  assert.equal(await page.locator('[data-t=tdKn].on').getAttribute('data-name'), 'DPMS 지식')
   assert.match(await page.locator('[data-t=nextTidy]').innerText(), /다음 정리 .* 02:30 · 받은 것 \d+/)
   assert.match(await page.locator('[data-t=inbox] .ch').innerText(), /받은 것 \d+/)
   await page.click('[data-t=tidyBtn]')
@@ -221,9 +226,16 @@ test('정리 · 이 지식의 사람 · 오늘 바뀐 것(M12 · M11 · M9): 목
   assert.deepEqual(await bannedIn(page), [])
   await s.hub.save({ user: 'kim', admin: true }, 'dpms', { record: { title: '메모: 화면 시험', body: '오늘 바뀐 것에 한 줄.' } })
   // 이력 — 한 흐름(날마다) · 내가 남긴 기록 줄 · 다른 화면과 같은 짜임(왼쪽 정렬 · 제목 · 설명)
-  await mg(page, 'team', 'today')
+  await hist(page)
   await page.waitForSelector('[data-t=feed] [data-t=histDay]')
   assert.equal(await page.locator('.main .big').innerText(), '이력')
+  // 팀 + 개인 한 흐름 — 줄마다 영역 · 영역 · 갈래 · 지식 · 사람으로 거른다 · 설정 안 메뉴에는 이력이 없다
+  assert.equal(await page.locator('[data-t=mgNav]').count(), 0)
+  assert.ok(await page.locator('[data-t=histRow][data-area=team]').count() >= 1)
+  assert.equal(await page.locator('[data-t=histTiles] .tile').count(), 4)
+  await page.click('[data-t=logAr-me]')
+  assert.equal(await page.locator('[data-t=histRow][data-area=team]').count(), 0, '개인만')
+  await page.click('[data-t=logAr-all]')
   assert.ok(await page.locator('[data-t=histRow][data-kind="저장"]').filter({ hasText: '메모' }).count() >= 1, '내가 남긴 기록')
   await page.locator('[data-t=histRow] .hl').first().click()
   await page.waitForSelector('[data-t=todayOpen]')
@@ -276,7 +288,7 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10): 목�
   assert.deepEqual(await page.locator('[data-t=srcModal] .mf button').allInnerTexts(), ['지우기', '지금 가져오기', '전체 다시 맞추기', '고친 것 저장'])
   await page.click('[data-t=srcModal] .mh .x')
   // 이력 — 가져오는 곳을 더한 일은 기록이 아니라 이력 한 곳에
-  await mg(page, 'team', 'today') // 이력 — 오늘 바뀐 것과 kmd 가 다룬 일이 한 흐름
+  await hist(page) // 이력 — 오늘 바뀐 것과 kmd 가 다룬 일이 한 흐름
   await page.waitForSelector('[data-t=histRow]')
   assert.match(await page.locator('[data-t=histRow][data-kind="설정"]').first().innerText(), /가져오는 곳 더함. gdi DB/)
   await page.click('[data-t=logKind-설정]')
@@ -372,10 +384,10 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10): 목�
   await page.locator('[data-t=kmenuKn]').filter({ hasText: '설계메모' }).click()
   await page.click('[data-t=nav-settings-me]')
   await page.waitForSelector('[data-t=mgNav][data-area=me]')
-  assert.deepEqual(await mgItems(page), ['이력', '가져오기', '지식 보내기', '일반', '에이전트 설치'])
+  assert.deepEqual(await mgItems(page), ['가져오기', '지식 보내기', '일반', '에이전트 설치'])
   await page.click('[data-t=nav-settings-team]')
   await page.waitForSelector('[data-t=mgNav][data-area=team]')
-  assert.deepEqual(await mgItems(page), ['이력', '가져오기', '정리', '일반', '사람', 'Claude 연결', '에이전트 설치', '관리'])
+  assert.deepEqual(await mgItems(page), ['가져오기', '정리', '일반', '사람', 'Claude 연결', '에이전트 설치', '관리'])
   await mg(page, 'me', 'send')
   await page.waitForSelector('[data-t=sendSetup]')
   assert.match(await page.locator('[data-t=sendSrc]').innerText(), /설계메모/, '고른 개인 지식이 보내는 지식')
@@ -446,7 +458,7 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 정리 �
   await mg(page, 'team', 'gen')
   assert.equal(await page.locator('[data-t=mgNav] .mgt').innerText(), '설정 · 팀')
   assert.equal(await page.locator('[data-t=setTitle]').innerText(), '일반')
-  assert.deepEqual(await mgItems(page), ['이력', '가져오기', '정리', '일반', '사람', 'Claude 연결', '에이전트 설치', '관리'])
+  assert.deepEqual(await mgItems(page), ['가져오기', '정리', '일반', '사람', 'Claude 연결', '에이전트 설치', '관리'])
   await page.waitForSelector('[data-t=auto-find]')
   assert.match(await page.locator('.main .card .ch').first().innerText(), /이 팀 서버/)
   await page.click('[data-t=sw-find]')
@@ -466,7 +478,7 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 정리 �
   // 설정 · 개인 — 개인 지식 폴더 · 보내는 길
   await mg(page, 'me', 'gen')
   assert.equal(await page.locator('[data-t=mgNav] .mgt').innerText(), '설정 · 개인')
-  assert.deepEqual(await mgItems(page), ['이력', '가져오기', '지식 보내기', '일반', '에이전트 설치'])
+  assert.deepEqual(await mgItems(page), ['가져오기', '지식 보내기', '일반', '에이전트 설치'])
   assert.match(await page.locator('[data-t=meCard]').innerText(), /개인 지식 폴더/)
   // 관리 — 문제 줄 · Claude 연결(비밀번호 한 번 더 → 주소 → 번호 → 로그인됨)
   await mg(page, 'team', 'admin')
