@@ -9,9 +9,11 @@
   --text:#11151c;--text-2:#515a68;--text-3:#646d7b;--on-accent:#fff;
   /* 뜻 색 — 파랑=주 일 · 고른 것 / 초록=됨 · 켜짐 / 노랑=멈춤 · 값 바뀜 / 빨강=못 함 · 지우기 / 보라=기다림 · 받은 것 */
   --accent:#3358e6;--accent-hover:#2a4bd0;--accent-bg:#e9eeff;--accent-line:#c3d0fb;
-  --ok:#2e9b5b;--ok-bg:#e6f5ec;--ok-line:#bfe3cc;
+  /* --ok #237a47: ok-bg 위 4.72 · 흰 바탕 5.32 · surface-2 위 4.79(옛 #2e9b5b 는 3.13 · 3.53 — 작은 굵은 글에 모자랐다) */
+  --ok:#237a47;--ok-bg:#e6f5ec;--ok-line:#bfe3cc;
   --warn:#8c5c00;--warn-bg:#fcf3e0;--warn-line:#d39a2c;
-  --danger:#cb3a2c;--danger-bg:#fdeceb;--danger-line:#efb7b1;
+  /* --danger #b8321f: danger-bg 위 5.23 · 흰 바탕 5.98(옛 #cb3a2c 는 danger-bg 위 4.39) */
+  --danger:#b8321f;--danger-bg:#fdeceb;--danger-line:#efb7b1;
   --pending:#6247c4;--pending-bg:#efedfd;--pending-line:#d9d2fb;
   /* 진한 띠(토스트 · 툴팁 · 고른 띠 · 「나」 표지) · 터미널(7절) */
   --ink:#11151c;--ink-2:#262d3b;--ink-text:#e8ecf3;
@@ -149,7 +151,7 @@ code{font:var(--fs-mono) var(--mono);background:var(--surface-2);padding:1px 5px
 .field .hint{font-size:var(--fs-sm);color:var(--text-3);margin-top:3px}
 .inp{width:100%;min-height:32px;border:1px solid var(--border-strong);border-radius:var(--r);padding:5px var(--sp-5);font-size:var(--fs);background:var(--surface);color:var(--text)}
 .inp:hover:not([disabled]):not([readonly]):not(:focus){border-color:var(--text-3)}
-.inp:focus{outline:0;border-color:var(--accent);box-shadow:var(--focus-ring)}
+.inp:focus{outline:2px solid transparent;outline-offset:2px;border-color:var(--accent);box-shadow:var(--focus-ring)}
 .inp[disabled],.inp[readonly]{background:var(--surface-2);color:var(--text-3)}
 .inp[disabled]{cursor:not-allowed}
 .inp.af{background:var(--accent-bg);border-color:var(--accent-line);font-family:var(--mono)}
@@ -176,7 +178,7 @@ code{font:var(--fs-mono) var(--mono);background:var(--surface-2);padding:1px 5px
 .kt.me{background:var(--ink);color:var(--on-accent)}
 .kt.team{background:var(--accent-bg);color:var(--accent)}
 .kt.role{background:var(--surface);color:var(--text-2);border:1px solid var(--border-strong);font-weight:500}
-.kt.gone{background:var(--surface-3);color:var(--text-3)}
+.kt.gone{background:var(--surface-3);color:var(--text-2)}
 .kt.src{background:var(--surface);border:1px solid var(--border-strong);color:var(--text-2);font-weight:500}
 .kn{display:inline-flex;align-items:center;gap:var(--sp-2);font-size:var(--fs-sm);color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-pill);padding:1px var(--sp-4);white-space:nowrap}
 .kn.none{color:var(--text-3);border-style:dashed}
@@ -286,7 +288,7 @@ details.more>.in{padding:var(--sp-4) 0 var(--sp-1);font-size:var(--fs);color:var
 .toolbar span{font-size:var(--fs-sm);padding:var(--sp-1) var(--sp-4);border-radius:var(--r-sm);color:var(--text-2)}
 .ed textarea{width:100%;min-height:300px;border:1px solid var(--border-strong);border-radius:0 0 var(--r) var(--r);padding:var(--sp-5) var(--sp-6);font:var(--fs)/1.7 var(--font);resize:vertical;background:var(--surface)}
 .ed .lockh{font-size:var(--fs-sm);color:var(--text-3);margin:var(--sp-5) 0 var(--sp-1)}
-.ed textarea:focus{outline:0;border-color:var(--accent);box-shadow:var(--focus-ring)}
+.ed textarea:focus{outline:2px solid transparent;outline-offset:2px;border-color:var(--accent);box-shadow:var(--focus-ring)}
 
 /* 찾기 */
 .pscrim{position:fixed;inset:0;background:color-mix(in srgb,var(--ink) 16%,transparent);z-index:var(--z-scrim);display:flex;justify-content:center;align-items:flex-start;padding:52px var(--sp-8) var(--sp-8)}
@@ -1022,7 +1024,10 @@ span.td-ck{display:inline-block;cursor:default}
 
 
 /* ── 부품 상태(컨벤션 10절) — 초점 · 누르는 것 · 비활성 ── */
-a:focus-visible,button:focus-visible,summary:focus-visible,[tabindex]:focus-visible,[role=button]:focus-visible,[role=tab]:focus-visible,select:focus-visible,input[type=checkbox]:focus-visible,input[type=radio]:focus-visible{outline:0;box-shadow:var(--focus-ring)}
+a:focus-visible,button:focus-visible,summary:focus-visible,[tabindex]:focus-visible,[role=button]:focus-visible,[role=tab]:focus-visible,select:focus-visible,input[type=checkbox]:focus-visible,input[type=radio]:focus-visible{outline:2px solid transparent;outline-offset:2px;box-shadow:var(--focus-ring)}
+/* 초점 — 투명 외곽선은 Windows 고대비(forced-colors)에서 보이는 색이 된다(box-shadow 는 지워진다) · 둘레가 스크롤인 목록 줄은 안쪽 고리(잘리지 않게) */
+.tn:focus-visible,.qrow:focus-visible,.alr:focus-visible,.olr:focus-visible,.mi:focus-visible,.qr:focus-visible,.tf:focus-visible{outline-offset:-2px;box-shadow:inset 0 0 0 2px var(--accent)}
+@media (forced-colors:active){:focus-visible,.inp:focus,.ed textarea:focus{outline:2px solid CanvasText !important;outline-offset:2px}}
 [role=button],[role=tab]{cursor:pointer}
 [role=button][aria-disabled=true],[role=tab][aria-disabled=true],button[disabled]{cursor:not-allowed}
 /* .lk — 링크 모양 글 단추(<button class="lk"> 로 써도 같다) */
@@ -1214,3 +1219,24 @@ details.ap.refs[open]>summary h4::after{content:"▾"}
 .band .who{white-space:normal;min-width:0;overflow-wrap:anywhere}
 /* 화면 읽기 프로그램만 읽는 자리 — 보이지 않는다(#srLive) */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+/* 권한 창 — 줄마다 자리 고르기 · 빼기 · 아래에 더하기 줄(docs/kmd_권한_모델.md 6절) */
+.pl.acc li{align-items:center;padding:var(--sp-4) var(--sp-2)}
+.pl.acc li .nm small{display:block}
+.acc-lv{width:auto;min-width:76px;flex:none}
+.acc-add{margin:var(--sp-3) 0 var(--sp-5);flex-wrap:wrap}
+.acc-add select.inp{width:auto;flex:1 1 160px;min-width:0}
+.modal .sub{padding-left:var(--sp-2);padding-right:var(--sp-2)}
+/* 묶음 카드 — 사람 칩(× 로 빼기) · 넣기 줄 · 더하기 칸의 사람 고르기 */
+.gms{display:flex;flex-wrap:wrap;gap:var(--sp-2);margin-top:var(--sp-3);font-weight:400}
+.gm{display:inline-flex;align-items:center;gap:var(--sp-1);padding:0 var(--sp-1) 0 var(--sp-4);border:1px solid var(--border-strong);border-radius:var(--r-pill);font-size:var(--fs-sm);background:var(--surface);color:var(--text-2)}
+.gm .x{border:0;background:none;color:var(--text-3);cursor:pointer;font-size:var(--fs-md);line-height:1;padding:var(--sp-1) var(--sp-2);border-radius:var(--r-pill)}
+.gm .x:hover{background:var(--hover);color:var(--danger)}
+.grp-add{margin-top:var(--sp-3);flex-wrap:wrap;font-weight:400}
+.grp-add select.inp{width:auto;min-width:0;flex:0 1 180px;min-height:26px;padding:0 var(--sp-3);font-size:var(--fs-sm)}
+.gpick{display:flex;flex-wrap:wrap;gap:var(--sp-2) var(--sp-6)}
+@media (max-width:600px){.pl.acc li{flex-wrap:wrap}.pl.acc li .nm{flex:1 1 120px}}
+/* 문서 머리글(요약) — 본문이다(작성기준: 무엇을 다루고 지금 결론이 무엇인지) · 본문 크기 · text-2 · 흐린 작은 꼴은 참고 칸에만 */
+.paper .dlead{color:var(--text-2);margin:0 0 var(--sp-6)}
+/* 본문 속 기록 링크 — 문서 링크와 다른 꼴(근거 기록이다 · 문서 본문이 아니다) */
+.paper a.dlink.rec,.paper .dlink.rec{color:var(--text-2);font-weight:400;text-decoration:underline dotted;text-underline-offset:2px}
+.paper .dlink.rec::before{content:"기록";display:inline-block;margin-right:var(--sp-2);padding:0 var(--sp-2);border-radius:var(--r-xs);background:var(--pending-bg);color:var(--pending);font-size:var(--fs-xs);font-weight:600;line-height:1.5;vertical-align:1px;text-decoration:none}

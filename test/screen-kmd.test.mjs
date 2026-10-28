@@ -130,13 +130,13 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.deepEqual(await page.locator('.tree .tf').evaluateAll((els) => els.map((e) => e.dataset.t)), ['fold-docs', 'fold-recs', 'fold-atts'])
   assert.equal(await page.locator('[data-t=moreDocs]').innerText(), '6개 더')
 
-  // 문서 하나 — 탭 · 항목 다섯 · 옆 칸(개요 · 출처 · 연결 · 속성)
+  // 문서 하나 — 탭 · 항목 다섯 · 옆 칸(개요 · 참고 · 넣은 기록 · 연결 · 속성)
   await page.click('[data-t=moreDocs]')
   await page.click('[data-t=doc][data-name="배포절차"]')
   await page.waitForSelector('[data-t=docPane]')
   assert.deepEqual(await page.locator('[data-t=tab] .nm').allInnerTexts(), ['배포절차'])
   assert.deepEqual(await page.locator('[data-t=docPane] h2[data-sec]').evaluateAll((els) => els.map((e) => e.dataset.sec)), ['준비', '카나리', '헬스 체크', '롤백', '꾸러미 판'])
-  assert.deepEqual(await page.locator('.aside .ap > h4').evaluateAll((els) => els.map((e) => e.firstChild.textContent.trim())), ['개요', '출처', '연결', '속성'])
+  assert.deepEqual(await page.locator('.aside .ap > h4').evaluateAll((els) => els.map((e) => e.firstChild.textContent.trim())), ['개요', '넣은 기록', '연결', '속성'])
   assert.equal(await page.locator('[data-t=olRow]').count(), 5)
   // 아직 안 넣은 기록은 본문 사이에 상자로 끼우지 않는다 — 롤백 머리 오른쪽 「반영 대기 1」 칩 · 누르면 그 머리 바로 아래 참고 칸(작성기준 1절)
   assert.equal(await page.locator('[data-t=penrec]').count(), 0)
@@ -162,7 +162,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   await page.click('[data-t=closeSplit]')
   await page.click('[data-t=rec][data-state=pend]')
   await page.waitForSelector('[data-t=recPane]')
-  assert.equal(await page.locator('[data-t=recState]').innerText(), '아직 문서에 안 넣은 기록')
+  assert.equal(await page.locator('[data-t=recState]').innerText(), '반영 대기')
   assert.equal(await page.locator('[data-t=recItem]').count(), 1)
 
   // 글 속 항목 이름 → 항목 링크 · 마우스를 올리면 미리보기 카드
@@ -174,10 +174,10 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   // 항목으로 보기(M6) — 종류별 목록 · 항목 한 화면 · 옆 칸
   await page.click('[data-t=rb-items]')
   await page.waitForSelector('[data-t=itemList] [data-t=itemRow]')
-  assert.deepEqual(await page.locator('.fcs .fc').allInnerTexts(), ['아직 안 넣은 것', '최근 바뀐 것', '내가 쓴 것'])
+  assert.deepEqual(await page.locator('.fcs .fc').allInnerTexts(), ['반영 대기', '최근 바뀐 것', '내가 쓴 것'])
   await page.click('[data-t=itemRow][data-name="헬스 체크"]')
   await page.waitForSelector('[data-t=itemPage]')
-  assert.deepEqual(await page.locator('[data-t=itemPage] .isec > h3').evaluateAll((els) => els.map((e) => e.firstChild.textContent.trim())), ['지금', '아직 문서에 안 넣은 기록', '지난 기록', '이 항목을 쓰는 곳', '다른 이름'])
+  assert.deepEqual(await page.locator('[data-t=itemPage] .isec > h3').evaluateAll((els) => els.map((e) => e.firstChild.textContent.trim())), ['지금', '반영 대기', '지난 기록', '이 항목을 쓰는 곳', '다른 이름'])
   assert.ok((await page.locator('[data-t=itemHistRow]').count()) >= 5)
   assert.ok((await page.locator('[data-t=coItem]').count()) >= 1)
   await page.screenshot({ path: path.join(SHOTS, 'app-items.png') })
@@ -388,7 +388,7 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10): 목�
   await page.fill('#addIn', '보안점검')
   await page.click('[data-t=addBtn]')
   await page.waitForSelector('[data-t=syncMsg]')
-  assert.match(await page.locator('[data-t=syncMsg]').innerText(), /추가했다: 보안점검 · 팀 지식/)
+  assert.match(await page.locator('[data-t=syncMsg]').innerText(), /만들었다: 보안점검 · 팀 지식/)
   assert.equal(await page.locator('[data-t=addPop]').count(), 0)
   assert.equal(await page.locator('[data-t=klist] [data-t=krow][data-name="보안점검"]').count(), 1, '새 팀 지식은 위 팀 지식에')
   // 아래 「+ 새 개인 지식」 은 개인 지식으로 열린다
@@ -534,7 +534,10 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 정리 �
   await page.locator('[data-t=agentCard]').screenshot({ path: path.join(SHOTS, 'app-agent.png') })
   assert.equal(await page.locator('text=내 PC 프로그램').count(), 0)
   await page.click('[data-t=mg-people]')
-  assert.match(await page.locator('[data-t=roleRule]').innerText(), /관리자[\s\S]*일반[\s\S]*지식마다 따로 주는 권한은 없다/)
+  // 사람 규칙 — 전역 관리자 + 지식마다 자리(읽기 · 쓰기 · 관리) · 옛 「지식마다 따로 주는 권한은 없다」 는 걷었다 · 관리자에게는 묶음 카드
+  assert.match(await page.locator('[data-t=roleRule]').innerText(), /관리자[\s\S]*지식마다 자리[\s\S]*읽기[\s\S]*쓰기[\s\S]*관리[\s\S]*권한/)
+  assert.doesNotMatch(await page.locator('[data-t=roleRule]').innerText(), /따로 주는 권한은 없다/)
+  await page.waitForSelector('[data-t=admGroups] [data-t=grpAddOpen]')
   // 설정 · 개인 — 개인 지식 폴더 · 보내는 길
   await mg(page, 'me', 'gen')
   assert.equal(await page.locator('[data-t=mgNav] .mgt').innerText(), '설정 · 개인')
