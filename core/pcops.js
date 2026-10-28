@@ -30,6 +30,23 @@ export function readPcRoot() {
 export function writePcRoot(root) {
   fsSync.writeFileSync(pcRootFile(), JSON.stringify({ root: path.resolve(root), at: new Date().toISOString() }, null, 1))
 }
+// 지식 폴더로 쓸 수 있나 — 'open'(.kmd 가 있다 · 그대로 잇는다) · 'new'(없거나 빈 폴더 · 새로 세운다) · 아니면 KmdError(드라이브 통째 · 다른 파일만 있는 폴더)
+//   팀 화면의 [바꾸기](/api/pc/root) · 경로를 실은 설치 한 줄(kmd connect --root)이 같은 잣대로 본다
+export function pcRootKind(want) {
+  if (!want || !path.isAbsolute(want)) throw new KmdError('E_INPUT', '이 PC 의 절대 경로를 쓴다(예: D:\\kmd)')
+  const full = path.resolve(want)
+  if (path.parse(full).root.toLowerCase() === full.toLowerCase()) throw new KmdError('E_INPUT', '드라이브 통째는 쓰지 않는다. 그 안의 폴더를 고른다')
+  let names
+  try {
+    names = fsSync.readdirSync(full)
+  } catch (e) {
+    if (e.code === 'ENOENT') return { root: full, kind: 'new' }
+    throw new KmdError('E_INPUT', `그 폴더를 읽지 못한다: ${e.code}`)
+  }
+  if (names.includes('.kmd')) return { root: full, kind: 'open' }
+  if (names.filter((n) => !n.startsWith('.')).length === 0) return { root: full, kind: 'new' }
+  throw new KmdError('E_INPUT', '이 폴더에는 다른 파일이 있다. kmd 지식 폴더(.kmd 가 있는 곳)나 빈 폴더를 고른다')
+}
 
 export const launcherOf = (home, name = 'kmd') => path.join(home, 'bin', name + (process.platform === 'win32' ? '.cmd' : ''))
 // 이 판이 판 자리(<집>/versions/<판>/server/bin/…)에서 도는가 — 그러면 { home, ver } · 아니면 null(저장소 · 손으로 푼 폴더).

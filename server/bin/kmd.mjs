@@ -21,7 +21,7 @@ import { setSecret, listSecrets, getSecret } from '../../core/secrets.js'
 import { prehash } from '../../app/prehash.js'
 
 import { addMcp, mcpLine, safeOrigin } from '../../core/claudecfg.js'
-import { taskXml, upgrade, appHomeOf, launcherOf, linkVersion, makeShortcut, readPcRoot, writePcRoot } from '../../core/pcops.js'
+import { taskXml, upgrade, appHomeOf, launcherOf, linkVersion, makeShortcut, readPcRoot, writePcRoot, pcRootKind } from '../../core/pcops.js'
 import { installLines, pickBackupDir } from '../../core/install.js'
 import { ensureRepo } from '../../core/git.js'
 import { install as kitInstall, folders as kitFolders, setFolders as kitSetFolders, addKn as kitAddKn, defOf as kitDefOf } from '../../core/kit.js'
@@ -595,7 +595,19 @@ async function connectCmd(o) {
     process.exitCode = 1
     return
   }
-  const root = path.resolve(o.root || defaultPcRoot())
+  // --root(팀 화면에서 쓴 내 PC 지식 폴더) — 있던 지식 폴더면 그대로 · 없거나 빈 폴더면 새로 세운다 · 다른 파일만 있으면 아무것도 하지 않고 멈춘다.
+  //   고른 폴더는 이 PC 의 지식 폴더 표에 적는다(kmd up · open · 늘 켜기가 기본 폴더로 읽는다)
+  let root
+  if (o.root && o.root !== 'true') {
+    try {
+      root = pcRootKind(o.root).root
+    } catch (e) {
+      console.error(`내 PC 지식 폴더로 쓰지 못한다: ${o.root} · ${e.message}. 팀 화면 › 지식 목록 › 내 PC 지식 폴더에서 다른 경로로 설치 한 줄을 다시 받는다`)
+      process.exitCode = 1
+      return
+    }
+    writePcRoot(root)
+  } else root = path.resolve(defaultPcRoot())
   fs.mkdirSync(root, { recursive: true })
   const pcData = o.data ? path.resolve(o.data) : path.join(root, '.kmd')
   fs.mkdirSync(pcData, { recursive: true })

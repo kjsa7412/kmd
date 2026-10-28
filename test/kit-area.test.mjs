@@ -5,7 +5,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { install, status, folders, addKn, dropKn, setDef, defOf } from '../core/kit.js'
-import { installPs, safeKn, startServer } from '../server/http.js'
+import { installPs, safeKn, safeRoot, startServer } from '../server/http.js'
+import { pcRootKind } from '../core/pcops.js'
 
 const URLS = { teamUrl: 'http://kmd.team:7381', pcUrl: 'http://127.0.0.1:7373' }
 const servers = (dir) => Object.keys(JSON.parse(fs.readFileSync(path.join(dir, '.mcp.json'), 'utf8')).mcpServers).sort()
@@ -71,6 +72,36 @@ test('설치 한 줄: 팀 지식을 고르면 kmd connect 에 --kn · 이상한 
   assert.equal(safeKn("a'; rm -rf /"), null)
   assert.equal(safeKn('$(x)'), null)
   assert.equal(safeKn('배포노트-2'), '배포노트-2')
+})
+
+test('설치 한 줄: 내 PC 지식 폴더를 쓰면 kmd connect 에 --root · 절대 경로만 · 셸 글자는 싣지 않는다', () => {
+  const ps = installPs({ origin: 'http://kmd.team:7381', ticket: 'kmdt_abcdefghijklmnop', pkg: null, root: 'D:\\내 지식' })
+  assert.match(ps, /connect \$o --ticket \$t --root 'D:\\내 지식'/)
+  assert.doesNotMatch(ps, /--kn/, '지식 폴더만 세운다 · 작업 폴더를 팀 지식에 붙이지 않는다')
+  assert.equal(safeRoot('D:\\kmd'), 'D:\\kmd')
+  assert.equal(safeRoot('/home/kim/kmd'), '/home/kim/kmd')
+  assert.equal(safeRoot('kmd'), null, '상대 경로')
+  assert.equal(safeRoot("D:\\a'; rm"), null)
+  assert.equal(safeRoot('D:\\$(x)'), null)
+  assert.equal(safeRoot('D:\\a\nb'), null)
+})
+
+test('내 PC 지식 폴더 잣대: 없거나 빈 폴더는 새로 · .kmd 가 있으면 그대로 · 다른 파일만 있으면 · 드라이브 통째는 받지 않는다', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-rootkind-'))
+  try {
+    assert.equal(pcRootKind(path.join(tmp, '없음')).kind, 'new')
+    fs.mkdirSync(path.join(tmp, '빈'))
+    assert.equal(pcRootKind(path.join(tmp, '빈')).kind, 'new')
+    fs.mkdirSync(path.join(tmp, '있던', '.kmd'), { recursive: true })
+    assert.equal(pcRootKind(path.join(tmp, '있던')).kind, 'open')
+    fs.mkdirSync(path.join(tmp, '남의'))
+    fs.writeFileSync(path.join(tmp, '남의', 'a.txt'), 'x')
+    assert.throws(() => pcRootKind(path.join(tmp, '남의')), /다른 파일이 있다/)
+    assert.throws(() => pcRootKind(path.parse(tmp).root), /드라이브 통째/)
+    assert.throws(() => pcRootKind('상대'), /절대 경로/)
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true })
+  }
 })
 
 test('PC /api/agent: 팀 지식이 붙은 폴더에 개인 지식을 더하면 팀 지식은 남는다 · 기본 바꾸기 · 하나 떼기 · 마지막을 떼면 폴더째', async () => {

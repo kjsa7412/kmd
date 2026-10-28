@@ -25,6 +25,7 @@ import { checkClaude } from '../core/claude.js'
 import { getSecret, delSecret } from '../core/secrets.js'
 import { safeOrigin } from '../core/claudecfg.js'
 import { get as kget, keyName } from '../core/keystore.js'
+import { pcRootKind } from '../core/pcops.js'
 import { createReadStream } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { pipeline } from 'node:stream/promises'
@@ -102,7 +103,13 @@ async function manualPage(mode, slug) {
 // 시험은 KMD_APP_HOME(집) · KMD_NO_PATH(사용자 PATH 를 건드리지 않는다)로 이 PC 를 바꾸지 않고 돌린다
 // kn — 설치 한 줄을 붙여 넣은 작업 폴더를 그 팀 지식에 붙인다(에이전트 설치 · 팀)
 export const safeKn = (kn) => (/^[^\s'"`$\\;|&<>(){}]{1,80}$/u.test(String(kn || '')) ? String(kn) : null)
-export function installPs({ origin, ticket, pkg, kn = null }) {
+// root — 내 PC 지식 폴더(팀 화면 › 지식 목록 › 개인 칸 띠에서 쓴 경로). 그 폴더에 세우거나(없거나 빈 폴더) 있던 지식 폴더를 그대로 쓴다.
+//   Windows(D:\…) · POSIX(/…) 절대 경로만 · 따옴표 · 셸 글자 · 줄바꿈은 받지 않는다(PowerShell · sh 의 홑따옴표 안에 싣는다)
+export const safeRoot = (r) => {
+  const s = String(r || '').trim()
+  return s.length <= 240 && /^([A-Za-z]:\\|\/)/.test(s) && !/['"`$;|&<>\u0000-\u001f]/u.test(s) ? s : null
+}
+export function installPs({ origin, ticket, pkg, kn = null, root = null }) {
   const q = (s) => "'" + String(s).replace(/'/g, "''") + "'"
   const L = [
     "$ErrorActionPreference = 'Stop'",
@@ -159,7 +166,7 @@ export function installPs({ origin, ticket, pkg, kn = null }) {
       '}',
     )
   }
-  L.push(`if ($k) { & $k connect $o --ticket $t${kn ? ' --kn ' + q(kn) : ''} }`, '')
+  L.push(`if ($k) { & $k connect $o --ticket $t${kn ? ' --kn ' + q(kn) : ''}${root ? ' --root ' + q(root) : ''} }`, '')
   return L.join('\r\n')
 }
 
@@ -409,13 +416,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       need(ctx)
       if (req.method === 'GET') return out(200, { root: path.resolve(root) })
       const want = String((await readBody(req)).root || '').trim()
-      if (!want || !path.isAbsolute(want)) throw new KmdError('E_INPUT', '이 PC 의 절대 경로를 쓴다(예: D:\\kmd)')
-      const full = path.resolve(want)
-      if (path.parse(full).root.toLowerCase() === full.toLowerCase()) throw new KmdError('E_INPUT', '드라이브 통째는 쓰지 않는다. 그 안의 폴더를 고른다')
-      if (full.toLowerCase() === path.resolve(root).toLowerCase()) return out(200, { root: full, same: true })
-      const names = await fs.readdir(full).catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(new KmdError('E_INPUT', `그 폴더를 읽지 못한다: ${e.code}`))))
-      const kind = names === null ? 'new' : names.includes('.kmd') ? 'open' : names.filter((n) => !n.startsWith('.')).length === 0 ? 'new' : null
-      if (!kind) throw new KmdError('E_INPUT', '이 폴더에는 다른 파일이 있다. kmd 지식 폴더(.kmd 가 있는 곳)나 빈 폴더를 고른다')
+      if (want && path.isAbsolute(want) && path.resolve(want).toLowerCase() === path.resolve(root).toLowerCase()) return out(200, { root: path.resolve(want), same: true })
+      const { root: full, kind } = pcRootKind(want)
       if (!onRoot) throw new KmdError('E_NOTFOUND', '이 kmd 는 지식 폴더를 바꿔 다시 켜지 못한다. kmd up <폴더> 로 켠다')
       await fs.mkdir(path.join(full, '.kmd'), { recursive: true })
       out(200, { root: full, kind })
@@ -759,8 +761,13 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const kb = req.method === 'POST' ? await readBody(req).catch(() => ({})) : {}
       const kn = kb.kn ? safeKn(kb.kn) : null
       if (kb.kn && (!kn || !(await hub.visible(ctx)).some((k) => k.id === kn))) throw new KmdError('E_INPUT', '붙일 팀 지식이 없다')
-      const qk = kn ? `?kn=${encodeURIComponent(kn)}` : ''
-      return out(200, { ticket: t, line: kn ? `irm '${origin}/i/${t}${qk}' | iex` : `irm ${origin}/i/${t} | iex`, sh: kn ? `curl -fsSL '${origin}/i/${t}.sh${qk}' | sh` : `curl -fsSL ${origin}/i/${t}.sh | sh`, kmd: `kmd connect ${origin} --ticket ${t}${kn ? ' --kn ' + kn : ''}`, expires: 10, kn })
+      // 내 PC 지식 폴더(지식 목록 › 개인 칸) — 설치가 그 폴더에 세우거나 있던 지식 폴더를 그대로 쓴다
+      const pr = kb.root ? safeRoot(kb.root) : null
+      if (kb.root && !pr) throw new KmdError('E_INPUT', '이 PC 의 절대 경로를 쓴다(예: D:\\kmd) · 따옴표 · $ ; | & < > 는 쓰지 않는다')
+      const qs = [kn && `kn=${encodeURIComponent(kn)}`, pr && `root=${encodeURIComponent(pr)}`].filter(Boolean).join('&')
+      const qk = qs ? '?' + qs : ''
+      const qa = (s) => "'" + s + "'"
+      return out(200, { ticket: t, line: qk ? `irm ${qa(`${origin}/i/${t}${qk}`)} | iex` : `irm ${origin}/i/${t} | iex`, sh: qk ? `curl -fsSL ${qa(`${origin}/i/${t}.sh${qk}`)} | sh` : `curl -fsSL ${origin}/i/${t}.sh | sh`, kmd: `kmd connect ${origin} --ticket ${t}${kn ? ' --kn ' + kn : ''}${pr ? ` --root "${pr}"` : ''}`, expires: 10, kn, root: pr })
     }
     if (p === '/api/me/devices') return out(200, auth.devices(ctx.user))
     if (p === '/api/me/devices/revoke') return out(200, { revoked: await auth.revokeDevice(ctx.user, String((await readBody(req)).id || '')) })
@@ -973,9 +980,11 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (im) {
         const origin = `http://${req.headers.host}`
         const pkg = await pcPackage()
-        const kn = safeKn(new URL(req.url, origin).searchParams.get('kn'))
-        const ps = installPs({ origin, ticket: im[1], pkg, kn })
-        const sh = `#!/bin/sh\nif command -v kmd >/dev/null 2>&1; then kmd connect '${origin}' --ticket '${im[1]}'${kn ? " --kn '" + kn + "'" : ''}; else echo '· kmd 가 이 PC 에 없다. 받을 수 있는 꾸러미는 Windows 용뿐이다. 저장소에서 kmd 를 깔고(node 20 이상) 이 줄을 다시 붙여 넣는다: ${origin}/dl'; fi\n`
+        const sp = new URL(req.url, origin).searchParams
+        const kn = safeKn(sp.get('kn'))
+        const pr = safeRoot(sp.get('root'))
+        const ps = installPs({ origin, ticket: im[1], pkg, kn, root: pr })
+        const sh = `#!/bin/sh\nif command -v kmd >/dev/null 2>&1; then kmd connect '${origin}' --ticket '${im[1]}'${kn ? " --kn '" + kn + "'" : ''}${pr ? " --root '" + pr + "'" : ''}; else echo '· kmd 가 이 PC 에 없다. 받을 수 있는 꾸러미는 Windows 용뿐이다. 저장소에서 kmd 를 깔고(node 20 이상) 이 줄을 다시 붙여 넣는다: ${origin}/dl'; fi\n`
         return send(res, 200, im[2] ? sh : ps, 'text/plain; charset=utf-8')
       }
       // 꾸러미 받기 — PC 꾸러미(serve.json dl · 기본 <살림 자리>/dl · 팀 설치가 꾸러미 안의 것을 둔다). 비밀이 아니라 들어오지 않아도 받는다
