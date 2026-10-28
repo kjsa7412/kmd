@@ -63,7 +63,7 @@ process.stdin.on('end', () => {
     if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'batch\n')
     const blocks = prompt.split('\n\n기록(오래된 것부터):')[0].split('[key ').slice(1)
     const items = blocks.map((x) => {
-      const ids = (/^그 항목의 기록: (.+)$/m.exec(x) || [, ''])[1].split(', ')
+      const ids = (/^그 항목의 기록: (.+)$/m.exec(x) || [, ''])[1].split(', ').map((x) => x.replace(/\(.*$/, ''))
       const cur = (x.split('지금 글:\n')[1] || '').split('\n\n---\n\n')[0].trim()
       return { key: x.slice(0, x.indexOf(']')), recs: all.filter((r) => ids.includes(r.id)), cur }
     })

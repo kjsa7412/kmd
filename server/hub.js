@@ -2717,6 +2717,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (shut) throw new KmdError('E_BEHIND', shut.message)
         const k = await hub.get(id)
         const seen = new Set(k.works.flatMap((w) => w.tags.filter((t) => t.startsWith('sent/'))))
+        const now = localStamp()
         let same = 0
         const bad = []
         const recs = []
@@ -2733,7 +2734,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           const heads = [...String(it.body || '').matchAll(/^## (.+)$/gm)].map((m) => m[1].trim())
           const words = [...heads, ...String(it.title || '').split(/\s+—\s+|:\s+/)]
           const touches = [...new Set(words.flatMap((w) => exact(k, w).map((x) => x.coord)).filter(Boolean))]
-          recs.push({ title: String(it.title || '보낸 것').slice(0, 200), body: `${String(from).slice(0, 80)}에서 보냄\n\n${String(it.body || '')}`.trim(), touches, tags: [tag] })
+          // 쓴 때(보낸 쪽 기록의 date) — 기록의 날짜로 둔다(정리는 쓴 때 차례로 · 더 늦게 쓴 기록이 이미 든 항목에서는 옛 기록) ·
+          //   받은 때는 recv/ 태그로(그 뒤에 정리된 항목이 아니면 아직 안 넣은 것 — recordState) · 앞날 · 모양이 틀린 날짜는 받은 때로
+          const wrote = typeof it.date === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(it.date) && it.date < now ? it.date : null
+          recs.push({ title: String(it.title || '보낸 것').slice(0, 200), body: `${String(from).slice(0, 80)}에서 보냄\n\n${String(it.body || '')}`.trim(), touches, tags: [tag, ...(wrote ? [`recv/${now.replace(/\D/g, '')}`] : [])], ...(wrote ? { date: wrote } : {}) })
           at.push(i)
         }
         let saved = 0
@@ -2806,7 +2810,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '받은편지함은 주인이 보낸다')
       const w = (await hub.get(id)).byWork.get(record)
       if (!w || w.tags.includes('private')) throw new KmdError('E_NOTFOUND', '보낼 메모가 없다')
-      const r = await hub.receive(ctx, to, { from: '받은편지함', items: [{ title: w.title, body: w.body, sha: sha16(`${id}\n${w.id}`) }] })
+      const r = await hub.receive(ctx, to, { from: '받은편지함', items: [{ title: w.title, body: w.body, sha: sha16(`${id}\n${w.id}`), date: w.date }] })
       const f = path.join(dataDir, 'inbox', `${encodeURIComponent(id)}.json`)
       const st = await fs.readFile(f, 'utf8').then(JSON.parse, () => ({ moved: {} }))
       st.moved[w.id] = to

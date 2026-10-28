@@ -192,6 +192,11 @@ export const isSystemRecord = (w) => isLogRecord(w.tags)
 const INGEST = (w) => w.tags.some((t) => /^(ingest|touches\??)\//.test(t))
 
 // 상태 — in(문서에 들어감) · pend(아직 안 넣음) · kept(넣지 않기로 둠) · nowhere(넣을 곳이 없는 메모 — 이름이 없다) · none
+// 이 지식에 들어온 때 — 받은 기록은 recv/YYYYMMDDHHMM 태그(hub.receive) · 아니면 쓴 때
+export function arrivedOf(w) {
+  const t = w.tags.find((x) => /^recv\/\d{12}$/.test(x))
+  return t ? t.slice(5).replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$/, '$1-$2-$3 $4:$5') : w.date
+}
 export function recordState(k, w) {
   if (k.kept?.has(w.id)) return 'kept'
   if (w.tags.some((t) => t === 'curate-auto' || t === 'curate-llm')) return 'none' // 정리 기록 자신은 넣을 것이 아니다
@@ -209,8 +214,9 @@ export function recordState(k, w) {
     if (s.sec.applied === w.id) continue
     const a = k.byWork.get(s.sec.applied)
     if (a?.reflects?.includes(w.id)) continue // 정리 기록이 이 기록을 넣었다고 적었다
-    // 같은 분이면 순서를 모른다 — 넣었다고 적지 않은 한 아직 안 넣은 것으로(조용히 「넣음」 이 되지 않게)
-    if (!a || a.date <= w.date) return 'pend'
+    // 같은 분이면 순서를 모른다 — 넣었다고 적지 않은 한 아직 안 넣은 것으로(조용히 「넣음」 이 되지 않게) ·
+    //   받은 기록은 쓴 때가 아니라 받은 때로 본다(옛 날짜로 늦게 받은 기록이 그 전 정리로 「넣음」 이 되지 않게)
+    if (!a || a.date <= arrivedOf(w)) return 'pend'
   }
   // 코드 바뀜 — 걸린 이름이 어느 항목에도 닿지 않으면(장부 밖 이름만 걸렸다) 넣을 곳을 찾는 기록이다(Claude Code 가 기능 문서에 넣는다)
   if (!any && w.tags.includes('code-change')) return k.reflected?.has(w.id) ? 'in' : 'nowhere'

@@ -65,7 +65,7 @@ const TOOLS = [
           properties: {
             title: str('한 줄 제목: 「무엇: 어떻게」'),
             body: str('글: 바뀐 값 · 까닭'),
-            touches: { type: 'array', items: { type: 'string' }, description: '건드린 이름(coord): 예 proc:헬스 체크' },
+            touches: { type: 'array', items: { type: 'string' }, description: '글이 실제로 바뀌는 항목의 이름(coord)만: 예 proc:헬스 체크 · 읽기만 한 항목은 달지 않는다(이름 하나가 정리의 자리 하나)' },
             tags: { type: 'array', items: { type: 'string' } },
             fixes: { type: 'array', items: { type: 'string' }, description: '바로잡는 기록 id' },
           },

@@ -91,7 +91,8 @@ export function recQueue(k, st) {
 }
 // 기록 하나 — 전체
 export function recItem(k, w) {
-  return { title: w.title.slice(0, 200), body: w.body, sha: sha16(`${k.id}\nrec\n${w.id}`) }
+  // date — 쓴 때를 같이 보낸다(받는 쪽이 받은 때가 아니라 쓴 때로 정리 차례를 세운다 · 지문에는 넣지 않는다)
+  return { title: w.title.slice(0, 200), body: w.body, sha: sha16(`${k.id}\nrec\n${w.id}`), ...(w.date ? { date: w.date } : {}) }
 }
 // 문서 하나 — 전체(머리글 · 항목 모두)
 export function docItem(k, d) {
@@ -119,7 +120,7 @@ export function split(it, max = ITEM_MAX) {
   if (cur) parts.push(cur)
   return parts.map((body, i) => {
     const tail = ` (${i + 1}/${parts.length})`
-    return { title: it.title.slice(0, 200 - tail.length) + tail, body, sha: sha16(`${it.sha}\n${i + 1}/${parts.length}`) }
+    return { title: it.title.slice(0, 200 - tail.length) + tail, body, sha: sha16(`${it.sha}\n${i + 1}/${parts.length}`), ...(it.date ? { date: it.date } : {}) }
   })
 }
 

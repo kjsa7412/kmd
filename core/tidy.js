@@ -41,15 +41,25 @@ const isPrivate = (w) => w.tags.some((t) => /^private$/i.test(t))
 export function material(k, { candidates = () => [], ids = null } = {}) {
   const groups = new Map()
   const off = (w) => (ids ? !ids.includes(w.id) : false)
+  const keyOf = (x) => `${x.loc.doc}\n${x.sec ? x.sec.h : x.loc.heading}`
+  // 항목마다 이미 넣은 기록 중 가장 늦게 쓴 때 — 그보다 앞서 쓴 기록(늦게 정리되는 옛 기록)은 값을 바꾸지 못한다(check)
+  const since = new Map()
+  for (const w of k.works) {
+    if (w.state !== 'in' || w.author === 'kmd-auto') continue
+    for (const c of w.touches) {
+      const x = sectionOf(k, c)
+      if (x?.loc && String(w.date) > (since.get(keyOf(x)) || '')) since.set(keyOf(x), String(w.date))
+    }
+  }
   for (const w of k.works) {
     if (w.state !== 'pend' || isPrivate(w) || k.reverted.has(w.id) || off(w)) continue
     for (const c of w.touches) {
       const x = sectionOf(k, c)
       if (!x?.loc) continue
-      const key = `${x.loc.doc}\n${x.sec ? x.sec.h : x.loc.heading}`
-      if (!groups.has(key)) groups.set(key, { kind: 'section', coord: c, doc: x.loc.doc, heading: x.sec ? x.sec.h : x.loc.heading, name: labelOf(k, c), content: splitLog(x.sec ? x.sec.body : '').body, base: sha16(x.sec ? x.sec.body : ''), records: [] })
+      const key = keyOf(x)
+      if (!groups.has(key)) groups.set(key, { kind: 'section', coord: c, doc: x.loc.doc, heading: x.sec ? x.sec.h : x.loc.heading, name: labelOf(k, c), content: splitLog(x.sec ? x.sec.body : '').body, base: sha16(x.sec ? x.sec.body : ''), records: [], ...(since.has(key) ? { since: since.get(key) } : {}) })
       const g = groups.get(key)
-      if (!g.records.some((r) => r.id === w.id)) g.records.push({ id: w.id, date: w.date, author: w.author, title: w.title, body: w.body, ...(w.tags.includes('code-change') ? { code: true } : {}) })
+      if (!g.records.some((r) => r.id === w.id)) g.records.push({ id: w.id, date: w.date, author: w.author, title: w.title, body: w.body, ...(w.tags.includes('code-change') ? { code: true } : {}), ...(g.since && String(w.date) < g.since ? { old: true } : {}) })
     }
   }
   const out = [...groups.values()].map((g) => ({ ...g, records: g.records.sort((a, b) => a.date.localeCompare(b.date)), values: [...new Set(g.records.flatMap((r) => (r.code ? newValuesOf(r.body) : [...valuesOf(r.body + ' ' + r.title)])))] }))
@@ -131,17 +141,23 @@ export function promptOf(g) {
     `문서 항목 「${g.name}」 의 글을 새 기록에 맞게 고쳐 쓴다. 기록에 있는 값(수 · 이름 · 코드)은 그대로 옮기고, 기록에 없는 값을 지어내지 않는다.`,
     '옛 글의 값을 새 기록이 바꿨으면 새 값으로 바꾸고 drop 에 옛 값을 적는다. 넣을 것이 없는 기록은 left 에 까닭과 함께 둔다.',
     ...(g.records.some((r) => r.code) ? ['코드 커밋 기록은 「바뀐 값」 줄과 차이를 본다. 글에 옛 값이 있으면 새 값으로 고치고, 코드에 없는 설명은 지어내지 않는다. 이 항목 글과 상관없는 커밋은 left 에 둔다.'] : []),
+    ...(g.records.some((r) => r.old) ? [OLD_RULE] : []),
     WRITE_RULES,
     'JSON 으로만 답한다.',
     `지금 글:\n${g.content || '(아직 없음)'}`,
-    `기록(오래된 것부터):\n${g.records.map((r) => `[${r.id}] ${r.date} ${r.author}: ${r.title}\n${r.body}`).join('\n\n')}`,
+    `기록(오래된 것부터):\n${g.records.map(recLine).join('\n\n')}`,
   ].join('\n\n')
 }
 
+// 늦게 정리되는 옛 기록 — 지금 글에 이미 그보다 늦게 쓴 기록이 들어갔다(material 의 since)
+const OLD_MARK = '지금 글보다 오래됨'
+const OLD_RULE = `「${OLD_MARK}」 이 붙은 기록은 지금 글에 더 늦게 쓴 기록이 이미 들어간 뒤에 정리되는 옛 기록이다. 지금 글에 없는 내용만 보태고, 지금 글의 값을 그 기록의 값으로 바꾸지 않는다. 지금 글과 값이 다르면 그 기록은 left 에 「더 새 값이 이미 있다」 로 둔다.`
+const recLine = (r) => `[${r.id}] ${r.date} ${r.author}${r.old ? ` (${OLD_MARK})` : ''}: ${r.title}\n${r.body}`
+
 // 한 문서의 항목 여럿을 claude -p 한 번에 — 자리마다 부르면 기록 22건이 자리 159개 · 159번이 된다.
-//   같은 문서의 항목 묶음만 · 묶음 하나는 BATCH_MAX 자리 · 글(지금 글 + 기록)은 BATCH_CHARS 까지. 답은 자리마다 DRAFT_SCHEMA 와 같은 초안
-export const BATCH_MAX = 6
-export const BATCH_CHARS = 40_000
+//   같은 문서의 항목 묶음만(문서 하나가 거의 한 번) · 묶음 하나는 BATCH_MAX 자리 · 글(지금 글 + 기록)은 BATCH_CHARS 까지(기록 글은 한 번만 센다). 답은 자리마다 DRAFT_SCHEMA 와 같은 초안
+export const BATCH_MAX = 16
+export const BATCH_CHARS = 60_000
 export const BATCH_SCHEMA = {
   type: 'object',
   properties: {
@@ -153,7 +169,11 @@ export const BATCH_SCHEMA = {
   },
   required: ['items'],
 }
-const sizeOf = (g) => (g.content || '').length + g.records.reduce((n, r) => n + r.title.length + r.body.length, 0)
+// 묶음의 글 크기 — 항목마다 지금 글 + 기록 글은 한 번만(한 기록이 항목 스무 곳에 걸려도 프롬프트에는 한 번 실린다)
+const sizeOf = (gs) => {
+  const recs = new Map(gs.flatMap((g) => g.records.map((r) => [r.id, r])))
+  return gs.reduce((n, g) => n + (g.content || '').length, 0) + [...recs.values()].reduce((n, r) => n + r.title.length + r.body.length, 0)
+}
 // 묶음 — 문서 항목 자리만 같은 문서끼리 · 나머지(이름 바로잡기 · 넣은 파일)는 하나씩
 export function batchesOf(groups, { max = BATCH_MAX, chars = BATCH_CHARS } = {}) {
   const out = []
@@ -161,7 +181,7 @@ export function batchesOf(groups, { max = BATCH_MAX, chars = BATCH_CHARS } = {})
   for (const g of groups) {
     if (g.kind !== 'section' || max < 2) { out.push([g]); continue }
     const b = open.get(g.doc)
-    if (b && b.length < max && b.reduce((n, x) => n + sizeOf(x), 0) + sizeOf(g) <= chars) { b.push(g); continue }
+    if (b && b.length < max && sizeOf([...b, g]) <= chars) { b.push(g); continue }
     const nb = [g]
     open.set(g.doc, nb)
     out.push(nb)
@@ -175,10 +195,12 @@ export function batchPromptOf(gs) {
     `문서 ${gs[0].doc.replace(/^docs\/|\.md$/g, '')} 의 항목 ${gs.length} 개를 새 기록에 맞게 각각 고쳐 쓴다. 항목마다 items 에 하나씩 · key 는 받은 그대로.`,
     '항목마다: 그 항목의 기록에 있는 값(수 · 이름 · 코드)은 그대로 옮기고, 기록에 없는 값을 지어내지 않는다. 옛 글의 값을 새 기록이 바꿨으면 새 값으로 바꾸고 drop 에 옛 값을 적는다. 그 항목에 넣을 것이 없는 기록은 left 에 까닭과 함께 둔다. used · left 에는 그 항목의 기록 id 만 쓴다.',
     ...([...recs.values()].some((r) => r.code) ? ['코드 커밋 기록은 「바뀐 값」 줄과 차이를 본다. 글에 옛 값이 있으면 새 값으로 고치고, 코드에 없는 설명은 지어내지 않는다. 그 항목 글과 상관없는 커밋은 left 에 둔다.'] : []),
+    ...(gs.some((g) => g.records.some((r) => r.old)) ? [OLD_RULE.replace('붙은 기록은', '붙은 기록은(그 항목에서)')] : []),
     WRITE_RULES,
     'JSON 으로만 답한다.',
-    gs.map((g) => `[key ${spotKey(g)}] 항목 「${g.name}」\n그 항목의 기록: ${g.records.map((r) => r.id).join(', ')}\n지금 글:\n${g.content || '(아직 없음)'}`).join('\n\n---\n\n'),
-    `기록(오래된 것부터):\n${[...recs.values()].sort((a, b) => a.date.localeCompare(b.date)).map((r) => `[${r.id}] ${r.date} ${r.author}: ${r.title}\n${r.body}`).join('\n\n')}`,
+    // 옛 기록인지는 항목마다 다르다 — 항목의 기록 줄에 붙인다
+    gs.map((g) => `[key ${spotKey(g)}] 항목 「${g.name}」\n그 항목의 기록: ${g.records.map((r) => (r.old ? `${r.id}(${OLD_MARK})` : r.id)).join(', ')}\n지금 글:\n${g.content || '(아직 없음)'}`).join('\n\n---\n\n'),
+    `기록(오래된 것부터):\n${[...recs.values()].sort((a, b) => a.date.localeCompare(b.date)).map((r) => recLine({ ...r, old: false })).join('\n\n')}`,
   ].join('\n\n')
 }
 
@@ -217,14 +239,20 @@ export function check(k, g, d) {
   const drop = new Set((d.drop || []).map((v) => String(v).replace(/\s+/g, '')))
   const now = valuesOf(d.content)
   const oldV = valuesOf(cur)
-  const recV = new Set(used.flatMap((r) => [...valuesOf(r.body + ' ' + r.title)]))
-  // 코드 바뀜 기록은 「바뀐 값」 의 새 값만 글에 있어야 한다(차이 속의 다른 수 · 옛 값까지 요구하면 늘 남는다)
-  const missing = [...new Set(used.flatMap((r) => (r.code ? newValuesOf(r.body) : [...valuesOf(r.body)])))].filter((v) => !now.has(v) && !drop.has(v))
+  const vOf = (rs) => new Set(rs.flatMap((r) => [...valuesOf(r.body + ' ' + r.title)]))
+  const recV = vOf(used)
+  // 코드 바뀜 기록은 「바뀐 값」 의 새 값만 글에 있어야 한다(차이 속의 다른 수 · 옛 값까지 요구하면 늘 남는다) ·
+  //   옛 기록(지금 글에 더 늦게 쓴 기록이 이미 들어갔다)의 값은 글에 없어도 된다 — 더 새 값이 이겼을 수 있다
+  const missing = [...new Set(used.filter((r) => !r.old).flatMap((r) => (r.code ? newValuesOf(r.body) : [...valuesOf(r.body)])))].filter((v) => !now.has(v) && !drop.has(v))
   if (missing.length) return { ok: false, why: `기록의 값이 글에 없다: ${missing.slice(0, 3).join(' · ')}` }
   const invented = [...now].filter((v) => !oldV.has(v) && !recV.has(v))
   if (invented.length) return { ok: false, why: `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` }
   const gone = [...oldV].filter((v) => !now.has(v))
   const came = [...now].filter((v) => !oldV.has(v))
+  // 옛 기록은 지금 글의 값을 바꾸지 못한다 — 빠진 값이 있는데 새로 든 값이 옛 기록에서만 왔으면 되돌림이다
+  const newerV = vOf(used.filter((r) => !r.old))
+  const back = vOf(used.filter((r) => r.old))
+  if (gone.length && came.some((v) => back.has(v) && !newerV.has(v))) return { ok: false, why: '더 늦게 쓴 기록이 이미 들어간 항목: 옛 기록은 값을 바꾸지 않는다' }
   const changed = gone.length && came.length ? [{ from: gone.join(' · '), to: came.join(' · ') }] : []
   return { ok: true, changed }
 }

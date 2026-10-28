@@ -125,7 +125,7 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
     const go = []
     for (const g of gs) if (await begin(g, model)) go.push(g)
     if (go.length < 2) return go.length ? finish(go[0], await write(go[0], model)) : undefined
-    const r = await runClaude({ prompt: batchPromptOf(go), schema: BATCH_SCHEMA, budget: budget * Math.min(go.length, 4), model, timeoutMs: Math.min(2 * TIDY_TIMEOUT, TIDY_TIMEOUT + go.length * 60_000) })
+    const r = await runClaude({ prompt: batchPromptOf(go), schema: BATCH_SCHEMA, budget: budget * Math.min(go.length, 8), model, timeoutMs: Math.min(3 * TIDY_TIMEOUT, TIDY_TIMEOUT + go.length * 60_000) })
     const got = new Map((Array.isArray(r.value?.items) ? r.value.items : []).filter((x) => x && typeof x === 'object').map((x) => [String(x.key), x]))
     for (const g of go) {
       const d = got.get(spotKey(g))

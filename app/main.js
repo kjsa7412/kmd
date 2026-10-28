@@ -1754,10 +1754,19 @@ function tdTo(r) {
   if (r.st === 'priv') return '<span class="nil">—</span>'
   if (r.st === 'none') return tdCan(r) ? `<button class="btn sm" data-a="tdPick" data-v="${esc(r.id)}" data-t="tdPickBtn">자리 고르기</button>` : '<span class="to none">Claude 가 고른다</span>'
   const xs = r.spots.filter((x) => x.kind !== 'touches')
-  // 자리가 많으면 셋만 · 나머지는 「+N 더」 로 펼친다
-  const all = (S.tdToOpen ||= new Set()).has(r.id), cut = xs.length > 4 && !all ? xs.slice(0, 3) : xs
-  const more = xs.length > 4 ? `<button class="to more" data-a="tdToMore" data-v="${esc(r.id)}" data-t="tdToMore">${all ? '접기' : `+${xs.length - 3} 더`}</button>` : ''
-  return xs.length ? cut.map((x) => `<span class="to" title="${esc(x.target)}">→ ${esc(x.kind === 'ingest' ? '문서에 들이기' : x.target)}</span>`).join('') + more : '<span class="to none">찾는 중</span>'
+  if (!xs.length) return '<span class="to none">찾는 중</span>'
+  const one = (x) => `<span class="to" title="${esc(x.target)}">→ ${esc(x.kind === 'ingest' ? '문서에 들이기' : x.target)}</span>`
+  // 자리가 많으면 문서마다 칩 하나(「문서 › 항목 N」 · 정리도 문서마다 한 번에 쓴다) · 누르면 항목마다 펼친다
+  const all = (S.tdToOpen ||= new Set()).has(r.id)
+  const btn = (t) => `<button class="to more" data-a="tdToMore" data-v="${esc(r.id)}" data-t="tdToMore">${t}</button>`
+  if (xs.length <= 4) return xs.map(one).join('')
+  if (all) return xs.map(one).join('') + btn('접기')
+  const docs = new Map()
+  for (const x of xs) {
+    const d = x.kind === 'ingest' ? '문서에 들이기' : String(x.target).split(' › ')[0]
+    docs.set(d, [...(docs.get(d) || []), x])
+  }
+  return [...docs].map(([d, ys]) => (ys.length === 1 ? one(ys[0]) : `<span class="to" title="${esc(ys.map((y) => y.target.split(' › ').slice(1).join(' › ')).join('\n'))}" data-t="tdToDoc">→ ${esc(d)} › 항목 ${ys.length}</span>`)).join('') + btn('항목마다')
 }
 function tdHead(rs) {
   const can = rs.filter(tdCan), all = can.length && can.every((r) => S.tdSel.has(r.id))
