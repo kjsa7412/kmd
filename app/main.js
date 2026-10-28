@@ -443,7 +443,7 @@ function viewHome() {
   const teamPart = shown.filter((n) => !isPersonal(n)), mePart = shown.filter((n) => isPersonal(n))
   const addTeam = S.me.admin ? `<div class="kcard add" data-a="openAdd" data-v="team" data-t="addCardTeam"><span class="pl">+</span>새 팀 지식</div>` : ''
   const live = meReady()
-  const addMe = `<div class="kcard add${live ? '' : ' dim'}" data-a="openAdd" data-v="me" data-t="addCard"><span class="pl">+</span>새 개인 지식<small class="muted" style="display:block">${live ? '내 PC 지식 폴더에' : S.pc && (S.pc.wait || S.pc.need === 'person') ? '내 PC 쪽이 열리면' : '내 PC 지식 폴더를 세우면'}</small></div>`
+  const addMe = `<div class="kcard add${live ? '' : ' dim'}" data-a="openAdd" data-v="me" data-t="addCard"><span class="pl">+</span>새 개인 지식<small class="muted" style="display:block">${live ? '내 PC 지식 폴더에' : S.pc && (S.pc.wait || S.pc.need === 'person') ? '내 PC 쪽이 열리면' : S.pc && S.pc.need === 'connect' ? '이 PC 의 kmd 를 이 팀에 이으면' : '내 PC 지식 폴더를 세우면'}</small></div>`
   const meBar = pcRootBar()
   const grids = team
     ? `<div class="sec-h" data-t="teamSec"><b>팀 지식</b><small>팀 서버 · 팀 모두 보고 기록한다${S.me.admin ? '' : ' · 새 팀 지식은 관리자가 세운다'}</small></div>${fbar}
@@ -502,8 +502,14 @@ function meSetupWhy() {
 function meSetupBar(why = '아직 이 PC 에 개인 지식 폴더가 없다') {
   const m = S.meSetup || { root: '' }
   const win = /Win/i.test(navigator.platform || navigator.userAgent)
-  const line = m.line ? `<div class="callout gray" data-t="meSetupLine" style="margin-top:8px"><i></i><span><b>이 PC 의 ${win ? 'PowerShell' : '터미널'} 에 붙여 넣는다</b>(복사했다 · 10분 안에 한 번만). 내 PC 쪽을 깔고 <code>${esc(m.for)}</code> 를 내 PC 지식 폴더로 세운다(이미 kmd 지식 폴더면 그대로 쓴다) · 다 되면 여기가 저절로 바뀐다<pre class="mono" data-t="meSetupCode" style="white-space:pre-wrap;word-break:break-all;margin:6px 0 0">${esc(m.line)}</pre></span></div>` : ''
-  return `<div class="fbar" data-t="meWhere"><span class="fl">${svg('doc')}내 PC 지식 폴더</span><input class="inp mono" id="meSetupIn" data-in="meSetup" data-t="meSetupIn" value="${esc(m.root)}" placeholder="예: D:\\kmd" autocomplete="off" style="flex:1;min-width:220px"><span class="acts"><button class="btn pri" data-a="meSetupGo" data-t="meSetupGo"${m.busy ? ' disabled' : ''}>${m.busy ? '만드는 중…' : m.line ? '다시 받기' : '이 폴더로'}</button></span><small>${esc(why)}. 경로를 쓰면 그 폴더에 세운다 · 이미 kmd 지식 폴더(.kmd 가 있는 곳)면 그대로 쓴다 · 이 PC 에 필요한 것은 설치 한 줄이 함께 깐다</small></div>${line}${m.err ? `<div class="callout danger" data-t="meSetupErr">${esc(m.err)}</div>` : ''}`
+  // 이 PC 의 kmd 는 켜져 있고 이 팀에만 이어지지 않았다 — 깔 것이 없다. 같은 한 줄이 있는 kmd 로 잇기만 한다(설치 안내를 하지 않는다)
+  const conn = !!(S.pc && S.pc.need === 'connect')
+  const does = conn ? `깔지 않는다. 켜져 있는 이 PC 의 kmd 를 이 팀에 잇고 <code>${esc(m.for)}</code> 를 내 PC 지식 폴더로 쓴다(이미 kmd 지식 폴더면 그대로 · 없거나 빈 폴더면 새로 세운다)`
+    : `kmd 가 없으면 내 PC 쪽을 깔고 <code>${esc(m.for)}</code> 를 내 PC 지식 폴더로 세운다(이미 kmd 지식 폴더면 그대로 쓴다)`
+  const line = m.line ? `<div class="callout gray" data-t="meSetupLine" style="margin-top:8px"><i></i><span><b>이 PC 의 ${win ? 'PowerShell' : '터미널'} 에 붙여 넣는다</b>(복사했다 · 10분 안에 한 번만). ${does} · 다 되면 여기가 저절로 바뀐다<pre class="mono" data-t="meSetupCode" style="white-space:pre-wrap;word-break:break-all;margin:6px 0 0">${esc(m.line)}</pre></span></div>` : ''
+  const note = conn ? '이 PC 의 kmd 는 켜져 있다 · 깔지 않고 잇기만 한다. 경로가 이미 kmd 지식 폴더(.kmd 가 있는 곳)면 그대로 쓰고 · 없거나 빈 폴더면 거기 세운다'
+    : '경로를 쓰면 그 폴더에 세운다 · 이미 kmd 지식 폴더(.kmd 가 있는 곳)면 그대로 쓴다 · 이 PC 에 kmd 가 없으면 설치 한 줄이 함께 깐다'
+  return `<div class="fbar" data-t="meWhere"><span class="fl">${svg('doc')}내 PC 지식 폴더</span><input class="inp mono" id="meSetupIn" data-in="meSetup" data-t="meSetupIn" value="${esc(m.root)}" placeholder="예: D:\\kmd" autocomplete="off" style="flex:1;min-width:220px"><span class="acts"><button class="btn pri" data-a="meSetupGo" data-t="meSetupGo"${m.busy ? ' disabled' : ''}>${m.busy ? '만드는 중…' : m.line ? '다시 받기' : conn ? '이 폴더로 잇기' : '이 폴더로'}</button></span><small>${esc(why)}. ${note}</small></div>${line}${m.err ? `<div class="callout danger" data-t="meSetupErr">${esc(m.err)}</div>` : ''}`
 }
 async function meSetupGo() {
   const m = (S.meSetup = S.meSetup || { root: '' })
@@ -517,7 +523,7 @@ async function meSetupGo() {
     m.line = /Win/i.test(navigator.platform || navigator.userAgent) ? r.line : r.sh
     m.for = r.root
     copyText(m.line)
-    toast('설치 한 줄을 복사했다. 이 PC 의 PowerShell 에 붙여 넣는다')
+    toast(`${S.pc && S.pc.need === 'connect' ? '잇는 한 줄' : '설치 한 줄'}을 복사했다. 이 PC 의 PowerShell 에 붙여 넣는다`)
     meSetupWatch()
   } catch (e) { m.err = e.message }
   m.busy = false
