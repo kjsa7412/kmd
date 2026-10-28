@@ -553,9 +553,16 @@ async function workerCmd(o) {
     const key = o.key || process.env.KMD_WORKER_KEY || (await kget('worker:' + url))
     if (!key) throw new Error('정리 일꾼 열쇠가 없다. kmd worker key set <팀 주소>')
     // 팀 서버의 정리 일꾼 — 관리 › Claude 연결에서 받은 정리 전용 로그인(비밀 claude-token)을 이 프로세스에만
-    if (o.data) { const t = await getSecret(path.resolve(o.data), 'claude-token').catch(() => null); if (t) process.env.CLAUDE_CODE_OAUTH_TOKEN = t }
+    //   일감마다 다시 읽는다 — 관리자가 일꾼이 도는 사이에 로그인하거나 걷어도 다시 켜지 않고 따른다
+    const token = async () => {
+      if (!o.data) return
+      const t = await getSecret(path.resolve(o.data), 'claude-token').catch(() => null)
+      if (t) process.env.CLAUDE_CODE_OAUTH_TOKEN = t
+      else delete process.env.CLAUDE_CODE_OAUTH_TOKEN
+    }
+    await token()
     const { runWorker } = await import('../../core/worker.js')
-    runWorker({ server: url, key, poll: o.poll ? Number(o.poll) : 10_000 })
+    runWorker({ server: url, key, poll: o.poll ? Number(o.poll) : 10_000, before: token })
     console.log(`kmd worker: ${url} 의 정리 일감을 기다린다`)
   } catch (e) {
     console.error(e.message)

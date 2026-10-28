@@ -7,9 +7,14 @@
 //   로그인이 끝났거나 한도면 다시 시도하지 않고 멈춘 뒤 서버에 알린다(멈춤 한 줄 「자동 정리가 쉬고 있다」)
 
 import { runClaude } from './claude.js'
-import { promptOf, DRAFT_SCHEMA, TOUCH_SCHEMA, INGEST_SCHEMA } from './tidy.js'
+import { promptOf, DRAFT_SCHEMA, TOUCH_SCHEMA, INGEST_SCHEMA, spotKey } from './tidy.js'
 import { runAgent, agentAvailable } from './agent.js'
 import { modelOf } from './models.js'
+
+// 멈추는 까닭 — 다음 자리에서 다시 불러도 같다(로그인 · 한도 · claude 없음)
+const STOP = { login: '로그인이 끝났다', limit: '한도에 닿았다', missing: 'Claude Code(claude) 가 설치되어 있지 않다' }
+// 초안과 같이 돌려보내는 묶음 — 서버는 묶음을 지금 지식에서 다시 만든다(groupFor) · 찾는 데 쓰는 것만(묶음 통째는 수 MB 가 된다)
+const slim = (g) => ({ kind: g.kind, coord: g.coord, doc: g.doc, heading: g.heading, record: g.record ? { id: g.record.id, title: g.record.title } : undefined })
 
 async function call(server, key, p, body) {
   const r = await fetch(server + p, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
@@ -57,41 +62,54 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
   }
   const items = []
   let stop = null
+  let quit = false // 사람이 [그만두기] — 서버가 progress 답으로 알린다 · 쓴 초안은 올리고 남은 자리는 쓰지 않는다
   for (const g of groups) {
-    if (stop) {
-      items.push({ group: g, error: stop })
+    if (stop || quit) {
+      items.push({ group: slim(g), error: quit ? 'stopped' : stop })
       continue
     }
     // 넣은 파일 — 세션처럼 일하는 에이전트로(이 PC 의 Claude Code · MCP 는 서버 · 단기 열쇠). 넣었으면 초안은 없다 · 못 넣으면 아래 초안 길로
     if (g.kind === 'ingest' && agentAvailable()) {
       const a = await agentIngest({ server, dkey, kn, g, log, models }).catch((e) => ({ placed: false, error: null, why: e.message }))
-      if (a.error === 'login' || a.error === 'limit') {
+      if (STOP[a.error]) {
         stop = a.error
-        log(`정리 일꾼이 쉰다: ${a.error === 'login' ? '로그인이 끝났다' : '한도에 닿았다'}`)
-        items.push({ group: g, error: stop })
+        log(`정리 일꾼이 쉰다: ${STOP[stop]}`)
+        items.push({ group: slim(g), error: stop })
         continue
       }
       if (a.placed) continue
     }
-    const r = await runClaude({ prompt: promptOf(g), schema: g.kind === 'touches' ? TOUCH_SCHEMA : g.kind === 'ingest' ? INGEST_SCHEMA : DRAFT_SCHEMA, budget, model: modelOf(g.kind === 'touches' ? 'touch' : 'tidy', models) })
-    if (r.error === 'login' || r.error === 'limit') {
-      stop = r.error
-      log(`정리 일꾼이 쉰다: ${r.error === 'login' ? '로그인이 끝났다' : '한도에 닿았다'}`)
+    const model = modelOf(g.kind === 'touches' ? 'touch' : 'tidy', models)
+    const p = await call(server, dkey, `/api/k/${kn}/worker/progress`, { key: spotKey(g), model }).catch(() => ({}))
+    if (p.stop) {
+      quit = true
+      log(`${decodeURIComponent(kn)}: 정리를 그만둔다(사람이 멈췄다)`)
+      items.push({ group: slim(g), error: 'stopped' })
+      continue
     }
-    items.push({ group: g, draft: r.value ?? null, model: r.model, error: r.error || null })
+    const r = await runClaude({ prompt: promptOf(g), schema: g.kind === 'touches' ? TOUCH_SCHEMA : g.kind === 'ingest' ? INGEST_SCHEMA : DRAFT_SCHEMA, budget, model: modelOf(g.kind === 'touches' ? 'touch' : 'tidy', models) })
+    const e = await call(server, dkey, `/api/k/${kn}/worker/progress`, { key: spotKey(g), end: true, ok: !r.error, why: r.error ? (STOP[r.error] ? r.error : r.message || r.error) : null }).catch(() => ({}))
+    if (e.stop) quit = true
+    if (STOP[r.error]) {
+      stop = r.error
+      log(`정리 일꾼이 쉰다: ${STOP[stop]}`)
+    }
+    items.push({ group: slim(g), draft: r.value ?? null, model: r.model, error: r.error || null, why: r.error ? r.message || null : null })
   }
   const res = await call(server, dkey, `/api/k/${kn}/worker/drafts`, { drafts: items })
-  await call(server, key, '/api/worker/status', stop ? { ok: false, reason: stop } : { ok: true }).catch(() => {})
+  await call(server, key, '/api/worker/status', stop ? { ok: false, reason: stop, message: STOP[stop] } : { ok: true }).catch(() => {})
   return { job, ...res }
 }
 
 // 늘 — poll 마다 일감을 본다
 // onLost — 서버가 열쇠를 끊었다(401 · 기기 끊기 · 다시 정하기 · 떠남) · 멈추고 알린다(PC 일꾼은 기기 열쇠로 다시 받는다)
-export function runWorker({ server, key, poll = 10_000, log = (...a) => console.log('[kmd worker]', ...a), onLost = null, models = null }) {
+// before — 일감을 묻기 전마다(팀 서버 일꾼: 정리 전용 로그인을 다시 읽는다)
+export function runWorker({ server, key, poll = 10_000, log = (...a) => console.log('[kmd worker]', ...a), onLost = null, models = null, before = null }) {
   let stopped = false
   const loop = async () => {
     while (!stopped) {
       try {
+        if (before) await before()
         const r = await workOnce({ server, key, log, models })
         if (r) {
           log(`${r.job.kn}: 넣음 ${r.summary?.put ?? 0} · 값 바뀜 ${r.summary?.changed ?? 0} · 그대로 둠 ${r.summary?.left ?? 0}`)
@@ -99,7 +117,7 @@ export function runWorker({ server, key, poll = 10_000, log = (...a) => console.
         }
       } catch (e) {
         if (e.status === 401 && onLost) { stopped = true; log('일꾼 열쇠가 끊겼다. 다시 받는다'); onLost(); return }
-        log(`서버에 닿지 않는다: ${e.message}`)
+        log(`서버에 닿지 않는다: ${e.message}${e.cause?.code ? ` (${e.cause.code})` : ''}`)
       }
       await new Promise((ok) => setTimeout(ok, poll))
     }

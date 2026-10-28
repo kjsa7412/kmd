@@ -54,6 +54,8 @@ export function parse({ code, so, se }) {
   } catch {}
   const text = `${j?.result || ''} ${se || ''}`
   if (!j || j.is_error || code) {
+    // claude 가 이 PC 에 없다 — 자리마다 다시 불러도 같다(일꾼은 멈추고 서버가 규칙으로 넣는다)
+    if (!j && /ENOENT|not found|is not recognized/i.test(se || '')) return { error: 'missing', message: 'Claude Code(claude) 가 설치되어 있지 않다' }
     if (/login|log in|api key|auth|unauthori|credential|401/i.test(text)) return { error: 'login', message: text.trim().slice(0, 200) }
     if (/limit|quota|rate|usage|budget|429/i.test(text)) return { error: 'limit', message: text.trim().slice(0, 200) }
     return { error: 'fail', message: text.trim().slice(0, 200) || `종료 ${code}` }

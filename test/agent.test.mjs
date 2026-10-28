@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { upsertVocab, upsertRegistry } from '../core/namebook.js'
 import { parseVocab } from '../core/vocab.js'
-import { parseRegistry, locate } from '../core/registry.js'
+import { parseRegistry, locate, locateDoc } from '../core/registry.js'
 import { makeMcp } from '../server/mcp.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -50,6 +50,13 @@ test('이름 장부 · 자리 장부: 더하고 · 다른 이름만 보태고 ·
   r = upsertRegistry(r, [{ coord: 'table:tb_user', doc: '테이블 정의', heading: 'tb_user' }])
   assert.deepEqual(locate(parseRegistry(r), 'table:tb_user'), { doc: 'docs/테이블 정의.md', level: 2, heading: 'tb_user' })
   assert.equal(parseRegistry(r).rows.length, 1)
+  // CDP 장부의 문서 한 벌 줄(머리 —) — 항목 자리(locate)는 아니고 문서만(locateDoc · 그래프)
+  const whole = parseRegistry(r + '| `인터페이스:API` | `docs/설계/API정의서.md` | — | 서버 추가 |\n| `시험:*` | `docs/시험.md` | - |\n')
+  assert.equal(whole.rows.length, 1)
+  assert.equal(locate(whole, '인터페이스:API'), null)
+  assert.equal(locateDoc(whole, '인터페이스:API'), 'docs/설계/API정의서.md')
+  assert.equal(locateDoc(whole, '시험:통합'), 'docs/시험.md')
+  assert.equal(locateDoc(whole, 'table:tb_user'), null)
 })
 
 test('파일 넣기 → 에이전트가 회의록 항목 · 이름을 세운다 · 터미널 줄 · 기록은 넣음', async () => {

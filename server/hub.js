@@ -14,7 +14,7 @@ import { decide, decisionRecord, revertPlan } from '../core/curate.js'
 import * as collect from '../core/collect.js'
 import crypto from 'node:crypto'
 import net from 'node:net'
-import { material, check as checkDraft, planSave, promptOf as tidyPrompt, INGEST_SCHEMA, DRAFT_SCHEMA, TOUCH_SCHEMA, ingestCandidates, ingestRule } from '../core/tidy.js'
+import { material, check as checkDraft, planSave, promptOf as tidyPrompt, INGEST_SCHEMA, DRAFT_SCHEMA, TOUCH_SCHEMA, ingestCandidates, ingestRule, spotKey, spotTarget } from '../core/tidy.js'
 import { runClaude } from '../core/claude.js'
 import * as feed from '../core/feed.js'
 import { checkTarget, readSource, probe, readDecl, writeDecl, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit } from '../core/sources.js'
@@ -61,6 +61,9 @@ async function loadConfig(dataDir) {
 
 // 백업 주소가 이 PC 의 폴더인가(scp 모양 user@host:path · 스킴 주소는 아니다)
 const isLocalPath = (u) => !/^[a-z][a-z0-9+.-]*:\/\//i.test(u) && !/^[^/\\]+@[^/\\]+:/.test(u) && !/^ext::/i.test(u)
+
+// 정리 일꾼이 멈추는 까닭(자리마다 다시 불러도 같다) — 일감 · 정리 일 줄의 글
+const STOP_WHY = { login: '정리 전용 로그인이 끝났다', limit: '사용 한도에 닿았다', missing: '서버에 Claude Code(claude) 가 설치되어 있지 않다' }
 
 export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log = (...a) => console.log('[kmd]', ...a) }) {
   const config = await loadConfig(dataDir)
@@ -188,8 +191,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     let changed = false
     for (const j of jobs.values()) {
       if (j.state !== 'running' || !(j.leaseUntil < Date.now())) continue
-      j.tries = (j.tries || 0) + 1
       changed = true
+      if (j.stop) {
+        Object.assign(j, { state: 'cancelled', why: `그만뒀다: ${j.stop.by} · 정리 일꾼이 돌아오지 않아 그대로 닫았다`, done: new Date().toISOString() })
+        for (const sp of j.spots || []) if (sp.st !== 'done' && sp.st !== 'left') Object.assign(sp, { st: 'stop' })
+        continue
+      }
+      j.tries = (j.tries || 0) + 1
       if (j.tries >= 3) Object.assign(j, { state: 'failed', why: '정리 일꾼이 세 번 끝내지 못했다. 일꾼 기록을 본다', done: new Date().toISOString() })
       else Object.assign(j, { state: 'queued', worker: null, why: '정리 일꾼이 끝내지 못해 다시 기다린다' })
     }
@@ -201,9 +209,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const workerRests = () => wsNow?.ok === false
   const sha = (t) => crypto.createHash('sha256').update(String(t)).digest('hex')
   const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  async function groupFor(k, id, g) {
+  async function groupFor(k, id, g, ids = null) {
     if (!g) return null
-    const all = material(k)
+    const all = material(k, { ids })
     if (g.kind === 'touches') {
       const x = all.find((y) => y.kind === 'touches' && y.record.id === g.record?.id)
       if (!x) return null
@@ -1399,9 +1407,25 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       t.unref?.()
       liveTimers.set(id, t)
     },
-    async tidyNow(ctx, id, { by = ctx.user, auto = false } = {}) {
+    async tidyNow(ctx, id, { by = ctx.user, auto = false, ids = null } = {}) {
       await hub.meta(id, auto && ctx.user === 'kmd' ? undefined : ctx)
       sweepJobs()
+      // 고른 것만 정리 — 관리자가 아니면 자기 기록만(고르지 않았으면 자기 기록 모두)
+      if (!auto && (ids || !ctx.admin)) {
+        const k = await hub.get(id)
+        const mine = (w) => ctx.admin || w.author === ctx.user
+        const want = ids ? new Set(ids.map(String)) : null
+        ids = k.works.filter((w) => (w.state === 'pend' || w.state === 'nowhere') && mine(w) && (!want || want.has(w.id))).map((w) => w.id)
+        if (!ids.length) throw new KmdError('E_INPUT', ctx.admin ? '고른 기록 중 정리할 것이 없다' : '정리를 기다리는 내 기록이 없다')
+        // 항목에 넣으면 그 항목을 기다리던 기록이 모두 「넣음」 이 된다 — 같은 자리에 모인 기록은 같이(다 모일 때까지)
+        const pend = k.works.filter((w) => w.state === 'pend')
+        for (let grew = true; grew; ) {
+          const coords = new Set(pend.filter((w) => ids.includes(w.id)).flatMap((w) => w.touches))
+          const more = pend.filter((w) => !ids.includes(w.id) && w.touches.some((c) => coords.has(c))).map((w) => w.id)
+          grew = more.length > 0
+          ids.push(...more)
+        }
+      }
       const cur = [...jobs.values()].find((j) => j.kn === id && (j.state === 'queued' || j.state === 'running'))
       // 팀 서버의 개인 지식 — PC 일꾼을 기다리는 일감이 있는데 사람이 [지금 정리] 를 누르면 기다리지 않고 규칙으로
       if (cur && !auto && cur.state === 'queued' && hub.teamPrivate(id)) {
@@ -1414,7 +1438,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (cur) return cur
       // 규칙으로만 — 일꾼에게 내지 않고 서버가 넣는다(넣은 것이 없으면 「정리한 것」 카드를 남기지 않는다)
       if (hub.ruleOnly(id)) return hub.ruleJob(id, { by, auto, why: rowFor(id)?.noClaude ? '자동 정리에 Claude 를 쓰지 않는 지식: 규칙으로 넣었다' : '정리 일꾼이 쉬고 있어 규칙으로 넣었다' })
-      const j = { id: crypto.randomBytes(6).toString('hex'), kn: id, by, auto, at: new Date().toISOString(), state: 'queued' }
+      const j = { id: crypto.randomBytes(6).toString('hex'), kn: id, by, auto, at: new Date().toISOString(), state: 'queued', ...(ids ? { ids } : {}) }
       jobs.set(j.id, j)
       saveJobs()
       return j
@@ -1428,6 +1452,51 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     job: (jid) => (sweepJobs(), jobs.get(jid) || null),
     jobsOf: (id) => (sweepJobs(), [...jobs.values()].filter((j) => j.kn === id)),
+    // 정리 일 줄 — 일꾼이 자리 하나의 글 쓰기를 시작했다(화면 · 터미널은 job 을 1.5초마다 읽는다)
+    //   end 가 없으면 시작(글 쓰는 중) · end 면 초안 받음(got · 검사는 다 모인 뒤 한꺼번에) 또는 못 받음(left)
+    workerProgress(dctx, id, { key, model, end = false, ok = true, why = null } = {}) {
+      if (dctx.draft.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
+      const j = jobs.get(dctx.draft.job)
+      const sp = j?.spots?.find((x) => x.key === key)
+      if (!sp) return { ok: false, stop: !!j?.stop }
+      j.beat = new Date().toISOString()
+      if (j.stop) return { ok: true, stop: true }
+      if (!end) {
+        // 예전 일꾼은 끝을 알리지 않는다 — 다음 자리를 시작하면 앞 자리는 초안을 받은 것
+        for (const x of j.spots) if (x.st === 'run' && x !== sp) Object.assign(x, { st: 'got', stage: 3 })
+        Object.assign(sp, { st: 'run', stage: 2 })
+        sp.lines.push([2, 'tool', `▸ Claude 초안${model ? ` · ${String(model).slice(0, 60)}` : ''}`])
+      } else if (ok) {
+        Object.assign(sp, { st: 'got', stage: 3 })
+        sp.lines.push([2, 'ok', '✓ 초안을 받았다'], [3, 'sys', '검사 · 넣기는 자리를 다 쓴 뒤 한꺼번에'])
+      } else {
+        const w = STOP_WHY[why] || `초안을 받지 못했다${why ? ': ' + String(why).slice(0, 120) : ''}`
+        Object.assign(sp, { st: 'left', stage: 3, why: w })
+        sp.lines.push([2, 'err', `✗ ${w}`])
+      }
+      return { ok: true, stop: !!j.stop }
+    },
+    // 정리 계획 — 지금 정리하면 생길 자리(문서 › 항목)와 거기 모이는 기록 · 지난 정리에서 둔 횟수
+    async tidyPlan(ctx, id) {
+      await hub.meta(id, ctx)
+      const k = await hub.get(id, ctx)
+      const spots = material(k).map((g) => ({ key: spotKey(g), kind: g.kind, target: spotTarget(g), records: (g.kind === 'section' ? g.records : [g.record]).map((r) => r.id) }))
+      const tries = {}
+      for (const run of await hub.runs(id)) for (const r of run.rows) if (r.kind === 'left') for (const x of r.records || []) tries[x] = (tries[x] || 0) + 1
+      return { spots, tries }
+    },
+    // 넣을 자리 정하기 — 자리를 못 찾은 기록 · 잘못 찾은 기록에 사람이 항목을 고른다(쓴 사람 · 관리자)
+    async setTouches(ctx, id, rec, coord) {
+      const meta = await hub.meta(id, ctx)
+      const k = await hub.get(id, ctx)
+      const w = k.byWork.get(String(rec))
+      if (!w || (w.state !== 'pend' && w.state !== 'nowhere')) throw new KmdError('E_NOTFOUND', '정리를 기다리는 기록이 아니다')
+      if (!ctx.admin && w.author !== ctx.user) throw new KmdError('E_FORBIDDEN', '자리는 쓴 사람이나 관리자가 정한다')
+      if (!sectionOf(k, String(coord || ''))?.loc) throw new KmdError('E_INPUT', '그런 항목이 없다')
+      const saved = await coreSave(meta.dir, { record: { title: `이름 바로잡음: ${w.title.split(/ — |: /)[0]}`, body: `${ctx.user} 가 넣을 자리를 골랐다`, touches: [String(coord)], tags: ['touches-fix'], fixes: [w.id], date: w.date } }, { user: ctx.user, system: true })
+      cache.delete(id)
+      return { record: saved.id }
+    },
     // 정리 일꾼(팀)을 마지막으로 본 때 · 기다리는 정리 — 멈춤 줄 · 관리 화면
     pcWorkerSeen: async (user) => (await seenOf())[user] || null,
     workerSeen: () => ({ at: teamSeenAt ? new Date(teamSeenAt).toISOString() : null, queued: [...jobs.values()].filter((j) => j.state === 'queued' && !rowFor(j.kn)?.private) }),
@@ -1461,7 +1530,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const j = jobs.get(d.job)
       if (j && j.state !== 'running') return null // 임대가 끝나 다시 기다림이 된 일감 — 옛 일꾼의 초안은 받지 않는다
       d.exp = Math.max(d.exp, Date.now() + 30 * 60_000)
-      if (j) j.leaseUntil = Date.now() + JOB_LEASE
+      if (j) j.leaseUntil = Date.now() + (j.stop ? 5 * 60_000 : JOB_LEASE)
       return { user: 'kmd-worker', admin: false, draft: d, token }
     },
     async material(dctx, id) {
@@ -1475,7 +1544,19 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const idx = await hub.index(id)
       const learned = await loadLearned(dataDir, id)
       const cands = []
-      const groups = material(k, { candidates: (w) => cands.find((c) => c.id === w.id)?.list || [] })
+      const job = jobs.get(dctx.draft.job)
+      const groups = material(k, { candidates: (w) => cands.find((c) => c.id === w.id)?.list || [], ids: job?.ids || null })
+      // 정리 일 줄 — 묶음 하나가 자리 하나 · 모으기 · 자리 찾기는 여기서 끝난다
+      if (job) {
+        job.spots = groups.map((g) => {
+          const recs = g.kind === 'section' ? g.records : [g.record]
+          return {
+            key: spotKey(g), kind: g.kind, target: spotTarget(g), records: recs.map((r) => r.id), st: 'wait', stage: 2,
+            lines: [[0, 'sys', `받은 기록 ${recs.length} · ${[...new Set(recs.map((r) => r.author))].join(' · ')}${g.values?.length ? ` · 값 ${g.values.slice(0, 6).join(' · ')}` : ''}`], [1, 'ok', g.kind === 'section' ? `✓ 자리 ${spotTarget(g)}` : g.kind === 'ingest' ? `✓ 넣은 파일 · 후보 문서 ${g.docs.length}` : '자리를 못 찾은 기록 · Claude 가 후보에서 고른다']],
+          }
+        })
+        saveJobs()
+      }
       // 이름 없는 기록의 후보 이름 — 찾기 사다리(제목 + 글)
       for (const g of groups.filter((x) => x.kind === 'touches')) {
         const r = await ladder(k, idx, { q: `${g.record.title} ${g.record.body}`.slice(0, 300), learned, max: 8 })
@@ -1489,16 +1570,21 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const meta = await hub.meta(id)
       const rows = []
       for (const item of Array.isArray(list) ? list : []) {
+        // 그만둔 정리 — 일꾼이 쓰지 않은 자리는 넣지도 「그대로 둠」 으로 세지도 않는다(받은 것에 그대로)
+        if (item.error === 'stopped') {
+          rows.push({ kind: 'stopped', target: String(item.group?.heading || item.group?.record?.title || ''), records: [] })
+          continue
+        }
         cache.delete(id)
         const k = await hub.get(id)
         // 묶음은 일꾼이 보낸 것을 믿지 않고 지금 지식에서 다시 만든다(열쇠를 빼앗겨도 재료 · 근거를 바꾸지 못하게)
-        const g = await groupFor(k, id, item.group)
+        const g = await groupFor(k, id, item.group, j?.ids || null)
         const d = item.draft
         if (!g) {
           rows.push({ kind: 'left', target: String(item.group?.heading || item.group?.record?.title || ''), why: '그사이 넣을 것이 없어졌다', records: [] })
           continue
         }
-        const r = item.error ? { ok: false, why: item.error === 'login' ? '정리 전용 로그인이 끝났다' : item.error === 'limit' ? '사용 한도에 닿았다' : '초안을 받지 못했다' } : checkDraft(k, g, d)
+        const r = item.error ? { ok: false, why: STOP_WHY[item.error] || `초안을 받지 못했다${item.why ? ': ' + String(item.why).slice(0, 120) : ''}` } : checkDraft(k, g, d)
         const target = g.kind === 'touches' || g.kind === 'ingest' ? g.record.title : `${g.doc.replace(/^docs\/|\.md$/g, '')} › ${g.heading}`
         // 원본이 주인인 문서에는 정리도 넣지 않는다 — 기록은 문서 옆에 그대로 읽힌다
         if (g.doc && watchedOf(await fs.readFile(path.join(meta.dir, ...g.doc.split('/')), 'utf8').catch(() => ''))) {
@@ -1532,15 +1618,38 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
       }
       cache.delete(id)
-      const run = { at: new Date().toISOString(), by: j?.by || null, auto: !!j?.auto, rows }
-      if (rows.length) await saveRun(id, run) // 빈 정리는 「정리한 것」 카드를 남기지 않는다
+      // 정리 일 줄 — 초안마다 검사 · 넣기 결과(한 초안이 한 줄) · 일꾼이 이미 적은 「초안을 받았다」 는 다시 적지 않는다
+      if (j?.spots) {
+        ;(Array.isArray(list) ? list : []).forEach((item, i) => {
+          const sp = j.spots.find((x) => x.key === spotKey(item.group))
+          const row = rows[i]
+          if (!sp || !row) return
+          if (row.kind === 'stopped') {
+            Object.assign(sp, { st: 'stop', stage: 2 })
+            sp.lines.push([2, 'sys', '그만뒀다 · 받은 것에 그대로 남는다'])
+          } else if (row.kind === 'left') {
+            Object.assign(sp, { st: 'left', stage: 3, why: row.why })
+            const had = sp.lines.some((l) => l[0] === 2 && l[1] !== 'tool')
+            sp.lines.push(...(had ? [] : [item.draft ? [2, 'ok', '✓ 초안을 받았다'] : [2, 'err', `✗ ${row.why}`]]), [3, 'err', `✗ ${row.why}`], [3, 'sys', '넣지 않고 둔다 · 다음 정리 때 다시'])
+          } else {
+            Object.assign(sp, { st: 'done', stage: 5, res: row.kind, record: row.record || null, ...(row.kind === 'changed' ? { from: row.from, to: row.to } : {}) })
+            sp.lines.push(...(sp.lines.some((l) => l[0] === 2 && l[1] === 'ok') ? [] : [[2, 'ok', '✓ 초안을 받았다']]), [3, 'ok', '✓ 글 모양 · 그 사이 바뀌지 않음 · 값 맞춤 · 크기 · 머리'], [4, 'ok', row.kind === 'changed' ? `✓ 넣었다 · 값 바뀜 ${row.from} → ${row.to} · 쓴 사람에게 알렸다` : '✓ 넣었다'])
+          }
+        })
+        // 일꾼이 에이전트로 넣은 파일은 초안이 오지 않는다
+        for (const sp of j.spots) if (sp.st === 'wait' || sp.st === 'run' || sp.st === 'got') Object.assign(sp, j.stop && sp.st === 'wait' ? { st: 'stop', stage: 2 } : sp.kind === 'ingest' ? { st: 'done', stage: 5, res: 'put' } : { st: 'left', stage: 3, why: '초안이 오지 않았다' })
+      }
+      const done = rows.filter((x) => x.kind !== 'stopped')
+      const run = { at: new Date().toISOString(), by: j?.by || null, auto: !!j?.auto, rows: done, ...(j?.stop ? { stopped: j.stop.by } : {}) }
+      if (done.length) await saveRun(id, run) // 빈 정리는 「정리한 것」 카드를 남기지 않는다
       if (j) {
-        const stop = (Array.isArray(list) ? list : []).filter((x) => x.error === 'login' || x.error === 'limit')
-        const allStop = rows.length > 0 && stop.length === rows.length
-        j.state = allStop ? 'failed' : 'done'
+        const stop = (Array.isArray(list) ? list : []).filter((x) => STOP_WHY[x.error])
+        const allStop = done.length > 0 && stop.length === done.length
+        j.state = j.stop ? 'cancelled' : allStop ? 'failed' : 'done'
         j.done = run.at
-        if (allStop) j.why = stop[0].error === 'login' ? '정리 전용 로그인이 끝났다. 관리 › Claude 연결' : '사용 한도에 닿았다. 풀리면 이어서 한다'
-        j.summary = { put: rows.filter((x) => x.kind === 'put' || x.kind === 'touches').length, changed: rows.filter((x) => x.kind === 'changed').length, left: rows.filter((x) => x.kind === 'left').length }
+        if (j.stop) j.why = `그만뒀다: ${j.stop.by} · 쓴 자리는 넣고 남은 자리 ${rows.length - done.length} 는 받은 것에 그대로`
+        else if (allStop) j.why = STOP_WHY[stop[0].error] + (stop[0].error === 'limit' ? '. 풀리면 이어서 한다' : '. 관리 › Claude 연결')
+        j.summary = { put: done.filter((x) => x.kind === 'put' || x.kind === 'touches').length, changed: done.filter((x) => x.kind === 'changed').length, left: done.filter((x) => x.kind === 'left').length, ...(j.stop ? { stopped: rows.length - done.length } : {}) }
         saveJobs()
       }
       drafts.delete(sha(dctx.token || ''))
@@ -1566,7 +1675,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       await fs.mkdir(dataDir, { recursive: true })
       await fs.writeFile(path.join(dataDir, 'worker.json'), JSON.stringify(next))
       wsNow = next
-      for (const j of jobs.values()) if (j.state === 'running' && j.worker === wctx.worker.id && !ok) Object.assign(j, { state: 'failed', why: reason === 'limit' ? '사용 한도에 닿았다' : '정리 전용 로그인이 끝났다', done: new Date().toISOString() })
+      for (const j of jobs.values()) if (j.state === 'running' && j.worker === wctx.worker.id && !ok) Object.assign(j, { state: 'failed', why: STOP_WHY[reason] || STOP_WHY.login, done: new Date().toISOString() })
       saveJobs()
       return next
     },
@@ -1762,9 +1871,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 팀 정리 일감 — 정리 일꾼이 맡는다(같은 줄에 보이고 · 기다리는 것은 뺄 수 있다)
       for (const t of jobs.values()) {
         if (!ks.has(t.kn)) continue
-        const state = { queued: 'wait', running: 'run', failed: 'fail', cancelled: 'cancel' }[t.state] || 'done'
+        const state = t.state === 'running' && t.stop ? 'pausing' : { queued: 'wait', running: 'run', failed: 'fail', cancelled: 'cancel' }[t.state] || 'done'
         const sum = t.summary ? `넣음 ${t.summary.put ?? 0}${t.summary.changed ? ` · 값 바뀜 ${t.summary.changed}` : ''}${t.summary.left ? ` · 남김 ${t.summary.left}` : ''}` : ''
-        items.push({ id: 't:' + t.id, kind: 'tidy', origin: 'kmd', kn: t.kn, knName: ks.get(t.kn), title: '정리', by: t.by || 'kmd', auto: t.auto ? 'tidy' : null, state, stage: 3, stages: [{ state: 'skip' }, { state: 'skip' }, { state: 'skip' }, { state: state === 'cancel' ? 'cancel' : state }], order: 1e9, at: t.at, startedAt: t.at, endedAt: t.done || null, msg: t.why || (t.state === 'queued' ? '정리 일꾼을 기다린다' : t.state === 'running' ? '정리 일꾼이 하는 중' : sum), n: 0, fin: !['queued', 'running', 'failed'].includes(t.state), retry: false })
+        items.push({ id: 't:' + t.id, kind: 'tidy', origin: 'kmd', kn: t.kn, knName: ks.get(t.kn), title: '정리', by: t.by || 'kmd', auto: t.auto ? 'tidy' : null, state, stage: 3, stages: [{ state: 'skip' }, { state: 'skip' }, { state: 'skip' }, { state: state === 'cancel' ? 'cancel' : state }], order: 1e9, at: t.at, startedAt: t.at, endedAt: t.done || null, msg: t.state === 'running' && t.stop ? `멈추는 중: ${t.stop.by} · 지금 쓰는 자리가 끝나면 멈춘다` : t.why || (t.state === 'queued' ? '정리 일꾼을 기다린다' : t.state === 'running' ? '정리 일꾼이 하는 중' : sum), n: 0, fin: !['queued', 'running', 'failed'].includes(t.state), retry: false })
       }
       return { hold: Q.hold, caps: Q.caps, lanes: Q.lanes(), can: mode === 'pc' || !!ctx.admin, items }
     },
@@ -1779,9 +1888,16 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (id.startsWith('t:')) {
         const t = jobs.get(id.slice(2))
         if (!t || !(await hub.visible(ctx)).some((k) => k.id === t.kn)) throw new KmdError('E_NOTFOUND', '그 일은 이제 없다')
-        if (act !== 'cancel') throw new KmdError('E_INPUT', '정리 일감은 기다릴 때 빼기만 한다')
+        if (act !== 'cancel') throw new KmdError('E_INPUT', '정리 일감은 그만두기만 한다')
         if (!(await mine(t.kn, t.by))) throw new KmdError('E_FORBIDDEN', '넣은 사람 · 관리자가 한다')
-        if (t.state !== 'queued') throw new KmdError('E_CONFLICT', '정리 일꾼이 이미 맡았다')
+        // 도는 정리 — 일꾼이 다음 자리를 시작하거나 지금 자리를 끝낼 때 멈춘다(쓴 초안은 넣는다) · 일꾼이 안 오면 5분 뒤 닫는다
+        if (t.state === 'running') {
+          if (!t.stop) t.stop = { by: ctx.user, at: new Date().toISOString() }
+          t.leaseUntil = Math.min(t.leaseUntil || Infinity, Date.now() + 5 * 60_000)
+          saveJobs()
+          return { ok: true, stopping: true }
+        }
+        if (t.state !== 'queued') throw new KmdError('E_CONFLICT', '이미 끝난 정리다')
         Object.assign(t, { state: 'cancelled', why: `뺐다: ${ctx.user}`, done: new Date().toISOString() })
         saveJobs()
         return { ok: true }
@@ -1826,7 +1942,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const out = []
       for (const b of srcBusy.values()) if (nm(b.kn)) out.push({ kind: 'source', kn: b.kn, knName: nm(b.kn), name: b.name, title: `${b.name} 가져오는 중${b.full ? ': 전체 다시 맞추기' : ''}`, small: { git: '소스 코드', db: 'DB', docs: '문서 폴더', folder: '폴더' }[b.kind] || b.kind, since: b.since })
       for (const r of runs.values()) if ((r.state === 'wait' || r.state === 'run') && nm(r.kn) && hub.runOk(r, ctx)) out.push({ kind: 'run', kn: r.kn, knName: nm(r.kn), title: r.title, small: r.state === 'wait' ? '차례를 기다린다' : `Claude Code 가 들이는 중 · 줄 ${r.lines.length}`, since: r.startedAt, run: r.id })
-      for (const j of jobs.values()) if ((j.state === 'queued' || j.state === 'running') && nm(j.kn)) out.push({ kind: 'tidy', kn: j.kn, knName: nm(j.kn), title: '정리', small: j.state === 'queued' ? '정리 일꾼을 기다린다' : '정리하는 중', since: j.at })
+      for (const j of jobs.values()) if ((j.state === 'queued' || j.state === 'running') && nm(j.kn)) out.push({ kind: 'tidy', kn: j.kn, knName: nm(j.kn), title: '정리', small: j.state === 'queued' ? '정리 일꾼을 기다린다' : j.stop ? '멈추는 중' : j.spots?.length ? `정리하는 중 · 자리 ${j.spots.length} 중 ${j.spots.filter((x) => x.st !== 'wait' && x.st !== 'run').length} 씀` : '정리하는 중', since: j.at })
       // 바로 넣기 — 차례를 기다리는 기록 수(코드 바뀜은 Claude Code 가 하나씩 넣어 몇 분씩 걸린다)
       for (const [id, since] of curating) {
         if (!nm(id)) continue

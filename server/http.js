@@ -302,7 +302,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const GET_OK = [
     /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|claude\/state|busy)$/,
     /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/,
-    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|sources|send|backup|backup\/lost|owner|worker\/material|bundle)$/,
+    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|tidy\/plan|sources|send|backup|backup\/lost|owner|worker\/material|bundle)$/,
   ]
   const api = async (req, res, url, ctx, set) => {
     const p = url.pathname
@@ -346,15 +346,16 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (!ctx?.device) throw new KmdError('E_FORBIDDEN', '이은 PC 의 기기 열쇠로 부른다')
       return out(200, { key: (await auth.workerAdd({ owner: ctx.user, device: ctx.device })).key })
     }
-    const wk = p.match(/^\/api\/k\/([^/]+)\/worker\/(material|drafts|agent|agent\/log|agent\/done)$/)
+    const wk = p.match(/^\/api\/k\/([^/]+)\/worker\/(material|drafts|progress|agent|agent\/log|agent\/done)$/)
     if (wk) {
       if (!ctx?.draft) throw new KmdError('E_FORBIDDEN', '이 일감의 열쇠로 부른다')
       if (wk[2] === 'material') return out(200, await hub.material(ctx, decodeURIComponent(wk[1])))
+      if (wk[2] === 'progress') return out(200, hub.workerProgress(ctx, decodeURIComponent(wk[1]), await readBody(req)))
       // 넣은 파일 하나를 에이전트로 — 일 받기 · 줄 올리기 · 끝(요구 v0.2 F)
       if (wk[2] === 'agent') return out(200, await hub.workerAgent(ctx, decodeURIComponent(wk[1]), await readBody(req)))
       if (wk[2] === 'agent/log') return out(200, hub.workerAgentLog(ctx, decodeURIComponent(wk[1]), await readBody(req, 4 << 20)))
       if (wk[2] === 'agent/done') return out(200, await hub.workerAgentDone(ctx, decodeURIComponent(wk[1]), await readBody(req)))
-      return out(200, await hub.drafts(ctx, decodeURIComponent(wk[1]), (await readBody(req)).drafts))
+      return out(200, await hub.drafts(ctx, decodeURIComponent(wk[1]), (await readBody(req, 32 << 20)).drafts)) // 자리 수백 개의 초안
     }
     need(ctx)
     if (p === '/api/me/pcpass' || p === '/api/me/pcpass/check') {
@@ -483,7 +484,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         // 개인 지식 중 백업 자리가 없는 것 — 수로만(관리자는 그 지식을 보지 못한다)
         privateUnbacked: all.filter((k) => hub.owner(k.id)?.private && !hub.backupStateSync(k)).length,
         sources: (await hub.allSources(ctx)).map((s) => ({ name: s.name, kn: s.knName, last: s.state?.checkedAt || null })),
-        backups: ks.map((k) => ({ name: k.name, ...(hub.backupStateSync(k) || { off: true }) })),
+        backups: ks.map((k) => ({ id: k.id, name: k.name, private: !!hub.owner(k.id)?.private, ...(hub.backupStateSync(k) || { off: true }) })),
         checks,
         claude: { token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), flow: teamLogin.state, kind: teamLogin.kind },
         https: req.headers['x-forwarded-proto'] === 'https',
@@ -597,10 +598,17 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const b = await readBody(req)
       return out(200, await hub.requestClose(ctx, rq[1], { state: String(b.state || ''), why: b.why || '' }))
     }
+    const tp = p.match(/^\/api\/k\/([^/]+)\/tidy\/plan$/)
+    if (tp) return out(200, await hub.tidyPlan(ctx, decodeURIComponent(tp[1])))
+    const rt = p.match(/^\/api\/k\/([^/]+)\/rec\/([^/]+)\/touches$/)
+    if (rt) return out(200, await hub.setTouches(ctx, decodeURIComponent(rt[1]), decodeURIComponent(rt[2]), (await readBody(req)).coord))
     const tm = p.match(/^\/api\/k\/([^/]+)\/tidy$/)
     if (tm) {
       const id = decodeURIComponent(tm[1])
-      if (req.method === 'POST') return out(200, await hub.tidyNow(ctx, id))
+      if (req.method === 'POST') {
+        const b = await readBody(req)
+        return out(200, await hub.tidyNow(ctx, id, Array.isArray(b?.ids) ? { ids: b.ids.slice(0, 500) } : {}))
+      }
       await hub.meta(id, ctx)
       const k = await hub.get(id, ctx)
       const runs = (await hub.runs(id)).map((run) => ({ ...run, rows: run.rows.map((r) => ({ ...r, reverted: !!r.record && k.reverted.has(r.record) })) }))

@@ -6,6 +6,7 @@
 import MarkdownIt from 'markdown-it'
 import path from 'node:path'
 import { coordsOfSection, labelOf, sectionOf, pendPick } from '../core/knowledge.js'
+import { locateDoc } from '../core/registry.js'
 import { sha16 } from '../core/text.js'
 import { splitBlocks, parseTable } from '../core/baseline.js'
 
@@ -83,6 +84,14 @@ md.renderer.rules.image = (tokens, i, opts, env) => {
   return `<span class="muted">[그림${alt ? ': ' + alt : ''}]</span>`
 }
 
+export function citesOf(doc) {
+  const out = []
+  for (const m of [doc.intro, ...doc.sections.map((s) => s.body)].join('\n').matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+    const to = linkTarget({ id: '' }, doc.path, m[1])
+    if (to?.r && !out.includes(to.r)) out.push(to.r)
+  }
+  return out
+}
 export function linksOf(doc) {
   const out = []
   const all = [doc.intro, ...doc.sections.map((s) => s.body)].join('\n')
@@ -118,7 +127,13 @@ function docPend(k) {
   return s
 }
 
-const recRow = (w) => ({ id: w.id, date: w.date, title: w.title, author: w.author, state: w.state })
+// 들어온 길 — 보내기(sent/지문 · 글 첫 줄 「…에서 보냄」) · 넣은 파일 · 코드 바뀜 · 그 밖은 세션 · 화면에서 남긴 기록
+const routeOf = (w) => (w.tags.some((t) => t.startsWith('sent/')) ? 'send' : w.tags.some((t) => t.startsWith('ingest/')) ? 'file' : w.tags.includes('code-change') ? 'code' : 'sess')
+const recRow = (w) => {
+  const route = routeOf(w)
+  const from = route === 'send' ? (String(w.body).match(/^(.{1,80})에서 보냄/) || [])[1] || '' : route === 'file' ? w.tags.find((t) => t.startsWith('ingest/')).slice(7) : ''
+  return { id: w.id, date: w.date, title: w.title, author: w.author, state: w.state, route, ...(from ? { from } : {}), ...(w.tags.some((t) => /^private$/i.test(t)) ? { priv: true } : {}) }
+}
 
 export function tree(k) {
   const pend = docPend(k)
@@ -314,7 +329,9 @@ export function model(k) {
   for (const [coord, v] of k.vocab.coords) {
     if (v.deprecated) continue
     const s = sectionOf(k, coord)
-    add({ key: coord, coord, name: v.label, kind: kindOf(coord), doc: s?.sec ? s.doc.id : null, sec: s?.sec?.h || null, aliases: v.aliases, table: coord.startsWith('table:'), first: firstOf(s?.sec?.body) })
+    // 문서 한 벌을 가리키는 이름(장부의 머리 없는 줄) — 항목 자리는 없고 그 문서에 든다(그래프의 「들어 있다」)
+    const whole = s?.sec ? null : k.byDocPath.get(locateDoc(k.registry, coord))?.id || null
+    add({ key: coord, coord, name: v.label, kind: kindOf(coord), doc: s?.sec ? s.doc.id : null, sec: s?.sec?.h || null, whole, aliases: v.aliases, table: coord.startsWith('table:'), first: firstOf(s?.sec?.body) })
   }
   for (const d of k.docs)
     for (const s of d.sections) {
@@ -326,7 +343,8 @@ export function model(k) {
     for (const c of w.touches) if (!byKey.has(c) && !c.startsWith('domain:')) add({ key: c, coord: c, name: labelOf(k, c), kind: kindOf(c), doc: null, sec: null, aliases: [], table: c.startsWith('table:'), first: '' })
   const itemOfSec = new Map(items.filter((i) => i.doc).map((i) => [`${i.doc}\n${i.sec}`, i.key]))
   const recs = k.works.map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title, body: w.body.replace(/\s+/g, ' ').slice(0, 200), state: w.state, fixes: w.fixes, items: w.touches.filter((c) => byKey.has(c)) }))
-  const docs = k.docs.map((d) => ({ id: d.id, title: d.title, when: d.mtime, first: firstOf(d.intro || d.sections[0]?.body), links: linksOf(d).filter((x) => k.docs.some((o) => o.id === x)), items: d.sections.map((s) => itemOfSec.get(`${d.id}\n${s.h}`)).filter(Boolean) }))
+  // cites — 글 속 기록 링크(../work/…md · 그 글의 근거) · 그래프의 「근거」 선
+  const docs = k.docs.map((d) => ({ id: d.id, title: d.title, when: d.mtime, first: firstOf(d.intro || d.sections[0]?.body), links: linksOf(d).filter((x) => k.docs.some((o) => o.id === x)), cites: citesOf(d).filter((x) => k.byWork.has(x)), items: d.sections.map((s) => itemOfSec.get(`${d.id}\n${s.h}`)).filter(Boolean) }))
   // 이 항목을 쓰는 곳 — 다른 항목의 글에 이 항목 이름 · 다른 이름이 나온다(테이블 빼고)
   const uses = {}
   const bodies = items.filter((i) => i.doc && !i.table).map((i) => {

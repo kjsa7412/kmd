@@ -37,11 +37,12 @@ export const TOUCH_SCHEMA = {
 
 const isPrivate = (w) => w.tags.some((t) => /^private$/i.test(t))
 
-// 재료 — 항목마다 묶음 · 이름 없는 기록은 바로잡기 묶음
-export function material(k, { candidates = () => [] } = {}) {
+// 재료 — 항목마다 묶음 · 이름 없는 기록은 바로잡기 묶음 · ids 가 있으면 그 기록만(고른 것만 정리)
+export function material(k, { candidates = () => [], ids = null } = {}) {
   const groups = new Map()
+  const off = (w) => (ids ? !ids.includes(w.id) : false)
   for (const w of k.works) {
-    if (w.state !== 'pend' || isPrivate(w) || k.reverted.has(w.id)) continue
+    if (w.state !== 'pend' || isPrivate(w) || k.reverted.has(w.id) || off(w)) continue
     for (const c of w.touches) {
       const x = sectionOf(k, c)
       if (!x?.loc) continue
@@ -53,16 +54,20 @@ export function material(k, { candidates = () => [] } = {}) {
   }
   const out = [...groups.values()].map((g) => ({ ...g, records: g.records.sort((a, b) => a.date.localeCompare(b.date)), values: [...new Set(g.records.flatMap((r) => (r.code ? newValuesOf(r.body) : [...valuesOf(r.body + ' ' + r.title)])))] }))
   for (const w of k.works) {
-    if (w.state !== 'nowhere' || isPrivate(w) || k.reverted.has(w.id)) continue
+    if (w.state !== 'nowhere' || isPrivate(w) || k.reverted.has(w.id) || off(w)) continue
     out.push({ kind: 'touches', record: { id: w.id, date: w.date, author: w.author, title: w.title, body: w.body }, candidates: candidates(w).slice(0, 8) })
   }
   // 넣은 파일의 기록 — 기존 문서 항목에 넣거나 새 문서로(큐레이션) · 후보 문서는 제목 · 머리 말이 겹치는 것(원본이 주인인 문서는 빼고)
   for (const w of k.works) {
-    if (w.state !== 'pend' || w.touches.length || !w.tags.some((t) => t.startsWith('ingest/')) || isPrivate(w) || k.reverted.has(w.id)) continue
+    if (w.state !== 'pend' || w.touches.length || !w.tags.some((t) => t.startsWith('ingest/')) || isPrivate(w) || k.reverted.has(w.id) || off(w)) continue
     out.push({ kind: 'ingest', record: { id: w.id, date: w.date, author: w.author, title: w.title, body: w.body, file: w.tags.find((t) => t.startsWith('ingest/')).slice(7) }, docs: ingestCandidates(k, w) })
   }
   return out
 }
+
+// 묶음 하나 = 정리 일 줄의 자리 하나 — 일꾼 · 서버가 같은 열쇠로 진행을 맞춘다
+export const spotKey = (g) => (g?.kind === 'section' ? 'c:' + g.coord : 'r:' + (g?.record?.id || ''))
+export const spotTarget = (g) => (g.kind === 'section' ? `${g.doc.replace(/^docs\/|\.md$/g, '')} › ${g.heading}` : g.kind === 'ingest' ? `${g.record.file || g.record.title} · 문서에 들이기` : `${g.record.title} · 자리 고르기`)
 
 // 넣은 파일과 가까운 문서 — 말(2글자 넘는 것)이 제목 · 머리에 겹치는 수로 다섯까지 · 항목마다 지금 글 · 지문
 const wordsIn = (t) => new Set(String(t || '').toLowerCase().split(/[^0-9a-z가-힣]+/).filter((x) => x.length >= 2))
