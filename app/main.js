@@ -22,7 +22,7 @@ const S = {
   srcRun: {}, sf: null, sfMsg: null, imports: [], addDraft: '', addMsg: null, sending: false,
   openToday: null, tidyRun: null, tidyMsg: {}, runOpen: {}, cmp: null, picker: false,
   iq: '', ifilt: { pend: false, recent: false, mine: false }, kfold: {}, tablesAll: false, nbOpen: false,
-  g: { kn: null, pos: {}, view: { x: 0, y: 0, k: 1 }, sel: null, bundle: false, layoutKey: '', f: { q: '', item: true, doc: true, rec: false, src: false, pend: false, recent: false, orph: false, depth: 0, label: false } },
+  g: { kn: null, pos: {}, cam: { rx: -0.35, ry: 0.6, zoom: 1, base: 1, px: 0, py: 0, needFit: true }, sel: null, bundle: false, layoutKey: '', f: { q: '', item: true, doc: true, rec: false, src: false, pend: false, recent: false, orph: false, depth: 0, label: false, line: false, spin: true } },
 }
 // 고른 지식을 따르는 화면 — 지식 관리(이력 · 설정 · 정리 · 가져오기 · 보내기)는 고른 지식과 따로다
 const KNSCR = ['docs', 'items', 'graph']
@@ -247,7 +247,7 @@ function render() {
   const fi = $('#palIn') || $('#qoIn') || $('#cmdIn')
   if (fi && document.activeElement !== fi) { fi.focus(); fi.setSelectionRange(fi.value.length, fi.value.length) }
   if (S._focus) { const el = document.getElementById(S._focus); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length) } catch {} } S._focus = null }
-  if (S.route.scr === 'graph') gHighlight()
+  if (S.route.scr === 'graph') gStart()
   fillAtts()
   for (const t of app.querySelectorAll('.term')) t.scrollTop = t.scrollHeight
   // 내 PC 지식의 주소는 해시 조각으로만 — 팀 서버 요청 · Referer 에 실리지 않는다
@@ -1047,7 +1047,7 @@ function itemPane(t, right) {
   return { html, aside: right ? null : aside, title: it.name }
 }
 
-// ───────────── 보기 셋 — 그래프(2D · 손으로 쓴 힘 배치 · 바깥 라이브러리 없음 · 목업 M7) ─────────────
+// ───────────── 보기 셋 — 그래프(3D · 손으로 쓴 힘 배치 · canvas · 바깥 라이브러리 없음 · 목업 M7) ─────────────
 const KCOL = { item: '#3358e6', bundle: '#3358e6', doc: '#7a8494', rec: '#8b6fe0', src: '#2f8f5b' }
 const KLAB = { item: '항목', bundle: '항목 묶음', doc: '문서', rec: '기록', src: '가져오는 곳' }
 const ELAB = [['in', '들어 있다', '문서 ⊃ 항목'], ['touch', '건드렸다', '기록 → 항목'], ['fix', '바로잡았다', '기록 → 기록'], ['point', '가리킨다', '문서 → 문서 · 글 속 다른 항목 이름'], ['fill', '채운다', '가져오는 곳 → 항목'], ['cite', '근거', '문서 → 기록 · 글 속 기록 링크']]
@@ -1096,69 +1096,203 @@ function graphData(k, fo, bundle) {
   return { nodes, edges }
 }
 function hashf(s) { let h = 2166136261; for (const c of String(s)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619) } return ((h >>> 0) % 10007) / 10007 }
-function simTick(G, alpha, pin) {
-  const ns = G.nodes, P = S.g.pos, n = ns.length
-  for (let i = 0; i < n; i++) { const a = P[ns[i].id]; for (let j = i + 1; j < n; j++) { const b = P[ns[j].id]; let dx = a.x - b.x, dy = a.y - b.y; let d2 = dx * dx + dy * dy; if (d2 > 90000) continue; if (d2 < 1) { dx = hashf(i + '/' + j) - 0.5; dy = hashf(j + '/' + i) - 0.5; d2 = 1 } const d = Math.sqrt(d2), f = (3200 * alpha) / d2; a.vx += (dx / d) * f; a.vy += (dy / d) * f; b.vx -= (dx / d) * f; b.vy -= (dy / d) * f } }
-  G.edges.forEach((e) => { const a = P[e.a], b = P[e.b]; const dx = b.x - a.x, dy = b.y - a.y; const d = Math.sqrt(dx * dx + dy * dy) || 1; const L = e.t === 'in' ? 48 : 66; const f = (d - L) * 0.045 * alpha; a.vx += (dx / d) * f; a.vy += (dy / d) * f; b.vx -= (dx / d) * f; b.vy -= (dy / d) * f })
-  ns.forEach((nd) => { const p = P[nd.id]; p.vx -= p.x * 0.006 * alpha; p.vy -= p.y * 0.01 * alpha; if (p.fx || nd.id === pin) { p.vx = 0; p.vy = 0; return } p.vx *= 0.55; p.vy *= 0.55; const m = Math.hypot(p.vx, p.vy); if (m > 24) { p.vx *= 24 / m; p.vy *= 24 / m } p.x += p.vx; p.y += p.vy })
-}
+// 3D 배치 — CDP CoordGraph.jsx 의 요령을 따른다(사용자 확정: 3D · 돌린다)
+//   고정 씨앗으로 한 번 풀고 멈춘다. 그 뒤는 돌리기만 — 같은 지식은 늘 같은 모양이라 눈이 그림을 외운다
+//   반지름은 연결 수 순위: 많이 이어진 점이 가운데 · 외톨이는 바깥 껍질
+//   스프링은 연결 수로 나눈다 — 안 나누면 큰 점(문서 · 가져오는 곳)으로 이웃이 말려 들어 덩어리가 납작해진다
+//   점 사이를 넓힌다: 쉬는 거리 150(문서 ⊃ 항목 95) · 밀기 14000 · 크기는 점 수의 세제곱근만큼 키운다
+const G3 = { R: 260, L: 150, Lin: 95, REP: 14000 }
+const GKORD = ['bundle', 'item', 'doc', 'rec', 'src']
 function layoutGraph(G) {
-  const P = S.g.pos, fresh = G.nodes.filter((n) => !P[n.id])
-  fresh.forEach((n) => {
-    const e = G.edges.find((e) => (e.a === n.id && P[e.b]) || (e.b === n.id && P[e.a]))
-    const o = e ? P[e.a === n.id ? e.b : e.a] : n.table && P['b:table']
-    const r1 = hashf(n.id), r2 = hashf(n.id + '#')
-    if (o) P[n.id] = { x: o.x + (r1 - 0.5) * 70, y: o.y + (r2 - 0.5) * 70, vx: 0, vy: 0 }
-    else { const a = r1 * Math.PI * 2, R = 40 + r2 * 240; P[n.id] = { x: Math.cos(a) * R, y: Math.sin(a) * R * 0.65, vx: 0, vy: 0 } }
+  const P = S.g.pos, ns = G.nodes, N = ns.length
+  const key = ns.map((n) => n.id).join('|') + '#' + G.edges.length
+  if (key === S.g.layoutKey && ns.every((n) => P[n.id])) return
+  S.g.layoutKey = key
+  S.g.cam.needFit = true
+  if (!N) return
+  const ix = new Map(ns.map((n, i) => [n.id, i]))
+  const E = G.edges.length, ea = new Int32Array(E), eb = new Int32Array(E), eL = new Float64Array(E), ek = new Float64Array(E)
+  const deg = new Float64Array(N)
+  G.edges.forEach((e, k) => { ea[k] = ix.get(e.a); eb[k] = ix.get(e.b); eL[k] = e.t === 'in' ? G3.Lin : G3.L; deg[ea[k]]++; deg[eb[k]]++ })
+  for (let k = 0; k < E; k++) ek[k] = Math.sqrt(Math.max(1, (deg[ea[k]] + deg[eb[k]]) / 2))
+  const R = G3.R * Math.max(1, Math.cbrt(N / 60))
+  const ord = ns.map((_, i) => i).sort((a, b) => deg[a] - deg[b] || a - b), rad = new Float64Array(N)
+  ord.forEach((i, r) => { rad[i] = R * (1.05 - 0.95 * (N > 1 ? r / (N - 1) : 0)) })
+  // 처음 자리 — 거의 다 새 점이면 황금각 나선(종류 순이라 같은 종류가 위도 띠를 이룬다) · 몇 개만 새로 들면 이웃 곁
+  const px = new Float64Array(N), py = new Float64Array(N), pz = new Float64Array(N)
+  const fresh = ns.filter((n) => !P[n.id]).length, whole = fresh > N / 2
+  const sorder = ns.map((_, i) => i).sort((a, b) => GKORD.indexOf(ns[a].kind) - GKORD.indexOf(ns[b].kind) || (ns[a].id < ns[b].id ? -1 : ns[a].id > ns[b].id ? 1 : 0))
+  const dir = new Array(N)
+  sorder.forEach((i, k) => { const y = 1 - ((k + 0.5) / N) * 2, r = Math.sqrt(Math.max(0, 1 - y * y)), th = k * 2.399963; dir[i] = [Math.cos(th) * r, y, Math.sin(th) * r] })
+  const jit = (id, s) => (hashf(id + s) - 0.5) * 30
+  ns.forEach((n, i) => {
+    const p = P[n.id]
+    if (p && !whole) { px[i] = p.x; py[i] = p.y; pz[i] = p.z; return }
+    const e = whole ? null : G.edges.find((e) => (e.a === n.id && P[e.b]) || (e.b === n.id && P[e.a]))
+    const o = e ? P[e.a === n.id ? e.b : e.a] : null
+    if (o) { px[i] = o.x + jit(n.id, 'x') * 2; py[i] = o.y + jit(n.id, 'y') * 2; pz[i] = o.z + jit(n.id, 'z') * 2; return }
+    px[i] = dir[i][0] * rad[i] + jit(n.id, 'x'); py[i] = dir[i][1] * rad[i] + jit(n.id, 'y'); pz[i] = dir[i][2] * rad[i] + jit(n.id, 'z')
   })
-  const key = G.nodes.map((n) => n.id).join('|') + '#' + G.edges.length
-  if (key !== S.g.layoutKey) { S.g.layoutKey = key; const big = fresh.length > G.nodes.length / 2; const it = G.nodes.length > 400 ? 60 : big ? 300 : 120; for (let i = 0; i < it; i++) simTick(G, 1 - (i / it) * 0.85); fitView(G) }
-}
-function fitView(G) {
-  if (!G || !G.nodes.length) return
-  const P = S.g.pos
-  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9
-  G.nodes.forEach((n) => { const p = P[n.id]; if (!p) return; x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x + 50); y1 = Math.max(y1, p.y) })
-  const k = Math.max(0.3, Math.min(1.6, 660 / (x1 - x0 + 40), 440 / (y1 - y0 + 40)))
-  S.g.view = { x: (-(x0 + x1) / 2) * k, y: (-(y0 + y1) / 2) * k, k }
+  const fx = new Float64Array(N), fy = new Float64Array(N), fz = new Float64Array(N)
+  const TICKS = !whole ? 60 : N <= 120 ? 260 : N <= 400 ? 140 : 80
+  for (let s = 0; s < TICKS; s++) {
+    const al = (whole ? 1 : 0.5) * (1 - s / TICKS)
+    fx.fill(0); fy.fill(0); fz.fill(0)
+    for (let i = 0; i < N; i++) {
+      const xi = px[i], yi = py[i], zi = pz[i]
+      for (let j = i + 1; j < N; j++) {
+        let dx = xi - px[j], dy = yi - py[j], dz = zi - pz[j], d2 = dx * dx + dy * dy + dz * dz
+        if (d2 < 1) { dx = hashf(i + '/' + j) - 0.5; dy = hashf(j + '/' + i) - 0.5; dz = hashf(i + '|' + j) - 0.5; d2 = 1 }
+        const f = Math.min(70, G3.REP / d2), d = Math.sqrt(d2)
+        fx[i] += (dx / d) * f; fy[i] += (dy / d) * f; fz[i] += (dz / d) * f
+        fx[j] -= (dx / d) * f; fy[j] -= (dy / d) * f; fz[j] -= (dz / d) * f
+      }
+    }
+    for (let k = 0; k < E; k++) {
+      const i = ea[k], j = eb[k], dx = px[j] - px[i], dy = py[j] - py[i], dz = pz[j] - pz[i]
+      const d = Math.max(1, Math.hypot(dx, dy, dz)), f = ((d - eL[k]) * 0.03) / ek[k]
+      fx[i] += (dx / d) * f; fy[i] += (dy / d) * f; fz[i] += (dz / d) * f
+      fx[j] -= (dx / d) * f; fy[j] -= (dy / d) * f; fz[j] -= (dz / d) * f
+    }
+    // 반지름만 고친다(접선으로는 안 민다) — 덩어리가 구의 한쪽으로 떠내려가지 않는다
+    const cap = 8 * al + 0.3
+    for (let i = 0; i < N; i++) {
+      const x = px[i], y = py[i], z = pz[i], m0 = Math.hypot(x, y, z) || 1, rp = ((rad[i] - m0) * 0.03) / m0
+      const ax = fx[i] + x * rp, ay = fy[i] + y * rp, az = fz[i] + z * rp
+      const m = Math.hypot(ax, ay, az), k = m > cap ? cap / m : 1
+      px[i] = x + ax * k; py[i] = y + ay * k; pz[i] = z + az * k
+    }
+  }
+  ns.forEach((n, i) => { P[n.id] = { x: px[i], y: py[i], z: pz[i] } })
 }
 function nodeR(n, dg) { if (n.kind === 'bundle') return 15; if (n.table) return 3; if (n.kind === 'rec') return 4.5; if (n.kind === 'src') return 6.5; if (n.kind === 'doc') return 6; return 5 + Math.min(dg, 8) * 0.45 }
-function graphSvg(G) {
-  const P = S.g.pos, big = G.nodes.length > 90, deg = {}
-  G.edges.forEach((e) => { deg[e.a] = (deg[e.a] || 0) + 1; deg[e.b] = (deg[e.b] || 0) + 1 })
-  const lines = G.edges.map((e, i) => { const a = P[e.a], b = P[e.b]; return `<line data-e="${i}" class="e-${e.t}" x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}"${e.t === 'fix' || e.t === 'point' ? ` marker-end="url(#ar-${e.t})"` : ''}/>` }).join('')
-  const nb = new Set()
-  if (S.g.sel) G.edges.forEach((e) => { if (e.a === S.g.sel) nb.add(e.b); if (e.b === S.g.sel) nb.add(e.a) })
-  const nodes = G.nodes.map((n) => {
-    const p = P[n.id], r = nodeR(n, deg[n.id] || 0)
-    const cls = ['n', 'k-' + n.kind]
-    if (S.g.sel === n.id) cls.push('sel')
-    if (nb.has(n.id)) cls.push('nb')
-    if (big && n.table) cls.push('nl')
-    return `<g class="${cls.join(' ')}" data-node="${esc(n.id)}" data-t="gnode" data-kind="${n.kind}" data-name="${esc(n.label)}" transform="translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})"><title>${esc(KLAB[n.kind] + ' · ' + n.label)}</title>${n.pend ? `<circle class="ring" r="${(r + 3.5).toFixed(1)}"/>` : ''}<circle class="dot" r="${r.toFixed(1)}" fill="${KCOL[n.kind]}"${n.kind === 'bundle' ? ' fill-opacity=".55"' : ''}/><text x="${(r + 3).toFixed(1)}" y="3.5">${esc(n.label)}</text></g>`
-  }).join('')
-  const v = S.g.view
-  return `<svg id="gsvg" class="${S.g.f.label ? 'lb-all' : 'lb-hover'}" viewBox="-340 -230 680 460" preserveAspectRatio="xMidYMid meet" data-t="gsvg"><defs>${['fix', 'point'].map((t) => `<marker id="ar-${t}" viewBox="0 0 10 10" refX="17" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-${t}"/></marker>`).join('')}</defs><g id="gview" transform="translate(${v.x.toFixed(1)} ${v.y.toFixed(1)}) scale(${v.k.toFixed(3)})"><g class="edges">${lines}</g><g class="nodes">${nodes}</g></g></svg>`
-}
-function paintGraph() {
-  const sv = $('#gsvg')
-  if (!sv || !CURG) return
-  const P = S.g.pos
-  sv.querySelectorAll('g[data-node]').forEach((g) => { const p = P[g.dataset.node]; if (p) g.setAttribute('transform', `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})`) })
-  sv.querySelectorAll('line[data-e]').forEach((l) => { const e = CURG.edges[+l.dataset.e]; if (!e) return; const a = P[e.a], b = P[e.b]; l.setAttribute('x1', a.x.toFixed(1)); l.setAttribute('y1', a.y.toFixed(1)); l.setAttribute('x2', b.x.toFixed(1)); l.setAttribute('y2', b.y.toFixed(1)) })
-}
-function gHighlight() {
-  const sv = $('#gsvg')
-  if (!sv || !CURG) return
-  const nq = norm(S.g.f.q || ''), hits = new Set()
-  sv.querySelectorAll('g[data-node]').forEach((g) => { const h = !!nq && norm(g.dataset.name).includes(nq); g.classList.toggle('hit', h); g.classList.toggle('dim', !!nq && !h); if (h) hits.add(g.dataset.node) })
-  sv.querySelectorAll('line[data-e]').forEach((l) => { const e = CURG.edges[+l.dataset.e]; l.classList.toggle('dim', !!nq && !(e && (hits.has(e.a) || hits.has(e.b)))) })
+// 선 — 종류마다 색 · 무늬. 범례도 이것으로 그린다
+const ECOL = { in: { c: '#b9c2d0' }, touch: { c: '#a99be6', d: [3, 3] }, fix: { c: '#cb3a2c', w: 1.7, ar: 1 }, point: { c: '#7d95f0', d: [6, 3], ar: 1 }, fill: { c: '#2f8f5b' }, cite: { c: '#c9a14a', d: [1, 3] } }
+const GBG = '#fbfcfe'
+const GHUB = 12
+let GCV = null, GH = null, GRAF = 0
+// 그리기 — canvas 하나 · 원근 투영 · 먼 것부터
+//   선은 기본 꺼 둔다(보기 › 선 보기). 꺼도 고른 점 · 올린 점의 선은 그린다 — 무엇과 이어졌는지는 늘 보인다
+//   긴 선이 화면을 가로질러 판이 되는 것을 셋으로 막는다
+//     ① 화면에서 긴 선은 양 끝 토막만 — 방향만 남긴다. 고르거나 올리면 다 그린다
+//     ② 길수록 · 선이 많을수록 옅게(√(400/선 수) — CDP 와 같다)
+//     ③ 이웃이 많은 점(GHUB 넘게)의 선은 그 점 앞 한 자리로 모았다가 갈라진다 — 부채꼴이 한 줄기가 된다
+function gPaint() {
+  const cv = $('#gcv'), G = CURG
+  if (!cv || !G) return
+  const rc = cv.getBoundingClientRect(), W = rc.width, H0 = rc.height
+  if (W < 4 || H0 < 4) return
+  const dpr = window.devicePixelRatio || 1
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H0 * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H0 * dpr) }
+  const ctx = cv.getContext('2d')
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  ctx.clearRect(0, 0, W, H0)
+  const C = S.g.cam, P = S.g.pos, f = S.g.f, cx = W / 2, cy = H0 / 2
+  const sy = Math.sin(C.ry), cy2 = Math.cos(C.ry), sx = Math.sin(C.rx), cx2 = Math.cos(C.rx), D = G.R3 * 2.6
+  const raw = (p) => { const x1 = p.x * cy2 - p.z * sy, z1 = p.x * sy + p.z * cy2, y1 = p.y * cx2 - z1 * sx, z2 = p.y * sx + z1 * cx2, sc = D / Math.max(D * 0.35, D + z2); return [x1 * sc, y1 * sc, z2, sc] }
+  if (C.needFit) {
+    let mx = 1, my = 1
+    G.nodes.forEach((n) => { const q = raw(P[n.id]); mx = Math.max(mx, Math.abs(q[0])); my = Math.max(my, Math.abs(q[1])) })
+    C.base = Math.max(0.02, Math.min(6, Math.min((W / 2 - 30) / mx, (H0 / 2 - 24) / my)))
+    C.zoom = 1; C.px = 0; C.py = 0; C.needFit = false
+  }
+  const Z = C.base * C.zoom, rk = Math.max(0.7, Math.min(2.6, Math.sqrt(C.zoom)))
+  const by = {}
+  const pts = G.nodes.map((n) => { const q = raw(P[n.id]); const t = { n, X: cx + q[0] * Z + C.px, Y: cy + q[1] * Z + C.py, z: q[2], sc: q[3] }; t.r = nodeR(n, G.deg[n.id] || 0) * Math.max(0.6, Math.min(1.6, q[3])) * rk; t.dep = Math.max(0.45, Math.min(1, q[3])); by[n.id] = t; return t })
+  const Hd = GH != null && by[GH] ? GH : S.g.sel && by[S.g.sel] ? S.g.sel : null
+  const nb = Hd ? G.nbr[Hd] : null
+  const nq = norm(f.q || ''), hits = new Set()
+  if (nq) G.nodes.forEach((n) => { if (norm(n.label).includes(nq)) hits.add(n.id) })
+  // 선
+  const fade = Math.min(1, Math.sqrt(400 / Math.max(1, G.edges.length))), lim = Math.max(70, Math.min(W, H0) * 0.2)
+  const hubPt = {}
+  const hub = (id) => { if (!(G.deg[id] > GHUB)) return null; if (hubPt[id]) return hubPt[id]; const h = by[id]; let sx2 = 0, sy2 = 0; G.nbr[id].forEach((o) => { sx2 += by[o].X; sy2 += by[o].Y }); const k = G.nbr[id].size; return (hubPt[id] = { X: h.X + (sx2 / k - h.X) * 0.4, Y: h.Y + (sy2 / k - h.Y) * 0.4, used: 0 }) }
+  const arrow = (ax, ay, bx, by2, rr) => { const d = Math.hypot(bx - ax, by2 - ay) || 1, ux = (bx - ax) / d, uy = (by2 - ay) / d, tx = bx - ux * rr, ty = by2 - uy * rr; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(tx - ux * 7 - uy * 3.5, ty - uy * 7 + ux * 3.5); ctx.lineTo(tx - ux * 7 + uy * 3.5, ty - uy * 7 - ux * 3.5); ctx.closePath(); ctx.fill() }
+  let drawn = 0
+  G.edges.forEach((e) => {
+    const p = by[e.a], q = by[e.b]
+    if (!p || !q) return
+    const lit = !!Hd && (e.a === Hd || e.b === Hd)
+    if (!f.line && !lit) return
+    const st = ECOL[e.t] || ECOL.in, len = Math.hypot(q.X - p.X, q.Y - p.Y)
+    const off = (!!Hd && !lit) || (!!nq && !(hits.has(e.a) || hits.has(e.b)))
+    ctx.strokeStyle = st.c; ctx.fillStyle = st.c; ctx.lineWidth = (st.w || 1.2) * (lit ? 1.3 : 1); ctx.setLineDash(st.d || [])
+    ctx.globalAlpha = lit ? 0.9 : off ? 0.05 : 0.6 * fade * Math.min(1, Math.sqrt(lim / Math.max(1, len))) * (p.dep + q.dep) / 2
+    // 묶음 — 이웃이 많은 쪽을 줄기로(둘 다면 더 많은 쪽)
+    const hA = hub(e.a), hB = hub(e.b), hid = hA && (!hB || G.deg[e.a] >= G.deg[e.b]) ? e.a : hB ? e.b : null
+    const hp = hid ? hubPt[hid] : null, leaf = hid === e.a ? q : p, hn = hid === e.a ? p : q
+    drawn++
+    if (lit || len <= lim) {
+      ctx.beginPath()
+      if (hp && !lit) { ctx.moveTo(leaf.X, leaf.Y); ctx.quadraticCurveTo(hp.X, hp.Y, hn.X, hn.Y) } else { ctx.moveTo(p.X, p.Y); ctx.lineTo(q.X, q.Y) }
+      ctx.stroke()
+      if (st.ar) arrow(hp && !lit && hid === e.b ? hp.X : p.X, hp && !lit && hid === e.b ? hp.Y : p.Y, q.X, q.Y, q.r + 2)
+      return
+    }
+    const stub = (a, bx, by2) => { const d = Math.hypot(bx - a.X, by2 - a.Y) || 1, s = Math.min(len * 0.15, 28) + a.r; ctx.beginPath(); ctx.moveTo(a.X, a.Y); ctx.lineTo(a.X + ((bx - a.X) / d) * s, a.Y + ((by2 - a.Y) / d) * s); ctx.stroke() }
+    if (hp) { stub(leaf, hp.X, hp.Y); hp.used++ } else { stub(p, q.X, q.Y); stub(q, p.X, p.Y) }
+    if (st.ar) { const d = len || 1, s = Math.min(len * 0.15, 28) + q.r; arrow(q.X + ((p.X - q.X) / d) * s, q.Y + ((p.Y - q.Y) / d) * s, q.X, q.Y, q.r + 2) }
+  })
+  // 묶인 토막들이 모이는 줄기 — 큰 점에서 모임 자리까지 한 줄
+  ctx.setLineDash([]); ctx.strokeStyle = '#9aa6b8'
+  Object.keys(hubPt).forEach((id) => { const hp = hubPt[id], h = by[id]; if (!hp.used) return; ctx.globalAlpha = (Hd && Hd !== id ? 0.08 : 0.5) * Math.max(0.4, fade); ctx.lineWidth = 1 + Math.log2(1 + hp.used) * 0.6; ctx.beginPath(); ctx.moveTo(h.X, h.Y); ctx.lineTo(hp.X, hp.Y); ctx.stroke() })
+  // 점 — 먼 것부터 · 고른 점과 이웃은 맨 나중(덩어리 뒤에 깔리지 않게)
+  const rank = (t) => (t.n.id === Hd ? 3 : hits.has(t.n.id) ? 2 : nb && nb.has(t.n.id) ? 1 : 0)
+  const order = [...pts].sort((a, b) => rank(a) - rank(b) || b.z - a.z)
+  order.forEach((t) => {
+    const n = t.n, id = n.id, focus = id === Hd, isN = !!nb && nb.has(id), hit = hits.has(id)
+    const dim = (!!Hd && !focus && !isN && !hit) || (!!nq && !hit && !focus)
+    const a0 = dim ? 0.13 : focus || isN || hit ? 1 : t.dep
+    ctx.setLineDash([])
+    if (n.pend) { ctx.globalAlpha = a0; ctx.strokeStyle = '#6247c4'; ctx.lineWidth = 1.6; ctx.setLineDash([2, 2]); ctx.beginPath(); ctx.arc(t.X, t.Y, t.r + 3.5, 0, 7); ctx.stroke(); ctx.setLineDash([]) }
+    ctx.globalAlpha = a0 * (n.kind === 'bundle' ? 0.55 : 1); ctx.fillStyle = KCOL[n.kind]
+    ctx.beginPath(); ctx.arc(t.X, t.Y, t.r, 0, 7); ctx.fill()
+    ctx.globalAlpha = a0
+    const sel = id === S.g.sel
+    ctx.strokeStyle = hit ? '#f0b400' : sel || focus ? '#11151c' : '#fff'; ctx.lineWidth = hit ? 3 : sel ? 2.5 : focus ? 2 : 1.5
+    ctx.beginPath(); ctx.arc(t.X, t.Y, t.r + ctx.lineWidth / 2 - 0.75, 0, 7); ctx.stroke()
+    if (isN) { ctx.globalAlpha = 0.45; ctx.strokeStyle = '#11151c'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(t.X, t.Y, t.r + 2.8, 0, 7); ctx.stroke() }
+  })
+  // 점 제목 — 늘 보기를 켜면 모두(자리가 없으면 건너뛴다) · 끄면 올린 점 · 고른 점과 그 이웃 · 찾기에 맞은 점만
+  const big = G.nodes.length > 90, ff = getComputedStyle(cv).fontFamily, placed = []
+  const clash = (b) => placed.some((o) => b.x < o.x2 && b.x2 > o.x && b.y < o.y2 && b.y2 > o.y)
+  let shown = 0
+  ctx.lineJoin = 'round'
+  ;[...pts].sort((a, b) => rank(b) - rank(a) || b.sc - a.sc).forEach((t) => {
+    const n = t.n, pri = rank(t) > 0
+    if (!pri && !(f.label && !(big && n.table))) return
+    if (!pri && ((!!Hd) || !!nq)) return
+    ctx.font = `${pri ? '700 ' : ''}11px ${ff}`
+    const w = ctx.measureText(n.label).width, h = 13
+    const cands = [[t.X + t.r + 4, t.Y + 4], [t.X - t.r - 4 - w, t.Y + 4], [t.X + t.r + 4, t.Y - 9], [t.X + t.r + 4, t.Y + 17]]
+    let at = null
+    for (const c of cands) { const b = { x: c[0] - 1, y: c[1] - h + 2, x2: c[0] + w + 1, y2: c[1] + 3 }; if (!clash(b)) { at = c; placed.push(b); break } }
+    if (!at) { if (!pri) return; at = cands[0] }
+    ctx.globalAlpha = pri ? 1 : Math.max(0.6, t.dep)
+    ctx.strokeStyle = GBG; ctx.lineWidth = 3; ctx.strokeText(n.label, at[0], at[1])
+    ctx.fillStyle = pri ? '#11151c' : n.kind === 'doc' ? '#5b6473' : '#3c4452'; ctx.fillText(n.label, at[0], at[1])
+    shown++
+  })
+  ctx.globalAlpha = 1
+  GCV = { pts, rc }
+  cv.dataset.n = pts.length; cv.dataset.shown = shown; cv.dataset.lines = drawn
   const c = $('[data-t=gHits]')
   if (c) c.textContent = nq ? '맞는 점 ' + hits.size : ''
 }
-function applyView() { const g = $('#gview'), v = S.g.view; if (g) g.setAttribute('transform', `translate(${v.x.toFixed(1)} ${v.y.toFixed(1)}) scale(${v.k.toFixed(3)})`) }
-function zoomAt(p, f) { const v = S.g.view, k2 = Math.max(0.25, Math.min(4, v.k * f)), r = k2 / v.k; v.x = p.x - (p.x - v.x) * r; v.y = p.y - (p.y - v.y) * r; v.k = k2; applyView() }
-function relax(pin) { let i = 0; const step = () => { if (!CURG || !$('#gsvg')) return; simTick(CURG, 0.25 * (1 - i / 30), pin); paintGraph(); if (++i < 30) requestAnimationFrame(step) }; requestAnimationFrame(step) }
+// 천천히 돈다 — 끌거나 점에 올려 둔 동안은 멈춘다(누르려는 점이 달아나지 않게)
+const gCalm = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+function gLoop() { GRAF = 0; if (!$('#gcv') || !S.g.f.spin || GD || GH != null || gCalm()) return; S.g.cam.ry += 0.0016; gPaint(); GRAF = requestAnimationFrame(gLoop) }
+function gStart() { gPaint(); if (!GRAF && S.g.f.spin && !gCalm()) GRAF = requestAnimationFrame(gLoop) }
+function gHit(x, y) {
+  if (!GCV) return null
+  const lx = x - GCV.rc.left, ly = y - GCV.rc.top
+  let best = null, bd = 1e9
+  GCV.pts.forEach((t) => { const d = Math.hypot(t.X - lx, t.Y - ly); if (d <= t.r + 4 && d < bd) { bd = d; best = t.n.id } })
+  return best
+}
+// 시험이 점 자리를 묻는다(canvas 라 DOM 에 점이 없다)
+window.kmdGraphPt = (id) => { const t = GCV && GCV.pts.find((t) => t.n.id === id); return t ? { x: GCV.rc.left + t.X, y: GCV.rc.top + t.Y } : null }
+function zoomAt(lx, ly, k) { const C = S.g.cam, cv = $('#gcv'); if (!cv) return; const r = cv.getBoundingClientRect(), z2 = Math.max(0.2, Math.min(8, C.zoom * k)), q = z2 / C.zoom, ox = lx - r.width / 2, oy = ly - r.height / 2; C.px = ox - (ox - C.px) * q; C.py = oy - (oy - C.py) * q; C.zoom = z2; gPaint() }
 function gClick(id) {
   if (id === 'b:table') { S.g.bundle = true; toast('테이블 ' + itemsOf(S.route.kn).filter((i) => i.table).length + ' 을 폈다. 접으려면 왼쪽 「접기」'); render(); return }
   S.g.sel = id
@@ -1167,13 +1301,17 @@ function gClick(id) {
 function viewGraph() {
   const k = pickKn()
   if (!k) return { crumb: '그래프', main: viewHome().main }
-  if (S.g.kn !== k) { S.g.kn = k; S.g.pos = {}; S.g.sel = null; S.g.layoutKey = ''; S.g.bundle = false }
+  if (S.g.kn !== k) { S.g.kn = k; S.g.pos = {}; S.g.sel = null; S.g.layoutKey = ''; S.g.bundle = false; S.g.cam = { rx: -0.35, ry: 0.6, zoom: 1, base: 1, px: 0, py: 0, needFit: true } }
   if (!M(k)) return { crumb: '그래프', main: loadingHtml, tabs: true, left: `<div class="gf">${loadingHtml}</div>` }
   const G = graphData(k)
   layoutGraph(G)
+  G.deg = {}; G.nbr = {}
+  G.nodes.forEach((n) => { G.deg[n.id] = 0; G.nbr[n.id] = new Set() })
+  G.edges.forEach((e) => { G.deg[e.a]++; G.deg[e.b]++; G.nbr[e.a].add(e.b); G.nbr[e.b].add(e.a) })
+  G.R3 = Math.max(100, ...G.nodes.map((n) => { const p = S.g.pos[n.id]; return Math.hypot(p.x, p.y, p.z) }))
   CURG = G
   const f = S.g.f
-  const main = `<div class="gwrap" data-t="graph">${graphSvg(G)}<div class="gtl small"><span data-t="gCount">점 ${G.nodes.length} · 선 ${G.edges.length}${f.depth && S.g.sel ? ' · 깊이 ' + f.depth : ''}</span> <b data-t="gHits" style="color:#9a6a00"></b></div><div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit">처음 크기</button></div><div class="ghint small">휠: 크게 · 작게 · 빈 곳을 끌면 옮긴다 · 점을 끌어 옮긴다</div></div>`
+  const main = `<div class="gwrap" data-t="graph"><canvas id="gcv" data-t="gcanvas"></canvas><div class="gtl small"><span data-t="gCount">점 ${G.nodes.length} · 선 ${G.edges.length}${f.depth && S.g.sel ? ' · 깊이 ' + f.depth : ''}</span> <b data-t="gHits" style="color:#9a6a00"></b></div><div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit" title="전체가 들어오게 · 처음 각도로">처음 크기</button></div><div class="ghint small">끌기: 돌리기 · Shift · 오른쪽 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 고른다</div></div>`
   return { crumb: '그래프' + (S.g.sel ? ' › ' + ((G.nodes.find((n) => n.id === S.g.sel) || {}).label || '') : ''), main, aside: graphAside(k, G), tabs: true, left: graphFilter(k), full: true }
 }
 function graphFilter(k) {
@@ -1184,7 +1322,7 @@ function graphFilter(k) {
   <input class="inp" id="gQ" data-in="gQ" data-t="gQ" value="${esc(f.q)}" placeholder="찾기: 맞는 점을 밝힌다" autocomplete="off">
   <div class="gh">종류</div>${kd('item', '항목')}${kd('doc', '문서')}${kd('rec', '기록')}${kd('src', '가져오는 곳')}
   <div class="gh">거름</div>${sw('pend', '아직 안 넣은 것만')}${sw('recent', '기간: 최근 30일 기록', f.rec ? '' : '기록을 켜면 쓴다')}${sw('orph', '외톨이 숨기기')}
-  <div class="gh">보기</div>${sw('label', '점 제목 늘 보기', '끄면 점에 올리거나 고를 때만')}
+  <div class="gh">보기</div>${sw('line', '선 보기', '끄면 고른 점 · 올린 점의 선만')}${sw('label', '점 제목 늘 보기', '끄면 점에 올리거나 고를 때만')}${sw('spin', '천천히 돌기', '끌거나 점에 올리면 멈춘다')}
   <div class="gh">깊이 <small>고른 점 중심</small></div><div class="seg" data-t="gDepth">${[0, 1, 2, 3].map((d) => `<button class="${f.depth === d ? 'on' : ''}" data-a="gDepth" data-v="${d}" data-t="gd-${d}"${d && !S.g.sel ? ' disabled' : ''}>${d || '전체'}</button>`).join('')}</div>${S.g.sel ? '' : '<div class="small muted" style="margin:4px">점을 고르면 깊이를 쓴다</div>'}
   ${tables ? `<div class="gh">큰 종류</div><div class="gr"><span class="tx">테이블 ${tables}<small>${S.g.bundle ? '펴 두었다. 점 ' + tables : '묶음 점 하나로 접어 두었다. 누르면 편다'}</small></span>${S.g.bundle ? '<a class="lk" data-a="gBundle" data-t="gFold">접기</a>' : '<a class="lk" data-a="gBundle" data-t="gUnfold">펴기</a>'}</div>` : ''}</div>`
 }
@@ -1200,7 +1338,7 @@ function graphAside(k, G) {
   const card = !info
     ? '<div class="gcard muted small" data-t="gCard">점을 누르면 여기에: 이름 · 첫 줄 · 기록 수.<br>[문서로 보기] · [항목으로 보기] 로 연다.</div>'
     : `<div class="gcard" data-t="gCard" data-name="${esc(info.name)}"><div class="row"><i class="kd" style="background:${KCOL[n.kind]}"></i><span class="small muted">${KLAB[n.kind]}${info.kind ? ' · ' + esc(info.kind) : ''}</span><a class="r small" data-a="gUnsel" title="고르기 풀기">×</a></div><div class="gn">${esc(info.name)}</div><div class="small">${esc(info.first)}</div><div class="small muted" data-t="gCardRecs" style="margin:4px 0 10px">기록 ${info.recs}${info.pend ? ' · 아직 안 넣은 기록 ' + info.pend : ''}</div><div class="row" style="flex-wrap:wrap"><button class="btn pri sm" data-a="gOpen" data-v="docs" data-t="gOpenDocs"${info.doc ? '' : ' disabled'}>문서로 보기</button><button class="btn sm" data-a="gOpen" data-v="items" data-t="gOpenItems"${info.item ? '' : ' disabled'}>항목으로 보기</button></div></div>`
-  const legend = `<div class="ap" data-t="gLegend"><h4>점: 색</h4>${['item', 'doc', 'rec', 'src'].map((v) => `<div class="lgr"><i class="kd" style="background:${KCOL[v]}"></i>${KLAB[v]}</div>`).join('')}<div class="lgr"><i class="kd ringk"></i>아직 안 넣은 기록이 있다</div><h4 style="margin-top:10px">선</h4>${ELAB.map(([t, l, s]) => `<div class="lgr" data-t="lg-${t}"><svg class="lgl" viewBox="0 0 34 8"><line class="e-${t}" x1="1" y1="4" x2="33" y2="4"/></svg><span>${l}<small>${s}</small></span></div>`).join('')}</div>`
+  const legend = `<div class="ap" data-t="gLegend"><h4>점: 색</h4>${['item', 'doc', 'rec', 'src'].map((v) => `<div class="lgr"><i class="kd" style="background:${KCOL[v]}"></i>${KLAB[v]}</div>`).join('')}<div class="lgr"><i class="kd ringk"></i>아직 안 넣은 기록이 있다</div><h4 style="margin-top:10px">선</h4>${ELAB.map(([t, l, s]) => `<div class="lgr" data-t="lg-${t}"><svg class="lgl" viewBox="0 0 34 8"><line x1="1" y1="4" x2="33" y2="4" stroke="${ECOL[t].c}" stroke-width="${ECOL[t].w || 1.2}"${ECOL[t].d ? ` stroke-dasharray="${ECOL[t].d.join(' ')}"` : ''}/></svg><span>${l}<small>${s}</small></span></div>`).join('')}</div>`
   return `<h4>고른 점</h4>${card}${legend}`
 }
 // 옆 칸 「그래프」 — 이웃 한 겹(접힘) — 한 겹 · 누르면 그래프로
@@ -1245,20 +1383,32 @@ function showPv(el) {
 document.addEventListener('mouseover', (ev) => { const el = ev.target.closest && ev.target.closest('[data-pv]'); if (!el) return; if (ev.relatedTarget && el.contains(ev.relatedTarget)) return; clearTimeout(pvT); pvT = setTimeout(() => showPv(el), 250) })
 document.addEventListener('mouseout', (ev) => { const el = ev.target.closest && ev.target.closest('[data-pv]'); if (!el) return; if (ev.relatedTarget && el.contains(ev.relatedTarget)) return; hidePv() })
 
-// 그래프 — 점 끌기 · 빈 곳 끌어 옮기기 · 휠 확대
+// 그래프 — 왼쪽 끌기: 돌리기 · Shift · 가운데 · 오른쪽 끌기: 옮기기 · 휠: 크게 · 작게(마우스 자리 중심) · 누르면 고른다
 let GD = null
-function svgPt(sv, ev, inner) { const pt = sv.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY; return pt.matrixTransform((inner || sv).getScreenCTM().inverse()) }
-document.addEventListener('pointerdown', (ev) => { const sv = ev.target.closest && ev.target.closest('#gsvg'); if (!sv || ev.button !== 0) return; const nd = ev.target.closest('[data-node]'); GD = { sv, node: nd ? nd.dataset.node : null, sx: ev.clientX, sy: ev.clientY, moved: false, vx: S.g.view.x, vy: S.g.view.y }; if (!nd) sv.style.cursor = 'grabbing'; ev.preventDefault() })
+document.addEventListener('pointerdown', (ev) => {
+  const cv = ev.target.closest && ev.target.closest('#gcv')
+  if (!cv) return
+  const pan = ev.shiftKey || ev.button === 1 || ev.button === 2, C = S.g.cam
+  GD = { cv, pan, node: pan ? null : gHit(ev.clientX, ev.clientY), sx: ev.clientX, sy: ev.clientY, moved: false, rx: C.rx, ry: C.ry, px: C.px, py: C.py }
+  ev.preventDefault()
+})
 document.addEventListener('pointermove', (ev) => {
-  if (!GD) return
-  const dx = ev.clientX - GD.sx, dy = ev.clientY - GD.sy
+  if (!GD) {
+    const cv = ev.target.closest && ev.target.closest('#gcv'), id = cv ? gHit(ev.clientX, ev.clientY) : null
+    if (id !== GH) { GH = id; if (cv) cv.style.cursor = id ? 'pointer' : ''; gStart() }
+    return
+  }
+  const dx = ev.clientX - GD.sx, dy = ev.clientY - GD.sy, C = S.g.cam
   if (!GD.moved && Math.hypot(dx, dy) < 4) return
   GD.moved = true
-  if (GD.node) { const p = svgPt(GD.sv, ev, $('#gview')), q = S.g.pos[GD.node]; if (q) { q.x = p.x; q.y = p.y; q.vx = 0; q.vy = 0; paintGraph() } }
-  else { const a = svgPt(GD.sv, { clientX: GD.sx, clientY: GD.sy }), b = svgPt(GD.sv, ev); S.g.view.x = GD.vx + (b.x - a.x); S.g.view.y = GD.vy + (b.y - a.y); applyView() }
+  GD.cv.style.cursor = 'grabbing'
+  if (GD.pan) { C.px = GD.px + dx; C.py = GD.py + dy } else { C.ry = GD.ry + dx * 0.006; C.rx = Math.max(-1.5, Math.min(1.5, GD.rx + dy * 0.006)) }
+  gPaint()
 })
-document.addEventListener('pointerup', () => { if (!GD) return; const g = GD; GD = null; g.sv.style.cursor = ''; if (g.moved) { if (g.node) relax(g.node); return } if (g.node) gClick(g.node) })
-document.addEventListener('wheel', (ev) => { const sv = ev.target.closest && ev.target.closest('#gsvg'); if (!sv) return; ev.preventDefault(); zoomAt(svgPt(sv, ev), Math.exp(-ev.deltaY * 0.0015)) }, { passive: false })
+document.addEventListener('pointerup', () => { if (!GD) return; const g = GD; GD = null; g.cv.style.cursor = ''; if (!g.moved && g.node) { gClick(g.node); return } gStart() })
+document.addEventListener('contextmenu', (ev) => { if (ev.target.closest && ev.target.closest('#gcv')) ev.preventDefault() })
+document.addEventListener('wheel', (ev) => { const cv = ev.target.closest && ev.target.closest('#gcv'); if (!cv) return; ev.preventDefault(); const r = cv.getBoundingClientRect(); zoomAt(ev.clientX - r.left, ev.clientY - r.top, Math.exp(-ev.deltaY * 0.0015)) }, { passive: false })
+window.addEventListener('resize', () => { if ($('#gcv')) gPaint() })
 
 // ───────────── 고치기 저장 — 글을 항목으로 다시 갈라 바뀐 항목만 보낸다 ─────────────
 function forgetKn(k) { for (const key of Object.keys(S.cache)) if (key.startsWith(`tree:${k}`) || key.startsWith(`doc:${k}:`) || key.startsWith(`rec:${k}:`) || key.startsWith(`model:${k}`) || key.startsWith(`item:${k}:`)) delete S.cache[key] }
@@ -3829,8 +3979,8 @@ const ACT = {
   openGraph: (el) => { S.g.sel = el.dataset.n; S.g.f.depth = 1; setView('graph') },
   gSet: (el) => { const v = el.dataset.v; S.g.f[v] = !S.g.f[v]; render() },
   gDepth: (el) => { S.g.f.depth = Number(el.dataset.v); render() },
-  gZoom: (el) => { zoomAt({ x: 0, y: 0 }, Number(el.dataset.v)) },
-  gFit: () => { fitView(CURG); applyView() },
+  gZoom: (el) => { const cv = $('#gcv'); if (cv) zoomAt(cv.clientWidth / 2, cv.clientHeight / 2, Number(el.dataset.v)) },
+  gFit: () => { Object.assign(S.g.cam, { rx: -0.35, ry: 0.6, needFit: true }); gPaint() },
   gBundle: () => { S.g.bundle = !S.g.bundle; render() },
   gUnsel: () => { S.g.sel = null; S.g.f.depth = 0; render() },
   gOpen: (el) => {
@@ -3914,7 +4064,7 @@ document.addEventListener('input', (ev) => {
   if (k === 'qo') { S.qo.q = t.value; S.qo.sel = 0; $('#qoBody').innerHTML = qoBody() }
   if (k === 'cmd') { S.cmd.q = t.value; S.cmd.sel = 0; $('#cmdBody').innerHTML = cmdBody() }
   if (k === 'itemQ') { S.iq = t.value; $('#itemListBody').innerHTML = itemListBody(S.route.kn) }
-  if (k === 'gQ') { S.g.f.q = t.value; gHighlight() }
+  if (k === 'gQ') { S.g.f.q = t.value; gPaint() }
   if (k === 'del' && S.del) { S.del.typed = t.value; const n = KN(S.del.kn); $('#delBtnBox').innerHTML = delBtn(!!n && t.value.trim() === n.name) }
   if (k === 'ag') { S.agDraft = t.value; $('#agBtnBox').innerHTML = agBtn() }
   if (k === 'admCode') { S.admCode = t.value; $('#admDoneBox').innerHTML = admDoneBtn() }

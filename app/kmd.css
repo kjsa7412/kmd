@@ -502,31 +502,7 @@ svg.mini text.c{fill:var(--text);font-weight:700;font-size:10px}
 .rl li .tx small{display:block;color:var(--text-3);font-size:11.5px}
 .main.full{padding:12px}
 .gwrap{position:relative;border:1px solid var(--border);border-radius:12px;background:#fbfcfe;overflow:hidden;height:calc(100vh - 230px);min-height:440px;touch-action:none}
-#gsvg{width:100%;height:100%;display:block;cursor:grab;user-select:none;stroke:none;fill:none}
-#gsvg .n{cursor:pointer}
-#gsvg .n .dot{stroke:#fff;stroke-width:1.5}
-#gsvg .n .ring{fill:none;stroke:var(--pending);stroke-width:1.6;stroke-dasharray:2 2}
-#gsvg .n text{font-size:11px;fill:#3c4452;pointer-events:none;paint-order:stroke;stroke:#fbfcfe;stroke-width:3px}
-#gsvg .n.k-doc text{fill:#5b6473}
-#gsvg .n.k-bundle text{font-weight:700;font-size:11px}
-#gsvg .n.nl text{display:none}
-/* 점 제목 — 기본은 올린 점 · 고른 점과 그 이웃 · 찾기에 맞은 점만(그래프 › 보기 › 점 제목 늘 보기) */
-#gsvg.lb-hover .n text{display:none}
-#gsvg.lb-hover .n:hover text,#gsvg.lb-hover .n.sel text,#gsvg.lb-hover .n.nb text,#gsvg.lb-hover .n.hit text{display:inline}
-#gsvg .n:hover text{font-weight:700;fill:#11151c}
-#gsvg .n.dim{opacity:.15}
-#gsvg .n.hit .dot{stroke:#f0b400;stroke-width:3}
-#gsvg .n.sel .dot{stroke:#11151c;stroke-width:2.5}
-#gsvg .n.sel text{font-weight:700;fill:#11151c}
-#gsvg line,svg.lgl line{stroke-width:1.2}
-.e-in{stroke:#b9c2d0}
-.e-touch{stroke:#a99be6;stroke-dasharray:3 3}
-#gsvg line.e-fix,svg.lgl line.e-fix{stroke:#cb3a2c;stroke-width:1.7}
-.e-point{stroke:#7d95f0;stroke-dasharray:6 3}
-.e-fill{stroke:#2f8f5b}
-.e-cite{stroke:#c9a14a;stroke-dasharray:1 3}
-#gsvg line.dim{opacity:.08}
-.mk-fix{fill:#cb3a2c}.mk-point{fill:#7d95f0}
+#gcv{width:100%;height:100%;display:block;cursor:grab;user-select:none;font-family:inherit}
 .gz{position:absolute;right:10px;bottom:10px;display:flex;gap:4px}
 .gtl{position:absolute;left:12px;top:10px;color:var(--text-3)}
 .ghint{position:absolute;left:12px;bottom:12px;color:var(--text-3);right:190px}
