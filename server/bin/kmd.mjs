@@ -590,7 +590,7 @@ async function workerCmd(o) {
     const url = new URL(sub || '').origin
     const key = o.key || process.env.KMD_WORKER_KEY || (await kget('worker:' + url))
     if (!key) throw new Error('정리 일꾼 열쇠가 없다. kmd worker key set <팀 주소>')
-    // 팀 서버의 정리 일꾼 — 관리 › Claude 연결에서 받은 정리 전용 로그인(비밀 claude-token)을 이 프로세스에만
+    // 팀 서버의 정리 일꾼 — 설정 · 팀 › Claude 연결에서 받은 정리 전용 로그인(비밀 claude-token)을 이 프로세스에만
     //   일감마다 다시 읽는다 — 관리자가 일꾼이 도는 사이에 로그인하거나 걷어도 다시 켜지 않고 따른다
     const token = async () => {
       if (!o.data) return

@@ -1347,7 +1347,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const k = await hub.get(id, ctx)
       const spots = material(k).map((g) => ({ key: spotKey(g), kind: g.kind, target: spotTarget(g), records: (g.kind === 'section' ? g.records : [g.record]).map((r) => r.id) }))
       const tries = {}
-      for (const run of await hub.runs(id)) for (const r of run.rows) if (r.kind === 'left') for (const x of r.records || []) tries[x] = (tries[x] || 0) + 1
+      // 정리 한 번에 한 번만 센다 — 한 기록이 자리 여럿에 걸리면 한 정리에 줄이 여럿이다
+      for (const run of await hub.runs(id)) for (const x of new Set(run.rows.filter((r) => r.kind === 'left').flatMap((r) => r.records || []))) tries[x] = (tries[x] || 0) + 1
       return { spots, tries }
     },
     // 넣을 자리 정하기 — 자리를 못 찾은 기록 · 잘못 찾은 기록에 사람이 항목을 고른다(쓴 사람 · 관리자)
@@ -1503,7 +1504,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         j.state = j.stop ? 'cancelled' : allStop ? 'failed' : 'done'
         j.done = run.at
         if (j.stop) j.why = `그만뒀다: ${j.stop.by} · 쓴 자리는 넣고 남은 자리 ${rows.length - done.length} 는 받은 것에 그대로`
-        else if (allStop) j.why = STOP_WHY[stop[0].error] + (stop[0].error === 'limit' ? '. 풀리면 이어서 한다' : '. 관리 › Claude 연결')
+        else if (allStop) j.why = STOP_WHY[stop[0].error] + (stop[0].error === 'limit' ? '. 풀리면 이어서 한다' : '. 설정 · 팀 › Claude 연결')
         j.summary = { put: done.filter((x) => x.kind === 'put' || x.kind === 'touches').length, changed: done.filter((x) => x.kind === 'changed').length, left: done.filter((x) => x.kind === 'left').length, ...(j.stop ? { stopped: rows.length - done.length } : {}) }
         saveJobs()
       }
@@ -2808,7 +2809,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const curates = !!ctx.admin
       if (ws && ws.ok === false && !id) {
         const d = (Date.now() - Date.parse(ws.since)) / 864e5
-        out.push(stopLine({ kind: 'worker', level: 'warn', what: '자동 정리가 쉬고 있다', amount: d < 1 ? '오늘부터' : `${Math.round(d)}일`, fix: mode === 'pc' ? '설정 › Claude 연결에서 다시 로그인하면 이어서 한다 · 그동안은 규칙으로 넣는다' : ctx.admin ? '관리 › Claude 연결에서 다시 로그인하면 이어서 한다 · 그동안은 규칙으로 넣는다' : '그동안은 규칙으로 넣는다', told: ctx.admin ? null : curates ? '관리자에게 알렸다' : null }))
+        out.push(stopLine({ kind: 'worker', level: 'warn', what: '자동 정리가 쉬고 있다', amount: d < 1 ? '오늘부터' : `${Math.round(d)}일`, fix: mode === 'pc' ? '설정 › Claude 연결에서 다시 로그인하면 이어서 한다 · 그동안은 규칙으로 넣는다' : ctx.admin ? '설정 · 팀 › Claude 연결에서 다시 로그인하면 이어서 한다 · 그동안은 규칙으로 넣는다' : '그동안은 규칙으로 넣는다', told: ctx.admin ? null : curates ? '관리자에게 알렸다' : null }))
       }
       // 정리 일꾼이 일감을 받지 않는다 — 기다리는 팀 정리가 10분 넘었고 일꾼을 10분 넘게 못 봤다(설치 뒤 일꾼을 띄우지 않았다 · 일꾼이 멈췄다)
       if (mode === 'team' && curates && !id && !(ws && ws.ok === false)) {
