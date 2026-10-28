@@ -50,8 +50,14 @@ const HELP = `kmd ${VERSION}
       사람 목록 · 더하기 · 비밀번호 다시 정하기: 처음 들어오기 링크(24시간 · 한 번)를 찍는다
       off: 떠남: 들어가기 · 기기 · PC 일꾼을 끊고 아이디를 남긴다(되쓰지 않는다) · 그 사람이 주인인 지식은 --to 에게,
             없으면 주인 칸을 비운다(개인 지식은 관리자만 본다)
+  kmd user key <아이디>                         그 사람의 기기 열쇠(kmdk_)를 하나 만들어 한 번만 찍는다(기기 이름 「셸」):
+      서버 운영자의 자동화 · 시험용. 그 사람의 자리 그대로 API · MCP 를 쓴다 · 끊기는 화면 › 사람 › 기기 모두 끊기
   kmd owner <지식> [사람] [--curators 가,나]
-      지식의 주인 · 개인(주인만 본다) · 정리하는 사람
+      지식의 주인 · 정리하는 사람(둘 다 그 지식의 관리 자리)
+  kmd access <지식> [--all 읽기|쓰기|관리|없음] [--user 아이디=자리 …] [--group 묶음=자리 …]
+      지식마다 자리(읽기 · 쓰기 · 관리): 인자 없으면 지금 표를 보인다 · 자리 「없음」 이면 그 줄을 뺀다 · 여럿은 쉼표로도
+  kmd group [add <묶음> <아이디,…> | rm <묶음> | <묶음> +아이디 -아이디]
+      묶음: 사람 여럿에 한 번에 자리를 준다(kmd access --group) · 인자 없으면 목록
   kmd worker add                               정리 일꾼 열쇠를 만든다(한 번만 보인다)
   kmd worker key set <팀 주소>                 정리 일꾼 열쇠를 이 OS 사용자의 자격 저장소에(숨김 입력)
   kmd worker <팀 주소>                         정리 일꾼: 늘 돈다(이 OS 사용자의 Claude Code 로그인으로)
@@ -295,6 +301,8 @@ async function main() {
   if (cmd === '--version' || cmd === '-v') return void console.log(VERSION)
   if (cmd === 'backup') return backupCmd(parse(rest))
   if (cmd === 'owner') return ownerCmd(parse(rest))
+  if (cmd === 'access') return accessCmd(rest)
+  if (cmd === 'group') return groupCmd(parse(rest))
   if (cmd === 'user') return userCmd(parse(rest))
   if (cmd === 'machine') return machineCmd(parse(rest))
   if (cmd === 'secret') return secretCmd(parse(rest))
@@ -457,6 +465,93 @@ async function ownerCmd(o) {
 
 const rootOf = (o) => path.resolve(o.root || (fs.existsSync(defaultPcRoot()) ? defaultPcRoot() : '.'))
 const dataOf = (o) => (o.data ? path.resolve(o.data) : defaultDataDir(rootOf(o)))
+const LV = { none: '없음', read: '읽기', write: '쓰기', admin: '관리' }
+// 셸의 hub — 사람 명부(auth.json)로 아이디를 가린다(도는 서버와 같은 장부 · 잠금)
+async function shellHub(o) {
+  const hub = await makeHub({ root: rootOf(o), dataDir: dataOf(o), log: () => {} })
+  const auth = await makeAuth({ dataDir: dataOf(o) })
+  hub.people = () => auth.people()
+  hub.admins = () => auth.users().filter((u) => u.admin && !u.off && u.kind === 'person').map((u) => u.id)
+  return hub
+}
+
+// 지식마다 자리 — 셸(서버를 띄운 사람)이 바로 정한다. --user · --group 은 여러 번 · 쉼표로도
+async function accessCmd(argv) {
+  const o = parse(argv)
+  const many = (flag) => {
+    const out = []
+    for (let i = 0; i < argv.length; i++) {
+      const a = argv[i]
+      if (a === `--${flag}` && argv[i + 1] != null && !argv[i + 1].startsWith('--')) out.push(argv[++i])
+      else if (a.startsWith(`--${flag}=`)) out.push(a.slice(flag.length + 3))
+    }
+    return out.flatMap((x) => String(x).split(',')).map((x) => x.trim()).filter(Boolean).map((x) => {
+      const j = x.lastIndexOf('=')
+      if (j <= 0) throw new Error(`--${flag} 은 이름=자리 꼴이다: ${x}`)
+      return [x.slice(0, j).trim(), x.slice(j + 1).trim()]
+    })
+  }
+  const [id] = o._
+  try {
+    if (!id) throw new Error('kmd access <지식> [--all 읽기|쓰기|관리|없음] [--user 아이디=자리 …] [--group 묶음=자리 …]')
+    const hub = await shellHub(o)
+    const cur = await hub.accessView(SHELL, id)
+    const us = many('user')
+    const gs = many('group')
+    if (o.all !== undefined || us.length || gs.length) {
+      const users = { ...cur.users }
+      for (const [u, l] of us) users[u.toLowerCase()] = l
+      const groups = { ...cur.groups }
+      for (const [g, l] of gs) groups[g] = l
+      await hub.setAccess(SHELL, id, { ...(o.all !== undefined ? { all: String(o.all) } : {}), ...(us.length ? { users } : {}), ...(gs.length ? { groups } : {}) })
+    }
+    const v = await hub.accessView(SHELL, id)
+    console.log(`${id}: 모두 ${LV[v.all]}${v.legacy ? ' (옛 장부: 아직 자리 표가 없다)' : ''} · 주인 ${v.owner || '없음'}(관리)`)
+    for (const l of ['admin', 'write', 'read']) {
+      const who = Object.keys(v.users).filter((u) => v.users[u] === l)
+      if (who.length) console.log(`  ${LV[l]}: ${who.sort().join(', ')}`)
+    }
+    const gl = Object.entries(v.groups)
+    if (gl.length) console.log(`  묶음: ${gl.map(([g, l]) => `${g}=${LV[l]}`).join(', ')}`)
+    console.log('전역 관리자는 모든 지식에서 관리다. 도는 서버에도 곧 보인다')
+  } catch (e) {
+    console.error(e.message)
+    process.exitCode = 1
+  }
+}
+
+// 묶음 — 목록 · 더하기(사람을 통째로) · 지우기 · 사람 넣기(+) · 빼기(-)
+async function groupCmd(o) {
+  const [sub, name, members] = o._
+  try {
+    const hub = await shellHub(o)
+    if (sub === 'add') {
+      if (!name) throw new Error('kmd group add <묶음> <아이디,…>')
+      const g = await hub.setGroup(SHELL, { name, members: String(members || '').split(',') })
+      console.log(`묶음 ${g.name}: ${g.members.join(', ') || '사람 없음'}`)
+    } else if (sub === 'rm') {
+      if (!name) throw new Error('kmd group rm <묶음>')
+      const r = await hub.dropGroup(SHELL, name)
+      console.log(`지웠다: ${r.name}${r.kns.length ? ` · 그 묶음의 자리 줄을 뺀 지식 ${r.kns.join(', ')}` : ''}`)
+    } else if (sub) {
+      const g = hub.groups().find((x) => x.name === sub)
+      if (!g) throw new Error(`그런 묶음은 없다: ${sub} · kmd group add <묶음> <아이디,…>`)
+      const ops = o._.slice(1)
+      if (!ops.length || ops.some((x) => !/^[+-]./.test(x))) throw new Error('kmd group <묶음> +아이디 -아이디')
+      const next = new Set(g.members)
+      for (const x of ops) x[0] === '+' ? next.add(x.slice(1).toLowerCase()) : next.delete(x.slice(1).toLowerCase())
+      const r = await hub.setGroup(SHELL, { name: sub, members: [...next] })
+      console.log(`묶음 ${r.name}: ${r.members.join(', ') || '사람 없음'}`)
+    } else {
+      const all = hub.groups()
+      if (!all.length) console.log('묶음이 없다. kmd group add <묶음> <아이디,…>')
+      for (const g of all) console.log(`${g.name}: ${g.members.join(', ') || '사람 없음'}${g.kns.length ? ` · 자리 있는 지식 ${g.kns.join(', ')}` : ''}`)
+    }
+  } catch (e) {
+    console.error(e.message)
+    process.exitCode = 1
+  }
+}
 
 // 사람 — 더하기 · 다시 정하기(마지막 관리자가 잊었을 때도) · 목록. 링크를 그 사람에게 건넨다
 async function userCmd(o) {
@@ -470,6 +565,16 @@ async function userCmd(o) {
     } else if (sub === 'reset') {
       const r = await auth.reset(id, { by: '셸' })
       console.log(`다시 정하게 했다: ${r.id} · 새 링크(24시간 · 한 번): ${base}/first#code=${r.code} · 기기 열쇠는 그대로 · PC 일꾼 열쇠는 걷었다`)
+    } else if (sub === 'key') {
+      // 그 사람의 기기 열쇠 하나 — 서버 운영자의 자동화 · 시험용(기기 이름 「셸」) · 열쇠는 이때 한 번만 보인다
+      if (!id) throw new Error('kmd user key <아이디>')
+      const u = auth.users().find((x) => x.id === String(id).toLowerCase())
+      if (!u || u.kind !== 'person') throw new Error(`그런 사람은 없다: ${id}`)
+      if (u.off) throw new Error(`${id}: 떠난 사람이다`)
+      const key = await auth.deviceKeyFor(u.id, { host: '셸' })
+      console.log(`기기 열쇠: ${u.id} · 기기 이름 「셸」 · 90일 안 쓰면 끊긴다
+${key}
+(지금 한 번만 보인다. Authorization: Bearer 로 그 사람의 자리 그대로 API · MCP 를 쓴다 · 끊기는 화면 › 사람 › 기기 모두 끊기)`)
     } else if (sub === 'off') {
       if (!id) throw new Error('kmd user off <아이디> [--to 받을 사람]')
       if (o.to && !auth.people().includes(String(o.to))) throw new Error(`그런 사람은 없다: ${o.to}`)

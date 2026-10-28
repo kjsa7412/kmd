@@ -88,7 +88,10 @@ test('주인은 정리 설정 · 정리하는 사람만: 주인은 관리자 · 
   const r = await s.hub.setOwner(PARK, 'dpms', { private: true, tidyMode: 'time' })
   assert.equal('private' in r, false, '「개인」 은 걷고 나머지만 받는다')
   assert.ok((await ids(LEE)).includes('dpms'), '팀 지식은 감춰지지 않는다')
-  assert.equal(await code(s.hub.setOwner(LEE, 'dpms', { tidyMode: 'live' })), 'E_FORBIDDEN', '정리하는 사람은 아니다')
+  // 권한 모델 4절 — 정리하는 사람은 그 지식의 관리 자리(정리 설정을 바꾼다) · 주인은 여전히 관리자만 넘긴다
+  assert.equal((await s.hub.setOwner(LEE, 'dpms', { tidyMode: 'live' })).tidyMode, 'live', '정리하는 사람 = 관리 자리')
+  assert.equal(await code(s.hub.setOwner(LEE, 'dpms', { owner: 'lee' })), 'E_FORBIDDEN', '주인 넘기기는 관리자')
+  await s.hub.setOwner(PARK, 'dpms', { tidyMode: 'time' })
   assert.match(fs.readFileSync(path.join(root, 'dpms', '_members.md'), 'utf8'), /- 주인: park\n- 정리: park, lee\n- 정리 방식: 정해진 시각/)
 })
 

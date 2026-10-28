@@ -130,6 +130,7 @@ export function makeMcp(store) {
         recent: k.works.slice(0, 10).map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title })),
         notYetInDocs: k.works.filter((w) => w.state === 'pend').map((w) => ({ id: w.id, date: w.date, title: w.title })),
         // 이 지식에서의 내 자리 — direct 면 sections · names 가 곧바로 문서 · 이름 장부에, 아니면 기록에 실려 정리 때 들어간다
+        // 팀은 읽기 · 쓰기 · 관리(docs/kmd_권한_모델.md) — 관리 자리만 direct
         you: { role: store.mode === 'pc' ? '주인' : store.roleIn(k.id, ctx), direct: store.mode === 'pc' || store.canDirect(ctx, k.id) },
         tidy: store.mode === 'pc' ? 'kmd 가 곧바로 문서에 넣는다' : ({ live: '실시간: 기록이 남고 5분 조용하면', manual: '손으로만: 관리자가 [지금 정리]' }[store.tidyModeOf(k.id)] || `정해진 시각 ${store.tidyAtOf(k.id)}`),
         ...(store.owner(k.id)?.noClaude ? { noClaude: '이 지식은 자동 정리에 Claude 를 쓰지 않는다(주인이 정했다). 이 대화로 옮기는 글은 꼭 필요한 것만' } : {}),

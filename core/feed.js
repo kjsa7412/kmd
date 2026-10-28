@@ -38,13 +38,15 @@ export function add(dataDir, user, entry) {
 }
 export const list = (dataDir, user) => load(dataDir, user)
 
-// 아직 대화에 안 실린 노란 줄 — 실으면 표시
-export function takeNotices(dataDir, user) {
+// 아직 대화에 안 실린 노란 줄 — 실으면 표시 · keep 이 거른 줄(읽을 수 없는 지식)은 싣지 않고 표시만 한다
+export function takeNotices(dataDir, user, keep = () => true) {
   return serial(fileOf(dataDir, user), async () => {
     const all = await load(dataDir, user)
-    const out = all.filter((x) => (x.yl || x.brief) && !x.briefed)
-    if (out.length) {
-      for (const x of out) x.briefed = true
+    // keep 이 거른 줄(자리가 없는 지식의 것)도 「알림」 은 끝낸다 — 나중에 자리를 다시 받아도 그동안 쌓인 옛 알림이 한꺼번에 실리지 않게
+    const due = all.filter((x) => (x.yl || x.brief) && !x.briefed)
+    const out = due.filter((x) => keep(x))
+    if (due.length) {
+      for (const x of due) x.briefed = true
       await store(dataDir, user, all)
     }
     return out

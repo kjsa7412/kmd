@@ -200,7 +200,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const pcUser = mode === 'pc' ? String(user).toLowerCase().replace(/[^a-z0-9._-]/g, '') || 'me' : null
   const hub = await makeHub({ root, dataDir, mode, pcUser, log })
   const auth = await makeAuth({ dataDir, mode, scryptN: scryptN || hub.config.scryptN || null })
-  hub.admins = () => auth.users().filter((u) => u.admin && !u.off && u.kind !== 'worker').map((u) => u.id)
+  hub.admins = () => auth.users().filter((u) => u.admin && !u.off && u.kind === 'person').map((u) => u.id)
+  hub.people = () => auth.people()
   const mcp = makeMcp(hub)
   if (pcUser) await auth.ensurePc(pcUser)
   const teamLogin = makeTeamLogin({ dataDir })
@@ -392,9 +393,9 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   }
 
   const GET_OK = [
-    /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|claude\/state|busy)$/,
+    /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|admin\/groups|claude\/state|busy)$/,
     /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
-    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|tidy\/plan|sources|send|backup|backup\/lost|owner|worker\/material)$/,
+    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|tidy\/plan|sources|send|backup|backup\/lost|owner|access|worker\/material)$/,
   ]
   const api = async (req, res, url, ctx, set) => {
     const p = url.pathname
@@ -495,7 +496,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     const dm = p.match(/^\/api\/k\/([^/]+)\/diff$/)
     if (dm) return out(200, await hub.diff(ctx, decodeURIComponent(dm[1]), url.searchParams.get('record') || ''))
     const jm = p.match(/^\/api\/job\/([0-9a-f]+)$/)
-    if (jm) return out(200, hub.job(jm[1]) || { state: 'gone' })
+    if (jm) return out(200, hub.jobFor(ctx, jm[1]) || { state: 'gone' }) // 그 지식을 읽는 사람만(아니면 404)
     // 자동으로 가져오는 곳 — 목록 · 더하기(관리자 · PC) · 살펴보기 · 지금 가져오기 · 관리자에게 부탁
     // 이력 — 보는 지식들의 kmd 가 한 일(가져옴 · 가져오는 곳 · 바로 고침 · 정리) 한 곳에 · 새 것 위
     if (p === '/api/logs') {
@@ -504,7 +505,11 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       rows.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
       return out(200, { items: rows.slice(0, 500) })
     }
-    if (p === '/api/sources') return out(200, { items: await hub.allSources(ctx), can: hub.mode === 'pc' || !!ctx.admin })
+    // can — 가져오는 곳을 더할 수 있는 지식이 하나라도 있나(지식마다는 items 의 can)
+    if (p === '/api/sources') {
+      const items = (await hub.allSources(ctx)).map((s) => ({ ...s, can: hub.canSource(ctx, s.kn) }))
+      return out(200, { items, can: hub.mode === 'pc' || !!ctx.admin || (await hub.visible(ctx)).some((k) => hub.canSource(ctx, k.id)) })
+    }
     // ── 설정(S7) — 이 팀 서버 · 이 PC · 저절로 하는 일 · Claude 연결 · 에이전트 설치 ──
     if (p === '/api/settings') {
       const ks = await hub.visible(ctx)
@@ -658,10 +663,11 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       admin(ctx)
       return out(200, await hub.backupAdopt(ctx, decodeURIComponent(ba[1])))
     }
-    // 옛 문서 옮기기(경과 → 참고 블록) — 관리자(비밀번호 한 번 더) · { dry } 면 쓰지 않고 결과만
+    // 옛 문서 옮기기(경과 → 참고 블록) — 그 지식의 관리 자리(전역 관리자는 비밀번호 한 번 더) · { dry } 면 쓰지 않고 결과만
     const dfm = p.match(/^\/api\/k\/([^/]+)\/docfmt$/)
     if (dfm && req.method === 'POST') {
-      admin(ctx)
+      if (ctx?.admin) admin(ctx)
+      else need(ctx)
       return out(200, await hub.docfmt(decodeURIComponent(dfm[1]), ctx, { dry: !!(await readBody(req)).dry }))
     }
     // 지식 추가 — 새 이름 · 내 폴더(PC)
@@ -687,26 +693,32 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (sm[2] === 'checkdb') return out(200, await hub.sourceCheckDb(ctx, id, b))
       if (sm[2] === 'resync') return out(200, await hub.sourceResync(ctx, id, String(b.name || '')))
       if (sm[2] === 'meaning') return out(200, await hub.sourceMeaning(ctx, id, { name: String(b.name || ''), on: !!b.on }))
+      // 가져오는 곳 관리(더하기 · 살펴보기 · 지금 가져오기 · 그대로 반영)는 그 지식의 관리 자리(docs/kmd_권한_모델.md 1절) · 쓰기는 부탁
       if (sm[2] === 'probe') {
-        if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 관리자가 더한다')
+        await hub.meta(id, ctx)
+        if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 관리 자리가 더한다')
         return out(200, await hub.sourceProbe(ctx, id, b))
       }
       if (sm[2] === 'request') return out(200, await hub.sourceRequest(ctx, id, b))
       if (sm[2] === 'run') {
         await hub.meta(id, ctx)
-        if (b.force && !hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '[그대로 반영] 은 관리자가 한다')
+        if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', b.force ? '[그대로 반영] 은 관리 자리가 한다' : '지금 가져오기는 관리 자리가 한다. [관리자에게 부탁]', { need: 'admin' })
         return out(200, await hub.sourceRun(id, b.name || null, { force: !!b.force, by: ctx.user }))
       }
-      if (hub.mode === 'team' && !hub.canSource(ctx, id)) admin(ctx, { sudo: false })
+      if (hub.mode === 'team' && !hub.canSource(ctx, id)) { await hub.meta(id, ctx); hub.need(ctx, id, 'admin') }
       return out(200, await hub.sourceAdd(ctx, id, b))
     }
+    // 가져오는 곳 부탁 — 전역 관리자는 모두 · 그 밖은 관리 자리인 지식의 것만
     if (p === '/api/requests') {
-      admin(ctx, { sudo: false })
-      return out(200, await hub.requests())
+      if (ctx.admin) return out(200, await hub.requests())
+      return out(200, (await hub.requests()).filter((r) => hub.levelOf(ctx, r.kn) === 'admin'))
     }
     const rq = p.match(/^\/api\/requests\/([0-9a-f]{10})\/close$/)
     if (rq) {
-      admin(ctx, { sudo: false })
+      if (!ctx.admin) {
+        const r = (await hub.requestsAll()).find((x) => x.id === rq[1])
+        if (!r || hub.levelOf(ctx, r.kn) !== 'admin') throw new KmdError('E_FORBIDDEN', '그 지식의 관리 자리가 닫는다')
+      }
       const b = await readBody(req)
       return out(200, await hub.requestClose(ctx, rq[1], { state: String(b.state || ''), why: b.why || '' }))
     }
@@ -746,7 +758,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         // 내 PC 의 개인 지식 — 받는 지식(보내는 길) · 보내지 않은 기록 수(옆 메뉴 「지식 보내기」 의 수)
         const row = hub.owner(k.id)
         const sv = mode === 'pc' && (await sendLib.destsOf(k.dir)).length ? await hub.sendView(ctx, k.id).catch(() => null) : null
-        return { ...V.knowledgeRow(k), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null } : {}), tidyAt: hub.tidyAtOf(k.id), tidyMode: hub.tidyModeOf(k.id), pendText: hub.pendText(k.id), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
+        // level — 이 지식에서의 내 자리(read · write · admin) · role 은 그 화면 이름(PC 는 주인)
+        return { ...V.knowledgeRow(k), level: hub.levelOf(ctx, k.id), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null } : {}), tidyAt: hub.tidyAtOf(k.id), tidyMode: hub.tidyModeOf(k.id), pendText: hub.pendText(k.id), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
       })))
     }
     // 에이전트 일 — 목록 · 줄(터미널)
@@ -802,7 +815,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         admin(ctx, { sudo: false })
         const all = auth.users()
         const roles = await hub.peopleRoles()
-        const people = all.filter((u) => u.kind === 'person' && !u.machine).map((u) => ({ ...u, workers: all.filter((w) => w.kind === 'worker' && w.owner === u.id).length, roles: roles[u.id] || { team: 0, curate: 0 } }))
+        // roles.kns — 자리 있는 지식 수(주인 · 정리 · 사람 줄 · 묶음 줄)
+        const people = all.filter((u) => u.kind === 'person' && !u.machine).map((u) => ({ ...u, workers: all.filter((w) => w.kind === 'worker' && w.owner === u.id).length, roles: roles[u.id] || { team: 0, curate: 0, kns: 0 } }))
         return out(200, { users: people, locked: auth.locked() })
       }
       admin(ctx)
@@ -832,6 +846,32 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, { ok: (await auth.setAdmin(id, !!(await readBody(req)).admin)) ?? true })
     }
 
+    // ── 관리 — 묶음(사람 여럿에 한 번에 자리를) · 전역 관리자 ──
+    if (p === '/api/admin/groups') {
+      if (req.method === 'GET') {
+        admin(ctx, { sudo: false })
+        return out(200, { groups: hub.groups(), people: auth.people() })
+      }
+      admin(ctx)
+      const b = await readBody(req)
+      return out(200, await hub.setGroup(ctx, { name: b.name, members: b.members }))
+    }
+    const gd = p.match(/^\/api\/admin\/groups\/([^/]+)\/delete$/)
+    if (gd && req.method === 'POST') {
+      admin(ctx)
+      return out(200, await hub.dropGroup(ctx, decodeURIComponent(gd[1])))
+    }
+    // 지식의 자리 표 — 보기 · 바꾸기(그 지식의 관리 자리 · 전역 관리자는 비밀번호 한 번 더)
+    const ax = p.match(/^\/api\/k\/([^/]+)\/access$/)
+    if (ax) {
+      const id = decodeURIComponent(ax[1])
+      if (req.method === 'GET') return out(200, await hub.accessView(ctx, id))
+      const b = await readBody(req)
+      await hub.meta(id, ctx)
+      hub.need(ctx, id, 'admin')
+      if (mode === 'team' && ctx.admin) admin(ctx)
+      return out(200, await hub.setAccess(ctx, id, { all: b.all ?? undefined, users: b.users ?? undefined, groups: b.groups ?? undefined }))
+    }
     // 파일 · 폴더 넣기 — { files: [{ path, b64 }] } · 한 번에 300 파일 · 200MB(글자로 바꾸면 커져 길 상한은 280MB)
     const im = p.match(/^\/api\/k\/([^/]+)\/import$/)
     if (im) {
@@ -879,8 +919,14 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     const what = m[2]
     if (['save', 'backup', 'backup/pull', 'owner', 'learn', 'edit', 'revert'].includes(what)) {
       if (what === 'backup' && req.method === 'GET') return out(200, (await hub.backupState(ctx, id)) || { off: true })
-      // 주인 줄 — 그 지식을 보는 사람에게만(개인 지식의 주인 · 설정을 남에게 보이지 않게)
-      if (what === 'owner' && req.method === 'GET') { await hub.meta(id, ctx); return out(200, hub.owner(id) || {}) }
+      // 주인 줄 — 그 지식을 보는 사람에게만. 자리 표(access) · 정리하는 사람은 관리 자리에게만(자리 표 보기와 같게)
+      if (what === 'owner' && req.method === 'GET') {
+        await hub.meta(id, ctx)
+        const row = hub.owner(id) || {}
+        if (hub.levelOf(ctx, id) === 'admin') return out(200, row)
+        const { owner = null, tidyAt, tidyMode, noClaude } = row
+        return out(200, { owner, tidyAt, tidyMode, noClaude })
+      }
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       const body = await readBody(req)
       if (what === 'save') return out(200, await hub.save(ctx, id, body))

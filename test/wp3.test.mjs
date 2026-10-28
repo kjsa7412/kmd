@@ -86,12 +86,12 @@ test('기록만 하는 사람의 names: 이름 장부는 그대로 · 기록에 
   const sv = await call('save', { knowledge: 'dpms', record: { title: '용어: 하나' }, names: [{ coord: 'term:카나리 비율', label: '카나리 비율' }] }, LEE)
   assert.match(sv.note, /이름 1 은 아직 세우지 않았다/)
   const b = await call('brief', { knowledge: 'dpms' }, LEE)
-  assert.deepEqual(b.you, { role: '기록', direct: false })
+  assert.deepEqual(b.you, { role: '쓰기', direct: false }) // 옛 장부 = 모두 쓰기(권한 모델 4절)
   assert.match(b.tidy, /정해진 시각/)
   assert.equal(b.noClaude, undefined)
   await s.hub.setOwner(SHELL, 'dpms', { noClaude: true })
   assert.match((await call('brief', { knowledge: 'dpms' }, PARK)).noClaude, /자동 정리에 Claude 를 쓰지 않는다/)
-  assert.deepEqual((await call('brief', { knowledge: 'dpms' }, PARK)).you, { role: '정리', direct: true }) // 관리자 = 정리
+  assert.deepEqual((await call('brief', { knowledge: 'dpms' }, PARK)).you, { role: '관리', direct: true }) // 전역 관리자 = 관리
   await s.hub.setOwner(SHELL, 'dpms', { noClaude: false })
 })
 
