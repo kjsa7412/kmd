@@ -9,6 +9,7 @@ import { coordsOfSection, labelOf, sectionOf, pendPick } from '../core/knowledge
 import { locateDoc } from '../core/registry.js'
 import { sha16 } from '../core/text.js'
 import { splitBlocks, parseTable } from '../core/baseline.js'
+import { parseRefLine } from '../core/sections.js'
 
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
@@ -173,22 +174,13 @@ export function linksOf(doc, k = null) {
   }
   return out
 }
-// 참고 줄 → { date, title, id, sub: 'work' | 'log', note }(풀리지 않는 줄은 글자 그대로 title)
-export function refOf(docPath, line) {
-  const m = String(line).match(/^-\s+(?:(\d{4}-\d{2}-\d{2})\s+)?\[([^\]]*)\]\(([^)\s]+)\)\s*(.*)$/)
-  if (!m) return { date: null, title: String(line).replace(/^-\s+/, ''), id: null, sub: null, note: null }
-  const to = linkTarget(null, docPath, m[3])
-  return { date: m[1] || null, title: m[2], id: to.t === 'rec' ? to.r : null, sub: to.t === 'rec' ? to.sub : null, note: m[4].replace(/^·\s*/, '').trim() || null }
-}
-
-// 출처 목록(잠시 · 본문 html 끝) — 「출처 n」 과 줄마다 날짜 · 기록 링크 · 한 마디
-export function refsHtml(k, refs) {
-  if (!refs.length) return ''
-  const li = refs.map((r) => {
-    const t = r.id ? `<a class="dlink rec" data-a="openRec" data-k="${esc(k.id)}" data-r="${esc(r.id)}">${esc(r.title)}</a>` : esc(r.title)
-    return `<li>${r.date ? `${esc(r.date)} ` : ''}${t}${r.note ? ` · ${esc(r.note)}` : ''}</li>`
-  })
-  return `<div class="srcrefs"><div class="srch">출처 ${refs.length}</div><ul>${li.join('')}</ul></div>`
+// 참고 줄 → { date, title, id, sub: 'work' | 'log', note } · 메모 줄(옛 경과 · 표 출처 · 표식)은 { note } 만
+export function refOf(docPath, line, k = null) {
+  const r = parseRefLine(line)
+  // 메모 줄 안의 링크(옛 경과의 기록 링크)도 누를 수 있게 — 같은 링크 규칙으로 그린 html
+  if (r.kind !== 'rec') return { date: null, title: null, id: null, sub: null, note: r.note, ...(k ? { html: render(k, docPath, r.note).replace(/^<p>|<\/p>\s*$/g, '') } : {}) }
+  const to = linkTarget(null, docPath, r.href)
+  return { date: r.date, title: r.title, id: to.t === 'rec' ? to.r : null, sub: to.t === 'rec' ? to.sub : null, note: r.note }
 }
 
 export function knowledgeRow(k) {
@@ -304,11 +296,11 @@ export function docView(k, docId, { src = {} } = {}) {
     const recs = k.works.filter((w) => w.touches.some((c) => coords.includes(c)) || w.tags.includes(at))
     const { pick: pendRecs, more: pendMore } = pendPick(recs.map((w) => (w.state === 'nowhere' && w.tags.includes(at) ? { ...w, state: 'pend', nowhere: true } : w)))
     const by = s.applied && k.byWork.get(s.applied)
-    const refs = (s.log || []).map((l) => refOf(d.path, l))
+    const refs = (s.log || []).map((l) => refOf(d.path, l, k))
     return {
       h: s.h,
-      // 출처는 본문 끝에 작은 목록으로 잠시 붙인다 — 화면(app/main.js)이 refs 로 「출처 n」 칩 · 참고 칸을 그리면 뺀다
-      html: render(k, d.path, s.body, { src }) + refsHtml(k, refs),
+      // 본문만 — 출처(refs) · 반영 대기(pend · pendN)는 화면이 항목 옆 칩 · 참고 칸으로 따로 그린다
+      html: render(k, d.path, s.body, { src }),
       ...editParts(s.body, { src }),
 
       base: sha16(s.body),
@@ -332,7 +324,7 @@ export function docView(k, docId, { src = {} } = {}) {
     intro: d.intro ? render(k, d.path, d.intro, { src }) : '',
     sections,
     // 출처 요약 — 항목마다 참고 줄 수
-    refs: { n: sections.reduce((a, s) => a + s.refs.length, 0), items: sections.filter((s) => s.refs.length).map((s) => ({ h: s.h, n: s.refs.length })) },
+    refs: { n: sections.reduce((a, s) => a + s.refs.length, 0), items: sections.filter((s) => s.refs.length).map((s) => ({ h: s.h, n: s.refs.length })), doc: (d.docLog || []).map((l) => refOf(d.path, l, k)) },
     links,
     backlinks: backlinks(k, d),
     origins: originsOf(k, d),

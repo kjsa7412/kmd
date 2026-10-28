@@ -14,6 +14,9 @@
 //     - 2026-10-21 [배포 창은 화 · 목](../work/2026-1021-배포-창.md)
 //   <!-- /kmd:참고 -->
 // 읽을 때 떼어 항목마다 log(줄 목록)로 돌려준다 · 항목 글(body)에는 본문만 남는다.
+// 항목 이름 아래 줄은 두 가지다 — (가) 기록 줄 `- YYYY-MM-DD [제목](../work|log/<id>.md)[ · 한 마디]`
+//   (나) 메모 줄(옛 경과 줄을 그대로 옮긴 것 · 「표 출처: …」 · 「표식: …」 같은 것). 둘 다 잃지 않고 읽고 그대로 다시 쓴다.
+// 문서 전체에 걸린 것은 예약 이름 `- (문서)` 아래에 둔다(블록 맨 앞 · 항목이 아니라 걷히지 않는다).
 // 옛 꼴도 받는다 — 항목 끝 `**경과**` 목록(모두 kmd 꼴의 기록 줄일 때만 · LOG_ENTRY) ·「> 기록 그대로: [제목](../work/…) · Claude 로 다듬지 못했다」 줄은
 // 읽을 때 log 로 옮기고, 그 항목을 쓸 때 참고 블록으로 옮겨 적는다.
 
@@ -23,6 +26,8 @@ export const REF_OPEN = /^<!--\s*kmd:참고/
 export const REF_CLOSE = /^<!--\s*\/kmd:참고\s*-->\s*$/
 export const REF_HEAD = '<!-- kmd:참고 · kmd 가 적고 고친다. 손으로 고치지 않는다 -->'
 const REF_END = '<!-- /kmd:참고 -->'
+// 문서 전체에 걸린 참고 줄의 이름(항목 이름이 아니다)
+export const DOC_KEY = '(문서)'
 // 규칙 대체(Claude 로 다듬지 못한 정리)의 옛 줄
 export const RULE_LINE = /^>\s*기록 그대로:\s*\[([^\]]*)\]\(([^)\s]+)\)\s*·\s*Claude 로 다듬지 못했다\.?\s*$/
 export const ROUGH = '다듬지 못함'
@@ -31,6 +36,16 @@ export const ROUGH = '다듬지 못함'
 //   (장애 · 회의의 「**경과**」 타임라인 같은 본문 목록을 출처 줄로 잘못 떼지 않게)
 export const LOG_ENTRY = /^\s*-\s+(?:\d{4}-\d{2}-\d{2}\s+)?\[[^\]]*\]\((?:\.\.\/)*(?:work|log)\/[^)\s/]+\.md\)(?:\s+·\s+.*)?\s*$/
 export const isLogEntry = (l) => LOG_ENTRY.test(String(l))
+// 참고 줄 하나 풀기 — 기록 줄이면 { kind: 'rec', date, title, href, note } · 그 밖은 메모 줄 { kind: 'note', note(앞의 「- 」 뺀 글) }
+//   (화면은 href 를 그 문서 자리에서 풀어 기록 id 로 바꾼다)
+export function parseRefLine(line) {
+  const s = String(line ?? '').trim()
+  const m = isLogEntry(s) && s.match(/^-\s+(?:(\d{4}-\d{2}-\d{2})\s+)?\[([^\]]*)\]\(([^)\s]+)\)(?:\s+·\s+(.*?))?\s*$/)
+  if (m) return { kind: 'rec', date: m[1] || null, title: m[2], href: m[3], note: m[4] || null }
+  return { kind: 'note', date: null, title: null, href: null, note: s.replace(/^[-*+]\s+/, '') }
+}
+// 메모 줄 — 앞의 목록 표(- · * · +)를 「- 」 로 맞추고 빈칸은 하나로
+export const noteLine = (t) => `- ${String(t ?? '').replace(/^\s*[-*+]\s+/, '').replace(/\s+/g, ' ').trim()}`
 
 // 울타리 줄이면 다음 울타리 상태 · 아니면 undefined
 function fenceOf(ln, fence) {
@@ -73,33 +88,46 @@ export function openFence(lines) {
   return fence
 }
 
-// 참고 줄 하나의 링크 — 같은 기록인지 견줄 때
-const hrefOf = (l) => (String(l).match(/\]\(([^)\s]+)\)/) || [])[1] || String(l).trim()
+// 참고 줄 하나의 같음 열쇠 — 기록 줄은 링크(같은 기록이면 한 줄) · 메모 줄은 글 그대로
+const hrefOf = (l) => (isLogEntry(l) && (String(l).match(/\]\(([^)\s]+)\)/) || [])[1]) || String(l).trim()
 const roughOf = (l) => new RegExp(` · ${ROUGH}\\s*$`).test(l)
 // 줄 목록 합치기 — 같은 기록(링크)은 한 줄 · 「다듬지 못함」 은 남긴다
+//   메모 줄은 목록끼리 겹친 만큼만 한 줄로 — 한 목록 안에 같은 글이 둘이면 둘 다 둔다(같은 날 같은 설명의 옛 경과 줄)
 export function mergeLog(...lists) {
   const out = []
-  for (const l0 of lists.flat()) {
-    const l = String(l0 || '').trim()
-    if (!l) continue
-    const i = out.findIndex((x) => hrefOf(x) === hrefOf(l))
-    if (i < 0) out.push(l)
-    else if (roughOf(l) && !roughOf(out[i])) out[i] = `${out[i]} · ${ROUGH}`
+  for (const list of lists) {
+    const seen = new Map()
+    for (const l0 of [list].flat()) {
+      const l = String(l0 || '').trim()
+      if (!l) continue
+      const k = hrefOf(l)
+      if (!isLogEntry(l)) {
+        const c = (seen.get(k) || 0) + 1
+        seen.set(k, c)
+        if (out.filter((x) => hrefOf(x) === k).length < c) out.push(l)
+        continue
+      }
+      const i = out.findIndex((x) => hrefOf(x) === k)
+      if (i < 0) out.push(l)
+      else if (roughOf(l) && !roughOf(out[i])) out[i] = `${out[i]} · ${ROUGH}`
+    }
   }
   return out
 }
 
-// 블록 안 줄 → ref 에 보탠다
+// 블록 안 줄 → ref 에 보탠다 · 한 블록의 한 항목 줄은 한 목록으로 합친다(같은 글의 메모 줄 둘을 하나로 줄이지 않게)
 function readBlock(xs, ref) {
+  const got = new Map()
   let cur = null
   for (const x of xs) {
     const en = x.match(/^\s+- (.+?)\s*$/)
     const it = !en && x.match(/^- (.+?)\s*$/)
     if (it) {
       cur = it[1]
-      if (!ref.has(cur)) ref.set(cur, [])
-    } else if (en && cur != null) ref.set(cur, mergeLog(ref.get(cur), [`- ${en[1]}`]))
+      if (!got.has(cur)) got.set(cur, [])
+    } else if (en && cur != null) got.get(cur).push(`- ${en[1]}`)
   }
+  for (const [h, ls] of got) ref.set(h, mergeLog(ref.get(h) || [], ls))
 }
 // 문서 줄에서 참고 블록을 뗀다 — { lines(블록 뺀 줄), ref: Map(항목 이름 → 줄 목록), found, spans: [[여는 줄, 닫는 줄]] }
 //   문서 맨 끝의 블록은 울타리와 상관없이 블록이다(마지막 항목이 닫히지 않은 울타리로 끝나도 · 끝에 여럿이면 합친다)
@@ -159,16 +187,16 @@ export function blankRef(lines) {
   for (const [s, e] of spans) for (let i = s; i <= e; i++) out[i] = ''
   return out
 }
-// 참고 블록 줄 — [{ h, log }] (줄이 없는 항목은 뺀다) · 빈 목록이면 []
+// 참고 블록 줄 — [{ h, log }] (줄이 없는 항목은 뺀다 · (문서) 는 맨 앞) · 빈 목록이면 []
 export function refLines(items) {
-  const xs = items.filter((x) => x.log?.length)
+  const xs = items.filter((x) => x.log?.length).sort((a, b) => (b.h === DOC_KEY) - (a.h === DOC_KEY))
   if (!xs.length) return []
   return [REF_HEAD, '**참고**', '', ...xs.flatMap((x) => [`- ${x.h}`, ...x.log.map((l) => `  ${l}`)]), REF_END]
 }
 // 블록 뺀 줄 + 참고 → 문서 글(블록은 맨 끝 · 항목 차례대로)
-//   문서에 없는 이름의 줄은 걷는다(문서 밖에서 머리 이름을 바꾸거나 지운 항목) · 끝까지 열린 울타리는 블록 앞에서 닫는다
-function withRef(lines, ref) {
-  const order = headsOf(lines).filter((h) => h.level === 2).map((h) => h.heading)
+//   문서에 없는 이름의 줄은 걷는다(문서 밖에서 머리 이름을 바꾸거나 지운 항목 · (문서) 는 둔다) · 끝까지 열린 울타리는 블록 앞에서 닫는다
+export function withRef(lines, ref) {
+  const order = [DOC_KEY, ...headsOf(lines).filter((h) => h.level === 2).map((h) => h.heading)]
   const names = [...new Set(order)].filter((h) => ref.get(h)?.length)
   const block = refLines(names.map((h) => ({ h, log: ref.get(h) })))
   const fence = block.length ? openFence(lines) : null
@@ -227,7 +255,7 @@ function bodyOf(lines, from, to, { cut = true } = {}) {
   return { body: c.body, applied, log: mergeLog(c.log, rule), old: c.log.length + rule.length }
 }
 
-// 문서 하나 → { title, intro, sections: [{ h, level, body, applied, log }], ref: [{ h, log }] }
+// 문서 하나 → { title, intro, sections: [{ h, level, body, applied, log }], ref: [{ h, log }], docLog((문서) 아래 줄) }
 //   body 는 본문만(표지 · 경과 · 참고 블록 뺌) — 지문(base)은 늘 이 글로 잰다
 export function parseDoc(text, fallbackTitle) {
   const { lines, ref } = splitRef(String(text ?? '').split('\n'))
@@ -244,6 +272,7 @@ export function parseDoc(text, fallbackTitle) {
       return { h: h.heading, level: 2, body: b.body, applied: b.applied, log: mergeLog(b.log, ref.get(h.heading) || []), ...(b.old ? { old: b.old } : {}) }
     }),
     ref: [...ref].map(([h, log]) => ({ h, log })),
+    docLog: ref.get(DOC_KEY) || [],
   }
 }
 
