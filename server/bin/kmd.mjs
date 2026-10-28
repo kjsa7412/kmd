@@ -33,6 +33,7 @@ const HELP = `kmd ${VERSION}
   kmd up [폴더] [--port 7373] [--no-open]
       이 PC 의 kmd 를 켜고 화면을 연다. 폴더 기본 D:\\kmd(없으면 집 폴더의 kmd) · 이미 켜져 있으면 화면만 연다
   kmd open [폴더] [--pc]                       화면을 연다: 팀에 이은 PC 는 팀 화면(내 PC 쪽은 켜 둔다) · --pc 면 이 PC 의 화면. 시작 메뉴의 kmd 와 같다
+  kmd agent add <개인 지식> [--dir 폴더]          작업 폴더의 Claude Code 에 이 PC 의 개인 지식을 더한다(팀 화면 › 에이전트 설치가 복사해 준다)
   kmd connect <팀 주소> [--ticket kmdt_…]       팀에 잇는다. 설치 한 줄이 부른다(아이디 · 비밀번호로도)
                                                --kn <팀 지식>: 지금 폴더를 그 팀 지식에 붙인다(에이전트 설치 · 팀)
   kmd pc task [폴더]                           로그온 때 켜고 멈추면 다시(작업 스케줄러) · 시작 메뉴의 kmd
@@ -231,6 +232,33 @@ async function connectedTeam(root, o) {
   for (const t of teams) if (await kget(keyName(t)).catch(() => null)) team = t
   return team
 }
+// 에이전트 설치 · 개인 지식 — `kmd agent add <개인 지식>`(지금 폴더 · --dir 로 다른 폴더). 팀 화면 › 에이전트 설치가 복사해 주는 명령.
+//   이 PC 의 지식 폴더의 그 지식을 작업 폴더의 Claude Code 에 더한다(붙어 있던 지식 · 기본은 그대로) · 연결은 이 PC 의 kmd
+async function agentCmd(o) {
+  const [sub, kn] = o._
+  try {
+    if (sub !== 'add' || !kn) throw new Error('kmd agent add <개인 지식> [--dir 작업 폴더]')
+    const root = await pcRootNow(o)
+    const pcData = o.data ? path.resolve(o.data) : defaultDataDir(root)
+    const hub = await makeHub({ root, dataDir: pcData, mode: 'pc', log: () => {} })
+    const k = (await hub.list()).find((x) => x.id === kn || x.name === kn)
+    hub.stop()
+    if (!k) throw new Error(`이 PC 의 지식 폴더(${root})에 「${kn}」 개인 지식이 없다`)
+    const dir = path.resolve(o.dir || process.cwd())
+    const pcUrl = (await runningPc(root, o)) || `http://127.0.0.1:${o.port || 7373}`
+    const list = await kitFolders(pcData)
+    const same = (f) => path.resolve(f.path).toLowerCase() === dir.toLowerCase()
+    const cur = list.find(same)
+    const row = kitAddKn(cur || { name: path.basename(dir), path: dir, at: new Date().toISOString(), kns: [], def: null }, { area: 'me', kn: k.id, knName: k.name })
+    const teamUrl = await connectedTeam(root, o)
+    const r = await kitInstall(dir, { pcUrl, teamUrl, kns: row.kns, def: row.def })
+    await kitSetFolders(pcData, cur ? list.map((f) => (f === cur ? { ...row, path: r.dir } : f)) : [...list, { ...row, path: r.dir }])
+    console.log(`✓ ${r.dir} 에 개인 지식 「${k.name}」 을 더했다 · 붙은 지식 ${row.kns.length} · 기본 「${kitDefOf(row)?.knName || k.name}」 · Claude Code 는 새로 여는 것부터`)
+  } catch (e) {
+    console.error(e.message)
+    process.exitCode = 1
+  }
+}
 // 시작 메뉴의 kmd — 내 PC 쪽을 켜 두고(꺼져 있으면 켠다) 팀 화면을 연다(팀이 없으면 · --pc 면 이 PC 의 화면)
 async function openCmd(o) {
   const root = path.resolve(o._[0] || o.root || defaultPcRoot())
@@ -276,6 +304,7 @@ async function main() {
   if (cmd === 'auth') return authCmd(parse(rest))
   if (cmd === 'pc') return pcCmd(parse(rest))
   if (cmd === 'open') return openCmd(parse(rest))
+  if (cmd === 'agent') return agentCmd(parse(rest))
   if (cmd !== 'serve' && cmd !== 'up') {
     console.error(`모르는 명령: ${cmd}\n`)
     process.stdout.write(HELP)

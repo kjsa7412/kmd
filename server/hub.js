@@ -429,7 +429,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       return Object.fromEntries(ROLES.map((r) => [r, hub.modelOf(r)]))
     },
     async setModel(ctx, role, model) {
-      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', 'Claude 모델은 내 PC 프로그램에서 고른다')
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', 'Claude 모델은 이 PC 의 kmd 에서 고른다')
       if (!ROLES.includes(role)) throw new KmdError('E_INPUT', '그런 일은 없다')
       if (!CHOICES.includes(model)) throw new KmdError('E_INPUT', '고를 수 있는 모델이 아니다. haiku · sonnet · opus · 기본')
       const next = structuredClone(prefs)
@@ -1949,7 +1949,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 화면의 [Claude 로 기록 정리] — 이 PC · 바로 넣을 수 있는 사람만
     async readRecord(ctx, id, recId) {
-      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '기록 정리는 내 PC 프로그램이 내 Claude 로 한다')
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '기록 정리는 이 PC 의 kmd 가 내 Claude 로 한다')
       await hub.meta(id, ctx)
       if (!hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '이 지식에 바로 넣을 수 없다')
       const r = await hub.queueRun(id, () => hub.polishRecord(id, String(recId || '')))
@@ -2473,7 +2473,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       })
     },
     // ── 지식 보내기 — 보내는 길: 내 개인 지식 하나 → 팀 지식 하나 ──
-    //   개인 지식은 내 PC 프로그램에 있다. 내 PC 프로그램이 이 PC 의 기기 열쇠로 팀 서버에 보낸다(팀 화면은 짝 열쇠로 부른다)
+    //   개인 지식은 이 PC 의 kmd 에 있다. 이 PC 의 kmd 가 이 PC 의 기기 열쇠로 팀 서버에 보낸다(팀 화면은 짝 열쇠로 부른다)
     //   길은 개인 지식마다 하나(.kmd.json send: 팀 주소 · 지식 · 이름) · 바꾸려면 새 이름을 그대로 친다
     //   보낼 것은 기록(보내지 않은 것) · 문서(통째로) 둘뿐이다
     async routeMeta(ctx, id) {
@@ -2811,7 +2811,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       for (const k of ks) {
         out.push(...backup.lines(k, { name: k.name }))
-        // 보내기 멈춤은 팀 화면에만(내 PC 프로그램에는 보내기가 없다)
+        // 보내기 멈춤은 팀 화면에만(이 PC 의 kmd 에는 보내기가 없다)
         const all = mode === 'team' ? (await sendLib.readState(dataDir, k.id)).wait : []
         const sw = all.filter((w) => w.state === 'wait')
         const sf = all.filter((w) => w.state !== 'wait')
@@ -3141,7 +3141,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
       }, config.tidyTickMs || 60_000)
       tidyTimer.unref?.()
-      // 보내기 — 닿지 않아 둔 것을 분마다 다시(내 PC 프로그램 → 팀 서버 · 팀 서버의 옛 개인 지식)
+      // 보내기 — 닿지 않아 둔 것을 분마다 다시(이 PC 의 kmd → 팀 서버 · 팀 서버의 옛 개인 지식)
       sendTimer = setInterval(() => hub.sendRetry().catch(() => {}), config.sendTickMs || 60_000)
       sendTimer?.unref?.()
       // 찾기 색인 — 뒤에서 미리(지금 찾는 지식은 기다리지 않고 그때 짓는다)

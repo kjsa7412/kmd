@@ -214,7 +214,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   // 이 PC 밖으로 손이 닿는 일(PAIR_ASK — 내 PC 경로 · 백업 주소 · 에이전트 설치 · 지우기)만 따로: 뒤의 것은 이 PC 가 자기 창을 띄워
   // [확인] 을 받아야 한다(팀 서버가 보낸 코드는 그 창을 누르지 못한다 — 다른 출처 · 창 열쇠는 이 PC 가 연 주소에만)
   const pairs = new Map()
-  // 팀 화면이 부를 내 PC 프로그램 주소(serve.json pcUrl · 기본 이 PC 의 7373) — CSP connect-src 에 이 하나만
+  // 팀 화면이 부를 이 PC 의 kmd 주소(serve.json pcUrl · 기본 이 PC 의 7373) — CSP connect-src 에 이 하나만
   const pcUrl = (() => { try { return new URL(hub.config.pcUrl || 'http://127.0.0.1:7373').origin } catch { return 'http://127.0.0.1:7373' } })()
   const PAIR_MS = 12 * 3600_000
   const teamsFile = path.join(dataDir, 'teams.json')
@@ -397,7 +397,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (req.method !== 'POST' && !(['GET', 'HEAD'].includes(req.method) && GET_OK.some((re) => re.test(p)))) throw new KmdError('E_METHOD', 'POST 로 보낸다')
     if (ctx?.agent) throw new KmdError('E_FORBIDDEN', '에이전트 열쇠는 MCP 길만 쓴다')
     if (p === '/api/me') {
-      // pcUrl — 내 PC 프로그램으로 이은 기기(설치 한 줄 · osuser 가 실린 것)가 있는 사람에게만 · 없으면 화면이 PC 를 묻지 않는다
+      // pcUrl — 이 PC 의 kmd 로 이은 기기(설치 한 줄 · osuser 가 실린 것)가 있는 사람에게만 · 없으면 화면이 PC 를 묻지 않는다
       if (!ctx) return out(200, { mode, anon: true, setup: !auth.hasUsers(), legacy: auth.legacyWaiting(), version: VERSION, host: req.headers.host })
       return out(200, { mode, user: ctx.user, admin: !!ctx.admin, sudo: !!ctx.sudo, password: ctx.password !== false, version: VERSION, host: req.headers.host, ...(mode === 'pc' ? { root: path.resolve(root), ...(isNoneRoot(root) ? { none: true } : {}) } : auth.devices(ctx.user).some((d) => d.osuser) ? { pcUrl } : {}), ...(mode === 'team' && ctx.admin ? { root: path.resolve(root) } : {}) })
     }
@@ -542,7 +542,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     //   팀 화면은 짝 열쇠로 목록만 읽는다
     const ag = p.match(/^\/api\/agent(?:\/(add|up|rm|def))?$/)
     if (ag) {
-      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '에이전트 설치는 내 PC 프로그램이 한다. 팀 화면은 설치 한 줄 복사')
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '에이전트 설치는 이 PC 의 kmd 가 한다. 팀 화면은 설치 한 줄 복사')
       const list = await kit.folders(dataDir)
       if (!ag[1]) return out(200, { latest: await kit.kitVersion(), folders: await Promise.all(list.map(async (f) => ({ ...f, ...(await kit.status(f.path)) }))) })
       const b = await readBody(req) // 팀 화면이면 이 PC 에서 확인을 받은 뒤다(PAIR_ASK)
@@ -654,7 +654,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (p === '/api/knowledge/add') {
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       const b = await readBody(req)
-      // 팀 프로그램 — 팀 지식만 · 관리자(개인 지식은 내 PC 프로그램에)
+      // 팀 프로그램 — 팀 지식만 · 관리자(개인 지식은 이 PC 의 kmd 에)
       need(ctx)
       // 지식 폴더를 뺀 내 PC 쪽 — 폴더가 서기 전에는 지식을 만들지 않는다
       if (mode === 'pc' && isNoneRoot(root)) throw new KmdError('E_INPUT', '내 PC 지식 폴더가 없다. 지식 목록 › 내 PC 지식 폴더에 경로를 쓰고 세운다')
@@ -836,7 +836,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, await hub.deleteKnowledge(ctx, id, b))
     }
     // 보내기 — 보낼 것(GET send) · 보내는 길(send/route) · 보내기 · 대기 줄 · 받기 · 받은편지함 정리
-    //   보내는 지식은 내 PC 프로그램의 개인 지식(팀 서버는 옛 개인 지식만) · 받는 것은 팀 서버
+    //   보내는 지식은 이 PC 의 kmd 의 개인 지식(팀 서버는 옛 개인 지식만) · 받는 것은 팀 서버
     const sd = p.match(/^\/api\/k\/([^/]+)\/(send|send\/route|send\/wait|receive|inbox\/tidy|inbox\/send)$/)
     if (sd) {
       const id = decodeURIComponent(sd[1])

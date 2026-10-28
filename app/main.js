@@ -42,12 +42,12 @@ const pcSide = () => isTeam() && setArea() === 'me'
 const sideApi = (p) => (pcSide() ? '/pc' + p : p)
 // 화면을 그리는 갈래 — 팀 화면이라도 개인 쪽이면 이 PC 프로그램과 같은 모양
 const teamSide = () => isTeam() && !pcSide()
-// 내 PC 쪽 지식 id(~) ↔ 내 PC 프로그램의 id
+// 내 PC 쪽 지식 id(~) ↔ 이 PC 의 kmd 의 id
 const pcId = (k) => String(k || '').replace(/^~/, '')
 const knTag = (n) => (n && n.pc ? '<span class="kt me">내 PC</span>' : isPersonal(n) ? '<span class="kt me">개인</span>' : '<span class="kt team">팀</span>')
 
 // ───────────── 자료 ─────────────
-// 내 PC 지식(id 가 ~ 로 시작)은 내 PC 프로그램으로만 간다 — 팀 서버로 가려 하면 멈춘다(fail-closed · v0.5 §5.3 ⑤)
+// 내 PC 지식(id 가 ~ 로 시작)은 이 PC 의 kmd 로만 간다 — 팀 서버로 가려 하면 멈춘다(fail-closed · v0.5 §5.3 ⑤)
 function reqTo(p) {
   const m = String(p).match(/^\/api\/k\/(?:~|%7e)([^/?]+)(.*)$/i)
   const pm = String(p).match(/^\/pc(\/api\/.*)$/)
@@ -61,10 +61,10 @@ function reqTo(p) {
 }
 async function getJSON(p) {
   const t = reqTo(p)
-  const r = await fetch(t.url, { headers: { accept: 'application/json', ...t.headers } }).catch(() => { throw Object.assign(new Error(t.headers.authorization ? '내 PC 프로그램에 닿지 않는다' : '서버에 닿지 않는다'), { code: 'E_REACH' }) })
+  const r = await fetch(t.url, { headers: { accept: 'application/json', ...t.headers } }).catch(() => { throw Object.assign(new Error(t.headers.authorization ? '이 PC 의 kmd 에 닿지 않는다' : '서버에 닿지 않는다'), { code: 'E_REACH' }) })
   if (r.status === 401 && !t.headers.authorization && canRelogin()) { await askLogin(); return getJSON(p) }
   if (t.headers.authorization && r.status === 401) { S.pc.token = null; try { sessionStorage.removeItem('kmdPair') } catch {} }
-  if (t.headers.authorization && !r.ok) { const j = await r.json().catch(() => ({})); throw Object.assign(new Error(j.message || '내 PC 프로그램에 닿지 않는다'), { code: j.error }) }
+  if (t.headers.authorization && !r.ok) { const j = await r.json().catch(() => ({})); throw Object.assign(new Error(j.message || '이 PC 의 kmd 에 닿지 않는다'), { code: j.error }) }
   // 내 PC 지식의 글 속 그림 — 그 지식 id 에 ~ 를 붙여 화면이 짝 열쇠로 PC 에서 받게(팀 서버로 가지 않게)
   const j = t.headers.authorization ? await r.text().then((x) => JSON.parse(x.replace(/data-ak=\\"(?!~)/g, 'data-ak=\\"~')), () => ({})) : await r.json().catch(() => ({}))
   if (r.status === 401 && S.me && !S.me.anon) { S.me = { ...S.me, anon: true }; setTimeout(render) }
@@ -429,12 +429,12 @@ function kcardHtml(n, team) {
 }
 function viewHome() {
   const team = isTeam()
-  // 팀 화면의 「내 PC」 카드 — 내 PC 프로그램이 꺼져 있으면 지난번 이름만 흐리게(이 탭 안의 것 · 서버로 가지 않는다)
+  // 팀 화면의 「내 PC」 카드 — 이 PC 의 kmd 가 꺼져 있으면 지난번 이름만 흐리게(이 탭 안의 것 · 서버로 가지 않는다)
   const offPc = team && S.pc && S.pc.off ? pcRemembered().map((x) => ({ ...x, pc: true, dim: true })) : []
   const shown = [...shownKns(), ...offPc], hid = S.kns.filter((x) => x.hidden)
   const root = knRoot()
   const fbar = root ? `<div class="fbar" data-t="addRoot"><span class="fl">${svg('doc')}${team ? '팀 지식 폴더' : '지식 폴더'}</span><span class="fp" data-t="rootPath">${esc(root)}</span><span class="acts"><button class="btn" data-a="copyRoot" data-t="copyRoot">경로 복사</button><button class="btn" data-a="syncKn" data-t="syncKn"${S.syncing ? ' disabled' : ''}>${S.syncing ? '읽는 중…' : '동기화'}</button></span><small>지식 하나 = 이 폴더 안의 폴더 하나 · 다른 곳에서 만든 지식은 폴더째 여기에 놓고 [동기화]. 메뉴 맨 아래에 들어온다</small></div>` : ''
-  const pcLine = !team || !S.pc ? '' : S.pc.wait ? '<div class="callout gray stop" data-t="pcWait"><i></i><span>내 PC 프로그램에 잇는 중…</span></div>' : S.pc.off ? '<div class="callout gray stop" data-t="pcOff"><i></i><span><b>내 PC 프로그램이 꺼져 있다</b>. 켜면 개인 지식이 저절로 다시 열린다</span></div>' : S.pc.deny ? `<div class="callout gray stop" data-t="pcDeny"><i></i><span><b>이 PC 의 내 지식은 여기서 열지 않는다</b>: ${esc(S.pc.deny)}</span></div>` : ''
+  const pcLine = !team || !S.pc ? '' : S.pc.wait ? '<div class="callout gray stop" data-t="pcWait"><i></i><span>이 PC 의 kmd 에 잇는 중…</span></div>' : S.pc.off ? '<div class="callout gray stop" data-t="pcOff"><i></i><span><b>이 PC 의 kmd 가 꺼져 있다</b>. 켜면 개인 지식이 저절로 다시 열린다</span></div>' : S.pc.deny ? `<div class="callout gray stop" data-t="pcDeny"><i></i><span><b>이 PC 의 내 지식은 여기서 열지 않는다</b>: ${esc(S.pc.deny)}</span></div>` : ''
   const msg = S.syncMsg ? `<div class="callout ${S.syncMsg.cls || ''} stop" data-t="syncMsg"><i></i><span>${S.syncMsg.t}</span></div>` : ''
   const add = `<div class="kcard add" data-a="openAdd" data-t="addCard"><span class="pl">+</span>${!team && !S.kns.length ? '첫 지식 세우기' : '새 지식'}</div>`
   // 팀 화면 — 위 팀 지식(팀 지식 폴더 · 팀 모두) / 아래 개인 지식(이 PC 의 개인 지식 폴더 · 나만)
@@ -573,7 +573,7 @@ async function meRootPost(body) {
   S.meRootBusy = false
   render()
 }
-// 새 지식 팝업 — 이름만(PC: 지식 폴더 안 새 지식 · 팀: 팀 지식은 팀 서버 · 개인 지식은 내 PC 프로그램)
+// 새 지식 팝업 — 이름만(PC: 지식 폴더 안 새 지식 · 팀: 팀 지식은 팀 서버 · 개인 지식은 이 PC 의 kmd)
 // where — 카드가 정해 준 영역(팀 화면: 위 「새 팀 지식」 · 아래 「새 개인 지식」) · 없으면 관리자는 팀 지식
 function openAdd(where) { S.menu = null; S.addPop = { name: '', dir: '', where: isTeam() ? (where === 'team' && S.me.admin ? 'team' : where === 'me' ? 'me' : S.me.admin ? 'team' : 'me') : 'local', to: '', err: null, busy: false }; S._focus = 'addIn'; if (S.route.scr !== 'home') go({ scr: 'home', kn: '*' }); else render() }
 function addPopHtml() {
@@ -611,7 +611,7 @@ async function doAdd() {
     S.addPop = null
     const id = isTeam() && a.where === 'me' ? '~' + r.id : r.id
     if (isTeam() && a.where === 'me') r.id = id
-    // 받는 팀 지식을 골랐으면 길도 함께(내 PC 프로그램이 이 팀 화면의 주소로 정한다) · 못 정해도 지식은 섰다(지식 보내기에서 다시)
+    // 받는 팀 지식을 골랐으면 길도 함께(이 PC 의 kmd 가 이 팀 화면의 주소로 정한다) · 못 정해도 지식은 섰다(지식 보내기에서 다시)
     let routeMsg = ''
     if (a.where === 'me' && a.to) routeMsg = await postJSON(`/api/k/${encodeURIComponent(r.id)}/send/route`, { to: a.to }).then(() => ` · 보내는 곳 ${esc(knNm(a.to))}`, (e) => ` · 받는 지식은 못 정했다: ${esc(e.message)}`)
     await reloadKns()
@@ -1582,12 +1582,12 @@ function histRow(x, all) {
   const sent = team && x.kind === '보내기' && x.to && !open ? (sentDone(x, all) ? ' <span class="chip c-acc" data-t="sentState">문서에 들어감</span>' : histPair(x, all) ? ' <span class="chip c-pend" data-t="sentState">정리 기다림</span>' : '') : ''
   return `<div class="hrow${team ? ' ' + x.a : ''}${isCheck(x) ? ' yl' : ''}${x.reverted ? ' done' : ''}" data-t="histRow" data-kind="${esc(x.kind)}" data-area="${x.a}" data-id="${esc(x.id)}"><div class="hl" data-a="toggleToday" data-id="${esc(x.id)}"><span class="tm">${tmOf(x.at)}</span>${area}<span class="chip ${isCheck(x) ? 'c-warn' : 'c-mute'}" style="flex:none">${esc(kind)}</span><span class="tx"><b>${esc(x.title)}</b>${sent}${x.reverted ? ' <span class="chip c-mute" data-t="reverted">되돌렸다</span>' : ''}${x.sub && !open ? `<small>${esc(x.sub)}</small>` : ''}</span><span class="kn2">${esc(x.knName || '')}</span><span class="who">${esc(x.who || '')}</span><span class="act" data-t="viewBtn">${open ? '접기' : '보기'}</span></div>${ex}</div>`
 }
-// 팀 화면에서 내 PC 지식을 골랐을 때 — 그 지식의 사람은 내 PC 프로그램 화면의 일이다
+// 팀 화면에서 내 PC 지식을 골랐을 때 — 그 지식의 사람은 이 PC 의 kmd 화면의 일이다
 function pcOnly(title, subj, other) {
   const n = isTeam() ? KN(defaultKn()) : null
   if (!n || !n.pc) return null
   const open = S.pc && S.pc.url ? `<a class="lk r" href="${esc(S.pc.url)}/" target="_blank" rel="noopener" data-t="pcOpen">내 PC 화면 열기 ›</a>` : ''
-  return { crumb: title, main: `<div style="max-width:820px"><div class="big">${esc(title)}</div><div class="callout gray stop" data-t="pcOnly"><i></i><span><b>내 PC 지식 「${esc(n.name)}」: ${esc(subj)} 내 PC 프로그램 화면에서 한다</b> · 팀 화면은 내 PC 지식을 읽고 저장하는 것만 잇는다 · 팀 서버에는 한 조각도 가지 않는다</span>${open}</div><p class="small muted">${esc(other || '팀 지식의 ' + subj + ' 지식 고르기에서 팀 지식을 고르면 여기서 본다.')}</p></div>` }
+  return { crumb: title, main: `<div style="max-width:820px"><div class="big">${esc(title)}</div><div class="callout gray stop" data-t="pcOnly"><i></i><span><b>내 PC 지식 「${esc(n.name)}」: ${esc(subj)} 이 PC 의 kmd 화면에서 한다</b> · 팀 화면은 내 PC 지식을 읽고 저장하는 것만 잇는다 · 팀 서버에는 한 조각도 가지 않는다</span>${open}</div><p class="small muted">${esc(other || '팀 지식의 ' + subj + ' 지식 고르기에서 팀 지식을 고르면 여기서 본다.')}</p></div>` }
 }
 function viewToday() {
   const team = isTeam()
@@ -2751,7 +2751,7 @@ function viewImport() {
   const target = impTarget()
   const tab = S.impTab || 'queue'
   const drop = tab === 'queue' ? `<div class="drop bar" id="drop" data-t="drop"><b>파일 · 폴더를 이 화면 어디든 끌어다 놓는다</b><span>넣을 곳 ${impPick(target)}</span><span class="lks"><label>파일 고르기<input type="file" multiple id="fileIn" data-t="fileIn"></label> · <label>폴더 고르기<input type="file" webkitdirectory directory multiple id="dirIn" data-t="dirIn"></label></span>
-    <small>md · txt · csv · html · json · docx · pptx · xlsx · hwpx · pdf · hwp 는 글로 바꿔 들이고 원본은 첨부로 · ${team ? '파일마다 기록 하나: 정리가 이어지는 문서의 항목에 넣거나 새 문서로 세운다 · 글이 없는 pdf(스캔)는 내 PC 프로그램에서' : '파일마다 Claude Code 가 지식을 둘러보고 갈래 · 주제 문서의 항목으로 넣는다 · 안 되면 규칙으로'} · 한 번에 300 파일 · 200MB</small></div>` : ''
+    <small>md · txt · csv · html · json · docx · pptx · xlsx · hwpx · pdf · hwp 는 글로 바꿔 들이고 원본은 첨부로 · ${team ? '파일마다 기록 하나: 정리가 이어지는 문서의 항목에 넣거나 새 문서로 세운다 · 글이 없는 pdf(스캔)는 이 PC 의 kmd 에서' : '파일마다 Claude Code 가 지식을 둘러보고 갈래 · 주제 문서의 항목으로 넣는다 · 안 되면 규칙으로'} · 한 번에 300 파일 · 200MB</small></div>` : ''
   const main = `<div class="imp"><div class="pg-h"><div><div class="big">가져오기</div><p class="lead">들여오는 일은 모두 <b>일 줄</b>에 서서 차례로 돈다. 수집 › 검토 › 기록 생성 › 문서 생성. 줄을 고르면 흐름과 터미널이 보인다. 빈 지식을 새로 세우려면 <a data-a="openAdd" data-t="toAdd">지식 목록 › 새 지식</a></p></div><span class="acts">${can ? '<button class="btn pri" data-a="sfOpen" data-t="sfOpen">+ 가져올 곳 더하기</button>' : '<button class="btn" data-a="sfOpen" data-t="sfOpen">+ 더해 달라고 부탁</button>'}</span></div>
   ${impTabsHtml()}
   ${drop}<div id="impBody">${impBodyHtml()}</div></div>`
@@ -2952,7 +2952,7 @@ const pcRoot = () => (S.me.root || '').replace(/[\\/]+$/, '')
 // ── 지식 보내기(목업 docs/kmd_지식보내기_목업.html v2 · docs/kmd_지식관리_분리_목업.html) — 팀 화면에서 ──
 // 맨 위가 보내는 길 — 보내는 지식(내 PC 의 개인 지식 · 팀 서버에 남은 옛 개인 지식) → 받는 지식(팀 지식 하나). 길은 개인 지식마다 하나로 묶였고
 //   화면이 그때그때 고르지 않는다 · 바꾸려면 새 이름을 그대로 친다 · 단추 · 확인 창에 받는 지식 이름이 늘 들어간다.
-// 보낼 것은 그 길 안에서 탭으로 — 기록(먼저 · 보내지 않은 것) · 문서(통째로) · 보낸 것. 보내기는 내 PC 프로그램이 이 PC 의 기기 열쇠로 한다
+// 보낼 것은 그 길 안에서 탭으로 — 기록(먼저 · 보내지 않은 것) · 문서(통째로) · 보낸 것. 보내기는 이 PC 의 kmd 가 이 PC 의 기기 열쇠로 한다
 const sendSrcs = () => S.kns.filter((k) => k.pc && !k.dim)
 const sendOf = (k) => need('send:' + k, `/api/k/${encodeURIComponent(k)}/send`)
 const knNm = (id) => (KN(id) || {}).name || id
@@ -2974,7 +2974,7 @@ function viewSend() {
   if (!isTeam()) return { crumb: '지식 보내기', main: '<div class="snd"><div class="big">지식 보내기</div><div class="callout gray" data-t="sendPc">지식 보내기는 팀 화면에서 고른다. 팀에 들어와 개인 지식을 고르고 지식 관리 › 지식 보내기. 보내는 일은 이 프로그램이 이 PC 의 열쇠로 한다.</div></div>' }
   const head = '<div class="pg-h"><div><div class="big">지식 보내기</div><p class="lead">내 개인 지식의 기록 · 문서를 그 지식에 묶인 팀 지식으로 보낸다. 받는 지식에는 기록으로 들어가고 그 지식의 정리 때 문서에 들어간다.</p></div></div>'
   const src = sendSrc()
-  if (!src) return { crumb: '지식 보내기', main: `<div class="snd">${head}<div class="card" data-t="sendNone"><div class="empty3">${svg('arrow')}<b>보낼 개인 지식이 없다</b><p>개인 지식은 내 PC 프로그램의 지식 폴더에 있다. ${S.pc && S.pc.token ? '새 개인 지식을 만들고 거기서 쓰거나 가져온 뒤 팀 지식으로 보낸다.' : '내 PC 프로그램이 켜져 있어야 보인다. 없으면 설정 › 에이전트 설치의 설치 한 줄로 깐다.'}</p><button class="btn pri" data-a="openAdd" data-v="pc" data-t="sendMakeKn">+ 새 개인 지식</button></div></div></div>` }
+  if (!src) return { crumb: '지식 보내기', main: `<div class="snd">${head}<div class="card" data-t="sendNone"><div class="empty3">${svg('arrow')}<b>보낼 개인 지식이 없다</b><p>개인 지식은 이 PC 의 kmd 의 지식 폴더에 있다. ${S.pc && S.pc.token ? '새 개인 지식을 만들고 거기서 쓰거나 가져온 뒤 팀 지식으로 보낸다.' : '이 PC 의 kmd 가 켜져 있어야 보인다. 없으면 설정 › 에이전트 설치의 설치 한 줄로 깐다.'}</p><button class="btn pri" data-a="openAdd" data-v="pc" data-t="sendMakeKn">+ 새 개인 지식</button></div></div></div>` }
   const v = sendOf(src.id)
   if (!v) return { crumb: '지식 보내기', main: `<div class="snd">${head}${loadingHtml}</div>` }
   if (v.error) return { crumb: '지식 보내기', main: `<div class="snd">${head}${errHtml(v)}</div>` }
@@ -3040,7 +3040,7 @@ function sendWinHtml() {
       const how = d.st === 'new' ? '문서 통째로 · 처음' : '문서 통째로'
       return `<li><b>${esc(d.title)}</b> <small class="muted">: ${esc(how)}</small></li>`
     }).join('')
-    return `<div class="scrim fix" data-a="sendWinClose" data-self="1"><div class="modal w560" data-t="sendConfirm"><div class="mh">보내기 확인<button class="x" data-a="sendWinClose" title="닫기">×</button></div><div class="mb"><div class="bigroute"><span class="e"><small>보내는 지식 · 개인 · 나만</small><b>${esc(src.name)}</b></span>${svg('arrow')}<span class="e"><small>받는 지식 · 팀 · ${esc(teamWho(r).split(' · ')[1])}</small><b data-t="sendConfirmTo">${esc(r.name)}</b></span></div><ul class="plain sum">${rows}</ul><p class="small muted" style="margin:10px 0 0">고른 것마다 기록 하나로 ${esc(r.name)} 에 들어간다 · ${esc(tidyWhen(r))} 문서에 들어간다 · ${esc(S.me.user)} 이름으로 간다 · 내 개인 지식의 글은 그대로다</p></div><div class="mf"><span class="l">${src.pc ? '내 PC 프로그램이 보낸다' : '팀 서버 안에서 보낸다'}</span><span class="acts"><button class="btn ghost" data-a="sendWinClose">취소</button><button class="btn pri" data-a="doSend" data-t="sendGo"${S.sending ? ' disabled' : ''}>${S.sending ? '보내는 중…' : esc(ro(r.name)) + ' 보내기'}</button></span></div></div></div>`
+    return `<div class="scrim fix" data-a="sendWinClose" data-self="1"><div class="modal w560" data-t="sendConfirm"><div class="mh">보내기 확인<button class="x" data-a="sendWinClose" title="닫기">×</button></div><div class="mb"><div class="bigroute"><span class="e"><small>보내는 지식 · 개인 · 나만</small><b>${esc(src.name)}</b></span>${svg('arrow')}<span class="e"><small>받는 지식 · 팀 · ${esc(teamWho(r).split(' · ')[1])}</small><b data-t="sendConfirmTo">${esc(r.name)}</b></span></div><ul class="plain sum">${rows}</ul><p class="small muted" style="margin:10px 0 0">고른 것마다 기록 하나로 ${esc(r.name)} 에 들어간다 · ${esc(tidyWhen(r))} 문서에 들어간다 · ${esc(S.me.user)} 이름으로 간다 · 내 개인 지식의 글은 그대로다</p></div><div class="mf"><span class="l">${src.pc ? '이 PC 의 kmd 가 보낸다' : '팀 서버 안에서 보낸다'}</span><span class="acts"><button class="btn ghost" data-a="sendWinClose">취소</button><button class="btn pri" data-a="doSend" data-t="sendGo"${S.sending ? ' disabled' : ''}>${S.sending ? '보내는 중…' : esc(ro(r.name)) + ' 보내기'}</button></span></div></div></div>`
   }
   const teams = S.kns.filter((k) => !k.pc && k.id !== r.kn)
   const pt = w.to && KN(w.to)
@@ -3091,10 +3091,10 @@ async function doSend() {
 }
 
 // ── 팀 화면 ↔ 내 PC(E8 · v0.5 §5 · v0.6 ⑫) ──
-// 설치가 팀 주소를 내 PC 프로그램에 적어 두었으면 물으면 바로 12시간 짝 열쇠를 준다(누름 없음 · 탭 메모리만).
-// 내 PC 지식의 id 는 ~ 로 시작하고 그 요청은 reqTo 가 내 PC 프로그램으로만 보낸다.
+// 설치가 팀 주소를 이 PC 의 kmd 에 적어 두었으면 물으면 바로 12시간 짝 열쇠를 준다(누름 없음 · 탭 메모리만).
+// 내 PC 지식의 id 는 ~ 로 시작하고 그 요청은 reqTo 가 이 PC 의 kmd 로만 보낸다.
 function pcRemembered() { try { return JSON.parse(localStorage.getItem('kmdPcKns') || '[]') } catch { return [] } }
-// 내 PC 프로그램은 이 PC 안이라 보통 곧 답한다 — 늦어도 팀 화면은 기다리지 않는다(뒤에서 잇는다) · 넣기 · 정리로 바쁜 PC 를
+// 이 PC 의 kmd 는 이 PC 안이라 보통 곧 답한다 — 늦어도 팀 화면은 기다리지 않는다(뒤에서 잇는다) · 넣기 · 정리로 바쁜 PC 를
 // 꺼짐으로 보지 않게 넉넉히 기다린다 · 꺼져 있었으면 15초마다 · 창으로 돌아올 때 다시 잇는다(「켜면 저절로 다시 열린다」)
 const PC_MS = 15000
 function fetchPc(u, opt = {}) {
@@ -3112,7 +3112,7 @@ async function pcConnect(again, { quiet = false } = {}) {
   if (!quiet) { S.pc = pc; S.kns = S.kns.filter((k) => !k.pc) }
   try {
     if (!tok) {
-      // 팀 서버의 한 번용 표 — 내 PC 프로그램이 이 PC 의 기기 열쇠로 「들어온 사람 = 이 PC 를 이은 사람」 을 팀 서버에 물어 본다
+      // 팀 서버의 한 번용 표 — 이 PC 의 kmd 가 이 PC 의 기기 열쇠로 「들어온 사람 = 이 PC 를 이은 사람」 을 팀 서버에 물어 본다
       const { pass } = await postJSON('/api/me/pcpass', {})
       const r = await fetchPc(url + '/pair', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pass }) })
       const j = await r.json().catch(() => ({}))
@@ -3162,7 +3162,7 @@ const AUTO_T = {
 }
 // 설정 — 팀 / 개인으로 나눈다(docs/kmd_지식관리_분리_목업.html)
 //   설정 · 팀(팀 서버): 일반 · 사람(관리자 / 일반) · Claude 연결(정리 전용 로그인) · 에이전트 설치(팀 지식 하나) · 관리(관리자)
-//   설정 · 개인(내 PC 프로그램): 일반 · Claude 연결 · 에이전트 설치(개인 지식 하나). 팀 화면에서는 내 PC 프로그램의 것을 짝 열쇠로 읽어 보인다
+//   설정 · 개인(이 PC 의 kmd): 일반 · Claude 연결 · 에이전트 설치(개인 지식 하나). 팀 화면에서는 이 PC 의 kmd 의 것을 짝 열쇠로 읽어 보인다
 //   어느 쪽인지 — 그 영역에만 있는 화면(정리 · 사람 · 관리 = 팀 · 지식 보내기 = 개인)이면 그 영역 ·
 //   아니면 지식 관리 메뉴에서 마지막에 고른 것 · 처음은 설정 · 팀. 위에서 고른 지식은 보지 않는다
 const setArea = () => {
@@ -3186,8 +3186,8 @@ function viewSettings() {
   if (!st || st.error) return { crumb: title, main: `<div style="max-width:980px">${head}${st ? errHtml(st) : loadingHtml}</div>` }
   let body
   if (!team) body = tab === 'claude' ? `<div style="max-width:720px">${claudeCard(st)}${modelCard(st)}</div>` : tab === 'agent' ? `<div style="max-width:760px">${agentCard()}</div>` : `<div class="g2"><div>${setLeft(st)}</div><div>${autoCard(st)}</div></div>`
-  else if (area === 'team') body = tab === 'people' ? `<div style="max-width:820px">${peopleCard()}</div>` : tab === 'claude' ? `<div style="max-width:720px">${claudeCard(st)}</div>` : tab === 'agent' ? `<div style="max-width:820px">${teamAgentCard()}</div>` : tab === 'admin' ? viewAdmin().main : `<div class="g2"><div>${setLeft(st)}</div><div>${tidyTable()}${autoCard(st)}</div></div>`
-  else body = tab === 'claude' ? `<div style="max-width:720px">${claudeCard(st)}${modelCard(st)}</div>` : tab === 'agent' ? `<div style="max-width:760px">${agentCard()}</div>` : `<div class="g2"><div>${setLeft(st)}</div><div>${autoCard(st)}${routeTable()}</div></div>`
+  else if (area === 'team') body = tab === 'people' ? `<div style="max-width:820px">${peopleCard()}</div>` : tab === 'claude' ? `<div style="max-width:720px">${claudeCard(st)}</div>` : tab === 'agent' ? `<div style="max-width:820px">${agentInstallCard()}</div>` : tab === 'admin' ? viewAdmin().main : `<div class="g2"><div>${setLeft(st)}</div><div>${tidyTable()}${autoCard(st)}</div></div>`
+  else body = tab === 'claude' ? `<div style="max-width:720px">${claudeCard(st)}${modelCard(st)}</div>` : tab === 'agent' ? `<div style="max-width:760px">${agentInstallCard()}</div>` : `<div class="g2"><div>${setLeft(st)}</div><div>${autoCard(st)}${routeTable()}</div></div>`
   return { crumb: title + (tab === 'gen' ? '' : ' › ' + ST.find((x) => x[0] === tab)[1]), main: `<div style="max-width:980px">${head}${body}</div>` }
 }
 // 팀 지식마다 정리 때(관리자가 바꾼다) — 지식마다의 주인이 없어 여기로 왔다
@@ -3210,15 +3210,6 @@ function routeTable() {
   const rows = ks.map((k) => `<tr data-t="routeRow"><td><b>${esc(k.name)}</b> <span class="kt me">개인</span></td><td>${k.route ? esc(knNm(k.route)) : '<span class="muted">정하지 않음</span>'}</td><td>${k.sendN ? `<span class="chip c-pend">${k.sendN}</span>` : ''}</td><td style="text-align:right"><a class="lk" data-a="sendOpen" data-k="${esc(k.id)}">지식 보내기 ›</a></td></tr>`).join('')
   return `<div class="card" data-t="routeTable"><div class="ch">보내는 길 <small>개인 지식 → 팀 지식 하나 · 기록 · 문서만 간다</small></div><div class="cb" style="padding:4px 14px"><table class="t"><tr><th>개인 지식</th><th>받는 팀 지식</th><th>보내지 않은 기록</th><th></th></tr>${rows || '<tr><td class="muted" colspan="4">개인 지식이 없다</td></tr>'}</table></div><div class="cf small muted">보내기는 지식 보내기에서 · 받는 팀 지식의 정리 때 문서에 들어간다</div></div>`
 }
-// 에이전트 설치 · 팀 — 붙일 팀 지식을 고르고 설치 한 줄을 복사한다(붙여 넣은 작업 폴더가 그 지식에 붙는다)
-const pcAgentOf = () => {
-  if (!S.pc || !S.pc.token) return null
-  if (!S.cache.pcAgent && !S.wait.pcAgent) {
-    S.wait.pcAgent = true
-    fetchPc(S.pc.url + '/api/agent', { headers: { authorization: 'Bearer ' + S.pc.token } }).then((r) => (r.ok ? r.json() : { folders: [] }), () => ({ folders: [] })).then((v) => { S.cache.pcAgent = v; delete S.wait.pcAgent; render() })
-  }
-  return S.cache.pcAgent || null
-}
 // 폴더에 붙은 지식 — { kns, def } · 옛 PC 프로그램은 { area, kn, knName }
 const agKns = (f) => (Array.isArray(f.kns) ? f.kns : f.area && f.kn ? [{ area: f.area, kn: f.kn, knName: f.knName }] : [])
 // 메뉴 줄의 지식 — 이름은 그 폴더 줄에서
@@ -3229,22 +3220,40 @@ function agChips(f) {
   if (!ks.length) return '<span class="chip c-mute">지식을 정하지 않음</span>'
   return `<span style="display:flex;flex-wrap:wrap;gap:4px 8px;justify-content:flex-end" data-t="agentKns">${ks.map((k) => `<span data-t="agentKn" data-kn="${esc(k.kn)}" data-area="${k.area}"${k === d ? ' data-def="1"' : ''}><span class="kt ${k.area === 'team' ? 'team' : 'me'}">${k.area === 'team' ? '팀' : '개인'}</span> <b class="small">${esc(k.knName || k.kn)}</b>${k === d && ks.length > 1 ? ' <small class="muted">기본</small>' : ''}</span>`).join('')}</span>`
 }
-function agentRowsRO(area) {
-  const A = pcAgentOf()
-  if (!S.pc || !S.pc.token) return '<li class="muted">내 PC 프로그램이 켜져 있으면 이 PC 에 붙인 폴더가 보인다</li>'
-  if (!A) return '<li class="muted">읽는 중…</li>'
-  const xs = (A.folders || []).filter((f) => (area === 'team' ? agKns(f).some((k) => k.area === 'team') : !agKns(f).length || agKns(f).some((k) => k.area !== 'team')))
-  return xs.map((f) => `<li data-t="agentRow" data-name="${esc(f.name)}"><span style="flex:1;min-width:0"><b>${esc(f.name)}</b><small class="muted mono" style="display:block">${esc(f.path)}</small></span>${agChips(f)}${f.state && f.state !== 'latest' ? '<span class="chip c-warn">옛 판</span>' : ''}</li>`).join('') || '<li class="muted">아직 붙인 폴더가 없다</li>'
+// 에이전트 설치(팀 화면) — 지식을 고르면 그 지식의 설치 명령을 복사한다 · 팀 지식과 개인 지식을 영역으로 나눠 늘어놓는다.
+//   팀 지식: 설치 한 줄(10분 · 한 번 · 이 PC 에 kmd 가 없으면 함께 깐다) · 개인 지식: `kmd agent add <지식>`(이 PC 의 kmd)
+//   붙인 폴더의 이력은 두지 않는다 — 명령을 받는 곳
+function agentInstallCard() {
+  const team = S.kns.filter((k) => !k.pc), mine = S.kns.filter((k) => k.pc && !k.dim)
+  const C = S.agCopied
+  const row = (k, area) => `<li data-t="agInstRow" data-area="${area}" data-name="${esc(k.name)}"${C && C.id === k.id ? ' class="on"' : ''}><span style="flex:1;min-width:0"><b>${esc(k.name)}</b> <span class="kt ${area === 'team' ? 'team' : 'me'}">${area === 'team' ? '팀' : '개인'}</span></span><button class="btn sm${C && C.id === k.id ? ' pri' : ''}" data-a="agentCopy" data-k="${esc(k.id)}" data-area="${area}" data-t="agentCopy">${C && C.id === k.id ? '다시 복사' : '설치 명령 복사'}</button></li>`
+  const copied = C ? `<div class="callout gray" data-t="agCopied" style="display:block;margin:10px 0 0"><b>「${esc(C.name)}」 설치 명령을 복사했다</b>${C.area === 'team' ? ' · 10분 동안 한 번만 쓴다' : ''}<div class="urlbox" style="max-height:none" data-t="agCopiedLine">${esc(C.line)}</div></div>` : ''
+  return `<div class="card" data-t="agentCard"><div class="ch">에이전트 설치 <small>작업 폴더의 Claude Code 에 지식을 붙인다</small></div><div class="cb" style="padding:10px 14px 12px">
+   <ol class="lsteps" data-t="agGuide">
+    <li><b>작업 폴더에서 터미널을 연다</b><small>Windows 는 그 폴더의 탐색기 주소 줄에 powershell 을 치고 Enter · Mac · Linux 는 터미널에서 cd</small></li>
+    <li><b>붙일 지식의 [설치 명령 복사] 를 누른다</b><small>팀 지식 명령은 10분 동안 한 번만 쓴다 · 이 PC 에 kmd 가 없으면 함께 깐다 · 개인 지식 명령은 이 PC 에 kmd 가 깔려 있어야 한다</small></li>
+    <li><b>터미널에 붙여 넣고 Enter</b><small>「✓ … 를 더했다」 가 나오면 끝 · 한 폴더에 여러 지식을 붙이려면 명령을 차례로 붙인다(먼저 붙인 지식이 기본: 기록 · 저장이 남는 곳)</small></li>
+    <li><b>그 폴더에서 Claude Code 를 새로 연다</b><small>CLAUDE.md 안내 · 스킬(kmd-work · kmd-save · kmd-build) · 연결이 붙어 있다 · 열려 있던 것은 다시 연다</small></li>
+   </ol>
+   <div class="rh">팀 지식 <small class="muted">팀 서버 · 팀 모두</small></div><ul class="plain" data-t="agInstTeam">${team.map((k) => row(k, 'team')).join('') || '<li class="muted">팀 지식이 없다</li>'}</ul>
+   <div class="rh" style="margin-top:8px">개인 지식 <small class="muted">이 PC 의 지식 폴더 · 나만</small></div><ul class="plain" data-t="agInstMe">${mine.map((k) => row(k, 'me')).join('') || `<li class="muted">${S.pc && S.pc.token ? '개인 지식이 없다. 지식 목록에서 새 개인 지식을 세운다' : '이 PC 의 개인 지식이 아직 보이지 않는다. 지식 목록 › 개인 지식에서 지식 폴더를 정하면 보인다'}</li>`}</ul>
+   ${copied}</div></div>`
 }
-function teamAgentCard() {
-  const ks = S.kns.filter((k) => !k.pc)
-  if (!ks.some((k) => k.id === S.agKn)) S.agKn = (ks[0] || {}).id || ''
-  const sel = `<select class="inp" id="agKn" data-in="agKn" data-t="agKn" style="width:auto">${ks.map((k) => `<option value="${esc(k.id)}"${k.id === S.agKn ? ' selected' : ''}>${esc(k.name)}</option>`).join('')}</select>`
-  return `<div class="card" data-t="agentCard"><div class="ch">에이전트 설치 · 팀 <small>작업 폴더의 Claude Code 에 팀 지식을 더한다</small></div><div class="cb" style="padding:2px 14px 12px">
-   <div class="set"><span class="tx"><b>더할 팀 지식</b><small>작업 폴더의 CLAUDE.md 안내 「이 폴더의 지식」 표에 더해진다 · 처음 붙이는 폴더면 기록 · 저장의 기본 지식이 된다</small></span>${ks.length ? sel : '<span class="muted">팀 지식이 없다</span>'}</div>
-   <div class="set"><span class="tx"><b>설치 한 줄 복사</b><small>그 작업 폴더의 터미널에 붙여 넣는다 · 10분 동안 한 번만 · 그 폴더에 붙어 있던 지식(개인 지식도)은 그대로 둔다</small></span><button class="btn pri" data-a="copyInstall" data-v="team" data-t="copyInstall"${ks.length ? '' : ' disabled'}>설치 한 줄 복사</button></div>
-   <div class="rh">팀 지식이 붙은 내 작업 폴더 <small class="muted">이 PC</small></div><ul class="plain" data-t="agentTeamList">${agentRowsRO('team')}</ul>
-   <p class="small muted">한 폴더에 팀 지식 · 개인 지식을 같이 붙인다. 세션은 붙은 지식 모두에서 읽고 기본 지식에 남긴다 · 기본 바꾸기 · 떼기 · 폴더 빼기는 내 PC 프로그램 화면의 설정 › 에이전트 설치에서</p></div></div>`
+// 설치 명령 복사 — 팀 지식은 그 지식을 실은 설치 한 줄(팀 서버가 만든다) · 개인 지식은 kmd agent add
+async function agentCopy(id, area) {
+  const k = KN(id)
+  if (!k) return
+  try {
+    let line
+    if (area === 'team') {
+      const r = await postJSON('/api/device/ticket', { kn: id })
+      line = /Win/i.test(navigator.platform || navigator.userAgent) ? r.line : r.sh
+    } else line = `kmd agent add '${pcId(id).replace(/'/g, "''")}'`
+    copyText(line)
+    S.agCopied = { id, name: k.name, area, line }
+    toast(`「${esc(k.name)}」 설치 명령을 복사했다. 작업 폴더의 터미널에 붙여 넣는다`)
+  } catch (e) { toast(esc(e.message)) }
+  render()
 }
 // 일마다 Claude 모델 — 이 PC 만(core/models.js) · 옮겨 적기 · 고르기는 가벼운 모델 · 판단은 큰 모델
 const MODEL_T = [['convert', 'pdf · hwp 를 글로', '글이 없는 pdf · 표가 깨진 hwp 만: 옮겨 적기'], ['read', '넣은 파일의 기록 정리', '무엇 · 핵심 · 정한 것 · 남은 것'], ['touch', '기록의 이름 고르기', '후보 안에서 고른다'], ['tidy', '항목 글 초안', '기록을 항목에 넣어 다시 쓴다'], ['commit', '코드 바뀜 분석', '커밋 차이를 읽는다'], ['agent', '지식에 들이기(에이전트)', '둘러보고 자리 · 이름을 정한다']]
@@ -3428,8 +3437,8 @@ function agentCard() {
    <details class="more" data-t="agentMore"><summary>자세히: 무엇이 깔리나</summary><div class="in">스킬 셋: <code>kmd-work</code> · <code>kmd-save</code> · <code>kmd-build</code>(파일을 지식에 들이기)<br>연결: 붙은 지식의 것만. 개인 지식은 이 PC 의 kmd · 팀 지식은 kmd-team(팀 화면 › 설정 · 팀 › 에이전트 설치의 설치 한 줄로 더한다) · 열쇠는 이 PC 의 자격 저장소에서 꺼낸다<br>이 폴더의 지식: CLAUDE.md 안내에 붙은 지식 표가 적힌다. 세션은 표의 지식 모두에서 읽고 기본 지식에 남긴다(사람이 말하면 다른 지식에)<br>안내 한 단락: <code>CLAUDE.md</code> 안 kmd 안내 · 사람이 고친 줄은 그대로 두고 kmd 안내만 바꾼다</div></details></div></div>`
   }
   const devs = devicesOf()
-  return `<div class="card" data-t="agentCard"><div class="ch">에이전트 설치 <small>Claude Code 에 kmd 를 붙인다</small></div><div class="cb" style="padding:2px 14px 12px"><div class="set"><span class="tx"><b>이 PC 의 Claude Code 로 쓰려면: 설치 한 줄 복사</b><small>작업 폴더의 터미널에 붙여 넣는다 · 10분 동안 한 번만 · 내 PC 프로그램이 있으면 그 프로그램에 폴더를 더한다</small></span><button class="btn pri" data-a="copyInstall" data-t="copyInstall">설치 한 줄 복사</button></div>
-  <div class="rh">내 기기</div><ul class="plain" data-t="agentDevs">${(devs && !devs.error ? devs : []).map((d) => `<li data-t="agentDev" data-name="${esc(d.host || d.id)}"><span style="flex:1"><b>${esc(d.host || '이름 없는 기기')}</b><small class="muted" style="display:block">Claude Code · ${d.used ? '마지막 사용 ' + esc(whenTxt(d.used)) : '이은 때 ' + esc(whenTxt(d.at))}</small></span></li>`).join('') || '<li class="muted">아직 붙인 기기가 없다</li>'}</ul><p class="small muted">기기의 kmd 스킬은 그 기기의 내 PC 프로그램이 최신으로 맞춘다.</p></div></div>`
+  return `<div class="card" data-t="agentCard"><div class="ch">에이전트 설치 <small>Claude Code 에 kmd 를 붙인다</small></div><div class="cb" style="padding:2px 14px 12px"><div class="set"><span class="tx"><b>이 PC 의 Claude Code 로 쓰려면: 설치 한 줄 복사</b><small>작업 폴더의 터미널에 붙여 넣는다 · 10분 동안 한 번만 · 이 PC 의 kmd 가 있으면 그 프로그램에 폴더를 더한다</small></span><button class="btn pri" data-a="copyInstall" data-t="copyInstall">설치 한 줄 복사</button></div>
+  <div class="rh">내 기기</div><ul class="plain" data-t="agentDevs">${(devs && !devs.error ? devs : []).map((d) => `<li data-t="agentDev" data-name="${esc(d.host || d.id)}"><span style="flex:1"><b>${esc(d.host || '이름 없는 기기')}</b><small class="muted" style="display:block">Claude Code · ${d.used ? '마지막 사용 ' + esc(whenTxt(d.used)) : '이은 때 ' + esc(whenTxt(d.at))}</small></span></li>`).join('') || '<li class="muted">아직 붙인 기기가 없다</li>'}</ul><p class="small muted">기기의 kmd 스킬은 그 기기의 kmd 가 최신으로 맞춘다.</p></div></div>`
 }
 // 에이전트에 붙일 개인 지식 — 이 PC 프로그램은 모두 · 팀 화면은 내 PC 쪽의 것(~)
 const agMeKns = () => (isTeam() ? S.kns.filter((k) => k.pc && !k.dim) : S.kns)
@@ -3458,7 +3467,7 @@ function admPeopleCard() {
   const live = u.users.filter((x) => !x.off && !x.legacyOnly), gone = u.users.filter((x) => x.off)
   const st = (x) => x.password ? '들어온다' : x.firstOpen ? `링크 보냄 · ${Math.floor(leftMin(x.firstExp) / 60)}시간 ${leftMin(x.firstExp) % 60}분 남음` : '비밀번호를 안 정함'
   const mk = (x) => 'pp:' + x.id
-  const row = (x) => `<li data-t="admPerson" data-name="${esc(x.id)}"><span class="av2">${esc(x.id.slice(0, 1))}</span><span class="nm">${esc(x.id)}${x.admin ? ' <span class="kt role">관리자</span>' : ''}<small>${esc(st(x))} · 기기 ${x.devices}${x.workers ? ' · PC 일꾼 ' + x.workers : ''}${x.roles.team + x.roles.curate ? ` · 주인 ${x.roles.team} · 정리 ${x.roles.curate}` : ''}</small></span>${S.admLink && S.admLink.id === x.id ? `<span class="mono small" data-t="admLinkOut" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(S.admLink.link)}</span><a class="lk" data-a="admCopyLink" data-t="admCopyLink">복사</a>` : ''}${x.id === S.me.user ? '' : `<button class="kebab${S.menu === mk(x) ? ' on' : ''}" data-a="menu" data-m="${esc(mk(x))}" data-t="admPersonKebab" title="새 링크 · 관리자 · 기기 · 떠남">⋯${S.menu === mk(x) ? `<div class="menu" style="right:0;top:28px"><div class="mi" data-a="admLink1" data-v="${esc(x.id)}" data-t="admLink1">새 링크<small>이 사람만 · 24시간 · 한 번: 지금 비밀번호는 지워진다</small></div><div class="mi" data-a="admAdminSet" data-v="${esc(x.id)}" data-on="${x.admin ? '' : '1'}" data-t="admAdminSet">${x.admin ? '관리자 아님으로' : '관리자로'}</div><div class="mi" data-a="admRevokeAll" data-v="${esc(x.id)}" data-t="admRevokeAll">기기 모두 끊기<small>Claude Code · 내 PC 프로그램 · PC 일꾼이 다시 이어야 한다</small></div><div class="sep"></div><div class="mi danger" data-a="admOffOpen" data-v="${esc(x.id)}" data-t="admOffOpen">떠남…<small>들어가기 · 기기 · PC 일꾼을 끊고 지식을 넘긴다</small></div></div>` : ''}</button>`}</li>`
+  const row = (x) => `<li data-t="admPerson" data-name="${esc(x.id)}"><span class="av2">${esc(x.id.slice(0, 1))}</span><span class="nm">${esc(x.id)}${x.admin ? ' <span class="kt role">관리자</span>' : ''}<small>${esc(st(x))} · 기기 ${x.devices}${x.workers ? ' · PC 일꾼 ' + x.workers : ''}${x.roles.team + x.roles.curate ? ` · 주인 ${x.roles.team} · 정리 ${x.roles.curate}` : ''}</small></span>${S.admLink && S.admLink.id === x.id ? `<span class="mono small" data-t="admLinkOut" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(S.admLink.link)}</span><a class="lk" data-a="admCopyLink" data-t="admCopyLink">복사</a>` : ''}${x.id === S.me.user ? '' : `<button class="kebab${S.menu === mk(x) ? ' on' : ''}" data-a="menu" data-m="${esc(mk(x))}" data-t="admPersonKebab" title="새 링크 · 관리자 · 기기 · 떠남">⋯${S.menu === mk(x) ? `<div class="menu" style="right:0;top:28px"><div class="mi" data-a="admLink1" data-v="${esc(x.id)}" data-t="admLink1">새 링크<small>이 사람만 · 24시간 · 한 번: 지금 비밀번호는 지워진다</small></div><div class="mi" data-a="admAdminSet" data-v="${esc(x.id)}" data-on="${x.admin ? '' : '1'}" data-t="admAdminSet">${x.admin ? '관리자 아님으로' : '관리자로'}</div><div class="mi" data-a="admRevokeAll" data-v="${esc(x.id)}" data-t="admRevokeAll">기기 모두 끊기<small>Claude Code · 이 PC 의 kmd · PC 일꾼이 다시 이어야 한다</small></div><div class="sep"></div><div class="mi danger" data-a="admOffOpen" data-v="${esc(x.id)}" data-t="admOffOpen">떠남…<small>들어가기 · 기기 · PC 일꾼을 끊고 지식을 넘긴다</small></div></div>` : ''}</button>`}</li>`
   const add = S.admAdd ? `<div class="flow" data-t="admAddForm"><div class="row"><input class="inp" id="admAddIn" data-in="admAddId" data-t="admAddIn" value="${esc(S.admAdd.id || '')}" placeholder="아이디: 영문 · 숫자 · . _ -" autocomplete="off" style="flex:1"><label class="small"><input type="checkbox" id="admAddAdmin"${S.admAdd.admin ? ' checked' : ''} data-t="admAddAdmin"> 관리자</label><button class="btn pri" data-a="admAddDo" data-t="admAddDo">더하기</button><a class="muted" data-a="admAddCancel">그만두기</a></div>${S.admAdd.err ? `<div class="callout danger" style="margin-top:8px">${esc(S.admAdd.err)}</div>` : ''}</div>` : ''
   return `<div class="card" data-t="admPeople" style="overflow:visible"><div class="ch">사람 ${live.length} <small>처음 들어오기 링크는 사람마다 따로 보낸다</small></div><div class="cb" style="padding:2px 14px 10px">${add}<ul class="plain pl">${live.map(row).join('')}</ul>${gone.length ? `<details class="more" data-t="admGone"><summary>떠난 사람 ${gone.length}: 아이디는 되쓰지 않는다</summary><div class="in">${gone.map((x) => `${esc(x.id)} · ${esc(String(x.off.at).slice(0, 10))}`).join(' · ')}</div></details>` : ''}</div><div class="cf">${S.admAdd ? '' : '<button class="btn pri" data-a="admAddOpen" data-t="admAddOpen">사람 더하기</button>'}<span>더하면 처음 들어오기 링크가 나온다. 그 사람에게만 보낸다</span></div></div>`
 }
@@ -3662,7 +3671,7 @@ const ACT = {
   openTidy: (el) => { S.tdKn = el.dataset.k; go({ scr: 'tidy' }) },
   pickModel: async (el) => { const st = settingsOf(); if (!st) return; try { const r = await postJSON(sideApi('/api/settings/model'), { role: el.dataset.model, model: el.value }); st.models[r.role] = r.model } catch (e) { toast(esc(e.message)) } render() },
   toggleAuto: async (el) => { const st = settingsOf(); if (!st) return; try { const r = await postJSON(sideApi('/api/settings/auto'), { key: el.dataset.v, on: !st.auto[el.dataset.v] }); st.auto[r.key] = r.on } catch (e) { toast(esc(e.message)) } render() },
-  unlinkMyDev: async (el) => { S.menu = null; if (!confirm('이 기기를 끊는다. 그 기기의 Claude Code · 내 PC 프로그램은 다시 이어야 한다')) return render(); try { await postJSON('/api/me/devices/revoke', { id: el.dataset.id }); toast('끊었다. 그 기기의 Claude Code 는 다시 이어야 한다') } catch (e) { toast(esc(e.message)) } delete S.cache.devices; render() },
+  unlinkMyDev: async (el) => { S.menu = null; if (!confirm('이 기기를 끊는다. 그 기기의 Claude Code · 이 PC 의 kmd 는 다시 이어야 한다')) return render(); try { await postJSON('/api/me/devices/revoke', { id: el.dataset.id }); toast('끊었다. 그 기기의 Claude Code 는 다시 이어야 한다') } catch (e) { toast(esc(e.message)) } delete S.cache.devices; render() },
   pcLoginStart: async () => {
     S.menu = null
     // 팀 화면 — 내 Claude 로그인은 내 PC 쪽이 이 PC 에 창을 띄운다(머리 창 · 설정 · 개인)
@@ -3709,7 +3718,7 @@ const ACT = {
   admAdminSet: async (el) => { S.menu = null; try { await postJSON(`/api/admin/users/${encodeURIComponent(el.dataset.v)}/admin`, { admin: !!el.dataset.on }); delete S.cache.users; toast(el.dataset.on ? '관리자로 했다' : '관리자가 아니다') } catch (e) { if (e.code !== 'E_CANCEL') toast(esc(e.message)) } render() },
   admRevokeAll: async (el) => {
     S.menu = null
-    if (!confirm(`${el.dataset.v} 의 기기를 모두 끊는다. Claude Code · 내 PC 프로그램 · PC 일꾼이 다시 이어야 한다`)) return render()
+    if (!confirm(`${el.dataset.v} 의 기기를 모두 끊는다. Claude Code · 이 PC 의 kmd · PC 일꾼이 다시 이어야 한다`)) return render()
     try { const r = await postJSON(`/api/admin/users/${encodeURIComponent(el.dataset.v)}/revoke-all`, {}); delete S.cache.users; toast(`끊었다. 기기 ${r.revoked}`) } catch (e) { if (e.code !== 'E_CANCEL') toast(esc(e.message)) }
     render()
   },
@@ -4018,6 +4027,7 @@ const ACT = {
   legacyOpen: () => { S.legacyOpen = true; S.gateErr = null; render() },
   legacyClose: () => { S.legacyOpen = false; S.gateErr = null; render() },
   copyInstall: (el) => copyInstall(el.dataset.v === 'team'),
+  agentCopy: (el) => agentCopy(el.dataset.k, el.dataset.area),
   gateHome: () => { S.gate = null; history.replaceState(null, '', '/'); go({ scr: 'home', kn: '*' }) },
   gateLogin: () => { S.gate = null; history.replaceState(null, '', '/'); render() },
   view: (el) => setView(el.dataset.v),
@@ -4027,7 +4037,7 @@ const ACT = {
   pickKn: (el, ev) => { ev.stopPropagation(); S.menu = null; const k = el.dataset.k; if (k === '*') go({ scr: 'home', kn: '*' }); else go({ scr: KNSCR.includes(S.route.scr) ? S.route.scr : 'docs', kn: k }) },
   openKn: (el, ev) => {
     if (ev.target.closest('.kebab,.btn')) return
-    if (el.classList.contains('dim')) { toast('내 PC 프로그램이 꺼져 있다. 켜면 저절로 다시 열린다'); return } go({ scr: 'docs', kn: el.dataset.k }) },
+    if (el.classList.contains('dim')) { toast('이 PC 의 kmd 가 꺼져 있다. 켜면 저절로 다시 열린다'); return } go({ scr: 'docs', kn: el.dataset.k }) },
   pairForget: async (el) => {
     if (!confirm(`${el.dataset.v.replace(/^https?:\/\//, '')}: 이 팀 화면에서 내 PC 지식을 더 열지 않는다 · 이 팀의 내 개인 지식 일꾼도 멈춘다(다시 이으려면 팀 화면 › 설치 한 줄)`)) return
     try { await postJSON('/api/pair/forget', { origin: el.dataset.v }); delete S.cache.settings; toast('끊었다') } catch (e) { toast(esc(e.message)) }
@@ -4203,7 +4213,7 @@ async function loadAll() {
   claudeTimer = setInterval(() => loadClaude({ verify: true }), 30 * 60_000)
   document.title = isTeam() ? 'kmd: 팀' : 'kmd'
   if (!S.hist.length) pushHist()
-  // 팀 지식은 바로 그리고, 내 PC 프로그램은 뒤에서 잇는다(붙으면 다시 그린다) — PC 가 늦어도 팀 화면이 기다리지 않는다.
+  // 팀 지식은 바로 그리고, 이 PC 의 kmd 는 뒤에서 잇는다(붙으면 다시 그린다) — PC 가 늦어도 팀 화면이 기다리지 않는다.
   // 내 PC 문서 주소(#~지식/문서)는 첫 그리기가 지우기 전에 잡아 두고, 붙은 뒤 그사이 다른 곳으로 옮기지 않았으면 연다
   const hm = location.hash.match(/^#(~[^/]+)\/(.+)$/)
   const openHash = () => { if (hm && KN(decodeURIComponent(hm[1]))) { openTab({ kind: 'doc', kn: decodeURIComponent(hm[1]), ref: decodeURIComponent(hm[2]) }, { view: 'docs' }); return true } return false }

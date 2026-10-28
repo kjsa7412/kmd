@@ -203,7 +203,7 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
     }
     if (PCONLY.includes(ext)) {
       if (direct && !(await read(attRel))?.equals(f.data)) plan.atts.push({ rel: attRel, data: f.data })
-      row('fail', !conv ? (direct ? '원본은 첨부로 두었다. 문서로 바꾸기를 꺼 두었다' : '문서로 바꾸기를 꺼 두었다') : direct ? '원본은 첨부로 두었다. 글이 없는 파일(스캔 · 암호 · 배포용)이라 내 PC 프로그램이 Claude 로 옮긴다' : '바꾸지 못한 파일(스캔 · 암호 · 배포용): 내 PC 프로그램이 있는 PC 에서 넣는다')
+      row('fail', !conv ? (direct ? '원본은 첨부로 두었다. 문서로 바꾸기를 꺼 두었다' : '문서로 바꾸기를 꺼 두었다') : direct ? '원본은 첨부로 두었다. 글이 없는 파일(스캔 · 암호 · 배포용)이라 이 PC 의 kmd 가 Claude 로 옮긴다' : '바꾸지 못한 파일(스캔 · 암호 · 배포용): 이 PC 의 kmd 가 있는 PC 에서 넣는다')
       continue
     }
     if (IMG.includes(ext)) {
