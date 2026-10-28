@@ -627,7 +627,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         return out(200, { ok: r.ok, reason: r.reason || null })
       }
       const r = await teamLogin.code((await readBody(req)).code)
-      if (r.ok) await fs.rm(path.join(dataDir, 'worker.json'), { force: true }).catch(() => {}) // 쉼 줄을 걷는다 — 다음 일감에서 다시 잰다
+      if (r.ok) await hub.workerClear() // 쉼 줄을 걷는다(파일 · 메모리 둘 다) — 다음 일감에서 다시 잰다
       return out(200, { ok: r.ok, ...(r.again ? { again: true, url: r.url, why: r.why } : {}) })
     }
     // 되살리기 · 이 백업 이어 쓰기 — 관리자(비밀번호 한 번 더) · PC 는 그 PC 의 주인

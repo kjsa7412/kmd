@@ -1336,7 +1336,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         sp.lines.push([2, 'ok', '✓ 초안을 받았다'], [3, 'sys', '검사 · 넣기는 자리를 다 쓴 뒤 한꺼번에'])
       } else {
         const w = STOP_WHY[why] || `초안을 받지 못했다${why ? ': ' + String(why).slice(0, 120) : ''}`
-        Object.assign(sp, { st: 'left', stage: 3, why: w })
+        Object.assign(sp, { st: 'left', stage: 2, why: w })
         sp.lines.push([2, 'err', `✗ ${w}`])
       }
       return { ok: true, stop: !!j.stop }
@@ -1481,16 +1481,18 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             Object.assign(sp, { st: 'stop', stage: 2 })
             sp.lines.push([2, 'sys', '그만뒀다 · 받은 것에 그대로 남는다'])
           } else if (row.kind === 'left') {
-            Object.assign(sp, { st: 'left', stage: 3, why: row.why })
+            // 초안이 없으면 글 쓰기에서 멈춘 것 — 검사 줄을 적지 않는다
+            const stg = item.draft ? 3 : 2
+            Object.assign(sp, { st: 'left', stage: stg, why: row.why })
             const had = sp.lines.some((l) => l[0] === 2 && l[1] !== 'tool')
-            sp.lines.push(...(had ? [] : [item.draft ? [2, 'ok', '✓ 초안을 받았다'] : [2, 'err', `✗ ${row.why}`]]), [3, 'err', `✗ ${row.why}`], [3, 'sys', '넣지 않고 둔다 · 다음 정리 때 다시'])
+            sp.lines.push(...(had ? [] : [item.draft ? [2, 'ok', '✓ 초안을 받았다'] : [2, 'err', `✗ ${row.why}`]]), ...(item.draft ? [[3, 'err', `✗ ${row.why}`]] : []), [stg, 'sys', '넣지 않고 둔다 · 받은 것에 그대로 · 다시 정리할 수 있다'])
           } else {
             Object.assign(sp, { st: 'done', stage: 5, res: row.kind, record: row.record || null, ...(row.kind === 'changed' ? { from: row.from, to: row.to } : {}) })
             sp.lines.push(...(sp.lines.some((l) => l[0] === 2 && l[1] === 'ok') ? [] : [[2, 'ok', '✓ 초안을 받았다']]), [3, 'ok', '✓ 글 모양 · 그 사이 바뀌지 않음 · 값 맞춤 · 크기 · 머리'], [4, 'ok', row.kind === 'changed' ? `✓ 넣었다 · 값 바뀜 ${row.from} → ${row.to} · 쓴 사람에게 알렸다` : '✓ 넣었다'])
           }
         })
         // 일꾼이 에이전트로 넣은 파일은 초안이 오지 않는다
-        for (const sp of j.spots) if (sp.st === 'wait' || sp.st === 'run' || sp.st === 'got') Object.assign(sp, j.stop && sp.st === 'wait' ? { st: 'stop', stage: 2 } : sp.kind === 'ingest' ? { st: 'done', stage: 5, res: 'put' } : { st: 'left', stage: 3, why: '초안이 오지 않았다' })
+        for (const sp of j.spots) if (sp.st === 'wait' || sp.st === 'run' || sp.st === 'got') Object.assign(sp, j.stop && sp.st === 'wait' ? { st: 'stop', stage: 2 } : sp.kind === 'ingest' ? { st: 'done', stage: 5, res: 'put' } : { st: 'left', stage: sp.st === 'got' ? 3 : 2, why: '초안이 오지 않았다' })
       }
       const done = rows.filter((x) => x.kind !== 'stopped')
       const run = { at: new Date().toISOString(), by: j?.by || null, auto: !!j?.auto, rows: done, ...(j?.stop ? { stopped: j.stop.by } : {}) }
@@ -1521,6 +1523,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       for (const j of jobs.values()) if (j.state === 'running' && j.worker === wctx.worker.id && !ok) Object.assign(j, { state: 'failed', why: STOP_WHY[reason] || STOP_WHY.login, done: new Date().toISOString() })
       saveJobs()
       return next
+    },
+    // 다시 로그인했다 — 쉼을 걷는다. 메모리도 걷어야 다음 [지금 정리] 가 규칙으로 새지 않는다
+    async workerClear() {
+      await fs.rm(path.join(dataDir, 'worker.json'), { force: true }).catch(() => {})
+      wsNow = null
     },
     async runs(id) {
       return fs.readFile(path.join(dataDir, 'tidy', `${encodeURIComponent(id)}.json`), 'utf8').then(JSON.parse, () => [])

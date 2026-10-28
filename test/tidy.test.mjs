@@ -138,7 +138,12 @@ test('로그인이 끝나면 멈춘다. 「자동 정리가 쉬고 있다」 · 
     const j2 = await s.hub.tidyNow({ user: 'kim', admin: true }, 'dpms')
     assert.equal(j2.rule, true)
     await s.hub.curateIdle('dpms')
-    await s.hub.workerStatus({ worker: { id: null } }, { ok: true }) // 다음 시험을 위해 — 다시 로그인했다
+    // 둔 자리는 글 쓰기에서 멈춘 것 — 검사 줄을 적지 않는다(초안이 없다)
+    const sp = last.spots.find((x) => x.st === 'left')
+    assert.deepEqual([sp.stage, sp.lines.some((l) => l[0] === 3)], [2, false])
+    // 다시 로그인하면(번호 받음) 쉼이 파일 · 메모리에서 같이 걷혀 다음 [지금 정리] 는 일꾼에게 간다
+    await s.hub.workerClear()
+    assert.equal(s.hub.ruleOnly('dpms'), false)
   } finally {
     delete process.env.FAKE_CLAUDE_MODE
   }
