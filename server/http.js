@@ -25,7 +25,7 @@ import { checkClaude } from '../core/claude.js'
 import { getSecret, delSecret } from '../core/secrets.js'
 import { safeOrigin } from '../core/claudecfg.js'
 import { get as kget, keyName } from '../core/keystore.js'
-import { pcRootKind } from '../core/pcops.js'
+import { pcRootKind, noneRoot, isNoneRoot, carryPcData } from '../core/pcops.js'
 import { createReadStream } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { pipeline } from 'node:stream/promises'
@@ -228,7 +228,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     { re: /^\/api\/pc\/backup$/, what: '이 PC 의 백업 자리를 바꾼다' },
     { re: /^\/api\/k\/[^/]+\/backup$/, what: '지식의 백업 주소를 붙인다' },
     { re: /^\/api\/restore$/, what: '백업 주소에서 지식을 되살린다' },
-    { re: /^\/api\/pc\/root$/, what: '이 PC 의 지식 폴더를 바꾼다' },
+    { re: /^\/api\/pc\/root$/, what: '이 PC 의 지식 폴더를 바꾼다(빼기도 · 폴더의 파일은 그대로)' },
     { re: /^\/api\/agent\/(add|up|rm)$/, what: '에이전트 설치: 작업 폴더의 CLAUDE.md · 스킬을 고친다' },
     { re: /^\/api\/k\/[^/]+\/owner$/, what: '지식 설정(Claude 에 보내지 않음 · 정리 방식)을 바꾼다' },
     { re: /^\/api\/k\/[^/]+\/delete$/, what: '개인 지식을 지운다(되돌릴 수 없다)' },
@@ -399,7 +399,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (p === '/api/me') {
       // pcUrl — 내 PC 프로그램으로 이은 기기(설치 한 줄 · osuser 가 실린 것)가 있는 사람에게만 · 없으면 화면이 PC 를 묻지 않는다
       if (!ctx) return out(200, { mode, anon: true, setup: !auth.hasUsers(), legacy: auth.legacyWaiting(), version: VERSION, host: req.headers.host })
-      return out(200, { mode, user: ctx.user, admin: !!ctx.admin, sudo: !!ctx.sudo, password: ctx.password !== false, version: VERSION, host: req.headers.host, ...(mode === 'pc' ? { root: path.resolve(root) } : auth.devices(ctx.user).some((d) => d.osuser) ? { pcUrl } : {}), ...(mode === 'team' && ctx.admin ? { root: path.resolve(root) } : {}) })
+      return out(200, { mode, user: ctx.user, admin: !!ctx.admin, sudo: !!ctx.sudo, password: ctx.password !== false, version: VERSION, host: req.headers.host, ...(mode === 'pc' ? { root: path.resolve(root), ...(isNoneRoot(root) ? { none: true } : {}) } : auth.devices(ctx.user).some((d) => d.osuser) ? { pcUrl } : {}), ...(mode === 'team' && ctx.admin ? { root: path.resolve(root) } : {}) })
     }
     // 확인 기다림 — 팀 화면이 확인 번호로 묻는다(wait · ok · no · gone). 확인 창의 열쇠는 싣지 않는다
     const cm = mode === 'pc' && p.match(/^\/api\/confirm\/([A-Za-z0-9_-]{6,40})$/)
@@ -410,16 +410,19 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, { state: a.exp < Date.now() && a.state === 'wait' ? 'gone' : a.state === 'used' ? 'ok' : a.state })
     }
     // 이 PC 의 지식 폴더 바꾸기 — 그 폴더에 .kmd 가 있으면 그대로 잇고 · 없거나 빈 폴더면 새로 세운다 · 다른 파일만 있는 폴더는 받지 않는다.
-    //   고른 폴더는 이 PC 의 「지식 폴더 표」 에 적고 kmd 가 그 폴더로 다시 켜진다(onRoot)
+    //   고른 폴더는 이 PC 의 「지식 폴더 표」 에 적고 kmd 가 그 폴더로 다시 켜진다(onRoot).
+    //   { none: true } — 지식 폴더 빼기: 빈자리 폴더로 다시 켜진다(폴더의 파일은 그대로 · 팀 연결 · 내 Claude 는 그대로). 이은 팀 · 내 Claude 로그인은 새 곳으로 함께 간다
     if (p === '/api/pc/root') {
       if (mode !== 'pc') throw new KmdError('E_NOTFOUND', '이 PC 의 길이다')
       need(ctx)
-      if (req.method === 'GET') return out(200, { root: path.resolve(root) })
-      const want = String((await readBody(req)).root || '').trim()
+      if (req.method === 'GET') return out(200, { root: path.resolve(root), ...(isNoneRoot(root) ? { none: true } : {}) })
+      const b = await readBody(req)
+      const want = b.none === true ? noneRoot() : String(b.root || '').trim()
       if (want && path.isAbsolute(want) && path.resolve(want).toLowerCase() === path.resolve(root).toLowerCase()) return out(200, { root: path.resolve(want), same: true })
-      const { root: full, kind } = pcRootKind(want)
+      const { root: full, kind } = b.none === true ? { root: path.resolve(want), kind: 'none' } : pcRootKind(want)
       if (!onRoot) throw new KmdError('E_NOTFOUND', '이 kmd 는 지식 폴더를 바꿔 다시 켜지 못한다. kmd up <폴더> 로 켠다')
       await fs.mkdir(path.join(full, '.kmd'), { recursive: true })
+      carryPcData(dataDir, path.join(full, '.kmd'))
       out(200, { root: full, kind })
       setTimeout(() => onRoot(full), 200)
       return
@@ -653,6 +656,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const b = await readBody(req)
       // 팀 프로그램 — 팀 지식만 · 관리자(개인 지식은 내 PC 프로그램에)
       need(ctx)
+      // 지식 폴더를 뺀 내 PC 쪽 — 폴더가 서기 전에는 지식을 만들지 않는다
+      if (mode === 'pc' && isNoneRoot(root)) throw new KmdError('E_INPUT', '내 PC 지식 폴더가 없다. 지식 목록 › 내 PC 지식 폴더에 경로를 쓰고 세운다')
       if (mode === 'team') admin(ctx, { sudo: false })
       return out(200, await hub.addKnowledge(ctx, b))
     }

@@ -440,8 +440,8 @@ function viewHome() {
   // 팀 화면 — 위 팀 지식(팀 지식 폴더 · 팀 모두) / 아래 개인 지식(이 PC 의 개인 지식 폴더 · 나만)
   const teamPart = shown.filter((n) => !isPersonal(n)), mePart = shown.filter((n) => isPersonal(n))
   const addTeam = S.me.admin ? `<div class="kcard add" data-a="openAdd" data-v="team" data-t="addCardTeam"><span class="pl">+</span>새 팀 지식</div>` : ''
-  const live = !!(S.pc && S.pc.token)
-  const addMe = `<div class="kcard add${live ? '' : ' dim'}" data-a="openAdd" data-v="me" data-t="addCard"><span class="pl">+</span>새 개인 지식<small class="muted" style="display:block">${live ? '내 PC 지식 폴더에' : S.me.pcUrl ? '내 PC 쪽이 켜지면' : '내 PC 지식 폴더를 세우면'}</small></div>`
+  const live = meReady()
+  const addMe = `<div class="kcard add${live ? '' : ' dim'}" data-a="openAdd" data-v="me" data-t="addCard"><span class="pl">+</span>새 개인 지식<small class="muted" style="display:block">${live ? '내 PC 지식 폴더에' : S.me.pcUrl && !(S.pc && S.pc.none) ? '내 PC 쪽이 켜지면' : '내 PC 지식 폴더를 세우면'}</small></div>`
   const meBar = pcRootBar()
   const grids = team
     ? `<div class="sec-h" data-t="teamSec"><b>팀 지식</b><small>팀 서버 · 팀 모두 보고 기록한다${S.me.admin ? '' : ' · 새 팀 지식은 관리자가 세운다'}</small></div>${fbar}
@@ -461,15 +461,26 @@ function viewHome() {
 //   없거나 빈 폴더면 새 지식 폴더로 세운다. 내 PC 에 뜬 창에서 확인하면 내 PC 쪽이 그 폴더로 다시 켜진다
 //   지식 폴더가 아직 없으면(내 PC 쪽 설치 전) 경로를 받아 그 경로를 실은 설치 한 줄을 준다 — 내 PC 쪽을 깔고 그 폴더에 세운다
 //   (이미 kmd 지식 폴더면 그대로 쓴다) · 꺼져 있으면 켜면 저절로
+// 개인 지식을 세울 수 있나 — 내 PC 쪽에 붙었고 지식 폴더가 섰다(뺀 상태가 아니다)
+const meReady = () => !!(S.pc && S.pc.token && !S.pc.none)
 function pcRootBar() {
   const P = S.pc
   if (!S.me.pcUrl) return meSetupBar()
   if (!P || !P.token) return ''
-  const ed = S.meRootEdit != null
+  // 뺀 뒤(none) — 바꾸기와 같은 경로 칸이 늘 열려 있다(취소 없음)
+  const ed = S.meRootEdit != null || P.none
   const body = ed
-    ? `<input class="inp mono" id="meRootIn" data-in="meRoot" data-t="meRootIn" value="${esc(S.meRootEdit)}" placeholder="예: D:\\kmd" autocomplete="off" style="flex:1;min-width:220px"><span class="acts"><button class="btn pri" data-a="meRootSave" data-t="meRootSave"${S.meRootBusy ? ' disabled' : ''}>${S.meRootBusy ? '바꾸는 중…' : '이 폴더로'}</button><button class="btn ghost" data-a="meRootCancel">취소</button></span>`
-    : `<span class="fp" data-t="mePath">${esc(P.root || '')}</span><span class="acts"><button class="btn" data-a="copyMeRoot" data-t="copyMeRoot">경로 복사</button><button class="btn" data-a="meRootEdit" data-t="meRootEdit">바꾸기</button></span>`
-  return `<div class="fbar" data-t="meWhere"><span class="fl">${svg('doc')}내 PC 지식 폴더</span>${body}<small>개인 지식 하나 = 이 폴더 안의 폴더 하나 · 작업 환경은 그 폴더의 .kmd 에 · 바꾸면 그 폴더의 지식이 보인다(.kmd 가 없거나 빈 폴더면 새로 세운다 · 옛 폴더는 그대로)</small></div>${S.meRootErr ? `<div class="callout danger" data-t="meRootErr">${esc(S.meRootErr)}</div>` : ''}`
+    ? `<input class="inp mono" id="meRootIn" data-in="meRoot" data-t="meRootIn" value="${esc(S.meRootEdit || '')}" placeholder="예: D:\\kmd" autocomplete="off" style="flex:1;min-width:220px"><span class="acts"><button class="btn pri" data-a="meRootSave" data-t="meRootSave"${S.meRootBusy ? ' disabled' : ''}>${S.meRootBusy ? '바꾸는 중…' : '이 폴더로'}</button>${P.none ? '' : '<button class="btn ghost" data-a="meRootCancel">취소</button>'}</span>`
+    : `<span class="fp" data-t="mePath">${esc(P.root || '')}</span><span class="acts"><button class="btn" data-a="copyMeRoot" data-t="copyMeRoot">경로 복사</button><button class="btn" data-a="meRootEdit" data-t="meRootEdit">바꾸기</button><button class="btn" data-a="meRootDrop" data-t="meRootDrop"${S.meRootBusy ? ' disabled' : ''}>빼기</button></span>`
+  const note = P.none ? '지식 폴더를 뺐다. 경로를 쓰면 그 폴더에 세운다 · 이미 kmd 지식 폴더(.kmd 가 있는 곳)면 그대로 쓴다 · 뺀 폴더도 경로를 쓰면 다시 붙는다'
+    : '개인 지식 하나 = 이 폴더 안의 폴더 하나 · 작업 환경은 그 폴더의 .kmd 에 · 바꾸면 그 폴더의 지식이 보인다(.kmd 가 없거나 빈 폴더면 새로 세운다 · 옛 폴더는 그대로) · 빼도 폴더의 파일은 지우지 않는다'
+  return `<div class="fbar" data-t="meWhere"><span class="fl">${svg('doc')}내 PC 지식 폴더</span>${body}<small>${note}</small></div>${S.meRootErr ? `<div class="callout danger" data-t="meRootErr">${esc(S.meRootErr)}</div>` : ''}`
+}
+// 지식 폴더 빼기 — 내 PC 쪽은 켠 채(팀 연결 · 내 Claude 그대로) 빈자리로 다시 켜진다 · 폴더의 파일은 그대로 · 경로를 쓰면 다시 붙는다
+async function meRootDrop() {
+  const r0 = S.pc && S.pc.root
+  if (!r0 || !confirm(`내 PC 지식 폴더를 뺀다: ${r0}\n\n폴더의 파일은 지우지 않는다. 개인 지식은 경로를 다시 쓰기 전까지 보이지 않는다.`)) return
+  await meRootPost({ none: true })
 }
 // 내 PC 지식 폴더 세우기(처음) — 경로 → 그 경로를 실은 설치 한 줄(10분 · 한 번만) → 이 PC 의 PowerShell 에 붙여 넣으면
 //   내 PC 쪽이 깔리고(이미 있으면 그대로) 그 폴더로 켜진다. 깔리는 동안 5초마다 보고 붙으면 띠가 그 경로로 바뀐다
@@ -514,13 +525,18 @@ function meSetupWatch() {
 async function meRootSave() {
   const v = String(($('#meRootIn') || {}).value || S.meRootEdit || '').trim()
   if (!v) { S.meRootErr = '경로를 쓴다'; render(); return }
+  await meRootPost({ root: v })
+}
+// 바꾸기 · 빼기 — 내 PC 쪽이 확인 창을 띄우고, 확인하면 그 폴더(빼기면 빈자리)로 다시 켜진다
+async function meRootPost(body) {
   S.meRootBusy = true; S.meRootErr = null; render()
   try {
-    const r = await postJSON('/pc/api/pc/root', { root: v })
+    const r = await postJSON('/pc/api/pc/root', body)
     S.meRootEdit = null
     if (r.same) S.syncMsg = { cls: 'gray', t: '<b>지금 쓰는 지식 폴더다</b>' }
     else {
-      S.syncMsg = { t: `<b>내 PC 지식 폴더를 바꿨다</b>: ${esc(r.root)} · ${r.kind === 'open' ? '있던 작업 환경(.kmd)을 그대로 잇는다' : '새 지식 폴더로 세웠다'} · 내 PC 쪽이 다시 켜지면 저절로 열린다` }
+      S.syncMsg = r.kind === 'none' ? { t: '<b>내 PC 지식 폴더를 뺐다</b> · 폴더의 파일은 그대로 · 경로를 쓰면 다시 세우거나 잇는다' }
+        : { t: `<b>내 PC 지식 폴더를 바꿨다</b>: ${esc(r.root)} · ${r.kind === 'open' ? '있던 작업 환경(.kmd)을 그대로 잇는다' : '새 지식 폴더로 세웠다'} · 내 PC 쪽이 다시 켜지면 저절로 열린다` }
       // 내 PC 쪽이 다시 켜진다 — 짝 열쇠는 새로 받는다
       try { sessionStorage.removeItem('kmdPair') } catch {}
       S.pc = { ...S.pc, token: null, off: true, kns: [] }
@@ -538,7 +554,7 @@ function openAdd(where) { S.menu = null; S.addPop = { name: '', dir: '', where: 
 function addPopHtml() {
   const a = S.addPop, team = isTeam()
   const mine = a.where === 'me' || a.where === 'local'
-  const noRoot = team && a.where === 'me' && !(S.pc && S.pc.token)
+  const noRoot = team && a.where === 'me' && !meReady()
   // 팀 화면 — 영역부터 가른다: 개인(내 PC 지식 폴더 · 누구나) / 팀(팀 지식 폴더 · 관리자만)
   const admin = !!S.me.admin
   const kinds = team ? `<div class="field" style="margin:0 0 10px"><label>영역</label><div class="seg" data-t="addArea" style="margin:0"><button class="${a.where !== 'team' ? 'on' : ''}" data-a="addArea" data-v="me" data-t="addAreaMe">개인 지식</button><button class="${a.where === 'team' ? 'on' : ''}" data-a="addArea" data-v="team" data-t="addKindTeam"${admin ? '' : ' disabled title="팀 지식은 관리자만 추가한다"'}>팀 지식${admin ? '' : ' · 관리자만'}</button></div></div>` : ''
@@ -549,7 +565,7 @@ function addPopHtml() {
   const hint = a.where === 'team' ? '팀 지식 폴더에 팀 지식으로 선다. 팀 모두 보고 기록한다 · 정리 · 고치기는 관리자가 한다'
     : team ? `내 PC 지식 폴더${pr ? `(${pr})` : ''} 안에 선다. 나만 본다`
     : '지식 폴더 안에 선다. 나만 본다 · 폴더 경로를 쓰면 그 폴더의 글(md · docx · pptx · xlsx)을 한 번 들인다(원본은 그대로)'
-  const noRootMsg = !S.me.pcUrl ? '내 PC 지식 폴더가 아직 서지 않았다. 지식 목록 › 개인 지식의 「내 PC 지식 폴더」 에 경로를 쓰고 세우면 만든다' : '내 PC 쪽이 꺼져 있다. 켜지면 만든다'
+  const noRootMsg = !S.me.pcUrl || (S.pc && S.pc.none) ?'내 PC 지식 폴더가 아직 서지 않았다. 지식 목록 › 개인 지식의 「내 PC 지식 폴더」 에 경로를 쓰고 세우면 만든다' : '내 PC 쪽이 꺼져 있다. 켜지면 만든다'
   const dirFld = mine && !team ?`<div class="field" style="margin:10px 0 0"><label for="addDir">들일 폴더 경로 <span class="muted">(선택 · 쓰면 이름은 폴더 이름)</span></label><input class="inp mono" id="addDir" data-in="addDir" data-t="addDir" value="${esc(a.dir || '')}" placeholder="예: D:\\문서\\배포 노트" autocomplete="off"></div>` : ''
   return `<div class="scrim fix" data-a="addClose" data-self="1"><div class="modal w420" data-t="addPop"><div class="mh">새 지식<button class="x" data-a="addClose" title="닫기">×</button></div><div class="mb">${kinds}<div class="field" style="margin:0"><label for="addIn">이름</label><input class="inp" id="addIn" data-in="addName" data-t="addIn" value="${esc(a.name)}" placeholder="예: 회의" autocomplete="off"></div>${dirFld}${toFld}<div class="hint" style="margin-top:8px">${esc(hint)}</div>${noRoot ? `<div class="callout gray" data-t="addNoRoot" style="margin-top:8px">${esc(noRootMsg)}</div>` : ''}${a.err ? `<div class="callout danger" data-t="addMsg">${esc(a.err)}</div>` : ''}</div><div class="mf"><span class="l">새 지식은 메뉴 맨 아래에 들어온다</span><span class="acts"><button class="btn ghost" data-a="addClose">취소</button><button class="btn pri" data-a="doAdd" data-t="addBtn"${a.busy || noRoot ? ' disabled' : ''}>${a.busy ? '만드는 중…' : '추가'}</button></span></div></div></div>`
 }
@@ -561,7 +577,7 @@ async function doAdd() {
   // 들일 폴더는 이 PC 화면에만(팀 화면의 개인 지식은 이름만)
   const dir = a.where === 'local' ? String(a.dir || '').trim() : ''
   if (!name && !dir) { a.err = a.where === 'local' ? '이름을 쓴다(또는 내 PC 폴더 경로)' : '이름을 쓴다'; render(); return }
-  if (a.where === 'me' && !(S.pc && S.pc.token)) { a.err = !S.me.pcUrl ? '내 PC 지식 폴더를 먼저 세운다' : '내 PC 쪽이 꺼져 있다'; render(); return }
+  if (a.where === 'me' && !meReady()) { a.err = !S.me.pcUrl || (S.pc && S.pc.none) ? '내 PC 지식 폴더를 먼저 세운다' : '내 PC 쪽이 꺼져 있다'; render(); return }
   a.busy = true; a.err = null; render()
   try {
     const body = onPc && dir ? { kind: 'folder', dir } : { kind: 'new', name }
@@ -2936,7 +2952,10 @@ async function pcConnect(again, { quiet = false } = {}) {
     if (!r2.ok) throw new Error('')
     pc.kns = (await r2.json()).map((k) => ({ ...k, id: '~' + k.id, pc: true, role: null }))
     // 내 PC 지식 폴더 — 지식 목록의 개인 칸 띠 · 새 개인 지식 팝업에 보인다
-    pc.root = await fetchPc(url + '/api/me', { headers: { authorization: 'Bearer ' + tok } }).then((r) => (r.ok ? r.json() : {}), () => ({})).then((m) => m.root || null)
+    // none — 지식 폴더를 뺐다(빈자리 폴더로 돈다): 띠는 경로 칸 · 새 개인 지식은 막는다
+    const pm = await fetchPc(url + '/api/me', { headers: { authorization: 'Bearer ' + tok } }).then((r) => (r.ok ? r.json() : {}), () => ({}))
+    pc.none = !!pm.none
+    pc.root = pc.none ? null : pm.root || null
     pc.wait = false
     S.pc = pc
     S.kns = [...S.kns.filter((k) => !k.pc), ...pc.kns]
@@ -3686,6 +3705,7 @@ const ACT = {
   meRootCancel: () => { S.meRootEdit = null; S.meRootErr = null; render() },
   meRootSave: () => meRootSave(),
   meSetupGo: () => meSetupGo(),
+  meRootDrop: () => meRootDrop(),
   // 지식 관리 — 설정 · 팀 / 설정 · 개인 안의 왼쪽 메뉴
   mgGo: (el) => { S.menu = null; S.setArea = el.closest('[data-area]')?.dataset.area || S.setArea; if (el.dataset.v) S.setTab = el.dataset.v; go({ scr: el.dataset.s }) },
   doAdd: () => doAdd(),

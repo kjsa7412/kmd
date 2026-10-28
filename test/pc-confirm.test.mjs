@@ -11,6 +11,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
+import { noneRoot } from '../core/pcops.js'
 import { copyDir, signIn } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -21,6 +22,7 @@ before(async () => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-pcok-'))
   process.env.KMD_NO_BROWSER = '1'
   process.env.KMD_NO_CLAUDE = '1'
+  process.env.KMD_PC_ROOT_FILE = path.join(tmp, 'kmd-pc.json') // 빼기의 빈자리 폴더가 이 옆에 선다
   const kd = path.join(tmp, 'pc', '설계메모')
   fs.mkdirSync(path.join(kd, 'docs'), { recursive: true })
   fs.writeFileSync(path.join(kd, 'README.md'), '# 설계메모\n')
@@ -122,4 +124,39 @@ test('지식 폴더 바꾸기 — .kmd 가 있거나 빈 폴더만 · 확인한 
   assert.ok(fs.existsSync(path.join(fresh, '.kmd')))
   await new Promise((ok) => setTimeout(ok, 400))
   assert.deepEqual(roots, [path.resolve(old), path.resolve(fresh)])
+  // 이은 팀 · 내 Claude 로그인은 새 폴더로 함께 간다(새 폴더의 내 PC 쪽에도 팀 화면이 닿게)
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(fresh, '.kmd', 'teams.json'), 'utf8')), [team.url])
+})
+
+test('지식 폴더 빼기 — 확인한 뒤 빈자리로 다시 켠다 · 폴더의 파일은 그대로 · 빈자리에서는 지식을 만들지 않는다', async () => {
+  roots.length = 0
+  const body = { none: true }
+  const r = await call('/api/pc/root', body)
+  assert.equal(r.status, 428, '빼기도 이 PC 에서 확인한다')
+  const { confirm } = await r.json()
+  await answer(confirm)
+  const r2 = await call('/api/pc/root', body, { 'x-kmd-ok': confirm })
+  assert.equal(r2.status, 200)
+  const j = await r2.json()
+  assert.equal(j.kind, 'none')
+  assert.equal(j.root, noneRoot())
+  await new Promise((ok) => setTimeout(ok, 400))
+  assert.deepEqual(roots, [noneRoot()])
+  assert.ok(fs.existsSync(path.join(tmp, 'pc', '설계메모', 'docs', '배치.md')), '뺀 폴더의 파일은 그대로')
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(noneRoot(), '.kmd', 'teams.json'), 'utf8')), [team.url])
+  // 빈자리로 켠 내 PC 쪽 — 옮겨 간 teams.json 으로 팀 화면이 그대로 짝 짓는다 · /api/me 에 none · 지식 만들기는 막는다
+  const nd = await startServer({ root: noneRoot(), mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15, deviceKey: async (o) => (o === origin ? dkey : null) })
+  try {
+    const { pass } = await fetch(team.url + '/api/me/pcpass', { method: 'POST', headers: { cookie: me.cookie, 'content-type': 'application/json' }, body: '{}' }).then((x) => x.json())
+    const pr = await fetch(nd.url + '/pair', { method: 'POST', headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify({ pass }) })
+    assert.equal(pr.status, 200, '뺀 뒤에도 팀 화면이 닿는다')
+    const tk = (await pr.json()).token
+    const nc = (p, b) => fetch(nd.url + p, { method: b === undefined ? 'GET' : 'POST', headers: { origin, authorization: 'Bearer ' + tk, 'content-type': 'application/json' }, body: b === undefined ? undefined : JSON.stringify(b) })
+    assert.equal((await nc('/api/me').then((x) => x.json())).none, true)
+    assert.equal((await nc('/api/knowledge/add', { kind: 'new', name: '안됨' })).status, 400, '지식 폴더가 서기 전에는 만들지 않는다')
+    assert.ok(!fs.existsSync(path.join(noneRoot(), '안됨')))
+    assert.equal((await call('/api/me').then((x) => x.json())).none, undefined, '지식 폴더가 있는 쪽은 none 이 아니다')
+  } finally {
+    await nd.close()
+  }
 })

@@ -28,7 +28,21 @@ export function readPcRoot() {
   }
 }
 export function writePcRoot(root) {
-  fsSync.writeFileSync(pcRootFile(), JSON.stringify({ root: path.resolve(root), at: new Date().toISOString() }, null, 1))
+  fsSync.writeFileSync(pcRootFile(), JSON.stringify({ root: path.resolve(root), ...(isNoneRoot(root) ? { none: true } : {}), at: new Date().toISOString() }, null, 1))
+}
+// 지식 폴더를 뗀 내 PC 쪽 — 빈 빈자리 폴더(지식 폴더 표 옆)로 돈다. 팀 연결 · 내 Claude 는 그대로 · 지식은 없다 · 경로를 쓰면 그 폴더로 다시 켜진다
+export const noneRoot = () => path.join(path.dirname(pcRootFile()), '.kmd-pc-none')
+export const isNoneRoot = (r) => !!r && path.resolve(r).toLowerCase() === path.resolve(noneRoot()).toLowerCase()
+// 지식 폴더를 옮길 때 함께 가는 이 PC 의 살림 — 이은 팀(teams.json · 합친다) · 내 Claude 로그인(secrets.json · 새 곳에 없을 때만).
+//   지식 폴더마다 .kmd 가 따로라, 옮기지 않으면 새 폴더의 내 PC 쪽에 팀 화면이 닿지 못한다
+export function carryPcData(fromData, toData) {
+  fsSync.mkdirSync(toData, { recursive: true })
+  const read = (f) => { try { return JSON.parse(fsSync.readFileSync(f, 'utf8')) } catch { return null } }
+  const ta = read(path.join(fromData, 'teams.json')) || [], tb = read(path.join(toData, 'teams.json')) || []
+  const teams = [...new Set([...tb, ...ta])]
+  if (teams.length) fsSync.writeFileSync(path.join(toData, 'teams.json'), JSON.stringify(teams, null, 1))
+  const sa = path.join(fromData, 'secrets.json'), sb = path.join(toData, 'secrets.json')
+  if (fsSync.existsSync(sa) && !fsSync.existsSync(sb)) fsSync.copyFileSync(sa, sb)
 }
 // 지식 폴더로 쓸 수 있나 — 'open'(.kmd 가 있다 · 그대로 잇는다) · 'new'(없거나 빈 폴더 · 새로 세운다) · 아니면 KmdError(드라이브 통째 · 다른 파일만 있는 폴더)
 //   팀 화면의 [바꾸기](/api/pc/root) · 경로를 실은 설치 한 줄(kmd connect --root)이 같은 잣대로 본다
