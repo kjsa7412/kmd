@@ -26,6 +26,7 @@ import { getSecret, delSecret } from '../core/secrets.js'
 import { safeOrigin } from '../core/claudecfg.js'
 import { get as kget, keyName } from '../core/keystore.js'
 import { createReadStream } from 'node:fs'
+import { spawn } from 'node:child_process'
 import { pipeline } from 'node:stream/promises'
 import MarkdownIt from 'markdown-it'
 
@@ -48,6 +49,10 @@ function sameOrigin(req) {
 }
 
 function readBody(req, max = MAX_BODY) {
+  // 확인 길이 먼저 읽어 둔 글(req._raw)
+  if (req._raw) {
+    try { return Promise.resolve(req._raw.length ? JSON.parse(req._raw.toString('utf8')) : {}) } catch { return Promise.reject(new KmdError('E_INPUT', 'JSON 모양이 아니다')) }
+  }
   return new Promise((resolve, reject) => {
     const parts = []
     let n = 0
@@ -158,7 +163,26 @@ export function installPs({ origin, ticket, pkg, kn = null }) {
   return L.join('\r\n')
 }
 
-export async function startServer({ root, data = null, mode = 'team', user = os.userInfo().username, host = '127.0.0.1', port = 7373, log, scryptN = null, onStop = null, deviceKey = (origin) => kget(keyName(origin)) }) {
+// 확인 창 한 장 — 무엇을 · 어느 팀 화면이 시켰는지 그대로 보이고 [확인] · [거절]. 창 열쇠는 주소의 # 뒤(서버 기록에 남지 않는다)
+const okPage = (nonce) => `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>kmd: 확인</title>
+<style>body{font:15px/1.6 system-ui,'Malgun Gothic',sans-serif;max-width:640px;margin:40px auto;padding:0 16px;color:#222}h1{font-size:19px}pre{background:#f4f3ef;padding:10px;border-radius:6px;white-space:pre-wrap;word-break:break-all;font-size:13px}.r{display:flex;gap:10px;margin-top:18px}button{font:inherit;padding:8px 18px;border-radius:6px;border:1px solid #bbb;background:#fff;cursor:pointer}button.ok{background:#1f5fbf;color:#fff;border-color:#1f5fbf}.m{color:#666;font-size:13px}</style></head>
+<body><h1>팀 화면이 이 PC 에 시키는 일</h1><div id="b" class="m">읽는 중…</div>
+<script nonce="${nonce}">
+const s = location.hash.slice(1); history.replaceState(null, '', '/ok')
+const b = document.getElementById('b')
+const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+const post = (p, body) => fetch(p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ s, ...body }) }).then((r) => r.json())
+post('/ok/info').then((a) => {
+  if (a.gone) { b.textContent = '끝난 확인이다. 팀 화면에서 다시 누른다'; return }
+  if (a.state !== 'wait') { b.textContent = a.state === 'no' ? '거절했다' : '확인했다'; return }
+  b.innerHTML = '<p><b>' + esc(a.what) + '</b></p><p class="m">시킨 곳: ' + esc(a.origin) + ' · 남은 시간 ' + a.left + '초</p><pre>' + esc(a.path + '\\n' + JSON.stringify(a.body, null, 2)) + '</pre><p class="m">내가 팀 화면에서 누른 일이 맞을 때만 확인한다</p><div class="r"><button class="ok" id="y">확인</button><button id="n">거절</button></div>'
+  const answer = (ok) => post('/ok/answer', { ok }).then((r) => { b.innerHTML = '<p><b>' + (r.state === 'ok' ? '확인했다. 팀 화면이 이어서 한다' : '거절했다') + '</b></p><p class="m">이 창은 닫아도 된다</p>' })
+  document.getElementById('y').onclick = () => answer(true)
+  document.getElementById('n').onclick = () => answer(false)
+})
+</script></body></html>`
+
+export async function startServer({ root, data = null, mode = 'team', user = os.userInfo().username, host = '127.0.0.1', port = 7373, log, scryptN = null, onStop = null, onRoot = null, deviceKey = (origin) => kget(keyName(origin)) }) {
   const dataDir = data || defaultDataDir(root)
   const pcUser = mode === 'pc' ? String(user).toLowerCase().replace(/[^a-z0-9._-]/g, '') || 'me' : null
   const hub = await makeHub({ root, dataDir, mode, pcUser, log })
@@ -179,16 +203,70 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   // ── 팀 화면 ↔ 내 PC(E8 · v0.5 §5 · v0.6 ⑫) — PC 프로그램만 ──
   // 설치(kmd connect)가 적은 팀 주소(<data>/teams.json)의 화면이 물으면 Origin 을 대조해 12시간 짝 열쇠(kmdp_)를 응답으로
   // 준다(누름 없음 · 화면은 탭 메모리에만 · 여기는 해시만). 적히지 않은 주소는 이 PC 화면의 [허락] 한 번.
-  // 짝 열쇠 · CORS 는 그 출처의 읽기 · save 길에만 — 가져오는 곳 · 넣기 권한 · 보내지 않음 끄기 · 백업 주소 · 설정 · 관리 · /mcp 는 403.
+  // 팀 화면은 이 PC 화면이 하는 일을 모두 한다(팀 프로그램이 개인 프로그램의 일을 다 한다). 닫힌 길(PAIR_NO)과
+  // 이 PC 밖으로 손이 닿는 일(PAIR_ASK — 내 PC 경로 · 백업 주소 · 에이전트 설치 · 지우기)만 따로: 뒤의 것은 이 PC 가 자기 창을 띄워
+  // [확인] 을 받아야 한다(팀 서버가 보낸 코드는 그 창을 누르지 못한다 — 다른 출처 · 창 열쇠는 이 PC 가 연 주소에만)
   const pairs = new Map()
   // 팀 화면이 부를 내 PC 프로그램 주소(serve.json pcUrl · 기본 이 PC 의 7373) — CSP connect-src 에 이 하나만
   const pcUrl = (() => { try { return new URL(hub.config.pcUrl || 'http://127.0.0.1:7373').origin } catch { return 'http://127.0.0.1:7373' } })()
   const PAIR_MS = 12 * 3600_000
   const teamsFile = path.join(dataDir, 'teams.json')
   const teamsOf = async () => (await fs.readFile(teamsFile, 'utf8').then(JSON.parse, () => [])).map((u) => { try { return new URL(u).origin } catch { return null } }).filter(Boolean)
-  // 팀 화면에서 내 PC 지식 — 읽기 · 저장 · 새 지식(이름 · 내 PC 폴더 경로). 같은 사람인지 짝을 지을 때 대조했다
-  const CORS_OK = [/^GET \/api\/knowledge$/, /^GET \/api\/(me|agent)$/, /^POST \/api\/knowledge\/(add|fromteam)$/,/^GET \/api\/k\/[^/]+\/(tree|doc|rec|att|model|item)$/, /^POST \/api\/k\/[^/]+\/(save|edit|send|send\/route|send\/wait)$/, /^GET \/api\/k\/[^/]+\/send$/]
+  // 팀 화면이 이 PC 에 못 하는 일 — 이 PC 프로그램 멈추기 · 한 번용 번호 · 기기 · 들어가기 · 짝 끊기 · 관리 · 일꾼 길
+  const PAIR_NO = [/^\/api\/pc\/(once|stop)$/, /^\/api\/(me\/devices(\/revoke)?|me\/logout-all|me\/pcpass(\/check)?|device\/ticket|sudo|pair\/forget)$/, /^\/api\/(admin|worker)\//, /^\/api\/k\/[^/]+\/(worker\/.+|baseline)$/]
+  // 이 PC 에서 [확인] 을 받는 일(POST) — 무엇을 하는지 창에 그대로 보인다
+  const PAIR_ASK = [
+    { re: /^\/api\/k\/[^/]+\/sources(\/(probe|edit|checkdb))?$/, what: '가져오는 곳: 이 PC 의 경로 · 주소를 읽는다' },
+    { re: /^\/api\/knowledge\/add$/, when: (b) => b?.kind === 'folder', what: '내 PC 폴더를 개인 지식으로 들인다' },
+    { re: /^\/api\/pc\/backup$/, what: '이 PC 의 백업 자리를 바꾼다' },
+    { re: /^\/api\/k\/[^/]+\/backup$/, what: '지식의 백업 주소를 붙인다' },
+    { re: /^\/api\/restore$/, what: '백업 주소에서 지식을 되살린다' },
+    { re: /^\/api\/pc\/root$/, what: '이 PC 의 지식 폴더를 바꾼다' },
+    { re: /^\/api\/agent\/(add|up|rm)$/, what: '에이전트 설치: 작업 폴더의 CLAUDE.md · 스킬을 고친다' },
+    { re: /^\/api\/k\/[^/]+\/owner$/, what: '지식 설정(Claude 에 보내지 않음 · 정리 방식)을 바꾼다' },
+    { re: /^\/api\/k\/[^/]+\/delete$/, what: '개인 지식을 지운다(되돌릴 수 없다)' },
+  ]
+  const ASK_MS = 2 * 60_000
+  const asks = new Map() // 확인 번호 → { secret, origin, sha, what, path, body, exp, state: wait | ok | no | used }
   const pairSha = (t) => crypto.createHash('sha256').update(String(t)).digest('hex')
+  // 이 PC 의 브라우저로 확인 창을 연다 — 시험 · 화면 없는 곳은 주소만 남긴다
+  const openLocal = (u) => {
+    if (process.env.KMD_NO_BROWSER) return void log?.(`[확인 창] ${u}`)
+    const [cmd, args] = process.platform === 'win32' ? ['rundll32', ['url.dll,FileProtocolHandler', u]] : process.platform === 'darwin' ? ['open', [u]] : ['xdg-open', [u]]
+    spawn(cmd, args, { stdio: 'ignore', detached: true, windowsHide: true }).on('error', () => {}).unref()
+  }
+  const readRaw = (req, max = MAX_BODY) => new Promise((ok, no) => {
+    const parts = []
+    let n = 0
+    req.on('data', (c) => { n += c.length; if (n > max) { no(new KmdError('E_INPUT', '보낸 글이 너무 크다')); req.destroy() } else parts.push(c) })
+    req.on('end', () => ok(Buffer.concat(parts)))
+    req.on('error', no)
+  })
+  // 확인이 필요한 일인가 — 맞으면 확인 번호(x-kmd-ok)로 [확인] 된 같은 일(출처 · 길 · 글이 같은 것)만 한 번 지나간다
+  async function askGate(req, p, origin, selfUrl) {
+    if (req.method !== 'POST') return
+    const rule = PAIR_ASK.find((r) => r.re.test(p))
+    if (!rule) return
+    const raw = await readRaw(req)
+    req._raw = raw
+    let body = {}
+    try { body = raw.length ? JSON.parse(raw.toString('utf8')) : {} } catch {}
+    if (rule.when && !rule.when(body)) return
+    const sha = pairSha(`${origin}\n${p}\n${raw.toString('base64')}`)
+    const now = Date.now()
+    for (const [k, v] of asks) if (v.exp < now - ASK_MS) asks.delete(k)
+    const id = String(req.headers['x-kmd-ok'] || '')
+    if (id) {
+      const a = asks.get(id)
+      if (!a || a.state !== 'ok' || a.sha !== sha || a.exp < now) throw new KmdError('E_FORBIDDEN', '이 PC 에서 확인한 일이 아니다. 다시 누른다')
+      a.state = 'used'
+      return
+    }
+    const a = { id: crypto.randomBytes(9).toString('base64url'), secret: crypto.randomBytes(24).toString('base64url'), origin, sha, what: rule.what, path: p, body, exp: now + ASK_MS, state: 'wait' }
+    asks.set(a.id, a)
+    openLocal(`${selfUrl}/ok#${a.secret}`)
+    throw new KmdError('E_CONFIRM', `내 PC 에 뜬 창에서 확인한다: ${rule.what}`, { confirm: a.id })
+  }
   const issuePair = (origin) => {
     const token = 'kmdp_' + crypto.randomBytes(24).toString('base64url')
     pairs.set(pairSha(token), { origin, exp: Date.now() + PAIR_MS })
@@ -204,15 +282,16 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     res.setHeader('access-control-allow-origin', origin)
     res.setHeader('vary', 'Origin')
     if (req.method === 'OPTIONS') {
-      res.writeHead(204, { 'access-control-allow-methods': 'GET, POST', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-private-network': 'true', 'access-control-max-age': '600' })
+      res.writeHead(204, { 'access-control-allow-methods': 'GET, POST', 'access-control-allow-headers': 'authorization, content-type, x-kmd-ok', 'access-control-allow-private-network': 'true', 'access-control-max-age': '600' })
       res.end()
       return { done: true }
     }
     if (p === '/pair' && req.method === 'POST') return { pair: true, origin }
-    if (!CORS_OK.some((re) => re.test(`${req.method} ${p}`))) throw new KmdError('E_FORBIDDEN', '팀 화면에서는 읽기 · 저장만: 이 일은 이 PC 화면에서 한다')
+    if (!p.startsWith('/api/') || PAIR_NO.some((re) => re.test(p))) throw new KmdError('E_FORBIDDEN', '이 일은 팀 화면에서 하지 않는다')
     const m = String(req.headers.authorization || '').match(/^Bearer\s+(kmdp_\S+)$/)
     const pr = m && pairs.get(pairSha(m[1]))
     if (!pr || pr.exp < Date.now() || pr.origin !== origin) throw new KmdError('E_AUTH', '짝 열쇠가 끝났다. 화면을 다시 연다')
+    await askGate(req, p, origin, `http://${req.headers.host}`)
     return { ctx: { user: pcUser, admin: true, pc: true, pair: true, origin } }
   }
   // 짝 — 팀 화면에 들어온 사람이 이 PC 의 사람인가. 팀 화면이 팀 서버에서 받은 한 번용 표(kmdq_)를 이 PC 의 기기 열쇠로 그 팀 서버에
@@ -301,8 +380,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
 
   const GET_OK = [
     /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|claude\/state|busy)$/,
-    /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/,
-    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|tidy\/plan|sources|send|backup|backup\/lost|owner|worker\/material|bundle)$/,
+    /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
+    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|tidy\/plan|sources|send|backup|backup\/lost|owner|worker\/material)$/,
   ]
   const api = async (req, res, url, ctx, set) => {
     const p = url.pathname
@@ -313,10 +392,38 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (p === '/api/me') {
       // pcUrl — 내 PC 프로그램으로 이은 기기(설치 한 줄 · osuser 가 실린 것)가 있는 사람에게만 · 없으면 화면이 PC 를 묻지 않는다
       if (!ctx) return out(200, { mode, anon: true, setup: !auth.hasUsers(), legacy: auth.legacyWaiting(), version: VERSION, host: req.headers.host })
-      return out(200, { mode, user: ctx.user, admin: !!ctx.admin, sudo: !!ctx.sudo, password: ctx.password !== false, version: VERSION, host: req.headers.host, ...(mode === 'pc' ? { root: path.resolve(root) } : auth.devices(ctx.user).some((d) => d.osuser) ? { pcUrl } : {}), ...(mode === 'team' && ctx.admin ? { root: path.resolve(root) } : {}), ...(mode === 'team' ? { personalRoot: hub.personalRoot(ctx.user) } : {}) })
+      return out(200, { mode, user: ctx.user, admin: !!ctx.admin, sudo: !!ctx.sudo, password: ctx.password !== false, version: VERSION, host: req.headers.host, ...(mode === 'pc' ? { root: path.resolve(root) } : auth.devices(ctx.user).some((d) => d.osuser) ? { pcUrl } : {}), ...(mode === 'team' && ctx.admin ? { root: path.resolve(root) } : {}) })
+    }
+    // 확인 기다림 — 팀 화면이 확인 번호로 묻는다(wait · ok · no · gone). 확인 창의 열쇠는 싣지 않는다
+    const cm = mode === 'pc' && p.match(/^\/api\/confirm\/([A-Za-z0-9_-]{6,40})$/)
+    if (cm) {
+      need(ctx)
+      const a = asks.get(cm[1])
+      if (!a || (ctx.pair && a.origin !== ctx.origin)) return out(200, { state: 'gone' })
+      return out(200, { state: a.exp < Date.now() && a.state === 'wait' ? 'gone' : a.state === 'used' ? 'ok' : a.state })
+    }
+    // 이 PC 의 지식 폴더 바꾸기 — 그 폴더에 .kmd 가 있으면 그대로 잇고 · 없거나 빈 폴더면 새로 세운다 · 다른 파일만 있는 폴더는 받지 않는다.
+    //   고른 폴더는 이 PC 의 「지식 폴더 표」 에 적고 kmd 가 그 폴더로 다시 켜진다(onRoot)
+    if (p === '/api/pc/root') {
+      if (mode !== 'pc') throw new KmdError('E_NOTFOUND', '이 PC 의 길이다')
+      need(ctx)
+      if (req.method === 'GET') return out(200, { root: path.resolve(root) })
+      const want = String((await readBody(req)).root || '').trim()
+      if (!want || !path.isAbsolute(want)) throw new KmdError('E_INPUT', '이 PC 의 절대 경로를 쓴다(예: D:\\kmd)')
+      const full = path.resolve(want)
+      if (path.parse(full).root.toLowerCase() === full.toLowerCase()) throw new KmdError('E_INPUT', '드라이브 통째는 쓰지 않는다. 그 안의 폴더를 고른다')
+      if (full.toLowerCase() === path.resolve(root).toLowerCase()) return out(200, { root: full, same: true })
+      const names = await fs.readdir(full).catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(new KmdError('E_INPUT', `그 폴더를 읽지 못한다: ${e.code}`))))
+      const kind = names === null ? 'new' : names.includes('.kmd') ? 'open' : names.filter((n) => !n.startsWith('.')).length === 0 ? 'new' : null
+      if (!kind) throw new KmdError('E_INPUT', '이 폴더에는 다른 파일이 있다. kmd 지식 폴더(.kmd 가 있는 곳)나 빈 폴더를 고른다')
+      if (!onRoot) throw new KmdError('E_NOTFOUND', '이 kmd 는 지식 폴더를 바꿔 다시 켜지 못한다. kmd up <폴더> 로 켠다')
+      await fs.mkdir(path.join(full, '.kmd'), { recursive: true })
+      out(200, { root: full, kind })
+      setTimeout(() => onRoot(full), 200)
+      return
     }
     // 이 PC 화면의 한 번용 번호 · 멈추기 — `kmd open` · `kmd pc update` 가 이 PC 의 열쇠(자격 저장소의 기기 열쇠)로 부른다.
-    // 같은 PC 의 같은 OS 사용자만 그 열쇠를 푼다 · 팀 화면의 짝 열쇠는 CORS 목록 밖이라 닿지 않는다
+    // 같은 PC 의 같은 OS 사용자만 그 열쇠를 푼다 · 팀 화면의 짝 열쇠는 PAIR_NO 라 닿지 않는다
     if (mode === 'pc' && (p === '/api/pc/once' || p === '/api/pc/stop')) {
       need(ctx)
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
@@ -339,12 +446,6 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (!ctx?.worker) throw new KmdError('E_FORBIDDEN', '정리 일꾼 열쇠로 부른다')
       if (p === '/api/worker/next') return out(200, hub.workerNext(ctx) || { job: null })
       return out(200, await hub.workerStatus(ctx, await readBody(req)))
-    }
-    // 내 PC 일꾼 열쇠 — 설치 한 줄로 이은 PC(기기 열쇠)가 묻는다 · 그 사람의 개인 지식 일감만 받는다(그 사람의 Claude 로)
-    if (p === '/api/me/worker' && req.method === 'POST') {
-      if (mode !== 'team') throw new KmdError('E_NOTFOUND', '팀 서버의 길이다')
-      if (!ctx?.device) throw new KmdError('E_FORBIDDEN', '이은 PC 의 기기 열쇠로 부른다')
-      return out(200, { key: (await auth.workerAdd({ owner: ctx.user, device: ctx.device })).key })
     }
     const wk = p.match(/^\/api\/k\/([^/]+)\/worker\/(material|drafts|progress|agent|agent\/log|agent\/done)$/)
     if (wk) {
@@ -390,7 +491,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       rows.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
       return out(200, { items: rows.slice(0, 500) })
     }
-    if (p === '/api/sources') return out(200, { items: await hub.allSources(ctx), can: hub.mode === 'pc' || !!ctx.admin, canMine: hub.mode === 'team' && !!hub.personalRoot(ctx.user) })
+    if (p === '/api/sources') return out(200, { items: await hub.allSources(ctx), can: hub.mode === 'pc' || !!ctx.admin })
     // ── 설정(S7) — 이 팀 서버 · 이 PC · 저절로 하는 일 · Claude 연결 · 에이전트 설치 ──
     if (p === '/api/settings') {
       const ks = await hub.visible(ctx)
@@ -409,7 +510,6 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         auto: Object.fromEntries(keys.map((x) => [x, hub.autoOf(ctx.user, x)])),
         ...(mode === 'pc' ? { models: hub.models() } : {}),
         claude: { off: !!process.env.KMD_NO_CLAUDE && !process.env.KMD_CLAUDE, worker: ws, month: tidied, token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), team: mode === 'team' ? { token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), flow: teamLogin.state, kind: teamLogin.kind } : undefined },
-        ...(mode === 'team' ? { pcWorker: (await hub.pcWorkerSeen(ctx.user)) || null } : {}),
         version: VERSION,
       })
     }
@@ -440,8 +540,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '에이전트 설치는 내 PC 프로그램이 한다. 팀 화면은 설치 한 줄 복사')
       const list = await kit.folders(dataDir)
       if (!ag[1]) return out(200, { latest: await kit.kitVersion(), folders: await Promise.all(list.map(async (f) => ({ ...f, ...(await kit.status(f.path)) }))) })
-      if (ctx.pair) throw new KmdError('E_FORBIDDEN', '이 PC 화면에서 한다')
-      const b = await readBody(req)
+      const b = await readBody(req) // 팀 화면이면 이 PC 에서 확인을 받은 뒤다(PAIR_ASK)
       const teamUrl = (await teamsOf())[0] || null
       const urls = (f) => ({ pcUrl: `http://${req.headers.host}`, teamUrl, kns: f.kns || [], def: f.def || null })
       const same = (f, dir) => path.resolve(f.path).toLowerCase() === path.resolve(String(dir)).toLowerCase()
@@ -480,8 +579,6 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       admin(ctx, { sudo: false })
       const users = auth.users()
       const ws = await fs.readFile(path.join(dataDir, 'worker.json'), 'utf8').then(JSON.parse, () => null)
-      // 관리자가 보는 지식만 이름으로 — 남의 개인 지식은 수로만(이름 · 백업 상태를 보이지 않는다)
-      const all = await hub.list()
       const ks = await hub.visible(ctx)
       const checks = []
       for (const k of ks) { const c = await fs.readFile(path.join(dataDir, 'searchcheck', `${encodeURIComponent(k.id)}.json`), 'utf8').then(JSON.parse, () => null); if (c?.score) checks.push({ name: k.name, in: c.score.in, n: c.score.n, at: c.at }) }
@@ -494,11 +591,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         people: auth.people(),
         off: users.filter((u) => u.off).map((u) => u.id),
         kns: ks.length,
-        knsPrivate: all.length - ks.length,
-        // 개인 지식 중 백업 자리가 없는 것 — 수로만(관리자는 그 지식을 보지 못한다)
-        privateUnbacked: all.filter((k) => hub.owner(k.id)?.private && !hub.backupStateSync(k)).length,
         sources: (await hub.allSources(ctx)).map((s) => ({ name: s.name, kn: s.knName, last: s.state?.checkedAt || null })),
-        backups: ks.map((k) => ({ id: k.id, name: k.name, private: !!hub.owner(k.id)?.private, ...(hub.backupStateSync(k) || { off: true }) })),
+        backups: ks.map((k) => ({ id: k.id, name: k.name, ...(hub.backupStateSync(k) || { off: true }) })),
         checks,
         claude: { token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), flow: teamLogin.state, kind: teamLogin.kind },
         https: req.headers['x-forwarded-proto'] === 'https',
@@ -551,30 +645,13 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       admin(ctx)
       return out(200, await hub.backupAdopt(ctx, decodeURIComponent(ba[1])))
     }
-    // 팀 서버의 옛 개인 지식 옮기기 — 팀 서버는 주인에게 bundle 을 · 내 PC 프로그램은 받아 세운다
-    const bn = p.match(/^\/api\/k\/([^/]+)\/bundle$/)
-    if (bn) {
-      need(ctx)
-      const r = await hub.bundleOf(ctx, decodeURIComponent(bn[1]))
-      return send(res, 200, r.buf, 'application/x-git-bundle', { 'x-kmd-name': encodeURIComponent(r.name), ...(set ? { 'set-cookie': set } : {}) })
-    }
-    if (p === '/api/knowledge/fromteam') {
-      need(ctx)
-      return out(200, await hub.fromTeam(ctx, await readBody(req)))
-    }
-    // 개인 지식 폴더 정하기(팀 프로그램 · 사람마다)
-    if (p === '/api/me/personal' && req.method === 'POST') {
-      need(ctx)
-      return out(200, await hub.setPersonalRoot(ctx, (await readBody(req)).root))
-    }
     // 지식 추가 — 새 이름 · 내 폴더(PC)
     if (p === '/api/knowledge/add') {
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       const b = await readBody(req)
-      // 팀 프로그램 — 팀 지식은 관리자 · 개인 지식은 누구나(그 사람의 개인 지식 폴더에)
+      // 팀 프로그램 — 팀 지식만 · 관리자(개인 지식은 내 PC 프로그램에)
       need(ctx)
-      if (mode === 'team' && b.team) admin(ctx, { sudo: false })
-      if (mode === 'team' && !b.team && !hub.personalRoot(ctx.user)) throw new KmdError('E_INPUT', '개인 지식 폴더를 먼저 정한다(지식 목록 › 개인 지식 폴더)')
+      if (mode === 'team') admin(ctx, { sudo: false })
       return out(200, await hub.addKnowledge(ctx, b))
     }
     const sm = p.match(/^\/api\/k\/([^/]+)\/sources(?:\/(probe|run|request|every|checkdb|resync|meaning|edit|remove))?$/)
@@ -645,10 +722,10 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const menu = await hub.menuOf(ctx, ks0.map((k) => k.id))
       const ks = [...ks0].sort((a, b) => menu.order.indexOf(a.id) - menu.order.indexOf(b.id))
       return out(200, await Promise.all(ks.map(async (k) => {
-        // 팀 서버의 내 개인 지식 — 받는 지식(보내는 길) · 보내지 않은 기록 수(옆 메뉴 「지식 보내기」 의 수) · 내 PC 프로그램에는 보내기가 없다
+        // 내 PC 의 개인 지식 — 받는 지식(보내는 길) · 보내지 않은 기록 수(옆 메뉴 「지식 보내기」 의 수)
         const row = hub.owner(k.id)
-        const sv = (mode === 'pc' && (await sendLib.destsOf(k.dir)).length) || (row?.private && row.owner === ctx.user) ? await hub.sendView(ctx, k.id).catch(() => null) : null
-        return { ...V.knowledgeRow(k), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), private: !!row?.private, ...(mode === 'team' ? { owner: row?.owner || null, ...(hub.isPersonalKn(k.id) ? { personal: true } : {}) } : {}), tidyAt: hub.tidyAtOf(k.id), tidyMode: hub.tidyModeOf(k.id), pendText: hub.pendText(k.id), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
+        const sv = mode === 'pc' && (await sendLib.destsOf(k.dir)).length ? await hub.sendView(ctx, k.id).catch(() => null) : null
+        return { ...V.knowledgeRow(k), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null } : {}), tidyAt: hub.tidyAtOf(k.id), tidyMode: hub.tidyModeOf(k.id), pendText: hub.pendText(k.id), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
       })))
     }
     // 에이전트 일 — 목록 · 줄(터미널)
@@ -681,7 +758,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       // 붙일 팀 지식(에이전트 설치 · 팀) — 보이는 팀 지식만
       const kb = req.method === 'POST' ? await readBody(req).catch(() => ({})) : {}
       const kn = kb.kn ? safeKn(kb.kn) : null
-      if (kb.kn && (!kn || hub.owner(kn)?.private || !(await hub.visible(ctx)).some((k) => k.id === kn))) throw new KmdError('E_INPUT', '붙일 팀 지식이 없다')
+      if (kb.kn && (!kn || !(await hub.visible(ctx)).some((k) => k.id === kn))) throw new KmdError('E_INPUT', '붙일 팀 지식이 없다')
       const qk = kn ? `?kn=${encodeURIComponent(kn)}` : ''
       return out(200, { ticket: t, line: kn ? `irm '${origin}/i/${t}${qk}' | iex` : `irm ${origin}/i/${t} | iex`, sh: kn ? `curl -fsSL '${origin}/i/${t}.sh${qk}' | sh` : `curl -fsSL ${origin}/i/${t}.sh | sh`, kmd: `kmd connect ${origin} --ticket ${t}${kn ? ' --kn ' + kn : ''}`, expires: 10, kn })
     }
@@ -698,7 +775,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         admin(ctx, { sudo: false })
         const all = auth.users()
         const roles = await hub.peopleRoles()
-        const people = all.filter((u) => u.kind === 'person' && !u.machine).map((u) => ({ ...u, workers: all.filter((w) => w.kind === 'worker' && w.owner === u.id).length, roles: roles[u.id] || { team: 0, private: 0, curate: 0 } }))
+        const people = all.filter((u) => u.kind === 'person' && !u.machine).map((u) => ({ ...u, workers: all.filter((w) => w.kind === 'worker' && w.owner === u.id).length, roles: roles[u.id] || { team: 0, curate: 0 } }))
         return out(200, { users: people, locked: auth.locked() })
       }
       admin(ctx)
@@ -738,13 +815,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const group = b.group && typeof b.group === 'object' ? { id: b.group.id ? String(b.group.id) : null, title: String(b.group.title || ''), total: Number(b.group.total) || 0, last: !!b.group.last } : null
       return out(200, await hub.importFiles(ctx, decodeURIComponent(im[1]), files, { group }))
     }
-    // 지식 지우기 — 보관하지 않고 완전히 · 확인은 지식 이름 · 팀 관리자는 비밀번호 한 번 더(개인 지식의 주인은 이름 확인만)
+    // 지식 지우기 — 보관하지 않고 완전히 · 확인은 지식 이름 · 팀 관리자는 비밀번호 한 번 더
     const dl = p.match(/^\/api\/k\/([^/]+)\/delete$/)
     if (dl && req.method === 'POST') {
       const id = decodeURIComponent(dl[1])
       const b = await readBody(req)
-      const row = hub.owner(id)
-      if (mode === 'team' && (!row?.private || row.owner !== ctx.user)) admin(ctx)
+      if (mode === 'team') admin(ctx)
       return out(200, await hub.deleteKnowledge(ctx, id, b))
     }
     // 보내기 — 보낼 것(GET send) · 보내는 길(send/route) · 보내기 · 대기 줄 · 받기 · 받은편지함 정리
@@ -788,9 +864,9 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         // 주인 · 정리하는 사람은 명부에 있는 사람만
         const people = new Set(auth.users().filter((u) => u.kind === 'person' && !u.off).map((u) => u.id))
         for (const u of [body.owner, ...(Array.isArray(body.curators) ? body.curators : [])].filter((x) => x != null && x !== '')) if (!people.has(String(u))) throw new KmdError('E_INPUT', `그런 사람은 없다: ${String(u).slice(0, 40)}`)
-        // 주인 넘기기 · 개인 ↔ 팀 — 관리자(팀 서버)는 비밀번호 한 번 더(남의 지식을 감추거나 넘기는 일)
+        // 주인 넘기기 — 관리자(팀 서버)는 비밀번호 한 번 더(남의 지식을 넘기는 일)
         const cur = hub.owner(id)
-        if (mode === 'team' && ctx.admin && ((body.owner != null && body.owner !== (cur?.owner ?? null)) || (body.private != null && String(body.private) !== String(!!cur?.private)))) admin(ctx)
+        if (mode === 'team' && ctx.admin && body.owner != null && body.owner !== (cur?.owner ?? null)) admin(ctx)
         return out(200, await hub.setOwner(ctx, id, body))
       }
       admin(ctx)
@@ -852,6 +928,21 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (req.method === 'POST' && req.headers.origin && !sameOrigin(req) && !xo?.open) throw new KmdError('E_FORBIDDEN', '다른 곳의 화면에서 온 요청은 받지 않는다')
       // Origin 을 싣지 않는 브라우저 길도 — 다른 사이트(같은 호스트의 다른 포트 포함)에서 온 쿠키 요청은 받지 않는다
       if (req.method === 'POST' && ['cross-site', 'same-site'].includes(String(req.headers['sec-fetch-site'] || '')) && !xo?.open) throw new KmdError('E_FORBIDDEN', '다른 곳의 화면에서 온 요청은 받지 않는다')
+      // 확인 창 — 팀 화면이 시킨 일을 이 PC 의 사람이 본다 · 창 열쇠(#)는 이 PC 가 연 주소에만 있다 · 같은 출처의 글로만 답한다
+      if (mode === 'pc' && p === '/ok' && req.method === 'GET') {
+        const nonce = crypto.randomBytes(12).toString('base64')
+        return send(res, 200, okPage(nonce), 'text/html; charset=utf-8', { 'content-security-policy': `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'` })
+      }
+      if (mode === 'pc' && (p === '/ok/info' || p === '/ok/answer') && req.method === 'POST') {
+        if (!sameOrigin(req)) throw new KmdError('E_FORBIDDEN', '이 PC 의 확인 창에서만')
+        const b = await readBody(req)
+        const a = [...asks.values()].find((x) => x.secret === String(b.s || ''))
+        if (!a || a.exp < Date.now()) return send(res, 200, { gone: true })
+        if (p === '/ok/info') return send(res, 200, { what: a.what, path: a.path, body: a.body, origin: a.origin, state: a.state, left: Math.max(0, Math.round((a.exp - Date.now()) / 1000)) })
+        if (a.state === 'wait') a.state = b.ok ? 'ok' : 'no'
+        log?.(`확인 창: ${a.what} · ${a.state === 'ok' ? '확인' : '거절'}`)
+        return send(res, 200, { state: a.state })
+      }
       // 이 PC 화면 — 팀 화면 허락 목록에서 빼기(그 팀 화면은 더 내 PC 지식을 열지 못한다 · 받은 짝 열쇠도 끊는다)
       if (p === '/api/pair/forget' && mode === 'pc' && req.method === 'POST') {
         const { ctx: me } = who(req)
@@ -919,7 +1010,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     } catch (e) {
       if (!(e instanceof KmdError)) console.error('[kmd]', e)
       const status = e instanceof KmdError ? httpStatusOf(e.code) : 500
-      send(res, status, { error: e.code || 'E_INTERNAL', message: e instanceof KmdError ? e.message : '서버 안에서 넘어졌다', ...(e.need ? { need: e.need } : {}) }, undefined, status === 401 && req.url.startsWith('/mcp') ? { 'www-authenticate': 'Bearer' } : {})
+      send(res, status, { error: e.code || 'E_INTERNAL', message: e instanceof KmdError ? e.message : '서버 안에서 넘어졌다', ...(e.need ? { need: e.need } : {}), ...(e.confirm ? { confirm: e.confirm } : {}) }, undefined, status === 401 && req.url.startsWith('/mcp') ? { 'www-authenticate': 'Bearer' } : {})
     }
   })
 
@@ -940,6 +1031,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     auth,
     store: hub,
     pcUser,
+    asks, // 시험이 확인 창 대신 답한다
     close: () =>
       new Promise((r) => {
         hub.stop()

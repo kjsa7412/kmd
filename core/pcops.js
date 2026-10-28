@@ -17,6 +17,20 @@ import { KmdError } from './errors.js'
 
 const xmlEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
+// 이 PC 의 지식 폴더 표 — 팀 화면 › 설정 · 개인에서 고른 지식 폴더(<집 폴더>/.kmd-pc.json { root }). kmd up · 늘 켜기가 기본 폴더로 읽는다
+export const pcRootFile = () => process.env.KMD_PC_ROOT_FILE || path.join(os.homedir(), '.kmd-pc.json')
+export function readPcRoot() {
+  try {
+    const r = JSON.parse(fsSync.readFileSync(pcRootFile(), 'utf8')).root
+    return r && path.isAbsolute(r) ? path.resolve(r) : null
+  } catch {
+    return null
+  }
+}
+export function writePcRoot(root) {
+  fsSync.writeFileSync(pcRootFile(), JSON.stringify({ root: path.resolve(root), at: new Date().toISOString() }, null, 1))
+}
+
 export const launcherOf = (home, name = 'kmd') => path.join(home, 'bin', name + (process.platform === 'win32' ? '.cmd' : ''))
 // 이 판이 판 자리(<집>/versions/<판>/server/bin/…)에서 도는가 — 그러면 { home, ver } · 아니면 null(저장소 · 손으로 푼 폴더).
 // 실행기가 선 집만 판 자리로 본다(폴더 이름이 우연히 versions 인 곳을 작업 · 헤더 도우미로 걸지 않게) — 처음 실행기를 세우는

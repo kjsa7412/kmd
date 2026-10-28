@@ -94,14 +94,6 @@ test('증분 = 처음부터 · 같은 순서 · 지운 파일의 옛 토막은 �
   assert.ok(a.passages.some((p) => p.head === '야간 당번'))
 })
 
-test('남의 개인 지식 토막 0', async () => {
-  await s.hub.setOwner(SHELL, 'gdi', { owner: 'park', private: true })
-  const rs = await s.hub.search(KIM, null, { q: '작업 이력 테이블' })
-  assert.deepEqual(rs.map((r) => r.knowledge), ['dpms'])
-  const r = await fetch(s.url + '/api/find?q=' + encodeURIComponent('작업 이력'), { headers: { cookie: me.cookie } })
-  assert.ok((await r.json()).hits.every((h) => h.k !== 'gdi'))
-})
-
 test('찾기 후보 배우기: 사람이 고른 것은 다음에 약한 후보로', async () => {
   await s.hub.learn(KIM, 'dpms', { q: '배포 시간대', coord: 'proc:준비' })
   const r = (await s.hub.search(KIM, 'dpms', { q: '배포 시간대' }))[0]

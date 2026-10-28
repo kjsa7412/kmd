@@ -102,7 +102,7 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
 }
 
 // 늘 — poll 마다 일감을 본다
-// onLost — 서버가 열쇠를 끊었다(401 · 기기 끊기 · 다시 정하기 · 떠남) · 멈추고 알린다(PC 일꾼은 기기 열쇠로 다시 받는다)
+// onLost — 서버가 열쇠를 끊었다(401 · 다시 정하기 · 떠남) · 멈추고 알린다
 // before — 일감을 묻기 전마다(팀 서버 일꾼: 정리 전용 로그인을 다시 읽는다)
 export function runWorker({ server, key, poll = 10_000, log = (...a) => console.log('[kmd worker]', ...a), onLost = null, models = null, before = null }) {
   let stopped = false
@@ -124,30 +124,4 @@ export function runWorker({ server, key, poll = 10_000, log = (...a) => console.
   }
   loop()
   return { stop: () => (stopped = true) }
-}
-
-// 내 PC 의 개인 일꾼 — 이은 팀 서버마다 「내 개인 지식」 의 일감을 이 PC 의 Claude 로(팀의 정리 전용 로그인으로는 나가지 않는다).
-//   일꾼 열쇠는 설치 한 줄이 넣은 기기 열쇠로 받는다(그 사람 · 그 기기에만 · 켤 때마다 갈아 끼운다) · 못 닿으면 retryMs 뒤 다시
-export function runPersonalWorkers({ teams, deviceKey, poll = 10_000, retryMs = 10 * 60_000, log = (...a) => console.log('[kmd worker]', ...a), models = null }) {
-  const stops = []
-  for (const server of teams) {
-    const start = async () => {
-      try {
-        const dk = await deviceKey(server)
-        if (!dk) return log(`${server}: 이은 기기 열쇠가 없다 · 개인 지식은 팀 서버가 규칙으로 넣는다`)
-        const r = await fetch(server + '/api/me/worker', { method: 'POST', headers: { authorization: `Bearer ${dk}`, 'content-type': 'application/json' }, body: '{}' })
-        const j = await r.json().catch(() => ({}))
-        if (!r.ok) throw new Error(j.message || `${r.status}`)
-        stops.push(runWorker({ server, key: j.key, poll, log, models, onLost: () => { const t = setTimeout(start, 5000); t.unref?.(); stops.push({ stop: () => clearTimeout(t) }) } }))
-        log(`${server}: 내 개인 지식의 정리 일감을 이 PC 의 Claude 로 받는다`)
-      } catch (e) {
-        log(`${server}: 내 개인 지식 일꾼을 띄우지 못했다(${e.message}) · 다시 한다`)
-        const t = setTimeout(start, retryMs)
-        t.unref?.()
-        stops.push({ stop: () => clearTimeout(t) })
-      }
-    }
-    start()
-  }
-  return { stop: () => stops.forEach((x) => x.stop()) }
 }

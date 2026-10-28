@@ -1,8 +1,7 @@
 // WP7 필수 — 백업 · 되살리기(제품화 검토 v0.1 G3-3 · F-022 · F-020 · F-021 · G3-8 · F-017 · G3-9).
 //
 // 연습 · 다른 이름으로 되살리면 원래 백업에 붙이지 않는다(같은 자리를 다른 지식이 쓰면 --attach 도 거절) ·
-// .git 없는 지식 폴더가 다른 저장소 안에 있어도 바깥 저장소를 밀지 않는다 · 팀 서버의 개인 지식은 privateBackup 아래 주인마다 자리로 저절로 ·
-// GitLab 봇은 개인 지식을 팀 그룹에 두지 않는다 · 이 PC 는 백업 자리를 정하면 모든 지식 · 새 지식이 저절로 붙는다 ·
+// .git 없는 지식 폴더가 다른 저장소 안에 있어도 바깥 저장소를 밀지 않는다 · 이 PC 는 백업 자리를 정하면 모든 지식 · 새 지식이 저절로 붙는다 ·
 // 갈라지면 이어 쓰기가 빼는 기록을 먼저 보이고 쓴 사람에게 알린다 · 서버 것으로 백업을 덮을 수 있다.
 
 import { test, before, after } from 'node:test'
@@ -77,17 +76,6 @@ test('.git 없는 지식 폴더가 다른 저장소 안에 있어도: 붙이기�
   assert.doesNotMatch(G(outer, 'remote'), /kmd-backup/, '바깥 저장소의 설정은 그대로')
 })
 
-test('팀 서버의 개인 지식: privateBackup 아래 주인마다 자리로 저절로 · GitLab 봇은 팀 그룹에 두지 않는다 · 셸 · 관리자는 상태를 본다', async () => {
-  await s.hub.addKnowledge({ user: 'lee', admin: true }, { kind: 'new', name: '메모' })
-  const st = await s.hub.backupState(SHELL, '메모-lee')
-  assert.ok(st && st.url.replace(/\\/g, '/').endsWith('개인/lee/메모-lee.git'), JSON.stringify(st))
-  assert.equal(await s.hub.backupState({ user: 'park' }, '메모-lee').catch((e) => e.code), 'E_FORBIDDEN')
-  assert.ok(await s.hub.backupState(KIM, '메모-lee'), '관리자는 개인 지식의 백업 상태를 본다(글은 아니다)')
-  s.hub.config.gitlab = { api: 'http://127.0.0.1:9', group: 'team' }
-  assert.equal(await s.hub.gitlabAttach('메모-lee').catch((e) => e.message), null, '개인 지식: 팀 그룹에 두지 않는다')
-  delete s.hub.config.gitlab
-})
-
 test('갈라졌을 때: 이어 쓰기가 뺄 기록을 먼저 보이고 쓴 사람에게 알린다 · 서버 것으로 백업을 덮는다', async () => {
   const kdir = path.join(root, 'gdi')
   const bare = path.join(bk, 'gdi.git')
@@ -133,7 +121,7 @@ test('이 PC: 백업 자리를 정하면 붙지 않은 지식을 모두 붙이�
     await pc.hub.addKnowledge(ctx, { kind: 'new', name: '새메모' })
     assert.ok(await pc.hub.backupState(ctx, '새메모'), '새 지식도 저절로')
     assert.ok(JSON.parse(fs.readFileSync(path.join(pcRoot, '.kmd', 'serve.json'), 'utf8')).backupRoot)
-    assert.equal(await code(pc.hub.setBackupRoot({ ...ctx, pair: true }, path.join(tmp, 'x'))), 'E_FORBIDDEN', '팀 화면의 짝 열쇠로는 못 한다')
+    // 팀 화면(짝 열쇠)이 시키면 이 PC 의 확인 창을 거친다(HTTP 층 · pc-confirm.test)
   } finally {
     await pc.close()
   }

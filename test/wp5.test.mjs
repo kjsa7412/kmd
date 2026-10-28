@@ -128,36 +128,6 @@ test('정리 일감: 임대가 지나면 다시 기다림 · 세 번째면 faile
   assert.ok(!(await s.hub.stops(KIM)).some((l) => /정리 일꾼이 일감을 받지 않는다/.test(l.b)))
 })
 
-test('팀 서버의 개인 지식: 두 번째 일감도 하루 뒤 규칙으로 · 기다리는 동안 주인에게 줄 · [지금 정리] 는 규칙으로', async () => {
-  await s.hub.addKnowledge({ user: 'park', admin: true }, { kind: 'new', name: '메모' })
-  const id = '메모-park'
-  await s.auth.addUser({ id: 'park' })
-  const dk = await s.auth.deviceKeyFor('park', { host: 'P' })
-  const pw = await s.auth.workerAdd({ owner: 'park', device: s.auth.bearer(dk).device })
-  const pctx = s.auth.bearer(pw.key)
-  s.hub.workerNext(pctx) // 이 PC 일꾼을 봤다(7일 안)
-  const save = (t) => s.hub.save({ user: 'park' }, id, { record: { title: t, body: t } })
-  await save('첫 메모: 하나')
-  await until(() => s.hub.jobsOf(id).some((j) => j.state === 'queued'))
-  const a = s.hub.workerNext(pctx)
-  assert.ok(a, 'PC 일꾼이 첫 일감을 받았다')
-  await s.hub.workerStatus(pctx, { ok: false, reason: 'login' }) // 받고 넘어졌다 → 규칙으로
-  await save('둘째 메모: 둘')
-  await until(() => s.hub.jobsOf(id).some((j) => j.state === 'queued'))
-  assert.ok((await s.hub.stops({ user: 'park' })).some((l) => /내 PC 일꾼을 기다린다/.test(l.b)))
-  // 두 번째 일감도 「하루」(시험은 2초) 뒤 규칙으로 — 전에는 시계를 다시 걸지 않아 7일까지 기다렸다
-  assert.ok(await until(() => s.hub.jobsOf(id).filter((j) => j.state === 'queued').length === 0, 15000))
-  await s.hub.curateIdle(id)
-  assert.ok(!(await s.hub.get(id)).works.some((w) => w.title === '둘째 메모: 둘' && w.state === 'pend'))
-  // [지금 정리] — 기다리는 일감이 있으면 규칙으로 곧바로
-  await save('셋째 메모: 셋')
-  await until(() => s.hub.jobsOf(id).some((j) => j.state === 'queued'))
-  const r = await s.hub.tidyNow({ user: 'park' }, id)
-  assert.equal(r.rule, true)
-  await s.hub.curateIdle(id)
-  assert.ok(!(await s.hub.get(id)).works.some((w) => w.title === '셋째 메모: 셋' && w.state === 'pend'))
-})
-
 test('남은 .git/index.lock: 오래된 것은 치우고 저장한다 · 막 생긴 것은 기다렸다가 쉬운 말로', async () => {
   const lock = path.join(root, 'dpms', '.git', 'index.lock')
   fs.writeFileSync(lock, '')

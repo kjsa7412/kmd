@@ -29,7 +29,7 @@ const WHERE = {
 }
 export const instructionsFor = (mode) => INSTRUCTIONS + '\n' + (WHERE[mode] || WHERE.team)
 // 지식마다 갈래 · 남기면 보는 사람
-const whereOf = (store, id) => (store.mode === 'pc' ? { where: 'me', seenBy: '나만(이 PC)' } : store.owner(id)?.private ? { where: 'me', seenBy: '나만(팀 서버의 내 개인 지식)' } : { where: 'team', seenBy: '이 팀 지식을 보는 팀 사람' })
+const whereOf = (store, id) => (store.mode === 'pc' ? { where: 'me', seenBy: '나만(이 PC)' } : { where: 'team', seenBy: '이 팀 지식을 보는 팀 사람' })
 
 const str = (description) => ({ type: 'string', description })
 const TOOLS = [

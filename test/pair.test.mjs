@@ -1,6 +1,6 @@
-// 팀 화면 ↔ 내 PC — 팀 프로그램과 내 PC 프로그램은 따로 돈다.
+// 팀 화면 ↔ 내 PC — 팀 화면 하나로 팀 · 개인을 다 한다.
 //
-// 팀 화면은 내 PC 프로그램에 잇지 않는다(요청 0 · PC 지식 이름 0) · 개인 지식은 팀 프로그램이 개인 지식 폴더에서 연다.
+// 개인 지식은 내 PC 쪽에만 있다. 팀 화면이 짝 열쇠로 내 PC 쪽을 불러 연다 · 내 PC 지식의 이름 · 글은 팀 서버로 가지 않는다.
 // 내 PC 프로그램의 짝 길(/pair · 팀 서버의 한 번용 표)은 적히지 않은 주소 · 다른 사람 · 표 없이 · 같은 표 두 번을 받지 않는다.
 
 import { test, before, after } from 'node:test'
@@ -57,36 +57,32 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('팀 화면은 내 PC 프로그램에 잇지 않는다 · 개인 지식은 개인 지식 폴더에서 · 짝 길은 남을 받지 않는다', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('팀 화면이 내 PC 쪽을 짝 열쇠로 연다 · 내 PC 지식은 팀 서버로 가지 않는다 · 짝 길은 남을 받지 않는다', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   const ctx = await browser.newContext({ viewport: { width: 1300, height: 820 } })
   const page = await ctx.newPage()
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
-  const toPc = []
-  page.on('request', (r) => { if (r.url().startsWith(pc.url)) toPc.push(r.url()) })
+  const toTeam = []
+  page.on('request', (r) => { if (r.url().startsWith(team.url)) toTeam.push(decodeURIComponent(r.url()) + ' ' + (r.postData() || '')) })
   await page.goto(team.url)
   await page.fill('#lgId', 'kim')
   await page.fill('#lgPw', me.pw)
   await page.click('[data-t=loginBtn]')
-  await page.waitForSelector('[data-t=meWhere] [data-t=meRootIn]')
-  // 개인 지식 폴더를 정하고 그 안에 개인 지식 — 문서를 연다(팀 프로그램이 바로)
-  const proot = path.join(tmp, 'kim-personal')
-  await page.fill('#meRootIn', proot)
-  await page.click('[data-t=meRootSave]')
-  await page.waitForSelector('[data-t=mePath]')
+  // 개인 칸 — 내 PC 쪽의 지식 · 내 PC 지식 폴더 띠
+  await page.waitForSelector(`[data-t=meList] [data-t=krow][data-name="${SECRET}"]`)
+  assert.equal(await page.locator('[data-t=meWhere] [data-t=mePath]').innerText(), path.join(tmp, 'pc'))
+  // 새 개인 지식은 내 PC 쪽에 선다 · 문서를 연다
   await page.click('[data-t=meList] [data-t=addCard]')
   await page.fill('#addIn', '내메모')
   await page.click('[data-t=addBtn]')
   await page.waitForSelector('[data-t=meList] [data-t=krow][data-name="내메모"]')
-  await page.click('[data-t=meList] [data-t=krow][data-name="내메모"]')
-  await page.click('[data-t=doc][data-name="처음"]')
+  assert.ok(fs.existsSync(path.join(tmp, 'pc', '내메모', 'docs', '처음.md')), '내 PC 지식 폴더에 섰다')
+  await page.click(`[data-t=meList] [data-t=krow][data-name="${SECRET}"]`)
+  await page.click('[data-t=doc][data-name="카나리절차"]')
   await page.waitForSelector('[data-t=docPane]')
-  assert.match(await page.locator('[data-t=docPane]').innerText(), /새 지식: 첫 문서를 쓴다/)
-  assert.match(await page.locator('[data-t=kpick]').innerText(), /내메모/)
-  await page.reload()
-  await page.waitForSelector('[data-t=kpick]')
-  assert.deepEqual(toPc, [], '팀 화면은 내 PC 프로그램을 부르지 않는다')
-  assert.equal(await page.locator(`text=${SECRET}`).count(), 0, '내 PC 지식은 팀 화면에 없다')
+  assert.match(await page.locator('[data-t=docPane]').innerText(), /첫 30분은 요청의 10%/)
+  assert.ok(!toTeam.some((x) => x.includes(SECRET) || x.includes('카나리절차') || x.includes('내메모')), '내 PC 지식의 이름 · 글은 팀 서버로 가지 않는다')
+  assert.ok(!fs.existsSync(path.join(tmp, 'kn', '내메모')), '팀 서버에는 개인 지식이 서지 않는다')
   assert.deepEqual(errors, [])
 
   // 적히지 않은 주소의 화면 → 잇지 않았다(허락 창은 없다)

@@ -93,7 +93,7 @@ before(async () => {
   fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })
   fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sendTickMs: 3600000, tidyTickMs: 3600000 }))
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
-  for (const id of ['inbox', 'memo', 'note']) await s.hub.setOwner(SHELL, id, { owner: 'kim', private: true })
+  for (const id of ['inbox', 'memo', 'note']) await s.hub.setOwner(SHELL, id, { owner: 'kim' })
 })
 after(async () => {
   await s?.close()
@@ -215,66 +215,88 @@ test('보내기 고르기: 변경사항(새 기록은 전체 · 고친 문서는
   assert.ok(left.includes('헬스 체크: 5초') && !left.some((t) => /배포메모/.test(t)), '고르지 않은 것은 남는다 ' + left)
 })
 
-test('지식 보내기(팀 화면): 보내는 길은 개인 지식마다 팀 지식 하나 · 바꾸려면 새 이름을 친다 · 화면이 본 길과 다르면 보내지 않는다 · 문서는 통째로만', async () => {
+test('지식 보내기(내 PC → 팀): 보내는 길은 개인 지식마다 팀 지식 하나 · 바꾸려면 새 이름을 친다 · 화면이 본 길과 다르면 보내지 않는다 · 문서는 통째로만 · 팀 서버는 보내지 않는다', async () => {
   const code = (p) => p.then(() => null, (e) => e.code)
-  fs.writeFileSync(path.join(tmp, 'kn', 'memo', 'docs', '점검.md'), '# 점검\n\n## 순서\n전원부터 본다.\n\n## 기록\n날마다 남긴다.\n')
-  s.hub.forget('memo')
-  let v = await s.hub.sendView(KIM, 'memo')
-  assert.equal(v.route, null, '처음에는 받는 지식이 없다')
-  assert.equal(v.docs.find((d) => d.path === 'docs/점검.md').st, 'new', '보낸 적 없는 문서')
-  assert.equal(await code(s.hub.sendPicked(KIM, 'memo', { to: 'dpms', recs: [] })), 'E_INPUT', '길을 정하기 전에는 보내지 않는다')
-  assert.equal(await code(s.hub.sendRoute(KIM, 'memo', { to: 'note' })), 'E_INPUT', '개인 지식으로는 보내지 않는다')
-  assert.equal(await code(s.hub.sendRoute(KIM, 'dpms', { to: 'gdi' })), 'E_FORBIDDEN', '보내는 지식은 내 개인 지식만')
-  v = await s.hub.sendRoute(KIM, 'memo', { to: 'dpms' })
-  assert.equal(v.route.kn, 'dpms')
-  assert.ok(v.route.since, '정한 때가 남는다')
+  assert.equal(await code(s.hub.sendView(KIM, 'memo')), 'E_FORBIDDEN', '팀 서버에는 개인 지식이 없다 · 보내기는 내 PC 에서')
+  // 내 PC 쪽 — 이은 팀(teams.json)의 팀 지식으로 · 이 PC 의 기기 열쇠로 보낸다
+  const proot = path.join(tmp, 'pcsend')
+  mkKnowledge(path.join(proot, 'memo'), '')
+  fs.writeFileSync(path.join(proot, 'memo', 'docs', '점검.md'), '# 점검\n\n## 순서\n전원부터 본다.\n\n## 기록\n날마다 남긴다.\n')
+  const dk = await signIn(s, { id: 'kim3', admin: true })
+  const was = process.env.KMD_SEND_KEY
+  process.env.KMD_SEND_KEY = dk.key
+  const pc = await startServer({ root: proot, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
+  fs.writeFileSync(path.join(proot, '.kmd', 'teams.json'), JSON.stringify([s.url]))
+  const ME = { user: pc.pcUser, admin: true, pc: true }
+  try {
+    let v = await pc.hub.sendView(ME, 'memo')
+    assert.equal(v.route, null, '처음에는 받는 지식이 없다')
+    assert.equal(v.docs.find((d) => d.path === 'docs/점검.md').st, 'new', '보낸 적 없는 문서')
+    assert.equal(await code(pc.hub.sendPicked(ME, 'memo', { to: 'dpms', recs: [] })), 'E_INPUT', '길을 정하기 전에는 보내지 않는다')
+    assert.equal(await code(pc.hub.sendRoute(ME, 'memo', { to: '없는지식', url: s.url })), 'E_INPUT', '받는 지식은 그 팀의 팀 지식')
+    v = await pc.hub.sendRoute(ME, 'memo', { to: 'dpms', url: s.url })
+    assert.equal(v.route.kn, 'dpms')
+    assert.ok(v.route.since, '정한 때가 남는다')
 
-  await s.hub.save(KIM, 'memo', { record: { title: '전원 점검: 아침', body: '아침마다 전원부터.' } })
-  v = await s.hub.sendView(KIM, 'memo')
-  const rec = v.recs.find((r) => r.title === '전원 점검: 아침')
-  assert.ok(rec && !rec.sent, '보내지 않은 기록')
-  assert.equal(await code(s.hub.sendPicked(KIM, 'memo', { to: 'gdi', recs: [rec.id] })), 'E_CONFLICT', '화면이 본 받는 지식과 다르면 보내지 않는다')
-  const r = await s.hub.sendPicked(KIM, 'memo', { to: 'dpms', recs: [rec.id], docs: [{ path: 'docs/점검.md' }] })
-  assert.equal(r.sent, 2)
-  let got = (await s.hub.get('dpms')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/')))
-  assert.ok(got.some((w) => w.title === '전원 점검: 아침'), '기록은 전체로')
-  assert.ok(got.some((w) => w.title === '점검: 문서 전체'), '처음 문서는 전체로')
-  v = await s.hub.sendView(KIM, 'memo')
-  assert.ok(v.recs.find((x) => x.id === rec.id).sent, '보낸 기록은 「보냄」')
-  assert.equal(v.docs.find((d) => d.path === 'docs/점검.md').st, 'same')
-  assert.equal(v.route.times, 1)
+    await pc.hub.save(ME, 'memo', { record: { title: '전원 점검: 아침', body: '아침마다 전원부터.' } })
+    await pc.hub.curateIdle('memo')
+    v = await pc.hub.sendView(ME, 'memo')
+    const rec = v.recs.find((x) => x.title === '전원 점검: 아침')
+    assert.ok(rec && !rec.sent, '보내지 않은 기록')
+    assert.equal(await code(pc.hub.sendPicked(ME, 'memo', { to: 'gdi', recs: [rec.id] })), 'E_CONFLICT', '화면이 본 받는 지식과 다르면 보내지 않는다')
+    const r = await pc.hub.sendPicked(ME, 'memo', { to: 'dpms', recs: [rec.id], docs: [{ path: 'docs/점검.md' }] })
+    assert.equal(r.sent, 2)
+    let got = (await s.hub.get('dpms')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/')))
+    assert.ok(got.some((w) => w.title === '전원 점검: 아침'), '기록은 전체로')
+    assert.ok(got.some((w) => w.title === '점검: 문서 전체'), '처음 문서는 전체로')
+    v = await pc.hub.sendView(ME, 'memo')
+    assert.ok(v.recs.find((x) => x.id === rec.id).sent, '보낸 기록은 「보냄」')
+    assert.equal(v.docs.find((d) => d.path === 'docs/점검.md').st, 'same')
+    assert.equal(v.route.times, 1)
 
-  await s.hub.edit(KIM, 'memo', { doc: '점검', sections: [{ h: '순서', body: '전원 다음 통신을 본다.' }] })
-  v = await s.hub.sendView(KIM, 'memo')
-  const d = v.docs.find((x) => x.path === 'docs/점검.md')
-  assert.deepEqual([d.st, d.heads], ['chg', ['순서']])
-  await s.hub.sendPicked(KIM, 'memo', { to: 'dpms', docs: [{ path: 'docs/점검.md', whole: false }] })
-  got = (await s.hub.get('dpms')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/')))
-  assert.ok(got.some((w) => w.title === '점검: 문서 전체' && /통신/.test(w.body) && /날마다 남긴다/.test(w.body)), '고친 뒤에도 문서는 통째로 간다(고친 항목만은 없다)')
-  assert.ok(!got.some((w) => w.title === '점검: 순서'), '항목 조각은 보내지 않는다')
+    await pc.hub.edit(ME, 'memo', { doc: '점검', sections: [{ h: '순서', body: '전원 다음 통신을 본다.' }] })
+    v = await pc.hub.sendView(ME, 'memo')
+    const d = v.docs.find((x) => x.path === 'docs/점검.md')
+    assert.deepEqual([d.st, d.heads], ['chg', ['순서']])
+    await pc.hub.sendPicked(ME, 'memo', { to: 'dpms', docs: [{ path: 'docs/점검.md', whole: false }] })
+    got = (await s.hub.get('dpms')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/')))
+    assert.ok(got.some((w) => w.title === '점검: 문서 전체' && /통신/.test(w.body) && /날마다 남긴다/.test(w.body)), '고친 뒤에도 문서는 통째로 간다(고친 항목만은 없다)')
+    assert.ok(!got.some((w) => w.title === '점검: 순서'), '항목 조각은 보내지 않는다')
 
-  // 바꾸기 — 새 이름을 그대로 쳐야
-  assert.equal(await code(s.hub.sendRoute(KIM, 'memo', { to: 'gdi' })), 'E_INPUT')
-  assert.equal(await code(s.hub.sendRoute(KIM, 'memo', { to: 'gdi', confirm: 'dpms' })), 'E_INPUT')
-  const gname = (await s.hub.meta('gdi')).name
-  assert.equal((await s.hub.sendRoute(KIM, 'memo', { to: 'gdi', confirm: gname })).route.kn, 'gdi')
+    // 바꾸기 — 새 이름을 그대로 쳐야
+    assert.equal(await code(pc.hub.sendRoute(ME, 'memo', { to: 'gdi', url: s.url })), 'E_INPUT')
+    assert.equal(await code(pc.hub.sendRoute(ME, 'memo', { to: 'gdi', url: s.url, confirm: 'dpms' })), 'E_INPUT')
+    const gname = (await s.hub.meta('gdi')).name
+    assert.equal((await pc.hub.sendRoute(ME, 'memo', { to: 'gdi', url: s.url, confirm: gname })).route.kn, 'gdi')
+  } finally {
+    await pc.close()
+    if (was === undefined) delete process.env.KMD_SEND_KEY
+    else process.env.KMD_SEND_KEY = was
+  }
 })
-
-test('받은편지함 정리: 같은 주인의 개인 지식으로 옮김 · private 메모 → 옮김 0 · 팀 이름은 보내기 후보', async () => {
-  await s.hub.save(KIM, 'inbox', { record: { title: '주간 회의: 안건', body: '다음 주 안건 셋.' } })
-  await s.hub.save(KIM, 'inbox', { record: { title: '주간 회의: 개인 생각', body: '나만 본다.', tags: ['private'] } })
-  await s.hub.save(KIM, 'inbox', { record: { title: '카나리: 비율 메모', body: '20% 가 낫다.' } })
-  const r = await s.hub.inboxTidy(KIM, 'inbox')
-  assert.equal(r.moved.length, 1)
-  assert.equal(r.moved[0].to, 'memo')
-  assert.ok(!r.moved.some((x) => /개인 생각/.test(x.title)), 'private 은 그대로')
-  assert.equal((await s.hub.get('memo')).works.filter((w) => /개인 생각/.test(w.title)).length, 0)
-  assert.equal(r.candidates.length, 1)
-  assert.equal(r.candidates[0].to, 'dpms')
-  // 두 번 해도 다시 옮기지 않는다
+test('받은편지함 정리(내 PC): 이름이 걸리는 개인 지식으로 옮김 · private 메모 → 옮김 0 · 팀 서버는 옮기지 않는다', async () => {
+  // 팀 서버에는 개인 지식이 없다 — 옮길 곳이 없다
+  await s.hub.save(KIM, 'inbox', { record: { title: '주간 회의: 팀 안건', body: '팀 서버에 남은 메모.' } })
   assert.equal((await s.hub.inboxTidy(KIM, 'inbox')).moved.length, 0)
+  const proot = path.join(tmp, 'pcinbox')
+  mkKnowledge(path.join(proot, 'inbox'), '')
+  mkKnowledge(path.join(proot, 'memo'), '## term\n\n- `term:주간 회의`: 주간 회의')
+  const pc = await startServer({ root: proot, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
+  const ME = { user: pc.pcUser, admin: true, pc: true }
+  try {
+    await pc.hub.save(ME, 'inbox', { record: { title: '주간 회의: 안건', body: '다음 주 안건 셋.' } })
+    await pc.hub.save(ME, 'inbox', { record: { title: '주간 회의: 개인 생각', body: '나만 본다.', tags: ['private'] } })
+    await pc.hub.curateIdle('inbox')
+    const r = await pc.hub.inboxTidy(ME, 'inbox')
+    assert.ok(r.moved.some((x) => x.to === 'memo' && /안건/.test(x.title)))
+    assert.ok(!r.moved.some((x) => /개인 생각/.test(x.title)), 'private 은 그대로')
+    assert.equal((await pc.hub.get('memo')).works.filter((w) => /개인 생각/.test(w.title)).length, 0)
+    // 두 번 해도 다시 옮기지 않는다
+    assert.equal((await pc.hub.inboxTidy(ME, 'inbox')).moved.length, 0)
+  } finally {
+    await pc.close()
+  }
 })
-
 test('지식 추가: 지식 폴더 밖의 폴더는 지식 폴더 안의 새 지식으로 들여온다(원본은 그대로 · 따라가지 않는다)', async () => {
   const root = path.join(tmp, 'pcroot')
   fs.mkdirSync(root, { recursive: true })
@@ -402,13 +424,15 @@ test('이 PC: 「아직 안 넣은 기록」 은 남는 즉시 문서에(켤 때
   }
 })
 
-test('지식 지우기: 이름을 그대로 써야 · 팀은 관리자나 개인 지식의 주인만 · 보관 없이 폴더 · 살림까지 완전히', async () => {
+test('지식 지우기: 이름을 그대로 써야 · 팀은 관리자만 · 보관 없이 폴더 · 살림까지 완전히', async () => {
   const dir = path.join(tmp, 'kn', 'inbox')
   const data = path.join(tmp, 'kn', '.kmd')
   assert.ok(fs.existsSync(dir))
   await assert.rejects(s.hub.deleteKnowledge(KIM, 'inbox', { confirm: '아무거나' }), { code: 'E_INPUT' })
   await assert.rejects(s.hub.deleteKnowledge({ user: 'lee' }, 'dpms', { confirm: 'DPMS 지식' }), { code: 'E_FORBIDDEN' })
-  const r = await s.hub.deleteKnowledge({ user: 'kim' }, 'inbox', { confirm: 'inbox' }) // 개인 지식의 주인 — 관리자가 아니어도
+  await assert.rejects(s.hub.deleteKnowledge({ user: 'kim' }, 'inbox', { confirm: 'inbox' }), { code: 'E_FORBIDDEN' }, '관리자가 아니면')
+  await s.hub.inboxTidy(KIM, 'inbox')
+  const r = await s.hub.deleteKnowledge(KIM, 'inbox', { confirm: 'inbox' })
   assert.equal(r.removed, true)
   assert.ok(!fs.existsSync(dir), '폴더가 통째로 없다(보관 없음)')
   assert.ok(!fs.existsSync(path.join(data, 'inbox', 'inbox.json')), '받은편지함 정리 상태도 없다')

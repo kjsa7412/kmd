@@ -53,7 +53,9 @@ export function installLines({ version, root, backup = null, kns = [], team = nu
     ok('늘 켜기: 로그온 때 켜고 멈추면 다시 켠다')
     // 시작 메뉴 바로가기를 만들지 못했으면 그 길을 말하지 않는다
     const via = task.shortcut === false ? 'kmd open' : '시작 메뉴의 kmd(또는 kmd open)'
-    dim(screen?.ok ? `이 PC 의 kmd 화면을 열었다. 다음부터는 ${via}` : `이 PC 의 kmd 화면은 ${via}로 연다${screen?.why ? ': ' + screen.why : ''}`)
+    // 팀에 이은 PC — 팀 화면을 연다(개인 지식 · 내 Claude 도 팀 화면에서 · 내 PC 쪽은 뒤에서 돈다)
+    const what = screen?.team ? '팀 화면' : '이 PC 의 kmd 화면'
+    dim(screen?.ok ? `${what}을 열었다. 다음부터는 ${via}` : `${what}은 ${via}로 연다${screen?.why ? ': ' + screen.why : ''}`)
     if (task.shortcut === false) dim('시작 메뉴 바로가기는 만들지 못했다. kmd pc task 로 다시')
   } else {
     no(`늘 켜기는 못 했다: ${task.why || '이 PC 에서 kmd up 으로 켠다'}`)
