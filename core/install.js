@@ -43,7 +43,10 @@ export function installLines({ version, root, backup = null, kns = [], team = nu
     ok(`팀 ${team.host} 에 ${user}로 이었다`)
     dim(`${user}의 「이력」 에 「새 기기가 이어졌다: ${host} · ${osuser}」 한 줄이 남는다`)
   } else if (team) no(`팀에 잇지 못했다: ${team.why} · 팀 화면에서 설치 한 줄을 다시 복사한다`)
-  if (claude.ok && claude.folder) ok(`Claude Code 에 이었다: ${claude.folder} 는 팀 지식 「${claude.kn}」 에 붙었다 · 새로 여는 것부터`)
+  if (claude.ok && claude.folder) {
+    ok(`Claude Code 에 이었다: ${claude.folder} 에 팀 지식 「${claude.kn}」 을 더했다 · 새로 여는 것부터`)
+    if (claude.n > 1) dim(`이 폴더의 지식 ${claude.n} · 기록 · 저장의 기본은 「${claude.def}」: 바꾸려면 이 PC 의 kmd 화면 › 설정 › 에이전트 설치`)
+  }
   else if (claude.ok) ok('Claude Code 에 이었다. 새로 여는 것부터')
   else no(`Claude Code 에 잇기(한 번): ${claude.line}`)
   if (task.ok) {

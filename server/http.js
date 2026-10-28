@@ -431,32 +431,46 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       await hub.workerStatus({ worker: { id: null } }, r.ok ? { ok: true } : { ok: false, reason: r.reason, message: r.message })
       return out(200, { ok: r.ok, reason: r.reason || null })
     }
-    // 에이전트 설치 — 이 PC 의 작업 폴더마다(스킬 · 연결 하나 · CLAUDE.md 안 kmd 덩이 · 기본 지식)
-    //   개인(area me): 이 화면에서 폴더 · 개인 지식을 고른다 · 팀(area team): 팀 화면의 설치 한 줄이 그 폴더에서 붙인다(kmd connect --kn)
+    // 에이전트 설치 — 이 PC 의 작업 폴더마다(스킬 · 붙은 영역의 연결 · CLAUDE.md 안 kmd 덩이 · 이 폴더의 지식 표)
+    //   한 폴더에 지식 여럿: 개인 지식은 이 화면에서 더하고 · 팀 지식은 팀 화면의 설치 한 줄이 그 폴더에서 더한다(kmd connect --kn)
+    //   떼기(rm + area · kn)는 지식 하나 · 마지막 하나를 떼거나 kn 없이 rm 이면 폴더째 뺀다 · def 는 기본 지식 바꾸기
     //   팀 화면은 짝 열쇠로 목록만 읽는다
-    const ag = p.match(/^\/api\/agent(?:\/(add|up|rm))?$/)
+    const ag = p.match(/^\/api\/agent(?:\/(add|up|rm|def))?$/)
     if (ag) {
       if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '에이전트 설치는 내 PC 프로그램이 한다. 팀 화면은 설치 한 줄 복사')
       const list = await kit.folders(dataDir)
-      if (!ag[1]) return out(200, { latest: await kit.kitVersion(), folders: await Promise.all(list.map(async (f) => ({ ...f, area: f.area || null, ...(await kit.status(f.path)) }))) })
+      if (!ag[1]) return out(200, { latest: await kit.kitVersion(), folders: await Promise.all(list.map(async (f) => ({ ...f, ...(await kit.status(f.path)) }))) })
       if (ctx.pair) throw new KmdError('E_FORBIDDEN', '이 PC 화면에서 한다')
       const b = await readBody(req)
       const teamUrl = (await teamsOf())[0] || null
-      const urls = (f) => ({ pcUrl: `http://${req.headers.host}`, teamUrl, area: f.area || null, kn: f.kn || null, knName: f.knName || null })
+      const urls = (f) => ({ pcUrl: `http://${req.headers.host}`, teamUrl, kns: f.kns || [], def: f.def || null })
+      const same = (f, dir) => path.resolve(f.path).toLowerCase() === path.resolve(String(dir)).toLowerCase()
       if (ag[1] === 'add') {
-        // 개인 지식 하나에 붙인다 — 같은 폴더면 지식 · 영역을 바꾼다(팀에 붙어 있었으면 팀 연결을 걷는다)
+        // 개인 지식 하나를 더한다 — 같은 폴더면 붙어 있던 지식(팀 지식도)은 그대로 · 기본도 그대로
         const kn = String(b.kn || '')
         const k = kn ? (await hub.list()).find((x) => x.id === kn) : null
         if (kn && !k) throw new KmdError('E_INPUT', `「${kn}」 개인 지식이 없다`)
-        const want = k ? { area: 'me', kn: k.id, knName: k.name } : {}
-        const r = await kit.install(String(b.dir || ''), urls(want))
-        const again = list.some((f) => path.resolve(f.path).toLowerCase() === r.dir.toLowerCase())
-        const row = { name: path.basename(r.dir), path: r.dir, at: new Date().toISOString(), ...want }
-        await kit.setFolders(dataDir, again ? list.map((f) => (path.resolve(f.path).toLowerCase() === r.dir.toLowerCase() ? { ...f, ...row, at: f.at } : f)) : [...list, row])
-        return out(200, { ...r, ...(again ? { again: true } : {}) })
+        const cur = b.dir ? list.find((f) => same(f, b.dir)) : null
+        const base = cur || { name: '', path: String(b.dir || ''), at: new Date().toISOString(), kns: [], def: null }
+        const row = k ? kit.addKn(base, { area: 'me', kn: k.id, knName: k.name }) : base
+        const r = await kit.install(String(b.dir || ''), urls(row))
+        const next = { ...row, name: path.basename(r.dir), path: r.dir }
+        await kit.setFolders(dataDir, cur ? list.map((f) => (f === cur ? next : f)) : [...list, next])
+        return out(200, { ...r, ...(cur ? { again: true } : {}) })
       }
-      const pick = b.dir ? list.filter((f) => path.resolve(f.path).toLowerCase() === path.resolve(String(b.dir)).toLowerCase()) : list
+      const pick = b.dir ? list.filter((f) => same(f, b.dir)) : list
       if (ag[1] === 'up') { for (const f of pick) await kit.install(f.path, urls(f)); return out(200, { n: pick.length }) }
+      if (ag[1] === 'def' || (ag[1] === 'rm' && b.kn)) {
+        const f = pick[0]
+        if (!b.dir || !f) throw new KmdError('E_NOTFOUND', '붙인 폴더가 아니다')
+        const area = b.area === 'team' ? 'team' : 'me'
+        const next = ag[1] === 'def' ? kit.setDef(f, area, String(b.kn || '')) : kit.dropKn(f, area, String(b.kn))
+        if (ag[1] === 'def' || next.kns.length) {
+          await kit.install(f.path, urls(next))
+          await kit.setFolders(dataDir, list.map((x) => (x === f ? next : x)))
+          return out(200, { n: 1, kns: next.kns, def: next.def })
+        }
+      }
       for (const f of pick) await kit.remove(f.path)
       await kit.setFolders(dataDir, list.filter((f) => !pick.includes(f)))
       return out(200, { n: pick.length })

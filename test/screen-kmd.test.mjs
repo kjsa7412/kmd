@@ -485,7 +485,7 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 정리 �
   assert.match(await page.locator('[data-t=claudeRead]').innerText(), /팀 정리는 정리 전용 로그인으로 돈다/)
   await page.click('[data-t=mg-agent]')
   assert.equal(await page.locator('[data-t=copyInstall]').innerText(), '설치 한 줄 복사')
-  assert.match(await page.locator('[data-t=agentCard]').innerText(), /에이전트 설치 · 팀[\s\S]*붙일 팀 지식/)
+  assert.match(await page.locator('[data-t=agentCard]').innerText(), /에이전트 설치 · 팀[\s\S]*더할 팀 지식/)
   assert.ok((await page.locator('#agKn option').allInnerTexts()).includes('DPMS 지식'), '붙일 팀 지식을 고른다')
   await page.click('[data-t=mg-people]')
   assert.match(await page.locator('[data-t=roleRule]').innerText(), /관리자[\s\S]*일반[\s\S]*지식마다 따로 주는 권한은 없다/)

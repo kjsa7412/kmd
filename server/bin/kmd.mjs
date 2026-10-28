@@ -24,7 +24,7 @@ import { addMcp, mcpLine, safeOrigin } from '../../core/claudecfg.js'
 import { taskXml, upgrade, appHomeOf, launcherOf, linkVersion, makeShortcut } from '../../core/pcops.js'
 import { installLines, pickBackupDir } from '../../core/install.js'
 import { ensureRepo } from '../../core/git.js'
-import { install as kitInstall, folders as kitFolders, setFolders as kitSetFolders } from '../../core/kit.js'
+import { install as kitInstall, folders as kitFolders, setFolders as kitSetFolders, addKn as kitAddKn, defOf as kitDefOf } from '../../core/kit.js'
 
 // 명령 목록 — 여기 줄과 아래 main 의 갈래가 같아야 한다(test/open.test.mjs 가 센다). 관리자 설명서의 셸 표도 이 줄에서 고른다
 const HELP = `kmd ${VERSION}
@@ -646,10 +646,15 @@ async function connectCmd(o) {
       const k = ks.find((x) => x.id === o.kn && !x.private)
       if (!k) throw new Error(`팀에 「${o.kn}」 팀 지식이 없다`)
       const dir = path.resolve(o.dir || process.cwd())
-      const r = await kitInstall(dir, { teamUrl: url, area: 'team', kn: k.id, knName: k.name })
-      const list = (await kitFolders(pcData)).filter((f) => path.resolve(f.path).toLowerCase() !== r.dir.toLowerCase())
-      await kitSetFolders(pcData, [...list, { name: path.basename(r.dir), path: r.dir, at: new Date().toISOString(), area: 'team', kn: k.id, knName: k.name, team: url }])
-      c = { ok: true, folder: r.dir, kn: k.name }
+      // 더하기 — 이 폴더에 붙어 있던 지식(개인 지식도)은 그대로 · 기본도 그대로(처음이면 이것)
+      const list = await kitFolders(pcData)
+      const same = (f) => path.resolve(f.path).toLowerCase() === dir.toLowerCase()
+      const cur = list.find(same)
+      const row = kitAddKn(cur || { name: path.basename(dir), path: dir, at: new Date().toISOString(), kns: [], def: null }, { area: 'team', kn: k.id, knName: k.name, team: url })
+      // 개인 지식의 연결(kmd)은 .mcp.json 에 있던 것을 그대로 둔다
+      const r = await kitInstall(dir, { teamUrl: url, kns: row.kns, def: row.def })
+      await kitSetFolders(pcData, cur ? list.map((f) => (f === cur ? { ...row, path: r.dir } : f)) : [...list, { ...row, path: r.dir }])
+      c = { ok: true, folder: r.dir, kn: k.name, def: kitDefOf(row)?.knName, n: row.kns.length }
     } catch (e) {
       c = { ok: false, line: `${e.message}. 팀 화면 › 설정 › 에이전트 설치에서 설치 한 줄을 다시 복사한다` }
     }

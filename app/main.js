@@ -2929,27 +2929,37 @@ const pcAgentOf = () => {
   }
   return S.cache.pcAgent || null
 }
+// 폴더에 붙은 지식 — { kns, def } · 옛 PC 프로그램은 { area, kn, knName }
+const agKns = (f) => (Array.isArray(f.kns) ? f.kns : f.area && f.kn ? [{ area: f.area, kn: f.kn, knName: f.knName }] : [])
+// 메뉴 줄의 지식 — 이름은 그 폴더 줄에서
+const agKnOf = (el) => { const f = ((S.cache.agent || {}).folders || []).find((x) => x.path === el.dataset.v); const k = f && agKns(f).find((x) => x.area === el.dataset.area && x.kn === el.dataset.kn); return { area: el.dataset.area, kn: el.dataset.kn, knName: (k && k.knName) || el.dataset.kn } }
+const agDef = (f) => { const ks = agKns(f); return ks.find((k) => `${k.area}:${k.kn}` === f.def) || ks[0] || null }
+function agChips(f) {
+  const ks = agKns(f), d = agDef(f)
+  if (!ks.length) return '<span class="chip c-mute">지식을 정하지 않음</span>'
+  return `<span style="display:flex;flex-wrap:wrap;gap:4px 8px;justify-content:flex-end" data-t="agentKns">${ks.map((k) => `<span data-t="agentKn" data-kn="${esc(k.kn)}" data-area="${k.area}"${k === d ? ' data-def="1"' : ''}><span class="kt ${k.area === 'team' ? 'team' : 'me'}">${k.area === 'team' ? '팀' : '개인'}</span> <b class="small">${esc(k.knName || k.kn)}</b>${k === d && ks.length > 1 ? ' <small class="muted">기본</small>' : ''}</span>`).join('')}</span>`
+}
 function agentRowsRO(area) {
   const A = pcAgentOf()
   if (!S.pc || !S.pc.token) return '<li class="muted">내 PC 프로그램이 켜져 있으면 이 PC 에 붙인 폴더가 보인다</li>'
   if (!A) return '<li class="muted">읽는 중…</li>'
-  const xs = (A.folders || []).filter((f) => (area === 'team' ? f.area === 'team' : f.area !== 'team'))
-  return xs.map((f) => `<li data-t="agentRow" data-name="${esc(f.name)}"><span style="flex:1;min-width:0"><b>${esc(f.name)}</b><small class="muted mono" style="display:block">${esc(f.path)}</small></span>${f.kn ? `<span class="kt ${area === 'team' ? 'team' : 'me'}">${area === 'team' ? '팀' : '개인'}</span> <b class="small">${esc(f.knName || f.kn)}</b>` : '<span class="chip c-mute">지식을 정하지 않음</span>'}${f.state && f.state !== 'latest' ? '<span class="chip c-warn">옛 판</span>' : ''}</li>`).join('') || '<li class="muted">아직 붙인 폴더가 없다</li>'
+  const xs = (A.folders || []).filter((f) => (area === 'team' ? agKns(f).some((k) => k.area === 'team') : !agKns(f).length || agKns(f).some((k) => k.area !== 'team')))
+  return xs.map((f) => `<li data-t="agentRow" data-name="${esc(f.name)}"><span style="flex:1;min-width:0"><b>${esc(f.name)}</b><small class="muted mono" style="display:block">${esc(f.path)}</small></span>${agChips(f)}${f.state && f.state !== 'latest' ? '<span class="chip c-warn">옛 판</span>' : ''}</li>`).join('') || '<li class="muted">아직 붙인 폴더가 없다</li>'
 }
 function teamAgentCard() {
   const ks = S.kns.filter((k) => !k.pc && !k.private)
   if (!ks.some((k) => k.id === S.agKn)) S.agKn = (ks[0] || {}).id || ''
   const sel = `<select class="inp" id="agKn" data-in="agKn" data-t="agKn" style="width:auto">${ks.map((k) => `<option value="${esc(k.id)}"${k.id === S.agKn ? ' selected' : ''}>${esc(k.name)}</option>`).join('')}</select>`
-  return `<div class="card" data-t="agentCard"><div class="ch">에이전트 설치 · 팀 <small>작업 폴더의 Claude Code 가 팀 지식 하나에 붙는다</small></div><div class="cb" style="padding:2px 14px 12px">
-   <div class="set"><span class="tx"><b>붙일 팀 지식</b><small>작업 폴더의 CLAUDE.md 안내에 「기본 지식」 으로 적힌다 · 기록 · 저장은 이 지식에 남긴다</small></span>${ks.length ? sel : '<span class="muted">팀 지식이 없다</span>'}</div>
-   <div class="set"><span class="tx"><b>설치 한 줄 복사</b><small>그 작업 폴더의 터미널에 붙여 넣는다 · 10분 동안 한 번만 · 연결은 kmd-team 하나만 깐다(개인 연결은 설정 · 개인)</small></span><button class="btn pri" data-a="copyInstall" data-v="team" data-t="copyInstall"${ks.length ? '' : ' disabled'}>설치 한 줄 복사</button></div>
-   <div class="rh">팀에 붙은 내 작업 폴더 <small class="muted">이 PC</small></div><ul class="plain" data-t="agentTeamList">${agentRowsRO('team')}</ul>
-   <p class="small muted">한 폴더는 한 영역이다. 같은 폴더를 개인에 붙이면 팀 연결을 걷는다 · 폴더 빼기는 내 PC 프로그램 화면의 설정 › 에이전트 설치에서</p></div></div>`
+  return `<div class="card" data-t="agentCard"><div class="ch">에이전트 설치 · 팀 <small>작업 폴더의 Claude Code 에 팀 지식을 더한다</small></div><div class="cb" style="padding:2px 14px 12px">
+   <div class="set"><span class="tx"><b>더할 팀 지식</b><small>작업 폴더의 CLAUDE.md 안내 「이 폴더의 지식」 표에 더해진다 · 처음 붙이는 폴더면 기록 · 저장의 기본 지식이 된다</small></span>${ks.length ? sel : '<span class="muted">팀 지식이 없다</span>'}</div>
+   <div class="set"><span class="tx"><b>설치 한 줄 복사</b><small>그 작업 폴더의 터미널에 붙여 넣는다 · 10분 동안 한 번만 · 그 폴더에 붙어 있던 지식(개인 지식도)은 그대로 둔다</small></span><button class="btn pri" data-a="copyInstall" data-v="team" data-t="copyInstall"${ks.length ? '' : ' disabled'}>설치 한 줄 복사</button></div>
+   <div class="rh">팀 지식이 붙은 내 작업 폴더 <small class="muted">이 PC</small></div><ul class="plain" data-t="agentTeamList">${agentRowsRO('team')}</ul>
+   <p class="small muted">한 폴더에 팀 지식 · 개인 지식을 같이 붙인다. 세션은 붙은 지식 모두에서 읽고 기본 지식에 남긴다 · 기본 바꾸기 · 떼기 · 폴더 빼기는 내 PC 프로그램 화면의 설정 › 에이전트 설치에서</p></div></div>`
 }
 function meAgentCard() {
-  return `<div class="card" data-t="agentCard"><div class="ch">에이전트 설치 · 개인 <small>작업 폴더의 Claude Code 가 개인 지식 하나에 붙는다</small></div><div class="cb" style="padding:2px 14px 12px">
+  return `<div class="card" data-t="agentCard"><div class="ch">에이전트 설치 · 개인 <small>작업 폴더의 Claude Code 에 개인 지식을 더한다</small></div><div class="cb" style="padding:2px 14px 12px">
    <ul class="plain" data-t="agentMeList">${agentRowsRO('me')}</ul>
-   <p class="small muted">폴더 더하기 · 개인 지식 고르기 · 빼기는 내 PC 프로그램 화면(시작 메뉴 › kmd)의 설정 › 에이전트 설치에서 한다 · 연결은 이 PC 의 kmd 하나만 깐다</p></div></div>`
+   <p class="small muted">폴더 더하기 · 개인 지식 더하기 · 기본 바꾸기 · 빼기는 내 PC 프로그램 화면(시작 메뉴 › kmd)의 설정 › 에이전트 설치에서 한다 · 그 폴더에 붙은 팀 지식은 그대로 둔다</p></div></div>`
 }
 // 일마다 Claude 모델 — 이 PC 만(core/models.js) · 옮겨 적기 · 고르기는 가벼운 모델 · 판단은 큰 모델
 const MODEL_T = [['convert', 'pdf · hwp 를 글로', '글이 없는 pdf · 표가 깨진 hwp 만: 옮겨 적기'], ['read', '넣은 파일의 기록 정리', '무엇 · 핵심 · 정한 것 · 남은 것'], ['touch', '기록의 이름 고르기', '후보 안에서 고른다'], ['tidy', '항목 글 초안', '기록을 항목에 넣어 다시 쓴다'], ['commit', '코드 바뀜 분석', '커밋 차이를 읽는다'], ['agent', '지식에 들이기(에이전트)', '둘러보고 자리 · 이름을 정한다']]
@@ -3102,21 +3112,26 @@ function agentCard() {
     const oldN = A.folders.filter((f) => f.state !== 'latest').length
     const rows = A.folders.map((f) => {
       const old = f.state !== 'latest', mk = 'ag:' + f.path
-      const area = f.area === 'team' ? '<span class="kt team">팀</span>' : f.kn ? '<span class="kt me">개인</span>' : ''
-      return `<li data-t="agentRow" data-name="${esc(f.name)}"><span style="flex:1;min-width:0"><b>${esc(f.name)}</b><small class="muted mono" style="display:block">${esc(f.path)}</small></span>${area}${f.kn ? ` <b class="small" data-t="agentKn">${esc(f.knName || f.kn)}</b>` : '<span class="chip c-mute">지식을 정하지 않음</span>'}${old ? `<span class="chip c-warn" data-t="agentState">${f.state === 'none' ? '없음. 다시 붙인다' : '옛 판: 고침 있음'}</span><small class="muted">${esc(f.ver || '')}</small>` : `<span class="chip c-acc" data-t="agentState">최신 · ${esc(A.latest)}</span>`}<button class="kebab${S.menu === mk ? ' on' : ''}" data-a="menu" data-m="${esc(mk)}" data-t="agentKebab" title="최신으로 · 빼기">⋯${S.menu === mk ? `<div class="menu" style="right:0;top:28px">${old ? `<div class="mi" data-a="agentUp" data-v="${esc(f.path)}" data-t="agentUp">최신으로<small>kmd 안내만 바꾼다</small></div>` : ''}<div class="mi" data-a="agentRm" data-v="${esc(f.path)}" data-t="agentRm">빼기<small>스킬 · 연결 · kmd 안내를 걷는다</small></div></div>` : ''}</button></li>`
+      const ks = agKns(f), d = agDef(f)
+      const kv = (k) => `data-v="${esc(f.path)}" data-area="${k.area}" data-kn="${esc(k.kn)}"`
+      const knMenu = ks.length > 1 ? ks.map((k) => `${k === d ? '' : `<div class="mi" data-a="agentDef" ${kv(k)} data-t="agentDef">「${esc(k.knName || k.kn)}」 을 기본으로<small>기록 · 저장이 이 지식에 남는다</small></div>`}<div class="mi" data-a="agentDrop" ${kv(k)} data-t="agentDrop">「${esc(k.knName || k.kn)}」 떼기<small>${k.area === 'team' ? '팀' : '개인'} 지식 · 다른 지식은 그대로</small></div>`).join('') : ''
+      return `<li data-t="agentRow" data-name="${esc(f.name)}"><span style="flex:1;min-width:0"><b>${esc(f.name)}</b><small class="muted mono" style="display:block">${esc(f.path)}</small></span>${agChips(f)}${old ? `<span class="chip c-warn" data-t="agentState">${f.state === 'none' ? '없음. 다시 붙인다' : '옛 판: 고침 있음'}</span><small class="muted">${esc(f.ver || '')}</small>` : `<span class="chip c-acc" data-t="agentState">최신 · ${esc(A.latest)}</span>`}<button class="kebab${S.menu === mk ? ' on' : ''}" data-a="menu" data-m="${esc(mk)}" data-t="agentKebab" title="지식 더하기 · 기본 · 떼기 · 빼기">⋯${S.menu === mk ? `<div class="menu" style="right:0;top:28px">${old ? `<div class="mi" data-a="agentUp" data-v="${esc(f.path)}" data-t="agentUp">최신으로<small>kmd 안내만 바꾼다</small></div>` : ''}<div class="mi" data-a="agentMore" data-v="${esc(f.path)}" data-t="agentMoreKn">개인 지식 더하기<small>팀 지식은 팀 화면의 설치 한 줄로</small></div>${knMenu}<div class="mi" data-a="agentRm" data-v="${esc(f.path)}" data-t="agentRm">빼기<small>스킬 · 연결 · kmd 안내를 걷는다</small></div></div>` : ''}</button></li>`
     }).join('')
     const add = S.agAdding ? `<div class="paste" style="margin-top:10px"><input class="inp mono" id="agIn" data-in="ag" data-t="agIn" value="${esc(S.agDraft || '')}" placeholder="작업 폴더 경로: 예: D:\\work\\dpms-batch" autocomplete="off"><select class="inp" id="agKnMe" data-in="agKnMe" data-t="agKnMe" style="width:auto">${S.kns.map((k) => `<option value="${esc(k.id)}"${k.id === (S.agKnMe || (S.kns[0] || {}).id) ? ' selected' : ''}>${esc(k.name)}</option>`).join('')}</select><span id="agBtnBox">${agBtn()}</span></div>` : '<button class="btn pri" data-a="agentAdd" data-t="agentAddBtn" style="margin-top:10px">폴더 더하기</button>'
-    return `<div class="card" data-t="agentCard" style="overflow:visible"><div class="ch">에이전트 설치 <small>Claude Code 를 개인 지식 하나에 붙인다 · 작업 폴더마다</small><span class="r"><button class="kebab${S.menu === 'agAll' ? ' on' : ''}" data-a="menu" data-m="agAll" data-t="agentAllKebab" title="지금 모두 최신으로">⋯${S.menu === 'agAll' ? `<div class="menu" style="right:0;top:28px"><div class="mi" data-a="agentAllNew" data-t="agentAllNew">지금 모두 최신으로<small>${oldN ? '옛 판 ' + oldN : '모두 최신'}</small></div></div>` : ''}</button></span></div><div class="cb" style="padding:2px 14px 12px">${S.agMsg ? `<div class="callout" data-t="agentMsg">${S.agMsg}</div>` : ''}<ul class="plain" data-t="agentList">${rows || '<li class="muted">아직 붙인 폴더가 없다</li>'}</ul>${add}
-   <details class="more" data-t="agentMore"><summary>자세히: 무엇이 깔리나</summary><div class="in">스킬 셋: <code>kmd-work</code> · <code>kmd-save</code> · <code>kmd-build</code>(파일을 지식에 들이기)<br>연결 하나: 이 PC 의 kmd(개인 지식) · 팀 지식에 붙이려면 팀 화면 › 설정 · 팀 › 에이전트 설치의 설치 한 줄 · 열쇠는 이 PC 의 자격 저장소에서 꺼낸다<br>기본 지식: CLAUDE.md 안내에 고른 개인 지식이 적힌다<br>안내 한 단락: <code>CLAUDE.md</code> 안 kmd 안내 · 사람이 고친 줄은 그대로 두고 kmd 안내만 바꾼다</div></details></div></div>`
+    return `<div class="card" data-t="agentCard" style="overflow:visible"><div class="ch">에이전트 설치 <small>Claude Code 에 팀 · 개인 지식을 붙인다 · 작업 폴더마다 여럿</small><span class="r"><button class="kebab${S.menu === 'agAll' ? ' on' : ''}" data-a="menu" data-m="agAll" data-t="agentAllKebab" title="지금 모두 최신으로">⋯${S.menu === 'agAll' ? `<div class="menu" style="right:0;top:28px"><div class="mi" data-a="agentAllNew" data-t="agentAllNew">지금 모두 최신으로<small>${oldN ? '옛 판 ' + oldN : '모두 최신'}</small></div></div>` : ''}</button></span></div><div class="cb" style="padding:2px 14px 12px">${S.agMsg ? `<div class="callout" data-t="agentMsg">${S.agMsg}</div>` : ''}<ul class="plain" data-t="agentList">${rows || '<li class="muted">아직 붙인 폴더가 없다</li>'}</ul>${add}
+   <details class="more" data-t="agentMore"><summary>자세히: 무엇이 깔리나</summary><div class="in">스킬 셋: <code>kmd-work</code> · <code>kmd-save</code> · <code>kmd-build</code>(파일을 지식에 들이기)<br>연결: 붙은 지식의 것만. 개인 지식은 이 PC 의 kmd · 팀 지식은 kmd-team(팀 화면 › 설정 · 팀 › 에이전트 설치의 설치 한 줄로 더한다) · 열쇠는 이 PC 의 자격 저장소에서 꺼낸다<br>이 폴더의 지식: CLAUDE.md 안내에 붙은 지식 표가 적힌다. 세션은 표의 지식 모두에서 읽고 기본 지식에 남긴다(사람이 말하면 다른 지식에)<br>안내 한 단락: <code>CLAUDE.md</code> 안 kmd 안내 · 사람이 고친 줄은 그대로 두고 kmd 안내만 바꾼다</div></details></div></div>`
   }
   const devs = devicesOf()
   return `<div class="card" data-t="agentCard"><div class="ch">에이전트 설치 <small>Claude Code 에 kmd 를 붙인다</small></div><div class="cb" style="padding:2px 14px 12px"><div class="set"><span class="tx"><b>이 PC 의 Claude Code 로 쓰려면: 설치 한 줄 복사</b><small>작업 폴더의 터미널에 붙여 넣는다 · 10분 동안 한 번만 · 내 PC 프로그램이 있으면 그 프로그램에 폴더를 더한다</small></span><button class="btn pri" data-a="copyInstall" data-t="copyInstall">설치 한 줄 복사</button></div>
   <div class="rh">내 기기</div><ul class="plain" data-t="agentDevs">${(devs && !devs.error ? devs : []).map((d) => `<li data-t="agentDev" data-name="${esc(d.host || d.id)}"><span style="flex:1"><b>${esc(d.host || '이름 없는 기기')}</b><small class="muted" style="display:block">Claude Code · ${d.used ? '마지막 사용 ' + esc(whenTxt(d.used)) : '이은 때 ' + esc(whenTxt(d.at))}</small></span></li>`).join('') || '<li class="muted">아직 붙인 기기가 없다</li>'}</ul><p class="small muted">기기의 kmd 스킬은 그 기기의 내 PC 프로그램이 최신으로 맞춘다.</p></div></div>`
 }
-async function agentDo(what, dir) {
+// kn — 지식 하나에 하는 일(def · rm 의 떼기) { area, kn, knName }
+async function agentDo(what, dir, kn = null) {
   try {
-    const r = await postJSON('/api/agent/' + what, dir ? { dir, ...(what === 'add' ? { kn: S.agKnMe || (S.kns[0] || {}).id || '' } : {}) } : {})
-    if (what === 'add') { S.agAdding = false; S.agDraft = ''; S.agMsg = r.again ? '<b>이미 붙어 있다. 최신으로 맞췄다</b>' : `<b>Claude Code 에 kmd 를 붙였다. 스킬 · 연결 둘 · 안내 한 단락</b> · ${esc(r.dir)}` }
+    const r = await postJSON('/api/agent/' + what, dir ? { dir, ...(what === 'add' ? { kn: S.agKnMe || (S.kns[0] || {}).id || '' } : {}), ...(kn ? kn : {}) } : {})
+    if (what === 'add') { S.agAdding = false; S.agDraft = ''; S.agMsg = r.again ? `<b>이 폴더에 더했다. 붙은 지식 ${(r.kns || []).length} · 기본은 「${esc(r.def?.knName || r.def?.kn || '')}」</b>` : `<b>Claude Code 에 kmd 를 붙였다. 스킬 · 연결 · 안내 한 단락</b> · ${esc(r.dir)}` }
+    else if (what === 'def') S.agMsg = `<b>기본 지식을 바꿨다. 기록 · 저장은 「${esc(kn.knName)}」 에</b>`
+    else if (what === 'rm' && kn) S.agMsg = r.kns ? `<b>「${esc(kn.knName)}」 을 뗐다. 붙은 지식 ${r.kns.length}</b>` : '<b>마지막 지식을 떼어 폴더를 뺐다</b>'
     else S.agMsg = what === 'rm' ? '<b>뺐다. 스킬 · 연결 · kmd 안내를 걷었다</b>' : `<b>최신으로: ${r.n}곳</b>`
   } catch (e) { S.agMsg = `<b>${esc(e.message)}</b>` }
   S.menu = null
@@ -3336,6 +3351,9 @@ const ACT = {
   agentUp: (el) => agentDo('up', el.dataset.v),
   agentRm: (el) => { if (!confirm('이 작업 폴더에서 kmd 를 뺀다. 스킬 · 연결 · CLAUDE.md 의 kmd 안내를 걷는다')) { S.menu = null; return render() } agentDo('rm', el.dataset.v) },
   agentAllNew: () => agentDo('up'),
+  agentMore: (el) => { S.menu = null; S.agAdding = true; S.agDraft = el.dataset.v; S._focus = 'agKnMe'; render() },
+  agentDef: (el) => agentDo('def', el.dataset.v, agKnOf(el)),
+  agentDrop: (el) => { const k = agKnOf(el); if (!confirm(`이 작업 폴더에서 「${k.knName}」 을 뗀다. 다른 지식은 그대로 둔다`)) { S.menu = null; return render() } agentDo('rm', el.dataset.v, k) },
   logoutAll: async () => { S.menu = null; if (!confirm('모든 곳에서 나간다. 이 브라우저와 다른 기기 · 브라우저의 들어온 것이 모두 끊긴다(Claude Code 의 기기 열쇠는 그대로)')) return render(); try { await postJSON('/api/me/logout-all', {}) } catch {} try { sessionStorage.removeItem('kmdPair'); localStorage.removeItem('kmdPcKns'); localStorage.removeItem('kmdPcSeen') } catch {} location.href = '/' },
   logout: async () => { await postJSON('/logout', {}).catch(() => {}); try { sessionStorage.removeItem('kmdPair'); localStorage.removeItem('kmdPcKns'); localStorage.removeItem('kmdPcSeen') } catch {} location.href = '/' },
   admAddOpen: () => { S.admAdd = { id: '', admin: false }; S._focus = 'admAddIn'; render() },

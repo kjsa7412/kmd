@@ -22,6 +22,14 @@ const INSTRUCTIONS = [
   '일을 시작할 때 brief 로 무엇이 있나 본다. 이름을 알면 match 로 그 항목을 찾고 section 으로 지금 글을 읽는다.',
   '일을 마치면 save 로 기록을 남긴다. 바뀐 값 · 까닭 · 건드린 이름(touches)을 적는다. 항목 글을 고쳤으면 sections 에 새 글을 같이 보낸다. 이미 있는 항목이면 section 이 준 base 를 꼭 같이(없으면 받지 않는다 · 그사이 남이 고친 글을 덮지 않게).',
 ].join('\n')
+// 이 서버가 어느 쪽인가 — 한 폴더에 팀(kmd-team) · 개인(kmd) 두 연결이 같이 붙으므로 세션이 가려 남기게
+const WHERE = {
+  pc: '이 연결은 이 PC 의 개인 지식이다(where: me). 여기 남긴 것은 나만 본다.',
+  team: '이 연결은 팀 서버다(where: team). 팀 지식에 남긴 것은 그 지식을 보는 팀 사람이 본다. 작업 폴더의 기본 지식이 아니면 사람이 말할 때만 남긴다.',
+}
+export const instructionsFor = (mode) => INSTRUCTIONS + '\n' + (WHERE[mode] || WHERE.team)
+// 지식마다 갈래 · 남기면 보는 사람
+const whereOf = (store, id) => (store.mode === 'pc' ? { where: 'me', seenBy: '나만(이 PC)' } : store.owner(id)?.private ? { where: 'me', seenBy: '나만(팀 서버의 내 개인 지식)' } : { where: 'team', seenBy: '이 팀 지식을 보는 팀 사람' })
 
 const str = (description) => ({ type: 'string', description })
 const TOOLS = [
@@ -101,7 +109,7 @@ export function makeMcp(store) {
       if (!knowledge) {
         const ks = await store.all(ctx)
         return {
-          knowledge: ks.map((k) => ({ id: k.id, name: k.name, docs: k.docs.length, records: k.works.length, notYetInDocs: k.works.filter((w) => w.state === 'pend').length })),
+          knowledge: ks.map((k) => ({ id: k.id, name: k.name, ...whereOf(store, k.id), docs: k.docs.length, records: k.works.length, notYetInDocs: k.works.filter((w) => w.state === 'pend').length })),
           next: ks.length ? 'brief { knowledge } 로 지식 하나를 본다' : '아직 지식이 없다',
           stops: (await store.stops(ctx)).map((l) => l.text),
           // 노란 줄 — kmd 가 값을 바꾼 것 · 새 기기(한 번 실린다 · 사용자에게 그대로 전한다)
@@ -112,6 +120,7 @@ export function makeMcp(store) {
       return {
         id: k.id,
         name: k.name,
+        ...whereOf(store, k.id),
         docs: k.docs.map((d) => ({ doc: d.id, title: d.title, headings: d.sections.map((s) => s.h) })),
         recent: k.works.slice(0, 10).map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title })),
         notYetInDocs: k.works.filter((w) => w.state === 'pend').map((w) => ({ id: w.id, date: w.date, title: w.title })),
@@ -227,7 +236,7 @@ export function makeMcp(store) {
     if (id === undefined) return null // 알림 — 답하지 않는다
     if (method === 'initialize') {
       const want = params?.protocolVersion
-      return ok({ protocolVersion: PROTOCOLS.includes(want) ? want : PROTOCOLS[0], capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'kmd', version: VERSION }, instructions: INSTRUCTIONS })
+      return ok({ protocolVersion: PROTOCOLS.includes(want) ? want : PROTOCOLS[0], capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'kmd', version: VERSION }, instructions: instructionsFor(store.mode) })
     }
     if (method === 'ping') return ok({})
     if (method === 'tools/list') return ok({ tools: TOOLS })
