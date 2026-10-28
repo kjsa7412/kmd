@@ -19,7 +19,8 @@ import { KmdError } from './errors.js'
 
 const URL_RE = /https:\/\/[^\s"'<>]+(?=\s)/g // 뒤에 빈칸이 와야 — 반쯤 받은 주소를 잡지 않게
 const TOKEN_RE = /sk-ant-[A-Za-z0-9_-]{20,}/
-const ANSI_RE = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_]/g
+// 색 · 커서 · 링크 · 글자판 고르기(ESC ( B) · 그 밖의 제어 글자(SI 등 — 서버 기록이 바이너리로 보이지 않게)
+const ANSI_RE = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[()*+][0-9A-Za-z]|\x1b[@-Z\\-_]|[\x00-\x08\x0b-\x1f\x7f]/g
 const NO_TTY = '서버에서 Claude 로그인 창을 띄울 수 없다. 자기 터미널에서 `claude setup-token` 으로 받은 열쇠를 서버에서 `kmd secret set claude-token` 으로 넣는다'
 
 // 터미널 글 → 맨글(색 · 커서 · 링크 표시를 지운다 · ink 는 띄어쓰기를 「오른쪽으로 n 칸」 으로 낸다)
@@ -118,16 +119,27 @@ export function makeTeamLogin({ dataDir, timeoutMs = 20 * 60_000 }) {
       if (!code || code.length > 500 || /[\r\n]/.test(code)) throw new KmdError('E_INPUT', '받은 번호가 아니다')
       const enter = c.pty ? '\r' : '\n' // 가짜 터미널의 Enter 는 \r
       const before = c.out.length
-      c.p.stdin.write(code + enter)
+      // 번호와 Enter 를 따로 — 한 덩이로 보내면 setup-token(ink)이 긴 글을 붙여 넣기로 받아 Enter 를 삼킨다(실제 번호 92자에서 그랬다)
+      c.p.stdin.write(code)
+      await new Promise((r) => setTimeout(r, 400))
+      const sent = c.out.length
+      c.p.stdin.write(enter)
       // 열쇠가 나오거나 · Claude 가 번호를 받지 않았다고 하거나(OAuth error … · Press Enter to retry) · 30초
       const end = Date.now() + 30_000
-      let tok = null, err = null
+      let tok = null, err = null, again = Date.now() + 5000
       while (Date.now() < end && cur === c) {
+        // Enter 뒤 5초 동안 아무 글도 없으면 한 번 더 누른다(아직 붙여 넣기로 받는 중이었다)
+        if (again && Date.now() > again) { again = 0; if (c.out.length === sent) c.p.stdin.write(enter) }
         const t = plain(c.out.slice(before))
         const m = t.match(TOKEN_RE)
         if (m) { tok = m[0]; break }
-        const e = t.match(/((?:OAuth )?error:?[^\n]*?)\s*(?:Press Enter|\n|$)/i)
-        if (e && /retry|\n/i.test(t.slice(e.index))) { err = e[1].replace(/\s+/g, ' ').trim().slice(0, 160); break }
+        // 터미널 다시 그리기로 글자가 빠지거나 붙는다(Requstfailed withstatus …) — 상태 번호가 있으면 그것만 짧게
+        const e = t.match(/((?:OAuth\s*)?error:?[^\n]*?)\s*(?:Press\s*Enter|\n|$)/i)
+        if (e && /retry|\n/i.test(t.slice(e.index))) {
+          const st = e[1].match(/status\s*code\s*(\d{3})/i)
+          err = st ? `${/oauth/i.test(e[1]) ? 'OAuth ' : ''}error ${st[1]}` : e[1].replace(/\s+/g, ' ').trim().slice(0, 160)
+          break
+        }
         await new Promise((r) => setTimeout(r, 100))
       }
       if (tok) {

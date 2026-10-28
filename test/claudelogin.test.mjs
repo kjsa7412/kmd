@@ -71,10 +71,11 @@ test('번호를 Claude 가 받지 않으면: 그 까닭과 새 주소로 같은 
     assert.match(s.url, /state=test-7f3a$/)
     const r = await L.code('bad')
     assert.deepEqual([r.ok, r.again], [false, true])
-    assert.match(r.why, /OAuth error: Request failed with status code 400/)
+    assert.equal(r.why, 'OAuth error 400')
     assert.match(r.url, /state=test-retry1$/, '새 주소')
     assert.equal(L.state, 'code', '로그인은 이어진다')
-    const ok = await L.code('good')
+    // 실제 번호 길이(92) — 번호와 Enter 를 한 덩이로 보내면 삼켜진다. 따로 보내야 마친다
+    const ok = await L.code('A'.repeat(50) + '#' + 'B'.repeat(41))
     assert.equal(ok.ok, true)
     assert.match(ok.token, /^sk-ant-oat01-/)
     await assert.rejects(L.code('again'), (e) => e.need === 'restart')
