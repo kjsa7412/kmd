@@ -441,7 +441,7 @@ function viewHome() {
   const teamPart = shown.filter((n) => !isPersonal(n)), mePart = shown.filter((n) => isPersonal(n))
   const addTeam = S.me.admin ? `<div class="kcard add" data-a="openAdd" data-v="team" data-t="addCardTeam"><span class="pl">+</span>새 팀 지식</div>` : ''
   const live = meReady()
-  const addMe = `<div class="kcard add${live ? '' : ' dim'}" data-a="openAdd" data-v="me" data-t="addCard"><span class="pl">+</span>새 개인 지식<small class="muted" style="display:block">${live ? '내 PC 지식 폴더에' : S.me.pcUrl && !(S.pc && S.pc.none) ? '내 PC 쪽이 켜지면' : '내 PC 지식 폴더를 세우면'}</small></div>`
+  const addMe = `<div class="kcard add${live ? '' : ' dim'}" data-a="openAdd" data-v="me" data-t="addCard"><span class="pl">+</span>새 개인 지식<small class="muted" style="display:block">${live ? '내 PC 지식 폴더에' : S.pc && (S.pc.wait || S.pc.need === 'person') ? '내 PC 쪽이 열리면' : '내 PC 지식 폴더를 세우면'}</small></div>`
   const meBar = pcRootBar()
   const grids = team
     ? `<div class="sec-h" data-t="teamSec"><b>팀 지식</b><small>팀 서버 · 팀 모두 보고 기록한다${S.me.admin ? '' : ' · 새 팀 지식은 관리자가 세운다'}</small></div>${fbar}
@@ -452,7 +452,7 @@ function viewHome() {
   return {
     crumb: '지식 목록',
     main: `<div style="max-width:1100px"><div class="pg-h"><div><div class="big">지식 목록</div><p class="lead">${team ? '위는 팀 지식 · 아래는 개인 지식(내 PC 의 지식 폴더)' : '내 지식 ' + S.kns.length}. 옆 메뉴에 이 순서로 보인다 · 카드를 끌어 순서를 바꾼다</p></div></div>
-  ${pcLine}${msg}
+  ${team && meSetupWhy() ? '' : pcLine}${msg}
   ${grids}
   ${hid.length ? `<div class="sec-h" data-t="hidSec"><b>뺀 지식</b><small>옆 메뉴에 보이지 않는다 · 지우지 않았다. [메뉴에 올리기] 로 다시</small></div><div class="kgrid" data-t="hidList">${hid.map((n) => kcardHtml(n, team)).join('')}</div>` : ''}</div>`,
   }
@@ -465,7 +465,10 @@ function viewHome() {
 const meReady = () => !!(S.pc && S.pc.token && !S.pc.none)
 function pcRootBar() {
   const P = S.pc
-  if (!S.me.pcUrl) return meSetupBar()
+  // 이 PC 에서 지식 폴더를 쓸 수 없다 — 내 PC 기기가 없다 · 이 PC 의 kmd 가 꺼져 있거나 없다(기기는 다른 PC 의 것일 수 있다) ·
+  //   이 PC 의 kmd 가 이 팀에 이어지지 않았다: 경로를 받아 설치 한 줄로 깔고 · 잇고 · 그 폴더로 켠다
+  const why = meSetupWhy()
+  if (why) return meSetupBar(why)
   if (!P || !P.token) return ''
   // 뺀 뒤(none) — 바꾸기와 같은 경로 칸이 늘 열려 있다(취소 없음)
   const ed = S.meRootEdit != null || P.none
@@ -484,11 +487,21 @@ async function meRootDrop() {
 }
 // 내 PC 지식 폴더 세우기(처음) — 경로 → 그 경로를 실은 설치 한 줄(10분 · 한 번만) → 이 PC 의 PowerShell 에 붙여 넣으면
 //   내 PC 쪽이 깔리고(이미 있으면 그대로) 그 폴더로 켜진다. 깔리는 동안 5초마다 보고 붙으면 띠가 그 경로로 바뀐다
-function meSetupBar() {
+// 경로 칸 · 설치 한 줄을 보일 까닭 — 없으면 null(잇는 중 · 붙었다 · 남의 PC 다)
+function meSetupWhy() {
+  const P = S.pc
+  if (!S.me.pcUrl) return '아직 이 PC 에 개인 지식 폴더가 없다'
+  if (!P) return S.meSetup && S.meSetup.line ? '설치 한 줄이 끝나기를 기다린다' : null
+  if (P.wait || P.token) return null
+  if (P.deny) return P.need === 'connect' ? '이 PC 의 kmd 가 이 팀에 이어지지 않았다' : null
+  if (P.off) return '이 PC 의 kmd 가 꺼져 있거나 없다(켜면 저절로 열린다)'
+  return null
+}
+function meSetupBar(why = '아직 이 PC 에 개인 지식 폴더가 없다') {
   const m = S.meSetup || { root: '' }
   const win = /Win/i.test(navigator.platform || navigator.userAgent)
   const line = m.line ? `<div class="callout gray" data-t="meSetupLine" style="margin-top:8px"><i></i><span><b>이 PC 의 ${win ? 'PowerShell' : '터미널'} 에 붙여 넣는다</b>(복사했다 · 10분 안에 한 번만). 내 PC 쪽을 깔고 <code>${esc(m.for)}</code> 를 내 PC 지식 폴더로 세운다(이미 kmd 지식 폴더면 그대로 쓴다) · 다 되면 여기가 저절로 바뀐다<pre class="mono" data-t="meSetupCode" style="white-space:pre-wrap;word-break:break-all;margin:6px 0 0">${esc(m.line)}</pre></span></div>` : ''
-  return `<div class="fbar" data-t="meWhere"><span class="fl">${svg('doc')}내 PC 지식 폴더</span><input class="inp mono" id="meSetupIn" data-in="meSetup" data-t="meSetupIn" value="${esc(m.root)}" placeholder="예: D:\\kmd" autocomplete="off" style="flex:1;min-width:220px"><span class="acts"><button class="btn pri" data-a="meSetupGo" data-t="meSetupGo"${m.busy ? ' disabled' : ''}>${m.busy ? '만드는 중…' : m.line ? '다시 받기' : '이 폴더로'}</button></span><small>아직 이 PC 에 개인 지식 폴더가 없다. 경로를 쓰면 그 폴더에 세운다 · 이미 kmd 지식 폴더(.kmd 가 있는 곳)면 그대로 쓴다 · 이 PC 에 필요한 것은 설치 한 줄이 함께 깐다</small></div>${line}${m.err ? `<div class="callout danger" data-t="meSetupErr">${esc(m.err)}</div>` : ''}`
+  return `<div class="fbar" data-t="meWhere"><span class="fl">${svg('doc')}내 PC 지식 폴더</span><input class="inp mono" id="meSetupIn" data-in="meSetup" data-t="meSetupIn" value="${esc(m.root)}" placeholder="예: D:\\kmd" autocomplete="off" style="flex:1;min-width:220px"><span class="acts"><button class="btn pri" data-a="meSetupGo" data-t="meSetupGo"${m.busy ? ' disabled' : ''}>${m.busy ? '만드는 중…' : m.line ? '다시 받기' : '이 폴더로'}</button></span><small>${esc(why)}. 경로를 쓰면 그 폴더에 세운다 · 이미 kmd 지식 폴더(.kmd 가 있는 곳)면 그대로 쓴다 · 이 PC 에 필요한 것은 설치 한 줄이 함께 깐다</small></div>${line}${m.err ? `<div class="callout danger" data-t="meSetupErr">${esc(m.err)}</div>` : ''}`
 }
 async function meSetupGo() {
   const m = (S.meSetup = S.meSetup || { root: '' })
@@ -508,18 +521,30 @@ async function meSetupGo() {
   m.busy = false
   render()
 }
-// 설치가 팀에 이으면 /api/me 에 내 PC 주소가 실린다 — 그때 다시 읽어 내 PC 쪽에 붙는다(10분까지)
-let meSetupTimer = null
+// 설치가 팀에 이으면 /api/me 에 내 PC 주소가 실리고 이 PC 의 kmd 가 짝을 받는다 — 5초마다 다시 잇고 붙으면 띠가 그 경로로(10분까지).
+//   이미 내 PC 주소가 있던 사람(다른 PC 의 기기 · 이어지지 않은 kmd)도 같은 길로
+let meSetupTimer = null, meSetupBusy = false
 function meSetupWatch() {
   clearInterval(meSetupTimer)
   const end = Date.now() + 10 * 60_000
   meSetupTimer = setInterval(async () => {
     if (Date.now() > end) return clearInterval(meSetupTimer)
-    const me = await getJSON('/api/me').catch(() => null)
-    if (!me || !me.pcUrl) return
-    clearInterval(meSetupTimer)
-    S.meSetup = null
-    await loadAll()
+    if (meSetupBusy) return
+    meSetupBusy = true
+    try {
+      if (!S.me.pcUrl) {
+        const me = await getJSON('/api/me').catch(() => null)
+        if (!me || !me.pcUrl) return
+        S.me = { ...S.me, pcUrl: me.pcUrl }
+      }
+      try { sessionStorage.removeItem('kmdPair') } catch {}
+      await pcConnect(false, { quiet: true })
+      if (!(S.pc && S.pc.token)) return
+      clearInterval(meSetupTimer)
+      S.meSetup = null
+      loadClaude()
+      if (!typing()) render()
+    } finally { meSetupBusy = false }
   }, 5000)
 }
 async function meRootSave() {
@@ -565,7 +590,7 @@ function addPopHtml() {
   const hint = a.where === 'team' ? '팀 지식 폴더에 팀 지식으로 선다. 팀 모두 보고 기록한다 · 정리 · 고치기는 관리자가 한다'
     : team ? `내 PC 지식 폴더${pr ? `(${pr})` : ''} 안에 선다. 나만 본다`
     : '지식 폴더 안에 선다. 나만 본다 · 폴더 경로를 쓰면 그 폴더의 글(md · docx · pptx · xlsx)을 한 번 들인다(원본은 그대로)'
-  const noRootMsg = !S.me.pcUrl || (S.pc && S.pc.none) ?'내 PC 지식 폴더가 아직 서지 않았다. 지식 목록 › 개인 지식의 「내 PC 지식 폴더」 에 경로를 쓰고 세우면 만든다' : '내 PC 쪽이 꺼져 있다. 켜지면 만든다'
+  const noRootMsg = S.pc && S.pc.need === 'person' ? `이 PC 의 kmd 는 다른 사람의 것이다: ${S.pc.deny}` : S.pc && S.pc.wait ? '이 PC 의 kmd 에 잇는 중이다. 붙으면 만든다' : '내 PC 지식 폴더가 아직 서지 않았다. 지식 목록 › 개인 지식의 「내 PC 지식 폴더」 에 경로를 쓰고 세우면 만든다'
   const dirFld = mine && !team ?`<div class="field" style="margin:10px 0 0"><label for="addDir">들일 폴더 경로 <span class="muted">(선택 · 쓰면 이름은 폴더 이름)</span></label><input class="inp mono" id="addDir" data-in="addDir" data-t="addDir" value="${esc(a.dir || '')}" placeholder="예: D:\\문서\\배포 노트" autocomplete="off"></div>` : ''
   return `<div class="scrim fix" data-a="addClose" data-self="1"><div class="modal w420" data-t="addPop"><div class="mh">새 지식<button class="x" data-a="addClose" title="닫기">×</button></div><div class="mb">${kinds}<div class="field" style="margin:0"><label for="addIn">이름</label><input class="inp" id="addIn" data-in="addName" data-t="addIn" value="${esc(a.name)}" placeholder="예: 회의" autocomplete="off"></div>${dirFld}${toFld}<div class="hint" style="margin-top:8px">${esc(hint)}</div>${noRoot ? `<div class="callout gray" data-t="addNoRoot" style="margin-top:8px">${esc(noRootMsg)}</div>` : ''}${a.err ? `<div class="callout danger" data-t="addMsg">${esc(a.err)}</div>` : ''}</div><div class="mf"><span class="l">새 지식은 메뉴 맨 아래에 들어온다</span><span class="acts"><button class="btn ghost" data-a="addClose">취소</button><button class="btn pri" data-a="doAdd" data-t="addBtn"${a.busy || noRoot ? ' disabled' : ''}>${a.busy ? '만드는 중…' : '추가'}</button></span></div></div></div>`
 }
@@ -577,7 +602,7 @@ async function doAdd() {
   // 들일 폴더는 이 PC 화면에만(팀 화면의 개인 지식은 이름만)
   const dir = a.where === 'local' ? String(a.dir || '').trim() : ''
   if (!name && !dir) { a.err = a.where === 'local' ? '이름을 쓴다(또는 내 PC 폴더 경로)' : '이름을 쓴다'; render(); return }
-  if (a.where === 'me' && !meReady()) { a.err = !S.me.pcUrl || (S.pc && S.pc.none) ? '내 PC 지식 폴더를 먼저 세운다' : '내 PC 쪽이 꺼져 있다'; render(); return }
+  if (a.where === 'me' && !meReady()) { a.err = S.pc && (S.pc.wait || S.pc.need === 'person') ? '이 PC 의 kmd 가 아직 열리지 않았다' : '내 PC 지식 폴더를 먼저 세운다'; render(); return }
   a.busy = true; a.err = null; render()
   try {
     const body = onPc && dir ? { kind: 'folder', dir } : { kind: 'new', name }
@@ -3091,7 +3116,7 @@ async function pcConnect(again, { quiet = false } = {}) {
       const { pass } = await postJSON('/api/me/pcpass', {})
       const r = await fetchPc(url + '/pair', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pass }) })
       const j = await r.json().catch(() => ({}))
-      if (r.status === 403 && (j.need === 'connect' || j.need === 'person')) { pc.deny = j.message; pc.wait = false; S.pc = pc; return }
+      if (r.status === 403 && (j.need === 'connect' || j.need === 'person')) { pc.deny = j.message; pc.need = j.need; pc.wait = false; S.pc = pc; return }
       if (!r.ok) throw new Error(j.message || '')
       tok = j.token
       try { sessionStorage.setItem('kmdPair', tok); localStorage.setItem('kmdPcSeen', '1') } catch {}
