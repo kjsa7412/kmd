@@ -60,3 +60,26 @@ test('창도 가짜 터미널도 못 다는 서버: 쉬운 말로 · 자기 터�
     await assert.rejects(makeTeamLogin({ dataDir: tmp }).start(), (e) => /^서버에서 Claude 로그인 창을 띄울 수 없다. .*kmd secret set claude-token/.test(e.message) && !/https?:/.test(e.message))
   } finally { if (keep) process.env.KMD_TEAM_LOGIN = keep; else delete process.env.KMD_TEAM_LOGIN }
 })
+
+test('번호를 Claude 가 받지 않으면: 그 까닭과 새 주소로 같은 로그인을 잇는다 · 맞는 번호면 열쇠 · 끝난 로그인은 다시 시작', async () => {
+  const keep = { k: process.env.KMD_TEAM_LOGIN, l: process.env.KMD_CLAUDE_LOGIN }
+  process.env.KMD_TEAM_LOGIN = 'pty'
+  process.env.KMD_CLAUDE_LOGIN = path.join(import.meta.dirname, 'fixture', 'fake-claude-login.mjs')
+  const L = makeTeamLogin({ dataDir: tmp })
+  try {
+    const s = await L.start()
+    assert.match(s.url, /state=test-7f3a$/)
+    const r = await L.code('bad')
+    assert.deepEqual([r.ok, r.again], [false, true])
+    assert.match(r.why, /OAuth error: Request failed with status code 400/)
+    assert.match(r.url, /state=test-retry1$/, '새 주소')
+    assert.equal(L.state, 'code', '로그인은 이어진다')
+    const ok = await L.code('good')
+    assert.equal(ok.ok, true)
+    assert.match(ok.token, /^sk-ant-oat01-/)
+    await assert.rejects(L.code('again'), (e) => e.need === 'restart')
+  } finally {
+    L.cancel()
+    for (const [k, v] of [['KMD_TEAM_LOGIN', keep.k], ['KMD_CLAUDE_LOGIN', keep.l]]) if (v) process.env[k] = v; else delete process.env[k]
+  }
+})

@@ -90,11 +90,13 @@ export function makeTeamLogin({ dataDir, timeoutMs = 20 * 60_000 }) {
       }
       const pty = process.env.KMD_CLAUDE_LOGIN ? null : ptyArgs()
       if (!process.env.KMD_CLAUDE_LOGIN && !pty) throw new KmdError('E_INPUT', NO_TTY)
-      const p = pty ? spawn(pty[0], pty[1], { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, TERM: process.env.TERM || 'xterm-256color' } }) : launch(['setup-token'], { stdio: ['pipe', 'pipe', 'pipe'] })
-      const c = (cur = { p, pty: !!pty, out: '', url: null, err: null, timer: setTimeout(stop, timeoutMs) })
+      // script 는 $SHELL 로 돈다 — 서비스 사용자(kmd)의 셸은 nologin 이라 sh 로 못 박는다
+      const p = pty ? spawn(pty[0], pty[1], { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, SHELL: '/bin/sh', TERM: process.env.TERM || 'xterm-256color' } }) : launch(['setup-token'], { stdio: ['pipe', 'pipe', 'pipe'] })
+      const c = (cur = { p, pty: !!pty, out: '', from: 0, url: null, err: null, timer: setTimeout(stop, timeoutMs) })
       p.on('error', (e) => { c.err = e; if (cur === c) stop() })
       p.on('exit', () => { if (cur === c && !c.url) stop() })
-      const onData = (d) => { c.out += d; if (!c.url) c.url = pickUrl(c.out) }
+      // 주소는 from 뒤에서만 — 다시 받을 때 옛 주소를 집지 않게
+      const onData = (d) => { c.out += d; if (!c.url) c.url = pickUrl(c.out.slice(c.from)) }
       p.stdout.on('data', onData)
       p.stderr.on('data', onData)
       const end = Date.now() + 20_000
@@ -114,19 +116,43 @@ export function makeTeamLogin({ dataDir, timeoutMs = 20 * 60_000 }) {
       if (!c || !c.url) throw new KmdError('E_INPUT', '기다리던 로그인이 끝났다(20분이 지났거나 팀 서버가 다시 켜졌다). 그 번호는 더 쓰지 못한다. [다시 시작] 으로 새 주소를 받는다', { need: 'restart' })
       code = String(code || '').trim()
       if (!code || code.length > 500 || /[\r\n]/.test(code)) throw new KmdError('E_INPUT', '받은 번호가 아니다')
+      const enter = c.pty ? '\r' : '\n' // 가짜 터미널의 Enter 는 \r
       const before = c.out.length
-      c.p.stdin.write(code + (c.pty ? '\r' : '\n')) // 가짜 터미널의 Enter 는 \r
+      c.p.stdin.write(code + enter)
+      // 열쇠가 나오거나 · Claude 가 번호를 받지 않았다고 하거나(OAuth error … · Press Enter to retry) · 30초
       const end = Date.now() + 30_000
-      let tok = null
+      let tok = null, err = null
       while (Date.now() < end && cur === c) {
-        const m = plain(c.out.slice(before)).match(TOKEN_RE)
+        const t = plain(c.out.slice(before))
+        const m = t.match(TOKEN_RE)
         if (m) { tok = m[0]; break }
+        const e = t.match(/((?:OAuth )?error:?[^\n]*?)\s*(?:Press Enter|\n|$)/i)
+        if (e && /retry|\n/i.test(t.slice(e.index))) { err = e[1].replace(/\s+/g, ' ').trim().slice(0, 160); break }
         await new Promise((r) => setTimeout(r, 100))
       }
+      if (tok) {
+        stop()
+        await setSecret(dataDir, 'claude-token', tok)
+        return { ok: true, token: tok }
+      }
+      if (err && cur === c) {
+        // Claude 가 번호를 받지 않았다(옛 주소의 번호 · 이미 쓴 번호 · 시간이 지난 번호) — Enter 로 새 주소를 받아 같은 로그인을 잇는다
+        console.log(`정리 로그인: Claude 가 번호를 받지 않았다: ${err} · 새 주소를 받는다`)
+        c.from = c.out.length
+        c.url = null
+        c.p.stdin.write(enter)
+        const end2 = Date.now() + 20_000
+        while (!c.url && Date.now() < end2 && cur === c) await new Promise((r) => setTimeout(r, 100))
+        if (c.url) {
+          clearTimeout(c.timer)
+          c.timer = setTimeout(stop, timeoutMs)
+          return { ok: false, again: true, url: c.url, why: err }
+        }
+      }
+      const last = plain(c.out.slice(before)).split('\n').map((x) => x.trim()).filter(Boolean).pop() || ''
+      console.log(`정리 로그인: 마치지 못했다: ${err || last.replace(TOKEN_RE, '(열쇠)').slice(0, 160)}`)
       stop()
-      if (!tok) throw new KmdError('E_INPUT', '로그인을 마치지 못했다. 번호를 다시 받아 붙여 넣는다')
-      await setSecret(dataDir, 'claude-token', tok)
-      return { ok: true, token: tok }
+      throw new KmdError('E_INPUT', `로그인을 마치지 못했다${err ? `: Claude 가 번호를 받지 않았다(${err})` : ''}. [다시 시작] 으로 새 주소를 받는다`, { need: 'restart' })
     },
     cancel: stop,
   }

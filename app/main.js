@@ -3290,7 +3290,7 @@ function admClaudeCard(a) {
   else if (step === 'code') flow = `<div class="flow" data-t="admCode"><ol class="lsteps">
    <li><b>Claude 로그인 주소를 연다</b><small>새 탭에서 Claude 계정(Pro · Max · Team · Enterprise)으로 들어가 [Authorize] 를 누르면 번호가 나온다 · 메일로 오는 링크는 같은 브라우저에서 연다${S.admUntil ? ` · <b data-t="admUntil">${new Date(S.admUntil).toTimeString().slice(0, 5)} 까지</b>` : ''}</small><div class="row"><a class="btn pri sm" href="${esc(S.admUrl)}" target="_blank" rel="noopener noreferrer" data-t="admOpenUrl">주소 열기 ↗</a><button class="btn sm" data-a="admCopyUrl" data-t="admCopyUrl">주소 복사</button></div><div class="urlbox" data-t="admUrl" title="${esc(S.admUrl)}">${esc(S.admUrl)}</div></li>
    <li><b>받은 번호를 붙여 넣는다</b><small>Claude 화면에 나온 번호를 그대로 · 한 번용이라 저장하지 않는다</small><div class="paste"><input class="inp mono" id="admCodeIn" data-in="admCode" data-t="admCodeIn" value="${esc(S.admCode || '')}" placeholder="받은 번호 붙여 넣기" autocomplete="off"><span id="admDoneBox">${admDoneBtn()}</span></div>${S.admBusy ? '<div class="row" style="margin-top:8px"><span class="prog" data-t="admBusy"><i></i>번호를 넘기고 Claude 의 열쇠를 받는 중… 30초까지 걸린다</span></div>' : ''}</li></ol>
-   ${S.admErr ? `<div class="callout danger">${esc(S.admErr)}</div>` : ''}<div class="row" style="margin-top:2px"><span class="hint" style="margin:0">${a.https ? '로그인한 열쇠는 팀 서버 비밀로만 남는다' : '아직 https 가 아니다. 사내 https 뒤 권장'}</span><a class="lk" data-a="admFlowCancel" style="margin-left:auto">그만두기</a></div></div>`
+   ${S.admErr ? `<div class="callout danger" data-t="admCodeErr">${esc(S.admErr)}</div>` : ''}<div class="row" style="margin-top:2px"><span class="hint" style="margin:0">${a.https ? '로그인한 열쇠는 팀 서버 비밀로만 남는다' : '아직 https 가 아니다. 사내 https 뒤 권장'}</span><a class="lk" data-a="admFlowCancel" style="margin-left:auto">그만두기</a></div></div>`
   const state = rest ? `쉬고 있다 · ${Math.max(1, Math.round((Date.now() - Date.parse(a.worker.since)) / 864e5))}일: 로그인이 끝났다` : a.claude.token ? '로그인됨 · 정리 전용' : a.worker && a.worker.ok ? '로그인됨. 팀 서버 PC 의 Claude Code' : '아직 로그인하지 않았다'
   const inn = a.claude.token || (a.worker && a.worker.ok)
   return `<div class="card" data-t="admClaude"><div class="ch">Claude 연결 <small>정리 전용 로그인: 팀 서버의 정리 일꾼이 쓴다</small></div><div class="cb" style="padding:2px 14px 10px"><div class="set"><span class="tx"><b data-t="admClaudeState">${state}</b><small>쓰는 곳: 정해진 정리 · 지금 정리 · 기록 만들기${rest ? ' · 그동안은 규칙으로 되는 것만 넣는다' : ''}</small></span>${step ? '' : `<button class="btn${rest || !inn ? ' pri' : ''}" data-a="admLoginStart" data-t="admLoginStart">${rest || !inn ? '로그인 시작' : '다시 로그인'}</button>`}</div>${flow}</div></div>`
@@ -3334,7 +3334,15 @@ async function admDone() {
   S.admBusy = true; S.admErr = null
   render()
   try {
-    await postJSON('/api/admin/claude/code', { code: S.admCode })
+    const r = await postJSON('/api/admin/claude/code', { code: S.admCode })
+    // Claude 가 번호를 받지 않았다 — 같은 로그인이 새 주소를 받았다. 새 주소를 열어 새 번호로(옛 탭 · 옛 번호는 쓰지 못한다)
+    if (r && r.again) {
+      S.admUrl = r.url; S.admCode = ''; S.admUntil = Date.now() + 20 * 60_000
+      S.admErr = `Claude 가 이 번호를 받지 않았다(${r.why}). 새 주소를 받았다: 위의 [주소 열기] 로 새 탭에서 다시 로그인해 새 번호를 붙여 넣는다 · 전에 연 탭의 번호는 쓰지 못한다`
+      S.admBusy = false
+      render()
+      return
+    }
     S.admStep = null; S.admCode = ''; S.admErr = null; S.admUntil = null
     delete S.cache.admin
     loadStops()

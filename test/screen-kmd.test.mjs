@@ -527,6 +527,13 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 정리 �
   await page.fill('#admPw', me.pw)
   await page.click('[data-t=admPwOk]')
   await page.waitForSelector('[data-t=admUrl]')
+  // Claude 가 번호를 받지 않으면 — 그 까닭과 새 주소(같은 로그인) · 다시 받은 번호로 마친다
+  await page.fill('#admCodeIn', 'bad')
+  await page.click('[data-t=admDone]')
+  await page.waitForSelector('[data-t=admCodeErr]')
+  assert.match(await page.locator('[data-t=admCodeErr]').innerText(), /Claude 가 이 번호를 받지 않았다\(OAuth error[^)]*400\)[\s\S]*새 주소/)
+  assert.match(await page.locator('[data-t=admUrl]').innerText(), /state=test-retry1/)
+  assert.equal(await page.locator('#admCodeIn').inputValue(), '')
   await page.fill('#admCodeIn', 'code-from-browser')
   await page.click('[data-t=admDone]')
   await page.waitForFunction(() => /로그인됨 · 정리 전용/.test(document.querySelector('[data-t=admClaudeState]')?.textContent || ''))
