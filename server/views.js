@@ -113,17 +113,20 @@ md.renderer.rules.link_open = (tokens, i, opts, env, self) => {
   else if (to.t === 'ext') t.attrs = [['href', href], ['class', 'xlink'], ['target', '_blank'], ['rel', 'noopener noreferrer']]
   else if (to.t === 'mail') t.attrs = [['href', href], ['class', 'xlink']]
   else {
-    // 짝인 link_close 도 span 으로
+    // 경로 꼴이 아닌 괄호 글 — `[단추](설명)` 처럼 쓴 글이다. 링크로 풀지 않고 쓴 그대로 그린다(괄호 안 글이 사라지지 않게)
+    const raw = md.normalizeLinkText(href || '')
+    const plain = !t.markup && !/^[a-z][a-z0-9+.-]*:|^\/|[#.]/i.test(raw) && !(raw.includes('/') && !/[=\s]/.test(raw))
+    // 짝인 link_close 도 span 으로(또는 쓴 그대로)
     for (let j = i + 1; j < tokens.length; j++)
       if (tokens[j].type === 'link_close' && tokens[j].level === t.level) {
-        tokens[j].meta = { ...(tokens[j].meta || {}), dead: true }
+        tokens[j].meta = { ...(tokens[j].meta || {}), ...(plain ? { plain: raw } : { dead: true }) }
         break
       }
-    return '<span class="deadlink" title="열 수 없는 링크">'
+    return plain ? '[' : '<span class="deadlink" title="열 수 없는 링크">'
   }
   return self.renderToken(tokens, i, opts)
 }
-md.renderer.rules.link_close = (tokens, i, opts, env, self) => (tokens[i].meta?.dead ? '</span>' : self.renderToken(tokens, i, opts))
+md.renderer.rules.link_close = (tokens, i, opts, env, self) => (tokens[i].meta?.plain != null ? `](${esc(tokens[i].meta.plain)})` : tokens[i].meta?.dead ? '</span>' : self.renderToken(tokens, i, opts))
 
 // 글 속 그림 — 이 지식의 첨부(docs|work/assets)만 그린다. 주소는 화면이 채운다(data-att · data-ak) — 팀 화면의 내 PC 지식은
 // 짝 열쇠로 PC 에서 받는다. 그 밖의 주소(/api/… 등)는 그리지 않는다(같은 출처 그림이 연 사람의 쿠키로 길을 부르지 않게)

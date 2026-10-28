@@ -18,7 +18,7 @@ import net from 'node:net'
 import { material, check as checkDraft, planSave, promptOf as tidyPrompt, INGEST_SCHEMA, DRAFT_SCHEMA, TOUCH_SCHEMA, ingestCandidates, ingestRule, spotKey, spotTarget } from '../core/tidy.js'
 import { runClaude } from '../core/claude.js'
 import * as feed from '../core/feed.js'
-import { checkTarget, readSource, probe, readDecl, writeDecl, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit } from '../core/sources.js'
+import { inside as insideDir, checkTarget, readSource, probe, readDecl, writeDecl, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit } from '../core/sources.js'
 import { forgetFile } from '../core/watch.js'
 import { check } from '../core/check.js'
 import { commitPaths, ensureRepo, tryGit, maskUrl } from '../core/git.js'
@@ -82,14 +82,17 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   // 디스크의 것을 다시 읽고 → 고치고 → 쓴다 · 둘이 겹쳐 앞사람의 「나만」 줄을 덮어 지우지 않게)
   let reg = await owners.load(dataDir)
   let regAt = owners.mtimeOf(dataDir)
+  let regBad = null // 읽지 못한 owners.json 의 mtime · 까닭 — 같은 mtime 이면 다시 읽지 않고 로그도 한 번만
   const R = () => {
     const m = owners.mtimeOf(dataDir)
-    if (m !== regAt) {
+    if (m !== regAt && m !== regBad?.at) {
       try {
         reg = owners.loadSync(dataDir)
         regAt = m
+        regBad = null
         list = null // 셸이 되살렸거나 고친 지식 — 목록도 다시 읽는다
       } catch (e) {
+        regBad = { at: m, why: e.message, since: new Date().toISOString() }
         log('owners.json 을 다시 읽지 못했다. 앞의 것을 쓴다', e.message)
       }
     }
@@ -121,7 +124,40 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const levelFor = (id, ctx) => (mode === 'pc' && !ctx?.agent && !ctx?.machine ? 'admin' : owners.levelOf(R(), id, ctx))
   const visibleTo = (id, ctx) => owners.atLeast(levelFor(id, ctx), 'read')
   // 저절로 하는 일 켬 · 끔(설정) — PC 는 하나 · 팀은 사람마다. 없으면 켬
-  let prefs = await fs.readFile(path.join(dataDir, 'prefs.json'), 'utf8').then(JSON.parse, () => ({}))
+  // prefs.json 이 깨졌으면 삼켜 모두 켬으로 돌리지 않는다 — 원본을 prefs.json.bad 로 옮겨 두고 알린다
+  const prefsFile = path.join(dataDir, 'prefs.json')
+  let prefs = await fs.readFile(prefsFile, 'utf8').then(
+    async (t) => {
+      try {
+        return JSON.parse(t)
+      } catch (e) {
+        log('prefs.json 을 읽지 못했다. prefs.json.bad 로 옮겨 두고 기본(켬)으로 시작한다', e.message)
+        await fs.rename(prefsFile, prefsFile + '.bad').catch((e2) => log('prefs.json.bad 로 옮기지 못했다', e2.message))
+        return {}
+      }
+    },
+    () => ({})
+  )
+  // 설정 고치기는 한 줄로 — 사본 · 쓰기 · 바꾸기를 그 안에서(겹친 두 사람이 서로의 값을 덮지 않게) · 임시 파일 뒤 이름 바꾸기
+  let prefsQ = Promise.resolve()
+  const mutatePrefs = (fn) => {
+    const p = prefsQ.then(async () => {
+      const next = structuredClone(prefs)
+      fn(next)
+      await fs.mkdir(dataDir, { recursive: true })
+      const tmp = `${prefsFile}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`
+      await fs.writeFile(tmp, JSON.stringify(next, null, 1))
+      try {
+        await fs.rename(tmp, prefsFile)
+      } catch (e) {
+        await fs.rm(tmp, { force: true }).catch(() => {})
+        throw e
+      }
+      prefs = next
+    })
+    prefsQ = p.catch(() => {})
+    return p
+  }
   const cache = new Map() // 지식 → 읽은 지식(promise)
   const files = new Map() // 지식 → 파일 캐시
   const indexes = new Map() // 지식 → { k, p: 색인 promise }
@@ -190,6 +226,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       else Object.assign(j, { state: 'queued', worker: null, why: '정리 일꾼이 끝내지 못해 다시 기다린다' })
     }
     if (changed) saveJobs()
+    // 일꾼의 단기 열쇠 — 때가 지난 줄을 걷는다(일꾼이 죽거나 임대가 끝나 정상으로 지워지지 않은 것)
+    const now = Date.now()
+    for (const [h, d] of drafts) if (!(d.exp >= now)) drafts.delete(h)
   }
   // 정리 일꾼(팀) — 쉬는 중(로그인 끝 · 한도)이면 규칙으로 · 마지막으로 물은 때
   let wsNow = null
@@ -408,7 +447,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (mode !== 'pc' && !ctx.pc && !ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '팀 지식은 관리자가 지운다')
       if (String(confirm ?? '').trim().normalize('NFC') !== meta.name.normalize('NFC')) throw new KmdError('E_INPUT', `지우려면 지식 이름 「${meta.name}」 을 그대로 쓴다`)
       const dir = path.resolve(meta.dir)
-      const inRoot = dir.startsWith(path.resolve(root) + path.sep)
+      const inRoot = insideDir(dir, root) && !insideDir(root, dir) // root 아래 폴더만(root 자신은 아니다)
       // 붙어 있는 것부터 떼고(감시 · 백업 · 일감 · 시계) 폴더를 지운다
       for (const w of watchers.filter((x) => x.dir && path.resolve(x.dir) === dir)) w.close()
       watchers.splice(0, watchers.length, ...watchers.filter((x) => !(x.dir && path.resolve(x.dir) === dir)))
@@ -448,11 +487,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', 'Claude 모델은 이 PC 의 kmd 에서 고른다')
       if (!ROLES.includes(role)) throw new KmdError('E_INPUT', '그런 일은 없다')
       if (!CHOICES.includes(model)) throw new KmdError('E_INPUT', '고를 수 있는 모델이 아니다. haiku · sonnet · opus · 기본')
-      const next = structuredClone(prefs)
-      ;((next.pc ||= {}).models ||= {})[role] = model
-      await fs.mkdir(dataDir, { recursive: true })
-      await fs.writeFile(path.join(dataDir, 'prefs.json'), JSON.stringify(next, null, 1))
-      prefs = next
+      await mutatePrefs((next) => {
+        ;((next.pc ||= {}).models ||= {})[role] = model
+      })
       return { role, model }
     },
     autoOf(user, key) {
@@ -461,12 +498,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async setAuto(ctx, key, on) {
       const ok = mode === 'pc' ? ['save', 'file', 'src', 'claude', 'find'] : ['file', 'find']
       if (!ok.includes(key)) throw new KmdError('E_INPUT', '그런 일은 없다')
-      const next = structuredClone(prefs)
-      if (mode === 'pc') (next.pc ||= {})[key] = !!on
-      else ((next.users ||= {})[ctx.user] ||= {})[key] = !!on
-      await fs.mkdir(dataDir, { recursive: true })
-      await fs.writeFile(path.join(dataDir, 'prefs.json'), JSON.stringify(next, null, 1))
-      prefs = next
+      await mutatePrefs((next) => {
+        if (mode === 'pc') (next.pc ||= {})[key] = !!on
+        else ((next.users ||= {})[ctx.user] ||= {})[key] = !!on
+      })
       return { key, on: !!on }
     },
     // 메뉴 — 사람마다 지식의 순서 · 뺀 것(요구 v0.2 R2). 순서에 없는 지식(새로 생긴 것)은 맨 아래로 붙여 적는다
@@ -681,7 +716,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async learn(ctx, id, { q, coord }) {
       await hub.meta(id, ctx)
       hub.need(ctx, id, 'write') // 찾기 학습은 지식마다 하나 — 모두의 찾기가 바뀐다
-      await learn(dataDir, id, { q, coord, who: ctx.user })
+      q = String(q || '')
+      coord = String(coord || '')
+      if (!q.trim() || q.length > 200 || !coord || coord.length > 200) throw new KmdError('E_INPUT', '찾은 말과 항목 이름은 200자 안으로 보낸다')
+      if (!sectionOf(await hub.get(id, ctx), coord.trim().normalize('NFC'))?.loc) throw new KmdError('E_INPUT', '그런 항목이 없다')
+      await learn(dataDir, id, { q, coord: coord.trim().normalize('NFC'), who: ctx.user, log })
       return { ok: true }
     },
     async searchCheck(ctx, id, { freeze = false } = {}) {
@@ -1276,9 +1315,29 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async sourceRequest(ctx, id, card) {
       await hub.meta(id, ctx)
       hub.need(ctx, id, 'write')
+      card = card && typeof card === 'object' ? card : {}
       const name = String(card.name || '').trim().slice(0, 60)
-      if (!name) throw new KmdError('E_INPUT', '이름이 있다')
+      if (!name || /[\r\n"]/.test(name)) throw new KmdError('E_INPUT', '이름은 한 줄 60자 안')
+      // 부탁 카드도 더하기(sourceAdd)와 같은 모양만 받는다 — 관리자가 [더함] 으로 옮길 때 다시 걸리지 않게 · requests.json 이 커지지 않게
       const kind = card.kind || (card.db ? 'db' : 'git')
+      if (!['git', 'docs', 'db'].includes(kind)) throw new KmdError('E_INPUT', '가져오는 곳은 git · 문서 폴더 · DB 중 하나')
+      const every = String(card.every || 'hourly')
+      if (!/^(hourly|weekly|change|manual|daily ([01]\d|2[0-3]):[0-5]\d)$/.test(every)) throw new KmdError('E_INPUT', '언제는 hourly · daily HH:MM · weekly · change · manual')
+      if (card.rules != null && !Array.isArray(card.rules)) throw new KmdError('E_INPUT', '무엇을 채우나가 목록이 아니다')
+      const raw = card.rules || []
+      if (raw.length > 20) throw new KmdError('E_INPUT', '무엇을 채우나는 20개 안')
+      const cut = (x, n) => {
+        const t = String(x ?? '').trim()
+        if (t.length > n || /[\r\n\0]/.test(t)) throw new KmdError('E_INPUT', `무엇을 채우나의 글은 한 줄 ${n}자 안`)
+        return t
+      }
+      const rules = raw.map((r) => {
+        if (!r || typeof r !== 'object' || !['docs', 'dbtables', 'tables'].includes(r.rule)) throw new KmdError('E_INPUT', '무엇을 채우나는 docs · dbtables 중')
+        const ps = Array.isArray(r.paths) ? r.paths : null
+        if (ps && ps.length > 50) throw new KmdError('E_INPUT', '표로 만들 파일 · 폴더는 50개 안')
+        return { rule: r.rule, ...(ps ? { paths: ps.map((x) => cut(x, 300)) } : {}), ...(r.into ? { into: { doc: cut(r.into.doc, 200), ...(r.into.heading ? { heading: cut(r.into.heading, 200) } : {}) } } : {}) }
+      })
+      if (String(card.at || '').length > 2048) throw new KmdError('E_INPUT', '주소가 너무 길다')
       if (kind !== 'db') checkTarget(String(card.at || '').trim(), { kind: kind === 'docs' ? 'folder' : kind, ...(await hub.sourceCtx(id)) })
       const f = path.join(dataDir, 'requests.json')
       return inReq(async () => {
@@ -1286,7 +1345,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const at2 = maskUrl(String(card.at || ''))
         const same = all.find((r) => (r.state || 'wait') === 'wait' && r.kn === id && r.name === name && r.at2 === at2)
         if (same) { if (!same.by.split(', ').includes(ctx.user)) same.by += ', ' + ctx.user; await fs.writeFile(f, JSON.stringify(all)); return { ...same, again: true } }
-        const req = { id: crypto.randomBytes(5).toString('hex'), at: new Date().toISOString(), by: ctx.user, kn: id, name, at2, kind: card.kind || null, rules: card.rules || [], every: card.every || 'hourly', state: 'wait', ...(card.db ? { db: { engine: 'postgres', host: String(card.db.host || '').slice(0, 253), port: Number(card.db.port) || 5432, database: String(card.db.database || '').slice(0, 63), schema: String(card.db.schema || 'public').slice(0, 63), user: String(card.db.user || '').slice(0, 63) } } : {}) }
+        const req = { id: crypto.randomBytes(5).toString('hex'), at: new Date().toISOString(), by: ctx.user, kn: id, name, at2, kind: card.kind ? kind : null, rules, every, state: 'wait', ...(card.db ? { db: { engine: 'postgres', host: String(card.db.host || '').slice(0, 253), port: Number(card.db.port) || 5432, database: String(card.db.database || '').slice(0, 63), schema: String(card.db.schema || 'public').slice(0, 63), user: String(card.db.user || '').slice(0, 63) } } : {}) }
         all.unshift(req)
         await fs.writeFile(f, JSON.stringify(all.slice(0, 200)))
         return req
@@ -2953,6 +3012,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const old = w.queued.filter((j) => Date.now() - Date.parse(j.at) > 10 * 60_000)
         if (old.length && (!w.at || Date.now() - Date.parse(w.at) > 10 * 60_000)) out.push(stopLine({ kind: 'worker', level: 'warn', what: '정리 일꾼이 일감을 받지 않는다', amount: `기다리는 정리 ${old.length}`, fix: ctx.admin ? '서버에서 정리 일꾼을 띄운다. 관리자 설명서 › Claude 연결' : null, told: ctx.admin ? (w.at ? `마지막으로 본 때 ${w.at.slice(5, 16).replace('T', ' ')}` : '한 번도 묻지 않았다') : '관리자에게 알렸다' }))
       }
+      // 주인 장부를 다시 읽지 못했다 — 관리자에게 한 줄(옛 장부로 돌고 있다)
+      if (regBad && ctx.admin && !id) out.push(stopLine({ kind: 'owners', level: 'warn', what: 'owners.json 을 읽지 못해 앞의 장부로 돌고 있다', amount: '고칠 때까지', fix: '서버의 owners.json 모양을 바로잡는다', told: regBad.why, since: `${regBad.since.slice(5, 16).replace('T', ' ')} 부터` }))
       for (const k of ks) {
         out.push(...backup.lines(k, { name: k.name }))
         // 보내기 멈춤은 팀 화면에만(이 PC 의 kmd 에는 보내기가 없다)
@@ -3160,8 +3221,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const roots = (config.backupRoots || []).map((r) => path.resolve(r))
         const full = path.resolve(url)
         const meta = await hub.meta(id)
-        if (full === path.resolve(meta.dir) || full.startsWith(path.resolve(meta.dir) + path.sep) || full.startsWith(path.resolve(dataDir) + path.sep)) throw new KmdError('E_INPUT', '지식 폴더 · 살림 자리 안에는 백업을 둘 수 없다')
-        if (!roots.some((r) => full === r || full.startsWith(r + path.sep))) throw new KmdError('E_FORBIDDEN', '이 폴더는 백업 자리로 허락되지 않았다. serve.json 의 backupRoots 에 더한다')
+        if (insideDir(full, meta.dir) || insideDir(full, dataDir)) throw new KmdError('E_INPUT', '지식 폴더 · 살림 자리 안에는 백업을 둘 수 없다')
+        if (!roots.some((r) => insideDir(full, r))) throw new KmdError('E_FORBIDDEN', '이 폴더는 백업 자리로 허락되지 않았다. serve.json 의 backupRoots 에 더한다')
       }
       const meta = await hub.meta(id)
       const r = await backup.attach(meta, url, { dataDir })
@@ -3257,7 +3318,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '이 PC 의 일이다') // 팀 화면이면 이 PC 에서 확인을 받은 뒤다(PAIR_ASK)
       const full = path.resolve(String(dir || '').trim())
       if (!String(dir || '').trim()) throw new KmdError('E_INPUT', '백업 자리 폴더를 쓴다')
-      const inside = (a, b) => a === b || a.startsWith(b + path.sep)
+      const inside = insideDir // 대소문자를 가리지 않고(Windows) — sources.inside 하나로
       if (inside(full, path.resolve(root)) || inside(full, path.resolve(dataDir)) || inside(path.resolve(root), full)) throw new KmdError('E_INPUT', '지식 폴더 · 살림 자리와 겹치지 않는 곳에 둔다(다른 드라이브 · 네트워크 폴더)')
       await fs.mkdir(full, { recursive: true }).catch((e) => { throw new KmdError('E_INPUT', `그 폴더를 만들 수 없다: ${e.code || e.message}`) })
       const cur = await loadConfig(dataDir)

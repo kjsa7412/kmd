@@ -100,9 +100,11 @@ async function writeState(dataDir, kn, st) {
 }
 
 // ── 대상 제한 ──
+// p 가 root 안(같은 곳 포함)인가 — Windows · macOS 는 대소문자를 가리지 않는다(Linux 는 그대로 견준다)
+const fold = process.platform === 'win32' || process.platform === 'darwin' ? (x) => x.toLowerCase() : (x) => x
 export const inside = (p, root) => {
-  const a = path.resolve(p).toLowerCase()
-  const b = path.resolve(root).toLowerCase()
+  const a = fold(path.resolve(p))
+  const b = fold(path.resolve(root))
   const r = path.relative(b, a)
   return r === '' || (!r.startsWith('..') && !path.isAbsolute(r))
 }

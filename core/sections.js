@@ -238,6 +238,8 @@ function bodyOf(lines, from, to, { cut = true } = {}) {
     const f = fenceOf(ln, fence)
     if (f !== undefined) fence = f
     const m = ln.match(APPLIED)
+    // `applied: null` 은 기록 id 가 아니다 — 표지로 받지 않고 줄만 뗀다(본문에 섞이지 않게)
+    if (m && /^null$/i.test(m[1])) continue
     if (m && applied == null) {
       applied = m[1]
       continue

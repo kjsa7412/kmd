@@ -49,6 +49,15 @@ function sameOrigin(req) {
   }
 }
 
+// 주소 조각 풀기 — 잘못된 % 열(%E0 등)은 URIError(500) 가 아니라 입력 오류로
+const dec = (s) => {
+  try {
+    return decodeURIComponent(s)
+  } catch {
+    throw new KmdError('E_INPUT', '주소 모양이 아니다')
+  }
+}
+
 function readBody(req, max = MAX_BODY) {
   // 확인 길이 먼저 읽어 둔 글(req._raw)
   if (req._raw) {
@@ -325,7 +334,15 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   // 팀 서버 쪽 — 한 번용 표(1분)
   const pcPasses = new Map()
 
-  const ipOf = (req) => (hub.config.trustProxy && req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']).split(',')[0].trim() : req.socket.remoteAddress)
+  // 프록시 뒤 — x-forwarded-for 의 왼쪽 값은 보내는 사람이 꾸밀 수 있다. 우리 프록시가 붙인 오른쪽 끝에서 센다
+  //   trustProxy: true 는 프록시 하나 · 숫자면 그만큼(프록시가 여럿 겹친 때)
+  const ipOf = (req) => {
+    const tp = hub.config.trustProxy
+    const xs = tp && req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']).split(',').map((x) => x.trim()).filter(Boolean) : []
+    if (!xs.length) return req.socket.remoteAddress
+    const hops = Number.isInteger(tp) && tp > 0 ? tp : 1
+    return xs[Math.max(0, xs.length - hops)]
+  }
 
   // 누구인가 → { ctx, set } · 열쇠가 틀리면 E_AUTH(물러서지 않는다)
   function who(req) {
@@ -449,9 +466,9 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     // 기계 열쇠 — 그 지식의 기준선 길 하나만(E6 이 채운다)
     const bl = p.match(/^\/api\/k\/([^/]+)\/baseline$/)
     if (bl && ctx?.machine) {
-      if (ctx.machine.kn !== decodeURIComponent(bl[1])) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
+      if (ctx.machine.kn !== dec(bl[1])) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
       if (!hub.baseline) throw new KmdError('E_NOTFOUND', '아직 없는 길이다')
-      return out(200, await hub.baseline(ctx, decodeURIComponent(bl[1]), await readBody(req)))
+      return out(200, await hub.baseline(ctx, dec(bl[1]), await readBody(req)))
     }
     // 정리 일꾼 — 일감 받기 · 상태 알리기(kmdw_) · 재료 · 초안(kmdd_)
     if (p === '/api/worker/next' || p === '/api/worker/status') {
@@ -462,15 +479,15 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     const wk = p.match(/^\/api\/k\/([^/]+)\/worker\/(material|drafts|progress|agent|agent\/log|agent\/done)$/)
     if (wk) {
       if (!ctx?.draft) throw new KmdError('E_FORBIDDEN', '이 일감의 열쇠로 부른다')
-      if (wk[2] === 'material') return out(200, await hub.material(ctx, decodeURIComponent(wk[1])))
-      if (wk[2] === 'progress') return out(200, hub.workerProgress(ctx, decodeURIComponent(wk[1]), await readBody(req)))
+      if (wk[2] === 'material') return out(200, await hub.material(ctx, dec(wk[1])))
+      if (wk[2] === 'progress') return out(200, hub.workerProgress(ctx, dec(wk[1]), await readBody(req)))
       // 넣은 파일 하나를 에이전트로 — 일 받기 · 줄 올리기 · 끝(요구 v0.2 F)
-      if (wk[2] === 'agent') return out(200, await hub.workerAgent(ctx, decodeURIComponent(wk[1]), await readBody(req)))
-      if (wk[2] === 'agent/log') return out(200, hub.workerAgentLog(ctx, decodeURIComponent(wk[1]), await readBody(req, 4 << 20)))
-      if (wk[2] === 'agent/done') return out(200, await hub.workerAgentDone(ctx, decodeURIComponent(wk[1]), await readBody(req)))
+      if (wk[2] === 'agent') return out(200, await hub.workerAgent(ctx, dec(wk[1]), await readBody(req)))
+      if (wk[2] === 'agent/log') return out(200, hub.workerAgentLog(ctx, dec(wk[1]), await readBody(req, 4 << 20)))
+      if (wk[2] === 'agent/done') return out(200, await hub.workerAgentDone(ctx, dec(wk[1]), await readBody(req)))
       // 자리 수백 개의 초안 · part — 자리 하나를 쓰는 대로(일감은 끝나지 않는다)
       const db = await readBody(req, 32 << 20)
-      return out(200, await hub.drafts(ctx, decodeURIComponent(wk[1]), db.drafts, { part: !!db.part }))
+      return out(200, await hub.drafts(ctx, dec(wk[1]), db.drafts, { part: !!db.part }))
     }
     need(ctx)
     if (p === '/api/me/pcpass' || p === '/api/me/pcpass/check') {
@@ -494,7 +511,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     // 사람 목록 — 아이디만(정리하는 사람 고르기)
     if (p === '/api/people') return out(200, auth.people())
     const dm = p.match(/^\/api\/k\/([^/]+)\/diff$/)
-    if (dm) return out(200, await hub.diff(ctx, decodeURIComponent(dm[1]), url.searchParams.get('record') || ''))
+    if (dm) return out(200, await hub.diff(ctx, dec(dm[1]), url.searchParams.get('record') || ''))
     const jm = p.match(/^\/api\/job\/([0-9a-f]+)$/)
     if (jm) return out(200, hub.jobFor(ctx, jm[1]) || { state: 'gone' }) // 그 지식을 읽는 사람만(아니면 404)
     // 자동으로 가져오는 곳 — 목록 · 더하기(관리자 · PC) · 살펴보기 · 지금 가져오기 · 관리자에게 부탁
@@ -655,20 +672,20 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     const bl2 = p.match(/^\/api\/k\/([^/]+)\/backup\/(lost|keep)$/)
     if (bl2) {
       admin(ctx, { sudo: bl2[2] === 'keep' })
-      if (bl2[2] === 'lost') return out(200, await hub.backupLost(ctx, decodeURIComponent(bl2[1])))
-      return out(200, await hub.backupKeep(ctx, decodeURIComponent(bl2[1])))
+      if (bl2[2] === 'lost') return out(200, await hub.backupLost(ctx, dec(bl2[1])))
+      return out(200, await hub.backupKeep(ctx, dec(bl2[1])))
     }
     const ba = p.match(/^\/api\/k\/([^/]+)\/backup\/adopt$/)
     if (ba && req.method === 'POST') {
       admin(ctx)
-      return out(200, await hub.backupAdopt(ctx, decodeURIComponent(ba[1])))
+      return out(200, await hub.backupAdopt(ctx, dec(ba[1])))
     }
     // 옛 문서 옮기기(경과 → 참고 블록) — 그 지식의 관리 자리(전역 관리자는 비밀번호 한 번 더) · { dry } 면 쓰지 않고 결과만
     const dfm = p.match(/^\/api\/k\/([^/]+)\/docfmt$/)
     if (dfm && req.method === 'POST') {
       if (ctx?.admin) admin(ctx)
       else need(ctx)
-      return out(200, await hub.docfmt(decodeURIComponent(dfm[1]), ctx, { dry: !!(await readBody(req)).dry }))
+      return out(200, await hub.docfmt(dec(dfm[1]), ctx, { dry: !!(await readBody(req)).dry }))
     }
     // 지식 추가 — 새 이름 · 내 폴더(PC)
     if (p === '/api/knowledge/add') {
@@ -683,10 +700,10 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     }
     const sm = p.match(/^\/api\/k\/([^/]+)\/sources(?:\/(probe|run|request|every|checkdb|resync|meaning|edit|remove))?$/)
     if (sm) {
-      const id = decodeURIComponent(sm[1])
+      const id = dec(sm[1])
       if (req.method === 'GET' && !sm[2]) return out(200, await hub.sources(ctx, id))
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
-      const b = await readBody(req)
+      const b = await readBody(req, sm[2] === 'request' ? 64 << 10 : MAX_BODY) // 부탁은 작은 카드 하나
       if (sm[2] === 'every') return out(200, await hub.sourceEvery(ctx, id, b))
       if (sm[2] === 'edit') return out(200, await hub.sourceEdit(ctx, id, b))
       if (sm[2] === 'remove') return out(200, await hub.sourceRemove(ctx, id, { name: String(b.name || ''), copies: b.copies === 'drop' ? 'drop' : 'keep' }))
@@ -723,12 +740,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, await hub.requestClose(ctx, rq[1], { state: String(b.state || ''), why: b.why || '' }))
     }
     const tp = p.match(/^\/api\/k\/([^/]+)\/tidy\/plan$/)
-    if (tp) return out(200, await hub.tidyPlan(ctx, decodeURIComponent(tp[1])))
+    if (tp) return out(200, await hub.tidyPlan(ctx, dec(tp[1])))
     const rt = p.match(/^\/api\/k\/([^/]+)\/rec\/([^/]+)\/touches$/)
-    if (rt) return out(200, await hub.setTouches(ctx, decodeURIComponent(rt[1]), decodeURIComponent(rt[2]), (await readBody(req)).coord))
+    if (rt) return out(200, await hub.setTouches(ctx, dec(rt[1]), dec(rt[2]), (await readBody(req)).coord))
     const tm = p.match(/^\/api\/k\/([^/]+)\/tidy$/)
     if (tm) {
-      const id = decodeURIComponent(tm[1])
+      const id = dec(tm[1])
       if (req.method === 'POST') {
         const b = await readBody(req)
         return out(200, await hub.tidyNow(ctx, id, Array.isArray(b?.ids) ? { ids: b.ids.slice(0, 500) } : {}))
@@ -827,7 +844,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     const am = p.match(/^\/api\/admin\/users\/([^/]+)\/(reset|unlock|revoke-all|logout-all|admin|off)$/)
     if (am) {
       admin(ctx)
-      const id = decodeURIComponent(am[1])
+      const id = dec(am[1])
       // 떠남 — 들어가기 · 기기 · PC 일꾼을 끊고 아이디를 남긴다 · 그 사람의 지식은 넘겨받거나(to: 'me') 주인 칸을 비운다(개인 지식은 관리자만)
       if (am[2] === 'off') {
         if (id === ctx.user) throw new KmdError('E_INPUT', '나 자신은 떠나게 하지 못한다. 다른 관리자가 한다')
@@ -859,12 +876,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     const gd = p.match(/^\/api\/admin\/groups\/([^/]+)\/delete$/)
     if (gd && req.method === 'POST') {
       admin(ctx)
-      return out(200, await hub.dropGroup(ctx, decodeURIComponent(gd[1])))
+      return out(200, await hub.dropGroup(ctx, dec(gd[1])))
     }
     // 지식의 자리 표 — 보기 · 바꾸기(그 지식의 관리 자리 · 전역 관리자는 비밀번호 한 번 더)
     const ax = p.match(/^\/api\/k\/([^/]+)\/access$/)
     if (ax) {
-      const id = decodeURIComponent(ax[1])
+      const id = dec(ax[1])
       if (req.method === 'GET') return out(200, await hub.accessView(ctx, id))
       const b = await readBody(req)
       await hub.meta(id, ctx)
@@ -876,16 +893,20 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     const im = p.match(/^\/api\/k\/([^/]+)\/import$/)
     if (im) {
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
+      // 자리부터 — 큰 본문을 메모리에 모으기 전에(자리 없는 사람 · 읽기 자리가 서버 메모리를 쓰게 하지 않게)
+      const iid = dec(im[1])
+      await hub.meta(iid, ctx)
+      hub.need(ctx, iid, 'write')
       const b = await readBody(req, 280 << 20)
       const files = (Array.isArray(b.files) ? b.files : []).map((f) => ({ path: String(f.path || f.name || ''), data: Buffer.from(String(f.b64 || ''), 'base64') }))
       // group — 여러 파일을 나눠 보낼 때 한 일로 묶는다({ title, total } → 받은 id 로 이어 보내고 마지막에 last)
       const group = b.group && typeof b.group === 'object' ? { id: b.group.id ? String(b.group.id) : null, title: String(b.group.title || ''), total: Number(b.group.total) || 0, last: !!b.group.last } : null
-      return out(200, await hub.importFiles(ctx, decodeURIComponent(im[1]), files, { group }))
+      return out(200, await hub.importFiles(ctx, iid, files, { group }))
     }
     // 지식 지우기 — 보관하지 않고 완전히 · 확인은 지식 이름 · 팀 관리자는 비밀번호 한 번 더
     const dl = p.match(/^\/api\/k\/([^/]+)\/delete$/)
     if (dl && req.method === 'POST') {
-      const id = decodeURIComponent(dl[1])
+      const id = dec(dl[1])
       const b = await readBody(req)
       if (mode === 'team') admin(ctx)
       return out(200, await hub.deleteKnowledge(ctx, id, b))
@@ -894,7 +915,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     //   보내는 지식은 이 PC 의 kmd 의 개인 지식(팀 서버는 옛 개인 지식만) · 받는 것은 팀 서버
     const sd = p.match(/^\/api\/k\/([^/]+)\/(send|send\/route|send\/wait|receive|inbox\/tidy|inbox\/send)$/)
     if (sd) {
-      const id = decodeURIComponent(sd[1])
+      const id = dec(sd[1])
       if (sd[2] === 'send' && req.method === 'GET') return out(200, await hub.sendView(ctx, id))
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       const b = await readBody(req, sd[2] === 'receive' ? 8 << 20 : MAX_BODY)
@@ -909,13 +930,13 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     const rr = p.match(/^\/api\/k\/([^/]+)\/rec\/read$/)
     if (rr) {
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
-      return out(200, await hub.readRecord(ctx, decodeURIComponent(rr[1]), (await readBody(req)).r))
+      return out(200, await hub.readRecord(ctx, dec(rr[1]), (await readBody(req)).r))
     }
     const uw = p.match(/^\/api\/k\/([^/]+)\/unwatch$/)
-    if (uw) return out(200, await hub.unwatch(ctx, decodeURIComponent(uw[1]), await readBody(req)))
+    if (uw) return out(200, await hub.unwatch(ctx, dec(uw[1]), await readBody(req)))
     const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|backup|backup\/pull|owner|learn|edit|revert)$/)
     if (!m) throw new KmdError('E_NOTFOUND', '그런 길은 없다')
-    const id = decodeURIComponent(m[1])
+    const id = dec(m[1])
     const what = m[2]
     if (['save', 'backup', 'backup/pull', 'owner', 'learn', 'edit', 'revert'].includes(what)) {
       if (what === 'backup' && req.method === 'GET') return out(200, (await hub.backupState(ctx, id)) || { off: true })
@@ -1037,7 +1058,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       // 설명서 — /manual(이 서버 갈래의 첫 설명서) · /manual/<이름>
       const mm = req.method === 'GET' && p.match(/^\/manual(?:\/([^/]+))?$/)
       if (mm) {
-        const page = await manualPage(mode, mm[1] ? decodeURIComponent(mm[1]) : null)
+        const page = await manualPage(mode, mm[1] ? dec(mm[1]) : null)
         if (!page) return send(res, 404, '없다', 'text/plain; charset=utf-8')
         return send(res, 200, page, 'text/html; charset=utf-8', { 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'" })
       }
@@ -1059,7 +1080,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         const dl = dlDir()
         const files = (await fs.readdir(dl).catch(() => [])).filter((n) => /\.(zip|tgz|exe|msi)$/i.test(n))
         if (p === '/dl') { await pageRootP; return send(res, 200, `<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>kmd 받기</title><style>${pageRoot}${PAGE_CSS}main{padding-top:40px}</style><body><main><h1>kmd 받기</h1>${files.length ? `<ul>${files.map((n) => `<li><a href="/dl/${encodeURIComponent(n)}">${n.replace(/[<>&"]/g, '')}</a></li>`).join('')}</ul><p>보통은 받을 일이 없다. 팀 화면 › 설정 › 에이전트 설치의 <b>설치 한 줄</b>을 PowerShell 에 붙여 넣으면 이 꾸러미를 저절로 받아 깔고 팀에 잇는다.</p><p>손으로 깔려면: zip 을 풀고 그 폴더에서 <code>kmd.cmd up</code> 으로 켠다.</p>` : '<p>아직 PC 꾸러미가 없다. 관리자가 팀 꾸러미로 설치하면 함께 놓인다. 관리자에게 묻는다.</p>'}<p><a href="/manual">설명서</a></p></main></body></html>`, 'text/html; charset=utf-8') }
-        const n = decodeURIComponent(p.slice(4))
+        const n = dec(p.slice(4))
         if (!files.includes(n)) return send(res, 404, '없다', 'text/plain; charset=utf-8')
         // 꾸러미는 수십 MB — 메모리에 다 읽지 않고 흘려 보낸다(여럿이 함께 깔아도 서버 메모리가 받는 사람 수만큼 늘지 않게)
         const file = path.join(dl, n)
@@ -1074,6 +1095,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         need(ctx)
         const body = await readBody(req)
         if (Array.isArray(body)) {
+          // 묶음은 20개 안 — 찾기 수천 개로 CPU 를 오래 붙잡지 않게
+          if (!body.length || body.length > 20) return send(res, 200, { jsonrpc: '2.0', id: null, error: { code: -32600, message: '묶음은 1 ~ 20개' } })
           const out = (await Promise.all(body.map((m) => mcp.call(m, ctx)))).filter(Boolean)
           return out.length ? send(res, 200, out) : (res.writeHead(202), res.end())
         }

@@ -337,15 +337,34 @@ export function verifyConvert(before, after, placed = null) {
 //   why — 옮기지 않은 까닭(ok 여도 · 사람이 쓴 것으로 보고 둔 경과 목록 같은 것)
 export function convertDoc(text0) {
   const text = readText(text0)
-  const r = moveOldLogs(text)
+  const z = dropNullApplied(text)
+  const r = moveOldLogs(z.text)
   const m = moveOldMarks(r.text)
-  const kinds = { kmd: r.moved, ...m.kinds }
-  const moved = r.moved + m.moved
+  const kinds = { kmd: r.moved, ...m.kinds, ...(z.n ? { nul: z.n } : {}) }
+  const moved = r.moved + m.moved + z.n
   const note = m.why.length ? m.why.join(' / ') : null
   if (!moved) return { text, changed: false, moved: 0, kinds, ok: true, why: note, left: strayMarks(text) }
   const v = verifyConvert(text, m.text, m.placed)
   if (!v.ok) return { text, changed: false, moved: 0, kinds: { kmd: 0, log: 0, table: 0, mark: 0 }, ok: false, why: v.why, left: strayMarks(text) }
   return { text: m.text, changed: m.text !== text, moved, kinds, ok: true, why: note, left: strayMarks(m.text) }
+}
+
+// `<!-- applied: null -->` — 기록 id 가 아닌 뜻 없는 표지(옛 생성기가 남긴 것). 걷는다 · 본문 글이 아니라 보존 검증 대상이 아니다
+const NULL_APPLIED = /^\s{0,3}<!--\s*applied:\s*null\s*-->\s*$/i
+function dropNullApplied(text) {
+  const out = []
+  let fence = null
+  let n = 0
+  for (const l of text.split('\n')) {
+    const f = l.match(/^\s{0,3}(`{3,}|~{3,})/)
+    if (f) fence = !fence ? f[1][0] : f[1][0] === fence ? null : fence
+    if (!fence && NULL_APPLIED.test(l)) {
+      n++
+      continue
+    }
+    out.push(l)
+  }
+  return { text: out.join('\n'), n }
 }
 
 async function docFiles(dir, rel = 'docs', out = []) {

@@ -398,26 +398,84 @@ export function commonOf(k) {
 
 // ── 찾기 후보 배우기 — 사람이 화면에서 고른 것만 센다(2단 약함 후보에만 · 어휘는 바꾸지 않는다) ──
 const learnFile = (dataDir, id) => path.join(dataDir, 'learn', `${encodeURIComponent(id)}.json`)
-export async function loadLearned(dataDir, id) {
-  const j = await fs.readFile(learnFile(dataDir, id), 'utf8').then(JSON.parse, () => ({}))
+// 학습 표는 물려받은 이름(constructor · toString)을 잡지 않게 Object.create(null) 로 옮긴다
+const bare = (o) => {
+  const out = Object.create(null)
+  if (o && typeof o === 'object' && !Array.isArray(o)) for (const [x, v] of Object.entries(o)) out[x] = v
+  return out
+}
+// strict — 파일이 깨졌으면 {} 로 삼키지 않고 던진다(배우기가 깨진 파일을 덮어 모든 학습을 잃지 않게)
+async function readLearned(dataDir, id, strict) {
+  const txt = await fs.readFile(learnFile(dataDir, id), 'utf8').catch((e) => {
+    if (e.code === 'ENOENT') return null
+    throw e
+  })
+  if (txt == null) return bare(null)
+  let raw
+  try {
+    raw = JSON.parse(txt)
+  } catch (e) {
+    if (strict) throw e
+    return bare(null)
+  }
+  const j = bare(raw)
   const cut = Date.now() - 180 * 864e5
-  for (const [q, m] of Object.entries(j)) for (const [c, v] of Object.entries(m)) if (Date.parse(v.at) < cut) delete m[c]
+  for (const q of Object.keys(j)) {
+    const m = (j[q] = bare(j[q]))
+    for (const [c, v] of Object.entries(m)) if (!v || typeof v !== 'object' || !Array.isArray(v.by) || !(Date.parse(v.at) >= cut)) delete m[c]
+  }
   return j
 }
-export async function learn(dataDir, id, { q, coord, who }) {
-  const j = await loadLearned(dataDir, id)
-  const n = normKey(q)
-  if (!n || !coord) return j
-  const e = ((j[n] ||= {})[coord] ||= { n: 0, by: [], at: null })
-  const h = crypto.createHash('sha256').update(String(who)).digest('hex').slice(0, 12)
-  if (!e.by.includes(h)) {
-    e.by.push(h)
-    e.n++
-  }
-  e.at = new Date().toISOString()
-  await fs.mkdir(path.dirname(learnFile(dataDir, id)), { recursive: true })
-  await fs.writeFile(learnFile(dataDir, id), JSON.stringify(j), { mode: 0o600 })
-  return j
+export const loadLearned = (dataDir, id) => readLearned(dataDir, id, false).catch(() => bare(null))
+// 지식마다 한 줄로 — 동시에 눌러도 서로의 학습을 덮지 않는다
+const learnLocks = new Map()
+const serial = (key, f) => {
+  const run = (learnLocks.get(key) || Promise.resolve()).then(f, f)
+  const tail = run.catch(() => {})
+  learnLocks.set(key, tail)
+  tail.then(() => learnLocks.get(key) === tail && learnLocks.delete(key))
+  return run
+}
+export const LEARN_MAX = 200 // q · coord 글 길이 한도
+export function learn(dataDir, id, { q, coord, who, log = null }) {
+  const n = normKey(String(q || '').slice(0, LEARN_MAX))
+  coord = String(coord || '')
+  if (!n || !coord || coord.length > LEARN_MAX) return Promise.resolve(null)
+  const f = learnFile(dataDir, id)
+  return serial(f, async () => {
+    let j
+    try {
+      j = await readLearned(dataDir, id, true)
+    } catch (e) {
+      log?.(`찾기 학습 파일을 읽지 못해 이번 학습은 건너뛴다(${id}): ${e.message}`)
+      return null
+    }
+    const m = Object.hasOwn(j, n) ? j[n] : (j[n] = bare(null))
+    const e = Object.hasOwn(m, coord) ? m[coord] : (m[coord] = { n: 0, by: [], at: null })
+    const h = crypto.createHash('sha256').update(String(who)).digest('hex').slice(0, 12)
+    if (!e.by.includes(h)) {
+      e.by.push(h)
+      e.n++
+    }
+    e.at = new Date().toISOString()
+    await fs.mkdir(path.dirname(f), { recursive: true })
+    const tmp = `${f}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`
+    await fs.writeFile(tmp, JSON.stringify(j), { mode: 0o600 })
+    for (let i = 0; ; i++) {
+      try {
+        await fs.rename(tmp, f)
+        break
+      } catch (err) {
+        // Windows — 찾기가 읽는 사이 이름 바꾸기가 잠깐 막힐 수 있다
+        if (i >= 9 || !['EPERM', 'EACCES', 'EBUSY'].includes(err.code)) {
+          await fs.rm(tmp, { force: true }).catch(() => {})
+          throw err
+        }
+        await new Promise((r) => setTimeout(r, 50 * (i + 1)))
+      }
+    }
+    return j
+  })
 }
 
 // ── 찾기 점검 — 기록 제목(코드 뺌)으로 그 기록이 건드린 이름을 찾는다 · 그 기록 자신의 토막은 뺀다 ──

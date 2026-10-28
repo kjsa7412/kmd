@@ -10,6 +10,7 @@ import path from 'node:path'
 import { tryGit } from './git.js'
 import { KmdError } from './errors.js'
 import { REMOTE } from './backup.js'
+import { inside } from './sources.js'
 
 const isLocal = (u) => !/^[a-z][a-z0-9+.-]*:\/\//i.test(u) && !/^[^/\\]+@[^/\\]+:/.test(u)
 
@@ -18,7 +19,7 @@ export function checkUrl(url, { roots = [], pc = false } = {}) {
   if (!url || /[\s\0]/.test(url) || /^-|^ext::/i.test(url) || /^file:/i.test(url)) throw new KmdError('E_INPUT', '백업 자리 주소가 아니다')
   if (isLocal(url)) {
     const full = path.resolve(url)
-    if (!pc && !roots.map((r) => path.resolve(r)).some((r) => full === r || full.startsWith(r + path.sep))) throw new KmdError('E_FORBIDDEN', '이 폴더는 백업 자리로 허락되지 않았다. serve.json 의 backupRoots')
+    if (!pc && !roots.some((r) => inside(full, r))) throw new KmdError('E_FORBIDDEN', '이 폴더는 백업 자리로 허락되지 않았다. serve.json 의 backupRoots')
     return { url: full, local: true }
   }
   if (!/^(https?|ssh):\/\//i.test(url) && !/^[^/\\]+@[^/\\]+:/.test(url)) throw new KmdError('E_INPUT', '주소는 https · ssh 만')

@@ -235,6 +235,7 @@ export function makeMcp(store) {
   const recOut = (w) => ({ id: w.id, date: w.date, author: w.author, title: w.title, state: w.state === 'pend' ? '아직 문서에 안 넣음' : '문서에 들어감' })
 
   async function call(msg, ctx) {
+    if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return { jsonrpc: '2.0', id: null, error: { code: -32600, message: '요청 모양이 아니다' } }
     const { id, method, params } = msg
     const ok = (result) => ({ jsonrpc: '2.0', id, result })
     const err = (code, message) => ({ jsonrpc: '2.0', id: id ?? null, error: { code, message } })
@@ -247,7 +248,8 @@ export function makeMcp(store) {
     if (method === 'ping') return ok({})
     if (method === 'tools/list') return ok({ tools: TOOLS })
     if (method === 'tools/call') {
-      const f = tools[params?.name]
+      // 물려받은 이름(constructor · toString · __proto__)은 도구가 아니다
+      const f = typeof params?.name === 'string' && Object.hasOwn(tools, params.name) ? tools[params.name] : null
       if (!f) return err(-32602, `그런 도구는 없다: ${params?.name}`)
       try {
         const out = await f(params.arguments || {}, ctx)
