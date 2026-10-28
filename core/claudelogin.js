@@ -11,7 +11,7 @@
 //              setup-token 은 진짜 터미널이 있어야 돌아 `script` 의 가짜 터미널로 띄운다(Linux · macOS) — 못 다는 곳은
 //              자기 터미널에서 받은 열쇠를 `kmd secret set claude-token` 으로 넣으라고 알린다
 //   시험       KMD_CLAUDE_LOGIN = 가짜 스크립트(node 로 부른다)
-// 한 번에 하나 · 10분 지나면 끈다.
+// 한 번에 하나 · 20분 지나면 끈다(메일 링크로 들어가는 로그인이 10분을 넘기기 쉽다).
 
 import { spawn } from 'node:child_process'
 import { setSecret } from './secrets.js'
@@ -72,7 +72,8 @@ export function pcLogin() {
 }
 
 // 팀 서버 — 화면 있는 PC 는 보이는 창 · 헤드리스는 주소 · 번호 흐름
-export function makeTeamLogin({ dataDir, timeoutMs = 10 * 60_000 }) {
+// 기다리는 시간 — 메일 링크로 들어가는 Claude 로그인은 10분을 넘기기 쉽다
+export function makeTeamLogin({ dataDir, timeoutMs = 20 * 60_000 }) {
   let cur = null
   const stop = () => { if (cur) { clearTimeout(cur.timer); try { cur.p?.kill() } catch {} cur = null } }
   return {
@@ -109,7 +110,8 @@ export function makeTeamLogin({ dataDir, timeoutMs = 10 * 60_000 }) {
     },
     async code(code) {
       const c = cur
-      if (!c || !c.url) throw new KmdError('E_INPUT', '먼저 로그인을 시작한다')
+      // 기다리던 로그인이 없다 — 20분이 지났거나 · 팀 서버가 다시 켜졌거나 · 다른 관리자가 새로 시작했다. 그 주소의 번호는 더 쓰지 못한다
+      if (!c || !c.url) throw new KmdError('E_INPUT', '기다리던 로그인이 끝났다(20분이 지났거나 팀 서버가 다시 켜졌다). 그 번호는 더 쓰지 못한다. [다시 시작] 으로 새 주소를 받는다', { need: 'restart' })
       code = String(code || '').trim()
       if (!code || code.length > 500 || /[\r\n]/.test(code)) throw new KmdError('E_INPUT', '받은 번호가 아니다')
       const before = c.out.length

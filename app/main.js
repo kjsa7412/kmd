@@ -1878,7 +1878,7 @@ async function postJSON(p, body) {
   if (r.status === 401 && !t.headers.authorization && canRelogin() && !['/login', '/api/sudo', '/first', '/setup', '/once'].includes(p)) { await askLogin(); return postJSON(p, body) }
   // 내 PC 밖으로 손이 닿는 일 — 내 PC 가 띄운 확인 창에서 [확인] 하면 같은 요청을 그 확인 번호로 한 번 더
   if (!r.ok && j.error === 'E_CONFIRM' && j.confirm && t.headers.authorization) return pcConfirmed(t, body, j)
-  if (!r.ok) throw Object.assign(new Error(j.message || '서버에 닿지 않는다'), { code: j.error })
+  if (!r.ok) throw Object.assign(new Error(j.message || '서버에 닿지 않는다'), { code: j.error, need: j.need || null })
   return j
 }
 // 확인 기다리기 — 2분까지 1초마다 내 PC 에 묻는다 · 그동안 머리에 한 줄
@@ -3276,7 +3276,7 @@ function admRepoCard(a) {
   return `<div class="card" data-t="repoCard"><div class="ch">저장소 연결 <small>팀 지식마다 git 저장소 · 저장할 때마다 kmd 가 민다</small></div><ul class="plain pl">${ks.map(row).join('')}</ul><div class="cf">저장소는 비었거나 이 지식의 지난 이력이어야 붙는다. 밀기는 서버 OS 사용자 kmd 의 git 자격(ssh 키 · 주소 속 열쇠)으로 한다. 주소 속 열쇠는 화면 · 기록에 가린다</div></div>`
 }
 const hhmmOf = (iso) => { const d = new Date(iso); return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) }
-function admDoneBtn() { const ok = !!(S.admCode || '').trim(); return `<button class="btn pri" data-a="admDone" data-t="admDone"${ok ? '' : ' disabled'}>마치기</button>` }
+function admDoneBtn() { const ok = !!(S.admCode || '').trim() && !S.admBusy; return `<button class="btn pri" data-a="admDone" data-t="admDone"${ok ? '' : ' disabled'}>${S.admBusy ? '마치는 중…' : '마치기'}</button>` }
 function admClaudeCard(a) {
   const rest = a.worker && a.worker.ok === false, step = S.admStep
   let flow = ''
@@ -3284,10 +3284,12 @@ function admClaudeCard(a) {
   else if (step === 'wait') flow = '<div class="flow"><span class="prog" data-t="admWait"><i></i>팀 서버가 정리용 로그인을 띄우는 중…</span></div>'
   else if (step === 'window') flow = `<div class="flow" data-t="admWindow"><p style="margin:0 0 6px"><b>팀 서버 PC 화면에 「kmd: Claude 로그인」 창</b>이 떴다. 그 창이 브라우저를 연다. 그 PC 의 브라우저에서 Claude 에 들어가면 끝이다.</p><p class="small muted" style="margin:0 0 8px">창이 안 보이면 그 PC 의 작업 표시줄에서 그 창을 누른다 · 정리 일꾼은 그 PC 의 Claude Code 로그인을 쓴다 · 다 되면 그 창은 닫아도 된다</p><div class="row"><span class="prog" data-t="admWinWait"><i></i>${S.admChecking ? '로그인을 확인하는 중…' : S.admLast ? esc(S.admLast) : '로그인을 기다린다. 몇 초마다 저절로 확인한다'}</span><button class="btn sm" data-a="admCheck" data-t="admCheck" style="margin-left:auto">지금 확인</button><a class="lk" data-a="admFlowCancel" style="margin-left:10px">그만두기</a></div></div>`
   else if (!step && S.admErr) flow = `<div class="flow"><div class="callout danger" data-t="admErr">${esc(S.admErr)}</div></div>`
+  // 기다리던 로그인이 끝났다(시간이 지났다 · 팀 서버가 다시 켜졌다) — 그 번호는 못 쓴다 · 새 주소로 다시
+  else if (step === 'expired') flow = `<div class="flow" data-t="admExpired"><div class="callout warn" style="margin:0 0 8px"><b>기다리던 로그인이 끝났다</b>. ${esc(S.admErr || '')}</div><div class="row"><button class="btn pri" data-a="admLoginStart" data-t="admRestart">다시 시작</button><a class="lk" data-a="admFlowCancel" style="margin-left:auto">그만두기</a></div></div>`
   // 화면 없는 서버 — 둘: 이 브라우저에서 주소를 열어 로그인 → 받은 번호를 붙여 넣기(주소는 길어 두 줄까지만 보이고 복사 · 열기로)
   else if (step === 'code') flow = `<div class="flow" data-t="admCode"><ol class="lsteps">
-   <li><b>Claude 로그인 주소를 연다</b><small>새 탭에서 Claude 계정(Pro · Max · Team · Enterprise)으로 들어가 [Authorize] 를 누르면 번호가 나온다</small><div class="row"><a class="btn pri sm" href="${esc(S.admUrl)}" target="_blank" rel="noopener noreferrer" data-t="admOpenUrl">주소 열기 ↗</a><button class="btn sm" data-a="admCopyUrl" data-t="admCopyUrl">주소 복사</button></div><div class="urlbox" data-t="admUrl" title="${esc(S.admUrl)}">${esc(S.admUrl)}</div></li>
-   <li><b>받은 번호를 붙여 넣는다</b><small>Claude 화면에 나온 번호를 그대로 · 한 번용이라 저장하지 않는다</small><div class="paste"><input class="inp mono" id="admCodeIn" data-in="admCode" data-t="admCodeIn" value="${esc(S.admCode || '')}" placeholder="받은 번호 붙여 넣기" autocomplete="off"><span id="admDoneBox">${admDoneBtn()}</span></div></li></ol>
+   <li><b>Claude 로그인 주소를 연다</b><small>새 탭에서 Claude 계정(Pro · Max · Team · Enterprise)으로 들어가 [Authorize] 를 누르면 번호가 나온다 · 메일로 오는 링크는 같은 브라우저에서 연다${S.admUntil ? ` · <b data-t="admUntil">${new Date(S.admUntil).toTimeString().slice(0, 5)} 까지</b>` : ''}</small><div class="row"><a class="btn pri sm" href="${esc(S.admUrl)}" target="_blank" rel="noopener noreferrer" data-t="admOpenUrl">주소 열기 ↗</a><button class="btn sm" data-a="admCopyUrl" data-t="admCopyUrl">주소 복사</button></div><div class="urlbox" data-t="admUrl" title="${esc(S.admUrl)}">${esc(S.admUrl)}</div></li>
+   <li><b>받은 번호를 붙여 넣는다</b><small>Claude 화면에 나온 번호를 그대로 · 한 번용이라 저장하지 않는다</small><div class="paste"><input class="inp mono" id="admCodeIn" data-in="admCode" data-t="admCodeIn" value="${esc(S.admCode || '')}" placeholder="받은 번호 붙여 넣기" autocomplete="off"><span id="admDoneBox">${admDoneBtn()}</span></div>${S.admBusy ? '<div class="row" style="margin-top:8px"><span class="prog" data-t="admBusy"><i></i>번호를 넘기고 Claude 의 열쇠를 받는 중… 30초까지 걸린다</span></div>' : ''}</li></ol>
    ${S.admErr ? `<div class="callout danger">${esc(S.admErr)}</div>` : ''}<div class="row" style="margin-top:2px"><span class="hint" style="margin:0">${a.https ? '로그인한 열쇠는 팀 서버 비밀로만 남는다' : '아직 https 가 아니다. 사내 https 뒤 권장'}</span><a class="lk" data-a="admFlowCancel" style="margin-left:auto">그만두기</a></div></div>`
   const state = rest ? `쉬고 있다 · ${Math.max(1, Math.round((Date.now() - Date.parse(a.worker.since)) / 864e5))}일: 로그인이 끝났다` : a.claude.token ? '로그인됨 · 정리 전용' : a.worker && a.worker.ok ? '로그인됨. 팀 서버 PC 의 Claude Code' : '아직 로그인하지 않았다'
   const inn = a.claude.token || (a.worker && a.worker.ok)
@@ -3302,7 +3304,7 @@ async function admPwOk() {
     render()
     const r = await postJSON('/api/admin/claude/start', {})
     if (r.window) { S.admStep = 'window'; S.admLast = null; S.admSince = Date.now(); admPoll() } // 화면 있는 서버 PC — 보이는 창 · 번호 칸 없음
-    else { S.admUrl = r.url; S.admStep = 'code' }
+    else { S.admUrl = r.url; S.admStep = 'code'; S.admCode = ''; S.admUntil = Date.now() + 20 * 60_000 }
   } catch (e) { S.admErr = e.code === 'E_AUTH' ? '비밀번호를 확인하세요' : e.message; if (S.admStep === 'wait') S.admStep = null }
   render()
 }
@@ -3322,18 +3324,26 @@ async function admCheck(byHand) {
 function admPoll() {
   const since = S.admSince
   setTimeout(async () => {
-    if (S.admStep !== 'window' || S.admSince !== since || Date.now() - since > 10 * 60_000) return
+    if (S.admStep !== 'window' || S.admSince !== since || Date.now() - since > 20 * 60_000) return
     if (!(await admCheck(false))) admPoll()
   }, 8000)
 }
+// 마치기 — 번호를 팀 서버의 로그인에 넘기고 열쇠를 받을 때까지(30초까지) 돌아가는 줄 · 끝난 로그인이면 [다시 시작]
 async function admDone() {
+  if (S.admBusy) return
+  S.admBusy = true; S.admErr = null
+  render()
   try {
     await postJSON('/api/admin/claude/code', { code: S.admCode })
-    S.admStep = null; S.admCode = ''; S.admErr = null
+    S.admStep = null; S.admCode = ''; S.admErr = null; S.admUntil = null
     delete S.cache.admin
     loadStops()
     toast('로그인됨. 정리 전용 · 자동 정리가 이어서 한다')
-  } catch (e) { S.admErr = e.message }
+  } catch (e) {
+    S.admErr = e.message
+    if (e.need === 'restart') { S.admStep = 'expired'; S.admCode = ''; S.admUntil = null }
+  }
+  S.admBusy = false
   render()
 }
 
