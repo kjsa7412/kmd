@@ -409,6 +409,7 @@ function draw() {
   const view = `${S.route.scr}|${S.route.kn}|${S.active || ''}|${S.split || ''}`
   const lpView = `${gated() ? '' : defaultKn()}|${VIEWS3.includes(S.route.scr) ? S.route.scr : S.ktab || 'docs'}`
   const keep = ['.main[data-t=main]', '[data-t=rightPane]', '[data-t=leftPane]', '[data-t=aside]'].map((q) => { const el = app.querySelector(q); return el ? [q, el.scrollTop] : null }).filter((x) => x && (x[0] === '[data-t=leftPane]' ? S._lpView === lpView : S._view === view))
+  const sameView = S._view === view
   S._view = view
   S._lpView = lpView
   S._hasAside = !!scr.aside
@@ -417,6 +418,10 @@ function draw() {
   app.classList.toggle('aside-open', !!S.asideOpen && !!scr.aside)
   placePop()
   for (const [q, top] of keep) { const el = app.querySelector(q); if (el) el.scrollTop = top }
+  // 좁은 폭은 창 전체가 스크롤된다 — 같은 화면을 다시 그리는 동안 잠깐 짧아져(읽는 중) 맨 위로 밀리지 않게, 사람이 둔 자리로 되돌린다
+  S._renderAt = performance.now()
+  if (sameView && S._wantY && Math.abs(scrollY - S._wantY) > 2) scrollTo(0, S._wantY)
+  if (!sameView) S._wantY = 0
   if (gated()) { const g = $('[data-focus]'); if (g && document.activeElement !== g) g.focus(); return }
   const fi = $('#palIn') || $('#qoIn') || $('#cmdIn')
   if (fi && document.activeElement !== fi) { fi.focus(); fi.setSelectionRange(fi.value.length, fi.value.length) }
@@ -450,6 +455,7 @@ function flashSel() {
     if (!el) return
     if (flash) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash') }
     el.scrollIntoView({ block: 'center' })
+    S._wantY = scrollY
   }, 30)
   if ($(rowQ)) { S._flashSel = null; S._flashHead = false; $(rowQ).classList.add('flash'); go(rowQ, true); return }
   // 그 줄이 아직 없다 — 영역 머리까지는 먼저 간다(한 번) · 받는 동안 잠깐 더 기다리고 푼다(나중에 다른 줄이 빛나지 않게)
@@ -3513,6 +3519,8 @@ function pcRetry() {
 }
 setInterval(pcRetry, 15000)
 // 숨은 탭에서는 다시 읽기를 쉰다(지금 하는 일 · 일 줄 · 경고 · 정리 따라가기) — 다시 보이면 곧바로 한 번 읽고 이어 간다
+// 사람이 스크롤한 자리(창 전체) — 다시 그리기 바로 뒤에 오는 스크롤(짧아져 밀린 것)은 사람 것이 아니다
+addEventListener('scroll', () => { if (performance.now() - (S._renderAt || 0) > 150) S._wantY = scrollY }, { passive: true })
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return
   pcRetry()
