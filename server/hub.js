@@ -9,6 +9,7 @@ import os from 'node:os'
 import { listKnowledge, loadKnowledge, coordsOfSection, sectionOf, looksLikeKnowledge } from '../core/knowledge.js'
 import { KmdError, httpStatusOf } from '../core/errors.js'
 import { save as coreSave, saveRecords, serial, localStamp, recordTakenSync } from '../core/save.js'
+import { recover as recoverSave } from '../core/journal.js'
 import { decide, decisionRecord, revertPlan } from '../core/curate.js'
 import * as collect from '../core/collect.js'
 import crypto from 'node:crypto'
@@ -3100,6 +3101,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
       }, config.queueResumeMs ?? 1500).unref?.()
       started = true
+      // 꺼지며 남은 반쯤 쓴 저장 — 켤 때 되돌린다(거두기 · 백업보다 먼저 · 팀 서버도)
+      for (const m of await hub.list().catch(() => [])) {
+        const back = await serial(path.resolve(m.dir), () => recoverSave(m.dir)).catch((e) => (log('반쯤 쓴 저장 되돌리기', m.id, e.message), []))
+        if (back.length) { cache.delete(m.id); log('반쯤 쓴 저장을 되돌렸다', m.id, back.join(' · ')) }
+      }
       await backup.start(await hub.list(), { dataDir, log })
       // GitLab 봇 — 백업 자리가 없는 지식마다(켤 때 한 번 · 지식 추가 때)
       // 못 붙인 것(GitLab · 저장소가 잠깐 닿지 않음)은 30초 · 2분 · 10분 · 그 뒤 한 시간마다 다시 — 다시 켤 때까지 백업 없이 두지 않게

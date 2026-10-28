@@ -20,6 +20,7 @@ import { keepBlocks, hasBlockMarker } from './baseline.js'
 import { locate, parseRegistry } from './registry.js'
 import { parseVocab } from './vocab.js'
 import { ensureRepo, commitPaths } from './git.js'
+import { begin, writeAtomic } from './journal.js'
 import { watchedOf } from './watchmark.js'
 import { upsertVocab, upsertRegistry, cleanNames } from './namebook.js'
 
@@ -130,6 +131,7 @@ export function saveRecords(dir, records, { user, now = new Date() } = {}) {
     for (const sub of ['work', LOG_DIR]) for (const f of await fs.readdir(path.join(dir, sub)).catch(() => [])) if (f.endsWith('.md')) taken.add(nfc(f.slice(0, -3)).toLowerCase()) // 키는 소문자 — Windows 파일 이름은 대소문자를 가리지 않는다
     const out = []
     const written = []
+    const j = await begin(dir)
     try {
       for (const [i, r] of records.entries()) {
         try {
@@ -138,7 +140,7 @@ export function saveRecords(dir, records, { user, now = new Date() } = {}) {
           const bad = (r.tags || []).filter(isReservedTag)
           if (bad.length) fail('E_FORBIDDEN', `kmd 가 쓰는 태그다: ${bad.join(' · ')}`)
           if (r.curates?.length || r.reopens?.length || r.reflects?.length) fail('E_FORBIDDEN', '정리 판정은 kmd 가 쓴다')
-          const w = await writeRecord(dir, r, { user: nfc(user), now, taken })
+          const w = await writeRecord(dir, r, { user: nfc(user), now, taken, j })
           written.push(w)
           out.push({ i, id: w.id })
         } catch (e) {
@@ -147,16 +149,17 @@ export function saveRecords(dir, records, { user, now = new Date() } = {}) {
         }
       }
       const commit = written.length ? await commitPaths(dir, written.map((w) => w.rel), written.length === 1 ? written[0].title : `${written[0].title} 외 ${written.length - 1}개`, nfc(user)) : null
+      await j.done()
       return { records: out, commit }
     } catch (e) {
-      for (const w of written) await fs.rm(w.full, { force: true }).catch(() => {})
+      await j.undo().catch(() => {})
       throw e
     }
   })
 }
 
 // 기록 파일 하나 쓰기(커밋 없이) — id 를 정하고 쓰고 다시 읽어 대조한다 · 대조가 어긋나면 지우고 던진다
-async function writeRecord(dir, r, { user, now, taken }) {
+async function writeRecord(dir, r, { user, now, taken, j }) {
   const date = r.date || localStamp(now)
   const day = date.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2$3')
   const base = `${day}-${slugOf(r.title)}`
@@ -168,7 +171,8 @@ async function writeRecord(dir, r, { user, now, taken }) {
   const touches = [...new Set((r.touches || []).map((x) => nfc(x.trim())))]
   const rec = { id, title: nfc(r.title.trim()), date, author: user, touches, tags: (r.tags || []).map((t) => nfc(t.trim())), fixes: (r.fixes || []).map((x) => nfc(x.trim())), curates: [], reopens: [], reflects: [] }
   const full = path.join(dir, sub, `${id}.md`)
-  await fs.writeFile(full, renderRecord(rec, nfc(r.body)), 'utf8')
+  await j.add(`${sub}/${id}.md`)
+  await writeAtomic(full, renderRecord(rec, nfc(r.body)))
   const back = parseRecord(readText(await fs.readFile(full, 'utf8')), `${id}.md`)
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
   if (!back || back.id !== id || back.title !== rec.title || back.date !== date || back.author !== user || !same(back.touches, touches) || !same(back.tags, rec.tags)) {
@@ -270,10 +274,11 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
   if (!system && (await isTouchesFix(dir, { ...rec, body: r.body }, touches, registry))) rec.tags.push('touches-fix')
   const workRel = `${sub}/${id}.md`
   const workFull = path.join(dir, sub, `${id}.md`)
-  // 중간에 넘어지면 쓴 것을 되돌린다 — 반쯤 쓴 저장은 남기지 않는다
-  const undo = [() => fs.rm(workFull, { force: true })]
+  // 중간에 넘어지거나 꺼지면 쓴 것을 되돌린다 — 반쯤 쓴 저장은 남기지 않는다(저널 · 꺼졌으면 다음 저장 · 켤 때)
+  const j = await begin(dir)
   try {
-    await fs.writeFile(workFull, renderRecord(rec, nfc(r.body)), 'utf8')
+    await j.add(workRel)
+    await writeAtomic(workFull, renderRecord(rec, nfc(r.body)))
     // 다시 읽어 대조(F1) — 쓴 머리가 보낸 값 그대로 읽혀야 한다
     const back = parseRecord(readText(await fs.readFile(workFull, 'utf8')), `${id}.md`)
     const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
@@ -307,18 +312,18 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
       }
       const after = p.remove ? removeSection(start, { level: p.level, heading: p.heading }) : p.rename ? renameSection(start, { level: p.level, heading: p.heading, to: p.rename }) : replaceSection(start, { level: p.level, heading: p.heading, body: content, applied: p.applied !== undefined ? p.applied : id })
       if (!docs.includes(p.rel)) {
-        undo.push(() => (raw == null ? fs.rm(p.full, { force: true }) : fs.writeFile(p.full, raw, 'utf8')))
+        await j.add(p.rel)
         docs.push(p.rel)
       }
       await fs.mkdir(path.dirname(p.full), { recursive: true })
-      await fs.writeFile(p.full, after, 'utf8')
+      await writeAtomic(p.full, after)
     }
     // 이름 장부 · 자리 장부 — 바뀐 것만
     const books = []
     for (const [rel, raw, next] of [['_vocab.md', vocRaw, vocNext], ['_managed.md', regRaw, regNext]]) {
       if (!names.length || (raw || '') === next) continue
-      undo.push(() => (raw == null ? fs.rm(path.join(dir, rel), { force: true }) : fs.writeFile(path.join(dir, rel), raw, 'utf8')))
-      await fs.writeFile(path.join(dir, rel), next, 'utf8')
+      await j.add(rel)
+      await writeAtomic(path.join(dir, rel), next)
       books.push(rel)
     }
     // 항목 이름을 바꿨으면 자리 장부의 그 항목 줄도 새 머리로(이름은 그대로 · 항목이 문서에서 떨어지지 않게)
@@ -328,15 +333,16 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
       let t = regNow
       for (const p of renames) t = t.split('\n').map((l) => (l.includes(`\`${p.rel}\``) && l.includes(`\`## ${p.heading}\``) ? l.replace(`\`## ${p.heading}\``, `\`## ${p.rename}\``) : l)).join('\n')
       if (t !== regNow) {
-        if (!books.includes('_managed.md')) undo.push(() => fs.writeFile(path.join(dir, '_managed.md'), regRaw, 'utf8'))
-        await fs.writeFile(path.join(dir, '_managed.md'), t, 'utf8')
+        await j.add('_managed.md')
+        await writeAtomic(path.join(dir, '_managed.md'), t)
         if (!books.includes('_managed.md')) books.push('_managed.md')
       }
     }
     const commit = await commitPaths(dir, [workRel, ...docs, ...books], rec.title, user)
+    await j.done()
     return { id, record: workRel, docs, commit, date, ...(books.length ? { names: names.length } : {}) }
   } catch (e) {
-    for (const u of undo.reverse()) await u().catch(() => {})
+    await j.undo().catch(() => {})
     throw e
   }
 }

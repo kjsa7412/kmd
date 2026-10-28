@@ -19,6 +19,7 @@ import { parseVocab } from './vocab.js'
 import { renderRecord } from './frontmatter.js'
 import { localStamp, recordTakenSync } from './save.js'
 import { watchedOf } from './watchmark.js'
+import { begin, recover, writeAtomic } from './journal.js'
 
 let cfg = { quietMs: 30_000 }
 export function configure(o) {
@@ -55,6 +56,8 @@ async function lock(dir) {
 export async function collectNow(dir, { user, save }) {
   if (!fs.existsSync(path.join(dir, '.git'))) return null
   if (!(await lock(dir))) return null
+  // 꺼지며 남은 반쯤 쓴 저장은 먼저 되돌린다 — kmd 가 쓰다 만 글을 사람의 고침으로 들이지 않게
+  await recover(dir)
   const files = await changed(dir)
   if (!files.length) return null
   const reverted = []
@@ -123,20 +126,30 @@ export async function writeCollect(dir, { user, title, body, touches, heads, doc
   for (let n = 2; recordTakenSync(dir, id); n++) id = `${day}-편집기에서-고침-${n}`
   // 이력(log/) — 편집기로 바로 고친 일은 기록이 아니다(글은 이미 문서에 있다)
   await fsp.mkdir(path.join(dir, 'log'), { recursive: true })
-  await fsp.writeFile(path.join(dir, 'log', `${id}.md`), renderRecord({ id, title, date, author: user, touches, tags: ['edit'] }, body), 'utf8')
-  for (const p of docs) {
-    const full = path.join(dir, ...p.split('/'))
-    let t = await fsp.readFile(full, 'utf8').then(readText, () => null)
-    if (t == null) continue
-    for (const x of heads.filter((h) => h.p === p)) {
-      const sec = parseDoc(t, '').sections.find((s) => s.h === x.h)
-      if (sec) t = replaceSection(t, { heading: x.h, body: sec.body, applied: id })
+  // 넘어지거나 꺼지면 이력은 지우고 문서는 사람이 고친 글 그대로(표지만 빠진다 — 다음 거두기가 다시 들인다)
+  const j = await begin(dir)
+  try {
+    await j.add(`log/${id}.md`)
+    await writeAtomic(path.join(dir, 'log', `${id}.md`), renderRecord({ id, title, date, author: user, touches, tags: ['edit'] }, body))
+    for (const p of docs) {
+      const full = path.join(dir, ...p.split('/'))
+      let t = await fsp.readFile(full, 'utf8').then(readText, () => null)
+      if (t == null) continue
+      for (const x of heads.filter((h) => h.p === p)) {
+        const sec = parseDoc(t, '').sections.find((s) => s.h === x.h)
+        if (sec) t = replaceSection(t, { heading: x.h, body: sec.body, applied: id })
+      }
+      await j.add(p)
+      await writeAtomic(full, t)
     }
-    await fsp.writeFile(full, t, 'utf8')
+    // 지운 문서도 같은 묶음에(git add 가 지움을 싣는다)
+    const commit = await commitPaths(dir, [`log/${id}.md`, ...docs], title, user)
+    await j.done()
+    return { id, commit, docs }
+  } catch (e) {
+    await j.undo().catch(() => {})
+    throw e
   }
-  // 지운 문서도 같은 묶음에(git add 가 지움을 싣는다)
-  const commit = await commitPaths(dir, [`log/${id}.md`, ...docs], title, user)
-  return { id, commit, docs }
 }
 
 // 감시 — 바뀜이 오면 시계를 다시 건다 · 고요해지면 거둔다
