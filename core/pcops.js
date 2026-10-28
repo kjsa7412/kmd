@@ -96,6 +96,20 @@ async function replaceFile(f, body) {
 // 절대 경로가 깨진다. 판 이름만 글자로 넣는다(영문 · 숫자). node 를 부른 같은 줄에서 끝낸다 — 도는 중에 판을 바꿔 이 파일이
 // 바뀌어도 cmd 가 뒤쪽 바이트를 명령으로 읽지 않는다. `call exit /b %errorlevel%` 은 node 가 끝난 뒤에 펼쳐 그 종료 코드를 넘긴다
 // (`& exit /b` 만 쓰면 늘 0 이다)
+// 늘 켜기 작업이 .cmd 를 바로 부르면 콘솔 창이 떠 있다 — wscript 가 창 없이(0) 불러 끝날 때까지 기다리고 종료 코드를 넘긴다
+// (작업이 도는 중으로 남고 RestartOnFailure 가 그대로 듣는다). 자기 자리에서 kmd.cmd 를 찾아 글자는 영문만 둔다.
+// cmd /c 는 앞뒤 따옴표를 하나씩 벗기므로 통째로 한 겹 더 싼다
+const HIDDEN_VBS = [
+  'Set sh = CreateObject("WScript.Shell")',
+  'd = CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName)',
+  'a = ""',
+  'For Each x In WScript.Arguments',
+  '  a = a & " """ & x & """"',
+  'Next',
+  'WScript.Quit sh.Run("cmd /c """"" & d & "\\kmd.cmd""" & a & """", 0, True)',
+  ''
+].join('\r\n')
+
 export async function writeLaunchers(home, ver) {
   const dir = path.join(home, 'versions', ver)
   const bin = path.join(home, 'bin')
@@ -109,6 +123,7 @@ export async function writeLaunchers(home, ver) {
       : `#!/bin/sh\nexec "${hasNode ? nodeExe : 'node'}" "${path.join(dir, 'server', 'bin', name + '.mjs')}" "$@"\n`
     await replaceFile(launcherOf(home, name), body)
   }
+  if (win) await replaceFile(path.join(bin, 'kmd-hidden.vbs'), HIDDEN_VBS)
   return { bin, kmd: launcherOf(home, 'kmd'), key: launcherOf(home, 'kmd-key') }
 }
 
@@ -139,9 +154,11 @@ export function makeShortcut(o) {
 }
 
 // 실행기가 있으면 작업은 실행기를(판을 바꿔도 다시 걸 일이 없다) · 없으면 지금 도는 node 와 kmd.mjs 를
+// 실행기가 .cmd 면 곁의 kmd-hidden.vbs 를 wscript 로 — 창 없이 돈다
 export function taskXml({ node = process.execPath, script, root, user = os.userInfo().username, launcher = null }) {
-  const cmd = launcher || node
-  const args = `${launcher ? '' : `"${script}" `}up "${root}" --no-open`
+  const vbs = launcher && /\.cmd$/i.test(launcher) ? launcher.replace(/[^\\/]+$/, 'kmd-hidden.vbs') : null
+  const cmd = vbs ? 'wscript.exe' : launcher || node
+  const args = `${vbs ? `"${vbs}" ` : launcher ? '' : `"${script}" `}up "${root}" --no-open`
   return `<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo><Description>kmd: 이 PC 의 지식(로그온 때 켜고 멈추면 다시)</Description></RegistrationInfo>

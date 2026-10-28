@@ -264,8 +264,21 @@ test('판 자리 · 실행기: 판을 바꾸면 실행기만 다시 쓴다 · �
   await linkVersion(home, '1.2.4')
   // 늘 켜기 작업 — 실행기를 부르면 판을 바꿔도 다시 걸 일이 없다
   const xml = taskXml({ root: 'D:\\kmd', launcher: r2.kmd, user: 'kim' })
-  assert.ok(xml.includes(`<Command>${r2.kmd}</Command>`))
-  assert.match(xml, /<Arguments>up &quot;D:\\kmd&quot; --no-open<\/Arguments>/)
+  // 창 없이 — .cmd 곁의 kmd-hidden.vbs 를 wscript 로
+  const vbs = path.join(path.dirname(r2.kmd), 'kmd-hidden.vbs')
+  if (process.platform === 'win32') {
+    assert.ok(xml.includes('<Command>wscript.exe</Command>'))
+    assert.ok(xml.includes(`<Arguments>&quot;${vbs}&quot; up &quot;D:\\kmd&quot; --no-open</Arguments>`))
+    assert.ok(fs.existsSync(vbs), '실행기와 함께 쓴다')
+    // 인자(빈칸 · 한글)를 그대로 넘기고 kmd.cmd 의 종료 코드를 돌려준다
+    mk('7.0.1', "process.exit(process.argv.slice(2).join('|') === 'up|D:\\\\내 지식|--no-open' ? 5 : 4)\n")
+    await linkVersion(home, '7.0.1')
+    assert.equal(spawnSync('cscript', ['//nologo', vbs, 'up', 'D:\\내 지식', '--no-open']).status, 5)
+    await linkVersion(home, '1.2.4')
+  } else {
+    assert.ok(xml.includes(`<Command>${r2.kmd}</Command>`))
+    assert.match(xml, /<Arguments>up &quot;D:\\kmd&quot; --no-open<\/Arguments>/)
+  }
   assert.ok(taskXml({ node: 'C:\\n\\node.exe', script: 'C:\\k\\kmd.mjs', root: 'D:\\kmd', user: 'kim' }).includes('&quot;C:\\k\\kmd.mjs&quot; up'), '실행기가 없으면 예전처럼')
   const task = await kmd(['pc', 'task', '--root', path.join(tmp, '내 지식'), '--print'])
   assert.ok(task.out.includes(path.join(tmp, '내 지식')), '--root 를 받는다')
