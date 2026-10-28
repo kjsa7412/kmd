@@ -13,18 +13,64 @@ import { splitBlocks, parseTable } from '../core/baseline.js'
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 
-md.renderer.rules.table_open = () => '<table class="t">\n'
+// 맨 글자 「README.md」 를 바깥 주소(http://README.md)로 잇지 않는다 — https:// · www. · 메일만 저절로 링크
+md.linkify.set({ fuzzyLink: false })
+// 표는 감싼다 — 넓은 표가 좁은 화면에서 옆으로 밀리게(본문은 밀리지 않게)
+md.renderer.rules.table_open = () => '<div class="tblwrap"><table class="t">\n'
+md.renderer.rules.table_close = () => '</table></div>\n'
 
-// 글 속 링크 → 지식 안의 문서면 openDoc · 기록이면 openRec · 밖이면 새 창
-function linkTarget(k, fromPath, href) {
-  if (!href || /^[a-z]+:/i.test(href) || href.startsWith('#')) return null
-  let rel = decodeURIComponent(href.split('#')[0])
-  if (!rel) return null
-  const p = path.posix.normalize(path.posix.join(path.posix.dirname(fromPath), rel))
-  if (/^docs\/.+\.md$/i.test(p)) return { a: 'openDoc', d: p.slice(5, -3) }
-  const w = p.match(/^work\/([^/]+)\.md$/i)
-  if (w) return { a: 'openRec', r: w[1] }
-  return null
+const safeDec = (s) => {
+  try {
+    return decodeURIComponent(s)
+  } catch {
+    return null
+  }
+}
+// 문서 id 찾기 — 쓴 글자 그대로 · NFC · 대소문자 무시(Windows · 맥에서 쓴 글) · 지식을 모르면(문서 목록 없음) 쓴 그대로
+const docIds = new WeakMap()
+function docIdOf(k, id) {
+  if (!k?.docs) return null
+  if (!docIds.has(k)) docIds.set(k, new Map(k.docs.map((d) => [d.id.normalize('NFC').toLowerCase(), d.id])))
+  return docIds.get(k).get(String(id).normalize('NFC').toLowerCase()) || null
+}
+// 글 속 링크 → 무엇인가(작성기준 4절)
+//   { t: 'doc', d } · { t: 'item', d, h } · { t: 'missing', d } · { t: 'rec', r, sub } · { t: 'ext' } · { t: 'mail' } · { t: 'dead' }
+//   문서 = docs/ 아래 .md(확장자 없으면 .md 를 붙여 있는 문서면) · '/' 로 시작하면 지식 뿌리 기준 · '#머리' 는 같은 문서 항목
+//   기록 · 이력 = work/ · log/ 의 .md · 바깥 = http(s) · mailto · 그 밖(내부 경로 · 시스템 주소 · 깨진 % 글자)은 열 수 없는 링크
+export function linkTarget(k, fromPath, href) {
+  const dead = { t: 'dead' }
+  const s = String(href || '').trim()
+  if (!s) return dead
+  if (/^https?:\/\//i.test(s)) return { t: 'ext' }
+  if (/^mailto:/i.test(s)) return { t: 'mail' }
+  if (/^[a-z][a-z0-9+.-]*:/i.test(s) || s.startsWith('//')) return dead
+  const at = s.indexOf('#')
+  const part = (at < 0 ? s : s.slice(0, at)).split('?')[0]
+  const frag = at < 0 ? '' : s.slice(at + 1)
+  if (frag.startsWith('/')) return dead // #/… 화면 주소
+  const h = frag ? safeDec(frag) : ''
+  if (h == null) return dead
+  const from = String(fromPath || '')
+  if (!part) {
+    // 같은 문서의 항목
+    const self = /^docs\/.+\.md$/i.test(from) ? from.slice(5, -3) : null
+    return self && h ? { t: 'item', d: self, h: h.normalize('NFC') } : dead
+  }
+  const rel = safeDec(part)
+  if (rel == null) return dead
+  const r0 = rel.normalize('NFC').replace(/\\/g, '/')
+  if (/^\/(api|manual)\//i.test(r0)) return dead
+  const p = r0.startsWith('/') ? path.posix.normalize(r0.replace(/^\/+/, '')) : path.posix.normalize(path.posix.join(path.posix.dirname(from), r0))
+  if (p === '..' || p.startsWith('../') || p.startsWith('/')) return dead
+  const w = p.match(/^(work|log)\/([^/]+?)\.md$/i)
+  if (w) return { t: 'rec', r: w[2], sub: w[1].toLowerCase(), ...(k?.byWork && !k.byWork.has(w[2]) ? { gone: true } : {}) }
+  if (!/^docs\/./i.test(p)) return dead
+  const md = /\.md$/i.test(p)
+  const want = md ? p.slice(5, -3) : p.slice(5)
+  if (!k?.docs) return md ? (h ? { t: 'item', d: want, h: h.normalize('NFC') } : { t: 'doc', d: want }) : dead
+  const id = docIdOf(k, want)
+  if (id) return h ? { t: 'item', d: id, h: h.normalize('NFC') } : { t: 'doc', d: id }
+  return md ? { t: 'missing', d: want } : dead
 }
 
 // 문단 안의 줄바꿈은 줄마다 문단으로 — 목업(paras)이 줄 하나를 <p> 하나로 그린다
@@ -53,20 +99,30 @@ export function editParts(body, { src = {} } = {}) {
   return { md: text.replace(/\u0000block\d+\u0000/g, '').replace(/\n{3,}/g, '\n\n').trim(), locks: blocks.map((b) => autoHtml(b, { checked: src[b.src]?.checkedAt, lock: true })).join('') }
 }
 
+// 링크 모양 — 문서 'dlink doc' · 항목 'dlink item' · 없는 문서 'dlink doc missing' · 기록 · 이력 'dlink rec' · 바깥 'xlink'(새 창) ·
+// 열 수 없는 것은 <span class="deadlink">(눌러지는 것처럼 보이지 않게)
 md.renderer.rules.link_open = (tokens, i, opts, env, self) => {
   const t = tokens[i]
   const href = t.attrGet('href')
-  const to = env?.k ? linkTarget(env.k, env.fromPath, href) : null
-  if (to) {
-    t.attrs = [['class', 'dlink'], ['data-a', to.a], ['data-k', env.k.id], to.d ? ['data-d', to.d] : ['data-r', to.r]]
-  } else if (href && /^https?:/i.test(href)) {
-    t.attrSet('target', '_blank')
-    t.attrSet('rel', 'noopener noreferrer')
-  } else {
-    t.attrs = [['class', 'dlink']]
+  const to = linkTarget(env?.k || null, env?.fromPath, href)
+  const kid = env?.k?.id ?? ''
+  if (to.t === 'doc' || to.t === 'item') t.attrs = [['class', to.t === 'item' ? 'dlink item' : 'dlink doc'], ['data-a', 'openDoc'], ['data-k', kid], ['data-d', to.d], ...(to.h ? [['data-h', to.h]] : [])]
+  else if (to.t === 'missing') t.attrs = [['class', 'dlink doc missing'], ['title', '없는 문서']]
+  else if (to.t === 'rec') t.attrs = [['class', `dlink rec${to.gone ? ' missing' : ''}`], ['data-a', 'openRec'], ['data-k', kid], ['data-r', to.r], ...(to.gone ? [['title', '없는 기록']] : [])]
+  else if (to.t === 'ext') t.attrs = [['href', href], ['class', 'xlink'], ['target', '_blank'], ['rel', 'noopener noreferrer']]
+  else if (to.t === 'mail') t.attrs = [['href', href], ['class', 'xlink']]
+  else {
+    // 짝인 link_close 도 span 으로
+    for (let j = i + 1; j < tokens.length; j++)
+      if (tokens[j].type === 'link_close' && tokens[j].level === t.level) {
+        tokens[j].meta = { ...(tokens[j].meta || {}), dead: true }
+        break
+      }
+    return '<span class="deadlink" title="열 수 없는 링크">'
   }
   return self.renderToken(tokens, i, opts)
 }
+md.renderer.rules.link_close = (tokens, i, opts, env, self) => (tokens[i].meta?.dead ? '</span>' : self.renderToken(tokens, i, opts))
 
 // 글 속 그림 — 이 지식의 첨부(docs|work/assets)만 그린다. 주소는 화면이 채운다(data-att · data-ak) — 팀 화면의 내 PC 지식은
 // 짝 열쇠로 PC 에서 받는다. 그 밖의 주소(/api/… 등)는 그리지 않는다(같은 출처 그림이 연 사람의 쿠키로 길을 부르지 않게)
@@ -84,22 +140,55 @@ md.renderer.rules.image = (tokens, i, opts, env) => {
   return `<span class="muted">[그림${alt ? ': ' + alt : ''}]</span>`
 }
 
-export function citesOf(doc) {
+// 글 속 링크 표기들(코드 울타리 안 · 그림은 빼고) — 렌더와 같은 풀이(linkTarget)로 센다 · 깨진 % 하나가 화면 전체를 깨뜨리지 않게
+function hrefsOf(doc) {
   const out = []
-  for (const m of [doc.intro, ...doc.sections.map((s) => s.body)].join('\n').matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
-    const to = linkTarget({ id: '' }, doc.path, m[1])
-    if (to?.r && !out.includes(to.r)) out.push(to.r)
+  let fence = null
+  for (const ln of [doc.intro, ...doc.sections.map((s) => s.body)].join('\n').split('\n')) {
+    const f = ln.match(/^\s{0,3}(`{3,}|~{3,})/)
+    if (f) {
+      fence = !fence ? f[1] : f[1][0] === fence[0] && f[1].length >= fence.length ? null : fence
+      continue
+    }
+    if (fence) continue
+    for (const m of ln.replace(/(`+)[^`]*?\1/g, '').matchAll(/(!?)\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\)/g)) if (!m[1]) out.push(m[2])
   }
   return out
 }
-export function linksOf(doc) {
+// 기록 근거 — 본문 링크 · 참고 줄의 기록(work/ · log/)
+export function citesOf(doc, k = null) {
   const out = []
-  const all = [doc.intro, ...doc.sections.map((s) => s.body)].join('\n')
-  for (const m of all.matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
-    const to = linkTarget({ id: '' }, doc.path, m[1])
-    if (to?.d && to.d !== doc.id && !out.includes(to.d)) out.push(to.d)
+  const refs = (doc.sections || []).flatMap((s) => (s.log || []).map((l) => (String(l).match(/\]\(([^)\s]+)\)/) || [])[1]).filter(Boolean))
+  for (const href of [...hrefsOf(doc), ...refs]) {
+    const to = linkTarget(k, doc.path, href)
+    if (to.t === 'rec' && !out.includes(to.r)) out.push(to.r)
   }
   return out
+}
+export function linksOf(doc, k = null) {
+  const out = []
+  for (const href of hrefsOf(doc)) {
+    const to = linkTarget(k, doc.path, href)
+    if ((to.t === 'doc' || to.t === 'item') && to.d !== doc.id && !out.includes(to.d)) out.push(to.d)
+  }
+  return out
+}
+// 참고 줄 → { date, title, id, sub: 'work' | 'log', note }(풀리지 않는 줄은 글자 그대로 title)
+export function refOf(docPath, line) {
+  const m = String(line).match(/^-\s+(?:(\d{4}-\d{2}-\d{2})\s+)?\[([^\]]*)\]\(([^)\s]+)\)\s*(.*)$/)
+  if (!m) return { date: null, title: String(line).replace(/^-\s+/, ''), id: null, sub: null, note: null }
+  const to = linkTarget(null, docPath, m[3])
+  return { date: m[1] || null, title: m[2], id: to.t === 'rec' ? to.r : null, sub: to.t === 'rec' ? to.sub : null, note: m[4].replace(/^·\s*/, '').trim() || null }
+}
+
+// 출처 목록(잠시 · 본문 html 끝) — 「출처 n」 과 줄마다 날짜 · 기록 링크 · 한 마디
+export function refsHtml(k, refs) {
+  if (!refs.length) return ''
+  const li = refs.map((r) => {
+    const t = r.id ? `<a class="dlink rec" data-a="openRec" data-k="${esc(k.id)}" data-r="${esc(r.id)}">${esc(r.title)}</a>` : esc(r.title)
+    return `<li>${r.date ? `${esc(r.date)} ` : ''}${t}${r.note ? ` · ${esc(r.note)}` : ''}</li>`
+  })
+  return `<div class="srcrefs"><div class="srch">출처 ${refs.length}</div><ul>${li.join('')}</ul></div>`
 }
 
 export function knowledgeRow(k) {
@@ -149,7 +238,7 @@ export function tree(k) {
 // 이 문서를 가리키는 것 — 기록(이 문서의 항목을 건드린 것) · 문서(이 문서를 링크한 것) · 이름만 나온 곳
 function backlinks(k, d) {
   const recs = k.works.filter((w) => w.id === d.rec || w.touches.some((c) => sectionOf(k, c)?.loc?.doc === d.path))
-  const linkers = k.docs.filter((o) => o !== d && linksOf(o).includes(d.id))
+  const linkers = k.docs.filter((o) => o !== d && linksOf(o, k).includes(d.id))
   const names = [d.title, ...d.sections.flatMap((s) => coordsOfSection(k, d, s.h).flatMap((c) => [labelOf(k, c), ...(k.vocab.coords.get(c)?.aliases || [])]))].filter((x) => x && x.length >= 2)
   const uniq = [...new Set(names)]
   const ments = []
@@ -215,27 +304,35 @@ export function docView(k, docId, { src = {} } = {}) {
     const recs = k.works.filter((w) => w.touches.some((c) => coords.includes(c)) || w.tags.includes(at))
     const { pick: pendRecs, more: pendMore } = pendPick(recs.map((w) => (w.state === 'nowhere' && w.tags.includes(at) ? { ...w, state: 'pend', nowhere: true } : w)))
     const by = s.applied && k.byWork.get(s.applied)
+    const refs = (s.log || []).map((l) => refOf(d.path, l))
     return {
       h: s.h,
-      html: render(k, d.path, s.body, { src }),
+      // 출처는 본문 끝에 작은 목록으로 잠시 붙인다 — 화면(app/main.js)이 refs 로 「출처 n」 칩 · 참고 칸을 그리면 뺀다
+      html: render(k, d.path, s.body, { src }) + refsHtml(k, refs),
       ...editParts(s.body, { src }),
 
       base: sha16(s.body),
       recs: recs.length,
       pend: pendRecs.map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title, ...(w.nowhere ? { nowhere: true } : {}) })),
       pendMore,
+      // 반영 대기 n — 보이는 8건 + 넘친 수
+      pendN: pendRecs.length + pendMore,
+      // 출처 — 문서 끝 참고 블록의 이 항목 줄(본문 html 에는 나오지 않는다)
+      refs,
       by: by ? { id: by.id, date: by.date, author: by.author } : null,
       named: coords.length > 0,
     }
   })
-  const links = linksOf(d).filter((id) => k.docs.some((o) => o.id === id)).map((id) => ({ id, title: k.docs.find((o) => o.id === id).title }))
+  const links = linksOf(d, k).filter((id) => k.docs.some((o) => o.id === id)).map((id) => ({ id, title: k.docs.find((o) => o.id === id).title }))
   return {
     id: d.id,
     title: d.title,
     path: d.path,
     when: d.mtime,
-    intro: d.intro ? render(k, d.path, d.intro) : '',
+    intro: d.intro ? render(k, d.path, d.intro, { src }) : '',
     sections,
+    // 출처 요약 — 항목마다 참고 줄 수
+    refs: { n: sections.reduce((a, s) => a + s.refs.length, 0), items: sections.filter((s) => s.refs.length).map((s) => ({ h: s.h, n: s.refs.length })) },
     links,
     backlinks: backlinks(k, d),
     origins: originsOf(k, d),
@@ -344,7 +441,7 @@ export function model(k) {
   const itemOfSec = new Map(items.filter((i) => i.doc).map((i) => [`${i.doc}\n${i.sec}`, i.key]))
   const recs = k.works.map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title, body: w.body.replace(/\s+/g, ' ').slice(0, 200), state: w.state, fixes: w.fixes, items: w.touches.filter((c) => byKey.has(c)) }))
   // cites — 글 속 기록 링크(../work/…md · 그 글의 근거) · 그래프의 「근거」 선
-  const docs = k.docs.map((d) => ({ id: d.id, title: d.title, when: d.mtime, first: firstOf(d.intro || d.sections[0]?.body), links: linksOf(d).filter((x) => k.docs.some((o) => o.id === x)), cites: citesOf(d).filter((x) => k.byWork.has(x)), items: d.sections.map((s) => itemOfSec.get(`${d.id}\n${s.h}`)).filter(Boolean) }))
+  const docs = k.docs.map((d) => ({ id: d.id, title: d.title, when: d.mtime, first: firstOf(d.intro || d.sections[0]?.body), links: linksOf(d, k).filter((x) => k.docs.some((o) => o.id === x)), cites: citesOf(d, k).filter((x) => k.byWork.has(x)), items: d.sections.map((s) => itemOfSec.get(`${d.id}\n${s.h}`)).filter(Boolean) }))
   // 이 항목을 쓰는 곳 — 다른 항목의 글에 이 항목 이름 · 다른 이름이 나온다(테이블 빼고)
   const uses = {}
   const bodies = items.filter((i) => i.doc && !i.table).map((i) => {

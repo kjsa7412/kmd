@@ -14,11 +14,11 @@ import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { readText, nfc } from './text.js'
-import { headsOf, headingMatches } from './sections.js'
+import { headsOf, headingMatches, blankRef } from './sections.js'
 import { locate } from './registry.js'
 import { labelOf, sectionOf, coordsOfSection } from './knowledge.js'
 
-export const INDEX_VERSION = 3
+export const INDEX_VERSION = 4 // 4 — 참고 블록을 색인하지 않는다
 const CHUNK = 1200
 const MAX_FILE = 4 << 20
 
@@ -68,8 +68,9 @@ const hitIn = (normText, w) => normText.includes(w)
 
 // ── 토막 자르기 ──
 // 머리(#)마다 덩어리 → 표는 행 경계에서 자르고 토막마다 머리 줄과 표 머리 행을 붙인다 · 긴 문단은 문장 경계에서
+//   문서 끝 참고 블록은 토막에 넣지 않는다(빈 줄로 · 줄 번호는 그대로) — 마지막 항목의 글로 잡히지 않게
 export function chunkText(text) {
-  const lines = readText(text).split('\n')
+  const lines = blankRef(readText(text).split('\n'))
   const heads = headsOf(lines)
   const blocks = []
   let start = 0
@@ -145,7 +146,7 @@ export async function buildIndex(k, { dataDir = null, prev = null } = {}) {
       continue
     }
     changed = true
-    const heads = headsOf(text.split('\n'))
+    const heads = headsOf(blankRef(text.split('\n')))
     const kind = p.startsWith('work/') ? 'rec' : 'doc'
     const chunks = chunkText(text).map((c) => {
       const toks = tokens(c.text)

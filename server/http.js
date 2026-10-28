@@ -84,7 +84,13 @@ const MANUALS = [
   { slug: '운영', file: 'kmd_운영.md', title: '운영 · 되살리기', modes: ['team', 'pc'] },
 ]
 const manualMd = new MarkdownIt({ html: false, linkify: true })
+// 서버가 그리는 페이지(설명서 · 확인 · 받기)도 화면과 같은 토큰을 쓴다. 이 페이지들의 CSP 는 바깥 CSS 를 막으니(style-src 'unsafe-inline')
+// kmd.css 맨 위 :root(토큰의 유일한 자리)만 떼어 <style> 에 넣는다 — 값은 kmd.css 하나만 고친다
+let pageRoot = ''
+const pageRootP = fs.readFile(path.join(APP, 'kmd.css'), 'utf8').then((s) => { pageRoot = s.match(/:root\{[\s\S]*?\n\}/)?.[0] || '' }).catch(() => {})
+const PAGE_CSS = `*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:var(--fs-md)/1.65 var(--font)}a{color:var(--accent)}h1{font-size:var(--fs-xl);line-height:1.35}h2{font-size:var(--fs-lg);margin-top:26px}main{max-width:var(--w-text);margin:0 auto;padding:var(--sp-9) var(--sp-8) 60px;background:var(--surface);min-height:100vh;min-height:100dvh;overflow-wrap:anywhere}nav{font-size:var(--fs);color:var(--text-2);margin-bottom:18px;padding-bottom:var(--sp-5);border-bottom:1px solid var(--border)}table{border-collapse:collapse;width:100%;max-width:100%;font-size:var(--fs);display:block;overflow-x:auto}th,td{border:1px solid var(--border);padding:5px var(--sp-4);text-align:left;vertical-align:top;overflow-wrap:normal;min-width:4em}th{background:var(--surface-2)}code{font:var(--fs-mono) var(--mono);background:var(--surface-2);padding:1px 5px;border-radius:var(--r-xs)}pre{background:var(--surface-2);border:1px solid var(--border);padding:var(--sp-5) var(--sp-6);border-radius:var(--r);overflow-x:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:var(--fs-mono)/1.55 var(--mono)}pre code{background:none;padding:0}img{max-width:100%;height:auto}.m{color:var(--text-3);font-size:var(--fs)}button{font:inherit;height:34px;padding:0 var(--sp-8);border-radius:var(--r);border:1px solid var(--border-strong);background:var(--surface);color:var(--text);cursor:pointer}button:hover{background:var(--hover)}button.ok{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}button.ok:hover{background:var(--accent-hover)}a:focus-visible,button:focus-visible{outline:0;box-shadow:var(--focus-ring)}@media (max-width:600px){main{padding:var(--sp-7) var(--sp-6) 40px}}`
 async function manualPage(mode, slug) {
+  await pageRootP
   const list = MANUALS.filter((m) => m.modes.includes(mode))
   const m = list.find((x) => x.slug === slug) || (slug ? null : list[0])
   if (!m) return null
@@ -95,7 +101,7 @@ async function manualPage(mode, slug) {
   const esc = (s) => String(s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c])
   const nav = list.map((x) => (x === m ? `<b>${esc(x.title)}</b>` : `<a href="/manual/${encodeURIComponent(x.slug)}">${esc(x.title)}</a>`)).join(' · ')
   return `<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>kmd 설명서: ${esc(m.title)}</title>
-<style>body{font:14px/1.65 system-ui,-apple-system,'Malgun Gothic',sans-serif;margin:0;background:#f6f7f9;color:#1d232b}main{max-width:820px;margin:0 auto;padding:22px 16px 60px;background:#fff;min-height:100vh;box-sizing:border-box}nav{font-size:13px;color:#5b6573;margin-bottom:18px;padding-bottom:10px;border-bottom:1px solid #e3e6ea}a{color:#2f6fd6}h1{font-size:20px}h2{font-size:16px;margin-top:26px}table{border-collapse:collapse;width:100%;font-size:13px;display:block;overflow-x:auto}th,td{border:1px solid #e3e6ea;padding:5px 8px;text-align:left;vertical-align:top}code{background:#f1f3f5;padding:1px 4px;border-radius:4px;font-size:12.5px}pre{background:#f1f3f5;padding:10px;border-radius:7px;overflow-x:auto;white-space:pre-wrap}</style>
+<style>${pageRoot}${PAGE_CSS}</style>
 <main><nav>kmd 설명서: ${nav}</nav>${manualMd.render(body)}</main></html>`
 }
 
@@ -172,8 +178,8 @@ export function installPs({ origin, ticket, pkg, kn = null, root = null }) {
 
 // 확인 창 한 장 — 무엇을 · 어느 팀 화면이 시켰는지 그대로 보이고 [확인] · [거절]. 창 열쇠는 주소의 # 뒤(서버 기록에 남지 않는다)
 const okPage = (nonce) => `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>kmd: 확인</title>
-<style>body{font:15px/1.6 system-ui,'Malgun Gothic',sans-serif;max-width:640px;margin:40px auto;padding:0 16px;color:#222}h1{font-size:19px}pre{background:#f4f3ef;padding:10px;border-radius:6px;white-space:pre-wrap;word-break:break-all;font-size:13px}.r{display:flex;gap:10px;margin-top:18px}button{font:inherit;padding:8px 18px;border-radius:6px;border:1px solid #bbb;background:#fff;cursor:pointer}button.ok{background:#1f5fbf;color:#fff;border-color:#1f5fbf}.m{color:#666;font-size:13px}</style></head>
-<body><h1>팀 화면이 이 PC 에 시키는 일</h1><div id="b" class="m">읽는 중…</div>
+<style>${pageRoot}${PAGE_CSS}body{background:var(--surface)}main{max-width:640px;padding-top:40px}pre{word-break:break-all}.r{display:flex;gap:var(--sp-5);margin-top:18px;flex-wrap:wrap}</style></head>
+<body><main><h1>팀 화면이 이 PC 에 시키는 일</h1><div id="b" class="m">읽는 중…</div></main>
 <script nonce="${nonce}">
 const s = location.hash.slice(1); history.replaceState(null, '', '/ok')
 const b = document.getElementById('b')
@@ -652,6 +658,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       admin(ctx)
       return out(200, await hub.backupAdopt(ctx, decodeURIComponent(ba[1])))
     }
+    // 옛 문서 옮기기(경과 → 참고 블록) — 관리자(비밀번호 한 번 더) · { dry } 면 쓰지 않고 결과만
+    const dfm = p.match(/^\/api\/k\/([^/]+)\/docfmt$/)
+    if (dfm && req.method === 'POST') {
+      admin(ctx)
+      return out(200, await hub.docfmt(decodeURIComponent(dfm[1]), ctx, { dry: !!(await readBody(req)).dry }))
+    }
     // 지식 추가 — 새 이름 · 내 폴더(PC)
     if (p === '/api/knowledge/add') {
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
@@ -945,6 +957,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (req.method === 'POST' && ['cross-site', 'same-site'].includes(String(req.headers['sec-fetch-site'] || '')) && !xo?.open) throw new KmdError('E_FORBIDDEN', '다른 곳의 화면에서 온 요청은 받지 않는다')
       // 확인 창 — 팀 화면이 시킨 일을 이 PC 의 사람이 본다 · 창 열쇠(#)는 이 PC 가 연 주소에만 있다 · 같은 출처의 글로만 답한다
       if (mode === 'pc' && p === '/ok' && req.method === 'GET') {
+        await pageRootP // 켠 직후에도 색 · 글꼴 값(:root)을 다 읽은 뒤 그린다
         const nonce = crypto.randomBytes(12).toString('base64')
         return send(res, 200, okPage(nonce), 'text/html; charset=utf-8', { 'content-security-policy': `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'` })
       }
@@ -999,7 +1012,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (mode === 'team' && req.method === 'GET' && (p === '/dl' || p.startsWith('/dl/'))) {
         const dl = dlDir()
         const files = (await fs.readdir(dl).catch(() => [])).filter((n) => /\.(zip|tgz|exe|msi)$/i.test(n))
-        if (p === '/dl') return send(res, 200, `<!doctype html><meta charset="utf-8"><title>kmd 받기</title><body style="font:15px system-ui;margin:40px;max-width:760px"><h1>kmd 받기</h1>${files.length ? `<ul>${files.map((n) => `<li><a href="/dl/${encodeURIComponent(n)}">${n.replace(/[<>&"]/g, '')}</a></li>`).join('')}</ul><p>보통은 받을 일이 없다. 팀 화면 › 설정 › 에이전트 설치의 <b>설치 한 줄</b>을 PowerShell 에 붙여 넣으면 이 꾸러미를 저절로 받아 깔고 팀에 잇는다.</p><p>손으로 깔려면: zip 을 풀고 그 폴더에서 <code>kmd.cmd up</code> 으로 켠다.</p>` : '<p>아직 PC 꾸러미가 없다. 관리자가 팀 꾸러미로 설치하면 함께 놓인다. 관리자에게 묻는다.</p>'}<p><a href="/manual">설명서</a></p></body>`, 'text/html; charset=utf-8')
+        if (p === '/dl') { await pageRootP; return send(res, 200, `<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>kmd 받기</title><style>${pageRoot}${PAGE_CSS}main{padding-top:40px}</style><body><main><h1>kmd 받기</h1>${files.length ? `<ul>${files.map((n) => `<li><a href="/dl/${encodeURIComponent(n)}">${n.replace(/[<>&"]/g, '')}</a></li>`).join('')}</ul><p>보통은 받을 일이 없다. 팀 화면 › 설정 › 에이전트 설치의 <b>설치 한 줄</b>을 PowerShell 에 붙여 넣으면 이 꾸러미를 저절로 받아 깔고 팀에 잇는다.</p><p>손으로 깔려면: zip 을 풀고 그 폴더에서 <code>kmd.cmd up</code> 으로 켠다.</p>` : '<p>아직 PC 꾸러미가 없다. 관리자가 팀 꾸러미로 설치하면 함께 놓인다. 관리자에게 묻는다.</p>'}<p><a href="/manual">설명서</a></p></main></body></html>`, 'text/html; charset=utf-8') }
         const n = decodeURIComponent(p.slice(4))
         if (!files.includes(n)) return send(res, 404, '없다', 'text/plain; charset=utf-8')
         // 꾸러미는 수십 MB — 메모리에 다 읽지 않고 흘려 보낸다(여럿이 함께 깔아도 서버 메모리가 받는 사람 수만큼 늘지 않게)

@@ -33,6 +33,7 @@ import { expandSections } from '../core/excerpt.js'
 import { FILE_SCHEMA, filePrompt, fileRecord, COMMIT_SCHEMA, commitPrompt, commitAnalyzed } from '../core/analyze.js'
 import { renderRecord } from '../core/frontmatter.js'
 import { stampAll } from '../core/sections.js'
+import { docfmtDir, checkFormat } from '../core/docformat.js'
 import { fileURLToPath } from 'node:url'
 import { existsSync, readFileSync, statSync, watch as fsWatch } from 'node:fs'
 import * as sendLib from '../core/send.js'
@@ -575,7 +576,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           for (const d of r0.docs) { const n = d.replace(/^docs\/|\.md$/g, ''); if (!run.docs.includes(n)) run.docs.push(n) }
           run.names += r0.names || 0
         }
-        return { ...r0, warnings: [] }
+        return { ...r0, warnings: r0.formatKept || [] }
       }
       if (ctx.machine && ctx.machine.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
       const shut = backup.closed(meta)
@@ -595,11 +596,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             const x = sectionOf(k, String(s.coord).trim().normalize('NFC'))
             if (!x) throw new KmdError('E_NOTFOUND', `「${s.coord}」 이 들어갈 문서가 정해져 있지 않다. 기록만 보내거나 문서 · 머리로 가리킨다`)
             add.push(s.coord)
+            // 문서 꼴(작성기준 7절 — 저장 길 모두) · 기록에 싣기 전에 같은 검사(정리 때 그대로 문서에 들어가지 않게)
+            if (typeof s.content === 'string') checkFormat(s.coord, s.content, { doc: x.loc?.doc, old: x.sec ? x.sec.body : null })
             lines.push(`## ${x.sec?.h || x.loc?.heading || s.coord}\n${String(s.content || '').trim()}`)
             continue
           }
           const d = s.doc && k.docs.find((x) => x.id === String(s.doc).replace(/^docs\/|\.md$/g, ''))
           if (!d) throw new KmdError('E_NOTFOUND', `「${s.doc || ''}」 문서가 없다. 기록만 보내거나 있는 문서 · 머리로 가리킨다`)
+          if (typeof s.content === 'string') checkFormat(s.heading || d.title, s.content, { doc: d.path, old: d.sections.find((y) => y.h === String(s.heading || '').trim())?.body ?? null })
           lines.push(`## ${s.heading}\n${String(s.content || '').trim()}`)
           if (s.heading) add.push(...coordsOfSection(k, d, s.heading))
         }
@@ -624,7 +628,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 백업은 기다리되 길게는 아니다 — 늦으면 다음 판정이 줄을 낸다
       // 백업 — 3초까지 기다린다(경고를 응답에 싣게) · 여럿을 받는 길(receive)은 끝에 한 번
       if (backup.attached(meta)) await Promise.race([backup.enqueue(meta, { log }), new Promise((ok) => setTimeout(ok, 3000).unref?.())])
-      return { ...r, warnings: backup.lines(meta, { name: meta.name }).map((l) => l.text) }
+      return { ...r, warnings: [...(r0.formatKept || []), ...backup.lines(meta, { name: meta.name }).map((l) => l.text)] }
     },
 
     // 찾기 — 색인은 지식마다 · 바뀐 파일만 다시(저장 뒤 · 처음 찾을 때) · 지식을 섞지 않는다
@@ -655,6 +659,21 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const k = await hub.get(id, ctx)
       return searchCheck(k, await hub.index(id), { dataDir, freeze })
     },
+    // 옛 문서 옮기기(작성기준 9절) — 항목 끝 경과 · 「기록 그대로」 줄을 문서 끝 참고 블록으로. 관리자 · 셸만(부르는 쪽이 가린다)
+    //   dry 면 쓰지 않고 결과만 · 본문 글이 달라지는 문서 · 원본이 주인인 문서는 옮기지 않는다 · 옮긴 것은 git 한 묶음 + 이력 하나
+    async docfmt(id, ctx, { dry = false } = {}) {
+      const meta = await hub.meta(id, ctx)
+      if (!dry) {
+        const shut = backup.closed(meta)
+        if (shut) throw new KmdError('E_BEHIND', shut.message)
+      }
+      const r = await docfmtDir(meta.dir, { dry, user: 'kmd', by: ctx?.user && ctx.user !== 'kmd' ? ctx.user : null })
+      if (r.commit) {
+        cache.delete(id)
+        if (backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
+      }
+      return { kn: id, name: meta.name, ...r }
+    },
 
     // 고치기 — 이 PC 는 저장하면 바로 문서에 · 팀 지식은 관리자가 바로 고치고 정리한다 · 일반이 고친 것은 기록으로
     canDirect(ctx, id) {
@@ -683,6 +702,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const w = watchedOf(await fs.readFile(path.join(k.dir, ...d.path.split('/')), 'utf8').catch(() => ''))
       if (w) throw new KmdError('E_FORBIDDEN', `이 문서는 원본이 주인이다: ${w.src} 의 ${w.path} 를 고친다 · 덧붙일 말은 기록으로 남긴다`)
       const what = [...hs, ...remove.map((h) => `${h} 지움`), ...rename.map((x) => `${x.from} → ${x.to}`)]
+      // 문서 꼴(작성기준 7절) — 화면에서 고친 글도 본문만. 지금 글에 있던 줄은 거절하지 않는다 · 거절하면 몇째 줄 · 까닭이 화면에 나온다
+      for (const s of sections) {
+        const h = String(s.h || '').trim()
+        checkFormat(h, String(s.body ?? ''), { doc: d.path, old: d.sections.find((x) => x.h === h)?.body ?? null })
+      }
       let out
       if (hub.canDirect(ctx, id)) {
         const r = await hub.save(ctx, id, {
@@ -2240,17 +2264,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
         why = `검사를 넘지 못했다: ${c.why}`
       }
-      // 규칙 — 기록 글을 항목 끝에 붙인다(머리 줄은 굵은 글로 · 표지는 뺀다) · 붙인 글 앞에 어느 기록인지 한 줄.
-      //   코드 바뀜 기록(분석 · 커밋 메시지 · 차이)은 붙이지 않는다 — 항목 글이 아니다. 경과 줄로만 잇는다(저장이 단다)
-      const up = '../'.repeat(g.doc.split('/').length - 1)
-      const add = g.records.filter((r) => !r.code).map((r) => {
-        const body = r.body.replace(/<!--[\s\S]*?-->/g, '').replace(/^#{1,6}\s+(.+)$/gm, '**$1**').trim()
-        return body && `> 기록 그대로: [${r.title.split(/ — |: /)[0].replace(/[[\]]/g, '')}](${up}work/${encodeURI(r.id).replace(/\(/g, '%28').replace(/\)/g, '%29')}.md) · Claude 로 다듬지 못했다\n\n${body}`
-      }).filter(Boolean).join('\n\n')
-      const content = [g.content.trim(), add].filter(Boolean).join('\n\n')
-      await coreSave(meta.dir, { record: { title: `정리: ${g.name}`, body: ['규칙으로: 기록 글을 항목 끝에 붙였다(코드 바뀜 기록은 경과 줄만)', ...g.records.map((r) => `- 넣음 ${r.id}: ${r.title}`), ...(why ? [`- Claude 로 하지 못한 까닭: ${why}`] : [])].join('\n'), touches: [g.coord], tags: ['curate-auto'], reflects: g.records.map((r) => r.id) }, sections: [{ coord: g.coord, content, base: g.base }] }, { user: 'kmd-auto', system: true })
+      // 규칙 — 기록 글을 항목 끝에 붙인다(머리 줄은 굵은 글로 · 표지는 뺀다). 본문에는 기록 글만 —
+      //   어느 기록인지는 문서 끝 참고 줄에 「다듬지 못함」 으로 단다(저장이 단다 · 작성기준 7절).
+      //   코드 바뀜 기록(분석 · 커밋 메시지 · 차이)은 붙이지 않는다 — 항목 글이 아니다. 참고 줄로만 잇는다
+      const pasted = g.records.filter((r) => !r.code).map((r) => ({ id: r.id, body: r.body.replace(/<!--[\s\S]*?-->/g, '').replace(/^#{1,6}\s+(.+)$/gm, '**$1**').trim() })).filter((x) => x.body)
+      const content = [g.content.trim(), ...pasted.map((x) => x.body)].filter(Boolean).join('\n\n')
+      await coreSave(meta.dir, { record: { title: `정리: ${g.name}`, body: ['규칙으로: 기록 글을 항목 끝에 붙였다(코드 바뀜 기록은 참고 줄만)', ...g.records.map((r) => `- 넣음 ${r.id}: ${r.title}`), ...(why ? [`- Claude 로 하지 못한 까닭: ${why}`] : [])].join('\n'), touches: [g.coord], tags: ['curate-auto'], reflects: g.records.map((r) => r.id) }, sections: [{ coord: g.coord, content, base: g.base, rough: pasted.map((x) => x.id) }] }, { user: 'kmd-auto', system: true })
       cache.delete(id)
-      for (const x of g.records) codeNote([x.id], 'sys', `문서: 「${x.title.split(/ — |: /)[0]}」 → ${target} 에 경과 줄만 달았다(규칙)${why ? ` · ${why}` : ''}`)
+      for (const x of g.records) codeNote([x.id], 'sys', `문서: 「${x.title.split(/ — |: /)[0]}」 → ${target} 에 참고 줄만 달았다(규칙)${why ? ` · ${why}` : ''}`)
       return true
     },
     // 그 지식의 「아직 안 넣은 기록」 모두 — 이름을 고른 기록은 다음 차례에 그 항목으로(세 차례까지)

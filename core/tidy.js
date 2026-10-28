@@ -7,7 +7,8 @@
 //   검사(check)      G1 모양 · 기록마다 넣음(used) 또는 둠(left) · G2 base · G4 값 대조(빠진 값 · 지어낸 값) ·
 //                    G5 크기 · G6 표지(항목 머리 # · ## · applied · 프런트매터 · script — 소제목 ### 아래는 된다).
 //                    못 넘으면 「그대로 둔 것」(까닭 한 줄)
-//   경과            Claude 는 본문만 보고 쓴다 — 항목 끝 `**경과**` 는 저장이 지키고 넣은 기록의 줄을 더한다
+//   참고 줄          Claude 는 본문만 보고 쓴다 — 출처 줄은 문서 끝 참고 블록에 저장이 지키고 넣은 기록의 줄을 더한다
+//                    초안 검사는 저장과 같은 문서 꼴 검사(core/docformat.js formatProblems)를 쓴다
 //   넣기(apply)      작성자 kmd-auto · 태그 curate-llm · 항목 글 + 표지 · 둔 기록은 같은 기록의 curates(keep)
 //
 // 값이 바뀐 것(옛 글의 값이 빠지고 새 값이 들어감)은 그 기록을 쓴 사람의 「오늘 바뀐 것」 노란 줄이 된다.
@@ -17,7 +18,8 @@ import { valuesOf } from './save.js'
 import { newValuesOf } from './codechange.js'
 import { sha16 } from './text.js'
 import { sectionOf, coordsOfSection, labelOf } from './knowledge.js'
-import { splitLog } from './sections.js'
+import { formatProblems } from './docformat.js'
+import { splitBlocks, hasBlockMarker } from './baseline.js'
 
 export const DRAFT_SCHEMA = {
   type: 'object',
@@ -57,7 +59,7 @@ export function material(k, { candidates = () => [], ids = null } = {}) {
       const x = sectionOf(k, c)
       if (!x?.loc) continue
       const key = keyOf(x)
-      if (!groups.has(key)) groups.set(key, { kind: 'section', coord: c, doc: x.loc.doc, heading: x.sec ? x.sec.h : x.loc.heading, name: labelOf(k, c), content: splitLog(x.sec ? x.sec.body : '').body, base: sha16(x.sec ? x.sec.body : ''), records: [], ...(since.has(key) ? { since: since.get(key) } : {}) })
+      if (!groups.has(key)) groups.set(key, { kind: 'section', coord: c, doc: x.loc.doc, heading: x.sec ? x.sec.h : x.loc.heading, name: labelOf(k, c), content: x.sec ? x.sec.body : '', base: sha16(x.sec ? x.sec.body : ''), records: [], ...(since.has(key) ? { since: since.get(key) } : {}) })
       const g = groups.get(key)
       if (!g.records.some((r) => r.id === w.id)) g.records.push({ id: w.id, date: w.date, author: w.author, title: w.title, body: w.body, ...(w.tags.includes('code-change') ? { code: true } : {}), ...(g.since && String(w.date) < g.since ? { old: true } : {}) })
     }
@@ -93,7 +95,7 @@ export function ingestCandidates(k, w, max = 5) {
   return scored
     .sort((a, b) => b.n - a.n || a.d.id.localeCompare(b.d.id))
     .slice(0, max)
-    .map(({ d }) => ({ doc: d.path, title: d.title, sections: d.sections.filter((s) => s.h).map((s) => ({ h: s.h, body: splitLog(s.body).body.slice(0, 1500), base: sha16(s.body) })) }))
+    .map(({ d }) => ({ doc: d.path, title: d.title, sections: d.sections.filter((s) => s.h).map((s) => ({ h: s.h, body: s.body.slice(0, 1500), base: sha16(s.body) })) }))
 }
 export const INGEST_SCHEMA = {
   type: 'object',
@@ -105,14 +107,28 @@ export const INGEST_SCHEMA = {
   required: ['updates'],
 }
 
-// 항목 글 쓰기 규칙(agent/skills/kmd-build/작성가이드.md 의 줄임) — 정리 · 들이기 프롬프트가 같이 쓴다
-const WRITE_RULES = [
-  '항목 글 쓰기:',
+// 항목 글 쓰기 규칙(docs/kmd_문서_작성기준.md 3 ~ 5절 · agent/skills/kmd-build/작성가이드.md 의 줄임) — 정리 · 들이기 프롬프트가 같이 쓴다
+export const WRITE_RULES = [
+  '항목 글 쓰기(본문만):',
   '- 항목 하나는 대상 하나(기능 · 화면 · 테이블 · 절차 · 회의 한 번)의 지금이다. 기록을 날짜별로 덧붙이지 말고 지금 글에 녹여 다시 쓴다. 「추가했다 · 고쳤다」 가 아니라 「…한다 · …이다」.',
-  '- 뒤집힌 내용은 지운다. 기록의 경위 · 논의 · 「바뀐 것 · 영향 · 맞춰 볼 것」 목록 · 커밋 메시지 · 코드 차이는 옮기지 않는다. 기록에 남아 있다.',
-  '- 항목 머리(# · ##)와 표지(<!-- -->)는 쓰지 않는다. 항목 안의 소제목은 ### 아래나 굵은 글로: 지금 글의 소제목은 그대로 둔다.',
-  '- 끝의 「**경과**」 목록은 kmd 가 단다. 쓰지 않는다.',
+  '- 확정된 내용만 쓴다. 뒤집힌 내용은 지운다. 「~했다는 기록이 있다」 같은 경위 · 논의 · 「바뀐 것 · 영향 · 맞춰 볼 것」 목록 · 커밋 메시지 · 코드 차이는 옮기지 않는다. 기록에 남아 있다.',
+  '- 링크는 지식 문서 [배포 절차](배포절차.md) · 항목 [준비](배포절차.md#준비)(같은 문서면 [준비](#준비)) · 바깥 주소 https://… 만. 기록 · 이력 링크(../work/… · ../log/…)와 /api/… 같은 시스템 주소는 쓰지 않는다.',
+  '- 항목 머리(# · ##)와 주석(<!-- -->)은 쓰지 않는다. 항목 안의 소제목은 ### 아래나 굵은 글로: 지금 글의 소제목은 그대로 둔다. 저절로 채우는 표(<!-- baseline … --> 덩이)가 있으면 글자 하나 바꾸지 않고 그대로 둔다.',
+  '- 「**경과**」 목록 · 출처 줄은 kmd 가 문서 끝 참고에 단다. 쓰지 않는다.',
+  '- 읽기 쉽게: 한 문단 다섯 줄까지 · 나란한 것이 셋 이상이면 목록 · 둘 이상의 속성을 견주면 표 · 코드 · 경로 · 값은 `백틱`.',
+  '좋은 예: 「배포 창은 화 · 목 14:00 ~ 17:00 이다. 되돌릴 때는 [롤백](#롤백) 순서를 따른다.」',
+  '나쁜 예: 「배포 창을 화 · 목으로 바꿨다는 기록이 있다([기록](../work/2026-1021-배포-창.md)).」 · 글 끝의 「**경과**」 목록 · 「<!-- 메모 -->」',
 ].join('\n')
+// 초안 글 검사 — 저장의 문서 꼴 검사 + 프런트매터 · script · 저절로 채우는 표를 고쳤나(cur 의 표와 같아야 한다)
+function draftBad(t, cur = '', { doc = null, old = null } = {}) {
+  if (/^---\s*$/m.test(t)) return '프런트매터 줄(---)'
+  if (/<script/i.test(t)) return 'script'
+  // 지금 글에 이미 있던 줄은 초안 탓이 아니다(옛 들이기 · 옛 정리 · 손으로 쓴 줄) — 새로 든 줄만
+  const p = formatProblems(t, { doc, old })
+  if (p.length) return p.slice(0, 2).map((x) => `${x.line}째 줄 ${x.what}`).join(' / ')
+  if (hasBlockMarker(t) && JSON.stringify(splitBlocks(t).blocks) !== JSON.stringify(splitBlocks(cur).blocks)) return '저절로 채우는 표를 고쳤다'
+  return null
+}
 
 export function promptOf(g) {
   if (g.kind === 'ingest')
@@ -125,6 +141,7 @@ export function promptOf(g) {
         '- 갈래 문서가 없으면 그 갈래 이름으로 새 문서를 세우고(예: newDoc.path = 회의록), 이 파일은 그 안의 항목 하나(머리 「언제 · 무엇」)로 둔다.',
         '- 파일에 정한 것 · 바뀐 값 · 할 일이 있고 그 주제의 문서가 후보에 있으면, 그 문서의 해당 항목에도 그 내용을 고쳐 넣는다(updates).',
         '- 표 · 목록은 그대로 둔다.',
+        '- 항목 이름은 대상의 이름이다(예: 준비 · rp_mst 연구과제마스터). 날짜 · 「수정」 · 「추가」 를 이름에 넣지 않는다(회의록 · 사건 문서만 「YYYY-MM-DD 주제」).',
       ].join('\n'),
       WRITE_RULES,
       '파일에 있는 값(수 · 이름 · 코드)은 빠짐없이 그대로 옮기고, 파일에 없는 값을 지어내지 않는다. 옛 글의 값은 파일이 바꾼 것만 바꾼다. JSON 으로만 답한다.',
@@ -226,10 +243,11 @@ export function check(k, g, d) {
   // 그사이 같은 항목에 새 기록이 왔으면 같이 넣어야 한다(표지가 그 기록까지 「넣음」 으로 보이게 되므로)
   const pendNow = k.works.filter((w) => w.state === 'pend' && w.touches.includes(g.coord)).map((w) => w.id)
   if (pendNow.some((x) => !ids.includes(x))) return { ok: false, why: '그사이 새 기록이 왔다. 다음 정리 때 같이 넣는다', stale: true }
-  // 값 · 크기는 본문끼리 견준다(경과 줄은 저장이 지킨다)
-  const cur = splitLog(whole).body
-  // G6 — 표지 · 항목 머리 · 프런트매터 · script(소제목 ### 아래는 된다)
-  if (BAD_TEXT(d.content)) return { ok: false, why: '글에 머리 · 표지가 들었다' }
+  // 값 · 크기는 본문끼리 견준다(항목 글은 본문만 · 참고 줄은 저장이 지킨다)
+  const cur = whole
+  // G6 — 문서 꼴(기록 링크 · 시스템 주소 · 주석 · 경과 · 항목 머리) · 프런트매터 · script(소제목 ### 아래는 된다)
+  const bad = draftBad(d.content, cur, { doc: x?.loc?.doc || null, old: cur })
+  if (bad) return { ok: false, why: `글에 머리 · 표지가 들었다: ${bad}` }
   if (!d.content.trim() && cur.trim()) return { ok: false, why: '글을 비웠다' }
   // G5 — 근거보다 크게 쓰지 않는다
   const used = g.records.filter((r) => d.used.includes(r.id))
@@ -258,7 +276,6 @@ export function check(k, g, d) {
 }
 
 // 넣은 파일 검사 — 모양 · 후보 문서만 고친다 · 새 문서 경로 · 지문(그사이 바뀜) · 표지 · 크기 · 값 대조(빠짐 · 지어냄)
-const BAD_TEXT = (t) => /^#{1,2}\s/m.test(t) || /<!--/.test(t) || /^---\s*$/m.test(t) || /<script/i.test(t)
 const oneLineH = (h) => typeof h === 'string' && h.trim() && !/[\r\n]/.test(h) && h.length <= 120
 const docRel = (p) => `docs/${String(p).replace(/^docs\/|\.md$/g, '')}.md`
 function checkIngest(k, g, d) {
@@ -267,6 +284,7 @@ function checkIngest(k, g, d) {
   if (!ups || (nd && !Array.isArray(nd.sections))) return { ok: false, why: '초안 모양이 아니다' }
   if (!ups.length && !nd?.sections?.length) return { ok: false, why: '넣을 곳을 고르지 않았다' }
   const outs = []
+  const olds = []
   let old = ''
   const changed = []
   for (const u of ups) {
@@ -277,7 +295,7 @@ function checkIngest(k, g, d) {
     // 그사이 그 항목이 바뀌었나
     const cur = k.byDocPath.get(c.doc)?.sections.find((x) => x.h === u.heading.trim())
     if (s && (!cur || sha16(cur.body) !== s.base)) return { ok: false, why: '그사이 항목이 바뀌었다. 다음 정리 때 다시 만든다', stale: true }
-    const curBody = cur ? splitLog(cur.body).body : ''
+    const curBody = cur ? cur.body : ''
     if (s && !u.content.trim() && curBody.trim()) return { ok: false, why: '글을 비웠다' }
     if (cur) {
       old += '\n' + curBody
@@ -288,6 +306,7 @@ function checkIngest(k, g, d) {
       if (gone.length && came.length) changed.push({ from: gone.join(' · '), to: came.join(' · ') })
     }
     outs.push(u.content)
+    olds.push({ doc: c.doc, old: cur ? curBody : null })
   }
   if (nd) {
     const p = String(nd.path || '').replace(/\\/g, '/').replace(/^docs\/|\.md$/g, '').trim()
@@ -296,9 +315,11 @@ function checkIngest(k, g, d) {
     for (const s of nd.sections) {
       if (!oneLineH(s?.heading) || typeof s.content !== 'string') return { ok: false, why: '초안 모양이 아니다' }
       outs.push(s.content)
+      olds.push({ doc: docRel(p), old: null })
     }
   }
-  if (outs.some(BAD_TEXT)) return { ok: false, why: '글에 머리 · 표지가 들었다' }
+  const bad = outs.map((o, i) => draftBad(o, '', olds[i])).find(Boolean)
+  if (bad) return { ok: false, why: `글에 머리 · 표지가 들었다: ${bad}` }
   const text = outs.join('\n')
   if (text.length > old.length + g.record.body.length * 1.5 + 500) return { ok: false, why: '근거보다 크게 썼다' }
   // 파일의 글을 거의 옮기지 않았다(값이 없는 글도 잃지 않게) — 머리 · 제목 줄을 뺀 글의 3할은 넘어야 한다
@@ -353,8 +374,10 @@ export function ingestRule(k, g, { why = null } = {}) {
   const topic = topicOfName(g.record.file)
   const kind = kindOfName(name) || kindOfName(g.record.title)
   const why1 = why ? [`- Claude 로 하지 못한 까닭: ${why}`] : []
+  // 기록 글 속 주석(<!-- -->)은 문서에 옮기지 않는다(작성기준 3절 — 본문만)
+  const src = String(g.record.body).replace(/<!--[\s\S]*?-->/g, '')
   if (kind) {
-    const text = String(g.record.body).replace(/^# .*\n?/m, '').replace(/^#{2,6} (.+)$/gm, '**$1**').trim()
+    const text = src.replace(/^# .*\n?/m, '').replace(/^#{2,6} (.+)$/gm, '**$1**').trim()
     if (!text) return null
     const dm = DATE_RE.exec(name)
     const when = dm ? `${dm[1]}-${dm[2]}-${dm[3]}` : String(g.record.date || '').slice(0, 10)
@@ -371,7 +394,7 @@ export function ingestRule(k, g, { why = null } = {}) {
       },
     }
   }
-  const lines = String(g.record.body).replace(/^# .*\n?/m, '').split('\n')
+  const lines = src.replace(/^# .*\n?/m, '').split('\n')
   const secs = []
   let cur = { heading: '개요', content: [] }
   for (const l of lines) {

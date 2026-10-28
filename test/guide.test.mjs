@@ -1,6 +1,6 @@
 // 작성 가이드(agent/skills/kmd-build/작성가이드.md) — 항목 글의 모양을 kmd 가 지키는 것.
 //
-// 경과(항목 끝 **경과** · 기록 링크 한 줄씩)는 저장이 단다 — 옛 줄은 보낸 글에 없어도 지키고 넣은 기록의 줄을 더한다 ·
+// 출처 줄(문서 끝 참고 블록 · 항목마다 기록 링크 한 줄씩 · 옛 꼴은 항목 끝 **경과**)은 저장이 단다 — 옛 줄은 보낸 글에 없어도 지키고 넣은 기록의 줄을 더한다 ·
 // 정리 검사는 소제목 ### 을 받고 항목 머리 ## 는 거절한다 · 코드 바뀜 기록은 from · append 로 넣지 못한다.
 
 import { test, before, after } from 'node:test'
@@ -45,24 +45,31 @@ test('저장이 경과를 단다. 사람의 기록은 그 자신 · 옛 줄은 �
   const base = (await import('../core/text.js')).sha16(k0.byDocPath.get('docs/배포절차.md').sections.find((s) => s.h === '카나리').body)
   const a = await save(dir, { record: { title: '카나리: 첫 30분 20%', body: '첫 30분 요청 20%', touches: ['proc:카나리'] }, sections: [{ coord: 'proc:카나리', content: '첫 30분 요청 20% 로 보낸다.', base }] }, { user: 'lee' })
   let s = sec('배포절차', '카나리')
-  assert.match(s.body, /\*\*경과\*\*\n- \d{4}-\d{2}-\d{2} \[카나리\]\(\.\.\/work\/.+\.md\)$/)
-  assert.ok(s.body.includes(`/${encodeURI(a.id)}.md)`))
+  // 본문에는 본문만 · 줄은 문서 끝 참고 블록(항목 이름 아래)
+  assert.equal(s.body, '첫 30분 요청 20% 로 보낸다.')
+  assert.equal(s.log.length, 1)
+  assert.match(s.log[0], /^- \d{4}-\d{2}-\d{2} \[카나리\]\(\.\.\/work\/.+\.md\)$/)
+  assert.ok(s.log[0].includes(`/${encodeURI(a.id)}.md)`))
+  const raw = fs.readFileSync(path.join(dir, 'docs', '배포절차.md'), 'utf8')
+  assert.match(raw, /<!-- kmd:참고[^\n]*-->\n\*\*참고\*\*\n\n(- .+\n(  - .+\n)+)+<!-- \/kmd:참고 -->\n$/)
+  assert.ok(!/\*\*경과\*\*/.test(raw))
   // 경과 없이 다시 보내도 옛 줄은 남고 새 줄이 더해진다
   const b = await save(dir, { record: { title: '카나리: 첫 1시간', body: '첫 1시간 20%', touches: ['proc:카나리'] }, sections: [{ coord: 'proc:카나리', content: '첫 1시간 요청 20% 로 보낸다.' }] }, { user: 'lee' })
   s = sec('배포절차', '카나리')
-  const { body, log } = splitLog(s.body)
+  const { body, log } = s
   assert.equal(body, '첫 1시간 요청 20% 로 보낸다.')
   assert.equal(log.length, 2)
   assert.ok(log[1].includes(encodeURI(b.id)))
   // 정리(kmd-auto · reflects)는 넣은 기록의 줄 — 정리 이력 자신은 달지 않는다
   const w = await save(dir, { record: { title: '롤백: 5분 안', body: '롤백은 5분 안에 끝낸다', touches: ['proc:롤백'] } }, { user: 'lee' })
   const c = await save(dir, { record: { title: '정리: 롤백', body: '넣음', touches: ['proc:롤백'], tags: ['curate-llm'], reflects: [w.id] }, sections: [{ coord: 'proc:롤백', content: '롤백은 5분 안에 끝낸다.' }] }, { user: 'kmd-auto', system: true })
-  const rl = splitLog(sec('배포절차', '롤백').body).log
+  const rl = sec('배포절차', '롤백').log
   assert.equal(rl.length, 1)
   assert.ok(rl[0].includes(encodeURI(w.id)) && !rl[0].includes(encodeURI(c.id)))
   // 원천이 쓰는 저장(kmd)은 달지 않는다
   await save(dir, { record: { title: '가져옴: 표', body: '표', tags: ['sources'] }, sections: [{ doc: 'docs/운영.md', heading: '알람', content: '원천의 글' }] }, { user: 'kmd', system: true })
   assert.equal(sec('운영', '알람').body.trim(), '원천의 글')
+  assert.deepEqual(sec('운영', '알람').log, [])
 })
 
 test('정리 검사: 소제목 ### 은 받고 항목 머리 ## 는 거절 · Claude 는 경과 없는 본문을 받는다', async () => {
@@ -80,10 +87,11 @@ test('코드 바뀜 기록은 from · append 로 넣지 못한다. 지금 동작
   const w = { id: 'c1', tags: ['code-change'], body: '# 커밋\n\n**무엇이 바뀌었나**\n…\n\n```diff\n+x\n```' }
   assert.throws(() => expandSections(k, w, [{ coord: 'proc:롤백', from: '*' }]), /from · append 로 넣지 않는다/)
   assert.throws(() => expandSections(k, w, [{ coord: 'proc:롤백', content: '덧붙임', append: true }]), /from · append 로 넣지 않는다/)
-  // 넣은 파일의 append 는 경과 앞에 붙는다
+  // 넣은 파일의 append 는 지금 본문 끝에 붙는다(출처 줄은 본문에 없다 · 문서 끝 참고 블록에 남는다)
   const f = { id: 'f1', tags: ['ingest/a.md'], body: '보탤 글' }
   const [x] = expandSections(k, f, [{ coord: 'proc:롤백', from: '*', append: true }])
   const { body, log } = splitLog(x.content)
   assert.ok(body.endsWith('보탤 글'))
-  assert.equal(log.length, 1)
+  assert.equal(log.length, 0)
+  assert.equal(sec('배포절차', '롤백').log.length, 1)
 })

@@ -6,7 +6,8 @@
 //   append  지금 항목 글 끝에 이 글을 보탠다(지금 글을 다시 보내지 않는다).
 // 값은 원문 그대로 남고 모델은 자리 · 잇는 말 · 바뀐 값만 쓴다.
 
-import { headingMatches, splitLog, joinLog } from './sections.js'
+import { headingMatches } from './sections.js'
+import { splitBlocks } from './baseline.js'
 import { sectionOf } from './knowledge.js'
 import { KmdError } from './errors.js'
 
@@ -21,6 +22,35 @@ export function fileText(body) {
   if (at >= 0 && /^\s*$/.test(rest[0] || '')) rest.shift()
   if (at >= 0 && /^원문 「.*」 의 짜임 그대로/.test(rest[0] || '')) rest.shift()
   return rest.join('\n').trim()
+}
+
+// 파일 글 속 주석(<!-- -->)은 옮기지 않는다 — 항목 글은 본문만(작성기준 3절 · 코드 덩이 안은 그대로)
+function dropComments(text) {
+  let fence = false
+  let open = false
+  const out = []
+  for (const l of text.split('\n')) {
+    if (!open && /^\s*(```|~~~)/.test(l)) fence = !fence
+    if (fence || /^\s*(```|~~~)/.test(l)) {
+      out.push(l)
+      continue
+    }
+    let s = l
+    if (open) {
+      const e = s.indexOf('-->')
+      if (e < 0) continue
+      s = s.slice(e + 3)
+      open = false
+    }
+    s = s.replace(/<!--[\s\S]*?-->/g, '')
+    const b = s.indexOf('<!--')
+    if (b >= 0) {
+      s = s.slice(0, b)
+      open = true
+    }
+    if (s.trim() || !l.trim()) out.push(s)
+  }
+  return out.join('\n')
 }
 
 // 머리를 맞춘다 — 가장 높은 머리가 ### 가 되게(기록 정리가 #### 로 내린 것도 올린다 · 코드 덩이 안은 그대로)
@@ -46,7 +76,7 @@ function lower(text) {
 
 // 파일 글에서 머리 하나 아래 글 · "*" 면 전체
 export function excerpt(body, part) {
-  const text = fileText(body)
+  const text = dropComments(fileText(body))
   if (String(part).trim() === '*') return lower(text)
   const lines = text.split('\n')
   const want = String(part).replace(/^#+\s*/, '').trim()
@@ -83,9 +113,10 @@ export function expandSections(k, w, sections) {
     if (!content) throw new KmdError('E_INPUT', '항목 글이 비었다. content 또는 from 을 준다')
     if (append) {
       const cur = s.coord ? sectionOf(k, String(s.coord).trim().normalize('NFC'))?.sec : k.docs.find((d) => d.id === String(s.doc || '').replace(/^docs\/|\.md$/g, ''))?.sections.find((y) => headingMatches(y.h, String(s.heading || '')))
-      // section 이 주는 content 와 같은 글(sec.body) 끝에 — 경과 목록 앞에(경과는 늘 항목 끝)
-      const now = splitLog(cur?.body)
-      content = joinLog([now.body, content].filter(Boolean).join('\n\n'), now.log)
+      // section 이 주는 content 와 같은 글(sec.body · 본문만 — 참고 줄은 문서 끝 참고 블록) 끝에.
+      //   저절로 채우는 표는 빼고 붙인다 — 저장이 원래 표를 항목 끝에 다시 단다(블록 표지가 든 글은 받지 않으므로)
+      const now = splitBlocks(cur?.body || '').text.replace(/\u0000block\d+\u0000/g, '').replace(/\n{3,}/g, '\n\n').trim()
+      content = [now, content].filter(Boolean).join('\n\n')
     }
     return { ...rest, content }
   })

@@ -11,6 +11,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { sha16 } from './text.js'
 import { KmdError } from './errors.js'
+import { joinLog } from './sections.js'
 
 export const CONF = '.kmd.json'
 
@@ -56,11 +57,13 @@ export async function writeState(dataDir, id, st) {
   await fs.rename(f + '.tmp', f)
 }
 
-// 문서의 지문 — 항목마다(저절로 채우는 표 · applied 표지는 빼고 견준다)
-const clean = (b) => String(b || '').replace(/<!--\s*applied:[^>]*-->/g, '').trim()
+// 문서의 지문 — 항목마다(applied · watched 표지는 빼고 견준다). 참고 블록 · 경과는 읽을 때(parseDoc) 이미 떨어져
+// 항목 글에 없다 — 보내는 글에 보낸 쪽 기록 링크가 실리지 않는다
+const clean = (b) => String(b || '').replace(/<!--\s*(applied|watched):[^>]*-->/g, '').trim()
 export function marks(d) {
   const secs = {}
-  for (const s of d.sections) if (s.h) secs[s.h] = sha16(clean(s.body))
+  // 지문은 옛 꼴과 같은 글(본문 + 출처 줄)로 잰다 — 꼴을 옮겼다고 모든 문서가 「바뀜」 으로 모이지 않게
+  for (const s of d.sections) if (s.h) secs[s.h] = sha16(clean(joinLog(s.body, s.log || [])))
   return { sha: sha16(JSON.stringify(secs)), secs }
 }
 // 보낼 곳을 정할 때 — 지금 글을 「보낸 것」 으로(그 뒤 고친 것만 모인다)

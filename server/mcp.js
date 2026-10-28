@@ -50,12 +50,17 @@ const TOOLS = [
   },
   {
     name: 'section',
-    description: '항목 하나의 지금 글 · 지문(base) · 그 항목을 건드린 기록(아직 문서에 안 넣은 것은 최신 8). 이름(coord) 또는 문서 · 머리로 가리킨다. 그 항목을 고쳐 save 할 때 base 를 같이 보내면 그사이 남이 바꿨을 때 덮지 않는다.',
+    description: '항목 하나의 지금 글(본문만: 출처 줄은 kmd 가 문서 끝 참고에 따로 둔다) · 지문(base) · 그 항목을 건드린 기록(아직 문서에 안 넣은 것은 최신 8). 이름(coord) 또는 문서 · 머리로 가리킨다. 그 항목을 고쳐 save 할 때 base 를 같이 보내면 그사이 남이 바꿨을 때 덮지 않는다.',
     inputSchema: { type: 'object', properties: { knowledge: str('지식 id'), coord: str('이름: 예 proc:헬스 체크'), doc: str('문서: 예 배포절차'), heading: str('머리: 예 헬스 체크') }, required: ['knowledge'] },
   },
   {
     name: 'save',
-    description: '기록을 남긴다. 제목 · 글 · 건드린 이름. 항목 글을 고쳤으면 sections 에 새 글 전체를 같이 보낸다(그 항목이 갈아 끼워진다). 새 이름(테이블 · 화면 · API · 절차 · 용어 …)을 세웠으면 names 로 이름 장부 · 자리 장부에 같이 올린다. 그 항목이 항목으로 보기 · 찾기에 그 종류로 선다. 한 번에 한 묶음으로 남는다.',
+    description: [
+      '기록을 남긴다. 제목 · 글 · 건드린 이름. 항목 글을 고쳤으면 sections 에 새 글 전체를 같이 보낸다(그 항목이 갈아 끼워진다). 새 이름(테이블 · 화면 · API · 절차 · 용어 …)을 세웠으면 names 로 이름 장부 · 자리 장부에 같이 올린다. 그 항목이 항목으로 보기 · 찾기에 그 종류로 선다. 한 번에 한 묶음으로 남는다.',
+      '항목 글(sections.content)은 본문만: 대상 하나의 지금을 확정된 것만 「…한다 · …이다」 로. 링크는 지식 문서 [배포 절차](배포절차.md) · 항목 [준비](배포절차.md#준비) · 바깥 https://… 만.',
+      '받지 않는 것(E_FORMAT): 기록 · 이력 링크(../work/… · ../log/…) · /api/… 같은 시스템 주소 · <!-- --> 주석 · 끝의 **경과** 기록 링크 목록 · 닫히지 않은 코드 울타리 · # · ## 머리 줄(소제목은 ###). 지금 글에 이미 있던 줄은 거절하지 않는다(새로 넣은 줄만). 출처 줄은 kmd 가 참고에 단다.',
+      '좋은 예: 「배포 창은 화 · 목 14:00 ~ 17:00 이다.」 나쁜 예: 「배포 창을 바꿨다는 기록이 있다([기록](../work/2026-1021-배포-창.md))」.',
+    ].join(' '),
     inputSchema: {
       type: 'object',
       properties: {
@@ -73,7 +78,7 @@ const TOOLS = [
         },
         sections: {
           type: 'array',
-          items: { type: 'object', properties: { coord: str('이름'), doc: str('문서'), heading: str('머리'), content: str('항목의 새 글 전체(머리 줄 빼고): from · append 를 쓰면 잇는 말 · 바뀐 값만'), base: str('section 이 준 지문: 이미 있는 항목이면 꼭 · 읽은 뒤 바뀌었으면 거절'), from: str('넣기 에이전트만: 넣은 파일 글을 서버가 그대로 옮긴다: "*" 는 전체 · 머리 글이면 그 머리 아래(content 다음에 붙는다)'), append: { type: 'boolean', description: '넣기 에이전트만: 지금 항목 글 끝에 보탠다(지금 글을 다시 보내지 않는다)' } } },
+          items: { type: 'object', properties: { coord: str('이름'), doc: str('문서'), heading: str('머리'), content: str('항목의 새 글 전체(머리 줄 빼고 · 본문만: 기록 링크 · 주석 · 경과 목록 없이): from · append 를 쓰면 잇는 말 · 바뀐 값만'), base: str('section 이 준 지문: 이미 있는 항목이면 꼭 · 읽은 뒤 바뀌었으면 거절'), from: str('넣기 에이전트만: 넣은 파일 글을 서버가 그대로 옮긴다: "*" 는 전체 · 머리 글이면 그 머리 아래(content 다음에 붙는다)'), append: { type: 'boolean', description: '넣기 에이전트만: 지금 항목 글 끝에 보탠다(지금 글을 다시 보내지 않는다)' } } },
         },
         names: {
           type: 'array',

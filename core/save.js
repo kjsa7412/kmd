@@ -6,6 +6,10 @@
 //
 // 기록은 늘 남는다(누가 왜 바꿨나의 유일한 자리). 항목을 같이 보내면 그 항목 글을
 // 갈아 끼우고 「이 기록을 넣었다」 표지를 단다. 같은 지식의 저장은 한 줄로 선다.
+//
+// 항목 글은 본문만이다(docs/kmd_문서_작성기준.md). 출처 줄은 저장이 문서 끝 참고 블록에 단다.
+// 사람 · 세션 · 에이전트의 글에 기록 링크 · 시스템 주소 · 주석 · 경과 꼬리 · 머리 줄이 섞이면 E_FORMAT 으로 거절한다.
+// kmd 자신의 쓰기(system)는 sections[].rough: [기록 id] 로 그 기록의 참고 줄에 「다듬지 못함」 을 붙일 수 있다.
 
 import fs from 'node:fs/promises'
 import { existsSync } from 'node:fs'
@@ -13,7 +17,8 @@ import path from 'node:path'
 import { fail, KmdError } from './errors.js'
 import { nfc, oneLine, readText, sha16 } from './text.js'
 import { renderRecord, parseRecord } from './frontmatter.js'
-import { replaceSection, removeSection, renameSection, parseDoc, headingMatches, splitLog, joinLog, logLine, logHas } from './sections.js'
+import { replaceSection, removeSection, renameSection, parseDoc, headingMatches, splitLog, splitRef, mergeLog, logLine, logHas, ROUGH } from './sections.js'
+import { formatCheck, formatMessage, keptMessage } from './docformat.js'
 import { isReservedUser, isReservedTag, isLogRecord, LOG_DIR } from './names.js'
 import { isReservedFile } from './owners.js'
 import { keepBlocks, hasBlockMarker } from './baseline.js'
@@ -113,6 +118,8 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
   // 항목 지우기 · 이름 바꾸기 — 화면의 고치기(관리자)만 · kmd 가 대신 쓴다
   if (!system && secs.some((s) => s.remove || s.rename != null)) fail('E_FORBIDDEN', '항목 지우기 · 이름 바꾸기는 화면의 고치기로 한다')
   if (!system && secs.some((s) => hasBlockMarker(s.content ?? ''))) fail('E_FORBIDDEN', '저절로 채우는 표는 kmd 가 원천에서 채운다. 고치지 않는다', { need: 'machine' })
+  // 문서 꼴(작성기준 8절) — 사람 · 세션 · 에이전트의 항목 글은 본문만. 지금 글과 견주어야 하므로 saveNow 에서 본다
+  //   (kmd 자신의 쓰기는 고쳐서 넣는다)
   const names = cleanNames(input.names)
   if (!names) fail('E_INPUT', 'names 는 { coord: "종류:값", label, aliases?, doc?, heading? } 의 목록이다(종류는 영문 소문자)')
   return serial(path.resolve(dir), () => saveNow(dir, input.record, secs, { user: nfc(user), now, system, names }))
@@ -237,7 +244,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
       return { ...docPath(dir, loc.doc), level: loc.level, heading: loc.heading, content: s.content, base: s.base, ...(system && s.applied !== undefined ? { applied: s.applied } : {}) }
     }
     return { ...docPath(dir, s.doc), level: 2, heading: nfc(s.heading.trim()), content: s.content ?? '', base: s.base, ...(s.remove ? { remove: true } : {}), ...(s.rename != null ? { rename: nfc(String(s.rename).trim()) } : {}), ...(system && s.applied !== undefined ? { applied: s.applied } : {}) }
-  })
+  }).map((p, i) => (system && Array.isArray(secs[i].rough) ? { ...p, rough: secs[i].rough.map(String) } : p))
   // 고친 기록(edit)은 표지를 뒤로 돌리지 않는다 — 그 항목에 이미 든 기록보다 옛 날짜면 거절
   if ((r.tags || []).includes('edit') && r.date) {
     for (const p of plan) {
@@ -259,6 +266,20 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
     if (p.base == null) continue
     const cur = await fs.readFile(p.full, 'utf8').then(readText, () => null)
     if (sectionBase(cur, p.heading) !== p.base) fail('E_CONFLICT', `「${p.heading}」 이 읽은 뒤 바뀌었다. 다시 읽고 고친다`)
+  }
+  // 문서 꼴(작성기준 8절) — 사람 · 세션 · 에이전트가 넣은 줄만 거절한다. 지금 글에 이미 있던 줄(옛 들이기 · 손으로 쓴 줄)은
+  //   거절하지 않고 알린다(formatKept) — append 처럼 서버가 지금 글에 덧붙인 것을 보낸 쪽이 고칠 수 없으므로
+  const formatKept = []
+  if (!system) {
+    for (const [i, p] of plan.entries()) {
+      if (typeof p.content !== 'string' || p.remove || p.rename != null) continue
+      const cur = await fs.readFile(p.full, 'utf8').then(readText, () => null)
+      const old = cur && parseDoc(cur, '').sections.find((x) => headingMatches(x.h, p.heading))
+      const name = secs[i].heading || secs[i].coord || '항목'
+      const r = formatCheck(p.content, { doc: p.rel, old: old ? old.body : null })
+      if (r.problems.length) fail('E_FORMAT', formatMessage(name, r.problems), { problems: r.problems })
+      if (r.kept.length) formatKept.push(keptMessage(name, r.kept))
+    }
   }
 
   await ensureRepo(dir)
@@ -298,19 +319,20 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
       const start = raw == null ? `# ${path.basename(p.rel, '.md')}\n` : readText(raw)
       // 사람 · 세션의 저장은 그 항목의 저절로 채우는 표를 그대로 둔다(블록 안은 원천 실행기 · 기계 열쇠만)
       let content = nfc(p.content ?? '')
-      if (!system) {
-        const old = parseDoc(start, '').sections.find((x) => headingMatches(x.h, p.heading))
-        if (old) content = keepBlocks(old.body, content)
-      }
-      // 경과 — 옛 줄은 지키고(보낸 글에 없어도) 이번 기록의 줄을 더한다 · 원본이 주인인 문서는 원본 글 그대로
+      const old = parseDoc(start, '').sections.find((x) => headingMatches(x.h, p.heading))
+      if (!system && old) content = keepBlocks(old.body, content)
+      // 참고 줄(작성기준 2-1) — 옛 줄은 지키고(보낸 글에 없어도) 이번 기록의 줄을 더한다 · 문서 끝 참고 블록에 쓴다(본문에는 넣지 않는다)
+      //   kmd 자신의 쓰기에 섞인 경과 꼬리 · 참고 블록은 떼어 줄로 옮긴다(사람 · 세션의 것은 save 의 검사가 이미 거절했다)
+      //   원본이 주인인 문서는 원본 글 그대로(줄을 달지 않는다)
+      let log
       if (!p.remove && p.rename == null && !watchedOf(start)) {
-        const was = splitLog(parseDoc(start, '').sections.find((x) => headingMatches(x.h, p.heading))?.body).log
-        const now = splitLog(content)
-        const log = [...was, ...now.log.filter((l) => !was.includes(l))]
-        for (const w of logged) if (!logHas(log, w.id)) log.push(logLine(p.rel, w))
-        content = joinLog(now.body, log)
+        const r = splitRef(content.split('\n'))
+        const now = splitLog(r.lines.join('\n'))
+        log = mergeLog(old?.log || [], now.log, ...r.ref.values())
+        for (const w of logged) if (!logHas(log, w.id)) log.push(logLine(p.rel, w, p.rough?.includes(w.id) ? ROUGH : ''))
+        content = now.log.length || r.found ? now.body : content
       }
-      const after = p.remove ? removeSection(start, { level: p.level, heading: p.heading }) : p.rename ? renameSection(start, { level: p.level, heading: p.heading, to: p.rename }) : replaceSection(start, { level: p.level, heading: p.heading, body: content, applied: p.applied !== undefined ? p.applied : id })
+      const after = p.remove ? removeSection(start, { level: p.level, heading: p.heading }) : p.rename ? renameSection(start, { level: p.level, heading: p.heading, to: p.rename }) : replaceSection(start, { level: p.level, heading: p.heading, body: content, applied: p.applied !== undefined ? p.applied : id, log })
       if (!docs.includes(p.rel)) {
         await j.add(p.rel)
         docs.push(p.rel)
@@ -340,7 +362,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
     }
     const commit = await commitPaths(dir, [workRel, ...docs, ...books], rec.title, user)
     await j.done()
-    return { id, record: workRel, docs, commit, date, ...(books.length ? { names: names.length } : {}) }
+    return { id, record: workRel, docs, commit, date, ...(books.length ? { names: names.length } : {}), ...(formatKept.length ? { formatKept } : {}) }
   } catch (e) {
     await j.undo().catch(() => {})
     throw e

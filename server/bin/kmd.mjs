@@ -59,6 +59,7 @@ const HELP = `kmd ${VERSION}
   kmd machine add <지식> <원천> [--types 가,나] · kmd machine revoke <machine-…>
       바깥 생성기용 기계 열쇠(그 지식 · 그 표만 · 1년)
   kmd search-check <지식> [--freeze]           찾기 점검: 얼린 시험지 위에서 나빠진 문항
+  kmd docfmt <지식> | --all [--dry]            옛 문서 옮기기: 항목 끝 출처 목록을 문서 끝 참고로(본문은 그대로) · --dry 는 보기만
   kmd auth reapply <auth.log>                  옛 명부로 되살린 뒤 늦은 일을 다시 적용
 
   둘 다
@@ -299,6 +300,7 @@ async function main() {
   if (cmd === 'secret') return secretCmd(parse(rest))
   if (cmd === 'connect') return connectCmd(parse(rest))
   if (cmd === 'search-check') return searchCheckCmd(parse(rest))
+  if (cmd === 'docfmt') return docfmtCmd(parse(rest))
   if (cmd === 'worker') return workerCmd(parse(rest))
   if (cmd === 'restore') return restoreCmd(parse(rest))
   if (cmd === 'auth') return authCmd(parse(rest))
@@ -564,6 +566,34 @@ async function searchCheckCmd(o) {
     const hub = await makeHub({ root: rootOf(o), dataDir: dataOf(o), log: () => {} })
     const r = await hub.searchCheck(SHELL, id, { freeze: o.freeze !== undefined })
     console.log(`${id}: 문항 ${r.score.n} · 6개 안 ${r.score.in}% · 첫째 ${r.score.first}%${r.frozen ? ` · 얼린 시험지보다 나빠진 문항 ${r.worse.length}${r.worse.length ? ': ' + r.worse.slice(0, 5).join(' · ') : ''}` : ' · 이 시험지를 얼렸다'}`)
+  } catch (e) {
+    console.error(e.message)
+    process.exitCode = 1
+  }
+}
+
+// 옛 문서 옮기기 — 항목 끝 출처 목록 · 「기록 그대로」 줄을 문서 끝 참고 블록으로(작성기준 9절). 셸이 바로 한다
+async function docfmtCmd(o) {
+  // --dry · --all 뒤에 지식 이름이 오면(parse 가 값으로 먹는다) 지식 이름으로
+  const flagVal = (v) => (typeof v === 'string' && v !== 'true' && v !== 'false' ? v : undefined)
+  const id = o._[0] ?? flagVal(o.dry) ?? flagVal(o.all)
+  const all = o.all !== undefined && !flagVal(o.all)
+  const dry = o.dry !== undefined
+  try {
+    if (!id && !all) throw new Error('kmd docfmt <지식> | --all [--dry]')
+    const hub = await makeHub({ root: rootOf(o), dataDir: dataOf(o), log: () => {} })
+    const ids = all ? (await hub.list()).map((k) => k.id) : [id]
+    for (const x of ids) {
+      try {
+        const r = await hub.docfmt(x, SHELL, { dry })
+        const bad = r.docs.filter((d) => !d.ok)
+        console.log(`${r.name}: ${dry ? '옮길' : '옮긴'} 문서 ${r.files} · 줄 ${r.moved}${bad.length ? ` · 옮기지 않음 ${bad.length}` : ''}${r.log ? ` · 이력 ${r.log}` : ''}`)
+        for (const d of r.docs) if (d.changed || !d.ok) console.log(`  ${d.ok ? '-' : '!'} ${d.doc}: ${d.ok ? `줄 ${d.moved}` : d.why}`)
+      } catch (e) {
+        console.log(`${x}: 하지 못했다(${e.message})`)
+        process.exitCode = 1
+      }
+    }
   } catch (e) {
     console.error(e.message)
     process.exitCode = 1
