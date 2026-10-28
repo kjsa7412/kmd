@@ -713,11 +713,18 @@ async function connectCmd(o) {
   let task = { ok: false, why: '이 PC 에서 kmd up 으로 켠다' }
   let screen = null
   if (o.task !== 'false' && process.platform === 'win32' && !process.env.KMD_NO_TASK) {
+    // 늘 켜기 작업이 지금 여는 폴더 — 작업을 새 폴더로 바꾸기 전에 읽는다
+    const prev = await pcRootNow({})
     if ((await makeTask(root)) === 0) {
       task = { ok: true, shortcut: (await makeShortcut(shortcutFor(root))).ok }
       // 켜지면(열쇠 · Claude Code 잇기까지) 팀 화면을 연다 — 팀 화면이 개인 지식 · 내 Claude 까지 다룬다(내 PC 쪽은 뒤에서 돈다) ·
       //   팀에 잇지 못했으면 이 PC 의 화면 · 다음부터는 시작 메뉴의 kmd
       let url = await runningPc(root, { ...o, data: pcData })
+      // 다른 폴더(--root 전의 폴더)로 도는 kmd 가 있으면 멈춘다 — 늘 켜기 작업이 돌고 있으면 /Run 이 무시되어 옛 폴더가 그대로 열린다
+      if (!url && !sameDir(prev, root)) {
+        const old = await runningPc(prev, {})
+        if (old) await stopPc(old)
+      }
       if (!url) {
         await runCode('schtasks', ['/Run', '/TN', 'kmd'])
         url = await waitPc(root, { ...o, data: pcData }, 45_000)
