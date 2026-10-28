@@ -10,8 +10,11 @@
 <body>
 <div class="app" id="app"></div>
 <!-- 서랍 덮개 — .app.side-open(600 이하 옆 메뉴) · .app.aside-open(1024 이하 오른쪽 칸)일 때만 보인다. 누르면 서랍을 닫는다(main.js) -->
-<div class="drawer-scrim" id="drawerScrim" data-t="drawerScrim"></div>
-<div id="toastHost"></div>
+<div class="drawer-scrim" id="drawerScrim" data-t="drawerScrim" data-a="drawerClose"></div>
+<!-- 잠깐 알림 — 화면 읽기 프로그램이 읽는다(오류 토스트는 그 안에서 role=alert) -->
+<div id="toastHost" role="status" aria-live="polite"></div>
+<!-- 화면에 그린 오류를 화면 읽기 프로그램에 한 번만 알린다 — 다시 그려도 되풀이하지 않게(main.js sayErr) -->
+<div id="srLive" class="sr-only" role="alert" aria-live="assertive"></div>
 <div id="pvHost"></div>
 <script type="module" src="/main.js"></script>
 </body>

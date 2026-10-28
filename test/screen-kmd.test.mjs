@@ -138,7 +138,17 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.deepEqual(await page.locator('[data-t=docPane] h2[data-sec]').evaluateAll((els) => els.map((e) => e.dataset.sec)), ['준비', '카나리', '헬스 체크', '롤백', '꾸러미 판'])
   assert.deepEqual(await page.locator('.aside .ap > h4').evaluateAll((els) => els.map((e) => e.firstChild.textContent.trim())), ['개요', '출처', '연결', '속성'])
   assert.equal(await page.locator('[data-t=olRow]').count(), 5)
-  assert.equal(await page.locator('[data-t=penrec]').count(), 1, '롤백 아래 아직 안 넣은 기록 한 줄')
+  // 아직 안 넣은 기록은 본문 사이에 상자로 끼우지 않는다 — 롤백 머리 오른쪽 「반영 대기 1」 칩 · 누르면 그 머리 바로 아래 참고 칸(작성기준 1절)
+  assert.equal(await page.locator('[data-t=penrec]').count(), 0)
+  assert.equal(await page.locator('[data-t=pendChip]').count(), 1)
+  assert.equal(await page.locator('h2[data-sec="롤백"] [data-t=pendChip]').innerText(), '반영 대기 1')
+  await page.click('h2[data-sec="롤백"] [data-t=pendChip]')
+  await page.waitForSelector('[data-t=pendPanel] [data-t=pendRow]')
+  assert.equal(await page.locator('[data-t=pendPanel] [data-t=pendRow]').count(), 1)
+  assert.equal(await page.locator('h2[data-sec="롤백"] [data-t=pendChip]').getAttribute('aria-expanded'), 'true')
+  await page.click('h2[data-sec="롤백"] [data-t=pendChip]')
+  assert.equal(await page.locator('[data-t=pendPanel]').count(), 0, '다시 누르면 접힌다')
+  assert.equal(await page.locator('[data-t=docRefs]').count(), 1, '오른쪽 칸 「참고」')
   assert.ok((await page.locator('.btn.pri:visible').count()) <= 1, '주 단추는 하나까지')
   assert.deepEqual(await bannedIn(page), [])
   await page.screenshot({ path: path.join(SHOTS, 'app-docs.png') })
@@ -650,16 +660,34 @@ test('이 PC 화면: 정리가 따로 없다는 말(지식 만들기 · 설정) 
     assert.equal(await page.locator('[data-t=rootPath]').innerText(), root)
     await page.keyboard.press('Escape')
     assert.equal(await page.locator('[data-t=addPop]').count(), 0)
-    // 좁은 폭 — 가운데 문서 본문이 0 높이로 접히지 않는다 · 가로로 넘치지 않는다(요구 18)
+    // 좁은 폭 — 옆 메뉴는 서랍(☰ · 고르면 닫힌다) · 가운데 문서 본문이 0 높이로 접히지 않는다 · 잘린 요소가 없다(요구 18 · 컨벤션 11절)
     await page.setViewportSize({ width: 420, height: 820 })
+    const side = async () => { await page.click('[data-t=menuBtn]'); await page.waitForSelector('#app.side-open') }
+    await side()
     await page.click('[data-t=kpick]')
     await page.click('[data-t=kmenuKn]')
+    assert.equal(await page.locator('#app.side-open').count(), 0, '고르면 서랍이 닫힌다')
+    await side()
     await page.click('[data-t=rb-docs]')
+    await side()
     await page.click('[data-t=doc][data-name="카나리"]')
     await page.waitForSelector('[data-t=docPane]')
     const box = await page.evaluate(() => ({ main: document.querySelector('.main[data-t=main]').getBoundingClientRect().height, paper: document.querySelector('.paper').scrollHeight, sw: document.documentElement.scrollWidth, w: innerWidth }))
     assert.ok(box.main >= box.paper, `본문이 다 선다 ${JSON.stringify(box)}`)
-    assert.ok(box.sw <= box.w, '가로 넘침 없음')
+    assert.ok(box.sw <= box.w, `가로 넘침 없음 ${JSON.stringify(box)}`)
+    // 잘린 요소 — 보이는 요소 중 오른쪽 끝이 창 폭을 넘는데 가로로 밀어 볼 조상(overflow-x auto · scroll)이 없는 것
+    const cut = await page.evaluate(() => {
+      const W = innerWidth, out = []
+      const scrolls = (el) => { for (let p = el.parentElement; p; p = p.parentElement) { const o = getComputedStyle(p).overflowX; if (o === 'auto' || o === 'scroll') return true } return false }
+      for (const el of document.querySelectorAll('body *')) {
+        const cs = getComputedStyle(el)
+        if (cs.visibility === 'hidden' || cs.display === 'none') continue
+        const r = el.getBoundingClientRect()
+        if (r.width && r.height && r.right > W + 1 && r.left < W && !scrolls(el)) out.push(`${el.tagName}.${el.className} ${Math.round(r.right)}`)
+      }
+      return out
+    })
+    assert.deepEqual(cut, [], '잘린 요소 없음')
     assert.deepEqual(await bannedIn(page), [])
   } finally {
     await page.close()

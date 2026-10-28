@@ -23,7 +23,7 @@ const IC = {
 }
 export const svg = (k, c) => `<svg viewBox="0 0 24 24"${c ? ` class="${c}"` : ''}><path d="${IC[k] || IC.doc}"/></svg>`
 
-// 때 — 「오늘 11:05」 · 「어제 17:02」 · 「10-20」
+// 때 — 「오늘 11:05」 · 「어제 17:02」 · 「10-20」 · 올해가 아니면 「25-10-20」
 const pad = (n) => String(n).padStart(2, '0')
 const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 export function stampDate(s) {
@@ -39,6 +39,8 @@ export function whenTxt(v) {
   const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`
   if (dayKey(d) === dayKey(now)) return '오늘 ' + hm
   if (dayKey(d) === dayKey(y)) return '어제 ' + hm
+  // 해를 넘긴 것은 해까지(헷갈리지 않게)
+  if (d.getFullYear() !== now.getFullYear()) return `${String(d.getFullYear()).slice(2)}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 export function isToday(v) {

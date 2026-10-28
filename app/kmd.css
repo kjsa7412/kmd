@@ -1157,3 +1157,60 @@ a.dlink:hover{text-decoration:underline;text-underline-offset:2px}
   .pscrim>.modal.win{width:100%;max-width:none}
   .modal .mf .acts{margin-left:auto}
 }
+
+/* ── 화면(app/main.js) 부품 보탬 — 품질 개선 3단계 ── */
+/* 화면 최대 폭(컨벤션 2절) — 글 · 목록과 설정 · 그리드 */
+.pg-text{max-width:var(--w-text)}.pg-list{max-width:var(--w-list)}.pg-grid{max-width:var(--w-grid)}
+/* 글 색 · 굵기 · 자리(인라인 대신) */
+.t-warn{color:var(--warn)}.t-danger{color:var(--danger)}.t-text{color:var(--text)}
+.b6{font-weight:600}.mt-sec{margin:var(--sp-5) 0 var(--sp-3)}.mt0{margin-top:0}.wfull{width:100%}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mw260{max-width:min(260px,100%)}
+.prewrap{white-space:pre-wrap;word-break:break-all;margin:var(--sp-3) 0 0}
+.hsep{border-top:1px solid var(--border);margin:var(--sp-7) 0}
+.attimg{max-width:100%;margin-top:var(--sp-5);border:1px solid var(--border);border-radius:var(--r)}
+.av2.sm{width:20px;height:20px;font-size:var(--fs-xs)}
+.search .sl{margin-left:var(--sp-3)}.search .sk{margin-left:auto;font-size:var(--fs-xs)}
+button.hlink{border:0;background:none;font:inherit;padding:0}
+/* 머리 줄 — 「옆 칸」 은 글 단추 · 지금 하는 일 점은 600 이하에서만 머리 줄에(옆 메뉴의 것과 둘 중 하나) */
+.hb.aside-btn{width:auto;padding:0 var(--sp-4);font-size:var(--fs-sm)}
+.hb.aside-btn.on{background:var(--accent-bg);border-color:var(--accent-line);color:var(--accent)}
+.hbusy{display:none}
+@media (max-width:600px){
+  .hbusy{display:flex;margin-left:auto}
+  .side .sb-top .busy{display:none}
+  .hdr .hmid .qbtn,.hdr .hist{display:none}
+  .hdr .crumb{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto}
+  .hdr .search{flex:0 0 auto;min-width:0;width:30px;padding:0;justify-content:center}
+  .hdr .search .sl,.hdr .search .sk{display:none}
+  .hdr .hright{flex:0 0 auto;gap:var(--sp-4)}
+  .hdr .hmid{flex:0 0 auto;margin-left:auto}
+}
+/* 토스트 — 오류는 빨간 줄 */
+.toast.err{box-shadow:inset 3px 0 0 var(--danger),var(--shadow-3)}
+/* 확인 창 설명 — 줄바꿈을 지킨다 */
+.ask-d{margin:0;white-space:pre-line;overflow-wrap:anywhere}
+/* 지금 하는 일 팝업 — 줄은 단추 · 오른쪽 끝 작은 「문서」 */
+.pop .pop-h{padding-top:var(--sp-1)}.pop .pop-h b{color:var(--text)}
+.pop .brow-w{display:flex;align-items:flex-start;gap:var(--sp-2)}
+.pop .brow-w .brow{flex:1;min-width:0;border:0;background:none;font:inherit;color:inherit;text-align:left;width:100%}
+.pop .bdoc{flex:none;margin:var(--sp-4) var(--sp-3) 0 0;font-size:var(--fs-xs)}
+/* 그 줄로 왔다 — 잠깐 빛낸다(움직임 줄이기면 없음) */
+@keyframes rowFlash{0%,30%{box-shadow:inset 0 0 0 2px var(--accent);background:var(--accent-bg)}100%{box-shadow:inset 0 0 0 0 transparent}}
+.flash:not(h2){animation:rowFlash 1.5s ease-out}
+@media (prefers-reduced-motion:reduce){.flash,.paper h2.flash{animation:none}}
+/* 항목 머리 오른쪽 — 반영 대기 · 출처 칩(누르면 머리 바로 아래 참고 칸) */
+.paper h2 .hrefs{display:inline-flex;gap:var(--sp-2);margin-left:var(--sp-3);flex-wrap:wrap}
+.paper h2 .hrefs+.hn{margin-left:auto}
+.paper .refpanel{margin:0 0 var(--sp-5)}
+.paper .refpanel li>span{min-width:0}
+/* 오른쪽 칸 「참고」 — 접는 칸 */
+details.ap.refs>summary{list-style:none;cursor:pointer}
+details.ap.refs>summary::-webkit-details-marker{display:none}
+details.ap.refs>summary h4::after{content:"▸";color:var(--text-3);font-size:var(--fs-xs);margin-left:auto}
+details.ap.refs[open]>summary h4::after{content:"▾"}
+/* 설정 영역 — 좁으면 메뉴 위 · 본문 아래: 본문이 폭을 다 쓴다(글자 하나 폭으로 접히지 않게) */
+@media (max-width:1024px){.mgwrap{align-items:stretch}.mgbody{width:100%}}
+/* 머리 띠 — 긴 지식 폴더 경로는 줄을 바꾼다(좁은 폭에서 잘리지 않게) */
+.band .who{white-space:normal;min-width:0;overflow-wrap:anywhere}
+/* 화면 읽기 프로그램만 읽는 자리 — 보이지 않는다(#srLive) */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
