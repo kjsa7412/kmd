@@ -138,6 +138,50 @@ export function promptOf(g) {
   ].join('\n\n')
 }
 
+// 한 문서의 항목 여럿을 claude -p 한 번에 — 자리마다 부르면 기록 22건이 자리 159개 · 159번이 된다.
+//   같은 문서의 항목 묶음만 · 묶음 하나는 BATCH_MAX 자리 · 글(지금 글 + 기록)은 BATCH_CHARS 까지. 답은 자리마다 DRAFT_SCHEMA 와 같은 초안
+export const BATCH_MAX = 6
+export const BATCH_CHARS = 40_000
+export const BATCH_SCHEMA = {
+  type: 'object',
+  properties: {
+    items: {
+      type: 'array',
+      items: { type: 'object', properties: { key: { type: 'string', description: '항목의 key(그대로)' }, ...DRAFT_SCHEMA.properties }, required: ['key', ...DRAFT_SCHEMA.required] },
+      description: '항목마다 하나',
+    },
+  },
+  required: ['items'],
+}
+const sizeOf = (g) => (g.content || '').length + g.records.reduce((n, r) => n + r.title.length + r.body.length, 0)
+// 묶음 — 문서 항목 자리만 같은 문서끼리 · 나머지(이름 바로잡기 · 넣은 파일)는 하나씩
+export function batchesOf(groups, { max = BATCH_MAX, chars = BATCH_CHARS } = {}) {
+  const out = []
+  const open = new Map()
+  for (const g of groups) {
+    if (g.kind !== 'section' || max < 2) { out.push([g]); continue }
+    const b = open.get(g.doc)
+    if (b && b.length < max && b.reduce((n, x) => n + sizeOf(x), 0) + sizeOf(g) <= chars) { b.push(g); continue }
+    const nb = [g]
+    open.set(g.doc, nb)
+    out.push(nb)
+  }
+  return out
+}
+export function batchPromptOf(gs) {
+  const recs = new Map()
+  for (const g of gs) for (const r of g.records) recs.set(r.id, r)
+  return [
+    `문서 ${gs[0].doc.replace(/^docs\/|\.md$/g, '')} 의 항목 ${gs.length} 개를 새 기록에 맞게 각각 고쳐 쓴다. 항목마다 items 에 하나씩 · key 는 받은 그대로.`,
+    '항목마다: 그 항목의 기록에 있는 값(수 · 이름 · 코드)은 그대로 옮기고, 기록에 없는 값을 지어내지 않는다. 옛 글의 값을 새 기록이 바꿨으면 새 값으로 바꾸고 drop 에 옛 값을 적는다. 그 항목에 넣을 것이 없는 기록은 left 에 까닭과 함께 둔다. used · left 에는 그 항목의 기록 id 만 쓴다.',
+    ...([...recs.values()].some((r) => r.code) ? ['코드 커밋 기록은 「바뀐 값」 줄과 차이를 본다. 글에 옛 값이 있으면 새 값으로 고치고, 코드에 없는 설명은 지어내지 않는다. 그 항목 글과 상관없는 커밋은 left 에 둔다.'] : []),
+    WRITE_RULES,
+    'JSON 으로만 답한다.',
+    gs.map((g) => `[key ${spotKey(g)}] 항목 「${g.name}」\n그 항목의 기록: ${g.records.map((r) => r.id).join(', ')}\n지금 글:\n${g.content || '(아직 없음)'}`).join('\n\n---\n\n'),
+    `기록(오래된 것부터):\n${[...recs.values()].sort((a, b) => a.date.localeCompare(b.date)).map((r) => `[${r.id}] ${r.date} ${r.author}: ${r.title}\n${r.body}`).join('\n\n')}`,
+  ].join('\n\n')
+}
+
 // 검사 — { ok, why, changed: [{from, to}] }
 export function check(k, g, d) {
   if (!d || typeof d !== 'object') return { ok: false, why: '초안 모양이 아니다' }

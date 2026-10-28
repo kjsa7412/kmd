@@ -148,3 +148,17 @@ test('로그인이 끝나면 멈춘다. 「자동 정리가 쉬고 있다」 · 
     delete process.env.FAKE_CLAUDE_MODE
   }
 })
+
+test('한 문서의 항목은 claude 한 번에: 묶음 답을 자리마다 넣는다 · 묶음 답에 빠진 자리는 따로 한 번 더', async () => {
+  const a = await s.hub.save(LEE, 'dpms', { record: { title: '헬스 체크 간격', body: '헬스 체크는 30초마다 본다.', touches: ['proc:헬스 체크'] } })
+  const b = await s.hub.save(LEE, 'dpms', { record: { title: '롤백 확인', body: '롤백 뒤 헬스 체크를 2번 본다 묶음빠짐.', touches: ['proc:롤백'] } })
+  const job = (await api('/api/k/dpms/tidy', { ids: [a.id, b.id] })).body
+  fs.rmSync(calls, { force: true })
+  const r = await workOnce({ server: s.url, key: wkey })
+  const log = fs.readFileSync(calls, 'utf8').split('\n').filter(Boolean)
+  assert.deepEqual([log.filter((l) => l === 'batch').length, log.filter((l) => l.startsWith('call')).length], [1, 2], '묶음 한 번 + 빠진 자리 한 번')
+  assert.deepEqual(r.rows.map((x) => x.kind).sort(), ['put', 'put'])
+  const k = await s.hub.get('dpms')
+  assert.deepEqual([k.byWork.get(a.id).state, k.byWork.get(b.id).state], ['in', 'in'])
+  assert.equal(s.hub.job(job.id).state, 'done')
+})

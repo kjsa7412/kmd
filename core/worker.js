@@ -7,7 +7,7 @@
 //   로그인이 끝났거나 한도면 다시 시도하지 않고 멈춘 뒤 서버에 알린다(멈춤 한 줄 「자동 정리가 쉬고 있다」)
 
 import { runClaude } from './claude.js'
-import { promptOf, DRAFT_SCHEMA, TOUCH_SCHEMA, INGEST_SCHEMA, spotKey } from './tidy.js'
+import { promptOf, DRAFT_SCHEMA, TOUCH_SCHEMA, INGEST_SCHEMA, spotKey, batchesOf, batchPromptOf, BATCH_SCHEMA, BATCH_MAX } from './tidy.js'
 import { runAgent, agentAvailable } from './agent.js'
 import { modelOf } from './models.js'
 
@@ -50,11 +50,13 @@ async function agentIngest({ server, dkey, kn, g, log, models }) {
 const PAR = Math.min(8, Math.max(1, Number(process.env.KMD_TIDY_PAR) || 3))
 // 자리 하나의 글 쓰기 시간 — 기록이 많이 모인 자리는 3분을 넘기기도 한다
 const TIDY_TIMEOUT = 5 * 60_000
+// 한 문서의 항목을 한 번에 쓰는 수(KMD_TIDY_BATCH · 1 이면 자리마다 따로)
+const BATCH = Math.max(1, Number(process.env.KMD_TIDY_BATCH) || BATCH_MAX)
 
 // 일감 하나 — 없으면 null · models — 일마다 모델(core/models.js · 없으면 기본 배분)
-//   자리는 PAR 개씩 같이 쓰고, 초안을 받으면 그 자리만 바로 올린다(서버가 검사해 넣고 받은 것에서 빠진다) ·
+//   한 문서의 항목은 batch 개까지 claude -p 한 번에(batchesOf) · 그 묶음을 PAR 개씩 같이 쓰고, 초안을 받으면 그 자리만 바로 올린다(서버가 검사해 넣고 받은 것에서 빠진다) ·
 //   서버가 다시 켜져 일감이 다시 기다림이 되어도 넣은 자리는 다시 쓰지 않는다. 못 쓴 자리 · 그만둔 자리는 끝에 한꺼번에
-export async function workOnce({ server, key, log = () => {}, budget = 0.5, models = null, par = PAR }) {
+export async function workOnce({ server, key, log = () => {}, budget = 0.5, models = null, par = PAR, batch = BATCH }) {
   const n = await call(server, key, '/api/worker/next', {})
   if (!n.job) return null
   const { job, key: dkey } = n
@@ -72,13 +74,39 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
   let quit = false // 사람이 [그만두기] — 서버가 progress · drafts 답으로 알린다 · 쓴 초안은 올리고 남은 자리는 쓰지 않는다
   let lost = false // 단기 열쇠가 끊겼다(서버가 다시 켜졌다 · 일감이 다른 일꾼에게) — 더 쓰지 않는다
   const gone = (e) => { if (e.status === 401 || e.status === 403) lost = true; return {} }
-  const one = async (g) => {
+  // 자리 시작 — 서버에 알린다 · 그만뒀거나 열쇠가 끊겼으면 false(그 자리는 끝에 「그만둠」 으로 올린다)
+  const begin = async (g, model) => {
     if (stop || quit || lost) {
       items.push({ group: slim(g), error: stop && !quit && !lost ? stop : 'stopped' })
-      return
+      return false
     }
+    const p = await call(server, dkey, `/api/k/${kn}/worker/progress`, { key: spotKey(g), model, par: true }).catch(gone)
+    if (p.stop || lost) {
+      if (p.stop && !quit) log(`${decodeURIComponent(kn)}: 정리를 그만둔다(사람이 멈췄다)`)
+      quit ||= !!p.stop
+      items.push({ group: slim(g), error: 'stopped' })
+      return false
+    }
+    return true
+  }
+  const write = (g, model) => runClaude({ prompt: promptOf(g), schema: g.kind === 'touches' ? TOUCH_SCHEMA : g.kind === 'ingest' ? INGEST_SCHEMA : DRAFT_SCHEMA, budget, model, timeoutMs: TIDY_TIMEOUT })
+  // 자리 끝 — 서버에 알리고, 초안이면 바로 올린다. 못 올리면 끝에 같이
+  const finish = async (g, r) => {
+    const e = await call(server, dkey, `/api/k/${kn}/worker/progress`, { key: spotKey(g), end: true, ok: !r.error, why: r.error ? (STOP[r.error] ? r.error : r.message || r.error) : null }).catch(gone)
+    if (e.stop) quit = true
+    if (STOP[r.error] && !stop) {
+      stop = r.error
+      log(`정리 일꾼이 쉰다: ${STOP[stop]}`)
+    }
+    const item = { group: slim(g), draft: r.value ?? null, model: r.model, error: r.error || null, why: r.error ? r.message || null : null }
+    if (!item.draft || lost) { items.push(item); return }
+    const d = await call(server, dkey, `/api/k/${kn}/worker/drafts`, { drafts: [item], part: true }).catch((x) => (gone(x), null))
+    if (!d) items.push(item)
+    else if (d.stop) quit = true
+  }
+  const one = async (g) => {
     // 넣은 파일 — 세션처럼 일하는 에이전트로(이 PC 의 Claude Code · MCP 는 서버 · 단기 열쇠). 넣었으면 초안은 없다 · 못 넣으면 아래 초안 길로
-    if (g.kind === 'ingest' && agentAvailable()) {
+    if (g.kind === 'ingest' && agentAvailable() && !(stop || quit || lost)) {
       const a = await agentIngest({ server, dkey, kn, g, log, models }).catch((e) => ({ placed: false, error: null, why: e.message }))
       if (STOP[a.error]) {
         stop = a.error
@@ -89,29 +117,26 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
       if (a.placed) return
     }
     const model = modelOf(g.kind === 'touches' ? 'touch' : 'tidy', models)
-    const p = await call(server, dkey, `/api/k/${kn}/worker/progress`, { key: spotKey(g), model, par: true }).catch(gone)
-    if (p.stop || lost) {
-      if (p.stop && !quit) log(`${decodeURIComponent(kn)}: 정리를 그만둔다(사람이 멈췄다)`)
-      quit ||= !!p.stop
-      items.push({ group: slim(g), error: 'stopped' })
-      return
-    }
-    const r = await runClaude({ prompt: promptOf(g), schema: g.kind === 'touches' ? TOUCH_SCHEMA : g.kind === 'ingest' ? INGEST_SCHEMA : DRAFT_SCHEMA, budget, model, timeoutMs: TIDY_TIMEOUT })
-    const e = await call(server, dkey, `/api/k/${kn}/worker/progress`, { key: spotKey(g), end: true, ok: !r.error, why: r.error ? (STOP[r.error] ? r.error : r.message || r.error) : null }).catch(gone)
-    if (e.stop) quit = true
-    if (STOP[r.error] && !stop) {
-      stop = r.error
-      log(`정리 일꾼이 쉰다: ${STOP[stop]}`)
-    }
-    const item = { group: slim(g), draft: r.value ?? null, model: r.model, error: r.error || null, why: r.error ? r.message || null : null }
-    if (!item.draft || lost) { items.push(item); return }
-    // 초안 — 바로 올린다. 못 올리면 끝에 같이
-    const d = await call(server, dkey, `/api/k/${kn}/worker/drafts`, { drafts: [item], part: true }).catch((x) => (gone(x), null))
-    if (!d) items.push(item)
-    else if (d.stop) quit = true
+    if (await begin(g, model)) await finish(g, await write(g, model))
   }
-  const todo = [...groups]
-  await Promise.all(Array.from({ length: Math.min(par, todo.length) }, async () => { while (todo.length) await one(todo.shift()) }))
+  // 한 문서의 항목 묶음 — claude -p 한 번에 쓰고 자리마다 초안으로 나눈다. 묶음 답이 틀렸거나 그 자리 답이 없으면 그 자리만 따로 한 번 더
+  const many = async (gs) => {
+    const model = modelOf('tidy', models)
+    const go = []
+    for (const g of gs) if (await begin(g, model)) go.push(g)
+    if (go.length < 2) return go.length ? finish(go[0], await write(go[0], model)) : undefined
+    const r = await runClaude({ prompt: batchPromptOf(go), schema: BATCH_SCHEMA, budget: budget * Math.min(go.length, 4), model, timeoutMs: Math.min(2 * TIDY_TIMEOUT, TIDY_TIMEOUT + go.length * 60_000) })
+    const got = new Map((Array.isArray(r.value?.items) ? r.value.items : []).filter((x) => x && typeof x === 'object').map((x) => [String(x.key), x]))
+    for (const g of go) {
+      const d = got.get(spotKey(g))
+      if (d) { await finish(g, { value: { content: d.content, used: d.used, left: d.left, drop: d.drop || [] }, model: r.model }); continue }
+      if (STOP[r.error] || stop) { await finish(g, STOP[r.error] ? r : { error: stop, message: STOP[stop] }); continue }
+      if (quit || lost) { items.push({ group: slim(g), error: 'stopped' }); continue }
+      await finish(g, await write(g, model))
+    }
+  }
+  const todo = batchesOf(groups, { max: batch })
+  await Promise.all(Array.from({ length: Math.min(par, todo.length) }, async () => { while (todo.length) { const u = todo.shift(); await (u.length > 1 ? many(u) : one(u[0])) } }))
   if (lost) {
     log(`${decodeURIComponent(kn)}: 이 일감의 열쇠가 끊겼다(서버가 다시 켜졌다). 넣은 자리는 그대로 · 남은 자리는 다음에`)
     return { job, rows: [], skipped: 'lost' }

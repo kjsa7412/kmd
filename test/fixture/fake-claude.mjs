@@ -56,9 +56,23 @@ process.stdin.on('end', () => {
     const first = /^- (\S+:[^ ]+(?: [^—]+)?) — /m.exec(prompt.split('후보:')[1] || '')
     return say({ structured_output: { touches: first ? [first[1].trim()] : [], why: '제목이 그 항목을 말한다' } })
   }
-  const cur = (prompt.split('지금 글:\n')[1] || '').split('\n\n기록(오래된 것부터):')[0]
   const recPart = prompt.split('기록(오래된 것부터):\n')[1] || ''
-  const recs = [...recPart.matchAll(/^\[([^\]]+)\] [^\n]*\n([\s\S]*?)(?=\n\n\[|$)/gm)].map((m) => ({ id: m[1], body: m[2].trim() }))
+  const all = [...recPart.matchAll(/^\[([^\]]+)\] [^\n]*\n([\s\S]*?)(?=\n\n\[|$)/gm)].map((m) => ({ id: m[1], body: m[2].trim() }))
+  // 한 문서의 항목 묶음(batchPromptOf) — 항목마다 같은 초안 · 기록에 「묶음빠짐」 이 있으면 그 항목은 답에서 뺀다(일꾼이 따로 다시)
+  if (prompt.includes('[key ')) {
+    if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'batch\n')
+    const blocks = prompt.split('\n\n기록(오래된 것부터):')[0].split('[key ').slice(1)
+    const items = blocks.map((x) => {
+      const ids = (/^그 항목의 기록: (.+)$/m.exec(x) || [, ''])[1].split(', ')
+      const cur = (x.split('지금 글:\n')[1] || '').split('\n\n---\n\n')[0].trim()
+      return { key: x.slice(0, x.indexOf(']')), recs: all.filter((r) => ids.includes(r.id)), cur }
+    })
+    return say({ structured_output: { items: items.filter((x) => !x.recs.some((r) => r.body.includes('묶음빠짐'))).map((x) => ({ key: x.key, ...draft(x.cur, x.recs) })) } })
+  }
+  say({ structured_output: draft((prompt.split('지금 글:\n')[1] || '').split('\n\n기록(오래된 것부터):')[0], all) })
+})
+
+function draft(cur, recs) {
   let content = cur === '(아직 없음)' ? '' : cur
   const drop = []
   for (const r of recs) {
@@ -73,5 +87,5 @@ process.stdin.on('end', () => {
     if (r.body.includes('지어낸')) content += ' 그리고 999초 기다린다.'
     if (r.body.includes('주입')) content += '\n## 새 머리\n엉뚱한 항목'
   }
-  say({ structured_output: { content, used: recs.map((r) => r.id), left: [], drop } })
-})
+  return { content, used: recs.map((r) => r.id), left: [], drop }
+}
