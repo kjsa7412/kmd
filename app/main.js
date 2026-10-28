@@ -1977,7 +1977,16 @@ function tdFollow(k, j) {
   const poll = setInterval(async () => {
     const st = await getJSON('/api/job/' + j.id).catch(() => ({ state: 'gone' }))
     const heard = Date.parse(st.beat || st.started || st.at || 0) || run.t0
-    if ((st.state === 'queued' || st.state === 'running') && Date.now() - Math.max(heard, run.t0) < 30 * 60000) { run.queued = st.state === 'queued'; run.st = st; if (S.route.scr === 'tidy') render(); return }
+    if ((st.state === 'queued' || st.state === 'running') && Date.now() - Math.max(heard, run.t0) < 30 * 60000) {
+      // 바뀐 것이 있을 때만 다시 그린다(자리 수백 개를 1.5초마다 그리면 화면이 버벅인다) · 자리를 넣으면 받은 것도 새로
+      const sig = JSON.stringify([st.state, st.stop, st.spots && st.spots.map((x) => [x.st, x.lines && x.lines.length])])
+      const put = (st.spots || []).filter((x) => x.st === 'done').length
+      if (put !== run.put) { run.put = put; delete S.cache['tidy:' + k] }
+      run.queued = st.state === 'queued'
+      run.st = st
+      if (sig !== run.sig && S.route.scr === 'tidy' && !document.hidden) { run.sig = sig; render() }
+      return
+    }
     clearInterval(poll)
     delete S.tidyRuns[k]
     forgetKn(k)
@@ -3375,7 +3384,9 @@ let busyTimer = null
 async function loadBusy() {
   clearTimeout(busyTimer)
   if (!S.me || anon()) return
-  const before = JSON.stringify((S.busy && S.busy.items) || [])
+  // 정리의 「자리 N 중 M 씀」 처럼 팝업에만 보이는 글은 팝업이 닫혀 있으면 다시 그릴 까닭이 아니다
+  const sig = (xs) => JSON.stringify((xs || []).map((x) => (S.menu === 'busy' ? x : { ...x, small: undefined })))
+  const before = sig(S.busy && S.busy.items)
   const v = await getJSON('/api/busy').catch(() => null)
   // 팀 화면 — 내 PC 쪽에서 도는 일도(개인 지식의 가져오기 · 넣기 · 내 Claude)
   if (v && isTeam() && S.pc && S.pc.token) { const pv = await getJSON('/pc/api/busy').catch(() => null); if (pv) v.items = [...v.items, ...pv.items.map((x) => ({ ...x, kn: '~' + x.kn }))] }
@@ -3388,7 +3399,7 @@ async function loadBusy() {
     S.busy = v
     // 바뀌었거나 팝업이 열려 있으면(지난 시간) 다시 그린다 — 쓰는 중인 칸은 건드리지 않는다
     const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)
-    if ((JSON.stringify(v.items) !== before || S.menu === 'busy') && !typing) render()
+    if ((sig(v.items) !== before || S.menu === 'busy') && !typing) render()
   }
   busyTimer = setTimeout(loadBusy, v && v.items.length ? 3000 : 15000)
 }

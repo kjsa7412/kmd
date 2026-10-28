@@ -311,6 +311,11 @@ test('팀: 정리 일감도 같은 줄 · 기다리는 것은 뺀다(일꾼이 �
     assert.equal(it.fin, true)
     assert.equal(await workOnce({ server: t.url, key: wkey }), null, '뺀 일감은 일꾼이 받지 않는다')
     await assert.rejects(t.hub.queueAct(KIM, 't:' + j.id, 'cancel'), { code: 'E_CONFLICT' })
+    // 화면은 「t:」 를 %3A 로 보낸다 — 길이 있어야 한다(「그런 길은 없다」 가 아니라 이미 끝난 정리)
+    const { signIn } = await import('./helpers.mjs')
+    const me = await signIn(t, { id: 'kim' })
+    const r = await fetch(`${t.url}/api/queue/${encodeURIComponent('t:' + j.id)}/cancel`, { method: 'POST', headers: { 'content-type': 'application/json', cookie: me.cookie }, body: '{}' })
+    assert.equal(r.status, 409)
     assert.throws(() => t.hub.queueHold({ user: 'lee' }, true), { code: 'E_FORBIDDEN' }, '줄 멈춤은 관리자만')
   } finally {
     await t.close()

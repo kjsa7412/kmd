@@ -150,6 +150,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   //   keep — 아직 끝이 아니다(항목만 골랐다 · 못 넣어 한 시간 뒤 다시) — 다음 줄도 그 일에
   const codeNote = (recIds, k, x, { keep = false } = {}) => { for (const r of recIds) { const qj = codeJobs.get(r); if (qj) { if (!keep) codeJobs.delete(r); Q.line(qj, k, x) } } }
   const liveTimers = new Map() // 팀 지식 「실시간」 정리 — 조용해진 뒤 한 번
+  const draftLocks = new Map() // 지식마다 초안 받기 한 줄(hub.drafts)
   // 일감 — 맡은 일감은 임대(기본 40분 · 일꾼이 부를 때마다 늘린다). 지나면 다시 기다림으로(세 번째면 failed · 까닭) ·
   // 파일(<data>/jobs.json)에 두어 다시 켜도 기다리던 정리가 사라지지 않는다(맡았던 것은 기다림으로)
   const JOB_LEASE = config.jobLeaseMs ?? 40 * 60_000
@@ -1319,7 +1320,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     jobsOf: (id) => (sweepJobs(), [...jobs.values()].filter((j) => j.kn === id)),
     // 정리 일 줄 — 일꾼이 자리 하나의 글 쓰기를 시작했다(화면 · 터미널은 job 을 1.5초마다 읽는다)
     //   end 가 없으면 시작(글 쓰는 중) · end 면 초안 받음(got · 검사는 다 모인 뒤 한꺼번에) 또는 못 받음(left)
-    workerProgress(dctx, id, { key, model, end = false, ok = true, why = null } = {}) {
+    workerProgress(dctx, id, { key, model, end = false, ok = true, why = null, par = false } = {}) {
       if (dctx.draft.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
       const j = jobs.get(dctx.draft.job)
       const sp = j?.spots?.find((x) => x.key === key)
@@ -1327,8 +1328,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       j.beat = new Date().toISOString()
       if (j.stop) return { ok: true, stop: true }
       if (!end) {
-        // 예전 일꾼은 끝을 알리지 않는다 — 다음 자리를 시작하면 앞 자리는 초안을 받은 것
-        for (const x of j.spots) if (x.st === 'run' && x !== sp) Object.assign(x, { st: 'got', stage: 3 })
+        // 예전 일꾼은 끝을 알리지 않는다 — 다음 자리를 시작하면 앞 자리는 초안을 받은 것(자리를 같이 쓰는 일꾼은 par)
+        if (!par) for (const x of j.spots) if (x.st === 'run' && x !== sp) Object.assign(x, { st: 'got', stage: 3 })
         Object.assign(sp, { st: 'run', stage: 2 })
         sp.lines.push([2, 'tool', `▸ Claude 초안${model ? ` · ${String(model).slice(0, 60)}` : ''}`])
       } else if (ok) {
@@ -1402,13 +1403,15 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const groups = material(k, { candidates: (w) => cands.find((c) => c.id === w.id)?.list || [], ids: job?.ids || null })
       // 정리 일 줄 — 묶음 하나가 자리 하나 · 모으기 · 자리 찾기는 여기서 끝난다
       if (job) {
-        job.spots = groups.map((g) => {
+        // 다시 받은 일감(서버가 다시 켜졌다) — 이미 넣은 자리는 그대로 보인다 · 그 기록은 받은 것에 없어 다시 쓰지 않는다
+        const put = (job.spots || []).filter((x) => x.st === 'done')
+        job.spots = put.concat(groups.map((g) => {
           const recs = g.kind === 'section' ? g.records : [g.record]
           return {
             key: spotKey(g), kind: g.kind, target: spotTarget(g), records: recs.map((r) => r.id), st: 'wait', stage: 2,
             lines: [[0, 'sys', `받은 기록 ${recs.length} · ${[...new Set(recs.map((r) => r.author))].join(' · ')}${g.values?.length ? ` · 값 ${g.values.slice(0, 6).join(' · ')}` : ''}`], [1, 'ok', g.kind === 'section' ? `✓ 자리 ${spotTarget(g)}` : g.kind === 'ingest' ? `✓ 넣은 파일 · 후보 문서 ${g.docs.length}` : '자리를 못 찾은 기록 · Claude 가 후보에서 고른다']],
           }
-        })
+        }).filter((x) => !put.some((y) => y.key === x.key)))
         saveJobs()
       }
       // 이름 없는 기록의 후보 이름 — 찾기 사다리(제목 + 글)
@@ -1418,9 +1421,17 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       return { kn: id, groups }
     },
-    async drafts(dctx, id, list) {
+    // 초안 받기 — 한 지식에 한 번에 하나씩(자리를 같이 쓰는 일꾼이 초안을 겹쳐 올린다 · 같은 문서에 같이 쓰지 않게)
+    drafts(dctx, id, list, o = {}) {
+      const run = (draftLocks.get(id) || Promise.resolve()).catch(() => {}).then(() => hub.putDrafts(dctx, id, list, o))
+      draftLocks.set(id, run)
+      return run
+    },
+    // part — 자리 하나를 쓰는 대로 넣는다(받은 것에서 바로 빠진다) · 일감은 끝내지 않고 줄은 j.rows 에 모았다가 끝에 「정리한 것」 한 장으로
+    async putDrafts(dctx, id, list, { part = false } = {}) {
       if (dctx.draft.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
       const j = jobs.get(dctx.draft.job)
+      if (part && j?.state !== 'running') return { rows: [], stop: true }
       const meta = await hub.meta(id)
       const rows = []
       for (const item of Array.isArray(list) ? list : []) {
@@ -1493,9 +1504,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           }
         })
         // 일꾼이 에이전트로 넣은 파일은 초안이 오지 않는다
-        for (const sp of j.spots) if (sp.st === 'wait' || sp.st === 'run' || sp.st === 'got') Object.assign(sp, j.stop && sp.st === 'wait' ? { st: 'stop', stage: 2 } : sp.kind === 'ingest' ? { st: 'done', stage: 5, res: 'put' } : { st: 'left', stage: sp.st === 'got' ? 3 : 2, why: '초안이 오지 않았다' })
+        if (!part) for (const sp of j.spots) if (sp.st === 'wait' || sp.st === 'run' || sp.st === 'got') Object.assign(sp, j.stop && sp.st === 'wait' ? { st: 'stop', stage: 2 } : sp.kind === 'ingest' ? { st: 'done', stage: 5, res: 'put' } : { st: 'left', stage: sp.st === 'got' ? 3 : 2, why: '초안이 오지 않았다' })
       }
-      const done = rows.filter((x) => x.kind !== 'stopped')
+      if (part) {
+        if (j) { j.rows = (j.rows || []).concat(rows); saveJobs() }
+        return { rows, stop: !!j?.stop }
+      }
+      const done = (j?.rows || []).concat(rows).filter((x) => x.kind !== 'stopped')
       const run = { at: new Date().toISOString(), by: j?.by || null, auto: !!j?.auto, rows: done, ...(j?.stop ? { stopped: j.stop.by } : {}) }
       if (done.length) await saveRun(id, run) // 빈 정리는 「정리한 것」 카드를 남기지 않는다
       if (j) {
@@ -1513,7 +1528,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       cache.delete(id)
       if (mode === 'pc' && hub.agentOk(id) && (await hub.get(id)).works.some((w) => w.state === 'nowhere' && w.tags.includes('code-change') && !codeFresh(w.id))) hub.curateSoon(id).catch(() => {})
       if (backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
-      return { rows, summary: j?.summary || null }
+      return { rows: (j?.rows || []).concat(rows), summary: j?.summary || null }
     },
     async workerStatus(wctx, { ok = true, reason = null, message = null } = {}) {
       const prev = await fs.readFile(path.join(dataDir, 'worker.json'), 'utf8').then(JSON.parse, () => ({}))

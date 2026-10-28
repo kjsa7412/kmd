@@ -461,7 +461,9 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (wk[2] === 'agent') return out(200, await hub.workerAgent(ctx, decodeURIComponent(wk[1]), await readBody(req)))
       if (wk[2] === 'agent/log') return out(200, hub.workerAgentLog(ctx, decodeURIComponent(wk[1]), await readBody(req, 4 << 20)))
       if (wk[2] === 'agent/done') return out(200, await hub.workerAgentDone(ctx, decodeURIComponent(wk[1]), await readBody(req)))
-      return out(200, await hub.drafts(ctx, decodeURIComponent(wk[1]), (await readBody(req, 32 << 20)).drafts)) // 자리 수백 개의 초안
+      // 자리 수백 개의 초안 · part — 자리 하나를 쓰는 대로(일감은 끝나지 않는다)
+      const db = await readBody(req, 32 << 20)
+      return out(200, await hub.drafts(ctx, decodeURIComponent(wk[1]), db.drafts, { part: !!db.part }))
     }
     need(ctx)
     if (p === '/api/me/pcpass' || p === '/api/me/pcpass/check') {
@@ -742,7 +744,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (p === '/api/queue') { need(ctx); return out(200, await hub.queueList(ctx)) }
     if (p === '/api/queue/hold' && req.method === 'POST') { need(ctx); return out(200, hub.queueHold(ctx, !!(await readBody(req)).on)) }
     if (p === '/api/queue/caps' && req.method === 'POST') { need(ctx); return out(200, hub.queueCaps(ctx, await readBody(req))) }
-    const qa = p.match(/^\/api\/queue\/([0-9a-f]{12}|t:[0-9a-f]+)(?:\/(pause|resume|cancel|retry|force|top|move))?$/)
+    // 화면은 정리 일감 id 의 「t:」 를 %3A 로 보낸다
+    const qa = p.replace(/^(\/api\/queue\/t)%3A/i, '$1:').match(/^\/api\/queue\/([0-9a-f]{12}|t:[0-9a-f]+)(?:\/(pause|resume|cancel|retry|force|top|move))?$/)
     if (qa) {
       need(ctx)
       if (!qa[2]) return out(200, await hub.queueGet(ctx, qa[1], Number(url.searchParams.get('from')) || 0))
