@@ -2,7 +2,7 @@
 // kmd 명령 — 하나로 다 한다.
 //
 //   kmd serve [폴더]   팀 서버로 연다(같이 쓴다) · 기본 포트 7373
-//   kmd up [폴더]      이 PC 의 kmd 를 열고 화면을 띄운다(나만 쓴다) · 폴더 기본 D:\kmd 또는 ~/kmd
+//   kmd up [폴더]      개인 프로그램을 열고 화면을 띄운다(나만 쓴다) · 폴더 기본 D:\kmd 또는 ~/kmd
 //
 // 폴더 안의 폴더 하나하나가 지식이다. 폴더 자체가 지식 모양(docs/ · work/)이면 그 하나만.
 
@@ -31,7 +31,7 @@ const HELP = `kmd ${VERSION}
 
   이 PC
   kmd up [폴더] [--port 7373] [--no-open]
-      이 PC 의 kmd 를 켜고 화면을 연다. 폴더 기본 D:\\kmd(없으면 집 폴더의 kmd) · 이미 켜져 있으면 화면만 연다
+      개인 프로그램을 켜고 화면을 연다. 폴더 기본 D:\\kmd(없으면 집 폴더의 kmd) · 이미 켜져 있으면 화면만 연다
   kmd open [폴더]                              개인 화면을 연다(꺼져 있으면 켠다). 시작 메뉴의 kmd 와 같다 · 팀 화면은 팀 주소를 브라우저로
   kmd agent add <개인 지식> [--dir 폴더]          작업 폴더의 Claude Code 에 이 PC 의 개인 지식을 더한다(팀 화면 › 에이전트 설치가 복사해 준다)
   kmd connect <팀 주소> [--ticket kmdt_…]       팀에 잇는다. 설치 한 줄이 부른다(아이디 · 비밀번호로도)
@@ -39,7 +39,7 @@ const HELP = `kmd ${VERSION}
   kmd pc task [폴더]                           로그온 때 켜고 멈추면 다시(작업 스케줄러) · 시작 메뉴의 kmd
   kmd pc update <새 판 폴더> <판> [--root 폴더]
       새 판을 켜 보고 될 때만 바꾸고 다시 켠다(안 켜지면 앞 판으로): 폴더는 늘 켜기 작업 · 도는 kmd 의 것
-  kmd pc restart                               도는 이 PC 의 kmd 를 멈추고 다시 켠다(꺼져 있으면 켠다)
+  kmd pc restart                               도는 개인 프로그램을 멈추고 다시 켠다(꺼져 있으면 켠다)
   kmd pc switch <폴더> [--pid 앞 kmd]             지식 폴더를 바꿔 다시 켠다(팀 화면 › 설정 · 개인 › 지식 폴더가 부른다)
   kmd pc link [판]                             판 자리(~/.kmd-app/versions)의 이 판을 지금 판으로: 설치 한 줄이 부른다
 
@@ -53,7 +53,7 @@ const HELP = `kmd ${VERSION}
   kmd user key <아이디>                         그 사람의 기기 열쇠(kmdk_)를 하나 만들어 한 번만 찍는다(기기 이름 「셸」):
       서버 운영자의 자동화 · 시험용. 그 사람의 자리 그대로 API · MCP 를 쓴다 · 끊기는 화면 › 사람 › 기기 모두 끊기
   kmd owner <지식> [사람] [--curators 가,나]
-      지식의 주인 · 정리하는 사람(둘 다 그 지식의 지식관리자)
+      지식의 주인 · 지식관리자(--curators · 둘 다 그 지식의 지식관리자)
   kmd access <지식> [--all 읽기|쓰기|지식관리자|없음] [--user 아이디=자리 …] [--group 묶음=자리 …]
       지식마다 자리(읽기 · 쓰기 · 지식관리자 · 옛 이름 관리도 받는다): 인자 없으면 지금 표를 보인다 · 자리 「없음」 이면 그 줄을 뺀다 · 여럿은 쉼표로도
   kmd group [add <묶음> <아이디,…> | rm <묶음> | <묶음> +아이디 -아이디]
@@ -106,7 +106,7 @@ function openBrowser(url) {
   spawn(cmd, args, { stdio: 'ignore', detached: true, windowsHide: true }).on('error', () => {}).unref()
 }
 
-// ── 이 PC 의 kmd 찾기 · 화면 열기 · 멈추기 · 다시 켜기 ──
+// ── 개인 프로그램 찾기 · 화면 열기 · 멈추기 · 다시 켜기 ──
 // `kmd up` 은 다 켜진 뒤(열쇠 · Claude Code 잇기까지) <살림 자리>/up.json 에 주소를 적고 끌 때 지운다.
 // 화면은 한 번용 번호로만 열리므로, 번호는 도는 kmd 에게 이 PC 의 열쇠(자격 저장소의 기기 열쇠)로 받는다.
 const upFileOf = (root, o) => path.join(o.data ? path.resolve(o.data) : defaultDataDir(root), 'up.json')
@@ -114,7 +114,7 @@ const readUp = (root, o) => { try { return JSON.parse(fs.readFileSync(upFileOf(r
 const runCode = (cmd, args) => new Promise((ok) => spawn(cmd, args, { stdio: 'ignore', windowsHide: true }).on('exit', (c) => ok(c)).on('error', () => ok(1)))
 const runOut = (cmd, args) => new Promise((ok) => { let out = ''; const p = spawn(cmd, args, { windowsHide: true }); p.stdout.on('data', (d) => (out += d)); p.on('exit', (c) => ok(c === 0 ? out : null)); p.on('error', () => ok(null)) })
 const sameDir = (a, b) => (process.platform === 'win32' ? path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase() : path.resolve(a) === path.resolve(b))
-// 살아 있나 — 'up'(이 PC 의 kmd 가 답한다) · 'busy'(받았는데 답이 늦다 — 넣기 · 정리로 바쁜 kmd) · null(꺼짐 · 다른 프로그램).
+// 살아 있나 — 'up'(개인 프로그램이 답한다) · 'busy'(받았는데 답이 늦다 — 넣기 · 정리로 바쁜 kmd) · null(꺼짐 · 다른 프로그램).
 // 가벼운 /healthz?live=1 로 묻는다(멈춤 줄을 재지 않는다)
 async function pcAlive(url, ms = 10_000) {
   try {
@@ -234,7 +234,7 @@ async function restartPc(root, o, url, { node, script } = {}) {
   if (up) return { ok: true, up, how: via?.how || 'direct', steps: via?.steps || [] }
   return { ok: false, why: '다시 켜지 않았다. kmd open 으로 켠다' }
 }
-// 지금 이 PC 의 kmd 가 쓰는 지식 폴더 — --root · 늘 켜기 작업의 인자 · 도는 kmd 에게 묻기 · 기본 폴더 순
+// 지금 개인 프로그램이 쓰는 지식 폴더 — --root · 늘 켜기 작업의 인자 · 도는 kmd 에게 묻기 · 기본 폴더 순
 async function pcRootNow(o) {
   if (o.root) return path.resolve(o.root)
   if (process.platform === 'win32' && !process.env.KMD_NO_TASK) {
@@ -258,7 +258,7 @@ async function connectedTeam(root, o) {
   return team
 }
 // 에이전트 설치 · 개인 지식 — `kmd agent add <개인 지식>`(지금 폴더 · --dir 로 다른 폴더). 팀 화면 › 에이전트 설치가 복사해 주는 명령.
-//   이 PC 의 지식 폴더의 그 지식을 작업 폴더의 Claude Code 에 더한다(붙어 있던 지식 · 기본은 그대로) · 연결은 이 PC 의 kmd
+//   이 PC 의 지식 폴더의 그 지식을 작업 폴더의 Claude Code 에 더한다(붙어 있던 지식 · 기본은 그대로) · 연결은 개인 프로그램
 async function agentCmd(o) {
   const [sub, kn] = o._
   try {
@@ -290,7 +290,7 @@ async function openCmd(o) {
   const root = path.resolve(o._[0] || o.root || defaultPcRoot())
   let url = await runningPc(root, o)
   if (!url) {
-    console.log('이 PC 의 kmd 가 꺼져 있다. 켠다')
+    console.log('개인 프로그램이 꺼져 있다. 켠다')
     await startPc(root, o)
     url = await waitPc(root, o, 60_000)
     if (!url) {
@@ -301,7 +301,7 @@ async function openCmd(o) {
   }
   try {
     await openPc(url)
-    console.log(`✓ 이 PC 의 kmd 화면을 열었다: ${url}`)
+    console.log(`✓ 개인 화면을 열었다: ${url}`)
   } catch (e) {
     console.error(`화면을 열지 못했다: ${e.message}`)
     process.exitCode = 1
@@ -358,7 +358,7 @@ async function main() {
     s = await startServer({ root, data: o.data ? path.resolve(o.data) : null, mode: pc ? 'pc' : 'team', user, host: o.host || '127.0.0.1', port, onStop: pc ? () => stop() : null, onRoot: pc ? (next) => switchRoot(next, { ...o, port: o.port }).then(() => stop()) : null })
   } catch (e) {
     if (e.code === 'EADDRINUSE') {
-      // 이 PC 의 kmd 가 이미 그 포트에서 돈다(늘 켜기 작업 · 앞서 켠 창) — 하나 더 켜지 않고 그 화면을 연다.
+      // 개인 프로그램이 이미 그 포트에서 돈다(늘 켜기 작업 · 앞서 켠 창) — 하나 더 켜지 않고 그 화면을 연다.
       // 이 OS 사용자의 · 이 폴더의 kmd 일 때만(이 PC 의 열쇠로 물어 지식 폴더를 견준다) · 바쁘면 그것으로 본다
       const url = `http://127.0.0.1:${port}`
       const st = pc ? await pcAlive(url) : null
@@ -368,7 +368,7 @@ async function main() {
         process.exit(1)
       }
       if (st === 'busy' || (st === 'up' && theirs)) {
-        console.log(`이 PC 의 kmd 가 이미 켜져 있다: ${url}`)
+        console.log(`개인 프로그램이 이미 켜져 있다: ${url}`)
         if (o.open !== false) {
           try {
             await openPc(url)
@@ -398,7 +398,7 @@ async function main() {
       await kput(name, key).catch((e) => console.error(e.message))
     }
     const c = await addMcp('kmd', s.url)
-    console.log(c.ok ? '✓ Claude Code 에 이었다. 이 PC 의 kmd(kmd)' : `Claude Code 에 잇기(한 번): ${c.line}`)
+    console.log(c.ok ? '✓ Claude Code 에 이었다. 개인 프로그램(kmd)' : `Claude Code 에 잇기(한 번): ${c.line}`)
     // 이 PC 의 정리 일꾼 — 내 Claude 로그인으로(자식 프로세스 · 서버 프로세스는 Claude 를 부르지 않는다)
     if (o.worker !== 'false') {
       let wk = await kget('worker:' + s.url).catch(() => null)
@@ -781,14 +781,14 @@ async function connectCmd(o) {
     process.exitCode = 1
     return
   }
-  // --root(팀 화면에서 쓴 내 PC 지식 폴더) — 있던 지식 폴더면 그대로 · 없거나 빈 폴더면 새로 세운다 · 다른 파일만 있으면 아무것도 하지 않고 멈춘다.
+  // --root(팀 화면에서 쓴 지식 폴더) — 있던 지식 폴더면 그대로 · 없거나 빈 폴더면 새로 세운다 · 다른 파일만 있으면 아무것도 하지 않고 멈춘다.
   //   고른 폴더는 이 PC 의 지식 폴더 표에 적는다(kmd up · open · 늘 켜기가 기본 폴더로 읽는다)
   let root
   if (o.root && o.root !== 'true') {
     try {
       root = pcRootKind(o.root).root
     } catch (e) {
-      console.error(`내 PC 지식 폴더로 쓰지 못한다: ${o.root} · ${e.message}. 팀 화면 › 지식 목록 › 내 PC 지식 폴더에서 다른 경로로 설치 한 줄을 다시 받는다`)
+      console.error(`지식 폴더로 쓰지 못한다: ${o.root} · ${e.message}. 팀 화면 › 지식 목록 › 지식 폴더에서 다른 경로로 설치 한 줄을 다시 받는다`)
       process.exitCode = 1
       return
     }
@@ -997,7 +997,7 @@ async function pcCmd(o) {
     } else if (sub === 'update') {
       if (!a || !b) throw new Error('kmd pc update <새 판 폴더> <판> [--root 지식 폴더] [--home 판 자리]')
       const home = path.resolve(o.home || appHomeOf()?.home || path.join(os.homedir(), '.kmd-app'))
-      // 지금 이 PC 의 kmd 가 쓰는 폴더 — 다른 폴더를 켜던 PC 를 기본 폴더로 바꿔 놓지 않게
+      // 지금 개인 프로그램이 쓰는 폴더 — 다른 폴더를 켜던 PC 를 기본 폴더로 바꿔 놓지 않게
       const root = await pcRootNow(o)
       const r = await upgrade({ home, from: path.resolve(a), ver: b })
       if (!r.ok) {
@@ -1027,7 +1027,7 @@ async function pcCmd(o) {
         if (!c.ok && !c.skipped) console.log(`· Claude Code 의 ${name} 을 다시 걸지 못했다${c.why ? ': ' + c.why : ''}${c.line ? ` · 한 번: ${c.line}` : ''}`)
       }
       // 다시 켜기 — 도는 kmd 를 이 PC 의 열쇠로 멈추고 새 판으로 · 안 켜지면 앞 판으로 되돌려 켠다
-      if (!url) return void console.log('이 PC 의 kmd 가 꺼져 있다. 다음에 켤 때부터 새 판이다')
+      if (!url) return void console.log('개인 프로그램이 꺼져 있다. 다음에 켤 때부터 새 판이다')
       const dir = path.join(home, 'versions', r.ver)
       const node = fs.existsSync(path.join(dir, 'node.exe')) ? path.join(dir, 'node.exe') : process.execPath
       const back = await restartPc(root, o, url, { node, script: path.join(dir, 'server', 'bin', 'kmd.mjs') })

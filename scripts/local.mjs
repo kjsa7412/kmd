@@ -1,4 +1,4 @@
-// 로컬 시험 환경 — 팀 서버 하나와 내 PC 프로그램 하나를 이 PC 에 같이 띄운다(서로 이어진 채로).
+// 로컬 시험 환경 — 팀 서버 하나와 개인 프로그램 하나를 이 PC 에 같이 띄운다(서로 잇지 않는다 · 분리).
 //
 //   팀   http://localhost:7381  — 지식 dpms · gdi(시험 지식 사본) · 사람 kim(관리자) · park(dpms 주인) · lee
 //   PC   http://127.0.0.1:7382  — kim 의 내 지식 배포노트(→ 팀 dpms 로 보냄) · 설계메모 · 받은편지함
@@ -21,7 +21,7 @@ const PC_PORT = TEAM_PORT + 1
 const PW = { kim: 'kim-password-1', park: 'park-password-1', lee: 'lee-password-1' }
 
 process.env.KMD_NO_CLAUDE = '1' // claude mcp add 를 부르지 않는다
-// 팀 화면이 내 PC 에 시키는 일의 확인 창 — 이 PC 의 브라우저를 띄우지 않고 주소를 터미널에 찍는다(KMD_LOCAL_OPEN=1 이면 띄운다)
+// 브라우저를 띄우지 않고 주소를 터미널에 찍는다(KMD_LOCAL_OPEN=1 이면 띄운다)
 if (process.env.KMD_LOCAL_OPEN !== '1') process.env.KMD_NO_BROWSER = '1'
 if (process.env.KMD_LOCAL_FAKE_CLAUDE) {
   process.env.KMD_CLAUDE = path.join(ROOT, 'test', 'fixture', 'fake-claude.mjs')
@@ -83,7 +83,7 @@ if (first) {
   await pc.hub.sendDests({ user: pc.pcUser, pc: true }, '배포노트', [{ kn: 'dpms', url: TEAM_URL }])
   for (const k of ['배포노트', '설계메모', '받은편지함']) { const b = path.join(BASE, 'pc-bk', `${k}.git`); fs.mkdirSync(path.dirname(b), { recursive: true }); bare(b); await pc.hub.backupAttach(SHELL, k, b).catch(() => {}) }
 }
-// kim 의 「설치 한 줄로 이은 PC」 — 팀 화면이 내 PC 를 묻고, PC 의 보내기가 이 열쇠로 팀에 닿는다
+// kim 의 「설치 한 줄로 이은 PC」 — 개인 프로그램의 지식 보내기가 이 열쇠로 팀에 닿는다
 kimKey = await team.auth.deviceKeyFor('kim', { host: 'LOCAL-PC', osuser: 'kim' })
 process.env.KMD_SEND_KEY = kimKey
 runWorker({ server: team.url, key: (await team.auth.workerAdd()).key, poll: 3000, log })

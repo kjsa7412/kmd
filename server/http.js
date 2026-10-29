@@ -111,7 +111,7 @@ function readBody(req, max = MAX_BODY) {
 const DOCS = path.join(APP, '..', 'docs')
 const MANUALS = [
   { slug: '사용자', file: '설명서_사용자.md', title: '쓰는 사람', modes: ['team', 'pc'] },
-  { slug: '정리하는사람', file: '설명서_정리하는사람.md', title: '정리하는 사람', modes: ['team'] },
+  { slug: '지식관리자', file: '설명서_지식관리자.md', title: '지식관리자', modes: ['team'] },
   { slug: '관리자', file: '설명서_관리자.md', title: '관리자', modes: ['team'] },
   { slug: '운영', file: 'kmd_운영.md', title: '운영 · 되살리기', modes: ['team', 'pc'] },
 ]
@@ -141,7 +141,7 @@ async function manualPage(mode, slug) {
 // 시험은 KMD_APP_HOME(집) · KMD_NO_PATH(사용자 PATH 를 건드리지 않는다)로 이 PC 를 바꾸지 않고 돌린다
 // kn — 설치 한 줄을 붙여 넣은 작업 폴더를 그 팀 지식에 붙인다(에이전트 설치 · 팀)
 export const safeKn = (kn) => (/^[^\s'"`$\\;|&<>(){}]{1,80}$/u.test(String(kn || '')) ? String(kn) : null)
-// root — 내 PC 지식 폴더(팀 화면 › 지식 목록 › 개인 칸 띠에서 쓴 경로). 그 폴더에 세우거나(없거나 빈 폴더) 있던 지식 폴더를 그대로 쓴다.
+// root — 지식 폴더(팀 화면 › 지식 목록 › 개인 칸 띠에서 쓴 경로). 그 폴더에 세우거나(없거나 빈 폴더) 있던 지식 폴더를 그대로 쓴다.
 //   Windows(D:\…) · POSIX(/…) 절대 경로만 · 따옴표 · 셸 글자 · 줄바꿈은 받지 않는다(PowerShell · sh 의 홑따옴표 안에 싣는다)
 export const safeRoot = (r) => {
   const s = String(r || '').trim()
@@ -350,7 +350,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (mode === 'pc' && (p === '/api/pc/once' || p === '/api/pc/stop')) {
       need(ctx)
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
-      if (ctx.user !== pcUser) throw new KmdError('E_FORBIDDEN', '이 PC 의 kmd 만 한다')
+      if (ctx.user !== pcUser) throw new KmdError('E_FORBIDDEN', '개인 프로그램만 한다')
       if (p === '/api/pc/once') return out(200, { code: auth.once(pcUser) })
       if (!onStop) throw new KmdError('E_NOTFOUND', '이 kmd 는 여기서 멈추지 않는다')
       out(200, { ok: true })
@@ -462,7 +462,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     //   팀 화면은 짝 열쇠로 목록만 읽는다
     const ag = p.match(/^\/api\/agent(?:\/(add|up|rm|def))?$/)
     if (ag) {
-      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '에이전트 설치는 이 PC 의 kmd 가 한다. 팀 화면은 설치 한 줄 복사')
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '에이전트 설치는 개인 프로그램이 한다. 팀 화면은 설치 한 줄 복사')
       const list = await kit.folders(dataDir)
       if (!ag[1]) return out(200, { latest: await kit.kitVersion(), folders: await Promise.all(list.map(async (f) => ({ ...f, ...(await kit.status(f.path)) }))) })
       const b = await readBody(req)
@@ -570,7 +570,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       admin(ctx)
       return out(200, await hub.backupAdopt(ctx, dec(ba[1])))
     }
-    // 옛 문서 옮기기(경과 → 참고 블록) — 그 지식의 관리 자리(전역 관리자는 비밀번호 한 번 더) · { dry } 면 쓰지 않고 결과만
+    // 옛 문서 옮기기(경과 → 참고 블록) — 그 지식의 관리 자리(총괄 관리자는 비밀번호 한 번 더) · { dry } 면 쓰지 않고 결과만
     const dfm = p.match(/^\/api\/k\/([^/]+)\/docfmt$/)
     if (dfm && req.method === 'POST') {
       if (ctx?.admin) admin(ctx)
@@ -581,10 +581,10 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (p === '/api/knowledge/add') {
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       const b = await readBody(req)
-      // 팀 프로그램 — 팀 지식만 · 관리자(개인 지식은 이 PC 의 kmd 에)
+      // 팀 프로그램 — 팀 지식만 · 관리자(개인 지식은 개인 프로그램에)
       need(ctx)
-      // 지식 폴더를 뺀 내 PC 쪽 — 폴더가 서기 전에는 지식을 만들지 않는다
-      if (mode === 'pc' && isNoneRoot(root)) throw new KmdError('E_INPUT', '내 PC 지식 폴더가 없다. 지식 목록 › 내 PC 지식 폴더에 경로를 쓰고 세운다')
+      // 지식 폴더를 뺀 개인 프로그램 — 폴더가 서기 전에는 지식을 만들지 않는다
+      if (mode === 'pc' && isNoneRoot(root)) throw new KmdError('E_INPUT', '지식 폴더가 없다. 지식 목록 › 지식 폴더에 경로를 쓰고 세운다')
       if (mode === 'team') admin(ctx, { sudo: false })
       return out(200, await hub.addKnowledge(ctx, b))
     }
@@ -615,7 +615,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (hub.mode === 'team' && !hub.canSource(ctx, id)) { await hub.meta(id, ctx); hub.need(ctx, id, 'admin') }
       return out(200, await hub.sourceAdd(ctx, id, b))
     }
-    // 가져오는 곳 부탁 — 전역 관리자는 모두 · 그 밖은 관리 자리인 지식의 것만
+    // 가져오는 곳 부탁 — 총괄 관리자는 모두 · 그 밖은 관리 자리인 지식의 것만
     if (p === '/api/requests') {
       if (ctx.admin) return out(200, await hub.requests())
       return out(200, (await hub.requests()).filter((r) => hub.levelOf(ctx, r.kn) === 'admin'))
@@ -662,7 +662,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const menu = await hub.menuOf(ctx, ks0.map((k) => k.id))
       const ks = [...ks0].sort((a, b) => menu.order.indexOf(a.id) - menu.order.indexOf(b.id))
       return out(200, await Promise.all(ks.map(async (k) => {
-        // 내 PC 의 개인 지식 — 받는 지식(보내는 길) · 보내지 않은 기록 수(옆 메뉴 「지식 보내기」 의 수)
+        // 개인 화면의 개인 지식 — 받는 지식(보내는 길) · 보내지 않은 기록 수(옆 메뉴 「지식 보내기」 의 수)
         const row = hub.owner(k.id)
         const sv = mode === 'pc' && (await sendLib.destsOf(k.dir)).length ? await hub.sendView(ctx, k.id).catch(() => null) : null
         // level — 이 지식에서의 내 자리(read · write · admin) · role 은 그 화면 이름(PC 는 주인)
@@ -701,7 +701,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const kb = req.method === 'POST' ? await readBody(req).catch(() => ({})) : {}
       const kn = kb.kn ? safeKn(kb.kn) : null
       if (kb.kn && (!kn || !(await hub.visible(ctx)).some((k) => k.id === kn))) throw new KmdError('E_INPUT', '붙일 팀 지식이 없다')
-      // 내 PC 지식 폴더(지식 목록 › 개인 칸) — 설치가 그 폴더에 세우거나 있던 지식 폴더를 그대로 쓴다
+      // 지식 폴더(지식 목록 › 개인 칸) — 설치가 그 폴더에 세우거나 있던 지식 폴더를 그대로 쓴다
       const pr = kb.root ? safeRoot(kb.root) : null
       if (kb.root && !pr) throw new KmdError('E_INPUT', '이 PC 의 절대 경로를 쓴다(예: D:\\kmd) · 따옴표 · $ ; | & < > 는 쓰지 않는다')
       const qs = [kn && `kn=${encodeURIComponent(kn)}`, pr && `root=${encodeURIComponent(pr)}`].filter(Boolean).join('&')
@@ -763,7 +763,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, { ok: (await auth.setAdmin(id, !!(await readBody(req)).admin)) ?? true })
     }
 
-    // ── 관리 — 묶음(사람 여럿에 한 번에 자리를) · 전역 관리자 ──
+    // ── 관리 — 묶음(사람 여럿에 한 번에 자리를) · 총괄 관리자 ──
     if (p === '/api/admin/groups') {
       if (req.method === 'GET') {
         admin(ctx, { sudo: false })
@@ -778,7 +778,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       admin(ctx)
       return out(200, await hub.dropGroup(ctx, dec(gd[1])))
     }
-    // 지식의 자리 표 — 보기 · 바꾸기(그 지식의 관리 자리 · 전역 관리자는 비밀번호 한 번 더)
+    // 지식의 자리 표 — 보기 · 바꾸기(그 지식의 관리 자리 · 총괄 관리자는 비밀번호 한 번 더)
     const ax = p.match(/^\/api\/k\/([^/]+)\/access$/)
     if (ax) {
       const id = dec(ax[1])
@@ -812,7 +812,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, await hub.deleteKnowledge(ctx, id, b))
     }
     // 보내기 — 보낼 것(GET send) · 보내는 길(send/route) · 보내기 · 대기 줄 · 받기 · 받은편지함 정리
-    //   보내는 지식은 이 PC 의 kmd 의 개인 지식(팀 서버는 옛 개인 지식만) · 받는 것은 팀 서버
+    //   보내는 지식은 개인 프로그램의 개인 지식(팀 서버는 옛 개인 지식만) · 받는 것은 팀 서버
     // 받는 팀 지식 고르기(개인 화면) — 이 PC 가 이은 팀마다 이 PC 의 기기 열쇠로 본 팀 지식(쓰기 자리 이상)
     if (p === '/api/send/teams' && req.method === 'GET') {
       if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '지식 보내기는 개인 프로그램에서 한다')

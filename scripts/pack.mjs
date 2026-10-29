@@ -18,7 +18,7 @@ const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'u
 const DIST = path.join(ROOT, 'dist')
 const SRC = ['app', 'core', 'server', 'agent', 'package.json', 'CHANGELOG.md']
 // 화면의 「설명서」(/manual)가 그리는 문서 — server/http.js 의 MANUALS 와 같다
-const MANUAL_DOCS = ['설명서_사용자.md', '설명서_정리하는사람.md', '설명서_관리자.md', 'kmd_운영.md']
+const MANUAL_DOCS = ['설명서_사용자.md', '설명서_지식관리자.md', '설명서_관리자.md', 'kmd_운영.md']
 
 function copy(from, to) {
   const st = fs.statSync(from)

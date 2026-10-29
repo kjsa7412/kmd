@@ -375,7 +375,7 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10): 목�
   await page.click('[data-t=impTab-queue]')
   await page.setInputFiles('#fileIn', { name: '스캔.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4') })
   await page.click('[data-t=impTab-done]')
-  await page.waitForFunction(() => /이 PC 의 kmd/.test(document.querySelector('[data-t=impMsg]')?.textContent || ''))
+  await page.waitForFunction(() => /개인 프로그램/.test(document.querySelector('[data-t=impMsg]')?.textContent || ''))
   assert.deepEqual(await bannedIn(page), [])
   await page.screenshot({ path: path.join(SHOTS, 'app-import.png') })
   // 지식 추가 — 지식 목록의 카드 → 팝업(이름만 · 요구 v0.2 R2)

@@ -31,6 +31,8 @@ before(async () => {
   copyDir(FIX, path.join(tmp, 'kn'))
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {} })
   me = await signIn(s, { id: 'kim' })
+  // 김 · 박 은 ctx 만 있는 보통 팀원 — 받지 않은 지식은 없음이 기본이라 자리 표에 「모두: 쓰기」 를 적어 둔다(권한 모델 v1.1)
+  for (const id of ['dpms', 'gdi']) await s.hub.setAccess(SHELL, id, { all: 'write' })
 })
 after(async () => {
   await s?.close()
@@ -84,7 +86,7 @@ test('I7: 안 넣은 기록은 최신 8 · 날짜 순 · 넘친 수', async () =
   assert.deepEqual(doc.sections.find((x) => x.h === '준비').pend.map((x) => x.title), sec.notYetInDocs.map((x) => x.title), '화면과 같은 고름')
 })
 
-test('주인: _members.md 가 따라간다 · 팀 서버의 지식은 팀 모두 본다(개인 지식은 내 PC 에만)', async () => {
+test('주인: _members.md 가 따라간다 · 팀 서버의 지식은 자리 표대로 본다(개인 지식은 개인 프로그램에만)', async () => {
   const row = await s.hub.setOwner(SHELL, 'gdi', { owner: '박', private: true, curators: ['박'] })
   assert.equal('private' in row, false, '「개인」 은 받지 않는다')
   assert.match(fs.readFileSync(path.join(tmp, 'kn', 'gdi', '_members.md'), 'utf8'), /- 주인: 박\n- 정리: 박/)

@@ -85,7 +85,7 @@ test('kmd up → kmd open → 이미 켜짐 → 멈추기: 번호는 도는 kmd 
     // kmd open — 새 번호로 연다(못 찾아도 그 포트로만 켜 본다 — 7373 에 남지 않게)
     const o = await kmd(['open', root, '--port', port])
     assert.equal(o.code, 0, o.out)
-    assert.match(o.out, /✓ 이 PC 의 kmd 화면을 열었다/)
+    assert.match(o.out, /✓ 개인 화면을 열었다/)
     const second = opened(o.out)
     assert.ok(second && second.code !== first.code, '새 번호')
     const r2 = await once(second.url, second.code)

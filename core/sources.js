@@ -226,7 +226,7 @@ export async function readSource(src, ctx) {
 // ── 항목 → 블록 → 저장 계획 ──
 // rules[{ rule, into: { doc, heading? } }] — heading 이 있으면 그 항목 하나에(의존성 판), 없으면 항목마다 머리 = 항목 이름
 const DEFAULT_HEAD = { deps: '라이브러리 버전' }
-// 규칙 결과 → 보낼 표들(내 PC 폴더 → 팀의 baseline 길) — 넣을 문서 · 머리 · 칸 · 줄
+// 규칙 결과 → 보낼 표들(옛 PC 폴더 → 팀의 baseline 길) — 넣을 문서 · 머리 · 칸 · 줄
 export function pushItems(src, items) {
   const out = []
   for (const r of src.rules) for (const it of items[r.rule] || []) {

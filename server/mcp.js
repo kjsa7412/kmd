@@ -18,7 +18,7 @@ import { readDecl, everyMs } from '../core/sources.js'
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05']
 
 const INSTRUCTIONS = [
-  'kmd 는 팀과 내 PC 의 지식이다. 문서(항목 = ## 머리)와 기록(누가 무엇을 왜 바꿨나).',
+  'kmd 는 팀 지식과 개인 지식이다. 문서(항목 = ## 머리)와 기록(누가 무엇을 왜 바꿨나).',
   '일을 시작할 때 brief 로 무엇이 있나 본다. 이름을 알면 match 로 그 항목을 찾고 section 으로 지금 글을 읽는다.',
   '일을 마치면 save 로 기록을 남긴다. 바뀐 값 · 까닭 · 건드린 이름(touches)을 적는다. 항목 글을 고쳤으면 sections 에 새 글을 같이 보낸다. 이미 있는 항목이면 section 이 준 base 를 꼭 같이(없으면 받지 않는다 · 그사이 남이 고친 글을 덮지 않게).',
 ].join('\n')

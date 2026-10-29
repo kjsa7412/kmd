@@ -25,7 +25,7 @@ import { KmdError } from './errors.js'
 export const MAX_FILES = 300
 export const MAX_BYTES = 200 << 20
 const DOCX = ['docx', 'pptx', 'xlsx', 'hwpx']
-// 서버가 글을 꺼내 보고 못 꺼내면(스캔 · 암호 · 배포용) 내 PC 의 Claude 로 옮기는 종류
+// 서버가 글을 꺼내 보고 못 꺼내면(스캔 · 암호 · 배포용) 개인 프로그램의 Claude 로 옮기는 종류
 export const PCONLY = ['hwp', 'pdf']
 // pdf · hwp 의 글 — Claude 없이(못 꺼내면 '')
 export async function localMd(ext, buf) {
@@ -209,10 +209,10 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
       continue
     }
     if (blank) {
-      // 글 없이 그림만 — 원본은 첨부 · 그림이 있으면 이 PC 의 kmd 가 Claude 로 옮긴다(scan · 부르는 쪽이 Claude Code 일로)
+      // 글 없이 그림만 — 원본은 첨부 · 그림이 있으면 개인 프로그램이 Claude 로 옮긴다(scan · 부르는 쪽이 Claude Code 일로)
       const scan = imagesOf(rel, f.data).length > 0
       if (direct && !(await read(attRel))?.equals(f.data)) plan.atts.push({ rel: attRel, data: f.data })
-      row('fail', !scan ? (direct ? '원본은 첨부로 두었다. 글도 그림도 없는 파일이다' : '글도 그림도 없는 파일이다') : direct ? '원본은 첨부로 두었다. 글 없이 그림만 든 파일(통그림 슬라이드 · 스캔)이라 이 PC 의 kmd 가 Claude 로 옮긴다' : '바꾸지 못한 파일(글 없이 그림만): 이 PC 의 kmd 가 있는 PC 에서 넣는다', scan ? { scan: true } : {})
+      row('fail', !scan ? (direct ? '원본은 첨부로 두었다. 글도 그림도 없는 파일이다' : '글도 그림도 없는 파일이다') : direct ? '원본은 첨부로 두었다. 글 없이 그림만 든 파일(통그림 슬라이드 · 스캔)이라 개인 프로그램이 Claude 로 옮긴다' : '바꾸지 못한 파일(글 없이 그림만): 개인 프로그램이 있는 PC 에서 넣는다', scan ? { scan: true } : {})
       continue
     }
     if (DOCX.includes(ext) && !conv) {
@@ -222,7 +222,7 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
     }
     if (PCONLY.includes(ext)) {
       if (direct && !(await read(attRel))?.equals(f.data)) plan.atts.push({ rel: attRel, data: f.data })
-      row('fail', !conv ? (direct ? '원본은 첨부로 두었다. 문서로 바꾸기를 꺼 두었다' : '문서로 바꾸기를 꺼 두었다') : direct ? '원본은 첨부로 두었다. 글이 없는 파일(스캔 · 암호 · 배포용)이라 이 PC 의 kmd 가 Claude 로 옮긴다' : '바꾸지 못한 파일(스캔 · 암호 · 배포용): 이 PC 의 kmd 가 있는 PC 에서 넣는다', conv ? { scan: true } : {})
+      row('fail', !conv ? (direct ? '원본은 첨부로 두었다. 문서로 바꾸기를 꺼 두었다' : '문서로 바꾸기를 꺼 두었다') : direct ? '원본은 첨부로 두었다. 글이 없는 파일(스캔 · 암호 · 배포용)이라 개인 프로그램이 Claude 로 옮긴다' : '바꾸지 못한 파일(스캔 · 암호 · 배포용): 개인 프로그램이 있는 PC 에서 넣는다', conv ? { scan: true } : {})
       continue
     }
     if (IMG.includes(ext)) {

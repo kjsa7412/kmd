@@ -299,7 +299,7 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
     },
 
     // ── PC — 한 번용 번호(60초) → 루프백 쿠키 30일(쓰는 동안 늘어난다) ──
-    // 번호는 이 PC 의 kmd 가 연다 — `kmd up` 의 첫 창 · `kmd open`(시작 메뉴 kmd) · 설치 한 줄의 끝
+    // 번호는 개인 프로그램이 연다 — `kmd up` 의 첫 창 · `kmd open`(시작 메뉴 kmd) · 설치 한 줄의 끝
     once(user) {
       const code = crypto.randomBytes(18).toString('base64url')
       onces.set(code, { user, exp: now() + 60_000 })

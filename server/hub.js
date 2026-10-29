@@ -398,7 +398,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 지식 폴더 밖의 폴더 — 그 자리에서 따라가지 않는다(남의 폴더에 쓰지 않게 · 지식은 지식 폴더 안에만).
       // 지식 폴더 안에 같은 이름의 새 지식을 세우고 그 폴더의 파일을 한 번 들여온다(파일 넣기와 같은 길 · 원본은 그대로)
       if (kind === 'folder') {
-        if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '폴더 들이기는 내 PC 의 개인 지식에서 한다')
+        if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '폴더 들이기는 개인 화면의 개인 지식에서 한다')
         const full = path.resolve(String(dir || ''))
         if (!path.isAbsolute(String(dir || '')) || !(await fs.stat(full).then((s) => s.isDirectory(), () => false))) throw new KmdError('E_NOTFOUND', '그 폴더가 없다')
         const inside = (a, b) => { const r = path.relative(b.toLowerCase(), a.toLowerCase()); return r === '' || (!r.startsWith('..') && !path.isAbsolute(r)) }
@@ -437,7 +437,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         cache.delete(made.id)
         return { ...made, from: full, summary: r.summary }
       }
-      throw new KmdError('E_INPUT', '알아듣지 못했다. 이름 · 내 PC 폴더 경로를 붙인다')
+      throw new KmdError('E_INPUT', '알아듣지 못했다. 이름 · 들일 폴더 경로를 붙인다')
     },
     // 지식 지우기 — 보관하지 않고 완전히. 지식 폴더 · kmd 가 그 지식에 대해 둔 살림(백업 연결 · 색인 · 보내기 · 정리 · 가져오기 상태 · 주인 줄)을
     // 모두 지운다. 확인은 지식 이름을 그대로 다시 쓰는 것. 백업 자리에 이미 보낸 이력은 kmd 가 지우지 않는다(백업 자리의 일).
@@ -485,7 +485,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       return Object.fromEntries(ROLES.map((r) => [r, hub.modelOf(r)]))
     },
     async setModel(ctx, role, model) {
-      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', 'Claude 모델은 이 PC 의 kmd 에서 고른다')
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', 'Claude 모델은 개인 프로그램에서 고른다')
       if (!ROLES.includes(role)) throw new KmdError('E_INPUT', '그런 일은 없다')
       if (!CHOICES.includes(model)) throw new KmdError('E_INPUT', '고를 수 있는 모델이 아니다. haiku · sonnet · opus · 기본')
       await mutatePrefs((next) => {
@@ -859,7 +859,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     canSource(ctx, id) {
       return mode === 'pc' || !!ctx.pc || levelFor(id, ctx) === 'admin'
     },
-    // 서버 자원에 닿는 일(아무 호스트의 포트 · 서버의 git 자격 · 서버의 폴더)은 전역 관리자 · 셸 · PC 만.
+    // 서버 자원에 닿는 일(아무 호스트의 포트 · 서버의 git 자격 · 서버의 폴더)은 총괄 관리자 · 셸 · PC 만.
     // 지식의 관리 자리는 허락된 호스트(sourceHosts) 안의 https git · DB 만 — 아무 주소로 서버가 대신 받아 오지 않게
     sourceServer(ctx) {
       return mode === 'pc' || !!ctx?.pc || !!ctx?.admin || !!ctx?.shell
@@ -910,11 +910,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 소스 코드는 git 하나 — 커밋 이력으로 바뀐 것만(정정 2026-10-23 · 코드 폴더 · 라이브러리 버전 · 표 파일은 걷었다)
       if (k2 === 'folder') throw new KmdError('E_INPUT', '소스 코드는 git 저장소로 받는다. 올라온 묶음으로 바뀐 것을 본다 · 이 PC 폴더면 그 폴더의 git 저장소 경로를 넣는다')
       if (k2 === 'git') rules = []
-      // 내 PC 폴더(PC 가 파일을 팀으로 보내기)는 걷었다 — 파일을 나르는 것은 이 서비스의 일이 아니다 · 지식은 「보내기」 로
-      if (k2 === 'pc') throw new KmdError('E_INPUT', '내 PC 폴더는 없다. 내 지식에서 만든 기록 · 문서를 「보내기」 로 보낸다')
+      // 옛 PC 폴더(PC 가 파일을 팀으로 보내기)는 걷었다 — 파일을 나르는 것은 이 서비스의 일이 아니다 · 지식은 「보내기」 로
+      if (k2 === 'pc') throw new KmdError('E_INPUT', '옛 PC 폴더는 없다. 내 지식에서 만든 기록 · 문서를 「보내기」 로 보낸다')
       // 파일 목록(files)은 걷었다(감시 검토 v0.1 — 값보다 소음) · 표 파일(tables)은 사람이 고른 파일 · 폴더만
-      // docs — 문서 폴더(지식 안 그 폴더로 사본 문서) · pc — 내 PC 폴더(팀 · 관리자 · PC 프로그램이 기계 열쇠로 보낸다 · 결정 ④)
-      if (k2 === 'pc' && (mode !== 'team' || !ctx.admin)) throw new KmdError('E_FORBIDDEN', '내 PC 폴더는 팀에서 관리자가 허락한다')
+      // docs — 문서 폴더(지식 안 그 폴더로 사본 문서) · pc — 옛 PC 폴더(팀 · 관리자 · PC 프로그램이 기계 열쇠로 보낸다 · 결정 ④)
+      if (k2 === 'pc' && (mode !== 'team' || !ctx.admin)) throw new KmdError('E_FORBIDDEN', '옛 PC 폴더는 팀에서 관리자가 허락한다')
       const okRules = k2 === 'db' ? ['dbtables'] : ['docs']
       for (const r of Array.isArray(rules) ? rules : []) {
         if (r?.rule !== 'tables') continue
@@ -941,7 +941,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (d.password) await setSecret(dataDir, secretName(id, name), String(d.password))
         shown = `postgres://${d.user}@${d.host}:${port}/${d.database}?schema=${schema}`
       } else if (k2 === 'pc') {
-        shown = '내 PC: 기계 열쇠로 보낸다'
+        shown = '옛 PC 폴더: 기계 열쇠로 보낸다'
       } else {
         const t = checkTarget(at, { kind: k2 === 'docs' ? 'folder' : k2, ...(await hub.sourceCtx(id)) })
         await hub.sourceGuard(ctx, id, { kind: k2, at: t.url || t.folder })
@@ -949,7 +949,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         shown = t.url ? await stripCreds(t.url, { dataDir, kn: id, name }) : t.folder
       }
       // DB 주소는 계정 이름까지 둔다(비밀번호는 처음부터 없다) · 그 밖은 주소에 든 자격을 가린다
-      // 뜻 갱신(소스 변경 → 기록 → 정리)은 코드 폴더 · git 만 — 내 PC 폴더는 코드가 팀으로 가지 않게 하지 않는다
+      // 뜻 갱신(소스 변경 → 기록 → 정리)은 코드 폴더 · git 만 — 옛 PC 폴더는 코드가 팀으로 가지 않게 하지 않는다
       const src = { name, kind: k2, at: k2 === 'db' ? shown : maskUrl(shown), every, rules: rules.map((r) => ({ rule: r.rule, ...(r.paths ? { paths: r.paths } : {}), into: { doc: String(r.into.doc), ...(r.into.heading ? { heading: String(r.into.heading) } : {}) } })), by: ctx.user, since: new Date().toISOString().slice(0, 10) }
       const addKey = `${id}\n${name}`
       adding.add(addKey)
@@ -1006,7 +1006,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       for (const s of decl.filter((x) => !name || x.name === name)) {
         // DB 읽기(pg · 읽기 전용 확인)는 S10 계정이 생기면 연다 — 그때까지는 연결 정보만 두고 쉰다(실패로 세지 않는다 · 멈춤 줄 없음)
         if (s.kind === 'pc') {
-          out.push({ name: s.name, state: 'waiting', n: 0, why: '내 PC 폴더는 걷었다. 지식은 「보내기」 로 받는다' })
+          out.push({ name: s.name, state: 'waiting', n: 0, why: '옛 PC 폴더는 걷었다. 지식은 「보내기」 로 받는다' })
           continue
         }
         const key = `${id}\n${s.name}`
@@ -1304,7 +1304,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       cache.delete(id)
       return { ok: true }
     },
-    // 그 지식의 관리 자리 사람(전역 관리자 포함) — 정리 · 가져오기 알림을 받는 사람
+    // 그 지식의 관리 자리 사람(총괄 관리자 포함) — 정리 · 가져오기 알림을 받는 사람
     async curatorsOf(id) {
       const reg = R()
       const users = new Set(hub.admins())
@@ -1397,7 +1397,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       const srcDecl = { name: source, rules: [{ rule: 'outside', into: { doc: targets[0]?.doc || '' } }] }
       const plan = await planRun(k, srcDecl, { outside: targets.map((t) => ({ key: t.heading, cols: t.cols, rows: t.rows, doc: t.doc })) }, { asof: asof || new Date().toISOString().slice(0, 16).replace('T', ' ') })
-      // 줄의 상태(내 PC 폴더 · 바깥 생성기) — 받은 때 · 마지막 변화
+      // 줄의 상태(옛 PC 폴더 · 바깥 생성기) — 받은 때 · 마지막 변화
       const mark = async (n) => {
         const st = await readSourceState(dataDir, id)
         const s0 = (st[source] ||= {})
@@ -2159,7 +2159,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 화면의 [Claude 로 기록 정리] — 이 PC · 바로 넣을 수 있는 사람만
     async readRecord(ctx, id, recId) {
-      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '기록 정리는 이 PC 의 kmd 가 내 Claude 로 한다')
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '기록 정리는 개인 프로그램이 내 Claude 로 한다')
       await hub.meta(id, ctx)
       if (!hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '이 지식에 바로 넣을 수 없다')
       const r = await hub.queueRun(id, () => hub.polishRecord(id, String(recId || '')))
@@ -2688,11 +2688,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       })
     },
     // ── 지식 보내기 — 보내는 길: 내 개인 지식 하나 → 팀 지식 하나 ──
-    //   개인 지식은 이 PC 의 kmd 에 있다. 이 PC 의 kmd 가 이 PC 의 기기 열쇠로 팀 서버에 보낸다(팀 화면은 짝 열쇠로 부른다)
+    //   개인 지식은 개인 프로그램에 있다. 개인 프로그램이 이 PC 의 기기 열쇠로 팀 서버에 보낸다(팀 화면은 짝 열쇠로 부른다)
     //   길은 개인 지식마다 하나(.kmd.json send: 팀 주소 · 지식 · 이름) · 바꾸려면 새 이름을 그대로 친다
     //   보낼 것은 기록(보내지 않은 것) · 문서(통째로) 둘뿐이다
     async routeMeta(ctx, id) {
-      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '지식 보내기는 내 PC 의 개인 지식에서 한다')
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '지식 보내기는 개인 화면의 개인 지식에서 한다')
       return hub.meta(id, ctx)
     },
     async routeOf(meta) {
@@ -3036,7 +3036,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (regBad && ctx.admin && !id) out.push(stopLine({ kind: 'owners', level: 'warn', what: 'owners.json 을 읽지 못해 앞의 장부로 돌고 있다', amount: '고칠 때까지', fix: '서버의 owners.json 모양을 바로잡는다', told: regBad.why, since: `${regBad.since.slice(5, 16).replace('T', ' ')} 부터` }))
       for (const k of ks) {
         out.push(...backup.lines(k, { name: k.name }))
-        // 보내기 멈춤은 팀 화면에만(이 PC 의 kmd 에는 보내기가 없다)
+        // 보내기 멈춤은 팀 화면에만(개인 프로그램에는 보내기가 없다)
         const all = mode === 'team' ? (await sendLib.readState(dataDir, k.id)).wait : []
         const sw = all.filter((w) => w.state === 'wait')
         const sf = all.filter((w) => w.state !== 'wait')
@@ -3062,7 +3062,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async setOwner(ctx, id, row) {
       const meta = await hub.meta(id, ctx.shell ? null : ctx)
       if (row && 'private' in row) { const { private: _p, ...rest } = row; row = rest } // 팀 서버에는 개인 지식이 없다
-      // 정리 설정 · 정리하는 사람 — 그 지식의 관리 자리 · 주인 바꾸기는 전역 관리자 · 셸만
+      // 정리 설정 · 정리하는 사람 — 그 지식의 관리 자리 · 주인 바꾸기는 총괄 관리자 · 셸만
       const allowed = (reg) => {
         const cur = owners.rowOf(reg, id)
         if (!ctx.shell && mode === 'team' && owners.levelOf(reg, id, ctx) !== 'admin') throw new KmdError('E_FORBIDDEN', '이 지식의 지식관리자가 아니다', { need: 'admin' })
@@ -3099,7 +3099,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const a = owners.accessOf(row)
       return { all: a.all, users: { ...a.users, ...Object.fromEntries(owners.curatorsOf(row).map((c) => [c, 'admin'])) }, groups: a.groups, owner: row?.owner || null, people: hub.people(), groupNames: Object.keys(reg.groups || {}).sort(), legacy: !row?.access }
     },
-    // 자리 표 바꾸기 — 그 지식의 관리 자리(전역 관리자는 부르는 쪽이 비밀번호를 한 번 더) · 장부와 `_members.md` 를 같이
+    // 자리 표 바꾸기 — 그 지식의 관리 자리(총괄 관리자는 부르는 쪽이 비밀번호를 한 번 더) · 장부와 `_members.md` 를 같이
     async setAccess(ctx, id, { all, users, groups } = {}) {
       const meta = await hub.meta(id, ctx.shell ? null : ctx)
       if (!ctx.shell) hub.need(ctx, id, 'admin')
@@ -3166,7 +3166,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       list = null
       return { user: u, kns: touched, seats: await hub.seatsOf(ctx, u) }
     },
-    // 묶음 — 사람 여럿에 한 번에 자리를 준다(전역 관리자 · 셸) · 사람 목록은 서버(owners.json)에만
+    // 묶음 — 사람 여럿에 한 번에 자리를 준다(총괄 관리자 · 셸) · 사람 목록은 서버(owners.json)에만
     groups() {
       const g = R().groups || {}
       return Object.keys(g).sort().map((name) => ({ name, members: g[name].members || [], kns: Object.entries(R().knowledge || {}).filter(([, r]) => r?.access?.groups?.[name]).map(([id]) => id) }))
@@ -3506,7 +3506,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
       }, config.tidyTickMs || 60_000)
       tidyTimer.unref?.()
-      // 보내기 — 닿지 않아 둔 것을 분마다 다시(이 PC 의 kmd → 팀 서버 · 팀 서버의 옛 개인 지식)
+      // 보내기 — 닿지 않아 둔 것을 분마다 다시(개인 프로그램 → 팀 서버 · 팀 서버의 옛 개인 지식)
       sendTimer = setInterval(() => hub.sendRetry().catch(() => {}), config.sendTickMs || 60_000)
       sendTimer?.unref?.()
       // 찾기 색인 — 뒤에서 미리(지금 찾는 지식은 기다리지 않고 그때 짓는다)

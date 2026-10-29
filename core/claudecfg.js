@@ -1,6 +1,6 @@
 // Claude Code 에 kmd 를 잇는다 — `claude mcp add-json <이름> <설정> --scope user`.
 //
-// 이름 둘 — `kmd-team`(팀 서버) · `kmd`(이 PC 의 kmd). 열쇠는 설정에 넣지 않고 헤더 도우미(kmd-key)가
+// 이름 둘 — `kmd-team`(팀 서버) · `kmd`(개인 프로그램). 열쇠는 설정에 넣지 않고 헤더 도우미(kmd-key)가
 // 자격 저장소에서 꺼낸다. claude 가 없거나 실패하면 사람이 붙일 한 줄을 돌려준다(묻지 않는다).
 // 시험 · 꾸러미 만들기에서는 KMD_NO_CLAUDE=1 로 부르지 않는다.
 //
