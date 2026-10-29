@@ -220,6 +220,7 @@ details.more>.in{padding:var(--sp-4) 0 var(--sp-1);font-size:var(--fs);color:var
 /* 토스트 · 대화 상자 */
 .toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);background:var(--ink);color:var(--on-accent);border-radius:var(--r-md);padding:var(--sp-5) var(--sp-7);font-size:var(--fs);display:flex;gap:var(--sp-7);align-items:center;box-shadow:var(--shadow-2);z-index:var(--z-toast);max-width:calc(100vw - 32px)}
 .toast a{color:var(--accent-line);font-weight:600}
+.toast .tw small{display:block;margin-top:var(--sp-2);color:var(--on-accent);opacity:.8;font-size:var(--fs-sm);overflow-wrap:anywhere}
 .scrim{position:fixed;inset:0;background:color-mix(in srgb,var(--ink) 32%,transparent);display:grid;place-items:center;z-index:var(--z-scrim)}
 .modal{background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--shadow-2);width:min(520px,calc(100% - 24px));max-width:100%;overflow:hidden}
 .win .tb{display:flex;align-items:center;gap:var(--sp-4);padding:7px var(--sp-4) 7px var(--sp-6);background:var(--surface-2);border-bottom:1px solid var(--border);font-size:var(--fs-mono);color:var(--text-2)}
@@ -413,6 +414,7 @@ td.go2{text-align:right;white-space:nowrap}
 .tn .rc,.alr .rc{font-size:var(--fs-xs);color:var(--text-3);background:var(--surface-2);border-radius:var(--r-pill);padding:0 var(--sp-3);flex:none}
 .tn .nd{font-size:var(--fs-xs);color:var(--text-3);border:1px dashed var(--border-strong);border-radius:var(--r-xs);padding:0 var(--sp-2);flex:none}
 .tn.more{color:var(--accent);font-weight:600}
+.hmore{display:flex;justify-content:center;padding:var(--sp-4) var(--sp-5);border-top:1px solid var(--border)}
 .tn.nc{cursor:default;font-size:var(--fs-sm)}
 .pd{width:7px;height:7px;border-radius:50%;background:var(--pending);flex:none;display:inline-block}
 .nw{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none;display:inline-block}
@@ -455,7 +457,7 @@ kbd{font:var(--fs-xs) var(--mono);color:var(--text-3);border:1px solid var(--bor
 .ilink{color:var(--accent);text-decoration:underline dotted;text-underline-offset:3px;cursor:pointer}
 .paper h2 .hn{margin-left:auto;font-size:var(--fs-xs);font-weight:500;color:var(--text-3);border:1px solid var(--border);border-radius:var(--r-pill);padding:0 var(--sp-4);cursor:pointer;white-space:nowrap;display:inline-flex;gap:5px;align-items:center}
 .paper h2 .hn:hover{color:var(--accent);border-color:var(--accent-line)}
-.paper h2.flash{animation:flash 1.4s}
+.paper h2.flash,.paper h3.flash{animation:flash 1.4s}
 .attph{border:1px dashed var(--border-strong);border-radius:var(--r-md);padding:40px;text-align:center;color:var(--text-3);margin-top:var(--sp-5)}
 .ap{margin-bottom:var(--sp-8)}
 .ap h4{display:flex;align-items:baseline;gap:var(--sp-3);margin:0 0 var(--sp-3);font-size:var(--fs)}
@@ -1064,6 +1066,9 @@ a.dlink:hover{text-decoration:underline;text-underline-offset:2px}
 .deadlink{color:var(--text-3);cursor:default;text-decoration:none;font-weight:inherit}
 .dlink.missing{color:var(--text-3);font-weight:500;text-decoration:underline dashed;text-underline-offset:3px}
 .dlink.missing::before{opacity:.6}
+/* 이름 열쇠(`kind:id`) — 서버가 항목 이름으로 감싼다(.ilink.coord · 열쇠는 title) · 앞에 작은 항목 아이콘 */
+.ilink.coord{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 9h16M4 15h16M10 3 8 21M16 3l-2 18'/%3E%3C/svg%3E");display:inline-flex;align-items:baseline;gap:3px}
+.ilink.coord::before{content:"";width:11px;height:11px;flex:none;align-self:center;background:currentColor;opacity:.75;-webkit-mask:var(--ic) center/contain no-repeat;mask:var(--ic) center/contain no-repeat}
 /* 참고 정보 — 항목 옆 작은 칩(「출처 n」 · 「반영 대기 n」 · 누르면 참고 칸) · 접는 참고 칸(본문과 다른 꼴) */
 .refchip{display:inline-flex;align-items:center;gap:3px;height:18px;padding:0 var(--sp-3);border:1px solid var(--border);border-radius:var(--r-pill);background:var(--surface-2);color:var(--text-2);font:500 var(--fs-xs)/1 var(--font);white-space:nowrap;cursor:pointer;vertical-align:1px}
 .refchip:hover{border-color:var(--border-strong);color:var(--text)}
@@ -1202,7 +1207,7 @@ button.hlink{border:0;background:none;font:inherit;padding:0}
 /* 그 줄로 왔다 — 잠깐 빛낸다(움직임 줄이기면 없음) */
 @keyframes rowFlash{0%,30%{box-shadow:inset 0 0 0 2px var(--accent);background:var(--accent-bg)}100%{box-shadow:inset 0 0 0 0 transparent}}
 .flash:not(h2){animation:rowFlash 1.5s ease-out}
-@media (prefers-reduced-motion:reduce){.flash,.paper h2.flash{animation:none}}
+@media (prefers-reduced-motion:reduce){.flash,.paper h2.flash,.paper h3.flash{animation:none}}
 /* 항목 머리 오른쪽 — 반영 대기 · 출처 칩(누르면 머리 바로 아래 참고 칸) */
 .paper h2 .hrefs{display:inline-flex;gap:var(--sp-2);margin-left:var(--sp-3);flex-wrap:wrap}
 .paper h2 .hrefs+.hn{margin-left:auto}
