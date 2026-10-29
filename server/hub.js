@@ -1767,7 +1767,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     //   어느 쪽이든 그 기록은 「넣음」(reflects) · 넣은 일은 이력에 · 지식마다 한 줄로(저장은 바로 돌려주고 뒤에서)
     // role — 그 일의 모델(core/models.js · 설정 › Claude 모델)
     async askClaude(id, prompt, schema, { budget = 0.5, timeoutMs, role = 'tidy' } = {}) {
-      if (mode !== 'pc') return { why: 'PC 일꾼이 받지 못했다' }
+      if (mode !== 'pc') return { why: '팀 서버는 이 길로 Claude 를 부르지 않는다(정리 일꾼이 한다)' }
       if (!hub.meaningOk(id)) return { why: 'Claude 를 쓰지 않는다' }
       const r = await runClaude({ prompt, schema, budget, model: hub.modelOf(role), ...(timeoutMs ? { timeoutMs } : {}) })
       if (r.error) {

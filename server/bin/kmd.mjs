@@ -48,7 +48,7 @@ const HELP = `kmd ${VERSION}
       팀 서버로 연다. 폴더 안의 폴더 하나하나가 지식이다
   kmd user [add <아이디> [--admin] | reset <아이디> | off <아이디> [--to 받을 사람]] [--url 팀 주소]
       사람 목록 · 더하기 · 비밀번호 다시 정하기: 처음 들어오기 링크(24시간 · 한 번)를 찍는다
-      off: 떠남: 들어가기 · 기기 · PC 일꾼을 끊고 아이디를 남긴다(되쓰지 않는다) · 그 사람이 주인인 지식은 --to 에게,
+      off: 떠남: 들어가기 · 기기를 끊고 아이디를 남긴다(되쓰지 않는다) · 그 사람이 주인인 지식은 --to 에게,
             없으면 주인 칸을 비운다(개인 지식은 관리자만 본다)
   kmd user key <아이디>                         그 사람의 기기 열쇠(kmdk_)를 하나 만들어 한 번만 찍는다(기기 이름 「셸」):
       서버 운영자의 자동화 · 시험용. 그 사람의 자리 그대로 API · MCP 를 쓴다 · 끊기는 화면 › 사람 › 기기 모두 끊기
@@ -577,7 +577,7 @@ async function userCmd(o) {
       console.log(`더했다: ${r.id} · 처음 들어오기 링크(24시간 · 한 번): ${base}/first#code=${r.code}`)
     } else if (sub === 'reset') {
       const r = await auth.reset(id, { by: '셸' })
-      console.log(`다시 정하게 했다: ${r.id} · 새 링크(24시간 · 한 번): ${base}/first#code=${r.code} · 기기 열쇠는 그대로 · PC 일꾼 열쇠는 걷었다`)
+      console.log(`다시 정하게 했다: ${r.id} · 새 링크(24시간 · 한 번): ${base}/first#code=${r.code} · 기기 열쇠는 그대로`)
     } else if (sub === 'key') {
       // 그 사람의 기기 열쇠 하나 — 서버 운영자의 자동화 · 시험용(기기 이름 「셸」) · 열쇠는 이때 한 번만 보인다
       if (!id) throw new Error('kmd user key <아이디>')
@@ -595,12 +595,12 @@ ${key}
       if (r.already) { console.log(`${id}: 이미 떠났다`); return }
       const hub = await makeHub({ root: rootOf(o), dataDir: dataOf(o), log: () => {} })
       const k = await hub.handOver(id, { to: o.to ? String(o.to) : null })
-      console.log(`떠났다: ${id} · 끊은 기기 ${r.devices} · PC 일꾼 ${r.workers} · 아이디는 남겨 두고 되쓰지 않는다`)
+      console.log(`떠났다: ${id} · 끊은 기기 ${r.devices} · 아이디는 남겨 두고 되쓰지 않는다`)
       console.log(`지식: 주인인 팀 지식 ${k.team} · 정리하는 지식 ${k.curate} → ${k.to ? k.to + ' 이 주인을 잇는다' : '주인 칸을 비웠다(개인 지식은 관리자만 본다. 관리 화면에서 넘기거나 지운다)'}`)
     } else {
       const all = auth.users()
-      for (const u of all.filter((x) => x.kind !== 'worker')) console.log(`${u.id}: ${u.kind === 'machine' ? '기계 열쇠 · ' + u.machine.kn + ' · ' + u.machine.source : u.off ? '떠남 · ' + String(u.off.at).slice(0, 10) : (u.admin ? '관리자' : '사람') + (u.password ? '' : ' · 비밀번호 안 정함') + ` · 기기 ${u.devices}` + (all.some((w) => w.owner === u.id) ? ` · PC 일꾼 ${all.filter((w) => w.owner === u.id).length}` : '')}`)
-      const team = all.filter((x) => x.kind === 'worker' && !x.owner)
+      for (const u of all.filter((x) => x.kind !== 'worker')) console.log(`${u.id}: ${u.kind === 'machine' ? '기계 열쇠 · ' + u.machine.kn + ' · ' + u.machine.source : u.off ? '떠남 · ' + String(u.off.at).slice(0, 10) : (u.admin ? '총괄 관리자' : '사람') + (u.password ? '' : ' · 비밀번호 안 정함') + ` · 기기 ${u.devices}`}`)
+      const team = all.filter((x) => x.kind === 'worker')
       if (team.length) console.log(`정리 일꾼 열쇠(팀): ${team.map((x) => x.id).join(' · ')}`)
     }
   } catch (e) {

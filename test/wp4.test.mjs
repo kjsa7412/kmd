@@ -1,7 +1,7 @@
 // WP4 필수 — 사람 관리 · 떠남(제품화 검토 v0.1 G4-1 · G4-2 · G4-3 · F-010 · F-014 · F-015 · F-016 · F-019 · G4-4 · F-068).
 //
-// 떠남 한 번 — 들어가기 · 기기 · PC 일꾼 · 세션을 끊고 아이디를 남긴다(되쓰지 않는다 · 링크도 막는다) · 그 사람의 지식은 넘기거나
-// 주인 칸을 비운다(개인 지식은 관리자만) · PC 일꾼 열쇠는 받은 기기에 묶인다(기기 끊기 · 모든 곳에서 나가기 · 다시 정하기로 끊긴다) ·
+// 떠남 한 번 — 들어가기 · 기기 · 세션을 끊고 아이디를 남긴다(되쓰지 않는다 · 링크도 막는다) · 그 사람의 지식은 넘기거나
+// 주인 칸을 비운다 · 사람 몫 PC 일꾼 열쇠는 걷었다(옛 열쇠는 받지 않는다) ·
 // 관리자는 화면에서 팀 지식을 세운다 · 주인 넘기기 · 개인 ↔ 팀은 비밀번호 한 번 더 · 팀 지식 지우기는 주인이어도 비밀번호 한 번 더 ·
 // 부탁은 합치고 · 개인 지식에는 받지 않고 · 더하면 닫히고 · 거절하면 부탁한 사람에게 알린다.
 
@@ -46,28 +46,24 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('PC 일꾼 열쇠는 받은 기기에 묶인다. 기기 끊기 · 모든 곳에서 나가기 · 다시 정하기로 끊긴다', async () => {
-  await signIn(s, { id: 'yoon', admin: false })
-  const dev = s.auth.devices('yoon')[0]
-  const w1 = await s.auth.workerAdd({ owner: 'yoon', device: dev.id })
-  assert.equal(s.auth.bearer(w1.key)?.worker?.owner, 'yoon')
-  await s.auth.revokeDevice('yoon', dev.id)
-  assert.equal(s.auth.bearer(w1.key), null, '기기를 끊으면 일꾼도')
-  const k2 = await s.auth.deviceKeyFor('yoon', { host: 'P2' })
-  const d2 = s.auth.bearer(k2).device
-  const w2 = await s.auth.workerAdd({ owner: 'yoon', device: d2 })
-  await s.auth.logoutAll('yoon')
-  assert.equal(s.auth.bearer(w2.key), null, '모든 곳에서 나가기')
-  const w3 = await s.auth.workerAdd({ owner: 'yoon', device: d2 })
-  await s.auth.reset('yoon', { by: 'kim' })
-  assert.equal(s.auth.bearer(w3.key), null, '다시 정하기')
-  assert.ok(s.auth.bearer(k2), '기기 열쇠는 다시 정하기에도 그대로(설명서대로)')
+test('사람 몫 PC 일꾼 열쇠는 걷었다: 새로 만들지 않고 · 옛 열쇠는 받지 않고 켤 때 명부에서 지운다 · 팀 정리 일꾼은 그대로', async () => {
+  // 팀 정리 일꾼 열쇠 — 그대로(사람에 묶이지 않는다)
+  const tw = await s.auth.workerAdd()
+  assert.deepEqual(Object.keys(s.auth.bearer(tw.key).worker), ['id'])
+  // 옛 판의 명부에 남은 사람 몫 PC 일꾼(owner) — 켤 때 지우고 · 열쇠는 받지 않는다
+  const { makeAuth } = await import('../core/auth.js')
+  const pwmod = await import('../core/passwd.js')
+  const d = path.join(tmp, 'oldauth')
+  fs.mkdirSync(d, { recursive: true })
+  const key = 'kmdw_' + 'x'.repeat(43)
+  fs.writeFileSync(path.join(d, 'auth.json'), JSON.stringify({ v: 1, setup: null, users: { yoon: { kind: 'person', keys: [{ id: 'd1', sha: 'a', at: new Date().toISOString() }] }, 'worker-old1': { kind: 'worker', owner: 'yoon', device: 'd1', keys: [{ id: 'w', sha: pwmod.sha(key), at: new Date().toISOString() }] } } }))
+  const a = await makeAuth({ dataDir: d, scryptN: 1 << 15 })
+  assert.equal(a.bearer(key), null, '옛 PC 일꾼 열쇠는 받지 않는다')
+  assert.ok(!a.users().some((u) => u.id === 'worker-old1'), '명부에서 지웠다')
 })
 
 test('떠남: 한 번에 끊고 아이디를 남긴다 · 지식은 넘기거나 주인 칸을 비운다 · 떠난 사람은 목록 · 링크 · 고르기에서 빠진다', async () => {
-  const lk = s.auth.devices('lee')[0]
   const leeKey = lee.key
-  const w = await s.auth.workerAdd({ owner: 'lee', device: lk.id })
   await s.hub.setOwner(SHELL, 'dpms', { curators: ['lee'] })
   await s.hub.setOwner(SHELL, 'gdi', { owner: 'lee' })
   // 비밀번호 한 번 더 없이는 안 된다 · 나 자신은 안 된다
@@ -76,10 +72,9 @@ test('떠남: 한 번에 끊고 아이디를 남긴다 · 지식은 넘기거나
   assert.equal((await post('/api/admin/users/kim/off', kim)).status, 400)
   assert.equal((await get('/api/admin/users/lee/off', kim)).status, 405)
   const r = await post('/api/admin/users/lee/off', kim, { to: 'none' }).then((x) => x.json())
-  assert.deepEqual([r.devices >= 1, r.workers, r.kn.team, r.kn.curate], [true, 1, 1, 1])
+  assert.deepEqual([r.devices >= 1, r.workers, r.kn.team, r.kn.curate], [true, undefined, 1, 1])
   assert.equal((await get('/api/me', lee).then((x) => x.json())).anon, true, '세션이 끊긴다')
   assert.equal(s.auth.bearer(leeKey), null, '기기 열쇠')
-  assert.equal(s.auth.bearer(w.key), null, 'PC 일꾼')
   assert.equal(await code(s.auth.addUser({ id: 'lee' })), 'E_CONFLICT')
   await assert.rejects(s.auth.addUser({ id: 'lee' }), /떠난 사람의 아이디다. 되쓰지 않는다\(예: lee2\)/)
   assert.equal(await code(s.auth.reset('lee')), 'E_FORBIDDEN')

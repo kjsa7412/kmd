@@ -717,13 +717,13 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     }
     // ── 관리 — 사람 ──
     if (p === '/api/admin/users') {
-      // 사람 카드 — 사람마다 상태 · 기기 · PC 일꾼 · 주인인 지식 수(이름은 싣지 않는다)
+      // 사람 카드 — 사람마다 상태 · 기기 · 주인인 지식 수(이름은 싣지 않는다)
       if (req.method === 'GET') {
         admin(ctx, { sudo: false })
         const all = auth.users()
         const roles = await hub.peopleRoles()
         // roles.kns — 자리 있는 지식 수(주인 · 정리 · 사람 줄 · 묶음 줄)
-        const people = all.filter((u) => u.kind === 'person' && !u.machine).map((u) => ({ ...u, workers: all.filter((w) => w.kind === 'worker' && w.owner === u.id).length, roles: roles[u.id] || { team: 0, curate: 0, kns: 0 } }))
+        const people = all.filter((u) => u.kind === 'person' && !u.machine).map((u) => ({ ...u, roles: roles[u.id] || { team: 0, curate: 0, kns: 0 } }))
         return out(200, { users: people, locked: auth.locked() })
       }
       admin(ctx)
@@ -745,7 +745,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         return out(200, await hub.setSeats(ctx, id, (await readBody(req)).seats))
       }
       admin(ctx)
-      // 떠남 — 들어가기 · 기기 · PC 일꾼을 끊고 아이디를 남긴다 · 그 사람의 지식은 넘겨받거나(to: 'me') 주인 칸을 비운다(개인 지식은 관리자만)
+      // 떠남 — 들어가기 · 기기를 끊고 아이디를 남긴다 · 그 사람의 지식은 넘겨받거나(to: 'me') 주인 칸을 비운다(개인 지식은 관리자만)
       if (am[2] === 'off') {
         if (id === ctx.user) throw new KmdError('E_INPUT', '나 자신은 떠나게 하지 못한다. 다른 총괄 관리자가 한다')
         const b = await readBody(req)
