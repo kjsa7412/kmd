@@ -188,6 +188,8 @@ A = 팀 kmd 안 · B = 내 PC kmd 안 · C = 팀 화면에서 연 내 PC 지식(
 
 ## 5. 팀 화면에서 내 PC 지식(KM52)
 
+> **거둠(2026-10-29)** — 팀 화면은 개인 프로그램에 붙지 않는다. 이 절 · KM52 · TODO L4 는 [팀 · 개인 프로그램 분리](kmd_팀_개인_분리_검토.html)로 걷었다. 아래는 이력.
+
 ### 5.1 먼저 정정
 
 v0.3 :92 「화면의 판정 코드는 이미 브라우저에서 돈다」 는 **틀렸다.** 화면은 모든 계산을 서버 API 로 받는 얇은 클라이언트이고(`viewer/src/lib/api.js:186-243`), core 에서 가져오는 것은 `core/repopath.js` 하나다(`DocView.jsx:14`). I1 의 「화면 Store」 는 서버 쪽 `core/store.js` 다(설계서 :269). 같은 core 를 브라우저에 묶는 실측(14개 + js-yaml · node: 0 · gzip 31KB · 서버 Store 와 결과가 같음 — `browser-path\compare.mjs`)은 부록 A 「나중」 의 밑천으로 둔다.
