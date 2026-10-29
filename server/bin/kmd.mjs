@@ -461,7 +461,7 @@ async function backupCmd(o) {
   }
 }
 
-// 주인 · 개인 · 정리하는 사람 — 셸(서버를 띄운 사람)이 바로 정한다
+// 주인 · 개인 · 지식관리자(예전 정리하는 사람) — 셸(서버를 띄운 사람)이 바로 정한다
 async function ownerCmd(o) {
   const root = path.resolve(o.root || (fs.existsSync(defaultPcRoot()) ? defaultPcRoot() : '.'))
   const [id, who] = o._

@@ -3062,7 +3062,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async setOwner(ctx, id, row) {
       const meta = await hub.meta(id, ctx.shell ? null : ctx)
       if (row && 'private' in row) { const { private: _p, ...rest } = row; row = rest } // 팀 서버에는 개인 지식이 없다
-      // 정리 설정 · 정리하는 사람 — 그 지식의 관리 자리 · 주인 바꾸기는 총괄 관리자 · 셸만
+      // 정리 설정 · 지식관리자(예전 정리하는 사람) — 그 지식의 관리 자리 · 주인 바꾸기는 총괄 관리자 · 셸만
       const allowed = (reg) => {
         const cur = owners.rowOf(reg, id)
         if (!ctx.shell && mode === 'team' && owners.levelOf(reg, id, ctx) !== 'admin') throw new KmdError('E_FORBIDDEN', '이 지식의 지식관리자가 아니다', { need: 'admin' })

@@ -386,7 +386,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     need(ctx)
     if (p === '/api/today') return out(200, await hub.today(ctx))
     if (p === '/api/history') return out(200, await hub.history(ctx))
-    // 사람 목록 — 아이디만(정리하는 사람 고르기)
+    // 사람 목록 — 아이디만(지식관리자(예전 정리하는 사람) 고르기)
     if (p === '/api/people') return out(200, auth.people())
     const dm = p.match(/^\/api\/k\/([^/]+)\/diff$/)
     if (dm) return out(200, await hub.diff(ctx, dec(dm[1]), url.searchParams.get('record') || ''))
@@ -846,7 +846,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     const what = m[2]
     if (['save', 'backup', 'backup/pull', 'owner', 'learn', 'edit', 'revert'].includes(what)) {
       if (what === 'backup' && req.method === 'GET') return out(200, (await hub.backupState(ctx, id)) || { off: true })
-      // 주인 줄 — 그 지식을 보는 사람에게만. 자리 표(access) · 정리하는 사람은 관리 자리에게만(자리 표 보기와 같게)
+      // 주인 줄 — 그 지식을 보는 사람에게만. 자리 표(access) · 지식관리자(예전 정리하는 사람)은 관리 자리에게만(자리 표 보기와 같게)
       if (what === 'owner' && req.method === 'GET') {
         await hub.meta(id, ctx)
         const row = hub.owner(id) || {}
@@ -861,7 +861,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (what === 'edit') return out(200, await hub.edit(ctx, id, body))
       if (what === 'revert') return out(200, await hub.revert(ctx, id, body))
       if (what === 'owner') {
-        // 주인 · 정리하는 사람은 명부에 있는 사람만
+        // 주인 · 지식관리자(예전 정리하는 사람)은 명부에 있는 사람만
         const people = new Set(auth.users().filter((u) => u.kind === 'person' && !u.off).map((u) => u.id))
         for (const u of [body.owner, ...(Array.isArray(body.curators) ? body.curators : [])].filter((x) => x != null && x !== '')) if (!people.has(String(u))) throw new KmdError('E_INPUT', `그런 사람은 없다: ${String(u).slice(0, 40)}`)
         // 주인 넘기기 — 관리자(팀 서버)는 비밀번호 한 번 더(남의 지식을 넘기는 일)

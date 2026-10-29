@@ -1,4 +1,4 @@
-// 주인 장부 — 지식마다 주인 · 정리하는 사람 · 되살림 표지. 팀 서버의 지식은 모두 팀 지식이다(개인 지식은 각자의 PC 에만).
+// 주인 장부 — 지식마다 주인 · 지식관리자(예전 정리하는 사람) · 되살림 표지. 팀 서버의 지식은 모두 팀 지식이다(개인 지식은 각자의 PC 에만).
 //
 // `<data>/owners.json { groups: { <묶음>: { members } }, knowledge: { <지식>: { owner, curators, restored, at, access } } }` — 서버에 하나.
 // 줄이 없는 지식도 팀 지식이다(자리를 받은 사람 · 총괄 관리자만 본다). 옛 장부 · `_members.md` 의 「개인」 은 읽지 않는다.
@@ -165,7 +165,7 @@ export function seatOf(reg, id, user) {
 }
 
 // 자리 표 바꾸기 — all · users · groups 중 온 것만 갈아 끼운다. 새 꼴로 쓸 때 curators 는 비운다 —
-//   사람 줄(users)을 보내지 않았으면 정리하는 사람을 관리 줄로 옮기고, 보냈으면 보낸 값을 따른다(빠졌으면 자리 없음 · 낮췄으면 낮춘 대로)
+//   사람 줄(users)을 보내지 않았으면 지식관리자(예전 정리하는 사람)을 관리 줄로 옮기고, 보냈으면 보낸 값을 따른다(빠졌으면 자리 없음 · 낮췄으면 낮춘 대로)
 export function setAccess(reg, id, { all, users, groups } = {}) {
   const prev = reg.knowledge[id] || {}
   const cur = accessOf(prev)
