@@ -79,7 +79,7 @@ const TOOLS = [
         },
         sections: {
           type: 'array',
-          items: { type: 'object', properties: { coord: str('이름'), doc: str('문서'), heading: str('머리'), content: str('항목의 새 글 전체(머리 줄 빼고 · 본문만: 기록 링크 · 주석 · 경과 목록 없이): from · append 를 쓰면 잇는 말 · 바뀐 값만'), base: str('section 이 준 지문: 이미 있는 항목이면 꼭 · 읽은 뒤 바뀌었으면 거절'), from: str('넣기 에이전트만: 넣은 파일 글을 서버가 그대로 옮긴다: "*" 는 전체 · 머리 글이면 그 머리 아래(content 다음에 붙는다)'), append: { type: 'boolean', description: '넣기 에이전트만: 지금 항목 글 끝에 보탠다(지금 글을 다시 보내지 않는다)' } } },
+          items: { type: 'object', properties: { coord: str('이름'), doc: str('문서'), heading: str('머리'), content: str('항목의 새 글 전체(머리 줄 빼고 · 본문만: 기록 링크 · 주석 · 경과 목록 없이): from · append 를 쓰면 잇는 말 · 바뀐 값만'), base: str('section 이 준 지문: 이미 있는 항목이면 꼭 · 읽은 뒤 바뀌었으면 거절'), from: str('넣기 에이전트만: 원문 그대로여야 하는 표 · 값 덩이 하나를 그 머리로 가리키면 서버가 그 머리 아래를 옮긴다(content 다음에 붙는다) · 파일 전체("*")는 받지 않는다. 항목 글은 정리해 content 로'), append: { type: 'boolean', description: '넣기 에이전트만: 지금 항목 글 끝에 보탠다(지금 글을 다시 보내지 않는다)' } } },
         },
         names: {
           type: 'array',

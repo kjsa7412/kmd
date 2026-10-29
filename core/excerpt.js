@@ -109,6 +109,8 @@ export function expandSections(k, w, sections) {
     if (from != null && !w) throw new KmdError('E_NOTFOUND', '옮길 파일 글(이 일의 기록)이 없다')
     // 코드 바뀜 기록은 분석 · 커밋 메시지 · 차이다 — 항목에 옮기거나 덧붙이지 않고 그 기능의 지금 동작으로 다시 쓴다
     if (w?.tags?.includes('code-change')) throw new KmdError('E_INPUT', '코드 바뀜 기록은 from · append 로 넣지 않는다. section 으로 읽고 그 기능의 지금 동작으로 고친 새 글 전체를 content 와 base 로 보낸다')
+    // 파일 글 전체는 옮기지 않는다 — 항목은 대상의 지금으로 정리한 글(작성기준 7절 · kmd-build 5) · 원문 그대로는 표 · 값 덩이 하나만 그 머리로
+    if (from != null && String(from).trim() === '*') throw new KmdError('E_INPUT', '파일 글 전체(from "*")는 옮기지 않는다. 확정된 사실을 대상의 지금으로 정리해 content 로 쓴다. 원문 그대로여야 하는 표 · 값 덩이만 그 머리로 from')
     let content = [typeof s.content === 'string' ? s.content.trim() : '', from != null ? excerpt(w?.body, from) : ''].filter(Boolean).join('\n\n')
     if (!content) throw new KmdError('E_INPUT', '항목 글이 비었다. content 또는 from 을 준다')
     if (append) {

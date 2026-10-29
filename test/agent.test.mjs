@@ -224,7 +224,7 @@ test('일마다 모델: 에이전트는 기본 sonnet · 설정으로 바꾸면 
   assert.ok(!(await one('모델-셋.md')).lines.some((l) => /fake-agent\(/.test(l.x)), '「기본」 이면 --model 을 넘기지 않는다')
 })
 
-test('파일 글은 kmd 가 옮긴다. 에이전트는 from(전체 · 머리) · append(있는 항목 끝)만 · 세션은 쓰지 못한다', async () => {
+test('표 · 값 덩이는 kmd 가 옮긴다. 에이전트는 from(머리 · 전체는 거절) · append(있는 항목 끝)만 · 세션은 쓰지 못한다', async () => {
   await s.hub.addKnowledge(ME, { kind: 'new', name: '회의셋' })
   const dir = path.join(tmp, 'kn', '회의셋')
   const one = async (name, mode, text) => {
@@ -241,8 +241,7 @@ test('파일 글은 kmd 가 옮긴다. 에이전트는 from(전체 · 머리) ·
   assert.equal(a.state, 'done', a.msg)
   let doc = fs.readFileSync(path.join(dir, 'docs', '회의록.md'), 'utf8')
   assert.match(doc, /^## 2026-10-21 HNC 통화\n(?:<!--.*-->\n)?HNC 와 통화했다\.\n\n/m, '잇는 말이 먼저')
-  assert.match(doc, /^### 원격 명령$/m, '파일의 머리는 ### 로')
-  assert.match(doc, /\| 상대 \| HNC 권순용 차장 \|/, '표는 원문 그대로')
+  assert.doesNotMatch(doc, /권순용/, '가리킨 머리 아래만 옮긴다(파일 전체가 아니다)')
   assert.match(doc, /3초 동안 1을 쓰고 0으로 되돌린다/)
   const b = await one('HNC_통화_보탬.md', 'append', HNC.replace('3초 동안', '5초 동안'))
   assert.equal(b.state, 'done', b.msg)

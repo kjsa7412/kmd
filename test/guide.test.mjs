@@ -89,7 +89,9 @@ test('코드 바뀜 기록은 from · append 로 넣지 못한다. 지금 동작
   assert.throws(() => expandSections(k, w, [{ coord: 'proc:롤백', content: '덧붙임', append: true }]), /from · append 로 넣지 않는다/)
   // 넣은 파일의 append 는 지금 본문 끝에 붙는다(출처 줄은 본문에 없다 · 문서 끝 참고 블록에 남는다)
   const f = { id: 'f1', tags: ['ingest/a.md'], body: '보탤 글' }
-  const [x] = expandSections(k, f, [{ coord: 'proc:롤백', from: '*', append: true }])
+  // 파일 글 전체(from "*")는 옮기지 않는다 — 정리해 content 로
+  assert.throws(() => expandSections(k, f, [{ coord: 'proc:롤백', from: '*' }]), /파일 글 전체/)
+  const [x] = expandSections(k, f, [{ coord: 'proc:롤백', content: '보탤 글', append: true }])
   const { body, log } = splitLog(x.content)
   assert.ok(body.endsWith('보탤 글'))
   assert.equal(log.length, 0)
