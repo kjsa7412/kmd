@@ -18,7 +18,7 @@ import { valuesOf } from './save.js'
 import { newValuesOf } from './codechange.js'
 import { sha16 } from './text.js'
 import { sectionOf, coordsOfSection, labelOf } from './knowledge.js'
-import { formatProblems } from './docformat.js'
+import { formatProblems, lintSection } from './docformat.js'
 import { splitBlocks, hasBlockMarker } from './baseline.js'
 
 export const DRAFT_SCHEMA = {
@@ -116,9 +116,17 @@ export const WRITE_RULES = [
   '- 항목 머리(# · ##)와 주석(<!-- -->)은 쓰지 않는다. 항목 안의 소제목은 ### 아래나 굵은 글로: 지금 글의 소제목은 그대로 둔다. 저절로 채우는 표(<!-- baseline … --> 덩이)가 있으면 글자 하나 바꾸지 않고 그대로 둔다.',
   '- 「**경과**」 목록 · 출처 줄은 kmd 가 문서 끝 참고에 단다. 쓰지 않는다.',
   '- 읽기 쉽게: 한 문단 다섯 줄까지 · 나란한 것이 셋 이상이면 목록 · 둘 이상의 속성을 견주면 표 · 코드 · 경로 · 값은 `백틱`.',
-  '좋은 예: 「배포 창은 화 · 목 14:00 ~ 17:00 이다. 되돌릴 때는 [롤백](#롤백) 순서를 따른다.」',
-  '나쁜 예: 「배포 창을 화 · 목으로 바꿨다는 기록이 있다([기록](../work/2026-1021-배포-창.md)).」 · 글 끝의 「**경과**」 목록 · 「<!-- 메모 -->」',
+  '- 머리 단계를 건너뛰지 않는다: 항목(##) 안의 소제목은 ### 부터, 그 아래가 #### 다. ## 바로 아래에 #### 를 쓰지 않고 ##### 는 쓰지 않는다.',
+  '- 메타 표(작성자 · 판 · 상태 · 기준일 · 근거 문서)는 요약이 아니다. 문서 요약은 제목 바로 아래 1~3문장으로 「무엇을 다루고 지금 결론이 무엇인지」 를 쓴다.',
+  '- 머리글 · 본문에 kmd 운영 규칙을 쓰지 않는다(좌표 · 섹션 · 기준선 · 원천 · 동기화 · touches · _vocab · _managed · 등록부 같은 말). 읽는 사람이 알아야 할 대상의 지식만 쓴다.',
+  '좋은 예: 「배포 창은 화 · 목 14:00 ~ 17:00 이다. 되돌릴 때는 [롤백](#롤백) 순서를 따른다.」 · 「## 지출처리」 아래 「### 화면 구성」 → 「#### 버튼」',
+  '나쁜 예: 「배포 창을 화 · 목으로 바꿨다는 기록이 있다([기록](../work/2026-1021-배포-창.md)).」 · 글 끝의 「**경과**」 목록 · 「<!-- 메모 -->」 · 「## 지출처리」 바로 아래 「#### 1. 업무 흐름」 · 요약 자리에 「| 작성 | 판 | 상태 |」 표 · 「좌표는 `screen:{화면ID}` · 다음 동기화는 이 섹션을 덮지 않는다」',
 ].join('\n')
+// 초안 짜임 알림 — 머리 단계 건너뜀 · 5단계 머리(거절하지 않는다 · 결과에 lint 로 싣는다)
+function draftLint(outs) {
+  const lint = outs.flatMap((o) => lintSection(o))
+  return lint.length ? { lint } : {}
+}
 // 초안 글 검사 — 저장의 문서 꼴 검사 + 프런트매터 · script · 저절로 채우는 표를 고쳤나(cur 의 표와 같아야 한다)
 function draftBad(t, cur = '', { doc = null, old = null } = {}) {
   if (/^---\s*$/m.test(t)) return '프런트매터 줄(---)'
@@ -272,7 +280,7 @@ export function check(k, g, d) {
   const back = vOf(used.filter((r) => r.old))
   if (gone.length && came.some((v) => back.has(v) && !newerV.has(v))) return { ok: false, why: '더 늦게 쓴 기록이 이미 들어간 항목: 옛 기록은 값을 바꾸지 않는다' }
   const changed = gone.length && came.length ? [{ from: gone.join(' · '), to: came.join(' · ') }] : []
-  return { ok: true, changed }
+  return { ok: true, changed, ...draftLint([d.content]) }
 }
 
 // 넣은 파일 검사 — 모양 · 후보 문서만 고친다 · 새 문서 경로 · 지문(그사이 바뀜) · 표지 · 크기 · 값 대조(빠짐 · 지어냄)
@@ -334,7 +342,7 @@ function checkIngest(k, g, d) {
   if (missing.length) return { ok: false, why: `파일의 값이 글에 없다: ${missing.slice(0, 3).join(' · ')}` }
   const invented = [...now].filter((v) => !recV.has(v) && !oldV.has(v))
   if (invented.length) return { ok: false, why: `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` }
-  return { ok: true, changed }
+  return { ok: true, changed, ...draftLint(outs) }
 }
 
 // 갈래 — 파일 이름 · 제목에 든 말로 고른다(Claude 없이). 문서 이름은 파일 이름이 아니라 갈래 · 주제(요구 15)

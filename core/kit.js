@@ -14,6 +14,7 @@ import crypto from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { mcpConfig } from './claudecfg.js'
 import { KmdError } from './errors.js'
+import { writeJsonAtomic } from './atomic.js'
 
 const KIT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'agent')
 export const SKILLS = ['kmd-work', 'kmd-save', 'kmd-build']
@@ -170,6 +171,5 @@ export async function folders(dataDir) {
   })
 }
 export async function setFolders(dataDir, list) {
-  await fs.mkdir(dataDir, { recursive: true })
-  await fs.writeFile(listFile(dataDir), JSON.stringify(list, null, 1))
+  await writeJsonAtomic(listFile(dataDir), list, { indent: 1 })
 }

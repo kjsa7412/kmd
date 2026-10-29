@@ -30,10 +30,38 @@ import { createReadStream } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { pipeline } from 'node:stream/promises'
 import MarkdownIt from 'markdown-it'
+import { writeJsonAtomic } from '../core/atomic.js'
 
 const APP = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'app')
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.json': 'application/json' }
 const MAX_BODY = 2 << 20
+
+// 나눠 보내기(Q71) — 기록 · 이력은 새 것 위(날짜 · id 내림)로 늘 정렬돼 있다. 커서는 그 순서의 「이것보다 앞(옛) 것」.
+//   ?limit=  한 번에(1 ~ 1000 · 없으면 dflt)
+//   ?before= 기록 id(그 기록 다음부터) · 「날짜|id」(next 로 받은 것 그대로) · 날짜(YYYY-MM-DD[ HH:MM] — 그보다 옛 것)
+//   ?days=   최근 며칠만(이력)
+const PAGE_MAX = 1000
+const pageLimit = (url, dflt) => {
+  const n = Number(url.searchParams.get('limit'))
+  return Number.isInteger(n) && n > 0 ? Math.min(n, PAGE_MAX) : dflt
+}
+const cursorOf = (w) => `${w.date}|${w.id}`
+// before → 거르는 함수(w → 옛 것이면 true) · 없으면 null
+function olderThan(before, byId = null) {
+  const b = String(before || '').trim()
+  if (!b) return null
+  const hit = byId?.get(b)
+  const [d, id] = hit ? [hit.date, hit.id] : b.includes('|') ? [b.slice(0, b.indexOf('|')), b.slice(b.indexOf('|') + 1)] : [b.replace('T', ' '), null]
+  if (id == null) return (w) => w.date < d
+  return (w) => w.date < d || (w.date === d && w.id < id)
+}
+const sinceDays = (days) => {
+  const n = Number(days)
+  if (!(n > 0)) return null
+  const t = new Date(Date.now() - n * 864e5)
+  const p = (x) => String(x).padStart(2, '0')
+  return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())} ${p(t.getHours())}:${p(t.getMinutes())}`
+}
 
 function send(res, status, body, type = 'application/json; charset=utf-8', extra = {}) {
   const buf = Buffer.isBuffer(body) ? body : Buffer.from(typeof body === 'string' ? body : JSON.stringify(body))
@@ -517,10 +545,22 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     // 자동으로 가져오는 곳 — 목록 · 더하기(관리자 · PC) · 살펴보기 · 지금 가져오기 · 관리자에게 부탁
     // 이력 — 보는 지식들의 kmd 가 한 일(가져옴 · 가져오는 곳 · 바로 고침 · 정리) 한 곳에 · 새 것 위
     if (p === '/api/logs') {
+      // 지식마다 거른 뒤 최근 limit 만 합친다(모두 모아 자르지 않게) · more — 거른 것 가운데 이번에 싣지 않은 수 · next — 다음 ?before=
+      const limit = pageLimit(url, 300)
+      const older = olderThan(url.searchParams.get('before'))
+      const since = sinceDays(url.searchParams.get('days'))
       const rows = []
-      for (const m of await hub.visible(ctx)) rows.push(...V.logRows(await hub.get(m.id, ctx)))
+      let total = 0
+      for (const m of await hub.visible(ctx)) {
+        const k = await hub.get(m.id, ctx)
+        const logs = older || since ? k.logs.filter((w) => (!older || older(w)) && (!since || w.date >= since)) : k.logs
+        total += logs.length
+        rows.push(...V.logRows({ id: k.id, name: k.name, logs }, { limit }))
+      }
       rows.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
-      return out(200, { items: rows.slice(0, 500) })
+      const items = rows.slice(0, limit)
+      const more = total - items.length
+      return out(200, { items, more, next: more > 0 && items.length ? cursorOf(items[items.length - 1]) : null })
     }
     // can — 가져오는 곳을 더할 수 있는 지식이 하나라도 있나(지식마다는 items 의 can)
     if (p === '/api/sources') {
@@ -968,7 +1008,20 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, await hub.backupPull(ctx, id))
     }
     const k = await hub.get(id, ctx)
-    if (what === 'tree') return out(200, V.tree(k))
+    if (what === 'tree') {
+      // 문서 목록은 그대로 · 기록은 최근 limit(기본 200)만. 첫 쪽(before 없음)에는 그보다 옛 것이라도 아직 넣지 않은 기록(pend · nowhere)을
+      // 함께 싣는다(받은 것 · 반영 대기 수가 첫 쪽만으로 맞게 · 화면은 id 로 겹침을 거른다). ?all=1 은 예전처럼 모두
+      const t = V.tree(k)
+      if (url.searchParams.get('all') === '1') return out(200, { ...t, total: t.records.length, more: 0, next: null })
+      const limit = pageLimit(url, 200)
+      const byId = new Map(k.works.map((w) => [w.id, w]))
+      const older = olderThan(url.searchParams.get('before'), byId)
+      const all = older ? t.records.filter(older) : t.records
+      const head = all.slice(0, limit)
+      const open = older ? [] : all.slice(limit).filter((r) => r.state === 'pend' || r.state === 'nowhere')
+      const more = all.length - head.length
+      return out(200, { ...t, records: open.length ? [...head, ...open] : head, total: t.records.length, more, next: more > 0 && head.length ? cursorOf(head[head.length - 1]) : null })
+    }
     if (what === 'model') return out(200, V.model(k))
     if (what === 'item') {
       const v = V.itemView(k, url.searchParams.get('key') || '', { src: await hub.sourceState(k.id) })
@@ -1046,7 +1099,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         const origin = safeOrigin((await readBody(req)).origin || '')
         if (!origin) throw new KmdError('E_INPUT', '팀 주소가 아니다')
         const teams = await fs.readFile(teamsFile, 'utf8').then(JSON.parse, () => [])
-        await fs.writeFile(teamsFile, JSON.stringify(teams.filter((u) => { try { return new URL(u).origin !== origin } catch { return true } }), null, 1))
+        await writeJsonAtomic(teamsFile, teams.filter((u) => { try { return new URL(u).origin !== origin } catch { return true } }), { indent: 1 })
         for (const [k, v] of pairs) if (v.origin === origin) pairs.delete(k)
         return send(res, 200, { ok: true })
       }

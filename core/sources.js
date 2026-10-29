@@ -25,6 +25,7 @@ import { localStamp, save as coreSave, serial, recordTakenSync } from './save.js
 import { RULES, splitBlocks, putBlock, tableMd, sameTable, sameRows, probe, parseTable } from './baseline.js'
 import { getSecret, setSecret } from './secrets.js'
 import { KmdError } from './errors.js'
+import { writeJsonAtomic } from './atomic.js'
 import { stopLine, ageText } from './stopline.js'
 import { readLedger, writeLedger, scanFolder, scanGit, changeCount } from './watch.js'
 import { applyDocs, wantDoc, noRecPaths } from './docwatch.js'
@@ -39,20 +40,29 @@ const MAX_FILES = 3000
 const EVERY_MS = { change: 300_000, hourly: 3600_000, daily: 86400_000, weekly: 7 * 86400_000 }
 export const everyMs = (e) => EVERY_MS[String(e || 'hourly').split(' ')[0]] || 3600_000
 
+// 장부 읽기 — 없으면 [] · 깨졌으면(JSON 이 아님 · 목록이 아님) 던진다. 조용히 [] 를 주면 다음 더하기가 그 위에 써서
+// 가져오는 곳이 모두 지워진 채 커밋된다(Q55). 읽기만 하는 쪽(화면 · 멈춤 줄 · 시계)은 받아서 경고로 바꾼다.
+export const DECL_BROKEN = '가져오는 곳 장부가 깨졌다'
 export async function readDecl(dir) {
-  const t = await fs.readFile(path.join(dir, DECL), 'utf8').catch(() => null)
-  if (!t) return []
+  const t = await fs.readFile(path.join(dir, DECL), 'utf8').catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
+  if (t == null || !t.trim()) return []
+  let j
   try {
-    const j = JSON.parse(t)
-    return Array.isArray(j) ? j : []
-  } catch {
-    return []
+    j = JSON.parse(t)
+  } catch (e) {
+    throw new KmdError('E_INPUT', `${DECL_BROKEN}(${DECL} · ${String(e.message).slice(0, 80)}): 바로잡거나 git 에서 앞의 판으로 되돌릴 때까지 가져오기 · 고치기를 멈춘다`, { declBroken: true })
   }
+  if (!Array.isArray(j)) throw new KmdError('E_INPUT', `${DECL_BROKEN}(${DECL} 가 목록이 아니다): 바로잡거나 git 에서 앞의 판으로 되돌릴 때까지 가져오기 · 고치기를 멈춘다`, { declBroken: true })
+  return j
 }
 
-// 선언을 바꾸는 저장 — 이력 하나(log/) + _sources.json · 작성자 그 사람 · 태그 sources
-async function writeDecl(dir, list, { user, title }) {
+// 선언을 바꾸는 저장 — 지식마다 한 줄(serial) 안에서 읽기 · 고치기 · 쓰기 · 이력 하나(log/) + _sources.json · 작성자 그 사람 · 태그 sources
+//   fn(list) — 지금 장부(깨졌으면 여기서 던져 덮어쓰지 않는다)를 받아 새 목록을 돌려준다 · null 이면 바꾸지 않는다
+//   _sources.json 은 임시 파일 뒤 이름 바꾸기(반쯤 쓴 장부를 남기지 않게)
+async function editDecl(dir, fn, { user, title }) {
   return serial(path.resolve(dir), async () => {
+    const list = await fn(await readDecl(dir))
+    if (!list) return null
     await ensureRepo(dir)
     const date = localStamp()
     const day = date.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2$3')
@@ -60,10 +70,12 @@ async function writeDecl(dir, list, { user, title }) {
     for (let n = 2; recordTakenSync(dir, id); n++) id = `${day}-가져오는-곳-${n}`
     await fs.mkdir(path.join(dir, 'log'), { recursive: true })
     await fs.writeFile(path.join(dir, 'log', `${id}.md`), renderRecord({ id, title, date, author: user, tags: ['sources'] }, title), 'utf8')
-    await fs.writeFile(path.join(dir, DECL), JSON.stringify(list, null, 1) + '\n', 'utf8')
+    await writeJsonAtomic(path.join(dir, DECL), list, { indent: 1, nl: true })
     return commitPaths(dir, [`log/${id}.md`, DECL], title, user)
   })
 }
+// 통째로 쓰기(예전 이름) — 그래도 깨진 장부 위에는 쓰지 않는다
+const writeDecl = (dir, list, opt) => editDecl(dir, () => list, opt)
 
 // ── 상태 — <data>/baseline/<지식>.json ──
 const stateFile = (dataDir, kn) => path.join(dataDir, 'baseline', `${encodeURIComponent(kn)}.json`)
@@ -683,7 +695,7 @@ export function sourceLines(k, decl, st, { now = Date.now(), admin = false } = {
   return out
 }
 
-export { probe, writeDecl, stateFile, writeState }
+export { probe, writeDecl, editDecl, stateFile, writeState }
 
 // 살펴보기(git) — 닿나 · 마지막 커밋
 export async function probeGit(src, ctx) {
