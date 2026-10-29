@@ -156,7 +156,8 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
     const rel = cleanPath(f.path || f.name)
     const ext = extOf(rel)
     const base = rel.replace(/\.[^./]+$/, '')
-    const docRel = `docs/${base}.md`
+    // f.doc — 부르는 쪽이 정한 문서 자리(문서 폴더 감시: 같은 이름 다른 확장자가 앞 문서를 덮지 않게)
+    const docRel = f.doc || `docs/${base}.md`
     const attRel = `docs/assets/${rel}`
     const row = (kind, msg, extra = {}) => plan.rows.push({ name: rel, kind, msg, ...extra })
     let md = null
@@ -203,7 +204,8 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
       }
       plan.docs.push({ rel: docRel, text: md })
       if (ext !== 'md' && ext !== 'markdown' && !TEXT.includes(ext)) plan.atts.push({ rel: attRel, data: f.data })
-      row('doc', `문서가 됐다: ${k.name} › ${base.split('/').join(' › ')}`, { doc: base })
+      const docBase = docRel.replace(/^docs\/|\.md$/g, '')
+      row('doc', `문서가 됐다: ${k.name} › ${docBase.split('/').join(' › ')}`, { doc: docBase })
       continue
     }
     if (blank) {

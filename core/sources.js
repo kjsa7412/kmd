@@ -28,7 +28,7 @@ import { KmdError } from './errors.js'
 import { writeJsonAtomic } from './atomic.js'
 import { stopLine, ageText } from './stopline.js'
 import { readLedger, writeLedger, scanFolder, scanGit, changeCount } from './watch.js'
-import { applyDocs, wantDoc, noRecPaths } from './docwatch.js'
+import { wantDoc } from './docwatch.js'
 import { parseDbUrl, readDb } from './db.js'
 import { locate } from './registry.js'
 import { wantCode, codeRecord, commitRecord, diffFolder, diffGit, syncSnap, hasSnap, MAX_FILES as CODE_MAX, CODE_FILES } from './codechange.js'
@@ -527,10 +527,11 @@ async function runDb(k, src, { dataDir, save, first = false, force = false, full
   }
 }
 
-// 문서 폴더 — 바뀐 파일만 지식 안의 사본 문서로(원본이 주인) · 지운 파일은 「원본에 없다」 · 브레이크는 한꺼번에 많이 사라질 때만
+// 문서 폴더 — 바뀐 파일만 파일 넣기와 같은 길로(기록 → 정리가 자리를 골라 문서에) · 지운 파일은 지식을 바꾸지 않는다 · 브레이크는 한꺼번에 많이 사라질 때만
 // (문서는 묶음으로 더해지는 일이 흔하고 더함은 아무것도 지우지 않는다 — 사라짐 10% 초과만 멈춘다)
 const DOC_MAX_FILE = 32 << 20
-async function runDocs(k, src, { dataDir, first = false, force = false, full = false, pass = null, onProgress = null, mdOf = null, onStage = async () => {}, line = () => {} }) {
+async function runDocs(k, src, { dataDir, first = false, force = false, full = false, pass = null, onProgress = null, ingest = null, onStage = async () => {}, line = () => {} }) {
+  if (!ingest) throw new KmdError('E_INPUT', '문서 폴더는 파일 넣기 길(ingest)로만 들인다')
   const st = await readState(dataDir, k.id)
   const s0 = (st[src.name] ||= {})
   const now = new Date().toISOString()
@@ -556,22 +557,24 @@ async function runDocs(k, src, { dataDir, first = false, force = false, full = f
       return { state: 'stopped', n: 0, files: n, ...s0.stopped }
     }
     await onStage(2)
+    // 파일 넣기와 같은 길(ingest — hub.importFiles) — 파일마다 기록(반영 대기)을 세우고 이 PC 는 Claude Code 가 · 팀은 정리가 자리를 골라 넣는다.
+    //   원본에서 지운 파일은 지식을 바꾸지 않는다(사본 문서를 만들지 않으니 「원본에 없다」 를 달 문서도 없다)
+    const pre = docPrefix(src)
     const files = []
-    for (const rel of [...scan.changes.added, ...scan.changes.changed]) files.push({ rel, data: await scan.readBuf(rel) })
-    if (!L.recs) {
-      const seen = new Set(files.map((f) => f.rel))
-      for (const rel of await noRecPaths(k, src.name)) if (!seen.has(rel) && scan.files[rel]) files.push({ rel, data: await scan.readBuf(rel) })
-    }
-    const r = await applyDocs(k, { src, prefix: docPrefix(src), files, removed: scan.changes.removed, mdOf })
-    line('ok', `기록 ${r.recs ?? 0} · 문서 ${r.docs}${r.missing ? ` · 원본에 없다 ${r.missing}` : ''}`)
+    for (const rel of [...scan.changes.added, ...scan.changes.changed]) files.push({ path: pre ? `${pre}/${rel}` : rel, data: await scan.readBuf(rel) })
+    const r = files.length ? await ingest(files) : { summary: {}, rows: [] }
+    const sm = r.summary || {}
+    const recs = (sm.record || 0) + (sm.run || 0), docs = sm.doc || 0, fails = sm.fail || 0
+    line(fails ? 'err' : 'ok', `기록 ${recs}${docs ? ' · 문서 ' + docs : ''}${sm.run ? ' · Claude Code 일 ' + sm.run : ''}${fails ? ' · 못 넣음 ' + fails : ''}${gone ? ` · 원본에서 지움 ${gone}(지식은 그대로)` : ''}`)
     await onStage(3)
     await writeLedger(dataDir, k.id, src.name, { v: 1, files: scan.files, out: {}, rules: JSON.stringify(src.rules), recs: 1 })
     const real = full ? 0 : n
-    const lastChange = r.commit ? { at: now, files: real, docs: r.docs, tables: 0, atts: r.atts, removed: r.missing, added: full ? 0 : scan.changes.added.length, changed: full ? 0 : scan.changes.changed.length } : s0.lastChange
-    const note = r.commit ? `${full ? '다시 맞춤: ' : ''}문서 ${r.docs}${r.atts ? ' · 첨부 ' + r.atts : ''}${r.missing ? ' · 원본에 없다 ' + r.missing : ''}` : full ? '다시 맞춤: 그대로' : n ? `바뀐 파일 ${n} · 문서는 그대로` : '그대로'
+    const got = recs + docs > 0
+    const lastChange = got ? { at: now, files: real, recs, docs, tables: 0, removed: gone, added: full ? 0 : scan.changes.added.length, changed: full ? 0 : scan.changes.changed.length } : s0.lastChange
+    const note = got ? `${full ? '다시 맞춤: ' : ''}기록 ${recs}${docs ? ' · 문서 ' + docs : ''}${fails ? ' · 못 넣음 ' + fails : ''}` : full ? '다시 맞춤: 그대로' : n ? `바뀐 파일 ${n} · 기록은 그대로` : '그대로'
     Object.assign(s0, { checkedAt: now, failures: 0, failingSince: null, stopped: null, lastChange, lastNote: note })
     await writeState(dataDir, k.id, st)
-    return { state: r.commit ? 'changed' : 'same', n: r.docs + r.missing, files: n, docs: r.docs, missing: r.missing, recs: r.recs, rows: r.rows }
+    return { state: got ? 'changed' : 'same', n: recs + docs, files: n, docs, recs, runs: sm.run || 0, fails, removed: gone, rows: r.rows || [] }
   } catch (e) {
     if (e?.cancelled) throw e // 그만두기(일 줄) — 못 가져옴으로 세지 않는다
     s0.failures = (s0.failures || 0) + 1

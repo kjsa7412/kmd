@@ -2673,7 +2673,7 @@ const srcId = (s) => s.kn + '|' + s.name
 // 마지막으로 바뀐 것 — 바뀐 파일 · 표 · 묶음 수
 function srcChange(s) {
   const lc = (s.state || {}).lastChange
-  return lc && lc.commits != null ? `새 묶음 ${lc.commits} · 기록 ${lc.records} · ${whenTxt(lc.at)}` : lc ? `바뀐 파일 ${lc.files}${lc.removed ? '(지움 ' + lc.removed + ')' : ''} · ${lc.docs != null ? '문서 ' + lc.docs : '표 ' + lc.tables} · ${whenTxt(lc.at)}` : ''
+  return lc && lc.commits != null ? `새 묶음 ${lc.commits} · 기록 ${lc.records} · ${whenTxt(lc.at)}` : lc ? `바뀐 파일 ${lc.files}${lc.removed ? '(지움 ' + lc.removed + ')' : ''} · ${lc.recs != null ? '기록 ' + lc.recs : lc.docs != null ? '문서 ' + lc.docs : '표 ' + lc.tables} · ${whenTxt(lc.at)}` : ''
 }
 // 지금 도는 중 — 이 화면에서 누른 [지금 가져오기] 이거나, 뒤에서(시계 · 실시간 감시) 도는 것(「지금 하는 일」 과 같은 값)
 const srcRunning = (s) => S.srcRun[srcId(s)] === 'run' || ((S.busy && S.busy.items) || []).some((x) => x.kind === 'source' && x.kn === s.kn && x.name === s.name)
@@ -2798,7 +2798,7 @@ function sfForm(can) {
   if (f.type === 'db') where = fld('호스트', 'host', f.host, '예: db.team.local', { need: 1, mono: 1 }) + fld('포트', 'port', f.port, '5432', { need: 1, mono: 1 }) + fld('DB 이름', 'database', f.database, '예: gdi', { need: 1, mono: 1 }) + fld('스키마', 'schema', f.schema, 'public', { mono: 1 }) + fld('계정', 'user', f.user, '예: kmd_read', { need: 1, mono: 1 }) + (team ? '<div class="small muted" data-t="credNote" style="align-self:end">비밀번호는 화면으로 받지 않는다. 더한 뒤 서버에서 한 줄(표의 그 줄에 보인다)</div>' : fld('비밀번호', 'password', f.password, '이 PC 의 자격 저장소에만', { need: 1, pw: 1 }))
   const docsLike = f.type === 'docs'
   const what = f.type === 'git' ? '<div class="field" style="margin:0" data-t="codeWhat"><label>무엇을</label><div class="small" style="padding:8px 0">묶음. 더한 뒤 저장소에 새로 올라온 묶음마다 바뀐 코드로 기록 하나</div><div class="hint">묶음 설명 · 바뀐 값(3초 → 5초) · 차이 · 걸린 항목 이름 · 정리가 그 항목 글을 맞춘다(Claude: 값이 바뀌면 노란 줄 · 되돌릴 수 있다) · 지금 묶음이 기준 · 합친 묶음 · 시험 · 빌드 결과는 보지 않는다</div></div>' : ruleSet ? `<div class="field" style="margin:0"><label for="sf-rule">무엇을 채우나</label>${sel('rule', ruleSet.map((r) => [r[0], r[1]]), f.rule)}<div class="hint">${esc(ruleSet.find((r) => r[0] === f.rule)[2])}</div></div>` : '<div class="field" style="margin:0"><label>무엇을</label><div class="small" style="padding:8px 0">문서: md · docx · pptx · xlsx · hwpx · hwp · pdf 는 문서로(원본은 첨부) · 그림은 첨부로</div><div class="hint">바뀐 파일만 다시 · 들어온 문서는 원본이 주인(화면에서 고치지 않는다) · 원본에서 지우면 「원본에 없다」</div></div>'
-  const into = f.type === 'git' ? `<div class="field" style="margin:0"><label for="sf-kn">넣을 지식</label>${sel('kn', kns.map((k) => [k.id, k.name]), f.kn)}<div class="hint">기록은 이 지식에 · 이름 장부의 항목이 걸리면 그 항목 정리로</div></div>` : `<div class="field" style="margin:0"><label for="sf-kn">넣을 지식 › ${docsLike ? '폴더' : '문서'}</label><div style="display:flex;gap:6px">${sel('kn', kns.map((k) => [k.id, k.name]), f.kn)}<input class="inp" id="sf-doc" aria-label="넣을 문서 이름" data-in="sf" data-f="doc" value="${esc(f.doc || '')}" placeholder="${esc(docsLike ? sfAutoName(f) || '폴더 이름' : SF_DOC[f.rule])}" style="width:45%"></div><div class="hint">${docsLike ? '지식 안에 이 이름의 폴더로 문서가 선다 · 원본 폴더의 짜임 그대로' : '문서가 없으면 새로 선다 · 표는 그 문서 안 「저절로 채우는 표」 상자로'}</div></div>`
+  const into = f.type === 'git' ? `<div class="field" style="margin:0"><label for="sf-kn">넣을 지식</label>${sel('kn', kns.map((k) => [k.id, k.name]), f.kn)}<div class="hint">기록은 이 지식에 · 이름 장부의 항목이 걸리면 그 항목 정리로</div></div>` : `<div class="field" style="margin:0"><label for="sf-kn">넣을 지식 › ${docsLike ? '출처 이름' : '문서'}</label><div style="display:flex;gap:6px">${sel('kn', kns.map((k) => [k.id, k.name]), f.kn)}<input class="inp" id="sf-doc" aria-label="${docsLike ? '출처 이름' : '넣을 문서 이름'}" data-in="sf" data-f="doc" value="${esc(f.doc || '')}" placeholder="${esc(docsLike ? sfAutoName(f) || '폴더 이름' : SF_DOC[f.rule])}" style="width:45%"></div><div class="hint">${docsLike ? '파일마다 기록으로 들고 정리가 갈래 · 주제 문서의 항목으로 넣는다(파일 이름 문서를 세우지 않는다) · 이 이름은 기록의 출처' : '문서가 없으면 새로 선다 · 표는 그 문서 안 「저절로 채우는 표」 상자로'}</div></div>`
   const paths = ''
   const when = `<div class="field" style="margin:0"><label for="sf-every">언제</label>${sel('every', [['hourly', '1시간마다'], ['daily 06:00', '매일 06:00'], ['weekly', '매주 월'], ['change', '바뀔 때만: 5분마다 보고 바뀐 것만']], f.every)}${f.type === 'docs' ? '<div class="hint">폴더는 실시간으로도 지켜본다. 이것은 놓친 것을 잡는 때</div>' : f.type === 'git' ? '<div class="hint">이때마다 새 묶음을 본다</div>' : ''}</div>`
   const nm = fld('이름', 'name', f.name, sfAutoName(f) || '예: dpms-api 코드')
@@ -2828,7 +2828,7 @@ const STG = ['수집', '검토', '기록 생성', '문서 생성']
 const STG_S = ['수집', '검토', '기록', '문서']
 const STG_SUB = {
   file: [['받기', '글로 바꾸기'], ['같은 파일 확인', '원본 첨부'], ['기록 쓰기', '기록 정리'], ['지식 둘러보기 · 이름 맞추기', '항목에 넣기 · 새 이름']],
-  docs: [['폴더 읽기', '바뀐 파일 찾기'], ['크게 바뀜 문턱(지운 파일)'], ['파일마다 기록 · 글로 바꾸기'], ['사본 문서 맞추기 · 장부 적기']],
+  docs: [['폴더 읽기', '바뀐 파일 찾기'], ['크게 바뀜 문턱(지운 파일)'], ['파일마다 기록 · 글로 바꾸기'], ['정리가 자리를 골라 문서에 · 장부 적기']],
   git: [['저장소에서 받기'], ['새 묶음 찾기', '합친 묶음 거르기'], ['묶음마다 코드 바뀜 기록'], ['기준 묶음 옮기기 · 정리에 넘김']],
   db: [['읽기 전용으로 붙기', '테이블 목록 읽기'], ['지난 것과 견주기', '크게 바뀜 문턱'], ['바뀐 테이블 기록'], ['테이블 정의 표 채우기']],
   group: [['화면이 나눠 보내기'], ['같은 파일 확인'], ['파일마다 기록'], ['파일마다 들이기']],
@@ -3154,7 +3154,7 @@ async function fetchSrc(id) {
   try {
     const r = (await postJSON(`/api/k/${encodeURIComponent(kn)}/sources/run`, { name }))[0] || {}
     // 그대로 — 실시간 감시가 먼저 들였을 수 있다: 마지막으로 들인 것은 줄의 「마지막 바뀜」 에
-    S.srcRun[id] = r.commits != null && r.state !== 'failed' ? (r.commits ? `새 묶음 ${r.commits} · 코드 바뀜 기록 ${r.codeRecords} · ${nowHm()}` : `새 묶음 없음 · ${nowHm()}`) : r.state === 'changed' ? (r.docs != null ? `가져왔다. 문서 ${r.docs}${r.missing ? ' · 원본에 없다 ' + r.missing : ''} · ${nowHm()}` : `가져왔다. 바뀐 표 ${r.n} · ${nowHm()}`) : r.state === 'stopped' ? '멈췄다. 한꺼번에 크게 바뀌었다' : r.state === 'failed' ? '못 가져왔다: ' + (r.why || '') : r.state === 'waiting' ? r.why : `새로 바뀐 것 없음 · ${nowHm()}`
+    S.srcRun[id] = r.commits != null && r.state !== 'failed' ? (r.commits ? `새 묶음 ${r.commits} · 코드 바뀜 기록 ${r.codeRecords} · ${nowHm()}` : `새 묶음 없음 · ${nowHm()}`) : r.state === 'changed' ? (r.recs != null ? `가져왔다. 기록 ${r.recs}${r.runs ? ' · Claude Code 가 자리를 골라 넣는 중' : ''} · ${nowHm()}` : `가져왔다. 바뀐 표 ${r.n} · ${nowHm()}`) : r.state === 'stopped' ? '멈췄다. 한꺼번에 크게 바뀌었다' : r.state === 'failed' ? '못 가져왔다: ' + (r.why || '') : r.state === 'waiting' ? r.why : `새로 바뀐 것 없음 · ${nowHm()}`
     if (r.state === 'changed') { forgetKn(kn); delete S.cache.history; delete S.cache.pcHistory }
   } catch (e) { S.srcRun[id] = '못 가져왔다: ' + e.message }
   dropSrcs()

@@ -19,7 +19,6 @@ import { material, check as checkDraft, planSave, promptOf as tidyPrompt, INGEST
 import { runClaude } from '../core/claude.js'
 import * as feed from '../core/feed.js'
 import { inside as insideDir, checkTarget, readSource, probe, readDecl, editDecl, DECL_BROKEN, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit } from '../core/sources.js'
-import { forgetFile } from '../core/watch.js'
 import { check } from '../core/check.js'
 import { commitPaths, ensureRepo, tryGit, maskUrl } from '../core/git.js'
 import { stopLine, ageText } from '../core/stopline.js'
@@ -47,7 +46,6 @@ import { isoOfStamp, logKind, atTag } from './views.js'
 import { restore as restoreFrom, checkUrl } from '../core/restore.js'
 import { writeJsonAtomic } from '../core/atomic.js'
 import { watchedOf } from '../core/watchmark.js'
-import { applyDocs, wantDoc, watchedCount } from '../core/docwatch.js'
 import { connect as dbConnect, catalog as dbCatalog } from '../core/db.js'
 import { ensureProject } from '../core/gitlab.js'
 import { getSecret, setSecret, listSecrets, delSecret } from '../core/secrets.js'
@@ -1024,39 +1022,15 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           try {
           const k = await hub.get(id)
           const src = { ...s, folder: s.kind === 'folder' || !(/^(https?|ssh):\/\//i.test(s.at) || /^[^/\\\s]+@[^/\\\s]+:/.test(s.at)) ? s.at : undefined }
-          const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, onStage: (i) => (i >= 3 ? Q.mark(qj, 3) : Q.step(qj, i)), line: (kk, x) => Q.line(qj, kk, x), meaning: hub.meaningOk(id), mdOf: mode === 'pc' ? (rel, data) => hub.mdOf(rel, data) : null, analyze: mode === 'pc' && hub.meaningOk(id) ? (c, diffs, rec) => hub.analyzeCommit(id, s.name, c, diffs, rec) : null, save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
+          const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, onStage: (i) => (i >= 3 ? Q.mark(qj, 3) : Q.step(qj, i)), line: (kk, x) => Q.line(qj, kk, x), meaning: hub.meaningOk(id), ingest: (files) => hub.importFiles({ user: 'kmd', admin: true }, id, files, { system: true }), analyze: mode === 'pc' && hub.meaningOk(id) ? (c, diffs, rec) => hub.analyzeCommit(id, s.name, c, diffs, rec) : null, save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
           cache.delete(id)
-          if (s.kind === 'docs' && hub.agentOk(id)) for (const x of (r.rows || []).filter((y) => y.kind === 'fail' && y.scan)) {
-            const pre = docPrefix(s)
-            const rel = pre && x.name.startsWith(pre + '/') ? x.name.slice(pre.length + 1) : x.name
-            const run = hub.newRun(id, { title: `${s.name} › ${rel}`, file: rel, by: 'kmd' })
-            hub.queueRun(id, async () => {
-              try {
-                await Q.step(run, 0)
-                const data = await fs.readFile(path.join(s.at, ...rel.split('/')))
-                const md = await hub.mdOf(rel, data, run)
-                if (!md) { run.state = 'fail'; run.msg = '글로 바꾸지 못했다. 원본은 첨부로'; return }
-                await Q.step(run, 2)
-                const a = await applyDocs(await hub.get(id), { src: s, prefix: pre, files: [{ rel, data }], mdOf: async () => md })
-                Q.mark(run, 3)
-                run.state = 'done'
-                run.msg = a.docs ? `기록 · 문서가 됐다: ${pre ? pre + ' › ' : ''}${rel.replace(/\.[^.]+$/, '')}(원본이 주인)` : '그대로'
-                if (a.docs) run.docs.push(`${pre ? pre + '/' : ''}${rel.replace(/\.[^.]+$/, '')}`)
-                hub.runLine(run, 'ok', run.msg)
-              } catch (e) {
-                // 일이 도중에 깨졌다(파일 잠김 · 읽기 실패) — 장부에서 걷어 다음 확인(실시간 · 정한 때)이 다시 한다. 글로 못 바꾼 것(위)은 다시 하지 않는다
-                await forgetFile(dataDir, id, s.name, rel).catch(() => {})
-                run.state = e?.cancelled ? 'cancel' : 'fail'; run.msg = e?.cancelled ? '그만뒀다. 다음 확인 때 다시 한다' : `${e.message}: 다음 확인 때 다시 한다`; hub.runLine(run, e?.cancelled ? 'sys' : 'err', run.msg)
-              } finally { run.endedAt = new Date().toISOString(); cache.delete(id); hub.runSave(run) }
-            })
-          }
           // 코드가 바뀌어 기록을 남겼다 — 그 지식의 정리를 바로 건다(정리 검사를 그대로 탄다 · 값이 바뀌면 노랑 · 되돌릴 수 있다)
           // 「Claude 에 보내지 않음」 지식 · 이 PC 의 자동 정리 끔이면 기록만 남는다(사람이 정리할 때 들어간다)
           for (const rid of r.recIds || []) codeJobs.set(rid, qj)
           if (codeJobs.size > 500) for (const rid of [...codeJobs.keys()].slice(0, codeJobs.size - 500)) codeJobs.delete(rid)
           if (r.codeRecords && mode === 'pc') hub.curateSoon(id).catch(() => {})
           else if (r.codeRecords && hub.meaningOk(id) && hub.tidyModeOf(id) !== 'manual') hub.tidyNow({ user: 'kmd', admin: true }, id, { by: 'kmd', auto: true }).catch(() => {})
-          if (r.state === 'changed') for (const u of await hub.curatorsOf(id)) await feed.add(dataDir, u, { kind: 'source', kn: id, dot: 'acc', text: r.commits != null ? `${s.name}에서 새 묶음 ${r.commits} · 코드 바뀜 기록 ${r.codeRecords}: ${meta.name}` : s.kind === 'docs' ? `${s.name}에서 기록 ${r.recs || 0} · 문서 ${r.docs || 0}: ${meta.name}` : `${s.name}에서 바뀐 표 ${r.n}: ${meta.name}`, small: r.commits != null ? '정리가 걸린 항목 글을 맞춘다' : s.kind === 'docs' ? `바뀐 파일 ${r.files} · 파일마다 기록을 남기고 원본이 주인인 문서로` : `바뀐 파일 ${r.files} · 저절로 채우는 표` })
+          if (r.state === 'changed') for (const u of await hub.curatorsOf(id)) await feed.add(dataDir, u, { kind: 'source', kn: id, dot: 'acc', text: r.commits != null ? `${s.name}에서 새 묶음 ${r.commits} · 코드 바뀜 기록 ${r.codeRecords}: ${meta.name}` : s.kind === 'docs' ? `${s.name}에서 기록 ${r.recs || 0}: ${meta.name}` : `${s.name}에서 바뀐 표 ${r.n}: ${meta.name}`, small: r.commits != null ? '정리가 걸린 항목 글을 맞춘다' : s.kind === 'docs' ? `바뀐 파일 ${r.files} · 파일마다 기록 · ${mode === 'pc' ? 'Claude Code 가' : '정리가'} 자리를 골라 문서에 넣는다` : `바뀐 파일 ${r.files} · 저절로 채우는 표` })
           hub.sourceJobEnd(qj, s, r)
           return r
           } catch (e) {
@@ -1851,7 +1825,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         : r.state === 'failed' ? `못 가져왔다: ${r.why || ''}`
         : r.state === 'waiting' ? r.why || '쉰다'
         : r.commits != null ? (r.commits ? `새 묶음 ${r.commits} · 코드 바뀜 기록 ${r.codeRecords}` : '새 묶음 없음')
-        : r.state === 'changed' ? (r.docs != null ? `기록 ${r.recs ?? 0} · 문서 ${r.docs}${r.missing ? ` · 원본에 없다 ${r.missing}` : ''}` : `바뀐 표 ${r.n}`)
+        // 문서 폴더(recs) — 파일마다 기록 · Claude Code 일 · 원본에서 지운 파일(지식은 그대로)
+        : r.recs != null ? `${r.state === 'changed' ? `기록 ${r.recs}${r.runs ? ` · Claude Code 일 ${r.runs}` : ''}${r.fails ? ` · 못 넣음 ${r.fails}` : ''}` : '그대로'}${r.removed ? ` · 원본에서 지움 ${r.removed}(지식은 그대로)` : ''}`
+        : r.state === 'changed' ? `바뀐 표 ${r.n}`
         : '그대로'
       qj.same = st === 'done' && r.state !== 'changed'
       // 코드 바뀜 기록 — 요약은 [기록] 에 찍었다. 문서에 넣는 것은 정리가 뒤에서 하고 넣으면 이 아래에 기록마다 한 줄
@@ -2521,7 +2497,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
     },
     // asDocs — 옛 폴더로 지식을 세울 때(지식 추가)만 바로 문서 · 그 밖은 기록으로 들이고 정리가 문서에 넣는다
-    async importFiles(ctx, id, files, { asDocs = false, group = null } = {}) {
+    // system — 문서 폴더 가져오기(작성자 kmd · 저장의 시스템 쓰기)
+    async importFiles(ctx, id, files, { asDocs = false, group = null, system = false } = {}) {
       // 자리부터 — 묶음(일 줄)을 세우기 전에
       const meta = await hub.meta(id, ctx)
       hub.need(ctx, id, 'write')
@@ -2587,7 +2564,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       for (const [i, r] of plan.records.entries()) {
         let sv
         try {
-          sv = await hub.save(ctx, id, { record: r }, { noCurate: now })
+          sv = await hub.save(ctx, id, { record: r }, { noCurate: now, system })
         } catch (e) {
           if (recRows[i]) Object.assign(recRows[i], { kind: 'fail', msg: `넣지 못했다: ${e.message}` })
           continue

@@ -141,7 +141,10 @@ test('메뉴: 순서 · 뺌은 사람마다 · 동기화는 새로 놓인 지식
   assert.deepEqual((await s.hub.sync(ME)).added, [])
 })
 
-test('가져오는 곳: 고치기(언제 · 넣을 문서) · 지우기(문서는 둔다)', async () => {
+// 문서 폴더는 파일 넣기 길 — 기록(태그 ingest/<출처 이름>/<파일>)으로 들고 사본 문서는 서지 않는다
+const ingestedIn = async (kn, tag) => (await s.hub.get(kn)).works.some((w) => w.tags.includes(tag))
+
+test('가져오는 곳: 고치기(언제 · 넣을 문서) · 지우기(기록은 둔다)', async () => {
   const src = path.join(tmp, 'src-docs')
   fs.mkdirSync(src, { recursive: true })
   fs.writeFileSync(path.join(src, '운영.md'), '# 운영\n\n## 점검\n매주\n')
@@ -149,25 +152,25 @@ test('가져오는 곳: 고치기(언제 · 넣을 문서) · 지우기(문서�
   const e = await s.hub.sourceEdit(ME, '회의', { name: '운영 문서', every: 'daily 07:30', doc: '운영2' })
   assert.equal(e.source.every, 'daily 07:30')
   assert.equal(e.source.rules[0].into.doc, '운영2')
-  assert.ok(fs.existsSync(path.join(tmp, 'kn', '회의', 'docs', '운영2', '운영.md')), '넣을 문서를 바꾸면 처음부터 다시')
+  assert.ok(await ingestedIn('회의', 'ingest/운영2/운영.md'), '출처 이름을 바꾸면 처음부터 다시')
   await s.hub.sourceRemove(ME, '회의', { name: '운영 문서' })
   assert.deepEqual((await s.hub.sources(ME, '회의')).map((x) => x.name), [])
-  assert.ok(fs.existsSync(path.join(tmp, 'kn', '회의', 'docs', '운영2', '운영.md')), '들어온 문서는 그대로')
+  assert.ok(await ingestedIn('회의', 'ingest/운영2/운영.md'), '들어온 기록은 그대로')
+  assert.ok(!fs.existsSync(path.join(tmp, 'kn', '회의', 'docs', '운영2')), '사본 문서는 서지 않는다')
 })
 
-test('가져오는 곳: 넣을 지식 · 문서를 함께 바꾸면 옮겨 처음부터 · 옛 사본은 고른 대로', async () => {
+test('가져오는 곳: 넣을 지식 · 출처 이름을 함께 바꾸면 옮겨 처음부터', async () => {
   const src = path.join(tmp, 'src-move')
   fs.mkdirSync(src, { recursive: true })
   fs.writeFileSync(path.join(src, '설계.md'), '# 설계\n\n## 구조\n셋\n')
   await s.hub.sourceAdd(ME, '회의', { name: '설계 문서', kind: 'docs', at: src, every: 'hourly', rules: [{ rule: 'docs', into: { doc: '설계' } }] })
-  assert.ok(fs.existsSync(path.join(tmp, 'kn', '회의', 'docs', '설계', '설계.md')))
+  assert.ok(await ingestedIn('회의', 'ingest/설계/설계.md'))
   const e = await s.hub.sourceEdit(ME, '회의', { name: '설계 문서', kn: '다른', doc: '설계2', copies: 'drop' })
   assert.equal(e.moved, '다른')
-  assert.equal(e.copies, 1)
+  assert.equal(e.copies || 0, 0, '사본 문서가 없다')
   assert.deepEqual((await s.hub.sources(ME, '회의')).map((x) => x.name).filter((n) => n === '설계 문서'), [])
   assert.equal((await s.hub.sources(ME, '다른')).find((x) => x.name === '설계 문서').rules[0].into.doc, '설계2')
-  assert.ok(fs.existsSync(path.join(tmp, 'kn', '다른', 'docs', '설계2', '설계.md')), '새 지식에 처음부터')
-  assert.ok(!fs.existsSync(path.join(tmp, 'kn', '회의', 'docs', '설계', '설계.md')), '옛 사본은 지웠다')
+  assert.ok(await ingestedIn('다른', 'ingest/설계2/설계.md'), '새 지식에 처음부터')
   await assert.rejects(s.hub.sourceEdit(ME, '다른', { name: '설계 문서', kn: '없는지식' }))
   await s.hub.sourceRemove(ME, '다른', { name: '설계 문서' })
 })
@@ -274,4 +277,24 @@ test('앞일은 함께 · 들이기는 한 줄: 파일 넷의 기록 정리가 �
     delete process.env.FAKE_CLAUDE_READ
     delete process.env.FAKE_CLAUDE_SPANS
   }
+})
+
+test('문서 폴더 가져오기도 파일 넣기와 같은 길: 파일마다 기록 → Claude Code 가 갈래 문서 항목으로 · 파일 이름 문서 · 사본 문서가 서지 않는다', async () => {
+  await s.hub.addKnowledge(ME, { kind: 'new', name: '폴더넣기' })
+  const src = path.join(tmp, 'src', '테스트문서')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, 'HNC_통화_스크립트.md'), HNC)
+  const r = (await s.hub.sourceAdd(ME, '폴더넣기', { name: '테스트문서', kind: 'docs', at: src, rules: [{ rule: 'docs', into: { doc: '테스트' } }] })).run[0]
+  assert.deepEqual([r.state, r.recs, r.runs], ['changed', 1, 1], JSON.stringify(r).slice(0, 300))
+  const row = r.rows.find((x) => x.kind === 'run')
+  await s.hub.curateIdle('폴더넣기')
+  const run = s.hub.runGet(ME, row.run)
+  assert.equal(run.state, 'done', run.msg)
+  assert.deepEqual(run.docs, ['회의록'], 'Claude Code 가 고른 갈래 문서')
+  const dir = path.join(tmp, 'kn', '폴더넣기')
+  assert.match(fs.readFileSync(path.join(dir, 'docs', '회의록.md'), 'utf8'), /^## 2026-10-21 HNC 통화$/m)
+  assert.ok(!fs.existsSync(path.join(dir, 'docs', '테스트')), '파일 이름 · 폴더 이름 문서(사본)가 서지 않는다')
+  const k = await s.hub.get('폴더넣기')
+  const w = k.works.find((x) => x.tags.includes('ingest/테스트/HNC_통화_스크립트.md'))
+  assert.ok(w && w.state !== 'pend', '기록은 문서에 들어갔다')
 })

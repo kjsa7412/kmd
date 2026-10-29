@@ -259,7 +259,7 @@ test('가져오기: 한 번이 일 하나 · 크게 바뀌면 확인할 것 · �
   assert.match(chk.msg, /한꺼번에 크게 바뀌었다. 사라진 항목 4 \/ 10 · 아직 아무것도 쓰지 않았다/)
   assert.equal(chk.by, 'kim')
   await s.hub.queueAct(ME, chk.id, 'force')
-  await wait(async () => { const v = (await s.hub.queueList(ME)).items.filter((x) => x.kind === 'source' && x.src === '공유'); return !v.some((x) => x.id === chk.id) && v.some((x) => x.fin && /원본에 없다 4/.test(x.msg)) })
+  await wait(async () => { const v = (await s.hub.queueList(ME)).items.filter((x) => x.kind === 'source' && x.src === '공유'); return !v.some((x) => x.id === chk.id) && v.some((x) => x.fin && /원본에서 지움 4\(지식은 그대로\)/.test(x.msg)) })
   jobs = (await s.hub.queueList(ME)).items.filter((x) => x.kind === 'source' && x.src === '공유' && !x.fin)
   assert.equal(jobs.length, 0, '확인할 것이 걷혔다')
   // 그대로 — 지난 「그대로」 는 마지막 것만
@@ -268,6 +268,8 @@ test('가져오기: 한 번이 일 하나 · 크게 바뀌면 확인할 것 · �
   const same = (await s.hub.queueList(ME)).items.filter((x) => x.kind === 'source' && x.src === '공유' && x.msg === '그대로')
   assert.equal(same.length, 1)
   assert.equal(same[0].auto, 'manual', '정한 때(자동)로 돈 일')
+  // 문서 폴더는 파일 넣기 길 — 파일마다 Claude Code 일이 선다. 다음 시험 전에 다 끝낸다(줄을 비운다)
+  await s.hub.curateIdle('회의')
 })
 
 test('다시 켜면: 멈춘 일 · 줄 멈춤은 그대로 · 돌던 일은 그 단계부터 다시', async () => {

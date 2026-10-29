@@ -1,7 +1,7 @@
 // 감시 단계 2 필수 — 문서 폴더 감시 · 원본이 주인 · 내 PC 폴더 → 팀은 걷었다.
 //
-// 문서 폴더: 처음 → 문서 · 첨부 · 표지 / 한 파일 고침 → 그 파일만 / 지움 → 「원본에 없다」 / 화면 · 세션 고치기 거절 · 편집기 고침 되돌림 /
-// 한꺼번에 많이 사라지면 멈춤 · 내 PC 폴더(파일을 팀으로 나르기)는 없다 — 지식은 「보내기」 로(send.test)
+// 문서 폴더: 파일 넣기와 같은 길 — 처음 → 파일마다 기록(반영 대기) · 사본 문서 없음 / 한 파일 고침 → 그 파일만 새 기록 / 지움 → 지식은 그대로 /
+// 한꺼번에 많이 사라지면 멈춤 · 예전 사본 문서(표지 watched)는 원본이 주인으로 남는다 · 내 PC 폴더(파일을 팀으로 나르기)는 없다 — 지식은 「보내기」 로(send.test)
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -10,7 +10,6 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
-import { stats } from '../core/watch.js'
 import { copyDir } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -42,80 +41,48 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('문서 폴더: 바뀐 파일만 문서로 · 원본이 주인(고치기 거절 · 편집기 고침 되돌림) · 지움은 「원본에 없다」 · 많이 사라지면 멈춤', async () => {
+test('문서 폴더: 바뀐 파일만 기록(반영 대기)으로 · 사본 문서를 만들지 않는다 · 지움은 지식을 바꾸지 않는다 · 많이 사라지면 멈춤', async () => {
   const kd = path.join(tmp, 'kn', 'dpms')
+  const ingested = async () => (await team.hub.get('dpms')).works.filter((w) => w.tags.some((x) => x.startsWith('ingest/운영문서/')))
   const r0 = await team.hub.sourceAdd(ADMIN, 'dpms', { name: '운영문서', kind: 'docs', at: docsDir, rules: [{ rule: 'docs', into: { doc: '운영문서' } }] })
-  assert.equal(r0.run[0].state, 'changed')
-  assert.equal(r0.run[0].docs, 13, 'md 13 → 문서 13(잠금 파일 ~$ 는 뺀다)')
-  const t = R(path.join(kd, 'docs', '운영문서', '회의', '10월.md'))
-  const m0 = t.match(/^<!-- watched: src="운영문서" path="회의\/10월\.md" rec="([^"]+)" -->\n# 10월/)
-  assert.ok(m0, '표지에 그 문서가 온 기록(rec)')
-  // 대원칙 — 기록 → 문서: 파일마다 기록(work/ · 태그 watched · 글 그대로)이 먼저 있고 「문서에 들어감」 · 문서의 「온 곳」 이 그 기록
-  const k0 = await team.hub.get('dpms')
-  const w0 = k0.byWork.get(m0[1])
-  assert.ok(w0 && k0.works.includes(w0), '기록(이력 아님)')
-  assert.ok(w0.tags.includes('watched') && /화 · 목 배포/.test(w0.body))
-  assert.equal(w0.state, 'in')
-  assert.equal(k0.works.filter((w) => w.tags.includes('watched')).length, 13, '문서 13 → 기록 13')
-  const v0 = await fetch(`${team.url}/api/k/dpms/doc?d=${encodeURIComponent('운영문서/회의/10월')}`, { headers: { cookie: await cookieOf(team) } }).then((x) => x.json())
-  assert.deepEqual(v0.origins.map((o) => o.id), [m0[1]])
-  const rv = await fetch(`${team.url}/api/k/dpms/rec?r=${encodeURIComponent(m0[1])}`, { headers: { cookie: await cookieOf(team) } }).then((x) => x.json())
-  assert.deepEqual(rv.went?.map((d) => d.id), ['운영문서/회의/10월'], '이 기록이 간 문서')
-  assert.ok(fs.existsSync(path.join(kd, 'docs', 'assets', '운영문서', '구성도.png')), '그림은 첨부')
-  assert.ok(!fs.existsSync(path.join(kd, 'docs', '운영문서', '~$열린문서.md')))
+  assert.equal(r0.run[0].state, 'changed', JSON.stringify(r0.run[0]).slice(0, 600))
+  assert.equal(r0.run[0].recs, 13, 'md 13 → 기록 13(잠금 파일 ~$ 는 뺀다)')
+  // 파일 넣기와 같은 길 — 파일마다 기록(태그 ingest/…) · 글 그대로 · 정리가 자리를 골라 넣는다
+  const w0 = (await ingested()).find((w) => w.tags.includes('ingest/운영문서/회의/10월.md'))
+  assert.ok(w0 && /화 · 목 배포/.test(w0.body), '기록에 파일 글')
+  assert.equal((await ingested()).length, 13)
+  assert.ok(!(await ingested()).some((w) => w.tags.some((x) => x.includes('~$'))))
+  // 사본 문서(표지 watched)를 만들지 않는다 — 파일 이름을 문서 이름으로 쓰지 않는다
+  const walk = (d) => (fs.existsSync(d) ? fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)])) : [])
+  assert.deepEqual(walk(path.join(kd, 'docs')).filter((x) => x.endsWith('.md') && /^<!-- watched:/.test(R(x))), [], '사본 문서 없음')
 
-  // 한 파일 고침 → 그 파일만
-  W(path.join(docsDir, '절차03.md'), '# 절차3\n\n## 순서\n3 번째 — 고침.\n')
-  const n0 = stats.reads
+  // 한 파일 고침 → 그 파일만 새 기록
+  W(path.join(docsDir, '절차03.md'), '# 절차3\n\n## 순서\n3 번째: 고침.\n')
   const r1 = (await team.hub.sourceRun('dpms', '운영문서'))[0]
-  assert.deepEqual([r1.state, r1.files, r1.docs], ['changed', 1, 1])
-  assert.equal(stats.reads - n0, 2, '지문 한 번 · 바꾸기 한 번')
-  assert.match(R(path.join(kd, 'docs', '운영문서', '절차03.md')), /3 번째: 고침/)
+  assert.deepEqual([r1.state, r1.files, r1.recs], ['changed', 1, 1])
+  assert.ok((await ingested()).some((w) => w.tags.includes('ingest/운영문서/절차03.md') && /3 번째: 고침/.test(w.body)))
+  assert.equal((await team.hub.sourceRun('dpms', '운영문서'))[0].state, 'same', '그대로면 기록 없음')
 
-  // 원본이 주인 — 화면 고치기 · 세션 저장(항목 글) 거절 · 기록만은 된다
-  await assert.rejects(team.hub.edit(ADMIN, 'dpms', { doc: '운영문서/절차03', sections: [{ h: '순서', body: '손으로' }] }), { code: 'E_FORBIDDEN' })
-  await assert.rejects(team.hub.save(ADMIN, 'dpms', { record: { title: '절차3: 손으로', body: 'x' }, sections: [{ doc: 'docs/운영문서/절차03.md', heading: '순서', content: '손으로' }] }), { code: 'E_FORBIDDEN' })
-  assert.ok((await team.hub.save(ADMIN, 'dpms', { record: { title: '절차3: 메모', body: '기록으로는 남긴다' } })).id)
-  // 편집기 손 고침 → 거두기가 되돌린다
-  const f3 = path.join(kd, 'docs', '운영문서', '절차03.md')
-  fs.writeFileSync(f3, R(f3).replace('고침', '편집기로'))
-  const c = await team.hub.collect('dpms')
-  assert.ok(c.reverted.includes('docs/운영문서/절차03.md'))
-  assert.match(R(f3), /3 번째: 고침/)
-  // 화면 자료 — 표지 · 고치기 없음
-  const v = await fetch(`${team.url}/api/k/dpms/doc?d=${encodeURIComponent('운영문서/절차03')}`, { headers: { cookie: await cookieOf(team) } }).then((x) => x.json())
-  assert.equal(v.watched.src, '운영문서')
-  assert.equal(v.direct, false)
-
-  // 지움 → 「원본에 없다」(문서는 남는다)
+  // 지움 → 지식은 그대로(줄에 「원본에서 지움」)
+  const n1 = (await team.hub.get('dpms')).works.length
   fs.rmSync(path.join(docsDir, '절차12.md'))
   const r2 = (await team.hub.sourceRun('dpms', '운영문서'))[0]
-  assert.equal(r2.missing, 1)
-  assert.match(R(path.join(kd, 'docs', '운영문서', '절차12.md')), /^<!-- watched: src="운영문서" path="절차12\.md" missing="\d{4}-\d{2}-\d{2}" rec="[^"]+" -->/)
-  assert.ok((await team.hub.get('dpms')).works.some((w) => w.tags.includes('watched') && /^절차12\.md: 원본에서 없어짐/.test(w.title)), '지움도 기록')
+  assert.deepEqual([r2.state, r2.removed], ['same', 1])
+  assert.equal((await team.hub.get('dpms')).works.length, n1)
   // 한꺼번에 많이 사라지면 멈춤
   for (let i = 1; i <= 3; i++) fs.rmSync(path.join(docsDir, `절차${String(i).padStart(2, '0')}.md`))
   assert.equal((await team.hub.sourceRun('dpms', '운영문서'))[0].state, 'stopped')
-  assert.match(R(path.join(kd, 'docs', '운영문서', '절차01.md')), /^<!-- watched: src="운영문서" path="절차01\.md" rec="[^"]+" -->/, '멈추면 쓰지 않는다')
 })
 
-test('문서 폴더: 기록 없이 들어온 예전 사본은 다음 확인 때 한 번 기록을 세운다(글이 같아도)', async () => {
+test('문서 폴더: 예전 사본 문서(표지 watched)는 원본이 주인으로 남는다 · 가져오기가 건드리지 않는다', async () => {
   const kd = path.join(tmp, 'kn', 'dpms')
-  const f = path.join(kd, 'docs', '운영문서', '절차05.md')
-  // 대원칙 전의 사본 — 표지에 rec 가 없다 · 장부에도 「기록 세움」 표시가 없다
-  fs.writeFileSync(f, R(f).replace(/ rec="[^"]+"/, ''))
-  const lf = fs.readdirSync(path.join(tmp, 'kn', '.kmd', 'watch', encodeURIComponent('dpms'))).map((x) => path.join(tmp, 'kn', '.kmd', 'watch', encodeURIComponent('dpms'), x))
-  for (const x of lf) { const j = JSON.parse(R(x)); delete j.recs; fs.writeFileSync(x, JSON.stringify(j)) }
-  const before = (await team.hub.get('dpms')).works.length
-  const r = (await team.hub.sourceRun('dpms', '운영문서', { force: true }))[0]
-  assert.equal(r.docs, 1, r.lastNote || JSON.stringify(r))
-  const m = R(f).match(/^<!-- watched: src="운영문서" path="절차05\.md" rec="([^"]+)" -->/)
-  assert.ok(m)
-  const k = await team.hub.get('dpms')
-  assert.equal(k.works.length, before + 4, '예전 사본 1 + 멈췄던 지움 3(force)')
-  assert.equal(k.byWork.get(m[1]).state, 'in')
-  // 다음 확인은 그대로
-  assert.equal((await team.hub.sourceRun('dpms', '운영문서'))[0].state, 'same')
+  const f = path.join(kd, 'docs', '운영문서', '옛사본.md')
+  W(f, '<!-- watched: src="운영문서" path="옛사본.md" rec="2026-1001-옛사본" -->\n# 옛사본\n\n## 순서\n그대로.\n')
+  await team.hub.collect('dpms')
+  await assert.rejects(team.hub.edit(ADMIN, 'dpms', { doc: '운영문서/옛사본', sections: [{ h: '순서', body: '손으로' }] }), { code: 'E_FORBIDDEN' })
+  const t0 = R(f)
+  await team.hub.sourceRun('dpms', '운영문서', { force: true })
+  assert.equal(R(f), t0)
 })
 
 let cookie = null
