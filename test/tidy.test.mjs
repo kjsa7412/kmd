@@ -185,3 +185,26 @@ test('늦게 받은 옛 기록: 쓴 때로 받는다 · 그 전 정리로 「넣
   assert.equal(row.kind, 'put')
   assert.match(fs.readFileSync(path.join(tmp, 'kn', 'dpms', 'docs', '배포절차.md'), 'utf8'), /30초마다/)
 })
+
+test('여러 항목에 걸린 기록: 항목 하나에 기록의 값을 다 요구하지 않는다 · 묶음 답의 다른 항목 id 는 넘긴다 · 커밋 해시 · 기록 id 는 값이 아니다', async () => {
+  const { material, promptOf, check, planSave } = await import('../core/tidy.js')
+  const w = await s.hub.save(LEE, 'dpms', { record: { title: '롤백 · 헬스 체크 시간', body: '롤백 대기 `rb_wait` 5초. 헬스 체크 타임아웃 `hc_timeout` 90초. 커밋 092cc4a · 2026-1012-예전-기록.', touches: ['proc:롤백', 'proc:헬스 체크'] } })
+  const one = await s.hub.save(LEE, 'dpms', { record: { title: '롤백 확인 횟수', body: '롤백 뒤 `rb_retry` 3번 본다. 커밋 092cc4a.', touches: ['proc:롤백'] } })
+  const k = await s.hub.get('dpms')
+  const gs = material(k, { ids: [w.id, one.id] }).filter((x) => x.kind === 'section')
+  const g = gs.find((x) => x.heading.includes('롤백'))
+  const rec = (id) => g.records.find((r) => r.id === id)
+  assert.deepEqual([gs.length, rec(w.id).spread, rec(one.id).spread, /항목 여러 곳에 걸림/.test(promptOf(g))], [2, 2, undefined, true])
+  // 여러 항목에 걸린 기록은 이 항목에 맞는 값만 옮겨도 넘는다(헬스 체크 값 · 해시 · 기록 id 는 요구하지 않는다) ·
+  //   한 항목에만 걸린 기록은 값을 다 요구한다(해시 092cc4a 속 「092」 는 빼고) · 지어낸 값은 그대로 막는다
+  const mine = g.content + '\n\n롤백 대기는 `rb_wait` 5초다. 롤백 뒤 `rb_retry` 3번 본다.'
+  const ids = [w.id, one.id]
+  assert.deepEqual(check(k, g, { content: mine, used: ids, left: [] }), { ok: true, changed: [] })
+  assert.match(check(k, g, { content: mine.replace('3번', '여러 번'), used: ids, left: [] }).why, /기록의 값이 글에 없다: 3$/)
+  assert.match(check(k, g, { content: mine + ' `zz_x` 7초.', used: ids, left: [] }).why, /근거에 없는 값/)
+  // 묶음 답이 다른 항목의 기록 id 를 섞어도 이 항목 것만 본다 · 넣기도 이 항목의 기록만 둠으로
+  const d = { content: mine, used: [...ids, 'x-다른-기록'], left: [{ id: 'y-다른-기록', why: '다른 항목' }] }
+  assert.equal(check(k, g, d).ok, true)
+  assert.deepEqual(planSave(k, g, d).record.curates, [])
+  assert.match(check(k, g, { content: mine, used: ['x-다른-기록'], left: [] }).why, /받지 않은 기록을 말했다/)
+})

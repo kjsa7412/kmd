@@ -55,13 +55,15 @@ export function material(k, { candidates = () => [], ids = null } = {}) {
   }
   for (const w of k.works) {
     if (w.state !== 'pend' || isPrivate(w) || k.reverted.has(w.id) || off(w)) continue
+    // 걸린 항목 수 — 여럿이면 기록의 값은 그 항목들에 나뉘어 들어간다(항목 하나에 기록의 값을 다 요구하지 않는다 · check)
+    const spread = new Set(w.touches.map((c) => sectionOf(k, c)).filter((x) => x?.loc).map(keyOf)).size
     for (const c of w.touches) {
       const x = sectionOf(k, c)
       if (!x?.loc) continue
       const key = keyOf(x)
       if (!groups.has(key)) groups.set(key, { kind: 'section', coord: c, doc: x.loc.doc, heading: x.sec ? x.sec.h : x.loc.heading, name: labelOf(k, c), content: x.sec ? x.sec.body : '', base: sha16(x.sec ? x.sec.body : ''), records: [], ...(since.has(key) ? { since: since.get(key) } : {}) })
       const g = groups.get(key)
-      if (!g.records.some((r) => r.id === w.id)) g.records.push({ id: w.id, date: w.date, author: w.author, title: w.title, body: w.body, ...(w.tags.includes('code-change') ? { code: true } : {}), ...(g.since && String(w.date) < g.since ? { old: true } : {}) })
+      if (!g.records.some((r) => r.id === w.id)) g.records.push({ id: w.id, date: w.date, author: w.author, title: w.title, body: w.body, ...(w.tags.includes('code-change') ? { code: true } : {}), ...(spread > 1 ? { spread } : {}), ...(g.since && String(w.date) < g.since ? { old: true } : {}) })
     }
   }
   const out = [...groups.values()].map((g) => ({ ...g, records: g.records.sort((a, b) => a.date.localeCompare(b.date)), values: [...new Set(g.records.flatMap((r) => (r.code ? newValuesOf(r.body) : [...valuesOf(r.body + ' ' + r.title)])))] }))
@@ -167,6 +169,7 @@ export function promptOf(g) {
     '옛 글의 값을 새 기록이 바꿨으면 새 값으로 바꾸고 drop 에 옛 값을 적는다. 넣을 것이 없는 기록은 left 에 까닭과 함께 둔다.',
     ...(g.records.some((r) => r.code) ? ['코드 커밋 기록은 「바뀐 값」 줄과 차이를 본다. 글에 옛 값이 있으면 새 값으로 고치고, 코드에 없는 설명은 지어내지 않는다. 이 항목 글과 상관없는 커밋은 left 에 둔다.'] : []),
     ...(g.records.some((r) => r.old) ? [OLD_RULE] : []),
+    ...(g.records.some((r) => r.spread) ? [SPREAD_RULE] : []),
     WRITE_RULES,
     'JSON 으로만 답한다.',
     `지금 글:\n${g.content || '(아직 없음)'}`,
@@ -177,7 +180,10 @@ export function promptOf(g) {
 // 늦게 정리되는 옛 기록 — 지금 글에 이미 그보다 늦게 쓴 기록이 들어갔다(material 의 since)
 const OLD_MARK = '지금 글보다 오래됨'
 const OLD_RULE = `「${OLD_MARK}」 이 붙은 기록은 지금 글에 더 늦게 쓴 기록이 이미 들어간 뒤에 정리되는 옛 기록이다. 지금 글에 없는 내용만 보태고, 지금 글의 값을 그 기록의 값으로 바꾸지 않는다. 지금 글과 값이 다르면 그 기록은 left 에 「더 새 값이 이미 있다」 로 둔다.`
-const recLine = (r) => `[${r.id}] ${r.date} ${r.author}${r.old ? ` (${OLD_MARK})` : ''}: ${r.title}\n${r.body}`
+// 여러 항목에 걸린 기록 — 한 항목에는 그 항목에 맞는 것만(나머지는 다른 항목이 받는다)
+const SPREAD_MARK = '항목 여러 곳에 걸림'
+const SPREAD_RULE = `「${SPREAD_MARK}」 이 붙은 기록은 한 기록이 여러 항목을 바꿨다. 이 항목에는 이 항목에 맞는 내용 · 값만 옮긴다. 다른 항목의 내용은 그 항목이 받는다.`
+const recLine = (r) => `[${r.id}] ${r.date} ${r.author}${r.old ? ` (${OLD_MARK})` : ''}${r.spread ? ` (${SPREAD_MARK} · ${r.spread})` : ''}: ${r.title}\n${r.body}`
 
 // 한 문서의 항목 여럿을 claude -p 한 번에 — 자리마다 부르면 기록 22건이 자리 159개 · 159번이 된다.
 //   같은 문서의 항목 묶음만(문서 하나가 거의 한 번) · 묶음 하나는 BATCH_MAX 자리 · 글(지금 글 + 기록)은 BATCH_CHARS 까지(기록 글은 한 번만 센다). 답은 자리마다 DRAFT_SCHEMA 와 같은 초안
@@ -221,6 +227,7 @@ export function batchPromptOf(gs) {
     '항목마다: 그 항목의 기록에 있는 값(수 · 이름 · 코드)은 그대로 옮기고, 기록에 없는 값을 지어내지 않는다. 옛 글의 값을 새 기록이 바꿨으면 새 값으로 바꾸고 drop 에 옛 값을 적는다. 그 항목에 넣을 것이 없는 기록은 left 에 까닭과 함께 둔다. used · left 에는 그 항목의 기록 id 만 쓴다.',
     ...([...recs.values()].some((r) => r.code) ? ['코드 커밋 기록은 「바뀐 값」 줄과 차이를 본다. 글에 옛 값이 있으면 새 값으로 고치고, 코드에 없는 설명은 지어내지 않는다. 그 항목 글과 상관없는 커밋은 left 에 둔다.'] : []),
     ...(gs.some((g) => g.records.some((r) => r.old)) ? [OLD_RULE.replace('붙은 기록은', '붙은 기록은(그 항목에서)')] : []),
+    ...(gs.some((g) => g.records.some((r) => r.spread)) ? [SPREAD_RULE] : []),
     WRITE_RULES,
     'JSON 으로만 답한다.',
     // 옛 기록인지는 항목마다 다르다 — 항목의 기록 줄에 붙인다
@@ -228,6 +235,12 @@ export function batchPromptOf(gs) {
     `기록(오래된 것부터):\n${[...recs.values()].sort((a, b) => a.date.localeCompare(b.date)).map((r) => recLine({ ...r, old: false })).join('\n\n')}`,
   ].join('\n\n')
 }
+
+// 글에 꼭 있어야 할 기록의 값 — 커밋 해시 · 기록 id 는 경위라 글에 옮기지 않는다(작성기준) · 해시 속 숫자(092cc4a → 092)도 값이 아니다 ·
+//   30자 넘는 따옴표 말은 값이 아니라 옮긴 문장이다
+const HASH_RE = /\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b/g
+const REC_ID_RE = /\b\d{4}-\d{4}-[^\s`」"'),]+/g
+export const mustValues = (body) => [...valuesOf(String(body).replace(HASH_RE, ' ').replace(REC_ID_RE, ' '))].filter((v) => v.length <= 30)
 
 // 검사 — { ok, why, changed: [{from, to}] }
 export function check(k, g, d) {
@@ -241,8 +254,10 @@ export function check(k, g, d) {
   }
   if (typeof d.content !== 'string' || !Array.isArray(d.used) || !Array.isArray(d.left)) return { ok: false, why: '초안 모양이 아니다' }
   const ids = g.records.map((r) => r.id)
-  const said = [...d.used, ...d.left.map((x) => x?.id)]
-  if (said.some((x) => !ids.includes(x))) return { ok: false, why: '받지 않은 기록을 말했다' }
+  // 묶음 답(한 문서의 항목 여럿)은 다른 항목의 기록 id 를 섞어 말하곤 한다 — 이 항목의 것만 본다(넣기도 같다 · planSave).
+  //   다른 기록의 값이 글에 들면 아래 지어낸 값 검사가 막는다
+  const said = [...d.used, ...d.left.map((x) => x?.id)].filter((x) => ids.includes(x))
+  if (!said.length && [...d.used, ...d.left].length) return { ok: false, why: '받지 않은 기록을 말했다' }
   if (ids.some((x) => !said.includes(x))) return { ok: false, why: '빠뜨린 기록이 있다' }
   // G2 — 지금 글이 재료를 줄 때와 같나
   const x = sectionOf(k, g.coord)
@@ -269,7 +284,8 @@ export function check(k, g, d) {
   const recV = vOf(used)
   // 코드 바뀜 기록은 「바뀐 값」 의 새 값만 글에 있어야 한다(차이 속의 다른 수 · 옛 값까지 요구하면 늘 남는다) ·
   //   옛 기록(지금 글에 더 늦게 쓴 기록이 이미 들어갔다)의 값은 글에 없어도 된다 — 더 새 값이 이겼을 수 있다
-  const missing = [...new Set(used.filter((r) => !r.old).flatMap((r) => (r.code ? newValuesOf(r.body) : [...valuesOf(r.body)])))].filter((v) => !now.has(v) && !drop.has(v))
+  //   여러 항목에 걸린 기록(spread)의 값은 그 항목들에 나뉜다 — 항목 하나에 다 요구하면 늘 남는다(받은 것 「다시 · N번째」)
+  const missing = [...new Set(used.filter((r) => !r.old && !r.spread).flatMap((r) => (r.code ? newValuesOf(r.body) : mustValues(r.body))))].filter((v) => !now.has(v) && !drop.has(v))
   if (missing.length) return { ok: false, why: `기록의 값이 글에 없다: ${missing.slice(0, 3).join(' · ')}` }
   const invented = [...now].filter((v) => !oldV.has(v) && !recV.has(v))
   if (invented.length) return { ok: false, why: `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` }
@@ -453,13 +469,14 @@ export function planSave(k, g, d, { model = null } = {}) {
   if (g.kind === 'touches')
     return { record: { title: `이름 바로잡음: ${g.record.title.split(/ — |: /)[0]}`, body: `정리 일꾼이 이 기록이 바꾼 항목을 골랐다${d.why ? `: ${d.why}` : ''}`, touches: d.touches, tags: ['curate-llm', 'touches-fix'], fixes: [g.record.id], date: g.record.date } }
   const used = g.records.filter((r) => d.used.includes(r.id))
+  const left = d.left.filter((x) => g.records.some((r) => r.id === x?.id))
   return {
     record: {
       title: `정리: ${g.name}`,
-      body: [`초안: 정리 일꾼${model ? `(${model})` : ''} · 넣음: kmd`, ...used.map((r) => `- 넣음 ${r.id}: ${r.title}`), ...d.left.map((x) => `- 둠 ${x.id}: ${x.why}`)].join('\n'),
+      body: [`초안: 정리 일꾼${model ? `(${model})` : ''} · 넣음: kmd`, ...used.map((r) => `- 넣음 ${r.id}: ${r.title}`), ...left.map((x) => `- 둠 ${x.id}: ${x.why}`)].join('\n'),
       touches: [g.coord],
       tags: ['curate-llm'],
-      curates: d.left.map((x) => ({ id: x.id, verdict: 'keep', rule: 'tidy', reason: x.why })),
+      curates: left.map((x) => ({ id: x.id, verdict: 'keep', rule: 'tidy', reason: x.why })),
       reflects: used.map((r) => r.id),
     },
     sections: [{ coord: g.coord, content: d.content, base: g.base }],
