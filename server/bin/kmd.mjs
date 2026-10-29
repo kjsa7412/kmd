@@ -32,7 +32,7 @@ const HELP = `kmd ${VERSION}
   이 PC
   kmd up [폴더] [--port 7373] [--no-open]
       이 PC 의 kmd 를 켜고 화면을 연다. 폴더 기본 D:\\kmd(없으면 집 폴더의 kmd) · 이미 켜져 있으면 화면만 연다
-  kmd open [폴더] [--pc]                       화면을 연다: 팀에 이은 PC 는 팀 화면(내 PC 쪽은 켜 둔다) · --pc 면 이 PC 의 화면. 시작 메뉴의 kmd 와 같다
+  kmd open [폴더]                              개인 화면을 연다(꺼져 있으면 켠다). 시작 메뉴의 kmd 와 같다 · 팀 화면은 팀 주소를 브라우저로
   kmd agent add <개인 지식> [--dir 폴더]          작업 폴더의 Claude Code 에 이 PC 의 개인 지식을 더한다(팀 화면 › 에이전트 설치가 복사해 준다)
   kmd connect <팀 주소> [--ticket kmdt_…]       팀에 잇는다. 설치 한 줄이 부른다(아이디 · 비밀번호로도)
                                                --kn <팀 지식>: 지금 폴더를 그 팀 지식에 붙인다(에이전트 설치 · 팀)
@@ -284,7 +284,8 @@ async function agentCmd(o) {
     process.exitCode = 1
   }
 }
-// 시작 메뉴의 kmd — 내 PC 쪽을 켜 두고(꺼져 있으면 켠다) 팀 화면을 연다(팀이 없으면 · --pc 면 이 PC 의 화면)
+// 시작 메뉴의 kmd — 개인 프로그램을 켜 두고(꺼져 있으면 켠다) 개인 화면을 연다(팀 화면은 개인 프로그램을 부르지 않는다 · 분리)
+//   --pc 는 옛 시작 메뉴 바로 가기가 붙여 오므로 받아만 둔다
 async function openCmd(o) {
   const root = path.resolve(o._[0] || o.root || defaultPcRoot())
   let url = await runningPc(root, o)
@@ -297,12 +298,6 @@ async function openCmd(o) {
       process.exitCode = 1
       return
     }
-  }
-  const team = o.pc ? null : await connectedTeam(root, o)
-  if (team) {
-    openBrowser(team)
-    console.log(`✓ 팀 화면을 열었다: ${team} · 개인 지식은 내 PC 쪽(${url})이 연다`)
-    return
   }
   try {
     await openPc(url)
@@ -839,7 +834,7 @@ async function connectCmd(o) {
     if (!r.ok) throw new Error(j.message || '잇지 못했다')
     await kput(keyName(url), j.key)
     who = j.user
-    // 이 PC 의 kmd 가 팀 주소를 미리 허락하게 적어 둔다(E8 — 팀 화면의 「내 PC」 줄)
+    // 이 PC 가 이은 팀 주소 — 지식 보내기 · 에이전트 설치(kmd-team 연결)가 쓴다
     const tf = path.join(pcData, 'teams.json')
     const teams = fs.existsSync(tf) ? JSON.parse(fs.readFileSync(tf, 'utf8')) : []
     if (!teams.includes(url)) fs.writeFileSync(tf, JSON.stringify([...teams, url], null, 1))
@@ -879,8 +874,7 @@ async function connectCmd(o) {
     const prev = await pcRootNow({})
     if ((await makeTask(root)) === 0) {
       task = { ok: true, shortcut: (await makeShortcut(shortcutFor(root))).ok }
-      // 켜지면(열쇠 · Claude Code 잇기까지) 팀 화면을 연다 — 팀 화면이 개인 지식 · 내 Claude 까지 다룬다(내 PC 쪽은 뒤에서 돈다) ·
-      //   팀에 잇지 못했으면 이 PC 의 화면 · 다음부터는 시작 메뉴의 kmd
+      // 켜지면(열쇠 · Claude Code 잇기까지) 개인 화면을 연다 — 지식 폴더 · 내 Claude 로그인은 개인 화면에서 · 다음부터는 시작 메뉴의 kmd
       let url = await runningPc(root, { ...o, data: pcData })
       // 다른 폴더(--root 전의 폴더)로 도는 kmd 가 있으면 멈춘다 — 늘 켜기 작업이 돌고 있으면 /Run 이 무시되어 옛 폴더가 그대로 열린다
       if (!url && !sameDir(prev, root)) {
@@ -898,7 +892,7 @@ async function connectCmd(o) {
         })
         url = via.up
       }
-      screen = !url ? { ok: false, why: '아직 켜지는 중이다' } : team.ok ? (openBrowser(url0 && safeOrigin(url0)), { ok: true, team: true }) : await openPc(url).then(() => ({ ok: true }), (e) => ({ ok: false, why: e.message }))
+      screen = !url ? { ok: false, why: '아직 켜지는 중이다' } : await openPc(url).then(() => ({ ok: true }), (e) => ({ ok: false, why: e.message }))
     } else task = { ok: false, why: '작업을 만들지 못했다. kmd pc task 로 다시' }
   }
   for (const l of installLines({ version: VERSION, root, backup: backupDir, kns: kns.map((k) => k.name), team, user: who, host: os.hostname(), osuser: os.userInfo().username, claude: c, task, screen })) console.log(l)

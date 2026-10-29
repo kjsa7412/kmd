@@ -3445,7 +3445,7 @@ function setLeft(st) {
   const pcBad = S.stops.find((x) => x.kind === 'backup')
   return `<div class="card"><div class="ch">이 PC</div><div class="cb"><div class="kv"><span>지식 폴더</span><span><span class="mono">${esc(st.root)}</span>: 지식 ${st.kns}</span><span>백업 자리</span><span data-t="pcBackup">${st.backup.root ? `<span class="mono">${esc(st.backup.root)}</span> · ` : ''}붙음 ${st.backup.n}/${st.backup.of}${st.backup.bad ? ` · <b class="t-warn">맞지 않음 ${st.backup.bad}</b>` : ''} ${!st.backup.n ? '<span class="chip c-warn">백업 없음</span>' : pcBad ? `<span class="chip c-warn">${esc(pcBad.b)}</span><small>${esc(pcBad.t)}</small>` : st.backup.n < st.backup.of ? '<span class="chip c-warn">일부만</span>' : '<span class="chip c-acc">잘 된다</span>'}</span><span>판</span><span>kmd v${esc(st.version)}</span></div></div></div>
   ${pcBackupCard(st)}
-  <div class="card" style="overflow:visible"><div class="ch">이어진 것</div><div class="cb" style="padding:2px 14px"><ul class="plain"><li><span style="flex:1"><b>Claude Code</b><small class="muted" style="display:block">작업 폴더 ${(S.cache.agent && S.cache.agent.folders ? S.cache.agent.folders.length : 0)} <button type="button" class="lk" data-a="setTab" data-v="agent">에이전트 설치 ›</button></small></span></li><li><span style="flex:1"><b>팀 kmd</b><small class="muted" style="display:block">${st.teams && st.teams.length ? '이 팀 화면에 들어온 내가 내 PC 지식 · 설정을 다룬다(경로 · 백업 · 에이전트 · 지우기는 이 PC 에 뜬 창에서 확인)' : '아직 잇지 않았다. 팀 화면의 설치 한 줄'}</small></span></li>${(st.teams || []).map((u) => `<li data-t="teamRow"><span style="flex:1">${esc(u.replace(/^https?:\/\//, ''))}</span><button class="btn sm" data-a="pairForget" data-v="${esc(u)}" data-t="pairForget">끊기</button></li>`).join('')}</ul><p class="small muted">밖으로 나가는 것은 백업 · Claude 정리뿐이다.</p></div></div>` + devCard()
+  <div class="card" style="overflow:visible"><div class="ch">이어진 것</div><div class="cb" style="padding:2px 14px"><ul class="plain"><li><span style="flex:1"><b>Claude Code</b><small class="muted" style="display:block">작업 폴더 ${(S.cache.agent && S.cache.agent.folders ? S.cache.agent.folders.length : 0)} <button type="button" class="lk" data-a="setTab" data-v="agent">에이전트 설치 ›</button></small></span></li><li><span style="flex:1"><b>팀</b><small class="muted" style="display:block">${st.teams && st.teams.length ? '이 PC 의 기기 열쇠로 이었다: Claude Code 의 팀 연결(kmd-team) · 지식 보내기가 쓴다 · 끊기는 팀 화면 › 내 기기에서' : '아직 잇지 않았다. 팀 화면의 설치 한 줄'}</small></span></li>${(st.teams || []).map((u) => `<li data-t="teamRow"><span style="flex:1">${esc(u.replace(/^https?:\/\//, ''))}</span></li>`).join('')}</ul><p class="small muted">밖으로 나가는 것은 백업 · Claude 정리뿐이다.</p></div></div>` + devCard()
 }
 function claudeCard(st) {
   const c = st.claude, w = c.worker
@@ -4409,11 +4409,6 @@ const ACT = {
   openKn: (el, ev) => {
     if (ev.target.closest('.kebab,.btn')) return
     go({ scr: 'docs', kn: el.dataset.k }) },
-  pairForget: async (el) => {
-    if (!await ask1('내 PC 지식 열지 않기', '열지 않기', true, `${el.dataset.v.replace(/^https?:\/\//, '')}: 이 팀 화면에서 내 PC 지식을 더 열지 않는다 · 이 팀의 내 개인 지식 일꾼도 멈춘다(다시 이으려면 팀 화면 › 설치 한 줄)`)) return
-    try { await postJSON('/api/pair/forget', { origin: el.dataset.v }); delete S.cache.settings; toast('끊었다') } catch (e) { toastErr(e) }
-    render()
-  },
   histGo: (el) => histGo(Number(el.dataset.v)),
   openQo: () => openQo(),
   openSearch: () => openPal(),
@@ -4637,7 +4632,7 @@ async function takeOnce() {
   if (!once) return false
   S.onceErr = null
   await postJSON('/once', { code: once }).catch((e) => { S.onceErr = e.message })
-  history.replaceState(null, '', location.pathname === '/pair' ? location.pathname + location.search : '/')
+  history.replaceState(null, '', '/')
   return true
 }
 // 같은 탭에 새 번호를 붙여도(시작 메뉴 kmd 가 이미 열린 탭을 다시 쓸 때) 들어온다

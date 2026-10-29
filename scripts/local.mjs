@@ -62,7 +62,7 @@ if (first) {
 const log = () => {}
 // 이 PC 의 기기 열쇠 — 짝을 지을 때 팀 서버에 「들어온 사람 = 이 PC 를 이은 사람」 인지 묻는다(진짜 자격 저장소 대신 메모리로)
 let kimKey = null
-const pc = await startServer({ root: PC, mode: 'pc', user: 'kim', port: PC_PORT, log: (...a) => { if (String(a[0]).startsWith('[확인 창]') || String(a[0]).startsWith('확인 창')) console.log(...a) }, scryptN: 1 << 15, deviceKey: async () => kimKey })
+const pc = await startServer({ root: PC, mode: 'pc', user: 'kim', port: PC_PORT, log: () => {}, scryptN: 1 << 15 })
 const team = await startServer({ root: TEAM, port: TEAM_PORT, log, scryptN: 1 << 15 })
 // 쿠키는 포트를 가리지 않는다 — 팀은 localhost · PC 는 127.0.0.1 로 호스트 이름을 갈라 두 화면의 들어가기가 서로 덮지 않게
 const TEAM_URL = `http://localhost:${TEAM_PORT}`

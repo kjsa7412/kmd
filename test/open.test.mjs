@@ -163,8 +163,7 @@ test('kmd pc update: 그 판으로 켜 보고 · 지금 폴더 · 포트로 다�
 test('서버 길: 번호 · 멈추기는 PC 의 kmd 에만 · 팀 서버에 짝 표가 없다 · PC 쿠키는 쓰는 동안 늘고 모든 곳에서 나가기로 끊긴다', async () => {
   const pcRoot = path.join(tmp, 'pc2')
   fs.mkdirSync(path.join(pcRoot, '.kmd'), { recursive: true })
-  let tk = null
-  const pc = await startServer({ root: pcRoot, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15, deviceKey: async () => tk })
+  const pc = await startServer({ root: pcRoot, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
   const team = await startServer({ root: path.join(tmp, 'team2'), port: 0, log: () => {}, scryptN: 1 << 15 })
   const teamO = new URL(team.url).origin
   fs.writeFileSync(path.join(pcRoot, '.kmd', 'teams.json'), JSON.stringify([teamO]))
@@ -185,7 +184,6 @@ test('서버 길: 번호 · 멈추기는 PC 의 kmd 에만 · 팀 서버에 짝 
     assert.deepEqual(Object.keys(live).sort(), ['mode', 'ok', 'version'])
     // 팀 서버에는 팀 화면이 개인 프로그램을 잇던 표(pcpass)가 없다(분리)
     const kim = await signIn(team, { id: 'kim' })
-    tk = kim.key
     assert.equal((await post(team.url, '/api/me/pcpass', { cookie: kim.cookie })).status, 404)
     // 팀 서버에는 이 길이 없다
     const lee = await signIn(team, { id: 'lee' })
