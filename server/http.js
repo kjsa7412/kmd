@@ -438,7 +438,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   }
 
   const GET_OK = [
-    /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|admin\/groups|claude\/state|busy)$/,
+    /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|admin\/groups|claude\/state|busy|send\/teams)$/,
     /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
     /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|tidy\/plan|sources|send|backup|backup\/lost|owner|access|worker\/material)$/,
   ]
@@ -953,6 +953,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     }
     // 보내기 — 보낼 것(GET send) · 보내는 길(send/route) · 보내기 · 대기 줄 · 받기 · 받은편지함 정리
     //   보내는 지식은 이 PC 의 kmd 의 개인 지식(팀 서버는 옛 개인 지식만) · 받는 것은 팀 서버
+    // 받는 팀 지식 고르기(개인 화면) — 이 PC 가 이은 팀마다 이 PC 의 기기 열쇠로 본 팀 지식(쓰기 자리 이상)
+    if (p === '/api/send/teams' && req.method === 'GET') {
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '지식 보내기는 개인 프로그램에서 한다')
+      need(ctx)
+      return out(200, { teams: (await hub.sendTargets(ctx)).teams })
+    }
     const sd = p.match(/^\/api\/k\/([^/]+)\/(send|send\/route|send\/wait|receive|inbox\/tidy|inbox\/send)$/)
     if (sd) {
       const id = dec(sd[1])

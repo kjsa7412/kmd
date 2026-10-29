@@ -518,7 +518,7 @@ const HISTSCR = ['today', 'log']
 function mgItems(area) {
   const team = isTeam(), adm = !!(S.me && S.me.admin) || anyAdm()
   const set = (v, l) => ['settings', v, l]
-  if (!team) return [['import', '', '가져오기'], set('gen', '일반'), set('claude', 'Claude 연결'), set('agent', '에이전트 설치')]
+  if (!team) return [['import', '', '가져오기'], ['send', '', '지식 보내기'], set('gen', '일반'), set('claude', 'Claude 연결'), set('agent', '에이전트 설치')]
   if (area === 'team') return [...(adm ? [['import', '', '가져오기']] : []), ['tidy', '', '정리'], set('gen', '일반'), set('people', '사람'), set('claude', 'Claude 연결'), set('agent', '에이전트 설치'), ...(adm ? [set('admin', '관리')] : [])]
   return [['import', '', '가져오기'], ['send', '', '지식 보내기'], set('gen', '일반'), set('claude', 'Claude 연결'), set('agent', '에이전트 설치')]
 }
@@ -704,7 +704,7 @@ function viewHome() {
   <div class="kgrid" data-t="klist">${teamPart.map((n) => kcardHtml(n, team)).join('')}${addTeam}</div>${!teamPart.length && !addTeam ? '<p class="hint" data-t="teamEmpty">아직 팀 지식이 없다. 관리자가 세운다</p>' : ''}
   <div class="sec-h" data-t="meSec" style="margin-top:22px"><b>개인 지식</b><small>나만 · 내 PC 의 지식 폴더 · 이 PC 의 kmd 가 열고 내 Claude 로 다듬는다 · 팀 서버에는 가지 않는다</small></div>${meBar}
   <div class="kgrid" data-t="meList">${mePart.map((n) => kcardHtml(n, team)).join('')}${addMe}</div>`
-    : `${fbar}<div class="kgrid" data-t="klist">${shown.map((n) => kcardHtml(n, team)).join('')}${add}</div>`
+    : `${localRootBar() || fbar}<div class="kgrid" data-t="klist">${shown.map((n) => kcardHtml(n, team)).join('')}${add}</div>`
   return {
     crumb: '지식 목록',
     main: `<div class="pg-grid"><div class="pg-h"><div><div class="big">지식 목록</div><p class="lead">${team ? '위는 팀 지식 · 아래는 개인 지식(내 PC 의 지식 폴더)' : '내 지식 ' + S.kns.length}. 옆 메뉴에 이 순서로 보인다 · 카드를 끌어 순서를 바꾼다</p></div></div>
@@ -735,10 +735,32 @@ function pcRootBar() {
     : '개인 지식 하나 = 이 폴더 안의 폴더 하나 · 작업 환경은 그 폴더의 .kmd 에 · 바꾸면 그 폴더의 지식이 보인다(.kmd 가 없거나 빈 폴더면 새로 세운다 · 옛 폴더는 그대로) · 빼도 폴더의 파일은 지우지 않는다'
   return `<div class="fbar" data-t="meWhere"><span class="fl">${svg('doc')}내 PC 지식 폴더</span>${body}<small>${note}</small></div>${S.meRootErr ? formErr(S.meRootErr, 'meRootErr') : ''}`
 }
+// 개인 화면의 지식 폴더 띠 — 경로 · [경로 복사] · [동기화] · [바꾸기] · [빼기](빼면 경로 칸이 늘 열린다)
+//   바꾸면 그 폴더에 .kmd 가 있으면 그대로 잇고 · 없거나 빈 폴더면 새로 세운다 · 개인 프로그램이 그 폴더로 다시 켜진다
+const meRootNow = () => (isTeam() ? (S.pc && S.pc.root) || '' : S.me.none ? '' : S.me.root || '')
+function localRootBar() {
+  if (isTeam()) return ''
+  const ed = S.meRootEdit != null || S.me.none
+  const body = ed
+    ? `<input class="inp mono" id="meRootIn"${invAttr(S.meRootErr, 'meRootErr')} aria-label="지식 폴더 경로" data-in="meRoot" data-t="meRootIn" value="${esc(S.meRootEdit || '')}" placeholder="예: D:\\kmd" autocomplete="off" style="flex:1;min-width:min(220px,100%)"><span class="acts"><button class="btn pri" data-a="meRootSave" data-t="meRootSave"${S.meRootBusy ? ' disabled' : ''}>${S.meRootBusy ? '바꾸는 중…' : '이 폴더로'}</button>${S.me.none ? '' : '<button class="btn ghost" data-a="meRootCancel">취소</button>'}</span>`
+    : `<span class="fp" data-t="rootPath">${esc(S.me.root || '')}</span><span class="acts"><button class="btn" data-a="copyRoot" data-t="copyRoot">경로 복사</button><button class="btn" data-a="syncKn" data-t="syncKn"${S.syncing ? ' disabled' : ''}>${S.syncing ? '읽는 중…' : '동기화'}</button><button class="btn" data-a="meRootEdit" data-t="meRootEdit">바꾸기</button><button class="btn" data-a="meRootDrop" data-t="meRootDrop"${S.meRootBusy ? ' disabled' : ''}>빼기</button></span>`
+  const note = S.me.none ? '지식 폴더를 뺐다. 경로를 쓰면 그 폴더에 세운다 · 이미 kmd 지식 폴더(.kmd 가 있는 곳)면 그대로 쓴다'
+    : '지식 하나 = 이 폴더 안의 폴더 하나 · 다른 곳에서 만든 지식은 폴더째 여기에 놓고 [동기화]. 메뉴 맨 아래에 들어온다 · [바꾸기] 로 다른 폴더를 잇는다(.kmd 가 없거나 빈 폴더면 새로 세운다 · 옛 폴더는 그대로)'
+  return `<div class="fbar" data-t="addRoot"><span class="fl">${svg('doc')}지식 폴더</span>${body}<small>${note}</small></div>${S.meRootErr ? formErr(S.meRootErr, 'meRootErr') : ''}`
+}
+// 개인 화면 — 다시 켜진 개인 프로그램이 답할 때까지 기다렸다가 화면을 다시 연다(30초)
+async function localRootWait() {
+  for (let i = 0; i < 20; i++) {
+    await new Promise((r) => setTimeout(r, 1500))
+    if (await fetch('/api/me', { credentials: 'same-origin' }).then((r) => r.ok, () => false)) break
+  }
+  location.reload()
+}
 // 지식 폴더 빼기 — 내 PC 쪽은 켠 채(팀 연결 · 내 Claude 그대로) 빈자리로 다시 켜진다 · 폴더의 파일은 그대로 · 경로를 쓰면 다시 붙는다
 async function meRootDrop() {
-  const r0 = S.pc && S.pc.root
-  if (!r0 || !await ask1('내 PC 지식 폴더 빼기', '빼기', true, `내 PC 지식 폴더를 뺀다: ${r0}\n\n폴더의 파일은 지우지 않는다. 개인 지식은 경로를 다시 쓰기 전까지 보이지 않는다.`)) return
+  const r0 = meRootNow()
+  const nm = isTeam() ? '내 PC 지식 폴더' : '지식 폴더'
+  if (!r0 || !await ask1(nm + ' 빼기', '빼기', true, `${nm}를 뺀다: ${r0}\n\n폴더의 파일은 지우지 않는다. 개인 지식은 경로를 다시 쓰기 전까지 보이지 않는다.`)) return
   await meRootPost({ none: true })
 }
 // 내 PC 지식 폴더 세우기(처음) — 경로 → 그 경로를 실은 설치 한 줄(10분 · 한 번만) → 이 PC 의 PowerShell 에 붙여 넣으면
@@ -818,10 +840,16 @@ async function meRootSave() {
 async function meRootPost(body) {
   S.meRootBusy = true; S.meRootErr = null; render()
   try {
-    const r = await postJSON('/pc/api/pc/root', body)
+    const r = await postJSON(isTeam() ? '/pc/api/pc/root' : '/api/pc/root', body)
     S.meRootEdit = null
     if (r.same) S.syncMsg = { cls: 'gray', t: '<b>지금 쓰는 지식 폴더다</b>' }
-    else {
+    else if (!isTeam()) {
+      S.syncMsg = r.kind === 'none' ? { t: '<b>지식 폴더를 뺐다</b> · 폴더의 파일은 그대로 · 다시 켜지는 중…' }
+        : { t: `<b>지식 폴더를 바꿨다</b>: ${esc(r.root)} · ${r.kind === 'open' ? '있던 작업 환경(.kmd)을 그대로 잇는다' : '새 지식 폴더로 세웠다'} · 다시 켜지는 중…` }
+      S.meRootBusy = true
+      render()
+      return localRootWait()
+    } else {
       S.syncMsg = r.kind === 'none' ? { t: '<b>내 PC 지식 폴더를 뺐다</b> · 폴더의 파일은 그대로 · 경로를 쓰면 다시 세우거나 잇는다' }
         : { t: `<b>내 PC 지식 폴더를 바꿨다</b>: ${esc(r.root)} · ${r.kind === 'open' ? '있던 작업 환경(.kmd)을 그대로 잇는다' : '새 지식 폴더로 세웠다'} · 이 PC 의 kmd 가 다시 켜지면 저절로 열린다` }
       // 내 PC 쪽이 다시 켜진다 — 짝 열쇠는 새로 받는다
@@ -852,8 +880,8 @@ function addPopHtml() {
   // 팀 화면 — 영역부터 가른다: 개인(내 PC 지식 폴더 · 누구나) / 팀(팀 지식 폴더 · 관리자만)
   const admin = !!S.me.admin
   const kinds = team ? `<div class="field" style="margin:0 0 10px"><label>영역</label><div class="seg" data-t="addArea" style="margin:0"><button class="${a.where !== 'team' ? 'on' : ''}" data-a="addArea" data-v="me" data-t="addAreaMe">개인 지식</button><button class="${a.where === 'team' ? 'on' : ''}" data-a="addArea" data-v="team" data-t="addKindTeam"${admin ? '' : ' disabled title="팀 지식은 관리자만 추가한다"'}>팀 지식${admin ? '' : ' · 관리자만'}</button></div></div>` : ''
-  const teamKns = team ? S.kns.filter((k) => !isPersonal(k) && !k.dim && canWrite(k.id)) : [] // 받는 곳은 쓰기 자리 이상(권한 모델)
-  const toFld = team && a.where === 'me' && teamKns.length ? `<div class="field" style="margin:10px 0 0"><label for="addTo">받는 팀 지식 <span class="muted">(선택 · 나중에 지식 보내기에서 정해도 된다)</span></label><select class="inp" id="addTo" data-in="addTo" data-t="addTo"><option value="">정하지 않음</option>${teamKns.map((k) => `<option value="${esc(k.id)}"${a.to === k.id ? ' selected' : ''}>${esc(k.name)}</option>`).join('')}</select><div class="hint">정하면 이 개인 지식에서 보내는 것은 모두 그곳으로만 간다</div></div>` : ''
+  const teamKns = mine ? sendTeams() : [] // 받는 곳은 쓰기 자리 이상(권한 모델) · 개인 화면은 이 PC 가 이은 팀의 목록
+  const toFld = mine && teamKns.length ? `<div class="field" style="margin:10px 0 0"><label for="addTo">받는 팀 지식 <span class="muted">(선택 · 나중에 지식 보내기에서 정해도 된다)</span></label><select class="inp" id="addTo" data-in="addTo" data-t="addTo"><option value="">정하지 않음</option>${teamKns.map((k) => `<option value="${esc(k.key)}"${a.to === k.key ? ' selected' : ''}>${esc(k.name)}${k.host ? ' · ' + esc(k.host) : ''}</option>`).join('')}</select><div class="hint">정하면 이 개인 지식에서 보내는 것은 모두 그곳으로만 간다</div></div>` : ''
   const pr = S.pc && S.pc.root
   // 팀 화면의 개인 지식은 이름만(팀 지식처럼) — 들일 글은 세운 뒤 가져오기로
   const hint = a.where === 'team' ? '팀 지식 폴더에 팀 지식으로 선다. 권한은 지식마다(관리 자리가 정한다) · 세운 뒤 카드 ⋯ › 권한에서 읽기 · 쓰기 · 관리를 준다'
@@ -882,12 +910,13 @@ async function doAdd() {
     if (isTeam() && a.where === 'me') r.id = id
     // 받는 팀 지식을 골랐으면 길도 함께(이 PC 의 kmd 가 이 팀 화면의 주소로 정한다) · 못 정해도 지식은 섰다(지식 보내기에서 다시)
     let routeMsg = ''
-    if (a.where === 'me' && a.to) routeMsg = await postJSON(`/api/k/${encodeURIComponent(r.id)}/send/route`, { to: a.to }).then(() => ` · 보내는 곳 ${esc(knNm(a.to))}`, (e) => ` · 받는 지식은 못 정했다: ${esc(e.message)}`)
+    const tt = onPc && a.to ? sendTeamOf(a.to) : null
+    if (tt) routeMsg = await postJSON(`/api/k/${encodeURIComponent(r.id)}/send/route`, { to: tt.id, ...(tt.url ? { url: tt.url } : {}) }).then(() => ` · 보내는 곳 ${esc(tt.name)}`, (e) => ` · 받는 지식은 못 정했다: ${esc(e.message)}`)
     await reloadKns()
     delete S.cache.history; delete S.cache.pcHistory
-    if (a.from === 'send' && a.where === 'me') { S.sendSrc = id; S.sendSel = {}; S.sendWhole = {}; S.sendPickTo = null; S.sendTab = 'rec'; toast(`만들었다: ${esc(r.name)} · 보내는 지식으로 골랐다${routeMsg}`); render(); return }
+    if (a.from === 'send' && onPc) { S.sendSrc = id; S.sendSel = {}; S.sendWhole = {}; S.sendPickTo = null; S.sendTab = 'rec'; toast(`만들었다: ${esc(r.name)} · 보내는 지식으로 골랐다${routeMsg}`); render(); return }
     if (a.from) { toast(`만들었다: ${esc(r.name)}${routeMsg}`); render(); return }
-    S.syncMsg = { t: `<b>만들었다: ${esc(r.name)}</b>${a.where === 'me' ? ' · 개인 지식 · 나만' + routeMsg : a.where === 'team' ? ' · 팀 지식 · 권한은 카드 ⋯ › 권한' : r.dir ? ' · ' + esc(r.dir) : ''}${r.summary ? ` · 문서 ${r.summary.doc || 0}` : ''} <button type="button" class="lk" data-a="openKn" data-k="${esc(id)}">열기 ›</button>` }
+    S.syncMsg = { t: `<b>만들었다: ${esc(r.name)}</b>${a.where === 'me' ? ' · 개인 지식 · 나만' + routeMsg : a.where === 'team' ? ' · 팀 지식 · 권한은 카드 ⋯ › 권한' : (r.dir ? ' · ' + esc(r.dir) : '') + routeMsg}${r.summary ? ` · 문서 ${r.summary.doc || 0}` : ''} <button type="button" class="lk" data-a="openKn" data-k="${esc(id)}">열기 ›</button>` }
   } catch (e) { a.busy = false; a.err = e.message }
   render()
 }
@@ -1178,7 +1207,7 @@ function cmdDefs() {
     { n: '빨리 열기', s: 'Ctrl O', f: () => openQo() },
     { n: '찾기', s: 'Ctrl K', f: () => openPal() },
     { n: '이력', s: '모든 지식에서 바뀐 것 · 확인할 것', f: () => go({ scr: 'today' }) },
-    ...(isTeam() ? [{ n: '지식 보내기', s: '내 개인 지식 → 팀 지식', f: () => go({ scr: 'send' }) }] : []),
+    { n: '지식 보내기', s: '내 개인 지식 → 팀 지식', f: () => go({ scr: 'send' }) },
     { n: '설정', s: '', f: () => go({ scr: 'settings' }) },
     { n: '지식 목록', s: '전체', f: () => go({ scr: 'home', kn: '*' }) },
     { n: '탭 닫기', s: '지금 탭', f: () => { if (S.active) closeTab(S.active); render() } },
@@ -3327,7 +3356,30 @@ const pcRoot = () => (S.me.root || '').replace(/[\\/]+$/, '')
 // 맨 위가 보내는 길 — 보내는 지식(내 PC 의 개인 지식 · 팀 서버에 남은 옛 개인 지식) → 받는 지식(팀 지식 하나). 길은 개인 지식마다 하나로 묶였고
 //   화면이 그때그때 고르지 않는다 · 바꾸려면 새 이름을 그대로 친다 · 단추 · 확인 창에 받는 지식 이름이 늘 들어간다.
 // 보낼 것은 그 길 안에서 탭으로 — 기록(먼저 · 보내지 않은 것) · 문서(통째로) · 보낸 것. 보내기는 이 PC 의 kmd 가 이 PC 의 기기 열쇠로 한다
-const sendSrcs = () => S.kns.filter((k) => k.pc && !k.dim)
+const sendSrcs = () => S.kns.filter((k) => (isTeam() ? k.pc : true) && !k.dim)
+// 받는 팀 지식 — 팀 화면은 지식 목록에서 · 개인 화면은 이 PC 가 이은 팀마다 기기 열쇠로 본 목록(/api/send/teams · 쓰기 자리 이상)
+//   key — 팀이 여럿이면 같은 id 가 있을 수 있어 개인 화면은 「주소#id」
+const sendTeamsV = () => (isTeam() ? null : need('sendTeams', '/api/send/teams'))
+function sendTeams() {
+  if (isTeam()) return S.kns.filter((k) => !k.pc && !k.dim && canWrite(k.id)).map((k) => ({ key: k.id, id: k.id, name: k.name, owner: k.owner, tidyAt: k.tidyAt, tidyMode: k.tidyMode }))
+  const v = sendTeamsV()
+  if (!v || v.error) return []
+  const many = v.teams.filter((t) => t.kns).length > 1
+  return v.teams.flatMap((t) => (t.kns || []).map((k) => ({ key: t.url + '#' + k.id, id: k.id, name: k.name, url: t.url, host: many ? t.url.replace(/^https?:\/\//, '') : '' })))
+}
+const sendTeamOf = (key) => sendTeams().find((t) => t.key === key) || null
+// 받는 지식 이름 — 개인 화면은 받는 팀의 목록에서(같은 id 의 개인 지식과 섞이지 않게)
+const sendNm = (id) => (isTeam() ? knNm(id) : (sendTeams().find((t) => t.id === id) || {}).name || id)
+// 받는 팀 지식 고르기 칸의 상태 — 읽는 중 · 못 읽음(+ 다시 읽기) · 팀에 잇지 않음
+function sendTeamsNote() {
+  if (isTeam()) return ''
+  const v = sendTeamsV()
+  if (!v) return loadingHtml
+  if (v.error) return errHtml(v, 'sendTeams')
+  const bad = v.teams.filter((t) => t.error)
+  if (!v.teams.length) return '<p class="muted small" data-t="sendNoLink">이 PC 가 팀에 이어지지 않았다. 팀 화면의 설치 한 줄로 잇는다</p>'
+  return bad.map((t) => `<div class="callout warn" data-t="sendTeamErr"><i></i><span><b>${esc(t.url)}</b> · ${esc(t.error)}</span></div>`).join('')
+}
 const sendOf = (k) => need('send:' + k, `/api/k/${encodeURIComponent(k)}/send`)
 const knNm = (id) => (KN(id) || {}).name || id
 // 「…로 / …으로」 — 받침(ㄹ 빼고)이 있으면 으로
@@ -3341,34 +3393,33 @@ function sendSrc() {
 }
 const sendPicks = () => Object.keys(S.sendSel || {}).filter((x) => S.sendSel[x])
 // 받는 팀 지식의 정리 때 — 내 PC 의 길에는 이름 · 주소만 있어 팀 화면의 목록에서 채운다
-const teamRow = (r) => ({ ...r, ...(KN(r.kn) && !KN(r.kn).pc ? { tidyAt: KN(r.kn).tidyAt, tidyMode: KN(r.kn).tidyMode } : {}) })
-const teamWho = (r) => { r = teamRow(r); const p = peopleOf(); return `${Array.isArray(p) ? `팀원 ${p.length}명이 본다` : '팀 모두 본다'} · ${r.tidyMode === 'manual' ? '손으로만 정리' : r.tidyMode === 'live' ? '실시간 정리' : r.tidyAt ? r.tidyAt + ' 정리' : '정리 때 문서에'}` }
+const teamRow = (r) => ({ ...r, ...(isTeam() && KN(r.kn) && !KN(r.kn).pc ? { tidyAt: KN(r.kn).tidyAt, tidyMode: KN(r.kn).tidyMode } : {}) })
+const teamWho = (r) => { r = teamRow(r); const p = isTeam() ? peopleOf() : null; return `${Array.isArray(p) ? `팀원 ${p.length}명이 본다` : isTeam() ? '팀 모두 본다' : '그 지식에 자리가 있는 팀원이 본다'} · ${r.tidyMode === 'manual' ? '손으로만 정리' : r.tidyMode === 'live' ? '실시간 정리' : r.tidyAt ? r.tidyAt + ' 정리' : '정리 때 문서에'}` }
 const tidyWhen = (r) => (r = teamRow(r), r.tidyMode === 'manual' ? '그 지식의 정리 때' : r.tidyMode === 'live' ? '곧바로 정리 때' : r.tidyAt ? `${r.tidyAt} 정리 때` : '정리 때')
 function viewSend() {
-  if (!isTeam()) return { crumb: '지식 보내기', main: '<div class="snd"><div class="big">지식 보내기</div><div class="callout gray" data-t="sendPc">지식 보내기는 팀 화면에서 고른다. 팀 화면의 설정 · 개인 › 지식 보내기에서 개인 지식을 고른다. 보내는 일은 이 프로그램이 이 PC 의 열쇠로 한다.</div></div>' }
   const head = '<div class="pg-h"><div><div class="big">지식 보내기</div><p class="lead">내 개인 지식의 기록 · 문서를 그 지식에 묶인 팀 지식으로 보낸다. 받는 지식에는 기록으로 들어가고 그 지식의 정리 때 문서에 들어간다.</p></div></div>'
   const src = sendSrc()
-  if (!src) return { crumb: '지식 보내기', main: `<div class="snd">${head}<div class="card" data-t="sendNone"><div class="empty3">${svg('arrow')}<b>보낼 개인 지식이 없다</b><p>개인 지식은 이 PC 의 kmd 의 지식 폴더에 있다. ${S.pc && S.pc.token ? '새 개인 지식을 만들고 거기서 쓰거나 가져온 뒤 팀 지식으로 보낸다.' : '이 PC 의 kmd 가 켜져 있어야 보인다. 없으면 설정 › 에이전트 설치의 설치 한 줄로 깐다.'}</p><button class="btn pri" data-a="openAdd" data-v="me" data-t="sendMakeKn">+ 새 개인 지식</button></div></div></div>` }
+  if (!src) return { crumb: '지식 보내기', main: `<div class="snd">${head}<div class="card" data-t="sendNone"><div class="empty3">${svg('arrow')}<b>보낼 개인 지식이 없다</b><p>${!isTeam() ? '새 개인 지식을 만들고 거기서 쓰거나 가져온 뒤 팀 지식으로 보낸다.' : `개인 지식은 이 PC 의 kmd 의 지식 폴더에 있다. ${S.pc && S.pc.token ? '새 개인 지식을 만들고 거기서 쓰거나 가져온 뒤 팀 지식으로 보낸다.' : '이 PC 의 kmd 가 켜져 있어야 보인다. 없으면 설정 › 에이전트 설치의 설치 한 줄로 깐다.'}`}</p><button class="btn pri" data-a="openAdd" data-v="${isTeam() ? 'me' : 'local'}" data-t="sendMakeKn">+ 새 개인 지식</button></div></div></div>` }
   const v = sendOf(src.id)
   if (!v) return { crumb: '지식 보내기', main: `<div class="snd">${head}${loadingHtml}</div>` }
   if (v.error) return { crumb: '지식 보내기', main: `<div class="snd">${head}${errHtml(v)}</div>` }
   const r = v.route
   // 보내는 지식 고르기 — 줄마다 받는 지식이 함께 보인다
-  if (S.menu === 'sendSrc') S._pop = { key: 'sendSrc', html: sendSrcs().map((k) => `<div class="mi${k.id === src.id ? ' on' : ''}" data-a="sendSrcPick" data-k="${esc(k.id)}" data-t="sendSrcItem">${k.pc ? '<span class="kt me">내 PC</span>' : '<span class="kt me">옛 개인</span>'}${esc(k.name)}<small>→ ${k.route ? esc(knNm(k.route)) : '받는 지식 없음'}</small></div>`).join('') + '<div class="sep"></div><div class="mi" data-a="openAdd" data-v="me" data-t="sendSrcAdd">+ 새 개인 지식</div>' }
-  const left = `<div class="rbox"><div class="lb">보내는 지식 <span class="kt me">개인</span></div><button class="rpick" data-a="menu" data-m="sendSrc" data-t="sendSrc">${esc(src.name)} <span class="rc">▾</span></button><div class="rsub">${src.pc ? '내 PC · 나만' : '팀 서버 · 옛 개인 지식(내 PC 로 옮긴다)'} · 기록 ${v.recs.length} · 문서 ${v.docs.length}</div></div>`
+  if (S.menu === 'sendSrc') S._pop = { key: 'sendSrc', html: sendSrcs().map((k) => `<div class="mi${k.id === src.id ? ' on' : ''}" data-a="sendSrcPick" data-k="${esc(k.id)}" data-t="sendSrcItem">${!isTeam() ? '' : k.pc ? '<span class="kt me">내 PC</span>' : '<span class="kt me">옛 개인</span>'}${esc(k.name)}<small>→ ${k.route ? esc(sendNm(k.route)) : '받는 지식 없음'}</small></div>`).join('') + `<div class="sep"></div><div class="mi" data-a="openAdd" data-v="${isTeam() ? 'me' : 'local'}" data-t="sendSrcAdd">+ 새 개인 지식</div>` }
+  const left = `<div class="rbox"><div class="lb">보내는 지식 <span class="kt me">개인</span></div><button class="rpick" data-a="menu" data-m="sendSrc" data-t="sendSrc">${esc(src.name)} <span class="rc">▾</span></button><div class="rsub">${!isTeam() ? '나만' : src.pc ? '내 PC · 나만' : '팀 서버 · 옛 개인 지식(내 PC 로 옮긴다)'} · 기록 ${v.recs.length} · 문서 ${v.docs.length}</div></div>`
   const right = r
     ? `<div class="rbox" data-t="sendTo" data-kn="${esc(r.kn)}"><div class="lb">받는 지식 <span class="kt team">팀</span>${svg('lock')}</div><div class="nm">${esc(r.name)}</div><div class="rsub">${r.gone ? '이 지식이 이제 없다. 받는 지식을 다시 정한다' : esc(teamWho(r))}</div></div>`
     : '<div class="rbox todo" data-t="sendTo"><div class="lb">받는 지식 <span class="kt team">팀</span></div><div class="nm muted">아직 정하지 않았다</div><div class="rsub">아래에서 하나를 정한다. 정하면 이 개인 지식은 늘 그곳으로만 간다</div></div>'
   const info = r ? `<div class="rinfo">${svg('lock')}<span><b>${esc(src.name)}</b> 에서 보내는 것은 모두 <b>${esc(r.name)}</b>${r.name.length && ro(r.name).endsWith('으로') ? '으로' : '로'}만 간다${r.since ? ` · ${esc(whenTxt(r.since))} 에 정했다` : ''} · ${r.times ? r.times + '번 보냈다' : '아직 보내지 않았다'}</span><button class="btn sm" data-a="sendWin" data-v="change" data-t="sendChange">받는 지식 바꾸기</button></div>` : ''
   const route = `<div class="card route" data-t="sendRoute"><div class="rrow">${left}<div class="rarr">${svg('arrow')}</div>${right}</div>${info}</div>`
   let top = ''
-  for (const w of v.wait) top += `<div class="callout ${w.state === 'wait' ? 'gray' : 'warn'} stop" data-t="sendWait" data-state="${esc(w.state)}"><i></i><span><b>${w.state === 'wait' ? '받는 지식에 닿지 않았다' : '보내지 못했다'}: ${esc(knNm(w.to))} ${w.n}개</b> · ${w.state === 'wait' ? '저절로 다시 보낸다' : esc(w.why || '')}${w.fix ? ' · ' + esc(w.fix) : ''} · ${esc(whenTxt(w.at))} 에 누른 것</span><span class="r" style="display:flex;gap:8px;margin-left:auto"><button class="btn sm" data-a="sendWaitAct" data-k="${esc(src.id)}" data-id="${esc(w.id)}" data-v="retry" data-t="sendRetry">지금 다시</button><button class="btn sm ghost" data-a="sendWaitAct" data-k="${esc(src.id)}" data-id="${esc(w.id)}" data-v="drop" data-t="sendDrop">버리기</button></span></div>`
+  for (const w of v.wait) top += `<div class="callout ${w.state === 'wait' ? 'gray' : 'warn'} stop" data-t="sendWait" data-state="${esc(w.state)}"><i></i><span><b>${w.state === 'wait' ? '받는 지식에 닿지 않았다' : '보내지 못했다'}: ${esc(sendNm(w.to))} ${w.n}개</b> · ${w.state === 'wait' ? '저절로 다시 보낸다' : esc(w.why || '')}${w.fix ? ' · ' + esc(w.fix) : ''} · ${esc(whenTxt(w.at))} 에 누른 것</span><span class="r" style="display:flex;gap:8px;margin-left:auto"><button class="btn sm" data-a="sendWaitAct" data-k="${esc(src.id)}" data-id="${esc(w.id)}" data-v="retry" data-t="sendRetry">지금 다시</button><button class="btn sm ghost" data-a="sendWaitAct" data-k="${esc(src.id)}" data-id="${esc(w.id)}" data-v="drop" data-t="sendDrop">버리기</button></span></div>`
   if (!r || r.gone) {
     // 받는 지식을 정하기 전 — 정하기 칸만(보낼 것은 열지 않는다)
-    const teams = S.kns.filter((k) => !k.pc && !k.dim && canWrite(k.id)) // 받는 곳은 쓰기 자리 이상
-    const rows = teams.map((t) => `<label class="trow${S.sendPickTo === t.id ? ' on' : ''}" data-t="sendTeam"><input type="radio" name="sendTo" data-a="sendPickTo" data-v="${esc(t.id)}"${S.sendPickTo === t.id ? ' checked' : ''}><span class="tn"><b>${esc(t.name)}</b><small>${esc(teamWho({ owner: t.owner, tidyAt: t.tidyAt, tidyMode: t.tidyMode }))}</small></span><span class="kt team">팀</span></label>`).join('') || '<p class="muted small">이 팀 서버에 팀 지식이 없다. 관리자가 세운다</p>'
-    const pt = S.sendPickTo && KN(S.sendPickTo)
-    const setup = `<div class="card" data-t="sendSetup"><div class="ch">받는 지식 정하기 <small>${esc(src.name)} 의 기록 · 문서가 갈 팀 지식 하나</small></div><div class="cb">${rows || '<p class="muted small" data-t="sendNoTeam">쓰기 자리가 있는 팀 지식이 없다. 그 지식의 관리 자리에게 쓰기를 부탁한다</p>'}</div><div class="cf"><span>정한 뒤에는 이 개인 지식에서 보내는 것이 모두 여기로 간다 · 바꾸려면 이름을 다시 쳐야 한다</span><button class="btn pri" style="margin-left:auto" data-a="sendSetRoute" data-t="sendSetRoute"${pt && !S.sending ? '' : ' disabled'}>${pt ? esc(ro(pt.name)) + ' 정하기' : '팀 지식을 고른다'}</button></div></div>`
+    const teams = sendTeams() // 받는 곳은 쓰기 자리 이상
+    const rows = teams.map((t) => `<label class="trow${S.sendPickTo === t.key ? ' on' : ''}" data-t="sendTeam"><input type="radio" name="sendTo" data-a="sendPickTo" data-v="${esc(t.key)}"${S.sendPickTo === t.key ? ' checked' : ''}><span class="tn"><b>${esc(t.name)}</b><small>${esc(teamWho({ owner: t.owner, tidyAt: t.tidyAt, tidyMode: t.tidyMode }))}${t.host ? ' · ' + esc(t.host) : ''}</small></span><span class="kt team">팀</span></label>`).join('')
+    const pt = S.sendPickTo && sendTeamOf(S.sendPickTo)
+    const setup = `<div class="card" data-t="sendSetup"><div class="ch">받는 지식 정하기 <small>${esc(src.name)} 의 기록 · 문서가 갈 팀 지식 하나</small></div><div class="cb">${sendTeamsNote()}${rows || (sendTeamsV() && sendTeamsV().error ? '' : '<p class="muted small" data-t="sendNoTeam">쓰기 자리가 있는 팀 지식이 없다. 그 지식의 관리 자리에게 쓰기를 부탁한다</p>')}</div><div class="cf"><span>정한 뒤에는 이 개인 지식에서 보내는 것이 모두 여기로 간다 · 바꾸려면 이름을 다시 쳐야 한다</span><button class="btn pri" style="margin-left:auto" data-a="sendSetRoute" data-t="sendSetRoute"${pt && !S.sending ? '' : ' disabled'}>${pt ? esc(ro(pt.name)) + ' 정하기' : '팀 지식을 고른다'}</button></div></div>`
     return { crumb: '지식 보내기', main: `<div class="snd">${head}${top}${route}${setup}</div>` }
   }
   const unsent = v.recs.filter((x) => !x.sent), todo = v.docs.filter((d) => d.st !== 'same')
@@ -3393,7 +3444,7 @@ function viewSend() {
     }).join('')
     body = `<div class="tbar"><span class="muted small">문서는 통째로 간다 · 받는 지식의 정리가 바뀐 곳을 가른다 · 고르지 않은 것은 그대로 남는다</span></div><div class="dlist">${rows || '<div class="empty3 sm">문서가 없다</div>'}</div>`
   } else {
-    body = `<div class="feed flat" data-t="sentFeed">${v.log.map((x) => `<div class="fi" data-t="sentRow"><div class="ln"><span class="tm">${esc(whenTxt(x.at))}</span><span class="dot ${x.wait || x.fail ? 'acc' : ''}"></span><span class="tx">${esc(ro(x.to.map(knNm).join(' · ')))} ${x.n}개를 ${x.wait ? '보내려 했다' : '보냈다'}${x.recs != null ? `: 기록 ${x.recs} · 문서 ${x.docs}` : ''}${x.late ? `<small>${esc(whenTxt(x.late))} 에 누른 것</small>` : x.wait ? '<small>닿으면 저절로 보낸다</small>' : ''}${x.fail ? `<small>${x.fail}개는 보내지 못했다. 위 줄에서 [지금 다시]</small>` : ''}${x.titles && x.titles.length ? `<small>${esc(x.titles.join(' · '))}${x.n > x.titles.length ? ` 외 ${x.n - x.titles.length}` : ''}</small>` : ''}</span></div></div>`).join('') || '<div class="fi"><div class="ln"><span class="tx muted">아직 보낸 것이 없다</span></div></div>'}</div>`
+    body = `<div class="feed flat" data-t="sentFeed">${v.log.map((x) => `<div class="fi" data-t="sentRow"><div class="ln"><span class="tm">${esc(whenTxt(x.at))}</span><span class="dot ${x.wait || x.fail ? 'acc' : ''}"></span><span class="tx">${esc(ro(x.to.map(sendNm).join(' · ')))} ${x.n}개를 ${x.wait ? '보내려 했다' : '보냈다'}${x.recs != null ? `: 기록 ${x.recs} · 문서 ${x.docs}` : ''}${x.late ? `<small>${esc(whenTxt(x.late))} 에 누른 것</small>` : x.wait ? '<small>닿으면 저절로 보낸다</small>' : ''}${x.fail ? `<small>${x.fail}개는 보내지 못했다. 위 줄에서 [지금 다시]</small>` : ''}${x.titles && x.titles.length ? `<small>${esc(x.titles.join(' · '))}${x.n > x.titles.length ? ` 외 ${x.n - x.titles.length}` : ''}</small>` : ''}</span></div></div>`).join('') || '<div class="fi"><div class="ln"><span class="tx muted">아직 보낸 것이 없다</span></div></div>'}</div>`
   }
   const sel = sendPicks(), nR = sel.filter((x) => x.startsWith('r|')).length, nD = sel.length - nR
   const foot = tab === 'log' ? '' : `<div class="cf"><span class="mini"><span class="kt me">개인</span>${esc(src.name)} ${svg('arrow')} <span class="kt team">팀</span>${esc(r.name)}</span><span>고름: 기록 ${nR} · 문서 ${nD}</span><button class="btn pri" style="margin-left:auto" data-a="sendWin" data-v="confirm" data-t="sendBtn"${sel.length && !S.sending ? '' : ' disabled'}>${S.sending ? '보내는 중…' : sel.length ? `${esc(ro(r.name))} ${sel.length}개 보내기` : '보낼 것을 고른다'}</button></div>`
@@ -3414,24 +3465,27 @@ function sendWinHtml() {
       const how = d.st === 'new' ? '문서 통째로 · 처음' : '문서 통째로'
       return `<li><b>${esc(d.title)}</b> <small class="muted">: ${esc(how)}</small></li>`
     }).join('')
-    return `<div class="scrim fix" data-a="sendWinClose" data-self="1"><div class="modal w560" data-t="sendConfirm"><div class="mh">보내기 확인<button class="x" data-a="sendWinClose" title="닫기">×</button></div><div class="mb"><div class="bigroute"><span class="e"><small>보내는 지식 · 개인 · 나만</small><b>${esc(src.name)}</b></span>${svg('arrow')}<span class="e"><small>받는 지식 · 팀 · ${esc(teamWho(r).split(' · ')[1])}</small><b data-t="sendConfirmTo">${esc(r.name)}</b></span></div><ul class="plain sum">${rows}</ul><p class="small muted" style="margin:10px 0 0">고른 것마다 기록 하나로 ${esc(r.name)} 에 들어간다 · ${esc(tidyWhen(r))} 문서에 들어간다 · ${esc(S.me.user)} 이름으로 간다 · 내 개인 지식의 글은 그대로다</p></div><div class="mf"><span class="l">${src.pc ? '이 PC 의 kmd 가 보낸다' : '팀 서버 안에서 보낸다'}</span><span class="acts"><button class="btn ghost" data-a="sendWinClose">취소</button><button class="btn pri" data-a="doSend" data-t="sendGo"${S.sending ? ' disabled' : ''}>${S.sending ? '보내는 중…' : esc(ro(r.name)) + ' 보내기'}</button></span></div></div></div>`
+    return `<div class="scrim fix" data-a="sendWinClose" data-self="1"><div class="modal w560" data-t="sendConfirm"><div class="mh">보내기 확인<button class="x" data-a="sendWinClose" title="닫기">×</button></div><div class="mb"><div class="bigroute"><span class="e"><small>보내는 지식 · 개인 · 나만</small><b>${esc(src.name)}</b></span>${svg('arrow')}<span class="e"><small>받는 지식 · 팀 · ${esc(teamWho(r).split(' · ')[1])}</small><b data-t="sendConfirmTo">${esc(r.name)}</b></span></div><ul class="plain sum">${rows}</ul><p class="small muted" style="margin:10px 0 0">고른 것마다 기록 하나로 ${esc(r.name)} 에 들어간다 · ${esc(tidyWhen(r))} 문서에 들어간다 · ${esc(S.me.user)} 이름으로 간다 · 내 개인 지식의 글은 그대로다</p></div><div class="mf"><span class="l">${!isTeam() ? '이 프로그램이 이 PC 의 기기 열쇠로 보낸다' : src.pc ? '이 PC 의 kmd 가 보낸다' : '팀 서버 안에서 보낸다'}</span><span class="acts"><button class="btn ghost" data-a="sendWinClose">취소</button><button class="btn pri" data-a="doSend" data-t="sendGo"${S.sending ? ' disabled' : ''}>${S.sending ? '보내는 중…' : esc(ro(r.name)) + ' 보내기'}</button></span></div></div></div>`
   }
-  const teams = S.kns.filter((k) => !k.pc && !k.dim && k.id !== r.kn && canWrite(k.id))
-  const pt = w.to && KN(w.to)
-  const rows = teams.map((t) => `<label class="trow${w.to === t.id ? ' on' : ''}" data-t="sendChangeTeam"><input type="radio" name="sendTo2" data-a="sendWinTo" data-v="${esc(t.id)}"${w.to === t.id ? ' checked' : ''}><span class="tn"><b>${esc(t.name)}</b><small>${esc(teamWho({ owner: t.owner, tidyAt: t.tidyAt, tidyMode: t.tidyMode }))}</small></span><span class="kt team">팀</span></label>`).join('')
+  const teams = sendTeams().filter((t) => !(t.id === r.kn && (isTeam() || t.url === r.url)))
+  const pt = w.to && sendTeamOf(w.to)
+  const rows = teams.map((t) => `<label class="trow${w.to === t.key ? ' on' : ''}" data-t="sendChangeTeam"><input type="radio" name="sendTo2" data-a="sendWinTo" data-v="${esc(t.key)}"${w.to === t.key ? ' checked' : ''}><span class="tn"><b>${esc(t.name)}</b><small>${esc(teamWho({ owner: t.owner, tidyAt: t.tidyAt, tidyMode: t.tidyMode }))}${t.host ? ' · ' + esc(t.host) : ''}</small></span><span class="kt team">팀</span></label>`).join('')
   return `<div class="scrim fix" data-a="sendWinClose" data-self="1"><div class="modal w560" data-t="sendChangeWin"><div class="mh">받는 지식 바꾸기 <small>${esc(src.name)}</small><button class="x" data-a="sendWinClose" title="닫기">×</button></div><div class="mb"><div class="callout warn" style="margin-top:0">바꾸면 <b>${esc(src.name)}</b> 에서 앞으로 보내는 것이 모두 새 곳으로 간다. ${esc(r.name)} 에 이미 보낸 것은 그대로 남는다.</div><div class="small b6 mt-sec">지금: ${esc(r.name)} · 새 받는 지식</div>${rows || '<p class="muted small">쓰기 자리가 있는 다른 팀 지식이 없다</p>'}${pt ? `<div class="field" style="margin:10px 0 0"><label for="sendType">확인: 새 받는 지식 이름 「${esc(pt.name)}」 를 그대로 친다</label><input class="inp" id="sendType" data-in="sendType" data-t="sendType" value="${esc(w.type || '')}" placeholder="${esc(pt.name)}" autocomplete="off"></div>` : ''}${w.err ? formErr(w.err, 'sendWinErr') : ''}</div><div class="mf"><span class="l">바꾼 일은 이력에 남는다</span><span class="acts"><button class="btn ghost" data-a="sendWinClose">취소</button><button class="btn pri" data-a="sendChangeGo" data-t="sendChangeGo"${pt && (w.type || '').trim() === pt.name && !S.sending ? '' : ' disabled'}>${pt ? esc(ro(pt.name)) + ' 바꾸기' : '바꾸기'}</button></span></div></div></div>`
 }
 // 길 정하기 · 바꾸기 — 서버가 다시 본다(바꾸기는 새 이름을 그대로 · 팀 지식만)
-async function sendRoute(src, to, confirm) {
+async function sendRoute(src, key, confirm) {
+  const t = sendTeamOf(key)
+  if (!t) return
+  const to = t.id
   S.sending = true
   render()
   try {
-    S.cache['send:' + src] = await postJSON(`/api/k/${encodeURIComponent(src)}/send/route`, { to, confirm })
+    S.cache['send:' + src] = await postJSON(`/api/k/${encodeURIComponent(src)}/send/route`, { to, confirm, ...(t.url ? { url: t.url } : {}) })
     S.sendSel = {}
     S.sendWhole = {}
     S.sendWin = null
     S.sendPickTo = null
-    toast(`받는 지식을 정했다: ${esc(knNm(src))} 에서 보내는 것은 모두 ${esc(ro(knNm(to)))} 간다`)
+    toast(`받는 지식을 정했다: ${esc(knNm(src))} 에서 보내는 것은 모두 ${esc(ro(t.name))} 간다`)
     await reloadKns()
   } catch (e) {
     if (S.sendWin) S.sendWin.err = e.message
@@ -4504,8 +4558,8 @@ const ACT = {
   delClose: () => { if (S.del && !S.del.busy) { S.del = null; render() } },
   delDo: () => delDo(),
   copyRoot: () => { copyText(knRoot()); toast('지식 폴더 경로를 복사했다') },
-  copyMeRoot: () => { copyText((S.pc && S.pc.root) || ''); toast('내 PC 지식 폴더 경로를 복사했다') },
-  meRootEdit: () => { S.meRootEdit = (S.pc && S.pc.root) || ''; S.meRootErr = null; S._focus = 'meRootIn'; render() },
+  copyMeRoot: () => { copyText(meRootNow()); toast('내 PC 지식 폴더 경로를 복사했다') },
+  meRootEdit: () => { S.meRootEdit = meRootNow(); S.meRootErr = null; S._focus = 'meRootIn'; render() },
   meRootCancel: () => { S.meRootEdit = null; S.meRootErr = null; render() },
   meRootSave: () => meRootSave(),
   meSetupGo: () => meSetupGo(),
@@ -4743,7 +4797,7 @@ document.addEventListener('input', (ev) => {
   if (k === 'sf') sfState()[t.dataset.f] = t.value
   if (k === 'se' && S.se) S.se[t.dataset.f] = t.value
   if (k === 'sendQ') { S.sendQ = t.value; const q = t.value.trim().toLowerCase(); for (const r of document.querySelectorAll('[data-t=sendRec]')) r.style.display = !q || r.textContent.toLowerCase().includes(q) ? '' : 'none' }
-  if (k === 'sendType' && S.sendWin) { S.sendWin.type = t.value; const b = $('[data-t=sendChangeGo]'), pt = S.sendWin.to && KN(S.sendWin.to); if (b) b.disabled = !pt || t.value.trim() !== pt.name || S.sending }
+  if (k === 'sendType' && S.sendWin) { S.sendWin.type = t.value; const b = $('[data-t=sendChangeGo]'), pt = S.sendWin.to && sendTeamOf(S.sendWin.to); if (b) b.disabled = !pt || t.value.trim() !== pt.name || S.sending }
   if (k === 'edTx' && S.edit) { S.edit.text = t.value; try { sessionStorage.setItem(edKey(S.edit), t.value) } catch {} return }
   if (k === 'addDir' && S.addPop) S.addPop.dir = t.value
   if (k === 'meRoot') S.meRootEdit = t.value

@@ -1120,7 +1120,7 @@ a.dlink:hover{text-decoration:underline;text-underline-offset:2px}
   /* 칸 나눔은 본문 폭을 본다 — 옆 메뉴 · 오른쪽 칸이 남은 폭에서도 두 칸으로 좁아지지 않게 */
   .fgrid{grid-template-columns:1fr}
   .stflow{flex-direction:column}.arr{height:14px;width:auto;transform:rotate(90deg)}.det .meta{grid-template-columns:auto 1fr}
-  .snd .rarr{width:100%;height:30px;border-left:0;border-top:1px solid var(--border);transform:rotate(90deg)}
+  .snd .rarr{width:100%;height:30px;border-left:0;border-top:1px solid var(--border)}.snd .rarr svg{transform:rotate(90deg)}
 }
 /* 서랍 단추가 없는 화면(예전 짜임) — 900 이하: 오른쪽 칸은 본문 아래 · 옆 메뉴는 위쪽 띠 · 창 전체가 길어진다 */
 @media (max-width:900px){

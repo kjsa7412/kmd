@@ -697,3 +697,82 @@ test('이 PC 화면: 정리가 따로 없다는 말(지식 만들기 · 설정) 
     await pc.close()
   }
 })
+
+test('개인 화면: 지식 보내기 · 받는 팀 지식 고르기 · 지식 폴더 바꾸기 · 네 폭에서 잘린 요소 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+  // 분리 1단계 — 팀 화면에서 하던 개인 일이 개인 화면(개인 프로그램)에 다 있다
+  const PCK = { user: pc.pcUser, admin: true, pc: true }
+  const kn = await pc.hub.addKnowledge(PCK, { kind: 'new', name: '테스트-보내기' })
+  await pc.hub.save(PCK, kn.id, { record: { title: '테스트 기록: 개인 화면에서 보냄', body: '개인 화면에서 팀 지식으로 보낸다.' } })
+  await pc.hub.curateIdle(kn.id)
+  const page = await browser.newPage({ viewport: VIEW })
+  const errors = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  try {
+    await page.goto(`${pc.url}/#once=${pc.auth.once(pc.pcUser)}`)
+    await page.waitForSelector('[data-t=klist]')
+    // 지식 폴더 띠 — 경로 · 동기화 · 바꾸기 · 빼기
+    assert.equal(await page.locator('[data-t=addRoot] [data-t=meRootEdit]').count(), 1)
+    assert.equal(await page.locator('[data-t=addRoot] [data-t=meRootDrop]').count(), 1)
+    await page.click('[data-t=meRootEdit]')
+    assert.equal(await page.locator('[data-t=meRootIn]').inputValue(), path.join(tmp, 'pc'))
+    await page.click('[data-a=meRootCancel]')
+    // 지식 관리 — 개인 화면에도 지식 보내기
+    await mg(page, 'me', 'send')
+    await page.waitForSelector('[data-t=mgNav]')
+    assert.deepEqual(await mgItems(page), ['가져오기', '지식 보내기', '일반', 'Claude 연결', '에이전트 설치'])
+    await page.click('[data-t=sendSrc]')
+    await page.locator('[data-t=sendSrcItem]').filter({ hasText: '테스트-보내기' }).click()
+    await page.waitForSelector('[data-t=sendSetup]')
+    // 받는 팀 지식 — 이 PC 가 이은 팀의 지식(기기 열쇠로 본 목록)
+    await page.locator('[data-t=sendTeam]').filter({ hasText: 'DPMS 지식' }).waitFor()
+    await page.locator('[data-t=sendTeam]').filter({ hasText: 'DPMS 지식' }).click()
+    await page.click('[data-t=sendSetRoute]')
+    await page.waitForSelector('[data-t=sendBody]')
+    assert.match(await page.locator('[data-t=sendRoute]').innerText(), /테스트-보내기 에서 보내는 것은 모두 DPMS 지식으로만 간다/)
+    await page.locator('[data-t=sendRec]').filter({ hasText: '테스트 기록: 개인 화면에서 보냄' }).click()
+    assert.equal(await page.locator('[data-t=sendBtn]').innerText(), 'DPMS 지식으로 1개 보내기')
+    await page.click('[data-t=sendBtn]')
+    await page.waitForSelector('[data-t=sendConfirm]')
+    await page.click('[data-t=sendGo]')
+    await page.waitForFunction(() => !document.querySelector('[data-t=sendConfirm]'))
+    assert.ok((await s.hub.get('dpms')).works.some((w) => w.title === '테스트 기록: 개인 화면에서 보냄'), '팀 지식에 기록으로 들어갔다')
+    await page.click('[data-t=sendTab-log]')
+    assert.match(await page.locator('[data-t=sentRow]').first().innerText(), /DPMS 지식으로 1개를 보냈다/)
+    // 네 폭 — 잘린 요소 · 가로 넘침 0(보내기 화면)
+    for (const w of [1280, 1024, 600, 375]) {
+      await page.setViewportSize({ width: w, height: 820 })
+      await page.click('[data-t=sendTab-rec]')
+      const r = await page.evaluate(() => {
+        const W = innerWidth, out = []
+        const scrolls = (el) => { for (let p = el.parentElement; p; p = p.parentElement) { const o = getComputedStyle(p).overflowX; if (o === 'auto' || o === 'scroll') return true } return false }
+        for (const el of document.querySelectorAll('.main *')) {
+          const cs = getComputedStyle(el)
+          if (cs.visibility === 'hidden' || cs.display === 'none') continue
+          const b = el.getBoundingClientRect()
+          if (b.width && b.height && b.right > W + 1 && b.left < W && !scrolls(el)) out.push(`${el.tagName}.${el.className} ${Math.round(b.right)}`)
+        }
+        return { cut: out, sw: document.documentElement.scrollWidth, w: W }
+      })
+      assert.deepEqual(r.cut, [], `${w}: 잘린 요소 없음`)
+      assert.ok(r.sw <= r.w, `${w}: 가로 넘침 없음 ${r.sw}`)
+      await page.screenshot({ path: path.join(SHOTS, `app-pc-send-${w}.png`) })
+    }
+    await page.setViewportSize(VIEW)
+    // 새 지식 팝업 — 받는 팀 지식을 함께 정한다
+    await page.goto(`${pc.url}/`)
+    await page.waitForSelector('[data-t=klist]')
+    await page.click('[data-t=klist] [data-t=addCard]')
+    await page.waitForSelector('[data-t=addTo]')
+    await page.fill('#addIn', '테스트-보내기2')
+    await page.selectOption('[data-t=addTo]', { label: 'DPMS 지식' })
+    await page.click('[data-t=addBtn]')
+    await page.waitForSelector('[data-t=syncMsg]')
+    assert.match(await page.locator('[data-t=syncMsg]').innerText(), /보내는 곳 DPMS 지식/)
+    const v = await pc.hub.sendView(PCK, '테스트-보내기2')
+    assert.equal(v.route && v.route.kn, 'dpms')
+    assert.deepEqual(await bannedIn(page), [])
+    assert.deepEqual(errors, [])
+  } finally {
+    await page.close()
+  }
+})
