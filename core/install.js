@@ -64,3 +64,34 @@ export function installLines({ version, root, backup = null, kns = [], team = nu
   if (claudeTidy) dim('기록이 남으면 곧바로 Claude 로 다듬어 문서에 넣는다. 끄려면 설정')
   return L
 }
+
+// 늘 켜기 작업으로 다시 켜기(Q95) — 멈춘 kmd 의 작업 인스턴스(wscript → cmd → node)는 HTTP 가 닫힌 뒤에도 잠깐 「실행 중」 으로
+// 남는다. 그때 /Run 은 IgnoreNew 로 버려진다(작업 기록 322 「이미 실행 중이므로 시작하지 않았다」 · 그래도 schtasks 는 0).
+// 그래서 ① 작업이 실행 중이 아니게 될 때까지 기다리고 · 끝내 실행 중이면 /End ② /Run 뒤 새 kmd 가 서나 본다
+// ③ 서지 않으면 작업을 끝내고 같은 판을 node 로 바로 띄운다(작업 · 실행기 · current.json 은 이미 그 판 — 다음 로그온도 그 판).
+// schtasks · 프로세스는 넘겨받는다(시험은 가짜로) — state() 'Running' · 그 밖(Ready · null 모름)
+// settleMs — 이 PC 에서 HTTP 가 닫힌 뒤 앞 인스턴스가 끝나기까지 30초 남짓 걸렸다(2026-10-29) · 묻기(PowerShell)도 1초쯤이라 시계로 잰다
+export async function startViaTask({ state, end, run, direct, waitUp, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), now = Date.now, settleMs = 45_000, taskMs = 30_000, directMs = 60_000, step = 500 }) {
+  const steps = []
+  const until = now() + settleMs
+  let st = await state()
+  while (st === 'Running' && now() < until) {
+    await sleep(step)
+    st = await state()
+  }
+  if (st === 'Running') {
+    await end()
+    steps.push('end')
+  }
+  if ((await run()) === 0) {
+    steps.push('run')
+    const up = await waitUp(taskMs)
+    if (up) return { how: 'task', up, steps }
+    // 작업이 켜지 못했다 — 걸린 인스턴스가 남아 다음 /Run · 로그온을 막지 않게 끝낸다
+    await end()
+    steps.push('end')
+  }
+  await direct()
+  steps.push('direct')
+  return { how: 'direct', up: await waitUp(directMs), steps }
+}

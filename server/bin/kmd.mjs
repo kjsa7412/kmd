@@ -22,7 +22,7 @@ import { prehash } from '../../app/prehash.js'
 
 import { addMcp, mcpLine, safeOrigin } from '../../core/claudecfg.js'
 import { taskXml, upgrade, appHomeOf, launcherOf, linkVersion, makeShortcut, readPcRoot, writePcRoot, pcRootKind } from '../../core/pcops.js'
-import { installLines, pickBackupDir } from '../../core/install.js'
+import { installLines, pickBackupDir, startViaTask } from '../../core/install.js'
 import { ensureRepo } from '../../core/git.js'
 import { install as kitInstall, folders as kitFolders, setFolders as kitSetFolders, addKn as kitAddKn, defOf as kitDefOf } from '../../core/kit.js'
 
@@ -176,12 +176,32 @@ async function openPc(url) {
   const { code } = await pcCall(url, '/api/pc/once')
   openBrowser(`${url}/#once=${code}`)
 }
-// 꺼져 있으면 켠다 — 기본 폴더면 늘 켜기 작업으로(한 벌만 돈다) · 아니면 이 판을 따로 띄운다
-async function startPc(root, o, { node = process.execPath, script = process.argv[1] } = {}) {
+// 늘 켜기 작업의 상태 — 'Running' · 'Ready' · … · 작업이 없거나 묻지 못하면 null(schtasks 의 상태 글은 OS 말로 바뀌어 PowerShell 로)
+const taskState = () => runOut('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', "(Get-ScheduledTask -TaskName 'kmd' -ErrorAction Stop | Where-Object TaskPath -eq ([string][char]92)).State"]).then((s) => (s && s.trim()) || null)
+// 새로 선 kmd(oldPid 가 아닌 up.json · 답한다)를 ms 동안 기다린다
+async function waitNewPc(root, o, oldPid, ms) {
+  const end = Date.now() + ms
+  while (Date.now() < end) {
+    const up = readUp(root, o)
+    if (up && up.pid !== oldPid && (await pcAlive(up.url)) === 'up') return up
+    await new Promise((r) => setTimeout(r, 500))
+  }
+  return null
+}
+// 꺼져 있으면 켠다 — 기본 폴더면 늘 켜기 작업으로(한 벌만 돈다) · 작업이 켜지 못하면 같은 판을 바로 · 아니면 이 판을 따로 띄운다.
+// 작업으로 켤 때는 새 kmd 가 설 때까지 기다려 { how, up, steps } 를 준다(따로 띄우면 null — 부른 쪽이 기다린다)
+async function startPc(root, o, { node = process.execPath, script = process.argv[1], oldPid } = {}) {
   const plain = !o.port && !o.data && sameDir(root, defaultPcRoot())
-  if (process.platform === 'win32' && plain && !process.env.KMD_NO_TASK && (await runCode('schtasks', ['/Run', '/TN', 'kmd'])) === 0) return
   const args = [script, 'up', root, '--no-open', ...(o.port ? ['--port', String(o.port)] : []), ...(o.data ? ['--data', path.resolve(o.data)] : []), ...(o.worker === 'false' ? ['--no-worker'] : [])]
-  spawn(node, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref()
+  const direct = () => spawn(node, args, { detached: true, stdio: 'ignore', windowsHide: true }).on('error', () => {}).unref()
+  if (process.platform !== 'win32' || !plain || process.env.KMD_NO_TASK) return void direct()
+  return startViaTask({
+    state: taskState,
+    end: () => runCode('schtasks', ['/End', '/TN', 'kmd']),
+    run: () => runCode('schtasks', ['/Run', '/TN', 'kmd']),
+    direct,
+    waitUp: (ms) => waitNewPc(root, o, oldPid, ms)
+  })
 }
 // 지식 폴더 바꾸기(도는 kmd 안에서) — 표에 적고 · 늘 켜기 작업 · 시작 메뉴를 새 폴더로 · 꺼진 뒤 새 폴더로 켤 도우미를 띄운다
 async function switchRoot(next, o) {
@@ -208,12 +228,10 @@ async function restartPc(root, o, url, { node, script } = {}) {
   const why = await stopPc(url)
   if (why) return { ok: false, why: `도는 kmd 를 멈추지 못했다: ${why}` }
   const port = Number(new URL(url).port)
-  await startPc(root, port === 7373 ? o : { ...o, port }, { node, script })
-  for (let i = 0; i < 90; i++) {
-    const up = readUp(root, o)
-    if (up && up.pid !== oldPid && (await pcAlive(up.url)) === 'up') return { ok: true, up }
-    await new Promise((r) => setTimeout(r, 500))
-  }
+  // 작업으로 켜면 startPc 가 기다리고(못 켜면 같은 판을 바로 띄워) 준다 · 따로 띄웠으면 여기서 기다린다
+  const via = await startPc(root, port === 7373 ? o : { ...o, port }, { node, script, oldPid })
+  const up = via ? via.up : await waitNewPc(root, o, oldPid, 45_000)
+  if (up) return { ok: true, up, how: via?.how || 'direct', steps: via?.steps || [] }
   return { ok: false, why: '다시 켜지 않았다. kmd open 으로 켠다' }
 }
 // 지금 이 PC 의 kmd 가 쓰는 지식 폴더 — --root · 늘 켜기 작업의 인자 · 도는 kmd 에게 묻기 · 기본 폴더 순
@@ -693,7 +711,16 @@ async function docfmtCmd(o) {
         const r = await hub.docfmt(x, SHELL, { dry })
         const bad = r.docs.filter((d) => !d.ok)
         console.log(`${r.name}: ${dry ? '옮길' : '옮긴'} 문서 ${r.files} · 줄 ${r.moved}${bad.length ? ` · 옮기지 않음 ${bad.length}` : ''}${r.log ? ` · 이력 ${r.log}` : ''}`)
-        for (const d of r.docs) if (d.changed || !d.ok) console.log(`  ${d.ok ? '-' : '!'} ${d.doc}: ${d.ok ? `줄 ${d.moved}` : d.why}`)
+        // 짜임 알림(옮긴 뒤 글을 본 것 · 고치지는 않는다) — 문서 수 · 알림 수 · 갈래(code)별 수
+        const lt = r.lint || { docs: 0, n: 0, codes: {} }
+        if (lt.n) console.log(`  짜임 알림: 문서 ${lt.docs} · 알림 ${lt.n} (${Object.entries(lt.codes || {}).sort((a, b) => b[1] - a[1]).map(([c, n]) => `${c} ${n}`).join(' · ')})`)
+        for (const d of r.docs) {
+          const ln = d.lint || { n: 0 }, ks = d.kinds || {}
+          if (!d.changed && d.ok && !ln.n) continue
+          const extra = [ks.change ? `변경 이력 ${ks.change}` : '', ks.top ? `머리 앞 걷음 ${ks.top}` : '', ln.n ? `짜임 알림 ${ln.n}` : ''].filter(Boolean).join(' · ')
+          console.log(`  ${d.ok ? '-' : '!'} ${d.doc}: ${d.ok ? `줄 ${d.moved}` : d.why}${extra ? ` · ${extra}` : ''}`)
+          for (const x of ln.top || []) console.log(`      ${x.line}째 줄 ${x.msg}`)
+        }
       } catch (e) {
         console.log(`${x}: 하지 못했다(${e.message})`)
         process.exitCode = 1
@@ -861,8 +888,15 @@ async function connectCmd(o) {
         if (old) await stopPc(old)
       }
       if (!url) {
-        await runCode('schtasks', ['/Run', '/TN', 'kmd'])
-        url = await waitPc(root, { ...o, data: pcData }, 45_000)
+        // 멈춘 옛 인스턴스가 아직 실행 중이면 /Run 이 버려진다 — 끝나기를 기다리고 · 작업이 못 켜면 이 판을 바로(Q95)
+        const via = await startViaTask({
+          state: taskState,
+          end: () => runCode('schtasks', ['/End', '/TN', 'kmd']),
+          run: () => runCode('schtasks', ['/Run', '/TN', 'kmd']),
+          direct: () => spawn(process.execPath, [process.argv[1], 'up', root, '--no-open', ...(o.data ? ['--data', pcData] : [])], { detached: true, stdio: 'ignore', windowsHide: true }).on('error', () => {}).unref(),
+          waitUp: (ms) => waitPc(root, { ...o, data: pcData }, ms)
+        })
+        url = via.up
       }
       screen = !url ? { ok: false, why: '아직 켜지는 중이다' } : team.ok ? (openBrowser(url0 && safeOrigin(url0)), { ok: true, team: true }) : await openPc(url).then(() => ({ ok: true }), (e) => ({ ok: false, why: e.message }))
     } else task = { ok: false, why: '작업을 만들지 못했다. kmd pc task 로 다시' }
@@ -1003,7 +1037,7 @@ async function pcCmd(o) {
       const dir = path.join(home, 'versions', r.ver)
       const node = fs.existsSync(path.join(dir, 'node.exe')) ? path.join(dir, 'node.exe') : process.execPath
       const back = await restartPc(root, o, url, { node, script: path.join(dir, 'server', 'bin', 'kmd.mjs') })
-      if (back.ok) console.log(`✓ 다시 켰다. 판 ${back.up.ver} · ${back.up.url}`)
+      if (back.ok) console.log(`✓ 다시 켰다. 판 ${r.ver} · ${back.up.url}${back.how === 'direct' ? ' · 늘 켜기 작업이 켜지 못해 바로 띄웠다(다음 로그온부터는 작업이 이 판으로 켠다)' : ''}${back.steps.length > 1 ? ` · ${back.steps.join(' → ')}` : ''}`)
       else if (/멈추지 못했다/.test(back.why)) {
         console.log(`· ${back.why}: 로그아웃했다 들어오면(늘 켜기) 새 판으로 켜진다`)
         process.exitCode = 1
