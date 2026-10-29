@@ -81,6 +81,9 @@ test('지식마다 자리(순수): 사람 줄만 바꾼다 · 없음이면 지�
   assert.match(md, /^- 지식관리자: x$/m)
   assert.doesNotMatch(md, /^- 관리:/m)
   assert.deepEqual(owners.parseMembers('- 주인: o\n- 모두: 없음\n- 관리: y\n').access.users, { y: 'admin' })
+  // 같은 자리 표 · 다른 차례는 같다(켤 때 _members.md 를 괜히 다시 쓰지 않는다 — 188 에서 본 것)
+  assert.ok(owners.sameAccess({ all: 'none', users: { b: 'write', a: 'read' } }, { all: 'none', users: { a: 'read', b: 'write' } }))
+  assert.ok(!owners.sameAccess({ all: 'none', users: { a: 'read' } }, { all: 'none', users: { a: 'write' } }))
 })
 
 test('서버: 켤 때 한 번 옮긴다(있던 사람은 그대로 본다 · 뒤에 더한 사람은 받은 지식만) · 사람 더하기 · 지식마다 자리 보기 · 바꾸기', async () => {

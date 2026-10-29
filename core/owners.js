@@ -320,7 +320,9 @@ export function renderMembers({ owner = null, curators = [], tidyMode = 'time', 
   return [...lines, ''].join('\n')
 }
 // 두 자리 표가 같은가(_members.md 와 장부 맞추기)
-export const sameAccess = (a, b) => JSON.stringify(a ? normAccess(a) : null) === JSON.stringify(b ? normAccess(b) : null)
+//   사람 · 묶음 줄의 차례는 보지 않는다(옮기기는 사람 차례로 적고 _members.md 는 이름 차례로 읽는다)
+const sortedAccess = (a) => { if (!a) return null; const n = normAccess(a); const srt = (m) => Object.fromEntries(Object.entries(m).sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0))); return { all: n.all, users: srt(n.users), groups: srt(n.groups) } }
+export const sameAccess = (a, b) => JSON.stringify(sortedAccess(a)) === JSON.stringify(sortedAccess(b))
 // _members.md 의 자리 표 — 손으로 고친 줄이 깨져 있어도 넘어지지 않게 · 서버에 없는 묶음 · 아이디 모양이 아닌 이름은 뺀다
 const mdAccess = (reg, a) => {
   const groups = {}
