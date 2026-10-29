@@ -24,3 +24,7 @@ export async function signIn(s, { id = 'kim', admin = true, password = null } = 
   const key = await s.auth.deviceKeyFor(id, { host: 'TEST' })
   return { id, pw, cookie, key }
 }
+
+// 지식마다 자리 주기 — 받지 않은 지식은 없음이 기본이다(docs/kmd_권한_모델.md v1.1). 시험의 「팀원」 은 자리를 받아야 본다
+//   seats: { 지식: 'read' | 'write' | 'admin' | 'none' } · 셸 ctx 로(총괄 관리자 비밀번호 한 번 더 없이)
+export const seat = (s, user, seats) => s.hub.setSeats({ shell: true }, user, seats)

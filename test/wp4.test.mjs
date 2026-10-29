@@ -15,7 +15,7 @@ import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
 import * as feed from '../core/feed.js'
 import { prehash } from '../app/prehash.js'
-import { copyDir, signIn } from './helpers.mjs'
+import { copyDir, signIn, seat } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, root, data, s, kim, lee, park
@@ -98,7 +98,10 @@ test('떠남: 한 번에 끊고 아이디를 남긴다 · 지식은 넘기거나
 test('관리자는 화면에서 팀 지식을 세운다 · 주인 넘기기 · 팀 지식 지우기는 비밀번호 한 번 더 · 팀 서버에는 개인 지식이 없다', async () => {
   const r = await post('/api/knowledge/add', kim, { kind: 'new', name: '보안점검' }).then((x) => x.json())
   assert.equal(r.id, '보안점검')
-  assert.ok((await get('/api/knowledge', park).then((x) => x.json())).some((k) => k.id === '보안점검'), '팀 모두 본다')
+  // 새로 세운 지식은 all = none 으로 선다(권한 모델 v1.1 1절) — 자리를 받기 전에는 보이지 않고, 받으면 보인다
+  assert.ok(!(await get('/api/knowledge', park).then((x) => x.json())).some((k) => k.id === '보안점검'), '자리 없으면 안 보인다')
+  await seat(s, 'park', { 보안점검: 'read' })
+  assert.ok((await get('/api/knowledge', park).then((x) => x.json())).some((k) => k.id === '보안점검'), '자리를 받으면 본다')
   assert.equal(await code(s.hub.addKnowledge({ user: 'park' }, { kind: 'new', name: '몰래팀' })), 'E_FORBIDDEN')
   // 일반은 팀 서버에 지식을 세우지 못한다(개인 지식은 내 PC 에) · 개인 지식 폴더 길은 없다
   assert.equal((await post('/api/knowledge/add', park, { kind: 'new', name: '내 메모' })).status, 403)
@@ -116,6 +119,10 @@ test('관리자는 화면에서 팀 지식을 세운다 · 주인 넘기기 · �
 })
 
 test('부탁: 같은 것은 합친다 · 더하면 닫힌다 · 거절하면 부탁한 사람에게', async () => {
+  // 부탁하는 사람은 dpms 에 쓰기 자리가 있는 팀 사람(기본 자리는 없음 · 권한 모델 v1.1)
+  await seat(s, 'park', { dpms: 'write' })
+  await signIn(s, { id: 'choi', admin: false })
+  await seat(s, 'choi', { dpms: 'write' })
   const card = { name: '회의록', at: 'https://git.example/team/minutes.git', kind: 'git', rules: [] }
   const a = await s.hub.sourceRequest({ user: 'park' }, 'dpms', card)
   const b = await s.hub.sourceRequest({ user: 'choi' }, 'dpms', card)

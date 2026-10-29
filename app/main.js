@@ -38,7 +38,7 @@ const knType = () => (isTeam() ? 'team' : 'pc')
 // 지식 하나의 갈래 — 팀 화면은 팀 지식만 · 개인 화면은 개인 지식만(팀 화면은 개인 프로그램을 부르지 않는다)
 const isPersonal = () => !isTeam()
 const knWhere = (n) => (!n ? '' : !isTeam() ? n.dir || '' : '팀')
-const LV_T = { read: '읽기', write: '쓰기', admin: '관리' }
+const LV_T = { read: '읽기', write: '쓰기', admin: '지식관리자' }
 const lvOf = (n) => (!n ? null : n.level && LV_T[n.level] ? n.level : n.role === '정리' || n.role === '주인' || !isTeam() ? 'admin' : 'write')
 const lvChip = (n) => { const l = lvOf(n); return l ? `<span class="kt lv-${l}" data-t="lvChip" title="이 지식에서 나의 자리: ${LV_T[l]}">${LV_T[l]}</span>` : '' }
 // 쓰기 단추 — 읽기 자리면 막는다(서버도 막는다 · 화면은 미리 알린다)
@@ -395,7 +395,7 @@ function draw() {
   S._view = view
   S._lpView = lpView
   S._hasAside = !!scr.aside
-  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${gated() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside">${scr.aside}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}`
+  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${gated() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside">${scr.aside}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}`
   app.classList.toggle('side-open', !!S.sideOpen && !gated())
   app.classList.toggle('aside-open', !!S.asideOpen && !!scr.aside)
   placePop()
@@ -649,7 +649,7 @@ function viewHome() {
 
 
   const grids = team
-    ? `<div class="sec-h" data-t="teamSec"><b>팀 지식</b><small>팀 서버 · 지식마다 자리(읽기 · 쓰기 · 관리)가 다르다 · 카드 아래 칩이 나의 자리${S.me.admin ? '' : ' · 새 팀 지식은 관리자가 세운다'}</small></div>${fbar}
+    ? `<div class="sec-h" data-t="teamSec"><b>팀 지식</b><small>팀 서버 · 지식마다 자리(읽기 · 쓰기 · 지식관리자)가 다르다 · 카드 아래 칩이 나의 자리${S.me.admin ? '' : ' · 새 팀 지식은 관리자가 세운다'}</small></div>${fbar}
   <div class="kgrid" data-t="klist">${shown.map((n) => kcardHtml(n, team)).join('')}${addTeam}</div>${!shown.length && !addTeam ? '<p class="hint" data-t="teamEmpty">아직 볼 수 있는 팀 지식이 없다. 관리자가 자리를 주면 여기에 보인다</p>' : ''}`
     : `${localRootBar() || fbar}<div class="kgrid" data-t="klist">${shown.map((n) => kcardHtml(n, team)).join('')}${add}</div>`
   return {
@@ -725,7 +725,7 @@ function addPopHtml() {
 
   const teamKns = mine ? sendTeams() : [] // 받는 곳은 쓰기 자리 이상(권한 모델) · 개인 화면은 이 PC 가 이은 팀의 목록
   const toFld = mine && teamKns.length ? `<div class="field" style="margin:10px 0 0"><label for="addTo">받는 팀 지식 <span class="muted">(선택 · 나중에 지식 보내기에서 정해도 된다)</span></label><select class="inp" id="addTo" data-in="addTo" data-t="addTo"><option value="">정하지 않음</option>${teamKns.map((k) => `<option value="${esc(k.key)}"${a.to === k.key ? ' selected' : ''}>${esc(k.name)}${k.host ? ' · ' + esc(k.host) : ''}</option>`).join('')}</select><div class="hint">정하면 이 개인 지식에서 보내는 것은 모두 그곳으로만 간다</div></div>` : ''
-  const hint = a.where === 'team' ? '팀 지식 폴더에 팀 지식으로 선다. 권한은 지식마다(관리 자리가 정한다) · 세운 뒤 카드 ⋯ › 권한에서 읽기 · 쓰기 · 관리를 준다'
+  const hint = a.where === 'team' ? '팀 지식 폴더에 팀 지식으로 선다. 처음에는 나(주인)와 총괄 관리자만 본다 · 세운 뒤 카드 ⋯ › 권한에서 읽기 · 쓰기 · 지식관리자를 준다'
     : '지식 폴더 안에 선다. 나만 본다 · 폴더 경로를 쓰면 그 폴더의 글(md · docx · pptx · xlsx)을 한 번 들인다(원본은 그대로)'
 
   const dirFld = mine && !team ?`<div class="field" style="margin:10px 0 0"><label for="addDir">들일 폴더 경로 <span class="muted">(선택 · 쓰면 이름은 폴더 이름)</span></label><input class="inp mono" id="addDir" data-in="addDir" data-t="addDir" value="${esc(a.dir || '')}" placeholder="예: D:\\문서\\배포 노트" autocomplete="off"></div>` : ''
@@ -3359,11 +3359,11 @@ function tidyTable() {
 }
 // 사람 — 전역 관리자 하나와 지식마다의 자리(읽기 · 쓰기 · 관리 — docs/kmd_권한_모델.md). 관리자는 사람 · 묶음을 다룬다, 그 밖에는 읽기만
 function peopleCard() {
-  const rule = '<div class="cf small muted" data-t="roleRule"><span><b>관리자</b>: 사람 · 묶음 · 팀 지식 세우기 · 지우기 · 백업 · Claude 연결, 모든 지식에서 관리 &nbsp;·&nbsp; <b>지식마다 자리</b>: 읽기(보기 · 찾기) · 쓰기(+ 기록 남기기 · 파일 넣기) · 관리(+ 문서에 바로 고치기 · 정리 · 가져오는 곳 · 권한). 한 사람의 자리는 주인 · 사람 줄 · 든 묶음 · 모두(그 밖의 사람) 가운데 가장 높은 것 · 주는 곳은 지식 카드 ⋯ › 권한</span></div>'
+  const rule = '<div class="cf small muted" data-t="roleRule"><span><b>총괄 관리자</b>: 사람 · 묶음 · 팀 지식 세우기 · 지우기 · 백업 · Claude 연결, 모든 지식에서 지식관리자 &nbsp;·&nbsp; <b>지식마다 자리</b>: 읽기(보기 · 찾기) · 쓰기(+ 기록 남기기 · 파일 넣기) · 지식관리자(+ 문서에 바로 고치기 · 정리 · 가져오는 곳 · 권한). 받지 않은 지식은 보이지 않는다 · 한 사람의 자리는 주인 · 사람 줄 · 든 묶음 · 모두 가운데 가장 높은 것 · 주는 곳은 사람 ⋯ › 지식마다 자리 · 지식 카드 ⋯ › 권한</span></div>'
   if (S.me.admin) return admPeopleCard().replace(/<\/div>$/, rule + '</div>') + admGroupsCard()
   const p = peopleOf()
   const rows = Array.isArray(p) ? p.map((x) => `<li data-t="pplRow"><span class="av2">${esc(String(x).slice(0, 1))}</span><span class="nm">${esc(x)}${x === S.me.user ? ' <small>나</small>' : ''}</span></li>`).join('') : ''
-  return `<div class="card" data-t="peopleRO"><div class="ch">사람 <small>자리는 지식마다: 읽기 · 쓰기 · 관리 · 사람 · 묶음 바꾸기는 관리자가 한다</small></div><ul class="plain pl">${rows || `<li class="muted">${p ? '' : '읽는 중…'}</li>`}</ul>${rule}</div>`
+  return `<div class="card" data-t="peopleRO"><div class="ch">사람 <small>자리는 지식마다: 읽기 · 쓰기 · 지식관리자 · 사람 · 묶음 바꾸기는 총괄 관리자가 한다</small></div><ul class="plain pl">${rows || `<li class="muted">${p ? '' : '읽는 중…'}</li>`}</ul>${rule}</div>`
 }
 // 보내는 길 — 개인 지식마다 받는 팀 지식 하나(바꾸기는 지식 보내기에서)
 function routeTable() {
@@ -3675,7 +3675,7 @@ function accHtml() {
   const ownBtn = canOwn && a.own == null ? `<button type="button" class="btn sm ghost" data-a="accOwnOpen" data-t="accOwnOpen"${nCh ? ' disabled title="바꾼 자리를 먼저 저장하거나 취소한다"' : ''}>주인 바꾸기</button>` : ''
   return `<div class="scrim fix" data-a="accClose" data-self="1"${busy}><div class="modal w560" data-t="accWin">${head}<div class="mb">
   <ul class="plain pl acc">
-   <li data-t="accOwner"><span class="av2">${esc((v.owner || '관').slice(0, 1))}</span><span class="nm">${esc(v.owner || '관리자')}<small>${v.owner ? '주인 · 늘 관리' : '주인이 없다. 관리자가 관리한다'}</small></span>${ownBtn}<span class="kt lv-admin">관리</span></li>
+   <li data-t="accOwner"><span class="av2">${esc((v.owner || '관').slice(0, 1))}</span><span class="nm">${esc(v.owner || '총괄 관리자')}<small>${v.owner ? '주인 · 늘 지식관리자' : '주인이 없다. 총괄 관리자가 관리한다'}</small></span>${ownBtn}<span class="kt lv-admin">지식관리자</span></li>
   </ul>
   ${ownPick}
   <ul class="plain pl acc">
@@ -3722,7 +3722,7 @@ async function accOwnDo() {
   const a = S.acc
   if (!a || a.busy || !a.own || accDirty()) return
   const to = a.own, k = a.k, n = KN(k) || { name: k }
-  if (!(await ask1('주인 바꾸기', '주인 바꾸기', true, `${n.name}: 주인 ${a.v.owner || '없음'} → ${to}. 새 주인은 늘 관리 자리다 · 앞 주인은 사람 줄(관리)로 남는다`))) return
+  if (!(await ask1('주인 바꾸기', '주인 바꾸기', true, `${n.name}: 주인 ${a.v.owner || '없음'} → ${to}. 새 주인은 늘 지식관리자다 · 앞 주인은 사람 줄(관리)로 남는다`))) return
   if (!S.acc || S.acc.k !== k) return
   a.busy = true; a.err = null; render()
   try {
@@ -3745,9 +3745,32 @@ function admPeopleCard() {
   const live = u.users.filter((x) => !x.off && !x.legacyOnly), gone = u.users.filter((x) => x.off)
   const st = (x) => x.password ? '들어온다' : x.firstOpen ? `링크 보냄 · ${Math.floor(leftMin(x.firstExp) / 60)}시간 ${leftMin(x.firstExp) % 60}분 남음` : '비밀번호를 안 정함'
   const mk = (x) => 'pp:' + x.id
-  const row = (x) => `<li data-t="admPerson" data-name="${esc(x.id)}"><span class="av2">${esc(x.id.slice(0, 1))}</span><span class="nm">${esc(x.id)}${x.admin ? ' <span class="kt role">관리자</span>' : ''}<small>${esc(st(x))} · 기기 ${x.devices}${x.workers ? ' · PC 일꾼 ' + x.workers : ''}${x.roles.team ? ` · 주인 ${x.roles.team}` : ''}${x.admin ? ' · 모든 지식 관리' : ` · <span data-t="admPersonKns">지식 ${x.roles.kns || 0}개에 자리</span>`}</small></span>${S.admLink && S.admLink.id === x.id ? `<span class="mono small ell mw260" data-t="admLinkOut">${esc(S.admLink.link)}</span><button type="button" class="lk" data-a="admCopyLink" data-t="admCopyLink">복사</button>` : ''}${x.id === S.me.user ? '' : `<button class="kebab${S.menu === mk(x) ? ' on' : ''}" data-a="menu" data-m="${esc(mk(x))}" data-t="admPersonKebab" title="새 링크 · 관리자 · 기기 · 떠남">⋯${S.menu === mk(x) ? popHtml(mk(x), `<div><div class="mi" data-a="admLink1" data-v="${esc(x.id)}" data-t="admLink1">새 링크<small>이 사람만 · 24시간 · 한 번: 지금 비밀번호는 지워진다</small></div><div class="mi" data-a="admAdminSet" data-v="${esc(x.id)}" data-on="${x.admin ? '' : '1'}" data-t="admAdminSet">${x.admin ? '관리자 아님으로' : '관리자로'}</div><div class="mi" data-a="admRevokeAll" data-v="${esc(x.id)}" data-t="admRevokeAll">기기 모두 끊기<small>Claude Code · 이 PC 의 kmd · PC 일꾼이 다시 이어야 한다</small></div><div class="sep"></div><div class="mi danger" data-a="admOffOpen" data-v="${esc(x.id)}" data-t="admOffOpen">떠남…<small>들어가기 · 기기 · PC 일꾼을 끊고 지식을 넘긴다</small></div></div>`) : ''}</button>`}</li>`
-  const add = S.admAdd ? `<div class="flow" data-t="admAddForm"><div class="row"><input class="inp" id="admAddIn"${invAttr(S.admAdd.err, 'admAddErr')} aria-label="새 사람 아이디" data-in="admAddId" data-t="admAddIn" value="${esc(S.admAdd.id || '')}" placeholder="아이디: 영문 · 숫자 · . _ -" autocomplete="off" style="flex:1"><label class="small"><input type="checkbox" id="admAddAdmin"${S.admAdd.admin ? ' checked' : ''} data-t="admAddAdmin"> 관리자</label><button type="button" class="btn ghost sm" data-a="admAddCancel">취소</button><button class="btn pri" data-a="admAddDo" data-t="admAddDo">더하기</button></div>${S.admAdd.err ? formErr(S.admAdd.err, 'admAddErr') : ''}</div>` : ''
-  return `<div class="card" data-t="admPeople" style="overflow:visible"><div class="ch">사람 ${live.length} <small>처음 들어오기 링크는 사람마다 따로 보낸다</small></div><div class="cb" style="padding:2px 14px 10px">${add}<ul class="plain pl">${live.map(row).join('')}</ul>${gone.length ? `<details class="more" data-t="admGone"><summary>떠난 사람 ${gone.length}: 아이디는 되쓰지 않는다</summary><div class="in">${gone.map((x) => `${esc(x.id)} · ${esc(String(x.off.at).slice(0, 10))}`).join(' · ')}</div></details>` : ''}</div><div class="cf">${S.admAdd ? '' : '<button class="btn pri" data-a="admAddOpen" data-t="admAddOpen">사람 더하기</button>'}<span>더하면 처음 들어오기 링크가 나온다. 그 사람에게만 보낸다</span></div></div>`
+  const row = (x) => `<li data-t="admPerson" data-name="${esc(x.id)}"><span class="av2">${esc(x.id.slice(0, 1))}</span><span class="nm">${esc(x.id)}${x.admin ? ' <span class="kt role">총괄 관리자</span>' : ''}<small>${esc(st(x))} · 기기 ${x.devices}${x.workers ? ' · PC 일꾼 ' + x.workers : ''}${x.roles.team ? ` · 주인 ${x.roles.team}` : ''}${x.admin ? ' · 모든 지식 지식관리자' : ` · <span data-t="admPersonKns">지식 ${x.roles.kns || 0}개에 자리</span>`}</small></span>${S.admLink && S.admLink.id === x.id ? `<span class="mono small ell mw260" data-t="admLinkOut">${esc(S.admLink.link)}</span><button type="button" class="lk" data-a="admCopyLink" data-t="admCopyLink">복사</button>` : ''}${x.id === S.me.user ? '' : `<button class="kebab${S.menu === mk(x) ? ' on' : ''}" data-a="menu" data-m="${esc(mk(x))}" data-t="admPersonKebab" title="지식마다 자리 · 새 링크 · 총괄 관리자 · 기기 · 떠남">⋯${S.menu === mk(x) ? popHtml(mk(x), `<div>${x.admin ? '' : `<div class="mi" data-a="seatOpen" data-v="${esc(x.id)}" data-t="seatOpen">지식마다 자리<small>없음 · 읽기 · 쓰기 · 지식관리자</small></div><div class="sep"></div>`}<div class="mi" data-a="admLink1" data-v="${esc(x.id)}" data-t="admLink1">새 링크<small>이 사람만 · 24시간 · 한 번: 지금 비밀번호는 지워진다</small></div><div class="mi" data-a="admAdminSet" data-v="${esc(x.id)}" data-on="${x.admin ? '' : '1'}" data-t="admAdminSet">${x.admin ? '총괄 관리자 아님으로' : '총괄 관리자로'}</div><div class="mi" data-a="admRevokeAll" data-v="${esc(x.id)}" data-t="admRevokeAll">기기 모두 끊기<small>Claude Code · 이 PC 의 kmd · PC 일꾼이 다시 이어야 한다</small></div><div class="sep"></div><div class="mi danger" data-a="admOffOpen" data-v="${esc(x.id)}" data-t="admOffOpen">떠남…<small>들어가기 · 기기 · PC 일꾼을 끊고 지식을 넘긴다</small></div></div>`) : ''}</button>`}</li>`
+  const add = S.admAdd ? `<div class="flow" data-t="admAddForm"><div class="row"><input class="inp" id="admAddIn"${invAttr(S.admAdd.err, 'admAddErr')} aria-label="새 사람 아이디" data-in="admAddId" data-t="admAddIn" value="${esc(S.admAdd.id || '')}" placeholder="아이디: 영문 · 숫자 · . _ -" autocomplete="off" style="flex:1"><label class="small"><input type="checkbox" id="admAddAdmin"${S.admAdd.admin ? ' checked' : ''} data-a="admAddAdmin" data-t="admAddAdmin"> 총괄 관리자</label></div>${seatTable(S.admAdd.seats, 'add', S.admAdd.admin)}${S.admAdd.err ? formErr(S.admAdd.err, 'admAddErr') : ''}<div class="row" style="margin-top:8px;justify-content:flex-end"><button type="button" class="btn ghost" data-a="admAddCancel">취소</button><button class="btn pri" data-a="admAddDo" data-t="admAddDo">더하기</button></div></div>` : ''
+  return `<div class="card" data-t="admPeople" style="overflow:visible"><div class="ch">사람 ${live.length} <small>처음 들어오기 링크는 사람마다 따로 보낸다</small></div><div class="cb" style="padding:2px 14px 10px">${add}<ul class="plain pl">${live.map(row).join('')}</ul>${gone.length ? `<details class="more" data-t="admGone"><summary>떠난 사람 ${gone.length}: 아이디는 되쓰지 않는다</summary><div class="in">${gone.map((x) => `${esc(x.id)} · ${esc(String(x.off.at).slice(0, 10))}`).join(' · ')}</div></details>` : ''}</div><div class="cf">${S.admAdd ? '' : '<button class="btn pri" data-a="admAddOpen" data-t="admAddOpen">사람 더하기</button>'}<span>더하면 처음 들어오기 링크(24시간 · 한 번)가 나온다. 아이디와 함께 그 사람에게만 보낸다 · 비밀번호는 그 사람이 정한다</span></div></div>`
+}
+// 지식마다 자리 표 — 사람 더하기 · 사람 ⋯ › 지식마다 자리 창. 팀 지식마다 없음 · 읽기 · 쓰기 · 지식관리자(고르지 않으면 없음 — 보이지 않는다)
+//   info — 창에서: 그 사람의 묶음 · 주인 자리(사람 줄과 따로 · 실제 자리는 가장 높은 것)
+const SEAT_LV = ['none', 'read', 'write', 'admin']
+function seatTable(seats = {}, key, all = false, info = null) {
+  const ks = S.kns.filter((k) => !k.dim)
+  if (all) return '<p class="small muted" data-t="seatAll" style="margin:8px 0 0">총괄 관리자는 모든 지식이 보이고 모두 지식관리자다</p>'
+  if (!ks.length) return '<p class="small muted" style="margin:8px 0 0">팀 지식이 아직 없다</p>'
+  const row = (k) => {
+    const i = info && info[k.id]
+    const extra = i ? [i.owner ? '주인' : '', ...(i.groups || []).map((g) => `묶음 ${g.group}: ${LV_N[g.level]}`), i.all && i.all !== 'none' ? `모두: ${LV_N[i.all]}` : ''].filter(Boolean).join(' · ') : ''
+    const sel = `<select class="inp" data-seat="${esc(key)}" data-k="${esc(k.id)}" data-t="seatSel" aria-label="${esc(k.name)} 의 자리"${i && i.owner ? ' disabled' : ''}>${SEAT_LV.map((l) => `<option value="${l}"${(seats[k.id] || 'none') === l ? ' selected' : ''}>${LV_N[l]}</option>`).join('')}</select>`
+    return `<tr data-t="seatRow" data-name="${esc(k.name)}"><td><b>${esc(k.name)}</b>${extra ? `<small class="muted" style="display:block">${esc(extra)}${i.level && i.level !== (seats[k.id] || 'none') ? ' · 지금 실제 자리 ' + esc(LV_N[i.level]) : ''}</small>` : ''}</td><td style="text-align:right">${sel}</td></tr>`
+  }
+  return `<div class="tblwrap" style="margin-top:8px" data-t="seatTable"><table class="t"><tr><th>팀 지식</th><th style="text-align:right">자리</th></tr>${ks.map(row).join('')}</table></div>`
+}
+const seatsOfUser = (u) => need('seats:' + u, `/api/admin/users/${encodeURIComponent(u)}/seats`)
+function seatWinHtml() {
+  const w = S.seatWin
+  const v = seatsOfUser(w.user)
+  if (v && !v.error && !w.seats) w.seats = Object.fromEntries(Object.entries(v.seats).map(([k, x]) => [k, x.owner ? 'admin' : x.mine]))
+  const body = !v ? loadingHtml : v.error ? errHtml(v, 'seats:' + w.user) : seatTable(w.seats, 'win', false, v.seats)
+  return `<div class="scrim fix" data-a="seatClose" data-self="1"><div class="modal w560" role="dialog" aria-modal="true" aria-label="지식마다 자리" data-t="seatWin"><div class="mh">지식마다 자리: ${esc(w.user)}<button type="button" class="x" data-a="seatClose" title="닫기" aria-label="닫기">×</button></div><div class="mb"><p class="small muted mt0">사람 줄의 자리를 바꾼다 · 묶음 · 주인으로 받은 자리는 그대로(실제 자리는 가장 높은 것) · 없음이면 그 지식이 보이지 않는다</p>${body}${w.err ? formErr(`<i></i><span>${esc(w.err)}</span>`, 'seatErr', '', true) : ''}</div><div class="mf"><span class="acts"><button type="button" class="btn ghost" data-a="seatClose">취소</button><button class="btn pri" data-a="seatSave" data-t="seatSave"${v && !v.error && !w.busy ? '' : ' disabled'}>${w.busy ? '저장하는 중…' : '저장'}</button></span></div></div></div>`
 }
 // 묶음 카드 — 사람 여럿에 한 번에 자리를 준다(전역 관리자). 묶음마다 사람 칩(× 로 빼기) · 넣기 · 자리 있는 지식 수 · 지우기(확인 창)
 //   자리는 지식마다 지식 카드 ⋯ › 권한에서 준다 · 묶음의 사람 목록은 서버에만 있다
@@ -3786,13 +3809,13 @@ function offHtml() {
   return `<div class="scrim fix" data-a="offClose" data-self="1"${v.busy ? ' data-busy="1"' : ''}><div class="modal w560" data-t="offWin"><div class="mh">떠남: ${esc(x.id)}<button type="button" class="x" data-a="offClose" title="닫기" aria-label="닫기">×</button></div><div class="mb">
   <div class="callout danger" style="margin:0 0 12px"><i></i><span><b>한 번에 끊는다. 들어가기 · 기기 ${x.devices} · PC 일꾼 ${x.workers}</b> · 아이디는 남겨 두고 되쓰지 않는다(같은 이름의 새 사람은 다른 아이디로)</span></div>
   <p class="small" style="margin:0 0 6px">${esc(x.id)} 이 주인인 지식: 팀 지식 ${r.team} · 정리하는 지식 ${r.curate}(정리하는 사람에서 뺀다)</p>
-  <label class="small" style="display:block;margin:6px 0"><input type="radio" name="offTo" value="me"${v.to === 'me' ? ' checked' : ''} data-a="offTo" data-v="me" data-t="offToMe"> 내가 주인을 잇는다. 개인 지식은 이제 나만 본다</label>
-  <label class="small" style="display:block;margin:6px 0"><input type="radio" name="offTo" value="none"${v.to === 'me' ? '' : ' checked'} data-a="offTo" data-v="none" data-t="offToNone"> 주인 칸을 비운다. 관리자가 관리한다(나중에 지식 카드 ⋯ › 권한 › 주인 바꾸기로 새 주인을 정한다)</label>
+  <label class="small" style="display:block;margin:6px 0"><input type="radio" name="offTo" value="me"${v.to === 'me' ? ' checked' : ''} data-a="offTo" data-v="me" data-t="offToMe"> 내가 주인을 잇는다</label>
+  <label class="small" style="display:block;margin:6px 0"><input type="radio" name="offTo" value="none"${v.to === 'me' ? '' : ' checked'} data-a="offTo" data-v="none" data-t="offToNone"> 주인 칸을 비운다. 자리를 받은 사람에게는 그대로 보인다(나중에 지식 카드 ⋯ › 권한 › 주인 바꾸기로 새 주인을 정한다)</label>
   ${v.err ? formErr(`<i></i><span>${esc(v.err)}</span>`, 'offErr', '', true) : ''}
   </div><div class="mf"><span class="acts"><button type="button" class="btn ghost" data-a="offClose" data-t="offClose">취소</button><button class="btn danger" data-a="offDo" data-t="offDo"${v.busy ? ' disabled' : ''}>${v.busy ? '끊는 중…' : '떠남으로'}</button></span></div></div></div>`
 }
 function viewAdmin() {
-  if (!S.me.admin) return { crumb: '관리', main: '<div class="callout gray">관리자만 본다</div>' }
+  if (!S.me.admin) return { crumb: '관리', main: '<div class="callout gray">총괄 관리자만 본다</div>' }
   const a = overviewOf()
   if (!a || a.error) return { crumb: '관리', main: `<div class="pg-text"><div class="big">관리</div>${a ? errHtml(a) : loadingHtml}</div>` }
   const rows = []
@@ -4055,13 +4078,28 @@ const ACT = {
   agentDrop: async (el) => { const k = agKnOf(el); if (!await ask1('지식 떼기', '떼기', true, `이 작업 폴더에서 「${k.knName}」 을 뗀다. 다른 지식은 그대로 둔다`)) { S.menu = null; return render() } agentDo('rm', el.dataset.v, k) },
   logoutAll: async () => { S.menu = null; if (!await ask1('모든 곳에서 나가기', '나가기', true, '모든 곳에서 나간다. 이 브라우저와 다른 기기 · 브라우저의 들어온 것이 모두 끊긴다(Claude Code 의 기기 열쇠는 그대로)')) return render(); try { await postJSON('/api/me/logout-all', {}) } catch {}  location.href = '/' },
   logout: async () => { await postJSON('/logout', {}).catch((e) => console.warn('나가기를 서버에 알리지 못했다', e)); location.href = '/' },
-  admAddOpen: () => { S.admAdd = { id: '', admin: false }; S._focus = 'admAddIn'; render() },
+  admAddOpen: () => { S.admAdd = { id: '', admin: false, seats: {} }; S._focus = 'admAddIn'; render() },
+  admAddAdmin: (el) => { if (S.admAdd) { S.admAdd.admin = el.checked; render() } },
+  seatOpen: (el) => { S.menu = null; delete S.cache['seats:' + el.dataset.v]; S.seatWin = { user: el.dataset.v, seats: null }; render() },
+  seatClose: () => { S.seatWin = null; render() },
+  seatSave: async () => {
+    const w = S.seatWin
+    if (!w || !w.seats || w.busy) return
+    w.busy = true; w.err = null; render()
+    try {
+      const r = await postJSON(`/api/admin/users/${encodeURIComponent(w.user)}/seats`, { seats: w.seats })
+      S.seatWin = null
+      delete S.cache.users; for (const key of Object.keys(S.cache)) if (key.startsWith('access:') || key.startsWith('seats:')) delete S.cache[key]
+      toast(r.kns.length ? `자리를 바꿨다: ${esc(w.user)} · 지식 ${r.kns.length}` : '바뀐 자리가 없다')
+    } catch (e) { if (e.code !== 'E_CANCEL') w.err = e.message; w.busy = false }
+    render()
+  },
   admAddCancel: () => { S.admAdd = null; render() },
   admAddDo: async () => {
     const v = S.admAdd
     if (!v) return
     v.admin = !!($('#admAddAdmin') || {}).checked
-    try { const r = await postJSON('/api/admin/users', { id: (v.id || '').trim(), admin: v.admin }); S.admAdd = null; S.admLink = { id: r.id, link: r.link }; delete S.cache.users; delete S.cache.admin; toast('더했다. 링크를 그 사람에게만 보낸다') } catch (e) { if (e.code !== 'E_CANCEL') v.err = e.message }
+    try { const r = await postJSON('/api/admin/users', { id: (v.id || '').trim(), admin: v.admin, seats: v.admin ? {} : v.seats || {} }); S.admAdd = null; S.admLink = { id: r.id, link: r.link }; for (const key of Object.keys(S.cache)) if (key.startsWith('access:')) delete S.cache[key]; delete S.cache.users; delete S.cache.admin; toast('더했다. 링크를 그 사람에게만 보낸다') } catch (e) { if (e.code !== 'E_CANCEL') v.err = e.message }
     render()
   },
   admLink1: async (el) => {
@@ -4071,7 +4109,7 @@ const ACT = {
     render()
   },
   admCopyLink: () => { if (S.admLink) { copyText(S.admLink.link); toast('복사했다: ' + esc(S.admLink.id) + ' 에게만') } },
-  admAdminSet: async (el) => { S.menu = null; try { await postJSON(`/api/admin/users/${encodeURIComponent(el.dataset.v)}/admin`, { admin: !!el.dataset.on }); delete S.cache.users; toast(el.dataset.on ? `관리자로 했다: ${esc(el.dataset.v)}` : `관리자에서 뺐다: ${esc(el.dataset.v)}`) } catch (e) { if (e.code !== 'E_CANCEL') toastErr(e) } render() },
+  admAdminSet: async (el) => { S.menu = null; try { await postJSON(`/api/admin/users/${encodeURIComponent(el.dataset.v)}/admin`, { admin: !!el.dataset.on }); delete S.cache.users; toast(el.dataset.on ? `총괄 관리자로 했다: ${esc(el.dataset.v)}` : `총괄 관리자에서 뺐다: ${esc(el.dataset.v)}`) } catch (e) { if (e.code !== 'E_CANCEL') toastErr(e) } render() },
   admRevokeAll: async (el) => {
     S.menu = null
     if (!await ask1('기기 모두 끊기', '끊기', true, `${el.dataset.v} 의 기기를 모두 끊는다. Claude Code · 이 PC 의 kmd · PC 일꾼이 다시 이어야 한다`)) return render()
@@ -4498,7 +4536,7 @@ document.addEventListener('input', (ev) => {
 })
 // 파일 · 폴더 — 고르기 · 끌어다 놓기
 document.addEventListener('toggle', (ev) => { const d = ev.target; if (d.dataset && d.dataset.keep) (S.detOpen ||= {})[d.dataset.keep] = d.open }, true)
-document.addEventListener('change', (ev) => { const t = ev.target; if (t.dataset && t.dataset.acc) { accPick(t); return } if (t.dataset && t.dataset.grp != null) { (S.grpPick ||= {})[t.dataset.grp] = t.value; render(); return } if (t.dataset && t.dataset.grpadd != null && S.grpAdd) { const m = new Set(S.grpAdd.members); if (t.checked) m.add(t.dataset.grpadd); else m.delete(t.dataset.grpadd); S.grpAdd.members = [...m]; return } if (t.dataset && t.dataset.model != null) { ACT.pickModel(t); return } if (t.id === 'impKn') { S.impKn = t.value; render(); return } if (t.dataset && t.dataset.se && S.se) { S.se[t.dataset.se] = t.value; render(); return } if (t.dataset && t.dataset.sf) { sfState()[t.dataset.sf] = t.type === 'checkbox' ? t.checked : t.value; if (t.dataset.sf === 'rule') render(); return } if (t.id === 'logKn') { S.logKn = t.value; render(); return } if (t.id === 'logWho') { S.logWho = t.value; render(); return } if (t.id === 'impOrg' || t.id === 'impRes') { S[t.id] = t.value; S.impPage = 0; render(); return } if (t.dataset && t.dataset.cap) { postJSON('/api/queue/caps', { [t.dataset.cap]: Number(t.value) }).then(() => toast(`동시에 도는 수: ${t.dataset.cap === 'claude' ? 'Claude' : '가져오기'} ${t.value}`), (e) => toastErr(e)).finally(() => { t.blur(); pollRuns() }); return } if (t.id === 'fileIn' || t.id === 'dirIn') { takeFiles(t.files); t.value = '' } })
+document.addEventListener('change', (ev) => { const t = ev.target; if (t.dataset && t.dataset.acc) { accPick(t); return } if (t.dataset && t.dataset.seat) { const o = t.dataset.seat === 'add' ? S.admAdd : S.seatWin; if (o) (o.seats ||= {})[t.dataset.k] = t.value; return } if (t.dataset && t.dataset.grp != null) { (S.grpPick ||= {})[t.dataset.grp] = t.value; render(); return } if (t.dataset && t.dataset.grpadd != null && S.grpAdd) { const m = new Set(S.grpAdd.members); if (t.checked) m.add(t.dataset.grpadd); else m.delete(t.dataset.grpadd); S.grpAdd.members = [...m]; return } if (t.dataset && t.dataset.model != null) { ACT.pickModel(t); return } if (t.id === 'impKn') { S.impKn = t.value; render(); return } if (t.dataset && t.dataset.se && S.se) { S.se[t.dataset.se] = t.value; render(); return } if (t.dataset && t.dataset.sf) { sfState()[t.dataset.sf] = t.type === 'checkbox' ? t.checked : t.value; if (t.dataset.sf === 'rule') render(); return } if (t.id === 'logKn') { S.logKn = t.value; render(); return } if (t.id === 'logWho') { S.logWho = t.value; render(); return } if (t.id === 'impOrg' || t.id === 'impRes') { S[t.id] = t.value; S.impPage = 0; render(); return } if (t.dataset && t.dataset.cap) { postJSON('/api/queue/caps', { [t.dataset.cap]: Number(t.value) }).then(() => toast(`동시에 도는 수: ${t.dataset.cap === 'claude' ? 'Claude' : '가져오기'} ${t.value}`), (e) => toastErr(e)).finally(() => { t.blur(); pollRuns() }); return } if (t.id === 'fileIn' || t.id === 'dirIn') { takeFiles(t.files); t.value = '' } })
 document.addEventListener('dragstart', (ev) => { const c = ev.target.closest && ev.target.closest('[data-drag]'); if (!c) return; S.dragK = c.dataset.drag; c.classList.add('drag'); ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', c.dataset.drag) } catch {} })
 document.addEventListener('dragend', () => { S.dragK = null; for (const x of document.querySelectorAll('.kcard.drag,.kcard.over')) x.classList.remove('drag', 'over') })
 document.addEventListener('dragover', (ev) => { const c = S.dragK && ev.target.closest && ev.target.closest('[data-drag]'); if (c) { ev.preventDefault(); for (const x of document.querySelectorAll('.kcard.over')) if (x !== c) x.classList.remove('over'); if (c.dataset.drag !== S.dragK) c.classList.add('over') } })

@@ -21,7 +21,7 @@ import { VERSION } from '../server/version.js'
 import { makeAuth } from '../core/auth.js'
 import { appHomeOf, linkVersion, taskXml, shortcutPs } from '../core/pcops.js'
 import { mcpConfig, addMcp, mcpLine } from '../core/claudecfg.js'
-import { copyDir, signIn } from './helpers.mjs'
+import { copyDir, signIn, seat } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const KMD = path.join(HERE, '..', 'server', 'bin', 'kmd.mjs')
@@ -407,6 +407,7 @@ test('화면: PC 전용 안내 · 같은 탭의 새 번호 · 처음 들어오�
     assert.equal(await page.locator('[data-t=manual]').getAttribute('href'), '/manual', '설명서 입구')
     // 팀 — 처음 들어오기를 마치면 머리 · 옆 메뉴가 들어온 사람이다 · 같은 링크를 다시 열면 「쓸 수 없다 — 들어와 있다」
     const { code } = await team.auth.addUser({ id: 'choi' })
+    await seat(team, 'choi', { dpms: 'write', gdi: 'write' }) // 기본 자리는 없음 — 쓰기 자리를 준 보통 팀 사람(목록이 보이게)
     await team.auth.deviceKeyFor('choi', { host: 'CHOI-PC', osuser: 'choi' }) // 설치 한 줄로 이은 PC — 팀 화면은 그래도 개인 프로그램을 묻지 않는다(분리)
     const tp = await browser.newPage({ viewport: { width: 1300, height: 820 } })
     tp.on('pageerror', (e) => errors.push(e.message))

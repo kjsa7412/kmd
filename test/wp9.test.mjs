@@ -11,7 +11,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
-import { copyDir } from './helpers.mjs'
+import { copyDir, seat } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const BANNED = ['좌표', '섹션', '원천', '기준선', '큐레이션', '대기열', '판정', '토큰', '커밋', '레포', '미러', 'LLM', 'RAG', '노드', '엣지', '백링크']
@@ -47,9 +47,12 @@ test('오류 글 · 화면 글에 금지어 0: 사람에게 가는 KmdError 글�
 
 test('기록이 언제 문서에: 지식의 정리 방식 · 시각 · 이력의 저장 줄은 그 기록의 지금 상태', async () => {
   await s.hub.setOwner(SHELL, 'dpms', { owner: 'park', tidyAt: '03:30' })
+  // 받지 않은 지식은 없음이 기본(권한 모델 v1.1) — 기록을 남기는 팀원 lee 에게 dpms 쓰기 자리를 준다
+  await s.auth.addUser({ id: 'lee', admin: false })
+  await seat(s, 'lee', { dpms: 'write' })
   assert.equal(s.hub.pendText('dpms'), '정해진 시각 03:30 정리 때 문서에 들어간다')
   await s.hub.setOwner(SHELL, 'dpms', { tidyMode: 'manual' })
-  assert.match(s.hub.pendText('dpms'), /관리자가 \[지금 정리\] 를 누를 때/)
+  assert.match(s.hub.pendText('dpms'), /누가 \[지금 정리\] 를 누를 때/)
   await s.hub.setOwner(SHELL, 'dpms', { tidyMode: 'live' })
   assert.match(s.hub.pendText('dpms'), /조용해지면 바로/)
   const r = await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '헬스 체크: 주기', touches: ['proc:헬스 체크'], body: '15초' } })
@@ -57,7 +60,8 @@ test('기록이 언제 문서에: 지식의 정리 방식 · 시각 · 이력의
   for (let i = 0; i < 100 && !(h = await s.hub.history({ user: 'lee' })).some((x) => x.rec === r.id); i++) await new Promise((ok) => setTimeout(ok, 50))
   assert.match(h.find((x) => x.rec === r.id).sub, /조용해지면 바로 문서에 들어간다/)
   // 들어간 뒤 — 「들어갔다」
-  await s.hub.save({ user: 'kmd-auto' }, 'dpms', { record: { title: '정리: 헬스 체크', tags: ['curate-auto'], reflects: [r.id], body: `- 넣음 ${r.id}: 헬스 체크` }, sections: [{ coord: 'proc:헬스 체크', content: '15초' }] }, { system: true })
+  // kmd-auto 는 사람이 아니라 자리를 받지 않는다(없음이 기본) — 서버 안의 정리 저장을 흉내 내는 ctx 라 admin 을 단다(작성자는 그대로 kmd-auto)
+  await s.hub.save({ user: 'kmd-auto', admin: true }, 'dpms', { record: { title: '정리: 헬스 체크', tags: ['curate-auto'], reflects: [r.id], body: `- 넣음 ${r.id}: 헬스 체크` }, sections: [{ coord: 'proc:헬스 체크', content: '15초' }] }, { system: true })
   h = await s.hub.history({ user: 'lee' })
   assert.equal(h.find((x) => x.rec === r.id).sub, '문서에 들어갔다')
 })

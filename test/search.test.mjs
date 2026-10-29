@@ -13,7 +13,7 @@ import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
 import { loadKnowledge } from '../core/knowledge.js'
 import { buildIndex, ladder, chunkText, searchCheck } from '../core/search.js'
-import { copyDir, signIn } from './helpers.mjs'
+import { copyDir, signIn, seat } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const GDI = process.env.KMD_GDI || 'C:\\project\\gdi_wiki'
@@ -26,6 +26,8 @@ before(async () => {
   copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'kn'))
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
   me = await signIn(s, { id: 'kim' })
+  // 기본 자리는 「없음」 — KIM({ user }) 은 총괄 관리자 표 없이 부르므로 dpms 쓰기 자리를 준다
+  await seat(s, 'kim', { dpms: 'write' })
 })
 after(async () => {
   await s?.close()

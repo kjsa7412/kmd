@@ -12,7 +12,7 @@ import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
-import { copyDir, signIn } from './helpers.mjs'
+import { copyDir, signIn, seat } from './helpers.mjs'
 import { writeDecl, readDecl } from '../core/sources.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -90,6 +90,9 @@ test('대상 제한 · 자격 든 주소는 비밀로', async () => {
   assert.equal(await code(add(tmp)), 'E_INPUT', '살림 자리 · 지식 폴더를 품는 폴더')
   const out = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-out-'))
   assert.equal(await code(add(out)), 'E_FORBIDDEN', '허락 밖 폴더')
+  // 자리 기본이 「없음」이 되었으므로 lee 를 쓰기 자리 가진 보통 팀 사람으로 세운다(관리자 아님 → 403)
+  await s.auth.addUser({ id: 'lee', admin: false })
+  await seat(s, 'lee', { dpms: 'write' })
   assert.equal(await code(s.hub.sourceAdd({ user: 'lee' }, 'dpms', { name: 'x', at: src, rules: [{ rule: 'deps', into: { doc: 'a' } }] })), 'E_FORBIDDEN', '팀은 관리자만')
   const r = await add('https://bot:s3cr3t-token@git.example.invalid/dpms-api.git', { name: '원격' })
   assert.equal(r.run[0].state, 'failed', '닿지 않아도 선언은 남는다')

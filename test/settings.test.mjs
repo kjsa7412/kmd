@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { install, status, remove } from '../core/kit.js'
 import { getSecret } from '../core/secrets.js'
-import { copyDir, signIn } from './helpers.mjs'
+import { copyDir, signIn, seat } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s, me
@@ -192,5 +192,8 @@ test('DB 가져오는 곳: 팀은 비밀번호를 받지 않는다 · 선언에 
   assert.deepEqual((await s.hub.stops(KIM)).filter((l) => l.kind === 'source'), [], '멈춤 줄 없음')
   assert.equal((await s.hub.sourceCheckDb(KIM, 'gdi', { host: '127.0.0.1', port: s.port })).reach, true)
   assert.equal((await s.hub.sourceCheckDb(KIM, 'gdi', { host: '127.0.0.1', port: 9 })).reach, false)
+  // 쓰기 자리의 팀원(lee) 은 지식관리자가 아니다 — 받지 않은 지식은 없음이 기본이라 쓰기 자리를 먼저 준다(v1.1)
+  await signIn(s, { id: 'lee', admin: false })
+  await seat(s, 'lee', { gdi: 'write' })
   await assert.rejects(s.hub.sourceCheckDb({ user: 'lee' }, 'gdi', { host: '127.0.0.1', port: 9 }), { code: 'E_FORBIDDEN' })
 })

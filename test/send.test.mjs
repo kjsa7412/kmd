@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
 import { post } from '../core/send.js'
-import { copyDir, signIn } from './helpers.mjs'
+import { copyDir, signIn, seat } from './helpers.mjs'
 import { workOnce } from '../core/worker.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -146,6 +146,7 @@ test('파일 넣기: 기록으로 들이고 정리가 새 문서로 세우거나
 
   // 팀 지식에서 바로 넣지 못하는 사람은 기록으로(HTTP 길 — 글자로 보낸다)
   const lee = await signIn(s, { id: 'lee', admin: false })
+  await seat(s, 'lee', { dpms: 'write' }) // 기본 자리는 없음 — 쓰기 자리를 준 보통 팀 사람
   const h = await fetch(`${s.url}/api/k/dpms/import`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${lee.key}` }, body: JSON.stringify({ files: [{ path: '메모.md', b64: b64('# 메모\n\n## 연락 순서\n당번 → 박.\n') }] }) }).then((x) => x.json())
   assert.equal(h.summary.record, 1)
   assert.ok(!fs.existsSync(path.join(dir, 'docs', '메모.md')))
@@ -424,13 +425,14 @@ test('이 PC: 「아직 안 넣은 기록」 은 남는 즉시 문서에(켤 때
   }
 })
 
-test('지식 지우기: 이름을 그대로 써야 · 팀은 관리자만 · 보관 없이 폴더 · 살림까지 완전히', async () => {
+test('지식 지우기: 이름을 그대로 써야 · 팀은 총괄 관리자만 · 보관 없이 폴더 · 살림까지 완전히', async () => {
   const dir = path.join(tmp, 'kn', 'inbox')
   const data = path.join(tmp, 'kn', '.kmd')
   assert.ok(fs.existsSync(dir))
   await assert.rejects(s.hub.deleteKnowledge(KIM, 'inbox', { confirm: '아무거나' }), { code: 'E_INPUT' })
+  await seat(s, 'lee', { dpms: 'write' }) // 그 지식을 보는 보통 팀 사람(자리가 없으면 404 로 먼저 막힌다)
   await assert.rejects(s.hub.deleteKnowledge({ user: 'lee' }, 'dpms', { confirm: 'DPMS 지식' }), { code: 'E_FORBIDDEN' })
-  await assert.rejects(s.hub.deleteKnowledge({ user: 'kim' }, 'inbox', { confirm: 'inbox' }), { code: 'E_FORBIDDEN' }, '관리자가 아니면')
+  await assert.rejects(s.hub.deleteKnowledge({ user: 'kim' }, 'inbox', { confirm: 'inbox' }), { code: 'E_FORBIDDEN' }, '총괄 관리자가 아니면(주인이어도)')
   await s.hub.inboxTidy(KIM, 'inbox')
   const r = await s.hub.deleteKnowledge(KIM, 'inbox', { confirm: 'inbox' })
   assert.equal(r.removed, true)
@@ -439,7 +441,7 @@ test('지식 지우기: 이름을 그대로 써야 · 팀은 관리자만 · 보
   assert.equal(s.hub.owner('inbox'), null, '주인 줄도 없다')
   assert.ok(!(await s.hub.list()).some((k) => k.id === 'inbox'))
   await assert.rejects(s.hub.get('inbox'), { code: 'E_NOTFOUND' })
-  // 팀 지식은 관리자 — HTTP 길은 비밀번호 한 번 더
+  // 팀 지식은 총괄 관리자 — HTTP 길은 비밀번호 한 번 더
   const lee2 = await fetch(`${s.url}/api/k/dpms/delete`, { method: 'POST', headers: { 'content-type': 'application/json', cookie: (await signIn(s, { id: 'admin2', admin: true })).cookie }, body: JSON.stringify({ confirm: 'DPMS 지식' }) })
   assert.equal(lee2.status, 403)
   assert.equal((await lee2.json()).error, 'E_SUDO')

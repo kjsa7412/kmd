@@ -8,7 +8,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { workOnce } from '../core/worker.js'
-import { copyDir, signIn } from './helpers.mjs'
+import { copyDir, signIn, seat } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s, park, wkey
@@ -27,6 +27,10 @@ before(async () => {
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
   await signIn(s, { id: 'kim' })
   park = await signIn(s, { id: 'park', admin: false })
+  await signIn(s, { id: 'lee', admin: false })
+  // 기본 자리는 없음 — 서버가 선 뒤 만든 사람이라 옮김도 없다. 보통 팀원(쓰기)으로 자리를 준다
+  await seat(s, 'park', { dpms: 'write' })
+  await seat(s, 'lee', { dpms: 'write' })
   wkey = (await s.auth.workerAdd()).key
 })
 after(async () => {

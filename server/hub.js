@@ -445,7 +445,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async deleteKnowledge(ctx, id, { confirm } = {}) {
       const meta = await hub.meta(id, ctx)
       if (await looksLikeKnowledge(root)) throw new KmdError('E_INPUT', '이 kmd 는 지식 하나만 연다. 지울 수 없다')
-      if (mode !== 'pc' && !ctx.pc && !ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '팀 지식은 관리자가 지운다')
+      if (mode !== 'pc' && !ctx.pc && !ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '팀 지식은 총괄 관리자가 지운다')
       if (String(confirm ?? '').trim().normalize('NFC') !== meta.name.normalize('NFC')) throw new KmdError('E_INPUT', `지우려면 지식 이름 「${meta.name}」 을 그대로 쓴다`)
       const dir = path.resolve(meta.dir)
       const inRoot = insideDir(dir, root) && !insideDir(root, dir) // root 아래 폴더만(root 자신은 아니다)
@@ -588,7 +588,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     need(ctx, id, lvl = 'write') {
       const l = levelFor(id, ctx)
       if (!owners.atLeast(l, 'read')) throw new KmdError('E_NOTFOUND', `지식 「${id}」 이 없다`)
-      if (!owners.atLeast(l, lvl)) throw new KmdError('E_FORBIDDEN', `이 지식에 ${owners.LEVEL_WORD[lvl] || lvl} 자리가 없다`, { need: lvl })
+      if (!owners.atLeast(l, lvl)) throw new KmdError('E_FORBIDDEN', lvl === 'admin' ? '이 지식의 지식관리자가 아니다' : `이 지식에 ${owners.LEVEL_WORD[lvl] || lvl} 자리가 없다`, { need: lvl })
       return l
     },
     async get(id, ctx) {
@@ -809,7 +809,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 쓰기 자리는 자기 기록만 든 정리만 — 남의 기록이 섞였으면 관리자에게(남의 반영을 말없이 거두지 않게)
       const authors = new Set((k.byWork.get(record)?.reflects || []).map((x) => k.byWork.get(x)?.author).filter(Boolean))
       const curator = hub.canDirect(ctx, id)
-      if (!curator && !authors.has(ctx.user)) throw new KmdError('E_FORBIDDEN', '관리자만 되돌린다')
+      if (!curator && !authors.has(ctx.user)) throw new KmdError('E_FORBIDDEN', '남의 기록은 그 지식의 지식관리자가 되돌린다')
       if (!curator && [...authors].some((a) => a !== ctx.user)) throw new KmdError('E_FORBIDDEN', '이 정리에는 다른 사람의 기록도 들어 있다. 관리자에게 되돌려 달라고 한다')
       if (k.reverted?.has(record)) throw new KmdError('E_CONFLICT', '이미 되돌렸다')
       const plan = await revertPlan(k, record)
@@ -871,7 +871,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       if (hub.sourceServer(ctx)) return
       const hosts = (config.sourceHosts || []).map((h) => String(h).trim().toLowerCase()).filter(Boolean)
-      const allowed = `허락된 곳: ${hosts.length ? hosts.join(' · ') : '아직 없다(서버 관리자가 정한다)'}`
+      const allowed = `허락된 곳: ${hosts.length ? hosts.join(' · ') : '아직 없다(총괄 관리자가 정한다)'}`
       let h = host
       if (kind === 'git') {
         let u = null
@@ -972,7 +972,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // DB 연결 확인 — 닿나 · 비밀번호(또는 든 비밀)가 있으면 붙어서 테이블 수까지 · 관리자 · PC 만(아무나 포트를 두드리지 않게)
     async sourceCheckDb(ctx, id, { host, port = 5432, database = null, user = null, schema = 'public', password = null, name = null }) {
       await hub.meta(id, ctx)
-      if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '관리자가 한다')
+      if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '그 지식의 지식관리자가 한다')
       if (!/^[A-Za-z0-9.-]{1,253}$/.test(String(host || ''))) throw new KmdError('E_INPUT', '호스트가 아니다')
       await hub.sourceGuard(ctx, id, { kind: 'db', host: String(host) })
       const t0 = Date.now()
@@ -1053,7 +1053,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 전체 다시 맞추기 — 뒤에서 일감으로 · 진행률 · 끊기면(서버를 다시 켜면) 같은 pass 로 이어서. 쓰는 것은 다른 것뿐
     async sourceResync(ctx, id, name) {
       const meta = await hub.meta(id, ctx)
-      if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '전체 다시 맞추기는 관리자가 한다')
+      if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '전체 다시 맞추기는 그 지식의 지식관리자가 한다')
       const s = (await readDecl(meta.dir)).find((x) => x.name === name)
       if (!s) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
       if (s.kind === 'git' && !s.rules?.length) throw new KmdError('E_INPUT', '소스 코드는 묶음으로 본다. 다시 맞출 것이 없다')
@@ -1080,7 +1080,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     async sourceMeaning(ctx, id, { name, on }) {
       const meta = await hub.meta(id, ctx)
-      if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '관리자가 한다')
+      if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '그 지식의 지식관리자가 한다')
       const decl = await readDecl(meta.dir)
       const s = decl.find((x) => x.name === name)
       if (!s) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
@@ -1138,7 +1138,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 언제 — hourly · daily HH:MM · weekly · change(바뀔 때만) · manual
     async sourceEvery(ctx, id, { name, every }) {
       const meta = await hub.meta(id, ctx)
-      if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '언제 바꾸기는 관리자가 한다')
+      if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '언제 바꾸기는 그 지식의 지식관리자가 한다')
       if (!/^(hourly|weekly|change|manual|daily ([01]\d|2[0-3]):[0-5]\d)$/.test(String(every))) throw new KmdError('E_INPUT', '언제는 hourly · daily HH:MM · weekly · change')
       const decl = await readDecl(meta.dir)
       const s = decl.find((x) => x.name === name)
@@ -1252,7 +1252,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 지우기 — 감시 · 상태 · 장부 · 자격을 걷는다. 이미 들어온 문서 · 기록은 그대로 둔다(지식의 글이다)
     async sourceRemove(ctx, id, { name, copies = 'keep' }) {
       const meta = await hub.meta(id, ctx)
-      if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 관리자가 지운다')
+      if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 그 지식의 지식관리자가 지운다')
       const decl = await readDecl(meta.dir)
       if (!decl.some((x) => x.name === name)) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
       const key = `${id}\n${name}`
@@ -1289,7 +1289,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 원본이 없어진 사본 — 「원본이 주인」 표지를 걷어 내 문서로(고칠 수 있게)
     async unwatch(ctx, id, { doc }) {
       const meta = await hub.meta(id, ctx)
-      if (!hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '관리자가 한다')
+      if (!hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '그 지식의 지식관리자가 한다')
       const d = (await hub.get(id)).docs.find((x) => x.id === doc)
       if (!d) throw new KmdError('E_NOTFOUND', '이 문서는 이제 없다')
       const full = path.join(meta.dir, ...d.path.split('/'))
@@ -1421,7 +1421,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (mode === 'pc') return 'kmd 가 곧바로 문서에 넣는다'
       const m = hub.tidyModeOf(id)
       if (m === 'live') return '조용해지면 바로 문서에 들어간다'
-      if (m === 'manual') return '관리자가 [지금 정리] 를 누를 때 문서에 들어간다'
+      if (m === 'manual') return '누가 [지금 정리] 를 누를 때 문서에 들어간다'
       return `정해진 시각 ${hub.tidyAtOf(id)} 정리 때 문서에 들어간다`
     },
     ruleOnly: (id) => mode === 'team' && (!!rowFor(id)?.noClaude || workerRests()),
@@ -1517,7 +1517,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const w = k.byWork.get(String(rec))
       if (!w || (w.state !== 'pend' && w.state !== 'nowhere')) throw new KmdError('E_NOTFOUND', '정리를 기다리는 기록이 아니다')
       hub.need(ctx, id, 'write')
-      if (levelFor(id, ctx) !== 'admin' && w.author !== ctx.user) throw new KmdError('E_FORBIDDEN', '자리는 쓴 사람이나 이 지식의 관리 자리가 정한다')
+      if (levelFor(id, ctx) !== 'admin' && w.author !== ctx.user) throw new KmdError('E_FORBIDDEN', '자리는 쓴 사람이나 이 지식의 지식관리자가 정한다')
       if (!sectionOf(k, String(coord || ''))?.loc) throw new KmdError('E_INPUT', '그런 항목이 없다')
       const saved = await coreSave(meta.dir, { record: { title: `이름 바로잡음: ${w.title.split(/ — |: /)[0]}`, body: `${ctx.user} 가 넣을 자리를 골랐다`, touches: [String(coord)], tags: ['touches-fix'], fixes: [w.id], date: w.date } }, { user: ctx.user, system: true })
       cache.delete(id)
@@ -1923,7 +1923,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const t = jobs.get(id.slice(2))
         if (!t || !(await hub.visible(ctx)).some((k) => k.id === t.kn)) throw new KmdError('E_NOTFOUND', '그 일은 이제 없다')
         if (act !== 'cancel') throw new KmdError('E_INPUT', '정리 일감은 그만두기만 한다')
-        if (!(await mine(t.kn, t.by))) throw new KmdError('E_FORBIDDEN', '넣은 사람 · 관리자가 한다')
+        if (!(await mine(t.kn, t.by))) throw new KmdError('E_FORBIDDEN', '넣은 사람 · 그 지식의 지식관리자가 한다')
         // 도는 정리 — 일꾼이 다음 자리를 시작하거나 지금 자리를 끝낼 때 멈춘다(쓴 초안은 넣는다) · 일꾼이 안 오면 5분 뒤 닫는다
         if (t.state === 'running') {
           if (!t.stop) t.stop = { by: ctx.user, at: new Date().toISOString() }
@@ -1938,10 +1938,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       const j = Q.get(id)
       if (!j || !(await hub.visible(ctx)).some((k) => k.id === j.kn)) throw new KmdError('E_NOTFOUND', '그 일은 이제 없다')
-      if (!(await mine(j.kn, j.by))) throw new KmdError('E_FORBIDDEN', '넣은 사람 · 관리자가 한다')
+      if (!(await mine(j.kn, j.by))) throw new KmdError('E_FORBIDDEN', '넣은 사람 · 그 지식의 지식관리자가 한다')
       try {
         if (j.kind === 'group') return hub.queueItem(hub.groupAct(j, act))
-        if (act === 'force' && mode !== 'pc' && !hub.canSource(ctx, j.kn)) throw new KmdError('E_FORBIDDEN', '[그대로 맞추기] 는 관리자가 한다')
+        if (act === 'force' && mode !== 'pc' && !hub.canSource(ctx, j.kn)) throw new KmdError('E_FORBIDDEN', '[그대로 맞추기] 는 그 지식의 지식관리자가 한다')
         const again = act === 'retry' || act === 'force' || (act === 'resume' && j.parked === 'restart')
         // 가져오기 · 넣기는 새로 한 번 — 지난 일은 걷는다
         if (again && j.kind === 'source') {
@@ -1960,11 +1960,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
     },
     queueHold(ctx, on) {
-      if (mode !== 'pc' && !ctx.admin) throw new KmdError('E_FORBIDDEN', '줄 멈춤은 관리자가 한다')
+      if (mode !== 'pc' && !ctx.admin) throw new KmdError('E_FORBIDDEN', '줄 멈춤은 총괄 관리자가 한다')
       return Q.setHold(on)
     },
     queueCaps(ctx, x) {
-      if (mode !== 'pc' && !ctx.admin) throw new KmdError('E_FORBIDDEN', '동시에 도는 수는 관리자가 정한다')
+      if (mode !== 'pc' && !ctx.admin) throw new KmdError('E_FORBIDDEN', '동시에 도는 수는 총괄 관리자가 정한다')
       return Q.setCaps({ claude: x?.claude, fetch: x?.fetch })
     },
     queue: Q,
@@ -3065,9 +3065,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 정리 설정 · 정리하는 사람 — 그 지식의 관리 자리 · 주인 바꾸기는 전역 관리자 · 셸만
       const allowed = (reg) => {
         const cur = owners.rowOf(reg, id)
-        if (!ctx.shell && mode === 'team' && owners.levelOf(reg, id, ctx) !== 'admin') throw new KmdError('E_FORBIDDEN', '이 지식에 관리 자리가 없다', { need: 'admin' })
+        if (!ctx.shell && mode === 'team' && owners.levelOf(reg, id, ctx) !== 'admin') throw new KmdError('E_FORBIDDEN', '이 지식의 지식관리자가 아니다', { need: 'admin' })
         const changesOwner = row?.owner != null && row.owner !== (cur?.owner ?? null)
-        if (!ctx.admin && !ctx.shell && changesOwner) throw new KmdError('E_FORBIDDEN', '주인은 관리자가 바꾼다')
+        if (!ctx.admin && !ctx.shell && changesOwner) throw new KmdError('E_FORBIDDEN', '주인은 총괄 관리자가 바꾼다')
       }
       allowed(R())
       let cerr = null
@@ -3107,7 +3107,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (users && typeof users === 'object' && known.size) for (const u of Object.keys(users)) if (!known.has(String(u).trim().toLowerCase())) throw new KmdError('E_INPUT', `그런 사람은 없다: ${String(u).slice(0, 40)}`)
       let cerr = null
       const out = await mutateReg(async (next) => {
-        if (!ctx.shell && mode === 'team' && owners.levelOf(next, id, ctx) !== 'admin') throw new KmdError('E_FORBIDDEN', '이 지식에 관리 자리가 없다', { need: 'admin' })
+        if (!ctx.shell && mode === 'team' && owners.levelOf(next, id, ctx) !== 'admin') throw new KmdError('E_FORBIDDEN', '이 지식의 지식관리자가 아니다', { need: 'admin' })
         let r
         try { r = { ...owners.setAccess(next, id, { all, users, groups }) } } catch (e) { throw e.code ? new KmdError(e.code, e.message) : e }
         delete next.knowledge[id].check
@@ -3123,13 +3123,56 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       list = null
       return { ...owners.accessOf(out), owner: out.owner || null }
     },
+    // 옛 지식 한 번 옮기기(docs/kmd_권한_모델.md 4절) — 팀 서버를 켤 때 · people 은 그때 있는 사람(auth.people: 떠난 사람 · 기계 · 일꾼 제외).
+    //   장부에 accessV 2 가 있으면 하지 않는다 · 장부가 깨져 있으면 mutateReg 가 던지고 옮기지 않는다(빈 장부로 덮지 않는다) · 바뀐 지식은 _members.md 도
+    async migrateAccess(people) {
+      if (mode !== 'team') return []
+      if (!Array.isArray(people)) throw new KmdError('E_INPUT', '옮기기에는 사람 목록이 있어야 한다')
+      if ((R().accessV || 0) >= 2) return []
+      const ks = await hub.list()
+      const touched = await mutateReg((next) => owners.migrateV2(next, ks.map((k) => k.id), people))
+      if (!touched.length) return []
+      await hub.membersFiles(touched, '권한 옮김: 기본 없음 · 있던 사람에게 옛 기본 자리')
+      list = null
+      log(`권한 옮김(한 번): 기본 자리를 없음으로 · 있던 사람 ${people.length}명에게 옛 기본 자리 · 지식 ${touched.length}`)
+      return touched
+    },
+    // 한 사람의 지식마다 자리 — 보기(설정 › 사람 카드 · 총괄 관리자): 사람 줄 · 묶음 · 주인 · 실제 자리
+    async seatsOf(ctx, user) {
+      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '사람의 자리는 총괄 관리자가 본다')
+      const reg = R()
+      const u = String(user ?? '').trim().toLowerCase()
+      return Object.fromEntries((await hub.list()).map((k) => {
+        const row = owners.rowOf(reg, k.id)
+        const a = owners.accessOf(row)
+        const mine = row?.owner === u || owners.curatorsOf(row).includes(u) ? 'admin' : a.users[u] || 'none'
+        const viaGroups = owners.groupsOf(reg, u).filter((g) => a.groups[g]).map((g) => ({ group: g, level: a.groups[g] }))
+        return [k.id, { name: k.name, mine, owner: row?.owner === u, groups: viaGroups, all: a.all, level: owners.levelOf(reg, k.id, { user: u }) }]
+      }))
+    },
+    // 한 사람의 지식마다 자리 — 바꾸기(사람 더하기 · 사람 카드 · 총괄 관리자) · { 지식: 없음|읽기|쓰기|지식관리자 } · _members.md 도
+    async setSeats(ctx, user, seats) {
+      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '사람의 자리는 총괄 관리자가 준다')
+      const u = String(user ?? '').trim().toLowerCase()
+      if (!hub.people().includes(u)) throw new KmdError('E_INPUT', `그런 사람은 없다: ${u.slice(0, 40)}`)
+      if (!seats || typeof seats !== 'object' || Array.isArray(seats)) throw new KmdError('E_INPUT', '자리는 { 지식: 자리 } 이다')
+      const ids = new Set((await hub.list()).map((k) => k.id))
+      for (const id of Object.keys(seats)) if (!ids.has(id) || ['__proto__', 'constructor', 'prototype'].includes(id)) throw new KmdError('E_INPUT', `그런 지식은 없다: ${String(id).slice(0, 40)}`)
+      let touched
+      try {
+        touched = await mutateReg((next) => owners.setSeats(next, u, seats))
+      } catch (e) { throw e.code && !(e instanceof KmdError) ? new KmdError(e.code, e.message) : e }
+      await hub.membersFiles(touched, `이 지식의 사람: ${u} 의 자리`)
+      list = null
+      return { user: u, kns: touched, seats: await hub.seatsOf(ctx, u) }
+    },
     // 묶음 — 사람 여럿에 한 번에 자리를 준다(전역 관리자 · 셸) · 사람 목록은 서버(owners.json)에만
     groups() {
       const g = R().groups || {}
       return Object.keys(g).sort().map((name) => ({ name, members: g[name].members || [], kns: Object.entries(R().knowledge || {}).filter(([, r]) => r?.access?.groups?.[name]).map(([id]) => id) }))
     },
     async setGroup(ctx, { name, members } = {}) {
-      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '묶음은 관리자가 정한다')
+      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '묶음은 총괄 관리자가 정한다')
       const known = new Set(hub.people())
       const ms = (Array.isArray(members) ? members : String(members ?? '').split(/[,\s]+/)).map((x) => String(x).trim().toLowerCase()).filter(Boolean)
       if (known.size) for (const u of ms) if (!known.has(u)) throw new KmdError('E_INPUT', `그런 사람은 없다: ${u.slice(0, 40)}`)
@@ -3138,7 +3181,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       } catch (e) { throw e.code && !(e instanceof KmdError) ? new KmdError(e.code, e.message) : e }
     },
     async dropGroup(ctx, name) {
-      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '묶음은 관리자가 지운다')
+      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '묶음은 총괄 관리자가 지운다')
       let touched
       try {
         touched = await mutateReg((next) => owners.dropGroup(next, name))
@@ -3253,7 +3296,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       return { ...r, backup: backup.stateOf(meta) }
     },
     async backupPull(ctx, id) {
-      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '백업에서 받기는 관리자가 한다')
+      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '백업에서 받기는 총괄 관리자가 한다')
       const meta = await hub.meta(id, ctx)
       const r = await backup.pull(meta, { check })
       cache.delete(id)
@@ -3261,7 +3304,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 이 백업 이어 쓰기 — 갈라졌을 때 백업 쪽이 맞다고 사람이 정한다(지금 머리는 가지로 남긴다)
     async backupAdopt(ctx, id) {
-      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '백업 이어 쓰기는 관리자가 한다')
+      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '백업 이어 쓰기는 총괄 관리자가 한다')
       const meta = await hub.meta(id)
       // 갈라졌으면 — 서버에만 있던 기록을 쓴 사람에게 알린다(가지 kmd-before-… 에 남는다 · 다시 남기면 들어간다)
       const lost = await backup.lostIfAdopt(meta).catch(() => ({ records: [], docs: [] }))
@@ -3274,7 +3317,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 되살리기 — 백업 자리에서 새 폴더로(지식 받아 오기 · 새 PC 의 [이 PC 로 되살리기]) · 받은 곳을 그대로 백업 자리로 붙인다
     async restore(ctx, { url, name, attach = null }) {
-      if (!ctx.admin && !ctx.shell && mode !== 'pc') throw new KmdError('E_FORBIDDEN', '되살리기는 관리자가 한다')
+      if (!ctx.admin && !ctx.shell && mode !== 'pc') throw new KmdError('E_FORBIDDEN', '되살리기는 총괄 관리자가 한다')
       if (await looksLikeKnowledge(root)) throw new KmdError('E_INPUT', '이 kmd 는 지식 하나만 연다')
       const t = checkUrl(url, { roots: config.backupRoots || [], pc: mode === 'pc' })
       const nm = String(name || '').normalize('NFC').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').trim() || path.basename(t.url).replace(/\.git$/i, '')
@@ -3357,11 +3400,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 갈라졌을 때 — 이어 쓰기가 빼는 것(서버에만 있는 기록 · 문서) · 서버 것으로 백업 덮기
     async backupLost(ctx, id) {
-      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '관리자가 한다')
+      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '총괄 관리자가 한다')
       return backup.lostIfAdopt(await hub.meta(id))
     },
     async backupKeep(ctx, id) {
-      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '관리자가 한다')
+      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '총괄 관리자가 한다')
       return backup.keepServer(await hub.meta(id))
     },
     async start() {

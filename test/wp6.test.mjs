@@ -17,7 +17,7 @@ import { SHELL } from '../server/hub.js'
 import { makeMcp } from '../server/mcp.js'
 import * as feed from '../core/feed.js'
 import { coordsOfSection } from '../core/knowledge.js'
-import { copyDir, signIn } from './helpers.mjs'
+import { copyDir, signIn, seat } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const CHROME = [process.env.KMD_CHROME, 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe', '/usr/bin/google-chrome', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find((p) => p && fs.existsSync(p))
@@ -41,6 +41,9 @@ before(async () => {
   s = await startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
   me = await signIn(s, { id: 'kim' })
   await s.hub.setOwner(SHELL, 'dpms', { owner: 'kim' })
+  // 팀원 lee — 받지 않은 지식은 없음이 기본이라(권한 모델 v1.1) 쓰기 자리를 준다
+  await s.auth.addUser({ id: 'lee', admin: false })
+  await seat(s, 'lee', { dpms: 'write', gdi: 'write' })
   if (CHROME) {
     if (!/^[\x20-\x7e]*$/.test(os.tmpdir())) {
       const ascii = path.join(HERE, '..', '.kmd-data', 'tmp')
@@ -105,7 +108,8 @@ test('MCP: 이미 있는 항목을 base 없이 갈아 끼우지 않는다 · bas
 
 test('이미 되돌린 정리는 다시 되돌리지 않는다 · 쓴 사람의 「되돌릴 수 있다」 줄도 거둔다', async () => {
   const a = await s.hub.save(LEE, 'dpms', { record: { title: '카나리: lee', touches: ['proc:카나리'], body: '20%' } })
-  const t = await s.hub.save({ user: 'kmd-auto' }, 'dpms', { record: { title: '정리: 카나리', tags: ['curate-llm'], reflects: [a.id], body: `- 넣음 ${a.id}: 카나리` }, sections: [{ coord: 'proc:카나리', content: '20% 로' }] }, { system: true })
+  // 정리(kmd-auto)는 사람이 아니라 자리를 받지 않는다 — 받지 않은 지식은 없음이 기본이라(권한 모델 v1.1) 셸 자리로 문서에 바로 쓴다(실제 정리처럼)
+  const t = await s.hub.save({ user: 'kmd-auto', shell: true }, 'dpms', { record: { title: '정리: 카나리', tags: ['curate-llm'], reflects: [a.id], body: `- 넣음 ${a.id}: 카나리` }, sections: [{ coord: 'proc:카나리', content: '20% 로' }] }, { system: true })
   await feed.add(data, 'lee', { kind: 'tidy', rec: t.id, kn: 'dpms', yl: true, b: '값이 바뀌었다', revert: t.id })
   await s.hub.revert(KIM, 'dpms', { record: t.id })
   assert.ok((await feed.list(data, 'lee')).some((x) => x.revert === t.id && x.reverted), '쓴 사람의 줄도 「되돌렸다」')

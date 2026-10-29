@@ -14,7 +14,7 @@ import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
 import * as collect from '../core/collect.js'
 import { HUMAN_ANSWER } from '../core/curate.js'
-import { copyDir } from './helpers.mjs'
+import { copyDir, seat } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s
@@ -48,6 +48,9 @@ test('저장이 곧 반영: 한 save → 대기 0 · 옛 날짜 고친 기록은
 })
 
 test('팀 지식: 주인 · 정리하는 사람이 아니면 항목 글은 기록에 실려 정리를 기다린다', async () => {
+  // lee 는 보통 팀원 — 자리 없음이 기본이라(권한 모델 v1.1) dpms 쓰기 자리를 받는다
+  await s.auth.addUser({ id: 'lee', admin: false })
+  await seat(s, 'lee', { dpms: 'write' })
   const before = fs.readFileSync(path.join(tmp, 'kn', 'dpms', 'docs', '운영.md'), 'utf8')
   const r = await s.hub.save(LEE, 'dpms', { record: { title: '알람: 당번 채널도', body: '#ops-oncall 도 받는다.' }, sections: [{ coord: 'term:알람', content: 'CPU 경고는 85% 에서 울린다. 받는 곳은 #ops-alert · #ops-oncall.' }] })
   assert.equal(r.queued, true)

@@ -1,6 +1,6 @@
 // 권한 화면 — 지식 카드 ⋯ › 권한 창 · 문서 화면 속성 칸 「쓰는 사람」 · 관리 › 묶음 카드(docs/kmd_권한_모델.md 6절).
 //
-// 사람 넷: boss(전역 관리자) · own(dpms 주인 — 관리 자리, 비밀번호 한 번 더가 없다) · rd · no. own 이 창에서 「모두」 를 없음으로,
+// 사람 넷: boss(총괄 관리자) · own(dpms 주인 — 지식관리자 자리, 비밀번호 한 번 더가 없다) · rd · no. own 이 창에서 「모두」 를 없음으로,
 // rd 를 읽기로 더해 저장하면 서버 자리 표가 바뀌고 · rd 의 카드에는 「읽기」 칩 · 「고치기」 는 흐리게 · no 의 목록에는 dpms 가 없다.
 // playwright-core + 이 PC 의 Chrome(없으면 건너뛴다 — KMD_CHROME). 찍은 그림은 KMD_SHOTS(없으면 임시 폴더의 kmd-shots)에 access-*.png.
 
@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
-import { copyDir, signIn } from './helpers.mjs'
+import { copyDir, signIn, seat } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const SHOTS = process.env.KMD_SHOTS || path.join(os.tmpdir(), 'kmd-shots')
@@ -37,6 +37,10 @@ before(async () => {
   P.boss = await signIn(s, { id: 'boss', admin: true })
   for (const id of ['own', 'rd', 'no']) P[id] = await signIn(s, { id, admin: false })
   await s.hub.setOwner(SHELL, 'dpms', { owner: 'own' })
+  // 기본 자리는 「없음」(권한 모델 v1.1 1절) · 서버를 켠 뒤에 만든 사람에게는 옮기기 자리도 없다 —
+  // gdi 는 셋 모두 쓰기 자리로 주고(own 은 gdi 에서 쓰기 자리) · dpms 는 「모두: 쓰기」 를 자리 표에 적어 둔다(주인이 창에서 없음으로 바꾼다)
+  for (const id of ['own', 'rd', 'no']) await seat(s, id, { gdi: 'write' })
+  await s.hub.setAccess(SHELL, 'dpms', { all: 'write' })
   // Chrome 은 한글이 든 임시 경로의 프로필 폴더를 받지 않는다 — 그때만 레포의 .kmd-data/tmp(무시 목록)로
   if (!/^[\x20-\x7e]*$/.test(os.tmpdir())) {
     const ascii = path.join(HERE, '..', '.kmd-data', 'tmp')
@@ -75,7 +79,7 @@ test('권한 창: 주인이 「모두」 를 없음으로 · rd 를 읽기로 �
   // 카드 글은 자리 표를 따른다(T13) — 「팀 모두 기록」 이 아니라 내 자리 칩
   await page.waitForSelector('[data-t=krow][data-name="DPMS 지식"] [data-t=lvChip]')
   assert.doesNotMatch(await card(page, 'DPMS 지식').innerText(), /팀 모두/)
-  assert.equal(await card(page, 'DPMS 지식').locator('[data-t=lvChip]').innerText(), '관리')
+  assert.equal(await card(page, 'DPMS 지식').locator('[data-t=lvChip]').innerText(), '지식관리자')
   // ⋯ › 권한 — 관리 자리에게만(gdi 는 own 이 쓰기 자리라 없다)
   await card(page, 'GDI 지식').locator('[data-t=knKebab]').click()
   assert.equal(await page.locator('.pop [data-t=accOpen]').count(), 0, '쓰기 자리에는 권한 메뉴가 없다')
@@ -86,7 +90,7 @@ test('권한 창: 주인이 「모두」 를 없음으로 · rd 를 읽기로 �
   const win = page.locator('[data-t=accWin]')
   assert.equal(await win.getAttribute('role'), 'dialog')
   assert.match(await win.locator('[data-t=accOwner]').innerText(), /own[\s\S]*주인[\s\S]*관리/)
-  assert.equal(await win.locator('[data-t=accAllLv]').inputValue(), 'write', '옛 꼴: 들어온 사람 모두 쓰기')
+  assert.equal(await win.locator('[data-t=accAllLv]').inputValue(), 'write', '자리 표에 적어 둔 「모두: 쓰기」')
   assert.ok(await win.locator('[data-t=accSave]').isDisabled(), '바꾼 것이 없으면 저장은 흐리다')
   // 모두 → 없음 · rd 를 더하면 읽기로 선다
   await win.locator('[data-t=accAllLv]').selectOption('none')

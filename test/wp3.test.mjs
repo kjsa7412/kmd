@@ -15,12 +15,14 @@ import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
 import { makeMcp } from '../server/mcp.js'
 import * as feed from '../core/feed.js'
-import { copyDir, signIn } from './helpers.mjs'
+import { copyDir, signIn, seat } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const LEE = { user: 'lee' }
-const PARK = { user: 'park', admin: true } // 팀 지식의 정리 · 바로 고치기는 관리자(권한은 관리자 · 일반 둘뿐)
+const PARK = { user: 'park', admin: true } // 팀 지식의 정리 · 바로 고치기는 총괄 관리자(지식관리자와 같은 자리)
 let tmp, root, data, s, kim, lee
+// 자동 정리(kmd-auto)는 사람이 아니다 — 자리 없이 셸로 쓴다(기본 자리 「없음」 · 권한 모델 v1.1)
+const AUTO = { user: 'kmd-auto', shell: true }
 const code = (p) => p.then(() => 'ok', (e) => e.code)
 
 before(async () => {
@@ -34,6 +36,10 @@ before(async () => {
   kim = await signIn(s, { id: 'kim', admin: true })
   lee = await signIn(s, { id: 'lee', admin: false })
   await signIn(s, { id: 'park', admin: false })
+  await signIn(s, { id: 'choi', admin: false })
+  // 기본 자리는 「없음」(권한 모델 v1.1 4절) — 기록만 하는 팀 사람(lee · choi)에게 쓰기 자리를 준다
+  await seat(s, 'lee', { dpms: 'write' })
+  await seat(s, 'choi', { dpms: 'write' })
   await s.hub.setOwner(SHELL, 'dpms', { owner: 'park' })
 })
 after(async () => {
@@ -86,25 +92,25 @@ test('기록만 하는 사람의 names: 이름 장부는 그대로 · 기록에 
   const sv = await call('save', { knowledge: 'dpms', record: { title: '용어: 하나' }, names: [{ coord: 'term:카나리 비율', label: '카나리 비율' }] }, LEE)
   assert.match(sv.note, /이름 1 은 아직 세우지 않았다/)
   const b = await call('brief', { knowledge: 'dpms' }, LEE)
-  assert.deepEqual(b.you, { role: '쓰기', direct: false }) // 옛 장부 = 모두 쓰기(권한 모델 4절)
+  assert.deepEqual(b.you, { role: '쓰기', direct: false }) // 쓰기 자리를 받은 사람(권한 모델 4절)
   assert.match(b.tidy, /정해진 시각/)
   assert.equal(b.noClaude, undefined)
   await s.hub.setOwner(SHELL, 'dpms', { noClaude: true })
   assert.match((await call('brief', { knowledge: 'dpms' }, PARK)).noClaude, /자동 정리에 Claude 를 쓰지 않는다/)
-  assert.deepEqual((await call('brief', { knowledge: 'dpms' }, PARK)).you, { role: '관리', direct: true }) // 전역 관리자 = 관리
+  assert.deepEqual((await call('brief', { knowledge: 'dpms' }, PARK)).you, { role: '지식관리자', direct: true }) // 총괄 관리자 = 지식관리자
   await s.hub.setOwner(SHELL, 'dpms', { noClaude: false })
 })
 
 test('남의 기록이 섞인 정리: 기록만 하는 사람은 되돌리지 못한다 · 되돌리면 함께 든 기록의 주인에게 알린다', async () => {
   const a = await s.hub.save(LEE, 'dpms', { record: { title: '헬스 체크: lee', touches: ['proc:헬스 체크'], body: '주기 20초' } })
   const c = await s.hub.save({ user: 'choi' }, 'dpms', { record: { title: '헬스 체크: choi', touches: ['proc:헬스 체크'], body: '시간 초과 2초' } })
-  const tidy = await s.hub.save({ user: 'kmd-auto' }, 'dpms', {
+  const tidy = await s.hub.save(AUTO, 'dpms', {
     record: { title: '정리: 헬스 체크', tags: ['curate-llm'], reflects: [a.id, c.id], body: `- 넣음 ${a.id}: 헬스 체크\n- 넣음 ${c.id}: 헬스 체크` },
     sections: [{ coord: 'proc:헬스 체크', content: '주기 20초 · 시간 초과 2초' }],
   }, { system: true })
   assert.equal(await code(s.hub.revert(LEE, 'dpms', { record: tidy.id })), 'E_FORBIDDEN')
   // 자기 기록만 든 정리는 되돌린다
-  const own = await s.hub.save({ user: 'kmd-auto' }, 'dpms', {
+  const own = await s.hub.save(AUTO, 'dpms', {
     record: { title: '정리: 롤백', tags: ['curate-llm'], reflects: [a.id], body: `- 넣음 ${a.id}: 롤백` },
     sections: [{ coord: 'proc:롤백', content: '이전 판으로' }],
   }, { system: true })

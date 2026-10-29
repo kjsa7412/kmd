@@ -15,7 +15,7 @@ import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
 import * as backup from '../core/backup.js'
 import * as feed from '../core/feed.js'
-import { copyDir, signIn } from './helpers.mjs'
+import { copyDir, signIn, seat } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const KIM = { user: 'kim', admin: true }
@@ -79,6 +79,9 @@ test('.git 없는 지식 폴더가 다른 저장소 안에 있어도: 붙이기�
 test('갈라졌을 때: 이어 쓰기가 뺄 기록을 먼저 보이고 쓴 사람에게 알린다 · 서버 것으로 백업을 덮는다', async () => {
   const kdir = path.join(root, 'gdi')
   const bare = path.join(bk, 'gdi.git')
+  // lee 는 gdi 에 쓰는 팀원 — 받지 않은 지식은 없음이 기본이라 쓰기 자리를 준다(권한 모델 v1.1)
+  await signIn(s, { id: 'lee', admin: false })
+  await seat(s, 'lee', { gdi: 'write' })
   G(tmp, 'init', '-q', '--bare', '-b', 'main', bare)
   await s.hub.backupAttach(SHELL, 'gdi', bare)
   assert.ok(await until(() => G(bare, 'rev-parse', 'main') === G(kdir, 'rev-parse', 'HEAD')))

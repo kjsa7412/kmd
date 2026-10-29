@@ -272,7 +272,7 @@ export function closed(kn) {
   if (!e?.state || !v || !CLOSED.has(v.state)) return null
   return {
     state: v.state,
-    message: v.state === 'behind' ? '이 지식은 지금 읽기만 된다. 백업에 이 서버가 모르는 글이 있다. 관리자가 「백업에서 받기」 를 한 뒤 다시 저장한다' : '이 지식은 지금 읽기만 된다. 백업을 다른 서버가 이어 쓴다. 어느 쪽이 맞는지 관리자가 정한다',
+    message: v.state === 'behind' ? '이 지식은 지금 읽기만 된다. 백업에 이 서버가 모르는 글이 있다. 총괄 관리자가 「백업에서 받기」 를 한 뒤 다시 저장한다' : '이 지식은 지금 읽기만 된다. 백업을 다른 서버가 이어 쓴다. 어느 쪽이 맞는지 관리자가 정한다',
   }
 }
 

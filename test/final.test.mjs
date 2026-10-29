@@ -16,7 +16,7 @@ import { startServer } from '../server/http.js'
 import { workOnce } from '../core/worker.js'
 import { SYSTEM_TAGS } from '../core/knowledge.js'
 import { parseRecord } from '../core/frontmatter.js'
-import { copyDir, signIn } from './helpers.mjs'
+import { copyDir, signIn, seat } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp
@@ -66,6 +66,8 @@ async function eight(mode) {
     const sent = await s.hub.send(KIM, 'gdi')
     out.send = { sent: sent.sent, got: (await s.hub.get('dpms')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/'))).length }
     // ⑧ 기록이 문서로 — 팀: 팀 모두의 기록 → [지금 정리] → 일꾼(가짜 claude) → 넣음 · 이 PC: 정리가 따로 없다 — 남는 즉시 kmd 가 넣는다
+    // 팀: lee 는 dpms 에 쓰기 자리를 받은 팀원이다(받지 않은 지식은 없음이 기본 · 권한 모델 v1.1)
+    if (mode !== 'pc') { await s.auth.addUser({ id: 'lee', admin: false }); await seat(s, 'lee', { dpms: 'write' }) }
     const rec = await s.hub.save(mode === 'pc' ? KIM : { user: 'lee' }, 'dpms', { record: { title: '헬스 체크: 시간 초과 5초', body: '헬스 체크는 5초 안에 200 이 와야 통과.', touches: ['proc:헬스 체크'] } })
     if (mode === 'pc') await s.hub.curateIdle('dpms')
     else {

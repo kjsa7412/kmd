@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
 import { workOnce } from '../core/worker.js'
-import { copyDir, signIn } from './helpers.mjs'
+import { copyDir, signIn, seat } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s, me, wkey, calls
@@ -34,6 +34,9 @@ before(async () => {
   fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, tidyTickMs: 3600000 }))
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
   me = await signIn(s, { id: 'kim' })
+  // lee 는 보통 팀 사람 — 기본 자리가 「없음」 이 되어(권한 모델 v1.1) 쓰기 자리를 따로 준다
+  await s.auth.addUser({ id: 'lee', admin: false })
+  await seat(s, 'lee', { dpms: 'write', gdi: 'write' })
   wkey = (await s.auth.workerAdd()).key
 })
 after(async () => {

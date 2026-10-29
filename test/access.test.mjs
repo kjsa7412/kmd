@@ -1,9 +1,9 @@
 // 지식마다 자리(읽기 · 쓰기 · 관리 — docs/kmd_권한_모델.md) — 서버 쪽 전부.
 //
-// 사람 넷(전역 관리자 · 읽기 · 쓰기 · 없음)과 주인 하나 · 지식 둘(dpms 는 모두=없음 · gdi 는 옛 장부)을 세우고, 각 사람의 기기 열쇠
+// 사람 넷(총괄 관리자 · 읽기 · 쓰기 · 없음)과 주인 하나 · 지식 둘(dpms 는 모두=없음 · gdi 는 모두=쓰기)을 세우고, 각 사람의 기기 열쇠
 // (Authorization: Bearer)로 목록 · 찾기 · 문서 · 기록 저장 · 바로 고치기 · 가져올 곳 · 지금 하는 일 · 이력 · 정리 일감 · MCP 가
 // 자리대로 보이고 막히는지 본다(없음 → 404 · 읽기의 쓰기 → 403 E_FORBIDDEN · 쓰기의 고치기 → 기록으로).
-// 옛 장부(access 없음)는 지금과 같다 · _members.md 왕복 · 묶음 · 떠남 · 지식 지우기 · 셸(kmd access · group · user key).
+// 자리 표가 없으면 없음(권한 모델 v1.1 · 주인 · 총괄 관리자만) · _members.md 왕복 · 묶음 · 떠남 · 지식 지우기 · 셸(kmd access · group · user key).
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -45,6 +45,11 @@ before(async () => {
   s = await startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
   P.boss = await signIn(s, { id: 'boss', admin: true })
   for (const id of ['rd', 'wr', 'no', 'own']) P[id] = await signIn(s, { id, admin: false })
+  // 켠 뒤에 만든 사람은 옮기기(migrateAccess)의 옛 기본 자리를 받지 않는다 — 자리 표 없는 지식은 보이지 않는다(권한 모델 v1.1)
+  assert.deepEqual(await levels(P.no), {}, '기본 없음: 자리를 받기 전에는 아무 지식도 없다')
+  assert.deepEqual(await levels(P.boss), { dpms: 'admin/지식관리자', gdi: 'admin/지식관리자' })
+  // gdi 는 「모두: 쓰기」 로 연다(예전 기본을 이제는 자리 표에 적어서) — 아래 시험의 gdi 는 들어온 사람 모두 쓰기
+  await s.hub.setAccess(SHELL, 'gdi', { all: 'write' })
   await s.hub.setGroup(SHELL, { name: '개발', members: ['wr'] })
   await s.hub.setOwner(SHELL, 'dpms', { owner: 'own' })
   await s.hub.setAccess(SHELL, 'dpms', { all: 'none', users: { rd: 'read' }, groups: { 개발: 'write' } })
@@ -54,13 +59,17 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('판정: 전역 관리자 · 주인 · 정리하는 사람 → 관리 · 사람 · 묶음 · 모두의 가장 높은 것 · 옛 장부는 지금과 같다', () => {
+test('판정: 총괄 관리자 · 주인 · 정리하는 사람 → 지식관리자 · 사람 · 묶음 · 모두의 가장 높은 것 · 자리 표가 없으면 없음', () => {
   const reg = { groups: { 운영: { members: ['a'] } }, knowledge: { k: { owner: 'o', curators: ['c'], access: { all: 'read', users: { b: 'write' }, groups: { 운영: 'admin' } } }, old: { owner: 'o', curators: [] }, back: { restored: true } } }
   const L = (id, ctx) => owners.levelOf(reg, id, ctx)
   assert.deepEqual(['o', 'c', 'a', 'b', 'z'].map((u) => L('k', { user: u })), ['admin', 'admin', 'admin', 'write', 'read'])
   assert.equal(L('k', { user: 'z', admin: true }), 'admin', '전역 관리자')
-  assert.equal(L('nothing', { user: 'z' }), 'write', '줄이 없는 지식: 모두 쓰기(지금과 같다)')
-  assert.equal(L('old', { user: 'z' }), 'write', 'access 없는 옛 줄: 모두 쓰기')
+  // 기본이 바뀌었다(권한 모델 v1.1) — 예전 「줄 없음 · access 없음 → 모두 쓰기」 는 이제 없음 · 주인 · 총괄 관리자 · 예전 정리하는 사람만
+  assert.equal(L('nothing', { user: 'z' }), 'none', '줄이 없는 지식: 없음')
+  assert.equal(L('nothing', { user: 'z', admin: true }), 'admin')
+  assert.equal(L('old', { user: 'z' }), 'none', 'access 없는 옛 줄: 없음')
+  assert.equal(L('old', { user: 'o' }), 'admin', 'access 없는 옛 줄의 주인은 그대로 지식관리자')
+  assert.deepEqual(owners.legacyAccessOf(reg.knowledge.old), { all: 'write', users: {}, groups: {} }, '옛 규칙은 옮기기에만 남는다')
   assert.equal(L('back', { user: 'z' }), 'none', '되살림 · 주인 없음: 관리자만(지금과 같다)')
   assert.equal(L('back', { user: 'z', admin: true }), 'admin')
   reg.knowledge.back.curators = ['c']
@@ -71,12 +80,12 @@ test('판정: 전역 관리자 · 주인 · 정리하는 사람 → 관리 · �
   assert.throws(() => owners.normAccess({ all: '아무거나' }), /자리는/)
 })
 
-test('목록 · 자리: /api/knowledge 의 level · role(읽기 · 쓰기 · 관리) · 없음이면 보이지 않는다', async () => {
-  assert.deepEqual(await levels(P.boss), { dpms: 'admin/관리', gdi: 'admin/관리' })
-  assert.deepEqual(await levels(P.own), { dpms: 'admin/관리', gdi: 'write/쓰기' })
+test('목록 · 자리: /api/knowledge 의 level · role(읽기 · 쓰기 · 지식관리자) · 없음이면 보이지 않는다', async () => {
+  assert.deepEqual(await levels(P.boss), { dpms: 'admin/지식관리자', gdi: 'admin/지식관리자' })
+  assert.deepEqual(await levels(P.own), { dpms: 'admin/지식관리자', gdi: 'write/쓰기' })
   assert.deepEqual(await levels(P.rd), { dpms: 'read/읽기', gdi: 'write/쓰기' })
   assert.deepEqual(await levels(P.wr), { dpms: 'write/쓰기', gdi: 'write/쓰기' }, '묶음 개발=쓰기')
-  assert.deepEqual(await levels(P.no), { gdi: 'write/쓰기' }, '없음: 목록에 없다 · 옛 장부의 gdi 는 모두 쓰기')
+  assert.deepEqual(await levels(P.no), { gdi: 'write/쓰기' }, '없음: 목록에 없다 · gdi 는 모두 쓰기')
 })
 
 test('읽기 길: 찾기 · 문서 · MCP brief/section 은 읽기 이상 · 없음은 「없는 지식」(404)', async () => {
@@ -90,12 +99,12 @@ test('읽기 길: 찾기 · 문서 · MCP brief/section 은 읽기 이상 · 없
   assert.match(nd.j.message, /지식 「dpms」 이 없다/, '없는 지식과 같은 글')
   const rd = await req(`/api/k/dpms/doc?d=${D}`, P.rd)
   assert.deepEqual([rd.status, rd.j.direct], [200, false])
-  assert.equal((await req(`/api/k/dpms/doc?d=${D}`, P.own)).j.direct, true, '주인 = 관리: 바로 고치기')
+  assert.equal((await req(`/api/k/dpms/doc?d=${D}`, P.own)).j.direct, true, '주인 = 지식관리자: 바로 고치기')
   assert.ok(!(await mcp('brief', {}, P.no)).knowledge.some((k) => k.id === 'dpms'))
   assert.equal((await mcp('brief', { knowledge: 'dpms' }, P.no)).error, 'E_NOTFOUND')
   assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.rd)).you, { role: '읽기', direct: false })
   assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.wr)).you, { role: '쓰기', direct: false })
-  assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.own)).you, { role: '관리', direct: true })
+  assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.own)).you, { role: '지식관리자', direct: true })
   assert.equal((await mcp('section', { knowledge: 'dpms', doc: '배포절차', heading: '롤백' }, P.rd)).heading, '롤백')
   assert.equal((await mcp('section', { knowledge: 'dpms', doc: '배포절차', heading: '롤백' }, P.no)).error, 'E_NOTFOUND')
 })
@@ -125,8 +134,8 @@ test('쓰기 길: 읽기는 403 E_FORBIDDEN · 쓰기는 기록으로 · 관리�
   assert.equal((await req('/api/k/dpms/import', P.rd, { files: [{ path: 'a.md', b64: Buffer.from('# a\n').toString('base64') }] })).status, 403)
   assert.equal((await req('/api/k/dpms/receive', P.rd, { from: 'x', items: [{ title: 't', body: 'b' }] })).status, 403)
   assert.equal((await req('/api/k/dpms/receive', P.wr, { from: 'x', items: [{ title: '받은 것', body: '본문' }] })).j.saved, 1)
-  // 옛 장부(gdi) — 들어온 사람 모두 기록한다(지금과 같다)
-  assert.equal((await req('/api/k/gdi/save', P.no, { record: { title: '공통코드: 메모', body: '옛 장부' } })).status, 200)
+  // 모두=쓰기(gdi) — 들어온 사람 모두 기록한다
+  assert.equal((await req('/api/k/gdi/save', P.no, { record: { title: '공통코드: 메모', body: '모두 쓰기' } })).status, 200)
 })
 
 test('관리 길: 가져올 곳 더하기 · 지금 가져오기 · 그대로 반영 · 문서 옮기기 · 자리 표는 관리 자리', async () => {
@@ -209,17 +218,21 @@ test('거르기: 지금 하는 일 · 정리 일감 · 일 줄 · 이력 · 오�
   assert.equal((await req('/api/settings', P.no)).j.kns, 1)
 })
 
-test('_members.md 왕복: 자리 표를 싣고 · 장부가 잃으면 켤 때 되찾는다 · 옛 꼴은 옛 규칙', async () => {
+test('_members.md 왕복: 자리 표를 싣고 · 장부가 잃으면 켤 때 되찾는다 · 옛 꼴은 자리 줄 없음', async () => {
   const md = fs.readFileSync(path.join(root, 'dpms', '_members.md'), 'utf8')
   assert.match(md, /- 주인: own\n/)
-  assert.match(md, /- 모두: 없음\n- 읽기: rd\n- 쓰기: \n- 관리: \n- 묶음: 개발=쓰기\n/)
+  assert.match(md, /- 모두: 없음\n- 읽기: rd\n- 쓰기: \n- 지식관리자: \n- 묶음: 개발=쓰기\n/)
   assert.deepEqual(owners.parseMembers(md).access, { all: 'none', users: { rd: 'read' }, groups: { 개발: 'write' } })
-  assert.equal(owners.parseMembers('- 주인: kim\n- 정리 방식: 손으로만\n').access, undefined, '옛 꼴: 자리 줄 없음 → 옛 규칙')
+  assert.equal(owners.parseMembers('- 주인: kim\n- 정리 방식: 손으로만\n').access, undefined, '옛 꼴: 자리 줄 없음')
+  assert.deepEqual(owners.parseMembers('- 모두: 없음\n- 관리: kim\n').access?.users, { kim: 'admin' }, '옛 이름 「관리」 도 읽는다')
   // 장부가 옛 꼴로 돌아갔다(줄의 access 를 잃음) — 맞추기가 _members.md 를 따른다
   const L = ledger()
   delete L.knowledge.dpms.access
   fs.writeFileSync(path.join(data, 'owners.json'), JSON.stringify(L, null, 1))
-  assert.equal((await levels(P.no)).dpms, 'write/쓰기', '잃은 동안은 옛 규칙')
+  // 잃은 동안은 기본 없음(권한 모델 v1.1 — 예전에는 모두 쓰기로 열렸다) · 주인은 그대로
+  assert.equal((await levels(P.no)).dpms, undefined, '잃은 동안은 기본 없음')
+  assert.equal((await levels(P.rd)).dpms, undefined)
+  assert.equal((await levels(P.own)).dpms, 'admin/지식관리자')
   await s.hub.reconcileOwners()
   assert.deepEqual(ledger().knowledge.dpms.access, { all: 'none', users: { rd: 'read' }, groups: { 개발: 'write' } })
   assert.equal((await levels(P.no)).dpms, undefined)
@@ -242,7 +255,7 @@ test('묶음: 관리자만 · 사람을 빼면 그 자리도 빠진다 · 지우
   await s.hub.setGroup(SHELL, { name: '임시', members: ['no'] })
   await s.hub.setAccess(SHELL, 'gdi', { all: 'read', groups: { 임시: 'write' } })
   assert.equal((await levels(P.no)).gdi, 'write/쓰기')
-  assert.equal((await levels(P.rd)).gdi, 'read/읽기', '옛 장부 gdi 를 새 꼴로: 모두 읽기')
+  assert.equal((await levels(P.rd)).gdi, 'read/읽기', 'gdi 를 모두 읽기로')
   const r = await s.hub.dropGroup(SHELL, '임시')
   assert.deepEqual(r.kns, ['gdi'])
   assert.deepEqual(ledger().knowledge.gdi.access.groups, {})
@@ -272,9 +285,9 @@ test('셸: kmd access(보기 · 바꾸기) · kmd group · kmd user key(그 사�
   assert.match(run('access', 'dpms'), /dpms: 모두 없음 · 주인 own/)
   const out = run('access', 'dpms', '--user', 'no=읽기', '--group', '개발=관리')
   assert.match(out, /읽기: no/)
-  assert.match(out, /묶음: 개발=관리/)
+  assert.match(out, /묶음: 개발=지식관리자/)
   assert.equal((await levels(P.no)).dpms, 'read/읽기', '도는 서버가 곧바로 본다')
-  assert.equal((await levels(P.wr)).dpms, 'admin/관리')
+  assert.equal((await levels(P.wr)).dpms, 'admin/지식관리자', '셸의 옛 이름 「관리」 도 받는다')
   run('access', 'dpms', '--user', 'no=없음', '--group', '개발=쓰기')
   assert.equal((await levels(P.no)).dpms, undefined, '「없음」 은 그 줄을 뺀다')
   assert.match(run('group', 'add', '검토', 'no,wr'), /묶음 검토: no, wr/)
@@ -287,18 +300,18 @@ test('셸: kmd access(보기 · 바꾸기) · kmd group · kmd user key(그 사�
   assert.throws(() => run('user', 'key', '없는사람'), /그런 사람은 없다/)
 })
 
-test('옛 줄의 정리하는 사람: 첫 자리 표 저장에서 낮추면 곧바로 · 사람 줄을 보내지 않으면 관리로 옮긴다', async () => {
+test('옛 줄의 정리하는 사람: 첫 자리 표 저장에서 낮추면 곧바로 · 사람 줄을 보내지 않으면 지식관리자로 옮긴다', async () => {
   const reg = { groups: {}, knowledge: { k: { owner: 'o', curators: ['c', 'd'] } } }
   owners.setAccess(reg, 'k', { all: 'read', users: { c: 'read' } })
   assert.deepEqual(reg.knowledge.k.access.users, { c: 'read' }, '보낸 사람 줄 그대로(빠진 d 는 자리 없음)')
   assert.deepEqual(reg.knowledge.k.curators, [])
   const reg2 = { groups: {}, knowledge: { k: { owner: 'o', curators: ['c'] } } }
   owners.setAccess(reg2, 'k', { all: 'none' })
-  assert.deepEqual(reg2.knowledge.k.access.users, { c: 'admin' }, '사람 줄을 안 보냈으면 관리 줄로 옮긴다')
+  assert.deepEqual(reg2.knowledge.k.access.users, { c: 'admin' }, '사람 줄을 안 보냈으면 지식관리자 줄로 옮긴다')
   // 화면 — 주인이 첫 저장에서 정리하는 사람을 읽기로
   const made = await s.hub.addKnowledge({ user: 'boss', admin: true }, { kind: 'new', name: '정리지식' })
   await s.hub.setOwner(SHELL, made.id, { owner: 'own', curators: ['wr'] })
-  assert.equal((await levels(P.wr))[made.id], 'admin/관리')
+  assert.equal((await levels(P.wr))[made.id], 'admin/지식관리자')
   assert.deepEqual((await req(`/api/k/${made.id}/access`, P.own)).j.users, { wr: 'admin' })
   const r = await req(`/api/k/${made.id}/access`, P.own, { all: 'none', users: { wr: 'read' } })
   assert.deepEqual([r.status, r.j.users], [200, { wr: 'read' }])

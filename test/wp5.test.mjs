@@ -16,7 +16,7 @@ import { SHELL } from '../server/hub.js'
 import { git } from '../core/git.js'
 import * as sendLib from '../core/send.js'
 import { sourceLines } from '../core/sources.js'
-import { copyDir } from './helpers.mjs'
+import { copyDir, seat } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const KIM = { user: 'kim', admin: true }
@@ -35,6 +35,9 @@ before(async () => {
   fs.writeFileSync(path.join(data, 'serve.json'), JSON.stringify({ decideMs: 3600000, tidyTickMs: 3600000, sendTickMs: 3600000, jobLeaseMs: 300, privateWaitMs: 2000 }))
   s = await startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
   await s.hub.addKnowledge(KIM, { kind: 'new', name: '노트', team: true })
+  // lee 는 dpms 에 쓰는 팀원 — 받지 않은 지식은 없음이 기본이라 자리를 준다(docs/kmd_권한_모델.md v1.1)
+  await s.auth.addUser({ id: 'lee', admin: false })
+  await seat(s, 'lee', { dpms: 'write' })
 })
 after(async () => {
   await s?.close()

@@ -15,13 +15,13 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { makeHub, SHELL } from '../server/hub.js'
 import * as owners from '../core/owners.js'
-import { copyDir, signIn } from './helpers.mjs'
+import { copyDir, signIn, seat } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const LEE = { user: 'lee' }
 const PARK = { user: 'park' }
 const KIM = { user: 'kim', admin: true }
-let tmp, root, data, s
+let tmp, root, data, s, parkIn
 const code = (p) => p.then(() => 'ok', (e) => e.code)
 const ledger = () => JSON.parse(fs.readFileSync(path.join(data, 'owners.json'), 'utf8')).knowledge
 const ids = async (ctx) => (await s.hub.visible(ctx)).map((k) => k.id).sort()
@@ -35,6 +35,9 @@ before(async () => {
   data = path.join(root, '.kmd')
   copyDir(path.join(HERE, 'fixture', 'kmd'), root)
   s = await startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
+  // 팀원 둘(lee · park) — 서버를 켠 뒤 만든 사람이라 자리가 없다(권한 모델 v1.1 · 기본 없음). 자리는 시험마다 준다
+  parkIn = await signIn(s, { id: 'park', admin: false })
+  await signIn(s, { id: 'lee', admin: false })
 })
 after(async () => {
   await s?.close()
@@ -52,7 +55,7 @@ test('_members.md: 주인 · 정리하는 사람 · 정리 방식 · Claude 에 
   assert.equal('private' in old, false, '옛 「개인」 줄은 읽지 않는다')
 })
 
-test('한 줄로 서서 고친다. 여럿이 같은 때 팀 지식을 만들고 정리 시각을 바꿔도 줄을 잃지 않는다 · 팀 지식은 팀 모두 본다', async () => {
+test('한 줄로 서서 고친다. 여럿이 같은 때 팀 지식을 만들고 정리 시각을 바꿔도 줄을 잃지 않는다 · 팀 지식은 자리를 받은 사람이 본다', async () => {
   const jobs = []
   for (let i = 0; i < 6; i++) jobs.push(s.hub.addKnowledge({ ...(i % 2 ? PARK : LEE), admin: true }, { kind: 'new', name: `회의${i}` }))
   for (let i = 0; i < 4; i++) jobs.push(s.hub.setOwner(SHELL, 'dpms', { tidyAt: `0${i}:30` }))
@@ -65,7 +68,10 @@ test('한 줄로 서서 고친다. 여럿이 같은 때 팀 지식을 만들고 
     assert.equal('private' in L[id], false)
     assert.match(fs.readFileSync(path.join(root, id, '_members.md'), 'utf8'), /- 주인: /, `${id} 의 _members.md 는 첫 묶음에`)
   }
-  assert.ok((await ids(PARK)).includes('회의0'), '팀 지식은 팀 모두 본다')
+  // 권한 모델 v1.1 — 새 팀 지식의 기본 자리는 없음: 자리를 받은 사람만 본다(옛 「팀 모두 본다」 를 새 규칙으로)
+  assert.ok(!(await ids(PARK)).includes('회의0'), '자리를 받지 않으면 보이지 않는다')
+  await seat(s, 'park', { 회의0: 'write' })
+  assert.ok((await ids(PARK)).includes('회의0'), '자리를 받으면 본다')
   // 팀 서버에는 관리자만 지식을 세운다(개인 지식은 내 PC 에)
   assert.equal(await code(s.hub.addKnowledge(LEE, { kind: 'new', name: '내일기' })), 'E_FORBIDDEN')
   assert.equal(await code(s.hub.addKnowledge(KIM, { kind: 'folder', dir: tmp })), 'E_FORBIDDEN', '팀 서버는 폴더를 들이지 않는다')
@@ -107,6 +113,9 @@ test('옛 개인 지식은 없다: 옛 장부 줄 · _members.md 의 「개인: 
   fs.writeFileSync(path.join(root, '옛일기-lee', '_members.md'), '- 주인: lee\n- 개인: 예\n')
   fs.writeFileSync(path.join(data, 'owners.json'), JSON.stringify({ knowledge: L }, null, 1))
   s = await startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
+  // 옛 장부(accessV 없음) — 켤 때 한 번 옮긴다(권한 모델 v1.1 4절): 그때 있던 사람(lee · park)에게 옛 기본 자리(쓰기)를 사람 줄로
+  assert.equal(JSON.parse(fs.readFileSync(path.join(data, 'owners.json'), 'utf8')).accessV, 2, '옮긴 표시')
+  assert.equal(ledger()['옛일기-lee']?.access?.users?.park, 'write', '있던 사람은 옛 기본 자리 그대로')
   assert.ok((await ids(PARK)).includes('옛일기-lee'), '남도 본다(팀 지식)')
   assert.equal('private' in (s.hub.owner('옛일기-lee') || {}), false)
   assert.equal(ledger()['team-old']?.restored, true, '앞 판의 「되살림: 관리자만」 표지는 말없이 열지 않는다')
@@ -116,6 +125,7 @@ test('옛 개인 지식은 없다: 옛 장부 줄 · _members.md 의 「개인: 
   assert.doesNotMatch(fs.readFileSync(path.join(root, '옛일기-lee', '_members.md'), 'utf8'), /개인/)
   // 동기화 — _members.md 없는 새 폴더는 누른 관리자의 팀 지식
   copyDir(path.join(root, 'team-old'), path.join(root, '새팀'))
+  fs.rmSync(path.join(root, '새팀', '_members.md'), { force: true }) // 옮길 때 team-old 에도 사람 칸이 생겼다 — 「없는」 새 폴더로
   const r = await s.hub.sync(KIM)
   assert.ok(r.added.some((x) => x.id === '새팀'))
   assert.equal(ledger()['새팀']?.owner, 'kim')
@@ -185,7 +195,7 @@ test('지운 지식의 일(넣은 파일 이름 · 터미널 줄)은 남지 않�
 
 test('HTTP: 일반은 지식을 세우지 못한다 · 없는 사람은 주인 · 정리가 되지 않는다 · 옛 개인 길은 없다 · /healthz 는 살아 있나 · 판만', async () => {
   const kim = await signIn(s, { id: 'kim', admin: true })
-  const park = await signIn(s, { id: 'park', admin: false })
+  const park = parkIn // 앞(before)에서 만든 팀원
   const post = (p, who, body) => fetch(s.url + p, { method: 'POST', headers: { cookie: who.cookie, 'content-type': 'application/json' }, body: JSON.stringify(body) })
   assert.equal((await post('/api/knowledge/add', park, { kind: 'new', name: '내것' })).status, 403)
   assert.equal((await post('/api/k/dpms/owner', kim, { curators: ['park', '없는사람'] })).status, 400)

@@ -1,10 +1,11 @@
 // 주인 장부 — 지식마다 주인 · 정리하는 사람 · 되살림 표지. 팀 서버의 지식은 모두 팀 지식이다(개인 지식은 각자의 PC 에만).
 //
 // `<data>/owners.json { groups: { <묶음>: { members } }, knowledge: { <지식>: { owner, curators, restored, at, access } } }` — 서버에 하나.
-// 줄이 없는 지식도 팀 지식이다(들어온 사람 모두 읽고 기록한다). 옛 장부 · `_members.md` 의 「개인」 은 읽지 않는다.
+// 줄이 없는 지식도 팀 지식이다(자리를 받은 사람 · 총괄 관리자만 본다). 옛 장부 · `_members.md` 의 「개인」 은 읽지 않는다.
 //
-//   access    지식마다 자리(docs/kmd_권한_모델.md) — { all, users: { 아이디: 자리 }, groups: { 묶음: 자리 } } · 자리는 none · read · write · admin.
-//             없는 줄은 옛 규칙(모두 쓰기 · 되살림 표지면 관리자만) · 주인 · 정리하는 사람은 늘 관리
+//   access    지식마다 자리(docs/kmd_권한_모델.md v1.1) — { all, users: { 아이디: 자리 }, groups: { 묶음: 자리 } } · 자리는 none · read · write · admin(지식관리자).
+//             없는 줄의 기본은 없음(none) · 주인 · 예전 정리하는 사람(curators)은 늘 지식관리자
+//   accessV   (장부 맨 위) 2 — 옛 기본 「모두: 쓰기」 를 사람 줄로 옮기고 기본을 없음으로 바꾼 표시(한 번만 · migrateV2)
 //
 //   restored  (옛 판) git 으로 되살린 지식 — 주인을 알기 전까지 관리자만 본다. 이제는 되살릴 때 `_members.md` 를 따르고(없으면 팀
 //             지식) 켤 때 맞추며 이 표지를 걷는다
@@ -34,7 +35,7 @@ function parseReg(text) {
     throw new Error(`owners.json 이 깨졌다: ${e.message} · 고치거나 지운 뒤 다시 띄운다`)
   }
   if (!j || typeof j !== 'object' || typeof (j.knowledge ?? {}) !== 'object') throw new Error('owners.json 의 모양이 아니다. { knowledge: { … } }')
-  return { groups: j.groups && typeof j.groups === 'object' ? j.groups : {}, knowledge: j.knowledge || {} }
+  return { ...(Number.isInteger(j.accessV) ? { accessV: j.accessV } : {}), groups: j.groups && typeof j.groups === 'object' ? j.groups : {}, knowledge: j.knowledge || {} }
 }
 export async function load(dataDir) {
   return parseReg(await fs.readFile(fileOf(dataDir), 'utf8').catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e))))
@@ -94,16 +95,17 @@ export async function store(dataDir, reg) {
   }
 }
 
-// ── 자리 — 없음 · 읽기 · 쓰기 · 관리(docs/kmd_권한_모델.md) ──
+// ── 자리 — 없음 · 읽기 · 쓰기 · 지식관리자(docs/kmd_권한_모델.md v1.1) ──
 export const LEVELS = ['none', 'read', 'write', 'admin']
-export const LEVEL_WORD = { none: '없음', read: '읽기', write: '쓰기', admin: '관리' }
-const WORD_LEVEL = Object.fromEntries(Object.entries(LEVEL_WORD).map(([k, v]) => [v, k]))
+export const LEVEL_WORD = { none: '없음', read: '읽기', write: '쓰기', admin: '지식관리자' }
+// 옛 이름 「관리」 도 읽는다(옛 _members.md · 셸)
+const WORD_LEVEL = { ...Object.fromEntries(Object.entries(LEVEL_WORD).map(([k, v]) => [v, k])), 관리: 'admin' }
 export const rank = (l) => Math.max(0, LEVELS.indexOf(l))
 export const atLeast = (l, want) => rank(l) >= rank(want)
 const top = (...ls) => ls.filter(Boolean).reduce((a, b) => (rank(b) > rank(a) ? b : a), 'none')
 // 자리 이름 하나 — 영어(none · read …)나 화면 이름(없음 · 읽기 …) · 아니면 null
 export const levelWord = (x) => (LEVELS.includes(String(x)) ? String(x) : WORD_LEVEL[String(x ?? '').trim()] || null)
-const badLevel = (x) => Object.assign(new Error(`자리는 없음 · 읽기 · 쓰기 · 관리 중 하나다: ${String(x).slice(0, 20)}`), { code: 'E_INPUT' })
+const badLevel = (x) => Object.assign(new Error(`자리는 없음 · 읽기 · 쓰기 · 지식관리자 중 하나다: ${String(x).slice(0, 20)}`), { code: 'E_INPUT' })
 // 묶음 이름 — 한 줄 40자 · _members.md 의 「묶음: 이름=자리, …」 를 깨지 않게
 export const groupName = (n) => {
   const s = String(n ?? '').normalize('NFC').trim()
@@ -116,17 +118,22 @@ export function normAccess(a = {}) {
   const map = (m, key) => Object.fromEntries(Object.entries(m && typeof m === 'object' ? m : {}).map(([k, v]) => [key(k), lv(v)]).filter(([k, v]) => k && v !== 'none'))
   return { all: a.all == null ? 'none' : lv(a.all), users: map(a.users, (k) => String(k).trim().toLowerCase()), groups: map(a.groups, groupName) }
 }
-// 그 지식의 자리 표 — 새 칸이 없으면 옛 규칙으로 읽는다(파일은 고칠 때 새 꼴로)
+// 그 지식의 자리 표 — 칸이 없으면 기본 없음(받지 않은 지식은 보이지 않는다 · 주인 · 총괄 관리자만)
 export function accessOf(row) {
   if (row?.access) return { all: row.access.all || 'none', users: row.access.users || {}, groups: row.access.groups || {} }
-  if (row?.restored && !row.owner) return { all: 'none', users: {}, groups: {} } // 되살림 · 주인 없음 — 관리자만(지금과 같다)
-  return { all: 'write', users: {}, groups: {} } // 줄이 없거나 옛 줄 — 들어온 사람 모두 읽고 기록(지금과 같다)
+  return { all: 'none', users: {}, groups: {} }
 }
-// 그 줄의 정리하는 사람 — 되살림 · 주인 없음 줄은 아무도 아니다(관리자만 · docs/kmd_권한_모델.md 4절)
+// 옛 규칙(accessV 2 전) — 칸이 없으면 모두 쓰기 · 되살림 · 주인 없음이면 총괄 관리자만. 옮기기(migrateV2)만 쓴다
+export function legacyAccessOf(row) {
+  if (row?.access) return accessOf(row)
+  if (row?.restored && !row.owner) return { all: 'none', users: {}, groups: {} }
+  return { all: 'write', users: {}, groups: {} }
+}
+// 그 줄의 예전 정리하는 사람 — 되살림 · 주인 없음 줄은 아무도 아니다(총괄 관리자만 · docs/kmd_권한_모델.md 4절)
 export const curatorsOf = (row) => (row?.restored && !row.owner ? [] : row?.curators || [])
 export const groupsOf = (reg, user) => Object.entries(reg?.groups || {}).filter(([, g]) => (g?.members || []).includes(user)).map(([n]) => n)
 
-// 그 사람의 자리 — 전역 관리자 · 셸 · PC 주인 ctx → 관리 · 주인 · 정리하는 사람 → 관리 · 그 밖은 사람 · 묶음 · 모두 줄의 가장 높은 것.
+// 그 사람의 자리 — 총괄 관리자 · 셸 · PC 주인 ctx → 지식관리자 · 주인 · 예전 정리하는 사람 → 지식관리자 · 그 밖은 사람 · 묶음 · 모두 줄의 가장 높은 것.
 //   에이전트(kmda_) · 기계 · 초안 열쇠는 그 지식 하나만(에이전트는 바로 쓴다 · 기계는 기준선 · 초안은 재료)
 export function levelOf(reg, id, ctx = {}) {
   if (!ctx) return 'none'
@@ -147,7 +154,7 @@ export function levelOf(reg, id, ctx = {}) {
 export function visible(reg, id, ctx = {}) {
   return atLeast(levelOf(reg, id, ctx), 'read')
 }
-// 사람에게 자리가 따로 있나(주인 · 정리 · 사람 줄 · 묶음 줄) — 관리 › 사람의 「지식 n개에 자리」
+// 사람에게 자리가 따로 있나(주인 · 정리 · 사람 줄 · 묶음 줄) — 설정 › 사람의 「지식 n개에 자리」
 export function seatOf(reg, id, user) {
   const row = rowOf(reg, id)
   if (!row) return null
@@ -170,6 +177,51 @@ export function setAccess(reg, id, { all, users, groups } = {}) {
   reg.knowledge[id] = { ...keep, owner: prev.owner ?? null, curators: [], access: next, at: new Date().toISOString() }
   if (reg.knowledge[id].owner) delete reg.knowledge[id].restored
   return reg.knowledge[id]
+}
+// 옛 지식 한 번 옮기기(docs/kmd_권한_모델.md 4절) — 기본 「모두: 쓰기」 → 「없음」. 겉으로 바뀌는 것이 없게
+//   ids 의 지식마다(장부에 줄이 없는 지식도) people(떠난 사람 · 기계 · 일꾼 제외 · auth.people) 모두에게 옛 기본 자리를 사람 줄로 적고
+//   (사람 줄이 이미 그 이상이면 그대로 — 낮추지 않는다 · 주인 · 묶음 자리는 그대로) · 예전 정리하는 사람은 사람 줄 지식관리자로 옮긴 뒤
+//   all = none. 장부에 accessV = 2 를 단다. 이미 2 면 아무것도 하지 않는다. 바뀐 지식 id
+export function migrateV2(reg, ids, people) {
+  if (reg.accessV >= 2) return []
+  const touched = []
+  for (const id of ids) {
+    const prev = reg.knowledge[id] || {}
+    const old = legacyAccessOf(prev)
+    const users = { ...old.users }
+    for (const c of curatorsOf(prev)) users[c] = top(users[c], 'admin')
+    if (old.all !== 'none') for (const u of people) if (u !== prev.owner && rank(users[u]) < rank(old.all)) users[u] = old.all
+    const next = normAccess({ all: 'none', users, groups: old.groups })
+    if (prev.owner) delete next.users[prev.owner]
+    const was = prev.access ? JSON.stringify(normAccess(prev.access)) : null
+    if (was === JSON.stringify(next) && !(prev.curators || []).length && reg.knowledge[id]) continue
+    const { private: _p, workerOk: _w, ...keep } = prev
+    reg.knowledge[id] = { ...keep, owner: prev.owner ?? null, curators: [], access: next, at: new Date().toISOString() }
+    touched.push(id)
+  }
+  reg.accessV = 2
+  return touched
+}
+// 한 사람의 사람 줄 자리를 지식마다 한 번에 — { 지식: none|read|write|admin } · none 이면 사람 줄을 지운다(묶음 · 주인 자리는 그대로)
+//   설정 › 사람의 「사람 더하기」 · 사람 카드의 지식마다 자리 표. 바뀐 지식 id
+export function setSeats(reg, user, seats) {
+  const u = String(user ?? '').trim().toLowerCase()
+  const touched = []
+  for (const [id, l0] of Object.entries(seats || {})) {
+    const l = levelWord(l0)
+    if (!l) throw badLevel(l0)
+    const prev = reg.knowledge[id] || {}
+    if (prev.owner === u) continue // 주인은 늘 지식관리자
+    const cur = accessOf(prev)
+    const users = { ...cur.users }
+    for (const c of curatorsOf(prev)) users[c] = top(users[c], 'admin')
+    if ((users[u] || 'none') === l) continue
+    if (l === 'none') delete users[u]
+    else users[u] = l
+    setAccess(reg, id, { users })
+    touched.push(id)
+  }
+  return touched
 }
 // 묶음 — 더하기 · 사람 바꾸기(members 를 통째로) · 지우기(그 묶음 줄도 지식마다 걷는다)
 export function setGroup(reg, name, members) {
@@ -220,7 +272,7 @@ export function setOwner(reg, id, { owner = null, curators, tidyAt, tidyMode, no
 
 // `_members.md` — 지식 안의 사람 칸(예약 파일) · 정리 설정도 같이(살림 자리를 잃고 되살려도 그대로)
 //   - 주인: kim · - 정리: park, lee · - 정리 방식: 정해진 시각 02:30 | 실시간 | 손으로만 · - Claude 에 보내지 않음: 예
-//   자리 표(새 꼴 · 있을 때만): - 모두: 쓰기 · - 읽기: a, b · - 쓰기: c · - 관리: d · - 묶음: 개발=쓰기, 운영=관리
+//   자리 표(새 꼴 · 있을 때만): - 모두: 없음 · - 읽기: a, b · - 쓰기: c · - 지식관리자: d · - 묶음: 개발=쓰기, 운영=지식관리자(옛 「관리」 줄도 읽는다)
 //   묶음의 사람 목록은 서버(owners.json)에만 둔다. 이 줄이 없는 옛 `_members.md` 는 옛 규칙
 const MODE_WORD = { time: '정해진 시각', live: '실시간', manual: '손으로만' }
 const YES = /^(예|네|yes|true|1)$/i
@@ -229,9 +281,9 @@ export function parseMembers(text) {
   let acc = null
   const ids = (s) => s.split(/[,\s·]+/).map((x) => x.trim().toLowerCase()).filter(Boolean)
   for (const line of String(text || '').split(/\r?\n/)) {
-    const m = /^\s*[-*]\s*(주인|정리 방식|정리|Claude 에 보내지 않음|모두|읽기|쓰기|관리|묶음)\s*[:：]\s*(.*?)\s*$/.exec(line)
+    const m = /^\s*[-*]\s*(주인|정리 방식|정리|Claude 에 보내지 않음|모두|읽기|쓰기|지식관리자|관리|묶음)\s*[:：]\s*(.*?)\s*$/.exec(line)
     if (!m) continue
-    if (['모두', '읽기', '쓰기', '관리', '묶음'].includes(m[1])) {
+    if (['모두', '읽기', '쓰기', '지식관리자', '관리', '묶음'].includes(m[1])) {
       acc ||= { all: 'none', users: {}, groups: {} }
       if (m[1] === '모두') acc.all = levelWord(m[2]) || 'none'
       else if (m[1] === '묶음') {
@@ -263,7 +315,7 @@ export function renderMembers({ owner = null, curators = [], tidyMode = 'time', 
   if (access) {
     const a = accessOf({ access })
     const who = (l) => Object.keys(a.users).filter((u) => a.users[u] === l).sort().join(', ')
-    lines.push(`- 모두: ${LEVEL_WORD[a.all] || '없음'}`, `- 읽기: ${who('read')}`, `- 쓰기: ${who('write')}`, `- 관리: ${who('admin')}`, `- 묶음: ${Object.keys(a.groups).sort().map((g) => `${g}=${LEVEL_WORD[a.groups[g]]}`).join(', ')}`)
+    lines.push(`- 모두: ${LEVEL_WORD[a.all] || '없음'}`, `- 읽기: ${who('read')}`, `- 쓰기: ${who('write')}`, `- 지식관리자: ${who('admin')}`, `- 묶음: ${Object.keys(a.groups).sort().map((g) => `${g}=${LEVEL_WORD[a.groups[g]]}`).join(', ')}`)
   }
   return [...lines, ''].join('\n')
 }

@@ -53,9 +53,9 @@ const HELP = `kmd ${VERSION}
   kmd user key <아이디>                         그 사람의 기기 열쇠(kmdk_)를 하나 만들어 한 번만 찍는다(기기 이름 「셸」):
       서버 운영자의 자동화 · 시험용. 그 사람의 자리 그대로 API · MCP 를 쓴다 · 끊기는 화면 › 사람 › 기기 모두 끊기
   kmd owner <지식> [사람] [--curators 가,나]
-      지식의 주인 · 정리하는 사람(둘 다 그 지식의 관리 자리)
-  kmd access <지식> [--all 읽기|쓰기|관리|없음] [--user 아이디=자리 …] [--group 묶음=자리 …]
-      지식마다 자리(읽기 · 쓰기 · 관리): 인자 없으면 지금 표를 보인다 · 자리 「없음」 이면 그 줄을 뺀다 · 여럿은 쉼표로도
+      지식의 주인 · 정리하는 사람(둘 다 그 지식의 지식관리자)
+  kmd access <지식> [--all 읽기|쓰기|지식관리자|없음] [--user 아이디=자리 …] [--group 묶음=자리 …]
+      지식마다 자리(읽기 · 쓰기 · 지식관리자 · 옛 이름 관리도 받는다): 인자 없으면 지금 표를 보인다 · 자리 「없음」 이면 그 줄을 뺀다 · 여럿은 쉼표로도
   kmd group [add <묶음> <아이디,…> | rm <묶음> | <묶음> +아이디 -아이디]
       묶음: 사람 여럿에 한 번에 자리를 준다(kmd access --group) · 인자 없으면 목록
   kmd worker add                               정리 일꾼 열쇠를 만든다(한 번만 보인다)
@@ -478,7 +478,7 @@ async function ownerCmd(o) {
 
 const rootOf = (o) => path.resolve(o.root || (fs.existsSync(defaultPcRoot()) ? defaultPcRoot() : '.'))
 const dataOf = (o) => (o.data ? path.resolve(o.data) : defaultDataDir(rootOf(o)))
-const LV = { none: '없음', read: '읽기', write: '쓰기', admin: '관리' }
+const LV = { none: '없음', read: '읽기', write: '쓰기', admin: '지식관리자' }
 // 셸의 hub — 사람 명부(auth.json)로 아이디를 가린다(도는 서버와 같은 장부 · 잠금)
 async function shellHub(o) {
   const hub = await makeHub({ root: rootOf(o), dataDir: dataOf(o), log: () => {} })
@@ -506,7 +506,7 @@ async function accessCmd(argv) {
   }
   const [id] = o._
   try {
-    if (!id) throw new Error('kmd access <지식> [--all 읽기|쓰기|관리|없음] [--user 아이디=자리 …] [--group 묶음=자리 …]')
+    if (!id) throw new Error('kmd access <지식> [--all 읽기|쓰기|지식관리자|없음] [--user 아이디=자리 …] [--group 묶음=자리 …]')
     const hub = await shellHub(o)
     const cur = await hub.accessView(SHELL, id)
     const us = many('user')
@@ -526,7 +526,7 @@ async function accessCmd(argv) {
     }
     const gl = Object.entries(v.groups)
     if (gl.length) console.log(`  묶음: ${gl.map(([g, l]) => `${g}=${LV[l]}`).join(', ')}`)
-    console.log('전역 관리자는 모든 지식에서 관리다. 도는 서버에도 곧 보인다')
+    console.log('총괄 관리자는 모든 지식에서 지식관리자다. 도는 서버에도 곧 보인다')
   } catch (e) {
     console.error(e.message)
     process.exitCode = 1

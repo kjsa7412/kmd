@@ -278,7 +278,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   }
   const admin = (ctx, { sudo = true } = {}) => {
     need(ctx)
-    if (!ctx.admin) throw new KmdError('E_FORBIDDEN', '관리자만 한다')
+    if (!ctx.admin) throw new KmdError('E_FORBIDDEN', '총괄 관리자만 한다')
     if (sudo && !ctx.sudo && !ctx.pc) throw new KmdError('E_SUDO', '비밀번호를 한 번 더 넣는다(15분)')
     return ctx
   }
@@ -314,7 +314,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
 
   const GET_OK = [
     /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|admin\/groups|claude\/state|busy|send\/teams)$/,
-    /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
+    /^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
     /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|tidy\/plan|sources|send|backup|backup\/lost|owner|access|worker\/material)$/,
   ]
   const api = async (req, res, url, ctx, set) => {
@@ -603,13 +603,13 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       // 가져오는 곳 관리(더하기 · 살펴보기 · 지금 가져오기 · 그대로 반영)는 그 지식의 관리 자리(docs/kmd_권한_모델.md 1절) · 쓰기는 부탁
       if (sm[2] === 'probe') {
         await hub.meta(id, ctx)
-        if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 관리 자리가 더한다')
+        if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 그 지식의 지식관리자가 더한다')
         return out(200, await hub.sourceProbe(ctx, id, b))
       }
       if (sm[2] === 'request') return out(200, await hub.sourceRequest(ctx, id, b))
       if (sm[2] === 'run') {
         await hub.meta(id, ctx)
-        if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', b.force ? '[그대로 반영] 은 관리 자리가 한다' : '지금 가져오기는 관리 자리가 한다. [관리자에게 부탁]', { need: 'admin' })
+        if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', b.force ? '[그대로 반영] 은 그 지식의 지식관리자가 한다' : '지금 가져오기는 그 지식의 지식관리자가 한다. [관리자에게 부탁]', { need: 'admin' })
         return out(200, await hub.sourceRun(id, b.name || null, { force: !!b.force, by: ctx.user }))
       }
       if (hub.mode === 'team' && !hub.canSource(ctx, id)) { await hub.meta(id, ctx); hub.need(ctx, id, 'admin') }
@@ -624,7 +624,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (rq) {
       if (!ctx.admin) {
         const r = (await hub.requestsAll()).find((x) => x.id === rq[1])
-        if (!r || hub.levelOf(ctx, r.kn) !== 'admin') throw new KmdError('E_FORBIDDEN', '그 지식의 관리 자리가 닫는다')
+        if (!r || hub.levelOf(ctx, r.kn) !== 'admin') throw new KmdError('E_FORBIDDEN', '그 지식의 지식관리자가 닫는다')
       }
       const b = await readBody(req)
       return out(200, await hub.requestClose(ctx, rq[1], { state: String(b.state || ''), why: b.why || '' }))
@@ -728,16 +728,26 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       }
       admin(ctx)
       const b = await readBody(req)
+      // 지식마다 자리(seats: { 지식: 없음|읽기|쓰기|지식관리자 }) — 고르지 않은 지식은 없음(보이지 않는다) · 사람을 세우기 전에 모양을 본다
+      const seats = b.seats == null ? {} : b.seats
+      if (typeof seats !== 'object' || Array.isArray(seats)) throw new KmdError('E_INPUT', '자리는 { 지식: 자리 } 이다')
       const r = await auth.addUser({ id: b.id, admin: b.admin })
-      return out(200, { id: r.id, link: `http://${req.headers.host}/first#code=${r.code}` })
+      const given = Object.keys(seats).length ? await hub.setSeats(ctx, r.id, seats) : { kns: [] }
+      return out(200, { id: r.id, link: `http://${req.headers.host}/first#code=${r.code}`, kns: given.kns })
     }
-    const am = p.match(/^\/api\/admin\/users\/([^/]+)\/(reset|unlock|revoke-all|logout-all|admin|off)$/)
+    const am = p.match(/^\/api\/admin\/users\/([^/]+)\/(reset|unlock|revoke-all|logout-all|admin|off|seats)$/)
     if (am) {
-      admin(ctx)
       const id = dec(am[1])
+      // 지식마다 자리 — 보기(GET) · 바꾸기(POST { seats })
+      if (am[2] === 'seats') {
+        if (req.method === 'GET') { admin(ctx, { sudo: false }); return out(200, { user: id, seats: await hub.seatsOf(ctx, id) }) }
+        admin(ctx)
+        return out(200, await hub.setSeats(ctx, id, (await readBody(req)).seats))
+      }
+      admin(ctx)
       // 떠남 — 들어가기 · 기기 · PC 일꾼을 끊고 아이디를 남긴다 · 그 사람의 지식은 넘겨받거나(to: 'me') 주인 칸을 비운다(개인 지식은 관리자만)
       if (am[2] === 'off') {
-        if (id === ctx.user) throw new KmdError('E_INPUT', '나 자신은 떠나게 하지 못한다. 다른 관리자가 한다')
+        if (id === ctx.user) throw new KmdError('E_INPUT', '나 자신은 떠나게 하지 못한다. 다른 총괄 관리자가 한다')
         const b = await readBody(req)
         const r = await auth.off(id, { by: ctx.user })
         const kn = r.already ? null : await hub.handOver(id, { to: b.to === 'me' ? ctx.user : null })
@@ -996,6 +1006,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   // 에이전트가 이 kmd 의 MCP 에 닿는 주소(같은 PC 안)
   hub.selfUrl = `http://127.0.0.1:${server.address().port}`
   await hub.start()
+  // 옛 지식 한 번 옮기기 — 기본 자리 「모두: 쓰기」 → 「없음」(있던 사람에게 옛 기본 자리를 적은 뒤 · 장부에 accessV 2)
+  if (mode === 'team') await hub.migrateAccess(auth.people())
   const a = server.address()
   const shown = host === '0.0.0.0' || host === '::' ? 'localhost' : host
   const origin = `http://${shown.includes(':') ? `[${shown}]` : shown}:${a.port}`

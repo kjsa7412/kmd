@@ -306,6 +306,12 @@ test('팀: 정리 일감도 같은 줄 · 기다리는 것은 뺀다(일꾼이 �
     assert.equal(it.kind, 'tidy')
     assert.equal(it.state, 'wait')
     assert.equal(it.msg, '정리 일꾼을 기다린다')
+    // 자리 없는 사람에게는 그 일이 보이지 않는다(기본 자리는 없음 — docs/kmd_권한_모델.md v1.1)
+    const { seat } = await import('./helpers.mjs')
+    await t.auth.addUser({ id: 'lee', admin: false })
+    await assert.rejects(t.hub.queueAct({ user: 'lee' }, 't:' + j.id, 'cancel'), { code: 'E_NOTFOUND' })
+    // 쓰기 자리의 팀원이라도 넣은 사람 · 지식관리자가 아니면 빼지 못한다
+    await seat(t, 'lee', { dpms: 'write' })
     await assert.rejects(t.hub.queueAct({ user: 'lee' }, 't:' + j.id, 'cancel'), { code: 'E_FORBIDDEN' })
     await t.hub.queueAct(KIM, 't:' + j.id, 'cancel')
     it = (await t.hub.queueList(KIM)).items.find((x) => x.id === 't:' + j.id)

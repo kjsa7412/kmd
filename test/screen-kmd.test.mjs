@@ -11,7 +11,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright-core'
 import { startServer } from '../server/http.js'
-import { copyDir, signIn } from './helpers.mjs'
+import { copyDir, signIn, seat } from './helpers.mjs'
 import { workOnce } from '../core/worker.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -234,6 +234,8 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
 test('정리 · 이 지식의 사람 · 오늘 바뀐 것(M12 · M11 · M9): 목업 글 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
   const wkey = (await s.auth.workerAdd()).key
+  // lee — dpms 에 쓰기 자리를 받은 팀원(받지 않은 지식은 없음이 기본 · 권한 모델 v1.1)
+  if (!s.auth.people().includes('lee')) { await s.auth.addUser({ id: 'lee', admin: false }); await seat(s, 'lee', { dpms: 'write' }) }
   await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '카나리 비율', body: '첫 30분 요청 10% → 20%', touches: ['proc:카나리'] } })
   const page = await browser.newPage({ viewport: VIEW })
   const errors = []
@@ -422,6 +424,7 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10): 목�
 })
 
 test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 정리 전용 로그인 흐름 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+  if (!s.auth.people().includes('test-lee')) await s.auth.addUser({ id: 'test-lee' }) // 사람 ⋯ › 지식마다 자리 창을 볼 사람
   process.env.KMD_CLAUDE_LOGIN = path.join(HERE, 'fixture', 'fake-claude-login.mjs')
   process.env.KMD_TEAM_LOGIN = 'pty' // 화면 없는 서버의 길(주소 · 번호)
   const page = await browser.newPage({ viewport: VIEW })
@@ -464,6 +467,32 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 정리 �
   assert.match(await page.locator('[data-t=roleRule]').innerText(), /관리자[\s\S]*지식마다 자리[\s\S]*읽기[\s\S]*쓰기[\s\S]*관리[\s\S]*권한/)
   assert.doesNotMatch(await page.locator('[data-t=roleRule]').innerText(), /따로 주는 권한은 없다/)
   await page.waitForSelector('[data-t=admGroups] [data-t=grpAddOpen]')
+  // 사람 더하기 — 아이디 · 총괄 관리자 · 팀 지식마다 자리 표(처음은 모두 없음) · 총괄 관리자면 표 대신 한 줄
+  await page.click('[data-t=admAddOpen]')
+  await page.waitForSelector('[data-t=admAddForm] [data-t=seatTable]')
+  assert.ok(await page.locator('[data-t=admAddForm] [data-t=seatRow]').count() >= 2)
+  assert.deepEqual(await page.locator('[data-t=admAddForm] [data-t=seatRow]').first().locator('option').allInnerTexts(), ['없음', '읽기', '쓰기', '지식관리자'])
+  assert.equal(await page.locator('[data-t=admAddForm] [data-t=seatSel]').first().inputValue(), 'none')
+  for (const w of [1280, 1024, 600, 375]) {
+    await page.setViewportSize({ width: w, height: 820 })
+    const r = await cutAt(page)
+    assert.deepEqual(r.cut, [], `사람 더하기 ${w}: 잘린 요소 없음`)
+    assert.ok(r.sw <= r.w, `사람 더하기 ${w}: 가로 넘침 없음`)
+  }
+  await page.setViewportSize(VIEW)
+  await page.click('[data-t=admAddAdmin]')
+  await page.waitForSelector('[data-t=admAddForm] [data-t=seatAll]')
+  await page.click('[data-a=admAddCancel]')
+  // 사람 ⋯ › 지식마다 자리 — 창(묶음 · 주인 자리는 따로 보인다 · 저장)
+  const other = page.locator('[data-t=admPerson]').filter({ has: page.locator('[data-t=admPersonKebab]') }).filter({ hasNotText: '총괄 관리자' }).first()
+  {
+    await other.locator('[data-t=admPersonKebab]').click()
+    await page.click('.pop [data-t=seatOpen]')
+    await page.waitForSelector('[data-t=seatWin] [data-t=seatTable]')
+    assert.equal(await page.locator('[data-t=seatWin]').getAttribute('role'), 'dialog')
+    await page.keyboard.press('Escape')
+    await page.waitForFunction(() => !document.querySelector('[data-t=seatWin]'))
+  }
   // 설정 · 개인은 팀 화면에 없다(분리 — 개인 화면에서)
   assert.equal(await page.locator('[data-t=nav-settings-me]').count(), 0)
   // 관리 — 문제 줄만 · 정리 로그인은 설정 · 팀 › Claude 연결에서 다 한다(비밀번호 한 번 더 → 주소 → 번호 → 로그인됨)
