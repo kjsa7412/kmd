@@ -27,6 +27,7 @@ import * as backup from '../core/backup.js'
 import * as owners from '../core/owners.js'
 import { buildIndex, ladder, loadLearned, learn, searchCheck, exact } from '../core/search.js'
 import { planImport, summary, MAX_FILES, MAX_BYTES, PCONLY } from '../core/importer.js'
+import { imagesOf } from '../core/ooxml.js'
 import { runAgent, agentAvailable } from '../core/agent.js'
 import { createQueue, Cancelled, isFinal, STAGES } from '../core/queue.js'
 import { modelOf, ROLES, CHOICES } from '../core/models.js'
@@ -1022,7 +1023,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           const src = { ...s, folder: s.kind === 'folder' || !(/^(https?|ssh):\/\//i.test(s.at) || /^[^/\\\s]+@[^/\\\s]+:/.test(s.at)) ? s.at : undefined }
           const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, onStage: (i) => (i >= 3 ? Q.mark(qj, 3) : Q.step(qj, i)), line: (kk, x) => Q.line(qj, kk, x), meaning: hub.meaningOk(id), mdOf: mode === 'pc' ? (rel, data) => hub.mdOf(rel, data) : null, analyze: mode === 'pc' && hub.meaningOk(id) ? (c, diffs, rec) => hub.analyzeCommit(id, s.name, c, diffs, rec) : null, save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
           cache.delete(id)
-          if (s.kind === 'docs' && hub.agentOk(id)) for (const x of (r.rows || []).filter((y) => y.kind === 'fail' && PCONLY.includes(y.name.split('.').pop().toLowerCase()))) {
+          if (s.kind === 'docs' && hub.agentOk(id)) for (const x of (r.rows || []).filter((y) => y.kind === 'fail' && y.scan)) {
             const pre = docPrefix(s)
             const rel = pre && x.name.startsWith(pre + '/') ? x.name.slice(pre.length + 1) : x.name
             const run = hub.newRun(id, { title: `${s.name} › ${rel}`, file: rel, by: 'kmd' })
@@ -2008,7 +2009,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     agentOk(id) {
       return mode === 'pc' && agentAvailable() && hub.meaningOk(id) && !!hub.selfUrl
     },
-    // pdf · hwp → md — 바꾼 글 보관(<살림>/convert/<sha>.md)이 있으면 그것 · 없고 run 이 있으면 Claude Code 가 원본을 읽어 옮긴다
+    // pdf · hwp · 그림만 든 docx · pptx · xlsx · hwpx → md — 바꾼 글 보관(<살림>/convert/<sha>.md)이 있으면 그것 · 없고 run 이 있으면 Claude Code 가 원본을 읽어 옮긴다
+    //   오피스 파일은 Read 가 못 연다 — 안의 그림(pptx 는 슬라이드 차례)을 꺼내 준다
     async mdOf(rel, data, run = null) {
       const sha = crypto.createHash('sha256').update(data).digest('hex')
       const f = path.join(dataDir, 'convert', `${sha}.md`)
@@ -2016,10 +2018,21 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (have) return have
       if (!run) return null
       const name = rel.split('/').pop()
-      hub.runLine(run, 'sys', `${name}: 글로 바꾼다(Claude Code 가 원본을 읽는다)`)
+      const ext = name.split('.').pop().toLowerCase()
+      const imgs = PCONLY.includes(ext) ? [] : imagesOf(name, data)
+      if (!PCONLY.includes(ext) && !imgs.length) return null
+      const slide = ext === 'pptx'
+      hub.runLine(run, 'sys', `${name}: 글로 바꾼다(Claude Code 가 ${imgs.length ? `그림 ${imgs.length}장` : '원본'}을 읽는다)`)
       const r = await runAgent({
-        prompt: [`일 폴더의 「원본/${name}」 을 Read 로 끝까지 읽고(쪽이 많으면 나눠 읽는다) 글 그대로 md 로 옮긴다.`, '- 머리 · 표 · 목록 짜임을 살린다(표는 md 표). 수 · 날짜 · 이름은 그대로. 요약하지 않는다.', '- 쪽 번호 · 머리글 · 바닥글 · 표지 장식은 뺀다. 그림은 [그림: 무엇] 한 줄로.', '- 마지막 답에는 md 글만 쓴다(설명 · 머리말 없이).'].join('\n'),
-        files: [{ name: `원본/${name}`, data }],
+        prompt: [
+          imgs.length
+            ? `일 폴더의 「원본/${name}/」 그림 ${imgs.length}장(${slide ? '슬라이드' : '문서'} 차례 · 이름 차례)을 Read 로 하나씩 모두 읽고 그림 속 글을 그대로 md 로 옮긴다.${slide ? ' 슬라이드마다 `## 슬라이드 n: 제목` 머리 하나.' : ''}`
+            : `일 폴더의 「원본/${name}」 을 Read 로 끝까지 읽고(쪽이 많으면 나눠 읽는다) 글 그대로 md 로 옮긴다.`,
+          '- 머리 · 표 · 목록 짜임을 살린다(표는 md 표). 수 · 날짜 · 이름은 그대로. 요약하지 않는다.',
+          '- 쪽 번호 · 머리글 · 바닥글 · 표지 장식은 뺀다. 글이 아닌 그림(사진 · 도형)은 [그림: 무엇] 한 줄로.',
+          '- 마지막 답에는 md 글만 쓴다(설명 · 머리말 없이).',
+        ].join('\n'),
+        files: imgs.length ? imgs.map((x) => ({ name: `원본/${name}/${x.name}`, data: x.data })) : [{ name: `원본/${name}`, data }],
         budget: 3,
         model: hub.modelOf('convert'),
         onLine: (l) => hub.runLine(run, l.k, l.x),
@@ -2575,8 +2588,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       } finally {
         importing.delete(id)
       }
-      // pdf · hwp — 바꾼 글이 없으면 Claude Code 가 원본을 읽어 글로 바꾼 뒤 같은 길로(원본은 위에서 첨부로 두었다)
-      if (agent && hub.autoOf(ctx.user, 'file')) for (const x of plan.rows.filter((r) => r.kind === 'fail' && PCONLY.includes(r.name.split('.').pop().toLowerCase()))) {
+      // pdf · hwp · 그림만 든 docx · pptx 등 — 바꾼 글이 없으면 Claude Code 가 원본을 읽어 글로 바꾼 뒤 같은 길로(원본은 위에서 첨부로 두었다)
+      if (agent && hub.autoOf(ctx.user, 'file')) for (const x of plan.rows.filter((r) => r.kind === 'fail' && r.scan)) {
         const fd = files.find((y) => String(y.path || y.name).replace(/\\/g, '/').endsWith(x.name.split('/').pop()))
         if (!fd) continue
         const run = hub.newRun(id, { title: x.name.split('/').pop(), file: x.name, by: ctx.user, parent: gj?.id })

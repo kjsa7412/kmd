@@ -1,7 +1,8 @@
 // 파일 · 폴더 넣기 — 한 번 들여온다(폴더 잇기와 다르다 · KM82).
 //
 //   md                → 그대로 문서(폴더 짜임 = 문서 경로)
-//   docx · pptx · xlsx · hwpx → 서버가 바로 md 로(core/ooxml.js · 압축 해제 상한) + 원본은 첨부
+//   docx · pptx · xlsx · hwpx → 서버가 바로 md 로(core/ooxml.js · 압축 해제 상한) + 원본은 첨부. 머리만 남으면(통그림 슬라이드 ·
+//                       스캔을 붙인 문서) 빈 문서를 세우지 않고 pdf 스캔처럼 mdOf(Claude Code 가 그림을 읽어 옮긴 것)로 · 없으면 「바꾸지 못한 파일」
 //   pdf · hwp         → 서버가 바로 글로(core/pdf.js · core/hwp.js) + 원본은 첨부. 글 층이 없는 pdf(스캔) · 암호 · 배포용 · 깨진 파일만
 //                       mdOf(바꾼 글 보관 · Claude Code 가 원본을 읽어 옮긴 것)로 · 그것도 없으면 원본만 첨부 · 「바꾸지 못한 파일」
 //   txt · log         → 글 그대로 · csv · tsv → md 표 · html → 글(태그 뺌) · json → 코드 덩이
@@ -15,7 +16,7 @@
 
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { convert } from './ooxml.js'
+import { convert, imagesOf, noText } from './ooxml.js'
 import { hwpToMd } from './hwp.js'
 import { pdfToMd } from './pdf.js'
 import { readText, nfc, dropToc } from './text.js'
@@ -155,15 +156,24 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
     const rel = cleanPath(f.path || f.name)
     const ext = extOf(rel)
     const base = rel.replace(/\.[^./]+$/, '')
-    const docRel = f.doc || `docs/${base}.md`
+    const docRel = `docs/${base}.md`
     const attRel = `docs/assets/${rel}`
     const row = (kind, msg, extra = {}) => plan.rows.push({ name: rel, kind, msg, ...extra })
     let md = null
+    let blank = false
     try {
       if (ext === 'md' || ext === 'markdown') md = readText(f.data.toString('utf8'))
       else if (TEXT.includes(ext)) md = `# ${path.posix.basename(base)}\n\n${textToMd(ext, f.data)}\n`
-      else if (DOCX.includes(ext) && conv) md = `# ${path.posix.basename(base)}\n\n${dropToc(convert(rel, f.data))}\n`
-      else if (PCONLY.includes(ext) && conv) {
+      else if (DOCX.includes(ext) && conv) {
+        const body = dropToc(convert(rel, f.data))
+        // 머리만 남았다(통그림 슬라이드 · 스캔을 붙인 문서) — 빈 문서를 세우지 않고 스캔 pdf 처럼 바꾼 글 보관 · Claude 로
+        if (!noText(body)) md = `# ${path.posix.basename(base)}\n\n${body}\n`
+        else {
+          const got = mdOf && imagesOf(rel, f.data).length ? await mdOf(rel, f.data) : null
+          if (got) md = `# ${path.posix.basename(base)}\n\n${String(got).replace(/^# .*\n+/, '')}\n`
+          else blank = true
+        }
+      } else if (PCONLY.includes(ext) && conv) {
         const got = (await localMd(ext, f.data)).trim() || (mdOf ? await mdOf(rel, f.data) : null)
         if (got) md = `# ${path.posix.basename(base)}\n\n${String(got).replace(/^# .*\n+/, '')}\n`
       }
@@ -193,8 +203,14 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
       }
       plan.docs.push({ rel: docRel, text: md })
       if (ext !== 'md' && ext !== 'markdown' && !TEXT.includes(ext)) plan.atts.push({ rel: attRel, data: f.data })
-      const docBase = docRel.replace(/^docs\/|\.md$/g, '')
-      row('doc', `문서가 됐다: ${k.name} › ${docBase.split('/').join(' › ')}`, { doc: docBase })
+      row('doc', `문서가 됐다: ${k.name} › ${base.split('/').join(' › ')}`, { doc: base })
+      continue
+    }
+    if (blank) {
+      // 글 없이 그림만 — 원본은 첨부 · 그림이 있으면 이 PC 의 kmd 가 Claude 로 옮긴다(scan · 부르는 쪽이 Claude Code 일로)
+      const scan = imagesOf(rel, f.data).length > 0
+      if (direct && !(await read(attRel))?.equals(f.data)) plan.atts.push({ rel: attRel, data: f.data })
+      row('fail', !scan ? (direct ? '원본은 첨부로 두었다. 글도 그림도 없는 파일이다' : '글도 그림도 없는 파일이다') : direct ? '원본은 첨부로 두었다. 글 없이 그림만 든 파일(통그림 슬라이드 · 스캔)이라 이 PC 의 kmd 가 Claude 로 옮긴다' : '바꾸지 못한 파일(글 없이 그림만): 이 PC 의 kmd 가 있는 PC 에서 넣는다', scan ? { scan: true } : {})
       continue
     }
     if (DOCX.includes(ext) && !conv) {
@@ -204,7 +220,7 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
     }
     if (PCONLY.includes(ext)) {
       if (direct && !(await read(attRel))?.equals(f.data)) plan.atts.push({ rel: attRel, data: f.data })
-      row('fail', !conv ? (direct ? '원본은 첨부로 두었다. 문서로 바꾸기를 꺼 두었다' : '문서로 바꾸기를 꺼 두었다') : direct ? '원본은 첨부로 두었다. 글이 없는 파일(스캔 · 암호 · 배포용)이라 이 PC 의 kmd 가 Claude 로 옮긴다' : '바꾸지 못한 파일(스캔 · 암호 · 배포용): 이 PC 의 kmd 가 있는 PC 에서 넣는다')
+      row('fail', !conv ? (direct ? '원본은 첨부로 두었다. 문서로 바꾸기를 꺼 두었다' : '문서로 바꾸기를 꺼 두었다') : direct ? '원본은 첨부로 두었다. 글이 없는 파일(스캔 · 암호 · 배포용)이라 이 PC 의 kmd 가 Claude 로 옮긴다' : '바꾸지 못한 파일(스캔 · 암호 · 배포용): 이 PC 의 kmd 가 있는 PC 에서 넣는다', conv ? { scan: true } : {})
       continue
     }
     if (IMG.includes(ext)) {

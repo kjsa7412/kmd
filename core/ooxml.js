@@ -4,6 +4,7 @@
 // 글만 옮긴다 — 제목 문단(Heading · 제목) → `#` · 표 → md 표 · 슬라이드마다 `## 슬라이드 n` · 시트마다 `## 시트 이름` + 표(500행).
 
 import zlib from 'node:zlib'
+import path from 'node:path'
 import { KmdError } from './errors.js'
 
 const ITEM_MAX = 32 << 20
@@ -179,6 +180,36 @@ export function hwpxToMd(buf) {
   }
   return out.join('\n\n')
 }
+
+// 글 없이 그림만 든 파일(통그림 슬라이드 · 스캔을 붙인 문서)의 그림 — Claude Code 가 읽어 글로 옮기게
+//   pptx 는 슬라이드 차례(슬라이드마다 rels 의 그림) · 그 밖은 media 폴더의 이름 차례 · 그림이 없으면 []
+const IMG_EXT = /\.(png|jpe?g|gif|bmp|webp)$/i
+export function imagesOf(name, buf) {
+  const ext = String(name).toLowerCase().split('.').pop()
+  const z = unzip(buf, (n) => IMG_EXT.test(n) || /^ppt\/slides\/(_rels\/)?slide\d+\.xml(\.rels)?$/.test(n))
+  const num = (n) => Number((n.match(/(\d+)\.[^.]+$/) || [, 0])[1])
+  const out = []
+  if (ext === 'pptx') {
+    const slides = [...z.keys()].filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n)).sort((a, b) => num(a) - num(b))
+    for (const [i, s] of slides.entries()) {
+      const rels = z.get(s.replace('slides/', 'slides/_rels/') + '.rels')?.toString('utf8') || ''
+      const xml = z.get(s).toString('utf8')
+      // 그 슬라이드가 쓰는 차례대로(r:embed) — rels 의 그림 대상
+      const target = Object.fromEntries([...rels.matchAll(/<Relationship\s[^>]*>/g)].map((m) => [(/\sId="([^"]*)"/.exec(m[0]) || [])[1], (/\sTarget="([^"]*)"/.exec(m[0]) || [])[1]]))
+      const used = [...xml.matchAll(/r:embed="([^"]+)"/g)].map((m) => target[m[1]]).filter((t) => t && IMG_EXT.test(t))
+      for (const [j, t] of used.entries()) {
+        const data = z.get(path.posix.normalize(`ppt/slides/${t}`))
+        if (data) out.push({ name: `슬라이드${String(i + 1).padStart(2, '0')}${used.length > 1 ? `-${j + 1}` : ''}.${t.split('.').pop().toLowerCase()}`, data })
+      }
+    }
+    return out
+  }
+  const media = [...z.keys()].filter((n) => IMG_EXT.test(n)).sort((a, b) => num(a) - num(b))
+  return media.map((n, i) => ({ name: `그림${String(i + 1).padStart(2, '0')}.${n.split('.').pop().toLowerCase()}`, data: z.get(n) }))
+}
+
+// 바꾼 글에 머리 말고 글이 없나(통그림 슬라이드 · 빈 시트) — 빈 머리만 있는 문서를 세우지 않게
+export const noText = (md) => String(md).split('\n').every((l) => !l.trim() || /^#{1,6}\s/.test(l))
 
 export function convert(name, buf) {
   const ext = String(name).toLowerCase().split('.').pop()

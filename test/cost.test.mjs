@@ -21,7 +21,7 @@ import { planImport } from '../core/importer.js'
 import { excerpt, fileText } from '../core/excerpt.js'
 import { fileRecord } from '../core/analyze.js'
 import { dropToc } from '../core/text.js'
-import { xlsxToMd, docxToMd } from '../core/ooxml.js'
+import { xlsxToMd, docxToMd, pptxToMd, imagesOf, noText } from '../core/ooxml.js'
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixture')
 
@@ -271,4 +271,32 @@ test('읽는 양 줄이기: 목차 덩이(셋 넘게 이어질 때만) · docx �
     ['xl/worksheets/sheet1.xml', sheet],
   ])
   assert.equal(xlsxToMd(xl), '## 목록\n\n| 코드 | 이름 |\n|---|---|\n| 7 | 창고 |', '빈 B 열은 뺀다 · Target 이 Id 앞이어도 시트를 찾는다')
+})
+
+test('넣기: 그림만 든 pptx(통그림 슬라이드) 는 빈 머리 문서를 세우지 않는다 · 슬라이드 차례 그림으로 mdOf · 없으면 「바꾸지 못한 파일」 + 원본 첨부', async () => {
+  const slide = (rid) => `<p:sld><p:cSld><p:spTree><p:pic><p:blipFill><a:blip r:embed="${rid}"/></p:blipFill></p:pic></p:spTree></p:cSld></p:sld>`
+  const rels = (img) => `<Relationships><Relationship Id="rId1" Type="layout" Target="../slideLayouts/slideLayout1.xml"/><Relationship Id="rId2" Type="image" Target="../media/${img}"/></Relationships>`
+  // 슬라이드 10 이 2 보다 뒤 · 그림 이름 차례와 슬라이드 차례가 다르다
+  const ppt = storedZip([
+    ['ppt/slides/slide10.xml', slide('rId2')], ['ppt/slides/_rels/slide10.xml.rels', rels('image1.png')],
+    ['ppt/slides/slide2.xml', slide('rId2')], ['ppt/slides/_rels/slide2.xml.rels', rels('image9.png')],
+    ['ppt/media/image1.png', 'P10'], ['ppt/media/image9.png', 'P2'],
+  ])
+  assert.ok(noText(pptxToMd(ppt)), '머리만 남는다')
+  assert.deepEqual(imagesOf('a.pptx', ppt).map((x) => [x.name, x.data.toString()]), [['슬라이드01.png', 'P2'], ['슬라이드02.png', 'P10']])
+  const k = { name: '시험', works: [] }
+  const team = await planImport(k, [{ path: '킥오프.pptx', data: ppt }], { asRecord: true })
+  assert.equal(team.records.length, 0, '빈 머리만 있는 기록 · 문서를 만들지 않는다')
+  assert.deepEqual([team.rows[0].kind, team.rows[0].scan], ['fail', true])
+  assert.match(team.rows[0].msg, /그림만/)
+  assert.deepEqual(team.atts.map((a) => a.rel), ['docs/assets/킥오프.pptx'])
+  let asked = 0
+  const pc = await planImport(k, [{ path: '킥오프.pptx', data: ppt }], { asRecord: true, mdOf: async () => (asked++, '## 슬라이드 1: 안건\n\n- 일정') })
+  assert.equal(asked, 1)
+  assert.match(pc.records[0].body, /^# 킥오프\n\n## 슬라이드 1: 안건/)
+  // 글이 있는 pptx 는 그대로 · 글도 그림도 없으면 Claude 로 보내지 않는다
+  const txt = storedZip([['ppt/slides/slide1.xml', '<p:sld><a:p><a:r><a:t>안건</a:t></a:r></a:p><a:p><a:r><a:t>일정</a:t></a:r></a:p></p:sld>']])
+  assert.equal((await planImport(k, [{ path: 't.pptx', data: txt }], { asRecord: true })).records[0].body, '# t\n\n## 슬라이드 1: 안건\n\n일정\n')
+  const none = await planImport(k, [{ path: 'n.pptx', data: storedZip([['ppt/slides/slide1.xml', '<p:sld/>']]) }], { asRecord: true, mdOf: async () => (asked++, 'x') })
+  assert.deepEqual([none.rows[0].kind, none.rows[0].scan, asked], ['fail', undefined, 1])
 })
