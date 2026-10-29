@@ -89,7 +89,7 @@ svg text { font-family: var(--sans); }
 .hdr { fill: var(--muted); font-size: 11.5px; font-weight: 500; letter-spacing: .04em; }
 
 /* 결정 카드 */
-.dec { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.dec { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 @media (max-width: 980px) { .dec { grid-template-columns: 1fr; } }
 .dcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; display: grid; gap: 10px; align-content: start; min-width: 0; }
 .dcard .tag { font: 500 11px/1 var(--mono); color: var(--muted); letter-spacing: .05em; }
@@ -207,14 +207,14 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <text class="tb c3t" x="664" y="80">팀 프로그램 · kmd serve</text>
     <text class="s" x="664" y="98">팀 지식만 · 팀 화면에 개인 지식은 보이지 않는다</text>
     <text class="xs" x="664" y="122">팀 화면에서 하는 일</text>
-    <rect class="boxz" x="664" y="130" width="240" height="28" rx="6"/><text class="t" x="676" y="149">팀 지식 보기 · 찾기 · 이력</text>
+    <rect class="boxz" x="664" y="130" width="240" height="28" rx="6"/><text class="t" x="676" y="149">보기 · 찾기 · 이력 · 정리 화면</text>
     <rect class="boxz" x="664" y="164" width="240" height="28" rx="6"/><text class="t" x="676" y="183">화면에서 고치기</text>
-    <rect class="boxz" x="664" y="198" width="240" height="28" rx="6"/><text class="t" x="676" y="217">일 줄: 파일 · 폴더 넣기</text><text class="xs" x="868" y="217" text-anchor="end">누구나</text>
-    <rect class="boxz" x="664" y="232" width="240" height="28" rx="6"/><text class="t" x="676" y="251">가져올 곳 · 지식 설정</text><text class="lock" x="896" y="251" text-anchor="end">관리자</text>
-    <rect class="boxz" x="664" y="266" width="240" height="28" rx="6"/><text class="t" x="676" y="285">정리 화면 · 정리한 것</text>
-    <rect class="boxz" x="664" y="300" width="240" height="28" rx="6"/><text class="t" x="676" y="319">사람 · 백업 · Claude 연결</text><text class="lock" x="896" y="319" text-anchor="end">관리자</text>
+    <rect class="boxz" x="664" y="198" width="240" height="28" rx="6"/><text class="t" x="676" y="217">일 줄: 파일 · 폴더 넣기</text><text class="lock" x="896" y="217" text-anchor="end">쓰기</text>
+    <rect class="boxz" x="664" y="232" width="240" height="28" rx="6"/><text class="t" x="676" y="251">가져올 곳 · 지식 설정</text><text class="lock" x="896" y="251" text-anchor="end">지식관리자</text>
+    <rect class="c2b" x="664" y="266" width="240" height="28" rx="6"/><text class="t c2t" x="676" y="285">개인 프로그램 설치</text><text class="lock" x="896" y="285" text-anchor="end">누구나</text>
+    <rect class="boxz" x="664" y="300" width="240" height="28" rx="6"/><text class="t" x="676" y="319">사람 · 백업 · Claude 연결</text><text class="lock" x="896" y="319" text-anchor="end">총괄</text>
     <rect class="recb" x="924" y="130" width="228" height="70" rx="9"/>
-    <text class="t rect" x="1038" y="156" text-anchor="middle">기록</text><text class="xs" x="1038" y="176" text-anchor="middle">팀 지식 · work/</text><text class="xs" x="1038" y="191" text-anchor="middle">자리(읽기 · 쓰기 · 관리)로 본다</text>
+    <text class="t rect" x="1038" y="156" text-anchor="middle">기록</text><text class="xs" x="1038" y="176" text-anchor="middle">팀 지식 · work/</text><text class="xs" x="1038" y="191" text-anchor="middle">받은 자리로 본다 · 기본 없음</text>
     <path class="fl" d="M1038 200 V222" marker-end="url(#a)"/>
     <rect class="docb" x="924" y="224" width="228" height="70" rx="9"/>
     <text class="t doct" x="1038" y="250" text-anchor="middle">문서</text><text class="xs" x="1038" y="270" text-anchor="middle">docs/ · GitLab 으로 백업</text>
@@ -226,10 +226,10 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <text class="xs" x="680" y="447">정리 전용 로그인 · 이름 바로잡기 · 항목 글(묶음) · 넣기 에이전트</text>
     <text class="xs" x="680" y="463">팀 지식에만 쓴다</text>
     <rect class="boxz" x="664" y="490" width="488" height="86" rx="10"/>
-    <text class="t" x="680" y="512">원천 (관리자가 더한 가져올 곳만 읽는다)</text>
+    <text class="t" x="680" y="512">원천 (지식관리자 · 총괄이 더한 가져올 곳만 읽는다)</text>
     <text class="xs" x="680" y="532">문서 폴더 · 공유 폴더 (허락된 원천 루트 안)</text>
     <text class="xs" x="680" y="548">git 저장소 (https · ssh) · DB (읽기 전용)</text>
-    <text class="xs" x="680" y="564">일반 사용자는 [관리자에게 부탁]</text>
+    <text class="xs" x="680" y="564">쓰기 · 읽기 자리는 [관리자에게 부탁] · 서버 폴더 · ssh 는 총괄만</text>
 
     <!-- 보내기 -->
     <path class="fl" d="M568 561 C612 561,612 370,662 370" marker-end="url(#a)"/>
@@ -252,7 +252,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
 
 <!-- 2 -->
 <section>
-  <h2><span class="no">2</span>정한 것 셋</h2>
+  <h2><span class="no">2</span>정한 것 넷</h2>
   <div class="dec">
     <div class="dcard">
       <span class="tag">결정 1</span>
@@ -287,11 +287,11 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <div class="dcard">
       <span class="tag">결정 3</span>
       <h3>팀 가져오기: 세팅은 관리자, 사용자는 넣기만</h3>
-      <span class="tag" style="color:var(--c3)">관리자 = 팀 서버 관리자 (3절)</span>
+      <span class="tag" style="color:var(--c3)">관리자 = 총괄 관리자 · 지식관리자 (3절)</span>
       <svg viewBox="0 0 360 150" role="img" aria-label="관리자는 가져올 곳을 세팅하고 일반 사용자는 일 줄에 파일과 폴더를 넣어 기록을 만든다">
         <defs><marker id="d3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
         <rect class="box" x="6" y="14" width="96" height="40" rx="8"/><text class="t" x="54" y="39" text-anchor="middle">관리자</text>
-        <rect class="box" x="6" y="96" width="96" height="40" rx="8"/><text class="t" x="54" y="114" text-anchor="middle">사용자</text><text class="xs" x="54" y="129" text-anchor="middle">쓰기 · 읽기</text>
+        <rect class="box" x="6" y="96" width="96" height="40" rx="8"/><text class="t" x="54" y="114" text-anchor="middle">쓰기 자리</text><text class="xs" x="54" y="129" text-anchor="middle">읽기는 못 넣음</text>
         <rect class="p3" x="132" y="14" width="110" height="40" rx="8"/><text class="t c3t" x="187" y="32" text-anchor="middle">가져올 곳 세팅</text><text class="xs" x="187" y="47" text-anchor="middle">폴더 · git · DB</text>
         <rect class="p3" x="132" y="96" width="110" height="40" rx="8"/><text class="t c3t" x="187" y="114" text-anchor="middle">일 줄에 넣기</text><text class="xs" x="187" y="129" text-anchor="middle">파일 · 폴더</text>
         <rect class="recb" x="272" y="54" width="82" height="44" rx="8"/><text class="t rect" x="313" y="74" text-anchor="middle">기록</text><text class="xs" x="313" y="89" text-anchor="middle">→ 정리</text>
@@ -300,71 +300,96 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         <path class="cutl" d="M54 96 C54 74,110 70,130 44"/>
         <text class="cutt" x="20" y="80" style="font-size:10px">부탁만</text>
       </svg>
-      <p>가져올 곳 더하기 · 고치기 · 지금 가져오기 · [그대로 반영]은 관리자만 한다. 사용자(쓰기 · 읽기)는 일 줄에 파일 · 폴더를 넣어 기록을 만들고, 가져올 곳이 필요하면 [관리자에게 부탁]을 쓴다.</p>
+      <p>가져올 곳 더하기 · 고치기 · 지금 가져오기 · [그대로 반영]은 그 지식의 지식관리자와 총괄 관리자가 한다. 서버 폴더 · ssh · 목록 밖 호스트는 총괄만. 쓰기 자리는 일 줄에 파일 · 폴더를 넣어 기록을 만들고, 가져올 곳이 필요하면 [관리자에게 부탁]을 쓴다.</p>
+    </div>
+    <div class="dcard">
+      <span class="tag">결정 4</span>
+      <h3>개인 프로그램 설치는 팀 화면의 별도 자리에서</h3>
+      <svg viewBox="0 0 360 150" role="img" aria-label="팀 화면의 개인 프로그램 설치 자리에서 한 줄을 복사해 PC 에 붙여 넣으면 개인 프로그램이 깔리고 팀에 이어진다">
+        <defs><marker id="d4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
+        <rect class="p3" x="6" y="14" width="110" height="48" rx="8"/><text class="t c3t" x="61" y="34" text-anchor="middle">팀 화면</text><text class="xs" x="61" y="51" text-anchor="middle">개인 프로그램 설치</text>
+        <rect class="box" x="130" y="14" width="100" height="48" rx="8"/><text class="t" x="180" y="34" text-anchor="middle">한 줄 복사</text><text class="xs" x="180" y="51" text-anchor="middle">PowerShell 에</text>
+        <rect class="p2" x="244" y="14" width="110" height="48" rx="8"/><text class="t c2t" x="299" y="34" text-anchor="middle">개인 프로그램</text><text class="xs" x="299" y="51" text-anchor="middle">깔고 팀에 잇기</text>
+        <path class="fl" d="M116 38 H128" marker-end="url(#d4)"/><path class="fl" d="M230 38 H242" marker-end="url(#d4)"/>
+        <path class="fl" d="M299 62 V90" marker-end="url(#d4)"/>
+        <rect class="box" x="168" y="92" width="186" height="48" rx="8"/><text class="t" x="261" y="112" text-anchor="middle">기기 열쇠</text><text class="xs" x="261" y="129" text-anchor="middle">MCP kmd-team · 지식 보내기</text>
+        <text class="xs" x="6" y="96">개인 지식은</text><text class="xs" x="6" y="112">보여 주지 않는다</text><text class="xs" x="6" y="128">연결 상태만(기기 목록)</text>
+      </svg>
+      <p>설치 · 잇기 한 줄은 그 사람의 기기 열쇠를 만들기 때문에 팀 화면이 내준다. 개인 칸 띠에 있던 것을 「개인 프로그램 설치」 한 자리로 모은다. 작업 폴더에 팀 지식을 붙이는 한 줄도 여기서. 지식 폴더 경로는 깐 뒤 개인 화면에서 정한다.</p>
     </div>
   </div>
 </section>
 
 <!-- 3 -->
 <section>
-  <h2><span class="no">3</span>권한 세 자리</h2>
-  <p>팀 서버의 권한은 셋이다. 관리자는 사람에 붙는 자격으로 팀 서버 전체와 모든 지식을 다룬다. 사용자는 지식마다 쓰기 또는 읽기 자리를 받는다. 바깥 자리는 안쪽 자리가 하는 일을 모두 한다.</p>
+  <h2><span class="no">3</span>권한 네 자리</h2>
+  <p>총괄 관리자 › 지식관리자 › 쓰기 › 읽기. 바깥 자리는 안쪽 자리가 하는 일을 모두 한다. 총괄 관리자는 사람에 붙는 자격이고, 나머지 셋은 팀 지식마다 받는 자리다. 받지 않은 지식은 「없음」(보이지 않음)이 기본이다.</p>
   <div class="figure mid">
-  <svg viewBox="0 0 1100 250" role="img" aria-label="관리자, 사용자 쓰기, 사용자 읽기 세 자리가 바깥에서 안으로 겹쳐 든 그림">
-    <rect class="p3" x="10" y="10" width="1080" height="230" rx="14" style="fill:var(--c3-bg)"/>
-    <text class="tb c3t" x="28" y="36">관리자</text>
+  <svg viewBox="0 0 1100 270" role="img" aria-label="총괄 관리자, 지식관리자, 쓰기, 읽기 네 자리가 바깥에서 안으로 겹쳐 든 그림">
+    <rect class="p3" x="10" y="10" width="1080" height="250" rx="14" style="fill:var(--c3-bg)"/>
+    <text class="tb c3t" x="28" y="36">총괄 관리자</text>
     <text class="xs" x="28" y="54">팀 서버 전체 · 사람에 붙는 자격</text>
     <text class="xs" x="28" y="70"><tspan class="mono">auth.json admin</tspan></text>
-    <text class="s" x="28" y="96">모든 지식이 보이고 모두 관리</text>
-    <text class="s" x="28" y="114">문서에 바로 고치기 · 정리 · 되돌리기</text>
-    <text class="s" x="28" y="132">가져올 곳 전부 · 지금 가져오기</text>
-    <text class="s" x="28" y="150">지식 설정 · 권한 주기 · 주인 넘기기</text>
-    <text class="s" x="28" y="168">지식 세우기 · 지우기 · 되살리기</text>
-    <text class="s" x="28" y="186">사람 · 묶음 · 백업 · Claude 연결</text>
-    <text class="s" x="28" y="204">일 줄 멈춤</text>
+    <text class="s" x="28" y="98">모든 지식이 보이고 모두 관리</text>
+    <text class="s" x="28" y="117">사람 만들기 · 묶음 · 떠남</text>
+    <text class="s" x="28" y="136">지식 세우기 · 지우기 · 되살리기</text>
+    <text class="s" x="28" y="155">백업 · Claude 연결 · 일 줄 멈춤</text>
+    <text class="s" x="28" y="174">서버 자원 가져올 곳</text>
+    <text class="xs" x="28" y="190">(서버 폴더 · ssh · 목록 밖 호스트)</text>
+    <text class="s" x="28" y="209">주인 넘기기</text>
 
-    <rect class="recb" x="330" y="44" width="750" height="186" rx="12"/>
-    <text class="tb rect" x="350" y="70">사용자(쓰기 · 읽기)</text>
-    <text class="xs" x="350" y="88">권한 받은 지식마다 · <tspan class="mono">write</tspan></text>
-    <text class="s" x="350" y="116">기록 남기기</text>
-    <text class="xs" x="350" y="132">세션 · 화면 고치기는 기록으로</text>
-    <text class="s" x="350" y="156">일 줄에 파일 · 폴더 넣기</text>
-    <text class="s" x="350" y="178">가져오기 부탁 · 정리 부탁</text>
-    <text class="s" x="350" y="200">자기 기록 되돌리기</text>
+    <rect class="box" x="232" y="44" width="848" height="206" rx="12"/>
+    <text class="tb" x="250" y="70">지식관리자</text>
+    <text class="xs" x="250" y="88">받은 지식마다 · 주인 포함</text>
+    <text class="xs" x="250" y="104">지식의 관리 자리 · <tspan class="mono">admin</tspan></text>
+    <text class="s" x="250" y="132">문서에 바로 고치기</text>
+    <text class="s" x="250" y="151">정리(남의 기록까지) · 되돌리기</text>
+    <text class="s" x="250" y="170">가져올 곳(https git · DB)</text>
+    <text class="s" x="250" y="189">지금 가져오기 · 지식 설정</text>
+    <text class="s" x="250" y="208">그 지식의 권한 주기</text>
 
-    <rect class="docb" x="660" y="80" width="400" height="136" rx="10"/>
-    <text class="tb doct" x="680" y="106">사용자(읽기)</text>
-    <text class="xs" x="680" y="124">권한 받은 지식마다 · <tspan class="mono">read</tspan></text>
-    <text class="s" x="680" y="152">문서 · 기록 · 이력 · 그래프 보기</text>
-    <text class="s" x="680" y="174">찾기 · MCP 읽기(brief · section)</text>
+    <rect class="recb" x="464" y="80" width="606" height="160" rx="10"/>
+    <text class="tb rect" x="482" y="106">쓰기</text>
+    <text class="xs" x="482" y="124">받은 지식마다 · <tspan class="mono">write</tspan></text>
+    <text class="s" x="482" y="152">기록 남기기(세션 · 화면 고치기는 기록으로)</text>
+    <text class="s" x="482" y="171">일 줄에 파일 · 폴더 넣기</text>
+    <text class="s" x="482" y="190">가져오기 부탁 · 정리 부탁</text>
+    <text class="s" x="482" y="209">자기 기록 되돌리기</text>
+
+    <rect class="docb" x="770" y="116" width="290" height="114" rx="10"/>
+    <text class="tb doct" x="788" y="142">읽기</text>
+    <text class="xs" x="788" y="160">받은 지식마다 · <tspan class="mono">read</tspan></text>
+    <text class="s" x="788" y="186">문서 · 기록 · 이력 · 그래프 보기</text>
+    <text class="s" x="788" y="205">찾기 · MCP 읽기(brief · section)</text>
   </svg>
   </div>
 
   <div class="legend"><span><i class="dot yes"></i>한다</span><span><i class="dot rec-"></i>기록으로만 남는다(정리가 넣는다)</span><span><i class="dot no-"></i>못 한다</span></div>
   <div class="figure">
-    <div class="mx">
-      <div class="h">일</div><div class="h">관리자</div><div class="h">사용자(쓰기 · 읽기)</div><div class="h">사용자(읽기)</div>
-      <div class="k">보이는 지식</div><div class="dot yes">모든 지식</div><div class="dot yes">받은 지식</div><div class="dot yes">받은 지식</div>
-      <div class="k">팀 서버 설정<small>사람 · 묶음 · 백업 · Claude 연결 · 일 줄 멈춤</small></div><div class="dot yes">한다</div><div class="dot no-">못 함</div><div class="dot no-">못 함</div>
-      <div class="k">지식 세우기 · 지우기 · 되살리기</div><div class="dot yes">한다</div><div class="dot no-">못 함</div><div class="dot no-">못 함</div>
-      <div class="k">지식 설정 · 권한 주기<small>정리 때 · Claude 보내기 · 주인</small></div><div class="dot yes">한다</div><div class="dot no-">못 함</div><div class="dot no-">못 함</div>
-      <div class="k">가져올 곳 더하기 · 고치기 · 지우기<small>문서 폴더 · git · DB · 서버 폴더 · ssh</small></div><div class="dot yes">전부</div><div class="dot no-">[관리자에게 부탁]</div><div class="dot no-">못 함</div>
-      <div class="k">지금 가져오기 · [그대로 반영]</div><div class="dot yes">한다</div><div class="dot no-">못 함</div><div class="dot no-">못 함</div>
-      <div class="k">일 줄에 파일 · 폴더 넣기<small>파일마다 기록 하나</small></div><div class="dot yes">넣기</div><div class="dot yes">넣기</div><div class="dot no-">못 함</div>
-      <div class="k">화면에서 고치기</div><div class="dot yes">문서에 바로</div><div class="dot rec-">기록으로</div><div class="dot no-">못 함</div>
-      <div class="k">세션 저장(MCP save)</div><div class="dot yes">항목 글까지</div><div class="dot rec-">기록으로</div><div class="dot no-">못 함</div>
-      <div class="k">정리 · 되돌리기</div><div class="dot yes">남의 기록까지</div><div class="dot rec-">자기 기록만</div><div class="dot no-">못 함</div>
-      <div class="k">보기 · 찾기 · MCP 읽기</div><div class="dot yes">한다</div><div class="dot yes">한다</div><div class="dot yes">한다</div>
-      <div class="k">개인 지식</div><div class="dot no-">팀 화면에 없음</div><div class="dot no-">팀 화면에 없음</div><div class="dot no-">팀 화면에 없음</div>
+    <div class="mx mx5">
+      <div class="h">일</div><div class="h">총괄 관리자</div><div class="h">지식관리자</div><div class="h">쓰기</div><div class="h">읽기</div>
+      <div class="k">보이는 지식</div><div class="dot yes">모든 지식</div><div class="dot yes">받은 지식</div><div class="dot yes">받은 지식</div><div class="dot yes">받은 지식</div>
+      <div class="k">팀 서버 설정<small>사람 만들기 · 묶음 · 백업 · Claude 연결 · 일 줄 멈춤</small></div><div class="dot yes">한다</div><div class="dot no-">못 함</div><div class="dot no-">못 함</div><div class="dot no-">못 함</div>
+      <div class="k">지식 세우기 · 지우기 · 되살리기</div><div class="dot yes">한다</div><div class="dot no-">못 함</div><div class="dot no-">못 함</div><div class="dot no-">못 함</div>
+      <div class="k">그 지식의 설정 · 권한 주기<small>정리 때 · Claude 보내기 · 있는 사람에게 자리</small></div><div class="dot yes">한다</div><div class="dot yes">받은 지식</div><div class="dot no-">못 함</div><div class="dot no-">못 함</div>
+      <div class="k">가져올 곳 더하기 · 고치기 · 지우기<small>문서 폴더 · git · DB</small></div><div class="dot yes">전부(서버 자원 포함)</div><div class="dot yes">https git · DB</div><div class="dot no-">[관리자에게 부탁]</div><div class="dot no-">못 함</div>
+      <div class="k">지금 가져오기 · [그대로 반영]</div><div class="dot yes">한다</div><div class="dot yes">받은 지식</div><div class="dot no-">못 함</div><div class="dot no-">못 함</div>
+      <div class="k">일 줄에 파일 · 폴더 넣기<small>파일마다 기록 하나</small></div><div class="dot yes">넣기</div><div class="dot yes">넣기</div><div class="dot yes">넣기</div><div class="dot no-">못 함</div>
+      <div class="k">화면에서 고치기</div><div class="dot yes">문서에 바로</div><div class="dot yes">문서에 바로</div><div class="dot rec-">기록으로</div><div class="dot no-">못 함</div>
+      <div class="k">세션 저장(MCP save)</div><div class="dot yes">항목 글까지</div><div class="dot yes">항목 글까지</div><div class="dot rec-">기록으로</div><div class="dot no-">못 함</div>
+      <div class="k">정리 · 되돌리기</div><div class="dot yes">남의 기록까지</div><div class="dot yes">남의 기록까지</div><div class="dot rec-">자기 기록만</div><div class="dot no-">못 함</div>
+      <div class="k">보기 · 찾기 · MCP 읽기</div><div class="dot yes">한다</div><div class="dot yes">한다</div><div class="dot yes">한다</div><div class="dot yes">한다</div>
+      <div class="k">개인 프로그램 설치(이 PC 잇기)</div><div class="dot yes">한다</div><div class="dot yes">한다</div><div class="dot yes">한다</div><div class="dot yes">한다</div>
+      <div class="k">개인 지식</div><div class="dot no-">팀 화면에 없음</div><div class="dot no-">팀 화면에 없음</div><div class="dot no-">팀 화면에 없음</div><div class="dot no-">팀 화면에 없음</div>
     </div>
   </div>
-  <p class="figcap">관리자 = 지금 코드의 전역 관리자(docs/kmd_권한_모델.md). 지금 코드에는 지식마다 주는 「관리」 자리(주인 · 정리하는 사람 · 묶음에 준 관리)가 더 있는데, 이 안에서는 없앤다. 옮기는 법은 7절.</p>
+  <p class="figcap">지금 코드의 권한 모델과 같은 짜임이다: 전역 관리자 = 총괄 관리자, 지식의 관리 · 쓰기 · 읽기 자리 = 지식관리자 · 쓰기 · 읽기. 바뀌는 것은 이름, 기본 자리(모두 쓰기 → 없음), 사람 만들 때 자리 고르기다.</p>
 </section>
 
 <!-- 3b -->
 <section>
-  <h2><span class="no">4</span>관리자가 사용자를 만드는 길</h2>
-  <p>관리자가 사용자를 만들 때 팀 지식마다 자리(쓰기 · 읽기)를 고르고, 접속 계정을 그 사람에게 전한다. 사용자는 받은 지식만 본다. 자리를 받지 않은 지식은 목록 · 찾기 · MCP 어디에도 나오지 않는다.</p>
+  <h2><span class="no">4</span>총괄 관리자가 사용자를 만드는 길</h2>
+  <p>총괄 관리자가 사용자를 만들 때 팀 지식마다 자리(지식관리자 · 쓰기 · 읽기)를 고르고, 접속 계정을 그 사람에게 전한다. 지식관리자는 자기 지식에서 있는 사람에게 자리를 더 줄 수 있다. 사용자는 받은 지식만 본다. 자리를 받지 않은 지식은 목록 · 찾기 · MCP 어디에도 나오지 않는다.</p>
   <div class="figure mid">
   <svg viewBox="0 0 1100 200" role="img" aria-label="관리자가 사람을 더하고 지식마다 자리를 준 뒤 접속 계정을 전하고, 사용자는 받은 지식만 보는 흐름">
     <defs><marker id="u" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
@@ -398,7 +423,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <rect class="docb" x="325" y="142" width="120" height="30" rx="15"/><text class="t doct" x="385" y="162" text-anchor="middle">읽기</text>
     <rect class="noneb" x="475" y="142" width="120" height="30" rx="15"/><text class="xs" x="535" y="161" text-anchor="middle">없음</text>
     <line class="grid" x1="16" y1="192" x2="610" y2="192"/>
-    <text class="xs" x="30" y="220">관리자는 표에 없다. 모든 지식이 보이고 모두 관리한다.</text>
+    <text class="xs" x="30" y="220">총괄 관리자는 표에 없다. 모든 지식이 보이고 모두 관리한다.</text>
 
     <path class="fl" d="M612 87 H652" marker-end="url(#u)"/>
     <path class="fl" d="M612 157 H652" marker-end="url(#u)"/>
@@ -420,7 +445,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       <ul>
         <li>사람 더하기에서는 아이디 · 관리자 여부만 고른다. 지식 자리는 지식마다의 권한 창에서 따로 준다. <span>사람 더하기 창에 「지식마다 자리」 표를 더한다 · 사람 카드에서도 고친다</span></li>
         <li>지금 기본은 「모두: 쓰기」다. 자리를 받지 않은 사람도 모든 팀 지식을 읽고 기록한다. <b>정함: 「없음」 자리를 두고, 기본은 「없음」.</b> <b>옛 지식 옮기기도 정함:</b> 바꾸는 날 있는 사람 모두에게 옛 지식마다 쓰기 자리를 적어 준 뒤 기본을 없음으로 한다. 겉으로는 그대로이고, 관리자가 사람 카드에서 줄여 나간다. <span>access.all 기본 none · 바꾸는 날 access.users 에 쓰기를 채운다</span></li>
-        <li>지식마다 「관리」 자리(주인 · 정리하는 사람 · 묶음에 준 관리)가 있다. <span>이 안에서는 없음 · 7절</span></li>
+        <li>화면 말: 「관리」 자리를 「지식관리자」로, 전역 관리자를 「총괄 관리자」로 부른다. <span>권한 판정은 그대로 · 이름만</span></li>
       </ul>
     </div>
     <div class="cg k">
@@ -459,7 +484,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
         <li>페이지 CSP 의 PC 주소 예외 <span>server/http.js:1061</span></li>
         <li>serve.json 의 pcUrl 설정</li>
         <li>개인 프로그램의 /pair · 짝 열쇠 · /api/pair/forget <span>팀 화면만 쓴다</span></li>
-        <li>쓰지 않는 사람 몫 PC 일꾼 열쇠 (확인 뒤) <span>core/auth.js:463</span></li>
+        <li>사람 몫 PC 일꾼 열쇠 · 사람 카드의 「PC 일꾼 n」 · 떠남 문구 (정함) <span>core/auth.js workerAdd(owner)</span></li>
       </ul>
     </div>
     <div class="cg k">
@@ -467,7 +492,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       <ul>
         <li>개인 프로그램의 자기 화면 · 개인 지식 · 정리 · ② Claude</li>
         <li>지식 보내기(개인 → 팀) · 팀 서버의 받기</li>
-        <li>기기 잇기: 개인 프로그램이 팀 서버에 기기 열쇠를 받는 일</li>
+        <li>설치 · 잇기 한 줄: 팀 화면의 「개인 프로그램 설치」 자리로 옮겨 둔다 <span>/api/device/ticket</span></li>
         <li>에이전트 설치: 작업 폴더에 kmd · kmd-team 둘을 넣는 일(개인 화면에서)</li>
         <li>팀 서버에 개인 지식이 없다는 원칙 <span>core/owners.js:197</span></li>
       </ul>
@@ -484,23 +509,24 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <li><b>팀 화면 걷기</b><p>S.pc · pcSide() · /pc/api · ~ id 분기를 지운다. 빈 상태 · 오류 문구도 팀 지식만 말하게.</p></li>
     <li><b>팀 서버 걷기</b><p>pcUrl · pcpass · CSP 예외 · 설정 키.</p></li>
     <li><b>개인 프로그램 짝짓기 걷기</b><p>/pair · 짝 열쇠 ctx · 잊기. 개인 화면의 확인 창은 둔다.</p></li>
-    <li><b>권한 세 자리</b><p>권한 모델 문서를 관리자 · 쓰기 · 읽기로 맞추고, 사람 더하기 창에 지식마다 자리 표를 더하고, 기본 자리를 없음으로. 사용자 화면에는 일 줄 넣기와 [관리자에게 부탁]만.</p></li>
+    <li><b>권한 네 자리</b><p>이름을 총괄 관리자 · 지식관리자 · 쓰기 · 읽기로. 사람 더하기 창에 지식마다 자리 표 · 기본 자리 없음 · 옛 지식은 바꾸는 날 모두에게 쓰기.</p></li><li><b>개인 프로그램 설치 자리</b><p>팀 화면에 「개인 프로그램 설치」 한 곳: 설치 · 잇기 한 줄, 작업 폴더에 팀 지식 붙이기, 내 기기 목록. PC 일꾼 열쇠는 걷는다.</p></li>
     <li><b>테스트 · 배포</b><p>pair · pc-confirm · kit-area · open · settings · watch2 · screen-kmd 를 맞추고, 네 폭에서 화면 확인 뒤 188 에.</p></li>
   </ol>
 </section>
 
 <!-- 6 -->
 <section>
-  <h2><span class="no">7</span>아직 정할 것</h2>
+  <h2><span class="no">7</span>그 밖에 정한 것</h2>
+  <p>미팅에서 남았던 넷은 모두 정했다. 개발 전에 정할 것은 남지 않았다.</p>
   <div class="ask">
-    <div><b>지식마다의 관리 자리를 어떻게 옮길지</b><span>지금 주인 · 정리하는 사람 · 묶음에 준 관리 자리는 그 지식에서 문서 바로 고치기 · 정리 · 가져올 곳(허락된 호스트) · 권한 주기를 한다. 없애면 이 사람들은 쓰기 자리로 내려가고, 그 일은 관리자만 한다. 내려가는 사람 목록을 미리 뽑아 알릴지.</span></div>
-    <div><b>정리하는 사람이 할 일</b><span>정리 화면의 「정리하는 사람」 칸 · 주인 칸을 없앨지, 이름만 남겨 알림 받는 사람으로 둘지.</span></div>
-    <div><b>개인 프로그램 설치 안내를 팀 화면에 둘지</b><span>설치 한 줄에는 팀 주소가 들어가서 팀 화면이 주는 것이 자연스럽다. 개인 지식을 보여 주는 것은 아니지만 「아예 보이지 않음」에 걸리는지 정한다.</span></div>
-    <div><b>사람 몫 PC 일꾼 열쇠</b><span>지금 만드는 곳이 없어 쓰이지 않는 것으로 보인다. 확인한 뒤 같이 걷을지.</span></div>
+    <div><b>지식마다의 관리 자리 → 「지식관리자」로 그대로 둔다</b><span>권한을 총괄 관리자 › 지식관리자 › 쓰기 › 읽기 넷으로 정했으므로, 지금 주인 · 권한 표에서 「관리」를 받은 사람 · 묶음은 바꾸는 날 그대로 지식관리자다. 옮길 사람이 없다(이름만 바뀐다).</span></div>
+    <div><b>정리하는 사람 칸 → 할 일 없음(이미 지식관리자로 들어가 있다)</b><span>「이 지식의 사람」 화면은 이미 걷혔고, 정리를 맡길 사람은 권한 창의 사람 줄에서 「관리」로 준다. 예전 「정리하는 사람」 목록은 권한 표를 처음 저장할 때 「관리」 줄로 옮겨지고 비워진다(core/owners.js setAccess). 정리 · 가져오기 알림도 이미 「그 지식의 관리 자리 사람 + 총괄」에게 간다(hub.curatorsOf). 남은 것은 설명서 · 관리자 명령(kmd owner --curators)의 옛 낱말을 「지식관리자」로 고치는 일뿐이다.</span></div>
+    <div><b>개인 프로그램 설치 → 팀 화면에 별도 자리로 유지</b><span>팀 화면에 「개인 프로그램 설치」 한 곳을 둔다: 설치 · 잇기 한 줄 복사, 작업 폴더에 팀 지식 붙이기 한 줄, 내 기기(이은 PC) 목록. 누구나 쓴다. 개인 지식 · 개인 폴더 내용은 보여 주지 않고, 연결 상태는 팀 서버가 아는 기기 목록으로만 보인다(PC 에 묻지 않는다).</span></div>
+    <div><b>사람 몫 PC 일꾼 열쇠 → 걷는다</b><span>팀 서버가 사람 PC 에 일을 넘기던 옛 설계의 흔적이다. 지금 만드는 곳이 없어 늘 0 이다. 열쇠 코드 · 사람 카드의 「PC 일꾼 n」 · 떠남 · 새 링크 · 기기 끊기 문구 · 관리자 설명서에서 걷는다. 팀 정리 일꾼과 개인 프로그램의 일꾼은 그대로다.</span></div>
   </div>
 </section>
 
-<footer>검토안이다. 코드는 아직 바꾸지 않았다. 위치는 kmd main 475e40b 기준이다.</footer>
+<footer>검토안이다. 코드는 아직 바꾸지 않았다. 위치는 kmd main dc7cb43 기준이다.</footer>
 </div>
 </body>
 </html>

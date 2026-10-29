@@ -242,13 +242,13 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <rect class="box" x="632" y="122" width="536" height="356" rx="12"/>
     <text class="tb" x="648" y="146">kmd serve</text>
     <text class="s" x="728" y="146">팀 서버 프로세스 · Claude 를 부르지 않는다</text>
-    <text class="xs" x="648" y="164">권한: 관리자(모든 지식) · 사용자는 지식마다 쓰기 · 읽기 · 없음(안 보임 · 기본)</text>
+    <text class="xs" x="648" y="164">권한: 총괄 관리자 · 지식마다 지식관리자 · 쓰기 · 읽기 · 없음(기본)</text>
     <text class="hdr" x="648" y="184">들이는 곳</text>
     <rect class="boxz" x="648" y="190" width="160" height="34" rx="6"/><text class="t" x="660" y="212">받기(지식 보내기)</text>
     <rect class="boxz" x="648" y="232" width="160" height="34" rx="6"/><text class="t" x="660" y="254">세션 저장(MCP)</text>
     <rect class="boxz" x="648" y="274" width="160" height="34" rx="6"/><text class="t" x="660" y="296">화면에서 고치기</text>
     <rect class="boxz" x="648" y="316" width="160" height="34" rx="6"/><text class="t" x="660" y="338">일 줄: 파일 · 폴더</text><text class="xs" x="796" y="338" text-anchor="end">쓰기</text>
-    <rect class="boxz" x="648" y="358" width="160" height="34" rx="6"/><text class="t" x="660" y="380">가져올 곳</text><text class="xs" x="796" y="380" text-anchor="end">관리자</text>
+    <rect class="boxz" x="648" y="358" width="160" height="34" rx="6"/><text class="t" x="660" y="380">가져올 곳</text><text class="xs" x="796" y="380" text-anchor="end">지식관리자</text>
     <path class="flt" d="M808 207 C824 207,824 240,836 240"/>
     <path class="flt" d="M808 249 C824 249,824 240,836 240"/>
     <path class="flt" d="M808 291 C824 291,824 240,836 240"/>
@@ -287,7 +287,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     <text class="s" x="648" y="552">팀 서버 기계의 자식 프로세스 · 일꾼 열쇠 kmdw_ · 일감마다 단기 열쇠 kmdd_</text>
     <rect class="c3b" x="648" y="566" width="504" height="146" rx="10"/>
     <text class="tb c3t" x="664" y="590">③ 정리 일꾼의 Claude</text>
-    <text class="s" x="664" y="610">정리 전용 로그인(관리자가 팀 › Claude 연결에서) · 팀 자원</text>
+    <text class="s" x="664" y="610">정리 전용 로그인(총괄 관리자가 팀 › Claude 연결에서) · 팀 자원</text>
     <text class="xs" x="664" y="626">팀 비밀 claude-token 을 일감마다 다시 읽는다 · 모델은 기본 배분</text>
     <rect class="chip3" x="664" y="638" width="152" height="24" rx="12"/><text class="xs" x="740" y="654" text-anchor="middle">이름 바로잡기 · haiku</text>
     <rect class="chip3" x="824" y="638" width="152" height="24" rx="12"/><text class="xs" x="900" y="654" text-anchor="middle">항목 글(묶음) · sonnet</text>
@@ -366,7 +366,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       <line class="flt" x1="290" y1="31" x2="1010" y2="31"/>
       <rect class="noneb" x="295" y="18" width="170" height="26" rx="6"/><text class="xs" x="380" y="35" text-anchor="middle">거치지 않음</text>
       <rect class="recb" x="515" y="18" width="170" height="26" rx="6"/><text class="xs" x="600" y="35" text-anchor="middle">① 이 쓴 기록</text>
-      <rect class="c1b" x="745" y="6" width="170" height="24" rx="6"/><text class="xs" x="830" y="22" text-anchor="middle">개인 · 팀 관리자: ① 이 항목 글</text>
+      <rect class="c1b" x="745" y="6" width="170" height="24" rx="6"/><text class="xs" x="830" y="22" text-anchor="middle">개인 · 지식관리자: ① 바로</text>
       <rect class="c3b" x="745" y="34" width="170" height="24" rx="6"/><text class="xs" x="830" y="50" text-anchor="middle">팀 쓰기 자리: 정리(③)</text>
       <rect class="docb" x="1010" y="18" width="100" height="26" rx="6"/><text class="xs" x="1060" y="35" text-anchor="middle">항목</text>
       <line class="grid" x1="16" y1="62" x2="1144" y2="62"/>
@@ -377,7 +377,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
       <line class="flt" x1="290" y1="31" x2="1010" y2="31"/>
       <rect class="noneb" x="295" y="18" width="170" height="26" rx="6"/><text class="xs" x="380" y="35" text-anchor="middle">거치지 않음</text>
       <rect class="recb" x="515" y="18" width="170" height="26" rx="6"/><text class="xs" x="600" y="35" text-anchor="middle">사람이 쓴 기록</text>
-      <rect class="ruleb" x="745" y="6" width="170" height="24" rx="6"/><text class="xs" x="830" y="22" text-anchor="middle">개인 · 팀 관리자: 고친 글 그대로</text>
+      <rect class="ruleb" x="745" y="6" width="170" height="24" rx="6"/><text class="xs" x="830" y="22" text-anchor="middle">개인 · 지식관리자: 바로</text>
       <rect class="c3b" x="745" y="34" width="170" height="24" rx="6"/><text class="xs" x="830" y="50" text-anchor="middle">팀 쓰기 자리: 정리(③)</text>
       <rect class="docb" x="1010" y="18" width="100" height="26" rx="6"/><text class="xs" x="1060" y="35" text-anchor="middle">항목</text>
       <line class="grid" x1="16" y1="62" x2="1144" y2="62"/>
@@ -407,7 +407,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     </g>
     <!-- 5 옛 폴더 -->
     <g transform="translate(0,292)">
-      <text class="t" x="20" y="27">옛 폴더로 새 지식</text><text class="xs" x="20" y="44">개인 · 팀(관리자) · 지식 추가 때 한 번</text>
+      <text class="t" x="20" y="27">옛 폴더로 새 지식</text><text class="xs" x="20" y="44">개인 · 팀(총괄) · 지식 추가 때 한 번</text>
       <line class="flt" x1="290" y1="31" x2="1010" y2="31"/>
       <rect class="ruleb" x="295" y="18" width="170" height="26" rx="6"/><text class="xs" x="380" y="35" text-anchor="middle">규칙</text>
       <rect class="recb" x="515" y="18" width="170" height="26" rx="6"/><text class="xs" x="600" y="35" text-anchor="middle">파일마다 기록</text>
@@ -417,7 +417,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     </g>
     <!-- 6 문서 폴더 -->
     <g transform="translate(0,354)">
-      <text class="t" x="20" y="27">가져올 곳: 문서 폴더</text><text class="xs" x="20" y="44">개인 · 팀(관리자) · 바뀐 파일만</text>
+      <text class="t" x="20" y="27">가져올 곳: 문서 폴더</text><text class="xs" x="20" y="44">개인 · 팀(지식관리자) · 바뀐 파일만</text>
       <line class="flt" x1="290" y1="31" x2="1010" y2="31"/>
       <rect class="c2b" x="295" y="6" width="170" height="24" rx="6"/><text class="xs" x="380" y="22" text-anchor="middle">파일 넣기와 같음</text>
       <rect class="ruleb" x="295" y="34" width="170" height="24" rx="6"/><text class="xs" x="380" y="50" text-anchor="middle">파일 넣기와 같음</text>
@@ -429,7 +429,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     </g>
     <!-- 7 git -->
     <g transform="translate(0,416)">
-      <text class="t" x="20" y="27">가져올 곳: 소스 코드(git)</text><text class="xs" x="20" y="44">개인 · 팀(관리자) · 새 커밋마다</text>
+      <text class="t" x="20" y="27">가져올 곳: 소스 코드(git)</text><text class="xs" x="20" y="44">개인 · 팀(지식관리자) · 새 커밋마다</text>
       <line class="flt" x1="290" y1="31" x2="1010" y2="31"/>
       <rect class="ruleb" x="295" y="18" width="170" height="26" rx="6"/><text class="xs" x="380" y="35" text-anchor="middle">차이 · 바뀐 값(규칙)</text>
       <rect class="c2b" x="515" y="6" width="170" height="24" rx="6"/><text class="xs" x="600" y="22" text-anchor="middle">② 커밋 분석</text>
@@ -441,7 +441,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
     </g>
     <!-- 8 DB -->
     <g transform="translate(0,478)">
-      <text class="t" x="20" y="27">가져올 곳: DB</text><text class="xs" x="20" y="44">개인 · 팀(관리자) · 바뀐 테이블만</text>
+      <text class="t" x="20" y="27">가져올 곳: DB</text><text class="xs" x="20" y="44">개인 · 팀(지식관리자) · 바뀐 테이블만</text>
       <line class="flt" x1="290" y1="31" x2="1010" y2="31"/>
       <rect class="ruleb" x="295" y="18" width="170" height="26" rx="6"/><text class="xs" x="380" y="35" text-anchor="middle">정의 표(규칙)</text>
       <rect class="noneb" x="515" y="18" width="170" height="26" rx="6"/><text class="xs" x="600" y="35" text-anchor="middle">기록 없음 · 이력만</text>
@@ -614,7 +614,7 @@ footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line)
   </div>
 </section>
 
-<footer>팀 · 개인 프로그램 분리안(관리자 · 지식마다 쓰기 · 읽기 · 없음, 팀 화면에 개인 지식 없음, 보내기는 개인 화면에서만, 가져올 곳은 관리자)이 반영된 것으로 그렸다. 숫자(5분 · 02:30 · 16항목 · 묶음 3 · 임대 40분 · 20 파일)와 모델 배분(core/models.js)은 지금 기본값이고 설정으로 바뀔 수 있다. 걸리는 시간은 아직 재지 않았다.</footer>
+<footer>팀 · 개인 프로그램 분리안(총괄 관리자 › 지식관리자 › 쓰기 › 읽기 · 기본 없음, 팀 화면에 개인 지식 없음, 개인 프로그램 설치는 팀 화면의 별도 자리, 보내기는 개인 화면에서만, 가져올 곳은 지식관리자 · 서버 자원은 총괄)이 반영된 것으로 그렸다. 숫자(5분 · 02:30 · 16항목 · 묶음 3 · 임대 40분 · 20 파일)와 모델 배분(core/models.js)은 지금 기본값이고 설정으로 바뀔 수 있다. 걸리는 시간은 아직 재지 않았다.</footer>
 </div>
 </body>
 </html>
