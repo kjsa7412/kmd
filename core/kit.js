@@ -105,7 +105,7 @@ async function checkDir(dir) {
 
 // 붙이기 · 최신으로 — 같은 일(덮어쓰기는 kmd 의 것만)
 //   kns · def — 이 폴더의 지식 목록과 기본(폴더 줄 그대로 · knsOf). 연결은 목록에 든 영역의 것만 · 목록이 비면 둘 다
-export async function install(dir, { pcUrl = null, teamUrl = null, kns = [], def = null } = {}) {
+export async function install(dir, { meUrl = null, teamUrl = null, kns = [], def = null } = {}) {
   const full = await checkDir(dir)
   const { skills, block, ver } = await kitParts()
   for (const s of skills) {
@@ -118,7 +118,7 @@ export async function install(dir, { pcUrl = null, teamUrl = null, kns = [], def
   const servers = { ...(cur.mcpServers || {}) }
   const has = (a) => !kns.length || kns.some((k) => k.area === a)
   const tUrl = kns.find((k) => k.area === 'team' && k.team)?.team || teamUrl
-  if (has('me') && pcUrl) servers.kmd = mcpConfig(pcUrl)
+  if (has('me') && meUrl) servers.kmd = mcpConfig(meUrl)
   if (has('team') && tUrl) servers['kmd-team'] = mcpConfig(tUrl)
   if (!has('me')) delete servers.kmd
   if (!has('team')) delete servers['kmd-team']

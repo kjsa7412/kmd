@@ -270,13 +270,13 @@ async function agentCmd(o) {
     hub.stop()
     if (!k) throw new Error(`이 PC 의 지식 폴더(${root})에 「${kn}」 개인 지식이 없다`)
     const dir = path.resolve(o.dir || process.cwd())
-    const pcUrl = (await runningPc(root, o)) || `http://127.0.0.1:${o.port || 7373}`
+    const meUrl = (await runningPc(root, o)) || `http://127.0.0.1:${o.port || 7373}`
     const list = await kitFolders(pcData)
     const same = (f) => path.resolve(f.path).toLowerCase() === dir.toLowerCase()
     const cur = list.find(same)
     const row = kitAddKn(cur || { name: path.basename(dir), path: dir, at: new Date().toISOString(), kns: [], def: null }, { area: 'me', kn: k.id, knName: k.name })
     const teamUrl = await connectedTeam(root, o)
-    const r = await kitInstall(dir, { pcUrl, teamUrl, kns: row.kns, def: row.def })
+    const r = await kitInstall(dir, { meUrl, teamUrl, kns: row.kns, def: row.def })
     await kitSetFolders(pcData, cur ? list.map((f) => (f === cur ? { ...row, path: r.dir } : f)) : [...list, { ...row, path: r.dir }])
     console.log(`✓ ${r.dir} 에 개인 지식 「${k.name}」 을 더했다 · 붙은 지식 ${row.kns.length} · 기본 「${kitDefOf(row)?.knName || k.name}」 · Claude Code 는 새로 여는 것부터`)
   } catch (e) {

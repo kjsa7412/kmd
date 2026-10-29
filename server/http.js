@@ -258,13 +258,11 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   // 이 PC 밖으로 손이 닿는 일(PAIR_ASK — 내 PC 경로 · 백업 주소 · 에이전트 설치 · 지우기)만 따로: 뒤의 것은 이 PC 가 자기 창을 띄워
   // [확인] 을 받아야 한다(팀 서버가 보낸 코드는 그 창을 누르지 못한다 — 다른 출처 · 창 열쇠는 이 PC 가 연 주소에만)
   const pairs = new Map()
-  // 팀 화면이 부를 이 PC 의 kmd 주소(serve.json pcUrl · 기본 이 PC 의 7373) — CSP connect-src 에 이 하나만
-  const pcUrl = (() => { try { return new URL(hub.config.pcUrl || 'http://127.0.0.1:7373').origin } catch { return 'http://127.0.0.1:7373' } })()
   const PAIR_MS = 12 * 3600_000
   const teamsFile = path.join(dataDir, 'teams.json')
   const teamsOf = async () => (await fs.readFile(teamsFile, 'utf8').then(JSON.parse, () => [])).map((u) => { try { return new URL(u).origin } catch { return null } }).filter(Boolean)
   // 팀 화면이 이 PC 에 못 하는 일 — 이 PC 프로그램 멈추기 · 한 번용 번호 · 기기 · 들어가기 · 짝 끊기 · 관리 · 일꾼 길
-  const PAIR_NO = [/^\/api\/pc\/(once|stop)$/, /^\/api\/(me\/devices(\/revoke)?|me\/logout-all|me\/pcpass(\/check)?|device\/ticket|sudo|pair\/forget)$/, /^\/api\/(admin|worker)\//, /^\/api\/k\/[^/]+\/(worker\/.+|baseline)$/]
+  const PAIR_NO = [/^\/api\/pc\/(once|stop)$/, /^\/api\/(me\/devices(\/revoke)?|me\/logout-all|device\/ticket|sudo|pair\/forget)$/, /^\/api\/(admin|worker)\//, /^\/api\/k\/[^/]+\/(worker\/.+|baseline)$/]
   // 이 PC 에서 [확인] 을 받는 일(POST) — 무엇을 하는지 창에 그대로 보인다
   const PAIR_ASK = [
     { re: /^\/api\/k\/[^/]+\/sources(\/(probe|edit|checkdb))?$/, what: '가져오는 곳: 이 PC 의 경로 · 주소를 읽는다' },
@@ -359,8 +357,6 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (!j.same) throw new KmdError('E_FORBIDDEN', '이 PC 의 kmd 는 다른 사람의 것이다. 내 PC 지식은 이 PC 를 이은 사람이 들어왔을 때만 열린다', { need: 'person' })
     return issuePair(origin)
   }
-  // 팀 서버 쪽 — 한 번용 표(1분)
-  const pcPasses = new Map()
 
   // 프록시 뒤 — x-forwarded-for 의 왼쪽 값은 보내는 사람이 꾸밀 수 있다. 우리 프록시가 붙인 오른쪽 끝에서 센다
   //   trustProxy: true 는 프록시 하나 · 숫자면 그만큼(프록시가 여럿 겹친 때)
@@ -449,9 +445,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (req.method !== 'POST' && !(['GET', 'HEAD'].includes(req.method) && GET_OK.some((re) => re.test(p)))) throw new KmdError('E_METHOD', 'POST 로 보낸다')
     if (ctx?.agent) throw new KmdError('E_FORBIDDEN', '에이전트 열쇠는 MCP 길만 쓴다')
     if (p === '/api/me') {
-      // pcUrl — 이 PC 의 kmd 로 이은 기기(설치 한 줄 · osuser 가 실린 것)가 있는 사람에게만 · 없으면 화면이 PC 를 묻지 않는다
       if (!ctx) return out(200, { mode, anon: true, setup: !auth.hasUsers(), legacy: auth.legacyWaiting(), version: VERSION, host: req.headers.host })
-      return out(200, { mode, user: ctx.user, admin: !!ctx.admin, sudo: !!ctx.sudo, password: ctx.password !== false, version: VERSION, host: req.headers.host, ...(mode === 'pc' ? { root: path.resolve(root), ...(isNoneRoot(root) ? { none: true } : {}) } : auth.devices(ctx.user).some((d) => d.osuser) ? { pcUrl } : {}), ...(mode === 'team' && ctx.admin ? { root: path.resolve(root) } : {}) })
+      return out(200, { mode, user: ctx.user, admin: !!ctx.admin, sudo: !!ctx.sudo, password: ctx.password !== false, version: VERSION, host: req.headers.host, ...(mode === 'pc' ? { root: path.resolve(root), ...(isNoneRoot(root) ? { none: true } : {}) } : {}), ...(mode === 'team' && ctx.admin ? { root: path.resolve(root) } : {}) })
     }
     // 확인 기다림 — 팀 화면이 확인 번호로 묻는다(wait · ok · no · gone). 확인 창의 열쇠는 싣지 않는다
     const cm = mode === 'pc' && p.match(/^\/api\/confirm\/([A-Za-z0-9_-]{6,40})$/)
@@ -518,22 +513,6 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, await hub.drafts(ctx, dec(wk[1]), db.drafts, { part: !!db.part }))
     }
     need(ctx)
-    if (p === '/api/me/pcpass' || p === '/api/me/pcpass/check') {
-      if (mode !== 'team') throw new KmdError('E_NOTFOUND', '팀 서버의 길이다')
-      const now = Date.now()
-      for (const [k, v] of pcPasses) if (v.exp < now) pcPasses.delete(k)
-      if (p === '/api/me/pcpass') {
-        if (ctx.device || ctx.legacy) throw new KmdError('E_FORBIDDEN', '들어온 화면이 받는다')
-        const pass = 'kmdq_' + crypto.randomBytes(24).toString('base64url')
-        pcPasses.set(pairSha(pass), { user: ctx.user, exp: now + 60_000 })
-        return out(200, { pass })
-      }
-      if (!ctx.device) throw new KmdError('E_FORBIDDEN', '이은 PC 의 기기 열쇠로 부른다')
-      const h = pairSha(String((await readBody(req)).pass || ''))
-      const rec = pcPasses.get(h)
-      pcPasses.delete(h)
-      return out(200, { same: !!rec && rec.exp >= now && rec.user === ctx.user })
-    }
     if (p === '/api/today') return out(200, await hub.today(ctx))
     if (p === '/api/history') return out(200, await hub.history(ctx))
     // 사람 목록 — 아이디만(정리하는 사람 고르기)
@@ -617,7 +596,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (!ag[1]) return out(200, { latest: await kit.kitVersion(), folders: await Promise.all(list.map(async (f) => ({ ...f, ...(await kit.status(f.path)) }))) })
       const b = await readBody(req) // 팀 화면이면 이 PC 에서 확인을 받은 뒤다(PAIR_ASK)
       const teamUrl = (await teamsOf())[0] || null
-      const urls = (f) => ({ pcUrl: `http://${req.headers.host}`, teamUrl, kns: f.kns || [], def: f.def || null })
+      const urls = (f) => ({ meUrl: `http://${req.headers.host}`, teamUrl, kns: f.kns || [], def: f.def || null })
       const same = (f, dir) => path.resolve(f.path).toLowerCase() === path.resolve(String(dir)).toLowerCase()
       if (ag[1] === 'add') {
         // 개인 지식 하나를 더한다 — 같은 폴더면 붙어 있던 지식(팀 지식도)은 그대로 · 기본도 그대로
@@ -1064,7 +1043,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (!full.startsWith(APP + path.sep) || rel.split('/').includes('..')) return send(res, 404, '없다', 'text/plain; charset=utf-8')
     const buf = await fs.readFile(full).catch(() => null)
     if (!buf) return send(res, 404, '없다', 'text/plain; charset=utf-8')
-    send(res, 200, buf, TYPES[path.extname(full)] || 'application/octet-stream', rel === 'index.html' ? { 'content-security-policy': `default-src 'self'; connect-src 'self'${mode === 'team' ? ' ' + pcUrl : ''}; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'` } : {})
+    send(res, 200, buf, TYPES[path.extname(full)] || 'application/octet-stream', rel === 'index.html' ? { 'content-security-policy': `default-src 'self'; connect-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'` } : {})
   }
 
   const server = http.createServer(async (req, res) => {

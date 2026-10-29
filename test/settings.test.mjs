@@ -39,7 +39,7 @@ test('에이전트 설치: 붙이기 · 옛 판 → 최신 · 빼기 · 사람�
   fs.writeFileSync(path.join(w, 'CLAUDE.md'), '# 이 레포\n\n빌드는 gradle 로.\n')
   fs.writeFileSync(path.join(w, '.mcp.json'), JSON.stringify({ mcpServers: { other: { type: 'stdio', command: 'x' } } }))
   assert.equal((await status(w)).state, 'none')
-  await install(w, { pcUrl: 'http://127.0.0.1:7373', teamUrl: 'http://kmd.team.local' })
+  await install(w, { meUrl: 'http://127.0.0.1:7373', teamUrl: 'http://kmd.team.local' })
   assert.ok(fs.existsSync(path.join(w, '.claude', 'skills', 'kmd-work', 'SKILL.md')))
   assert.ok(fs.existsSync(path.join(w, '.claude', 'skills', 'kmd-save', 'SKILL.md')))
   const mcp = JSON.parse(fs.readFileSync(path.join(w, '.mcp.json'), 'utf8')).mcpServers
@@ -52,7 +52,7 @@ test('에이전트 설치: 붙이기 · 옛 판 → 최신 · 빼기 · 사람�
   // 옛 판 — 덩이 판 표지가 다르면 「옛 판」 · 다시 붙이면 kmd 덩이만 바뀐다
   fs.writeFileSync(path.join(w, 'CLAUDE.md'), md.replace(/v=\w+/, 'v=old00000').replace('<!-- kmd:end -->', '<!-- kmd:end -->\n\n사람이 덧붙인 줄.\n'))
   assert.equal((await status(w)).state, 'old')
-  await install(w, { pcUrl: 'http://127.0.0.1:7373' })
+  await install(w, { meUrl: 'http://127.0.0.1:7373' })
   const md2 = fs.readFileSync(path.join(w, 'CLAUDE.md'), 'utf8')
   assert.equal((await status(w)).state, 'latest')
   assert.match(md2, /사람이 덧붙인 줄\./)

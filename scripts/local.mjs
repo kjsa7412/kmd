@@ -48,7 +48,7 @@ const bare = (p) => { if (!fs.existsSync(p)) execFileSync('git', ['init', '-q', 
 const first = !fs.existsSync(BASE)
 if (first) {
   copyDir(path.join(ROOT, 'test', 'fixture', 'kmd'), TEAM)
-  write(path.join(TEAM, '.kmd', 'serve.json'), JSON.stringify({ pcUrl: `http://127.0.0.1:${PC_PORT}`, sourceRoots: [path.join(BASE, 'src')], backupRoots: [path.join(BASE, 'bk')], decideMs: 60000 }, null, 1))
+  write(path.join(TEAM, '.kmd', 'serve.json'), JSON.stringify({ sourceRoots: [path.join(BASE, 'src')], backupRoots: [path.join(BASE, 'bk')], decideMs: 60000 }, null, 1))
   write(path.join(PC, '배포노트', 'README.md'), '# 배포노트\n')
   write(path.join(PC, '배포노트', 'docs', '카나리 메모.md'), '# 카나리 메모\n\n## 카나리\n첫 30분은 요청의 10% 만 새 판으로.\n\n## 헬스 체크\n3초 안에 200.\n')
   write(path.join(PC, '설계메모', 'README.md'), '# 설계메모\n')

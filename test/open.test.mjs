@@ -11,7 +11,6 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
-import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { spawn, spawnSync, execFileSync } from 'node:child_process'
@@ -161,7 +160,7 @@ test('kmd pc update: 그 판으로 켜 보고 · 지금 폴더 · 포트로 다�
   }
 })
 
-test('서버 길: 번호 · 멈추기는 PC 의 kmd 에만 · 짝 열쇠는 닿지 않는다 · PC 쿠키는 쓰는 동안 늘고 모든 곳에서 나가기로 끊긴다', async () => {
+test('서버 길: 번호 · 멈추기는 PC 의 kmd 에만 · 팀 서버에 짝 표가 없다 · PC 쿠키는 쓰는 동안 늘고 모든 곳에서 나가기로 끊긴다', async () => {
   const pcRoot = path.join(tmp, 'pc2')
   fs.mkdirSync(path.join(pcRoot, '.kmd'), { recursive: true })
   let tk = null
@@ -184,21 +183,10 @@ test('서버 길: 번호 · 멈추기는 PC 의 kmd 에만 · 짝 열쇠는 닿�
     // 살아 있나는 가볍게 — 멈춤 줄 없이 곧바로
     const live = await fetch(pc.url + '/healthz?live=1').then((x) => x.json())
     assert.deepEqual(Object.keys(live).sort(), ['mode', 'ok', 'version'])
-    // 팀 화면의 짝 열쇠 — 읽기 · 저장만이라 번호를 받지 못한다
+    // 팀 서버에는 팀 화면이 개인 프로그램을 잇던 표(pcpass)가 없다(분리)
     const kim = await signIn(team, { id: 'kim' })
     tk = kim.key
-    const pass = (await post(team.url, '/api/me/pcpass', { cookie: kim.cookie }).then((x) => x.json())).pass
-    const pr = await post(pc.url, '/pair', { origin: teamO }, JSON.stringify({ pass }))
-    assert.equal(pr.status, 200)
-    const pair = (await pr.json()).token
-    assert.equal((await post(pc.url, '/api/pc/once', { origin: teamO, authorization: 'Bearer ' + pair })).status, 403)
-    // 허락한 팀 화면 끊기 — 이 PC 화면에서만 · 이름 · IP 와 포트만 · 받은 짝 열쇠도 끊긴다
-    const ck = cookieOf(in1)
-    assert.equal((await post(pc.url, '/api/pair/forget', { cookie: ck }, JSON.stringify({ origin: 'http://x&calc.example' }))).status, 400)
-    assert.equal((await post(pc.url, '/api/pair/forget', { origin: teamO, authorization: 'Bearer ' + pair }, JSON.stringify({ origin: teamO }))).status, 403)
-    assert.equal((await post(pc.url, '/api/pair/forget', { cookie: ck }, JSON.stringify({ origin: teamO }))).status, 200)
-    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(pcRoot, '.kmd', 'teams.json'), 'utf8')), [])
-    assert.equal((await fetch(pc.url + '/api/knowledge', { headers: { origin: teamO, authorization: 'Bearer ' + pair } })).status, 403)
+    assert.equal((await post(team.url, '/api/me/pcpass', { cookie: kim.cookie })).status, 404)
     // 팀 서버에는 이 길이 없다
     const lee = await signIn(team, { id: 'lee' })
     assert.notEqual((await post(team.url, '/api/pc/once', { cookie: lee.cookie })).status, 200)
@@ -392,13 +380,9 @@ test('명령 목록: main 의 갈래마다 HELP 에 한 줄 · 관리자 설명�
 test('화면: PC 전용 안내 · 같은 탭의 새 번호 · 처음 들어오기 뒤 머리 · 내 PC 가 답하지 않아도 목록 · 들어가기 화면에서 벗어나기 · 설명서 입구', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   const env = { ...process.env }
   const pc = await startServer({ root: path.join(tmp, 'pc4'), mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
-  // 연결은 받고 답하지 않는 「멈춘 내 PC 프로그램」
-  const hung = net.createServer(() => {})
-  await new Promise((r) => hung.listen(0, '127.0.0.1', r))
   const kn = path.join(tmp, 'team4')
   copyDir(path.join(HERE, 'fixture', 'kmd'), kn)
   fs.mkdirSync(path.join(kn, '.kmd'), { recursive: true })
-  fs.writeFileSync(path.join(kn, '.kmd', 'serve.json'), JSON.stringify({ pcUrl: `http://127.0.0.1:${hung.address().port}` }))
   const team = await startServer({ root: kn, port: 0, log: () => {}, scryptN: 1 << 15 })
   if (!/^[\x20-\x7e]*$/.test(os.tmpdir())) {
     const ascii = path.join(HERE, '..', '.kmd-data', 'tmp')
@@ -425,7 +409,7 @@ test('화면: PC 전용 안내 · 같은 탭의 새 번호 · 처음 들어오�
     assert.equal(await page.locator('[data-t=manual]').getAttribute('href'), '/manual', '설명서 입구')
     // 팀 — 처음 들어오기를 마치면 머리 · 옆 메뉴가 들어온 사람이다 · 같은 링크를 다시 열면 「쓸 수 없다 — 들어와 있다」
     const { code } = await team.auth.addUser({ id: 'choi' })
-    await team.auth.deviceKeyFor('choi', { host: 'CHOI-PC', osuser: 'choi' }) // 설치 한 줄로 이은 PC — 팀 화면이 내 PC 를 묻는다
+    await team.auth.deviceKeyFor('choi', { host: 'CHOI-PC', osuser: 'choi' }) // 설치 한 줄로 이은 PC — 팀 화면은 그래도 개인 프로그램을 묻지 않는다(분리)
     const tp = await browser.newPage({ viewport: { width: 1300, height: 820 } })
     tp.on('pageerror', (e) => errors.push(e.message))
     await tp.goto(`${team.url}/first#code=${code}`)
@@ -443,17 +427,13 @@ test('화면: PC 전용 안내 · 같은 탭의 새 번호 · 처음 들어오�
     assert.equal(await tp.locator('[data-t=firstGone]').count(), 0, '들어가기 화면이 닫혔다')
     await tp.keyboard.press('Escape')
     await tp.waitForSelector('[data-t=klist]')
-    // 새로 고침 — 멈춘 내 PC 프로그램을 기다리지 않는다: 목록이 설 때 내 PC 는 아직 「잇는 중」 이다(시간이 아니라 순서로 본다)
+    // 새로 고침 — 팀 화면은 개인 프로그램을 부르지 않는다(잇는 중 · 꺼짐 줄이 없다)
     await tp.reload()
     await tp.waitForSelector('[data-t=klist]')
-    assert.equal(await tp.locator('[data-t=pcWait]').count(), 1, '목록은 PC 를 기다리지 않고 섰다')
-    // 묻는 시간(15초)이 지나면 꺼짐 한 줄 — 다시 잇기는 15초마다
-    await tp.waitForSelector('[data-t=pcOff]', { timeout: 40_000 })
-    assert.equal(await tp.locator('[data-t=klist]').count(), 1)
+    assert.equal(await tp.locator('[data-t=pcWait], [data-t=pcOff]').count(), 0)
     assert.deepEqual(errors, [])
   } finally {
     await browser.close()
-    hung.close()
     await team.close()
     await pc.close()
   }

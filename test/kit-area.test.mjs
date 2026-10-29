@@ -8,7 +8,7 @@ import { install, status, folders, addKn, dropKn, setDef, defOf } from '../core/
 import { installPs, safeKn, safeRoot, startServer } from '../server/http.js'
 import { pcRootKind } from '../core/pcops.js'
 
-const URLS = { teamUrl: 'http://kmd.team:7381', pcUrl: 'http://127.0.0.1:7373' }
+const URLS = { teamUrl: 'http://kmd.team:7381', meUrl: 'http://127.0.0.1:7373' }
 const servers = (dir) => Object.keys(JSON.parse(fs.readFileSync(path.join(dir, '.mcp.json'), 'utf8')).mcpServers).sort()
 
 test('팀 지식을 붙인 폴더에 개인 지식을 더하면 둘 다 남는다 · 연결 둘 · 지식 표 · 기본은 처음 것 · 표지 밖의 줄은 그대로', async () => {

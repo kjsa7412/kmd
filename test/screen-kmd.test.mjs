@@ -33,12 +33,9 @@ before(async () => {
   copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'kn'))
   // 팀 화면이 내 Claude(내 PC 쪽)를 확인한다 — 진짜 claude 대신 가짜로
   process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
-  // 내 PC 쪽 — 팀 화면이 짝 열쇠로 부른다(개인 지식 · 설정 · 개인 · 지식 보내기)
+  // 개인 프로그램 — 개인 화면 시험(지식 보내기 · 받는 팀 지식)이 쓴다
   fs.mkdirSync(path.join(tmp, 'pc'), { recursive: true })
   pc = await startServer({ root: path.join(tmp, 'pc'), mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15, deviceKey: async (o) => (s && o === new URL(s.url).origin ? dkey : null) })
-  const sj = path.join(tmp, 'kn', '.kmd', 'serve.json')
-  fs.mkdirSync(path.dirname(sj), { recursive: true })
-  fs.writeFileSync(sj, JSON.stringify({ ...(fs.existsSync(sj) ? JSON.parse(fs.readFileSync(sj, 'utf8')) : {}), pcUrl: pc.url }))
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
   me = await signIn(s, { id: 'kim' })
   dkey = await s.auth.deviceKeyFor('kim', { host: 'KIM-PC', osuser: 'kim' }) // 설치 한 줄로 이은 PC
