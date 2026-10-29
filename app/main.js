@@ -469,7 +469,8 @@ function placePop() {
 function viewOf(s) {
   if (!isTeam() && (s === 'tidy' || s === 'members' || s === 'admin')) s = 'home' // 팀의 일 — 개인 화면에는 없다
   if (isTeam() && s === 'send') s = 'home' // 지식 보내기는 개인 화면에서만
-  const f0 = { home: viewHome, docs: viewDocsV, items: viewItems, graph: viewGraph, today: viewToday, log: viewToday, tidy: viewTidy, members: viewMembers, import: viewImport, add: viewHome, send: viewSend, settings: viewSettings, admin: viewAdmin }[s]
+  if (!isTeam() && s === 'install') s = 'home' // 개인 프로그램 설치는 팀 화면의 자리
+  const f0 = { home: viewHome, docs: viewDocsV, items: viewItems, graph: viewGraph, today: viewToday, log: viewToday, tidy: viewTidy, members: viewMembers, import: viewImport, install: viewInstall, add: viewHome, send: viewSend, settings: viewSettings, admin: viewAdmin }[s]
   const v = f0 ? f0() : viewLater(s)
   return MGSCR.includes(s) && !gated() ? mgWrap(s, v) : v
 }
@@ -481,7 +482,7 @@ function mgItems() {
   const adm = !!(S.me && S.me.admin) || anyAdm()
   const set = (v, l) => ['settings', v, l]
   if (!isTeam()) return [['import', '', '가져오기'], ['send', '', '지식 보내기'], set('gen', '일반'), set('claude', 'Claude 연결'), set('agent', '에이전트 설치')]
-  return [...(adm ? [['import', '', '가져오기']] : []), ['tidy', '', '정리'], set('gen', '일반'), set('people', '사람'), set('claude', 'Claude 연결'), set('agent', '에이전트 설치'), ...(adm ? [set('admin', '관리')] : [])]
+  return [...(adm ? [['import', '', '가져오기']] : []), ['tidy', '', '정리'], set('gen', '일반'), set('people', '사람'), set('claude', 'Claude 연결'), ...(adm ? [set('admin', '관리')] : [])]
 }
 function mgWrap(scr, v) {
   const area = setArea(), items = mgItems()
@@ -530,6 +531,7 @@ function sideHtml(left) {
   h += `<div class="sb-mg" data-t="manageArea"><div class="sb-g">지식 관리</div><div class="nav">`
   if (!dim) h += `<div class="sb-i${HISTSCR.includes(r.scr) ? ' on' : ''}" data-a="nav" data-s="today" data-t="nav-history">${svg('hour')}<span>이력</span>${nCheck ? `<span class="bd warn" data-t="histBadge" title="확인할 것">${nCheck}</span>` : ''}</div>`
   h += set(team ? 'team' : 'me', '설정')
+  if (team && !dim) h += `<div class="sb-i${r.scr === 'install' ? ' on' : ''}" data-a="nav" data-s="install" data-t="nav-install">${svg('user')}<span>개인 프로그램 설치</span></div>`
   h += '</div></div>'
   return h + '</aside>'
 }
@@ -2279,7 +2281,7 @@ function viewFirst() {
   if (S.gate === 'done')
     return `<div class="gatewrap"><div class="gate"><div class="card"><div class="cb" data-t="firstDone">
   <div class="mk">${svg('check')}</div><div class="big">✓ 정했다. 들어왔다.</div>
-  <p class="lead">이 PC 의 Claude Code 로도 쓰려면: <button type="button" class="lk" data-a="copyInstall" data-t="copyInstall">한 줄 복사</button><br><span class="muted small">10분 동안 한 번만 · 남에게 주지 않는다</span></p>
+  <p class="lead">이 PC 에 개인 프로그램을 깔고 팀에 이으려면: <button type="button" class="lk" data-a="copyInstall" data-t="copyInstall">한 줄 복사</button><br><span class="muted small">10분 동안 한 번만 · 남에게 주지 않는다 · 나중에는 옆 메뉴 › 개인 프로그램 설치</span></p>
   <div class="links"><button type="button" class="lk" data-a="gateHome" data-t="gateHome">지식 목록 ›</button></div>
  </div></div></div></div>`
   const who = S.gateUser
@@ -2369,8 +2371,9 @@ async function copyInstall(team) {
     const line = /Win/i.test(navigator.platform || navigator.userAgent) ? r.line : r.sh
     copyText(line)
     S.lastInstall = line
-    toast('설치 한 줄을 복사했다. 10분 동안 한 번만 · 작업 폴더의 터미널에 붙여 넣는다')
+    toast('설치 한 줄을 복사했다. 10분 동안 한 번만 · PowerShell 에 붙여 넣는다')
   } catch (e) { toastErr(e) }
+  render()
 }
 async function afterLogin(notice) {
   S.gate = S.gate === 'done' ? 'done' : null
@@ -3336,7 +3339,7 @@ const setArea = () => (isTeam() ? 'team' : 'me')
 function viewSettings() {
   const team = isTeam(), st = settingsOf()
   const ST = !team ? [['gen', '일반'], ['claude', 'Claude 연결'], ['agent', '에이전트 설치']]
-    : [['gen', '일반'], ['people', '사람'], ['claude', 'Claude 연결'], ['agent', '에이전트 설치'], ...(S.me.admin ? [['admin', '관리']] : [])]
+    : [['gen', '일반'], ['people', '사람'], ['claude', 'Claude 연결'], ...(S.me.admin ? [['admin', '관리']] : [])]
   const tab = ST.some((x) => x[0] === S.setTab) ? S.setTab : 'gen'
   const title = '설정'
   const lead = !team ? '<p class="lead" style="margin-bottom:10px">이 PC 의 kmd 의 것: 지식 폴더 · 백업 · 저절로 하는 일 · 내 Claude 로그인 · 모델 · 에이전트 · 보내는 길. 팀 서버 · 팀원에게는 가지 않는다</p>'
@@ -3389,7 +3392,7 @@ function agentInstallCard() {
   const C = S.agCopied
   const row = (k, area) => `<li data-t="agInstRow" data-area="${area}" data-name="${esc(k.name)}"${C && C.id === k.id ? ' class="on"' : ''}><span style="flex:1;min-width:0"><b>${esc(k.name)}</b> <span class="kt ${area === 'team' ? 'team' : 'me'}">${area === 'team' ? '팀' : '개인'}</span></span><button class="btn sm${C && C.id === k.id ? ' pri' : ''}" data-a="agentCopy" data-k="${esc(k.id)}" data-area="${area}" data-t="agentCopy">${C && C.id === k.id ? '다시 복사' : '설치 명령 복사'}</button></li>`
   const copied = C ? `<div class="callout gray" data-t="agCopied" style="display:block;margin:10px 0 0"><b>「${esc(C.name)}」 설치 명령을 복사했다</b>${C.area === 'team' ? ' · 10분 동안 한 번만 쓴다' : ''}<div class="urlbox" style="max-height:none" data-t="agCopiedLine">${esc(C.line)}</div></div>` : ''
-  return `<div class="card" data-t="agentCard"><div class="ch">에이전트 설치 <small>작업 폴더의 Claude Code 에 지식을 붙인다</small></div><div class="cb" style="padding:10px 14px 12px">
+  return `<div class="card" data-t="agentCard"><div class="ch">작업 폴더에 팀 지식 붙이기 <small>작업 폴더의 Claude Code 에 내가 읽을 수 있는 팀 지식을 붙인다</small></div><div class="cb" style="padding:10px 14px 12px">
    <ol class="lsteps" data-t="agGuide">
     <li><b>작업 폴더에서 터미널을 연다</b><small>Windows 는 그 폴더의 탐색기 주소 줄에 powershell 을 치고 Enter · Mac · Linux 는 터미널에서 cd</small></li>
     <li><b>붙일 지식의 [설치 명령 복사] 를 누른다</b><small>명령은 10분 동안 한 번만 쓴다 · 이 PC 에 kmd 가 없으면 함께 깐다 · 개인 지식은 개인 화면 › 설정 › 에이전트 설치에서 붙인다</small></li>
@@ -3399,6 +3402,15 @@ function agentInstallCard() {
    <div class="rh">팀 지식 <small class="muted">팀 서버 · 팀 모두</small></div><ul class="plain" data-t="agInstTeam">${team.map((k) => row(k, 'team')).join('') || '<li class="muted">팀 지식이 없다</li>'}</ul>
 
    ${copied}</div></div>`
+}
+// 개인 프로그램 설치(팀 화면 · 누구나 · docs/kmd_팀_개인_분리_검토.html 결정 4) — 이 PC 에 개인 프로그램을 깔고 팀에 잇는 한 줄 ·
+//   작업 폴더에 받은 팀 지식을 붙이는 한 줄 · 내 기기(팀 서버가 아는 것만 · PC 에 묻지 않는다). 개인 지식 · 개인 폴더는 보이지 않는다
+function viewInstall() {
+  const line = S.lastInstall ? `<div class="callout gray" data-t="installLine" style="display:block;margin:10px 0 0"><b>설치 · 잇기 한 줄을 복사했다</b> · 10분 동안 한 번만 · 남에게 주지 않는다<div class="urlbox" style="max-height:none">${esc(S.lastInstall)}</div></div>` : ''
+  const one = `<div class="card" data-t="installCard"><div class="ch">설치 · 잇기 한 줄 <small>이 PC 에 개인 프로그램을 깔고 팀에 잇는다</small></div><div class="cb" style="padding:10px 14px 12px">
+   <ol class="lsteps"><li><b>[한 줄 복사] 를 누른다</b><small>10분 동안 한 번만 · 내 이름의 기기 열쇠가 만들어진다</small></li><li><b>PowerShell 에 붙여 넣고 Enter</b><small>처음이면 깔고 · 깔려 있으면 팀에 다시 잇는다 · 관리자 권한은 쓰지 않는다</small></li><li><b>끝에 개인 화면이 열린다</b><small>지식 폴더 · 내 Claude 로그인 · 개인 지식은 개인 화면에서 · 다음부터는 시작 메뉴 › kmd</small></li></ol>
+   <div class="row" style="margin-top:8px"><button class="btn pri" data-a="copyInstall" data-v="" data-t="installCopy">한 줄 복사</button></div>${line}</div></div>`
+  return { crumb: '개인 프로그램 설치', main: `<div class="pg-text"><div class="big">개인 프로그램 설치</div><p class="lead">이 PC 에 개인 프로그램(내 지식 · 내 Claude 로그인)을 깔고 팀에 잇는다. Claude Code 의 팀 연결(kmd-team)과 지식 보내기가 이 기기 열쇠를 쓴다. 개인 지식은 팀 화면에 나오지 않는다.</p>${one}${agentInstallCard()}${devCard()}</div>` }
 }
 // 설치 명령 복사 — 그 팀 지식을 실은 설치 한 줄(팀 서버가 만든다)
 async function agentCopy(id, area) {
@@ -3428,7 +3440,7 @@ function autoCard(st) {
 function devCard() {
   const devs = devicesOf()
   const rows = !devs ? `<li>${loadingHtml}</li>` : devs.error ? `<li>${errHtml(devs, 'devices')}</li>` : devs.map((d) => `<li data-t="devRow" data-name="${esc(d.host || d.id)}"><span style="flex:1"><b>${esc(d.host || '이름 없는 기기')}</b><small class="muted" style="display:block">Claude Code · ${d.used ? '마지막 사용 ' + esc(whenTxt(d.used)) : '이은 때 ' + esc(whenTxt(d.at))}</small></span><button class="kebab" data-a="menu" data-m="dev:${esc(d.id)}" data-t="devKebab" title="끊기" aria-label="${esc(d.host || d.id)}: 끊기 메뉴">⋯${S.menu === 'dev:' + d.id ? popHtml('dev:' + d.id, `<div><div class="mi" data-a="unlinkMyDev" data-id="${esc(d.id)}" data-t="unlinkBtn">끊기<small>그 기기의 Claude Code 는 다시 이어야 한다</small></div></div>`) : ''}</button></li>`).join('')
-  return `<div class="card" style="overflow:visible"><div class="ch">내 기기 <small>내 이름으로 ${isTeam() ? '팀 kmd' : '이 kmd'} 를 쓰는 곳</small></div><div class="cb" style="padding:2px 14px"><ul class="plain" data-t="devList">${rows || '<li class="muted">이어진 기기가 없다</li>'}</ul><p class="small muted">90일 안 쓰면 저절로 끊긴다.</p></div></div>`
+  return `<div class="card" style="overflow:visible"><div class="ch">내 기기 <small>내 이름으로 ${isTeam() ? '팀에 이은 PC(개인 프로그램 · Claude Code)' : '이 kmd 를 쓰는 곳'} · 팀 서버가 아는 것만</small></div><div class="cb" style="padding:2px 14px"><ul class="plain" data-t="devList">${rows || '<li class="muted">이어진 기기가 없다</li>'}</ul><p class="small muted">90일 안 쓰면 저절로 끊긴다.</p></div></div>`
 }
 // 백업 · 되살리기 — 개인 화면
 function pcBackupCard(st) {
@@ -3441,7 +3453,7 @@ function pcBackupCard(st) {
 }
 function setLeft(st) {
   const bk = st.backup.n ? `${esc(st.backup.urls.join(' · '))} · 저장할 때마다 저절로${st.backup.n < st.backup.of ? ` · 지식 ${st.backup.of - st.backup.n} 은 아직 없다` : ''}` : '아직 없다. 관리자가 붙인다'
-  if (isTeam()) return `<div class="card" style="overflow:visible"><div class="ch">이 팀 서버 <small class="mono">${esc(st.host)}</small></div><div class="cb"><div class="kv"><span>들어가기</span><span>아이디 ${esc(S.me.user)} · 비밀번호는 브라우저가 기억한다 <button type="button" class="lk small" data-a="logout" data-t="logout">나가기</button></span><span>나</span><span>${S.me.admin ? '<span class="kt role">관리자</span>' : '일반'}</span><span>백업</span><span>${bk}</span><span>판</span><span>kmd v${esc(st.version)}</span></div></div>${S.me.admin ? '<div class="cf"><button type="button" class="lk" data-a="setTab" data-v="admin">관리: 문제 · 백업 →</button></div>' : ''}</div>` + devCard()
+  if (isTeam()) return `<div class="card" style="overflow:visible"><div class="ch">이 팀 서버 <small class="mono">${esc(st.host)}</small></div><div class="cb"><div class="kv"><span>들어가기</span><span>아이디 ${esc(S.me.user)} · 비밀번호는 브라우저가 기억한다 <button type="button" class="lk small" data-a="logout" data-t="logout">나가기</button></span><span>나</span><span>${S.me.admin ? '<span class="kt role">관리자</span>' : '일반'}</span><span>백업</span><span>${bk}</span><span>판</span><span>kmd v${esc(st.version)}</span></div></div>${S.me.admin ? '<div class="cf"><button type="button" class="lk" data-a="setTab" data-v="admin">관리: 문제 · 백업 →</button></div>' : ''}</div>`
   const pcBad = S.stops.find((x) => x.kind === 'backup')
   return `<div class="card"><div class="ch">이 PC</div><div class="cb"><div class="kv"><span>지식 폴더</span><span><span class="mono">${esc(st.root)}</span>: 지식 ${st.kns}</span><span>백업 자리</span><span data-t="pcBackup">${st.backup.root ? `<span class="mono">${esc(st.backup.root)}</span> · ` : ''}붙음 ${st.backup.n}/${st.backup.of}${st.backup.bad ? ` · <b class="t-warn">맞지 않음 ${st.backup.bad}</b>` : ''} ${!st.backup.n ? '<span class="chip c-warn">백업 없음</span>' : pcBad ? `<span class="chip c-warn">${esc(pcBad.b)}</span><small>${esc(pcBad.t)}</small>` : st.backup.n < st.backup.of ? '<span class="chip c-warn">일부만</span>' : '<span class="chip c-acc">잘 된다</span>'}</span><span>판</span><span>kmd v${esc(st.version)}</span></div></div></div>
   ${pcBackupCard(st)}
