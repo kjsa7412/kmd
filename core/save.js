@@ -18,7 +18,7 @@ import { fail, KmdError } from './errors.js'
 import { nfc, oneLine, readText, sha16 } from './text.js'
 import { renderRecord, parseRecord } from './frontmatter.js'
 import { replaceSection, removeSection, renameSection, parseDoc, headingMatches, splitLog, splitRef, mergeLog, logLine, logHas, ROUGH } from './sections.js'
-import { formatCheck, formatMessage, keptMessage } from './docformat.js'
+import { formatCheck, formatMessage, keptMessage, lintNew, lintMessage } from './docformat.js'
 import { isReservedUser, isReservedTag, isLogRecord, LOG_DIR } from './names.js'
 import { isReservedFile } from './owners.js'
 import { keepBlocks, hasBlockMarker } from './baseline.js'
@@ -314,9 +314,13 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
         if (w) logged.push({ ...w, id: x, sub: existsSync(path.join(dir, 'work', `${x}.md`)) ? 'work' : LOG_DIR })
       }
     }
+    // 문서 짜임(제목 · 요약 · 머리 단계) — 이 저장으로 새로 생긴 것만 알린다(거절하지 않는다) · 문서마다 처음 글과 마지막 글
+    const shape = new Map()
     for (const p of plan) {
       const raw = await fs.readFile(p.full, 'utf8').catch(() => null)
       const start = raw == null ? `# ${path.basename(p.rel, '.md')}\n` : readText(raw)
+      // 새 문서는 kmd 가 세운 「# 이름」 과 견준다(요약이 없는 것은 이 저장 탓이 아니다)
+      if (!shape.has(p.rel)) shape.set(p.rel, { before: start, after: null })
       // 사람 · 세션의 저장은 그 항목의 저절로 채우는 표를 그대로 둔다(블록 안은 원천 실행기 · 기계 열쇠만)
       let content = nfc(p.content ?? '')
       const old = parseDoc(start, '').sections.find((x) => headingMatches(x.h, p.heading))
@@ -339,6 +343,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
       }
       await fs.mkdir(path.dirname(p.full), { recursive: true })
       await writeAtomic(p.full, after)
+      shape.get(p.rel).after = after
     }
     // 이름 장부 · 자리 장부 — 바뀐 것만
     const books = []
@@ -362,7 +367,13 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
     }
     const commit = await commitPaths(dir, [workRel, ...docs, ...books], rec.title, user)
     await j.done()
-    return { id, record: workRel, docs, commit, date, ...(books.length ? { names: names.length } : {}), ...(formatKept.length ? { formatKept } : {}) }
+    const docLint = []
+    for (const [rel, x] of shape) {
+      if (x.after == null) continue
+      const xs = lintNew(x.before, x.after)
+      if (xs.length) docLint.push(lintMessage(rel.replace(/^docs\/|\.md$/g, ''), xs))
+    }
+    return { id, record: workRel, docs, commit, date, ...(books.length ? { names: names.length } : {}), ...(formatKept.length ? { formatKept } : {}), ...(docLint.length ? { docLint } : {}) }
   } catch (e) {
     await j.undo().catch(() => {})
     throw e

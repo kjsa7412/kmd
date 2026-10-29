@@ -12,7 +12,7 @@ import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { parseDoc, replaceSection, removeSection, renameSection, stampAll } from '../core/sections.js'
-import { formatProblems, convertDoc, verifyConvert, docfmtDir } from '../core/docformat.js'
+import { formatProblems, convertDoc, verifyConvert, docfmtDir, lintDoc, lintNew } from '../core/docformat.js'
 import { save, sectionBase } from '../core/save.js'
 import { loadKnowledge } from '../core/knowledge.js'
 import { check as checkDraft, material } from '../core/tidy.js'
@@ -237,7 +237,7 @@ test('지식 옮기기: dry 는 쓰지 않는다 · 옮기면 git 한 묶음과 
 })
 
 test('화면 링크: 문서 · 항목 · 없는 문서 · 기록 · 이력 · 바깥 · 열 수 없는 것 · 깨진 % · README.md', () => {
-  const k = { id: 'K', docs: [{ id: '배포절차', path: 'docs/배포절차.md', intro: '', sections: [] }, { id: 'ops/Backup', path: 'docs/ops/Backup.md', intro: '', sections: [] }], byWork: new Map([['2026-1021-a', {}], ['2026-1026-b', {}]]), atts: [] }
+  const k = { id: 'K', docs: [{ id: '배포절차', path: 'docs/배포절차.md', intro: '', sections: [{ h: '준비', body: '' }] }, { id: 'ops/Backup', path: 'docs/ops/Backup.md', intro: '', sections: [] }], byWork: new Map([['2026-1021-a', {}], ['2026-1026-b', {}]]), atts: [] }
   const from = 'docs/x.md'
   assert.deepEqual(linkTarget(k, from, '배포절차.md'), { t: 'doc', d: '배포절차' })
   assert.deepEqual(linkTarget(k, from, '배포절차.md#준비'), { t: 'item', d: '배포절차', h: '준비' })
@@ -570,4 +570,32 @@ test('옛 표식 주석: 항목 끝 주석은 그 항목 · gen: 만 바로 아�
   const wrong = c.text.replace('- A\n  - 표식', '- B\n  - 표식')
   assert.equal(verifyConvert(t, wrong, [{ h: 'A', l: '- 표식: TODO: 위 표 값 확인' }]).ok, false)
   assert.equal(verifyConvert(t, c.text, [{ h: 'A', l: '- 표식: TODO: 위 표 값 확인' }]).ok, true)
+})
+
+test('옛 GDI 변경 이력(Q73): 머리 · 가운뎃점 줄 → 그 항목의 기록 줄 · 꼴이 아닌 줄이 섞이면 둔다 · 멱등', () => {
+  const t = '# a\n\n요약.\n\n## A\n글\n\n**변경 이력** (편입한 과거 기록 — 지금 상태는 위 본문이다)\n· 2026-07-02 [`x-신설`](../work/2026-0702-x-신설.md) A 신설\n· 2026-07-03 12:10 [`y`](../work/2026-0703-y.md) 고침\n\n## B\nb\n\n**변경** · 2026-08-01 [`z`](../work/2026-0801-z.md) 하나\n**변경** · 2026-08-02 [`w`](../work/2026-0802-w.md) 둘\n\n## C\nc\n\n**변경**\n· 2026-08-03 [`v`](../work/2026-0803-v.md) 셋\n이어진 본문 글\n'
+  const c = convertDoc(t)
+  assert.equal(c.ok, true, c.why)
+  assert.equal(c.kinds.change, 4)
+  const d = parseDoc(c.text, '')
+  assert.deepEqual(d.sections.find((s) => s.h === 'A').log, ['- 2026-07-02 [x-신설](../work/2026-0702-x-신설.md) · A 신설', '- 2026-07-03 [y](../work/2026-0703-y.md) · 고침'])
+  assert.equal(d.sections.find((s) => s.h === 'B').log.length, 2)
+  assert.ok(!c.text.split('<!-- kmd:참고')[0].includes('변경 이력'))
+  // C 는 꼴이 아닌 줄이 섞여 본문으로 둔다
+  assert.ok(c.text.includes('· 2026-08-03 [`v`]') && /C/.test(c.why))
+  assert.equal(convertDoc(c.text).moved, 0)
+})
+
+test('문서 짜임 검사(lintDoc): 제목 · 요약 · 운영 말 · ## 앞 소제목 · 단계 건너뜀 · 5단계 · 머리 앞 applied 는 옮기기가 걷는다', () => {
+  const t = '<!-- applied: 2026-1019-x -->\n| 작성 | 판 |\n|---|---|\n| a | 1 |\n\n### 목적\n좌표는 `screen:X` 다\n\n## A\n#### 건너뜀\n##### 깊다\n'
+  const codes = lintDoc(t).map((x) => x.code)
+  for (const c of ['no-title', 'top-applied', 'no-summary', 'ops-word', 'sub-before-sec', 'skip-level', 'too-deep']) assert.ok(codes.includes(c), c)
+  const c = convertDoc(t)
+  assert.equal(c.ok, true, c.why)
+  assert.equal(c.kinds.top, 1)
+  assert.ok(!c.text.includes('applied'))
+  assert.deepEqual(lintDoc('# 제목\n\n이 문서는 배포를 다룬다. 창은 화 · 목이다.\n\n## A\n### a\n#### b\n'), [])
+  assert.equal(lintDoc('# 제목\n\n한. 둘. 셋. 넷.\n\n## A\n')[0].code, 'long-summary')
+  // 저장 알림은 새로 생긴 것만
+  assert.deepEqual(lintNew('# t\n\n요약.\n\n## A\n#### x\n', '# t\n\n요약.\n\n## A\n#### x\n## B\n#### y\n').map((x) => x.code), ['skip-level'])
 })

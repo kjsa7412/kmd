@@ -60,6 +60,7 @@ const TOOLS = [
       '항목 글(sections.content)은 본문만: 대상 하나의 지금을 확정된 것만 「…한다 · …이다」 로. 링크는 지식 문서 [배포 절차](배포절차.md) · 항목 [준비](배포절차.md#준비) · 바깥 https://… 만.',
       '받지 않는 것(E_FORMAT): 기록 · 이력 링크(../work/… · ../log/…) · /api/… 같은 시스템 주소 · <!-- --> 주석 · 끝의 **경과** 기록 링크 목록 · 닫히지 않은 코드 울타리 · # · ## 머리 줄(소제목은 ###). 지금 글에 이미 있던 줄은 거절하지 않는다(새로 넣은 줄만). 출처 줄은 kmd 가 참고에 단다.',
       '좋은 예: 「배포 창은 화 · 목 14:00 ~ 17:00 이다.」 나쁜 예: 「배포 창을 바꿨다는 기록이 있다([기록](../work/2026-1021-배포-창.md))」.',
+      '알림만(거절하지 않는다 · warnings 에 「문서 짜임」): 머리 단계 건너뜀(## 바로 아래 ####) · ##### 머리 · 제목 · 요약 없음(메타 표는 요약이 아니다) · 머리글의 kmd 운영 말(좌표 · 섹션 · 동기화 · touches 같은 말). 이 저장으로 새로 생긴 것만 알린다.',
     ].join(' '),
     inputSchema: {
       type: 'object',
@@ -96,7 +97,7 @@ const norm = (s) => String(s || '').replace(/\s+/g, '').toLowerCase()
 async function baselineInfo(k, body, store) {
   const { blocks } = splitBlocks(body)
   if (!blocks.length) return {}
-  const decl = await readDecl(k.dir)
+  const decl = await readDecl(k.dir).catch(() => []) // 깨진 장부 — 경고는 stops 줄이 한다
   const st = await store.sourceState(k.id)
   return {
     baseline: blocks.map((b) => {

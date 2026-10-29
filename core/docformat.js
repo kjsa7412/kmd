@@ -145,6 +145,24 @@ const DATED = /^\s*[-*+]\s+`?\d{4}-\d{2}-\d{2}/
 // CDP 가 쓴 경과 줄 — 날짜로 시작하고 · 「`YYYY-MM-DD`」(백틱 날짜)이거나 기록 링크(../work · ../log)가 있다
 const TICK_DATED = /^\s*[-*+]\s+`\d{4}-\d{2}-\d{2}`/
 const isCdpLog = (l) => DATED.test(l) && (TICK_DATED.test(l) || hrefsIn(l).some((h) => isRecordLink(h)))
+// 옛 GDI 변경 이력 — 「**변경 이력** (…)」 · 「**변경**」 머리(뒤에 첫 줄이 「 · 날짜 [..](기록)」 으로 붙기도) 아래
+//   「· YYYY-MM-DD [제목](../work|log/….md) 한 마디」 가운뎃점 줄들 → 그 항목의 기록 줄(「- 날짜 [제목](…) · 한 마디」)
+const CHANGE_HEAD = /^\*\*변경(?: 이력)?\*\*(?:\s*\([^)]*\))?(?:\s+·\s+(.*?))?\s*$/
+const CHANGE_LINE = /^\s*·\s+(\d{4}-\d{2}-\d{2})(?:\s+\d{1,2}:\d{2})?\s+\[([^\]]*)\]\(([^)\s]+)\)\s*(.*?)\s*$/
+// 가운뎃점 줄 하나(「**변경** · …」 처럼 머리가 붙은 줄도) → { href, rest, line(기록 줄 · 시각은 뺀다 — 기록에 있다) } · 그 꼴이 아니면 null
+function changeEntry(l) {
+  const h = changeHeadOf(l)
+  const m = String(h ? h.inline || '' : l).trim().match(CHANGE_LINE)
+  if (!m || !isRecordLink(m[3])) return null
+  const title = m[2].replace(/^`([^`]*)`$/, '$1')
+  return { href: m[3], rest: m[4], line: `- ${m[1]} [${title}](${m[3]})${m[4] ? ` · ${m[4]}` : ''}` }
+}
+// 머리 줄 · 그 아래 줄 → 가운뎃점 줄 목록(머리에 붙은 첫 줄 포함) · 머리가 아니면 null
+const changeHeadOf = (l) => {
+  const m = String(l).trim().match(CHANGE_HEAD)
+  return m ? { inline: m[1] ? `· ${m[1]}` : null } : null
+}
+
 // 아래 항목을 가리키는 생성 표식
 const GEN_MARK = /^\s*<!--\s*gen\s*:|이 줄 아래/i
 const CDP_BASE = /^\s{0,3}<!--\s*cdp:baseline\b(.*?)-->\s*$/i
@@ -194,6 +212,7 @@ export function moveOldMarks(text) {
   const note = (i, l) => put(owner(i), l)
   const kinds = { log: 0, table: 0, mark: 0 }
   const why = []
+  let chg = 0
   let fence = null
   for (let i = 0; i < lines.length; i++) {
     const ln = lines[i]
@@ -218,6 +237,39 @@ export function moveOldMarks(text) {
         kinds.log += xs.length
       } else if (xs.every((l) => DATED.test(l))) why.push(`「${owner(i)}」 의 **경과** 목록은 날짜 줄뿐이지만 기록 링크 · \`날짜\` 꼴이 아니라 사람이 쓴 타임라인으로 보고 본문으로 둔다`)
       else why.push(`「${owner(i)}」 의 **경과** 목록에 날짜로 시작하지 않는 줄이 있어 본문으로 둔다`)
+      i = j - 1
+      continue
+    }
+    const ch = changeHeadOf(ln)
+    if (ch) {
+      // 아래 줄(머리에 붙은 첫 줄 + 다음 빈 줄 앞까지) — 모두 「· 날짜 [..](기록)」 꼴이어야 옮긴다 · 머리만 있고 붙은 줄이 없으면 빈 줄을 건너 찾는다
+      let s = i + 1
+      if (!ch.inline) while (s < lines.length && !lines[s].trim()) s++
+      let j = s
+      while (j < lines.length && lines[j].trim()) j++
+      const xs = [...(ch.inline ? [ln] : []), ...lines.slice(s, j)]
+      const es = xs.map(changeEntry)
+      if (!xs.length || es.some((e) => !e)) {
+        if (xs.length) why.push(`「${owner(i)}」 의 ${ln.trim().slice(0, 12)} 아래에 「· 날짜 [기록](../work/…)」 꼴이 아닌 줄이 있어 본문으로 둔다`)
+        continue
+      }
+      for (let x = i; x < j; x++) drop.add(x)
+      const h = owner(i)
+      for (const e of es) {
+        // 같은 항목에 같은 기록이 또 오면 한 줄로(읽을 때 같은 기록 줄은 하나로 합쳐지므로 한 마디를 잃지 않게)
+        const prev = placed.find((p) => p.h === h && p.href === e.href)
+        if (prev) {
+          if (e.rest) {
+            const at = notes.get(h).indexOf(prev.l)
+            prev.l = prev.l.endsWith(')') ? `${prev.l} · ${e.rest}` : `${prev.l} / ${e.rest}`
+            notes.get(h)[at] = prev.l
+          }
+        } else {
+          put(h, e.line)
+          placed[placed.length - 1].href = e.href
+        }
+      }
+      chg += es.length
       i = j - 1
       continue
     }
@@ -252,6 +304,7 @@ export function moveOldMarks(text) {
     kinds.mark++
     i = j
   }
+  if (chg) kinds.change = chg
   if (!drop.size) return { text: String(text), moved: 0, kinds, why, placed }
   // 뗀 자리 — 앞뒤 빈 줄이 겹치면 하나로
   const out = []
@@ -264,7 +317,7 @@ export function moveOldMarks(text) {
   })
   // 옮긴 메모는 합치지 않고 그대로 앞에 이어 붙인다(같은 글의 줄 둘도 둘)
   for (const [h, xs] of notes) ref.set(h, [...xs, ...(ref.get(h) || [])])
-  return { text: withRef(out, ref), moved: kinds.log + kinds.table + kinds.mark, kinds, why, placed }
+  return { text: withRef(out, ref), moved: kinds.log + kinds.table + kinds.mark + chg, kinds, why, placed: placed.map(({ h, l }) => ({ h, l })) }
 }
 
 // 옮긴 글 검사 — 뗀 줄이 kmd 꼴(경과 머리 · 기록 줄 · 「기록 그대로」 줄) · 옛 CDP 표식뿐이고 · 옛 꼴이 남지 않고 · 참고 줄을 잃지 않았나
@@ -293,6 +346,10 @@ export function verifyConvert(before, after, placed = null) {
     const l = gone[i]
     if (/^\*\*경과\*\*$/.test(l) || isLogEntry(l) || RULE_LINE.test(l) || CDP_BASE_END.test(l)) continue
     let want
+    const ch = changeHeadOf(l)
+    if (ch && !ch.inline) continue
+    if (changeEntry(l)) continue // 기록 줄 — 아래 링크 대조가 본다
+    if (ch) return { ok: false, why: '옮기면 본문 글이 달라진다' }
     if (DATED.test(l)) want = noteLine(l)
     else if (CDP_BASE.test(l)) want = srcNote(l.match(CDP_BASE)[1])
     else if (MARK_START.test(l) && !KEEP_MARK.test(l)) {
@@ -337,11 +394,13 @@ export function verifyConvert(before, after, placed = null) {
 //   why — 옮기지 않은 까닭(ok 여도 · 사람이 쓴 것으로 보고 둔 경과 목록 같은 것)
 export function convertDoc(text0) {
   const text = readText(text0)
-  const z = dropNullApplied(text)
+  const z0 = dropNullApplied(text)
+  const top = dropTopApplied(z0.text)
+  const z = { text: top.text, n: z0.n }
   const r = moveOldLogs(z.text)
   const m = moveOldMarks(r.text)
-  const kinds = { kmd: r.moved, ...m.kinds, ...(z.n ? { nul: z.n } : {}) }
-  const moved = r.moved + m.moved + z.n
+  const kinds = { kmd: r.moved, ...m.kinds, ...(z.n ? { nul: z.n } : {}), ...(top.n ? { top: top.n } : {}) }
+  const moved = r.moved + m.moved + z.n + top.n
   const note = m.why.length ? m.why.join(' / ') : null
   if (!moved) return { text, changed: false, moved: 0, kinds, ok: true, why: note, left: strayMarks(text) }
   const v = verifyConvert(text, m.text, m.placed)
@@ -365,6 +424,123 @@ function dropNullApplied(text) {
     out.push(l)
   }
   return { text: out.join('\n'), n }
+}
+
+// 첫 ## 앞(제목 위 · 머리글)의 `<!-- applied: … -->` — 표지는 ## 머리 바로 아래에만 뜻이 있다(작성기준 2-2). 걷는다
+function dropTopApplied(text) {
+  const out = []
+  let fence = null
+  let n = 0
+  let sec = false
+  for (const l of text.split('\n')) {
+    const f = l.match(FENCE)
+    if (f) fence = !fence ? f[1][0] : f[1][0] === fence ? null : fence
+    else if (!fence && /^##\s/.test(l)) sec = true
+    if (!sec && !fence && !f && APPLIED_LINE.test(l)) {
+      n++
+      continue
+    }
+    out.push(l)
+  }
+  return n ? { text: out.join('\n').replace(/^\n+/, ''), n } : { text, n: 0 }
+}
+
+// ── 문서 짜임 검사(알림만 · 거절하지 않는다) — 작성기준 3절 「# 제목 하나 → 요약(1~3문장) → ## 항목 · 소제목은 ### · #### 까지」
+//   lintDoc(text) → [{ code, msg, line }] (줄은 1부터 · 참고 블록 · 코드 울타리 안은 보지 않는다)
+//   code: no-title · many-titles · top-applied · no-summary · long-summary · ops-word · sub-before-sec · skip-level · too-deep
+// 머리글(요약 자리)에 두지 않는 kmd 운영 말
+export const OPS_WORDS = ['좌표', '섹션', '기준선', '원천', '동기화', '등록부', 'touches', '_vocab', '_managed', 'applied']
+const LIST_LINE = /^\s*(?:[-*+]|\d+[.)])\s/
+const QUOTE_OR_TABLE = /^\s*(\||>)/
+export function lintDoc(text0) {
+  const raw = readText(String(text0 ?? '')).split('\n')
+  // 참고 블록 줄은 비운다(줄 번호는 그대로)
+  const lines = raw.slice()
+  for (const [a, b] of splitRef(raw).spans) for (let i = a; i <= b; i++) lines[i] = ''
+  const out = []
+  const add = (code, line, msg) => out.push({ code, line, msg })
+  const heads = []
+  const live = [] // 울타리 밖 줄 번호
+  let fence = null
+  lines.forEach((ln, i) => {
+    const f = ln.match(FENCE)
+    if (f) {
+      fence = !fence ? f[1] : f[1][0] === fence[0] && f[1].length >= fence.length ? null : fence
+      return
+    }
+    if (fence) return
+    live.push(i)
+    const m = ln.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/)
+    if (m) heads.push({ level: m[1].length, h: m[2].trim(), i })
+  })
+  const h1s = heads.filter((h) => h.level === 1)
+  const firstSec = heads.find((h) => h.level === 2)
+  const secAt = firstSec ? firstSec.i : lines.length
+  const titleAt = h1s.length ? h1s[0].i : -1
+  if (!h1s.length) add('no-title', 1, '제목(# ) 없음: 화면 제목이 파일 이름으로 나온다 · 맨 위에 「# 제목」 한 줄을 둔다')
+  for (const h of h1s.slice(1)) add('many-titles', h.i + 1, `제목(# )이 둘 이상(${h.h.slice(0, 20)}): 제목은 하나 · 나머지는 ## 항목으로`)
+  for (const i of live) if (i < secAt && APPLIED_LINE.test(lines[i])) add('top-applied', i + 1, '첫 ## 앞의 applied 표지: 표지는 ## 머리 바로 아래에만 · 옮기기(docfmt)가 걷는다')
+  // 요약 — 제목 아래(제목이 없으면 맨 위)부터 그다음 머리 앞까지의 글
+  const from = titleAt + 1
+  const nextHead = heads.find((h) => h.i >= from && h.level >= 2)
+  const to = nextHead ? nextHead.i : lines.length
+  const lead = live.filter((i) => i >= from && i < to && lines[i].trim() && !/^\s*<!--.*-->\s*$/.test(lines[i]) && !/^#\s/.test(lines[i]))
+  const first = lead.length ? lines[lead[0]].trim() : ''
+  if (!first) add('no-summary', Math.max(titleAt, 0) + 1, '요약 없음: 제목 바로 아래에 이 문서가 무엇을 다루고 지금 결론이 무엇인지 1~3문장')
+  else if (/^\|/.test(first)) add('no-summary', lead[0] + 1, '요약 없음(제목 아래 첫 글이 표): 메타 표(작성 · 판 · 상태)는 요약이 아니다 · 표 위에 1~3문장 요약')
+  else if (/^>/.test(first)) add('no-summary', lead[0] + 1, '요약 없음(제목 아래 첫 글이 인용): 인용 위에 1~3문장 요약')
+  else if (LIST_LINE.test(first)) add('no-summary', lead[0] + 1, '요약 없음(제목 아래 첫 글이 목록): 목록 위에 1~3문장 요약')
+  else {
+    // 요약 글 — 머리 앞의 글 줄(표 · 인용 · 목록 줄은 문장으로 세지 않는다)
+    const prose = lead.filter((i) => !QUOTE_OR_TABLE.test(lines[i]) && !LIST_LINE.test(lines[i]))
+    const sentences = (prose.map((i) => lines[i]).join(' ').match(/[.!?。](?=\s|$)/g) || []).length
+    if (lead.length > 5 || sentences > 3) add('long-summary', lead[0] + 1, `요약이 길다(${lead.length}줄 · ${sentences}문장): 요약은 1~3문장 · 나머지는 ## 항목으로`)
+  }
+  // 머리글(첫 ## 앞)의 kmd 운영 말 — `코드` 안도 본다(「좌표는 `screen:{화면ID}`」 같은 줄)
+  for (const i of live) {
+    if (i >= secAt || i === titleAt || /^\s*<!--/.test(lines[i])) continue
+    const ws = OPS_WORDS.filter((w) => lines[i].includes(w))
+    if (ws.length) add('ops-word', i + 1, `머리글에 kmd 운영 말(${ws.join(' · ')}): 읽는 사람의 지식만 · 운영 메모는 참고 메모나 CLAUDE.md 로`)
+  }
+  // 머리 단계
+  let prev = 0
+  for (const h of heads) {
+    if (h.level >= 3 && h.i < secAt) add('sub-before-sec', h.i + 1, `첫 ## 앞의 소제목(${'#'.repeat(h.level)} ${h.h.slice(0, 20)}): 개요에서 갈 수 없다 · ## 항목으로 올리거나 요약에 녹인다`)
+    else if (prev >= 2 && h.level > prev + 1) add('skip-level', h.i + 1, `머리 단계 건너뜀(${'#'.repeat(prev)} → ${'#'.repeat(h.level)} ${h.h.slice(0, 20)}): 한 단계씩 내려간다`)
+    if (h.level >= 5) add('too-deep', h.i + 1, `${h.level}단계 머리(${h.h.slice(0, 20)}): 소제목은 #### 까지`)
+    prev = h.level
+  }
+  return out.sort((a, b) => a.line - b.line)
+}
+// 항목 글 하나(머리 아래 내용)의 머리 단계 — 정리 초안 알림용 · ## 아래로 본다
+export function lintSection(body) {
+  return lintDoc(`# x\n\n요약.\n\n## x\n${String(body ?? '')}`)
+    .filter((x) => x.code === 'skip-level' || x.code === 'too-deep')
+    .map((x) => ({ ...x, line: x.line - 5 }))
+}
+// 검사 결과 줄임 — { n, codes: { code: 수 }, top: [{ code, line, msg }] (앞 3) } · 없으면 { n: 0 }
+export function lintSummary(xs) {
+  if (!xs.length) return { n: 0 }
+  const codes = {}
+  for (const x of xs) codes[x.code] = (codes[x.code] || 0) + 1
+  return { n: xs.length, codes, top: xs.slice(0, 3) }
+}
+// 저장 알림 — 앞에 없던 짜임 문제만(같은 code · 글이면 같은 것 · 줄 번호는 보지 않는다)
+export function lintNew(before, after) {
+  const key = (x) => `${x.code}\n${x.msg}`
+  const had = new Map()
+  for (const x of before == null ? [] : lintDoc(before)) had.set(key(x), (had.get(key(x)) || 0) + 1)
+  const out = []
+  for (const x of lintDoc(after)) {
+    const n = had.get(key(x)) || 0
+    if (n) had.set(key(x), n - 1)
+    else out.push(x)
+  }
+  return out
+}
+// 문서마다 한 줄
+export function lintMessage(doc, xs) {
+  return `「${doc}」 문서 짜임(알림 · 저장은 했다): ${xs.slice(0, 3).map((x) => `${x.line}째 줄 ${x.msg.split(':')[0]}`).join(' / ')}${xs.length > 3 ? ` / 그 밖 ${xs.length - 3}` : ''}`
 }
 
 async function docFiles(dir, rel = 'docs', out = []) {
@@ -393,11 +569,19 @@ export function docfmtDir(dir, { dry = false, user = 'kmd', by = null, now = new
         continue
       }
       const c = convertDoc(raw)
-      rows.push({ doc, changed: c.changed, moved: c.moved, kinds: c.kinds, ok: c.ok, why: c.why })
+      rows.push({ doc, changed: c.changed, moved: c.moved, kinds: c.kinds, ok: c.ok, why: c.why, lint: lintSummary(lintDoc(c.text)) })
       if (c.ok && c.changed) put.push({ rel, full, text: c.text, moved: c.moved, doc })
     }
     const moved = put.reduce((n, x) => n + x.moved, 0)
-    if (dry || !put.length) return { docs: rows, moved, files: put.length, commit: null, log: null, dry }
+    // 짜임 알림 합계 — { docs(알림이 있는 문서 수), n(알림 수), codes }
+    const lint = { docs: 0, n: 0, codes: {} }
+    for (const x of rows) {
+      if (!x.lint?.n) continue
+      lint.docs++
+      lint.n += x.lint.n
+      for (const [c, n] of Object.entries(x.lint.codes)) lint.codes[c] = (lint.codes[c] || 0) + n
+    }
+    if (dry || !put.length) return { docs: rows, moved, files: put.length, commit: null, log: null, dry, lint }
     await ensureRepo(dir)
     const date = localStamp(now)
     const day = date.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2$3')
@@ -417,7 +601,7 @@ export function docfmtDir(dir, { dry = false, user = 'kmd', by = null, now = new
       await writeAtomic(path.join(dir, LOG_DIR, `${id}.md`), renderRecord({ id, title, date, author: user, tags: ['docfmt'] }, body))
       const commit = await commitPaths(dir, [...put.map((x) => x.rel), logRel], title, user)
       await j.done()
-      return { docs: rows, moved, files: put.length, commit, log: id, dry }
+      return { docs: rows, moved, files: put.length, commit, log: id, dry, lint }
     } catch (e) {
       await j.undo().catch(() => {})
       throw e

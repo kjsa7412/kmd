@@ -55,7 +55,8 @@ export function linkTarget(k, fromPath, href) {
   if (!part) {
     // 같은 문서의 항목
     const self = /^docs\/.+\.md$/i.test(from) ? from.slice(5, -3) : null
-    return self && h ? { t: 'item', d: self, h: h.normalize('NFC') } : dead
+    if (!self || !h) return dead
+    return itemTarget(k, docIdOf(k, self) || self, h)
   }
   const rel = safeDec(part)
   if (rel == null) return dead
@@ -70,8 +71,54 @@ export function linkTarget(k, fromPath, href) {
   const want = md ? p.slice(5, -3) : p.slice(5)
   if (!k?.docs) return md ? (h ? { t: 'item', d: want, h: h.normalize('NFC') } : { t: 'doc', d: want }) : dead
   const id = docIdOf(k, want)
-  if (id) return h ? { t: 'item', d: id, h: h.normalize('NFC') } : { t: 'doc', d: id }
+  if (id) return h ? itemTarget(k, id, h) : { t: 'doc', d: id }
   return md ? { t: 'missing', d: want } : dead
+}
+
+// GitHub 꼴 앵커 — 소문자 · 글자 · 숫자 · 빈칸 · - · _ 만 남기고 빈칸은 - 로(「원격 제어 확인 창 (DPA020 · DPC010 공통)」 → 원격-제어-확인-창-dpa020--dpc010-공통)
+export const slugOf = (s) =>
+  String(s ?? '')
+    .normalize('NFC')
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}\p{Pc} -]/gu, '')
+    .replace(/ /g, '-')
+// 문서 하나의 머리 — [{ h(## 이름), sub(### 이름 · ## 이면 null) }] (코드 울타리 밖 · 항목 글 안의 ###)
+const headIdx = new WeakMap()
+function headsOfDoc(d) {
+  if (headIdx.has(d)) return headIdx.get(d)
+  const out = []
+  for (const s of d.sections || []) {
+    out.push({ h: s.h, sub: null })
+    let fence = null
+    for (const ln of String(s.body || '').split('\n')) {
+      const f = ln.match(/^\s{0,3}(`{3,}|~{3,})/)
+      if (f) {
+        fence = !fence ? f[1] : f[1][0] === fence[0] && f[1].length >= fence.length ? null : fence
+        continue
+      }
+      const m = !fence && ln.match(/^###\s+(.+?)\s*#*\s*$/)
+      if (m) out.push({ h: s.h, sub: m[1].trim() })
+    }
+  }
+  headIdx.set(d, out)
+  return out
+}
+// 항목 링크(#머리) — 그 문서의 ## 이름(NFC)과 같으면 그 항목 · 아니면 slug 로 ## · ### 를 찾는다(### 면 sub — 위 ## 로 열고 그 소제목까지)
+//   못 찾으면 { miss: true }(「없는 항목」) · 지식이나 그 문서를 모르면 쓴 그대로(재 볼 수 없다)
+function itemTarget(k, d, h0) {
+  const h = h0.normalize('NFC')
+  const doc = k?.docs?.find((x) => x.id === d)
+  if (!doc) return { t: 'item', d, h }
+  const hs = headsOfDoc(doc)
+  const top = hs.filter((x) => !x.sub)
+  const nf = (x) => x.normalize('NFC')
+  const same = top.find((x) => nf(x.h) === h)
+  if (same) return { t: 'item', d, h: same.h }
+  const want = slugOf(h)
+  const hit = want && (top.find((x) => slugOf(x.h) === want) || hs.find((x) => x.sub && slugOf(x.sub) === want))
+  if (hit) return { t: 'item', d, h: hit.h, ...(hit.sub ? { sub: hit.sub } : {}) }
+  return { t: 'item', d, h, miss: true }
 }
 
 // 문단 안의 줄바꿈은 줄마다 문단으로 — 목업(paras)이 줄 하나를 <p> 하나로 그린다
@@ -107,7 +154,9 @@ md.renderer.rules.link_open = (tokens, i, opts, env, self) => {
   const href = t.attrGet('href')
   const to = linkTarget(env?.k || null, env?.fromPath, href)
   const kid = env?.k?.id ?? ''
-  if (to.t === 'doc' || to.t === 'item') t.attrs = [['class', to.t === 'item' ? 'dlink item' : 'dlink doc'], ['data-a', 'openDoc'], ['data-k', kid], ['data-d', to.d], ...(to.h ? [['data-h', to.h]] : [])]
+  // 없는 항목(그 문서에 그 머리가 없다)은 흐리게 · 누르면 문서만 연다(data-h 없음)
+  if (to.t === 'item' && to.miss) t.attrs = [['class', 'dlink item missing'], ['data-a', 'openDoc'], ['data-k', kid], ['data-d', to.d], ['title', '없는 항목']]
+  else if (to.t === 'doc' || to.t === 'item') t.attrs = [['class', to.t === 'item' ? 'dlink item' : 'dlink doc'], ['data-a', 'openDoc'], ['data-k', kid], ['data-d', to.d], ...(to.h ? [['data-h', to.h]] : []), ...(to.sub ? [['data-sub', to.sub]] : [])]
   else if (to.t === 'missing') t.attrs = [['class', 'dlink doc missing'], ['title', '없는 문서']]
   else if (to.t === 'rec') t.attrs = [['class', `dlink rec${to.gone ? ' missing' : ''}`], ['data-a', 'openRec'], ['data-k', kid], ['data-r', to.r], ...(to.gone ? [['title', '없는 기록']] : [])]
   else if (to.t === 'ext') t.attrs = [['href', href], ['class', 'xlink'], ['target', '_blank'], ['rel', 'noopener noreferrer']]
@@ -125,6 +174,20 @@ md.renderer.rules.link_open = (tokens, i, opts, env, self) => {
     return plain ? '[' : '<span class="deadlink" title="열 수 없는 링크">'
   }
   return self.renderToken(tokens, i, opts)
+}
+// 글 속 이름 열쇠 — `screen:ACA011` 처럼 백틱 안에 열쇠 하나만 있고 그 지식 이름 장부(_vocab)에 있는 이름이면 이름으로 그리고 누르면 그 항목으로
+//   (화면 linkify 의 항목 링크와 같은 꼴 · 열쇠는 title 로) · 장부에 없거나 버린 이름 · 코드 울타리(pre)는 그대로
+const COORD = /^[A-Za-z_][\w.-]*:[^\s`]+$/
+md.renderer.rules.code_inline = (tokens, i, opts, env, self) => {
+  const c = tokens[i].content.trim()
+  const k = env?.k
+  // 링크 글 안(`[\`screen:X\`](…)`)은 링크가 이미 간다 — 그대로
+  let inLink = 0
+  for (let j = 0; j < i; j++) inLink += tokens[j].type === 'link_open' ? 1 : tokens[j].type === 'link_close' ? -1 : 0
+  const v = !inLink && COORD.test(c) && k?.vocab?.coords ? k.vocab.coords.get(c) || k.vocab.coords.get(c.normalize('NFC')) : null
+  if (!v || v.deprecated || !v.label) return `<code>${esc(tokens[i].content)}</code>`
+  const key = k.vocab.coords.has(c) ? c : c.normalize('NFC')
+  return `<span class="ilink coord" data-a="openItem" data-k="${esc(k.id ?? '')}" data-n="${esc(key)}" data-pv="item|${esc(k.id ?? '')}|${esc(key)}" title="${esc(key)}">${esc(v.label)}</span>`
 }
 md.renderer.rules.link_close = (tokens, i, opts, env, self) => (tokens[i].meta?.plain != null ? `](${esc(tokens[i].meta.plain)})` : tokens[i].meta?.dead ? '</span>' : self.renderToken(tokens, i, opts))
 

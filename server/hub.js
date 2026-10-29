@@ -18,7 +18,7 @@ import net from 'node:net'
 import { material, check as checkDraft, planSave, promptOf as tidyPrompt, INGEST_SCHEMA, DRAFT_SCHEMA, TOUCH_SCHEMA, ingestCandidates, ingestRule, spotKey, spotTarget } from '../core/tidy.js'
 import { runClaude } from '../core/claude.js'
 import * as feed from '../core/feed.js'
-import { inside as insideDir, checkTarget, readSource, probe, readDecl, writeDecl, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit } from '../core/sources.js'
+import { inside as insideDir, checkTarget, readSource, probe, readDecl, editDecl, DECL_BROKEN, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit } from '../core/sources.js'
 import { forgetFile } from '../core/watch.js'
 import { check } from '../core/check.js'
 import { commitPaths, ensureRepo, tryGit, maskUrl } from '../core/git.js'
@@ -45,6 +45,7 @@ import { isSystemRecord, labelOf } from '../core/knowledge.js'
 import { RESERVED_TAGS } from '../core/names.js'
 import { isoOfStamp, logKind, atTag } from './views.js'
 import { restore as restoreFrom, checkUrl } from '../core/restore.js'
+import { writeJsonAtomic } from '../core/atomic.js'
 import { watchedOf } from '../core/watchmark.js'
 import { applyDocs, wantDoc, watchedCount } from '../core/docwatch.js'
 import { connect as dbConnect, catalog as dbCatalog } from '../core/db.js'
@@ -105,6 +106,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   let knownQ = Promise.resolve()
   let reqQ = Promise.resolve()
   const inReq = (fn) => { const p = reqQ.then(fn); reqQ = p.catch(() => {}); return p }
+  // 고치려고 읽기 — 깨졌으면 던진다(빈 목록 위에 써서 기다리는 부탁을 지우지 않게)
+  const reqRead = async () => {
+    const t = await fs.readFile(path.join(dataDir, 'requests.json'), 'utf8').catch(() => null)
+    if (t == null || !t.trim()) return []
+    try { const j = JSON.parse(t); if (Array.isArray(j)) return j } catch {}
+    throw new KmdError('E_INPUT', '부탁 장부(requests.json)가 깨졌다: 바로잡을 때까지 부탁을 받지 않는다')
+  }
   const mutateReg = (fn) => {
     const p = regQ.then(() => owners.withLock(dataDir, async () => {
       const cur = owners.loadSync(dataDir)
@@ -145,15 +153,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     const p = prefsQ.then(async () => {
       const next = structuredClone(prefs)
       fn(next)
-      await fs.mkdir(dataDir, { recursive: true })
-      const tmp = `${prefsFile}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`
-      await fs.writeFile(tmp, JSON.stringify(next, null, 1))
-      try {
-        await fs.rename(tmp, prefsFile)
-      } catch (e) {
-        await fs.rm(tmp, { force: true }).catch(() => {})
-        throw e
-      }
+      await writeJsonAtomic(prefsFile, next, { indent: 1 })
       prefs = next
     })
     prefsQ = p.catch(() => {})
@@ -256,12 +256,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     const cut = Date.now() - 7 * 864e5
     return k.logs.filter((w) => w.reopens.length && w.title.startsWith('되돌림') && w.body.includes(doc.replace(/^docs\/|\.md$/g, '')) && (stampMs(w.date) || 0) >= cut).length
   }
-  async function saveRun(id, run) {
+  function saveRun(id, run) {
     const f = path.join(dataDir, 'tidy', `${encodeURIComponent(id)}.json`)
-    const all = await fs.readFile(f, 'utf8').then(JSON.parse, () => [])
-    all.unshift(run)
-    await fs.mkdir(path.dirname(f), { recursive: true })
-    await fs.writeFile(f, JSON.stringify(all.slice(0, 30)))
+    return serial(`json:${f}`, async () => {
+      const all = await fs.readFile(f, 'utf8').then(JSON.parse, () => [])
+      all.unshift(run)
+      await writeJsonAtomic(f, all.slice(0, 30))
+    })
   }
   // 보내기 한 곳 — 같은 kmd 면 받기 길 그대로 · 다른 kmd 면 그 주소의 기기 열쇠로
   // 보내지 못한 것 한 줄 — 닿지 않음(연결 · 시간 넘김 · 5xx)은 wait(저절로 다시) · 받는 쪽이 거절(4xx · 같은 kmd 의 오류)은 fail(사람이)
@@ -320,6 +321,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const curating = new Map() // 바로 넣기(정리)가 도는 지식 → 시작 시각
   const curateQ = new Map() // 그 바로 넣기의 일 줄 id(지금 하는 일 → 일 줄)
   const adding = new Set() // 막 더하는 중인 곳 — 시계 · 켤 때 확인이 끼어들지 않게
+  const declWarned = new Map() // 지식 → 알린 장부 깨짐(정기 가져오기가 분마다 같은 줄을 적지 않게)
   const resyncs = new Map() // 전체 다시 맞추기 일감 — 진행률
   const srcWatch = new Map() // 코드 폴더 실시간 감시
   let started = false
@@ -470,7 +472,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       for (const x of await listSecrets(dataDir).catch(() => [])) if (x.name.startsWith(secretPrefix(id))) await delSecret(dataDir, x.name).catch(() => {}) // 가져오는 곳의 자격
       const lf = path.join(dataDir, 'links.json')
       const links = await fs.readFile(lf, 'utf8').then(JSON.parse, () => null)
-      if (links) await fs.writeFile(lf, JSON.stringify(links.filter((l) => l.id !== id), null, 1))
+      if (links) await writeJsonAtomic(lf, links.filter((l) => l.id !== id), { indent: 1 })
       if (rowFor(id)) await mutateReg((next) => { delete next.knowledge[id] })
       list = null
       feed.add(dataDir, ctx.user || 'kmd', { kind: 'kn', dot: 'acc', text: `지식을 지웠다: ${meta.name}`, small: inRoot ? '보관하지 않고 완전히' : '잇기만 끊었다. 폴더는 그 자리에 그대로' }).catch(() => {})
@@ -513,8 +515,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const add = ids.filter((id) => !m.order.includes(id))
       if (add.length) {
         m.order = [...m.order, ...add]
-        await fs.mkdir(path.dirname(f), { recursive: true })
-        await fs.writeFile(f, JSON.stringify(m, null, 1))
+        await writeJsonAtomic(f, m, { indent: 1 })
       }
       return m
     },
@@ -526,8 +527,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 보낸 순서에 빠진 지식은 그 뒤로(없어지지 않게)
       next.order = [...next.order, ...cur.order.filter((x) => !next.order.includes(x))]
       const f = path.join(dataDir, 'menu', `${encodeURIComponent(ctx.user)}.json`)
-      await fs.mkdir(path.dirname(f), { recursive: true })
-      await fs.writeFile(f, JSON.stringify(next, null, 1))
+      await writeJsonAtomic(f, next, { indent: 1 })
       // 응답은 지금 보는 지식만(파일에는 옛 순서를 남긴다 — 자리를 다시 받으면 그 자리로 · 남에게 옛 id 를 보이지 않게)
       return { order: next.order.filter((x) => ids.includes(x)), hidden: next.hidden.filter((x) => ids.includes(x)) }
     },
@@ -535,8 +535,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async known(ids = null) {
       const f = path.join(dataDir, 'known.json')
       if (ids) {
-        await fs.mkdir(dataDir, { recursive: true })
-        await fs.writeFile(f, JSON.stringify(ids))
+        await writeJsonAtomic(f, ids)
         return ids
       }
       const j = await fs.readFile(f, 'utf8').then(JSON.parse, () => null)
@@ -639,7 +638,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           for (const d of r0.docs) { const n = d.replace(/^docs\/|\.md$/g, ''); if (!run.docs.includes(n)) run.docs.push(n) }
           run.names += r0.names || 0
         }
-        return { ...r0, warnings: r0.formatKept || [] }
+        return { ...r0, warnings: [...(r0.formatKept || []), ...(r0.docLint || [])] }
       }
       if (ctx.machine && ctx.machine.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
       if (!ctx.machine) hub.need(ctx, id, 'write')
@@ -692,7 +691,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 백업은 기다리되 길게는 아니다 — 늦으면 다음 판정이 줄을 낸다
       // 백업 — 3초까지 기다린다(경고를 응답에 싣게) · 여럿을 받는 길(receive)은 끝에 한 번
       if (backup.attached(meta)) await Promise.race([backup.enqueue(meta, { log }), new Promise((ok) => setTimeout(ok, 3000).unref?.())])
-      return { ...r, warnings: [...(r0.formatKept || []), ...backup.lines(meta, { name: meta.name }).map((l) => l.text)] }
+      return { ...r, warnings: [...(r0.formatKept || []), ...(r0.docLint || []), ...backup.lines(meta, { name: meta.name }).map((l) => l.text)] }
     },
 
     // 찾기 — 색인은 지식마다 · 바뀐 파일만 다시(저장 뒤 · 처음 찾을 때) · 지식을 섞지 않는다
@@ -957,7 +956,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const addKey = `${id}\n${name}`
       adding.add(addKey)
       try {
-        await writeDecl(meta.dir, [...decl, src], { user: ctx.user, title: `가져오는 곳 더함: ${name}` })
+        // 한 줄 안에서 다시 읽고 더한다 — 그사이 다른 고치기가 남긴 것을 덮지 않게 · 깨진 장부면 여기서 거절
+        await editDecl(meta.dir, (cur) => {
+          if (cur.some((s) => s.name === name)) throw new KmdError('E_CONFLICT', '같은 이름의 가져오는 곳이 있다')
+          return [...cur, src]
+        }, { user: ctx.user, title: `가져오는 곳 더함: ${name}` })
         cache.delete(id)
         if (started) hub.watchSource(id, src)
         const r = await hub.sourceRun(id, name, { first: true })
@@ -1109,9 +1112,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!s) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
       if (s.kind !== 'folder' && s.kind !== 'git') throw new KmdError('E_INPUT', '뜻 갱신은 코드 폴더 · git 만')
       if (!!s.meaning === !!on) return s
-      if (on) s.meaning = true
-      else delete s.meaning
-      await writeDecl(meta.dir, decl, { user: ctx.user, title: `가져오는 곳 뜻 갱신 ${on ? '켬' : '끔'}: ${name}` })
+      const flip = (x) => { if (on) x.meaning = true; else delete x.meaning }
+      flip(s)
+      await editDecl(meta.dir, (cur) => {
+        const x = cur.find((y) => y.name === name)
+        if (!x) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
+        flip(x)
+        return cur
+      },{ user: ctx.user, title: `가져오는 곳 뜻 갱신 ${on ? '켬' : '끔'}: ${name}` })
       cache.delete(id)
       // 켜면 지금 코드로 사본 · 장부를 맞춘다(그 뒤 바뀐 것부터 기록)
       if (on) await hub.sourceRun(id, name)
@@ -1149,7 +1157,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 자료 가져오기 화면 — 그 사람이 보는 지식들의 가져오는 곳 모두
     async allSources(ctx) {
       const out = []
-      for (const m of await hub.visible(ctx)) for (const s of await hub.sources(ctx, m.id)) out.push({ kn: m.id, knName: m.name, ...s })
+      // 장부가 깨진 지식은 건너뛴다(그 경고는 멈춤 줄 · 그 지식의 가져오기 화면) — 한 지식 때문에 모두가 비지 않게
+      for (const m of await hub.visible(ctx)) for (const s of await hub.sources(ctx, m.id).catch((e) => (e?.declBroken ? [] : Promise.reject(e)))) out.push({ kn: m.id, knName: m.name, ...s })
       return out
     },
     // 언제 — hourly · daily HH:MM · weekly · change(바뀔 때만) · manual
@@ -1162,7 +1171,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!s) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
       if (s.every === every) return s
       s.every = every
-      await writeDecl(meta.dir, decl, { user: ctx.user, title: `가져오는 곳 언제: ${name} · ${every}` })
+      await editDecl(meta.dir, (cur) => {
+        const x = cur.find((y) => y.name === name)
+        if (!x) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
+        x.every = every
+        return cur
+      }, { user: ctx.user, title: `가져오는 곳 언제: ${name} · ${every}` })
       cache.delete(id)
       return s
     },
@@ -1230,7 +1244,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const addKey = `${to}\n${name}`
         adding.add(addKey)
         try {
-          await writeDecl(tm.dir, [...(await readDecl(tm.dir)), s], { user: ctx.user, title: `가져오는 곳 옮겨 옴: ${name} · ${meta.name || id} 에서` })
+          await editDecl(tm.dir, (cur) => {
+            if (cur.some((x) => x.name === name)) throw new KmdError('E_CONFLICT', '옮겨 갈 지식에 같은 이름의 가져오는 곳이 있다')
+            return [...cur, s]
+          }, { user: ctx.user, title: `가져오는 곳 옮겨 옴: ${name} · ${meta.name || id} 에서` })
           cache.delete(to)
           if (started) hub.watchSource(to, s)
           const run = await hub.sourceRun(to, name, { first: true }).catch((e) => [{ state: 'failed', why: e.message }])
@@ -1240,7 +1257,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
       }
       if (JSON.stringify(s) !== was) {
-        await writeDecl(meta.dir, decl, { user: ctx.user, title: `가져오는 곳 고침: ${name}` })
+        // 한 줄 안에서 다시 읽고 이 곳만 바꾼다(그사이 다른 곳을 고친 것은 그대로)
+        await editDecl(meta.dir, (cur) => {
+          const i = cur.findIndex((x) => x.name === name)
+          if (i < 0) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
+          cur[i] = s
+          return cur
+        }, { user: ctx.user, title: `가져오는 곳 고침: ${name}` })
         cache.delete(id)
         if (started) hub.watchSource(id, s)
       }
@@ -1261,7 +1284,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const key = `${id}\n${name}`
       srcWatch.get(key)?.close()
       srcWatch.delete(key)
-      await writeDecl(meta.dir, decl.filter((x) => x.name !== name), { user: ctx.user, title: `가져오는 곳 지움: ${name}` })
+      await editDecl(meta.dir, (cur) => {
+        if (!cur.some((x) => x.name === name)) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
+        return cur.filter((x) => x.name !== name)
+      }, { user: ctx.user, title: `가져오는 곳 지움: ${name}` })
       const st = await readSourceState(dataDir, id)
       delete st[name]
       await writeSourceState(dataDir, id, st)
@@ -1342,13 +1368,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (kind !== 'db') checkTarget(String(card.at || '').trim(), { kind: kind === 'docs' ? 'folder' : kind, ...(await hub.sourceCtx(id)) })
       const f = path.join(dataDir, 'requests.json')
       return inReq(async () => {
-        const all = await hub.requestsAll()
+        const all = await reqRead()
         const at2 = maskUrl(String(card.at || ''))
         const same = all.find((r) => (r.state || 'wait') === 'wait' && r.kn === id && r.name === name && r.at2 === at2)
-        if (same) { if (!same.by.split(', ').includes(ctx.user)) same.by += ', ' + ctx.user; await fs.writeFile(f, JSON.stringify(all)); return { ...same, again: true } }
+        if (same) { if (!same.by.split(', ').includes(ctx.user)) same.by += ', ' + ctx.user; await writeJsonAtomic(f, all); return { ...same, again: true } }
         const req = { id: crypto.randomBytes(5).toString('hex'), at: new Date().toISOString(), by: ctx.user, kn: id, name, at2, kind: card.kind ? kind : null, rules, every, state: 'wait', ...(card.db ? { db: { engine: 'postgres', host: String(card.db.host || '').slice(0, 253), port: Number(card.db.port) || 5432, database: String(card.db.database || '').slice(0, 63), schema: String(card.db.schema || 'public').slice(0, 63), user: String(card.db.user || '').slice(0, 63) } } : {}) }
         all.unshift(req)
-        await fs.writeFile(f, JSON.stringify(all.slice(0, 200)))
+        await writeJsonAtomic(f, all.slice(0, 200))
         return req
       })
     },
@@ -1363,11 +1389,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!['done', 'no'].includes(state)) throw new KmdError('E_INPUT', '더함 · 거절 중 하나')
       const f = path.join(dataDir, 'requests.json')
       return inReq(async () => {
-        const all = await hub.requestsAll()
+        const all = await reqRead()
         const r = all.find((x) => x.id === rid)
         if (!r) throw new KmdError('E_NOTFOUND', '그런 부탁은 없다')
         Object.assign(r, { state, closedBy: ctx.user, closedAt: new Date().toISOString(), ...(why ? { why: String(why).slice(0, 200) } : {}) })
-        await fs.writeFile(f, JSON.stringify(all))
+        await writeJsonAtomic(f, all)
         const kn = (await hub.list()).find((k) => k.id === r.kn)?.name || r.kn
         for (const u of r.by.split(', ')) await feed.add(dataDir, u, { kind: 'source', kn: r.kn, dot: state === 'done' ? 'acc' : 'warn', text: state === 'done' ? `부탁한 가져오는 곳을 더했다: ${r.name} · ${kn}` : `부탁한 가져오는 곳을 더하지 않았다: ${r.name} · ${kn}`, small: state === 'done' ? `${ctx.user} 이 더했다` : `${ctx.user}${why ? ': ' + String(why).slice(0, 200) : ''}` }).catch(() => {})
         return r
@@ -1692,8 +1718,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async workerStatus(wctx, { ok = true, reason = null, message = null } = {}) {
       const prev = await fs.readFile(path.join(dataDir, 'worker.json'), 'utf8').then(JSON.parse, () => ({}))
       const next = ok ? { ok: true, at: new Date().toISOString() } : { ok: false, reason, message: String(message || '').slice(0, 200), since: prev.ok === false ? prev.since : new Date().toISOString(), at: new Date().toISOString() }
-      await fs.mkdir(dataDir, { recursive: true })
-      await fs.writeFile(path.join(dataDir, 'worker.json'), JSON.stringify(next))
+      await writeJsonAtomic(path.join(dataDir, 'worker.json'), next)
       wsNow = next
       for (const j of jobs.values()) if (j.state === 'running' && j.worker === wctx.worker.id && !ok) Object.assign(j, { state: 'failed', why: STOP_WHY[reason] || STOP_WHY.login, done: new Date().toISOString() })
       saveJobs()
@@ -1799,10 +1824,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       Q.end(run)
       if (isFinal(run)) fs.rm(binOf(run.id), { force: true }).catch(() => {})
       if (run.parent) hub.groupCheck(Q.get(run.parent))
-      const cut = Date.now() - 30 * 864e5
-      const mine = [...runs.values()].filter((r) => r.kn === run.kn && r.endedAt && Date.parse(r.endedAt) >= cut).slice(-200).map((r) => ({ ...r, lines: r.lines.slice(-400) }))
       const f = path.join(dataDir, 'runs', `${encodeURIComponent(run.kn)}.json`)
-      fs.mkdir(path.dirname(f), { recursive: true }).then(() => fs.writeFile(f, JSON.stringify(mine))).catch(() => {})
+      return serial(`json:${f}`, () => {
+        const cut = Date.now() - 30 * 864e5
+        const mine = [...runs.values()].filter((r) => r.kn === run.kn && r.endedAt && Date.parse(r.endedAt) >= cut).slice(-200).map((r) => ({ ...r, lines: r.lines.slice(-400) }))
+        return writeJsonAtomic(f, mine)
+      }).catch(() => {})
     },
     // 있는 지식의 일만 — 지운 지식의 파일이 남아 있어도 싣지 않는다(줄 없는 지식으로 누구에게나 보이지 않게)
     async runLoad() {
@@ -2130,7 +2157,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       let a = await fs.readFile(keep, 'utf8').then((t) => ({ value: JSON.parse(t) }), () => null)
       if (!a) {
         a = await hub.askClaude(id, prompt, FILE_SCHEMA, { budget: 2, timeoutMs: 600_000, role: 'read' })
-        if (a.value) await fs.mkdir(path.dirname(keep), { recursive: true }).then(() => fs.writeFile(keep, JSON.stringify(a.value))).catch(() => {})
+        if (a.value) await writeJsonAtomic(keep, a.value).catch(() => {})
       }
       const rec = fileRecord(src, a.value)
       if (!rec) {
@@ -2626,7 +2653,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const conf = await sendLib.readConf(meta.dir)
       await serial(path.resolve(meta.dir), async () => {
         await ensureRepo(meta.dir)
-        await fs.writeFile(path.join(meta.dir, sendLib.CONF), JSON.stringify({ ...conf, send: dests.map((d) => ({ kn: d.kn, ...(d.url ? { url: String(d.url).replace(/\/+$/, '') } : {}) })) }, null, 2) + '\n')
+        await writeJsonAtomic(path.join(meta.dir, sendLib.CONF), { ...conf, send: dests.map((d) => ({ kn: d.kn, ...(d.url ? { url: String(d.url).replace(/\/+$/, '') } : {}) })) }, { indent: 2, nl: true })
         await commitPaths(meta.dir, [sendLib.CONF], `보낼 곳: ${dests.map((d) => d.kn).join(' · ') || '없음'}`, ctx.user).catch(() => {})
       })
       // 처음 정하면 지금 글 · 기록을 보낸 것으로 — 그 뒤 고친 문서 · 새 기록만 변경사항에 모인다
@@ -2745,7 +2772,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const conf = await sendLib.readConf(meta.dir)
       await serial(path.resolve(meta.dir), async () => {
         await ensureRepo(meta.dir)
-        await fs.writeFile(path.join(meta.dir, sendLib.CONF), JSON.stringify({ ...conf, send: [dest] }, null, 2) + '\n')
+        await writeJsonAtomic(path.join(meta.dir, sendLib.CONF), { ...conf, send: [dest] }, { indent: 2, nl: true })
         await commitPaths(meta.dir, [sendLib.CONF], `받는 지식: ${cur ? cur.kn + ' → ' : ''}${to}`, ctx.user).catch(() => {})
       })
       // 옛 받는 지식으로 가려던 대기는 걷는다(새 곳으로 옮겨 가지 않게)
@@ -2988,8 +3015,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (t2) candidates.push({ record: w.id, title: w.title, to: t2.m.id, name: labelOf(await hub.get(t2.m.id), t2.coords[0]) })
       }
       if (dry) return { moved, candidates }
-      await fs.mkdir(path.dirname(f), { recursive: true })
-      await fs.writeFile(f, JSON.stringify(st))
+      await serial(`json:${f}`, async () => {
+        const cur = await fs.readFile(f, 'utf8').then(JSON.parse, () => ({ moved: {} }))
+        await writeJsonAtomic(f, { ...cur, ...st, moved: { ...(cur.moved || {}), ...st.moved } })
+      })
       if (moved.length) feed.add(dataDir, ctx.user, { kind: 'send', kn: id, dot: 'acc', text: `받은편지함 메모 ${moved.length}개를 옮겼다`, small: [...new Set(moved.map((x) => x.to))].join(' · ') }).catch(() => {})
       return { moved, candidates, left: k.works.filter((w) => !isSystemRecord(w) && !st.moved[w.id]).length - candidates.length }
     },
@@ -3001,10 +3030,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!w || w.tags.includes('private')) throw new KmdError('E_NOTFOUND', '보낼 메모가 없다')
       const r = await hub.receive(ctx, to, { from: '받은편지함', items: [{ title: w.title, body: w.body, sha: sha16(`${id}\n${w.id}`), date: w.date }] })
       const f = path.join(dataDir, 'inbox', `${encodeURIComponent(id)}.json`)
-      const st = await fs.readFile(f, 'utf8').then(JSON.parse, () => ({ moved: {} }))
-      st.moved[w.id] = to
-      await fs.mkdir(path.dirname(f), { recursive: true })
-      await fs.writeFile(f, JSON.stringify(st))
+      await serial(`json:${f}`, async () => {
+        const st = await fs.readFile(f, 'utf8').then(JSON.parse, () => ({ moved: {} }))
+        ;(st.moved ||= {})[w.id] = to
+        await writeJsonAtomic(f, st)
+      })
       return r
     },
 
@@ -3035,7 +3065,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const sf = all.filter((w) => w.state !== 'wait')
         if (sw.length) out.push(stopLine({ kind: 'send', kn: k.id, level: 'warn', what: `${k.name}: 보낼 곳에 닿지 않는다`, amount: `${sw.reduce((a, w) => a + w.payload.items.length, 0)}개`, fix: '닿으면 저절로 보낸다', since: `${sw[0].at.slice(5, 10)} ${new Date(sw[0].at).toTimeString().slice(0, 5)} 에 누른 것` }))
         if (sf.length) out.push(stopLine({ kind: 'send', kn: k.id, level: 'warn', what: `${k.name}: 보내지 못했다(${sf[0].to.kn})`, amount: `${sf.reduce((a, w) => a + w.payload.items.length, 0)}개`, fix: sf[0].fix || '지식 보내기에서 [다시] · [버리기]', told: sf[0].why }))
-        const decl = await readDecl(k.dir)
+        const decl = await readDecl(k.dir).catch((e) => {
+          // 장부가 깨졌다 — 가져오기 · 고치기가 멈춘다(덮어쓰지 않는다) · 사람에게 한 줄
+          out.push(stopLine({ kind: 'source', kn: k.id, level: 'bad', what: `${k.name}: ${DECL_BROKEN}`, amount: '가져오기 · 고치기 멈춤', fix: hub.canSource(ctx, k.id) ? '지식 폴더의 _sources.json 을 바로잡거나 git 에서 앞의 판으로 되돌린다' : null, told: hub.canSource(ctx, k.id) ? String(e.message).slice(0, 160) : '관리자에게 알렸다' }))
+          return []
+        })
         if (decl.length) out.push(...sourceLines(k, decl, await readSourceState(dataDir, k.id), { admin: hub.canSource(ctx, k.id) }))
         if (!backup.attached(k)) {
           const u = await unbacked(k)
@@ -3335,7 +3369,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (inside(full, path.resolve(root)) || inside(full, path.resolve(dataDir)) || inside(path.resolve(root), full)) throw new KmdError('E_INPUT', '지식 폴더 · 살림 자리와 겹치지 않는 곳에 둔다(다른 드라이브 · 네트워크 폴더)')
       await fs.mkdir(full, { recursive: true }).catch((e) => { throw new KmdError('E_INPUT', `그 폴더를 만들 수 없다: ${e.code || e.message}`) })
       const cur = await loadConfig(dataDir)
-      await fs.writeFile(path.join(dataDir, 'serve.json'), JSON.stringify({ ...cur, backupRoot: full }, null, 1))
+      await writeJsonAtomic(path.join(dataDir, 'serve.json'), { ...cur, backupRoot: full }, { indent: 1 })
       config.backupRoot = full
       let attached = 0
       const failed = []
@@ -3400,8 +3434,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 가져오는 곳 — 할 일 시계(분마다 본다 · 각자의 every) · 켤 때 한 번
       const dueSources = async (all) => {
         for (const m of await hub.list().catch(() => [])) {
-          const decl = await readDecl(m.dir)
-          if (!decl.length) continue
+          // 장부가 깨진 지식은 건너뛰고 한 번 알린다(같은 내용이면 다시 적지 않는다 · 멈춤 줄이 사람에게 보인다)
+          const decl = await readDecl(m.dir).catch((e) => {
+            if (declWarned.get(m.id) !== e.message) { declWarned.set(m.id, e.message); log('가져오는 곳 건너뜀', m.id, e.message) }
+            return null
+          })
+          if (decl) declWarned.delete(m.id)
+          if (!decl?.length) continue
           const st = await readSourceState(dataDir, m.id)
           for (const s of decl) {
             // 마지막으로 본 때 — 가져왔거나 해 본 때(실패도 주기를 지킨다 · 실패가 이어지면 간격을 두 배씩 · 여덟 배까지)
@@ -3439,7 +3478,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         for (const m of await hub.list().catch(() => [])) {
           if (hm < hub.tidyAtOf(m.id) || lastTidy.get(m.id) === day) continue
           lastTidy.set(m.id, day)
-          await fs.writeFile(path.join(dataDir, 'tidy-last.json'), JSON.stringify(Object.fromEntries(lastTidy))).catch(() => {})
+          await writeJsonAtomic(path.join(dataDir, 'tidy-last.json'), Object.fromEntries(lastTidy)).catch(() => {})
           // 받은편지함 — 정리 시각에 같은 주인의 개인 지식으로 옮긴다
           if (m.name === '받은편지함') await hub.inboxTidy({ user: rowFor(m.id)?.owner || pcUser || 'kmd', pc: mode === 'pc' }, m.id).catch(() => {})
           const k = await hub.get(m.id).catch(() => null)
