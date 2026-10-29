@@ -31,6 +31,8 @@ const strip = (t) => (watchedOf(t) ? String(t).split('\n').slice(1).join('\n') :
 
 // 원본 경로 → 지식 안의 자리(prefix 폴더 아래 · 짜임 그대로)
 const docRelOf = (prefix, rel) => `docs/${prefix ? prefix + '/' : ''}${rel.replace(/\.[^./]+$/, '')}.md`
+// 그 자리를 다른 파일(같은 이름 다른 확장자 — 킥오프.pdf · 킥오프.pptx)이나 사람이 쓴 문서가 쥐고 있으면 「이름 (확장자).md」
+const altRelOf = (prefix, rel) => `docs/${prefix ? prefix + '/' : ''}${rel.replace(/\.([^./]+)$/, ' ($1)')}.md`
 const MAX_REC = 200_000
 // 기록 id 조각 — 파일 이름(확장자 뺌) · 파일 이름에 못 쓰는 글자는 뺀다
 const slug = (rel) => nfc(rel.split('/').pop().replace(/\.[^.]+$/, '')).replace(/[\\/:*?"<>|#%`'\u0000-\u001f]/g, '').trim().replace(/\s+/g, '-').slice(0, 40).replace(/[-.]+$/, '') || '문서'
@@ -45,12 +47,24 @@ export async function applyDocs(k, { src, prefix = '', files = [], removed = [],
     const w = watchedOf(t)
     return w && !w.rec ? null : Buffer.from(strip(t))
   }, () => null)
+  // 문서 자리의 주인(표지의 원본 경로) — 없으면 null · 표지 없는 문서(사람이 쓴 것)는 ''
+  const ownerOf = (dr) => fs.readFile(path.join(dir, ...dr.split('/')), 'utf8').then((t) => nfc(watchedOf(readText(t))?.path || ''), () => null)
+  // 원본 파일 → 문서 자리 — 앞서 다른 자리(이름 (확장자))에 들었으면 거기 · 비었거나 제 것이면 이름 그대로 · 남의 것이면 이름 (확장자)
+  //   (원본이 주인은 파일마다 — 같은 이름의 pdf 와 pptx 가 한 문서를 번갈아 덮지 않는다)
+  const claimed = new Set()
+  const placeOf = async (rel) => {
+    const main = docRelOf(prefix, rel), alt = altRelOf(prefix, rel), me = nfc(rel)
+    const own = claimed.has(main) ? '' : await ownerOf(main)
+    const at = (await ownerOf(alt)) === me || (own !== null && own !== me) ? alt : main
+    claimed.add(at)
+    return at
+  }
   const writes = []
   const rows = []
   const recs = [] // { rel(원본) , doc, text } — 문서마다 기록 하나
   for (const f of files) {
     const pathIn = prefix ? `${prefix}/${f.rel}` : f.rel
-    const plan = await planImport(k, [{ path: pathIn, data: f.data }], { direct: true, read, mdOf })
+    const plan = await planImport(k, [{ path: pathIn, data: f.data, doc: await placeOf(f.rel) }], { direct: true, read, mdOf })
     rows.push(...plan.rows)
     for (const d of plan.docs) recs.push({ rel: f.rel, doc: d.rel, text: d.text })
     for (const a of plan.atts) writes.push({ rel: a.rel, data: a.data })
@@ -58,7 +72,10 @@ export async function applyDocs(k, { src, prefix = '', files = [], removed = [],
   const today = localStamp().slice(0, 10)
   const gone = []
   for (const rel of removed) {
-    const dr = docRelOf(prefix, rel)
+    // 그 파일이 든 자리(이름 (확장자) 먼저) — 같은 이름의 다른 파일 문서에 「원본에 없다」 를 달지 않는다
+    let dr = null
+    for (const c of [altRelOf(prefix, rel), docRelOf(prefix, rel)]) if ((await ownerOf(c)) === nfc(rel)) { dr = c; break }
+    if (!dr) continue
     const t = await fs.readFile(path.join(dir, ...dr.split('/')), 'utf8').then(readText, () => null)
     const w = t && watchedOf(t)
     if (!w || w.missing) continue
