@@ -24,8 +24,8 @@ const INSTRUCTIONS = [
 ].join('\n')
 // 이 서버가 어느 쪽인가 — 한 폴더에 팀(kmd-team) · 개인(kmd) 두 연결이 같이 붙으므로 세션이 가려 남기게
 const WHERE = {
-  pc: '이 연결은 이 PC 의 개인 지식이다(where: me). 여기 남긴 것은 나만 본다.',
-  team: '이 연결은 팀 서버다(where: team). 팀 지식에 남긴 것은 그 지식을 보는 팀 사람이 본다. 작업 폴더의 기본 지식이 아니면 사람이 말할 때만 남긴다.',
+  pc: '이 연결은 이 PC 의 개인 지식이다(where: me). 여기 남긴 것은 나만 본다. 어느 지식에 남길지 애매하면 사람에게 묻는다.',
+  team: '이 연결은 팀 서버다(where: team). 팀 지식에 남긴 것은 그 지식을 보는 팀 사람이 본다. 남기기 전에 어느 팀 지식에 남길지 사람에게 묻는다.',
 }
 export const instructionsFor = (mode) => INSTRUCTIONS + '\n' + (WHERE[mode] || WHERE.team)
 // 지식마다 갈래 · 남기면 보는 사람

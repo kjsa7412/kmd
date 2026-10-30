@@ -20,11 +20,11 @@ import { put as kput, get as kget, keyName } from '../../core/keystore.js'
 import { setSecret, listSecrets, getSecret } from '../../core/secrets.js'
 import { prehash } from '../../app/prehash.js'
 
-import { addMcp, mcpLine, safeOrigin } from '../../core/claudecfg.js'
+import { addMcp, removeMcp, safeOrigin } from '../../core/claudecfg.js'
 import { taskXml, upgrade, appHomeOf, launcherOf, linkVersion, makeShortcut, readPcRoot, writePcRoot, pcRootKind } from '../../core/pcops.js'
 import { installLines, pickBackupDir, startViaTask } from '../../core/install.js'
 import { ensureRepo } from '../../core/git.js'
-import { install as kitInstall, folders as kitFolders, setFolders as kitSetFolders, addKn as kitAddKn, defOf as kitDefOf } from '../../core/kit.js'
+import { install as kitInstall, folders as kitFolders, setFolders as kitSetFolders, addKn as kitAddKn } from '../../core/kit.js'
 
 // 명령 목록 — 여기 줄과 아래 main 의 갈래가 같아야 한다(test/open.test.mjs 가 센다). 관리자 설명서의 셸 표도 이 줄에서 고른다
 const HELP = `kmd ${VERSION}
@@ -33,9 +33,8 @@ const HELP = `kmd ${VERSION}
   kmd up [폴더] [--port 7373] [--no-open]
       개인 프로그램을 켜고 화면을 연다. 폴더 기본 D:\\kmd(없으면 집 폴더의 kmd) · 이미 켜져 있으면 화면만 연다
   kmd open [폴더]                              개인 화면을 연다(꺼져 있으면 켠다). 시작 메뉴의 kmd 와 같다 · 팀 화면은 팀 주소를 브라우저로
-  kmd agent add <개인 지식> [--dir 폴더]          작업 폴더의 Claude Code 에 이 PC 의 개인 지식을 더한다(팀 화면 › 에이전트 설치가 복사해 준다)
+  kmd agent add <개인 지식> [--dir 폴더]          작업 폴더의 Claude Code 에 이 PC 의 개인 지식을 더한다(개인 화면 › 설정 › 에이전트 설치와 같다)
   kmd connect <팀 주소> [--ticket kmdt_…]       팀에 잇는다. 설치 한 줄이 부른다(아이디 · 비밀번호로도)
-                                               --kn <팀 지식>: 지금 폴더를 그 팀 지식에 붙인다(에이전트 설치 · 팀)
   kmd pc task [폴더]                           로그온 때 켜고 멈추면 다시(작업 스케줄러) · 시작 메뉴의 kmd
   kmd pc update <새 판 폴더> <판> [--root 폴더]
       새 판을 켜 보고 될 때만 바꾸고 다시 켠다(안 켜지면 앞 판으로): 폴더는 늘 켜기 작업 · 도는 kmd 의 것
@@ -249,16 +248,8 @@ async function pcRootNow(o) {
   }
   return defaultPcRoot()
 }
-// 이 PC 가 이은 팀(설치 한 줄로 · 이 PC 의 열쇠가 있는 것)의 마지막 주소 — 없으면 null
-async function connectedTeam(root, o) {
-  const tf = path.join(o.data ? path.resolve(o.data) : defaultDataDir(root), 'teams.json')
-  const teams = (() => { try { return JSON.parse(fs.readFileSync(tf, 'utf8')) } catch { return [] } })().map(safeOrigin).filter(Boolean)
-  let team = null
-  for (const t of teams) if (await kget(keyName(t)).catch(() => null)) team = t
-  return team
-}
 // 에이전트 설치 · 개인 지식 — `kmd agent add <개인 지식>`(지금 폴더 · --dir 로 다른 폴더). 팀 화면 › 에이전트 설치가 복사해 주는 명령.
-//   이 PC 의 지식 폴더의 그 지식을 작업 폴더의 Claude Code 에 더한다(붙어 있던 지식 · 기본은 그대로) · 연결은 개인 프로그램
+//   이 PC 의 지식 폴더의 그 지식을 작업 폴더의 Claude Code 에 더한다(붙어 있던 개인 지식은 그대로 · 팀 지식 연결은 건드리지 않는다)
 async function agentCmd(o) {
   const [sub, kn] = o._
   try {
@@ -274,11 +265,10 @@ async function agentCmd(o) {
     const list = await kitFolders(pcData)
     const same = (f) => path.resolve(f.path).toLowerCase() === dir.toLowerCase()
     const cur = list.find(same)
-    const row = kitAddKn(cur || { name: path.basename(dir), path: dir, at: new Date().toISOString(), kns: [], def: null }, { area: 'me', kn: k.id, knName: k.name })
-    const teamUrl = await connectedTeam(root, o)
-    const r = await kitInstall(dir, { meUrl, teamUrl, kns: row.kns, def: row.def })
+    const row = kitAddKn(cur || { name: path.basename(dir), path: dir, at: new Date().toISOString(), kns: [] }, { area: 'me', kn: k.id, knName: k.name })
+    const r = await kitInstall(dir, { meUrl, kns: row.kns })
     await kitSetFolders(pcData, cur ? list.map((f) => (f === cur ? { ...row, path: r.dir } : f)) : [...list, { ...row, path: r.dir }])
-    console.log(`✓ ${r.dir} 에 개인 지식 「${k.name}」 을 더했다 · 붙은 지식 ${row.kns.length} · 기본 「${kitDefOf(row)?.knName || k.name}」 · Claude Code 는 새로 여는 것부터`)
+    console.log(`✓ ${r.dir} 에 개인 지식 「${k.name}」 을 더했다 · 이 폴더의 개인 지식 ${row.kns.length} · Claude Code 는 새로 여는 것부터`)
   } catch (e) {
     console.error(e.message)
     process.exitCode = 1
@@ -766,7 +756,9 @@ async function workerCmd(o) {
 }
 
 // 설치 한 줄 — 이 PC 에 세우고(D:\kmd · 다른 드라이브의 백업) · 팀에 잇고(설치 표 또는 아이디 · 비밀번호 한 번 → 기기 열쇠 → 자격 저장소)
-// · Claude Code 에 잇고 · 늘 켠다. 묻는 것 없이 끝나고 ✓ 넷을 찍는다(목업 M1). --no-backup · --no-task 는 시험 · 손 설치용.
+// · 늘 켠다. 묻는 것 없이 끝나고 ✓ 를 찍는다(목업 M1). --no-backup · --no-task 는 시험 · 손 설치용.
+// 작업 폴더의 Claude Code 에 팀 지식을 붙이는 일은 하지 않는다 — 팀 화면 › 설정 › 에이전트 설치의 한 줄(core/teamkit.js)이 개인 프로그램 없이 한다.
+// 개인 연결(kmd)은 늘 켜기가 kmd up 으로 열 때 잇는다.
 async function connectCmd(o) {
   const [url0] = o._
   if (!url0) {
@@ -843,30 +835,7 @@ async function connectCmd(o) {
     team = { ok: false, why: e.message }
     process.exitCode = 1
   }
-  // ③ Claude Code — 팀(kmd-team) · 이 PC(kmd 는 늘 켜기가 kmd up 으로 열 때 잇는다)
-  //   --kn(에이전트 설치 · 팀): 설치 한 줄을 붙여 넣은 작업 폴더만 그 팀 지식에 붙인다(연결 kmd-team 하나 · 기본 지식 한 줄)
-  let c
-  if (team.ok && o.kn && o.kn !== 'true') {
-    try {
-      const key = await kget(keyName(url))
-      const ks = await fetch(url + '/api/knowledge', { headers: { authorization: `Bearer ${key}` } }).then((r) => (r.ok ? r.json() : []), () => [])
-      const k = ks.find((x) => x.id === o.kn)
-      if (!k) throw new Error(`팀에 「${o.kn}」 팀 지식이 없다`)
-      const dir = path.resolve(o.dir || process.cwd())
-      // 더하기 — 이 폴더에 붙어 있던 지식(개인 지식도)은 그대로 · 기본도 그대로(처음이면 이것)
-      const list = await kitFolders(pcData)
-      const same = (f) => path.resolve(f.path).toLowerCase() === dir.toLowerCase()
-      const cur = list.find(same)
-      const row = kitAddKn(cur || { name: path.basename(dir), path: dir, at: new Date().toISOString(), kns: [], def: null }, { area: 'team', kn: k.id, knName: k.name, team: url })
-      // 개인 지식의 연결(kmd)은 .mcp.json 에 있던 것을 그대로 둔다
-      const r = await kitInstall(dir, { teamUrl: url, kns: row.kns, def: row.def })
-      await kitSetFolders(pcData, cur ? list.map((f) => (f === cur ? { ...row, path: r.dir } : f)) : [...list, { ...row, path: r.dir }])
-      c = { ok: true, folder: r.dir, kn: k.name, def: kitDefOf(row)?.knName, n: row.kns.length }
-    } catch (e) {
-      c = { ok: false, line: `${e.message}. 팀 화면 › 설정 › 에이전트 설치에서 설치 한 줄을 다시 복사한다` }
-    }
-  } else c = team.ok ? await addMcp('kmd-team', url) : { ok: false, line: mcpLine('kmd-team', url) }
-  // ④ 늘 켜기 — 로그온 작업 + 시작 메뉴의 kmd + 지금 한 번 켜고 화면을 연다
+  // ③ 늘 켜기 — 로그온 작업 + 시작 메뉴의 kmd + 지금 한 번 켜고 화면을 연다
   let task = { ok: false, why: '이 PC 에서 kmd up 으로 켠다' }
   let screen = null
   if (o.task !== 'false' && process.platform === 'win32' && !process.env.KMD_NO_TASK) {
@@ -895,7 +864,7 @@ async function connectCmd(o) {
       screen = !url ? { ok: false, why: '아직 켜지는 중이다' } : await openPc(url).then(() => ({ ok: true }), (e) => ({ ok: false, why: e.message }))
     } else task = { ok: false, why: '작업을 만들지 못했다. kmd pc task 로 다시' }
   }
-  for (const l of installLines({ version: VERSION, root, backup: backupDir, kns: kns.map((k) => k.name), team, user: who, host: os.hostname(), osuser: os.userInfo().username, claude: c, task, screen })) console.log(l)
+  for (const l of installLines({ version: VERSION, root, backup: backupDir, kns: kns.map((k) => k.name), team, user: who, host: os.hostname(), osuser: os.userInfo().username, claude: null, task, screen })) console.log(l)
 }
 
 // 늘 켜기 작업 — 판 자리에서 돌면 실행기를(판을 바꿔도 그대로) · 아니면 이 node 와 kmd.mjs 를
@@ -1017,15 +986,11 @@ async function pcCmd(o) {
       }
       const helper = `"${launcherOf(home, 'kmd-key')}"`
       const url = await runningPc(root, o)
-      // kmd-team 은 하나 — 이 PC 의 열쇠가 있는 팀(설치 한 줄로 이은 팀)의 마지막 것만 · [허락] 으로만 더해진 주소는 걸지 않는다
-      const tf = path.join(o.data ? path.resolve(o.data) : defaultDataDir(root), 'teams.json')
-      const teams = (() => { try { return JSON.parse(fs.readFileSync(tf, 'utf8')) } catch { return [] } })().map(safeOrigin).filter(Boolean)
-      let team = null
-      for (const t of teams) if (await kget(keyName(t)).catch(() => null)) team = t
-      for (const [name, u] of [['kmd', url || `http://127.0.0.1:${o.port || 7373}`], ...(team ? [['kmd-team', team]] : [])]) {
-        const c = await addMcp(name, u, helper)
-        if (!c.ok && !c.skipped) console.log(`· Claude Code 의 ${name} 을 다시 걸지 못했다${c.why ? ': ' + c.why : ''}${c.line ? ` · 한 번: ${c.line}` : ''}`)
-      }
+      // 개인 연결 kmd 만 다시 건다 — 팀 연결(kmd-team)은 작업 폴더마다 팀 화면 › 설정 › 에이전트 설치가 둔다(예전 판이 사용자 범위에 건 것은 걷는다)
+      const c = await addMcp('kmd', url || `http://127.0.0.1:${o.port || 7373}`, helper)
+      if (!c.ok && !c.skipped) console.log(`· Claude Code 의 kmd 를 다시 걸지 못했다${c.why ? ': ' + c.why : ''}${c.line ? ` · 한 번: ${c.line}` : ''}`)
+      const g = await removeMcp('kmd-team')
+      if (g.removed) console.log('· 예전 판이 Claude Code 사용자 범위에 건 kmd-team 을 걷었다. 팀 지식은 작업 폴더마다: 팀 화면 › 설정 › 에이전트 설치')
       // 다시 켜기 — 도는 kmd 를 이 PC 의 열쇠로 멈추고 새 판으로 · 안 켜지면 앞 판으로 되돌려 켠다
       if (!url) return void console.log('개인 프로그램이 꺼져 있다. 다음에 켤 때부터 새 판이다')
       const dir = path.join(home, 'versions', r.ver)

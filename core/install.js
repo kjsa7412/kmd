@@ -43,12 +43,9 @@ export function installLines({ version, root, backup = null, kns = [], team = nu
     ok(`팀 ${team.host} 에 ${user}로 이었다`)
     dim(`${user}의 「이력」 에 「새 기기가 이어졌다: ${host} · ${osuser}」 한 줄이 남는다`)
   } else if (team) no(`팀에 잇지 못했다: ${team.why} · 팀 화면에서 설치 한 줄을 다시 복사한다`)
-  if (claude.ok && claude.folder) {
-    ok(`Claude Code 에 이었다: ${claude.folder} 에 팀 지식 「${claude.kn}」 을 더했다 · 새로 여는 것부터`)
-    if (claude.n > 1) dim(`이 폴더의 지식 ${claude.n} · 기록 · 저장의 기본은 「${claude.def}」: 바꾸려면 개인 화면 › 설정 › 에이전트 설치`)
-  }
-  else if (claude.ok) ok('Claude Code 에 이었다. 새로 여는 것부터')
-  else no(`Claude Code 에 잇기(한 번): ${claude.line}`)
+  // claude — 개인 연결(kmd)을 따로 이었을 때만(설치 한 줄은 늘 켜기가 잇는다 · null)
+  if (claude?.ok) ok('Claude Code 에 이었다. 새로 여는 것부터')
+  else if (claude) no(`Claude Code 에 잇기(한 번): ${claude.line}`)
   if (task.ok) {
     ok('늘 켜기: 로그온 때 켜고 멈추면 다시 켠다')
     // 시작 메뉴 바로가기를 만들지 못했으면 그 길을 말하지 않는다

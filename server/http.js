@@ -18,6 +18,7 @@ import { makeHub, defaultDataDir } from './hub.js'
 import { VERSION, BUILD } from './version.js'
 import * as V from './views.js'
 import * as kit from '../core/kit.js'
+import * as teamkit from '../core/teamkit.js'
 import * as sendLib from '../core/send.js'
 import { watchedOf } from '../core/watchmark.js'
 import { pcLogin, makeTeamLogin } from '../core/claudelogin.js'
@@ -139,7 +140,7 @@ async function manualPage(mode, slug) {
 
 // 설치 한 줄의 PowerShell 본문 — kmd 가 있으면 잇기만 · 없으면 받기 → 풀기(<집>/versions/<판>) → 실행기 · 사용자 PATH → 잇기.
 // 시험은 KMD_APP_HOME(집) · KMD_NO_PATH(사용자 PATH 를 건드리지 않는다)로 이 PC 를 바꾸지 않고 돌린다
-// kn — 설치 한 줄을 붙여 넣은 작업 폴더를 그 팀 지식에 붙인다(에이전트 설치 · 팀)
+// kn — 팀 지식 id 잣대(팀 에이전트 설치 한 줄 · core/teamkit.js). 개인 프로그램 설치 한 줄은 작업 폴더를 팀 지식에 붙이지 않는다
 export const safeKn = (kn) => (/^[^\s'"`$\\;|&<>(){}]{1,80}$/u.test(String(kn || '')) ? String(kn) : null)
 // root — 지식 폴더(팀 화면 › 지식 목록 › 개인 칸 띠에서 쓴 경로). 그 폴더에 세우거나(없거나 빈 폴더) 있던 지식 폴더를 그대로 쓴다.
 //   Windows(D:\…) · POSIX(/…) 절대 경로만 · 따옴표 · 셸 글자 · 줄바꿈은 받지 않는다(PowerShell · sh 의 홑따옴표 안에 싣는다)
@@ -147,7 +148,7 @@ export const safeRoot = (r) => {
   const s = String(r || '').trim()
   return s.length <= 240 && /^([A-Za-z]:\\|\/)/.test(s) && !/['"`$;|&<>\u0000-\u001f]/u.test(s) ? s : null
 }
-export function installPs({ origin, ticket, pkg, kn = null, root = null }) {
+export function installPs({ origin, ticket, pkg, root = null }) {
   const q = (s) => "'" + String(s).replace(/'/g, "''") + "'"
   const L = [
     "$ErrorActionPreference = 'Stop'",
@@ -233,7 +234,7 @@ export function installPs({ origin, ticket, pkg, kn = null, root = null }) {
       '} elseif ($k -and -not $fresh) { Write-Host "· 이 kmd 는 손으로 푼 꾸러미다. 새 판은 그 폴더의 kmd.cmd pc update 로 올린다" }',
     )
   }
-  L.push(`if ($k) { & $k connect $o --ticket $t${kn ? ' --kn ' + q(kn) : ''}${root ? ' --root ' + q(root) : ''} }`, '')
+  L.push(`if ($k) { & $k connect $o --ticket $t${root ? ' --root ' + q(root) : ''} }`, '')
   return L.join('\r\n')
 }
 
@@ -485,26 +486,24 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       await hub.workerStatus({ worker: { id: null } }, r.ok ? { ok: true } : { ok: false, reason: r.reason, message: r.message })
       return out(200, { ok: r.ok, reason: r.reason || null })
     }
-    // 에이전트 설치 — 이 PC 의 작업 폴더마다(스킬 · 붙은 영역의 연결 · CLAUDE.md 안 kmd 덩이 · 이 폴더의 지식 표)
-    //   한 폴더에 지식 여럿: 개인 지식은 이 화면에서 더하고 · 팀 지식은 팀 화면의 설치 한 줄이 그 폴더에서 더한다(kmd connect --kn)
-    //   떼기(rm + area · kn)는 지식 하나 · 마지막 하나를 떼거나 kn 없이 rm 이면 폴더째 뺀다 · def 는 기본 지식 바꾸기
-    //   팀 화면은 짝 열쇠로 목록만 읽는다
-    const ag = p.match(/^\/api\/agent(?:\/(add|up|rm|def))?$/)
+    // 개인 에이전트 설치 — 이 PC 의 작업 폴더마다(개인 스킬 · 연결 kmd · CLAUDE.md 안 kmd 덩이 · 이 폴더의 개인 지식 표)
+    //   한 폴더에 개인 지식 여럿 · 팀 지식은 따로(팀 화면 › 설정 › 에이전트 설치 · core/teamkit.js) — 여기서는 건드리지 않는다
+    //   떼기(rm + kn)는 지식 하나 · 마지막 하나를 떼거나 kn 없이 rm 이면 폴더째 뺀다
+    const ag = p.match(/^\/api\/agent(?:\/(add|up|rm))?$/)
     if (ag) {
       if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '에이전트 설치는 개인 프로그램이 한다. 팀 화면은 설치 한 줄 복사')
       const list = await kit.folders(dataDir)
       if (!ag[1]) return out(200, { latest: await kit.kitVersion(), folders: await Promise.all(list.map(async (f) => ({ ...f, ...(await kit.status(f.path)) }))) })
       const b = await readBody(req)
-      const teamUrl = (await teamsOf())[0] || null
-      const urls = (f) => ({ meUrl: `http://${req.headers.host}`, teamUrl, kns: f.kns || [], def: f.def || null })
+      const urls = (f) => ({ meUrl: `http://${req.headers.host}`, kns: f.kns || [] })
       const same = (f, dir) => path.resolve(f.path).toLowerCase() === path.resolve(String(dir)).toLowerCase()
       if (ag[1] === 'add') {
-        // 개인 지식 하나를 더한다 — 같은 폴더면 붙어 있던 지식(팀 지식도)은 그대로 · 기본도 그대로
+        // 개인 지식 하나를 더한다 — 같은 폴더면 붙어 있던 개인 지식은 그대로
         const kn = String(b.kn || '')
         const k = kn ? (await hub.list()).find((x) => x.id === kn) : null
         if (kn && !k) throw new KmdError('E_INPUT', `「${kn}」 개인 지식이 없다`)
         const cur = b.dir ? list.find((f) => same(f, b.dir)) : null
-        const base = cur || { name: '', path: String(b.dir || ''), at: new Date().toISOString(), kns: [], def: null }
+        const base = cur || { name: '', path: String(b.dir || ''), at: new Date().toISOString(), kns: [] }
         const row = k ? kit.addKn(base, { area: 'me', kn: k.id, knName: k.name }) : base
         const r = await kit.install(String(b.dir || ''), urls(row))
         const next = { ...row, name: path.basename(r.dir), path: r.dir }
@@ -513,15 +512,14 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       }
       const pick = b.dir ? list.filter((f) => same(f, b.dir)) : list
       if (ag[1] === 'up') { for (const f of pick) await kit.install(f.path, urls(f)); return out(200, { n: pick.length }) }
-      if (ag[1] === 'def' || (ag[1] === 'rm' && b.kn)) {
+      if (ag[1] === 'rm' && b.kn) {
         const f = pick[0]
         if (!b.dir || !f) throw new KmdError('E_NOTFOUND', '붙인 폴더가 아니다')
-        const area = b.area === 'team' ? 'team' : 'me'
-        const next = ag[1] === 'def' ? kit.setDef(f, area, String(b.kn || '')) : kit.dropKn(f, area, String(b.kn))
-        if (ag[1] === 'def' || next.kns.length) {
+        const next = kit.dropKn(f, String(b.kn))
+        if (next.kns.length) {
           await kit.install(f.path, urls(next))
           await kit.setFolders(dataDir, list.map((x) => (x === f ? next : x)))
-          return out(200, { n: 1, kns: next.kns, def: next.def })
+          return out(200, { n: 1, kns: next.kns })
         }
       }
       for (const f of pick) await kit.remove(f.path)
@@ -726,17 +724,36 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (ctx.device || ctx.legacy) throw new KmdError('E_FORBIDDEN', '열쇠로는 다른 열쇠를 만들지 못한다')
       const t = auth.ticket(ctx, { ip: ipOf(req) })
       const origin = `http://${req.headers.host}`
-      // 붙일 팀 지식(에이전트 설치 · 팀) — 보이는 팀 지식만
-      const kb = req.method === 'POST' ? await readBody(req).catch(() => ({})) : {}
+      // 붙일 팀 지식(에이전트 설치 · 팀) — 보이는 팀 지식만 · 그 한 줄은 /a/ (작업 폴더에 붙이기만 · 개인 프로그램을 깔지 않는다)
+      const kb = req.method === 'POST' ? await readBody(req).catch((e) => { (log || console.error)('표: 본문을 읽지 못했다 ' + e.message); return {} }) : {}
       const kn = kb.kn ? safeKn(kb.kn) : null
       if (kb.kn && (!kn || !(await hub.visible(ctx)).some((k) => k.id === kn))) throw new KmdError('E_INPUT', '붙일 팀 지식이 없다')
+      if (kn) return out(200, { ticket: t, line: `irm '${origin}/a/${t}?kn=${encodeURIComponent(kn)}' | iex`, sh: null, expires: 10, kn })
       // 지식 폴더(지식 목록 › 개인 칸) — 설치가 그 폴더에 세우거나 있던 지식 폴더를 그대로 쓴다
       const pr = kb.root ? safeRoot(kb.root) : null
       if (kb.root && !pr) throw new KmdError('E_INPUT', '이 PC 의 절대 경로를 쓴다(예: D:\\kmd) · 따옴표 · $ ; | & < > 는 쓰지 않는다')
-      const qs = [kn && `kn=${encodeURIComponent(kn)}`, pr && `root=${encodeURIComponent(pr)}`].filter(Boolean).join('&')
+      const qs = pr ? `root=${encodeURIComponent(pr)}` : ''
       const qk = qs ? '?' + qs : ''
       const qa = (s) => "'" + s + "'"
-      return out(200, { ticket: t, line: qk ? `irm ${qa(`${origin}/i/${t}${qk}`)} | iex` : `irm ${origin}/i/${t} | iex`, sh: qk ? `curl -fsSL ${qa(`${origin}/i/${t}.sh${qk}`)} | sh` : `curl -fsSL ${origin}/i/${t}.sh | sh`, kmd: `kmd connect ${origin} --ticket ${t}${kn ? ' --kn ' + kn : ''}${pr ? ` --root "${pr}"` : ''}`, expires: 10, kn, root: pr , pcVer: (await pcPackage())?.ver || null })
+      return out(200, { ticket: t, line: qk ? `irm ${qa(`${origin}/i/${t}${qk}`)} | iex` : `irm ${origin}/i/${t} | iex`, sh: qk ? `curl -fsSL ${qa(`${origin}/i/${t}.sh${qk}`)} | sh` : `curl -fsSL ${origin}/i/${t}.sh | sh`, kmd: `kmd connect ${origin} --ticket ${t}${pr ? ` --root "${pr}"` : ''}`, expires: 10, kn: null, root: pr, pcVer: (await pcPackage())?.ver || null })
+    }
+    // 팀 에이전트 설치 — 붙여 넣은 폴더의 팀 덩이 · 옛 덩이를 받아 새 팀 덩이 · 스킬 · 헤더 도우미를 준다(core/teamkit.js)
+    //   읽기 자리가 없는 지식은 붙이지 않는다(404) · 응답은 ASCII JSON(Windows PowerShell 5.1 이 charset 을 놓쳐도 한글이 그대로)
+    if (p === '/api/agent/team-kit' && req.method === 'POST') {
+      if (mode !== 'team') throw new KmdError('E_FORBIDDEN', '팀 서버의 길이다')
+      need(ctx)
+      const b = await readBody(req)
+      const kn = safeKn(b.kn)
+      const block = typeof b.block === 'string' ? b.block : ''
+      const legacy = typeof b.legacy === 'string' ? b.legacy : ''
+      if (!kn || block.length > 60000 || legacy.length > 60000) throw new KmdError('E_INPUT', '팀 지식 id · 안내 덩이 모양이 맞지 않는다')
+      const visible = await hub.visible(ctx)
+      const k = visible.find((x) => x.id === kn)
+      if (!k) throw new KmdError('E_NOTFOUND', `「${kn}」 팀 지식이 없거나 읽을 자리가 없다`)
+      const parts = await teamkit.teamKitParts()
+      const kns = teamkit.teamKns({ old: block, legacy, add: kn, visible })
+      const body = { block: teamkit.teamBlock(parts, kns), ver: parts.ver, skills: parts.skills, helper: teamkit.teamKeyHelperPs(), name: k.name, n: kns.length, dropLegacy: teamkit.legacyTeamOnly(legacy), legacy: !!legacy.trim(), oldSkills: teamkit.OLD_SKILLS }
+      return send(res, 200, teamkit.asciiJson(body), undefined, set ? { 'set-cookie': set } : {})
     }
     if (p === '/api/me/devices') return out(200, auth.devices(ctx.user))
     if (p === '/api/me/devices/revoke') return out(200, { revoked: await auth.revokeDevice(ctx.user, String((await readBody(req)).id || '')) })
@@ -984,11 +1001,17 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         const origin = `http://${req.headers.host}`
         const pkg = await pcPackage()
         const sp = new URL(req.url, origin).searchParams
-        const kn = safeKn(sp.get('kn'))
         const pr = safeRoot(sp.get('root'))
-        const ps = installPs({ origin, ticket: im[1], pkg, kn, root: pr })
-        const sh = `#!/bin/sh\nif command -v kmd >/dev/null 2>&1; then kmd connect '${origin}' --ticket '${im[1]}'${kn ? " --kn '" + kn + "'" : ''}${pr ? " --root '" + pr + "'" : ''}; else echo '· kmd 가 이 PC 에 없다. 받을 수 있는 꾸러미는 Windows 용뿐이다. 저장소에서 kmd 를 깔고(node 20 이상) 이 줄을 다시 붙여 넣는다: ${origin}/dl'; fi\n`
+        const ps = installPs({ origin, ticket: im[1], pkg, root: pr })
+        const sh = `#!/bin/sh\nif command -v kmd >/dev/null 2>&1; then kmd connect '${origin}' --ticket '${im[1]}'${pr ? " --root '" + pr + "'" : ''}; else echo '· kmd 가 이 PC 에 없다. 받을 수 있는 꾸러미는 Windows 용뿐이다. 저장소에서 kmd 를 깔고(node 20 이상) 이 줄을 다시 붙여 넣는다: ${origin}/dl'; fi\n`
         return send(res, 200, im[2] ? sh : ps, 'text/plain; charset=utf-8')
+      }
+      // 팀 에이전트 설치 한 줄이 받는 스크립트 — `irm <팀>/a/<표>?kn=<팀 지식> | iex`. 열쇠가 없을 때만 표를 쓴다(core/teamkit.js)
+      const am0 = mode === 'team' && req.method === 'GET' && p.match(/^\/a\/(kmdt_[A-Za-z0-9_-]{10,80})$/)
+      if (am0) {
+        const kn = safeKn(new URL(req.url, 'http://x').searchParams.get('kn'))
+        if (!kn) return send(res, 400, "Write-Host '· 붙일 팀 지식이 없다. 팀 화면 › 설정 › 에이전트 설치에서 한 줄을 다시 복사한다'", 'text/plain; charset=utf-8')
+        return send(res, 200, teamkit.teamAgentPs({ origin: `http://${req.headers.host}`, ticket: am0[1], kn }), 'text/plain; charset=utf-8')
       }
       // 꾸러미 받기 — PC 꾸러미(serve.json dl · 기본 <살림 자리>/dl · 팀 설치가 꾸러미 안의 것을 둔다). 비밀이 아니라 들어오지 않아도 받는다
       if (mode === 'team' && req.method === 'GET' && (p === '/dl' || p.startsWith('/dl/'))) {

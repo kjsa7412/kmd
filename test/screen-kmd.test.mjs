@@ -484,7 +484,7 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 정리 �
   assert.equal(await page.locator('[data-t=agInstMe]').count(), 0, '팀 화면에 개인 지식 목록이 없다')
   await page.locator('[data-t=agInstTeam] [data-t=agInstRow][data-name="DPMS 지식"] [data-t=agentCopy]').click()
   await page.waitForSelector('[data-t=agCopied]')
-  assert.match(await page.locator('[data-t=agCopiedLine]').innerText(), /\/i\/kmdt_[A-Za-z0-9_-]+(\.sh)?\?kn=dpms/)
+  assert.match(await page.locator('[data-t=agCopiedLine]').innerText(), /^irm '.+\/a\/kmdt_[A-Za-z0-9_-]+\?kn=dpms' \| iex$/, '팀 에이전트 설치 한 줄(개인 프로그램 설치 한 줄이 아니다)')
   await page.locator('[data-t=agentCard]').screenshot({ path: path.join(SHOTS, 'app-agent.png') })
   assert.equal(await page.locator('text=내 PC 프로그램').count(), 0)
   await mg(page, 'team', 'people')
@@ -755,6 +755,20 @@ test('개인 화면: 지식 보내기 · 받는 팀 지식 고르기 · 지식 �
     assert.match(await page.locator('[data-t=syncMsg]').innerText(), /보내는 곳 DPMS 지식/)
     const v = await pc.hub.sendView(PCK, '테스트-보내기2')
     assert.equal(v.route && v.route.kn, 'dpms')
+    // 에이전트 설치(개인) — 개인 지식만 · 기본 지식은 없다 · 팀 지식은 팀 화면에서
+    await mg(page, 'me', 'agent')
+    await page.waitForSelector('[data-t=agentCard] [data-t=agentAddBtn]')
+    assert.match(await page.locator('[data-t=agentCard] .ch').innerText(), /개인 지식을 붙인다/)
+    assert.doesNotMatch(await page.locator('[data-t=agentCard]').innerText(), /기본으로|기본 지식에/)
+    await page.click('[data-t=agentMore] summary')
+    assert.match(await page.locator('[data-t=agentMore]').innerText(), /팀 화면 › 설정 › 에이전트 설치[\s\S]*kmd-team-work/)
+    for (const w of [1280, 1024, 600, 375]) {
+      await page.setViewportSize({ width: w, height: 820 })
+      const r = await cutAt(page)
+      assert.deepEqual(r.cut, [], `개인 에이전트 설치 ${w}: 잘린 요소 없음`)
+      assert.ok(r.sw <= r.w, `개인 에이전트 설치 ${w}: 가로 넘침 없음`)
+    }
+    await page.setViewportSize(VIEW)
     assert.deepEqual(await bannedIn(page), [])
     assert.deepEqual(errors, [])
   } finally {

@@ -1,9 +1,10 @@
-// 에이전트 설치 — 작업 폴더의 Claude Code 에 kmd 를 붙인다(스킬 셋 · 연결 하나 · CLAUDE.md 안 kmd 덩이).
+// 개인 에이전트 설치 — 작업 폴더의 Claude Code 에 개인 지식을 붙인다(스킬 셋 · 연결 kmd · CLAUDE.md 안 kmd 덩이). 개인 프로그램이 한다.
+//   팀 지식은 따로: 팀 화면 › 설정 › 에이전트 설치의 한 줄(core/teamkit.js · 스킬 kmd-team-* · 연결 kmd-team · kmd-team 덩이). 여기서는 건드리지 않는다
 //
-//   지식   폴더 하나에 지식 여럿: 팀(kmd-team · 팀 지식) · 개인(kmd 이 PC · 개인 지식)을 섞어 붙인다. 붙이기는 더하기(덮지 않는다)
-//   스킬   <폴더>/.claude/skills/kmd-work · kmd-save · kmd-build (레포의 agent/skills 그대로 · 팀 / 개인 같은 것)
-//   연결   <폴더>/.mcp.json 의 mcpServers.kmd(이 PC) · kmd-team(이은 팀) — 붙은 지식의 영역 것만. 열쇠는 넣지 않고 헤더 도우미(kmd-key)가 꺼낸다
-//   지식 표  덩이 끝에 「이 폴더의 지식」 표(영역 · 연결 · id · 보는 사람 · 기본 하나). 읽기는 표 전부 · 저장은 기본(사람이 말하면 다른 것)
+//   지식   폴더 하나에 개인 지식 여럿. 붙이기는 더하기(덮지 않는다)
+//   스킬   <폴더>/.claude/skills/kmd-work · kmd-save · kmd-build (레포의 agent/skills 그대로)
+//   연결   <폴더>/.mcp.json 의 mcpServers.kmd(이 PC). 열쇠는 넣지 않고 헤더 도우미(kmd-key)가 꺼낸다
+//   지식 표  덩이 끝에 「이 폴더의 개인 지식」 표. 읽기는 표 전부 · 저장은 여럿이면 세션이 묻는다(기본 지식은 두지 않는다)
 //   안내   <폴더>/CLAUDE.md 안 `<!-- kmd:begin v=… -->` ~ `<!-- kmd:end -->` — 표지 밖의 줄은 바이트 그대로 둔다
 //   판     덩이 표지의 v · 스킬 파일의 지문 — 지금 판과 다르면 「옛 판」 · 없으면 「없음」
 //   목록   이 PC 의 붙인 폴더는 <data>/agent.json
@@ -34,51 +35,34 @@ async function kitParts() {
 }
 export const kitVersion = async () => (await kitParts()).ver
 
-// 폴더 줄의 지식 목록 — [{ area: team|me, kn, knName, team? }] · 옛 꼴 { area, kn, knName, team } 은 하나짜리 목록으로
+// 폴더 줄의 개인 지식 목록 — [{ area: 'me', kn, knName }] · 옛 꼴 { area, kn, knName } 은 하나짜리 목록으로 · 팀 지식 줄(예전 한 덩이)은 읽지 않는다
 export function knsOf(f = {}) {
-  if (Array.isArray(f.kns)) return f.kns.filter((k) => k && k.kn && (k.area === 'team' || k.area === 'me'))
-  return f.area && f.kn ? [{ area: f.area, kn: f.kn, knName: f.knName || f.kn, ...(f.team ? { team: f.team } : {}) }] : []
+  const ks = Array.isArray(f.kns) ? f.kns : f.area && f.kn ? [{ area: f.area, kn: f.kn, knName: f.knName || f.kn }] : []
+  return ks.filter((k) => k && k.kn && k.area === 'me').map((k) => ({ area: 'me', kn: k.kn, knName: k.knName || k.kn }))
 }
-const keyOf = (k) => `${k.area}:${k.kn}`
-// 기본 지식 — 정한 것이 목록에 없으면 첫 지식
-export function defOf(f = {}) {
-  const ks = knsOf(f)
-  return (ks.find((k) => keyOf(k) === f.def) || ks[0]) ?? null
-}
-// 지식 하나 더하기(같은 것이면 이름만 새로) · 기본은 그대로(처음이면 이것)
+// 개인 지식 하나 더하기(같은 것이면 이름만 새로) · 팀 지식은 받지 않는다(팀 화면 › 설정 › 에이전트 설치)
 export function addKn(f, k) {
   const ks = knsOf(f)
-  const i = ks.findIndex((x) => keyOf(x) === keyOf(k))
-  const next = i < 0 ? [...ks, k] : ks.map((x, j) => (j === i ? k : x))
-  const { area, kn, knName, team, ...rest } = f
-  return { ...rest, kns: next, def: defOf(f) ? keyOf(defOf(f)) : keyOf(k) }
+  if (k.area && k.area !== 'me') return { ...f, kns: ks }
+  const i = ks.findIndex((x) => x.kn === k.kn)
+  const one = { area: 'me', kn: k.kn, knName: k.knName || k.kn }
+  const { area, kn, knName, team, def, ...rest } = f
+  return { ...rest, kns: i < 0 ? [...ks, one] : ks.map((x, j) => (j === i ? one : x)) }
 }
-// 지식 하나 떼기 — 기본을 떼면 남은 첫 지식이 기본
-export function dropKn(f, area, kn) {
-  const ks = knsOf(f).filter((x) => keyOf(x) !== `${area}:${kn}`)
-  const { area: _a, kn: _k, knName, team, ...rest } = f
-  return { ...rest, kns: ks, def: ks.some((x) => keyOf(x) === f.def) ? f.def : ks[0] ? keyOf(ks[0]) : null }
-}
-export function setDef(f, area, kn) {
-  if (!knsOf(f).some((x) => keyOf(x) === `${area}:${kn}`)) throw new KmdError('E_INPUT', '이 폴더에 붙지 않은 지식이다')
-  return { ...f, kns: knsOf(f), def: `${area}:${kn}` }
+// 개인 지식 하나 떼기
+export function dropKn(f, kn) {
+  const { area, kn: _k, knName, team, def, ...rest } = f
+  return { ...rest, kns: knsOf(f).filter((x) => x.kn !== kn) }
 }
 
-// 이 폴더의 지식 표(덩이 안 · 판 지문에는 들지 않는다)
-export function knLine({ kns = [], def = null } = {}) {
+// 이 폴더의 개인 지식 표(덩이 안 · 판 지문에는 들지 않는다)
+export function knLine({ kns = [] } = {}) {
   if (!kns.length) return ''
-  const d = defOf({ kns, def })
-  const row = (k) => `| 「${k.knName || k.kn}」${keyOf(k) === keyOf(d) ? ' (기본)' : ''} | ${k.area === 'team' ? '팀' : '개인'} | ${k.area === 'team' ? 'kmd-team' : 'kmd'} | ${k.kn} | ${k.area === 'team' ? '이 팀 지식을 보는 팀 사람' : '나만(이 PC)'} |`
   return [
-    '\n\n## 이 폴더의 지식\n',
-    '| 지식 | 영역 | 연결 | id | 남기면 보는 사람 |',
-    '|---|---|---|---|---|',
-    ...kns.map(row),
-    '',
-    '- 읽기(`kmd-work`): 이 표의 지식 모두에서 찾는다. 연결마다 `brief` · `match` 의 knowledge 에 그 id 를 준다.',
-    `- 기록 · 저장(\`kmd-save\`): 기본 지식 「${d.knName || d.kn}」 에 남긴다. 사람이 표의 다른 지식을 말하면 이 세션 동안은 그 지식에 남긴다.`,
-    '- 기본이 아닌 지식(특히 팀 지식)에는 사람이 말할 때만 남긴다. 어디에 남길지 애매하면 이 표를 보여 주고 묻는다.',
-    '- 표에 없는 지식은 사람이 말할 때만 읽는다.',
+    '\n\n## 이 폴더의 개인 지식\n',
+    '| 지식 | id | 남기면 보는 사람 |',
+    '|---|---|---|',
+    ...kns.map((k) => `| 「${k.knName || k.kn}」 | ${k.kn} | 나만(이 PC) |`),
   ].join('\n')
 }
 function withBlock(text, block, ver) {
@@ -103,9 +87,9 @@ async function checkDir(dir) {
   return full
 }
 
-// 붙이기 · 최신으로 — 같은 일(덮어쓰기는 kmd 의 것만)
-//   kns · def — 이 폴더의 지식 목록과 기본(폴더 줄 그대로 · knsOf). 연결은 목록에 든 영역의 것만 · 목록이 비면 둘 다
-export async function install(dir, { meUrl = null, teamUrl = null, kns = [], def = null } = {}) {
+// 붙이기 · 최신으로 — 같은 일(덮어쓰기는 kmd 의 것만 · 팀 연결 kmd-team 과 팀 덩이는 그대로)
+//   kns — 이 폴더의 개인 지식 목록(knsOf)
+export async function install(dir, { meUrl = null, kns = [] } = {}) {
   const full = await checkDir(dir)
   const { skills, block, ver } = await kitParts()
   for (const s of skills) {
@@ -114,18 +98,17 @@ export async function install(dir, { meUrl = null, teamUrl = null, kns = [], def
     await fs.writeFile(f, s.text)
   }
   const mf = path.join(full, '.mcp.json')
-  const cur = await fs.readFile(mf, 'utf8').then(JSON.parse, () => ({}))
+  // 깨진 .mcp.json 은 빈 것으로 읽어 덮지 않는다(다른 연결이 사라진다)
+  const raw = await fs.readFile(mf, 'utf8').catch(() => null)
+  let cur = {}
+  if (raw != null) { try { cur = JSON.parse(raw) } catch { throw new KmdError('E_INPUT', `${mf} 가 JSON 이 아니다. 고친 뒤 다시 붙인다`) } }
   const servers = { ...(cur.mcpServers || {}) }
-  const has = (a) => !kns.length || kns.some((k) => k.area === a)
-  const tUrl = kns.find((k) => k.area === 'team' && k.team)?.team || teamUrl
-  if (has('me') && meUrl) servers.kmd = mcpConfig(meUrl)
-  if (has('team') && tUrl) servers['kmd-team'] = mcpConfig(tUrl)
-  if (!has('me')) delete servers.kmd
-  if (!has('team')) delete servers['kmd-team']
+  const mine = knsOf({ kns })
+  if (meUrl) servers.kmd = mcpConfig(meUrl)
   await fs.writeFile(mf, JSON.stringify({ ...cur, mcpServers: servers }, null, 2) + '\n')
   const cf = path.join(full, 'CLAUDE.md')
-  await fs.writeFile(cf, withBlock(await fs.readFile(cf, 'utf8').catch(() => ''), block + knLine({ kns, def }), ver))
-  return { dir: full, ver, kns, def: defOf({ kns, def }) }
+  await fs.writeFile(cf, withBlock(await fs.readFile(cf, 'utf8').catch(() => ''), block + knLine({ kns: mine }), ver))
+  return { dir: full, ver, kns: mine }
 }
 
 export async function status(dir) {
@@ -145,7 +128,6 @@ export async function remove(dir) {
   const cur = await fs.readFile(mf, 'utf8').then(JSON.parse, () => null)
   if (cur?.mcpServers) {
     delete cur.mcpServers.kmd
-    delete cur.mcpServers['kmd-team']
     if (!Object.keys(cur.mcpServers).length && Object.keys(cur).length === 1) await fs.rm(mf, { force: true })
     else await fs.writeFile(mf, JSON.stringify(cur, null, 2) + '\n')
   }
@@ -164,10 +146,11 @@ const listFile = (dataDir) => path.join(dataDir, 'agent.json')
 // 옛 줄({ area, kn, knName, team })도 { kns, def } 로 읽는다
 export async function folders(dataDir) {
   const list = await fs.readFile(listFile(dataDir), 'utf8').then(JSON.parse, () => [])
-  return list.map((f) => {
-    const { area, kn, knName, team, ...rest } = f
-    const d = defOf(f)
-    return { ...rest, kns: knsOf(f), def: d ? keyOf(d) : null }
+  // 팀 지식만 붙었던 폴더(예전 한 덩이)는 개인 목록에 두지 않는다 — 팀 화면의 에이전트 설치가 맡는다
+  const had = (f) => (Array.isArray(f.kns) ? f.kns.length > 0 : !!(f.area && f.kn))
+  return list.filter((f) => !had(f) || knsOf(f).length).map((f) => {
+    const { area, kn, knName, team, def, ...rest } = f
+    return { ...rest, kns: knsOf(f) }
   })
 }
 export async function setFolders(dataDir, list) {

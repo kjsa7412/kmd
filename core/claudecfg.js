@@ -84,3 +84,10 @@ export async function addMcp(name, url, helper) {
   }
   return r.ok ? { ok: true } : { ok: false, line: mcpLine(name, url, helper), why: r.err.trim().split('\n')[0] }
 }
+
+// 사용자 범위에서 걷기 — 예전 판이 건 kmd-team(팀 연결은 이제 작업 폴더마다). 없으면 그대로 · claude 가 없으면 하지 않는다
+export async function removeMcp(name) {
+  if (process.env.KMD_NO_CLAUDE) return { removed: false, skipped: true }
+  const r = await run(['mcp', 'remove', name, '--scope', 'user'])
+  return { removed: r.ok }
+}
