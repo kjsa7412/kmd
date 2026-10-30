@@ -868,7 +868,7 @@ function docsEmpty(k) {
 }
 // 지식 점검(지식관리자) — 지식 생성 가드가 보는 것의 지금 상태(문서 작성기준 9절 · core/guard.js audit)
 const guardOf = (k) => need('guard:' + k, `/api/k/${encodeURIComponent(k)}/guard`)
-const GUARD_ROWS = [['unnamed', '이름 없는 기록', 'rec'], ['outside', '장부 밖 이름을 단 기록', 'rec'], ['deprecatedUse', '폐기된 이름을 단 반영 대기 기록', 'rec'], ['lost', '자리 잃은 이름', 'item'], ['noName', '이름 없는 항목', 'sec'], ['sameWord', '같은 말이 여러 이름', 'word'], ['brokenHead', '깨진 머리', 'sec'], ['spaced', '값에 빈칸이 든 옛 이름', 'name']]
+const GUARD_ROWS = [['unnamed', '이름 없는 기록', 'rec'], ['outside', '장부 밖 이름을 단 기록', 'rec'], ['deprecatedUse', '폐기된 이름을 단 반영 대기 기록', 'rec'], ['lost', '자리 잃은 이름', 'item'], ['noName', '이름 없는 항목', 'sec'], ['aliasClash', '다른 이름 겹침', 'word'], ['sameLabel', '같은 보이는 이름(알림)', 'word'], ['brokenHead', '깨진 머리', 'sec'], ['spaced', '값에 빈칸이 든 옛 이름', 'name']]
 function guardCard(k) {
   const n = KN(k)
   if (!n || !(isPersonal(n) || n.level === 'admin')) return ''
@@ -884,7 +884,7 @@ function guardCard(k) {
     if (kind === 'word') return `<li data-t="guardWord"><span class="nm">${esc(x.word)}</span><small class="muted">${x.names.map(esc).join(' · ')}</small></li>`
     return `<li data-t="guardName"><span class="nm"><span class="iv">${esc(x)}</span></span></li>`
   }
-  const rows = GUARD_ROWS.map(([key, label, kind]) => `<div class="srow${c[key] ? '' : ' dim'}" data-t="guard-${key}"><span class="nm">${label}</span><span class="chip ${c[key] ? (key === 'noName' || key === 'sameWord' || key === 'spaced' ? 'c-mute' : 'c-warn') : 'c-acc'}">${c[key]}</span>${c[key] ? `<button type="button" class="btn ghost sm" data-a="guardOpen" data-v="${key}" aria-expanded="${open === key}">${open === key ? '접기' : '보기'}</button>` : ''}</div>${open === key ? `<ul class="plain dl" data-t="guardList">${(g[key] || []).slice(0, 100).map((x) => li(kind, x)).join('')}${c[key] > 100 ? `<li class="muted small">그 밖에 ${c[key] - 100}: kmd guard ${esc(k)} --list</li>` : ''}</ul>` : ''}`).join('')
+  const rows = GUARD_ROWS.map(([key, label, kind]) => `<div class="srow${c[key] ? '' : ' dim'}" data-t="guard-${key}"><span class="nm">${label}</span><span class="chip ${c[key] ? (key === 'sameLabel' || key === 'spaced' ? 'c-mute' : 'c-warn') : 'c-acc'}">${c[key]}</span>${c[key] ? `<button type="button" class="btn ghost sm" data-a="guardOpen" data-v="${key}" aria-expanded="${open === key}">${open === key ? '접기' : '보기'}</button>` : ''}</div>${open === key ? `<ul class="plain dl" data-t="guardList">${(g[key] || []).slice(0, 100).map((x) => li(kind, x)).join('')}${c[key] > 100 ? `<li class="muted small">그 밖에 ${c[key] - 100}: kmd guard ${esc(k)} --list</li>` : ''}</ul>` : ''}`).join('')
   return `<div class="card" data-t="guardCard"><div class="ch">지식 점검 <small>이름 ${c.live} · 기록 ${c.records} · 항목 ${c.sections} · 갈래 장부 ${g.forms.own ? g.forms.rows.length : '없음(기본 갈래)'}</small><button type="button" class="btn ghost sm r" data-a="guardRe" data-t="guardRe">다시 읽기</button></div><div class="cb" style="padding:2px 14px 6px">${rows}</div></div>`
 }
 function treeHtml(k) {

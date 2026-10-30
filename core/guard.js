@@ -285,19 +285,25 @@ export function audit(k, { sectionOf, coordsOfSection }) {
   }
   const noName = []
   for (const d of k.docs) for (const s of d.sections) if (s.h && !coordsOfSection(k, d, s.h).length) noName.push({ doc: d.id, heading: s.h })
-  const keys = new Map()
-  for (const [c, v] of live) for (const a of [valueOf(c), v.label, ...v.aliases]) {
-    const n = norm(a)
-    if (n.length < 2) continue
-    if (!keys.has(n)) keys.set(n, new Set())
-    keys.get(n).add(c)
+  // 같은 말 — 둘로 가른다
+  //   aliasClash(고칠 것): 다른 이름(aliases)이 다른 이름의 값 · 보이는 이름 · 다른 이름과 같다 — 그 말로 찾으면 정본이 갈린다
+  //   sameLabel(알림): 값 · 보이는 이름만 같다 — 문서마다 있는 「변경 이력」 · 층이 다른 「경보 코드」 처럼 서로 다른 항목이다(화면은 종류:값으로 가른다)
+  const own = new Map()
+  const addKey = (m, n, c) => { if (n.length < 2) return; if (!m.has(n)) m.set(n, new Set()); m.get(n).add(c) }
+  for (const [c, v] of live) for (const a of [valueOf(c), v.label]) addKey(own, norm(a), c)
+  const alias = new Map()
+  for (const [c, v] of live) for (const a of v.aliases) addKey(alias, norm(a), c)
+  const aliasClash = []
+  for (const [n, cs] of alias) {
+    const all = new Set([...cs, ...(own.get(n) || [])])
+    if (all.size > 1) aliasClash.push({ word: n, names: [...all], aliasOf: [...cs] })
   }
-  const sameWord = [...keys].filter(([, s]) => s.size > 1).map(([word, s]) => ({ word, names: [...s] }))
+  const sameLabel = [...own].filter(([n, s]) => s.size > 1 && !alias.has(n)).map(([word, s]) => ({ word, names: [...s] }))
   const brokenHead = []
   for (const d of k.docs) for (const s of d.sections) if (/ — [·(]| —$/.test(s.h || '')) brokenHead.push({ doc: d.id, heading: s.h })
   const spaced = live.filter(([c]) => /\s/.test(valueOf(c))).map(([c]) => c)
   return {
-    counts: { names: k.vocab.coords.size, live: live.length, records: k.works.length, sections: k.docs.reduce((n, d) => n + d.sections.length, 0), unnamed: unnamed.length, outside: outside.length, deprecatedUse: deprecatedUse.length, lost: lost.length, noName: noName.length, sameWord: sameWord.length, brokenHead: brokenHead.length, spaced: spaced.length },
-    unnamed, outside, deprecatedUse, lost, noName, sameWord, brokenHead, spaced,
+    counts: { names: k.vocab.coords.size, live: live.length, records: k.works.length, sections: k.docs.reduce((n, d) => n + d.sections.length, 0), unnamed: unnamed.length, outside: outside.length, deprecatedUse: deprecatedUse.length, lost: lost.length, noName: noName.length, aliasClash: aliasClash.length, sameLabel: sameLabel.length, brokenHead: brokenHead.length, spaced: spaced.length },
+    unnamed, outside, deprecatedUse, lost, noName, aliasClash, sameLabel, brokenHead, spaced,
   }
 }

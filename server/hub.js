@@ -732,7 +732,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       hub.need(ctx, id, 'admin')
       const a = guardAudit(k, { sectionOf, coordsOfSection })
       const cut = (xs) => xs.slice(0, 200)
-      return { id: k.id, name: k.name, counts: a.counts, unnamed: cut(a.unnamed), outside: cut(a.outside), deprecatedUse: cut(a.deprecatedUse), lost: cut(a.lost), noName: cut(a.noName), sameWord: cut(a.sameWord), brokenHead: cut(a.brokenHead), spaced: cut(a.spaced), forms: { own: k.forms.own, rows: k.forms.rows } }
+      return { id: k.id, name: k.name, counts: a.counts, unnamed: cut(a.unnamed), outside: cut(a.outside), deprecatedUse: cut(a.deprecatedUse), lost: cut(a.lost), noName: cut(a.noName), aliasClash: cut(a.aliasClash), sameLabel: cut(a.sameLabel), brokenHead: cut(a.brokenHead), spaced: cut(a.spaced), forms: { own: k.forms.own, rows: k.forms.rows } }
     },
 
     // 찾기 — 색인은 지식마다 · 바뀐 파일만 다시(저장 뒤 · 처음 찾을 때) · 지식을 섞지 않는다

@@ -180,3 +180,29 @@ test('갈래 서식 안내 — 머리 꼴과 짜임 한 줄(brief · 정리 프�
   assert.match(g2.head, /값 — 설명/)
   assert.match(g2.body, /항목 하나가 대상 하나/)
 })
+
+test('지식 점검 — 같은 말을 둘로: 다른 이름 겹침(고칠 것) · 같은 보이는 이름(알림)', async () => {
+  const { audit } = await import('../core/guard.js')
+  const v = parseVocab(`## 테이블정의서
+
+- \`테이블정의서:dp_chg_hst\` — 기준정보 변경 이력
+  aliases: 변경 이력
+- \`테이블정의서:dp_cmd_ldgr\` — 명령 원장
+
+## 납품
+
+- \`납품:변경이력\` — 변경 이력
+
+## 시험
+
+- \`시험:변경이력\` — 변경 이력
+- \`시험:요약\` — 요약
+
+## 결과
+
+- \`결과:요약\` — 요약
+`)
+  const a = audit({ vocab: v, docs: [], works: [] }, { sectionOf: () => null, coordsOfSection: () => [] })
+  assert.deepEqual(a.aliasClash.map((x) => [x.word, x.aliasOf]), [['변경이력', ['테이블정의서:dp_chg_hst']]])
+  assert.deepEqual(a.sameLabel.map((x) => x.word), ['요약'])
+})
