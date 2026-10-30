@@ -15,7 +15,7 @@ import { KmdError, httpStatusOf } from '../core/errors.js'
 import { makeAuth } from '../core/auth.js'
 import { makeMcp } from './mcp.js'
 import { makeHub, defaultDataDir } from './hub.js'
-import { VERSION } from './version.js'
+import { VERSION, BUILD } from './version.js'
 import * as V from './views.js'
 import * as kit from '../core/kit.js'
 import * as sendLib from '../core/send.js'
@@ -154,6 +154,7 @@ export function installPs({ origin, ticket, pkg, kn = null, root = null }) {
     "$ProgressPreference = 'SilentlyContinue'",
     `$o = ${q(origin)}; $t = ${q(ticket)}`,
     '$k = Get-Command kmd -ErrorAction SilentlyContinue',
+    '$fresh = $false',
   ]
   if (!pkg) {
     L.push(`if ($k) { $k = $k.Source } else { Write-Host ${q(`· kmd 가 이 PC 에 없고 팀 서버에도 PC 꾸러미가 없다. 관리자에게 「PC 꾸러미를 받기 자리에 둔다」 를 부탁한 뒤 이 줄을 다시 붙여 넣는다 · ${origin}/dl`)} }`)
@@ -164,7 +165,7 @@ export function installPs({ origin, ticket, pkg, kn = null, root = null }) {
       "  $a = if ($env:KMD_APP_HOME) { $env:KMD_APP_HOME } else { Join-Path $env:USERPROFILE '.kmd-app' }",
       // 이미 깐 kmd(실행기)가 있으면 그것을 쓴다 — PATH 를 아직 모르는 창에서 다시 붙여도 더 새 판을 옛 판으로 되돌리지 않는다(새 판은 kmd pc update)
       "  $e = Join-Path $a 'bin\\kmd.cmd'",
-      "  if (Test-Path $e) { $k = $e; $env:Path = \"$(Split-Path $e);$env:Path\"; Write-Host '· 이 PC 에 이미 깐 kmd 를 쓴다. 새 판은 kmd pc update' } else {",
+      "  if (Test-Path $e) { $k = $e; $env:Path = \"$(Split-Path $e);$env:Path\"; Write-Host '· 이 PC 에 이미 깐 kmd 를 쓴다' } else {",
       '  $d = Join-Path $a "versions\\$v"',
       "  if (-not (Test-Path (Join-Path $d 'server\\bin\\kmd.mjs'))) {",
       '    Write-Host "kmd $v 을 받는다. $o/dl"',
@@ -189,6 +190,7 @@ export function installPs({ origin, ticket, pkg, kn = null, root = null }) {
       '  }',
       "  & (Join-Path $d 'kmd.cmd') pc link $v",
       "  if ($LASTEXITCODE) { throw 'kmd 실행기를 세우지 못했다' }",
+      '  $fresh = $true',
       "  $b = Join-Path $a 'bin'",
       // 사용자 PATH — 원문(%변수% 그대로)과 종류(REG_EXPAND_SZ)를 지켜 끝에 더한다 · 바뀜 알림은 없는 변수를 지우는 부르기로 보낸다
       '  if (-not $env:KMD_NO_PATH) {',
@@ -202,6 +204,33 @@ export function installPs({ origin, ticket, pkg, kn = null, root = null }) {
       '  Write-Host "✓ kmd $v 을 깔았다. $d · 새로 여는 터미널부터 kmd 명령이 선다"',
       '  }',
       '}',
+      // 이미 깐 개인 프로그램 — 팀 서버의 판보다 옛 판이면 그 판으로 올린다(kmd pc update: 새 판을 켜 보고 · 지금 판과 실행기를 바꾸고 ·
+      //   다시 켠다 · 안 켜지면 앞 판 그대로). 판 이름 <판>-<날짜>-<시각> 끼리는 글자 차례가 곧 새 차례 · 그 꼴이 아닌 옛 이름은 옛 판으로 본다
+      "$a = if ($env:KMD_APP_HOME) { $env:KMD_APP_HOME } else { Join-Path $env:USERPROFILE '.kmd-app' }",
+      "$e = Join-Path $a 'bin\\kmd.cmd'",
+      `$v = ${q(pkg.ver)}; $n = ${q(pkg.name)}`,
+      'if (-not $fresh -and (Test-Path $e)) {',
+      '  $cur = $null',
+      "  try { $cur = (Get-Content (Join-Path $a 'current.json') -Raw -Encoding UTF8 | ConvertFrom-Json).ver } catch { $cur = $null }",
+      "  $st = '^\\d+\\.\\d+\\.\\d+-\\d{8}-\\d{4}$'",
+      '  $old = (-not $cur) -or ($cur -ne $v -and (-not ($cur -match $st) -or [string]::CompareOrdinal($v, $cur) -gt 0))',
+      '  if ($old) {',
+      '    Write-Host "개인 프로그램을 팀 서버의 판으로 올린다: $cur → $v"',
+      '    $z = Join-Path $env:TEMP $n',
+      '    Invoke-WebRequest "$o/dl/$n" -OutFile $z -UseBasicParsing',
+      '    $x = Join-Path $env:TEMP "kmd-up-$v"',
+      '    if (Test-Path $x) { Remove-Item $x -Recurse -Force }',
+      '    New-Item -ItemType Directory -Force $x | Out-Null',
+      "    $tar = Join-Path $env:SystemRoot 'System32\\tar.exe'",
+      '    $ok = $false',
+      '    if (Test-Path $tar) { & $tar -xf $z -C $x --strip-components 1; $ok = ($LASTEXITCODE -eq 0) }',
+      '    if (-not $ok) { Remove-Item $x -Recurse -Force; Expand-Archive $z $x -Force; $x = (Get-ChildItem $x -Directory | Select-Object -First 1).FullName }',
+      '    & $e pc update $x $v',
+      '    if ($LASTEXITCODE) { Write-Host "· 새 판으로 올리지 못했다. 앞 판 그대로 쓴다 · 이 줄을 다시 붙여 넣거나 관리자에게 알린다" } else { Write-Host "✓ 개인 프로그램을 팀 서버의 판으로 올렸다: $v" }',
+      '    Remove-Item $z -Force -ErrorAction SilentlyContinue',
+      '  } else { Write-Host "· 개인 프로그램은 이미 팀 서버의 판이다: $cur" }',
+      '  $k = $e',
+      '} elseif ($k -and -not $fresh) { Write-Host "· 이 kmd 는 손으로 푼 꾸러미다. 새 판은 그 폴더의 kmd.cmd pc update 로 올린다" }',
     )
   }
   L.push(`if ($k) { & $k connect $o --ticket $t${kn ? ' --kn ' + q(kn) : ''}${root ? ' --root ' + q(root) : ''} }`, '')
@@ -222,7 +251,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const dlDir = () => path.resolve(hub.config.dl || path.join(dataDir, 'dl'))
   const pcPackage = async () => {
     const all = (await fs.readdir(dlDir()).catch(() => [])).map((n) => [n, n.match(/^kmd-([0-9A-Za-z._-]{1,40})-pc\.zip$/i)]).filter(([, m]) => m).map(([name, m]) => ({ name, ver: m[1] }))
-    return all.find((x) => x.ver === VERSION) || all.sort((a, b) => b.ver.localeCompare(a.ver, undefined, { numeric: true }))[0] || null
+    return all.find((x) => x.ver === BUILD) || all.find((x) => x.ver === VERSION) || all.sort((a, b) => b.ver.localeCompare(a.ver, undefined, { numeric: true }))[0] || null
   }
   // 이 PC — 프로그램 안에서 받은 Claude 로그인(비밀 claude-token)을 이 프로그램이 부르는 Claude 에만
   if (mode === 'pc') getSecret(dataDir, 'claude-token').then((t) => { if (t) process.env.CLAUDE_CODE_OAUTH_TOKEN = t }, () => {})
@@ -707,7 +736,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const qs = [kn && `kn=${encodeURIComponent(kn)}`, pr && `root=${encodeURIComponent(pr)}`].filter(Boolean).join('&')
       const qk = qs ? '?' + qs : ''
       const qa = (s) => "'" + s + "'"
-      return out(200, { ticket: t, line: qk ? `irm ${qa(`${origin}/i/${t}${qk}`)} | iex` : `irm ${origin}/i/${t} | iex`, sh: qk ? `curl -fsSL ${qa(`${origin}/i/${t}.sh${qk}`)} | sh` : `curl -fsSL ${origin}/i/${t}.sh | sh`, kmd: `kmd connect ${origin} --ticket ${t}${kn ? ' --kn ' + kn : ''}${pr ? ` --root "${pr}"` : ''}`, expires: 10, kn, root: pr })
+      return out(200, { ticket: t, line: qk ? `irm ${qa(`${origin}/i/${t}${qk}`)} | iex` : `irm ${origin}/i/${t} | iex`, sh: qk ? `curl -fsSL ${qa(`${origin}/i/${t}.sh${qk}`)} | sh` : `curl -fsSL ${origin}/i/${t}.sh | sh`, kmd: `kmd connect ${origin} --ticket ${t}${kn ? ' --kn ' + kn : ''}${pr ? ` --root "${pr}"` : ''}`, expires: 10, kn, root: pr , pcVer: (await pcPackage())?.ver || null })
     }
     if (p === '/api/me/devices') return out(200, auth.devices(ctx.user))
     if (p === '/api/me/devices/revoke') return out(200, { revoked: await auth.revokeDevice(ctx.user, String((await readBody(req)).id || '')) })
@@ -939,7 +968,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (p === '/healthz') {
         // 살아 있나 · 판 · 갈래만 — 들어오지 않아도 받으므로 지식 이름 · 멈춤 줄은 싣지 않는다(그것은 들어온 사람의 /api/stops).
         // 지식마다 git 을 재지 않아 가볍다(?live=1 은 예전 판과의 호환)
-        return send(res, 200, { ok: true, version: VERSION, mode })
+        return send(res, 200, { ok: true, version: VERSION, build: BUILD, mode })
       }
       // 설명서 — /manual(이 서버 갈래의 첫 설명서) · /manual/<이름>
       const mm = req.method === 'GET' && p.match(/^\/manual(?:\/([^/]+))?$/)

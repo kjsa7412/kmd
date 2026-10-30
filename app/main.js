@@ -2371,6 +2371,7 @@ async function copyInstall(team) {
     const line = /Win/i.test(navigator.platform || navigator.userAgent) ? r.line : r.sh
     copyText(line)
     S.lastInstall = line
+    S.lastInstallVer = r.pcVer || null
     toast('설치 한 줄을 복사했다. 10분 동안 한 번만 · PowerShell 에 붙여 넣는다')
   } catch (e) { toastErr(e) }
   render()
@@ -3406,11 +3407,11 @@ function agentInstallCard() {
 // 개인 프로그램 설치(팀 화면 · 누구나 · docs/kmd_팀_개인_분리_검토.html 결정 4) — 이 PC 에 개인 프로그램을 깔고 팀에 잇는 한 줄 ·
 //   작업 폴더에 받은 팀 지식을 붙이는 한 줄 · 내 기기(팀 서버가 아는 것만 · PC 에 묻지 않는다). 개인 지식 · 개인 폴더는 보이지 않는다
 function viewInstall() {
-  const line = S.lastInstall ? `<div class="callout gray" data-t="installLine" style="display:block;margin:10px 0 0"><b>설치 · 잇기 한 줄을 복사했다</b> · 10분 동안 한 번만 · 남에게 주지 않는다<div class="urlbox" style="max-height:none">${esc(S.lastInstall)}</div></div>` : ''
-  const one = `<div class="card" data-t="installCard"><div class="ch">설치 · 잇기 한 줄 <small>이 PC 에 개인 프로그램을 깔고 팀에 잇는다</small></div><div class="cb" style="padding:10px 14px 12px">
-   <ol class="lsteps"><li><b>[한 줄 복사] 를 누른다</b><small>10분 동안 한 번만 · 내 이름의 기기 열쇠가 만들어진다</small></li><li><b>PowerShell 에 붙여 넣고 Enter</b><small>처음이면 깔고 · 깔려 있으면 팀에 다시 잇는다 · 관리자 권한은 쓰지 않는다</small></li><li><b>끝에 개인 화면이 열린다</b><small>지식 폴더 · 내 Claude 로그인 · 개인 지식은 개인 화면에서 · 다음부터는 시작 메뉴 › kmd</small></li></ol>
+  const line = S.lastInstall ? `<div class="callout gray" data-t="installLine" style="display:block;margin:10px 0 0"><b>설치 · 잇기 한 줄을 복사했다</b> · 10분 동안 한 번만 · 남에게 주지 않는다${S.lastInstallVer ? ` · 개인 프로그램 판 ${esc(S.lastInstallVer)}` : ''}<div class="urlbox" style="max-height:none">${esc(S.lastInstall)}</div></div>` : ''
+  const one = `<div class="card" data-t="installCard"><div class="ch">설치 · 업데이트 · 잇기 한 줄 <small>이 PC 에 개인 프로그램을 깔거나 팀 서버의 판으로 올리고 팀에 잇는다</small></div><div class="cb" style="padding:10px 14px 12px">
+   <ol class="lsteps"><li><b>[한 줄 복사] 를 누른다</b><small>10분 동안 한 번만 · 내 이름의 기기 열쇠가 만들어진다</small></li><li><b>PowerShell 에 붙여 넣고 Enter</b><small>없으면 깔고 · 옛 판이면 팀 서버의 판으로 올리고(앞 판은 남는다 · 새 판이 안 켜지면 앞 판 그대로) · 팀에 다시 잇는다 · 관리자 권한은 쓰지 않는다</small></li><li><b>끝에 개인 화면이 열린다</b><small>지식 폴더 · 내 Claude 로그인 · 개인 지식은 개인 화면에서 · 다음부터는 시작 메뉴 › kmd</small></li></ol>
    <div class="row" style="margin-top:8px"><button class="btn pri" data-a="copyInstall" data-v="" data-t="installCopy">한 줄 복사</button></div>${line}</div></div>`
-  return { crumb: '개인 프로그램 설치', main: `<div class="pg-text"><div class="big">개인 프로그램 설치</div><p class="lead">이 PC 에 개인 프로그램(내 지식 · 내 Claude 로그인)을 깔고 팀에 잇는다. Claude Code 의 팀 연결(kmd-team)과 지식 보내기가 이 기기 열쇠를 쓴다. 개인 지식은 팀 화면에 나오지 않는다.</p>${one}${agentInstallCard()}${devCard()}</div>` }
+  return { crumb: '개인 프로그램 설치', main: `<div class="pg-text"><div class="big">개인 프로그램 설치</div><p class="lead">개인 프로그램(내 지식 · 내 Claude 로그인)을 깔고 · 새 판으로 올리고 · 팀에 잇는 곳은 여기 하나다. 팀에 이으면 이 PC 에 내 이름의 기기 열쇠가 생기고, Claude Code 의 팀 연결(kmd-team) · 지식 보내기 · 받는 팀 지식 목록이 그 열쇠를 쓴다. 개인 지식은 팀 화면에 나오지 않는다.</p>${one}${agentInstallCard()}${devCard()}</div>` }
 }
 // 설치 명령 복사 — 그 팀 지식을 실은 설치 한 줄(팀 서버가 만든다)
 async function agentCopy(id, area) {

@@ -53,14 +53,25 @@ export function stage(dir) {
   return dir
 }
 
-export function pack({ out = DIST } = {}) {
-  const v = pkg.version
+// 꾸러미 판 이름 — KMD_BUILD 가 있으면 그것 · 없으면 <판>-<날짜>-<시각>(이 PC 시각 · 꾸러미마다 다르고 뒤의 것이 늘 크다)
+export function buildName(now = new Date()) {
+  if (process.env.KMD_BUILD) {
+    if (!/^[0-9A-Za-z._-]{1,40}$/.test(process.env.KMD_BUILD)) throw new Error('KMD_BUILD 는 영문 · 숫자 · . _ - 40자 안')
+    return process.env.KMD_BUILD
+  }
+  const p = (n) => String(n).padStart(2, '0')
+  return `${pkg.version}-${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}`
+}
+
+export function pack({ out = DIST, build = buildName() } = {}) {
+  const v = build
   const pc = path.join(out, `kmd-${v}-pc`)
   base(pc)
+  fs.writeFileSync(path.join(pc, 'build.json'), JSON.stringify({ build: v }) + '\n')
   fs.copyFileSync(process.execPath, path.join(pc, 'node.exe'))
   fs.writeFileSync(path.join(pc, 'kmd.cmd'), '@echo off\r\n"%~dp0node.exe" "%~dp0server\\bin\\kmd.mjs" %*\r\n')
   fs.writeFileSync(path.join(pc, 'kmd-key.cmd'), '@echo off\r\n"%~dp0node.exe" "%~dp0server\\bin\\kmd-key.mjs" %*\r\n')
-  fs.writeFileSync(path.join(pc, '처음.txt'), `kmd ${v}: 이 PC\r\n\r\n보통은 이 꾸러미를 손으로 깔 일이 없다. 팀 화면 › 설정 › 에이전트 설치의 「설치 한 줄」 을 PowerShell 에 붙여 넣으면\r\n팀 서버에서 이 꾸러미를 받아 %USERPROFILE%\\.kmd-app 에 깔고, 팀에 잇고, 늘 켜고, 화면을 연다.\r\n\r\n팀 없이 쓰려면: 이 폴더에서 kmd.cmd up: 화면은 그 뒤 kmd.cmd open 으로 다시 연다.\r\n`)
+  fs.writeFileSync(path.join(pc, '처음.txt'), `kmd ${v}: 이 PC\r\n\r\n보통은 이 꾸러미를 손으로 깔 일이 없다. 팀 화면 › 개인 프로그램 설치의 「설치 · 잇기 한 줄」 을 PowerShell 에 붙여 넣으면\r\n팀 서버에서 이 꾸러미를 받아 %USERPROFILE%\\.kmd-app 에 깔고(이미 깔려 있으면 이 판으로 올리고), 팀에 잇고, 늘 켜고, 개인 화면을 연다.\r\n\r\n팀 없이 쓰려면: 이 폴더에서 kmd.cmd up: 화면은 그 뒤 kmd.cmd open 으로 다시 연다.\r\n`)
   const zip = path.join(out, `kmd-${v}-pc.zip`)
   const tgz = path.join(out, `kmd-${v}-team.tgz`)
   fs.rmSync(zip, { force: true })
@@ -72,13 +83,14 @@ export function pack({ out = DIST } = {}) {
   // 팀 꾸러미 — PC zip 을 함께 넣어 팀 설치가 받기 자리(/dl)에 둔다(설치 한 줄이 거기서 받는다)
   const team = path.join(out, `kmd-${v}-team`)
   base(team)
+  fs.writeFileSync(path.join(team, 'build.json'), JSON.stringify({ build: v }) + '\n')
   copy(path.join(ROOT, 'scripts', 'kmd-install.sh'), path.join(team, 'kmd-install.sh'))
   copy(zip, path.join(team, path.basename(zip)))
   execFileSync(tar, ['-czf', path.basename(tgz), path.basename(team)], { cwd: out })
-  return { pc, team, zip, tgz, modules: prodModules().length }
+  return { pc, team, zip, tgz, build: v, modules: prodModules().length }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const r = pack()
-  console.log(`✓ ${path.relative(ROOT, r.zip)} · ${path.relative(ROOT, r.tgz)}: 꾸러미 ${r.modules}`)
+  console.log(`✓ 판 ${r.build} · ${path.relative(ROOT, r.zip)} · ${path.relative(ROOT, r.tgz)}: 꾸러미 ${r.modules}`)
 }

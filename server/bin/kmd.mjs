@@ -13,7 +13,7 @@ import { spawn } from 'node:child_process'
 import { startServer } from '../http.js'
 import { makeHub, defaultDataDir, SHELL } from '../hub.js'
 import { enqueue } from '../../core/backup.js'
-import { VERSION } from '../version.js'
+import { VERSION, BUILD } from '../version.js'
 import { isReservedUser } from '../../core/names.js'
 import { makeAuth } from '../../core/auth.js'
 import { put as kput, get as kget, keyName } from '../../core/keystore.js'
@@ -311,7 +311,7 @@ async function openCmd(o) {
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2)
   if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') return void process.stdout.write(HELP)
-  if (cmd === '--version' || cmd === '-v') return void console.log(VERSION)
+  if (cmd === '--version' || cmd === '-v') return void console.log(BUILD)
   if (cmd === 'backup') return backupCmd(parse(rest))
   if (cmd === 'owner') return ownerCmd(parse(rest))
   if (cmd === 'access') return accessCmd(rest)

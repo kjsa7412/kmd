@@ -181,7 +181,7 @@ test('서버 길: 번호 · 멈추기는 PC 의 kmd 에만 · 팀 서버에 짝 
     assert.equal(st.status, 404, '멈출 길이 없는 kmd(시험 안의 서버)는 멈추지 않는다')
     // 살아 있나는 가볍게 — 멈춤 줄 없이 곧바로
     const live = await fetch(pc.url + '/healthz?live=1').then((x) => x.json())
-    assert.deepEqual(Object.keys(live).sort(), ['mode', 'ok', 'version'])
+    assert.deepEqual(Object.keys(live).sort(), ['build', 'mode', 'ok', 'version'])
     // 팀 서버에는 팀 화면이 개인 프로그램을 잇던 표(pcpass)가 없다(분리)
     const kim = await signIn(team, { id: 'kim' })
     assert.equal((await post(team.url, '/api/me/pcpass', { cookie: kim.cookie })).status, 404)
@@ -344,6 +344,44 @@ test('설치 한 줄 · 받기 · 설명서: 꾸러미가 있으면 받아 깔�
         const errs = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `$t=$null;$e=$null;[void][System.Management.Automation.Language.Parser]::ParseFile('${f}',[ref]$t,[ref]$e);$e.Count`], { encoding: 'utf8' }).trim()
         assert.equal(errs, '0', `해석 오류 없음 ${i}`)
       }
+    }
+    // 업데이트 — 이미 깐 PC 에 같은 한 줄을 붙이면 팀 서버의 판보다 옛 판일 때만 kmd pc update 로 올리고 잇는다(실제 PowerShell · 가짜 실행기)
+    if (process.platform === 'win32') {
+      const NEW = '0.1.0-20991231-2359'
+      const src = path.join(tmp, 'zsrc', `kmd-${NEW}-pc`)
+      fs.mkdirSync(path.join(src, 'server', 'bin'), { recursive: true })
+      fs.writeFileSync(path.join(src, 'server', 'bin', 'kmd.mjs'), '// 새 판\n')
+      execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `Compress-Archive -Path '${src}' -DestinationPath '${path.join(dl, `kmd-${NEW}-pc.zip`)}' -Force`])
+      fs.rmSync(path.join(dl, 'kmd-9.9.9-pc.zip'))
+      const app = path.join(tmp, 'apphome')
+      fs.mkdirSync(path.join(app, 'bin'), { recursive: true })
+      const calls = path.join(app, 'calls.txt')
+      // 가짜 실행기 — 받은 인자를 적는다 · pc update 면 새 판 폴더에 kmd.mjs 가 풀렸는지도
+      // cmd 는 이 파일을 이 PC 의 코드 페이지로 읽는다 — 한글이 든 임시 경로를 글로 적지 않고 %~dp0 로
+      fs.writeFileSync(path.join(app, 'bin', 'kmd.cmd'), '@echo off\r\necho %*>>"%~dp0..\\calls.txt"\r\nif "%1 %2"=="pc update" if exist "%~3\\server\\bin\\kmd.mjs" echo unpacked>>"%~dp0..\\calls.txt"\r\n')
+      const run = async (cur) => {
+        fs.writeFileSync(path.join(app, 'current.json'), JSON.stringify({ ver: cur }))
+        fs.rmSync(calls, { force: true })
+        const f = path.join(tmp, 'up.ps1')
+        fs.writeFileSync(f, '﻿' + installPs({ origin: team.url, ticket: T, pkg: { name: `kmd-${NEW}-pc.zip`, ver: NEW } }))
+        // 이 프로세스 안의 팀 서버가 꾸러미를 내주도록 기다리는 동안 이벤트 고리를 막지 않는다(spawnSync 금지)
+        const ps1 = await new Promise((ok) => { const c = spawn(path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', f], { env: { ...process.env, KMD_APP_HOME: app, KMD_NO_PATH: '1', PATH: [path.join(process.env.SystemRoot, 'System32'), path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0')].join(';') } }); let o = '', e = ''; c.stdout.on('data', (d) => { o += d }); c.stderr.on('data', (d) => { e += d }); c.on('close', (status) => ok({ status, stdout: o, stderr: e })) })
+        const out = ps1.stdout + ps1.stderr
+        assert.equal(ps1.status, 0, out)
+        return { out, calls: fs.existsSync(calls) ? fs.readFileSync(calls, 'utf8') : '' }
+      }
+      const r1 = await run('0.1.0-b04c263') // 옛 이름(날짜 꼴이 아님) — 옛 판으로 보고 올린다
+      assert.match(r1.calls, new RegExp(`^pc update .*kmd-up-${NEW} ${NEW}\r?$`, 'm'), r1.out + r1.calls)
+      assert.match(r1.calls, /^unpacked\r?$/m, '꾸러미를 풀어 새 판 폴더를 넘긴다')
+      assert.match(r1.calls, /^connect /m, '올린 뒤 팀에 잇는다')
+      const r2 = await run(NEW) // 이미 같은 판 — 잇기만
+      assert.doesNotMatch(r2.calls, /pc update/)
+      assert.match(r2.calls, /^connect /m)
+      const r3 = await run('0.1.0-21000101-0000') // 이 PC 가 더 새 판 — 내리지 않는다
+      assert.doesNotMatch(r3.calls, /pc update/)
+      assert.match(r3.calls, /^connect /m)
+      const r4 = await run('0.1.0-20200101-0000') // 날짜 꼴의 옛 판 — 올린다
+      assert.match(r4.calls, /^pc update /m)
     }
     // 설명서 — 팀은 넷 · PC 는 둘 · 설명서끼리 링크 · 없는 것은 404
     const m0 = await fetch(team.url + '/manual')
