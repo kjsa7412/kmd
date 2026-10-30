@@ -138,12 +138,12 @@ export function itemOf(k, q) {
 // 다른 kmd 로 — 기기 열쇠(Bearer). 닿지 않으면 throw(호출하는 쪽이 wait 에 둔다)
 //   닿지 않음(연결 · 시간 넘김 · 5xx) → reach: false(저절로 다시) · 받는 쪽이 거절(4xx) → reach: true · status · code(사람이 고친다)
 //   시간 제한은 묶음 크기에 맞춘다(받는 쪽은 기록마다 저장 · git 묶음을 한다 — 늦게 끝나도 같은 지문이라 다시 보내면 0)
-export async function post(url, kn, payload, key, { timeoutMs = null } = {}) {
+export async function post(url, kn, payload, key, { timeoutMs = null, path = 'receive' } = {}) {
   const ac = new AbortController()
   const n = Array.isArray(payload?.items) ? payload.items.length : 1
   const t = setTimeout(() => ac.abort(), timeoutMs ?? Math.min(180_000, 15_000 + 3_000 * n))
   try {
-    const r = await fetch(`${url}/api/k/${encodeURIComponent(kn)}/receive`, { method: 'POST', headers: { 'content-type': 'application/json', ...(key ? { authorization: `Bearer ${key}` } : {}) }, body: JSON.stringify(payload), signal: ac.signal }).catch((e) => {
+    const r = await fetch(`${url}/api/k/${encodeURIComponent(kn)}/${path}`, { method: 'POST', headers: { 'content-type': 'application/json', ...(key ? { authorization: `Bearer ${key}` } : {}) }, body: JSON.stringify(payload), signal: ac.signal }).catch((e) => {
       throw Object.assign(new Error(e.name === 'AbortError' ? '팀 서버가 제때 답하지 않았다' : '팀 서버에 닿지 않는다'), { reach: false })
     })
     const j = await r.json().catch(() => ({}))

@@ -83,6 +83,11 @@ test('나누기: 한도 안의 글은 그대로 · 넘으면 항목마다 묶어
 
 test('큰 문서 전체 보내기: 기록 한도를 넘지 않게 나눠 모두 받는다 · 다시 보내면 받는 쪽 0', async () => {
   await s.hub.sendDests(KIM, 'note', [{ kn: 'dpms' }])
+  // 받기 미리 보기 — 받는 지식의 이름 장부로 맞춰 보기만 한다(쓰지 않는다 · 보내는 쪽 「보내기 확인」 이 부른다)
+  const n0 = (await s.hub.get('dpms')).works.length
+  const pv = await s.hub.receivePreview(KIM, 'dpms', { items: [{ title: '헬스 체크: 주기', body: '## 헬스 체크\n20초' }, { title: '이름 없는 메모', body: '아무 항목에도 닿지 않는다' }] })
+  assert.deepEqual(pv.items.map((x) => (x.names || []).map((n) => n.coord)), [['proc:헬스 체크'], []])
+  assert.equal((await s.hub.get('dpms')).works.length, n0, '미리 보기는 쓰지 않는다')
   const r = await s.hub.send(KIM, 'note', { changes: [], docs: ['docs/큰문서.md'] })
   assert.deepEqual({ sent: r.sent, wait: r.wait }, { sent: 2, wait: 0 })
   // 받은 쪽(팀) 장부에서 이름을 못 찾은 수를 돌려준다 — 받은 쪽 가드가 「이름 없음 — 받음」 으로 붙잡아 둔 것

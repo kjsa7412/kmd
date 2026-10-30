@@ -270,6 +270,27 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     const retry = e.reach === false || (status != null && status >= 500 && e.reach !== true) || (!status && !e.code)
     return { id: crypto.randomBytes(5).toString('hex'), state: retry ? 'wait' : 'fail', to, payload, at: new Date().toISOString(), why: String(e.message || '').slice(0, 160), ...(retry ? {} : { status, fix: sendLib.fixOf({ status }) }) }
   }
+  const nameAsked = new Set()
+  async function askName(id, meta, rec, why) {
+    const key = `${id}\n${rec.id}`
+    if (nameAsked.has(key)) return
+    nameAsked.add(key)
+    for (const u of await hub.curatorsOf(id)) {
+      await feed.add(dataDir, u, { kind: 'tidy', rec: rec.id, kn: id, dot: 'warn', text: `이름을 고르지 못한 기록: ${meta.name} › 「${String(rec.title || rec.id).split(/ — |: /)[0]}」`, small: `${why} · 문서 첫 화면의 지식 점검 › 이름 없는 기록` }).catch((e) => log(`이름 부탁 알림 실패: ${e.message}`))
+    }
+  }
+  // 받을 글 하나의 이름 — 글의 ## 머리 · 제목 조각이 받는 지식의 이름(값 · 보이는 이름 · 다른 이름)과 꼭 맞는 것
+  function recvTouches(k, it) {
+    const heads = [...String(it.body || '').matchAll(/^## (.+)$/gm)].map((m) => m[1].trim())
+    const words = [...heads, ...String(it.title || '').split(/\s+—\s+|:\s+/)]
+    return [...new Set(words.flatMap((w) => exact(k, w).map((x) => x.coord)).filter(Boolean))]
+  }
+  // 고른 것 → 보낼 글(보내기 · 보내기 미리 보기가 같은 계산)
+  function pickedItems(k, docs, recs) {
+    const pickDocs = (Array.isArray(docs) ? docs : []).map((x) => k.byDocPath.get(String(x?.path || ''))).filter(Boolean)
+    const recIds = [...new Set((Array.isArray(recs) ? recs : []).map(String))].filter((x) => { const w = k.byWork.get(x); return w && !isSystemRecord(w) && !w.tags.some((t) => t.startsWith('sent/')) })
+    return [...pickDocs.map((d) => sendLib.docItem(k, d)), ...recIds.map((x) => sendLib.recItem(k, k.byWork.get(x)))].flatMap((it) => sendLib.split(it))
+  }
   async function deliver(ctx, d, payload) {
     if (!d.url) return hub.receive(ctx, d.kn, payload)
     const key = process.env.KMD_SEND_KEY || (await keystore.get(keystore.keyName(d.url)).catch(() => null))
@@ -1639,6 +1660,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           continue
         }
         const recs = g.kind === 'touches' || g.kind === 'ingest' ? [g.record] : g.records
+        // 이름 고르기에서 맞는 이름이 후보에 없다 — 정리는 더 할 수 없다. 지식관리자가 이름을 세우거나 고른다(지식 생성 가드 · 지식 점검)
+        if (g.kind === 'touches' && (!r.ok || !(d?.touches || []).length)) {
+          const why = r.ok ? '맞는 이름이 후보에 없다: 지식관리자가 이름을 세우거나 고른다' : r.why
+          rows.push({ kind: 'left', target, why, records: recs.map((x) => x.id) })
+          await askName(id, meta, g.record, why)
+          continue
+        }
         if (!r.ok) {
           rows.push({ kind: 'left', target, why: r.why, records: recs.map((x) => x.id) })
           continue
@@ -2947,9 +2975,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             continue
           }
           seen.add(tag) // 같은 묶음 안의 같은 지문도 하나만
-          const heads = [...String(it.body || '').matchAll(/^## (.+)$/gm)].map((m) => m[1].trim())
-          const words = [...heads, ...String(it.title || '').split(/\s+—\s+|:\s+/)]
-          const touches = [...new Set(words.flatMap((w) => exact(k, w).map((x) => x.coord)).filter(Boolean))]
+          const touches = recvTouches(k, it)
           // 쓴 때(보낸 쪽 기록의 date) — 기록의 날짜로 둔다(정리는 쓴 때 차례로 · 더 늦게 쓴 기록이 이미 든 항목에서는 옛 기록) ·
           //   받은 때는 recv/ 태그로(그 뒤에 정리된 항목이 아니면 아직 안 넣은 것 — recordState) · 앞날 · 모양이 틀린 날짜는 받은 때로
           const wrote = typeof it.date === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(it.date) && it.date < now ? it.date : null
@@ -2980,6 +3006,44 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         bad.sort((a, b) => a.i - b.i)
         return { saved, same, ...(unnamed ? { unnamed } : {}), ...(bad.length ? { bad } : {}) }
       })
+    },
+    // 받기 미리 보기 — 쓰지 않고 받을 글마다 이 지식의 이름 장부에서 맞는 이름을 본다(보내는 쪽의 「보내기 확인」 · 지식 생성 가드)
+    async receivePreview(ctx, id, { items = [] } = {}) {
+      await hub.meta(id, ctx)
+      if (!Array.isArray(items) || !items.length || items.length > 200) throw new KmdError('E_INPUT', '볼 것은 1 ~ 200 개')
+      if (ctx.machine && ctx.machine.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
+      if (!ctx.machine) hub.need(ctx, id, 'write')
+      const k = await hub.get(id)
+      const seen = new Set(k.works.flatMap((w) => w.tags.filter((t) => t.startsWith('sent/'))))
+      return {
+        items: items.map((it, i) => {
+          if (!it || typeof it !== 'object') return { i, bad: true }
+          const sha = /^[0-9a-f]{16}$/.test(String(it.sha)) ? it.sha : sha16(`${it.title}\n${it.body}`)
+          if (seen.has(`sent/${sha}`)) return { i, same: true }
+          return { i, names: recvTouches(k, it).map((c) => ({ coord: c, name: labelOf(k, c) })) }
+        }),
+      }
+    },
+    // 보내기 미리 보기 — 고른 것을 받는 지식의 장부로 맞춰 본다(쓰지 않는다) · 받는 팀 서버가 옛 판이면 unavailable
+    async sendPreview(ctx, id, { to, docs = [], recs = [] } = {}) {
+      const meta = await hub.routeMeta(ctx, id)
+      const route = await hub.routeOf(meta)
+      if (!route || route.gone || String(to || '') !== route.kn) return { unavailable: '받는 지식을 다시 정한다' }
+      const items = pickedItems(await hub.get(id), docs, recs)
+      if (!items.length) return { n: 0, named: 0, unnamed: [], same: 0 }
+      let r
+      try {
+        if (!route.url) r = await hub.receivePreview(ctx, route.kn, { items })
+        else {
+          const key = process.env.KMD_SEND_KEY || (await keystore.get(keystore.keyName(route.url)).catch(() => null))
+          r = await sendLib.post(route.url, route.kn, { items }, key, { path: 'receive/preview', timeoutMs: 15_000 })
+        }
+      } catch (e) {
+        return { unavailable: e.status === 404 ? '받는 팀 서버가 미리 보기를 모른다(옛 판)' : String(e.message || '미리 보지 못했다').slice(0, 120) }
+      }
+      const got = Array.isArray(r?.items) ? r.items : []
+      const unnamed = got.filter((x) => !x.same && !x.bad && !(x.names || []).length).map((x) => items[x.i]?.title || '')
+      return { n: items.length, named: got.filter((x) => (x.names || []).length).length, unnamed, same: got.filter((x) => x.same).length }
     },
     // 받은편지함 정리 — 이 PC 의 다른 지식으로만 옮긴다 · 팀 지식에 이름이 걸리면 보내기 후보 · private 표지 기록은 그대로
     async inboxTidy(ctx, id, { dry = false } = {}) {

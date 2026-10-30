@@ -17,7 +17,7 @@ import { valuesOf } from './save.js'
 // 코드 바뀜 기록(code-change)은 차이 속의 수를 다 볼 수 없다 — 「바뀐 값」 의 새 값만 글에 있어야 한다
 import { newValuesOf } from './codechange.js'
 import { sha16 } from './text.js'
-import { formFor, guardNewDoc, DEFAULT_FORMS } from './guard.js'
+import { formFor, guardNewDoc, DEFAULT_FORMS, FORM_GUIDE } from './guard.js'
 import { sectionOf, coordsOfSection, labelOf } from './knowledge.js'
 import { formatProblems, lintSection } from './docformat.js'
 import { splitBlocks, hasBlockMarker } from './baseline.js'
@@ -151,6 +151,7 @@ export function promptOf(g) {
         '- 같은 갈래의 문서가 후보에 있으면(예: 회의록) 새 문서를 세우지 않고 그 문서에 새 항목으로 넣는다. 항목 머리는 「언제 · 무엇」(예: 2026-10-21 HNC 통화).',
         '- 갈래 문서가 없으면 그 갈래 이름으로 새 문서를 세우고(예: newDoc.path = 회의록), 이 파일은 그 안의 항목 하나(머리 「언제 · 무엇」)로 둔다.',
         `- 이 지식의 갈래(갈래 장부): ${(g.forms || []).map((f) => `${f.folder ? f.folder + '/' : ''}${f.name}(${f.kind}${f.aliases?.length ? ' · ' + f.aliases.join(', ') : ''})`).join(' · ') || '없음'}. 다른 이름에 걸리는 글은 그 갈래 문서로 간다(newDoc.path 는 폴더/갈래 이름).${g.formsOwn ? ' 갈래 장부에 없는 새 문서는 세우지 않는다: 이어지는 후보 문서에 넣는다.' : ''}`,
+        `- 새 문서는 그 갈래의 꼴을 따른다: 사건 갈래는 머리 「YYYY-MM-DD 무엇」 · 이름 패턴이 있는 대장은 머리 「값 — 설명」. 짜임은 ${FORM_GUIDE.지식문서} (사건 갈래는 ${FORM_GUIDE.작업기록}).`,
         '- 파일에 정한 것 · 바뀐 값 · 할 일이 있고 그 주제의 문서가 후보에 있으면, 그 문서의 해당 항목에도 그 내용을 고쳐 넣는다(updates).',
         '- 회의록은 이미 열린 회의 · 통화에서 정한 것 · 할 일만. 회의 · 통화를 준비하는 글(통화 스크립트 · 안건 · 준비 TODO · 체크리스트)은 회의록에 넣지 않고, 그 안의 확정 사실(구성 · 역할 · 범위 · 일정 · 규칙)을 그 주제 문서의 항목으로 넣는다.',
         '- 파일을 통째로 옮기지 않는다. 대상의 지금으로 요약 · 정리해 쓴다. 인사말 · 말할 거리 · 시간 배분 · 묻는 말 · 확인할 것 · 빈 칸 양식 · 메모 칸 · 준비 체크 상태 · 구분선은 옮기지 않는다(기록에 남는다).',

@@ -170,3 +170,13 @@ test('지식 점검 — 넣지 않기로 둔 기록은 이름 없는 기록으�
   const a = audit(k, { sectionOf: () => null, coordsOfSection: () => [] })
   assert.deepEqual(a.unnamed.map((x) => [x.id, x.why]), [['까닭', '갈래 장부만'], ['빈것', null]])
 })
+
+test('갈래 서식 안내 — 머리 꼴과 짜임 한 줄(brief · 정리 프롬프트)', async () => {
+  const { formGuide } = await import('../core/guard.js')
+  const g1 = formGuide({ name: '회의록', kind: '사건', form: '작업기록' })
+  assert.match(g1.head, /YYYY-MM-DD/)
+  assert.match(g1.body, /누가 · 무엇을 · 정한 것 · 남은 것/)
+  const g2 = formGuide({ name: '위험및이슈관리대장', kind: '대장', pattern: '이슈:*', form: null })
+  assert.match(g2.head, /값 — 설명/)
+  assert.match(g2.body, /항목 하나가 대상 하나/)
+})

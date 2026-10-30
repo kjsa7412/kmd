@@ -11,6 +11,7 @@ import { labelOf, sectionOf, coordsOfSection, pendPick } from '../core/knowledge
 import { headingMatches } from '../core/sections.js'
 import { VERSION } from './version.js'
 import { sha16 } from '../core/text.js'
+import { formGuide } from '../core/guard.js'
 import { splitBlocks } from '../core/baseline.js'
 import { readDecl, everyMs } from '../core/sources.js'
 
@@ -141,7 +142,7 @@ export function makeMcp(store) {
         you: { role: store.mode === 'pc' ? '주인' : store.roleIn(k.id, ctx), direct: store.mode === 'pc' || store.canDirect(ctx, k.id) },
         // 지식 생성 가드(작성기준 9절) — 이름의 종류 · 새 문서의 갈래 · 지키는 법. save 가 같은 규칙으로 거절한다
         kinds: [...new Set([...k.vocab.coords.keys()].map((c) => c.slice(0, c.indexOf(':'))))],
-        forms: k.forms.rows.map((f) => ({ name: f.name, aliases: f.aliases, ...(f.folder ? { folder: f.folder } : {}), kind: f.kind, ...(f.pattern ? { pattern: f.pattern } : {}) })),
+        forms: k.forms.rows.map((f) => ({ name: f.name, aliases: f.aliases, ...(f.folder ? { folder: f.folder } : {}), kind: f.kind, ...(f.pattern ? { pattern: f.pattern } : {}), ...formGuide(f) })),
         rules: [
           'touches 는 match 로 찾은 이름 장부의 이름만. 새 이름은 names 로 같이 세운다(값은 빈칸 없는 열쇠 · 설명은 label)',
           '건드린 이름이 정말 없으면 touches 를 비우고 touchesEmpty 에 까닭 한 줄',

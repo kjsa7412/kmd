@@ -145,10 +145,10 @@
 | 이름 바로잡기 | hub.setTouches | 거절형(이름 장부의 살아 있는 이름만) |
 | 받은편지함 정리 · 옮기기 | hub.inboxTidy · inboxSend | 붙잡아 두기(받기와 같다) |
 | 받기(개인 → 팀) | hub.receive → saveRecords | 붙잡아 두기 — **받은 쪽 장부로** 다시 맞춘다 · 이름 없는 수를 보낸 쪽에 돌려준다 |
-| 보내기(개인) | hub.send · sendPicked | 받은 쪽이 돌려준 「이름 없음」 수를 보내기 기록 · 알림에 보인다 |
+| 보내기(개인) | hub.send · sendPicked · sendPreview | 「보내기 확인」 창이 받는 쪽 장부로 미리 맞춰 본다(`POST /api/k/:id/receive/preview` · 쓰지 않는다) · 보낸 뒤 받은 쪽이 돌려준 「이름 없음」 수를 보내기 기록 · 알림에 보인다 |
 | 파일 · 폴더 넣기 | hub.importFiles · ingest* | 붙잡아 두기(기록은 `ingest/` 자리) · 정리 초안의 새 문서는 G4 |
 | 가져올 곳(git · DB · 서버 폴더) · 코드 바뀜 | core/sources.js · codechange | 붙잡아 두기 · 세우는 이름은 G1 |
-| 정리 일꾼 · 규칙 정리 | hub.putDrafts · placeGroup · core/tidy.js | 초안 검사에서 G4(어기면 초안을 버린다) · 저장은 붙잡아 두기 |
+| 정리 일꾼 · 규칙 정리 | hub.putDrafts · placeGroup · core/tidy.js | 초안 검사에서 G4(어기면 초안을 버린다) · 저장은 붙잡아 두기 · 이름 고르기에서 맞는 이름이 없으면 지식관리자의 「오늘 바뀐 것」 에 알린다(지식 점검으로 이어짐) · 프롬프트에 갈래의 머리 꼴 · 짜임 |
 | 편집기에서 바로 고친 것 수집 | core/collect.js | 검사만(새 문서 G4 → 이력) · 장부(`_vocab.md` · `_managed.md` · `_forms.md`) 손 고침은 되돌린다 |
 | 감시 폴더 · 옛 문서 옮기기 · 지식 세우기 · 되살리기 | core/docwatch.js · core/docformat.js · hub.addKnowledge · restore | 검사만(지식 점검) |
 

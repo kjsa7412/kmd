@@ -247,6 +247,13 @@ export function formHeadRule(f) {
   if (f.pattern) return `머리는 「값 — 설명」 이다(값 = ${f.pattern} 의 값 · 빈칸 없이)`
   return '머리는 주제 이름이다'
 }
+// 서식 — 갈래의 서식(docs/템플릿/)이 정한 짜임을 한 줄로(brief · 정리 프롬프트가 싣는다). 서식의 안내 글은 본문에 넣지 않는다
+export const FORM_GUIDE = {
+  지식문서: '문서 맨 위 1~3문장: 무엇을 다루고 지금 결론이 무엇인가 · 항목 하나가 대상 하나 · 확정된 것만 「…한다」 체 · 나란한 것 셋 이상은 목록 · 값은 표',
+  결정기록: '문서 맨 위 1~2문장: 모인 결정의 범위 · 항목 하나가 결정 하나 · 항목 글은 정한 것 · 까닭 · 영향 · 정한 때와 사람 · 뒤집힌 결정은 고쳐 쓴다',
+  작업기록: '문서 맨 위 1문장: 무엇이 쌓이나 · 항목 머리 「YYYY-MM-DD 주제」 · 항목 글은 누가 · 무엇을 · 정한 것 · 남은 것 · 오래 갈 결정은 결정 기록에도',
+}
+export const formGuide = (f) => ({ head: formHeadRule(f), body: FORM_GUIDE[f.form] || (f.kind === '사건' ? FORM_GUIDE.작업기록 : FORM_GUIDE.지식문서) })
 export function headingFits(f, h) {
   const s = nfc(String(h || '').trim())
   if (f.kind === '사건') return /^20\d\d-\d\d-\d\d\b/.test(s) || s === '개요'

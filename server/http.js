@@ -865,16 +865,18 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       need(ctx)
       return out(200, { teams: (await hub.sendTargets(ctx)).teams })
     }
-    const sd = p.match(/^\/api\/k\/([^/]+)\/(send|send\/route|send\/wait|receive|inbox\/tidy|inbox\/send)$/)
+    const sd = p.match(/^\/api\/k\/([^/]+)\/(send|send\/route|send\/wait|send\/preview|receive|receive\/preview|inbox\/tidy|inbox\/send)$/)
     if (sd) {
       const id = dec(sd[1])
       if (sd[2] === 'send' && req.method === 'GET') return out(200, await hub.sendView(ctx, id))
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
-      const b = await readBody(req, sd[2] === 'receive' ? 8 << 20 : MAX_BODY)
+      const b = await readBody(req, sd[2] === 'receive' || sd[2] === 'receive/preview' ? 8 << 20 : MAX_BODY)
       if (sd[2] === 'send') return out(200, await hub.sendPicked(ctx, id, b))
       if (sd[2] === 'send/route') return out(200, await hub.sendRoute(ctx, id, b))
       if (sd[2] === 'send/wait') return out(200, await hub.sendWaitAct(ctx, id, { wid: b.id, act: b.act }))
       if (sd[2] === 'receive') return out(200, await hub.receive(ctx, id, b))
+      if (sd[2] === 'receive/preview') return out(200, await hub.receivePreview(ctx, id, b))
+      if (sd[2] === 'send/preview') return out(200, await hub.sendPreview(ctx, id, b))
       if (sd[2] === 'inbox/send') return out(200, await hub.inboxSend(ctx, id, b))
       return out(200, await hub.inboxTidy(ctx, id, { dry: !!b.dry }))
     }

@@ -3292,7 +3292,7 @@ function sendWinHtml() {
       const how = d.st === 'new' ? '문서 통째로 · 처음' : '문서 통째로'
       return `<li><b>${esc(d.title)}</b> <small class="muted">: ${esc(how)}</small></li>`
     }).join('')
-    return `<div class="scrim fix" data-a="sendWinClose" data-self="1"><div class="modal w560" data-t="sendConfirm"><div class="mh">보내기 확인<button class="x" data-a="sendWinClose" title="닫기">×</button></div><div class="mb"><div class="bigroute"><span class="e"><small>보내는 지식 · 개인 · 나만</small><b>${esc(src.name)}</b></span>${svg('arrow')}<span class="e"><small>받는 지식 · 팀 · ${esc(teamWho(r).split(' · ')[1])}</small><b data-t="sendConfirmTo">${esc(r.name)}</b></span></div><ul class="plain sum">${rows}</ul><p class="small muted" style="margin:10px 0 0">고른 것마다 기록 하나로 ${esc(r.name)} 에 들어간다 · ${esc(tidyWhen(r))} 문서에 들어간다 · ${esc(S.me.user)} 이름으로 간다 · 내 개인 지식의 글은 그대로다</p></div><div class="mf"><span class="l">이 프로그램이 이 PC 의 기기 열쇠로 보낸다</span><span class="acts"><button class="btn ghost" data-a="sendWinClose">취소</button><button class="btn pri" data-a="doSend" data-t="sendGo"${S.sending ? ' disabled' : ''}>${S.sending ? '보내는 중…' : esc(ro(r.name)) + ' 보내기'}</button></span></div></div></div>`
+    return `<div class="scrim fix" data-a="sendWinClose" data-self="1"><div class="modal w560" data-t="sendConfirm"><div class="mh">보내기 확인<button class="x" data-a="sendWinClose" title="닫기">×</button></div><div class="mb"><div class="bigroute"><span class="e"><small>보내는 지식 · 개인 · 나만</small><b>${esc(src.name)}</b></span>${svg('arrow')}<span class="e"><small>받는 지식 · 팀 · ${esc(teamWho(r).split(' · ')[1])}</small><b data-t="sendConfirmTo">${esc(r.name)}</b></span></div><ul class="plain sum">${rows}</ul>${sendPrevHtml(src, v, sel)}<p class="small muted" style="margin:10px 0 0">고른 것마다 기록 하나로 ${esc(r.name)} 에 들어간다 · ${esc(tidyWhen(r))} 문서에 들어간다 · ${esc(S.me.user)} 이름으로 간다 · 내 개인 지식의 글은 그대로다</p></div><div class="mf"><span class="l">이 프로그램이 이 PC 의 기기 열쇠로 보낸다</span><span class="acts"><button class="btn ghost" data-a="sendWinClose">취소</button><button class="btn pri" data-a="doSend" data-t="sendGo"${S.sending ? ' disabled' : ''}>${S.sending ? '보내는 중…' : esc(ro(r.name)) + ' 보내기'}</button></span></div></div></div>`
   }
   const teams = sendTeams().filter((t) => !(t.id === r.kn && t.url === r.url))
   const pt = w.to && sendTeamOf(w.to)
@@ -3320,6 +3320,22 @@ async function sendRoute(src, key, confirm) {
   }
   S.sending = false
   render()
+}
+// 보내기 미리 보기 — 고른 것을 받는 지식의 이름 장부로 맞춰 본다(쓰지 않는다)
+function sendPrevHtml(src, v, sel) {
+  const key = 'sendPrev:' + src.id + ':' + v.route.kn + ':' + sel.join('|')
+  if (!(key in S.cache) && !S.wait[key]) {
+    const recs = sel.filter((x) => x.startsWith('r|')).map((x) => x.slice(2))
+    const docs = sel.filter((x) => x.startsWith('d|')).map((x) => ({ path: x.slice(2) }))
+    S.wait[key] = postJSON(`/api/k/${encodeURIComponent(src.id)}/send/preview`, { to: v.route.kn, recs, docs })
+      .then((r) => { S.cache[key] = r }, (e) => { S.cache[key] = { unavailable: e.message } })
+      .finally(() => { delete S.wait[key]; scheduleRender() })
+  }
+  const p = S.cache[key]
+  if (!p) return `<div class="small muted" data-t="sendPrev" style="margin:10px 0 0">${esc(v.route.name)} 의 이름 장부와 맞춰 보는 중…</div>`
+  if (p.unavailable) return `<div class="small muted" data-t="sendPrev" style="margin:10px 0 0">이름 미리 보기를 하지 못했다: ${esc(p.unavailable)} · 보내기에는 지장이 없다</div>`
+  if (!p.unnamed.length) return `<div class="small" data-t="sendPrev" style="margin:10px 0 0"><span class="chip c-acc">이름 맞음</span> 고른 것이 모두 ${esc(v.route.name)} 의 이름에 닿는다${p.same ? ` · 이미 보낸 것 ${p.same}` : ''}</div>`
+  return `<div class="callout warn" data-t="sendPrev" style="margin:10px 0 0"><span><b>${p.unnamed.length}개는 ${esc(v.route.name)} 의 이름 장부에서 이름을 못 찾았다.</b> 그대로 보내면 「이름 없음」 으로 들어가고 그 지식의 지식관리자가 이름을 고른다<small>${p.unnamed.slice(0, 5).map(esc).join(' · ')}${p.unnamed.length > 5 ? ` 외 ${p.unnamed.length - 5}` : ''}</small></span></div>`
 }
 async function doSend() {
   const src = sendSrc(), v = src && S.cache['send:' + src.id]
