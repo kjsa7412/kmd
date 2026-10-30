@@ -94,6 +94,9 @@ test('기록만 하는 사람의 names: 이름 장부는 그대로 · 기록에 
   assert.match(bad.message || bad.error || '', /빈칸|E_INPUT/)
   const sv = await call('save', { knowledge: 'dpms', record: { title: '용어: 하나', touches: ['term:카나리비율'] }, names: [{ coord: 'term:카나리비율', label: '카나리 비율' }] }, LEE)
   assert.match(sv.note, /이름 1 은 아직 세우지 않았다/)
+  // 도구 모양을 배포 전에 받아 둔 세션 — 목록을 글(JSON)로 보내도 받는다
+  const sv2 = await call('save', { knowledge: 'dpms', record: { title: '용어: 둘', touches: ['term:카나리단계'] }, names: JSON.stringify([{ coord: 'term:카나리단계', label: '카나리 단계' }]) }, LEE)
+  assert.match(sv2.note, /이름 1 은 아직 세우지 않았다/)
   const b = await call('brief', { knowledge: 'dpms' }, LEE)
   assert.deepEqual(b.you, { role: '쓰기', direct: false }) // 쓰기 자리를 받은 사람(권한 모델 4절)
   assert.match(b.tidy, /정해진 시각/)

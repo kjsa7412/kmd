@@ -232,6 +232,13 @@ export function makeMcp(store) {
     },
 
     async save({ knowledge, record, sections, names, forms }, ctx) {
+      // 도구 모양을 배포 전에 받아 둔 세션은 모르는 칸(forms 등)의 목록을 글(JSON)로 보낸다 — 목록 글이면 풀어 받는다
+      const listOf = (v) => {
+        if (typeof v !== 'string') return v
+        try { const x = JSON.parse(v); return Array.isArray(x) ? x : v } catch { return v }
+      }
+      ;[sections, names, forms] = [listOf(sections), listOf(names), listOf(forms)]
+      if (typeof record === 'string') try { record = JSON.parse(record) } catch { /* 모양 검사가 거절한다 */ }
       const k = await store.get(knowledge, ctx)
       // 이미 있는 항목을 갈아 끼우는 글에는 base 가 있어야 한다 — 없으면 그사이 남이 고친 글을 덮는다
       // (kmd 가 띄운 넣기 에이전트는 그 파일의 글을 들이는 일이라 뺀다 — 사람의 세션이 남의 고침을 덮지 않게 하는 것)
