@@ -345,7 +345,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const GET_OK = [
     /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|admin\/groups|claude\/state|busy|send\/teams)$/,
     /^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
-    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|tidy\/plan|sources|send|backup|backup\/lost|owner|access|worker\/material)$/,
+    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|tidy\/plan|sources|send|backup|backup\/lost|owner|access|worker\/material|guard)$/,
   ]
   const api = async (req, res, url, ctx, set) => {
     const p = url.pathname
@@ -886,7 +886,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     }
     const uw = p.match(/^\/api\/k\/([^/]+)\/unwatch$/)
     if (uw) return out(200, await hub.unwatch(ctx, dec(uw[1]), await readBody(req)))
-    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|backup|backup\/pull|owner|learn|edit|revert)$/)
+    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|backup|backup\/pull|owner|learn|edit|revert|guard)$/)
     if (!m) throw new KmdError('E_NOTFOUND', '그런 길은 없다')
     const id = dec(m[1])
     const what = m[2]
@@ -902,7 +902,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       }
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       const body = await readBody(req)
-      if (what === 'save') return out(200, await hub.save(ctx, id, body))
+      if (what === 'save') return out(200, await hub.save(ctx, id, body, { guard: 'strict' }))
       if (what === 'learn') return out(200, await hub.learn(ctx, id, body))
       if (what === 'edit') return out(200, await hub.edit(ctx, id, body))
       if (what === 'revert') return out(200, await hub.revert(ctx, id, body))
@@ -935,6 +935,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, { ...t, records: open.length ? [...head, ...open] : head, total: t.records.length, more, next: more > 0 && head.length ? cursorOf(head[head.length - 1]) : null })
     }
     if (what === 'model') return out(200, V.model(k))
+    if (what === 'guard') return out(200, await hub.guardAudit(ctx, id))
     if (what === 'item') {
       const v = V.itemView(k, url.searchParams.get('key') || '', { src: await hub.sourceState(k.id) })
       if (!v) throw new KmdError('E_NOTFOUND', '이 항목은 이제 없다')

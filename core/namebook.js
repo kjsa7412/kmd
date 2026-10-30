@@ -8,6 +8,7 @@
 
 import { nfc } from './text.js'
 import { parseVocab } from './vocab.js'
+import { TYPE_RE, parseForms, FORM_KINDS } from './guard.js'
 
 const VOCAB_HEAD = '# 이름 장부\n\n같은 것을 가리키는 이름 중 하나를 정하고 나머지를 다른 이름으로 잇는다.\n'
 const REG_HEAD = '# 자리 장부\n\n이름 하나가 어느 문서의 어느 항목에 드는지 여기에만 적는다.\n\n| 이름 | 문서 | 항목 |\n|---|---|---|\n'
@@ -81,9 +82,62 @@ export function cleanNames(list) {
   for (const x of list) {
     if (!x || typeof x !== 'object') return null
     const coord = nfc(String(x.coord || '').trim())
-    if (!/^[a-z][a-z0-9_-]{0,23}:[^\n`|]{1,160}$/.test(coord)) return null
+    const i = coord.indexOf(':')
+    if (i < 1 || !TYPE_RE.test(coord.slice(0, i)) || !/^[^\n`|]{1,160}$/.test(coord.slice(i + 1))) return null
     const one = (v, max) => (v == null ? null : nfc(String(v)).replace(/[\r\n`|]/g, ' ').trim().slice(0, max))
     out.push({ coord, label: one(x.label, 160) || '', aliases: Array.isArray(x.aliases) ? x.aliases.map((a) => one(a, 120).replace(/,/g, ' ')).filter(Boolean).slice(0, 20) : [], doc: one(x.doc, 200), heading: one(x.heading, 160) })
+  }
+  return out
+}
+
+// 자리 장부 — 패턴 줄 하나(`종류:*` → 문서의 `## {값}`) · 같은 패턴 줄이 있으면 그대로
+export function upsertPatternRow(text, pattern, doc) {
+  let t = String(text || '').replace(/\r\n/g, '\n')
+  if (!t.trim()) t = REG_HEAD
+  const lines = t.split('\n')
+  if (lines.some((l) => l.match(/^\|\s*`([^`]+)`/)?.[1]?.trim() === pattern)) return t
+  const row = `| \`${pattern}\` | \`${docRelOf(doc)}\` | \`## {값}\` |`
+  let last = -1
+  lines.forEach((l, x) => { if (/^\|/.test(l)) last = x })
+  if (last < 0) lines.push('| 이름 | 문서 | 항목 |', '|---|---|---|', row)
+  else lines.splice(last + 1, 0, row)
+  t = lines.join('\n')
+  return t.endsWith('\n') ? t : t + '\n'
+}
+
+// 갈래 장부(`_forms.md`) — 갈래 줄을 더하거나 바꾼다(core/guard.js parseForms 와 같은 꼴)
+const FORMS_HEAD = '# 갈래 장부\n\n새 문서는 여기 있는 갈래로만 선다. 문서 이름은 파일 이름이 아니라 갈래다(전화 통화 메모 → 회의록).\n\n| 갈래 | 다른 이름 | 폴더 | 종류 | 이름 | 서식 |\n|---|---|---|---|---|---|\n'
+export function upsertForms(text, forms) {
+  let t = String(text || '').replace(/\r\n/g, '\n')
+  if (!t.trim()) t = FORMS_HEAD
+  for (const f of forms) {
+    const row = `| ${f.name} | ${(f.aliases || []).join(', ') || '—'} | ${f.folder || '—'} | ${f.kind || '대상'} | ${f.pattern ? '`' + f.pattern + '`' : '—'} | ${f.form || '—'} |`
+    const lines = t.split('\n')
+    const i = lines.findIndex((l) => parseForms(l)[0]?.name === f.name)
+    if (i >= 0) lines[i] = row
+    else {
+      let last = -1
+      lines.forEach((l, x) => { if (/^\|/.test(l)) last = x })
+      lines.splice(last + 1, 0, row)
+    }
+    t = lines.join('\n')
+  }
+  return t.endsWith('\n') ? t : t + '\n'
+}
+
+// 들어온 갈래 — 모양 검사 · 다듬기
+export function cleanForms(list) {
+  if (list == null) return []
+  if (!Array.isArray(list) || list.length > 200) return null
+  const one = (v, max) => (v == null ? '' : nfc(String(v)).replace(/[\r\n`|]/g, ' ').trim().slice(0, max))
+  const out = []
+  for (const x of list) {
+    if (!x || typeof x !== 'object') return null
+    const name = one(x.name, 40)
+    if (!name || /[/\\]/.test(name) || ['__proto__', 'prototype', 'constructor'].includes(name)) return null
+    const pattern = x.pattern ? one(x.pattern, 60) : ''
+    if (pattern && !/^[^:\s]+:\*$/.test(pattern)) return null
+    out.push({ name, aliases: Array.isArray(x.aliases) ? x.aliases.map((a) => one(a, 40).replace(/,/g, ' ')).filter(Boolean).slice(0, 20) : [], folder: one(x.folder, 120).replace(/^docs\//, '').replace(/\/+$/, ''), kind: FORM_KINDS.includes(x.kind) ? x.kind : '대상', pattern: pattern || null, form: one(x.form, 40) || null })
   }
   return out
 }

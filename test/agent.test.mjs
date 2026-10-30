@@ -1,7 +1,7 @@
 // 요구 v0.2 필수 — 에이전트로 지식 세우기 · 터미널 · 이름 세우기 · 메뉴 순서 · 동기화 · 가져오는 곳 고치기 · 지우기.
 //
 // 가짜 Claude Code(test/fixture/fake-claude-agent.mjs)가 kmd MCP 를 진짜 HTTP 로 부른다:
-//   「DPMS_회의록_261021_HNC_통화.md」 → 회의록 › 「2026-10-21 HNC 통화」 + 이름 term:펄스 명령 · 들인 기록은 「넣음」 · 터미널 줄
+//   「DPMS_회의록_261021_HNC_통화.md」 → 회의록 › 「2026-10-21 HNC 통화」 + 이름 term:펄스명령 · 들인 기록은 「넣음」 · 터미널 줄
 //   단기 열쇠(kmda_)는 /api 를 못 쓰고 다른 지식에 쓰지 못한다 · 넣지 않고 끝나면 규칙으로
 //   pdf → 글로 바꾼 뒤 기록 → 들이기 · hwpx 는 kmd 안에서 · names(save) → 이름 장부 · 자리 장부
 
@@ -74,8 +74,8 @@ test('파일 넣기 → 에이전트가 회의록 항목 · 이름을 세운다 
   const doc = fs.readFileSync(path.join(dir, 'docs', '회의록.md'), 'utf8')
   assert.match(doc, /^## 2026-10-21 HNC 통화$/m)
   assert.match(doc, /3초 동안 1을 쓰고/)
-  assert.match(fs.readFileSync(path.join(dir, '_vocab.md'), 'utf8'), /`term:펄스 명령`: 펄스 명령\n  aliases: 펄스 방식/)
-  assert.match(fs.readFileSync(path.join(dir, '_managed.md'), 'utf8'), /\| `term:펄스 명령` \| `docs\/회의록.md` \| `## 2026-10-21 HNC 통화` \|/)
+  assert.match(fs.readFileSync(path.join(dir, '_vocab.md'), 'utf8'), /`term:펄스명령`: 펄스 명령\n  aliases: 펄스 방식/)
+  assert.match(fs.readFileSync(path.join(dir, '_managed.md'), 'utf8'), /\| `term:펄스명령` \| `docs\/회의록.md` \| `## 2026-10-21 HNC 통화` \|/)
   const k = await s.hub.get('회의')
   assert.notEqual(k.byWork.get(r.rows[0].rec).state, 'pend')
   assert.ok(!fs.existsSync(path.join(dir, 'docs', 'DPMS_회의록_261021_HNC_통화.md')), '파일 이름 문서가 서지 않는다')

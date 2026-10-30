@@ -64,6 +64,7 @@ const HELP = `kmd ${VERSION}
   kmd machine add <지식> <원천> [--types 가,나] · kmd machine revoke <machine-…>
       바깥 생성기용 기계 열쇠(그 지식 · 그 표만 · 1년)
   kmd search-check <지식> [--freeze]           찾기 점검: 얼린 시험지 위에서 나빠진 문항
+  kmd guard <지식> | --all [--list]           지식 점검: 이름 없는 기록 · 장부 밖 이름 · 이름 없는 항목 · 자리 잃은 이름 · 같은 말 여러 이름 · 깨진 머리 수 · --list 는 목록까지
   kmd docfmt <지식> | --all [--dry]            옛 문서 옮기기: 항목 끝 출처 목록을 문서 끝 참고로(본문은 그대로) · --dry 는 보기만
   kmd auth reapply <auth.log>                  옛 명부로 되살린 뒤 늦은 일을 다시 적용
 
@@ -312,6 +313,7 @@ async function main() {
   if (cmd === 'connect') return connectCmd(parse(rest))
   if (cmd === 'search-check') return searchCheckCmd(parse(rest))
   if (cmd === 'docfmt') return docfmtCmd(parse(rest))
+  if (cmd === 'guard') return guardCmd(parse(rest))
   if (cmd === 'worker') return workerCmd(parse(rest))
   if (cmd === 'restore') return restoreCmd(parse(rest))
   if (cmd === 'auth') return authCmd(parse(rest))
@@ -680,7 +682,33 @@ async function searchCheckCmd(o) {
   }
 }
 
-// 옛 문서 옮기기 — 항목 끝 출처 목록 · 「기록 그대로」 줄을 문서 끝 참고 블록으로(작성기준 9절). 셸이 바로 한다
+// 옛 문서 옮기기 — 항목 끝 출처 목록 · 「기록 그대로」 줄을 문서 끝 참고 블록으로(작성기준 10절). 셸이 바로 한다
+async function guardCmd(o) {
+  const flagVal = (v) => (typeof v === 'string' && v !== 'true' && v !== 'false' ? v : undefined)
+  const id = o._[0] ?? flagVal(o.all) ?? flagVal(o.list)
+  const all = o.all !== undefined && !flagVal(o.all)
+  const list = o.list !== undefined
+  try {
+    if (!id && !all) throw new Error('kmd guard <지식> | --all [--list]')
+    const hub = await makeHub({ root: rootOf(o), dataDir: dataOf(o), log: () => {} })
+    const ids = all ? (await hub.list()).map((k) => k.id) : [id]
+    const L = { unnamed: '이름 없는 기록', outside: '장부 밖 이름을 단 기록', deprecatedUse: '폐기된 이름을 단 반영 대기 기록', lost: '자리 잃은 이름', noName: '이름 없는 항목', sameWord: '같은 말이 여러 이름', brokenHead: '깨진 머리', spaced: '값에 빈칸이 든 이름(옛 모양)' }
+    for (const x of ids) {
+      const r = await hub.guardAudit(SHELL, x)
+      const c = r.counts
+      console.log(`${r.name}: 이름 ${c.names}(살아 있음 ${c.live}) · 기록 ${c.records} · 항목 ${c.sections} · 갈래 장부 ${r.forms.own ? r.forms.rows.length + '줄' : '없음(기본 갈래)'}`)
+      for (const [key, label] of Object.entries(L)) {
+        console.log(`  ${label}: ${c[key]}`)
+        if (!list || !c[key]) continue
+        for (const it of r[key].slice(0, 50)) console.log(`    - ${typeof it === 'string' ? it : it.coord || it.id || (it.word ? it.word + ' → ' + it.names.join(' · ') : it.doc + ' › ' + it.heading)}${it.names && !it.word ? ' : ' + it.names.join(' · ') : ''}${it.title ? ' 「' + it.title.slice(0, 50) + '」' : ''}${it.doc && it.coord ? ' → ' + it.doc + ' ' + it.heading : ''}`)
+      }
+    }
+  } catch (e) {
+    console.error(e.message)
+    process.exitCode = 1
+  }
+}
+
 async function docfmtCmd(o) {
   // --dry · --all 뒤에 지식 이름이 오면(parse 가 값으로 먹는다) 지식 이름으로
   const flagVal = (v) => (typeof v === 'string' && v !== 'true' && v !== 'false' ? v : undefined)

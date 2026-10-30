@@ -116,8 +116,11 @@ test('파일 넣기: 기록으로 들이고 정리가 새 문서로 세우거나
   assert.ok(job && job.auto, '넣으면 정리가 저절로 걸린다')
   const wkey = (await s.auth.workerAdd()).key
   await workOnce({ server: s.url, key: wkey })
-  const md = fs.readFileSync(path.join(dir, 'docs', '회의록-1021.md'), 'utf8')
-  assert.match(md, /## 목적\n(<!-- applied: [^>]+ -->\n)?회의에서 정한 것을 남긴다\./)
+  // 문서 이름은 파일 이름이 아니라 갈래(지식 생성 가드 G4) — 회의록 문서의 「YYYY-MM-DD 무엇」 항목
+  assert.ok(!fs.existsSync(path.join(dir, 'docs', '회의록-1021.md')), '파일 이름으로 문서를 세우지 않는다')
+  const md = fs.readFileSync(path.join(dir, 'docs', '회의록.md'), 'utf8')
+  assert.match(md, /## \d{4}-\d\d-\d\d 1021\n/)
+  assert.match(md, /회의에서 정한 것을 남긴다\./)
   assert.match(md, /배포 창은 화 · 목\./)
   let k = await s.hub.get('dpms')
   assert.equal(k.byWork.get(rec.id).state, 'in', '넣은 뒤 「넣음」')
@@ -199,7 +202,7 @@ test('보내기 고르기: 변경사항(새 기록은 전체 · 고친 문서는
 
   // 변경사항에서는 기록만 고르고 · 지식에서 같은 문서를 전체로 고른다
   const r = await s.hub.send(KIM, 'note', { changes: [rec.key], docs: ['docs/배포메모.md'], recs: [] })
-  assert.deepEqual(r, { sent: 2, wait: 0 })
+  assert.deepEqual({ sent: r.sent, wait: r.wait }, { sent: 2, wait: 0 })
   const got = (await s.hub.get('dpms')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/')))
   assert.ok(got.some((w) => w.title === '롤백 순서: 쓰기 먼저 멈춤' && /롤백 전에 쓰기를 멈춘다/.test(w.body)), '기록은 전체로')
   assert.ok(got.some((w) => w.title === '배포메모: 문서 전체' && /## 카나리\n첫 30분은 요청의 30%/.test(w.body)), '문서는 전체로')

@@ -134,6 +134,9 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   await page.waitForSelector('[data-t=tree] [data-t=doc]')
   assert.equal(await page.locator('.tabbar .none').innerText(), '열린 탭이 없다. 왼쪽에서 열거나 Ctrl O')
   assert.match(await page.locator('[data-t=docsEmpty]').innerText(), /왼쪽 나무에서 문서나 기록을 연다/)
+  // 지식 점검(지식관리자) — 지식 생성 가드가 보는 것의 지금 상태 · 줄마다 수 · [보기] 로 목록
+  await page.waitForSelector('[data-t=guardCard] [data-t=guard-unnamed]')
+  assert.match(await page.locator('[data-t=guardCard]').innerText(), /지식 점검[\s\S]*이름 없는 기록[\s\S]*장부 밖 이름을 단 기록[\s\S]*이름 없는 항목/)
   assert.deepEqual(await page.locator('.tree .tf').evaluateAll((els) => els.map((e) => e.dataset.t)), ['fold-docs', 'fold-recs', 'fold-atts'])
   assert.equal(await page.locator('[data-t=moreDocs]').innerText(), '6개 더')
 
@@ -187,6 +190,9 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.deepEqual(await page.locator('[data-t=itemPage] .isec > h3').evaluateAll((els) => els.map((e) => e.firstChild.textContent.trim())), ['지금', '반영 대기', '지난 기록', '이 항목을 쓰는 곳', '다른 이름'])
   assert.ok((await page.locator('[data-t=itemHistRow]').count()) >= 5)
   assert.ok((await page.locator('[data-t=coItem]').count()) >= 1)
+  // 항목 이름 = 값 + 설명(컨벤션 5절) — 항목 머리 첫 줄에 값 · 목록 줄에 값 · 항목 찾기는 값으로도
+  assert.equal(await page.locator('[data-t=itemVal]').innerText(), '헬스 체크')
+  assert.ok((await page.locator('[data-t=itemRow] .iv').count()) >= 5, '목록 줄에 값')
   await page.screenshot({ path: path.join(SHOTS, 'app-items.png') })
 
   // 그래프(M7) — 점 · 선 · 거름 · 범례 · 점을 누르면 카드

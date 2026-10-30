@@ -89,7 +89,10 @@ test('기록만 하는 사람의 names: 이름 장부는 그대로 · 기록에 
     const out = await mcp.call({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }, ctx)
     return JSON.parse(out.result.content[0].text)
   }
-  const sv = await call('save', { knowledge: 'dpms', record: { title: '용어: 하나' }, names: [{ coord: 'term:카나리 비율', label: '카나리 비율' }] }, LEE)
+  // 새 이름의 값은 빈칸 없는 열쇠(지식 생성 가드 G1) · 세울 이름으로 실은 이름은 touches 에 달 수 있다
+  const bad = await call('save', { knowledge: 'dpms', record: { title: '용어: 하나', touches: ['term:카나리 비율'] }, names: [{ coord: 'term:카나리 비율', label: '카나리 비율' }] }, LEE)
+  assert.match(bad.message || bad.error || '', /빈칸|E_INPUT/)
+  const sv = await call('save', { knowledge: 'dpms', record: { title: '용어: 하나', touches: ['term:카나리비율'] }, names: [{ coord: 'term:카나리비율', label: '카나리 비율' }] }, LEE)
   assert.match(sv.note, /이름 1 은 아직 세우지 않았다/)
   const b = await call('brief', { knowledge: 'dpms' }, LEE)
   assert.deepEqual(b.you, { role: '쓰기', direct: false }) // 쓰기 자리를 받은 사람(권한 모델 4절)

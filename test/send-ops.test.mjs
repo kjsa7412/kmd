@@ -84,7 +84,9 @@ test('나누기: 한도 안의 글은 그대로 · 넘으면 항목마다 묶어
 test('큰 문서 전체 보내기: 기록 한도를 넘지 않게 나눠 모두 받는다 · 다시 보내면 받는 쪽 0', async () => {
   await s.hub.sendDests(KIM, 'note', [{ kn: 'dpms' }])
   const r = await s.hub.send(KIM, 'note', { changes: [], docs: ['docs/큰문서.md'] })
-  assert.deepEqual(r, { sent: 2, wait: 0 })
+  assert.deepEqual({ sent: r.sent, wait: r.wait }, { sent: 2, wait: 0 })
+  // 받은 쪽(팀) 장부에서 이름을 못 찾은 수를 돌려준다 — 받은 쪽 가드가 「이름 없음 — 받음」 으로 붙잡아 둔 것
+  assert.equal(r.unnamed, 2)
   const got = (await sentRecs('dpms')).filter((w) => w.title.startsWith('큰문서: 문서 전체'))
   assert.deepEqual(got.map((w) => w.title).sort(), ['큰문서: 문서 전체 (1/2)', '큰문서: 문서 전체 (2/2)'])
   await s.hub.send(KIM, 'note', { changes: [], docs: ['docs/큰문서.md'] })

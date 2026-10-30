@@ -223,7 +223,7 @@ function openTab(t, o) {
 function tabTitle(t) {
   if (t.kind === 'doc') { const tr = S.cache['tree:' + t.kn]; const d = tr && tr.docs && tr.docs.find((x) => x.id === t.ref); return d ? d.title : t.ref }
   if (t.kind === 'rec') { const tr = S.cache['tree:' + t.kn]; const r = (tr && tr.records && tr.records.find((x) => x.id === t.ref)) || S.cache[`rec:${t.kn}:${t.ref}`]; return r && r.title ? r.title.split(/ — |: /)[0] : '기록' }
-  if (t.kind === 'item') { const it = itemByKey(t.kn, t.ref); return it ? it.name : t.ref.replace(/^#[^#]*#/, '').replace(/^[^:]+:/, '') }
+  if (t.kind === 'item') { const it = itemByKey(t.kn, t.ref); return it ? it.short || it.name : t.ref.replace(/^#[^#]*#/, '').replace(/^[^:]+:/, '') }
   return t.ref
 }
 function tabIcon(t) { return t.kind === 'doc' ? svg('doc') : t.kind === 'item' ? svg('tag') : t.kind === 'att' ? svg('clip') : '<i class="pd"></i>' }
@@ -864,7 +864,28 @@ function docsEmpty(k) {
   if (tr && tr.error) return `<div class="pg-text"><div class="big">${esc(n.name)}</div>${errHtml(tr)}</div>`
   return `<div class="pg-text"><div class="big">${esc(n.name)}</div><p class="lead">${isPersonal(n) ? '내 지식' + (n.dir ? ' · ' + esc(n.dir) : '') + ' · 나만' : `팀 지식 · 나: ${lvChip(n)}`}</p>${waitHtml(k, tr)}
   <div class="callout gray" data-t="docsEmpty">왼쪽 나무에서 문서나 기록을 연다. 여러 개를 탭으로 띄우고, <b>Ctrl \\</b> 로 둘을 나란히 본다. 이름으로 바로 열려면 <b>Ctrl O</b>.</div>
-  <div class="card"><div class="ch">최근 바뀐 문서 <small>문서 ${tr ? ds.length : "…"}</small></div><div class="cb" style="padding:2px 14px 4px"><ul class="plain dl">${tr ? ds.slice(0, 5).map((d) => `<li data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="recentDoc" data-pv="doc|${esc(k)}|${esc(d.id)}">${svg('doc', 'di')}<span class="nm">${esc(d.title)}</span><span class="when${isToday(d.when) ? ' td' : ''}">${esc(whenTxt(d.when))}</span></li>`).join('') : `<li>${loadingHtml}</li>`}</ul></div></div></div>`
+  <div class="card"><div class="ch">최근 바뀐 문서 <small>문서 ${tr ? ds.length : "…"}</small></div><div class="cb" style="padding:2px 14px 4px"><ul class="plain dl">${tr ? ds.slice(0, 5).map((d) => `<li data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="recentDoc" data-pv="doc|${esc(k)}|${esc(d.id)}">${svg('doc', 'di')}<span class="nm">${esc(d.title)}</span><span class="when${isToday(d.when) ? ' td' : ''}">${esc(whenTxt(d.when))}</span></li>`).join('') : `<li>${loadingHtml}</li>`}</ul></div></div>${guardCard(k)}</div>`
+}
+// 지식 점검(지식관리자) — 지식 생성 가드가 보는 것의 지금 상태(문서 작성기준 9절 · core/guard.js audit)
+const guardOf = (k) => need('guard:' + k, `/api/k/${encodeURIComponent(k)}/guard`)
+const GUARD_ROWS = [['unnamed', '이름 없는 기록', 'rec'], ['outside', '장부 밖 이름을 단 기록', 'rec'], ['deprecatedUse', '폐기된 이름을 단 반영 대기 기록', 'rec'], ['lost', '자리 잃은 이름', 'item'], ['noName', '이름 없는 항목', 'sec'], ['sameWord', '같은 말이 여러 이름', 'word'], ['brokenHead', '깨진 머리', 'sec'], ['spaced', '값에 빈칸이 든 옛 이름', 'name']]
+function guardCard(k) {
+  const n = KN(k)
+  if (!n || !(isPersonal(n) || n.level === 'admin')) return ''
+  const g = guardOf(k)
+  if (!g) return `<div class="card" data-t="guardCard"><div class="ch">지식 점검</div><div class="cb">${loadingHtml}</div></div>`
+  if (g.error) return `<div class="card" data-t="guardCard"><div class="ch">지식 점검</div><div class="cb">${errHtml(g, 'guard:' + k)}</div></div>`
+  const c = g.counts
+  const open = S.guardOpen || ''
+  const li = (kind, x) => {
+    if (kind === 'rec') return `<li data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}" data-t="guardRec"><span class="nm">${esc(x.title)}</span><small class="muted">${esc(x.why || (x.names || []).join(' · '))}</small></li>`
+    if (kind === 'item') return `<li data-a="openItem" data-k="${esc(k)}" data-n="${esc(x.coord)}" data-t="guardItem"><span class="nm"><span class="iv">${esc(x.coord)}</span></span><small class="muted">${esc(x.doc.replace(/^docs\/|\.md$/g, ''))} 에 「${esc(x.heading)}」 머리가 없다</small></li>`
+    if (kind === 'sec') return `<li data-a="openDoc" data-k="${esc(k)}" data-d="${esc(x.doc)}" data-h="${esc(x.heading)}" data-t="guardSec"><span class="nm">${esc(x.doc)} › ${esc(x.heading)}</span></li>`
+    if (kind === 'word') return `<li data-t="guardWord"><span class="nm">${esc(x.word)}</span><small class="muted">${x.names.map(esc).join(' · ')}</small></li>`
+    return `<li data-t="guardName"><span class="nm"><span class="iv">${esc(x)}</span></span></li>`
+  }
+  const rows = GUARD_ROWS.map(([key, label, kind]) => `<div class="srow${c[key] ? '' : ' dim'}" data-t="guard-${key}"><span class="nm">${label}</span><span class="chip ${c[key] ? (key === 'noName' || key === 'sameWord' || key === 'spaced' ? 'c-mute' : 'c-warn') : 'c-acc'}">${c[key]}</span>${c[key] ? `<button type="button" class="btn ghost sm" data-a="guardOpen" data-v="${key}" aria-expanded="${open === key}">${open === key ? '접기' : '보기'}</button>` : ''}</div>${open === key ? `<ul class="plain dl" data-t="guardList">${(g[key] || []).slice(0, 100).map((x) => li(kind, x)).join('')}${c[key] > 100 ? `<li class="muted small">그 밖에 ${c[key] - 100}: kmd guard ${esc(k)} --list</li>` : ''}</ul>` : ''}`).join('')
+  return `<div class="card" data-t="guardCard"><div class="ch">지식 점검 <small>이름 ${c.live} · 기록 ${c.records} · 항목 ${c.sections} · 갈래 장부 ${g.forms.own ? g.forms.rows.length : '없음(기본 갈래)'}</small><button type="button" class="btn ghost sm r" data-a="guardRe" data-t="guardRe">다시 읽기</button></div><div class="cb" style="padding:2px 14px 6px">${rows}</div></div>`
 }
 function treeHtml(k) {
   const n = KN(k), tr = treeOf(k)
@@ -1007,7 +1028,7 @@ function qoList() {
     if (tr.error) { S.qo.bad.push(k); return }
     const kn = KN(k).name
     tr.docs.forEach((d) => out.push({ kind: 'doc', label: d.title, sub: kn + ' · 문서', k, ref: d.id }))
-    itemsOf(k).forEach((i) => { if (i.table && !q) return; out.push({ kind: 'item', label: i.name, sub: kn + ' · 항목 · ' + i.kind, k, ref: i.key, alias: i.aliases }) })
+    itemsOf(k).forEach((i) => { if (i.table && !q) return; out.push({ kind: 'item', label: i.val && !sameTxt(i.val, i.name) ? `${i.short} ${i.name}` : i.name, sub: kn + ' · 항목 · ' + i.kind, k, ref: i.key, alias: [...i.aliases, ...(i.val ? [i.val] : [])] }) })
     tr.records.forEach((r) => out.push({ kind: 'rec', label: r.title, sub: kn + ' · 기록 · ' + (r.state === 'pend' ? '● 반영 대기' : whenTxt(r.date)), k, ref: r.id }))
   })
   if (!q) return out.filter((x) => x.kind !== 'rec').slice(0, 12)
@@ -1097,7 +1118,7 @@ function nameHits(q) {
     const tr = treeOf(k)
     if (!tr || tr.error) continue
     for (const d of tr.docs) { const l = norm(d.title), l2 = norm(d.id); if (l === nq || l2 === nq || l.startsWith(nq) || l2.startsWith(nq)) out.push({ kind: 'doc', k, ref: d.id, label: d.title, s: l === nq || l2 === nq ? 0 : 1 }) }
-    for (const i of itemsOf(k)) { const l = norm(i.name); if (l === nq || l.startsWith(nq)) out.push({ kind: 'item', k, ref: i.key, label: i.name, s: l === nq ? 0 : 1 }) }
+    for (const i of itemsOf(k)) { const l = norm(i.name), v = norm(i.val || ''); if (l === nq || l.startsWith(nq) || (v && (v === nq || v.startsWith(nq)))) out.push({ kind: 'item', k, ref: i.key, label: i.val && !sameTxt(i.val, i.name) ? `${i.short} ${i.name}` : i.name, s: l === nq || v === nq ? 0 : 1 }) }
   }
   return out.sort((a, b) => a.s - b.s).slice(0, 5)
 }
@@ -1133,10 +1154,20 @@ function M(k) {
     m.docById = new Map(m.docs.map((d) => [d.id, d]))
     m.recsByItem = new Map()
     for (const r of m.recs) for (const key of r.items) (m.recsByItem.get(key) || m.recsByItem.set(key, []).get(key)).push(r)
+    // 항목 이름 = 값 + 설명(디자인 컨벤션 5절) — 값은 장부 이름의 「:」 뒤 · 같은 값이 둘 이상이면 짧은 이름에 종류를 붙인다
+    const nv = {}
+    for (const i of m.items) { i.val = i.coord ? i.coord.slice(i.coord.indexOf(':') + 1) : null; if (i.val) nv[i.val] = (nv[i.val] || 0) + 1 }
+    for (const i of m.items) i.short = i.val ? (nv[i.val] > 1 ? i.coord : i.val) : i.name
   }
   return m
 }
 const itemsOf = (k) => (M(k) ? M(k).items : [])
+const sameTxt = (a, b) => norm(a || '') === norm(b || '')
+function inmHtml(i) {
+  if (!i.val) return `<span class="id1">${esc(i.name)}</span>`
+  return `<span class="iv">${esc(i.short)}</span>${sameTxt(i.val, i.name) || sameTxt(i.short, i.name) ? '' : `<span class="id" title="${esc(i.name)}">${esc(i.name)}</span>`}`
+}
+const itemHit = (i, nq) => norm(i.name).includes(nq) || (i.val && norm(i.val).includes(nq)) || (i.coord && norm(i.coord).includes(nq)) || i.aliases.some((a) => norm(a).includes(nq))
 const itemByKey = (k, key) => (M(k) ? M(k).byKey.get(key) || null : null)
 const recsOfItem = (k, i) => (i && M(k) ? M(k).recsByItem.get(i.key) || [] : [])
 const itemPend = (k, i) => recsOfItem(k, i).filter((r) => r.state === 'pend')
@@ -1198,7 +1229,7 @@ function kindFolded(k, kd) { return S.kfold[kd] !== undefined ? S.kfold[kd] : kd
 function itemListBody(k) {
   const q = S.iq.trim(), nq = norm(q), f = S.ifilt
   const its = itemsOf(k).filter((i) => (!f.pend || itemPend(k, i).length) && (!f.recent || itemRecent(k, i)) && (!f.mine || itemMine(k, i)))
-  const hits = q ? its.filter((i) => norm(i.name).includes(nq) || i.aliases.some((a) => norm(a).includes(nq))) : its
+  const hits = q ? its.filter((i) => itemHit(i, nq)) : its
   if (q && !hits.length) {
     const toks = q.split(/\s+/).filter(Boolean)
     const like = its.filter((i) => toks.some((t) => (i.first || '').includes(t))).slice(0, 8)
@@ -1220,7 +1251,7 @@ function itemListBody(k) {
 }
 function itemRowHtml(k, i, dt) {
   const rs = recsOfItem(k, i), p = rs.filter((r) => r.state === 'pend').length
-  return `<div class="tn${isAct('item', k, i.key) ? ' on' : ''}" data-a="openItem" data-k="${esc(k)}" data-n="${esc(i.key)}" data-t="${dt || 'itemRow'}" data-name="${esc(i.name)}" data-pv="item|${esc(k)}|${esc(i.key)}"><span class="nm">${esc(i.name)}</span>${p ? '<i class="pd" title="반영 대기"></i>' : ''}${!i.doc ? '<small class="nd">문서 없음</small>' : ''}${rs.length ? `<span class="rc" title="기록">${rs.length}</span>` : ''}</div>`
+  return `<div class="tn${isAct('item', k, i.key) ? ' on' : ''}" data-a="openItem" data-k="${esc(k)}" data-n="${esc(i.key)}" data-t="${dt || 'itemRow'}" data-name="${esc(i.name)}" data-pv="item|${esc(k)}|${esc(i.key)}"><span class="nm">${inmHtml(i)}</span>${p ? '<i class="pd" title="반영 대기"></i>' : ''}${!i.doc ? '<small class="nd">문서 없음</small>' : ''}${rs.length ? `<span class="rc" title="기록">${rs.length}</span>` : ''}</div>`
 }
 function itemsEmpty(k) {
   if (!M(k)) return `<div class="pg-text"><div class="big">${esc(KN(k).name)}: 항목</div>${modelErr(k) ? errHtml(modelErr(k), 'model:' + k) : loadingHtml}</div>`
@@ -1250,17 +1281,17 @@ function itemPane(t, right) {
   else if (d) now = `<div class="callout gray">문서 ${esc(d.title)} 에서 이 항목의 글이 빠졌다. 다음 정리 때 kmd 가 자리를 다시 찾는다</div>`
   else now = `<div class="callout gray" data-t="noDoc">아직 문서에 없다. 기록 ${rs.length} 이 같이 읽힌다</div>${rs.length ? `<div class="refpanel" data-t="noDocRecs"><div class="rp-h">반영 대기 <small>기록이다 · 문서 본문이 아니다 · ${esc(pendWhen(k))}</small></div><ul>${rs.map((r) => `<li><time>${esc(recDt(r.date))}</time><span>${esc(who(r.author))} · <button type="button" class="lk" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}">${esc(r.title)}</button>${r.body ? ' · ' + esc(r.body) : ''}</span></li>`).join('')}</ul></div>` : '<p class="muted">기록도 아직 없다</p>'}`
   const html = `<div class="docw" data-t="itemPage" data-name="${esc(it.name)}">${right ? rpHead() : ''}
-  <div class="ih"><span class="kt src">${esc(it.kind)}</span><h1>${esc(it.name)}</h1>${d ? `<span class="muted small">${esc(d.title)} › ${esc(it.sec)}</span>` : '<span class="chip c-mute">문서 없음</span>'}${al.length ? `<span class="r small muted">다른 이름: ${al.map(esc).join(' · ')}</span>` : ''}</div>
+  <div class="ih"><span class="kt src">${esc(it.kind)}</span>${it.val ? `<span class="iv" data-t="itemVal" title="${esc(it.coord)}">${esc(it.val)}</span>` : ''}<h1>${esc(it.name)}</h1>${d ? `<span class="muted small">${esc(d.title)} › ${esc(it.sec)}</span>` : '<span class="chip c-mute">문서 없음</span>'}${al.length ? `<span class="r small muted">다른 이름: ${al.map(esc).join(' · ')}</span>` : ''}</div>
   <section class="isec" data-t="itemNow"><h3>지금${d ? ` <small>: ${esc(d.title)} 안의 그 부분</small>` : ''}${d && !right ? `<button class="btn pri sm r" data-a="itemToDoc" data-k="${esc(k)}" data-n="${esc(it.key)}" data-t="itemToDoc">문서로 보기에서 열기</button>` : ''}</h3>${now}</section>
   <section class="isec" data-t="itemPend"><h3>반영 대기 <span class="chip c-pend" data-t="itemPendN">${pend.length}</span> <small>${esc(pendWhen(k))}</small></h3>${pend.length ? `<ul class="rl">${pend.map((r) => li(r, 'pend')).join('')}</ul>` : '<p class="muted small">없다. 모두 문서에 들어갔다</p>'}</section>
   <section class="isec" data-t="itemHist"><h3>지난 기록 <small>이력 · 바로잡은 것 위</small> <span class="chip c-mute" data-t="itemHistN">${past.length}</span></h3>${past.length ? `<ul class="rl">${past.map((r) => li(r)).join('')}</ul>` : '<p class="muted small">없다</p>'}</section>
-  <section class="isec" data-t="itemUses"><h3>이 항목을 쓰는 곳 <span class="chip c-mute">${uses.length}</span></h3>${uses.length ? `<ul class="rl">${uses.map((u) => `<li data-a="openItem" data-k="${esc(k)}" data-n="${esc(u.key)}" data-t="useRow" data-pv="item|${esc(k)}|${esc(u.key)}"><span class="tx"><b>${esc(u.doc ? (M(k).docById.get(u.doc) || {}).title || u.doc : '')} › ${esc(u.name)}</b><small>${esc(firstLine(k, u))}</small></span></li>`).join('')}</ul>` : '<p class="muted small">없다</p>'}</section>
+  <section class="isec" data-t="itemUses"><h3>이 항목을 쓰는 곳 <span class="chip c-mute">${uses.length}</span></h3>${uses.length ? `<ul class="rl">${uses.map((u) => `<li data-a="openItem" data-k="${esc(k)}" data-n="${esc(u.key)}" data-t="useRow" data-pv="item|${esc(k)}|${esc(u.key)}"><span class="tx"><b>${esc(u.doc ? (M(k).docById.get(u.doc) || {}).title || u.doc : '')} › ${esc(u.short || u.name)}</b>${u.val && !sameTxt(u.short, u.name) ? `<small>${esc(u.name)}</small>` : ''}<small>${esc(firstLine(k, u))}</small></span></li>`).join('')}</ul>` : '<p class="muted small">없다</p>'}</section>
   <section class="isec" data-t="itemAlias"><h3>다른 이름</h3>${al.length ? al.map((a) => `<span class="kn">${esc(a)}</span>`).join(' ') : '<p class="muted small">없다. 같은 말로 이틀 찾으면 저절로 붙는다</p>'}</section></div>`
   const co = coItems(k, it)
-  const aside = `<div class="ap" data-t="coItems"><h4 title="같은 기록이 함께 건드린 항목 · 많은 순">항목 <small>${co.length}</small></h4>${co.length ? co.map((c) => `<div class="alr" data-a="openItem" data-k="${esc(k)}" data-n="${esc(c.it.key)}" data-t="coItem" data-pv="item|${esc(k)}|${esc(c.it.key)}">${svg('tag')}<span class="nm">${esc(c.it.name)}</span><span class="rc">${c.n}</span></div>`).join('') : '<div class="muted small alr">없다</div>'}</div>
+  const aside = `<div class="ap" data-t="coItems"><h4 title="같은 기록이 함께 건드린 항목 · 많은 순">항목 <small>${co.length}</small></h4>${co.length ? co.map((c) => `<div class="alr" data-a="openItem" data-k="${esc(k)}" data-n="${esc(c.it.key)}" data-t="coItem" data-pv="item|${esc(k)}|${esc(c.it.key)}">${svg('tag')}<span class="nm">${inmHtml(c.it)}</span><span class="rc">${c.n}</span></div>`).join('') : '<div class="muted small alr">없다</div>'}</div>
   <div class="ap" data-t="inDocs"><h4 title="이 항목이 들어 있는 문서">문서</h4>${d ? `<div class="alr" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-h="${esc(it.sec)}" data-t="inDoc" data-pv="doc|${esc(k)}|${esc(d.id)}">${svg('doc')}<span class="nm">${esc(d.title)}</span></div>` : '<div class="muted small alr">아직 없다. 정리 때 kmd 가 자리를 찾는다</div>'}</div>
   ${nbGraph(k, 'i:' + it.key)}`
-  return { html, aside: right ? null : aside, title: it.name }
+  return { html, aside: right ? null : aside, title: it.short || it.name }
 }
 
 // ───────────── 보기 셋 — 그래프(3D · 손으로 쓴 힘 배치 · canvas · 바깥 라이브러리 없음 · 목업 M7) ─────────────
@@ -1282,8 +1313,8 @@ function graphData(k, fo, bundle) {
   const tables = its.filter((i) => i.table)
   const iid = (i) => (i.table && !B ? 'b:table' : 'i:' + i.key)
   if (f.item) {
-    its.filter((i) => !i.table).forEach((i) => add('i:' + i.key, 'item', i.name, { pend: pendI.has(i.key) }))
-    if (tables.length) { if (B) tables.forEach((i) => add('i:' + i.key, 'item', i.name, { table: true, pend: pendI.has(i.key) })); else add('b:table', 'bundle', '테이블 ' + tables.length, { n: tables.length }) }
+    its.filter((i) => !i.table).forEach((i) => add('i:' + i.key, 'item', i.short || i.name, { pend: pendI.has(i.key) }))
+    if (tables.length) { if (B) tables.forEach((i) => add('i:' + i.key, 'item', i.short || i.name, { table: true, pend: pendI.has(i.key) })); else add('b:table', 'bundle', '테이블 ' + tables.length, { n: tables.length }) }
   }
   if (f.doc) ds.forEach((d) => add('d:' + d.id, 'doc', d.title, { pend: pendD.has(d.id) }))
   const cut = Date.now() - 30 * 864e5
@@ -1544,7 +1575,7 @@ function graphFilter(k) {
 }
 function nodeInfo(k, id) {
   const i = id.indexOf(':'), t = id.slice(0, i), ref = id.slice(i + 1), m = M(k)
-  if (t === 'i') { const it = itemByKey(k, ref); if (!it) return null; const rs = recsOfItem(k, it); return { kind: it.kind, name: it.name, first: firstLine(k, it), recs: rs.length, pend: rs.filter((r) => r.state === 'pend').length, doc: it.doc ? { ref: it.doc, hl: it.sec } : null, item: it.key } }
+  if (t === 'i') { const it = itemByKey(k, ref); if (!it) return null; const rs = recsOfItem(k, it); return { kind: it.kind + (it.val ? ' · ' + it.val : ''), name: it.name, first: firstLine(k, it), recs: rs.length, pend: rs.filter((r) => r.state === 'pend').length, doc: it.doc ? { ref: it.doc, hl: it.sec } : null, item: it.key } }
   if (t === 'd') { const d = m.docById.get(ref); if (!d) return null; const its = d.items.map((x) => itemByKey(k, x)).filter(Boolean); const rs = m.recs.filter((r) => r.items.some((x) => d.items.includes(x))); return { kind: '항목 ' + its.length, name: d.title, first: d.first, recs: rs.length, pend: rs.filter((r) => r.state === 'pend').length, doc: { ref: d.id }, item: its[0] ? its[0].key : null } }
   if (t === 'r') { const r = m.recById.get(ref); if (!r) return null; return { kind: r.author + ' · ' + recDt(r.date), name: r.title, first: r.body, recs: 1, pend: r.state === 'pend' ? 1 : 0, doc: { rec: r.id }, item: r.items[0] || null } }
   return null
@@ -3240,7 +3271,7 @@ function viewSend() {
     }).join('')
     body = `<div class="tbar"><span class="muted small">문서는 통째로 간다 · 받는 지식의 정리가 바뀐 곳을 가른다 · 고르지 않은 것은 그대로 남는다</span></div><div class="dlist">${rows || '<div class="empty3 sm">문서가 없다</div>'}</div>`
   } else {
-    body = `<div class="feed flat" data-t="sentFeed">${v.log.map((x) => `<div class="fi" data-t="sentRow"><div class="ln"><span class="tm">${esc(whenTxt(x.at))}</span><span class="dot ${x.wait || x.fail ? 'acc' : ''}"></span><span class="tx">${esc(ro(x.to.map(sendNm).join(' · ')))} ${x.n}개를 ${x.wait ? '보내려 했다' : '보냈다'}${x.recs != null ? `: 기록 ${x.recs} · 문서 ${x.docs}` : ''}${x.late ? `<small>${esc(whenTxt(x.late))} 에 누른 것</small>` : x.wait ? '<small>닿으면 저절로 보낸다</small>' : ''}${x.fail ? `<small>${x.fail}개는 보내지 못했다. 위 줄에서 [지금 다시]</small>` : ''}${x.titles && x.titles.length ? `<small>${esc(x.titles.join(' · '))}${x.n > x.titles.length ? ` 외 ${x.n - x.titles.length}` : ''}</small>` : ''}</span></div></div>`).join('') || '<div class="fi"><div class="ln"><span class="tx muted">아직 보낸 것이 없다</span></div></div>'}</div>`
+    body = `<div class="feed flat" data-t="sentFeed">${v.log.map((x) => `<div class="fi" data-t="sentRow"><div class="ln"><span class="tm">${esc(whenTxt(x.at))}</span><span class="dot ${x.wait || x.fail ? 'acc' : ''}"></span><span class="tx">${esc(ro(x.to.map(sendNm).join(' · ')))} ${x.n}개를 ${x.wait ? '보내려 했다' : '보냈다'}${x.recs != null ? `: 기록 ${x.recs} · 문서 ${x.docs}` : ''}${x.late ? `<small>${esc(whenTxt(x.late))} 에 누른 것</small>` : x.wait ? '<small>닿으면 저절로 보낸다</small>' : ''}${x.fail ? `<small>${x.fail}개는 보내지 못했다. 위 줄에서 [지금 다시]</small>` : ''}${x.unnamed ? `<small>${x.unnamed}개는 받은 지식의 이름 장부에서 이름을 못 찾았다. 그 지식의 지식관리자가 이름을 골라 넣는다</small>` : ''}${x.titles && x.titles.length ? `<small>${esc(x.titles.join(' · '))}${x.n > x.titles.length ? ` 외 ${x.n - x.titles.length}` : ''}</small>` : ''}</span></div></div>`).join('') || '<div class="fi"><div class="ln"><span class="tx muted">아직 보낸 것이 없다</span></div></div>'}</div>`
   }
   const sel = sendPicks(), nR = sel.filter((x) => x.startsWith('r|')).length, nD = sel.length - nR
   const foot = tab === 'log' ? '' : `<div class="cf"><span class="mini"><span class="kt me">개인</span>${esc(src.name)} ${svg('arrow')} <span class="kt team">팀</span>${esc(r.name)}</span><span>고름: 기록 ${nR} · 문서 ${nD}</span><button class="btn pri" style="margin-left:auto" data-a="sendWin" data-v="confirm" data-t="sendBtn"${sel.length && !S.sending ? '' : ' disabled'}>${S.sending ? '보내는 중…' : sel.length ? `${esc(ro(r.name))} ${sel.length}개 보내기` : '보낼 것을 고른다'}</button></div>`
@@ -3304,7 +3335,7 @@ async function doSend() {
     S.sendSel = {}
     S.sendWhole = {}
     if (r.fail) toastErr(`보내지 못했다: ${(r.why || [])[0] || ''}`)
-    else toast(r.wait ? `닿지 않았다: ${r.wait}개는 저절로 다시 보낸다` : `${esc(ro(v.route.name))} ${r.sent}개를 보냈다 · ${esc(tidyWhen(v.route))} 문서에 들어간다`)
+    else toast(r.wait ? `닿지 않았다: ${r.wait}개는 저절로 다시 보낸다` : `${esc(ro(v.route.name))} ${r.sent}개를 보냈다 · ${esc(tidyWhen(v.route))} 문서에 들어간다${r.unnamed ? ` · ${r.unnamed}개는 이름 없음(그 지식의 지식관리자가 고른다)` : ''}`)
   } catch (e) { toastErr(e) }
   S.sending = false
   S.sendWin = null
@@ -4056,6 +4087,8 @@ const ACT = {
     render()
   },
   setTab: (el) => { S.setTab = el.dataset.v; S.menu = null; if (S.route.scr !== 'settings') go({ scr: 'settings' }); else render() },
+  guardOpen: (el) => { S.guardOpen = S.guardOpen === el.dataset.v ? '' : el.dataset.v; render() },
+  guardRe: () => { delete S.cache['guard:' + S.route.kn]; render() },
   // 설정 · 팀은 정리 · 설정 · 개인은 가져오기 · 이 PC 의 설정은 일반부터
   setArea: () => { S.setTab = 'gen'; S.menu = null; go({ scr: isTeam() ? 'tidy' : 'settings' }) },
   sendOpen: (el) => { S.sendSrc = el.dataset.k; go({ scr: 'send' }) },

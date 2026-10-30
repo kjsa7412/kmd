@@ -20,6 +20,7 @@ import { renderRecord } from './frontmatter.js'
 import { localStamp, recordTakenSync } from './save.js'
 import { watchedOf } from './watchmark.js'
 import { begin, recover, writeAtomic } from './journal.js'
+import { formsOf, guardNewDoc } from './guard.js'
 
 let cfg = { quietMs: 30_000 }
 export function configure(o) {
@@ -72,9 +73,9 @@ export async function collectNow(dir, { user, save }) {
     rescued.push({ path: p, copy: to, why })
   }
   for (const f of files) {
-    if (/^(work|log)\//.test(f.path) || f.path === '_vocab.md' || f.path === '_managed.md') {
+    if (/^(work|log)\//.test(f.path) || f.path === '_vocab.md' || f.path === '_managed.md' || f.path === '_forms.md') {
       if (f.code.includes('?')) continue // 새로 만든 기록 파일은 건드리지 않는다
-      await rescue(f.path, /^(work|log)\//.test(f.path) ? '기록 · 이력은 고치지 않는다. 바로잡으려면 바로잡는 기록을 남긴다' : '이름 · 자리 장부는 kmd 가 쓴다. 화면의 이름 세우기로')
+      await rescue(f.path, /^(work|log)\//.test(f.path) ? '기록 · 이력은 고치지 않는다. 바로잡으려면 바로잡는 기록을 남긴다' : '이름 · 자리 · 갈래 장부는 kmd 가 쓴다. 이름 세우기 · 갈래 세우기(save 의 names · forms)로')
       await tryGit(dir, ['checkout', '--', f.path])
       reverted.push(f.path)
     }
@@ -113,7 +114,14 @@ export async function collectNow(dir, { user, save }) {
     }
   }
   const title = `편집기에서 고침: ${docs.map((p) => path.basename(p, '.md')).slice(0, 3).join(' · ')}${docs.length > 3 ? ` 외 ${docs.length - 3}` : ''}`
-  const body = heads.length ? heads.map((x) => `- ${x.p.replace(/^docs\/|\.md$/g, '')} › ${x.h}`).join('\n') : docs.map((p) => `- ${p}`).join('\n')
+  // 지식 생성 가드(검사만) — 편집기로 새로 만든 문서도 갈래 · 이름 · 머리 꼴을 본다. 글은 그대로 두고 어긴 것을 이력에 남긴다(지식 점검 목록에도 보인다)
+  const forms = formsOf(await fsp.readFile(path.join(dir, '_forms.md'), 'utf8').then(readText, () => ''))
+  const guardLines = []
+  for (const f of files.filter((x) => x.code.includes('?') && docs.includes(x.path))) {
+    const hs = heads.filter((h) => h.p === f.path).map((h) => h.h)
+    for (const e of guardNewDoc(forms, f.path, hs).errors) guardLines.push(`- ${f.path.replace(/^docs\/|\.md$/g, '')}: ${e.message}`)
+  }
+  const body = (heads.length ? heads.map((x) => `- ${x.p.replace(/^docs\/|\.md$/g, '')} › ${x.h}`).join('\n') : docs.map((p) => `- ${p}`).join('\n')) + (guardLines.length ? `\n\n지식 생성 가드(검사만 · 글은 그대로)\n${guardLines.join('\n')}` : '')
   // 저장 — 기록 하나 · 바뀐 항목에 그 기록의 표지(자기 반영 — 아직 안 넣은 기록이 생기지 않는다)
   return { ...(await save({ title, body, touches: touched, heads, docs, reverted })), reverted, rescued }
 }

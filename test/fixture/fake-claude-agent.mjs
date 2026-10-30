@@ -2,7 +2,7 @@
 //
 // 지키는 것을 본다 — `-p` · stream-json · 내장 도구는 Read,Glob,Grep 만 · dontAsk · strict MCP · 설정 파일 둘.
 // MCP 가 있으면(들이기) 일 폴더의 md 를 읽어 kmd MCP 를 진짜 HTTP 로 부른다:
-//   brief → save(회의록 › 「2026-10-21 HNC 통화」 + 이름 term:펄스 명령) — 줄마다 stream-json 을 낸다
+//   brief → save(회의록 › 「2026-10-21 HNC 통화」 + 이름 term:펄스명령) — 줄마다 stream-json 을 낸다
 //   FAKE_AGENT_MODE=other → 다른 지식에 save 를 해 본다(거절돼야 한다) · =idle → 아무것도 넣지 않고 끝낸다
 // MCP 가 없으면(바꾸기) 「원본/…」 을 읽은 것처럼 md 글 하나를 답한다.
 
@@ -48,10 +48,10 @@ process.stdin.on('end', async () => {
   if (process.env.FAKE_AGENT_MODE === 'other') await mcp('save', { knowledge: 'dpms', record: { title: '엉뚱한 곳', body: 'x' } })
   await mcp('save', {
     knowledge: kn,
-    record: { title: 'HNC 통화 — 회의록에 새 항목', body: '회의록 갈래 · 펄스 명령 이름을 세웠다', touches: ['term:펄스 명령'] },
+    record: { title: 'HNC 통화 — 회의록에 새 항목', body: '회의록 갈래 · 펄스 명령 이름을 세웠다', touches: ['term:펄스명령'] },
     // =from → 표 · 값 덩이 하나는 kmd 가 그 머리 아래를 옮긴다(잇는 말만 쓴다) · =append → 있는 항목 끝에 「원격 명령」 아래만 보탠다
     sections: [process.env.FAKE_AGENT_MODE === 'from' ? { doc: '회의록', heading: '2026-10-21 HNC 통화', content: 'HNC 와 통화했다.', from: '원격 명령' } : process.env.FAKE_AGENT_MODE === 'append' ? { doc: '회의록', heading: '2026-10-21 HNC 통화', append: true, from: '원격 명령' } : { doc: '회의록', heading: '2026-10-21 HNC 통화', content: body.replace(/^#{1,2} .*$/gm, '').trim() }],
-    names: [{ coord: 'term:펄스 명령', label: '펄스 명령', aliases: ['펄스 방식'], doc: '회의록', heading: '2026-10-21 HNC 통화' }],
+    names: [{ coord: 'term:펄스명령', label: '펄스 명령', aliases: ['펄스 방식'], doc: '회의록', heading: '2026-10-21 HNC 통화' }],
   })
   end({ result: '회의록 › 2026-10-21 HNC 통화 · 이름 1' })
 })

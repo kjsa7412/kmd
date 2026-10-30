@@ -51,12 +51,12 @@ const TOOLS = [
   {
     name: 'section',
     description: '항목 하나의 지금 글(본문만: 출처 줄은 kmd 가 문서 끝 참고에 따로 둔다) · 지문(base) · 그 항목을 건드린 기록(아직 문서에 안 넣은 것은 최신 8). 이름(coord) 또는 문서 · 머리로 가리킨다. 그 항목을 고쳐 save 할 때 base 를 같이 보내면 그사이 남이 바꿨을 때 덮지 않는다.',
-    inputSchema: { type: 'object', properties: { knowledge: str('지식 id'), coord: str('이름: 예 proc:헬스 체크'), doc: str('문서: 예 배포절차'), heading: str('머리: 예 헬스 체크') }, required: ['knowledge'] },
+    inputSchema: { type: 'object', properties: { knowledge: str('지식 id'), coord: str('이름: 예 proc:헬스체크'), doc: str('문서: 예 배포절차'), heading: str('머리: 예 헬스 체크') }, required: ['knowledge'] },
   },
   {
     name: 'save',
     description: [
-      '기록을 남긴다. 제목 · 글 · 건드린 이름. 항목 글을 고쳤으면 sections 에 새 글 전체를 같이 보낸다(그 항목이 갈아 끼워진다). 새 이름(테이블 · 화면 · API · 절차 · 용어 …)을 세웠으면 names 로 이름 장부 · 자리 장부에 같이 올린다. 그 항목이 항목으로 보기 · 찾기에 그 종류로 선다. 한 번에 한 묶음으로 남는다.',
+      '기록을 남긴다. 제목 · 글 · 건드린 이름(touches). touches 는 match 로 찾은 이름 장부의 이름만 받는다(장부에 없는 이름 · 폐기된 이름은 거절하고 가까운 이름을 알려 준다). 건드린 이름이 정말 없으면 touches 를 비우고 touchesEmpty 에 까닭 한 줄을 적는다(둘 다 비면 거절). 새 문서는 갈래 장부의 갈래 이름으로만 선다(파일 이름 · 날짜 · 판이 든 이름은 거절 · 통화 · 미팅 메모는 회의록 문서의 「YYYY-MM-DD 무엇」 항목으로). 항목 글을 고쳤으면 sections 에 새 글 전체를 같이 보낸다(그 항목이 갈아 끼워진다). 새 이름(테이블 · 화면 · API · 절차 · 용어 …)을 세웠으면 names 로 이름 장부 · 자리 장부에 같이 올린다. 그 항목이 항목으로 보기 · 찾기에 그 종류로 선다. 한 번에 한 묶음으로 남는다.',
       '항목 글(sections.content)은 본문만: 대상 하나의 지금을 확정된 것만 「…한다 · …이다」 로. 링크는 지식 문서 [배포 절차](배포절차.md) · 항목 [준비](배포절차.md#준비) · 바깥 https://… 만.',
       '받지 않는 것(E_FORMAT): 기록 · 이력 링크(../work/… · ../log/…) · /api/… 같은 시스템 주소 · <!-- --> 주석 · 끝의 **경과** 기록 링크 목록 · 닫히지 않은 코드 울타리 · # · ## 머리 줄(소제목은 ###). 지금 글에 이미 있던 줄은 거절하지 않는다(새로 넣은 줄만). 출처 줄은 kmd 가 참고에 단다.',
       '좋은 예: 「배포 창은 화 · 목 14:00 ~ 17:00 이다.」 나쁜 예: 「배포 창을 바꿨다는 기록이 있다([기록](../work/2026-1021-배포-창.md))」.',
@@ -71,7 +71,8 @@ const TOOLS = [
           properties: {
             title: str('한 줄 제목: 「무엇: 어떻게」'),
             body: str('글: 바뀐 값 · 까닭'),
-            touches: { type: 'array', items: { type: 'string' }, description: '글이 실제로 바뀌는 항목의 이름(coord)만: 예 proc:헬스 체크 · 읽기만 한 항목은 달지 않는다(이름 하나가 정리의 자리 하나)' },
+            touches: { type: 'array', items: { type: 'string' }, description: '글이 실제로 바뀌는 항목의 이름(coord)만: match 로 찾은 이름 장부의 이름 · 예 proc:헬스체크 · 읽기만 한 항목은 달지 않는다(이름 하나가 정리의 자리 하나)' },
+            touchesEmpty: str('건드린 이름이 정말 없을 때만: 그 까닭 한 줄(예: 항목이 아직 없는 일정 메모). touches 와 같이 보내지 않는다'),
             tags: { type: 'array', items: { type: 'string' } },
             fixes: { type: 'array', items: { type: 'string' }, description: '바로잡는 기록 id' },
           },
@@ -81,10 +82,15 @@ const TOOLS = [
           type: 'array',
           items: { type: 'object', properties: { coord: str('이름'), doc: str('문서'), heading: str('머리'), content: str('항목의 새 글 전체(머리 줄 빼고 · 본문만: 기록 링크 · 주석 · 경과 목록 없이): from · append 를 쓰면 잇는 말 · 바뀐 값만'), base: str('section 이 준 지문: 이미 있는 항목이면 꼭 · 읽은 뒤 바뀌었으면 거절'), from: str('넣기 에이전트만: 원문 그대로여야 하는 표 · 값 덩이 하나를 그 머리로 가리키면 서버가 그 머리 아래를 옮긴다(content 다음에 붙는다) · 파일 전체("*")는 받지 않는다. 항목 글은 정리해 content 로'), append: { type: 'boolean', description: '넣기 에이전트만: 지금 항목 글 끝에 보탠다(지금 글을 다시 보내지 않는다)' } } },
         },
+        forms: {
+          type: 'array',
+          description: '세울 갈래(지식관리자): 새 문서가 설 수 있는 갈래를 갈래 장부에 더한다. 일반 자리는 기록에 실어 정리 때 관리자가 세운다',
+          items: { type: 'object', properties: { name: str('갈래 = 문서 이름: 예 회의록'), aliases: { type: 'array', items: { type: 'string' }, description: '이 갈래로 모을 다른 이름: 예 통화 · 미팅' }, folder: str('문서 폴더: 예 1.2_사업관리'), kind: str('대상 · 서술 · 사건 · 대장'), pattern: str('그 문서의 항목 이름 패턴: 예 이슈:*'), form: str('서식: 지식문서 · 결정기록 · 작업기록') }, required: ['name'] },
+        },
         names: {
           type: 'array',
-          description: '세울 이름: 종류는 영문 소문자(table · screen · api · proc · term · code · module · batch · req · func · issue · ops). 이미 있는 이름이면 다른 이름만 보탠다. doc · heading 을 주면 그 항목이 이 이름의 자리가 된다',
-          items: { type: 'object', properties: { coord: str('종류:값: 예 table:tb_user · proc:배포 승인'), label: str('보이는 이름: 예 사용자 테이블'), aliases: { type: 'array', items: { type: 'string' }, description: '다른 이름' }, doc: str('그 이름의 항목이 든 문서'), heading: str('그 항목 머리') }, required: ['coord', 'label'] },
+          description: '세울 이름: 종류는 그 지식의 종류(brief 의 kinds · 영문 소문자 또는 한글). 값은 빈칸 없는 열쇠(60자 안 · 문장 금지 · 설명은 label 에). 이미 있는 이름이면 다른 이름만 보탠다. doc · heading 을 주면 그 항목이 이 이름의 자리가 된다',
+          items: { type: 'object', properties: { coord: str('종류:값: 예 table:tb_user · proc:배포승인 · 이슈:DPMS-ISS-20'), label: str('보이는 이름: 예 사용자 테이블'), aliases: { type: 'array', items: { type: 'string' }, description: '다른 이름' }, doc: str('그 이름의 항목이 든 문서'), heading: str('그 항목 머리') }, required: ['coord', 'label'] },
         },
       },
       required: ['knowledge', 'record'],
@@ -133,6 +139,14 @@ export function makeMcp(store) {
         // 이 지식에서의 내 자리 — direct 면 sections · names 가 곧바로 문서 · 이름 장부에, 아니면 기록에 실려 정리 때 들어간다
         // 팀은 읽기 · 쓰기 · 관리(docs/kmd_권한_모델.md) — 관리 자리만 direct
         you: { role: store.mode === 'pc' ? '주인' : store.roleIn(k.id, ctx), direct: store.mode === 'pc' || store.canDirect(ctx, k.id) },
+        // 지식 생성 가드(작성기준 9절) — 이름의 종류 · 새 문서의 갈래 · 지키는 법. save 가 같은 규칙으로 거절한다
+        kinds: [...new Set([...k.vocab.coords.keys()].map((c) => c.slice(0, c.indexOf(':'))))],
+        forms: k.forms.rows.map((f) => ({ name: f.name, aliases: f.aliases, ...(f.folder ? { folder: f.folder } : {}), kind: f.kind, ...(f.pattern ? { pattern: f.pattern } : {}) })),
+        rules: [
+          'touches 는 match 로 찾은 이름 장부의 이름만. 새 이름은 names 로 같이 세운다(값은 빈칸 없는 열쇠 · 설명은 label)',
+          '건드린 이름이 정말 없으면 touches 를 비우고 touchesEmpty 에 까닭 한 줄',
+          k.forms.own ? '새 문서는 forms 의 갈래 이름 · 폴더로만. 갈래에 없는 문서가 필요하면 지식관리자에게(forms 로 갈래를 세운다)' : '새 문서 이름은 갈래 · 주제(회의록 · 장애 대응 · 보고서 · 주제 이름). 파일 이름 · 날짜 · 판을 쓰지 않는다. 통화 · 미팅은 회의록의 「YYYY-MM-DD 무엇」 항목',
+        ],
         tidy: store.mode === 'pc' ? 'kmd 가 곧바로 문서에 넣는다' : ({ live: '실시간: 기록이 남고 5분 조용하면', manual: '손으로만: 누가 [지금 정리]' }[store.tidyModeOf(k.id)] || `정해진 시각 ${store.tidyAtOf(k.id)}`),
         ...(store.owner(k.id)?.noClaude ? { noClaude: '이 지식은 자동 정리에 Claude 를 쓰지 않는다(주인이 정했다). 이 대화로 옮기는 글은 꼭 필요한 것만' } : {}),
         stops: (await store.stops(ctx, k.id)).map((l) => l.text),
@@ -217,7 +231,7 @@ export function makeMcp(store) {
       }
     },
 
-    async save({ knowledge, record, sections, names }, ctx) {
+    async save({ knowledge, record, sections, names, forms }, ctx) {
       const k = await store.get(knowledge, ctx)
       // 이미 있는 항목을 갈아 끼우는 글에는 base 가 있어야 한다 — 없으면 그사이 남이 고친 글을 덮는다
       // (kmd 가 띄운 넣기 에이전트는 그 파일의 글을 들이는 일이라 뺀다 — 사람의 세션이 남의 고침을 덮지 않게 하는 것)
@@ -227,7 +241,7 @@ export function makeMcp(store) {
         const has = x.coord ? !!sectionOf(k, String(x.coord).trim().normalize('NFC'))?.sec : !!k.docs.find((d) => d.id === String(x.doc || '').replace(/^docs\/|\.md$/g, ''))?.sections.some((y) => headingMatches(y.h, String(x.heading || '')))
         if (has) throw new KmdError('E_CONFLICT', `「${x.coord || x.heading}」 은 이미 있는 항목이다. section 으로 다시 읽고 그 base 를 같이 보낸다(그사이 남이 고친 글을 덮지 않게)`)
       }
-      const r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}) })
+      const r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}), ...(forms ? { forms } : {}) }, { guard: 'strict' })
       const n = r.docs.length
       return { saved: r.id, date: r.date, docs: r.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')), note: r.queued ? `기록했다. 항목 글은 정리 때 문서에 들어간다(그동안도 그 항목 옆에 같이 읽힌다)${r.namesHeld ? ` · 이름 ${r.namesHeld} 은 아직 세우지 않았다. 기록에 실어 두었고 관리자가 정리 때 세운다(그 전에는 match 로 찾지 못한다)` : ''}` : n ? `저장했다. 기록 1 · 문서 ${n}` : store.mode === 'pc' ? '기록했다. 이 PC 는 kmd 가 곧바로 문서에 넣는다(정리를 기다리지 않는다)' : '저장했다. 기록 1', warnings: r.warnings }
     },

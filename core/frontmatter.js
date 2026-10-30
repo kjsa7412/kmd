@@ -44,6 +44,8 @@ export function parseRecord(text, file) {
     date: normDate(data.date) || '',
     author: data.author != null ? nfc(String(data.author).trim()) : '',
     touches: list(data.touches),
+    // 이름 없는 까닭(지식 생성 가드 G3) — touches 가 비었을 때만
+    touchesEmpty: data.touchesEmpty != null && String(data.touchesEmpty).trim() ? nfc(String(data.touchesEmpty).trim()) : null,
     tags: list(data.tags),
     fixes: data.supersedes != null ? list(typeof data.supersedes === 'object' && !Array.isArray(data.supersedes) ? data.supersedes.id : data.supersedes) : [],
     curates: normCurates(data.curates),
@@ -63,9 +65,10 @@ function normCurates(v) {
     .filter((x) => VERDICTS.includes(x.verdict))
 }
 
-export function renderRecord({ id, title, date, author, touches, tags, fixes, curates, reopens, reflects }, body) {
+export function renderRecord({ id, title, date, author, touches, touchesEmpty, tags, fixes, curates, reopens, reflects }, body) {
   const head = { id, title, date, author }
   if (touches?.length) head.touches = touches
+  else if (touchesEmpty) head.touchesEmpty = touchesEmpty
   if (tags?.length) head.tags = tags
   if (fixes?.length) head.supersedes = fixes.length === 1 ? fixes[0] : fixes
   if (curates?.length) head.curates = curates.map((c) => ({ id: c.id, verdict: c.verdict, ...(c.rule ? { rule: c.rule } : {}), ...(c.reason ? { reason: c.reason } : {}) }))

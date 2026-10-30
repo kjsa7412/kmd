@@ -410,6 +410,12 @@ td.go2{text-align:right;white-space:nowrap}
 .tn.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
 .app .tn svg{width:13px;height:13px;color:var(--text-3)}
 .tn .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* 항목 이름 = 값 + 설명(컨벤션 5절) — 값은 고정폭 · 굵게 · 설명은 흐림 · 한 줄 말줄임 */
+.iv{font:600 var(--fs-mono) var(--mono);color:var(--text);white-space:nowrap}
+.nm:has(> .iv){display:flex;align-items:baseline;gap:var(--sp-3)}
+.nm > .iv{flex:none;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.nm > .id{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-3);font-size:var(--fs-sm)}
+.ih .iv{color:var(--text-2);background:var(--surface-2);border-radius:var(--r-xs);padding:1px var(--sp-3);overflow-wrap:anywhere;white-space:normal}
 .tn .dt{font:var(--fs-xs) var(--mono);color:var(--text-3);flex:none}
 .tn .rc,.alr .rc{font-size:var(--fs-xs);color:var(--text-3);background:var(--surface-2);border-radius:var(--r-pill);padding:0 var(--sp-3);flex:none}
 .tn .nd{font-size:var(--fs-xs);color:var(--text-3);border:1px dashed var(--border-strong);border-radius:var(--r-xs);padding:0 var(--sp-2);flex:none}
@@ -1143,6 +1149,7 @@ a.dlink:hover{text-decoration:underline;text-underline-offset:2px}
   .paper .tblwrap table{display:table;overflow:visible}
 }
 @media (max-width:600px){
+  .tn .nm .iv + .id,.alr .nm .iv + .id{display:none}
   .hb.menu-btn{display:inline-grid}
   /* 창 전체가 길어진다 — 가운데(문서 본문)가 0 높이로 접히지 않고 글만큼 선다 */
   .app{flex-direction:column;height:auto;min-height:100vh;min-height:100dvh}

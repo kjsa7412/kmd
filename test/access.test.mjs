@@ -110,7 +110,9 @@ test('읽기 길: 찾기 · 문서 · MCP brief/section 은 읽기 이상 · 없
 })
 
 test('쓰기 길: 읽기는 403 E_FORBIDDEN · 쓰기는 기록으로 · 관리는 바로 문서에', async () => {
-  const rec = { record: { title: '롤백: 앱 먼저', body: '앱을 먼저 내린다' } }
+  // 지식 생성 가드 — 화면 · 세션의 save 는 건드린 이름(touches)이나 이름 없는 까닭(touchesEmpty)이 있어야 한다
+  const rec = { record: { title: '롤백: 앱 먼저', body: '앱을 먼저 내린다', touchesEmpty: '시험 — 롤백 순서 메모' } }
+  assert.equal((await req('/api/k/dpms/save', P.wr, { record: { title: '이름 없음', body: 'x' } })).status, 400, '이름도 까닭도 없는 기록은 받지 않는다')
   const r1 = await req('/api/k/dpms/save', P.rd, rec)
   assert.deepEqual([r1.status, r1.j.error], [403, 'E_FORBIDDEN'])
   assert.match(r1.j.message, /이 지식에 쓰기 자리가 없다/)
@@ -135,7 +137,7 @@ test('쓰기 길: 읽기는 403 E_FORBIDDEN · 쓰기는 기록으로 · 관리�
   assert.equal((await req('/api/k/dpms/receive', P.rd, { from: 'x', items: [{ title: 't', body: 'b' }] })).status, 403)
   assert.equal((await req('/api/k/dpms/receive', P.wr, { from: 'x', items: [{ title: '받은 것', body: '본문' }] })).j.saved, 1)
   // 모두=쓰기(gdi) — 들어온 사람 모두 기록한다
-  assert.equal((await req('/api/k/gdi/save', P.no, { record: { title: '공통코드: 메모', body: '모두 쓰기' } })).status, 200)
+  assert.equal((await req('/api/k/gdi/save', P.no, { record: { title: '공통코드: 메모', body: '모두 쓰기', touchesEmpty: '시험 메모' } })).status, 200)
 })
 
 test('관리 길: 가져올 곳 더하기 · 지금 가져오기 · 그대로 반영 · 문서 옮기기 · 자리 표는 관리 자리', async () => {

@@ -17,6 +17,7 @@ import { valuesOf } from './save.js'
 // 코드 바뀜 기록(code-change)은 차이 속의 수를 다 볼 수 없다 — 「바뀐 값」 의 새 값만 글에 있어야 한다
 import { newValuesOf } from './codechange.js'
 import { sha16 } from './text.js'
+import { formFor, guardNewDoc, DEFAULT_FORMS } from './guard.js'
 import { sectionOf, coordsOfSection, labelOf } from './knowledge.js'
 import { formatProblems, lintSection } from './docformat.js'
 import { splitBlocks, hasBlockMarker } from './baseline.js'
@@ -74,7 +75,7 @@ export function material(k, { candidates = () => [], ids = null } = {}) {
   // 넣은 파일의 기록 — 기존 문서 항목에 넣거나 새 문서로(큐레이션) · 후보 문서는 제목 · 머리 말이 겹치는 것(원본이 주인인 문서는 빼고)
   for (const w of k.works) {
     if (w.state !== 'pend' || w.touches.length || !w.tags.some((t) => t.startsWith('ingest/')) || isPrivate(w) || k.reverted.has(w.id) || off(w)) continue
-    out.push({ kind: 'ingest', record: { id: w.id, date: w.date, author: w.author, title: w.title, body: w.body, file: w.tags.find((t) => t.startsWith('ingest/')).slice(7) }, docs: ingestCandidates(k, w) })
+    out.push({ kind: 'ingest', record: { id: w.id, date: w.date, author: w.author, title: w.title, body: w.body, file: w.tags.find((t) => t.startsWith('ingest/')).slice(7) }, docs: ingestCandidates(k, w), forms: (k.forms?.rows || DEFAULT_FORMS).map((f) => ({ name: f.name, aliases: f.aliases, folder: f.folder || '', kind: f.kind })), formsOwn: !!k.forms?.own })
   }
   return out
 }
@@ -149,6 +150,7 @@ export function promptOf(g) {
         '- 문서 이름은 파일 이름이 아니라 그 글의 갈래 · 주제로 짓는다(예: 회의록 · 게이트웨이 설계 · 장애 대응). 날짜 · 번호 · 판 · 회사 약어 같은 파일 이름 조각은 문서 이름에 쓰지 않는다.',
         '- 같은 갈래의 문서가 후보에 있으면(예: 회의록) 새 문서를 세우지 않고 그 문서에 새 항목으로 넣는다. 항목 머리는 「언제 · 무엇」(예: 2026-10-21 HNC 통화).',
         '- 갈래 문서가 없으면 그 갈래 이름으로 새 문서를 세우고(예: newDoc.path = 회의록), 이 파일은 그 안의 항목 하나(머리 「언제 · 무엇」)로 둔다.',
+        `- 이 지식의 갈래(갈래 장부): ${(g.forms || []).map((f) => `${f.folder ? f.folder + '/' : ''}${f.name}(${f.kind}${f.aliases?.length ? ' · ' + f.aliases.join(', ') : ''})`).join(' · ') || '없음'}. 다른 이름에 걸리는 글은 그 갈래 문서로 간다(newDoc.path 는 폴더/갈래 이름).${g.formsOwn ? ' 갈래 장부에 없는 새 문서는 세우지 않는다: 이어지는 후보 문서에 넣는다.' : ''}`,
         '- 파일에 정한 것 · 바뀐 값 · 할 일이 있고 그 주제의 문서가 후보에 있으면, 그 문서의 해당 항목에도 그 내용을 고쳐 넣는다(updates).',
         '- 회의록은 이미 열린 회의 · 통화에서 정한 것 · 할 일만. 회의 · 통화를 준비하는 글(통화 스크립트 · 안건 · 준비 TODO · 체크리스트)은 회의록에 넣지 않고, 그 안의 확정 사실(구성 · 역할 · 범위 · 일정 · 규칙)을 그 주제 문서의 항목으로 넣는다.',
         '- 파일을 통째로 옮기지 않는다. 대상의 지금으로 요약 · 정리해 쓴다. 인사말 · 말할 거리 · 시간 배분 · 묻는 말 · 확인할 것 · 빈 칸 양식 · 메모 칸 · 준비 체크 상태 · 구분선은 옮기지 않는다(기록에 남는다).',
@@ -338,6 +340,10 @@ function checkIngest(k, g, d) {
     const p = String(nd.path || '').replace(/\\/g, '/').replace(/^docs\/|\.md$/g, '').trim()
     if (!p || p.split('/').some((x) => !x.trim() || x === '.' || x === '..' || x.length > 80) || /[<>:"|?*\u0000-\u001f]/.test(p)) return { ok: false, why: '새 문서 경로가 아니다' }
     if (k.byDocPath.get(docRel(p))) return { ok: false, why: '이미 있는 문서다. 새 문서가 아니라 고치기로' }
+    if (k.forms) {
+      const gd = guardNewDoc(k.forms, docRel(p), nd.sections.map((s) => String(s?.heading || '').trim()))
+      if (gd.errors.length) return { ok: false, why: gd.errors[0].message }
+    }
     for (const s of nd.sections) {
       if (!oneLineH(s?.heading) || typeof s.content !== 'string') return { ok: false, why: '초안 모양이 아니다' }
       outs.push(s.content)
@@ -364,14 +370,9 @@ function checkIngest(k, g, d) {
 }
 
 // 갈래 — 파일 이름 · 제목에 든 말로 고른다(Claude 없이). 문서 이름은 파일 이름이 아니라 갈래 · 주제(요구 15)
-const KINDS = [
-  [/회의록|회의|미팅|통화|면담|minutes|meeting/i, '회의록'],
-  [/장애|사고|incident|postmortem/i, '장애 대응'],
-  [/보고서|주간\s*보고|월간\s*보고|report/i, '보고서'],
-]
-export function kindOfName(s) {
-  const hit = KINDS.find(([re]) => re.test(String(s)))
-  return hit ? hit[1] : null
+//   갈래는 지식의 갈래 장부(`_forms.md` · core/guard.js) — 없으면 기본 갈래(회의록 · 장애 대응 · 보고서)
+export function kindOfName(s, forms = { rows: DEFAULT_FORMS }) {
+  return formFor(forms, s)?.name || null
 }
 // 날짜 — 파일 이름의 YYYY-MM-DD · YYYYMMDD · YYYY.MM.DD
 const DATE_RE = /(20\d\d)[-._ ]?(0[1-9]|1[0-2])[-._ ]?(0[1-9]|[12]\d|3[01])/
@@ -398,7 +399,10 @@ export function topicOfName(file) {
 export function ingestRule(k, g, { why = null } = {}) {
   const name = g.record.file.split('/').pop()
   const topic = topicOfName(g.record.file)
-  const kind = kindOfName(name) || kindOfName(g.record.title)
+  const fm = formFor(k.forms || { rows: DEFAULT_FORMS }, topicOfName(name)) || formFor(k.forms || { rows: DEFAULT_FORMS }, g.record.title)
+  const form = fm && fm.kind === '사건' ? fm : null
+  const kind = form ? form.name : null
+  const kindPath = form ? (form.folder ? `${form.folder}/${form.name}` : form.name) : null
   const why1 = why ? [`- Claude 로 하지 못한 까닭: ${why}`] : []
   // 기록 글 속 주석(<!-- -->)은 문서에 옮기지 않는다(작성기준 3절 — 본문만)
   const src = String(g.record.body).replace(/<!--[\s\S]*?-->/g, '')
@@ -408,15 +412,15 @@ export function ingestRule(k, g, { why = null } = {}) {
     const dm = DATE_RE.exec(name)
     const when = dm ? `${dm[1]}-${dm[2]}-${dm[3]}` : String(g.record.date || '').slice(0, 10)
     const what = topic.replace(new RegExp(`^${kind}\\s*`), '').trim() || topic
-    const doc = k.byDocPath.get(docRel(kind))
+    const doc = k.byDocPath.get(docRel(kindPath))
     let heading = [when, what].filter(Boolean).join(' ') || kind
     for (let n = 2; doc && doc.sections.some((s) => s.h === heading); n++) heading = `${[when, what].filter(Boolean).join(' ')} (${n})`
     return {
-      doc: kind,
+      doc: kindPath,
       note: `갈래 「${kind}」 ${doc ? '문서에 새 항목' : '새 문서'} ${heading}`,
       input: {
         record: { title: `정리: ${name} 들임`, body: [`규칙으로: 갈래 「${kind}」 ${doc ? '문서에 새 항목' : '새 문서'} ${heading}`, ...why1].join('\n'), tags: ['curate-auto'], reflects: [g.record.id] },
-        sections: [{ doc: docRel(kind), heading, content: text }],
+        sections: [{ doc: docRel(kindPath), heading, content: text }],
       },
     }
   }

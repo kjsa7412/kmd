@@ -27,7 +27,8 @@ import { parseVocab } from './vocab.js'
 import { ensureRepo, commitPaths } from './git.js'
 import { begin, writeAtomic } from './journal.js'
 import { watchedOf } from './watchmark.js'
-import { upsertVocab, upsertRegistry, cleanNames } from './namebook.js'
+import { upsertVocab, upsertRegistry, cleanNames, upsertPatternRow, upsertForms, cleanForms } from './namebook.js'
+import { guardRecord, guardNames, guardNewDoc, formsOf, EMPTY_MAX } from './guard.js'
 
 const DATE = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/
 const COORD = /^[^\s:`]+:[^\n`]+$/
@@ -62,6 +63,7 @@ function check(input) {
     if (r[k] == null) continue
     if (!Array.isArray(r[k]) || r[k].some((x) => typeof x !== 'string' || !re.test(x.trim()))) fail('E_INPUT', `${k} 는 한 줄 글의 목록이다`)
   }
+  if (r.touchesEmpty != null && !(typeof r.touchesEmpty === 'string' && oneLine(r.touchesEmpty) && r.touchesEmpty.trim() && r.touchesEmpty.length <= EMPTY_MAX)) fail('E_INPUT', `touchesEmpty 는 이름이 없는 까닭 한 줄이다(${EMPTY_MAX}자 안)`)
   const secs = input.sections ?? []
   if (!Array.isArray(secs)) fail('E_INPUT', 'sections 는 목록이다')
   for (const s of secs) {
@@ -108,7 +110,9 @@ export function serial(key, f) {
 // system — kmd 자신이 쓰는 저장(고친 기록 · 정리 · 가져오기). 예약 이름 · 태그는 system 만
 // agent — kmd 가 띄운 에이전트(요구 v0.2 R8): 작성자 kmd-auto · 태그 curate-llm · 들인 기록의 reflects 는 쓰되,
 //         원본이 주인인 문서 · 저절로 채우는 표 · kmd 파일은 사람 · 세션과 같이 막힌다(system 이 아니다)
-export function save(dir, input, { user, now = new Date(), system = false, agent = false } = {}) {
+// guard — 지식 생성 가드(core/guard.js)의 길. 'strict'(거절형 — 세션 · 화면) · 'hold'(붙잡아 두기 — 그 밖의 길 · 기본)
+//         holdWhy — hold 에서 이름 없는 기록에 kmd 가 다는 까닭 · proposed — 세울 이름으로 실어 둔 이름(일반 자리의 names)
+export function save(dir, input, { user, now = new Date(), system = false, agent = false, guard = 'hold', holdWhy = null, proposed = [] } = {}) {
   if (!user || !oneLine(user)) fail('E_INPUT', '누가 쓰는지 모른다')
   if (isReservedUser(user) && !system && !agent) fail('E_FORBIDDEN', `「${user}」 는 kmd 가 쓰는 이름이다`)
   const secs = check(input)
@@ -121,18 +125,29 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
   // 문서 꼴(작성기준 8절) — 사람 · 세션 · 에이전트의 항목 글은 본문만. 지금 글과 견주어야 하므로 saveNow 에서 본다
   //   (kmd 자신의 쓰기는 고쳐서 넣는다)
   const names = cleanNames(input.names)
-  if (!names) fail('E_INPUT', 'names 는 { coord: "종류:값", label, aliases?, doc?, heading? } 의 목록이다(종류는 영문 소문자)')
-  return serial(path.resolve(dir), () => saveNow(dir, input.record, secs, { user: nfc(user), now, system, names }))
+  if (!names) fail('E_INPUT', 'names 는 { coord: "종류:값", label, aliases?, doc?, heading? } 의 목록이다(종류는 영문 소문자 또는 한글)')
+  const forms = cleanForms(input.forms)
+  if (!forms) fail('E_INPUT', 'forms 는 { name: 갈래, aliases?, folder?, kind?: 대상 · 서술 · 사건 · 대장, pattern?: "종류:*", form? } 의 목록이다')
+  const mode = guard === 'strict' && !system ? 'strict' : 'hold'
+  return serial(path.resolve(dir), () => saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))) }))
+}
+
+// 가드 오류 — 첫 까닭을 글로 · 나머지는 details 로
+function guardFail(errors) {
+  const e = errors[0]
+  fail(e.code || 'E_INPUT', errors.length > 1 ? `${e.message} (그 밖에 ${errors.length - 1}건)` : e.message, { guard: errors.map(({ code, ...x }) => x) })
 }
 
 // 기록 여럿 — 문서 항목 없이 기록만 · git 한 묶음(받기 — 보낸 것 150개가 커밋 150번이 되지 않게)
 //   글마다 검사하고 거절된 것은 { i, error } 로 돌려준다(나머지는 남긴다) · 커밋이 넘어지면 쓴 기록을 모두 지운다
 //   { records: [{ i, id } | { i, error }], commit } — 남긴 것이 없으면 commit null
-export function saveRecords(dir, records, { user, now = new Date() } = {}) {
+//   가드는 붙잡아 두기(hold) — 받은 것은 잃지 않는다: 폐기 · 같은 말 이름은 바꿔 달고, 장부 밖 이름 · 이름 없는 기록은 그 상태로(까닭 holdWhy)
+export function saveRecords(dir, records, { user, now = new Date(), holdWhy = '받음 — 이 지식의 이름 장부에서 맞는 이름을 찾지 못했다' } = {}) {
   if (!user || !oneLine(user)) fail('E_INPUT', '누가 쓰는지 모른다')
   if (isReservedUser(user)) fail('E_FORBIDDEN', `「${user}」 는 kmd 가 쓰는 이름이다`)
   return serial(path.resolve(dir), async () => {
     await ensureRepo(dir)
+    const vocab = parseVocab(await fs.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => ''))
     // 쓰인 id — 처음에 폴더를 한 번 읽는다(같은 제목이 많으면 -2 · -3 … 을 찾느라 글마다 stat 수백 번이 된다)
     const taken = new Set()
     for (const sub of ['work', LOG_DIR]) for (const f of await fs.readdir(path.join(dir, sub)).catch(() => [])) if (f.endsWith('.md')) taken.add(nfc(f.slice(0, -3)).toLowerCase()) // 키는 소문자 — Windows 파일 이름은 대소문자를 가리지 않는다
@@ -147,9 +162,10 @@ export function saveRecords(dir, records, { user, now = new Date() } = {}) {
           const bad = (r.tags || []).filter(isReservedTag)
           if (bad.length) fail('E_FORBIDDEN', `kmd 가 쓰는 태그다: ${bad.join(' · ')}`)
           if (r.curates?.length || r.reopens?.length || r.reflects?.length) fail('E_FORBIDDEN', '정리 판정은 kmd 가 쓴다')
-          const w = await writeRecord(dir, r, { user: nfc(user), now, taken, j })
+          const g = guardRecord(vocab, r, { mode: 'hold', why: holdWhy })
+          const w = await writeRecord(dir, { ...r, touches: g.touches, touchesEmpty: g.touchesEmpty }, { user: nfc(user), now, taken, j })
           written.push(w)
-          out.push({ i, id: w.id })
+          out.push({ i, id: w.id, ...(g.touchesEmpty ? { unnamed: true } : {}), ...(g.outside.length ? { outside: g.outside } : {}), ...(g.fixes.length ? { fixes: g.fixes } : {}) })
         } catch (e) {
           if (!(e instanceof KmdError)) throw e // 디스크 · git 은 묶음 전체의 실패
           out.push({ i, error: e })
@@ -176,7 +192,7 @@ async function writeRecord(dir, r, { user, now, taken, j }) {
   for (let n = 2; taken.has(id.toLowerCase()); n++) id = `${base}-${n}`
   taken.add(id.toLowerCase())
   const touches = [...new Set((r.touches || []).map((x) => nfc(x.trim())))]
-  const rec = { id, title: nfc(r.title.trim()), date, author: user, touches, tags: (r.tags || []).map((t) => nfc(t.trim())), fixes: (r.fixes || []).map((x) => nfc(x.trim())), curates: [], reopens: [], reflects: [] }
+  const rec = { id, title: nfc(r.title.trim()), date, author: user, touches, touchesEmpty: touches.length ? null : r.touchesEmpty || null, tags: (r.tags || []).map((t) => nfc(t.trim())), fixes: (r.fixes || []).map((x) => nfc(x.trim())), curates: [], reopens: [], reflects: [] }
   const full = path.join(dir, sub, `${id}.md`)
   await j.add(`${sub}/${id}.md`)
   await writeAtomic(full, renderRecord(rec, nfc(r.body)))
@@ -223,16 +239,48 @@ export function sectionBase(text, heading) {
   return sha16(sec ? sec.body : '')
 }
 
-async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) {
+async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], mode = 'hold', holdWhy = null, proposed = new Set() }) {
   const regRaw = await fs.readFile(path.join(dir, '_managed.md'), 'utf8').then(readText, () => null)
   const vocRaw = await fs.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => null)
+  const formRaw = await fs.readFile(path.join(dir, '_forms.md'), 'utf8').then(readText, () => null)
+  const guardWarn = []
+  // 가드 G1 — 세울 이름의 모양(장부에 없던 이름만). 거절형은 거절 · 붙잡아 두기는 그 이름만 세우지 않는다
+  {
+    const g = guardNames(parseVocab(vocRaw || ''), names)
+    if (g.errors.length && mode === 'strict') guardFail(g.errors)
+    if (g.errors.length) {
+      const bad = new Set(g.errors.map((e) => e.name))
+      names = names.filter((n) => !bad.has(n.coord))
+      guardWarn.push(...g.errors.map((e) => `이름을 세우지 않았다: ${e.message}`))
+    }
+    guardWarn.push(...g.warnings)
+  }
   // 이번에 세우는 이름은 이 저장의 항목 자리(coord)로도 쓴다
-  const regNext = names.length ? upsertRegistry(regRaw || '', names) : regRaw || ''
+  let regNext = names.length ? upsertRegistry(regRaw || '', names) : regRaw || ''
   const vocNext = names.length ? upsertVocab(vocRaw || '', names) : vocRaw || ''
-  const registry = parseRegistry(regNext)
+  const formNext = formsIn.length ? upsertForms(formRaw || '', formsIn) : formRaw || ''
   const vocab = parseVocab(vocNext)
+  const forms = formsOf(formNext)
   const date = r.date || localStamp(now)
-  const touches = [...new Set((r.touches || []).map((x) => nfc(x.trim())))]
+  let touches = [...new Set((r.touches || []).map((x) => nfc(x.trim())))]
+  // 새 문서(G4) — 지금 없는 문서를 세우는 항목 글. 갈래 · 폴더 · 머리 꼴을 보고, 갈래에 이름 패턴이 있으면 자리 장부 행을 같이 세운다
+  {
+    const fresh = new Map()
+    for (const s of secs) {
+      if (s.coord != null || s.remove || s.rename != null) continue
+      const p = docPath(dir, s.doc)
+      if (existsSync(p.full)) continue
+      if (!fresh.has(p.rel)) fresh.set(p.rel, [])
+      fresh.get(p.rel).push(nfc(String(s.heading).trim()))
+    }
+    for (const [rel, hs] of fresh) {
+      const g = guardNewDoc(forms, rel, hs)
+      if (g.errors.length && mode === 'strict') guardFail(g.errors)
+      guardWarn.push(...g.errors.map((e) => `새 문서 ${rel.replace(/^docs\/|\.md$/g, '')}: ${e.message}`))
+      if (g.registryRow) regNext = upsertPatternRow(regNext, g.registryRow.pattern, g.registryRow.doc)
+    }
+  }
+  const registry = parseRegistry(regNext)
 
   // 항목 자리 먼저 — 하나라도 못 찾으면 아무것도 쓰지 않는다
   const plan = secs.map((s) => {
@@ -245,6 +293,15 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
     }
     return { ...docPath(dir, s.doc), level: 2, heading: nfc(s.heading.trim()), content: s.content ?? '', base: s.base, ...(s.remove ? { remove: true } : {}), ...(s.rename != null ? { rename: nfc(String(s.rename).trim()) } : {}), ...(system && s.applied !== undefined ? { applied: s.applied } : {}) }
   }).map((p, i) => (system && Array.isArray(secs[i].rough) ? { ...p, rough: secs[i].rough.map(String) } : p))
+  // 가드 G2 · G3 — 건드린 이름은 장부에 있는 것 · 이름 없는 기록은 까닭과 함께
+  //   (항목 글로 가리킨 이름은 위에서 touches 에 들었다 · 문서 · 머리로 가리킨 항목은 이 기록의 자리다)
+  const placed = plan.some((p) => !p.remove && p.rename == null)
+  const g = guardRecord(vocab, { ...r, touches, ...(placed ? { tags: [...(r.tags || []), 'at/'] } : {}) }, { mode, proposed, why: holdWhy })
+  if (g.errors.length) guardFail(g.errors)
+  touches = g.touches
+  const touchesEmpty = g.touchesEmpty
+  guardWarn.push(...g.fixes.map((f) => `이름을 바꿔 달았다: ${f.from} → ${f.to}${f.how === 'deprecated' ? '(폐기된 이름)' : '(같은 말)'}`))
+  if (g.outside.length) guardWarn.push(`이름 장부에 없는 이름: ${g.outside.join(' · ')} — 지식관리자가 이름을 세우거나 고를 때까지 「장부 밖 이름」 으로 보인다`)
   // 고친 기록(edit)은 표지를 뒤로 돌리지 않는다 — 그 항목에 이미 든 기록보다 옛 날짜면 거절
   if ((r.tags || []).includes('edit') && r.date) {
     for (const p of plan) {
@@ -291,7 +348,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
   let id = base
   for (let n = 2; await recordTaken(dir, id); n++) id = `${base}-${n}`
 
-  const rec = { id, title: nfc(r.title.trim()), date, author: user, touches, tags: (r.tags || []).map((t) => nfc(t.trim())), fixes: (r.fixes || []).map((x) => nfc(x.trim())), curates: r.curates || [], reopens: r.reopens || [], reflects: r.reflects || [] }
+  const rec = { id, title: nfc(r.title.trim()), date, author: user, touches, touchesEmpty, tags: (r.tags || []).map((t) => nfc(t.trim())), fixes: (r.fixes || []).map((x) => nfc(x.trim())), curates: r.curates || [], reopens: r.reopens || [], reflects: r.reflects || [] }
   if (!system && (await isTouchesFix(dir, { ...rec, body: r.body }, touches, registry))) rec.tags.push('touches-fix')
   const workRel = `${sub}/${id}.md`
   const workFull = path.join(dir, sub, `${id}.md`)
@@ -347,8 +404,8 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
     }
     // 이름 장부 · 자리 장부 — 바뀐 것만
     const books = []
-    for (const [rel, raw, next] of [['_vocab.md', vocRaw, vocNext], ['_managed.md', regRaw, regNext]]) {
-      if (!names.length || (raw || '') === next) continue
+    for (const [rel, raw, next] of [['_vocab.md', vocRaw, vocNext], ['_managed.md', regRaw, regNext], ['_forms.md', formRaw, formNext]]) {
+      if ((raw || '') === next) continue
       await j.add(rel)
       await writeAtomic(path.join(dir, rel), next)
       books.push(rel)
@@ -373,7 +430,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [] }) 
       const xs = lintNew(x.before, x.after)
       if (xs.length) docLint.push(lintMessage(rel.replace(/^docs\/|\.md$/g, ''), xs))
     }
-    return { id, record: workRel, docs, commit, date, ...(books.length ? { names: names.length } : {}), ...(formatKept.length ? { formatKept } : {}), ...(docLint.length ? { docLint } : {}) }
+    return { id, record: workRel, docs, commit, date, ...(books.length ? { names: names.length } : {}), ...(formsIn.length ? { forms: formsIn.length } : {}), ...(formatKept.length ? { formatKept } : {}), ...(docLint.length ? { docLint } : {}), ...(guardWarn.length ? { guardWarn } : {}), ...(touchesEmpty ? { touchesEmpty } : {}) }
   } catch (e) {
     await j.undo().catch(() => {})
     throw e

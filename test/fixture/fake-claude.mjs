@@ -35,6 +35,14 @@ process.stdin.on('end', () => {
     }
     const rest = secs.filter((s) => !updates.some((u) => u.heading === s.heading))
     const name = (head ? head[1] : '넣은 파일').split('/').pop().replace(/\.[^.]+$/, '')
+    // 갈래(프롬프트의 「이 지식의 갈래」 줄) — 파일 이름이 갈래 이름 · 다른 이름을 품으면 그 갈래 문서의 항목 하나(「YYYY-MM-DD 무엇」)로
+    const forms = [...((/- 이 지식의 갈래\(갈래 장부\): (.+)/.exec(prompt) || [])[1] || '').matchAll(/([^\s·(]+)\((사건|대상|서술|대장)(?: · ([^)]*))?\)/g)].map((m) => ({ path: m[1], kind: m[2], keys: [m[1].split('/').pop(), ...String(m[3] || '').split(',').map((x) => x.trim())].filter(Boolean) }))
+    const form = rest.length && forms.find((f) => f.kind === '사건' && f.keys.some((k) => k.length >= 2 && name.includes(k)))
+    if (form) {
+      const when = new Date().toISOString().slice(0, 10)
+      const content = rest.map((s) => `**${s.heading}**\n${s.content}`).join('\n\n')
+      return say({ structured_output: { updates, newDoc: { path: form.path, sections: [{ heading: `${when} ${name.replace(form.keys[0], '').replace(/^[-_ ]+/, '') || name}`, content }] }, why: '갈래 문서가 없다' } })
+    }
     return say({ structured_output: { updates, newDoc: rest.length ? { path: name, sections: rest } : null, why: updates.length ? '같은 항목이 있다' : '이어지는 문서가 없다' } })
   }
   // 넣은 파일의 기록 정리 — FAKE_CLAUDE_READ=<ms> 일 때만 답한다. FAKE_CLAUDE_SPANS 에 시작(s)을 적고, 함께 도는 부르기가
