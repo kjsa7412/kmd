@@ -162,3 +162,11 @@ test('saveRecords(받기) — 같은 말 이름을 바꿔 달고 이름 없는 �
   const w2 = parseRecord(fs.readFileSync(path.join(d, 'work', `${r.records[1].id}.md`), 'utf8'), 'x.md')
   assert.match(w2.touchesEmpty, /받음/)
 })
+
+test('지식 점검 — 넣지 않기로 둔 기록은 이름 없는 기록으로 세지 않는다 · 까닭을 적은 기록은 까닭과 함께 센다', async () => {
+  const { audit } = await import('../core/guard.js')
+  const w = (id, state, extra = {}) => ({ id, title: id, date: '2026-10-30', author: 'kim', touches: [], tags: [], reflects: [], curates: [], reopens: [], state, ...extra })
+  const k = { vocab, docs: [], works: [w('둔것', 'kept'), w('까닭', 'nowhere', { touchesEmpty: '갈래 장부만' }), w('빈것', 'nowhere')] }
+  const a = audit(k, { sectionOf: () => null, coordsOfSection: () => [] })
+  assert.deepEqual(a.unnamed.map((x) => [x.id, x.why]), [['까닭', '갈래 장부만'], ['빈것', null]])
+})

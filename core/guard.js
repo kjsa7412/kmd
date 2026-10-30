@@ -258,7 +258,8 @@ export function headingFits(f, h) {
 //   sectionOf · coordsOfSection 은 core/knowledge.js 의 것을 받는다(이 모듈이 지식 읽기를 끌어오지 않게)
 export function audit(k, { sectionOf, coordsOfSection }) {
   const live = [...k.vocab.coords].filter(([, v]) => !v.deprecated)
-  const unnamed = k.works.filter((w) => w.state === 'nowhere' || (!w.touches.length && !hasPlace(w) && !w.author.startsWith('kmd'))).map((w) => ({ id: w.id, title: w.title, date: w.date, why: w.touchesEmpty || null }))
+  // 넣지 않기로 둔 기록(정리 판정 「두기」)은 셈하지 않는다 — 까닭이 판정에 있다
+  const unnamed = k.works.filter((w) => w.state !== 'kept' && (w.state === 'nowhere' || (!w.touches.length && !hasPlace(w) && !w.author.startsWith('kmd')))).map((w) => ({ id: w.id, title: w.title, date: w.date, why: w.touchesEmpty || null }))
   const outside = []
   for (const w of k.works) {
     const xs = w.touches.filter((c) => !k.vocab.coords.has(c))
