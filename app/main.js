@@ -482,7 +482,7 @@ function mgItems() {
   const adm = !!(S.me && S.me.admin) || anyAdm()
   const set = (v, l) => ['settings', v, l]
   if (!isTeam()) return [['import', '', '가져오기'], ['send', '', '지식 보내기'], set('gen', '일반'), set('claude', 'Claude 연결'), set('agent', '에이전트 설치')]
-  return [...(adm ? [['import', '', '가져오기']] : []), ['tidy', '', '정리'], set('gen', '일반'), set('people', '사람'), set('claude', 'Claude 연결'), ...(adm ? [set('admin', '관리')] : [])]
+  return [...(adm ? [['import', '', '가져오기']] : []), ['tidy', '', '정리'], set('gen', '일반'), set('people', '사람'), set('claude', 'Claude 연결'), set('agent', '에이전트 설치'), ...(adm ? [set('admin', '관리')] : [])]
 }
 function mgWrap(scr, v) {
   const area = setArea(), items = mgItems()
@@ -3340,7 +3340,7 @@ const setArea = () => (isTeam() ? 'team' : 'me')
 function viewSettings() {
   const team = isTeam(), st = settingsOf()
   const ST = !team ? [['gen', '일반'], ['claude', 'Claude 연결'], ['agent', '에이전트 설치']]
-    : [['gen', '일반'], ['people', '사람'], ['claude', 'Claude 연결'], ...(S.me.admin ? [['admin', '관리']] : [])]
+    : [['gen', '일반'], ['people', '사람'], ['claude', 'Claude 연결'], ['agent', '에이전트 설치'], ...(S.me.admin ? [['admin', '관리']] : [])]
   const tab = ST.some((x) => x[0] === S.setTab) ? S.setTab : 'gen'
   const title = '설정'
   const lead = !team ? '<p class="lead" style="margin-bottom:10px">개인 프로그램의 것: 지식 폴더 · 백업 · 저절로 하는 일 · 내 Claude 로그인 · 모델 · 에이전트 · 보내는 길. 팀 서버 · 팀원에게는 가지 않는다</p>'
@@ -3385,7 +3385,7 @@ function agChips(f) {
   if (!ks.length) return '<span class="chip c-mute">지식을 정하지 않음</span>'
   return `<span style="display:flex;flex-wrap:wrap;gap:4px 8px;justify-content:flex-end" data-t="agentKns">${ks.map((k) => `<span data-t="agentKn" data-kn="${esc(k.kn)}" data-area="${k.area}"${k === d ? ' data-def="1"' : ''}><span class="kt ${k.area === 'team' ? 'team' : 'me'}">${k.area === 'team' ? '팀' : '개인'}</span> <b class="small">${esc(k.knName || k.kn)}</b>${k === d && ks.length > 1 ? ' <small class="muted">기본</small>' : ''}</span>`).join('')}</span>`
 }
-// 에이전트 설치(팀 화면) — 지식을 고르면 그 지식의 설치 명령을 복사한다 · 팀 지식과 개인 지식을 영역으로 나눠 늘어놓는다.
+// 에이전트 설치(팀 화면 › 설정 · 누구나) — 지식을 고르면 그 지식의 설치 명령을 복사한다 · 팀 지식과 개인 지식을 영역으로 나눠 늘어놓는다.
 //   팀 지식: 설치 한 줄(10분 · 한 번 · 이 PC 에 kmd 가 없으면 함께 깐다) · 개인 지식: `kmd agent add <지식>`(개인 프로그램)
 //   붙인 폴더의 이력은 두지 않는다 — 명령을 받는 곳
 function agentInstallCard() {
@@ -3405,13 +3405,13 @@ function agentInstallCard() {
    ${copied}</div></div>`
 }
 // 개인 프로그램 설치(팀 화면 · 누구나 · docs/kmd_팀_개인_분리_검토.html 결정 4) — 이 PC 에 개인 프로그램을 깔고 팀에 잇는 한 줄 ·
-//   작업 폴더에 받은 팀 지식을 붙이는 한 줄 · 내 기기(팀 서버가 아는 것만 · PC 에 묻지 않는다). 개인 지식 · 개인 폴더는 보이지 않는다
+//   내 기기(팀 서버가 아는 것만 · PC 에 묻지 않는다). 개인 지식 · 개인 폴더는 보이지 않는다
 function viewInstall() {
   const line = S.lastInstall ? `<div class="callout gray" data-t="installLine" style="display:block;margin:10px 0 0"><b>설치 · 잇기 한 줄을 복사했다</b> · 10분 동안 한 번만 · 남에게 주지 않는다${S.lastInstallVer ? ` · 개인 프로그램 판 ${esc(S.lastInstallVer)}` : ''}<div class="urlbox" style="max-height:none">${esc(S.lastInstall)}</div></div>` : ''
   const one = `<div class="card" data-t="installCard"><div class="ch">설치 · 업데이트 · 잇기 한 줄 <small>이 PC 에 개인 프로그램을 깔거나 팀 서버의 판으로 올리고 팀에 잇는다</small></div><div class="cb" style="padding:10px 14px 12px">
    <ol class="lsteps"><li><b>[한 줄 복사] 를 누른다</b><small>10분 동안 한 번만 · 내 이름의 기기 열쇠가 만들어진다</small></li><li><b>PowerShell 에 붙여 넣고 Enter</b><small>없으면 깔고 · 옛 판이면 팀 서버의 판으로 올리고(앞 판은 남는다 · 새 판이 안 켜지면 앞 판 그대로) · 팀에 다시 잇는다 · 관리자 권한은 쓰지 않는다</small></li><li><b>끝에 개인 화면이 열린다</b><small>지식 폴더 · 내 Claude 로그인 · 개인 지식은 개인 화면에서 · 다음부터는 시작 메뉴 › kmd</small></li></ol>
    <div class="row" style="margin-top:8px"><button class="btn pri" data-a="copyInstall" data-v="" data-t="installCopy">한 줄 복사</button></div>${line}</div></div>`
-  return { crumb: '개인 프로그램 설치', main: `<div class="pg-text"><div class="big">개인 프로그램 설치</div><p class="lead">개인 프로그램(내 지식 · 내 Claude 로그인)을 깔고 · 새 판으로 올리고 · 팀에 잇는 곳은 여기 하나다. 팀에 이으면 이 PC 에 내 이름의 기기 열쇠가 생기고, Claude Code 의 팀 연결(kmd-team) · 지식 보내기 · 받는 팀 지식 목록이 그 열쇠를 쓴다. 개인 지식은 팀 화면에 나오지 않는다.</p>${one}${agentInstallCard()}${devCard()}</div>` }
+  return { crumb: '개인 프로그램 설치', main: `<div class="pg-text"><div class="big">개인 프로그램 설치</div><p class="lead">개인 프로그램(내 지식 · 내 Claude 로그인)을 깔고 · 새 판으로 올리고 · 팀에 잇는 곳은 여기 하나다. 팀에 이으면 이 PC 에 내 이름의 기기 열쇠가 생기고, Claude Code 의 팀 연결(kmd-team) · 지식 보내기 · 받는 팀 지식 목록이 그 열쇠를 쓴다. 작업 폴더에 팀 지식을 붙이는 곳은 설정 › 에이전트 설치. 개인 지식은 팀 화면에 나오지 않는다.</p>${one}${devCard()}</div>` }
 }
 // 설치 명령 복사 — 그 팀 지식을 실은 설치 한 줄(팀 서버가 만든다)
 async function agentCopy(id, area) {
