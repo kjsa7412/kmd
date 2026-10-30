@@ -102,28 +102,34 @@ test('팀 에이전트 설치: 표 한 줄은 /a/ · 개인 프로그램을 깔�
 
   if (process.platform !== 'win32') return
   const app = path.join(tmp, '앱 데이터')
+  const home = path.join(tmp, '집 폴더')
   const work = path.join(tmp, 'work', 'dpms 일')
   fs.mkdirSync(work, { recursive: true })
   fs.mkdirSync(app, { recursive: true })
+  fs.mkdirSync(home, { recursive: true })
   fs.writeFileSync(path.join(work, 'CLAUDE.md'), '# 이 레포\n\n빌드는 gradle 로.\n')
   fs.writeFileSync(path.join(work, '.mcp.json'), JSON.stringify({ mcpServers: { other: { type: 'stdio', command: 'x' } } }))
   // 예전 한 덩이(팀 지식만) · 옛 스킬 — 걷힌다
   fs.mkdirSync(path.join(work, '.claude', 'skills', 'kmd-work'), { recursive: true })
   fs.writeFileSync(path.join(work, '.claude', 'skills', 'kmd-work', 'SKILL.md'), 'old')
   fs.appendFileSync(path.join(work, 'CLAUDE.md'), '\n<!-- kmd:begin v=old -->\n## kmd\n\n| 지식 | 영역 | 연결 | id | 남기면 보는 사람 |\n|---|---|---|---|---|\n| 「DPMS 지식」 (기본) | 팀 | kmd-team | dpms | x |\n<!-- kmd:end -->\n\n사람이 덧붙인 줄.\n')
-  const env = { APPDATA: app }
+  const env = { APPDATA: app, USERPROFILE: home }
   const r1 = await ps(['-Command', t.body.line], { cwd: work, env })
   assert.equal(r1.status, 0, r1.out)
   assert.match(r1.out, /이 PC 를 팀 .* kim 로 이었다/, r1.out)
   assert.match(r1.out, /팀 지식 「DPMS 지식」 을 붙였다\. 이 폴더의 팀 지식 1/, r1.out)
   assert.match(r1.out, /예전 한 덩이/, r1.out)
-  const keys = fs.readdirSync(path.join(app, 'kmd', 'keys'))
+  // 열쇠 · 헤더 도우미는 %USERPROFILE%\.kmd 에 — %APPDATA% 는 Claude 데스크톱 앱(MSIX) 안에서 가상화된다
+  const keyDir = path.join(home, '.kmd', 'keys')
+  const keys = fs.readdirSync(keyDir)
   assert.equal(keys.length, 1)
-  assert.ok(!fs.readFileSync(path.join(app, 'kmd', 'keys', keys[0]), 'utf8').includes('kmdk_'), '열쇠는 DPAPI 로 감싼다')
+  assert.ok(!fs.readFileSync(path.join(keyDir, keys[0]), 'utf8').includes('kmdk_'), '열쇠는 DPAPI 로 감싼다')
+  assert.equal(fs.existsSync(path.join(app, 'kmd', 'keys')), false, 'AppData 에는 쓰지 않는다')
   const mcp = JSON.parse(fs.readFileSync(path.join(work, '.mcp.json'), 'utf8')).mcpServers
   assert.deepEqual(Object.keys(mcp).sort(), ['kmd-team', 'other'], '다른 연결은 그대로')
   assert.equal(mcp['kmd-team'].url, s.url + '/mcp')
   assert.match(mcp['kmd-team'].headersHelper, /^powershell\.exe .*-File ".+kmd-team-key\.ps1" http:\/\/127\.0\.0\.1:\d+$/)
+  assert.equal(mcp['kmd-team'].headersHelper.match(/-File "([^"]+)"/)[1], path.join(home, '.kmd', 'kmd-team-key.ps1'))
   assert.ok(!JSON.stringify(mcp).includes('kmdk_'), '열쇠는 설정에 0')
   assert.ok(fs.existsSync(path.join(work, '.claude', 'skills', 'kmd-team-work', 'SKILL.md')))
   assert.ok(fs.existsSync(path.join(work, '.claude', 'skills', 'kmd-team-save', '작성가이드.md')))
@@ -155,6 +161,22 @@ test('팀 에이전트 설치: 표 한 줄은 /a/ · 개인 프로그램을 깔�
   md = fs.readFileSync(path.join(work, 'CLAUDE.md'), 'utf8')
   assert.equal((md.match(/kmd-team:begin/g) || []).length, 1)
   assert.deepEqual(teamRows(md).map((r) => r.kn), ['dpms', 'gdi'])
+
+  // 예전 자리(%APPDATA%\kmd\keys) 에만 열쇠가 있는 PC — 도우미는 예전 자리를 읽고, 한 줄은 그 열쇠를 새 자리로 옮겨 적는다
+  const oldDir = path.join(app, 'kmd', 'keys')
+  fs.mkdirSync(oldDir, { recursive: true })
+  fs.renameSync(path.join(keyDir, keys[0]), path.join(oldDir, keys[0]))
+  const h2 = await ps(['-File', hp[1], hp[2]], { env })
+  assert.equal(h2.status, 0, h2.out)
+  assert.equal(JSON.parse(h2.stdout).Authorization, auth, '예전 자리의 열쇠를 읽는다')
+  fs.writeFileSync(path.join(app, 'kmd', 'kmd-team-key.ps1'), 'old helper')
+  const t4 = await req('/api/device/ticket', { body: { kn: 'dpms' }, cookie: c })
+  const r4 = await ps(['-Command', t4.body.line], { cwd: work, env })
+  assert.equal(r4.status, 0, r4.out)
+  assert.match(r4.out, /팀 열쇠를 그대로 쓴다/, r4.out)
+  assert.ok(fs.existsSync(path.join(keyDir, keys[0])), '새 자리로 옮겨 적었다')
+  assert.equal((await req('/api/me/devices', { cookie: c })).body.length, devs, '새 기기를 만들지 않았다')
+  assert.equal(fs.readFileSync(path.join(app, 'kmd', 'kmd-team-key.ps1'), 'utf8').replace(/^﻿/, ''), fs.readFileSync(hp[1], 'utf8').replace(/^﻿/, ''), '예전 자리의 도우미도 새 글로')
 
   // 깨진 .mcp.json 은 덮지 않는다
   fs.writeFileSync(path.join(work, '.mcp.json'), '{ 깨짐')

@@ -1,6 +1,8 @@
 // OS 자격 저장소 — 기기 열쇠 · PC 의 나가는 자격을 둔다(환경변수 · 평문 파일에 두지 않는다).
 //
-//   Windows  DPAPI(현재 사용자) 로 감싼 파일 `%APPDATA%\kmd\keys\<이름 지문>.dpapi` — PowerShell 이 감싸고 푼다
+//   Windows  DPAPI(현재 사용자) 로 감싼 파일 `%USERPROFILE%\.kmd\keys\<이름 지문>.dpapi` — PowerShell 이 감싸고 푼다.
+//            %APPDATA% 에 두지 않는다: Claude 데스크톱 앱(MSIX) 안에서 뜬 프로세스가 쓰면 AppData 쓰기가 앱 전용 자리로 가상화되어
+//            앱 안 · 밖이 서로 다른 열쇠를 읽는다. 예전 자리(`%APPDATA%\kmd\keys`)는 새 자리에 없을 때만 읽는다
 //   macOS    키체인(security · 서비스 kmd)
 //   Linux    secret-tool(서비스 kmd) · 없으면 0600 파일 `~/.config/kmd/keys/`
 //
@@ -19,7 +21,8 @@ const run = (cmd, args, input) =>
   })
 
 const slug = (name) => crypto.createHash('sha256').update(String(name)).digest('hex').slice(0, 24)
-const winDir = () => path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'kmd', 'keys')
+const winDir = () => path.join(os.homedir(), '.kmd', 'keys')
+const oldWinDir = () => path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'kmd', 'keys')
 const fileDir = () => path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'kmd', 'keys')
 
 const PS = (body) => ['-NoProfile', '-NonInteractive', '-Command', `$ErrorActionPreference='Stop';Add-Type -AssemblyName System.Security;$in=[Console]::In.ReadToEnd();${body}`]
@@ -45,7 +48,8 @@ export async function put(name, value) {
 
 export async function get(name) {
   if (process.platform === 'win32') {
-    const b = await fs.readFile(path.join(winDir(), slug(name) + '.dpapi'), 'utf8').catch(() => null)
+    const f = slug(name) + '.dpapi'
+    const b = (await fs.readFile(path.join(winDir(), f), 'utf8').catch(() => null)) ?? (await fs.readFile(path.join(oldWinDir(), f), 'utf8').catch(() => null))
     if (!b) return null
     const r = await run('powershell.exe', PS("[Console]::Out.Write([Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Unprotect([Convert]::FromBase64String($in.Trim()),$null,'CurrentUser')))"), b)
     return r.ok ? Buffer.from(r.out.trim(), 'base64').toString('utf8') : null
@@ -61,7 +65,10 @@ export async function get(name) {
 }
 
 export async function del(name) {
-  if (process.platform === 'win32') return fs.rm(path.join(winDir(), slug(name) + '.dpapi'), { force: true })
+  if (process.platform === 'win32') {
+    await fs.rm(path.join(winDir(), slug(name) + '.dpapi'), { force: true })
+    return fs.rm(path.join(oldWinDir(), slug(name) + '.dpapi'), { force: true })
+  }
   if (process.platform === 'darwin') await run('security', ['delete-generic-password', '-s', 'kmd', '-a', name])
   else await run('secret-tool', ['clear', 'service', 'kmd', 'account', name])
   await fs.rm(path.join(fileDir(), slug(name)), { force: true })

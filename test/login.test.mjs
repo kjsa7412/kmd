@@ -165,5 +165,19 @@ test('비밀 · 자격 저장소 · kmd-key', async () => {
   assert.equal(await get(keyName(url)), 'kmdk_시험')
   const out = execFileSync(process.execPath, [path.join(HERE, '..', 'server', 'bin', 'kmd-key.mjs'), url], { encoding: 'utf8', env: { ...process.env } })
   assert.deepEqual(JSON.parse(out), { Authorization: 'Bearer kmdk_시험' })
+  if (process.platform === 'win32') {
+    // 자리는 %USERPROFILE%\.kmd\keys(%APPDATA% 는 Claude 데스크톱 앱 안에서 가상화된다) · 예전 자리는 새 자리에 없을 때만 읽는다
+    const nd = path.join(tmp, '.kmd', 'keys')
+    const od = path.join(tmp, 'kmd', 'keys')
+    const f = fs.readdirSync(nd)
+    assert.equal(f.length, 1, '새 자리에 썼다')
+    assert.equal(fs.existsSync(od), false, 'AppData 에는 쓰지 않는다')
+    fs.mkdirSync(od, { recursive: true })
+    fs.renameSync(path.join(nd, f[0]), path.join(od, f[0]))
+    assert.equal(await get(keyName(url)), 'kmdk_시험', '예전 자리에서 읽는다')
+    await put(keyName(url), 'kmdk_새것')
+    assert.equal(await get(keyName(url)), 'kmdk_새것', '새 자리가 먼저')
+    fs.rmSync(od, { recursive: true, force: true })
+  }
   assert.equal(prehash('Kim', '비밀번호1'), crypto.pbkdf2Sync('비밀번호1', 'kmd-login-v1:kim', 20000, 32, 'sha256').toString('base64url'), '화면의 전처리 = node')
 })

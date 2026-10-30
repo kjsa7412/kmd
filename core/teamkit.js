@@ -2,9 +2,11 @@
 //
 //   한 줄   팀 화면 › 설정 › 에이전트 설치의 `irm '<팀>/a/<표>?kn=<팀 지식>' | iex` — 붙여 넣은 폴더에
 //   스킬   <폴더>/.claude/skills/kmd-team-work · kmd-team-save(+ 작성가이드.md) · 개인 스킬(kmd-work · kmd-save · kmd-build)과 따로
-//   연결   <폴더>/.mcp.json 의 mcpServers.kmd-team 하나. 열쇠는 넣지 않고 헤더 도우미(%APPDATA%\kmd\kmd-team-key.ps1)가 꺼낸다
-//   열쇠   이 PC 의 기기 열쇠(Windows 자격 저장소: DPAPI 로 감싼 %APPDATA%\kmd\keys\<지문>.dpapi · core/keystore.js 와 같은 꼴)
+//   연결   <폴더>/.mcp.json 의 mcpServers.kmd-team 하나. 열쇠는 넣지 않고 헤더 도우미(%USERPROFILE%\.kmd\kmd-team-key.ps1)가 꺼낸다
+//   열쇠   이 PC 의 기기 열쇠(Windows 자격 저장소: DPAPI 로 감싼 %USERPROFILE%\.kmd\keys\<지문>.dpapi · core/keystore.js 와 같은 꼴 · 같은 자리)
 //          이미 있고 팀 서버가 받으면 그대로 · 없거나 끊겼으면 표(10분 · 한 번)로 하나 받는다(내 기기에 한 줄)
+//          %APPDATA% 에 두지 않는다 — Claude 데스크톱 앱(MSIX) 안에서 쓰면 앱 전용 자리로 가상화되어 앱 안 · 밖이 다른 열쇠를 읽는다.
+//          예전 자리(%APPDATA%\kmd\keys · %APPDATA%\kmd\kmd-team-key.ps1)는 새 자리에 없을 때 읽고, 받아지면 새 자리로 옮겨 적는다
 //   안내   <폴더>/CLAUDE.md 안 `<!-- kmd-team:begin v=… -->` ~ `<!-- kmd-team:end -->` · 「이 폴더의 팀 지식」 표 · 표지 밖의 줄은 그대로
 //   옛 꼴  예전 한 덩이(`kmd:begin` · 팀 · 개인 섞인 표)의 팀 줄은 팀 덩이로 옮긴다. 그 덩이에 개인 지식이 없으면 덩이와 옛 스킬을 걷는다
 //
@@ -64,10 +66,14 @@ export function teamKns({ old = '', legacy = '', add, visible }) {
 
 // ── PC 쪽 PowerShell — 파일을 읽고 쓰기만 · 판단은 POST /api/agent/team-kit ──
 const q = (s) => "'" + String(s).replace(/'/g, "''") + "'"
-// 기기 열쇠 파일 — keystore.js 와 같은 이름: sha256('device:' + origin) 앞 24 · DPAPI(현재 사용자)
+// 기기 열쇠 파일 — keystore.js 와 같은 이름 · 같은 자리: sha256('device:' + origin) 앞 24 · DPAPI(현재 사용자)
+//   $kf  새 자리 %USERPROFILE%\.kmd\keys(쓰기는 여기만 — AppData 는 Claude 데스크톱 앱 안에서 가상화된다)
+//   $kfr 읽을 파일 — 새 자리에 없으면 예전 자리 %APPDATA%\kmd\keys
 const PS_KEYFILE = [
   '$sha = [Security.Cryptography.SHA256]::Create()',
-  "$kf = Join-Path $env:APPDATA ('kmd\\keys\\' + (-join ($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes('device:' + $o)) | ForEach-Object { $_.ToString('x2') })).Substring(0, 24) + '.dpapi')",
+  "$kn24 = (-join ($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes('device:' + $o)) | ForEach-Object { $_.ToString('x2') })).Substring(0, 24) + '.dpapi'",
+  "$kf = Join-Path $env:USERPROFILE ('.kmd\\keys\\' + $kn24)",
+  "$kfr = if (Test-Path $kf) { $kf } else { Join-Path $env:APPDATA ('kmd\\keys\\' + $kn24) }",
 ]
 
 // 헤더 도우미 — Claude Code 가 연결할 때 부른다: 열쇠 파일을 풀어 {"Authorization":"Bearer …"} 한 줄
@@ -79,7 +85,7 @@ export function teamKeyHelperPs() {
     '  Add-Type -AssemblyName System.Security',
     "  $o = ([Uri]$args[0]).GetLeftPart('Authority')",
     ...PS_KEYFILE.map((l) => '  ' + l),
-    "  $k = [Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect([Convert]::FromBase64String((Get-Content $kf -Raw).Trim()), $null, 'CurrentUser'))",
+    "  $k = [Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect([Convert]::FromBase64String((Get-Content $kfr -Raw).Trim()), $null, 'CurrentUser'))",
     `  [Console]::Out.Write('{"Authorization":"Bearer ' + $k + '"}')`,
     '} catch {',
     "  [Console]::Error.WriteLine('kmd: no team key on this PC. Paste the install line from team screen > Settings > Agent install again')",
@@ -103,8 +109,10 @@ export function teamAgentPs({ origin, ticket, kn }) {
     ...PS_KEYFILE,
     // ① 열쇠 — 있고 팀 서버가 받으면 그대로 · 아니면 표로 하나 받아 자격 저장소에
     '$key = $null',
-    "if (Test-Path $kf) { try { $key = [Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect([Convert]::FromBase64String((Get-Content $kf -Raw).Trim()), $null, 'CurrentUser')) } catch { $key = $null } }",
+    "if (Test-Path $kfr) { try { $key = [Text.Encoding]::UTF8.GetString([Security.Cryptography.ProtectedData]::Unprotect([Convert]::FromBase64String((Get-Content $kfr -Raw).Trim()), $null, 'CurrentUser')) } catch { $key = $null } }",
     'if ($key) { try { Invoke-RestMethod "$o/api/knowledge" -Headers @{ Authorization = "Bearer $key" } -UseBasicParsing | Out-Null; Write-Host "· 이 PC 의 팀 열쇠를 그대로 쓴다" } catch { $key = $null } }',
+    // 예전 자리의 열쇠가 받아졌으면 새 자리로 옮겨 적는다(예전 파일은 그대로 · 개인 프로그램 예전 판이 읽는다)
+    "if ($key -and $kfr -ne $kf) { New-Item -ItemType Directory -Force (Split-Path $kf) | Out-Null; Copy-Item -LiteralPath $kfr -Destination $kf -Force }",
     'if (-not $key) {',
     '  $b = $u8.GetBytes((@{ ticket = $t; host = $env:COMPUTERNAME; osuser = $env:USERNAME } | ConvertTo-Json -Compress))',
     "  try { $r = Invoke-RestMethod \"$o/device/keys\" -Method Post -ContentType 'application/json; charset=utf-8' -Body $b -UseBasicParsing } catch { Write-Host \"· 팀에 잇지 못했다: $(Why $_) · 팀 화면 › 설정 › 에이전트 설치에서 한 줄을 다시 복사한다\"; return }",
@@ -127,9 +135,12 @@ export function teamAgentPs({ origin, ticket, kn }) {
     "if (Test-Path $mf) { try { $m = [IO.File]::ReadAllText($mf, $u8) | ConvertFrom-Json } catch { Write-Host \"· $mf 가 JSON 이 아니라 고치지 않았다. 고친 뒤 이 줄을 다시 붙여 넣는다\"; return } }",
     'if (-not $m) { $m = New-Object PSObject }',
     "if (-not $m.mcpServers) { $m | Add-Member -Force -NotePropertyName mcpServers -NotePropertyValue (New-Object PSObject) }",
-    "$hp = Join-Path $env:APPDATA 'kmd\\kmd-team-key.ps1'",
+    // 헤더 도우미 — 새 자리에. 예전 자리에 있으면 같은 글로 바꿔 둔다(예전 .mcp.json 이 그것을 가리킨다)
+    "$hp = Join-Path $env:USERPROFILE '.kmd\\kmd-team-key.ps1'",
     'New-Item -ItemType Directory -Force (Split-Path $hp) | Out-Null',
     '[IO.File]::WriteAllText($hp, $r.helper, (New-Object System.Text.UTF8Encoding $true))',
+    "$hpo = Join-Path $env:APPDATA 'kmd\\kmd-team-key.ps1'",
+    'if (Test-Path $hpo) { [IO.File]::WriteAllText($hpo, $r.helper, (New-Object System.Text.UTF8Encoding $true)) }',
     "$m.mcpServers | Add-Member -Force -NotePropertyName 'kmd-team' -NotePropertyValue ([pscustomobject]@{ type = 'http'; url = \"$o/mcp\"; headersHelper = \"powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `\"$hp`\" $o\" })",
     // 스킬 · 옛 것 걷기 · CLAUDE.md
     'foreach ($s in $r.skills) { $f = Join-Path $d $s.rel; New-Item -ItemType Directory -Force (Split-Path $f) | Out-Null; [IO.File]::WriteAllText($f, $s.text, $u8) }',
