@@ -286,3 +286,39 @@ test('검사에 걸린 초안은 까닭을 붙여 한 번 고쳐 쓴다 · 그�
   const log = fs.readFileSync(calls, 'utf8').split('\n').filter(Boolean).slice(before)
   assert.equal(log.filter((l) => l === 'fix').length, 2, '자리마다 한 번씩만 고쳐 쓴다')
 })
+
+test('옛 글의 값은 기록이 바꾼 것만 빠진다: drop 없이 빠지면 까닭을 붙여 고쳐 쓰고 · 그래도 빠지면 둔다(작성기준 3절 5)', async () => {
+  const { valuesOf } = await import('../core/save.js')
+  const body = async () => (await s.hub.get('dpms')).byDocPath.get('docs/배포절차.md').sections.find((x) => x.h === '헬스 체크')?.body || ''
+  const v = [...valuesOf(await body())][0]
+  assert.ok(v, '헬스 체크 항목에 값이 있다')
+  const once = await s.hub.save(LEE, 'dpms', { record: { title: '헬스 체크 공지 고쳐쓰기', body: `옛값빼기 ${v} 고쳐쓰기: 롤백 전에 공지한다.`, touches: ['proc:헬스 체크'] } })
+  await api('/api/k/dpms/tidy', { ids: [once.id] })
+  let r = await workOnce({ server: s.url, key: wkey, batch: 1 })
+  assert.equal(r.rows.find((x) => x.target.includes('헬스 체크')).kind, 'put', '고쳐 쓰며 옛 값을 되살렸다')
+  assert.ok((await body()).includes(v), '옛 값이 글에 남는다')
+  const lose = await s.hub.save(LEE, 'dpms', { record: { title: '헬스 체크 공지 둘', body: `옛값빼기 ${v} 그리고 롤백 뒤에도 공지한다.`, touches: ['proc:헬스 체크'] } })
+  await api('/api/k/dpms/tidy', { ids: [lose.id] })
+  r = await workOnce({ server: s.url, key: wkey, batch: 1 })
+  assert.match(r.rows.find((x) => x.target.includes('헬스 체크')).why, /옛 글의 값이 빠졌다/)
+})
+
+test('세 번 둔 기록: 지식관리자에게 「사람이 볼 것」 한 번 · 자동 정리에서 빠진다 · 손 정리는 된다', async () => {
+  const rec = await s.hub.save(LEE, 'dpms', { record: { title: '복구 점검 지어낸 값', body: '지어낸 복구 칸을 더한다.', touches: ['proc:복구 점검'] } })
+  for (let i = 0; i < 3; i++) {
+    await api('/api/k/dpms/tidy', { ids: [rec.id] })
+    const r = await workOnce({ server: s.url, key: wkey, batch: 1 })
+    assert.equal(r.rows.find((x) => x.records?.includes(rec.id))?.kind, 'left', `${i + 1}번째도 둔다`)
+  }
+  const warn = (await s.hub.today({ user: 'kim', admin: true })).filter((x) => x.rec === rec.id && /세 번 넣지 못한/.test(x.text || ''))
+  assert.equal(warn.length, 1, '알림은 한 번')
+  const plan = (await api('/api/k/dpms/tidy/plan')).body
+  assert.equal(plan.tries[rec.id], 3)
+  assert.equal(plan.hold, 3)
+  // 자동 정리 — 그 자리는 재료에 없다
+  const j = await s.hub.tidyNow({ user: 'kmd', admin: true }, 'dpms', { by: 'kmd', auto: true })
+  await workOnce({ server: s.url, key: wkey, batch: 1 })
+  const done = s.hub.job(j.id)
+  assert.ok(done.held >= 1, '뺀 자리 수를 남긴다')
+  assert.ok(!(done.spots || []).some((x) => x.records.includes(rec.id)), '세 번 둔 기록의 자리는 자동 정리에서 빠진다')
+})

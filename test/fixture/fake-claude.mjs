@@ -4,6 +4,7 @@
 // 표준 입력의 프롬프트(core/tidy.js promptOf)를 읽어 초안을 낸다:
 //   보통   지금 글 + 기록 글을 잇는다(기록의 값이 모두 든다) · used = 모든 기록
 //   기록에 「지어낸」 → 근거에 없는 값(999초)을 더한다 · 「누락」 → 그 기록 글을 빼고도 used 에 넣는다
+//   「옛값빼기 X」 → 지금 글의 X 를 drop 없이 지운다(고쳐쓰기 기록이면 고쳐 쓸 때 되살린다)
 //   「주입」 → 글에 머리 줄을 넣는다 · 「A → B」 꼴(값) → 지금 글의 A 를 B 로 바꾸고 drop 에 A
 //   이름 바로잡기 → 후보의 첫 이름
 //   고쳐 쓰기(fixPromptOf · 「지난 초안이 kmd 검사에 걸렸다」) → 「고쳐쓰기」 가 든 기록만 고친다(누락 · 지어낸 것을 하지 않는다)
@@ -100,6 +101,9 @@ function draft(cur, recs) {
       continue
     }
     const fixed = fixing && r.body.includes('고쳐쓰기')
+    // 「옛값빼기 X」 → 지금 글의 X 를 drop 에 적지 않고 지운다(옛 글 사실을 잃음 · 고쳐 쓰면 되살린다)
+    const lose = /옛값빼기 (\S+)/.exec(r.body)
+    if (lose && !fixed) content = content.split(lose[1]).join('')
     if (r.body.includes('누락') && !fixed) continue
     content += (content ? '\n' : '') + r.body
     if (r.body.includes('지어낸') && !fixed) content += ' 그리고 999초 기다린다.'

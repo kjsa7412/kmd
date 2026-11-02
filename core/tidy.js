@@ -176,7 +176,7 @@ export function promptOf(g) {
     ].join('\n\n')
   return [
     `문서 항목 「${g.name}」 의 글을 새 기록에 맞게 고쳐 쓴다. 기록에 있는 값(수 · 이름 · 코드)은 그대로 옮기고, 기록에 없는 값을 지어내지 않는다.`,
-    '옛 글의 값을 새 기록이 바꿨으면 새 값으로 바꾸고 drop 에 옛 값을 적는다. 넣을 것이 없는 기록은 left 에 까닭과 함께 둔다.',
+    '옛 글의 값을 새 기록이 바꿨으면 새 값으로 바꾸고 drop 에 옛 값을 적는다. 기록이 바꾸지 않은 옛 글의 값(버전 · 포트 · 이름 · 수)은 빼지 않는다. 넣을 것이 없는 기록은 left 에 까닭과 함께 둔다.',
     ...(g.records.some((r) => r.code) ? ['코드 커밋 기록은 「바뀐 값」 줄과 차이를 본다. 글에 옛 값이 있으면 새 값으로 고치고, 코드에 없는 설명은 지어내지 않는다. 이 항목 글과 상관없는 커밋은 left 에 둔다.'] : []),
     ...(g.records.some((r) => r.old) ? [OLD_RULE] : []),
     ...(g.records.some((r) => r.spread) ? [SPREAD_RULE] : []),
@@ -193,7 +193,7 @@ export function fixPromptOf(g, draft, why) {
   return [
     promptOf(g),
     `지난 초안이 kmd 검사에 걸렸다: ${why}`,
-    '「기록의 값이 글에 없다」 면 그 값을 기록에 쓰인 글자 그대로(단위까지) 글에 넣는다. 그 항목에 맞지 않는 값이면 그 기록을 left 에 까닭과 함께 둔다. 「근거에 없는 값」 이면 지금 글과 기록에 없는 그 값을 빼거나 근거에 있는 값으로 바꾼다. 나머지는 지난 초안을 그대로 두고 걸린 것만 고친다.',
+    '「기록의 값이 글에 없다」 면 그 값을 기록에 쓰인 글자 그대로(단위까지) 글에 넣는다. 그 항목에 맞지 않는 값이면 그 기록을 left 에 까닭과 함께 둔다. 「근거에 없는 값」 이면 지금 글과 기록에 없는 그 값을 빼거나 근거에 있는 값으로 바꾼다. 「옛 글의 값이 빠졌다」 면 그 값을 지금 글 그대로 되살린다. 기록이 그 값을 바꿨으면 새 값을 쓰고 drop 에 옛 값을 적는다. 나머지는 지난 초안을 그대로 두고 걸린 것만 고친다.',
     `지난 초안:\n${JSON.stringify(draft)}`,
   ].join('\n\n')
 }
@@ -252,7 +252,7 @@ export function batchPromptOf(gs) {
   for (const g of gs) for (const r of g.records) recs.set(r.id, r)
   return [
     `문서 ${gs[0].doc.replace(/^docs\/|\.md$/g, '')} 의 항목 ${gs.length} 개를 새 기록에 맞게 각각 고쳐 쓴다. 항목마다 items 에 하나씩 · key 는 받은 그대로.`,
-    '항목마다: 그 항목의 기록에 있는 값(수 · 이름 · 코드)은 그대로 옮기고, 기록에 없는 값을 지어내지 않는다. 옛 글의 값을 새 기록이 바꿨으면 새 값으로 바꾸고 drop 에 옛 값을 적는다. 그 항목에 넣을 것이 없는 기록은 left 에 까닭과 함께 둔다. used · left 에는 그 항목의 기록 id 만 쓴다.',
+    '항목마다: 그 항목의 기록에 있는 값(수 · 이름 · 코드)은 그대로 옮기고, 기록에 없는 값을 지어내지 않는다. 옛 글의 값을 새 기록이 바꿨으면 새 값으로 바꾸고 drop 에 옛 값을 적는다. 기록이 바꾸지 않은 옛 글의 값은 빼지 않는다. 그 항목에 넣을 것이 없는 기록은 left 에 까닭과 함께 둔다. used · left 에는 그 항목의 기록 id 만 쓴다.',
     ...([...recs.values()].some((r) => r.code) ? ['코드 커밋 기록은 「바뀐 값」 줄과 차이를 본다. 글에 옛 값이 있으면 새 값으로 고치고, 코드에 없는 설명은 지어내지 않는다. 그 항목 글과 상관없는 커밋은 left 에 둔다.'] : []),
     ...(gs.some((g) => g.records.some((r) => r.old)) ? [OLD_RULE.replace('붙은 기록은', '붙은 기록은(그 항목에서)')] : []),
     ...(gs.some((g) => g.records.some((r) => r.spread)) ? [SPREAD_RULE] : []),
@@ -355,6 +355,13 @@ export function check(k, g, d) {
   if (invented.length) return { ok: false, why: `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` }
   const gone = [...oldV].filter((v) => !now.has(v))
   const came = [...now].filter((v) => !oldV.has(v))
+  // 옛 글의 값은 기록이 바꾼 것만 빠진다(작성기준 3절 5) — drop 에 적었거나 기록의 「옛 → 새」 왼쪽에 있는 값 ·
+  //   그 밖의 값이 빠지면 옛 글 사실을 잃은 것이다(「Windows 10 · PostgreSQL 16」 이 값 바뀜에 섞여 묻지 않고 들어가던 것)
+  //   코드 바뀜 기록은 「바뀐 값: 옛 → 새 · …」 줄의 옛 값
+  const codeOld = (b) => ((String(b).match(/바뀐 값:? ([^\n]+)/) || [])[1] || '').split(/ — |: /)[0].split(' · ').flatMap((p) => (p.includes(' → ') ? [...valuesOf(p.split(' → ')[0])] : []))
+  const told = new Set([...drop, ...used.flatMap((r) => [...oldValues(r.body), ...(r.code ? codeOld(r.body) : [])].map((v) => v.replace(/\s+/g, '')))])
+  const lost = gone.filter((v) => !told.has(v.replace(/\s+/g, '')))
+  if (lost.length) return { ok: false, why: `옛 글의 값이 빠졌다: ${lost.slice(0, 3).join(' · ')}` }
   // 옛 기록은 지금 글의 값을 바꾸지 못한다 — 빠진 값이 있는데 새로 든 값이 옛 기록에서만 왔으면 되돌림이다
   const newerV = vOf(used.filter((r) => !r.old))
   const back = vOf(used.filter((r) => r.old))

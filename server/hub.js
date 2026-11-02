@@ -76,7 +76,7 @@ const isLocalPath = (u) => !/^[a-z][a-z0-9+.-]*:\/\//i.test(u) && !/^[^/\\]+@[^/
 
 // 정리 일꾼이 멈추는 까닭(자리마다 다시 불러도 같다) — 일감 · 정리 일 줄의 글
 // 초안 검사에서 Claude 가 고쳐 쓸 수 있는 까닭 — 일꾼이 까닭을 붙여 한 번 더 쓴다(그사이 바뀜 · 받지 않은 기록 같은 것은 다시 써도 같다)
-const FIXABLE = /^(기록의 값이 글에 없다|근거에 없는 값이 있다|근거보다 크게 썼다|글에 머리 · 표지가 들었다|빠뜨린 기록이 있다|글을 비웠다)/
+const FIXABLE = /^(기록의 값이 글에 없다|근거에 없는 값이 있다|옛 글의 값이 빠졌다|근거보다 크게 썼다|글에 머리 · 표지가 들었다|빠뜨린 기록이 있다|글을 비웠다)/
 const STOP_WHY = { login: '정리 전용 로그인이 끝났다', limit: '사용 한도에 닿았다', missing: '서버에 Claude Code(claude) 가 설치되어 있지 않다' }
 
 export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log = (...a) => console.log('[kmd]', ...a) }) {
@@ -275,6 +275,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     log(`정리 장부가 깨졌다: ${f}${aside ? ' · 옆으로 옮기고 새로 쓴다' : ''}`)
     if (aside) await fs.rename(f, `${f}.broken-${Date.now()}`)
     return []
+  }
+  // 정리가 넣지 못하고 둔 횟수 — 기록마다 정리 한 번에 한 번(한 기록이 자리 여럿에 걸려도) ·
+  //   HOLD 번이면 자동 정리에서 빼고 「사람이 볼 것」 으로 지식관리자에게 알린다(매일 밤 같은 기록을 다시 쓰던 것) · 손 정리는 그대로 된다
+  const HOLD = 3
+  async function leftTries(id) {
+    const tries = {}
+    for (const run of await readRuns(id)) for (const x of new Set((run.rows || []).filter((r) => r.kind === 'left').flatMap((r) => r.records || []))) tries[x] = (tries[x] || 0) + 1
+    return tries
   }
   function saveRun(id, run) {
     const f = runsFile(id)
@@ -1579,10 +1587,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       await hub.meta(id, ctx)
       const k = await hub.get(id, ctx)
       const spots = material(k).map((g) => ({ key: spotKey(g), kind: g.kind, target: spotTarget(g), records: (g.kind === 'section' ? g.records : [g.record]).map((r) => r.id) }))
-      const tries = {}
-      // 정리 한 번에 한 번만 센다 — 한 기록이 자리 여럿에 걸리면 한 정리에 줄이 여럿이다
-      for (const run of await hub.runs(id)) for (const x of new Set(run.rows.filter((r) => r.kind === 'left').flatMap((r) => r.records || []))) tries[x] = (tries[x] || 0) + 1
-      return { spots, tries }
+      const tries = await leftTries(id)
+      return { spots, tries, hold: HOLD }
     },
     // 넣을 자리 정하기 — 자리를 못 찾은 기록 · 잘못 찾은 기록에 사람이 항목을 고른다(쓴 사람 · 관리자)
     async setTouches(ctx, id, rec, coord) {
@@ -1634,7 +1640,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const learned = await loadLearned(dataDir, id)
       const cands = []
       const job = jobs.get(dctx.draft.job)
-      const groups = material(k, { candidates: (w) => cands.find((c) => c.id === w.id)?.list || [], ids: job?.ids || null })
+      let groups = material(k, { candidates: (w) => cands.find((c) => c.id === w.id)?.list || [], ids: job?.ids || null })
+      // 자동 정리 — 세 번 둔 기록만 모인 자리는 뺀다(사람이 볼 것 · 새 기록이 같이 모였으면 같이 다시 쓴다)
+      if (job?.auto) {
+        const tries = await leftTries(id)
+        const held = (g) => (g.kind === 'section' ? g.records : [g.record]).every((r) => (tries[r.id] || 0) >= HOLD)
+        job.held = groups.filter(held).length
+        groups = groups.filter((g) => !held(g))
+      }
       // 정리 일 줄 — 묶음 하나가 자리 하나 · 모으기 · 자리 찾기는 여기서 끝난다
       if (job) {
         // 다시 받은 일감(서버가 다시 켜졌다) — 이미 넣은 자리는 그대로 보인다 · 그 기록은 받은 것에 없어 다시 쓰지 않는다
@@ -1764,6 +1777,18 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const done = (j?.rows || []).concat(rows).filter((x) => x.kind !== 'stopped')
       const run = { at: new Date().toISOString(), by: j?.by || null, auto: !!j?.auto, rows: done, ...(j?.stop ? { stopped: j.stop.by } : {}) }
       if (done.length) await saveRun(id, run) // 빈 정리는 「정리한 것」 카드를 남기지 않는다
+      // 이번에 세 번째로 둔 기록 — 지식관리자에게 「사람이 볼 것」 한 번
+      if (done.some((x) => x.kind === 'left')) {
+        const tries = await leftTries(id)
+        const k = await hub.get(id)
+        const hit = done.filter((x) => x.kind === 'left').flatMap((x) => (x.records || []).filter((r) => tries[r] === HOLD).map((r) => ({ r, why: x.why })))
+        for (const { r, why } of hit.filter((x, i) => hit.findIndex((y) => y.r === x.r) === i)) {
+          const w = k.byWork.get(r)
+          for (const u of await hub.curatorsOf(id)) {
+            await feed.add(dataDir, u, { kind: 'tidy', rec: r, kn: id, dot: 'warn', text: `정리가 세 번 넣지 못한 기록: ${meta.name} › 「${String(w?.title || r).split(/ — |: /)[0]}」`, small: `${String(why || '').slice(0, 80)} · 자동 정리에서 뺐다: 글을 고치거나 자리를 고른 뒤 [다시 정리]` }).catch((e) => log(`사람이 볼 것 알림 실패: ${e.message}`))
+          }
+        }
+      }
       if (j) {
         const stop = (Array.isArray(list) ? list : []).filter((x) => STOP_WHY[x.error])
         const allStop = done.length > 0 && stop.length === done.length
