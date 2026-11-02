@@ -82,7 +82,7 @@ ol.steps{padding-left:20px}ol.steps li{margin:6px 0}
 </head><body>
 <div class="wrap">
 <nav class="toc" aria-label="목차"><b>목차</b>
-<a href="#sum">한눈에</a><a href="#why">원인 · 고친 것 · 남은 것</a><a href="#num">지식마다 전 / 후</a><a href="#gone">지운 것</a><a href="#rule">바꾼 규칙</a><a href="#how">한 일 순서</a><a href="#ship">커밋 · 배포</a><a href="#left">남은 것</a><a href="#label">같은 보이는 이름 목록</a></nav>
+<a href="#sum">한눈에</a><a href="#why">원인 · 고친 것 · 남은 것</a><a href="#num">지식마다 전 / 후</a><a href="#gone">지운 것</a><a href="#rule">바꾼 규칙</a><a href="#how">한 일 순서</a><a href="#second">2차: 남은 것 이어서</a><a href="#ship">커밋 · 배포</a><a href="#left">남은 것</a><a href="#label">같은 보이는 이름 목록</a></nav>
 <main>
 <header class="hero" id="sum">
 <div class="eyebrow">kmd · 188 팀 서버 · 2026-11-02</div>
@@ -116,11 +116,11 @@ ol.steps{padding-left:20px}ol.steps li{margin:6px 0}
 <li>테스트 지식 · 사람 4 · 묶음 · 자리 · 기기 열쇠 · feed · menu · 일 줄을 지웠다.</li>
 </ul></div>
 <div class="box left"><h4>남은 것</h4><ul>
-<li>같은 보이는 이름(알림) DPMS 26 · GDI 31. 서로 다른 항목이라 고칠 것은 아니다(아래 목록).</li>
-<li>문서 짜임 알림: GDI 머리 단계 건너뜀 218 · 5단계 머리 612 · 300줄 넘는 문서. DPMS ## 없는 5문서(Q75).</li>
-<li>큰 기록 · 가져온 문서 약 70건은 「요약 + 바뀐 것」 두 칸(원문 통째)이다.</li>
-<li>정리 일꾼이 일부 항목만 표지를 다는 버그(코드).</li>
+<li>같은 보이는 이름(알림) DPMS 29 · GDI 31. 서로 다른 항목이라 고칠 것은 아니다(아래 목록).</li>
+<li>가져온 원문 기록 약 60건은 「요약 + 바뀐 것」 두 칸이다(원문에 까닭 · 근거 덩이가 없는 것).</li>
+<li>정리 일꾼이 일부 항목만 표지를 다는 버그: 따로 세션이 고치는 중.</li>
 <li>화면은 들어가기가 필요해 브라우저로 보지 못했다. 서버에서 같은 계산으로 확인했다.</li>
+<li>문서 짜임 알림 · 300줄 넘는 항목 · 첨부 그림 · 개인 프로그램은 2차에서 끝냈다(아래 「2차」).</li>
 </ul></div>
 </div>
 
@@ -178,32 +178,53 @@ ol.steps{padding-left:20px}ol.steps li{margin:6px 0}
 <li>GitLab 에 올리고, 서버에서 kmd · kmd-worker 를 멈춘 뒤 fast-forward 로 받았다. 테스트 데이터를 지우고 새 kmd 를 깔아 다시 켰다.</li>
 </ol>
 
+<h2 id="second">2차: 남은 것 이어서</h2>
+<p class="sub">1차 보고 뒤 「남은 것」 을 이어서 했다. ## 머리가 새로 생긴 곳은 항목마다 이름(정확한 자리 장부 행)을 세워 이름 없는 항목 0 을 지켰고, 값 · 표지 · 참고 블록은 git 과 견줘 그대로인 것을 확인했다.</p>
+<div class="tw"><table><thead><tr><th>무엇</th><th>한 것</th><th>결과</th></tr></thead><tbody>
+<tr><td>GDI 머리 단계</td><td>항목(##) 안 소제목 단계를 건너뛰지 않게 다시 매김 · 5단계 넘는 12 줄은 굵은 줄(화면설계서 · 프로그램사양서 · 인터페이스정의서 · 프로세스정의서, 머리 1,361)</td><td>머리 단계 건너뜀 218 · 5단계 머리 612 → 0</td></tr>
+<tr><td>## 없던 3문서(Q75)</td><td>PLC 연계 규격서 · DPMS 연계 API 정의서 · PLC 작업 사양서의 머리를 한 단계 올려 항목 33 · 이름 33(연계규격 · 연계API · 작업사양)</td><td>화면에서 항목별로 열고 고칠 수 있다 · ## 앞 소제목 61 → 0</td></tr>
+<tr><td>긴 머리글 28문서</td><td>머리글은 요약 한 문단만 · 메타 표 · 판 이력 · 근거 문서는 끝의 「문서 정보」, 범위 · 읽는 법 · 머리글 소제목은 「개요」 항목으로(이름 <code>문서:&lt;문서&gt;-개요</code> · <code>-정보</code> 38)</td><td>긴 요약 24 · 운영 말 19 · ## 앞 소제목 10 → 0</td></tr>
+<tr><td>300줄 넘는 항목</td><td>GDI 요구사항 USR-* 67 · 프로세스 업무 안내 51 · 통합테스트 2차 케이스 100 을 대상마다 항목으로(이름 218 · 비게 된 묶음 항목 9 에는 차례 한 줄)</td><td>300줄 넘는 항목 0</td></tr>
+<tr><td>길이 기준</td><td>작성기준 5절: 「문서 300줄」 대신 「항목 하나 300줄 · 넘으면 대상마다 항목으로 · 문서는 갈래 하나면 한 문서」</td><td>대장 · 갈래 문서는 길어도 한 문서(화면은 항목 단위)</td></tr>
+<tr><td>기록 서식</td><td>바뀐 것 안에 든 왜 · 근거 · 출처 덩이를 까닭 · 근거 칸으로(DPMS 기록 11 · 덩이 13)</td><td>값 검사 맞음</td></tr>
+<tr><td>첨부 그림</td><td>문서가 쓰는 그림 14 를 <code>docs/assets/&lt;문서&gt;/</code> 로 복사하고 링크를 바꿈(기록 쪽 그림은 기록이 쓰므로 둠)</td><td>문서가 기록 폴더를 가리키지 않는다</td></tr>
+<tr><td>GDI 요약 1</td><td>프로세스 정의서 요약을 세 문장으로</td><td>문서 짜임 알림 0(업무 주소 알림만)</td></tr>
+<tr><td>개인 프로그램</td><td>이 PC 를 <code>kmd pc update</code> 로 0.1.0-20261030-1831 → 0.1.0-20261102-1156</td><td>켜짐 확인 · 사용자 범위 <code>kmd-team</code> 연결은 이 판이 걷었다(DPMS · GDI 작업 폴더의 <code>.mcp.json</code> 연결은 그대로)</td></tr>
+</tbody></table></div>
+<div class="tw"><table><thead><tr><th>2차 뒤</th><th>DPMS</th><th>GDI</th></tr></thead><tbody>
+<tr><td>이름(살아 있음) · 항목</td><td>484 (392) · 432</td><td>1,423 · 1,414</td></tr>
+<tr><td>점검 위반(이름 없는 기록 ~ 깨진 머리)</td><td><span class="m-ok">0</span></td><td><span class="m-ok">0</span></td></tr>
+<tr><td>같은 보이는 이름(알림)</td><td>29</td><td>31</td></tr>
+<tr><td>문서 짜임 알림(업무 주소 빼고)</td><td><span class="m-ok">0</span></td><td><span class="m-ok">0</span></td></tr>
+<tr><td>반영 대기 · 줄표 · 테스트 기록</td><td><span class="m-ok">0 · 0 · 0</span></td><td><span class="m-ok">0 · 0 · 0</span></td></tr>
+</tbody></table></div>
+
 <h2 id="ship">커밋 · 배포</h2>
 <div class="tw"><table><thead><tr><th>저장소</th><th>커밋</th></tr></thead><tbody>
 <tr><td>kmd (main)</td><td><code>d2a29e5</code> 줄표 대신 쌍점 · 마침표: 대장 머리 「값: 설명」 · 작성기준 v1.1 → 188 배포, 빌드 <code>0.1.0-20261102-1156</code></td></tr>
 <tr><td>DPMS (master)</td><td><code>b50c6da</code> 시스템 기록 5 걷음 · <code>0bf42e4</code> 기록 서식 · <code>2c5e90b</code> 본문 기록 링크 · 제목 · 요약 · <code>0807838</code> 줄표 · 참고 줄 · <code>3ee6a03</code> 정리: 반영 대기 3 · <code>f98c3dd</code> 테스트 사람 자리</td></tr>
 <tr><td>GDI (main)</td><td><code>1a5b673</code> 이름 63 · 다른 이름 겹침 · <code>37d6bcc</code> 기록 서식 · <code>4061e5e</code> 본문 · <code>51b656f</code> 줄표 · 참고 줄 · <code>0c7bbc6</code> 테스트 사람 자리</td></tr>
-<tr><td>GitLab 백업</td><td>dpms <code>platform/dpms_wiki</code> master = f98c3dd · gdi <code>soln1/cdp</code> main = 0c7bbc6 · 앞섬 / 뒤짐 0 / 0</td></tr>
+<tr><td>2차 kmd (main)</td><td><code>3412965</code> 작성기준 5절 길이: 항목 하나 300줄 (문서 기준만 · 코드 그대로라 배포 없음)</td></tr>
+<tr><td>2차 DPMS</td><td><code>ccc5a5b</code> ## 없던 3문서 항목 · 이름 33 · <code>e78e9c7</code> 머리글 → 개요 · 문서 정보 · <code>b2f9910</code> 첨부 그림 · <code>0df578a</code> 기록 까닭 · 근거 칸</td></tr>
+<tr><td>2차 GDI</td><td><code>2ebdce6</code> 머리 단계 · <code>4fc8636</code> 머리글 → 개요 · <code>8e6535a</code> 긴 항목을 대상마다 · <code>fdf98ba</code> 프로세스 요약</td></tr>
+<tr><td>GitLab 백업</td><td>dpms <code>platform/dpms_wiki</code> master = 0df578a · gdi <code>soln1/cdp</code> main = fdf98ba · 서버 fast-forward · 앞섬 / 뒤짐 0 / 0</td></tr>
 </tbody></table></div>
 <p class="sub">배포 확인: <code>/healthz</code> build 0.1.0-20261102-1156 · <code>/opt/kmd/core/sections.js</code> 에 「값:」 맞추기 · <code>guard.js</code> 에 BROKEN_HEAD.</p>
 
 <h2 id="left">남은 것</h2>
 <div class="tw"><table><thead><tr><th>무엇</th><th>지금</th><th>할 것</th></tr></thead><tbody>
-<tr><td>정리 일꾼 버그</td><td>이름 여럿을 건드린 기록에서 일부 항목만 표지를 달아, 같은 기록을 매일 밤 다시 정리했다(이번엔 손으로 넣어 풀었다)</td><td>정리 묶음이 그 기록의 모든 이름 항목에 표지를 달거나, 바뀔 것이 없는 항목은 「넣음」 표지를 남기게(코드)</td></tr>
-<tr><td>문서 짜임 알림</td><td>DPMS 긴 요약 20 · ## 앞 소제목 61(## 없는 5문서, Q75) · GDI 5단계 머리 612 · 머리 단계 건너뜀 218 · ## 앞 소제목 10</td><td>머리를 올리고 문서를 나누는 일은 ## 머리 · 이름이 바뀌므로 따로(사람 확인)</td></tr>
-<tr><td>300줄 넘는 문서</td><td>GDI 화면설계서 18,683줄 · 안정화운영이슈관리대장 5,018 · 테이블정의서 6,498 등</td><td>주제별로 나누기(작성기준 5절)</td></tr>
-<tr><td>기록 서식</td><td>큰 기록 · 가져온 문서 약 70건은 「요약 + 바뀐 것」 두 칸(원문 통째, 머리만 한 단계 내림)</td><td>필요하면 까닭 · 영향 칸으로 더 나눈다</td></tr>
-<tr><td>운영 말</td><td>DPMS 머리글 15(지도 「좌표」 · 원문 문서 「원천」 처럼 업무 뜻) · GDI 4(## 앞 「### 기준선」 · 「### 동기화」 소제목)</td><td>소제목을 항목으로 올릴 때 같이</td></tr>
-<tr><td>첨부 그림</td><td>DPMS 본문의 <code>![](../../work/assets/…)</code> 17 곳: 그림이 기록 폴더 아래에 있다</td><td>그림 자리(예: <code>docs/assets/</code>)를 정하고 옮길지 결정</td></tr>
+<tr><td>정리 일꾼 버그</td><td>이름 여럿을 건드린 기록에서 일부 항목만 표지를 달아, 같은 기록을 매일 밤 다시 정리했다(이번엔 손으로 넣어 풀었다)</td><td>따로 세운 세션이 코드를 고치는 중. 끝나면 188 배포</td></tr>
+<tr><td>기록 서식</td><td>가져온 원문 기록 약 60건은 「요약 + 바뀐 것」 두 칸(원문에 까닭 · 근거 덩이가 따로 없다)</td><td>원문을 사람이 읽고 까닭 · 영향을 뽑아야 한다. 둔다</td></tr>
 <tr><td>이름 바로잡음 기록 4</td><td>DPMS 10-12 · 10-15 의 kjsa 「이름 바로잡음」: 진짜 기록의 이름을 잇고 있어 지우면 그 기록이 이름 없음이 된다</td><td>둔다</td></tr>
-<tr><td>화면 확인</td><td>팀 화면은 들어가기가 필요해 브라우저로 보지 못했다</td><td>사람이 기록 목록에서 「이름 없는 항목 112 · 자리 잃은 이름 5 · 갈래 장부」 가 빠졌는지 본다</td></tr>
-<tr><td>개인 프로그램</td><td>이 PC 의 개인 프로그램은 0.1.0-20261030-1831 판</td><td>설치 한 줄로 새 판(정리 프롬프트 줄표 규칙 · 「값:」 머리)으로 올린다</td></tr>
+<tr><td>같은 보이는 이름</td><td>DPMS 29 · GDI 31(알림)</td><td>서로 다른 항목. 둔다</td></tr>
+<tr><td>화면 확인</td><td>팀 화면은 들어가기가 필요해 브라우저로 보지 못했다</td><td>사람이 기록 목록에서 「이름 없는 항목 112 · 자리 잃은 이름 5 · 갈래 장부」 가 빠졌는지, 새 항목(개요 · 문서 정보 · USR · 업무 안내 · 2차 케이스)을 본다</td></tr>
+<tr><td>kmd-team 연결</td><td>C:\project\kmd 처럼 작업 폴더 <code>.mcp.json</code> 이 없는 곳은 팀 연결이 없다</td><td>필요한 작업 폴더에서 팀 화면 › 설정 › 에이전트 설치</td></tr>
 </tbody></table></div>
 
 <h2 id="label">같은 보이는 이름 목록(알림)</h2>
 <p class="sub">값 · 보이는 이름만 같은 서로 다른 항목이다. 화면은 종류:값으로 가른다. 고칠 것은 아니다.</p>
-<h3>DPMS 26</h3>
-<div class="tw"><table><thead><tr><th>말</th><th>이름</th></tr></thead><tbody><tr><td>경보코드</td><td class="mono">테이블정의서:dp_alrm_cd · 코드정의서:경보코드 · 화면설계서:DPG040</td></tr><tr><td>계측이력</td><td class="mono">테이블정의서:dp_meas_hst · 게이트웨이설계:계측이력</td></tr><tr><td>판정</td><td class="mono">코드정의서:DP012 · 통합시험:판정</td></tr><tr><td>사업개요</td><td class="mono">사업분석:사업개요 · 범위:사업개요 · 연계요구:사업개요 · 사업현황:사업개요</td></tr><tr><td>확인필요사항</td><td class="mono">사업분석:확인필요사항 · 사업현황:확인필요</td></tr><tr><td>데이터연계</td><td class="mono">시스템아키텍처:link · 연계요구:데이터연계</td></tr><tr><td>개요</td><td class="mono">게이트웨이설계:개요 · 게이트웨이운영:개요 · 프로세스:개요</td></tr><tr><td>구성</td><td class="mono">게이트웨이설계:구성 · 납품:구성</td></tr><tr><td>시험</td><td class="mono">게이트웨이설계:시험 · 프로그램사양서:시험</td></tr><tr><td>원격제어</td><td class="mono">프로그램사양서:ControlService · 화면설계서:DPC010 · 운영절차:원격제어</td></tr><tr><td>설정</td><td class="mono">프로그램사양서:설정 · 게이트웨이운영:설정</td></tr><tr><td>남은위험</td><td class="mono">프로그램사양서:남은위험 · 프로세스:남은위험</td></tr><tr><td>목적</td><td class="mono">게이트웨이운영:목적 · 내부시험서버:목적</td></tr><tr><td>패키지</td><td class="mono">게이트웨이운영:패키지 · 납품:패키지</td></tr><tr><td>기준정보반영</td><td class="mono">게이트웨이운영:기준정보 · 설치절차:기준정보반영</td></tr><tr><td>갱신되돌리기</td><td class="mono">게이트웨이운영:갱신 · 설치절차:갱신되돌리기</td></tr><tr><td>보존디스크</td><td class="mono">게이트웨이운영:보존 · 운영절차:보존디스크</td></tr><tr><td>점검</td><td class="mono">게이트웨이운영:점검 · 운영절차:점검 · 내부시험서버:점검</td></tr><tr><td>남은확인</td><td class="mono">게이트웨이운영:남은확인 · 현장연동시험:남은확인 · 운영절차:남은확인 · 설치절차:남은확인</td></tr><tr><td>범위전제</td><td class="mono">현장연동시험:범위전제 · 운영절차:범위전제 · 설치절차:범위전제</td></tr><tr><td>변경이력</td><td class="mono">통합시험:변경이력 · 통합시험결과:변경이력 · 연계요구:변경이력 · 납품:변경이력 · 사업현황:변경이력</td></tr><tr><td>요약</td><td class="mono">통합시험결과:요약 · 게이트웨이단위시험:요약</td></tr><tr><td>발견조치</td><td class="mono">통합시험결과:발견조치 · 내부연동시험:발견조치 · 게이트웨이단위시험:발견조치</td></tr><tr><td>남은것</td><td class="mono">통합시험결과:남은것 · 내부연동시험:남은것</td></tr><tr><td>사업구조</td><td class="mono">연계요구:사업구조 · 사업현황:사업구조</td></tr><tr><td>이해관계자</td><td class="mono">연계요구:이해관계자 · 사업현황:이해관계자</td></tr></tbody></table></div>
+<h3>DPMS 29</h3>
+<div class="tw"><table><thead><tr><th>말</th><th>이름</th></tr></thead><tbody><tr><td>경보코드</td><td class="mono">테이블정의서:dp_alrm_cd · 코드정의서:경보코드 · 화면설계서:DPG040</td></tr><tr><td>계측이력</td><td class="mono">테이블정의서:dp_meas_hst · 게이트웨이설계:계측이력</td></tr><tr><td>판정</td><td class="mono">코드정의서:DP012 · 통합시험:판정</td></tr><tr><td>사업개요</td><td class="mono">사업분석:사업개요 · 범위:사업개요 · 연계요구:사업개요 · 사업현황:사업개요</td></tr><tr><td>확인필요사항</td><td class="mono">사업분석:확인필요사항 · 사업현황:확인필요</td></tr><tr><td>미확정사항</td><td class="mono">범위:미확정 · 작업사양:미확정사항</td></tr><tr><td>데이터연계</td><td class="mono">시스템아키텍처:link · 연계요구:데이터연계</td></tr><tr><td>개요</td><td class="mono">게이트웨이설계:개요 · 게이트웨이운영:개요 · 프로세스:개요</td></tr><tr><td>원칙</td><td class="mono">게이트웨이설계:원칙 · 연계규격:원칙</td></tr><tr><td>구성</td><td class="mono">게이트웨이설계:구성 · 납품:구성</td></tr><tr><td>시험</td><td class="mono">게이트웨이설계:시험 · 프로그램사양서:시험</td></tr><tr><td>원격제어</td><td class="mono">프로그램사양서:ControlService · 화면설계서:DPC010 · 운영절차:원격제어</td></tr><tr><td>설정</td><td class="mono">프로그램사양서:설정 · 게이트웨이운영:설정</td></tr><tr><td>남은위험</td><td class="mono">프로그램사양서:남은위험 · 프로세스:남은위험</td></tr><tr><td>목적</td><td class="mono">게이트웨이운영:목적 · 내부시험서버:목적 · 작업사양:목적</td></tr><tr><td>패키지</td><td class="mono">게이트웨이운영:패키지 · 납품:패키지</td></tr><tr><td>기준정보반영</td><td class="mono">게이트웨이운영:기준정보 · 설치절차:기준정보반영</td></tr><tr><td>갱신되돌리기</td><td class="mono">게이트웨이운영:갱신 · 설치절차:갱신되돌리기</td></tr><tr><td>보존디스크</td><td class="mono">게이트웨이운영:보존 · 운영절차:보존디스크</td></tr><tr><td>점검</td><td class="mono">게이트웨이운영:점검 · 운영절차:점검 · 내부시험서버:점검</td></tr><tr><td>남은확인</td><td class="mono">게이트웨이운영:남은확인 · 현장연동시험:남은확인 · 운영절차:남은확인 · 설치절차:남은확인</td></tr><tr><td>범위전제</td><td class="mono">현장연동시험:범위전제 · 운영절차:범위전제 · 설치절차:범위전제</td></tr><tr><td>변경이력</td><td class="mono">통합시험:변경이력 · 통합시험결과:변경이력 · 연계요구:변경이력 · 납품:변경이력 · 사업현황:변경이력</td></tr><tr><td>요약</td><td class="mono">통합시험결과:요약 · 게이트웨이단위시험:요약</td></tr><tr><td>발견조치</td><td class="mono">통합시험결과:발견조치 · 내부연동시험:발견조치 · 게이트웨이단위시험:발견조치</td></tr><tr><td>남은것</td><td class="mono">통합시험결과:남은것 · 내부연동시험:남은것</td></tr><tr><td>확인할것</td><td class="mono">지도방식:확인할것 · 연계규격:확인할것</td></tr><tr><td>사업구조</td><td class="mono">연계요구:사업구조 · 사업현황:사업구조</td></tr><tr><td>이해관계자</td><td class="mono">연계요구:이해관계자 · 사업현황:이해관계자</td></tr></tbody></table></div>
 <h3>GDI 31</h3>
 <div class="tw"><table><thead><tr><th>말</th><th>이름</th></tr></thead><tbody><tr><td>위탁계약</td><td class="mono">table:ct_cnsm_mst · table:ct_cnsm_ver</td></tr><tr><td>계약</td><td class="mono">table:ct_rsltn_wrtr_mst · domain:계약</td></tr><tr><td>메뉴모듈정보</td><td class="mono">table:sy_menu_mdul_info · table:sy_menu_mdul_mst</td></tr><tr><td>변경이력상세</td><td class="mono">screen:CTA012 · screen:CTB012 · screen:CTC012</td></tr><tr><td>계약관리</td><td class="mono">screen:CTC020 · 프로세스:계약관리</td></tr><tr><td>국외출장등록</td><td class="mono">screen:EX153 · screen:EXD013</td></tr><tr><td>연심회등록</td><td class="mono">screen:EXA021 · ops:OPS-023</td></tr><tr><td>gw010</td><td class="mono">screen:GW010 · code:GW-010</td></tr><tr><td>일정</td><td class="mono">screen:MYD010 · 이관:일정</td></tr><tr><td>계획서변경</td><td class="mono">screen:PLC011 · ops:OPS-113</td></tr><tr><td>출력물관리</td><td class="mono">screen:SYB070 · screen:SYC030</td></tr><tr><td>그리드</td><td class="mono">screen:SYY060 · screen:sample</td></tr><tr><td>전자결재연동</td><td class="mono">screen:SYY106 · api:/adapter/a10/approval</td></tr><tr><td>출력물</td><td class="mono">screen:SYY107 · 기능:출력물</td></tr><tr><td>계약상태계약</td><td class="mono">code:CT-005 · code:CT-030</td></tr><tr><td>계약구분계약</td><td class="mono">code:CT-010 · code:CT-021</td></tr><tr><td>계약방법계약</td><td class="mono">code:CT-020 · code:CT-024</td></tr><tr><td>마이페이지</td><td class="mono">code:MY-010 · 프로세스:마이페이지</td></tr><tr><td>a10결재도착알림에서결재를조회했을때열람권한이없다고뜸</td><td class="mono">ops:OPS-001 · ops:OPS-010</td></tr><tr><td>외부심사위원명단그리드와내부심사위원명단그리드위치변경</td><td class="mono">ops:OPS-055 · ops:OPS-059</td></tr><tr><td>과제번호컬럼을수탁번호컬럼으로수정</td><td class="mono">ops:OPS-073 · ops:OPS-077</td></tr><tr><td>수탁번호와계약명사이에계약번호가출력되게끔수정</td><td class="mono">ops:OPS-074 · ops:OPS-078</td></tr><tr><td>수탁번호를기준으로내림차순정렬</td><td class="mono">ops:OPS-075 · ops:OPS-079</td></tr><tr><td>컬럼수정</td><td class="mono">ops:OPS-076 · ops:OPS-080</td></tr><tr><td>진행상태항목변경계약착수선금완료종료중지</td><td class="mono">ops:OPS-082 · ops:OPS-092</td></tr><tr><td>기안문서문구수정</td><td class="mono">ops:OPS-085 · ops:OPS-086</td></tr><tr><td>지출결의서생성시업무행위에대한전자결재문서가연동되는지확인</td><td class="mono">ops:OPS-130 · ops:OPS-131</td></tr><tr><td>검수조서를다시올려야하는데결재문서상태변경요청</td><td class="mono">ops:OPS-191 · ops:OPS-196</td></tr><tr><td>기능수정요청</td><td class="mono">ops:OPS-192 · ops:OPS-227</td></tr><tr><td>sa</td><td class="mono">프로그램목록:SA · 프로그램목록:sa</td></tr><tr><td>프로그램목록sa</td><td class="mono">프로그램목록:SA · 프로그램목록:sa</td></tr></tbody></table></div>
 </main></div></body></html>
