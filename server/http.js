@@ -30,7 +30,6 @@ import { pcRootKind, noneRoot, isNoneRoot, carryPcData } from '../core/pcops.js'
 import { createReadStream } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { pipeline } from 'node:stream/promises'
-import MarkdownIt from 'markdown-it'
 import { writeJsonAtomic } from '../core/atomic.js'
 
 const APP = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'app')
@@ -109,34 +108,67 @@ function readBody(req, max = MAX_BODY) {
   })
 }
 
-// 설명서 — 저장소 · 꾸러미의 docs/ 를 화면 밖 한 장으로(들어오지 않아도 본다 · 비밀이 아니다)
-const DOCS = path.join(APP, '..', 'docs')
+// 설명서 — 저장소 · 꾸러미의 docs_ops/manual/<이름>.html 을 화면 밖 한 벌로(들어오지 않아도 본다 · 비밀이 아니다).
+//   설명서 파일은 <article class="man"> 하나만 싣고, 머리 띠 · 왼쪽 길잡이(설명서 목록 · 이 설명서의 차례) · 앞뒤는 여기서 두른다.
+//   그림은 docs_ops/manual/img(설명서 안에서 img/… 로 · /manual/img/… 로 낸다). 이 서버 갈래에 없는 설명서로 가는 링크는 글만 남긴다
+const MANUAL_DIR = path.join(APP, '..', 'docs_ops', 'manual')
 const MANUALS = [
-  { slug: '사용자', file: '설명서_사용자.md', title: '쓰는 사람', modes: ['team', 'pc'] },
-  { slug: '지식관리자', file: '설명서_지식관리자.md', title: '지식관리자', modes: ['team'] },
-  { slug: '관리자', file: '설명서_관리자.md', title: '관리자', modes: ['team'] },
-  { slug: '운영', file: 'kmd_운영.md', title: '운영 · 되살리기', modes: ['team', 'pc'] },
+  { slug: '사용자', title: '쓰는 사람', sub: '팀 화면에서 보기 · 찾기 · 고치기 · 가져오기', img: 't-doc.png', modes: ['team'] },
+  { slug: '개인', title: '개인 프로그램', sub: '내 PC 의 kmd · 파일 넣기 · 지식 보내기', img: 'p-home.png', modes: ['team', 'pc'] },
+  { slug: '지식관리자', title: '지식관리자', sub: '정리 · 권한 · 가져올 곳', img: 't-tidy.png', modes: ['team'] },
+  { slug: '관리자', title: '총괄 관리자', sub: '설치 · 사람 · Claude 연결 · 백업 · 셸 명령', img: 't-people.png', modes: ['team'] },
+  { slug: '운영', title: '운영 · 되살리기', sub: '밤 묶음 · 되살리기 · 새 판', img: 't-admin.png', modes: ['team', 'pc'] },
 ]
-const manualMd = new MarkdownIt({ html: false, linkify: true })
+const MANUAL_IMG = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', svg: 'image/svg+xml' }
 // 서버가 그리는 페이지(설명서 · 확인 · 받기)도 화면과 같은 토큰을 쓴다. 이 페이지들의 CSP 는 바깥 CSS 를 막으니(style-src 'unsafe-inline')
 // kmd.css 맨 위 :root(토큰의 유일한 자리)만 떼어 <style> 에 넣는다 — 값은 kmd.css 하나만 고친다
 let pageRoot = ''
-const pageRootP = fs.readFile(path.join(APP, 'kmd.css'), 'utf8').then((s) => { pageRoot = s.match(/:root\{[\s\S]*?\n\}/)?.[0] || '' }).catch(() => {})
+const pageRootP = fs.readFile(path.join(APP, 'kmd.css'), 'utf8').then((s) => { pageRoot = s.match(/:root\{[\s\S]*?\n\}/)?.[0] || '' }).catch((e) => console.error('kmd.css 를 읽지 못했다:', e.message))
 const PAGE_CSS = `*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:var(--fs-md)/1.65 var(--font)}a{color:var(--accent)}h1{font-size:var(--fs-xl);line-height:1.35}h2{font-size:var(--fs-lg);margin-top:26px}main{max-width:var(--w-text);margin:0 auto;padding:var(--sp-9) var(--sp-8) 60px;background:var(--surface);min-height:100vh;min-height:100dvh;overflow-wrap:anywhere}nav{font-size:var(--fs);color:var(--text-2);margin-bottom:18px;padding-bottom:var(--sp-5);border-bottom:1px solid var(--border)}table{border-collapse:collapse;width:100%;max-width:100%;font-size:var(--fs);display:block;overflow-x:auto}th,td{border:1px solid var(--border);padding:5px var(--sp-4);text-align:left;vertical-align:top;overflow-wrap:normal;min-width:4em}th{background:var(--surface-2)}code{font:var(--fs-mono) var(--mono);background:var(--surface-2);padding:1px 5px;border-radius:var(--r-xs)}pre{background:var(--surface-2);border:1px solid var(--border);padding:var(--sp-5) var(--sp-6);border-radius:var(--r);overflow-x:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:var(--fs-mono)/1.55 var(--mono)}pre code{background:none;padding:0}img{max-width:100%;height:auto}.m{color:var(--text-3);font-size:var(--fs)}button{font:inherit;height:34px;padding:0 var(--sp-8);border-radius:var(--r);border:1px solid var(--border-strong);background:var(--surface);color:var(--text);cursor:pointer}button:hover{background:var(--hover)}button.ok{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}button.ok:hover{background:var(--accent-hover)}a:focus-visible,button:focus-visible{outline:0;box-shadow:var(--focus-ring)}@media (max-width:600px){main{padding:var(--sp-7) var(--sp-6) 40px}}`
+let manualCss = null
+const manualCssOf = async () => (manualCss ??= await fs.readFile(path.join(MANUAL_DIR, 'manual.css'), 'utf8').catch((e) => { console.error('설명서 모양(manual.css)을 읽지 못했다:', e.message); return '' }))
+const manualHref = (x) => `/manual/${encodeURIComponent(x.slug)}`
+// 설명서 한 장 — slug 가 없으면 고르는 첫 장 · <이름> 과 <이름>.html 을 같이 받는다 · 이 갈래에 없으면 null(404)
 async function manualPage(mode, slug) {
   await pageRootP
-  const list = MANUALS.filter((m) => m.modes.includes(mode))
-  const m = list.find((x) => x.slug === slug) || (slug ? null : list[0])
-  if (!m) return null
-  const src = await fs.readFile(path.join(DOCS, m.file), 'utf8').catch(() => null)
-  if (src == null) return null
-  // 설명서끼리의 링크는 /manual/… 로 · 꾸러미에 없는 문서 링크는 글만
-  const body = src.replace(/\[([^\]]+)\]\(([^)#\s]+\.md)(#[^)\s]*)?\)/g, (_, t, f, h) => { const x = MANUALS.find((y) => y.file === f); return x ? `[${t}](/manual/${encodeURIComponent(x.slug)}${h || ''})` : t })
   const esc = (s) => String(s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c])
-  const nav = list.map((x) => (x === m ? `<b>${esc(x.title)}</b>` : `<a href="/manual/${encodeURIComponent(x.slug)}">${esc(x.title)}</a>`)).join(' · ')
-  return `<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>kmd 설명서: ${esc(m.title)}</title>
-<style>${pageRoot}${PAGE_CSS}</style>
-<main><nav>kmd 설명서: ${nav}</nav>${manualMd.render(body)}</main></html>`
+  const list = MANUALS.filter((m) => m.modes.includes(mode))
+  const name = slug ? String(slug).replace(/\.html$/i, '') : null
+  const m = name ? list.find((x) => x.slug === name) : null
+  if (name && !m) return null
+  const page = (title, crumb, nav, body) => `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title>
+<style>${pageRoot}${css}</style></head><body>
+<header class="mtop"><a class="m-brand" href="/manual"><span class="m-logo">K</span>kmd 설명서</a>${crumb ? `<span class="m-crumb">› ${esc(crumb)}</span>` : ''}<span class="m-sp"></span><a class="m-back" href="/">kmd 화면으로</a></header>
+<div class="mwrap"><nav class="mnav" aria-label="설명서">${nav}</nav><main class="mmain">${body}</main></div></body></html>`
+  const css = await manualCssOf()
+  const mans = (cur) => `<h4 class="h-mans">설명서</h4><ul class="mans">${list.map((x) => `<li><a href="${manualHref(x)}"${x === cur ? ' aria-current="page"' : ''}>${esc(x.title)}<small>${esc(x.sub)}</small></a></li>`).join('')}</ul>`
+  if (!m) {
+    const cards = list.map((x) => `<a class="m-card" href="${manualHref(x)}"><img src="/manual/img/${esc(x.img)}" alt="" loading="lazy"><b>${esc(x.title)}</b><p>${esc(x.sub)}</p></a>`).join('')
+    const body = `<div class="m-hero"><h1>kmd 설명서</h1><p>${mode === 'team' ? '팀 지식을 읽고 고치고, Claude Code 가 같은 지식으로 일하게 하는 팀 서버' : '내 PC 에서 개인 지식을 읽고 고치는 개인 프로그램'}의 쓰는 법이다. 나에게 맞는 설명서를 고른다. 들어오지 않아도 본다.</p></div>
+<section><h2>설명서 고르기</h2><div class="m-cards">${cards}</div></section>
+${mode === 'team' ? `<section><h2>누가 무엇을 읽나</h2><article class="man"><div class="m-tbl"><table><tr><th>나는</th><th>먼저 읽을 것</th><th>다음</th></tr>
+<tr><td>팀 지식을 보고 고치는 사람(읽기 · 쓰기 자리)</td><td><a href="${manualHref(MANUALS[0])}">쓰는 사람</a></td><td><a href="${manualHref(MANUALS[1])}">개인 프로그램</a></td></tr>
+<tr><td>지식 하나를 맡은 사람(지식관리자 · 주인)</td><td><a href="${manualHref(MANUALS[2])}">지식관리자</a></td><td><a href="${manualHref(MANUALS[0])}">쓰는 사람</a></td></tr>
+<tr><td>팀 서버를 세우고 사람을 더하는 사람</td><td><a href="${manualHref(MANUALS[3])}">총괄 관리자</a></td><td><a href="${manualHref(MANUALS[4])}">운영 · 되살리기</a></td></tr></table></div></article></section>` : ''}
+<p class="m-foot">kmd ${esc(VERSION)} · 화면 오른쪽 위 「설명서」 로 언제든 다시 연다</p>`
+    return page('kmd 설명서', '', mans(null), body)
+  }
+  const src = await fs.readFile(path.join(MANUAL_DIR, `${m.slug}.html`), 'utf8').catch((e) => { console.error(`설명서 ${m.slug} 를 읽지 못했다:`, e.message); return null })
+  const art = src?.match(/<article class="man"[\s\S]*<\/article>/)?.[0]
+  if (!art) return null
+  // 이 갈래에 없는 설명서로 가는 링크는 글만 · 있는 것은 /manual/<이름>
+  const body = art.replace(/<a href="([^"#/:]+)\.html(#[^"]*)?">([\s\S]*?)<\/a>/g, (_, f, h, t) => { const x = list.find((y) => y.slug === f); return x ? `<a href="${manualHref(x)}${h || ''}">${t}</a>` : t })
+  const toc = [...body.matchAll(/<h2 id="([^"]+)">([\s\S]*?)<\/h2>/g)].map(([, id, t]) => `<li><a href="#${esc(id)}">${t.replace(/<span class="m-no">[^<]*<\/span>/, '').replace(/<[^>]+>/g, '').trim()}</a></li>`).join('')
+  const i = list.indexOf(m), prev = list[i - 1], next = list[i + 1]
+  const pager = `<nav class="m-pager" aria-label="앞뒤 설명서">${prev ? `<a href="${manualHref(prev)}"><small>앞</small>‹ ${esc(prev.title)}</a>` : '<span></span>'}${next ? `<a class="m-nx" href="${manualHref(next)}"><small>다음</small>${esc(next.title)} ›</a>` : ''}</nav>`
+  return page(`kmd 설명서: ${m.title}`, m.title, `${mans(m)}<div class="toc-wide"><h4>이 설명서의 차례</h4><ul class="toc">${toc}</ul></div><details class="toc-narrow"><summary>이 설명서의 차례</summary><ul class="toc">${toc}</ul></details>`, body + pager)
+}
+// 설명서 그림 — docs_ops/manual/img 의 이름만(경로 조각 없음)
+async function manualImg(name) {
+  const ext = /^[A-Za-z0-9_-]{1,80}\.(png|jpe?g|svg)$/.exec(name)?.[1]
+  if (!ext) return null
+  const buf = await fs.readFile(path.join(MANUAL_DIR, 'img', name)).catch(() => null)
+  return buf && { buf, type: MANUAL_IMG[ext] }
 }
 
 // 설치 한 줄의 PowerShell 본문 — kmd 가 있으면 잇기만 · 없으면 받기 → 풀기(<집>/versions/<판>) → 실행기 · 사용자 PATH → 잇기.
@@ -991,8 +1023,14 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         // 지식마다 git 을 재지 않아 가볍다(?live=1 은 예전 판과의 호환)
         return send(res, 200, { ok: true, version: VERSION, build: BUILD, mode })
       }
-      // 설명서 — /manual(이 서버 갈래의 첫 설명서) · /manual/<이름>
-      const mm = req.method === 'GET' && p.match(/^\/manual(?:\/([^/]+))?$/)
+      // 설명서 — /manual(고르는 첫 장) · /manual/<이름> · /manual/img/<그림>
+      const mi = req.method === 'GET' && p.match(/^\/manual\/img\/([^/]+)$/)
+      if (mi) {
+        const img = await manualImg(dec(mi[1]))
+        if (!img) return send(res, 404, '없다', 'text/plain; charset=utf-8')
+        return send(res, 200, img.buf, img.type, { 'cache-control': 'public, max-age=3600', 'x-content-type-options': 'nosniff' })
+      }
+      const mm = req.method === 'GET' && p.match(/^\/manual\/?(?:([^/]+))?$/)
       if (mm) {
         const page = await manualPage(mode, mm[1] ? dec(mm[1]) : null)
         if (!page) return send(res, 404, '없다', 'text/plain; charset=utf-8')

@@ -75,6 +75,9 @@ if (first) {
     await team.auth.first({ code, pw: prehash(id, PW[id]) })
   }
   await team.hub.setOwner(SHELL, 'dpms', { owner: 'park', curators: ['park'] })
+  // 받지 않은 지식은 없음이 기본(docs/kmd_권한_모델.md) — 팀원에게 자리를 준다
+  await team.hub.setSeats(SHELL, 'park', { gdi: 'read' })
+  await team.hub.setSeats(SHELL, 'lee', { dpms: 'write', gdi: 'write' })
   for (const k of ['dpms', 'gdi']) { const b = path.join(BASE, 'bk', `${k}.git`); bare(b); await team.hub.backupAttach(SHELL, k, b).catch(() => {}) }
   // 정리할 것 몇 개 — lee 가 남긴 기록
   await team.hub.save({ user: 'lee' }, 'dpms', { record: { title: '카나리 비율', body: '첫 30분 요청 10% → 20%', touches: ['proc:카나리'] } })

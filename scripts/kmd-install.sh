@@ -21,7 +21,7 @@ APP=/opt/kmd
 id kmd >/dev/null 2>&1 || useradd --system --home "$ROOT" --shell /usr/sbin/nologin kmd
 # 다시 돌리기(새 판) — 앞 판의 코드 폴더를 걷고 새로 둔다(지식 · 살림 자리는 그대로)
 mkdir -p "$APP" "$ROOT/.kmd/dl"
-rm -rf "$APP/app" "$APP/core" "$APP/server" "$APP/agent" "$APP/docs" "$APP/node_modules"
+rm -rf "$APP/app" "$APP/core" "$APP/server" "$APP/agent" "$APP/docs" "$APP/docs_ops" "$APP/node_modules"
 cp -R "$HERE"/. "$APP"/
 # PC 꾸러미 — 팀 꾸러미 안(또는 옆)의 kmd-<판>-pc.zip 을 받기 자리에. 설치 한 줄이 여기서 받아 PC 에 깐다
 for Z in "$HERE"/kmd-*-pc.zip "$HERE"/../kmd-*-pc.zip; do if [ -f "$Z" ]; then cp "$Z" "$ROOT/.kmd/dl/"; fi; done

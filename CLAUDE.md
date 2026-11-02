@@ -13,6 +13,7 @@
 | 문서를 만들거나 고치는 경로(저장 · 정리 · 받은 기록 · claude 프롬프트 · 가져오기) | [docs/kmd_문서_작성기준.md](docs/kmd_문서_작성기준.md) · [docs/템플릿/](docs/템플릿/) |
 | 권한 · API · MCP | [docs/kmd_권한_모델.md](docs/kmd_권한_모델.md) |
 | 남은 개선 거리 | [docs/품질개선/종합검토.md](docs/품질개선/종합검토.md) 「따로 할 것」 |
+| 서비스 전체 · 설명서(`/manual`) | [docs_ops/kmd_서비스_전체.md](docs_ops/kmd_서비스_전체.md) · [docs_ops/manual/](docs_ops/manual/) — 쓰는 법이 바뀌면 같이 고친다 |
 
 기준에 없는 것이 필요하면 기준 문서에 먼저 더하고 쓴다. 기준과 코드를 같은 커밋에서 맞춘다.
 

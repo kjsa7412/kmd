@@ -1,10 +1,10 @@
 // 꾸러미 만들기 — dist/ 에 PC 꾸러미(폴더 + zip)와 팀 서버 꾸러미(tgz).
 //
-//   PC    kmd-<판>-pc/   node.exe(이 Node 그대로) · app · core · server · agent · 설명서(docs) · 쓰는 node_modules · kmd.cmd · kmd-key.cmd · 처음.txt
+//   PC    kmd-<판>-pc/   node.exe(이 Node 그대로) · app · core · server · agent · 설명서(docs_ops/manual) · 쓰는 node_modules · kmd.cmd · kmd-key.cmd · 처음.txt
 //         → kmd-<판>-pc.zip. 한 파일 exe(SEA)는 ESM 묶기(번들러)가 있어야 해 이 판은 「풀면 바로 도는 폴더」 로 낸다.
 //         설치 한 줄이 이 zip 을 팀 서버의 받기 자리(/dl)에서 받아 ~/.kmd-app/versions/<판> 에 풀고 실행기를 세운다.
 //   팀    kmd-<판>-team.tgz  같은 것(node 빼고) + kmd-install.sh(systemd) + PC zip(설치가 받기 자리에 둔다) — 서버의 node 22 를 쓴다
-//   걸러 냄  test · 설명서 밖의 docs · .git · .kmd-data · devDependencies
+//   걸러 냄  test · docs · 설명서 밖의 docs_ops · .git · .kmd-data · devDependencies
 // 쓰기: node scripts/pack.mjs   (서명 · 올리기는 사람)
 
 import fs from 'node:fs'
@@ -17,8 +17,8 @@ const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'))
 const DIST = path.join(ROOT, 'dist')
 const SRC = ['app', 'core', 'server', 'agent', 'package.json', 'CHANGELOG.md']
-// 화면의 「설명서」(/manual)가 그리는 문서 — server/http.js 의 MANUALS 와 같다
-const MANUAL_DOCS = ['설명서_사용자.md', '설명서_지식관리자.md', '설명서_관리자.md', 'kmd_운영.md']
+// 화면의 「설명서」(/manual)가 그리는 설명서 폴더(html · manual.css · img) — server/http.js 의 MANUAL_DIR
+const MANUAL = path.join('docs_ops', 'manual')
 
 function copy(from, to) {
   const st = fs.statSync(from)
@@ -36,8 +36,7 @@ function base(dir) {
   fs.rmSync(dir, { recursive: true, force: true })
   fs.mkdirSync(dir, { recursive: true })
   for (const s of SRC) copy(path.join(ROOT, s), path.join(dir, s))
-  fs.mkdirSync(path.join(dir, 'docs'), { recursive: true })
-  for (const d of MANUAL_DOCS) copy(path.join(ROOT, 'docs', d), path.join(dir, 'docs', d))
+  copy(path.join(ROOT, MANUAL), path.join(dir, MANUAL))
   for (const m of prodModules()) {
     if (!ONLY[m]) copy(path.join(ROOT, m), path.join(dir, m))
     else for (const f of ONLY[m]) {
@@ -78,7 +77,7 @@ export function pack({ out = DIST, build = buildName() } = {}) {
   fs.rmSync(tgz, { force: true })
   // Windows 는 시스템 tar(bsdtar · -a 로 zip) — Git 의 GNU tar 는 C: 를 원격 주소로 읽는다 · 경로는 dist 안 이름만
   const tar = process.platform === 'win32' ? path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe') : 'tar'
-  // 파일 이름은 UTF-8(깃발 11) — 그냥 묶으면 한글 이름(설명서_사용자.md)이 이 PC 의 코드 페이지로 들어가 다른 코드 페이지의 PC 에서 깨진다
+  // 파일 이름은 UTF-8(깃발 11) — 그냥 묶으면 한글 이름(설명서 사용자.html)이 이 PC 의 코드 페이지로 들어가 다른 코드 페이지의 PC 에서 깨진다
   execFileSync(tar, ['-a', '-cf', path.basename(zip), ...(process.platform === 'win32' ? ['--options', 'hdrcharset=UTF-8'] : []), path.basename(pc)], { cwd: out })
   // 팀 꾸러미 — PC zip 을 함께 넣어 팀 설치가 받기 자리(/dl)에 둔다(설치 한 줄이 거기서 받는다)
   const team = path.join(out, `kmd-${v}-team`)
