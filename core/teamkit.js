@@ -2,7 +2,9 @@
 //
 //   한 줄   팀 화면 › 설정 › 에이전트 설치의 `irm '<팀>/a/<표>?kn=<팀 지식>' | iex` — 붙여 넣은 폴더에
 //   스킬   <폴더>/.claude/skills/kmd-team-work · kmd-team-save(+ 작성가이드.md) · 개인 스킬(kmd-work · kmd-save · kmd-build)과 따로
-//   연결   <폴더>/.mcp.json 의 mcpServers.kmd-team 하나. 열쇠는 넣지 않고 헤더 도우미(%USERPROFILE%\.kmd\kmd-team-key.ps1)가 꺼낸다
+//   연결   <폴더>/.mcp.json 의 mcpServers.kmd-team 하나. 열쇠는 넣지 않고 헤더 도우미가 꺼낸다
+//          도우미는 실행 파일 %USERPROFILE%\.kmd\bin\kmd-key-<판>.exe(core/keyexe.js · 한 줄이 Add-Type 으로 만든다)
+//          못 만든 PC 만 %USERPROFILE%\.kmd\kmd-team-key.ps1 — PowerShell 은 켜지는 데만 7초 넘게 걸려 Claude Code 의 10초 제한에 잘릴 수 있다
 //   열쇠   이 PC 의 기기 열쇠(Windows 자격 저장소: DPAPI 로 감싼 %USERPROFILE%\.kmd\keys\<지문>.dpapi · core/keystore.js 와 같은 꼴 · 같은 자리)
 //          이미 있고 팀 서버가 받으면 그대로 · 없거나 끊겼으면 표(10분 · 한 번)로 하나 받는다(내 기기에 한 줄)
 //          %APPDATA% 에 두지 않는다 — Claude 데스크톱 앱(MSIX) 안에서 쓰면 앱 전용 자리로 가상화되어 앱 안 · 밖이 다른 열쇠를 읽는다.
@@ -141,7 +143,19 @@ export function teamAgentPs({ origin, ticket, kn }) {
     '[IO.File]::WriteAllText($hp, $r.helper, (New-Object System.Text.UTF8Encoding $true))',
     "$hpo = Join-Path $env:APPDATA 'kmd\\kmd-team-key.ps1'",
     'if (Test-Path $hpo) { [IO.File]::WriteAllText($hpo, $r.helper, (New-Object System.Text.UTF8Encoding $true)) }',
-    "$m.mcpServers | Add-Member -Force -NotePropertyName 'kmd-team' -NotePropertyValue ([pscustomobject]@{ type = 'http'; url = \"$o/mcp\"; headersHelper = \"powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `\"$hp`\" $o\" })",
+    // 빠른 도우미 — 같은 일을 하는 실행 파일(core/keyexe.js · 개인 프로그램과 같은 이름 · 같은 자리). PowerShell 은 PC 에 따라 켜지는 데만
+    // 7초 넘게 걸려 Claude Code 의 headersHelper 10초 제한에 잘린다. 못 만들면 .ps1 도우미로
+    "$he = Join-Path $env:USERPROFILE ('.kmd\\bin\\kmd-key-' + $r.exeVer + '.exe')",
+    'if (-not (Test-Path $he)) {',
+    '  try {',
+    '    New-Item -ItemType Directory -Force (Split-Path $he) | Out-Null',
+    '    $het = "$he.$PID.tmp.exe"',
+    '    Add-Type -TypeDefinition $r.exeCs -ReferencedAssemblies System.Security -OutputAssembly $het -OutputType ConsoleApplication',
+    '    Move-Item -LiteralPath $het -Destination $he -Force',
+    '  } catch { Remove-Item -LiteralPath $het -Force -ErrorAction SilentlyContinue; if (-not (Test-Path $he)) { $he = $null; Write-Host "· 빠른 열쇠 도우미를 만들지 못해 PowerShell 도우미로 잇는다(Claude Code 연결이 시간 초과로 끊길 수 있다): $($_.Exception.Message)" } }',
+    '}',
+    "$hh = if ($he) { \"`\"$he`\" $o\" } else { \"powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `\"$hp`\" $o\" }",
+    "$m.mcpServers | Add-Member -Force -NotePropertyName 'kmd-team' -NotePropertyValue ([pscustomobject]@{ type = 'http'; url = \"$o/mcp\"; headersHelper = $hh })",
     // 스킬 · 옛 것 걷기 · CLAUDE.md
     'foreach ($s in $r.skills) { $f = Join-Path $d $s.rel; New-Item -ItemType Directory -Force (Split-Path $f) | Out-Null; [IO.File]::WriteAllText($f, $s.text, $u8) }',
     'if ($r.dropLegacy) {',

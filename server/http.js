@@ -19,6 +19,7 @@ import { VERSION, BUILD } from './version.js'
 import * as V from './views.js'
 import * as kit from '../core/kit.js'
 import * as teamkit from '../core/teamkit.js'
+import { KEY_EXE_CS, KEY_EXE_VER } from '../core/keyexe.js'
 import * as sendLib from '../core/send.js'
 import { watchedOf } from '../core/watchmark.js'
 import { pcLogin, makeTeamLogin } from '../core/claudelogin.js'
@@ -752,7 +753,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (!k) throw new KmdError('E_NOTFOUND', `「${kn}」 팀 지식이 없거나 읽을 자리가 없다`)
       const parts = await teamkit.teamKitParts()
       const kns = teamkit.teamKns({ old: block, legacy, add: kn, visible })
-      const body = { block: teamkit.teamBlock(parts, kns), ver: parts.ver, skills: parts.skills, helper: teamkit.teamKeyHelperPs(), name: k.name, n: kns.length, dropLegacy: teamkit.legacyTeamOnly(legacy), legacy: !!legacy.trim(), oldSkills: teamkit.OLD_SKILLS }
+      const body = { block: teamkit.teamBlock(parts, kns), ver: parts.ver, skills: parts.skills, helper: teamkit.teamKeyHelperPs(), exeCs: KEY_EXE_CS, exeVer: KEY_EXE_VER, name: k.name, n: kns.length, dropLegacy: teamkit.legacyTeamOnly(legacy), legacy: !!legacy.trim(), oldSkills: teamkit.OLD_SKILLS }
       return send(res, 200, teamkit.asciiJson(body), undefined, set ? { 'set-cookie': set } : {})
     }
     if (p === '/api/me/devices') return out(200, auth.devices(ctx.user))

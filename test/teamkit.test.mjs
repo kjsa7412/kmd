@@ -9,6 +9,7 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { prehash } from '../app/prehash.js'
+import { KEY_EXE_VER } from '../core/keyexe.js'
 import { teamKitParts, teamRows, legacyRows, legacyTeamOnly, teamKns, teamBlock, asciiJson } from '../core/teamkit.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -34,8 +35,9 @@ const req = async (p, { body, cookie, bearer } = {}) => {
 }
 const PS = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
 // 이 프로세스 안의 팀 서버가 답하는 동안 이벤트 고리를 막지 않는다(spawnSync 금지)
-const ps = (args, { cwd, env = {} } = {}) => new Promise((ok) => {
-  const c = spawn(PS, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', ...args], { cwd, env: { ...process.env, ...env } })
+const ps = (args, opt) => exe(PS, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', ...args], opt)
+const exe = (cmd, args, { cwd, env = {} } = {}) => new Promise((ok) => {
+  const c = spawn(cmd, args, { cwd, env: { ...process.env, ...env } })
   const o = [], e = []
   c.stdout.on('data', (d) => o.push(d))
   c.stderr.on('data', (d) => e.push(d))
@@ -128,8 +130,10 @@ test('팀 에이전트 설치: 표 한 줄은 /a/ · 개인 프로그램을 깔�
   const mcp = JSON.parse(fs.readFileSync(path.join(work, '.mcp.json'), 'utf8')).mcpServers
   assert.deepEqual(Object.keys(mcp).sort(), ['kmd-team', 'other'], '다른 연결은 그대로')
   assert.equal(mcp['kmd-team'].url, s.url + '/mcp')
-  assert.match(mcp['kmd-team'].headersHelper, /^powershell\.exe .*-File ".+kmd-team-key\.ps1" http:\/\/127\.0\.0\.1:\d+$/)
-  assert.equal(mcp['kmd-team'].headersHelper.match(/-File "([^"]+)"/)[1], path.join(home, '.kmd', 'kmd-team-key.ps1'))
+  // 헤더 도우미는 실행 파일(core/keyexe.js) — PowerShell 은 켜지는 데만 7초 넘게 걸려 Claude Code 의 10초 제한에 잘린다
+  assert.match(mcp['kmd-team'].headersHelper, /^"[^"]+" http:\/\/127\.0\.0\.1:\d+$/)
+  assert.equal(mcp['kmd-team'].headersHelper.match(/^"([^"]+)"/)[1], path.join(home, '.kmd', 'bin', `kmd-key-${KEY_EXE_VER}.exe`))
+  assert.ok(fs.existsSync(path.join(home, '.kmd', 'kmd-team-key.ps1')), '.ps1 도우미도 둔다(실행 파일을 못 만든 PC 용)')
   assert.ok(!JSON.stringify(mcp).includes('kmdk_'), '열쇠는 설정에 0')
   assert.ok(fs.existsSync(path.join(work, '.claude', 'skills', 'kmd-team-work', 'SKILL.md')))
   assert.ok(fs.existsSync(path.join(work, '.claude', 'skills', 'kmd-team-save', '작성가이드.md')))
@@ -142,10 +146,15 @@ test('팀 에이전트 설치: 표 한 줄은 /a/ · 개인 프로그램을 깔�
   assert.ok(!md.startsWith('\ufeff'), 'BOM 없이')
 
   // 헤더 도우미 — Claude Code 가 부르는 그대로(셸 없이 인자로) · 그 머리글로 MCP 가 받는다
-  const hp = mcp['kmd-team'].headersHelper.match(/-File "([^"]+)" (\S+)$/)
-  const h = await ps(['-File', hp[1], hp[2]], { env })
+  const he = mcp['kmd-team'].headersHelper.match(/^"([^"]+)" (\S+)$/)
+  const t0 = Date.now()
+  const h = await exe(he[1], [he[2]], { env })
   assert.equal(h.status, 0, h.out)
+  assert.ok(Date.now() - t0 < 5000, `도우미가 빨리 낸다(${Date.now() - t0}ms)`)
   const auth = JSON.parse(h.stdout).Authorization
+  const hp = [null, path.join(home, '.kmd', 'kmd-team-key.ps1'), he[2]]
+  const h1 = await ps(['-File', hp[1], hp[2]], { env })
+  assert.equal(JSON.parse(h1.stdout).Authorization, auth, '.ps1 도우미도 같은 열쇠')
   assert.match(auth, /^Bearer kmdk_/)
   const m = await fetch(s.url + '/mcp', { method: 'POST', headers: { 'content-type': 'application/json', authorization: auth }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) })
   assert.equal(m.status, 200)
@@ -169,6 +178,8 @@ test('팀 에이전트 설치: 표 한 줄은 /a/ · 개인 프로그램을 깔�
   const h2 = await ps(['-File', hp[1], hp[2]], { env })
   assert.equal(h2.status, 0, h2.out)
   assert.equal(JSON.parse(h2.stdout).Authorization, auth, '예전 자리의 열쇠를 읽는다')
+  const h3 = await exe(he[1], [he[2]], { env })
+  assert.equal(JSON.parse(h3.stdout).Authorization, auth, '실행 파일도 예전 자리의 열쇠를 읽는다')
   fs.writeFileSync(path.join(app, 'kmd', 'kmd-team-key.ps1'), 'old helper')
   const t4 = await req('/api/device/ticket', { body: { kn: 'dpms' }, cookie: c })
   const r4 = await ps(['-Command', t4.body.line], { cwd: work, env })
