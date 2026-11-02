@@ -142,3 +142,34 @@ test('묶음은 다시 쓸 글 합 3천 자까지 · 큰 항목은 혼자', asyn
   const b = batchesOf([g('큰', 3500), g('작1', 1000), g('작2', 1500), g('작3', 1000)])
   assert.deepEqual(b.map((x) => x.map((y) => y.heading)), [['큰'], ['작1', '작2'], ['작3']])
 })
+
+test('일꾼: 사람이 누른 정리를 자동 정리보다 먼저 · claude 동시 호출 상한 · 지난 일꾼 폴더를 걷는다', async () => {
+  const { slots, sweepProjects } = await import('../core/worker.js')
+  const auto = await s.hub.tidyNow({ user: 'kmd', admin: true }, 'dpms', { by: 'kmd', auto: true })
+  const hand = await s.hub.tidyNow({ user: 'kim', admin: true }, 'gdi', { by: 'kim' })
+  const got = s.hub.workerNext({ worker: { id: 'w-test' } })
+  assert.equal(got.job.id, hand.id, '사람이 누른 것이 먼저')
+  for (const j of [auto, hand]) Object.assign(s.hub.job(j.id), { state: 'cancelled', done: new Date().toISOString() })
+  // 상한 — 셋이 받으면 넷째는 하나가 돌려줄 때까지 기다린다
+  const g = slots(3)
+  await g.take(); await g.take(); await g.take()
+  let fourth = false
+  const p = g.take().then(() => (fourth = true))
+  await new Promise((ok) => setTimeout(ok, 20))
+  assert.equal(fourth, false)
+  g.give()
+  await p
+  assert.equal(fourth, true)
+  // 일꾼 폴더 — 하루 지난 「kmd-worker-」 만
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-home-'))
+  const pj = path.join(home, '.claude', 'projects')
+  for (const x of ['C--tmp-kmd-worker-old', 'C--tmp-kmd-worker-new', 'C--project-kmd']) fs.mkdirSync(path.join(pj, x), { recursive: true })
+  const old = (Date.now() - 2 * 864e5) / 1000
+  fs.utimesSync(path.join(pj, 'C--tmp-kmd-worker-old'), old, old)
+  fs.utimesSync(path.join(pj, 'C--project-kmd'), old, old)
+  const cfg = process.env.CLAUDE_CONFIG_DIR
+  delete process.env.CLAUDE_CONFIG_DIR
+  try { assert.equal(sweepProjects({ home }), 1) } finally { if (cfg) process.env.CLAUDE_CONFIG_DIR = cfg }
+  assert.deepEqual(fs.readdirSync(pj).sort(), ['C--project-kmd', 'C--tmp-kmd-worker-new'])
+  fs.rmSync(home, { recursive: true, force: true })
+})

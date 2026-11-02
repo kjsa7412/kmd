@@ -10,6 +10,9 @@ import { runClaude } from './claude.js'
 import { promptOf, fixPromptOf, DRAFT_SCHEMA, TOUCH_SCHEMA, INGEST_SCHEMA, spotKey, spotTarget, batchesOf, batchPromptOf, BATCH_SCHEMA, BATCH_MAX } from './tidy.js'
 import { runAgent, agentAvailable } from './agent.js'
 import { modelOf } from './models.js'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 
 // 멈추는 까닭 — 다음 자리에서 다시 불러도 같다(로그인 · 한도 · claude 없음)
 const STOP = { login: '로그인이 끝났다', limit: '한도에 닿았다', missing: 'Claude Code(claude) 가 설치되어 있지 않다' }
@@ -61,7 +64,7 @@ const TICK = () => Number(process.env.KMD_TIDY_TICK_MS) || 15_000
 // 일감 하나 — 없으면 null · models — 일마다 모델(core/models.js · 없으면 기본 배분)
 //   한 문서의 항목은 batch 개까지 claude -p 한 번에(batchesOf) · 그 묶음을 PAR 개씩 같이 쓰고, 초안을 받으면 그 자리만 바로 올린다(서버가 검사해 넣고 받은 것에서 빠진다) ·
 //   서버가 다시 켜져 일감이 다시 기다림이 되어도 넣은 자리는 다시 쓰지 않는다. 못 쓴 자리 · 그만둔 자리는 끝에 한꺼번에
-export async function workOnce({ server, key, log = () => {}, budget = 0.5, models = null, par = PAR, batch = BATCH }) {
+export async function workOnce({ server, key, log = () => {}, budget = 0.5, models = null, par = PAR, batch = BATCH, gate = slots(par) }) {
   const n = await call(server, key, '/api/worker/next', {})
   if (!n.job) return null
   const { job, key: dkey } = n
@@ -105,6 +108,10 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
   // claude -p 한 번 — 걸린 시간 · 보낸 글 크기를 답에 붙인다(서버 장부 · 일꾼 기록이 자리마다 남긴다) ·
   //   쓰는 동안 TICK 마다 그 자리들(keys)에 쓴 글 · 생각 글자 수와 지난 시간을 올린다(서버 · 화면이 「쓰는 중 3:12 · 쓴 글 1.2k자」 를 보인다)
   const ask = async (prompt, o, keys = []) => {
+    await gate.take()
+    try { return await ask1(prompt, o, keys) } finally { gate.give() }
+  }
+  const ask1 = async (prompt, o, keys = []) => {
     const t0 = Date.now()
     const onTick = keys.length && !lost ? (t) => { call(server, dkey, `/api/k/${kn}/worker/progress`, { keys, tick: true, out: t.out, think: t.think, ms: t.ms }).then((p) => { if (p.stop) quit = true }, gone) } : null
     const r = await runClaude({ prompt, budget, timeoutMs: timeoutOf(prompt), onTick, tickMs: TICK(), ...o })
@@ -193,27 +200,60 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
   return { job, ...res }
 }
 
+// claude 동시 호출 상한 — 일감 둘이 나란히 돌아도 전체가 PAR 를 넘지 않는다
+export function slots(n) {
+  let free = n
+  const wait = []
+  return { take: () => (free > 0 ? (free--, Promise.resolve()) : new Promise((ok) => wait.push(ok))), give: () => (wait.length ? wait.shift()() : free++) }
+}
+// 일꾼이 남긴 Claude Code 프로젝트 폴더 — 부를 때마다 새 임시 폴더라 ~/.claude/projects 에 「…kmd-worker-…」 가 쌓이기만 했다(188 에 28개).
+//   하루 지난 것을 걷는다(지금 부르는 것은 건드리지 않는다)
+export function sweepProjects({ home = os.homedir(), log = () => {}, ageMs = 24 * 3600_000 } = {}) {
+  const dir = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(home, '.claude'), 'projects')
+  let n = 0
+  let names = []
+  try { names = fs.readdirSync(dir) } catch (e) { if (e.code !== 'ENOENT') log(`일꾼 폴더를 읽지 못했다: ${e.message}`); return 0 }
+  for (const x of names.filter((y) => /kmd-worker-/.test(y))) {
+    const p = path.join(dir, x)
+    try {
+      if (Date.now() - fs.statSync(p).mtimeMs < ageMs) continue
+      fs.rmSync(p, { recursive: true, force: true })
+      n++
+    } catch (e) { log(`일꾼 폴더를 지우지 못했다: ${x}: ${e.message}`) }
+  }
+  if (n) log(`지난 일꾼 폴더 ${n}개를 걷었다`)
+  return n
+}
+
 // 늘 — poll 마다 일감을 본다
 // onLost — 서버가 열쇠를 끊었다(401 · 다시 정하기 · 떠남) · 멈추고 알린다
 // before — 일감을 묻기 전마다(팀 서버 일꾼: 정리 전용 로그인을 다시 읽는다)
-export function runWorker({ server, key, poll = 10_000, log = (...a) => console.log('[kmd worker]', ...a), onLost = null, models = null, before = null }) {
+// jobs — 일감을 나란히 맡는 수(다른 지식 · 같은 지식은 서버가 한 일감만 낸다 · KMD_TIDY_JOBS) · claude 동시 호출은 둘이 합쳐 PAR
+const JOBS = Math.min(4, Math.max(1, Number(process.env.KMD_TIDY_JOBS) || 2))
+export function runWorker({ server, key, poll = 10_000, log = (...a) => console.log('[kmd worker]', ...a), onLost = null, models = null, before = null, jobs = JOBS }) {
   let stopped = false
-  const loop = async () => {
+  const gate = slots(PAR)
+  sweepProjects({ log })
+  const sweep = setInterval(() => sweepProjects({ log }), 6 * 3600_000)
+  sweep.unref?.()
+  const loop = async (i) => {
+    // 둘째 칸부터는 조금 늦게 — 같은 순간에 일감을 묻지 않게
+    if (i) await new Promise((ok) => setTimeout(ok, 1000 * i))
     while (!stopped) {
       try {
         if (before) await before()
-        const r = await workOnce({ server, key, log, models })
+        const r = await workOnce({ server, key, log, models, gate })
         if (r) {
           log(`${r.job.kn}: 넣음 ${r.summary?.put ?? 0} · 값 바뀜 ${r.summary?.changed ?? 0} · 그대로 둠 ${r.summary?.left ?? 0}`)
           continue
         }
       } catch (e) {
-        if (e.status === 401 && onLost) { stopped = true; log('일꾼 열쇠가 끊겼다. 다시 받는다'); onLost(); return }
+        if (e.status === 401 && onLost) { if (!stopped) { stopped = true; clearInterval(sweep); log('일꾼 열쇠가 끊겼다. 다시 받는다'); onLost() } return }
         log(`서버에 닿지 않는다: ${e.message}${e.cause?.code ? ` (${e.cause.code})` : ''}`)
       }
       await new Promise((ok) => setTimeout(ok, poll))
     }
   }
-  loop()
-  return { stop: () => (stopped = true) }
+  for (let i = 0; i < jobs; i++) loop(i)
+  return { stop: () => { stopped = true; clearInterval(sweep) } }
 }

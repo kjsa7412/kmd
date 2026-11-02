@@ -209,8 +209,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const JOB_LEASE = config.jobLeaseMs ?? 40 * 60_000
   const jobsFile = path.join(dataDir, 'jobs.json')
   let jobsW = Promise.resolve()
+  // 끝난 일감은 7일 · 지식마다 최근 50건 남긴다(사흘 · 일주일 정리 시간을 서버 기록 없이 본다) · 도는 것은 늘
+  const JOB_KEEP_MS = 7 * 24 * 3600_000
+  const JOB_KEEP_N = 50
   const saveJobs = () => {
-    const keep = [...jobs.values()].filter((j) => j.state === 'queued' || j.state === 'running' || Date.now() - Date.parse(j.done || j.at) < 24 * 3600_000).slice(-200)
+    const live = (j) => j.state === 'queued' || j.state === 'running'
+    const per = new Map()
+    const keep = [...jobs.values()].filter((j) => live(j) || Date.now() - Date.parse(j.done || j.at) < JOB_KEEP_MS).reverse().filter((j) => live(j) || (per.set(j.kn, (per.get(j.kn) || 0) + 1).get(j.kn) <= JOB_KEEP_N)).reverse()
+    for (const j of [...jobs.values()]) if (!keep.includes(j)) jobs.delete(j.id)
     jobsW = jobsW.then(() => fs.mkdir(dataDir, { recursive: true })).then(() => fs.writeFile(jobsFile + '.tmp', JSON.stringify(keep))).then(() => fs.rename(jobsFile + '.tmp', jobsFile)).catch((e) => log(`정리 일감 장부를 쓰지 못했다: ${e.message}`))
     return jobsW
   }
@@ -1687,7 +1693,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     workerNext(wctx) {
       teamSeenAt = Date.now()
       sweepJobs()
-      const j = [...jobs.values()].find((x) => x.state === 'queued')
+      const q = [...jobs.values()].filter((x) => x.state === 'queued')
+      const j = q.find((x) => !x.auto) || q[0]
       if (!j) return null
       j.state = 'running'
       j.worker = wctx.worker.id
@@ -1861,7 +1868,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         return { rows, stop: !!j?.stop }
       }
       const done = (j?.rows || []).concat(rows).filter((x) => x.kind !== 'stopped')
-      const run = { at: new Date().toISOString(), by: j?.by || null, auto: !!j?.auto, rows: done, ...(j?.stop ? { stopped: j.stop.by } : {}) }
+      const took = (j?.spots || []).filter((x) => x.ms).map((x) => ({ key: x.key, ms: x.ms, chars: x.chars || 0, tries: x.tries || 1 }))
+      const run = { at: new Date().toISOString(), by: j?.by || null, auto: !!j?.auto, rows: done, ...(j?.stop ? { stopped: j.stop.by } : {}), ...(j ? { job: j.id, started: j.started || null, ms: j.started ? Date.now() - Date.parse(j.started) : null, took } : {}) }
       if (done.length) await saveRun(id, run) // 빈 정리는 「정리한 것」 카드를 남기지 않는다
       // 이번에 세 번째로 둔 기록 — 지식관리자에게 「사람이 볼 것」 한 번
       if (done.some((x) => x.kind === 'left')) {
