@@ -1727,6 +1727,7 @@ function tmOf(iso) {
 }
 function diffHtml(list, label) {
   if (!list) return loadingHtml
+  if (list.error) return errHtml(list)
   if (!list.length) return '<div class="diff"><div class="ln2">바뀐 글이 없다</div></div>'
   return list.map((x) => `<div class="diff"><div class="fh">${esc(label || x.title + ' › ' + x.heading)}</div>${String(x.before || '').split('\n').filter((l) => l.trim()).map((l) => `<div class="ln2 del">${esc(l)}</div>`).join('')}${String(x.after || '').split('\n').filter((l) => l.trim()).map((l) => `<div class="ln2 add">${esc(l)}</div>`).join('')}</div>`).join('')
 }
@@ -1948,12 +1949,13 @@ function tdGoBox(k, d) {
   const open = recs.filter((r) => !r.priv)
   const head = t.tidyMode === 'live' ? '실시간: 기록이 남고 조용해지면 바로' : t.tidyMode === 'manual' ? '손으로만: 지금 정리를 누를 때' : `다음 정리 ${t.tidyAt > clock().slice(-5) ? '오늘' : '내일'} ${esc(t.tidyAt)}`
   if (tdLive(job)) {
-    const sp = job.spots || [], done = sp.filter((x) => x.st === 'done' || x.st === 'left' || x.st === 'got').length, now = sp.find((x) => x.st === 'run')
+    const sp = job.spots || [], done = sp.filter(tdWrote).length, now = sp.find((x) => x.st === 'run')
     // 일꾼 소식 — 자리를 시작 · 끝낼 때마다 온다(자리 하나에 길어야 3분) · 5분 넘게 없으면 멈춘 것으로 본다
     const quiet = job.state === 'running' ? Math.round((Date.now() - Date.parse(job.beat || job.started || job.at)) / 60000) : 0
     const more = (S.tdTab === 'run' ? '' : '<button class="btn" data-a="tdTab" data-v="run">정리 일 줄 보기</button>') + tdStopBtn(k, job)
     // 아무도 따라가지 않는 정리(자동 정리 · 다시 연 화면) — 따라가기 시작한다(그리는 중이라 다음 틱에)
     if (!(S.tidyRuns || {})[k]) setTimeout(() => tdFollow(k, job))
+    if (run && run.err) return `<div class="go" data-t="goBox"><span class="tx"><b data-t="nextTidy">정리 소식을 읽지 못했다 · ${esc(run.err)}</b><small>정리는 서버에서 그대로 돈다. 닿으면 저절로 이어서 보인다</small></span><span class="chip c-warn" data-t="prog">소식 끊김</span>${tdStopBtn(k, job)}</div>`
     if (job.stop) return `<div class="go" data-t="goBox"><span class="tx"><b data-t="nextTidy">그만두는 중 · ${esc(job.stop.by)} 가 그만두기를 눌렀다 · 자리 ${sp.length} 중 ${done} 씀</b><small>지금 쓰는 자리가 끝나면 끝낸다(이어 하지 않는다). 쓴 초안은 검사해 넣고, 남은 기록은 받은 것에 그대로 둔다</small></span><span class="chip c-warn" data-t="prog">그만두는 중</span>${S.tdTab === 'run' ? '' : '<button class="btn" data-a="tdTab" data-v="run">정리 일 줄 보기</button>'}</div>`
     if (quiet >= 5) return `<div class="go" data-t="goBox"><span class="tx"><b data-t="nextTidy">정리가 멈춘 것 같다 · ${esc(whenTxt(job.at))} 시작 · 자리 ${sp.length} 중 ${done} 씀</b><small>정리 일꾼이 ${quiet}분 동안 자리를 시작하거나 끝내지 않았다. 설정 · 팀 › Claude 연결 · 서버의 kmd-worker 기록을 본다 · 40분이 지나면 다시 맡긴다</small></span><span class="chip c-warn" data-t="prog">일꾼 소식이 ${quiet}분 없다</span>${more}</div>`
     const wait = job.state === 'queued' ? (run && Date.now() - run.t0 > 120000 ? `정리 일꾼을 기다린다: ${Math.round((Date.now() - run.t0) / 60000)}분` : '정리 일꾼을 기다린다') : `자리 ${sp.length} 중 ${done} 씀${now ? ` · 지금 ${now.target}` : ''}`
@@ -2048,6 +2050,8 @@ function tdInbox(k, d) {
 // 정리 일 줄 — 자리 하나가 한 줄 · 고르면 합치는 기록 · 흐름 · 터미널 · 결과
 // 초안 없이 둔 자리(로그인 끝남 · 한도 · 초안이 안 옴)는 글 쓰기에서 멈춘 것 — 검사까지 간 것처럼 보이지 않게
 const tdNoDraft = (sp) => sp.st === 'left' && (sp.stage === 2 || !(sp.lines || []).some((l) => l[0] === 2 && l[1] === 'ok'))
+// 글을 쓴 자리 — 넣음 · 초안 받음 · 초안이 검사에서 둠(초안 없이 둔 것은 쓰지 못한 것)
+const tdWrote = (sp) => sp.st === 'done' || sp.st === 'got' || (sp.st === 'left' && !tdNoDraft(sp))
 const tdStage = (sp) => (sp.st === 'done' ? 5 : sp.st === 'got' || (sp.st === 'left' && !tdNoDraft(sp)) ? 3 : 2)
 function tdMini(sp) {
   return `<div class="qmini"><div class="mini">${TD_STG.map((_, i) => `<i class="${sp.st === 'done' || i < tdStage(sp) ? 'done' : i === tdStage(sp) ? (sp.st === 'run' ? 'run' : sp.st === 'left' ? 'check' : '') : ''}"></i>`).join('')}</div><small>${sp.st === 'stop' ? '그만둠' : sp.st === 'wait' ? '차례 기다림' : sp.st === 'done' ? '다섯 단계 끝' : sp.st === 'left' ? (tdNoDraft(sp) ? '3 글 쓰기' : '4 검사') : sp.st === 'got' ? '4 검사 기다림' : '3 글 쓰기'}</small></div>`
@@ -2216,7 +2220,19 @@ function tdFollow(k, j) {
   render()
   const poll = setInterval(async () => {
     if (document.hidden) return
-    const st = await getJSON('/api/job/' + j.id).catch(() => ({ state: 'gone' }))
+    let st
+    try {
+      st = await getJSON('/api/job/' + j.id)
+      if (run.fails) { run.fails = 0; run.err = null; render() }
+    } catch (e) {
+      // 일감이 없어졌다(서버가 지웠다 · 볼 수 없게 됐다) — 끝 · 닿지 않음 · 서버 오류는 이어서 묻고, 세 번 넘으면 띠에 알린다
+      if (e.code !== 'E_NOTFOUND') {
+        run.fails = (run.fails || 0) + 1
+        if (run.fails === 3) { run.err = e.message || '서버에 닿지 않는다'; console.warn('[kmd] 정리 소식을 읽지 못했다', e); render() }
+        return
+      }
+      st = { state: 'gone' }
+    }
     const heard = Date.parse(st.beat || st.started || st.at || 0) || run.t0
     if ((st.state === 'queued' || st.state === 'running') && Date.now() - Math.max(heard, run.t0) < 30 * 60000) {
       // 바뀐 것이 있을 때만 다시 그린다(자리 수백 개를 1.5초마다 그리면 화면이 버벅인다) · 자리를 넣으면 받은 것도 새로
@@ -2238,6 +2254,7 @@ function tdFollow(k, j) {
     else if (st.state === 'cancelled') S.tidyMsg[k] = { cls: 'gray', t: `${st.why || '정리를 그만뒀다'}${st.summary ? ` · 넣음 ${(st.summary.put || 0) + (st.summary.changed || 0)}` : ''}` }
     else if (st.state === 'failed') S.tidyMsg[k] = { cls: 'warn', t: `정리하지 못했다: ${st.why || '정리 일꾼이 끝내지 못했다'} · 받은 기록은 문서 옆에 같이 읽힌다` }
     else if (st.rule) toast(`${esc(st.why || '규칙으로 넣었다')}: ${st.summary?.put || 0}건`)
+    else if (st.state !== 'done') S.tidyMsg[k] = { cls: 'gray', t: '정리 일감이 서버에서 없어졌다. 지난 정리에서 결과를 본다' }
     else toast(`정리했다: ${(st.summary?.put || 0) + (st.summary?.changed || 0)}건을 ${esc(KN(k).name)}에 넣었다`)
     await reloadKns()
     loadStops()
