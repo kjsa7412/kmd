@@ -475,7 +475,7 @@ function viewOf(s) {
   return MGSCR.includes(s) && !gated() ? mgWrap(s, v) : v
 }
 // 지식 관리 화면들(설정 · 팀 / 설정 · 개인 안) — 왼쪽에 그 영역의 메뉴를 세우고 오른쪽에 고른 화면
-//   이력은 설정 밖(옆 메뉴 지식 관리 › 이력) · 팀 + 개인을 한 화면에(docs/kmd_지식관리_이력_목업.html)
+//   이력은 설정 밖(옆 메뉴 지식 관리 › 이력) · 팀 + 개인을 한 화면에
 const MGSCR = ['import', 'tidy', 'send', 'settings', 'members', 'admin']
 const HISTSCR = ['today', 'log']
 function mgItems() {
@@ -1731,7 +1731,7 @@ const diffOf = (k, record) => need(`diff:${k}:${record}`, `/api/k/${encodeURICom
 //   팀 화면은 팀 지식만 · 개인 화면은 개인 지식만
 //   맨 위 「확인할 것」 — kmd 가 내 값을 바꾼 줄 · 아래는 날마다 묶은 흐름 · 갈래 · 지식 · 사람으로 거른다
 //   줄을 누르면 펼친다 — 비교 · 되돌리기 / 기기 끊기 / 문서 열기 / 그 일 열기
-//   위에서 고른 지식과 따로다(docs/kmd_지식관리_이력_목업.html)
+//   위에서 고른 지식과 따로다
 const historyOf = () => need('history', '/api/history')
 const HIST_KINDS = ['확인할 것', '저장', '가져오기', '정리', '바로 고침', '보내기', '받음', '설정', '지식']
 const isCheck = (x) => x.yl && !x.reverted && !x.unlinked
@@ -1863,7 +1863,7 @@ const modeTxt = (mode, at) => (mode === 'live' ? '실시간: 기록이 남고 �
 function tidyMenu(row, mode, tidyAt) {
   return S.menu === 'tidyAt' ? popHtml('tidyAt', `<div data-t="timeMenu"><div class="gray">정리 방식</div>${TIDY_MODES.map(([v, l, d]) => `<div class="mi${v === mode ? ' on' : ''}" data-a="setTidyMode" data-v="${v}" data-t="mode-${v}">${v === mode ? '✓ ' : ''}${l}<small>${d}</small></div>`).join('')}${mode === 'time' ? `<div class="sep"></div><div class="gray">정리 시각: 매일</div>${TIMES.map((x) => `<div class="mi${x === tidyAt ? ' on' : ''}" data-a="setTidyAt" data-v="${x}" data-t="time-${x}">${x === tidyAt ? '✓ ' : ''}${x}</div>`).join('')}` : ''}<div class="sep"></div><div class="mi" data-a="toggleNoClaude" title="정리 일꾼에게 이 지식의 글을 보내지 않는다. 규칙으로 되는 것만 넣는다. 팀원의 Claude Code 대화(kmd 도구)는 여전히 이 지식을 읽는다">자동 정리에 Claude 쓰지 않기<small>Claude Code 대화는 여전히 읽는다</small> <span class="sw${row.noClaude ? ' on' : ''}" style="margin-left:auto"></span></div></div>`) : ''
 }
-// ───────────── 정리(목업 docs/kmd_정리_절차_목업.html) ─────────────
+// ───────────── 정리 ─────────────
 // 다섯 단계(core/tidy.js 의 재료 · 초안 · 검사 · 넣기를 사람 말로) · 받은 것 · 정리 일 줄 · 정리한 것
 const TD_STG = ['모으기', '자리 찾기', '글 쓰기', '검사', '넣기']
 const TD_SUB = [['받은 기록 고르기', '비공개 · 되돌린 것 빼기', '값 장부 만들기'], ['넣을 항목 찾기', '자리 없는 기록 묶기', '지금 글 읽기'], ['Claude 초안', '기록마다 넣음 / 둠'], ['글 모양', '그 사이 글이 바뀌지 않았나', '값 맞추기', '크기 · 머리'], ['항목 저장', '참고 블록에 출처 적기', '값 바뀜 알리기']]
@@ -2677,7 +2677,7 @@ function sfAutoName(f) {
   const base = at.replace(/\.git$/i, '').replace(/[\\/]+$/, '').split(/[\\/:]/).filter(Boolean).pop()
   return f.type === 'docs' ? base : base + ' 코드'
 }
-// ── 가져오기 — 일 줄(목업 docs/kmd_가져오기_일줄_목업.html · 서버 일 줄 /api/queue) ──
+// ── 가져오기 — 일 줄(서버 일 줄 /api/queue) ──
 //   들여오는 일은 모두 서버의 일 줄에 선다 — 파일 들이기 · 여러 파일 묶음 · 가져오기 · 기록을 문서에 넣기 · 팀 정리 일감.
 //   일은 늘 네 단계(수집 › 검토 › 기록 생성 › 문서 생성) · 잠깐 멈춤은 단계 사이에서 · 그만두기는 바로 · 다시는 그 단계부터.
 //   탭 셋 — 일 줄(도는 중 · 멈춤/확인/못함 · 기다림 + 자세히) · 가져올 곳(지켜보며 맞추기) · 끝난 일(찾기 · 거르기 · 쪽)
@@ -3180,7 +3180,7 @@ function readEntries(entry, p, out) {
 
 const pcRoot = () => (S.me.root || '').replace(/[\\/]+$/, '')
 
-// ── 지식 보내기(목업 docs/kmd_지식보내기_목업.html v2 · docs/kmd_지식관리_분리_목업.html) — 팀 화면에서 ──
+// ── 지식 보내기 — 팀 화면에서 ──
 // 맨 위가 보내는 길 — 보내는 지식(개인 지식) → 받는 지식(팀 지식 하나). 개인 화면에서만. 길은 개인 지식마다 하나로 묶였고
 //   화면이 그때그때 고르지 않는다 · 바꾸려면 새 이름을 그대로 친다 · 단추 · 확인 창에 받는 지식 이름이 늘 들어간다.
 // 보낼 것은 그 길 안에서 탭으로 — 기록(먼저 · 보내지 않은 것) · 문서(통째로) · 보낸 것. 보내기는 개인 프로그램이 이 PC 의 기기 열쇠로 한다
@@ -3450,7 +3450,7 @@ function agentInstallCard() {
 
    ${copied}</div></div>`
 }
-// 개인 프로그램 설치(팀 화면 · 누구나 · docs/kmd_팀_개인_분리_검토.html 결정 4) — 이 PC 에 개인 프로그램을 깔고 팀에 잇는 한 줄 ·
+// 개인 프로그램 설치(팀 화면 · 누구나) — 이 PC 에 개인 프로그램을 깔고 팀에 잇는 한 줄 ·
 //   내 기기(팀 서버가 아는 것만 · PC 에 묻지 않는다). 개인 지식 · 개인 폴더는 보이지 않는다
 function viewInstall() {
   const line = S.lastInstall ? `<div class="callout gray" data-t="installLine" style="display:block;margin:10px 0 0"><b>설치 · 잇기 한 줄을 복사했다</b> · 10분 동안 한 번만 · 남에게 주지 않는다${S.lastInstallVer ? ` · 개인 프로그램 판 ${esc(S.lastInstallVer)}` : ''}<div class="urlbox" style="max-height:none">${esc(S.lastInstall)}</div></div>` : ''
