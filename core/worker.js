@@ -7,7 +7,7 @@
 //   로그인이 끝났거나 한도면 다시 시도하지 않고 멈춘 뒤 서버에 알린다(멈춤 한 줄 「자동 정리가 쉬고 있다」)
 
 import { runClaude } from './claude.js'
-import { promptOf, DRAFT_SCHEMA, TOUCH_SCHEMA, INGEST_SCHEMA, spotKey, batchesOf, batchPromptOf, BATCH_SCHEMA, BATCH_MAX } from './tidy.js'
+import { promptOf, fixPromptOf, DRAFT_SCHEMA, TOUCH_SCHEMA, INGEST_SCHEMA, spotKey, batchesOf, batchPromptOf, BATCH_SCHEMA, BATCH_MAX } from './tidy.js'
 import { runAgent, agentAvailable } from './agent.js'
 import { modelOf } from './models.js'
 
@@ -48,8 +48,10 @@ async function agentIngest({ server, dkey, kn, g, log, models }) {
 
 // 한 번에 쓰는 자리 수 — 자리마다 claude -p 한 번이라 하나씩이면 자리 수백 개가 몇 시간이 된다(KMD_TIDY_PAR · 1~8)
 const PAR = Math.min(8, Math.max(1, Number(process.env.KMD_TIDY_PAR) || 3))
-// 자리 하나의 글 쓰기 시간 — 기록이 많이 모인 자리는 3분을 넘기기도 한다
+// 자리 하나의 글 쓰기 시간 — 기록이 많이 모인 자리는 3분을 넘기기도 한다 · 항목 글이 길면(화면설계서 한 항목 9천 자) 다시 쓰는 데 5분을 넘긴다:
+//   프롬프트 2천 자마다 1분을 더한다(15분까지)
 const TIDY_TIMEOUT = 5 * 60_000
+const timeoutOf = (prompt) => Math.min(15 * 60_000, TIDY_TIMEOUT + Math.floor(String(prompt).length / 2000) * 60_000)
 // 한 문서의 항목을 한 번에 쓰는 수(KMD_TIDY_BATCH · 1 이면 자리마다 따로)
 const BATCH = Math.max(1, Number(process.env.KMD_TIDY_BATCH) || BATCH_MAX)
 
@@ -89,9 +91,11 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
     }
     return true
   }
-  const write = (g, model) => runClaude({ prompt: promptOf(g), schema: g.kind === 'touches' ? TOUCH_SCHEMA : g.kind === 'ingest' ? INGEST_SCHEMA : DRAFT_SCHEMA, budget, model, timeoutMs: TIDY_TIMEOUT })
-  // 자리 끝 — 서버에 알리고, 초안이면 바로 올린다. 못 올리면 끝에 같이
-  const finish = async (g, r) => {
+  const schemaOf = (g) => (g.kind === 'touches' ? TOUCH_SCHEMA : g.kind === 'ingest' ? INGEST_SCHEMA : DRAFT_SCHEMA)
+  const write = (g, model) => { const prompt = promptOf(g); return runClaude({ prompt, schema: schemaOf(g), budget, model, timeoutMs: timeoutOf(prompt) }) }
+  // 자리 끝 — 서버에 알리고, 초안이면 바로 올린다. 못 올리면 끝에 같이 ·
+  //   서버 검사가 고칠 수 있는 까닭(빠진 값 · 지어낸 값 · 크기 · 머리)으로 돌려보내면 그 까닭을 붙여 한 번만 다시 쓴다
+  const finish = async (g, r, again = true) => {
     const e = await call(server, dkey, `/api/k/${kn}/worker/progress`, { key: spotKey(g), end: true, ok: !r.error, why: r.error ? (STOP[r.error] ? r.error : r.message || r.error) : null }).catch(gone)
     if (e.stop) quit = true
     if (STOP[r.error] && !stop) {
@@ -100,9 +104,13 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
     }
     const item = { group: slim(g), draft: r.value ?? null, model: r.model, error: r.error || null, why: r.error ? r.message || null : null }
     if (!item.draft || lost) { items.push(item); return }
-    const d = await call(server, dkey, `/api/k/${kn}/worker/drafts`, { drafts: [item], part: true }).catch((x) => (gone(x), null))
+    const d = await call(server, dkey, `/api/k/${kn}/worker/drafts`, { drafts: [item], part: true, fix: again }).catch((x) => (gone(x), null))
     if (!d) items.push(item)
     else if (d.stop) quit = true
+    else if (d.fix && again && !(stop || quit || lost)) {
+      const prompt = fixPromptOf(g, item.draft, d.fix)
+      await finish(g, await runClaude({ prompt, schema: schemaOf(g), budget, model: modelOf(g.kind === 'touches' ? 'touch' : 'tidy', models), timeoutMs: timeoutOf(prompt) }), false)
+    }
   }
   const one = async (g) => {
     // 넣은 파일 — 세션처럼 일하는 에이전트로(이 PC 의 Claude Code · MCP 는 서버 · 단기 열쇠). 넣었으면 초안은 없다 · 못 넣으면 아래 초안 길로

@@ -444,7 +444,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (wk[2] === 'agent/done') return out(200, await hub.workerAgentDone(ctx, dec(wk[1]), await readBody(req)))
       // 자리 수백 개의 초안 · part — 자리 하나를 쓰는 대로(일감은 끝나지 않는다)
       const db = await readBody(req, 32 << 20)
-      return out(200, await hub.drafts(ctx, dec(wk[1]), db.drafts, { part: !!db.part }))
+      return out(200, await hub.drafts(ctx, dec(wk[1]), db.drafts, { part: !!db.part, fix: !!db.fix }))
     }
     need(ctx)
     if (p === '/api/today') return out(200, await hub.today(ctx))

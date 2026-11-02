@@ -6,6 +6,7 @@
 //   기록에 「지어낸」 → 근거에 없는 값(999초)을 더한다 · 「누락」 → 그 기록 글을 빼고도 used 에 넣는다
 //   「주입」 → 글에 머리 줄을 넣는다 · 「A → B」 꼴(값) → 지금 글의 A 를 B 로 바꾸고 drop 에 A
 //   이름 바로잡기 → 후보의 첫 이름
+//   고쳐 쓰기(fixPromptOf · 「지난 초안이 kmd 검사에 걸렸다」) → 「고쳐쓰기」 가 든 기록만 고친다(누락 · 지어낸 것을 하지 않는다)
 // FAKE_CLAUDE_MODE=logout → 로그인 끝 · FAKE_CLAUDE_LOG=<파일> → 부를 때마다 한 줄
 
 import fs from 'node:fs'
@@ -15,6 +16,7 @@ const val = (k) => args[args.indexOf(k) + 1]
 const say = (o) => process.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, total_cost_usd: 0.001, model: 'fake-claude', ...o }) + '\n')
 
 let prompt = ''
+let fixing = false
 process.stdin.on('data', (c) => (prompt += c))
 process.stdin.on('end', () => {
   if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, `call${args.includes('--model') ? ' ' + val('--model') : ''}\n`)
@@ -64,6 +66,12 @@ process.stdin.on('end', () => {
     const first = /^- (\S+:[^ ]+(?: [^—]+)?) — /m.exec(prompt.split('후보:')[1] || '')
     return say({ structured_output: { touches: first ? [first[1].trim()] : [], why: '제목이 그 항목을 말한다' } })
   }
+  const FIX = '\n\n지난 초안이 kmd 검사에 걸렸다'
+  if (prompt.includes(FIX)) {
+    if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'fix\n')
+    fixing = true
+    prompt = prompt.slice(0, prompt.indexOf(FIX))
+  }
   const recPart = prompt.split('기록(오래된 것부터):\n')[1] || ''
   const all = [...recPart.matchAll(/^\[([^\]]+)\] [^\n]*\n([\s\S]*?)(?=\n\n\[|$)/gm)].map((m) => ({ id: m[1], body: m[2].trim() }))
   // 한 문서의 항목 묶음(batchPromptOf) — 항목마다 같은 초안 · 기록에 「묶음빠짐」 이 있으면 그 항목은 답에서 뺀다(일꾼이 따로 다시)
@@ -90,9 +98,10 @@ function draft(cur, recs) {
       drop.push(sw[1])
       continue
     }
-    if (r.body.includes('누락')) continue
+    const fixed = fixing && r.body.includes('고쳐쓰기')
+    if (r.body.includes('누락') && !fixed) continue
     content += (content ? '\n' : '') + r.body
-    if (r.body.includes('지어낸')) content += ' 그리고 999초 기다린다.'
+    if (r.body.includes('지어낸') && !fixed) content += ' 그리고 999초 기다린다.'
     if (r.body.includes('주입')) content += '\n## 새 머리\n엉뚱한 항목'
   }
   return { content, used: recs.map((r) => r.id), left: [], drop }

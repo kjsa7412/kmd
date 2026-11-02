@@ -206,9 +206,10 @@ async function writeRecord(dir, r, { user, now, taken, j }) {
 }
 
 // 값 장부 — 글 속의 수 · `코드` · 따옴표 값(같은 값이면 새 사실이 아니다)
+//   코드 울타리(``` 줄)는 값 따옴표가 아니다 — 백틱을 짝지으면 울타리와 울타리 사이 글 전체가 값 하나가 된다 · `코드` 는 한 줄 안에서만
 export function valuesOf(text) {
   const out = new Set()
-  for (const m of String(text || '').matchAll(/`([^`]+)`|「([^」]+)」|"([^"]+)"|(\d+(?:[.,]\d+)*\s*(?:%|초|분|시간|일|개|건|자|MB|GB|KB|ms|s)?)/g)) out.add((m[1] || m[2] || m[3] || m[4]).replace(/\s+/g, ''))
+  for (const m of String(text || '').replace(/^[ \t]*(?:`{3,}|~{3,}).*$/gm, '').matchAll(/`([^`\n]+)`|「([^」]+)」|"([^"]+)"|(\d+(?:[.,]\d+)*\s*(?:%|초|분|시간|일|개|건|자|MB|GB|KB|ms|s)?)/g)) out.add((m[1] || m[2] || m[3] || m[4]).replace(/\s+/g, ''))
   return out
 }
 

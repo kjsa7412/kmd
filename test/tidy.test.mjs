@@ -258,3 +258,18 @@ test('여러 항목에 걸린 기록: 넣은 항목은 다시 정리하지 않�
   assert.equal(k.byWork.get(w.id).state, 'in')
   assert.equal(material(k, { ids: [w.id] }).length, 0)
 })
+
+test('검사에 걸린 초안은 까닭을 붙여 한 번 고쳐 쓴다 · 그래도 걸리면 그대로 둔다 · 코드 울타리는 값 하나가 아니다', async () => {
+  const { valuesOf } = await import('../core/save.js')
+  assert.deepEqual([...valuesOf('`a` 이다.\n```\nx `b`\ny\n```\n끝 `c`')].sort(), ['a', 'b', 'c'])
+  const w = await s.hub.save(LEE, 'dpms', { record: { title: '처음 10분 확인', body: '누락 고쳐쓰기: 첫 확인은 `first_chk` 7분.', touches: ['proc:처음 10분'] } })
+  const bad = await s.hub.save(LEE, 'dpms', { record: { title: '되돌린 뒤 확인 메모', body: '누락 승인자는 `appr_lead` 2명.', touches: ['proc:되돌린 뒤 확인'] } })
+  const before = callsN()
+  await api('/api/k/dpms/tidy', { ids: [w.id, bad.id] })
+  const r = await workOnce({ server: s.url, key: wkey, batch: 1 })
+  const by = (t) => r.rows.find((x) => x.target.includes(t))
+  assert.equal(by('처음 10분').kind, 'put')
+  assert.match(by('되돌린 뒤 확인').why, /기록의 값이 글에 없다/)
+  const log = fs.readFileSync(calls, 'utf8').split('\n').filter(Boolean).slice(before)
+  assert.equal(log.filter((l) => l === 'fix').length, 2, '자리마다 한 번씩만 고쳐 쓴다')
+})

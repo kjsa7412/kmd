@@ -75,6 +75,8 @@ const repoKey = (u) => {
 const isLocalPath = (u) => !/^[a-z][a-z0-9+.-]*:\/\//i.test(u) && !/^[^/\\]+@[^/\\]+:/.test(u) && !/^ext::/i.test(u)
 
 // 정리 일꾼이 멈추는 까닭(자리마다 다시 불러도 같다) — 일감 · 정리 일 줄의 글
+// 초안 검사에서 Claude 가 고쳐 쓸 수 있는 까닭 — 일꾼이 까닭을 붙여 한 번 더 쓴다(그사이 바뀜 · 받지 않은 기록 같은 것은 다시 써도 같다)
+const FIXABLE = /^(기록의 값이 글에 없다|근거에 없는 값이 있다|근거보다 크게 썼다|글에 머리 · 표지가 들었다|빠뜨린 기록이 있다|글을 비웠다)/
 const STOP_WHY = { login: '정리 전용 로그인이 끝났다', limit: '사용 한도에 닿았다', missing: '서버에 Claude Code(claude) 가 설치되어 있지 않다' }
 
 export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log = (...a) => console.log('[kmd]', ...a) }) {
@@ -1638,7 +1640,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       return run
     },
     // part — 자리 하나를 쓰는 대로 넣는다(받은 것에서 바로 빠진다) · 일감은 끝내지 않고 줄은 j.rows 에 모았다가 끝에 「정리한 것」 한 장으로
-    async putDrafts(dctx, id, list, { part = false } = {}) {
+    async putDrafts(dctx, id, list, { part = false, fix = false } = {}) {
       if (dctx.draft.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
       const j = jobs.get(dctx.draft.job)
       if (part && j?.state !== 'running') return { rows: [], stop: true }
@@ -1673,6 +1675,16 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           rows.push({ kind: 'left', target, why, records: recs.map((x) => x.id) })
           await askName(id, meta, g.record, why)
           continue
+        }
+        // 초안이 고칠 수 있는 까닭으로 걸렸다 — 자리 하나씩 올린 것이면 일꾼에게 까닭을 돌려주고 한 번 다시 쓰게 한다(그대로 두지 않는다)
+        if (!r.ok && part && fix && d && !r.stale && FIXABLE.test(r.why) && (list || []).length === 1) {
+          const sp = j?.spots?.find((x) => x.key === spotKey(item.group))
+          if (sp) {
+            Object.assign(sp, { st: 'run', stage: 2 })
+            sp.lines.push([3, 'err', `✗ ${r.why}`], [2, 'tool', '▸ 까닭을 알려 Claude 가 한 번 더 고쳐 쓴다'])
+            saveJobs()
+          }
+          return { rows: [], fix: r.why, stop: !!j?.stop }
         }
         if (!r.ok) {
           rows.push({ kind: 'left', target, why: r.why, records: recs.map((x) => x.id) })

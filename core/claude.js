@@ -29,13 +29,15 @@ export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_
       const p = spawn(cmd, quoted, { cwd: dir, env, windowsHide: true, ...opt })
       let so = ''
       let se = ''
-      const t = setTimeout(() => p.kill(), timeoutMs)
+      let late = false
+      const t = setTimeout(() => { late = true; p.kill() }, timeoutMs)
       p.stdout.on('data', (c) => (so += c))
       p.stderr.on('data', (c) => (se += c))
       p.on('error', (e) => resolve({ code: -1, so, se: String(e.message) }))
       p.on('close', (code) => {
         clearTimeout(t)
-        resolve({ code, so, se })
+        // 시간이 넘어 끊었다(종료 143 · SIGTERM) — 「종료 143」 만으로는 무엇인지 모른다
+        resolve(late ? { code, so: '', se: `시간이 넘었다(${Math.round(timeoutMs / 60_000)}분): 글이 길면 다음 정리 때 다시` } : { code, so, se })
       })
       p.stdin.end(prompt)
     })
