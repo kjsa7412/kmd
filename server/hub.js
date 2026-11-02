@@ -16,7 +16,7 @@ import { decide, decisionRecord, revertPlan } from '../core/curate.js'
 import * as collect from '../core/collect.js'
 import crypto from 'node:crypto'
 import net from 'node:net'
-import { material, check as checkDraft, planSave, promptOf as tidyPrompt, INGEST_SCHEMA, DRAFT_SCHEMA, TOUCH_SCHEMA, ingestCandidates, ingestRule, spotKey, spotTarget } from '../core/tidy.js'
+import { material, check as checkDraft, planSave, promptOf as tidyPrompt, INGEST_SCHEMA, DRAFT_SCHEMA, TOUCH_SCHEMA, ingestCandidates, ingestRule, formsOf, spotKey, spotTarget } from '../core/tidy.js'
 import { runClaude } from '../core/claude.js'
 import * as feed from '../core/feed.js'
 import { inside as insideDir, checkTarget, readSource, probe, readDecl, editDecl, DECL_BROKEN, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit } from '../core/sources.js'
@@ -2427,7 +2427,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (w.tags.includes('code-change')) return { why: '코드 바뀜은 기록으로 둔다. 걸린 항목 글은 정리가 맞춘다' }
       const tag = w.tags.find((t) => t.startsWith('ingest/'))
       const file = tag ? tag.slice(7) : `${w.title.split(/ — |: /)[0].replace(/[\\/<>:"|?*\u0000-\u001f]/g, '').trim() || '메모'}.md`
-      const g = { kind: 'ingest', record: { id: w.id, date: w.date, author: w.author, title: w.title, body: w.body, file }, docs: ingestCandidates(k, w) }
+      // 갈래 장부도 같이(material 과 같은 묶음) — 없으면 Claude 가 파일 이름으로 새 문서를 세우고 가드(「회의록-1021」 은 「회의록」 갈래다)에 걸려 늘 규칙 길로 갔다
+      const g = { kind: 'ingest', record: { id: w.id, date: w.date, author: w.author, title: w.title, body: w.body, file }, docs: ingestCandidates(k, w), ...formsOf(k) }
       let why = why0 || 'Claude 를 쓰지 않는다'
       if (claude) {
         const a = await hub.askClaude(id, tidyPrompt(g), INGEST_SCHEMA)

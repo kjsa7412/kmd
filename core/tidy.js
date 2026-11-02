@@ -77,10 +77,12 @@ export function material(k, { candidates = () => [], ids = null } = {}) {
   // 넣은 파일의 기록 — 기존 문서 항목에 넣거나 새 문서로(큐레이션) · 후보 문서는 제목 · 머리 말이 겹치는 것(원본이 주인인 문서는 빼고)
   for (const w of k.works) {
     if (w.state !== 'pend' || w.touches.length || !w.tags.some((t) => t.startsWith('ingest/')) || isPrivate(w) || k.reverted.has(w.id) || off(w)) continue
-    out.push({ kind: 'ingest', record: { id: w.id, date: w.date, author: w.author, title: w.title, body: w.body, file: w.tags.find((t) => t.startsWith('ingest/')).slice(7) }, docs: ingestCandidates(k, w), forms: (k.forms?.rows || DEFAULT_FORMS).map((f) => ({ name: f.name, aliases: f.aliases, folder: f.folder || '', kind: f.kind })), formsOwn: !!k.forms?.own })
+    out.push({ kind: 'ingest', record: { id: w.id, date: w.date, author: w.author, title: w.title, body: w.body, file: w.tags.find((t) => t.startsWith('ingest/')).slice(7) }, docs: ingestCandidates(k, w), ...formsOf(k) })
   }
   return out
 }
+// 넣은 파일 묶음에 싣는 갈래 장부 — 프롬프트가 「이 지식의 갈래」 로 보인다(없으면 Claude 가 파일 이름으로 새 문서를 세우고 가드에 걸린다)
+export const formsOf = (k) => ({ forms: (k.forms?.rows || DEFAULT_FORMS).map((f) => ({ name: f.name, aliases: f.aliases, folder: f.folder || '', kind: f.kind })), formsOwn: !!k.forms?.own })
 
 // 묶음 하나 = 정리 일 줄의 자리 하나 — 일꾼 · 서버가 같은 열쇠로 진행을 맞춘다
 export const spotKey = (g) => (g?.kind === 'section' ? 'c:' + g.coord : 'r:' + (g?.record?.id || ''))
@@ -462,8 +464,13 @@ export function ingestRule(k, g, { why = null } = {}) {
   const kind = form ? form.name : null
   const kindPath = form ? (form.folder ? `${form.folder}/${form.name}` : form.name) : null
   const why1 = why ? [`- Claude 로 하지 못한 까닭: ${why}`] : []
-  // 기록 글 속 주석(<!-- -->)은 문서에 옮기지 않는다(작성기준 3절 — 본문만)
-  const src = String(g.record.body).replace(/<!--[\s\S]*?-->/g, '')
+  // 기록 글 속 주석(<!-- -->)은 문서에 옮기지 않는다(작성기준 3절 — 본문만) ·
+  //   줄표 「 — 」 는 문서에 쓰지 않는다(작성기준 v1.1 · 풀이는 쌍점): 코드 울타리 밖의 줄만 「: 」 로
+  let fence = false
+  const src = String(g.record.body).replace(/<!--[\s\S]*?-->/g, '').split('\n').map((l) => {
+    if (/^\s*(?:`{3,}|~{3,})/.test(l)) fence = !fence
+    return fence ? l : l.replace(/ — /g, ': ')
+  }).join('\n')
   if (kind) {
     const text = src.replace(/^# .*\n?/m, '').replace(/^#{2,6} (.+)$/gm, '**$1**').trim()
     if (!text) return null

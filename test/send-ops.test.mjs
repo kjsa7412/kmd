@@ -123,7 +123,7 @@ test('받기: 묶음 하나는 git 커밋 하나 · 거절된 글 · 묶음 안�
   assert.deepEqual(r.bad.map((b) => b.i), [4])
   assert.equal(count() - n0, 1, '커밋 하나')
   assert.equal(execFileSync('git', ['status', '--porcelain', 'work'], { cwd: dir, encoding: 'utf8' }).trim(), '', '거절된 글의 파일은 남지 않는다')
-  assert.deepEqual((await sentRecs('dpms')).filter((w) => w.title.startsWith('묶음: ')).map((w) => w.title).sort(), ['묶음. 1', '묶음. 2', '묶음. 3', '묶음. 4'])
+  assert.deepEqual((await sentRecs('dpms')).filter((w) => w.title.startsWith('묶음: ')).map((w) => w.title).sort(), ['묶음: 1', '묶음: 2', '묶음: 3', '묶음: 4'])
 })
 
 test('받기: 같은 묶음이 동시에 두 번 와도 기록은 하나씩', async () => {

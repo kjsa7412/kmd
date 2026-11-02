@@ -347,11 +347,12 @@ test('이 PC 의 파일 넣기: 정리가 따로 없다: 기록과 문서가 바
     const ME = { user: pc.pcUser, admin: true, pc: true }
     const { id } = await pc.hub.addKnowledge(ME, { kind: 'new', name: '배포노트' })
     const dir = path.join(root, id)
-    // Claude 로 — 이어지는 문서가 없으니 새 문서 · 그 기록은 넣음 · 정리 일감은 없다
+    // Claude 로 — 「회의록-1021」 은 회의록 갈래라 갈래 문서 「회의록」 의 새 항목 「언제 · 무엇」 으로(파일 이름 문서는 서지 않는다) · 그 기록은 넣음 · 정리 일감은 없다
     const r = await pc.hub.importFiles(ME, id, [{ path: '회의록-1021.md', data: Buffer.from('# 회의록-1021\n\n## 정한 것\n배포 창은 화 · 목.\n') }])
     assert.equal(r.rows[0].kind, 'doc', r.rows[0].msg)
-    assert.match(r.rows[0].msg, /기록 · 문서가 됐다. 배포노트 › 회의록-1021 \(새 문서\) · Claude 로 다듬었다/)
-    assert.match(fs.readFileSync(path.join(dir, 'docs', '회의록-1021.md'), 'utf8'), /## 정한 것\n<!-- applied: [^>]+ -->\n배포 창은 화 · 목\./)
+    assert.match(r.rows[0].msg, /기록 · 문서가 됐다. 배포노트 › 회의록 \(새 문서\) · Claude 로 다듬었다/)
+    assert.match(fs.readFileSync(path.join(dir, 'docs', '회의록.md'), 'utf8'), /## \d{4}-\d{2}-\d{2} 1021\n<!-- applied: [^>]+ -->\n\*\*정한 것\*\*\n배포 창은 화 · 목\./)
+    assert.ok(!fs.existsSync(path.join(dir, 'docs', '회의록-1021.md')), '파일 이름 문서는 서지 않는다')
     let k = await pc.hub.get(id)
     const rec = k.works.find((w) => w.tags.includes('ingest/회의록-1021.md'))
     assert.equal(rec.state, 'in', '기록은 바로 넣음')
@@ -365,7 +366,7 @@ test('이 PC 의 파일 넣기: 정리가 따로 없다: 기록과 문서가 바
       assert.match(fs.readFileSync(path.join(dir, 'docs', '메모.md'), 'utf8'), /## 개요\n<!-- applied: [^>]+ -->\n머리 없는 메모: 당번은 박\./)
       // 규칙으로도 문서 이름은 파일 이름이 아니라 갈래 · 주제 — 통화 · 회의 파일은 「회의록」 의 새 항목 「언제 · 무엇」 · 날짜 · 판 조각은 걷는다
       const r3 = await pc.hub.importFiles(ME, id, [{ path: '2026-10-21 HNC 통화.md', data: Buffer.from('# HNC 통화\n\n## 정한 것\n납기는 11-02.\n') }])
-      assert.match(r3.rows[0].msg, /배포노트 › 회의록 \(규칙으로 갈래 「회의록」 새 문서 2026-10-21 HNC 통화/)
+      assert.match(r3.rows[0].msg, /배포노트 › 회의록 \(규칙으로 갈래 「회의록」 문서에 새 항목 2026-10-21 HNC 통화/)
       const r4 = await pc.hub.importFiles(ME, id, [{ path: '회의_20261022_v2(최종).md', data: Buffer.from('주간 회의 — 당번 표를 바꾼다.\n') }])
       assert.match(r4.rows[0].msg, /배포노트 › 회의록 \(규칙으로 갈래 「회의록」 문서에 새 항목 2026-10-22/)
       const mins = fs.readFileSync(path.join(dir, 'docs', '회의록.md'), 'utf8')
