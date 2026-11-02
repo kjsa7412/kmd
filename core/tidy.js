@@ -178,10 +178,11 @@ export function promptOf(g) {
     ...(g.records.some((r) => r.code) ? ['코드 커밋 기록은 「바뀐 값」 줄과 차이를 본다. 글에 옛 값이 있으면 새 값으로 고치고, 코드에 없는 설명은 지어내지 않는다. 이 항목 글과 상관없는 커밋은 left 에 둔다.'] : []),
     ...(g.records.some((r) => r.old) ? [OLD_RULE] : []),
     ...(g.records.some((r) => r.spread) ? [SPREAD_RULE] : []),
+    MUST_RULE,
     WRITE_RULES,
     'JSON 으로만 답한다.',
     `지금 글:\n${g.content || '(아직 없음)'}`,
-    `기록(오래된 것부터):\n${g.records.map(recLine).join('\n\n')}`,
+    `기록(오래된 것부터):\n${g.records.map((r) => recLine(r)).join('\n\n')}`,
   ].join('\n\n')
 }
 
@@ -191,7 +192,14 @@ const OLD_RULE = `「${OLD_MARK}」 이 붙은 기록은 지금 글에 더 늦�
 // 여러 항목에 걸린 기록 — 한 항목에는 그 항목에 맞는 것만(나머지는 다른 항목이 받는다)
 const SPREAD_MARK = '항목 여러 곳에 걸림'
 const SPREAD_RULE = `「${SPREAD_MARK}」 이 붙은 기록은 한 기록이 여러 항목을 바꿨다. 이 항목에는 이 항목에 맞는 내용 · 값만 옮긴다. 다른 항목의 내용은 그 항목이 받는다.`
-const recLine = (r) => `[${r.id}] ${r.date} ${r.author}${r.old ? ` (${OLD_MARK})` : ''}${r.spread ? ` (${SPREAD_MARK} · ${r.spread})` : ''}: ${r.title}\n${r.body}`
+// 꼭 옮길 값을 기록 끝에 적어 준다 — 검사(check 의 빠진 값)가 무엇을 보는지 claude 가 모르면 같은 값을 빼고 「다시 · N번째」 를 되풀이한다
+const MUST_MARK = '글에 꼭 옮길 값'
+const mustLine = (r, req) => {
+  const vs = req && !r.code ? mustValues(r.body) : []
+  return vs.length ? `\n(${MUST_MARK}: ${vs.map((v) => `「${v}」`).join(' · ')})` : ''
+}
+const recLine = (r, req = !r.old && !r.spread) => `[${r.id}] ${r.date} ${r.author}${r.old ? ` (${OLD_MARK})` : ''}${r.spread ? ` (${SPREAD_MARK} · ${r.spread})` : ''}: ${r.title}\n${r.body}${mustLine(r, req)}`
+const MUST_RULE = `「${MUST_MARK}」 은 기록의 바뀐 것 · 영향 · 요약에 든 값이다. 넣는 기록이면 그 값을 글자 그대로(단위까지) 글에 쓴다. 옛 글의 값을 바꿔 뺀 값만 drop 에 적는다. 그 항목에 맞지 않는 값이면 그 기록을 left 에 둔다.`
 
 // 한 문서의 항목 여럿을 claude -p 한 번에 — 자리마다 부르면 기록 22건이 자리 159개 · 159번이 된다.
 //   같은 문서의 항목 묶음만(문서 하나가 거의 한 번) · 묶음 하나는 BATCH_MAX 자리 · 글(지금 글 + 기록)은 BATCH_CHARS 까지(기록 글은 한 번만 센다). 답은 자리마다 DRAFT_SCHEMA 와 같은 초안
@@ -236,19 +244,28 @@ export function batchPromptOf(gs) {
     ...([...recs.values()].some((r) => r.code) ? ['코드 커밋 기록은 「바뀐 값」 줄과 차이를 본다. 글에 옛 값이 있으면 새 값으로 고치고, 코드에 없는 설명은 지어내지 않는다. 그 항목 글과 상관없는 커밋은 left 에 둔다.'] : []),
     ...(gs.some((g) => g.records.some((r) => r.old)) ? [OLD_RULE.replace('붙은 기록은', '붙은 기록은(그 항목에서)')] : []),
     ...(gs.some((g) => g.records.some((r) => r.spread)) ? [SPREAD_RULE] : []),
+    MUST_RULE,
     WRITE_RULES,
     'JSON 으로만 답한다.',
     // 옛 기록인지는 항목마다 다르다 — 항목의 기록 줄에 붙인다
     gs.map((g) => `[key ${spotKey(g)}] 항목 「${g.name}」\n그 항목의 기록: ${g.records.map((r) => (r.old ? `${r.id}(${OLD_MARK})` : r.id)).join(', ')}\n지금 글:\n${g.content || '(아직 없음)'}`).join('\n\n---\n\n'),
-    `기록(오래된 것부터):\n${[...recs.values()].sort((a, b) => a.date.localeCompare(b.date)).map((r) => recLine({ ...r, old: false })).join('\n\n')}`,
+    `기록(오래된 것부터):\n${[...recs.values()].sort((a, b) => a.date.localeCompare(b.date)).map((r) => recLine({ ...r, old: false }, gs.some((g) => g.records.some((x) => x.id === r.id && !x.old && !x.spread)))).join('\n\n')}`,
   ].join('\n\n')
 }
 
 // 글에 꼭 있어야 할 기록의 값 — 커밋 해시 · 기록 id 는 경위라 글에 옮기지 않는다(작성기준) · 해시 속 숫자(092cc4a → 092)도 값이 아니다 ·
-//   30자 넘는 따옴표 말은 값이 아니라 옮긴 문장이다
+//   30자 넘는 따옴표 말은 값이 아니라 옮긴 문장이다 ·
+//   서식대로 쓴 기록(「## 바뀐 것」 …)은 요약 · 바뀐 것 · 영향 칸만 본다. 까닭 · 버린 안 · 근거는 경위라 글에 옮기지 않는다(작성기준) —
+//   거기 든 날짜(「2026-11-02」 → 2026 · 02) · 문서 판 · 커밋을 요구하면 늘 「기록의 값이 글에 없다」 로 남는다
 const HASH_RE = /\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b/g
 const REC_ID_RE = /\b\d{4}-\d{4}-[^\s`」"'),]+/g
-export const mustValues = (body) => [...valuesOf(String(body).replace(HASH_RE, ' ').replace(REC_ID_RE, ' '))].filter((v) => v.length <= 30)
+const NOT_KNOWLEDGE = new Set(['까닭', '버린 안', '근거'])
+export const knowledgeParts = (body) => {
+  const s = String(body)
+  if (!/^## 바뀐 것\s*$/m.test(s)) return s
+  return s.split(/^(?=## )/m).filter((p) => !NOT_KNOWLEDGE.has((p.match(/^## (.+?)\s*$/m) || [])[1])).join('')
+}
+export const mustValues = (body) => [...valuesOf(knowledgeParts(body).replace(HASH_RE, ' ').replace(REC_ID_RE, ' '))].filter((v) => v.length <= 30)
 
 // 지식에 있는 이름 — 그 문서의 항목 머리(「값: 설명」 이면 값도) · 이름 장부의 이름 · 보이는 이름 · 다른 이름(값과 같이 빈칸을 뺀다)
 const squeeze = (s) => String(s).replace(/\s+/g, '')

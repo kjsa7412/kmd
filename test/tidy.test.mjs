@@ -212,6 +212,19 @@ test('여러 항목에 걸린 기록: 항목 하나에 기록의 값을 다 요�
   assert.match(check(k, g, { content: mine, used: ['x-다른-기록'], left: [] }).why, /받지 않은 기록을 말했다/)
 })
 
+test('서식대로 쓴 기록: 까닭 · 버린 안 · 근거의 값(날짜 · 판 · 커밋)은 글에 요구하지 않는다 · 꼭 옮길 값을 프롬프트에 적어 준다', async () => {
+  const { material, promptOf, check, mustValues } = await import('../core/tidy.js')
+  const body = '기다림 시간을 늘렸다.\n\n## 바뀐 것\n- 대기 표지: 아이콘 `wait_icon` 56px\n\n## 까닭\n- 사용자 지시, 2026-11-02\n\n## 버린 안\n- 40px: 작다\n\n## 영향\n- 재시도 3번\n\n## 근거\n- 설계서 v0.15 · 커밋 5c76aba'
+  assert.deepEqual(mustValues(body).sort(), ['3', '56', 'wait_icon'])
+  const w = await s.hub.save(LEE, 'dpms', { record: { title: '대기 표지', body, touches: ['proc:매일 백업'] } })
+  const k = await s.hub.get('dpms')
+  const g = material(k, { ids: [w.id] }).find((x) => x.kind === 'section')
+  assert.match(promptOf(g), /글에 꼭 옮길 값: 「(56|3|wait_icon)」/)
+  const mine = g.content + '\n\n대기 표지는 아이콘 `wait_icon` 56px 이다. 재시도는 3번이다.'
+  assert.equal(check(k, g, { content: mine, used: [w.id], left: [] }).ok, true)
+  assert.match(check(k, g, { content: mine.replace('56px', '큰'), used: [w.id], left: [] }).why, /기록의 값이 글에 없다: 56$/)
+})
+
 test('여러 항목에 걸린 기록: 넣은 항목은 다시 정리하지 않는다 · 바꿀 것이 없는 항목은 「넣음」 표지만 · 관련 항목 이름은 지어낸 값이 아니다', async () => {
   const { material, check, planSave } = await import('../core/tidy.js')
   const { save: coreSave } = await import('../core/save.js')
