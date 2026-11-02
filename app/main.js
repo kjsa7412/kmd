@@ -281,13 +281,16 @@ function focusKey(el) {
   return Object.keys(el.dataset).filter((k) => k !== 'pv').map((k) => `[data-${k.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase())}="${CSS.escape(el.dataset[k])}"]`).join('')
 }
 const app = document.getElementById('app')
+// 그리다 넘어진 화면의 안내 — 프로그램 속 오류 글은 펼쳐 보는 자세히에만(콘솔에도 남는다)
+const drawErrHtml = (e) => `<div class="callout danger err" role="alert" data-t="drawErr"><b>이 화면을 보여 주지 못했다</b><small>옆 메뉴로 다른 화면에 갈 수 있다 · 계속되면 관리자에게 알린다</small><details><summary>자세히</summary><code>${esc(e && e.message ? e.message : String(e))}</code></details><button type="button" class="btn sm retry" data-a="retryAll">다시 읽기</button></div>`
 function render() {
   if (rafId) { cancelAnimationFrame(rafId); rafId = 0 }
   const fk = focusKey(document.activeElement)
   try { draw() } catch (e) {
     // 그리다 넘어졌다 — 굳은 화면 대신 안내를 남긴다(다시 읽기 = 받은 값을 모두 지우고 다시)
     console.error(e)
-    app.innerHTML = `<div class="col"><div class="main"><div class="callout danger err" role="alert" data-t="drawErr"><b>화면을 그리다 멈췄다: ${esc(e.message)}</b><button type="button" class="btn sm retry" data-a="retryAll">다시 읽기</button></div></div></div>`
+    if (app.querySelector('.col')) toast('화면을 새로 그리지 못해 보던 화면을 그대로 둔다 · <button type="button" class="btn sm" data-a="retryAll">다시 읽기</button>', 8000, true)
+    else app.innerHTML = `<div class="col"><div class="main">${drawErrHtml(e)}</div></div>`
   }
   a11yPass()
   modalPass()
@@ -383,7 +386,8 @@ function draw() {
   if (!S.me) { app.innerHTML = `<div class="col"><div class="main">${S.err ? `<div class="callout danger err" data-t="bootErr">${sayErr(S.err)}<b>${esc(S.err)}</b><button type="button" class="btn sm retry" data-a="retryBoot" data-t="retry">다시 읽기</button></div>` : loadingHtml}</div></div>`; return }
   hidePv()
   S._pop = null
-  const scr = gated() ? gateView() : viewOf(S.route.scr)
+  let scr
+  try { scr = gated() ? gateView() : viewOf(S.route.scr) } catch (e) { console.error(e); scr = { main: drawErrHtml(e) } }
   const center = scr.tabs
     ? `<div class="center">${tabbarHtml()}<div class="panes"><div class="main${scr.full ? ' full' : ''}" data-t="main">${scr.main}</div>${scr.right != null ? `<div class="main rp" data-t="rightPane">${scr.right}</div>` : ''}</div></div>`
     : `<div class="main" data-t="main">${scr.main}</div>`
@@ -2056,11 +2060,11 @@ function tdSpChip(sp) {
   if (sp.st === 'left') return '<span class="chip c-warn">넣지 않고 둠</span>'
   return '<span class="chip c-mute">기다림</span>'
 }
-function tdRun(k, d) {
-  const j = d.job
 // 둔 자리의 기록 중 아직 받은 것에 있고 내가 정리할 수 있는 것
 const tdAgainIds = (d, sps) => { const open = new Map(d.recs.filter(tdCan).map((r) => [r.id, r])); return [...new Set(sps.filter((x) => x.st === 'left').flatMap((x) => x.records))].filter((id) => open.has(id)) }
 const tdAgainBtn = (d, ids, t) => `<button class="btn sm pri" data-a="tdAgain" data-v="${esc(ids.join('|'))}" data-t="tdAgain"${tdLive(d.job) ? ' disabled' : ''}>${t} ${ids.length}</button>`
+function tdRun(k, d) {
+  const j = d.job
   if (!j) return '<div class="card"><div class="empty2" data-t="tdRunEmpty"><b>도는 정리가 없다</b>받은 것에서 지금 정리를 누르면 여기서 자리마다 흐름이 보인다</div></div>'
   // 일꾼이 받기 전 — 계획의 자리를 기다림으로
   // 규칙으로 넣은 정리 — 자리마다 줄이 없다
