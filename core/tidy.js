@@ -271,7 +271,8 @@ export function batchPromptOf(gs) {
 //   거기 든 날짜(「2026-11-02」 → 2026 · 02) · 문서 판 · 커밋을 요구하면 늘 「기록의 값이 글에 없다」 로 남는다
 const HASH_RE = /\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b/g
 const REC_ID_RE = /\b\d{4}-\d{4}-[^\s`」"'),]+/g
-const NOT_KNOWLEDGE = new Set(['까닭', '버린 안', '근거'])
+//   「고친 조각」 은 제안(core/propose.js)이라 값이 아니다
+const NOT_KNOWLEDGE = new Set(['까닭', '버린 안', '근거', '고친 조각'])
 export const knowledgeParts = (body) => {
   const s = String(body)
   if (!/^## 바뀐 것\s*$/m.test(s)) return s
