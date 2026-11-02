@@ -693,6 +693,14 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (tp) return out(200, await hub.tidyPlan(ctx, dec(tp[1])))
     const rt = p.match(/^\/api\/k\/([^/]+)\/rec\/([^/]+)\/touches$/)
     if (rt) return out(200, await hub.setTouches(ctx, dec(rt[1]), dec(rt[2]), (await readBody(req)).coord))
+    // 제안 넣기 — 확인 대기 제안을 지식관리자가 넣는다(권한 모델 7절)
+    const pp = p.match(/^\/api\/k\/([^/]+)\/proposal\/([^/]+)\/put$/)
+    if (pp && req.method === 'POST') {
+      const id = dec(pp[1])
+      await hub.meta(id, ctx)
+      hub.need(ctx, id, 'admin')
+      return out(200, await hub.applyProposals(id, dec(pp[2]), { force: true, by: ctx.user }))
+    }
     const tm = p.match(/^\/api\/k\/([^/]+)\/tidy$/)
     if (tm) {
       const id = dec(tm[1])

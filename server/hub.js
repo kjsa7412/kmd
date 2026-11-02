@@ -17,7 +17,7 @@ import * as collect from '../core/collect.js'
 import crypto from 'node:crypto'
 import net from 'node:net'
 import { material, check as checkDraft, planSave, promptOf as tidyPrompt, INGEST_SCHEMA, DRAFT_SCHEMA, TOUCH_SCHEMA, ingestCandidates, ingestRule, formsOf, spotKey, spotTarget } from '../core/tidy.js'
-import { checkProposal, renderProposals } from '../core/propose.js'
+import { checkProposal, renderProposals, parseProposals } from '../core/propose.js'
 import { runClaude } from '../core/claude.js'
 import * as feed from '../core/feed.js'
 import { inside as insideDir, checkTarget, readSource, probe, readDecl, editDecl, DECL_BROKEN, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit } from '../core/sources.js'
@@ -775,6 +775,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         queued = true
       }
       const r0 = await coreSave(meta.dir, input, { user: ctx.user, system: !!opt.system, guard: opt.guard || 'hold', holdWhy: opt.holdWhy || null, proposed })
+      // 제안 — 검사를 넘고 확인이 필요 없는 것은 저장하는 순간 넣는다(권한 모델 7절 · 정리 방식과 무관)
+      if (queued && propsOut.some((p) => p.ok && p.waits === 'apply')) {
+        const ap = await hub.applyProposals(id, r0.id).catch((e) => (log(`제안 넣기 실패 ${id} ${r0.id}: ${e.message}`), { rows: [] }))
+        for (const p of propsOut) {
+          const row = ap.rows.find((x) => x.coord === p.coord)
+          if (row) Object.assign(p, row.kind === 'put' || row.kind === 'changed' ? { applied: true, record: row.record } : row.kind === 'left' ? { applied: false, why: row.why } : {})
+        }
+      }
       const r = queued ? { ...r0, queued: true, ...(namesHeld ? { namesHeld } : {}), ...(propsOut.length ? { proposals: propsOut } : {}) } : r0
       // 그 사람의 「오늘 바뀐 것」 한 줄
       const title = input?.record?.title || ''
@@ -853,6 +861,36 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
 
     // 고치기 — 이 PC 는 저장하면 바로 문서에 · 팀 지식은 관리 자리가 바로 고치고 정리한다 · 쓰기 자리가 고친 것은 기록으로
+    // 제안 넣기(권한 모델 7절) — 기록 「고친 조각」 칸의 제안을 지금 글에 다시 대어 넣는다. force — 지식관리자 [넣기](확인 대기도 넣는다)
+    //   자리마다 따로 저장하고 정리와 같은 꼴(curate-llm 태그 · 「- 넣음 id:」 줄 · reflects)로 남겨 되돌리기 · 「넣음」 표지가 그대로 듣는다
+    async applyProposals(id, recId, { force = false, by = null } = {}) {
+      const meta = await hub.meta(id)
+      cache.delete(id)
+      let k = await hub.get(id)
+      const w = k.byWork.get(recId)
+      if (!w || w.state !== 'pend') return { rows: [], why: '넣을 기록이 아니다' }
+      const rows = []
+      for (const p of parseProposals(w.body)) {
+        if (!force && p.waits !== 'apply') { rows.push({ coord: p.coord, kind: 'wait', why: p.waits === 'review' ? '지식관리자 확인 대기' : '먼저 온 기록과 같이 정리 때' }); continue }
+        const c = checkProposal(k, { coord: p.coord, base: p.base, edits: p.edits, record: w })
+        if (!c.ok) { rows.push({ coord: p.coord, kind: 'left', why: c.why }); continue }
+        const x = sectionOf(k, p.coord)
+        if (watchedOf(await fs.readFile(path.join(meta.dir, ...x.loc.doc.split('/')), 'utf8').catch(() => ''))) { rows.push({ coord: p.coord, kind: 'left', why: '원본이 주인인 문서: 원본 파일을 고친다 · 기록은 옆에 그대로 읽힌다' }); continue }
+        if (c.changed.length && (await recentReverts(id, x.loc.doc)) >= 2) { rows.push({ coord: p.coord, kind: 'left', why: '이 문서는 되돌림이 잦아 값이 바뀌는 것은 7일 동안 넣지 않는다' }); continue }
+        const heading = x.sec?.h || p.coord
+        const saved = await coreSave(meta.dir, { record: { title: `정리: ${heading}`, body: [`초안: ${w.author} 의 세션이 보낸 조각 · 넣음: kmd${force && by ? ` · 지식관리자 ${by} 가 확인` : ''}`, `- 넣음 ${w.id}: ${w.title}`].join('\n'), touches: [p.coord], tags: ['curate-llm', 'curate-proposal'], reflects: [w.id] }, sections: [{ coord: p.coord, content: c.text, base: p.base }] }, { user: 'kmd-auto', system: true })
+        cache.delete(id)
+        k = await hub.get(id)
+        const doc = x.loc.doc.replace(/^docs\/|\.md$/g, '')
+        const target = `${doc} › ${heading}`
+        rows.push({ coord: p.coord, kind: c.changed.length ? 'changed' : 'put', record: saved.id, target, ...(c.changed.length ? { from: c.changed[0].from, to: c.changed[0].to } : {}) })
+        const go = { kn: id, doc, hl: heading }
+        await feed.add(dataDir, w.author, c.changed.length
+          ? { kind: 'tidy', rec: saved.id, kn: id, yl: true, b: `kmd 가 제안대로 넣으며 값을 바꿨다: ${meta.name} › ${target} · ${c.changed[0].from} → ${c.changed[0].to}`, small: '내 기록에서: 되돌릴 수 있다', go, revert: saved.id }
+          : { kind: 'tidy', rec: saved.id, kn: id, dot: 'acc', text: `kmd 가 제안대로 넣었다: ${meta.name} › ${target}`, small: '내 세션이 보낸 조각', go }).catch((e) => log(`제안 알림 실패: ${e.message}`))
+      }
+      return { rows }
+    },
     canDirect(ctx, id) {
       if (mode === 'pc' || ctx.pc) return true
       if (ctx.agent) return ctx.agent.kn === id
