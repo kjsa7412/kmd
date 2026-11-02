@@ -211,3 +211,37 @@ test('여러 항목에 걸린 기록: 항목 하나에 기록의 값을 다 요�
   assert.deepEqual(planSave(k, g, d).record.curates, [])
   assert.match(check(k, g, { content: mine, used: ['x-다른-기록'], left: [] }).why, /받지 않은 기록을 말했다/)
 })
+
+test('여러 항목에 걸린 기록: 넣은 항목은 다시 정리하지 않는다 · 바꿀 것이 없는 항목은 「넣음」 표지만 · 관련 항목 이름은 지어낸 값이 아니다', async () => {
+  const { material, check, planSave } = await import('../core/tidy.js')
+  const { save: coreSave } = await import('../core/save.js')
+  const dir = path.join(tmp, 'kn', 'dpms')
+  const w = await s.hub.save(LEE, 'dpms', { record: { title: '준비 · 꾸러미 판 메모', body: '배포 전에 `warm-cache` 를 돌린다.', touches: ['proc:준비', 'term:꾸러미 판'] } })
+  let k = await s.hub.get('dpms')
+  const gs = material(k, { ids: [w.id] }).filter((x) => x.kind === 'section')
+  assert.equal(gs.length, 2)
+  const ready = gs.find((g) => g.heading === '준비')
+  // 준비 만 넣었다(꾸러미 판 묶음은 검사에서 걸렸다) — 기록은 아직 대기 · 다음 정리는 꾸러미 판 하나만
+  const d1 = { content: ready.content + ' 배포 전에 `warm-cache` 를 돌린다.', used: [w.id], left: [] }
+  assert.deepEqual(check(k, ready, d1), { ok: true, changed: [] })
+  await coreSave(dir, planSave(k, ready, d1), { user: 'kmd-auto', system: true })
+  s.hub.forget('dpms')
+  k = await s.hub.get('dpms')
+  assert.equal(k.byWork.get(w.id).state, 'pend')
+  const rest = material(k, { ids: [w.id] }).filter((x) => x.kind === 'section')
+  assert.deepEqual(rest.map((g) => g.heading), ['꾸러미 판'])
+  // 같은 문서의 항목 머리를 가리키는 것은 지어낸 값이 아니다 · 없는 이름은 그대로 막는다
+  const pk = rest[0]
+  assert.equal(check(k, pk, { content: pk.content + '\n\n관련: `카나리`', used: [], left: [{ id: w.id, why: '판 표와 상관없다' }] }).ok, true)
+  assert.match(check(k, pk, { content: pk.content + '\n\n관련: `없는항목`', used: [], left: [{ id: w.id, why: 'x' }] }).why, /근거에 없는 값/)
+  // 이 항목에는 바꿀 것이 없다(left) — 두기(keep)가 아니라 이 항목에 넣음 표지 · 기록은 「넣음」
+  const d2 = { content: pk.content, used: [], left: [{ id: w.id, why: '판 표와 상관없다' }] }
+  assert.equal(check(k, pk, d2).ok, true)
+  const plan = planSave(k, pk, d2)
+  assert.deepEqual([plan.record.curates, plan.record.reflects], [[], [w.id]])
+  await coreSave(dir, plan, { user: 'kmd-auto', system: true })
+  s.hub.forget('dpms')
+  k = await s.hub.get('dpms')
+  assert.equal(k.byWork.get(w.id).state, 'in')
+  assert.equal(material(k, { ids: [w.id] }).length, 0)
+})

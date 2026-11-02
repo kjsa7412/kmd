@@ -200,6 +200,18 @@ export function arrivedOf(w) {
   const t = w.tags.find((x) => /^recv\/\d{12}$/.test(x))
   return t ? t.slice(5).replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$/, '$1-$2-$3 $4:$5') : w.date
 }
+// 이 항목에 그 기록이 들었나 — 항목 표지가 그 기록이거나 · 표지의 정리 기록이 넣었다고 적었거나 · 더 늦은 기록이 들었다.
+//   정리 재료(tidy material)도 같은 판정으로 이미 든 항목을 건너뛴다(여러 항목에 걸린 기록이 한 항목 때문에 다 다시 정리되지 않게)
+export function reflectedIn(k, w, sec) {
+  if (!sec?.applied) return false
+  if (sec.applied === w.id) return true
+  const a = k.byWork.get(sec.applied)
+  if (a?.reflects?.includes(w.id)) return true // 정리 기록이 이 기록을 넣었다고 적었다
+  // 같은 분이면 순서를 모른다 — 넣었다고 적지 않은 한 아직 안 넣은 것으로(조용히 「넣음」 이 되지 않게) ·
+  //   받은 기록은 쓴 때가 아니라 받은 때로 본다(옛 날짜로 늦게 받은 기록이 그 전 정리로 「넣음」 이 되지 않게)
+  return !!a && a.date > arrivedOf(w)
+}
+
 export function recordState(k, w) {
   if (k.kept?.has(w.id)) return 'kept'
   if (w.tags.some((t) => t === 'curate-auto' || t === 'curate-llm')) return 'none' // 정리 기록 자신은 넣을 것이 아니다
@@ -213,13 +225,7 @@ export function recordState(k, w) {
     const s = sectionOf(k, c)
     if (!s) continue
     any = true
-    if (!s.sec || !s.sec.applied) return 'pend'
-    if (s.sec.applied === w.id) continue
-    const a = k.byWork.get(s.sec.applied)
-    if (a?.reflects?.includes(w.id)) continue // 정리 기록이 이 기록을 넣었다고 적었다
-    // 같은 분이면 순서를 모른다 — 넣었다고 적지 않은 한 아직 안 넣은 것으로(조용히 「넣음」 이 되지 않게) ·
-    //   받은 기록은 쓴 때가 아니라 받은 때로 본다(옛 날짜로 늦게 받은 기록이 그 전 정리로 「넣음」 이 되지 않게)
-    if (!a || a.date <= arrivedOf(w)) return 'pend'
+    if (!reflectedIn(k, w, s.sec)) return 'pend'
   }
   // 코드 바뀜 — 걸린 이름이 어느 항목에도 닿지 않으면(장부 밖 이름만 걸렸다) 넣을 곳을 찾는 기록이다(Claude Code 가 기능 문서에 넣는다)
   if (!any && w.tags.includes('code-change')) return k.reflected?.has(w.id) ? 'in' : 'nowhere'

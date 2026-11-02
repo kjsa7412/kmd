@@ -18,7 +18,7 @@ import { valuesOf } from './save.js'
 import { newValuesOf } from './codechange.js'
 import { sha16 } from './text.js'
 import { formFor, guardNewDoc, DEFAULT_FORMS, FORM_GUIDE } from './guard.js'
-import { sectionOf, coordsOfSection, labelOf } from './knowledge.js'
+import { sectionOf, coordsOfSection, labelOf, reflectedIn } from './knowledge.js'
 import { formatProblems, lintSection } from './docformat.js'
 import { splitBlocks, hasBlockMarker } from './baseline.js'
 
@@ -61,6 +61,8 @@ export function material(k, { candidates = () => [], ids = null } = {}) {
     for (const c of w.touches) {
       const x = sectionOf(k, c)
       if (!x?.loc) continue
+      // 이미 든 항목은 다시 정리하지 않는다 — 남은 항목만(한 항목이 걸려 다른 항목까지 매번 다시 쓰지 않게)
+      if (reflectedIn(k, w, x.sec)) continue
       const key = keyOf(x)
       if (!groups.has(key)) groups.set(key, { kind: 'section', coord: c, doc: x.loc.doc, heading: x.sec ? x.sec.h : x.loc.heading, name: labelOf(k, c), content: x.sec ? x.sec.body : '', base: sha16(x.sec ? x.sec.body : ''), records: [], ...(since.has(key) ? { since: since.get(key) } : {}) })
       const g = groups.get(key)
@@ -248,6 +250,15 @@ const HASH_RE = /\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b/g
 const REC_ID_RE = /\b\d{4}-\d{4}-[^\s`」"'),]+/g
 export const mustValues = (body) => [...valuesOf(String(body).replace(HASH_RE, ' ').replace(REC_ID_RE, ' '))].filter((v) => v.length <= 30)
 
+// 지식에 있는 이름 — 그 문서의 항목 머리(「값: 설명」 이면 값도) · 이름 장부의 이름 · 보이는 이름 · 다른 이름(값과 같이 빈칸을 뺀다)
+const squeeze = (s) => String(s).replace(/\s+/g, '')
+function namesIn(k, doc) {
+  const out = new Set()
+  for (const s of doc?.sections || []) if (s.h) out.add(squeeze(s.h)).add(squeeze(s.h.split(/:\s/)[0]))
+  for (const v of k.vocab?.coords?.values() || []) for (const n of [v.coord, v.label, ...v.aliases]) if (n) out.add(squeeze(n))
+  return out
+}
+
 // 검사 — { ok, why, changed: [{from, to}] }
 export function check(k, g, d) {
   if (!d || typeof d !== 'object') return { ok: false, why: '초안 모양이 아니다' }
@@ -270,7 +281,7 @@ export function check(k, g, d) {
   const whole = x?.sec ? x.sec.body : ''
   if (sha16(whole) !== g.base) return { ok: false, why: '그사이 항목이 바뀌었다. 다음 정리 때 다시 만든다', stale: true }
   // 그사이 같은 항목에 새 기록이 왔으면 같이 넣어야 한다(표지가 그 기록까지 「넣음」 으로 보이게 되므로)
-  const pendNow = k.works.filter((w) => w.state === 'pend' && w.touches.includes(g.coord)).map((w) => w.id)
+  const pendNow = k.works.filter((w) => w.state === 'pend' && w.touches.includes(g.coord) && !reflectedIn(k, w, x?.sec)).map((w) => w.id)
   if (pendNow.some((x) => !ids.includes(x))) return { ok: false, why: '그사이 새 기록이 왔다. 다음 정리 때 같이 넣는다', stale: true }
   // 값 · 크기는 본문끼리 견준다(항목 글은 본문만 · 참고 줄은 저장이 지킨다)
   const cur = whole
@@ -291,9 +302,13 @@ export function check(k, g, d) {
   // 코드 바뀜 기록은 「바뀐 값」 의 새 값만 글에 있어야 한다(차이 속의 다른 수 · 옛 값까지 요구하면 늘 남는다) ·
   //   옛 기록(지금 글에 더 늦게 쓴 기록이 이미 들어갔다)의 값은 글에 없어도 된다 — 더 새 값이 이겼을 수 있다
   //   여러 항목에 걸린 기록(spread)의 값은 그 항목들에 나뉜다 — 항목 하나에 다 요구하면 늘 남는다(받은 것 「다시 · N번째」)
-  const missing = [...new Set(used.filter((r) => !r.old && !r.spread).flatMap((r) => (r.code ? newValuesOf(r.body) : mustValues(r.body))))].filter((v) => !now.has(v) && !drop.has(v))
+  //   항목 머리에 있는 값(이슈 번호 같은 그 항목의 이름)은 글에 다시 쓰지 않아도 된다
+  const headV = valuesOf(g.heading)
+  const missing = [...new Set(used.filter((r) => !r.old && !r.spread).flatMap((r) => (r.code ? newValuesOf(r.body) : mustValues(r.body))))].filter((v) => !now.has(v) && !drop.has(v) && !headV.has(v))
   if (missing.length) return { ok: false, why: `기록의 값이 글에 없다: ${missing.slice(0, 3).join(' · ')}` }
-  const invented = [...now].filter((v) => !oldV.has(v) && !recV.has(v))
+  // 지식에 있는 이름(같은 문서의 항목 머리 · 이름 장부의 이름)을 가리키는 것은 지어낸 값이 아니다(`DPMS-ISS-18` 같은 관련 항목)
+  const named = namesIn(k, x?.doc)
+  const invented = [...now].filter((v) => !oldV.has(v) && !recV.has(v) && !named.has(v))
   if (invented.length) return { ok: false, why: `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` }
   const gone = [...oldV].filter((v) => !now.has(v))
   const came = [...now].filter((v) => !oldV.has(v))
@@ -478,14 +493,19 @@ export function planSave(k, g, d, { model = null } = {}) {
     return { record: { title: `이름 바로잡음: ${g.record.title.split(/ — |: /)[0]}`, body: `정리 일꾼이 이 기록이 바꾼 항목을 골랐다${d.why ? `: ${d.why}` : ''}`, touches: d.touches, tags: ['curate-llm', 'touches-fix'], fixes: [g.record.id], date: g.record.date } }
   const used = g.records.filter((r) => d.used.includes(r.id))
   const left = d.left.filter((x) => g.records.some((r) => r.id === x?.id))
+  // 여러 항목에 걸린 기록을 이 항목에서 둔 것은 「이 항목에는 바꿀 것이 없다」 — 이 항목에 넣음 표지만 단다.
+  //   두기(keep)로 적으면 기록 전체가 「넣지 않기로 둠」 이 되어 다른 항목에 넣을 것까지 묻힌다
+  const spreadOf = (x) => g.records.find((r) => r.id === x.id)?.spread
+  const pass = left.filter(spreadOf)
+  const keep = left.filter((x) => !spreadOf(x))
   return {
     record: {
       title: `정리: ${g.name}`,
-      body: [`초안: 정리 일꾼${model ? `(${model})` : ''} · 넣음: kmd`, ...used.map((r) => `- 넣음 ${r.id}: ${r.title}`), ...left.map((x) => `- 둠 ${x.id}: ${x.why}`)].join('\n'),
+      body: [`초안: 정리 일꾼${model ? `(${model})` : ''} · 넣음: kmd`, ...used.map((r) => `- 넣음 ${r.id}: ${r.title}`), ...pass.map((x) => `- 이 항목에는 없음 ${x.id}: ${x.why}`), ...keep.map((x) => `- 둠 ${x.id}: ${x.why}`)].join('\n'),
       touches: [g.coord],
       tags: ['curate-llm'],
-      curates: left.map((x) => ({ id: x.id, verdict: 'keep', rule: 'tidy', reason: x.why })),
-      reflects: used.map((r) => r.id),
+      curates: keep.map((x) => ({ id: x.id, verdict: 'keep', rule: 'tidy', reason: x.why })),
+      reflects: [...used.map((r) => r.id), ...pass.map((x) => x.id)],
     },
     sections: [{ coord: g.coord, content: d.content, base: g.base }],
   }
