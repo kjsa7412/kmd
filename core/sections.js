@@ -278,11 +278,11 @@ export function parseDoc(text, fallbackTitle) {
   }
 }
 
-// 머리 이름 맞추기 — 「rp_mst — 연구과제마스터」 는 값 rp_mst 의 항목이다
+// 머리 이름 맞추기 — 「rp_mst: 연구과제마스터」(옛 꼴 「rp_mst — 연구과제마스터」) 는 값 rp_mst 의 항목이다
 export function headingMatches(heading, want) {
   const a = heading.normalize('NFC')
   const b = want.normalize('NFC')
-  return a === b || a.startsWith(b + ' ')
+  return a === b || a.startsWith(b + ':') || a.startsWith(b + ' ')
 }
 
 // 항목 하나를 뺀다(머리째 · 참고 줄도) — 없으면 그대로. 다른 줄은 바이트 그대로 둔다

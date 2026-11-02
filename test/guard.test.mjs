@@ -103,8 +103,9 @@ test('G4 — 새 문서: 파일 이름 조각 · 갈래의 다른 이름 · 갈�
   assert.equal(parseForms(`| 회의록 | 회의 | — | 사건 | — | — |`)[0].name, '회의록')
   assert.match(guardNewDoc(own, 'docs/게이트웨이 설계.md').errors[0].message, /갈래 장부에 없는/)
   assert.match(guardNewDoc(own, 'docs/회의록.md', ['2026-10-21 x']).errors[0].message, /1\.2_사업관리/)
-  const ok = guardNewDoc(own, 'docs/1.2_사업관리/위험및이슈관리대장.md', ['DPMS-ISS-01 — 첫 이슈'])
+  const ok = guardNewDoc(own, 'docs/1.2_사업관리/위험및이슈관리대장.md', ['DPMS-ISS-01: 첫 이슈'])
   assert.deepEqual(ok.errors, [])
+  assert.match(guardNewDoc(own, 'docs/1.2_사업관리/위험및이슈관리대장.md', ['DPMS-ISS-01 — 첫 이슈']).errors[0].message, /값: 설명/) // 줄표 꼴은 받지 않는다
   assert.deepEqual(ok.registryRow, { pattern: '이슈:*', doc: 'docs/1.2_사업관리/위험및이슈관리대장.md' })
 })
 
@@ -148,8 +149,8 @@ test('core save — 붙잡아 두기: 폐기 이름은 바꿔 달고 이름 없�
   const w = parseRecord(fs.readFileSync(path.join(d, 'work', `${r.id}.md`), 'utf8'), `${r.id}.md`)
   assert.deepEqual(w.touches, ['이슈:DPMS-ISS-15'])
   assert.ok(r.guardWarn.some((x) => /폐기/.test(x)))
-  const r2 = await save(d, { record: { title: '가져옴2', body: 'x' } }, { user: 'kim', holdWhy: '가져옴 — 파일' })
-  assert.equal(r2.touchesEmpty, '가져옴 — 파일')
+  const r2 = await save(d, { record: { title: '가져옴2', body: 'x' } }, { user: 'kim', holdWhy: '가져옴: 파일' })
+  assert.equal(r2.touchesEmpty, '가져옴: 파일')
 })
 
 test('saveRecords(받기) — 같은 말 이름을 바꿔 달고 이름 없는 기록은 「받음」 까닭', async () => {
@@ -177,7 +178,7 @@ test('갈래 서식 안내 — 머리 꼴과 짜임 한 줄(brief · 정리 프�
   assert.match(g1.head, /YYYY-MM-DD/)
   assert.match(g1.body, /누가 · 무엇을 · 정한 것 · 남은 것/)
   const g2 = formGuide({ name: '위험및이슈관리대장', kind: '대장', pattern: '이슈:*', form: null })
-  assert.match(g2.head, /값 — 설명/)
+  assert.match(g2.head, /값: 설명/)
   assert.match(g2.body, /항목 하나가 대상 하나/)
 })
 
@@ -215,4 +216,18 @@ test('기록 서식: 칸을 머리 달아 엮는다 · 바뀐 것이 없거나 �
   assert.match(recordBody({ body: 'x'.repeat(301), changes: ['x'] }).error, /300자/)
   assert.match(recordBody({ body: '## 머리\n가', changes: ['x'] }).error, /머리 줄/)
   assert.equal(recordBody({ body: '요약.\n\n## 바뀐 것\n- a' }).body, '요약.\n\n## 바뀐 것\n- a')
+})
+
+test('머리 꼴 「값: 설명」 — 값으로 항목을 찾고 · 폐기 줄의 새 이름 · 깨진 머리(옛 줄표 꼴도)', async () => {
+  const { headingMatches } = await import('../core/sections.js')
+  const { audit } = await import('../core/guard.js')
+  assert.equal(headingMatches('OPS-001: 결재 알림 오류', 'OPS-001'), true)
+  assert.equal(headingMatches('OPS-001 — 결재 알림 오류', 'OPS-001'), true)
+  assert.equal(headingMatches('OPS-0012: 다른 것', 'OPS-001'), false)
+  const v = parseVocab('## 이슈\n\n- `이슈:A`: 옛 이슈\n  deprecated: 2026-10-16 → 이슈:B: 합침\n- `이슈:B`: 새 이슈\n')
+  assert.deepEqual(resolveName(v, '이슈:A'), { coord: '이슈:B', how: 'deprecated' })
+  assert.equal(v.coords.get('이슈:B').label, '새 이슈')
+  const doc = (hs) => ({ id: 'd', sections: hs.map((h) => ({ h })) })
+  const a = audit({ vocab: v, docs: [doc(['수집기: (Collector · CollectorService)', '권한: · 관리자 유지', '빈 설명:', '권한 — · 관리자', 'OPS-004: (정책)경상북도 연구 조회 오류', 'OPS-005: 연차 확인'])], works: [] }, { sectionOf: () => null, coordsOfSection: () => [] })
+  assert.deepEqual(a.brokenHead.map((x) => x.heading), ['수집기: (Collector · CollectorService)', '권한: · 관리자 유지', '빈 설명:', '권한 — · 관리자'])
 })

@@ -142,7 +142,7 @@ function guardFail(errors) {
 //   글마다 검사하고 거절된 것은 { i, error } 로 돌려준다(나머지는 남긴다) · 커밋이 넘어지면 쓴 기록을 모두 지운다
 //   { records: [{ i, id } | { i, error }], commit } — 남긴 것이 없으면 commit null
 //   가드는 붙잡아 두기(hold) — 받은 것은 잃지 않는다: 폐기 · 같은 말 이름은 바꿔 달고, 장부 밖 이름 · 이름 없는 기록은 그 상태로(까닭 holdWhy)
-export function saveRecords(dir, records, { user, now = new Date(), holdWhy = '받음 — 이 지식의 이름 장부에서 맞는 이름을 찾지 못했다' } = {}) {
+export function saveRecords(dir, records, { user, now = new Date(), holdWhy = '받음: 이 지식의 이름 장부에서 맞는 이름을 찾지 못했다' } = {}) {
   if (!user || !oneLine(user)) fail('E_INPUT', '누가 쓰는지 모른다')
   if (isReservedUser(user)) fail('E_FORBIDDEN', `「${user}」 는 kmd 가 쓰는 이름이다`)
   return serial(path.resolve(dir), async () => {
@@ -301,7 +301,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
   touches = g.touches
   const touchesEmpty = g.touchesEmpty
   guardWarn.push(...g.fixes.map((f) => `이름을 바꿔 달았다: ${f.from} → ${f.to}${f.how === 'deprecated' ? '(폐기된 이름)' : '(같은 말)'}`))
-  if (g.outside.length) guardWarn.push(`이름 장부에 없는 이름: ${g.outside.join(' · ')} — 지식관리자가 이름을 세우거나 고를 때까지 「장부 밖 이름」 으로 보인다`)
+  if (g.outside.length) guardWarn.push(`이름 장부에 없는 이름: ${g.outside.join(' · ')}. 지식관리자가 이름을 세우거나 고를 때까지 「장부 밖 이름」 으로 보인다`)
   // 고친 기록(edit)은 표지를 뒤로 돌리지 않는다 — 그 항목에 이미 든 기록보다 옛 날짜면 거절
   if ((r.tags || []).includes('edit') && r.date) {
     for (const p of plan) {

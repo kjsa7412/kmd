@@ -111,7 +111,7 @@ export function upsertForms(text, forms) {
   let t = String(text || '').replace(/\r\n/g, '\n')
   if (!t.trim()) t = FORMS_HEAD
   for (const f of forms) {
-    const row = `| ${f.name} | ${(f.aliases || []).join(', ') || '—'} | ${f.folder || '—'} | ${f.kind || '대상'} | ${f.pattern ? '`' + f.pattern + '`' : '—'} | ${f.form || '—'} |`
+    const row = `| ${f.name} | ${(f.aliases || []).join(', ') || '-'} | ${f.folder || '-'} | ${f.kind || '대상'} | ${f.pattern ? '`' + f.pattern + '`' : '-'} | ${f.form || '-'} |`
     const lines = t.split('\n')
     const i = lines.findIndex((l) => parseForms(l)[0]?.name === f.name)
     if (i >= 0) lines[i] = row

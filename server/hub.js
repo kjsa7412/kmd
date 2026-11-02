@@ -1072,7 +1072,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           try {
           const k = await hub.get(id)
           const src = { ...s, folder: s.kind === 'folder' || !(/^(https?|ssh):\/\//i.test(s.at) || /^[^/\\\s]+@[^/\\\s]+:/.test(s.at)) ? s.at : undefined }
-          const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, onStage: (i) => (i >= 3 ? Q.mark(qj, 3) : Q.step(qj, i)), line: (kk, x) => Q.line(qj, kk, x), meaning: hub.meaningOk(id), ingest: (files) => hub.importFiles({ user: 'kmd', admin: true }, id, files, { system: true }), analyze: mode === 'pc' && hub.meaningOk(id) ? (c, diffs, rec) => hub.analyzeCommit(id, s.name, c, diffs, rec) : null, save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true, holdWhy: `가져올 곳 ${s.name} — 걸린 이름이 없다(넣을 문서를 정리가 찾는다)` }) })
+          const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, onStage: (i) => (i >= 3 ? Q.mark(qj, 3) : Q.step(qj, i)), line: (kk, x) => Q.line(qj, kk, x), meaning: hub.meaningOk(id), ingest: (files) => hub.importFiles({ user: 'kmd', admin: true }, id, files, { system: true }), analyze: mode === 'pc' && hub.meaningOk(id) ? (c, diffs, rec) => hub.analyzeCommit(id, s.name, c, diffs, rec) : null, save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true, holdWhy: `가져올 곳 ${s.name}: 걸린 이름이 없다(넣을 문서를 정리가 찾는다)` }) })
           cache.delete(id)
           // 코드가 바뀌어 기록을 남겼다 — 그 지식의 정리를 바로 건다(정리 검사를 그대로 탄다 · 값이 바뀌면 노랑 · 되돌릴 수 있다)
           // 「Claude 에 보내지 않음」 지식 · 이 PC 의 자동 정리 끔이면 기록만 남는다(사람이 정리할 때 들어간다)
@@ -2355,7 +2355,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             return null
           }
           await Q.step(run, 2)
-          recId = (await hub.save(ctx, id, { record: rec }, { noCurate: true, holdWhy: '가져옴 — 넣은 파일(정리가 문서 자리를 고른다)' })).id
+          recId = (await hub.save(ctx, id, { record: rec }, { noCurate: true, holdWhy: '가져옴: 넣은 파일(정리가 문서 자리를 고른다)' })).id
           run.spec.recId = recId
           fs.rm(binOf(run.id), { force: true }).catch(() => {})
           queuedRecs.add(recId) // 들이기 차례를 기다리는 동안 정리 줄이 따로 집지 않게
@@ -2622,7 +2622,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       for (const [i, r] of plan.records.entries()) {
         let sv
         try {
-          sv = await hub.save(ctx, id, { record: r }, { noCurate: now, system, holdWhy: '가져옴 — 넣은 파일(정리가 문서 자리를 고른다)' })
+          sv = await hub.save(ctx, id, { record: r }, { noCurate: now, system, holdWhy: '가져옴: 넣은 파일(정리가 문서 자리를 고른다)' })
         } catch (e) {
           if (recRows[i]) Object.assign(recRows[i], { kind: 'fail', msg: `넣지 못했다: ${e.message}` })
           continue
@@ -2992,7 +2992,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         let saved = 0
         let unnamed = 0
         if (recs.length) {
-          const r = await saveRecords(meta.dir, recs, { user: ctx.user, holdWhy: `받음 — ${String(from).slice(0, 60) || '보낸 곳'}에서 · 이 지식의 이름 장부에서 맞는 이름을 찾지 못했다` })
+          const r = await saveRecords(meta.dir, recs, { user: ctx.user, holdWhy: `받음: ${String(from).slice(0, 60) || '보낸 곳'}에서 · 이 지식의 이름 장부에서 맞는 이름을 찾지 못했다` })
           for (const x of r.records) {
             if (x.error) bad.push({ i: at[x.i], why: `${recs[x.i].title.slice(0, 60)}: ${x.error.message}` })
             else {

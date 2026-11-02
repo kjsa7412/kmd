@@ -36,8 +36,8 @@ export function newNameWhy(coord) {
   return null
 }
 
-// 폐기 줄의 새 이름 — 「2026-10-19 → 종류:값 — 까닭」
-const nextOf = (dep) => String(dep || '').match(/→\s*([^\s`]+:[^\s`]+)/)?.[1] || null
+// 폐기 줄의 새 이름 — 「2026-10-19 → 종류:값: 까닭」(옛 꼴 「→ 종류:값 — 까닭」) · 값 끝의 쌍점은 까닭 앞 쌍점이다
+const nextOf = (dep) => String(dep || '').match(/→\s*([^\s`]+:[^\s`]+)/)?.[1]?.replace(/:+$/, '') || null
 
 // 이름 키 — 값 · 보이는 이름 · 다른 이름(살아 있는 이름만) → 이름들
 const keyCache = new WeakMap()
@@ -236,15 +236,15 @@ export function guardNewDoc(forms, docRel, headings = []) {
   if (f && f.folder && folder !== f.folder) errors.push({ code: 'E_INPUT', form: f.name, message: `「${f.name}」 갈래 문서는 「${f.folder}/」 폴더에 둔다` })
   if (f) {
     const bad = headings.filter((h) => !headingFits(f, h))
-    if (bad.length) errors.push({ code: 'E_INPUT', form: f.name, message: `「${f.name}」 의 항목 머리 꼴이 아니다: ${bad.slice(0, 3).join(' · ')} — ${formHeadRule(f)}` })
+    if (bad.length) errors.push({ code: 'E_INPUT', form: f.name, message: `「${f.name}」 의 항목 머리 꼴이 아니다: ${bad.slice(0, 3).join(' · ')}. ${formHeadRule(f)}` })
   }
   return { errors, form: f || null, ...(f?.pattern ? { registryRow: { pattern: f.pattern, doc: `docs/${p}.md` } } : {}) }
 }
 
-// 갈래의 항목 머리 꼴 — 사건은 「YYYY-MM-DD 무엇」 · 이름 패턴이 있는 대장 · 대상은 「값 — 설명」 또는 「값」
+// 갈래의 항목 머리 꼴 — 사건은 「YYYY-MM-DD 무엇」 · 이름 패턴이 있는 대장 · 대상은 「값: 설명」 또는 「값」
 export function formHeadRule(f) {
   if (f.kind === '사건') return '머리는 「YYYY-MM-DD 무엇」 이다'
-  if (f.pattern) return `머리는 「값 — 설명」 이다(값 = ${f.pattern} 의 값 · 빈칸 없이)`
+  if (f.pattern) return `머리는 「값: 설명」 이다(값 = ${f.pattern} 의 값 · 빈칸 없이 · 줄표 「—」 를 쓰지 않는다)`
   return '머리는 주제 이름이다'
 }
 // 서식 — 갈래의 서식(docs/템플릿/)이 정한 짜임을 한 줄로(brief · 정리 프롬프트가 싣는다). 서식의 안내 글은 본문에 넣지 않는다
@@ -257,7 +257,7 @@ export const formGuide = (f) => ({ head: formHeadRule(f), body: FORM_GUIDE[f.for
 export function headingFits(f, h) {
   const s = nfc(String(h || '').trim())
   if (f.kind === '사건') return /^20\d\d-\d\d-\d\d\b/.test(s) || s === '개요'
-  if (f.pattern) return /^[^\s`|]{1,60}(?: — .+)?$/.test(s) || s === '개요'
+  if (f.pattern) return /^[^\s`|]{1,60}(?:: .+)?$/.test(s) || s === '개요'
   return true
 }
 
@@ -285,6 +285,9 @@ export function recordBody(rec) {
   if (long) return { error: `「${long[0]}」 이 너무 많다(${PART_MAX}줄 안)` }
   return { body: [summary, ...parts.filter(([, xs]) => xs.length).map(([h, xs]) => `## ${h}\n${xs.map((x) => `- ${x}`).join('\n')}`)].filter(Boolean).join('\n\n') }
 }
+
+// 깨진 머리 — 설명이 비었거나(「값: · 다른 것」 · 「값:」) 괄호 하나만 남은 것(「수집기: (Collector)」) · 옛 꼴 「값 — …」 도
+const BROKEN_HEAD = /(?::| —) (?:·|\([^)]*\)\s*$)|(?::| —)\s*$/
 
 // ── 지식 한 벌 점검 — 위반 목록(화면 · `kmd guard --check` 가 같은 계산) ──
 //   sectionOf · coordsOfSection 은 core/knowledge.js 의 것을 받는다(이 모듈이 지식 읽기를 끌어오지 않게)
@@ -325,7 +328,7 @@ export function audit(k, { sectionOf, coordsOfSection }) {
   }
   const sameLabel = [...own].filter(([n, s]) => s.size > 1 && !alias.has(n)).map(([word, s]) => ({ word, names: [...s] }))
   const brokenHead = []
-  for (const d of k.docs) for (const s of d.sections) if (/ — [·(]| —$/.test(s.h || '')) brokenHead.push({ doc: d.id, heading: s.h })
+  for (const d of k.docs) for (const s of d.sections) if (BROKEN_HEAD.test(s.h || '')) brokenHead.push({ doc: d.id, heading: s.h })
   const spaced = live.filter(([c]) => /\s/.test(valueOf(c))).map(([c]) => c)
   return {
     counts: { names: k.vocab.coords.size, live: live.length, records: k.works.length, sections: k.docs.reduce((n, d) => n + d.sections.length, 0), unnamed: unnamed.length, outside: outside.length, deprecatedUse: deprecatedUse.length, lost: lost.length, noName: noName.length, aliasClash: aliasClash.length, sameLabel: sameLabel.length, brokenHead: brokenHead.length, spaced: spaced.length },

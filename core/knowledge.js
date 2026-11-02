@@ -150,7 +150,7 @@ export function sectionOf(k, coord) {
   let out = null
   if (loc) {
     const doc = k.byDocPath.get(loc.doc) || null
-    // 머리 → 항목 표 — 문서마다 한 번(정확히 같은 머리 먼저 · 「값 」 으로 시작하는 머리는 다음)
+    // 머리 → 항목 표 — 문서마다 한 번(정확히 같은 머리 먼저 · 「값:」 · 「값 」 으로 시작하는 머리는 다음)
     let heads = doc && headIndex.get(doc)
     if (doc && !heads) headIndex.set(doc, (heads = new Map(doc.sections.map((s) => [s.h.normalize('NFC'), s]).reverse())))
     const want = loc.heading.normalize('NFC')
