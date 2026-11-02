@@ -234,13 +234,16 @@ const sizeOf = (gs) => {
   return gs.reduce((n, g) => n + (g.content || '').length, 0) + [...recs.values()].reduce((n, r) => n + r.title.length + r.body.length, 0)
 }
 // 묶음 — 문서 항목 자리만 같은 문서끼리 · 나머지(이름 바로잡기 · 넣은 파일)는 하나씩
-export function batchesOf(groups, { max = BATCH_MAX, chars = BATCH_CHARS } = {}) {
+// 묶음이 다시 쓸 글(지금 글 합) 상한 — 답은 한 응답 안에서 차례로 나와 큰 항목 둘을 묶으면 7분에 끊겼다. 큰 항목은 혼자(따로 부르면 나란히 돈다)
+export const BATCH_OUT = 3000
+const outOf = (gs) => gs.reduce((n, g) => n + (g.content || '').length, 0)
+export function batchesOf(groups, { max = BATCH_MAX, chars = BATCH_CHARS, out: outMax = BATCH_OUT } = {}) {
   const out = []
   const open = new Map()
   for (const g of groups) {
-    if (g.kind !== 'section' || max < 2) { out.push([g]); continue }
+    if (g.kind !== 'section' || max < 2 || outOf([g]) > outMax) { out.push([g]); continue }
     const b = open.get(g.doc)
-    if (b && b.length < max && sizeOf([...b, g]) <= chars) { b.push(g); continue }
+    if (b && b.length < max && sizeOf([...b, g]) <= chars && outOf([...b, g]) <= outMax) { b.push(g); continue }
     const nb = [g]
     open.set(g.doc, nb)
     out.push(nb)

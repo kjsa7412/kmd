@@ -227,6 +227,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       j.tries = (j.tries || 0) + 1
       if (j.tries >= 3) Object.assign(j, { state: 'failed', why: '정리 일꾼이 세 번 끝내지 못했다. 일꾼 기록을 본다', done: new Date().toISOString() })
       else Object.assign(j, { state: 'queued', worker: null, why: '정리 일꾼이 끝내지 못해 다시 기다린다' })
+      // 쓰던 자리는 다시 기다림으로(「글 쓰는 중」 이 남아 화면이 서로 어긋나던 것)
+      for (const sp of j.spots || []) if (sp.st === 'run' || sp.st === 'got') { Object.assign(sp, { st: 'wait', stage: 2 }); sp.lines.push([2, 'sys', `정리 일꾼이 끝내지 못해 다시 기다린다(${j.tries}번째)`]) }
     }
     if (changed) saveJobs()
     // 일꾼의 단기 열쇠 — 때가 지난 줄을 걷는다(일꾼이 죽거나 임대가 끝나 정상으로 지워지지 않은 것)
@@ -257,6 +259,19 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     const k = await hub.get(id)
     const cut = Date.now() - 7 * 864e5
     return k.logs.filter((w) => w.reopens.length && w.title.startsWith('되돌림') && w.body.includes(doc.replace(/^docs\/|\.md$/g, '')) && (stampMs(w.date) || 0) >= cut).length
+  }
+  // 넣을 곳의 보이는 이름 — 문서는 제목으로(경로는 path) · 「4.1_개발환경/내부시험서버구성서 › 2. 배치」 를 사람이 읽는 이름으로
+  const spotName = (k, g) => {
+    if (g.kind !== 'section') return { name: g.kind === 'ingest' ? `${String(g.record.file || g.record.title).split('/').pop()} · 문서에 들이기` : `${String(g.record.title).split(/ — |: /)[0]} · 넣을 곳 고르기` }
+    const doc = k.byDocPath.get(g.doc)
+    const p = g.doc.replace(/^docs\/|\.md$/g, '')
+    return { name: `${doc?.title || p.split('/').pop()} › ${g.heading}`, path: p }
+  }
+  // 화면에 내는 정리 일감 — 일꾼 · 임대 · 일감 범위는 빼고 비용은 관리 자리만
+  const jobView = (j, boss) => {
+    const { worker, leaseUntil, ids, ...rest } = j
+    const noCost = ({ cost, ...y }) => y
+    return { ...rest, ...(ids ? { picked: ids.length } : {}), ...(j.spots ? { spots: j.spots.map((x) => (boss ? x : noCost(x))) } : {}) }
   }
   // 정리 장부(tidy/<id>.json · 지난 정리 30번) — 없으면 빈 것 · 깨졌으면 옆으로 옮겨 두고 log(빈 것으로 읽어 덮지 않는다 · 둔 횟수의 바탕이다)
   const runsFile = (id) => path.join(dataDir, 'tidy', `${encodeURIComponent(id)}.json`)
@@ -1565,19 +1580,27 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     job: (jid) => (sweepJobs(), jobs.get(jid) || null),
     // 화면이 보는 정리 일감 — 그 지식을 읽는 사람에게만(아니면 없는 일감과 같게)
+    //   일꾼 id · 임대 · 일감 범위(ids)는 싣지 않는다 · 비용은 그 지식의 지식관리자 이상만(권한 모델 7절)
     jobFor(ctx, jid) {
       const j = hub.job(jid)
       if (j && !visibleTo(j.kn, ctx)) throw new KmdError('E_NOTFOUND', '그 일은 이제 없다')
-      return j
+      return j ? jobView(j, levelFor(j.kn, ctx) === 'admin' || !!ctx?.admin) : null
     },
     jobsOf: (id) => (sweepJobs(), [...jobs.values()].filter((j) => j.kn === id)),
     // 정리 일 줄 — 일꾼이 자리 하나의 글 쓰기를 시작했다(화면 · 터미널은 job 을 1.5초마다 읽는다)
     //   end 가 없으면 시작(글 쓰는 중) · end 면 초안 받음(got · 검사는 다 모인 뒤 한꺼번에) 또는 못 받음(left)
     //   why(시작) — 다시 쓰는 까닭(묶음 답에 없음) · ms · chars · cost · tokens(끝) — 걸린 시간 · 보낸 글 · 비용 · 받은 토큰(자리에 남긴다 · 느린 곳을 잰다)
-    workerProgress(dctx, id, { key, model, end = false, ok = true, why = null, par = false, ms = 0, chars = 0, cost = 0, tokens = 0 } = {}) {
+    //   tick(쓰는 중) — keys 자리들에 쓴 글 · 생각 글자 수 · 지난 시간(묶음이면 자리 여럿이 Claude 한 번을 같이 본다) · 줄은 늘리지 않는다
+    workerProgress(dctx, id, { key, keys = null, tick = false, out = 0, think = 0, model, end = false, ok = true, why = null, par = false, ms = 0, chars = 0, cost = 0, tokens = 0 } = {}) {
       if (dctx.draft.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
       const j = jobs.get(dctx.draft.job)
+      // 소식이 오면 살아 있다 — 자리를 못 찾아도(재료를 다시 받아 열쇠가 바뀌었다) 먼저 올린다
       if (j) j.beat = new Date().toISOString()
+      if (tick) {
+        const ks = (Array.isArray(keys) ? keys : [key]).map(String).slice(0, 64)
+        for (const sp of (j?.spots || []).filter((x) => ks.includes(x.key) && x.st === 'run')) Object.assign(sp, { out: Number(out) || 0, think: Number(think) || 0, runMs: Number(ms) || 0, together: ks.length })
+        return { ok: true, stop: !!j?.stop }
+      }
       const sp = j?.spots?.find((x) => x.key === key)
       if (!sp) return { ok: false, stop: !!j?.stop }
       if (j.stop) return { ok: true, stop: true }
@@ -1585,11 +1608,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!end) {
         // 예전 일꾼은 끝을 알리지 않는다 — 다음 자리를 시작하면 앞 자리는 초안을 받은 것(자리를 같이 쓰는 일꾼은 par)
         if (!par) for (const x of j.spots) if (x.st === 'run' && x !== sp) Object.assign(x, { st: 'got', stage: 3 })
-        Object.assign(sp, { st: 'run', stage: 2, tries: (sp.tries || 0) + 1, t0: Date.now() })
+        Object.assign(sp, { st: 'run', stage: 2, tries: (sp.tries || 0) + 1, t0: Date.now(), out: 0, think: 0, runMs: 0 })
         if (why) sp.lines.push([2, 'sys', String(why).slice(0, 160)])
         sp.lines.push([2, 'tool', `▸ Claude 초안${model ? ` · ${String(model).slice(0, 60)}` : ''}${sp.tries > 1 ? ` · ${sp.tries}번째` : ''}`])
       } else if (ok) {
-        Object.assign(sp, { st: 'got', stage: 3, ms: Number(ms) || 0, chars: Number(chars) || 0, cost: Number(cost) || 0 })
+        Object.assign(sp, { st: 'got', stage: 3, ms: Number(ms) || 0, chars: Number(chars) || 0, cost: Number(cost) || 0, t1: Date.now() })
         sp.lines.push([2, 'ok', `✓ 초안을 받았다${took}`], [3, 'sys', '받는 대로 검사해 넣는다'])
       } else {
         const w = STOP_WHY[why] || `초안을 받지 못했다${why ? ': ' + String(why).slice(0, 120) : ''}`
@@ -1668,11 +1691,20 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (job) {
         // 다시 받은 일감(서버가 다시 켜졌다) — 이미 넣은 자리는 그대로 보인다 · 그 기록은 받은 것에 없어 다시 쓰지 않는다
         const put = (job.spots || []).filter((x) => x.st === 'done')
+        const prev = new Map((job.spots || []).map((x) => [x.key, x]))
         job.spots = put.concat(groups.map((g) => {
           const recs = g.kind === 'section' ? g.records : [g.record]
+          const old = prev.get(spotKey(g))
           return {
             key: spotKey(g), kind: g.kind, target: spotTarget(g), records: recs.map((r) => r.id), st: 'wait', stage: 2,
-            lines: [[0, 'sys', `받은 기록 ${recs.length} · ${[...new Set(recs.map((r) => r.author))].join(' · ')}${g.values?.length ? ` · 값 ${g.values.slice(0, 6).join(' · ')}` : ''}`], [1, 'ok', g.kind === 'section' ? `✓ 자리 ${spotTarget(g)}` : g.kind === 'ingest' ? `✓ 넣은 파일 · 후보 문서 ${g.docs.length}` : '자리를 못 찾은 기록 · Claude 가 후보에서 고른다']],
+            ...spotName(k, g),
+            ...(old?.tries ? { tries: old.tries } : {}),
+            lines: [
+              // 서버가 다시 켜져 다시 받은 자리 — 앞 시도 줄은 그대로 두고 그 뒤에 잇는다
+              ...(old?.lines?.length ? [...old.lines.slice(-40), [0, 'sys', `다시 시작: ${(job.tries || 0) + 1}번째 맡김`]] : []),
+              [0, 'sys', `기록 ${recs.length} · ${[...new Set(recs.map((r) => r.author))].join(' · ')}${g.values?.length ? ` · 확인할 값 ${g.values.length}개` : ''}`],
+              [1, 'ok', g.kind === 'section' ? '✓ 넣을 곳을 찾았다' : g.kind === 'ingest' ? `✓ 넣은 파일 · 후보 문서 ${g.docs.length}` : '넣을 곳을 못 찾은 기록 · Claude 가 후보에서 고른다'],
+            ],
           }
         }).filter((x) => !put.some((y) => y.key === x.key)))
         saveJobs()
@@ -2350,6 +2382,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (job?.ids && !job.ids.includes(w.id)) throw new KmdError('E_FORBIDDEN', '이 일감의 기록이 아니다')
       const run = hub.newRun(id, { title: hub.ingestFileOf(w).split('/').pop(), file: hub.ingestFileOf(w), by: w.author })
       run.state = 'run'
+      // 정리 일 줄의 그 자리 — 에이전트가 도는 동안 「쓰는 중」 · 줄은 지금 하는 일(run)에 쌓이고 도구 줄만 자리에도 잇는다
+      const sp = job?.spots?.find((x) => x.key === 'r:' + w.id)
+      if (sp) {
+        Object.assign(sp, { st: 'run', stage: 2, tries: (sp.tries || 0) + 1, t0: Date.now(), run: run.id, out: 0, think: 0, runMs: 0 })
+        sp.lines.push([2, 'tool', '▸ Claude Code 가 세션처럼 들인다 · 자세한 줄은 지금 하는 일'])
+      }
+      if (job) job.beat = new Date().toISOString()
       hub.runLine(run, 'sys', `정리 일꾼이 ${meta.name} 에 들인다. 기록 ${w.id}`)
       const task = await hub.agentTask(meta, w)
       return { run: run.id, token: hub.agentToken(id, w.id, run.id), prompt: task.prompt, system: task.system, files: task.files.map((f) => ({ name: f.name, b64: f.data.toString('base64') })) }
@@ -2357,7 +2396,16 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     workerAgentLog(dctx, id, { run: rid, lines }) {
       const run = runs.get(String(rid || ''))
       if (!run || run.kn !== id || dctx.draft.kn !== id) throw new KmdError('E_NOTFOUND', '그 일은 없다')
-      for (const l of (Array.isArray(lines) ? lines : []).slice(0, 500)) hub.runLine(run, ['say', 'tool', 'ok', 'err', 'sys', 'cost'].includes(l?.k) ? l.k : 'sys', String(l?.x ?? ''))
+      const job = jobs.get(dctx.draft.job)
+      const sp = job?.spots?.find((x) => x.run === run.id)
+      if (job) job.beat = new Date().toISOString()
+      for (const l of (Array.isArray(lines) ? lines : []).slice(0, 500)) {
+        const k = ['say', 'tool', 'ok', 'err', 'sys', 'cost'].includes(l?.k) ? l.k : 'sys'
+        hub.runLine(run, k, String(l?.x ?? ''))
+        // 자리에는 도구 · 오류 줄만 짧게(같은 소식을 두 곳에 · 글은 run 에만)
+        if (sp && (k === 'tool' || k === 'err') && sp.lines.length < 400) sp.lines.push([2, k, String(l?.x ?? '').slice(0, 160)])
+      }
+      if (sp) sp.runMs = Date.now() - (sp.t0 || Date.now())
       return { n: run.lines.length }
     },
     async workerAgentDone(dctx, id, { run: rid, ok = false, why = null }) {
@@ -2367,6 +2415,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       cache.delete(id)
       // 넣었나 — 에이전트의 save 가 이 일에 문서를 남겼다(그 save 가 기록을 「넣음」 으로 달았다)
       const placed = !!ok && run.docs.length > 0
+      const sp = jobs.get(dctx.draft.job)?.spots?.find((x) => x.run === run.id)
+      if (sp) sp.lines.push(placed ? [4, 'ok', `✓ Claude Code 가 넣었다: ${run.docs.join(' · ').slice(0, 120)}`] : [2, 'err', `✗ Claude Code 가 넣지 못했다: ${String(why || '').slice(0, 100)} · 초안으로 다시 쓴다`])
       run.state = placed ? 'done' : 'fail'
       run.msg = placed ? `문서에 넣었다: ${run.docs.join(' · ')}${run.names ? ` · 이름 ${run.names}` : ''}` : `에이전트가 넣지 못했다: ${String(why || '정리 초안으로 다시 한다').slice(0, 200)}`
       run.endedAt = new Date().toISOString()

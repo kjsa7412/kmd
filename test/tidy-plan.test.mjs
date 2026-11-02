@@ -106,3 +106,39 @@ test('정리 장부가 깨졌으면 빈 것으로 읽어 덮지 않는다: 옆�
   assert.equal(fs.readFileSync(path.join(path.dirname(f), aside[0]), 'utf8'), '[{"at": "2026-11-01T00:00:00Z", "rows": [')
   assert.ok(Array.isArray(JSON.parse(fs.readFileSync(f, 'utf8'))), '새 장부')
 })
+
+test('쓰는 동안 소식: 쓴 글 · 생각 글자 수 · 지난 시간이 자리에 온다 · 화면 일감에는 일꾼 · 임대 · 일감 범위가 없다 · 비용은 지식관리자만', async () => {
+  process.env.FAKE_CLAUDE_STREAM_MS = '900'
+  process.env.KMD_TIDY_TICK_MS = '100'
+  try {
+    const rec = await s.hub.save({ user: 'park' }, 'dpms', { record: { title: '카나리 소식', body: '카나리 비율은 첫 30분 10%', touches: ['proc:카나리'] } })
+    const job = (await api(park, '/api/k/dpms/tidy', { ids: [rec.id] })).body
+    const seen = []
+    const w = workOnce({ server: s.url, key: wkey })
+    for (let i = 0; i < 40 && seen.length < 2; i++) {
+      await new Promise((ok) => setTimeout(ok, 50))
+      const sp = s.hub.job(job.id)?.spots?.find((x) => x.st === 'run' && x.out > 0)
+      if (sp) seen.push({ out: sp.out, think: sp.think, runMs: sp.runMs })
+    }
+    await w
+    assert.ok(seen.length, '쓰는 중에 쓴 글 수가 왔다')
+    assert.ok(seen[0].think > 0 && seen[0].runMs > 0)
+    const mine = (await api(park, '/api/job/' + job.id)).body
+    assert.equal(mine.worker, undefined)
+    assert.equal(mine.leaseUntil, undefined)
+    assert.equal(mine.ids, undefined)
+    assert.equal(mine.picked, 1)
+    assert.ok(mine.spots.every((x) => x.cost === undefined), '쓰기 자리는 비용을 보지 않는다')
+    assert.ok(mine.spots[0].name && !mine.spots[0].name.includes('docs/'), '문서 제목으로 부른다: ' + mine.spots[0].name)
+  } finally {
+    delete process.env.FAKE_CLAUDE_STREAM_MS
+    delete process.env.KMD_TIDY_TICK_MS
+  }
+})
+
+test('묶음은 다시 쓸 글 합 3천 자까지 · 큰 항목은 혼자', async () => {
+  const { batchesOf } = await import('../core/tidy.js')
+  const g = (h, n) => ({ kind: 'section', doc: 'docs/a.md', heading: h, content: 'x'.repeat(n), records: [{ id: h, title: h, body: '' }] })
+  const b = batchesOf([g('큰', 3500), g('작1', 1000), g('작2', 1500), g('작3', 1000)])
+  assert.deepEqual(b.map((x) => x.map((y) => y.heading)), [['큰'], ['작1', '작2'], ['작3']])
+})

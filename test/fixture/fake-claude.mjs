@@ -19,7 +19,16 @@ const say = (o) => process.stdout.write(JSON.stringify({ type: 'result', subtype
 let prompt = ''
 let fixing = false
 process.stdin.on('data', (c) => (prompt += c))
-process.stdin.on('end', () => {
+// FAKE_CLAUDE_STREAM_MS=<ms> → 답 전에 그 시간 동안 흘려 받기 줄(생각 · 스키마 답 조각)을 50ms 마다 낸다(일꾼의 쓰는 중 소식)
+const streamFor = (ms) => new Promise((ok) => {
+  const until = Date.now() + ms
+  const t = setInterval(() => {
+    process.stdout.write(JSON.stringify({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'thinking_delta', thinking: '생각' } } }) + '\n' + JSON.stringify({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'input_json_delta', partial_json: '{"content": "' } } }) + '\n')
+    if (Date.now() >= until) { clearInterval(t); ok() }
+  }, 50)
+})
+process.stdin.on('end', () => (Number(process.env.FAKE_CLAUDE_STREAM_MS) ? streamFor(Number(process.env.FAKE_CLAUDE_STREAM_MS)).then(answer) : answer()))
+function answer() {
   if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, `call${args.includes('--model') ? ' ' + val('--model') : ''}\n`)
   const ok = args.includes('-p') && args.includes('--tools') && val('--tools') === '' && args.includes('--strict-mcp-config') && JSON.parse(val('--mcp-config') || '{}').mcpServers && val('--json-schema') && fs.readdirSync(process.cwd()).length === 0
   if (!ok) return say({ is_error: true, subtype: 'error', result: '가짜 claude: 도구 0 · 빈 MCP · 스키마 · 빈 폴더를 지키지 않았다' })
@@ -88,7 +97,7 @@ process.stdin.on('end', () => {
     return say({ structured_output: { items: items.filter((x) => !x.recs.some((r) => r.body.includes('묶음빠짐'))).map((x) => ({ key: x.key, ...draft(x.cur, x.recs) })) } })
   }
   say({ structured_output: draft((prompt.split('지금 글:\n')[1] || '').split('\n\n기록(오래된 것부터):')[0], all) })
-})
+}
 
 function draft(cur, recs) {
   let content = cur === '(아직 없음)' ? '' : cur

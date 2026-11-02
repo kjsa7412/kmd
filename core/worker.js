@@ -55,6 +55,8 @@ const TIDY_TIMEOUT = 5 * 60_000
 const timeoutOf = (prompt) => Math.min(15 * 60_000, TIDY_TIMEOUT + Math.floor(String(prompt).length / 2000) * 60_000)
 // 한 문서의 항목을 한 번에 쓰는 수(KMD_TIDY_BATCH · 1 이면 자리마다 따로)
 const BATCH = Math.max(1, Number(process.env.KMD_TIDY_BATCH) || BATCH_MAX)
+// 쓰는 동안 소식 간격 — 이 사이 소식이 없으면 화면이 「멈춘 것 같다」 를 1분에 띄운다
+const TICK = () => Number(process.env.KMD_TIDY_TICK_MS) || 15_000
 
 // 일감 하나 — 없으면 null · models — 일마다 모델(core/models.js · 없으면 기본 배분)
 //   한 문서의 항목은 batch 개까지 claude -p 한 번에(batchesOf) · 그 묶음을 PAR 개씩 같이 쓰고, 초안을 받으면 그 자리만 바로 올린다(서버가 검사해 넣고 받은 것에서 빠진다) ·
@@ -100,9 +102,15 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
     return true
   }
   const schemaOf = (g) => (g.kind === 'touches' ? TOUCH_SCHEMA : g.kind === 'ingest' ? INGEST_SCHEMA : DRAFT_SCHEMA)
-  // claude -p 한 번 — 걸린 시간 · 보낸 글 크기를 답에 붙인다(서버 장부 · 일꾼 기록이 자리마다 남긴다)
-  const ask = async (prompt, o) => { const t0 = Date.now(); const r = await runClaude({ prompt, budget, timeoutMs: timeoutOf(prompt), ...o }); return { ...r, ms: Date.now() - t0, chars: prompt.length } }
-  const write = (g, model) => ask(promptOf(g), { schema: schemaOf(g), model })
+  // claude -p 한 번 — 걸린 시간 · 보낸 글 크기를 답에 붙인다(서버 장부 · 일꾼 기록이 자리마다 남긴다) ·
+  //   쓰는 동안 TICK 마다 그 자리들(keys)에 쓴 글 · 생각 글자 수와 지난 시간을 올린다(서버 · 화면이 「쓰는 중 3:12 · 쓴 글 1.2k자」 를 보인다)
+  const ask = async (prompt, o, keys = []) => {
+    const t0 = Date.now()
+    const onTick = keys.length && !lost ? (t) => { call(server, dkey, `/api/k/${kn}/worker/progress`, { keys, tick: true, out: t.out, think: t.think, ms: t.ms }).then((p) => { if (p.stop) quit = true }, gone) } : null
+    const r = await runClaude({ prompt, budget, timeoutMs: timeoutOf(prompt), onTick, tickMs: TICK(), ...o })
+    return { ...r, ms: Date.now() - t0, chars: prompt.length }
+  }
+  const write = (g, model) => ask(promptOf(g), { schema: schemaOf(g), model }, [spotKey(g)])
   // 자리 끝 — 서버에 알리고, 초안이면 바로 올린다. 못 올리면 끝에 같이 ·
   //   서버 검사가 고칠 수 있는 까닭(빠진 값 · 지어낸 값 · 크기 · 머리)으로 돌려보내면 그 까닭을 붙여 한 번만 다시 쓴다
   const finish = async (g, r, again = true) => {
@@ -118,11 +126,16 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
     const d = await call(server, dkey, `/api/k/${kn}/worker/drafts`, { drafts: [item], part: true, fix: again }).catch((x) => (gone(x), null))
     if (!d) items.push(item)
     else if (d.stop) quit = true
-    else if (d.fix && again && !(stop || quit || lost)) {
-      await finish(g, await ask(fixPromptOf(g, item.draft, d.fix), { schema: schemaOf(g), model: modelOf(g.kind === 'touches' ? 'touch' : 'tidy', models) }), false)
-    }
+    // 고쳐 쓰기는 일 줄에 되돌려 빈 칸이 집는다(같은 칸에서 이어 쓰면 뒤 자리가 그만큼 밀린다)
+    else if (d.fix && again && !(stop || quit || lost)) todo.unshift([{ ...g, fix: { draft: item.draft, why: d.fix } }])
+  }
+  // 고쳐 쓰기 한 번 — 서버가 이미 「까닭을 알려 고쳐 쓴다」 줄을 달았다
+  const refix = async (g) => {
+    const model = modelOf(g.kind === 'touches' ? 'touch' : 'tidy', models)
+    if (await begin(g, model)) await finish(g, await ask(fixPromptOf(g, g.fix.draft, g.fix.why), { schema: schemaOf(g), model }, [spotKey(g)]), false)
   }
   const one = async (g) => {
+    if (g.fix) return refix(g)
     // 넣은 파일 — 세션처럼 일하는 에이전트로(이 PC 의 Claude Code · MCP 는 서버 · 단기 열쇠). 넣었으면 초안은 없다 · 못 넣으면 아래 초안 길로
     if (g.kind === 'ingest' && agentAvailable() && !(stop || quit || lost)) {
       const a = await agentIngest({ server, dkey, kn, g, log, models }).catch((e) => ({ placed: false, error: null, why: e.message }))
@@ -146,7 +159,7 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
     if (go.length < 2) return go.length ? finish(go[0], await write(go[0], model)) : undefined
     const prompt = batchPromptOf(go)
     // 묶음 시간 상한 — 항목마다 따로 쓸 때(timeoutOf)보다 짧으면 안 된다(큰 항목 둘의 묶음이 7분에 끊겨 다시 쓰던 것)
-    const r = await ask(prompt, { schema: BATCH_SCHEMA, budget: budget * Math.min(go.length, 8), model, timeoutMs: Math.min(15 * 60_000, Math.max(timeoutOf(prompt), TIDY_TIMEOUT + go.length * 60_000)) })
+    const r = await ask(prompt, { schema: BATCH_SCHEMA, budget: budget * Math.min(go.length, 8), model, timeoutMs: Math.min(15 * 60_000, Math.max(timeoutOf(prompt), TIDY_TIMEOUT + go.length * 60_000)) }, go.map(spotKey))
     const got = new Map((Array.isArray(r.value?.items) ? r.value.items : []).filter((x) => x && typeof x === 'object').map((x) => [String(x.key), x]))
     log(`${decodeURIComponent(kn)}: 묶음 ${go[0].doc.replace(/^docs\/|\.md$/g, '')} 자리 ${go.length} → 답 ${got.size}${r.error ? ` · ${kindOf(r)}` : ''} · ${secs(r.ms)} · 보낸 글 ${r.chars}자${r.outTokens ? ` · 받은 토큰 ${r.outTokens}` : ''}`)
     for (const g of go) {
@@ -169,7 +182,8 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
       try { await (u.length > 1 ? many(u) : one(u[0])) } finally { active-- }
     }
   }
-  await Promise.all(Array.from({ length: Math.min(par, todo.length) }, runner))
+  // 칸은 늘 par 개 — 처음 일이 하나여도 되돌아온 다시 쓰기 · 고쳐 쓰기를 빈 칸이 같이 집는다
+  await Promise.all(Array.from({ length: par }, runner))
   if (lost) {
     log(`${decodeURIComponent(kn)}: 이 일감의 열쇠가 끊겼다(서버가 다시 켜졌다). 넣은 자리는 그대로 · 남은 자리는 다음에`)
     return { job, rows: [], skipped: 'lost' }

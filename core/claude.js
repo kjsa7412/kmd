@@ -12,13 +12,14 @@ import os from 'node:os'
 import path from 'node:path'
 import { modelArgs } from './models.js'
 
-export const ENV_ALLOW = ['PATH', 'Path', 'PATHEXT', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'SystemRoot', 'SYSTEMROOT', 'ComSpec', 'TEMP', 'TMP', 'LANG', 'CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY', 'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY', 'NODE_EXTRA_CA_CERTS', 'FAKE_CLAUDE_MODE', 'FAKE_CLAUDE_LOG', 'FAKE_CLAUDE_READ', 'FAKE_CLAUDE_SPANS', 'FAKE_AGENT_MODE', 'FAKE_AGENT_WAIT_MS']
+export const ENV_ALLOW = ['PATH', 'Path', 'PATHEXT', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'SystemRoot', 'SYSTEMROOT', 'ComSpec', 'TEMP', 'TMP', 'LANG', 'CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY', 'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY', 'NODE_EXTRA_CA_CERTS', 'FAKE_CLAUDE_MODE', 'FAKE_CLAUDE_LOG', 'FAKE_CLAUDE_READ', 'FAKE_CLAUDE_SPANS', 'FAKE_CLAUDE_STREAM_MS', 'FAKE_AGENT_MODE', 'FAKE_AGENT_WAIT_MS']
 
 // model — 별칭(haiku · sonnet · opus) · 비면 그 PC 의 기본 모델(core/models.js)
-export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_000, model = '' }) {
+// onTick({ out, think, ms }) — 흘려 받기(stream-json): 쓴 글(답 · 스키마 답) · 생각 글자 수와 지난 시간을 tickMs 마다 한 번(끝날 때만 답하던 json 은 몇 분씩 소식이 없었다)
+export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_000, model = '', onTick = null, tickMs = 10_000 }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-worker-'))
   const env = Object.fromEntries(ENV_ALLOW.filter((k) => process.env[k] != null).map((k) => [k, process.env[k]]))
-  const args = ['-p', '--output-format', 'json', '--tools', '', '--strict-mcp-config', '--mcp-config', JSON.stringify({ mcpServers: {} }), '--no-session-persistence', '--max-budget-usd', String(budget), '--json-schema', JSON.stringify(schema), ...modelArgs(model)]
+  const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--tools', '', '--strict-mcp-config', '--mcp-config', JSON.stringify({ mcpServers: {} }), '--no-session-persistence', '--max-budget-usd', String(budget), '--json-schema', JSON.stringify(schema), ...modelArgs(model)]
   if (process.env.ANTHROPIC_API_KEY) args.push('--bare')
   const fake = process.env.KMD_CLAUDE
   const win = process.platform === 'win32'
@@ -27,21 +28,44 @@ export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_
   try {
     const out = await new Promise((resolve) => {
       const p = spawn(cmd, quoted, { cwd: dir, env, windowsHide: true, ...opt })
+      // 줄마다 읽는다 — 답은 끝 줄(result) 하나만 두고, 사이 줄은 글자 수만 센다(긴 글을 통째로 쌓지 않는다)
       let so = ''
       let se = ''
+      let buf = ''
       let late = false
+      const n = { out: 0, think: 0 }
+      const t0 = Date.now()
+      const line = (l) => {
+        if (!l.trim().startsWith('{')) return
+        let j
+        try { j = JSON.parse(l) } catch { return }
+        if (j.type === 'result') { so = l; return }
+        const d = j.type === 'stream_event' ? j.event?.delta : null
+        if (d?.type === 'thinking_delta') n.think += String(d.thinking || '').length
+        else if (d?.type === 'text_delta') n.out += String(d.text || '').length
+        else if (d?.type === 'input_json_delta') n.out += String(d.partial_json || '').length
+      }
       const t = setTimeout(() => { late = true; p.kill() }, timeoutMs)
-      p.stdout.on('data', (c) => (so += c))
+      const tick = onTick ? setInterval(() => { try { onTick({ out: n.out, think: n.think, ms: Date.now() - t0 }) } catch {} }, tickMs) : null
+      p.stdout.on('data', (c) => {
+        buf += c
+        const ls = buf.split('\n')
+        buf = ls.pop()
+        ls.forEach(line)
+      })
       p.stderr.on('data', (c) => (se += c))
-      p.on('error', (e) => resolve({ code: -1, so, se: String(e.message) }))
+      p.on('error', (e) => { clearInterval(tick); resolve({ code: -1, so, se: String(e.message) }) })
       p.on('close', (code) => {
         clearTimeout(t)
+        clearInterval(tick)
+        if (buf) line(buf)
         // 시간이 넘어 끊었다(종료 143 · SIGTERM) — 「종료 143」 만으로는 무엇인지 모른다
         resolve(late ? { code, so: '', se: `시간이 넘었다(${Math.round(timeoutMs / 60_000)}분): 글이 길면 다음 정리 때 다시` } : { code, so, se })
       })
       p.stdin.end(prompt)
     })
-    return parse(out)
+    const r = parse(out)
+    return r
   } finally {
     try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {} // Windows 의 EBUSY — 남겨도 답은 버리지 않는다
   }
