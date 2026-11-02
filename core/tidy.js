@@ -21,6 +21,8 @@ import { formFor, guardNewDoc, DEFAULT_FORMS, FORM_GUIDE } from './guard.js'
 import { sectionOf, coordsOfSection, labelOf, reflectedIn } from './knowledge.js'
 import { formatProblems, lintSection } from './docformat.js'
 import { splitBlocks, hasBlockMarker } from './baseline.js'
+// 서로 부르는 모듈(propose 는 check 를 쓴다) — 함수는 부를 때 읽는다
+import { applyEdits as applyPatch } from './propose.js'
 
 export const DRAFT_SCHEMA = {
   type: 'object',
@@ -186,6 +188,36 @@ export function promptOf(g) {
     `지금 글:\n${g.content || '(아직 없음)'}`,
     `기록(오래된 것부터):\n${g.records.map((r) => recLine(r)).join('\n\n')}`,
   ].join('\n\n')
+}
+
+// 조각 초안(찾아 바꾸기) — 항목 글 전체를 다시 쓰지 않고 바꿀 곳만 받는다(작성기준 7절 · 나오는 글이 항목 크기가 아니라 바뀐 양을 따른다).
+//   서버가 지금 글에 대어(applyEdits) 새 글을 만든 뒤 전체 초안과 같은 검사(G4 값 · G5 크기 · G6 꼴)를 거친다
+export const PATCH_SCHEMA = {
+  type: 'object',
+  properties: {
+    edits: { type: 'array', items: { type: 'object', properties: { find: { type: 'string', description: '지금 글에 꼭 한 번 나오는 글 그대로(한 줄 이상)' }, replace: { type: 'string', description: '그 자리에 들어갈 글' } }, required: ['find', 'replace'] }, description: '바꿀 곳마다 하나 · 차례대로 댄다' },
+    rewrite: { type: 'string', description: '지금 글이 비었거나 고칠 곳이 글의 절반을 넘을 때만: 항목의 새 글 전체(그때는 edits 를 비운다)' },
+    ...Object.fromEntries(Object.entries(DRAFT_SCHEMA.properties).filter(([k]) => k !== 'content')),
+  },
+  required: ['edits', 'used', 'left'],
+}
+export const PATCH_RULE = [
+  '답 꼴(조각): 항목 글 전체를 다시 쓰지 않는다. 바꿀 곳만 edits 에 { find, replace } 로 쓴다.',
+  '- find 는 지금 글에 꼭 한 번 나오는 글을 글자 그대로(줄바꿈 · 띄어쓰기 · 기호까지) 옮긴다. 짧아서 여러 곳에 맞을 것 같으면 앞뒤 줄을 더 붙인다.',
+  '- 새 내용을 보탤 때는 이어질 자리의 줄을 find 로 잡고, replace 에 그 줄과 새 글을 같이 쓴다.',
+  '- 값을 바꿀 때는 그 값이 든 줄을 find 로 잡고 replace 에 새 값으로 고친 줄을 쓴다(drop 에 옛 값).',
+  '- 기록을 녹여 쓰는 규칙(위 항목 글 쓰기)은 replace 글에도 같다. 지금 글의 다른 곳은 건드리지 않는다.',
+  '- 지금 글이 비었거나 고칠 곳이 글의 절반을 넘으면 edits 를 비우고 rewrite 에 새 글 전체를 쓴다.',
+].join('\n')
+export const patchPromptOf = (g) => [promptOf(g), PATCH_RULE].join('\n\n')
+// 조각을 지금 글에 댄다 — find 는 꼭 한 번 맞아야 한다(두 곳 · 없음은 거절: 엉뚱한 곳을 고치지 않게) · rewrite 면 그 글 · 빈 조각이면 지금 글 그대로
+export function applyEdits(cur, d) {
+  if (typeof d.rewrite === 'string' && d.rewrite.trim()) return { content: d.rewrite }
+  if (!Array.isArray(d.edits)) return { why: '초안 모양이 아니다' }
+  if (!d.edits.length) return { content: String(cur || '') }
+  // 대는 법은 제안(core/propose.js)과 하나 — 꼭 한 번 · 겹치지 않음 · 원문 그대로
+  const r = applyPatch(String(cur || ''), d.edits)
+  return r.ok ? { content: r.text } : { why: `조각이 지금 글에 맞지 않는다: ${r.why}` }
 }
 
 // 고쳐 쓰기 — 초안이 검사에 걸렸다. 같은 프롬프트에 지난 초안과 걸린 까닭을 붙여 한 번 더(일꾼이 자리마다 한 번만)
