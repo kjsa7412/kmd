@@ -97,12 +97,12 @@ test('MCP: 이미 있는 항목을 base 없이 갈아 끼우지 않는다 · bas
     const out = await mcp.call({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }, KIM)
     return out.result.isError ? { error: out.result.content[0].text } : JSON.parse(out.result.content[0].text)
   }
-  const bad = await call('save', { knowledge: 'dpms', record: { title: '롤백: 바꿈', body: '롤백 글' }, sections: [{ coord: 'proc:롤백', content: '덮는 글' }] })
+  const bad = await call('save', { knowledge: 'dpms', record: { title: '롤백: 바꿈', changes: ['롤백 글'] }, sections: [{ coord: 'proc:롤백', content: '덮는 글' }] })
   assert.match(bad.error, /이미 있는 항목이다. section 으로 다시 읽고 그 base/)
   const sec = await call('section', { knowledge: 'dpms', coord: 'proc:롤백' })
-  const ok = await call('save', { knowledge: 'dpms', record: { title: '롤백: 바꿈', body: '롤백 글' }, sections: [{ coord: 'proc:롤백', content: '고친 롤백 글', base: sec.base }] })
+  const ok = await call('save', { knowledge: 'dpms', record: { title: '롤백: 바꿈', changes: ['롤백 글'] }, sections: [{ coord: 'proc:롤백', content: '고친 롤백 글', base: sec.base }] })
   assert.ok(ok.saved)
-  const neu = await call('save', { knowledge: 'dpms', record: { title: '새 항목: 하나', body: '새' }, sections: [{ doc: '배포절차', heading: '새 머리', content: '새 항목 글' }] })
+  const neu = await call('save', { knowledge: 'dpms', record: { title: '새 항목: 하나', changes: ['새 항목'] }, sections: [{ doc: '배포절차', heading: '새 머리', content: '새 항목 글' }] })
   assert.ok(neu.saved)
 })
 

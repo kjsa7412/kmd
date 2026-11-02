@@ -102,14 +102,14 @@ test('읽기 길: 찾기 · 문서 · MCP brief/section 은 읽기 이상 · 없
   assert.equal((await req(`/api/k/dpms/doc?d=${D}`, P.own)).j.direct, true, '주인 = 지식관리자: 바로 고치기')
   assert.ok(!(await mcp('brief', {}, P.no)).knowledge.some((k) => k.id === 'dpms'))
   assert.equal((await mcp('brief', { knowledge: 'dpms' }, P.no)).error, 'E_NOTFOUND')
-  assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.rd)).you, { role: '읽기', direct: false })
-  assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.wr)).you, { role: '쓰기', direct: false })
-  assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.own)).you, { role: '지식관리자', direct: true })
+  assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.rd)).you, { role: '읽기', direct: false, ledgers: false })
+  assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.wr)).you, { role: '쓰기', direct: false, ledgers: false })
+  assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.own)).you, { role: '지식관리자', direct: false, ledgers: true }, '세션의 항목 글은 지식관리자도 기록으로 · 장부는 곧바로')
   assert.equal((await mcp('section', { knowledge: 'dpms', doc: '배포절차', heading: '롤백' }, P.rd)).heading, '롤백')
   assert.equal((await mcp('section', { knowledge: 'dpms', doc: '배포절차', heading: '롤백' }, P.no)).error, 'E_NOTFOUND')
 })
 
-test('쓰기 길: 읽기는 403 E_FORBIDDEN · 쓰기는 기록으로 · 관리는 바로 문서에', async () => {
+test('쓰기 길: 읽기는 403 E_FORBIDDEN · 쓰기는 기록으로 · 세션은 지식관리자도 기록으로', async () => {
   // 지식 생성 가드 — 화면 · 세션의 save 는 건드린 이름(touches)이나 이름 없는 까닭(touchesEmpty)이 있어야 한다
   const rec = { record: { title: '롤백: 앱 먼저', body: '앱을 먼저 내린다', touchesEmpty: '시험 — 롤백 순서 메모' } }
   assert.equal((await req('/api/k/dpms/save', P.wr, { record: { title: '이름 없음', body: 'x' } })).status, 400, '이름도 까닭도 없는 기록은 받지 않는다')
@@ -123,12 +123,14 @@ test('쓰기 길: 읽기는 403 E_FORBIDDEN · 쓰기는 기록으로 · 관리�
   assert.equal((await req('/api/k/dpms/edit', P.rd, ed)).status, 403)
   const e2 = await req('/api/k/dpms/edit', P.wr, ed)
   assert.deepEqual([e2.status, e2.j.direct], [200, false], '쓰기의 고치기는 기록으로')
-  // MCP save — 읽기는 막히고 · 쓰기의 항목 글은 기록에 · 관리(주인)는 바로 문서에
+  // MCP save — 읽기는 막히고 · 항목 글은 쓰기도 지식관리자(주인)도 기록에(정리가 넣는다)
   const sec = await mcp('section', { knowledge: 'dpms', doc: '배포절차', heading: '롤백' }, P.own)
-  const args = { knowledge: 'dpms', record: { title: '롤백: 순서', body: '앱을 먼저 내린다' }, sections: [{ doc: '배포절차', heading: '롤백', content: '앱을 먼저 내리고 그다음 DB 를 되돌린다.', base: sec.base }] }
+  const args = { knowledge: 'dpms', record: { title: '롤백: 순서', body: '앱을 먼저 내린다.', changes: ['롤백 순서: DB 먼저 → 앱 먼저'] }, sections: [{ doc: '배포절차', heading: '롤백', content: '앱을 먼저 내리고 그다음 DB 를 되돌린다.', base: sec.base }] }
   assert.equal((await mcp('save', args, P.rd)).error, 'E_FORBIDDEN')
   assert.match((await mcp('save', args, P.wr)).note, /정리 때 문서에 들어간다/)
-  assert.deepEqual((await mcp('save', args, P.own)).docs, ['배포절차'], '관리 = 바로 문서에')
+  const own = await mcp('save', args, P.own)
+  assert.deepEqual([own.docs, /정리 때 문서에 들어간다/.test(own.note)], [[], true], '지식관리자의 세션도 기록으로')
+  assert.equal((await mcp('save', { ...args, record: { title: '롤백: 줄글', body: '앱을 먼저 내린다' } }, P.own)).error, 'E_INPUT', '서식 칸(바뀐 것) 없는 기록은 받지 않는다')
   // 찾기 학습 · 넣을 자리 · 정리 부탁 — 쓰기 이상
   assert.equal((await req('/api/k/dpms/learn', P.rd, { q: '롤백', coord: 'x' })).status, 403)
   assert.equal((await req('/api/k/dpms/tidy', P.rd, {})).status, 403)

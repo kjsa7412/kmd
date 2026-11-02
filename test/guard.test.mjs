@@ -6,7 +6,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { parseVocab } from '../core/vocab.js'
-import { newNameWhy, resolveName, guardRecord, guardNames, guardNewDoc, formsOf, parseForms, nearNames } from '../core/guard.js'
+import { newNameWhy, resolveName, guardRecord, guardNames, guardNewDoc, formsOf, parseForms, nearNames, recordBody } from '../core/guard.js'
 import { save, saveRecords } from '../core/save.js'
 import { parseRecord } from '../core/frontmatter.js'
 
@@ -205,4 +205,14 @@ test('지식 점검 — 같은 말을 둘로: 다른 이름 겹침(고칠 것) �
   const a = audit({ vocab: v, docs: [], works: [] }, { sectionOf: () => null, coordsOfSection: () => [] })
   assert.deepEqual(a.aliasClash.map((x) => [x.word, x.aliasOf]), [['변경이력', ['테이블정의서:dp_chg_hst']]])
   assert.deepEqual(a.sameLabel.map((x) => x.word), ['요약'])
+})
+
+test('기록 서식: 칸을 머리 달아 엮는다 · 바뀐 것이 없거나 요약이 길면 거절 · 서식대로 쓴 글은 그대로', () => {
+  const r = recordBody({ body: '롤백 순서를 바꿨다.', changes: ['롤백 순서: DB 먼저 → 앱 먼저'], why: '옛 DB 칸을 쓰지 않게', refs: '["커밋 abc1234"]' })
+  assert.equal(r.body, '롤백 순서를 바꿨다.\n\n## 바뀐 것\n- 롤백 순서: DB 먼저 → 앱 먼저\n\n## 까닭\n- 옛 DB 칸을 쓰지 않게\n\n## 근거\n- 커밋 abc1234')
+  assert.match(recordBody({ body: '줄글만 길게 쓴 기록' }).error, /changes/)
+  assert.match(recordBody({ body: '가.\n\n나.', changes: ['x'] }).error, /한두 문장/)
+  assert.match(recordBody({ body: 'x'.repeat(301), changes: ['x'] }).error, /300자/)
+  assert.match(recordBody({ body: '## 머리\n가', changes: ['x'] }).error, /머리 줄/)
+  assert.equal(recordBody({ body: '요약.\n\n## 바뀐 것\n- a' }).body, '요약.\n\n## 바뀐 것\n- a')
 })

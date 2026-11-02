@@ -10,7 +10,7 @@ import os from 'node:os'
 import { listKnowledge, loadKnowledge, coordsOfSection, sectionOf, looksLikeKnowledge } from '../core/knowledge.js'
 import { KmdError, httpStatusOf } from '../core/errors.js'
 import { save as coreSave, saveRecords, serial, localStamp, recordTakenSync } from '../core/save.js'
-import { audit as guardAudit } from '../core/guard.js'
+import { audit as guardAudit, recordBody, RECORD_PARTS } from '../core/guard.js'
 import { recover as recoverSave } from '../core/journal.js'
 import { decide, decisionRecord, revertPlan } from '../core/curate.js'
 import * as collect from '../core/collect.js'
@@ -665,16 +665,23 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       if (ctx.machine && ctx.machine.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
       if (!ctx.machine) hub.need(ctx, id, 'write')
+      // form — 세션(MCP)의 기록 글은 서식 칸으로(작성기준 6절 · 템플릿/기록.md) · 칸을 kmd 가 머리를 달아 엮는다
+      if (opt.form && input?.record && typeof input.record === 'object') {
+        const b = recordBody(input.record)
+        if (b.error) throw new KmdError('E_INPUT', b.error)
+        input = { ...input, record: { ...Object.fromEntries(Object.entries(input.record).filter(([x]) => !RECORD_PARTS.some(([p]) => p === x))), body: b.body } }
+      }
       const shut = backup.closed(meta)
       if (shut) throw new KmdError('E_BEHIND', shut.message)
       // 팀 지식에서 관리자가 아니면 항목 글은 기록에 싣는다 — 정리 때 문서에 들어간다
+      //   queue — 세션(MCP)의 저장: 관리 자리여도 항목 글이 있으면 같이 기록에(정리를 건너뛰어 문서에 바로 들어가지 않게 · 장부만 고치는 저장은 그대로)
       let queued = false
       let namesHeld = 0
       if (input?.sections?.some((s) => s?.doc && owners.isReservedFile(String(s.doc).replace(/\.md$/, '') + '.md'))) throw new KmdError('E_FORBIDDEN', 'kmd 가 쓰는 파일이다')
       // 이름 · 자리 장부(names)도 항목 글과 같은 자리 — 일반의 것은 기록 본문에 「세울 이름」 으로 실어 정리 재료로 넘긴다
       // (팀 지식의 이름을 엉뚱한 자리로 옮겨 모두의 match · section 을 깨뜨리지 않게). 없는 이름 · 문서는 자리와 상관없이 같은 검사
       let proposed = []
-      if ((input?.sections?.length || input?.names?.length || input?.forms?.length) && !opt.system && !hub.canDirect(ctx, id)) {
+      if ((input?.sections?.length || input?.names?.length || input?.forms?.length) && !opt.system && (!hub.canDirect(ctx, id) || (opt.queue && input.sections?.length))) {
         const k = await hub.get(id)
         const add = []
         const lines = []

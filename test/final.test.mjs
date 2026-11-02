@@ -56,7 +56,7 @@ async function eight(mode) {
     const e = await s.hub.edit(KIM, 'dpms', { doc: '배포절차', sections: [{ h: '카나리', body: '첫 30분은 요청의 20% 만 새 판으로 보낸다.' }] })
     out.edit = { direct: e.direct, log: (await s.hub.get('dpms')).logs.some((w) => w.id === e.id), doc: (await s.hub.get('dpms')).docs.find((d) => d.id === '배포절차').sections.find((x) => x.h === '카나리').body.includes('20%') }
     // ⑤ 세션 저장 — MCP save(기기 열쇠)
-    const r = await fetch(s.url + '/mcp', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'save', arguments: { knowledge: 'dpms', record: { title: '롤백: DB 먼저 멈춤', body: '세션에서: 롤백 전에 쓰기를 멈춘다.', touches: ['proc:롤백'] } } } }) }).then((x) => x.json())
+    const r = await fetch(s.url + '/mcp', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'save', arguments: { knowledge: 'dpms', record: { title: '롤백: DB 먼저 멈춤', changes: ['세션에서: 롤백 전에 쓰기를 멈춘다.'], touches: ['proc:롤백'] } } } }) }).then((x) => x.json())
     const sid = r.result.structuredContent.id
     out.session = { ok: !r.result.isError, touches: (await s.hub.get('dpms')).byWork.get(sid)?.touches }
     // ⑥ 보내기 — gdi → dpms(같은 kmd)

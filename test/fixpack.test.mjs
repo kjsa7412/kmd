@@ -57,11 +57,11 @@ test('F1: 머리 주입 · 날짜 모양 · 예약 이름 · 태그 · 파일은
 test('F4: 읽은 뒤 바뀐 항목은 덮지 않는다', async () => {
   const sec = (await tool('section', { knowledge: 'dpms', coord: 'proc:헬스 체크' })).structuredContent
   assert.match(sec.base, /^[0-9a-f]{16}$/)
-  const put = (content, base) => tool('save', { knowledge: 'dpms', record: { title: '헬스 체크: 고침', body: content }, sections: [{ coord: 'proc:헬스 체크', content, base }] })
+  // 팀 지식의 세션 save 는 항목 글을 기록에 싣는다(덮을 일이 없다) — 바로 고치는 길(관리 자리의 hub.save)로 본다
+  const put = (content, base) => code(s.hub.save(ADMIN, 'dpms', { record: { title: '헬스 체크: 고침', body: content, touches: ['proc:헬스 체크'] }, sections: [{ coord: 'proc:헬스 체크', content, base }] }))
   const n0 = commits('dpms')
-  assert.ok(!(await put('3초 안에 200 · 고친 글', sec.base)).isError)
-  const late = await put('늦게 온 글', sec.base)
-  assert.equal(late.structuredContent.error, 'E_CONFLICT')
+  assert.equal(await put('3초 안에 200 · 고친 글', sec.base), 'ok')
+  assert.equal(await put('늦게 온 글', sec.base), 'E_CONFLICT')
   assert.equal(commits('dpms'), n0 + 1, '늦은 저장은 묶음 0')
 })
 
@@ -70,7 +70,7 @@ test('F12: 캐시는 요청 밖 · 둘째 요청은 다시 읽지 않는다 · �
   const a = readStats.files
   await tool('section', { knowledge: 'dpms', coord: 'proc:카나리' })
   assert.ok(readStats.files - a <= 10, `둘째 요청 파일 읽기 ${readStats.files - a}`)
-  await tool('save', { knowledge: 'dpms', record: { title: '카나리: 메모', body: '메모' } })
+  await tool('save', { knowledge: 'dpms', record: { title: '카나리: 메모', changes: ['메모'] } })
   const b = readStats.files
   await tool('section', { knowledge: 'dpms', coord: 'proc:카나리' })
   assert.ok(readStats.files - b <= 3, `저장 뒤 파일 읽기 ${readStats.files - b}`)

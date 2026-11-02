@@ -67,37 +67,43 @@ test('MCP: 도구 · brief · match · section', async () => {
   assert.equal(sec.notYetInDocs.length, 1)
 })
 
-test('MCP save: 기록 + 항목 갈아 끼우기가 git 한 묶음 · 나쁜 입력은 아무것도 안 쓴다', async () => {
+test('MCP save: 기록 글은 서식 칸으로 · 팀 지식은 항목 글을 기록에 싣는다(지식관리자도) · git 한 묶음 · 나쁜 입력은 아무것도 안 쓴다', async () => {
   // 이미 있는 항목을 갈아 끼우려면 section 이 준 base 를 같이(그사이 남이 고친 글을 덮지 않게)
   const base = (await tool('section', { knowledge: 'dpms', coord: 'proc:롤백' })).structuredContent.base
   const r = await tool('save', {
     knowledge: 'dpms',
-    record: { title: '롤백 순서: 앱 먼저 내린다', body: '앱을 먼저 이전 판으로 내려야 새 판이 옛 DB 칸을 쓰지 않는다.', touches: ['proc:롤백'] },
+    record: { title: '롤백 순서: 앱 먼저 내린다', body: '앱을 먼저 내린다.', changes: ['롤백 순서: DB 먼저 → 앱 먼저'], why: ['앱을 먼저 이전 판으로 내려야 새 판이 옛 DB 칸을 쓰지 않는다.'], touches: ['proc:롤백'] },
     sections: [{ coord: 'proc:롤백', content: '앱을 먼저 이전 판으로 내리고, 그다음 DB 를 되돌린다.', base }],
   })
   assert.ok(!r.isError, JSON.stringify(r.structuredContent))
   const id = r.structuredContent.saved
-  assert.deepEqual(r.structuredContent.docs, ['배포절차'])
+  assert.deepEqual(r.structuredContent.docs, [], '정리 전에는 문서에 들어가지 않는다')
+  assert.match(r.structuredContent.note, /정리 때 문서에 들어간다/)
   const dir = path.join(tmp, 'kn', 'dpms')
   const w = fs.readFileSync(path.join(dir, 'work', `${id}.md`), 'utf8')
   assert.match(w, /^---\nid: /)
   assert.match(w, /author: kim/)
+  assert.match(w, /앱을 먼저 내린다\.\n\n## 바뀐 것\n- 롤백 순서: DB 먼저 → 앱 먼저\n\n## 까닭\n- 앱을 먼저 이전 판으로/, '칸마다 머리를 달아 엮는다')
+  assert.match(w, /## 롤백\n앱을 먼저 이전 판으로 내리고, 그다음 DB 를 되돌린다\./, '항목 글은 기록에 실린다')
   const doc = fs.readFileSync(path.join(dir, 'docs', '배포절차.md'), 'utf8')
-  assert.match(doc, new RegExp(`## 롤백\\n<!-- applied: ${id} -->\\n앱을 먼저 이전 판으로 내리고`))
-  assert.match(doc, /## 꾸러미 판/, '다른 항목은 그대로')
+  assert.doesNotMatch(doc, /앱을 먼저 이전 판으로 내리고/, '문서는 그대로')
   const log = git('log', '--format=%an|%s').trim().split('\n')
   assert.equal(log.length, 2, '처음 묶음 + 저장 한 묶음')
   assert.equal(log[0], 'kim|롤백 순서: 앱 먼저 내린다')
-  assert.deepEqual(git('show', '--name-only', '--format=', 'HEAD').trim().split('\n').sort(), ['docs/배포절차.md', `work/${id}.md`].sort())
+  assert.deepEqual(git('show', '--name-only', '--format=', 'HEAD').trim().split('\n'), [`work/${id}.md`])
   assert.equal(git('status', '--porcelain').trim(), '')
-  // 화면 자료도 바로 바뀐다
+  // 화면 자료도 바로 바뀐다 — 반영 대기
   const tr = (await j('/api/k/dpms/tree')).body
-  assert.equal(tr.records.find((x) => x.id === id).state, 'in')
+  assert.equal(tr.records.find((x) => x.id === id).state, 'pend')
+  const prose = await tool('save', { knowledge: 'dpms', record: { title: '줄글', body: '앱을 먼저 내린다.', touches: ['proc:롤백'] } })
+  assert.equal(prose.structuredContent.error, 'E_INPUT', '서식 칸(바뀐 것) 없는 줄글은 받지 않는다')
+  const long = await tool('save', { knowledge: 'dpms', record: { title: '긴 요약', body: '가.\n\n나.', changes: ['x'], touches: ['proc:롤백'] } })
+  assert.equal(long.structuredContent.error, 'E_INPUT', '요약은 문단 하나')
 
   const bad = await tool('save', { knowledge: 'dpms', record: { title: '두 줄\nid: 가짜', body: 'x' } })
   assert.equal(bad.isError, true)
   assert.equal(bad.structuredContent.error, 'E_INPUT')
-  const nowhere = await tool('save', { knowledge: 'dpms', record: { title: '자리 없음', body: 'x' }, sections: [{ coord: 'proc:없는것', content: 'y' }] })
+  const nowhere = await tool('save', { knowledge: 'dpms', record: { title: '자리 없음', changes: ['x'] }, sections: [{ coord: 'proc:없는것', content: 'y' }] })
   assert.equal(nowhere.structuredContent.error, 'E_NOTFOUND')
   assert.equal(git('log', '--format=%s').trim().split('\n').length, 2, '실패한 저장은 묶음 0')
   assert.equal(git('status', '--porcelain').trim(), '', '실패한 저장은 파일도 남기지 않는다')

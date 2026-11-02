@@ -90,20 +90,20 @@ test('기록만 하는 사람의 names: 이름 장부는 그대로 · 기록에 
     return JSON.parse(out.result.content[0].text)
   }
   // 새 이름의 값은 빈칸 없는 열쇠(지식 생성 가드 G1) · 세울 이름으로 실은 이름은 touches 에 달 수 있다
-  const bad = await call('save', { knowledge: 'dpms', record: { title: '용어: 하나', touches: ['term:카나리 비율'] }, names: [{ coord: 'term:카나리 비율', label: '카나리 비율' }] }, LEE)
+  const bad = await call('save', { knowledge: 'dpms', record: { title: '용어: 하나', changes: ['카나리 비율: 새 용어'], touches: ['term:카나리 비율'] }, names: [{ coord: 'term:카나리 비율', label: '카나리 비율' }] }, LEE)
   assert.match(bad.message || bad.error || '', /빈칸|E_INPUT/)
-  const sv = await call('save', { knowledge: 'dpms', record: { title: '용어: 하나', touches: ['term:카나리비율'] }, names: [{ coord: 'term:카나리비율', label: '카나리 비율' }] }, LEE)
+  const sv = await call('save', { knowledge: 'dpms', record: { title: '용어: 하나', changes: ['카나리 비율: 새 용어'], touches: ['term:카나리비율'] }, names: [{ coord: 'term:카나리비율', label: '카나리 비율' }] }, LEE)
   assert.match(sv.note, /이름 1 은 아직 세우지 않았다/)
   // 도구 모양을 배포 전에 받아 둔 세션 — 목록을 글(JSON)로 보내도 받는다
-  const sv2 = await call('save', { knowledge: 'dpms', record: { title: '용어: 둘', touches: ['term:카나리단계'] }, names: JSON.stringify([{ coord: 'term:카나리단계', label: '카나리 단계' }]) }, LEE)
+  const sv2 = await call('save', { knowledge: 'dpms', record: { title: '용어: 둘', changes: ['카나리 단계: 새 용어'], touches: ['term:카나리단계'] }, names: JSON.stringify([{ coord: 'term:카나리단계', label: '카나리 단계' }]) }, LEE)
   assert.match(sv2.note, /이름 1 은 아직 세우지 않았다/)
   const b = await call('brief', { knowledge: 'dpms' }, LEE)
-  assert.deepEqual(b.you, { role: '쓰기', direct: false }) // 쓰기 자리를 받은 사람(권한 모델 4절)
+  assert.deepEqual(b.you, { role: '쓰기', direct: false, ledgers: false }) // 쓰기 자리를 받은 사람(권한 모델 4절)
   assert.match(b.tidy, /정해진 시각/)
   assert.equal(b.noClaude, undefined)
   await s.hub.setOwner(SHELL, 'dpms', { noClaude: true })
   assert.match((await call('brief', { knowledge: 'dpms' }, PARK)).noClaude, /자동 정리에 Claude 를 쓰지 않는다/)
-  assert.deepEqual((await call('brief', { knowledge: 'dpms' }, PARK)).you, { role: '지식관리자', direct: true }) // 총괄 관리자 = 지식관리자
+  assert.deepEqual((await call('brief', { knowledge: 'dpms' }, PARK)).you, { role: '지식관리자', direct: false, ledgers: true }) // 총괄 관리자 = 지식관리자
   await s.hub.setOwner(SHELL, 'dpms', { noClaude: false })
 })
 
