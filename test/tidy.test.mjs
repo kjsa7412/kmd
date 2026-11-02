@@ -215,14 +215,14 @@ test('여러 항목에 걸린 기록: 항목 하나에 기록의 값을 다 요�
 test('서식대로 쓴 기록: 까닭 · 버린 안 · 근거의 값(날짜 · 판 · 커밋)은 글에 요구하지 않는다 · 꼭 옮길 값을 프롬프트에 적어 준다', async () => {
   const { material, promptOf, check, mustValues } = await import('../core/tidy.js')
   const body = '기다림 시간을 늘렸다.\n\n## 바뀐 것\n- 대기 표지: 아이콘 `wait_icon` 56px\n\n## 까닭\n- 사용자 지시, 2026-11-02\n\n## 버린 안\n- 40px: 작다\n\n## 영향\n- 재시도 3번\n\n## 근거\n- 설계서 v0.15 · 커밋 5c76aba'
-  assert.deepEqual(mustValues(body).sort(), ['3', '56', 'wait_icon'])
+  assert.deepEqual(mustValues(body).sort(), ['3', '56px', 'wait_icon'])
   const w = await s.hub.save(LEE, 'dpms', { record: { title: '대기 표지', body, touches: ['proc:매일 백업'] } })
   const k = await s.hub.get('dpms')
   const g = material(k, { ids: [w.id] }).find((x) => x.kind === 'section')
-  assert.match(promptOf(g), /글에 꼭 옮길 값: 「(56|3|wait_icon)」/)
+  assert.match(promptOf(g), /글에 꼭 옮길 값: 「(56px|3|wait_icon)」/)
   const mine = g.content + '\n\n대기 표지는 아이콘 `wait_icon` 56px 이다. 재시도는 3번이다.'
   assert.equal(check(k, g, { content: mine, used: [w.id], left: [] }).ok, true)
-  assert.match(check(k, g, { content: mine.replace('56px', '큰'), used: [w.id], left: [] }).why, /기록의 값이 글에 없다: 56$/)
+  assert.match(check(k, g, { content: mine.replace('56px', '큰'), used: [w.id], left: [] }).why, /기록의 값이 글에 없다: 56px$/)
 })
 
 test('여러 항목에 걸린 기록: 넣은 항목은 다시 정리하지 않는다 · 바꿀 것이 없는 항목은 「넣음」 표지만 · 관련 항목 이름은 지어낸 값이 아니다', async () => {
@@ -257,6 +257,19 @@ test('여러 항목에 걸린 기록: 넣은 항목은 다시 정리하지 않�
   k = await s.hub.get('dpms')
   assert.equal(k.byWork.get(w.id).state, 'in')
   assert.equal(material(k, { ids: [w.id] }).length, 0)
+})
+
+test('값 장부: 날짜는 값 하나 · 띄어 쓴 단위는 뒤에 한글이 없을 때만 · 「옛 → 새」 의 옛 값은 요구하지 않는다(188 둔 까닭 재현)', async () => {
+  const { valuesOf } = await import('../core/save.js')
+  const { mustValues, oldValues } = await import('../core/tidy.js')
+  // 「### 4.2 개발 PC」 가 4.2개 로 읽혀 초안의 4.2 가 「근거에 없는 값」 이 되던 것 · 붙은 단위는 그대로 · 띄어 쓴 단위도 뒤에 한글이 없으면 붙는다
+  assert.deepEqual([...valuesOf('### 4.2 개발 PC · 3개를 · 10분간 · 5 건 · 7 초 뒤')].sort(), ['10분', '3개', '4.2', '5건', '7초'])
+  // 날짜는 쪼개지 않는다(「2026 · 02」 로 요구하던 것) · 56px 는 값 하나
+  assert.deepEqual([...valuesOf('2026-11-02 에 56px 로')].sort(), ['2026-11-02', '56px'])
+  const body = '뷰어 자리를 옮겼다.\n\n## 바뀐 것\n- 뷰어: 개발 PC `127.0.0.1:18444` → 188 `127.0.0.1:18444`, SSH 터널로 본다\n- PLC 시뮬레이터 Modbus: 0.0.0.0 → 127.0.0.1\n- 표지 크기: 40px → 56px\n- 재시도: 3번\n\n## 까닭\n- 2026-11-02 지시'
+  // 옛 값(0.0.0.0 · 40px)은 글에서 빠져야 할 값이라 요구하지 않는다 · 새 값과 화살표 없는 줄의 값은 요구한다
+  assert.deepEqual(mustValues(body).sort(), ['127.0.0.1', '127.0.0.1:18444', '188', '3', '56px'])
+  assert.deepEqual(oldValues(body).sort(), ['0.0.0.0', '40px'])
 })
 
 test('검사에 걸린 초안은 까닭을 붙여 한 번 고쳐 쓴다 · 그래도 걸리면 그대로 둔다 · 코드 울타리는 값 하나가 아니다', async () => {

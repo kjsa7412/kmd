@@ -1530,25 +1530,28 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     jobsOf: (id) => (sweepJobs(), [...jobs.values()].filter((j) => j.kn === id)),
     // 정리 일 줄 — 일꾼이 자리 하나의 글 쓰기를 시작했다(화면 · 터미널은 job 을 1.5초마다 읽는다)
     //   end 가 없으면 시작(글 쓰는 중) · end 면 초안 받음(got · 검사는 다 모인 뒤 한꺼번에) 또는 못 받음(left)
-    workerProgress(dctx, id, { key, model, end = false, ok = true, why = null, par = false } = {}) {
+    //   why(시작) — 다시 쓰는 까닭(묶음 답에 없음) · ms · chars · cost · tokens(끝) — 걸린 시간 · 보낸 글 · 비용 · 받은 토큰(자리에 남긴다 · 느린 곳을 잰다)
+    workerProgress(dctx, id, { key, model, end = false, ok = true, why = null, par = false, ms = 0, chars = 0, cost = 0, tokens = 0 } = {}) {
       if (dctx.draft.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
       const j = jobs.get(dctx.draft.job)
+      if (j) j.beat = new Date().toISOString()
       const sp = j?.spots?.find((x) => x.key === key)
       if (!sp) return { ok: false, stop: !!j?.stop }
-      j.beat = new Date().toISOString()
       if (j.stop) return { ok: true, stop: true }
+      const took = (Number(ms) || 0) > 0 ? ` · ${Math.round(ms / 1000)}초${chars ? ` · 보낸 글 ${(chars / 1000).toFixed(1)}k자` : ''}${tokens ? ` · 받은 토큰 ${tokens}` : ''}` : ''
       if (!end) {
         // 예전 일꾼은 끝을 알리지 않는다 — 다음 자리를 시작하면 앞 자리는 초안을 받은 것(자리를 같이 쓰는 일꾼은 par)
         if (!par) for (const x of j.spots) if (x.st === 'run' && x !== sp) Object.assign(x, { st: 'got', stage: 3 })
-        Object.assign(sp, { st: 'run', stage: 2 })
-        sp.lines.push([2, 'tool', `▸ Claude 초안${model ? ` · ${String(model).slice(0, 60)}` : ''}`])
+        Object.assign(sp, { st: 'run', stage: 2, tries: (sp.tries || 0) + 1, t0: Date.now() })
+        if (why) sp.lines.push([2, 'sys', String(why).slice(0, 160)])
+        sp.lines.push([2, 'tool', `▸ Claude 초안${model ? ` · ${String(model).slice(0, 60)}` : ''}${sp.tries > 1 ? ` · ${sp.tries}번째` : ''}`])
       } else if (ok) {
-        Object.assign(sp, { st: 'got', stage: 3 })
-        sp.lines.push([2, 'ok', '✓ 초안을 받았다'], [3, 'sys', '검사 · 넣기는 자리를 다 쓴 뒤 한꺼번에'])
+        Object.assign(sp, { st: 'got', stage: 3, ms: Number(ms) || 0, chars: Number(chars) || 0, cost: Number(cost) || 0 })
+        sp.lines.push([2, 'ok', `✓ 초안을 받았다${took}`], [3, 'sys', '받는 대로 검사해 넣는다'])
       } else {
         const w = STOP_WHY[why] || `초안을 받지 못했다${why ? ': ' + String(why).slice(0, 120) : ''}`
-        Object.assign(sp, { st: 'left', stage: 2, why: w })
-        sp.lines.push([2, 'err', `✗ ${w}`])
+        Object.assign(sp, { st: 'left', stage: 2, why: w, ms: Number(ms) || 0, chars: Number(chars) || 0 })
+        sp.lines.push([2, 'err', `✗ ${w}${took}`])
       }
       return { ok: true, stop: !!j.stop }
     },

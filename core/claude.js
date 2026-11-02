@@ -55,12 +55,19 @@ export function parse({ code, so, se }) {
     j = line ? JSON.parse(line) : null
   } catch {}
   const text = `${j?.result || ''} ${se || ''}`
+  // 끝 JSON 의 수치 — 시간 · 토큰 · 비용(정리 장부 · 일꾼 기록이 자리마다 남긴다)
+  const stat = j ? { cost: j.total_cost_usd || 0, model: j.model || null, apiMs: j.duration_api_ms || j.duration_ms || 0, tokens: (j.usage?.output_tokens || 0) + (j.usage?.input_tokens || 0), outTokens: j.usage?.output_tokens || 0 } : {}
   if (!j || j.is_error || code) {
     // claude 가 이 PC 에 없다 — 자리마다 다시 불러도 같다(일꾼은 멈추고 서버가 규칙으로 넣는다)
     if (!j && /ENOENT|not found|is not recognized/i.test(se || '')) return { error: 'missing', message: 'Claude Code(claude) 가 설치되어 있지 않다' }
-    if (/login|log in|api key|auth|unauthori|credential|401/i.test(text)) return { error: 'login', message: text.trim().slice(0, 200) }
-    if (/limit|quota|rate|usage|budget|429/i.test(text)) return { error: 'limit', message: text.trim().slice(0, 200) }
-    return { error: 'fail', message: text.trim().slice(0, 200) || `종료 ${code}` }
+    // 까닭은 subtype(error_max_budget_usd 같은 것)이 먼저 — 「종료 1」 만으로는 무엇인지 모른다
+    const sub = j?.subtype && j.subtype !== 'success' && j.subtype !== 'error' ? j.subtype : ''
+    const errs = Array.isArray(j?.errors) ? j.errors.map(String).join(' · ') : ''
+    const why = [sub, text.trim(), errs].filter(Boolean).join(' · ').slice(0, 200)
+    if (/login|log in|api key|auth|unauthori|credential|401/i.test(text)) return { error: 'login', message: why, ...stat }
+    if (/max_budget|budget/i.test(sub) || /exceeded.*budget|budget.*exceeded/i.test(text)) return { error: 'budget', message: `예산을 넘었다: ${why}`, ...stat }
+    if (/limit|quota|rate\s?limit|429/i.test(text)) return { error: 'limit', message: why, ...stat }
+    return { error: 'fail', message: why || `종료 ${code}`, ...stat }
   }
   let v = j.structured_output ?? null
   if (v == null && typeof j.result === 'string') {
@@ -71,7 +78,7 @@ export function parse({ code, so, se }) {
       return { error: 'shape', message: '초안이 JSON 이 아니다' }
     }
   }
-  return { value: v, cost: j.total_cost_usd || 0, model: j.model || null }
+  return { value: v, ...stat }
 }
 
 // 로그인 확인 — 아주 작은 부르기 한 번(`claude auth status` 는 끝난 로그인도 「됨」 으로 말해서 실제로 불러 본다)

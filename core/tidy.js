@@ -275,7 +275,21 @@ export const knowledgeParts = (body) => {
   if (!/^## 바뀐 것\s*$/m.test(s)) return s
   return s.split(/^(?=## )/m).filter((p) => !NOT_KNOWLEDGE.has((p.match(/^## (.+?)\s*$/m) || [])[1])).join('')
 }
-export const mustValues = (body) => [...valuesOf(knowledgeParts(body).replace(HASH_RE, ' ').replace(REC_ID_RE, ' '))].filter((v) => v.length <= 30)
+//   「무엇: 옛 값 → 새 값」 줄의 옛 값은 글에서 빠져야 할 값이라 요구하지 않는다(요구하면 옛 값을 지운 바른 초안이 늘 「값이 글에 없다」 로 남는다) — 새 값만
+const ARROW_RE = /^(\s*[-*]\s*[^\n]*?)\s*(?:→|->)\s*([^\n]*)$/gm
+// 「- 무엇: 옛 값」 → [「- 무엇:」, 「옛 값」] (「무엇:」 이 없으면 줄 전체가 옛 값)
+const splitLeft = (left) => { const m = left.match(/^(\s*[-*]\s*[^\n]*?:)\s+([^\n]*)$/); return m ? [m[1], m[2]] : [left.replace(/^(\s*[-*]\s*)[^\n]*$/, '$1'), left.replace(/^\s*[-*]\s*/, '')] }
+const newSide = (body) => String(body).replace(ARROW_RE, (_, left, right) => `${splitLeft(left)[0]} ${right}`)
+export const mustValues = (body) => [...valuesOf(newSide(knowledgeParts(body)).replace(HASH_RE, ' ').replace(REC_ID_RE, ' '))].filter((v) => v.length <= 30)
+// 기록이 뺀 옛 값(「옛 값 → 새 값」 의 왼쪽에만 있는 값) — 초안에 남아 있으면 알린다(거절하지 않는다: 같은 값이 다른 뜻으로 쓰였을 수 있다)
+export const oldValues = (body) => {
+  const out = new Set()
+  for (const m of String(body).matchAll(ARROW_RE)) {
+    const nv = valuesOf(m[2])
+    for (const v of valuesOf(splitLeft(m[1])[1])) if (!nv.has(v)) out.add(v)
+  }
+  return [...out]
+}
 
 // 지식에 있는 이름 — 그 문서의 항목 머리(「값: 설명」 이면 값도) · 이름 장부의 이름 · 보이는 이름 · 다른 이름(값과 같이 빈칸을 뺀다)
 const squeeze = (s) => String(s).replace(/\s+/g, '')

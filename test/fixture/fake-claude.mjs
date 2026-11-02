@@ -63,7 +63,8 @@ process.stdin.on('end', () => {
     return tick()
   }
   if (prompt.startsWith('아래 기록이 바꾼 항목을')) {
-    const first = /^- (\S+:[^ ]+(?: [^—]+)?) — /m.exec(prompt.split('후보:')[1] || '')
+    // 후보 줄은 「- 이름: 보이는 이름」(이름에 빈칸이 들 수 있다 · 첫 「: 」 앞까지가 이름)
+    const first = /^- (.+?): .+$/m.exec(prompt.split('후보:')[1] || '')
     return say({ structured_output: { touches: first ? [first[1].trim()] : [], why: '제목이 그 항목을 말한다' } })
   }
   const FIX = '\n\n지난 초안이 kmd 검사에 걸렸다'

@@ -207,9 +207,13 @@ async function writeRecord(dir, r, { user, now, taken, j }) {
 
 // 값 장부 — 글 속의 수 · `코드` · 따옴표 값(같은 값이면 새 사실이 아니다)
 //   코드 울타리(``` 줄)는 값 따옴표가 아니다 — 백틱을 짝지으면 울타리와 울타리 사이 글 전체가 값 하나가 된다 · `코드` 는 한 줄 안에서만
+//   날짜(2026-11-02)는 값 하나(2026 · 11 · 02 로 쪼개면 늘 「기록의 값이 글에 없다」 가 된다) ·
+//   수에 붙은 단위는 붙어 있으면 그대로(3개 · 10분간 → 10분), 띄어 쓴 단위는 뒤에 한글이 이어지지 않을 때만(「4.2 개발 PC」 는 4.2개 가 아니라 4.2)
+const UNIT = '%|초|분|시간|일|개|건|자|px|MB|GB|KB|ms|s'
+const VALUE_RE = new RegExp(`\`([^\`\\n]+)\`|「([^」]+)」|"([^"]+)"|(\\d{4}-\\d{2}-\\d{2}|\\d+(?:[.,]\\d+)*(?:(?:${UNIT})|\\s+(?:${UNIT})(?![가-힣]))?)`, 'g')
 export function valuesOf(text) {
   const out = new Set()
-  for (const m of String(text || '').replace(/^[ \t]*(?:`{3,}|~{3,}).*$/gm, '').matchAll(/`([^`\n]+)`|「([^」]+)」|"([^"]+)"|(\d+(?:[.,]\d+)*\s*(?:%|초|분|시간|일|개|건|자|MB|GB|KB|ms|s)?)/g)) out.add((m[1] || m[2] || m[3] || m[4]).replace(/\s+/g, ''))
+  for (const m of String(text || '').replace(/^[ \t]*(?:`{3,}|~{3,}).*$/gm, '').matchAll(VALUE_RE)) out.add((m[1] || m[2] || m[3] || m[4]).replace(/\s+/g, ''))
   return out
 }
 
