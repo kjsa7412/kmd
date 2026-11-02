@@ -99,6 +99,29 @@ test('「고친 조각」 칸: 기록 본문에 넣고 다시 읽는다 · 모�
   assert.equal(renderProposals([]), '')
 })
 
+test('저장 길(hub.save · 쓰기 자리): 조각은 검사해 기록 「고친 조각」 칸에 싣고 proposals 로 답한다 · 걸려도 기록은 남는다 · base 없으면 거절', async () => {
+  const k0 = await s.hub.get('dpms')
+  const coord = 'proc:헬스 체크'
+  const base = sha16(sectionOf(k0, coord).sec.body)
+  const r = await s.hub.save(LEE, 'dpms', { record: { title: '헬스 체크: 시간 초과', body: '## 바뀐 것\n- 시간 초과: 3초 → 5초', touches: [coord] }, sections: [{ coord, base, edits: [{ find: '시간 초과는 3초', replace: '시간 초과는 5초' }] }] }, { queue: true })
+  assert.equal(r.queued, true)
+  assert.equal(r.proposals.length, 1)
+  assert.equal(r.proposals[0].ok, true, r.proposals[0].why)
+  // 「3초」 가 글에 두 번 있어 하나만 고쳤다 — 값이 빠지지 않아 apply 지만 옛 값이 남았다고 알린다
+  assert.equal(r.proposals[0].waits, 'apply')
+  assert.match(r.proposals[0].warnings[0], /옛 값 3초 이 글에 아직 남아 있다/)
+  const k = await s.hub.get('dpms')
+  const w = k.byWork.get(r.id)
+  assert.equal(w.state, 'pend', '문서는 아직 그대로(넣기는 다음 단계)')
+  assert.deepEqual(parseProposals(w.body).map((p) => [p.coord, p.waits]), [[coord, 'apply']])
+  // 걸린 조각 — 기록은 남고 제안만 거절 · 가까운 줄
+  const bad = await s.hub.save(LEE, 'dpms', { record: { title: '헬스 체크: 주기', body: '## 바뀐 것\n- 주기: 30초 → 20초', touches: [coord] }, sections: [{ coord, base, edits: [{ find: '/health 를 30초마다 부른다', replace: '/health 를 20초마다 부른다' }] }] }, { queue: true })
+  assert.equal(bad.proposals[0].ok, false)
+  assert.match(bad.proposals[0].why, /먼저 온 기록|댈 수 없다/)
+  assert.ok((await s.hub.get('dpms')).byWork.get(bad.id), '기록은 남는다')
+  await assert.rejects(s.hub.save(LEE, 'dpms', { record: { title: 'x', body: '## 바뀐 것\n- a: 1', touches: [coord] }, sections: [{ coord, edits: [{ find: 'a', replace: 'b' }] }] }, { queue: true }), /base/)
+})
+
 test('섞인 자리: 같은 항목에 먼저 온 기록(제안 없음)이 있으면 결정적으로 넣지 않는다', async () => {
   await s.hub.save(LEE, 'dpms', { record: { title: '카나리 메모', body: '## 바뀐 것\n- 메모: 지켜본다', touches: ['proc:카나리'] } })
   const k = await s.hub.get('dpms')

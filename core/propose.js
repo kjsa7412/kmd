@@ -8,7 +8,7 @@
 import { sha16 } from './text.js'
 import { valuesOf } from './save.js'
 import { sectionOf } from './knowledge.js'
-import { check } from './tidy.js'
+import { check, oldValues } from './tidy.js'
 
 export const EDIT_MAX = 50 // 제안 하나의 조각 수 상한
 export const EDIT_CHARS = 20_000 // 조각 글 합의 상한
@@ -107,7 +107,10 @@ export function checkProposal(k, { coord, base, edits, record }) {
   const gone = [...valuesOf(cur)].filter((v) => !nowV.has(v))
   const dropped = edits.some((e) => sentencesOf(e.find).some((s) => !/\d|`|「|"/.test(s) && !norm(e.replace).includes(s)))
   const waits = r.changed.length || gone.length || dropped ? 'review' : 'apply'
-  return { ok: true, text: a.text, changed: r.changed, waits, ...(r.lint ? { lint: r.lint } : {}) }
+  // 기록이 바꿨다는 옛 값이 글에 아직 남아 있다 — 고친 범위가 모자란 것일 수 있어 알린다(거절하지 않는다: 같은 값이 다른 뜻일 수 있다)
+  const remain = oldValues(record.body).filter((v) => nowV.has(v))
+  const warnings = remain.length ? [`옛 값 ${remain.slice(0, 3).join(' · ')} 이 글에 아직 남아 있다`] : []
+  return { ok: true, text: a.text, changed: r.changed, waits, ...(warnings.length ? { warnings } : {}), ...(r.lint ? { lint: r.lint } : {}) }
 }
 const sentencesOf = (t) => norm(t).split(/(?<=[.!?。])\s+|\n+/).map((s) => s.trim()).filter((s) => s.length >= 8)
 

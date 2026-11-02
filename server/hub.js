@@ -17,6 +17,7 @@ import * as collect from '../core/collect.js'
 import crypto from 'node:crypto'
 import net from 'node:net'
 import { material, check as checkDraft, planSave, promptOf as tidyPrompt, INGEST_SCHEMA, DRAFT_SCHEMA, TOUCH_SCHEMA, ingestCandidates, ingestRule, formsOf, spotKey, spotTarget } from '../core/tidy.js'
+import { checkProposal, renderProposals } from '../core/propose.js'
 import { runClaude } from '../core/claude.js'
 import * as feed from '../core/feed.js'
 import { inside as insideDir, checkTarget, readSource, probe, readDecl, editDecl, DECL_BROKEN, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit } from '../core/sources.js'
@@ -710,15 +711,29 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 이름 · 자리 장부(names)도 항목 글과 같은 자리 — 일반의 것은 기록 본문에 「세울 이름」 으로 실어 정리 재료로 넘긴다
       // (팀 지식의 이름을 엉뚱한 자리로 옮겨 모두의 match · section 을 깨뜨리지 않게). 없는 이름 · 문서는 자리와 상관없이 같은 검사
       let proposed = []
+      const propsOut = [] // 제안마다 검사 결과 — 응답 proposals(세션이 그 자리에서 고친다)
       if ((input?.sections?.length || input?.names?.length || input?.forms?.length) && !opt.system && (!hub.canDirect(ctx, id) || (opt.queue && input.sections?.length))) {
         const k = await hub.get(id)
         const add = []
         const lines = []
+        const props = [] // 제안(바꿀 조각) — 기록 본문 「## 고친 조각」 칸에 싣는다(권한 모델 7절)
         for (const s of input.sections || []) {
           if (s.coord) {
-            const x = sectionOf(k, String(s.coord).trim().normalize('NFC'))
+            const coord = String(s.coord).trim().normalize('NFC')
+            const x = sectionOf(k, coord)
             if (!x) throw new KmdError('E_NOTFOUND', `「${s.coord}」 이 들어갈 문서가 정해져 있지 않다. 기록만 보내거나 문서 · 머리로 가리킨다`)
-            add.push(s.coord)
+            // 제안 — 조각(edits)을 지금 글에 대어 정리와 같은 검사. 걸려도 기록은 저장하고 제안만 돌려보낸다(기록을 잃지 않는다) ·
+            //   섞인 자리(먼저 온 기록)는 제안을 두고 정리가 같이 넣는다
+            if (Array.isArray(s.edits)) {
+              if (typeof s.base !== 'string' || !s.base) throw new KmdError('E_INPUT', `「${s.coord}」 조각에 base(section 이 준 지문)가 없다`)
+              const rec = { id: 'x-제안', date: new Date().toISOString().slice(0, 10), author: ctx.user, title: String(input.record?.title || ''), body: String(input.record?.body || '') }
+              const p = checkProposal(k, { coord, base: s.base, edits: s.edits, record: rec })
+              add.push(coord)
+              if (p.ok || p.mixed) props.push({ coord, base: s.base, edits: s.edits, waits: p.ok ? p.waits : 'tidy' })
+              propsOut.push({ coord, ok: !!p.ok, ...(p.ok ? { waits: p.waits, changed: p.changed, ...(p.warnings ? { warnings: p.warnings } : {}) } : { why: p.why, ...(p.stale ? { stale: true } : {}), ...(p.mixed ? { mixed: true } : {}), ...(p.near ? { near: p.near } : {}) }) })
+              continue
+            }
+            add.push(coord)
             // 문서 꼴(작성기준 7절 — 저장 길 모두) · 기록에 싣기 전에 같은 검사(정리 때 그대로 문서에 들어가지 않게)
             if (typeof s.content === 'string') checkFormat(s.coord, s.content, { doc: x.loc?.doc, old: x.sec ? x.sec.body : null })
             lines.push(`## ${x.sec?.h || x.loc?.heading || s.coord}\n${String(s.content || '').trim()}`)
@@ -736,6 +751,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         proposed = ns.map((n) => String(n.coord))
         const fs0 = (Array.isArray(input.forms) ? input.forms : []).filter((f) => f && f.name)
         if (fs0.length) lines.push(`## 세울 갈래\n${fs0.map((f) => `- ${f.name}${f.aliases?.length ? ` · 다른 이름 ${f.aliases.join(', ')}` : ''}${f.folder ? ` · 폴더 ${f.folder}` : ''}${f.kind ? ` · ${f.kind}` : ''}${f.pattern ? ` · 이름 ${f.pattern}` : ''}`).join('\n')}`)
+        if (props.length) lines.push(renderProposals(props))
         const rec0 = { ...input.record, touches: [...new Set([...(input.record?.touches || []), ...add])], body: `${input.record?.body || ''}\n\n${lines.join('\n\n')}`.trim() }
         // 항목 글로 자리를 가리켰으면(문서 · 머리) 그 항목이 이 기록의 자리다 — 이름이 없는 항목이면 at/ 로
         const ats = (input.sections || []).filter((x) => !x.coord && x.doc && x.heading).map((x) => atTag(String(x.doc).replace(/^docs\/|\.md$/g, ''), String(x.heading).trim()))
@@ -744,7 +760,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         queued = true
       }
       const r0 = await coreSave(meta.dir, input, { user: ctx.user, system: !!opt.system, guard: opt.guard || 'hold', holdWhy: opt.holdWhy || null, proposed })
-      const r = queued ? { ...r0, queued: true, ...(namesHeld ? { namesHeld } : {}) } : r0
+      const r = queued ? { ...r0, queued: true, ...(namesHeld ? { namesHeld } : {}), ...(propsOut.length ? { proposals: propsOut } : {}) } : r0
       // 그 사람의 「오늘 바뀐 것」 한 줄
       const title = input?.record?.title || ''
       feed.add(dataDir, ctx.user, queued || !r0.docs.length
