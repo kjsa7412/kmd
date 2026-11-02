@@ -266,6 +266,8 @@ test('값 장부: 날짜는 값 하나 · 띄어 쓴 단위는 뒤에 한글이 
   assert.deepEqual([...valuesOf('### 4.2 개발 PC · 3개를 · 10분간 · 5 건 · 7 초 뒤')].sort(), ['10분', '3개', '4.2', '5건', '7초'])
   // 날짜는 쪼개지 않는다(「2026 · 02」 로 요구하던 것) · 56px 는 값 하나
   assert.deepEqual([...valuesOf('2026-11-02 에 56px 로')].sort(), ['2026-11-02', '56px'])
+  // 식별자 속 수는 값이 아니다(188 DPA020: LS-201 · T920 · 03_계측기 를 늘 「값이 글에 없다」 로 두던 것)
+  assert.deepEqual([...valuesOf('LS-201 · T920 · 03_계측기 · deploy-gw.ps1 · 1-2 · 127.0.0.1:5432 · 129°')].sort(), ['1', '127.0.0.1', '129', '2', '5432'])
   const body = '뷰어 자리를 옮겼다.\n\n## 바뀐 것\n- 뷰어: 개발 PC `127.0.0.1:18444` → 188 `127.0.0.1:18444`, SSH 터널로 본다\n- PLC 시뮬레이터 Modbus: 0.0.0.0 → 127.0.0.1\n- 표지 크기: 40px → 56px\n- 재시도: 3번\n\n## 까닭\n- 2026-11-02 지시'
   // 옛 값(0.0.0.0 · 40px)은 글에서 빠져야 할 값이라 요구하지 않는다 · 새 값과 화살표 없는 줄의 값은 요구한다
   assert.deepEqual(mustValues(body).sort(), ['127.0.0.1', '127.0.0.1:18444', '188', '3', '56px'])
@@ -321,4 +323,31 @@ test('세 번 둔 기록: 지식관리자에게 「사람이 볼 것」 한 번 
   const done = s.hub.job(j.id)
   assert.ok(done.held >= 1, '뺀 자리 수를 남긴다')
   assert.ok(!(done.spots || []).some((x) => x.records.includes(rec.id)), '세 번 둔 기록의 자리는 자동 정리에서 빠진다')
+})
+
+test('조각 초안: 지금 글에 꼭 한 번 맞는 곳만 바꾼다 · 어긋나면 고쳐 쓴다 · 같은 검사(지어낸 값)를 거친다', async () => {
+  const { applyEdits } = await import('../core/tidy.js')
+  assert.deepEqual(applyEdits('가 나 다', { edits: [{ find: '나', replace: '라' }] }), { content: '가 라 다' })
+  assert.match(applyEdits('가 나 나', { edits: [{ find: '나', replace: '라' }] }).why, /^조각이 지금 글에 맞지 않는다/)
+  assert.match(applyEdits('가 나 다', { edits: [{ find: '마', replace: '라' }] }).why, /맞지 않는다/)
+  assert.deepEqual(applyEdits('가', { edits: [], rewrite: '새 글' }), { content: '새 글' })
+  assert.deepEqual(applyEdits('가', { edits: [] }), { content: '가' })
+  process.env.KMD_TIDY_PATCH = 'all'
+  try {
+    const before = callsN()
+    const put = await s.hub.save(LEE, 'dpms', { record: { title: '되돌리기 순서', body: '되돌리기는 `revert_app` 로 한다.', touches: ['proc:되돌리기'] } })
+    const off = await s.hub.save(LEE, 'dpms', { record: { title: '대시보드 조각어긋남', body: '조각어긋남 대시보드는 `dash_main` 로 본다.', touches: ['screen:대시보드'] } })
+    const bad = await s.hub.save(LEE, 'dpms', { record: { title: '보관 기간 지어낸', body: '지어낸 보관 기간은 `keep_days` 로 정한다.', touches: ['term:보관 기간'] } })
+    await api('/api/k/dpms/tidy', { ids: [put.id, off.id, bad.id] })
+    const r = await workOnce({ server: s.url, key: wkey, batch: 1 })
+    const by = (t) => r.rows.find((x) => x.target.includes(t))
+    assert.equal(by('되돌리기').kind, 'put', JSON.stringify(r.rows))
+    assert.match((await s.hub.get('dpms')).byDocPath.get('docs/롤백절차.md').sections.find((x) => x.h === '되돌리기').body, /revert_app/)
+    assert.equal(by('대시보드').kind, 'put', '어긋난 조각은 까닭을 붙여 한 번 고쳐 쓴다')
+    const log = fs.readFileSync(calls, 'utf8').split('\n').filter(Boolean).slice(before)
+    assert.ok(log.includes('fix'))
+    assert.match(by('보관 기간').why, /근거에 없는 값/, '조각도 지어낸 값 검사를 거친다')
+  } finally {
+    delete process.env.KMD_TIDY_PATCH
+  }
 })

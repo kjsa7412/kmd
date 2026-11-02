@@ -77,6 +77,9 @@ function answer() {
     const first = /^- (.+?): .+$/m.exec(prompt.split('후보:')[1] || '')
     return say({ structured_output: { touches: first ? [first[1].trim()] : [], why: '제목이 그 항목을 말한다' } })
   }
+  // 조각 꼴(PATCH_RULE 이 끝에 붙는다) — 같은 초안을 지금 글 전체를 찾아 바꾸는 조각 하나로(빈 글이면 rewrite) · 기록에 「조각어긋남」 이면 지금 글에 없는 find
+  const patch = prompt.includes('\n\n답 꼴(조각)')
+  if (patch) prompt = prompt.slice(0, prompt.indexOf('\n\n답 꼴(조각)'))
   const FIX = '\n\n지난 초안이 kmd 검사에 걸렸다'
   if (prompt.includes(FIX)) {
     if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'fix\n')
@@ -96,7 +99,14 @@ function answer() {
     })
     return say({ structured_output: { items: items.filter((x) => !x.recs.some((r) => r.body.includes('묶음빠짐'))).map((x) => ({ key: x.key, ...draft(x.cur, x.recs) })) } })
   }
-  say({ structured_output: draft((prompt.split('지금 글:\n')[1] || '').split('\n\n기록(오래된 것부터):')[0], all) })
+  const cur = (prompt.split('지금 글:\n')[1] || '').split('\n\n기록(오래된 것부터):')[0]
+  const d = draft(cur, all)
+  if (!patch) return say({ structured_output: d })
+  const { content, ...rest } = d
+  const now = cur === '(아직 없음)' ? '' : cur
+  if (!now.trim()) return say({ structured_output: { ...rest, edits: [], rewrite: content } })
+  const off = all.some((r) => r.body.includes('조각어긋남')) && !fixing
+  say({ structured_output: { ...rest, edits: [{ find: off ? '지금 글에 없는 줄' : now, replace: content }] } })
 }
 
 function draft(cur, recs) {

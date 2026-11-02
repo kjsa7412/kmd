@@ -193,7 +193,7 @@ export function fixPromptOf(g, draft, why) {
   return [
     promptOf(g),
     `지난 초안이 kmd 검사에 걸렸다: ${why}`,
-    '「기록의 값이 글에 없다」 면 그 값을 기록에 쓰인 글자 그대로(단위까지) 글에 넣는다. 그 항목에 맞지 않는 값이면 그 기록을 left 에 까닭과 함께 둔다. 「근거에 없는 값」 이면 지금 글과 기록에 없는 그 값을 빼거나 근거에 있는 값으로 바꾼다. 「옛 글의 값이 빠졌다」 면 그 값을 지금 글 그대로 되살린다. 기록이 그 값을 바꿨으면 새 값을 쓰고 drop 에 옛 값을 적는다. 나머지는 지난 초안을 그대로 두고 걸린 것만 고친다.',
+    '「조각이 지금 글에 맞지 않는다 · 여러 곳에 맞는다」 면 find 를 지금 글 그대로 더 길게 잡거나 rewrite 에 새 글 전체를 쓴다. 「기록의 값이 글에 없다」 면 그 값을 기록에 쓰인 글자 그대로(단위까지) 글에 넣는다. 그 항목에 맞지 않는 값이면 그 기록을 left 에 까닭과 함께 둔다. 「근거에 없는 값」 이면 지금 글과 기록에 없는 그 값을 빼거나 근거에 있는 값으로 바꾼다. 「옛 글의 값이 빠졌다」 면 그 값을 지금 글 그대로 되살린다. 기록이 그 값을 바꿨으면 새 값을 쓰고 drop 에 옛 값을 적는다. 나머지는 지난 초안을 그대로 두고 걸린 것만 고친다.',
     `지난 초안:\n${JSON.stringify(draft)}`,
   ].join('\n\n')
 }
@@ -315,6 +315,11 @@ export function check(k, g, d) {
     const allowed = new Set(g.candidates.map((c) => c.coord))
     if (d.touches.some((c) => !allowed.has(c))) return { ok: false, why: '후보 밖의 이름을 골랐다' }
     return { ok: true, changed: [] }
+  }
+  if (typeof d.content !== 'string' && (Array.isArray(d.edits) || typeof d.rewrite === 'string')) {
+    const a = applyEdits(g.content || '', d)
+    if (a.why) return { ok: false, why: a.why }
+    d.content = a.content
   }
   if (typeof d.content !== 'string' || !Array.isArray(d.used) || !Array.isArray(d.left)) return { ok: false, why: '초안 모양이 아니다' }
   const ids = g.records.map((r) => r.id)

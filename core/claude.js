@@ -16,10 +16,12 @@ export const ENV_ALLOW = ['PATH', 'Path', 'PATHEXT', 'HOME', 'USERPROFILE', 'APP
 
 // model — 별칭(haiku · sonnet · opus) · 비면 그 PC 의 기본 모델(core/models.js)
 // onTick({ out, think, ms }) — 흘려 받기(stream-json): 쓴 글(답 · 스키마 답) · 생각 글자 수와 지난 시간을 tickMs 마다 한 번(끝날 때만 답하던 json 은 몇 분씩 소식이 없었다)
-export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_000, model = '', onTick = null, tickMs = 10_000 }) {
+// effort — 생각 정도(low · medium · high · max · 비면 넘기지 않는다)
+export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_000, model = '', onTick = null, tickMs = 10_000, effort = '' }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-worker-'))
   const env = Object.fromEntries(ENV_ALLOW.filter((k) => process.env[k] != null).map((k) => [k, process.env[k]]))
   const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--tools', '', '--strict-mcp-config', '--mcp-config', JSON.stringify({ mcpServers: {} }), '--no-session-persistence', '--max-budget-usd', String(budget), '--json-schema', JSON.stringify(schema), ...modelArgs(model)]
+  if (/^(low|medium|high|max)$/.test(effort)) args.push('--effort', effort)
   if (process.env.ANTHROPIC_API_KEY) args.push('--bare')
   const fake = process.env.KMD_CLAUDE
   const win = process.platform === 'win32'

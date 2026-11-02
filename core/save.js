@@ -211,9 +211,16 @@ async function writeRecord(dir, r, { user, now, taken, j }) {
 //   수에 붙은 단위는 붙어 있으면 그대로(3개 · 10분간 → 10분), 띄어 쓴 단위는 뒤에 한글이 이어지지 않을 때만(「4.2 개발 PC」 는 4.2개 가 아니라 4.2)
 const UNIT = '%|초|분|시간|일|개|건|자|px|MB|GB|KB|ms|s'
 const VALUE_RE = new RegExp(`\`([^\`\\n]+)\`|「([^」]+)」|"([^"]+)"|(\\d{4}-\\d{2}-\\d{2}|\\d+(?:[.,]\\d+)*(?:(?:${UNIT})|\\s+(?:${UNIT})(?![가-힣]))?)`, 'g')
+//   식별자 속 수는 값이 아니다 — 「LS-201 · T920 · 03_계측기 · deploy-gw.ps1」 의 201 · 920 · 03 · 1 을 따로 요구하면 늘 「기록의 값이 글에 없다」 가 된다
+//   (앞이 영문 · _ · 「영문-」 이거나 뒤가 영문 · _ 이면 이름의 한 조각)
+const inName = (s, i, n) => /[A-Za-z_]/.test(s[i - 1] || '') || (s[i - 1] === '-' && /[A-Za-z]/.test(s[i - 2] || '')) || /[A-Za-z_]/.test(s[i + n] || '')
 export function valuesOf(text) {
   const out = new Set()
-  for (const m of String(text || '').replace(/^[ \t]*(?:`{3,}|~{3,}).*$/gm, '').matchAll(VALUE_RE)) out.add((m[1] || m[2] || m[3] || m[4]).replace(/\s+/g, ''))
+  const s = String(text || '').replace(/^[ \t]*(?:`{3,}|~{3,}).*$/gm, '')
+  for (const m of s.matchAll(VALUE_RE)) {
+    if (m[4] && inName(s, m.index, m[0].length)) continue
+    out.add((m[1] || m[2] || m[3] || m[4]).replace(/\s+/g, ''))
+  }
   return out
 }
 

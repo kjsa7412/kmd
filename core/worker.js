@@ -7,7 +7,7 @@
 //   로그인이 끝났거나 한도면 다시 시도하지 않고 멈춘 뒤 서버에 알린다(멈춤 한 줄 「자동 정리가 쉬고 있다」)
 
 import { runClaude } from './claude.js'
-import { promptOf, fixPromptOf, DRAFT_SCHEMA, TOUCH_SCHEMA, INGEST_SCHEMA, spotKey, spotTarget, batchesOf, batchPromptOf, BATCH_SCHEMA, BATCH_MAX } from './tidy.js'
+import { promptOf, fixPromptOf, patchPromptOf, PATCH_RULE, PATCH_SCHEMA, BATCH_OUT, DRAFT_SCHEMA, TOUCH_SCHEMA, INGEST_SCHEMA, spotKey, spotTarget, batchesOf, batchPromptOf, BATCH_SCHEMA, BATCH_MAX } from './tidy.js'
 import { runAgent, agentAvailable } from './agent.js'
 import { modelOf } from './models.js'
 import fs from 'node:fs'
@@ -58,6 +58,11 @@ const TIDY_TIMEOUT = 5 * 60_000
 const timeoutOf = (prompt) => Math.min(15 * 60_000, TIDY_TIMEOUT + Math.floor(String(prompt).length / 2000) * 60_000)
 // 한 문서의 항목을 한 번에 쓰는 수(KMD_TIDY_BATCH · 1 이면 자리마다 따로)
 const BATCH = Math.max(1, Number(process.env.KMD_TIDY_BATCH) || BATCH_MAX)
+// 조각 초안(KMD_TIDY_PATCH) — off: 늘 전체 · big: 다시 쓸 글이 묶음 상한(3천 자)을 넘는 항목만 조각 · all: 항목 자리 모두 조각
+const PATCH = () => (['off', 'big', 'all'].includes(process.env.KMD_TIDY_PATCH) ? process.env.KMD_TIDY_PATCH : 'big')
+const patchOn = (g) => g.kind === 'section' && (PATCH() === 'all' || (PATCH() === 'big' && (g.content || '').length > BATCH_OUT))
+// 생각 정도(KMD_TIDY_EFFORT · low · medium · high · max · 비면 그 PC 의 기본)
+const EFFORT = () => process.env.KMD_TIDY_EFFORT || ''
 // 쓰는 동안 소식 간격 — 이 사이 소식이 없으면 화면이 「멈춘 것 같다」 를 1분에 띄운다
 const TICK = () => Number(process.env.KMD_TIDY_TICK_MS) || 15_000
 
@@ -114,10 +119,10 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
   const ask1 = async (prompt, o, keys = []) => {
     const t0 = Date.now()
     const onTick = keys.length && !lost ? (t) => { call(server, dkey, `/api/k/${kn}/worker/progress`, { keys, tick: true, out: t.out, think: t.think, ms: t.ms }).then((p) => { if (p.stop) quit = true }, gone) } : null
-    const r = await runClaude({ prompt, budget, timeoutMs: timeoutOf(prompt), onTick, tickMs: TICK(), ...o })
+    const r = await runClaude({ prompt, budget, timeoutMs: timeoutOf(prompt), onTick, tickMs: TICK(), effort: EFFORT(), ...o })
     return { ...r, ms: Date.now() - t0, chars: prompt.length }
   }
-  const write = (g, model) => ask(promptOf(g), { schema: schemaOf(g), model }, [spotKey(g)])
+  const write = (g, model) => (patchOn(g) ? ask(patchPromptOf(g), { schema: PATCH_SCHEMA, model }, [spotKey(g)]) : ask(promptOf(g), { schema: schemaOf(g), model }, [spotKey(g)]))
   // 자리 끝 — 서버에 알리고, 초안이면 바로 올린다. 못 올리면 끝에 같이 ·
   //   서버 검사가 고칠 수 있는 까닭(빠진 값 · 지어낸 값 · 크기 · 머리)으로 돌려보내면 그 까닭을 붙여 한 번만 다시 쓴다
   const finish = async (g, r, again = true) => {
@@ -139,7 +144,8 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
   // 고쳐 쓰기 한 번 — 서버가 이미 「까닭을 알려 고쳐 쓴다」 줄을 달았다
   const refix = async (g) => {
     const model = modelOf(g.kind === 'touches' ? 'touch' : 'tidy', models)
-    if (await begin(g, model)) await finish(g, await ask(fixPromptOf(g, g.fix.draft, g.fix.why), { schema: schemaOf(g), model }, [spotKey(g)]), false)
+    const patch = g.kind === 'section' && !('content' in g.fix.draft)
+    if (await begin(g, model)) await finish(g, await ask(patch ? [fixPromptOf(g, g.fix.draft, g.fix.why), PATCH_RULE].join('\n\n') : fixPromptOf(g, g.fix.draft, g.fix.why), { schema: patch ? PATCH_SCHEMA : schemaOf(g), model }, [spotKey(g)]), false)
   }
   const one = async (g) => {
     if (g.fix) return refix(g)
