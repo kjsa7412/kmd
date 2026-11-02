@@ -213,13 +213,13 @@ export function slots(n) {
   return { take: () => (free > 0 ? (free--, Promise.resolve()) : new Promise((ok) => wait.push(ok))), give: () => (wait.length ? wait.shift()() : free++) }
 }
 // 일꾼이 남긴 Claude Code 프로젝트 폴더 — 부를 때마다 새 임시 폴더라 ~/.claude/projects 에 「…kmd-worker-…」 가 쌓이기만 했다(188 에 28개).
-//   하루 지난 것을 걷는다(지금 부르는 것은 건드리지 않는다)
+//   넣은 파일 에이전트의 「…kmd-agent-…」 도 같다 · 하루 지난 것을 걷는다(지금 부르는 것은 건드리지 않는다)
 export function sweepProjects({ home = os.homedir(), log = () => {}, ageMs = 24 * 3600_000 } = {}) {
   const dir = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(home, '.claude'), 'projects')
   let n = 0
   let names = []
   try { names = fs.readdirSync(dir) } catch (e) { if (e.code !== 'ENOENT') log(`일꾼 폴더를 읽지 못했다: ${e.message}`); return 0 }
-  for (const x of names.filter((y) => /kmd-worker-/.test(y))) {
+  for (const x of names.filter((y) => /kmd-(?:worker|agent)-/.test(y))) {
     const p = path.join(dir, x)
     try {
       if (Date.now() - fs.statSync(p).mtimeMs < ageMs) continue

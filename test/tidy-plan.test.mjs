@@ -163,13 +163,14 @@ test('일꾼: 사람이 누른 정리를 자동 정리보다 먼저 · claude �
   // 일꾼 폴더 — 하루 지난 「kmd-worker-」 만
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-home-'))
   const pj = path.join(home, '.claude', 'projects')
-  for (const x of ['C--tmp-kmd-worker-old', 'C--tmp-kmd-worker-new', 'C--project-kmd']) fs.mkdirSync(path.join(pj, x), { recursive: true })
+  for (const x of ['C--tmp-kmd-worker-old', 'C--tmp-kmd-agent-old', 'C--tmp-kmd-worker-new', 'C--project-kmd']) fs.mkdirSync(path.join(pj, x), { recursive: true })
   const old = (Date.now() - 2 * 864e5) / 1000
   fs.utimesSync(path.join(pj, 'C--tmp-kmd-worker-old'), old, old)
+  fs.utimesSync(path.join(pj, 'C--tmp-kmd-agent-old'), old, old)
   fs.utimesSync(path.join(pj, 'C--project-kmd'), old, old)
   const cfg = process.env.CLAUDE_CONFIG_DIR
   delete process.env.CLAUDE_CONFIG_DIR
-  try { assert.equal(sweepProjects({ home }), 1) } finally { if (cfg) process.env.CLAUDE_CONFIG_DIR = cfg }
+  try { assert.equal(sweepProjects({ home }), 2) } finally { if (cfg) process.env.CLAUDE_CONFIG_DIR = cfg }
   assert.deepEqual(fs.readdirSync(pj).sort(), ['C--project-kmd', 'C--tmp-kmd-worker-new'])
   fs.rmSync(home, { recursive: true, force: true })
 })
