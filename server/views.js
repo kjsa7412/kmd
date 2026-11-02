@@ -250,7 +250,9 @@ export function refOf(docPath, line, k = null) {
 }
 
 export function knowledgeRow(k) {
-  const pend = k.works.filter((w) => w.state === 'pend').length
+  // 반영 대기 — 정리를 기다리는 기록 + 넣을 곳 없는 기록(비공개는 따로 · 컨벤션 9절) · 화면은 이 수만 쓴다
+  const priv = (w) => w.tags.some((t) => /^private$/i.test(t))
+  const pend = k.works.filter((w) => (w.state === 'pend' || w.state === 'nowhere') && !priv(w)).length
   const when = [k.docs[0]?.mtime, k.works[0] ? isoOfStamp(k.works[0].date) : null].filter(Boolean).sort().pop() || null
   return { id: k.id, name: k.name, docs: k.docs.length, records: k.works.length, pend, when }
 }

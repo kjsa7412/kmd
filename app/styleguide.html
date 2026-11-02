@@ -171,9 +171,15 @@ html,body{background:var(--bg)}
     </div>
   </section>
 
+  <section id="tdsum">
+    <h2>요약 줄 · 진행 띠 <small>쉴 때 단위가 고정된 수 · 도는 동안 탭 위 한 줄(role=status) · 지난 시간 칸만 1초마다</small></h2>
+    <div class="td-sum"><span><b>3</b> 반영 대기</span><span class="w"><b>1</b> 넣을 곳 없음</span><span class="w"><b>1</b> 다시 볼 것</span><span><b>0</b> 사람이 볼 것</span><span><b>2</b> 지난 정리 넣음</span></div>
+    <div class="go td-band" role="status"><span class="tx"><b>이번 정리 · kim · 넣을 곳 4 · 넣음 1 · 쓰는 중 2 · 기다림 1 · 3:12 지남</b><small><span class="cur"><b>화면설계서 › DPA010: 상황 지도</b> · 쓰는 중 2:40 · 쓴 글 1.2k자 · 생각 0.3k자</span></small></span><span class="prog"><i></i>정리하는 중</span><button class="btn">그만두기</button></div>
+  </section>
+
   <section id="chip">
     <h2>칩 · 표지 <small>칩은 상태만(누르지 않는다) · 표지는 갈래만</small></h2>
-    <div class="sg-row"><span class="chip c-acc">됨</span><span class="chip c-mute">그대로</span><span class="chip c-warn">멈춤</span><span class="chip c-danger">못 함</span><span class="chip c-pend">가져오는 중</span><span class="chip c-ok">켜짐</span></div>
+    <div class="sg-row"><span class="chip c-ok">됨 · 넣음</span><span class="chip c-acc">새로 · 바뀜</span><span class="chip c-mute">그대로</span><span class="chip c-warn">멈춤</span><span class="chip c-danger">못 함</span><span class="chip c-pend">가져오는 중</span><span class="chip c-pend">반영 대기</span></div>
     <div class="sg-row" style="margin-top:var(--sp-5)"><span class="kt team">팀</span><span class="kt me">개인</span><span class="kt role">지식관리자</span><span class="kt src">가져온 것</span><span class="kt gone">없어짐</span><span class="kn">DPMS 지식</span><span class="kn none">지식 없음</span></div>
     <h3>지식 자리 — 읽기 · 쓰기 · 관리</h3>
     <div class="sg-row"><span class="kt lv-read">읽기</span><span class="kt lv-write">쓰기</span><span class="kt lv-admin">관리</span></div>
@@ -225,7 +231,7 @@ html,body{background:var(--bg)}
     <h2>표 <small>.tblwrap 로 감싸면 표만 가로로 밀린다</small></h2>
     <div class="tblwrap"><table class="t">
       <tr><th>이름</th><th>경로</th><th>바뀐 때</th><th>누가</th><th>상태</th><th></th></tr>
-      <tr><td>배포절차</td><td class="mono">docs/운영/배포절차.md</td><td>10-28 14:02</td><td>kim</td><td><span class="chip c-acc">됨</span></td><td style="text-align:right"><button class="btn sm">보기</button></td></tr>
+      <tr><td>배포절차</td><td class="mono">docs/운영/배포절차.md</td><td>10-28 14:02</td><td>kim</td><td><span class="chip c-ok">됨</span></td><td style="text-align:right"><button class="btn sm">보기</button></td></tr>
       <tr class="sel"><td>헬스 체크 <small>고른 줄 .sel</small></td><td class="mono">docs/운영/헬스체크.md</td><td>10-28 13:40</td><td>lee</td><td><span class="chip c-pend">기다림</span></td><td style="text-align:right"><button class="btn sm">보기</button></td></tr>
       <tr><td>카나리 비율</td><td class="mono">docs/배포/카나리.md</td><td>10-27 18:11</td><td>park</td><td><span class="chip c-warn">멈춤</span></td><td style="text-align:right"><button class="btn sm">보기</button></td></tr>
     </table></div>

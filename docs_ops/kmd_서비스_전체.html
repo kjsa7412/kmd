@@ -98,7 +98,7 @@ svg.arch .hd{fill:var(--text-3)}
 </svg>
 <div class="m-tbl"><table>
 <tr><th>부분</th><th>어디서</th><th>하는 것</th></tr>
-<tr><td><span class="tag">팀</span>팀 프로그램</td><td><code>kmd serve</code> · systemd · 8090</td><td>팀 지식 · 팀 화면 · 사람 · 권한 · 정리 일 줄 · 가져올 곳 · 백업 · MCP · 설명서 · 받기</td></tr>
+<tr><td><span class="tag">팀</span>팀 프로그램</td><td><code>kmd serve</code> · systemd · 8090</td><td>팀 지식 · 팀 화면 · 사람 · 권한 · 정리 일감 · 가져올 곳 · 백업 · MCP · 설명서 · 받기</td></tr>
 <tr><td><span class="tag p">일꾼</span>정리 일꾼</td><td><code>kmd-worker.service</code></td><td>정리 · 들이기 일감을 받아 Claude Code 로 항목 초안. 쉬면 서버가 규칙으로 넣는다</td></tr>
 <tr><td><span class="tag g">PC</span>개인 프로그램</td><td><code>kmd up</code> · 작업 스케줄러</td><td>개인 지식 · 개인 화면 · 파일 넣기 · 편집기 직접 고침 감시 · 지식 보내기 · MCP</td></tr>
 <tr><td><span class="tag p">AI</span>Claude Code</td><td>작업 폴더</td><td>일 전에 지식에서 사실을 찾아 읽고, 일 뒤에 배운 것을 기록으로 남긴다</td></tr>
@@ -166,7 +166,7 @@ svg.arch .hd{fill:var(--text-3)}
 <h2 id="flows"><span class="m-no">5</span>흐름</h2>
 <h3>고치기 → 기록 → 정리 → 문서</h3>
 <div class="m-flow"><div class="m-st"><b>고침 · 세션 · 보냄 · 파일</b><small>쓰기 자리 · Claude Code · 개인 → 팀</small></div><span class="m-ar">›</span><div class="m-st m-pd"><b>기록</b><small>work/&lt;id&gt;.md · touches</small></div><span class="m-ar">›</span><div class="m-st"><b>정리 때</b><small>02:30 · 실시간 · 손으로만</small></div><span class="m-ar">›</span><div class="m-st m-hi"><b>초안 · 검사</b><small>정리 일꾼 · 숫자 · 이름 대조</small></div><span class="m-ar">›</span><div class="m-st m-ok"><b>문서</b><small>항목 · 참고 블록 · git · 이력</small></div></div>
-<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 정리</span></div><div class="m-pic"><img src="manual/img/t-tidy.png" alt="정리 화면: 다섯 단계 현황판과 받은 것" loading="lazy"></div></div><figcaption>정리 화면. 위 현황판이 다섯 단계마다 몇인지, 아래가 받은 기록이다.</figcaption></figure>
+<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 정리</span></div><div class="m-pic"><img src="manual/img/t-tidy.png" alt="정리 화면: 요약 줄과 반영 대기" loading="lazy"></div></div><figcaption>정리 화면. 위 요약 줄이 반영 대기 · 넣을 곳 없음 · 다시 볼 것 · 사람이 볼 것 수를, 아래가 반영 대기 기록이다. 도는 동안은 진행 띠가 지금 쓰는 곳과 지난 시간을 보인다.</figcaption></figure>
 <div class="two">
 <div class="lane"><h4>파일 넣기 · 일 줄</h4>
 <div class="m-flow"><div class="m-st m-hi"><b>수집</b><small>글로 바꾸기</small></div><div class="m-st"><b>검토</b><small>같은 파일 · 크기</small></div><div class="m-st m-pd"><b>기록 생성</b><small>파일마다</small></div><div class="m-st m-ok"><b>문서 생성</b><small>세션처럼 넣기</small></div></div>
@@ -188,7 +188,7 @@ svg.arch .hd{fill:var(--text-3)}
 <a class="m-card" href="manual/사용자.html#view"><img src="manual/img/t-graph.png" alt="" loading="lazy"><b>그래프</b><p>항목 · 문서 · 기록의 이음</p></a>
 <a class="m-card" href="manual/사용자.html#search"><img src="manual/img/t-search.png" alt="" loading="lazy"><b>찾기 Ctrl K</b><p>이름 · 다른 이름 · 문서 속 글</p></a>
 <a class="m-card" href="manual/사용자.html#import"><img src="manual/img/t-import.png" alt="" loading="lazy"><b>가져오기 · 일 줄</b><p>네 단계 흐름 · 터미널 · 만든 것</p></a>
-<a class="m-card" href="manual/지식관리자.html#tidy"><img src="manual/img/t-tidyrun.png" alt="" loading="lazy"><b>정리 일 줄</b><p>자리마다 한 줄 · 합치는 기록</p></a>
+<a class="m-card" href="manual/지식관리자.html#tidy"><img src="manual/img/t-tidyrun.png" alt="" loading="lazy"><b>정리 중</b><p>넣을 곳마다 한 줄 · 누르면 흐름 · 활동 기록</p></a>
 <a class="m-card" href="manual/관리자.html#people"><img src="manual/img/t-people.png" alt="" loading="lazy"><b>사람</b><p>상태 · 기기 · 지식마다 자리</p></a>
 <a class="m-card" href="manual/개인.html#screen"><img src="manual/img/p-home.png" alt="" loading="lazy"><b>개인 화면</b><p>지식 폴더 띠 · 개인 지식</p></a>
 <a class="m-card" href="manual/개인.html#send"><img src="manual/img/p-send.png" alt="" loading="lazy"><b>지식 보내기</b><p>보내는 지식 → 받는 팀 지식</p></a>

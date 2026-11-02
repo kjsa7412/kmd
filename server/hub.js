@@ -1870,6 +1870,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const done = (j?.rows || []).concat(rows).filter((x) => x.kind !== 'stopped')
       const took = (j?.spots || []).filter((x) => x.ms).map((x) => ({ key: x.key, ms: x.ms, chars: x.chars || 0, tries: x.tries || 1 }))
       const run = { at: new Date().toISOString(), by: j?.by || null, auto: !!j?.auto, rows: done, ...(j?.stop ? { stopped: j.stop.by } : {}), ...(j ? { job: j.id, started: j.started || null, ms: j.started ? Date.now() - Date.parse(j.started) : null, took } : {}) }
+      // 지난 정리 줄의 제목 · 사람 — 화면이 최근 기록 200개에서 찾다 옛 기록은 id · 「kmd」 가 되던 것
+      if (done.length) { const kk = await hub.get(id); for (const x of done) { const w = kk.byWork.get((x.records || [])[0]); if (w) Object.assign(x, { title: x.title || w.title, who: x.who || w.author }) } }
       if (done.length) await saveRun(id, run) // 빈 정리는 「정리한 것」 카드를 남기지 않는다
       // 이번에 세 번째로 둔 기록 — 지식관리자에게 「사람이 볼 것」 한 번
       if (done.some((x) => x.kind === 'left')) {

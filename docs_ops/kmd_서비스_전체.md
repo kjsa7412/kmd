@@ -20,7 +20,7 @@ kmd 를 처음부터 끝까지 한 장에 담는다. 무엇을 하는 서비스�
 
 | 부분 | 어디서 도나 | 하는 것 |
 |---|---|---|
-| **팀 프로그램**(팀 서버) | Linux · `kmd serve` · systemd `kmd.service` · 기본 포트 8090(테스트 서버) | 팀 지식 · 팀 화면 · 사람 · 권한 · 정리 일 줄 · 가져올 곳 · 백업 · MCP(`kmd-team`) · 설명서 `/manual` · PC 꾸러미 받기 `/dl` |
+| **팀 프로그램**(팀 서버) | Linux · `kmd serve` · systemd `kmd.service` · 기본 포트 8090(테스트 서버) | 팀 지식 · 팀 화면 · 사람 · 권한 · 정리 일감 · 가져올 곳 · 백업 · MCP(`kmd-team`) · 설명서 `/manual` · PC 꾸러미 받기 `/dl` |
 | **정리 일꾼** | 팀 서버 · `kmd-worker.service` · 정리 전용 Claude 로그인 | 일 줄에서 정리 · 들이기 일감을 받아 Claude Code 로 항목 초안을 쓴다. 쉬면 서버가 규칙으로 넣는다 |
 | **개인 프로그램** | Windows PC · `kmd up` · `127.0.0.1:7373` · 작업 스케줄러로 늘 켜기 | 개인 지식(`D:\kmd`) · 개인 화면 · 파일 넣기 · 편집기 직접 고침 감시 · 지식 보내기 · MCP(`kmd`) |
 | **Claude Code** | 사람의 PC · 작업 폴더 | 연결 `kmd-team`(팀) · `kmd`(개인) 과 스킬(`kmd-team-work` · `kmd-team-save` · `kmd-work` · `kmd-save` · `kmd-build`)로 지식을 읽고 남긴다 |
