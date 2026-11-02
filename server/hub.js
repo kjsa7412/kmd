@@ -210,7 +210,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   let jobsW = Promise.resolve()
   const saveJobs = () => {
     const keep = [...jobs.values()].filter((j) => j.state === 'queued' || j.state === 'running' || Date.now() - Date.parse(j.done || j.at) < 24 * 3600_000).slice(-200)
-    jobsW = jobsW.then(() => fs.mkdir(dataDir, { recursive: true })).then(() => fs.writeFile(jobsFile + '.tmp', JSON.stringify(keep))).then(() => fs.rename(jobsFile + '.tmp', jobsFile)).catch(() => {})
+    jobsW = jobsW.then(() => fs.mkdir(dataDir, { recursive: true })).then(() => fs.writeFile(jobsFile + '.tmp', JSON.stringify(keep))).then(() => fs.rename(jobsFile + '.tmp', jobsFile)).catch((e) => log(`정리 일감 장부를 쓰지 못했다: ${e.message}`))
     return jobsW
   }
   const sweepJobs = () => {
@@ -257,10 +257,29 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     const cut = Date.now() - 7 * 864e5
     return k.logs.filter((w) => w.reopens.length && w.title.startsWith('되돌림') && w.body.includes(doc.replace(/^docs\/|\.md$/g, '')) && (stampMs(w.date) || 0) >= cut).length
   }
+  // 정리 장부(tidy/<id>.json · 지난 정리 30번) — 없으면 빈 것 · 깨졌으면 옆으로 옮겨 두고 log(빈 것으로 읽어 덮지 않는다 · 둔 횟수의 바탕이다)
+  const runsFile = (id) => path.join(dataDir, 'tidy', `${encodeURIComponent(id)}.json`)
+  async function readRuns(id, { aside = false } = {}) {
+    const f = runsFile(id)
+    let t
+    try {
+      t = await fs.readFile(f, 'utf8')
+    } catch (e) {
+      if (e.code === 'ENOENT') return []
+      throw e
+    }
+    try {
+      const v = JSON.parse(t)
+      if (Array.isArray(v)) return v
+    } catch {}
+    log(`정리 장부가 깨졌다: ${f}${aside ? ' · 옆으로 옮기고 새로 쓴다' : ''}`)
+    if (aside) await fs.rename(f, `${f}.broken-${Date.now()}`)
+    return []
+  }
   function saveRun(id, run) {
-    const f = path.join(dataDir, 'tidy', `${encodeURIComponent(id)}.json`)
+    const f = runsFile(id)
     return serial(`json:${f}`, async () => {
-      const all = await fs.readFile(f, 'utf8').then(JSON.parse, () => [])
+      const all = await readRuns(id, { aside: true })
       all.unshift(run)
       await writeJsonAtomic(f, all.slice(0, 30))
     })
@@ -1776,9 +1795,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       await fs.rm(path.join(dataDir, 'worker.json'), { force: true }).catch(() => {})
       wsNow = null
     },
-    async runs(id) {
-      return fs.readFile(path.join(dataDir, 'tidy', `${encodeURIComponent(id)}.json`), 'utf8').then(JSON.parse, () => [])
-    },
+    runs: (id) => readRuns(id),
     // 새 기기가 이어졌다 — 그 사람의 오늘 바뀐 것 · 다음 대화 첫 안내(다른 대역에서 받은 표면 노랑)
     async notifyDevice(user, dev) {
       await feed.add(dataDir, user, { kind: 'device', brief: true, yl: !!dev.yellow, dot: 'acc', text: `새 기기가 이어졌다: ${dev.host || '이름 없는 기기'} · ${user}`, small: '설치 한 줄로 · 내가 한 것이 아니면 [보기] 에서 끊는다', device: dev.id })

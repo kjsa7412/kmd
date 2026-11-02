@@ -54,20 +54,24 @@ export function parse({ code, so, se }) {
   try {
     j = line ? JSON.parse(line) : null
   } catch {}
-  const text = `${j?.result || ''} ${se || ''}`
-  // 끝 JSON 의 수치 — 시간 · 토큰 · 비용(정리 장부 · 일꾼 기록이 자리마다 남긴다)
-  const stat = j ? { cost: j.total_cost_usd || 0, model: j.model || null, apiMs: j.duration_api_ms || j.duration_ms || 0, tokens: (j.usage?.output_tokens || 0) + (j.usage?.input_tokens || 0), outTokens: j.usage?.output_tokens || 0 } : {}
+  // 끝 JSON 의 수치 — 시간 · 토큰 · 비용 · 턴(정리 장부 · 일꾼 기록이 자리마다 남긴다)
+  const stat = j ? { cost: j.total_cost_usd || 0, model: j.model || null, apiMs: j.duration_api_ms || j.duration_ms || 0, tokens: (j.usage?.output_tokens || 0) + (j.usage?.input_tokens || 0), outTokens: j.usage?.output_tokens || 0, turns: j.num_turns || 0 } : {}
   if (!j || j.is_error || code) {
     // claude 가 이 PC 에 없다 — 자리마다 다시 불러도 같다(일꾼은 멈추고 서버가 규칙으로 넣는다)
     if (!j && /ENOENT|not found|is not recognized/i.test(se || '')) return { error: 'missing', message: 'Claude Code(claude) 가 설치되어 있지 않다' }
-    // 까닭은 subtype(error_max_budget_usd 같은 것)이 먼저 — 「종료 1」 만으로는 무엇인지 모른다
-    const sub = j?.subtype && j.subtype !== 'success' && j.subtype !== 'error' ? j.subtype : ''
+    // 까닭은 subtype(error_max_budget_usd · error_max_turns · error_during_execution)이 먼저 — 「종료 1」 만으로는 무엇인지 모른다 ·
+    //   subtype 이 말하면 글로 가르지 않는다: 글 속 「limit · auth」 같은 낱말이 일꾼 전체를 멈추던 것(로그인 · 한도는 STOP)
+    const sub = j?.subtype && j.subtype !== 'success' && j.subtype !== 'error' ? String(j.subtype) : ''
     const errs = Array.isArray(j?.errors) ? j.errors.map(String).join(' · ') : ''
-    const why = [sub, text.trim(), errs].filter(Boolean).join(' · ').slice(0, 200)
-    if (/login|log in|api key|auth|unauthori|credential|401/i.test(text)) return { error: 'login', message: why, ...stat }
-    if (/max_budget|budget/i.test(sub) || /exceeded.*budget|budget.*exceeded/i.test(text)) return { error: 'budget', message: `예산을 넘었다: ${why}`, ...stat }
-    if (/limit|quota|rate\s?limit|429/i.test(text)) return { error: 'limit', message: why, ...stat }
-    return { error: 'fail', message: why || `종료 ${code}`, ...stat }
+    const text = `${j?.is_error ? j.result || '' : ''} ${errs} ${se || ''}`
+    const why = [sub, text.trim()].filter(Boolean).join(' · ').slice(0, 200)
+    const tag = { sub: sub || null, ...stat }
+    if (/budget/i.test(sub)) return { error: 'budget', message: `예산을 넘었다: ${why}`, ...tag }
+    if (sub) return { error: 'fail', message: why, ...tag }
+    if (/not logged in|please run \/login|invalid api key|oauth token (?:has )?expired|authentication[_ ]error|\bunauthori[sz]ed\b|\b401\b/i.test(text)) return { error: 'login', message: why, ...tag }
+    if (/usage limit|rate[_ ]?limit|quota|\b429\b/i.test(text)) return { error: 'limit', message: why, ...tag }
+    if (/exceeded.*budget|budget.*exceeded/i.test(text)) return { error: 'budget', message: `예산을 넘었다: ${why}`, ...tag }
+    return { error: 'fail', message: why || `종료 ${code}`, ...tag }
   }
   let v = j.structured_output ?? null
   if (v == null && typeof j.result === 'string') {

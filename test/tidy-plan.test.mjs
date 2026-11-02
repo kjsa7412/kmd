@@ -91,3 +91,18 @@ test('도는 정리 그만두기: 일꾼이 다음 자리에서 멈춘다 · 쓰
   // 끝난 정리는 다시 그만둘 수 없다
   assert.equal((await api(park, `/api/queue/t:${job.id}/cancel`, {})).status, 409)
 })
+
+test('정리 장부가 깨졌으면 빈 것으로 읽어 덮지 않는다: 옆으로 옮기고 새로 쓴다', async () => {
+  const f = path.join(tmp, 'kn', '.kmd', 'tidy', 'dpms.json')
+  fs.mkdirSync(path.dirname(f), { recursive: true })
+  fs.writeFileSync(f, '[{"at": "2026-11-01T00:00:00Z", "rows": [')
+  assert.deepEqual(await s.hub.runs('dpms'), [], '읽기는 빈 것(보이기만)')
+  assert.ok(fs.existsSync(f), '읽기는 파일을 건드리지 않는다')
+  await s.hub.save({ user: 'park' }, 'dpms', { record: { title: '장부 깨짐 뒤 정리', body: '롤백은 앱 먼저', touches: ['proc:롤백'] } })
+  await api(park, '/api/k/dpms/tidy', {})
+  await workOnce({ server: s.url, key: wkey })
+  const aside = fs.readdirSync(path.dirname(f)).filter((x) => x.startsWith('dpms.json.broken-'))
+  assert.equal(aside.length, 1, '깨진 장부는 옆에 남는다')
+  assert.equal(fs.readFileSync(path.join(path.dirname(f), aside[0]), 'utf8'), '[{"at": "2026-11-01T00:00:00Z", "rows": [')
+  assert.ok(Array.isArray(JSON.parse(fs.readFileSync(f, 'utf8'))), '새 장부')
+})

@@ -25,13 +25,14 @@ async function call(server, key, p, body) {
 
 // 넣은 파일 하나 — 서버에서 일(일 설명 · 스킬 · 파일 · 단기 열쇠)을 받아 에이전트를 띄우고, 줄은 1초마다 올리고, 끝을 알린다
 async function agentIngest({ server, dkey, kn, g, log, models }) {
+  const nm = decodeURIComponent(kn)
   const t = await call(server, dkey, `/api/k/${kn}/worker/agent`, { rec: g.record.id })
   let buf = []
   const flush = async () => {
     if (!buf.length) return
     const lines = buf
     buf = []
-    await call(server, dkey, `/api/k/${kn}/worker/agent/log`, { run: t.run, lines }).catch(() => {})
+    await call(server, dkey, `/api/k/${kn}/worker/agent/log`, { run: t.run, lines }).catch((e) => log(`${nm}: 에이전트 줄을 올리지 못했다(${e.status || e.message})`))
   }
   const timer = setInterval(flush, 1000)
   let r
@@ -68,17 +69,22 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
     groups = (await call(server, dkey, `/api/k/${kn}/worker/material`)).groups
   } catch (e) {
     log(`재료를 받지 못했다: ${job.kn}: ${e.message}`)
-    await call(server, dkey, `/api/k/${kn}/worker/drafts`, { drafts: [] }).catch(() => {})
+    await call(server, dkey, `/api/k/${kn}/worker/drafts`, { drafts: [] }).catch((x) => log(`${job.kn}: 빈 정리를 알리지 못했다(${x.status || x.message})`))
     return { job, rows: [], skipped: e.message }
   }
   const items = []
   let stop = null
   let quit = false // 사람이 [그만두기] — 서버가 progress · drafts 답으로 알린다 · 쓴 초안은 올리고 남은 자리는 쓰지 않는다
   let lost = false // 단기 열쇠가 끊겼다(서버가 다시 켜졌다 · 일감이 다른 일꾼에게) — 더 쓰지 않는다
-  const gone = (e) => { if (e.status === 401 || e.status === 403) lost = true; return {} }
+  const gone = (e) => {
+    if (e.status === 401 || e.status === 403) lost = true
+    else log(`${decodeURIComponent(kn)}: 서버에 소식을 올리지 못했다(${e.status || e.message}${e.cause?.code ? ' · ' + e.cause.code : ''})`)
+    return {}
+  }
   // 자리 시작 — 서버에 알린다 · 그만뒀거나 열쇠가 끊겼으면 false(그 자리는 끝에 「그만둠」 으로 올린다) · why — 다시 쓰는 까닭(묶음 답에 없음)
   const name = (g) => `${decodeURIComponent(kn)}: ${spotTarget(g)}`
   const secs = (ms) => `${Math.round((ms || 0) / 1000)}초`
+  const kindOf = (r) => `${r.error}${r.sub ? ' · ' + r.sub : ''}${r.turns ? ` · 턴 ${r.turns}` : ''}`
   const begin = async (g, model, why = null) => {
     if (stop || quit || lost) {
       items.push({ group: slim(g), error: stop && !quit && !lost ? stop : 'stopped' })
@@ -100,7 +106,7 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
   // 자리 끝 — 서버에 알리고, 초안이면 바로 올린다. 못 올리면 끝에 같이 ·
   //   서버 검사가 고칠 수 있는 까닭(빠진 값 · 지어낸 값 · 크기 · 머리)으로 돌려보내면 그 까닭을 붙여 한 번만 다시 쓴다
   const finish = async (g, r, again = true) => {
-    log(`${name(g)}: ${r.error ? `초안을 받지 못했다(${r.message || r.error})` : '초안'} · ${secs(r.ms)} · 보낸 글 ${r.chars || 0}자${r.outTokens ? ` · 받은 토큰 ${r.outTokens}` : ''}${r.model ? ` · ${r.model}` : ''}`)
+    log(`${name(g)}: ${r.error ? `초안을 받지 못했다(${kindOf(r)})` : '초안'} · ${secs(r.ms)} · 보낸 글 ${r.chars || 0}자${r.outTokens ? ` · 받은 토큰 ${r.outTokens}` : ''}${r.model ? ` · ${r.model}` : ''}`)
     const e = await call(server, dkey, `/api/k/${kn}/worker/progress`, { key: spotKey(g), end: true, ok: !r.error, why: r.error ? (STOP[r.error] ? r.error : r.message || r.error) : null, ms: r.ms || 0, chars: r.chars || 0, cost: r.cost || 0, tokens: r.outTokens || 0 }).catch(gone)
     if (e.stop) quit = true
     if (STOP[r.error] && !stop) {
@@ -142,7 +148,7 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
     // 묶음 시간 상한 — 항목마다 따로 쓸 때(timeoutOf)보다 짧으면 안 된다(큰 항목 둘의 묶음이 7분에 끊겨 다시 쓰던 것)
     const r = await ask(prompt, { schema: BATCH_SCHEMA, budget: budget * Math.min(go.length, 8), model, timeoutMs: Math.min(15 * 60_000, Math.max(timeoutOf(prompt), TIDY_TIMEOUT + go.length * 60_000)) })
     const got = new Map((Array.isArray(r.value?.items) ? r.value.items : []).filter((x) => x && typeof x === 'object').map((x) => [String(x.key), x]))
-    log(`${decodeURIComponent(kn)}: 묶음 ${go[0].doc.replace(/^docs\/|\.md$/g, '')} 자리 ${go.length} → 답 ${got.size}${r.error ? ` · ${r.message || r.error}` : ''} · ${secs(r.ms)} · 보낸 글 ${r.chars}자${r.outTokens ? ` · 받은 토큰 ${r.outTokens}` : ''}`)
+    log(`${decodeURIComponent(kn)}: 묶음 ${go[0].doc.replace(/^docs\/|\.md$/g, '')} 자리 ${go.length} → 답 ${got.size}${r.error ? ` · ${kindOf(r)}` : ''} · ${secs(r.ms)} · 보낸 글 ${r.chars}자${r.outTokens ? ` · 받은 토큰 ${r.outTokens}` : ''}`)
     for (const g of go) {
       const d = got.get(spotKey(g))
       if (d) { await finish(g, { value: { content: d.content, used: d.used, left: d.left, drop: d.drop || [] }, model: r.model, ms: r.ms, chars: r.chars, cost: r.cost }); continue }
@@ -169,7 +175,7 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
     return { job, rows: [], skipped: 'lost' }
   }
   const res = await call(server, dkey, `/api/k/${kn}/worker/drafts`, { drafts: items })
-  await call(server, key, '/api/worker/status', stop ? { ok: false, reason: stop, message: STOP[stop] } : { ok: true }).catch(() => {})
+  await call(server, key, '/api/worker/status', stop ? { ok: false, reason: stop, message: STOP[stop] } : { ok: true }).catch((e) => log(`일꾼 상태를 알리지 못했다(${e.status || e.message})`))
   return { job, ...res }
 }
 

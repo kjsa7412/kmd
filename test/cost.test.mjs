@@ -12,7 +12,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { modelOf, modelArgs, DEFAULT_MODELS, ROLES } from '../core/models.js'
-import { runClaude } from '../core/claude.js'
+import { runClaude, parse as parseClaude } from '../core/claude.js'
 import { runAgent } from '../core/agent.js'
 import zlib from 'node:zlib'
 import { hwpToMd } from '../core/hwp.js'
@@ -34,6 +34,22 @@ test('일마다 모델: 기본 배분 · 고른 값 · 「기본」 · 모르는
   assert.equal(modelOf('read', { read: 'gpt-4' }), 'haiku', '모르는 값은 기본 배분으로')
   assert.deepEqual(modelArgs('haiku'), ['--model', 'haiku'])
   assert.deepEqual(modelArgs(''), [])
+})
+
+test('claude 실패 까닭: subtype 이 먼저 · 글 속 낱말(limit · auth)은 일꾼을 멈추지 않는다 · 수치를 붙인다', () => {
+  const p = (o, se = '', code = 1) => parseClaude({ code, so: JSON.stringify({ type: 'result', ...o }), se })
+  const usage = { usage: { input_tokens: 10, output_tokens: 20 }, num_turns: 1, duration_ms: 1500, total_cost_usd: 0.5 }
+  const b = p({ subtype: 'error_max_budget_usd', is_error: true, ...usage })
+  assert.equal(b.error, 'budget', '예산 넘음은 따로(STOP 아님)')
+  assert.equal(b.sub, 'error_max_budget_usd')
+  assert.equal(b.outTokens, 20)
+  assert.equal(b.turns, 1)
+  assert.equal(p({ subtype: 'error_during_execution', is_error: true, result: 'rate limit 표와 auth 설정을 고쳤다' }).error, 'fail', 'subtype 이 말하면 글로 가르지 않는다')
+  assert.equal(p({ subtype: 'error', is_error: true, result: 'Invalid API key · Please run /login' }).error, 'login')
+  assert.equal(p({ subtype: 'error', is_error: true, result: 'Claude AI usage limit reached|1730000000' }).error, 'limit')
+  assert.equal(p({ subtype: 'error', is_error: true, result: '연결 시간 limit 값 확인 · author 칸' }).error, 'fail', '「limit · author」 낱말은 한도 · 로그인이 아니다')
+  assert.equal(p({ subtype: 'success', is_error: false, result: '', structured_output: { a: 1 }, ...usage }, '', 0).value.a, 1)
+  assert.equal(parseClaude({ code: 1, so: '', se: '' }).message, '종료 1')
 })
 
 test('claude -p · 에이전트에 --model 이 간다(비면 넘기지 않는다)', async () => {
