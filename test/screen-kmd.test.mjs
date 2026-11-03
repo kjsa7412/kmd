@@ -423,7 +423,7 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10): 목�
   // 이력 — 가져오는 곳을 더한 일은 기록이 아니라 이력 한 곳에
   await hist(page) // 이력 — 오늘 바뀐 것과 kmd 가 다룬 일이 한 흐름
   await page.waitForSelector('[data-t=histRow]')
-  assert.match(await page.locator('[data-t=histRow][data-kind="설정"]').first().innerText(), /가져오는 곳 더함. gdi DB/)
+  assert.match(await page.locator('[data-t=histRow][data-kind="설정"]').first().innerText(), /가져올 곳 더함. gdi DB/)
   await page.click('[data-t=logKind-설정]')
   assert.equal(await page.locator('[data-t=histRow]:not([data-kind="설정"])').count(), 0, '갈래로 거른다')
   await page.click('[data-t=logKind-all]')
@@ -599,9 +599,11 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 정리 �
   await mg(page, 'team', 'claude')
   await page.waitForSelector('[data-t=admClaude]')
   await page.waitForSelector('[data-t=claudeHow]')
+  // 비밀번호 한 번 더는 공통 창(Q13) — 카드 안 칸이 없다 · 15분 안이면 묻지 않는다
   await page.click('[data-t=admLoginStart]')
-  await page.fill('#admPw', me.pw)
-  await page.click('[data-t=admPwOk]')
+  await page.waitForSelector('[data-t=sudoWin] #sudoPw, [data-t=admUrl]')
+  assert.equal(await page.locator('#admPw').count(), 0)
+  if (await page.locator('[data-t=sudoWin]').count()) { await page.fill('#sudoPw', me.pw); await page.click('[data-t=sudoOk]') }
   await page.waitForSelector('[data-t=admUrl]')
   assert.match(await page.locator('[data-t=admUrl]').innerText(), /^https:\/\/claude\.ai\/oauth\/authorize/)
   // 두 단계(주소 열기 · 번호 붙여 넣기)가 카드 안에 아래로 선다 — 긴 주소가 카드를 밀어내지 않는다
@@ -618,8 +620,6 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 정리 �
   await page.waitForSelector('[data-t=admRestart]')
   assert.match(await page.locator('[data-t=admExpired]').innerText(), /기다리던 로그인이 끝났다[\s\S]*다시 시작/)
   await page.click('[data-t=admRestart]')
-  await page.fill('#admPw', me.pw)
-  await page.click('[data-t=admPwOk]')
   await page.waitForSelector('[data-t=admUrl]')
   // Claude 가 번호를 받지 않으면 — 그 까닭과 새 주소(같은 로그인) · 다시 받은 번호로 마친다
   await page.fill('#admCodeIn', 'bad')
@@ -883,4 +883,43 @@ test('팀 화면: 팀 지식만 — 지식 목록 · 이력 · 설정 · 정리 
   } finally {
     await page.close()
   }
+})
+
+test('따로 할 것(Q11 · Q50 · Q51 · Q52): 설정은 일반으로 · 고르는 줄 combobox · 카드 이름 단추 · 그래프 점 목록', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+  const page = await browser.newPage({ viewport: VIEW })
+  const errors = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  try {
+    await page.goto(s.url)
+    await page.fill('#lgId', 'kim')
+    await page.fill('#lgPw', me.pw)
+    await page.click('[data-t=loginBtn]')
+    await page.waitForSelector('[data-t=klist] [data-t=krow]')
+    // Q51 — 카드는 role=group · 여는 것은 이름 단추
+    const card = page.locator('[data-t=krow][data-name="DPMS 지식"]')
+    assert.equal(await card.getAttribute('role'), 'group')
+    assert.equal(await card.locator('[data-t=knOpen]').evaluate((e) => e.tagName), 'BUTTON')
+    // Q11 — 옆 메뉴 「설정」 은 설정 › 일반
+    await page.click('[data-t=nav-settings-team]')
+    await page.waitForSelector('[data-t=mgNav]')
+    assert.equal((await page.locator('[data-t=mgNav] .mgi.on').innerText()).trim(), '일반')
+    // Q50 — 빨리 열기: combobox · listbox · 고른 줄이 activedescendant
+    await page.keyboard.press('Control+o')
+    await page.waitForSelector('#qoIn[role=combobox]')
+    await page.keyboard.type('배포')
+    await page.waitForSelector('#qoList [role=option]')
+    await page.keyboard.press('ArrowDown')
+    const ad = await page.getAttribute('#qoIn', 'aria-activedescendant')
+    assert.equal(await page.locator(`#${ad}`).getAttribute('aria-selected'), 'true')
+    await page.keyboard.press('Escape')
+    // Q52 — 그래프: canvas 대체 글 · 옆 칸 점 목록을 누르면 고른다
+    await page.goto(s.url + '/')
+    await page.click('[data-t=krow][data-name="DPMS 지식"] [data-t=knOpen]')
+    await page.click('[data-t=rb-graph]')
+    await page.waitForSelector('[data-t=gList] [data-t=gListRow]')
+    assert.match(await page.getAttribute('#gcv', 'aria-label'), /^그래프: 점 \d+ · 선 \d+/)
+    await page.locator('[data-t=gList] [data-t=gListRow]').first().click()
+    await page.waitForSelector('[data-t=gCard][data-name]')
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
 })

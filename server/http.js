@@ -457,8 +457,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (dm) return out(200, await hub.diff(ctx, dec(dm[1]), url.searchParams.get('record') || ''))
     const jm = p.match(/^\/api\/job\/([0-9a-f]+)$/)
     if (jm) return out(200, hub.jobFor(ctx, jm[1]) || { state: 'gone' }) // 그 지식을 읽는 사람만(아니면 404)
-    // 자동으로 가져오는 곳 — 목록 · 더하기(관리자 · PC) · 살펴보기 · 지금 가져오기 · 관리자에게 부탁
-    // 이력 — 보는 지식들의 kmd 가 한 일(가져옴 · 가져오는 곳 · 바로 고침 · 정리) 한 곳에 · 새 것 위
+    // 자동으로 가져올 곳 — 목록 · 더하기(관리자 · PC) · 살펴보기 · 지금 가져오기 · 관리자에게 부탁
+    // 이력 — 보는 지식들의 kmd 가 한 일(가져옴 · 가져올 곳 · 바로 고침 · 정리) 한 곳에 · 새 것 위
     if (p === '/api/logs') {
       // 지식마다 거른 뒤 최근 limit 만 합친다(모두 모아 자르지 않게) · more — 거른 것 가운데 이번에 싣지 않은 수 · next — 다음 ?before=
       const limit = pageLimit(url, 300)
@@ -477,7 +477,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const more = total - items.length
       return out(200, { items, more, next: more > 0 && items.length ? cursorOf(items[items.length - 1]) : null })
     }
-    // can — 가져오는 곳을 더할 수 있는 지식이 하나라도 있나(지식마다는 items 의 can)
+    // can — 가져올 곳을 더할 수 있는 지식이 하나라도 있나(지식마다는 items 의 can)
     if (p === '/api/sources') {
       const items = (await hub.allSources(ctx)).map((s) => ({ ...s, can: hub.canSource(ctx, s.kn) }))
       return out(200, { items, can: hub.mode === 'pc' || !!ctx.admin || (await hub.visible(ctx)).some((k) => hub.canSource(ctx, k.id)) })
@@ -669,7 +669,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (sm[2] === 'checkdb') return out(200, await hub.sourceCheckDb(ctx, id, b))
       if (sm[2] === 'resync') return out(200, await hub.sourceResync(ctx, id, String(b.name || '')))
       if (sm[2] === 'meaning') return out(200, await hub.sourceMeaning(ctx, id, { name: String(b.name || ''), on: !!b.on }))
-      // 가져오는 곳 관리(더하기 · 살펴보기 · 지금 가져오기 · 그대로 반영)는 그 지식의 관리 자리(docs/kmd_권한_모델.md 1절) · 쓰기는 부탁
+      // 가져올 곳 관리(더하기 · 살펴보기 · 지금 가져오기 · 그대로 반영)는 그 지식의 관리 자리(docs/kmd_권한_모델.md 1절) · 쓰기는 부탁
       if (sm[2] === 'probe') {
         await hub.meta(id, ctx)
         if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 그 지식의 지식관리자가 더한다')
@@ -684,7 +684,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (hub.mode === 'team' && !hub.canSource(ctx, id)) { await hub.meta(id, ctx); hub.need(ctx, id, 'admin') }
       return out(200, await hub.sourceAdd(ctx, id, b))
     }
-    // 가져오는 곳 부탁 — 총괄 관리자는 모두 · 그 밖은 관리 자리인 지식의 것만
+    // 가져올 곳 부탁 — 총괄 관리자는 모두 · 그 밖은 관리 자리인 지식의 것만
     if (p === '/api/requests') {
       if (ctx.admin) return out(200, await hub.requests())
       return out(200, (await hub.requests()).filter((r) => hub.levelOf(ctx, r.kn) === 'admin'))
@@ -1007,7 +1007,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       // 원본이 주인인 문서 — 어디서 왔나 · 고치기 없음
       const dd = k.docs.find((x) => x.id === url.searchParams.get('d'))
       const watched = dd ? watchedOf(await fs.readFile(path.join(k.dir, ...dd.path.split('/')), 'utf8').catch(() => '')) : null
-      // 원본이 주인인 문서 — 그 가져오는 곳이 이제 없으면 「원본이 없어졌다」(표지를 걷을 수 있다)
+      // 원본이 주인인 문서 — 그 가져올 곳이 이제 없으면 「원본이 없어졌다」(표지를 걷을 수 있다)
       const orphan = watched ? !(await hub.sources(ctx, k.id).catch(() => [])).some((s) => s.name === watched.src) : false
       return out(200, { ...v, watched: watched ? { ...watched, ...(orphan ? { orphan: true } : {}) } : null, direct: hub.canDirect(ctx, k.id) && !watched })
     }

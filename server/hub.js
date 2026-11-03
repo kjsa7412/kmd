@@ -191,7 +191,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const runs = new Map() // 에이전트 일 — 터미널 줄(요구 v0.2 R8)
   // 일 줄 — 파일 들이기(run 그대로) · 가져오기 · 기록을 문서에 넣기 · 여러 파일 묶음을 한 줄로(core/queue.js · 가져오기 일 줄 검토안)
   const Q = createQueue({ file: path.join(dataDir, 'queue.json'), log: (...a) => log('일 줄', ...a) })
-  const srcPend = new Map() // 가져오는 곳 → 아직 차례를 기다리는 일(겹치면 그 일에 붙는다)
+  const srcPend = new Map() // 가져올 곳 → 아직 차례를 기다리는 일(겹치면 그 일에 붙는다)
   const binOf = (jid) => path.join(dataDir, 'queue', `${jid}.bin`) // 기록이 서기 전에 멈춘 파일의 원본(다시 하기 · 다시 켠 뒤 이어서)
   const agentKeys = new Map() // kmda_ 단기 열쇠 → { kn, rec, run, exp }
   const importing = new Set() // 파일을 넣는 중인 지식 — 정리 줄이 막 남은 기록을 따로 집지 않게
@@ -408,7 +408,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   })
   let sendTimer = null
   let retrying = null // 도는 중인 저절로 다시 — 분마다 걸어도 겹쳐 돌지 않는다
-  const srcRuns = new Map() // 가져오는 곳마다 도는 중인 것(한 줄로 세운다)
+  const srcRuns = new Map() // 가져올 곳마다 도는 중인 것(한 줄로 세운다)
   const srcBusy = new Map() // 그중 지금 실제로 도는 것 — 「지금 하는 일」 팝업
   const curating = new Map() // 바로 넣기(정리)가 도는 지식 → 시작 시각
   const curateQ = new Map() // 그 바로 넣기의 일 줄 id(지금 하는 일 → 일 줄)
@@ -561,7 +561,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       for (const [rid, r] of runs) if (r.kn === id) runs.delete(rid)
       for (const [t, a] of agentKeys) if (a.kn === id) agentKeys.delete(t)
       for (const p of [`backup/${e}.json`, `send/${e}.json`, `inbox/${e}.json`, `tidy/${e}.json`, `baseline/${e}.json`, `searchcheck/${e}.json`, `learn/${e}.json`, `runs/${e}.json`, `index/${e}`, `sources/${e}`, `watch/${e}`]) await fs.rm(path.join(dataDir, p), { recursive: true, force: true }).catch(() => {})
-      for (const x of await listSecrets(dataDir).catch(() => [])) if (x.name.startsWith(secretPrefix(id))) await delSecret(dataDir, x.name).catch(() => {}) // 가져오는 곳의 자격
+      for (const x of await listSecrets(dataDir).catch(() => [])) if (x.name.startsWith(secretPrefix(id))) await delSecret(dataDir, x.name).catch(() => {}) // 가져올 곳의 자격
       const lf = path.join(dataDir, 'links.json')
       const links = await fs.readFile(lf, 'utf8').then(JSON.parse, () => null)
       if (links) await writeJsonAtomic(lf, links.filter((l) => l.id !== id), { indent: 1 })
@@ -1021,7 +1021,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     tasks: async (id) => decide(await hub.get(id)).tasks,
 
-    // ── 자동으로 가져오는 곳(v0.6 §5) — 더하기는 관리자(팀) · 주인(PC) · 그 밖은 [관리자에게 부탁] ──
+    // ── 자동으로 가져올 곳(v0.6 §5) — 더하기는 관리자(팀) · 주인(PC) · 그 밖은 [관리자에게 부탁] ──
     async sourceCtx(id) {
       const metas = await hub.list()
       const backups = metas.map((m) => backup.stateOf(m)?.url).filter(Boolean)
@@ -1038,7 +1038,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async sourceGuard(ctx, id, { kind, at = null, host = null }) {
       if (kind === 'git' && at != null) {
         const { backups } = await hub.sourceCtx(id)
-        if (backups.some((b) => repoKey(b) === repoKey(at))) throw new KmdError('E_INPUT', '이 kmd 의 백업 자리는 가져오는 곳이 될 수 없다')
+        if (backups.some((b) => repoKey(b) === repoKey(at))) throw new KmdError('E_INPUT', '이 kmd 의 백업 자리는 가져올 곳이 될 수 없다')
       }
       if (hub.sourceServer(ctx)) return
       const hosts = (config.sourceHosts || []).map((h) => String(h).trim().toLowerCase()).filter(Boolean)
@@ -1049,8 +1049,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         try { u = new URL(String(at || '').trim()) } catch {}
         if (!u || u.protocol !== 'https:') throw new KmdError('E_FORBIDDEN', '소스 코드는 https 주소만 더한다. ssh · 서버 폴더는 서버 관리자가 더한다', { need: 'admin' })
         h = u.hostname
-      } else if (kind !== 'db') throw new KmdError('E_FORBIDDEN', '이 가져오는 곳은 서버 관리자가 더한다', { need: 'admin' })
-      if (!hosts.includes(String(h || '').toLowerCase())) throw new KmdError('E_FORBIDDEN', `이 호스트는 가져오는 곳으로 허락되지 않았다. ${allowed}`, { need: 'admin' })
+      } else if (kind !== 'db') throw new KmdError('E_FORBIDDEN', '이 가져올 곳은 서버 관리자가 더한다', { need: 'admin' })
+      if (!hosts.includes(String(h || '').toLowerCase())) throw new KmdError('E_FORBIDDEN', `이 호스트는 가져올 곳으로 허락되지 않았다. ${allowed}`, { need: 'admin' })
     },
     // 살펴보기 — 주소를 받아 어떤 규칙이 무엇을 내는지(쓰지 않는다)
     async sourceProbe(ctx, id, { at, kind = null }) {
@@ -1095,7 +1095,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       if (k2 !== 'git' && (!Array.isArray(rules) || !rules.length || rules.some((r) => !okRules.includes(r.rule) || !r.into?.doc))) throw new KmdError('E_INPUT', `무엇을 채우나는 ${okRules.join(' · ')} 중 · 넣을 문서와 함께`)
       const decl = await readDecl(meta.dir)
-      if (decl.some((s) => s.name === name)) throw new KmdError('E_CONFLICT', '같은 이름의 가져오는 곳이 있다')
+      if (decl.some((s) => s.name === name)) throw new KmdError('E_CONFLICT', '같은 이름의 가져올 곳이 있다')
       let shown
       if (k2 === 'db') {
         const d = db || {}
@@ -1127,9 +1127,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       try {
         // 한 줄 안에서 다시 읽고 더한다 — 그사이 다른 고치기가 남긴 것을 덮지 않게 · 깨진 장부면 여기서 거절
         await editDecl(meta.dir, (cur) => {
-          if (cur.some((s) => s.name === name)) throw new KmdError('E_CONFLICT', '같은 이름의 가져오는 곳이 있다')
+          if (cur.some((s) => s.name === name)) throw new KmdError('E_CONFLICT', '같은 이름의 가져올 곳이 있다')
           return [...cur, src]
-        }, { user: ctx.user, title: `가져오는 곳 더함: ${name}` })
+        }, { user: ctx.user, title: `가져올 곳 더함: ${name}` })
         cache.delete(id)
         if (started) hub.watchSource(id, src)
         const r = await hub.sourceRun(id, name, { first: true })
@@ -1226,7 +1226,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const meta = await hub.meta(id, ctx)
       if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '전체 다시 맞추기는 그 지식의 지식관리자가 한다')
       const s = (await readDecl(meta.dir)).find((x) => x.name === name)
-      if (!s) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
+      if (!s) throw new KmdError('E_NOTFOUND', '그 가져올 곳이 없다')
       if (s.kind === 'git' && !s.rules?.length) throw new KmdError('E_INPUT', '소스 코드는 묶음으로 본다. 다시 맞출 것이 없다')
       const key = `${id}\n${name}`
       if (resyncs.get(key)?.state === 'running') return resyncs.get(key)
@@ -1254,17 +1254,17 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '그 지식의 지식관리자가 한다')
       const decl = await readDecl(meta.dir)
       const s = decl.find((x) => x.name === name)
-      if (!s) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
+      if (!s) throw new KmdError('E_NOTFOUND', '그 가져올 곳이 없다')
       if (s.kind !== 'folder' && s.kind !== 'git') throw new KmdError('E_INPUT', '뜻 갱신은 코드 폴더 · git 만')
       if (!!s.meaning === !!on) return s
       const flip = (x) => { if (on) x.meaning = true; else delete x.meaning }
       flip(s)
       await editDecl(meta.dir, (cur) => {
         const x = cur.find((y) => y.name === name)
-        if (!x) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
+        if (!x) throw new KmdError('E_NOTFOUND', '그 가져올 곳이 없다')
         flip(x)
         return cur
-      },{ user: ctx.user, title: `가져오는 곳 뜻 갱신 ${on ? '켬' : '끔'}: ${name}` })
+      },{ user: ctx.user, title: `가져올 곳 뜻 갱신 ${on ? '켬' : '끔'}: ${name}` })
       cache.delete(id)
       // 켜면 지금 코드로 사본 · 장부를 맞춘다(그 뒤 바뀐 것부터 기록)
       if (on) await hub.sourceRun(id, name)
@@ -1299,7 +1299,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const noClaude = !hub.meaningOk(id)
       return decl.map((s) => ({ ...s, meaningBlocked: noClaude, watch: s.kind === 'pc' ? 'pc' : s.kind === 'folder' || s.kind === 'docs' ? (srcWatch.has(`${id}\n${s.name}`) ? 'live' : 'poll') : s.kind === 'git' ? 'poll' : 'none', resync: resyncs.get(`${id}\n${s.name}`) || (st[s.name]?.resync ? { state: 'paused', ...st[s.name].resync } : null), state: st[s.name] || {}, secret: { name: secretName(id, s.name), has: have.has(secretName(id, s.name)) } }))
     },
-    // 자료 가져오기 화면 — 그 사람이 보는 지식들의 가져오는 곳 모두
+    // 자료 가져오기 화면 — 그 사람이 보는 지식들의 가져올 곳 모두
     async allSources(ctx) {
       const out = []
       // 장부가 깨진 지식은 건너뛴다(그 경고는 멈춤 줄 · 그 지식의 가져오기 화면) — 한 지식 때문에 모두가 비지 않게
@@ -1313,15 +1313,15 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!/^(hourly|weekly|change|manual|daily ([01]\d|2[0-3]):[0-5]\d)$/.test(String(every))) throw new KmdError('E_INPUT', '언제는 hourly · daily HH:MM · weekly · change')
       const decl = await readDecl(meta.dir)
       const s = decl.find((x) => x.name === name)
-      if (!s) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
+      if (!s) throw new KmdError('E_NOTFOUND', '그 가져올 곳이 없다')
       if (s.every === every) return s
       s.every = every
       await editDecl(meta.dir, (cur) => {
         const x = cur.find((y) => y.name === name)
-        if (!x) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
+        if (!x) throw new KmdError('E_NOTFOUND', '그 가져올 곳이 없다')
         x.every = every
         return cur
-      }, { user: ctx.user, title: `가져오는 곳 언제: ${name} · ${every}` })
+      }, { user: ctx.user, title: `가져올 곳 언제: ${name} · ${every}` })
       cache.delete(id)
       return s
     },
@@ -1335,13 +1335,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (to) {
         const tm = await hub.meta(to, ctx)
         if (!hub.canSource(ctx, to)) throw new KmdError('E_FORBIDDEN', '옮겨 갈 지식에 가져올 곳을 더할 수 없다')
-        if ((await readDecl(tm.dir)).some((x) => x.name === name)) throw new KmdError('E_CONFLICT', '옮겨 갈 지식에 같은 이름의 가져오는 곳이 있다')
+        if ((await readDecl(tm.dir)).some((x) => x.name === name)) throw new KmdError('E_CONFLICT', '옮겨 갈 지식에 같은 이름의 가져올 곳이 있다')
       }
       const pcScreen = mode === 'pc' || ctx.pc
       if ((cred?.token || db?.password) && !pcScreen) throw new KmdError('E_FORBIDDEN', `자격은 화면으로 받지 않는다. 서버에서 한 줄: kmd secret set ${secretName(id, name)}`)
       const decl = await readDecl(meta.dir)
       const s = decl.find((x) => x.name === name)
-      if (!s) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
+      if (!s) throw new KmdError('E_NOTFOUND', '그 가져올 곳이 없다')
       const was = JSON.stringify(s)
       let refetch = false
       if (every != null) {
@@ -1390,9 +1390,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         adding.add(addKey)
         try {
           await editDecl(tm.dir, (cur) => {
-            if (cur.some((x) => x.name === name)) throw new KmdError('E_CONFLICT', '옮겨 갈 지식에 같은 이름의 가져오는 곳이 있다')
+            if (cur.some((x) => x.name === name)) throw new KmdError('E_CONFLICT', '옮겨 갈 지식에 같은 이름의 가져올 곳이 있다')
             return [...cur, s]
-          }, { user: ctx.user, title: `가져오는 곳 옮겨 옴: ${name} · ${meta.name || id} 에서` })
+          }, { user: ctx.user, title: `가져올 곳 옮겨 옴: ${name} · ${meta.name || id} 에서` })
           cache.delete(to)
           if (started) hub.watchSource(to, s)
           const run = await hub.sourceRun(to, name, { first: true }).catch((e) => [{ state: 'failed', why: e.message }])
@@ -1405,10 +1405,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         // 한 줄 안에서 다시 읽고 이 곳만 바꾼다(그사이 다른 곳을 고친 것은 그대로)
         await editDecl(meta.dir, (cur) => {
           const i = cur.findIndex((x) => x.name === name)
-          if (i < 0) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
+          if (i < 0) throw new KmdError('E_NOTFOUND', '그 가져올 곳이 없다')
           cur[i] = s
           return cur
-        }, { user: ctx.user, title: `가져오는 곳 고침: ${name}` })
+        }, { user: ctx.user, title: `가져올 곳 고침: ${name}` })
         cache.delete(id)
         if (started) hub.watchSource(id, s)
       }
@@ -1425,14 +1425,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const meta = await hub.meta(id, ctx)
       if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 그 지식의 지식관리자가 지운다')
       const decl = await readDecl(meta.dir)
-      if (!decl.some((x) => x.name === name)) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
+      if (!decl.some((x) => x.name === name)) throw new KmdError('E_NOTFOUND', '그 가져올 곳이 없다')
       const key = `${id}\n${name}`
       srcWatch.get(key)?.close()
       srcWatch.delete(key)
       await editDecl(meta.dir, (cur) => {
-        if (!cur.some((x) => x.name === name)) throw new KmdError('E_NOTFOUND', '그 가져오는 곳이 없다')
+        if (!cur.some((x) => x.name === name)) throw new KmdError('E_NOTFOUND', '그 가져올 곳이 없다')
         return cur.filter((x) => x.name !== name)
-      }, { user: ctx.user, title: `가져오는 곳 지움: ${name}` })
+      }, { user: ctx.user, title: `가져올 곳 지움: ${name}` })
       const st = await readSourceState(dataDir, id)
       delete st[name]
       await writeSourceState(dataDir, id, st)
@@ -1451,7 +1451,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             if (copies === 'drop') await fs.rm(full, { force: true })
             else await fs.writeFile(full, t.split('\n').slice(1).join('\n').replace(/^\n+/, ''), 'utf8')
           }
-          await commitPaths(meta.dir, mine.map((x) => x.d.path), `가져오는 곳 지움: ${name} · 사본 ${mine.length} ${copies === 'drop' ? '지움' : '내 문서로'}`, ctx.user).catch((e) => log('사본 정리', id, e.message))
+          await commitPaths(meta.dir, mine.map((x) => x.d.path), `가져올 곳 지움: ${name} · 사본 ${mine.length} ${copies === 'drop' ? '지움' : '내 문서로'}`, ctx.user).catch((e) => log('사본 정리', id, e.message))
         })
       }
       cache.delete(id)
@@ -1467,7 +1467,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const t = await fs.readFile(full, 'utf8')
       const w = watchedOf(t)
       if (!w) return { ok: true }
-      if ((await readDecl(meta.dir)).some((s) => s.name === w.src)) throw new KmdError('E_CONFLICT', `원본이 아직 있다: ${w.src} 에서 가져온다 · 가져오는 곳을 지우면 내 문서로 남는다`)
+      if ((await readDecl(meta.dir)).some((s) => s.name === w.src)) throw new KmdError('E_CONFLICT', `원본이 아직 있다: ${w.src} 에서 가져온다 · 가져올 곳을 지우면 내 문서로 남는다`)
       await serial(path.resolve(meta.dir), async () => {
         await fs.writeFile(full, t.split('\n').slice(1).join('\n').replace(/^\n+/, ''), 'utf8')
         await commitPaths(meta.dir, [d.path], `원본이 없어진 사본: 내 문서로 · ${d.title}`, ctx.user)
@@ -1492,7 +1492,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!name || /[\r\n"]/.test(name)) throw new KmdError('E_INPUT', '이름은 한 줄 60자 안')
       // 부탁 카드도 더하기(sourceAdd)와 같은 모양만 받는다 — 관리자가 [더함] 으로 옮길 때 다시 걸리지 않게 · requests.json 이 커지지 않게
       const kind = card.kind || (card.db ? 'db' : 'git')
-      if (!['git', 'docs', 'db'].includes(kind)) throw new KmdError('E_INPUT', '가져오는 곳은 git · 문서 폴더 · DB 중 하나')
+      if (!['git', 'docs', 'db'].includes(kind)) throw new KmdError('E_INPUT', '가져올 곳은 git · 문서 폴더 · DB 중 하나')
       const every = String(card.every || 'hourly')
       if (!/^(hourly|weekly|change|manual|daily ([01]\d|2[0-3]):[0-5]\d)$/.test(every)) throw new KmdError('E_INPUT', '언제는 hourly · daily HH:MM · weekly · change · manual')
       if (card.rules != null && !Array.isArray(card.rules)) throw new KmdError('E_INPUT', '무엇을 채우나가 목록이 아니다')
@@ -1540,7 +1540,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         Object.assign(r, { state, closedBy: ctx.user, closedAt: new Date().toISOString(), ...(why ? { why: String(why).slice(0, 200) } : {}) })
         await writeJsonAtomic(f, all)
         const kn = (await hub.list()).find((k) => k.id === r.kn)?.name || r.kn
-        for (const u of r.by.split(', ')) await feed.add(dataDir, u, { kind: 'source', kn: r.kn, dot: state === 'done' ? 'acc' : 'warn', text: state === 'done' ? `부탁한 가져오는 곳을 더했다: ${r.name} · ${kn}` : `부탁한 가져오는 곳을 더하지 않았다: ${r.name} · ${kn}`, small: state === 'done' ? `${ctx.user} 이 더했다` : `${ctx.user}${why ? ': ' + String(why).slice(0, 200) : ''}` }).catch(() => {})
+        for (const u of r.by.split(', ')) await feed.add(dataDir, u, { kind: 'source', kn: r.kn, dot: state === 'done' ? 'acc' : 'warn', text: state === 'done' ? `부탁한 가져올 곳을 더했다: ${r.name} · ${kn}` : `부탁한 가져올 곳을 더하지 않았다: ${r.name} · ${kn}`, small: state === 'done' ? `${ctx.user} 이 더했다` : `${ctx.user}${why ? ': ' + String(why).slice(0, 200) : ''}` }).catch(() => {})
         return r
       })
     },
@@ -1548,7 +1548,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async baseline(ctx, id, { source, items = [], asof = null, host = '', files = 0 }) {
       const meta = await hub.meta(id)
       if (!ctx.machine || ctx.machine.kn !== id) throw new KmdError('E_FORBIDDEN', '기계 열쇠로만 쓴다', { need: 'machine' })
-      if (String(source) !== ctx.machine.source) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 가져오는 곳의 것이다')
+      if (String(source) !== ctx.machine.source) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 가져올 곳의 것이다')
       const k = await hub.get(id)
       const types = ctx.machine.types || []
       const targets = []
@@ -3755,12 +3755,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (mode === 'pc' || config.collect) for (const m of await hub.list()) watchers.push(Object.assign(collect.watch(m.dir, () => hub.collect(m.id)), { dir: m.dir }))
       // 꺼져 있던 동안 편집기로 고친 것 — 켤 때 한 번 거둔다(다른 파일이 바뀔 때까지 기다리지 않게)
       if (mode === 'pc' || config.collect) setTimeout(async () => { for (const m of await hub.list().catch(() => [])) await hub.collect(m.id).catch(() => {}) }, config.collectOnStartMs ?? 1500).unref?.()
-      // 가져오는 곳 — 할 일 시계(분마다 본다 · 각자의 every) · 켤 때 한 번
+      // 가져올 곳 — 할 일 시계(분마다 본다 · 각자의 every) · 켤 때 한 번
       const dueSources = async (all) => {
         for (const m of await hub.list().catch(() => [])) {
           // 장부가 깨진 지식은 건너뛰고 한 번 알린다(같은 내용이면 다시 적지 않는다 · 멈춤 줄이 사람에게 보인다)
           const decl = await readDecl(m.dir).catch((e) => {
-            if (declWarned.get(m.id) !== e.message) { declWarned.set(m.id, e.message); log('가져오는 곳 건너뜀', m.id, e.message) }
+            if (declWarned.get(m.id) !== e.message) { declWarned.set(m.id, e.message); log('가져올 곳 건너뜀', m.id, e.message) }
             return null
           })
           if (decl) declWarned.delete(m.id)
@@ -3780,7 +3780,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
       }
       // 시계 몸통의 오류는 log 만 남기고 다음 분에 다시(처리되지 않은 reject 로 서버가 내려가지 않게)
-      sourceTimer = setInterval(() => dueSources(false).catch((e) => log('가져오는 곳 시계', e.message)), config.sourceTickMs || 60_000)
+      sourceTimer = setInterval(() => dueSources(false).catch((e) => log('가져올 곳 시계', e.message)), config.sourceTickMs || 60_000)
       setTimeout(async () => {
         for (const m of await hub.list().catch(() => [])) {
           const decl = await readDecl(m.dir).catch(() => [])
@@ -3792,7 +3792,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
       }, 1000).unref?.()
       sourceTimer.unref?.()
-      setTimeout(() => dueSources(true).catch((e) => log('가져오는 곳 시계', e.message)), 3000).unref?.()
+      setTimeout(() => dueSources(true).catch((e) => log('가져올 곳 시계', e.message)), 3000).unref?.()
       // 이 PC — 켤 때 쌓여 있던 「아직 안 넣은 기록」 을 바로 문서에(뒤에서 · 지식마다 한 줄)
       if (config.curateOnStart !== false) setTimeout(async () => { for (const m of await hub.list().catch(() => [])) if (mode === 'pc') hub.curateSoon(m.id).catch(() => {}) }, 2000).unref?.()
       // 정해진 시간의 정리 — 분마다 본다 · 지식마다 하루 한 번 · 넣을 것이 있을 때만

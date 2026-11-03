@@ -133,5 +133,5 @@ test('부탁: 같은 것은 합친다 · 더하면 닫힌다 · 거절하면 부
   // 더함은 부탁을 닫는다 — 같은 지식 · 같은 이름(여기서는 닫기만 시험)
   await s.hub.requestClose({ user: 'kim' }, a.id, { state: 'done' })
   assert.deepEqual(await s.hub.requests(), [])
-  for (const u of ['park', 'choi']) assert.ok((await feed.list(data, u)).some((x) => /부탁한 가져오는 곳을 더했다. 회의록/.test(x.text)), u)
+  for (const u of ['park', 'choi']) assert.ok((await feed.list(data, u)).some((x) => /부탁한 가져올 곳을 더했다. 회의록/.test(x.text)), u)
 })

@@ -419,9 +419,9 @@ export function recView(k, id) {
   return { ...recRow(w), html: render(k, w.path, w.body), tags: w.tags, items, fixes, fixedBy, went, via: via.map(recRow), from, ...(ingest ? { ingest: { read: w.tags.includes('ingest-read') } } : {}), ...(k.logs.includes(w) ? { log: logKind(w) } : {}) }
 }
 
-// 이력의 갈래 — 가져오기 · 가져오는 곳(설정) · 바로 고침 · 정리
+// 이력의 갈래 — 가져오기 · 가져올 곳(설정) · 바로 고침 · 정리
 export function logKind(w) {
-  if (w.tags.includes('sources')) return w.title.startsWith('가져오는 곳') ? '설정' : '가져오기'
+  if (w.tags.includes('sources')) return /^가져(오는|올) 곳/.test(w.title) ? '설정' : '가져오기' // 옛 기록 제목은 「가져오는 곳」(Q7 앞)
   if (w.tags.includes('edit')) return '바로 고침'
   return '정리'
 }
@@ -537,7 +537,7 @@ export function model(k) {
     }
     if (hit.size) uses[it.key] = [...hit].sort()
   }
-  // 가져오는 곳 — 항목 글 안 블록의 원천 이름(그래프의 「채운다」 선)
+  // 가져올 곳 — 항목 글 안 블록의 원천 이름(그래프의 「채운다」 선)
   const sources = {}
   for (const it of items) {
     if (!it.doc) continue

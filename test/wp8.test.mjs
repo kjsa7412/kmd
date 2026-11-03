@@ -75,7 +75,7 @@ test('가져오는 곳: 드라이브 통째 · 집 폴더 통째는 받지 않�
   const ctx = { kind: 'folder', pc: true, dataDir: data, knowledgeDirs: [path.join(root, 'dpms')] }
   assert.throws(() => checkTarget(path.parse(tmp).root, ctx), /드라이브 통째/)
   assert.throws(() => checkTarget(os.homedir(), ctx), /집 폴더 통째|살림 자리/)
-  assert.throws(() => checkTarget(root, ctx), /지식 폴더는 가져오는 곳이 될 수 없다/)
+  assert.throws(() => checkTarget(root, ctx), /지식 폴더는 가져올 곳이 될 수 없다/)
 })
 
 test('가져오는 곳을 지우면: 사본은 내 문서로(기본) 또는 함께 지움 · 원본이 없어진 사본은 내 문서로 풀린다', async () => {

@@ -67,7 +67,7 @@ test('Q55 장부: 깨지면 던진다 · 더하기는 거절되고 파일은 그
   const f = path.join(kdir, DECL)
   const bad = '[{"name": "a", "kind": "git"'
   fs.writeFileSync(f, bad)
-  await assert.rejects(readDecl(kdir), (e) => e.code === 'E_INPUT' && e.declBroken && /가져오는 곳 장부가 깨졌다/.test(e.message))
+  await assert.rejects(readDecl(kdir), (e) => e.code === 'E_INPUT' && e.declBroken && /가져올 곳 장부가 깨졌다/.test(e.message))
   await assert.rejects(s.hub.sourceAdd(SHELL, 'dpms', { name: '새 곳', kind: 'git', at: 'https://example.com/x.git' }), (e) => e.code === 'E_INPUT' && /장부가 깨졌다/.test(e.message))
   await assert.rejects(editDecl(kdir, (cur) => [...cur, { name: 'b' }], { user: 'boss', title: 't' }), /장부가 깨졌다/)
   assert.equal(fs.readFileSync(f, 'utf8'), bad, '깨진 장부 위에 덮어쓰지 않는다')
@@ -77,7 +77,7 @@ test('Q55 장부: 깨지면 던진다 · 더하기는 거절되고 파일은 그
   fs.writeFileSync(f, bad)
   const st = await req('/api/stops', P.boss)
   assert.equal(st.status, 200)
-  assert.ok(JSON.stringify(st.j).includes('가져오는 곳 장부가 깨졌다'), '멈춤 줄에 경고')
+  assert.ok(JSON.stringify(st.j).includes('가져올 곳 장부가 깨졌다'), '멈춤 줄에 경고')
   const src = await req('/api/sources', P.boss)
   assert.equal(src.status, 200, '한 지식의 깨진 장부로 가져오기 화면 전체가 넘어지지 않는다')
   fs.rmSync(f)

@@ -1,4 +1,4 @@
-// 자동으로 가져오는 곳 — `_sources.json`(지식 안 · 예약 파일)에 선언하고 원천 실행기가 할 일 시계에 맞춰 읽는다(v0.6 §5).
+// 자동으로 가져올 곳 — `_sources.json`(지식 안 · 예약 파일)에 선언하고 원천 실행기가 할 일 시계에 맞춰 읽는다(v0.6 §5).
 //
 //   선언   { name, kind: git | docs | db | pc (| folder — 예전), at(가린 주소 · 폴더), every, rules[{ rule, into: { doc, heading? } }], by, since }
 //          소스 코드는 git 하나 — 규칙 없이 커밋 이력으로(runCode) · 코드 폴더 · 라이브러리 버전 · 표 파일은 새로 더하지 않는다
@@ -41,8 +41,8 @@ const EVERY_MS = { change: 300_000, hourly: 3600_000, daily: 86400_000, weekly: 
 export const everyMs = (e) => EVERY_MS[String(e || 'hourly').split(' ')[0]] || 3600_000
 
 // 장부 읽기 — 없으면 [] · 깨졌으면(JSON 이 아님 · 목록이 아님) 던진다. 조용히 [] 를 주면 다음 더하기가 그 위에 써서
-// 가져오는 곳이 모두 지워진 채 커밋된다(Q55). 읽기만 하는 쪽(화면 · 멈춤 줄 · 시계)은 받아서 경고로 바꾼다.
-export const DECL_BROKEN = '가져오는 곳 장부가 깨졌다'
+// 가져올 곳이 모두 지워진 채 커밋된다(Q55). 읽기만 하는 쪽(화면 · 멈춤 줄 · 시계)은 받아서 경고로 바꾼다.
+export const DECL_BROKEN = '가져올 곳 장부가 깨졌다'
 export async function readDecl(dir) {
   const t = await fs.readFile(path.join(dir, DECL), 'utf8').catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
   if (t == null || !t.trim()) return []
@@ -123,7 +123,7 @@ export const inside = (p, root) => {
 export function checkTarget(at, { kind, roots = [], dataDir, knowledgeDirs = [], backups = [], pc = false }) {
   const s = String(at || '').trim()
   if (!s || /[\r\n\0]/.test(s) || /^-/.test(s) || /^ext::/i.test(s) || /^file:/i.test(s)) throw new KmdError('E_INPUT', '이 주소는 받지 않는다')
-  if (backups.some((b) => b && maskUrl(b) === maskUrl(s))) throw new KmdError('E_INPUT', '이 kmd 의 백업 자리는 가져오는 곳이 될 수 없다')
+  if (backups.some((b) => b && maskUrl(b) === maskUrl(s))) throw new KmdError('E_INPUT', '이 kmd 의 백업 자리는 가져올 곳이 될 수 없다')
   const isUrl = /^(https?|ssh):\/\//i.test(s) || /^[^/\\\s]+@[^/\\\s]+:/.test(s)
   if (kind === 'git' && isUrl) return { url: s }
   // 이 PC 의 폴더(폴더 원천 · 이 PC 의 git 저장소)
@@ -135,13 +135,13 @@ export function checkTarget(at, { kind, roots = [], dataDir, knowledgeDirs = [],
     throw new KmdError('E_INPUT', '그 폴더가 없다')
   }
   if (path.parse(real).root.toLowerCase() === real.toLowerCase() || real.toLowerCase() === os.homedir().toLowerCase()) throw new KmdError('E_INPUT', '드라이브 통째 · 사용자 집 폴더 통째는 받지 않는다. 그 안의 폴더를 고른다')
-  if (inside(real, dataDir) || knowledgeDirs.some((d) => inside(real, d) || inside(d, real))) throw new KmdError('E_INPUT', 'kmd 의 살림 자리 · 지식 폴더는 가져오는 곳이 될 수 없다')
-  if (!pc && !roots.some((r) => inside(real, r))) throw new KmdError('E_FORBIDDEN', `이 폴더는 가져오는 곳으로 허락되지 않았다. 허락된 곳: ${roots.length ? roots.join(' · ') : '아직 없다(관리자가 정한다)'}`)
+  if (inside(real, dataDir) || knowledgeDirs.some((d) => inside(real, d) || inside(d, real))) throw new KmdError('E_INPUT', 'kmd 의 살림 자리 · 지식 폴더는 가져올 곳이 될 수 없다')
+  if (!pc && !roots.some((r) => inside(real, r))) throw new KmdError('E_FORBIDDEN', `이 폴더는 가져올 곳으로 허락되지 않았다. 허락된 곳: ${roots.length ? roots.join(' · ') : '아직 없다(관리자가 정한다)'}`)
   return { folder: real }
 }
 
 // 주소의 자격(사용자:비밀@)은 떼어 비밀로 — 선언 · 로그 · 화면에는 가린 주소
-// 가져오는 곳의 자격 이름 — 셸에서 치기 쉽게 영문 소문자로. 한글 · 그 밖의 글자가 있으면 짧은 지문을 붙여 겹치지 않게
+// 가져올 곳의 자격 이름 — 셸에서 치기 쉽게 영문 소문자로. 한글 · 그 밖의 글자가 있으면 짧은 지문을 붙여 겹치지 않게
 //   dpms · dpms-api → src/dpms/dpms-api   ·   배포노트 · 운영 DB → src/k-1a2b3c/db-4d5e6f
 const part = (x) => {
   const t = String(x).normalize('NFC')
@@ -220,7 +220,7 @@ async function readGit(src, { dataDir, kn }) {
 export async function readSource(src, ctx) {
   if (src.kind === 'folder') return readFolder(src.folder || src.at)
   if (src.kind === 'git') return readGit(src, ctx)
-  throw new KmdError('E_INPUT', src.kind === 'db' ? 'DB 는 다음 판에서 연다' : '모르는 가져오는 곳 종류')
+  throw new KmdError('E_INPUT', src.kind === 'db' ? 'DB 는 다음 판에서 연다' : '모르는 가져올 곳 종류')
 }
 
 // ── 항목 → 블록 → 저장 계획 ──
@@ -611,7 +611,7 @@ async function runTables(k, src, { dataDir, save, first = false, force = false, 
       asof = g.asof
       scan = await scanGit(g.bare, L, commit, { want, maxFile: MAX_FILE, maxFiles: MAX_FILES, full, onProgress })
       scan.bare = g.bare
-    } else throw new KmdError('E_INPUT', '모르는 가져오는 곳 종류')
+    } else throw new KmdError('E_INPUT', '모르는 가져올 곳 종류')
     const n = changeCount(scan.changes)
     line('ok', `바뀐 파일 ${n}`)
     await onStage(1)
@@ -685,14 +685,14 @@ export function sourceLines(k, decl, st, { now = Date.now(), admin = false } = {
     const s = st[src.name] || {}
     if (s.stopped) {
       const what = s.stopped.vanished ? `${src.name} 에서 항목 ${s.stopped.vanished}개가 한꺼번에 사라졌다` : `${src.name} 에서 새 항목 ${s.stopped.added}개가 한꺼번에 생겼다`
-      out.push(stopLine({ kind: 'source', kn: k.id, level: 'warn', what, fix: '표는 그대로 둠', told: admin ? '[그대로 맞추기] 는 가져오기 › 일 줄의 「확인할 것」 에서' : '관리자에게 알렸다' }))
+      out.push(stopLine({ kind: 'source', kn: k.id, level: 'warn', what, fix: '표는 그대로 둠', told: admin ? '[그대로 맞추기] 는 가져오기 › 일 줄의 「크게 바뀜」 에서' : '관리자에게 알렸다' }))
       continue
     }
     if ((s.failures || 0) >= 2 && s.checkedAt && now - Date.parse(s.checkedAt) >= 2 * everyMs(src.every)) {
       out.push(stopLine({ kind: 'source', kn: k.id, level: 'warn', what: `${src.name} 표를 못 가져왔다`, amount: ageText(now - Date.parse(s.checkedAt)), fix: `표는 ${String(s.asof || '').slice(5, 10)} 것`, told: admin ? s.lastNote : '관리자에게 알렸다' }))
     } else if ((s.failures || 0) >= 2 && !s.checkedAt) {
       // 처음부터 한 번도 가져오지 못했다 — 두 번째 실패부터 줄을 세운다(주소 · 자격이 틀렸다)
-      out.push(stopLine({ kind: 'source', kn: k.id, level: 'warn', what: `${src.name} 을 아직 한 번도 가져오지 못했다`, amount: `${s.failures}번`, fix: admin ? '지식 만들기 › 가져오는 곳에서 주소 · 자격을 고친다' : null, told: admin ? s.lastNote : '관리자에게 알렸다' }))
+      out.push(stopLine({ kind: 'source', kn: k.id, level: 'warn', what: `${src.name} 을 아직 한 번도 가져오지 못했다`, amount: `${s.failures}번`, fix: admin ? '지식 만들기 › 가져올 곳에서 주소 · 자격을 고친다' : null, told: admin ? s.lastNote : '관리자에게 알렸다' }))
     }
   }
   return out

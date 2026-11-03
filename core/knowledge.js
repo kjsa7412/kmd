@@ -2,7 +2,7 @@
 //
 //   docs/**.md    문서(항목 = ## 머리)
 //   work/<id>.md  기록(머리에 id · title · date · author · touches) — 그 자체로 지식이 될 글
-//   log/<id>.md   이력 — kmd 가 지식을 다룬 일(가져옴 · 가져오는 곳 · 바로 고침 · 정리) · 기록과 같은 모양
+//   log/<id>.md   이력 — kmd 가 지식을 다룬 일(가져옴 · 가져올 곳 · 바로 고침 · 정리) · 기록과 같은 모양
 //   _vocab.md     이름 장부 · _managed.md 자리 장부
 //   그 밖          첨부(docs/assets · work/assets 의 파일) · 나머지는 보지 않는다
 //
