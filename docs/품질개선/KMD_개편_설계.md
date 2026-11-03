@@ -541,7 +541,7 @@ ruleFix(k, rec, { from, to }):
 | 세울 이름 | 지식관리자가 세울 때까지 기록에 실어 둔 이름(넣지 못함 까닭) | — |
 
 걷는 말: 「반영 대기 · 정리 중 · 지난 정리(탭)」 · 「제안 있음 n · 확인 대기 n · [넣기]」 · 「정리 방식 · 정해진 시각 · 실시간 · 손으로만」 · 「다음 정리」 · 「지금 정리」.
-`c-pend` 뜻에서 「반영 대기」 를 빼고 `c-warn` 에 「넣지 못함」 을 더한다. 화면에서 이 말들이 실제로 바뀌는 단계(S4 · S10 · S13)에서 컨벤션 · CLAUDE.md 27줄 · `app/styleguide.html` 을 **같은 커밋**으로 고친다(S1 은 새 말을 더하고 옛 말 줄마다 화면에서 걷히는 단계를 단다: 「제안 있음 · 확인 대기」 는 「S4 까지 화면에 남음」(S-D10 · 칩을 S4 에 걷는다), 「반영 대기 n」 은 「S10 까지」(정리 화면 안은 S13), 정리 화면 탭 「반영 대기 · 정리 중 · 지난 정리」 는 「S13 까지」).
+`c-pend` 뜻에서 「반영 대기」 를 빼고 `c-warn` 에 「넣지 못함」 을 더한다. 화면에서 이 말들이 실제로 바뀌는 단계(S4 · S10 · S13)에서 컨벤션 · CLAUDE.md 「말」 줄 · `app/styleguide.html` 을 **같은 커밋**으로 고친다(S1 은 새 말을 더하고 옛 말 줄마다 화면에서 걷히는 단계를 단다: 「제안 있음 · 확인 대기」 는 「S4 까지 화면에 남음」(S-D10 · 칩을 S4 에 걷는다), 「반영 대기 n」 은 「S10 까지」(정리 화면 안은 S13), 정리 화면 탭 「반영 대기 · 정리 중 · 지난 정리」 와 「정리 방식 · 다음 정리 · 지금 정리」 는 「S13 까지」, 이력의 「확인할 것」 은 「S5 까지」).
 
 ---
 
@@ -603,7 +603,7 @@ node scripts/savelog.mjs <data 폴더> [--kn dpms] [--since 2026-11-10] [--until
 - 파일 · 할 일
   1. `docs/kmd_권한_모델.md`: 1절 write · admin 줄 · 5절 90 · 92줄 · **7절 다시 쓰기**(제목 「7. 저장(기록 + 조각 한 번에) · 모든 채널의 기본 · 2026-11-03 넓힘」, docs 지도 5절 표 + 이 설계 S-D9 · S-D10 · S-D11 · S-D13 · S-D17 · S-D19 · S-D23 ~ S-D25 · S-D30(첨부를 쓰기 자리로 넓힘 · 하루 합) · S-D43 · S-D47(일감 한도가 경계 · 팀 화면 20 은 안내) · S-D53 · 「넣지 못함 목록의 자기 것만은 화면 거르기」 · 「K8-2 세션 알림은 응답 + brief 로」 · 「collect 는 값 이력 없음」(D-8)) — 줄마다 단계 표시.
   2. `docs/kmd_문서_작성기준.md`: 3 · 7 · 9절 줄(docs 지도 3절) + 새 7-1 「claude 프롬프트에 싣는 법」(서버는 `core/writerules.js` 하나 · 스킬은 작성가이드 사본 · 판은 `TEAM_KIT_REV`) · 「`## 넣은 것` · `## 넣지 못함` · `## 되돌린 항목` 은 kmd 가 쓰는 칸」.
-  3. `docs/kmd_디자인_컨벤션.md` 9절: 7절 표의 새 말(짓기 · 버림 · 세울 이름 포함)을 더하고 옛 말 줄마다 화면에서 걷히는 단계(「S4 · S10 · S13 까지 화면에 남음」 · 7절 끝 문단).
+  3. `docs/kmd_디자인_컨벤션.md` 9절: 7절 표의 새 말(짓기 · 버림 · 세울 이름 포함)을 더하고 옛 말 줄마다 화면에서 걷히는 단계(「S4 · S5 · S10 · S13 까지 화면에 남음」 · 7절 끝 문단).
   4. `docs_ops/kmd_서비스_전체.md` 1 · 3 · 6절(docs 지도 1절) — 들어가는 단계 표시를 단다. `kmd_서비스_전체.html` 머리에 「개편 전(HEAD 2275f24) 그림 · 새 흐름은 md 6절」 띠.
   5. `CLAUDE.md`: 13줄 기준 표에 이 설계 문서를 더한다 · 56줄 「지우기는 사람이 확인한 뒤」. 「서버 · 저장」 절의 새 규칙(「모든 채널은 기록 + 조각 + 지문 + 스킬 판을 `core/save.js` 한 덩이로 …」)은 **S4 커밋**에서 더한다.
   6. `docs/품질개선/TODO_남은것.md` A4 ~ A8 · `KMD_개편_TODO.md` K12-5 `[x]` · K2-2 의 `{ ok, why, waits, stale }` → `{ ok, why, code, stale, changed }`(S-D10) · K8-2 줄에 「세션은 응답 + brief」.
@@ -645,7 +645,7 @@ node scripts/savelog.mjs <data 폴더> [--kn dpms] [--since 2026-11-10] [--until
 
 ### S5 · 이력 · 되돌리기 (K2-5 · K-D13 · S-D12 ~ S-D14 · S-D53)
 
-- 파일: `server/hub.js`(`history` · `revert` · 쓰기 자리 watched · 블록 막기) · `core/revert.js`(거르기 · 항목 `base` · 앞 판 없음 → `remove`) · `server/views.js`(`logKind` · `logRows`) · `server/http.js`(revert 몸 검사 · POST 만) · `app/main.js`(`HIST_KINDS` · `histRow` · `checkCard` · `revertToday` → `revertItem`) · `app/kmd.css`(`.vchg` 를 이력에서) · `docs/kmd_디자인_컨벤션.md` 9절 114 · 112줄 · `app/styleguide.html`.
+- 파일: `server/hub.js`(`history` · `revert` · 쓰기 자리 watched · 블록 막기) · `core/revert.js`(거르기 · 항목 `base` · 앞 판 없음 → `remove`) · `server/views.js`(`logKind` · `logRows`) · `server/http.js`(revert 몸 검사 · POST 만) · `app/main.js`(`HIST_KINDS` · `histRow` · `checkCard` · `revertToday` → `revertItem`) · `app/kmd.css`(`.vchg` 를 이력에서) · `docs/kmd_디자인_컨벤션.md` 9절 「확인할 것(이력 …)」 줄(S1 전 112줄 · S1 이 「S5 까지 화면에 남음」 을 달아 둠 · 「제안 있음 · 확인 대기」 줄(S1 전 114줄)은 S4 가 걷는다) · `app/styleguide.html`.
 - 시험: `edit`(90 · 되돌리기 항목마다 · 권한 · 항목 하나 되돌린 뒤 원 기록 `in` · 모두 되돌리면 `reverted` · 새 항목 되돌림 → 항목 없어짐 · 되돌리기 전에 남이 고침 → E_CONFLICT · 쓰기 자리가 watched 항목 되돌리기 → 403) · `wp6`(109) · `wp3`(110 되돌리기 권한) · `screen-kmd`(A8 에 「이력에 옛 값 → 새 값 · [되돌리기] · 읽기 자리는 단추 없음」 을 더하고 이력 화면 네 폭).
 - 끝 기준: 지식관리자 이력에 쓰기 자리의 세션 저장 줄이 보인다 · 쓰기 자리 B 에게 A 줄의 [되돌리기] 가 없다 · 항목 하나만 되돌린 뒤 다른 항목 되돌리기가 된다 · 되돌린 기록이 「개편 전 기록」 으로 보이지 않는다.
 
@@ -677,7 +677,7 @@ node scripts/savelog.mjs <data 폴더> [--kn dpms] [--since 2026-11-10] [--until
 
 ### S10 · 넣지 못함 (K8 · K10-3 · S-D24 ~ S-D26 · S-D42 · S-D51 화면 · S-D54 의 `touches`)
 
-- 파일: `server/hub.js`(`heldList` · `heldAgain` · `heldDrop` · `heldNames` · `heldAgainAll` · feed `held` · history `kindOf`) · `server/http.js`(`/held*` · `rec/:rec/touches` POST 만) · `server/views.js`(`knowledgeRow(k,user)` · `recRow` · `docView` · `docPend` → `docHeld`) · `server/mcp.js`(`notYetInDocs` · `recOut`) · `app/main.js`(4-8 의 화면 전부 · 팀 메뉴에 `held` **더하기** · screens 지도 1-B 표의 「반영 대기」 모든 곳 · 정리 화면 안의 것은 S13) · `app/kmd.css`(`hd-*`) · `docs/kmd_디자인_컨벤션.md` 9절 105 ~ 107 · 64 · 70 · 74줄 · `CLAUDE.md` 27줄 · `app/styleguide.html` 182 · 269 · `docs_ops/manual/지식관리자.html` 1 · 2절(새 `id="held"` 절 · 옛 `id="tidy"` 는 S13 까지).
+- 파일: `server/hub.js`(`heldList` · `heldAgain` · `heldDrop` · `heldNames` · `heldAgainAll` · feed `held` · history `kindOf`) · `server/http.js`(`/held*` · `rec/:rec/touches` POST 만) · `server/views.js`(`knowledgeRow(k,user)` · `recRow` · `docView` · `docPend` → `docHeld`) · `server/mcp.js`(`notYetInDocs` · `recOut`) · `app/main.js`(4-8 의 화면 전부 · 팀 메뉴에 `held` **더하기** · screens 지도 1-B 표의 「반영 대기」 모든 곳 · 정리 화면 안의 것은 S13) · `app/kmd.css`(`hd-*`) · `docs/kmd_디자인_컨벤션.md` 9절 「반영 대기 n」 · 「넣을 곳」 줄(S1 전 105 · 106줄 · 정리 화면 탭 줄은 S13) · 5절 64 · 70 · 74줄 · `CLAUDE.md` 「말」 줄(S1 뒤 28줄) · `app/styleguide.html` 182 · 269 · `docs_ops/manual/지식관리자.html` 1 · 2절(새 `id="held"` 절 · 옛 `id="tidy"` 는 S13 까지).
 - 시험: 새 `test/held.test.mjs`(목록 자리 거르기: 쓰기 자리는 자기 것만 · 읽기 404 · again → 일감 → 넘으면 원 기록 `fixed` · 같은 기록 again 두 번 → 일감 하나 · drop → `kept` · 이력 「버림」 · names → 장부에 이름 · 원 기록 `fixed` · again-all 이 「개편 전」 만 · 두 번 눌러도 일감이 늘지 않음 · 넣을 곳 고르기(`touches-fix`)만으로는 목록에서 빠지지 않음 · GET 이면 405) · `access`(197 은 S13 까지 그대로 · 넣지 못함 목록의 자리 거르기를 더함) · `wp9`(48 → 이력 sub 「들어갔다 / 넣지 못함 · 까닭 / 메모」) · `k0` · `fixpack` · `screen-kmd`(91 ~ 240 의 「반영 대기」 단언 → 「넣지 못함」 · 855 팀 네 폭 목록에 `held` 를 **더함**(`tidy` 는 S13 까지) · 새 넣지 못함 화면 시험 네 폭 · `BANNED`) · `open`(설명서 링크).
 - 끝 기준: 정리 화면 밖의 화면 · 기준 문서 · CLAUDE.md 에 「반영 대기」 가 옛 기록 읽기 말고 없다(`grep -rn "반영 대기" app/ docs/kmd_디자인_컨벤션.md CLAUDE.md` 가 정리 화면 덩어리만) · 네 폭 잘림 0.
 
