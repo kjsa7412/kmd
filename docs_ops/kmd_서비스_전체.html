@@ -442,10 +442,10 @@ svg.arch .hd{fill:var(--text-3)}
 <tr><td>1 · 5 · 15 · 60분</td><td>백업 다시 밀기</td><td>core/backup.js:27</td></tr>
 </table></div>
 
-<div class="m-note m-warn"><b>기준 문서와 코드가 다른 곳(2026-11-03 조사)</b><ul>
-<li>권한 모델 7절은 제안이 걸리면 <code>E_CHECK</code> 로 돌려준다고 적었으나, 코드는 기록을 저장하고 응답 <code>proposals[{ok:false, why}]</code> 에 싣는다(hub.js:772 · :810).</li>
-<li>권한 모델 7절은 제안의 값 바뀜을 「쓴 사람과 지식관리자에게」 알린다고 적었으나, 코드는 쓴 사람에게만 알린다(hub.js:911).</li>
-<li>문서 폴더 가져오기는 원본이 주인인 사본(watched) 길(<code>core/docwatch.js applyDocs</code>)이 아니라 파일 넣기 길로 간다. watched 표지를 지키는 막음은 저장 · 고치기 · 정리 · 제안에 남아 있다(sources.js:533–587).</li>
+<div class="m-note"><b>기준 문서와 코드를 맞춘 곳(2026-11-03)</b><ul>
+<li>제안이 걸리면 오류로 던지지 않고 기록을 저장한 뒤 응답 <code>proposals[{ ok, why, waits, stale? }]</code> 로 돌려준다(hub.js:772 · :810) → 권한 모델 7절 「검사」 를 이 꼴로 고쳤다.</li>
+<li>제안의 값 바뀜은 쓴 사람에게 알린다(hub.js:911). 값이 바뀌는 조각은 지식관리자가 [넣기] 를 눌러야 들어가므로 따로 알리지 않는다 → 권한 모델 7절 「알림」 을 고쳤다.</li>
+<li>문서 폴더 가져오기는 파일 넣기 길(sources.js:533–587 · 5a77eb3)이다(작성기준 7절과 같다). <code>watched</code> 표지는 옛 사본에만 남고 새로 달지 않는다 → 작성기준 2-2 표지 표에 적었다. 남은 표지는 저장 · 고치기 · 정리 · 제안이 지킨다.</li>
 </ul></div>
 
 <h3 id="core-std">이 흐름을 정한 기준</h3>
