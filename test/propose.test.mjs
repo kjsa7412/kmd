@@ -15,6 +15,7 @@ import { applyEdits, validEdits, checkProposal, renderProposals, parseProposals 
 import { mustValues } from '../core/tidy.js'
 import { sha16 } from '../core/text.js'
 import { sectionOf } from '../core/knowledge.js'
+import { makeMcp } from '../server/mcp.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s
@@ -162,4 +163,16 @@ test('지식관리자의 제안: 옛 값을 바꿔도 검사를 넘으면 저장
   assert.equal(r.proposals[0].waits, 'apply')
   assert.match(fs.readFileSync(path.join(tmp, 'kn', 'dpms', 'docs', '배포절차.md'), 'utf8'), /커넥션 풀은 80 으로/)
   assert.equal((await s.hub.get('dpms')).byWork.get(r.id).state, 'in')
+})
+
+test('MCP save 답에도 proposals 가 실린다(세션이 그 자리에서 조각을 고친다 · 스킬 kmd-team-save 4단계)', async () => {
+  const mcp = makeMcp(s.hub)
+  const out = await mcp.call({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'save', arguments: { knowledge: 'dpms', record: { title: '헬스 체크: 주기 20초', changes: ['주기: 30초 → 20초'], touches: ['proc:헬스 체크'] }, sections: [{ coord: 'proc:헬스 체크', base: '0000000000000000', edits: [{ find: '/health 를 30초마다 부른다', replace: '/health 를 20초마다 부른다' }] }] } } }, LEE)
+  assert.ok(!out.result.isError, out.result.content[0].text)
+  const r = JSON.parse(out.result.content[0].text)
+  assert.ok(r.saved, '기록은 남는다')
+  assert.equal(r.proposals.length, 1)
+  assert.equal(r.proposals[0].ok, false)
+  assert.equal(r.proposals[0].stale, true)
+  assert.match(r.proposals[0].why, /그사이 항목이 바뀌었다/)
 })

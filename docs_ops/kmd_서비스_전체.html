@@ -314,11 +314,11 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <path class="ln w" d="M775 470 H916" marker-end="url(#ah-arch-2)"/><text class="l" x="782" y="464">commit 7d727bc · 11-02 14:48 · kjsa</text>
 <path class="ln w" d="M635 508 H916" marker-end="url(#ah-arch-2)"/><text class="l" x="642" y="502">backup.enqueue → push(3초까지 기다림)</text>
 <rect class="zone" x="640" y="516" width="350" height="24" rx="5"/><text class="l" x="648" y="532">GitLab platform/dpms_wiki · 안 되면 다시</text>
-<path class="ln g" d="M635 570 H79" marker-end="url(#ah-arch-2)"/><text class="l" x="82" y="564">결과: saved(기록 id) · date · docs · note · warnings(백업 줄 포함)</text>
+<path class="ln g" d="M635 570 H79" marker-end="url(#ah-arch-2)"/><text class="l" x="82" y="564">결과: saved · date · docs · note · warnings · proposals(조각 있으면)</text>
 </svg>
 </div>
 
-<p class="small muted">지금 코드 기준: MCP save 답(server/mcp.js)에는 제안(proposals)이 실리지 않는다 — HTTP save 답에만 실린다.</p>
+<p class="small muted">제안 조각을 보냈으면 MCP · HTTP save 답 모두에 자리마다 결과(proposals)가 실린다.</p>
 
 <h3 id="arch-wk">정리 일꾼이 일감을 받는 길</h3>
 <p class="small muted">예: 같은 날 16:16 정리 기록 2026-1102-정리-8. 일꾼은 서버 밖 클라이언트라 문서를 직접 쓰지 않는다 — 초안만 올리고 서버가 검사해서 넣는다. 초안은 system 으로 저장돼 저장 검사의 문서 꼴 칸(③)을 건너뛰므로, 문서 꼴은 정리 검사 G6 이 먼저 본다.</p>
@@ -663,7 +663,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <path class="ln w" d="M490 451 H536" marker-end="url(#ah-roles-2)"/>
 </svg>
 </div>
-<p class="small muted">「바로」 는 지식관리자의 화면 고치기 · HTTP save · 제안 조각이다. 세션(MCP)의 항목 글만 자리와 상관없이 기록에 실려 정리 때 들어간다(<code>queue</code>). 아래 예의 11-02 세션 저장은 이 규칙 때문이 아니라 <b>항목 글 없이 기록만</b> 보냈기 때문에 반영 대기가 됐다 — 항목 글을 실었더라도 세션이면 queue 로 기록에 실렸다. 그 기록은 정리가 여섯 번 두었고, 11-03 14:25 kjsa(지식관리자)가 기록 둘을 reflects 로 묶어 바로 고쳐(<code>applied: 2026-1103-내부시험서버구성서</code>) 반영 대기 0 으로 닫혔다. 지금 코드 기준: 제안 조각의 결과(<code>proposals</code>)는 HTTP save 답에만 실리고 MCP save 답(<code>server/mcp.js</code>)에는 실리지 않는다. 제안 판정: <a href="../docs/kmd_권한_모델.md">권한 모델</a> 7절.</p>
+<p class="small muted">「바로」 는 지식관리자의 화면 고치기 · HTTP save · 제안 조각이다. 세션(MCP)의 항목 글만 자리와 상관없이 기록에 실려 정리 때 들어간다(<code>queue</code>). 아래 예의 11-02 세션 저장은 이 규칙 때문이 아니라 <b>항목 글 없이 기록만</b> 보냈기 때문에 반영 대기가 됐다 — 항목 글을 실었더라도 세션이면 queue 로 기록에 실렸다. 그 기록은 정리가 여섯 번 두었고, 11-03 14:25 kjsa(지식관리자)가 기록 둘을 reflects 로 묶어 바로 고쳐(<code>applied: 2026-1103-내부시험서버구성서</code>) 반영 대기 0 으로 닫혔다. 제안 조각의 결과(<code>proposals</code>)는 MCP · HTTP save 답 모두에 실린다. 제안 판정: <a href="../docs/kmd_권한_모델.md">권한 모델</a> 7절.</p>
 
 <h3>자리 표</h3>
 <div class="m-tbl"><table class="matrix">
@@ -1312,7 +1312,7 @@ docs/4.1_개발환경/내부시험서버구성서.md
 <defs><marker id="ah-core-8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0,0 L10,5 L0,10 z"/></marker></defs><rect class="box" x="20" y="20" width="340" height="80" rx="8"/><text class="t" x="34" y="42">save + sections[].edits</text><text class="l" x="34" y="63">{ coord, base, edits: [{ find, replace }] }</text><text class="l" x="34" y="81">이미 있는 항목에 base 없으면 E_CONFLICT</text><path class="ln" d="M360 60 H396" marker-end="url(#ah-core-8)"/><rect class="box team" x="400" y="20" width="300" height="80" rx="8"/><text class="t" x="414" y="42">checkProposal(:90)</text><text class="l" x="414" y="63">지문 · find 꼭 한 번 · 정리와 같은 check</text><text class="l" x="414" y="81">Claude 없이 서버가 그 자리에서</text><path class="ln" d="M550 100 V118 H135 M550 118 H873"/><path class="ln" d="M135 118 V136" marker-end="url(#ah-core-8)"/><path class="ln" d="M381 118 V136" marker-end="url(#ah-core-8)"/><path class="ln" d="M627 118 V136" marker-end="url(#ah-core-8)"/><path class="ln" d="M873 118 V136" marker-end="url(#ah-core-8)"/><rect class="box" x="20" y="140" width="230" height="76" rx="8"/><text class="t" x="34" y="162">ok: false</text><text class="l" x="34" y="183">지문 다름 stale · 조각 안 맞음</text><text class="l" x="34" y="201">기록만 저장 · HTTP 답 proposals[]</text><rect class="box ai" x="266" y="140" width="230" height="76" rx="8"/><text class="t" x="280" y="162">mixed · waits: tidy</text><text class="l" x="280" y="183">같은 항목에 먼저 온 기록</text><text class="l" x="280" y="201">정리 때 같이 넣는다</text><rect class="box pc" x="512" y="140" width="230" height="76" rx="8"/><text class="t" x="526" y="162">waits: apply</text><text class="l" x="526" y="183">값을 더하기만 했다</text><text class="l" x="526" y="201">예 ② 문장 하나 더하기</text><rect class="box bk" x="758" y="140" width="222" height="76" rx="8"/><text class="t" x="772" y="162">waits: review</text><text class="l" x="772" y="183">옛 값 바꿈 · 값 빠짐 · 문장 지움</text><text class="l" x="772" y="201">예 ① 카나리 10% → 20%</text><path class="ln" d="M869 216 V236" marker-end="url(#ah-core-8)"/><polygon class="box team" points="869,240 949,272 869,304 789,272"/><text class="s" x="869" y="277" text-anchor="middle">지식관리자?</text><path class="ln g" d="M789 272 H700 V336" marker-end="url(#ah-core-8)"/><text class="l" x="708" y="292">예 · 20109a7</text><path class="ln g" d="M627 216 V336" marker-end="url(#ah-core-8)"/><path class="ln w" d="M869 304 V336" marker-end="url(#ah-core-8)"/><text class="l" x="878" y="326">아니오</text><rect class="box pc" x="266" y="340" width="474" height="100" rx="8"/><text class="t" x="280" y="362">applyProposals(:891) · 저장하는 순간</text><text class="l" x="280" y="383">지금 글에 다시 대어 검사 · 원본이 주인 · 7일 되돌림 2번은 둠</text><text class="l" x="280" y="401">「정리: &lt;항목>」 · curate-llm · curate-proposal · reflects</text><text class="l" x="280" y="419">예 ③ kim(지식관리자) · proc:준비 커넥션 풀 60 → 80 → 바로</text><rect class="box bk" x="758" y="340" width="222" height="100" rx="8"/><text class="t" x="772" y="362">확인 대기</text><text class="l" x="772" y="383">쓰기 자리의 제안</text><text class="l" x="772" y="401">정리 › 반영 대기 줄</text><text class="l" x="772" y="419">[넣기] = force · by</text><path class="ln w" d="M758 400 H744" marker-end="url(#ah-core-8)"/><path class="ln" d="M503 440 V458" marker-end="url(#ah-core-8)"/><rect class="box" x="20" y="462" width="960" height="44" rx="8"/><text class="l" x="34" y="484">넣으면 쓴 사람 이력에: 값이 바뀌면 노랑 「kmd 가 제안대로 넣으며 값을 바꿨다 · 옛 → 새」 [되돌리기] · 아니면 「kmd 가 제안대로 넣었다」</text>
 </svg>
 </div>
-<p>걸려도 기록은 저장하고 제안만 거절한다. 그 결과 <code>proposals[]</code> 는 HTTP save 답(<code>POST /api/k/:id/save</code>)에만 실린다. MCP save 답(server/mcp.js:260)에는 아직 없어 세션은 기록만 남은 것을 본다(지금 코드 기준 · HEAD 2275f24). 넣을 때는 정리와 같은 꼴(<code>curate-llm</code> · <code>curate-proposal</code> · reflects)이라 「넣음」 표지 · 되돌리기가 그대로 듣는다.</p>
+<p>걸려도 기록은 저장하고 제안만 거절한다. 그 결과 <code>proposals[]</code> 는 MCP save 답(server/mcp.js:260)과 HTTP save 답(<code>POST /api/k/:id/save</code>)에 같이 실려, 세션이 그 자리에서 조각을 고친다. 넣을 때는 정리와 같은 꼴(<code>curate-llm</code> · <code>curate-proposal</code> · reflects)이라 「넣음」 표지 · 되돌리기가 그대로 듣는다.</p>
 <p class="src">출처: core/propose.js:21 validEdits · :90 checkProposal · :119 renderProposals · :125 parseProposals · server/hub.js:754–812 · :771 지식관리자는 apply · :891–918 applyProposals · server/http.js:705–711 · 기준 <a href="../docs/kmd_권한_모델.md">권한 모델</a> 7절 · <a href="../docs/품질개선/정리_개편안.html">정리 개편안</a></p>
 </section><aside class="ex"><div class="ex-h"><span class="tag p">시험 예 · 실제 함수 출력</span><b>같은 조각이 「확인 대기」 와 「바로」 로 갈리는 것</b></div><div class="ex-tools"><span class="xt mcp"><b>MCP</b> section → save(sections[].edits + base)</span><small>section 이 준 base 를 같이 보낸다</small><span class="xt sk"><b>스킬</b> kmd-team-save 4단계</span><small>항목 글이 바뀌면 조각으로</small><span class="xt api"><b>HTTP</b> POST /api/k/:id/proposal/:rec/put</span><small>지식관리자 [넣기]</small></div>
 <p><code>checkProposal</code> 을 시험 지식의 <code>proc:카나리</code> 에 돌린 출력. 옛 값(10%)을 바꾸면 확인 대기, 값을 더하기만 하면 바로 넣는다.</p>
@@ -1370,7 +1370,7 @@ docs/4.1_개발환경/내부시험서버구성서.md
 <div class="m-tbl"><table>
 <tr><th>기준 절</th><th>코드(지금)</th><th>커밋</th></tr>
 <tr><td>권한 모델 7절 「지식관리자의 제안」</td><td>옛 값을 바꿔도 검사를 넘으면 저장하는 순간 넣음(hub.js:771) · 쓰기 자리는 확인 대기 · 스킬 kmd-team-save 4단계</td><td>20109a7</td></tr>
-<tr><td>권한 모델 7절 「검사」</td><td>걸린 제안은 기록만 저장 · <code>proposals[]</code> 는 HTTP save 답에만(hub.js:812 · http.js:957) · MCP save 답(mcp.js:260)에는 없음</td><td>지금 코드 기준</td></tr>
+<tr><td>권한 모델 7절 「검사」</td><td>걸린 제안은 기록만 저장 · <code>proposals[]</code> 는 MCP · HTTP save 답에 같이(hub.js:812 · mcp.js:260 · http.js:957)</td><td>코드를 고침(MCP 답에도 싣는다)</td></tr>
 <tr><td>권한 모델 7절 「알림」</td><td>값 바뀜은 쓴 사람에게 노랑 · [되돌리기](hub.js:913) · 지식관리자 따로 알림 없음</td><td>–</td></tr>
 <tr><td>작성기준 7 · 9절 · 2-2</td><td>문서 폴더 가져오기 = 파일 넣기 길(sources.js:533–588) · docwatch 에는 wantDoc 만 · <code>watched</code> 표지는 새로 달지 않음</td><td>5a77eb3 · 307568e</td></tr>
 </table></div>
@@ -1713,7 +1713,7 @@ docs/4.1_개발환경/내부시험서버구성서.md
 <p class="small muted">실제 값: 188 <code>work/2026-1102-개발-환경-확정.md</code>(kjsa · 11-02 14:48 · touches 셋 · 바뀐 것 8 · 까닭 2 · 버린 안 1 · 영향 3 · 근거 4). 본문에 「고친 조각」 · 항목 글 칸이 없어 save 는 record 만 보냈고, 그래서 응답 note 는 「저장했다. 기록 1」 이다. 기록은 반영 대기가 되었고, 「2. 배치」 는 11-02 16:16 정리-8 이, 「4. 구성 순서」 는 11-03 14:25 kjsa(지식관리자) 바로 고침(d5d167a)이 넣어 지금 반영 대기 0 이다(<a href="#core">6</a>).</p>
 
 <div class="m-flow"><div class="m-st"><b>조각을 보냈다면</b><small>sections[{ coord, base, edits }]</small></div><span class="m-ar">›</span><div class="m-st m-hi"><b>checkProposal</b><small>지문 · 꼭 한 번 · 정리와 같은 검사</small></div><span class="m-ar">›</span><div class="m-st m-ok"><b>apply</b><small>값 더하기만 · 지식관리자 → 바로</small></div><div class="m-st m-pd"><b>review</b><small>옛 값 바꿈 · 문장 지움 → [넣기]</small></div><div class="m-st"><b>ok: false</b><small>why · near · stale → 조각을 고쳐 다시</small></div></div>
-<p class="small muted">제안 결과 <code>proposals[{ coord, ok, waits, why, near }]</code> 는 <code>hub.save</code> 가 만든다(server/hub.js:753). MCP save 응답(server/mcp.js:260)은 지금 <code>saved · date · docs · note · warnings</code> 만 실어 MCP 세션에는 이 칸이 닿지 않는다 · HTTP save 답에만 실린다(지금 코드 기준).</p>
+<p class="small muted">제안 결과 <code>proposals[{ coord, ok, waits, why, near }]</code> 는 <code>hub.save</code> 가 만든다(server/hub.js:753). MCP save 응답(server/mcp.js:260)은 <code>saved · date · docs · note · warnings</code> 에 이 칸을 같이 실어, 세션이 걸린 조각의 <code>why</code> · <code>near</code> 를 보고 고친다(HTTP save 답도 같다).</p>
 
 <h3>팀 · 개인: 같은 폴더에 연결 둘</h3>
 <div class="flowfig" role="figure" aria-label="팀 지식과 개인 지식을 작업 폴더에 붙이는 법 비교">
@@ -2197,7 +2197,7 @@ curl -s localhost:8090/healthz                 # build 가 새 판인지</code><
 </svg>
 </div>
 <div class="tchips"><span class="tag">record 만</span><span class="tag g">기록만 커밋 · 「저장했다. 기록 1」</span><span class="tag">sections · names · forms 를 실으면</span><span class="tag p">queued(hub.js:801) · 「기록했다. 항목 글은 정리 때 …」</span></div>
-<p class="small muted">이 기록은 서식 칸(바뀐 것 · 까닭 · 버린 안 · 영향 · 근거)만 보냈다. 그래서 queue 로 가지 않고 기록만 커밋됐다(파일 하나 work/). 항목 글을 실으면 기록 본문에 실려 정리 때 문서에 들어간다(<a href="#core">6 장</a>). 지금 코드 기준: MCP save 답(mcp.js:260)에는 proposals 가 실리지 않는다(HTTP save 답에만 실린다).</p>
+<p class="small muted">이 기록은 서식 칸(바뀐 것 · 까닭 · 버린 안 · 영향 · 근거)만 보냈다. 그래서 queue 로 가지 않고 기록만 커밋됐다(파일 하나 work/). 항목 글을 실으면 기록 본문에 실려 정리 때 문서에 들어간다(<a href="#core">6 장</a>). 제안 조각을 실으면 MCP save 답(mcp.js:260)에 proposals 가 같이 온다.</p>
 </div>
 <div class="ex">
 <div class="ex-h"><span class="tag p">실제 예</span><b>188 DPMS · 2026-11-02 14:48 · kjsa</b></div>
