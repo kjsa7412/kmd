@@ -2129,16 +2129,17 @@ const tdAgainBtn = (d, ids, t, pri) => `<button class="btn sm${pri ? ' pri' : ''
 const tdOpenKey = (spots) => (S.tdSpot === '-' ? null : S.tdSpot && spots.some((x) => x.key === S.tdSpot) ? S.tdSpot : (spots.find((x) => x.st === 'run') || spots.find((x) => x.st === 'left') || {}).key || null)
 // 넣을 곳의 문서 — 서버가 실은 문서 이름(옛 일감은 이름의 「 › 」 앞)
 const tdDocOf = (x) => x.docName || (x.kind === 'section' ? String(tdName(x)).split(' › ')[0] : x.kind === 'ingest' ? '넣은 파일' : '넣을 곳 고르기')
-// 줄 오른쪽 — 쓰는 중이면 지난 시간 · 쓴 글 / 상한과 작은 막대, 끝났으면 걸린 시간 · 고쳐 쓰기 수
+// 줄 오른쪽 — 쓰는 중이면 지난 시간 · 쓴 글 / 상한과 작은 막대, 끝났으면 걸린 시간(고쳐 쓰기까지 합 msAll) · 고쳐 쓰기 수
+//   첫 글자 전은 「생각하는 중」 — 생각 글을 흘리지 않는 claude 도 있다(188 은 think 가 늘 0 · 정리_측정_20261103 A4)
 function tdMeta(x) {
   if (x.st === 'run') {
     const pct = x.limit && x.runMs ? Math.min(100, Math.round((x.runMs / x.limit) * 100)) : 0
-    return `<span class="td-meta" data-t="tdMeta"><span>쓰는 중 <span data-since="${esc(String(x.t0 || ''))}">${x.t0 ? mmss(Date.now() - x.t0) : ''}</span>${x.out ? ` · 쓴 글 ${x.out.toLocaleString()} 자` : x.think ? ' · 생각하는 중' : ''}${x.limit ? ` / 상한 ${mmss(x.limit)}` : ''}</span>${x.limit ? `<span class="td-mbar" aria-hidden="true"><i style="width:${pct}%"></i></span>` : ''}</span>`
+    return `<span class="td-meta" data-t="tdMeta"><span>쓰는 중 <span data-since="${esc(String(x.t0 || ''))}">${x.t0 ? mmss(Date.now() - x.t0) : ''}</span>${x.out ? ` · 쓴 글 ${x.out.toLocaleString()} 자` : x.think || x.runMs ? ' · 생각하는 중' : ''}${x.limit ? ` / 상한 ${mmss(x.limit)}` : ''}</span>${x.limit ? `<span class="td-mbar" aria-hidden="true"><i style="width:${pct}%"></i></span>` : ''}</span>`
   }
   const fx = x.fixes ? `고쳐 쓰기 ${x.fixes}번` : ''
   if (x.st === 'wait') return '<span class="td-meta"><span>자리가 나면</span></span>'
   if (x.st === 'got') return `<span class="td-meta"><span>받는 대로 검사${x.ms >= 1000 ? ` · ${mmss(x.ms)}` : ''}</span></span>`
-  if (x.st === 'done' || x.st === 'left') return `<span class="td-meta"><span>${[x.ms >= 1000 ? mmss(x.ms) : '', fx].filter(Boolean).join(' · ')}</span></span>`
+  if (x.st === 'done' || x.st === 'left') return `<span class="td-meta"><span>${[(x.msAll || x.ms) >= 1000 ? mmss(x.msAll || x.ms) : '', fx].filter(Boolean).join(' · ')}</span></span>`
   return '<span class="td-meta"></span>'
 }
 // 줄 둘째 줄 — 쓴 사람 · 기록 수 · 그 곳의 사정 하나(값 바뀜 · 고쳐 쓰기 까닭 · 큰 항목 · 둔 횟수)

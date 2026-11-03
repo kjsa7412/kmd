@@ -1682,11 +1682,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const how = form === 'patch' ? '고칠 조각으로' : form === 'batch' ? '같은 문서 항목 여럿 한 번에' : form === 'bpatch' ? '같은 문서 항목 여럿을 조각으로 한 번에' : form === 'fix' ? '까닭을 붙여 고쳐 쓴다' : '글 전체로'
         sp.lines.push([2, 'tool', `▸ Claude 에 보냄${model ? ` · ${String(model).slice(0, 60)}` : ''}${Number(chars) > 0 ? ` · 프롬프트 ${(chars / 1000).toFixed(1)}k 자` : ''} · ${how}${sp.tries > 1 ? ` · ${sp.tries}번째` : ''}`])
       } else if (ok) {
-        Object.assign(sp, { st: 'got', stage: 3, ms: Number(ms) || 0, chars: Number(chars) || 0, cost: Number(cost) || 0, t1: Date.now() })
+        Object.assign(sp, { st: 'got', stage: 3, ms: Number(ms) || 0, msAll: (sp.msAll || 0) + (Number(ms) || 0), chars: Number(chars) || 0, cost: Number(cost) || 0, t1: Date.now() })
         sp.lines.push([2, 'ok', `✓ 초안을 받았다${Number(edits) > 0 ? ` · 조각 ${Number(edits)}` : ''}${took}`], [3, 'sys', '받는 대로 검사해 넣는다'])
       } else {
         const w = STOP_WHY[why] || `초안을 받지 못했다${why ? ': ' + String(why).slice(0, 120) : ''}`
-        Object.assign(sp, { st: 'left', stage: 2, why: w, ms: Number(ms) || 0, chars: Number(chars) || 0 })
+        Object.assign(sp, { st: 'left', stage: 2, why: w, ms: Number(ms) || 0, msAll: (sp.msAll || 0) + (Number(ms) || 0), chars: Number(chars) || 0 })
         sp.lines.push([2, 'err', `✗ ${w}${took}`])
       }
       stamp(j)
@@ -1902,7 +1902,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         return { rows, stop: !!j?.stop }
       }
       const done = (j?.rows || []).concat(rows).filter((x) => x.kind !== 'stopped')
-      const took = (j?.spots || []).filter((x) => x.ms).map((x) => ({ key: x.key, ms: x.ms, chars: x.chars || 0, tries: x.tries || 1 }))
+      const took = (j?.spots || []).filter((x) => x.ms).map((x) => ({ key: x.key, ms: x.msAll || x.ms, chars: x.chars || 0, tries: x.tries || 1 }))
       const run = { at: new Date().toISOString(), by: j?.by || null, auto: !!j?.auto, rows: done, ...(j?.stop ? { stopped: j.stop.by } : {}), ...(j ? { job: j.id, started: j.started || null, ms: j.started ? Date.now() - Date.parse(j.started) : null, took } : {}) }
       // 지난 정리 줄의 제목 · 사람 — 화면이 최근 기록 200개에서 찾다 옛 기록은 id · 「kmd」 가 되던 것
       if (done.length) { const kk = await hub.get(id); for (const x of done) { const w = kk.byWork.get((x.records || [])[0]); if (w) Object.assign(x, { title: x.title || w.title, who: x.who || w.author }) } }

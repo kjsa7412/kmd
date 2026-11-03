@@ -299,9 +299,13 @@ test('옛 글의 값은 기록이 바꾼 것만 빠진다: drop 없이 빠지면
   const v = [...valuesOf(await body())][0]
   assert.ok(v, '헬스 체크 항목에 값이 있다')
   const once = await s.hub.save(LEE, 'dpms', { record: { title: '헬스 체크 공지 고쳐쓰기', body: `옛값빼기 ${v} 고쳐쓰기: 롤백 전에 공지한다.`, touches: ['proc:헬스 체크'] } })
-  await api('/api/k/dpms/tidy', { ids: [once.id] })
+  const j1 = (await api('/api/k/dpms/tidy', { ids: [once.id] })).body
   let r = await workOnce({ server: s.url, key: wkey, batch: 1 })
   assert.equal(r.rows.find((x) => x.target.includes('헬스 체크')).kind, 'put', '고쳐 쓰며 옛 값을 되살렸다')
+  // 자리의 걸린 시간은 고쳐 쓰기까지 합(msAll) — ms 는 마지막 호출만(정리_측정_20261103 A4)
+  const sp1 = s.hub.job(j1.id).spots.find((x) => x.target.includes('헬스 체크'))
+  assert.equal(sp1.tries, 2)
+  assert.ok(sp1.msAll >= sp1.ms && sp1.msAll > 0, JSON.stringify({ ms: sp1.ms, msAll: sp1.msAll }))
   assert.ok((await body()).includes(v), '옛 값이 글에 남는다')
   const lose = await s.hub.save(LEE, 'dpms', { record: { title: '헬스 체크 공지 둘', body: `옛값빼기 ${v} 그리고 롤백 뒤에도 공지한다.`, touches: ['proc:헬스 체크'] } })
   await api('/api/k/dpms/tidy', { ids: [lose.id] })
