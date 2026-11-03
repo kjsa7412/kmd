@@ -64,6 +64,8 @@ const PATCH = () => (['off', 'big', 'all'].includes(process.env.KMD_TIDY_PATCH) 
 const patchOn = (g) => g.kind === 'section' && (PATCH() === 'all' || (PATCH() === 'big' && (g.content || '').length > BATCH_OUT))
 // 생각 정도(KMD_TIDY_EFFORT · low · medium · high · max · 비면 그 PC 의 기본)
 const EFFORT = () => process.env.KMD_TIDY_EFFORT || ''
+// Claude 한 번의 예산 상한(KMD_TIDY_BUDGET · 달러 · 비면 0.5) — 긴 항목은 생각 글이 많아 0.5 를 넘겨 초안을 받지 못한다(188 「4. 구성 순서」 · 11-03)
+const BUDGET = () => (Number(process.env.KMD_TIDY_BUDGET) > 0 ? Number(process.env.KMD_TIDY_BUDGET) : 0.5)
 // Claude 호출 하나의 id — 화면이 같은 호출의 넣을 곳을 한 묶음으로
 const callId = () => Math.random().toString(36).slice(2, 10)
 // 쓰는 동안 소식 간격 — 이 사이 소식이 없으면 화면이 「멈춘 것 같다」 를 1분에 띄운다
@@ -72,7 +74,7 @@ const TICK = () => Number(process.env.KMD_TIDY_TICK_MS) || 15_000
 // 일감 하나 — 없으면 null · models — 일마다 모델(core/models.js · 없으면 기본 배분)
 //   한 문서의 항목은 batch 개까지 claude -p 한 번에(batchesOf) · 그 묶음을 PAR 개씩 같이 쓰고, 초안을 받으면 그 자리만 바로 올린다(서버가 검사해 넣고 받은 것에서 빠진다) ·
 //   서버가 다시 켜져 일감이 다시 기다림이 되어도 넣은 자리는 다시 쓰지 않는다. 못 쓴 자리 · 그만둔 자리는 끝에 한꺼번에
-export async function workOnce({ server, key, log = () => {}, budget = 0.5, models = null, par = PAR, batch = BATCH, gate = slots(par) }) {
+export async function workOnce({ server, key, log = () => {}, budget = BUDGET(), models = null, par = PAR, batch = BATCH, gate = slots(par) }) {
   const n = await call(server, key, '/api/worker/next', {})
   if (!n.job) return null
   const { job, key: dkey } = n
