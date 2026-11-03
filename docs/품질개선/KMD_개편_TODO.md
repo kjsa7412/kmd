@@ -73,6 +73,7 @@
 - [ ] K2-5 쓰기 자리의 값 바꿈도 검사를 넘으면 바로 넣는다(K-D13) — 7절 「확인 대기」 · [넣기] 단추(`/proposal/:rec/put`) · 확인 대기 칩을 걷는다 · 알림 없이 이력에 「옛 값 → 새 값」 + 항목마다 되돌리기
 - [ ] K2-6 확정 처리 — 저장 덩이에 「확정 / 메모」 를 둔다. 메모는 기록만 남고 문서는 바꾸지 않는다(brief 에 「안 넣은 메모 n」)
 - [ ] K2-7 시험: `test/save*.test.mjs` · 7절 제안 시험을 새 기본에 맞춘다
+  - 메모(S3 · 2cd8d89): core 몫 끝 — K2-1 · K2-2 의 저장 문 core(prepare · partial · 넣은 것 · 넣지 못함 · 한 커밋), K2-6 의 `record.memo`(태그 memo · 상태 memo), K2-7 의 새 `test/save.test.mjs`(core). 채널 · 응답(`hub.save` · MCP)은 S4, brief 의 「안 넣은 메모 n」 은 S6 이라 [ ] 그대로
 
 ### K3 세션 채널
 - [ ] K3-1 `agent/team/skills/kmd-team-save` — 조각(찾을 글 → 바꿀 글) + base 를 **늘** 같이 보낸다. 검사에 걸리면 까닭을 읽고 그 자리에서 고쳐 다시 저장한다
