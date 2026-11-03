@@ -10,6 +10,7 @@ import { locateDoc } from '../core/registry.js'
 import { sha16 } from '../core/text.js'
 import { splitBlocks, parseTable } from '../core/baseline.js'
 import { parseRefLine } from '../core/sections.js'
+import { parseProposals, PROPOSAL_PART } from '../core/propose.js'
 
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
@@ -281,7 +282,10 @@ const routeOf = (w) => (w.tags.some((t) => t.startsWith('sent/')) ? 'send' : w.t
 const recRow = (w) => {
   const route = routeOf(w)
   const from = route === 'send' ? (String(w.body).match(/^(.{1,80})에서 보냄/) || [])[1] || '' : route === 'file' ? w.tags.find((t) => t.startsWith('ingest/')).slice(7) : ''
-  return { id: w.id, date: w.date, title: w.title, author: w.author, state: w.state, route, ...(from ? { from } : {}), ...(w.tags.some((t) => /^private$/i.test(t)) ? { priv: true } : {}) }
+  // 제안(A8) — 반영 대기 기록이 고친 조각을 같이 실었으면 그 수 · 지식관리자 확인 대기 수(정리 화면 「제안 있음」 · [넣기])
+  const ps = w.state === 'pend' && String(w.body).includes('## ' + PROPOSAL_PART) ? parseProposals(w.body) : []
+  const prop = ps.length ? { n: ps.length, review: ps.filter((p) => p.waits === 'review').length } : null
+  return { id: w.id, date: w.date, title: w.title, author: w.author, state: w.state, route, ...(from ? { from } : {}), ...(w.tags.some((t) => /^private$/i.test(t)) ? { priv: true } : {}), ...(prop ? { prop } : {}) }
 }
 
 export function tree(k) {

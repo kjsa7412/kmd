@@ -723,6 +723,8 @@ li.new{animation:flash 1.6s}
 .kcard.old{border-style:dashed}
 .kcard.add .pl{font-size:var(--fs-xl);line-height:1;font-weight:400}
 .kcard .grip{position:absolute;left:4px;top:50%;transform:translateY(-50%);color:var(--border-strong);font-size:var(--fs-xs);letter-spacing:-2px;cursor:grab;user-select:none}
+/* 반영 대기 줄의 제안(A8) — 칩 · 확인 대기 · [넣기] 한 줄 */
+.td-prop{display:flex;align-items:center;flex-wrap:wrap;gap:var(--sp-3);margin-top:var(--sp-2)}
 /* 가져올 곳 줄 */
 .slist{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
 .srow{display:flex;align-items:center;gap:var(--sp-6);padding:var(--sp-5) var(--sp-7);border-top:1px solid var(--border);cursor:pointer}

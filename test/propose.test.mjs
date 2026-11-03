@@ -132,6 +132,9 @@ test('저장 길(hub.save · 쓰기 자리): 조각은 검사해 기록 「고�
   assert.equal(rv.proposals[0].applied, undefined)
   assert.equal((await s.hub.get('dpms')).byWork.get(rv.id).state, 'pend')
   assert.deepEqual((await s.hub.applyProposals('dpms', rv.id)).rows.map((x) => x.kind), ['wait'], '확인 없이는 넣지 않는다')
+  // 정리 화면의 반영 대기 줄(A8) — 나무 기록 줄에 「제안 있음」 수 · 확인 대기 수
+  const { tree } = await import('../server/views.js')
+  assert.deepEqual(tree(await s.hub.get('dpms')).records.find((x) => x.id === rv.id).prop, { n: 1, review: 1 })
   const ap = await s.hub.applyProposals('dpms', rv.id, { force: true, by: 'kim' })
   assert.equal(ap.rows[0].kind, 'changed', ap.rows[0].why)
   assert.match(ap.rows[0].from, /40/)

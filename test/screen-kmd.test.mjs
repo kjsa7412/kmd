@@ -13,6 +13,8 @@ import { chromium } from 'playwright-core'
 import { startServer } from '../server/http.js'
 import { copyDir, signIn, seat } from './helpers.mjs'
 import { workOnce } from '../core/worker.js'
+import { sha16 } from '../core/text.js'
+import { sectionOf } from '../core/knowledge.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const MOCK = pathToFileURL(path.join(HERE, '..', 'docs', 'kmd_목업_인터랙션.html')).href
@@ -920,6 +922,38 @@ test('따로 할 것(Q11 · Q50 · Q51 · Q52): 설정은 일반으로 · 고르
     assert.match(await page.getAttribute('#gcv', 'aria-label'), /^그래프: 점 \d+ · 선 \d+/)
     await page.locator('[data-t=gList] [data-t=gListRow]').first().click()
     await page.waitForSelector('[data-t=gCard][data-name]')
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
+})
+
+test('A8 정리 · 반영 대기: 제안이 실린 기록에 「제안 있음」 · 확인 대기면 지식관리자의 [넣기] 로 넣는다', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+  await s.auth.addUser({ id: 'test-prop', admin: false })
+  await seat(s, 'test-prop', { dpms: 'write' })
+  const k = await s.hub.get('dpms')
+  const body = sectionOf(k, 'proc:준비').sec.body
+  const m = body.match(/[^\n]*\d+[^\n]*/)
+  assert.ok(m, '값이 든 줄')
+  const line = m[0], next = line.replace(/\d+/, (d) => String(Number(d) + 1))
+  const r = await s.hub.save({ user: 'test-prop' }, 'dpms', { record: { title: '준비: 테스트 제안 값', body: `## 바뀐 것\n- 값: ${line.match(/\d+/)[0]} → ${next.match(/\d+/)[0]}`, touches: ['proc:준비'] }, sections: [{ coord: 'proc:준비', base: sha16(body), edits: [{ find: line, replace: next }] }] }, { queue: true })
+  assert.equal(r.proposals[0].waits, 'review', r.proposals[0].why)
+  const page = await browser.newPage({ viewport: VIEW })
+  const errors = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  try {
+    await page.goto(s.url)
+    await page.fill('#lgId', 'kim')
+    await page.fill('#lgPw', me.pw)
+    await page.click('[data-t=loginBtn]')
+    await page.waitForSelector('[data-t=klist]')
+    await mg(page, 'team', 'tidy')
+    if (await page.locator('[data-t=tdKnSel]').count()) await page.selectOption('[data-t=tdKnSel]', 'dpms')
+    const row = page.locator('[data-t=tdRec]', { has: page.locator('[data-t=tdProp]') }).first()
+    await row.waitFor()
+    assert.match(await row.locator('[data-t=tdProp]').innerText(), /제안 있음 1[\s\S]*확인 대기 1/)
+    await row.locator('[data-t=tdPropPut]').click()
+    await page.waitForSelector('[data-t=toast]')
+    assert.match(await page.locator('[data-t=toast]').last().innerText(), /제안 1 을 넣었다/)
+    assert.equal((await s.hub.get('dpms')).byWork.get(r.id).state, 'in')
     assert.deepEqual(errors, [])
   } finally { await page.close() }
 })
