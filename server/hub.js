@@ -508,6 +508,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     const held = []
     const proposals = []
     const stale = []
+    // 동시 쓰기 측정(K12-4) — 어긋난 항목마다 그 항목에 지금 들어 있는 기록의 쓴 사람(savelog 에만 · 응답에는 싣지 않는다)
+    const conflictWith = []
     for (const s of secs) {
       const coord = s.coord != null ? String(s.coord).trim().normalize('NFC') : null
       const at = placeOf(k, { coord, doc: s.doc, heading: s.heading })
@@ -535,6 +537,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!r.ok) {
         if (r.stale && !intake) {
           stale.push(where)
+          conflictWith.push({ coord: where, by: (at.sec?.applied && k.byWork.get(at.sec.applied)?.author) || null })
           proposals.push({ ...row, ok: false, code: 'conflict', why: r.why, stale: true, applied: false })
           continue
         }
@@ -552,7 +555,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       out.push({ ...(coord ? { coord } : { doc: at.doc, heading: at.heading }), content: text, ...(at.sec ? { base: s.base } : {}) })
       proposals.push({ ...row, ok: true, changed: r.changed || [], ...(r.warnings ? { warnings: r.warnings } : {}), ...(r.lint ? { lint: r.lint } : {}) })
     }
-    if (stale.length) throw new KmdError('E_CONFLICT', `읽은 뒤 바뀐 항목이 있다: ${stale.slice(0, 3).join(' · ')}. section 으로 다시 읽고 다시 보낸다(아무것도 쓰지 않았다)`, { details: { stale, proposals } })
+    if (stale.length) throw Object.assign(new KmdError('E_CONFLICT', `읽은 뒤 바뀐 항목이 있다: ${stale.slice(0, 3).join(' · ')}. section 으로 다시 읽고 다시 보낸다(아무것도 쓰지 않았다)`, { details: { stale, proposals } }), { conflictWith })
     // 빠진 값(spread) — 기록이 적은 새 값을 넣는 모든 글을 합친 데서 한 번 본다 → 없으면 기록 단위 넣지 못함(S-D51)
     if (spread && out.length) {
       const all = valuesOf(out.map((x) => `${x.heading || ''}\n${x.content}`).join('\n') + ' ' + out.map((x) => x.coord || '').join(' '))
@@ -661,7 +664,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       : null
     if (channel) {
       // 측정 줄(S-D29) — conflictWith 는 E_CONFLICT 때만 · 들이기 비용은 S7
-      try { await savelog(id, { ...logLine, rec: r0.id, n: Array.isArray(input?.sections) ? input.sections.length : 0, put, held: held.map((x) => ({ code: x.code, ...(x.coord ? { coord: x.coord } : x.doc ? { coord: `${x.doc} › ${x.heading}` } : {}) })), stale: [], conflictWith: [], memo: !!r0.memo, same: false, ms: Date.now() - t0, err: null, cost: null }) } catch (e) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) }
+      //   ok — 넣은 자리(scripts/savelog.mjs 의 「다시 넣은 비율」 이 같은 자리를 짝짓는다) · held 의 why 는 앞 40자(까닭 상위)
+      try { await savelog(id, { ...logLine, rec: r0.id, n: Array.isArray(input?.sections) ? input.sections.length : 0, put, ok: proposals.filter((p) => p.applied).map((p) => p.coord), held: held.map((x) => ({ code: x.code, ...(x.coord ? { coord: x.coord } : x.doc ? { coord: `${x.doc} › ${x.heading}` } : {}), ...(x.why ? { why: String(x.why).slice(0, 40) } : {}) })), stale: [], conflictWith: [], memo: !!r0.memo, same: false, ms: Date.now() - t0, err: null, cost: null }) } catch (e) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) }
     }
     // 그 사람의 「오늘 바뀐 것」 한 줄 — 본인 줄만(남에게 알리지 않는다 · K-D13)
     const title = input?.record?.title || ''
@@ -982,6 +986,20 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (r?.owner && r.owner === ctx.user) return '주인'
       return '기록'
     },
+    // 내 것 가운데 아직 끝나지 않은 것(K3-3 · K2-6 · brief 의 mine · you) — 안 넣은 메모 · 넣지 못함 수와 최근 것(제목 · 까닭).
+    //   상태는 recordState 그대로: 나중 기록이 fixes 로 바로잡은 것은 fixed 라 세지 않는다. 팀 지식에서만(이 PC 는 곧바로 넣는다)
+    mineIn(ctx, k, { recent = 0 } = {}) {
+      if (mode !== 'team' || !ctx?.user) return null
+      const ws = k.works.filter((w) => w.author === ctx.user && (w.state === 'memo' || w.state === 'held'))
+      const out = { memos: ws.filter((w) => w.state === 'memo').length, held: ws.filter((w) => w.state === 'held').length }
+      if (recent) {
+        out.recent = ws.slice(0, recent).map((w) => {
+          const why = w.state === 'held' ? [...new Set(parseHeld(w.body).map((x) => String(x.why || x.code || '')).filter(Boolean))].join(' · ').slice(0, 160) || '넣지 못함' : '메모: 값이 확정되면 조각과 함께 다시 저장한다'
+          return { id: w.id, date: w.date, title: w.title, state: w.state === 'held' ? '넣지 못함' : '메모', why }
+        })
+      }
+      return out
+    },
     // 팀 서버의 관리자 아이디 · 지금 쓰는 사람 아이디(http 가 auth 로 채운다) — 지식의 관리 자리 사람(알림 받는 사람)을 셀 때
     admins: () => [],
     people: () => [],
@@ -1012,13 +1030,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 저장 속도(S-D28) — 바깥에서 온 저장(세션 · HTTP · 보내기)만 · 서버 안의 저장(가져오기 · 받은편지함 · 되돌리기)은 세지 않는다
       if (channel && !opt.system) rateTake(ctx, id)
       const t0 = Date.now()
-      const logLine = { at: localStamp(), kn: id, user: ctx.user || null, device: ctx.device || null, ch: channel || (opt.system ? 'system' : 'server') }
+      //   kit — 세션 스킬 판(MCP 가 넘긴 수 · 없으면 null · S-D15)
+      const logLine = { at: localStamp(), kn: id, user: ctx.user || null, device: ctx.device || null, ch: channel || (opt.system ? 'system' : 'server'), kit: Number.isInteger(opt.kit) ? opt.kit : null }
       try {
         return await saveIn(ctx, id, meta, input, opt, channel, logLine, t0)
       } catch (e) {
         // 저장 전체가 실패한 것도 측정 줄로(rec 없음 · S-D29)
         if (channel && e instanceof KmdError) {
-          try { await savelog(id, { ...logLine, n: Array.isArray(input?.sections) ? input.sections.length : 0, stale: e.details?.stale || [], ms: Date.now() - t0, err: e.code }) } catch (x) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${x.message}`) }
+          try { await savelog(id, { ...logLine, n: Array.isArray(input?.sections) ? input.sections.length : 0, stale: e.details?.stale || [], conflictWith: e.conflictWith || [], ms: Date.now() - t0, err: e.code }) } catch (x) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${x.message}`) }
         }
         throw e
       }

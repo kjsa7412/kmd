@@ -98,12 +98,12 @@ test('기록만 하는 사람의 names: 이름 장부는 그대로 · 기록에 
   const sv2 = await call('save', { knowledge: 'dpms', record: { title: '용어: 둘', changes: ['카나리 단계: 새 용어'], touches: ['term:카나리단계'] }, names: JSON.stringify([{ coord: 'term:카나리단계', label: '카나리 단계' }]) }, LEE)
   assert.match(sv2.note, /이름 1 은 아직 세우지 않았다/)
   const b = await call('brief', { knowledge: 'dpms' }, LEE)
-  assert.deepEqual(b.you, { role: '쓰기', direct: true, ledgers: false }) // 쓰기 자리를 받은 사람(권한 모델 4절) — 조각은 검사를 넘으면 바로(S4) · 장부는 기록으로
+  assert.deepEqual(b.you, { role: '쓰기', direct: true, ledgers: false, memos: 0, held: 0, recent: [] }) // 쓰기 자리를 받은 사람(권한 모델 4절) — 조각은 검사를 넘으면 바로(S4) · 장부는 기록으로
   assert.match(b.tidy, /정해진 시각/)
   assert.equal(b.noClaude, undefined)
   await s.hub.setOwner(SHELL, 'dpms', { noClaude: true })
   assert.match((await call('brief', { knowledge: 'dpms' }, PARK)).noClaude, /자동 정리에 Claude 를 쓰지 않는다/)
-  assert.deepEqual((await call('brief', { knowledge: 'dpms' }, PARK)).you, { role: '지식관리자', direct: true, ledgers: true }) // 총괄 관리자 = 지식관리자
+  assert.deepEqual((await call('brief', { knowledge: 'dpms' }, PARK)).you, { role: '지식관리자', direct: true, ledgers: true, memos: 0, held: 0, recent: [] }) // 총괄 관리자 = 지식관리자
   await s.hub.setOwner(SHELL, 'dpms', { noClaude: false })
 })
 

@@ -14,6 +14,7 @@ import { sha16 } from '../core/text.js'
 import { formGuide } from '../core/guard.js'
 import { splitBlocks } from '../core/baseline.js'
 import { readDecl, everyMs } from '../core/sources.js'
+import { TEAM_KIT_REV } from '../core/teamkit.js'
 
 
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05']
@@ -36,7 +37,7 @@ const str = (description) => ({ type: 'string', description })
 const TOOLS = [
   {
     name: 'brief',
-    description: '지금 kmd 에 무엇이 있나: 지식 목록 · 지식 하나의 문서 · 최근 기록 · 아직 문서에 안 넣은 기록. 일을 시작할 때 한 번.',
+    description: '지금 kmd 에 무엇이 있나: 지식 목록 · 지식 하나의 문서 · 최근 기록 · 아직 문서에 안 넣은 기록. 팀 지식이면 지식마다 mine(내가 남긴 것 가운데 안 넣은 메모 memos · 넣지 못함 held 의 수: 0 이 아니면 사람에게 한 줄로) · 지식 하나의 you.recent(그 기록의 제목 · 까닭) · kit(팀 서버의 스킬 판). 일을 시작할 때 한 번.',
     inputSchema: { type: 'object', properties: { knowledge: str('지식 id(없으면 목록)') } },
   },
   {
@@ -57,7 +58,7 @@ const TOOLS = [
   {
     name: 'save',
     description: [
-      '기록을 남긴다. 제목 · 서식 칸 · 건드린 이름(touches). 기록 글은 서식으로만 받는다(E_INPUT): changes(바뀐 것: 「무엇: 옛 값 → 새 값」 목록 · 꼭 · 메모는 없어도 된다) · why(까닭) · dropped(버린 안) · impact(영향) · refs(근거: 커밋 · 문서 판) · body 는 한두 문장 요약(300자 안 · 문단 하나). kmd 가 칸마다 머리(## 바뀐 것 …)를 달아 글로 엮는다. touches 는 match 로 찾은 이름 장부의 이름만 받는다(장부에 없는 이름 · 폐기된 이름은 거절하고 가까운 이름을 알려 준다). 건드린 이름이 정말 없으면 touches 를 비우고 touchesEmpty 에 까닭 한 줄을 적는다(둘 다 비면 거절). 새 문서는 갈래 장부의 갈래 이름으로만 선다(파일 이름 · 날짜 · 판이 든 이름은 거절 · 통화 · 미팅 메모는 회의록 문서의 「YYYY-MM-DD 무엇」 항목으로). 팀 지식: 항목 글을 고쳤으면 sections 에 바꿀 조각(edits: find → replace) 또는 새 글(content)을 base 와 같이 보낸다. 쓰기 자리 이상이면 서버가 Claude 없이 조각을 대어 검사(꼴 · 값 대조 · 지문)하고, 넘으면 값 바꿈까지 그 순간 문서에 넣는다(기록과 한 묶음 · 기록의 「넣은 것」 에 옛 값 → 새 값). 못 넘은 조각은 기록에 「넣지 못함」 으로 남는다: 응답 proposals 로 자리마다 결과(ok · applied · why · code · changed · near)가 오니 그 자리에서 조각을 고쳐 다시 save 하고 record.fixes 에 앞 기록 id 를 단다. 읽은 뒤 누가 고친 항목(지문이 다름 · base 없음)이 하나라도 있으면 E_CONFLICT 로 아무것도 쓰지 않는다(details.stale 의 항목을 section 으로 다시 읽는다). E_RATE 면 details.retryAfter 초 뒤에 다시. 값이 확정되지 않았으면 record.memo: true(기록만 · 항목 글 없이). 새 이름(테이블 · 화면 · API · 절차 · 용어 …)을 세웠으면 names 로 이름 장부 · 자리 장부에 같이 올린다. 그 항목이 항목으로 보기 · 찾기에 그 종류로 선다. 한 번에 한 묶음으로 남는다.',
+      '기록을 남긴다. 제목 · 서식 칸 · 건드린 이름(touches). 기록 글은 서식으로만 받는다(E_INPUT): changes(바뀐 것: 「무엇: 옛 값 → 새 값」 목록 · 꼭 · 메모는 없어도 된다) · why(까닭) · dropped(버린 안) · impact(영향) · refs(근거: 커밋 · 문서 판) · body 는 한두 문장 요약(300자 안 · 문단 하나). kmd 가 칸마다 머리(## 바뀐 것 …)를 달아 글로 엮는다. touches 는 match 로 찾은 이름 장부의 이름만 받는다(장부에 없는 이름 · 폐기된 이름은 거절하고 가까운 이름을 알려 준다). 건드린 이름이 정말 없으면 touches 를 비우고 touchesEmpty 에 까닭 한 줄을 적는다(둘 다 비면 거절). 새 문서는 갈래 장부의 갈래 이름으로만 선다(파일 이름 · 날짜 · 판이 든 이름은 거절 · 통화 · 미팅 메모는 회의록 문서의 「YYYY-MM-DD 무엇」 항목으로). 팀 지식: 항목 글을 고쳤으면 sections 에 바꿀 조각(edits: find → replace) 또는 새 글(content)을 base 와 같이 보낸다. 쓰기 자리 이상이면 서버가 Claude 없이 조각을 대어 검사(꼴 · 값 대조 · 지문)하고, 넘으면 값 바꿈까지 그 순간 문서에 넣는다(기록과 한 묶음 · 기록의 「넣은 것」 에 옛 값 → 새 값). 못 넘은 조각은 기록에 「넣지 못함」 으로 남는다: 응답 proposals 로 자리마다 결과(ok · applied · why · code · changed · near)가 오니 그 자리에서 조각을 고쳐 다시 save 하고 record.fixes 에 앞 기록 id 를 단다. 읽은 뒤 누가 고친 항목(지문이 다름 · base 없음)이 하나라도 있으면 E_CONFLICT 로 아무것도 쓰지 않는다(details.stale 의 항목을 section 으로 다시 읽는다). E_RATE 면 details.retryAfter 초 뒤에 다시. 팀 지식: kit 에 스킬 글이 준 판을 늘 싣는다 · 없거나 옛 판이면 저장은 그대로 하고 답에 reinstall(다시 설치 안내)이 온다: 사람에게 그대로 한 줄로 전한다. 값이 확정되지 않았으면 record.memo: true(기록만 · 항목 글 없이). 새 이름(테이블 · 화면 · API · 절차 · 용어 …)을 세웠으면 names 로 이름 장부 · 자리 장부에 같이 올린다. 그 항목이 항목으로 보기 · 찾기에 그 종류로 선다. 한 번에 한 묶음으로 남는다.',
       '항목 글(sections.content)은 본문만: 대상 하나의 지금을 확정된 것만 「…한다 · …이다」 로. 링크는 지식 문서 [배포 절차](배포절차.md) · 항목 [준비](배포절차.md#준비) · 바깥 https://… 만.',
       '받지 않는 것(E_FORMAT): 기록 · 이력 링크(../work/… · ../log/…) · /api/… 같은 시스템 주소 · <!-- --> 주석 · 끝의 **경과** 기록 링크 목록 · 닫히지 않은 코드 울타리 · # · ## 머리 줄(소제목은 ###). 지금 글에 이미 있던 줄은 거절하지 않는다(새로 넣은 줄만). 출처 줄은 kmd 가 참고에 단다.',
       '좋은 예: 「배포 창은 화 · 목 14:00 ~ 17:00 이다.」 나쁜 예: 「배포 창을 바꿨다는 기록이 있다([기록](../work/2026-1021-배포-창.md))」.',
@@ -67,6 +68,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         knowledge: str('지식 id'),
+        kit: str('팀 지식: 스킬 판(kmd-team-save 스킬 글이 준 값 그대로 · 예 "2")'),
         record: {
           type: 'object',
           properties: {
@@ -129,7 +131,9 @@ export function makeMcp(store) {
       if (!knowledge) {
         const ks = await store.all(ctx)
         return {
-          knowledge: ks.map((k) => ({ id: k.id, name: k.name, ...whereOf(store, k.id), docs: k.docs.length, records: k.works.length, notYetInDocs: k.works.filter((w) => w.state === 'pend').length })),
+          // mine — 내가 남긴 것 가운데 안 넣은 메모 · 넣지 못함 수(팀 · K3-3) · 스킬이 0 이 아니면 한 줄로 전한다
+          knowledge: ks.map((k) => { const mine = store.mineIn(ctx, k); return { id: k.id, name: k.name, ...whereOf(store, k.id), docs: k.docs.length, records: k.works.length, notYetInDocs: k.works.filter((w) => w.state === 'pend').length, ...(mine ? { mine } : {}) } }),
+          ...(store.mode === 'pc' ? {} : { kit: TEAM_KIT_REV }),
           next: ks.length ? 'brief { knowledge } 로 지식 하나를 본다' : '아직 지식이 없다',
           stops: (await store.stops(ctx)).map((l) => l.text),
           // 노란 줄 — kmd 가 값을 바꾼 것 · 새 기기(한 번 실린다 · 사용자에게 그대로 전한다)
@@ -137,16 +141,19 @@ export function makeMcp(store) {
         }
       }
       const k = await store.get(knowledge, ctx)
+      const mine = store.mineIn(ctx, k, { recent: 5 })
       return {
         id: k.id,
         name: k.name,
         ...whereOf(store, k.id),
+        ...(store.mode === 'pc' ? {} : { kit: TEAM_KIT_REV }),
         docs: k.docs.map((d) => ({ doc: d.id, title: d.title, headings: d.sections.map((s) => s.h) })),
         recent: k.works.slice(0, 10).map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title })),
         notYetInDocs: k.works.filter((w) => w.state === 'pend').map((w) => ({ id: w.id, date: w.date, title: w.title })),
         // 이 지식에서의 내 자리 — direct 면 sections 가 검사를 넘으면 그 순간 문서에(쓰기 이상 · hub.canSave) ·
-        // ledgers 면 names · forms 가 곧바로 이름 · 갈래 장부에(지식관리자 · hub.canDirect), 아니면 기록의 「세울 이름」 칸으로
-        you: { role: store.mode === 'pc' ? '주인' : store.roleIn(k.id, ctx), direct: store.mode === 'pc' || store.canSave(ctx, k.id), ...(store.mode === 'pc' ? {} : { ledgers: store.canDirect(ctx, k.id) }) },
+        // ledgers 면 names · forms 가 곧바로 이름 · 갈래 장부에(지식관리자 · hub.canDirect), 아니면 기록의 「세울 이름」 칸으로 ·
+        // memos · held · recent — 내 안 넣은 메모 · 넣지 못함(최근 5: 제목 · 까닭 · 고쳐 다시 저장할 때 record.fixes 에 그 id)
+        you: { role: store.mode === 'pc' ? '주인' : store.roleIn(k.id, ctx), direct: store.mode === 'pc' || store.canSave(ctx, k.id), ...(store.mode === 'pc' ? {} : { ledgers: store.canDirect(ctx, k.id) }), ...(mine || {}) },
         // 지식 생성 가드(작성기준 9절) — 이름의 종류 · 새 문서의 갈래 · 지키는 법. save 가 같은 규칙으로 거절한다
         kinds: [...new Set([...k.vocab.coords.keys()].map((c) => c.slice(0, c.indexOf(':'))))],
         forms: k.forms.rows.map((f) => ({ name: f.name, aliases: f.aliases, ...(f.folder ? { folder: f.folder } : {}), kind: f.kind, ...(f.pattern ? { pattern: f.pattern } : {}), ...formGuide(f) })),
@@ -239,7 +246,7 @@ export function makeMcp(store) {
       }
     },
 
-    async save({ knowledge, record, sections, names, forms }, ctx) {
+    async save({ knowledge, record, sections, names, forms, kit }, ctx) {
       // 도구 모양을 배포 전에 받아 둔 세션은 모르는 칸(forms 등)의 목록을 글(JSON)로 보낸다 — 목록 글이면 풀어 받는다
       const listOf = (v) => {
         if (typeof v !== 'string') return v
@@ -259,11 +266,16 @@ export function makeMcp(store) {
       }
       // 채널은 서버가 정한다(S-D3 · 설계 2-1) — 넣은 파일 표지(ingest/)가 있으면 대량 넣기, 아니면 세션
       const channel = (Array.isArray(record?.tags) ? record.tags : []).some((t) => String(t).startsWith('ingest/')) ? 'bulk' : 'session'
-      const r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}), ...(forms ? { forms } : {}) }, { guard: 'strict', form: true, channel })
-      if (r.same) return { saved: r.id, same: true, docs: [], note: r.note }
+      // 스킬 판(S-D15) — 팀 세션만 본다(kmd 가 띄운 넣기 에이전트 · 이 PC 는 팀 스킬이 아니다). 옛것 · 없음이면 저장은 그대로 하고 답에 reinstall
+      const have = typeof kit === 'number' || (typeof kit === 'string' && /^\s*\d{1,6}\s*$/.test(kit)) ? Number(kit) : null
+      const reinstall = store.mode !== 'pc' && !ctx?.agent && !(Number.isInteger(have) && have >= TEAM_KIT_REV)
+        ? { reinstall: { have, want: TEAM_KIT_REV, how: '이 폴더의 kmd 팀 스킬이 옛 판이다(저장은 했다). 팀 화면 › 설정 › 에이전트 설치의 한 줄을 이 폴더에서 다시 붙여 넣고 Claude Code 를 새로 연다' } }
+        : {}
+      const r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}), ...(forms ? { forms } : {}) }, { guard: 'strict', form: true, channel, ...(Number.isInteger(have) ? { kit: have } : {}) })
+      if (r.same) return { saved: r.id, same: true, docs: [], note: r.note, ...reinstall }
       const n = r.docs.length
       const note = r.note || (n ? `저장했다. 기록 1 · 문서 ${n}` : store.mode === 'pc' ? '기록했다. 이 PC 는 kmd 가 곧바로 문서에 넣는다(정리를 기다리지 않는다)' : '저장했다. 기록 1')
-      return { saved: r.id, date: r.date, docs: r.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')), note, ...(r.put != null ? { put: r.put } : {}), ...(r.held ? { held: r.held } : {}), ...(r.memo ? { memo: true } : {}), warnings: r.warnings, ...(r.proposals ? { proposals: r.proposals } : {}) }
+      return { saved: r.id, date: r.date, docs: r.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')), note, ...(r.put != null ? { put: r.put } : {}), ...(r.held ? { held: r.held } : {}), ...(r.memo ? { memo: true } : {}), warnings: r.warnings, ...(r.proposals ? { proposals: r.proposals } : {}), ...reinstall }
     },
   }
 

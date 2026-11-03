@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { prehash } from '../app/prehash.js'
 import { KEY_EXE_VER } from '../core/keyexe.js'
-import { teamKitParts, teamRows, legacyRows, legacyTeamOnly, teamKns, teamBlock, asciiJson } from '../core/teamkit.js'
+import { teamKitParts, teamRows, legacyRows, legacyTeamOnly, teamKns, teamBlock, asciiJson, TEAM_KIT_REV } from '../core/teamkit.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s
@@ -53,6 +53,25 @@ before(async () => {
 after(async () => {
   await s?.close()
   fs.rmSync(tmp, { recursive: true, force: true })
+})
+
+// 스킬 판 표(S-D15) — 판마다 그 판의 스킬 글 해시(teamKitParts().ver). 팀 스킬 글 · 팀 덩이 · 작성가이드를 고치면
+//   core/teamkit.js 의 TEAM_KIT_REV 를 하나 올리고 이 표에 새 판 · 새 해시를 더한다(옛 판 줄은 그대로 둔다)
+const KIT_HASH = { 2: '3cb60a4f' }
+test('스킬 판: 스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다 · 스킬 글의 {{KIT_REV}} 를 판으로 바꿔 싣는다', async () => {
+  const parts = await teamKitParts()
+  assert.equal(parts.rev, TEAM_KIT_REV)
+  assert.equal(KIT_HASH[TEAM_KIT_REV], parts.ver, `팀 스킬 글이 바뀌었다(해시 ${parts.ver}). core/teamkit.js 의 TEAM_KIT_REV 를 올리고 이 시험의 KIT_HASH 에 { ${TEAM_KIT_REV + 1}: '<새 해시>' } 를 더한다`)
+  assert.ok(Object.keys(KIT_HASH).map(Number).every((r) => r <= TEAM_KIT_REV), '표에 앞으로 올 판이 없다')
+  for (const s of parts.skills) assert.doesNotMatch(s.text, /\{\{KIT_REV\}\}/, `${s.rel}: 자리표가 남았다`)
+  assert.doesNotMatch(parts.block, /\{\{KIT_REV\}\}/)
+  const save = parts.skills.find((x) => x.rel === '.claude/skills/kmd-team-save/SKILL.md').text
+  assert.ok(save.includes(`kit: "${TEAM_KIT_REV}"`), '저장 스킬이 save 에 판을 싣는다')
+  assert.match(save, /record\.memo: true/, '확정이 아니면 메모')
+  assert.match(save, /record\.fixes/, '고쳐 다시 저장하면 앞 기록을 단다')
+  assert.doesNotMatch(save, /정리 때|확인 대기|같은 기록을 다시 보내지 말고/, '옛 말을 걷었다')
+  const work = parts.skills.find((x) => x.rel === '.claude/skills/kmd-team-work/SKILL.md').text
+  assert.match(work, /안 넣은 메모 n · 넣지 못함 n/, '일 전 brief 의 mine 을 한 줄로')
 })
 
 test('팀 덩이: 표 읽기 · 옛 한 덩이의 팀 줄 옮기기 · 개인 지식이 없을 때만 옛 덩이를 걷는다 · 볼 수 없는 지식은 뺀다', async () => {

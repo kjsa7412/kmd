@@ -22,18 +22,23 @@ import { fileURLToPath } from 'node:url'
 const KIT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'agent')
 export const TEAM_SKILLS = ['kmd-team-work', 'kmd-team-save']
 export const OLD_SKILLS = ['kmd-work', 'kmd-save', 'kmd-build']
+// 스킬 판(S-D15) — 팀 스킬 글 · 팀 덩이 · 작성가이드를 고치면 하나 올린다(test/teamkit.test.mjs 의 판 표가 잊으면 실패한다).
+//   스킬 글의 자리표 {{KIT_REV}} 를 이 값으로 바꿔 싣는다 → 세션이 MCP save 에 kit 으로 싣는다 →
+//   팀 서버가 이 값보다 옛것(또는 없음)이면 저장은 그대로 하고 답에 reinstall(다시 설치)을 싣는다(server/mcp.js)
+export const TEAM_KIT_REV = 2
+const withRev = (t) => t.replace(/\{\{KIT_REV\}\}/g, String(TEAM_KIT_REV))
 
 export async function teamKitParts() {
   const skills = []
   for (const s of TEAM_SKILLS) {
     const files = (await fs.readdir(path.join(KIT, 'team', 'skills', s))).filter((f) => f.endsWith('.md')).sort()
-    for (const f of files) skills.push({ rel: `.claude/skills/${s}/${f}`, text: await fs.readFile(path.join(KIT, 'team', 'skills', s, f), 'utf8') })
+    for (const f of files) skills.push({ rel: `.claude/skills/${s}/${f}`, text: withRev(await fs.readFile(path.join(KIT, 'team', 'skills', s, f), 'utf8')) })
   }
   // 항목 글 모양 — 개인 kmd-build 의 작성가이드를 팀 저장 스킬 옆에 같이 둔다(한 벌만 고친다)
   skills.push({ rel: '.claude/skills/kmd-team-save/작성가이드.md', text: await fs.readFile(path.join(KIT, 'skills', 'kmd-build', '작성가이드.md'), 'utf8') })
-  const block = (await fs.readFile(path.join(KIT, 'CLAUDE-kmd-team.md'), 'utf8')).replace(/\r/g, '').trim()
+  const block = withRev((await fs.readFile(path.join(KIT, 'CLAUDE-kmd-team.md'), 'utf8')).replace(/\r/g, '').trim())
   const ver = crypto.createHash('sha256').update(JSON.stringify([skills.map((x) => x.text), block])).digest('hex').slice(0, 8)
-  return { skills, block, ver }
+  return { skills, block, ver, rev: TEAM_KIT_REV }
 }
 
 const ROW = /^\|\s*「(.+?)」\s*\|\s*([^|\s]+)\s*\|/

@@ -16,7 +16,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'))
 const DIST = path.join(ROOT, 'dist')
-const SRC = ['app', 'core', 'server', 'agent', 'package.json', 'CHANGELOG.md']
+// scripts/savelog.mjs — 저장 측정 읽기(설계 9절 · 팀 서버에서 node /opt/kmd/scripts/savelog.mjs /srv/kmd/.kmd)
+const SRC = ['app', 'core', 'server', 'agent', 'package.json', 'CHANGELOG.md', 'scripts/savelog.mjs']
 // 화면의 「설명서」(/manual)가 그리는 설명서 폴더(html · manual.css · img) — server/http.js 의 MANUAL_DIR
 const MANUAL = path.join('docs_ops', 'manual')
 
@@ -25,7 +26,10 @@ function copy(from, to) {
   if (st.isDirectory()) {
     fs.mkdirSync(to, { recursive: true })
     for (const n of fs.readdirSync(from)) copy(path.join(from, n), path.join(to, n))
-  } else fs.copyFileSync(from, to)
+  } else {
+    fs.mkdirSync(path.dirname(to), { recursive: true })
+    fs.copyFileSync(from, to)
+  }
 }
 // 쓰는 꾸러미만(lock 의 dev 아닌 것) — pdf.js 의 그리기(@napi-rs/canvas · 고른 꾸러미)는 글만 꺼내므로 뺀다
 const prodModules = () => Object.entries(lock.packages || {}).filter(([k, v]) => k.startsWith('node_modules/') && !v.dev && !k.startsWith('node_modules/@napi-rs/')).map(([k]) => k)

@@ -11,6 +11,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { copyDir, signIn } from './helpers.mjs'
+import { TEAM_KIT_REV } from '../core/teamkit.js'
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixture', 'kmd')
 let tmp, s, me
@@ -59,6 +60,14 @@ test('MCP: 도구 · brief · match · section', async () => {
   assert.deepEqual((await rpc('tools/list')).result.tools.map((t) => t.name), ['brief', 'match', 'search', 'section', 'save'])
   const b = (await tool('brief', {})).structuredContent
   assert.equal(b.knowledge.length, 2)
+  // 팀 서버의 스킬 판 · 지식마다 내 안 넣은 메모 · 넣지 못함 수(S6 · 스킬 kmd-team-work 1단계가 한 줄로 전한다)
+  assert.equal(b.kit, TEAM_KIT_REV)
+  assert.deepEqual(b.knowledge.map((k) => k.mine), [{ memos: 0, held: 0 }, { memos: 0, held: 0 }])
+  const list = (await rpc('tools/list')).result.tools
+  assert.match(list.find((t) => t.name === 'brief').description, /mine\(.*안 넣은 메모 memos · 넣지 못함 held/)
+  assert.ok(list.find((t) => t.name === 'save').inputSchema.properties.kit, 'save 에 스킬 판 칸')
+  const one = (await tool('brief', { knowledge: 'dpms' })).structuredContent
+  assert.deepEqual([one.kit, one.you.memos, one.you.held, one.you.recent], [TEAM_KIT_REV, 0, 0, []])
   const m = (await tool('match', { q: '상태 점검' })).structuredContent
   assert.equal(m.found[0].coord, 'proc:헬스 체크', '다른 이름으로도 찾는다')
   assert.equal(m.found[0].doc, '배포절차')
@@ -80,6 +89,7 @@ test('MCP save: 기록 글은 서식 칸으로 · 팀 지식은 검사를 넘은
   const id = out.saved
   assert.deepEqual(out.docs, ['배포절차'], '검사를 넘은 조각은 그 순간 문서에')
   assert.match(out.note, /저장했다\. 기록 1 · 넣음 1 · 넣지 못함 0/)
+  assert.equal(out.reinstall?.want, TEAM_KIT_REV, '스킬 판(kit) 없이 온 세션 저장: 저장은 하고 다시 설치 안내(S6)')
   assert.equal(out.proposals[0].ok, true, out.proposals[0].why)
   assert.equal(out.proposals[0].applied, true)
   assert.match(out.proposals[0].changed[0].from, /10%/)

@@ -21,6 +21,8 @@ import { startServer } from '../server/http.js'
 import { sha16 } from '../core/text.js'
 import { sectionOf } from '../core/knowledge.js'
 import { valuesOf as valuesIn } from '../core/values.js'
+import { makeMcp } from '../server/mcp.js'
+import { TEAM_KIT_REV } from '../core/teamkit.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const DOC = 'docs/배포절차.md'
@@ -378,15 +380,57 @@ test('서버: 측정 줄(savelog) — 저장마다 한 줄 · E_CONFLICT 도 · 
   const l = lines().slice(n0)
   assert.equal(l.length, 1)
   assert.deepEqual([l[0].kn, l[0].user, l[0].ch, l[0].rec, l[0].n, l[0].put, l[0].err], ['dpms', 'lee', 'session', r.id, 1, 1, null])
+  assert.deepEqual([l[0].kit, l[0].ok], [null, ['proc:카나리']], '판(MCP 가 아니면 없음) · 넣은 자리(S6)')
   await err(s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 늦음', body: '## 바뀐 것\n- x: 1', touches: ['proc:카나리'] }, sections: [{ coord: 'proc:카나리', base: '0000000000000000', edits: [{ find: '롤백으로 간다.', replace: '롤백으로 간다 1.' }] }] }, { channel: 'session' }))
   const last = lines().pop()
   assert.deepEqual([last.err, last.stale], ['E_CONFLICT', ['proc:카나리']])
+  assert.deepEqual(last.conflictWith, [{ coord: 'proc:카나리', by: 'lee' }], '동시 쓰기 측정: 그 항목에 지금 들어 있는 기록의 쓴 사람(K12-4 · S6)')
   // 측정 줄 자리를 막아도(파일이 아닌 폴더) 저장은 성공
   fs.rmSync(path.join(sroot, '.kmd', 'savelog'), { recursive: true, force: true })
   fs.writeFileSync(path.join(sroot, '.kmd', 'savelog'), '막음')
   const ok = await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 측정 막힘', body: '메모.', memo: true, touchesEmpty: '시험' } }, { channel: 'session' })
   assert.ok(ok.id && ok.memo)
   fs.rmSync(path.join(sroot, '.kmd', 'savelog'), { force: true })
+})
+
+test('MCP save: 스킬 판(kit)이 없거나 옛것이면 저장은 하고 reinstall · 지금 판이면 없음 · 측정 줄에 판 · brief 의 mine · you · kit(S6)', async () => {
+  const s = await server()
+  const mcp = makeMcp(s.hub)
+  const call = async (name, args, ctx = LEE) => (await mcp.call({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }, ctx)).result
+  const rec = (t) => ({ title: `테스트 판 ${t}`, body: '판 시험.', memo: true, touchesEmpty: '시험' })
+  const none = await call('save', { knowledge: 'dpms', record: rec('없음') })
+  assert.ok(!none.isError, JSON.stringify(none.structuredContent))
+  const n = none.structuredContent
+  assert.equal(n.memo, true, '저장은 된다')
+  assert.ok((await s.hub.get('dpms')).byWork.get(n.saved))
+  assert.deepEqual([n.reinstall.have, n.reinstall.want], [null, TEAM_KIT_REV])
+  assert.match(n.reinstall.how, /에이전트 설치의 한 줄/)
+  const old = (await call('save', { knowledge: 'dpms', kit: '1', record: rec('옛것') })).structuredContent
+  assert.deepEqual([old.reinstall?.have, !!old.saved], [1, true])
+  const cur = (await call('save', { knowledge: 'dpms', kit: String(TEAM_KIT_REV), record: rec('지금') })).structuredContent
+  assert.ok(cur.saved)
+  assert.equal(cur.reinstall, undefined, '지금 판이면 없다')
+  assert.equal((await call('save', { knowledge: 'dpms', kit: TEAM_KIT_REV, record: rec('수') })).structuredContent.reinstall, undefined, '수로 와도')
+  assert.deepEqual((await call('save', { knowledge: 'dpms', kit: 'v2', record: rec('모양') })).structuredContent.reinstall?.have, null, '판 모양이 아니면 없음으로')
+  const f = path.join(sroot, '.kmd', 'savelog', 'dpms.jsonl')
+  const lines = fs.readFileSync(f, 'utf8').trim().split('\n').map((l) => JSON.parse(l))
+  assert.deepEqual([n.saved, old.saved, cur.saved].map((id) => lines.find((l) => l.rec === id)?.kit), [null, 1, TEAM_KIT_REV], '측정 줄에 판')
+  // brief — 지식마다 내 안 넣은 메모 · 넣지 못함 수 · 지식 하나는 최근 것(제목 · 까닭) · 팀 서버의 판
+  const k = await s.hub.get('dpms')
+  const mine = k.works.filter((w) => w.author === 'lee')
+  const want = { memos: mine.filter((w) => w.state === 'memo').length, held: mine.filter((w) => w.state === 'held').length }
+  assert.ok(want.memos >= 5 && want.held >= 1, JSON.stringify(want))
+  const b = (await call('brief', {})).structuredContent
+  assert.equal(b.kit, TEAM_KIT_REV)
+  assert.deepEqual(b.knowledge.find((x) => x.id === 'dpms').mine, want)
+  const one = (await call('brief', { knowledge: 'dpms' })).structuredContent
+  assert.equal(one.kit, TEAM_KIT_REV)
+  assert.deepEqual([one.you.memos, one.you.held, one.you.recent.length], [want.memos, want.held, 5])
+  assert.deepEqual(one.you.recent.map((x) => x.id), mine.filter((w) => w.state === 'memo' || w.state === 'held').slice(0, 5).map((w) => w.id), '최근 것부터')
+  assert.ok(!one.you.recent.some((x) => x.id === n.saved) || one.you.recent.find((x) => x.id === n.saved).state === '메모')
+  const all = s.hub.mineIn(LEE, k, { recent: 100 }).recent
+  assert.match(all.find((x) => x.state === '넣지 못함').why, /기록의 값이 글에 없다|저절로 채우는 표|원천/, '넣지 못함은 까닭을 싣는다')
+  assert.ok(!all.some((x) => k.byWork.get(x.id).state === 'fixed'), '바로잡힌 것은 세지 않는다')
 })
 
 test('이 PC 는 지금 그대로(S-D52): 항목 글은 곧바로 문서에 · 조각 검사 · 넣지 못함 표지 없음', async () => {
@@ -397,5 +441,6 @@ test('이 PC 는 지금 그대로(S-D52): 항목 글은 곧바로 문서에 · �
     const r = await pc.hub.save({ user: 'kim' }, 'dpms', { record: { title: '롤백: 앱 먼저', body: '앱을 먼저 내린다.' }, sections: [{ coord: 'proc:롤백', content: '앱을 먼저 이전 판으로 내리고, 그다음 DB 를 되돌린다.' }] }, { noCurate: true })
     assert.deepEqual([r.docs, r.put, r.held, r.proposals], [['docs/배포절차.md'], undefined, undefined, undefined], '섞인 자리 · base 없음도 지금처럼 곧바로')
     assert.ok(!(await pc.hub.get('dpms')).byWork.get(r.id).tags.includes('put'))
+    assert.equal(pc.hub.mineIn({ user: 'kim' }, await pc.hub.get('dpms')), null, '이 PC 의 brief 에는 mine 이 없다(곧바로 넣는다)')
   } finally { await pc.close() }
 })

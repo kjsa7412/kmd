@@ -191,10 +191,11 @@ E_CONFLICT details: `{ stale: ['배포절차#롤백'], proposals }` · E_RATE de
 
 ```json
 {"at":"2026-11-10 14:02","kn":"dpms","user":"lee","device":"dev-3f…","ch":"session","kit":2,
- "rec":"2026-1110-롤백-시간","n":3,"put":2,"held":[{"code":"values","coord":"배포절차#롤백"}],
+ "rec":"2026-1110-롤백-시간","n":3,"put":2,"ok":["proc:카나리","배포절차 › 준비"],"held":[{"code":"values","coord":"배포절차#롤백","why":"기록의 값이 글에 없다: 30분"}],
  "stale":[],"conflictWith":[],"memo":false,"same":false,"ms":840,"err":null,"cost":null}
 ```
 
+- `kit`: 세션 스킬 판(MCP 가 넘긴 수 · 없으면 null). `ok`: 넣은 자리(응답 `proposals[].applied` 의 coord · 「다시 넣은 비율」 이 같은 자리를 짝짓는다 · S6 에 더함). `held[].why`: 까닭 앞 40자(까닭 상위 · S6 에 더함).
 - `err`: `E_CONFLICT` · `E_FORMAT` · `E_RATE` 처럼 저장 전체가 실패했을 때(이때 `rec` 없음). `conflictWith`: stale 조각마다 `{ coord, by }`(그 항목 지금 applied 기록의 author · K12-4). `cost`: 들이기 일감이면 일꾼이 보고한 claude 비용 합 · 횟수 `{ usd, calls }`.
 
 ### 2-6. 들이기 일감 (`jobs.json` 의 한 줄)
@@ -658,6 +659,7 @@ node scripts/savelog.mjs <data 폴더> [--kn dpms] [--since 2026-11-10] [--until
 - 파일: `agent/team/skills/kmd-team-save/SKILL.md`(`fixes` 는 내 앞 기록만) · `kmd-team-work/SKILL.md` · `agent/CLAUDE-kmd-team.md` · `core/teamkit.js`(`TEAM_KIT_REV = 2` · `{{KIT_REV}}`) · `server/mcp.js`(`kit` · `reinstall` · brief `mine` · `you` · `kit`) · `server/hub.js`(brief 셈) · 새 `scripts/savelog.mjs` · 새 `test/savelog.test.mjs` · `docs_ops/kmd_서비스_전체.md` 6-1 세션 줄.
 - 시험: `teamkit`(60 rel 그대로 · 새 test 「스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다」) · `k0`(brief 말) · `fixpack`(`notYetInDocs` → 새 말) · `savelog` · `save`(kit 없음 → `reinstall` · 저장은 됨).
 - 끝 기준: 가짜 세션(MCP 부름)이 kit 2 로 저장하면 `reinstall` 없음 · 1 이면 있음 · `node scripts/savelog.mjs <시험 data>` 가 표를 낸다.
+- **S6 에서 실제로 한 것(코드와 맞춤)**: ① `TEAM_KIT_REV = 2` 와 자리표 `{{KIT_REV}}`(스킬 글 · 팀 덩이)를 `teamKitParts()` 가 바꿔 싣는다(`rev` 도 돌려준다). 판 표는 `test/teamkit.test.mjs` 의 `KIT_HASH`(판 → `ver`). `ver` 는 바꿔 넣은 뒤의 글로 센다. 덩이 표지(`v=`)에 `r=` 는 더하지 않았다(아무도 읽지 않는다). ② `reinstall` 은 팀 서버 · 사람의 세션만(`ctx.agent` · 이 PC 빼고). `kit` 은 글 `"2"` · 수 `2` 둘 다 받고, 수 모양(1 ~ 6자리)이 아니면 없음(`have: null`)으로 본다. `same` 답에도 싣는다. 저장 전체가 실패한 답(E_CONFLICT 등)에는 싣지 않는다. ③ brief: 목록의 지식마다 `mine:{ memos, held }` · 지식 하나의 `you` 에 `memos · held · recent`(최근 5 · `{ id, date, title, state, why }` · why 는 넣지 못함 칸의 까닭) · 둘 다 `kit: TEAM_KIT_REV`. 셈은 `hub.mineIn(ctx, k, { recent })` 하나(쓴 사람 = 나 · 상태 memo · held · 바로잡힘은 빠진다 · 이 PC 는 null 이라 싣지 않는다). `notYetInDocs`(pend)는 조각 없는 사람 기록이 S13 까지 pend 라 그대로 두었다(말은 S10 의 `recOut` 과 같이) — 그래서 `fixpack` 은 고칠 것이 없었다. ④ savelog 줄에 `kit` · `ok` · `held[].why` 를 더했다(2-5). `conflictWith` 는 `gatePrepare` 가 어긋난 항목마다 그 항목의 `applied` 기록 쓴 사람을 `{ coord, by }` 로 모아 오류에 붙인다(응답 `details` 에는 싣지 않는다 · 측정 줄에만). `cost` 는 S7. ⑤ `scripts/savelog.mjs`: 9절 그대로 + `--root`(`--trend` 의 지식 폴더 · 없으면 data 폴더가 `.kmd` 일 때 그 위). 정리 장부 비교는 넣음 비율 · 자리 시간(`took[].ms` 중앙값)만(장부에 비용이 없다). 들이기 「일감 at → 끝」 시간은 일감이 S7 이라 아직 `ms / 조각` 만. 동시 쓰기 짝은 `채널 ↔ kmd(가져올 곳 · 정리) | 같은 사람 | 다른 사람 | 모름`. ⑥ `scripts/pack.mjs` 의 SRC 에 `scripts/savelog.mjs` 를 더했다(188 의 `/opt/kmd/scripts/savelog.mjs` 가 있게 · 파일 하나 복사 때 위 폴더를 만든다). ⑦ 스킬: `kmd-team-save` 를 다시 썼다(확정 묻기 → 메모 · 조각 늘 · 답 읽고 `fixes` 로 다시 · E_CONFLICT · E_RATE · 두 번 넘지 못하면 멈춤 · `kit`). `kmd-team-work` 1단계에 `mine` 한 줄 · 판 비교. 덩이에 확정 / 메모 · `mine` 줄. 「폴더째 넣기는 `kmd-team-import`」 줄은 S11(스킬이 아직 없다). 설명서(사용자 8절)에 확정 묻기 · 메모 · 「다시 설치」.
 - **사람**: 여기서 188 배포 · 2주 측정을 할지 정한다(K12-1). 이 문서의 뒤 단계는 측정과 상관없이 짤 수 있지만, 측정 결과로 S-D11 · S-D32 를 다시 볼 수 있다.
 
 ### S7 · 들이기 엔진 · 가져올 곳 (K7 · K8-1 · K7-3 · K10-2 일부 · K14-1 들이기 쪽 · K14-2 · S-D18 ~ S-D22 · S-D31 들이기 쪽 · S-D32 · S-D38 · S-D39 · S-D40 의 `jobTimer` · S-D43 · S-D47 · S-D48 · S-D50 · S-D51)
