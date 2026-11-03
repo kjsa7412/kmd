@@ -16,7 +16,8 @@ import { parseDoc, headingMatches } from './sections.js'
 import { parseVocab } from './vocab.js'
 import { formsOf } from './guard.js'
 import { parseRegistry, locate } from './registry.js'
-import { LOG_TAGS, isLogRecord } from './names.js'
+import { LOG_TAGS, isLogRecord, isReservedUser } from './names.js'
+import { parsePut, parseReverted, itemKey } from './parts.js'
 import { watchedOf } from './watchmark.js'
 
 const isDir = (p) => fs.stat(p).then((s) => s.isDirectory(), () => false)
@@ -65,7 +66,8 @@ const stripTitle = (body, title) => body.replace(/^#\s+(.+)\n+/, (all, h) => (h.
 export const readStats = { files: 0 }
 
 // cache — 지식마다 하나 { 경로 → { mtimeMs, size, value } }. 저장 뒤에는 바뀐 파일만 다시 읽는다
-export async function loadKnowledge({ id, name, dir }, { cache = null } = {}) {
+// cutoverAt — 개편(저장이 곧 반영)을 켠 때(설정 · 「YYYY-MM-DD HH:MM」). 개편 전 기록(isLegacy)을 가른다
+export async function loadKnowledge({ id, name, dir }, { cache = null, cutoverAt = null } = {}) {
   const files = await walk(dir, '', [])
   const docs = []
   const works = []
@@ -136,6 +138,27 @@ export async function loadKnowledge({ id, name, dir }, { cache = null } = {}) {
   }
   // 정리가 넣었다고 적은 기록(reflects) — 이름 없이 들어간 넣은 파일의 기록도 「넣음」 이 된다
   k.reflected = new Set([...works, ...logs].flatMap((w) => w.reflects || []))
+  // 바로잡힘(S-D46) — 나중 기록이 fixes 로 가리킨 기록. 그 기록이 넣지 못함(held)이거나 이름만 바로잡은 것(touches-fix)이면 바로잡힘이 아니다
+  //   (누가 fixes 를 실을 수 있는지는 쓸 때 막는다 · S-D17) · handedOff — 들이기 기록이 fixes 로 가리킨 기록(held 여도 일을 넘겨받았다)
+  k.superseded = new Set()
+  k.handedOff = new Set()
+  for (const w of all) {
+    if (!w.fixes?.length) continue
+    if (w.tags.includes('intake')) for (const x of w.fixes) k.handedOff.add(x)
+    if (w.tags.includes('held') || w.tags.includes('touches-fix')) continue
+    for (const x of w.fixes) k.superseded.add(x)
+  }
+  // 항목마다 되돌림(S-D13) — revert 태그 기록의 마지막 「## 되돌린 항목」 칸 · 원 기록 id → 「문서 › 머리」 모음
+  k.revertedItems = new Map()
+  for (const w of all) {
+    if (!w.tags.includes('revert')) continue
+    for (const r of parseReverted(w.body)) {
+      if (!k.revertedItems.has(r.rec)) k.revertedItems.set(r.rec, new Set())
+      k.revertedItems.get(r.rec).add(itemKey(r.doc, r.heading))
+    }
+  }
+  // 개편 전 기록을 가르는 때(S-D46) — 설정 cutoverAt(없으면 모든 pend · nowhere 가 개편 전)
+  k.cutoverAt = cutoverAt || null
   for (const w of works) w.state = recordState(k, w)
   return k
 }
@@ -212,9 +235,37 @@ export function reflectedIn(k, w, sec) {
   return !!a && a.date > arrivedOf(w)
 }
 
+// 상태(설계 S-D4 의 차례) — 새 표지(held · memo · put)를 지금 갈래(touches 를 도는 것)보다 먼저 본다.
+//   그래야 넣지 못함 · 메모가 「아직 안 넣음」 으로 보이지 않고, put 기록은 그 뒤 누가 같은 항목을 고쳐도 「들어감」 이 흔들리지 않는다.
+//   held · memo · 개편 전 pend · nowhere 를 나중 기록이 fixes 로 바로잡았으면 fixed(바로잡힘)
+//   k.reverted(판정을 거둔 기록)를 「되돌림」 상태로 보는 ⑥ 은 S5(되돌리기 · 화면과 같이)에 켠다 — 지금은 옛 판처럼 아래 갈래로
 export function recordState(k, w) {
-  if (k.kept?.has(w.id)) return 'kept'
-  if (w.tags.some((t) => t === 'curate-auto' || t === 'curate-llm')) return 'none' // 정리 기록 자신은 넣을 것이 아니다
+  const tags = w.tags || []
+  const sup = !!k.superseded?.has(w.id)
+  if (tags.includes('held') && sup) return 'fixed' // ① R-A3 의 kept 보다 먼저
+  if (k.kept?.has(w.id)) return 'kept' // ②
+  if (tags.some((t) => t === 'curate-auto' || t === 'curate-llm')) return 'none' // ③ 정리 기록 자신은 넣을 것이 아니다
+  if (tags.includes('memo')) return sup ? 'fixed' : 'memo' // ④
+  if (tags.includes('held')) return 'held' // ⑤
+  // ⑦ 저장 문이 넣은 항목을 적은 기록 — 그 항목이 모두 되돌려졌으면 되돌림, 아니면 들어감
+  if (tags.includes('put')) {
+    const items = parsePut(w.body)
+    const back = k.revertedItems?.get(w.id)
+    return items.length && back && items.every((x) => back.has(itemKey(x.doc, x.heading))) ? 'reverted' : 'in'
+  }
+  const s = stateOld(k, w) // ⑧
+  return sup && (s === 'pend' || s === 'nowhere') ? 'fixed' : s
+}
+
+// 개편 전 기록(S-D46) — 아직 안 넣은(pend · nowhere) 사람 기록 가운데 들이기가 넘겨받지 않았고 cutoverAt 앞에 들어온 것
+//   (상태가 아니라 시각으로 가른다 · cutoverAt 이 없으면 모두 · 팀 지식에서만 뜻이 있다: 부르는 쪽이 가린다)
+export function isLegacy(k, w) {
+  if (w.state !== 'pend' && w.state !== 'nowhere') return false
+  if (isReservedUser(w.author) || k.handedOff?.has(w.id)) return false
+  return !k.cutoverAt || arrivedOf(w) < k.cutoverAt
+}
+
+function stateOld(k, w) {
   // 넣은 파일(ingest/)의 기록 — 정리가 기존 문서에 넣거나 새 문서로 세울 때까지 「아직 안 넣음」
   if (!w.touches.length && w.tags.some((t) => t.startsWith('ingest/'))) return k.reflected?.has(w.id) ? 'in' : 'pend'
   // 이름 없는 기록도 정리 · 바로 넣기가 문서로 들였으면(reflects) 「넣음」

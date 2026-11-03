@@ -58,6 +58,18 @@ export const oldValues = (body) => {
   return [...out]
 }
 
+// 값 바뀜 — 옛 글에만 있는 값 → 새 글에만 있는 값(각 5개까지 · 「, 」 로 잇는다). 바뀐 값이 없으면 null
+//   저장 문이 기록의 `## 넣은 것` 줄(「문서 › 머리: 5분 → 10분」)에 싣는다(설계 2-2)
+export const DIFF_MAX = 5
+export function valueDiff(oldText, newText) {
+  const a = valuesOf(oldText)
+  const b = valuesOf(newText)
+  const from = [...a].filter((v) => !b.has(v)).slice(0, DIFF_MAX)
+  const to = [...b].filter((v) => !a.has(v)).slice(0, DIFF_MAX)
+  if (!from.length && !to.length) return null
+  return { from: from.join(', '), to: to.join(', ') }
+}
+
 // 지식에 있는 이름 — 그 문서의 항목 머리(「값: 설명」 이면 값도) · 이름 장부의 이름 · 보이는 이름 · 다른 이름(값과 같이 빈칸을 뺀다)
 export const squeeze = (s) => String(s).replace(/\s+/g, '')
 export function namesIn(k, doc) {

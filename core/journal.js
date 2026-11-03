@@ -46,6 +46,7 @@ export async function begin(dir) {
   const put = () => writeAtomic(path.join(at, 'journal.json'), JSON.stringify(j))
   await put()
   return {
+    head: j.head, // 저장을 시작할 때의 HEAD — 커밋이 던졌어도 HEAD 가 움직였으면 되돌리지 않는다(core/save.js · S-D49)
     async add(rel) {
       if (j.files.some((f) => f.rel === rel)) return
       const raw = await fs.readFile(fullOf(dir, rel)).catch(() => null)

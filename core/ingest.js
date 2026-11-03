@@ -67,6 +67,7 @@ export function topicOfName(file) {
 
 // 들인 기록의 옛 판(옛 curate R-A3) — 같은 출처(태그 ingest/…)에 새 판이 있으면 옛 판은 keep.
 //   돌려주는 줄마다 by = 새 판의 기록 id(core/curate.js decide 가 새 판을 만나는 차례에 싣는다)
+//   옛 판이 넣지 못함(held)이거나 새 판이 fixes 로 옛 판을 가리키면 건너뛴다 — 바로잡힘(fixed)을 「둠」 으로 바꾸지 않는다(설계 3-1 · S-D4 ①)
 export function supersededIngest(k) {
   const out = []
   const ingest = new Map()
@@ -74,7 +75,8 @@ export function supersededIngest(k) {
     const src = w.tags.find((t) => t.startsWith('ingest/'))
     if (!src) continue
     const prev = ingest.get(src)
-    if (prev && !k.kept.has(prev.id) && !k.reverted.has(prev.id)) out.push({ id: prev.id, verdict: 'keep', rule: 'R-A3', reason: `새 판이 있다: ${w.id}`, by: w.id })
+    const skip = prev && (prev.tags.includes('held') || (w.fixes || []).includes(prev.id))
+    if (prev && !skip && !k.kept.has(prev.id) && !k.reverted.has(prev.id)) out.push({ id: prev.id, verdict: 'keep', rule: 'R-A3', reason: `새 판이 있다: ${w.id}`, by: w.id })
     ingest.set(src, w)
   }
   return out

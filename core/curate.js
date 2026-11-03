@@ -3,7 +3,7 @@
 //   R-A1  이름이 없는 기록은 「사람이 답한 것」 만 넣지 않기로 둔다(keep) — 본문에 「대상 없음 — 사용자 답」 줄.
 //         세션이 이름을 빠뜨린 그 밖의 기록은 두지 않고 정리 일꾼의 「이름 바로잡기」 일감으로 남긴다(E5).
 //   R-A2  좌표정정 — 서버가 저장 때 구조로 판정해 touches-fix 를 붙인 기록은 문서에 넣을 것이 아니다 → keep.
-//   R-A3  들인 기록의 옛 판 — 같은 출처(태그 ingest/…)에 새 판이 있으면 옛 판은 keep.
+//   R-A3  들인 기록의 옛 판 — 같은 출처(태그 ingest/…)에 새 판이 있으면 옛 판은 keep(옛 판이 held 거나 새 판의 fixes 가 가리키면 건너뜀 · S3).
 //
 // S2: R-A3 은 core/ingest.js supersededIngest · decisionRecord 는 core/parts.js · revertPlan 은 core/revert.js 로 옮겼다(다시 내보낸다 · 이 파일은 S13 에 걷는다).
 //
