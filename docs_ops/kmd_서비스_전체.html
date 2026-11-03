@@ -52,6 +52,21 @@ svg.arch .hd{fill:var(--text-3)}
 .tag.g{background:var(--ok-bg);color:var(--ok)}
 .tag.p{background:var(--pending-bg);color:var(--pending)}
 .tag.w{background:var(--warn-bg);color:var(--warn)}
+/* 6 원천 → 기록 → 문서 */
+.flowfig{overflow-x:auto;margin:var(--sp-6) 0;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)}
+.flowfig svg.arch{min-width:760px;margin:0}
+.stages{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(460px,100%),1fr));gap:var(--sp-8);margin:var(--sp-6) 0}
+.stage{border:1px solid var(--border);border-radius:var(--r-md);padding:var(--sp-6) var(--sp-7);background:var(--surface);min-width:0}
+.stage h4{margin:0 0 var(--sp-4);font-size:var(--fs-md)}
+.stage dl{display:grid;grid-template-columns:auto 1fr;gap:var(--sp-3) var(--sp-6);margin:0;font-size:var(--fs)}
+.stage dt{font-weight:700;color:var(--text-2)}
+.stage dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.stage ol,.stage ul{margin:var(--sp-2) 0;padding-left:var(--sp-9)}
+.stage li{margin:var(--sp-2) 0}
+.stage .m-tbl table{min-width:0}
+.src{font-size:var(--fs-sm);color:var(--text-3);margin:var(--sp-5) 0 0;overflow-wrap:anywhere;border-top:1px dashed var(--border);padding-top:var(--sp-4)}
+.src a{color:var(--text-2)}
+@media (max-width:600px){.stage dl{grid-template-columns:1fr}.stage dt{margin-top:var(--sp-3)}}
 @media (max-width:600px){.ov{padding:var(--sp-6) var(--sp-4) 40px}.tree{font-size:var(--fs-sm)}}
 </style>
 </head>
@@ -68,7 +83,7 @@ svg.arch .hd{fill:var(--text-3)}
 <div class="kpi"><b>5</b><small>MCP 도구: brief · match · search · section · save</small></div>
 <div class="kpi"><b>3</b><small>가져올 곳: 문서 폴더 · git · DB</small></div>
 </div>
-<nav class="jump" aria-label="이 장의 차례"><a href="#arch">짜임</a><a href="#words">말</a><a href="#shape">지식의 모양</a><a href="#roles">자리</a><a href="#flows">흐름</a><a href="#screens">화면</a><a href="#claude">Claude Code</a><a href="#deploy">깔기 · 올리기</a><a href="#ops">운영</a><a href="#safe">지키는 것</a><a href="#code">코드</a><a href="#docs">문서</a></nav>
+<nav class="jump" aria-label="이 장의 차례"><a href="#arch">짜임</a><a href="#words">말</a><a href="#shape">지식의 모양</a><a href="#roles">자리</a><a href="#flows">흐름</a><a href="#core">원천 → 기록 → 문서</a><a href="#screens">화면</a><a href="#claude">Claude Code</a><a href="#deploy">깔기 · 올리기</a><a href="#ops">운영</a><a href="#safe">지키는 것</a><a href="#code">코드</a><a href="#docs">문서</a></nav>
 </div>
 
 <article class="man">
@@ -173,7 +188,7 @@ svg.arch .hd{fill:var(--text-3)}
 <p>md · docx · pptx · xlsx · hwpx · hwp · pdf … · 한 번에 300 파일 · 200MB · 원본은 첨부.</p></div>
 <div class="lane"><h4>가져올 곳</h4>
 <div class="m-flow"><div class="m-st"><b>문서 폴더</b><small>바뀐 파일만</small></div><div class="m-st"><b>소스 코드</b><small>새 묶음마다 기록</small></div><div class="m-st"><b>DB</b><small>정의 표 · 읽기 전용</small></div></div>
-<p>한꺼번에 크게 바뀌면(새 10 넘게 · 사라짐 10% 넘게) 멈추고 「확인할 것」.</p></div>
+<p>한꺼번에 크게 바뀌면(새 10 넘게 · 사라짐 10% 넘게) 멈추고 「크게 바뀜」.</p></div>
 <div class="lane"><h4>지식 보내기(개인 → 팀)</h4>
 <div class="m-flow"><div class="m-st m-ok"><b>개인 지식</b><small>기록 · 문서 고르기</small></div><span class="m-ar">›</span><div class="m-st m-hi"><b>기기 열쇠</b><small>닿지 않으면 다시</small></div><span class="m-ar">›</span><div class="m-st m-pd"><b>팀 지식 기록</b><small>정리 때 문서로</small></div></div></div>
 <div class="lane"><h4>백업 · 되살리기</h4>
@@ -182,7 +197,272 @@ svg.arch .hd{fill:var(--text-3)}
 </article>
 
 <article class="man">
-<h2 id="screens"><span class="m-no">6</span>화면</h2>
+<h2 id="core"><span class="m-no">6</span>원천 → 기록 → 문서: kmd 의 핵심 로직</h2>
+<p>kmd 의 일은 한 줄이다. <b>어디서 왔든(세션 · 화면 · 파일 · 코드 · DB · 개인 지식) 먼저 기록으로 남기고, 그 기록을 검사를 거쳐 문서의 항목에 넣는다.</b> 문서를 쓰는 길은 <code>core/save.js</code> 하나뿐이고, 기록과 문서와 장부가 늘 같은 git 한 묶음으로 바뀐다. 아래 그림이 그 전체이고, 그 아래 단계마다 입력 · 처리 · 출력 · 실패와 출처(코드 파일:줄 · 기준 문서 절)를 적는다. 기준일 2026-11-03 · 코드 9e7eb94.</p>
+
+<div class="flowfig" role="figure" aria-label="원천에서 기록, 기록에서 문서까지 한 장 흐름">
+<svg class="arch" viewBox="0 0 1000 1090" role="img" aria-label="원천 넷이 저장 한 길을 거쳐 기록이 되고, 제안은 바로, 나머지는 정리 때 재료 · 초안 · 검사 · 넣기를 거쳐 문서의 항목이 된다">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+
+<!-- 1 원천 -->
+<rect class="zone" x="8" y="8" width="984" height="128" rx="12"/><text class="z" x="22" y="28">1 원천 · 들어오는 길 넷</text>
+<rect class="box team" x="22" y="40" width="228" height="84" rx="10"/><text class="t" x="36" y="64">세션 · 화면 저장</text><text class="s" x="36" y="86">MCP save · 화면 고치기 · HTTP save</text><text class="l" x="36" y="106">hub.save · 팀 MCP 는 늘 기록으로</text>
+<rect class="box" x="264" y="40" width="228" height="84" rx="10"/><text class="t" x="278" y="64">파일 넣기</text><text class="s" x="278" y="86">md · docx · pptx · xlsx · hwp · pdf</text><text class="l" x="278" y="106">planImport · 300 파일 · 200MB</text>
+<rect class="box" x="506" y="40" width="228" height="84" rx="10"/><text class="t" x="520" y="64">가져올 곳</text><text class="s" x="520" y="86">git 커밋 · 문서 폴더 · DB 정의</text><text class="l" x="520" y="106">분마다 시계 · 크게 바뀌면 멈춤</text>
+<rect class="box pc" x="748" y="40" width="230" height="84" rx="10"/><text class="t" x="762" y="64">개인 → 팀 보내기</text><text class="s" x="762" y="86">send → POST receive</text><text class="l" x="762" y="106">sent/ 지문 · recv/ 받은 때</text>
+<path class="ln a" d="M136 124 V160" marker-end="url(#ah)"/><path class="ln" d="M378 124 V160" marker-end="url(#ah)"/><path class="ln" d="M620 124 V160" marker-end="url(#ah)"/><path class="ln g" d="M863 124 V160" marker-end="url(#ah)"/>
+
+<!-- 2 저장 한 길 -->
+<rect class="zone" x="8" y="164" width="984" height="132" rx="12"/><text class="z" x="22" y="184">2 저장 한 길 · core/save.js saveNow · 지식마다 한 줄 · 실패하면 되돌림</text>
+<g>
+<rect class="box" x="22" y="198" width="88" height="80" rx="8"/><text class="t" x="32" y="222">꼴</text><text class="l" x="32" y="242">제목 200자</text><text class="l" x="32" y="258">touches 꼴</text>
+<rect class="box" x="118" y="198" width="88" height="80" rx="8"/><text class="t" x="128" y="222">G1 이름</text><text class="l" x="128" y="242">세울 이름</text><text class="l" x="128" y="258">guardNames</text>
+<rect class="box" x="214" y="198" width="88" height="80" rx="8"/><text class="t" x="224" y="222">G4 문서</text><text class="l" x="224" y="242">갈래 · 폴더</text><text class="l" x="224" y="258">guardNewDoc</text>
+<rect class="box" x="310" y="198" width="88" height="80" rx="8"/><text class="t" x="320" y="222">자리</text><text class="l" x="320" y="242">locate</text><text class="l" x="320" y="258">없으면 안 씀</text>
+<rect class="box" x="406" y="198" width="88" height="80" rx="8"/><text class="t" x="416" y="222">G2 · G3</text><text class="l" x="416" y="242">guardRecord</text><text class="l" x="416" y="258">strict · hold</text>
+<rect class="box" x="502" y="198" width="88" height="80" rx="8"/><text class="t" x="512" y="222">F4 지문</text><text class="l" x="512" y="242">base 16 hex</text><text class="l" x="512" y="258">다르면 409</text>
+<rect class="box" x="598" y="198" width="88" height="80" rx="8"/><text class="t" x="608" y="222">E_FORMAT</text><text class="l" x="608" y="242">formatCheck</text><text class="l" x="608" y="258">새 줄만 거절</text>
+<rect class="box" x="694" y="198" width="88" height="80" rx="8"/><text class="t" x="704" y="222">id</text><text class="l" x="704" y="242">YYYY-MMDD-</text><text class="l" x="704" y="258">slug(40)</text>
+<rect class="box" x="790" y="198" width="88" height="80" rx="8"/><text class="t" x="800" y="222">원자 쓰기</text><text class="l" x="800" y="242">다시 읽어</text><text class="l" x="800" y="258">대조(F1)</text>
+<rect class="box bk" x="886" y="198" width="92" height="80" rx="8"/><text class="t" x="896" y="222">git</text><text class="l" x="896" y="242">기록 · 문서</text><text class="l" x="896" y="258">· 장부 한 묶음</text>
+</g>
+<path class="ln" d="M500 296 V330" marker-end="url(#ah)"/>
+
+<!-- 3 기록 -->
+<rect class="box ai" x="300" y="334" width="400" height="92" rx="10"/><text class="t" x="316" y="360">기록 work/&lt;id&gt;.md (kmd 의 일은 log/)</text><text class="s" x="316" y="382">id · title · date · author · touches · tags · reflects</text><text class="l" x="316" y="404">「## 바뀐 것 · 까닭 · 버린 안 · 영향 · 근거」 · 「## 고친 조각」(제안)</text>
+<rect class="box pc" x="22" y="334" width="252" height="92" rx="10"/><text class="t" x="36" y="360">제안 apply → 바로 문서</text><text class="s" x="36" y="382">값을 더하기만 하는 조각</text><text class="l" x="36" y="404">applyProposals · 저장하는 순간</text>
+<rect class="box bk" x="726" y="334" width="252" height="92" rx="10"/><text class="t" x="740" y="360">제안 review → [넣기]</text><text class="s" x="740" y="382">옛 값을 바꾸거나 지우는 조각</text><text class="l" x="740" y="404">지식관리자 · proposal/:rec/put</text>
+<path class="ln g" d="M300 380 H278" marker-end="url(#ah)"/><path class="ln w" d="M700 380 H722" marker-end="url(#ah)"/>
+<path class="ln p" d="M500 426 V460" marker-end="url(#ah)"/><text class="l" x="510" y="448">반영 대기(pend) · 이름 없음(nowhere)</text>
+
+<!-- 4 언제 -->
+<rect class="zone" x="8" y="464" width="984" height="104" rx="12"/><text class="z" x="22" y="484">3 언제 정리하나 · tidyNow → 일감(queued) · 같은 지식에 도는 일감이 있으면 그것</text>
+<rect class="box" x="22" y="494" width="232" height="62" rx="8"/><text class="t" x="34" y="518">정해진 시각</text><text class="l" x="34" y="540">기본 02:30 · 분마다 보고 하루 한 번</text>
+<rect class="box" x="264" y="494" width="232" height="62" rx="8"/><text class="t" x="276" y="518">실시간</text><text class="l" x="276" y="540">저장 · 받기 뒤 5분 조용하면</text>
+<rect class="box" x="506" y="494" width="232" height="62" rx="8"/><text class="t" x="518" y="518">손으로만 · [지금 정리]</text><text class="l" x="518" y="540">고른 기록 500 까지 · 쓰기 자리는 자기 것</text>
+<rect class="box" x="748" y="494" width="230" height="62" rx="8"/><text class="t" x="760" y="518">넣기 · 코드 바뀜 뒤</text><text class="l" x="760" y="540">바로(손으로만 방식은 빼고)</text>
+<path class="ln" d="M500 568 V600" marker-end="url(#ah)"/>
+
+<!-- 5 재료 -->
+<rect class="zone" x="8" y="604" width="984" height="112" rx="12"/><text class="z" x="22" y="624">4 재료 · 넣을 곳 찾기 · core/tidy.js material · 세 번 둔 기록(HOLD 3)은 자동 정리에서 뺌</text>
+<rect class="box" x="22" y="636" width="150" height="66" rx="8"/><text class="t" x="34" y="660">touches</text><text class="l" x="34" y="682">종류:값</text>
+<rect class="box" x="204" y="636" width="168" height="66" rx="8"/><text class="t" x="216" y="660">이름 장부</text><text class="l" x="216" y="682">_vocab.md · 다른 이름 · 폐기</text>
+<rect class="box" x="404" y="636" width="168" height="66" rx="8"/><text class="t" x="416" y="660">자리 장부</text><text class="l" x="416" y="682">_managed.md · 종류:* 꼴</text>
+<rect class="box team" x="604" y="636" width="168" height="66" rx="8"/><text class="t" x="616" y="660">문서 › 항목</text><text class="l" x="616" y="682">sectionOf · 「값:」 머리</text>
+<rect class="box bk" x="804" y="636" width="174" height="66" rx="8"/><text class="t" x="816" y="660">이름 없음 · 파일</text><text class="l" x="816" y="682">후보 이름 8 · 후보 문서 5</text>
+<path class="ln" d="M172 669 H200" marker-end="url(#ah)"/><path class="ln" d="M372 669 H400" marker-end="url(#ah)"/><path class="ln" d="M572 669 H600" marker-end="url(#ah)"/>
+<path class="ln" d="M500 716 V748" marker-end="url(#ah)"/>
+
+<!-- 6 초안 -->
+<rect class="zone" x="8" y="752" width="984" height="104" rx="12"/><text class="z" x="22" y="772">5 초안 · 정리 일꾼(kmd-worker) · 일감마다 단기 열쇠 kmdd_ 30분</text>
+<rect class="box" x="22" y="782" width="226" height="62" rx="8"/><text class="t" x="34" y="806">묶기 batchesOf</text><text class="l" x="34" y="828">같은 문서 16 자리 · 6만 자 · 3천 자</text>
+<rect class="box" x="262" y="782" width="226" height="62" rx="8"/><text class="t" x="274" y="806">프롬프트</text><text class="l" x="274" y="828">WRITE · MUST · OLD · SPREAD · 조각</text>
+<rect class="box ai" x="502" y="782" width="226" height="62" rx="8"/><text class="t" x="514" y="806">claude -p</text><text class="l" x="514" y="828">json-schema · 도구 없음 · $0.5 · 5~15분</text>
+<rect class="box" x="742" y="782" width="236" height="62" rx="8"/><text class="t" x="754" y="806">자리마다 올림</text><text class="l" x="754" y="828">drafts part · 서버가 묶음을 다시 짓는다</text>
+<path class="ln" d="M248 813 H258" marker-end="url(#ah)"/><path class="ln" d="M488 813 H498" marker-end="url(#ah)"/><path class="ln" d="M728 813 H738" marker-end="url(#ah)"/>
+<path class="ln" d="M500 856 V888" marker-end="url(#ah)"/>
+
+<!-- 7 검사 -->
+<rect class="zone" x="8" y="892" width="984" height="88" rx="12"/><text class="z" x="22" y="912">6 검사 · check · Claude 가 쓴 글을 사람 없이 믿지 않는다</text>
+<rect class="box" x="22" y="922" width="560" height="48" rx="8"/><text class="s" x="34" y="951">G2 지문 · G6 꼴 · G5 크기 · G4 빠진 값 · 지어낸 값 · 빠진 옛 값 · 옛 기록 되돌림</text>
+<rect class="box bk" x="600" y="922" width="180" height="48" rx="8"/><text class="t" x="612" y="944">고쳐 쓰기 한 번</text><text class="l" x="612" y="962">까닭을 붙여 다시</text>
+<rect class="box bk" x="796" y="922" width="182" height="48" rx="8"/><text class="t" x="808" y="944">둠 → 세 번이면</text><text class="l" x="808" y="962">사람이 볼 것</text>
+<path class="ln w" d="M690 922 C690 890 900 880 900 856" marker-end="url(#ah)"/><text class="l" x="760" y="884">다시 초안</text>
+<path class="ln g" d="M300 970 V1004" marker-end="url(#ah)"/><text class="l" x="310" y="992">넘음</text>
+
+<!-- 8 넣기 -->
+<rect class="zone" x="8" y="1008" width="984" height="74" rx="12"/><text class="z" x="22" y="1028">7 넣기 · planSave → coreSave(kmd-auto · curate-llm · reflects)</text>
+<rect class="box pc" x="22" y="1036" width="300" height="38" rx="8"/><text class="s" x="34" y="1060">항목 글 + applied 표지 + 참고 줄</text>
+<rect class="box bk" x="336" y="1036" width="200" height="38" rx="8"/><text class="s" x="348" y="1060">git 한 묶음 · 백업 밀기</text>
+<rect class="box" x="550" y="1036" width="214" height="38" rx="8"/><text class="s" x="562" y="1060">알림 · 값 바뀜은 노랑</text>
+<rect class="box" x="778" y="1036" width="200" height="38" rx="8"/><text class="s" x="790" y="1060">되돌리기 · revertPlan</text>
+</svg>
+</div>
+<p class="small muted">색: 파랑 팀 · 초록 개인 · 넣음 / 보라 기록 · Claude / 노랑 사람 확인 · 저장소 · 둠. 점선은 사람이 고르거나 다시 하는 길이다.</p>
+
+<h3 id="core-a">들어오는 길: 원천 → 기록</h3>
+<div class="stages">
+
+<section class="stage"><h4><span class="tag">A-1</span>사람 · 세션 저장</h4>
+<dl>
+<dt>입력</dt><dd>MCP <code>save</code>(이미 있는 항목은 <code>base</code> 지문이 있어야 한다) · 화면 고치기 <code>POST /api/k/:id/edit</code> · HTTP <code>POST /api/k/:id/save</code></dd>
+<dt>처리</dt><dd>
+<ol>
+<li>MCP 는 <b>기록 서식</b> <code>recordBody</code>로 엮는다: 「바뀐 것」 이 꼭 있다 · 요약 300자 · 칸마다 40줄 · <code>## 바뀐 것 / 까닭 / 버린 안 / 영향 / 근거</code>.</li>
+<li><b>항목 글을 기록으로 넘기는 조건</b>: 지식관리자가 아니거나(<code>!canDirect</code>) 팀 MCP 저장이면, 고친 항목 글을 문서에 바로 쓰지 않고 기록 본문의 <code>## 머리</code> 칸으로 넘긴다(반영 대기). 이름 장부에 없는 항목에는 <code>at/&lt;지문&gt;</code> 태그를 단다.</li>
+<li>항목에 <code>edits</code>(찾아 바꾸기 조각)이 있으면 <b>제안</b>으로 검사해 기록의 <code>## 고친 조각</code> 칸(json)에 싣는다(B-10).</li>
+<li>지식관리자의 화면 고치기는 <code>system</code> 저장으로 문서에 바로 들어간다(지우기 · 이름 바꾸기도). 같은 글을 1분 안에 다시 보내면 앞의 결과를 돌려준다.</li>
+<li><code>core/save.js</code> 의 열 단계(그림 2)를 거친다. 중간에 넘어지면 저널로 모두 되돌린다.</li>
+</ol></dd>
+<dt>출력</dt><dd>기록 <code>work/&lt;id&gt;.md</code>(id = <code>YYYY-MMDD-&lt;제목 조각 40자&gt;</code> · 겹치면 <code>-2</code>) · 바로 쓰는 경우 항목 글 + <code>applied</code> 표지 + 참고 줄 · git 한 묶음 · 이력 한 줄 · 1분 뒤 결정 규칙 · 실시간 방식이면 5분 뒤 정리.</dd>
+<dt>실패</dt><dd>꼴 <code>E_INPUT</code> · 문서 꼴 <code>E_FORMAT</code>(몇째 줄 · 까닭) · 지문이 다르면 <code>E_CONFLICT</code> · 장부 밖 이름(strict) · 원본이 주인인 문서 <code>E_FORBIDDEN</code> · 백업이 닫혔으면 <code>E_BEHIND</code>.</dd>
+</dl>
+<p class="src">출처: <a href="../server/mcp.js">server/mcp.js</a>:241 save · <a href="../server/http.js">server/http.js</a>:957–960 · <a href="../server/hub.js">server/hub.js</a>:719–825 save · :925–974 edit · <a href="../core/save.js">core/save.js</a>:54 check · :115 save · :254–450 saveNow · <a href="../core/guard.js">core/guard.js</a>:102 guardRecord · :156 guardNames · :225 guardNewDoc · :270 recordBody · <a href="../core/docformat.js">core/docformat.js</a>:79 formatCheck · <a href="../core/frontmatter.js">core/frontmatter.js</a>:68 renderRecord · <a href="../core/names.js">core/names.js</a>:15 · 기준 <a href="../docs/kmd_문서_작성기준.md">작성기준</a> 7 · 8 · 9절</p>
+</section>
+
+<section class="stage"><h4><span class="tag">A-2</span>파일 넣기</h4>
+<dl>
+<dt>입력</dt><dd>화면 파일 넣기 · 폴더 들이기 · 문서 폴더 가져오기(A-3) 모두 <code>hub.importFiles</code>. 한 번에 300 파일 · 200MB.</dd>
+<dt>처리</dt><dd>
+<ol>
+<li><b>글로 바꾸기</b> <code>planImport</code>: md 그대로 · txt/csv/html/json → md · docx/pptx/xlsx/hwpx <code>ooxml</code>(풀린 항목 32MB · 합 64MB · 압축비 200배) · hwp 64MB · pdf 2000쪽(쪽당 20자 미만이면 스캔) · 그림은 첨부 · 목차는 걷는다.</li>
+<li>파일마다 기록 하나: 제목 <code>&lt;파일&gt;: 넣은 파일</code> · 태그 <code>ingest/&lt;경로&gt;</code> · <code>md/&lt;지문&gt;</code>(같은 지문이면 다시 쓰지 않는다) · 원본은 <code>docs/assets/</code> 첨부. 가드는 붙잡아 두기(hold).</li>
+<li>개인 프로그램: 처음 20 파일은 Claude 로 <b>기록 정리</b>(무엇인가 · 핵심 · 정한 것 · 남은 것 · 본문 · $2 · 600초 · 15만 자 넘으면 앞 70% 와 끝) 뒤, <b>에이전트 넣기</b>(Claude Code 가 kmd MCP 로 세션처럼 문서에 넣는다 · 단기 열쇠 kmda_ 40분 · $3 · 20분). 안 되면 규칙으로.</li>
+<li>팀: 기록만 남기고 바로 <code>tidyNow</code>(손으로만 방식은 빼고). 일꾼이 같은 에이전트 길(<code>agentIngest</code>)을 먼저 해 보고, 문서를 못 남기면 초안 길로 간다.</li>
+</ol></dd>
+<dt>출력</dt><dd><code>ingest/</code> 태그 기록(이름 없음 · 반영 대기) · 일 줄 네 단계(수집 › 검토 › 기록 생성 › 문서 생성).</dd>
+<dt>실패</dt><dd>글로 못 바꾸면 「글로 바꾸지 못한 파일」 기록 · 줄마다 fail · skip 이 남는다.</dd>
+</dl>
+<p class="src">출처: <a href="../core/importer.js">core/importer.js</a>:25–29 MAX · :149 planImport · :186–198 asRecord · <a href="../core/ooxml.js">core/ooxml.js</a>:10–45 · <a href="../core/hwp.js">core/hwp.js</a>:12 · <a href="../core/pdf.js">core/pdf.js</a>:12 · <a href="../core/analyze.js">core/analyze.js</a>:8–97 filePrompt · fileRecord · <a href="../core/agent.js">core/agent.js</a>:52 runAgent · <a href="../core/worker.js">core/worker.js</a>:30 agentIngest · server/hub.js:2245 agentToken · :2297 ingestAgent · :2365 polishRecord · :2539 ingestPrep · :2765–2875 importFiles · :3897 INGEST_CLAUDE_MAX</p>
+</section>
+
+<section class="stage"><h4><span class="tag">A-3</span>가져올 곳</h4>
+<dl>
+<dt>입력</dt><dd><code>_sources.json</code> 선언 <code>{ name, kind: git | docs | db, at, every, rules }</code> · 시계가 분마다 본다(change 5분 · hourly · daily HH:MM · weekly · manual 은 사람만). 실패가 이어지면 간격을 두 배씩 여덟 배까지.</dd>
+<dt>처리</dt><dd>
+<ul>
+<li><b>git(규칙 없음)</b>: 처음은 기준 커밋만 적는다. 그 뒤 합침을 뺀 커밋마다 코드 파일이 바뀌었으면 기록 하나(한 번에 20 커밋 · 커밋마다 20 파일 · 차이 4천 자 · 첫 줄 「바뀐 값: 옛 → 새」 · 태그 <code>code-change</code> · 이름은 파일에서 다섯까지).</li>
+<li><b>git · 폴더(규칙 있음)</b>: 스캔(1MB · 3000 파일) → 규칙(deps · tables · files) → 표 블록(<code>baseline</code>)을 200개씩 넣는다.</li>
+<li><b>문서 폴더</b>: 바뀐 파일만 파일 넣기 길(A-2)로. 지운 파일은 지식을 바꾸지 않는다.</li>
+<li><b>DB</b>: PostgreSQL 읽기 전용 세션 · 카탈로그만 · 테이블마다 지문 · <code>table:&lt;이름&gt;</code> 이 장부에 있으면 그 항목에 정의 표를 채운다.</li>
+</ul></dd>
+<dt>브레이크</dt><dd>처음이 아닌데 새 항목이 10 을 넘거나 사라진 것이 10% 를 넘으면 쓰지 않고 멈춘다(일 줄 「크게 바뀜」 · [그대로 맞추기] 로 넘는다).</dd>
+<dt>출력</dt><dd>kmd 저장(<code>system</code> · 가드 hold) · 기록이 생기면 팀은 <code>tidyNow</code>, 개인 프로그램은 곧바로 정리.</dd>
+</dl>
+<p class="src">출처: <a href="../core/sources.js">core/sources.js</a>:36–112 선언 · :287 planRun · :364 runCode · :464 runDb · :533 runDocs · :592 runTables · <a href="../core/codechange.js">core/codechange.js</a>:21–140 commitRecord · valueChanges · <a href="../core/db.js">core/db.js</a>:13–69 · <a href="../core/watch.js">core/watch.js</a>:44 · <a href="../core/baseline.js">core/baseline.js</a>:24–87 · server/hub.js:1173 sourceRun · :3759–3795 dueSources · 기준 <a href="kmd_서비스_전체.md">서비스 전체</a> 6-3</p>
+</section>
+
+<section class="stage"><h4><span class="tag">A-4</span>개인 → 팀 보내기</h4>
+<dl>
+<dt>입력</dt><dd>개인 지식의 바뀐 문서 · 새 기록 · 고른 문서(<code>.kmd.json</code> 의 보낼 곳). 19만 자 넘는 글은 나누고 150개 · 6MB 씩 묶는다.</dd>
+<dt>처리</dt><dd>기기 열쇠로 <code>POST /api/k/&lt;kn&gt;/receive</code>. 받는 쪽은 지문 <code>sent/&lt;sha16&gt;</code> 이 있으면 건너뛰고, 글의 머리 · 제목 조각이 받는 지식 장부와 <b>꼭 맞는</b> 이름만 touches 로 단다. 받은 기록은 쓴 때(date)를 지키고 받은 때를 <code>recv/</code> 태그로 남긴다. git 한 묶음.</dd>
+<dt>출력</dt><dd>팀 지식의 반영 대기 기록(정리 판정은 받은 때로 견준다).</dd>
+<dt>실패</dt><dd>닿지 않으면 분마다 다시 보낸다 · 거절(4xx)은 사람이 [다시].</dd>
+</dl>
+<p class="src">출처: <a href="../core/send.js">core/send.js</a>:16–177 · server/hub.js:337–400 recvTouches · :3061 send · :3167 receive · core/save.js:145 saveRecords · <a href="../core/knowledge.js">core/knowledge.js</a>:199 arrivedOf · :205 reflectedIn</p>
+</section>
+</div>
+
+<h3 id="core-b">넣는 길: 기록 → 문서</h3>
+<div class="stages">
+<section class="stage"><h4><span class="tag p">B-5</span>언제 정리하나</h4>
+<div class="m-tbl"><table>
+<tr><th>정리 방식</th><th>언제</th><th>출처</th></tr>
+<tr><td>정해진 시각(기본)</td><td>시계가 분마다 본다. 시각(기본 02:30)이 지났고 오늘 아직 안 했고 반영 대기 · 이름 없음 기록이 있으면. 세워지지 못하면 그날 세 번까지 다시</td><td>hub.js:1588 tidyAtOf · :3800–3826 tidyTimer</td></tr>
+<tr><td>실시간</td><td>저장 · 받기 뒤 5분 조용하면</td><td>hub.js:1599 liveSoon</td></tr>
+<tr><td>손으로만</td><td>사람이 [지금 정리](고른 것 500 까지)</td><td>http.js:713 · hub.js:1605 tidyNow</td></tr>
+<tr><td>규칙 정리</td><td>「Claude 쓰지 않기」 이거나 일꾼이 쉬는 중(로그인 · 한도)이면 Claude 없이 항목 끝에 붙인다(「다듬지 못함」 표지)</td><td>hub.js:1598 ruleOnly · :2696 placeGroup</td></tr>
+</table></div>
+<p>쓰기 자리는 자기 기록만 고르지만, 같은 항목에 모인 남의 기록도 같이 넣는다(한 항목은 한 번에). 일감은 40분 임대 · 세 번 끊기면 실패.</p>
+<p class="src">출처: server/hub.js:185–259 jobs · :1586–1642 · <a href="../core/queue.js">core/queue.js</a>:17–372 일 줄(파일 넣기 · 가져오기)</p>
+</section>
+
+<section class="stage"><h4><span class="tag p">B-6</span>재료: 넣을 곳 찾기</h4>
+<div class="m-flow"><div class="m-st"><b>touches</b><small>종류:값</small></div><span class="m-ar">›</span><div class="m-st"><b>이름 장부</b><small>_vocab.md · 다른 이름 · 폐기</small></div><span class="m-ar">›</span><div class="m-st"><b>자리 장부</b><small>_managed.md · 종류:* → ## {값}</small></div><span class="m-ar">›</span><div class="m-st m-hi"><b>문서 › 항목</b><small>정확한 머리 → 「값:」 · 「값 」 로 시작</small></div></div>
+<ul>
+<li><b>항목 자리</b>(section): 항목마다 하나 · <code>{coord, 지금 글, base, 기록들}</code>. 이미 그 항목에 든 기록 · 비공개 · 되돌린 것은 뺀다.</li>
+<li><b>이름 없는 기록</b>(touches): 찾기 사다리로 후보 이름 8 → Claude 가 고른다.</li>
+<li><b>넣은 파일</b>(ingest): 제목 · 머리 말이 겹치는 후보 문서 5 + 갈래 장부.</li>
+<li>기록마다 표지: <code>old</code>(그 항목에 더 늦은 기록이 이미 들었다 → 값을 바꾸지 못한다) · <code>spread</code>(여러 항목에 걸렸다 → 그 항목 몫만) · <code>code</code>(코드 커밋).</li>
+<li>자동 정리는 <b>세 번 둔 기록</b>이 모인 자리를 뺀다(사람이 볼 것).</li>
+</ul>
+<p class="src">출처: <a href="../core/tidy.js">core/tidy.js</a>:43–108 material · <a href="../core/registry.js">core/registry.js</a>:11–45 locate · <a href="../core/vocab.js">core/vocab.js</a>:10 parseVocab · core/guard.js:62 resolveName · core/knowledge.js:140–162 sectionOf · <a href="../core/sections.js">core/sections.js</a>:282 headingMatches · server/hub.js:321 HOLD · :1742–1790 material</p>
+</section>
+
+<section class="stage"><h4><span class="tag p">B-7</span>초안: 정리 일꾼</h4>
+<ol>
+<li>일꾼이 <code>/api/worker/next</code> 로 일감을 받는다(사람이 건 것 먼저 · 일감마다 단기 열쇠 <code>kmdd_</code> 30분). 재료를 받는다.</li>
+<li><b>묶기</b>: 같은 문서의 항목을 16 자리 · 6만 자까지 Claude 한 번에. 다시 쓸 글 합이 3천 자를 넘으면 혼자. 조각 항목(지금 글 3천 자 넘음 · <code>KMD_TIDY_PATCH=big</code>)은 조각끼리 묶는다. 큰 것부터 · 동시에 셋.</li>
+<li><b>프롬프트</b>: 기록의 값은 그대로 옮긴다 · 지어내지 않는다 · 옛 값을 바꿨으면 drop 에 적는다 · 넣을 것이 없으면 left · 「글에 꼭 옮길 값」(기록 「바뀐 것」 칸의 새 값) · 옛 기록 · 여러 항목 규칙 · 작성기준(본문만 · 대상 하나의 지금 · 링크 셋 · 줄표 금지). 조각이면 <code>{find, replace}</code>(find 는 지금 글에 꼭 한 번).</li>
+<li><b>claude -p</b>: 빈 폴더 · 도구 없음 · MCP 없음 · <code>--json-schema</code> · stream-json 으로 쓰는 중 글자 수를 15초마다 서버에 알린다. 예산 $0.5(<code>KMD_TIDY_BUDGET</code> · 묶음은 ×자리 수, 8 까지) · 시간 5분 + 프롬프트 2천 자마다 1분, 15분까지.</li>
+<li>자리마다 받는 대로 바로 올린다. 서버는 일꾼이 보낸 묶음을 믿지 않고 지금 지식에서 다시 짓는다(<code>groupFor</code>).</li>
+</ol>
+<p class="src">출처: <a href="../core/worker.js">core/worker.js</a>:54–72 손잡이 · :77 workOnce · :129 write · :177 many · :255 runWorker · core/tidy.js:120 WRITE_RULES · :151 promptOf · :204 PATCH_RULE · :235 OLD_RULE · :238 SPREAD_RULE · :240 MUST_RULE · :273 batchesOf · :301 batchPromptOf · <a href="../core/claude.js">core/claude.js</a>:20 runClaude · <a href="../core/models.js">core/models.js</a>:14 · server/hub.js:1656 workerProgress · :1718 workerNext</p>
+</section>
+
+<section class="stage"><h4><span class="tag w">B-8</span>검사: 초안을 사람 없이 믿지 않는다</h4>
+<div class="m-tbl"><table>
+<tr><th>#</th><th>검사</th><th>걸리는 것</th></tr>
+<tr><td>1</td><td>모양</td><td>content · used · left 가 없다 · 이 항목의 기록을 빠뜨렸다</td></tr>
+<tr><td>2</td><td>G2 지문</td><td>읽은 뒤 항목 글이 바뀌었다 · 그사이 새 기록이 왔다(stale → 다음 정리)</td></tr>
+<tr><td>3</td><td>G6 꼴</td><td>머리 · 주석 · 기록 링크 · 시스템 주소(새로 든 줄만) · 표 블록을 고쳤다 · 글을 비웠다</td></tr>
+<tr><td>4</td><td>G5 크기</td><td>지금 글 + 넣은 기록 × 1.5 + 300 자를 넘었다</td></tr>
+<tr><td>5</td><td>G4 빠진 값</td><td>기록의 꼭 옮길 값이 글에도 drop 에도 없다</td></tr>
+<tr><td>6</td><td>지어낸 값</td><td>글의 값(코드 · 따옴표 말 · 날짜 · 수+단위)이 옛 글 · 기록 · 이름 장부 어디에도 없다</td></tr>
+<tr><td>7</td><td>빠진 옛 값</td><td>옛 글의 값이 빠졌는데 drop 에도 기록의 「옛 → 새」 에도 없다</td></tr>
+<tr><td>8</td><td>옛 기록 되돌림</td><td>옛 기록의 값만으로 글이 바뀌었다</td></tr>
+</table></div>
+<p>고칠 수 있는 까닭(빠진 값 · 근거에 없는 값 · 옛 값 빠짐 · 조각이 안 맞음 · 크기 · 머리 · 빠뜨린 기록 · 비움)이면 <b>그 까닭을 붙여 한 번만</b> 다시 쓴다. 그래도 걸리면 둔다(left). 세 번 둔 기록은 지식관리자에게 「사람이 볼 것」 으로 알린다. 이 문서를 7일 안에 두 번 넘게 되돌렸으면 값이 바뀌는 초안은 넣지 않는다.</p>
+<p class="src">출처: core/tidy.js:141 draftBad · :214 applyEdits · :224 fixPromptOf · :347 mustValues · :349 oldValues · :369 groundedIn · :375–445 check · :451 checkIngest · core/save.js:217 valuesOf · <a href="../core/propose.js">core/propose.js</a>:68 applyPatch · server/hub.js:80 FIXABLE · :280 recentReverts · :1837–1856 · 기준 작성기준 3절 5 「옛 글의 값은 기록이 바꾼 것만 바뀐다」</p>
+</section>
+
+<section class="stage"><h4><span class="tag g">B-9</span>넣기 · 알림 · 되돌리기</h4>
+<ol>
+<li><code>planSave</code> 가 정리 기록을 짓는다: 제목 <code>정리: &lt;항목&gt;</code> · 태그 <code>curate-llm</code>(그래서 <code>log/</code>) · <code>reflects</code>(넣은 기록) · <code>curates</code>(넣지 않고 둔 기록) · 본문 「- 넣음 id: 제목」 줄.</li>
+<li><code>coreSave</code>(kmd-auto · system): 지문을 다시 보고 <code>replaceSection</code> 으로 항목 글을 바꾼 뒤 머리 아래에 <code>&lt;!-- applied: 정리 기록 id --&gt;</code> 표지, 문서 끝 <code>&lt;!-- kmd:참고 --&gt;</code> 블록에 넣은 기록마다 「YYYY-MM-DD [제목](../work/&lt;id&gt;.md)」 줄. 고친 파일만 git 한 묶음.</li>
+<li>알림: 쓴 사람마다 이력 한 줄 · 값이 바뀌었으면 노랑 「확인할 것」(옛 → 새 · [되돌리기]). 정리 장부(최근 30번)와 일감 요약(넣음 · 값 바뀜 · 둠).</li>
+<li>백업 밀기(1 · 5 · 15 · 60분 다시 · 6시간 노랑 · 24시간 빨강).</li>
+<li><b>되돌리기</b>: <code>git log -S '&lt;!-- applied: id --&gt;'</code> 로 처음 표지를 단 묶음을 찾아 그 앞 글로 되쓰고, 넣었던 기록을 다시 반영 대기로(<code>reopens</code>).</li>
+</ol>
+<p class="src">출처: server/hub.js:1798–1936 putDrafts · :976 revert · core/tidy.js:603–643 planSave · core/save.js:376–437 · core/sections.js:316 replaceSection · :391 logLine · <a href="../core/git.js">core/git.js</a>:93 commitPaths · <a href="../core/curate.js">core/curate.js</a>:53 revertPlan · <a href="../core/feed.js">core/feed.js</a>:11–38 · <a href="../core/backup.js">core/backup.js</a>:23–27 · :184 enqueue · 기준 작성기준 2-1 참고 블록 · 2-2 표지</p>
+</section>
+
+<section class="stage"><h4><span class="tag g">B-10</span>제안: 기록할 때 쓴 조각</h4>
+<p>세션이 문맥을 다 가진 그때 「바꿀 조각 + 항목 지문」 을 기록과 같이 보내면, 서버가 Claude 없이 지금 글에 대어 넣는다(정리 개편안의 「정리 때 짓지 말고, 기록할 때 쓴다」).</p>
+<div class="m-flow"><div class="m-st"><b>조각 + base</b><small>sections[].edits</small></div><span class="m-ar">›</span><div class="m-st m-hi"><b>checkProposal</b><small>지문 · 꼭 한 번 · 정리와 같은 check</small></div><span class="m-ar">›</span><div class="m-st m-ok"><b>apply</b><small>값을 더하기만 → 저장하는 순간</small></div><div class="m-st m-pd"><b>review</b><small>옛 값 바꿈 · 값 빠짐 · 문장 지움 → [넣기]</small></div><div class="m-st"><b>tidy</b><small>같은 항목에 먼저 온 기록 → 정리 때 같이</small></div></div>
+<p>걸려도 기록은 저장하고 제안만 거절해 응답 <code>proposals[]</code> 로 돌려준다(세션이 그 자리에서 고친다). 넣을 때는 정리와 같은 꼴(<code>curate-llm</code> · <code>curate-proposal</code> · reflects)이라 「넣음」 표지 · 되돌리기가 그대로 듣는다.</p>
+<p class="src">출처: core/propose.js:21 validEdits · :90 checkProposal · :119 renderProposals · :125 parseProposals · server/hub.js:752–810 · :886–916 applyProposals · server/http.js:705–712 · 기준 <a href="../docs/kmd_권한_모델.md">권한 모델</a> 7절 · <a href="../docs/품질개선/정리_개편안.html">정리 개편안</a></p>
+</section>
+</div>
+
+<h3 id="core-state">기록의 상태</h3>
+<div class="m-flow"><div class="m-st m-pd"><b>pend 반영 대기</b><small>이름이 있고 아직 안 넣음</small></div><span class="m-ar">›</span><div class="m-st m-ok"><b>in 문서에 들어감</b><small>항목 표지가 그 기록 · reflects · 더 늦은 표지</small></div><div class="m-st"><b>nowhere 이름 없음</b><small>정리가 후보에서 고르거나 사람이 정한다</small></div><div class="m-st"><b>kept 넣지 않고 둠</b><small>curates keep</small></div><div class="m-st"><b>none</b><small>정리 기록 자신 · 이력</small></div></div>
+<p class="src">출처: core/knowledge.js:205 reflectedIn · :215 recordState · :120–125 reverted</p>
+
+<h3 id="core-num">숫자</h3>
+<div class="m-tbl"><table>
+<tr><th>값</th><th>뜻</th><th>출처</th></tr>
+<tr><td>300 파일 · 200MB</td><td>한 번 넣기</td><td>core/importer.js:25–26</td></tr>
+<tr><td>200자 · 20만 자 · 40자</td><td>기록 제목 · 본문 · id 조각</td><td>core/save.js:35 · :49 · :58</td></tr>
+<tr><td>300자 · 40줄</td><td>기록 요약 · 칸마다 줄</td><td>core/guard.js:268–269</td></tr>
+<tr><td>16 hex</td><td>지문 base(sha256 앞 16)</td><td>core/text.js:18</td></tr>
+<tr><td>02:30 · 60초 · 하루 3번</td><td>정리 기본 시각 · 시계 · 실패 다시</td><td>server/hub.js:1588 · :3805 · :3825</td></tr>
+<tr><td>5분</td><td>실시간 방식 조용함</td><td>server/hub.js:1601</td></tr>
+<tr><td>3번 · 7일 2번</td><td>둔 기록 빼기(HOLD) · 되돌림 잦은 문서</td><td>server/hub.js:321 · :282</td></tr>
+<tr><td>8 · 5</td><td>이름 후보 · 파일 후보 문서</td><td>core/tidy.js:77 · :95</td></tr>
+<tr><td>16 자리 · 6만 자 · 3천 자</td><td>묶음 자리 · 묶음 글 · 다시 쓸 글(조각 기준)</td><td>core/tidy.js:250–251 · :270</td></tr>
+<tr><td>3 · 2</td><td>동시 Claude 호출 · 동시 일감</td><td>core/worker.js:54 · :254</td></tr>
+<tr><td>$0.5 · ×min(n, 8)</td><td>Claude 한 번 예산 · 묶음 배수</td><td>core/worker.js:68 · :190</td></tr>
+<tr><td>5분 + 2천 자당 1분 · 15분</td><td>자리 시간 상한</td><td>core/worker.js:57–58</td></tr>
+<tr><td>30분 · 40분</td><td>초안 열쇠 · 일감 임대</td><td>server/hub.js:1730 · :224</td></tr>
+<tr><td>× 1.5 + 300</td><td>G5 크기 상한</td><td>core/tidy.js:411</td></tr>
+<tr><td>50 조각 · 2만 자</td><td>제안 한 번</td><td>core/propose.js:13–14</td></tr>
+<tr><td>새 10 · 사라짐 10%</td><td>가져오기 브레이크</td><td>core/sources.js:287</td></tr>
+<tr><td>20 커밋 · 20 파일 · 4천 자</td><td>코드 바뀜 기록</td><td>core/codechange.js:24–25 · :117</td></tr>
+<tr><td>1 · 5 · 15 · 60분</td><td>백업 다시 밀기</td><td>core/backup.js:27</td></tr>
+</table></div>
+
+<div class="m-note m-warn"><b>기준 문서와 코드가 다른 곳(2026-11-03 조사)</b><ul>
+<li>권한 모델 7절은 제안이 걸리면 <code>E_CHECK</code> 로 돌려준다고 적었으나, 코드는 기록을 저장하고 응답 <code>proposals[{ok:false, why}]</code> 에 싣는다(hub.js:772 · :810).</li>
+<li>권한 모델 7절은 제안의 값 바뀜을 「쓴 사람과 지식관리자에게」 알린다고 적었으나, 코드는 쓴 사람에게만 알린다(hub.js:911).</li>
+<li>문서 폴더 가져오기는 원본이 주인인 사본(watched) 길(<code>core/docwatch.js applyDocs</code>)이 아니라 파일 넣기 길로 간다. watched 표지를 지키는 막음은 저장 · 고치기 · 정리 · 제안에 남아 있다(sources.js:533–587).</li>
+</ul></div>
+
+<h3 id="core-std">이 흐름을 정한 기준</h3>
+<div class="m-tbl"><table>
+<tr><th>문서</th><th>절</th><th>무엇</th></tr>
+<tr><td><a href="../docs/kmd_문서_작성기준.md">문서 작성기준</a></td><td>2-1 · 2-2</td><td>참고 블록 · 표지(applied · watched · baseline)</td></tr>
+<tr><td></td><td>3 · 5</td><td>본문 규칙 · 읽기 쉽게(정리 프롬프트 WRITE_RULES 의 바탕)</td></tr>
+<tr><td></td><td>7 · 8 · 9</td><td>경로마다 지키는 법 · 저장 검사 E_FORMAT · 지식 생성 가드 G1~G4</td></tr>
+<tr><td><a href="../docs/kmd_권한_모델.md">권한 모델</a></td><td>5 · 7</td><td>팀 MCP 저장은 기록으로 · 제안(apply / review)</td></tr>
+<tr><td><a href="../docs/품질개선/정리_개편안.html">정리 개편안</a></td><td>획기적 개편안 · 1~7단계</td><td>제안 · 조각 초안 · 묶음 · 진행 표시</td></tr>
+<tr><td><a href="kmd_서비스_전체.md">서비스 전체(글 판)</a></td><td>6-1 ~ 6-6</td><td>고치기 → 기록 → 정리 → 문서 · 파일 넣기 · 가져올 곳 · 보내기 · 세션 · 백업</td></tr>
+</table></div>
+</article>
+
+
+<article class="man">
+<h2 id="screens"><span class="m-no">7</span>화면</h2>
 <div class="m-cards">
 <a class="m-card" href="manual/사용자.html#screen"><img src="manual/img/t-doc.png" alt="" loading="lazy"><b>팀 화면 · 문서</b><p>옆 메뉴 · 문서 · 오른쪽 칸(참고 · 넣은 기록 · 연결 · 속성)</p></a>
 <a class="m-card" href="manual/사용자.html#view"><img src="manual/img/t-graph.png" alt="" loading="lazy"><b>그래프</b><p>항목 · 문서 · 기록의 이음</p></a>
@@ -205,7 +485,7 @@ svg.arch .hd{fill:var(--text-3)}
 </article>
 
 <article class="man">
-<h2 id="claude"><span class="m-no">7</span>Claude Code 와 MCP</h2>
+<h2 id="claude"><span class="m-no">8</span>Claude Code 와 MCP</h2>
 <div class="m-flow"><div class="m-st m-hi"><b>brief</b><small>지식 · 문서 · 반영 대기 · 알릴 것</small></div><span class="m-ar">›</span><div class="m-st"><b>match</b><small>이름 → 항목(확정)</small></div><span class="m-ar">›</span><div class="m-st"><b>search</b><small>말 → 후보 · 글 토막</small></div><span class="m-ar">›</span><div class="m-st"><b>section</b><small>항목 글 · 지문 · 기록</small></div><span class="m-ar">›</span><div class="m-st m-ok"><b>save</b><small>기록 · 항목 · 이름 · 갈래</small></div></div>
 <div class="m-tbl"><table>
 <tr><th></th><th>팀 지식</th><th>개인 지식</th></tr>
@@ -218,7 +498,7 @@ svg.arch .hd{fill:var(--text-3)}
 </article>
 
 <article class="man">
-<h2 id="deploy"><span class="m-no">8</span>깔기 · 올리기</h2>
+<h2 id="deploy"><span class="m-no">9</span>깔기 · 올리기</h2>
 <div class="m-flow"><div class="m-st"><b>커밋된 HEAD</b><small>git archive · 깨끗한 폴더</small></div><span class="m-ar">›</span><div class="m-st m-hi"><b>pack.mjs</b><small>pc.zip · team.tgz</small></div><span class="m-ar">›</span><div class="m-st"><b>scp</b><small>팀 서버 /tmp</small></div><span class="m-ar">›</span><div class="m-st m-pd"><b>kmd-install.sh</b><small>코드만 바꾸고 다시 켠다</small></div><span class="m-ar">›</span><div class="m-st m-ok"><b>확인</b><small>healthz build · grep · 해시</small></div></div>
 <pre><code># 테스트 서버 10.10.20.188 (Git Bash)
 git archive HEAD | tar -x -C &lt;폴더&gt;      # Windows tar.exe 금지 · node_modules 는 junction
@@ -235,7 +515,7 @@ curl -s localhost:8090/healthz             # build 가 새 판인지</code></pre
 </article>
 
 <article class="man">
-<h2 id="ops"><span class="m-no">9</span>운영</h2>
+<h2 id="ops"><span class="m-no">10</span>운영</h2>
 <div class="cal">
 <div class="m-card"><b><span class="tag g">늘</span>저절로</b><p>백업 · GitLab 봇 · 가져올 곳 · 정리 · 이 PC 늘 켜기</p></div>
 <div class="m-card"><b><span class="tag">매일 밤</span>밤 묶음</b><p><code>tar -czf … -C /srv/kmd .kmd</code> + auth.log 따로</p></div>
@@ -246,7 +526,7 @@ curl -s localhost:8090/healthz             # build 가 새 판인지</code></pre
 </article>
 
 <article class="man">
-<h2 id="safe"><span class="m-no">10</span>지키는 것</h2>
+<h2 id="safe"><span class="m-no">11</span>지키는 것</h2>
 <div class="m-cards">
 <div class="m-card"><b>비밀</b><p>셸 숨김 입력 · <code>secrets.json</code> 에만. 화면 · 로그 · 응답에 0.</p></div>
 <div class="m-card"><b>비밀번호</b><p>브라우저가 미리 해시 · 서버는 scrypt · 여러 번 틀리면 잠시 막힘 · 위험한 일은 한 번 더(15분).</p></div>
@@ -258,7 +538,7 @@ curl -s localhost:8090/healthz             # build 가 새 판인지</code></pre
 </article>
 
 <article class="man">
-<h2 id="code"><span class="m-no">11</span>코드</h2>
+<h2 id="code"><span class="m-no">12</span>코드</h2>
 <div class="m-tbl"><table>
 <tr><th>폴더</th><th>무엇</th></tr>
 <tr><td><code>core/</code></td><td>지식 읽기 · 저장(save · guard · docformat) · 찾기 · 정리(curate · tidy · worker) · 백업 · 가져올 곳(sources · docwatch · db) · 넣기(importer · ooxml · pdf · hwp) · 보내기 · 되살리기 · 들어가기 · 에이전트(kit · teamkit)</td></tr>
@@ -272,7 +552,7 @@ curl -s localhost:8090/healthz             # build 가 새 판인지</code></pre
 </article>
 
 <article class="man">
-<h2 id="docs"><span class="m-no">12</span>문서</h2>
+<h2 id="docs"><span class="m-no">13</span>문서</h2>
 <div class="m-cards">
 <a class="m-card" href="manual/사용자.html"><b>쓰는 사람</b><p>팀 화면: 보기 · 찾기 · 고치기 · 가져오기 · 이력</p></a>
 <a class="m-card" href="manual/개인.html"><b>개인 프로그램</b><p>설치 · 개인 화면 · 파일 넣기 · 지식 보내기</p></a>
@@ -281,7 +561,7 @@ curl -s localhost:8090/healthz             # build 가 새 판인지</code></pre
 <a class="m-card" href="manual/운영.html"><b>운영 · 되살리기</b><p>밤 묶음 · 되살리기 · 새 판 · 막힐 때</p></a>
 <a class="m-card" href="kmd_서비스_전체.md"><b>이 장의 글 판</b><p>kmd_서비스_전체.md</p></a>
 </div>
-<p class="m-foot">기준일 2026-11-02 · kmd 0.1.0. 남은 개선 거리는 <a href="../docs/품질개선/종합검토.md">종합검토</a> 「따로 할 것」.</p>
+<p class="m-foot">기준일 2026-11-03 · kmd 0.1.0. 남은 개선 거리는 <a href="../docs/품질개선/종합검토.md">종합검토</a> 「따로 할 것」.</p>
 </article>
 
 </div>
