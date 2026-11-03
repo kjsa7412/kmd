@@ -143,6 +143,17 @@ test('묶음은 다시 쓸 글 합 3천 자까지 · 큰 항목은 혼자', asyn
   assert.deepEqual(b.map((x) => x.map((y) => y.heading)), [['큰'], ['작1', '작2'], ['작3']])
 })
 
+test('A9 조각 묶음: 조각 항목은 조각 항목끼리 · 큰 항목도 같은 문서면 묶는다(다시 쓸 글 상한을 보지 않는다) · 묶음 프롬프트 끝에 답 꼴(조각)', async () => {
+  const { batchesOf, batchPromptOf } = await import('../core/tidy.js')
+  const g = (h, n, doc = 'docs/a.md') => ({ kind: 'section', doc, heading: h, name: h, content: 'x'.repeat(n), records: [{ id: h, date: '2026-11-03', author: 'kim', title: h, body: '' }] })
+  const isPatch = (x) => x.content.length > 3000
+  const b = batchesOf([g('큰1', 9000), g('작1', 1000), g('큰2', 8000), g('작2', 1500), g('큰3', 5000, 'docs/b.md')], { isPatch })
+  assert.deepEqual(b.map((x) => x.map((y) => y.heading)), [['큰1', '큰2'], ['작1', '작2'], ['큰3']])
+  assert.ok(batchPromptOf(b[0], { patch: true }).trimEnd().endsWith('find 는 그 항목의 지금 글에서만 찾는다.'))
+  assert.ok(batchPromptOf(b[0], { patch: true }).includes('\n\n답 꼴(조각)'))
+  assert.ok(!batchPromptOf(b[1]).includes('답 꼴(조각)'))
+})
+
 test('일꾼: 사람이 누른 정리를 자동 정리보다 먼저 · claude 동시 호출 상한 · 지난 일꾼 폴더를 걷는다', async () => {
   const { slots, sweepProjects } = await import('../core/worker.js')
   const auto = await s.hub.tidyNow({ user: 'kmd', admin: true }, 'dpms', { by: 'kmd', auto: true })

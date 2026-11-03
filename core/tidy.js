@@ -269,20 +269,36 @@ const sizeOf = (gs) => {
 // 묶음이 다시 쓸 글(지금 글 합) 상한 — 답은 한 응답 안에서 차례로 나와 큰 항목 둘을 묶으면 7분에 끊겼다. 큰 항목은 혼자(따로 부르면 나란히 돈다)
 export const BATCH_OUT = 3000
 const outOf = (gs) => gs.reduce((n, g) => n + (g.content || '').length, 0)
-export function batchesOf(groups, { max = BATCH_MAX, chars = BATCH_CHARS, out: outMax = BATCH_OUT } = {}) {
+//   isPatch(g) — 그 항목을 조각으로 쓰나(일꾼의 KMD_TIDY_PATCH). 조각 항목은 조각 항목끼리 묶고, 답이 바뀐 양만큼이라 다시 쓸 글 상한(outMax)을 보지 않는다(A9)
+export function batchesOf(groups, { max = BATCH_MAX, chars = BATCH_CHARS, out: outMax = BATCH_OUT, isPatch = () => false } = {}) {
   const out = []
   const open = new Map()
   for (const g of groups) {
-    if (g.kind !== 'section' || max < 2 || outOf([g]) > outMax) { out.push([g]); continue }
-    const b = open.get(g.doc)
-    if (b && b.length < max && sizeOf([...b, g]) <= chars && outOf([...b, g]) <= outMax) { b.push(g); continue }
+    const pt = g.kind === 'section' && !!isPatch(g)
+    if (g.kind !== 'section' || max < 2 || (!pt && outOf([g]) > outMax)) { out.push([g]); continue }
+    const key = pt ? `${g.doc}|조각` : g.doc
+    const b = open.get(key)
+    if (b && b.length < max && sizeOf([...b, g]) <= chars && (pt || outOf([...b, g]) <= outMax)) { b.push(g); continue }
     const nb = [g]
-    open.set(g.doc, nb)
+    open.set(key, nb)
     out.push(nb)
   }
   return out
 }
-export function batchPromptOf(gs) {
+// 조각 묶음(A9) — 한 문서의 항목 여럿을 한 번에 조각으로 · 항목마다 PATCH_SCHEMA 와 같은 초안
+export const BATCH_PATCH_SCHEMA = {
+  type: 'object',
+  properties: {
+    items: {
+      type: 'array',
+      items: { type: 'object', properties: { key: { type: 'string', description: '항목의 key(그대로)' }, ...PATCH_SCHEMA.properties }, required: ['key', ...PATCH_SCHEMA.required] },
+      description: '항목마다 하나',
+    },
+  },
+  required: ['items'],
+}
+export const BATCH_PATCH_RULE = [PATCH_RULE, '- 묶음에서는 항목마다 items 하나에 key · edits(또는 rewrite) · used · left 를 쓴다. find 는 그 항목의 지금 글에서만 찾는다.'].join('\n')
+export function batchPromptOf(gs, { patch = false } = {}) {
   const recs = new Map()
   for (const g of gs) for (const r of g.records) recs.set(r.id, r)
   return [
@@ -297,6 +313,8 @@ export function batchPromptOf(gs) {
     // 옛 기록인지는 항목마다 다르다 — 항목의 기록 줄에 붙인다
     gs.map((g) => `[key ${spotKey(g)}] 항목 「${g.name}」\n그 항목의 기록: ${g.records.map((r) => (r.old ? `${r.id}(${OLD_MARK})` : r.id)).join(', ')}\n지금 글:\n${g.content || '(아직 없음)'}`).join('\n\n---\n\n'),
     `기록(오래된 것부터):\n${[...recs.values()].sort((a, b) => a.date.localeCompare(b.date)).map((r) => recLine({ ...r, old: false }, gs.some((g) => g.records.some((x) => x.id === r.id && !x.old && !x.spread)))).join('\n\n')}`,
+    // 조각 묶음 — 답 꼴은 맨 끝에(항목 글 전체를 다시 쓰지 않는다)
+    ...(patch ? [BATCH_PATCH_RULE] : []),
   ].join('\n\n')
 }
 

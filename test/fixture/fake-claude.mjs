@@ -97,7 +97,10 @@ function answer() {
       const cur = (x.split('지금 글:\n')[1] || '').split('\n\n---\n\n')[0].trim()
       return { key: x.slice(0, x.indexOf(']')), recs: all.filter((r) => ids.includes(r.id)), cur }
     })
-    return say({ structured_output: { items: items.filter((x) => !x.recs.some((r) => r.body.includes('묶음빠짐'))).map((x) => ({ key: x.key, ...draft(x.cur, x.recs) })) } })
+    // 조각 묶음(A9) — 항목마다 지금 글 전체를 찾아 바꾸는 조각 하나(빈 글이면 rewrite)
+    const asPatch = (cur, d) => { const { content, ...rest } = d; const now = cur === '(아직 없음)' ? '' : cur; return now.trim() ? { ...rest, edits: [{ find: now, replace: content }] } : { ...rest, edits: [], rewrite: content } }
+    if (patch && process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'bpatch\n')
+    return say({ structured_output: { items: items.filter((x) => !x.recs.some((r) => r.body.includes('묶음빠짐'))).map((x) => ({ key: x.key, ...(patch ? asPatch(x.cur, draft(x.cur, x.recs)) : draft(x.cur, x.recs)) })) } })
   }
   const cur = (prompt.split('지금 글:\n')[1] || '').split('\n\n기록(오래된 것부터):')[0]
   const d = draft(cur, all)

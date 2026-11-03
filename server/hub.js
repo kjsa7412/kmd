@@ -1677,7 +1677,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (!par) for (const x of j.spots) if (x.st === 'run' && x !== sp) Object.assign(x, { st: 'got', stage: 3 })
         Object.assign(sp, { st: 'run', stage: 2, tries: (sp.tries || 0) + 1, t0: Date.now(), out: 0, think: 0, runMs: 0, ...(call ? { call: String(call).slice(0, 24) } : {}), ...(form ? { form: String(form).slice(0, 12) } : {}), ...(Number(limit) > 0 ? { limit: Number(limit) } : {}) })
         if (why) sp.lines.push([2, 'sys', String(why).slice(0, 160)])
-        const how = form === 'patch' ? '고칠 조각으로' : form === 'batch' ? '같은 문서 항목 여럿 한 번에' : form === 'fix' ? '까닭을 붙여 고쳐 쓴다' : '글 전체로'
+        const how = form === 'patch' ? '고칠 조각으로' : form === 'batch' ? '같은 문서 항목 여럿 한 번에' : form === 'bpatch' ? '같은 문서 항목 여럿을 조각으로 한 번에' : form === 'fix' ? '까닭을 붙여 고쳐 쓴다' : '글 전체로'
         sp.lines.push([2, 'tool', `▸ Claude 에 보냄${model ? ` · ${String(model).slice(0, 60)}` : ''}${Number(chars) > 0 ? ` · 프롬프트 ${(chars / 1000).toFixed(1)}k 자` : ''} · ${how}${sp.tries > 1 ? ` · ${sp.tries}번째` : ''}`])
       } else if (ok) {
         Object.assign(sp, { st: 'got', stage: 3, ms: Number(ms) || 0, chars: Number(chars) || 0, cost: Number(cost) || 0, t1: Date.now() })

@@ -7,7 +7,7 @@
 //   로그인이 끝났거나 한도면 다시 시도하지 않고 멈춘 뒤 서버에 알린다(멈춤 한 줄 「자동 정리가 쉬고 있다」)
 
 import { runClaude } from './claude.js'
-import { promptOf, fixPromptOf, patchPromptOf, PATCH_RULE, PATCH_SCHEMA, BATCH_OUT, DRAFT_SCHEMA, TOUCH_SCHEMA, INGEST_SCHEMA, spotKey, spotTarget, batchesOf, batchPromptOf, BATCH_SCHEMA, BATCH_MAX } from './tidy.js'
+import { promptOf, fixPromptOf, patchPromptOf, PATCH_RULE, PATCH_SCHEMA, BATCH_OUT, DRAFT_SCHEMA, TOUCH_SCHEMA, INGEST_SCHEMA, spotKey, spotTarget, batchesOf, batchPromptOf, BATCH_SCHEMA, BATCH_PATCH_SCHEMA, BATCH_MAX } from './tidy.js'
 import { runAgent, agentAvailable } from './agent.js'
 import { modelOf } from './models.js'
 import fs from 'node:fs'
@@ -59,6 +59,7 @@ const timeoutOf = (prompt) => Math.min(15 * 60_000, TIDY_TIMEOUT + Math.floor(St
 // 한 문서의 항목을 한 번에 쓰는 수(KMD_TIDY_BATCH · 1 이면 자리마다 따로)
 const BATCH = Math.max(1, Number(process.env.KMD_TIDY_BATCH) || BATCH_MAX)
 // 조각 초안(KMD_TIDY_PATCH) — off: 늘 전체 · big: 다시 쓸 글이 묶음 상한(3천 자)을 넘는 항목만 조각 · all: 항목 자리 모두 조각
+//   조각 항목도 같은 문서끼리 claude 한 번에 묶는다(A9 · 답이 바뀐 양만큼이라 큰 항목도 묶인다 · form bpatch)
 const PATCH = () => (['off', 'big', 'all'].includes(process.env.KMD_TIDY_PATCH) ? process.env.KMD_TIDY_PATCH : 'big')
 const patchOn = (g) => g.kind === 'section' && (PATCH() === 'all' || (PATCH() === 'big' && (g.content || '').length > BATCH_OUT))
 // 생각 정도(KMD_TIDY_EFFORT · low · medium · high · max · 비면 그 PC 의 기본)
@@ -176,18 +177,21 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
     const go = []
     // 묶음은 한 호출 — 같은 call 로 알린다(상한 · 보낼 글은 묶음 프롬프트로)
     const cid = callId()
-    const bp = batchPromptOf(gs)
+    // 조각 묶음(A9) — batchesOf 가 조각 항목은 조각 항목끼리 묶는다
+    const pt = gs.length > 1 && patchOn(gs[0])
+    const bp = batchPromptOf(gs, { patch: pt })
     const blimit = Math.min(15 * 60_000, Math.max(timeoutOf(bp), TIDY_TIMEOUT + gs.length * 60_000))
-    for (const g of gs) if (await begin(g, model, null, { call: cid, form: gs.length > 1 ? 'batch' : patchOn(g) ? 'patch' : 'single', limit: blimit, chars: bp.length })) go.push(g)
+    for (const g of gs) if (await begin(g, model, null, { call: cid, form: gs.length > 1 ? (pt ? 'bpatch' : 'batch') : patchOn(g) ? 'patch' : 'single', limit: blimit, chars: bp.length })) go.push(g)
     if (go.length < 2) return go.length ? finish(go[0], await write(go[0], model)) : undefined
-    const prompt = batchPromptOf(go)
+    const prompt = batchPromptOf(go, { patch: pt })
     // 묶음 시간 상한 — 항목마다 따로 쓸 때(timeoutOf)보다 짧으면 안 된다(큰 항목 둘의 묶음이 7분에 끊겨 다시 쓰던 것)
-    const r = await ask(prompt, { schema: BATCH_SCHEMA, budget: budget * Math.min(go.length, 8), model, timeoutMs: Math.min(15 * 60_000, Math.max(timeoutOf(prompt), TIDY_TIMEOUT + go.length * 60_000)) }, go.map(spotKey))
+    const r = await ask(prompt, { schema: pt ? BATCH_PATCH_SCHEMA : BATCH_SCHEMA, budget: budget * Math.min(go.length, 8), model, timeoutMs: Math.min(15 * 60_000, Math.max(timeoutOf(prompt), TIDY_TIMEOUT + go.length * 60_000)) }, go.map(spotKey))
     const got = new Map((Array.isArray(r.value?.items) ? r.value.items : []).filter((x) => x && typeof x === 'object').map((x) => [String(x.key), x]))
     log(`${decodeURIComponent(kn)}: 묶음 ${go[0].doc.replace(/^docs\/|\.md$/g, '')} 자리 ${go.length} → 답 ${got.size}${r.error ? ` · ${kindOf(r)}` : ''} · ${secs(r.ms)} · 보낸 글 ${r.chars}자${r.outTokens ? ` · 받은 토큰 ${r.outTokens}` : ''}`)
     for (const g of go) {
       const d = got.get(spotKey(g))
-      if (d) { await finish(g, { value: { content: d.content, used: d.used, left: d.left, drop: d.drop || [] }, model: r.model, ms: r.ms, chars: r.chars, cost: r.cost }); continue }
+      const v = d && (pt ? { edits: Array.isArray(d.edits) ? d.edits : [], ...(typeof d.rewrite === 'string' && d.rewrite.trim() ? { rewrite: d.rewrite } : {}), used: d.used, left: d.left, drop: d.drop || [] } : { content: d.content, used: d.used, left: d.left, drop: d.drop || [] })
+      if (d) { await finish(g, { value: v, model: r.model, ms: r.ms, chars: r.chars, cost: r.cost }); continue }
       if (STOP[r.error] || stop) { await finish(g, STOP[r.error] ? r : { error: stop, message: STOP[stop] }); continue }
       if (quit || lost) { items.push({ group: slim(g), error: 'stopped' }); continue }
       todo.push([{ ...g, again: `묶음 답에 ${r.error ? `실패(${r.message || r.error})` : '이 자리가 없다'} · 따로 다시 쓴다` }])
@@ -195,7 +199,7 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
   }
   // 일 줄 — 큰 자리부터(긴 일이 끝에 혼자 남지 않게) · 묶음에서 빠진 자리는 뒤에 되돌아와 빈 칸이 집는다
   const sizeOf = (u) => u.reduce((n, g) => n + (g.content || '').length + (g.records || [g.record]).reduce((m, r) => m + (r?.body || '').length, 0), 0)
-  const todo = batchesOf(groups, { max: batch }).sort((a, b) => sizeOf(b) - sizeOf(a))
+  const todo = batchesOf(groups, { max: batch, isPatch: patchOn }).sort((a, b) => sizeOf(b) - sizeOf(a))
   let active = 0
   const runner = async () => {
     for (;;) {

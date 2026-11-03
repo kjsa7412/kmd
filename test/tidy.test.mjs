@@ -356,6 +356,28 @@ test('조각 초안: 지금 글에 꼭 한 번 맞는 곳만 바꾼다 · 어긋
   }
 })
 
+test('A9 조각 묶음: 같은 문서 항목 둘을 claude 한 번에 조각으로 · 자리마다 지금 글에 대어 넣는다', async () => {
+  process.env.KMD_TIDY_PATCH = 'all'
+  try {
+    const before = callsN()
+    const a = await s.hub.save(LEE, 'dpms', { record: { title: '되돌리기 묶음조각', body: '되돌리기 묶음은 `revert_batch` 로 한다.', touches: ['proc:되돌리기'] } })
+    const b = await s.hub.save(LEE, 'dpms', { record: { title: '되돌린 뒤 확인 묶음조각', body: '되돌린 뒤 묶음 확인은 `check_batch` 로 본다.', touches: ['proc:되돌린 뒤 확인'] } })
+    await api('/api/k/dpms/tidy', { ids: [a.id, b.id] })
+    const r = await workOnce({ server: s.url, key: wkey })
+    const log = fs.readFileSync(calls, 'utf8').split('\n').filter(Boolean).slice(before)
+    assert.ok(log.includes('bpatch'), log.join(' '))
+    const secs = (await s.hub.get('dpms')).byDocPath.get('docs/롤백절차.md').sections
+    assert.match(secs.find((x) => x.h === '되돌리기').body, /revert_batch/, JSON.stringify(r.rows))
+    // 둘째 자리 — 앞 시험이 남긴 반영 대기 기록과 같이 정리돼 값 검사로 둘 수 있다. 조각이 어긋나서 둔 것은 아니어야 한다
+    const second = r.rows.find((x) => x.target.includes('되돌린 뒤 확인'))
+    assert.ok(second, JSON.stringify(r.rows))
+    if (second.kind === 'put') assert.match(secs.find((x) => x.h === '되돌린 뒤 확인').body, /check_batch/)
+    else assert.doesNotMatch(second.why, /조각|모양/, second.why)
+  } finally {
+    delete process.env.KMD_TIDY_PATCH
+  }
+})
+
 test('꼭 옮길 값은 「바뀐 것」 칸만: 요약 · 영향의 경위(「187 에 배포했다」)는 요구하지 않는다(188 DPA020 · 11-03)', async () => {
   const { mustValues } = await import('../core/tidy.js')
   const body = '보기를 셋으로 줄이고 187 에 배포했다.\n\n## 바뀐 것\n- 기준 표고: 18.30\n\n## 까닭\n- 2026-11-02 지시\n\n## 영향\n- 187 은 -ResetDb 로 새 배치(T920)를 넣었다'
