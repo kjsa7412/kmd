@@ -447,7 +447,7 @@ function dropTopApplied(text) {
 
 // ── 문서 짜임 검사(알림만 · 거절하지 않는다) — 작성기준 3절 「# 제목 하나 → 요약(1~3문장) → ## 항목 · 소제목은 ### · #### 까지」
 //   lintDoc(text) → [{ code, msg, line }] (줄은 1부터 · 참고 블록 · 코드 울타리 안은 보지 않는다)
-//   code: no-title · many-titles · top-applied · no-summary · long-summary · ops-word · sub-before-sec · skip-level · too-deep
+//   code: no-title · many-titles · top-applied · no-summary · long-summary · ops-word · sub-before-sec · skip-level · too-deep · repeat-note
 // 머리글(요약 자리)에 두지 않는 kmd 운영 말
 export const OPS_WORDS = ['좌표', '섹션', '기준선', '원천', '동기화', '등록부', 'touches', '_vocab', '_managed', 'applied']
 const LIST_LINE = /^\s*(?:[-*+]|\d+[.)])\s/
@@ -510,8 +510,21 @@ export function lintDoc(text0) {
     if (h.level >= 5) add('too-deep', h.i + 1, `${h.level}단계 머리(${h.h.slice(0, 20)}): 소제목은 #### 까지`)
     prev = h.level
   }
+  // 되풀이 글(Q86) — 같은 인용 줄(출처 · 상태 문장: 「> 아래는 매뉴얼에서 옮긴 것이다」 · 「> 운영 DB 에 없다」)이 다섯 번 이상(REPEAT_NOTE)
+  //   처음 나온 줄에 한 번 알린다 · 날짜 · 수가 달라도 같은 문장으로 본다
+  const seen = new Map()
+  for (const i of live) {
+    if (!/^\s*>/.test(lines[i])) continue
+    const key = lines[i].replace(/^\s*>\s*/, '').replace(/\d+/g, '0').replace(/\s+/g, ' ').trim()
+    if (key.length < 12) continue
+    const x = seen.get(key) || { first: i, n: 0, text: lines[i].replace(/^\s*>\s*/, '').trim() }
+    x.n++
+    seen.set(key, x)
+  }
+  for (const x of seen.values()) if (x.n >= REPEAT_NOTE) add('repeat-note', x.first + 1, `같은 인용 문장이 ${x.n}번 되풀이된다(${x.text.replace(/[*_`]/g, '').slice(0, 24)}…): 출처 · 상태 문장은 (문서) 참고 메모에 한 번 · 공통 설명은 한 항목에 두고 링크`)
   return out.sort((a, b) => a.line - b.line)
 }
+export const REPEAT_NOTE = 5
 // 항목 글 하나(머리 아래 내용)의 머리 단계 — 정리 초안 알림용 · ## 아래로 본다
 export function lintSection(body) {
   return lintDoc(`# x\n\n요약.\n\n## x\n${String(body ?? '')}`)

@@ -599,3 +599,12 @@ test('문서 짜임 검사(lintDoc): 제목 · 요약 · 운영 말 · ## 앞 �
   // 저장 알림은 새로 생긴 것만
   assert.deepEqual(lintNew('# t\n\n요약.\n\n## A\n#### x\n', '# t\n\n요약.\n\n## A\n#### x\n## B\n#### y\n').map((x) => x.code), ['skip-level'])
 })
+
+test('Q86 짜임 알림: 같은 인용 문장(출처 · 상태)이 다섯 번 이상이면 한 번 알린다 · 넷이면 없다', async () => {
+  const { lintDoc } = await import('../core/docformat.js')
+  const doc = (n) => '# 제목\n\n요약이다.\n\n' + Array.from({ length: n }, (_, i) => `## A${i}\n\n> 아래는 사용자 매뉴얼에서 옮긴 것이다(${i}절)\n\n글.\n`).join('\n')
+  const xs = lintDoc(doc(6)).filter((x) => x.code === 'repeat-note')
+  assert.equal(xs.length, 1)
+  assert.match(xs[0].msg, /6번 되풀이/)
+  assert.equal(lintDoc(doc(4)).filter((x) => x.code === 'repeat-note').length, 0)
+})
