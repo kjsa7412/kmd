@@ -1880,9 +1880,7 @@ function tidyMenu(row, mode, tidyAt) {
   return S.menu === 'tidyAt' ? popHtml('tidyAt', `<div data-t="timeMenu"><div class="gray">정리 방식</div>${TIDY_MODES.map(([v, l, d]) => `<div class="mi${v === mode ? ' on' : ''}" data-a="setTidyMode" data-v="${v}" data-t="mode-${v}">${v === mode ? '✓ ' : ''}${l}<small>${d}</small></div>`).join('')}${mode === 'time' ? `<div class="sep"></div><div class="gray">정리 시각: 매일</div>${TIMES.map((x) => `<div class="mi${x === tidyAt ? ' on' : ''}" data-a="setTidyAt" data-v="${x}" data-t="time-${x}">${x === tidyAt ? '✓ ' : ''}${x}</div>`).join('')}` : ''}<div class="sep"></div><div class="mi" data-a="toggleNoClaude" title="정리 일꾼에게 이 지식의 글을 보내지 않는다. 규칙으로 되는 것만 넣는다. 팀원의 Claude Code 대화(kmd 도구)는 여전히 이 지식을 읽는다">자동 정리에 Claude 쓰지 않기<small>Claude Code 대화는 여전히 읽는다</small> <span class="sw${row.noClaude ? ' on' : ''}" style="margin-left:auto"></span></div></div>`) : ''
 }
 // ───────────── 정리 ─────────────
-// 다섯 단계(core/tidy.js 의 재료 · 초안 · 검사 · 넣기를 사람 말로) · 반영 대기 · 정리 중 · 지난 정리(컨벤션 9절 용어집)
-const TD_STG = ['모으기', '넣을 곳 찾기', '글 쓰기', '검사', '넣기']
-const TD_SUB = [['반영 대기 기록 고르기', '비공개 · 되돌린 것 빼기', '확인할 값 모으기'], ['넣을 항목 찾기', '넣을 곳 없는 기록 묶기', '지금 글 읽기'], ['Claude 초안', '기록마다 넣음 / 둠'], ['글 모양', '그 사이 글이 바뀌지 않았나', '값 맞추기', '크기 · 머리'], ['항목 저장', '참고 블록에 출처 적기', '값 바뀜 알리기']]
+// 반영 대기 · 정리 중 · 지난 정리(컨벤션 9절 용어집) — 정리 중은 목업 「새 지금 정리」(진행 띠 · 문서마다 묶음 · 쓴 글 / 상한 · 시각 붙은 활동 기록)
 const TD_ROUTE = { sess: ['세션', 'Claude Code 대화 · 화면에서 남긴 기록'], send: ['보내기', '개인 지식에서 지식 보내기로 보냄'], file: ['파일', '가져오기로 들인 파일'], code: ['코드', '가져오기 git 이 남긴 코드 바뀜'] }
 const tidyPlanOf = (k) => need('tidyplan:' + k, `/api/k/${encodeURIComponent(k)}/tidy/plan`)
 const tdLive = (j) => !!j && (j.state === 'queued' || j.state === 'running')
@@ -1943,32 +1941,30 @@ function tdSum(d) {
 }
 // 그만두기 단추 — 넣은 사람 · 관리자
 const tdStopBtn = (k, job) => (tdAdm(k) || job.by === S.me.user ? `<button class="btn" data-a="tdStop" data-k="${esc(k)}" data-v="${esc(job.id)}" data-t="tdStop">그만두기</button>` : '')
-// 글을 쓴 넣을 곳 — 넣음 · 초안 받음 · 초안이 검사에서 둠(초안 없이 둔 것은 쓰지 못한 것)
 const tdNoDraft = (sp) => sp.st === 'left' && (sp.stage === 2 || !(sp.lines || []).some((l) => l[0] === 2 && l[1] === 'ok'))
-const tdWrote = (sp) => sp.st === 'done' || sp.st === 'got' || (sp.st === 'left' && !tdNoDraft(sp))
-// 쓰는 중 한 줄 — 지난 시간(1초마다 저절로) · 쓴 글 · 생각 · 같이 쓰는 넣을 곳
-const tdLiveTx = (x) => `쓰는 중 <span data-since="${esc(String(x.t0 || ''))}">${x.t0 ? mmss(Date.now() - x.t0) : ''}</span>${x.out ? ` · 쓴 글 ${kChars(x.out)}` : ''}${x.think ? ` · 생각 ${kChars(x.think)}` : ''}${x.together > 1 ? ` · Claude 한 번에 ${x.together}곳` : ''}${x.tries > 1 ? ` · ${x.tries}번째` : ''}`
-// 진행 띠 — 도는 정리가 있으면 탭 위에 한 줄(role=status) · 지금 쓰는 곳 · 멈춘 것 같으면 까닭
+// 진행 띠 — 도는 정리가 있으면 탭 위에 한 장(role=status): 머리(누가 · 언제 시작 · 지난 시간 · 그만두기) · 막대 · 수 칩(목업 「새 지금 정리」)
 function tdBand(k, d) {
   const job = d.job, run = (S.tidyRuns || {})[k]
   // 아무도 따라가지 않는 정리(자동 정리 · 다시 연 화면) — 따라가기 시작한다(그리는 중이라 다음 틱에)
   if (!run) setTimeout(() => tdFollow(k, job))
   const sp = job.spots || [], n = (st) => sp.filter((x) => x.st === st).length
-  const now = sp.filter((x) => x.st === 'run')
-  const who = job.auto ? 'kmd 자동' : job.by || ''
-  const more = (S.tdTab === 'run' ? '' : '<button class="btn" data-a="tdTab" data-v="run" data-t="tdSeeRun">정리 중 보기</button>') + tdStopBtn(k, job)
-  const head = (b, chip, small) => `<div class="go td-band" data-t="goBox" role="status"><span class="tx"><b data-t="nextTidy">${b}</b>${small ? `<small>${small}</small>` : ''}</span>${chip}${more}</div>`
-  if (run && run.err) return head(`정리 소식을 읽지 못했다 · ${esc(run.err)}`, '<span class="chip c-warn" data-t="prog">소식 끊김</span>', '정리는 서버에서 그대로 돈다. 닿으면 저절로 이어서 보인다')
-  if (job.stop) return head(`그만두는 중 · ${esc(job.stop.by)} 가 그만두기를 눌렀다 · 넣을 곳 ${sp.length} 중 ${sp.filter(tdWrote).length} 씀`, '<span class="chip c-warn" data-t="prog">그만두는 중</span>', '지금 쓰는 곳이 끝나면 끝낸다(이어 하지 않는다). 쓴 초안은 검사해 넣고, 남은 기록은 반영 대기에 그대로 둔다')
-  if (job.state === 'queued') return head(`정리 일꾼을 기다린다 · ${esc(whenTxt(job.at))} ${esc(who)}`, `<span class="prog" data-t="prog"><i></i><span data-since="${Date.parse(job.at) || ''}">${mmss(Date.now() - Date.parse(job.at))}</span></span>`, '다른 지식의 정리가 돌면 그 뒤에 맡는다 · 사람이 누른 정리가 자동 정리보다 먼저')
+  const who = job.auto ? 'kmd 자동 정리' : `${job.by || ''} 의 지금 정리`
+  const t0 = Date.parse(job.started || job.at)
+  const hm = (iso) => { const x = new Date(iso); return `${pad2(x.getHours())}:${pad2(x.getMinutes())}` }
+  const btns = (S.tdTab === 'run' ? '' : '<button class="btn sm" data-a="tdTab" data-v="run" data-t="tdSeeRun">정리 중 보기</button>') + tdStopBtn(k, job)
+  const card = (title, sub, body = '') => `<div class="card td-band" data-t="goBox" role="status"><div class="hd"><b data-t="nextTidy">${title}</b><span class="muted small">${sub}</span><span class="r">${btns}</span></div>${body}</div>`
+  if (run && run.err) return card('정리 소식을 읽지 못했다', esc(run.err), '<div class="note"><span class="chip c-warn" data-t="prog">소식 끊김</span> 정리는 서버에서 그대로 돈다. 닿으면 저절로 이어서 보인다</div>')
+  if (job.state === 'queued') return card(`정리 일꾼을 기다린다 · ${esc(who)}${job.picked ? '(고른 것)' : ''}`, `${hm(job.at)} 누름 · <span data-since="${Date.parse(job.at) || ''}">${mmss(Date.now() - Date.parse(job.at))}</span> 기다림`, '<div class="note"><span class="prog" data-t="prog"><i></i>차례를 기다린다</span> 다른 지식의 정리가 돌면 그 뒤에 맡는다 · 사람이 누른 정리가 자동 정리보다 먼저</div>')
+  const counts = [['넣음', n('done'), 'c-ok'], ['쓰는 중', n('run') + n('got'), 'c-pend'], ['기다림', n('wait'), 'c-mute'], ['둠', n('left'), 'c-warn'], ...(n('stop') ? [['그만둠', n('stop'), 'c-mute']] : [])]
+  const all = sp.length || 1
+  const bar = `<div class="td-bar" aria-hidden="true">${[['ok', n('done')], ['run', n('run') + n('got')], ['warn', n('left')], ['wait', n('wait') + n('stop')]].filter(([, v]) => v).map(([c, v]) => `<i class="${c}" style="width:${(v / all) * 100}%"></i>`).join('')}</div>`
+  const chips = `<div class="chips" data-t="prog">${counts.map(([l, v, c]) => `<span class="chip ${c}">${l} ${v}</span>`).join('')}</div>`
   // 멈춘 것 같다 — 쓰는 동안 15초마다 소식을 주는 일꾼은 1분, 예전 일꾼은 5분 조용하면
   const quiet = (Date.now() - Date.parse(job.beat || job.started || job.at)) / 1000
   const ticking = sp.some((x) => x.runMs)
-  if (quiet >= (ticking ? 60 : 300)) return head(`정리가 멈춘 것 같다 · 넣을 곳 ${sp.length} 중 ${sp.filter(tdWrote).length} 씀`, `<span class="chip c-warn" data-t="prog">일꾼 소식이 ${Math.round(quiet / 60) || 1}분 없다</span>`, '설정 · 팀 › Claude 연결 · 서버의 kmd-worker 기록을 본다 · 40분이 지나면 다시 맡긴다')
-  const counts = [['넣음', n('done')], ['쓰는 중', n('run')], ['초안 받음', n('got')], ['둠', n('left')], ['기다림', n('wait')]].filter(([, v]) => v).map(([l, v]) => `${l} ${v}`).join(' · ')
-  const t0 = Date.parse(job.started || job.at)
-  const cur = now.slice(0, 3).map((x) => `<span class="cur"><b>${esc(tdName(x))}</b> · ${tdLiveTx(x)}</span>`).join('')
-  return head(`이번 정리 · ${esc(who)} · 넣을 곳 ${sp.length}${counts ? ' · ' + counts : ''} · <span data-since="${t0 || ''}">${t0 ? mmss(Date.now() - t0) : ''}</span> 지남`, '<span class="prog" data-t="prog"><i></i>정리하는 중</span>', cur || '세 곳까지 같이 쓰고, 받는 대로 검사해 넣는다')
+  const warn = job.stop ? `<div class="note"><span class="chip c-warn">그만두는 중</span> ${esc(job.stop.by)} 가 그만두기를 눌렀다 · 지금 쓰는 곳이 끝나면 끝낸다. 쓴 초안은 검사해 넣고 남은 기록은 반영 대기에 그대로 둔다</div>`
+    : quiet >= (ticking ? 60 : 300) ? `<div class="note"><span class="chip c-warn">일꾼 소식이 ${Math.round(quiet / 60) || 1}분 없다</span> 정리가 멈춘 것 같다 · 설정 · 팀 › Claude 연결 · 서버의 kmd-worker 기록을 본다 · 40분이 지나면 다시 맡긴다</div>` : ''
+  return card(`이번 정리 · ${esc(who)}${job.picked ? '(고른 것)' : ''}`, `${hm(job.started || job.at)} 시작 · <span data-since="${t0 || ''}">${t0 ? mmss(Date.now() - t0) : ''}</span> 지남`, bar + chips + warn)
 }
 function tdGoBox(k, d) {
   const { t, recs, job } = d
@@ -2063,9 +2059,7 @@ function tdInbox(k, d) {
   return `<div class="td-grid" data-t="inbox">${tdHead(rs)}${body}</div>${bar}`
 }
 
-// 정리 중 — 넣을 곳 하나가 한 줄 · 누르면 그 줄 아래에 흐름 · 활동 기록 · 결과를 편다(지금 쓰는 곳은 처음부터 편다)
-// 초안 없이 둔 곳(로그인 끝남 · 한도 · 초안이 안 옴)은 글 쓰기에서 멈춘 것 — 검사까지 간 것처럼 보이지 않게
-const tdStage = (sp) => (sp.st === 'done' ? 5 : sp.st === 'got' || (sp.st === 'left' && !tdNoDraft(sp)) ? 3 : 2)
+// 정리 중 — 넣을 곳 하나가 한 줄 · 문서마다 묶는다 · 누르면 그 줄 아래에 활동 기록 · 받는 조각 · 결과를 편다(지금 쓰는 곳은 처음부터 편다)
 function tdSpChip(sp) {
   if (sp.st === 'done') return sp.res === 'changed' ? '<span class="chip c-warn">넣음 · 값 바뀜</span>' : '<span class="chip c-ok">넣음</span>'
   if (sp.st === 'run') return '<span class="chip c-pend">쓰는 중</span>'
@@ -2079,6 +2073,31 @@ const tdAgainIds = (d, sps) => { const open = new Map(d.recs.filter(tdCan).map((
 const tdAgainBtn = (d, ids, t, pri) => `<button class="btn sm${pri ? ' pri' : ''}" data-a="tdAgain" data-v="${esc(ids.join('|'))}" data-t="tdAgain"${tdLive(d.job) ? ' disabled' : ''}>${t} ${ids.length}</button>`
 // 펼친 줄 — 고른 것 · 없으면 지금 쓰는 곳
 const tdOpenKey = (spots) => (S.tdSpot === '-' ? null : S.tdSpot && spots.some((x) => x.key === S.tdSpot) ? S.tdSpot : (spots.find((x) => x.st === 'run') || spots.find((x) => x.st === 'left') || {}).key || null)
+// 넣을 곳의 문서 — 서버가 실은 문서 이름(옛 일감은 이름의 「 › 」 앞)
+const tdDocOf = (x) => x.docName || (x.kind === 'section' ? String(tdName(x)).split(' › ')[0] : x.kind === 'ingest' ? '넣은 파일' : '넣을 곳 고르기')
+// 줄 오른쪽 — 쓰는 중이면 지난 시간 · 쓴 글 / 상한과 작은 막대, 끝났으면 걸린 시간 · 고쳐 쓰기 수
+function tdMeta(x) {
+  if (x.st === 'run') {
+    const pct = x.limit && x.runMs ? Math.min(100, Math.round((x.runMs / x.limit) * 100)) : 0
+    return `<span class="td-meta" data-t="tdMeta"><span>쓰는 중 <span data-since="${esc(String(x.t0 || ''))}">${x.t0 ? mmss(Date.now() - x.t0) : ''}</span>${x.out ? ` · 쓴 글 ${x.out.toLocaleString()} 자` : x.think ? ' · 생각하는 중' : ''}${x.limit ? ` / 상한 ${mmss(x.limit)}` : ''}</span>${x.limit ? `<span class="td-mbar" aria-hidden="true"><i style="width:${pct}%"></i></span>` : ''}</span>`
+  }
+  const fx = x.fixes ? `고쳐 쓰기 ${x.fixes}번` : ''
+  if (x.st === 'wait') return '<span class="td-meta"><span>자리가 나면</span></span>'
+  if (x.st === 'got') return `<span class="td-meta"><span>받는 대로 검사${x.ms >= 1000 ? ` · ${mmss(x.ms)}` : ''}</span></span>`
+  if (x.st === 'done' || x.st === 'left') return `<span class="td-meta"><span>${[x.ms >= 1000 ? mmss(x.ms) : '', fx].filter(Boolean).join(' · ')}</span></span>`
+  return '<span class="td-meta"></span>'
+}
+// 줄 둘째 줄 — 쓴 사람 · 기록 수 · 그 곳의 사정 하나(값 바뀜 · 고쳐 쓰기 까닭 · 큰 항목 · 둔 횟수)
+function tdSub(k, d, x) {
+  const who = [...new Set(x.records.map((id) => recTitle(k, id).author).filter(Boolean))].join(' · ')
+  const tries = Math.max(0, ...x.records.map((id) => d.plan.tries[id] || 0))
+  const extra = x.st === 'done' && x.res === 'changed' && x.from ? `값 바뀜 ${x.from} → ${x.to}`
+    : x.st === 'left' ? x.why || ''
+    : x.fixWhy && x.st !== 'done' ? `고쳐 쓰기: ${x.fixWhy}`
+    : tries && x.st !== 'done' ? (tries >= d.hold ? `둠 ${tries}번 · 사람이 볼 것` : `둠 ${tries}번 · ${d.hold}번이면 사람이 볼 것으로`)
+    : x.size > 3000 && x.st !== 'done' ? `항목 ${kChars(x.size)}` : ''
+  return [who, `기록 ${x.records.length}`, extra].filter(Boolean).map(esc).join(' · ')
+}
 function tdRun(k, d) {
   const j = d.job
   if (!j) return '<div class="card"><div class="empty2" data-t="tdRunEmpty"><b>도는 정리가 없다</b>반영 대기에서 지금 정리를 누르면 여기서 넣을 곳마다 흐름이 보인다</div></div>'
@@ -2089,34 +2108,37 @@ function tdRun(k, d) {
   const open = tdOpenKey(spots)
   const row = (x) => {
     const on = open === x.key
-    const who = [...new Set(x.records.map((id) => recTitle(k, id).author).filter(Boolean))].join(' · ')
-    const small = x.st === 'run' ? tdLiveTx(x) : `${esc(who)}${who ? ' · ' : ''}기록 ${x.records.length}${x.ms >= 1000 ? ` · ${mmss(x.ms)}` : ''}`
-    return `<button type="button" class="qrow${on ? ' sel' : ''}" data-a="tdSpot" data-v="${esc(x.key)}" data-t="tdSpotRow" data-st="${x.st}" aria-expanded="${on}"><span class="ord">${spots.indexOf(x) + 1}</span><span class="td-av doc">${svg('doc')}</span><span class="tx"><b title="${esc(x.path || x.target)}">${esc(tdName(x))}</b><small>${small}</small></span>${tdSpChip(x)}</button>${on ? tdSpotDet(k, x, d) : ''}`
+    return `<button type="button" class="qrow${on ? ' sel' : ''}" data-a="tdSpot" data-v="${esc(x.key)}" data-t="tdSpotRow" data-st="${x.st}" aria-expanded="${on}"><span class="tx"><b title="${esc(x.path || x.target)}">${esc(tdName(x))}</b><small>${tdSub(k, d, x)}</small></span>${tdMeta(x)}${tdSpChip(x)}</button>${on ? tdSpotDet(k, x, d) : ''}`
   }
-  const rows = (xs, t, small) => (xs.length ? `<div class="qg">${t} ${xs.length}<small>${small}</small></div>${xs.map(row).join('')}` : '')
-  const by = (st, f = () => true) => spots.filter((x) => x.st === st && f(x))
+  // 문서마다 묶음 — 같은 Claude 호출이면 「Claude 한 번에」 · 큰 항목은 「큰 항목이라 따로」 · 도는 묶음이 위로
+  const groups = new Map()
+  for (const x of spots) { const g = tdDocOf(x); (groups.get(g) || groups.set(g, []).get(g)).push(x) }
+  const rank = (xs) => Math.min(...xs.map((x) => ({ run: 0, got: 1, wait: 2, left: 3, stop: 4, done: 5 })[x.st] ?? 6))
+  const label = (xs) => {
+    const calls = new Map()
+    for (const x of xs) if (x.call) calls.set(x.call, (calls.get(x.call) || 0) + 1)
+    if ([...calls.values()].some((v) => v > 1)) return ' · Claude 한 번에'
+    if (xs.some((x) => x.size > 3000 || x.form === 'patch')) return xs.length > 1 ? ' · 큰 항목은 따로' : ' · 큰 항목이라 따로'
+    return ''
+  }
   const again = tdLive(j) ? [] : tdAgainIds(d, spots)
   const head = `<div class="qbar"><span class="lead">${tdLive(j) ? '이번 정리' : '지난 정리'} · ${esc(whenTxt(j.at))} · ${esc(j.auto ? 'kmd 자동' : (j.by || '') + ' 의 지금 정리')}${j.picked ? ' (고른 것)' : ''} · 넣을 곳 ${spots.length}${j.held ? ` · 사람이 볼 것 ${j.held} 은 뺐다` : ''}</span>${j.state === 'failed' ? `<span class="chip c-danger" title="${esc(j.why || '')}">못함</span>` : ''}${again.length ? `<span class="r">${tdAgainBtn(d, again, '둔 것 다시 정리', true)}</span>` : ''}</div>${j.state === 'failed' && j.why ? `<div class="callout warn" data-t="tdFailWhy"><span><b>정리하지 못했다</b> · ${esc(j.why)}</span></div>` : ''}`
-  const list = rows(by('run'), '지금 쓰는 곳', '세 곳까지 같이 · 같은 문서의 작은 항목은 Claude 한 번에') + rows(by('got'), '초안 받음', '받는 대로 검사하고 넣는다') + rows(by('left', (x) => !tdNoDraft(x)), '넣지 않고 둠', '검사를 못 넘었다 · 다음 정리 때 다시') + rows(by('left', tdNoDraft), '글을 받지 못함', 'Claude 가 초안을 주지 않았다 · 다음 정리 때 다시') + rows(by('wait'), '기다림', '큰 곳부터') + rows(by('stop'), '그만둠', '쓰지 않은 곳 · 반영 대기에 그대로') + rows(by('done'), '끝남', '문서에 들어갔다')
+  const list = [...groups].sort((a, b) => rank(a[1]) - rank(b[1])).map(([doc, xs]) => `<div class="qg" data-t="tdDocGroup">${esc(doc)} · 항목 ${xs.length}<small>${label(xs).replace(/^ · /, '')}</small></div>${xs.map(row).join('')}`).join('')
   return head + `<div class="qlist td-list">${list || '<div class="none">이번 정리에 넣을 곳이 없다</div>'}</div>`
 }
+// 펼친 줄 — 활동 기록(넣을 곳의 첫 줄부터 지난 시간) · 받는 조각 미리 보기 · 결과 · 합치는 기록
 function tdSpotDet(k, sp, d) {
-  const at = tdStage(sp)
-  const flow = TD_STG.map((nm, i) => {
-    const c = sp.st === 'done' || i < at ? 'done' : i === at ? (sp.st === 'run' ? 'run' : sp.st === 'left' ? 'check' : '') : ''
-    const li = TD_SUB[i].map((x, n) => `<li class="${c === 'done' ? 'd' : c === 'run' && !n ? 'r' : c === 'check' ? (n === (i === 2 ? 0 : 2) ? 'x' : n < 2 && i !== 2 ? 'd' : '') : ''}">${esc(x)}</li>`).join('')
-    return `${i ? `<span class="arr${c ? ' done' : ''}" aria-hidden="true">›</span>` : ''}<div class="st ${c}"><div class="n"><span>${i + 1}</span><span>${{ done: '끝남', run: '도는 중', check: '못 넘음' }[c] || '기다림'}</span></div><div class="nm">${nm}</div><ul>${li}</ul></div>`
-  }).join('')
-  // 검사 까닭 · 오류 줄은 40자까지(올리면 전체)
-  const line = ([g, c, t]) => { const s = String(t), cut = (c === 'err' || g === 3) && s.length > 40 ? s.slice(0, 40) + '…' : s; return `<div class="${esc(c)}"${cut !== s ? ` title="${esc(s)}"` : ''}><span class="sg">[${TD_STG[g] || ''}]</span>${esc(cut)}</div>` }
-  const live = sp.st === 'run' ? `<div class="sys" data-t="tdLiveLine"><span class="sg">[${TD_STG[2]}]</span>${tdLiveTx(sp)}</div>` : ''
-  const term = `<div class="term" data-t="tdTerm">${(sp.lines || []).map(line).join('') + live || '<div class="sys">아직 줄이 없다</div>'}</div>`
-  const res = sp.st === 'done' && sp.record ? diffHtml(diffOf(k, sp.record)) : sp.st === 'left' ? (() => { const ids = tdAgainIds(d, [sp]); const gone = !sp.records.some((id) => d.recs.some((r) => r.id === id)); return `<div class="callout warn"><span><b>${tdNoDraft(sp) ? '글을 받지 못함' : '넣지 않고 둠'}</b> · ${esc(sp.why || '')} · ${gone ? '이 기록은 그 뒤 다른 정리로 이미 들어갔다' : '반영 대기에 그대로 있다 · 다음 정리 때 다시 하거나 지금 다시 한다'}</span>${ids.length && !tdLive(d.job) ? tdAgainBtn(d, ids, '여기 다시 정리') : ''}</div>` })() : '<div class="muted small">아직 넣은 글이 없다</div>'
-  return `<div class="det td-det" data-t="tdDet"><div class="dh"><div class="t"><b>${esc(tdName(sp))}</b><small>${esc(sp.path && !String(tdName(sp)).startsWith(sp.path.split('/').pop()) ? sp.path : KN(k).name)} · 기록 ${sp.records.length}${sp.ms >= 1000 ? ` · ${mmss(sp.ms)}` : ''}${sp.chars ? ` · 보낸 글 ${kChars(sp.chars)}` : ''}</small></div></div>
-   <div class="sec"><div class="sh">합치는 기록 ${sp.records.length}<span class="r">보낸 사람 · 들어온 길</span></div><ul class="td-feed">${sp.records.map((id) => { const r = recTitle(k, id); return `<li>${tdAv(r.author)}${tdRt(r.route || 'sess')}<span class="tx">${esc(r.title)} <small>· ${esc(r.author)}${r.date ? ' · ' + esc(recDt(r.date)) : ''}</small></span></li>` }).join('')}</ul></div>
-   <div class="sec"><div class="sh">흐름</div><div class="stflow">${flow}</div></div>
-   <div class="sec"><div class="sh">활동 기록 <small>kmd · 정리 일꾼이 하는 일</small></div>${term}</div>
-   <div class="sec"><div class="sh">${sp.st === 'done' ? '넣은 글' : '결과'}</div>${res}</div></div>`
+  const ls = sp.lines || []
+  const base = (ls.find((l) => l[3]) || [])[3] || sp.t0 || 0
+  const at = (t) => `<span class="tm">${t && base ? '+' + mmss(t - base) : ''}</span>`
+  // 검사 까닭 · 오류 줄은 60자(올리면 전체)
+  const line = ([g, c, t, tm]) => { const s = String(t), cut = c === 'err' && s.length > 60 ? s.slice(0, 60) + '…' : s; return `<div class="${esc(c)}"${cut !== s ? ` title="${esc(s)}"` : ''}>${at(tm)}${esc(cut)}</div>` }
+  const live = sp.st === 'run' && sp.out ? `<div class="sys" data-t="tdLiveLine">${at(sp.t0 && sp.runMs ? sp.t0 + sp.runMs : 0)}받는 중 ${sp.out.toLocaleString()} 자 …</div>` : ''
+  const term = `<div class="term" data-t="tdTerm">${ls.map(line).join('') + live || '<div class="sys">아직 줄이 없다</div>'}</div>`
+  const prev = (sp.preview || []).length ? `<div class="td-prev" data-t="tdPreview"><span class="lab">받는 조각(미리 보기)</span>${sp.preview.map((p) => `<div><del>${esc(p.from)}</del> → <ins>${esc(p.to)}</ins></div>`).join('')}</div>` : ''
+  const res = sp.st === 'done' && sp.record ? `<div class="sh">넣은 글</div>${diffHtml(diffOf(k, sp.record))}` : sp.st === 'left' ? (() => { const ids = tdAgainIds(d, [sp]); const gone = !sp.records.some((id) => d.recs.some((r) => r.id === id)); return `<div class="callout warn"><span><b>${tdNoDraft(sp) ? '글을 받지 못함' : '넣지 않고 둠'}</b> · ${esc(sp.why || '')} · ${gone ? '이 기록은 그 뒤 다른 정리로 이미 들어갔다' : '반영 대기에 그대로 있다 · 다음 정리 때 다시 하거나 지금 다시 한다'}</span>${ids.length && !tdLive(d.job) ? tdAgainBtn(d, ids, '여기 다시 정리') : ''}</div>` })() : ''
+  const recs = `<div class="td-recs">합치는 기록 ${sp.records.length}: ${sp.records.map((id) => { const r = recTitle(k, id); return `<span>${tdRt(r.route || 'sess')} ${esc(r.title)} <small>· ${esc(r.author)}${r.date ? ' · ' + esc(recDt(r.date)) : ''}</small></span>` }).join('')}</div>`
+  return `<div class="td-det" data-t="tdDet">${term}${prev}${res}${recs}</div>`
 }
 
 // 지난 정리 — 정리 한 번이 한 장 · 보낸 사람 / 결과로 묶은 트리 · 줄마다 비교 · 되돌리기

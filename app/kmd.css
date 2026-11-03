@@ -938,9 +938,14 @@ table.done tr.tr-term td{background:var(--surface-2)}
 .td-sum b{font:700 var(--fs-md) var(--mono);color:var(--text)}
 .td-sum .w b{color:var(--warn)}
 /* 진행 띠 — 지금 쓰는 곳 한 줄씩 */
-.td-band .tx small{display:flex;flex-direction:column;gap:var(--sp-1)}
-.td-band .cur{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.td-band .cur b{color:var(--text-2);font-weight:600}
+.td-band{padding:var(--sp-6) var(--sp-7);margin:0 0 var(--sp-7);display:flex;flex-direction:column;gap:var(--sp-5)}
+.td-band .hd{display:flex;align-items:center;gap:var(--sp-5);flex-wrap:wrap}
+.td-band .hd b{font-size:var(--fs-md)}
+.td-band .hd .r{margin-left:auto;display:flex;gap:var(--sp-3)}
+.td-bar{display:flex;height:8px;border-radius:var(--r-pill);background:var(--surface-3);overflow:hidden}
+.td-bar i{display:block;height:100%}.td-bar i.ok{background:var(--ok)}.td-bar i.run{background:var(--accent)}.td-bar i.warn{background:var(--warn)}.td-bar i.wait{background:var(--border-strong)}
+.td-band .chips{display:flex;gap:var(--sp-3);flex-wrap:wrap}
+.td-band .note{display:flex;gap:var(--sp-4);align-items:center;flex-wrap:wrap;font-size:var(--fs-sm);color:var(--text-2)}
 .td-kn{max-width:min(360px,100%);margin:0 0 var(--sp-6)}
 .td-kebab{position:relative}
 .td-mode{align-self:center}
@@ -950,9 +955,21 @@ table.done tr.tr-term td{background:var(--surface-2)}
 .td-list button.qrow{width:100%;border:0;border-top:1px solid var(--border);background:none;font:inherit;color:inherit;text-align:left}
 .td-list .qg + button.qrow{border-top:0}
 .td-list button.qrow.sel{background:var(--accent-bg)}
-.td-det{position:static;border-top:1px solid var(--border);background:var(--surface-2);border-radius:0}
-.td-det .sec{border-bottom:1px solid var(--border)}
-.td-det .stflow .st{cursor:default}
+.td-list button.qrow{flex-wrap:wrap}.td-list .qrow .tx{flex:1 1 240px}
+/* 줄 오른쪽 — 쓰는 중 · 쓴 글 / 상한 · 작은 막대 */
+.td-meta{display:flex;flex-direction:column;align-items:flex-end;gap:3px;font:var(--fs-sm) var(--mono);color:var(--text-3);text-align:right;flex:0 1 auto;min-width:0}
+.td-mbar{display:block;width:min(160px,100%);height:3px;border-radius:var(--r-pill);background:var(--surface-3);overflow:hidden}
+.td-mbar i{display:block;height:100%;background:var(--accent)}
+/* 펼친 줄 — 활동 기록(시각) · 받는 조각 · 결과 · 합치는 기록 */
+.td-det{padding:var(--sp-5) var(--sp-6) var(--sp-6);border-top:1px solid var(--border);background:var(--surface-2);display:flex;flex-direction:column;gap:var(--sp-5)}
+.td-det .term{max-height:280px;min-height:0}
+.td-det .term .tm{display:inline-block;min-width:48px;color:var(--term-dim);margin-right:var(--sp-3)}
+.td-det .sh{font-size:var(--fs-mono);font-weight:700;color:var(--text-2)}
+.td-prev{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:var(--sp-4) var(--sp-5);font:var(--fs-mono)/1.55 var(--mono);overflow-wrap:anywhere}
+.td-prev .lab{display:block;font-family:var(--font);font-size:var(--fs-sm);color:var(--text-3);margin-bottom:var(--sp-2)}
+.td-prev del{color:var(--danger);background:var(--danger-bg)}.td-prev ins{color:var(--ok);background:var(--ok-bg);text-decoration:none}
+.td-recs{display:flex;flex-wrap:wrap;gap:var(--sp-2) var(--sp-6);font-size:var(--fs-sm);color:var(--text-2)}
+.td-recs span{display:inline-flex;gap:var(--sp-3);align-items:center;min-width:0}.td-recs small{color:var(--text-3)}
 .tdy .td-tabs span{display:flex;gap:var(--sp-3);align-items:center;font-size:var(--fs);padding:var(--sp-4) var(--sp-7);cursor:pointer}
 .tdy .td-tabs em{font-style:normal;font-size:var(--fs-xs);font-weight:700;background:var(--surface-3);color:var(--text-2);border-radius:var(--r-pill);padding:0 var(--sp-3)}
 .tdy .td-tabs span.on em{background:var(--accent-bg);color:var(--accent)}

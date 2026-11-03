@@ -235,6 +235,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       else Object.assign(j, { state: 'queued', worker: null, why: '정리 일꾼이 끝내지 못해 다시 기다린다' })
       // 쓰던 자리는 다시 기다림으로(「글 쓰는 중」 이 남아 화면이 서로 어긋나던 것)
       for (const sp of j.spots || []) if (sp.st === 'run' || sp.st === 'got') { Object.assign(sp, { st: 'wait', stage: 2 }); sp.lines.push([2, 'sys', `정리 일꾼이 끝내지 못해 다시 기다린다(${j.tries}번째)`]) }
+      stamp(j)
     }
     if (changed) saveJobs()
     // 일꾼의 단기 열쇠 — 때가 지난 줄을 걷는다(일꾼이 죽거나 임대가 끝나 정상으로 지워지지 않은 것)
@@ -266,12 +267,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     const cut = Date.now() - 7 * 864e5
     return k.logs.filter((w) => w.reopens.length && w.title.startsWith('되돌림') && w.body.includes(doc.replace(/^docs\/|\.md$/g, '')) && (stampMs(w.date) || 0) >= cut).length
   }
+  // 정리 일 줄의 줄 — 시각이 없는 줄에 지금을 단다(줄을 쌓은 함수 끝에서 한 번 · 예전 줄은 시각 없이 그대로)
+  const stamp = (j) => { const t = Date.now(); for (const sp of j?.spots || []) for (const l of sp.lines || []) if (l.length < 4) l.push(t) }
   // 넣을 곳의 보이는 이름 — 문서는 제목으로(경로는 path) · 「4.1_개발환경/내부시험서버구성서 › 2. 배치」 를 사람이 읽는 이름으로
   const spotName = (k, g) => {
     if (g.kind !== 'section') return { name: g.kind === 'ingest' ? `${String(g.record.file || g.record.title).split('/').pop()} · 문서에 들이기` : `${String(g.record.title).split(/ — |: /)[0]} · 넣을 곳 고르기` }
     const doc = k.byDocPath.get(g.doc)
     const p = g.doc.replace(/^docs\/|\.md$/g, '')
-    return { name: `${doc?.title || p.split('/').pop()} › ${g.heading}`, path: p }
+    return { name: `${doc?.title || p.split('/').pop()} › ${g.heading}`, path: p, docName: doc?.title || p.split('/').pop() }
   }
   // 화면에 내는 정리 일감 — 일꾼 · 임대 · 일감 범위는 빼고 비용은 관리 자리만
   const jobView = (j, boss) => {
@@ -1635,14 +1638,20 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     //   end 가 없으면 시작(글 쓰는 중) · end 면 초안 받음(got · 검사는 다 모인 뒤 한꺼번에) 또는 못 받음(left)
     //   why(시작) — 다시 쓰는 까닭(묶음 답에 없음) · ms · chars · cost · tokens(끝) — 걸린 시간 · 보낸 글 · 비용 · 받은 토큰(자리에 남긴다 · 느린 곳을 잰다)
     //   tick(쓰는 중) — keys 자리들에 쓴 글 · 생각 글자 수 · 지난 시간(묶음이면 자리 여럿이 Claude 한 번을 같이 본다) · 줄은 늘리지 않는다
-    workerProgress(dctx, id, { key, keys = null, tick = false, out = 0, think = 0, model, end = false, ok = true, why = null, par = false, ms = 0, chars = 0, cost = 0, tokens = 0 } = {}) {
+    //   call · form — 같은 Claude 호출의 넣을 곳을 화면이 한 묶음으로(batch: 항목 여럿 한 번에 · patch: 고칠 조각 · single: 글 전체) · limit — 그 호출의 시간 상한 · edits — 받은 조각 수
+    workerProgress(dctx, id, { key, keys = null, tick = false, out = 0, think = 0, model, end = false, ok = true, why = null, par = false, ms = 0, chars = 0, cost = 0, tokens = 0, call = null, form = null, limit = 0, edits = null } = {}) {
       if (dctx.draft.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
       const j = jobs.get(dctx.draft.job)
       // 소식이 오면 살아 있다 — 자리를 못 찾아도(재료를 다시 받아 열쇠가 바뀌었다) 먼저 올린다
       if (j) j.beat = new Date().toISOString()
       if (tick) {
         const ks = (Array.isArray(keys) ? keys : [key]).map(String).slice(0, 64)
-        for (const sp of (j?.spots || []).filter((x) => ks.includes(x.key) && x.st === 'run')) Object.assign(sp, { out: Number(out) || 0, think: Number(think) || 0, runMs: Number(ms) || 0, together: ks.length })
+        for (const sp of (j?.spots || []).filter((x) => ks.includes(x.key) && x.st === 'run')) {
+          // 첫 글자 — 생각을 마치고 글을 쓰기 시작한 때(한 번만 줄로)
+          if (Number(out) > 0 && !sp.out) sp.lines.push([2, 'sys', `첫 글자 · 받는 중 ${Number(out)} 자`])
+          Object.assign(sp, { out: Number(out) || 0, think: Number(think) || 0, runMs: Number(ms) || 0, together: ks.length, ...(Number(limit) > 0 ? { limit: Number(limit) } : {}) })
+        }
+        stamp(j)
         return { ok: true, stop: !!j?.stop }
       }
       const sp = j?.spots?.find((x) => x.key === key)
@@ -1652,17 +1661,19 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!end) {
         // 예전 일꾼은 끝을 알리지 않는다 — 다음 자리를 시작하면 앞 자리는 초안을 받은 것(자리를 같이 쓰는 일꾼은 par)
         if (!par) for (const x of j.spots) if (x.st === 'run' && x !== sp) Object.assign(x, { st: 'got', stage: 3 })
-        Object.assign(sp, { st: 'run', stage: 2, tries: (sp.tries || 0) + 1, t0: Date.now(), out: 0, think: 0, runMs: 0 })
+        Object.assign(sp, { st: 'run', stage: 2, tries: (sp.tries || 0) + 1, t0: Date.now(), out: 0, think: 0, runMs: 0, ...(call ? { call: String(call).slice(0, 24) } : {}), ...(form ? { form: String(form).slice(0, 12) } : {}), ...(Number(limit) > 0 ? { limit: Number(limit) } : {}) })
         if (why) sp.lines.push([2, 'sys', String(why).slice(0, 160)])
-        sp.lines.push([2, 'tool', `▸ Claude 초안${model ? ` · ${String(model).slice(0, 60)}` : ''}${sp.tries > 1 ? ` · ${sp.tries}번째` : ''}`])
+        const how = form === 'patch' ? '고칠 조각으로' : form === 'batch' ? '같은 문서 항목 여럿 한 번에' : form === 'fix' ? '까닭을 붙여 고쳐 쓴다' : '글 전체로'
+        sp.lines.push([2, 'tool', `▸ Claude 에 보냄${model ? ` · ${String(model).slice(0, 60)}` : ''}${Number(chars) > 0 ? ` · 프롬프트 ${(chars / 1000).toFixed(1)}k 자` : ''} · ${how}${sp.tries > 1 ? ` · ${sp.tries}번째` : ''}`])
       } else if (ok) {
         Object.assign(sp, { st: 'got', stage: 3, ms: Number(ms) || 0, chars: Number(chars) || 0, cost: Number(cost) || 0, t1: Date.now() })
-        sp.lines.push([2, 'ok', `✓ 초안을 받았다${took}`], [3, 'sys', '받는 대로 검사해 넣는다'])
+        sp.lines.push([2, 'ok', `✓ 초안을 받았다${Number(edits) > 0 ? ` · 조각 ${Number(edits)}` : ''}${took}`], [3, 'sys', '받는 대로 검사해 넣는다'])
       } else {
         const w = STOP_WHY[why] || `초안을 받지 못했다${why ? ': ' + String(why).slice(0, 120) : ''}`
         Object.assign(sp, { st: 'left', stage: 2, why: w, ms: Number(ms) || 0, chars: Number(chars) || 0 })
         sp.lines.push([2, 'err', `✗ ${w}${took}`])
       }
+      stamp(j)
       return { ok: true, stop: !!j.stop }
     },
     // 정리 계획 — 지금 정리하면 생길 자리(문서 › 항목)와 거기 모이는 기록 · 지난 정리에서 둔 횟수
@@ -1743,6 +1754,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           return {
             key: spotKey(g), kind: g.kind, target: spotTarget(g), records: recs.map((r) => r.id), st: 'wait', stage: 2,
             ...spotName(k, g),
+            ...(g.kind === 'section' ? { size: (g.content || '').length } : {}),
             ...(old?.tries ? { tries: old.tries } : {}),
             lines: [
               // 서버가 다시 켜져 다시 받은 자리 — 앞 시도 줄은 그대로 두고 그 뒤에 잇는다
@@ -1752,6 +1764,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             ],
           }
         }).filter((x) => !put.some((y) => y.key === x.key)))
+        stamp(job)
         saveJobs()
       }
       // 이름 없는 기록의 후보 이름 — 찾기 사다리(제목 + 글)
@@ -1789,6 +1802,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           rows.push({ kind: 'left', target: String(item.group?.heading || item.group?.record?.title || ''), why: '그사이 넣을 것이 없어졌다', records: [] })
           continue
         }
+        // 받은 조각 미리 보기 — 검사 전에(검사가 조각을 새 글로 바꾼다) · 셋까지 · 앞뒤를 줄인다
+        const spP = j?.spots?.find((x) => x.key === spotKey(item.group))
+        if (spP && Array.isArray(d?.edits) && d.edits.length) spP.preview = d.edits.slice(0, 3).map((e) => ({ from: String(e?.find || '').slice(0, 160), to: String(e?.replace || '').slice(0, 200) }))
         const r = item.error ? { ok: false, why: STOP_WHY[item.error] || `초안을 받지 못했다${item.why ? ': ' + String(item.why).slice(0, 120) : ''}` } : checkDraft(k, g, d)
         const target = g.kind === 'touches' || g.kind === 'ingest' ? g.record.title : `${g.doc.replace(/^docs\/|\.md$/g, '')} › ${g.heading}`
         // 원본이 주인인 문서에는 정리도 넣지 않는다 — 기록은 문서 옆에 그대로 읽힌다
@@ -1808,8 +1824,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (!r.ok && part && fix && d && !r.stale && FIXABLE.test(r.why) && (list || []).length === 1) {
           const sp = j?.spots?.find((x) => x.key === spotKey(item.group))
           if (sp) {
-            Object.assign(sp, { st: 'run', stage: 2 })
-            sp.lines.push([3, 'err', `✗ ${r.why}`], [2, 'tool', '▸ 까닭을 알려 Claude 가 한 번 더 고쳐 쓴다'])
+            Object.assign(sp, { st: 'run', stage: 2, fixes: (sp.fixes || 0) + 1, fixWhy: String(r.why).slice(0, 120) })
+            sp.lines.push([3, 'err', `✗ 검사: ${r.why} · 고쳐 쓰기 ${sp.fixes}번째`])
+            stamp(j)
             saveJobs()
           }
           return { rows: [], fix: r.why, stop: !!j?.stop }
@@ -1860,6 +1877,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             sp.lines.push(...(sp.lines.some((l) => l[0] === 2 && l[1] === 'ok') ? [] : [[2, 'ok', '✓ 초안을 받았다']]), [3, 'ok', '✓ 글 모양 · 그 사이 바뀌지 않음 · 값 맞춤 · 크기 · 머리'], [4, 'ok', row.kind === 'changed' ? `✓ 넣었다 · 값 바뀜 ${row.from} → ${row.to} · 쓴 사람에게 알렸다` : '✓ 넣었다'])
           }
         })
+        stamp(j)
         // 일꾼이 에이전트로 넣은 파일은 초안이 오지 않는다
         if (!part) for (const sp of j.spots) if (sp.st === 'wait' || sp.st === 'run' || sp.st === 'got') Object.assign(sp, j.stop && sp.st === 'wait' ? { st: 'stop', stage: 2 } : sp.kind === 'ingest' ? { st: 'done', stage: 5, res: 'put' } : { st: 'left', stage: sp.st === 'got' ? 3 : 2, why: '초안이 오지 않았다' })
       }
@@ -2435,6 +2453,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (sp) {
         Object.assign(sp, { st: 'run', stage: 2, tries: (sp.tries || 0) + 1, t0: Date.now(), run: run.id, out: 0, think: 0, runMs: 0 })
         sp.lines.push([2, 'tool', '▸ Claude Code 가 세션처럼 들인다 · 자세한 줄은 지금 하는 일'])
+        stamp(job)
       }
       if (job) job.beat = new Date().toISOString()
       hub.runLine(run, 'sys', `정리 일꾼이 ${meta.name} 에 들인다. 기록 ${w.id}`)
@@ -2453,7 +2472,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         // 자리에는 도구 · 오류 줄만 짧게(같은 소식을 두 곳에 · 글은 run 에만)
         if (sp && (k === 'tool' || k === 'err') && sp.lines.length < 400) sp.lines.push([2, k, String(l?.x ?? '').slice(0, 160)])
       }
-      if (sp) sp.runMs = Date.now() - (sp.t0 || Date.now())
+      if (sp) { sp.runMs = Date.now() - (sp.t0 || Date.now()); stamp(job) }
       return { n: run.lines.length }
     },
     async workerAgentDone(dctx, id, { run: rid, ok = false, why = null }) {
@@ -2465,6 +2484,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const placed = !!ok && run.docs.length > 0
       const sp = jobs.get(dctx.draft.job)?.spots?.find((x) => x.run === run.id)
       if (sp) sp.lines.push(placed ? [4, 'ok', `✓ Claude Code 가 넣었다: ${run.docs.join(' · ').slice(0, 120)}`] : [2, 'err', `✗ Claude Code 가 넣지 못했다: ${String(why || '').slice(0, 100)} · 초안으로 다시 쓴다`])
+      if (sp) stamp(jobs.get(dctx.draft.job))
       run.state = placed ? 'done' : 'fail'
       run.msg = placed ? `문서에 넣었다: ${run.docs.join(' · ')}${run.names ? ` · 이름 ${run.names}` : ''}` : `에이전트가 넣지 못했다: ${String(why || '정리 초안으로 다시 한다').slice(0, 200)}`
       run.endedAt = new Date().toISOString()

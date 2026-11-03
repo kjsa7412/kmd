@@ -283,7 +283,24 @@ test('정리 · 이 지식의 사람 · 오늘 바뀐 것(M12 · M11 · M9): 목
   await page.screenshot({ path: path.join(SHOTS, 'app-tidy-inbox.png') })
   await page.click('[data-t=tidyBtn]')
   await page.waitForSelector('[data-t=prog]')
-  await workOnce({ server: s.url, key: wkey })
+  // 쓰는 동안 — 진행 띠(막대 · 수 칩) · 넣을 곳 줄의 「쓰는 중 · 쓴 글 / 상한」 · 시각 붙은 활동 기록
+  process.env.FAKE_CLAUDE_STREAM_MS = '2500'
+  process.env.KMD_TIDY_TICK_MS = '200'
+  const working = workOnce({ server: s.url, key: wkey })
+  try {
+    await page.waitForSelector('[data-t=tdSpotRow][data-st=run] [data-t=tdMeta]', { timeout: 20000 })
+    await page.waitForFunction(() => /쓴 글 [\d,]+ 자 \/ 상한/.test(document.querySelector('[data-t=tdSpotRow][data-st=run]')?.innerText || ''), null, { timeout: 20000 })
+    assert.ok(await page.locator('.td-band .td-bar').count(), '진행 막대')
+    assert.match(await page.locator('.td-band').innerText(), /이번 정리[\s\S]*시작[\s\S]*지남[\s\S]*쓰는 중 \d/)
+    assert.match(await page.locator('[data-t=tdDocGroup]').first().innerText(), /· 항목 \d/)
+    assert.match(await page.locator('[data-t=tdDet] [data-t=tdTerm]').innerText(), /\+0:\d\d[\s\S]*Claude 에 보냄/)
+    await page.evaluate(() => document.querySelectorAll('#toastHost > *').forEach((x) => x.remove()))
+    await page.screenshot({ path: path.join(SHOTS, 'app-tidy-running.png') })
+  } finally {
+    await working
+    delete process.env.FAKE_CLAUDE_STREAM_MS
+    delete process.env.KMD_TIDY_TICK_MS
+  }
   // 정리 중 — 넣을 곳마다 한 줄 · 누르면 그 줄 바로 아래에 흐름 · 활동 기록 · 결과(두 칸으로 나누지 않는다)
   await page.waitForSelector('[data-t=tdSpotRow]', { timeout: 20000 })
   await page.waitForFunction(() => !document.querySelector('[data-t=goBox].td-band'), null, { timeout: 20000 })

@@ -63,6 +63,8 @@ const PATCH = () => (['off', 'big', 'all'].includes(process.env.KMD_TIDY_PATCH) 
 const patchOn = (g) => g.kind === 'section' && (PATCH() === 'all' || (PATCH() === 'big' && (g.content || '').length > BATCH_OUT))
 // 생각 정도(KMD_TIDY_EFFORT · low · medium · high · max · 비면 그 PC 의 기본)
 const EFFORT = () => process.env.KMD_TIDY_EFFORT || ''
+// Claude 호출 하나의 id — 화면이 같은 호출의 넣을 곳을 한 묶음으로
+const callId = () => Math.random().toString(36).slice(2, 10)
 // 쓰는 동안 소식 간격 — 이 사이 소식이 없으면 화면이 「멈춘 것 같다」 를 1분에 띄운다
 const TICK = () => Number(process.env.KMD_TIDY_TICK_MS) || 15_000
 
@@ -95,12 +97,13 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
   const name = (g) => `${decodeURIComponent(kn)}: ${spotTarget(g)}`
   const secs = (ms) => `${Math.round((ms || 0) / 1000)}초`
   const kindOf = (r) => `${r.error}${r.sub ? ' · ' + r.sub : ''}${r.turns ? ` · 턴 ${r.turns}` : ''}`
-  const begin = async (g, model, why = null) => {
+  // meta — { call, form, limit, chars }: 같은 Claude 호출 · 꼴 · 시간 상한 · 보낼 글(화면이 묶음 · 「쓴 글 / 상한」 을 보인다)
+  const begin = async (g, model, why = null, meta = {}) => {
     if (stop || quit || lost) {
       items.push({ group: slim(g), error: stop && !quit && !lost ? stop : 'stopped' })
       return false
     }
-    const p = await call(server, dkey, `/api/k/${kn}/worker/progress`, { key: spotKey(g), model, par: true, ...(why ? { why } : {}) }).catch(gone)
+    const p = await call(server, dkey, `/api/k/${kn}/worker/progress`, { key: spotKey(g), model, par: true, ...(why ? { why } : {}), ...meta }).catch(gone)
     if (p.stop || lost) {
       if (p.stop && !quit) log(`${decodeURIComponent(kn)}: 정리를 그만둔다(사람이 멈췄다)`)
       quit ||= !!p.stop
@@ -118,8 +121,9 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
   }
   const ask1 = async (prompt, o, keys = []) => {
     const t0 = Date.now()
-    const onTick = keys.length && !lost ? (t) => { call(server, dkey, `/api/k/${kn}/worker/progress`, { keys, tick: true, out: t.out, think: t.think, ms: t.ms }).then((p) => { if (p.stop) quit = true }, gone) } : null
-    const r = await runClaude({ prompt, budget, timeoutMs: timeoutOf(prompt), onTick, tickMs: TICK(), effort: EFFORT(), ...o })
+    const limit = o.timeoutMs || timeoutOf(prompt)
+    const onTick = keys.length && !lost ? (t) => { call(server, dkey, `/api/k/${kn}/worker/progress`, { keys, tick: true, out: t.out, think: t.think, ms: t.ms, limit }).then((p) => { if (p.stop) quit = true }, gone) } : null
+    const r = await runClaude({ prompt, budget, timeoutMs: limit, onTick, tickMs: TICK(), effort: EFFORT(), ...o })
     return { ...r, ms: Date.now() - t0, chars: prompt.length }
   }
   const write = (g, model) => (patchOn(g) ? ask(patchPromptOf(g), { schema: PATCH_SCHEMA, model }, [spotKey(g)]) : ask(promptOf(g), { schema: schemaOf(g), model }, [spotKey(g)]))
@@ -127,7 +131,7 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
   //   서버 검사가 고칠 수 있는 까닭(빠진 값 · 지어낸 값 · 크기 · 머리)으로 돌려보내면 그 까닭을 붙여 한 번만 다시 쓴다
   const finish = async (g, r, again = true) => {
     log(`${name(g)}: ${r.error ? `초안을 받지 못했다(${kindOf(r)})` : '초안'} · ${secs(r.ms)} · 보낸 글 ${r.chars || 0}자${r.outTokens ? ` · 받은 토큰 ${r.outTokens}` : ''}${r.model ? ` · ${r.model}` : ''}`)
-    const e = await call(server, dkey, `/api/k/${kn}/worker/progress`, { key: spotKey(g), end: true, ok: !r.error, why: r.error ? (STOP[r.error] ? r.error : r.message || r.error) : null, ms: r.ms || 0, chars: r.chars || 0, cost: r.cost || 0, tokens: r.outTokens || 0 }).catch(gone)
+    const e = await call(server, dkey, `/api/k/${kn}/worker/progress`, { key: spotKey(g), end: true, ok: !r.error, edits: Array.isArray(r.value?.edits) ? r.value.edits.length : null, why: r.error ? (STOP[r.error] ? r.error : r.message || r.error) : null, ms: r.ms || 0, chars: r.chars || 0, cost: r.cost || 0, tokens: r.outTokens || 0 }).catch(gone)
     if (e.stop) quit = true
     if (STOP[r.error] && !stop) {
       stop = r.error
@@ -145,7 +149,8 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
   const refix = async (g) => {
     const model = modelOf(g.kind === 'touches' ? 'touch' : 'tidy', models)
     const patch = g.kind === 'section' && !('content' in g.fix.draft)
-    if (await begin(g, model)) await finish(g, await ask(patch ? [fixPromptOf(g, g.fix.draft, g.fix.why), PATCH_RULE].join('\n\n') : fixPromptOf(g, g.fix.draft, g.fix.why), { schema: patch ? PATCH_SCHEMA : schemaOf(g), model }, [spotKey(g)]), false)
+    const fp = patch ? [fixPromptOf(g, g.fix.draft, g.fix.why), PATCH_RULE].join('\n\n') : fixPromptOf(g, g.fix.draft, g.fix.why)
+    if (await begin(g, model, null, { call: callId(), form: 'fix', limit: timeoutOf(fp), chars: fp.length })) await finish(g, await ask(patch ? [fixPromptOf(g, g.fix.draft, g.fix.why), PATCH_RULE].join('\n\n') : fixPromptOf(g, g.fix.draft, g.fix.why), { schema: patch ? PATCH_SCHEMA : schemaOf(g), model }, [spotKey(g)]), false)
   }
   const one = async (g) => {
     if (g.fix) return refix(g)
@@ -161,14 +166,19 @@ export async function workOnce({ server, key, log = () => {}, budget = 0.5, mode
       if (a.placed) return
     }
     const model = modelOf(g.kind === 'touches' ? 'touch' : 'tidy', models)
-    if (await begin(g, model, g.again || null)) await finish(g, await write(g, model))
+    const p0 = patchOn(g) ? patchPromptOf(g) : promptOf(g)
+    if (await begin(g, model, g.again || null, { call: callId(), form: patchOn(g) ? 'patch' : 'single', limit: timeoutOf(p0), chars: p0.length })) await finish(g, await write(g, model))
   }
   // 한 문서의 항목 묶음 — claude -p 한 번에 쓰고 자리마다 초안으로 나눈다. 묶음 답이 틀렸거나 그 자리 답이 없으면 그 자리를 일 줄에 되돌려
   //   빈 칸이 따로 다시 쓴다(까닭을 줄에 남긴다 · 같은 칸에서 차례로 쓰면 묶음 6분 + 자리마다 5분이 한 줄로 쌓이고 화면에는 아무 줄도 없었다)
   const many = async (gs) => {
     const model = modelOf('tidy', models)
     const go = []
-    for (const g of gs) if (await begin(g, model)) go.push(g)
+    // 묶음은 한 호출 — 같은 call 로 알린다(상한 · 보낼 글은 묶음 프롬프트로)
+    const cid = callId()
+    const bp = batchPromptOf(gs)
+    const blimit = Math.min(15 * 60_000, Math.max(timeoutOf(bp), TIDY_TIMEOUT + gs.length * 60_000))
+    for (const g of gs) if (await begin(g, model, null, { call: cid, form: gs.length > 1 ? 'batch' : patchOn(g) ? 'patch' : 'single', limit: blimit, chars: bp.length })) go.push(g)
     if (go.length < 2) return go.length ? finish(go[0], await write(go[0], model)) : undefined
     const prompt = batchPromptOf(go)
     // 묶음 시간 상한 — 항목마다 따로 쓸 때(timeoutOf)보다 짧으면 안 된다(큰 항목 둘의 묶음이 7분에 끊겨 다시 쓰던 것)
