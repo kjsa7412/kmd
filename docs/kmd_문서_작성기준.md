@@ -182,7 +182,7 @@
 | 보내기(개인 · S12 까지) | hub.send · sendPicked · sendPreview | 「보내기 확인」 창이 받는 쪽 장부로 미리 맞춰 본다(`POST /api/k/:id/receive/preview` · 쓰지 않는다) · 보낸 뒤 받은 쪽이 돌려준 「이름 없음」 수를 보내기 기록 · 알림에 보인다 |
 | 파일 · 폴더 넣기 | hub.importFiles · ingest* | 붙잡아 두기(기록은 `ingest/` 자리) · 정리 · 들이기 초안의 새 문서는 G4 |
 | 가져올 곳(git · DB · 서버 폴더) · 코드 바뀜 | core/sources.js · codechange | 붙잡아 두기 · 세우는 이름은 G1 |
-| 정리 일꾼 · 규칙 정리(팀은 S13 까지 · 개인 프로그램 `placeGroup` 은 그대로) | hub.putDrafts · placeGroup · core/tidy.js | 초안 검사에서 G4(어기면 초안을 버린다) · 저장은 붙잡아 두기 · 이름 고르기에서 맞는 이름이 없으면 지식관리자의 「오늘 바뀐 것」 에 알린다(지식 점검으로 이어짐) · 프롬프트에 갈래의 머리 꼴 · 짜임 |
+| 정리 일꾼 · 규칙 정리(팀은 S13 까지 · 개인 프로그램 `placeGroup` 은 그대로) | hub.putDrafts · placeGroup · core/tidy.js · 초안 검사 core/gate.js | 초안 검사에서 G4(어기면 초안을 버린다) · 저장은 붙잡아 두기 · 이름 고르기에서 맞는 이름이 없으면 지식관리자의 「오늘 바뀐 것」 에 알린다(지식 점검으로 이어짐) · 프롬프트에 갈래의 머리 꼴 · 짜임 |
 | 팀 일꾼 들이기(S7 부터) | hub.openJob → 들이기 일감 → hub.save(`intake` 옵션) | 비system 저장 검사(꼴 · 값 대조 · 원본이 주인 · 표 블록) · 못 넘으면 기록만 + 넣지 못함 · 장부 밖 이름은 「세울 이름」 칸 + 넣지 못함 |
 | 기록 고치기(정정 · S9 부터) | hub.fixRecord | 거절형 |
 | 대량 넣기 · 보내기 스킬 → 팀 저장(S11 · S12 부터) | MCP save · `POST /api/k/:id/save`(`channel: 'send'`) | 거절형(세션과 같다) |

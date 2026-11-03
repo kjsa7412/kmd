@@ -20,7 +20,7 @@ export async function revertPlan(k, recordId) {
       //   git log 가 실패하면 앞 판이 없는 것으로 본다(빈 글로 되돌림) · 까닭은 로그에 남긴다
       const log = (await git(k.dir, ['log', '--format=%H', '-S', `<!-- applied: ${recordId} -->`, '--', d.path]).catch((e) => { console.error(`[revert] ${d.path} 이력을 읽지 못했다: ${e?.message || e}`); return '' })).trim().split('\n').filter(Boolean)
       const first = log[log.length - 1]
-      const before = first ? await git(k.dir, ['show', `${first}^:${d.path}`]).then(readText, () => null) : null
+      const before = first ? await git(k.dir, ['show', `${first}^:${d.path}`]).then(readText, (e) => { console.error(`[revert] ${d.path} 앞 판을 읽지 못했다(빈 글로 되돌림): ${e?.message || e}`); return null }) : null
       const old = before ? parseDoc(before, '').sections.find((x) => headingMatches(x.h, s.h)) : null
       sections.push({ doc: d.path, heading: s.h, content: old ? old.body : '', applied: old ? old.applied || null : null, coords: coordsOfSection(k, d, s.h) })
     }
