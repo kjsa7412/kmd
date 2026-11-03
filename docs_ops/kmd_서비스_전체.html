@@ -201,7 +201,7 @@ svg.arch .hd{fill:var(--text-3)}
 <p>kmd 의 일은 한 줄이다. <b>어디서 왔든(세션 · 화면 · 파일 · 코드 · DB · 개인 지식) 먼저 기록으로 남기고, 그 기록을 검사를 거쳐 문서의 항목에 넣는다.</b> 문서를 쓰는 길은 <code>core/save.js</code> 하나뿐이고, 기록과 문서와 장부가 늘 같은 git 한 묶음으로 바뀐다. 아래 그림이 그 전체이고, 그 아래 단계마다 입력 · 처리 · 출력 · 실패와 출처(코드 파일:줄 · 기준 문서 절)를 적는다. 기준일 2026-11-03 · 코드 9e7eb94.</p>
 
 <div class="flowfig" role="figure" aria-label="원천에서 기록, 기록에서 문서까지 한 장 흐름">
-<svg class="arch" viewBox="0 0 1000 1090" role="img" aria-label="원천 넷이 저장 한 길을 거쳐 기록이 되고, 제안은 바로, 나머지는 정리 때 재료 · 초안 · 검사 · 넣기를 거쳐 문서의 항목이 된다">
+<svg class="arch" viewBox="0 0 1000 1182" role="img" aria-label="원천 넷이 저장 한 길을 거쳐 기록이 되고, 제안은 바로, 나머지는 정리 때 재료 · 초안 · 검사 · 넣기를 거쳐 문서의 항목이 된다">
 <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0,0 L10,5 L0,10 z"/></marker></defs>
 
 <!-- 1 원천 -->
@@ -213,72 +213,77 @@ svg.arch .hd{fill:var(--text-3)}
 <path class="ln a" d="M136 124 V160" marker-end="url(#ah)"/><path class="ln" d="M378 124 V160" marker-end="url(#ah)"/><path class="ln" d="M620 124 V160" marker-end="url(#ah)"/><path class="ln g" d="M863 124 V160" marker-end="url(#ah)"/>
 
 <!-- 2 저장 한 길 -->
-<rect class="zone" x="8" y="164" width="984" height="132" rx="12"/><text class="z" x="22" y="184">2 저장 한 길 · core/save.js saveNow · 지식마다 한 줄 · 실패하면 되돌림</text>
+<rect class="zone" x="8" y="164" width="984" height="224" rx="12"/><text class="z" x="22" y="184">2 저장 한 길 · core/save.js saveNow · 지식마다 한 줄로 · 하나라도 걸리면 아무것도 쓰지 않는다(괄호는 코드 · 기준 문서의 번호)</text>
 <g>
-<rect class="box" x="22" y="198" width="88" height="80" rx="8"/><text class="t" x="32" y="222">꼴</text><text class="l" x="32" y="242">제목 200자</text><text class="l" x="32" y="258">touches 꼴</text>
-<rect class="box" x="118" y="198" width="88" height="80" rx="8"/><text class="t" x="128" y="222">G1 이름</text><text class="l" x="128" y="242">세울 이름</text><text class="l" x="128" y="258">guardNames</text>
-<rect class="box" x="214" y="198" width="88" height="80" rx="8"/><text class="t" x="224" y="222">G4 문서</text><text class="l" x="224" y="242">갈래 · 폴더</text><text class="l" x="224" y="258">guardNewDoc</text>
-<rect class="box" x="310" y="198" width="88" height="80" rx="8"/><text class="t" x="320" y="222">자리</text><text class="l" x="320" y="242">locate</text><text class="l" x="320" y="258">없으면 안 씀</text>
-<rect class="box" x="406" y="198" width="88" height="80" rx="8"/><text class="t" x="416" y="222">G2 · G3</text><text class="l" x="416" y="242">guardRecord</text><text class="l" x="416" y="258">strict · hold</text>
-<rect class="box" x="502" y="198" width="88" height="80" rx="8"/><text class="t" x="512" y="222">F4 지문</text><text class="l" x="512" y="242">base 16 hex</text><text class="l" x="512" y="258">다르면 409</text>
-<rect class="box" x="598" y="198" width="88" height="80" rx="8"/><text class="t" x="608" y="222">E_FORMAT</text><text class="l" x="608" y="242">formatCheck</text><text class="l" x="608" y="258">새 줄만 거절</text>
-<rect class="box" x="694" y="198" width="88" height="80" rx="8"/><text class="t" x="704" y="222">id</text><text class="l" x="704" y="242">YYYY-MMDD-</text><text class="l" x="704" y="258">slug(40)</text>
-<rect class="box" x="790" y="198" width="88" height="80" rx="8"/><text class="t" x="800" y="222">원자 쓰기</text><text class="l" x="800" y="242">다시 읽어</text><text class="l" x="800" y="258">대조(F1)</text>
-<rect class="box bk" x="886" y="198" width="92" height="80" rx="8"/><text class="t" x="896" y="222">git</text><text class="l" x="896" y="242">기록 · 문서</text><text class="l" x="896" y="258">· 장부 한 묶음</text>
+<rect class="box" x="22" y="198" width="180" height="80" rx="8"/><text class="t" x="34" y="222">1 칸 모양 검사</text><text class="l" x="34" y="244">제목 200자 · 본문 20만 자</text><text class="l" x="34" y="262">이름은 종류:값 꼴</text>
+<rect class="box" x="214" y="198" width="180" height="80" rx="8"/><text class="t" x="226" y="222">2 새 이름 모양</text><text class="l" x="226" y="244">세우는 이름이 종류:값</text><text class="l" x="226" y="262">60자 · 빈칸 없음(G1)</text>
+<rect class="box" x="406" y="198" width="180" height="80" rx="8"/><text class="t" x="418" y="222">3 새 문서 갈래</text><text class="l" x="418" y="244">갈래 장부의 갈래 · 폴더</text><text class="l" x="418" y="262">· 머리 꼴로만(G4)</text>
+<rect class="box" x="598" y="198" width="180" height="80" rx="8"/><text class="t" x="610" y="222">4 넣을 곳 찾기</text><text class="l" x="610" y="244">이름 → 자리 장부 → 항목</text><text class="l" x="610" y="262">못 찾으면 아무것도 안 씀</text>
+<rect class="box" x="790" y="198" width="180" height="80" rx="8"/><text class="t" x="802" y="222">5 이름 장부 대조</text><text class="l" x="802" y="244">장부 밖 · 폐기 이름(G2)</text><text class="l" x="802" y="262">이름 없으면 까닭(G3)</text>
+<rect class="box" x="22" y="290" width="180" height="80" rx="8"/><text class="t" x="34" y="314">6 읽은 뒤 바뀜?</text><text class="l" x="34" y="336">보낸 지문(base)과 지금 글</text><text class="l" x="34" y="354">다르면 거절(F4)</text>
+<rect class="box" x="214" y="290" width="180" height="80" rx="8"/><text class="t" x="226" y="314">7 문서 꼴 검사</text><text class="l" x="226" y="336">기록 링크 · 주석 · 머리 줄</text><text class="l" x="226" y="354">새로 든 줄만 거절(E_FORMAT)</text>
+<rect class="box" x="406" y="290" width="180" height="80" rx="8"/><text class="t" x="418" y="314">8 기록 id 짓기</text><text class="l" x="418" y="336">YYYY-MMDD-제목 40자</text><text class="l" x="418" y="354">겹치면 -2 · -3</text>
+<rect class="box" x="598" y="290" width="180" height="80" rx="8"/><text class="t" x="610" y="314">9 쓰고 다시 읽기</text><text class="l" x="610" y="336">임시 파일 뒤 이름 바꾸기</text><text class="l" x="610" y="354">읽은 값이 보낸 값인지(F1)</text>
+<rect class="box bk" x="790" y="290" width="180" height="80" rx="8"/><text class="t" x="802" y="314">10 git 한 묶음</text><text class="l" x="802" y="336">기록 · 문서 · 장부를</text><text class="l" x="802" y="354">같이 · 실패하면 되돌림</text>
 </g>
-<path class="ln" d="M500 296 V330" marker-end="url(#ah)"/>
+<path class="ln" d="M500 388 V422" marker-end="url(#ah)"/>
 
 <!-- 3 기록 -->
-<rect class="box ai" x="300" y="334" width="400" height="92" rx="10"/><text class="t" x="316" y="360">기록 work/&lt;id&gt;.md (kmd 의 일은 log/)</text><text class="s" x="316" y="382">id · title · date · author · touches · tags · reflects</text><text class="l" x="316" y="404">「## 바뀐 것 · 까닭 · 버린 안 · 영향 · 근거」 · 「## 고친 조각」(제안)</text>
-<rect class="box pc" x="22" y="334" width="252" height="92" rx="10"/><text class="t" x="36" y="360">제안 apply → 바로 문서</text><text class="s" x="36" y="382">값을 더하기만 하는 조각</text><text class="l" x="36" y="404">applyProposals · 저장하는 순간</text>
-<rect class="box bk" x="726" y="334" width="252" height="92" rx="10"/><text class="t" x="740" y="360">제안 review → [넣기]</text><text class="s" x="740" y="382">옛 값을 바꾸거나 지우는 조각</text><text class="l" x="740" y="404">지식관리자 · proposal/:rec/put</text>
-<path class="ln g" d="M300 380 H278" marker-end="url(#ah)"/><path class="ln w" d="M700 380 H722" marker-end="url(#ah)"/>
-<path class="ln p" d="M500 426 V460" marker-end="url(#ah)"/><text class="l" x="510" y="448">반영 대기(pend) · 이름 없음(nowhere)</text>
+<rect class="box ai" x="300" y="426" width="400" height="92" rx="10"/><text class="t" x="316" y="452">기록 work/&lt;id&gt;.md (kmd 의 일은 log/)</text><text class="s" x="316" y="474">id · title · date · author · touches · tags · reflects</text><text class="l" x="316" y="496">「## 바뀐 것 · 까닭 · 버린 안 · 영향 · 근거」 · 「## 고친 조각」(제안)</text>
+<rect class="box pc" x="22" y="426" width="252" height="92" rx="10"/><text class="t" x="36" y="452">제안 apply → 바로 문서</text><text class="s" x="36" y="474">값을 더하기만 하는 조각</text><text class="l" x="36" y="496">applyProposals · 저장하는 순간</text>
+<rect class="box bk" x="726" y="426" width="252" height="92" rx="10"/><text class="t" x="740" y="452">제안 review → [넣기]</text><text class="s" x="740" y="474">옛 값을 바꾸거나 지우는 조각</text><text class="l" x="740" y="496">지식관리자 · proposal/:rec/put</text>
+<path class="ln g" d="M300 472 H278" marker-end="url(#ah)"/><path class="ln w" d="M700 472 H722" marker-end="url(#ah)"/>
+<path class="ln p" d="M500 518 V552" marker-end="url(#ah)"/><text class="l" x="510" y="540">반영 대기(pend) · 이름 없음(nowhere)</text>
 
 <!-- 4 언제 -->
-<rect class="zone" x="8" y="464" width="984" height="104" rx="12"/><text class="z" x="22" y="484">3 언제 정리하나 · tidyNow → 일감(queued) · 같은 지식에 도는 일감이 있으면 그것</text>
-<rect class="box" x="22" y="494" width="232" height="62" rx="8"/><text class="t" x="34" y="518">정해진 시각</text><text class="l" x="34" y="540">기본 02:30 · 분마다 보고 하루 한 번</text>
-<rect class="box" x="264" y="494" width="232" height="62" rx="8"/><text class="t" x="276" y="518">실시간</text><text class="l" x="276" y="540">저장 · 받기 뒤 5분 조용하면</text>
-<rect class="box" x="506" y="494" width="232" height="62" rx="8"/><text class="t" x="518" y="518">손으로만 · [지금 정리]</text><text class="l" x="518" y="540">고른 기록 500 까지 · 쓰기 자리는 자기 것</text>
-<rect class="box" x="748" y="494" width="230" height="62" rx="8"/><text class="t" x="760" y="518">넣기 · 코드 바뀜 뒤</text><text class="l" x="760" y="540">바로(손으로만 방식은 빼고)</text>
-<path class="ln" d="M500 568 V600" marker-end="url(#ah)"/>
+<rect class="zone" x="8" y="556" width="984" height="104" rx="12"/><text class="z" x="22" y="576">3 언제 정리하나 · tidyNow → 일감(queued) · 같은 지식에 도는 일감이 있으면 그것</text>
+<rect class="box" x="22" y="586" width="232" height="62" rx="8"/><text class="t" x="34" y="610">정해진 시각</text><text class="l" x="34" y="632">기본 02:30 · 분마다 보고 하루 한 번</text>
+<rect class="box" x="264" y="586" width="232" height="62" rx="8"/><text class="t" x="276" y="610">실시간</text><text class="l" x="276" y="632">저장 · 받기 뒤 5분 조용하면</text>
+<rect class="box" x="506" y="586" width="232" height="62" rx="8"/><text class="t" x="518" y="610">손으로만 · [지금 정리]</text><text class="l" x="518" y="632">고른 기록 500 까지 · 쓰기 자리는 자기 것</text>
+<rect class="box" x="748" y="586" width="230" height="62" rx="8"/><text class="t" x="760" y="610">넣기 · 코드 바뀜 뒤</text><text class="l" x="760" y="632">바로(손으로만 방식은 빼고)</text>
+<path class="ln" d="M500 660 V692" marker-end="url(#ah)"/>
 
 <!-- 5 재료 -->
-<rect class="zone" x="8" y="604" width="984" height="112" rx="12"/><text class="z" x="22" y="624">4 재료 · 넣을 곳 찾기 · core/tidy.js material · 세 번 둔 기록(HOLD 3)은 자동 정리에서 뺌</text>
-<rect class="box" x="22" y="636" width="150" height="66" rx="8"/><text class="t" x="34" y="660">touches</text><text class="l" x="34" y="682">종류:값</text>
-<rect class="box" x="204" y="636" width="168" height="66" rx="8"/><text class="t" x="216" y="660">이름 장부</text><text class="l" x="216" y="682">_vocab.md · 다른 이름 · 폐기</text>
-<rect class="box" x="404" y="636" width="168" height="66" rx="8"/><text class="t" x="416" y="660">자리 장부</text><text class="l" x="416" y="682">_managed.md · 종류:* 꼴</text>
-<rect class="box team" x="604" y="636" width="168" height="66" rx="8"/><text class="t" x="616" y="660">문서 › 항목</text><text class="l" x="616" y="682">sectionOf · 「값:」 머리</text>
-<rect class="box bk" x="804" y="636" width="174" height="66" rx="8"/><text class="t" x="816" y="660">이름 없음 · 파일</text><text class="l" x="816" y="682">후보 이름 8 · 후보 문서 5</text>
-<path class="ln" d="M172 669 H200" marker-end="url(#ah)"/><path class="ln" d="M372 669 H400" marker-end="url(#ah)"/><path class="ln" d="M572 669 H600" marker-end="url(#ah)"/>
-<path class="ln" d="M500 716 V748" marker-end="url(#ah)"/>
+<rect class="zone" x="8" y="696" width="984" height="112" rx="12"/><text class="z" x="22" y="716">4 재료 · 넣을 곳 찾기 · core/tidy.js material · 세 번 둔 기록(HOLD 3)은 자동 정리에서 뺌</text>
+<rect class="box" x="22" y="728" width="150" height="66" rx="8"/><text class="t" x="34" y="752">touches</text><text class="l" x="34" y="774">종류:값</text>
+<rect class="box" x="204" y="728" width="168" height="66" rx="8"/><text class="t" x="216" y="752">이름 장부</text><text class="l" x="216" y="774">_vocab.md · 다른 이름 · 폐기</text>
+<rect class="box" x="404" y="728" width="168" height="66" rx="8"/><text class="t" x="416" y="752">자리 장부</text><text class="l" x="416" y="774">_managed.md · 종류:* 꼴</text>
+<rect class="box team" x="604" y="728" width="168" height="66" rx="8"/><text class="t" x="616" y="752">문서 › 항목</text><text class="l" x="616" y="774">sectionOf · 「값:」 머리</text>
+<rect class="box bk" x="804" y="728" width="174" height="66" rx="8"/><text class="t" x="816" y="752">이름 없음 · 파일</text><text class="l" x="816" y="774">후보 이름 8 · 후보 문서 5</text>
+<path class="ln" d="M172 761 H200" marker-end="url(#ah)"/><path class="ln" d="M372 761 H400" marker-end="url(#ah)"/><path class="ln" d="M572 761 H600" marker-end="url(#ah)"/>
+<path class="ln" d="M500 808 V840" marker-end="url(#ah)"/>
 
 <!-- 6 초안 -->
-<rect class="zone" x="8" y="752" width="984" height="104" rx="12"/><text class="z" x="22" y="772">5 초안 · 정리 일꾼(kmd-worker) · 일감마다 단기 열쇠 kmdd_ 30분</text>
-<rect class="box" x="22" y="782" width="226" height="62" rx="8"/><text class="t" x="34" y="806">묶기 batchesOf</text><text class="l" x="34" y="828">같은 문서 16 자리 · 6만 자 · 3천 자</text>
-<rect class="box" x="262" y="782" width="226" height="62" rx="8"/><text class="t" x="274" y="806">프롬프트</text><text class="l" x="274" y="828">WRITE · MUST · OLD · SPREAD · 조각</text>
-<rect class="box ai" x="502" y="782" width="226" height="62" rx="8"/><text class="t" x="514" y="806">claude -p</text><text class="l" x="514" y="828">json-schema · 도구 없음 · $0.5 · 5~15분</text>
-<rect class="box" x="742" y="782" width="236" height="62" rx="8"/><text class="t" x="754" y="806">자리마다 올림</text><text class="l" x="754" y="828">drafts part · 서버가 묶음을 다시 짓는다</text>
-<path class="ln" d="M248 813 H258" marker-end="url(#ah)"/><path class="ln" d="M488 813 H498" marker-end="url(#ah)"/><path class="ln" d="M728 813 H738" marker-end="url(#ah)"/>
-<path class="ln" d="M500 856 V888" marker-end="url(#ah)"/>
+<rect class="zone" x="8" y="844" width="984" height="104" rx="12"/><text class="z" x="22" y="864">5 초안 · 정리 일꾼(kmd-worker) · 일감마다 단기 열쇠 kmdd_ 30분</text>
+<rect class="box" x="22" y="874" width="226" height="62" rx="8"/><text class="t" x="34" y="898">묶기 batchesOf</text><text class="l" x="34" y="920">같은 문서 16 자리 · 6만 자 · 3천 자</text>
+<rect class="box" x="262" y="874" width="226" height="62" rx="8"/><text class="t" x="274" y="898">프롬프트</text><text class="l" x="274" y="920">WRITE · MUST · OLD · SPREAD · 조각</text>
+<rect class="box ai" x="502" y="874" width="226" height="62" rx="8"/><text class="t" x="514" y="898">claude -p</text><text class="l" x="514" y="920">json-schema · 도구 없음 · $0.5 · 5~15분</text>
+<rect class="box" x="742" y="874" width="236" height="62" rx="8"/><text class="t" x="754" y="898">자리마다 올림</text><text class="l" x="754" y="920">drafts part · 서버가 묶음을 다시 짓는다</text>
+<path class="ln" d="M248 905 H258" marker-end="url(#ah)"/><path class="ln" d="M488 905 H498" marker-end="url(#ah)"/><path class="ln" d="M728 905 H738" marker-end="url(#ah)"/>
+<path class="ln" d="M500 948 V980" marker-end="url(#ah)"/>
 
 <!-- 7 검사 -->
-<rect class="zone" x="8" y="892" width="984" height="88" rx="12"/><text class="z" x="22" y="912">6 검사 · check · Claude 가 쓴 글을 사람 없이 믿지 않는다</text>
-<rect class="box" x="22" y="922" width="560" height="48" rx="8"/><text class="s" x="34" y="951">G2 지문 · G6 꼴 · G5 크기 · G4 빠진 값 · 지어낸 값 · 빠진 옛 값 · 옛 기록 되돌림</text>
-<rect class="box bk" x="600" y="922" width="180" height="48" rx="8"/><text class="t" x="612" y="944">고쳐 쓰기 한 번</text><text class="l" x="612" y="962">까닭을 붙여 다시</text>
-<rect class="box bk" x="796" y="922" width="182" height="48" rx="8"/><text class="t" x="808" y="944">둠 → 세 번이면</text><text class="l" x="808" y="962">사람이 볼 것</text>
-<path class="ln w" d="M690 922 C690 890 900 880 900 856" marker-end="url(#ah)"/><text class="l" x="760" y="884">다시 초안</text>
-<path class="ln g" d="M300 970 V1004" marker-end="url(#ah)"/><text class="l" x="310" y="992">넘음</text>
+<rect class="zone" x="8" y="984" width="984" height="88" rx="12"/><text class="z" x="22" y="1004">6 검사 · check · Claude 가 쓴 글을 사람 없이 믿지 않는다</text>
+<rect class="box" x="22" y="1014" width="560" height="48" rx="8"/><text class="s" x="34" y="1043">읽은 뒤 바뀜 · 문서 꼴 · 크기 · 빠진 값 · 지어낸 값 · 빠진 옛 값 · 옛 기록 되돌림</text>
+<rect class="box bk" x="600" y="1014" width="180" height="48" rx="8"/><text class="t" x="612" y="1036">고쳐 쓰기 한 번</text><text class="l" x="612" y="1054">까닭을 붙여 다시</text>
+<rect class="box bk" x="796" y="1014" width="182" height="48" rx="8"/><text class="t" x="808" y="1036">둠 → 세 번이면</text><text class="l" x="808" y="1054">사람이 볼 것</text>
+<path class="ln w" d="M690 1014 C690 982 900 972 900 948" marker-end="url(#ah)"/><text class="l" x="760" y="976">다시 초안</text>
+<path class="ln g" d="M300 1062 V1096" marker-end="url(#ah)"/><text class="l" x="310" y="1084">넘음</text>
 
 <!-- 8 넣기 -->
-<rect class="zone" x="8" y="1008" width="984" height="74" rx="12"/><text class="z" x="22" y="1028">7 넣기 · planSave → coreSave(kmd-auto · curate-llm · reflects)</text>
-<rect class="box pc" x="22" y="1036" width="300" height="38" rx="8"/><text class="s" x="34" y="1060">항목 글 + applied 표지 + 참고 줄</text>
-<rect class="box bk" x="336" y="1036" width="200" height="38" rx="8"/><text class="s" x="348" y="1060">git 한 묶음 · 백업 밀기</text>
-<rect class="box" x="550" y="1036" width="214" height="38" rx="8"/><text class="s" x="562" y="1060">알림 · 값 바뀜은 노랑</text>
-<rect class="box" x="778" y="1036" width="200" height="38" rx="8"/><text class="s" x="790" y="1060">되돌리기 · revertPlan</text>
+<rect class="zone" x="8" y="1100" width="984" height="74" rx="12"/><text class="z" x="22" y="1120">7 넣기 · planSave → coreSave(kmd-auto · curate-llm · reflects)</text>
+<rect class="box pc" x="22" y="1128" width="300" height="38" rx="8"/><text class="s" x="34" y="1152">항목 글 + applied 표지 + 참고 줄</text>
+<rect class="box bk" x="336" y="1128" width="200" height="38" rx="8"/><text class="s" x="348" y="1152">git 한 묶음 · 백업 밀기</text>
+<rect class="box" x="550" y="1128" width="214" height="38" rx="8"/><text class="s" x="562" y="1152">알림 · 값 바뀜은 노랑</text>
+<rect class="box" x="778" y="1128" width="200" height="38" rx="8"/><text class="s" x="790" y="1152">되돌리기 · revertPlan</text>
 </svg>
 </div>
 <p class="small muted">색: 파랑 팀 · 초록 개인 · 넣음 / 보라 기록 · Claude / 노랑 사람 확인 · 저장소 · 둠. 점선은 사람이 고르거나 다시 하는 길이다.</p>
+<div class="m-note"><b>괄호 속 번호</b><p>코드 · 기준 문서가 검사에 붙인 이름이다. 번호 갈래가 둘이라 같은 「G2」 가 뜻이 다르다.</p><ul>
+<li><b>저장 가드 G1 ~ G4</b>(<a href="../docs/kmd_문서_작성기준.md">작성기준</a> 9절 · <code>core/guard.js</code>): G1 새 이름 모양 · G2 이름 장부에 있는 이름만 · G3 이름도 자리도 없으면 까닭 · G4 새 문서는 갈래 장부대로.</li>
+<li><b>정리 검사 G1 ~ G6</b>(<code>core/tidy.js</code> check): G1 초안 모양 · G2 읽은 뒤 바뀜 · G4 값 대조(빠진 값 · 지어낸 값) · G5 크기 · G6 문서 꼴.</li>
+<li><b>F1 · F4</b>(<code>core/save.js</code>): F1 쓰고 다시 읽어 대조 · F4 읽은 뒤 바뀌었나(지문 base). <b>E_FORMAT</b> 은 문서 꼴에 걸렸을 때의 오류 이름(작성기준 8절).</li>
+</ul></div>
 
 <h3 id="core-a">들어오는 길: 원천 → 기록</h3>
 <div class="stages">
@@ -383,12 +388,12 @@ svg.arch .hd{fill:var(--text-3)}
 <section class="stage"><h4><span class="tag w">B-8</span>검사: 초안을 사람 없이 믿지 않는다</h4>
 <div class="m-tbl"><table>
 <tr><th>#</th><th>검사</th><th>걸리는 것</th></tr>
-<tr><td>1</td><td>모양</td><td>content · used · left 가 없다 · 이 항목의 기록을 빠뜨렸다</td></tr>
-<tr><td>2</td><td>G2 지문</td><td>읽은 뒤 항목 글이 바뀌었다 · 그사이 새 기록이 왔다(stale → 다음 정리)</td></tr>
-<tr><td>3</td><td>G6 꼴</td><td>머리 · 주석 · 기록 링크 · 시스템 주소(새로 든 줄만) · 표 블록을 고쳤다 · 글을 비웠다</td></tr>
-<tr><td>4</td><td>G5 크기</td><td>지금 글 + 넣은 기록 × 1.5 + 300 자를 넘었다</td></tr>
-<tr><td>5</td><td>G4 빠진 값</td><td>기록의 꼭 옮길 값이 글에도 drop 에도 없다</td></tr>
-<tr><td>6</td><td>지어낸 값</td><td>글의 값(코드 · 따옴표 말 · 날짜 · 수+단위)이 옛 글 · 기록 · 이름 장부 어디에도 없다</td></tr>
+<tr><td>1</td><td>초안 모양</td><td>content · used · left 가 없다 · 이 항목의 기록을 빠뜨렸다</td></tr>
+<tr><td>2</td><td>읽은 뒤 바뀜(정리 G2)</td><td>읽은 뒤 항목 글이 바뀌었다 · 그사이 새 기록이 왔다(stale → 다음 정리)</td></tr>
+<tr><td>3</td><td>문서 꼴(정리 G6)</td><td>머리 · 주석 · 기록 링크 · 시스템 주소(새로 든 줄만) · 표 블록을 고쳤다 · 글을 비웠다</td></tr>
+<tr><td>4</td><td>근거보다 크게 씀(정리 G5)</td><td>지금 글 + 넣은 기록 × 1.5 + 300 자를 넘었다</td></tr>
+<tr><td>5</td><td>빠진 값(정리 G4)</td><td>기록의 꼭 옮길 값이 글에도 drop 에도 없다</td></tr>
+<tr><td>6</td><td>지어낸 값(정리 G4)</td><td>글의 값(코드 · 따옴표 말 · 날짜 · 수+단위)이 옛 글 · 기록 · 이름 장부 어디에도 없다</td></tr>
 <tr><td>7</td><td>빠진 옛 값</td><td>옛 글의 값이 빠졌는데 drop 에도 기록의 「옛 → 새」 에도 없다</td></tr>
 <tr><td>8</td><td>옛 기록 되돌림</td><td>옛 기록의 값만으로 글이 바뀌었다</td></tr>
 </table></div>
