@@ -577,7 +577,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 바로잡기(S-D17) — fixes 가 가리키는 기록은 내가 쓴 것이거나 내가 그 지식의 지식관리자일 때만 · 좌표정정 판정을 건너뛸지(correction)는 서버가 정한다
     let correction = false
     if (team && Array.isArray(rec0?.fixes) && rec0.fixes.length) {
-      const k0 = await hub.get(id)
+      const k0 = await hub.get(id, ctx)
       const admin = levelFor(id, ctx) === 'admin'
       const ws = rec0.fixes.map((x) => k0.byWork.get(String(x).trim().normalize('NFC'))).filter(Boolean)
       if (!admin && ws.some((w) => w.author !== ctx.user)) throw new KmdError('E_FORBIDDEN', '남의 기록은 지식관리자가 바로잡는다')

@@ -313,6 +313,10 @@ test('서버: 메모는 문서를 바꾸지 않는다 · 값이 안 맞는 조�
   const memo = await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 메모: 풀 크기', body: '풀 크기를 늘릴지 본다.', memo: true, touches: ['proc:준비'] } }, { channel: 'session' })
   assert.deepEqual([memo.memo, memo.docs, memo.note], [true, [], '메모로 남겼다. 문서는 바꾸지 않았다'])
   assert.equal((await s.hub.get('dpms')).byWork.get(memo.id).state, 'memo')
+  // 세션(MCP 서식 칸 · form) 메모는 changes 없이 된다 · 메모가 아니면 changes 가 꼭 있다(S4 검토)
+  const fm = await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 메모: 서식 칸', body: '경보 간격을 줄일지 본다.', why: '아직 정하지 않았다', memo: true, touches: ['proc:준비'] } }, { channel: 'session', form: true, guard: 'strict' })
+  assert.equal(fm.memo, true)
+  assert.equal((await err(s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 서식 칸', body: '요약.', touches: ['proc:준비'] } }, { channel: 'session', form: true, guard: 'strict' })))?.code, 'E_INPUT')
   assert.equal((await err(s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 메모', body: 'x', memo: true, touches: ['proc:준비'] }, sections: [{ coord: 'proc:준비', base: await baseOf('proc:준비'), content: 'x' }] })))?.code, 'E_INPUT')
   // 값 대조 — 기록의 값이 글에 없다
   const v = await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 값: 알림 간격', body: '## 바뀐 것\n- 알림 간격: 7분', touches: ['proc:준비'] }, sections: [{ coord: 'proc:준비', base: await baseOf('proc:준비'), edits: [{ find: '날짜-순번으로 짓는다', replace: '날짜-순번으로 짓고 알린다' }] }] }, { channel: 'session' })
