@@ -346,6 +346,13 @@ function namesIn(k, doc) {
   return out
 }
 
+// 묶은 값(`…` · 「…」 · "…")은 통째로 값 하나라 근거에 묶지 않고 쓴 같은 글과 어긋난다 — 기록 「deploy-gw.ps1 [-Reset] · 127.0.0.1:55432」 ·
+//   초안 `deploy-gw.ps1 [-Reset]` · `127.0.0.1:55432`. 근거 글(빈칸 뺌)에 그대로 있고 속의 수도 다 근거에 있으면 지어낸 값이 아니다
+function groundedIn(text, ...sets) {
+  const flat = squeeze(text).replace(/[`「」"]/g, '')
+  return (v) => flat.includes(v) && [...valuesOf(v)].every((x) => sets.some((s) => s.has(x)))
+}
+
 // 검사 — { ok, why, changed: [{from, to}] }
 export function check(k, g, d) {
   if (!d || typeof d !== 'object') return { ok: false, why: '초안 모양이 아니다' }
@@ -400,7 +407,8 @@ export function check(k, g, d) {
   if (missing.length) return { ok: false, why: `기록의 값이 글에 없다: ${missing.slice(0, 3).join(' · ')}` }
   // 지식에 있는 이름(같은 문서의 항목 머리 · 이름 장부의 이름)을 가리키는 것은 지어낸 값이 아니다(`DPMS-ISS-18` 같은 관련 항목)
   const named = namesIn(k, x?.doc)
-  const invented = [...now].filter((v) => !oldV.has(v) && !recV.has(v) && !named.has(v))
+  const grounded = groundedIn(cur + ' ' + used.map((r) => r.body + ' ' + r.title).join(' '), oldV, recV)
+  const invented = [...now].filter((v) => !oldV.has(v) && !recV.has(v) && !named.has(v) && !grounded(v))
   if (invented.length) return { ok: false, why: `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` }
   const gone = [...oldV].filter((v) => !now.has(v))
   const came = [...now].filter((v) => !oldV.has(v))
@@ -480,7 +488,8 @@ function checkIngest(k, g, d) {
   const elsewhere = valuesOf(g.docs.flatMap((c) => c.sections.map((s) => s.body)).join('\n') + ' ' + (nd ? nd.path : ''))
   const missing = [...valuesOf(g.record.body.replace(/^# .*$/gm, ''))].filter((v) => !now.has(v) && !elsewhere.has(v))
   if (missing.length) return { ok: false, why: `파일의 값이 글에 없다: ${missing.slice(0, 3).join(' · ')}` }
-  const invented = [...now].filter((v) => !recV.has(v) && !oldV.has(v))
+  const grounded = groundedIn(g.record.body + ' ' + g.record.title + ' ' + g.record.file + ' ' + old, recV, oldV)
+  const invented = [...now].filter((v) => !recV.has(v) && !oldV.has(v) && !grounded(v))
   if (invented.length) return { ok: false, why: `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` }
   return { ok: true, changed, ...draftLint(outs) }
 }

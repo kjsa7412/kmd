@@ -214,7 +214,7 @@ test('여러 항목에 걸린 기록: 항목 하나에 기록의 값을 다 요�
 
 test('서식대로 쓴 기록: 까닭 · 버린 안 · 근거의 값(날짜 · 판 · 커밋)은 글에 요구하지 않는다 · 꼭 옮길 값을 프롬프트에 적어 준다', async () => {
   const { material, promptOf, check, mustValues } = await import('../core/tidy.js')
-  const body = '기다림 시간을 늘렸다.\n\n## 바뀐 것\n- 대기 표지: 아이콘 `wait_icon` 56px\n\n## 까닭\n- 사용자 지시, 2026-11-02\n\n## 버린 안\n- 40px: 작다\n\n## 영향\n- 재시도 3번\n\n## 근거\n- 설계서 v0.15 · 커밋 5c76aba'
+  const body = '기다림 시간을 늘렸다.\n\n## 바뀐 것\n- 대기 표지: 아이콘 `wait_icon` 56px\n\n## 까닭\n- 사용자 지시, 2026-11-02\n\n## 버린 안\n- 40px: 작다\n\n## 영향\n- 재시도 3번 · 배포는 deploy-gw.ps1 [-Reset] 뒤 DB 127.0.0.1:55432\n\n## 근거\n- 설계서 v0.15 · 커밋 5c76aba'
   assert.deepEqual(mustValues(body).sort(), ['56px', 'wait_icon'], '영향(재시도 3번)은 요구하지 않는다(작성기준 7절)')
   const w = await s.hub.save(LEE, 'dpms', { record: { title: '대기 표지', body, touches: ['proc:매일 백업'] } })
   const k = await s.hub.get('dpms')
@@ -223,6 +223,10 @@ test('서식대로 쓴 기록: 까닭 · 버린 안 · 근거의 값(날짜 · �
   const mine = g.content + '\n\n대기 표지는 아이콘 `wait_icon` 56px 이다. 재시도는 3번이다.'
   assert.equal(check(k, g, { content: mine, used: [w.id], left: [] }).ok, true)
   assert.match(check(k, g, { content: mine.replace('56px', '큰'), used: [w.id], left: [] }).why, /기록의 값이 글에 없다: 56px$/)
+  // 기록에 묶지 않고 쓴 값을 초안이 `…` 로 묶어도 근거의 값이다(188 「4. 구성 순서」 를 늘 「근거에 없는 값」 으로 두던 것) · 바꾼 값은 그대로 막는다
+  const tick = mine + ' 배포는 `deploy-gw.ps1 [-Reset]` 뒤 DB `127.0.0.1:55432`.'
+  assert.equal(check(k, g, { content: tick, used: [w.id], left: [] }).ok, true)
+  assert.match(check(k, g, { content: tick.replace('`127.0.0.1:55432`', '`127.0.0.1:55433`'), used: [w.id], left: [] }).why, /근거에 없는 값이 있다: 127\.0\.0\.1:55433$/)
 })
 
 test('여러 항목에 걸린 기록: 넣은 항목은 다시 정리하지 않는다 · 바꿀 것이 없는 항목은 「넣음」 표지만 · 관련 항목 이름은 지어낸 값이 아니다', async () => {
