@@ -215,11 +215,11 @@ test('여러 항목에 걸린 기록: 항목 하나에 기록의 값을 다 요�
 test('서식대로 쓴 기록: 까닭 · 버린 안 · 근거의 값(날짜 · 판 · 커밋)은 글에 요구하지 않는다 · 꼭 옮길 값을 프롬프트에 적어 준다', async () => {
   const { material, promptOf, check, mustValues } = await import('../core/tidy.js')
   const body = '기다림 시간을 늘렸다.\n\n## 바뀐 것\n- 대기 표지: 아이콘 `wait_icon` 56px\n\n## 까닭\n- 사용자 지시, 2026-11-02\n\n## 버린 안\n- 40px: 작다\n\n## 영향\n- 재시도 3번\n\n## 근거\n- 설계서 v0.15 · 커밋 5c76aba'
-  assert.deepEqual(mustValues(body).sort(), ['3', '56px', 'wait_icon'])
+  assert.deepEqual(mustValues(body).sort(), ['56px', 'wait_icon'], '영향(재시도 3번)은 요구하지 않는다(작성기준 7절)')
   const w = await s.hub.save(LEE, 'dpms', { record: { title: '대기 표지', body, touches: ['proc:매일 백업'] } })
   const k = await s.hub.get('dpms')
   const g = material(k, { ids: [w.id] }).find((x) => x.kind === 'section')
-  assert.match(promptOf(g), /글에 꼭 옮길 값: 「(56px|3|wait_icon)」/)
+  assert.match(promptOf(g), /글에 꼭 옮길 값: 「(56px|wait_icon)」/)
   const mine = g.content + '\n\n대기 표지는 아이콘 `wait_icon` 56px 이다. 재시도는 3번이다.'
   assert.equal(check(k, g, { content: mine, used: [w.id], left: [] }).ok, true)
   assert.match(check(k, g, { content: mine.replace('56px', '큰'), used: [w.id], left: [] }).why, /기록의 값이 글에 없다: 56px$/)
@@ -350,4 +350,11 @@ test('조각 초안: 지금 글에 꼭 한 번 맞는 곳만 바꾼다 · 어긋
   } finally {
     delete process.env.KMD_TIDY_PATCH
   }
+})
+
+test('꼭 옮길 값은 「바뀐 것」 칸만: 요약 · 영향의 경위(「187 에 배포했다」)는 요구하지 않는다(188 DPA020 · 11-03)', async () => {
+  const { mustValues } = await import('../core/tidy.js')
+  const body = '보기를 셋으로 줄이고 187 에 배포했다.\n\n## 바뀐 것\n- 기준 표고: 18.30\n\n## 까닭\n- 2026-11-02 지시\n\n## 영향\n- 187 은 -ResetDb 로 새 배치(T920)를 넣었다'
+  assert.deepEqual(mustValues(body), ['18.30'])
+  assert.deepEqual(mustValues('서식 없는 기록: 포트 5432 · 30초'), ['5432', '30초'], '서식이 아니면 글 전체')
 })

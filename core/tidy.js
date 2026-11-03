@@ -243,7 +243,7 @@ const mustLine = (r, req) => {
   return vs.length ? `\n(${MUST_MARK}: ${vs.map((v) => `「${v}」`).join(' · ')})` : ''
 }
 const recLine = (r, req = !r.old && !r.spread) => `[${r.id}] ${r.date} ${r.author}${r.old ? ` (${OLD_MARK})` : ''}${r.spread ? ` (${SPREAD_MARK} · ${r.spread})` : ''}: ${r.title}\n${r.body}${mustLine(r, req)}`
-const MUST_RULE = `「${MUST_MARK}」 은 기록의 바뀐 것 · 영향 · 요약에 든 값이다. 넣는 기록이면 그 값을 글자 그대로(단위까지) 글에 쓴다. 옛 글의 값을 바꿔 뺀 값만 drop 에 적는다. 그 항목에 맞지 않는 값이면 그 기록을 left 에 둔다.`
+const MUST_RULE = `「${MUST_MARK}」 은 기록의 「바뀐 것」 에 든 값이다(요약 · 영향의 배포 자리 · 알릴 사람 같은 경위는 옮기지 않는다). 넣는 기록이면 그 값을 글자 그대로(단위까지) 글에 쓴다. 옛 글의 값을 바꿔 뺀 값만 drop 에 적는다. 그 항목에 맞지 않는 값이면 그 기록을 left 에 둔다.`
 
 // 한 문서의 항목 여럿을 claude -p 한 번에 — 자리마다 부르면 기록 22건이 자리 159개 · 159번이 된다.
 //   같은 문서의 항목 묶음만(문서 하나가 거의 한 번) · 묶음 하나는 BATCH_MAX 자리 · 글(지금 글 + 기록)은 BATCH_CHARS 까지(기록 글은 한 번만 센다). 답은 자리마다 DRAFT_SCHEMA 와 같은 초안
@@ -302,7 +302,8 @@ export function batchPromptOf(gs) {
 
 // 글에 꼭 있어야 할 기록의 값 — 커밋 해시 · 기록 id 는 경위라 글에 옮기지 않는다(작성기준) · 해시 속 숫자(092cc4a → 092)도 값이 아니다 ·
 //   30자 넘는 따옴표 말은 값이 아니라 옮긴 문장이다 ·
-//   서식대로 쓴 기록(「## 바뀐 것」 …)은 요약 · 바뀐 것 · 영향 칸만 본다. 까닭 · 버린 안 · 근거는 경위라 글에 옮기지 않는다(작성기준) —
+//   서식대로 쓴 기록(「## 바뀐 것」 …)은 바뀐 것 칸만 요구한다. 영향은 「무엇이 바뀌나 · 누가 알아야 하나」(템플릿)라 그 항목의 지식이 아닐 때가 많고, 요약은 바뀐 것을 다시 말하는 칸이라 「187 에 배포했다」 같은 경위가 섞이고,
+//   그 값을 요구하면 Claude 가 「187 환경에 배포돼 있다」 를 지식 글에 넣는다(188 DPA020 · 11-03) — 요약의 값은 넣어도 되지만 요구하지 않는다. 까닭 · 버린 안 · 근거는 경위라 글에 옮기지 않는다(작성기준) —
 //   거기 든 날짜(「2026-11-02」 → 2026 · 02) · 문서 판 · 커밋을 요구하면 늘 「기록의 값이 글에 없다」 로 남는다
 const HASH_RE = /\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b/g
 const REC_ID_RE = /\b\d{4}-\d{4}-[^\s`」"'),]+/g
@@ -318,7 +319,14 @@ const ARROW_RE = /^(\s*[-*]\s*[^\n]*?)\s*(?:→|->)\s*([^\n]*)$/gm
 // 「- 무엇: 옛 값」 → [「- 무엇:」, 「옛 값」] (「무엇:」 이 없으면 줄 전체가 옛 값)
 const splitLeft = (left) => { const m = left.match(/^(\s*[-*]\s*[^\n]*?:)\s+([^\n]*)$/); return m ? [m[1], m[2]] : [left.replace(/^(\s*[-*]\s*)[^\n]*$/, '$1'), left.replace(/^\s*[-*]\s*/, '')] }
 const newSide = (body) => String(body).replace(ARROW_RE, (_, left, right) => `${splitLeft(left)[0]} ${right}`)
-export const mustValues = (body) => [...valuesOf(newSide(knowledgeParts(body)).replace(HASH_RE, ' ').replace(REC_ID_RE, ' '))].filter((v) => v.length <= 30)
+// 꼭 옮길 칸 — 서식이면 바뀐 것만 · 서식이 아니면 글 전체
+const MUST_PARTS = new Set(['바뀐 것'])
+const mustParts = (body) => {
+  const s = String(body)
+  if (!/^## 바뀐 것\s*$/m.test(s)) return s
+  return s.split(/^(?=## )/m).filter((p) => MUST_PARTS.has((p.match(/^## (.+?)\s*$/m) || [])[1])).join('')
+}
+export const mustValues = (body) => [...valuesOf(newSide(mustParts(body)).replace(HASH_RE, ' ').replace(REC_ID_RE, ' '))].filter((v) => v.length <= 30)
 // 기록이 뺀 옛 값(「옛 값 → 새 값」 의 왼쪽에만 있는 값) — 초안에 남아 있으면 알린다(거절하지 않는다: 같은 값이 다른 뜻으로 쓰였을 수 있다)
 export const oldValues = (body) => {
   const out = new Set()
