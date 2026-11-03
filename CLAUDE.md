@@ -10,9 +10,10 @@
 | 무엇을 고칠 때 | 기준 |
 |---|---|
 | 화면(app/*) | [docs/kmd_디자인_컨벤션.md](docs/kmd_디자인_컨벤션.md) v0.2 · 견본 `app/styleguide.html` |
-| 문서를 만들거나 고치는 경로(저장 · 정리 · 받은 기록 · claude 프롬프트 · 가져오기) | [docs/kmd_문서_작성기준.md](docs/kmd_문서_작성기준.md) · [docs/템플릿/](docs/템플릿/) |
+| 문서를 만들거나 고치는 경로(저장 · 정리 · 들이기 · 받은 기록 · claude 프롬프트 · 가져오기) | [docs/kmd_문서_작성기준.md](docs/kmd_문서_작성기준.md) · [docs/템플릿/](docs/템플릿/) |
 | 권한 · API · MCP | [docs/kmd_권한_모델.md](docs/kmd_권한_모델.md) |
 | 남은 개선 거리 | [docs/품질개선/종합검토.md](docs/품질개선/종합검토.md) 「따로 할 것」 |
+| 「저장이 곧 반영」 개편(정리 걷기 · 저장 문 · 들이기 · 넣지 못함) | [docs/품질개선/KMD_개편_설계.md](docs/품질개선/KMD_개편_설계.md)(정한 것 S-D · 단계 S1 ~ S13) · [KMD_개편_TODO.md](docs/품질개선/KMD_개편_TODO.md) — 기준 문서의 「(Sx 부터)」 줄은 그 단계 커밋에서 코드와 맞춘다 |
 | 서비스 전체 · 설명서(`/manual`) | [docs_ops/kmd_서비스_전체.md](docs_ops/kmd_서비스_전체.md) · [docs_ops/manual/](docs_ops/manual/) — 쓰는 법이 바뀌면 같이 고친다 |
 
 기준에 없는 것이 필요하면 기준 문서에 먼저 더하고 쓴다. 기준과 코드를 같은 커밋에서 맞춘다.
@@ -53,7 +54,7 @@
 - 테스트는 바뀐 것에 걸린 `test/*.test.mjs` 만 돌린다(`npm test` 전체 금지 · restore 테스트 금지 · 공유 폴더 stash 금지).
 - 화면을 바꾸면 화면 테스트(screen-kmd 등)를 돌리고, 네 폭(1280 · 1024 · 600 · 375)에서 잘린 요소 0 을 확인한다.
 - 188 테스트 서버(http://10.10.20.188:8090)에 배포할 때: 커밋된 HEAD 를 `git archive HEAD | tar -x`(Git Bash, Windows tar.exe 금지)로 깨끗한 폴더에 꺼내 → `node scripts/pack.mjs`(node_modules 는 junction) → scp → 풀린 `kmd-<ver>-team/` 에서 `kmd-install.sh --team --url http://10.10.20.188:8090 --root /srv/kmd --port 8090`. 배포 전 `/srv/kmd/.kmd/jobs.json` 의 도는 일을 본다. 배포 뒤 바뀐 코드가 서버에 있는지 확인하고 보고에 커밋 해시를 적는다.
-- 팀 지식에 남기는 테스트 데이터는 이름에 「테스트」 · `test-` 를 붙인다. 정리는 사람이 확인한 뒤.
+- 팀 지식에 남기는 테스트 데이터는 이름에 「테스트」 · `test-` 를 붙인다. 지우기는 사람이 확인한 뒤.
 
 ## 보고
 
