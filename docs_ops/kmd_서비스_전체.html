@@ -79,6 +79,9 @@ ol.tl li::before{content:"";position:absolute;left:-6px;top:6px;width:10px;heigh
 ol.tl time{display:block;font:var(--fs-sm) var(--mono);color:var(--text-3)}
 ol.tl b{color:var(--text);margin-right:var(--sp-3)}
 @media (max-width:1279px){.pair,.pair.big{grid-template-columns:minmax(0,1fr)}.ex{position:static}}
+table.words td{vertical-align:top}
+table.words td:first-child{white-space:nowrap}
+table.words code{overflow-wrap:anywhere}
 /* 6 원천 → 기록 → 문서 */
 .flowfig{overflow-x:auto;margin:var(--sp-6) 0;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)}
 .flowfig svg.arch{min-width:760px;margin:0}
@@ -148,18 +151,56 @@ ol.tl b{color:var(--text);margin-right:var(--sp-3)}
 </table></div>
 </article>
 
-<article class="man">
+<article class="man wide">
 <h2 id="words"><span class="m-no">2</span>말</h2>
-<div class="m-cards">
-<div class="m-card"><b>지식</b><p>폴더 하나 · git 저장소 하나. 팀 지식(팀 서버) · 개인 지식(내 PC).</p></div>
-<div class="m-card"><b>문서 · 항목</b><p>문서는 <code>docs/**.md</code> 한 파일, 항목은 그 안의 <code>## 머리</code> 한 덩이. 정리 · 링크 · 출처의 단위.</p></div>
-<div class="m-card"><b>이름</b><p><code>종류:값</code>(예 <code>table:tb_user</code>). 이름 장부 · 자리 장부가 이름 → 항목을 잇는다.</p></div>
-<div class="m-card"><b>기록</b><p><code>work/&lt;id&gt;.md</code>. 사람 · 세션 · 파일 · 코드 묶음이 남긴 글. 바뀐 것 · 까닭 · 영향 · 근거 · touches.</p></div>
-<div class="m-card"><b>정리</b><p>기록을 문서의 항목에 넣는 일. 승인 없이 검사 뒤 넣고, 줄마다 되돌린다.</p></div>
-<div class="m-card"><b>자리</b><p>사람이 지식 하나에 갖는 권한. 받지 않은 지식은 「없음」 이 기본.</p></div>
-<div class="m-card"><b>일 줄</b><p>가져오기 · 정리 일감이 차례로 선다. 수집 › 검토 › 기록 생성 › 문서 생성.</p></div>
-<div class="m-card"><b>기기 열쇠</b><p>PC 마다 사람 이름으로 만든 열쇠. Claude Code 연결과 지식 보내기가 쓴다. 내 기기에서 끊는다.</p></div>
+<p>kmd 의 말은 한 줄기로 이어진다: <b>사람</b>이 <b>기기 열쇠</b>로 이은 세션이 <b>기록</b>을 남기고, 기록의 <b>이름</b>이 <b>이름 장부 → 자리 장부</b>를 거쳐 <b>문서 › 항목</b>을 가리키고, <b>정리</b>가 그 기록을 넣으며 항목에 <b>표지</b>와 <b>출처</b> 줄을 남긴다. 아래는 188 DPMS 의 실제 한 줄기다.</p>
+<div class="pair"><div class="pl"><div class="flowfig" role="figure" aria-label="말이 실제 값으로 이어지는 그림">
+<svg class="arch" viewBox="0 0 1000 560" role="img" aria-label="사람 kjsa 의 세션이 기록을 남기고, 기록의 이름이 이름 장부와 자리 장부를 거쳐 항목을 가리키고, 정리 기록이 그 기록을 넣어 항목에 표지와 출처 줄을 남긴다">
+<defs><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<!-- 지식 밖 -->
+<rect class="box pc" x="10" y="40" width="236" height="96" rx="10"/><text class="t" x="24" y="64">사람 kjsa</text><text class="s" x="24" y="86">총괄 관리자(모든 지식 지식관리자)</text><text class="l" x="24" y="106">자리: DPMS 지식 「쓰기」 · 모두 「없음」</text><text class="l" x="24" y="124">기기 열쇠 1 · DESKTOP-V8JV54U</text>
+<rect class="box team" x="10" y="176" width="236" height="84" rx="10"/><text class="t" x="24" y="200">세션(Claude Code)</text><text class="s" x="24" y="222">스킬 kmd-team-save</text><text class="l" x="24" y="242">MCP match · save · 기기 열쇠로</text>
+<rect class="box ai" x="10" y="318" width="236" height="96" rx="10"/><text class="t" x="24" y="342">정리 일감</text><text class="s" x="24" y="364">c0d96e75d081 · jobs.json</text><text class="l" x="24" y="384">정리 일꾼이 받아 초안 · 검사</text><text class="l" x="24" y="402">일 줄(queue.json)과는 다른 줄</text>
+<rect class="box" x="10" y="452" width="236" height="84" rx="10"/><text class="t" x="24" y="476">일 줄</text><text class="s" x="24" y="498">파일 넣기 · 가져오기 · 개인 바로 넣기</text><text class="l" x="24" y="518">수집 › 검토 › 기록 생성 › 문서 생성</text>
+<path class="ln" d="M128 136 V172" marker-end="url(#ah2)"/><text class="l" x="136" y="160">기기 열쇠</text>
+<!-- 지식 -->
+<rect class="zone" x="270" y="10" width="720" height="540" rx="12"/><text class="z" x="286" y="32">지식 · DPMS 지식(dpms) · 폴더 /srv/kmd/dpms · git 저장소 하나 · 백업 GitLab platform/dpms_wiki</text>
+<rect class="box ai" x="290" y="48" width="300" height="94" rx="10"/><text class="t" x="304" y="72">기록</text><text class="s" x="304" y="94">work/2026-1102-개발-환경-확정.md</text><text class="l" x="304" y="114">touches 셋 · 바뀐 것 · 까닭</text><text class="l" x="304" y="132">상태: 반영 대기(구성 순서 아직)</text>
+<rect class="box" x="640" y="48" width="330" height="80" rx="10"/><text class="t" x="654" y="72">이름 장부 _vocab.md</text><text class="s" x="654" y="94">`내부시험서버:구성순서`</text><text class="l" x="654" y="114">보이는 이름 「구성 순서」 · 이름 484</text>
+<rect class="box" x="640" y="168" width="330" height="80" rx="10"/><text class="t" x="654" y="192">자리 장부 _managed.md</text><text class="s" x="654" y="214">→ 내부시험서버구성서.md · ## 4. 구성 순서</text><text class="l" x="654" y="234">줄 207</text>
+<rect class="box bk" x="290" y="182" width="300" height="94" rx="10"/><text class="t" x="304" y="206">정리 기록(log/)</text><text class="s" x="304" y="228">2026-1102-정리-8 · kmd-auto</text><text class="l" x="304" y="248">reflects: 개발-환경-확정</text><text class="l" x="304" y="266">태그 curate-llm</text>
+<rect class="zone" x="290" y="302" width="680" height="232" rx="10"/><text class="z" x="304" y="322">문서 · docs/4.1_개발환경/내부시험서버구성서.md</text>
+<rect class="box pc" x="306" y="334" width="314" height="96" rx="8"/><text class="t" x="320" y="358">항목 ## 2. 배치</text><text class="l" x="320" y="380">표지 &lt;!-- applied: 2026-1102-정리-8 --&gt;</text><text class="l" x="320" y="400">이름 내부시험서버:배치</text><text class="l" x="320" y="418">문서에 들어감(in)</text>
+<rect class="box team" x="640" y="334" width="314" height="96" rx="8"/><text class="t" x="654" y="358">항목 ## 4. 구성 순서</text><text class="l" x="654" y="380">이름 내부시험서버:구성순서</text><text class="l" x="654" y="400">반영 대기 2(정리에서 둠)</text><text class="l" x="654" y="418">문서 옆에 같이 읽힌다</text>
+<rect class="box" x="306" y="446" width="648" height="76" rx="8"/><text class="t" x="320" y="470">참고 블록 &lt;!-- kmd:참고 --&gt;(문서 끝 · 출처)</text><text class="l" x="320" y="492">- 2. 배치</text><text class="l" x="320" y="510">    - 2026-11-02 [개발 환경 확정](../../work/2026-1102-개발-환경-확정.md)</text>
+<!-- 잇는 선 -->
+<path class="ln a" d="M246 218 C266 218 266 95 286 95" marker-end="url(#ah2)"/><text class="l" x="250" y="160">save</text>
+<path class="ln" d="M590 88 H636" marker-end="url(#ah2)"/><text class="l" x="594" y="80">touches</text>
+<path class="ln" d="M805 128 V164" marker-end="url(#ah2)"/><text class="l" x="812" y="152">이름 → 자리</text>
+<path class="ln" d="M805 248 V330" marker-end="url(#ah2)"/><text class="l" x="812" y="292">자리 → 항목</text>
+<path class="ln p" d="M246 366 C268 366 266 229 286 229" marker-end="url(#ah2)"/><text class="l" x="250" y="300">넣음</text>
+<path class="ln w" d="M440 182 V146" marker-end="url(#ah2)"/><text class="l" x="448" y="168">reflects</text>
+<path class="ln g" d="M440 276 V330" marker-end="url(#ah2)"/><text class="l" x="448" y="300">applied 표지</text>
+<path class="ln w" d="M300 96 C280 96 278 484 302 484" marker-end="url(#ah2)"/><text class="l" x="276" y="440">출처 줄</text>
+</svg>
 </div>
+<p class="small muted">하나의 실제 줄기(188 · 2026-11-03): kjsa 의 세션이 남긴 기록이 이름 셋을 건드렸고, 그 가운데 「배치」 는 정리가 넣었고(표지 · 출처 줄), 「구성 순서」 는 아직 반영 대기다.</p></div><div class="pl"><div class="m-tbl"><table class="words">
+<tr><th>말</th><th>뜻</th><th>실제 예(188 DPMS · 11-03)</th><th>무엇과 잇나</th></tr>
+<tr><td><b>지식</b></td><td>폴더 하나 · git 저장소 하나. 팀 지식(팀 서버) · 개인 지식(개인 프로그램)</td><td><code>dpms</code> 「DPMS 지식」 · <code>/srv/kmd/dpms</code> · 문서 폴더 15 · 기록 <code>work/</code> 83 · <code>log/</code> 98</td><td>안에 문서 · 기록 · 장부 셋 · 자리 표</td></tr>
+<tr><td><b>문서</b></td><td><code>docs/**.md</code> 한 파일. 갈래(회의록 · 설계서 …)는 갈래 장부 <code>_forms.md</code></td><td><code>docs/4.1_개발환경/내부시험서버구성서.md</code></td><td>항목 여럿 · 끝에 참고 블록 하나</td></tr>
+<tr><td><b>항목</b></td><td>문서 안의 <code>## 머리</code> 한 덩이. 정리 · 링크 · 출처 · 반영 대기를 세는 단위</td><td><code>## 2. 배치</code> · <code>## 4. 구성 순서</code></td><td>이름 하나 · 표지 <code>applied</code> · 출처 줄</td></tr>
+<tr><td><b>이름</b></td><td><code>종류:값</code>. 보이는 이름 · 다른 이름은 이름 장부에</td><td><code>내부시험서버:구성순서</code> 「구성 순서」(<code>_vocab.md:702</code> · DPMS 이름 484)</td><td>기록의 touches → 자리 장부 → 항목</td></tr>
+<tr><td><b>자리 장부</b></td><td>이름이 어느 문서 › 머리에 사나(<code>_managed.md</code>)</td><td><code>| 내부시험서버:구성순서 | docs/4.1_개발환경/내부시험서버구성서.md | ## 4. 구성 순서 |</code>(118째 줄)</td><td>이름 → 항목. 이름을 바꾸면 이 줄도 같이</td></tr>
+<tr><td><b>기록</b></td><td>사람 · 세션 · 파일 · 코드 · 보낸 것이 남긴 글. <code>work/&lt;id&gt;.md</code>(kmd 의 일은 <code>log/</code>). 서식 칸: 바뀐 것 · 까닭 · 버린 안 · 영향 · 근거</td><td><code>work/2026-1102-개발-환경-확정.md</code> · kjsa · touches 셋</td><td>이름(touches)으로 항목을 가리킨다</td></tr>
+<tr><td><b>반영 대기</b></td><td>아직 문서에 안 넣은 기록. 그동안도 문서 옆에 같이 읽힌다</td><td>「4. 구성 순서」 에 2(개발 환경 확정 · 그 보탬)</td><td>정리가 넣으면 「문서에 들어감」</td></tr>
+<tr><td><b>정리</b></td><td>기록을 항목에 넣는 일. 초안 → 검사 → 넣기 · 자리마다 되돌린다</td><td>11-02 16:16 「2. 배치」 넣음 · 11-03 「4. 구성 순서」 둠(옛 글의 값이 빠졌다)</td><td>정리 일감 → 정리 기록 → 표지 · 출처 줄</td></tr>
+<tr><td><b>정리 기록</b></td><td>정리가 넣을 때 남기는 기록(<code>log/</code> · 태그 <code>curate-llm</code> · <code>reflects</code> 에 넣은 기록)</td><td><code>log/2026-1102-정리-8.md</code> · reflects <code>2026-1102-개발-환경-확정</code></td><td>되돌리기는 이 기록 단위</td></tr>
+<tr><td><b>표지</b></td><td>눈에 안 보이는 주석. 셋만: <code>applied</code>(항목 머리 아래) · <code>watched</code> · <code>baseline</code></td><td><code>&lt;!-- applied: 2026-1102-정리-8 --&gt;</code>(「2. 배치」 아래 10째 줄)</td><td>이 항목에 마지막으로 넣은 기록</td></tr>
+<tr><td><b>출처 · 참고 블록</b></td><td>문서 끝 <code>&lt;!-- kmd:참고 --&gt;</code> 한 덩이. 항목마다 넣은 기록 줄</td><td>「- 2. 배치 / - 2026-11-02 [개발 환경 확정](…)」</td><td>화면의 「출처 n」 칩</td></tr>
+<tr><td><b>자리(권한)</b></td><td>사람이 지식 하나에 갖는 것: 없음 · 읽기 · 쓰기 · 지식관리자. 받지 않으면 없음</td><td>DPMS 지식: 모두 「없음」 · kjsa 「쓰기」 · kjsa 는 총괄 관리자라 모든 지식의 지식관리자</td><td>쓰기는 기록 · 지식관리자는 바로 고치기 · 정리 · [넣기]</td></tr>
+<tr><td><b>정리 일감 · 일 줄</b></td><td>정리 일감(<code>jobs.json</code> · 정리 일꾼이 받는다)과 일 줄(<code>queue.json</code> · 파일 넣기 · 가져오기 · 개인 바로 넣기)은 다른 줄</td><td>정리 일감 <code>c0d96e75d081</code>(11-03 12:15 · 둠 1) / 일 줄 「기록을 문서에 넣기」(10-28 · 끝남)</td><td>화면 「정리 중」 · 「가져오기 › 일 줄」</td></tr>
+<tr><td><b>기기 열쇠</b></td><td>PC 마다 사람 이름으로 만든 열쇠(<code>kmdk_</code>). Claude Code 연결 · 지식 보내기가 쓴다. 그 사람의 자리 그대로</td><td>kjsa 기기 1 · DESKTOP-V8JV54U(11-02)</td><td>세션 → MCP · 개인 → 팀 보내기</td></tr>
+</table></div></div></div>
 <p>화면 말은 <a href="../docs/kmd_디자인_컨벤션.md">디자인 컨벤션</a> 9절의 용어집을 따른다: 「개인 프로그램」 · 「팀 프로그램」 · 「반영 대기 n」 · 「출처」 · 「총괄 관리자」 · 「취소」(창 닫기) / 「잠깐 멈춤」(이어 할 수 있음) / 「그만두기」(도는 일을 끝냄).</p>
 </article>
 
