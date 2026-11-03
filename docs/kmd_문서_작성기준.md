@@ -154,7 +154,7 @@
 | 가져올 곳(git · DB · 서버 폴더) · 코드 바뀜 | core/sources.js · codechange | 붙잡아 두기 · 세우는 이름은 G1 |
 | 정리 일꾼 · 규칙 정리 | hub.putDrafts · placeGroup · core/tidy.js | 초안 검사에서 G4(어기면 초안을 버린다) · 저장은 붙잡아 두기 · 이름 고르기에서 맞는 이름이 없으면 지식관리자의 「오늘 바뀐 것」 에 알린다(지식 점검으로 이어짐) · 프롬프트에 갈래의 머리 꼴 · 짜임 |
 | 편집기에서 바로 고친 것 수집 | core/collect.js | 검사만(새 문서 G4 → 이력) · 장부(`_vocab.md` · `_managed.md` · `_forms.md`) 손 고침은 되돌린다 |
-| 감시 폴더 · 옛 문서 옮기기 · 지식 세우기 · 되살리기 | core/docwatch.js · core/docformat.js · hub.addKnowledge · restore | 검사만(지식 점검) |
+| 옛 문서 옮기기 · 지식 세우기 · 되살리기 | core/docformat.js · hub.addKnowledge · restore | 검사만(지식 점검) |
 
 **지식 점검**: `kmd guard <지식> [--list]` · 화면(지식관리자) · `GET /api/k/:id/guard` 가 같은 계산(core/guard.js `audit`)을 쓴다: 이름 없는 기록 · 장부 밖 이름을 단 기록 · 폐기된 이름을 단 반영 대기 기록 · 자리 잃은 이름 · 이름 없는 항목 · 다른 이름 겹침(다른 이름이 다른 이름의 값 · 보이는 이름 · 다른 이름과 같다: 고친다) · 같은 보이는 이름(알림: 문서마다 있는 「변경 이력」 처럼 서로 다른 항목) · 깨진 머리 · 값에 빈칸이 든 옛 이름.
 
