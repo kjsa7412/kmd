@@ -967,3 +967,65 @@ test('A8 저장 문(S4): 쓰기 자리의 값 바꿈 조각은 저장하는 순�
     assert.deepEqual(errors, [])
   } finally { await page.close() }
 })
+test('A8 이력(S5): 쓰기 자리 저장 줄에 「옛 값 → 새 값」 · 지식관리자는 항목마다 [되돌리기] · 읽기 자리는 단추 없음 · 네 폭 잘림 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+  const w = await signIn(s, { id: 'test-hist', admin: false })
+  await seat(s, 'test-hist', { dpms: 'write' })
+  const rd = await signIn(s, { id: 'test-read', admin: false })
+  await seat(s, 'test-read', { dpms: 'read' })
+  const k = await s.hub.get('dpms')
+  // 값이 든 항목 하나(앞 시험이 바꿨을 수 있어 고르기만 한다)
+  const coord = ['term:점검 시간', 'term:보관 기간', 'proc:매일 백업', 'proc:카나리'].find((c) => /\d/.test(sectionOf(k, c)?.sec?.body || ''))
+  const body = sectionOf(k, coord).sec.body
+  const line = body.match(/[^\n]*\d+[^\n]*/)[0], next = line.replace(/\d+/, (d) => String(Number(d) + 1))
+  const r = await s.hub.save({ user: 'test-hist' }, 'dpms', { record: { title: '테스트 이력 값', body: `## 바뀐 것\n- 값: ${line.match(/\d+/)[0]} → ${next.match(/\d+/)[0]}`, touches: [coord] }, sections: [{ coord, base: sha16(body), edits: [{ find: line, replace: next }] }] }, { channel: 'session' })
+  assert.equal(r.put, 1, JSON.stringify(r))
+  const open = async (who) => {
+    const page = await browser.newPage({ viewport: VIEW })
+    const errors = []
+    page.on('pageerror', (e) => errors.push(e.message))
+    await page.goto(s.url)
+    await page.fill('#lgId', who.id)
+    await page.fill('#lgPw', who.pw)
+    await page.click('[data-t=loginBtn]')
+    await page.waitForSelector('[data-t=klist]')
+    await hist(page)
+    const row = page.locator(`[data-t=histRow][data-id="l:dpms:${r.id}"]`)
+    await row.waitFor()
+    await row.locator('.hl').click()
+    await row.locator('[data-t=histItems]').waitFor()
+    return { page, row, errors }
+  }
+  // 지식관리자(kim) — 갈래 「저장」 · 펼치면 「옛 값 → 새 값」 · [되돌리기] · 네 폭
+  const a = await open({ id: 'kim', pw: me.pw })
+  try {
+    assert.equal(await a.row.getAttribute('data-kind'), '저장')
+    assert.match(await a.row.locator('[data-t=histChg]').innerText(), /→/)
+    assert.equal(await a.row.locator('[data-t=revertItem]').count(), 1)
+    assert.equal(await a.page.locator('text=확인할 것').count(), 0, '「확인할 것」 은 「값 바뀜」 으로')
+    for (const width of [1280, 1024, 600, 375]) {
+      await a.page.setViewportSize({ width, height: 820 })
+      await a.page.waitForTimeout(100)
+      const c = await cutAt(a.page)
+      assert.deepEqual(c.cut, [], `이력 ${width}: 잘린 요소 없음`)
+      assert.ok(c.sw <= c.w, `이력 ${width}: 가로 넘침 없음 ${c.sw}`)
+      await a.page.screenshot({ path: path.join(SHOTS, `app-team-history-items-${width}.png`) })
+    }
+    assert.deepEqual(a.errors, [])
+  } finally { await a.page.close() }
+  // 읽기 자리 — 줄은 보이고 단추는 없다
+  const b = await open(rd)
+  try {
+    assert.match(await b.row.locator('[data-t=histChg]').innerText(), /→/)
+    assert.equal(await b.row.locator('[data-t=revertItem]').count(), 0, '읽기 자리는 [되돌리기] 가 없다')
+    assert.deepEqual(b.errors, [])
+  } finally { await b.page.close() }
+  // 쓴 사람(쓰기 자리) — 항목 되돌리기 → 확인 창 → 되돌림
+  const c = await open(w)
+  try {
+    await c.row.locator('[data-t=revertItem]').click()
+    await c.page.click('[data-t=askOk]')
+    await c.page.waitForSelector(`[data-t=histRow][data-id="l:dpms:${r.id}"] [data-t=itemReverted]`)
+    assert.ok(sectionOf(await s.hub.get('dpms'), coord).sec.body.includes(line), '넣기 전 글로')
+    assert.deepEqual(c.errors, [])
+  } finally { await c.page.close() }
+})

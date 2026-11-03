@@ -2,7 +2,7 @@
 //
 // 상태를 바꾸는 길은 POST 로만 · 다른 사이트의 쿠키 요청은 받지 않는다 · 글 속 그림은 이 지식의 첨부만(/api/… 는 그리지 않는다) ·
 // 기록만 하는 사람의 names 는 이름 장부를 바꾸지 않고 기록에 실린다(응답이 그렇게 말한다) · 없는 이름 · 문서는 자리와 상관없이 같은 검사 ·
-// 남의 기록이 섞인 정리는 기록만 하는 사람이 되돌리지 못하고, 되돌리면 함께 든 기록의 주인에게 알린다 ·
+// 남의 기록이 섞인 정리는 기록만 하는 사람이 되돌리지 못하고, 되돌려도 함께 든 기록의 주인에게 알리지 않는다(S-D14 · 이력에 남는다) ·
 // brief 에 내 자리 · 정리 방식 · 「자동 정리에 Claude 쓰지 않음」. 짝 짓기(F-011 · F-012)는 pair · open 시험.
 
 import { test, before, after } from 'node:test'
@@ -107,7 +107,7 @@ test('기록만 하는 사람의 names: 이름 장부는 그대로 · 기록에 
   await s.hub.setOwner(SHELL, 'dpms', { noClaude: false })
 })
 
-test('남의 기록이 섞인 정리: 기록만 하는 사람은 되돌리지 못한다 · 되돌리면 함께 든 기록의 주인에게 알린다', async () => {
+test('남의 기록이 섞인 정리: 기록만 하는 사람은 되돌리지 못한다 · 되돌려도 알리지 않는다(S-D14)', async () => {
   const a = await s.hub.save(LEE, 'dpms', { record: { title: '헬스 체크: lee', touches: ['proc:헬스 체크'], body: '주기 20초' } })
   const c = await s.hub.save({ user: 'choi' }, 'dpms', { record: { title: '헬스 체크: choi', touches: ['proc:헬스 체크'], body: '시간 초과 2초' } })
   const tidy = await s.hub.save(AUTO, 'dpms', {
@@ -115,13 +115,20 @@ test('남의 기록이 섞인 정리: 기록만 하는 사람은 되돌리지 �
     sections: [{ coord: 'proc:헬스 체크', content: '주기 20초 · 시간 초과 2초' }],
   }, { system: true })
   assert.equal(await code(s.hub.revert(LEE, 'dpms', { record: tidy.id })), 'E_FORBIDDEN')
+  // HTTP 몸 모양(설계 3-4) — 머리만 · docs/ 밖 문서 · 기록 id 가 아닌 것은 400(아무것도 쓰지 않는다)
+  const post = (body) => fetch(s.url + '/api/k/dpms/revert', { method: 'POST', headers: { cookie: kim.cookie, 'content-type': 'application/json', origin: s.url }, body: JSON.stringify(body) })
+  for (const body of [{ record: tidy.id, heading: '헬스 체크' }, { record: tidy.id, doc: '../_managed.md' }, { record: tidy.id, doc: 'docs/../x.md' }, { record: '../x' }, { record: tidy.id, doc: 'docs/배포절차.md', heading: 'a\nb' }, {}])
+    assert.equal((await post(body)).status, 400, JSON.stringify(body))
   // 자기 기록만 든 정리는 되돌린다
   const own = await s.hub.save(AUTO, 'dpms', {
     record: { title: '정리: 롤백', tags: ['curate-llm'], reflects: [a.id], body: `- 넣음 ${a.id}: 롤백` },
     sections: [{ coord: 'proc:롤백', content: '이전 판으로' }],
   }, { system: true })
   assert.equal(await code(s.hub.revert(LEE, 'dpms', { record: own.id })), 'ok')
-  // 주인(park)이 섞인 정리를 되돌린다 — lee · choi 에게 알린다
+  // 주인(park)이 섞인 정리를 되돌린다 — 알림 없이 이력에만(S-D14) · 되돌림 기록은 태그 revert · 「## 되돌린 항목」
   assert.equal(await code(s.hub.revert(PARK, 'dpms', { record: tidy.id })), 'ok')
-  for (const u of ['lee', 'choi']) assert.ok((await feed.list(data, u)).some((x) => /park 이 정리를 되돌렸다. 내 기록도 문서에서 빠졌다/.test(x.text)), u)
+  for (const u of ['lee', 'choi']) assert.ok(!(await feed.list(data, u)).some((x) => /정리를 되돌렸다/.test(x.text || '')), u)
+  const back = (await s.hub.get('dpms')).logs.find((w) => w.title === '되돌림: 정리: 헬스 체크')
+  assert.ok(back.tags.includes('revert') && back.reopens.includes(tidy.id))
+  assert.match(back.body, new RegExp(`^- ${tidy.id}: docs/.+\.md › 헬스 체크$`, 'm'))
 })

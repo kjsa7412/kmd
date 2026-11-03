@@ -238,7 +238,8 @@ export function reflectedIn(k, w, sec) {
 // 상태(설계 S-D4 의 차례) — 새 표지(held · memo · put)를 지금 갈래(touches 를 도는 것)보다 먼저 본다.
 //   그래야 넣지 못함 · 메모가 「아직 안 넣음」 으로 보이지 않고, put 기록은 그 뒤 누가 같은 항목을 고쳐도 「들어감」 이 흔들리지 않는다.
 //   held · memo · 개편 전 pend · nowhere 를 나중 기록이 fixes 로 바로잡았으면 fixed(바로잡힘)
-//   k.reverted(판정을 거둔 기록)를 「되돌림」 상태로 보는 ⑥ 은 S5(되돌리기 · 화면과 같이)에 켠다 — 지금은 옛 판처럼 아래 갈래로
+//   ⑥ 통째로 되돌린 기록(k.reverted · reopens)은 저장 문 기록이든 옛 기록이든 되돌림(S5) — 다시 대기(pend)로 떨어져
+//   「개편 전 기록」 이 되거나 다음 정리 · 다시 들이기가 되돌린 값을 다시 넣지 않게
 export function recordState(k, w) {
   const tags = w.tags || []
   const sup = !!k.superseded?.has(w.id)
@@ -247,10 +248,9 @@ export function recordState(k, w) {
   if (tags.some((t) => t === 'curate-auto' || t === 'curate-llm')) return 'none' // ③ 정리 기록 자신은 넣을 것이 아니다
   if (tags.includes('memo')) return sup ? 'fixed' : 'memo' // ④
   if (tags.includes('held')) return 'held' // ⑤
-  // ⑦ 저장 문이 넣은 항목을 적은 기록 — 그 항목이 모두 되돌려졌으면 되돌림, 아니면 들어감
+  if (k.reverted?.has(w.id)) return 'reverted' // ⑥
+  // ⑦ 저장 문이 넣은 항목을 적은 기록 — 그 항목이 모두 항목마다 되돌려졌으면 되돌림, 아니면 들어감
   if (tags.includes('put')) {
-    // 저장 문이 넣은 기록을 통째로 되돌렸으면(옛 되돌리기 · reopens) 되돌림 — 「들어감」 으로 남지 않게(S4 · 옛 기록의 ⑥ 은 S5)
-    if (k.reverted?.has(w.id)) return 'reverted'
     const items = parsePut(w.body)
     const back = k.revertedItems?.get(w.id)
     return items.length && back && items.every((x) => back.has(itemKey(x.doc, x.heading))) ? 'reverted' : 'in'

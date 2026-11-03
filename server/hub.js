@@ -13,7 +13,7 @@ import { save as coreSave, saveRecords, serial, localStamp, recordTakenSync, SEC
 import { audit as guardAudit, recordBody, RECORD_PARTS } from '../core/guard.js'
 import { recover as recoverSave } from '../core/journal.js'
 import { decide } from '../core/curate.js'
-import { decisionRecord } from '../core/parts.js'
+import { decisionRecord, renderReverted, parseReverted, parsePut, dropPart, parseHeld, PUT_PART, HELD_PART, REVERTED_PART, itemKey } from '../core/parts.js'
 import { revertPlan } from '../core/revert.js'
 import * as collect from '../core/collect.js'
 import crypto from 'node:crypto'
@@ -87,6 +87,18 @@ const isLocalPath = (u) => !/^[a-z][a-z0-9+.-]*:\/\//i.test(u) && !/^[^/\\]+@[^/
 // 초안 검사에서 Claude 가 고쳐 쓸 수 있는 까닭 — 일꾼이 까닭을 붙여 한 번 더 쓴다(그사이 바뀜 · 받지 않은 기록 같은 것은 다시 써도 같다)
 const FIXABLE = /^(기록의 값이 글에 없다|근거에 없는 값이 있다|옛 글의 값이 빠졌다|조각이 지금 글|근거보다 크게 썼다|글에 머리 · 표지가 들었다|빠뜨린 기록이 있다|글을 비웠다)/
 const STOP_WHY = { login: '정리 전용 로그인이 끝났다', limit: '사용 한도에 닿았다', missing: '서버에 Claude Code(claude) 가 설치되어 있지 않다' }
+
+// 되돌림 — 그 문서에서 7일 안에 되돌린 수(S-D11). 새 되돌림(태그 revert)은 「## 되돌린 항목」 의 문서 경로로,
+//   옛 되돌림(제목 「되돌림」 · reopens)은 본문 줄 「- <문서 이름> › 」 으로 센다 — 이름이 다른 이름 안에 든 문서(배포 / 배포절차)를 함께 세지 않게
+export function revertsOfDoc(k, doc, now = Date.now()) {
+  const cut = now - 7 * 864e5
+  const line = `- ${doc.replace(/^docs\/|\.md$/g, '')} › `
+  return k.logs.filter((w) => {
+    if ((stampMs(w.date) || 0) < cut) return false
+    if (w.tags.includes('revert')) return parseReverted(w.body).some((r) => r.doc === doc)
+    return w.reopens.length > 0 && w.title.startsWith('되돌림') && w.body.split('\n').some((l) => l.startsWith(line))
+  }).length
+}
 
 export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log = (...a) => console.log('[kmd]', ...a) }) {
   const config = await loadConfig(dataDir)
@@ -286,9 +298,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   }
   // 되돌림 — 그 문서에서 7일 안에 되돌린 수
   async function recentReverts(id, doc) {
-    const k = await hub.get(id)
-    const cut = Date.now() - 7 * 864e5
-    return k.logs.filter((w) => w.reopens.length && w.title.startsWith('되돌림') && w.body.includes(doc.replace(/^docs\/|\.md$/g, '')) && (stampMs(w.date) || 0) >= cut).length
+    return revertsOfDoc(await hub.get(id), doc)
   }
   // 정리 일 줄의 줄 — 시각이 없는 줄에 지금을 단다(줄을 쌓은 함수 끝에서 한 번 · 예전 줄은 시각 없이 그대로)
   const stamp = (j) => { const t = Date.now(); for (const sp of j?.spots || []) for (const l of sp.lines || []) if (l.length < 4) l.push(t) }
@@ -469,11 +479,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     })
   }
   // 되돌림 — 그 문서에서 7일 안에 되돌린 수(줄 안에서 새로 읽은 지식으로)
-  const revertsIn = (k, doc) => {
-    const cut = Date.now() - 7 * 864e5
-    const name = doc.replace(/^docs\/|\.md$/g, '')
-    return k.logs.filter((w) => w.reopens.length && w.title.startsWith('되돌림') && w.body.includes(name) && (stampMs(w.date) || 0) >= cut).length
-  }
+  const revertsIn = (k, doc) => revertsOfDoc(k, doc)
   // 섞인 자리(S-D55) — 그 항목에 아직 안 들어간 개편 전 기록(제안 칸이 없는 것) · held · memo · fixed · reverted 는 상태가 달라 빠진다
   function legacyPendOf(k, at, coord) {
     const coords = coord ? [coord] : at.sec && at.docObj ? coordsOfSection(k, at.docObj, at.sec.h) : []
@@ -1162,32 +1168,58 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       for (const [key, v] of editDup) if (Date.now() - v.at > 60_000) editDup.delete(key)
       return out
     },
-    // 되돌리기 — 그 기록을 넣은 항목을 넣기 전 글로 쓰고 판정을 거둔다(그 기록은 다시 아직 안 넣은 기록)
-    async revert(ctx, id, { record }) {
+    // 되돌리기 — 그 기록이 넣은 항목을 넣기 전 글로(설계 3-4 · S-D13 · S-D14 · S-D53)
+    //   { record } 만이면 통째로(판정도 거둔다 · reopens) · { record, doc, heading? } 면 그 항목만(reopens 없이 · 원 기록은 남은 항목이 있으면 「들어감」)
+    //   되돌림 기록은 태그 revert · 본문 끝 「## 되돌린 항목」 · 알림 없음. 넣은 항목마다 지문(base) — 그사이 누가 고쳤으면 E_CONFLICT
+    async revert(ctx, id, input) {
+      const { record, doc = null, heading = null } = input && typeof input === 'object' ? input : {}
+      if (typeof record !== 'string' || !record) throw new KmdError('E_INPUT', '되돌릴 기록(record)이 없다')
       const k = await hub.get(id, ctx)
       hub.need(ctx, id, 'write')
-      // 관리 자리 — 또는 그 정리가 넣은 기록을 쓴 사람(「내 기록에서 값이 바뀌었다 — 되돌릴 수 있다」 · 쓰기 자리)
-      // 쓰기 자리는 자기 기록만 든 정리만 — 남의 기록이 섞였으면 관리자에게(남의 반영을 말없이 거두지 않게)
-      const authors = new Set((k.byWork.get(record)?.reflects || []).map((x) => k.byWork.get(x)?.author).filter(Boolean))
+      const w = k.byWork.get(record)
+      if (!w) throw new KmdError('E_NOTFOUND', '그 기록이 없다')
+      // 자리(S-D13) — 지식관리자 · 그 기록을 쓴 사람 · 그 기록이 반영한 기록의 쓴 사람이 나 하나뿐
       const curator = hub.canDirect(ctx, id)
-      if (!curator && !authors.has(ctx.user)) throw new KmdError('E_FORBIDDEN', '남의 기록은 그 지식의 지식관리자가 되돌린다')
-      if (!curator && [...authors].some((a) => a !== ctx.user)) throw new KmdError('E_FORBIDDEN', '이 정리에는 다른 사람의 기록도 들어 있다. 관리자에게 되돌려 달라고 한다')
-      if (k.reverted?.has(record)) throw new KmdError('E_CONFLICT', '이미 되돌렸다')
-      const plan = await revertPlan(k, record)
-      const w = plan.record
-      // 정리 기록을 되돌리면 그 정리가 넣은 기록들도 「주인이 되돌림」 — 다음 정리가 같은 초안을 다시 넣지 않게
-      const used = w.tags.includes('curate-llm') ? [...w.body.matchAll(/^- 넣음 (\S+)(?: —|:) /gm)].map((m) => m[1]) : []
-      // 함께 든 기록의 주인에게 — 내 기록의 반영이 거둬졌다
-      for (const a of new Set([...used, ...(w.reflects || [])].map((x) => k.byWork.get(x)?.author).filter((a) => a && a !== ctx.user && !/^kmd/.test(a)))) feed.add(dataDir, a, { kind: 'tidy', kn: id, dot: 'warn', text: `${ctx.user} 이 정리를 되돌렸다. 내 기록도 문서에서 빠졌다 · ${k.name}`, small: `「${w.title.split(/ — |: /)[0]}」 · 다시 넣으려면 기록을 고쳐 남긴다` }).catch(() => {})
-      return hub.save(ctx, id, {
-        record: { title: `되돌림: ${w.title}`, body: plan.sections.length ? plan.sections.map((s) => `- ${s.doc.replace(/^docs\/|\.md$/g, '')} › ${s.heading}: 넣기 전 글로`).join('\n') : '넣은 항목이 없다. 판정만 거둔다', tags: ['curate-auto'], reopens: [w.id, ...used] },
-        sections: plan.sections.map((s) => ({ doc: s.doc, heading: s.heading, content: s.content, applied: s.applied })),
-      }, { system: true }).then(async (r) => {
-        // 「오늘 바뀐 것」 줄에 「되돌렸다」 — 되돌린 사람과 그 정리에 든 기록을 쓴 사람 모두(남은 [되돌리기] 가 빈 되돌림을 만들지 않게)
-        const who = new Set([ctx.user, ...[...used, ...(w.reflects || [])].map((x) => k.byWork.get(x)?.author).filter(Boolean)])
-        for (const u of who) for (const x of await feed.list(dataDir, u)) if (x.revert === record) await feed.mark(dataDir, u, x.id, { reverted: true })
-        return r
-      })
+      if (!curator && w.author !== ctx.user) {
+        const authors = new Set((w.reflects || []).map((x) => k.byWork.get(x)?.author).filter(Boolean))
+        if (!authors.has(ctx.user)) throw new KmdError('E_FORBIDDEN', '남의 기록은 그 지식의 지식관리자가 되돌린다')
+        if ([...authors].some((a) => a !== ctx.user)) throw new KmdError('E_FORBIDDEN', '이 정리에는 다른 사람의 기록도 들어 있다. 지식관리자에게 되돌려 달라고 한다')
+      }
+      const whole = !doc && !heading
+      if (whole && k.reverted?.has(record)) throw new KmdError('E_CONFLICT', '이미 되돌렸다')
+      const plan = await revertPlan(k, record, { doc, heading })
+      if (!whole && !plan.sections.length) throw new KmdError('E_CONFLICT', '그 항목은 이미 되돌렸거나 그 뒤 누가 고쳤다. 이력을 다시 읽는다')
+      // 지식관리자가 아니면 원본이 주인인 문서 · 저절로 채우는 표가 바뀌는 항목은 되돌리지 못한다(되돌리기는 system 저장이라 그 막기를 건너뛴다 · S-D53)
+      if (!curator) {
+        const meta = await hub.meta(id, ctx)
+        const blocks = (t) => splitBlocks(t || '').blocks.map((b) => JSON.stringify(b)).join('\n')
+        for (const p of plan.sections) {
+          const text = await fs.readFile(path.join(meta.dir, p.doc), 'utf8').catch((e) => (e.code === 'ENOENT' ? '' : Promise.reject(e)))
+          if (watchedOf(text)) throw new KmdError('E_FORBIDDEN', '원본이 주인인 문서는 지식관리자가 되돌린다')
+          const cur = k.byDocPath.get(p.doc)?.sections.find((x) => x.h === p.heading)
+          if (blocks(cur?.body) !== blocks(p.remove ? '' : p.content)) throw new KmdError('E_FORBIDDEN', '저절로 채우는 표가 바뀌는 항목은 지식관리자가 되돌린다')
+        }
+      }
+      // 정리 기록을 통째로 되돌리면 그 정리가 넣은 기록들도 「주인이 되돌림」 — 다음 정리가 같은 초안을 다시 넣지 않게
+      const used = whole && w.tags.includes('curate-llm') ? [...w.body.matchAll(/^- 넣음 (\S+)(?: —|:) /gm)].map((m) => m[1]) : []
+      const name = (p) => p.doc.replace(/^docs\/|\.md$/g, '')
+      const title = whole || !plan.sections.length ? `되돌림: ${w.title}` : `되돌림: ${name(plan.sections[0])} › ${plan.sections.map((p) => p.heading).join(' · ')}`
+      const lines = plan.sections.map((p) => `- ${name(p)} › ${p.heading}: ${p.remove ? '그 기록이 세운 항목이라 지웠다' : '넣기 전 글로'}`)
+      const body = plan.sections.length
+        ? `${lines.join('\n')}\n\n${renderReverted(plan.sections.map((p) => ({ rec: record, doc: p.doc, heading: p.heading })))}`
+        : '넣은 항목이 없다. 판정만 거둔다'
+      const r = await hub.save(ctx, id, {
+        record: { title: title.length > 200 ? title.slice(0, 199) + '…' : title, body, tags: ['revert'], ...(whole ? { reopens: [w.id, ...used] } : {}) },
+        sections: plan.sections.map((p) => ({ doc: p.doc, heading: p.heading, content: p.content, applied: p.applied, base: p.base, ...(p.remove ? { remove: true } : {}) })),
+      }, { system: true })
+      // 통째로 되돌렸으면 「오늘 바뀐 것」 의 정리 줄에 「되돌렸다」(남은 [되돌리기] 가 빈 되돌림을 만들지 않게) — 커밋 뒤라 던지지 않는다
+      if (whole) {
+        try {
+          const who = new Set([ctx.user, ...[...used, ...(w.reflects || [])].map((x) => k.byWork.get(x)?.author).filter(Boolean)])
+          for (const u of who) for (const x of await feed.list(dataDir, u)) if (x.revert === record) await feed.mark(dataDir, u, x.id, { reverted: true })
+        } catch (e) { log(`되돌린 줄 표시를 쓰지 못했다 ${id}: ${e.message}`) }
+      }
+      return r
     },
     // 비교 — 그 기록이 넣은 항목의 넣기 전 · 지금
     async diff(ctx, id, record) {
@@ -2150,8 +2182,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async today(ctx) {
       return (await feed.list(dataDir, ctx.user)).filter((x) => hub.feedOk(ctx, x))
     },
-    // 이력 — 오늘 바뀐 것(사람마다 · 7일 · 알아야 할 것 · git 밖의 일)과 지식의 이력(kmd 가 다룬 일 · git)을 한 흐름으로.
-    //   같은 일은 한 줄 — 가져오기 · 바로 고침은 지식의 이력 줄로(누구에게나 같다) · 정리는 내 줄로(되돌리기가 있다)
+    // 이력 — 오늘 바뀐 것(사람마다 · 7일 · 알아야 할 것 · git 밖의 일)과 지식의 이력(kmd 가 다룬 일 · 저장 문이 넣은 기록 · git)을 한 흐름으로.
+    //   같은 일은 한 줄 — 가져오기 · 바로 고침 · 저장 문 저장은 지식의 이력 줄로(누구에게나 같다) · 정리는 내 줄로(되돌리기가 있다)
+    //   저장 문이 넣은 기록(태그 put)은 「## 넣은 것」 의 항목마다 「옛 값 → 새 값」 · 지금도 그 기록이 표지인 항목(live)만 되돌릴 수 있다(S-D12 · S-D13)
     //   예전 줄(갈래 없음)은 글로 가른다
     async history(ctx) {
       const mine = (await feed.list(dataDir, ctx.user)).filter((x) => hub.feedOk(ctx, x))
@@ -2159,31 +2192,68 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const logs = []
       const names = {}
       const kById = {}
+      const putOf = new Map() // 「지식 \n 기록 id」 → { items, canRevert, yl }
       for (const m of await hub.visible(ctx)) {
-        const k = await hub.get(m.id)
+        const k = await hub.get(m.id, ctx)
         kById[k.id] = k
         names[k.id] = k.name
-        for (const w of k.logs.slice(0, 300)) logs.push({ k, w })
+        const curator = hub.canDirect(ctx, k.id)
+        const write = owners.atLeast(levelFor(k.id, ctx), 'write')
+        // 넣지 못한 기록(held · 넣은 것 없음)은 쓴 사람과 지식관리자에게만 이력 줄로(넣지 못함 목록과 같이)
+        const heldOnly = (w) => w.tags.includes('held') && !w.tags.includes('put')
+        const pool = [...k.logs, ...k.works.filter((w) => w.tags.includes('put') || (heldOnly(w) && (curator || w.author === ctx.user)))]
+          .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+          .slice(0, 300)
+        for (const w of pool) logs.push({ k, w })
+        // 저장 문이 넣은 항목 — 날짜 순으로 그 항목에 마지막으로 넣은 사람을 따라가며, 내 값을 남이 바꿨으면 노랑(값 바뀜)
+        const last = new Map()
+        const puts = [...k.works, ...k.logs].filter((w) => w.tags.includes('put')).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
+        for (const w of puts) {
+          const back = k.revertedItems?.get(w.id)
+          let yl = false
+          const items = parsePut(w.body).map((x) => {
+            const key = itemKey(x.doc, x.heading)
+            const sec = k.byDocPath.get(x.doc)?.sections.find((s) => headingMatches(s.h, x.heading))
+            const live = sec?.applied === w.id
+            if (!x.isNew && last.get(key) === ctx.user && w.author !== ctx.user) yl = true
+            last.set(key, w.author)
+            return { doc: x.doc, name: x.doc.replace(/^docs\/|\.md$/g, ''), heading: x.heading, from: x.from, to: x.to, isNew: x.isNew, live, reverted: !!back?.has(key) || !!k.reverted?.has(w.id) }
+          })
+          const canRevert = write && (curator || w.author === ctx.user) && items.some((x) => x.live)
+          putOf.set(`${k.id}\n${w.id}`, { items, canRevert, yl })
+        }
       }
       const logIds = new Set(logs.map((x) => x.w.id))
       // 받음 — 개인 지식에서 보낸 기록이 이 지식에 섰다(예전 줄은 글로) · 보냄 줄과 화면이 잇는다
       const kindOf = (x) => (x.from != null || (x.kind === 'save' && /에서 받음$/.test(x.text || '')) ? 'recv' : x.kind) || (x.revert || /^kmd 가 정리/.test(x.text || '') ? 'tidy' : /^새 기기/.test(x.text || '') ? 'device' : /^(지식을 |되살렸다)/.test(x.text || '') ? 'kn' : /보냈다|옮겼다/.test(x.text || '') ? 'send' : /^파일 /.test(x.text || '') ? 'import' : /에서 (바뀐 표|새 묶음)/.test(x.text || '') ? 'source' : 'save')
       const FEED_KIND = { save: '저장', import: '가져오기', source: '가져오기', tidy: '정리', send: '보내기', recv: '받음', kn: '지식', device: '지식' }
+      const putFields = (kn, rec, w) => {
+        const p = kn && rec ? putOf.get(`${kn}\n${rec}`) : null
+        return p ? { items: p.items, canRevert: p.canRevert, ...(p.yl ? { yl: true } : {}), ...(w && (w.state === 'reverted' || kById[kn]?.reverted?.has(rec)) ? { reverted: true } : {}) } : {}
+      }
       const taken = new Set()
       for (const x of mine) {
         const kind = kindOf(x)
         if (kind === 'source') continue // 지식의 이력 「가져옴」 이 같은 일
-        if (kind === 'save' && (x.rec ? logIds.has(x.rec) : /「화면에서 고침/.test(x.text || ''))) continue // 바로 고침 — 이력 줄이 같은 일
+        if (kind === 'save' && (x.rec ? logIds.has(x.rec) : /「화면에서 고침/.test(x.text || ''))) continue // 바로 고침 · 저장 문 저장 — 이력 줄이 같은 일
         if (x.rec && logIds.has(x.rec)) taken.add(x.rec)
         const w = (kind === 'save' || kind === 'recv') && x.rec && kById[x.kn]?.byWork.get(x.rec)
-        const sub = !w ? x.small || '' : w.state === 'pend' ? hub.pendText(x.kn) : w.state === 'nowhere' ? '넣을 곳을 찾는 중: 관리자가 고른다' : '문서에 들어갔다'
+        const sub = !w ? x.small || '' : w.state === 'pend' ? hub.pendText(x.kn) : w.state === 'nowhere' ? '넣을 곳을 찾는 중: 관리자가 고른다' : w.state === 'held' ? '넣지 못함: 기록만 남았다' : w.state === 'memo' ? '메모: 문서는 바꾸지 않았다' : w.state === 'reverted' ? '되돌렸다' : '문서에 들어갔다'
         // 보냄 · 받음 — 어디로 · 어디서 · 받은 기록이 문서에 들어갔나(st)
         const link = kind === 'send' ? { to: x.to || (String(x.text || '').match(/→ (.+)$/) || [])[1] || null } : kind === 'recv' ? { from: x.from || (String(x.text || '').match(/: (.+)에서 받음$/) || [])[1] || null, st: w ? w.state : null } : {}
-        rows.push({ id: `f:${x.id}`, at: x.at, kind: FEED_KIND[kind], kn: x.kn || null, title: x.b || x.text, sub, who: kind === 'tidy' ? 'kmd' : kind === 'device' ? '' : ctx.user, yl: !!x.yl, revert: x.revert || null, device: x.device || null, go: x.go || null, rec: x.rec || null, ...link })
+        rows.push({ id: `f:${x.id}`, at: x.at, kind: FEED_KIND[kind], kn: x.kn || null, title: x.b || x.text, sub, who: kind === 'tidy' ? 'kmd' : kind === 'device' ? '' : ctx.user, yl: !!x.yl, revert: x.revert || null, device: x.device || null, go: x.go || null, rec: x.rec || null, ...link, ...putFields(x.kn, x.rec, w) })
       }
+      // 항목 줄 글 — 「머리: 옛 값 → 새 값」 · 「머리 (새 항목)」
+      const itemText = (it) => `${it.heading}${it.isNew ? ' (새 항목)' : it.from || it.to ? `: ${it.from || '—'} → ${it.to || '—'}` : ''}`
       for (const { k, w } of logs) {
         if (taken.has(w.id)) continue
-        rows.push({ id: `l:${k.id}:${w.id}`, at: isoOfStamp(w.date), kind: logKind(w), kn: k.id, title: w.title, sub: w.body.replace(/\s+/g, ' ').slice(0, 200), who: w.author, rec: w.id })
+        const p = putFields(k.id, w.id, w)
+        const plain = [PUT_PART, HELD_PART, REVERTED_PART].reduce((b, n) => dropPart(b, n), w.body).replace(/\s+/g, ' ').trim()
+        const held = w.tags.includes('held') ? parseHeld(w.body) : []
+        const sub = p.items?.length
+          ? p.items.slice(0, 3).map(itemText).join(' · ') + (p.items.length > 3 ? ` 외 ${p.items.length - 3}` : '') + (held.length ? ` · 넣지 못함 ${held.length}` : '')
+          : held.length ? `넣지 못함 ${held.length}: ${String(held[0].why || '').slice(0, 160)}` : plain.slice(0, 200)
+        rows.push({ id: `l:${k.id}:${w.id}`, at: isoOfStamp(w.date), kind: logKind(w), kn: k.id, title: w.title, sub, who: w.author, rec: w.id, ...p })
       }
       for (const r of rows) r.knName = r.kn ? names[r.kn] || r.kn : ''
       rows.sort((a, b) => String(b.at).localeCompare(String(a.at)))

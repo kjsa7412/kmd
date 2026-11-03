@@ -98,7 +98,9 @@ test('MCP: 이미 있는 항목을 base 없이 갈아 끼우지 않는다 · bas
     return out.result.isError ? { error: out.result.content[0].text } : JSON.parse(out.result.content[0].text)
   }
   const bad = await call('save', { knowledge: 'dpms', record: { title: '롤백: 바꿈', changes: ['롤백 글'] }, sections: [{ coord: 'proc:롤백', content: '덮는 글' }] })
-  assert.match(bad.error, /이미 있는 항목이다. section 으로 다시 읽고 그 base/)
+  // 팀은 저장 문이 줄 안에서 본다(S4 ⑨) — E_CONFLICT 이고 아무것도 쓰지 않는다
+  assert.match(bad.error, /E_CONFLICT/)
+  assert.match(bad.error, /이미 있는 항목이다. section 이 준 base/)
   const sec = await call('section', { knowledge: 'dpms', coord: 'proc:롤백' })
   const ok = await call('save', { knowledge: 'dpms', record: { title: '롤백: 바꿈', changes: ['롤백 글'] }, sections: [{ coord: 'proc:롤백', content: '고친 롤백 글', base: sec.base }] })
   assert.ok(ok.saved)

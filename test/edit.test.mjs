@@ -1,7 +1,7 @@
 // E4 필수 — 저장이 곧 반영 · 거두기 · 결정 규칙 · 되돌리기 · 팀 지식의 기록 길.
 //
 // 한 save → 대기 0 · 옛 날짜 고친 기록 → 거절 · 손 편집 → 고요 뒤 묶음 1 · 이름을 빠뜨린 기록 → 저절로 두기 0 · 일감 1 ·
-// 사람이 답한 기록만 두기 · 좌표정정은 서버가 구조로 판정 · 되돌리면 원 기록이 다시 대기 · 주인이 아니면 기록으로.
+// 사람이 답한 기록만 두기 · 좌표정정은 서버가 구조로 판정 · 되돌린 기록은 되돌림(S5) · 항목마다 되돌리기 · 주인이 아니면 기록으로.
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -16,7 +16,7 @@ import * as collect from '../core/collect.js'
 import { HUMAN_ANSWER } from '../core/curate.js'
 import { copyDir, seat } from './helpers.mjs'
 import { sha16 } from '../core/text.js'
-import { sectionOf } from '../core/knowledge.js'
+import { sectionOf, isLegacy } from '../core/knowledge.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s
@@ -106,6 +106,89 @@ test('되돌리기: 옛 본문 + 판정 거두기 · 저장 문이 넣은 기록
   // 저장 문이 넣은 기록(put)을 통째로 되돌리면 되돌림 — 「들어감」 으로 남거나 다시 대기로 떨어지지 않는다(S4 · 옛 기록은 S5)
   assert.equal(k.byWork.get(r.id).state, 'reverted', '되돌린 기록은 되돌림')
   assert.ok(k.reverted.has(r.id), '주인이 되돌림: 다시 초안하지 않는다')
+})
+
+test('되돌리기 항목마다(S5): 이력 줄 · 자리 · 하나 되돌린 뒤 원 기록 in · 모두면 reverted · 새 항목은 지움 · 그 뒤 고친 항목은 E_CONFLICT · 쓰기 자리는 watched 403', async () => {
+  // lee 는 앞 시험에서 dpms 쓰기 자리 · choi 도 쓰기 자리(B)
+  await s.auth.addUser({ id: 'choi', admin: false })
+  await seat(s, 'choi', { dpms: 'write' })
+  const CHOI = { user: 'choi' }
+  const dir = path.join(tmp, 'kn', 'dpms')
+  const doc = path.join(dir, 'docs', '백업절차.md')
+  const k0 = await s.hub.get('dpms')
+  const b1 = sha16(sectionOf(k0, 'proc:매일 백업').sec.body)
+  const b2 = sha16(sectionOf(k0, 'proc:복구 점검').sec.body)
+  const r = await s.hub.save(LEE, 'dpms', {
+    record: { title: '백업: 14일 · 화요일 · 위치', body: '## 바뀐 것\n- 보관: 7일 → 14일\n- 복구 점검: 월요일 → 화요일\n- 백업 위치: `backup-1`' },
+    sections: [
+      { coord: 'proc:매일 백업', base: b1, content: 'DB 는 매일 01:00 에 백업한다. 14일치를 둔다.' },
+      { coord: 'proc:복구 점검', base: b2, content: '매주 화요일 복구를 한 번 해 본다.' },
+      { doc: 'docs/백업절차.md', heading: '백업 위치', content: '백업은 `backup-1` 에 둔다.' },
+    ],
+  })
+  assert.deepEqual([r.put, r.held], [3, undefined], JSON.stringify(r))
+  // 이력 — 지식관리자에게도 쓰기 자리의 세션 저장 줄이 보인다 · 「옛 값 → 새 값」 · 되돌리기는 쓴 사람과 지식관리자만(canRevert)
+  const rowOf = async (ctx) => (await s.hub.history(ctx)).find((x) => x.rec === r.id)
+  const hk = await rowOf(KIM)
+  assert.equal(hk.kind, '저장')
+  assert.equal(hk.who, 'lee')
+  assert.equal(hk.items.length, 3)
+  assert.ok(hk.items.every((x) => x.live), JSON.stringify(hk.items))
+  assert.ok(hk.items.find((x) => x.heading === '백업 위치').isNew)
+  assert.match(hk.sub, /→/)
+  assert.equal(hk.canRevert, true)
+  assert.equal((await rowOf(LEE)).canRevert, true)
+  const hc = await rowOf(CHOI)
+  assert.ok(hc, '쓰기 자리 B 도 줄은 본다')
+  assert.equal(hc.canRevert, false, 'B 에게 A 줄의 [되돌리기] 가 없다')
+  assert.equal(await code(s.hub.revert(CHOI, 'dpms', { record: r.id, doc: 'docs/백업절차.md', heading: '매일 백업' })), 'E_FORBIDDEN')
+  // 하나만 되돌림 — 넣기 전 글로 · reopens 없이 · 원 기록은 그대로 들어감
+  await s.hub.revert(LEE, 'dpms', { record: r.id, doc: 'docs/백업절차.md', heading: '매일 백업' })
+  let t = fs.readFileSync(doc, 'utf8')
+  assert.match(t, /7일치를 둔다/)
+  assert.match(t, /14일 · 화요일|화요일 복구/)
+  let k = await s.hub.get('dpms')
+  assert.equal(k.byWork.get(r.id).state, 'in', '남은 항목이 있으면 들어감')
+  assert.ok(!k.reverted.has(r.id), '항목 하나 되돌림은 판정을 거두지 않는다')
+  const back = k.logs.find((w) => w.tags.includes('revert') && w.title === '되돌림: 백업절차 › 매일 백업')
+  assert.ok(back && !back.reopens.length, '태그 revert · 제목 「되돌림: 문서 › 머리」 · reopens 없음')
+  assert.match(back.body, new RegExp(`^## 되돌린 항목\\n- ${r.id}: docs/백업절차\\.md › 매일 백업$`, 'm'))
+  assert.equal((await s.hub.history(KIM)).find((x) => x.rec === back.id)?.kind, '되돌림')
+  assert.equal(await code(s.hub.revert(LEE, 'dpms', { record: r.id, doc: 'docs/백업절차.md', heading: '매일 백업' })), 'E_CONFLICT', '같은 항목 두 번은 「이미 되돌렸다」')
+  const h2 = await rowOf(LEE)
+  assert.deepEqual(h2.items.map((x) => [x.heading, x.live, x.reverted]), [['매일 백업', false, true], ['복구 점검', true, false], ['백업 위치', true, false]])
+  assert.equal(h2.canRevert, true, '하나 되돌린 뒤에도 다른 항목은 되돌린다')
+  // 새 항목을 되돌리면 항목이 없어진다(빈 머리가 남지 않는다 · S-D53)
+  await s.hub.revert(LEE, 'dpms', { record: r.id, doc: 'docs/백업절차.md', heading: '백업 위치' })
+  t = fs.readFileSync(doc, 'utf8')
+  assert.doesNotMatch(t, /## 백업 위치/)
+  assert.doesNotMatch(t, /backup-1/)
+  // 그 뒤 남(지식관리자)이 고친 항목은 되돌리지 않는다 — 덮지 않게
+  const b3 = sha16(sectionOf(await s.hub.get('dpms'), 'proc:복구 점검').sec.body)
+  await s.hub.save(KIM, 'dpms', { record: { title: '복구 점검: 수요일', body: '## 바뀐 것\n- 복구 점검: 화요일 → 수요일' }, sections: [{ coord: 'proc:복구 점검', base: b3, content: '매주 수요일 복구를 한 번 해 본다.' }] })
+  assert.equal(await code(s.hub.revert(LEE, 'dpms', { record: r.id, doc: 'docs/백업절차.md', heading: '복구 점검' })), 'E_CONFLICT')
+  assert.match(fs.readFileSync(doc, 'utf8'), /수요일 복구/)
+  assert.equal((await rowOf(LEE)).canRevert, false, '지금 그 기록이 표지인 항목이 없으면 되돌리기 없음')
+  assert.equal(G(dir, 'status', '--porcelain'), '', '트리 깨끗')
+  // 항목 하나뿐인 기록을 그 항목으로 되돌리면 원 기록은 되돌림 — 「개편 전 기록」 으로 보이지 않는다
+  const b4 = sha16(sectionOf(await s.hub.get('dpms'), 'term:디스크 점검').sec.body)
+  const one = await s.hub.save(LEE, 'dpms', { record: { title: '디스크 점검: 70%', body: '## 바뀐 것\n- 디스크 기준: 80% → 70%' }, sections: [{ coord: 'term:디스크 점검', base: b4, content: '로그 디스크가 70% 를 넘는지 매일 본다.' }] })
+  assert.equal(one.put, 1, JSON.stringify(one))
+  await s.hub.revert(LEE, 'dpms', { record: one.id, doc: 'docs/로그보관.md', heading: '디스크 점검' })
+  k = await s.hub.get('dpms')
+  assert.equal(k.byWork.get(one.id).state, 'reverted')
+  assert.equal(isLegacy(k, k.byWork.get(one.id)), false)
+  // 원본이 주인인 문서(watched)의 항목은 쓰기 자리가 되돌리지 못한다 — 지식관리자는 된다
+  const b5 = sha16(sectionOf(k, 'term:보관 기간').sec.body)
+  const wr = await s.hub.save(LEE, 'dpms', { record: { title: '보관 기간: 앱 60일', body: '## 바뀐 것\n- 앱 로그: 30일 → 60일' }, sections: [{ coord: 'term:보관 기간', base: b5, content: '앱 로그는 60일, 감사 로그는 1년 둔다.' }] })
+  assert.equal(wr.put, 1, JSON.stringify(wr))
+  const lf = path.join(dir, 'docs', '로그보관.md')
+  fs.writeFileSync(lf, '<!-- watched: src="원본" path="로그보관.md" -->\n' + fs.readFileSync(lf, 'utf8'))
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qam', 'watched'], { cwd: dir })
+  s.hub.forget('dpms')
+  assert.equal(await code(s.hub.revert(LEE, 'dpms', { record: wr.id, doc: 'docs/로그보관.md', heading: '보관 기간' })), 'E_FORBIDDEN')
+  assert.equal(await code(s.hub.revert(KIM, 'dpms', { record: wr.id, doc: 'docs/로그보관.md', heading: '보관 기간' })), 'ok')
+  assert.match(fs.readFileSync(lf, 'utf8'), /앱 로그는 30일/)
 })
 
 test('거두기: 편집기로 고친 문서는 고요 뒤 묶음 1 · 기록 손 고침은 되돌린다', async () => {

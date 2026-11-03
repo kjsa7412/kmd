@@ -953,7 +953,15 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       }
       if (what === 'learn') return out(200, await hub.learn(ctx, id, body))
       if (what === 'edit') return out(200, await hub.edit(ctx, id, body))
-      if (what === 'revert') return out(200, await hub.revert(ctx, id, body))
+      if (what === 'revert') {
+        // 몸 모양(설계 3-4) — { record(기록 id ≤80), doc?(docs/ 아래 md ≤300), heading?(한 줄 ≤200 · doc 과 같이) }
+        const { record, doc, heading } = body && typeof body === 'object' && !Array.isArray(body) ? body : {}
+        if (typeof record !== 'string' || !record || record.length > 80 || /[\\/\s\u0000-\u001f]/.test(record) || record.startsWith('.')) throw new KmdError('E_INPUT', '되돌릴 기록(record)은 기록 id 다')
+        if (doc != null && (typeof doc !== 'string' || doc.length > 300 || !/^docs\/[^\u0000-\u001f]+\.md$/.test(doc) || doc.split('/').some((x) => x === '..' || x === '.' || !x))) throw new KmdError('E_INPUT', '문서(doc)는 docs/ 아래 md 경로다')
+        if (heading != null && (typeof heading !== 'string' || !heading.trim() || heading.length > 200 || /[\r\n]/.test(heading))) throw new KmdError('E_INPUT', '머리(heading)는 한 줄 글이다(200자까지)')
+        if (heading != null && doc == null) throw new KmdError('E_INPUT', '머리(heading)는 문서(doc)와 같이 보낸다')
+        return out(200, await hub.revert(ctx, id, { record, ...(doc != null ? { doc } : {}), ...(heading != null ? { heading } : {}) }))
+      }
       if (what === 'owner') {
         // 주인 · 지식관리자(예전 정리하는 사람)은 명부에 있는 사람만
         const people = new Set(auth.users().filter((u) => u.kind === 'person' && !u.off).map((u) => u.id))

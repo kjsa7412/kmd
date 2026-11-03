@@ -1,7 +1,7 @@
 // E5 필수 — 정리 일꾼(가짜 claude). 검사를 넘으면 승인 없이 바로 넣는다(KM81).
 //
 // [지금 정리] → 넣음 · 값 바뀜(그 기록을 쓴 사람에게 노랑) · 지어낸 값 · 빠진 값 · 머리 주입 → 그대로 둠 · 이름 바로잡기 ·
-// 「Claude 에 보내지 않음」 → claude 0 번 · 초안 전용 열쇠로 save → 403 · 되돌리면 원 기록이 다시 대기 · 로그인 끝 → 멈춤 줄.
+// 「Claude 에 보내지 않음」 → claude 0 번 · 초안 전용 열쇠로 save → 403 · 되돌리면 원 기록은 되돌림(다시 초안하지 않는다) · 로그인 끝 → 멈춤 줄.
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -86,11 +86,11 @@ test('[지금 정리]: 넣음 · 값 바뀜 · 그대로 둠(지어낸 값 · �
   assert.equal((await s.hub.job(job.id)).state, 'done')
 })
 
-test('되돌리기: 원 기록이 다시 대기 · 다음 정리에서 다시 넣지 않는다', async () => {
+test('되돌리기: 원 기록은 되돌림(다시 대기로 떨어지지 않는다 · S5) · 다음 정리에서 다시 넣지 않는다', async () => {
   await s.hub.revert({ user: 'kim', admin: true }, 'dpms', { record: caRow.record })
   const k = await s.hub.get('dpms')
   const a = k.works.find((w) => w.title === '카나리 비율')
-  assert.equal(a.state, 'pend')
+  assert.equal(a.state, 'reverted', '되돌린 정리에 든 기록은 되돌림(S-D4 ⑥) — 개편 전 기록 · 정리 재료로 다시 오르지 않는다')
   assert.ok(k.reverted.has(a.id))
   assert.match(fs.readFileSync(path.join(tmp, 'kn', 'dpms', 'docs', '배포절차.md'), 'utf8'), /요청의 10% 만/)
   await api('/api/k/dpms/tidy', {})

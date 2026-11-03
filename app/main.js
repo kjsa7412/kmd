@@ -556,7 +556,7 @@ function sideHtml(left) {
   const set = (area, l) => `<div class="sb-i${inMg && setArea() === area ? ' on' : ''}" data-a="setArea" data-v="${area}" data-t="nav-settings-${area}">${svg('gear')}<span>${l}</span></div>`
   const nCheck = histChecks()
   h += `<div class="sb-mg" data-t="manageArea"><div class="sb-g">지식 관리</div><div class="nav">`
-  if (!dim) h += `<div class="sb-i${HISTSCR.includes(r.scr) ? ' on' : ''}" data-a="nav" data-s="today" data-t="nav-history">${svg('hour')}<span>이력</span>${nCheck ? `<span class="bd warn" data-t="histBadge" title="확인할 것">${nCheck}</span>` : ''}</div>`
+  if (!dim) h += `<div class="sb-i${HISTSCR.includes(r.scr) ? ' on' : ''}" data-a="nav" data-s="today" data-t="nav-history">${svg('hour')}<span>이력</span>${nCheck ? `<span class="bd warn" data-t="histBadge" title="값 바뀜">${nCheck}</span>` : ''}</div>`
   h += set(team ? 'team' : 'me', '설정')
   if (team && !dim) h += `<div class="sb-i${r.scr === 'install' ? ' on' : ''}" data-a="nav" data-s="install" data-t="nav-install">${svg('user')}<span>개인 프로그램 설치</span></div>`
   h += '</div></div>'
@@ -1122,7 +1122,7 @@ function cmdDefs() {
     { n: '항목으로 보기', s: '옆 메뉴: 항목 탭', f: () => setView('items') },
     { n: '빨리 열기', s: 'Ctrl O', f: () => openQo() },
     { n: '찾기', s: 'Ctrl K', f: () => openPal() },
-    { n: '이력', s: '모든 지식에서 바뀐 것 · 확인할 것', f: () => go({ scr: 'today' }) },
+    { n: '이력', s: '모든 지식에서 바뀐 것 · 값 바뀜', f: () => go({ scr: 'today' }) },
     { n: '지식 보내기', s: '내 개인 지식 → 팀 지식', f: () => go({ scr: 'send' }) },
     { n: '설정', s: '', f: () => go({ scr: 'settings' }) },
     { n: '지식 목록', s: '전체', f: () => go({ scr: 'home', kn: '*' }) },
@@ -1791,11 +1791,13 @@ function diffHtml(list, label) {
 const diffOf = (k, record) => need(`diff:${k}:${record}`, `/api/k/${encodeURIComponent(k)}/diff?record=${encodeURIComponent(record)}`)
 // 이력 — 팀 지식과 개인 지식의 이력을 한 흐름으로(서버가 같은 일은 한 줄로 합쳐 준다 · /api/history).
 //   팀 화면은 팀 지식만 · 개인 화면은 개인 지식만
-//   맨 위 「확인할 것」 — kmd 가 내 값을 바꾼 줄 · 아래는 날마다 묶은 흐름 · 갈래 · 지식 · 사람으로 거른다
+//   맨 위 「값 바뀜」 — 내 값이 바뀐 줄(정리가 바꿨든 남의 저장이 바꿨든) · 아래는 날마다 묶은 흐름 · 갈래 · 지식 · 사람으로 거른다
+//   저장 문이 넣은 기록 줄(items)은 펼치면 항목마다 「옛 값 → 새 값」 · 서버가 준 canRevert · live 인 항목만 [되돌리기](S5)
 //   줄을 누르면 펼친다 — 비교 · 되돌리기 / 기기 끊기 / 문서 열기 / 그 일 열기
 //   위에서 고른 지식과 따로다
 const historyOf = () => need('history', '/api/history')
-const HIST_KINDS = ['확인할 것', '저장', '가져오기', '정리', '바로 고침', '보내기', '받음', '설정', '지식']
+const HIST_CHECK = '값 바뀜'
+const HIST_KINDS = [HIST_CHECK, '저장', '고침', '들이기', '다듬기', '되돌림', '넣지 못함', '버림', '가져오기', '정리', '보내기', '받음', '설정', '지식']
 const isCheck = (x) => x.yl && !x.reverted && !x.unlinked
 const HIST_PAGE = 200
 // 한 흐름 — 팀 화면은 팀 지식만 · 개인 화면은 개인 지식만
@@ -1811,7 +1813,7 @@ function histRows() {
   return out
 }
 const histFind = (id) => (Array.isArray(histRows()) ? histRows() : []).find((x) => x.id === id) || null
-// 옆 메뉴 이력의 「확인할 것」 수 — 읽어 둔 것만 센다(옆 메뉴가 이력을 받으러 가지 않는다)
+// 옆 메뉴 이력의 「값 바뀜」 수 — 읽어 둔 것만 센다(옆 메뉴가 이력을 받으러 가지 않는다)
 function histChecks() {
   const n = (v) => (Array.isArray(v) ? v.filter(isCheck).length : 0)
   return n(S.cache.history)
@@ -1843,6 +1845,12 @@ function traceHtml(x, all) {
   } else L.push(li('n', '', `${s.to || '팀 지식'} 의 받은 것`, '팀 쪽 줄을 찾지 못했다: 보낸 지 오래됐거나 아직 닿지 않았다'))
   return `<div class="small muted" style="margin:2px 0">보낸 기록이 지나간 길</div><ul class="trace" data-t="histTrace">${L.join('')}</ul>`
 }
+// 저장 문이 넣은 항목 한 줄 — 「문서 › 머리」 · 옛 값 → 새 값(또는 새 항목) · [되돌리기](서버가 준 canRevert 이고 지금도 그 기록이 표지인 항목만)
+function histItem(x, it, i) {
+  const chg = it.isNew ? '<span class="chip c-acc">새 항목</span>' : it.from || it.to ? `<span class="vchg" data-t="histChg">${esc(it.from || '—')} → ${esc(it.to || '—')}</span>` : ''
+  const st = it.reverted ? '<span class="chip c-mute" data-t="itemReverted">되돌림</span>' : !it.live ? '<span class="small muted">그 뒤 다시 바뀜</span>' : x.canRevert ? `<button type="button" class="btn sm" data-a="revertItem" data-id="${esc(x.id)}" data-i="${i}" data-t="revertItem">되돌리기</button>` : ''
+  return `<li class="${it.reverted ? 'done' : ''}" data-t="histItem"><span class="nm">${esc(it.name)} › <b>${esc(it.heading)}</b></span>${chg}${st}</li>`
+}
 function histRow(x, all) {
   const open = S.openToday === x.id
   const team = isTeam()
@@ -1851,6 +1859,7 @@ function histRow(x, all) {
     ex += '<div class="open" data-t="todayOpen">'
     if (x.sub) ex += `<div class="small muted" style="margin-bottom:6px">${esc(x.sub)}</div>`
     if (team && (x.kind === '보내기' && x.to || x.kind === '받음')) ex += traceHtml(x, all)
+    if (x.items && x.items.length) ex += `<div class="small muted">넣은 항목</div><ul class="hitems" data-t="histItems">${x.items.map((it, i) => histItem(x, it, i)).join('')}</ul>`
     if (x.revert) ex += `<div class="small muted">비교</div>${diffHtml(diffOf(x.kn, x.revert))}`
     if (x.revert && !x.reverted) ex += `<button class="btn sm" data-a="revertToday" data-id="${esc(x.id)}" data-t="revertBtn">되돌리기</button> <span class="small muted">그 줄만 넣기 전으로</span>`
     if (x.revert && x.reverted) ex += '<span class="chip c-mute">되돌렸다</span>'
@@ -1861,14 +1870,14 @@ function histRow(x, all) {
     if (links.length) ex += `<div style="margin-top:6px;display:flex;gap:12px">${links.join('')}</div>`
     ex += '</div>'
   }
-  const kind = isCheck(x) ? '확인할 것' : x.kind
+  const kind = isCheck(x) ? HIST_CHECK : x.kind
   const sent = team && x.kind === '보내기' && x.to && !open ? (sentDone(x, all) ? ' <span class="chip c-acc" data-t="sentState">문서에 들어감</span>' : histPair(x, all) ? ' <span class="chip c-pend" data-t="sentState">정리 기다림</span>' : '') : ''
   return `<div class="hrow${team ? ' ' + x.a : ''}${isCheck(x) ? ' yl' : ''}${x.reverted ? ' done' : ''}" data-t="histRow" data-kind="${esc(x.kind)}" data-area="${x.a}" data-id="${esc(x.id)}"><div class="hl" data-a="toggleToday" data-id="${esc(x.id)}"><span class="tm">${tmOf(x.at)}</span><span class="chip ${isCheck(x) ? 'c-warn' : 'c-mute'}" style="flex:none">${esc(kind)}</span><span class="tx"><b>${esc(x.title)}</b>${sent}${x.reverted ? ' <span class="chip c-mute" data-t="reverted">되돌렸다</span>' : ''}${x.sub && !open ? `<small>${esc(x.sub)}</small>` : ''}</span><span class="kn2">${esc(x.knName || '')}</span><span class="who">${esc(x.who || '')}</span><span class="act" data-t="viewBtn">${open ? '접기' : '보기'}</span></div>${ex}</div>`
 }
 function viewToday() {
   const team = isTeam()
   const crumb = '지식 관리 › 이력'
-  const head = `<div class="big">이력</div><p class="lead">${team ? '내가 볼 수 있는 팀 지식의 이력을 한 흐름으로: 내가 저장 · 가져오기 한 것, kmd 가 가져오고 정리한 것, 받은 기록이 문서에 들어간 것.' : '이 PC 의 지식에서 바뀐 것: 내가 저장 · 가져오기 · 보내기 한 것, kmd 가 가져오고 문서에 넣은 것, 화면 · 편집기에서 바로 고친 것.'} 내 값이 바뀐 줄은 맨 위 「확인할 것」 에: 마음에 들지 않으면 [보기] 에서 되돌린다.</p>`
+  const head = `<div class="big">이력</div><p class="lead">${team ? '내가 볼 수 있는 팀 지식의 이력을 한 흐름으로: 내가 저장 · 가져오기 한 것, kmd 가 가져오고 정리한 것, 받은 기록이 문서에 들어간 것.' : '이 PC 의 지식에서 바뀐 것: 내가 저장 · 가져오기 · 보내기 한 것, kmd 가 가져오고 문서에 넣은 것, 화면 · 편집기에서 바로 고친 것.'} 내 값이 바뀐 줄은 맨 위 「값 바뀜」 에: [보기] 에서 「옛 값 → 새 값」 을 보고, 되돌릴 수 있는 줄은 그 항목만 되돌린다.</p>`
   const all = histRows()
   if (!all) return { crumb, main: `<div class="pg-list">${head}${loadingHtml}</div>` }
   if (all.error) return { crumb, main: `<div class="pg-list">${head}${errHtml(all)}</div>` }
@@ -1876,12 +1885,12 @@ function viewToday() {
   const f = S.logKind || '', kn = S.logKn || '', ar = '', pp = S.logWho || ''
   const mine = (x) => x.who === S.me.user
   const pass = (x, skip) => (skip === 'ar' || !ar || x.a === ar) && (skip === 'kn' || !kn || x.kn === kn) && (skip === 'pp' || !pp || (pp === 'me' ? mine(x) : x.who === 'kmd'))
-    && (skip === 'kind' || !f || (f === '확인할 것' ? isCheck(x) : x.kind === f && !isCheck(x)))
+    && (skip === 'kind' || !f || (f === HIST_CHECK ? isCheck(x) : x.kind === f && !isCheck(x)))
   const rows = all.filter((x) => pass(x))
   const cnt = (g) => all.filter(g).length
   const chip = (val, l, n) => `<span class="${f === val ? 'on' : ''}" data-a="logKind" data-v="${esc(val)}" data-t="logKind-${esc(val || 'all')}">${l} <small class="muted">${n}</small></span>`
-  const kindN = (k) => cnt((x) => pass(x, 'kind') && (k === '확인할 것' ? isCheck(x) : x.kind === k && !isCheck(x)))
-  const kinds = HIST_KINDS.filter((k) => k === '확인할 것' || kindN(k))
+  const kindN = (k) => cnt((x) => pass(x, 'kind') && (k === HIST_CHECK ? isCheck(x) : x.kind === k && !isCheck(x)))
+  const kinds = HIST_KINDS.filter((k) => k === HIST_CHECK || kindN(k))
   const seg = ''
   const kns = [...new Map(all.filter((x) => x.kn).map((x) => [x.kn, { n: x.knName || knNm(x.kn), a: x.a }])).entries()]
   const opt = (xs) => xs.map(([id, o]) => `<option value="${esc(id)}"${id === kn ? ' selected' : ''}>${esc(o.n)}</option>`).join('')
@@ -1890,15 +1899,15 @@ function viewToday() {
   // 위 요약(팀 화면) — 누르면 거른다
   const today = () => cnt((x) => dayOf(x.at) === '오늘' && !isCheck(x))
   const tile = (cls, l, n, s, v) => `<div class="tile${cls}" data-a="histTile" data-v="${v}" data-t="histTile-${v}"><div class="l">${l}</div><div class="n">${n}</div><div class="s">${s}</div></div>`
-  const tiles = team ? `<div class="tiles" data-t="histTiles">${tile(cnt(isCheck) ? ' w' : '', '확인할 것', cnt(isCheck), '내 값이 바뀐 줄', 'check')}${tile('', '오늘', today(), '팀 지식', 'team')}</div>` : ''
-  // 확인할 것은 맨 위 카드로 · 나머지는 날마다
-  const checks = f !== '확인할 것' ? rows.filter(isCheck) : []
-  const flowAll = f !== '확인할 것' ? rows.filter((x) => !isCheck(x)) : rows
+  const tiles = team ? `<div class="tiles" data-t="histTiles">${tile(cnt(isCheck) ? ' w' : '', HIST_CHECK, cnt(isCheck), '내 값이 바뀐 줄', 'check')}${tile('', '오늘', today(), '팀 지식', 'team')}</div>` : ''
+  // 값 바뀜은 맨 위 카드로 · 나머지는 날마다
+  const checks = f !== HIST_CHECK ? rows.filter(isCheck) : []
+  const flowAll = f !== HIST_CHECK ? rows.filter((x) => !isCheck(x)) : rows
   const flow = flowAll.slice(0, S.histMax || HIST_PAGE), flowLeft = flowAll.length - flow.length
   const days = []
   for (const x of flow) { const d = dayOf(x.at); const g = days[days.length - 1]; if (g && g.d === d) g.rows.push(x); else days.push({ d, rows: [x] }) }
   const row = (x) => histRow(x, all)
-  const checkCard = checks.length ? `<div class="card" data-t="histCheck"><div class="ch">확인할 것 <span class="chip c-warn">${checks.length}</span><small>kmd 가 정리하며 내 기록의 값을 바꿨다. 그 줄만 되돌릴 수 있다</small></div><div class="cb" style="padding:0">${checks.map(row).join('')}</div></div>` : ''
+  const checkCard = checks.length ? `<div class="card" data-t="histCheck"><div class="ch">값 바뀜 <span class="chip c-warn">${checks.length}</span><small>내 값이 바뀌었다(누가 바꿨든). [되돌리기] 가 있는 줄은 그 줄만 되돌릴 수 있다</small></div><div class="cb" style="padding:0">${checks.map(row).join('')}</div></div>` : ''
   const flowCard = `<div class="card" data-t="feed"><div class="cb" style="padding:0">${days.map((g) => `<div class="hday" data-t="histDay">${esc(g.d)}<small>${g.rows.length}</small></div>${g.rows.map(row).join('')}`).join('') || '<p class="muted" style="margin:12px 14px" data-t="logEmpty">아직 없다</p>'}${flowLeft > 0 ? `<div class="hmore"><button type="button" class="btn sm" data-a="histMore" data-t="histMore">더 보기(남은 ${flowLeft})</button></div>` : ''}</div><div class="cf">줄을 누르면 펼친다 · ${team ? '팀 줄은 팀 지식의 git · 개인 줄은 개인 지식 폴더의 git 에 남는다' : 'kmd 가 다룬 일은 지식의 git 에 그대로 남아 되살리기 · 백업에 같이 간다'} · 나에게 온 줄은 7일 둔다</div></div>`
 
   const main = `<div class="pg-list">${head}${tiles}
@@ -2199,7 +2208,7 @@ function tdHistRow(k, row, key, last) {
   const title = row.kind === 'touches' ? `${rt || row.target}: 넣을 곳을 골랐다` : rt || row.target || '이름 바로잡음'
   const mk = 'row:' + key
   if (S.menu === mk) S._pop = { key: mk, html: `<div class="mi" data-a="cmpRow" data-id="${esc(key)}" data-t="cmpBtn">비교<small>넣기 전 · 넣은 뒤</small></div>${kind !== 'keep' && row.record && !row.reverted && (tdAdm(k) || who === S.me.user) ? `<div class="mi" data-a="revertRow" data-id="${esc(key)}" data-t="revertRow">되돌리기<small>그 줄만 넣기 전으로</small></div>` : ''}` }
-  const chip = row.reverted ? '<span class="chip c-mute" data-t="rowReverted">되돌림</span>' : kind === 'put' ? '<span class="chip c-ok" title="숫자 · 이름 모두 확인">넣음</span>' : kind === 'changed' ? '<span class="chip c-warn" title="쓴 사람의 이력 맨 위 「확인할 것」 에 알렸다">값 바뀜</span>' : '<span class="chip c-warn" title="다음 정리 때 다시">둠</span>'
+  const chip = row.reverted ? '<span class="chip c-mute" data-t="rowReverted">되돌림</span>' : kind === 'put' ? '<span class="chip c-ok" title="숫자 · 이름 모두 확인">넣음</span>' : kind === 'changed' ? '<span class="chip c-warn" title="쓴 사람의 이력 맨 위 「값 바뀜」 에 알렸다">값 바뀜</span>' : '<span class="chip c-warn" title="다음 정리 때 다시">둠</span>'
   const cmp = S.cmp === key ? `<div class="td-cmp" data-t="cmp">${row.record ? diffHtml(diffOf(k, row.record)) : `<div class="diff"><div class="fh">${esc(row.target)}</div><div class="ln2">${esc(title)}: ${esc(row.why || '')}</div></div>`}</div>` : ''
   return `<div class="td-r it${last ? ' last' : ''}${kind === 'changed' && !row.reverted ? ' chg' : ''}${row.reverted ? ' rv' : ''}" data-t="tidyRow" data-kind="${kind}">
    <div class="c-av">${tdAv(who)}<span>${esc(who)}</span></div>
@@ -4509,6 +4518,19 @@ const ACT = {
     if (!x || !await ask1('되돌리기', '되돌리기', true, '그 줄을 넣기 전 글로 되돌린다. 그 정리에 든 기록은 다시 넣지 않는다')) return
     try { await postJSON(`/api/k/${encodeURIComponent(x.kn)}/revert`, { record: x.revert }); x.reverted = true; forgetKn(x.kn); delete S.cache['tidy:' + x.kn]; toast('되돌렸다. 넣기 전 글로 · 그 기록은 다시 문서 옆에 같이 읽힌다'); render() } catch (e) { toastErr(e) }
   },
+  // 항목 하나 되돌리기(S5) — 그 기록이 넣기 전 글로 · 서버가 자리 · 지문을 다시 본다(그 뒤 누가 고쳤으면 E_CONFLICT)
+  revertItem: async (el) => {
+    const x = histFind(el.dataset.id)
+    const it = x && x.items && x.items[Number(el.dataset.i)]
+    if (!it || !await ask1('항목 되돌리기', '되돌리기', true, `「${it.name} › ${it.heading}」 을 이 기록이 넣기 전 글로 되돌린다${it.isNew ? '(이 기록이 세운 항목이라 항목을 지운다)' : ''}. 되돌린 일은 이력에 남는다`)) return
+    try {
+      await postJSON(`/api/k/${encodeURIComponent(x.kn)}/revert`, { record: x.rec, doc: it.doc, heading: it.heading })
+      it.live = false; it.reverted = true; x.canRevert = x.items.some((y) => y.live)
+      forgetKn(x.kn); delete S.cache.history
+      toast(it.isNew ? '되돌렸다. 그 항목을 지웠다' : '되돌렸다. 그 항목은 넣기 전 글로')
+      render()
+    } catch (e) { toastErr(e) }
+  },
   unlinkDev: async (el) => {
     const x = histFind(el.dataset.id)
     if (!x || !await ask1('기기 끊기', '끊기', true, '그 기기를 끊는다. 그 기기의 Claude Code 는 다시 이어야 한다')) return
@@ -4630,8 +4652,8 @@ const ACT = {
   allDocs: () => { S.all = true; render() },
   openDoc: (el) => openDocAt(el.dataset.k, el.dataset.d, el.dataset.h, null, undefined, el.dataset.sub),
   logKind: (el) => { S.logKind = el.dataset.v; render() },
-  // 위 요약 칸 — 확인할 것 · 오늘 팀 · 오늘 개인 · 보낸 것으로 거른다
-  histTile: (el) => { S.logKind = el.dataset.v === 'check' ? '확인할 것' : ''; S.logKn = ''; render() },
+  // 위 요약 칸 — 값 바뀜 · 오늘 팀 · 오늘 개인 · 보낸 것으로 거른다
+  histTile: (el) => { S.logKind = el.dataset.v === 'check' ? HIST_CHECK : ''; S.logKn = ''; render() },
   openRec: (el) => { openTab({ kind: 'rec', kn: el.dataset.k, ref: el.dataset.r }); render(); scrollTopMain() },
   openAtt: (el) => { openTab({ kind: 'att', kn: el.dataset.k, ref: el.dataset.v }); render() },
   actTab: (el, ev) => { if (ev.target.closest('.x')) return; const t = tabOf(el.dataset.id); if (!t) return; S.active = t.id; if (S.split === t.id) S.split = null; S.route.kn = t.kn; if (!['docs', 'items'].includes(S.route.scr)) S.route.scr = 'docs'; pushHist(); render() },

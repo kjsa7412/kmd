@@ -625,6 +625,13 @@ li.new{animation:flash 1.6s}
 .hfl .seg{margin:0;flex:none}
 .hfl .seg button{flex:none;padding:var(--sp-2) var(--sp-6)}
 .hfl .vsep{width:1px;height:22px;background:var(--border-strong)}
+/* 이력 — 저장 문이 넣은 항목(「옛 값 → 새 값」 · 항목마다 되돌리기 · S5) · 값이 길면 줄을 넘긴다(375 에서 가로 스크롤 없게) */
+.hitems{list-style:none;margin:var(--sp-2) 0 var(--sp-4);padding:0}
+.hitems li{display:flex;align-items:center;gap:var(--sp-2) var(--sp-4);flex-wrap:wrap;padding:var(--sp-2) 0;border-top:1px solid var(--border);font-size:var(--fs)}
+.hitems li:first-child{border-top:0}
+.hitems .nm{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.hitems .vchg{white-space:normal;overflow-wrap:anywhere}
+.hitems li.done .nm{color:var(--text-3);text-decoration:line-through}
 .trace{list-style:none;margin:var(--sp-2) 0 var(--sp-4);padding:0}
 .trace li{display:flex;gap:var(--sp-5);align-items:flex-start;padding:5px 0;font-size:var(--fs);position:relative}
 .trace li::before{content:'';position:absolute;left:92px;top:24px;bottom:-6px;width:2px;background:var(--border)}
