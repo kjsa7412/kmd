@@ -353,7 +353,8 @@ function originsOf(k, d) {
 }
 
 export const atTag = (docId, heading) => 'at/' + sha16(`${docId}\n${String(heading).normalize('NFC')}`).slice(0, 12)
-export function docView(k, docId, { src = {} } = {}) {
+// edit — 편집기용 md · 잠긴 표도 싣는다(Q84 · 읽기만 할 때는 본문이 두 번 실리지 않게 · 「고치기」 를 누를 때 ?edit=1 로)
+export function docView(k, docId, { src = {}, edit = false } = {}) {
   const d = k.docs.find((x) => x.id === docId)
   if (!d) return null
   const last = [...d.sections.map((s) => s.applied && k.byWork.get(s.applied)), d.rec && k.byWork.get(d.rec)].filter(Boolean).sort((a, b) => b.date.localeCompare(a.date))[0]
@@ -369,7 +370,7 @@ export function docView(k, docId, { src = {} } = {}) {
       h: s.h,
       // 본문만 — 출처(refs) · 반영 대기(pend · pendN)는 화면이 항목 옆 칩 · 참고 칸으로 따로 그린다
       html: render(k, d.path, s.body, { src }),
-      ...editParts(s.body, { src }),
+      ...(edit ? editParts(s.body, { src }) : {}),
 
       base: sha16(s.body),
       recs: recs.length,

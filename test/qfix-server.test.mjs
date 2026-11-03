@@ -126,3 +126,13 @@ test('Q88 `applied: null` 은 표지가 아니다 — 읽을 때 떼고 · 문�
   assert.equal(c.kinds.nul, 2)
   assert.equal(convertDoc('# a\n\n```\n<!-- applied: null -->\n```\n').changed, false, '코드 울타리 안은 두다')
 })
+
+test('Q84 문서 보기: 읽기만 하면 편집용 md · locks 를 싣지 않고 ?edit=1 이면 싣는다', async () => {
+  const d = (await s.hub.get('dpms')).docs.find((x) => x.sections.length)
+  const base = `/api/k/dpms/doc?d=${encodeURIComponent(d.id)}`
+  const a = await req(base, P.boss)
+  assert.equal(a.status, 200)
+  assert.ok(a.j.sections.length && a.j.sections.every((x) => !('md' in x) && !('locks' in x)))
+  const b = await req(base + '&edit=1', P.boss)
+  assert.ok(b.j.sections.every((x) => typeof x.md === 'string'))
+})

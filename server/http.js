@@ -1002,7 +1002,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return send(res, 200, await fs.readFile(path.join(k.dir, ...rel.split('/'))), type)
     }
     if (what === 'doc') {
-      const v = V.docView(k, url.searchParams.get('d'), { src: await hub.sourceState(k.id) })
+      const v = V.docView(k, url.searchParams.get('d'), { src: await hub.sourceState(k.id), edit: url.searchParams.get('edit') === '1' })
       if (!v) throw new KmdError('E_NOTFOUND', '이 문서는 이제 없다')
       // 원본이 주인인 문서 — 어디서 왔나 · 고치기 없음
       const dd = k.docs.find((x) => x.id === url.searchParams.get('d'))

@@ -110,6 +110,8 @@ async function treeMore(k) {
   } catch (e) { toastErr(e) } finally { delete S.wait['treeMore:' + k]; render() }
 }
 const docOf = (k, d) => need(`doc:${k}:${d}`, `/api/k/${encodeURIComponent(k)}/doc?d=${encodeURIComponent(d)}`)
+// 고칠 때만 — 편집용 md · 잠긴 표를 실은 것(읽기만 할 때는 받지 않는다 · Q84)
+const docEdOf = (k, d) => need(`doc:${k}:${d}:ed`, `/api/k/${encodeURIComponent(k)}/doc?d=${encodeURIComponent(d)}&edit=1`)
 const recOf = (k, r) => need(`rec:${k}:${r}`, `/api/k/${encodeURIComponent(k)}/rec?r=${encodeURIComponent(r)}`)
 // 읽는 중 — 빙빙이 + 글(컨벤션 10절)
 const loadingHtml = '<p class="loading" data-t="loading">읽는 중…</p>'
@@ -421,7 +423,8 @@ function draw() {
   if (gated()) { const g = $('[data-focus]'); if (g && document.activeElement !== g) g.focus(); return }
   const fi = $('#palIn') || $('#qoIn') || $('#cmdIn')
   if (fi && document.activeElement !== fi) { fi.focus(); fi.setSelectionRange(fi.value.length, fi.value.length) }
-  if (S._focus) { const el = document.getElementById(S._focus); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length) } catch {} } S._focus = null }
+  // 고칠 칸이 아직 읽는 중이면(편집기 · Q84) 그려질 때까지 기다린다
+  if (S._focus) { const el = document.getElementById(S._focus); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length) } catch {} S._focus = null } else if (S._focus !== 'edTx' || !S.edit) S._focus = null }
   if (S.route.scr === 'graph') gStart()
   fillAtts()
   // 터미널 — 새 줄이 오면 아래로 · 사람이 위로 올려 보고 있으면 그 자리 그대로(컨벤션 7절)
@@ -937,6 +940,8 @@ function docAside(k, d) {
   const none = '<div class="muted small alr">없다</div>'
   const recs = bl.recs.map((r) => `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="blRec" data-pv="rec|${esc(k)}|${esc(r.id)}"><span class="dt">${r.state === 'pend' ? '●' : esc(whenTxt(r.date).replace(/^(오늘|어제) /, ''))}</span><span class="nm">${esc(r.title)}</span></div>`).join('')
   const docs = bl.linkers.map((o) => `<div class="alr" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(o.id)}" data-t="blDoc" data-pv="doc|${esc(k)}|${esc(o.id)}">${svg('doc')}<span class="nm">${esc(o.title)}</span></div>`).join('')
+  // 이 문서가 가리키는 문서(Q94) — 본문 종이 밖 「연결」 의 한 묶음으로
+  const outs = (d.links || []).map((x) => `<div class="alr" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(x.id)}" data-t="dlink" data-pv="doc|${esc(k)}|${esc(x.id)}">${svg('doc')}<span class="nm">${esc(x.title)}</span></div>`).join('')
   const ments = bl.ments.map((x) => `<div class="alr" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(x.d)}" data-h="${esc(x.h)}" data-t="blMent" data-pv="doc|${esc(k)}|${esc(x.d)}">${svg('doc')}<span class="nm">${esc(x.title)} › ${esc(x.h)}<small>「${esc(x.x)}」</small></span></div>`).join('')
   // 넣은 기록(「출처」 가 아니다 — 출처는 참고 블록 줄에만) — 항목에 넣은 기록(넣은 파일 · 기록)과 그 기록을 넣은 정리
   const og = d.origins || []
@@ -947,7 +952,8 @@ function docAside(k, d) {
   <div class="ap" data-t="backlinks"><h4 title="이 문서를 가리키는 기록 · 문서 · 이름이 나온 곳">연결</h4>
    <div class="bg" title="이 문서의 항목을 건드린 기록">기록 <b data-t="blRecN">${bl.recs.length}</b></div>${recs || none}
    <div class="bg" title="이 문서를 링크한 문서">문서 <b data-t="blDocN">${bl.linkers.length}</b></div>${docs || none}
-   <div class="bg" title="링크 없이 이름만 나온 곳">언급 <b data-t="blMentN">${bl.ments.length}</b></div>${ments || none}</div>
+   <div class="bg" title="링크 없이 이름만 나온 곳">언급 <b data-t="blMentN">${bl.ments.length}</b></div>${ments || none}
+   <div class="bg" title="이 문서의 본문 링크가 가리키는 문서">이 문서가 가리키는 문서 <b data-t="dlinksN">${(d.links || []).length}</b></div>${outs || none}</div>
   <div class="ap" data-t="props"><h4>속성</h4><div class="kv"><span>마지막 정리</span><span>${esc(d.last ? whenTxt(d.last.date) + ': ' + d.last.author + '의 기록에서' : whenTxt(d.when))}</span><span>가져오는 곳</span><span>${d.watched ? esc(d.watched.src) + (d.watched.orphan ? ': 없어졌다' : '') : '없음'}</span><span>자리</span><span>${esc(knWhere(KN(k)) || (isTeam() ? '팀 서버' : '이 PC'))}</span>${isTeam() && !isPersonal(KN(k)) ? `<span>쓰는 사람</span>${whoHtml(k)}` : ''}<span>항목</span><span>${M(k) ? M(k).items.filter((i) => i.doc === d.id).length : d.items}</span></div></div>
   ${nbGraph(k, 'd:' + d.id)}`
 }
@@ -964,6 +970,25 @@ function refsPanel(k, refs, title) {
 }
 // 본문의 문서 · 항목 링크에 미리보기 카드(이 지식 안)
 const pvLinks = (h, k) => String(h).replace(/(<a class="dlink (?:doc|item)" data-a="openDoc" data-k="[^"]*" data-d="([^"]*)")/g, (m, a, d) => `${a} data-pv="doc|${esc(k)}|${d}"`)
+// 큰 문서(Q97) — 3초마다 다시 그려도 항목 글(이름 링크 · 미리보기 표시)을 다시 만들지 않는다. 받은 항목(s) · 이름 장부(M) 가 같으면 그대로
+const secMemo = new WeakMap()
+function secInner(k, s, it) {
+  const m = M(k) || null, key = it ? it.key : null
+  const c = secMemo.get(s)
+  if (c && c.m === m && c.key === key) return c.html
+  const html = pvLinks(linkify(s.html, k, key), k)
+  secMemo.set(s, { m, key, html })
+  return html
+}
+// 문서 · 머리 → 항목(장부마다 한 번 짓는다 · 항목 311개 × 장부 줄 수를 매번 훑지 않게)
+const itemIdx = new WeakMap()
+function itemAt(k, doc, sec) {
+  const m = M(k)
+  if (!m) return null
+  let x = itemIdx.get(m)
+  if (!x) { x = new Map(); for (const i of m.items) { const key = i.doc + '|' + i.sec; if (!x.has(key)) x.set(key, i) } itemIdx.set(m, x) }
+  return x.get(doc + '|' + sec) || null
+}
 function docPane(t, right) {
   const k = t.kn, n = KN(k), d = docOf(k, t.ref)
   if (!d) return { html: loadingHtml, title: tabTitle(t) }
@@ -974,22 +999,28 @@ function docPane(t, right) {
   const loc = isTeam() ? n.name + ' › ' + d.title : n.name + ' › ' + d.path.replace(/^docs\//, '')
   const mine = d.sections.flatMap((s) => s.pend.filter((x) => x.author === S.me.user))
   const editing = !right && S.edit && S.edit.tab === t.id
-  const body = editing
-    ? `<div class="ed" data-t="editor"><div class="lbl"><b>고치는 중</b> · 「## 」 으로 시작하는 줄이 항목 이름이다 · md 로 쓴다. **굵게** · - 목록 · [링크](주소) · Ctrl S 저장 · Esc 취소</div><div class="toolbar"><button class="btn sm" data-a="edAddSec" data-t="edAddSec">항목 더하기</button><span class="muted small">항목을 지우려면 그 「## 」 줄과 글을 지운다 · 이름을 바꾸려면 「## 」 줄만 고친다</span></div><textarea id="edTx" aria-label="문서 글(md)" data-in="edTx" data-t="edTx" spellcheck="false">${esc(edText(d))}</textarea>
-   ${d.sections.filter((s) => s.locks).map((s) => `<div class="lockh">항목 「${esc(s.h)}」 의 표: 회색은 잠겨 있다</div>${s.locks}`).join('')}
+  const de = editing ? docEdOf(k, t.ref) : null
+  const body = editing && !de
+    ? loadingHtml
+    : editing && de.error
+    ? errHtml(de, `doc:${k}:${t.ref}:ed`)
+    : editing
+    ? `<div class="ed" data-t="editor"><div class="lbl"><b>고치는 중</b> · 「## 」 으로 시작하는 줄이 항목 이름이다 · md 로 쓴다. **굵게** · - 목록 · [링크](주소) · Ctrl S 저장 · Esc 취소</div><div class="toolbar"><button class="btn sm" data-a="edAddSec" data-t="edAddSec">항목 더하기</button><span class="muted small">항목을 지우려면 그 「## 」 줄과 글을 지운다 · 이름을 바꾸려면 「## 」 줄만 고친다</span></div><textarea id="edTx" aria-label="문서 글(md)" data-in="edTx" data-t="edTx" spellcheck="false">${esc(edText(de))}</textarea>
+   ${de.sections.filter((s) => s.locks).map((s) => `<div class="lockh">항목 「${esc(s.h)}」 의 표: 회색은 잠겨 있다</div>${s.locks}`).join('')}
    <div class="row" style="margin-top:10px"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><span class="r small muted">${d.direct ? '저장하면 바로 문서에 들어간다' : '팀 지식: 저장하면 기록으로 남고 정리 때 문서에 들어간다'}</span></div></div>`
     : d.sections.map((s) => {
     // 찾기로 연 것만 「찾은 곳」 · 링크 · 개요로 연 항목은 머리를 잠깐 빛낸다
     const lit = q && hl && s.h === hl
-    const it = M(k) && M(k).items.find((x) => x.doc === d.id && x.sec === s.h)
-    const hn = it ? `<span class="hn" data-a="openItem" data-k="${esc(k)}" data-n="${esc(it.key)}" data-t="hn" title="항목으로 보기">${s.pend.length ? '<i class="pd"></i>' : ''}기록 ${s.recs}</span>` : ''
-    const by = s.by && isToday(s.by.date) ? `<div class="hc"><span class="hchip">${esc(whenTxt(s.by.date))} 넣음: ${esc(s.by.author)}의 기록에서</span></div>` : ''
+    const it = itemAt(k, d.id, s.h)
     const pn = s.pendN != null ? s.pendN : s.pend.length, rn = (s.refs || []).length
     const ok = `${t.id}|${s.h}`, po = (S.refOpen || {})[ok + '|pend'], ro = (S.refOpen || {})[ok + '|refs']
-    const chips = right ? '' : `${pn ? `<button type="button" class="refchip pend" data-a="refToggle" data-v="${esc(ok + '|pend')}" data-t="pendChip" aria-expanded="${po ? 'true' : 'false'}" title="아직 문서에 들어가지 않은 기록">반영 대기 ${pn}</button>` : ''}${rn ? `<button type="button" class="refchip" data-a="refToggle" data-v="${esc(ok + '|refs')}" data-t="refChip" aria-expanded="${ro ? 'true' : 'false'}" title="이 항목에 무엇이 언제 어느 기록에서 들어왔나">출처 ${rn}</button>` : ''}`
+    // 머리 줄(Q93) — h2 에는 이름만. 참고 칩(반영 대기 · 출처 · 오늘 넣음 · 기록 n)은 h2 옆 .hrow 에(읽기 · 복사 · 찾기에 섞이지 않게)
+    //   반영 대기 칩이 있으면 「기록 n」 의 점은 뺀다(같은 것을 두 번 보이지 않게)
+    const chips = right ? '' : `${pn ? `<button type="button" class="refchip pend" data-a="refToggle" data-v="${esc(ok + '|pend')}" data-t="pendChip" aria-expanded="${po ? 'true' : 'false'}" title="아직 문서에 들어가지 않은 기록">반영 대기 ${pn}</button>` : ''}${rn ? `<button type="button" class="refchip" data-a="refToggle" data-v="${esc(ok + '|refs')}" data-t="refChip" aria-expanded="${ro ? 'true' : 'false'}" title="이 항목에 무엇이 언제 어느 기록에서 들어왔나">출처 ${rn}</button>` : ''}${s.by && isToday(s.by.date) ? `<span class="hchip" data-t="byChip" title="오늘 이 항목에 넣은 기록">${esc(whenTxt(s.by.date))} 넣음: ${esc(s.by.author)}의 기록에서</span>` : ''}`
+    const hn = it ? `<span class="hn" data-a="openItem" data-k="${esc(k)}" data-n="${esc(it.key)}" data-t="hn" title="항목으로 보기">${s.pend.length && !(chips && pn) ? '<i class="pd"></i>' : ''}기록 ${s.recs}</span>` : ''
     const panel = (po && pn ? pendPanel(k, s) : '') + (ro && rn ? refsPanel(k, s.refs, '출처') : '')
-    const inner = pvLinks(linkify(s.html, k, it ? it.key : null), k)
-    return `<h2 data-sec="${esc(s.h)}"${!q && flashH && s.h === flashH ? ' class="flash"' : ''}>${esc(s.h)}${chips ? `<span class="hrefs">${chips}</span>` : ''}${hn}</h2>${panel}${lit ? `<div class="lit" data-t="lit"><span class="tag">찾은 곳</span>${inner}</div>` : inner}${by}`
+    const inner = secInner(k, s, it)
+    return `<section class="dsec"><div class="hrow"><h2 data-sec="${esc(s.h)}"${!q && flashH && s.h === flashH ? ' class="flash"' : ''}>${esc(s.h)}</h2>${chips ? `<span class="hrefs">${chips}</span>` : ''}${hn}</div>${panel}${lit ? `<div class="lit" data-t="lit"><span class="tag">찾은 곳</span>${inner}</div>` : inner}</section>`
   }).join('')
   // ## 항목이 없는 문서(맨 위가 ###) — 글이 모두 머리글이라 편집기가 빈 칸으로 열린다 · 고치기를 막고 까닭을 보인다
   const noSec = !d.sections.length
@@ -998,8 +1029,7 @@ function docPane(t, right) {
   <div class="ttl"><div class="path"><span>${esc(loc)}</span><span class="r">마지막으로 바뀐 때 ${esc(whenTxt(d.when))}</span></div>${editing || right || d.watched ? '' : `<button class="btn pri" data-a="editDoc" data-t="editBtn"${noSec ? ' disabled title="## 항목이 없는 문서: 화면에서 고칠 수 없다"' : roAttr(k)}>고치기</button>`}</div>
   ${d.watched && d.watched.orphan ? `<div class="callout warn stop" data-t="watchedOrphan"><i></i><span><b>원본이 없어졌다</b>: 가져오던 곳 「${esc(d.watched.src)}」 이 지워졌다 · 내 문서로 하면 고칠 수 있다</span><button class="btn sm r" data-a="unwatchDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="unwatchBtn">내 문서로</button></div>` : ''}${d.watched && !d.watched.orphan ? `<div class="callout ${d.watched.missing ? 'warn' : 'gray'} stop" data-t="watched"><i></i><span><b>${d.watched.missing ? `원본에 없다: ${esc(d.watched.missing)} 부터` : '원본이 주인이다'}</b>: ${esc(d.watched.src)} 의 <span class="mono">${esc(d.watched.path)}</span> 에서 온다 · 고치려면 원본 파일을 고친다 · 덧붙일 말은 기록으로 남긴다</span></div>` : ''}
   ${mine.length && !editing ? `<div class="wait" data-t="wait"><i></i>${esc(whenTxt(mine[0].date))} 에 쓴 기록 ${mine.length}: ${pendWhen(t.kn)} · 그동안도 문서 옆에 같이 읽힌다</div>` : ''}
-  <div class="paper"><h1>${esc(d.title)}</h1>${noSec && !editing && !right ? '<div class="callout gray" data-t="noSecEdit">이 문서는 ## 항목이 없어 화면에서 고칠 수 없다. 맨 위 ### 머리를 ## 로 올리면 항목으로 나뉜다</div>' : ''}${d.intro ? `<div class="dlead" data-t="docLead">${pvLinks(linkify(d.intro, k, null), k)}</div>` : ''}${body}
-  ${d.links.length && !editing ? `<div class="dlinks" data-t="dlinks">이 문서가 가리키는 문서: ${d.links.map((x) => `<button type="button" class="lk dlink" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(x.id)}" data-t="dlink" data-pv="doc|${esc(k)}|${esc(x.id)}">${esc(x.title)}</button>`).join(' · ')}</div>` : ''}</div></div>`
+  <div class="paper"><h1>${esc(d.title)}</h1>${noSec && !editing && !right ? '<div class="callout gray" data-t="noSecEdit">이 문서는 ## 항목이 없어 화면에서 고칠 수 없다. 맨 위 ### 머리를 ## 로 올리면 항목으로 나뉜다</div>' : ''}${d.intro ? `<div class="dlead" data-t="docLead">${pvLinks(linkify(d.intro, k, null), k)}</div>` : ''}${body}</div></div>`
   return { html: main, aside: right ? null : docAside(k, d), title: d.title }
 }
 function recPane(t, right) {
@@ -1689,7 +1719,8 @@ window.addEventListener('beforeunload', (ev) => { if (edDirty()) { ev.preventDef
 async function saveDoc() {
   const e = S.edit
   if (!e || e.busy) return
-  const d = S.cache[`doc:${e.kn}:${e.doc}`]
+  const d = S.cache[`doc:${e.kn}:${e.doc}:ed`]
+  if (!d || d.error) return
   const txt = e.text != null ? e.text : $('#edTx').value
   const parts = []
   let cur = null
@@ -4524,6 +4555,7 @@ const ACT = {
     const t = activeTab()
     if (!t) return
     S.edit = { tab: t.id, kn: t.kn, doc: t.ref }
+    delete S.cache[`doc:${t.kn}:${t.ref}:ed`] // 고칠 때마다 지금 글로
     let draft = null
     try { draft = sessionStorage.getItem(edKey(S.edit)) } catch {}
     if (draft != null) { S.edit.text = draft; toast('저장하지 않은 글을 되살렸다. 그만두면 버린다') }
