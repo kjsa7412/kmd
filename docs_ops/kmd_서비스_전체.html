@@ -530,11 +530,11 @@ body:
 <tr><td>화면 [고치기]</td><td><b>바로</b></td><td><code>canDirect</code> 면 system 저장 · 11-03 DPA020(84f0081)</td></tr>
 <tr><td>HTTP save(항목 글 같이)</td><td><b>바로</b></td><td>넘기는 조건이 <code>!canDirect</code> 뿐</td></tr>
 <tr><td>세션 MCP save(팀)</td><td>아니오 · 반영 대기 → 정리</td><td>팀 MCP 는 <code>queue: true</code> · 지식관리자도(hub.js:754) · 11-02 kjsa 「개발 환경 확정」</td></tr>
-<tr><td>세션 MCP save + 조각</td><td>값 더하기만이면 <b>바로</b> · 옛 값 바꿈은 [넣기] 대기</td><td><code>waits</code> 는 자리가 아니라 조각 내용으로 갈린다</td></tr>
+<tr><td>세션 MCP save + 조각(제안)</td><td><b>바로</b>(검사를 넘으면)</td><td>지식관리자의 조각은 옛 값을 바꿔도 확인 대기 없이 저장하는 순간 넣는다(권한 모델 7절 · hub.js:770) · 쓰기 자리의 조각은 값 더하기만 바로, 옛 값 바꿈은 [넣기] 대기</td></tr>
 <tr><td>기록만(항목 글 없이)</td><td>아니오 · 정리</td><td>정리가 초안을 짓는다</td></tr>
 <tr><td>개인 지식</td><td><b>바로</b></td><td>MCP 도 <code>queue: false</code> · 기록만이어도 곧바로 정리</td></tr>
 </table></div>
-<p class="small muted">팀 MCP 를 지식관리자도 정리로 돌리는 것은 정한 일이다(11-02): 세션이 쓴 글도 정리와 같은 검사를 거친다. 권한 모델 7절의 「지식관리자의 제안은 검사를 넘으면 바로 넣는다」 와 코드(지식관리자의 조각도 옛 값을 바꾸면 [넣기] 대기)는 아직 어긋난다.</p>
+<p class="small muted">팀 MCP 의 항목 글(content)을 지식관리자도 정리로 돌리는 것은 정한 일이다(11-02): 세션이 쓴 글도 정리와 같은 검사를 거친다. 조각(제안)은 서버가 같은 검사를 그 자리에서 하므로 지식관리자면 바로 넣는다(11-03 맞춤).</p>
 <p class="src">출처: server/hub.js:719–825 save · :754 넘기는 조건 · :925 edit · server/mcp.js:258 · core/guard.js:270 recordBody · 기준 권한 모델 5 · 7절</p>
 </section>
 <aside class="ex"><div class="ex-h"><span class="tag g">실제 예 · 188 DPMS</span><b>세션이 이름(touches)을 고르는 법</b></div>
@@ -937,7 +937,7 @@ pa: { g: '3 기록', t: '제안 apply → 바로 문서', what: '세션이 항�
   bad: [{ in: 'find 가 지금 글에 없음', msg: '조각이 지금 글에 맞지 않는다' }, { in: 'base 가 다름', msg: '그사이 항목이 바뀌었다. section 으로 다시 읽고 그 위에서 조각을 만든다' }],
   src: 'core/propose.js:90 checkProposal · server/hub.js:886 applyProposals', std: '권한 모델 7절' },
 pr: { g: '3 기록', t: '제안 review → [넣기]', what: '조각이 <b>옛 값을 바꾸거나 · 값을 빼거나 · 값 없는 문장을 지우면</b> 쓰기 자리 사람의 제안은 바로 넣지 않는다. 지식관리자가 정리 › 반영 대기 줄의 [넣기] 를 눌러야 들어간다(「확인 대기」).',
-  rules: ['그동안 기록은 반영 대기로 남고 문서 옆에 같이 읽힌다.', '[넣기] 는 지금 글에 다시 대어 검사한 뒤 넣는다(그사이 바뀌었으면 까닭을 알린다).', '넣으면 쓴 사람의 이력에 「옛 값 → 새 값」(노랑 · 되돌리기).'],
+  rules: ['지식관리자가 보낸 조각은 확인 대기 없이 바로 넣는다(권한 모델 7절).', '그동안 기록은 반영 대기로 남고 문서 옆에 같이 읽힌다.', '[넣기] 는 지금 글에 다시 대어 검사한 뒤 넣는다(그사이 바뀌었으면 까닭을 알린다).', '넣으면 쓴 사람의 이력에 「옛 값 → 새 값」(노랑 · 되돌리기).'],
   ok: [{ cap: 'checkProposal 출력', code: '10% → 20%\n→ { ok: true, waits: "review", changed: [{ from: "10%", to: "20%" }] }\n정리 › 반영 대기 줄: 「제안 있음 1 · 확인 대기 1」 [넣기]' }],
   src: 'server/http.js:705 POST /api/k/:id/proposal/:rec/put · app/main.js tdPropLine', std: '권한 모델 7절' },
 w1: { g: '4 언제', t: '정해진 시각', what: '지식마다 하루 한 번 정해진 시각(기본 02:30)에 그날까지 쌓인 반영 대기를 정리한다. 팀 지식의 기본 방식.',

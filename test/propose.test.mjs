@@ -152,3 +152,14 @@ test('섞인 자리: 같은 항목에 먼저 온 기록(제안 없음)이 있으
   assert.equal(r.mixed, true)
   assert.equal(r.others.length, 1)
 })
+
+test('지식관리자의 제안: 옛 값을 바꿔도 검사를 넘으면 저장하는 순간 넣는다(권한 모델 7절) · 쓰기 자리는 그대로 확인 대기', async () => {
+  const KIM = { user: 'kim', admin: true }
+  const k = await s.hub.get('dpms')
+  const pb = sha16(sectionOf(k, 'proc:준비').sec.body)
+  const r = await s.hub.save(KIM, 'dpms', { record: { title: '준비: 커넥션 풀 80', body: '## 바뀐 것\n- DB 커넥션 풀: 60 → 80', touches: ['proc:준비'] }, sections: [{ coord: 'proc:준비', base: pb, edits: [{ find: '커넥션 풀은 60 으로', replace: '커넥션 풀은 80 으로' }] }] }, { queue: true })
+  assert.equal(r.queued, true, '팀 MCP 저장은 지식관리자도 기록으로')
+  assert.equal(r.proposals[0].waits, 'apply')
+  assert.match(fs.readFileSync(path.join(tmp, 'kn', 'dpms', 'docs', '배포절차.md'), 'utf8'), /커넥션 풀은 80 으로/)
+  assert.equal((await s.hub.get('dpms')).byWork.get(r.id).state, 'in')
+})

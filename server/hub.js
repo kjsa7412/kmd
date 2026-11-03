@@ -767,6 +767,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
               if (typeof s.base !== 'string' || !s.base) throw new KmdError('E_INPUT', `「${s.coord}」 조각에 base(section 이 준 지문)가 없다`)
               const rec = { id: 'x-제안', date: new Date().toISOString().slice(0, 10), author: ctx.user, title: String(input.record?.title || ''), body: String(input.record?.body || '') }
               const p = checkProposal(k, { coord, base: s.base, edits: s.edits, record: rec })
+              // 지식관리자의 제안은 검사를 넘으면 바로 넣는다(권한 모델 7절) — 옛 값을 바꾸는 조각도 확인 대기 없이
+              if (p.ok && p.waits === 'review' && hub.canDirect(ctx, id)) p.waits = 'apply'
               add.push(coord)
               if (p.ok || p.mixed) props.push({ coord, base: s.base, edits: s.edits, waits: p.ok ? p.waits : 'tidy' })
               propsOut.push({ coord, ok: !!p.ok, ...(p.ok ? { waits: p.waits, changed: p.changed, ...(p.warnings ? { warnings: p.warnings } : {}) } : { why: p.why, ...(p.stale ? { stale: true } : {}), ...(p.mixed ? { mixed: true } : {}), ...(p.near ? { near: p.near } : {}) }) })
