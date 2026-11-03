@@ -35,6 +35,8 @@ async function beforeText(dir, rel, recordId) {
   }))
 }
 
+const same = (x, y) => String(x).normalize('NFC').trim() === String(y).normalize('NFC').trim()
+
 // { record, sections: [{ doc, heading, content, applied, coords, base, remove? }] } — 지금 그 기록이 표지인 항목만(live)
 export async function revertPlan(k, recordId, { doc = null, heading = null } = {}) {
   const w = k.byWork.get(recordId)
@@ -42,11 +44,14 @@ export async function revertPlan(k, recordId, { doc = null, heading = null } = {
   const sections = []
   for (const d of k.docs) {
     if (doc && d.path !== doc) continue
-    for (const s of d.sections) {
-      if (s.applied !== recordId) continue
-      if (heading && !headingMatches(s.h, heading)) continue
+    // 머리 거르기 — 같은 머리가 있으면 그것만(「배포」 를 되돌리며 「배포 절차」 까지 되돌리지 않게) · 없으면 머리 맞춤(넣은 것 줄의 짧은 머리)
+    const mine = d.sections.filter((s) => s.applied === recordId)
+    const exact = heading ? mine.filter((s) => same(s.h, heading)) : []
+    for (const s of mine) {
+      if (heading && !(exact.length ? exact.includes(s) : headingMatches(s.h, heading))) continue
       const before = await beforeText(k.dir, d.path, recordId)
-      const old = before ? parseDoc(before, '').sections.find((x) => headingMatches(x.h, s.h)) : null
+      // 앞 판의 그 항목 — 머리가 같은 것만(앞 판에 「배포 절차」 만 있으면 「배포」 는 이 기록이 세운 항목 · remove)
+      const old = before ? parseDoc(before, '').sections.find((x) => same(x.h, s.h)) : null
       const base = sha16(s.body)
       const coords = coordsOfSection(k, d, s.h)
       if (old) sections.push({ doc: d.path, heading: s.h, content: old.body, applied: old.applied || null, coords, base })

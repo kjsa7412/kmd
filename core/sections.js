@@ -284,11 +284,17 @@ export function headingMatches(heading, want) {
   const b = want.normalize('NFC')
   return a === b || a.startsWith(b + ':') || a.startsWith(b + ' ')
 }
+// 머리 찾기 — 같은 머리를 먼저, 없으면 머리 맞춤으로(「배포」 를 찾으며 앞에 선 「배포 절차」 를 집지 않게 · S5 검토)
+//   of(x) — 그 줄의 머리(기본 x.h)
+export function findHeading(list, want, of = (x) => x.h) {
+  const w = String(want ?? '').normalize('NFC')
+  return list.find((x) => String(of(x)).normalize('NFC') === w) || list.find((x) => headingMatches(of(x), want))
+}
 
 // 항목 하나를 뺀다(머리째 · 참고 줄도) — 없으면 그대로. 다른 줄은 바이트 그대로 둔다
 export function removeSection(text, { level = 2, heading }) {
   const { lines, ref, found } = splitRef(String(text).split('\n'))
-  const h = headsOf(lines).find((x) => x.level === level && headingMatches(x.heading, heading))
+  const h = findHeading(headsOf(lines).filter((x) => x.level === level), heading, (x) => x.heading)
   if (!h) return text
   const out = [...lines.slice(0, h.line), ...lines.slice(h.end)]
   ref.delete(h.heading)
@@ -298,7 +304,7 @@ export function removeSection(text, { level = 2, heading }) {
 // 항목 이름만 바꾼다 — 글 · 표지는 그대로 · 참고 줄 이름도 같이
 export function renameSection(text, { level = 2, heading, to }) {
   const { lines, ref, found } = splitRef(String(text).split('\n'))
-  const h = headsOf(lines).find((x) => x.level === level && headingMatches(x.heading, heading))
+  const h = findHeading(headsOf(lines).filter((x) => x.level === level), heading, (x) => x.heading)
   if (!h) return text
   lines[h.line] = `${'#'.repeat(level)} ${to}`
   if (!found) return lines.join('\n')
@@ -315,7 +321,7 @@ export function renameSection(text, { level = 2, heading, to }) {
 //   그 항목의 옛 꼴(경과 꼬리 · 규칙 대체 줄)은 이때 참고 블록으로 옮긴다
 export function replaceSection(text, { level = 2, heading, body, applied, log }) {
   const { lines, ref, found } = splitRef(String(text).split('\n'))
-  const h = headsOf(lines).find((x) => x.level === level && headingMatches(x.heading, heading))
+  const h = findHeading(headsOf(lines).filter((x) => x.level === level), heading, (x) => x.heading)
   const name = h ? h.heading : heading
   const sent = cutLog(String(body ?? '').replace(/^\n+|\s+$/g, ''))
   const cur = h ? mergeLog(bodyOf(lines, h.line + 1, h.end).log, ref.get(name) || []) : ref.get(name) || []

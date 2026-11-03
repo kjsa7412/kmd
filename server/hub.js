@@ -43,7 +43,7 @@ import { modelOf, ROLES, CHOICES } from '../core/models.js'
 import { expandSections } from '../core/excerpt.js'
 import { FILE_SCHEMA, filePrompt, fileRecord, COMMIT_SCHEMA, commitPrompt, commitAnalyzed } from '../core/analyze.js'
 import { renderRecord } from '../core/frontmatter.js'
-import { stampAll, headingMatches } from '../core/sections.js'
+import { stampAll, headingMatches, findHeading } from '../core/sections.js'
 import { docfmtDir, checkFormat } from '../core/docformat.js'
 import { fileURLToPath } from 'node:url'
 import { existsSync, readFileSync, statSync, watch as fsWatch } from 'node:fs'
@@ -2213,7 +2213,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           let yl = false
           const items = parsePut(w.body).map((x) => {
             const key = itemKey(x.doc, x.heading)
-            const sec = k.byDocPath.get(x.doc)?.sections.find((s) => headingMatches(s.h, x.heading))
+            const sec = findHeading(k.byDocPath.get(x.doc)?.sections || [], x.heading) // 같은 머리 먼저(배포 / 배포 절차)
             const live = sec?.applied === w.id
             if (!x.isNew && last.get(key) === ctx.user && w.author !== ctx.user) yl = true
             last.set(key, w.author)

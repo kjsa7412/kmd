@@ -189,6 +189,22 @@ test('되돌리기 항목마다(S5): 이력 줄 · 자리 · 하나 되돌린 �
   assert.equal(await code(s.hub.revert(LEE, 'dpms', { record: wr.id, doc: 'docs/로그보관.md', heading: '보관 기간' })), 'E_FORBIDDEN')
   assert.equal(await code(s.hub.revert(KIM, 'dpms', { record: wr.id, doc: 'docs/로그보관.md', heading: '보관 기간' })), 'ok')
   assert.match(fs.readFileSync(lf, 'utf8'), /앱 로그는 30일/)
+  // 머리가 다른 머리 안에 든 항목(배포 / 배포 절차) — 「배포」 만 되돌리면 「배포 절차」 는 그대로(S5 검토)
+  const two = await s.hub.save(KIM, 'dpms', { record: { title: '배포: 순서', body: '## 바뀐 것\n- 배포 · 배포 절차를 세움' }, sections: [
+    { doc: 'docs/백업절차.md', heading: '배포', content: '배포는 화요일에 한다.' },
+    { doc: 'docs/백업절차.md', heading: '배포 절차', content: '배포 절차는 빌드 → 올리기 → 확인 순서다.' },
+  ] })
+  assert.equal(two.put, 2, JSON.stringify(two))
+  const hb = (await s.hub.history(KIM)).find((x) => x.rec === two.id)
+  assert.deepEqual(hb.items.map((x) => [x.heading, x.live]), [['배포', true], ['배포 절차', true]])
+  await s.hub.revert(KIM, 'dpms', { record: two.id, doc: 'docs/백업절차.md', heading: '배포' })
+  t = fs.readFileSync(doc, 'utf8')
+  assert.doesNotMatch(t, /^## 배포$/m)
+  assert.match(t, /^## 배포 절차$/m)
+  assert.match(t, /빌드 → 올리기/)
+  // 되돌림 기록 줄의 항목에는 [되돌리기] 가 없다(표지를 앞 기록에 돌려 둔다)
+  const hr = (await s.hub.history(KIM)).find((x) => x.kind === '되돌림' && x.title === '되돌림: 백업절차 › 배포')
+  assert.ok(hr && !hr.canRevert, JSON.stringify(hr))
 })
 
 test('거두기: 편집기로 고친 문서는 고요 뒤 묶음 1 · 기록 손 고침은 되돌린다', async () => {

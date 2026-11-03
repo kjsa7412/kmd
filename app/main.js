@@ -1848,7 +1848,8 @@ function traceHtml(x, all) {
 // 저장 문이 넣은 항목 한 줄 — 「문서 › 머리」 · 옛 값 → 새 값(또는 새 항목) · [되돌리기](서버가 준 canRevert 이고 지금도 그 기록이 표지인 항목만)
 function histItem(x, it, i) {
   const chg = it.isNew ? '<span class="chip c-acc">새 항목</span>' : it.from || it.to ? `<span class="vchg" data-t="histChg">${esc(it.from || '—')} → ${esc(it.to || '—')}</span>` : ''
-  const st = it.reverted ? '<span class="chip c-mute" data-t="itemReverted">되돌림</span>' : !it.live ? '<span class="small muted">그 뒤 다시 바뀜</span>' : x.canRevert ? `<button type="button" class="btn sm" data-a="revertItem" data-id="${esc(x.id)}" data-i="${i}" data-t="revertItem">되돌리기</button>` : ''
+  // 되돌림 기록의 항목은 표지를 앞 기록에 돌려 두므로 live 가 늘 아니다 — 「그 뒤 다시 바뀜」 을 달지 않는다
+  const st = it.reverted ? '<span class="chip c-mute" data-t="itemReverted">되돌림</span>' : x.kind === '되돌림' ? '' : !it.live ?'<span class="small muted">그 뒤 다시 바뀜</span>' : x.canRevert ? `<button type="button" class="btn sm" data-a="revertItem" data-id="${esc(x.id)}" data-i="${i}" data-t="revertItem">되돌리기</button>` : ''
   return `<li class="${it.reverted ? 'done' : ''}" data-t="histItem"><span class="nm">${esc(it.name)} › <b>${esc(it.heading)}</b></span>${chg}${st}</li>`
 }
 function histRow(x, all) {

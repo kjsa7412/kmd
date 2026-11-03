@@ -27,7 +27,7 @@ import path from 'node:path'
 import { fail, KmdError } from './errors.js'
 import { nfc, oneLine, readText, sha16 } from './text.js'
 import { renderRecord, parseRecord } from './frontmatter.js'
-import { replaceSection, removeSection, renameSection, parseDoc, headingMatches, splitLog, splitRef, mergeLog, logLine, logHas, ROUGH } from './sections.js'
+import { replaceSection, removeSection, renameSection, parseDoc, findHeading, splitLog, splitRef, mergeLog, logLine, logHas, ROUGH } from './sections.js'
 import { formatCheck, formatMessage, keptMessage, lintNew, lintMessage } from './docformat.js'
 import { isReservedUser, isReservedTag, isLogRecord, LOG_DIR } from './names.js'
 import { isReservedFile } from './owners.js'
@@ -357,7 +357,7 @@ async function isTouchesFix(dir, r, touches, registry) {
     if (o.touches.includes(c)) continue
     const loc = locate(registry, c)
     const text = loc && (await fs.readFile(path.join(dir, ...loc.doc.split('/')), 'utf8').then(readText, () => null))
-    const sec = text && parseDoc(text, '').sections.find((x) => headingMatches(x.h, loc.heading))
+    const sec = text && findHeading(parseDoc(text, '').sections, loc.heading)
     if (!sec || sec.applied !== o.id) return false
   }
   if (String(r.body).length > 400) return false
@@ -368,7 +368,7 @@ async function isTouchesFix(dir, r, touches, registry) {
 // 항목 지문 — 읽을 때 준 base 와 같은 계산(applied 표지는 뺀 글 · 항목이 없으면 빈 글)
 export function sectionBase(text, heading) {
   const d = text == null ? null : parseDoc(text, '')
-  const sec = d && d.sections.find((x) => headingMatches(x.h, heading))
+  const sec = d && findHeading(d.sections, heading)
   return sha16(sec ? sec.body : '')
 }
 
@@ -454,7 +454,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
   if ((r.tags || []).includes('edit') && r.date) {
     for (const p of plan) {
       const cur = await fs.readFile(p.full, 'utf8').then(readText, () => null)
-      const sec = cur && parseDoc(cur, '').sections.find((x) => headingMatches(x.h, p.heading))
+      const sec = cur && findHeading(parseDoc(cur, '').sections, p.heading)
       const a = sec?.applied && parseRecord(await readRecordFile(dir, sec.applied), `${sec.applied}.md`)
       if (a && a.date > date) fail('E_CONFLICT', `「${p.heading}」 에는 더 늦은 기록(${a.date})이 이미 들어 있다. 옛 날짜로 고치지 않는다`)
     }
@@ -491,7 +491,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
         continue
       }
       const cur = await fs.readFile(p.full, 'utf8').then(readText, () => null)
-      const old = cur && parseDoc(cur, '').sections.find((x) => headingMatches(x.h, p.heading))
+      const old = cur && findHeading(parseDoc(cur, '').sections, p.heading)
       const name = p.src.heading || p.src.coord || '항목'
       const r = formatCheck(p.content, { doc: p.rel, old: old ? old.body : null })
       if (r.problems.length) {
@@ -510,7 +510,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
     for (const p of plan) {
       if (p.remove || p.rename != null || putRows.some((x) => x.doc === p.rel && x.heading === p.heading)) continue
       const cur = await fs.readFile(p.full, 'utf8').then(readText, () => null)
-      const old = cur && parseDoc(cur, '').sections.find((x) => headingMatches(x.h, p.heading))
+      const old = cur && findHeading(parseDoc(cur, '').sections, p.heading)
       const d = old ? valueDiff(old.body, p.content ?? '') : null
       putRows.push({ doc: p.rel, heading: p.heading, isNew: !old, ...(d || {}) })
     }
@@ -595,7 +595,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
       if (!shape.has(p.rel)) shape.set(p.rel, { before: start, after: null })
       // 사람 · 세션의 저장은 그 항목의 저절로 채우는 표를 그대로 둔다(블록 안은 원천 실행기 · 기계 열쇠만)
       let content = nfc(p.content ?? '')
-      const old = parseDoc(start, '').sections.find((x) => headingMatches(x.h, p.heading))
+      const old = findHeading(parseDoc(start, '').sections, p.heading)
       if (!system && old) content = keepBlocks(old.body, content)
       // 참고 줄(작성기준 2-1) — 옛 줄은 지키고(보낸 글에 없어도) 이번 기록의 줄을 더한다 · 문서 끝 참고 블록에 쓴다(본문에는 넣지 않는다)
       //   kmd 자신의 쓰기에 섞인 경과 꼬리 · 참고 블록은 떼어 줄로 옮긴다(사람 · 세션의 것은 save 의 검사가 이미 거절했다)
