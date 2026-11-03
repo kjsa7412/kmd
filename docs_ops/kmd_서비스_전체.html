@@ -82,6 +82,23 @@ ol.tl b{color:var(--text);margin-right:var(--sp-3)}
 table.words td{vertical-align:top}
 table.words td:first-child{white-space:nowrap}
 table.words code{overflow-wrap:anywhere}
+/* 6 그림 칸 누르기 → 오른쪽 자세히 */
+svg.arch .hit{cursor:pointer}
+svg.arch .hit:hover rect{stroke:var(--accent)}
+svg.arch .hit.on rect{stroke:var(--accent);stroke-width:3}
+svg.arch .hit:focus{outline:0}
+svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dasharray:6 3}
+.ex.detail{max-height:calc(100vh - 32px);overflow:auto}
+.ex.detail .hint{background:var(--accent-bg);border:1px solid var(--accent-line);border-radius:var(--r);padding:var(--sp-4) var(--sp-5);color:var(--text)}
+.ex.detail h5{font-size:var(--fs-md);margin:var(--sp-7) 0 var(--sp-3)}
+.ex.detail ul{margin:var(--sp-2) 0;padding-left:var(--sp-9);font-size:var(--fs);color:var(--text)}
+.ex.detail li{margin:var(--sp-2) 0}
+.ex.detail .dt-cap{font-size:var(--fs-sm);color:var(--text-2);margin-top:var(--sp-4)}
+.ex.detail .dt-nav{display:flex;flex-wrap:wrap;gap:var(--sp-3);align-items:center;margin-bottom:var(--sp-5)}
+.ex.detail .dt-nav .r{margin-left:auto;display:flex;gap:var(--sp-3);flex-wrap:wrap}
+.ex.detail table.bad td:first-child{width:38%}
+.ex.detail table.bad code{overflow-wrap:anywhere;white-space:normal}
+@media (max-width:1279px){.ex.detail{max-height:none}}
 /* 6 원천 → 기록 → 문서 */
 .flowfig{overflow-x:auto;margin:var(--sp-6) 0;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)}
 .flowfig svg.arch{min-width:760px;margin:0}
@@ -274,76 +291,76 @@ table.words code{overflow-wrap:anywhere}
 
 <!-- 1 원천 -->
 <rect class="zone" x="8" y="8" width="984" height="128" rx="12"/><text class="z" x="22" y="28">1 원천 · 들어오는 길 넷</text>
-<rect class="box team" x="22" y="40" width="228" height="84" rx="10"/><text class="t" x="36" y="64">세션 · 화면 저장</text><text class="s" x="36" y="86">MCP save · 화면 고치기 · HTTP save</text><text class="l" x="36" y="106">hub.save · 팀 MCP 는 늘 기록으로</text>
-<rect class="box" x="264" y="40" width="228" height="84" rx="10"/><text class="t" x="278" y="64">파일 넣기</text><text class="s" x="278" y="86">md · docx · pptx · xlsx · hwp · pdf</text><text class="l" x="278" y="106">planImport · 300 파일 · 200MB</text>
-<rect class="box" x="506" y="40" width="228" height="84" rx="10"/><text class="t" x="520" y="64">가져올 곳</text><text class="s" x="520" y="86">git 커밋 · 문서 폴더 · DB 정의</text><text class="l" x="520" y="106">분마다 시계 · 크게 바뀌면 멈춤</text>
-<rect class="box pc" x="748" y="40" width="230" height="84" rx="10"/><text class="t" x="762" y="64">개인 → 팀 보내기</text><text class="s" x="762" y="86">send → POST receive</text><text class="l" x="762" y="106">sent/ 지문 · recv/ 받은 때</text>
+<g class="hit" data-k="s1" role="button" tabindex="0" aria-label="세션 · 화면 저장: 자세히"><rect class="box team" x="22" y="40" width="228" height="84" rx="10"/><text class="t" x="36" y="64">세션 · 화면 저장</text><text class="s" x="36" y="86">MCP save · 화면 고치기 · HTTP save</text><text class="l" x="36" y="106">hub.save · 팀 MCP 는 늘 기록으로</text></g>
+<g class="hit" data-k="s2" role="button" tabindex="0" aria-label="파일 넣기: 자세히"><rect class="box" x="264" y="40" width="228" height="84" rx="10"/><text class="t" x="278" y="64">파일 넣기</text><text class="s" x="278" y="86">md · docx · pptx · xlsx · hwp · pdf</text><text class="l" x="278" y="106">planImport · 300 파일 · 200MB</text></g>
+<g class="hit" data-k="s3" role="button" tabindex="0" aria-label="가져올 곳: 자세히"><rect class="box" x="506" y="40" width="228" height="84" rx="10"/><text class="t" x="520" y="64">가져올 곳</text><text class="s" x="520" y="86">git 커밋 · 문서 폴더 · DB 정의</text><text class="l" x="520" y="106">분마다 시계 · 크게 바뀌면 멈춤</text></g>
+<g class="hit" data-k="s4" role="button" tabindex="0" aria-label="개인 → 팀 보내기: 자세히"><rect class="box pc" x="748" y="40" width="230" height="84" rx="10"/><text class="t" x="762" y="64">개인 → 팀 보내기</text><text class="s" x="762" y="86">send → POST receive</text><text class="l" x="762" y="106">sent/ 지문 · recv/ 받은 때</text></g>
 <path class="ln a" d="M136 124 V160" marker-end="url(#ah)"/><path class="ln" d="M378 124 V160" marker-end="url(#ah)"/><path class="ln" d="M620 124 V160" marker-end="url(#ah)"/><path class="ln g" d="M863 124 V160" marker-end="url(#ah)"/>
 
 <!-- 2 저장 한 길 -->
 <rect class="zone" x="8" y="164" width="984" height="224" rx="12"/><text class="z" x="22" y="184">2 저장 한 길 · core/save.js saveNow · 지식마다 한 줄로 · 하나라도 걸리면 아무것도 쓰지 않는다(괄호는 코드 · 기준 문서의 번호)</text>
 <g>
-<rect class="box" x="22" y="198" width="180" height="80" rx="8"/><text class="t" x="34" y="222">1 칸 모양 검사</text><text class="l" x="34" y="244">제목 200자 · 본문 20만 자</text><text class="l" x="34" y="262">이름은 종류:값 꼴</text>
-<rect class="box" x="214" y="198" width="180" height="80" rx="8"/><text class="t" x="226" y="222">2 새 이름 모양</text><text class="l" x="226" y="244">세우는 이름이 종류:값</text><text class="l" x="226" y="262">60자 · 빈칸 없음(G1)</text>
-<rect class="box" x="406" y="198" width="180" height="80" rx="8"/><text class="t" x="418" y="222">3 새 문서 갈래</text><text class="l" x="418" y="244">갈래 장부의 갈래 · 폴더</text><text class="l" x="418" y="262">· 머리 꼴로만(G4)</text>
-<rect class="box" x="598" y="198" width="180" height="80" rx="8"/><text class="t" x="610" y="222">4 넣을 곳 찾기</text><text class="l" x="610" y="244">이름 → 자리 장부 → 항목</text><text class="l" x="610" y="262">못 찾으면 아무것도 안 씀</text>
-<rect class="box" x="790" y="198" width="180" height="80" rx="8"/><text class="t" x="802" y="222">5 이름 장부 대조</text><text class="l" x="802" y="244">장부 밖 · 폐기 이름(G2)</text><text class="l" x="802" y="262">이름 없으면 까닭(G3)</text>
-<rect class="box" x="22" y="290" width="180" height="80" rx="8"/><text class="t" x="34" y="314">6 읽은 뒤 바뀜?</text><text class="l" x="34" y="336">보낸 지문(base)과 지금 글</text><text class="l" x="34" y="354">다르면 거절(F4)</text>
-<rect class="box" x="214" y="290" width="180" height="80" rx="8"/><text class="t" x="226" y="314">7 문서 꼴 검사</text><text class="l" x="226" y="336">기록 링크 · 주석 · 머리 줄</text><text class="l" x="226" y="354">새로 든 줄만 거절(E_FORMAT)</text>
-<rect class="box" x="406" y="290" width="180" height="80" rx="8"/><text class="t" x="418" y="314">8 기록 id 짓기</text><text class="l" x="418" y="336">YYYY-MMDD-제목 40자</text><text class="l" x="418" y="354">겹치면 -2 · -3</text>
-<rect class="box" x="598" y="290" width="180" height="80" rx="8"/><text class="t" x="610" y="314">9 쓰고 다시 읽기</text><text class="l" x="610" y="336">임시 파일 뒤 이름 바꾸기</text><text class="l" x="610" y="354">읽은 값이 보낸 값인지(F1)</text>
-<rect class="box bk" x="790" y="290" width="180" height="80" rx="8"/><text class="t" x="802" y="314">10 git 한 묶음</text><text class="l" x="802" y="336">기록 · 문서 · 장부를</text><text class="l" x="802" y="354">같이 · 실패하면 되돌림</text>
+<g class="hit" data-k="c1" role="button" tabindex="0" aria-label="1 칸 모양 검사: 자세히"><rect class="box" x="22" y="198" width="180" height="80" rx="8"/><text class="t" x="34" y="222">1 칸 모양 검사</text><text class="l" x="34" y="244">제목 200자 · 본문 20만 자</text><text class="l" x="34" y="262">이름은 종류:값 꼴</text></g>
+<g class="hit" data-k="c2" role="button" tabindex="0" aria-label="2 새 이름 모양: 자세히"><rect class="box" x="214" y="198" width="180" height="80" rx="8"/><text class="t" x="226" y="222">2 새 이름 모양</text><text class="l" x="226" y="244">세우는 이름이 종류:값</text><text class="l" x="226" y="262">60자 · 빈칸 없음(G1)</text></g>
+<g class="hit" data-k="c3" role="button" tabindex="0" aria-label="3 새 문서 갈래: 자세히"><rect class="box" x="406" y="198" width="180" height="80" rx="8"/><text class="t" x="418" y="222">3 새 문서 갈래</text><text class="l" x="418" y="244">갈래 장부의 갈래 · 폴더</text><text class="l" x="418" y="262">· 머리 꼴로만(G4)</text></g>
+<g class="hit" data-k="c4" role="button" tabindex="0" aria-label="4 넣을 곳 찾기: 자세히"><rect class="box" x="598" y="198" width="180" height="80" rx="8"/><text class="t" x="610" y="222">4 넣을 곳 찾기</text><text class="l" x="610" y="244">이름 → 자리 장부 → 항목</text><text class="l" x="610" y="262">못 찾으면 아무것도 안 씀</text></g>
+<g class="hit" data-k="c5" role="button" tabindex="0" aria-label="5 이름 장부 대조: 자세히"><rect class="box" x="790" y="198" width="180" height="80" rx="8"/><text class="t" x="802" y="222">5 이름 장부 대조</text><text class="l" x="802" y="244">장부 밖 · 폐기 이름(G2)</text><text class="l" x="802" y="262">이름 없으면 까닭(G3)</text></g>
+<g class="hit" data-k="c6" role="button" tabindex="0" aria-label="6 읽은 뒤 바뀜?: 자세히"><rect class="box" x="22" y="290" width="180" height="80" rx="8"/><text class="t" x="34" y="314">6 읽은 뒤 바뀜?</text><text class="l" x="34" y="336">보낸 지문(base)과 지금 글</text><text class="l" x="34" y="354">다르면 거절(F4)</text></g>
+<g class="hit" data-k="c7" role="button" tabindex="0" aria-label="7 문서 꼴 검사: 자세히"><rect class="box" x="214" y="290" width="180" height="80" rx="8"/><text class="t" x="226" y="314">7 문서 꼴 검사</text><text class="l" x="226" y="336">기록 링크 · 주석 · 머리 줄</text><text class="l" x="226" y="354">새로 든 줄만 거절(E_FORMAT)</text></g>
+<g class="hit" data-k="c8" role="button" tabindex="0" aria-label="8 기록 id 짓기: 자세히"><rect class="box" x="406" y="290" width="180" height="80" rx="8"/><text class="t" x="418" y="314">8 기록 id 짓기</text><text class="l" x="418" y="336">YYYY-MMDD-제목 40자</text><text class="l" x="418" y="354">겹치면 -2 · -3</text></g>
+<g class="hit" data-k="c9" role="button" tabindex="0" aria-label="9 쓰고 다시 읽기: 자세히"><rect class="box" x="598" y="290" width="180" height="80" rx="8"/><text class="t" x="610" y="314">9 쓰고 다시 읽기</text><text class="l" x="610" y="336">임시 파일 뒤 이름 바꾸기</text><text class="l" x="610" y="354">읽은 값이 보낸 값인지(F1)</text></g>
+<g class="hit" data-k="c10" role="button" tabindex="0" aria-label="10 git 한 묶음: 자세히"><rect class="box bk" x="790" y="290" width="180" height="80" rx="8"/><text class="t" x="802" y="314">10 git 한 묶음</text><text class="l" x="802" y="336">기록 · 문서 · 장부를</text><text class="l" x="802" y="354">같이 · 실패하면 되돌림</text></g>
 </g>
 <path class="ln" d="M500 388 V422" marker-end="url(#ah)"/>
 
 <!-- 3 기록 -->
-<rect class="box ai" x="300" y="426" width="400" height="92" rx="10"/><text class="t" x="316" y="452">기록 work/&lt;id&gt;.md (kmd 의 일은 log/)</text><text class="s" x="316" y="474">id · title · date · author · touches · tags · reflects</text><text class="l" x="316" y="496">「## 바뀐 것 · 까닭 · 버린 안 · 영향 · 근거」 · 「## 고친 조각」(제안)</text>
-<rect class="box pc" x="22" y="426" width="252" height="92" rx="10"/><text class="t" x="36" y="452">제안 apply → 바로 문서</text><text class="s" x="36" y="474">값을 더하기만 하는 조각</text><text class="l" x="36" y="496">applyProposals · 저장하는 순간</text>
-<rect class="box bk" x="726" y="426" width="252" height="92" rx="10"/><text class="t" x="740" y="452">제안 review → [넣기]</text><text class="s" x="740" y="474">옛 값을 바꾸거나 지우는 조각</text><text class="l" x="740" y="496">지식관리자 · proposal/:rec/put</text>
+<g class="hit" data-k="r" role="button" tabindex="0" aria-label="기록 work/&lt;id&gt;.md (kmd 의 일은 log/): 자세히"><rect class="box ai" x="300" y="426" width="400" height="92" rx="10"/><text class="t" x="316" y="452">기록 work/&lt;id&gt;.md (kmd 의 일은 log/)</text><text class="s" x="316" y="474">id · title · date · author · touches · tags · reflects</text><text class="l" x="316" y="496">「## 바뀐 것 · 까닭 · 버린 안 · 영향 · 근거」 · 「## 고친 조각」(제안)</text></g>
+<g class="hit" data-k="pa" role="button" tabindex="0" aria-label="제안 apply → 바로 문서: 자세히"><rect class="box pc" x="22" y="426" width="252" height="92" rx="10"/><text class="t" x="36" y="452">제안 apply → 바로 문서</text><text class="s" x="36" y="474">값을 더하기만 하는 조각</text><text class="l" x="36" y="496">applyProposals · 저장하는 순간</text></g>
+<g class="hit" data-k="pr" role="button" tabindex="0" aria-label="제안 review → [넣기]: 자세히"><rect class="box bk" x="726" y="426" width="252" height="92" rx="10"/><text class="t" x="740" y="452">제안 review → [넣기]</text><text class="s" x="740" y="474">옛 값을 바꾸거나 지우는 조각</text><text class="l" x="740" y="496">지식관리자 · proposal/:rec/put</text></g>
 <path class="ln g" d="M300 472 H278" marker-end="url(#ah)"/><path class="ln w" d="M700 472 H722" marker-end="url(#ah)"/>
 <path class="ln p" d="M500 518 V552" marker-end="url(#ah)"/><text class="l" x="510" y="540">반영 대기(pend) · 이름 없음(nowhere)</text>
 
 <!-- 4 언제 -->
 <rect class="zone" x="8" y="556" width="984" height="104" rx="12"/><text class="z" x="22" y="576">3 언제 정리하나 · tidyNow → 일감(queued) · 같은 지식에 도는 일감이 있으면 그것</text>
-<rect class="box" x="22" y="586" width="232" height="62" rx="8"/><text class="t" x="34" y="610">정해진 시각</text><text class="l" x="34" y="632">기본 02:30 · 분마다 보고 하루 한 번</text>
-<rect class="box" x="264" y="586" width="232" height="62" rx="8"/><text class="t" x="276" y="610">실시간</text><text class="l" x="276" y="632">저장 · 받기 뒤 5분 조용하면</text>
-<rect class="box" x="506" y="586" width="232" height="62" rx="8"/><text class="t" x="518" y="610">손으로만 · [지금 정리]</text><text class="l" x="518" y="632">고른 기록 500 까지 · 쓰기 자리는 자기 것</text>
-<rect class="box" x="748" y="586" width="230" height="62" rx="8"/><text class="t" x="760" y="610">넣기 · 코드 바뀜 뒤</text><text class="l" x="760" y="632">바로(손으로만 방식은 빼고)</text>
+<g class="hit" data-k="w1" role="button" tabindex="0" aria-label="정해진 시각: 자세히"><rect class="box" x="22" y="586" width="232" height="62" rx="8"/><text class="t" x="34" y="610">정해진 시각</text><text class="l" x="34" y="632">기본 02:30 · 분마다 보고 하루 한 번</text></g>
+<g class="hit" data-k="w2" role="button" tabindex="0" aria-label="실시간: 자세히"><rect class="box" x="264" y="586" width="232" height="62" rx="8"/><text class="t" x="276" y="610">실시간</text><text class="l" x="276" y="632">저장 · 받기 뒤 5분 조용하면</text></g>
+<g class="hit" data-k="w3" role="button" tabindex="0" aria-label="손으로만 · [지금 정리]: 자세히"><rect class="box" x="506" y="586" width="232" height="62" rx="8"/><text class="t" x="518" y="610">손으로만 · [지금 정리]</text><text class="l" x="518" y="632">고른 기록 500 까지 · 쓰기 자리는 자기 것</text></g>
+<g class="hit" data-k="w4" role="button" tabindex="0" aria-label="넣기 · 코드 바뀜 뒤: 자세히"><rect class="box" x="748" y="586" width="230" height="62" rx="8"/><text class="t" x="760" y="610">넣기 · 코드 바뀜 뒤</text><text class="l" x="760" y="632">바로(손으로만 방식은 빼고)</text></g>
 <path class="ln" d="M500 660 V692" marker-end="url(#ah)"/>
 
 <!-- 5 재료 -->
 <rect class="zone" x="8" y="696" width="984" height="112" rx="12"/><text class="z" x="22" y="716">4 재료 · 넣을 곳 찾기 · core/tidy.js material · 세 번 둔 기록(HOLD 3)은 자동 정리에서 뺌</text>
-<rect class="box" x="22" y="728" width="150" height="66" rx="8"/><text class="t" x="34" y="752">touches</text><text class="l" x="34" y="774">종류:값</text>
-<rect class="box" x="204" y="728" width="168" height="66" rx="8"/><text class="t" x="216" y="752">이름 장부</text><text class="l" x="216" y="774">_vocab.md · 다른 이름 · 폐기</text>
-<rect class="box" x="404" y="728" width="168" height="66" rx="8"/><text class="t" x="416" y="752">자리 장부</text><text class="l" x="416" y="774">_managed.md · 종류:* 꼴</text>
-<rect class="box team" x="604" y="728" width="168" height="66" rx="8"/><text class="t" x="616" y="752">문서 › 항목</text><text class="l" x="616" y="774">sectionOf · 「값:」 머리</text>
-<rect class="box bk" x="804" y="728" width="174" height="66" rx="8"/><text class="t" x="816" y="752">이름 없음 · 파일</text><text class="l" x="816" y="774">후보 이름 8 · 후보 문서 5</text>
+<g class="hit" data-k="m1" role="button" tabindex="0" aria-label="touches: 자세히"><rect class="box" x="22" y="728" width="150" height="66" rx="8"/><text class="t" x="34" y="752">touches</text><text class="l" x="34" y="774">종류:값</text></g>
+<g class="hit" data-k="m2" role="button" tabindex="0" aria-label="이름 장부: 자세히"><rect class="box" x="204" y="728" width="168" height="66" rx="8"/><text class="t" x="216" y="752">이름 장부</text><text class="l" x="216" y="774">_vocab.md · 다른 이름 · 폐기</text></g>
+<g class="hit" data-k="m3" role="button" tabindex="0" aria-label="자리 장부: 자세히"><rect class="box" x="404" y="728" width="168" height="66" rx="8"/><text class="t" x="416" y="752">자리 장부</text><text class="l" x="416" y="774">_managed.md · 종류:* 꼴</text></g>
+<g class="hit" data-k="m4" role="button" tabindex="0" aria-label="문서 › 항목: 자세히"><rect class="box team" x="604" y="728" width="168" height="66" rx="8"/><text class="t" x="616" y="752">문서 › 항목</text><text class="l" x="616" y="774">sectionOf · 「값:」 머리</text></g>
+<g class="hit" data-k="m5" role="button" tabindex="0" aria-label="이름 없음 · 파일: 자세히"><rect class="box bk" x="804" y="728" width="174" height="66" rx="8"/><text class="t" x="816" y="752">이름 없음 · 파일</text><text class="l" x="816" y="774">후보 이름 8 · 후보 문서 5</text></g>
 <path class="ln" d="M172 761 H200" marker-end="url(#ah)"/><path class="ln" d="M372 761 H400" marker-end="url(#ah)"/><path class="ln" d="M572 761 H600" marker-end="url(#ah)"/>
 <path class="ln" d="M500 808 V840" marker-end="url(#ah)"/>
 
 <!-- 6 초안 -->
 <rect class="zone" x="8" y="844" width="984" height="104" rx="12"/><text class="z" x="22" y="864">5 초안 · 정리 일꾼(kmd-worker) · 일감마다 단기 열쇠 kmdd_ 30분</text>
-<rect class="box" x="22" y="874" width="226" height="62" rx="8"/><text class="t" x="34" y="898">묶기 batchesOf</text><text class="l" x="34" y="920">같은 문서 16 자리 · 6만 자 · 3천 자</text>
-<rect class="box" x="262" y="874" width="226" height="62" rx="8"/><text class="t" x="274" y="898">프롬프트</text><text class="l" x="274" y="920">WRITE · MUST · OLD · SPREAD · 조각</text>
-<rect class="box ai" x="502" y="874" width="226" height="62" rx="8"/><text class="t" x="514" y="898">claude -p</text><text class="l" x="514" y="920">json-schema · 도구 없음 · $0.5 · 5~15분</text>
-<rect class="box" x="742" y="874" width="236" height="62" rx="8"/><text class="t" x="754" y="898">자리마다 올림</text><text class="l" x="754" y="920">drafts part · 서버가 묶음을 다시 짓는다</text>
+<g class="hit" data-k="d1" role="button" tabindex="0" aria-label="묶기 batchesOf: 자세히"><rect class="box" x="22" y="874" width="226" height="62" rx="8"/><text class="t" x="34" y="898">묶기 batchesOf</text><text class="l" x="34" y="920">같은 문서 16 자리 · 6만 자 · 3천 자</text></g>
+<g class="hit" data-k="d2" role="button" tabindex="0" aria-label="프롬프트: 자세히"><rect class="box" x="262" y="874" width="226" height="62" rx="8"/><text class="t" x="274" y="898">프롬프트</text><text class="l" x="274" y="920">WRITE · MUST · OLD · SPREAD · 조각</text></g>
+<g class="hit" data-k="d3" role="button" tabindex="0" aria-label="claude -p: 자세히"><rect class="box ai" x="502" y="874" width="226" height="62" rx="8"/><text class="t" x="514" y="898">claude -p</text><text class="l" x="514" y="920">json-schema · 도구 없음 · $0.5 · 5~15분</text></g>
+<g class="hit" data-k="d4" role="button" tabindex="0" aria-label="자리마다 올림: 자세히"><rect class="box" x="742" y="874" width="236" height="62" rx="8"/><text class="t" x="754" y="898">자리마다 올림</text><text class="l" x="754" y="920">drafts part · 서버가 묶음을 다시 짓는다</text></g>
 <path class="ln" d="M248 905 H258" marker-end="url(#ah)"/><path class="ln" d="M488 905 H498" marker-end="url(#ah)"/><path class="ln" d="M728 905 H738" marker-end="url(#ah)"/>
 <path class="ln" d="M500 948 V980" marker-end="url(#ah)"/>
 
 <!-- 7 검사 -->
 <rect class="zone" x="8" y="984" width="984" height="88" rx="12"/><text class="z" x="22" y="1004">6 검사 · check · Claude 가 쓴 글을 사람 없이 믿지 않는다</text>
-<rect class="box" x="22" y="1014" width="560" height="48" rx="8"/><text class="s" x="34" y="1043">읽은 뒤 바뀜 · 문서 꼴 · 크기 · 빠진 값 · 지어낸 값 · 빠진 옛 값 · 옛 기록 되돌림</text>
-<rect class="box bk" x="600" y="1014" width="180" height="48" rx="8"/><text class="t" x="612" y="1036">고쳐 쓰기 한 번</text><text class="l" x="612" y="1054">까닭을 붙여 다시</text>
-<rect class="box bk" x="796" y="1014" width="182" height="48" rx="8"/><text class="t" x="808" y="1036">둠 → 세 번이면</text><text class="l" x="808" y="1054">사람이 볼 것</text>
+<g class="hit" data-k="k1" role="button" tabindex="0" aria-label="읽은 뒤 바뀜 · 문서 꼴 · 크기 · 빠진 값 · 지어낸 값 · 빠진 옛 값 · 옛 기록 되돌림: 자세히"><rect class="box" x="22" y="1014" width="560" height="48" rx="8"/><text class="s" x="34" y="1043">읽은 뒤 바뀜 · 문서 꼴 · 크기 · 빠진 값 · 지어낸 값 · 빠진 옛 값 · 옛 기록 되돌림</text></g>
+<g class="hit" data-k="k2" role="button" tabindex="0" aria-label="고쳐 쓰기 한 번: 자세히"><rect class="box bk" x="600" y="1014" width="180" height="48" rx="8"/><text class="t" x="612" y="1036">고쳐 쓰기 한 번</text><text class="l" x="612" y="1054">까닭을 붙여 다시</text></g>
+<g class="hit" data-k="k3" role="button" tabindex="0" aria-label="둠 → 세 번이면: 자세히"><rect class="box bk" x="796" y="1014" width="182" height="48" rx="8"/><text class="t" x="808" y="1036">둠 → 세 번이면</text><text class="l" x="808" y="1054">사람이 볼 것</text></g>
 <path class="ln w" d="M690 1014 C690 982 900 972 900 948" marker-end="url(#ah)"/><text class="l" x="760" y="976">다시 초안</text>
 <path class="ln g" d="M300 1062 V1096" marker-end="url(#ah)"/><text class="l" x="310" y="1084">넘음</text>
 
 <!-- 8 넣기 -->
 <rect class="zone" x="8" y="1100" width="984" height="74" rx="12"/><text class="z" x="22" y="1120">7 넣기 · planSave → coreSave(kmd-auto · curate-llm · reflects)</text>
-<rect class="box pc" x="22" y="1128" width="300" height="38" rx="8"/><text class="s" x="34" y="1152">항목 글 + applied 표지 + 참고 줄</text>
-<rect class="box bk" x="336" y="1128" width="200" height="38" rx="8"/><text class="s" x="348" y="1152">git 한 묶음 · 백업 밀기</text>
-<rect class="box" x="550" y="1128" width="214" height="38" rx="8"/><text class="s" x="562" y="1152">알림 · 값 바뀜은 노랑</text>
-<rect class="box" x="778" y="1128" width="200" height="38" rx="8"/><text class="s" x="790" y="1152">되돌리기 · revertPlan</text>
+<g class="hit" data-k="p1" role="button" tabindex="0" aria-label="항목 글 + applied 표지 + 참고 줄: 자세히"><rect class="box pc" x="22" y="1128" width="300" height="38" rx="8"/><text class="s" x="34" y="1152">항목 글 + applied 표지 + 참고 줄</text></g>
+<g class="hit" data-k="p2" role="button" tabindex="0" aria-label="git 한 묶음 · 백업 밀기: 자세히"><rect class="box bk" x="336" y="1128" width="200" height="38" rx="8"/><text class="s" x="348" y="1152">git 한 묶음 · 백업 밀기</text></g>
+<g class="hit" data-k="p3" role="button" tabindex="0" aria-label="알림 · 값 바뀜은 노랑: 자세히"><rect class="box" x="550" y="1128" width="214" height="38" rx="8"/><text class="s" x="562" y="1152">알림 · 값 바뀜은 노랑</text></g>
+<g class="hit" data-k="p4" role="button" tabindex="0" aria-label="되돌리기 · revertPlan: 자세히"><rect class="box" x="778" y="1128" width="200" height="38" rx="8"/><text class="s" x="790" y="1152">되돌리기 · revertPlan</text></g>
 </svg>
 </div>
 <p class="small muted">색: 파랑 팀 · 초록 개인 · 넣음 / 보라 기록 · Claude / 노랑 사람 확인 · 저장소 · 둠. 점선은 사람이 고르거나 다시 하는 길이다.</p>
@@ -351,14 +368,14 @@ table.words code{overflow-wrap:anywhere}
 <li><b>저장 가드 G1 ~ G4</b>(<a href="../docs/kmd_문서_작성기준.md">작성기준</a> 9절 · <code>core/guard.js</code>): G1 새 이름 모양 · G2 이름 장부에 있는 이름만 · G3 이름도 자리도 없으면 까닭 · G4 새 문서는 갈래 장부대로.</li>
 <li><b>정리 검사 G1 ~ G6</b>(<code>core/tidy.js</code> check): G1 초안 모양 · G2 읽은 뒤 바뀜 · G4 값 대조(빠진 값 · 지어낸 값) · G5 크기 · G6 문서 꼴.</li>
 <li><b>F1 · F4</b>(<code>core/save.js</code>): F1 쓰고 다시 읽어 대조 · F4 읽은 뒤 바뀌었나(지문 base). <b>E_FORMAT</b> 은 문서 꼴에 걸렸을 때의 오류 이름(작성기준 8절).</li>
-</ul></div></div><aside class="ex"><div class="ex-h"><span class="tag g">실제 예 · 188 DPMS</span><b>기록 하나가 지나간 길(2026-1102-개발-환경-확정)</b></div><div class="ex-tools"><span class="xt sk"><b>스킬</b> kmd-team-save</span><span class="xt mcp"><b>MCP</b> match · save</span><span class="xt cli"><b>호출</b> 정리 일꾼 claude -p</span></div>
+</ul></div></div><aside class="ex detail" id="coreDetail" aria-live="polite"><div id="coreDefault"><p class="hint">그림의 칸을 누르면 그 칸이 <b>무엇을 보나 · 이렇게 본다 · 통과하는 예 · 걸리는 예(실제 오류 글) · 출처</b>가 여기에 뜬다. 키보드는 Tab 으로 칸을 고르고 Enter.</p><div class="ex-h"><span class="tag g">실제 예 · 188 DPMS</span><b>기록 하나가 지나간 길(2026-1102-개발-환경-확정)</b></div><div class="ex-tools"><span class="xt sk"><b>스킬</b> kmd-team-save</span><span class="xt mcp"><b>MCP</b> match · save</span><span class="xt cli"><b>호출</b> 정리 일꾼 claude -p</span></div>
 <ol class="tl">
 <li><time>11-02 14:48</time><b>세션 저장</b> kjsa 의 Claude Code · 스킬 kmd-team-save · MCP <code>match</code> 3 → <code>save</code>. 서식 칸 · 이름 셋.</li>
 <li><time>14:48</time><b>저장 한 길</b> 칸 모양 ✓ · 이름 장부 ✓(셋 다 장부에 있다) · 넣을 곳 ✓ · 문서 꼴 ✓ · id <code>2026-1102-개발-환경-확정</code> · git 한 묶음. 팀 MCP 라 반영 대기.</li>
 <li><time>16:16</time><b>정리</b> 「2. 배치」 넣음(정리 기록 2026-1102-정리-8 · applied 표지 · 참고 줄) · 「4. 구성 순서」 둠: 근거에 없는 값.</li>
 <li><time>11-03 02:30</time><b>자동 정리</b> 다른 기록이 DPA020 에 배포 경위 문장을 넣었다 → 규칙 고침(cd48b99) · 11:39 지식관리자가 걷음(84f0081).</li>
 <li><time>11:40 ~ 12:15</time><b>다시 정리 여섯 번</b> 검사 고침 · 보탬 기록 · 예산 · 표기 · 마지막에 초안이 옛 값을 뺌 → 둠. 기록은 반영 대기로 남아 문서 옆에 같이 읽힌다.</li>
-</ol></aside></div>
+</ol></div><div id="coreBody" hidden></div></aside></div>
 
 <h3 id="core-a">들어오는 길: 원천 → 기록</h3>
 <div class="pairs">
@@ -781,5 +798,158 @@ curl -s localhost:8090/healthz             # build 가 새 판인지</code></pre
 </article>
 
 </div>
+<script>
+// 「6」 그림의 칸마다 자세히 — 무엇을 보나 · 이렇게 본다 · 통과하는 예 · 걸리는 예(실제 오류 글) · 출처
+// 걸리는 예의 오류 글은 검사 함수를 시험 지식(test/fixture)에 돌려 받은 글 그대로다(2026-11-03)
+const KMD_DETAIL = {
+s1: { g: '1 원천', t: '세션 · 화면 저장', what: '사람이나 Claude Code 세션이 「바뀐 것」 을 남기는 길. 셋 모두 <code>hub.save</code> 하나로 모이고, 거기서 <code>core/save.js</code> 의 저장 한 길(그림 2)을 탄다.',
+  rules: ['<b>세션</b>: 스킬 <code>kmd-team-save</code> 대로 MCP <code>match</code> 로 이름을 맞추고 <code>save</code> 한 번. 기록 글은 서식 칸으로만 받는다(changes 꼭 · why · dropped · impact · refs).', '<b>화면 고치기</b>: 문서 화면 [고치기] → <code>POST /api/k/:id/edit</code>. 지식관리자면 문서에 바로, 쓰기 자리면 기록으로.', '<b>팀 MCP 저장은 늘 기록으로</b>: 지식관리자의 세션도 항목 글을 문서에 바로 쓰지 않는다. 기록 본문의 <code>## 머리</code> 칸으로 넘겨 정리 때 넣는다(반영 대기).'],
+  ok: [{ cap: '세션이 보낸 save(188 · 11-02 14:48 · kjsa)', code: 'save {\n  knowledge: "dpms",\n  title: "개발 환경 확정: DPMS 187, 게이트웨이 · PLC 시뮬레이터 188 …",\n  touches: ["개발환경:내부시험서버", "내부시험서버:배치", "내부시험서버:구성순서"],\n  changes: ["게이트웨이 위치: 개발 PC … → 188 systemd dpms-gw …", …],\n  why: ["2026-11-02 개발 환경 확정 지시 …"]\n}\n→ work/2026-1102-개발-환경-확정.md · 반영 대기' }],
+  bad: [{ in: 'changes 없이 줄글 body 하나만', msg: 'E_INPUT(서식 칸이 없다 · 「바뀐 것」 이 꼭 있다)' }, { in: '이미 있는 항목을 base 없이 고침', msg: 'E_CONFLICT(section 이 준 base 를 같이 보낸다)' }],
+  src: 'server/mcp.js:241 save · server/hub.js:719 save · :925 edit · core/guard.js:270 recordBody', std: '권한 모델 5절 · 작성기준 7절' },
+s2: { g: '1 원천', t: '파일 넣기', what: '회의록 · 설계서 · 보고서 파일을 넣으면 <b>파일 하나가 기록 하나</b>가 된다. 원본은 첨부로 두고, 넣을 문서는 나중에 정리(팀)나 에이전트(개인)가 고른다.',
+  rules: ['한 번에 300 파일 · 200MB 까지.', '글로 바꾸기: md 그대로 · txt/csv/html/json → md · docx · pptx · xlsx · hwpx(풀린 항목 32MB · 합 64MB) · hwp 64MB · pdf 2000쪽(쪽당 20자 못 미치면 스캔으로 본다). 목차는 걷는다.', '같은 글(지문 <code>md/&lt;sha16&gt;</code>)이면 다시 쓰지 않는다.', '가드는 붙잡아 두기(hold): 이름이 없어도 거절하지 않고 까닭 「가져옴: 넣은 파일(정리가 문서 자리를 고른다)」 을 단다.'],
+  ok: [{ cap: '회의록-1103.md 를 넣은 출력(planImport)', code: 'title: "회의록-1103.md: 넣은 파일"\ntags:  ["ingest/회의록-1103.md", "md/bd43a41be8e37097"]\n행:    「기록이 됐다: DPMS 지식 › 기록 · 정리가 기존 문서에 넣거나 새 문서로 세운다」' }],
+  bad: [{ in: '301 파일', msg: '한 번에 300 파일까지: 나눠 넣는다' }, { in: '합 250MB', msg: '한 번에 200MB 까지: 나눠 넣는다' }, { in: '같은 파일을 또', msg: '같은 파일: 그대로 두었다' }],
+  src: 'core/importer.js:149 planImport · :186 asRecord · server/hub.js:2765 importFiles', std: '작성기준 7절 「파일 · 폴더 넣기」' },
+s3: { g: '1 원천', t: '가져올 곳', what: '사람이 넣지 않아도 kmd 가 정해진 때에 원본(git 저장소 · 문서 폴더 · DB)을 읽어 기록을 만든다. 지식의 <code>_sources.json</code> 에 선언한다.',
+  rules: ['시계가 분마다 본다: change 5분 · hourly · daily HH:MM · weekly · manual(사람만).', 'git: 처음은 기준 커밋만 적는다. 그 뒤 새 커밋마다 코드 파일이 바뀌었으면 기록 하나(첫 줄 「바뀐 값: 옛 → 새」 · 태그 <code>code-change</code>).', '문서 폴더: 바뀐 파일만 파일 넣기 길로.', 'DB: 읽기 전용 · 카탈로그만 · <code>table:&lt;이름&gt;</code> 항목에 정의 표를 채운다.', '<b>크게 바뀜</b>: 새 항목 10 넘게 또는 사라짐 10% 넘게면 쓰지 않고 멈춘다(일 줄 「크게 바뀜」 · [그대로 맞추기]).'],
+  ok: [{ cap: '커밋 하나 → 기록(commitRecord 출력)', code: 'title: "카나리 비율 20%: dpms-api 코드 3f2a9c1"\nbody:  바뀐 값: 10% → 20%: canary.js\n       dpms-api 코드 · 묶음 3f2a9c1 · lee · 2026-11-03 10:12\n       ```diff …```' }],
+  bad: [{ in: '문서 폴더에서 한 번에 40% 가 사라짐', msg: '멈춤 · 일 줄 「크게 바뀜」(쓰지 않는다)' }],
+  note: '188 의 두 지식은 아직 가져올 곳을 두지 않았다.', src: 'core/sources.js:287 planRun · :364 runCode · :464 runDb · :533 runDocs · core/codechange.js:118', std: '서비스 전체 6-3' },
+s4: { g: '1 원천', t: '개인 → 팀 보내기', what: '개인 프로그램의 개인 지식에서 쓴 기록 · 문서를 팀 지식의 기록으로 보낸다. 팀에서는 다른 기록처럼 정리 때 문서에 들어간다.',
+  rules: ['기기 열쇠로 <code>POST /api/k/&lt;kn&gt;/receive</code>.', '지문 <code>sent/&lt;sha16&gt;</code> 이 이미 있으면 받지 않는다(두 번 보내도 한 장).', '받는 지식 장부와 <b>꼭 맞는</b> 이름만 touches 로 단다(개인 장부의 이름이 팀 장부에 없을 수 있다).', '쓴 때(date)는 지키고, 받은 때는 <code>recv/</code> 태그로. 정리는 받은 때로 「이미 들었나」 를 본다.'],
+  ok: [{ cap: '받은 기록의 꼴(hub.receive)', code: 'title: "카나리: 첫 30분 20%"\ndate:  2026-11-03 10:20      ← 보낸 쪽 쓴 때\ntags:  ["sent/<sha16>", "recv/202611031432"]\nbody:  <보낸 곳>에서 보냄 …' }],
+  bad: [{ in: '팀 서버에 닿지 않음', msg: '기다림 · 분마다 다시 보낸다' }, { in: '거절(4xx)', msg: '못함 · 사람이 [다시]' }],
+  src: 'core/send.js · server/hub.js:3061 send · :3167 receive · :337 recvTouches', std: '서비스 전체 6-4' },
+c1: { g: '2 저장 한 길', t: '1 칸 모양 검사', what: '저장 요청의 <b>칸이 정해진 모양인가</b>만 본다(뜻은 보지 않는다). 하나라도 어긋나면 아무것도 쓰지 않고 <code>E_INPUT</code>(400).',
+  rules: ['제목: 한 줄 · 200자 안 · 비면 안 됨.', '본문: 글 · 20만 자 안.', '날짜(보낼 때만): <code>YYYY-MM-DD</code> 또는 <code>YYYY-MM-DD HH:MM</code>.', 'touches: 「종류:값」 꼴의 한 줄 목록(종류에 빈칸 · <code>:</code> · 백틱 없음).', 'tags: 60자 안 한 줄 · fixes: 120자 안.', '항목(sections): 새 글(content) 또는 지우기 · 이름 바꾸기가 있고, 이름(coord) 또는 문서 · 머리로 가리킨다. base 는 16자 지문.'],
+  ok: [{ cap: '통과', code: '{ title: "카나리: 첫 30분 20%",\n  body: "## 바뀐 것\\n- 카나리 비율: 10% → 20%",\n  touches: ["proc:카나리"] }' }],
+  bad: [{ in: 'title: "카나리\\n20%"', msg: '제목은 한 줄 글이다' }, { in: 'title 201자', msg: '제목이 너무 길다. 200자 안' }, { in: 'date: "11/03"', msg: '날짜는 YYYY-MM-DD 또는 YYYY-MM-DD HH:MM 모양이다' }, { in: 'touches: ["카나리 비율"]', msg: 'touches 는 한 줄 글의 목록이다' }, { in: 'sections: [{ heading: "준비" }]', msg: '항목마다 content(새 글)가 있다' }, { in: 'base: "abc"', msg: 'base 는 읽을 때 받은 16자 지문이다' }],
+  src: 'core/save.js:54 check · :34 COORD', std: '작성기준 7절' },
+c2: { g: '2 저장 한 길', t: '2 새 이름 모양(G1)', what: '저장과 같이 <b>새로 세우는 이름</b>(names)이 이름 꼴인가. 이미 장부에 있는 이름은 보지 않는다. 이름은 문장이 아니라 <b>열쇠</b>라서 빈칸을 받지 않고, 사람이 읽는 말은 보이는 이름(label)에 쓴다.',
+  rules: ['「종류:값」 이어야 한다.', '종류: 영문 소문자 또는 한글로 시작하는 24자 안 낱말(<code>proc</code> · <code>내부시험서버</code>).', '값: 빈칸 없이 · 60자 안 · 백틱 · <code>|</code> · <code>..</code> 없이.', 'kmd 가 쓰는 이름(예약)은 못 쓴다.', '값이 이미 다른 이름의 값 · 다른 이름이면 알림(같은 것이면 그 이름을 쓴다).', '거절형(세션 · 화면)은 저장을 거절하고, 붙잡아 두기(파일 · 가져오기 · 받기)는 그 이름만 세우지 않는다.'],
+  ok: [{ cap: '188 DPMS 에 있는 이름', code: 'names: [{ coord: "내부시험서버:구성순서", label: "구성 순서" }]\n→ _vocab.md: - `내부시험서버:구성순서`: 구성 순서' }],
+  bad: [{ in: '내부시험서버:구성 순서', msg: '값 「구성 순서」 에 빈칸이 있다. 이름은 문장이 아니라 열쇠다: 붙여 쓰거나(헬스체크) _ 로 잇는다. 설명은 보이는 이름(label)에 쓴다' }, { in: 'Proc:카나리', msg: '종류 「Proc」 는 영문 소문자 또는 한글로 시작하는 24자 안의 낱말이다' }, { in: '구성순서', msg: '이름은 「종류:값」 이다' }, { in: 'proc:(61자)', msg: '값 「…」 은 60자 안 · 빈칸 · ` · | 없는 글이다' }],
+  src: 'core/guard.js:25 newNameWhy · :156 guardNames · core/save.js:259', std: '작성기준 9절 G1' },
+c3: { g: '2 저장 한 길', t: '3 새 문서 갈래(G4)', what: '저장이 <b>지금 없는 문서</b>를 세울 때만 본다. 「갈래」 는 그 지식이 허락한 문서 종류(회의록 · 설계서 · 대장 …)로, 지식의 <b>갈래 장부</b> <code>_forms.md</code> 에 적혀 있다. 파일 이름대로 새 문서가 마구 서지 않게 한다.',
+  rules: ['문서 이름에 파일 이름 조각(날짜 · 판 · 최종 · 사본 · 확장자)이 없다.', '문서 이름 40자 안.', '이름이 갈래 이름이거나 그 갈래의 다른 이름을 품으면 그 갈래다 → 새 문서 대신 <b>그 갈래 문서의 항목</b>으로 넣는다.', '장부가 있는데 어느 갈래도 아니면 거절(지식관리자가 갈래를 더한 뒤 세운다).', '그 갈래의 폴더에 둔다.', '항목 머리 꼴: 사건(회의록 등) 「YYYY-MM-DD 무엇」 · 대장 「값: 설명」 · 대상 자유.', '대장 갈래에 이름 패턴(예 <code>이슈:*</code>)이 있으면 자리 장부 줄을 같이 세운다.'],
+  ok: [{ cap: '188 DPMS 갈래 장부(35 갈래) 가운데', code: '| 회의록 | 회의, 미팅, 통화, 전화, 면담, 킥오프 | 1.2_사업관리 | 사건 | - |\n| 위험및이슈관리대장 | 이슈, 위험 | 1.2_사업관리 | 대장 | `이슈:*` |\n| 내부시험서버구성서 | - | 4.1_개발환경 | 대상 | - |\n\n새 문서 docs/1.2_사업관리/회의록.md · 머리 「2026-11-03 배포 점검」 → 통과' }],
+  bad: [{ in: 'docs/전화메모-20261103.md', msg: '새 문서 이름 「전화메모-20261103」 에 파일 이름 조각(날짜 · 판 · 최종 · 확장자)이 있다. 문서 이름은 갈래 · 주제로 짓는다(예: 회의록 · 게이트웨이 설계) / 「전화메모-20261103」 은 「회의록」 갈래다. 새 문서를 세우지 않고 「회의록」 문서에 항목(「언제 · 무엇」)으로 넣는다' }, { in: 'docs/1.2_사업관리/통화 기록.md', msg: '「통화 기록」 은 「회의록」 갈래다. 새 문서를 세우지 않고 「회의록」 문서에 항목(「언제 · 무엇」)으로 넣는다' }, { in: 'docs/배포메모.md', msg: '「배포메모」 은 갈래 장부에 없는 문서다. 있는 갈래(…) 문서에 넣거나, 지식관리자가 갈래 장부에 갈래를 더한 뒤 세운다' }, { in: 'docs/회의록.md(폴더 없음)', msg: '「회의록」 갈래 문서는 「1.2_사업관리/」 폴더에 둔다' }, { in: '회의록에 머리 「배포 점검」', msg: '「회의록」 의 항목 머리 꼴이 아니다: 배포 점검. 머리는 「YYYY-MM-DD 무엇」 이다' }],
+  src: 'core/guard.js:225 guardNewDoc · :214 FILEISH · :217 formFor · core/save.js:278', std: '작성기준 6절 갈래 · 9절 G4' },
+c4: { g: '2 저장 한 길', t: '4 넣을 곳 찾기', what: '항목 글을 이름(coord)으로 가리켰으면 그 이름이 <b>어느 문서의 어느 머리</b>인지 자리 장부(<code>_managed.md</code>)에서 찾는다. 못 찾으면 아무것도 쓰지 않는다(엉뚱한 곳에 쓰지 않게).',
+  rules: ['이름 → 자리 장부 줄(정확한 이름, 없으면 <code>종류:*</code> 꼴 줄의 <code>## {값}</code>).', '문서 · 머리로 직접 가리켰으면 그대로.', '찾은 문서에 그 머리가 아직 없으면 새 항목으로 세운다(새 문서면 G4).'],
+  ok: [{ cap: '188 DPMS', code: '내부시험서버:구성순서\n→ _managed.md:118  | `내부시험서버:구성순서` | `docs/4.1_개발환경/내부시험서버구성서.md` | `## 4. 구성 순서` |' }],
+  bad: [{ in: '자리 장부에 줄이 없는 이름으로 항목 글을 보냄', msg: '「구성 순서」 이 들어갈 문서가 정해져 있지 않다. 기록만 보내거나 문서 · 머리로 가리킨다(E_NOTFOUND)' }],
+  src: 'core/registry.js:34 locate · core/save.js:298–307', std: '작성기준 9절' },
+c5: { g: '2 저장 한 길', t: '5 이름 장부 대조(G2 · G3)', what: '기록이 건드렸다고 적은 이름(touches)이 <b>이름 장부에 있는 이름</b>인가(G2), 이름이 하나도 없으면 <b>까닭</b>을 적었나(G3). 이름이 맞아야 정리가 넣을 항목을 찾는다. 이름 없는 기록은 어디에도 닿지 않는다.',
+  rules: ['장부에 있으면 통과.', '폐기된 이름 · 다른 이름(같은 말): 거절형은 「이 이름을 쓴다」 로 거절, 붙잡아 두기는 바꿔 단다(fixes).', '장부에 없으면: 거절형은 가까운 이름과 함께 거절, 붙잡아 두기는 그대로 두고 「장부 밖 이름」 으로 센다(지식 점검).', '이름도 자리(<code>at/</code> · <code>ingest/</code>)도 없으면 touchesEmpty 에 까닭 한 줄.'],
+  ok: [{ cap: '188 · 11-02 기록', code: 'touches: 개발환경:내부시험서버 · 내부시험서버:배치 · 내부시험서버:구성순서\n→ 셋 다 _vocab.md 에 있다 · 통과' }],
+  bad: [{ in: 'touches: ["proc:상태 점검"](다른 이름)', msg: '「proc:상태 점검」 는 이름 장부에 없다. 같은 말의 이름 「proc:헬스 체크」 를 쓴다' }, { in: 'touches: ["proc:헬스"]', msg: '「proc:헬스」 는 이름 장부에 없다. 가까운 이름: proc:헬스 체크. match 로 찾은 이름을 쓰거나, 새 이름이면 names 로 같이 세운다' }, { in: 'touches: [](까닭 없음 · 세션)', msg: '건드린 이름(touches)이 없다. match 로 그 항목의 이름을 찾아 단다 · 새 이름이면 names 로 같이 세운다 · 정말 이름이 없으면 touchesEmpty 에 까닭 한 줄을 적는다(이름 없는 기록은 어디로도 닿지 않는다)' }, { in: 'touches: [](넣은 파일 · 붙잡아 두기)', msg: '거절하지 않음 · touchesEmpty: 「가져옴: 넣은 파일(정리가 문서 자리를 고른다)」' }],
+  src: 'core/guard.js:102 guardRecord · :62 resolveName · :82 nearNames', std: '작성기준 9절 G2 · G3' },
+c6: { g: '2 저장 한 길', t: '6 읽은 뒤 바뀜?(F4)', what: '세션이 항목을 <b>읽은 뒤 누가 그 항목을 고쳤나</b>. 읽을 때 받은 지문(base · 항목 글의 sha256 앞 16자)과 지금 글의 지문을 견준다. 다르면 남의 고침을 덮어쓰지 않게 아무것도 쓰지 않는다.',
+  rules: ['MCP <code>section</code> 이 글과 함께 base 를 준다 → <code>save</code> 에 같이 보낸다.', '이미 있는 항목을 고치는데 base 가 없으면 MCP 가 받지 않는다.', '하나라도 어긋나면 그 저장 전체를 쓰지 않는다(E_CONFLICT · 409).'],
+  ok: [{ cap: '시험 지식 proc:카나리', code: 'section → base "c0af4030ff97144c"\nsave { sections: [{ coord: "proc:카나리", base: "c0af4030ff97144c", content: … }] }\n→ 지금 글 지문도 c0af4030ff97144c · 통과' }],
+  bad: [{ in: '읽은 사이 다른 사람이 「4. 구성 순서」 를 고침', msg: '「4. 구성 순서」 이 읽은 뒤 바뀌었다. 다시 읽고 고친다' }],
+  src: 'core/save.js:333–338 · :248 sectionBase · server/mcp.js:252', std: '권한 모델 7절' },
+c7: { g: '2 저장 한 길', t: '7 문서 꼴 검사(E_FORMAT)', what: '문서 본문에는 <b>확정된 지식만</b> 둔다. 출처 링크 · 주석 · 시스템 주소처럼 kmd 가 따로 다는 것이 항목 글에 섞이면 받지 않는다. <b>새로 든 줄만</b> 거절하고, 원래 있던 줄은 알림만 한다.',
+  rules: ['항목 글 안의 <code>#</code> · <code>##</code> 머리 줄(소제목은 <code>###</code> 아래로).', '참고 블록 표식 · 표지 셋 밖의 <code>&lt;!-- --&gt;</code> 주석.', '기록 · 이력 링크(<code>../work/</code> · <code>../log/</code>) · 시스템 주소(<code>/api/…</code>).', '닫히지 않은 코드 울타리 · 끝의 「**경과**」 목록.'],
+  ok: [{ cap: '통과', code: '게이트웨이는 188 에서 systemd dpms-gw 로 돈다.\n### 4.2 188: 게이트웨이\n…' }],
+  bad: [{ in: '[근거](../../work/2026-1102-개발-환경-확정.md)', msg: '2째 줄 기록 · 이력 링크(../../work/2026-1102-개발-환경-확정.md): 본문에 두지 않는다 · 출처는 kmd 가 참고에 단다' }, { in: '[정리](/api/k/dpms/tidy)', msg: '3째 줄 시스템 주소(/api/k/dpms/tidy): 본문에 두지 않는다' }, { in: '## 4.2 188', msg: '머리 줄(## 4.2 188): 항목 글은 머리 아래 내용만 · 소제목은 ### 아래로' }, { in: '<!-- 메모 -->', msg: '표지 밖 주석(<!-- -->): 본문에 두지 않는다' }, { in: '``` 를 열고 안 닫음', msg: '닫히지 않은 코드 울타리(```): 코드 끝에 닫는 줄(```)을 둔다' }],
+  note: '화면에는 「「4. 구성 순서」 글을 받지 않는다: 2째 줄 … / 3째 줄 …. 본문만 보낸다(기록 링크 · 참고 줄은 kmd 가 단다)」 로 나온다. 경위 문장(11-03 DPA020 「187 환경에 배포돼 있다.」)은 꼴이 아니라 뜻이라 이 검사가 못 잡는다 → 정리의 「꼭 옮길 값」 규칙을 고쳤다(cd48b99).',
+  src: 'core/docformat.js:79 formatCheck · :116 formatMessage · core/save.js:341', std: '작성기준 3절 · 8절' },
+c8: { g: '2 저장 한 길', t: '8 기록 id 짓기', what: '기록 파일 이름이자 id. <b>날짜 + 제목의 앞 조각</b>이라 사람이 읽고 링크 · 되돌리기 · 표지가 이 id 로 잇는다.',
+  rules: ['<code>YYYY-MMDD-</code> + 제목에서 첫 「 — 」 또는 「: 」 앞 조각.', '파일 이름에 못 쓰는 글자(<code>\\ / : * ? " &lt; &gt; | # % `</code>)는 빼고 빈칸은 <code>-</code>, 40자까지.', '겹치면 <code>-2</code> · <code>-3</code>(work/ · log/ 를 함께 본다).', '사람 기록은 <code>work/</code>, kmd 의 일(정리 · 고치기 · 가져오기)은 <code>log/</code>.'],
+  ok: [{ cap: '188 실제', code: '"개발 환경 확정: DPMS 187, …"         → work/2026-1102-개발-환경-확정\n"DPA020: 현장 설정 예의 배포 경위 …"   → log/2026-1103-DPA020\n"정리: 배치"(그날 여덟째)               → log/2026-1102-정리-8\n"5. 남은 위험: 이름에서 뺀 날짜 …"      → log/2026-1103-5.-남은-위험-2' }],
+  bad: [{ in: '제목이 기호뿐', msg: '거절하지 않음 · id 조각은 「기록」' }],
+  src: 'core/save.js:43 slugOf · :355–361 · core/names.js:15', std: '작성기준 2절' },
+c9: { g: '2 저장 한 길', t: '9 쓰고 다시 읽기(F1)', what: '기록 파일을 <b>임시 파일에 쓰고 이름을 바꾼 뒤</b>(반쯤 쓴 파일이 남지 않게), 다시 읽어 머리(id · 제목 · 날짜 · 쓴 사람 · 이름 · 태그)가 보낸 값 그대로인지 견준다.',
+  rules: ['원자 쓰기: <code>writeAtomic</code>(임시 → rename).', '머리 대조: 글자 하나라도 다르게 읽히면(따옴표 · 줄바꿈이 섞인 이름 등) 저장 전체를 되돌린다.', '저널(<code>begin</code>)에 쓴 파일을 적어 두고, 넘어지면 모두 되돌린다.'],
+  ok: [{ cap: '통과', code: 'write  work/2026-1102-개발-환경-확정.md\nread   id · title · date · author · touches(3) · tags(2) → 같다' }],
+  bad: [{ in: '읽어 본 머리가 다름', msg: '기록 머리가 보낸 값과 다르게 읽힌다. 제목 · 이름 · 태그의 글자를 확인한다' }],
+  src: 'core/save.js:368–375 · core/atomic.js', std: 'CLAUDE.md 서버 · 저장' },
+c10: { g: '2 저장 한 길', t: '10 git 한 묶음', what: '기록 · 바뀐 문서 · 장부를 <b>한 커밋</b>으로 남긴다. 그래서 「이 기록이 이 문서를 이렇게 바꿨다」 가 늘 같이 움직이고, 백업(GitLab)과 되돌리기가 이 묶음 단위다.',
+  rules: ['고친 파일만 add · commit(작성자 <code>&lt;user&gt;@kmd</code>).', '중간에 넘어지면 쓴 파일을 모두 되돌린다.', '저장 뒤 백업 밀기(3초 기다림 · 실패하면 1 · 5 · 15 · 60분 뒤).'],
+  ok: [{ cap: '188 실제(A1 · 11-03)', code: '84f0081 kjsa 11-03 11:39 DPA020: 현장 설정 예의 배포 경위 문장 걷기\n docs/3.4_DPMS웹설계/화면설계서.md | 4 ++--\n log/2026-1103-DPA020.md          | 18 ++++++\n→ GitLab platform/dpms_wiki 에도 같은 해시' }],
+  bad: [{ in: '백업이 닫혔다(앞서 못 민 묶음이 쌓임)', msg: 'E_BEHIND · 저장 전에 멈춘다' }],
+  src: 'core/git.js:93 commitPaths · core/save.js:418–437 · core/backup.js:184', std: '서비스 전체 6-6' },
+r: { g: '3 기록', t: '기록 work/<id>.md', what: '모든 변화의 <b>원본</b>. 문서는 기록에서 만들어지고, 기록은 지워지지 않는다. 머리(frontmatter)는 kmd 가, 본문은 서식 칸으로.',
+  rules: ['머리: id · title · date · author · touches(또는 touchesEmpty) · tags · supersedes · curates · reopens · reflects.', '본문 서식 칸: <code>## 바뀐 것</code>(꼭 · 「무엇: 옛 값 → 새 값」) · 까닭 · 버린 안 · 영향 · 근거.', '제안이 있으면 <code>## 고친 조각</code>(json).', '상태: 반영 대기 → 문서에 들어감 / 이름 없음 / 넣지 않고 둠.'],
+  ok: [{ cap: '188 실제', code: '---\nid: 2026-1102-개발-환경-확정\ntitle: "개발 환경 확정: DPMS 187, …"\ndate: 2026-11-02 14:48\nauthor: kjsa\ntouches: [개발환경:내부시험서버, 내부시험서버:배치, 내부시험서버:구성순서]\n---\n## 바뀐 것\n- PLC 시뮬레이터 Modbus: 0.0.0.0 (개발 PC 허용) → 127.0.0.1 …' }],
+  src: 'core/frontmatter.js:68 renderRecord · core/knowledge.js:215 recordState', std: '작성기준 1 · 2절 · docs/템플릿/기록.md' },
+pa: { g: '3 기록', t: '제안 apply → 바로 문서', what: '세션이 항목 글 대신 <b>고칠 조각</b>(찾을 글 → 바꿀 글 + base)을 보내면 서버가 Claude 없이 지금 글에 대어 본다. <b>값을 더하기만</b> 하면 저장하는 순간 문서에 들어간다.',
+  rules: ['find 는 지금 글에 꼭 한 번 나와야 한다(두 곳 · 없음은 거절).', '대어 만든 새 글이 정리와 같은 검사(값 · 꼴 · 크기 · 지문)를 넘어야 한다.', '같은 항목에 먼저 온 기록이 아직 안 들어갔으면 정리 때 같이(tidy).'],
+  ok: [{ cap: 'checkProposal 출력(시험 지식 proc:카나리)', code: 'edits: [{ find: "… 오류율이 1% 를 넘으면 멈추고 롤백으로 간다.",\n          replace: "… 롤백으로 간다.\\n카나리 동안 오류율이 1% 를 넘으면 멈춘다." }]\n→ { ok: true, waits: "apply" }   ← 저장하는 순간 문서에' }],
+  bad: [{ in: 'find 가 지금 글에 없음', msg: '조각이 지금 글에 맞지 않는다' }, { in: 'base 가 다름', msg: '그사이 항목이 바뀌었다. section 으로 다시 읽고 그 위에서 조각을 만든다' }],
+  src: 'core/propose.js:90 checkProposal · server/hub.js:886 applyProposals', std: '권한 모델 7절' },
+pr: { g: '3 기록', t: '제안 review → [넣기]', what: '조각이 <b>옛 값을 바꾸거나 · 값을 빼거나 · 값 없는 문장을 지우면</b> 쓰기 자리 사람의 제안은 바로 넣지 않는다. 지식관리자가 정리 › 반영 대기 줄의 [넣기] 를 눌러야 들어간다(「확인 대기」).',
+  rules: ['그동안 기록은 반영 대기로 남고 문서 옆에 같이 읽힌다.', '[넣기] 는 지금 글에 다시 대어 검사한 뒤 넣는다(그사이 바뀌었으면 까닭을 알린다).', '넣으면 쓴 사람의 이력에 「옛 값 → 새 값」(노랑 · 되돌리기).'],
+  ok: [{ cap: 'checkProposal 출력', code: '10% → 20%\n→ { ok: true, waits: "review", changed: [{ from: "10%", to: "20%" }] }\n정리 › 반영 대기 줄: 「제안 있음 1 · 확인 대기 1」 [넣기]' }],
+  src: 'server/http.js:705 POST /api/k/:id/proposal/:rec/put · app/main.js tdPropLine', std: '권한 모델 7절' },
+w1: { g: '4 언제', t: '정해진 시각', what: '지식마다 하루 한 번 정해진 시각(기본 02:30)에 그날까지 쌓인 반영 대기를 정리한다. 팀 지식의 기본 방식.',
+  rules: ['시계가 분마다 본다: 시각이 지났고 · 오늘 아직 안 했고 · 반영 대기 · 이름 없음 기록이 있을 때.', '날짜는 <code>tidy-last.json</code> 에 남긴다. 정리를 세우지 못하면(오류) 그날 세 번까지 다시.', '시각 · 방식은 정리 화면 ⋯ 에서 지식관리자가 바꾼다.'],
+  ok: [{ cap: '188 실제', code: 'dpms · gdi  정리 방식 time · 시각 02:30\ntidy-last.json {"dpms":"2026-11-03","gdi":"2026-11-03"}\n11-03 02:30 자동 정리가 DPA020 에 문장을 넣었다(→ 규칙 고침 cd48b99)' }],
+  src: 'server/hub.js:1588 tidyAtOf · :3800 tidyTimer', std: '서비스 전체 6-1' },
+w2: { g: '4 언제', t: '실시간', what: '저장 · 받기가 있은 뒤 <b>5분 동안 조용하면</b> 바로 정리한다. 여러 저장이 이어지면 마지막 것에서 5분.', rules: ['정리 방식 live 인 지식만.', '개인 프로그램은 방식과 상관없이 저장 직후 곧바로 넣는다(curateSoon).'], src: 'server/hub.js:1599 liveSoon · :819 curateSoon', std: '서비스 전체 6-1' },
+w3: { g: '4 언제', t: '손으로만 · [지금 정리]', what: '사람이 정리 화면에서 [지금 정리](전부) 또는 기록을 골라 [고른 N개 지금 정리]. 손으로만 방식이면 이것만 돈다.', rules: ['한 번에 고른 기록 500 까지.', '쓰기 자리는 자기 기록만 고른다. 같은 항목에 모인 남의 기록도 같이 넣는다(한 항목은 한 번에).', '같은 지식에 도는 정리가 있으면 그 일감을 돌려준다.'],
+  ok: [{ cap: '188 실제(11-03 · A2)', code: 'POST /api/k/dpms/tidy { ids: ["2026-1103-개발-환경-확정-보탬", "2026-1102-개발-환경-확정"] }\n→ { id: "c0d96e75d081", state: "queued", by: "kjsa" }' }], src: 'server/http.js:713 · server/hub.js:1605 tidyNow', std: '권한 모델 4절' },
+w4: { g: '4 언제', t: '넣기 · 코드 바뀜 뒤', what: '파일을 넣었거나 가져올 곳에서 코드 바뀜 기록이 생기면 정리 시각을 기다리지 않고 바로 정리 일감을 세운다(손으로만 방식은 빼고).', rules: ['「Claude 쓰지 않기」 지식이나 일꾼이 쉬는 중(로그인 · 한도)이면 Claude 없이 <b>규칙 정리</b>: 기록 글을 항목 끝에 붙이고 「다듬지 못함」 표지.'], src: 'server/hub.js:2871 · :1203 · :1598 ruleOnly', std: '서비스 전체 6-2' },
+m1: { g: '5 재료', t: 'touches', what: '기록이 「이 항목을 바꿨다」 고 적은 이름 목록. 정리는 이 이름으로 넣을 항목을 찾는다.', rules: ['한 기록이 이름 여럿을 건드리면 항목마다 따로 넣는다(그 기록에 「여러 항목에 걸림」 표지 · 그 항목 몫만 옮긴다).', '이미 그 항목에 든 기록 · 비공개 · 되돌린 기록은 뺀다.'], ok: [{ cap: '188 실제', code: '2026-1102-개발-환경-확정\n  touches: 개발환경:내부시험서버 · 내부시험서버:배치 · 내부시험서버:구성순서\n→ 자리 셋 · 「배치」 는 넣음 · 「구성 순서」 는 둠' }], src: 'core/tidy.js:46 material', std: '작성기준 9절' },
+m2: { g: '5 재료', t: '이름 장부 _vocab.md', what: '이름(열쇠)과 보이는 이름 · 다른 이름 · 폐기를 적은 장부. 「상태 점검」 처럼 사람이 다르게 불러도 한 이름으로 모인다.', rules: ['한 줄: <code>- `종류:값`: 보이는 이름</code> · 다음 줄 <code>aliases: …</code>.', '폐기된 이름은 이어 둔 새 이름으로 간다.'], ok: [{ cap: '188 실제 · 시험 지식', code: '_vocab.md:702  - `내부시험서버:구성순서`: 구성 순서\n시험 지식      - `proc:헬스 체크` — 헬스 체크\n                 aliases: 상태 점검' }], src: 'core/vocab.js:10 parseVocab · core/namebook.js:19', std: '작성기준 9절' },
+m3: { g: '5 재료', t: '자리 장부 _managed.md', what: '이름이 사는 곳(문서 › 머리)을 적은 장부. 이름을 바꾸면 kmd 가 이 줄도 같이 고친다.', rules: ['한 줄: <code>| `이름` | `docs/…md` | `## 머리` |</code>.', '<code>종류:*</code> 줄은 꼴: <code>| `이슈:*` | `docs/1.2_사업관리/위험및이슈관리대장.md` | `## {값}` |</code>.'], ok: [{ cap: '188 실제', code: '_managed.md:118  | `내부시험서버:구성순서` | `docs/4.1_개발환경/내부시험서버구성서.md` | `## 4. 구성 순서` |\n(11-03 Q87) `## 4. 축소 · 미구현 (2026-10-17 기준)` → `## 4. 축소 · 미구현` 이름 바꾸기 때 이 줄도 같이 고침' }], src: 'core/registry.js:11 · :34 locate · core/save.js:426', std: '작성기준 9절' },
+m4: { g: '5 재료', t: '문서 › 항목', what: '자리 장부가 가리킨 머리를 문서에서 찾는다. 대장 문서는 머리가 「값: 설명」 이라 <b>값으로</b> 찾는다(설명이 바뀌어도 이어진다).', rules: ['정확한 머리 먼저 → 「값:」 · 「값 」 으로 시작하는 머리.', '재료 = 지금 글 · 지문(base) · 그 항목의 기록들.'], ok: [{ cap: '188 실제', code: '내부시험서버구성서.md:45  ## 4. 구성 순서   (지금 글 46줄)\n대장 예: 이름 이슈:DPMS-ISS-06 → 머리 「DPMS-ISS-06: 일정 (계획서 사업종료 2026.10)」' }], src: 'core/knowledge.js:140 sectionOf · core/sections.js:282 headingMatches', std: '작성기준 6절 대장' },
+m5: { g: '5 재료', t: '이름 없음 · 넣은 파일', what: '이름이 없는 기록과 넣은 파일은 넣을 곳이 정해져 있지 않다. 정리가 후보를 주고 Claude 가 고른다.', rules: ['이름 없음: 찾기 사다리로 후보 이름 8 → Claude 가 하나 고른다(후보 밖은 거절).', '넣은 파일: 제목 · 머리 말이 겹치는 후보 문서 5 + 갈래 장부 → 기존 문서 항목 고치기 또는 갈래 문서 새로.', '세 번 둔 기록은 자동 정리에서 빼고 「사람이 볼 것」.'], bad: [{ in: 'Claude 가 후보 밖 이름을 고름', msg: '후보 밖의 이름을 골랐다' }], src: 'core/tidy.js:75–108 · server/hub.js:1785 · :321 HOLD', std: '서비스 전체 6-2' },
+d1: { g: '6 초안', t: '묶기 batchesOf', what: '같은 문서의 항목 여럿을 <b>Claude 한 번</b>에 쓰게 묶는다(자리마다 부르면 기록 22건이 159번이 된다).', rules: ['같은 문서끼리 · 16 자리 · 글 6만 자까지(기록 글은 한 번만 센다).', '다시 쓸 글(지금 글) 합이 3천 자를 넘으면 혼자 간다(한 답 안에서 끊긴다).', '조각 항목(지금 글 3천 자 넘음)은 조각끼리 묶는다(답이 바뀐 양만큼이라).', '큰 묶음부터 · 동시에 셋.'], ok: [{ cap: '시험(tidy-plan)', code: '항목 큰 3500자 · 작1 1000 · 작2 1500 · 작3 1000\n→ [큰] · [작1, 작2] · [작3]\n조각이면 큰1 9000 · 큰2 8000 → [큰1, 큰2]' }], src: 'core/tidy.js:273 batchesOf · core/worker.js:203', std: '정리 개편안 6단계' },
+d2: { g: '6 초안', t: '프롬프트', what: 'Claude 에게 주는 글. 지금 글 · 기록(오래된 것부터) · 규칙이다. 규칙이 검사와 짝이라, 검사가 볼 값을 미리 알려 준다.', rules: ['<b>WRITE</b>: 본문만 · 대상 하나의 지금 · 링크 셋 · 머리 · 주석 · 줄표 금지.', '<b>MUST</b>: 「글에 꼭 옮길 값」 = 기록 「바뀐 것」 칸의 새 값(요약 · 영향의 경위는 요구하지 않는다).', '<b>OLD</b>: 더 늦은 기록이 이미 든 항목의 옛 기록은 값을 바꾸지 못한다 · <b>SPREAD</b>: 여러 항목에 걸린 기록은 그 항목 몫만.', '<b>조각</b>: <code>{find, replace}</code> · find 는 지금 글에 꼭 한 번.'], ok: [{ cap: '기록 줄 꼴(recLine · 값은 예)', code: '[2026-1102-개발-환경-확정] 2026-11-02 14:48 kjsa: 개발 환경 확정: …\n## 바뀐 것 …\n(글에 꼭 옮길 값: 「127.0.0.1」 · 「18443」 · …)' }], src: 'core/tidy.js:120 WRITE_RULES · :151 promptOf · :240 MUST_RULE · :204 PATCH_RULE', std: '작성기준 3 · 5절' },
+d3: { g: '6 초안', t: 'claude -p', what: '정리 일꾼 PC 의 Claude Code 를 <b>도구 없이</b> 한 번 부른다. 파일 · 셸 · MCP 를 못 쓰고, 정한 JSON 꼴로만 답한다.', rules: ['<code>claude -p --tools "" --strict-mcp-config --mcp-config {} --json-schema …</code> · 빈 임시 폴더.', '예산: 한 번 $0.5(<code>KMD_TIDY_BUDGET</code> · 188 일꾼 $2) · 묶음은 × 자리 수(8 까지).', '시간: 5분 + 프롬프트 2천 자마다 1분, 15분까지.', '15초마다 쓴 글 · 생각 글자 수를 서버에 알린다(화면 「쓰는 중 3:12 · 쓴 글 1.2k자」).'], ok: [{ cap: '188 실제(11-03 12:15)', code: '▸ Claude 에 보냄 · sonnet · 프롬프트 7.8k 자 · 고칠 조각으로\n✓ 초안을 받았다 · 조각 4 · 148초 · 받은 토큰 15857' }], bad: [{ in: '11-03 11:46 · 예산 $0.5', msg: '초안을 받지 못했다: 예산을 넘었다: error_max_budget_usd · Reached maximum budget ($0.5)' }], src: 'core/claude.js:20 runClaude · core/worker.js:57–68', std: '정리 개편안 1 · 7단계' },
+d4: { g: '6 초안', t: '자리마다 올림', what: '초안을 받는 대로 그 자리만 서버에 올린다. 서버는 <b>일꾼이 보낸 묶음을 믿지 않고</b> 지금 지식에서 재료를 다시 지어 검사한다(그사이 바뀐 것을 놓치지 않게).', rules: ['일꾼 열쇠 <code>kmdw_</code> 로 일감을 받고, 일감마다 단기 열쇠 <code>kmdd_</code>(30분)로 재료 · 초안 길만.', '사람이 [그만두기] 하면 다음 소식에서 멈춘다 · 쓴 초안은 올린다.'], ok: [{ cap: '188 실제', code: 'POST /api/k/dpms/worker/drafts { drafts: [자리 하나], part: true, fix: true }\n→ 검사 · 넣기 · 「고쳐 쓰기」 면 { fix: 까닭 }' }], src: 'server/hub.js:1798 putDrafts · :266 groupFor · core/worker.js:135', std: '-' },
+k1: { g: '7 검사', t: '검사 check', what: 'Claude 가 쓴 초안을 <b>사람 없이 믿지 않는다</b>. 값을 하나하나 대조한다: 기록의 값이 글에 들었나 · 글에 근거 없는 값이 있나 · 옛 글의 값이 말없이 빠졌나.', rules: ['읽은 뒤 바뀜(정리 G2): 재료를 줄 때와 지금 글이 같나 · 그사이 새 기록이 왔나.', '문서 꼴(정리 G6): 머리 · 주석 · 기록 링크 · 표 블록 고침.', '크기(정리 G5): 지금 글 + 넣은 기록 × 1.5 + 300 자 안.', '값 대조(정리 G4): 값 = <code>코드</code> · 「따옴표 말」 · 날짜 · 수+단위.'], bad: [{ in: '기록의 새 값을 안 옮김', msg: '기록의 값이 글에 없다: 188:게이트웨이(11-03 12:10 실제)' }, { in: '근거 없는 값을 씀', msg: '근거에 없는 값이 있다: 4.2 · env/server/.secrets.gw-* · [-Reset](11-02 실제)' }, { in: '기록이 안 바꾼 값을 뺌', msg: '옛 글의 값이 빠졌다: 16 · 10.10.125.187 · 192.168.67.123(11-03 12:15 실제)' }, { in: '너무 길게 씀', msg: '근거보다 크게 썼다' }, { in: '읽은 사이 글이 바뀜', msg: '그사이 항목이 바뀌었다. 다음 정리 때 다시 만든다' }], src: 'core/tidy.js:375 check · core/save.js:217 valuesOf', std: '작성기준 3절 5' },
+k2: { g: '7 검사', t: '고쳐 쓰기 한 번', what: '고칠 수 있는 까닭이면 <b>그 까닭을 붙여 한 번만</b> 다시 쓰게 한다. 두 번째도 걸리면 둔다.', rules: ['고칠 수 있는 까닭: 빠진 값 · 근거에 없는 값 · 옛 값 빠짐 · 조각이 안 맞음 · 크기 · 머리 · 빠뜨린 기록 · 비움.', '프롬프트 끝에 「지난 초안이 kmd 검사에 걸렸다: …」 와 지난 초안.'], ok: [{ cap: '188 실제(11-03 12:15)', code: '✗ 검사: 옛 글의 값이 빠졌다: 16 · …build-dist.ps1 · 10.10.20.187 · 고쳐 쓰기 1번째\n▸ Claude 에 보냄 · 프롬프트 10.6k 자 · 까닭을 붙여 고쳐 쓴다 · 2번째\n✗ 옛 글의 값이 빠졌다: 16 · 10.10.125.187 · 192.168.67.123' }], src: 'server/hub.js:80 FIXABLE · :1837 · core/tidy.js:224 fixPromptOf', std: '-' },
+k3: { g: '7 검사', t: '둠 → 세 번이면 사람이 볼 것', what: '못 넣은 기록은 지우지 않고 반영 대기에 그대로 둔다(문서 옆에 같이 읽힌다). 같은 기록을 세 번 두면 자동 정리에서 빼고 지식관리자에게 알린다.', rules: ['정리 장부(최근 30번)에 둔 까닭이 남는다 → 화면 「다시 볼 것」 · 「사람이 볼 것」.', '이 문서를 7일 안에 두 번 넘게 되돌렸으면 값이 바뀌는 초안은 넣지 않는다.'], ok: [{ cap: '188 실제', code: '「4. 구성 순서」 반영 대기 2 · 정리 장부에 둔 까닭 여섯 번(11-02 ~ 11-03)' }], src: 'server/hub.js:321 HOLD · :1909 · :280 recentReverts', std: '-' },
+p1: { g: '8 넣기', t: '항목 글 + applied 표지 + 참고 줄', what: '넣을 때 남기는 셋: 새 항목 글 · 그 머리 바로 아래 <b>표지</b>(마지막으로 넣은 정리 기록) · 문서 끝 <b>참고 블록</b>의 출처 줄(넣은 기록마다).', rules: ['정리 기록: 제목 「정리: 항목」 · <code>log/</code> · 태그 <code>curate-llm</code> · reflects(넣은 기록) · curates(넣지 않고 둔 기록).', '참고 블록은 <code>core/sections.js</code> 로만 읽고 쓴다(손으로 붙이지 않는다).'], ok: [{ cap: '188 실제(11-02 「2. 배치」)', code: 'log/2026-1102-정리-8.md  reflects: [2026-1102-개발-환경-확정]\n문서 10째 줄  <!-- applied: 2026-1102-정리-8 -->\n참고 블록     - 2. 배치\n                - 2026-11-02 [개발 환경 확정](../../work/2026-1102-개발-환경-확정.md)' }], src: 'core/tidy.js:603 planSave · core/sections.js:316 replaceSection · :391 logLine', std: '작성기준 2-1 · 2-2' },
+p2: { g: '8 넣기', t: 'git 한 묶음 · 백업 밀기', what: '정리 기록과 바뀐 문서가 한 커밋. 커밋마다 GitLab 백업으로 민다.', rules: ['못 밀면 1 · 5 · 15 · 60분 뒤 다시 · 6시간 노랑 · 24시간 빨강.'], ok: [{ cap: '188 실제', code: 'DPMS 지식: http://10.10.20.250:2900/platform/dpms_wiki.git · 잘 보내고 있다\n서버 HEAD 7095868 = GitLab master 7095868' }], src: 'core/backup.js:23–27 · :184 enqueue', std: '서비스 전체 6-6' },
+p3: { g: '8 넣기', t: '알림 · 값 바뀜은 노랑', what: '기록을 쓴 사람에게 「내 기록이 문서에 들어갔다」 를 알린다. 넣으며 <b>옛 값이 바뀌었으면</b> 이력 맨 위 「확인할 것」 에 노란 줄 · [되돌리기].', rules: ['이력(feed) 7일 · 200줄.', '세 번 둔 기록 · 넣을 곳 모르는 기록은 지식관리자에게.'], ok: [{ cap: '알림 꼴(값은 예)', code: 'kmd 가 정리하며 값을 바꿨다: DPMS 지식 › 내부시험서버구성서 › 2. 배치 · 0.0.0.0 → 127.0.0.1\n내 기록에서: 되돌릴 수 있다  [보기]' }], src: 'server/hub.js:1864 · core/feed.js', std: '디자인 컨벤션 9절 「확인할 것」' },
+p4: { g: '8 넣기', t: '되돌리기 · revertPlan', what: '정리 하나를 자리마다 되돌린다. 그 정리가 표지를 처음 단 커밋을 찾아 <b>그 앞 글</b>로 되쓰고, 넣었던 기록을 다시 반영 대기로.', rules: ['누가: 지식관리자 · 또는 그 정리에 자기 기록만 든 쓴 사람.', '<code>git log -S \'&lt;!-- applied: id --&gt;\'</code> 로 묶음을 찾는다.', '되돌린 기록은 다음 정리 재료에서 빠진다(다시 넣으려면 기록을 고쳐 남긴다).'], ok: [{ cap: '되돌림 기록 꼴(예)', code: 'title: "되돌림: 정리: 배치" · tags: [curate-auto] · reopens: [2026-1102-정리-8, 2026-1102-개발-환경-확정]' }], bad: [{ in: '남의 기록이 섞인 정리를 쓰기 자리가 되돌림', msg: '이 정리에는 다른 사람의 기록도 들어 있다. 관리자에게 되돌려 달라고 한다' }], src: 'server/hub.js:976 revert · core/curate.js:53 revertPlan', std: '-' },
+}
+
+;(function () {
+  const box = document.getElementById('coreDetail'), body = document.getElementById('coreBody'), def = document.getElementById('coreDefault')
+  const order = Object.keys(KMD_DETAIL)
+  const pre = (t) => '<pre>' + t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>'
+  const txt = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  function show(k, focus) {
+    const d = KMD_DETAIL[k]
+    if (!d) return
+    document.querySelectorAll('.flowfig .hit').forEach((g) => g.classList.toggle('on', g.dataset.k === k))
+    const i = order.indexOf(k), prev = order[i - 1], next = order[i + 1]
+    body.innerHTML = '<div class="dt-nav"><button type="button" class="btn sm ghost" data-go="">처음으로</button><span class="r">' + (prev ? '<button type="button" class="btn sm" data-go="' + prev + '">‹ ' + txt(KMD_DETAIL[prev].t) + '</button>' : '') + (next ? '<button type="button" class="btn sm" data-go="' + next + '">' + txt(KMD_DETAIL[next].t) + ' ›</button>' : '') + '</span></div>'
+      + '<div class="ex-h"><span class="tag p">' + txt(d.g) + '</span><b>' + txt(d.t) + '</b></div>'
+      + '<h5>무엇을 보나</h5><p>' + d.what + '</p>'
+      + (d.rules ? '<h5>이렇게 본다</h5><ul>' + d.rules.map((x) => '<li>' + x + '</li>').join('') + '</ul>' : '')
+      + (d.ok ? '<h5>통과하는 예</h5>' + d.ok.map((x) => '<div class="dt-cap">' + txt(x.cap) + '</div>' + pre(x.code)).join('') : '')
+      + (d.bad ? '<h5>걸리는 예 · 실제 오류 글</h5><div class="m-tbl"><table class="bad"><tr><th>이렇게 보내면</th><th>kmd 가 돌려주는 글</th></tr>' + d.bad.map((x) => '<tr><td><code>' + txt(x.in) + '</code></td><td>' + txt(x.msg) + '</td></tr>').join('') + '</table></div>' : '')
+      + (d.note ? '<p class="small muted">' + d.note + '</p>' : '')
+      + '<p class="src">출처: ' + txt(d.src) + (d.std && d.std !== '-' ? ' · 기준 ' + txt(d.std) : '') + '</p>'
+    def.hidden = true
+    body.hidden = false
+    box.scrollTop = 0
+    const r = box.getBoundingClientRect()
+    if (r.top < 0 || r.top > innerHeight - 80) box.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    if (focus) body.querySelector('h5') && box.focus({ preventScroll: true })
+  }
+  function reset() { document.querySelectorAll('.flowfig .hit').forEach((g) => g.classList.remove('on')); body.hidden = true; def.hidden = false }
+  document.addEventListener('click', (ev) => {
+    const g = ev.target.closest && ev.target.closest('.flowfig .hit')
+    if (g) { show(g.dataset.k); return }
+    const b = ev.target.closest && ev.target.closest('#coreDetail [data-go]')
+    if (b) { if (b.dataset.go) { show(b.dataset.go); const h = document.querySelector('.flowfig .hit[data-k="' + b.dataset.go + '"]'); if (h) h.focus({ preventScroll: true }) } else reset() }
+  })
+  document.addEventListener('keydown', (ev) => {
+    const g = ev.target.closest && ev.target.closest('.flowfig .hit')
+    if (g && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); show(g.dataset.k) }
+  })
+  box.tabIndex = -1
+})()
+</script>
 </body>
 </html>
