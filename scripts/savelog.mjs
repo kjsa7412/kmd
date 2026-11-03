@@ -102,7 +102,10 @@ export async function readTidy(data, opt = {}) {
     try { kn = decodeURIComponent(m[1]) } catch { continue }
     if (opt.kn && kn !== opt.kn) continue
     let all
-    try { all = JSON.parse(await fs.readFile(path.join(dir, n), 'utf8')) } catch { continue }
+    try { all = JSON.parse(await fs.readFile(path.join(dir, n), 'utf8')) } catch (e) {
+      console.error(`정리 장부를 읽지 못해 비교에서 뺀다 ${n}: ${e.message}`)
+      continue
+    }
     for (const r of Array.isArray(all) ? all : []) {
       if (!r || !inRange(dayOf(r.at), opt)) continue
       runs++
@@ -191,7 +194,7 @@ export function summarize(lines) {
   return { lines: lines.length, channels, pairs: [...pairs.entries()].sort((a, b) => b[1] - a[1]).map(([pair, n]) => ({ pair, n })) }
 }
 
-// 날마다 열린 넣지 못함 · 메모(K12-3) — 지식 폴더의 기록에서. 바로잡힘(나중 기록이 fixes 로 가리킴 · 그 기록이 held · touches-fix 가 아님)은 그날 닫힌다
+// 날마다 열린 넣지 못함 · 메모(K12-3) — 지식 폴더의 기록에서. 바로잡힘(나중 기록이 fixes 로 가리킴 · 그 기록이 held · touches-fix 가 아님) · 정리 판정 「두기」(kept)는 그날 닫힌다
 export async function trend(root, opt = {}) {
   const items = []
   for (const meta of await listKnowledge(root)) {
@@ -199,10 +202,13 @@ export async function trend(root, opt = {}) {
     const k = await loadKnowledge(meta)
     const all = [...k.works, ...(k.logs || [])]
     const closed = new Map()
+    const close = (x, d) => { if (!closed.has(x) || d < closed.get(x)) closed.set(x, d) }
     for (const w of all) {
       if (!w.fixes?.length || w.tags.includes('held') || w.tags.includes('touches-fix')) continue
-      for (const x of w.fixes) { const d = dayOf(w.date); if (!closed.has(x) || d < closed.get(x)) closed.set(x, d) }
+      for (const x of w.fixes) close(x, dayOf(w.date))
     }
+    // 정리 판정 「두기」(kept · 거두기로 걷히지 않은 것)도 그날 닫힌다 — 화면 · brief 의 넣지 못함 셈(recordState)과 같게
+    for (const [x, v] of k.kept || []) { const by = k.byWork?.get(v.by); if (by) close(x, dayOf(by.date)) }
     for (const w of k.works) {
       const kind = w.tags.includes('held') ? 'held' : w.tags.includes('memo') ? 'memo' : null
       if (kind) items.push({ kind, open: dayOf(w.date), close: closed.get(w.id) || null })

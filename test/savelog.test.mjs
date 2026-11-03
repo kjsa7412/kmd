@@ -46,6 +46,9 @@ before(() => {
   rec({ id: 'h1', title: '넣지 못함', date: '2026-11-10 09:00', tags: ['held'] })
   rec({ id: 'm1', title: '메모', date: '2026-11-10 12:00', tags: ['memo'] })
   rec({ id: 'f1', title: '고쳐 다시', date: '2026-11-11 09:00', tags: ['put'], fixes: ['h1'] })
+  // 넣지 못함 하나 더(h2) — 12일 정리 판정 「두기」(kept)로 닫힘(화면 · brief 의 넣지 못함 셈과 같게)
+  rec({ id: 'h2', title: '넣지 못함 둘', date: '2026-11-10 10:00', tags: ['held'] })
+  rec({ id: 'k1', title: '정리 판정', date: '2026-11-12 08:00', author: 'kmd', tags: ['curate-auto'], curates: [{ id: 'h2', verdict: 'keep', reason: '시험' }] })
 })
 after(() => fs.rmSync(tmp, { recursive: true, force: true }))
 
@@ -84,21 +87,21 @@ test('채널마다 통과율 · 까닭 · E_CONFLICT · 다시 넣은 비율(30�
   assert.deepEqual(s.pairs, [{ pair: 'session ↔ kmd(가져올 곳 · 정리)', n: 1 }, { pair: 'bulk ↔ 다른 사람', n: 1 }].sort((a, b) => b.n - a.n))
 })
 
-test('정리 장부 비교 · 날마다 열린 넣지 못함 · 메모(바로잡힌 날 닫힘)', async () => {
+test('정리 장부 비교 · 날마다 열린 넣지 못함 · 메모(바로잡힌 날 · 두기 판정 날 닫힘)', async () => {
   const t = await readTidy(data, { kn: 'dpms' })
   assert.deepEqual(t, { runs: 1, spots: 4, put: 1, pass: 0.25, msPerSpot: 240_000 })
   assert.equal(await readTidy(data, { kn: 'gdi' }), null)
   const rows = await trend(tmp, { kn: 'dpms', since: '2026-11-09', until: '2026-11-12' })
   assert.deepEqual(rows, [
     { day: '2026-11-09', held: 0, memo: 0 },
-    { day: '2026-11-10', held: 1, memo: 1 },
-    { day: '2026-11-11', held: 0, memo: 1 },
+    { day: '2026-11-10', held: 2, memo: 1 },
+    { day: '2026-11-11', held: 1, memo: 1 },
     { day: '2026-11-12', held: 0, memo: 1 },
   ])
   const j = JSON.parse(await main([data, '--kn', 'dpms', '--json', '--trend', '--since', '2026-11-10', '--until', '2026-11-10']))
   assert.equal(j.channels[0].ch, 'session')
   assert.equal(j.tidy.pass, 0.25)
-  assert.deepEqual(j.trend, [{ day: '2026-11-10', held: 1, memo: 1 }], 'data 폴더가 .kmd 면 그 위가 지식 폴더')
+  assert.deepEqual(j.trend, [{ day: '2026-11-10', held: 2, memo: 1 }], 'data 폴더가 .kmd 면 그 위가 지식 폴더')
 })
 
 test('명령: node scripts/savelog.mjs <data> 가 표를 낸다', async () => {

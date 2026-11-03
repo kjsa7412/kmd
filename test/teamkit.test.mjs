@@ -57,7 +57,8 @@ after(async () => {
 
 // 스킬 판 표(S-D15) — 판마다 그 판의 스킬 글 해시(teamKitParts().ver). 팀 스킬 글 · 팀 덩이 · 작성가이드를 고치면
 //   core/teamkit.js 의 TEAM_KIT_REV 를 하나 올리고 이 표에 새 판 · 새 해시를 더한다(옛 판 줄은 그대로 둔다)
-const KIT_HASH = { 2: '3cb60a4f' }
+//   (판 2 는 배포 전에 S6 검토가 메모 단계 글을 고쳐 해시를 바꿨다 · 한 번 배포한 판의 해시는 바꾸지 않는다)
+const KIT_HASH = { 2: '10d1b294' }
 test('스킬 판: 스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다 · 스킬 글의 {{KIT_REV}} 를 판으로 바꿔 싣는다', async () => {
   const parts = await teamKitParts()
   assert.equal(parts.rev, TEAM_KIT_REV)
@@ -68,6 +69,7 @@ test('스킬 판: 스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다 · 스킬 �
   const save = parts.skills.find((x) => x.rel === '.claude/skills/kmd-team-save/SKILL.md').text
   assert.ok(save.includes(`kit: "${TEAM_KIT_REV}"`), '저장 스킬이 save 에 판을 싣는다')
   assert.match(save, /record\.memo: true/, '확정이 아니면 메모')
+  assert.match(save, /record\.memo: true[^\n]*touches/, '메모도 touches(또는 touchesEmpty)를 단다: 없으면 strict 가드가 거절한다')
   assert.match(save, /record\.fixes/, '고쳐 다시 저장하면 앞 기록을 단다')
   assert.doesNotMatch(save, /정리 때|확인 대기|같은 기록을 다시 보내지 말고/, '옛 말을 걷었다')
   const work = parts.skills.find((x) => x.rel === '.claude/skills/kmd-team-work/SKILL.md').text

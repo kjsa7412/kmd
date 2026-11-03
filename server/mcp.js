@@ -83,7 +83,7 @@ const TOOLS = [
             touchesEmpty: str('건드린 이름이 정말 없을 때만: 그 까닭 한 줄(예: 항목이 아직 없는 일정 메모). touches 와 같이 보내지 않는다'),
             tags: { type: 'array', items: { type: 'string' } },
             fixes: { type: 'array', items: { type: 'string' }, description: '바로잡는 기록 id: 넣지 못함 · 메모로 끝난 내 앞 기록을 고쳐 다시 저장할 때(남의 기록은 지식관리자만)' },
-            memo: { type: 'boolean', description: '메모: 값이 아직 확정되지 않았다(머지 · 배포 · 결정 전). 기록만 남고 문서는 바꾸지 않는다 · sections 를 같이 보내지 않는다 · changes 없이 body 만으로 된다' },
+            memo: { type: 'boolean', description: '메모: 값이 아직 확정되지 않았다(머지 · 배포 · 결정 전). 기록만 남고 문서는 바꾸지 않는다 · sections 를 같이 보내지 않는다 · changes 없이 body 만으로 된다(touches 또는 touchesEmpty 는 그대로 단다)' },
           },
           // changes 는 메모(memo: true)가 아니면 서버가 꼭 받는다(core/guard.js recordBody · E_INPUT)
           required: ['title'],
