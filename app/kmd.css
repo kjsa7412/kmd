@@ -4,7 +4,7 @@
 :root{
   /* 면 · 선 */
   --bg:#f6f7f9;--surface:#fff;--surface-2:#f1f3f7;--surface-3:#e6eaf0;--hover:#f5f7fa;
-  --border:#e2e6ed;--border-strong:#c9d1dd;
+  --border:#e2e6ed;--border-strong:#c9d1dd;--border-input:#7d8799;
   /* 글 — --text-3 #646d7b: 흰 바탕 5.23:1 · --surface-2(#f1f3f7) 위 4.71:1(WCAG 상대 휘도로 잼 · 옛 #858e9d 는 3.31 · 2.98) */
   --text:#11151c;--text-2:#515a68;--text-3:#646d7b;--on-accent:#fff;
   /* 뜻 색 — 파랑=주 일 · 고른 것 / 초록=됨 · 켜짐 / 노랑=멈춤 · 값 바뀜 / 빨강=못 함 · 지우기 / 보라=기다림 · 받은 것 */
@@ -113,7 +113,7 @@ a{color:var(--accent);cursor:pointer}
 .c-mute{background:var(--surface-3);color:var(--text-2)}
 .c-acc{background:var(--accent-bg);color:var(--accent)}
 .c-danger{background:var(--danger-bg);color:var(--danger)}
-.btn{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 11px;border-radius:var(--r);border:1px solid var(--border-strong);background:var(--surface);font-size:var(--fs-mono);cursor:pointer;color:var(--text);white-space:nowrap}
+.btn{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 11px;border-radius:var(--r);border:1px solid var(--border-input);background:var(--surface);font-size:var(--fs-mono);cursor:pointer;color:var(--text);white-space:nowrap}
 .btn:hover:where(:not([disabled])){background:var(--hover)}
 .btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
 .btn.pri:hover:where(:not([disabled])){background:var(--accent-hover);border-color:var(--accent-hover)}
@@ -149,7 +149,7 @@ code{font:var(--fs-mono) var(--mono);background:var(--surface-2);padding:1px 5px
 .field{margin-bottom:var(--sp-6)}
 .field label{display:block;font-weight:600;font-size:var(--fs);margin-bottom:var(--sp-2)}
 .field .hint{font-size:var(--fs-sm);color:var(--text-3);margin-top:3px}
-.inp{width:100%;min-height:32px;border:1px solid var(--border-strong);border-radius:var(--r);padding:5px var(--sp-5);font-size:var(--fs);background:var(--surface);color:var(--text)}
+.inp{width:100%;min-height:32px;border:1px solid var(--border-input);border-radius:var(--r);padding:5px var(--sp-5);font-size:var(--fs);background:var(--surface);color:var(--text)}
 .inp:hover:not([disabled]):not([readonly]):not(:focus){border-color:var(--text-3)}
 .inp:focus{outline:2px solid transparent;outline-offset:2px;border-color:var(--accent);box-shadow:var(--focus-ring)}
 .inp[disabled],.inp[readonly]{background:var(--surface-2);color:var(--text-3)}
@@ -195,7 +195,7 @@ code{font:var(--fs-mono) var(--mono);background:var(--surface-2);padding:1px 5px
 .menu .mi.on{color:var(--accent);font-weight:600}
 .menu .sep{border-top:1px solid var(--border);margin:var(--sp-2) var(--sp-1)}
 .menu .gray{font-size:var(--fs-sm);color:var(--text-3);padding:var(--sp-3) var(--sp-5) var(--sp-2);white-space:normal;max-width:280px}
-.menu input[type=time]{border:1px solid var(--border-strong);border-radius:var(--r-sm);padding:0 var(--sp-2);font:var(--fs-mono) var(--mono)}
+.menu input[type=time]{border:1px solid var(--border-input);border-radius:var(--r-sm);padding:0 var(--sp-2);font:var(--fs-mono) var(--mono)}
 details.more{border-top:1px dashed var(--border-strong);margin-top:var(--sp-6);padding-top:var(--sp-4)}
 details.more>summary{cursor:pointer;color:var(--text-3);font-size:var(--fs-mono);list-style:none}
 details.more>summary::before{content:"▸ "}
@@ -218,6 +218,9 @@ details.more>.in{padding:var(--sp-4) 0 var(--sp-1);font-size:var(--fs);color:var
 .hint{font-size:var(--fs-sm);color:var(--text-3);margin-top:var(--sp-4);line-height:1.7}
 
 /* 토스트 · 대화 상자 */
+/* 토스트 쌓기(Q48) — 자리는 #toastHost 가 잡고 토스트는 그 안에 아래로 쌓인다 */
+#toastHost{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:var(--sp-3);z-index:var(--z-toast);max-width:calc(100vw - 32px);pointer-events:none}
+#toastHost .toast{position:static;transform:none;pointer-events:auto}
 .toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);background:var(--ink);color:var(--on-accent);border-radius:var(--r-md);padding:var(--sp-5) var(--sp-7);font-size:var(--fs);display:flex;gap:var(--sp-7);align-items:center;box-shadow:var(--shadow-2);z-index:var(--z-toast);max-width:calc(100vw - 32px)}
 .toast a{color:var(--accent-line);font-weight:600}
 .toast .tw small{display:block;margin-top:var(--sp-2);color:var(--on-accent);opacity:.8;font-size:var(--fs-sm);overflow-wrap:anywhere}
@@ -287,7 +290,7 @@ details.more>.in{padding:var(--sp-4) 0 var(--sp-1);font-size:var(--fs);color:var
 .ed .lbl b{color:var(--accent)}
 .toolbar{display:flex;gap:var(--sp-2);padding:var(--sp-2);border:1px solid var(--border);border-bottom:0;border-radius:var(--r) var(--r) 0 0;background:var(--surface-2)}
 .toolbar span{font-size:var(--fs-sm);padding:var(--sp-1) var(--sp-4);border-radius:var(--r-sm);color:var(--text-2)}
-.ed textarea{width:100%;min-height:300px;border:1px solid var(--border-strong);border-radius:0 0 var(--r) var(--r);padding:var(--sp-5) var(--sp-6);font:var(--fs)/1.7 var(--font);resize:vertical;background:var(--surface)}
+.ed textarea{width:100%;min-height:300px;border:1px solid var(--border-input);border-radius:0 0 var(--r) var(--r);padding:var(--sp-5) var(--sp-6);font:var(--fs)/1.7 var(--font);resize:vertical;background:var(--surface)}
 .ed .lockh{font-size:var(--fs-sm);color:var(--text-3);margin:var(--sp-5) 0 var(--sp-1)}
 .ed textarea:focus{outline:2px solid transparent;outline-offset:2px;border-color:var(--accent);box-shadow:var(--focus-ring)}
 
@@ -573,6 +576,7 @@ li.new{animation:flash 1.6s}
 .cchip .cdot{width:8px;height:8px;border-radius:50%;background:var(--text-3);flex:none}
 .cchip.ok .cdot{background:var(--ok)}.cchip.bad .cdot{background:var(--danger)}.cchip.off .cdot{background:transparent;border:1px solid var(--text-3)}
 .cchip.bad{color:var(--danger)}
+.cchip.err .cdot{background:var(--warn)}.cchip.err{color:var(--warn)}
 .cwin .cst{display:flex;align-items:center;gap:var(--sp-4);margin:var(--sp-2) 0 var(--sp-5)}.cwin .cst .cdot{width:10px;height:10px}
 .cwin ol{margin:var(--sp-3) 0 0;padding-left:20px}.cwin li{margin:var(--sp-1) 0}
 .app .hlink svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
@@ -704,7 +708,8 @@ li.new{animation:flash 1.6s}
 .kcard{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);padding:var(--sp-6) var(--sp-6) var(--sp-5) var(--sp-7);cursor:pointer;display:flex;flex-direction:column;gap:var(--sp-3);min-height:104px;transition:border-color .1s,box-shadow .1s}
 .kcard:hover{border-color:var(--accent-line);box-shadow:var(--shadow-2)}
 .kcard .kh{display:flex;align-items:flex-start;gap:var(--sp-4)}
-.kcard .kn3{font-weight:700;font-size:var(--fs-md);line-height:1.35;min-width:0;overflow-wrap:anywhere;flex:1}
+.kcard .kn3{font-weight:700;font-size:var(--fs-md);line-height:1.35;min-width:0;overflow-wrap:anywhere;flex:1;border:0;background:none;padding:0;margin:0;text-align:left;color:var(--text);cursor:pointer;border-radius:var(--r-xs)}
+.kcard .kn3:hover{color:var(--accent)}
 .kcard .kebab{margin:-4px -4px 0 0}
 .kcard .km{font-size:var(--fs-mono);color:var(--text-3)}
 .kcard .kf{display:flex;gap:var(--sp-3);flex-wrap:wrap;margin-top:auto;align-items:center}

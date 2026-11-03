@@ -56,7 +56,9 @@ function whoHtml(k) {
   const n = KN(k)
   if (!accCan(n)) return `<span data-t="whoVal">나: ${lvChip(n)}</span>`
   const a = accessOf(k)
-  const sum = !a ? '읽는 중…' : a.error ? '나: 관리' : accSum(a)
+  // 자리 표를 읽지 못했으면 값으로 바꿔 보이지 않는다(Q45) — 까닭 + 다시 읽기
+  if (a && a.error) return `<span data-t="whoVal" class="muted">권한을 읽지 못했다 <button type="button" class="lk" data-a="retryKey" data-k="${esc('access:' + k)}" data-t="whoRetry">다시 읽기</button></span>`
+  const sum = !a ? '읽는 중…' : accSum(a)
   return `<span data-t="whoVal">${esc(sum)} <button type="button" class="lk" data-a="accOpen" data-k="${esc(k)}" data-t="accOpenSide">권한</button></span>`
 }
 const roAttr = (k) => (canWrite(k) ? '' : ' disabled title="이 지식에 쓰기 자리가 없다"')
@@ -143,14 +145,21 @@ const invAttr = (on, t) => (on ? ` aria-invalid="true" aria-describedby="fe-${es
 
 // ───────────── 토스트 ─────────────
 // 알림은 4.5초 · 오류(err)는 7초 넘게 · 화면 읽기 프로그램이 읽게(#toastHost 는 role=status · 오류는 role=alert)
-let toastTimer = null
+//   여럿이면 쌓는다(Q48 · 최대 3 · 넘치면 오래된 알림부터 · 오류는 알림에 밀려 사라지지 않는다) · 토스트마다 제 시간
 function toast(html, ms, err) {
   const h = $('#toastHost')
   err = err || ms === true
   if (ms === true) ms = 0
-  h.innerHTML = `<div class="toast${err ? ' err' : ''}" data-t="toast"${err ? ' role="alert"' : ''}>${html}</div>`
-  clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { h.innerHTML = '' }, Math.max(ms || 4500, err ? 8000 : 0))
+  const el = document.createElement('div')
+  el.className = 'toast' + (err ? ' err' : '')
+  el.dataset.t = 'toast'
+  if (err) el.setAttribute('role', 'alert')
+  el.innerHTML = html
+  // 같은 글이 떠 있으면 그것을 새로(되풀이해 쌓지 않는다)
+  for (const o of [...h.children]) if (o.innerHTML === el.innerHTML) { clearTimeout(o._t); o.remove() }
+  h.appendChild(el)
+  while (h.children.length > 3) { const old = [...h.children].find((x) => !x.classList.contains('err')) || h.children[0]; clearTimeout(old._t); old.remove() }
+  el._t = setTimeout(() => el.remove(), Math.max(ms || 4500, err ? 8000 : 0))
 }
 // 오류 토스트 — 잡은 오류를 그대로
 const toastErr = (e) => toast(esc(e && e.message ? e.message : e), 8000, true)
@@ -653,7 +662,8 @@ function kcardHtml(n, team) {
   const kebab = items ? `<button class="kebab${S.menu === mk ? ' on' : ''}" data-a="menu" data-m="${esc(mk)}" data-t="knKebab" title="${accCan(n) ? '권한 · ' : ''}순서 · 메뉴에서 빼기 · 지우기">⋯</button>` : ''
   const meta = knMeta(n)
   const drag = own && !n.hidden ? ` draggable="true" data-drag="${esc(n.id)}"` : ''
-  return `<div class="kcard${n.dim ? ' dim' : ''}${n.hidden ? ' hid' : ''}" data-a="openKn" data-k="${esc(n.id)}" data-t="${n.hidden ? 'kHid' : 'krow'}" data-name="${esc(n.name)}"${drag}>${drag ? '<span class="grip" title="끌어서 순서를 바꾼다">⋮⋮</span>' : ''}<div class="kh"><span class="kn3">${esc(n.name)}</span>${kebab}</div><div class="km">${tag} ${esc(meta)}</div>${chips || n.hidden ? `<div class="kf">${chips}${n.hidden ? `<button class="btn sm" data-a="knHide" data-k="${esc(n.id)}" data-v="" data-t="knShow">메뉴에 올리기</button>` : ''}</div>` : ''}</div>`
+  // 카드(Q51) — 키보드 · 화면 읽기는 이름 단추 하나로 연다(카드는 role=group · 안의 ⋯ · 끌기와 누름이 겹치지 않게). 마우스는 카드 어디를 눌러도 연다
+  return `<div class="kcard${n.dim ? ' dim' : ''}${n.hidden ? ' hid' : ''}" role="group" aria-label="${esc(n.name)}" tabindex="-1" data-a="openKn" data-k="${esc(n.id)}" data-t="${n.hidden ? 'kHid' : 'krow'}" data-name="${esc(n.name)}"${drag}>${drag ? '<span class="grip" aria-hidden="true" title="끌어서 순서를 바꾼다">⋮⋮</span>' : ''}<div class="kh"><button type="button" class="kn3" data-a="openKn" data-k="${esc(n.id)}" data-t="knOpen">${esc(n.name)}</button>${kebab}</div><div class="km">${tag} ${esc(meta)}</div>${chips || n.hidden ? `<div class="kf">${chips}${n.hidden ? `<button class="btn sm" data-a="knHide" data-k="${esc(n.id)}" data-v="" data-t="knShow">메뉴에 올리기</button>` : ''}</div>` : ''}</div>`
 }
 function viewHome() {
   const team = isTeam()
@@ -1088,9 +1098,9 @@ function qoBody() {
   const bad = S.qo.bad || []
   const top = (S.qo.wait ? loadingHtml : '') + (bad.length ? `<div class="callout danger err" data-t="qoErr">${sayErr(`지식 ${bad.length} 을 읽지 못했다`)}<b>지식 ${bad.length} 을 읽지 못했다: ${esc(bad.map(knNm).join(' · '))}</b><button type="button" class="btn sm retry" data-a="qoRetry" data-t="retry">다시 읽기</button></div>` : '')
   if (!L.length) return top || '<div class="empty" data-t="qoNone"><b>이 이름으로는 없다</b>글 속 낱말은 Ctrl K 찾기로</div>'
-  return top + L.map((x, i) => `<div class="qr${i === S.qo.sel ? ' sel' : ''}" data-a="qoPick" data-i="${i}" data-t="qoRow" data-kind="${x.kind}" data-name="${esc(x.label)}"><span class="qk">${x.kind === 'doc' ? svg('doc') : x.kind === 'item' ? svg('tag') : '<i class="pd"></i>'}</span><span class="nm">${esc(x.label)}</span><span class="r small muted">${esc(x.sub)}</span></div>`).join('') + '<div class="ft">문서 · 항목 · 기록 이름으로 연다. ↑↓ 로 고르고 Enter · 글 속 낱말은 <b>Ctrl K</b></div>'
+  return top + '<div role="listbox" id="qoList" aria-label="찾은 이름">' + L.map((x, i) => `<div class="qr${i === S.qo.sel ? ' sel' : ''}" role="option" id="qo-o${i}" aria-selected="${i === S.qo.sel}" tabindex="-1" data-a="qoPick" data-i="${i}" data-t="qoRow" data-kind="${x.kind}" data-name="${esc(x.label)}"><span class="qk">${x.kind === 'doc' ? svg('doc') : x.kind === 'item' ? svg('tag') : '<i class="pd"></i>'}</span><span class="nm">${esc(x.label)}</span><span class="r small muted">${esc(x.sub)}</span></div>`).join('') + '</div><div class="ft">문서 · 항목 · 기록 이름으로 연다. ↑↓ 로 고르고 Enter · 글 속 낱말은 <b>Ctrl K</b></div>'
 }
-function qoHtml() { return `<div class="pscrim" data-a="qoClose" data-self="1"><div class="pal" data-t="qo"><div class="pin">${svg('search')}<input id="qoIn" aria-label="빨리 열기: 이름" data-in="qo" data-t="qoIn" value="${esc(S.qo.q)}" placeholder="빨리 열기: 문서 · 항목 · 기록 이름" autocomplete="off"><span class="r">↑↓ · Enter · Esc</span></div><div id="qoBody">${qoBody()}</div></div></div>` }
+function qoHtml() { return `<div class="pscrim" data-a="qoClose" data-self="1"><div class="pal" data-t="qo"><div class="pin">${svg('search')}<input id="qoIn" role="combobox" aria-expanded="true" aria-controls="qoList" aria-autocomplete="list" aria-activedescendant="qo-o${S.qo.sel || 0}" aria-label="빨리 열기: 이름" data-in="qo" data-t="qoIn" value="${esc(S.qo.q)}" placeholder="빨리 열기: 문서 · 항목 · 기록 이름" autocomplete="off"><span class="r">↑↓ · Enter · Esc</span></div><div id="qoBody">${qoBody()}</div></div></div>` }
 function qoPick(i) {
   const x = S.qo && S.qo.list && S.qo.list[i]
   S.qo = null
@@ -1127,9 +1137,9 @@ function cmdBody() {
   S.cmd.list = L
   if (S.cmd.sel >= L.length) S.cmd.sel = Math.max(0, L.length - 1)
   if (!L.length) return '<div class="empty" data-t="cmdNone"><b>그런 명령은 없다</b>다른 말로: 예: 그래프 · 나누어</div>'
-  return L.map((c, i) => `<div class="qr${i === S.cmd.sel ? ' sel' : ''}" data-a="cmdPick" data-i="${i}" data-t="cmdRow" data-name="${esc(c.n)}"><span class="qk">›</span><span class="nm">${esc(c.n)}</span><span class="r small muted">${esc(c.s)}</span></div>`).join('')
+  return '<div role="listbox" id="cmdList" aria-label="명령">' + L.map((c, i) => `<div class="qr${i === S.cmd.sel ? ' sel' : ''}" role="option" id="cmd-o${i}" aria-selected="${i === S.cmd.sel}" tabindex="-1" data-a="cmdPick" data-i="${i}" data-t="cmdRow" data-name="${esc(c.n)}"><span class="qk">›</span><span class="nm">${esc(c.n)}</span><span class="r small muted">${esc(c.s)}</span></div>`).join('') + '</div>'
 }
-function cmdHtml() { return `<div class="pscrim" data-a="cmdClose" data-self="1"><div class="pal" data-t="cmd"><div class="pin"><span class="qk">›</span><input id="cmdIn" aria-label="명령 이름" data-in="cmd" data-t="cmdIn" value="${esc(S.cmd.q)}" placeholder="명령 창: 화면의 일을 이름으로" autocomplete="off"><span class="r">↑↓ · Enter · Esc</span></div><div id="cmdBody">${cmdBody()}</div></div></div>` }
+function cmdHtml() { return `<div class="pscrim" data-a="cmdClose" data-self="1"><div class="pal" data-t="cmd"><div class="pin"><span class="qk">›</span><input id="cmdIn" role="combobox" aria-expanded="true" aria-controls="cmdList" aria-autocomplete="list" aria-activedescendant="cmd-o${S.cmd.sel || 0}" aria-label="명령 이름" data-in="cmd" data-t="cmdIn" value="${esc(S.cmd.q)}" placeholder="명령 창: 화면의 일을 이름으로" autocomplete="off"><span class="r">↑↓ · Enter · Esc</span></div><div id="cmdBody">${cmdBody()}</div></div></div>` }
 function cmdPick(i) { const c = S.cmd && S.cmd.list && S.cmd.list[i]; S.cmd = null; render(); if (c) c.f() }
 
 // ── 찾기(Ctrl K) ──
@@ -1603,7 +1613,7 @@ function viewGraph() {
   G.R3 = Math.max(100, ...G.nodes.map((n) => { const p = S.g.pos[n.id]; return Math.hypot(p.x, p.y, p.z) }))
   CURG = G
   const f = S.g.f
-  const main = `<div class="gwrap" data-t="graph"><canvas id="gcv" data-t="gcanvas"></canvas><div class="gtl small"><span data-t="gCount">점 ${G.nodes.length} · 선 ${G.edges.length}${f.depth && S.g.sel ? ' · 깊이 ' + f.depth : ''}</span> <b class="t-warn" data-t="gHits"></b></div><div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit" title="전체가 들어오게 · 처음 각도로">처음 크기</button></div><div class="ghint small">끌기: 돌리기 · Shift · 오른쪽 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 고른다</div></div>`
+  const main = `<div class="gwrap" data-t="graph"><canvas id="gcv" data-t="gcanvas" role="img" aria-label="그래프: 점 ${G.nodes.length} · 선 ${G.edges.length}${S.g.sel ? ' · 고른 점 ' + esc((G.nodes.find((n) => n.id === S.g.sel) || {}).label || '') : ''} · 키보드로는 옆 칸 「점 목록」 에서 고른다"></canvas><div class="gtl small"><span data-t="gCount">점 ${G.nodes.length} · 선 ${G.edges.length}${f.depth && S.g.sel ? ' · 깊이 ' + f.depth : ''}</span> <b class="t-warn" data-t="gHits"></b></div><div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit" title="전체가 들어오게 · 처음 각도로">처음 크기</button></div><div class="ghint small">끌기: 돌리기 · Shift · 오른쪽 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 고른다</div></div>`
   return { crumb: '그래프' + (S.g.sel ? ' › ' + ((G.nodes.find((n) => n.id === S.g.sel) || {}).label || '') : ''), main, aside: graphAside(k, G), tabs: true, left: graphFilter(k), full: true }
 }
 function graphFilter(k) {
@@ -1631,7 +1641,12 @@ function graphAside(k, G) {
     ? '<div class="gcard muted small" data-t="gCard">점을 누르면 여기에: 이름 · 첫 줄 · 기록 수.<br>[문서로 보기] · [항목으로 보기] 로 연다.</div>'
     : `<div class="gcard" data-t="gCard" data-name="${esc(info.name)}"><div class="row"><i class="kd" style="background:${KCOL[n.kind]}"></i><span class="small muted">${KLAB[n.kind]}${info.kind ? ' · ' + esc(info.kind) : ''}</span><button type="button" class="lk r small" data-a="gUnsel" title="고르기 풀기">×</button></div><div class="gn">${esc(info.name)}</div><div class="small">${esc(info.first)}</div><div class="small muted" data-t="gCardRecs" style="margin:4px 0 10px">기록 ${info.recs}${info.pend ? ' · 반영 대기 ' + info.pend : ''}</div><div class="row" style="flex-wrap:wrap"><button class="btn pri sm" data-a="gOpen" data-v="docs" data-t="gOpenDocs"${info.doc ? '' : ' disabled'}>문서로 보기</button><button class="btn sm" data-a="gOpen" data-v="items" data-t="gOpenItems"${info.item ? '' : ' disabled'}>항목으로 보기</button></div></div>`
   const legend = `<div class="ap" data-t="gLegend"><h4>점: 색</h4>${['item', 'doc', 'rec', 'src'].map((v) => `<div class="lgr"><i class="kd" style="background:${KCOL[v]}"></i>${KLAB[v]}</div>`).join('')}<div class="lgr"><i class="kd ringk"></i>반영 대기가 있다</div><h4 style="margin-top:10px">선</h4>${ELAB.map(([t, l, s]) => `<div class="lgr" data-t="lg-${t}"><svg class="lgl" viewBox="0 0 34 8"><line x1="1" y1="4" x2="33" y2="4" stroke="${ECOL[t].c}" stroke-width="${ECOL[t].w || 1.2}"${ECOL[t].d ? ` stroke-dasharray="${ECOL[t].d.join(' ')}"` : ''}/></svg><span>${l}<small>${s}</small></span></div>`).join('')}</div>`
-  return `<h4>고른 점</h4>${card}${legend}`
+  // 점 목록(Q52) — 그림(canvas)을 키보드 · 화면 읽기로 쓰는 길. 찾기 글에 맞는 것 · 선이 많은 것부터 40
+  const f = S.g.f, nq = norm(f.q || '')
+  const pool = G.nodes.filter((x) => !nq || norm(x.label || '').includes(nq)).sort((a, b) => (G.deg[b.id] || 0) - (G.deg[a.id] || 0) || String(a.label).localeCompare(String(b.label)))
+  const rows = pool.slice(0, 40).map((x) => `<div class="alr${x.id === id ? ' on' : ''}" data-a="gPick" data-v="${esc(x.id)}" data-t="gListRow" aria-current="${x.id === id ? 'true' : 'false'}"><i class="kd" style="background:${KCOL[x.kind]}"></i><span class="nm">${esc(x.label || '')}<small>${KLAB[x.kind] || ''} · 선 ${G.deg[x.id] || 0}</small></span></div>`).join('')
+  const list = `<div class="ap" data-t="gList"><h4>점 목록 <small>${pool.length > 40 ? '선 많은 40 / ' + pool.length : pool.length}</small></h4>${rows || '<div class="muted small alr">맞는 점이 없다</div>'}</div>`
+  return `<h4>고른 점</h4>${card}${list}${legend}`
 }
 // 옆 칸 「그래프」 — 이웃 한 겹(접힘) — 한 겹 · 누르면 그래프로
 function nbGraph(k, center) { return `<details class="ap nb" data-t="nbGraph"${S.nbOpen ? ' open' : ''}><summary data-a="nbToggle" title="한 겹 이웃 · 누르면 그래프 화면으로">그래프</summary>${S.nbOpen ? miniGraph(k, center) : ''}</details>` }
@@ -3715,7 +3730,8 @@ function busyPaint() {
 //   끝났으면(로그인 · 한도) 칩이 빨갛게 · 들어올 때 창을 한 번 띄운다
 // 팀 화면 — 팀 정리 로그인(팀 서버 · 총괄 관리자) · 개인 화면 — 내 Claude 로그인
 async function loadClaude({ verify = false } = {}) {
-  try { S.claude = await getJSON('/api/claude/state') } catch (e) { console.warn('Claude 상태를 읽지 못했다', e); return }
+  // 읽지 못하면 「아직 확인 전」 으로 남기지 않고 칩을 「읽지 못함」 으로(Q45) · 다음에 읽으면 걷는다
+  try { S.claude = await getJSON('/api/claude/state'); S.claudeErr = null } catch (e) { console.warn('Claude 상태를 읽지 못했다', e); S.claudeErr = e.message || '서버에 닿지 않는다'; render(); return }
   const c = S.claude
   if (c && verify && c.pc && !c.off && (c.ok !== true || !c.at || Date.now() - Date.parse(c.at) > 6 * 3600_000)) {
     const r = await postJSON('/api/claude/check', {}).catch((e) => { console.warn('Claude 로그인을 확인하지 못했다', e); return null })
@@ -3725,15 +3741,15 @@ async function loadClaude({ verify = false } = {}) {
   render()
 }
 function claudeOpen() { S.claudeWin = true; render() }
-function claudeTone(c) { return !c ? 'unk' : c.off ? 'off' : c.ok === true ? 'ok' : c.ok === false ? 'bad' : 'unk' }
+function claudeTone(c) { return S.claudeErr ? 'err' : !c ? 'unk' : c.off ? 'off' : c.ok === true ? 'ok' : c.ok === false ? 'bad' : 'unk' }
 function claudeChip() {
   const c = S.claude, st = claudeTone(c)
-  const tip = { ok: 'Claude 연결됨', bad: c && c.reason === 'limit' ? 'Claude 사용 한도에 닿았다' : 'Claude 로그인이 필요하다', off: 'Claude 쓰지 않음', unk: 'Claude 연결: 아직 확인 전' }[st]
+  const tip = { ok: 'Claude 연결됨', bad: c && c.reason === 'limit' ? 'Claude 사용 한도에 닿았다' : 'Claude 로그인이 필요하다', off: 'Claude 쓰지 않음', unk: 'Claude 연결: 아직 확인 전', err: 'Claude 연결: 상태를 읽지 못했다' }[st]
   return `<button type="button" class="hlink cchip ${st}" data-a="claudeOpen" data-t="claudeChip" data-state="${st}" title="${tip}: 누르면 연결 창">${'<i class="cdot"></i>'}<span>Claude</span></button>`
 }
 function claudeWinHtml() {
   const c = S.claude || {}, st = claudeTone(S.claude), L = S.pcLogin
-  const stateTxt = { ok: '연결됨. 이 PC 의 Claude Code 로그인', bad: c.reason === 'limit' ? 'Claude 사용 한도에 닿았다. 한도가 풀리면 저절로 이어진다' : '로그인이 필요하다. 아래 [Claude 로그인]', off: 'Claude 쓰지 않기로 해 두었다. 설정 › 일반 › 저절로 하는 일에서 켠다', unk: '아직 확인 전: [로그인 확인] 으로 본다' }[st]
+  const stateTxt = { ok: '연결됨. 이 PC 의 Claude Code 로그인', bad: c.reason === 'limit' ? 'Claude 사용 한도에 닿았다. 한도가 풀리면 저절로 이어진다' : '로그인이 필요하다. 아래 [Claude 로그인]', off: 'Claude 쓰지 않기로 해 두었다. 설정 › 일반 › 저절로 하는 일에서 켠다', unk: '아직 확인 전: [로그인 확인] 으로 본다', err: `상태를 읽지 못했다: ${S.claudeErr || ''} · [로그인 확인] 으로 다시 읽는다` }[st]
   const when = c.at ? ` · ${esc(whenTxt(c.at))} 확인` : ''
   const why = '<p class="small" style="margin:0 0 8px">kmd 는 가져온 지식: <b>넣은 파일 · git 묶음</b>: 을 Claude 가 읽고 분석해 <b>기록</b>으로 쓰고, 그 기록으로 <b>문서</b>를 세운다. 그래서 구독형 Claude(Pro · Max · Team · Enterprise) 로그인이 있어야 한다. 로그인이 없으면 받은 글 그대로 기록하고 규칙으로만 넣는다.</p>'
   let body, foot
@@ -4588,6 +4604,7 @@ const ACT = {
   gZoom: (el) => { const cv = $('#gcv'); if (cv) zoomAt(cv.clientWidth / 2, cv.clientHeight / 2, Number(el.dataset.v)) },
   gFit: () => { Object.assign(S.g.cam, { rx: -0.35, ry: 0.6, needFit: true }); gPaint() },
   gBundle: () => { S.g.bundle = !S.g.bundle; render() },
+  gPick: (el) => gClick(el.dataset.v),
   gUnsel: () => { S.g.sel = null; S.g.f.depth = 0; render() },
   gOpen: (el) => {
     const k = S.route.kn, info = nodeInfo(k, S.g.sel)
@@ -4676,8 +4693,8 @@ document.addEventListener('input', (ev) => {
   if (k === 'pal') { S.pal.q = t.value; runFind() }
   if (k === 'askIn' && S.ask && S.ask.input) S.ask.input.value = t.value // 다시 그려도 쓰던 글이 남게
   if (k === 'impQ') { S.impQ = t.value; S.impPage = 0; const b = $('#impDone'); if (b) b.innerHTML = impDoneRows(impJobs()) }
-  if (k === 'qo') { S.qo.q = t.value; S.qo.sel = 0; $('#qoBody').innerHTML = qoBody() }
-  if (k === 'cmd') { S.cmd.q = t.value; S.cmd.sel = 0; $('#cmdBody').innerHTML = cmdBody() }
+  if (k === 'qo') { S.qo.q = t.value; S.qo.sel = 0; $('#qoBody').innerHTML = qoBody(); actDesc(t, 'qoBody') }
+  if (k === 'cmd') { S.cmd.q = t.value; S.cmd.sel = 0; $('#cmdBody').innerHTML = cmdBody(); actDesc(t, 'cmdBody') }
   if (k === 'itemQ') { S.iq = t.value; $('#itemListBody').innerHTML = itemListBody(S.route.kn) }
   if (k === 'gQ') { S.g.f.q = t.value; gPaint() }
   if (k === 'del' && S.del) { S.del.typed = t.value; const n = KN(S.del.kn); $('#delBtnBox').innerHTML = delBtn(!!n && t.value.trim() === n.name) }
@@ -4727,11 +4744,18 @@ document.addEventListener('drop', async (ev) => {
   await Promise.all(items.map((e) => readEntries(e, '', out)))
   takeFiles(out)
 })
+// 고른 줄을 화면 읽기에 알린다(Q50) — 입력칸의 aria-activedescendant 를 고른 줄(role=option)로
+function actDesc(inp, bodyId) {
+  const s = $('#' + bodyId + ' .qr.sel')
+  if (!inp) return
+  if (s) inp.setAttribute('aria-activedescendant', s.id); else inp.removeAttribute('aria-activedescendant')
+  inp.setAttribute('aria-expanded', $('#' + bodyId + ' [role=option]') ? 'true' : 'false')
+}
 function listKeys(ev, st, bodyId, bodyFn, pick) {
   if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
     ev.preventDefault()
     const n = (st.list || []).length
-    if (n) { st.sel = (st.sel + (ev.key === 'ArrowDown' ? 1 : -1) + n) % n; $('#' + bodyId).innerHTML = bodyFn(); const s = $('#' + bodyId + ' .qr.sel'); if (s) s.scrollIntoView({ block: 'nearest' }) }
+    if (n) { st.sel = (st.sel + (ev.key === 'ArrowDown' ? 1 : -1) + n) % n; $('#' + bodyId).innerHTML = bodyFn(); const s = $('#' + bodyId + ' .qr.sel'); if (s) s.scrollIntoView({ block: 'nearest' }); actDesc(ev.target, bodyId) }
     return true
   }
   if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); pick(st.sel); return true }

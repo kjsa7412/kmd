@@ -11,7 +11,7 @@ CSS 에 색 · 크기를 바로 쓰지 않는다. 아래 토큰만 쓴다(`var(-
 | 갈래 | 토큰 | 값 · 쓰는 곳 |
 |---|---|---|
 | 면 | `--bg` · `--surface` · `--surface-2` · `--surface-3` · `--hover` | 바탕 · 카드(흰) · 옅은 칸 · 더 옅은 칸 · 줄 hover |
-| 선 | `--border` · `--border-strong` | |
+| 선 | `--border` · `--border-strong` · `--border-input` | 칸 · 점선 / 진한 칸 선 / 입력칸 · 단추 테두리(흰 · surface-2 위에서 3:1 이상 · WCAG 1.4.11) |
 | 글 | `--text` · `--text-2` · `--text-3` · `--on-accent`(진한 바탕 위 흰 글) | `--text-3` 은 흰 · surface-2 위에서 4.5:1 이상 |
 | 뜻 색 | `--accent` · `--accent-hover` · `--accent-bg` · `--accent-line` / `--ok` · `--ok-bg` · `--ok-line` / `--warn` · `--warn-bg` · `--warn-line` / `--danger` · `--danger-bg` · `--danger-line` / `--pending` · `--pending-bg` · `--pending-line` | 파랑=주 일 · 고른 것 · 새로 · 초록=됨 · 넣음 · 켜짐 · 노랑=멈춤 · 값 바뀜 · 빨강=못 함 · 지우기 · 보라=도는 중 · 기다림 · 반영 대기 |
 | 진한 띠 | `--ink` · `--ink-2` · `--ink-text` | 토스트 · 툴팁 · 고른 띠 · 「나」 표지 |
