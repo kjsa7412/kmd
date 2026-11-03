@@ -181,3 +181,28 @@ test('비밀 · 자격 저장소 · kmd-key', async () => {
   }
   assert.equal(prehash('Kim', '비밀번호1'), crypto.pbkdf2Sync('비밀번호1', 'kmd-login-v1:kim', 20000, 32, 'sha256').toString('base64url'), '화면의 전처리 = node')
 })
+
+test('Q68 쿠키: https 프록시 뒤면 Secure · http 면 붙이지 않는다', async () => {
+  await signIn(s, { id: 'sec', admin: false })
+  const go = async (xfp) => {
+    const r = await fetch(s.url + '/login', { method: 'POST', headers: { 'content-type': 'application/json', ...(xfp ? { 'x-forwarded-proto': xfp } : {}) }, body: JSON.stringify({ user: 'sec', pw: prehash('sec', 'pw-sec-1234567') }) })
+    assert.equal(r.status, 200)
+    return r.headers.getSetCookie()
+  }
+  const https = await go('https')
+  assert.ok(https.length && https.every((c) => /; Secure$/.test(c)), https.join(' | '))
+  const plain = await go(null)
+  assert.ok(plain.length && plain.every((c) => !/Secure/.test(c)), plain.join(' | '))
+})
+
+test('Q72 정적 파일: ETag · no-cache · 같은 지문이면 304 · index.html 은 no-store', async () => {
+  const a = await fetch(s.url + '/main.js')
+  assert.equal(a.status, 200)
+  assert.equal(a.headers.get('cache-control'), 'no-cache')
+  const tag = a.headers.get('etag')
+  assert.ok(tag)
+  const b = await fetch(s.url + '/main.js', { headers: { 'if-none-match': tag } })
+  assert.equal(b.status, 304)
+  assert.equal((await b.text()).length, 0)
+  assert.equal((await fetch(s.url + '/')).headers.get('cache-control'), 'no-store')
+})

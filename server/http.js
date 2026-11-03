@@ -65,6 +65,8 @@ const sinceDays = (days) => {
 
 function send(res, status, body, type = 'application/json; charset=utf-8', extra = {}) {
   const buf = Buffer.isBuffer(body) ? body : Buffer.from(typeof body === 'string' ? body : JSON.stringify(body))
+  // https 로 온 요청(Q68) — 들어가기 쿠키에 Secure 를 붙인다(http 로 다시 나가지 않게)
+  if (res.kmdSecure && extra['set-cookie']) extra = { ...extra, 'set-cookie': [].concat(extra['set-cookie']).map((c) => /;s*Secure/i.test(c) ? c : c + '; Secure') }
   res.writeHead(status, { 'content-type': type, 'content-length': buf.length, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', ...extra })
   res.end(buf)
 }
@@ -487,8 +489,15 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const ws = await fs.readFile(path.join(dataDir, 'worker.json'), 'utf8').then(JSON.parse, () => null)
       const keys = mode === 'pc' ? ['save', 'file', 'src', 'claude', 'find'] : ['file', 'find']
       const month = new Date().toISOString().slice(0, 7)
-      let tidied = 0
-      for (const k of ks) tidied += (await hub.get(k.id)).logs.filter((w) => w.tags.includes('curate-llm') && String(w.date).startsWith(month)).length
+      // 이달 정리 수(Q64) — 지식마다 읽은 지식(같은 것이면 다시 세지 않는다)에 기대어 동시에 센다
+      const tidied = (await Promise.all(ks.map(async (k) => {
+        const kn = await hub.get(k.id)
+        const c = tidiedC.get(k.id)
+        if (c?.kn === kn && c.month === month) return c.n
+        const n = kn.logs.filter((w) => w.tags.includes('curate-llm') && String(w.date).startsWith(month)).length
+        tidiedC.set(k.id, { kn, month, n })
+        return n
+      }))).reduce((a, b) => a + b, 0)
       return out(200, {
         host: req.headers.host,
         root: mode === 'pc' ? path.resolve(root) : undefined,
@@ -1007,6 +1016,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     return out(200, v)
   }
 
+  const tidiedC = new Map() // 지식 → { 읽은 지식 · 달 · 정리 수 }(설정 탭)
   const staticFile = async (res, p) => {
     // 화면 길(/first · /setup)은 같은 화면 한 장이 연다
     const rel = p === '/' || p === '/first' || p === '/setup' ? 'index.html' : p.slice(1)
@@ -1014,11 +1024,21 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (!full.startsWith(APP + path.sep) || rel.split('/').includes('..')) return send(res, 404, '없다', 'text/plain; charset=utf-8')
     const buf = await fs.readFile(full).catch(() => null)
     if (!buf) return send(res, 404, '없다', 'text/plain; charset=utf-8')
-    send(res, 200, buf, TYPES[path.extname(full)] || 'application/octet-stream', rel === 'index.html' ? { 'content-security-policy': `default-src 'self'; connect-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'` } : {})
+    const type = TYPES[path.extname(full)] || 'application/octet-stream'
+    if (rel === 'index.html') return send(res, 200, buf, type, { 'content-security-policy': `default-src 'self'; connect-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'` })
+    // 정적 파일(Q72) — 내용 지문(ETag)으로 다시 묻게 한다. 바뀌지 않았으면 304 로 몸 없이(화면을 열 때마다 main.js 를 다 받지 않게)
+    const etag = `"${crypto.createHash('sha1').update(buf).digest('base64url').slice(0, 20)}"`
+    const cc = { etag, 'cache-control': 'no-cache' }
+    if (String(res.req?.headers['if-none-match'] || '').split(',').map((x) => x.trim()).includes(etag)) {
+      res.writeHead(304, { ...cc, 'x-content-type-options': 'nosniff' })
+      return res.end()
+    }
+    send(res, 200, buf, type, cc)
   }
 
   const server = http.createServer(async (req, res) => {
     try {
+      res.kmdSecure = !!req.socket.encrypted || (!!hub.config.trustProxy && String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https')
       const url = new URL(req.url, 'http://x')
       const p = url.pathname
       const xo = await crossOrigin(req, res, p)

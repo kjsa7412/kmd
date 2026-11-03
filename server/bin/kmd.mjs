@@ -344,6 +344,12 @@ async function main() {
     console.error(`「${user}」 는 kmd 가 쓰는 이름이다. --user 로 다른 이름을 준다`)
     process.exit(2)
   }
+  // 처리되지 않은 오류 — log 를 남기고 계속 돈다(Node 는 reject 하나로 프로세스를 끝낸다 · 팀 서버가 내려가지 않게)
+  process.on('unhandledRejection', (e) => console.error('[kmd] 처리되지 않은 오류', e?.stack || e))
+  process.on('uncaughtException', (e) => {
+    console.error('[kmd] 처리되지 않은 오류', e?.stack || e)
+    if (e?.code === 'EADDRINUSE') process.exit(1)
+  })
   let s
   let stop = () => process.exit(0)
   try {
