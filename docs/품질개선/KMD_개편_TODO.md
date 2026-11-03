@@ -75,7 +75,7 @@
   - 메모(S4 · bb633a5): 바로 넣기 · 확인 대기 · [넣기] · 그 길 · 제안 알림 걷기는 끝(기록 `## 넣은 것` 에 옛 값 → 새 값). 이력 줄 · 항목마다 되돌리기는 S5 라 [ ] 그대로
 - [ ] K2-6 확정 처리 — 저장 덩이에 「확정 / 메모」 를 둔다. 메모는 기록만 남고 문서는 바꾸지 않는다(brief 에 「안 넣은 메모 n」)
   - 메모(S4 · bb633a5): `hub.save` · MCP `record.memo`(changes 없이 · 항목 글이면 E_INPUT · note 「메모로 남겼다」)는 끝. brief 의 「안 넣은 메모 n」 은 S6 이라 [ ] 그대로
-- [x] K2-7 시험: `test/save*.test.mjs` · 7절 제안 시험을 새 기본에 맞춘다 — 개편 S3 2cd8d89(core) · S4 bb633a5(save 서버 부분 · propose · k0 · access · wp3 · fixpack · edit · sources · screen-kmd A8)
+- [x] K2-7 시험: `test/save*.test.mjs` · 7절 제안 시험을 새 기본에 맞춘다 — 개편 S3 2cd8d89(core) · S4 bb633a5(save 서버 부분 · propose · k0 · access · wp3 · fixpack · edit · sources · screen-kmd A8) · S4 검토 1bbf011(MCP save 설명 · 메모는 changes 없이 · 서식 칸 메모 시험)
   - 메모(S3 · 2cd8d89): core 몫 끝 — K2-1 · K2-2 의 저장 문 core(prepare · partial · 넣은 것 · 넣지 못함 · 한 커밋), K2-6 의 `record.memo`(태그 memo · 상태 memo), K2-7 의 새 `test/save.test.mjs`(core). 채널 · 응답(`hub.save` · MCP)은 S4, brief 의 「안 넣은 메모 n」 은 S6 이라 [ ] 그대로
 
 ### K3 세션 채널
