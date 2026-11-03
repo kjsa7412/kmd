@@ -267,7 +267,8 @@ export function headingFits(f, h) {
 export const RECORD_PARTS = [['changes', '바뀐 것'], ['why', '까닭'], ['dropped', '버린 안'], ['impact', '영향'], ['refs', '근거']]
 export const SUMMARY_MAX = 300
 const PART_MAX = 40
-export function recordBody(rec) {
+//   memo — 메모(record.memo · S-D2)는 바뀐 것(changes)이 없어도 된다(값이 아직 확정되지 않았다) · 요약(body)이나 다른 칸이 있어야 한다
+export function recordBody(rec, { memo = false } = {}) {
   const items = (v) => {
     if (typeof v === 'string') try { const x = JSON.parse(v); if (Array.isArray(x)) v = x } catch { /* 글 한 덩이 */ }
     const xs = Array.isArray(v) ? v : typeof v === 'string' ? v.split('\n') : []
@@ -275,9 +276,11 @@ export function recordBody(rec) {
   }
   const summary = String(rec?.body ?? '').trim()
   const parts = RECORD_PARTS.map(([k, h]) => [h, items(rec?.[k])])
-  if (!parts[0][1].length) {
+  if (!parts[0][1].length && memo) {
+    if (!summary && !parts.some(([, xs]) => xs.length)) return { error: '메모 글이 없다. body(한두 문장)나 칸(why · refs …)을 쓴다' }
+  } else if (!parts[0][1].length) {
     if (/^## 바뀐 것\s*$/m.test(summary)) return { body: summary }
-    return { error: `기록 글은 서식으로 쓴다: changes(바뀐 것: 「무엇: 옛 값 → 새 값」 의 목록)가 있어야 한다. why(까닭) · dropped(버린 안) · impact(영향) · refs(근거: 커밋 · 문서 판)는 있으면. body 는 한두 문장 요약(${SUMMARY_MAX}자 안)` }
+    return { error:`기록 글은 서식으로 쓴다: changes(바뀐 것: 「무엇: 옛 값 → 새 값」 의 목록)가 있어야 한다. why(까닭) · dropped(버린 안) · impact(영향) · refs(근거: 커밋 · 문서 판)는 있으면. body 는 한두 문장 요약(${SUMMARY_MAX}자 안)` }
   }
   if (summary.length > SUMMARY_MAX || /\n\s*\n/.test(summary)) return { error: `body 는 한두 문장 요약이다(${SUMMARY_MAX}자 안 · 문단 하나). 나머지는 changes · why · dropped · impact · refs 칸으로 나눈다` }
   if (/^#{1,6} /m.test(summary)) return { error: 'body(요약)에 머리 줄을 넣지 않는다. 칸(changes · why …)의 머리는 kmd 가 단다' }

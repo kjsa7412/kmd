@@ -57,11 +57,12 @@ test('F1: 머리 주입 · 날짜 모양 · 예약 이름 · 태그 · 파일은
 test('F4: 읽은 뒤 바뀐 항목은 덮지 않는다', async () => {
   const sec = (await tool('section', { knowledge: 'dpms', coord: 'proc:헬스 체크' })).structuredContent
   assert.match(sec.base, /^[0-9a-f]{16}$/)
-  // 팀 지식의 세션 save 는 항목 글을 기록에 싣는다(덮을 일이 없다) — 바로 고치는 길(관리 자리의 hub.save)로 본다
+  // 팀 저장 문(S4) — 늦은 저장은 E_CONFLICT 로 아무것도 쓰지 않는다(기록도 · 묶음 0)
   const put = (content, base) => code(s.hub.save(ADMIN, 'dpms', { record: { title: '헬스 체크: 고침', body: content, touches: ['proc:헬스 체크'] }, sections: [{ coord: 'proc:헬스 체크', content, base }] }))
   const n0 = commits('dpms')
-  assert.equal(await put('3초 안에 200 · 고친 글', sec.base), 'ok')
-  assert.equal(await put('늦게 온 글', sec.base), 'E_CONFLICT')
+  assert.equal(await put(`${sec.content} 고친 글.`, sec.base), 'ok')
+  assert.match(fs.readFileSync(path.join(tmp, 'kn', 'dpms', 'docs', '배포절차.md'), 'utf8'), /이것으로 본다\. 고친 글\./)
+  assert.equal(await put(`${sec.content} 늦게 온 글.`, sec.base), 'E_CONFLICT')
   assert.equal(commits('dpms'), n0 + 1, '늦은 저장은 묶음 0')
 })
 

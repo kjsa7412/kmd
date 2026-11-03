@@ -76,8 +76,8 @@ test('글 속 그림은 이 지식의 첨부만: /api/… · 밖의 주소는 �
 test('기록만 하는 사람의 names: 이름 장부는 그대로 · 기록에 「세울 이름」 · 응답이 말한다 · 없는 이름 · 문서는 주인과 같은 검사', async () => {
   const before = fs.readFileSync(path.join(root, 'dpms', '_managed.md'), 'utf8')
   const r = await s.hub.save(LEE, 'dpms', { record: { title: '카나리: 이름 옮기기' }, names: [{ coord: 'proc:카나리', label: '카나리', doc: '장애대응', heading: '없는 머리' }] })
-  assert.equal(r.queued, true)
   assert.equal(r.namesHeld, 1)
+  assert.match(r.note, /이름 1 은 아직 세우지 않았다/)
   assert.equal(fs.readFileSync(path.join(root, 'dpms', '_managed.md'), 'utf8'), before, '자리 장부를 바꾸지 않는다')
   assert.match(fs.readFileSync(path.join(root, 'dpms', r.record), 'utf8'), /## 세울 이름\n- 카나리 \(proc:카나리\) → 장애대응 › 없는 머리/)
   assert.equal(await code(s.hub.save(LEE, 'dpms', { record: { title: '없는 것: 하나', body: 'a' }, sections: [{ coord: 'proc:없는것', content: 'a' }] })), 'E_NOTFOUND')
@@ -98,12 +98,12 @@ test('기록만 하는 사람의 names: 이름 장부는 그대로 · 기록에 
   const sv2 = await call('save', { knowledge: 'dpms', record: { title: '용어: 둘', changes: ['카나리 단계: 새 용어'], touches: ['term:카나리단계'] }, names: JSON.stringify([{ coord: 'term:카나리단계', label: '카나리 단계' }]) }, LEE)
   assert.match(sv2.note, /이름 1 은 아직 세우지 않았다/)
   const b = await call('brief', { knowledge: 'dpms' }, LEE)
-  assert.deepEqual(b.you, { role: '쓰기', direct: false, ledgers: false }) // 쓰기 자리를 받은 사람(권한 모델 4절)
+  assert.deepEqual(b.you, { role: '쓰기', direct: true, ledgers: false }) // 쓰기 자리를 받은 사람(권한 모델 4절) — 조각은 검사를 넘으면 바로(S4) · 장부는 기록으로
   assert.match(b.tidy, /정해진 시각/)
   assert.equal(b.noClaude, undefined)
   await s.hub.setOwner(SHELL, 'dpms', { noClaude: true })
   assert.match((await call('brief', { knowledge: 'dpms' }, PARK)).noClaude, /자동 정리에 Claude 를 쓰지 않는다/)
-  assert.deepEqual((await call('brief', { knowledge: 'dpms' }, PARK)).you, { role: '지식관리자', direct: false, ledgers: true }) // 총괄 관리자 = 지식관리자
+  assert.deepEqual((await call('brief', { knowledge: 'dpms' }, PARK)).you, { role: '지식관리자', direct: true, ledgers: true }) // 총괄 관리자 = 지식관리자
   await s.hub.setOwner(SHELL, 'dpms', { noClaude: false })
 })
 

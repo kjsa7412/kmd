@@ -2053,14 +2053,6 @@ function tdHead(rs) {
   const can = rs.filter(tdCan), all = can.length && can.every((r) => S.tdSel.has(r.id))
   return `<div class="td-r hd"><div class="c-ck">${can.length ? `<input type="checkbox" class="td-ck" data-a="tdSel" data-v="*"${all ? ' checked' : ''} title="보이는 것 모두 고르기" aria-label="보이는 것 모두 고르기">` : ''}</div><div class="c-av">사람</div><div class="c-rt">들어온 길</div><div class="c-tx">기록</div><div class="c-vl">바뀌는 값</div><div class="c-to">넣을 곳</div><div class="c-st">상태</div><div class="c-mk"></div></div>`
 }
-// 제안(A8 · 권한 모델 7절) — 세션이 기록과 같이 보낸 고친 조각. 값을 바꾸거나 지우는 조각은 지식관리자 확인 대기 · [넣기] 로 넣는다
-function tdPropLine(k, r) {
-  const p = r.prop
-  if (!p) return ''
-  const busy = S.propBusy && S.propBusy[r.id]
-  const put = p.review && tdAdm(k) ? `<button type="button" class="btn sm" data-a="tdPropPut" data-v="${esc(r.id)}" data-t="tdPropPut"${busy ? ' disabled' : ''}>${busy ? '넣는 중…' : '넣기'}</button>` : ''
-  return `<div class="td-prop" data-t="tdProp"><span class="chip c-acc" title="세션이 고친 조각을 같이 보냈다 · 정리 때 Claude 없이 지금 글에 댄다">제안 있음 ${p.n}</span>${p.review ? `<span class="muted small">확인 대기 ${p.review}: 값을 바꾸거나 지우는 조각은 지식관리자가 넣는다</span>` : ''}${put}</div>`
-}
 function tdRow(k, r, last) {
   const on = S.tdSel.has(r.id), mk = 'td:' + r.id
   if (S.menu === mk) S._pop = { key: mk, html: `<div class="mi" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}">기록 보기<small>${esc(r.from ? r.from + '에서 보냄' : TD_ROUTE[r.route][1])}</small></div>${tdCan(r) ? `<div class="mi" data-a="tdPick" data-v="${esc(r.id)}">넣을 곳 ${r.st === 'none' ? '고르기' : '바꾸기'}<small>넣을 항목을 손으로 정한다</small></div>` : ''}` }
@@ -2068,7 +2060,7 @@ function tdRow(k, r, last) {
    <div class="c-ck">${tdCan(r) ? `<input type="checkbox" class="td-ck" data-a="tdSel" data-v="${esc(r.id)}"${on ? ' checked' : ''} aria-label="${esc(r.title)} 고르기">` : r.priv ? svg('lock') : ''}</div>
    <div class="c-av">${tdAv(r.author)}</div>
    <div class="c-rt">${tdRt(r.route)}</div>
-   <div class="c-tx"><b title="${esc(r.title)}">${esc(r.title)}</b><small>${esc(recDt(r.date))} · ${esc(r.author)}${r.from ? ` · ${esc(r.from)}에서 보냄` : ''}</small>${(r.st === 'again' || r.st === 'held') && r.why ? `<div class="why" title="${esc(r.why)}">지난 정리에서 둠: ${esc(r.why)}</div>` : ''}${tdPropLine(k, r)}</div>
+   <div class="c-tx"><b title="${esc(r.title)}">${esc(r.title)}</b><small>${esc(recDt(r.date))} · ${esc(r.author)}${r.from ? ` · ${esc(r.from)}에서 보냄` : ''}</small>${(r.st === 'again' || r.st === 'held') && r.why ? `<div class="why" title="${esc(r.why)}">지난 정리에서 둠: ${esc(r.why)}</div>` : ''}</div>
    <div class="c-vl">${r.v ? `<span class="vchg" title="값이 바뀌면 쓴 사람의 이력에 알린다">${esc(r.v)}</span>` : '<span class="nil">-</span>'}</div>
    <div class="c-to">${tdTo(r)}</div>
    <div class="c-st">${tdStChip(r)}</div>
@@ -4567,21 +4559,6 @@ const ACT = {
     if (!row || !row.record) return
     if (!await ask1('되돌리기', '되돌리기', true, '그 줄을 넣기 전 글로 되돌린다. 그 정리에 든 기록은 다시 넣지 않는다')) { S.menu = null; return render() }
     try { await postJSON(`/api/k/${encodeURIComponent(k)}/revert`, { record: row.record }); forgetKn(k); delete S.cache['tidy:' + k]; S.menu = null; toast('되돌렸다. 그 줄만 넣기 전으로'); render() } catch (e) { toastErr(e) }
-  },
-  tdPropPut: async (el) => {
-    const k = tidyKn(), id = el.dataset.v
-    S.propBusy ||= {}
-    if (!k || S.propBusy[id]) return
-    S.propBusy[id] = true
-    render()
-    try {
-      const r = await postJSON(`/api/k/${encodeURIComponent(k)}/proposal/${encodeURIComponent(id)}/put`, {})
-      const rows = r.rows || [], put = rows.filter((x) => x.kind === 'put' || x.kind === 'changed'), left = rows.filter((x) => x.kind === 'left')
-      if (r.why && !rows.length) toast(esc(r.why), 8000, true)
-      else if (left.length) toast(`제안 ${put.length} 을 넣었다 · 넣지 못한 것 ${left.length}: ${esc(left[0].why)}`, 8000, !put.length)
-      else toast(`제안 ${put.length} 을 넣었다: ${esc(put.map((x) => x.target).join(' · '))}`)
-      forgetKn(k); delete S.cache['tidy:' + k]; delete S.cache['tidyplan:' + k]
-    } catch (e) { toastErr(e) } finally { delete S.propBusy[id]; render() }
   },
   setTidyAt: (el) => setOwnerRow(tidyKn(), { tidyAt: el.dataset.v }),
   setTidyMode: (el) => setOwnerRow(tidyKn(), { tidyMode: el.dataset.v }),

@@ -926,7 +926,7 @@ test('따로 할 것(Q11 · Q50 · Q51 · Q52): 설정은 일반으로 · 고르
   } finally { await page.close() }
 })
 
-test('A8 정리 · 반영 대기: 제안이 실린 기록에 「제안 있음」 · 확인 대기면 지식관리자의 [넣기] 로 넣는다', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('A8 저장 문(S4): 쓰기 자리의 값 바꿈 조각은 저장하는 순간 문서에 · 정리 화면에 「제안 있음 · 확인 대기 · [넣기]」 가 없다 · 네 폭 잘림 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   await s.auth.addUser({ id: 'test-prop', admin: false })
   await seat(s, 'test-prop', { dpms: 'write' })
   const k = await s.hub.get('dpms')
@@ -934,8 +934,14 @@ test('A8 정리 · 반영 대기: 제안이 실린 기록에 「제안 있음」
   const m = body.match(/[^\n]*\d+[^\n]*/)
   assert.ok(m, '값이 든 줄')
   const line = m[0], next = line.replace(/\d+/, (d) => String(Number(d) + 1))
-  const r = await s.hub.save({ user: 'test-prop' }, 'dpms', { record: { title: '준비: 테스트 제안 값', body: `## 바뀐 것\n- 값: ${line.match(/\d+/)[0]} → ${next.match(/\d+/)[0]}`, touches: ['proc:준비'] }, sections: [{ coord: 'proc:준비', base: sha16(body), edits: [{ find: line, replace: next }] }] }, { queue: true })
-  assert.equal(r.proposals[0].waits, 'review', r.proposals[0].why)
+  const r = await s.hub.save({ user: 'test-prop' }, 'dpms', { record: { title: '준비: 테스트 제안 값', body: `## 바뀐 것\n- 값: ${line.match(/\d+/)[0]} → ${next.match(/\d+/)[0]}`, touches: ['proc:준비'] }, sections: [{ coord: 'proc:준비', base: sha16(body), edits: [{ find: line, replace: next }] }] }, { channel: 'session' })
+  assert.deepEqual([r.proposals[0].ok, r.proposals[0].applied], [true, true], r.proposals[0].why)
+  assert.equal(r.proposals[0].waits, undefined, '확인 대기는 걷었다')
+  assert.equal((await s.hub.get('dpms')).byWork.get(r.id).state, 'in')
+  assert.ok(sectionOf(await s.hub.get('dpms'), 'proc:준비').sec.body.includes(next), '문서에 들어갔다')
+  // 길도 걷었다
+  const gone = await fetch(s.url + `/api/k/dpms/proposal/${encodeURIComponent(r.id)}/put`, { method: 'POST', headers: { 'content-type': 'application/json', cookie: me.cookie, origin: s.url }, body: '{}' })
+  assert.equal(gone.status, 404)
   const page = await browser.newPage({ viewport: VIEW })
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
@@ -947,13 +953,17 @@ test('A8 정리 · 반영 대기: 제안이 실린 기록에 「제안 있음」
     await page.waitForSelector('[data-t=klist]')
     await mg(page, 'team', 'tidy')
     if (await page.locator('[data-t=tdKnSel]').count()) await page.selectOption('[data-t=tdKnSel]', 'dpms')
-    const row = page.locator('[data-t=tdRec]', { has: page.locator('[data-t=tdProp]') }).first()
-    await row.waitFor()
-    assert.match(await row.locator('[data-t=tdProp]').innerText(), /제안 있음 1[\s\S]*확인 대기 1/)
-    await row.locator('[data-t=tdPropPut]').click()
-    await page.waitForSelector('[data-t=toast]')
-    assert.match(await page.locator('[data-t=toast]').last().innerText(), /제안 1 을 넣었다/)
-    assert.equal((await s.hub.get('dpms')).byWork.get(r.id).state, 'in')
+    await page.waitForTimeout(500)
+    assert.equal(await page.locator('[data-t=tdProp]').count(), 0, '「제안 있음」 줄이 없다')
+    assert.equal(await page.locator('[data-t=tdPropPut]').count(), 0, '[넣기] 가 없다')
+    assert.equal(await page.locator('text=확인 대기').count(), 0)
+    for (const w of [1280, 1024, 600, 375]) {
+      await page.setViewportSize({ width: w, height: 820 })
+      await page.waitForTimeout(100)
+      const c = await cutAt(page)
+      assert.deepEqual(c.cut, [], `정리 ${w}: 잘린 요소 없음`)
+      assert.ok(c.sw <= c.w, `정리 ${w}: 가로 넘침 없음 ${c.sw}`)
+    }
     assert.deepEqual(errors, [])
   } finally { await page.close() }
 })

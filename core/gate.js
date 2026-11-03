@@ -5,7 +5,7 @@
 //   초안 글 검사는 저장과 같은 문서 꼴 검사(core/docformat.js formatProblems)를 쓴다.
 //
 //   S2 에서 core/tidy.js 에서 옮겼다(tidy.js 는 다시 내보낸다 · docs/품질개선/KMD_개편_설계.md 3-1).
-//   check 는 옛 정리 묶음(g)의 갈래 나누기다 — 정리가 걷히는 S13 까지만. 저장 문의 checkSection(k, { coord, base, content, record, … }) 는 S3 · S4 에 여기 더한다.
+//   check 는 옛 정리 묶음(g)의 갈래 나누기다 — 정리가 걷히는 S13 까지만. 저장 문(hub.save · S4)은 checkSection(k, { doc, heading, base, content, record, spread, legacyPend }) 을 쓴다.
 
 import { sha16 } from './text.js'
 import { guardNewDoc } from './guard.js'
@@ -122,6 +122,50 @@ export function checkSectionDraft(k, g, d) {
   if (gone.length && came.some((v) => back.has(v) && !newerV.has(v))) return { ok: false, why: '더 늦게 쓴 기록이 이미 들어간 항목: 옛 기록은 값을 바꾸지 않는다' }
   const changed = gone.length && came.length ? [{ from: gone.join(' · '), to: came.join(' · ') }] : []
   return { ok: true, changed, ...draftLint([d.content]) }
+}
+
+// 저장 문의 항목 검사(S4 · docs/품질개선/KMD_개편_설계.md 3-3) — 사람 · 세션이 보낸 새 글(content · 조각을 댄 글) 하나를 지금 지식에 대어 본다.
+//   { doc, heading } — 항목 자리(문서 경로 docs/x.md · 머리) · base — 보낸 쪽이 읽은 지문(이미 있는 항목이면 꼭) ·
+//   record — 함께 보낸 기록({ title, body }) · spread — 조각이 여럿이라 기록의 값이 항목들에 나뉜다(빠진 값은 부르는 쪽이 합쳐서 본다) ·
+//   legacyPend — 이 항목에 아직 안 들어간 개편 전 기록 id(있으면 넣지 않는다: 들어가면 그 기록까지 「넣음」 으로 보이므로)
+//   → { ok, why, code, stale, changed: [{ from, to }], lint } · code: conflict · legacy-mix · format · values
+//   크기(G5 근거보다 크게)는 보지 않는다 — 사람 · 세션이 항목 전체를 다시 쓰는 일은 정리 초안과 다르다
+export function checkSection(k, { doc, heading, base, content, record, spread = false, legacyPend = [] }) {
+  if (typeof content !== 'string') return { ok: false, code: 'format', why: '항목 글이 없다' }
+  const d = k.byDocPath.get(doc)
+  const sec = d ? d.sections.find((s) => s.h === heading) || null : null
+  const cur = sec ? sec.body : ''
+  if (sec && (!base || String(base) !== sha16(cur))) return { ok: false, code: 'conflict', stale: true, why: base ? '그사이 항목이 바뀌었다. section 으로 다시 읽고 그 위에서 다시 짓는다' : '이미 있는 항목이다. section 이 준 base 를 같이 보낸다(그사이 남이 고친 글을 덮지 않게)' }
+  if (legacyPend.length) return { ok: false, code: 'legacy-mix', why: `이 항목에 개편 전 기록 ${legacyPend.length} 이 아직 안 들어갔다: 지식관리자가 [옛 기록 다시 들이기] 를 하면 풀린다` }
+  const bad = draftBad(content, cur, { doc, old: sec ? cur : null })
+  if (bad) return { ok: false, code: bad === '저절로 채우는 표를 고쳤다' ? 'machine' : 'format', why: `글에 머리 · 표지가 들었다: ${bad}` }
+  if (!content.trim() && cur.trim()) return { ok: false, code: 'format', why: '글을 비웠다. 항목을 지우는 일은 지식관리자가 화면에서 한다' }
+  const body = String(record?.body || '')
+  const title = String(record?.title || '')
+  // 저절로 채우는 표의 값은 견주지 않는다 — 표는 저장이 원래 것을 되붙인다(core/baseline.js keepBlocks)
+  const plain = (t) => (hasBlockMarker(t) ? splitBlocks(t).text.replace(/\u0000block\d+\u0000/g, '') : t)
+  const now = valuesOf(plain(content))
+  const oldV = valuesOf(plain(cur))
+  const recV = valuesOf(body + ' ' + title)
+  // 빠진 값 — 기록이 「바뀐 것」 에 적은 새 값이 글에 있어야 한다(항목 머리에 있는 값은 다시 쓰지 않아도 된다)
+  if (!spread) {
+    const headV = valuesOf(heading)
+    const missing = mustValues(body).filter((v) => !now.has(v) && !headV.has(v))
+    if (missing.length) return { ok: false, code: 'values', why: `기록의 값이 글에 없다: ${missing.slice(0, 3).join(' · ')}` }
+  }
+  // 지어낸 값 — 글의 값은 옛 글이나 기록에 있어야 한다(같은 문서의 항목 머리 · 이름 장부의 이름은 된다)
+  const named = namesIn(k, d)
+  const grounded = groundedIn(plain(cur) + ' ' + body + ' ' + title, oldV, recV)
+  const invented = [...now].filter((v) => !oldV.has(v) && !recV.has(v) && !named.has(v) && !grounded(v))
+  if (invented.length) return { ok: false, code: 'values', why: `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` }
+  // 옛 글의 값은 기록이 「옛 → 새」 로 말한 것만 빠진다(작성기준 3절 5)
+  const gone = [...oldV].filter((v) => !now.has(v))
+  const came = [...now].filter((v) => !oldV.has(v))
+  const told = new Set(oldValues(body).map((v) => v.replace(/\s+/g, '')))
+  const lost = gone.filter((v) => !told.has(v.replace(/\s+/g, '')))
+  if (lost.length) return { ok: false, code: 'values', why: `옛 글의 값이 빠졌다: ${lost.slice(0, 3).join(' · ')}. 바꾼 값이면 기록의 바뀐 것에 「옛 값 → 새 값」 으로 적는다` }
+  const changed = gone.length && came.length ? [{ from: gone.join(' · '), to: came.join(' · ') }] : []
+  return { ok: true, changed, ...draftLint([content]) }
 }
 
 // 넣은 파일 검사 — 모양 · 후보 문서만 고친다 · 새 문서 경로 · 지문(그사이 바뀜) · 표지 · 크기 · 값 대조(빠짐 · 지어냄)

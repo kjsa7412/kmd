@@ -14,6 +14,8 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { copyDir, signIn, seat } from './helpers.mjs'
 import { writeDecl, readDecl } from '../core/sources.js'
+import { sha16 } from '../core/text.js'
+import { sectionOf } from '../core/knowledge.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s, me, src, kdir
@@ -105,8 +107,14 @@ test('대상 제한 · 자격 든 주소는 비밀로', async () => {
 })
 
 test('표는 kmd 만: 세션은 표를 못 고치고, 글을 고쳐도 표는 그대로 · MCP section 에 원천 · 확인 시각', async () => {
-  assert.equal(await code(s.hub.save(ADMIN, 'dpms', { record: { title: 'x', body: 'y' }, sections: [{ coord: 'term:꾸러미 판', content: '<!-- baseline: src="가짜" rule=deps asof="2026-01-01" -->\n| a |\n|---|\n<!-- /baseline -->' }] })), 'E_FORBIDDEN')
-  await s.hub.save(ADMIN, 'dpms', { record: { title: '꾸러미 판: 설명 고침', body: '설명만' }, sections: [{ coord: 'term:꾸러미 판', content: '배포 전에 운영 서버의 판이 아래 표와 같은지 본다.' }] })
+  // 팀 저장 문(S4) — 표를 고친 조각은 그 조각만 넣지 못함(machine · 기록은 남는다) · 이미 있는 항목은 base 를 같이
+  const before = doc('배포절차')
+  const base = sha16(sectionOf(await s.hub.get('dpms'), 'term:꾸러미 판').sec.body)
+  const fake = await s.hub.save(ADMIN, 'dpms', { record: { title: 'x', body: 'y' }, sections: [{ coord: 'term:꾸러미 판', base, content: '<!-- baseline: src="가짜" rule=deps asof="2026-01-01" -->\n| a |\n|---|\n<!-- /baseline -->' }] })
+  assert.deepEqual([fake.docs, fake.held.map((x) => x.code)], [[], ['machine']])
+  assert.equal(doc('배포절차'), before, '문서는 그대로')
+  const ok = await s.hub.save(ADMIN, 'dpms', { record: { title: '꾸러미 판: 설명 고침', body: '설명만' }, sections: [{ coord: 'term:꾸러미 판', base, content: '배포 전에 운영 서버의 판이 아래 표와 같은지 본다.' }] })
+  assert.deepEqual(ok.docs, ['docs/배포절차.md'], JSON.stringify(ok.held))
   assert.match(doc('배포절차'), /배포 전에 운영 서버의 판이 아래 표와 같은지 본다\.\n\n<!-- baseline: src="dpms-api 코드"/)
   const r = await fetch(s.url + '/mcp', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${me.key}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'section', arguments: { knowledge: 'dpms', coord: 'term:꾸러미 판' } } }) })
   const sec = (await r.json()).result.structuredContent

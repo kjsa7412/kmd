@@ -10,9 +10,9 @@
 export const PUT_PART = '넣은 것'
 export const HELD_PART = '넣지 못함'
 export const REVERTED_PART = '되돌린 항목'
-// 사람 입력 본문에 쓰지 못하는 머리 — kmd 가 쓰는 칸(옛 「고친 조각」 은 S4 에 더한다: 그때까지 hub 가 그 칸을 기록에 쓴다)
+// 사람 입력 본문에 쓰지 못하는 머리 — kmd 가 쓰는 칸 + 옛 「고친 조각」(개편 전 제안 칸 · 옛 기록 읽기에만 · S4 부터 새 입력은 거절)
 //   줄 끝 \r 도 같이 본다(CRLF 로 온 글이 읽을 때 \n 으로 바뀌어 칸이 되지 않게)
-export const KMD_PART_RE = /^## (넣은 것|넣지 못함|되돌린 항목)[ \t\r]*$/m
+export const KMD_PART_RE = /^## (넣은 것|넣지 못함|되돌린 항목|고친 조각)[ \t\r]*$/m
 // 넣지 못함 칸이 이보다 길면 content · edits 를 떼고 까닭만 남긴다(S-D1)
 export const HELD_JSON_MAX = 40_000
 const NEW_MARK = ' (새 항목)'

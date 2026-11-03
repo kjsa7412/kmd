@@ -702,14 +702,6 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (tp) return out(200, await hub.tidyPlan(ctx, dec(tp[1])))
     const rt = p.match(/^\/api\/k\/([^/]+)\/rec\/([^/]+)\/touches$/)
     if (rt) return out(200, await hub.setTouches(ctx, dec(rt[1]), dec(rt[2]), (await readBody(req)).coord))
-    // 제안 넣기 — 확인 대기 제안을 지식관리자가 넣는다(권한 모델 7절)
-    const pp = p.match(/^\/api\/k\/([^/]+)\/proposal\/([^/]+)\/put$/)
-    if (pp && req.method === 'POST') {
-      const id = dec(pp[1])
-      await hub.meta(id, ctx)
-      hub.need(ctx, id, 'admin')
-      return out(200, await hub.applyProposals(id, dec(pp[2]), { force: true, by: ctx.user }))
-    }
     const tm = p.match(/^\/api\/k\/([^/]+)\/tidy$/)
     if (tm) {
       const id = dec(tm[1])
@@ -954,7 +946,11 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       }
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       const body = await readBody(req)
-      if (what === 'save') return out(200, await hub.save(ctx, id, body, { guard: 'strict' }))
+      // 저장 문(S4) — 채널은 서버가 정한다: 본문에서는 channel: 'send'(보내기) 하나만 읽고 나머지 opt 칸은 받지 않는다(S-D54)
+      if (what === 'save') {
+        const { channel, ...input } = body && typeof body === 'object' && !Array.isArray(body) ? body : {}
+        return out(200, await hub.save(ctx, id, input, { guard: 'strict', channel: channel === 'send' ? 'send' : 'http' }))
+      }
       if (what === 'learn') return out(200, await hub.learn(ctx, id, body))
       if (what === 'edit') return out(200, await hub.edit(ctx, id, body))
       if (what === 'revert') return out(200, await hub.revert(ctx, id, body))
@@ -984,7 +980,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const head = all.slice(0, limit)
       const open = older ? [] : all.slice(limit).filter((r) => r.state === 'pend' || r.state === 'nowhere')
       const more = all.length - head.length
-      return out(200, { ...t, records: open.length ? [...head, ...open] : head, total: t.records.length, more, next: more > 0 && head.length ? cursorOf(head[head.length - 1]) : null })
+      // held — 넣지 못함 수(저장 문이 넣지 못한 조각이 있는 기록 · S4 · 목록 화면은 S10)
+      return out(200, { ...t, records: open.length ? [...head, ...open] : head, total: t.records.length, more, next: more > 0 && head.length ? cursorOf(head[head.length - 1]) : null, held: k.works.filter((w) => w.state === 'held').length })
     }
     if (what === 'model') return out(200, V.model(k))
     if (what === 'guard') return out(200, await hub.guardAudit(ctx, id))
@@ -1117,7 +1114,10 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     } catch (e) {
       if (!(e instanceof KmdError)) console.error('[kmd]', e)
       const status = e instanceof KmdError ? httpStatusOf(e.code) : 500
-      send(res, status, { error: e.code || 'E_INTERNAL', message: e instanceof KmdError ? e.message : '서버 안에서 넘어졌다', ...(e.need ? { need: e.need } : {}), ...(e.confirm ? { confirm: e.confirm } : {}) }, undefined, status === 401 && req.url.startsWith('/mcp') ? { 'www-authenticate': 'Bearer' } : {})
+      // details — 저장 문의 E_CONFLICT { stale, proposals } · E_RATE { retryAfter }(+ Retry-After 머리)
+      const details = e instanceof KmdError && e.details && typeof e.details === 'object' ? e.details : null
+      const head = { ...(status === 401 && req.url.startsWith('/mcp') ? { 'www-authenticate': 'Bearer' } : {}), ...(e.code === 'E_RATE' && details?.retryAfter ? { 'retry-after': String(details.retryAfter) } : {}) }
+      send(res, status, { error: e.code || 'E_INTERNAL', message: e instanceof KmdError ? e.message : '서버 안에서 넘어졌다', ...(e.need ? { need: e.need } : {}), ...(e.confirm ? { confirm: e.confirm } : {}), ...(details ? { details } : {}) }, undefined, head)
     }
   })
 

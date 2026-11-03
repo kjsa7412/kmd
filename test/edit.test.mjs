@@ -15,6 +15,8 @@ import { SHELL } from '../server/hub.js'
 import * as collect from '../core/collect.js'
 import { HUMAN_ANSWER } from '../core/curate.js'
 import { copyDir, seat } from './helpers.mjs'
+import { sha16 } from '../core/text.js'
+import { sectionOf } from '../core/knowledge.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s
@@ -41,24 +43,28 @@ after(async () => {
 })
 
 test('저장이 곧 반영: 한 save → 대기 0 · 옛 날짜 고친 기록은 거절', async () => {
-  const r = await s.hub.save(KIM, 'dpms', { record: { title: '롤백: 앱 먼저', body: '앱을 먼저 내린다.' }, sections: [{ coord: 'proc:롤백', content: '앱을 먼저 이전 판으로 내리고, 그다음 DB 를 되돌린다.' }] })
+  // 팀 저장 문(S4) — 이미 있는 항목은 base 를 같이 · 바꾼 값은 기록의 「옛 → 새」 로
+  const base = sha16(sectionOf(await s.hub.get('dpms'), 'proc:준비').sec.body)
+  const r = await s.hub.save(KIM, 'dpms', { record: { title: '준비: 커넥션 풀 50', body: '## 바뀐 것\n- DB 커넥션 풀: 40 → 50' }, sections: [{ coord: 'proc:준비', base, content: '배포 창은 화 · 목 14:00 ~ 17:00 이다. DB 커넥션 풀은 50 으로 둔다.\n이미지 이름은 날짜-순번으로 짓는다(예 1022-01).' }] })
+  assert.deepEqual([r.put, r.held], [1, undefined], JSON.stringify(r.held))
   assert.equal(await stateOf(s, 'dpms', r.id), 'in')
+  assert.equal(await code(s.hub.save(KIM, 'dpms', { record: { title: '준비: 지문 없음', body: '## 바뀐 것\n- DB 커넥션 풀: 50 → 60' }, sections: [{ coord: 'proc:준비', content: '배포 창은 화 · 목 14:00 ~ 17:00 이다. DB 커넥션 풀은 60 으로 둔다.\n이미지 이름은 날짜-순번으로 짓는다(예 1022-01).' }] })), 'E_CONFLICT', '이미 있는 항목에 base 가 없으면 덮지 않는다')
   const old = await code(s.hub.save(KIM, 'dpms', { record: { title: '헬스 체크: 옛 날짜 고침', body: 'x', tags: ['edit'], date: '2026-01-02' }, sections: [{ coord: 'proc:헬스 체크', content: '옛 글' }] }, { system: true }))
   assert.equal(old, 'E_CONFLICT')
 })
 
-test('팀 지식: 주인 · 정리하는 사람이 아니면 항목 글은 기록에 실려 정리를 기다린다', async () => {
+test('팀 지식: 쓰기 자리의 항목 글도 검사를 넘으면 그 순간 문서에(K-D13) · 화면 고치기는 아직 지식관리자만 바로(S9)', async () => {
   // lee 는 보통 팀원 — 자리 없음이 기본이라(권한 모델 v1.1) dpms 쓰기 자리를 받는다
   await s.auth.addUser({ id: 'lee', admin: false })
   await seat(s, 'lee', { dpms: 'write' })
-  const before = fs.readFileSync(path.join(tmp, 'kn', 'dpms', 'docs', '운영.md'), 'utf8')
-  const r = await s.hub.save(LEE, 'dpms', { record: { title: '알람: 당번 채널도', body: '#ops-oncall 도 받는다.' }, sections: [{ coord: 'term:알람', content: 'CPU 경고는 85% 에서 울린다. 받는 곳은 #ops-alert · #ops-oncall.' }] })
-  assert.equal(r.queued, true)
-  assert.equal(fs.readFileSync(path.join(tmp, 'kn', 'dpms', 'docs', '운영.md'), 'utf8'), before, '문서는 그대로')
-  assert.equal(await stateOf(s, 'dpms', r.id), 'pend')
+  const base = sha16(sectionOf(await s.hub.get('dpms'), 'term:알람').sec.body)
+  const r = await s.hub.save(LEE, 'dpms', { record: { title: '알람: 당번 채널도', body: '#ops-oncall 도 받는다.' }, sections: [{ coord: 'term:알람', base, content: 'CPU 경고는 85% 에서 울린다. 알람 받는 곳은 운영 채널 #ops-alert · 당번 채널 #ops-oncall.' }] })
+  assert.deepEqual([r.put, r.held], [1, undefined], JSON.stringify(r.held))
+  assert.match(fs.readFileSync(path.join(tmp, 'kn', 'dpms', 'docs', '운영.md'), 'utf8'), new RegExp(`<!-- applied: ${r.id} -->\\nCPU 경고는 85% 에서 울린다\\. 알람 받는 곳은 운영 채널 #ops-alert · 당번 채널 #ops-oncall\\.`))
+  assert.equal(await stateOf(s, 'dpms', r.id), 'in')
   const w = fs.readFileSync(path.join(tmp, 'kn', 'dpms', r.record), 'utf8')
-  assert.match(w, /## 알람\n.*#ops-oncall/)
-  // 화면 고치기도 같은 길
+  assert.match(w, /## 넣은 것\n- docs\/운영\.md › /)
+  // 화면 고치기는 지금 그대로(쓰기 자리는 기록으로 · 지식관리자는 바로 · S9 에 저장 문으로)
   const d = await s.hub.edit(LEE, 'dpms', { doc: '서버목록', sections: [{ h: '점검 시간', body: '정기 점검은 매달 둘째 토요일.' }] })
   assert.equal(d.direct, false)
   const k = await s.hub.edit(KIM, 'dpms', { doc: '서버목록', sections: [{ h: '운영 서버', body: 'app-1 ~ app-5 · canary-1.' }] })
@@ -87,16 +93,18 @@ test('결정 규칙: 이름을 빠뜨린 기록은 두지 않고 일감 · 사�
   assert.equal(dec.author, 'kmd-auto')
 })
 
-test('되돌리기: 옛 본문 + 판정 거두기 · 원 기록은 다시 대기', async () => {
+test('되돌리기: 옛 본문 + 판정 거두기 · 저장 문이 넣은 기록은 되돌림', async () => {
   const doc = path.join(tmp, 'kn', 'dpms', 'docs', '배포절차.md')
-  const r = await s.hub.save(KIM, 'dpms', { record: { title: '카나리: 20%', body: '첫 30분은 20%.', touches: ['proc:카나리'] }, sections: [{ coord: 'proc:카나리', content: '`canary-1` 에 먼저 올리고, 첫 30분은 요청의 20% 만 보낸다.' }] })
+  const base = sha16(sectionOf(await s.hub.get('dpms'), 'proc:카나리').sec.body)
+  const r = await s.hub.save(KIM, 'dpms', { record: { title: '카나리: 20%', body: '## 바뀐 것\n- 첫 30분 비율: 10% → 20%', touches: ['proc:카나리'] }, sections: [{ coord: 'proc:카나리', base, content: '`canary-1` 에 먼저 올리고, 첫 30분은 요청의 20% 만 보낸다. 오류율이 1% 를 넘으면 멈추고 롤백으로 간다.' }] })
   assert.match(fs.readFileSync(doc, 'utf8'), /요청의 20%/)
   await s.hub.revert(KIM, 'dpms', { record: r.id })
   const t = fs.readFileSync(doc, 'utf8')
   assert.match(t, /요청의 10% 만 보낸다/)
   assert.match(t, /<!-- applied: 2026-1017-카나리 -->/)
   const k = await s.hub.get('dpms')
-  assert.equal(k.byWork.get(r.id).state, 'pend', '되돌린 기록은 다시 아직 안 넣은 기록')
+  // 저장 문이 넣은 기록(put)을 통째로 되돌리면 되돌림 — 「들어감」 으로 남거나 다시 대기로 떨어지지 않는다(S4 · 옛 기록은 S5)
+  assert.equal(k.byWork.get(r.id).state, 'reverted', '되돌린 기록은 되돌림')
   assert.ok(k.reverted.has(r.id), '주인이 되돌림: 다시 초안하지 않는다')
 })
 

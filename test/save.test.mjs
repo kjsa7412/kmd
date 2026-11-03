@@ -1,5 +1,5 @@
 // 저장 문 core — 기록 + 조각 + 표지가 한 저장 · 한 커밋(docs/품질개선/KMD_개편_설계.md S3 · core/save.js · core/parts.js · core/knowledge.js)
-//   서버(hub.save · 속도 한도 · 같은 저장 · savelog)는 S4 에서 이 파일에 더한다
+//   서버(hub.save · S4): 속도 한도 · 같은 저장(md/) · 메모 · 넣지 못함(값 · 표 · 되돌림 잦은 문서) · 바로잡기 자리 · sent/ · 측정 줄 · 이 PC 는 그대로
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -16,7 +16,11 @@ import { parseHeld, parsePut, renderPut, parseReverted, renderReverted, renderHe
 import { isReservedTag } from '../core/names.js'
 import { valueDiff } from '../core/values.js'
 import { httpStatusOf } from '../core/errors.js'
-import { copyDir } from './helpers.mjs'
+import { copyDir, signIn, seat } from './helpers.mjs'
+import { startServer } from '../server/http.js'
+import { sha16 } from '../core/text.js'
+import { sectionOf } from '../core/knowledge.js'
+import { valuesOf as valuesIn } from '../core/values.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const DOC = 'docs/배포절차.md'
@@ -241,4 +245,153 @@ test('partial: 모든 항목이 넣지 못함(저절로 채우는 표 · prepare
   assert.equal((await load()).byWork.get(p.id).state, 'held')
   assert.equal(await code(() => save(dir, { record: { title: '가짜', body: '글\r\n\r\n## 넣은 것\r\n- docs/배포절차.md › 롤백' } }, LEE)), 'E_INPUT')
   assert.equal(await status(), '')
+})
+
+// ── 서버(hub.save · S4) — 자리 · 속도 한도 · 같은 저장 · 메모 · 넣지 못함 · 바로잡기 · 보내기 표지 · 측정 줄 ──
+let srv = null
+let sroot = null
+let me = null
+const KIM = { user: 'kim', admin: true }
+async function server() {
+  if (srv) return srv
+  sroot = path.join(tmp, 'srv')
+  copyDir(path.join(HERE, 'fixture', 'kmd'), sroot)
+  fs.mkdirSync(path.join(sroot, '.kmd'), { recursive: true })
+  fs.writeFileSync(path.join(sroot, '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, tidyTickMs: 3600000 }))
+  srv = await startServer({ root: sroot, port: 0, log: () => {}, scryptN: 1 << 15 })
+  me = await signIn(srv, { id: 'kim' })
+  for (const u of ['lee', 'test-b']) {
+    await srv.auth.addUser({ id: u, admin: false })
+    await seat(srv, u, { dpms: 'write' })
+  }
+  return srv
+}
+after(async () => { await srv?.close() })
+const sdir = () => path.join(sroot, 'dpms')
+const SG = async (...a) => (await tryGit(sdir(), a)).out.trim()
+const baseOf = async (coord) => sha16(sectionOf(await srv.hub.get('dpms'), coord).sec.body)
+const err = (p) => p.then(() => null, (e) => e)
+
+test('서버: 31번째 저장은 E_RATE(429 · Retry-After) · 서버 안의 저장은 세지 않는다', async () => {
+  const s = await server()
+  // 속도는 자리 검사 뒤 · 입력 검사 앞에서 뺀다 — 빨리 넘어지는 잘못된 입력 30번으로 통을 비운다
+  const post = (body) => fetch(s.url + '/api/k/dpms/save', { method: 'POST', headers: { 'content-type': 'application/json', cookie: me.cookie }, body: JSON.stringify(body) })
+  //   동시에 45번 — 통(1분 30)이 비면 429 · 그사이 채워지는 토큰(초당 0.5)은 몇 개뿐이다
+  const rs = await Promise.all(Array.from({ length: 45 }, () => post({ record: { title: '' } })))
+  const n400 = rs.filter((x) => x.status === 400).length
+  assert.ok(n400 >= 30 && n400 <= 35, `통 30 + 그사이 채워진 몇 개만 지난다: ${n400}`)
+  assert.equal(n400 + rs.filter((x) => x.status === 429).length, 45)
+  const r = rs.find((x) => x.status === 429)
+  assert.ok(Number(r.headers.get('retry-after')) >= 1)
+  const j = await r.json()
+  assert.equal(j.error, 'E_RATE')
+  assert.ok(j.details.retryAfter >= 1)
+  // 서버 안의 저장(채널 없음)은 세지 않는다
+  const ok = await s.hub.save(KIM, 'dpms', { record: { title: '테스트 서버 안 저장', body: 'x', touchesEmpty: '시험' } })
+  assert.ok(ok.id)
+})
+
+test('서버: 같은 md/ 지문은 same(아무것도 안 씀) · 동시에 둘이면 기록 하나 · 남이 단 지문은 내 저장을 막지 않는다', async () => {
+  const s = await server()
+  const rec = (n) => ({ record: { title: `테스트 넣은 파일 ${n}`, body: '파일 글.', tags: ['ingest/test-a.md', 'md/0123456789abcdef'], touchesEmpty: '시험 파일' } })
+  const n0 = Number(await SG('rev-list', '--count', 'HEAD'))
+  const [a, b] = await Promise.all([s.hub.save({ user: 'lee' }, 'dpms', rec(1), { channel: 'bulk' }), s.hub.save({ user: 'lee' }, 'dpms', rec(2), { channel: 'bulk' })])
+  const same = [a, b].filter((x) => x.same)
+  assert.equal(same.length, 1, '동시에 둘이면 하나만 쓴다')
+  assert.equal(same[0].id, [a, b].find((x) => !x.same).id)
+  assert.equal(Number(await SG('rev-list', '--count', 'HEAD')), n0 + 1)
+  const again = await s.hub.save({ user: 'lee' }, 'dpms', rec(3), { channel: 'bulk' })
+  assert.equal(again.same, true)
+  // 남(test-b)이 같은 지문을 달아도 lee 의 것과 겹치지 않는다(남의 가짜 기록으로 넣기를 막지 못하게)
+  const other = await s.hub.save({ user: 'test-b' }, 'dpms', rec(4), { channel: 'bulk' })
+  assert.ok(other.id && !other.same)
+  assert.equal(await SG('status', '--porcelain'), '')
+})
+
+test('서버: 메모는 문서를 바꾸지 않는다 · 값이 안 맞는 조각 · 저절로 채우는 표를 고친 조각은 넣지 못함(기록은 남는다)', async () => {
+  const s = await server()
+  const memo = await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 메모: 풀 크기', body: '풀 크기를 늘릴지 본다.', memo: true, touches: ['proc:준비'] } }, { channel: 'session' })
+  assert.deepEqual([memo.memo, memo.docs, memo.note], [true, [], '메모로 남겼다. 문서는 바꾸지 않았다'])
+  assert.equal((await s.hub.get('dpms')).byWork.get(memo.id).state, 'memo')
+  assert.equal((await err(s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 메모', body: 'x', memo: true, touches: ['proc:준비'] }, sections: [{ coord: 'proc:준비', base: await baseOf('proc:준비'), content: 'x' }] })))?.code, 'E_INPUT')
+  // 값 대조 — 기록의 값이 글에 없다
+  const v = await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 값: 알림 간격', body: '## 바뀐 것\n- 알림 간격: 7분', touches: ['proc:준비'] }, sections: [{ coord: 'proc:준비', base: await baseOf('proc:준비'), edits: [{ find: '날짜-순번으로 짓는다', replace: '날짜-순번으로 짓고 알린다' }] }] }, { channel: 'session' })
+  assert.deepEqual([v.docs, v.held.map((x) => x.code)], [[], ['values']])
+  assert.equal((await s.hub.get('dpms')).byWork.get(v.id).state, 'held')
+  // 저절로 채우는 표를 고쳤다 — machine
+  const cur = sectionOf(await s.hub.get('dpms'), 'term:꾸러미 판').sec.body
+  const m = await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 표 고침', body: '표를 고쳤다.', touches: ['term:꾸러미 판'] }, sections: [{ coord: 'term:꾸러미 판', base: sha16(cur), content: `${cur}\n\n<!-- baseline: src="가짜" rule=deps asof="2026-01-01" -->\n| a |\n|---|\n<!-- /baseline -->` }] }, { channel: 'session' })
+  assert.deepEqual(m.held.map((x) => x.code), ['machine'])
+  assert.equal(sectionOf(await s.hub.get('dpms'), 'term:꾸러미 판').sec.body, cur, '표는 그대로')
+})
+
+test('서버: 7일 안에 두 번 되돌린 문서는 값을 바꾸는 조각만 넣지 못함(reverts)', async () => {
+  const s = await server()
+  for (const n of [41, 42]) {
+    const r = await s.hub.save(KIM, 'dpms', { record: { title: `테스트 창 ${n}`, body: `## 바뀐 것\n- 롤백 기다림: ${n}분`, touches: ['proc:카나리'] }, sections: [{ doc: '서버목록', heading: `테스트 기다림 ${n}`, content: `롤백 전에 ${n}분 기다린다.` }] })
+    assert.equal(r.put, 1, JSON.stringify(r.held))
+    await s.hub.revert(KIM, 'dpms', { record: r.id })
+  }
+  const d = (await s.hub.get('dpms')).docs.find((x) => x.id === '서버목록')
+  const sec = d.sections.find((x) => x.h === '점검 시간')
+  const add = await s.hub.save(KIM, 'dpms', { record: { title: '테스트 값 더하기', body: '## 바뀐 것\n- 메모: 서버 이름 규칙은 그대로' }, sections: [{ doc: '서버목록', heading: sec.h, base: sha16(sec.body), content: `${sec.body}\n\n서버 이름 규칙은 그대로 둔다.` }] })
+  assert.equal(add.put, 1, '값을 바꾸지 않는 조각은 그대로 들어간다')
+  const vals = [...valuesIn(sec.body)]
+  assert.ok(vals.length, '값이 든 항목')
+  const d2 = (await s.hub.get('dpms')).docs.find((x) => x.id === '서버목록').sections.find((x) => x.h === sec.h)
+  const from = vals[0]
+  const to = /\d/.test(from) ? from.replace(/\d/, (x) => String((Number(x) + 1) % 10)) : `${from}-2`
+  const chg = await s.hub.save(KIM, 'dpms', { record: { title: '테스트 값 바꿈', body: `## 바뀐 것\n- 값: ${from} → ${to}` }, sections: [{ doc: '서버목록', heading: sec.h, base: sha16(d2.body), content: d2.body.replace(from, to) }] })
+  assert.deepEqual(chg.held?.map((x) => x.code), ['reverts'], JSON.stringify(chg.proposals))
+})
+
+test('서버: 남의 기록을 fixes 로 가리키면 403 · 내 기록은 된다 · sent/ 는 보내기만 · 앞 저장 바로 뒤 같은 항목 저장은 헛 E_CONFLICT 없이', async () => {
+  const s = await server()
+  const mine = await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 내 메모', body: '내 메모.', memo: true, touchesEmpty: '시험' } })
+  const kims = await s.hub.save(KIM, 'dpms', { record: { title: '테스트 김 메모', body: '김의 메모.', memo: true, touchesEmpty: '시험' } })
+  assert.equal((await err(s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 바로잡음', body: '바로잡는다.', fixes: [kims.id], touchesEmpty: '시험' } })))?.code, 'E_FORBIDDEN')
+  const fx = await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 바로잡음', body: '바로잡는다.', fixes: [mine.id], touchesEmpty: '시험' } })
+  assert.equal((await s.hub.get('dpms')).byWork.get(mine.id).state, 'fixed')
+  assert.ok(fx.id)
+  assert.ok((await s.hub.save(KIM, 'dpms', { record: { title: '테스트 관리자 바로잡음', body: '바로잡는다.', fixes: [fx.id], touchesEmpty: '시험' } })).id, '지식관리자는 남의 기록도')
+  assert.equal((await err(s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 보낸 척', body: 'x', tags: ['sent/0123456789abcdef'], touchesEmpty: '시험' } }, { channel: 'session' })))?.code, 'E_INPUT')
+  // 앞 저장 바로 뒤 — 새로 읽은 지식으로 보므로 새 base 로 보낸 다음 저장이 헛 E_CONFLICT 로 넘어지지 않는다
+  const b0 = await baseOf('proc:카나리')
+  const one = s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 카나리 하나', body: '## 바뀐 것\n- 지켜보기: 대시보드', touches: ['proc:카나리'] }, sections: [{ coord: 'proc:카나리', base: b0, edits: [{ find: '롤백으로 간다.', replace: '롤백으로 간다. 대시보드로 지켜본다.' }] }] }, { channel: 'session' })
+  const r1 = await one
+  assert.equal(r1.put, 1, JSON.stringify(r1.proposals))
+  const b1 = await baseOf('proc:카나리')
+  const r2 = await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 카나리 둘', body: '## 바뀐 것\n- 알림: 운영 채널', touches: ['proc:카나리'] }, sections: [{ coord: 'proc:카나리', base: b1, edits: [{ find: '대시보드로 지켜본다.', replace: '대시보드로 지켜보고 운영 채널에 알린다.' }] }] }, { channel: 'session' })
+  assert.equal(r2.put, 1, JSON.stringify(r2.proposals))
+})
+
+test('서버: 측정 줄(savelog) — 저장마다 한 줄 · E_CONFLICT 도 · 측정 줄을 못 써도 저장은 성공', async () => {
+  const s = await server()
+  const f = path.join(sroot, '.kmd', 'savelog', 'dpms.jsonl')
+  const lines = () => fs.readFileSync(f, 'utf8').trim().split('\n').map((l) => JSON.parse(l))
+  const n0 = fs.existsSync(f) ? lines().length : 0
+  const r = await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 측정', body: '## 바뀐 것\n- 측정: 한 줄', touches: ['proc:카나리'] }, sections: [{ coord: 'proc:카나리', base: await baseOf('proc:카나리'), edits: [{ find: '롤백으로 간다.', replace: '롤백으로 간다. 측정 줄을 남긴다.' }] }] }, { channel: 'session' })
+  const l = lines().slice(n0)
+  assert.equal(l.length, 1)
+  assert.deepEqual([l[0].kn, l[0].user, l[0].ch, l[0].rec, l[0].n, l[0].put, l[0].err], ['dpms', 'lee', 'session', r.id, 1, 1, null])
+  await err(s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 늦음', body: '## 바뀐 것\n- x: 1', touches: ['proc:카나리'] }, sections: [{ coord: 'proc:카나리', base: '0000000000000000', edits: [{ find: '롤백으로 간다.', replace: '롤백으로 간다 1.' }] }] }, { channel: 'session' }))
+  const last = lines().pop()
+  assert.deepEqual([last.err, last.stale], ['E_CONFLICT', ['proc:카나리']])
+  // 측정 줄 자리를 막아도(파일이 아닌 폴더) 저장은 성공
+  fs.rmSync(path.join(sroot, '.kmd', 'savelog'), { recursive: true, force: true })
+  fs.writeFileSync(path.join(sroot, '.kmd', 'savelog'), '막음')
+  const ok = await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 측정 막힘', body: '메모.', memo: true, touchesEmpty: '시험' } }, { channel: 'session' })
+  assert.ok(ok.id && ok.memo)
+  fs.rmSync(path.join(sroot, '.kmd', 'savelog'), { force: true })
+})
+
+test('이 PC 는 지금 그대로(S-D52): 항목 글은 곧바로 문서에 · 조각 검사 · 넣지 못함 표지 없음', async () => {
+  const proot = path.join(tmp, 'pc')
+  copyDir(path.join(HERE, 'fixture', 'kmd'), proot)
+  const pc = await startServer({ root: proot, data: path.join(tmp, 'pcdata'), mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
+  try {
+    const r = await pc.hub.save({ user: 'kim' }, 'dpms', { record: { title: '롤백: 앱 먼저', body: '앱을 먼저 내린다.' }, sections: [{ coord: 'proc:롤백', content: '앱을 먼저 이전 판으로 내리고, 그다음 DB 를 되돌린다.' }] }, { noCurate: true })
+    assert.deepEqual([r.docs, r.put, r.held, r.proposals], [['docs/배포절차.md'], undefined, undefined, undefined], '섞인 자리 · base 없음도 지금처럼 곧바로')
+    assert.ok(!(await pc.hub.get('dpms')).byWork.get(r.id).tags.includes('put'))
+  } finally { await pc.close() }
 })

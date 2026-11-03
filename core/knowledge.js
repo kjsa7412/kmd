@@ -249,6 +249,8 @@ export function recordState(k, w) {
   if (tags.includes('held')) return 'held' // ⑤
   // ⑦ 저장 문이 넣은 항목을 적은 기록 — 그 항목이 모두 되돌려졌으면 되돌림, 아니면 들어감
   if (tags.includes('put')) {
+    // 저장 문이 넣은 기록을 통째로 되돌렸으면(옛 되돌리기 · reopens) 되돌림 — 「들어감」 으로 남지 않게(S4 · 옛 기록의 ⑥ 은 S5)
+    if (k.reverted?.has(w.id)) return 'reverted'
     const items = parsePut(w.body)
     const back = k.revertedItems?.get(w.id)
     return items.length && back && items.every((x) => back.has(itemKey(x.doc, x.heading))) ? 'reverted' : 'in'
