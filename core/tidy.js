@@ -13,16 +13,21 @@
 //
 // 값이 바뀐 것(옛 글의 값이 빠지고 새 값이 들어감)은 그 기록을 쓴 사람의 「오늘 바뀐 것」 노란 줄이 된다.
 
-import { valuesOf } from './save.js'
+import { sha16 } from './text.js'
+import { formFor, DEFAULT_FORMS, FORM_GUIDE } from './guard.js'
+import { sectionOf, coordsOfSection, labelOf, reflectedIn } from './knowledge.js'
 // 코드 바뀜 기록(code-change)은 차이 속의 수를 다 볼 수 없다 — 「바뀐 값」 의 새 값만 글에 있어야 한다
 import { newValuesOf } from './codechange.js'
-import { sha16 } from './text.js'
-import { formFor, guardNewDoc, DEFAULT_FORMS, FORM_GUIDE } from './guard.js'
-import { sectionOf, coordsOfSection, labelOf, reflectedIn } from './knowledge.js'
-import { formatProblems, lintSection } from './docformat.js'
-import { splitBlocks, hasBlockMarker } from './baseline.js'
-// 서로 부르는 모듈(propose 는 check 를 쓴다) — 함수는 부를 때 읽는다
-import { applyEdits as applyPatch } from './propose.js'
+import { valuesOf, mustValues } from './values.js'
+import { WRITE_RULES } from './writerules.js'
+import { ingestCandidates, formsOf, spotKey, topicOfName, DATE_RE, docRel } from './ingest.js'
+
+// 옮긴 것(S2 · docs/품질개선/KMD_개편_설계.md 3-1) — 부르는 곳을 바꾸지 않게 다시 내보낸다. 이 파일은 S13 에 걷는다
+//   검사 · 꼴 → core/gate.js · 값 장부 → core/values.js · 쓰기 규칙 → core/writerules.js · 들이기 후보 · 갈래 · 자리 열쇠 → core/ingest.js
+export { check, applyDraft as applyEdits } from './gate.js'
+export { knowledgeParts, mustValues, oldValues } from './values.js'
+export { WRITE_RULES } from './writerules.js'
+export { formsOf, spotKey, spotTarget, ingestCandidates, INGEST_SCHEMA, kindOfName, topicOfName } from './ingest.js'
 
 export const DRAFT_SCHEMA = {
   type: 'object',
@@ -82,70 +87,6 @@ export function material(k, { candidates = () => [], ids = null } = {}) {
     out.push({ kind: 'ingest', record: { id: w.id, date: w.date, author: w.author, title: w.title, body: w.body, file: w.tags.find((t) => t.startsWith('ingest/')).slice(7) }, docs: ingestCandidates(k, w), ...formsOf(k) })
   }
   return out
-}
-// 넣은 파일 묶음에 싣는 갈래 장부 — 프롬프트가 「이 지식의 갈래」 로 보인다(없으면 Claude 가 파일 이름으로 새 문서를 세우고 가드에 걸린다)
-export const formsOf = (k) => ({ forms: (k.forms?.rows || DEFAULT_FORMS).map((f) => ({ name: f.name, aliases: f.aliases, folder: f.folder || '', kind: f.kind })), formsOwn: !!k.forms?.own })
-
-// 묶음 하나 = 정리 일 줄의 자리 하나 — 일꾼 · 서버가 같은 열쇠로 진행을 맞춘다
-export const spotKey = (g) => (g?.kind === 'section' ? 'c:' + g.coord : 'r:' + (g?.record?.id || ''))
-export const spotTarget = (g) => (g.kind === 'section' ? `${g.doc.replace(/^docs\/|\.md$/g, '')} › ${g.heading}` : g.kind === 'ingest' ? `${g.record.file || g.record.title} · 문서에 들이기` : `${g.record.title} · 자리 고르기`)
-
-// 넣은 파일과 가까운 문서 — 말(2글자 넘는 것)이 제목 · 머리에 겹치는 수로 다섯까지 · 항목마다 지금 글 · 지문
-const wordsIn = (t) => new Set(String(t || '').toLowerCase().split(/[^0-9a-z가-힣]+/).filter((x) => x.length >= 2))
-export function ingestCandidates(k, w, max = 5) {
-  const want = wordsIn(`${w.title} ${[...String(w.body).matchAll(/^#{1,3} (.+)$/gm)].map((m) => m[1]).join(' ')}`)
-  const scored = []
-  for (const d of k.docs) {
-    if (/<!--\s*watched:/.test(d.intro || '')) continue
-    const have = wordsIn(`${d.title} ${d.id} ${d.sections.map((s) => s.h).join(' ')}`)
-    const n = [...want].filter((x) => have.has(x)).length
-    if (n) scored.push({ d, n })
-  }
-  return scored
-    .sort((a, b) => b.n - a.n || a.d.id.localeCompare(b.d.id))
-    .slice(0, max)
-    .map(({ d }) => ({ doc: d.path, title: d.title, sections: d.sections.filter((s) => s.h).map((s) => ({ h: s.h, body: s.body.slice(0, 1500), base: sha16(s.body) })) }))
-}
-export const INGEST_SCHEMA = {
-  type: 'object',
-  properties: {
-    updates: { type: 'array', items: { type: 'object', properties: { doc: { type: 'string' }, heading: { type: 'string' }, content: { type: 'string' } }, required: ['doc', 'heading', 'content'] }, description: '기존 문서(후보)의 항목에 넣을 것: 항목의 새 글 전체 · 없는 머리면 그 문서에 새 항목' },
-    newDoc: { type: ['object', 'null'], properties: { path: { type: 'string' }, sections: { type: 'array', items: { type: 'object', properties: { heading: { type: 'string' }, content: { type: 'string' } }, required: ['heading', 'content'] } } }, description: '새 문서가 맞으면: 경로(폴더/이름 · .md 없이)와 항목들' },
-    why: { type: 'string' },
-  },
-  required: ['updates'],
-}
-
-// 항목 글 쓰기 규칙(docs/kmd_문서_작성기준.md 3 ~ 5절 · agent/skills/kmd-build/작성가이드.md 의 줄임) — 정리 · 들이기 프롬프트가 같이 쓴다
-export const WRITE_RULES = [
-  '항목 글 쓰기(본문만):',
-  '- 항목 하나는 대상 하나(기능 · 화면 · 테이블 · 절차 · 회의 한 번)의 지금이다. 기록을 날짜별로 덧붙이지 말고 지금 글에 녹여 다시 쓴다. 「추가했다 · 고쳤다」 가 아니라 「…한다 · …이다」.',
-  '- 확정된 내용만 쓴다. 뒤집힌 내용은 지운다. 「~했다는 기록이 있다」 같은 경위 · 논의 · 「바뀐 것 · 영향 · 맞춰 볼 것」 목록 · 커밋 메시지 · 코드 차이는 옮기지 않는다. 기록에 남아 있다.',
-  '- 링크는 지식 문서 [배포 절차](배포절차.md) · 항목 [준비](배포절차.md#준비)(같은 문서면 [준비](#준비)) · 바깥 주소 https://… 만. 기록 · 이력 링크(../work/… · ../log/…)와 /api/… 같은 시스템 주소는 쓰지 않는다.',
-  '- 항목 머리(# · ##)와 주석(<!-- -->)은 쓰지 않는다. 항목 안의 소제목은 ### 아래나 굵은 글로: 지금 글의 소제목은 그대로 둔다. 저절로 채우는 표(<!-- baseline … --> 덩이)가 있으면 글자 하나 바꾸지 않고 그대로 둔다.',
-  '- 「**경과**」 목록 · 출처 줄은 kmd 가 문서 끝 참고에 단다. 쓰지 않는다.',
-  '- 읽기 쉽게: 한 문단 다섯 줄까지 · 나란한 것이 셋 이상이면 목록 · 둘 이상의 속성을 견주면 표 · 코드 · 경로 · 값은 `백틱`.',
-  '- 줄표 「—」 를 쓰지 않는다. 풀이 · 설명은 쌍점(「쓰임: DB 는 폐쇄망에 둔다」), 문장 끊기는 마침표, 표의 빈 칸은 「-」.',
-  '- 머리 단계를 건너뛰지 않는다: 항목(##) 안의 소제목은 ### 부터, 그 아래가 #### 다. ## 바로 아래에 #### 를 쓰지 않고 ##### 는 쓰지 않는다.',
-  '- 메타 표(작성자 · 판 · 상태 · 기준일 · 근거 문서)는 요약이 아니다. 문서 요약은 제목 바로 아래 1~3문장으로 「무엇을 다루고 지금 결론이 무엇인지」 를 쓴다.',
-  '- 머리글 · 본문에 kmd 운영 규칙을 쓰지 않는다(좌표 · 섹션 · 기준선 · 원천 · 동기화 · touches · _vocab · _managed · 등록부 같은 말). 읽는 사람이 알아야 할 대상의 지식만 쓴다.',
-  '좋은 예: 「배포 창은 화 · 목 14:00 ~ 17:00 이다. 되돌릴 때는 [롤백](#롤백) 순서를 따른다.」 · 「## 지출처리」 아래 「### 화면 구성」 → 「#### 버튼」',
-  '나쁜 예: 「배포 창을 화 · 목으로 바꿨다는 기록이 있다([기록](../work/2026-1021-배포-창.md)).」 · 글 끝의 「**경과**」 목록 · 「<!-- 메모 -->」 · 「## 지출처리」 바로 아래 「#### 1. 업무 흐름」 · 요약 자리에 「| 작성 | 판 | 상태 |」 표 · 「좌표는 `screen:{화면ID}` · 다음 동기화는 이 섹션을 덮지 않는다」',
-].join('\n')
-// 초안 짜임 알림 — 머리 단계 건너뜀 · 5단계 머리(거절하지 않는다 · 결과에 lint 로 싣는다)
-function draftLint(outs) {
-  const lint = outs.flatMap((o) => lintSection(o))
-  return lint.length ? { lint } : {}
-}
-// 초안 글 검사 — 저장의 문서 꼴 검사 + 프런트매터 · script · 저절로 채우는 표를 고쳤나(cur 의 표와 같아야 한다)
-function draftBad(t, cur = '', { doc = null, old = null } = {}) {
-  if (/^---\s*$/m.test(t)) return '프런트매터 줄(---)'
-  if (/<script/i.test(t)) return 'script'
-  // 지금 글에 이미 있던 줄은 초안 탓이 아니다(옛 들이기 · 옛 정리 · 손으로 쓴 줄) — 새로 든 줄만
-  const p = formatProblems(t, { doc, old })
-  if (p.length) return p.slice(0, 2).map((x) => `${x.line}째 줄 ${x.what}`).join(' / ')
-  if (hasBlockMarker(t) && JSON.stringify(splitBlocks(t).blocks) !== JSON.stringify(splitBlocks(cur).blocks)) return '저절로 채우는 표를 고쳤다'
-  return null
 }
 
 export function promptOf(g) {
@@ -210,16 +151,6 @@ export const PATCH_RULE = [
   '- 지금 글이 비었거나 고칠 곳이 글의 절반을 넘으면 edits 를 비우고 rewrite 에 새 글 전체를 쓴다.',
 ].join('\n')
 export const patchPromptOf = (g) => [promptOf(g), PATCH_RULE].join('\n\n')
-// 조각을 지금 글에 댄다 — find 는 꼭 한 번 맞아야 한다(두 곳 · 없음은 거절: 엉뚱한 곳을 고치지 않게) · rewrite 면 그 글 · 빈 조각이면 지금 글 그대로
-export function applyEdits(cur, d) {
-  if (typeof d.rewrite === 'string' && d.rewrite.trim()) return { content: d.rewrite }
-  if (!Array.isArray(d.edits)) return { why: '초안 모양이 아니다' }
-  if (!d.edits.length) return { content: String(cur || '') }
-  // 대는 법은 제안(core/propose.js)과 하나 — 꼭 한 번 · 겹치지 않음 · 원문 그대로
-  const r = applyPatch(String(cur || ''), d.edits)
-  return r.ok ? { content: r.text } : { why: `조각이 지금 글에 맞지 않는다: ${r.why}` }
-}
-
 // 고쳐 쓰기 — 초안이 검사에 걸렸다. 같은 프롬프트에 지난 초안과 걸린 까닭을 붙여 한 번 더(일꾼이 자리마다 한 번만)
 export function fixPromptOf(g, draft, why) {
   return [
@@ -316,223 +247,6 @@ export function batchPromptOf(gs, { patch = false } = {}) {
     // 조각 묶음 — 답 꼴은 맨 끝에(항목 글 전체를 다시 쓰지 않는다)
     ...(patch ? [BATCH_PATCH_RULE] : []),
   ].join('\n\n')
-}
-
-// 글에 꼭 있어야 할 기록의 값 — 커밋 해시 · 기록 id 는 경위라 글에 옮기지 않는다(작성기준) · 해시 속 숫자(092cc4a → 092)도 값이 아니다 ·
-//   30자 넘는 따옴표 말은 값이 아니라 옮긴 문장이다 ·
-//   서식대로 쓴 기록(「## 바뀐 것」 …)은 바뀐 것 칸만 요구한다. 영향은 「무엇이 바뀌나 · 누가 알아야 하나」(템플릿)라 그 항목의 지식이 아닐 때가 많고, 요약은 바뀐 것을 다시 말하는 칸이라 「187 에 배포했다」 같은 경위가 섞이고,
-//   그 값을 요구하면 Claude 가 「187 환경에 배포돼 있다」 를 지식 글에 넣는다(188 DPA020 · 11-03) — 요약의 값은 넣어도 되지만 요구하지 않는다. 까닭 · 버린 안 · 근거는 경위라 글에 옮기지 않는다(작성기준) —
-//   거기 든 날짜(「2026-11-02」 → 2026 · 02) · 문서 판 · 커밋을 요구하면 늘 「기록의 값이 글에 없다」 로 남는다
-const HASH_RE = /\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b/g
-const REC_ID_RE = /\b\d{4}-\d{4}-[^\s`」"'),]+/g
-//   「고친 조각」 은 제안(core/propose.js)이라 값이 아니다
-const NOT_KNOWLEDGE = new Set(['까닭', '버린 안', '근거', '고친 조각'])
-export const knowledgeParts = (body) => {
-  const s = String(body)
-  if (!/^## 바뀐 것\s*$/m.test(s)) return s
-  return s.split(/^(?=## )/m).filter((p) => !NOT_KNOWLEDGE.has((p.match(/^## (.+?)\s*$/m) || [])[1])).join('')
-}
-//   「무엇: 옛 값 → 새 값」 줄의 옛 값은 글에서 빠져야 할 값이라 요구하지 않는다(요구하면 옛 값을 지운 바른 초안이 늘 「값이 글에 없다」 로 남는다) — 새 값만
-const ARROW_RE = /^(\s*[-*]\s*[^\n]*?)\s*(?:→|->)\s*([^\n]*)$/gm
-// 「- 무엇: 옛 값」 → [「- 무엇:」, 「옛 값」] (「무엇:」 이 없으면 줄 전체가 옛 값)
-const splitLeft = (left) => { const m = left.match(/^(\s*[-*]\s*[^\n]*?:)\s+([^\n]*)$/); return m ? [m[1], m[2]] : [left.replace(/^(\s*[-*]\s*)[^\n]*$/, '$1'), left.replace(/^\s*[-*]\s*/, '')] }
-const newSide = (body) => String(body).replace(ARROW_RE, (_, left, right) => `${splitLeft(left)[0]} ${right}`)
-// 꼭 옮길 칸 — 서식이면 바뀐 것만 · 서식이 아니면 글 전체
-const MUST_PARTS = new Set(['바뀐 것'])
-const mustParts = (body) => {
-  const s = String(body)
-  if (!/^## 바뀐 것\s*$/m.test(s)) return s
-  return s.split(/^(?=## )/m).filter((p) => MUST_PARTS.has((p.match(/^## (.+?)\s*$/m) || [])[1])).join('')
-}
-export const mustValues = (body) => [...valuesOf(newSide(mustParts(body)).replace(HASH_RE, ' ').replace(REC_ID_RE, ' '))].filter((v) => v.length <= 30)
-// 기록이 뺀 옛 값(「옛 값 → 새 값」 의 왼쪽에만 있는 값) — 초안에 남아 있으면 알린다(거절하지 않는다: 같은 값이 다른 뜻으로 쓰였을 수 있다)
-export const oldValues = (body) => {
-  const out = new Set()
-  for (const m of String(body).matchAll(ARROW_RE)) {
-    const nv = valuesOf(m[2])
-    for (const v of valuesOf(splitLeft(m[1])[1])) if (!nv.has(v)) out.add(v)
-  }
-  return [...out]
-}
-
-// 지식에 있는 이름 — 그 문서의 항목 머리(「값: 설명」 이면 값도) · 이름 장부의 이름 · 보이는 이름 · 다른 이름(값과 같이 빈칸을 뺀다)
-const squeeze = (s) => String(s).replace(/\s+/g, '')
-function namesIn(k, doc) {
-  const out = new Set()
-  for (const s of doc?.sections || []) if (s.h) out.add(squeeze(s.h)).add(squeeze(s.h.split(/:\s/)[0]))
-  for (const v of k.vocab?.coords?.values() || []) for (const n of [v.coord, v.label, ...v.aliases]) if (n) out.add(squeeze(n))
-  return out
-}
-
-// 묶은 값(`…` · 「…」 · "…")은 통째로 값 하나라 근거에 묶지 않고 쓴 같은 글과 어긋난다 — 기록 「deploy-gw.ps1 [-Reset] · 127.0.0.1:55432」 ·
-//   초안 `deploy-gw.ps1 [-Reset]` · `127.0.0.1:55432`. 근거 글(빈칸 뺌)에 그대로 있고 속의 수도 다 근거에 있으면 지어낸 값이 아니다
-function groundedIn(text, ...sets) {
-  const flat = squeeze(text).replace(/[`「」"]/g, '')
-  return (v) => flat.includes(v) && [...valuesOf(v)].every((x) => sets.some((s) => s.has(x)))
-}
-
-// 검사 — { ok, why, changed: [{from, to}] }
-export function check(k, g, d) {
-  if (!d || typeof d !== 'object') return { ok: false, why: '초안 모양이 아니다' }
-  if (g.kind === 'ingest') return checkIngest(k, g, d)
-  if (g.kind === 'touches') {
-    if (!Array.isArray(d.touches)) return { ok: false, why: '초안 모양이 아니다' }
-    const allowed = new Set(g.candidates.map((c) => c.coord))
-    if (d.touches.some((c) => !allowed.has(c))) return { ok: false, why: '후보 밖의 이름을 골랐다' }
-    return { ok: true, changed: [] }
-  }
-  if (typeof d.content !== 'string' && (Array.isArray(d.edits) || typeof d.rewrite === 'string')) {
-    const a = applyEdits(g.content || '', d)
-    if (a.why) return { ok: false, why: a.why }
-    d.content = a.content
-  }
-  if (typeof d.content !== 'string' || !Array.isArray(d.used) || !Array.isArray(d.left)) return { ok: false, why: '초안 모양이 아니다' }
-  const ids = g.records.map((r) => r.id)
-  // 묶음 답(한 문서의 항목 여럿)은 다른 항목의 기록 id 를 섞어 말하곤 한다 — 이 항목의 것만 본다(넣기도 같다 · planSave).
-  //   다른 기록의 값이 글에 들면 아래 지어낸 값 검사가 막는다
-  const said = [...d.used, ...d.left.map((x) => x?.id)].filter((x) => ids.includes(x))
-  if (!said.length && [...d.used, ...d.left].length) return { ok: false, why: '받지 않은 기록을 말했다' }
-  if (ids.some((x) => !said.includes(x))) return { ok: false, why: '빠뜨린 기록이 있다' }
-  // G2 — 지금 글이 재료를 줄 때와 같나
-  const x = sectionOf(k, g.coord)
-  const whole = x?.sec ? x.sec.body : ''
-  if (sha16(whole) !== g.base) return { ok: false, why: '그사이 항목이 바뀌었다. 다음 정리 때 다시 만든다', stale: true }
-  // 그사이 같은 항목에 새 기록이 왔으면 같이 넣어야 한다(표지가 그 기록까지 「넣음」 으로 보이게 되므로)
-  const pendNow = k.works.filter((w) => w.state === 'pend' && w.touches.includes(g.coord) && !reflectedIn(k, w, x?.sec)).map((w) => w.id)
-  if (pendNow.some((x) => !ids.includes(x))) return { ok: false, why: '그사이 새 기록이 왔다. 다음 정리 때 같이 넣는다', stale: true }
-  // 값 · 크기는 본문끼리 견준다(항목 글은 본문만 · 참고 줄은 저장이 지킨다)
-  const cur = whole
-  // G6 — 문서 꼴(기록 링크 · 시스템 주소 · 주석 · 경과 · 항목 머리) · 프런트매터 · script(소제목 ### 아래는 된다)
-  const bad = draftBad(d.content, cur, { doc: x?.loc?.doc || null, old: cur })
-  if (bad) return { ok: false, why: `글에 머리 · 표지가 들었다: ${bad}` }
-  if (!d.content.trim() && cur.trim()) return { ok: false, why: '글을 비웠다' }
-  // G5 — 근거보다 크게 쓰지 않는다
-  const used = g.records.filter((r) => d.used.includes(r.id))
-  const budget = cur.length + used.reduce((a, r) => a + r.body.length + r.title.length, 0) * 1.5 + 300
-  if (d.content.length > budget) return { ok: false, why: '근거보다 크게 썼다' }
-  // G4 — 값 대조: 넣은 기록의 값이 글에 있나(빠진 값) · 글의 값이 옛 글이나 기록에 있나(지어낸 값)
-  const drop = new Set((d.drop || []).map((v) => String(v).replace(/\s+/g, '')))
-  const now = valuesOf(d.content)
-  const oldV = valuesOf(cur)
-  const vOf = (rs) => new Set(rs.flatMap((r) => [...valuesOf(r.body + ' ' + r.title)]))
-  const recV = vOf(used)
-  // 코드 바뀜 기록은 「바뀐 값」 의 새 값만 글에 있어야 한다(차이 속의 다른 수 · 옛 값까지 요구하면 늘 남는다) ·
-  //   옛 기록(지금 글에 더 늦게 쓴 기록이 이미 들어갔다)의 값은 글에 없어도 된다 — 더 새 값이 이겼을 수 있다
-  //   여러 항목에 걸린 기록(spread)의 값은 그 항목들에 나뉜다 — 항목 하나에 다 요구하면 늘 남는다(받은 것 「다시 · N번째」)
-  //   항목 머리에 있는 값(이슈 번호 같은 그 항목의 이름)은 글에 다시 쓰지 않아도 된다
-  const headV = valuesOf(g.heading)
-  const missing = [...new Set(used.filter((r) => !r.old && !r.spread).flatMap((r) => (r.code ? newValuesOf(r.body) : mustValues(r.body))))].filter((v) => !now.has(v) && !drop.has(v) && !headV.has(v))
-  if (missing.length) return { ok: false, why: `기록의 값이 글에 없다: ${missing.slice(0, 3).join(' · ')}` }
-  // 지식에 있는 이름(같은 문서의 항목 머리 · 이름 장부의 이름)을 가리키는 것은 지어낸 값이 아니다(`DPMS-ISS-18` 같은 관련 항목)
-  const named = namesIn(k, x?.doc)
-  const grounded = groundedIn(cur + ' ' + used.map((r) => r.body + ' ' + r.title).join(' '), oldV, recV)
-  const invented = [...now].filter((v) => !oldV.has(v) && !recV.has(v) && !named.has(v) && !grounded(v))
-  if (invented.length) return { ok: false, why: `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` }
-  const gone = [...oldV].filter((v) => !now.has(v))
-  const came = [...now].filter((v) => !oldV.has(v))
-  // 옛 글의 값은 기록이 바꾼 것만 빠진다(작성기준 3절 5) — drop 에 적었거나 기록의 「옛 → 새」 왼쪽에 있는 값 ·
-  //   그 밖의 값이 빠지면 옛 글 사실을 잃은 것이다(「Windows 10 · PostgreSQL 16」 이 값 바뀜에 섞여 묻지 않고 들어가던 것)
-  //   코드 바뀜 기록은 「바뀐 값: 옛 → 새 · …」 줄의 옛 값
-  const codeOld = (b) => ((String(b).match(/바뀐 값:? ([^\n]+)/) || [])[1] || '').split(/ — |: /)[0].split(' · ').flatMap((p) => (p.includes(' → ') ? [...valuesOf(p.split(' → ')[0])] : []))
-  const told = new Set([...drop, ...used.flatMap((r) => [...oldValues(r.body), ...(r.code ? codeOld(r.body) : [])].map((v) => v.replace(/\s+/g, '')))])
-  const lost = gone.filter((v) => !told.has(v.replace(/\s+/g, '')))
-  if (lost.length) return { ok: false, why: `옛 글의 값이 빠졌다: ${lost.slice(0, 3).join(' · ')}` }
-  // 옛 기록은 지금 글의 값을 바꾸지 못한다 — 빠진 값이 있는데 새로 든 값이 옛 기록에서만 왔으면 되돌림이다
-  const newerV = vOf(used.filter((r) => !r.old))
-  const back = vOf(used.filter((r) => r.old))
-  if (gone.length && came.some((v) => back.has(v) && !newerV.has(v))) return { ok: false, why: '더 늦게 쓴 기록이 이미 들어간 항목: 옛 기록은 값을 바꾸지 않는다' }
-  const changed = gone.length && came.length ? [{ from: gone.join(' · '), to: came.join(' · ') }] : []
-  return { ok: true, changed, ...draftLint([d.content]) }
-}
-
-// 넣은 파일 검사 — 모양 · 후보 문서만 고친다 · 새 문서 경로 · 지문(그사이 바뀜) · 표지 · 크기 · 값 대조(빠짐 · 지어냄)
-const oneLineH = (h) => typeof h === 'string' && h.trim() && !/[\r\n]/.test(h) && h.length <= 120
-const docRel = (p) => `docs/${String(p).replace(/^docs\/|\.md$/g, '')}.md`
-function checkIngest(k, g, d) {
-  const ups = Array.isArray(d.updates) ? d.updates : null
-  const nd = d.newDoc && typeof d.newDoc === 'object' ? d.newDoc : null
-  if (!ups || (nd && !Array.isArray(nd.sections))) return { ok: false, why: '초안 모양이 아니다' }
-  if (!ups.length && !nd?.sections?.length) return { ok: false, why: '넣을 곳을 고르지 않았다' }
-  const outs = []
-  const olds = []
-  let old = ''
-  const changed = []
-  for (const u of ups) {
-    const c = g.docs.find((x) => x.doc === docRel(u.doc))
-    if (!c) return { ok: false, why: '후보 밖의 문서를 고쳤다' }
-    if (!oneLineH(u.heading) || typeof u.content !== 'string') return { ok: false, why: '초안 모양이 아니다' }
-    const s = c.sections.find((x) => x.h === u.heading.trim())
-    // 그사이 그 항목이 바뀌었나
-    const cur = k.byDocPath.get(c.doc)?.sections.find((x) => x.h === u.heading.trim())
-    if (s && (!cur || sha16(cur.body) !== s.base)) return { ok: false, why: '그사이 항목이 바뀌었다. 다음 정리 때 다시 만든다', stale: true }
-    const curBody = cur ? cur.body : ''
-    if (s && !u.content.trim() && curBody.trim()) return { ok: false, why: '글을 비웠다' }
-    if (cur) {
-      old += '\n' + curBody
-      const a = valuesOf(curBody)
-      const b = valuesOf(u.content)
-      const gone = [...a].filter((v) => !b.has(v))
-      const came = [...b].filter((v) => !a.has(v))
-      if (gone.length && came.length) changed.push({ from: gone.join(' · '), to: came.join(' · ') })
-    }
-    outs.push(u.content)
-    olds.push({ doc: c.doc, old: cur ? curBody : null })
-  }
-  if (nd) {
-    const p = String(nd.path || '').replace(/\\/g, '/').replace(/^docs\/|\.md$/g, '').trim()
-    if (!p || p.split('/').some((x) => !x.trim() || x === '.' || x === '..' || x.length > 80) || /[<>:"|?*\u0000-\u001f]/.test(p)) return { ok: false, why: '새 문서 경로가 아니다' }
-    if (k.byDocPath.get(docRel(p))) return { ok: false, why: '이미 있는 문서다. 새 문서가 아니라 고치기로' }
-    if (k.forms) {
-      const gd = guardNewDoc(k.forms, docRel(p), nd.sections.map((s) => String(s?.heading || '').trim()))
-      if (gd.errors.length) return { ok: false, why: gd.errors[0].message }
-    }
-    for (const s of nd.sections) {
-      if (!oneLineH(s?.heading) || typeof s.content !== 'string') return { ok: false, why: '초안 모양이 아니다' }
-      outs.push(s.content)
-      olds.push({ doc: docRel(p), old: null })
-    }
-  }
-  const bad = outs.map((o, i) => draftBad(o, '', olds[i])).find(Boolean)
-  if (bad) return { ok: false, why: `글에 머리 · 표지가 들었다: ${bad}` }
-  const text = outs.join('\n')
-  if (text.length > old.length + g.record.body.length * 1.5 + 500) return { ok: false, why: '근거보다 크게 썼다' }
-  // 파일의 글을 거의 옮기지 않았다(값이 없는 글도 잃지 않게) — 머리 · 제목 줄을 뺀 글의 3할은 넘어야 한다
-  const plain = (t) => String(t).replace(/^#{1,6} .*$/gm, '').replace(/\s+/g, '')
-  if (plain(text).length < plain(g.record.body).length * 0.3 && !ups.length) return { ok: false, why: '파일의 글을 거의 옮기지 않았다' }
-  const now = valuesOf(text)
-  const recV = valuesOf(g.record.body + ' ' + g.record.title + ' ' + g.record.file)
-  const oldV = valuesOf(old)
-  // 파일의 값은 빠짐없이 — 다른 후보 문서에 이미 있는 값 · 새 문서 이름에 든 값은 거기 있으므로 괜찮다 · 파일의 제목 줄(# …)은 문서 이름이 된다
-  const elsewhere = valuesOf(g.docs.flatMap((c) => c.sections.map((s) => s.body)).join('\n') + ' ' + (nd ? nd.path : ''))
-  const missing = [...valuesOf(g.record.body.replace(/^# .*$/gm, ''))].filter((v) => !now.has(v) && !elsewhere.has(v))
-  if (missing.length) return { ok: false, why: `파일의 값이 글에 없다: ${missing.slice(0, 3).join(' · ')}` }
-  const grounded = groundedIn(g.record.body + ' ' + g.record.title + ' ' + g.record.file + ' ' + old, recV, oldV)
-  const invented = [...now].filter((v) => !recV.has(v) && !oldV.has(v) && !grounded(v))
-  if (invented.length) return { ok: false, why: `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` }
-  return { ok: true, changed, ...draftLint(outs) }
-}
-
-// 갈래 — 파일 이름 · 제목에 든 말로 고른다(Claude 없이). 문서 이름은 파일 이름이 아니라 갈래 · 주제(요구 15)
-//   갈래는 지식의 갈래 장부(`_forms.md` · core/guard.js) — 없으면 기본 갈래(회의록 · 장애 대응 · 보고서)
-export function kindOfName(s, forms = { rows: DEFAULT_FORMS }) {
-  return formFor(forms, s)?.name || null
-}
-// 날짜 — 파일 이름의 YYYY-MM-DD · YYYYMMDD · YYYY.MM.DD
-const DATE_RE = /(20\d\d)[-._ ]?(0[1-9]|1[0-2])[-._ ]?(0[1-9]|[12]\d|3[01])/
-// 주제 — 파일 이름에서 날짜 · 번호 · 판 · 「최종」 같은 조각을 걷은 것(남는 것이 없으면 파일 이름)
-export function topicOfName(file) {
-  const base = String(file).split('/').pop().replace(/\.[^.]+$/, '')
-  const t = base
-    .replace(/_+/g, ' ')
-    .replace(DATE_RE, ' ')
-    .replace(/[([](?:최종|final|사본|copy|\d+)[)\]]/gi, ' ')
-    .replace(/(^|[\s-])[vV]\d+(\.\d+)*(?=$|[\s-])|\d+\s*판|최종|final|사본|copy/gi, ' ')
-    .replace(/^\s*\d+[. -]+/, ' ')
-    .replace(/[\s-]\d{2,8}\s*$/, ' ')
-    .replace(/\s*[-·]\s*$|^\s*[-·]\s*/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  return t || base
 }
 
 // 규칙으로 들이기(Claude 없이 · 이 PC 의 넣기가 바로 문서까지 갈 때) — 이름은 파일 이름이 아니라 갈래 · 주제로

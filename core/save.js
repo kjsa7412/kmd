@@ -29,6 +29,7 @@ import { begin, writeAtomic } from './journal.js'
 import { watchedOf } from './watchmark.js'
 import { upsertVocab, upsertRegistry, cleanNames, upsertPatternRow, upsertForms, cleanForms } from './namebook.js'
 import { guardRecord, guardNames, guardNewDoc, formsOf, EMPTY_MAX } from './guard.js'
+import { valuesOf } from './values.js'
 
 const DATE = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/
 const COORD = /^[^\s:`]+:[^\n`]+$/
@@ -205,24 +206,8 @@ async function writeRecord(dir, r, { user, now, taken, j }) {
   return { id, rel: `${sub}/${id}.md`, full, title: rec.title }
 }
 
-// 값 장부 — 글 속의 수 · `코드` · 따옴표 값(같은 값이면 새 사실이 아니다)
-//   코드 울타리(``` 줄)는 값 따옴표가 아니다 — 백틱을 짝지으면 울타리와 울타리 사이 글 전체가 값 하나가 된다 · `코드` 는 한 줄 안에서만
-//   날짜(2026-11-02)는 값 하나(2026 · 11 · 02 로 쪼개면 늘 「기록의 값이 글에 없다」 가 된다) ·
-//   수에 붙은 단위는 붙어 있으면 그대로(3개 · 10분간 → 10분), 띄어 쓴 단위는 뒤에 한글이 이어지지 않을 때만(「4.2 개발 PC」 는 4.2개 가 아니라 4.2)
-const UNIT = '%|초|분|시간|일|개|건|자|px|MB|GB|KB|ms|s'
-const VALUE_RE = new RegExp(`\`([^\`\\n]+)\`|「([^」]+)」|"([^"]+)"|(\\d{4}-\\d{2}-\\d{2}|\\d+(?:[.,]\\d+)*(?:(?:${UNIT})|\\s+(?:${UNIT})(?![가-힣]))?)`, 'g')
-//   식별자 속 수는 값이 아니다 — 「LS-201 · T920 · 03_계측기 · deploy-gw.ps1」 의 201 · 920 · 03 · 1 을 따로 요구하면 늘 「기록의 값이 글에 없다」 가 된다
-//   (앞이 영문 · _ · 「영문-」 이거나 뒤가 영문 · _ 이면 이름의 한 조각)
-const inName = (s, i, n) => /[A-Za-z_]/.test(s[i - 1] || '') || (s[i - 1] === '-' && /[A-Za-z]/.test(s[i - 2] || '')) || /[A-Za-z_]/.test(s[i + n] || '')
-export function valuesOf(text) {
-  const out = new Set()
-  const s = String(text || '').replace(/^[ \t]*(?:`{3,}|~{3,}).*$/gm, '')
-  for (const m of s.matchAll(VALUE_RE)) {
-    if (m[4] && inName(s, m.index, m[0].length)) continue
-    out.add((m[1] || m[2] || m[3] || m[4]).replace(/\s+/g, ''))
-  }
-  return out
-}
+// 값 장부는 core/values.js 로 옮겼다(S2 · docs/품질개선/KMD_개편_설계.md 3-1) — 부르는 곳을 바꾸지 않게 다시 내보낸다
+export { valuesOf }
 
 // 좌표정정(R-A2)인가 — 서버가 구조로 판정한다: 바로잡는 기록 하나 · 이름 ⊆ 원 기록의 이름 · 원문을 다시 싣지 않는
 // 짧은 글(값이 원 기록 안의 값뿐). 참이면 서버가 예약 태그 touches-fix 를 붙인다(세션이 붙이면 E_FORBIDDEN)

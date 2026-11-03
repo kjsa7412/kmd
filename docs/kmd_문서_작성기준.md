@@ -135,7 +135,7 @@
 
 | 짓는 곳 | 싣는 것 |
 |---|---|
-| 서버 `claude -p`(팀 일꾼 들이기 · 정정 · 다듬기)와 개인 프로그램의 보내기 `claude -p` | `core/writerules.js` 의 `WRITE_RULES` 하나(S2 부터 · 지금은 `core/tidy.js` 의 `WRITE_RULES`). 프롬프트마다 따로 줄여 쓰지 않는다 |
+| 서버 `claude -p`(팀 일꾼 들이기 · 정정 · 다듬기)와 개인 프로그램의 보내기 `claude -p` | `core/writerules.js` 의 `WRITE_RULES` 하나(`core/tidy.js` 는 다시 내보내기만). 프롬프트마다 따로 줄여 쓰지 않는다 |
 | Claude Code 스킬(`kmd-team-save` · `kmd-team-import` · 개인 `kmd-build`) | 스킬 안 `작성가이드.md` 사본(`agent/skills/kmd-build/작성가이드.md` 를 팀 설치가 복사 · 팀 스킬은 S11 부터) |
 | 판 맞추기 | 팀 스킬 판 `TEAM_KIT_REV`(`core/teamkit.js` · S6 부터). 세션 저장에 실린 판이 옛것이면 「다시 설치」 를 돌려준다(권한 모델 7절) |
 

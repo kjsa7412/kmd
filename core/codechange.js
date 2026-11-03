@@ -16,7 +16,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { tryGit } from './git.js'
 import { exact, nameContain } from './search.js'
-import { valuesOf } from './save.js'
+import { valuesOf } from './values.js'
 
 const CODE = /\.(js|mjs|cjs|ts|tsx|jsx|java|py|go|kt|cs|sql|xml|ya?ml|properties)$/i
 const NOT = /(^|\/)(test|tests|__tests__|dist|build|target|node_modules|attic)\/|\.min\.|(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$/i
