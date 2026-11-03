@@ -47,7 +47,7 @@ import * as sendLib from '../core/send.js'
 import * as keystore from '../core/keystore.js'
 import { sha16 } from '../core/text.js'
 import { isSystemRecord, labelOf } from '../core/knowledge.js'
-import { RESERVED_TAGS } from '../core/names.js'
+import { isReservedTag } from '../core/names.js' // 예약 접두사(job/)까지 본다(S3)
 import { isoOfStamp, logKind, atTag } from './views.js'
 import { restore as restoreFrom, checkUrl } from '../core/restore.js'
 import { writeJsonAtomic } from '../core/atomic.js'
@@ -726,7 +726,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const rec = input?.record || {}
         // 항목 글의 from(파일 글을 서버가 옮김) · append(지금 글 끝에 보탬)를 푼다 — 모델은 파일 글을 다시 쓰지 않는다
         const k0 = await hub.get(id)
-        input = { ...input, sections: expandSections(k0, k0.byWork.get(ctx.agent.rec), input?.sections), record: { ...rec, tags: [...new Set([...(Array.isArray(rec.tags) ? rec.tags : []).filter((t) => !RESERVED_TAGS.includes(String(t).trim().toLowerCase())), 'curate-llm'])], reflects: [ctx.agent.rec] } }
+        input = { ...input, sections: expandSections(k0, k0.byWork.get(ctx.agent.rec), input?.sections), record: { ...rec, tags: [...new Set([...(Array.isArray(rec.tags) ? rec.tags : []).filter((t) => !isReservedTag(t)), 'curate-llm'])], reflects: [ctx.agent.rec] } }
         const r0 = await coreSave(meta.dir, input, { user: 'kmd-auto', agent: true })
         cache.delete(id)
         const run = runs.get(ctx.agent.run)

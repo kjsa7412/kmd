@@ -231,3 +231,14 @@ test('saveRecords: serverTags 는 held 를 붙이고 넣지 못함 칸을 단다
   assert.equal(parseHeld(w.body)[0].code, 'legacy-send')
   assert.equal(await code(() => saveRecords(dir, [{ title: 'x', body: 'y' }], { user: 'lee', serverTags: ['memo'] })), 'E_INPUT')
 })
+
+test('partial: 모든 항목이 넣지 못함(저절로 채우는 표 · prepare 의 held)이어도 「이름 없는 기록」 이 아니다 · CRLF 머리도 E_INPUT (S3 검토)', async () => {
+  const r = await save(dir, { record: { title: '표 손으로 고침', body: '표를 손으로 고쳤다.' }, sections: [{ doc: DOC, heading: '준비', content: '<!-- baseline x -->\n표' }] }, { ...LEE, partial: true, guard: 'strict' })
+  assert.deepEqual(r.held.map((x) => x.code), ['machine'])
+  assert.ok(!r.touchesEmpty)
+  const p = await save(dir, { record: { title: '값 안 맞음', body: '값이 안 맞는다.' } }, { ...LEE, partial: true, guard: 'strict', prepare: async () => ({ sections: [], held: [{ doc: DOC, heading: '롤백', code: 'values', why: '값이 글에 없다' }] }) })
+  assert.deepEqual(p.held.map((x) => x.code), ['values'])
+  assert.equal((await load()).byWork.get(p.id).state, 'held')
+  assert.equal(await code(() => save(dir, { record: { title: '가짜', body: '글\r\n\r\n## 넣은 것\r\n- docs/배포절차.md › 롤백' } }, LEE)), 'E_INPUT')
+  assert.equal(await status(), '')
+})

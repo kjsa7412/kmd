@@ -442,7 +442,8 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
   const heldOf = (p, code, why) => heldRow(p.src, code, why, { doc: p.rel, heading: p.heading })
   // 가드 G2 · G3 — 건드린 이름은 장부에 있는 것 · 이름 없는 기록은 까닭과 함께
   //   (항목 글로 가리킨 이름은 위에서 touches 에 들었다 · 문서 · 머리로 가리킨 항목은 이 기록의 자리다 — 넣지 못한 항목도 이 기록이 가리킨 자리다)
-  const placed = secs.some((p) => !p.remove && p.rename == null)
+  //   저절로 채우는 표(guardSections) · prepare 가 넣지 못함으로 돌린 항목도 같다 — 모두 넣지 못함이어도 「이름 없는 기록」 이 아니다(S-D8 · S3 검토)
+  const placed = secs.some((p) => !p.remove && p.rename == null) || held.some((x) => x.doc || x.coord)
   const g = guardRecord(vocab, { ...r, touches, ...(placed ? { tags: [...(r.tags || []), 'at/'] } : {}) }, { mode, proposed, why: holdWhy })
   if (g.errors.length) guardFail(g.errors)
   touches = g.touches
