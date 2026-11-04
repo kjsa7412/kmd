@@ -20,7 +20,8 @@ import crypto from 'node:crypto'
 import net from 'node:net'
 import { material, planSave, promptOf as tidyPrompt, DRAFT_SCHEMA, TOUCH_SCHEMA, ingestRule } from '../core/tidy.js'
 import { check as checkDraft } from '../core/gate.js'
-import { INGEST_SCHEMA, ingestCandidates, formsOf, spotKey, spotTarget, draftToSave, heldRecord, intakeTags } from '../core/ingest.js'
+import { INGEST_SCHEMA, ingestCandidates, formsOf, spotKey, spotTarget, draftToSave, heldRecord, intakeTags, INTAKE_SCHEMA, intakePromptOf, intakeFixPromptOf, docRel, quoteSrc } from '../core/ingest.js'
+import { WRITE_RULES } from '../core/writerules.js'
 import { checkProposal, placeOf, PROPOSAL_PART } from '../core/propose.js'
 import { checkSection } from '../core/gate.js'
 import { valuesOf, mustValues } from '../core/values.js'
@@ -414,16 +415,134 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     const recIds = [...new Set((Array.isArray(recs) ? recs : []).map(String))].filter((x) => { const w = k.byWork.get(x); return w && !isSystemRecord(w) && !w.tags.some((t) => t.startsWith('sent/')) })
     return [...pickDocs.map((d) => sendLib.docItem(k, d)), ...recIds.map((x) => sendLib.recItem(k, k.byWork.get(x)))].flatMap((it) => sendLib.split(it))
   }
+  const sendKeyOf = async (url) => process.env.KMD_SEND_KEY || (await keystore.get(keystore.keyName(url)).catch(() => null))
   async function deliver(ctx, d, payload) {
+    if (payload?.engine === 'save' && d.url) return sendSave(ctx, d, payload)
     if (!d.url) return hub.receive(ctx, d.kn, payload)
-    const key = process.env.KMD_SEND_KEY || (await keystore.get(keystore.keyName(d.url)).catch(() => null))
-    return sendLib.post(d.url, d.kn, payload, key)
+    return sendLib.post(d.url, d.kn, payload, await sendKeyOf(d.url))
+  }
+  // ── 보내기 엔진(S12 · S-D36 · 설계 4-7) — 글 하나 → 팀 brief · match · section(기기 열쇠 MCP) → 내 Claude(들이기 프롬프트 · 내 구독) →
+  //   팀 저장 문(POST /api/k/<kn>/save · channel send) 한 번. 받는 쪽이 검사해 넘은 조각은 그 순간 문서에 · 못 넘은 것은 넣지 못함
+  const SEND_DOCS = 5 // 후보 문서
+  const SEND_SECS = 12 // 문서마다 읽는 항목
+  const SEND_QS = 12 // 이름 찾기(match) 수
+  const sendWords = (t) => new Set(String(t || '').toLowerCase().split(/[^0-9a-z가-힣]+/).filter((x) => x.length >= 2))
+  // 재료 — brief(이름 종류 · 갈래 · 문서 목록 · noClaude · 내 자리) · 글의 머리 · 제목 조각으로 match(정확한 이름 = touches · 그 문서) ·
+  //   문서 목록에서 말이 겹치는 문서 · 고른 문서의 항목 글 · 지문(section). 지문은 팀 것이다(개인 쪽 marks 와 섞지 않는다)
+  async function sendMaterial(d, key, it, from) {
+    const [b] = await sendLib.mcpCalls(d.url, key, [{ tool: 'brief', args: { knowledge: d.kn } }])
+    if (!b || b.error) throw Object.assign(new Error(b?.message || '받는 팀 지식을 읽지 못했다'), { status: b?.error === 'E_NOTFOUND' ? 404 : b?.error === 'E_FORBIDDEN' ? 403 : 400, reach: true })
+    const heads = [...String(it.body || '').matchAll(/^#{2,3} (.+)$/gm)].map((m) => m[1].trim())
+    const qs = [...new Set([...heads, ...String(it.title || '').split(/\s+—\s+|:\s+/)].map((x) => x.trim()).filter((x) => x && x.length <= 80))].slice(0, SEND_QS)
+    const ms = qs.length ? await sendLib.mcpCalls(d.url, key, qs.map((q) => ({ tool: 'match', args: { q, knowledge: d.kn } }))) : []
+    const docsOf = Array.isArray(b.docs) ? b.docs : []
+    const idOf = (x) => String(x || '').replace(/^docs\/|\.md$/g, '')
+    const touches = new Set()
+    const score = new Map()
+    for (const m of ms) for (const f of m?.found || []) {
+      if (f.coord) touches.add(f.coord)
+      if (f.doc && f.heading) score.set(idOf(f.doc), (score.get(idOf(f.doc)) || 0) + 10)
+    }
+    const want = sendWords(`${it.title} ${heads.join(' ')}`)
+    for (const x of docsOf) {
+      const have = sendWords(`${x.title} ${x.doc} ${(x.headings || []).join(' ')}`)
+      const n = [...want].filter((w) => have.has(w)).length
+      if (n) score.set(x.doc, (score.get(x.doc) || 0) + n)
+    }
+    const pick = [...score].sort((a, c) => c[1] - a[1] || a[0].localeCompare(c[0])).map(([id]) => docsOf.find((x) => x.doc === id)).filter(Boolean).slice(0, SEND_DOCS)
+    const calls = pick.flatMap((x) => (x.headings || []).filter(Boolean).slice(0, SEND_SECS).map((h) => ({ tool: 'section', args: { knowledge: d.kn, doc: x.doc, heading: h } })))
+    const rs = calls.length ? await sendLib.mcpCalls(d.url, key, calls) : []
+    const docs = pick.map((x) => ({ doc: docRel(x.doc), title: x.title, sections: [] }))
+    const byDocPath = new Map(docs.map((x) => [x.doc, { sections: [] }]))
+    rs.forEach((r, i) => {
+      if (!r || r.error || typeof r.content !== 'string' || !/^[0-9a-f]{16}$/.test(String(r.base))) return
+      const rel = docRel(calls[i].args.doc)
+      docs.find((y) => y.doc === rel)?.sections.push({ h: r.heading, body: r.content.slice(0, 1500), base: r.base })
+      byDocPath.get(rel)?.sections.push({ h: r.heading, body: r.content })
+    })
+    const formsOwn = (Array.isArray(b.rules) ? b.rules : []).some((x) => /^새 문서는 forms 의 갈래/.test(String(x)))
+    return {
+      brief: b,
+      docIds: new Set(docsOf.map((x) => docRel(x.doc))),
+      touches: [...touches],
+      g: { type: 'send', src: { title: it.title, md: it.body, from }, docs, forms: Array.isArray(b.forms) ? b.forms : [], formsOwn, kinds: Array.isArray(b.kinds) ? b.kinds : [] },
+      // draftToSave 가 보는 지식 — 후보 항목의 지금 글 전체(값 근거) · 이름 장부는 받는 쪽이 본다(보내기는 이름을 세우지 않는다)
+      k: { byDocPath, vocab: { coords: new Set() } },
+    }
+  }
+  // 글 하나 보내기 — 결과 { id, put, held, same, why } · 닿지 않음 · 거절(4xx)은 throw(부르는 쪽이 wait · fail 줄로)
+  //   srcId — 보내는 개인 지식(Claude 를 부를지: 「Claude 에 보내지 않음」 이면 부르지 않는다) ·
+  //   prevs — [다시] 의 앞 결과들(넣지 못함으로 남은 기록 id · record.fixes — 다시도 넣지 못하면 다음 [다시] 가 모두 바로잡는다)
+  async function sendOne(srcId, d, it, { from = '', prevs = [] } = {}) {
+    const key = await sendKeyOf(d.url)
+    const m = await sendMaterial(d, key, it, from)
+    let draft = null
+    let why = null
+    if (m.brief.noClaude) why = '받는 팀 지식이 Claude 에 보내지 않는 지식이다'
+    else {
+      const opt = { writeRules: WRITE_RULES }
+      const ask = (prompt) => hub.askClaude(srcId, prompt, INTAKE_SCHEMA, { budget: Number(process.env.KMD_INGEST_BUDGET) > 0 ? Number(process.env.KMD_INGEST_BUDGET) : 1.0, role: 'ingest', timeoutMs: 600_000 })
+      let a = await ask(intakePromptOf(m.g, opt))
+      let p = a.value ? draftToSave(m.k, m.g, a.value) : null
+      // 고쳐 쓰기 한 번(들이기와 같이 · 검사의 까닭을 붙인다)
+      if (p && !p.ok) {
+        a = await ask(intakeFixPromptOf(m.g, a.value, p.why, opt))
+        p = a.value ? draftToSave(m.k, m.g, a.value) : null
+      }
+      if (!a.value) why = `Claude 로 짓지 못했다: ${a.why || '답이 없다'}`
+      else if (!p.ok) why = `Claude 가 지은 글이 검사를 넘지 못했다: ${p.why}`
+      else draft = p
+    }
+    const left = []
+    let sections = []
+    let record
+    if (draft) {
+      // 새 문서는 지식관리자만 세운다 — 그 밖의 자리면 그 조각은 넣지 못함으로(저장 전체가 거절되지 않게)
+      const ledgers = !!m.brief.you?.ledgers
+      for (const s of draft.input.sections) {
+        if (!ledgers && !m.docIds.has(s.doc)) left.push({ doc: s.doc, heading: s.heading, why: '새 문서는 지식관리자가 세운다', ...(typeof s.content === 'string' ? { content: s.content } : {}) })
+        else sections.push(s)
+      }
+      for (const h of draft.held) left.push({ ...(h.doc ? { doc: h.doc } : {}), ...(h.heading ? { heading: h.heading } : {}), why: h.why, ...(typeof h.content === 'string' ? { content: h.content } : {}) })
+      record = { title: draft.input.record.title, body: draft.input.record.body }
+    } else {
+      // 기록만 — 받는 쪽이 넣지 못함(noclaude · notfound)으로 둔다 · 까닭은 left 로
+      record = { title: String(it.title || '보낸 글').slice(0, 200), body: [`${from || '개인 지식'} 에서 보낸 글이다. 문서에 넣지 못했다: ${why}.`, `## 원천\n- 보낸 글 · ${from || '개인 지식'} 에서\n\n${quoteSrc(it.body, 150_000)}`].join('\n\n') }
+      if (!m.brief.noClaude) left.push({ why })
+    }
+    const input = {
+      record: { ...record, tags: [`sent/${it.sha}`], ...(m.touches.length ? { touches: m.touches } : { touchesEmpty: '개인 지식에서 보낸 글: 받는 지식의 이름 장부에서 맞는 이름을 찾지 못했다' }), ...(prevs.length ? { fixes: prevs } : {}) },
+      sections,
+      ...(left.length ? { left } : {}),
+      channel: 'send',
+    }
+    const r = await sendLib.post(d.url, d.kn, input, key, { path: 'save', timeoutMs: 120_000 })
+    const held = Array.isArray(r?.held) ? r.held : []
+    return { id: r?.id || r?.saved || null, put: Number(r?.put) || 0, held: held.length, same: !!r?.same, why: held.map((h) => h.why).filter(Boolean).slice(0, 3).join(' · ') }
+  }
+  // 저장 문으로 보내기(payload.engine 'save') — 글마다 한 번 · 넣지 못함이 남은 글은 bad(그 기록 id 를 prev 로 · [다시] 가 바로잡는다)
+  async function sendSave(ctx, d, payload) {
+    const out = { put: 0, held: 0, same: 0, bad: [] }
+    for (const [i, it] of payload.items.entries()) {
+      const r = await sendOne(payload.src, d, it, { from: payload.from, prevs: Array.isArray(payload.prevs) ? payload.prevs : [] })
+      if (r.same) out.same++
+      else if (r.held) {
+        out.held++
+        out.bad.push({ i, why: `넣지 못함: ${r.why || '받는 지식이 넣지 못했다'}`, prev: r.id })
+      } else out.put++
+    }
+    return out
   }
   // 받는 쪽이 몇 개만 거절했다(r.bad) — 그것만 fail 줄로(사람이 [다시] · [버리기]) · 없으면 null
+  //   저장 문으로 보낸 글(engine save)은 넣지 못한 기록 id(prev)를 줄에 싣는다 — [다시] 가 record.fixes 로 바로잡는다(옛 넣지 못함이 겹쳐 남지 않게)
   function badOf(to, payload, r) {
     const bad = (Array.isArray(r?.bad) ? r.bad : []).filter((b) => payload.items[b?.i])
     if (!bad.length) return null
-    return waitOf(to, { ...payload, items: bad.map((b) => payload.items[b.i]) }, Object.assign(new Error(bad.map((b) => String(b.why || '받지 않았다')).join(' · ')), { status: 400, reach: true }))
+    const prev = bad.find((b) => b.prev)?.prev
+    const prevs = prev ? [...new Set([...(Array.isArray(payload.prevs) ? payload.prevs : []), prev])].slice(-10) : null
+    const w = waitOf(to, { ...payload, items: bad.map((b) => payload.items[b.i]), ...(prevs ? { prevs } : {}) }, Object.assign(new Error(bad.map((b) => String(b.why || '받지 않았다')).join(' · ')), { status: 400, reach: true }))
+    if (prev) w.fix = '[지금 다시] 는 다시 지어 보내고 앞 기록을 바로잡는다 · 받는 지식의 지식관리자가 팀 화면 › 넣지 못함에서 고칠 수도 있다'
+    return w
   }
   // 보낼 곳마다 묶음으로 — 보낸 수 · 닿지 않아 둔 수(wait) · 거절된 수(fail) · 대기 줄(상태 파일에 넣는 것은 부르는 쪽)
   async function deliverAll(ctx, meta, dests, items) {
@@ -491,6 +610,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     const key = `${id}\n${ctx.device ? 'd:' + ctx.device : 'u:' + ctx.user}`
     const now = Date.now()
     const rate = per / 60_000
+    n = Math.min(n, per)
     const b = rates.get(key) || { tokens: per, at: now }
     b.tokens = Math.min(per, b.tokens + (now - b.at) * rate)
     b.at = now
@@ -660,6 +780,26 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const { names: _n, forms: _f, ...rest } = input
       input = { ...rest, record: { ...rec0, body: `${rec0?.body || ''}\n\n${lines.join('\n\n')}`.trim() } }
       if (team && lines.length) extraHeld.push({ code: 'names', why: `세울 ${ns.length ? `이름 ${ns.length}` : ''}${ns.length && fs0.length ? ' · ' : ''}${fs0.length ? `갈래 ${fs0.length}` : ''} 이 있다: 지식관리자가 세운다` })
+    }
+    // 보내기(S12 · S-D36) — 보낸 글은 그 순간 들어가거나 넣지 못함이다(정리를 기다리지 않는다):
+    //   left — 개인 프로그램의 Claude 가 넣을 곳을 고르지 못한 조각(후보 밖 · 새 문서를 세울 자리 없음) · 넣지 못함(notfound)으로만 받는다
+    //   조각이 하나도 없으면 기록 단위 넣지 못함 — 「Claude 에 보내지 않음」 지식이면 noclaude · 아니면 notfound
+    if (input && typeof input === 'object' && 'left' in input) {
+      const { left, ...rest } = input
+      if (channel === 'send' && team) {
+        if (!Array.isArray(left) || left.length > SECTIONS_MAX) throw new KmdError('E_INPUT', `left 는 ${SECTIONS_MAX}개 안의 목록이다`)
+        for (const x of left) {
+          if (!x || typeof x !== 'object' || Array.isArray(x)) throw new KmdError('E_INPUT', 'left 는 { doc, heading, why } 의 목록이다')
+          const one = (v, n) => (v == null ? null : typeof v === 'string' && v.length <= n && !/[\r\n]/.test(v) ? v : (() => { throw new KmdError('E_INPUT', 'left 의 doc · heading · why 는 한 줄 글이다') })())
+          const doc = one(x.doc, 300)
+          const heading = one(x.heading, 200)
+          extraHeld.push({ ...(doc ? { doc } : {}), ...(heading ? { heading } : {}), code: 'notfound', why: `보낸 글: ${one(x.why, 200) || '넣을 곳을 고르지 못했다'}`, ...(typeof x.content === 'string' ? { content: x.content.slice(0, 20_000) } : {}) })
+        }
+      }
+      input = rest
+    }
+    if (channel === 'send' && team && rec0?.memo !== true && !(Array.isArray(input?.sections) && input.sections.length) && !extraHeld.length) {
+      extraHeld.push(rowFor(id)?.noClaude ? { code: 'noclaude', why: '보낸 글: Claude 에 보내지 않는 지식이라 기록만 받았다' } : { code: 'notfound', why: '보낸 글: 넣을 항목이 없다(조각 없이 기록만 왔다)' })
     }
     let r0
     if (team) {
@@ -3842,7 +3982,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const now = mode === 'pc' && direct
       const recRows = plan.rows.filter((x) => x.kind === 'record')
       const agent = now && !asDocs && hub.agentOk(id)
-      if (agent) importing.add(id)
+      //   넣는 동안 바로 넣기(curatePending)가 같은 기록을 따로 집지 않게 — 에이전트 길 · 곧바로 넣기(ingestNow) 둘 다(앞에서 들인 기록을 「들일 기록이 없다」 로 보던 겨룸)
+      if (now) importing.add(id)
       try {
       for (const [i, r] of plan.records.entries()) {
         let sv
@@ -4012,7 +4153,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const heads = prev ? Object.keys(m.secs).filter((h) => prev.secs[h] !== m.secs[h]) : []
         return { path: d.path, id: d.id, title: d.title, when: d.mtime, st: !prev ? 'new' : prev.sha === m.sha ? 'same' : 'chg', heads, sent: prev ? prev.at || true : null }
       })
-      return { route, recs, docs, wait: st.wait.map((w) => ({ id: w.id, state: w.state, to: w.to.kn, n: w.payload.items.length, at: w.at, why: w.why, fix: w.fix || null })), log: st.log }
+      return { route, recs, docs, wait: st.wait.map((w) => ({ id: w.id, state: w.state, to: w.to.kn, n: w.payload.items.length, at: w.at, why: w.why, fix: w.fix || null, ...(Array.isArray(w.payload.prevs) && w.payload.prevs.length ? { held: true } : {}) })), log: st.log }
     },
     // 길 정하기 · 바꾸기 — 받는 지식은 같은 서버의 팀 지식 · 이미 길이 있으면 confirm 에 새 이름을 그대로
     async sendRoute(ctx, id, { to, confirm, url } = {}) {
@@ -4060,21 +4201,43 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       ].flatMap((it) => sendLib.split(it))
       if (!items.length) throw new KmdError('E_INPUT', '보낼 것을 고른다')
       const dest = { kn: route.kn, ...(route.url ? { url: route.url } : {}) }
-      const { sent, wait, fail, why, waits, unnamed } = await deliverAll(ctx, meta, [dest], items)
+      // 받는 팀(주소가 있는 길)은 글마다 저장 문으로(S12) — 넣음 · 넣지 못함 · 이미 넣음 · 닿지 않음(wait) · 거절(fail) ·
+      //   넣지 못함이 남은 글은 fail 줄([지금 다시] 는 앞 기록 id 를 fixes 로) · 닿지 않은 글은 wait 줄(저절로 다시) · 같은 PC 의 옛 길은 받기 그대로
+      let res
+      if (dest.url) {
+        res = { sent: 0, wait: 0, fail: 0, put: 0, held: 0, same: 0, why: [], waits: [] }
+        for (const it of items) {
+          const payload = { engine: 'save', src: id, from: meta.name, items: [it] }
+          try {
+            const r = await sendSave(ctx, dest, payload)
+            res.put += r.put
+            res.same += r.same
+            res.sent += r.put + r.held
+            const b = badOf(dest, payload, r)
+            if (b) { res.held++; res.waits.push(b); res.why.push(b.why) }
+          } catch (e) {
+            const w = waitOf(dest, payload, e)
+            res.waits.push(w)
+            if (w.state === 'wait') res.wait++
+            else { res.fail++; res.why.push(`${dest.kn}: ${w.why}`) }
+          }
+        }
+      } else res = await deliverAll(ctx, meta, [dest], items)
+      const { sent, wait, fail, why, waits, unnamed } = res
       const at = localStamp()
       await sendState(id, (st) => {
         st.wait.push(...waits)
-        if (sent || wait) {
+        if (sent || wait || res.same) {
           for (const { d } of pickDocs) {
             st.sent[d.path] = { ...sendLib.marks(d), at }
             delete st.dropped[d.path]
           }
           for (const x of recIds) st.sentRecs[x] = at
         }
-        st.log.unshift({ at: new Date().toISOString(), n: items.length, to: [route.kn], recs: recIds.length, docs: pickDocs.length, wait: !!wait, ...(fail ? { fail } : {}), ...(unnamed ? { unnamed } : {}), titles: items.slice(0, 5).map((x) => x.title) })
+        st.log.unshift({ at: new Date().toISOString(), n: items.length, to: [route.kn], recs: recIds.length, docs: pickDocs.length, wait: !!wait, ...(dest.url ? { put: res.put, held: res.held, same: res.same } : {}), ...(fail ? { fail } : {}), ...(unnamed ? { unnamed } : {}), titles: items.slice(0, 5).map((x) => x.title) })
       })
-      if (sent) feed.add(dataDir, ctx.user, { kind: 'send', kn: id, to: route.name, dot: 'acc', text: `${sent}개를 보냈다: ${meta.name} → ${route.name}`, small: '정리 때 문서에 들어간다' }).catch(() => {})
-      return { sent, wait, to: route.kn, ...(unnamed ? { unnamed } : {}), ...(fail ? { fail, why } : {}) }
+      if (sent || res.same) feed.add(dataDir, ctx.user, { kind: 'send', kn: id, to: route.name, dot: res.held ? 'warn' : 'acc', text: `${sent}개를 보냈다: ${meta.name} → ${route.name}`, small: dest.url ? [`넣음 ${res.put}`, `넣지 못함 ${res.held}`, res.same ? `이미 넣음 ${res.same}` : ''].filter(Boolean).join(' · ') : '받는 지식에 기록으로 섰다' }).catch((e) => log(`보내기 알림 실패 ${id}: ${e.message}`))
+      return { sent, wait, to: route.kn, ...(dest.url ? { put: res.put, held: res.held, same: res.same } : {}), ...(unnamed ? { unnamed } : {}), ...(fail || res.held ? { fail: fail + (res.held || 0), why } : {}) }
     },
     // 보내기 — changes(변경사항의 key) · docs(문서 경로 — 전체) · recs(기록 id — 전체) · 셋 다 없으면 변경사항 모두(예전 길)
     async send(ctx, id, { extra = [], changes = null, docs = [], recs = [] } = {}) {
@@ -4111,7 +4274,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
         st.log.unshift({ at: new Date().toISOString(), n: items.length, to: dests.map((d) => d.kn), wait: !!wait, ...(fail ? { fail } : {}), ...(unnamed ? { unnamed } : {}), titles: items.slice(0, 5).map((x) => x.title) })
       })
-      if (sent) feed.add(dataDir, ctx.user, { kind: 'send', kn: id, dot: 'acc', text: `${sent}개를 보냈다: ${dests.map((d) => d.kn).join(' · ')}`, small: '정리 때 문서에 들어간다' }).catch(() => {})
+      if (sent) feed.add(dataDir, ctx.user, { kind: 'send', kn: id, dot: 'acc', text: `${sent}개를 보냈다: ${dests.map((d) => d.kn).join(' · ')}`, small: mode === 'team' ? '옛 길: 받는 팀 지식에는 넣지 못함으로 선다' : '받는 지식에 기록으로 섰다' }).catch((e) => log(`보내기 알림 실패 ${id}: ${e.message}`))
       return { sent, wait, ...(unnamed ? { unnamed } : {}), ...(fail ? { fail, why } : {}) }
     },
     // 닿지 않아 둔 것 — 닿을 때 저절로(분마다) · 거절된 것(fail)은 사람이 [다시] · [버리기]
@@ -4183,7 +4346,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     //   같은 지식의 받기는 한 줄로 — 시간 넘김 뒤 같은 묶음이 겹쳐 와도 지문 검사와 저장 사이에 끼어들지 않는다
     //   묶음 하나 = 지식 읽기 1번 · git 커밋 1번(글마다 커밋하면 150개에 2분이 넘는다)
     //   글 하나가 거절되면(너무 긴 글 등) 그것만 bad 로 두고 나머지는 받는다 · 지식 전체의 거절(멈춤 · 권한)은 그대로 던진다
-    async receive(ctx, id, { from = '', items = [] } = {}) {
+    //   옛 판의 보내기(S12 · S-D36) — 팀 지식에 받은 기록은 넣지 못함(legacy-send)으로 둔다(정리를 기다리지 않는다 · 새 판은 저장 문 /save 로 보낸다) ·
+    //   바깥(HTTP)에서 온 받기는 저장 속도 통에서 남길 기록 수만큼 뺀다(opt.rate · 한 번에 통 크기까지)
+    async receive(ctx, id, { from = '', items = [] } = {}, opt = {}) {
       const meta = await hub.meta(id, ctx)
       if (!Array.isArray(items) || !items.length || items.length > 200) throw new KmdError('E_INPUT', '받을 것은 1 ~ 200 개')
       if (ctx.machine && ctx.machine.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
@@ -4216,8 +4381,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
         let saved = 0
         let unnamed = 0
+        if (recs.length && opt.rate) rateTake(ctx, id, recs.length)
+        const legacy = mode === 'team'
         if (recs.length) {
-          const r = await saveRecords(meta.dir, recs, { user: ctx.user, holdWhy: `받음: ${String(from).slice(0, 60) || '보낸 곳'}에서 · 이 지식의 이름 장부에서 맞는 이름을 찾지 못했다` })
+          const r = await saveRecords(meta.dir, recs, { user: ctx.user, holdWhy: `받음: ${String(from).slice(0, 60) || '보낸 곳'}에서 · 이 지식의 이름 장부에서 맞는 이름을 찾지 못했다`, ...(legacy ? { serverTags: ['held'], heldPart: [{ code: 'legacy-send', why: '옛 보내기: 조각 없이 기록만 왔다. 개인 프로그램을 새 판으로 올리고 다시 보내거나 지식관리자가 다시 들인다' }] } : {}) })
           for (const x of r.records) {
             if (x.error) bad.push({ i: at[x.i], why: `${recs[x.i].title.slice(0, 60)}: ${x.error.message}` })
             else {
@@ -4227,16 +4394,17 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           }
           cache.delete(id)
           if (saved) {
-            feed.add(dataDir, ctx.user, { kind: 'save', rec: r.records.find((x) => x.id)?.id, kn: id, from: String(from).slice(0, 80), dot: 'pend', text: `${meta.name}에 기록 ${saved}개: ${String(from).slice(0, 80)}에서 받음`, small: hub.pendText(id) }).catch(() => {})
-            scheduleDecide(id)
-            // hub.save 와 같이 — 개인 지식은 바로 문서에(뒤에서) · 팀 지식은 정리 방식이 「실시간」 이면 조용해진 뒤
-            if (mode === 'pc') hub.curateSoon(id).catch(() => {})
-            else if (mode === 'team' && hub.tidyModeOf(id) === 'live') hub.liveSoon(id)
-            if (backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
+            feed.add(dataDir, ctx.user, { kind: 'save', rec: r.records.find((x) => x.id)?.id, kn: id, from: String(from).slice(0, 80), dot: legacy ? 'warn' : 'pend', text: `${meta.name}에 기록 ${saved}개: ${String(from).slice(0, 80)}에서 받음`, small: legacy ? '넣지 못함: 옛 보내기라 조각이 없다' : hub.pendText(id) }).catch((e) => log(`받기 알림 실패 ${id}: ${e.message}`))
+            // 개인 지식은 바로 문서에(뒤에서) · 팀 지식은 넣지 못함이라 정리 · 판정을 걸지 않는다
+            if (mode === 'pc') {
+              scheduleDecide(id)
+              hub.curateSoon(id).catch((e) => log('바로 넣기', id, e.message))
+            }
+            if (backup.attached(meta)) backup.enqueue(meta, { log }).catch((e) => log(`백업 걸기 실패 ${id}: ${e.message}`))
           }
         }
         bad.sort((a, b) => a.i - b.i)
-        return { saved, same, ...(unnamed ? { unnamed } : {}), ...(bad.length ? { bad } : {}) }
+        return { saved, same, ...(unnamed ? { unnamed } : {}), ...(legacy && saved ? { held: saved } : {}), ...(bad.length ? { bad } : {}) }
       })
     },
     // 받기 미리 보기 — 쓰지 않고 받을 글마다 이 지식의 이름 장부에서 맞는 이름을 본다(보내는 쪽의 「보내기 확인」 · 지식 생성 가드)

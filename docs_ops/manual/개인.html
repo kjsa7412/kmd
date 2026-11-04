@@ -13,7 +13,7 @@
 <h1>개인 프로그램</h1>
 <p class="m-lead">내 PC 에서 도는 kmd 다. 내 개인 지식(기본 <code>D:\kmd</code>)만 다루고, 팀 서버 · 팀원 · 관리자 어디에도 가지 않는다. 팀으로 가는 것은 지식 보내기로 고른 기록 · 문서뿐이다.</p>
 
-<div class="m-flow"><div class="m-st m-ok"><b>개인 화면</b><small>127.0.0.1:7373 · 한 번용 주소로만</small></div><span class="m-ar">›</span><div class="m-st"><b>개인 지식</b><small>D:\kmd\&lt;지식&gt; · git</small></div><span class="m-ar">›</span><div class="m-st m-hi"><b>지식 보내기</b><small>고른 기록 · 문서만</small></div><span class="m-ar">›</span><div class="m-st m-pd"><b>팀 지식</b><small>팀 서버 · 정리 때 문서에</small></div></div>
+<div class="m-flow"><div class="m-st m-ok"><b>개인 화면</b><small>127.0.0.1:7373 · 한 번용 주소로만</small></div><span class="m-ar">›</span><div class="m-st"><b>개인 지식</b><small>D:\kmd\&lt;지식&gt; · git</small></div><span class="m-ar">›</span><div class="m-st m-hi"><b>지식 보내기</b><small>고른 기록 · 문서만</small></div><span class="m-ar">›</span><div class="m-st m-pd"><b>팀 지식</b><small>팀 서버 · 받을 때 곧바로 문서에</small></div></div>
 
 <h2 id="install"><span class="m-no">1</span>설치 · 업데이트 · 팀에 잇기</h2>
 <p>팀 지식만 쓰면 개인 프로그램은 필요 없다: 팀 화면 › 설정 › 에이전트 설치의 한 줄로 작업 폴더의 Claude Code 에 팀 지식을 붙이고, 폴더째 많은 파일도 그 Claude Code 에서 넣는다(대량 넣기 <code>kmd-team-import</code>). 개인 지식을 쓰려면 이 프로그램을 깐다.</p>
@@ -78,8 +78,13 @@
 </ol>
 <ul>
 <li>탭: <b>기록</b>(보내지 않은 것 먼저) · <b>문서</b>(늘 통째로 · 「보낸 적 없음」 · 「보낸 뒤 고침」) · <b>보낸 것</b>.</li>
-<li>단추와 확인 창에 받는 지식 이름이 늘 들어간다(예: [DPMS 지식으로 2개 보내기]). 고른 것마다 팀 지식에 기록 하나로 들어가고, 그 지식의 정리 때 문서에 들어간다.</li>
-<li>보내는 일은 이 PC 의 기기 열쇠로 한다. 팀 서버에 닿지 않으면 저절로 다시 보낸다. 팀 화면에는 보내기 메뉴가 없다.</li>
+<li>단추와 확인 창에 받는 지식 이름이 늘 들어간다(예: [DPMS 지식으로 2개 보내기]).</li>
+<li>고른 것마다 이 PC 의 Claude(내 Claude 로그인)가 받는 팀 지식의 문서를 읽고 그 지식의 작성기준에 맞춰 기록과 항목 글을 짓는다. 팀 지식이 검사해 넘은 것은 <b>그 순간 문서에 들어간다</b>. 못 넘은 것은 기록에 「넣지 못함」 으로 남는다(정리를 기다리지 않는다).</li>
+<li>보낸 뒤 알림 · <b>보낸 것</b> 탭에 「넣음 n · 넣지 못함 n」 이 보인다. 같은 것을 다시 보내면 「이미 넣음」 이고 팀에는 아무것도 쓰지 않는다.</li>
+<li>넣지 못함이 남은 글은 위에 <b>「넣지 못함」 줄</b>이 선다: [지금 다시] 는 다시 지어 보내고 앞의 넣지 못함 기록을 바로잡는다. [버리기] 는 줄만 걷는다(팀의 기록은 남는다 · 그 지식의 지식관리자가 넣지 못함에서 고친다).</li>
+<li>새 문서는 받는 지식의 지식관리자 자리일 때만 선다. 쓰기 자리면 그 글은 넣지 못함이다.</li>
+<li>받는 팀 지식이 「Claude 에 보내지 않음」 이거나 내 Claude 로그인이 없으면 Claude 를 부르지 않고 기록만 보낸다(팀에서 넣지 못함).</li>
+<li>보내는 일은 이 PC 의 기기 열쇠로 한다. 팀 서버에 닿지 않으면 저절로 다시 보낸다. 팀이 「저장이 너무 잦다」 고 하면 알려 준 시간만큼 쉬고 이어 보낸다. 팀 화면에는 보내기 메뉴가 없다.</li>
 </ul>
 
 <h2 id="settings"><span class="m-no">6</span>설정</h2>

@@ -8,7 +8,7 @@
 //   「주입」 → 글에 머리 줄을 넣는다 · 「A → B」 꼴(값) → 지금 글의 A 를 B 로 바꾸고 drop 에 A
 //   이름 바로잡기 → 후보의 첫 이름
 //   고쳐 쓰기(fixPromptOf · 「지난 초안이 kmd 검사에 걸렸다」) → 「고쳐쓰기」 가 든 기록만 고친다(누락 · 지어낸 것을 하지 않는다)
-// 들이기(「넣을 것을 지식에 들인다」 · S7) → 기록 + 조각 초안(아래 갈래 · FAKE_CLAUDE_MODE=bad · badall · content · nosec · names · outside)
+// 들이기(「넣을 것을 지식에 들인다」 · S7 · 보낸 글 S12) → 기록 + 조각 초안(아래 갈래 · FAKE_CLAUDE_MODE=bad · badall · content · nosec · names · outside)
 // FAKE_CLAUDE_MODE=logout → 로그인 끝 · FAKE_CLAUDE_LOG=<파일> → 부를 때마다 한 줄
 
 import fs from 'node:fs'
@@ -65,14 +65,14 @@ function answer() {
     if (fixingI && process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'fix\n')
     const p = fixingI ? prompt.slice(0, prompt.indexOf(FIXI)) : prompt
     const mode = process.env.FAKE_CLAUDE_MODE || ''
-    const cands = (p.split('문서 후보:\n')[1] || '').split(/\n\n넣을 것\((?:파일|커밋|기록) · /)[0]
+    const cands = (p.split('문서 후보:\n')[1] || '').split(/\n\n넣을 것\((?:파일|커밋|기록|보낸 글) · /)[0]
     const docs = cands.split(/^\[doc /m).slice(1).map((blk) => {
       const path = blk.slice(0, blk.indexOf(']'))
       const secs = [...blk.matchAll(/^## (.+)\n\(base ([0-9a-f]{16})\)\n([\s\S]*?)(?=\n## |(?![\s\S]))/gm)].map((m) => ({ h: m[1].trim(), base: m[2], body: m[3] }))
       return { path, secs }
     })
     // 기록(다시 들이기 · S10) — 파일과 같이 다룬다(## 머리가 후보 항목과 같으면 그 항목 · 나머지는 새 문서)
-    const srcM = /\n\n넣을 것\((파일|커밋|기록) · ([^)]*)\):\n([\s\S]*)$/.exec(p)
+    const srcM = /\n\n넣을 것\((파일|커밋|기록|보낸 글) · ([^)]*)\):\n([\s\S]*)$/.exec(p)
     const kind = srcM && srcM[1] === '커밋' ? '커밋' : '파일'
     const name = srcM ? srcM[2] : '넣을 것'
     const md = srcM ? srcM[3] : ''
@@ -95,7 +95,8 @@ function answer() {
       if (!out.updates.length) out.why = '문서와 상관없는 커밋'
       return say({ structured_output: out })
     }
-    const file = name.split('/').pop().replace(/\.[^.]+$/, '')
+    // 보낸 글(S12) — 제목 「문서: 문서 전체」 의 앞 조각이 문서 이름
+    const file = srcM && srcM[1] === '보낸 글' ? name.split(': ')[0] : name.split('/').pop().replace(/\.[^.]+$/, '')
     const secs = [...md.matchAll(/^## (.+)\n([\s\S]*?)(?=\n## |(?![\s\S]))/gm)].map((m) => ({ heading: m[1].trim(), content: m[2].trim() }))
     out.record.title = `${file}: 들임`
     out.record.body = `${file} 을 들였다.`

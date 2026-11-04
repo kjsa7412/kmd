@@ -91,10 +91,13 @@ before(async () => {
   mkKnowledge(path.join(tmp, 'kn', 'memo'), '## term\n\n- `term:주간 회의`: 주간 회의')
   mkKnowledge(path.join(tmp, 'kn', 'note'), '')
   fs.writeFileSync(path.join(tmp, 'kn', 'note', 'docs', '배포메모.md'), '# 배포메모\n\n## 카나리\n첫 30분은 요청의 10%.\n')
+  // 보내기(S12) 받는 팀 지식 — 점검 › 순서 하나
+  mkKnowledge(path.join(tmp, 'kn', 'rcv'), '## proc\n\n- `proc:순서`: 순서')
+  fs.writeFileSync(path.join(tmp, 'kn', 'rcv', 'docs', '점검.md'), '# 점검\n\n## 순서\n전원부터 본다.\n')
   fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })
   fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sendTickMs: 3600000, tidyTickMs: 3600000 }))
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
-  for (const id of ['inbox', 'memo', 'note']) await s.hub.setOwner(SHELL, id, { owner: 'kim' })
+  for (const id of ['inbox', 'memo', 'note', 'rcv']) await s.hub.setOwner(SHELL, id, { owner: 'kim' })
 })
 after(async () => {
   await s?.close()
@@ -288,10 +291,13 @@ test('지식 보내기(내 PC → 팀): 보내는 길은 개인 지식마다 팀
     assert.ok(rec && !rec.sent, '보내지 않은 기록')
     assert.equal(await code(pc.hub.sendPicked(ME, 'memo', { to: 'gdi', recs: [rec.id] })), 'E_CONFLICT', '화면이 본 받는 지식과 다르면 보내지 않는다')
     const r = await pc.hub.sendPicked(ME, 'memo', { to: 'dpms', recs: [rec.id], docs: [{ path: 'docs/점검.md' }] })
-    assert.equal(r.sent, 2)
+    // 저장 문으로(S12) — 글마다 Claude(가짜)가 지은 기록 + 조각 · 받는 쪽이 그 순간 넣거나 넣지 못함으로
+    assert.deepEqual({ sent: r.sent, put: r.put, held: r.held }, { sent: 2, put: 1, held: 1 }, JSON.stringify(r))
     let got = (await s.hub.get('dpms')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/')))
-    assert.ok(got.some((w) => w.title === '전원 점검: 아침'), '기록은 전체로')
-    assert.ok(got.some((w) => w.title === '점검: 문서 전체'), '처음 문서는 전체로')
+    assert.ok(got.some((w) => w.title === '전원 점검: 들임' && w.state === 'held'), '머리 없는 기록은 넣을 곳이 없어 넣지 못함')
+    assert.ok(got.some((w) => w.title === '점검: 들임' && w.state !== 'pend' && w.state !== 'held'), '문서는 그 순간 들어간다')
+    assert.ok(!got.some((w) => w.state === 'pend'), '정리를 기다리는 기록이 없다')
+    assert.match((await s.hub.get('dpms')).byDocPath.get('docs/점검.md').sections.find((x) => x.h === '순서').body, /전원부터 본다/)
     v = await pc.hub.sendView(ME, 'memo')
     assert.ok(v.recs.find((x) => x.id === rec.id).sent, '보낸 기록은 「보냄」')
     assert.equal(v.docs.find((d) => d.path === 'docs/점검.md').st, 'same')
@@ -303,7 +309,9 @@ test('지식 보내기(내 PC → 팀): 보내는 길은 개인 지식마다 팀
     assert.deepEqual([d.st, d.heads], ['chg', ['순서']])
     await pc.hub.sendPicked(ME, 'memo', { to: 'dpms', docs: [{ path: 'docs/점검.md', whole: false }] })
     got = (await s.hub.get('dpms')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/')))
-    assert.ok(got.some((w) => w.title === '점검: 문서 전체' && /통신/.test(w.body) && /날마다 남긴다/.test(w.body)), '고친 뒤에도 문서는 통째로 간다(고친 항목만은 없다)')
+    const team = (await s.hub.get('dpms')).byDocPath.get('docs/점검.md').sections
+    assert.match(team.find((x) => x.h === '순서').body, /통신/, '고친 항목이 받는 쪽 문서에 들어간다')
+    assert.match(team.find((x) => x.h === '기록').body, /날마다 남긴다/, '문서는 통째로 간다(고친 항목만은 없다)')
     assert.ok(!got.some((w) => w.title === '점검: 순서'), '항목 조각은 보내지 않는다')
 
     // 바꾸기 — 새 이름을 그대로 쳐야
@@ -317,6 +325,102 @@ test('지식 보내기(내 PC → 팀): 보내는 길은 개인 지식마다 팀
     else process.env.KMD_SEND_KEY = was
   }
 })
+test('보내기(S12 · 저장 문): 쓰기 자리 · 받는 쪽 문서가 그 순간 바뀜 · 같은 것 다시 → 이미 넣음 · 넣지 못함 → fail 줄 · [지금 다시] 뒤 옛 넣지 못함은 바로잡힘 · 새 문서는 지식관리자만 · Claude 에 보내지 않는 팀 지식 → Claude 0번 · 넣지 못함(noclaude)', async () => {
+  const proot = path.join(tmp, 'pcsave')
+  mkKnowledge(path.join(proot, 'mine'), '')
+  fs.writeFileSync(path.join(proot, 'mine', 'docs', '점검.md'), '# 점검\n\n## 순서\n전원 다음 통신을 본다.\n')
+  fs.writeFileSync(path.join(proot, 'mine', 'docs', '새규칙.md'), '# 새규칙\n\n## 당번\n당번은 박이 맡는다.\n')
+  const lee = await signIn(s, { id: 'lee5', admin: false })
+  await seat(s, 'lee5', { rcv: 'write' }) // 지식관리자가 아닌 쓰기 자리
+  const was = process.env.KMD_SEND_KEY
+  process.env.KMD_SEND_KEY = lee.key
+  const pc = await startServer({ root: proot, mode: 'pc', user: 'lee5', port: 0, log: () => {}, scryptN: 1 << 15 })
+  fs.writeFileSync(path.join(proot, '.kmd', 'teams.json'), JSON.stringify([s.url]))
+  const ME = { user: pc.pcUser, admin: true, pc: true }
+  const log = path.join(tmp, 'claude-send.log')
+  const sentOf = async () => (await s.hub.get('rcv')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/')))
+  const secOf = async (h) => (await s.hub.get('rcv')).byDocPath.get('docs/점검.md').sections.find((x) => x.h === h).body
+  try {
+    await pc.hub.sendRoute(ME, 'mine', { to: 'rcv', url: s.url })
+    // ① 문서 → 받는 쪽 문서가 그 순간 바뀐다(정리를 기다리지 않는다) · 보낸 사람 이름으로
+    let r = await pc.hub.sendPicked(ME, 'mine', { to: 'rcv', docs: [{ path: 'docs/점검.md' }] })
+    assert.deepEqual({ put: r.put, held: r.held, fail: r.fail }, { put: 1, held: 0, fail: undefined }, JSON.stringify(r))
+    assert.match(await secOf('순서'), /통신/)
+    const w1 = (await sentOf())[0]
+    assert.equal(w1.author, 'lee5')
+    assert.notEqual(w1.state, 'pend')
+    assert.equal((await pc.hub.sendView(ME, 'mine')).log[0].put, 1, '보낸 것 줄에 넣음 수')
+    // ② 같은 것 다시 → 이미 넣음(아무것도 쓰지 않는다)
+    r = await pc.hub.sendPicked(ME, 'mine', { to: 'rcv', docs: [{ path: 'docs/점검.md' }] })
+    assert.equal(r.same, 1)
+    assert.equal((await sentOf()).length, 1)
+    // ③ 새 문서(쓰기 자리는 세우지 못한다) → 받는 쪽은 넣지 못함 · 보내는 쪽은 fail 줄
+    r = await pc.hub.sendPicked(ME, 'mine', { to: 'rcv', docs: [{ path: 'docs/새규칙.md' }] })
+    assert.deepEqual({ put: r.put, held: r.held }, { put: 0, held: 1 }, JSON.stringify(r))
+    const line = (await pc.hub.sendView(ME, 'mine')).wait.find((x) => x.state === 'fail')
+    assert.ok(line && line.held && /넣지 못함/.test(line.why) && /다시/.test(line.fix), JSON.stringify(line))
+    const h1 = (await sentOf()).find((w) => w.state === 'held')
+    assert.ok(h1 && /지식관리자가 세운다/.test(h1.body), '넣지 못함 칸에 까닭')
+    assert.ok(!(await s.hub.get('rcv')).byDocPath.get('docs/새규칙.md'), '새 문서는 서지 않았다')
+    // ④ [지금 다시] — 넣지 못한 까닭이 그대로면 줄이 그대로(새 까닭) · 지식관리자 자리를 받은 뒤 다시 → 새 문서가 서고 앞 넣지 못함은 바로잡힘
+    await assert.rejects(pc.hub.sendWaitAct(ME, 'mine', { wid: line.id, act: 'retry' }), { code: 'E_INPUT', message: /넣지 못함/ })
+    let v = await pc.hub.sendView(ME, 'mine')
+    assert.equal(v.wait.filter((x) => x.state === 'fail').length, 1, '줄은 하나로 바뀐다')
+    const h2 = (await sentOf()).find((w) => w.state === 'held')
+    assert.equal((await sentOf()).find((w) => w.id === h1.id).state, 'held', '새 기록도 넣지 못함이면 앞 기록은 그대로(다음 [다시] 가 둘 다 바로잡는다)')
+    await seat(s, 'lee5', { rcv: 'admin' })
+    assert.deepEqual(await pc.hub.sendWaitAct(ME, 'mine', { wid: line.id, act: 'retry' }), { sent: 1 })
+    const after = await sentOf()
+    assert.deepEqual([after.find((w) => w.id === h1.id).state, after.find((w) => w.id === h2.id).state], ['fixed', 'fixed'], '[다시] 의 fixes 로 앞 넣지 못함이 모두 바로잡힘')
+    assert.equal(after.filter((w) => w.state === 'held').length, 0, '넣지 못함이 겹쳐 남지 않는다')
+    assert.match((await s.hub.get('rcv')).byDocPath.get('docs/새규칙.md').sections.find((x) => x.h === '당번').body, /박/)
+    v = await pc.hub.sendView(ME, 'mine')
+    assert.equal(v.wait.length, 0, '줄이 걷힌다')
+    // ⑤ Claude 에 보내지 않는 팀 지식 → 내 PC 도 Claude 를 부르지 않고 기록만 → 받는 쪽 넣지 못함(noclaude)
+    await s.hub.setOwner(SHELL, 'rcv', { noClaude: true })
+    process.env.FAKE_CLAUDE_LOG = log
+    await pc.hub.edit(ME, 'mine', { doc: '점검', sections: [{ h: '순서', body: '전원 다음 통신 다음 경보를 본다.' }] })
+    r = await pc.hub.sendPicked(ME, 'mine', { to: 'rcv', docs: [{ path: 'docs/점검.md' }] })
+    assert.equal(r.held, 1, JSON.stringify(r))
+    assert.ok(!fs.existsSync(log) || !/intake/.test(fs.readFileSync(log, 'utf8')), 'Claude 0번')
+    assert.ok((await sentOf()).some((w) => w.state === 'held' && /Claude 에 보내지 않는/.test(w.body)))
+    assert.doesNotMatch(await secOf('순서'), /경보/, '문서는 그대로')
+  } finally {
+    delete process.env.FAKE_CLAUDE_LOG
+    await s.hub.setOwner(SHELL, 'rcv', { noClaude: false })
+    await pc.close()
+    if (was === undefined) delete process.env.KMD_SEND_KEY
+    else process.env.KMD_SEND_KEY = was
+  }
+})
+
+test('보내기: 저장 속도 한도(429)는 Retry-After 만큼 쉬고 다시 보낸다(fail 줄이 아니다)', async () => {
+  const http = await import('node:http')
+  let n = 0
+  const srv = http.createServer((req, res) => {
+    req.resume()
+    req.on('end', () => {
+      n++
+      if (n === 1) {
+        res.writeHead(429, { 'content-type': 'application/json', 'retry-after': '1' })
+        return res.end(JSON.stringify({ error: 'E_RATE', message: '저장이 너무 잦다', details: { retryAfter: 1 } }))
+      }
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ id: 'r1', put: 1 }))
+    })
+  })
+  await new Promise((ok) => srv.listen(0, '127.0.0.1', ok))
+  try {
+    const t0 = Date.now()
+    const r = await post(`http://127.0.0.1:${srv.address().port}`, 'kn', { record: { title: 'x' }, channel: 'send' }, 'k', { path: 'save' })
+    assert.deepEqual(r, { id: 'r1', put: 1 })
+    assert.equal(n, 2)
+    assert.ok(Date.now() - t0 >= 900, '쉬었다가')
+  } finally {
+    srv.close()
+  }
+})
+
 test('받은편지함 정리(내 PC): 이름이 걸리는 개인 지식으로 옮김 · private 메모 → 옮김 0 · 팀 서버는 옮기지 않는다', async () => {
   // 팀 서버에는 개인 지식이 없다 — 옮길 곳이 없다
   await s.hub.save(KIM, 'inbox', { record: { title: '주간 회의: 팀 안건', body: '팀 서버에 남은 메모.' } })

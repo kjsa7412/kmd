@@ -168,8 +168,11 @@ test('한 문서의 항목은 claude 한 번에: 묶음 답을 자리마다 넣�
 
 test('늦게 받은 옛 기록: 쓴 때로 받는다 · 그 전 정리로 「넣음」 이 되지 않는다 · 「지금 글보다 오래됨」 · 값을 되돌리지 못한다', async () => {
   // 앞 시험에서 헬스 체크에 넣은 「30초」 보다 앞서 쓴 기록을 이제야 보냈다
-  const got = await s.hub.receive(LEE, 'dpms', { from: '내 PC', items: [{ title: '헬스 체크: 옛 간격', body: '헬스 체크 30초 → 10초', date: '2026-01-02 09:00' }] })
-  assert.equal(got.saved, 1)
+  //   옛 받기(/receive)가 남긴 개편 전 기록 그대로 — 쓴 때 date · 받은 때 recv/ · 보낸 지문 sent/ (S12 부터 /receive 는 넣지 못함이라 core 로 바로 쓴다)
+  const { saveRecords, localStamp } = await import('../core/save.js')
+  const got = await saveRecords(path.join(tmp, 'kn', 'dpms'), [{ title: '헬스 체크: 옛 간격', body: '내 PC에서 보냄\n\n헬스 체크 30초 → 10초', touches: ['proc:헬스 체크'], tags: ['sent/0123456789abcdef', `recv/${localStamp().replace(/\D/g, '')}`], date: '2026-01-02 09:00' }], { user: LEE.user })
+  s.hub.forget('dpms')
+  assert.equal(got.records.filter((x) => x.id).length, 1)
   const k0 = await s.hub.get('dpms')
   const o = k0.works.find((w) => w.title === '헬스 체크: 옛 간격')
   assert.equal(o.date, '2026-01-02 09:00', '받은 때가 아니라 쓴 때')

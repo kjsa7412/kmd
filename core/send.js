@@ -6,6 +6,8 @@
 //          ② 지식 — 사람이 고른 문서(전체) · 기록(전체). 화면이 고른 것만 보낸다(고르지 않은 변경사항은 다음에 그대로 남는다).
 // 받는 쪽은 기록 하나(태그 `sent/<지문>` — 같은 것을 두 번 받으면 0) · 이름은 받는 지식의 이름 장부로 정확히 맞는 것만.
 // 받는 쪽이 글 몇 개만 거절하면(너무 긴 글 등) 나머지는 받고 { bad: [{ i, why }] } 로 돌려준다 — 보내는 쪽은 그것만 fail 줄로.
+// S12(설계 4-7 · S-D36) — 받는 팀으로는 글마다 팀 MCP(mcpCalls: brief · match · section) → 내 Claude → 팀 저장 문(post path 'save' · channel send).
+//   위의 받기(/receive)는 옛 판을 위해 남는다(팀 지식에는 넣지 못함 legacy-send). 저장 속도 한도(429)는 post 가 쉬고 다시 보낸다.
 
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -138,7 +140,21 @@ export function itemOf(k, q) {
 // 다른 kmd 로 — 기기 열쇠(Bearer). 닿지 않으면 throw(호출하는 쪽이 wait 에 둔다)
 //   닿지 않음(연결 · 시간 넘김 · 5xx) → reach: false(저절로 다시) · 받는 쪽이 거절(4xx) → reach: true · status · code(사람이 고친다)
 //   시간 제한은 묶음 크기에 맞춘다(받는 쪽은 기록마다 저장 · git 묶음을 한다 — 늦게 끝나도 같은 지문이라 다시 보내면 0)
-export async function post(url, kn, payload, key, { timeoutMs = null, path = 'receive' } = {}) {
+//   저장 속도 한도(429 E_RATE · S-D28)는 실패가 아니다 — Retry-After 만큼 쉬고 다시(S12 · S-D36 · 다섯 번까지 · 한 번 쉼은 2분 안)
+export const RATE_TRIES = 5
+export const RATE_WAIT_MAX = 120_000
+const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms))
+export async function post(url, kn, payload, key, { timeoutMs = null, path = 'receive', rateTries = RATE_TRIES } = {}) {
+  for (let i = 0; ; i++) {
+    try {
+      return await postOnce(url, kn, payload, key, { timeoutMs, path })
+    } catch (e) {
+      if (e.status !== 429 || e.code !== 'E_RATE' || i + 1 >= rateTries) throw e
+      await sleep(Math.min(RATE_WAIT_MAX, Math.max(1, e.retryAfter || 1) * 1000))
+    }
+  }
+}
+async function postOnce(url, kn, payload, key, { timeoutMs = null, path = 'receive' } = {}) {
   const ac = new AbortController()
   const n = Array.isArray(payload?.items) ? payload.items.length : 1
   const t = setTimeout(() => ac.abort(), timeoutMs ?? Math.min(180_000, 15_000 + 3_000 * n))
@@ -147,11 +163,43 @@ export async function post(url, kn, payload, key, { timeoutMs = null, path = 're
       throw Object.assign(new Error(e.name === 'AbortError' ? '팀 서버가 제때 답하지 않았다' : '팀 서버에 닿지 않는다'), { reach: false })
     })
     const j = await r.json().catch(() => ({}))
-    if (!r.ok) throw Object.assign(new Error(j?.message || j?.error?.message || `HTTP ${r.status}`), { status: r.status, code: typeof j?.error === 'string' ? j.error : null, reach: r.status < 500 })
+    if (!r.ok) throw Object.assign(new Error(j?.message || j?.error?.message || `HTTP ${r.status}`), { status: r.status, code: typeof j?.error === 'string' ? j.error : null, reach: r.status < 500, ...(r.status === 429 ? { retryAfter: Number(r.headers.get('retry-after')) || Number(j?.details?.retryAfter) || 1 } : {}), ...(j?.details ? { details: j.details } : {}) })
     return j
   } finally {
     clearTimeout(t)
   }
+}
+
+// 팀 MCP 도구 부르기(S12 · 보내기의 재료) — 기기 열쇠 · JSON-RPC tools/call. calls: [{ tool, args }] 를 한 번에(서버 묶음은 20 안)
+//   도구가 거절하면(isError) 그 줄은 { error, message } · 닿지 않음 · 401 은 throw(post 와 같은 reach · status)
+export async function mcpCalls(url, key, calls, { timeoutMs = 30_000 } = {}) {
+  const out = []
+  for (let i = 0; i < calls.length; i += 20) {
+    const part = calls.slice(i, i + 20)
+    const ac = new AbortController()
+    const t = setTimeout(() => ac.abort(), timeoutMs)
+    try {
+      const body = part.map((c, j) => ({ jsonrpc: '2.0', id: i + j + 1, method: 'tools/call', params: { name: c.tool, arguments: c.args || {} } }))
+      const r = await fetch(`${url}/mcp`, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', ...(key ? { authorization: `Bearer ${key}` } : {}) }, body: JSON.stringify(body), signal: ac.signal }).catch((e) => {
+        throw Object.assign(new Error(e.name === 'AbortError' ? '팀 서버가 제때 답하지 않았다' : '팀 서버에 닿지 않는다'), { reach: false })
+      })
+      const j = await r.json().catch(() => null)
+      if (!r.ok) throw Object.assign(new Error(j?.message || (typeof j?.error === 'string' ? j.error : j?.error?.message) || `HTTP ${r.status}`), { status: r.status, code: typeof j?.error === 'string' ? j.error : null, reach: r.status < 500 })
+      const byId = new Map((Array.isArray(j) ? j : [j]).filter(Boolean).map((x) => [x.id, x]))
+      for (const [j2] of part.entries()) {
+        const x = byId.get(i + j2 + 1)
+        if (!x || x.error) out.push({ error: 'E_MCP', message: x?.error?.message || '팀 서버가 답하지 않았다' })
+        else out.push(x.result?.structuredContent ?? {})
+      }
+    } finally {
+      clearTimeout(t)
+    }
+  }
+  return out
+}
+export async function mcpCall(url, key, tool, args) {
+  const [r] = await mcpCalls(url, key, [{ tool, args }])
+  return r
 }
 // 거절의 까닭 → 고칠 곳(사람이 읽는 한 줄)
 export function fixOf(e) {

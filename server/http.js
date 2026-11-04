@@ -1007,7 +1007,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (sd[2] === 'send') return out(200, await hub.sendPicked(ctx, id, b))
       if (sd[2] === 'send/route') return out(200, await hub.sendRoute(ctx, id, b))
       if (sd[2] === 'send/wait') return out(200, await hub.sendWaitAct(ctx, id, { wid: b.id, act: b.act }))
-      if (sd[2] === 'receive') return out(200, await hub.receive(ctx, id, b))
+      if (sd[2] === 'receive') return out(200, await hub.receive(ctx, id, b, { rate: true }))
       if (sd[2] === 'receive/preview') return out(200, await hub.receivePreview(ctx, id, b))
       if (sd[2] === 'send/preview') return out(200, await hub.sendPreview(ctx, id, b))
       if (sd[2] === 'inbox/send') return out(200, await hub.inboxSend(ctx, id, b))

@@ -130,7 +130,8 @@ export const HELD_SRC_HEAD = 2000
 
 const formLine = (g) => `- 이 지식의 갈래(갈래 장부): ${(g.forms || []).map((f) => `${f.folder ? f.folder + '/' : ''}${f.name}(${f.kind}${f.aliases?.length ? ' · ' + f.aliases.join(', ') : ''})`).join(' · ') || '없음'}. 다른 이름에 걸리는 글은 그 갈래 문서로 간다(newDoc.path 는 폴더/갈래 이름).${g.formsOwn ? ' 갈래 장부에 없는 새 문서는 세우지 않는다: 이어지는 후보 문서에 넣는다.' : ''}`
 // 다시 들이기(S10 · type again) — 넣지 못한 기록의 원천(남겨 둔 파일 글 · 없으면 그 기록 글)을 「기록」 으로
-const srcHead = (g) => (g.type === 'commit' ? `넣을 것(커밋 · ${g.src?.title || ''}):` : g.type === 'again' ? `넣을 것(기록 · ${g.src?.title || ''}):` : `넣을 것(파일 · ${g.src?.file || g.src?.title || ''}):`)
+// 보내기(S12 · type send) — 개인 지식에서 보낸 글(기록 하나 · 문서 통째)
+const srcHead = (g) => (g.type === 'commit' ? `넣을 것(커밋 · ${g.src?.title || ''}):` : g.type === 'again' ? `넣을 것(기록 · ${g.src?.title || ''}):` : g.type === 'send' ? `넣을 것(보낸 글 · ${g.src?.title || ''}):` : `넣을 것(파일 · ${g.src?.file || g.src?.title || ''}):`)
 
 // 들이기 프롬프트 — g: 서버 재료(/api/k/:kn/worker/intake) { type, src: { title, author, date, file?, md, commit? }, docs, forms, formsOwn, names, kinds } ·
 //   writeRules — 작성기준 3 ~ 5절 줄임(core/writerules.js · 일꾼이 싣는다)
@@ -151,6 +152,7 @@ export function intakePromptOf(g, { writeRules = '' } = {}) {
       '- 같은 갈래의 문서가 후보에 있으면 새 문서를 세우지 않고 그 문서에 새 항목으로 넣는다. 항목 머리는 「언제 · 무엇」(예: 2026-10-21 HNC 통화).',
       formLine(g),
       '- 새로 세운 항목은 names 에 대상 이름과 종류를 싣는다(종류는 아래 이름 종류 중 하나). 이미 이름 장부에 있는 이름은 싣지 않는다.',
+      ...(g.type === 'send' ? ['- 넣을 것은 개인 지식에서 보낸 글이다. 개인 문서의 꼴 · 말 · 머리를 그대로 옮기지 않고 이 지식의 작성기준과 후보 문서의 꼴에 맞춘다. 문서를 통째로 보냈으면 후보 항목과 견주어 달라진 것만 고친다(같은 내용이면 updates 를 비우고 why 에 까닭).'] : []),
       ...(commit ? ['- 커밋은 「바뀐 값」 줄과 차이를 본다. 글에 옛 값이 있으면 새 값으로 고치고, 코드에 없는 설명은 지어내지 않는다. 문서와 상관없는 커밋이면 updates 를 비우고 why 에 까닭을 쓴다.'] : []),
       '- 파일을 통째로 옮기지 않는다. 대상의 지금으로 요약 · 정리해 쓴다. 인사말 · 말할 거리 · 빈 칸 양식 · 준비 체크 상태는 옮기지 않는다(기록에 남는다). 값을 담은 표 · 목록은 그 사실을 그대로 살린다.',
     ].join('\n'),
@@ -170,7 +172,7 @@ export function intakeFixPromptOf(g, draft, why, opt = {}) {
 export const intakeTags = (src) => (src?.type === 'file' && src.rel ? [`ingest/${src.rel}`.slice(0, 60), ...(/^[0-9a-f]{16}$/.test(src.sha || '') ? [`md/${src.sha}`] : [])] : [])
 // 원천 글을 기록에 싣는 칸 — 줄마다 「> 」(원천 속 「## 넣은 것」 같은 머리가 kmd 칸으로 읽히지 않게)
 export const quoteSrc = (md, max) => String(md || '').slice(0, max).replace(/\r/g, '').split('\n').map((l) => `> ${l}`).join('\n')
-const srcLine = (src, md) => `- ${src?.type === 'commit' ? `커밋 ${src.commit || ''}${src.src ? ` · ${src.src}` : ''}` : src?.type === 'again' ? `다시 들이기 · 기록 ${src.rec || ''}` : `파일 ${src?.rel || src?.file || src?.title || ''}`} · 지문 ${sha16(String(md || ''))}`
+const srcLine = (src, md) => `- ${src?.type === 'commit' ? `커밋 ${src.commit || ''}${src.src ? ` · ${src.src}` : ''}` : src?.type === 'again' ? `다시 들이기 · 기록 ${src.rec || ''}` : src?.type === 'send' ? `보낸 글 · ${src.from || '개인 지식'} 에서` : `파일 ${src?.rel || src?.file || src?.title || ''}`} · 지문 ${sha16(String(md || ''))}`
 // 넣지 못함으로 끝난 들이기의 기록 — 원천 앞 2000자와 지문만(S-D50)
 export function heldRecord(src, md, { why = '' } = {}) {
   // 정정(S9) — 들고 있던 정정 기록 초안 그대로(원천 글이 아니다) · 까닭은 넣지 못함 칸에

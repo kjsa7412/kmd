@@ -1,5 +1,6 @@
 // 보내기 운영 — 큰 문서는 나눠 보낸다 · 받는 쪽은 거절된 글만 빼고 받는다 · 같은 묶음이 겹쳐 와도 기록 하나 ·
 // 저절로 다시는 겹쳐 돌지 않고 · 그동안 새로 생긴 대기 줄을 덮어쓰지 않는다.
+// 옛 판의 받기(/receive · S12 · S-D36)는 팀 지식에 넣지 못함(legacy-send)으로 남고 · 바깥(HTTP)에서 오면 저장 속도 통에서 건수만큼 뺀다.
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -11,8 +12,8 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
-import { split, ITEM_MAX, readState } from '../core/send.js'
-import { copyDir } from './helpers.mjs'
+import { split, ITEM_MAX, readState, post } from '../core/send.js'
+import { copyDir, signIn } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const KIM = { user: 'kim', admin: true }
@@ -124,6 +125,12 @@ test('받기: 묶음 하나는 git 커밋 하나 · 거절된 글 · 묶음 안�
   assert.equal(count() - n0, 1, '커밋 하나')
   assert.equal(execFileSync('git', ['status', '--porcelain', 'work'], { cwd: dir, encoding: 'utf8' }).trim(), '', '거절된 글의 파일은 남지 않는다')
   assert.deepEqual((await sentRecs('dpms')).filter((w) => w.title.startsWith('묶음: ')).map((w) => w.title).sort(), ['묶음: 1', '묶음: 2', '묶음: 3', '묶음: 4'])
+  // 옛 판의 받기 — 정리를 기다리지 않고 넣지 못함(legacy-send) · 받은 수를 held 로 알린다
+  assert.equal(r.held, 4)
+  for (const w of (await sentRecs('dpms')).filter((x) => x.title.startsWith('묶음: '))) {
+    assert.equal(w.state, 'held')
+    assert.match(w.body, /legacy-send/)
+  }
 })
 
 test('받기: 같은 묶음이 동시에 두 번 와도 기록은 하나씩', async () => {
@@ -132,6 +139,19 @@ test('받기: 같은 묶음이 동시에 두 번 와도 기록은 하나씩', as
   assert.equal(a.saved + b.saved, 3)
   assert.equal(a.same + b.same, 3)
   assert.equal((await sentRecs('dpms')).filter((w) => w.title.startsWith('겹침: ')).length, 3)
+  assert.ok((await sentRecs('dpms')).filter((w) => w.title.startsWith('겹침: ')).every((w) => w.state === 'held'), '옛 받기는 넣지 못함')
+})
+
+test('받기(HTTP · 옛 판): 저장 속도 통에서 남길 기록 수만큼 뺀다 · 넘으면 429 E_RATE + Retry-After · 지문만 같은 것은 세지 않는다', async () => {
+  const k = await signIn(s, { id: 'rate1', admin: true })
+  const items = (p, n) => Array.from({ length: n }, (_, i) => ({ title: `속도 ${p}: ${i}`, body: `글 ${i}`, sha: (p + String(i).padStart(2, '0')).padStart(16, 'd') }))
+  const a = await post(s.url, 'dpms', { from: 'note', items: items('a', 20) }, k.key, { rateTries: 1 })
+  assert.equal(a.saved, 20)
+  // 통(분에 30)에 10 남았다 — 20 은 넘는다
+  await assert.rejects(post(s.url, 'dpms', { from: 'note', items: items('b', 20) }, k.key, { rateTries: 1 }), (e) => e.status === 429 && e.code === 'E_RATE' && e.retryAfter >= 1)
+  // 이미 받은 것만이면 쓰지 않으니 세지 않는다
+  const same = await post(s.url, 'dpms', { from: 'note', items: items('a', 20) }, k.key, { rateTries: 1 })
+  assert.deepEqual(same, { saved: 0, same: 20 })
 })
 
 test('보내기: 받는 쪽이 몇 개만 거절하면 그것만 fail 줄 · 나머지는 보낸 것', async () => {
