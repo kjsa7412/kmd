@@ -526,7 +526,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
       if (!twin.buf.equals(buf)) fail('E_INPUT', `같은 첨부 자리에 다른 글이 둘이다: ${p.rel}`)
       continue
     }
-    const have = await fs.readFile(p.full).catch(() => null)
+    const have = await fs.readFile(p.full).catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
     if (have) {
       if (have.equals(buf)) {
         if (!attSame.includes(p.rel)) attSame.push(p.rel)

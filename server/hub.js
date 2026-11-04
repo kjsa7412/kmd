@@ -264,6 +264,30 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     attachDay = { ...Object.fromEntries(Object.entries(attachDay).filter(([, v]) => v.day === day)), [id]: { day, bytes: n0 + bytes } }
     await writeJsonAtomic(attachDayFile, attachDay)
   }
+  // 센 첨부를 되돌린다 — 저장 · 일감이 아무것도 쓰지 못했을 때(S-D30 · 쓰지 않은 바이트로 하루 합을 채우지 않는다)
+  async function attachGive(id, bytes) {
+    const a = attachDay[id]
+    if (!(bytes > 0) || a?.day !== localDay(new Date())) return
+    attachDay = { ...attachDay, [id]: { day: a.day, bytes: Math.max(0, a.bytes - bytes) } }
+    await writeJsonAtomic(attachDayFile, attachDay)
+  }
+  const giveBack = (id, n) => attachGive(id, n).catch((x) => log(`하루 첨부 합을 되돌리지 못했다 ${id}: ${x.message}`))
+  // 장부 읽기 — 없으면 빈 것 · 읽거나 풀지 못하면 그 파일을 <file>.broken-<때> 로 비켜 두고 빈 것으로 시작한다(깨진 파일을 빈 것으로 덮지 않는다)
+  async function readLedger(file, empty, what) {
+    try {
+      return JSON.parse(await fs.readFile(file, 'utf8'))
+    } catch (e) {
+      if (e.code === 'ENOENT') return empty
+      const aside = `${file}.broken-${Date.now()}`
+      try {
+        await fs.rename(file, aside)
+      } catch (x) {
+        throw new Error(`${what}을 읽지 못했고 비켜 두지도 못했다(${x.message}): ${e.message}`)
+      }
+      log(`${what}을 읽지 못해 ${path.basename(aside)} 로 비켜 두고 빈 것으로 시작한다`, e.message)
+      return empty
+    }
+  }
   let jobsW = Promise.resolve()
   // 끝난 일감은 7일 · 지식마다 최근 50건 남긴다(사흘 · 일주일 정리 시간을 서버 기록 없이 본다) · 도는 것은 늘
   const JOB_KEEP_MS = 7 * 24 * 3600_000
@@ -1413,9 +1437,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 저장 속도(S-D28) — 바깥에서 온 저장(세션 · HTTP · 보내기)만 · 서버 안의 저장(가져오기 · 받은편지함 · 되돌리기)은 세지 않는다
       if (channel && !opt.system && !asIntake) rateTake(ctx, id)
       // 첨부(S-D30) — 쓰기 이상 · 지식마다 하루 합(들이기 저장의 첨부는 파일 넣기가 받은 그때 셌다)
+      let took = 0
       if (input?.attach != null && !asIntake) {
         if (!hub.canSave(ctx, id)) throw new KmdError('E_FORBIDDEN', '첨부는 쓰기 자리부터 둔다')
-        if (Array.isArray(input.attach)) await attachTake(id, input.attach.reduce((a, x) => a + Math.floor((String(x?.b64 || '').length * 3) / 4), 0))
+        if (Array.isArray(input.attach)) {
+          const n = input.attach.reduce((a, x) => a + Math.floor((String(x?.b64 || '').length * 3) / 4), 0)
+          await attachTake(id, n)
+          took = n
+        }
       }
       const t0 = Date.now()
       //   kit — 세션 스킬 판(MCP 가 넘긴 수 · 없으면 null · S-D15)
@@ -1423,6 +1452,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       try {
         return await saveIn(ctx, id, meta, input, opt, channel, logLine, t0)
       } catch (e) {
+        // 아무것도 쓰지 못했다 — 센 첨부를 되돌린다
+        if (took) await giveBack(id, took)
         // 저장 전체가 실패한 것도 측정 줄로(rec 없음 · S-D29)
         if (channel && e instanceof KmdError) {
           try { await savelog(id, { ...logLine, n: Array.isArray(input?.sections) ? input.sections.length : 0, stale: e.details?.stale || [], conflictWith: e.conflictWith || [], ms: Date.now() - t0, err: e.code }) } catch (x) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${x.message}`) }
@@ -2485,7 +2516,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const d = k.byDocPath.get(rel)
       if (!d) throw new KmdError('E_NOTFOUND', '그런 문서가 없다')
       if (rowFor(id)?.noClaude) throw new KmdError('E_FORBIDDEN', '이 지식은 Claude 에 보내지 않는다: 다듬기는 팀 일꾼(Claude)이 한다')
-      if (/<!--\s*watched:/.test(d.intro || '') || watchedOf(await fs.readFile(path.join(k.dir, ...rel.split('/')), 'utf8').catch(() => ''))) throw new KmdError('E_FORBIDDEN', '원본이 주인인 문서는 다듬지 않는다')
+      if (/<!--\s*watched:/.test(d.intro || '') || watchedOf(await fs.readFile(path.join(k.dir, ...rel.split('/')), 'utf8').catch((e) => (e.code === 'ENOENT' ? '' : Promise.reject(e))))) throw new KmdError('E_FORBIDDEN', '원본이 주인인 문서는 다듬지 않는다')
       if (!d.sections.some((x) => x.h)) throw new KmdError('E_INPUT', '## 항목이 없는 문서는 다듬지 않는다')
       const r = await hub.openJob(id, { type: 'polish', by: ctx.user, src: { doc: rel, title: d.title || rel } })
       return { job: r.job || null, state: r.state, ...(r.again ? { again: true } : {}) }
@@ -2611,7 +2642,16 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       // 원본 첨부(S-D30 · 파일 넣기에서 고른 것) — 같은 저장 덩이 · 같은 커밋
       const input = j.src?.attach && bin ? { ...p.input, attach: [{ path: j.src.attach, b64: bin.toString('base64') }] } : p.input
-      const r = await hub.save(ctx, id, input, { channel: intakeChannel(j), intake: { job: j.id, tags: intakeTagsOf(j), held: p.held, cost, warn: p.warn } })
+      const sopt = { channel: intakeChannel(j), intake: { job: j.id, tags: intakeTagsOf(j), held: p.held, cost, warn: p.warn } }
+      let r
+      try {
+        r = await hub.save(ctx, id, input, sopt)
+      } catch (e) {
+        // 그사이 같은 이름의 다른 첨부가 생겼다 — 첨부 때문에 글 · 항목까지 막지 않는다(한 번 · 첨부 없이)
+        if (input === p.input || e?.code !== 'E_CONFLICT' || !/같은 이름의 다른 첨부/.test(e.message || '')) throw e
+        intakeLine(j, 'err', `✗ ${e.message}: 원본 첨부 없이 글만 넣는다`)
+        r = await hub.save(ctx, id, p.input, sopt)
+      }
       return finish(r)
     },
     // 초안을 받지 못했다(일꾼) — 로그인 · 한도 · claude 없음은 일감을 태우지 않고 다시 기다림 · 그 밖(예산 · 시간 · 모양)은 한 번으로 세고 마지막이면 기록만 + 넣지 못함(claude)
@@ -3475,16 +3515,26 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const sha = crypto.createHash('sha256').update(fm.md.trim()).digest('hex').slice(0, 16)
         // 같은 파일(넣은 기록이 있다 · 넣지 못함 · 바로잡힘은 다시 들인다) — 내가 쓴 기록이거나 서버가 붙인 들이기 기록만(S-D16 · 남의 가짜 기록이 막지 못하게)
         if (k.works.some((w) => (w.author === ctx.user || w.tags.includes('intake')) && w.state !== 'held' && w.state !== 'fixed' && w.tags.includes(tag) && (w.tags.includes(`md/${sha}`) || w.body.trim() === fm.md.trim()))) { row('same', '같은 파일: 그대로 두었다'); continue }
-        const useAtt = att && fm.attach
+        let useAtt = att && fm.attach
+        let attNote = ''
+        if (useAtt) {
+          // 같은 이름의 다른 첨부가 이미 있다 — 원본은 두지 않고 글만 들인다(들이기 저장이 첨부 때문에 E_CONFLICT 로 막히지 않게)
+          const have = await fs.readFile(assetPath(meta.dir, attRel).full).catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
+          if (have && !have.equals(data)) { useAtt = false; attNote = ' · 같은 이름의 다른 첨부가 있어 원본은 두지 않았다' }
+        }
         let r
+        let took = 0
         try {
-          if (useAtt) await attachTake(id, data.length)
+          if (useAtt) { await attachTake(id, data.length); took = data.length }
           r = await hub.openJob(id, { type: 'file', by: ctx.user, src: { rel, sha, title: path.posix.basename(rel), file: rel, ...(useAtt ? { attach: attRel } : {}) }, md: fm.md, bin: data })
         } catch (e) {
+          if (took) await giveBack(id, took)
           if (!(e instanceof KmdError)) throw e
           row('fail', e.message)
           continue
         }
+        // 새 일감이 아니다(같은 것 · 넣지 못함 · 이미 들이는 중) — 이번 첨부는 쓰지 않는다
+        if (took && !(r.state === 'queued' && !r.again)) await giveBack(id, took)
         if (r.state === 'same') { row('same', '같은 파일: 그대로 두었다', r.rec ? { rec: r.rec } : {}); continue }
         if (r.state === 'held') { row('held', `넣지 못함: ${r.why}`, { rec: r.rec }); continue }
         if (r.again) { row('same', '같은 파일을 팀 일꾼이 이미 들이는 중이다'); continue }
@@ -3492,11 +3542,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const run = hub.newRun(id, { title: path.posix.basename(rel), file: rel, by: ctx.user, quiet: files.length > 1, parent: gj?.id })
         run.stages[0].state = run.stages[1].state = 'done'
         Object.assign(run, { stage: STAGE_WRITE, msg: '팀 일꾼을 기다린다', spec: { type: 'intake', kn: id, job: r.job, rel } })
-        Q.line(run, 'sys', `받았다 · 글로 바꿨다(${fm.kind === 'md' ? 'md' : fm.ext}${useAtt ? ' · 원본 첨부' : ''}): 팀 일꾼이 기록 + 문서를 한 번에 짓는다`)
+        Q.line(run, 'sys', `받았다 · 글로 바꿨다(${fm.kind === 'md' ? 'md' : fm.ext}${useAtt ? ' · 원본 첨부' : ''}${attNote}): 팀 일꾼이 기록 + 문서를 한 번에 짓는다`)
         const j = jobs.get(r.job)
         if (j) Object.assign(j, { run: run.id, qj: run.id })
         saveJobs()
-        row('run', '기록 + 문서를 짓는 중(팀 일꾼)', { run: run.id })
+        row('run', `기록 + 문서를 짓는 중(팀 일꾼)${attNote}`, { run: run.id })
       }
       // 첨부만 남는 파일 — 같은 글이면 건너뛰고 같은 이름의 다른 글은 덮지 않는다 · 한 커밋
       if (atts.length) {
@@ -4512,7 +4562,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async start() {
       // 기다리던 들이기 · 팀 일꾼 상태 — 다시 켜도 잇는다(맡았던 일감은 기다림으로) ·
       //   옛 정리 일감 줄(kind 없음)은 읽어도 넘어지지 않고 그만둠으로 둔다(설계 2-6 · 「개편으로 걷은 정리 일감」)
-      for (const j of await fs.readFile(jobsFile, 'utf8').then(JSON.parse, (e) => (e.code === 'ENOENT' ? [] : (log('들이기 일감 장부를 읽지 못했다', e.message), [])))) {
+      for (const j of await readLedger(jobsFile, [], '들이기 일감 장부')) {
         if (j.kind !== 'intake') { jobs.set(j.id, ['queued', 'running'].includes(j.state) ? { ...j, state: 'cancelled', worker: null, why: '개편으로 걷은 정리 일감', done: j.done || new Date().toISOString() } : j); continue }
         jobs.set(j.id, j.state === 'running' || j.state === 'closing' ? { ...j, state: 'queued', worker: null } : j)
       }
@@ -4534,8 +4584,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           cache.clear()
         } catch (e) { log('개편 때(cutover.json)를 읽거나 적지 못했다: 모든 pend 를 개편 전 기록으로 본다', e.message) }
       }
-      intakeDay = await fs.readFile(intakeDayFile, 'utf8').then(JSON.parse, (e) => (e.code === 'ENOENT' ? {} : (log('하루 들이기 수 장부를 읽지 못했다', e.message), {})))
-      attachDay = await fs.readFile(attachDayFile, 'utf8').then(JSON.parse, (e) => (e.code === 'ENOENT' ? {} : (log('하루 첨부 합 장부를 읽지 못했다', e.message), {})))
+      intakeDay = await readLedger(intakeDayFile, {}, '하루 들이기 수 장부')
+      attachDay = await readLedger(attachDayFile, {}, '하루 첨부 합 장부')
       // 다시 켤 때 — 같은 일감의 기록(job/<id>)이 이미 있으면 그 일감은 넣었다(커밋 뒤 · 장부를 쓰기 전에 꺼졌다 · S-D48)
       for (const j of [...jobs.values()].filter((x) => x.kind === 'intake' && x.state === 'queued')) {
         const k = await hub.get(j.kn).catch((e) => (log('다시 켤 때 들이기 일감 맞추기: 지식을 읽지 못했다', j.kn, e.message), null))

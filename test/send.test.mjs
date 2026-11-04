@@ -179,6 +179,18 @@ test('파일 넣기(팀 화면 · S8): 파일마다 들이기 일감 + 일 줄 �
   await workOnce({ server: s.url, key: wkey })
   assert.equal(count(dir), a0 + 1, '첨부도 같은 커밋')
   assert.ok(fs.existsSync(path.join(dir, 'docs', 'assets', '회의', '첨부함.docx')), '원본은 첨부로')
+  // 고친 파일을 같은 이름으로 다시 + 원본 첨부 — 같은 이름의 다른 첨부는 덮지 않고 글만 들인다(E_CONFLICT 로 돌지 않는다 · 끝 검토 1)
+  const att0 = fs.readFileSync(path.join(dir, 'docs', 'assets', '회의', '첨부함.docx'))
+  const re = await s.hub.importFiles(KIM, 'dpms', [{ path: '회의/첨부함.docx', data: docx([['Heading1', '첨부 순서'], ['', '원본도 둔다. 고친 판이다.']]) }], { attach: true })
+  assert.equal(re.summary.run, 1)
+  assert.match(re.rows[0].msg, /같은 이름의 다른 첨부가 있어 원본은 두지 않았다/)
+  const rj = s.hub.intakesOf('dpms').find((j) => j.run === re.rows[0].run)
+  assert.ok(rj && !rj.src?.attach, '일감에 첨부를 싣지 않는다')
+  await workOnce({ server: s.url, key: wkey })
+  const rd = s.hub.job(rj.id)
+  assert.equal(rd.state, 'done')
+  assert.ok(rd.result.put >= 1 && !rd.result.held, JSON.stringify(rd.result))
+  assert.ok(fs.readFileSync(path.join(dir, 'docs', 'assets', '회의', '첨부함.docx')).equals(att0), '앞 첨부는 그대로')
 
   // 쓰기 자리 — HTTP 길도 같다 · 21개는 400 · 첨부는 쓰기 자리부터
   const lee = await signIn(s, { id: 'lee', admin: false })

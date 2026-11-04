@@ -74,3 +74,28 @@ test('켤 때: 옛 정리 일감 줄은 그만둠(「개편으로 걷은 정리 
     try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
   }
 })
+
+test('켤 때: 풀지 못한 장부(jobs · 하루 들이기 수 · 하루 첨부 합)는 .broken-<때> 로 비켜 두고 빈 것으로 시작한다(깨진 파일을 덮지 않는다)', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-wk-'))
+  try {
+    copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'kn'))
+    const data = path.join(tmp, 'kn', '.kmd')
+    fs.mkdirSync(data, { recursive: true })
+    fs.writeFileSync(path.join(data, 'serve.json'), JSON.stringify({ decideMs: 3600000, sourceTickMs: 3600000, sendTickMs: 3600000, jobTickMs: 3600000, queueResumeMs: 3600000 }))
+    const bad = { 'jobs.json': '[{"id":"aaaaaaaaaaaa", 깨짐', 'intake-day.json': '{"dpms":', 'attach-day.json': 'xx' }
+    for (const [f, t] of Object.entries(bad)) fs.writeFileSync(path.join(data, f), t)
+    const logs = []
+    const hub = await makeHub({ root: path.join(tmp, 'kn'), dataDir: data, mode: 'team', log: (...a) => logs.push(a.join(' ')) })
+    await hub.start()
+    hub.stop()
+    const names = fs.readdirSync(data)
+    for (const [f, t] of Object.entries(bad)) {
+      const aside = names.find((n) => n.startsWith(`${f}.broken-`))
+      assert.ok(aside, `${f} 를 비켜 두었다`)
+      assert.equal(fs.readFileSync(path.join(data, aside), 'utf8'), t, '원래 바이트 그대로')
+    }
+    assert.ok(logs.some((l) => /비켜 두고/.test(l)))
+  } finally {
+    try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
+  }
+})
