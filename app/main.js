@@ -420,7 +420,7 @@ function draw() {
   S._view = view
   S._lpView = lpView
   S._hasAside = !!scr.aside
-  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${gated() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside">${scr.aside}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}`
+  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${gated() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside">${scr.aside}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.recFix ? recFixHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}`
   app.classList.toggle('side-open', !!S.sideOpen && !gated())
   app.classList.toggle('aside-open', !!S.asideOpen && !!scr.aside)
   placePop()
@@ -1017,9 +1017,9 @@ function docPane(t, right) {
     : editing && de.error
     ? errHtml(de, `doc:${k}:${t.ref}:ed`)
     : editing
-    ? `<div class="ed" data-t="editor"><div class="lbl"><b>고치는 중</b> · 「## 」 으로 시작하는 줄이 항목 이름이다 · md 로 쓴다. **굵게** · - 목록 · [링크](주소) · Ctrl S 저장 · Esc 취소</div><div class="toolbar"><button class="btn sm" data-a="edAddSec" data-t="edAddSec">항목 더하기</button><span class="muted small">항목을 지우려면 그 「## 」 줄과 글을 지운다 · 이름을 바꾸려면 「## 」 줄만 고친다</span></div><textarea id="edTx" aria-label="문서 글(md)" data-in="edTx" data-t="edTx" spellcheck="false">${esc(edText(de))}</textarea>
+    ? `<div class="ed" data-t="editor"><div class="lbl"><b>고치는 중</b> · 「## 」 으로 시작하는 줄이 항목 이름이다 · md 로 쓴다. **굵게** · - 목록 · [링크](주소) · Ctrl S 저장 · Esc 취소</div><div class="toolbar"><button class="btn sm" data-a="edAddSec" data-t="edAddSec">항목 더하기</button><span class="muted small">${de.structure ? '항목을 지우려면 그 「## 」 줄과 글을 지운다 · 이름을 바꾸려면 「## 」 줄만 고친다' : '항목을 지우거나 이름을 바꾸는 일은 지식관리자가 한다'}</span></div><textarea id="edTx" aria-label="문서 글(md)" data-in="edTx" data-t="edTx" spellcheck="false">${esc(edText(de))}</textarea>
    ${de.sections.filter((s) => s.locks).map((s) => `<div class="lockh">항목 「${esc(s.h)}」 의 표: 회색은 잠겨 있다</div>${s.locks}`).join('')}
-   <div class="row" style="margin-top:10px"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><span class="r small muted">${d.direct ? '저장하면 바로 문서에 들어간다' : '팀 지식: 저장하면 기록으로 남고 정리 때 문서에 들어간다'}</span></div></div>`
+   <div class="row" style="margin-top:10px"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><span class="r small muted" data-t="edNote">저장하면 바로 문서에 들어간다 · 이력에 남는다</span></div>${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}</div>`
     : d.sections.map((s) => {
     // 찾기로 연 것만 「찾은 곳」 · 링크 · 개요로 연 항목은 머리를 잠깐 빛낸다
     const lit = q && hl && s.h === hl
@@ -1049,7 +1049,7 @@ function recPane(t, right) {
   if (!r) return { html: loadingHtml, title: tabTitle(t) }
   if (r.error) return { html: r.code === 'E_NOTFOUND' ? '<p class="muted" data-t="recGone">이 기록은 이제 없다. 정리되어 다른 이름으로 남았을 수 있다</p>' : errHtml(r, `rec:${k}:${t.ref}`), title: '기록' }
   const fx = r.fixes[0], fb = r.fixedBy, who = (w) => (w === S.me.user ? '나' : w)
-  const html = `<div class="docw" data-t="recPane" data-name="${esc(r.title)}">${right ? rpHead() : ''}<div class="ttl"><div class="path"><span>${esc(KN(k).name)} › ${r.log ? '이력' : '기록'} › ${esc(r.date)}</span><span class="r">${r.ingest && !r.ingest.read && !isTeam() && !right ? `<button class="btn sm" data-a="readRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="readRec"${S.reading && S.reading[r.id] ? ' disabled' : ''} title="넣은 파일을 Claude 가 읽고 무엇 · 핵심 · 정한 것 · 남은 것 + 본문으로 기록을 다시 쓴다">${S.reading && S.reading[r.id] ? 'Claude 가 읽는 중…' : 'Claude 로 기록 정리'}</button> ` : ''}${r.log ? `<span class="chip c-mute" data-t="recLog">이력 · ${esc(r.log)}: kmd 가 한 일</span>` : ''}${r.state === 'pend' ? '<span class="chip c-pend" data-t="recState">반영 대기</span>' : r.state === 'in' ? '<span class="chip c-mute" data-t="recState">문서에 들어감</span>' : ''}</span></div></div>
+  const html = `<div class="docw" data-t="recPane" data-name="${esc(r.title)}">${right ? rpHead() : ''}<div class="ttl"><div class="path"><span>${esc(KN(k).name)} › ${r.log ? '이력' : '기록'} › ${esc(r.date)}</span><span class="r">${r.ingest && !r.ingest.read && !isTeam() && !right ? `<button class="btn sm" data-a="readRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="readRec"${S.reading && S.reading[r.id] ? ' disabled' : ''} title="넣은 파일을 Claude 가 읽고 무엇 · 핵심 · 정한 것 · 남은 것 + 본문으로 기록을 다시 쓴다">${S.reading && S.reading[r.id] ? 'Claude 가 읽는 중…' : 'Claude 로 기록 정리'}</button> ` : ''}${recFixOk(k, r) && !right ? `<button type="button" class="btn sm" data-a="recFix" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="recFixBtn" title="원래 기록은 두고 정정 기록을 새로 남긴다">고치기</button> ` : ''}${r.log ? `<span class="chip c-mute" data-t="recLog">이력 · ${esc(r.log)}: kmd 가 한 일</span>` : ''}${r.state === 'pend' ? '<span class="chip c-pend" data-t="recState">반영 대기</span>' : r.state === 'in' ? '<span class="chip c-mute" data-t="recState">문서에 들어감</span>' : ''}</span></div></div>
   <div class="paper"><h1>${esc(r.title)}</h1><p class="muted small">${esc(r.author)} · ${esc(r.date)}</p>${linkify(r.html, k, null)}
   ${fx ? `<div class="callout warn">이 기록은 ${esc(whenTxt(fx.date))} ${esc(who(fx.author))}의 기록을 바로잡았다. <button type="button" class="lk" data-a="openRec" data-k="${esc(k)}" data-r="${esc(fx.id)}">${esc(fx.title)}</button></div>` : ''}${fb.map((x) => `<div class="callout gray">${esc(whenTxt(x.date))} ${esc(who(x.author))}이 이 기록을 바로잡았다. <button type="button" class="lk" data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}">${esc(x.title)}</button></div>`).join('')}
   ${r.state === 'pend' ? `<div class="callout pend">${pendWhen(k)}: 그동안도 그 항목 옆에 같이 읽힌다</div>` : ''}${r.state === 'nowhere' && (r.tags || []).includes('code-change') && !isTeam() ? `<div class="callout pend" data-t="codeWait">아직 문서에 안 들어간 코드 바뀜 기록: Claude Code 가 차례로 이 저장소의 기능 문서에 넣는다(하나에 몇 분) · 지금 하는 일 점(옆 메뉴 맨 위 · 좁은 화면은 머리 줄)에서 본다</div>` : ''}</div></div>`
@@ -1061,6 +1061,33 @@ function recPane(t, right) {
   <div class="ap" data-t="recProps"><h4>속성</h4><div class="kv"><span>종류</span><span>${r.log ? '이력: kmd 가 한 일' : '기록'}</span><span>쓴 사람</span><span>${esc(who(r.author))}</span><span>때</span><span>${esc(whenTxt(r.date))}</span><span>상태</span><span>${r.state === 'pend' ? '반영 대기: ' + pendWhen(k) : r.state === 'in' ? '문서에 들어감' : '넣을 곳 없음'}</span>${(r.tags || []).length ? `<span>태그</span><span>${esc(r.tags.join(' · '))}</span>` : ''}</div></div>
   ${nbGraph(k, 'r:' + r.id)}`
   return { html, aside: right ? null : aside, title: r.title.split(/ — |: /)[0] }
+}
+// 기록 고치기(정정 기록 · S9 · 설계 4-3) — 팀 지식 · 쓰기 이상 · 이력이 아닌 기록 · 내가 쓴 기록이거나 지식관리자(서버도 같은 판정)
+const recFixOk = (k, r) => isTeam() && !r.log && canWrite(k) && (r.author === S.me.user || lvOf(KN(k)) === 'admin')
+function recFixHtml() {
+  const w = S.recFix
+  const busy = w.busy ? ' data-busy="1"' : ''
+  return `<div class="scrim fix" data-a="recFixClose" data-self="1"${busy}><div class="modal w560" role="dialog" aria-modal="true" data-t="recFixWin"><div class="mh">기록 고치기 <small>${esc(w.title)}</small><button type="button" class="x" data-a="recFixClose" title="닫기" aria-label="닫기">×</button></div><div class="mb"><p class="small muted mt0">원래 기록은 그대로 두고 정정 기록을 새로 남긴다 · 옛 값이 그 항목에 한 곳이면 바로 문서에 넣고, 아니면 팀 일꾼이 넣는다</p><div class="field"><label for="rfFrom">옛 값</label><input class="inp" id="rfFrom" data-in="rfFrom" data-t="rfFrom" value="${esc(w.from)}" placeholder="예: 3초" autocomplete="off"></div><div class="field"><label for="rfTo">새 값</label><input class="inp" id="rfTo" data-in="rfTo" data-t="rfTo" value="${esc(w.to)}" placeholder="예: 5초" autocomplete="off"></div><div class="field" style="margin-bottom:0"><label for="rfBody">고친 내용</label><textarea class="inp" id="rfBody" rows="4" data-in="rfBody" data-t="rfBody" placeholder="무엇을 왜 바로잡나(md)">${esc(w.body)}</textarea></div>${w.err ? formErr(w.err, 'recFixErr') : ''}</div><div class="mf"><span class="acts"><button type="button" class="btn ghost" data-a="recFixClose" data-t="recFixCancel">취소</button><button type="button" class="btn pri" data-a="recFixSave" data-t="recFixSave"${w.busy ? ' disabled' : ''}>${w.busy ? '저장하는 중…' : '저장'}</button></span></div></div></div>`
+}
+async function recFixSave() {
+  const w = S.recFix
+  if (!w || w.busy) return
+  const from = w.from.trim(), to = w.to.trim()
+  if (!!from !== !!to) { w.err = '옛 값과 새 값은 같이 적는다'; render(); return }
+  if (from && from === to) { w.err = '옛 값과 새 값이 같다'; render(); return }
+  if (!from && !w.body.trim()) { w.err = '고친 내용이나 옛 값 → 새 값을 적는다'; render(); return }
+  w.busy = true
+  w.err = null
+  render()
+  try {
+    const r = await postJSON(`/api/k/${encodeURIComponent(w.k)}/rec/${encodeURIComponent(w.rec)}/fix`, { body: w.body, ...(from ? { from, to } : {}) })
+    S.recFix = null
+    forgetKn(w.k)
+    toast(esc(r.job ? '팀 일꾼에게 넘겼다: 넣으면 이력에 남는다' : r.held ? `넣지 못함: ${r.why || '까닭은 이력에 있다'}` : `정정 기록을 남겼다 · 문서 ${r.put || 0}곳에 넣었다`), 7000)
+  } catch (e) {
+    if (S.recFix) { S.recFix.busy = false; if (e.code !== 'E_CANCEL') S.recFix.err = e.message }
+  }
+  render()
 }
 const extOf = (n) => { const m = String(n).toLowerCase().match(/\.([a-z0-9]+)$/); return m ? m[1] : '' }
 function attPane(t, right) {
@@ -1759,6 +1786,8 @@ async function saveDoc() {
   }
   const changed = now.filter((p) => !rename.some((x) => x.to === p.h)).filter((p) => !old.has(p.h) || trim(old.get(p.h).md) !== trim(p.body))
   if (!changed.length && !remove.length && !rename.length) { edDrop(); toast('바뀐 글이 없다. 그대로 두었다'); render(); return }
+  e.err = null
+  if ((remove.length || rename.length) && !d.structure) { e.err = `항목을 지우거나 이름을 바꾸는 일은 지식관리자가 한다: ${[...remove, ...rename.map((x) => x.from)].join(' · ')} 의 「## 」 줄을 되살린다`; render(); return }
   if ((remove.length || rename.length) && !await ask1('항목 지우기 · 이름 바꾸기', '이대로 저장', false, [remove.length ? `지울 항목 ${remove.length}: ${remove.join(' · ')}` : '', rename.length ? `이름 바꿀 항목 ${rename.length}: ${rename.map((x) => x.from + ' → ' + x.to).join(' · ')}` : '', changed.length ? `고친 항목 ${changed.length}` : ''].filter(Boolean).join('\n') + '\n\n이대로 저장한다')) return
   e.busy = true
   render()
@@ -1767,12 +1796,22 @@ async function saveDoc() {
     edDrop()
     forgetKn(e.kn)
     // 저장은 했다 — 서버 알림(문서 짜임 · 그대로 둔 줄 · 백업)은 오류가 아닌 알림으로 같은 토스트에(role=status)
-    const msg = r.direct ? '저장했다. 문서에도 넣었다' : '기록했다: ' + pendWhen(e.kn) + ' · 그동안도 문서 옆에 같이 읽힌다'
+    const msg = (r.held || []).length ? `넣지 못함: ${r.held[0].why || '까닭은 이력에 있다'}` : '저장했다. 문서에도 넣었다'
     const warns = (Array.isArray(r.warnings) ? r.warnings : []).filter(Boolean)
     toast(warns.length ? `<span class="tw">${esc(msg)}<small data-t="saveWarn">${warns.slice(0, 3).map((w) => esc(w)).join('<br>')}${warns.length > 3 ? `<br>그 밖 ${warns.length - 3}` : ''}</small></span>` : esc(msg), warns.length ? 10000 : 7000)
   } catch (err) {
     e.busy = false
-    if (err.code !== 'E_CANCEL') toastErr(err)
+    if (err.code === 'E_CONFLICT') {
+      // 읽은 뒤 누가 고쳤다 — 새 글을 다시 받아 바탕(orig · base)만 바꾸고 쓰던 글은 지킨다(설계 4-2)
+      const key = `doc:${e.kn}:${e.doc}:ed`
+      try {
+        const v = await getJSON(`/api/k/${encodeURIComponent(e.kn)}/doc?d=${encodeURIComponent(e.doc)}&edit=1`)
+        S.cache[key] = v
+        if (e.text == null) e.text = txt
+        e.orig = edOrig(v)
+        e.err = '읽은 뒤 누가 고쳤다: 새 글을 다시 읽었다. 고친 곳을 확인하고 다시 저장한다'
+      } catch (x) { e.err = `읽은 뒤 누가 고쳤다. 새 글을 다시 읽지 못했다: ${x.message}` }
+    } else if (err.code !== 'E_CANCEL') toastErr(err)
   }
   render()
 }
@@ -4630,6 +4669,9 @@ const ACT = {
   },
   retryDoc: (el) => { delete S.cache[el.dataset.k]; render() },
   saveDoc: () => saveDoc(),
+  recFix: (el) => { const r = recOf(el.dataset.k, el.dataset.r); if (!r || r.error) return; S.recFix = { k: el.dataset.k, rec: el.dataset.r, title: r.title, from: '', to: '', body: '', busy: false, err: null }; render() },
+  recFixClose: () => { if (S.recFix && !S.recFix.busy) { S.recFix = null; render() } },
+  recFixSave: () => recFixSave(),
   openItem: (el) => { openTab({ kind: 'item', kn: el.dataset.k, ref: el.dataset.n }); render(); scrollTopMain() },
   itemFilt: (el) => { S.ifilt[el.dataset.v] = !S.ifilt[el.dataset.v]; render() },
   foldKind: (el) => { const kd = el.dataset.v; S.kfold[kd] = !kindFolded(S.route.kn, kd); render() },
@@ -4746,6 +4788,7 @@ document.addEventListener('input', (ev) => {
   if (k === 'sendType' && S.sendWin) { S.sendWin.type = t.value; const b = $('[data-t=sendChangeGo]'), pt = S.sendWin.to && sendTeamOf(S.sendWin.to); if (b) b.disabled = !pt || t.value.trim() !== pt.name || S.sending }
   if (k === 'edTx' && S.edit) { S.edit.text = t.value; try { sessionStorage.setItem(edKey(S.edit), t.value) } catch {} return }
   if (k === 'addDir' && S.addPop) S.addPop.dir = t.value
+  if ((k === 'rfFrom' || k === 'rfTo' || k === 'rfBody') && S.recFix) S.recFix[{ rfFrom: 'from', rfTo: 'to', rfBody: 'body' }[k]] = t.value
   if (k === 'meRoot') S.meRootEdit = t.value
   if (k === 'addTo' && S.addPop) S.addPop.to = t.value
   if (k === 'agKn') S.agKn = t.value

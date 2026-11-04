@@ -59,7 +59,7 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('항목 지우기 · 이름 바꾸기: 주인은 문서에 바로(이름 장부도 따라간다) · 기록만 하는 사람은 기록 글에', async () => {
+test('항목 지우기 · 이름 바꾸기: 지식관리자는 문서에 바로(이름 장부도 따라간다) · 쓰기 자리는 E_FORBIDDEN(S9)', async () => {
   const before = doc('dpms', '배포절차')
   assert.match(before, /## 헬스 체크/)
   await s.hub.edit(KIM, 'dpms', { doc: '배포절차', remove: ['준비'], rename: [{ from: '헬스 체크', to: '상태 확인' }] })
@@ -70,16 +70,13 @@ test('항목 지우기 · 이름 바꾸기: 주인은 문서에 바로(이름 �
   assert.match(fs.readFileSync(path.join(root, 'dpms', '_managed.md'), 'utf8'), /`proc:헬스 체크` \| `docs\/배포절차\.md` \| `## 상태 확인`/)
   // 읽은 뒤 사라진 항목 — 거절
   assert.equal(await code(s.hub.edit(KIM, 'dpms', { doc: '배포절차', remove: ['준비'] })), 'E_CONFLICT')
-  // 기록만 하는 사람 — 기록 글에 「지울 항목」 · 「이름 바꿀 항목」
-  const r = await s.hub.edit(LEE, 'dpms', { doc: '배포절차', remove: ['롤백'], rename: [{ from: '카나리', to: '카나리 배포' }] })
-  assert.equal(r.direct, false)
-  const t = fs.readFileSync(path.join(root, 'dpms', r.record), 'utf8')
-  assert.match(t, /## 지울 항목\n- 배포절차 › 롤백/)
-  assert.match(t, /## 이름 바꿀 항목\n- 배포절차 › 카나리 → 카나리 배포/)
-  assert.match(doc('dpms', '배포절차'), /^## 롤백$/m, '문서는 그대로')
+  // 쓰기 자리 — 항목 지우기 · 이름 바꾸기는 지식관리자가 한다(아무것도 쓰지 않는다 · S9)
+  const c0 = doc('dpms', '배포절차')
+  await assert.rejects(s.hub.edit(LEE, 'dpms', { doc: '배포절차', remove: ['롤백'], rename: [{ from: '카나리', to: '카나리 배포' }] }), { code: 'E_FORBIDDEN', message: /지식관리자가 한다/ })
+  assert.equal(doc('dpms', '배포절차'), c0, '문서는 그대로')
 })
 
-test('이름 장부에 없는 항목을 고친 기록: 그 항목에 선다(넣을 곳은 정리하는 사람이 고른다) · 같은 글 두 번 누름은 하나', async () => {
+test('이름 장부에 없는 항목도 쓰기 자리의 고치기가 바로 들어간다(이력 「고침」 · S9) · 같은 글 두 번 누름은 하나', async () => {
   const k = await s.hub.get('gdi')
   const d = k.docs.find((x) => x.sections.some((sc) => !coordsOfSection(k, x, sc.h).length))
   const h = d.sections.find((sc) => !coordsOfSection(k, d, sc.h).length).h
@@ -88,7 +85,12 @@ test('이름 장부에 없는 항목을 고친 기록: 그 항목에 선다(넣�
   assert.equal(r2.id, r1.id, '두 번 눌러도 기록 하나')
   const v = await fetch(s.url + `/api/k/gdi/doc?d=${encodeURIComponent(d.id)}`, { headers: { cookie: me.cookie } }).then((x) => x.json())
   const sec = v.sections.find((x) => x.h === h)
-  assert.ok(sec.pend.some((p) => p.id === r1.id), '그 항목에 「아직 안 넣은 기록」 으로 선다')
+  assert.equal(r1.direct, true)
+  assert.match(sec.html, /팀원이 고친 글: 하나/, '문서에 바로 들어갔다')
+  assert.equal(sec.by?.id, r1.id, '그 항목의 표지가 고친 기록')
+  assert.ok(!sec.pend.some((p) => p.id === r1.id), '아직 안 넣은 기록으로 서지 않는다')
+  const w = (await s.hub.get('gdi')).byWork.get(r1.id)
+  assert.ok(w.path.startsWith('log/') && w.tags.includes('edit') && w.tags.includes('put'), w.tags.join(' '))
 })
 
 test('MCP: 이미 있는 항목을 base 없이 갈아 끼우지 않는다 · base 가 있으면 · 새 항목은 받는다', async () => {

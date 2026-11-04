@@ -118,11 +118,16 @@ test('쓰기 길: 읽기는 403 E_FORBIDDEN · 쓰기는 같은 저장 문(검�
   assert.match(r1.j.message, /이 지식에 쓰기 자리가 없다/)
   assert.equal((await req('/api/k/dpms/save', P.no, rec)).status, 404)
   assert.equal((await req('/api/k/dpms/save', P.wr, rec)).status, 200)
-  // 화면 고치기 — 쓰기는 기록으로 · 읽기는 막힌다
-  const ed = { doc: '배포절차', sections: [{ h: '롤백', body: '앱을 먼저 내리고 DB 를 되돌린다.' }] }
+  // 화면 고치기(S9) — 쓰기 자리도 바로 문서에(이미 있는 항목은 지문 필수) · 항목 지우기 · 이름 바꾸기는 지식관리자 · 읽기는 막힌다
+  const dv = await req(`/api/k/dpms/doc?d=${D}&edit=1`, P.wr)
+  assert.deepEqual([dv.j.direct, dv.j.structure], [true, false], '쓰기 자리: 바로 들어가고 · 항목 지우기 · 이름 바꾸기는 없다')
+  const ed = { doc: '배포절차', sections: [{ h: '롤백', base: dv.j.sections.find((x) => x.h === '롤백').base, body: '앱을 먼저 내리고 DB 를 되돌린다.' }] }
   assert.equal((await req('/api/k/dpms/edit', P.rd, ed)).status, 403)
+  assert.equal((await req('/api/k/dpms/edit', P.wr, { doc: '배포절차', sections: [{ h: '롤백', body: '지문 없이' }] })).status, 400, '화면 길은 지문을 꼭 받는다')
+  assert.equal((await req('/api/k/dpms/edit', P.wr, { doc: '배포절차', remove: ['롤백'] })).status, 403, '항목 지우기는 지식관리자')
   const e2 = await req('/api/k/dpms/edit', P.wr, ed)
-  assert.deepEqual([e2.status, e2.j.direct], [200, false], '쓰기의 고치기는 기록으로')
+  assert.deepEqual([e2.status, e2.j.direct, e2.j.put], [200, true, 1], JSON.stringify(e2.j))
+  assert.match(fs.readFileSync(path.join(root, 'dpms', 'docs', '배포절차.md'), 'utf8'), /앱을 먼저 내리고 DB 를 되돌린다\./, '쓰기 자리의 고치기도 바로 문서에')
   // MCP save — 읽기는 막히고 · 쓰기도 지식관리자(주인)도 같은 저장 문: 검사를 넘은 조각은 그 순간 문서에(이름 없는 항목은 문서 · 머리로)
   const sec = await mcp('section', { knowledge: 'dpms', doc: '배포절차', heading: '헬스 체크' }, P.own)
   const args = (base, n) => ({ knowledge: 'dpms', record: { title: `헬스 체크: 결과 남기기 ${n}`, body: '헬스 체크 결과를 남긴다.', changes: [`헬스 체크 결과: 운영 채널에 남긴다 ${n}`] }, sections: [{ doc: '배포절차', heading: '헬스 체크', base, edits: [{ find: '배포 뒤 서버 상태는 이것으로 본다.', replace: `배포 뒤 서버 상태는 이것으로 본다. 결과는 운영 채널에 남긴다 ${n}.` }] }] })

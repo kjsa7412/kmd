@@ -11,6 +11,7 @@
 
 import { runClaude } from './claude.js'
 import { INTAKE_SCHEMA, intakePromptOf, intakeFixPromptOf } from './ingest.js'
+import { FIX_SCHEMA, corrPromptOf, corrRetryPromptOf } from './fix.js'
 import { WRITE_RULES } from './writerules.js'
 import { promptOf, fixPromptOf, patchPromptOf, PATCH_RULE, PATCH_SCHEMA, BATCH_OUT, DRAFT_SCHEMA, TOUCH_SCHEMA, INGEST_SCHEMA, spotKey, spotTarget, batchesOf, batchPromptOf, BATCH_SCHEMA, BATCH_PATCH_SCHEMA, BATCH_MAX } from './tidy.js'
 import { runAgent, agentAvailable } from './agent.js'
@@ -104,7 +105,10 @@ export async function intakeOnce({ server, key, job, dkey, log = () => {}, budge
   const name = `${job.kn}: ${g.src?.file || g.src?.title || job.id}`
   const model = modelOf('ingest', models)
   const opt = { writeRules: WRITE_RULES }
-  let prompt = intakePromptOf(g, opt)
+  // 정정 일감(S9 · type fix) — 남은 항목마다 조각만(FIX_SCHEMA) · 그 밖은 기록 + 조각(INTAKE_SCHEMA)
+  const corr = g.type === 'fix'
+  const schema = corr ? FIX_SCHEMA : INTAKE_SCHEMA
+  let prompt = corr ? corrPromptOf(g, opt) : intakePromptOf(g, opt)
   for (let i = 0; i <= INGEST_FIX(); i++) {
     const p0 = await call(server, dkey, `${base}/progress`, {}).catch(gone)
     if (lost || p0.stop) return { job, summary: { put: 0, held: 0 }, skipped: lost ? 'lost' : 'stopped' }
@@ -112,7 +116,7 @@ export async function intakeOnce({ server, key, job, dkey, log = () => {}, budge
     let r
     const t0 = Date.now()
     try {
-      r = await runClaude({ prompt, schema: INTAKE_SCHEMA, budget, model, timeoutMs: timeoutOf(prompt), effort: EFFORT(), tickMs: TICK(), onTick: () => call(server, dkey, `${base}/progress`, { tick: true }).catch(gone) })
+      r = await runClaude({ prompt, schema, budget, model, timeoutMs: timeoutOf(prompt), effort: EFFORT(), tickMs: TICK(), onTick: () => call(server, dkey, `${base}/progress`, { tick: true }).catch(gone) })
     } finally { gate.give() }
     log(`${name}: ${r.error ? `초안을 받지 못했다(${r.error}${r.message ? ' · ' + String(r.message).slice(0, 80) : ''})` : '초안'} · ${Math.round((Date.now() - t0) / 1000)}초 · 보낸 글 ${prompt.length}자${r.model ? ` · ${r.model}` : ''}`)
     await call(server, dkey, `${base}/progress`, { end: true, ok: !r.error, why: r.error ? String(r.message || r.error).slice(0, 200) : null }).catch(gone)
@@ -134,7 +138,7 @@ export async function intakeOnce({ server, key, job, dkey, log = () => {}, budge
     if (d.error) { log(`${name}: 초안을 넣지 못했다(${d.error})`); return { job, summary: { put: 0, held: 0 }, skipped: d.error } }
     if (d.fix) {
       log(`${name}: 검사에 걸렸다 · 고쳐 쓴다(${String(d.fix).slice(0, 120)})`)
-      prompt = intakeFixPromptOf(g, r.value, d.fix, opt)
+      prompt = corr ? corrRetryPromptOf(g, r.value, d.fix, opt) : intakeFixPromptOf(g, r.value, d.fix, opt)
       continue
     }
     await call(server, key, '/api/worker/status', { ok: true }).catch((e) => log(`일꾼 상태를 알리지 못했다(${e.status || e.message})`))

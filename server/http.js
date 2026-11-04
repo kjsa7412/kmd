@@ -724,6 +724,17 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     }
     const tp = p.match(/^\/api\/k\/([^/]+)\/tidy\/plan$/)
     if (tp) return out(200, await hub.tidyPlan(ctx, dec(tp[1])))
+    // 기록 고치기(S9 · K4) — POST 만(그 밖은 위에서 405) · 몸 { title?, body, from?, to? } · 자리는 hub.fixRecord(write · 남의 기록은 admin)
+    const rf = p.match(/^\/api\/k\/([^/]+)\/rec\/([^/]+)\/fix$/)
+    if (rf) {
+      const rec = dec(rf[2])
+      if (!rec || rec.length > 80 || /[\\/\s\u0000-\u001f]/.test(rec) || rec.startsWith('.')) throw new KmdError('E_INPUT', '고칠 기록은 기록 id 다')
+      const b = await readBody(req)
+      const { title, body, from, to } = b && typeof b === 'object' && !Array.isArray(b) ? b : {}
+      for (const [n, v] of [['title', title], ['from', from], ['to', to]]) if (v != null && typeof v !== 'string') throw new KmdError('E_INPUT', `${n} 는 글이다`)
+      if (body != null && typeof body !== 'string') throw new KmdError('E_INPUT', 'body 는 글이다')
+      return out(200, await hub.fixRecord(ctx, dec(rf[1]), rec, { ...(title != null ? { title } : {}), body: body ?? '', ...(from != null ? { from } : {}), ...(to != null ? { to } : {}) }))
+    }
     const rt = p.match(/^\/api\/k\/([^/]+)\/rec\/([^/]+)\/touches$/)
     if (rt) return out(200, await hub.setTouches(ctx, dec(rt[1]), dec(rt[2]), (await readBody(req)).coord))
     const tm = p.match(/^\/api\/k\/([^/]+)\/tidy$/)
@@ -978,7 +989,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         return out(200, await hub.save(ctx, id, input, { guard: 'strict', channel: channel === 'send' ? 'send' : 'http' }))
       }
       if (what === 'learn') return out(200, await hub.learn(ctx, id, body))
-      if (what === 'edit') return out(200, await hub.edit(ctx, id, body))
+      // 문서 고치기(S9) — 화면 길은 이미 있는 항목의 지문(base)을 꼭 받는다
+      if (what === 'edit') return out(200, await hub.edit(ctx, id, body && typeof body === 'object' && !Array.isArray(body) ? body : {}, { needBase: true }))
       if (what === 'revert') {
         // 몸 모양(설계 3-4) — { record(기록 id ≤80), doc?(docs/ 아래 md ≤300), heading?(한 줄 ≤200 · doc 과 같이) }
         const { record, doc, heading } = body && typeof body === 'object' && !Array.isArray(body) ? body : {}
@@ -1040,7 +1052,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const watched = dd ? watchedOf(await fs.readFile(path.join(k.dir, ...dd.path.split('/')), 'utf8').catch(() => '')) : null
       // 원본이 주인인 문서 — 그 가져올 곳이 이제 없으면 「원본이 없어졌다」(표지를 걷을 수 있다)
       const orphan = watched ? !(await hub.sources(ctx, k.id).catch(() => [])).some((s) => s.name === watched.src) : false
-      return out(200, { ...v, watched: watched ? { ...watched, ...(orphan ? { orphan: true } : {}) } : null, direct: hub.canDirect(ctx, k.id) && !watched })
+      // direct — 화면 고치기가 바로 문서에 들어가나(쓰기 이상 · S-D6) · structure — 항목 지우기 · 이름 바꾸기(지식관리자 · S-D44)
+      return out(200, { ...v, watched: watched ? { ...watched, ...(orphan ? { orphan: true } : {}) } : null, direct: hub.canSave(ctx, k.id) && !watched, structure: hub.canDirect(ctx, k.id) && !watched })
     }
     const v = V.recView(k, url.searchParams.get('r'))
     if (!v) throw new KmdError('E_NOTFOUND', '이 기록은 이제 없다')

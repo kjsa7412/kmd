@@ -34,6 +34,25 @@ function answer() {
   const ok = args.includes('-p') && args.includes('--tools') && val('--tools') === '' && args.includes('--strict-mcp-config') && JSON.parse(val('--mcp-config') || '{}').mcpServers && val('--json-schema') && fs.readdirSync(process.cwd()).length === 0
   if (!ok) return say({ is_error: true, subtype: 'error', result: '가짜 claude: 도구 0 · 빈 MCP · 스키마 · 빈 폴더를 지키지 않았다' })
   if (process.env.FAKE_CLAUDE_MODE === 'logout') return say({ is_error: true, subtype: 'error', result: 'Invalid API key · Please run /login' })
+  // 정정(S9 · core/fix.js corrPromptOf) — 항목마다 옛 값이 든 줄을 통째로 find 로 잡고 그 줄의 옛 값을 모두 새 값으로(줄이 같으면 하나만)
+  if (prompt.startsWith('정정 기록 하나를 항목에 반영한다')) {
+    if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'fix-record\n')
+    const sw = /^바꿀 값: (.+) → (.+)$/m.exec(prompt)
+    const items = (prompt.split('\n\n항목:\n')[1] || '').split(/^(?=\[item )/m).filter((x) => x.startsWith('[item ')).map((blk) => {
+      const m = /^\[item (.+?) › (.+)\]\n\(base ([0-9a-f]{16})\)\n([\s\S]*)$/.exec(blk.replace(/\n+$/, ''))
+      return m ? { doc: m[1], heading: m[2], base: m[3], body: m[4] } : null
+    }).filter(Boolean)
+    const updates = []
+    if (sw) {
+      const [, a, b] = sw
+      for (const it of items) {
+        const lines = [...new Set(it.body.split('\n').filter((l) => l.includes(a)))]
+        if (!lines.length) continue
+        updates.push({ doc: it.doc, heading: it.heading, base: it.base, edits: lines.map((l) => ({ find: l, replace: l.split(a).join(b) + (process.env.FAKE_CLAUDE_MODE === 'bad' && !prompt.includes('지난 초안이 kmd 검사에 걸렸다') ? ' 999초' : '') })) })
+      }
+    }
+    return say({ structured_output: { updates, why: updates.length ? '옛 값을 고쳤다' : '고칠 곳이 없다' } })
+  }
   // 들이기(S7 · core/ingest.js intakePromptOf) — 기록 + 조각 초안 하나
   //   커밋: 「바뀐 값: A → B」 의 A 가 든 후보 항목을 B 로(꼭 한 번이면 조각 · 아니면 새 글) · 없으면 updates 비움
   //   파일: 파일의 ## 머리가 후보 항목과 같으면 그 항목을 파일 글로(새 글) · 나머지는 새 문서(경로 = 파일 이름)

@@ -172,6 +172,15 @@ export const quoteSrc = (md, max) => String(md || '').slice(0, max).replace(/\r/
 const srcLine = (src, md) => `- ${src?.type === 'commit' ? `커밋 ${src.commit || ''}${src.src ? ` · ${src.src}` : ''}` : `파일 ${src?.rel || src?.file || src?.title || ''}`} · 지문 ${sha16(String(md || ''))}`
 // 넣지 못함으로 끝난 들이기의 기록 — 원천 앞 2000자와 지문만(S-D50)
 export function heldRecord(src, md, { why = '' } = {}) {
+  // 정정(S9) — 들고 있던 정정 기록 초안 그대로(원천 글이 아니다) · 까닭은 넣지 못함 칸에
+  if (src?.type === 'fix') {
+    return {
+      title: String(src.title || '정정').replace(/\s+/g, ' ').trim().slice(0, 200),
+      body: String(md || '').slice(0, 20_000) || '정정',
+      ...(Array.isArray(src.touches) && src.touches.length ? { touches: src.touches } : { touchesEmpty: '정정: 원래 기록에 걸린 이름이 없다' }),
+      ...(src.rec ? { fixes: [src.rec] } : {}),
+    }
+  }
   const title = String(src?.title || '넣을 것').replace(/\s+/g, ' ').trim().slice(0, 180)
   return {
     title: `${title}: 들이지 못함`.slice(0, 200),

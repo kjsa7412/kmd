@@ -53,7 +53,7 @@ test('저장이 곧 반영: 한 save → 대기 0 · 옛 날짜 고친 기록은
   assert.equal(old, 'E_CONFLICT')
 })
 
-test('팀 지식: 쓰기 자리의 항목 글도 검사를 넘으면 그 순간 문서에(K-D13) · 화면 고치기는 아직 지식관리자만 바로(S9)', async () => {
+test('팀 지식: 쓰기 자리의 항목 글도 검사를 넘으면 그 순간 문서에(K-D13) · 화면 고치기도 쓰기 자리부터 바로(S9)', async () => {
   // lee 는 보통 팀원 — 자리 없음이 기본이라(권한 모델 v1.1) dpms 쓰기 자리를 받는다
   await s.auth.addUser({ id: 'lee', admin: false })
   await seat(s, 'lee', { dpms: 'write' })
@@ -64,9 +64,24 @@ test('팀 지식: 쓰기 자리의 항목 글도 검사를 넘으면 그 순간 
   assert.equal(await stateOf(s, 'dpms', r.id), 'in')
   const w = fs.readFileSync(path.join(tmp, 'kn', 'dpms', r.record), 'utf8')
   assert.match(w, /## 넣은 것\n- docs\/운영\.md › /)
-  // 화면 고치기는 지금 그대로(쓰기 자리는 기록으로 · 지식관리자는 바로 · S9 에 저장 문으로)
-  const d = await s.hub.edit(LEE, 'dpms', { doc: '서버목록', sections: [{ h: '점검 시간', body: '정기 점검은 매달 둘째 토요일.' }] })
-  assert.equal(d.direct, false)
+  // 화면 고치기(S9) — 쓰기 자리도 저장 문으로 곧바로 문서에(값 검사 없음 · 이력 「고침」 · 넣은 것 칸에 옛 값 → 새 값)
+  const sv = await s.hub.get('dpms')
+  const b0 = sha16(sv.docs.find((x) => x.id === '서버목록').sections.find((x) => x.h === '점검 시간').body)
+  const d = await s.hub.edit(LEE, 'dpms', { doc: '서버목록', sections: [{ h: '점검 시간', base: b0, body: '정기 점검은 매달 둘째 토요일 02:00 ~ 05:00.' }] })
+  assert.equal(d.direct, true)
+  const doc = fs.readFileSync(path.join(tmp, 'kn', 'dpms', 'docs', '서버목록.md'), 'utf8')
+  assert.match(doc, new RegExp(`<!-- applied: ${d.id} -->\\n정기 점검은 매달 둘째 토요일 02:00 ~ 05:00\\.`))
+  const dw = (await s.hub.get('dpms')).byWork.get(d.id)
+  assert.ok(dw.path.startsWith('log/') && dw.tags.includes('edit') && dw.tags.includes('put'), dw.tags.join(' '))
+  assert.equal(dw.author, 'lee')
+  assert.match(dw.body, /## 넣은 것\n- docs\/서버목록\.md › 점검 시간: 04 → 05/)
+  // 쓰기 자리는 항목 지우기 · 이름 바꾸기를 못 한다 · 읽은 뒤 바뀐 항목은 E_CONFLICT(아무것도 쓰지 않는다)
+  assert.equal(await code(s.hub.edit(LEE, 'dpms', { doc: '서버목록', rename: [{ from: '점검 시간', to: '점검 때' }] })), 'E_FORBIDDEN')
+  assert.equal(await code(s.hub.edit(LEE, 'dpms', { doc: '서버목록', sections: [{ h: '점검 시간', base: b0, body: '다른 글.' }] })), 'E_CONFLICT')
+  // 화면 길(needBase)은 이미 있는 항목의 지문을 꼭 받는다
+  assert.equal(await code(s.hub.edit(LEE, 'dpms', { doc: '서버목록', sections: [{ h: '점검 시간', body: '지문 없음.' }] }, { needBase: true })), 'E_INPUT')
+  // 새 항목 「운영」 은 있는 「운영 서버」 를 집을 수 있다 — 다른 이름을 쓰게 한다(S5 검토 ⑫)
+  assert.equal(await code(s.hub.edit(KIM, 'dpms', { doc: '서버목록', sections: [{ h: '운영', body: '새 항목.' }] })), 'E_INPUT')
   const k = await s.hub.edit(KIM, 'dpms', { doc: '서버목록', sections: [{ h: '운영 서버', body: 'app-1 ~ app-5 · canary-1.' }] })
   assert.equal(k.direct, true)
   assert.match(fs.readFileSync(path.join(tmp, 'kn', 'dpms', 'docs', '서버목록.md'), 'utf8'), new RegExp(`<!-- applied: ${k.id} -->\\napp-1 ~ app-5`))
