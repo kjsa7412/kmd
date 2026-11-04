@@ -432,6 +432,29 @@ test('보내기: 저장 속도 한도(429)는 Retry-After 만큼 쉬고 다시 �
   }
 })
 
+test('보내기 채널은 서버가 정한다: 화면 쿠키의 channel send 는 http(left 버림 · 조각 없는 기록은 메모) · 기기 열쇠 + sent/ 표지일 때만 send(끝 검토 3)', async () => {
+  const me = await signIn(s, { id: 'lee6', admin: false })
+  await seat(s, 'lee6', { rcv: 'write' })
+  const save = (body, h) => fetch(`${s.url}/api/k/rcv/save`, { method: 'POST', headers: { 'content-type': 'application/json', ...h }, body: JSON.stringify(body) })
+  const left = [{ heading: '테스트 남김', why: '넣을 곳', content: 'x'.repeat(100) }]
+  // 쿠키 + channel send — http 로 받는다: left 는 넣지 못함이 되지 않고 기록은 메모
+  const a = await save({ channel: 'send', record: { title: '테스트 쿠키 보내기', body: '쿠키로 보낸 척.', touchesEmpty: '시험' }, left }, { cookie: me.cookie })
+  assert.equal(a.status, 200)
+  const ra = await a.json()
+  assert.deepEqual(ra.held || [], [], JSON.stringify(ra))
+  s.hub.forget?.('rcv')
+  assert.equal((await s.hub.get('rcv')).byWork.get(ra.id)?.state, 'memo')
+  // 쿠키로 sent/ 표지 — 보내기만 단다(400)
+  const b = await save({ channel: 'send', record: { title: '테스트 쿠키 표지', body: 'x', tags: ['sent/00000000000000ab'], touchesEmpty: '시험' } }, { cookie: me.cookie })
+  assert.equal(b.status, 400)
+  // 기기 열쇠지만 sent/ 표지 없음 — http(메모)
+  const c = await (await save({ channel: 'send', record: { title: '테스트 열쇠 표지 없음', body: 'x', touchesEmpty: '시험' }, left }, { authorization: `Bearer ${me.key}` })).json()
+  assert.deepEqual(c.held || [], [], JSON.stringify(c))
+  // 기기 열쇠 + sent/ 표지 — 보내기: left 는 넣지 못함(notfound)
+  const d = await (await save({ channel: 'send', record: { title: '테스트 열쇠 보내기', body: 'x', tags: ['sent/00000000000000cd'], touchesEmpty: '시험' }, left }, { authorization: `Bearer ${me.key}` })).json()
+  assert.ok((d.held || []).some((h) => h.code === 'notfound'), JSON.stringify(d))
+})
+
 test('받은편지함 정리(내 PC): 이름이 걸리는 개인 지식으로 옮김 · private 메모 → 옮김 0 · 팀 서버는 옮기지 않는다', async () => {
   // 팀 서버에는 개인 지식이 없다 — 옮길 곳이 없다
   await s.hub.save(KIM, 'inbox', { record: { title: '주간 회의: 팀 안건', body: '팀 서버에 남은 메모.' } })

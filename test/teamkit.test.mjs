@@ -60,7 +60,7 @@ after(async () => {
 //   core/teamkit.js 의 TEAM_KIT_REV 를 하나 올리고 이 표에 새 판 · 새 해시를 더한다(옛 판 줄은 그대로 둔다)
 //   (판 2 는 배포 전에 S6 검토가 메모 단계 글을 고쳐 해시를 바꿨다 · 한 번 배포한 판의 해시는 바꾸지 않는다)
 //   (판 3 은 S11: 대량 넣기 스킬 kmd-team-import · 그 작성가이드 사본 · 팀 덩이의 대량 넣기 줄)
-const KIT_HASH = { 2: '10d1b294', 3: '85c4e1b0' }
+const KIT_HASH = { 2: '10d1b294', 3: '85c4e1b0', 4: 'a91c981e' }
 test('스킬 판: 스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다 · 스킬 글의 {{KIT_REV}} 를 판으로 바꿔 싣는다', async () => {
   const parts = await teamKitParts()
   assert.equal(parts.rev, TEAM_KIT_REV)

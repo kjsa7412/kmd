@@ -88,9 +88,9 @@ test('규칙이 못 하면(두 곳): 저장하지 않고 일감 fix → 팀 일�
     const r = await s.hub.fixRecord(KIM, 'dpms', '2026-1021-헬스-체크', { body: '시간 초과를 5초로 늘렸다.', from: '3초', to: '5초' })
     assert.ok(r.job, JSON.stringify(r))
     assert.equal(commits(), c0, '일꾼 전에는 쓰지 않는다')
-    // 같은 기록을 다시 고쳐도 일감은 하나
-    const again = await s.hub.fixRecord(KIM, 'dpms', '2026-1021-헬스-체크', { body: '시간 초과를 5초로 늘렸다.', from: '3초', to: '5초' })
-    assert.equal(again.job, r.job)
+    // 같은 기록을 다시 고치면 일감은 하나 · 두 번째 입력은 받은 척하지 않는다(E_CONFLICT · 끝 검토 3)
+    assert.equal(await code(s.hub.fixRecord(KIM, 'dpms', '2026-1021-헬스-체크', { body: '시간 초과를 6초로 늘렸다.', from: '3초', to: '6초' })), 'E_CONFLICT')
+    assert.equal(s.hub.intakesOf('dpms').filter((j) => j.type === 'fix' && j.src?.rec === '2026-1021-헬스-체크' && j.state === 'queued').length, 1)
     const a = await workOnce({ server: s.url, key: wk })
     assert.equal(a.job.id, r.job)
     assert.ok(fs.readFileSync(log, 'utf8').includes('fix-record'), '정정 프롬프트')
@@ -126,6 +126,29 @@ test('자리: 남의 기록 정정은 쓰기 자리 403 · 내 기록은 쓰기 
   assert.equal(w.state, 'held')
   // 이력(log/) 기록은 고치지 않는다 · 없는 기록
   assert.equal(await code(s.hub.fixRecord(KIM, 'dpms', '없는-기록', { body: 'x', from: 'a', to: 'b' })), 'E_NOTFOUND')
+})
+
+test('간접 항목(더 늦은 기록이 든 항목 · 옛 값 없음)은 일감에 싣지 않는다 · 넣지 못함 줄도 없다(끝 검토 3)', async () => {
+  const { targetsOf } = await import('../core/fix.js')
+  // 앞 시험에서 lee 의 기록이 알람에 들어갔다 — CPU 경고 기록에게 알람은 간접 항목 · 서버 상태는 직접 항목
+  const ts = targetsOf(await fresh(), '2026-1016-CPU-경고-80')
+  assert.ok(ts.some((t) => t.heading === '알람' && !t.direct), JSON.stringify(ts.map((t) => [t.heading, t.direct])))
+  assert.ok(ts.some((t) => t.heading === '서버 상태' && t.direct))
+  const log = path.join(tmp, 'calls-indirect.log')
+  process.env.FAKE_CLAUDE_LOG = log
+  try {
+    // 옛 값 · 새 값 없이 고친 내용만 — 규칙이 못 하니 일감 · 간접 항목은 규칙이 건너뛴 그대로
+    const r = await s.hub.fixRecord(KIM, 'dpms', '2026-1016-CPU-경고-80', { body: '서버 상태 화면 설명을 바로잡는다.' })
+    assert.ok(r.job, JSON.stringify(r))
+    const j = s.hub.job(r.job)
+    assert.deepEqual(j.src.targets.map((t) => t.heading), ['서버 상태'])
+    await workOnce({ server: s.url, key: wk })
+    const done = s.hub.job(r.job)
+    assert.equal(done.state, 'done', JSON.stringify(done))
+    assert.equal(done.result.held, 1, '일꾼이 고치지 않은 서버 상태 하나만 넣지 못함')
+    const w = (await fresh()).byWork.get(done.result.rec)
+    assert.doesNotMatch(w.body, /알람/, w.body)
+  } finally { delete process.env.FAKE_CLAUDE_LOG }
 })
 
 test('길: POST 만(GET 405) · 옛 값 = 새 값이면 400 · 읽기 자리 403', async () => {

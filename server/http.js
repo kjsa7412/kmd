@@ -1021,10 +1021,14 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       }
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       const body = await readBody(req)
-      // 저장 문(S4) — 채널은 서버가 정한다: 본문에서는 channel: 'send'(보내기) 하나만 읽고 나머지 opt 칸은 받지 않는다(S-D54)
+      // 저장 문(S4) — 채널은 서버가 정한다: 본문에서는 channel: 'send'(보내기) 하나만 읽고 나머지 opt 칸은 받지 않는다(S-D54) ·
+      //   보내기는 기기 열쇠(예전 열쇠 포함 · 화면 쿠키 아님)로 오고 기록에 sent/<16자 지문> 표지가 있을 때만 · 아니면 http 로 받고 left 는 버린다(끝 검토 3)
       if (what === 'save') {
         const { channel, ...input } = body && typeof body === 'object' && !Array.isArray(body) ? body : {}
-        return out(200, await hub.save(ctx, id, input, { guard: 'strict', channel: channel === 'send' ? 'send' : 'http' }))
+        const tags = Array.isArray(input.record?.tags) ? input.record.tags : []
+        const send = channel === 'send' && !!(ctx.device || ctx.legacy) && tags.some((t) => /^sent\/[0-9a-f]{16}$/.test(String(t).trim()))
+        if (!send) delete input.left
+        return out(200, await hub.save(ctx, id, input, { guard: 'strict', channel: send ? 'send' : 'http' }))
       }
       if (what === 'learn') return out(200, await hub.learn(ctx, id, body))
       // 문서 고치기(S9) — 화면 길은 이미 있는 항목의 지문(base)을 꼭 받는다

@@ -1008,7 +1008,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     if (!ctx) return finish(await hub.save({ user: j.by, intake: true }, id, { record }, opt([{ code: 'seat', why: '정정을 맡긴 사람의 자리가 없다: 지식관리자가 다시 고친다' }])))
     const targets = (j.src?.targets || []).map((t) => {
       const sec = k.byDocPath.get(t.doc)?.sections.find((x) => x.h === t.heading) || null
-      return sec ? { doc: t.doc, heading: t.heading, base: sha16(sec.body), body: sec.body, direct: true } : null
+      return sec ? { doc: t.doc, heading: t.heading, base: sha16(sec.body), body: sec.body, direct: t.direct !== false } : null
     }).filter(Boolean)
     const rule = ruleFix(targets, { from: j.src?.from, to: j.src?.to })
     const w = fixDraftToSections(rule.left, j.seen, body?.draft)
@@ -1646,7 +1646,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         return { id: r.id, put: r.put ?? 0, held: held.length, ...(held.length ? { why: String(held[0].why || '').slice(0, 200) } : {}) }
       }
       // 규칙이 못 한 항목 — 팀 일꾼에게(정정 기록 초안 · 항목 자리 · 원래 기록을 쓴 사람을 일감에 싣는다)
-      const o = await hub.openJob(id, { type: 'fix', by: ctx.user, src: { rec: w.id, owner: w.author, title: record.title, from: f || null, to: t || null, touches: record.touches || [], targets: targets.map((x) => ({ doc: x.doc, heading: x.heading })) }, md: record.body })
+      //   일감에 싣는 항목은 규칙이 본 것(넣을 조각 · 남은 항목)만 · 간접 항목은 direct:false 로(일꾼 끝에서 다시 가를 때 옛 값이 없으면 건너뛴다 · 끝 검토 3)
+      const kept = new Set([...rule.sections, ...rule.left].map((x) => `${x.doc}\n${x.heading}`))
+      const jobTargets = targets.filter((x) => kept.has(`${x.doc}\n${x.heading}`)).map((x) => ({ doc: x.doc, heading: x.heading, direct: !!x.direct }))
+      const o = await hub.openJob(id, { type: 'fix', by: ctx.user, src: { rec: w.id, owner: w.author, title: record.title, from: f || null, to: t || null, touches: record.touches || [], targets: jobTargets }, md: record.body })
+      // 같은 기록의 정정을 팀 일꾼이 이미 하고 있다 — 이번 입력은 받지 않았다(받은 척하지 않는다)
+      if (o.again) throw new KmdError('E_CONFLICT', '이 기록의 정정을 팀 일꾼이 이미 하고 있다. 끝난 뒤 다시 고친다')
       if (o.state === 'queued') return { job: o.job, put: 0, held: 0, left: rule.left.length }
       return { id: o.rec || null, put: 0, held: o.state === 'held' ? 1 : 0, ...(o.why ? { why: o.why } : {}) }
     },
