@@ -242,6 +242,18 @@ test('Claude 에 보내지 않음 → 일감 없이 기록만 + 넣지 못함(no
   } finally { await s.hub.setOwner(SHELL, 'dpms', { noClaude: false }) }
 })
 
+test('기다리는 사이 Claude 에 보내지 않음이 켜짐 → 재료를 내지 않고 바로 기록만 + 넣지 못함(noclaude · 임대를 돌지 않는다)', async () => {
+  const o = await s.hub.openJob('dpms', { type: 'file', by: 'kmd', auto: true, src: { rel: '운영문서/나중비밀.md', sha: '9'.repeat(16), title: '나중비밀.md' }, md: '# 나중비밀\n\n## 나중비밀 순서\n보내지 않는다.\n' })
+  await s.hub.setOwner(SHELL, 'dpms', { noClaude: true })
+  try {
+    await work()
+    const j = s.hub.job(o.job)
+    assert.equal(j.state, 'done')
+    assert.match((await fresh()).byWork.get(j.result.rec).body, /"code": ?"noclaude"/)
+    assert.ok(fs.existsSync(path.join(tmp, 'kn', '.kmd', 'held', 'dpms', `${j.result.rec}.md`)))
+  } finally { await s.hub.setOwner(SHELL, 'dpms', { noClaude: false }) }
+})
+
 test('## 없는 새 문서 → nosec · 후보 밖 문서 → notfound · 장부 밖 이름 → 기록의 세울 이름 + 넣지 못함(names)', async () => {
   const one = (mode, n) => env('FAKE_CLAUDE_MODE', mode, async () => {
     const o = await s.hub.openJob('dpms', { type: 'file', by: 'kmd', auto: true, src: { rel: `운영문서/${n}.md`, sha: n.padEnd(16, 'e').slice(0, 16).replace(/[^0-9a-f]/g, 'e'), title: `${n}.md` }, md: `# ${n}\n\n## ${n} 순서\n밤에 본다.\n` })

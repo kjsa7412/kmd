@@ -275,7 +275,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         j.leases = (j.leases || 0) + 1
         if (j.leases >= 3) {
           j.state = 'closing'
-          hub.intakeGiveUp(j, 'claude', '팀 일꾼이 세 번 끝내지 못했다').catch((e) => log('들이기 일감 닫기', j.id, e.message))
+          hub.intakeGiveUp(j, 'claude', '팀 일꾼이 세 번 끝내지 못했다').catch((e) => { Object.assign(j, { state: 'queued', worker: null }); log('들이기 일감 닫기', j.id, e.message) })
         } else Object.assign(j, { state: 'queued', worker: null, why: `팀 일꾼이 끝내지 못해 다시 기다린다(${j.leases}번째)` })
         continue
       }
@@ -469,7 +469,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const rates = new Map()
   const SAVE_CHANNELS = new Set(['session', 'bulk', 'http', 'send'])
   // 들이기 일감의 채널(측정 줄 · 속도 한도는 세지 않는다 · 비용 한도는 openJob)
-  const INTAKE_CHANNELS = new Set(['intake-file', 'intake-src', 'intake-fix', 'intake-again', 'polish'])
+  const INTAKE_CHANNELS = new Set(['intake-file', 'intake-commit', 'intake-src', 'intake-fix', 'intake-again', 'polish'])
   function rateTake(ctx, id, n = 1) {
     const per = Number((config.saveRate ?? { perMin: 30 }).perMin ?? 30)
     if (!(per > 0)) return
@@ -855,8 +855,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     }
     const root0 = path.join(dataDir, 'held')
     for (const d of await fs.readdir(root0).catch((e) => (e.code === 'ENOENT' ? [] : Promise.reject(e)))) {
-      const id = decodeURIComponent(d)
-      const k = await hub.get(id).catch(() => null)
+      let id
+      try { id = decodeURIComponent(d) } catch { log('넣지 못함 원천 폴더 이름을 풀지 못했다', d); continue }
+      // 지운 지식은 deleteKnowledge 가 held/<지식> 을 지운다 — 남아 있으면 읽지 못한 까닭을 남기고 건너뛴다
+      const k = await hub.get(id).catch((e) => (log('넣지 못함 원천 걷기: 지식을 읽지 못했다', id, e.message), null))
       if (!k) continue
       for (const f of await fs.readdir(path.join(root0, d))) {
         const rec = f.replace(/\.(md|bin)$/, '')
@@ -2277,7 +2279,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async intakeMaterial(dctx, id) {
       const j = intakeJobOf(dctx, id)
       // 나가기 전에 막는다 — 「Claude 에 보내지 않음」(S-D22 · 모든 type)
-      if (rowFor(id)?.noClaude) throw new KmdError('E_FORBIDDEN', '이 지식은 Claude 에 보내지 않는다')
+      //   기다리는 사이 켜졌으면 임대를 돌리지 않고 바로 기록만 + 넣지 못함(noclaude)
+      if (rowFor(id)?.noClaude) {
+        j.state = 'closing'
+        await hub.intakeGiveUp(j, 'noclaude', 'Claude 에 보내지 않는 지식: 기록만 남겼다').catch((e) => { Object.assign(j, { state: 'queued', worker: null }); log('들이기 일감 닫기', j.id, e.message) })
+        throw new KmdError('E_FORBIDDEN', '이 지식은 Claude 에 보내지 않는다: 기록만 남겼다')
+      }
       const md = await fs.readFile(intakeMdOf(j.id), 'utf8').catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
       if (md == null) throw new KmdError('E_NOTFOUND', '들일 글이 남아 있지 않다')
       const k = await hub.get(id)
@@ -4319,7 +4326,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       intakeDay = await fs.readFile(intakeDayFile, 'utf8').then(JSON.parse, (e) => (e.code === 'ENOENT' ? {} : (log('하루 들이기 수 장부를 읽지 못했다', e.message), {})))
       // 다시 켤 때 — 같은 일감의 기록(job/<id>)이 이미 있으면 그 일감은 넣었다(커밋 뒤 · 장부를 쓰기 전에 꺼졌다 · S-D48)
       for (const j of [...jobs.values()].filter((x) => x.kind === 'intake' && x.state === 'queued')) {
-        const k = await hub.get(j.kn).catch(() => null)
+        const k = await hub.get(j.kn).catch((e) => (log('다시 켤 때 들이기 일감 맞추기: 지식을 읽지 못했다', j.kn, e.message), null))
         const w = k?.works.find((x) => x.tags.includes(`job/${j.id}`))
         if (w) await intakeClose(j, { rec: w.id, put: 0, held: w.tags.includes('held') ? 1 : 0, same: true }).catch((e) => log('들이기 일감 닫기', j.id, e.message))
       }
