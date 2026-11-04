@@ -107,6 +107,7 @@
 
 ### K7 가져올 곳 (팀 일꾼 · 하나씩)
 - [x] K7-1 문서 폴더 · git · DB 에서 들어온 것마다 들이기 스킬로 기록 + 조각을 한 번에 저장 · 정리 일감으로 넘기지 않는다(`server/hub.js` runSource 의 `holdWhy` 갈래) — 개편 S7 552b6c7(`intake(item)` 콜백 · `hub.openJob` · 이 PC 는 지금 길 그대로)
+  - 메모(S7 검토 · b6cf494): 기다리는 사이 「Claude 에 보내지 않음」 이 켜지면 재료 길이 바로 넣지 못함 `noclaude` 로 닫는다(임대를 돌지 않음) · 닫기 실패로 `closing` 에 남던 일감은 기다림으로
 - [x] K7-2 크게 바뀜 브레이크(새 10 · 사라짐 10%)는 그대로 — 개편 S7 552b6c7(그대로 둠 · 문서 폴더에는 원래 「사라짐 10%」 만 있고 「새 10」 은 없었다 · 서비스 전체 6-3 을 바로잡음 · 설계 S7 ⑮)
 - [x] K7-3 일꾼 동시 수 · 한 번 예산(`KMD_TIDY_BUDGET`)을 들이기 기준으로 이름과 값을 다시 정한다 — 개편 S7 552b6c7(`KMD_WORKER_PAR · _JOBS · _TICK_MS` · `KMD_INGEST_BUDGET`(1.0) · `_EFFORT` · `_FIX` · 옛 이름도 읽음 · `KMD_TIDY_BATCH · _PATCH` 는 S13)
 
