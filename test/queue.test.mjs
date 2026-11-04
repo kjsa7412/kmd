@@ -10,7 +10,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createQueue, Cancelled, isFinal } from '../core/queue.js'
+import { createQueue, Cancelled, isFinal, STAGES, STAGE_WRITE, STAGE_PUT } from '../core/queue.js'
 import { startServer } from '../server/http.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -34,7 +34,8 @@ before(async () => {
 after(async () => {
   delete process.env.FAKE_AGENT_WAIT_MS
   await s?.close()
-  fs.rmSync(tmp, { recursive: true, force: true })
+  // Windows — 감시 · git 손잡이가 늦게 풀려 지우기가 EBUSY 일 때가 있다(임시 폴더라 남겨도 된다)
+  try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
 // ── 일 줄 하나만 ──
@@ -149,7 +150,10 @@ test('다시 · 남기기: 못함은 그 단계부터 · 다시 켜면 돌던 �
 
 // ── 서버 ──
 
-test('파일 넣기: 네 단계 · 줄마다 단계 · Claude 길은 하나씩(차례로)', async () => {
+test('파일 넣기: 네 단계(수집 › 검토 › 짓기 › 넣기 · S-D33) · 줄마다 단계 · Claude 길은 하나씩(차례로)', async () => {
+  assert.deepEqual(STAGES, ['수집', '검토', '짓기', '넣기'])
+  assert.equal(STAGES[STAGE_WRITE], '짓기')
+  assert.equal(STAGES[STAGE_PUT], '넣기')
   process.env.FAKE_AGENT_WAIT_MS = '250'
   const r = await s.hub.importFiles(ME, '회의', ['가', '나', '다'].map((t) => ({ path: `${t}.md`, data: MD(`${t} 통화`) })))
   const ids = r.rows.map((x) => x.run)
@@ -161,12 +165,12 @@ test('파일 넣기: 네 단계 · 줄마다 단계 · Claude 길은 하나씩(�
     most = Math.max(most, mine.filter((x) => x.stage === 3 && x.state === 'run').length)
     return mine.every((x) => x.fin)
   })
-  assert.equal(most, 1, 'Claude 길(문서 생성)은 한 번에 하나')
+  assert.equal(most, 1, 'Claude 길(넣기)은 한 번에 하나')
   const one = await s.hub.queueGet(ME, ids[0])
   assert.equal(one.state, 'done', one.msg)
   assert.deepEqual(one.stages.map((x) => x.state), ['done', 'done', 'done', 'done'])
-  assert.ok(one.lines.some((l) => l.s === 3 && l.x.startsWith('지식 둘러보기')), '둘러보기는 문서 생성 단계의 줄')
-  assert.ok(one.lines.some((l) => l.s === 2), '기록 정리는 기록 생성 단계의 줄')
+  assert.ok(one.lines.some((l) => l.s === 3 && l.x.startsWith('지식 둘러보기')), '둘러보기는 넣기 단계의 줄')
+  assert.ok(one.lines.some((l) => l.s === 2), '기록 정리는 짓기 단계의 줄')
   delete process.env.FAKE_AGENT_WAIT_MS
 })
 

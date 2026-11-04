@@ -87,8 +87,8 @@
 <div class="m-note m-tip"><b>문서에 넣는 글의 기준</b><p>본문에는 확정된 지식만 쓴다. 회의 경위 · 초안 · 「언제 누가 바꿨나」 는 기록과 이력에 남고, 출처 줄은 kmd 가 문서 끝 「참고」 에 단다. 링크는 문서(<code>x.md</code>) · 항목(<code>x.md#머리</code>) · 바깥(<code>https://…</code>) 셋만.</p></div>
 
 <h2 id="import"><span class="m-no">6</span>가져오기: 파일 · 폴더 넣기</h2>
-<p>설정 › <b>가져오기</b>. 탭 셋: <b>일 줄</b> · <b>가져올 곳</b> · <b>끝난 일</b>. 파일은 화면 어디에 끌어다 놓아도 된다(쓰기 자리 이상).</p>
-<div class="m-flow"><div class="m-st m-hi"><b>1 수집</b><small>받기 · 글로 바꾸기</small></div><span class="m-ar">›</span><div class="m-st"><b>2 검토</b><small>같은 파일 · 크기 확인</small></div><span class="m-ar">›</span><div class="m-st m-pd"><b>3 기록 생성</b><small>파일마다 기록 하나</small></div><span class="m-ar">›</span><div class="m-st m-ok"><b>4 문서 생성</b><small>정리가 항목에 넣는다</small></div></div>
+<p>설정 › <b>가져오기</b>. 탭 셋: <b>일 줄</b> · <b>가져올 곳</b>(지식관리자) · <b>끝난 일</b>. 쓰기 자리가 있는 팀 지식이 하나라도 있으면 메뉴가 보이고, 파일은 화면 어디에 끌어다 놓아도 된다.</p>
+<div class="m-flow"><div class="m-st m-hi"><b>1 수집</b><small>받기 · 글로 바꾸기</small></div><span class="m-ar">›</span><div class="m-st"><b>2 검토</b><small>같은 파일 · 크기 확인</small></div><span class="m-ar">›</span><div class="m-st m-pd"><b>3 짓기</b><small>팀 일꾼이 기록 + 문서를 짓는다</small></div><span class="m-ar">›</span><div class="m-st m-ok"><b>4 넣기</b><small>저장 한 번 · 이력에 남는다</small></div></div>
 <figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 가져오기 · 일 줄</span></div><div class="m-pic"><img src="img/t-import.png" alt="가져오기 일 줄: 넣을 곳 · 줄 · 오른쪽 자세히의 흐름" loading="lazy">
 <span class="m-pin" style="left:37%;top:32%">1</span><span class="m-pin" style="left:37%;top:44%">2</span><span class="m-pin" style="left:85%;top:49%">3</span><span class="m-pin" style="left:76%;top:84%">4</span></div></div>
 <figcaption>「배포 회의 메모.md」 를 DPMS 지식에 넣은 뒤의 일 줄.</figcaption></figure>
@@ -99,10 +99,12 @@
 <li><b>흐름</b>: 네 단계와 단계 안 걸음. 단계를 누르면 터미널에 그 단계 줄만.</li>
 </ol>
 <ul>
-<li>md · txt · csv · html · json · docx · pptx · xlsx · hwpx · hwp · pdf 는 kmd 가 글로 바꾼다(목차 · 쪽 번호 · 되풀이 머리글은 뺀다). 원본은 첨부로 남는다. 한 번에 300 파일 · 200MB.</li>
-<li>글이 없는 pdf(스캔)는 팀 서버에서 「바꾸지 못한 파일」 로 남는다. 개인 지식에 넣으면 개인 프로그램이 내 Claude 로 바꾼다.</li>
-<li>팀 지식에 넣은 파일은 파일마다 <b>기록</b>이 되고, 팀의 정리 일꾼이 갈래 · 주제 문서의 항목에 넣는다(파일 이름으로 문서를 세우지 않는다).</li>
-<li>손잡이: [멈춤] 은 지금 단계를 마치고 선다 · [이어서] · [그만두기] 는 바로 끊는다 · [다시] 는 못한 단계부터 · 기다리는 일은 끌어서 순서 바꾸기.</li>
+<li>md · txt · csv · html · json · docx · pptx · xlsx · hwpx · hwp · pdf 는 kmd 가 글로 바꾼다(목차 · 쪽 번호 · 되풀이 머리글은 뺀다).</li>
+<li>파일마다 줄 하나가 서고, <b>팀 일꾼</b>이 그 파일 하나로 기록과 문서 글을 <b>한 번에</b> 짓는다. 저장도 한 번이라 이력에 한 줄로 남는다. 못 넣은 곳은 기록만 남기고 「넣지 못함」 으로 보인다.</li>
+<li>한 번에 <b>20 파일</b>까지(파일 하나 32MB). 21개부터는 보내지 않고 「많으면 Claude Code 에서 대량 넣기」 를 안내한다.</li>
+<li>「원본 파일도 첨부로 둔다」 를 고르면 원본이 문서 첨부로 같이 들어간다(기본 꺼짐). 그림 파일은 이것을 골라야 들어간다.</li>
+<li>글이 없는 pdf(스캔)는 「못 넣음」 으로 남는다. Claude Code 의 대량 넣기가 원본을 읽는다.</li>
+<li>손잡이: 팀 일꾼에게 넘긴 파일은 [빼기] · [그만두기] 만 있다. 아직 짓지 않았으면 기록 없이 닫고, 짓는 중이면 초안을 넣지 않고 닫는다.</li>
 <li><b>끝난 일</b>은 30일 남는다(터미널 줄까지). 파일 · 제목으로 찾는다.</li>
 </ul>
 <figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>가져오기 · 끝난 일</span></div><div class="m-pic"><img src="img/t-import-done.png" alt="끝난 일 목록" loading="lazy"></div></div></figure>

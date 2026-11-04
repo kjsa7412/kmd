@@ -509,7 +509,9 @@ function mgItems() {
   const adm = !!(S.me && S.me.admin) || anyAdm()
   const set = (v, l) => ['settings', v, l]
   if (!isTeam()) return [['import', '', '가져오기'], ['send', '', '지식 보내기'], set('gen', '일반'), set('claude', 'Claude 연결'), set('agent', '에이전트 설치')]
-  return [...(adm ? [['import', '', '가져오기']] : []), ['tidy', '', '정리'], set('gen', '일반'), set('people', '사람'), set('claude', 'Claude 연결'), set('agent', '에이전트 설치'), ...(adm ? [set('admin', '관리')] : [])]
+  // 가져오기 — 쓰기 자리가 있는 팀 지식이 하나라도 있으면(파일 넣기 · S-D34) · 가져올 곳 탭과 더하기는 지식관리자
+  const imp = adm || (S.kns || []).some((x) => !isPersonal(x) && !x.hidden && lvOf(x) && lvOf(x) !== 'read')
+  return [...(imp ? [['import', '', '가져오기']] : []), ['tidy', '', '정리'], set('gen', '일반'), set('people', '사람'), set('claude', 'Claude 연결'), set('agent', '에이전트 설치'), ...(adm ? [set('admin', '관리')] : [])]
 }
 function mgWrap(scr, v) {
   const area = setArea(), items = mgItems()
@@ -2810,17 +2812,21 @@ function sfAutoName(f) {
 }
 // ── 가져오기 — 일 줄(서버 일 줄 /api/queue) ──
 //   들여오는 일은 모두 서버의 일 줄에 선다 — 파일 들이기 · 여러 파일 묶음 · 가져오기 · 기록을 문서에 넣기 · 팀 정리 일감.
-//   일은 늘 네 단계(수집 › 검토 › 기록 생성 › 문서 생성) · 잠깐 멈춤은 단계 사이에서 · 그만두기는 바로 · 다시는 그 단계부터.
+//   일은 늘 네 단계(수집 › 검토 › 짓기 › 넣기 · S-D33) · 잠깐 멈춤은 단계 사이에서 · 그만두기는 바로 · 다시는 그 단계부터.
 //   탭 셋 — 일 줄(도는 중 · 멈춤/확인/못함 · 기다림 + 자세히) · 가져올 곳(지켜보며 맞추기) · 끝난 일(찾기 · 거르기 · 쪽)
 const runActive = (r) => r && (r.state === 'wait' || r.state === 'run')
-const STG = ['수집', '검토', '기록 생성', '문서 생성']
-const STG_S = ['수집', '검토', '기록', '문서']
+const STG = ['수집', '검토', '짓기', '넣기']
+const STG_S = ['수집', '검토', '짓기', '넣기']
+const STG_LAST = STG.length - 1
 const STG_SUB = {
   file: [['받기', '글로 바꾸기'], ['같은 파일 확인', '원본 첨부'], ['기록 쓰기', '기록 정리'], ['지식 둘러보기 · 이름 맞추기', '항목에 넣기 · 새 이름']],
+  // 팀 화면 파일 넣기(S8) — 파일마다 팀 일꾼이 기록 + 문서를 한 번에 짓고 저장 한 번
+  fileTeam: [['받기', '글로 바꾸기'], ['같은 파일 확인', '원본 첨부 고르기'], ['팀 일꾼이 기록 + 문서를 짓는다', '검사에 걸리면 고쳐 쓴다'], ['저장 한 번 · 이력에 남는다', '못 넣은 곳은 넣지 못함']],
   docs: [['폴더 읽기', '바뀐 파일 찾기'], ['크게 바뀜 문턱(지운 파일)'], ['파일마다 기록 · 글로 바꾸기'], ['정리가 자리를 골라 문서에 · 장부 적기']],
   git: [['저장소에서 받기'], ['새 묶음 찾기', '합친 묶음 거르기'], ['묶음마다 코드 바뀜 기록'], ['기준 묶음 옮기기 · 정리에 넘김']],
   db: [['읽기 전용으로 붙기', '테이블 목록 읽기'], ['지난 것과 견주기', '크게 바뀜 문턱'], ['바뀐 테이블 기록'], ['테이블 정의 표 채우기']],
   group: [['화면이 나눠 보내기'], ['같은 파일 확인'], ['파일마다 기록'], ['파일마다 들이기']],
+  groupTeam: [['화면이 나눠 보내기'], ['같은 파일 확인'], ['파일마다 팀 일꾼에게'], ['파일마다 저장 한 번']],
   kmd: [['-'], ['-'], ['-'], ['기록을 항목 · 문서에 넣기']],
 }
 const ORG_T = { file: '파일 들이기', group: '여러 파일', docs: '문서 폴더', git: '소스 코드 · git', db: 'DB', kmd: '정리' }
@@ -2863,7 +2869,7 @@ const stCls = (j, i) => {
   return { done: 'done', run: j.state === 'pausing' ? 'pause' : 'run', pause: 'pause', check: 'check', fail: 'fail', cancel: 'fail', skip: 'skip' }[s] || ''
 }
 function miniHtml(j) {
-  const lab = j.state === 'wait' ? (j.stage ? `${STG[j.stage]}부터` : '차례 기다림') : j.fin ? { done: '끝남', rule: '끝남', cancel: '그만둠', fail: '못함' }[j.state] || '끝남' : j.known ? STG[Math.min(j.stage, 3)] : '-'
+  const lab = j.state === 'wait' ? (j.stage ? `${STG[j.stage]}부터` : '차례 기다림') : j.fin ? { done: '끝남', rule: '끝남', cancel: '그만둠', fail: '못함' }[j.state] || '끝남' : j.known ? STG[Math.min(j.stage, STG_LAST)] : '-'
   return `<span class="qmini" data-t="qmini" data-stage="${j.known ? j.stage : ''}"><span class="mini">${STG.map((_, i) => `<i class="${stCls(j, i)}"></i>`).join('')}</span><small>${lab}</small></span>`
 }
 // 일마다 손잡이 — 상태대로(잠깐 멈춤은 단계 사이에서 · 이어서로 잇는다 · 그만두기는 바로 끝낸다 · 다시는 그 단계부터)
@@ -2873,6 +2879,7 @@ function impActs(j, small = true) {
   const o = []
   if (j.kind === 'local') { if (j.imp && j.imp.many && !j.fin && !j.imp.stop) o.push(`<button class="btn${sm}" data-a="impStop" data-v="${esc(j.imp.id)}" data-t="impStop">그만두기</button>`) }
   else if (j.kind === 'tidy') { if (j.state === 'wait') o.push(b('cancel', '빼기', ' dz')) }
+  else if (j.intake) { if (j.state === 'wait') o.push(b('cancel', '빼기', ' dz')); else if (j.state === 'run') o.push(b('cancel', '그만두기', ' dz')); else if (j.state === 'fail') o.push(b('cancel', '지우기', ' dz')) }
   else if (!j.fin) {
     if (j.state === 'run') o.push(b('pause', '잠깐 멈춤'), b('cancel', '그만두기', ' dz'))
     if (j.state === 'pausing') o.push(b('resume', '멈추지 않기'), b('cancel', '바로 그만두기', ' dz'))
@@ -2904,12 +2911,12 @@ function termHtml(id, fil = 'all') {
   const ls = stageLines(L.lines).filter((l) => fil === 'all' || String(l.s) === fil)
   return `<div class="term" data-t="term" data-run="${esc(id)}">${ls.map((l) => `<div class="${esc(l.k)}"><span class="tm">${t(l.t)}</span><span class="sg">[${STG_S[l.s] || '-'}]</span>${mark[l.k] || ''}${esc(l.x)}</div>`).join('') || `<span class="sys">${L.lines.length ? '이 단계의 줄이 없다' : '아직 줄이 없다. 차례를 기다린다'}</span>`}</div>`
 }
-const IMP_K = { doc: '문서', record: '기록', run: 'Claude 일', att: '첨부', same: '그대로', fail: '못 넣음', skip: '읽지 못하는 종류' }
+const IMP_K = { doc: '문서', record: '기록', run: 'Claude 일', att: '첨부', same: '그대로', fail: '못 넣음', skip: '읽지 못하는 종류', held: '넣지 못함' }
 const ST_T = { done: '끝남', run: '도는 중', pause: '멈춤', check: '크게 바뀜', fail: '못함', cancel: '그만둠', skip: '건너뜀', wait: '기다림' }
 // 자세히 — 흐름 그림(네 단계 · 안의 걸음) · 안의 파일 · 터미널(단계로 거른다) · 만든 것
 function impDetHtml(j) {
   if (!j) return '<div class="card det" data-t="impDet"><div class="none">왼쪽에서 일을 고른다. 단계 · 터미널 · 만든 것이 여기 보인다</div></div>'
-  const sub = STG_SUB[j.kind === 'tidy' || j.kind === 'curate' ? 'kmd' : j.origin] || STG_SUB.file
+  const sub = STG_SUB[j.kind === 'tidy' || j.kind === 'curate' ? 'kmd' : isTeam() && (j.origin === 'file' || j.origin === 'group') ? j.origin + 'Team' : j.origin] || STG_SUB.file
   const fil = S.impTfil || 'all'
   const flow = STG.map((nm, i) => {
     const c = stCls(j, i)
@@ -2918,9 +2925,9 @@ function impDetHtml(j) {
     return `${i ? `<span class="arr${stCls(j, i - 1) === 'done' ? ' done' : ''}">→</span>` : ''}<div class="st ${c}${fil === String(i) ? ' focus' : ''}" data-a="impStg" data-v="${i}" data-t="impStg" title="이 단계의 줄만 터미널에"><div class="n"><span>${i + 1}</span><span>${st === 'run' && j.state === 'pausing' ? '멈추는 중' : ST_T[st] || ''}</span></div><div class="nm">${nm}</div><ul>${items}</ul>${j.known && j.stages[i] && j.stages[i].at && j.stages[i].end ? `<div class="tt">${durTxt(Date.parse(j.stages[i].end) - Date.parse(j.stages[i].at))}</div>` : ''}</div>`
   }).join('')
   const why = j.state === 'check' ? `<div class="callout warn" data-t="whyCheck"><span><b>크게 바뀜</b>: ${esc(j.msg)} · [그대로 맞추기] 는 크게 바뀜 문턱을 넘어 쓴다 · [이번은 건너뛰기] 는 다음 정한 때에 다시 본다</span></div>`
-    : j.state === 'fail' ? `<div class="callout danger"><span><b>못함: ${STG[Math.min(j.stage, 3)]}</b> · ${esc(j.msg)}${j.retry ? ' · [다시] 는 이 단계부터' : ''}</span></div>`
+    : j.state === 'fail' ? `<div class="callout danger"><span><b>못함: ${STG[Math.min(j.stage, STG_LAST)]}</b> · ${esc(j.msg)}${j.retry ? ' · [다시] 는 이 단계부터' : ''}</span></div>`
     : j.state === 'pause' ? `<div class="callout warn"><span><b>멈춤</b>: ${esc(j.msg)}</span></div>`
-    : j.state === 'pausing' ? `<div class="callout warn"><span><b>멈추는 중</b>: 지금 단계(「${STG[Math.min(j.stage, 3)]}」)를 마치면 선다 · 바로 끝내려면 [바로 그만두기]</span></div>`
+    : j.state === 'pausing' ? `<div class="callout warn"><span><b>멈추는 중</b>: 지금 단계(「${STG[Math.min(j.stage, STG_LAST)]}」)를 마치면 선다 · 바로 끝내려면 [바로 그만두기]</span></div>`
     : !j.known ? '<div class="callout gray"><span>단계를 알 수 없다. 화면이 보내는 중이거나 줄이 남지 않은 일이다</span></div>' : ''
   const rows = j.kind === 'group' ? j.rows || [] : j.imp && j.imp.many ? j.imp.rows : null
   const kids = rows ? `<div class="sec"><div class="sh">안의 파일 ${j.total || (j.imp && j.imp.total) || rows.length}<span class="r">${j.kind === 'group' ? `보냄 ${j.sent}/${j.total}` : `${j.imp.done}/${j.imp.total}`}</span></div><div class="kids" data-t="impFiles">${[...rows].sort((a, b) => (a.kind === 'fail' || a.kind === 'skip' ? 0 : 1) - (b.kind === 'fail' || b.kind === 'skip' ? 0 : 1)).map((r) => `<div${r.run ? ` data-a="impSel" data-id="${esc(r.run)}"` : ''}><span class="chip ${r.kind === 'fail' || r.kind === 'skip' ? 'c-warn' : 'c-mute'}">${IMP_K[r.kind] || r.kind}</span><span class="mono">${esc(r.name)}</span><small>${esc(r.msg || '')}</small></div>`).join('') || '<div class="muted">아직 보낸 파일이 없다</div>'}</div></div>` : ''
@@ -3016,6 +3023,8 @@ function impSrcHtml(srcs, v, can) {
 }
 // 가져올 곳 더하기 — 이 PC 프로그램 · 팀은 관리 자리(총괄 관리자 · 그 지식의 관리 자리) · 개인 영역은 개인 지식 폴더를 정한 사람
 const impCan = () => !isTeam() || !!S.me.admin || anyAdm()
+// 가져올 곳 탭 · [가져올 곳 더하기] — 팀은 지식관리자만(쓰기 자리는 파일 넣기만 · S-D34)
+const impSrcOk = () => impCan()
 // 지식 하나의 관리 자리 — 지금 가져오기 · 고치기는 관리 자리만(서버도 막는다)
 const admKn = (kn) => !isTeam() || !!S.me.admin || lvOf(KN(kn)) === 'admin'
 function impBodyHtml() {
@@ -3083,11 +3092,11 @@ async function pollRuns() {
 async function qAct(id, act) {
   const j = impJobs().find((x) => x.id === id)
   if (!j) return
-  if (act === 'cancel' && isRun(j) && !await ask1('이 일 그만두기', '그만두기', true, `「${j.title}」 을 그만둘까?\n\n지금 「${STG[Math.min(j.stage, 3)]}」 단계를 바로 끊고 일을 끝낸다. 이어서는 할 수 없다(잠깐 멈추려면 [잠깐 멈춤]) · 끝난 단계의 결과(남긴 기록)는 그대로 남는다`)) return
+  if (act === 'cancel' && isRun(j) && !await ask1('이 일 그만두기', '그만두기', true, j.intake ? `「${j.title}」 을 그만둘까?\n\n팀 일꾼이 짓던 것은 넣지 않고 닫는다. 기록도 남기지 않는다 · 다시 넣으려면 파일을 다시 넣는다` : `「${j.title}」 을 그만둘까?\n\n지금 「${STG[Math.min(j.stage, STG_LAST)]}」 단계를 바로 끊고 일을 끝낸다. 이어서는 할 수 없다(잠깐 멈추려면 [잠깐 멈춤]) · 끝난 단계의 결과(남긴 기록)는 그대로 남는다`)) return
   if (act === 'force' && !await ask1('그대로 맞추기', '그대로 맞추기', true, `「${j.title}」 을 그대로 맞출까?\n\n${j.msg}\n\n크게 바뀜 문턱을 넘어 원본대로 쓴다. 쓴 것은 「이력」 에서 되돌릴 수 있다`)) return
   try {
     const r = await postJSON(`/api/queue/${encodeURIComponent(id)}/${act}`, {})
-    toast({ pause: '지금 단계를 마치면 멈춘다', resume: '이어 간다', cancel: j.state === 'check' ? '건너뛰었다. 다음 정한 때에 다시 본다' : j.state === 'wait' ? '줄에서 뺐다' : '그만뒀다', retry: '다시: 그 단계부터 줄 뒤에 섰다', force: '그대로 맞춘다. 새 일로 섰다', top: '기다림 맨 앞으로' }[act] || '했다')
+    toast({ pause: '지금 단계를 마치면 멈춘다', resume: '이어 간다', cancel: j.state === 'check' ? '건너뛰었다. 다음 정한 때에 다시 본다' : j.state === 'wait' ? '줄에서 뺐다' : r && r.state === 'pausing' ? '그만두는 중: 팀 일꾼이 지금 초안을 마치면 넣지 않고 닫는다' : '그만뒀다', retry: '다시: 그 단계부터 줄 뒤에 섰다', force: '그대로 맞춘다. 새 일로 섰다', top: '기다림 맨 앞으로' }[act] || '했다')
     if (r && r.again) S.impSel = `src:${j.kn}|${j.src || ''}`
   } catch (e) { toastErr(e) }
   pollRuns()
@@ -3101,17 +3110,20 @@ function impTabsHtml() {
   const v = sourcesOf(), js = impJobs(), q = js.filter((j) => !j.fin)
   const attn = q.filter(IMP_G[1][2]).length
   const tab = S.impTab || 'queue'
-  const tabs = [['queue', '일 줄', `<em>${q.length}</em>${attn ? `<em class="w" title="멈춤 · 크게 바뀜 · 못함">살펴볼 일 ${attn}</em>` : ''}`], ['src', '가져올 곳', `<em>${v && !v.error ? v.items.filter((s) => s.kind !== 'pc').length : v && v.error ? '!' : '…'}</em>`], ['done', '끝난 일', `<em>${js.filter((j) => j.fin).length}</em>`]]
+  const tabs = [['queue', '일 줄', `<em>${q.length}</em>${attn ? `<em class="w" title="멈춤 · 크게 바뀜 · 못함">살펴볼 일 ${attn}</em>` : ''}`], ...(impSrcOk() ? [['src', '가져올 곳', `<em>${v && !v.error ? v.items.filter((s) => s.kind !== 'pc').length : v && v.error ? '!' : '…'}</em>`]] : []), ['done', '끝난 일', `<em>${js.filter((j) => j.fin).length}</em>`]]
   return `<div class="tabs" data-t="impTabs">${tabs.map(([k, l, b]) => `<span class="${tab === k ? 'on' : ''}" data-a="impTab" data-v="${k}" data-t="impTab-${k}">${l} ${b}</span>`).join('')}</div>`
 }
 function viewImport() {
   const team = isTeam(), v = sourcesOf()
   const can = impCan(v)
   const target = impTarget()
+  if (!impSrcOk() && S.impTab === 'src') S.impTab = 'queue'
   const tab = S.impTab || 'queue'
+  const many = team && S.impMany ? `<div class="callout warn" data-t="impMany"><span>파일 ${S.impMany}개는 보내지 않았다. 팀 화면에서는 한 번에 ${TEAM_IMPORT_MAX}개까지 · 많으면 Claude Code 에서 대량 넣기(스킬 kmd-team-import) · <button type="button" class="lk" data-a="mgGo" data-s="settings" data-v="agent" data-t="impManyGo">설정 › 에이전트 설치</button></span></div>` : ''
   const drop = tab === 'queue' ? `<div class="drop bar" id="drop" data-t="drop"><b>파일 · 폴더를 이 화면 어디든 끌어다 놓는다</b><span>넣을 곳 ${impPick(target)}</span><span class="lks"><label>파일 고르기<input type="file" multiple id="fileIn" aria-label="파일 고르기" data-t="fileIn"></label> · <label>폴더 고르기<input type="file" webkitdirectory directory multiple id="dirIn" aria-label="폴더 고르기" data-t="dirIn"></label></span>
-    <small>md · txt · csv · html · json · docx · pptx · xlsx · hwpx · pdf · hwp 는 글로 바꿔 들이고 원본은 첨부로 · ${team ? '파일마다 기록 하나: 정리가 이어지는 문서의 항목에 넣거나 새 문서로 세운다 · 글이 없는 pdf(스캔)는 개인 프로그램에서' : '파일마다 Claude Code 가 지식을 둘러보고 갈래 · 주제 문서의 항목으로 넣는다 · 안 되면 규칙으로'} · 한 번에 300 파일 · 200MB</small></div>` : ''
-  const main = `<div class="imp"><div class="pg-h"><div><div class="big">가져오기</div><p class="lead">들여오는 일은 모두 <b>일 줄</b>에 서서 차례로 돈다. 수집 › 검토 › 기록 생성 › 문서 생성. 줄을 고르면 흐름과 터미널이 보인다. 빈 지식을 새로 세우려면 <button type="button" class="lk" data-a="openAdd" data-t="toAdd">지식 목록 › 새 지식</button></p></div><span class="acts">${can ? `<button class="btn pri" data-a="sfOpen" data-t="sfOpen">+ 가져올 곳 더하기</button>` : '<button class="btn" data-a="sfOpen" data-t="sfOpen">+ 더해 달라고 부탁</button>'}</span></div>
+    ${team ? `<label class="impatt" data-t="impAttWrap"><input type="checkbox" id="impAtt" data-t="impAtt"${S.impAtt ? ' checked' : ''}> 원본 파일도 첨부로 둔다</label>` : ''}
+    <small data-t="dropNote">${team ? `md · txt · csv · html · json · docx · pptx · xlsx · hwpx · pdf · hwp 는 글로 바꾼다 · 파일마다 들이기: 팀 일꾼이 기록과 문서를 한 번에 짓는다 · 한 번에 ${TEAM_IMPORT_MAX} 파일 · 파일 하나 32MB · 많으면 Claude Code 에서 대량 넣기 · 글이 없는 pdf(스캔)도 대량 넣기에서` : 'md · txt · csv · html · json · docx · pptx · xlsx · hwpx · pdf · hwp 는 글로 바꿔 들이고 원본은 첨부로 · 파일마다 Claude Code 가 지식을 둘러보고 갈래 · 주제 문서의 항목으로 넣는다 · 안 되면 규칙으로 · 한 번에 300 파일 · 200MB'}</small></div>${many}` : ''
+  const main = `<div class="imp"><div class="pg-h"><div><div class="big">가져오기</div><p class="lead">들여오는 일은 모두 <b>일 줄</b>에 서서 차례로 돈다. 수집 › 검토 › 짓기 › 넣기. 줄을 고르면 흐름과 터미널이 보인다. 빈 지식을 새로 세우려면 <button type="button" class="lk" data-a="openAdd" data-t="toAdd">지식 목록 › 새 지식</button></p></div><span class="acts">${!impSrcOk() ? '' : can ? `<button class="btn pri" data-a="sfOpen" data-t="sfOpen">+ 가져올 곳 더하기</button>` : '<button class="btn" data-a="sfOpen" data-t="sfOpen">+ 더해 달라고 부탁</button>'}</span></div>
   ${impTabsHtml()}
   ${drop}<div id="impBody">${impBodyHtml()}</div></div>`
   return { crumb: '가져오기', main }
@@ -3218,6 +3230,9 @@ async function sfCheck() {
   } catch (e) { S.sfMsg = { cls: 'danger', t: esc(e.message) } }
   render()
 }
+// 팀 화면 파일 넣기 한도(S-D35 · core/importer.js TEAM_IMPORT_MAX 와 같은 값) · 요청 하나 64MB — base64 로 4/3 이 되므로 파일 합 46MB 씩 나눠 보낸다
+const TEAM_IMPORT_MAX = 20
+const TEAM_PART = 46 << 20
 const fileB64 = (f) => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1] || ''); r.onerror = () => no(r.error); r.readAsDataURL(f) })
 async function takeFiles(files) {
   files = [...files]
@@ -3228,6 +3243,12 @@ async function takeFiles(files) {
     if (!t.kn) { const r = await postJSON('/api/knowledge/add', { kind: 'new', name: '받은편지함' }); await reloadKns(); t = { kn: r.id, label: '받은편지함' }; S.impKn = r.id }
   } catch (e) { toastErr(e); return }
   S.impKn = t.kn // 마지막에 넣은 곳 — 다음에 이 화면을 열면 여기
+  // 팀 — 한 번에 TEAM_IMPORT_MAX 개까지(넘으면 보내지 않고 대량 넣기 안내 · 서버도 막는다) · 요청 하나 64MB(넘으면 묶음으로 나눠 보낸다)
+  if (isTeam()) {
+    if (files.length > TEAM_IMPORT_MAX) { S.impMany = files.length; S.impTab = 'queue'; render(); return }
+    S.impMany = 0
+    if (files.length > 1 && files.reduce((a, f) => a + f.size, 0) > TEAM_PART) return takeMany(files, t)
+  }
   if (files.length > 10) return takeMany(files, t)
   const name = (KN(t.kn) || {}).name || t.kn
   const tops = [...new Set(files.map((f) => (f.webkitRelativePath || f._rel || '').split('/')).filter((p) => p.length > 1).map((p) => p[0]))]
@@ -3237,18 +3258,18 @@ async function takeFiles(files) {
   render()
   try {
     const list = await Promise.all(files.map(async (f) => ({ path: f.webkitRelativePath || f._rel || f.name, b64: await fileB64(f) })))
-    const r = await postJSON(`/api/k/${encodeURIComponent(t.kn)}/import`, { files: list })
+    const r = await postJSON(`/api/k/${encodeURIComponent(t.kn)}/import`, { files: list, ...(isTeam() && S.impAtt ? { attach: true } : {}) })
     const s = r.summary
     if (files.length === 1 && r.rows[0]) {
       const x = r.rows[0]
       row.msg = x.msg
-      row.cls = x.kind === 'fail' || x.kind === 'skip' ? 'bad' : ''
+      row.cls = x.kind === 'fail' || x.kind === 'skip' || x.kind === 'held' ? 'bad' : ''
       if (x.kind === 'doc') { row.title = files[0].name + ' → ' + name + ' › ' + x.doc; row.go = { kn: t.kn, doc: x.doc } }
       if (x.kind === 'record') { row.title = files[0].name + ' → ' + name + ' › 기록'; row.rec = x.rec ? { kn: t.kn, id: x.rec } : null }
       if (x.kind === 'run') row.run = x.run
     } else {
-      row.msg = `${tops[0] ? tops[0] + ' 폴더: ' : ''}${s.record ? '기록 ' + s.record + ': 정리가 기존 문서에 넣거나 새 문서로 세운다 · ' : ''}${s.doc ? '문서 ' + s.doc + ' · ' : ''}첨부 ${s.att}${s.same ? ' · 그대로 ' + s.same : ''}${s.fail ? ' · 바꾸지 못한 파일 ' + s.fail : ''} · 넣지 않은 파일 ${s.skip}`
-      row.cls = s.skip || s.fail ? 'bad' : ''
+      row.msg = isTeam() ? `${tops[0] ? tops[0] + ' 폴더: ' : ''}팀 일꾼에게 넘김 ${s.run}${s.held ? ' · 넣지 못함 ' + s.held : ''}${s.att ? ' · 첨부 ' + s.att : ''}${s.same ? ' · 그대로 ' + s.same : ''}${s.fail ? ' · 바꾸지 못한 파일 ' + s.fail : ''}${s.skip ? ' · 넣지 않은 파일 ' + s.skip : ''}` : `${tops[0] ? tops[0] + ' 폴더: ' : ''}${s.record ? '기록 ' + s.record + ': 정리가 기존 문서에 넣거나 새 문서로 세운다 · ' : ''}${s.doc ? '문서 ' + s.doc + ' · ' : ''}첨부 ${s.att}${s.same ? ' · 그대로 ' + s.same : ''}${s.fail ? ' · 바꾸지 못한 파일 ' + s.fail : ''} · 넣지 않은 파일 ${s.skip}`
+      row.cls = s.skip || s.fail || s.held ? 'bad' : ''
     }
     row.tm = nowHm()
     const runIds = r.rows.filter((x) => x.kind === 'run').map((x) => x.run)
@@ -3273,24 +3294,24 @@ async function takeMany(files, t) {
   render()
   const parts = []
   let cur = [], size = 0
-  for (const f of files) { if (cur.length && (cur.length >= 10 || size + f.size > 40 << 20)) { parts.push(cur); cur = []; size = 0 } cur.push(f); size += f.size }
+  for (const f of files) { if (cur.length && (cur.length >= 10 || size + f.size > (isTeam() ? TEAM_PART : 40 << 20))) { parts.push(cur); cur = []; size = 0 } cur.push(f); size += f.size }
   if (cur.length) parts.push(cur)
   for (const [i, part] of parts.entries()) {
     if (row.stop) break
     try {
       const list = await Promise.all(part.map(async (f) => ({ path: f.webkitRelativePath || f._rel || f.name, b64: await fileB64(f) })))
       const last = i === parts.length - 1
-      const r = await postJSON(`/api/k/${encodeURIComponent(t.kn)}/import`, { files: list, group: { id: row.gid, title: row.title, total: files.length, last } })
+      const r = await postJSON(`/api/k/${encodeURIComponent(t.kn)}/import`, { files: list, group: { id: row.gid, title: row.title, total: files.length, last }, ...(isTeam() && S.impAtt ? { attach: true } : {}) })
       if (r.stopped) { row.stop = true; break }
       if (i === 0) pollRuns()
       row.rows.push(...r.rows)
     } catch (e) { row.rows.push(...part.map((f) => ({ name: f.webkitRelativePath || f._rel || f.name, kind: 'fail', msg: e.message }))) }
     row.done += part.length
     const n = (k) => row.rows.filter((x) => x.kind === k).length
-    row.msg = `${row.stop ? '그만뒀다' : row.done < row.total ? '넣는 중' : '넣었다'}: ${row.done}/${row.total} · 문서 ${n('doc')} · 기록 ${n('record')} · Claude 일 ${n('run')} · 첨부 ${n('att')}${n('same') ? ' · 그대로 ' + n('same') : ''}${n('fail') ? ' · 못 넣음 ' + n('fail') : ''}${n('skip') ? ' · 읽지 못하는 종류 ' + n('skip') : ''}`
+    row.msg = `${row.stop ? '그만뒀다' : row.done < row.total ? '넣는 중' : '넣었다'}: ${row.done}/${row.total} · ${isTeam() ? `팀 일꾼에게 넘김 ${n('run')}${n('held') ? ' · 넣지 못함 ' + n('held') : ''}` : `문서 ${n('doc')} · 기록 ${n('record')} · Claude 일 ${n('run')}`} · 첨부 ${n('att')}${n('same') ? ' · 그대로 ' + n('same') : ''}${n('fail') ? ' · 못 넣음 ' + n('fail') : ''}${n('skip') ? ' · 읽지 못하는 종류 ' + n('skip') : ''}`
     render()
   }
-  row.cls = row.rows.some((x) => x.kind === 'fail' || x.kind === 'skip') ? 'bad' : ''
+  row.cls = row.rows.some((x) => x.kind === 'fail' || x.kind === 'skip' || x.kind === 'held') ? 'bad' : ''
   row.tm = nowHm()
   const runIds = row.rows.filter((x) => x.kind === 'run').map((x) => x.run)
   if (runIds.length) row.run = runIds[0]
@@ -3510,7 +3531,7 @@ const settingsOf = () => need('settings', '/api/settings')
 const dropSettings = () => { delete S.cache.settings }
 const devicesOf = () => need('devices', '/api/me/devices')
 const AUTO_T = {
-  team: [['file', '넣은 파일을 글로', 'md · docx · pptx · xlsx 를 글로 바꿔 기록으로: 정리가 문서에 넣는다 · 끄면 원본 첨부만'], ['find', '찾기', '딱 맞는 항목이 없으면 비슷한 글에서']],
+  team: [['file', '넣은 파일을 글로', 'md · docx · pptx · xlsx 를 글로 바꿔 팀 일꾼이 기록과 문서를 한 번에 짓는다 · 끄면 원본 첨부만(「원본 파일도 첨부로 둔다」 를 고를 때)'], ['find', '찾기', '딱 맞는 항목이 없으면 비슷한 글에서']],
   pc: [['save', '편집기에서 고친 것 저장', '30초 조용하면 저절로'], ['file', '넣은 파일을 글로', 'md · docx · pptx · xlsx 를 넣으면 기록 · 문서로 바로(Claude 로 다듬어) · 끄면 원본 첨부만'], ['src', '자동으로 가져올 곳', '더해 둔 곳에서 때마다 표를 다시 채운다'], ['claude', '기록을 문서로: Claude 로', '기록이 남으면 곧바로 내 Claude 로그인으로 다듬어 넣는다 · 끄면 규칙으로'], ['find', '찾기', '딱 맞는 항목이 없으면 비슷한 글에서']],
 }
 // 설정 — 팀 화면은 팀 서버의 것만 · 개인 화면은 개인 프로그램의 것만
@@ -4735,7 +4756,7 @@ document.addEventListener('input', (ev) => {
 })
 // 파일 · 폴더 — 고르기 · 끌어다 놓기
 document.addEventListener('toggle', (ev) => { const d = ev.target; if (d.dataset && d.dataset.keep) (S.detOpen ||= {})[d.dataset.keep] = d.open }, true)
-document.addEventListener('change', (ev) => { const t = ev.target; if (t.dataset && t.dataset.acc) { accPick(t); return } if (t.dataset && t.dataset.seat) { const o = t.dataset.seat === 'add' ? S.admAdd : S.seatWin; if (o) (o.seats ||= {})[t.dataset.k] = t.value; return } if (t.dataset && t.dataset.grp != null) { (S.grpPick ||= {})[t.dataset.grp] = t.value; render(); return } if (t.dataset && t.dataset.grpadd != null && S.grpAdd) { const m = new Set(S.grpAdd.members); if (t.checked) m.add(t.dataset.grpadd); else m.delete(t.dataset.grpadd); S.grpAdd.members = [...m]; return } if (t.dataset && t.dataset.model != null) { ACT.pickModel(t); return } if (t.id === 'impKn') { S.impKn = t.value; render(); return } if (t.id === 'tdKnSel') { if (S.tdKn !== t.value) { S.tdKn = t.value; S.tdJobId = null; S.tdSel = new Set(); S.tdSpot = null; S.menu = null; render() } return } if (t.id === 'tdPickSel') { const o = $('[data-t=tdPickOther]'); if (o) o.checked = true; return } if (t.dataset && t.dataset.se && S.se) { S.se[t.dataset.se] = t.value; render(); return } if (t.dataset && t.dataset.sf) { sfState()[t.dataset.sf] = t.type === 'checkbox' ? t.checked : t.value; if (t.dataset.sf === 'rule') render(); return } if (t.id === 'logKn') { S.logKn = t.value; render(); return } if (t.id === 'logWho') { S.logWho = t.value; render(); return } if (t.id === 'impOrg' || t.id === 'impRes') { S[t.id] = t.value; S.impPage = 0; render(); return } if (t.dataset && t.dataset.cap) { postJSON('/api/queue/caps', { [t.dataset.cap]: Number(t.value) }).then(() => toast(`동시에 도는 수: ${t.dataset.cap === 'claude' ? 'Claude' : '가져오기'} ${t.value}`), (e) => toastErr(e)).finally(() => { t.blur(); pollRuns() }); return } if (t.id === 'fileIn' || t.id === 'dirIn') { takeFiles(t.files); t.value = '' } })
+document.addEventListener('change', (ev) => { const t = ev.target; if (t.dataset && t.dataset.acc) { accPick(t); return } if (t.dataset && t.dataset.seat) { const o = t.dataset.seat === 'add' ? S.admAdd : S.seatWin; if (o) (o.seats ||= {})[t.dataset.k] = t.value; return } if (t.dataset && t.dataset.grp != null) { (S.grpPick ||= {})[t.dataset.grp] = t.value; render(); return } if (t.dataset && t.dataset.grpadd != null && S.grpAdd) { const m = new Set(S.grpAdd.members); if (t.checked) m.add(t.dataset.grpadd); else m.delete(t.dataset.grpadd); S.grpAdd.members = [...m]; return } if (t.dataset && t.dataset.model != null) { ACT.pickModel(t); return } if (t.id === 'impKn') { S.impKn = t.value; render(); return } if (t.id === 'impAtt') { S.impAtt = t.checked; return } if (t.id === 'tdKnSel') { if (S.tdKn !== t.value) { S.tdKn = t.value; S.tdJobId = null; S.tdSel = new Set(); S.tdSpot = null; S.menu = null; render() } return } if (t.id === 'tdPickSel') { const o = $('[data-t=tdPickOther]'); if (o) o.checked = true; return } if (t.dataset && t.dataset.se && S.se) { S.se[t.dataset.se] = t.value; render(); return } if (t.dataset && t.dataset.sf) { sfState()[t.dataset.sf] = t.type === 'checkbox' ? t.checked : t.value; if (t.dataset.sf === 'rule') render(); return } if (t.id === 'logKn') { S.logKn = t.value; render(); return } if (t.id === 'logWho') { S.logWho = t.value; render(); return } if (t.id === 'impOrg' || t.id === 'impRes') { S[t.id] = t.value; S.impPage = 0; render(); return } if (t.dataset && t.dataset.cap) { postJSON('/api/queue/caps', { [t.dataset.cap]: Number(t.value) }).then(() => toast(`동시에 도는 수: ${t.dataset.cap === 'claude' ? 'Claude' : '가져오기'} ${t.value}`), (e) => toastErr(e)).finally(() => { t.blur(); pollRuns() }); return } if (t.id === 'fileIn' || t.id === 'dirIn') { takeFiles(t.files); t.value = '' } })
 document.addEventListener('dragstart', (ev) => { const c = ev.target.closest && ev.target.closest('[data-drag]'); if (!c) return; S.dragK = c.dataset.drag; c.classList.add('drag'); ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', c.dataset.drag) } catch {} })
 document.addEventListener('dragend', () => { S.dragK = null; for (const x of document.querySelectorAll('.kcard.drag,.kcard.over')) x.classList.remove('drag', 'over') })
 document.addEventListener('dragover', (ev) => { const c = S.dragK && ev.target.closest && ev.target.closest('[data-drag]'); if (c) { ev.preventDefault(); for (const x of document.querySelectorAll('.kcard.over')) if (x !== c) x.classList.remove('over'); if (c.dataset.drag !== S.dragK) c.classList.add('over') } })

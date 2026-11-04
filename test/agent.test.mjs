@@ -175,26 +175,30 @@ test('가져오는 곳: 넣을 지식 · 출처 이름을 함께 바꾸면 옮�
   await s.hub.sourceRemove(ME, '다른', { name: '설계 문서' })
 })
 
-test('팀: 정리 일꾼이 넣은 파일을 에이전트로(서버 MCP · 단기 열쇠) · 터미널 줄은 서버 일 목록에', async () => {
+test('팀: 넣은 파일은 에이전트가 아니라 팀 일꾼의 들이기(claude -p 초안 하나 · S8) · 일 줄 하나 = 저장 하나 · 단계 짓기 › 넣기', async () => {
   const { workOnce } = await import('../core/worker.js')
   const root = path.join(tmp, 'team')
   fs.mkdirSync(path.join(root, 'ops', 'docs'), { recursive: true })
   fs.writeFileSync(path.join(root, 'ops', 'docs', '처음.md'), '# 처음\n\n## 개요\n팀 지식\n')
   const t = await startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
   try {
+    await t.auth.addUser({ id: 'kim', admin: true })
     const KIM = { user: 'kim', admin: true }
-    const r = await t.hub.importFiles(KIM, 'ops', [{ path: 'DPMS_회의록_261021_HNC_통화.md', data: Buffer.from(HNC) }])
-    assert.equal(r.rows[0].kind, 'record')
+    const r = await t.hub.importFiles(KIM, 'ops', [{ path: '배포통화.md', data: Buffer.from('# 배포통화\n\n## 원격 명령\n펄스 방식: 게이트웨이가 3초 동안 1을 쓰고 0으로 되돌린다.\n') }])
+    assert.equal(r.rows[0].kind, 'run', '기록이 아니라 들이기 일감')
+    assert.equal(t.hub.jobsOf('ops').length, 0, '정리 일감 0')
     const key = (await t.auth.workerAdd()).key
     const done = await wait(async () => (await workOnce({ server: t.url, key, log: () => {} })) || null)
-    assert.ok(done.job)
-    const runs = t.hub.runList(KIM, 'ops')
-    assert.equal(runs[0].state, 'done', runs[0].msg)
-    const lines = t.hub.runGet(KIM, runs[0].id).lines
-    assert.ok(lines.some((l) => l.k === 'tool' && l.x.startsWith('저장')), '일꾼이 올린 터미널 줄')
-    assert.match(fs.readFileSync(path.join(root, 'ops', 'docs', '회의록.md'), 'utf8'), /^## 2026-10-21 HNC 통화$/m)
+    assert.equal(done.job.kind, 'intake')
+    const run = t.hub.runGet(KIM, r.rows[0].run)
+    assert.equal(run.state, 'done', run.msg)
+    assert.ok(run.lines.some((l) => l.s === 2), '짓기 단계의 줄')
+    assert.match(fs.readFileSync(path.join(root, 'ops', 'docs', '배포통화.md'), 'utf8'), /3초 동안 1을 쓰고/)
     const k = await t.hub.get('ops')
-    assert.notEqual(k.byWork.get(r.rows[0].rec).state, 'pend')
+    const w = k.byWork.get(run.rec)
+    assert.ok(w.tags.includes('intake'))
+    assert.equal(w.state, 'in')
+    assert.ok(!fs.existsSync(path.join(root, 'ops', 'docs', '회의록.md')), '팀은 에이전트(Claude Code)를 띄우지 않는다')
   } finally {
     await t.close()
   }

@@ -50,7 +50,7 @@ test('보통 글 파일: txt · log 그대로 · csv 는 md 표(따옴표 칸) �
   assert.match(textToMd('json', Buffer.from('{"a":1}')), /^```json\n\{"a":1\}\n```$/)
 })
 
-test('넣기: 큰 파일 하나가 전체를 끊지 않는다 · 파일마다 결과 · 까닭 · 넣기 한 번이 이력 한 줄', async () => {
+test('넣기: 큰 파일 하나가 전체를 끊지 않는다 · 파일마다 결과 · 까닭 · 넣기 한 번이 이력 한 줄(팀 화면은 파일마다 들이기 일감 · S8)', async () => {
   const big = Buffer.from('가'.repeat(210_000))
   const r = await s.hub.importFiles(KIM, 'dpms', [
     { path: '메모.txt', data: Buffer.from('회의 메모 — 다음 점검은 11월') },
@@ -59,13 +59,15 @@ test('넣기: 큰 파일 하나가 전체를 끊지 않는다 · 파일마다 �
     { path: '모름.xyz', data: Buffer.from('?') },
   ])
   const by = Object.fromEntries(r.rows.map((x) => [x.name, x]))
-  assert.equal(by['메모.txt'].kind, 'record')
-  assert.equal(by['표.csv'].kind, 'record')
+  assert.equal(by['메모.txt'].kind, 'run')
+  assert.equal(by['표.csv'].kind, 'run')
   assert.equal(by['큰글.txt'].kind, 'fail')
   assert.match(by['큰글.txt'].msg, /넣지 못했다: /)
   assert.equal(by['모름.xyz'].kind, 'skip')
-  const k = await s.hub.get('dpms')
-  assert.ok(k.works.some((w) => w.tags.includes('ingest/표.csv') && /\| A \| 활성 \|/.test(w.body)))
+  // 표.csv 는 md 표로 바꿔 들이기 일감의 원천이 된다(기록은 팀 일꾼이 지을 때 한 번에)
+  const j = s.hub.intakesOf('dpms').find((x) => x.src?.rel === '표.csv')
+  assert.ok(j && j.state === 'queued')
+  assert.match(fs.readFileSync(path.join(data, 'queue', `${j.id}.md`), 'utf8'), /\| A \| 활성 \|/)
   const lines = (await feed.list(data, 'kim')).filter((x) => x.kind === 'import')
   assert.equal(lines.length, 1, '넣기 한 번: 이력 한 줄')
   assert.match(lines[0].small, /못 넣음 1: 큰글\.txt: /)

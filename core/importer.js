@@ -24,15 +24,22 @@ import { KmdError } from './errors.js'
 
 export const MAX_FILES = 300
 export const MAX_BYTES = 200 << 20
+// 팀 화면 파일 넣기 — 한 번(묶음 누계)에 받는 파일 수(S-D35 · K5-1). 많으면 Claude Code 에서 대량 넣기(kmd-team-import).
+//   쓰는 법 안내일 뿐 비용 경계는 들이기 일감 한도(hub.openJob · intakeQueue · intakeDaily)다. 문서 폴더 · 지식 추가 · 개인 프로그램은 MAX_FILES 그대로
+export const TEAM_IMPORT_MAX = 20
 const DOCX = ['docx', 'pptx', 'xlsx', 'hwpx']
 // 서버가 글을 꺼내 보고 못 꺼내면(스캔 · 암호 · 배포용) 개인 프로그램의 Claude 로 옮기는 종류
 export const PCONLY = ['hwp', 'pdf']
 // pdf · hwp 의 글 — Claude 없이(못 꺼내면 '')
 export async function localMd(ext, buf) {
+  return (await localMdOf(ext, buf)).text
+}
+// 글과 못 꺼낸 까닭(깨진 파일 · 암호) — 까닭을 삼키지 않고 fileToMd 가 why 로 싣는다
+async function localMdOf(ext, buf) {
   try {
-    return dropToc(ext === 'hwp' ? hwpToMd(buf) : ext === 'pdf' ? await pdfToMd(buf) : '')
-  } catch {
-    return ''
+    return { text: dropToc(ext === 'hwp' ? hwpToMd(buf) : ext === 'pdf' ? await pdfToMd(buf) : ''), why: null }
+  } catch (e) {
+    return { text: '', why: e?.message || String(e) }
   }
 }
 const IMG = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp']
@@ -136,10 +143,47 @@ export function htmlToMd(html) {
 
 const extOf = (n) => (String(n).toLowerCase().match(/\.([a-z0-9]+)$/) || [])[1] || ''
 // 넣은 경로 — 폴더 짜임 그대로 · 폴더 밖으로 못 나간다 · 파일 이름에 못 쓰는 글자 뺌
-function cleanPath(p) {
+export function cleanPath(p) {
   const parts = nfc(String(p || '')).replace(/\\/g, '/').split('/').map((x) => x.replace(/[<>:"|?*\u0000-\u001f]/g, '').trim()).filter((x) => x && x !== '.' && x !== '..')
   if (!parts.length) throw new KmdError('E_INPUT', '파일 이름이 없다')
   return parts.join('/')
+}
+
+// 파일 하나 → 글(S8 · K6-1 · 파일 넣기 · 문서 폴더 · 대량 넣기 파서가 같이 쓴다)
+//   → { md, ext, kind, attach, blank?, scan?, why? }
+//   md     바꾼 글(못 바꾸면 null) · kind md · text · office · pdf(pdf · hwp) · img · other
+//   attach 원본을 첨부로 둘 만한 꼴인가(오피스 · pdf · hwp · 그림 — md · 보통 글은 글이 곧 원본)
+//   blank  오피스인데 글이 없다(통그림 · 스캔을 붙인 문서) · scan 글 없이 그림만 · 글 층 없는 pdf(Claude 가 원본을 읽어야 한다)
+//   why    바꾸다 난 오류(깨진 파일 · 너무 큰 압축 · 암호) — 던지지 않고 싣는다
+//   convert — 오피스 · pdf · hwp 를 글로 바꾸나(끄면 md null · 원본 첨부만) · mdOf(rel, data) — 바꾼 글 보관(개인 프로그램 · Claude Code)
+export async function fileToMd(rel, buf, { convert: conv = true, mdOf = null } = {}) {
+  const ext = extOf(rel)
+  const base = path.posix.basename(rel.replace(/\.[^./]+$/, ''))
+  const kind = ext === 'md' || ext === 'markdown' ? 'md' : TEXT.includes(ext) ? 'text' : DOCX.includes(ext) ? 'office' : PCONLY.includes(ext) ? 'pdf' : IMG.includes(ext) ? 'img' : 'other'
+  const out = { md: null, ext, kind, attach: kind === 'office' || kind === 'pdf' || kind === 'img' }
+  const wrap = (t) => `# ${base}\n\n${String(t).replace(/^# .*\n+/, '')}\n`
+  try {
+    if (kind === 'md') return { ...out, md: readText(buf.toString('utf8')) }
+    if (kind === 'text') return { ...out, md: `# ${base}\n\n${textToMd(ext, buf)}\n` }
+    if (kind === 'office' && conv) {
+      const body = dropToc(convert(rel, buf))
+      if (!noText(body)) return { ...out, md: `# ${base}\n\n${body}\n` }
+      // 머리만 남았다(통그림 슬라이드 · 스캔을 붙인 문서) — 빈 문서를 세우지 않고 바꾼 글 보관(Claude)으로
+      const scan = imagesOf(rel, buf).length > 0
+      const got = mdOf && scan ? await mdOf(rel, buf) : null
+      if (got) return { ...out, md: wrap(got) }
+      return { ...out, blank: true, ...(scan ? { scan: true } : {}) }
+    }
+    if (kind === 'pdf' && conv) {
+      const loc = await localMdOf(ext, buf)
+      const got = loc.text.trim() || (mdOf ? await mdOf(rel, buf) : null)
+      if (got) return { ...out, md: wrap(got) }
+      return { ...out, scan: true, ...(loc.why ? { why: loc.why } : {}) }
+    }
+    return out
+  } catch (e) {
+    return { ...out, why: e?.message || String(e), failed: true }
+  }
 }
 
 // files: [{ path, data(Buffer) }] → 계획 { docs, atts, records, rows }
@@ -160,28 +204,13 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
     const docRel = f.doc || `docs/${base}.md`
     const attRel = `docs/assets/${rel}`
     const row = (kind, msg, extra = {}) => plan.rows.push({ name: rel, kind, msg, ...extra })
-    let md = null
-    let blank = false
-    try {
-      if (ext === 'md' || ext === 'markdown') md = readText(f.data.toString('utf8'))
-      else if (TEXT.includes(ext)) md = `# ${path.posix.basename(base)}\n\n${textToMd(ext, f.data)}\n`
-      else if (DOCX.includes(ext) && conv) {
-        const body = dropToc(convert(rel, f.data))
-        // 머리만 남았다(통그림 슬라이드 · 스캔을 붙인 문서) — 빈 문서를 세우지 않고 스캔 pdf 처럼 바꾼 글 보관 · Claude 로
-        if (!noText(body)) md = `# ${path.posix.basename(base)}\n\n${body}\n`
-        else {
-          const got = mdOf && imagesOf(rel, f.data).length ? await mdOf(rel, f.data) : null
-          if (got) md = `# ${path.posix.basename(base)}\n\n${String(got).replace(/^# .*\n+/, '')}\n`
-          else blank = true
-        }
-      } else if (PCONLY.includes(ext) && conv) {
-        const got = (await localMd(ext, f.data)).trim() || (mdOf ? await mdOf(rel, f.data) : null)
-        if (got) md = `# ${path.posix.basename(base)}\n\n${String(got).replace(/^# .*\n+/, '')}\n`
-      }
-    } catch (e) {
-      row('fail', e.message)
+    const fm = await fileToMd(rel, f.data, { convert: conv, mdOf })
+    if (fm.failed) {
+      row('fail', fm.why)
       continue
     }
+    const md = fm.md
+    const blank = !!fm.blank
     if (md != null) {
       if (!direct || asRecord) {
         // 원본(docx · pptx · xlsx)은 첨부로 둔다 — 바로 넣을 수 있는 사람만
@@ -210,7 +239,7 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
     }
     if (blank) {
       // 글 없이 그림만 — 원본은 첨부 · 그림이 있으면 개인 프로그램이 Claude 로 옮긴다(scan · 부르는 쪽이 Claude Code 일로)
-      const scan = imagesOf(rel, f.data).length > 0
+      const scan = !!fm.scan
       if (direct && !(await read(attRel))?.equals(f.data)) plan.atts.push({ rel: attRel, data: f.data })
       row('fail', !scan ? (direct ? '원본은 첨부로 두었다. 글도 그림도 없는 파일이다' : '글도 그림도 없는 파일이다') : direct ? '원본은 첨부로 두었다. 글 없이 그림만 든 파일(통그림 슬라이드 · 스캔)이라 개인 프로그램이 Claude 로 옮긴다' : '바꾸지 못한 파일(글 없이 그림만): 개인 프로그램이 있는 PC 에서 넣는다', scan ? { scan: true } : {})
       continue
@@ -240,5 +269,5 @@ const tidy = (t) => readText(t).split('\n').map((l) => l.replace(/\s+$/, '')).jo
 
 export function summary(rows) {
   const n = (k) => rows.filter((r) => r.kind === k).length
-  return { doc: n('doc'), record: n('record'), att: n('att'), same: n('same'), fail: n('fail'), skip: n('skip'), run: n('run') }
+  return { doc: n('doc'), record: n('record'), att: n('att'), same: n('same'), fail: n('fail'), skip: n('skip'), run: n('run'), held: n('held') }
 }

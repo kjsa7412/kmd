@@ -17,7 +17,7 @@ import { runAgent } from '../core/agent.js'
 import zlib from 'node:zlib'
 import { hwpToMd } from '../core/hwp.js'
 import { pdfToMd, cleanPages } from '../core/pdf.js'
-import { planImport } from '../core/importer.js'
+import { planImport, fileToMd, TEAM_IMPORT_MAX } from '../core/importer.js'
 import { excerpt, fileText } from '../core/excerpt.js'
 import { fileRecord } from '../core/analyze.js'
 import { dropToc } from '../core/text.js'
@@ -218,6 +218,40 @@ test('넣기: pdf · hwp 는 Claude 없이 기록이 된다 · 스캔 pdf 만 md
   const team = await planImport(k, [{ path: '스캔.pdf', data: textPdf([[[700, ' ']]]) }], { asRecord: true })
   assert.equal(team.rows[0].kind, 'fail')
   assert.match(team.rows[0].msg, /스캔/)
+})
+
+test('fileToMd(S8 · K6-1): 파일 하나 → 글 · 꼴 · 첨부 할 만한가 · 스캔 · 못 꺼낸 까닭(던지지 않는다) · 팀 화면 한도 20', async () => {
+  assert.equal(TEAM_IMPORT_MAX, 20)
+  const md = await fileToMd('메모/회의.md', Buffer.from('# 회의\n\n## 정한 것\n화 · 목.\n'))
+  assert.equal(md.kind, 'md')
+  assert.equal(md.attach, false, 'md 는 글이 곧 원본')
+  assert.match(md.md, /## 정한 것/)
+  const txt = await fileToMd('a.txt', Buffer.from('한 줄'))
+  assert.equal(txt.kind, 'text')
+  assert.match(txt.md, /^# a\n/)
+  const pdf = await fileToMd('점검.pdf', textPdf([1, 2, 3].map((n) => [[700, `Pump ${n} stopped at 14:0${n} for inspection`]])))
+  assert.equal(pdf.kind, 'pdf')
+  assert.equal(pdf.attach, true)
+  assert.match(pdf.md, /^# 점검\n\n[\s\S]*Pump 1 stopped/)
+  const scan = await fileToMd('스캔.pdf', textPdf([[[700, ' ']]]))
+  assert.equal(scan.md, null)
+  assert.equal(scan.scan, true)
+  let asked = 0
+  const viaClaude = await fileToMd('스캔.pdf', textPdf([[[700, ' ']]]), { mdOf: async () => (asked++, '# 스캔\n\n옮긴 글') })
+  assert.equal(asked, 1)
+  assert.match(viaClaude.md, /옮긴 글/)
+  const broken = await fileToMd('깨짐.pdf', Buffer.from('%PDF-1.4 broken'))
+  assert.equal(broken.md, null, '깨진 pdf 도 던지지 않는다')
+  const off = await fileToMd('꺼둠.docx', Buffer.from('PK x'), { convert: false })
+  assert.equal(off.md, null)
+  assert.equal(off.attach, true, '바꾸기를 끄면 원본 첨부가 유일한 결과')
+  const bad = await fileToMd('나쁨.docx', Buffer.from('PK not a zip'))
+  assert.equal(bad.failed, true)
+  assert.ok(bad.why)
+  const img = await fileToMd('그림.png', Buffer.from('89504e47', 'hex'))
+  assert.deepEqual([img.kind, img.md, img.attach], ['img', null, true])
+  const exe = await fileToMd('a.exe', Buffer.from('MZ'))
+  assert.deepEqual([exe.kind, exe.attach], ['other', false])
 })
 
 test('파일 글 옮기기: 정리한 기록의 「본문」 · 머리 아래만 · 머리는 ### 로 · 없는 머리는 있는 머리를 알려 준다', () => {

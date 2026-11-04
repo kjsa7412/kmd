@@ -15,6 +15,7 @@ import { KmdError, httpStatusOf } from '../core/errors.js'
 import { makeAuth } from '../core/auth.js'
 import { makeMcp } from './mcp.js'
 import { makeHub, defaultDataDir } from './hub.js'
+import { TEAM_IMPORT_MAX } from '../core/importer.js'
 import { VERSION, BUILD } from './version.js'
 import * as V from './views.js'
 import * as kit from '../core/kit.js'
@@ -88,18 +89,26 @@ const dec = (s) => {
   }
 }
 
-function readBody(req, max = MAX_BODY) {
+// big — 넘으면 낼 오류 코드(파일 넣기는 413 E_TOO_BIG · 그 밖은 400)
+function readBody(req, max = MAX_BODY, big = 'E_INPUT') {
   return new Promise((resolve, reject) => {
     const parts = []
     let n = 0
+    let over = false
     req.on('data', (c) => {
+      if (over) return
       n += c.length
       if (n > max) {
-        reject(new KmdError('E_INPUT', '보낸 글이 너무 크다'))
-        req.destroy()
+        over = true
+        parts.length = 0
+        reject(new KmdError(big, big === 'E_TOO_BIG' ? `보낸 파일이 너무 크다: 한 번에 ${Math.round(max / 1048576)}MB 까지 · 나눠 보낸다` : '보낸 글이 너무 크다'))
+        // 413 · 400 답이 닿게 — 끊지 않고 남은 몸을 버리며 읽는다(쌓지 않는다) · 그래도 30초 넘게 오면 끊는다
+        if (big === 'E_TOO_BIG') setTimeout(() => req.destroy(), 30_000).unref()
+        else req.destroy()
       } else parts.push(c)
     })
     req.on('end', () => {
+      if (over) return
       try {
         resolve(n ? JSON.parse(Buffer.concat(parts).toString('utf8')) : {})
       } catch {
@@ -446,7 +455,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (req.method !== 'POST') throw new KmdError('E_METHOD', 'POST 로 보낸다')
       const b = await readBody(req, wi[2] === 'done' ? 8 << 20 : undefined)
       if (!b || typeof b !== 'object' || Array.isArray(b)) throw new KmdError('E_INPUT', '몸은 { … } 이다')
-      if (wi[2] === 'progress') return out(200, hub.intakeProgress(ctx, kn, b))
+      if (wi[2] === 'progress') return out(200, await hub.intakeProgress(ctx, kn, b))
       if (wi[2] === 'done') return out(200, await hub.intakeDone(ctx, kn, { draft: b.draft, cost: b.cost }))
       return out(200, await hub.intakeFail(ctx, kn, { why: b.why, code: b.code }))
     }
@@ -900,11 +909,13 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const iid = dec(im[1])
       await hub.meta(iid, ctx)
       hub.need(ctx, iid, 'write')
-      const b = await readBody(req, 280 << 20)
+      // 팀 — 요청 하나 64MB(파일 하나 32MB · 화면은 64MB 를 넘으면 묶음으로 나눠 보낸다 · S8) · 한 번에 TEAM_IMPORT_MAX 파일
+      const b = await readBody(req, mode === 'team' ? 64 << 20 : 280 << 20, 'E_TOO_BIG')
+      if (mode === 'team' && Array.isArray(b.files) && b.files.length > TEAM_IMPORT_MAX) throw new KmdError('E_INPUT', `팀 화면에서는 한 번에 ${TEAM_IMPORT_MAX} 파일까지: 많으면 Claude Code 에서 대량 넣기(kmd-team-import)`)
       const files = (Array.isArray(b.files) ? b.files : []).map((f) => ({ path: String(f.path || f.name || ''), data: Buffer.from(String(f.b64 || ''), 'base64') }))
       // group — 여러 파일을 나눠 보낼 때 한 일로 묶는다({ title, total } → 받은 id 로 이어 보내고 마지막에 last)
       const group = b.group && typeof b.group === 'object' ? { id: b.group.id ? String(b.group.id) : null, title: String(b.group.title || ''), total: Number(b.group.total) || 0, last: !!b.group.last } : null
-      return out(200, await hub.importFiles(ctx, iid, files, { group }))
+      return out(200, await hub.importFiles(ctx, iid, files, { group, attach: b.attach === true }))
     }
     // 지식 지우기 — 보관하지 않고 완전히 · 확인은 지식 이름 · 팀 관리자는 비밀번호 한 번 더
     const dl = p.match(/^\/api\/k\/([^/]+)\/delete$/)

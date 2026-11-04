@@ -4,7 +4,7 @@
 //          파일 들이기는 hub 의 run 그대로가 일이다(/api/runs 도 같은 것을 본다)
 //   상태   wait 기다림 · run 도는 중 · pausing 멈추는 중 · pause 멈춤 · check 확인할 것 · fail 못함 — 아직 줄에 있다
 //          done · rule(규칙으로 넣음) · cancel(그만둠 · 건너뜀) — 끝났다
-//   단계   수집 › 검토 › 기록 생성 › 문서 생성 — 일을 하는 쪽이 step(일, i) 로 단계에 들어간다. 단계 사이가 멈출 수 있는 자리다:
+//   단계   수집 › 검토 › 짓기 › 넣기(S-D33 · 짓기 = Claude 가 기록 + 조각을 짓는다 · 넣기 = 저장 한 번) — 일을 하는 쪽이 step(일, i) 로 단계에 들어간다. 단계 사이가 멈출 수 있는 자리다:
 //          멈춤을 눌렀거나 줄 멈춤이면 거기서 서서 이어서를 기다리고, 그만두면 Cancelled 를 던진다. 도는 단계 안에서 끊는 것은 signal(그만두기)
 //   길     claude(Claude Code 로 들이는 문서 생성) · fetch(가져오기) — 길마다 동시에 도는 수(caps) · 기다리는 일은 order 차례로
 //   남기기 <살림>/queue.json — 줄에 남은 일 · 끝난 일(30일 · 300개까지 · 줄은 400) · 도는 중이던 일은 다시 켤 때 「멈춤 — 프로그램이 꺼졌다」
@@ -14,7 +14,10 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import crypto from 'node:crypto'
 
-export const STAGES = ['수집', '검토', '기록 생성', '문서 생성']
+export const STAGES = ['수집', '검토', '짓기', '넣기']
+export const STAGE_WRITE = 2
+export const STAGE_PUT = 3
+const LAST = STAGES.length - 1
 const FINAL = new Set(['done', 'rule', 'cancel'])
 export const isFinal = (j) => FINAL.has(j.state)
 export class Cancelled extends Error {
@@ -185,7 +188,7 @@ export function createQueue({ file = null, caps = {}, keepDays = 30, keepMax = 3
       if (jobs.has(j.id)) return jobs.get(j.id)
       j.at ||= j.startedAt || now()
       j.lines ||= []
-      j.stage ??= 3
+      j.stage ??= LAST
       j.stages ||= STAGES.map(() => ({ state: j.state === 'cancel' ? 'skip' : j.state === 'fail' ? 'wait' : 'done' }))
       j.order ??= ++order
       if (!isFinal(j)) j.legacy = true
@@ -206,7 +209,7 @@ export function createQueue({ file = null, caps = {}, keepDays = 30, keepMax = 3
       if (state === 'run' || state === 'wait' || state === 'pausing' || state === 'pause') state = 'done'
       j.state = state
       if (msg != null) j.msg = msg
-      const i = Math.min(j.stage ?? 0, 3)
+      const i = Math.min(j.stage ?? 0, LAST)
       if (state === 'done' || state === 'rule') j.stages.forEach((s, k) => { if (k <= i && s.state !== 'skip') setStage(j, k, 'done'); else if (s.state === 'wait') setStage(j, k, 'skip') })
       else setStage(j, i, state === 'cancel' ? 'cancel' : state === 'check' ? 'check' : 'fail')
       j.endedAt = now()
@@ -265,12 +268,12 @@ export function createQueue({ file = null, caps = {}, keepDays = 30, keepMax = 3
       const j = need(id)
       const run = runners[j.spec?.type]
       if (!run) throw Object.assign(new Error('이 일은 다시 할 수 없다. 파일을 다시 넣거나 [지금 가져오기]'), { code: 'E_INPUT' })
-      const from = Math.min(j.stage ?? 0, 3)
+      const from = Math.min(j.stage ?? 0, LAST)
       ctl.delete(j.id)
       const c = C(j)
       c.active = true
       Object.assign(j, { state: 'wait', endedAt: null, parked: null, msg: `다시: 「${STAGES[from]}」 부터${force ? ' · 그대로 맞춘다' : ''}` })
-      for (let k = from; k < 4; k++) j.stages[k] = { state: 'wait' }
+      for (let k = from; k < STAGES.length; k++) j.stages[k] = { state: 'wait' }
       j.order = ++order
       q.line(j, 'sys', j.msg)
       save()
@@ -343,8 +346,8 @@ export function createQueue({ file = null, caps = {}, keepDays = 30, keepMax = 3
       for (const j of j0.jobs || []) {
         if (!j?.id || jobs.has(j.id)) continue
         // 도는 중 · 기다리던 일 — 일을 하는 쪽이 없다 · 멈춤으로 세우고 [이어서] 를 기다린다(그 단계부터 다시)
-        if (['run', 'pausing', 'wait'].includes(j.state)) Object.assign(j, { state: 'pause', parked: 'restart', msg: `프로그램이 꺼졌다. [이어서] 로 「${STAGES[Math.min(j.stage ?? 0, 3)]}」 부터` })
-        if (j.state === 'pause') { const s = j.stages?.[Math.min(j.stage ?? 0, 3)]; if (s && s.state !== 'pause') s.state = 'pause' }
+        if (['run', 'pausing', 'wait'].includes(j.state)) Object.assign(j, { state: 'pause', parked: 'restart', msg: `프로그램이 꺼졌다. [이어서] 로 「${STAGES[Math.min(j.stage ?? 0, LAST)]}」 부터` })
+        if (j.state === 'pause') { const s = j.stages?.[Math.min(j.stage ?? 0, LAST)]; if (s && s.state !== 'pause') s.state = 'pause' }
         jobs.set(j.id, j)
         order = Math.max(order, j.order || 0)
         back.push(j)

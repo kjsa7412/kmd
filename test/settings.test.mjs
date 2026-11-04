@@ -161,12 +161,18 @@ test('이 PC 의 Claude 로그인: 「kmd: Claude 로그인」 창(claude auth l
   }
 })
 
-test('저절로 하는 일: 「넣은 파일을 문서로」 를 끄면 docx 는 원본 첨부만', async () => {
+test('저절로 하는 일: 「넣은 파일을 문서로」 를 끄면 docx 는 원본 첨부만(팀 화면은 「원본 파일도 첨부로 둔다」 를 고를 때만 · S8)', async () => {
   const KIM = { user: 'kim', admin: true }
   await s.hub.setAuto(KIM, 'file', false)
   const fake = Buffer.from('PK not really a zip')
-  const r = await s.hub.importFiles(KIM, 'dpms', [{ path: '꺼둠.docx', data: fake }])
+  // 첨부를 고르지 않았다 — 글로 바꾸지 않는 파일은 결과가 없어 넣지 않음
+  const r0 = await s.hub.importFiles(KIM, 'dpms', [{ path: '꺼둠.docx', data: fake }])
+  assert.equal(r0.summary.skip, 1)
+  assert.match(r0.rows[0].msg, /원본 첨부를 고르지 않았다/)
+  assert.ok(!fs.existsSync(path.join(tmp, 'kn', 'dpms', 'docs', 'assets', '꺼둠.docx')))
+  const r = await s.hub.importFiles(KIM, 'dpms', [{ path: '꺼둠.docx', data: fake }], { attach: true })
   assert.equal(r.summary.doc, 0)
+  assert.equal(r.summary.run, 0, '팀 일꾼에게 넘기지 않는다')
   assert.equal(r.summary.att, 1)
   assert.ok(fs.existsSync(path.join(tmp, 'kn', 'dpms', 'docs', 'assets', '꺼둠.docx')))
   await s.hub.setAuto(KIM, 'file', true)

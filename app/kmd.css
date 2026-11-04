@@ -766,6 +766,9 @@ li.new{animation:flash 1.6s}
 .drop.bar .lks{margin:0 0 0 auto}
 .drop.bar select{max-width:260px}
 .drop.bar small{flex-basis:100%;color:var(--text-3);font-size:var(--fs-sm)}
+/* 팀 화면 파일 넣기 — 「원본 파일도 첨부로 둔다」(기본 꺼짐 · S8) */
+.drop.bar .impatt{display:inline-flex;align-items:center;gap:var(--sp-2);font-size:var(--fs-sm);color:var(--text-2);cursor:pointer}
+.drop.bar .impatt:hover{color:var(--text)}
 .qbar{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:var(--sp-5)}
 /* 정리할 팀 지식 줄 — 정리 화면 안에서 고른다 */
 .kstrip{display:flex;gap:var(--sp-5);flex-wrap:wrap;margin:0 0 var(--sp-7)}

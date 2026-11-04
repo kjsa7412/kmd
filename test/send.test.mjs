@@ -1,6 +1,7 @@
 // E7 필수 — 파일 넣기 · 보내기 · 받기 · 받은편지함 정리.
 //
-// docx → 문서 1 · 같은 파일 → 커밋 0 · 스캔 pdf → 「바꾸지 못한 파일 1」 · 상한 넘는 docx → 거절 · 고친 문서 → 보낼 것 1 →
+// 팀 화면 파일 넣기(S8): docx → 들이기 일감 · 일꾼 한 번 = 기록 + 문서 = 커밋 하나 · 같은 파일 → same · 스캔 pdf → 「바꾸지 못한 파일 1」 · 21개 → E_INPUT · 64MB → 413 ·
+// 상한 넘는 docx → 거절 · 고친 문서 → 보낼 것 1 →
 // 보내면 받는 지식에 기록 1(같은 것 다시 → 0) · 닿지 않으면 둠 + 멈춤 줄 · `private` 메모 → 옮김 0.
 
 import { test, before, after } from 'node:test'
@@ -21,7 +22,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s
 const KIM = { user: 'kim', admin: true }
 const G = (dir, ...a) => execFileSync('git', ['-c', 'core.quotepath=false', ...a], { cwd: dir, encoding: 'utf8' }).trim()
-const count = (dir) => Number(G(dir, 'rev-list', '--count', 'HEAD'))
+const count = (dir) => { try { return Number(G(dir, 'rev-list', '--count', 'HEAD')) } catch { return 0 } } // 처음 저장 전에는 git 이 없다
 
 // 작은 zip 쓰기 — 시험용(store · deflate)
 const CRC = Array.from({ length: 256 }, (_, n) => {
@@ -100,59 +101,97 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('파일 넣기: 기록으로 들이고 정리가 새 문서로 세우거나 기존 문서에 넣는다 · 같은 파일 → 0 · 스캔 pdf → 바꾸지 못한 파일 1 · 상한 넘는 docx → 거절', async () => {
+test('파일 넣기(팀 화면 · S8): 파일마다 들이기 일감 + 일 줄 하나 · 일꾼 한 번 = 기록 + 문서 = 커밋 하나 · 정리 일감 0 · 같은 파일 → same · 스캔 pdf · 21개 → E_INPUT · 첨부 기본 해제 · 그만두기 → 기록 없음', async () => {
   const dir = path.join(tmp, 'kn', 'dpms')
-  const file = docx([['Heading1', '목적'], ['', '회의에서 정한 것을 남긴다.'], ['Heading1', '정한 것'], ['', '배포 창은 화 · 목.']])
-  const r = await s.hub.importFiles(KIM, 'dpms', [{ path: '회의/회의록-1021.docx', data: file }])
-  assert.equal(r.summary.doc, 0, '바로 문서가 되지 않는다')
-  assert.equal(r.summary.record, 1, '기록이 된다')
-  assert.ok(!fs.existsSync(path.join(dir, 'docs', '회의', '회의록-1021.md')))
-  assert.ok(fs.existsSync(path.join(dir, 'docs', 'assets', '회의', '회의록-1021.docx')), '원본은 첨부')
-  const rec = (await s.hub.get('dpms')).works.find((w) => w.tags.includes('ingest/회의/회의록-1021.docx'))
-  assert.match(rec.body, /## 목적\n\n회의에서 정한 것을 남긴다\./)
-  assert.equal(rec.state, 'pend', '정리가 넣을 때까지 아직 안 넣은 기록')
-  // 정리(큐레이션) — 이어지는 문서가 없으니 새 문서로
-  const job = s.hub.jobsOf('dpms').find((j) => j.state === 'queued')
-  assert.ok(job && job.auto, '넣으면 정리가 저절로 걸린다')
+  // 들이기 일감은 끝낼 때 명부에서 만든 사람의 자리를 다시 읽는다 — 명부에 있는 사람으로
+  if (!s.auth.people().includes('kim')) await s.auth.addUser({ id: 'kim', admin: true })
   const wkey = (await s.auth.workerAdd()).key
+  const file = docx([['Heading1', '목적'], ['', '회의에서 정한 것을 남긴다.'], ['Heading1', '정한 것'], ['', '배포 창은 화 · 목.']])
+  const c0 = count(dir) || 1 // 처음 저장이면 git 을 세우는 첫 묶음이 하나 먼저 선다
+  const r = await s.hub.importFiles(KIM, 'dpms', [{ path: '회의/배포회의.docx', data: file }])
+  assert.equal(r.summary.run, 1, '팀 일꾼에게 넘김 1')
+  assert.equal(r.summary.record, 0, '받을 때 기록을 먼저 쓰지 않는다')
+  assert.ok(count(dir) <= c0, '받을 때는 커밋 0')
+  assert.ok(!fs.existsSync(path.join(dir, 'docs', 'assets', '회의', '배포회의.docx')), '원본 첨부는 기본 해제')
+  assert.equal(s.hub.jobsOf('dpms').length, 0, '정리 일감을 세우지 않는다')
+  const runId = r.rows[0].run
+  let run = s.hub.runGet(KIM, runId)
+  assert.deepEqual(run.stages.map((x) => x.state).slice(0, 2), ['done', 'done'], '수집 · 검토는 받으며 닫았다')
+  assert.equal(run.stage, 2, '「짓기」 앞에서 팀 일꾼을 기다린다')
+  assert.equal(run.spec?.type, 'intake')
   await workOnce({ server: s.url, key: wkey })
-  // 문서 이름은 파일 이름이 아니라 갈래(지식 생성 가드 G4) — 회의록 문서의 「YYYY-MM-DD 무엇」 항목
-  assert.ok(!fs.existsSync(path.join(dir, 'docs', '회의록-1021.md')), '파일 이름으로 문서를 세우지 않는다')
-  const md = fs.readFileSync(path.join(dir, 'docs', '회의록.md'), 'utf8')
-  assert.match(md, /## \d{4}-\d\d-\d\d 1021\n/)
-  assert.match(md, /회의에서 정한 것을 남긴다\./)
-  assert.match(md, /배포 창은 화 · 목\./)
-  let k = await s.hub.get('dpms')
-  assert.equal(k.byWork.get(rec.id).state, 'in', '넣은 뒤 「넣음」')
-  assert.ok(k.logs.some((w) => w.title === '정리: 회의록-1021.docx 들임' && w.reflects.includes(rec.id)), '정리는 이력에')
-  // 기존 문서와 이어지는 파일 — 그 문서의 항목을 고친다(새 문서를 세우지 않는다)
-  await s.hub.importFiles(KIM, 'dpms', [{ path: '카나리-갱신.md', data: Buffer.from('# 카나리 갱신\n\n## 카나리\n`canary-1` 에 먼저 올리고, 첫 30분은 요청의 20% 만 보낸다.\n') }])
-  await workOnce({ server: s.url, key: wkey })
-  assert.match(fs.readFileSync(path.join(dir, 'docs', '배포절차.md'), 'utf8'), /## 카나리\n<!-- applied: [^>]+ -->\n`canary-1` 에 먼저 올리고, 첫 30분은 요청의 20% 만 보낸다\./)
-  assert.ok(!fs.existsSync(path.join(dir, 'docs', '카나리-갱신.md')), '새 문서를 세우지 않았다')
+  assert.equal(count(dir), c0 + 1, '파일 하나 = 저장 하나 = 커밋 하나')
+  const k = await s.hub.get('dpms')
+  const rec = k.works.find((w) => w.tags.includes('ingest/회의/배포회의.docx'))
+  assert.ok(rec, '기록이 섰다')
+  assert.equal(rec.author, 'kim', '넣은 사람의 기록')
+  assert.ok(rec.tags.includes('intake'))
+  assert.equal(rec.state, 'in', '기록과 문서가 한 번에')
+  run = s.hub.runGet(KIM, runId)
+  assert.equal(run.state, 'done', run.msg)
+  assert.deepEqual(run.stages.map((x) => x.state), ['done', 'done', 'done', 'done'])
+  assert.equal(run.rec, rec.id)
+  assert.match(fs.readFileSync(path.join(dir, 'docs', '배포회의.md'), 'utf8'), /배포 창은 화 · 목\./)
 
+  // 같은 파일 — 다시 들이지 않는다
   const n0 = count(dir)
-  const again = await s.hub.importFiles(KIM, 'dpms', [{ path: '회의/회의록-1021.docx', data: file }])
+  const again = await s.hub.importFiles(KIM, 'dpms', [{ path: '회의/배포회의.docx', data: file }])
   assert.equal(again.summary.same, 1)
+  assert.equal(s.hub.intakesOf('dpms').filter((j) => j.state === 'queued').length, 0)
   assert.equal(count(dir), n0, '같은 파일 → 커밋 0')
 
+  // 스캔 pdf → 못 넣음(대량 넣기가 원본을 읽는다) · 읽지 못하는 종류 → 넣지 않음 · 큰 압축 → 못 넣음
   const pdf = await s.hub.importFiles(KIM, 'dpms', [{ path: '스캔.pdf', data: Buffer.from('%PDF-1.4 scan') }, { path: 'a.exe', data: Buffer.from('MZ') }])
   assert.equal(pdf.summary.fail, 1, '바꾸지 못한 파일 1')
+  assert.match(pdf.rows[0].msg, /대량 넣기/)
   assert.equal(pdf.summary.skip, 1, '넣지 않은 파일 1')
-
   const bomb = zip([{ name: 'word/document.xml', deflate: true, data: Buffer.alloc(40 << 20, 32) }])
   const big = await s.hub.importFiles(KIM, 'dpms', [{ path: '폭탄.docx', data: bomb }])
-  assert.equal(big.summary.doc, 0)
+  assert.equal(big.summary.run, 0)
   assert.match(big.rows[0].msg, /너무 크다/)
-  assert.ok(!fs.existsSync(path.join(dir, 'docs', '폭탄.md')))
-  await assert.rejects(s.hub.importFiles(KIM, 'dpms', Array.from({ length: 301 }, (_, i) => ({ path: `${i}.md`, data: Buffer.from('# x') }))), { code: 'E_INPUT' })
+  // 한 번에 20 파일까지(S-D35) — 21개는 하나도 받지 않는다 · 묶음 누계도
+  await assert.rejects(s.hub.importFiles(KIM, 'dpms', Array.from({ length: 21 }, (_, i) => ({ path: `${i}.md`, data: Buffer.from(`# ${i}\n\n## 칸${i}\n글 ${i}.\n`) }))), { code: 'E_INPUT', message: /한 번에 20 파일까지/ })
+  await assert.rejects(s.hub.importFiles(KIM, 'dpms', [{ path: '묶음.md', data: Buffer.from('# 묶음\n') }], { group: { id: 'aa11bb22cc33', title: '묶음', total: 21 } }), { code: 'E_INPUT' })
 
-  // 팀 지식에서 바로 넣지 못하는 사람은 기록으로(HTTP 길 — 글자로 보낸다)
+  // 그만두기 — 아직 짓지 않은 들이기는 기록 없이 닫는다
+  const st = await s.hub.importFiles(KIM, 'dpms', [{ path: '그만둘.md', data: Buffer.from('# 그만둘\n\n## 그만둘 순서\n넣지 않는다.\n') }])
+  const sid = st.rows[0].run
+  const jid = s.hub.runGet(KIM, sid).spec?.job || s.hub.intakesOf('dpms').find((j) => j.run === sid)?.id
+  await s.hub.queueAct(KIM, sid, 'cancel')
+  assert.equal(s.hub.job(jid).state, 'cancelled')
+  assert.equal(s.hub.runGet(KIM, sid).state, 'cancel')
+  assert.ok(!(await s.hub.get('dpms')).works.some((w) => w.tags.includes('ingest/그만둘.md')), '기록 없음')
+  await assert.rejects(s.hub.queueAct(KIM, (await s.hub.importFiles(KIM, 'dpms', [{ path: '멈춤.md', data: Buffer.from('# 멈춤\n\n## 멈춤 순서\n멈추지 않는다.\n') }])).rows[0].run, 'pause'), { code: 'E_INPUT' })
+
+  // 원본 첨부(고를 때만) — 글로 바꾼 파일은 들이기 저장 덩이에(같은 커밋) · 그림은 첨부가 유일한 결과
+  while (s.hub.intakesOf('dpms').some((j) => j.state === 'queued')) await workOnce({ server: s.url, key: wkey })
+  const png = Buffer.from('89504e470d0a1a0a', 'hex')
+  const noAtt = await s.hub.importFiles(KIM, 'dpms', [{ path: '그림.png', data: png }])
+  assert.equal(noAtt.summary.skip, 1)
+  assert.match(noAtt.rows[0].msg, /원본 첨부를 고르지 않았다/)
+  const att = await s.hub.importFiles(KIM, 'dpms', [{ path: '그림.png', data: png }, { path: '회의/첨부함.docx', data: docx([['Heading1', '첨부 순서'], ['', '원본도 둔다.']]) }], { attach: true })
+  assert.equal(att.summary.att, 1)
+  assert.equal(att.summary.run, 1)
+  assert.ok(fs.existsSync(path.join(dir, 'docs', 'assets', '그림.png')))
+  const a0 = count(dir)
+  await workOnce({ server: s.url, key: wkey })
+  assert.equal(count(dir), a0 + 1, '첨부도 같은 커밋')
+  assert.ok(fs.existsSync(path.join(dir, 'docs', 'assets', '회의', '첨부함.docx')), '원본은 첨부로')
+
+  // 쓰기 자리 — HTTP 길도 같다 · 21개는 400 · 첨부는 쓰기 자리부터
   const lee = await signIn(s, { id: 'lee', admin: false })
   await seat(s, 'lee', { dpms: 'write' }) // 기본 자리는 없음 — 쓰기 자리를 준 보통 팀 사람
-  const h = await fetch(`${s.url}/api/k/dpms/import`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${lee.key}` }, body: JSON.stringify({ files: [{ path: '메모.md', b64: b64('# 메모\n\n## 연락 순서\n당번 → 박.\n') }] }) }).then((x) => x.json())
-  assert.equal(h.summary.record, 1)
-  assert.ok(!fs.existsSync(path.join(dir, 'docs', '메모.md')))
+  const hdr = { 'content-type': 'application/json', authorization: `Bearer ${lee.key}` }
+  const h = await fetch(`${s.url}/api/k/dpms/import`, { method: 'POST', headers: hdr, body: JSON.stringify({ files: [{ path: '메모.md', b64: b64('# 메모\n\n## 연락 순서\n당번 → 박.\n') }] }) }).then((x) => x.json())
+  assert.equal(h.summary.run, 1)
+  assert.ok(!fs.existsSync(path.join(dir, 'docs', '메모.md')), '팀 일꾼이 짓기 전에는 문서가 없다')
+  const many = await fetch(`${s.url}/api/k/dpms/import`, { method: 'POST', headers: hdr, body: JSON.stringify({ files: Array.from({ length: 21 }, (_, i) => ({ path: `x${i}.md`, b64: b64('# x') })) }) })
+  assert.equal(many.status, 400)
+  assert.match((await many.json()).message || '', /한 번에 20 파일까지/)
+  // 팀 요청 하나는 64MB 까지 — 넘으면 413(화면은 묶음으로 나눠 보낸다)
+  const huge = await fetch(`${s.url}/api/k/dpms/import`, { method: 'POST', headers: hdr, body: JSON.stringify({ files: [{ path: '큰.md', b64: 'A'.repeat(65 << 20) }] }) })
+  assert.equal(huge.status, 413)
+  assert.equal((await huge.json()).error, 'E_TOO_BIG')
 })
 
 test('보내기: 고친 문서 → 보낼 것 1 → 받는 지식에 기록 1 · 같은 것 다시 → 0 · 닿지 않으면 둠', async () => {

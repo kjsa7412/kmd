@@ -9,7 +9,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { listKnowledge, loadKnowledge, coordsOfSection, sectionOf, looksLikeKnowledge } from '../core/knowledge.js'
 import { KmdError, httpStatusOf } from '../core/errors.js'
-import { save as coreSave, saveRecords, serial, localStamp, recordTakenSync, SECTIONS_MAX } from '../core/save.js'
+import { save as coreSave, saveRecords, serial, localStamp, recordTakenSync, SECTIONS_MAX, assetPath, ATTACH_MAX_BYTES } from '../core/save.js'
 import { audit as guardAudit, recordBody, RECORD_PARTS } from '../core/guard.js'
 import { recover as recoverSave } from '../core/journal.js'
 import { decide } from '../core/curate.js'
@@ -35,10 +35,10 @@ import { stopLine, ageText } from '../core/stopline.js'
 import * as backup from '../core/backup.js'
 import * as owners from '../core/owners.js'
 import { buildIndex, ladder, loadLearned, learn, searchCheck, exact } from '../core/search.js'
-import { planImport, summary, MAX_FILES, MAX_BYTES, PCONLY } from '../core/importer.js'
+import { planImport, summary, MAX_FILES, MAX_BYTES, PCONLY, TEAM_IMPORT_MAX, fileToMd, cleanPath } from '../core/importer.js'
 import { imagesOf } from '../core/ooxml.js'
 import { runAgent, agentAvailable } from '../core/agent.js'
-import { createQueue, Cancelled, isFinal, STAGES } from '../core/queue.js'
+import { createQueue, Cancelled, isFinal, STAGES, STAGE_WRITE, STAGE_PUT } from '../core/queue.js'
 import { modelOf, ROLES, CHOICES, roleOf } from '../core/models.js'
 import { expandSections } from '../core/excerpt.js'
 import { FILE_SCHEMA, filePrompt, fileRecord, COMMIT_SCHEMA, commitPrompt, commitAnalyzed } from '../core/analyze.js'
@@ -251,9 +251,20 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const heldDir = (id) => path.join(dataDir, 'held', encodeURIComponent(id))
   const intakeDayFile = path.join(dataDir, 'intake-day.json')
   let intakeDay = {} // 지식 → { day, n } — 하루 들이기 수(다시 켜도 잇는다)
+  const attachDayFile = path.join(dataDir, 'attach-day.json')
+  let attachDay = {} // 지식 → { day, bytes } — 하루 첨부 합(S-D30 · config.attachDaily · 다시 켜도 잇는다)
   let jobTimer = null
   // 같은 원천의 열린 일감을 찾는 열쇠(S-D47)
   const intakeKey = (type, src = {}) => (type === 'file' ? `f:${src.rel}:${src.sha}` : type === 'commit' ? `c:${src.src}:${src.commit}` : type === 'polish' ? `d:${src.doc}` : `r:${src.rec}`)
+  // 하루 첨부 합(S-D30 · 지식마다 config.attachDaily ?? 200MB) — 넘으면 E_RATE. 파일 넣기는 받은 그때 센다(들이기 저장이 나중에 실어도 다시 세지 않는다)
+  async function attachTake(id, bytes) {
+    const day = localDay(new Date())
+    const n0 = attachDay[id]?.day === day ? attachDay[id].bytes : 0
+    const cap = config.attachDaily ?? 200 << 20
+    if (n0 + bytes > cap) throw new KmdError('E_RATE', `이 지식의 오늘 첨부 합(${Math.round(cap / 1048576)}MB)을 넘는다. 내일 다시 넣는다`, { details: { retryAfter: 3600 } })
+    attachDay = { ...Object.fromEntries(Object.entries(attachDay).filter(([, v]) => v.day === day)), [id]: { day, bytes: n0 + bytes } }
+    await writeJsonAtomic(attachDayFile, attachDay)
+  }
   let jobsW = Promise.resolve()
   // 끝난 일감은 7일 · 지식마다 최근 50건 남긴다(사흘 · 일주일 정리 시간을 서버 기록 없이 본다) · 도는 것은 늘
   const JOB_KEEP_MS = 7 * 24 * 3600_000
@@ -272,7 +283,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (j.state !== 'running' || !(j.leaseUntil < Date.now())) continue
       changed = true
       if (j.kind === 'intake') {
+        // 그만두기를 눌렀는데 일꾼이 돌아오지 않았다 — 기록 없이 닫는다
+        if (j.stop) { intakeCancel(j, j.stop.by).catch((e) => log('들이기 일감 그만두기', j.id, e.message)); continue }
         j.leases = (j.leases || 0) + 1
+        intakeRunWait(j)
         if (j.leases >= 3) {
           j.state = 'closing'
           hub.intakeGiveUp(j, 'claude', '팀 일꾼이 세 번 끝내지 못했다').catch((e) => { Object.assign(j, { state: 'queued', worker: null }); log('들이기 일감 닫기', j.id, e.message) })
@@ -838,11 +852,47 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     if (bin && bin.length <= 32 << 20) await fs.writeFile(path.join(dir, `${rec}.bin`), bin)
   }
   // 일감 닫기 — 원천 파일을 걷고(held 는 위에서 옮겼다) · 결과 · 가져오기 일 줄에 한 줄
-  async function intakeClose(j, { rec = null, put = 0, held = 0, same = false, why = null }) {
-    Object.assign(j, { state: 'done', done: new Date().toISOString(), worker: null, result: { rec, put, held, ...(same ? { same: true } : {}) }, ...(why ? { why } : {}) })
+  async function intakeClose(j, { rec = null, put = 0, held = 0, same = false, why = null, docs = [] }) {
+    Object.assign(j, { state: 'done', done: new Date().toISOString(), worker: null, result: { rec, put, held, ...(same ? { same: true } : {}), ...(docs.length ? { docs: docs.slice(0, 20) } : {}) }, ...(why ? { why } : {}) })
     for (const p of [intakeMdOf(j.id), binOf(j.id)]) await fs.rm(p, { force: true }).catch((e) => log('들이기 원천 걷기', j.id, e.message))
-    intakeLine(j, held ? 'err' : 'ok', same ? '같은 것을 이미 들였다' : `넣음 ${put}${held ? ` · 넣지 못함${why ? `: ${why}` : ''}` : ''}${rec ? ` · 기록 ${rec}` : ''}`)
+    intakeLine(j, held ? 'err' : 'ok', same ? '같은 것을 이미 들였다' : `넣음 ${put}${docs.length ? `: ${docs.slice(0, 3).join(' · ')}` : ''}${held ? ` · 넣지 못함${why ? `: ${why}` : ''}` : ''}${rec ? ` · 기록 ${rec}` : ''}`)
+    intakeRunEnd(j)
     saveJobs()
+  }
+  // 그만두기(S8 · 파일 넣기 일 줄) — 아직 쓰지 않은 들이기는 기록 없이 닫는다(원천도 걷는다)
+  async function intakeCancel(j, by) {
+    Object.assign(j, { state: 'cancelled', done: new Date().toISOString(), worker: null, why: `그만뒀다: ${by || '사람'}`, result: { rec: null, put: 0, held: 0 } })
+    for (const p of [intakeMdOf(j.id), binOf(j.id)]) await fs.rm(p, { force: true }).catch((e) => log('들이기 원천 걷기', j.id, e.message))
+    intakeLine(j, 'sys', `그만뒀다: ${by || '사람'} · 기록을 남기지 않았다`)
+    intakeRunEnd(j)
+    saveJobs()
+  }
+  // 파일 넣기 일 줄(run) — 들이기 일감이 끝나면 「넣기」 를 닫는다(넣지 못함은 못함으로 줄에 남는다 · 그만둠은 그만둠) · 다시 켠 뒤에도(Q 에서 읽은 일)
+  const runOfJob = (j) => (j?.run ? runs.get(j.run) || Q.get(j.run) : null)
+  function intakeRunEnd(j) {
+    const run = runOfJob(j)
+    if (!run || isFinal(run)) return
+    runs.set(run.id, run)
+    const r = j.result || {}
+    if (j.state === 'cancelled') Object.assign(run, { state: 'cancel', msg: j.why || '그만뒀다' })
+    else {
+      Q.mark(run, STAGE_PUT)
+      Object.assign(run, {
+        rec: r.rec || null,
+        docs: (r.docs || []).map((x) => x.split(' › ')[0]).filter((x, i, a) => a.indexOf(x) === i),
+        state: r.held ? 'fail' : 'done',
+        msg: r.same ? '같은 것을 이미 들였다' : r.held ? `넣지 못함: ${j.why || '까닭은 기록에 있다'}` : `넣음: ${(r.docs || []).slice(0, 3).join(' · ') || `항목 ${r.put || 0}`}`,
+      })
+    }
+    hub.runSave(run)
+  }
+  // 임대가 지나 다시 기다린다 · 다시 켰다 — 일 줄은 「짓기」 앞에서 기다림
+  function intakeRunWait(j, msg = '팀 일꾼을 기다린다') {
+    const run = runOfJob(j)
+    if (!run || isFinal(run)) return
+    runs.set(run.id, run)
+    Object.assign(run, { state: 'wait', stage: STAGE_WRITE, parked: null, msg })
+    if (run.stages?.[STAGE_WRITE]) run.stages[STAGE_WRITE].state = 'wait'
   }
   // 팀 시계(S-D40 의 jobTimer · S-D22) — 임대 지난 일감 · 24시간 넘게 기다린 들이기는 기록만 + 넣지 못함(worker) · 바로잡힘 · 버림이 된 넣지 못함의 원천을 걷는다
   async function jobTick() {
@@ -1203,6 +1253,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const channel = SAVE_CHANNELS.has(opt.channel) || (asIntake && INTAKE_CHANNELS.has(opt.channel)) ? opt.channel : null
       // 저장 속도(S-D28) — 바깥에서 온 저장(세션 · HTTP · 보내기)만 · 서버 안의 저장(가져오기 · 받은편지함 · 되돌리기)은 세지 않는다
       if (channel && !opt.system && !asIntake) rateTake(ctx, id)
+      // 첨부(S-D30) — 쓰기 이상 · 지식마다 하루 합(들이기 저장의 첨부는 파일 넣기가 받은 그때 셌다)
+      if (input?.attach != null && !asIntake) {
+        if (!hub.canSave(ctx, id)) throw new KmdError('E_FORBIDDEN', '첨부는 쓰기 자리부터 둔다')
+        if (Array.isArray(input.attach)) await attachTake(id, input.attach.reduce((a, x) => a + Math.floor((String(x?.b64 || '').length * 3) / 4), 0))
+      }
       const t0 = Date.now()
       //   kit — 세션 스킬 판(MCP 가 넘긴 수 · 없으면 null · S-D15)
       const logLine = { at: localStamp(), kn: id, user: ctx.user || null, device: ctx.device || null, ch: channel || (opt.system ? 'system' : 'server'), kit: Number.isInteger(opt.kit) ? opt.kit : null }
@@ -1611,7 +1666,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           const src = { ...s, folder: s.kind === 'folder' || !(/^(https?|ssh):\/\//i.test(s.at) || /^[^/\\\s]+@[^/\\\s]+:/.test(s.at)) ? s.at : undefined }
           // 들어온 것마다 intake 하나(S7 · 설계 4-5) — 팀은 들이기 일감(정리 일감을 세우지 않는다) · 이 PC 는 지금 길(파일 넣기 · 커밋 분석 → 기록 · 저장 즉시 넣기)
           //   표 블록(저절로 채우는 표 · DB 표)은 save 로 그대로 — 기록 + 표가 이미 한 번에(system)
-          const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, onStage: (i) => (i >= 3 ? Q.mark(qj, 3) : Q.step(qj, i)), line: (kk, x) => Q.line(qj, kk, x), meaning: hub.meaningOk(id), intake: mode === 'pc' ? pcIntake(id, meta, s) : teamIntake(id, s, qj), save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
+          const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, onStage: (i) => (i >= STAGE_PUT ? Q.mark(qj, STAGE_PUT) : Q.step(qj, i)), line: (kk, x) => Q.line(qj, kk, x), meaning: hub.meaningOk(id), intake: mode === 'pc' ? pcIntake(id, meta, s) : teamIntake(id, s, qj), save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
           cache.delete(id)
           // 이 PC — 커밋 기록을 남겼다: 그 기록을 문서에 넣으면 이 일의 터미널에 한 줄씩 · 저장 즉시 넣기를 건다
           for (const rid of r.recIds || []) codeJobs.set(rid, qj)
@@ -2210,6 +2265,20 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     //   일감을 세우는 곳은 openJob 하나 · 끝내 못 넘으면 기록만 + 넣지 못함(원천은 <data>/held/<지식>/<기록>.* 에 남긴다)
     jobTick: () => jobTick(),
     intakesOf: (id) => (sweepJobs(), [...jobs.values()].filter((j) => j.kind === 'intake' && j.kn === id)),
+    // 파일 넣기 일 줄의 그만두기(S8) — 기다리는 일감은 기록 없이 닫고 · 일꾼이 짓는 중이면 표시만(다음 소식 · 끝에서 쓰지 않고 닫는다 · 안 오면 5분 뒤 시계가)
+    async intakeStop(run, by) {
+      const j = jobs.get(run?.spec?.job)
+      if (!j || j.kind !== 'intake' || !['queued', 'running'].includes(j.state)) {
+        if (run && !isFinal(run)) Q.end(run, 'cancel', `그만뒀다: ${by}`)
+        return { ok: true }
+      }
+      if (j.state === 'queued') { await intakeCancel(j, by); return { ok: true } }
+      if (!j.stop) j.stop = { by, at: new Date().toISOString() }
+      j.leaseUntil = Math.min(j.leaseUntil || Infinity, Date.now() + 5 * 60_000)
+      if (!isFinal(run)) Object.assign(run, { state: 'pausing', msg: `그만두는 중: ${by} · 팀 일꾼이 지금 초안을 마치면 넣지 않고 닫는다` })
+      saveJobs()
+      return { ok: true, stopping: true }
+    },
     // 일감을 세우는 한 곳(S-D47) — { state: 'queued', job } | { state: 'held', rec, why } | { state: 'same', rec }
     //   type: file · commit(S7 · fix · again · polish 는 S9 · S10 · S13) · by: 만든 사람(가져올 곳 · 문서 폴더는 kmd) · auto: 가져올 곳(하루 상한을 넘으면 기록만)
     //   src: { rel, sha, title, file } | { src, commit, title, touches } · md: 원천 글 · bin: 원천 파일 바이트 · qj: 줄을 남길 가져오기 일
@@ -2285,10 +2354,22 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         await hub.intakeGiveUp(j, 'noclaude', 'Claude 에 보내지 않는 지식: 기록만 남겼다').catch((e) => { Object.assign(j, { state: 'queued', worker: null }); log('들이기 일감 닫기', j.id, e.message) })
         throw new KmdError('E_FORBIDDEN', '이 지식은 Claude 에 보내지 않는다: 기록만 남겼다')
       }
+      // 그만두기를 눌렀다 — 쓰지 않고 닫는다
+      if (j.stop) {
+        await intakeCancel(j, j.stop.by)
+        throw new KmdError('E_CONFLICT', '그만둔 일감이다')
+      }
       const md = await fs.readFile(intakeMdOf(j.id), 'utf8').catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
       if (md == null) throw new KmdError('E_NOTFOUND', '들일 글이 남아 있지 않다')
       const k = await hub.get(id)
       const g = intakeG(k, j, md)
+      // 파일 넣기 일 줄 — 「짓기」(팀 일꾼이 기록 + 조각을 짓는다)
+      const run = runOfJob(j)
+      if (run && !isFinal(run)) {
+        runs.set(run.id, run)
+        Q.mark(run, STAGE_WRITE)
+        run.msg = '팀 일꾼이 기록 + 문서를 짓는 중'
+      }
       // 일꾼에게 보인 후보 · 지문 — 끝낼 때 이것으로 견준다(일꾼이 보낸 것을 믿지 않는다)
       j.seen = g.docs.map((d) => ({ doc: d.doc, s: d.sections.map((x) => [x.h, x.base]) }))
       j.beat = new Date().toISOString()
@@ -2296,15 +2377,24 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       return g
     },
     // 소식 — 쓰는 중 · 끝(비용은 done 이 센다) · 사람이 멈췄으면 stop
-    intakeProgress(dctx, id, { tick = false, end = false, ok = true, why = null } = {}) {
+    async intakeProgress(dctx, id, { tick = false, end = false, ok = true, why = null } = {}) {
       const j = intakeJobOf(dctx, id)
       j.beat = new Date().toISOString()
+      if (j.stop) {
+        await intakeCancel(j, j.stop.by)
+        return { ok: true, stop: true }
+      }
       if (!tick) intakeLine(j, end ? (ok ? 'ok' : 'err') : 'tool', end ? (ok ? '✓ 초안을 받았다' : `✗ 초안을 받지 못했다${why ? `: ${String(why).slice(0, 120)}` : ''}`) : `▸ Claude 에 보냄 · ${j.tries ? `${j.tries + 1}번째` : '처음'}`)
       return { ok: true, stop: !!j.stop }
     },
     // 초안 끝 — 서버가 시도를 센다(본문의 tries · last 는 믿지 않는다 · S-D20) · 마지막 전에는 마른 검사만(고칠 수 있는 까닭이면 { fix })
     async intakeDone(dctx, id, body = {}) {
       const j = intakeJobOf(dctx, id)
+      // 그만두기를 눌렀다 — 받은 초안은 넣지 않는다(기록 없음)
+      if (j.stop) {
+        await intakeCancel(j, j.stop.by)
+        return { ok: true, stopped: true, put: 0, held: [] }
+      }
       const usd = Number(body?.cost)
       if (usd > 0 && usd < 100) j.cost = (j.cost || 0) + usd
       j.calls = (j.calls || 0) + 1
@@ -2320,7 +2410,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const cost = { usd: Math.round((j.cost || 0) * 1e4) / 1e4, calls: j.calls }
       const finish = async (r) => {
         if (r.held?.length) await keepHeld(id, r.id, md, bin)
-        await intakeClose(j, { rec: r.id, put: r.put ?? 0, held: r.held?.length || 0, same: !!r.same })
+        const docs = (r.putRows || []).map((x) => `${String(x.doc || '').replace(/^docs\/|\.md$/g, '')} › ${x.heading}`)
+        await intakeClose(j, { rec: r.id, put: r.put ?? 0, held: r.held?.length || 0, same: !!r.same, docs, why: r.held?.length ? String(r.held[0].why || '').slice(0, 200) : null })
         return { ok: true, rec: r.id, put: r.put ?? 0, held: (r.held || []).map(({ coord, doc, heading, code, why }) => ({ coord, doc, heading, code, why })), ...(r.same ? { same: true } : {}) }
       }
       // 그사이 자리를 잃었다 — 기록만 + 넣지 못함(그 사람 이름으로 · S-D43)
@@ -2336,7 +2427,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const bad = (c.held || []).find((h) => FIX_CODES.has(h.code))
         if (bad) { intakeLine(j, 'err', `✗ 검사에 걸렸다: ${bad.why} · 고쳐 쓴다`); saveJobs(); return { fix: `${bad.coord ? bad.coord + ': ' : ''}${bad.why}` } }
       }
-      const r = await hub.save(ctx, id, p.input, { channel: intakeChannel(j), intake: { job: j.id, tags: intakeTagsOf(j), held: p.held, cost, warn: p.warn } })
+      // 원본 첨부(S-D30 · 파일 넣기에서 고른 것) — 같은 저장 덩이 · 같은 커밋
+      const input = j.src?.attach && bin ? { ...p.input, attach: [{ path: j.src.attach, b64: bin.toString('base64') }] } : p.input
+      const r = await hub.save(ctx, id, input, { channel: intakeChannel(j), intake: { job: j.id, tags: intakeTagsOf(j), held: p.held, cost, warn: p.warn } })
       return finish(r)
     },
     // 초안을 받지 못했다(일꾼) — 로그인 · 한도 · claude 없음은 일감을 태우지 않고 다시 기다림 · 그 밖(예산 · 시간 · 모양)은 한 번으로 세고 마지막이면 기록만 + 넣지 못함(claude)
@@ -2714,9 +2807,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       if (j.rows.length > 2000) j.rows.splice(0, j.rows.length - 2000)
       const c = (k) => j.rows.filter((x) => x.kind === k).length
-      j.msg = `받았다 ${j.sent}/${j.total || j.sent} · 문서 ${c('doc')} · 기록 ${c('record')} · Claude 일 ${c('run')} · 첨부 ${c('att')}${c('same') ? ' · 그대로 ' + c('same') : ''}${c('fail') ? ' · 못 넣음 ' + c('fail') : ''}${c('skip') ? ' · 읽지 못하는 종류 ' + c('skip') : ''}`
+      j.msg = `받았다 ${j.sent}/${j.total || j.sent} · ${mode === 'team' ? `팀 일꾼에게 넘김 ${c('run')}${c('held') ? ` · 넣지 못함 ${c('held')}` : ''}` : `문서 ${c('doc')} · 기록 ${c('record')} · Claude 일 ${c('run')}`} · 첨부 ${c('att')}${c('same') ? ' · 그대로 ' + c('same') : ''}${c('fail') ? ' · 못 넣음 ' + c('fail') : ''}${c('skip') ? ' · 읽지 못하는 종류 ' + c('skip') : ''}`
       Q.line(j, c('fail') ? 'err' : 'ok', j.msg)
-      if (last || (j.total && j.sent >= j.total)) { j.uploaded = true; if (j.state !== 'pause') Q.mark(j, 3) }
+      if (last || (j.total && j.sent >= j.total)) { j.uploaded = true; if (j.state !== 'pause') Q.mark(j, STAGE_PUT) }
       hub.groupCheck(j)
     },
     // 다 보냈고 안의 일이 모두 끝났다(못함은 줄에 남는다) — 묶음을 닫는다
@@ -2727,19 +2820,19 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const bad = kids.filter((x) => x.state === 'fail').length
       Q.end(j, 'done', `${j.msg}${bad ? ` · 들이지 못한 파일 ${bad}` : ''}`)
     },
-    groupAct(j, act) {
+    groupAct(j, act, by = null) {
       const kids = j.children.map((x) => Q.get(x)).filter((x) => x && !isFinal(x))
       if (act === 'cancel') {
-        for (const x of kids) if (x.state !== 'fail') Q.cancel(x.id, '그만뒀다. 묶음째')
+        for (const x of kids) if (x.state !== 'fail') { if (x.spec?.type === 'intake') hub.intakeStop(x, by || j.by).catch((e) => log('들이기 그만두기', x.id, e.message)); else Q.cancel(x.id, '그만뒀다. 묶음째') }
         return Q.end(j, 'cancel', `그만뒀다: ${j.sent}/${j.total} 에서 · 남은 파일은 보내지 않는다`)
       }
-      if (act === 'pause') { for (const x of kids) Q.pause(x.id); Object.assign(j, { paused: true, state: 'pause', msg: '멈췄다. 안의 파일이 지금 단계를 마치고 선다' }); return j }
-      if (act === 'resume') { for (const x of kids) if (x.state === 'pause' || x.state === 'pausing') Q.resume(x.id); Object.assign(j, { paused: false, state: 'run' }); hub.groupCheck(j); return j }
+      if (act === 'pause') { for (const x of kids) if (x.spec?.type !== 'intake') Q.pause(x.id); Object.assign(j, { paused: true, state: 'pause', msg: '멈췄다. 안의 파일이 지금 단계를 마치고 선다' }); return j }
+      if (act === 'resume') { for (const x of kids) if (x.spec?.type !== 'intake' && (x.state === 'pause' || x.state === 'pausing')) Q.resume(x.id); Object.assign(j, { paused: false, state: 'run' }); hub.groupCheck(j); return j }
       throw new KmdError('E_INPUT', '묶음은 멈춤 · 이어서 · 그만두기만 한다')
     },
     queueItem(j, knName = null) {
       const { lines, spec, rows, children, ...x } = j
-      return { ...x, knName, n: (lines || []).length, fin: isFinal(j) || !!j.legacy, retry: ['ingest', 'source'].includes(spec?.type) || j.kind === 'curate', ...(spec?.name ? { src: spec.name } : {}), ...(spec?.recId ? { rec: spec.recId } : {}), ...(j.kind === 'group' ? { rows: (rows || []).slice(-300), children: (children || []).length } : {}) }
+      return { ...x, knName, n: (lines || []).length, fin: isFinal(j) || !!j.legacy, retry: ['ingest', 'source'].includes(spec?.type) || j.kind === 'curate', ...(spec?.type === 'intake' ? { intake: true } : {}), ...(spec?.name ? { src: spec.name } : {}), ...(spec?.recId ? { rec: spec.recId } : j.rec ? { rec: j.rec } : {}), ...(j.kind === 'group' ? { rows: (rows || []).slice(-300), children: (children || []).length } : {}) }
     },
     async queueList(ctx) {
       const ks = new Map((await hub.visible(ctx)).map((k) => [k.id, k.name]))
@@ -2759,7 +2852,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (!ks.has(t.kn) || t.kind) continue // 들이기 일감은 가져오기 일 줄에 줄로 남는다
         const state = t.state === 'running' && t.stop ? 'pausing' : { queued: 'wait', running: 'run', failed: 'fail', cancelled: 'cancel' }[t.state] || 'done'
         const sum = t.summary ? `넣음 ${t.summary.put ?? 0}${t.summary.changed ? ` · 값 바뀜 ${t.summary.changed}` : ''}${t.summary.left ? ` · 남김 ${t.summary.left}` : ''}` : ''
-        items.push({ id: 't:' + t.id, kind: 'tidy', origin: 'kmd', kn: t.kn, knName: ks.get(t.kn), title: '정리', by: t.by || 'kmd', auto: t.auto ? 'tidy' : null, state, stage: 3, stages: [{ state: 'skip' }, { state: 'skip' }, { state: 'skip' }, { state: state === 'cancel' ? 'cancel' : state }], order: 1e9, at: t.at, startedAt: t.at, endedAt: t.done || null, msg: t.state === 'running' && t.stop ? `멈추는 중: ${t.stop.by} · 지금 쓰는 자리가 끝나면 멈춘다` : t.why || (t.state === 'queued' ? '정리 일꾼을 기다린다' : t.state === 'running' ? '정리 일꾼이 하는 중' : sum), n: 0, fin: !['queued', 'running', 'failed'].includes(t.state), retry: false })
+        items.push({ id: 't:' + t.id, kind: 'tidy', origin: 'kmd', kn: t.kn, knName: ks.get(t.kn), title: '정리', by: t.by || 'kmd', auto: t.auto ? 'tidy' : null, state, stage: STAGE_PUT, stages: [{ state: 'skip' }, { state: 'skip' }, { state: 'skip' }, { state: state === 'cancel' ? 'cancel' : state }], order: 1e9, at: t.at, startedAt: t.at, endedAt: t.done || null, msg: t.state === 'running' && t.stop ? `멈추는 중: ${t.stop.by} · 지금 쓰는 자리가 끝나면 멈춘다` : t.why || (t.state === 'queued' ? '정리 일꾼을 기다린다' : t.state === 'running' ? '정리 일꾼이 하는 중' : sum), n: 0, fin: !['queued', 'running', 'failed'].includes(t.state), retry: false })
       }
       return { hold: Q.hold, caps: Q.caps, lanes: Q.lanes(), can: mode === 'pc' || !!ctx.admin, items }
     },
@@ -2792,7 +2885,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!j || !(await hub.visible(ctx)).some((k) => k.id === j.kn)) throw new KmdError('E_NOTFOUND', '그 일은 이제 없다')
       if (!(await mine(j.kn, j.by))) throw new KmdError('E_FORBIDDEN', '넣은 사람 · 그 지식의 지식관리자가 한다')
       try {
-        if (j.kind === 'group') return hub.queueItem(hub.groupAct(j, act))
+        if (j.kind === 'group') return hub.queueItem(hub.groupAct(j, act, ctx.user))
+        // 파일 넣기의 들이기(S8) — 팀 일꾼이 맡는다 · 그만두기만(아직 쓰지 않았으면 기록 없이 닫는다)
+        if (j.spec?.type === 'intake') {
+          if (act !== 'cancel') throw new KmdError('E_INPUT', '팀 일꾼이 짓는 파일은 그만두기만 한다')
+          await hub.intakeStop(j, ctx.user)
+          return hub.queueItem(j)
+        }
         if (act === 'force' && mode !== 'pc' && !hub.canSource(ctx, j.kn)) throw new KmdError('E_FORBIDDEN', '[그대로 맞추기] 는 그 지식의 지식관리자가 한다')
         const again = act === 'retry' || act === 'force' || (act === 'resume' && j.parked === 'restart')
         // 가져오기 · 넣기는 새로 한 번 — 지난 일은 걷는다
@@ -2910,7 +3009,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const w = k.byWork.get(recId)
       if (!w || (w.state !== 'pend' && w.state !== 'nowhere')) { run.state = 'done'; run.msg = '이미 넣은 기록이다'; return { doc: null } }
       const name = hub.ingestFileOf(w).split('/').pop()
-      await Q.step(run, 3)
+      await Q.step(run, STAGE_PUT)
       hub.runLine(run, 'sys', `${meta.name} 에 들인다. 기록 ${w.id}`)
       const token = hub.agentToken(id, w.id, run.id)
       let r
@@ -3137,7 +3236,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 멈춘 일 · 줄 멈춤은 앞일 자리를 잡기 전에 선다(멈춘 일이 앞일 자리를 쥐지 않게)
       const job = Q.gate(run).then(() => prepSlot(() => hub.ingestPrep(ctx, id, args)), (e) => stop(e, args.recId).then(() => null)).then(async (p) => {
         if (!p) return
-        try { await Q.step(run, 3, { lane: 'claude' }) } catch (e) { return stop(e, p.recId) }
+        try { await Q.step(run, STAGE_PUT, { lane: 'claude' }) } catch (e) { return stop(e, p.recId) }
         return hub.queueRun(id, () => hub.ingestPlace(ctx, id, p))
       })
       const mine = preps.get(id) || preps.set(id, new Set()).get(id)
@@ -3168,7 +3267,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             hub.ingestEnd(id, run, null, meta)
             return null
           }
-          await Q.step(run, 2)
+          await Q.step(run, STAGE_WRITE)
           recId = (await hub.save(ctx, id, { record: rec }, { noCurate: true, holdWhy: '가져옴: 넣은 파일(정리가 문서 자리를 고른다)' })).id
           run.spec.recId = recId
           fs.rm(binOf(run.id), { force: true }).catch(() => {})
@@ -3176,7 +3275,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           run.rec = recId
           hub.runLine(run, 'ok', `기록이 됐다: ${recId}`)
         }
-        else await Q.step(run, 2)
+        else await Q.step(run, STAGE_WRITE)
         await hub.polishRecord(id, recId, run).catch((e) => hub.runLine(run, 'err', `기록 정리: ${e.message}`))
         return { rel, data, recId, run }
       } catch (e) {
@@ -3191,7 +3290,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async ingestPlace(ctx, id, { rel, data, recId, run }) {
       const meta = await hub.meta(id)
       try {
-        await Q.step(run, 3)
+        await Q.step(run, STAGE_PUT)
         if (!hub.agentOk(id)) {
           const got = await hub.ingestNow(id, recId)
           run.state = got.doc ? (got.how === 'claude' ? 'done' : 'rule') : 'fail'
@@ -3203,7 +3302,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         await hub.ingestAgent(id, recId, run, { original: data && PCONLY.includes(rel.split('.').pop().toLowerCase()) ? data : null })
       } catch (e) {
         run.state = e?.cancelled ? 'cancel' : 'fail'
-        run.msg = e?.cancelled ? '그만뒀다. 「문서 생성」 에서 · 기록은 남았다(정리 때 다시 넣는다)' : e.message
+        run.msg = e?.cancelled ? `그만뒀다. 「${STAGES[STAGE_PUT]}」 에서 · 기록은 남았다(정리 때 다시 넣는다)` : e.message
         hub.runLine(run, e?.cancelled ? 'sys' : 'err', run.msg)
       } finally {
         hub.ingestEnd(id, run, recId, meta)
@@ -3327,7 +3426,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           let did = 0
           for (const g of groups) {
             if (!cj) { cj = Q.add({ kind: 'curate', origin: 'kmd', kn: id, title: '기록을 문서에 넣기', by: 'kmd', auto: 'curate' }); curateQ.set(id, cj.id) }
-            try { await Q.step(cj, 3) } catch { stop = true; break }
+            try { await Q.step(cj, STAGE_PUT) } catch { stop = true; break }
             const what = g.kind === 'section' ? `${String(g.doc).replace(/^docs\/|\.md$/g, '')} › ${g.heading}` : g.record?.title || g.kind
             const ok = await hub.placeGroup(id, g).catch((e) => (log(`바로 넣기 ${id}: ${e.message}`), Q.line(cj, 'err', `${what}: ${e.message}`), false))
             if (ok) { did++; Q.line(cj, 'ok', `넣었다: ${what}`) }
@@ -3369,12 +3468,110 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (!preps.get(id)?.size) return
       }
     },
+    // 팀 화면 파일 넣기(S8 · K5 · 설계 4-4) — 파일마다 글로 바꿔(fileToMd) 들이기 일감 하나 + 일 줄 run 하나.
+    //   수집 · 검토는 여기서 닫고 · 짓기 = 팀 일꾼이 집을 때 · 넣기 = 저장 문 한 번 → 파일 하나 = 일 줄 하나 = 저장 하나 = 커밋 하나.
+    //   한 번(묶음 누계)에 TEAM_IMPORT_MAX 파일(쓰는 법 안내 · 비용 경계는 openJob 한도) · 정리를 걸지 않는다 ·
+    //   원본 첨부는 고를 때만(쓰기 이상 · 하루 합) — 글로 바꾼 파일은 들이기 저장 덩이에 · 그림 · 바꾸기를 끈 파일은 첨부가 유일한 결과라 그대로 첨부
+    async importTeam(ctx, id, meta, files, { group = null, attach = false } = {}) {
+      if (!Array.isArray(files) || !files.length) throw new KmdError('E_INPUT', '넣을 파일이 없다')
+      const many = `팀 화면에서는 한 번에 ${TEAM_IMPORT_MAX} 파일까지: 많으면 Claude Code 에서 대량 넣기(kmd-team-import)`
+      if (files.length > TEAM_IMPORT_MAX || (group && Number(group.total) > TEAM_IMPORT_MAX)) throw new KmdError('E_INPUT', many)
+      const gj = group ? hub.groupJob(ctx, id, group) : null
+      if (gj && isFinal(gj)) return { stopped: true, group: gj.id, summary: summary([]), rows: [] }
+      if (gj && gj.sent + files.length > TEAM_IMPORT_MAX) throw new KmdError('E_INPUT', many)
+      const shut = backup.closed(meta)
+      if (shut) throw new KmdError('E_BEHIND', shut.message)
+      const k = await hub.get(id)
+      const conv = hub.autoOf(ctx.user, 'file')
+      const att = !!attach && hub.canSave(ctx, id)
+      const rows = []
+      const atts = [] // 첨부만 남는 파일(그림 · 바꾸기 끔) — 끝에 한 번에
+      for (const f of files) {
+        let rel
+        try { rel = cleanPath(f?.path || f?.name) } catch (e) { rows.push({ name: String(f?.path || f?.name || '?').slice(0, 200), kind: 'fail', msg: e.message }); continue }
+        const row = (kind, msg, extra = {}) => { const r = { name: rel, kind, msg, ...extra }; rows.push(r); return r }
+        const data = Buffer.isBuffer(f.data) ? f.data : Buffer.alloc(0)
+        if (data.length > ATTACH_MAX_BYTES) { row('fail', `파일 하나는 ${ATTACH_MAX_BYTES >> 20}MB 까지: 큰 파일은 Claude Code 에서 대량 넣기로`); continue }
+        const fm = await fileToMd(rel, data, { convert: conv })
+        if (fm.failed) { row('fail', `글로 바꾸지 못했다: ${fm.why}`); continue }
+        const attRel = `docs/assets/${rel}`
+        if (fm.md == null) {
+          // 글을 못 꺼냈다 — 스캔 · 그림만 든 파일은 Claude Code 대량 넣기가 원본을 읽는다
+          if (fm.scan || fm.blank) { row('fail', fm.kind === 'pdf' ? `글이 없는 ${fm.ext}: 대량 넣기(Claude Code)가 원본을 읽는다` : fm.scan ? '글 없이 그림만 든 파일: 대량 넣기(Claude Code)가 원본을 읽는다' : '글도 그림도 없는 파일이다', fm.scan ? { scan: true } : {}); continue }
+          if (!fm.attach) { row('skip', `넣지 않은 파일: 읽지 못하는 종류(.${fm.ext || '?'})`); continue }
+          if (!att) { row('skip', attach ? '원본 첨부는 쓰기 자리부터 둔다' : '원본 첨부를 고르지 않았다'); continue }
+          atts.push({ rel: attRel, data, row: row('att', '원본은 첨부로 두었다') })
+          continue
+        }
+        // 너무 긴 글 — 기록 본문 상한(20만 자)과 같은 선 · 한 파일이 묶음 전체를 끊지 않는다
+        if (fm.md.length > 200_000) { row('fail', '넣지 못했다: 글이 20만 자를 넘는다. 나눠 넣거나 Claude Code 에서 대량 넣기로'); continue }
+        const tag = `ingest/${rel}`.slice(0, 60)
+        const sha = crypto.createHash('sha256').update(fm.md.trim()).digest('hex').slice(0, 16)
+        // 같은 파일(넣은 기록이 있다 · 넣지 못함 · 바로잡힘은 다시 들인다) — 내가 쓴 기록이거나 서버가 붙인 들이기 기록만(S-D16 · 남의 가짜 기록이 막지 못하게)
+        if (k.works.some((w) => (w.author === ctx.user || w.tags.includes('intake')) && w.state !== 'held' && w.state !== 'fixed' && w.tags.includes(tag) && (w.tags.includes(`md/${sha}`) || w.body.trim() === fm.md.trim()))) { row('same', '같은 파일: 그대로 두었다'); continue }
+        const useAtt = att && fm.attach
+        let r
+        try {
+          if (useAtt) await attachTake(id, data.length)
+          r = await hub.openJob(id, { type: 'file', by: ctx.user, src: { rel, sha, title: path.posix.basename(rel), file: rel, ...(useAtt ? { attach: attRel } : {}) }, md: fm.md, bin: data })
+        } catch (e) {
+          if (!(e instanceof KmdError)) throw e
+          row('fail', e.message)
+          continue
+        }
+        if (r.state === 'same') { row('same', '같은 파일: 그대로 두었다', r.rec ? { rec: r.rec } : {}); continue }
+        if (r.state === 'held') { row('held', `넣지 못함: ${r.why}`, { rec: r.rec }); continue }
+        if (r.again) { row('same', '같은 파일을 팀 일꾼이 이미 들이는 중이다'); continue }
+        // 일 줄 — 수집 · 검토는 끝났다 · 「짓기」 앞에서 팀 일꾼을 기다린다
+        const run = hub.newRun(id, { title: path.posix.basename(rel), file: rel, by: ctx.user, quiet: files.length > 1, parent: gj?.id })
+        run.stages[0].state = run.stages[1].state = 'done'
+        Object.assign(run, { stage: STAGE_WRITE, msg: '팀 일꾼을 기다린다', spec: { type: 'intake', kn: id, job: r.job, rel } })
+        Q.line(run, 'sys', `받았다 · 글로 바꿨다(${fm.kind === 'md' ? 'md' : fm.ext}${useAtt ? ' · 원본 첨부' : ''}): 팀 일꾼이 기록 + 문서를 한 번에 짓는다`)
+        const j = jobs.get(r.job)
+        if (j) Object.assign(j, { run: run.id, qj: run.id })
+        saveJobs()
+        row('run', '기록 + 문서를 짓는 중(팀 일꾼)', { run: run.id })
+      }
+      // 첨부만 남는 파일 — 같은 글이면 건너뛰고 같은 이름의 다른 글은 덮지 않는다 · 한 커밋
+      if (atts.length) {
+        await serial(path.resolve(meta.dir), async () => {
+          await ensureRepo(meta.dir)
+          const paths = []
+          for (const a of atts) {
+            try {
+              const p = assetPath(meta.dir, a.rel)
+              const have = await fs.readFile(p.full).catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
+              if (have?.equals(a.data)) { Object.assign(a.row, { kind: 'same', msg: '같은 첨부: 그대로 두었다' }); continue }
+              if (have) { Object.assign(a.row, { kind: 'fail', msg: '같은 이름의 다른 첨부가 있다: 이름을 바꿔 넣는다' }); continue }
+              await attachTake(id, a.data.length)
+              await fs.mkdir(path.dirname(p.full), { recursive: true })
+              await fs.writeFile(p.full, a.data)
+              paths.push(p.rel)
+            } catch (e) {
+              if (!(e instanceof KmdError)) throw e
+              Object.assign(a.row, { kind: 'fail', msg: e.message })
+            }
+          }
+          if (paths.length) await commitPaths(meta.dir, paths, `첨부: ${ctx.user} · ${paths.length}`, ctx.user)
+        })
+        cache.delete(id)
+        if (backup.attached(meta)) backup.enqueue(meta, { log }).catch((e) => log('백업 걸기', id, e.message))
+      }
+      const s = summary(rows)
+      const bad = rows.filter((x) => x.kind === 'fail' || x.kind === 'held')
+      if (rows.some((x) => x.kind !== 'same')) await feed.add(dataDir, ctx.user, { kind: 'import', kn: id, dot: bad.length ? 'warn' : 'acc', text: `파일 ${rows.length}개를 넣었다: ${meta.name}`, small: [s.run ? `팀 일꾼에게 넘김 ${s.run}` : '', s.att ? `첨부 ${s.att}` : '', s.held ? `넣지 못함 ${s.held}` : '', s.fail ? `못 넣음 ${s.fail}: ${rows.filter((x) => x.kind === 'fail').slice(0, 3).map((x) => `${x.name}: ${x.msg}`).join(' · ')}` : '', s.skip ? `넣지 않음 ${s.skip}` : ''].filter(Boolean).join(' · ') }).catch((e) => log('이력 줄', id, e.message))
+      if (gj) hub.groupAdd(gj, rows, files.length, !!group.last)
+      return { direct: hub.canDirect(ctx, id), summary: s, rows, ...(gj ? { group: gj.id } : {}) }
+    },
     // asDocs — 옛 폴더로 지식을 세울 때(지식 추가)만 바로 문서 · 그 밖은 기록으로 들이고 정리가 문서에 넣는다
     // system — 문서 폴더 가져오기(작성자 kmd · 저장의 시스템 쓰기)
-    async importFiles(ctx, id, files, { asDocs = false, group = null, system = false, offset = 0 } = {}) {
+    //   attach — 원본 파일도 첨부로(팀 화면 · 쓰기 이상 · 기본 꺼짐 · S-D30)
+    async importFiles(ctx, id, files, { asDocs = false, group = null, system = false, offset = 0, attach = false } = {}) {
       // 자리부터 — 묶음(일 줄)을 세우기 전에
       const meta = await hub.meta(id, ctx)
       hub.need(ctx, id, 'write')
+      // 팀 화면 파일 넣기(S8) — 파일마다 들이기 일감 · 정리를 걸지 않는다. 지식 추가(asDocs) · 문서 폴더(system)는 아래 길 그대로
+      if (mode === 'team' && !asDocs && !system) return hub.importTeam(ctx, id, meta, files, { group, attach })
       const gj = group ? hub.groupJob(ctx, id, group) : null
       if (gj && isFinal(gj)) return { stopped: true, group: gj.id, summary: summary([]), rows: [] }
       const shut = backup.closed(meta)
@@ -4324,6 +4521,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 기다리던 정리 · 마지막 정리 날 · 정리 일꾼 상태 — 다시 켜도 잇는다(맡았던 일감은 기다림으로)
       for (const j of await fs.readFile(jobsFile, 'utf8').then(JSON.parse, () => [])) jobs.set(j.id, j.state === 'running' || j.state === 'closing' ? { ...j, state: j.rule ? 'failed' : 'queued', worker: null, ...(j.rule ? { why: '다시 켜며 멈췄다. [지금 정리]' } : {}) } : j)
       intakeDay = await fs.readFile(intakeDayFile, 'utf8').then(JSON.parse, (e) => (e.code === 'ENOENT' ? {} : (log('하루 들이기 수 장부를 읽지 못했다', e.message), {})))
+      attachDay = await fs.readFile(attachDayFile, 'utf8').then(JSON.parse, (e) => (e.code === 'ENOENT' ? {} : (log('하루 첨부 합 장부를 읽지 못했다', e.message), {})))
       // 다시 켤 때 — 같은 일감의 기록(job/<id>)이 이미 있으면 그 일감은 넣었다(커밋 뒤 · 장부를 쓰기 전에 꺼졌다 · S-D48)
       for (const j of [...jobs.values()].filter((x) => x.kind === 'intake' && x.state === 'queued')) {
         const k = await hub.get(j.kn).catch((e) => (log('다시 켤 때 들이기 일감 맞추기: 지식을 읽지 못했다', j.kn, e.message), null))
@@ -4343,6 +4541,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         for (const j of Q.list()) {
           if (j.parked !== 'restart') continue
           if (j.kind === 'file' && j.spec?.type === 'ingest') { try { Q.retry(j.id) } catch (e) { Q.end(j, 'fail', e.message) } }
+          // 파일 넣기의 들이기(S8) — 일감은 jobs 장부에서 이어 간다 · 일 줄은 그 일감에 맞춘다
+          else if (j.kind === 'file' && j.spec?.type === 'intake') {
+            const t = jobs.get(j.spec.job)
+            if (t && ['queued', 'running'].includes(t.state)) intakeRunWait(t)
+            else if (t) intakeRunEnd(t)
+            else Q.end(j, 'fail', '들이기 일감이 남아 있지 않다. 파일을 다시 넣는다')
+          }
           else if (j.kind === 'group') Q.end(j, 'fail', `프로그램이 꺼져 나머지 파일을 받지 못했다: ${j.sent}/${j.total}`)
           else Q.drop(j)
         }
