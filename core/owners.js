@@ -254,27 +254,22 @@ export const rowOf = (reg, id) => {
   return rest
 }
 
-// tidyAt — 정해진 정리 시각(HH:MM · 기본 02:30) · tidyMode — 정리 방식(time 정해진 시각 · live 실시간 · manual 손으로만) ·
-// noClaude — Claude 에 보내지 않음
-export function setOwner(reg, id, { owner = null, curators, tidyAt, tidyMode, noClaude } = {}) {
+// noClaude — Claude 에 보내지 않음 · 옛 정리 설정(tidyAt · tidyMode)은 개편 S13 에 걷었다: 받아도 쓰지 않고 옛 줄의 칸도 걷는다
+export function setOwner(reg, id, { owner = null, curators, noClaude } = {}) {
   const prev = reg.knowledge[id] || {}
-  if (tidyAt != null && !/^([01]\d|2[0-3]):[0-5]\d$/.test(tidyAt)) throw Object.assign(new Error('정리 시각은 HH:MM 이다'), { code: 'E_INPUT' })
-  if (tidyMode != null && !['time', 'live', 'manual'].includes(tidyMode)) throw Object.assign(new Error('정리 방식은 정해진 시각 · 실시간 · 손으로 중 하나'), { code: 'E_INPUT' })
-  const { private: _p, workerOk: _w, ...keep } = prev
+  const { private: _p, workerOk: _w, tidyAt: _a, tidyMode: _m, ...keep } = prev
   const row = { ...keep, owner: owner ?? prev.owner ?? null, curators: curators ?? prev.curators ?? [], at: new Date().toISOString() }
-  if (tidyAt != null) row.tidyAt = tidyAt
-  if (tidyMode != null) row.tidyMode = tidyMode
   if (noClaude != null) row.noClaude = !!noClaude
   if (row.owner) delete row.restored
   reg.knowledge[id] = row
   return row
 }
 
-// `_members.md` — 지식 안의 사람 칸(예약 파일) · 정리 설정도 같이(살림 자리를 잃고 되살려도 그대로)
-//   - 주인: kim · - 정리: park, lee · - 정리 방식: 정해진 시각 02:30 | 실시간 | 손으로만 · - Claude 에 보내지 않음: 예
+// `_members.md` — 지식 안의 사람 칸(예약 파일) · Claude 설정도 같이(살림 자리를 잃고 되살려도 그대로)
+//   - 주인: kim · - 정리: park, lee(지식관리자 목록 · 옛 줄 이름 그대로) · - Claude 에 보내지 않음: 예
+//   옛 「- 정리 방식: …」 줄은 읽어도 값을 쓰지 않는다(개편 S13 · 정리를 걷었다) — 설정 줄이 있는 꼴로만 센다
 //   자리 표(새 꼴 · 있을 때만): - 모두: 없음 · - 읽기: a, b · - 쓰기: c · - 지식관리자: d · - 묶음: 개발=쓰기, 운영=지식관리자(옛 「관리」 줄도 읽는다)
 //   묶음의 사람 목록은 서버(owners.json)에만 둔다. 이 줄이 없는 옛 `_members.md` 는 옛 규칙
-const MODE_WORD = { time: '정해진 시각', live: '실시간', manual: '손으로만' }
 const YES = /^(예|네|yes|true|1)$/i
 export function parseMembers(text) {
   const out = { owner: null, curators: [], settings: false }
@@ -296,13 +291,8 @@ export function parseMembers(text) {
     }
     if (m[1] === '주인') out.owner = m[2] || null
     else if (m[1] === '정리') out.curators = m[2].split(/[,\s·]+/).filter(Boolean)
-    else if (m[1] === '정리 방식') {
-      out.settings = true
-      const mode = Object.keys(MODE_WORD).find((k) => m[2].startsWith(MODE_WORD[k]))
-      if (mode) out.tidyMode = mode
-      const at = /([01]\d|2[0-3]):[0-5]\d/.exec(m[2])
-      if (at) out.tidyAt = at[0]
-    } else {
+    else if (m[1] === '정리 방식') out.settings = true
+    else {
       out.settings = true
       out.noClaude = YES.test(m[2])
     }
@@ -310,8 +300,8 @@ export function parseMembers(text) {
   if (acc) out.access = acc
   return out
 }
-export function renderMembers({ owner = null, curators = [], tidyMode = 'time', tidyAt = null, noClaude = false, access = null } = {}) {
-  const lines = ['# 사람', '', `- 주인: ${owner || ''}`, `- 정리: ${(curators || []).join(', ')}`, `- 정리 방식: ${MODE_WORD[tidyMode] || MODE_WORD.time}${(tidyMode || 'time') === 'time' && tidyAt ? ' ' + tidyAt : ''}`, `- Claude 에 보내지 않음: ${noClaude ? '예' : '아니오'}`]
+export function renderMembers({ owner = null, curators = [], noClaude = false, access = null } = {}) {
+  const lines = ['# 사람', '', `- 주인: ${owner || ''}`, `- 정리: ${(curators || []).join(', ')}`, `- Claude 에 보내지 않음: ${noClaude ? '예' : '아니오'}`]
   if (access) {
     const a = accessOf({ access })
     const who = (l) => Object.keys(a.users).filter((u) => a.users[u] === l).sort().join(', ')
@@ -337,15 +327,15 @@ const readMembers = async (dir) => {
 
 // `_members.md` 를 따라 줄을 세운다.
 //   `_members.md` 가 없으면 줄을 두지 않는다.
-//   restore — 되살릴 때만: 설정 줄이 없는 옛 `_members.md` 면 안전한 쪽(Claude 에 보내지 않음 · 손으로만 정리)으로 두고 다시 보라고
-//   표시한다(check). 켤 때 · 동기화 때는 옛 꼴이어도 설정을 건드리지 않는다(팀 지식의 정리가 말없이 멈추지 않게)
+//   restore — 되살릴 때만: 설정 줄이 없는 옛 `_members.md` 면 안전한 쪽(Claude 에 보내지 않음)으로 두고 다시 보라고
+//   표시한다(check). 켤 때 · 동기화 때는 옛 꼴이어도 설정을 건드리지 않는다(팀 지식의 들이기가 말없이 멈추지 않게)
 export async function adoptMembers(reg, id, dir, { restore = false } = {}) {
   const m = await readMembers(dir)
   if (!m) {
     delete reg.knowledge[id]
     return null
   }
-  const settings = m.settings ? { tidyMode: m.tidyMode || 'time', tidyAt: m.tidyAt, noClaude: !!m.noClaude } : restore ? { tidyMode: 'manual', noClaude: true } : {}
+  const settings = m.settings ? { noClaude: !!m.noClaude } : restore ? { noClaude: true } : {}
   const row = setOwner(reg, id, { owner: m.owner, curators: m.curators, ...settings })
   // 자리 표 — 새 꼴이면 따른다 · 없으면 옛 규칙
   if (m.access) row.access = mdAccess(reg, m.access)

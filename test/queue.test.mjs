@@ -208,7 +208,7 @@ test('줄 멈춤 · 맨 앞으로 · 빼기 · 동시에 도는 수: 화면의 �
   const top = await s.hub.queueAct(ME, ids[2], 'top')
   const v = await s.hub.queueList(ME)
   assert.equal(v.hold, true)
-  assert.equal(top.order, Math.min(...v.items.filter((x) => !x.fin && x.kind !== 'tidy').map((x) => x.order)))
+  assert.equal(top.order, Math.min(...v.items.filter((x) => !x.fin && x.kind !== 'intake').map((x) => x.order)))
   await s.hub.queueAct(ME, ids[1], 'cancel')
   assert.equal((await s.hub.queueGet(ME, ids[1])).state, 'cancel')
   assert.deepEqual(s.hub.queueCaps(ME, { claude: 2, fetch: 9 }), { claude: 2, fetch: 8 })
@@ -241,7 +241,7 @@ test('여러 파일 묶음. 나눠 보내도 일 하나 · 안의 파일이 끝�
   const c = await s.hub.importFiles(ME, '회의', [{ path: '묶음2/타.md', data: MD('타') }], { group: { id: b.group } })
   assert.equal(c.stopped, true)
   assert.equal((await s.hub.queueGet(ME, b.group)).state, 'cancel')
-  await s.hub.curateIdle('회의')
+  await s.hub.idle('회의')
 })
 
 test('가져오기: 한 번이 일 하나 · 크게 바뀌면 확인할 것 · 그대로 맞추기 · 같은 곳의 지난 확인은 걷는다', async () => {
@@ -273,7 +273,7 @@ test('가져오기: 한 번이 일 하나 · 크게 바뀌면 확인할 것 · �
   assert.equal(same.length, 1)
   assert.equal(same[0].auto, 'manual', '정한 때(자동)로 돈 일')
   // 문서 폴더는 파일 넣기 길 — 파일마다 Claude Code 일이 선다. 다음 시험 전에 다 끝낸다(줄을 비운다)
-  await s.hub.curateIdle('회의')
+  await s.hub.idle('회의')
 })
 
 test('다시 켜면: 멈춘 일 · 줄 멈춤은 그대로 · 돌던 일은 그 단계부터 다시', async () => {
@@ -294,22 +294,23 @@ test('다시 켜면: 멈춘 일 · 줄 멈춤은 그대로 · 돌던 일은 그 
   assert.ok((await s.hub.queueList(ME)).items.some((x) => x.kind === 'group' && x.fin), '끝난 일도 다시 켜도 남는다')
 })
 
-test('팀: 정리 일감도 같은 줄 · 기다리는 것은 뺀다(일꾼이 받지 않는다) · 맡은 것은 빼지 못한다', async () => {
+test('팀: 들이기 일감(다듬기)도 같은 줄 · 기다리는 것은 뺀다(일꾼이 받지 않는다) · 끝난 것은 빼지 못한다', async () => {
   const { copyDir } = await import('./helpers.mjs')
   const { workOnce } = await import('../core/worker.js')
   const troot = path.join(tmp, 'team')
   copyDir(path.join(HERE, 'fixture', 'kmd'), troot)
   fs.mkdirSync(path.join(troot, '.kmd'), { recursive: true })
-  fs.writeFileSync(path.join(troot, '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, tidyTickMs: 3600000 }))
+  fs.writeFileSync(path.join(troot, '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, inboxTickMs: 3600000 }))
   const t = await startServer({ root: troot, port: 0, log: () => {}, scryptN: 1 << 15 })
   try {
     const KIM = { user: 'kim', admin: true }
     const wkey = (await t.auth.workerAdd()).key
-    const j = await t.hub.tidyNow(KIM, 'dpms')
+    const j = { id: (await t.hub.polish(KIM, 'dpms', { doc: '배포절차' })).job }
     let it = (await t.hub.queueList(KIM)).items.find((x) => x.id === 't:' + j.id)
-    assert.equal(it.kind, 'tidy')
+    assert.equal(it.kind, 'intake')
     assert.equal(it.state, 'wait')
-    assert.equal(it.msg, '정리 일꾼을 기다린다')
+    assert.equal(it.msg, '팀 일꾼을 기다린다')
+    assert.match(it.title, /^다듬기: /)
     // 자리 없는 사람에게는 그 일이 보이지 않는다(기본 자리는 없음 — docs/kmd_권한_모델.md v1.1)
     const { seat } = await import('./helpers.mjs')
     await t.auth.addUser({ id: 'lee', admin: false })
@@ -323,7 +324,7 @@ test('팀: 정리 일감도 같은 줄 · 기다리는 것은 뺀다(일꾼이 �
     assert.equal(it.fin, true)
     assert.equal(await workOnce({ server: t.url, key: wkey }), null, '뺀 일감은 일꾼이 받지 않는다')
     await assert.rejects(t.hub.queueAct(KIM, 't:' + j.id, 'cancel'), { code: 'E_CONFLICT' })
-    // 화면은 「t:」 를 %3A 로 보낸다 — 길이 있어야 한다(「그런 길은 없다」 가 아니라 이미 끝난 정리)
+    // 화면은 「t:」 를 %3A 로 보낸다 — 길이 있어야 한다(「그런 길은 없다」 가 아니라 이미 끝난 들이기)
     const { signIn } = await import('./helpers.mjs')
     const me = await signIn(t, { id: 'kim' })
     const r = await fetch(`${t.url}/api/queue/${encodeURIComponent('t:' + j.id)}/cancel`, { method: 'POST', headers: { 'content-type': 'application/json', cookie: me.cookie }, body: '{}' })

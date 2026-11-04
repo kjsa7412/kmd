@@ -50,7 +50,7 @@ before(async () => {
   G(repo, 'add', '-A')
   G(repo, 'commit', '-q', '-m', '처음')
   fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })
-  fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ sourceRoots: [path.join(tmp, 'src')], decideMs: 3600000, sourceTickMs: 3600000, tidyTickMs: 3600000, jobTickMs: 3600000, watchQuietMs: 600000, intakeQueue: 2 }))
+  fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ sourceRoots: [path.join(tmp, 'src')], decideMs: 3600000, sourceTickMs: 3600000, inboxTickMs: 3600000, jobTickMs: 3600000, watchQuietMs: 600000, intakeQueue: 2 }))
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
   wk = (await s.auth.workerAdd()).key
 })
@@ -65,7 +65,6 @@ test('문서 폴더: 파일마다 들이기 일감(정리 일감 0) · 일꾼 �
   assert.equal(run.state, 'changed', JSON.stringify(run).slice(0, 400))
   assert.equal(run.queued, 2, '파일 둘 → 들이기 일감 둘')
   assert.equal(queued().length, 2)
-  assert.equal(s.hub.jobsOf('dpms').length, 0, '정리 일감은 세우지 않는다')
   assert.ok(!(await fresh()).works.some((w) => w.tags.some((t) => t.startsWith('ingest/운영문서/'))), '기록은 일꾼이 지을 때 한 번에(먼저 쓰지 않는다)')
   // 같은 파일 · 같은 글이면 다시 확인해도 일감이 늘지 않는다
   assert.equal((await s.hub.sourceRun('dpms', '운영문서'))[0].state, 'same')
@@ -98,7 +97,6 @@ test('문서 폴더: 파일마다 들이기 일감(정리 일감 0) · 일꾼 �
   // 둘째 일감도
   await work()
   assert.equal(queued().length, 0)
-  assert.equal(s.hub.jobsOf('dpms').length, 0)
 })
 
 test('git: 커밋마다 들이기 일감 → 항목 값이 바뀐다(기록 kmd · code-change · intake) · 브레이크 「새 10」 은 문서 폴더에 없다', async () => {
@@ -109,7 +107,6 @@ test('git: 커밋마다 들이기 일감 → 항목 값이 바뀐다(기록 kmd 
   const r1 = (await s.hub.sourceRun('dpms', 'api 코드'))[0]
   assert.equal(r1.codeRecords, 1)
   assert.equal(r1.queued, 1)
-  assert.equal(s.hub.jobsOf('dpms').length, 0, '정리 일감은 세우지 않는다')
   await work()
   assert.match(section('배포절차', '헬스 체크'), /시간 초과는 5초 — 5초 안에 200/)
   const w = (await fresh()).works.find((x) => x.tags.includes('code-change') && x.tags.includes('intake'))
@@ -281,4 +278,37 @@ test('24시간 넘게 기다린 들이기 → 팀 시계(jobTick)가 기록만 +
   assert.match((await fresh()).byWork.get(j.result.rec).body, /"code": ?"worker"/)
   assert.ok(!fs.existsSync(path.join(tmp, 'kn', '.kmd', 'queue', `${o.job}.md`)), '원천은 held/ 로')
   assert.ok(fs.existsSync(path.join(tmp, 'kn', '.kmd', 'held', 'dpms', `${j.result.rec}.md`)))
+})
+
+test('문서 다듬기(S13 · K10-4 · S-D37): 같은 문서 두 번 → 일감 하나 · 값 장부가 같은 항목만 들어간다(값이 바뀐 항목은 빼고 까닭) · 기록은 이력(다듬기) · Claude 에 보내지 않음은 거절', async () => {
+  // 앞 시험이 남긴 일감을 비운다
+  for (let i = 0; i < 6 && queued().length; i++) await work()
+  await s.auth.addUser({ id: 'kim', admin: true })
+  const doc = '백업절차'
+  const before = (await fresh()).docs.find((d) => d.id === doc).sections.filter((x) => x.h).map((x) => [x.h, x.body])
+  assert.ok(before.length >= 2, '항목 둘 이상인 문서')
+  await assert.rejects(s.hub.polish(ADMIN, 'dpms', { doc: '없는문서' }), { code: 'E_NOTFOUND' })
+  await assert.rejects(s.hub.polish(ADMIN, 'dpms', { doc: '' }), { code: 'E_INPUT' })
+  const a = await s.hub.polish(ADMIN, 'dpms', { doc })
+  const b = await s.hub.polish(ADMIN, 'dpms', { doc })
+  assert.ok(a.job)
+  assert.deepEqual([b.job, b.again], [a.job, true], '같은 문서에 열린 일감이 있으면 그것')
+  const c0 = commits()
+  await work()
+  const j = s.hub.job(a.job)
+  assert.equal(j.state, 'done', j.why)
+  assert.equal(j.result.put, before.length - 1, '값을 바꾼 첫 항목만 빠진다')
+  assert.match(j.why || '', /뺀 항목 1/)
+  const k = await fresh()
+  const w = k.logs.find((x) => x.tags.includes('polish') && x.tags.includes(`job/${a.job}`))
+  assert.ok(w, '다듬기 기록은 이력(log/)')
+  assert.match(w.title, /^다듬기: /)
+  assert.match(w.body, /넣지 않은 항목[\s\S]*값이 바뀐다/)
+  const now = k.docs.find((d) => d.id === doc).sections
+  assert.equal(now.find((x) => x.h === before[0][0]).body.trim(), before[0][1].trim(), '값을 바꾼 항목은 그대로')
+  assert.match(now.find((x) => x.h === before[1][0]).body, /\(다듬음\)/)
+  assert.equal(commits(), c0 + 1, '저장 한 번 = 커밋 하나')
+  // Claude 에 보내지 않음 — 다듬기는 팀 일꾼(Claude)이 하므로 거절
+  await s.hub.setOwner(SHELL, 'dpms', { noClaude: true })
+  try { await assert.rejects(s.hub.polish(ADMIN, 'dpms', { doc }), { code: 'E_FORBIDDEN' }) } finally { await s.hub.setOwner(SHELL, 'dpms', { noClaude: false }) }
 })

@@ -13,7 +13,6 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
 import * as collect from '../core/collect.js'
-import { HUMAN_ANSWER } from '../core/curate.js'
 import { copyDir, seat } from './helpers.mjs'
 import { sha16 } from '../core/text.js'
 import { sectionOf, isLegacy } from '../core/knowledge.js'
@@ -87,25 +86,28 @@ test('팀 지식: 쓰기 자리의 항목 글도 검사를 넘으면 그 순간 
   assert.match(fs.readFileSync(path.join(tmp, 'kn', 'dpms', 'docs', '서버목록.md'), 'utf8'), new RegExp(`<!-- applied: ${k.id} -->\\napp-1 ~ app-5`))
 })
 
-test('결정 규칙: 이름을 빠뜨린 기록은 두지 않고 일감 · 사람이 답한 것만 두기 · 좌표정정은 구조로', async () => {
+test('저절로 메모(S-D3 · S13): 조각 없이 온 사람 기록은 메모(문서 그대로 · pend 를 만들지 않는다) · 좌표정정은 구조로 · 입력 태그로 피하지 못한다', async () => {
   const a = await s.hub.save(KIM, 'dpms', { record: { title: '어디에 넣을지 모르는 메모', body: '서버 이름 규칙을 바꾸자는 이야기.' } })
-  const b = await s.hub.save(KIM, 'dpms', { record: { title: '넣을 곳 없음. 회의 잡담', body: `커피 이야기.\n${HUMAN_ANSWER}` } })
-  // 좌표정정 — 앞 기록(헬스 체크 주소 /healthz)의 이름만 바로잡는 짧은 글 → 서버가 touches-fix 를 붙인다
+  assert.equal(a.memo, true)
+  assert.match(a.note, /메모로 남겼다/)
+  const b = await s.hub.save(KIM, 'dpms', { record: { title: '넣을 곳 없음. 회의 잡담', body: '커피 이야기.', tags: ['intake'] } }).catch((e) => e)
+  // 좌표정정 — 앞 기록(헬스 체크 주소 /healthz)의 이름만 바로잡는 짧은 글 → 서버가 touches-fix 를 붙인다(조각이 없으니 메모)
   const fix = await s.hub.save(KIM, 'dpms', { record: { title: '이름 바로잡음', body: '/healthz 이야기는 헬스 체크 항목이다.', touches: ['proc:헬스 체크'], fixes: ['2026-1020-헬스-체크-주소'] } })
   const fresh = await s.hub.save(KIM, 'dpms', { record: { title: '새 값이 든 정정', body: '시간 초과는 5초 로 바꾼다.', touches: ['proc:헬스 체크'], fixes: ['2026-1021-헬스-체크'] } })
   const kk = await s.hub.get('dpms')
   assert.ok(kk.byWork.get(fix.id).tags.includes('touches-fix'))
   assert.ok(!kk.byWork.get(fresh.id).tags.includes('touches-fix'), '새 값이 든 정정은 아니다')
   assert.equal(await code(s.hub.save(KIM, 'dpms', { record: { title: 'x', body: 'y', tags: ['touches-fix'] } })), 'E_FORBIDDEN')
+  for (const r of [a, fix, fresh]) assert.equal(kk.byWork.get(r.id).state, 'memo', r.id)
+  // 예약 태그(intake)로 메모 판정을 피하지 못한다 — 거절이거나 메모
+  if (b?.id) assert.equal(kk.byWork.get(b.id).state, 'memo')
+  else assert.equal(b?.code, 'E_FORBIDDEN')
+  // 새 기록 가운데 pend 는 없다(정리를 걷었다) · 결정 규칙은 사람 기록을 두지 않는다
+  assert.ok(![a, fix, fresh].some((r) => ['pend', 'nowhere'].includes(kk.byWork.get(r.id).state)))
   const r = await s.hub.decide('dpms')
   const k2 = await s.hub.get('dpms')
-  assert.equal(k2.byWork.get(a.id).state, 'nowhere', '세션이 이름을 빠뜨린 기록 → 저절로 두지 않는다')
-  assert.equal(k2.byWork.get(b.id).state, 'kept')
-  assert.equal(k2.byWork.get(fix.id).state, 'kept')
-  assert.notEqual(k2.byWork.get(fresh.id).state, 'kept', '새 값이 든 정정 기록 → 저절로 두기 0')
-  assert.ok(r.tasks >= 1, '이름 바로잡기 일감')
-  const dec = k2.logs.find((w) => w.tags.includes('curate-auto') && w.curates.length) // 정리 판정은 이력(log/)
-  assert.equal(dec.author, 'kmd-auto')
+  assert.equal(k2.byWork.get(a.id).state, 'memo')
+  assert.equal(typeof r.curates, 'number')
 })
 
 test('되돌리기: 옛 본문 + 판정 거두기 · 저장 문이 넣은 기록은 되돌림', async () => {

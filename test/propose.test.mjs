@@ -14,7 +14,8 @@ import { execFileSync } from 'node:child_process'
 import { startServer } from '../server/http.js'
 import { copyDir, signIn, seat } from './helpers.mjs'
 import { applyEdits, validEdits, checkProposal, renderProposals, parseProposals } from '../core/propose.js'
-import { mustValues } from '../core/tidy.js'
+import { saveRecords } from '../core/save.js'
+import { mustValues } from '../core/values.js'
 import { sha16 } from '../core/text.js'
 import { sectionOf } from '../core/knowledge.js'
 import { makeMcp } from '../server/mcp.js'
@@ -29,7 +30,7 @@ before(async () => {
   process.env.HOME = process.env.USERPROFILE = process.env.APPDATA = tmp
   copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'kn'))
   fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })
-  fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, tidyTickMs: 3600000 }))
+  fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, inboxTickMs: 3600000 }))
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
   await signIn(s, { id: 'kim' })
   await s.auth.addUser({ id: 'lee', admin: false })
@@ -177,7 +178,9 @@ test('이름 없는 항목에 문서 · 머리 조각 · 새 항목은 content �
 })
 
 test('섞인 자리: 같은 항목에 아직 안 들어간 개편 전 기록이 있으면 넣지 않는다(legacy-mix · 기록은 남는다)', async () => {
-  await s.hub.save(LEE, 'dpms', { record: { title: '카나리 메모', body: '## 바뀐 것\n- 메모: 지켜본다', touches: ['proc:카나리'] } })
+  // 개편 전 기록 — 정리를 걷은 뒤(S13) 사람 저장은 pend 를 만들지 않는다(조각이 없으면 메모). 개편 때보다 앞서 받은 옛 기록을 core 로 둔다
+  await saveRecords(path.join(tmp, 'kn', 'dpms'), [{ title: '카나리 메모', body: '## 바뀐 것\n- 메모: 지켜본다', touches: ['proc:카나리'] }], { user: 'lee', now: new Date(Date.now() - 2 * 864e5) })
+  s.hub.forget('dpms')
   const k = await s.hub.get('dpms')
   const cur = sectionOf(k, 'proc:카나리').sec.body
   const r = await s.hub.save(LEE, 'dpms', { record: { title: '카나리: 지켜보는 시간', body: '## 바뀐 것\n- 지켜보는 시간: 30분', touches: ['proc:카나리'] }, sections: [{ coord: 'proc:카나리', base: sha16(cur), edits: [{ find: '롤백으로 간다.', replace: '롤백으로 간다. 지켜보는 시간은 30분이다.' }] }] })

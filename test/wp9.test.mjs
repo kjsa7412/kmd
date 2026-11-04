@@ -12,6 +12,8 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
 import { copyDir, seat } from './helpers.mjs'
+import { sectionOf } from '../core/knowledge.js'
+import { sha16 } from '../core/text.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const BANNED = ['좌표', '섹션', '원천', '기준선', '큐레이션', '대기열', '판정', '토큰', '커밋', '레포', '미러', 'LLM', 'RAG', '노드', '엣지', '백링크']
@@ -24,7 +26,7 @@ before(async () => {
   root = path.join(tmp, 'kn')
   copyDir(path.join(HERE, 'fixture', 'kmd'), root)
   fs.mkdirSync(path.join(root, '.kmd'), { recursive: true })
-  fs.writeFileSync(path.join(root, '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, tidyTickMs: 3600000 }))
+  fs.writeFileSync(path.join(root, '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, inboxTickMs: 3600000 }))
   s = await startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
 })
 after(async () => {
@@ -45,25 +47,24 @@ test('오류 글 · 화면 글에 금지어 0: 사람에게 가는 KmdError 글�
   assert.deepEqual(bad, [])
 })
 
-test('기록이 언제 문서에: 지식의 정리 방식 · 시각 · 이력의 저장 줄은 그 기록의 지금 상태', async () => {
-  await s.hub.setOwner(SHELL, 'dpms', { owner: 'park', tidyAt: '03:30' })
+test('기록이 언제 문서에: 저장이 곧 반영(S13) — 조각 없는 기록은 메모 · 이력의 저장 줄은 그 기록의 지금 상태', async () => {
+  await s.hub.setOwner(SHELL, 'dpms', { owner: 'park' })
   // 받지 않은 지식은 없음이 기본(권한 모델 v1.1) — 기록을 남기는 팀원 lee 에게 dpms 쓰기 자리를 준다
   await s.auth.addUser({ id: 'lee', admin: false })
   await seat(s, 'lee', { dpms: 'write' })
-  assert.equal(s.hub.pendText('dpms'), '정해진 시각 03:30 정리 때 문서에 들어간다')
-  await s.hub.setOwner(SHELL, 'dpms', { tidyMode: 'manual' })
-  assert.match(s.hub.pendText('dpms'), /누가 \[지금 정리\] 를 누를 때/)
-  await s.hub.setOwner(SHELL, 'dpms', { tidyMode: 'live' })
-  assert.match(s.hub.pendText('dpms'), /조용해지면 바로/)
+  assert.equal(s.hub.pendText, undefined, '정리 때 말은 걷었다')
   const r = await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '헬스 체크: 주기', touches: ['proc:헬스 체크'], body: '15초' } })
+  assert.equal(r.memo, true)
+  assert.match(r.note, /메모로 남겼다/)
   let h
   for (let i = 0; i < 100 && !(h = await s.hub.history({ user: 'lee' })).some((x) => x.rec === r.id); i++) await new Promise((ok) => setTimeout(ok, 50))
-  assert.match(h.find((x) => x.rec === r.id).sub, /조용해지면 바로 문서에 들어간다/)
-  // 들어간 뒤 — 「들어갔다」
-  // kmd-auto 는 사람이 아니라 자리를 받지 않는다(없음이 기본) — 서버 안의 정리 저장을 흉내 내는 ctx 라 admin 을 단다(작성자는 그대로 kmd-auto)
-  await s.hub.save({ user: 'kmd-auto', admin: true }, 'dpms', { record: { title: '정리: 헬스 체크', tags: ['curate-auto'], reflects: [r.id], body: `- 넣음 ${r.id}: 헬스 체크` }, sections: [{ coord: 'proc:헬스 체크', content: '15초' }] }, { system: true })
-  h = await s.hub.history({ user: 'lee' })
-  assert.equal(h.find((x) => x.rec === r.id).sub, '문서에 들어갔다')
+  assert.match(h.find((x) => x.rec === r.id).sub, /메모: 문서는 바꾸지 않았다/)
+  // 조각을 실은 저장은 그 순간 문서에 — 이력 줄도 저장 문의 줄
+  const k = await s.hub.get('dpms')
+  const cur = sectionOf(k, 'proc:헬스 체크').sec.body
+  const r2 = await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '헬스 체크: 주기 15초', touches: ['proc:헬스 체크'], body: '주기는 15초.' }, sections: [{ coord: 'proc:헬스 체크', base: sha16(cur), content: `${cur.trim()}\n\n주기는 15초.` }] })
+  assert.equal(r2.put, 1, JSON.stringify(r2.held || r2.proposals))
+  assert.equal((await s.hub.get('dpms')).byWork.get(r2.id).state, 'in')
 })
 
 test('이 PC 의 멈춤 줄은 팀 서비스의 말을 쓰지 않는다. 「설정 › Claude 연결」 · 「백업 안 된 저장 n번」', async () => {

@@ -142,9 +142,11 @@ test('쓰기 길: 읽기는 403 E_FORBIDDEN · 쓰기는 같은 저장 문(검�
   const own = await mcp('save', { ...args(sec2.base, 'B'), sections: [{ doc: '배포절차', heading: '헬스 체크', base: sec2.base, edits: [{ find: '남긴다 A.', replace: '남긴다 A. 지식관리자도 본다.' }] }] }, P.own)
   assert.deepEqual(own.docs, ['배포절차'], '지식관리자의 세션도 같은 저장 문')
   assert.equal((await mcp('save', { ...args(sec2.base, 'C'), record: { title: '롤백: 줄글', body: '앱을 먼저 내린다' } }, P.own)).error, 'E_INPUT', '서식 칸(바뀐 것) 없는 기록은 받지 않는다')
-  // 찾기 학습 · 넣을 자리 · 정리 부탁 — 쓰기 이상
+  // 찾기 학습 — 쓰기 이상 · 문서 다듬기 — 지식관리자(S13) · 옛 정리 길은 없다
   assert.equal((await req('/api/k/dpms/learn', P.rd, { q: '롤백', coord: 'x' })).status, 403)
-  assert.equal((await req('/api/k/dpms/tidy', P.rd, {})).status, 403)
+  assert.equal((await req('/api/k/dpms/polish', P.rd, { doc: '배포절차' })).status, 403)
+  assert.equal((await req('/api/k/dpms/polish', P.wr, { doc: '배포절차' })).status, 403, '다듬기는 지식관리자')
+  assert.equal((await req('/api/k/dpms/tidy', P.wr, {})).status, 404, '정리 길은 걷었다')
   // 파일 넣기 · 받기
   assert.equal((await req('/api/k/dpms/import', P.rd, { files: [{ path: 'a.md', b64: Buffer.from('# a\n').toString('base64') }] })).status, 403)
   assert.equal((await req('/api/k/dpms/receive', P.rd, { from: 'x', items: [{ title: 't', body: 'b' }] })).status, 403)
@@ -177,8 +179,9 @@ test('관리 길: 가져올 곳 더하기 · 지금 가져오기 · 그대로 �
   assert.equal((await req('/api/k/dpms/sources/request', P.rd, add)).status, 403)
   assert.equal((await req('/api/k/dpms/docfmt', P.wr, { dry: true })).status, 403)
   assert.equal((await req('/api/k/dpms/docfmt', P.own, { dry: true })).status, 200, '지식 관리자도 문서 옮기기')
-  assert.equal((await req('/api/k/dpms/owner', P.wr, { tidyMode: 'live' })).status, 403)
-  assert.equal((await req('/api/k/dpms/owner', P.own, { tidyMode: 'manual' })).j.tidyMode, 'manual', '주인 = 관리: 정리 설정')
+  assert.equal((await req('/api/k/dpms/owner', P.wr, { noClaude: true })).status, 403)
+  assert.equal((await req('/api/k/dpms/owner', P.own, { noClaude: true })).j.noClaude, true, '주인 = 관리: Claude 설정')
+  assert.equal((await req('/api/k/dpms/owner', P.own, { noClaude: false })).j.noClaude, false)
   assert.equal((await req('/api/k/dpms/owner', P.own, { owner: 'wr' })).status, 403, '주인 넘기기는 전역 관리자')
   const ro = (await req('/api/k/dpms/owner', P.rd)).j
   assert.deepEqual([ro.owner, ro.access, ro.curators], ['own', undefined, undefined], '읽기 자리의 주인 줄에 자리 표가 없다')
@@ -205,13 +208,13 @@ test('관리 길: 가져올 곳 더하기 · 지금 가져오기 · 그대로 �
   assert.deepEqual((await req('/api/requests', P.wr)).j, [])
 })
 
-test('거르기: 지금 하는 일 · 정리 일감 · 일 줄 · 이력 · 오늘 · MCP 알림은 읽기 이상인 지식만', async () => {
-  const t = await req('/api/k/dpms/tidy', P.wr, {})
+test('거르기: 지금 하는 일 · 들이기 일감(다듬기) · 일 줄 · 이력 · 오늘 · MCP 알림은 읽기 이상인 지식만', async () => {
+  const t = await req('/api/k/dpms/polish', P.own, { doc: '배포절차' })
   assert.equal(t.status, 200)
-  const jid = t.j.id
-  assert.ok(jid, '정리 일감')
-  const busyRd = (await req('/api/busy', P.rd)).j.items.find((x) => x.kind === 'tidy' && x.kn === 'dpms')
-  assert.deepEqual([busyRd?.job, busyRd?.qid], [jid, 't:' + jid], '정리에 job · 일 줄 id')
+  const jid = t.j.job
+  assert.ok(jid, '다듬기 일감')
+  const busyRd = (await req('/api/busy', P.rd)).j.items.find((x) => x.kind === 'intake' && x.kn === 'dpms')
+  assert.deepEqual([busyRd?.job, busyRd?.qid], [jid, 't:' + jid], '들이기 일감에 job · 일 줄 id')
   assert.ok(!(await req('/api/busy', P.no)).j.items.some((x) => x.kn === 'dpms'))
   assert.equal((await req(`/api/job/${jid}`, P.rd)).j.kn, 'dpms')
   assert.equal((await req(`/api/job/${jid}`, P.no)).status, 404, '없음: 그 일감도 없다')

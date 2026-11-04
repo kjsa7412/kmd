@@ -39,7 +39,7 @@ before(async () => {
   G(repo, 'init', '-q', '-b', 'main')
   commit('처음')
   fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })
-  fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ sourceRoots: [path.join(tmp, 'src')], decideMs: 3600000, sourceTickMs: 3600000, tidyTickMs: 3600000 }))
+  fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ sourceRoots: [path.join(tmp, 'src')], decideMs: 3600000, sourceTickMs: 3600000, inboxTickMs: 3600000 }))
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
 })
 after(async () => {
@@ -60,7 +60,6 @@ test('소스 코드(git): 지금 커밋이 기준 · 새 커밋마다 들이기 
   assert.equal(r1.commits, 1)
   assert.equal(r1.codeRecords, 1)
   assert.equal(r1.queued, 1)
-  assert.equal(s.hub.jobsOf('dpms').length, 0, '정리 일감은 세우지 않는다')
   assert.deepEqual(await codeRecs('dpms'), [], '기록은 일꾼이 기록 + 항목 글을 한 번에 지을 때')
   const job = s.hub.intakesOf('dpms').find((j) => j.state === 'queued')
   assert.ok(job && job.auto && job.type === 'commit')
@@ -110,7 +109,7 @@ test('소스 코드(git): 지금 커밋이 기준 · 새 커밋마다 들이기 
 
 test('「Claude 에 보내지 않음」 지식은 일감 없이 기록만 + 넣지 못함 · 코드 폴더 · 다시 맞추기는 없다 · 예약 태그는 사람이 못 단다', async () => {
   await s.hub.setOwner(SHELL, 'dpms', { noClaude: true })
-  const queued = () => s.hub.intakesOf('dpms').filter((j) => j.state === 'queued').length + s.hub.jobsOf('dpms').filter((j) => j.state === 'queued').length
+  const queued = () => s.hub.intakesOf('dpms').filter((j) => j.state === 'queued').length
   const q0 = queued()
   W(path.join(repo, 'HealthCheck.java'), '// 헬스 체크 — 시간 초과는 7초\nclass HealthCheck {\n  int timeoutSec = 7;\n}\n')
   commit('헬스 체크 7초')

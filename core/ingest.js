@@ -1,6 +1,6 @@
 // 들이기 — 넣은 파일(기록)을 지식 문서에 들일 때 쓰는 것: 후보 문서 · 갈래 장부 · 파일 이름의 갈래 · 주제 · 일 줄 자리 열쇠.
 //
-//   docs/품질개선/KMD_개편_설계.md 3-1 · 3-5. S2 에서 core/tidy.js · core/curate.js 에서 옮겼다(옛 파일은 다시 내보낸다).
+//   docs/품질개선/KMD_개편_설계.md 3-1 · 3-5. S2 에서 옛 정리 · 결정 모듈에서 옮겼다(옛 파일은 S13 에 걷었다).
 //   들이기 엔진(INTAKE_SCHEMA · 프롬프트 · draftToSave)은 S7 에 더했다(아래).
 
 import { sha16 } from './text.js'
@@ -289,4 +289,67 @@ export function draftToSave(k, g, draft) {
   const body = [summary, changes.length ? `## 바뀐 것\n${changes.map((x) => `- ${x}`).join('\n')}` : '', `## 원천\n${srcLine(src, src.md)}\n\n${quoteSrc(src.md, INTAKE_SRC_MAX)}`].filter(Boolean).join('\n\n')
   const record = { title, body, tags: intakeTags(src), ...(Array.isArray(src.touches) && src.touches.length ? { touches: src.touches } : {}), ...(src.rec ? { fixes: [src.rec] } : {}) }
   return { ok: true, input: { record, sections, ...(names.length ? { names } : {}) }, held, warn }
+}
+
+// ── 문서 다듬기(K10-4 · S-D37 · S13) — 지식관리자가 문서 하나를 골라 거는 문체 · 짜임 정돈. 값은 바꾸지 않는다 ──
+//   재료 g = { type: 'polish', doc, title, sections: [{ h, body, base }] } · 답 POLISH_SCHEMA · 넣기는 항목마다 값 장부가 같을 때만
+export const POLISH_SCHEMA = {
+  type: 'object',
+  properties: {
+    updates: {
+      type: 'array',
+      description: '다듬은 항목마다 하나: 머리는 그대로 · base 는 받은 그대로 · content 는 항목의 새 글 전체(머리 줄 빼고)',
+      items: { type: 'object', properties: { heading: { type: 'string' }, base: { type: 'string' }, content: { type: 'string' } }, required: ['heading', 'base', 'content'] },
+    },
+    why: { type: 'string', description: '무엇을 다듬었나 한 줄' },
+  },
+  required: ['updates'],
+}
+// 한 번에 싣는 항목 글 합(예산 한 번에 든다) — 넘는 항목은 싣지 않는다(다음 다듬기에)
+export const POLISH_MAX = 60_000
+
+export function polishPromptOf(g, { writeRules = '' } = {}) {
+  return [
+    `문서 「${g.title || g.doc}」 의 항목 글을 다듬는다: 문체 · 짜임만 정돈한다(작성기준 3 ~ 5절). 값(수 · 이름 · 코드 · 날짜 · 주소)은 하나도 바꾸거나 빼거나 더하지 않는다.`,
+    [
+      '다듬는 법:',
+      '- 경위 · 회의 말투 · 중복 문장을 걷고 「대상의 지금」 을 짧은 문장 · 목록 · 표로 쓴다.',
+      '- 값이 든 줄은 값을 글자 그대로(단위까지) 옮긴다. 값을 옮길 자리가 없으면 그 항목은 다듬지 않는다.',
+      '- 머리(## 이름)는 바꾸지 않는다. 항목을 나누거나 합치거나 새로 세우지 않는다.',
+      '- 고칠 것이 없는 항목은 updates 에 넣지 않는다.',
+    ].join('\n'),
+    writeRules,
+    'JSON 으로만 답한다.',
+    `항목(base 는 그대로 돌려준다):\n${(g.sections || []).map((s) => `## ${s.h}\n(base ${s.base})\n${s.body}`).join('\n\n')}`,
+  ].filter(Boolean).join('\n\n')
+}
+
+// 다듬기 초안 → 저장 덩이 — { ok: true, input, dropped: [{ heading, why }] } | { ok: false, why }
+//   받은 항목 · 받은 base 만 · 값 장부(valuesOf)가 옛 글과 같은 항목만 넣는다(아니면 그 항목만 빼고 까닭) · 글이 같으면 뺀다
+export function polishToSave(k, g, draft) {
+  if (!draft || typeof draft !== 'object' || !Array.isArray(draft.updates)) return { ok: false, why: '초안 모양이 아니다: updates 가 없다' }
+  const sections = []
+  const dropped = []
+  const doc = k.byDocPath?.get(g.doc)
+  const same = (a, b) => a.size === b.size && [...a].every((v) => b.has(v))
+  for (const u of draft.updates.slice(0, 200)) {
+    if (!u || typeof u.heading !== 'string' || typeof u.content !== 'string') return { ok: false, why: '초안 모양이 아니다: updates 의 heading · content' }
+    const h = u.heading.trim()
+    const seen = (g.sections || []).find((s) => s.h === h)
+    if (!seen) { dropped.push({ heading: h, why: '받은 항목이 아니다' }); continue }
+    if (String(u.base || '') !== seen.base) { dropped.push({ heading: h, why: 'base 가 받은 것과 다르다' }); continue }
+    const cur = doc?.sections.find((x) => x.h === h)
+    if (!cur || sha16(cur.body) !== seen.base) { dropped.push({ heading: h, why: '그사이 항목이 바뀌었다' }); continue }
+    if (u.content.trim() === cur.body.trim()) continue
+    if (!u.content.trim()) { dropped.push({ heading: h, why: '빈 글이다' }); continue }
+    if (!same(valuesOf(cur.body), valuesOf(u.content))) { dropped.push({ heading: h, why: '값이 바뀐다(다듬기는 값을 바꾸지 않는다)' }); continue }
+    sections.push({ doc: g.doc, heading: h, base: seen.base, content: u.content })
+  }
+  const name = String(g.doc).replace(/^docs\/|\.md$/g, '')
+  const why = String(draft.why || '').replace(/\s+/g, ' ').trim().slice(0, 200)
+  const record = {
+    title: `다듬기: ${g.title || name}`.slice(0, 200),
+    body: [`문서 ${name} 의 문체 · 짜임을 정돈했다(값은 그대로).${why ? ` ${why}` : ''}`, sections.length ? `## 다듬은 항목\n${sections.map((s) => `- ${s.heading}`).join('\n')}` : '', dropped.length ? `## 넣지 않은 항목\n${dropped.map((d) => `- ${d.heading}: ${d.why}`).join('\n')}` : ''].filter(Boolean).join('\n\n'),
+  }
+  return { ok: true, input: { record, sections }, dropped }
 }

@@ -60,8 +60,8 @@ cat > /usr/local/bin/kmd <<WRAP
 exec sudo -u kmd $NODE $APP/server/bin/kmd.mjs "\$@" --root $ROOT
 WRAP
 chmod 755 /usr/local/bin/kmd
-# 팀 일꾼(들이기 · 정리 일감) — 일꾼 열쇠를 한 번 만들어 /etc/kmd/worker.env(root 만 읽는다 · systemd 가 넘긴다)에 두고 kmd-worker.service 로 늘 켠다.
-# 정리 전용 Claude 로그인은 설정 · 팀 › Claude 연결에서(일꾼이 살림 자리의 비밀에서 받는다) — 그 전에는 일감을 받아도 「쉼」 으로 알린다. worker.env 가 있으면 덮지 않는다(환경 변수 KMD_WORKER_* · KMD_INGEST_* 를 사람이 더해 둔다)
+# 팀 일꾼(들이기 일감 · 다듬기) — 일꾼 열쇠를 한 번 만들어 /etc/kmd/worker.env(root 만 읽는다 · systemd 가 넘긴다)에 두고 kmd-worker.service 로 늘 켠다.
+# 팀 일꾼 Claude 로그인은 설정 · 팀 › Claude 연결에서(일꾼이 살림 자리의 비밀에서 받는다) — 그 전에는 일감을 받아도 「쉼」 으로 알린다. worker.env 가 있으면 덮지 않는다(환경 변수 KMD_WORKER_* · KMD_INGEST_* 를 사람이 더해 둔다)
 mkdir -p /etc/kmd
 if [ ! -s /etc/kmd/worker.env ]; then
   WK=$(sudo -u kmd "$NODE" "$APP/server/bin/kmd.mjs" worker add --root "$ROOT" | grep -o 'kmdw_[A-Za-z0-9_-]*' | head -1)

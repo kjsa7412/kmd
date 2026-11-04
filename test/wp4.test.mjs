@@ -46,8 +46,8 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('사람 몫 PC 일꾼 열쇠는 걷었다: 새로 만들지 않고 · 옛 열쇠는 받지 않고 켤 때 명부에서 지운다 · 팀 정리 일꾼은 그대로', async () => {
-  // 팀 정리 일꾼 열쇠 — 그대로(사람에 묶이지 않는다)
+test('사람 몫 PC 일꾼 열쇠는 걷었다: 새로 만들지 않고 · 옛 열쇠는 받지 않고 켤 때 명부에서 지운다 · 팀 일꾼은 그대로', async () => {
+  // 팀 일꾼 열쇠 — 그대로(사람에 묶이지 않는다)
   const tw = await s.auth.workerAdd()
   assert.deepEqual(Object.keys(s.auth.bearer(tw.key).worker), ['id'])
   // 옛 판의 명부에 남은 사람 몫 PC 일꾼(owner) — 켤 때 지우고 · 열쇠는 받지 않는다
@@ -107,7 +107,7 @@ test('관리자는 화면에서 팀 지식을 세운다 · 주인 넘기기 · �
   kim2.cookie = (await fetch(s.url + '/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ user: 'kim', pw: prehash('kim', kim.pw) }) })).headers.getSetCookie().map((c) => c.split(';')[0]).join('; ')
   const j = async (res) => (await res.json()).error
   assert.equal(await j(await post('/api/k/' + encodeURIComponent('보안점검') + '/owner', kim2, { owner: 'park' })), 'E_SUDO')
-  assert.equal((await post('/api/k/' + encodeURIComponent('보안점검') + '/owner', kim2, { tidyAt: '04:00' })).status, 200, '정리 설정은 그대로')
+  assert.equal((await post('/api/k/' + encodeURIComponent('보안점검') + '/owner', kim2, { noClaude: false })).status, 200, 'Claude 설정은 그대로')
   assert.equal(await j(await post('/api/k/' + encodeURIComponent('보안점검') + '/delete', kim2, { confirm: '보안점검' })), 'E_SUDO', '주인인 관리자라도')
   await sudo(kim2)
   assert.equal((await post('/api/k/' + encodeURIComponent('보안점검') + '/delete', kim2, { confirm: '보안점검' })).status, 200)

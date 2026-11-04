@@ -3,8 +3,8 @@
 //   팀   http://localhost:7381  — 지식 dpms · gdi(시험 지식 사본) · 사람 kim(관리자) · park(dpms 주인) · lee
 //   PC   http://127.0.0.1:7382  — kim 의 내 지식 배포노트(→ 팀 dpms 로 보냄) · 설계메모 · 받은편지함
 //   자리 .kmd-data/local/ (무시 목록) — 지우면 처음 상태로. 진짜 D:\kmd · Claude Code 설정 · 자격 저장소는 건드리지 않는다.
-//   Claude 는 이 PC 의 진짜 Claude Code(`claude -p` · 이 PC 의 로그인 · 설정 › Claude 연결에서 받은 로그인) — 들이기 · 정리를 실제로 본다.
-//   가짜(test/fixture)로 돌리려면 KMD_LOCAL_FAKE_CLAUDE=1 — 정리 · 로그인이 진짜 Claude 없이 돈다.
+//   Claude 는 이 PC 의 진짜 Claude Code(`claude -p` · 이 PC 의 로그인 · 설정 › Claude 연결에서 받은 로그인) — 들이기 · 다듬기를 실제로 본다.
+//   가짜(test/fixture)로 돌리려면 KMD_LOCAL_FAKE_CLAUDE=1 — 들이기 · 로그인이 진짜 Claude 없이 돈다.
 // 쓰기: node scripts/local.mjs   (끄기: Ctrl C)
 
 import fs from 'node:fs'

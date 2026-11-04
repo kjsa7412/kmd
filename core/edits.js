@@ -1,7 +1,7 @@
 // 조각(find → replace) — 지금 글에 꼭 한 번 나오는 글을 찾아 바꾼다(docs/kmd_권한_모델.md 7절 · docs/kmd_문서_작성기준.md 7절).
 //
 //   제안(core/propose.js) · 검사(core/gate.js) · 저장이 같은 대는 법을 쓴다. 이 모듈은 다른 kmd 모듈을 부르지 않는다
-//   (propose ↔ tidy 순환을 끊으려고 따로 뺐다 · docs/품질개선/KMD_개편_설계.md 3-1 · S-D27).
+//   (propose ↔ 옛 정리 모듈 순환을 끊으려고 따로 뺐다 · docs/품질개선/KMD_개편_설계.md 3-1 · S-D27).
 //   두 번 나오거나 없으면 그 조각은 못 댄다 · 느슨한 맞춤은 두지 않는다. 맞춰 볼 때는 줄 끝 빈칸 · NFC 만 고르고, 바꾸는 자리는 원문 위치 그대로.
 
 export const EDIT_MAX = 50 // 제안 하나의 조각 수 상한

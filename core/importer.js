@@ -227,7 +227,7 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
         continue
       }
       const cur = await read(docRel)
-      if (cur && tidy(cur.toString('utf8')) === tidy(md)) {
+      if (cur && trimLines(cur.toString('utf8')) === trimLines(md)) {
         row('same', '같은 파일: 그대로 두었다')
         continue
       }
@@ -265,7 +265,7 @@ export async function planImport(k, files, { direct = true, asRecord = false, co
 }
 
 // 줄 끝 · 끝 공백을 맞춰 견준다
-const tidy = (t) => readText(t).split('\n').map((l) => l.replace(/\s+$/, '')).join('\n').trim()
+const trimLines = (t) => readText(t).split('\n').map((l) => l.replace(/\s+$/, '')).join('\n').trim()
 
 export function summary(rows) {
   const n = (k) => rows.filter((r) => r.kind === k).length

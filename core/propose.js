@@ -13,7 +13,7 @@ import { checkSection } from './gate.js'
 import { applyEdits, validEdits } from './edits.js'
 import { headingMatches } from './sections.js'
 
-// 조각 대는 법은 core/edits.js 로 옮겼다(S2 · propose ↔ tidy 순환 끊기) — 부르는 곳을 바꾸지 않게 다시 내보낸다
+// 조각 대는 법은 core/edits.js 로 옮겼다(S2 · propose ↔ 옛 정리 모듈 순환 끊기) — 부르는 곳을 바꾸지 않게 다시 내보낸다
 export { EDIT_MAX, EDIT_CHARS, validEdits, applyEdits } from './edits.js'
 
 // 항목 자리 — 이름(coord · 이름 장부) 또는 문서 · 머리(이름이 없는 항목도 · S-D55) → { doc(docs/x.md), heading, sec } | null

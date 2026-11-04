@@ -36,7 +36,7 @@
 <li><b>지식 고르기</b>: 지식을 바꾸거나 「지식 목록: 전체」 로 간다.</li>
 <li><b>보는 법 셋</b>: 문서 · 항목 · 그래프.</li>
 <li><b>목록(나무)</b>: 문서 · 기록 · 첨부. 다른 화면에 가도 그대로다.</li>
-<li><b>지식 관리</b>: 이력 · 설정(가져오기 · 정리 · 일반 …) · 개인 지식 쓰기.</li>
+<li><b>지식 관리</b>: 이력 · 설정(가져오기 · 넣지 못함 · 일반 …) · 개인 지식 쓰기.</li>
 <li><b>빨리 열기 · 찾기</b>: <kbd>Ctrl</kbd> <kbd>O</kbd> · <kbd>Ctrl</kbd> <kbd>K</kbd>.</li>
 <li><b>문서</b>: 탭으로 여러 개 · 나란히 보기 <kbd>Ctrl</kbd> <kbd>\</kbd>.</li>
 <li><b>고치기</b>: 쓰기 자리 이상에만 선다.</li>
@@ -72,7 +72,7 @@
 <div class="m-tbl"><table><tr><th>자리</th><th>할 수 있는 것</th><th>고친 것은</th></tr>
 <tr><td><span class="m-role">읽기</span></td><td>문서 · 기록 · 이력 · 그래프 보기 · 찾기 · Claude Code 로 읽기</td><td>고치기 단추가 흐리다(「쓰기 자리가 없다」)</td></tr>
 <tr><td><span class="m-role r-write">쓰기</span></td><td>문서 고치기 · 자기 기록 고치기 · 파일 · 폴더 넣기 · 가져오기 부탁 · 자기 기록 되돌리기</td><td>바로 문서에 들어가고 이력에 「고침」 으로 남는다. 항목 지우기 · 이름 바꾸기 · 저절로 채우는 표는 지식관리자가 한다</td></tr>
-<tr><td><span class="m-role r-cur">지식관리자</span></td><td>위 모두 + 항목 지우기 · 이름 바꾸기 · 남의 기록 고치기 · 정리(남의 기록까지) · 가져올 곳 · 지식 설정 · 권한 주기</td><td>바로 문서에 들어간다</td></tr>
+<tr><td><span class="m-role r-cur">지식관리자</span></td><td>위 모두 + 항목 지우기 · 이름 바꾸기 · 남의 기록 고치기 · 넣지 못함(남의 기록까지) · 문서 다듬기 · 가져올 곳 · 지식 설정 · 권한 주기</td><td>바로 문서에 들어간다</td></tr>
 <tr><td><span class="m-role r-admin">총괄 관리자</span></td><td>모든 지식의 지식관리자 + 사람 · 팀 지식 세우기 · 백업 · Claude 연결</td><td>바로 문서에 들어간다</td></tr>
 </table></div>
 <figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>문서 · 고치기</span></div><div class="m-pic"><img src="img/t-edit.png" alt="고치는 창: 항목 글을 고치고 저장" loading="lazy"></div></div>
@@ -122,7 +122,7 @@
 
 <h2 id="history"><span class="m-no">7</span>이력</h2>
 <figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>지식 관리 › 이력</span></div><div class="m-pic"><img src="img/t-history.png" alt="이력: 날마다 바뀐 것 · 값 바뀜" loading="lazy"></div></div>
-<figcaption>내가 볼 수 있는 팀 지식에서 바뀐 것을 한 흐름으로(날마다). 저장 · 가져오기 · 정리 · 새 지식 · 지움 · 새 기기.</figcaption></figure>
+<figcaption>내가 볼 수 있는 팀 지식에서 바뀐 것을 한 흐름으로(날마다). 저장 · 고침 · 들이기 · 다듬기 · 가져오기 · 넣지 못함 · 새 지식 · 지움 · 새 기기.</figcaption></figure>
 <ul>
 <li>내 값이 바뀐 줄은 맨 위 <b>값 바뀜</b>(노랑). 저장 줄을 펼치면 넣은 항목마다 「옛 값 → 새 값」 이 보이고, 내 저장(지식관리자는 모든 저장)은 그 항목만 [되돌리기] 한다. 그 뒤 누가 다시 고친 항목은 되돌리지 않는다.</li>
 <li>갈래 · 지식으로 거르고, 줄을 누르면 펼쳐 그 일 · 문서를 연다.</li>
@@ -156,7 +156,7 @@
 <h2 id="out"><span class="m-no">10</span>나가기 · 밖으로 나가는 것</h2>
 <ul>
 <li><b>나가기</b>: 왼쪽 위 내 이름 › 나가기(이 브라우저) · 모든 곳에서 나가기(다른 기기 · 브라우저도. Claude Code 의 기기 열쇠는 그대로).</li>
-<li>팀 지식이 밖으로 나가는 길은 <b>백업</b>(지식마다 정한 git 자리)과 <b>Claude 정리</b>(팀 서버의 정리 전용 로그인)뿐이다. 「자동 정리에 Claude 쓰지 않음」 지식은 Claude 에 보내지 않는다.</li>
+<li>팀 지식이 밖으로 나가는 길은 <b>백업</b>(지식마다 정한 git 자리)과 <b>Claude 들이기 · 다듬기</b>(팀 서버의 팀 일꾼 로그인)뿐이다. 「Claude 에 보내지 않음」 지식은 Claude 에 보내지 않는다.</li>
 </ul>
 </article>
 </body>

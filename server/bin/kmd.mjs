@@ -57,15 +57,15 @@ const HELP = `kmd ${VERSION}
       지식마다 자리(읽기 · 쓰기 · 지식관리자 · 옛 이름 관리도 받는다): 인자 없으면 지금 표를 보인다 · 자리 「없음」 이면 그 줄을 뺀다 · 여럿은 쉼표로도
   kmd group [add <묶음> <아이디,…> | rm <묶음> | <묶음> +아이디 -아이디]
       묶음: 사람 여럿에 한 번에 자리를 준다(kmd access --group) · 인자 없으면 목록
-  kmd worker add                               정리 일꾼 열쇠를 만든다(한 번만 보인다)
-  kmd worker key set <팀 주소>                 정리 일꾼 열쇠를 이 OS 사용자의 자격 저장소에(숨김 입력)
-  kmd worker <팀 주소>                         정리 일꾼: 늘 돈다(이 OS 사용자의 Claude Code 로그인으로)
+  kmd worker add                               팀 일꾼 열쇠를 만든다(한 번만 보인다)
+  kmd worker key set <팀 주소>                 팀 일꾼 열쇠를 이 OS 사용자의 자격 저장소에(숨김 입력)
+  kmd worker <팀 주소>                         팀 일꾼: 늘 돈다(이 OS 사용자의 Claude Code 로그인으로)
   kmd secret set <이름>                        비밀 넣기(숨김 입력) · kmd secret 은 목록
   kmd machine add <지식> <원천> [--types 가,나] · kmd machine revoke <machine-…>
       바깥 생성기용 기계 열쇠(그 지식 · 그 표만 · 1년)
   kmd search-check <지식> [--freeze]           찾기 점검: 얼린 시험지 위에서 나빠진 문항
   kmd guard <지식> | --all [--list]           지식 점검: 이름 없는 기록 · 장부 밖 이름 · 이름 없는 항목 · 자리 잃은 이름 · 다른 이름 겹침 · 깨진 머리 수 · --list 는 목록까지
-  kmd docfmt <지식> | --all [--dry]            옛 문서 옮기기: 항목 끝 출처 목록을 문서 끝 참고로(본문은 그대로) · --dry 는 보기만
+  kmd docfmt <지식> | --all [--dry] [--lift]   옛 문서 옮기기: 항목 끝 출처 목록을 문서 끝 참고로(본문은 그대로) · --dry 는 보기만 · --lift 는 ## 없는 문서의 ### 을 ## 로(자리 장부도 같이)
   kmd auth reapply <auth.log>                  옛 명부로 되살린 뒤 늦은 일을 다시 적용
 
   둘 다
@@ -114,7 +114,7 @@ const readUp = (root, o) => { try { return JSON.parse(fs.readFileSync(upFileOf(r
 const runCode = (cmd, args) => new Promise((ok) => spawn(cmd, args, { stdio: 'ignore', windowsHide: true }).on('exit', (c) => ok(c)).on('error', () => ok(1)))
 const runOut = (cmd, args) => new Promise((ok) => { let out = ''; const p = spawn(cmd, args, { windowsHide: true }); p.stdout.on('data', (d) => (out += d)); p.on('exit', (c) => ok(c === 0 ? out : null)); p.on('error', () => ok(null)) })
 const sameDir = (a, b) => (process.platform === 'win32' ? path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase() : path.resolve(a) === path.resolve(b))
-// 살아 있나 — 'up'(개인 프로그램이 답한다) · 'busy'(받았는데 답이 늦다 — 넣기 · 정리로 바쁜 kmd) · null(꺼짐 · 다른 프로그램).
+// 살아 있나 — 'up'(개인 프로그램이 답한다) · 'busy'(받았는데 답이 늦다 — 넣기 · 들이기로 바쁜 kmd) · null(꺼짐 · 다른 프로그램).
 // 가벼운 /healthz?live=1 로 묻는다(멈춤 줄을 재지 않는다)
 async function pcAlive(url, ms = 10_000) {
   try {
@@ -397,7 +397,7 @@ async function main() {
     }
     const c = await addMcp('kmd', s.url)
     console.log(c.ok ? '✓ Claude Code 에 이었다. 개인 프로그램(kmd)' : `Claude Code 에 잇기(한 번): ${c.line}`)
-    // 이 PC 의 정리 일꾼 — 내 Claude 로그인으로(자식 프로세스 · 서버 프로세스는 Claude 를 부르지 않는다)
+    // 이 PC 의 팀 일꾼 — 내 Claude 로그인으로(자식 프로세스 · 서버 프로세스는 Claude 를 부르지 않는다)
     if (o.worker !== 'false') {
       let wk = await kget('worker:' + s.url).catch(() => null)
       if (!wk || !s.auth.bearer(wk)) {
@@ -459,7 +459,7 @@ async function backupCmd(o) {
   }
 }
 
-// 주인 · 개인 · 지식관리자(예전 정리하는 사람) — 셸(서버를 띄운 사람)이 바로 정한다
+// 주인 · 개인 · 지식관리자 — 셸(서버를 띄운 사람)이 바로 정한다
 async function ownerCmd(o) {
   const root = path.resolve(o.root || (fs.existsSync(defaultPcRoot()) ? defaultPcRoot() : '.'))
   const [id, who] = o._
@@ -467,7 +467,7 @@ async function ownerCmd(o) {
     if (!id) throw new Error('kmd owner <지식> [사람] [--curators 가,나]')
     const hub = await makeHub({ root, dataDir: o.data ? path.resolve(o.data) : defaultDataDir(root), log: () => {} })
     const row = await hub.setOwner(SHELL, id, { owner: who || undefined, curators: o.curators ? String(o.curators).split(',').map((x) => x.trim()).filter(Boolean) : undefined })
-    console.log(`${id}: 주인 ${row.owner || '없음'} · 정리 ${row.curators.join(', ') || '없음'}: 도는 서버에도 곧 보인다`)
+    console.log(`${id}: 주인 ${row.owner || '없음'} · 지식관리자 ${row.curators.join(', ') || '없음'}: 도는 서버에도 곧 보인다`)
   } catch (e) {
     console.error(e.message)
     process.exitCode = 1
@@ -594,12 +594,12 @@ ${key}
       const hub = await makeHub({ root: rootOf(o), dataDir: dataOf(o), log: () => {} })
       const k = await hub.handOver(id, { to: o.to ? String(o.to) : null })
       console.log(`떠났다: ${id} · 끊은 기기 ${r.devices} · 아이디는 남겨 두고 되쓰지 않는다`)
-      console.log(`지식: 주인인 팀 지식 ${k.team} · 정리하는 지식 ${k.curate} → ${k.to ? k.to + ' 이 주인을 잇는다' : '주인 칸을 비웠다(개인 지식은 관리자만 본다. 관리 화면에서 넘기거나 지운다)'}`)
+      console.log(`지식: 주인인 팀 지식 ${k.team} · 지식관리자인 지식 ${k.curate} → ${k.to ? k.to + ' 이 주인을 잇는다' : '주인 칸을 비웠다(개인 지식은 관리자만 본다. 관리 화면에서 넘기거나 지운다)'}`)
     } else {
       const all = auth.users()
       for (const u of all.filter((x) => x.kind !== 'worker')) console.log(`${u.id}: ${u.kind === 'machine' ? '기계 열쇠 · ' + u.machine.kn + ' · ' + u.machine.source : u.off ? '떠남 · ' + String(u.off.at).slice(0, 10) : (u.admin ? '총괄 관리자' : '사람') + (u.password ? '' : ' · 비밀번호 안 정함') + ` · 기기 ${u.devices}`}`)
       const team = all.filter((x) => x.kind === 'worker')
-      if (team.length) console.log(`정리 일꾼 열쇠(팀): ${team.map((x) => x.id).join(' · ')}`)
+      if (team.length) console.log(`팀 일꾼 열쇠: ${team.map((x) => x.id).join(' · ')}`)
     }
   } catch (e) {
     console.error(e.message)
@@ -721,22 +721,23 @@ async function docfmtCmd(o) {
   const id = o._[0] ?? flagVal(o.dry) ?? flagVal(o.all)
   const all = o.all !== undefined && !flagVal(o.all)
   const dry = o.dry !== undefined
+  const lift = o.lift !== undefined
   try {
-    if (!id && !all) throw new Error('kmd docfmt <지식> | --all [--dry]')
+    if (!id && !all) throw new Error('kmd docfmt <지식> | --all [--dry] [--lift]')
     const hub = await makeHub({ root: rootOf(o), dataDir: dataOf(o), log: () => {} })
     const ids = all ? (await hub.list()).map((k) => k.id) : [id]
     for (const x of ids) {
       try {
-        const r = await hub.docfmt(x, SHELL, { dry })
+        const r = await hub.docfmt(x, SHELL, { dry, lift })
         const bad = r.docs.filter((d) => !d.ok)
-        console.log(`${r.name}: ${dry ? '옮길' : '옮긴'} 문서 ${r.files} · 줄 ${r.moved}${bad.length ? ` · 옮기지 않음 ${bad.length}` : ''}${r.log ? ` · 이력 ${r.log}` : ''}`)
+        console.log(`${r.name}: ${dry ? '옮길' : '옮긴'} 문서 ${r.files} · 줄 ${r.moved}${r.lifted ? ` · ### 올림 ${r.lifted}` : ''}${bad.length ? ` · 옮기지 않음 ${bad.length}` : ''}${r.log ? ` · 이력 ${r.log}` : ''}`)
         // 짜임 알림(옮긴 뒤 글을 본 것 · 고치지는 않는다) — 문서 수 · 알림 수 · 갈래(code)별 수
         const lt = r.lint || { docs: 0, n: 0, codes: {} }
         if (lt.n) console.log(`  짜임 알림: 문서 ${lt.docs} · 알림 ${lt.n} (${Object.entries(lt.codes || {}).sort((a, b) => b[1] - a[1]).map(([c, n]) => `${c} ${n}`).join(' · ')})`)
         for (const d of r.docs) {
           const ln = d.lint || { n: 0 }, ks = d.kinds || {}
           if (!d.changed && d.ok && !ln.n) continue
-          const extra = [ks.change ? `변경 이력 ${ks.change}` : '', ks.top ? `머리 앞 걷음 ${ks.top}` : '', ln.n ? `짜임 알림 ${ln.n}` : ''].filter(Boolean).join(' · ')
+          const extra = [ks.change ? `변경 이력 ${ks.change}` : '', ks.top ? `머리 앞 걷음 ${ks.top}` : '', d.lifted ? `### 올림 ${d.lifted} · 장부 줄 ${d.regRows || 0}` : '', ln.n ? `짜임 알림 ${ln.n}` : ''].filter(Boolean).join(' · ')
           console.log(`  ${d.ok ? '-' : '!'} ${d.doc}: ${d.ok ? `줄 ${d.moved}` : d.why}${extra ? ` · ${extra}` : ''}`)
           for (const x of ln.top || []) console.log(`      ${x.line}째 줄 ${x.msg}`)
         }
@@ -751,7 +752,7 @@ async function docfmtCmd(o) {
   }
 }
 
-// 정리 일꾼 — `kmd worker add`(셸 · 열쇠를 한 번 보인다) · `kmd worker key set <팀 주소>`(숨김 입력 → 자격 저장소) ·
+// 팀 일꾼 — `kmd worker add`(셸 · 열쇠를 한 번 보인다) · `kmd worker key set <팀 주소>`(숨김 입력 → 자격 저장소) ·
 // `kmd worker <팀 주소>`(늘 돈다 · 그 OS 사용자의 Claude Code 로그인으로)
 async function workerCmd(o) {
   const [sub, arg] = o._
@@ -759,19 +760,19 @@ async function workerCmd(o) {
     if (sub === 'add') {
       const auth = await makeAuth({ dataDir: dataOf(o) })
       const r = await auth.workerAdd()
-      console.log(`정리 일꾼 열쇠: ${r.id}\n${r.key}\n(지금 한 번만 보인다. 정리용 OS 사용자로 「kmd worker key set <팀 주소>」 에 붙인다)`)
+      console.log(`팀 일꾼 열쇠: ${r.id}\n${r.key}\n(지금 한 번만 보인다. 팀 일꾼용 OS 사용자로 「kmd worker key set <팀 주소>」 에 붙인다)`)
       return
     }
     if (sub === 'key') {
       const url = new URL(o._[2] || '').origin
-      await kput('worker:' + url, (await hidden('정리 일꾼 열쇠(보이지 않는다): ')).trim())
-      console.log(`넣었다: ${url} 의 정리 일꾼 열쇠`)
+      await kput('worker:' + url, (await hidden('팀 일꾼 열쇠(보이지 않는다): ')).trim())
+      console.log(`넣었다: ${url} 의 팀 일꾼 열쇠`)
       return
     }
     const url = new URL(sub || '').origin
     const key = o.key || process.env.KMD_WORKER_KEY || (await kget('worker:' + url))
-    if (!key) throw new Error('정리 일꾼 열쇠가 없다. kmd worker key set <팀 주소>')
-    // 팀 서버의 정리 일꾼 — 설정 · 팀 › Claude 연결에서 받은 정리 전용 로그인(비밀 claude-token)을 이 프로세스에만
+    if (!key) throw new Error('팀 일꾼 열쇠가 없다. kmd worker key set <팀 주소>')
+    // 팀 서버의 팀 일꾼 — 설정 · 팀 › Claude 연결에서 받은 팀 일꾼 로그인(비밀 claude-token)을 이 프로세스에만
     //   일감마다 다시 읽는다 — 관리자가 일꾼이 도는 사이에 로그인하거나 걷어도 다시 켜지 않고 따른다
     const token = async () => {
       if (!o.data) return
@@ -782,7 +783,7 @@ async function workerCmd(o) {
     await token()
     const { runWorker } = await import('../../core/worker.js')
     runWorker({ server: url, key, poll: o.poll ? Number(o.poll) : 10_000, before: token })
-    console.log(`kmd worker: ${url} 의 정리 일감을 기다린다`)
+    console.log(`kmd worker: ${url} 의 들이기 일감을 기다린다`)
   } catch (e) {
     console.error(e.message)
     process.exitCode = 1
@@ -926,7 +927,7 @@ async function restoreCmd(o) {
     const r = await hub.restore(SHELL, { url, name, attach: o.practice !== undefined ? false : o.attach !== undefined ? true : null })
     console.log(r.attached ? `· 같은 백업 자리로 이어 보낸다` : `· 읽기만 사본: 원래 백업 자리에는 보내지 않는다(연습 · 다른 이름 · 같은 자리를 다른 지식이 쓴다 · 붙이려면 --attach)`)
     console.log(`되살렸다: ${r.id} · 문서 ${r.docs} · 기록 ${r.records} · 첨부 ${r.atts} · 이름 장부 ${r.vocab ? '있음' : '없음'} · ${r.owner ? `주인 ${r.owner}` : '주인 없음(_members.md 없음)'}: 도는 서버에는 관리자의 [동기화] 로 목록에 선다(개인 지식은 그 전에도 가려져 있다)`)
-    if (r.check) console.log('· 옛 백업이라 정리 설정이 없어 「손으로만 · Claude 에 보내지 않음」 으로 두었다. 이 지식의 사람에서 다시 정한다')
+    if (r.check) console.log('· 옛 백업이라 설정 줄이 없어 「Claude 에 보내지 않음」 으로 두었다. 이 지식의 사람에서 다시 정한다')
     if (r.errors.length) console.log(`검사 줄 ${r.errors.length}: ${r.errors.slice(0, 3).join(' · ')}`)
   } catch (e) {
     console.error(e.message)

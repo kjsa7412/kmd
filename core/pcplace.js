@@ -1,17 +1,14 @@
-// 정리 — 아직 문서에 안 넣은 기록을 문서 항목에 넣는다(v0.6 §6 · KM81 — 검사를 넘으면 승인 없이 바로).
+// 개인 프로그램(PC)의 「저장 즉시 넣기」 — 아직 문서에 안 넣은 기록을 문서 항목에 넣는다(K-D8 · 개편 S13 에 옛 core/tidy.js 에서 PC 갈래만 옮겼다).
 //
-//   재료(material)   항목마다 묶음 하나 — 지금 글 · 지문(base) · 그 항목의 안 넣은 기록 · 기록의 값 장부.
-//                    내주는 쪽에서 거른다: 「Claude 에 보내지 않음」 지식은 재료 0(나가기 전에 막는다) · private 태그 기록 뺌.
-//                    이름이 없는 기록은 「이름 바로잡기」 묶음(후보 이름은 찾기 사다리가 준다).
-//   초안(draft)      일꾼(claude -p)이 JSON 으로 — { content, used[], left[{id, why}], drop[] } / { touches[] }
-//   검사(check)      G1 모양 · 기록마다 넣음(used) 또는 둠(left) · G2 base · G4 값 대조(빠진 값 · 지어낸 값) ·
-//                    G5 크기 · G6 표지(항목 머리 # · ## · applied · 프런트매터 · script — 소제목 ### 아래는 된다).
-//                    못 넘으면 「그대로 둔 것」(까닭 한 줄)
-//   참고 줄          Claude 는 본문만 보고 쓴다 — 출처 줄은 문서 끝 참고 블록에 저장이 지키고 넣은 기록의 줄을 더한다
-//                    초안 검사는 저장과 같은 문서 꼴 검사(core/docformat.js formatProblems)를 쓴다
-//   넣기(apply)      작성자 kmd-auto · 태그 curate-llm · 항목 글 + 표지 · 둔 기록은 같은 기록의 curates(keep)
+//   재료(material)   항목마다 묶음 하나 — 지금 글 · 지문(base) · 그 항목의 안 넣은 기록 · 기록의 값 장부 · 이름 없는 기록은 「이름 고르기」 묶음 ·
+//                    넣은 파일은 「들이기」 묶음(후보 문서 · 갈래)
+//   초안             PC 의 Claude(askClaude) 가 JSON 으로 — { content, used[], left[{id, why}], drop[] } / { touches[] } / 들이기 초안
+//   검사             core/gate.js check(G1 모양 · G2 base · G4 값 대조 · G5 크기 · G6 표지) — 못 넘으면 규칙으로
+//   넣기(planSave)   작성자 kmd-auto · 태그 curate-llm · 항목 글 + 표지 · 둔 기록은 같은 기록의 curates(keep)
+//   규칙(ingestRule) Claude 없이 넣은 파일을 갈래 · 주제 문서로
 //
-// 값이 바뀐 것(옛 글의 값이 빠지고 새 값이 들어감)은 그 기록을 쓴 사람의 「오늘 바뀐 것」 노란 줄이 된다.
+// 팀 지식은 이 길을 쓰지 않는다 — 팀은 저장 문(hub.save · 조각) · 들이기 일감(팀 일꾼)만이다(docs/품질개선/KMD_개편_설계.md 3-1 · S13).
+// 부르는 곳: server/hub.js 의 placeGroup · curatePending · ingestNow(PC 만).
 
 import { sha16 } from './text.js'
 import { formFor, DEFAULT_FORMS, FORM_GUIDE } from './guard.js'
@@ -20,14 +17,7 @@ import { sectionOf, coordsOfSection, labelOf, reflectedIn } from './knowledge.js
 import { newValuesOf } from './codechange.js'
 import { valuesOf, mustValues } from './values.js'
 import { WRITE_RULES } from './writerules.js'
-import { ingestCandidates, formsOf, spotKey, topicOfName, DATE_RE, docRel } from './ingest.js'
-
-// 옮긴 것(S2 · docs/품질개선/KMD_개편_설계.md 3-1) — 부르는 곳을 바꾸지 않게 다시 내보낸다. 이 파일은 S13 에 걷는다
-//   검사 · 꼴 → core/gate.js · 값 장부 → core/values.js · 쓰기 규칙 → core/writerules.js · 들이기 후보 · 갈래 · 자리 열쇠 → core/ingest.js
-export { check, applyDraft as applyEdits } from './gate.js'
-export { knowledgeParts, mustValues, oldValues } from './values.js'
-export { WRITE_RULES } from './writerules.js'
-export { formsOf, spotKey, spotTarget, ingestCandidates, INGEST_SCHEMA, kindOfName, topicOfName } from './ingest.js'
+import { ingestCandidates, formsOf, topicOfName, DATE_RE, docRel } from './ingest.js'
 
 export const DRAFT_SCHEMA = {
   type: 'object',
@@ -131,36 +121,6 @@ export function promptOf(g) {
   ].join('\n\n')
 }
 
-// 조각 초안(찾아 바꾸기) — 항목 글 전체를 다시 쓰지 않고 바꿀 곳만 받는다(작성기준 7절 · 나오는 글이 항목 크기가 아니라 바뀐 양을 따른다).
-//   서버가 지금 글에 대어(applyEdits) 새 글을 만든 뒤 전체 초안과 같은 검사(G4 값 · G5 크기 · G6 꼴)를 거친다
-export const PATCH_SCHEMA = {
-  type: 'object',
-  properties: {
-    edits: { type: 'array', items: { type: 'object', properties: { find: { type: 'string', description: '지금 글에 꼭 한 번 나오는 글 그대로(한 줄 이상)' }, replace: { type: 'string', description: '그 자리에 들어갈 글' } }, required: ['find', 'replace'] }, description: '바꿀 곳마다 하나 · 차례대로 댄다' },
-    rewrite: { type: 'string', description: '지금 글이 비었거나 고칠 곳이 글의 절반을 넘을 때만: 항목의 새 글 전체(그때는 edits 를 비운다)' },
-    ...Object.fromEntries(Object.entries(DRAFT_SCHEMA.properties).filter(([k]) => k !== 'content')),
-  },
-  required: ['edits', 'used', 'left'],
-}
-export const PATCH_RULE = [
-  '답 꼴(조각): 항목 글 전체를 다시 쓰지 않는다. 바꿀 곳만 edits 에 { find, replace } 로 쓴다.',
-  '- find 는 지금 글에 꼭 한 번 나오는 글을 글자 그대로(줄바꿈 · 띄어쓰기 · 기호까지) 옮긴다. 짧아서 여러 곳에 맞을 것 같으면 앞뒤 줄을 더 붙인다.',
-  '- 새 내용을 보탤 때는 이어질 자리의 줄을 find 로 잡고, replace 에 그 줄과 새 글을 같이 쓴다.',
-  '- 값을 바꿀 때는 그 값이 든 줄을 find 로 잡고 replace 에 새 값으로 고친 줄을 쓴다(drop 에 옛 값).',
-  '- 기록을 녹여 쓰는 규칙(위 항목 글 쓰기)은 replace 글에도 같다. 지금 글의 다른 곳은 건드리지 않는다.',
-  '- 지금 글이 비었거나 고칠 곳이 글의 절반을 넘으면 edits 를 비우고 rewrite 에 새 글 전체를 쓴다.',
-].join('\n')
-export const patchPromptOf = (g) => [promptOf(g), PATCH_RULE].join('\n\n')
-// 고쳐 쓰기 — 초안이 검사에 걸렸다. 같은 프롬프트에 지난 초안과 걸린 까닭을 붙여 한 번 더(일꾼이 자리마다 한 번만)
-export function fixPromptOf(g, draft, why) {
-  return [
-    promptOf(g),
-    `지난 초안이 kmd 검사에 걸렸다: ${why}`,
-    '「조각이 지금 글에 맞지 않는다 · 여러 곳에 맞는다」 면 find 를 지금 글 그대로 더 길게 잡거나 rewrite 에 새 글 전체를 쓴다. 「기록의 값이 글에 없다」 면 그 값을 기록에 쓰인 글자 그대로(단위까지) 글에 넣는다. 그 항목에 맞지 않는 값이면 그 기록을 left 에 까닭과 함께 둔다. 「근거에 없는 값」 이면 지금 글과 기록에 없는 그 값을 빼거나 근거에 있는 값으로 바꾼다. 「옛 글의 값이 빠졌다」 면 그 값을 지금 글 그대로 되살린다. 기록이 그 값을 바꿨으면 새 값을 쓰고 drop 에 옛 값을 적는다. 나머지는 지난 초안을 그대로 두고 걸린 것만 고친다.',
-    `지난 초안:\n${JSON.stringify(draft)}`,
-  ].join('\n\n')
-}
-
 // 늦게 정리되는 옛 기록 — 지금 글에 이미 그보다 늦게 쓴 기록이 들어갔다(material 의 since)
 const OLD_MARK = '지금 글보다 오래됨'
 const OLD_RULE = `「${OLD_MARK}」 이 붙은 기록은 지금 글에 더 늦게 쓴 기록이 이미 들어간 뒤에 정리되는 옛 기록이다. 지금 글에 없는 내용만 보태고, 지금 글의 값을 그 기록의 값으로 바꾸지 않는다. 지금 글과 값이 다르면 그 기록은 left 에 「더 새 값이 이미 있다」 로 둔다.`
@@ -175,79 +135,6 @@ const mustLine = (r, req) => {
 }
 const recLine = (r, req = !r.old && !r.spread) => `[${r.id}] ${r.date} ${r.author}${r.old ? ` (${OLD_MARK})` : ''}${r.spread ? ` (${SPREAD_MARK} · ${r.spread})` : ''}: ${r.title}\n${r.body}${mustLine(r, req)}`
 const MUST_RULE = `「${MUST_MARK}」 은 기록의 「바뀐 것」 에 든 값이다(요약 · 영향의 배포 자리 · 알릴 사람 같은 경위는 옮기지 않는다). 넣는 기록이면 그 값을 글자 그대로(단위까지) 글에 쓴다. 옛 글의 값을 바꿔 뺀 값만 drop 에 적는다. 그 항목에 맞지 않는 값이면 그 기록을 left 에 둔다.`
-
-// 한 문서의 항목 여럿을 claude -p 한 번에 — 자리마다 부르면 기록 22건이 자리 159개 · 159번이 된다.
-//   같은 문서의 항목 묶음만(문서 하나가 거의 한 번) · 묶음 하나는 BATCH_MAX 자리 · 글(지금 글 + 기록)은 BATCH_CHARS 까지(기록 글은 한 번만 센다). 답은 자리마다 DRAFT_SCHEMA 와 같은 초안
-export const BATCH_MAX = 16
-export const BATCH_CHARS = 60_000
-export const BATCH_SCHEMA = {
-  type: 'object',
-  properties: {
-    items: {
-      type: 'array',
-      items: { type: 'object', properties: { key: { type: 'string', description: '항목의 key(그대로)' }, ...DRAFT_SCHEMA.properties }, required: ['key', ...DRAFT_SCHEMA.required] },
-      description: '항목마다 하나',
-    },
-  },
-  required: ['items'],
-}
-// 묶음의 글 크기 — 항목마다 지금 글 + 기록 글은 한 번만(한 기록이 항목 스무 곳에 걸려도 프롬프트에는 한 번 실린다)
-const sizeOf = (gs) => {
-  const recs = new Map(gs.flatMap((g) => g.records.map((r) => [r.id, r])))
-  return gs.reduce((n, g) => n + (g.content || '').length, 0) + [...recs.values()].reduce((n, r) => n + r.title.length + r.body.length, 0)
-}
-// 묶음 — 문서 항목 자리만 같은 문서끼리 · 나머지(이름 바로잡기 · 넣은 파일)는 하나씩
-// 묶음이 다시 쓸 글(지금 글 합) 상한 — 답은 한 응답 안에서 차례로 나와 큰 항목 둘을 묶으면 7분에 끊겼다. 큰 항목은 혼자(따로 부르면 나란히 돈다)
-export const BATCH_OUT = 3000
-const outOf = (gs) => gs.reduce((n, g) => n + (g.content || '').length, 0)
-//   isPatch(g) — 그 항목을 조각으로 쓰나(일꾼의 KMD_TIDY_PATCH). 조각 항목은 조각 항목끼리 묶고, 답이 바뀐 양만큼이라 다시 쓸 글 상한(outMax)을 보지 않는다(A9)
-export function batchesOf(groups, { max = BATCH_MAX, chars = BATCH_CHARS, out: outMax = BATCH_OUT, isPatch = () => false } = {}) {
-  const out = []
-  const open = new Map()
-  for (const g of groups) {
-    const pt = g.kind === 'section' && !!isPatch(g)
-    if (g.kind !== 'section' || max < 2 || (!pt && outOf([g]) > outMax)) { out.push([g]); continue }
-    const key = pt ? `${g.doc}|조각` : g.doc
-    const b = open.get(key)
-    if (b && b.length < max && sizeOf([...b, g]) <= chars && (pt || outOf([...b, g]) <= outMax)) { b.push(g); continue }
-    const nb = [g]
-    open.set(key, nb)
-    out.push(nb)
-  }
-  return out
-}
-// 조각 묶음(A9) — 한 문서의 항목 여럿을 한 번에 조각으로 · 항목마다 PATCH_SCHEMA 와 같은 초안
-export const BATCH_PATCH_SCHEMA = {
-  type: 'object',
-  properties: {
-    items: {
-      type: 'array',
-      items: { type: 'object', properties: { key: { type: 'string', description: '항목의 key(그대로)' }, ...PATCH_SCHEMA.properties }, required: ['key', ...PATCH_SCHEMA.required] },
-      description: '항목마다 하나',
-    },
-  },
-  required: ['items'],
-}
-export const BATCH_PATCH_RULE = [PATCH_RULE, '- 묶음에서는 항목마다 items 하나에 key · edits(또는 rewrite) · used · left 를 쓴다. find 는 그 항목의 지금 글에서만 찾는다.'].join('\n')
-export function batchPromptOf(gs, { patch = false } = {}) {
-  const recs = new Map()
-  for (const g of gs) for (const r of g.records) recs.set(r.id, r)
-  return [
-    `문서 ${gs[0].doc.replace(/^docs\/|\.md$/g, '')} 의 항목 ${gs.length} 개를 새 기록에 맞게 각각 고쳐 쓴다. 항목마다 items 에 하나씩 · key 는 받은 그대로.`,
-    '항목마다: 그 항목의 기록에 있는 값(수 · 이름 · 코드)은 그대로 옮기고, 기록에 없는 값을 지어내지 않는다. 옛 글의 값을 새 기록이 바꿨으면 새 값으로 바꾸고 drop 에 옛 값을 적는다. 기록이 바꾸지 않은 옛 글의 값은 빼지 않는다. 그 항목에 넣을 것이 없는 기록은 left 에 까닭과 함께 둔다. used · left 에는 그 항목의 기록 id 만 쓴다.',
-    ...([...recs.values()].some((r) => r.code) ? ['코드 커밋 기록은 「바뀐 값」 줄과 차이를 본다. 글에 옛 값이 있으면 새 값으로 고치고, 코드에 없는 설명은 지어내지 않는다. 그 항목 글과 상관없는 커밋은 left 에 둔다.'] : []),
-    ...(gs.some((g) => g.records.some((r) => r.old)) ? [OLD_RULE.replace('붙은 기록은', '붙은 기록은(그 항목에서)')] : []),
-    ...(gs.some((g) => g.records.some((r) => r.spread)) ? [SPREAD_RULE] : []),
-    MUST_RULE,
-    WRITE_RULES,
-    'JSON 으로만 답한다.',
-    // 옛 기록인지는 항목마다 다르다 — 항목의 기록 줄에 붙인다
-    gs.map((g) => `[key ${spotKey(g)}] 항목 「${g.name}」\n그 항목의 기록: ${g.records.map((r) => (r.old ? `${r.id}(${OLD_MARK})` : r.id)).join(', ')}\n지금 글:\n${g.content || '(아직 없음)'}`).join('\n\n---\n\n'),
-    `기록(오래된 것부터):\n${[...recs.values()].sort((a, b) => a.date.localeCompare(b.date)).map((r) => recLine({ ...r, old: false }, gs.some((g) => g.records.some((x) => x.id === r.id && !x.old && !x.spread)))).join('\n\n')}`,
-    // 조각 묶음 — 답 꼴은 맨 끝에(항목 글 전체를 다시 쓰지 않는다)
-    ...(patch ? [BATCH_PATCH_RULE] : []),
-  ].join('\n\n')
-}
 
 // 규칙으로 들이기(Claude 없이 · 이 PC 의 넣기가 바로 문서까지 갈 때) — 이름은 파일 이름이 아니라 갈래 · 주제로
 //   갈래(회의록 · 장애 대응 · 보고서)가 보이면 그 갈래 문서의 새 항목 「언제 · 무엇」(갈래 문서가 없으면 세운다) — 글 속 머리는 굵은 글로
@@ -327,7 +214,7 @@ export function planSave(k, g, d, { model = null } = {}) {
     return {
       record: {
         title: `정리: ${name} 들임`,
-        body: [`초안: 정리 일꾼${model ? `(${model})` : ''} · 넣음: kmd · 넣은 파일 ${g.record.id}`, ...(p ? [`- 새 문서 ${p}: 항목 ${news.length}`] : []), ...ups.map((u) => `- 고침 ${u.doc.replace(/^docs\/|\.md$/g, '')} › ${u.heading}`), ...(d.why ? [`- 까닭: ${d.why}`] : [])].join('\n'),
+        body: [`초안: kmd${model ? `(${model})` : ''} · 넣음: kmd · 넣은 파일 ${g.record.id}`, ...(p ? [`- 새 문서 ${p}: 항목 ${news.length}`] : []), ...ups.map((u) => `- 고침 ${u.doc.replace(/^docs\/|\.md$/g, '')} › ${u.heading}`), ...(d.why ? [`- 까닭: ${d.why}`] : [])].join('\n'),
         tags: ['curate-llm'],
         reflects: [g.record.id],
       },
@@ -335,7 +222,7 @@ export function planSave(k, g, d, { model = null } = {}) {
     }
   }
   if (g.kind === 'touches')
-    return { record: { title: `이름 바로잡음: ${g.record.title.split(/ — |: /)[0]}`, body: `정리 일꾼이 이 기록이 바꾼 항목을 골랐다${d.why ? `: ${d.why}` : ''}`, touches: d.touches, tags: ['curate-llm', 'touches-fix'], fixes: [g.record.id], date: g.record.date } }
+    return { record: { title: `이름 바로잡음: ${g.record.title.split(/ — |: /)[0]}`, body: `kmd 가 이 기록이 바꾼 항목을 골랐다${d.why ? `: ${d.why}` : ''}`, touches: d.touches, tags: ['curate-llm', 'touches-fix'], fixes: [g.record.id], date: g.record.date } }
   const used = g.records.filter((r) => d.used.includes(r.id))
   const left = d.left.filter((x) => g.records.some((r) => r.id === x?.id))
   // 여러 항목에 걸린 기록을 이 항목에서 둔 것은 「이 항목에는 바꿀 것이 없다」 — 이 항목에 넣음 표지만 단다.
@@ -346,10 +233,10 @@ export function planSave(k, g, d, { model = null } = {}) {
   return {
     record: {
       title: `정리: ${g.name}`,
-      body: [`초안: 정리 일꾼${model ? `(${model})` : ''} · 넣음: kmd`, ...used.map((r) => `- 넣음 ${r.id}: ${r.title}`), ...pass.map((x) => `- 이 항목에는 없음 ${x.id}: ${x.why}`), ...keep.map((x) => `- 둠 ${x.id}: ${x.why}`)].join('\n'),
+      body: [`초안: kmd${model ? `(${model})` : ''} · 넣음: kmd`, ...used.map((r) => `- 넣음 ${r.id}: ${r.title}`), ...pass.map((x) => `- 이 항목에는 없음 ${x.id}: ${x.why}`), ...keep.map((x) => `- 둠 ${x.id}: ${x.why}`)].join('\n'),
       touches: [g.coord],
       tags: ['curate-llm'],
-      curates: keep.map((x) => ({ id: x.id, verdict: 'keep', rule: 'tidy', reason: x.why })),
+      curates: keep.map((x) => ({ id: x.id, verdict: 'keep', rule: 'place', reason: x.why })),
       reflects: [...used.map((r) => r.id), ...pass.map((x) => x.id)],
     },
     sections: [{ coord: g.coord, content: d.content, base: g.base }],

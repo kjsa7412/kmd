@@ -80,7 +80,7 @@ const TOOLS = [
             dropped: { type: 'array', items: { type: 'string' }, description: '버린 안: 견준 다른 길과 버린 까닭(있으면)' },
             impact: { type: 'array', items: { type: 'string' }, description: '영향: 무엇이 바뀌나 · 누가 알아야 하나(있으면)' },
             refs: { type: 'array', items: { type: 'string' }, description: '근거: 커밋 · 문서 판 · 회의(있으면)' },
-            touches: { type: 'array', items: { type: 'string' }, description: '글이 실제로 바뀌는 항목의 이름(coord)만: match 로 찾은 이름 장부의 이름 · 예 proc:헬스체크 · 읽기만 한 항목은 달지 않는다(이름 하나가 정리의 자리 하나)' },
+            touches: { type: 'array', items: { type: 'string' }, description: '글이 실제로 바뀌는 항목의 이름(coord)만: match 로 찾은 이름 장부의 이름 · 예 proc:헬스체크 · 읽기만 한 항목은 달지 않는다' },
             touchesEmpty: str('건드린 이름이 정말 없을 때만: 그 까닭 한 줄(예: 항목이 아직 없는 일정 메모). touches 와 같이 보내지 않는다'),
             tags: { type: 'array', items: { type: 'string' } },
             fixes: { type: 'array', items: { type: 'string' }, description: '바로잡는 기록 id: 넣지 못함 · 메모로 끝난 내 앞 기록을 고쳐 다시 저장할 때(남의 기록은 지식관리자만)' },
@@ -95,7 +95,7 @@ const TOOLS = [
         },
         forms: {
           type: 'array',
-          description: '세울 갈래(지식관리자): 새 문서가 설 수 있는 갈래를 갈래 장부에 더한다. 일반 자리는 기록에 실어 정리 때 관리자가 세운다',
+          description: '세울 갈래(지식관리자): 새 문서가 설 수 있는 갈래를 갈래 장부에 더한다. 일반 자리는 기록에 실어 두고 지식관리자가 넣지 못함 화면에서 세운다',
           items: { type: 'object', properties: { name: str('갈래 = 문서 이름: 예 회의록'), aliases: { type: 'array', items: { type: 'string' }, description: '이 갈래로 모을 다른 이름: 예 통화 · 미팅' }, folder: str('문서 폴더: 예 1.2_사업관리'), kind: str('대상 · 서술 · 사건 · 대장'), pattern: str('그 문서의 항목 이름 패턴: 예 이슈:*'), form: str('서식: 지식문서 · 결정기록 · 작업기록') }, required: ['name'] },
         },
         names: {
@@ -175,8 +175,9 @@ export function makeMcp(store) {
           '건드린 이름이 정말 없으면 touches 를 비우고 touchesEmpty 에 까닭 한 줄',
           k.forms.own ? '새 문서는 forms 의 갈래 이름 · 폴더로만. 갈래에 없는 문서가 필요하면 지식관리자에게(forms 로 갈래를 세운다)' : '새 문서 이름은 갈래 · 주제(회의록 · 장애 대응 · 보고서 · 주제 이름). 파일 이름 · 날짜 · 판을 쓰지 않는다. 통화 · 미팅은 회의록의 「YYYY-MM-DD 무엇」 항목',
         ],
-        tidy: store.mode === 'pc' ? 'kmd 가 곧바로 문서에 넣는다' : ({ live: '실시간: 기록이 남고 5분 조용하면', manual: '손으로만: 누가 [지금 정리]' }[store.tidyModeOf(k.id)] || `정해진 시각 ${store.tidyAtOf(k.id)}`),
-        ...(store.owner(k.id)?.noClaude ? { noClaude: '이 지식은 자동 정리에 Claude 를 쓰지 않는다(주인이 정했다). 이 대화로 옮기는 글은 꼭 필요한 것만' } : {}),
+        // 저장이 곧 반영(S13 · 정리를 걷었다) — 조각을 실은 저장은 그 순간 넣거나 넣지 못함 · 조각 없는 기록은 메모(PC 는 kmd 가 곧바로 넣는다)
+        put: store.mode === 'pc' ? 'kmd 가 곧바로 문서에 넣는다' : '항목 조각을 실은 저장은 그 순간 문서에 넣는다(못 넘은 조각은 넣지 못함) · 조각 없는 기록은 메모로 남는다',
+        ...(store.owner(k.id)?.noClaude ? { noClaude: '이 지식은 들이기에 Claude 를 쓰지 않는다(주인이 정했다). 이 대화로 옮기는 글은 꼭 필요한 것만' } : {}),
         stops: (await store.stops(ctx, k.id)).map((l) => l.text),
       }
     },
@@ -294,7 +295,7 @@ export function makeMcp(store) {
       const r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}), ...(forms ? { forms } : {}), ...(attach ? { attach } : {}) }, { guard: 'strict', form: true, channel, ...(Number.isInteger(have) ? { kit: have } : {}) })
       if (r.same) return { saved: r.id, same: true, docs: [], note: r.note, ...reinstall }
       const n = r.docs.length
-      const note = r.note || (n ? `저장했다. 기록 1 · 문서 ${n}` : store.mode === 'pc' ? '기록했다. 이 PC 는 kmd 가 곧바로 문서에 넣는다(정리를 기다리지 않는다)' : '저장했다. 기록 1')
+      const note = r.note || (n ? `저장했다. 기록 1 · 문서 ${n}` : store.mode === 'pc' ? '기록했다. 이 PC 는 kmd 가 곧바로 문서에 넣는다' : '저장했다. 기록 1')
       return { saved: r.id, date: r.date, docs: r.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')), note, ...(r.attach ? { attach: r.attach } : {}), ...(r.put != null ? { put: r.put } : {}), ...(r.held ? { held: r.held } : {}), ...(r.memo ? { memo: true } : {}), warnings: r.warnings, ...(r.proposals ? { proposals: r.proposals } : {}), ...reinstall }
     },
   }

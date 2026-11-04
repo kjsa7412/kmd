@@ -40,7 +40,7 @@ before(async () => {
   G('add', '-A')
   G('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', '처음')
   fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })
-  fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sourceTickMs: 3600000, tidyTickMs: 3600000, jobTickMs: 3600000 }))
+  fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sourceTickMs: 3600000, inboxTickMs: 3600000, jobTickMs: 3600000 }))
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
   await s.auth.addUser({ id: 'kim', admin: true })
   lee = await signIn(s, { id: 'lee', admin: false })

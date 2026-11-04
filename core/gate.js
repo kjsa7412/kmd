@@ -4,7 +4,7 @@
 //   G5 크기 · G6 표지(항목 머리 # · ## · applied · 프런트매터 · script — 소제목 ### 아래는 된다). 못 넘으면 { ok:false, why }.
 //   초안 글 검사는 저장과 같은 문서 꼴 검사(core/docformat.js formatProblems)를 쓴다.
 //
-//   S2 에서 core/tidy.js 에서 옮겼다(tidy.js 는 다시 내보낸다 · docs/품질개선/KMD_개편_설계.md 3-1).
+//   S2 에서 옛 정리 모듈에서 옮겼다(옛 파일은 S13 에 걷었다 · 개인 프로그램 갈래는 core/pcplace.js · docs/품질개선/KMD_개편_설계.md 3-1).
 //   check 는 옛 정리 묶음(g)의 갈래 나누기다 — 정리가 걷히는 S13 까지만. 저장 문(hub.save · S4)은 checkSection(k, { doc, heading, base, content, record, spread, legacyPend }) 을 쓴다.
 
 import { sha16 } from './text.js'
@@ -34,7 +34,7 @@ export function draftBad(t, cur = '', { doc = null, old = null } = {}) {
   return null
 }
 
-// 조각 초안을 지금 글에 댄다(옛 tidy applyEdits(cur, d)) — find 는 꼭 한 번 맞아야 한다(두 곳 · 없음은 거절: 엉뚱한 곳을 고치지 않게) ·
+// 조각 초안을 지금 글에 댄다(옛 정리의 applyEdits(cur, d)) — find 는 꼭 한 번 맞아야 한다(두 곳 · 없음은 거절: 엉뚱한 곳을 고치지 않게) ·
 //   rewrite 면 그 글 · 빈 조각이면 지금 글 그대로
 export function applyDraft(cur, d) {
   if (typeof d.rewrite === 'string' && d.rewrite.trim()) return { content: d.rewrite }

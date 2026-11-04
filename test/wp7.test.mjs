@@ -34,7 +34,7 @@ before(async () => {
   copyDir(path.join(HERE, 'fixture', 'kmd'), root)
   fs.mkdirSync(data, { recursive: true })
   fs.mkdirSync(bk, { recursive: true })
-  fs.writeFileSync(path.join(data, 'serve.json'), JSON.stringify({ decideMs: 3600000, tidyTickMs: 3600000, backupRoots: [bk], privateBackup: path.join(bk, '개인') }))
+  fs.writeFileSync(path.join(data, 'serve.json'), JSON.stringify({ decideMs: 3600000, inboxTickMs: 3600000, backupRoots: [bk], privateBackup: path.join(bk, '개인') }))
   s = await startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
 })
 after(async () => {

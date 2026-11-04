@@ -256,7 +256,7 @@ export const isHeld = (k, w, team) => w.state === 'held' || (!!team && isLegacy(
 export const heldSee = (k, see = {}) => (w) => isHeld(k, w, see.team) && (!!see.admin || (!!see.user && w.author === see.user))
 
 export function knowledgeRow(k, see = null) {
-  // pend — 정리 화면(S13 까지)의 수: 정리를 기다리는 기록 + 넣을 곳 없는 기록(비공개는 뺀다)
+  // pend — 아직 문서에 안 넣은 기록 수(비공개는 뺀다 · PC 는 바로 넣기 전 · 팀은 개편 전 기록뿐 · 옛 정리 화면이 쓰던 수 · 목록 응답 꼴은 그대로)
   const priv = (w) => w.tags.some((t) => /^private$/i.test(t))
   const pend = k.works.filter((w) => (w.state === 'pend' || w.state === 'nowhere') && !priv(w)).length
   const when = [k.docs[0]?.mtime, k.works[0] ? isoOfStamp(k.works[0].date) : null].filter(Boolean).sort().pop() || null
@@ -344,7 +344,7 @@ function landedIn(k, ids) {
   }
   return [...out.values()]
 }
-// 이 문서가 온 곳 — 항목마다 넣은 기록(how: rec) 과 그 기록을 넣은 정리(how: tidy) · 넣은 항목 머리
+// 이 문서가 온 곳 — 항목마다 넣은 기록(how: rec) 과 그 기록을 넣은 kmd 이력 기록(how: kmd · 옛 정리 · 바로 넣기 · 고침 · 다듬기) · 넣은 항목 머리
 function originsOf(k, d) {
   const m = new Map()
   const add = (w, how, h) => {
@@ -362,7 +362,7 @@ function originsOf(k, d) {
     const a = s.applied && k.byWork.get(s.applied)
     if (!a) continue
     for (const r of a.reflects || []) { const o = k.byWork.get(r); if (o) add(o, 'rec', s.h) }
-    add(a, k.logs.includes(a) ? 'tidy' : 'rec', s.h)
+    add(a, k.logs.includes(a) ? 'kmd' : 'rec', s.h)
   }
   return [...m.values()].sort((a, b) => (a.how === b.how ? b.date.localeCompare(a.date) : a.how === 'rec' ? -1 : 1))
 }

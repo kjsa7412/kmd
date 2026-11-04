@@ -31,13 +31,13 @@
 
 <h2 id="restore"><span class="m-no">3</span>되살리기</h2>
 <div class="m-tbl"><table><tr><th>무엇이 없어졌나</th><th>하는 것</th></tr>
-<tr><td>지식 하나(폴더가 깨짐 · 지움)</td><td><code>kmd restore &lt;백업 주소&gt; &lt;지식&gt;</code>: 새 폴더로 받아 fsck · 검사 · <code>_members.md</code> 로 주인 · 자리 · 정리 설정을 다시 건다. 원래 이름이면 같은 백업 자리로 이어 보낸다. 도는 팀 서버에는 [동기화] 로 목록에 선다</td></tr>
+<tr><td>지식 하나(폴더가 깨짐 · 지움)</td><td><code>kmd restore &lt;백업 주소&gt; &lt;지식&gt;</code>: 새 폴더로 받아 fsck · 검사 · <code>_members.md</code> 로 주인 · 자리 · Claude 설정을 다시 건다. 원래 이름이면 같은 백업 자리로 이어 보낸다. 도는 팀 서버에는 [동기화] 로 목록에 선다</td></tr>
 <tr><td>새 PC</td><td>kmd 를 깔고 개인 화면 › 설정 › 일반 › [백업에서 되살리기](주소 · 이름), 또는 지식마다 <code>kmd restore &lt;백업 주소&gt;</code></td></tr>
 <tr><td>백업과 갈라졌다</td><td>관리 화면에서 [이 백업 이어 쓰기](서버에만 있던 기록 · 문서를 먼저 보인다 · 지금 머리는 가지 <code>kmd-before-&lt;시각&gt;</code> 로 남는다) 또는 [서버 것으로 백업 덮기]</td></tr>
 <tr><td>백업이 앞섰다</td><td>[백업에서 받기]: 앞으로만 · 받은 글에 새 오류면 되돌린다</td></tr>
 <tr><td>살림 자리 전부</td><td>밤 묶음을 풀고 → <code>kmd auth reapply &lt;따로 둔 auth.log&gt;</code>. 끊은 기기 · 기계 열쇠는 다시 끊기고, 늦게 바꾼 비밀번호의 사람은 「다시 정하기」 링크를 새로 받는다</td></tr>
 </table></div>
-<div class="m-note m-warn"><b>되살린 지식의 정리</b><p><code>_members.md</code> 에 정리 설정 줄이 없는 옛 백업이면 「손으로만 · Claude 에 보내지 않음」 으로 두고 주인에게 알린다. 확인한 뒤 지식관리자가 정리 방식을 다시 고른다.</p></div>
+<div class="m-note m-warn"><b>되살린 지식의 Claude 설정</b><p><code>_members.md</code> 에 설정 줄이 없는 옛 백업이면 「Claude 에 보내지 않음」 으로 두고 주인에게 알린다. 확인한 뒤 지식관리자가 설정 › 일반 › 팀 지식에서 다시 고른다(옛 「정리 방식」 줄은 읽어도 쓰지 않는다).</p></div>
 
 <h2 id="practice"><span class="m-no">4</span>되살리기 연습: 석 달에 한 번</h2>
 <ol class="m-steps">
@@ -50,7 +50,7 @@
 <h2 id="upgrade"><span class="m-no">5</span>새 판</h2>
 <h3>팀 서버</h3>
 <ol class="m-steps">
-<li><b>도는 일을 본다</b><code>/srv/kmd/.kmd/jobs.json</code> 에 도는 가져오기 · 정리가 있으면 끝나기를 기다리거나 일 줄을 멈춘다.</li>
+<li><b>도는 일을 본다</b><code>/srv/kmd/.kmd/jobs.json</code> 에 도는 가져오기 · 들이기가 있으면 끝나기를 기다리거나 일 줄을 멈춘다.</li>
 <li><b>새 팀 꾸러미를 풀고 설치를 다시 돌린다</b><code>sudo sh kmd-install.sh --team …</code>(처음과 같은 인자). <code>/opt/kmd</code> 의 코드만 새 것으로 바꾸고 kmd.service · kmd-worker.service 를 다시 켠다(지식 · 살림 자리는 그대로).</li>
 <li><b>확인한다</b><code>curl &lt;팀 주소&gt;/healthz</code> 의 build 가 새 판인지 · 화면 오른쪽 아래 판 · 관리 화면 문제 줄.</li>
 </ol>
@@ -63,7 +63,7 @@
 <h2 id="trouble"><span class="m-no">6</span>막힐 때</h2>
 <div class="m-tbl"><table><tr><th>보이는 것</th><th>먼저 볼 것</th></tr>
 <tr><td>화면이 「kmd 에 닿지 않는다」</td><td>팀: <code>systemctl status kmd</code> · <code>journalctl -u kmd -n 100</code> / PC: 시작 메뉴 › kmd(꺼져 있으면 켠다) · <code>kmd pc restart</code></td></tr>
-<tr><td>정리가 오래 「정리 일꾼을 기다린다」</td><td><code>systemctl status kmd-worker</code> · 서버의 Claude 로그인(설정 › Claude 연결)</td></tr>
+<tr><td>들이기가 오래 「팀 일꾼을 기다린다」</td><td><code>systemctl status kmd-worker</code> · 서버의 Claude 로그인(설정 › Claude 연결)</td></tr>
 <tr><td>백업 빨강 한 줄</td><td><code>kmd backup</code> 으로 지식마다 상태 · 백업 자리의 열쇠 · 디스크</td></tr>
 <tr><td>Claude Code 에서 팀 지식이 안 보인다</td><td>그 지식에 내 자리가 있나 · 내 기기가 끊기지 않았나(개인 지식 쓰기 › 내 기기) · 그 폴더에서 Claude Code 를 새로 열었나</td></tr>
 <tr><td>가져오기가 「크게 바뀜」 에서 멈췄다</td><td>한꺼번에 크게 바뀌었다. 원본이 맞으면 [그대로 맞추기], 아니면 [이번은 건너뛰기]</td></tr>

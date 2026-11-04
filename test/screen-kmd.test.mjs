@@ -15,6 +15,7 @@ import { copyDir, signIn, seat } from './helpers.mjs'
 import { workOnce } from '../core/worker.js'
 import { sha16 } from '../core/text.js'
 import { sectionOf } from '../core/knowledge.js'
+import { saveRecords } from '../core/save.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const MOCK = pathToFileURL(path.join(HERE, '..', 'docs', 'kmd_목업_인터랙션.html')).href
@@ -240,12 +241,12 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   await page.close()
 })
 
-test('정리 · 이 지식의 사람 · 오늘 바뀐 것(M12 · M11 · M9): 목업 글 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('정리를 걷었다(S13): 조각 없는 기록은 메모 · 옛 정리 화면은 넣지 못함으로 · 설정 › 일반의 팀 지식 표 · 문서 다듬기 단추 · 오늘 바뀐 것 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
-  const wkey = (await s.auth.workerAdd()).key
   // lee — dpms 에 쓰기 자리를 받은 팀원(받지 않은 지식은 없음이 기본 · 권한 모델 v1.1)
   if (!s.auth.people().includes('lee')) { await s.auth.addUser({ id: 'lee', admin: false }); await seat(s, 'lee', { dpms: 'write' }) }
-  await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '카나리 비율', body: '첫 30분 요청 10% → 20%', touches: ['proc:카나리'] } })
+  const r = await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '카나리 비율', body: '첫 30분 요청 10% → 20%', touches: ['proc:카나리'] } })
+  assert.equal(r.memo, true, '조각 없는 사람 기록은 메모(정리를 기다리지 않는다 · S-D3)')
   const page = await browser.newPage({ viewport: VIEW })
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
@@ -254,112 +255,60 @@ test('정리 · 이 지식의 사람 · 오늘 바뀐 것(M12 · M11 · M9): 목
   await page.fill('#lgPw', me.pw)
   await page.click('[data-t=loginBtn]')
   await page.waitForSelector('[data-t=klist]')
-  await page.click('[data-t=krow][data-name="DPMS 지식"]')
-  await mg(page, 'team', 'tidy')
-  // 정리할 팀 지식은 둘 이상이면 고르기 하나 · 머리 줄에 위에서 고른 지식을 싣지 않는다
-  await page.waitForSelector('[data-t=tdKnSel]')
-  await page.selectOption('[data-t=tdKnSel]', 'dpms')
-  await page.waitForFunction(() => document.querySelector('[data-t=tdKnSel]')?.value === 'dpms' && document.querySelector('[data-t=goBox]'))
-  assert.match(await page.locator('.hdr .crumb').innerText(), /^설정 › 정리/)
-  assert.match(await page.locator('.main .big').innerText(), /정리: DPMS 지식/)
-  assert.match(await page.locator('[data-t=nextTidy]').innerText(), /다음 정리 .* 02:30 · 반영 대기 \d+/)
-  // 요약 줄(단위가 고정된 수) · 반영 대기는 보낸 사람으로 묶은 그리드 · 현황판은 없다
-  assert.match(await page.locator('[data-t=tdSum]').innerText(), /반영 대기[\s\S]*넣을 곳 없음[\s\S]*다시 볼 것[\s\S]*사람이 볼 것[\s\S]*지난 정리 넣음/)
-  assert.equal(await page.locator('.td-board').count(), 0)
-  assert.match(await page.locator('[data-t=tdTabs]').innerText(), /반영 대기[\s\S]*정리 중[\s\S]*지난 정리/)
-  assert.ok((await page.locator('[data-t=inbox] [data-t=tdGroup]').count()) >= 1)
-  assert.ok((await page.locator('[data-t=inbox] [data-t=tdRec]').count()) >= 1)
-  // 묶음 머리 단추를 누르면 그 아래 줄을 접고 편다(aria-expanded) · 고르기 칸은 단추 밖 · 모두 접기 · 모두 펼치기
-  const recN = await page.locator('[data-t=inbox] [data-t=tdRec]').count()
-  const gb = page.locator('[data-t=inbox] [data-t=tdGroup] .td-gb').first()
-  assert.equal(await gb.getAttribute('aria-expanded'), 'true')
-  assert.equal(await page.locator('[data-t=inbox] .td-gb input').count(), 0, '단추 안에 고르기 칸이 없다')
-  await gb.click()
-  assert.ok((await page.locator('[data-t=inbox] [data-t=tdRec]').count()) < recN)
-  assert.equal(await page.locator('[data-t=inbox] [data-t=tdGroup] .td-gb').first().getAttribute('aria-expanded'), 'false')
-  await page.locator('[data-t=inbox] [data-t=tdGroup] .td-gb').first().click()
-  assert.equal(await page.locator('[data-t=inbox] [data-t=tdRec]').count(), recN)
-  await page.click('[data-t=tdFoldAll]')
-  assert.equal(await page.locator('[data-t=inbox] [data-t=tdRec]').count(), 0)
-  await page.click('[data-t=tdFoldAll]')
-  assert.equal(await page.locator('[data-t=inbox] [data-t=tdRec]').count(), recN)
-  await page.screenshot({ path: path.join(SHOTS, 'app-tidy-inbox.png') })
-  await page.click('[data-t=tidyBtn]')
-  await page.waitForSelector('[data-t=prog]')
-  // 쓰는 동안 — 진행 띠(막대 · 수 칩) · 넣을 곳 줄의 「쓰는 중 · 쓴 글 / 상한」 · 시각 붙은 활동 기록
-  process.env.FAKE_CLAUDE_STREAM_MS = '2500'
-  process.env.KMD_TIDY_TICK_MS = '200'
-  const working = workOnce({ server: s.url, key: wkey })
-  try {
-    await page.waitForSelector('[data-t=tdSpotRow][data-st=run] [data-t=tdMeta]', { timeout: 20000 })
-    await page.waitForFunction(() => /쓴 글 [\d,]+ 자 \/ 상한/.test(document.querySelector('[data-t=tdSpotRow][data-st=run]')?.innerText || ''), null, { timeout: 20000 })
-    assert.ok(await page.locator('.td-band .td-bar').count(), '진행 막대')
-    assert.match(await page.locator('.td-band').innerText(), /이번 정리[\s\S]*시작[\s\S]*지남[\s\S]*쓰는 중 \d/)
-    assert.match(await page.locator('[data-t=tdDocGroup]').first().innerText(), /· 항목 \d/)
-    assert.match(await page.locator('[data-t=tdDet] [data-t=tdTerm]').innerText(), /\+0:\d\d[\s\S]*Claude 에 보냄/)
-    await page.evaluate(() => document.querySelectorAll('#toastHost > *').forEach((x) => x.remove()))
-    await page.screenshot({ path: path.join(SHOTS, 'app-tidy-running.png') })
-  } finally {
-    await working
-    delete process.env.FAKE_CLAUDE_STREAM_MS
-    delete process.env.KMD_TIDY_TICK_MS
-  }
-  // 정리 중 — 넣을 곳마다 한 줄 · 누르면 그 줄 바로 아래에 흐름 · 활동 기록 · 결과(두 칸으로 나누지 않는다)
-  await page.waitForSelector('[data-t=tdSpotRow]', { timeout: 20000 })
-  await page.waitForFunction(() => !document.querySelector('[data-t=goBox].td-band'), null, { timeout: 20000 })
-  if (!(await page.locator('[data-t=tdDet]').count())) await page.locator('[data-t=tdSpotRow]').first().click()
-  await page.waitForSelector('[data-t=tdDet] [data-t=tdTerm]')
-  const open = page.locator('[data-t=tdSpotRow][aria-expanded=true]')
-  assert.equal(await open.count(), 1)
-  assert.equal(await page.evaluate(() => document.querySelector('[data-t=tdSpotRow][aria-expanded=true]').nextElementSibling?.dataset.t), 'tdDet', '자세히는 그 줄 바로 아래')
-  assert.equal(await page.locator('.tdy .qwrap').count(), 0)
-  assert.doesNotMatch(await page.locator('[data-t=tdSpotRow]').first().innerText(), /docs\//, '넣을 곳은 문서 제목으로')
-  // 그림에서 토스트를 걷는다(설명서 그림)
-  await page.evaluate(() => document.querySelectorAll('#toastHost > *').forEach((x) => x.remove()))
-  await page.screenshot({ path: path.join(SHOTS, 'app-tidy-run.png') })
-  const widths = async (name) => {
-    for (const w of [1280, 1024, 600, 375]) {
-      await page.setViewportSize({ width: w, height: 820 })
-      await page.waitForTimeout(100)
-      const r = await cutAt(page)
-      assert.deepEqual(r.cut, [], `정리 ${name} ${w}: 잘린 요소 없음`)
-      assert.ok(r.sw <= r.w, `정리 ${name} ${w}: 가로 넘침 없음 ${r.sw}`)
-      await page.screenshot({ path: path.join(SHOTS, `app-tidy-${name}-${w}.png`) })
-    }
-    await page.setViewportSize(VIEW)
-  }
-  await widths('run')
-  // 다시 누르면 접는다
-  await open.first().click()
-  await page.waitForFunction(() => !document.querySelector('[data-t=tdDet]'))
-  await page.click('[data-t=tdTab-hist]')
-  await page.waitForSelector('[data-t=run]', { timeout: 20000 })
-  assert.ok((await page.locator('[data-t=tidyRow][data-kind=changed]').count()) >= 1)
-  assert.match(await page.locator('[data-t=tidyRow]').first().innerText(), /카나리 비율/, '지난 정리 줄은 기록 제목')
+  // 설정 › 팀 메뉴에 정리가 없다
+  await page.click('[data-t=nav-settings-team]')
+  await page.waitForSelector('[data-t=mgNav]')
+  assert.ok(!(await mgItems(page)).includes('정리'), '정리 메뉴는 걷었다')
+  // 옛 정리 화면(#tidy)은 넣지 못함으로
+  await page.evaluate(() => { const x = document.createElement('button'); x.dataset.a = 'nav'; x.dataset.s = 'tidy'; x.id = 'oldTidy'; document.querySelector('#app').appendChild(x) })
+  await page.click('#oldTidy')
+  await page.waitForFunction(() => /^넣지 못함/.test(document.querySelector('.main .big')?.textContent || ''))
+  assert.equal(await page.locator('[data-t=tdKnSel], [data-t=tidyBtn], [data-t=tdSum]').count(), 0)
+  // 설정 › 일반 — 팀 지식 표(넣지 못함 · Claude 에 보내지 않음) · 옛 정리 표는 없다
+  await mg(page, 'team', 'gen')
+  await page.waitForSelector('[data-t=knTable]')
+  assert.equal(await page.locator('[data-t=tidyTable]').count(), 0)
+  const sw = '[data-t=knRow][data-name="DPMS 지식"] [data-t=noClaudeSw]'
+  assert.equal(await page.locator(sw).getAttribute('aria-checked'), 'false')
+  await page.click(sw)
+  await page.waitForFunction((q) => document.querySelector(q)?.getAttribute('aria-checked') === 'true', sw)
+  assert.equal(s.hub.owner('dpms').noClaude, true)
+  await page.click(sw)
+  await page.waitForFunction((q) => document.querySelector(q)?.getAttribute('aria-checked') === 'false', sw)
+  assert.equal(s.hub.owner('dpms').noClaude, false)
   assert.deepEqual(await bannedIn(page), [])
-  await page.screenshot({ path: path.join(SHOTS, 'app-tidy.png') })
-  await widths('hist')
-  // 넣을 곳 고르기 창 — 후보 · 「다른 항목」 이 한 무리의 라디오
-  await s.hub.save({ user: 'kim', admin: true }, 'dpms', { record: { title: '넣을 곳 없는 메모 테스트', body: '당번 표를 다시 짠다.' } })
-  await page.reload()
-  await page.waitForSelector('[data-t=klist], [data-t=tdKnSel]')
-  await mg(page, 'team', 'tidy')
-  await page.waitForSelector('[data-t=tdKnSel]')
-  await page.selectOption('[data-t=tdKnSel]', 'dpms')
-  await page.waitForSelector('[data-t=tdPickBtn]', { timeout: 20000 })
-  await page.locator('[data-t=tdPickBtn]').first().click()
-  await page.waitForSelector('[data-t=tdPickWin] [data-t=tdPickSel]')
-  assert.equal(await page.locator('[data-t=tdPickWin] .x').getAttribute('aria-label'), '닫기')
-  await page.selectOption('[data-t=tdPickSel]', { index: 1 })
-  assert.equal(await page.locator('[data-t=tdPickOther]').isChecked(), true, '목록에서 고르면 「다른 항목」 이 골라진다')
-  await widths('pick')
-  await page.keyboard.press('Escape')
-  // 정리 때 바꾸기는 정리 화면의 ⋯(관리자) — 「이 지식의 사람」 은 걷었다(팀 권한은 관리자 · 일반 둘뿐)
-  assert.equal(await page.locator('[data-t=nav-members]').count(), 0)
-  await page.click('[data-t=tidyKebab]')
-  await page.waitForSelector('[data-t=timeMenu]')
-  assert.match(await page.locator('[data-t=timeMenu]').innerText(), /정리 방식[\s\S]*정해진 시각[\s\S]*정리 시각/)
-  await page.keyboard.press('Escape')
+  for (const w of [1280, 1024, 600, 375]) {
+    await page.setViewportSize({ width: w, height: 900 })
+    await page.waitForTimeout(150)
+    const c = await cutAt(page)
+    assert.deepEqual(c.cut, [], `설정 팀 지식 표 ${w}: 잘린 요소 없음`)
+    assert.ok(c.sw <= c.w, `설정 팀 지식 표 ${w}: 가로 넘침 없음 ${c.sw}`)
+  }
+  await page.setViewportSize(VIEW)
+  // 문서 다듬기(K10-4) — 지식관리자 · 문서 머리의 [다듬기] → 확인 창(ask) → 일 줄에 올린다
+  await page.goto(s.url)
+  await page.waitForSelector('[data-t=klist] [data-t=krow]')
+  await page.click('[data-t=krow][data-name="DPMS 지식"]')
+  await page.waitForSelector('[data-t=tree] [data-t=doc]')
+  if (!(await page.locator('[data-t=doc][data-name="배포절차"]').count())) await page.click('[data-t=moreDocs]')
+  await page.click('[data-t=doc][data-name="배포절차"]')
+  await page.waitForSelector('[data-t=docPane] [data-t=polishBtn]')
+  await page.click('[data-t=polishBtn]')
+  await page.waitForSelector('[role=dialog]')
+  assert.match(await page.locator('[role=dialog]').innerText(), /문체 · 짜임만 정돈한다[\s\S]*값은 바꾸지 않는다/)
+  await page.locator('[role=dialog] .btn.pri').click()
+  await page.waitForFunction(() => /일 줄에 올렸다|이미 팀 일꾼이 다듬는 중/.test(document.body.innerText))
+  assert.ok(s.hub.intakesOf('dpms').some((j) => j.type === 'polish' && j.src?.doc === 'docs/배포절차.md'), '다듬기 일감')
+  // 다듬기 일감은 그만두어 뒤 시험(가져오기 일 줄)에 남기지 않는다
+  for (const j of s.hub.intakesOf('dpms').filter((x) => x.type === 'polish' && x.state === 'queued')) await s.hub.queueAct({ user: 'kim', admin: true }, 't:' + j.id, 'cancel')
+  for (const w of [1280, 1024, 600, 375]) {
+    await page.setViewportSize({ width: w, height: 900 })
+    await page.waitForTimeout(500) // 오른쪽 칸 서랍이 닫히는 동안(.2s) 기다린다
+    const c = await cutAt(page)
+    assert.deepEqual(c.cut, [], `문서 다듬기 단추 ${w}: 잘린 요소 없음`)
+    assert.ok(c.sw <= c.w, `문서 다듬기 단추 ${w}: 가로 넘침 없음 ${c.sw}`)
+  }
+  await page.setViewportSize(VIEW)
   assert.deepEqual(await bannedIn(page), [])
   await s.hub.save({ user: 'kim', admin: true }, 'dpms', { record: { title: '메모: 화면 시험', body: '오늘 바뀐 것에 한 줄.' } })
   // 이력 — 한 흐름(날마다) · 내가 남긴 기록 줄 · 다른 화면과 같은 짜임(왼쪽 정렬 · 제목 · 설명)
@@ -531,7 +480,7 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10): 목�
   assert.deepEqual(await bannedIn(page), [])
   await page.screenshot({ path: path.join(SHOTS, 'app-add.png') })
   // 지식 보내기는 개인 화면에서만(분리) — 팀 화면에는 메뉴가 없다 · 개인 화면 시험이 본다
-  await mg(page, 'team', 'tidy')
+  await mg(page, 'team', 'held')
   assert.equal(await page.locator('[data-t=mg-send]').count(), 0)
   assert.deepEqual(await bannedIn(page), [])
   assert.deepEqual(errors, [])
@@ -547,7 +496,7 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10): 목�
   await mock.close()
 })
 
-test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 정리 전용 로그인 흐름 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 팀 일꾼 로그인 흐름 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   if (!s.auth.people().includes('test-lee')) await s.auth.addUser({ id: 'test-lee' }) // 사람 ⋯ › 지식마다 자리 창을 볼 사람
   process.env.KMD_CLAUDE_LOGIN = path.join(HERE, 'fixture', 'fake-claude-login.mjs')
   process.env.KMD_TEAM_LOGIN = 'pty' // 화면 없는 서버의 길(주소 · 번호)
@@ -562,7 +511,7 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 정리 �
   await mg(page, 'team', 'gen')
   assert.equal(await page.locator('[data-t=mgNav] .mgt').innerText(), '설정')
   assert.equal(await page.locator('[data-t=setTitle]').innerText(), '일반')
-  assert.deepEqual(await mgItems(page), ['가져오기', '정리', '넣지 못함', '일반', '사람', 'Claude 연결', '에이전트 설치', '관리'])
+  assert.deepEqual(await mgItems(page), ['가져오기', '넣지 못함', '일반', '사람', 'Claude 연결', '에이전트 설치', '관리'])
   await page.waitForSelector('[data-t=auto-find]')
   assert.match(await page.locator('.main .card .ch').first().innerText(), /이 팀 서버/)
   await page.click('[data-t=sw-find]')
@@ -690,7 +639,7 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 정리 �
   assert.equal(await page.locator('#admCodeIn').inputValue(), '')
   await page.fill('#admCodeIn', 'code-from-browser')
   await page.click('[data-t=admDone]')
-  await page.waitForFunction(() => /로그인됨 · 정리 전용/.test(document.querySelector('[data-t=admClaudeState]')?.textContent || ''))
+  await page.waitForFunction(() => /로그인됨 · 팀 일꾼/.test(document.querySelector('[data-t=admClaudeState]')?.textContent || ''))
   assert.deepEqual(await bannedIn(page), [])
   await page.screenshot({ path: path.join(SHOTS, 'app-admin.png') })
   assert.deepEqual(errors, [])
@@ -812,7 +761,7 @@ test('개인 화면: 지식 보내기 · 받는 팀 지식 고르기 · 지식 �
   const PCK = { user: pc.pcUser, admin: true, pc: true }
   const kn = await pc.hub.addKnowledge(PCK, { kind: 'new', name: '테스트-보내기' })
   await pc.hub.save(PCK, kn.id, { record: { title: '테스트 기록: 개인 화면에서 보냄', body: '개인 화면에서 팀 지식으로 보낸다.' } })
-  await pc.hub.curateIdle(kn.id)
+  await pc.hub.idle(kn.id)
   const page = await browser.newPage({ viewport: VIEW })
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
@@ -917,7 +866,7 @@ test('개인 화면: 지식 보내기 · 받는 팀 지식 고르기 · 지식 �
   }
 })
 
-test('팀 화면: 팀 지식만 — 지식 목록 · 이력 · 설정 · 정리 · 넣지 못함 · 1280 · 1024 · 600 · 375 에서 잘린 요소 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('팀 화면: 팀 지식만 — 지식 목록 · 이력 · 설정 · 넣지 못함 · 1280 · 1024 · 600 · 375 에서 잘린 요소 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   const page = await browser.newPage({ viewport: VIEW })
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
@@ -930,7 +879,7 @@ test('팀 화면: 팀 지식만 — 지식 목록 · 이력 · 설정 · 정리 
     // 개인 프로그램을 부르지 않는다 — 팀 화면의 요청은 팀 서버로만
     const asked = []
     page.on('request', (r) => { if (!r.url().startsWith(s.url)) asked.push(r.url()) })
-    const screens = [['home', null], ['history', async () => hist(page)], ['settings', async () => mg(page, 'team', 'gen')], ['tidy', async () => mg(page, 'team', 'tidy')], ['held', async () => mg(page, 'team', 'held')]]
+    const screens = [['home', null], ['history', async () => hist(page)], ['settings', async () => mg(page, 'team', 'gen')], ['held', async () => mg(page, 'team', 'held')]]
     for (const [name, open] of screens) {
       await page.setViewportSize(VIEW)
       if (open) await open(); else { await page.goto(s.url + '/'); await page.waitForSelector('[data-t=klist]') }
@@ -991,7 +940,7 @@ test('따로 할 것(Q11 · Q50 · Q51 · Q52): 설정은 일반으로 · 고르
   } finally { await page.close() }
 })
 
-test('A8 저장 문(S4): 쓰기 자리의 값 바꿈 조각은 저장하는 순간 문서에 · 정리 화면에 「제안 있음 · 확인 대기 · [넣기]」 가 없다 · 네 폭 잘림 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('A8 저장 문(S4): 쓰기 자리의 값 바꿈 조각은 저장하는 순간 문서에 · 넣지 못함 화면에 「제안 있음 · 확인 대기 · [넣기]」 가 없다 · 네 폭 잘림 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   await s.auth.addUser({ id: 'test-prop', admin: false })
   await seat(s, 'test-prop', { dpms: 'write' })
   const k = await s.hub.get('dpms')
@@ -1016,8 +965,9 @@ test('A8 저장 문(S4): 쓰기 자리의 값 바꿈 조각은 저장하는 순�
     await page.fill('#lgPw', me.pw)
     await page.click('[data-t=loginBtn]')
     await page.waitForSelector('[data-t=klist]')
-    await mg(page, 'team', 'tidy')
-    if (await page.locator('[data-t=tdKnSel]').count()) await page.selectOption('[data-t=tdKnSel]', 'dpms')
+    // 정리 화면은 S13 에 걷었다 — 넣지 못함 화면에도 「제안 있음 · 확인 대기 · [넣기]」 가 없다
+    await mg(page, 'team', 'held')
+    if (await page.locator('[data-t=hdKnSel]').count()) await page.selectOption('[data-t=hdKnSel]', 'dpms')
     await page.waitForTimeout(500)
     assert.equal(await page.locator('[data-t=tdProp]').count(), 0, '「제안 있음」 줄이 없다')
     assert.equal(await page.locator('[data-t=tdPropPut]').count(), 0, '[넣기] 가 없다')
@@ -1026,8 +976,8 @@ test('A8 저장 문(S4): 쓰기 자리의 값 바꿈 조각은 저장하는 순�
       await page.setViewportSize({ width: w, height: 820 })
       await page.waitForTimeout(100)
       const c = await cutAt(page)
-      assert.deepEqual(c.cut, [], `정리 ${w}: 잘린 요소 없음`)
-      assert.ok(c.sw <= c.w, `정리 ${w}: 가로 넘침 없음 ${c.sw}`)
+      assert.deepEqual(c.cut, [], `넣지 못함 ${w}: 잘린 요소 없음`)
+      assert.ok(c.sw <= c.w, `넣지 못함 ${w}: 가로 넘침 없음 ${c.sw}`)
     }
     assert.deepEqual(errors, [])
   } finally { await page.close() }
@@ -1191,6 +1141,9 @@ test('넣지 못함(S10): 쓰기 자리는 내 것만 · 까닭 · [고치기] �
   const r = await s.hub.save({ user: 'test-held' }, 'dpms', { record: { title: '준비: 테스트 넣지 못함', body: '## 바뀐 것\n- 준비: 문장을 다듬었다', touches: ['proc:준비'] }, sections: [{ coord: 'proc:준비', base: sha16(body), edits: [{ find: line, replace: line + ' 테스트 9876초 기다린다.' }] }] }, { channel: 'session' })
   s.hub.forget?.('dpms')
   assert.equal((await s.hub.get('dpms')).byWork.get(r.id).state, 'held', JSON.stringify(r))
+  // 개편 전 기록 — 정리를 걷은 뒤(S13) 사람 저장은 pend 를 만들지 않는다. 개편 때보다 앞서 받은 옛 기록을 core 로 둔다
+  await saveRecords(path.join(tmp, 'kn', 'dpms'), [{ title: '복구 점검: 테스트 개편 전 기록', body: '복구 점검을 분기마다 한다.', touches: ['proc:복구 점검'] }], { user: 'kim', now: new Date(Date.now() - 2 * 864e5) })
+  s.hub.forget?.('dpms')
   const login = async (page, u) => {
     await page.goto(s.url)
     await page.fill('#lgId', u.id)

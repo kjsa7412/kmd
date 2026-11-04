@@ -38,7 +38,7 @@ before(async () => {
   fs.writeFileSync(path.join(note, 'docs', '배포메모.md'), '# 배포메모\n\n## 카나리\n첫 30분은 요청의 10%.\n')
   fs.writeFileSync(path.join(note, 'docs', '큰문서.md'), `# 큰문서\n\n${['하나', '둘', '셋', '넷', '다섯'].map((h) => sec(h, 60_000)).join('\n\n')}\n`)
   fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })
-  fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sendTickMs: 3600000, tidyTickMs: 3600000 }))
+  fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sendTickMs: 3600000, inboxTickMs: 3600000 }))
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
   await s.hub.setOwner(SHELL, 'note', { owner: 'kim', private: true })
 

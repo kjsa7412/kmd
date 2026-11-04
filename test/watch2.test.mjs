@@ -52,7 +52,6 @@ test('문서 폴더: 바뀐 파일만 들이기 일감으로(정리 일감 0 · 
   assert.equal(r0.run[0].state, 'changed', JSON.stringify(r0.run[0]).slice(0, 600))
   assert.equal(r0.run[0].queued, 13, 'md 13 → 들이기 일감 13(잠금 파일 ~$ 는 뺀다 · 새 파일 10 을 넘어도 멈추지 않는다)')
   assert.equal(team.hub.intakesOf('dpms').length, 13)
-  assert.equal(team.hub.jobsOf('dpms').length, 0, '정리 일감은 세우지 않는다')
   assert.equal((await ingested()).length, 0, '기록은 일꾼이 기록 + 조각을 한 번에 지을 때')
   // 팀 일꾼 — 파일마다 기록(태그 ingest/…) · 원천 글을 기록에 싣는다
   await drain()

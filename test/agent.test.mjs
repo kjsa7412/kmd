@@ -63,7 +63,7 @@ test('파일 넣기 → 에이전트가 회의록 항목 · 이름을 세운다 
   const r = await s.hub.importFiles(ME, '회의', [{ path: 'DPMS_회의록_261021_HNC_통화.md', data: Buffer.from(HNC) }])
   assert.equal(r.rows[0].kind, 'run')
   const id = r.rows[0].run
-  await s.hub.curateIdle('회의')
+  await s.hub.idle('회의')
   const run = s.hub.runGet(ME, id)
   assert.equal(run.state, 'done', run.msg)
   assert.deepEqual(run.docs, ['회의록'])
@@ -100,7 +100,7 @@ test('넣지 않고 끝나면 규칙으로: 까닭이 터미널 · 갈래 문서
   process.env.FAKE_AGENT_MODE = 'idle'
   try {
     const r = await s.hub.importFiles(ME, '회의', [{ path: '회의_20261022_v2(최종).md', data: Buffer.from('# 회의\n\n## 안건\n카나리 20%\n') }])
-    await s.hub.curateIdle('회의')
+    await s.hub.idle('회의')
     const run = s.hub.runGet(ME, r.rows[0].run)
     assert.equal(run.state, 'rule', run.msg)
     assert.ok(run.lines.some((l) => l.x.includes('규칙으로 넣는다')))
@@ -114,7 +114,7 @@ test('pdf: Claude Code 가 글로 바꾼 뒤 기록 · 들이기 · 원본은 �
   const pdf = Buffer.from('%PDF-1.4 점검 보고 시험')
   const r = await s.hub.importFiles(ME, '회의', [{ path: '점검 보고.pdf', data: pdf }])
   assert.equal(r.rows[0].kind, 'run')
-  await s.hub.curateIdle('회의')
+  await s.hub.idle('회의')
   const run = s.hub.runGet(ME, r.rows[0].run)
   assert.equal(run.state, 'done', run.msg)
   assert.ok(run.lines.some((l) => l.x.includes('글로 바꿨다')))
@@ -186,7 +186,6 @@ test('팀: 넣은 파일은 에이전트가 아니라 팀 일꾼의 들이기(cl
     const KIM = { user: 'kim', admin: true }
     const r = await t.hub.importFiles(KIM, 'ops', [{ path: '배포통화.md', data: Buffer.from('# 배포통화\n\n## 원격 명령\n펄스 방식: 게이트웨이가 3초 동안 1을 쓰고 0으로 되돌린다.\n') }])
     assert.equal(r.rows[0].kind, 'run', '기록이 아니라 들이기 일감')
-    assert.equal(t.hub.jobsOf('ops').length, 0, '정리 일감 0')
     const key = (await t.auth.workerAdd()).key
     const done = await wait(async () => (await workOnce({ server: t.url, key, log: () => {} })) || null)
     assert.equal(done.job.kind, 'intake')
@@ -215,7 +214,7 @@ test('일마다 모델: 에이전트는 기본 sonnet · 설정으로 바꾸면 
   assert.equal(s.hub.models().read, 'haiku')
   const one = async (name) => {
     const r = await s.hub.importFiles(ME, '회의', [{ path: name, data: Buffer.from(HNC.replace('3초', `${name.length}초`)) }])
-    await s.hub.curateIdle('회의')
+    await s.hub.idle('회의')
     return s.hub.runGet(ME, r.rows[0].run)
   }
   assert.ok((await one('모델-하나.md')).lines.some((l) => /fake-agent\(sonnet\)/.test(l.x)))
@@ -235,7 +234,7 @@ test('표 · 값 덩이는 kmd 가 옮긴다. 에이전트는 from(머리 · 전
     process.env.FAKE_AGENT_MODE = mode
     try {
       const r = await s.hub.importFiles(ME, '회의셋', [{ path: name, data: Buffer.from(text) }])
-      await s.hub.curateIdle('회의셋')
+      await s.hub.idle('회의셋')
       return s.hub.runGet(ME, r.rows[0].run)
     } finally {
       delete process.env.FAKE_AGENT_MODE
@@ -259,7 +258,7 @@ test('표 · 값 덩이는 kmd 가 옮긴다. 에이전트는 from(머리 · 전
   assert.match(out.result.content[0].text, /넣기 에이전트만/)
 })
 
-test('앞일은 함께 · 들이기는 한 줄: 파일 넷의 기록 정리가 셋까지 겹치고 넷 모두 들어간다 · curateIdle 은 앞일까지 기다린다', async () => {
+test('앞일은 함께 · 들이기는 한 줄: 파일 넷의 기록 정리가 셋까지 겹치고 넷 모두 들어간다 · idle 은 앞일까지 기다린다', async () => {
   await s.hub.addKnowledge(ME, { kind: 'new', name: '넣기넷' })
   const spans = path.join(tmp, 'spans.log')
   process.env.FAKE_CLAUDE_READ = '20000' // 둘이 함께 돌 때까지 기다린다(차례로 돌면 20초 뒤 혼자 답한다)
@@ -267,7 +266,7 @@ test('앞일은 함께 · 들이기는 한 줄: 파일 넷의 기록 정리가 �
   try {
     const files = [1, 2, 3, 4].map((n) => ({ path: `통화-${n}.md`, data: Buffer.from(HNC.replace('3초', `${n + 10}초`)) }))
     const r = await s.hub.importFiles(ME, '넣기넷', files)
-    await s.hub.curateIdle('넣기넷')
+    await s.hub.idle('넣기넷')
     const runs = r.rows.map((x) => s.hub.runGet(ME, x.run))
     assert.deepEqual(runs.map((x) => x.state), ['done', 'done', 'done', 'done'], runs.map((x) => x.msg).join(' / '))
     const ls = fs.readFileSync(spans, 'utf8').trim().split('\n')
@@ -291,7 +290,7 @@ test('문서 폴더 가져오기도 파일 넣기와 같은 길: 파일마다 �
   // 이 PC — 파일 넣기 길(importFiles)이 Claude Code 일로 넘긴 것은 「들이기에 넘김」(queued) 줄 · 그 일 id(run)
   assert.deepEqual([r.state, r.recs, r.queued], ['changed', 1, 1], JSON.stringify(r).slice(0, 300))
   const row = r.rows.find((x) => x.kind === 'queued' && x.run)
-  await s.hub.curateIdle('폴더넣기')
+  await s.hub.idle('폴더넣기')
   const run = s.hub.runGet(ME, row.run)
   assert.equal(run.state, 'done', run.msg)
   assert.deepEqual(run.docs, ['회의록'], 'Claude Code 가 고른 갈래 문서')

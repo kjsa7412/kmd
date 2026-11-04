@@ -34,6 +34,13 @@ function answer() {
   const ok = args.includes('-p') && args.includes('--tools') && val('--tools') === '' && args.includes('--strict-mcp-config') && JSON.parse(val('--mcp-config') || '{}').mcpServers && val('--json-schema') && fs.readdirSync(process.cwd()).length === 0
   if (!ok) return say({ is_error: true, subtype: 'error', result: '가짜 claude: 도구 0 · 빈 MCP · 스키마 · 빈 폴더를 지키지 않았다' })
   if (process.env.FAKE_CLAUDE_MODE === 'logout') return say({ is_error: true, subtype: 'error', result: 'Invalid API key · Please run /login' })
+  // 문서 다듬기(S13 · core/ingest.js polishPromptOf) — 항목마다 끝에 「(다듬음)」 한 줄 · 첫 항목만 값을 바꾼다(서버가 그 항목을 빼는지 본다)
+  if (prompt.startsWith('문서 「') && prompt.includes('의 항목 글을 다듬는다')) {
+    if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'polish\n')
+    const part = prompt.split('항목(base 는 그대로 돌려준다):\n')[1] || ''
+    const secs = [...part.matchAll(/^## (.+)\n\(base ([0-9a-f]{16})\)\n([\s\S]*?)(?=\n\n## |(?![\s\S]))/gm)].map((m) => ({ h: m[1].trim(), base: m[2], body: m[3] }))
+    return say({ structured_output: { updates: secs.map((s, i) => ({ heading: s.h, base: s.base, content: `${s.body.trim()}${i === 0 ? ' 999초' : ''}\n\n(다듬음)` })), why: '문장을 짧게' } })
+  }
   // 정정(S9 · core/fix.js corrPromptOf) — 항목마다 옛 값이 든 줄을 통째로 find 로 잡고 그 줄의 옛 값을 모두 새 값으로(줄이 같으면 하나만)
   if (prompt.startsWith('정정 기록 하나를 항목에 반영한다')) {
     if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'fix-record\n')

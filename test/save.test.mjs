@@ -11,7 +11,7 @@ import { save, saveRecords, assetPath } from '../core/save.js'
 import { begin } from '../core/journal.js'
 import { ensureRepo, tryGit } from '../core/git.js'
 import { loadKnowledge, isLegacy } from '../core/knowledge.js'
-import { decide } from '../core/curate.js'
+import { supersededIngest } from '../core/ingest.js'
 import { parseHeld, parsePut, renderPut, parseReverted, renderReverted, renderHeld, dropPart } from '../core/parts.js'
 import { isReservedTag } from '../core/names.js'
 import { valueDiff } from '../core/values.js'
@@ -148,7 +148,7 @@ test('바로잡힘: held 기록을 fixes 로 가리키면 fixed(R-A3 이 있어�
   const fix = await save(dir, { record: { title: '넣은 파일: 점검표 다시', body: '점검표 2판.', tags: ['ingest/점검표.md'], fixes: [old.id] }, sections: [{ doc: 'docs/배포 체크리스트.md', heading: '점검표', content: '점검표 2판.' }] }, { ...LEE, partial: true })
   let k = await load()
   assert.equal(k.byWork.get(old.id).state, 'fixed')
-  assert.ok(!decide(k).curates.some((c) => c.id === old.id), 'R-A3 이 바로잡힘을 「둠」 으로 바꾸지 않는다')
+  assert.ok(!supersededIngest(k).some((c) => c.id === old.id), 'R-A3 이 바로잡힘을 「둠」 으로 바꾸지 않는다')
   assert.equal(k.byWork.get(fix.id).state, 'in')
   // 메모를 이름만 바로잡는 기록(touches-fix)이 가리켜도 메모 그대로
   const memo = await save(dir, { record: { title: '경보 메모', body: '경보 이야기.', memo: true } }, LEE)
@@ -259,7 +259,7 @@ async function server() {
   sroot = path.join(tmp, 'srv')
   copyDir(path.join(HERE, 'fixture', 'kmd'), sroot)
   fs.mkdirSync(path.join(sroot, '.kmd'), { recursive: true })
-  fs.writeFileSync(path.join(sroot, '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, tidyTickMs: 3600000 }))
+  fs.writeFileSync(path.join(sroot, '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, inboxTickMs: 3600000 }))
   srv = await startServer({ root: sroot, port: 0, log: () => {}, scryptN: 1 << 15 })
   me = await signIn(srv, { id: 'kim' })
   for (const u of ['lee', 'test-b']) {
@@ -295,7 +295,10 @@ test('서버: 31번째 저장은 E_RATE(429 · Retry-After) · 서버 안의 저
 
 test('서버: 같은 md/ 지문은 same(아무것도 안 씀) · 동시에 둘이면 기록 하나 · 남이 단 지문은 내 저장을 막지 않는다', async () => {
   const s = await server()
-  const rec = (n) => ({ record: { title: `테스트 넣은 파일 ${n}`, body: '파일 글.', tags: ['ingest/test-a.md', 'md/0123456789abcdef'], touchesEmpty: '시험 파일' } })
+  // 조각 없는 대량 넣기 기록은 넣지 못함(S-D3 · S13 · notfound) — 넣지 못함은 같은 것으로 세지 않는다(다시 보내면 다시 산다). 지문 같음은 메모로 본다
+  const bare = await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '테스트 넣은 파일 0', body: '파일 글.', tags: ['ingest/test-0.md', 'md/fedcba9876543210'], touchesEmpty: '시험 파일' } }, { channel: 'bulk' })
+  assert.deepEqual(bare.held.map((x) => x.code), ['notfound'])
+  const rec = (n) => ({ record: { title: `테스트 넣은 파일 ${n}`, body: '파일 글.', memo: true, tags: ['ingest/test-a.md', 'md/0123456789abcdef'], touchesEmpty: '시험 파일' } })
   const n0 = Number(await SG('rev-list', '--count', 'HEAD'))
   const [a, b] = await Promise.all([s.hub.save({ user: 'lee' }, 'dpms', rec(1), { channel: 'bulk' }), s.hub.save({ user: 'lee' }, 'dpms', rec(2), { channel: 'bulk' })])
   const same = [a, b].filter((x) => x.same)

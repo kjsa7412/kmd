@@ -20,6 +20,7 @@ import { begin, writeAtomic } from './journal.js'
 import { watchedOf } from './watchmark.js'
 import { LOG_DIR } from './names.js'
 import { serial, localStamp, recordTaken } from './save.js'
+import { parseRegistry } from './registry.js'
 
 const FENCE = /^\s{0,3}(`{3,}|~{3,})/
 const APPLIED_LINE = /^\s*<!--\s*applied:.*-->\s*$/
@@ -408,6 +409,46 @@ export function convertDoc(text0) {
   return { text: m.text, changed: m.text !== text, moved, kinds, ok: true, why: note, left: strayMarks(m.text) }
 }
 
+// ### 올리기(liftH3 · S-D31 · K14-1 · 개편 S13) — ## 항목이 하나도 없는 문서(맨 위가 ###)는 좌표가 서지 않는다.
+//   본문의 머리(### 아래)를 한 단씩 올린다(### → ## · #### → ### …) · 코드 울타리 안 · 참고 블록은 그대로 · 머리 줄 밖 글은 한 글자도 바꾸지 않는다
+//   { text, lifted(올린 ### 수), heads(올린 머리 이름) } · 올릴 것이 없으면 lifted 0
+export function liftH3(text0) {
+  const text = readText(text0)
+  const { lines, ref } = splitRef(text.split('\n'))
+  const hs = headsOf(lines)
+  if (hs.some((h) => h.level === 2) || !hs.some((h) => h.level === 3)) return { text, lifted: 0, heads: [] }
+  const out = lines.slice()
+  const heads = []
+  for (const h of hs.filter((x) => x.level >= 3)) {
+    out[h.line] = out[h.line].slice(1)
+    if (h.level === 3) heads.push(h.heading)
+  }
+  return { text: withRef(out, ref), lifted: heads.length, heads }
+}
+// 올린 문서의 자리 장부 줄 — 그 문서의 `### 머리` → `## 머리`(한 단씩) · 바뀐 줄 수와 새 장부 글
+export function liftRegistry(regText, docRel) {
+  let n = 0
+  const text = String(regText || '').split('\n').map((raw) => {
+    const m = raw.match(/^(\|\s*`[^`]+`\s*\|\s*`)([^`]+)(`\s*\|\s*`)(#{3,6})(\s+[^`]+`\s*\|.*)$/)
+    if (!m || nfc(m[2].trim()) !== nfc(docRel)) return raw
+    n++
+    return m[1] + m[2] + m[3] + m[4].slice(1) + m[5]
+  }).join('\n')
+  return { text, n }
+}
+// 올린 뒤 검사 — 머리 줄만 바뀌었고(단 하나씩) · 장부의 정확한 이름이 그 문서의 ## 항목에 모두 닿는다(안 그러면 그 이름의 저장이 모두 넣지 못함 · S-D31)
+export function verifyLift(before, after, regAfter, docRel) {
+  const A = readText(before).split('\n'), B = readText(after).split('\n')
+  if (A.length !== B.length) return { ok: false, why: '올리면 줄 수가 달라진다' }
+  for (let i = 0; i < A.length; i++) if (A[i] !== B[i] && !(/^#{3,6}\s/.test(A[i]) && A[i] === '#' + B[i])) return { ok: false, why: `${i + 1}째 줄: 머리 밖 글이 달라진다` }
+  const names = new Set(parseDoc(readText(after), '').sections.map((x) => x.h))
+  for (const r of parseRegistry(regAfter).rows.filter((x) => x.doc === nfc(docRel) && !x.pattern.endsWith(':*'))) {
+    if (r.level !== 2) return { ok: false, why: `장부 「${r.pattern}」 의 머리가 아직 ${'#'.repeat(r.level)} 이다` }
+    if (!names.has(r.heading)) return { ok: false, why: `장부 「${r.pattern}」 이 「${r.heading}」 항목에 닿지 않는다` }
+  }
+  return { ok: true }
+}
+
 // `<!-- applied: null -->` — 기록 id 가 아닌 뜻 없는 표지(옛 생성기가 남긴 것). 걷는다 · 본문 글이 아니라 보존 검증 대상이 아니다
 const NULL_APPLIED = /^\s{0,3}<!--\s*applied:\s*null\s*-->\s*$/i
 function dropNullApplied(text) {
@@ -566,12 +607,17 @@ async function docFiles(dir, rel = 'docs', out = []) {
   return out.sort()
 }
 
-// 지식 하나 — { docs: [{ doc, changed, moved, ok, why, skipped? }], moved, files, commit, log }
+// 지식 하나 — { docs: [{ doc, changed, moved, ok, why, skipped?, lifted? }], moved, files, commit, log, lifted }
 //   dry 면 쓰지 않는다 · ok 인 것만 쓴다 · 원본이 주인인 문서는 건너뛴다
-export function docfmtDir(dir, { dry = false, user = 'kmd', by = null, now = new Date() } = {}) {
+//   lift — ### 올리기(liftH3)도 · 문서와 자리 장부(_managed.md)의 그 문서 줄을 같은 커밋으로(사람이 --dry 로 본 뒤 · S-D31)
+export function docfmtDir(dir, { dry = false, lift = false, user = 'kmd', by = null, now = new Date() } = {}) {
   return serial(path.resolve(dir), async () => {
     const rows = []
     const put = []
+    const regFile = path.join(dir, '_managed.md')
+    const reg0 = lift ? await fs.readFile(regFile, 'utf8').then(readText, (e) => (e.code === 'ENOENT' ? '' : Promise.reject(e))) : ''
+    let reg = reg0
+    let lifted = 0
     for (const rel of await docFiles(dir)) {
       const full = path.join(dir, ...rel.split('/'))
       const raw = await fs.readFile(full, 'utf8').catch(() => null)
@@ -582,8 +628,21 @@ export function docfmtDir(dir, { dry = false, user = 'kmd', by = null, now = new
         continue
       }
       const c = convertDoc(raw)
-      rows.push({ doc, changed: c.changed, moved: c.moved, kinds: c.kinds, ok: c.ok, why: c.why, lint: lintSummary(lintDoc(c.text)) })
-      if (c.ok && c.changed) put.push({ rel, full, text: c.text, moved: c.moved, doc })
+      // ### 올리기 — 옮긴 글 위에서 · 검사를 넘지 못하면 그 문서는 올리지 않는다(옮기기는 그대로)
+      let text = c.text
+      let up = null
+      if (lift && c.ok) {
+        const l = liftH3(text)
+        if (l.lifted) {
+          const r2 = liftRegistry(reg, nfc(rel))
+          const v = verifyLift(text, l.text, r2.text, nfc(rel))
+          up = v.ok ? { n: l.lifted, reg: r2.n } : { n: 0, why: v.why }
+          if (v.ok) { text = l.text; reg = r2.text; lifted += l.lifted }
+        }
+      }
+      const changed = c.changed || !!up?.n
+      rows.push({ doc, changed, moved: c.moved, kinds: c.kinds, ok: c.ok, why: up?.why ? `### 올리지 않음: ${up.why}` : c.why, lint: lintSummary(lintDoc(text)), ...(up?.n ? { lifted: up.n, regRows: up.reg } : {}) })
+      if (c.ok && changed) put.push({ rel, full, text, moved: c.moved, doc, lifted: up?.n || 0 })
     }
     const moved = put.reduce((n, x) => n + x.moved, 0)
     // 짜임 알림 합계 — { docs(알림이 있는 문서 수), n(알림 수), codes }
@@ -594,27 +653,32 @@ export function docfmtDir(dir, { dry = false, user = 'kmd', by = null, now = new
       lint.n += x.lint.n
       for (const [c, n] of Object.entries(x.lint.codes)) lint.codes[c] = (lint.codes[c] || 0) + n
     }
-    if (dry || !put.length) return { docs: rows, moved, files: put.length, commit: null, log: null, dry, lint }
+    if (dry || !put.length) return { docs: rows, moved, files: put.length, commit: null, log: null, dry, lint, lifted }
     await ensureRepo(dir)
     const date = localStamp(now)
     const day = date.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2$3')
     let id = `${day}-문서-꼴-옮김`
     for (let n = 2; await recordTaken(dir, id); n++) id = `${day}-문서-꼴-옮김-${n}`
     const logRel = `${LOG_DIR}/${id}.md`
-    const title = `문서 꼴 옮김: 문서 ${put.length} · 줄 ${moved}`
-    const body = [`옛 꼴(항목 끝 **경과** 목록 · 「기록 그대로」 줄 · 옛 CDP 경과 · 표 · 생성 주석)을 문서 끝 참고 블록으로 옮겼다. 본문 글은 그대로다${by ? ` · 부른 사람 ${by}` : ''}`, ...put.map((x) => `- ${x.doc}: 줄 ${x.moved}`), ...rows.filter((x) => !x.ok).map((x) => `- 옮기지 않음 ${x.doc}: ${x.why}`)].join('\n')
+    const title = `문서 꼴 옮김: 문서 ${put.length} · 줄 ${moved}${lifted ? ` · ### 올림 ${lifted}` : ''}`
+    const body = [`옛 꼴(항목 끝 **경과** 목록 · 「기록 그대로」 줄 · 옛 CDP 경과 · 표 · 생성 주석)을 문서 끝 참고 블록으로 옮겼다. 본문 글은 그대로다${lifted ? ' · ## 항목이 없던 문서는 머리를 한 단씩 올리고(### → ##) 자리 장부의 그 문서 줄도 같이 고쳤다' : ''}${by ? ` · 부른 사람 ${by}` : ''}`, ...put.map((x) => `- ${x.doc}: 줄 ${x.moved}${x.lifted ? ` · ### 올림 ${x.lifted}` : ''}`), ...rows.filter((x) => !x.ok).map((x) => `- 옮기지 않음 ${x.doc}: ${x.why}`)].join('\n')
     const j = await begin(dir)
     try {
       for (const x of put) {
         await j.add(x.rel)
         await writeAtomic(x.full, x.text)
       }
+      const regPut = lift && reg !== reg0
+      if (regPut) {
+        await j.add('_managed.md')
+        await writeAtomic(regFile, reg)
+      }
       await fs.mkdir(path.join(dir, LOG_DIR), { recursive: true })
       await j.add(logRel)
       await writeAtomic(path.join(dir, LOG_DIR, `${id}.md`), renderRecord({ id, title, date, author: user, tags: ['docfmt'] }, body))
-      const commit = await commitPaths(dir, [...put.map((x) => x.rel), logRel], title, user)
+      const commit = await commitPaths(dir, [...put.map((x) => x.rel), ...(regPut ? ['_managed.md'] : []), logRel], title, user)
       await j.done()
-      return { docs: rows, moved, files: put.length, commit, log: id, dry, lint }
+      return { docs: rows, moved, files: put.length, commit, log: id, dry, lint, lifted }
     } catch (e) {
       await j.undo().catch(() => {})
       throw e

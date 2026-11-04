@@ -17,6 +17,7 @@ import { workOnce } from '../core/worker.js'
 import { SYSTEM_TAGS } from '../core/knowledge.js'
 import { parseRecord } from '../core/frontmatter.js'
 import { copyDir, signIn, seat } from './helpers.mjs'
+import { sha16 } from '../core/text.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp
@@ -38,7 +39,7 @@ async function eight(mode) {
   const root = path.join(tmp, mode)
   copyDir(path.join(HERE, 'fixture', 'kmd'), root)
   fs.mkdirSync(path.join(root, '.kmd'), { recursive: true })
-  fs.writeFileSync(path.join(root, '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sourceRoots: [path.join(tmp, 'src')], tidyTickMs: 3600000, sourceTickMs: 3600000, curateOnStart: false }))
+  fs.writeFileSync(path.join(root, '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sourceRoots: [path.join(tmp, 'src')], inboxTickMs: 3600000, sourceTickMs: 3600000, curateOnStart: false }))
   const s = await startServer({ root, mode, user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
   try {
     const KIM = mode === 'pc' ? { user: s.pcUser, admin: true, pc: true } : { user: 'kim', admin: true }
@@ -65,15 +66,23 @@ async function eight(mode) {
     await s.hub.edit(KIM, 'gdi', { doc: gdoc.id, sections: [{ h: gdoc.sections[0].h, body: '보내기 시험: 고친 글.' }] })
     const sent = await s.hub.send(KIM, 'gdi')
     out.send = { sent: sent.sent, got: (await s.hub.get('dpms')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/'))).length }
-    // ⑧ 기록이 문서로 — 팀: 팀 모두의 기록 → [지금 정리] → 일꾼(가짜 claude) → 넣음 · 이 PC: 정리가 따로 없다 — 남는 즉시 kmd 가 넣는다
+    // ⑧ 기록이 문서로 — 팀: 저장이 곧 반영(S13 · 정리를 걷었다) — 조각을 실은 저장은 그 순간 넣고, 조각 없는 기록은 메모 ·
+    //   이 PC: 정리가 따로 없다 — 남는 즉시 kmd 가 넣는다(저장 즉시 넣기 · core/pcplace.js)
     // 팀: lee 는 dpms 에 쓰기 자리를 받은 팀원이다(받지 않은 지식은 없음이 기본 · 권한 모델 v1.1)
     if (mode !== 'pc') { await s.auth.addUser({ id: 'lee', admin: false }); await seat(s, 'lee', { dpms: 'write' }) }
-    const rec = await s.hub.save(mode === 'pc' ? KIM : { user: 'lee' }, 'dpms', { record: { title: '헬스 체크: 시간 초과 5초', body: '헬스 체크는 5초 안에 200 이 와야 통과.', touches: ['proc:헬스 체크'] } })
-    if (mode === 'pc') await s.hub.curateIdle('dpms')
-    else {
-      const job = await s.hub.tidyNow(KIM, 'dpms')
-      await workOnce({ server: s.url, key: (await s.auth.workerAdd()).key })
-      assert.equal(s.hub.job(job.id).state, 'done')
+    const record = { title: '헬스 체크: 시간 초과 5초', body: '헬스 체크는 5초 안에 200 이 와야 통과.', touches: ['proc:헬스 체크'] }
+    let rec
+    if (mode === 'pc') {
+      rec = await s.hub.save(KIM, 'dpms', { record })
+      await s.hub.idle('dpms')
+    } else {
+      // 조각 없는 사람 기록 — 메모(문서 그대로 · 정리를 기다리는 pend 가 생기지 않는다 · S-D3)
+      const bare = await s.hub.save({ user: 'lee' }, 'dpms', { record: { ...record, title: '헬스 체크: 메모' } })
+      assert.equal((await s.hub.get('dpms')).byWork.get(bare.id).state, 'memo')
+      const k0 = await s.hub.get('dpms')
+      const cur = k0.docs.find((d) => d.id === '배포절차').sections.find((x) => x.h === '헬스 체크').body
+      rec = await s.hub.save({ user: 'lee' }, 'dpms', { record, sections: [{ coord: 'proc:헬스 체크', base: sha16(cur), content: `${cur.trim()}\n\n헬스 체크는 5초 안에 200 이 와야 통과.` }] })
+      assert.equal(rec.put, 1, JSON.stringify(rec.held || rec.proposals))
     }
     s.hub.forget('dpms')
     const hk = await s.hub.get('dpms')

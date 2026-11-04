@@ -107,7 +107,7 @@ test('출처: 넣은 파일 기록 → 간 문서 · 문서 → 온 기록(정�
     fs.writeFileSync(path.join(dir, 'log', '2026-1026-정리.md'), '---\nid: 2026-1026-정리\ntitle: 규격서 — 문서에 새 항목 2\ndate: 2026-10-26 13:43\nauthor: kmd-auto\ntags:\n  - curate-llm\nreflects:\n  - 2026-1026-넣음\n---\n\n# 규격서 — 문서에 새 항목 2\n\n넣었다\n')
     const k = await loadKnowledge({ id: 't', name: 't', dir })
     const d = docView(k, 'PLC 연계 규격서')
-    assert.deepEqual(d.origins.map((x) => [x.id, x.how, x.hs]), [['2026-1026-넣음', 'rec', ['개요', '본문']], ['2026-1026-정리', 'tidy', ['개요', '본문']]])
+    assert.deepEqual(d.origins.map((x) => [x.id, x.how, x.hs]), [['2026-1026-넣음', 'rec', ['개요', '본문']], ['2026-1026-정리', 'kmd', ['개요', '본문']]])
     const r = recView(k, '2026-1026-넣음')
     assert.equal(r.state, 'in')
     assert.deepEqual(r.went, [{ id: 'PLC 연계 규격서', title: 'PLC 연계 규격서', hs: ['개요', '본문'] }])

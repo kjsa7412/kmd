@@ -32,7 +32,7 @@ before(async () => {
   data = path.join(root, '.kmd')
   copyDir(path.join(HERE, 'fixture', 'kmd'), root)
   fs.mkdirSync(data, { recursive: true })
-  fs.writeFileSync(path.join(data, 'serve.json'), JSON.stringify({ decideMs: 3600000, tidyTickMs: 3600000, sendTickMs: 3600000, jobLeaseMs: 300, privateWaitMs: 2000 }))
+  fs.writeFileSync(path.join(data, 'serve.json'), JSON.stringify({ decideMs: 3600000, inboxTickMs: 3600000, sendTickMs: 3600000, jobLeaseMs: 300, privateWaitMs: 2000 }))
   s = await startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
   await s.hub.addKnowledge(KIM, { kind: 'new', name: '노트', team: true })
   // lee 는 dpms 에 쓰는 팀원 — 받지 않은 지식은 없음이 기본이라 자리를 준다(docs/kmd_권한_모델.md v1.1)
@@ -101,12 +101,11 @@ test('보내기: 크면 나눠 보낸다(받는 쪽 200 개 상한) · 시간 �
   assert.equal(off.reach, false)
 })
 
-test('정리 일감: 임대가 지나면 다시 기다림 · 세 번째면 failed · 옛 일꾼의 초안은 받지 않는다 · 다시 켜도 남는다', async () => {
+test('들이기 일감(다듬기): 임대가 지나면 다시 기다림 · 세 번째면 닫는다 · 옛 일꾼의 초안은 받지 않는다 · 다시 켜도 남는다', async () => {
   const wk = (await s.auth.workerAdd()).key
   const wctx = s.auth.bearer(wk)
-  await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '헬스 체크: 주기', body: '주기 15초', touches: ['proc:헬스 체크'] } })
-  const j = await s.hub.tidyNow(KIM, 'dpms')
-  assert.equal(j.state, 'queued')
+  const j = { id: (await s.hub.polish(KIM, 'dpms', { doc: '배포절차' })).job }
+  assert.equal(s.hub.job(j.id).state, 'queued')
   const n1 = s.hub.workerNext(wctx)
   assert.equal(n1.job.id, j.id)
   await new Promise((r) => setTimeout(r, 400))
@@ -116,19 +115,20 @@ test('정리 일감: 임대가 지나면 다시 기다림 · 세 번째면 faile
   await new Promise((r) => setTimeout(r, 400))
   s.hub.workerNext(wctx)
   await new Promise((r) => setTimeout(r, 400))
+  await new Promise((r) => setTimeout(r, 50))
   const jj = s.hub.job(j.id)
-  assert.deepEqual([jj.state, /세 번/.test(jj.why)], ['failed', true])
+  assert.deepEqual([jj.state, /세 번/.test(jj.why)], ['done', true])
   // 다시 켜도 기다리던 일감이 남는다(맡았던 것은 기다림으로)
-  const j2 = await s.hub.tidyNow(KIM, 'dpms')
+  const j2 = { id: (await s.hub.polish(KIM, 'dpms', { doc: '배포절차' })).job }
   await new Promise((r) => setTimeout(r, 100))
   await s.close()
   s = await startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
   assert.equal(s.hub.job(j2.id)?.state, 'queued')
-  // 일꾼이 묻지 않는다 — 10분 넘게 기다린 팀 정리 → 관리자에게 멈춤 줄
+  // 일꾼이 묻지 않는다 — 10분 넘게 기다린 들이기 → 관리자에게 멈춤 줄
   s.hub.job(j2.id).at = new Date(Date.now() - 11 * 60_000).toISOString()
-  assert.ok((await s.hub.stops(KIM)).some((l) => l.kind === 'worker' && /정리 일꾼이 일감을 받지 않는다/.test(l.b) && /한 번도 묻지 않았다/.test(l.text)))
+  assert.ok((await s.hub.stops(KIM)).some((l) => l.kind === 'worker' && /팀 일꾼이 일감을 받지 않는다/.test(l.b) && /한 번도 묻지 않았다/.test(l.text)))
   s.hub.workerNext(s.auth.bearer(wk))
-  assert.ok(!(await s.hub.stops(KIM)).some((l) => /정리 일꾼이 일감을 받지 않는다/.test(l.b)))
+  assert.ok(!(await s.hub.stops(KIM)).some((l) => /팀 일꾼이 일감을 받지 않는다/.test(l.b)))
 })
 
 test('남은 .git/index.lock: 오래된 것은 치우고 저장한다 · 막 생긴 것은 기다렸다가 쉬운 말로', async () => {
@@ -154,7 +154,7 @@ test('실패하는 가져오는 곳: 해 본 때를 남겨 주기를 지킨다 �
   assert.match(l[0].b, /아직 한 번도 가져오지 못했다 · 2번/)
 })
 
-test('설치: 팀 설치가 정리 일꾼도 늘 켠다(kmd-worker.service · 열쇠는 root 만 읽는 파일)', () => {
+test('설치: 팀 설치가 팀 일꾼도 늘 켠다(kmd-worker.service · 열쇠는 root 만 읽는 파일)', () => {
   const sh = fs.readFileSync(path.join(HERE, '..', 'scripts', 'kmd-install.sh'), 'utf8')
   assert.match(sh, /kmd-worker\.service/)
   assert.match(sh, /EnvironmentFile=\/etc\/kmd\/worker\.env/)

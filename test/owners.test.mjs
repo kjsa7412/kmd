@@ -44,21 +44,23 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('_members.md: 주인 · 정리하는 사람 · 정리 방식 · Claude 에 보내지 않음을 싣고 다시 읽는다 · 「개인」 은 읽지 않는다', () => {
+test('_members.md: 주인 · 지식관리자(옛 줄 이름 「정리」) · Claude 에 보내지 않음을 싣고 다시 읽는다 · 옛 「정리 방식」 줄은 값을 읽지 않는다(S13) · 「개인」 은 읽지 않는다', () => {
   const t = owners.renderMembers({ owner: 'kim', curators: ['park', 'lee'], tidyMode: 'time', tidyAt: '05:10', noClaude: true })
-  assert.match(t, /- 주인: kim\n- 정리: park, lee\n- 정리 방식: 정해진 시각 05:10\n- Claude 에 보내지 않음: 예/)
+  assert.match(t, /- 주인: kim\n- 정리: park, lee\n- Claude 에 보내지 않음: 예/)
+  assert.doesNotMatch(t, /정리 방식/)
   assert.doesNotMatch(t, /개인/)
-  assert.deepEqual(owners.parseMembers(t), { owner: 'kim', curators: ['park', 'lee'], settings: true, tidyMode: 'time', tidyAt: '05:10', noClaude: true })
-  assert.equal(owners.parseMembers(owners.renderMembers({ owner: 'a', tidyMode: 'live' })).tidyMode, 'live')
+  assert.deepEqual(owners.parseMembers(t), { owner: 'kim', curators: ['park', 'lee'], settings: true, noClaude: true })
+  // 옛 꼴 — 「정리 방식」 줄은 설정 줄이 있는 꼴로만 센다(값은 쓰지 않는다)
+  assert.deepEqual(owners.parseMembers('- 주인: a\n- 정리: a\n- 정리 방식: 실시간\n'), { owner: 'a', curators: ['a'], settings: true })
   const old = owners.parseMembers('- 주인: kim\n- 개인: 예\n')
   assert.equal(old.settings, false, '옛 꼴: 설정 줄 없음')
   assert.equal('private' in old, false, '옛 「개인」 줄은 읽지 않는다')
 })
 
-test('한 줄로 서서 고친다. 여럿이 같은 때 팀 지식을 만들고 정리 시각을 바꿔도 줄을 잃지 않는다 · 팀 지식은 자리를 받은 사람이 본다', async () => {
+test('한 줄로 서서 고친다. 여럿이 같은 때 팀 지식을 만들고 지식관리자 설정을 바꿔도 줄을 잃지 않는다 · 팀 지식은 자리를 받은 사람이 본다', async () => {
   const jobs = []
   for (let i = 0; i < 6; i++) jobs.push(s.hub.addKnowledge({ ...(i % 2 ? PARK : LEE), admin: true }, { kind: 'new', name: `회의${i}` }))
-  for (let i = 0; i < 4; i++) jobs.push(s.hub.setOwner(SHELL, 'dpms', { tidyAt: `0${i}:30` }))
+  for (let i = 0; i < 4; i++) jobs.push(s.hub.setOwner(SHELL, 'dpms', { noClaude: i % 2 === 0 }))
   const r = await Promise.allSettled(jobs)
   assert.deepEqual(r.filter((x) => x.status === 'rejected').map((x) => x.reason?.message), [], '쓰기가 다투다 넘어지지 않는다')
   const L = ledger()
@@ -82,23 +84,24 @@ test('셸이 쓴 장부를 도는 서버가 곧바로 본다. 다음 화면 쓰�
   await new Promise((r) => setTimeout(r, 30))
   await shell.setOwner(SHELL, 'gdi', { owner: 'park', curators: ['park'] })
   assert.equal(s.hub.owner('gdi')?.owner, 'park', '도는 서버가 곧바로 본다')
-  await s.hub.setOwner(SHELL, 'dpms', { tidyAt: '04:00' })
+  await s.hub.setOwner(SHELL, 'dpms', { noClaude: false })
   assert.equal(ledger().gdi?.owner, 'park', '다음 쓰기가 셸의 줄을 지우지 않는다')
   shell.stop()
 })
 
-test('주인은 정리 설정 · 정리하는 사람만: 주인은 관리자 · 셸이 바꾼다 · 「개인」 은 받지 않는다', async () => {
+test('주인은 Claude 설정 · 지식관리자만: 주인은 관리자 · 셸이 바꾼다 · 「개인」 · 옛 정리 설정은 받지 않는다', async () => {
   await s.hub.setOwner(SHELL, 'dpms', { owner: 'park' })
   assert.equal(await code(s.hub.setOwner(PARK, 'dpms', { owner: 'lee' })), 'E_FORBIDDEN', '주인 넘기기는 관리자')
-  assert.equal((await s.hub.setOwner(PARK, 'dpms', { tidyMode: 'manual', curators: ['park', 'lee'] })).tidyMode, 'manual')
-  const r = await s.hub.setOwner(PARK, 'dpms', { private: true, tidyMode: 'time' })
+  const m = await s.hub.setOwner(PARK, 'dpms', { tidyMode: 'manual', tidyAt: '04:00', noClaude: true, curators: ['park', 'lee'] })
+  assert.deepEqual([m.tidyMode, m.tidyAt, m.noClaude], [undefined, undefined, true], '옛 정리 설정(S13 에 걷었다)은 받지 않는다')
+  const r = await s.hub.setOwner(PARK, 'dpms', { private: true, noClaude: false })
   assert.equal('private' in r, false, '「개인」 은 걷고 나머지만 받는다')
   assert.ok((await ids(LEE)).includes('dpms'), '팀 지식은 감춰지지 않는다')
-  // 권한 모델 4절 — 정리하는 사람은 그 지식의 관리 자리(정리 설정을 바꾼다) · 주인은 여전히 관리자만 넘긴다
-  assert.equal((await s.hub.setOwner(LEE, 'dpms', { tidyMode: 'live' })).tidyMode, 'live', '정리하는 사람 = 관리 자리')
+  // 권한 모델 4절 — 지식관리자(curators)는 그 지식의 관리 자리(Claude 설정을 바꾼다) · 주인은 여전히 관리자만 넘긴다
+  assert.equal((await s.hub.setOwner(LEE, 'dpms', { noClaude: true })).noClaude, true, '지식관리자 = 관리 자리')
   assert.equal(await code(s.hub.setOwner(LEE, 'dpms', { owner: 'lee' })), 'E_FORBIDDEN', '주인 넘기기는 관리자')
-  await s.hub.setOwner(PARK, 'dpms', { tidyMode: 'time' })
-  assert.match(fs.readFileSync(path.join(root, 'dpms', '_members.md'), 'utf8'), /- 주인: park\n- 정리: park, lee\n- 정리 방식: 정해진 시각/)
+  await s.hub.setOwner(PARK, 'dpms', { noClaude: false })
+  assert.match(fs.readFileSync(path.join(root, 'dpms', '_members.md'), 'utf8'), /- 주인: park\n- 정리: park, lee\n- Claude 에 보내지 않음: 아니오/)
 })
 
 test('옛 개인 지식은 없다: 옛 장부 줄 · _members.md 의 「개인: 예」 는 팀 지식으로 본다', async () => {
@@ -121,7 +124,7 @@ test('옛 개인 지식은 없다: 옛 장부 줄 · _members.md 의 「개인: 
   assert.equal(ledger()['team-old']?.restored, true, '앞 판의 「되살림: 관리자만」 표지는 말없이 열지 않는다')
   assert.ok(!(await ids(LEE)).includes('team-old'))
   // 옛 꼴 _members.md(설정 줄 없음)는 켤 때 장부의 값으로 새 꼴로 고쳐 쓴다 — 「개인」 줄은 없어진다
-  assert.ok(await until(() => /- 정리 방식: /.test(fs.readFileSync(path.join(root, '옛일기-lee', '_members.md'), 'utf8'))))
+  assert.ok(await until(() => /- Claude 에 보내지 않음: /.test(fs.readFileSync(path.join(root, '옛일기-lee', '_members.md'), 'utf8'))))
   assert.doesNotMatch(fs.readFileSync(path.join(root, '옛일기-lee', '_members.md'), 'utf8'), /개인/)
   // 동기화 — _members.md 없는 새 폴더는 누른 관리자의 팀 지식
   copyDir(path.join(root, 'team-old'), path.join(root, '새팀'))
@@ -133,9 +136,9 @@ test('옛 개인 지식은 없다: 옛 장부 줄 · _members.md 의 「개인: 
 
 test('셸과 서버가 겹쳐 써도: 파일 잠금 안에서 다시 읽고 고쳐 써 어느 쪽도 잃지 않는다', async () => {
   const shell = await makeHub({ root, dataDir: data, log: () => {} })
-  await Promise.all([s.hub.setOwner(SHELL, 'dpms', { tidyAt: '06:00' }), shell.setOwner(SHELL, 'gdi', { owner: 'lee' }), s.hub.setOwner(SHELL, 'gdi', { curators: ['park'] })])
+  await Promise.all([s.hub.setOwner(SHELL, 'dpms', { noClaude: true }), shell.setOwner(SHELL, 'gdi', { owner: 'lee' }), s.hub.setOwner(SHELL, 'gdi', { curators: ['park'] })])
   const L = ledger()
-  assert.equal(L.dpms.tidyAt, '06:00')
+  assert.equal(L.dpms.noClaude, true)
   assert.deepEqual([L.gdi.owner, L.gdi.curators], ['lee', ['park']])
   shell.stop()
   // 같은 이름 두 번 — 둘째만 E_CONFLICT · 첫째의 줄은 남는다
@@ -158,7 +161,7 @@ test('이 PC 의 kmd 는 장부를 _members.md 로 맞추지 않는다. 팀에�
   }
 })
 
-test('되살릴 때: _members.md 를 따른다 · 없으면 줄 없이 · 옛 꼴이면 「손으로만 · Claude 에 보내지 않음」', async () => {
+test('되살릴 때: _members.md 를 따른다 · 없으면 줄 없이 · 옛 꼴이면 「Claude 에 보내지 않음」', async () => {
   const mk = (name, members) => {
     const d = path.join(tmp, 'restored', name)
     fs.mkdirSync(d, { recursive: true })
@@ -169,11 +172,14 @@ test('되살릴 때: _members.md 를 따른다 · 없으면 줄 없이 · 옛 �
   assert.equal(await owners.adoptMembers(reg, 'none', mk('none', null)), null)
   assert.equal(reg.knowledge.none, undefined, '없으면 줄 없음')
   const old = await owners.adoptMembers(reg, 'old', mk('old', '- 주인: lee\n- 개인: 예\n- 정리: lee\n'), { restore: true })
-  assert.deepEqual([old.owner, 'private' in old, old.tidyMode, old.noClaude, old.check], ['lee', false, 'manual', true, true])
+  assert.deepEqual([old.owner, 'private' in old, old.tidyMode, old.noClaude, old.check], ['lee', false, undefined, true, true])
   const keep = await owners.adoptMembers(reg, 'old2', mk('old2', '- 주인: lee\n'))
-  assert.deepEqual([keep.tidyMode, keep.noClaude, keep.check], [undefined, undefined, undefined], '켤 때 · 동기화 때는 옛 꼴이어도 정리 설정을 건드리지 않는다')
-  const cur = await owners.adoptMembers(reg, 'cur', mk('cur', owners.renderMembers({ owner: 'park', curators: ['park'], tidyMode: 'live', noClaude: true })))
-  assert.deepEqual([cur.owner, cur.tidyMode, cur.noClaude, cur.check], ['park', 'live', true, undefined], '정리 설정을 그대로')
+  assert.deepEqual([keep.tidyMode, keep.noClaude, keep.check], [undefined, undefined, undefined], '켤 때 · 동기화 때는 옛 꼴이어도 설정을 건드리지 않는다')
+  const cur = await owners.adoptMembers(reg, 'cur', mk('cur', owners.renderMembers({ owner: 'park', curators: ['park'], noClaude: true })))
+  assert.deepEqual([cur.owner, cur.tidyMode, cur.noClaude, cur.check], ['park', undefined, true, undefined], 'Claude 설정을 그대로')
+  // 옛 _members.md 의 「정리 방식」 줄 — 설정 줄이 있는 꼴로 보고 값은 쓰지 않는다
+  const oldMode = await owners.adoptMembers(reg, 'om', mk('om', '- 주인: park\n- 정리: park\n- 정리 방식: 손으로만\n- Claude 에 보내지 않음: 아니오\n'), { restore: true })
+  assert.deepEqual([oldMode.tidyMode, oldMode.noClaude, oldMode.check], [undefined, false, undefined])
 })
 
 test('지운 지식의 일(넣은 파일 이름 · 터미널 줄)은 남지 않는다. 다시 켜도', async () => {

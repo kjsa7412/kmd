@@ -224,7 +224,7 @@ export function arrivedOf(w) {
   return t ? t.slice(5).replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$/, '$1-$2-$3 $4:$5') : w.date
 }
 // 이 항목에 그 기록이 들었나 — 항목 표지가 그 기록이거나 · 표지의 정리 기록이 넣었다고 적었거나 · 더 늦은 기록이 들었다.
-//   정리 재료(tidy material)도 같은 판정으로 이미 든 항목을 건너뛴다(여러 항목에 걸린 기록이 한 항목 때문에 다 다시 정리되지 않게)
+//   개인 프로그램의 바로 넣기 재료(core/pcplace.js material)도 같은 판정으로 이미 든 항목을 건너뛴다(여러 항목에 걸린 기록이 한 항목 때문에 다 다시 정리되지 않게)
 export function reflectedIn(k, w, sec) {
   if (!sec?.applied) return false
   if (sec.applied === w.id) return true

@@ -33,7 +33,7 @@ before(async () => {
   fs.mkdirSync(data, { recursive: true })
   fs.mkdirSync(src, { recursive: true })
   fs.writeFileSync(path.join(src, '절차.md'), '# 절차\n\n## 순서\n첫째.\n')
-  fs.writeFileSync(path.join(data, 'serve.json'), JSON.stringify({ sourceRoots: [path.join(tmp, 'src')], decideMs: 3600000, sourceTickMs: 3600000, tidyTickMs: 3600000, watchQuietMs: 600000 }))
+  fs.writeFileSync(path.join(data, 'serve.json'), JSON.stringify({ sourceRoots: [path.join(tmp, 'src')], decideMs: 3600000, sourceTickMs: 3600000, inboxTickMs: 3600000, watchQuietMs: 600000 }))
   s = await startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
   await s.hub.setOwner(SHELL, 'dpms', { owner: 'kim' })
 })
