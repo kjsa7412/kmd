@@ -27,6 +27,10 @@ cp -R "$HERE"/. "$APP"/
 for Z in "$HERE"/kmd-*-pc.zip "$HERE"/../kmd-*-pc.zip; do if [ -f "$Z" ]; then cp "$Z" "$ROOT/.kmd/dl/"; fi; done
 rm -f "$APP"/kmd-*-pc.zip
 ls "$ROOT/.kmd/dl"/kmd-*-pc.zip >/dev/null 2>&1 && echo "✓ PC 꾸러미를 받기 자리에 두었다. 설치 한 줄이 받아 간다" || echo "· PC 꾸러미가 없다. kmd-<판>-pc.zip 을 $ROOT/.kmd/dl 에 두면 설치 한 줄이 받아 간다"
+# 대량 넣기 파서 — kmd-parse-<판>.zip 을 받기 자리에(옛 판은 그대로 둔다 · 팀 서버는 가장 새 것만 알린다). Claude Code 스킬 kmd-team-import 가 처음 대량 넣기 때 받는다
+for Z in "$HERE"/kmd-parse-*.zip "$HERE"/../kmd-parse-*.zip; do if [ -f "$Z" ]; then cp "$Z" "$ROOT/.kmd/dl/"; fi; done
+rm -f "$APP"/kmd-parse-*.zip
+ls "$ROOT/.kmd/dl"/kmd-parse-*.zip >/dev/null 2>&1 && echo "✓ 대량 넣기 파서를 받기 자리에 두었다" || echo "· 대량 넣기 파서가 없다. kmd-parse-<판>.zip 을 $ROOT/.kmd/dl 에 두면 Claude Code 의 대량 넣기가 받아 간다"
 if [ -n "$GROUP" ]; then
   printf '{\n "gitlab": { "api": "%s", "group": "%s" }\n}\n' "$API" "$GROUP" > "$ROOT/.kmd/serve.json"
   printf 'GitLab 그룹 %s 의 백업 열쇠(입력이 보이지 않는다): ' "$GROUP"

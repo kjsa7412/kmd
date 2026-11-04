@@ -36,6 +36,8 @@ import { writeJsonAtomic } from '../core/atomic.js'
 const APP = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'app')
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.json': 'application/json' }
 const MAX_BODY = 2 << 20
+// MCP 본문 — 들어온 사람만(save 의 첨부 attach 한 번 8MB · base64 4/3 · S-D30)
+const MCP_BODY = 12 << 20
 
 // 나눠 보내기(Q71) — 기록 · 이력은 새 것 위(날짜 · id 내림)로 늘 정렬돼 있다. 커서는 그 순서의 「이것보다 앞(옛) 것」.
 //   ?limit=  한 번에(1 ~ 1000 · 없으면 dflt)
@@ -300,6 +302,25 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     const all = (await fs.readdir(dlDir()).catch(() => [])).map((n) => [n, n.match(/^kmd-([0-9A-Za-z._-]{1,40})-pc\.zip$/i)]).filter(([, m]) => m).map(([name, m]) => ({ name, ver: m[1] }))
     return all.find((x) => x.ver === BUILD) || all.find((x) => x.ver === VERSION) || all.sort((a, b) => b.ver.localeCompare(a.ver, undefined, { numeric: true }))[0] || null
   }
+  // 받기 자리의 대량 넣기 파서(K6-2 · 설계 4-6) — kmd-parse-<pver>.zip 가운데 가장 새 것(파일 시각) · sha256 · 크기는 파일마다 처음 한 번 센다
+  //   { ver, name, url, sha256, bytes } 또는 null · 옛 판 파일은 받기 자리에 그대로 둔다(받던 PC 가 끝까지 받게)
+  const parserSums = new Map() // 이름 → { mtime, size, sha256 }
+  const parserPackage = async () => {
+    const dir = dlDir()
+    const names = (await fs.readdir(dir).catch(() => [])).filter((n) => /^kmd-parse-[0-9a-f]{12}\.zip$/.test(n))
+    const st = (await Promise.all(names.map((n) => fs.stat(path.join(dir, n)).then((s) => ({ n, s }), () => null)))).filter((x) => x && x.s.isFile())
+    const top = st.sort((a, b) => b.s.mtimeMs - a.s.mtimeMs || (a.n < b.n ? 1 : -1))[0]
+    if (!top) return null
+    let sum = parserSums.get(top.n)
+    if (!sum || sum.mtime !== top.s.mtimeMs || sum.size !== top.s.size) {
+      const h = crypto.createHash('sha256')
+      await pipeline(createReadStream(path.join(dir, top.n)), h)
+      sum = { mtime: top.s.mtimeMs, size: top.s.size, sha256: h.digest('hex') }
+      parserSums.set(top.n, sum)
+    }
+    return { ver: top.n.slice(10, 22), name: top.n, url: `/dl/${top.n}`, sha256: sum.sha256, bytes: sum.size }
+  }
+  hub.parserPackage = () => (mode === 'team' ? parserPackage() : Promise.resolve(null))
   // 이 PC — 프로그램 안에서 받은 Claude 로그인(비밀 claude-token)을 이 프로그램이 부르는 Claude 에만
   if (mode === 'pc') getSecret(dataDir, 'claude-token').then((t) => { if (t) process.env.CLAUDE_CODE_OAUTH_TOKEN = t }, () => {})
 
@@ -392,7 +413,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const seeOf = (ctx, id) => ({ team: mode === 'team', user: ctx?.user || null, admin: hub.levelOf(ctx, id) === 'admin' })
   const GET_OK = [
     /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|admin\/groups|claude\/state|busy|send\/teams)$/,
-    /^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
+    /^\/api\/agent\/parser$/, /^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
     /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|tidy\/plan|held|sources|send|backup|backup\/lost|owner|access|worker\/material|worker\/intake|guard)$/,
   ]
   const api = async (req, res, url, ctx, set) => {
@@ -840,6 +861,15 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     }
     // 팀 에이전트 설치 — 붙여 넣은 폴더의 팀 덩이 · 옛 덩이를 받아 새 팀 덩이 · 스킬 · 헤더 도우미를 준다(core/teamkit.js)
     //   읽기 자리가 없는 지식은 붙이지 않는다(404) · 응답은 ASCII JSON(Windows PowerShell 5.1 이 charset 을 놓쳐도 한글이 그대로)
+    // 대량 넣기 파서(K6-2 · K-D9) — 받을 꾸러미의 판 · 주소 · sha256 · 크기. Claude Code 스킬 kmd-team-import 가 처음 대량 넣기 때 본다(/a/ 한 줄에는 싣지 않는다)
+    if (p === '/api/agent/parser') {
+      if (mode !== 'team') throw new KmdError('E_FORBIDDEN', '팀 서버의 길이다')
+      need(ctx)
+      if (req.method !== 'GET') return send(res, 405, { error: 'E_INPUT', message: 'GET 으로 읽는다' })
+      const pk = await parserPackage()
+      if (!pk) throw new KmdError('E_NOTFOUND', '팀 서버에 대량 넣기 파서가 없다. 총괄 관리자에게 「팀 꾸러미로 다시 설치」 를 부탁한다')
+      return out(200, pk)
+    }
     if (p === '/api/agent/team-kit' && req.method === 'POST') {
       if (mode !== 'team') throw new KmdError('E_FORBIDDEN', '팀 서버의 길이다')
       need(ctx)
@@ -853,7 +883,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (!k) throw new KmdError('E_NOTFOUND', `「${kn}」 팀 지식이 없거나 읽을 자리가 없다`)
       const parts = await teamkit.teamKitParts()
       const kns = teamkit.teamKns({ old: block, legacy, add: kn, visible })
-      const body = { block: teamkit.teamBlock(parts, kns), ver: parts.ver, skills: parts.skills, helper: teamkit.teamKeyHelperPs(), exeCs: KEY_EXE_CS, exeVer: KEY_EXE_VER, name: k.name, n: kns.length, dropLegacy: teamkit.legacyTeamOnly(legacy), legacy: !!legacy.trim(), oldSkills: teamkit.OLD_SKILLS }
+      const body = { block: teamkit.teamBlock(parts, kns), ver: parts.ver, skills: parts.skills, helper: teamkit.teamKeyHelperPs(), exeCs: KEY_EXE_CS, exeVer: KEY_EXE_VER, name: k.name, n: kns.length, dropLegacy: teamkit.legacyTeamOnly(legacy), legacy: !!legacy.trim(), oldSkills: teamkit.OLD_SKILLS, skillNames: teamkit.TEAM_SKILLS }
       return send(res, 200, teamkit.asciiJson(body), undefined, set ? { 'set-cookie': set } : {})
     }
     if (p === '/api/me/devices') return out(200, auth.devices(ctx.user))
@@ -1169,7 +1199,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (p === '/mcp') {
         if (req.method !== 'POST') return send(res, 405, { error: 'POST 로 보낸다' })
         need(ctx)
-        const body = await readBody(req)
+        // 본문 한도 — 들어온 사람(열쇠 · 쿠키)만 12MB(save 의 attach 8MB 가 base64 로 4/3 · S-D30). 들어오지 않았으면 위 need 가 본문을 읽기 전에 거절한다
+        const body = await readBody(req, MCP_BODY, 'E_TOO_BIG')
         if (Array.isArray(body)) {
           // 묶음은 20개 안 — 찾기 수천 개로 CPU 를 오래 붙잡지 않게
           if (!body.length || body.length > 20) return send(res, 200, { jsonrpc: '2.0', id: null, error: { code: -32600, message: '묶음은 1 ~ 20개' } })

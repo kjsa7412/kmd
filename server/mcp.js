@@ -37,7 +37,7 @@ const str = (description) => ({ type: 'string', description })
 const TOOLS = [
   {
     name: 'brief',
-    description: '지금 kmd 에 무엇이 있나: 지식 목록 · 지식 하나의 문서 · 최근 기록 · 아직 문서에 안 넣은 기록. 팀 지식이면 지식마다 mine(내가 남긴 것 가운데 안 넣은 메모 memos · 넣지 못함 held 의 수: 0 이 아니면 사람에게 한 줄로) · 지식 하나의 you.recent(그 기록의 제목 · 까닭) · kit(팀 서버의 스킬 판). 일을 시작할 때 한 번.',
+    description: '지금 kmd 에 무엇이 있나: 지식 목록 · 지식 하나의 문서 · 최근 기록 · 아직 문서에 안 넣은 기록. 팀 지식이면 지식마다 mine(내가 남긴 것 가운데 안 넣은 메모 memos · 넣지 못함 held 의 수: 0 이 아니면 사람에게 한 줄로) · 지식 하나의 you.recent(그 기록의 제목 · 까닭) · kit(팀 서버의 스킬 판) · parser(대량 넣기 파서 꾸러미: ver · url · sha256 · bytes · 없으면 null). 일을 시작할 때 한 번.',
     inputSchema: { type: 'object', properties: { knowledge: str('지식 id(없으면 목록)') } },
   },
   {
@@ -68,7 +68,8 @@ const TOOLS = [
       type: 'object',
       properties: {
         knowledge: str('지식 id'),
-        kit: str('팀 지식: 스킬 판(kmd-team-save 스킬 글이 준 값 그대로 · 예 "2")'),
+        kit: str('팀 지식: 스킬 판(kmd-team-save · kmd-team-import 스킬 글이 준 값 그대로 · 예 "3")'),
+        attach: { type: 'array', description: '원본 첨부(쓰기 자리부터 · 사람이 원본도 첨부하라고 했을 때만): 파일마다 { path: docs/assets/ 아래 자리, b64: 파일 바이트의 base64 }. save 한 번에 합 8MB 까지 · 그림 · pdf · 오피스 · hwp · txt · zip. 같은 자리에 같은 파일이 있으면 그대로(same) · 다른 파일이 있으면 덮지 않고 E_CONFLICT. 기록 · 조각과 한 묶음', items: { type: 'object', properties: { path: str('docs/assets/<경로>'), b64: str('파일 바이트의 base64') }, required: ['path', 'b64'] } },
         record: {
           type: 'object',
           properties: {
@@ -125,7 +126,19 @@ async function baselineInfo(k, body, store) {
   }
 }
 
+// 첨부 — save 한 번의 합(S-D30 · 본문 12MB 안 · 파일 하나는 core 가 32MB 로 본다)
+export const MCP_ATTACH_MAX = 8 << 20
+
 export function makeMcp(store) {
+  // 대량 넣기 파서 꾸러미(K6-2) — 팀 서버 받기 자리의 가장 새 것 · 없거나 못 읽으면 null(brief 를 막지 않는다)
+  const parserOf = async () => {
+    try {
+      return (await store.parserPackage?.()) || null
+    } catch (e) {
+      console.error('[kmd] 파서 꾸러미를 읽지 못했다', e?.message || e)
+      return null
+    }
+  }
   const tools = {
     async brief({ knowledge } = {}, ctx) {
       if (!knowledge) {
@@ -133,7 +146,7 @@ export function makeMcp(store) {
         return {
           // mine — 내가 남긴 것 가운데 안 넣은 메모 · 넣지 못함 수(팀 · K3-3) · 스킬이 0 이 아니면 한 줄로 전한다
           knowledge: ks.map((k) => { const mine = store.mineIn(ctx, k); return { id: k.id, name: k.name, ...whereOf(store, k.id), docs: k.docs.length, records: k.works.length, notYetInDocs: k.works.filter((w) => w.state === 'pend').length, ...(mine ? { mine } : {}) } }),
-          ...(store.mode === 'pc' ? {} : { kit: TEAM_KIT_REV }),
+          ...(store.mode === 'pc' ? {} : { kit: TEAM_KIT_REV, parser: await parserOf() }),
           next: ks.length ? 'brief { knowledge } 로 지식 하나를 본다' : '아직 지식이 없다',
           stops: (await store.stops(ctx)).map((l) => l.text),
           // 노란 줄 — kmd 가 값을 바꾼 것 · 새 기기(한 번 실린다 · 사용자에게 그대로 전한다)
@@ -146,7 +159,7 @@ export function makeMcp(store) {
         id: k.id,
         name: k.name,
         ...whereOf(store, k.id),
-        ...(store.mode === 'pc' ? {} : { kit: TEAM_KIT_REV }),
+        ...(store.mode === 'pc' ? {} : { kit: TEAM_KIT_REV, parser: await parserOf() }),
         docs: k.docs.map((d) => ({ doc: d.id, title: d.title, headings: d.sections.map((s) => s.h) })),
         recent: k.works.slice(0, 10).map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title })),
         notYetInDocs: k.works.filter((w) => w.state === 'pend').map((w) => ({ id: w.id, date: w.date, title: w.title })),
@@ -246,13 +259,20 @@ export function makeMcp(store) {
       }
     },
 
-    async save({ knowledge, record, sections, names, forms, kit }, ctx) {
+    async save({ knowledge, record, sections, names, forms, kit, attach }, ctx) {
       // 도구 모양을 배포 전에 받아 둔 세션은 모르는 칸(forms 등)의 목록을 글(JSON)로 보낸다 — 목록 글이면 풀어 받는다
       const listOf = (v) => {
         if (typeof v !== 'string') return v
         try { const x = JSON.parse(v); return Array.isArray(x) ? x : v } catch { return v }
       }
-      ;[sections, names, forms] = [listOf(sections), listOf(names), listOf(forms)]
+      ;[sections, names, forms, attach] = [listOf(sections), listOf(names), listOf(forms), listOf(attach)]
+      // 첨부(S-D30 · K6-4) — 사람이 「원본도 첨부」 라고 했을 때만 스킬이 싣는다 · 한 번 합 8MB · 모양 · 자리 · 쓰기 자리는 저장 문이 본다
+      if (attach != null) {
+        if (!Array.isArray(attach)) throw new KmdError('E_INPUT', 'attach 는 { path, b64 } 의 목록이다')
+        const bytes = attach.reduce((a, x) => a + Math.floor((String(x?.b64 || '').length * 3) / 4), 0)
+        if (bytes > MCP_ATTACH_MAX) throw new KmdError('E_TOO_BIG', `첨부는 save 한 번에 ${MCP_ATTACH_MAX >> 20}MB 까지: 큰 원본은 첨부하지 않고 글만 넣는다`)
+        if (!attach.length) attach = null
+      }
       if (typeof record === 'string') try { record = JSON.parse(record) } catch { /* 모양 검사가 거절한다 */ }
       const k = await store.get(knowledge, ctx)
       // 이미 있는 항목을 갈아 끼우는 글에는 base 가 있어야 한다 — 없으면 그사이 남이 고친 글을 덮는다
@@ -271,11 +291,11 @@ export function makeMcp(store) {
       const reinstall = store.mode !== 'pc' && !ctx?.agent && !(Number.isInteger(have) && have >= TEAM_KIT_REV)
         ? { reinstall: { have, want: TEAM_KIT_REV, how: '이 폴더의 kmd 팀 스킬이 옛 판이다(저장은 했다). 팀 화면 › 설정 › 에이전트 설치의 한 줄을 이 폴더에서 다시 붙여 넣고 Claude Code 를 새로 연다' } }
         : {}
-      const r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}), ...(forms ? { forms } : {}) }, { guard: 'strict', form: true, channel, ...(Number.isInteger(have) ? { kit: have } : {}) })
+      const r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}), ...(forms ? { forms } : {}), ...(attach ? { attach } : {}) }, { guard: 'strict', form: true, channel, ...(Number.isInteger(have) ? { kit: have } : {}) })
       if (r.same) return { saved: r.id, same: true, docs: [], note: r.note, ...reinstall }
       const n = r.docs.length
       const note = r.note || (n ? `저장했다. 기록 1 · 문서 ${n}` : store.mode === 'pc' ? '기록했다. 이 PC 는 kmd 가 곧바로 문서에 넣는다(정리를 기다리지 않는다)' : '저장했다. 기록 1')
-      return { saved: r.id, date: r.date, docs: r.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')), note, ...(r.put != null ? { put: r.put } : {}), ...(r.held ? { held: r.held } : {}), ...(r.memo ? { memo: true } : {}), warnings: r.warnings, ...(r.proposals ? { proposals: r.proposals } : {}), ...reinstall }
+      return { saved: r.id, date: r.date, docs: r.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')), note, ...(r.attach ? { attach: r.attach } : {}), ...(r.put != null ? { put: r.put } : {}), ...(r.held ? { held: r.held } : {}), ...(r.memo ? { memo: true } : {}), warnings: r.warnings, ...(r.proposals ? { proposals: r.proposals } : {}), ...reinstall }
     },
   }
 

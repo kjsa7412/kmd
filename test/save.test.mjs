@@ -433,6 +433,60 @@ test('MCP save: 스킬 판(kit)이 없거나 옛것이면 저장은 하고 reins
   assert.ok(!all.some((x) => k.byWork.get(x.id).state === 'fixed'), '바로잡힌 것은 세지 않는다')
 })
 
+// 대량 넣기(S11 · K6-3 · K6-4) — 가짜 세션이 스킬 kmd-team-import 대로: kmd-parse 의 tags 를 단 파일마다 save 하나 · 다시 돌리면 same ·
+//   원본 첨부는 같은 저장 덩이(attach · 같은 커밋) · 한 번 8MB · /mcp 본문은 들어온 사람만 12MB(넘으면 413)
+test('MCP 대량 넣기: 파일 둘을 넣고 다시 돌리면 same 둘 · attach 3MB 가 같은 커밋으로 · 8MB 넘으면 E_TOO_BIG · /mcp 본문 401 · 413', async () => {
+  const s = await server()
+  const mcp = makeMcp(s.hub)
+  const call = async (name, args, ctx = KIM) => (await mcp.call({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }, ctx)).result
+  const parse = (await import('../server/bin/kmd-parse.mjs')).parseOne
+  const src = path.join(tmp, '대량')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, 'test-점검.txt'), '점검은 매주 월요일 09:00 에 한다.')
+  fs.writeFileSync(path.join(src, 'test-보관.txt'), '로그는 90일 보관한다.')
+  const files = ['test-점검.txt', 'test-보관.txt']
+  const run = async () => {
+    const out = []
+    for (const rel of files) {
+      const p = await parse({ rel, file: path.join(src, rel) })
+      const body = p.md.replace(/^# .*\n+/, '').trim()
+      const r = await call('save', { knowledge: 'dpms', kit: String(TEAM_KIT_REV), record: { title: `${rel}: 넣은 파일`, changes: [body], tags: p.tags, touchesEmpty: '시험 파일' }, sections: [{ doc: '배포절차', heading: `테스트 ${rel}`, content: body }] })
+      assert.ok(!r.isError, JSON.stringify(r.structuredContent))
+      out.push(r.structuredContent)
+    }
+    return out
+  }
+  const first = await run()
+  assert.ok(first.every((x) => x.saved && !x.same), JSON.stringify(first))
+  assert.match(read2('docs/배포절차.md'), /## 테스트 test-점검\.txt\n(<!-- applied: .* -->\n)?점검은 매주 월요일 09:00 에 한다\./)
+  const second = await run()
+  assert.deepEqual(second.map((x) => x.same), [true, true], '다시 돌리면 same 둘(이어 하기)')
+  assert.deepEqual(second.map((x) => x.saved), first.map((x) => x.saved))
+  // 원본 첨부 — 3MB · 같은 저장 덩이 · 같은 커밋
+  const big = Buffer.alloc(3 << 20, 7)
+  const n0 = Number(await SG('rev-list', '--count', 'HEAD'))
+  const a = await call('save', { knowledge: 'dpms', kit: String(TEAM_KIT_REV), record: { title: 'test-원본.pdf: 넣은 파일', changes: ['원본 첨부 시험'], tags: ['ingest/test-원본.pdf', 'md/00000000000000aa'], touchesEmpty: '시험 파일' }, sections: [{ doc: '배포절차', heading: '테스트 원본', content: '원본은 첨부로 둔다.' }], attach: [{ path: 'docs/assets/test-원본.pdf', b64: big.toString('base64') }] })
+  assert.ok(!a.isError, JSON.stringify(a.structuredContent))
+  assert.deepEqual(a.structuredContent.attach?.put, ['docs/assets/test-원본.pdf'])
+  assert.equal(Number(await SG('rev-list', '--count', 'HEAD')), n0 + 1, '기록 · 문서 · 첨부가 한 커밋')
+  assert.ok(fs.readFileSync(path.join(sdir(), 'docs', 'assets', 'test-원본.pdf')).equals(big))
+  const tooBig = await call('save', { knowledge: 'dpms', record: { title: '테스트 큰 첨부', body: 'x', memo: true, touchesEmpty: '시험' }, attach: [{ path: 'docs/assets/test-a.pdf', b64: Buffer.alloc(5 << 20).toString('base64') }, { path: 'docs/assets/test-b.pdf', b64: Buffer.alloc(4 << 20).toString('base64') }] })
+  assert.equal(tooBig.structuredContent.error, 'E_TOO_BIG')
+  assert.match(tooBig.structuredContent.message, /8MB 까지/)
+  // HTTP /mcp — 들어오지 않았으면 본문을 읽기 전에 401 · 들어온 사람은 12MB 까지(3MB 첨부가 HTTP 로도 들어간다) · 넘으면 413
+  const post = (body, headers = {}) => fetch(s.url + '/mcp', { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body })
+  assert.equal((await post(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }))).status, 401)
+  const viaHttp = await post(JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'save', arguments: { knowledge: 'dpms', kit: String(TEAM_KIT_REV), record: { title: '테스트 HTTP 첨부', body: '첨부 시험.', memo: true, touchesEmpty: '시험' }, attach: [{ path: 'docs/assets/test-http.pdf', b64: big.toString('base64') }] } } }), { cookie: me.cookie })
+  assert.equal(viaHttp.status, 200)
+  const vj = await viaHttp.json()
+  assert.ok(!vj.result.isError, JSON.stringify(vj.result.structuredContent))
+  const over = await post(JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'ping', params: { pad: 'x'.repeat(13 << 20) } }), { cookie: me.cookie })
+  assert.equal(over.status, 413)
+  assert.equal((await over.json()).error, 'E_TOO_BIG')
+  assert.equal(await SG('status', '--porcelain'), '')
+})
+const read2 = (rel) => fs.readFileSync(path.join(sdir(), ...rel.split('/')), 'utf8')
+
 test('이 PC 는 지금 그대로(S-D52): 항목 글은 곧바로 문서에 · 조각 검사 · 넣지 못함 표지 없음', async () => {
   const proot = path.join(tmp, 'pc')
   copyDir(path.join(HERE, 'fixture', 'kmd'), proot)

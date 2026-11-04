@@ -5,12 +5,13 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { prehash } from '../app/prehash.js'
 import { KEY_EXE_VER } from '../core/keyexe.js'
-import { teamKitParts, teamRows, legacyRows, legacyTeamOnly, teamKns, teamBlock, asciiJson, TEAM_KIT_REV } from '../core/teamkit.js'
+import { teamKitParts, teamRows, legacyRows, legacyTeamOnly, teamKns, teamBlock, asciiJson, TEAM_KIT_REV, TEAM_SKILLS, claudeCheckPs } from '../core/teamkit.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s
@@ -58,7 +59,8 @@ after(async () => {
 // 스킬 판 표(S-D15) — 판마다 그 판의 스킬 글 해시(teamKitParts().ver). 팀 스킬 글 · 팀 덩이 · 작성가이드를 고치면
 //   core/teamkit.js 의 TEAM_KIT_REV 를 하나 올리고 이 표에 새 판 · 새 해시를 더한다(옛 판 줄은 그대로 둔다)
 //   (판 2 는 배포 전에 S6 검토가 메모 단계 글을 고쳐 해시를 바꿨다 · 한 번 배포한 판의 해시는 바꾸지 않는다)
-const KIT_HASH = { 2: '10d1b294' }
+//   (판 3 은 S11: 대량 넣기 스킬 kmd-team-import · 그 작성가이드 사본 · 팀 덩이의 대량 넣기 줄)
+const KIT_HASH = { 2: '10d1b294', 3: '85c4e1b0' }
 test('스킬 판: 스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다 · 스킬 글의 {{KIT_REV}} 를 판으로 바꿔 싣는다', async () => {
   const parts = await teamKitParts()
   assert.equal(parts.rev, TEAM_KIT_REV)
@@ -74,11 +76,24 @@ test('스킬 판: 스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다 · 스킬 �
   assert.doesNotMatch(save, /정리 때|확인 대기|같은 기록을 다시 보내지 말고/, '옛 말을 걷었다')
   const work = parts.skills.find((x) => x.rel === '.claude/skills/kmd-team-work/SKILL.md').text
   assert.match(work, /안 넣은 메모 n · 넣지 못함 n/, '일 전 brief 의 mine 을 한 줄로')
+  // 대량 넣기(K6-3) — 판 · 파서는 처음 할 때 받는다(brief parser · sha256) · 파일마다 저장 하나 · same 이어 하기 · 한 번 고쳐 fixes · 끝 줄
+  const imp = parts.skills.find((x) => x.rel === '.claude/skills/kmd-team-import/SKILL.md').text
+  assert.ok(imp.includes(`kit: "${TEAM_KIT_REV}"`), '대량 넣기도 save 에 판을 싣는다')
+  assert.match(imp, /parser/)
+  assert.match(imp, /sha256/)
+  assert.match(imp, /same: true/)
+  assert.match(imp, /record\.fixes/)
+  assert.match(imp, /넣음 n · 넣지 못함 n · 이미 넣음 n/)
+  assert.match(imp, /어느 팀 지식에 넣을까요/)
+  assert.doesNotMatch(imp.replace('줄표(—)', ''), /—/, '줄표를 쓰지 않는다')
+  assert.match(parts.block, /kmd-team-import/, '팀 덩이가 대량 넣기 스킬을 말한다')
 })
 
 test('팀 덩이: 표 읽기 · 옛 한 덩이의 팀 줄 옮기기 · 개인 지식이 없을 때만 옛 덩이를 걷는다 · 볼 수 없는 지식은 뺀다', async () => {
   const parts = await teamKitParts()
-  assert.deepEqual(parts.skills.map((x) => x.rel), ['.claude/skills/kmd-team-work/SKILL.md', '.claude/skills/kmd-team-save/SKILL.md', '.claude/skills/kmd-team-save/작성가이드.md'])
+  assert.deepEqual(TEAM_SKILLS, ['kmd-team-work', 'kmd-team-save', 'kmd-team-import'])
+  assert.deepEqual(parts.skills.map((x) => x.rel), ['.claude/skills/kmd-team-work/SKILL.md', '.claude/skills/kmd-team-save/SKILL.md', '.claude/skills/kmd-team-import/SKILL.md', '.claude/skills/kmd-team-save/작성가이드.md', '.claude/skills/kmd-team-import/작성가이드.md'])
+  for (const n of TEAM_SKILLS) assert.ok(fs.existsSync(path.join(HERE, '..', 'agent', 'team', 'skills', n, 'SKILL.md')), `스킬 파일 ${n}`)
   const visible = [{ id: 'dpms', name: 'DPMS 지식' }, { id: 'gdi', name: 'GDI 지식' }]
   const b1 = teamBlock(parts, teamKns({ add: 'dpms', visible }))
   assert.match(b1, /^<!-- kmd-team:begin v=\w{8} -->\n## kmd: 팀 지식/)
@@ -117,7 +132,8 @@ test('팀 에이전트 설치: 표 한 줄은 /a/ · 개인 프로그램을 깔�
   // 스크립트 — 개인 프로그램을 받거나 · 올리거나 · 늘 켜지 않는다
   const url = new URL(t.body.line.match(/'([^']+)'/)[1])
   const script = await fetch(url).then((x) => x.text())
-  for (const no of ['/dl/', 'pc update', 'pc link', 'connect', 'schtasks', 'KMD_APP_HOME']) assert.ok(!script.includes(no), `스크립트에 ${no} 가 없다`)
+  for (const no of ['/dl/', 'pc update', 'pc link', 'connect', 'schtasks', 'KMD_APP_HOME', 'kmd-parse', '/api/agent/parser']) assert.ok(!script.includes(no), `스크립트에 ${no} 가 없다(파서는 처음 대량 넣기 때 · K-D9)`)
+  assert.ok(script.includes('KMD_SKIP_CLAUDE_CHECK') && script.includes('claude auth status'), 'Claude Code 확인(K11-1)')
   assert.ok(script.includes('/device/keys') && script.includes('/api/agent/team-kit') && script.includes("'CurrentUser'"))
   assert.equal((await fetch(`${s.url}/a/${url.pathname.split('/')[2]}`)).status, 400, '지식이 없으면 400')
   // team-kit — 열쇠 없이는 401 · 모양이 이상하면 400
@@ -136,11 +152,13 @@ test('팀 에이전트 설치: 표 한 줄은 /a/ · 개인 프로그램을 깔�
   fs.mkdirSync(path.join(work, '.claude', 'skills', 'kmd-work'), { recursive: true })
   fs.writeFileSync(path.join(work, '.claude', 'skills', 'kmd-work', 'SKILL.md'), 'old')
   fs.appendFileSync(path.join(work, 'CLAUDE.md'), '\n<!-- kmd:begin v=old -->\n## kmd\n\n| 지식 | 영역 | 연결 | id | 남기면 보는 사람 |\n|---|---|---|---|---|\n| 「DPMS 지식」 (기본) | 팀 | kmd-team | dpms | x |\n<!-- kmd:end -->\n\n사람이 덧붙인 줄.\n')
-  const env = { APPDATA: app, USERPROFILE: home }
+  // Claude Code 확인은 이 PC 의 claude 에 닿지 않게 건너뛴다(확인 갈래는 아래 시험에서 가짜 claude 로)
+  const env = { APPDATA: app, USERPROFILE: home, KMD_SKIP_CLAUDE_CHECK: '1' }
   const r1 = await ps(['-Command', t.body.line], { cwd: work, env })
   assert.equal(r1.status, 0, r1.out)
   assert.match(r1.out, /이 PC 를 팀 .* kim 로 이었다/, r1.out)
-  assert.match(r1.out, /팀 지식 「DPMS 지식」 을 붙였다\. 이 폴더의 팀 지식 1/, r1.out)
+  assert.match(r1.out, /팀 지식 「DPMS 지식」 을 붙였다\. 이 폴더의 팀 지식 1 · 스킬 kmd-team-work · kmd-team-save · kmd-team-import · 연결 kmd-team/, r1.out)
+  assert.doesNotMatch(r1.out, /Claude Code 로그인|Claude Code 가 이 PC 에|확인하지 못했다/, '확인을 건너뛰었다')
   assert.match(r1.out, /예전 한 덩이/, r1.out)
   // 열쇠 · 헤더 도우미는 %USERPROFILE%\.kmd 에 — %APPDATA% 는 Claude 데스크톱 앱(MSIX) 안에서 가상화된다
   const keyDir = path.join(home, '.kmd', 'keys')
@@ -158,6 +176,8 @@ test('팀 에이전트 설치: 표 한 줄은 /a/ · 개인 프로그램을 깔�
   assert.ok(!JSON.stringify(mcp).includes('kmdk_'), '열쇠는 설정에 0')
   assert.ok(fs.existsSync(path.join(work, '.claude', 'skills', 'kmd-team-work', 'SKILL.md')))
   assert.ok(fs.existsSync(path.join(work, '.claude', 'skills', 'kmd-team-save', '작성가이드.md')))
+  assert.ok(fs.existsSync(path.join(work, '.claude', 'skills', 'kmd-team-import', 'SKILL.md')))
+  assert.ok(fs.existsSync(path.join(work, '.claude', 'skills', 'kmd-team-import', '작성가이드.md')))
   assert.equal(fs.existsSync(path.join(work, '.claude', 'skills', 'kmd-work')), false, '옛 스킬을 걷었다')
   let md = fs.readFileSync(path.join(work, 'CLAUDE.md'), 'utf8')
   assert.match(md, /^# 이 레포\n\n빌드는 gradle 로\./)
@@ -216,4 +236,73 @@ test('팀 에이전트 설치: 표 한 줄은 /a/ · 개인 프로그램을 깔�
   const r3 = await ps(['-Command', t3.body.line], { cwd: work, env })
   assert.match(r3.out, /JSON 이 아니라 고치지 않았다/, r3.out)
   assert.equal(fs.readFileSync(path.join(work, '.mcp.json'), 'utf8'), '{ 깨짐')
+})
+
+// Claude Code 확인(K11-1) — 가짜 claude.cmd 로 세 갈래(로그인 · 로그인 안 함 · 없음) · 알리기만 하고 멈추지 않는다
+test('설치 한 줄의 Claude Code 확인: 로그인을 보았다 · 로그인되어 있지 않다 · 없다 · 건너뛰기', async () => {
+  if (process.platform !== 'win32') return
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-claudechk-'))
+  try {
+    const W = process.env.SystemRoot || 'C:\\Windows'
+    const sys = [path.join(W, 'System32'), W, path.join(W, 'System32', 'WindowsPowerShell', 'v1.0')].join(';')
+    const script = '& {\r\n' + claudeCheckPs().join('\r\n') + '\r\nWrite-Host "끝까지 왔다"\r\n}'
+    const fake = (name, out, code) => {
+      const dir = path.join(d, name)
+      fs.mkdirSync(dir)
+      fs.writeFileSync(path.join(dir, 'claude.cmd'), `@echo off\r\nif "%1 %2"=="auth status" (\r\n  echo ${out}\r\n  exit /b ${code}\r\n)\r\nexit /b 9\r\n`)
+      return dir
+    }
+    // PATH 를 갈아 끼운 환경(Windows 는 이름이 Path 라 대소문자를 가리지 않고 걷는다)
+    const run = (dir, extra = {}) => new Promise((ok) => {
+      const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(path|KMD_SKIP_CLAUDE_CHECK)$/i.test(k)))
+      const c = spawn(PS, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script], { env: { ...env, PATH: dir ? `${dir};${sys}` : sys, ...extra } })
+      const o = []
+      c.stdout.on('data', (x) => o.push(x))
+      c.stderr.on('data', (x) => o.push(x))
+      // 콘솔 코드 페이지(949)로 나온 글은 euc-kr 로 읽는다(✓ 는 ? 가 될 수 있다)
+      c.on('close', () => { const b = Buffer.concat(o); const u = b.toString('utf8'); ok({ out: u.includes('�') ? new TextDecoder('euc-kr').decode(b) : u }) })
+    })
+    const ok = await run(fake('ok', '{"loggedIn": true, "authMethod": "claude.ai"}', 0))
+    assert.match(ok.out, /Claude Code 로그인을 보았다/, ok.out)
+    assert.match(ok.out, /끝까지 왔다/)
+    const no = await run(fake('no', '{"loggedIn": false}', 1))
+    assert.match(no.out, /· Claude Code 에 로그인되어 있지 않다\. 터미널에서 claude auth login/, no.out)
+    assert.match(no.out, /끝까지 왔다/, '멈추지 않는다')
+    const none = await run(null)
+    assert.match(none.out, /· Claude Code 가 이 PC 에 없다\. 깔고 이 폴더에서 claude 를 연다/, none.out)
+    assert.match(none.out, /끝까지 왔다/)
+    const skip = await run(fake('skip', '{"loggedIn": true}', 0), { KMD_SKIP_CLAUDE_CHECK: '1' })
+    assert.doesNotMatch(skip.out, /Claude Code/, skip.out)
+    assert.match(skip.out, /끝까지 왔다/)
+  } finally {
+    fs.rmSync(d, { recursive: true, force: true })
+  }
+})
+
+// 대량 넣기 파서(K6-2 · K-D9) — 받기 자리의 가장 새 kmd-parse-<pver>.zip · 판 · 주소 · sha256 · 크기 · 들어온 사람만 · MCP brief 에도
+test('대량 넣기 파서: GET /api/agent/parser · 없으면 404 · 들어와야 · 가장 새 것 · MCP brief parser', async () => {
+  const c = (await req('/login', { body: { user: 'kim', pw: prehash('kim', 'admin-pw-1234') } })).cookie
+  assert.ok(c, '앞 시험이 kim 을 세웠다')
+  assert.equal((await req('/api/agent/parser')).status, 401)
+  const none = await req('/api/agent/parser', { cookie: c })
+  assert.equal(none.status, 404, none.text)
+  const dl = path.join(tmp, 'kn', '.kmd', 'dl')
+  fs.mkdirSync(dl, { recursive: true })
+  const old = path.join(dl, 'kmd-parse-aaaaaaaaaaaa.zip')
+  fs.writeFileSync(old, 'old')
+  fs.utimesSync(old, new Date(Date.now() - 60000), new Date(Date.now() - 60000))
+  const body = Buffer.from('new parser zip')
+  fs.writeFileSync(path.join(dl, 'kmd-parse-0123456789ab.zip'), body)
+  fs.writeFileSync(path.join(dl, 'kmd-parse-nothex.zip'), 'x')
+  const r = await req('/api/agent/parser', { cookie: c })
+  assert.equal(r.status, 200, r.text)
+  assert.deepEqual(r.body, { ver: '0123456789ab', name: 'kmd-parse-0123456789ab.zip', url: '/dl/kmd-parse-0123456789ab.zip', sha256: crypto.createHash('sha256').update(body).digest('hex'), bytes: body.length })
+  const got = await fetch(s.url + r.body.url)
+  assert.equal(got.status, 200, '받기 자리에서 받는다')
+  assert.equal(Buffer.from(await got.arrayBuffer()).toString(), 'new parser zip')
+  const t = await req('/api/device/ticket', { body: { kn: 'dpms' }, cookie: c })
+  const tk = await fetch(s.url + '/device/keys', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ticket: t.body.ticket, host: 'pc', osuser: 'kim' }) }).then((x) => x.json())
+  const m = await fetch(s.url + '/mcp', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${tk.key}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'brief', arguments: {} } }) }).then((x) => x.json())
+  assert.equal(m.result.structuredContent.parser.ver, '0123456789ab')
+  assert.equal(m.result.structuredContent.kit, TEAM_KIT_REV)
 })

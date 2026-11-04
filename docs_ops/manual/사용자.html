@@ -36,7 +36,7 @@
 <li><b>지식 고르기</b>: 지식을 바꾸거나 「지식 목록: 전체」 로 간다.</li>
 <li><b>보는 법 셋</b>: 문서 · 항목 · 그래프.</li>
 <li><b>목록(나무)</b>: 문서 · 기록 · 첨부. 다른 화면에 가도 그대로다.</li>
-<li><b>지식 관리</b>: 이력 · 설정(가져오기 · 정리 · 일반 …) · 개인 프로그램 설치.</li>
+<li><b>지식 관리</b>: 이력 · 설정(가져오기 · 정리 · 일반 …) · 개인 지식 쓰기.</li>
 <li><b>빨리 열기 · 찾기</b>: <kbd>Ctrl</kbd> <kbd>O</kbd> · <kbd>Ctrl</kbd> <kbd>K</kbd>.</li>
 <li><b>문서</b>: 탭으로 여러 개 · 나란히 보기 <kbd>Ctrl</kbd> <kbd>\</kbd>.</li>
 <li><b>고치기</b>: 쓰기 자리 이상에만 선다.</li>
@@ -126,7 +126,7 @@
 <ul>
 <li>내 값이 바뀐 줄은 맨 위 <b>값 바뀜</b>(노랑). 저장 줄을 펼치면 넣은 항목마다 「옛 값 → 새 값」 이 보이고, 내 저장(지식관리자는 모든 저장)은 그 항목만 [되돌리기] 한다. 그 뒤 누가 다시 고친 항목은 되돌리지 않는다.</li>
 <li>갈래 · 지식으로 거르고, 줄을 누르면 펼쳐 그 일 · 문서를 연다.</li>
-<li>「새 기기가 이어졌다」 줄이 내가 한 것이 아니면 개인 프로그램 설치 › 내 기기에서 끊는다.</li>
+<li>「새 기기가 이어졌다」 줄이 내가 한 것이 아니면 개인 지식 쓰기 › 내 기기에서 끊는다.</li>
 </ul>
 
 <h2 id="claude"><span class="m-no">8</span>Claude Code 에 팀 지식 붙이기</h2>
@@ -134,15 +134,23 @@
 <figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 에이전트 설치</span></div><div class="m-pic"><img src="img/t-agent.png" alt="에이전트 설치: 팀 지식마다 설치 명령 복사" loading="lazy"></div></div></figure>
 <ol class="m-steps">
 <li><b>붙일 팀 지식의 [설치 명령 복사]</b>내가 읽기 자리 이상인 팀 지식만 고를 수 있다.</li>
-<li><b>작업 폴더의 PowerShell 에 붙여 넣고 Enter</b>그 폴더에 팀 스킬(<code>kmd-team-work</code> · <code>kmd-team-save</code>) · 연결 <code>kmd-team</code>(.mcp.json) · CLAUDE.md 안내만 쓴다. 다른 연결 · 사람이 쓴 줄은 그대로다.</li>
+<li><b>작업 폴더의 PowerShell 에 붙여 넣고 Enter</b>그 폴더에 팀 스킬 셋(<code>kmd-team-work</code> · <code>kmd-team-save</code> · <code>kmd-team-import</code>) · 연결 <code>kmd-team</code>(.mcp.json) · CLAUDE.md 안내만 쓴다. 다른 연결 · 사람이 쓴 줄은 그대로다. 끝에 Claude Code 가 이 PC 에 있나 · 로그인했나를 한 줄로 알린다(없으면 깔고, 로그인하지 않았으면 터미널에서 <code>claude auth login</code>). 팀 지식만 쓰면 개인 프로그램은 깔지 않아도 된다.</li>
 <li><b>그 폴더에서 Claude Code 를 새로 연다</b>세션이 일 전에 팀 지식에서 사실을 찾아 읽고(kmd-team-work), 일이 끝나면 배운 것을 기록으로 남긴다(kmd-team-save). 남기기 전에 「어느 팀 지식에 남길까요?」 와 「이 값은 확정인가(머지 · 배포 · 결정)」 를 묻는다. 확정이면 기록과 바꿀 항목 글을 한 번에 저장해 검사를 넘은 것은 그 순간 문서에 들어가고, 아니면 메모로 남는다(문서는 그대로). 일 전에는 내 「안 넣은 메모 n · 넣지 못함 n」 을 한 줄로 알려 준다.</li>
 </ol>
+<h3 id="bulk">대량 넣기(폴더째)</h3>
+<p>팀 화면 파일 넣기는 한 번에 20개까지다. 폴더째 많은 파일은 붙인 폴더의 Claude Code 에 「이 폴더를 팀 지식에 넣어 줘」 라고 한다(스킬 <code>kmd-team-import</code> · 내 PC · 내 Claude 구독).</p>
+<ol class="m-steps">
+<li><b>어느 팀 지식에 넣을지 묻는다</b>쓰기 자리 이상인 팀 지식에만 넣는다.</li>
+<li><b>처음 한 번 파서를 받는다</b>파일을 글로 바꾸는 kmd 파서(몇십 MB)를 팀 서버에서 받아도 되는지 묻는다. 받은 것은 <code>%USERPROFILE%\.kmd\parse</code> 에 두고, 판이 같으면 다시 받지 않는다. 팀 화면 · 개인 프로그램과 같은 바꾸기다.</li>
+<li><b>파일마다 기록과 항목 글을 한 번에 저장한다</b>검사를 넘은 것은 그 순간 문서에 들어가고, 못 넘은 조각은 한 번 고쳐 다시 보낸다. 그래도 안 되면 지식관리자 화면 「넣지 못함」 에 남는다. 글이 없는 pdf(스캔)는 Claude Code 가 원본을 직접 읽는다.</li>
+<li><b>끝에 「넣음 n · 넣지 못함 n · 이미 넣음 n」</b>중간에 멈췄으면 같은 폴더로 다시 시킨다. 넣은 파일은 「이미 넣음」 으로 건너뛴다. 원본 파일도 첨부로 두려면 「원본도 첨부」 라고 말한다(한 파일 8MB 까지).</li>
+</ol>
 <div class="m-note"><b>다시 설치</b><p>팀 스킬이 새 판으로 바뀌면 세션이 저장 뒤에 「팀 스킬이 옛 판이다」 를 전한다. 저장은 된 것이다. 이 화면의 한 줄을 그 폴더에서 다시 붙여 넣고 Claude Code 를 새로 연다.</p></div>
-<div class="m-note"><b>열쇠</b><p>연결은 이 PC 의 <b>기기 열쇠</b>(Windows 자격 저장소 · <code>%USERPROFILE%\.kmd\keys</code>)로 팀 서버에 「누구인지」 알린다. 내 자리대로만 읽고 쓴다. 잃어버린 PC 는 <b>개인 프로그램 설치 › 내 기기</b>에서 끊는다.</p></div>
+<div class="m-note"><b>열쇠</b><p>연결은 이 PC 의 <b>기기 열쇠</b>(Windows 자격 저장소 · <code>%USERPROFILE%\.kmd\keys</code>)로 팀 서버에 「누구인지」 알린다. 내 자리대로만 읽고 쓴다. 잃어버린 PC 는 <b>개인 지식 쓰기 › 내 기기</b>에서 끊는다.</p></div>
 
-<h2 id="install"><span class="m-no">9</span>개인 프로그램 설치</h2>
-<p>옆 메뉴 맨 아래 <b>개인 프로그램 설치</b>(누구나). 이 PC 에 개인 프로그램을 깔고(또는 새 판으로 올리고) 팀에 잇는 한 줄과 내 기기 목록이 있다.</p>
-<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>개인 프로그램 설치</span></div><div class="m-pic"><img src="img/t-install.png" alt="개인 프로그램 설치: 설치 · 업데이트 · 잇기 한 줄과 내 기기" loading="lazy"></div></div>
+<h2 id="install"><span class="m-no">9</span>개인 지식 쓰기</h2>
+<p>옆 메뉴 맨 아래 <b>개인 지식 쓰기</b>(누구나). 팀 지식만 쓰면 개인 프로그램은 필요 없다(8절 에이전트 설치 한 줄이면 된다). 개인 지식을 쓰려면: 이 PC 에 개인 프로그램을 깔고(또는 새 판으로 올리고) 팀에 잇는 한 줄과 내 기기 목록이 여기 있다.</p>
+<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>개인 지식 쓰기</span></div><div class="m-pic"><img src="img/t-install.png" alt="개인 지식 쓰기: 개인 프로그램 설치 · 업데이트 · 잇기 한 줄과 내 기기" loading="lazy"></div></div>
 <figcaption>[한 줄 복사] → PowerShell 에 붙여 넣는다(10분 · 한 번). 그 뒤의 일은 <a href="개인.html">개인 프로그램 설명서</a>.</figcaption></figure>
 
 <h2 id="out"><span class="m-no">10</span>나가기 · 밖으로 나가는 것</h2>

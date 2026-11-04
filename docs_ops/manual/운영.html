@@ -56,7 +56,7 @@
 </ol>
 <p>꾸러미 안의 새 PC zip 이 받기 자리에 놓인다. 설치 한 줄은 서버와 같은 판의 PC zip 을 먼저, 없으면 가장 높은 판을 준다.</p>
 <h3>이 PC</h3>
-<p>보통은 팀 화면 › 개인 프로그램 설치의 <b>한 줄을 다시 붙인다</b>. 이 PC 의 판(<code>~/.kmd-app/current.json</code>)과 팀 서버의 PC 꾸러미 판을 견주어 옛 판일 때만 올린다. 이미 깐 PC 는 저절로 바뀌지 않는다.</p>
+<p>보통은 팀 화면 › 개인 지식 쓰기의 <b>한 줄을 다시 붙인다</b>. 이 PC 의 판(<code>~/.kmd-app/current.json</code>)과 팀 서버의 PC 꾸러미 판을 견주어 옛 판일 때만 올린다. 이미 깐 PC 는 저절로 바뀌지 않는다.</p>
 <div class="m-flow"><div class="m-st"><b>versions/&lt;판&gt;</b><small>새 판을 옆에 둔다</small></div><span class="m-ar">›</span><div class="m-st m-hi"><b>켜 보기</b><small>빈 폴더에서 healthz</small></div><span class="m-ar">›</span><div class="m-st"><b>실행기 바꾸기</b><small>current.json · bin\kmd.cmd</small></div><span class="m-ar">›</span><div class="m-st m-ok"><b>다시 켜기</b><small>안 되면 앞 판으로</small></div></div>
 <p>손으로는 <code>kmd pc update &lt;새 판 폴더&gt; &lt;판&gt;</code>. 앞 판 폴더는 지우지 않는다. 되돌리려면 <code>kmd pc update "%USERPROFILE%\.kmd-app\versions\&lt;앞 판&gt;" &lt;앞 판&gt;</code>. 꾸러미 판 이름은 <code>&lt;판&gt;-&lt;날짜&gt;-&lt;시각&gt;</code>(<code>kmd --version</code>).</p>
 
@@ -65,7 +65,7 @@
 <tr><td>화면이 「kmd 에 닿지 않는다」</td><td>팀: <code>systemctl status kmd</code> · <code>journalctl -u kmd -n 100</code> / PC: 시작 메뉴 › kmd(꺼져 있으면 켠다) · <code>kmd pc restart</code></td></tr>
 <tr><td>정리가 오래 「정리 일꾼을 기다린다」</td><td><code>systemctl status kmd-worker</code> · 서버의 Claude 로그인(설정 › Claude 연결)</td></tr>
 <tr><td>백업 빨강 한 줄</td><td><code>kmd backup</code> 으로 지식마다 상태 · 백업 자리의 열쇠 · 디스크</td></tr>
-<tr><td>Claude Code 에서 팀 지식이 안 보인다</td><td>그 지식에 내 자리가 있나 · 내 기기가 끊기지 않았나(개인 프로그램 설치 › 내 기기) · 그 폴더에서 Claude Code 를 새로 열었나</td></tr>
+<tr><td>Claude Code 에서 팀 지식이 안 보인다</td><td>그 지식에 내 자리가 있나 · 내 기기가 끊기지 않았나(개인 지식 쓰기 › 내 기기) · 그 폴더에서 Claude Code 를 새로 열었나</td></tr>
 <tr><td>가져오기가 「크게 바뀜」 에서 멈췄다</td><td>한꺼번에 크게 바뀌었다. 원본이 맞으면 [그대로 맞추기], 아니면 [이번은 건너뛰기]</td></tr>
 </table></div>
 </article>

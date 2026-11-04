@@ -505,7 +505,7 @@ function placePop() {
 function viewOf(s) {
   if (!isTeam() && (s === 'tidy' || s === 'held' || s === 'members' || s === 'admin')) s = 'home' // 팀의 일 — 개인 화면에는 없다
   if (isTeam() && s === 'send') s = 'home' // 지식 보내기는 개인 화면에서만
-  if (!isTeam() && s === 'install') s = 'home' // 개인 프로그램 설치는 팀 화면의 자리
+  if (!isTeam() && s === 'install') s = 'home' // 개인 지식 쓰기(개인 프로그램 설치)는 팀 화면의 자리
   const f0 = { home: viewHome, docs: viewDocsV, items: viewItems, graph: viewGraph, today: viewToday, log: viewToday, tidy: viewTidy, held: viewHeld, members: viewMembers, import: viewImport, install: viewInstall, add: viewHome, send: viewSend, settings: viewSettings, admin: viewAdmin }[s]
   const v = f0 ? f0() : viewLater(s)
   return MGSCR.includes(s) && !gated() ? mgWrap(s, v) : v
@@ -570,7 +570,7 @@ function sideHtml(left) {
   h += `<div class="sb-mg" data-t="manageArea"><div class="sb-g">지식 관리</div><div class="nav">`
   if (!dim) h += `<div class="sb-i${HISTSCR.includes(r.scr) ? ' on' : ''}" data-a="nav" data-s="today" data-t="nav-history">${svg('hour')}<span>이력</span>${nCheck ? `<span class="bd warn" data-t="histBadge" title="값 바뀜">${nCheck}</span>` : ''}</div>`
   h += set(team ? 'team' : 'me', '설정')
-  if (team && !dim) h += `<div class="sb-i${r.scr === 'install' ? ' on' : ''}" data-a="nav" data-s="install" data-t="nav-install">${svg('user')}<span>개인 프로그램 설치</span></div>`
+  if (team && !dim) h += `<div class="sb-i${r.scr === 'install' ? ' on' : ''}" data-a="nav" data-s="install" data-t="nav-install">${svg('user')}<span>개인 지식 쓰기</span></div>`
   h += '</div></div>'
   return h + '</aside>'
 }
@@ -2585,7 +2585,7 @@ function viewFirst() {
   if (S.gate === 'done')
     return `<div class="gatewrap"><div class="gate"><div class="card"><div class="cb" data-t="firstDone">
   <div class="mk">${svg('check')}</div><div class="big">✓ 정했다. 들어왔다.</div>
-  <p class="lead">이 PC 에 개인 프로그램을 깔고 팀에 이으려면: <button type="button" class="lk" data-a="copyInstall" data-t="copyInstall">한 줄 복사</button><br><span class="muted small">10분 동안 한 번만 · 남에게 주지 않는다 · 나중에는 옆 메뉴 › 개인 프로그램 설치</span></p>
+  <p class="lead">작업 폴더의 Claude Code 에 팀 지식을 붙이려면 설정 › 에이전트 설치(개인 프로그램은 필요 없다). 개인 지식도 쓰려면 이 PC 에 개인 프로그램을: <button type="button" class="lk" data-a="copyInstall" data-t="copyInstall">한 줄 복사</button><br><span class="muted small">10분 동안 한 번만 · 남에게 주지 않는다 · 나중에는 옆 메뉴 › 개인 지식 쓰기</span></p>
   <div class="links"><button type="button" class="lk" data-a="gateHome" data-t="gateHome">지식 목록 ›</button></div>
  </div></div></div></div>`
   const who = S.gateUser
@@ -3735,21 +3735,23 @@ function agentInstallCard() {
    <ol class="lsteps" data-t="agGuide">
     <li><b>작업 폴더에서 PowerShell 을 연다</b><small>그 폴더의 탐색기 주소 줄에 powershell 을 치고 Enter · 지금은 Windows 만</small></li>
     <li><b>붙일 팀 지식의 [설치 명령 복사] 를 누른다</b><small>개인 프로그램은 깔지 않는다 · 이 PC 에 팀 열쇠가 없을 때만 10분 · 한 번짜리 번호로 하나 받는다(내 기기에 한 줄) · 개인 지식은 개인 화면 › 설정 › 에이전트 설치</small></li>
-    <li><b>PowerShell 에 붙여 넣고 Enter</b><small>「✓ … 를 붙였다」 가 나오면 끝 · 한 폴더에 팀 지식 여럿을 붙이려면 명령을 차례로 붙인다(남길 때 세션이 어느 팀 지식에 남길지 묻는다)</small></li>
-    <li><b>그 폴더에서 Claude Code 를 새로 연다</b><small>CLAUDE.md 팀 안내 · 팀 스킬(kmd-team-work · kmd-team-save) · 연결 kmd-team 이 붙어 있다 · 열려 있던 것은 다시 연다</small></li>
+    <li><b>PowerShell 에 붙여 넣고 Enter</b><small>「✓ … 를 붙였다」 가 나오면 끝 · Claude Code 가 이 PC 에 있나 · 로그인했나도 한 줄로 알린다(없으면 깔고 · 로그인하지 않았으면 터미널에서 claude auth login) · 한 폴더에 팀 지식 여럿을 붙이려면 명령을 차례로 붙인다(남길 때 세션이 어느 팀 지식에 남길지 묻는다)</small></li>
+    <li><b>그 폴더에서 Claude Code 를 새로 연다</b><small>CLAUDE.md 팀 안내 · 팀 스킬(kmd-team-work · kmd-team-save · kmd-team-import) · 연결 kmd-team 이 붙어 있다 · 열려 있던 것은 다시 연다</small></li>
    </ol>
+   <div class="callout gray" data-t="agBulk" style="display:block;margin:10px 0 0"><b>대량 넣기는 Claude Code 에서</b> · 폴더째 많은 파일(팀 화면 파일 넣기는 한 번에 ${TEAM_IMPORT_MAX}개)은 붙인 폴더의 Claude Code 에 「이 폴더를 팀 지식에 넣어 줘」 라고 한다(스킬 kmd-team-import · 내 PC · 내 Claude 구독) · 파일을 글로 바꾸는 파서는 처음 할 때 한 번 받는다 · 글이 없는 pdf(스캔)도 Claude Code 가 원본을 읽는다</div>
    <div class="rh">팀 지식 <small class="muted">팀 서버 · 팀 모두</small></div><ul class="plain" data-t="agInstTeam">${team.map((k) => row(k, 'team')).join('') || '<li class="muted">팀 지식이 없다</li>'}</ul>
 
    ${copied}</div></div>`
 }
-// 개인 프로그램 설치(팀 화면 · 누구나) — 이 PC 에 개인 프로그램을 깔고 팀에 잇는 한 줄 ·
+// 개인 지식 쓰기(팀 화면 · 누구나 · 옛 이름 「개인 프로그램 설치」 · K11-2) — 이 PC 에 개인 프로그램을 깔고 팀에 잇는 한 줄 ·
+//   팀 지식만 쓰는 사람은 개인 프로그램이 필요 없다(설정 › 에이전트 설치 한 줄) ·
 //   내 기기(팀 서버가 아는 것만 · PC 에 묻지 않는다). 개인 지식 · 개인 폴더는 보이지 않는다
 function viewInstall() {
   const line = S.lastInstall ? `<div class="callout gray" data-t="installLine" style="display:block;margin:10px 0 0"><b>설치 · 잇기 한 줄을 복사했다</b> · 10분 동안 한 번만 · 남에게 주지 않는다${S.lastInstallVer ? ` · 개인 프로그램 판 ${esc(S.lastInstallVer)}` : ''}<div class="urlbox" style="max-height:none">${esc(S.lastInstall)}</div></div>` : ''
   const one = `<div class="card" data-t="installCard"><div class="ch">설치 · 업데이트 · 잇기 한 줄 <small>이 PC 에 개인 프로그램을 깔거나 팀 서버의 판으로 올리고 팀에 잇는다</small></div><div class="cb" style="padding:10px 14px 12px">
    <ol class="lsteps"><li><b>[한 줄 복사] 를 누른다</b><small>10분 동안 한 번만 · 내 이름의 기기 열쇠가 만들어진다</small></li><li><b>PowerShell 에 붙여 넣고 Enter</b><small>없으면 깔고 · 옛 판이면 팀 서버의 판으로 올리고(앞 판은 남는다 · 새 판이 안 켜지면 앞 판 그대로) · 팀에 다시 잇는다 · 관리자 권한은 쓰지 않는다</small></li><li><b>끝에 개인 화면이 열린다</b><small>지식 폴더 · 내 Claude 로그인 · 개인 지식은 개인 화면에서 · 다음부터는 시작 메뉴 › kmd</small></li></ol>
    <div class="row" style="margin-top:8px"><button class="btn pri" data-a="copyInstall" data-v="" data-t="installCopy">한 줄 복사</button></div>${line}</div></div>`
-  return { crumb: '개인 프로그램 설치', main: `<div class="pg-text"><div class="big">개인 프로그램 설치</div><p class="lead">개인 프로그램(내 지식 · 내 Claude 로그인)을 깔고 · 새 판으로 올리고 · 팀에 잇는 곳은 여기 하나다. 팀에 이으면 이 PC 에 내 이름의 기기 열쇠가 생기고, Claude Code 의 팀 연결(kmd-team) · 지식 보내기 · 받는 팀 지식 목록이 그 열쇠를 쓴다. 작업 폴더에 팀 지식을 붙이는 곳은 설정 › 에이전트 설치. 개인 지식은 팀 화면에 나오지 않는다.</p>${one}${devCard()}</div>` }
+  return { crumb: '개인 지식 쓰기', main: `<div class="pg-text"><div class="big">개인 지식 쓰기</div><p class="lead" data-t="installLead">팀 지식만 쓰면 개인 프로그램은 필요 없다(<button type="button" class="lk" data-a="mgGo" data-s="settings" data-v="agent" data-t="installToAgent">설정 › 에이전트 설치</button> 한 줄이면 된다). 개인 지식을 쓰려면: 개인 프로그램(내 지식 · 내 Claude 로그인)을 여기서 깔고 · 새 판으로 올리고 · 팀에 잇는다. 팀에 이으면 이 PC 에 내 이름의 기기 열쇠가 생기고, 지식 보내기 · 받는 팀 지식 목록이 그 열쇠를 쓴다. 개인 지식은 팀 화면에 나오지 않는다.</p>${one}${devCard()}</div>` }
 }
 // 설치 명령 복사 — 그 팀 지식을 실은 설치 한 줄(팀 서버가 만든다)
 async function agentCopy(id, area) {

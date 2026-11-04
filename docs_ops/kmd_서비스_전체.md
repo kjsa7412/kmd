@@ -178,7 +178,7 @@ S11 부터(대량 넣기): Claude Code 에 「이 폴더 팀 지식에 넣어 �
 | 보기 | 문서 · 항목 · 그래프 · 찾기 Ctrl K · 빨리 열기 Ctrl O · 명령 Ctrl P | 같음 |
 | 지식 관리 › 이력 | 볼 수 있는 팀 지식의 바뀐 것 · 값 바뀜(옛 값 → 새 값) · 항목마다 되돌리기 | 개인 지식의 바뀐 것 · 값 바뀜 |
 | 설정 | 가져오기 · 정리 · 일반 · 사람 · Claude 연결(정리 전용) · 에이전트 설치 · 관리 | 가져오기 · 지식 보내기 · 일반 · Claude 연결(내 로그인) · 에이전트 설치 |
-| 옆 메뉴 맨 아래 | 개인 프로그램 설치(한 줄 · 내 기기) | — |
+| 옆 메뉴 맨 아래 | 개인 지식 쓰기(개인 프로그램 설치 한 줄 · 내 기기 · 팀 지식만 쓰면 필요 없다) | — |
 | 머리 오른쪽 | Claude 상태 · 설명서 · 「⚠ 경고 n」(멈춘 일) | 같음 |
 
 화면 기준: [docs/kmd_디자인_컨벤션.md](../docs/kmd_디자인_컨벤션.md) v0.2 · 견본 `app/styleguide.html` · 토큰은 `app/kmd.css` `:root` 만 · 끊는 점 600 · 1024.
@@ -198,17 +198,29 @@ S11 부터(대량 넣기): Claude Code 에 「이 폴더 팀 지식에 넣어 �
 `node scripts/pack.mjs` → `dist/`
 
 - `kmd-<판>-pc.zip`: node.exe · app · core · server · agent · 설명서(`docs_ops/manual`) · 쓰는 node_modules · `kmd.cmd` · `kmd-key.cmd`.
-- `kmd-<판>-team.tgz`: 같은 것(node 빼고) + `kmd-install.sh` + PC zip.
+- `kmd-parse-<pver>.zip`: 대량 넣기 파서(node.exe · `core/{importer,ooxml,pdf,hwp,text,errors}.js` · `server/bin/kmd-parse.mjs` · `kmd-parse.cmd` · pdf.js 쓰는 부분). `pver` 는 묶는 파일 글 + node 판 + pdf.js 판의 sha256 앞 12(내용이 같으면 판이 같다). 묶는 파일이 묶음 밖을 import 하면 pack 이 멈춘다.
+- `kmd-<판>-team.tgz`: 같은 것(node 빼고) + `kmd-install.sh` + PC zip + 파서 zip.
 
 ### 9-2. 팀 서버
 
-`sudo sh kmd-install.sh --team --url <팀 주소> --root /srv/kmd --port 8090` → `/opt/kmd` · kmd 사용자 · `kmd.service` · `kmd-worker.service` · `/usr/local/bin/kmd` · PC zip 을 `/srv/kmd/.kmd/dl` 에. 첫 설정 주소로 총괄 관리자를 만든다. 다시 돌리면 새 판(코드만 바꾸고 지식 · 살림 자리는 그대로 · `/etc/kmd/worker.env` 가 있으면 덮지 않는다).
+`sudo sh kmd-install.sh --team --url <팀 주소> --root /srv/kmd --port 8090` → `/opt/kmd` · kmd 사용자 · `kmd.service` · `kmd-worker.service` · `/usr/local/bin/kmd` · PC zip · 파서 zip 을 `/srv/kmd/.kmd/dl` 에(옛 파서 zip 은 그대로 둔다 · 팀 서버는 가장 새 것만 `GET /api/agent/parser` · MCP `brief` 의 `parser` 로 알린다). 첫 설정 주소로 총괄 관리자를 만든다. 다시 돌리면 새 판(코드만 바꾸고 지식 · 살림 자리는 그대로 · `/etc/kmd/worker.env` 가 있으면 덮지 않는다).
 
 팀 일꾼 환경 변수(`/etc/kmd/worker.env` 에 더한다 · 옛 이름 `KMD_TIDY_PAR` · `_JOBS` · `_TICK_MS` · `_BUDGET` · `_EFFORT` 도 읽는다): `KMD_WORKER_PAR`(Claude 동시 호출 1 ~ 8 · 기본 3) · `KMD_WORKER_JOBS`(일감을 나란히 1 ~ 4 · 기본 2) · `KMD_WORKER_TICK_MS`(쓰는 중 소식 · 15000) · `KMD_INGEST_BUDGET`(들이기 한 번의 예산 달러 · 기본 1.0) · `KMD_INGEST_EFFORT`(생각 정도) · `KMD_INGEST_FIX`(고쳐 쓰기 1 ~ 2 · 기본 2 · 서버는 `serve.json` 의 `ingestFix`). 들이기 한도는 `serve.json` 의 `intakeQueue`(사람 × 지식마다 기다리는 일감 · 20) · `intakeDaily`(지식마다 하루 · 300) · `intakeStaleMs`(기다림 24시간이면 기록만 + 넣지 못함). 들이기 일감의 원천은 `<data>/queue/<일감>.md` · `.bin`, 넣지 못함으로 끝난 것은 `<data>/held/<지식>/<기록>.*` 에 남는다(바로잡히거나 버리면 팀 시계가 걷는다).
 
 ### 9-3. 내 PC
 
-팀 화면 › 개인 프로그램 설치의 한 줄(`irm <팀>/i/<표> | iex`): 없으면 받아 `~/.kmd-app/versions/<판>` 에 깔고 · 옛 판이면 올리고 · 팀에 잇고(기기 열쇠) · Claude Code 에 잇고 · 늘 켜기. 작업 폴더에 팀 지식만 붙이는 한 줄은 `irm '<팀>/a/<표>?kn=<지식>' | iex`.
+팀 지식만 쓰면 개인 프로그램은 필요 없다. 작업 폴더에 팀 지식을 붙이는 한 줄(팀 화면 › 설정 › 에이전트 설치 · `irm '<팀>/a/<표>?kn=<지식>' | iex`)이 PC 에 두는 것은 넷이다(K11-3):
+
+| 무엇 | 어디 |
+|---|---|
+| 팀 스킬 셋 | `<폴더>/.claude/skills/kmd-team-work` · `kmd-team-save` · `kmd-team-import`(저장 · 대량 넣기에 `작성가이드.md` 사본) |
+| 연결 | `<폴더>/.mcp.json` 의 `kmd-team`(열쇠는 넣지 않고 헤더 도우미 `%USERPROFILE%\.kmd\bin\kmd-key-<판>.exe`) |
+| 기기 열쇠 | `%USERPROFILE%\.kmd\keys\<지문>.dpapi`(이 PC 에 없을 때만 표로 하나 받는다) |
+| 대량 넣기 파서 | 처음 대량 넣기 때 스킬이 받는다: `%USERPROFILE%\.kmd\parse\<pver>`(`/a/` 한 줄은 받지 않는다 · K-D9) |
+
+한 줄은 끝에 Claude Code 가 이 PC 에 있나 · 로그인했나를 한 줄로 알린다(없으면 깔라고 · 로그인하지 않았으면 `claude auth login` · 멈추지 않는다 · `KMD_SKIP_CLAUDE_CHECK` 가 있으면 건너뛴다). 폴더째 많은 파일은 그 폴더의 Claude Code 에서 대량 넣기(`kmd-team-import`: 파서 → 파일마다 기록 + 조각 저장 하나 · 다시 돌리면 넣은 것은 `same`).
+
+개인 지식을 쓰려면 팀 화면 › 개인 지식 쓰기의 한 줄(`irm <팀>/i/<표> | iex`): 없으면 받아 `~/.kmd-app/versions/<판>` 에 깔고 · 옛 판이면 올리고 · 팀에 잇고(기기 열쇠) · Claude Code 에 잇고 · 늘 켜기.
 
 ### 9-4. 테스트 서버 10.10.20.188 배포
 

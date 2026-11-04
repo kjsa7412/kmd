@@ -1,7 +1,9 @@
 // 팀 에이전트 설치 — 작업 폴더의 Claude Code 에 팀 지식을 붙인다. 개인 프로그램 없이 팀 서버가 내주는 한 줄로.
 //
 //   한 줄   팀 화면 › 설정 › 에이전트 설치의 `irm '<팀>/a/<표>?kn=<팀 지식>' | iex` — 붙여 넣은 폴더에
-//   스킬   <폴더>/.claude/skills/kmd-team-work · kmd-team-save(+ 작성가이드.md) · 개인 스킬(kmd-work · kmd-save · kmd-build)과 따로
+//   스킬   <폴더>/.claude/skills/kmd-team-work · kmd-team-save · kmd-team-import(저장 · 대량 넣기에 작성가이드.md 사본) · 개인 스킬(kmd-work · kmd-save · kmd-build)과 따로
+//          대량 넣기 파서(kmd-parse)는 여기서 두지 않는다 — 처음 대량 넣기 때 스킬이 받는다(K-D9 · GET /api/agent/parser)
+//   확인   Claude Code 가 이 PC 에 있나 · 로그인했나(K11-1) — 알리기만 하고 멈추지 않는다(KMD_SKIP_CLAUDE_CHECK 가 있으면 건너뜀)
 //   연결   <폴더>/.mcp.json 의 mcpServers.kmd-team 하나. 열쇠는 넣지 않고 헤더 도우미가 꺼낸다
 //          도우미는 실행 파일 %USERPROFILE%\.kmd\bin\kmd-key-<판>.exe(core/keyexe.js · 한 줄이 Add-Type 으로 만든다)
 //          못 만든 PC 만 %USERPROFILE%\.kmd\kmd-team-key.ps1 — PowerShell 은 켜지는 데만 7초 넘게 걸려 Claude Code 의 10초 제한에 잘릴 수 있다
@@ -20,12 +22,14 @@ import crypto from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 
 const KIT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'agent')
-export const TEAM_SKILLS = ['kmd-team-work', 'kmd-team-save']
+export const TEAM_SKILLS = ['kmd-team-work', 'kmd-team-save', 'kmd-team-import']
+// 작성가이드 사본을 둘 스킬(항목 글을 짓는 스킬) — 원본은 개인 kmd-build 의 것 한 벌
+const GUIDE_SKILLS = ['kmd-team-save', 'kmd-team-import']
 export const OLD_SKILLS = ['kmd-work', 'kmd-save', 'kmd-build']
 // 스킬 판(S-D15) — 팀 스킬 글 · 팀 덩이 · 작성가이드를 고치면 하나 올린다(test/teamkit.test.mjs 의 판 표가 잊으면 실패한다).
 //   스킬 글의 자리표 {{KIT_REV}} 를 이 값으로 바꿔 싣는다 → 세션이 MCP save 에 kit 으로 싣는다 →
 //   팀 서버가 이 값보다 옛것(또는 없음)이면 저장은 그대로 하고 답에 reinstall(다시 설치)을 싣는다(server/mcp.js)
-export const TEAM_KIT_REV = 2
+export const TEAM_KIT_REV = 3
 const withRev = (t) => t.replace(/\{\{KIT_REV\}\}/g, String(TEAM_KIT_REV))
 
 export async function teamKitParts() {
@@ -35,7 +39,8 @@ export async function teamKitParts() {
     for (const f of files) skills.push({ rel: `.claude/skills/${s}/${f}`, text: withRev(await fs.readFile(path.join(KIT, 'team', 'skills', s, f), 'utf8')) })
   }
   // 항목 글 모양 — 개인 kmd-build 의 작성가이드를 팀 저장 스킬 옆에 같이 둔다(한 벌만 고친다)
-  skills.push({ rel: '.claude/skills/kmd-team-save/작성가이드.md', text: await fs.readFile(path.join(KIT, 'skills', 'kmd-build', '작성가이드.md'), 'utf8') })
+  const guide = await fs.readFile(path.join(KIT, 'skills', 'kmd-build', '작성가이드.md'), 'utf8')
+  for (const s of GUIDE_SKILLS) skills.push({ rel: `.claude/skills/${s}/작성가이드.md`, text: guide })
   const block = withRev((await fs.readFile(path.join(KIT, 'CLAUDE-kmd-team.md'), 'utf8')).replace(/\r/g, '').trim())
   const ver = crypto.createHash('sha256').update(JSON.stringify([skills.map((x) => x.text), block])).digest('hex').slice(0, 8)
   return { skills, block, ver, rev: TEAM_KIT_REV }
@@ -102,6 +107,26 @@ export function teamKeyHelperPs() {
   ].join('\r\n')
 }
 
+// Claude Code 확인(K11-1) — 있나(Get-Command) · 로그인했나(claude auth status 의 loggedIn: true 와 종료 0). 알리기만 · 멈추지 않는다
+//   cmd 로 부른다(npm 이 둔 claude.cmd · 설치기의 claude.exe 둘 다) · 20초 안에 답이 없으면 「확인하지 못했다」
+export function claudeCheckPs() {
+  return [
+    'if (-not $env:KMD_SKIP_CLAUDE_CHECK) {',
+    '  if (-not (Get-Command claude -ErrorAction SilentlyContinue)) { Write-Host "· Claude Code 가 이 PC 에 없다. 깔고 이 폴더에서 claude 를 연다" }',
+    '  else {',
+    '    $cs = $null',
+    '    try {',
+    "      $pi = New-Object Diagnostics.ProcessStartInfo 'cmd.exe', '/d /c claude auth status'",
+    '      $pi.UseShellExecute = $false; $pi.RedirectStandardOutput = $true; $pi.RedirectStandardError = $true; $pi.CreateNoWindow = $true',
+    '      $pr = [Diagnostics.Process]::Start($pi); $po = $pr.StandardOutput.ReadToEndAsync(); $pe = $pr.StandardError.ReadToEndAsync()',
+    "      if (-not $pr.WaitForExit(20000)) { try { $pr.Kill() } catch { }; $cs = 'unknown' } elseif ($pr.ExitCode -eq 0 -and $po.Result -match 'loggedIn\\W*:\\s*true') { $cs = 'ok' } else { $cs = 'no' }",
+    "    } catch { $cs = 'unknown' }",
+    "    if ($cs -eq 'ok') { Write-Host '✓ Claude Code 로그인을 보았다' } elseif ($cs -eq 'no') { Write-Host '· Claude Code 에 로그인되어 있지 않다. 터미널에서 claude auth login' } else { Write-Host '· 확인하지 못했다: claude 를 열어 로그인 상태를 본다' }",
+    '  }',
+    '}',
+  ]
+}
+
 export function teamAgentPs({ origin, ticket, kn }) {
   const L = [
     '& {',
@@ -126,7 +151,7 @@ export function teamAgentPs({ origin, ticket, kn }) {
     '  $key = $r.key',
     '  New-Item -ItemType Directory -Force (Split-Path $kf) | Out-Null',
     "  [IO.File]::WriteAllText($kf, [Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Protect($u8.GetBytes($key), $null, 'CurrentUser')) + \"`n\")",
-    '  Write-Host "✓ 이 PC 를 팀 $o 에 $($r.user) 로 이었다. 팀 화면 › 개인 프로그램 설치 › 내 기기에 한 줄이 생긴다"',
+    '  Write-Host "✓ 이 PC 를 팀 $o 에 $($r.user) 로 이었다. 팀 화면 › 개인 지식 쓰기 › 내 기기에 한 줄이 생긴다"',
     '}',
     // ② 팀 덩이 · 스킬 — 지금 CLAUDE.md 의 팀 덩이 · 옛 덩이만 보내고 새 덩이를 받는다
     "$cf = Join-Path $d 'CLAUDE.md'",
@@ -171,9 +196,10 @@ export function teamAgentPs({ origin, ticket, kn }) {
     '[IO.File]::WriteAllText($mf, ($m | ConvertTo-Json -Depth 20), $u8)',
     'if ($mt.Success) { $c = $c.Substring(0, $mt.Index) + $r.block + $c.Substring($mt.Index + $mt.Length) } elseif ($c.Trim()) { $c = $c.TrimEnd() + "`n`n" + $r.block + "`n" } else { $c = $r.block + "`n" }',
     '[IO.File]::WriteAllText($cf, $c, $u8)',
-    'Write-Host "✓ $d 에 팀 지식 「$($r.name)」 을 붙였다. 이 폴더의 팀 지식 $($r.n) · 스킬 kmd-team-work · kmd-team-save · 연결 kmd-team"',
+    'Write-Host "✓ $d 에 팀 지식 「$($r.name)」 을 붙였다. 이 폴더의 팀 지식 $($r.n) · 스킬 $($r.skillNames -join \' · \') · 연결 kmd-team"',
     'if ($r.dropLegacy) { Write-Host "    예전 한 덩이 kmd 안내 · 스킬(kmd-work · kmd-save · kmd-build)을 걷었다" } elseif ($r.legacy) { Write-Host "    개인 지식 안내(kmd)는 개인 프로그램이 고친다: 개인 화면 › 설정 › 에이전트 설치 › 지금 모두 최신으로" }',
-    'Write-Host "    이 폴더에서 Claude Code 를 새로 연다(열려 있던 것은 다시 연다)"',
+    ...claudeCheckPs(),
+    'Write-Host "    이 폴더에서 Claude Code 를 새로 연다(열려 있던 것은 다시 연다) · 폴더째 많은 파일은 그 Claude Code 에서 대량 넣기(kmd-team-import)"',
     '}',
     '',
   ]
