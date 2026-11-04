@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { startServer } from '../server/http.js'
 import { copyDir, signIn, seat } from './helpers.mjs'
-import { applyEdits, validEdits, checkProposal, renderProposals, parseProposals } from '../core/propose.js'
+import { applyEdits, validEdits, checkProposal, parseProposals } from '../core/propose.js'
 import { saveRecords } from '../core/save.js'
 import { mustValues } from '../core/values.js'
 import { sha16 } from '../core/text.js'
@@ -106,14 +106,13 @@ test('검사: 지문이 다르면 stale(conflict) · 값 더하기 · 옛 값 �
 
 test('옛 「고친 조각」 칸: 옛 기록 읽기는 그대로 · 값 검사는 이 칸을 값으로 치지 않는다 · 새 입력의 그 머리는 E_INPUT', async () => {
   const ps = [{ coord: 'proc:카나리', base: 'ab12', edits: [{ find: '10%', replace: '20%' }], waits: 'review' }]
-  const part = renderProposals(ps)
-  assert.match(part, /^## 고친 조각\n```json\n/)
+  // 옛 기록이 남긴 칸 그대로(쓰는 함수는 S13 에 걷었다)
+  const part = '## 고친 조각\n```json\n' + JSON.stringify(ps, null, 1) + '\n```'
   const body = `## 바뀐 것\n- 비율: 10% → 20%\n\n${part}`
   assert.deepEqual(parseProposals(body), ps)
   assert.deepEqual(parseProposals('## 고친 조각\n```json\n[{"coord":1}]\n```'), [])
   assert.deepEqual(parseProposals('글만'), [])
   assert.deepEqual(mustValues(body).sort(), ['20%'], '조각 속 값(ab12 · 10%)은 요구하지 않는다')
-  assert.equal(renderProposals([]), '')
   const e = await s.hub.save(LEE, 'dpms', { record: { title: '카나리: 칸 흉내', body, touches: ['proc:카나리'] } }).then(() => null, (x) => x)
   assert.equal(e?.code, 'E_INPUT')
   assert.match(e.message, /「## 고친 조각」 머리는 kmd 가 쓴다/)

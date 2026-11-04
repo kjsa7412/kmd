@@ -774,7 +774,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       const prepare = async () => {
         // 줄 안 · 남은 저널을 되돌린 뒤 — hub.get 캐시가 아니라 새로 읽는다(S-D7 · 파일마다 mtime 캐시라 싸다)
-        const k = await loadKnowledge(meta, { cache: files.get(id), cutoverAt: config.cutoverAt || null })
+        const k = await loadKnowledge(meta, { cache: files.get(id), cutoverAt: config.cutoverAt || null, team: mode === 'team' })
         const same = sameKey(k, input.record, ctx.user)
         if (same) return { abort: { same: true, id: same } }
         const p = gatePrepare(k, input, { user: ctx.user, newDoc: intake ? true : hub.canDirect(ctx, id), intake: !!intake })
@@ -1368,7 +1368,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async get(id, ctx) {
       const meta = await hub.meta(id, ctx)
       if (!files.has(id)) files.set(id, new Map())
-      if (!cache.has(id)) cache.set(id, loadKnowledge(meta, { cache: files.get(id), cutoverAt: config.cutoverAt || null }).catch((e) => { cache.delete(id); throw e }))
+      if (!cache.has(id)) cache.set(id, loadKnowledge(meta, { cache: files.get(id), cutoverAt: config.cutoverAt || null, team: mode === 'team' }).catch((e) => { cache.delete(id); throw e }))
       return cache.get(id)
     },
     async all(ctx) {
@@ -1471,7 +1471,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!files.has(id)) files.set(id, new Map())
       return serial(path.resolve(meta.dir), async () => {
         await recoverSave(meta.dir)
-        const k = await loadKnowledge(meta, { cache: files.get(id), cutoverAt: config.cutoverAt || null })
+        const k = await loadKnowledge(meta, { cache: files.get(id), cutoverAt: config.cutoverAt || null, team: mode === 'team' })
         const s = sameKey(k, input?.record, ctx.user)
         if (s) return { same: true, id: s }
         try {
@@ -4688,7 +4688,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (mode === 'pc') {
         inboxTimer = setInterval(async () => {
           try {
-            for (const m of await hub.list().catch(() => [])) if (m.name === '받은편지함') await hub.inboxMove({ user: rowFor(m.id)?.owner || pcUser || 'kmd', pc: true }, m.id).catch((e) => log('받은편지함 옮기기', m.id, e.message))
+            for (const m of await hub.list()) if (m.name === '받은편지함') await hub.inboxMove({ user: rowFor(m.id)?.owner || pcUser || 'kmd', pc: true }, m.id).catch((e) => log('받은편지함 옮기기', m.id, e.message))
           } catch (e) { log('받은편지함 시계', e.message) }
         }, config.inboxTickMs ?? 60_000)
         inboxTimer.unref?.()

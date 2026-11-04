@@ -124,6 +124,7 @@ a{color:var(--accent);cursor:pointer}
 .card .ch small{font-weight:400;color:var(--text-3)}
 .card .ch .r{margin-left:auto;display:flex;gap:var(--sp-3);align-items:center}
 .card .cb{padding:var(--sp-6) var(--sp-7)}
+.card .cb.tight{padding:var(--sp-2) var(--sp-7)}
 .card .cf{display:flex;align-items:center;gap:var(--sp-5);padding:9px var(--sp-7);border-top:1px solid var(--border);font-size:var(--fs-mono);color:var(--text-3);flex-wrap:wrap}
 .row{display:flex;align-items:center;gap:var(--sp-4)}
 .r{margin-left:auto}

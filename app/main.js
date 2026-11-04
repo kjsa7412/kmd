@@ -3235,7 +3235,7 @@ function knTable() {
     const sw = adm ? `<button type="button" class="sw${k.noClaude ? ' on' : ''}" role="switch" aria-checked="${k.noClaude ? 'true' : 'false'}" aria-label="${esc(k.name)}: Claude 에 보내지 않음" data-a="toggleNoClaude" data-k="${esc(k.id)}" data-t="noClaudeSw"></button>` : `<span class="muted">${k.noClaude ? '보내지 않음' : '보냄'}</span>`
     return `<tr data-t="knRow" data-name="${esc(k.name)}"><td><b>${esc(k.name)}</b></td><td>${n ? `<span class="chip c-warn">넣지 못함 ${n}</span> <button type="button" class="lk small" data-a="openHeld" data-k="${esc(k.id)}" data-t="knTblHeldGo">보기</button>` : '<span class="muted">없음</span>'}</td><td>${sw}</td></tr>`
   }).join('')
-  return `<div class="card" data-t="knTable"><div class="ch">팀 지식 <small>넣지 못함 · Claude 에 보내지 않음</small></div><div class="cb" style="padding:4px 14px"><div class="tblwrap"><table class="t"><tr><th>팀 지식</th><th>넣지 못함</th><th>Claude 에 보내지 않음</th></tr>${rows || '<tr><td class="muted" colspan="3">팀 지식이 없다</td></tr>'}</table></div></div><div class="cf small muted">저장은 그 순간 문서에 들어가거나 넣지 못함으로 남는다. Claude 에 보내지 않는 지식은 들이기 · 다듬기를 하지 않고 기록만 남긴다(스위치는 그 지식의 지식관리자)</div></div>`
+  return `<div class="card" data-t="knTable"><div class="ch">팀 지식 <small>넣지 못함 · Claude 에 보내지 않음</small></div><div class="cb tight"><div class="tblwrap"><table class="t"><tr><th>팀 지식</th><th>넣지 못함</th><th>Claude 에 보내지 않음</th></tr>${rows || '<tr><td class="muted" colspan="3">팀 지식이 없다</td></tr>'}</table></div></div><div class="cf small muted">저장은 그 순간 문서에 들어가거나 넣지 못함으로 남는다. Claude 에 보내지 않는 지식은 들이기 · 다듬기를 하지 않고 기록만 남긴다(스위치는 그 지식의 지식관리자)</div></div>`
 }
 // 사람 — 총괄 관리자 하나와 지식마다의 자리(읽기 · 쓰기 · 관리 — docs/kmd_권한_모델.md). 관리자는 사람 · 묶음을 다룬다, 그 밖에는 읽기만
 function peopleCard() {
@@ -3249,7 +3249,7 @@ function peopleCard() {
 function routeTable() {
   const ks = sendSrcs()
   const rows = ks.map((k) => `<tr data-t="routeRow"><td><b>${esc(k.name)}</b> <span class="kt me">개인</span></td><td>${k.route ? esc(sendNm(k.route)) : '<span class="muted">정하지 않음</span>'}</td><td>${k.sendN ? `<span class="chip c-pend">${k.sendN}</span>` : ''}</td><td style="text-align:right"><button type="button" class="lk" data-a="sendOpen" data-k="${esc(k.id)}">지식 보내기 ›</button></td></tr>`).join('')
-  return `<div class="card" data-t="routeTable"><div class="ch">보내는 길 <small>개인 지식 → 팀 지식 하나 · 기록 · 문서만 간다</small></div><div class="cb" style="padding:4px 14px"><div class="tblwrap"><table class="t"><tr><th>개인 지식</th><th>받는 팀 지식</th><th>보내지 않은 기록</th><th></th></tr>${rows || '<tr><td class="muted" colspan="4">개인 지식이 없다</td></tr>'}</table></div></div><div class="cf small muted">보내기는 지식 보내기에서 · 받는 팀 지식이 검사해 그 순간 문서에 넣는다</div></div>`
+  return `<div class="card" data-t="routeTable"><div class="ch">보내는 길 <small>개인 지식 → 팀 지식 하나 · 기록 · 문서만 간다</small></div><div class="cb tight"><div class="tblwrap"><table class="t"><tr><th>개인 지식</th><th>받는 팀 지식</th><th>보내지 않은 기록</th><th></th></tr>${rows || '<tr><td class="muted" colspan="4">개인 지식이 없다</td></tr>'}</table></div></div><div class="cf small muted">보내기는 지식 보내기에서 · 받는 팀 지식이 검사해 그 순간 문서에 넣는다</div></div>`
 }
 // 폴더에 붙은 개인 지식 — { kns } · 옛 PC 프로그램은 { area, kn, knName } · 팀 지식은 팀 화면 › 설정 › 에이전트 설치가 맡는다
 const agKns = (f) => (Array.isArray(f.kns) ? f.kns : f.area && f.kn ? [{ area: f.area, kn: f.kn, knName: f.knName }] : []).filter((k) => k.area === 'me')

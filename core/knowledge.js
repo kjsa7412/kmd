@@ -67,7 +67,8 @@ export const readStats = { files: 0 }
 
 // cache — 지식마다 하나 { 경로 → { mtimeMs, size, value } }. 저장 뒤에는 바뀐 파일만 다시 읽는다
 // cutoverAt — 개편(저장이 곧 반영)을 켠 때(설정 · 「YYYY-MM-DD HH:MM」). 개편 전 기록(isLegacy)을 가른다
-export async function loadKnowledge({ id, name, dir }, { cache = null, cutoverAt = null } = {}) {
+// team — 팀 서버가 읽는 지식(넣을 곳 고르기 기록 touches-fix 는 넣을 기록이 아니다: recordState)
+export async function loadKnowledge({ id, name, dir }, { cache = null, cutoverAt = null, team = false } = {}) {
   const files = await walk(dir, '', [])
   const docs = []
   const works = []
@@ -159,6 +160,7 @@ export async function loadKnowledge({ id, name, dir }, { cache = null, cutoverAt
   }
   // 개편 전 기록을 가르는 때(S-D46) — 설정 cutoverAt(없으면 모든 pend · nowhere 가 개편 전)
   k.cutoverAt = cutoverAt || null
+  k.team = !!team
   for (const w of works) w.state = recordState(k, w)
   return k
 }
@@ -248,6 +250,9 @@ export function recordState(k, w) {
   if (tags.some((t) => t === 'curate-auto' || t === 'curate-llm')) return 'none' // ③ 정리 기록 자신은 넣을 것이 아니다
   if (tags.includes('memo')) return sup ? 'fixed' : 'memo' // ④
   if (tags.includes('held')) return 'held' // ⑤
+  // ⑤' 팀의 넣을 곳 고르기(setTouches · touches-fix)는 원 기록의 이름만 바로잡은 구조 기록(메모 · 넣지 못함이 아니면) — 그 자신은 pend · in 이 아니다
+  //    (개인 프로그램은 R-A2 가 이 기록을 pend 로 보고 keep 한다)
+  if (k.team && tags.includes('touches-fix')) return 'none'
   if (k.reverted?.has(w.id)) return 'reverted' // ⑥
   // ⑦ 저장 문이 넣은 항목을 적은 기록 — 그 항목이 모두 항목마다 되돌려졌으면 되돌림, 아니면 들어감
   if (tags.includes('put')) {

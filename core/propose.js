@@ -54,13 +54,8 @@ export function checkProposal(k, { coord, doc, heading, base, edits, record, spr
 }
 
 // 옛 기록 본문의 「## 고친 조각」 칸 — 개편 전(S4 전) 세션 저장이 제안을 기록에 실었다. 새 입력에서는 받지 않는다(core/parts.js KMD_PART_RE) ·
-//   옛 기록 읽기(정리 재료 · 기록 화면)에만 S13 까지 남는다 · 값 검사(core/values.js knowledgeParts)는 이 칸을 지식 값으로 치지 않는다
+//   옛 기록 읽기만 남는다(쓰기는 S13 에 걷었다) · 값 검사(core/values.js knowledgeParts)는 이 칸을 지식 값으로 치지 않는다
 export const PROPOSAL_PART = '고친 조각'
-export function renderProposals(list) {
-  const items = (Array.isArray(list) ? list : []).map((p) => ({ coord: String(p.coord), base: String(p.base), edits: p.edits.map((e) => ({ find: e.find, replace: e.replace })), ...(p.waits ? { waits: p.waits } : {}) }))
-  if (!items.length) return ''
-  return `## ${PROPOSAL_PART}\n\`\`\`json\n${JSON.stringify(items, null, 1)}\n\`\`\``
-}
 export function parseProposals(body) {
   const m = String(body || '').match(new RegExp(`^## ${PROPOSAL_PART}\\s*\\n\`\`\`json\\n([\\s\\S]*?)\\n\`\`\``, 'm'))
   if (!m) return []

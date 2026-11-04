@@ -156,8 +156,10 @@ test('이름 세우기: 쓰기 자리의 장부 밖 이름(넣지 못함 names) 
 
 test('넣을 곳 고르기(touches-fix)만으로는 목록에서 빠지지 않는다 · 길은 POST 만', async () => {
   assert.equal((await api(lee, `/api/k/dpms/rec/${encodeURIComponent(LEGACY)}/touches`)).status, 405)
-  await s.hub.setTouches(KIM, 'dpms', LEGACY, 'proc:롤백')
+  const { record } = await s.hub.setTouches(KIM, 'dpms', LEGACY, 'proc:롤백')
   assert.ok((await s.hub.heldList(KIM, 'dpms')).rows.some((x) => x.rec === LEGACY && x.legacy))
+  // 팀의 넣을 곳 고르기 기록은 구조 기록 — 새 pend · in 이 되지 않는다(S13 ③)
+  assert.equal((await fresh()).byWork.get(record).state, 'none')
 })
 
 test('옛 기록 다시 들이기: 지식관리자만 · 개편 전 기록만 · 두 번 눌러도 일감이 늘지 않음 · 못 넘으면 새 넣지 못함이 맡는다', async () => {

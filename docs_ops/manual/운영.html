@@ -68,6 +68,14 @@
 <tr><td>Claude Code 에서 팀 지식이 안 보인다</td><td>그 지식에 내 자리가 있나 · 내 기기가 끊기지 않았나(개인 지식 쓰기 › 내 기기) · 그 폴더에서 Claude Code 를 새로 열었나</td></tr>
 <tr><td>가져오기가 「크게 바뀜」 에서 멈췄다</td><td>한꺼번에 크게 바뀌었다. 원본이 맞으면 [그대로 맞추기], 아니면 [이번은 건너뛰기]</td></tr>
 </table></div>
+
+<h2 id="docfmt"><span class="m-no">7</span>옛 문서 옮기기 · ### 올리기</h2>
+<p>옛 꼴 문서(항목 끝 출처 목록 · 표지 밖 주석)는 <code>kmd docfmt &lt;지식&gt;</code>(팀 서버는 <code>kmd docfmt --all</code>)로 새 꼴로 옮긴다. 본문 글은 한 글자도 줄지 않고, 옮긴 것은 이력 한 줄로 남는다.</p>
+<p><b>## 가 없는 옛 문서</b>(머리가 <code>###</code> 부터)는 화면에서 고치기 · 다듬기를 할 수 없다. <code>kmd docfmt &lt;지식&gt; --lift --dry</code> 로 올릴 문서를 먼저 보고, 맞으면 <code>--dry</code> 없이 건다.</p>
+<ul>
+<li>본문 머리를 한 단씩 올린다(<code>###</code> → <code>##</code>). 이름 장부의 그 문서 줄도 같은 커밋으로 고친다.</li>
+<li>머리 밖 글이 달라지거나, 장부의 이름이 올린 <code>##</code> 항목에 모두 닿지 않으면 그 문서는 올리지 않는다(「### 올리지 않음」 과 까닭).</li>
+</ul>
 </article>
 </body>
 </html>
