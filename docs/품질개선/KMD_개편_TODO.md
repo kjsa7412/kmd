@@ -98,13 +98,14 @@
 - [x] K5-3 원본 첨부 옵션(기본 해제) — 개편 S8 c8e4f58(`#impAtt` · 쓰기 자리부터 · 들이기 저장 덩이 `attach` · 하루 합 200MB)
 
 ### K6 파일넣기 — 내 PC 대량 (Claude Code 스킬 + 파서 · 내 구독)
-- [ ] K6-1 파서 명령 `kmd-parse <파일|폴더>` — 파일마다 md + 첨부 목록. 개인 프로그램과 **같은 `core/importer.js`**(ooxml · pdf · hwp)를 묶는다(갈라지지 않게) — 메모: 같이 쓸 `fileToMd`(파일 하나 → 글 · 꼴 · 첨부 · 스캔 · why)는 개편 S8 c8e4f58 에 꺼냈다(`planImport` · 팀 파일 넣기가 부른다). 명령 · 꾸러미는 S11
-- [ ] K6-2 파서 꾸러미 — `node.exe` + 파서 core + pdfjs. `scripts/pack.mjs` 에 따로 낸다 · 팀 서버 `/dl` 에서 받는다 · 판이 바뀔 때만 다시 받는다
-- [ ] K6-3 들이기 스킬 `kmd-team-import` — 「이 폴더 팀 지식에 넣어 줘」: 파서가 없으면 그때 받고(K-D9) → 파일마다 brief · match · section → 기록 + 조각 → 팀 저장 → 결과. 어디까지 했는지는 팀 저장 결과로 확인해 이어서 한다
-- [ ] K6-4 원본 첨부 옵션(기본 해제 · K-D10)
-- [ ] K6-5 팀 저장 쪽 몰림 막기 — 기기마다 저장 속도 한도 · git 묶음은 파일마다 한 묶음(K-D15)
+- [x] K6-1 파서 명령 `kmd-parse <파일|폴더>` — 파일마다 md + 첨부 목록. 개인 프로그램과 **같은 `core/importer.js`**(ooxml · pdf · hwp)를 묶는다(갈라지지 않게) — 메모: 같이 쓸 `fileToMd`(파일 하나 → 글 · 꼴 · 첨부 · 스캔 · why)는 개편 S8 c8e4f58 에 꺼냈다(`planImport` · 팀 파일 넣기가 부른다). 명령 · 꾸러미는 S11 — 개편 S11 1019272(`server/bin/kmd-parse.mjs` · fileToMd 그대로 · 줄마다 tags[ingest/ · md/] · --out · --attach)
+- [x] K6-2 파서 꾸러미 — `node.exe` + 파서 core + pdfjs. `scripts/pack.mjs` 에 따로 낸다 · 팀 서버 `/dl` 에서 받는다 · 판이 바뀔 때만 다시 받는다 — 개편 S11 1019272(`packParser` · `kmd-parse-<pver>.zip` · 묶음 밖 import 검사 · `kmd-install.sh` · `GET /api/agent/parser` · brief `parser`)
+- [x] K6-3 들이기 스킬 `kmd-team-import` — 「이 폴더 팀 지식에 넣어 줘」: 파서가 없으면 그때 받고(K-D9) → 파일마다 brief · match · section → 기록 + 조각 → 팀 저장 → 결과. 어디까지 했는지는 팀 저장 결과로 확인해 이어서 한다 — 개편 S11 1019272(`agent/team/skills/kmd-team-import` · same 이어 하기 · 한 번 고쳐 fixes)
+- [x] K6-4 원본 첨부 옵션(기본 해제 · K-D10) — 개편 S11 1019272(MCP save `attach` 한 번 8MB · 스킬은 사람이 말했을 때만 · `/mcp` 본문 12MB)
+- [x] K6-5 팀 저장 쪽 몰림 막기 — 기기마다 저장 속도 한도 · git 묶음은 파일마다 한 묶음(K-D15)
   - 메모(S4 · bb633a5): 지식 + 기기 속도 한도(`E_RATE` 429 · `config.saveRate`)는 끝. 대량 넣기의 파일마다 한 묶음은 S11 이라 [ ] 그대로
-- [ ] K6-6 `core/teamkit.js` 에 `kmd-team-import` 스킬을 더한다(`TEAM_SKILLS`)
+  - 메모(S11 · 1019272): 새 코드 없음 · 스킬 kmd-team-import 가 파일 하나 = save 하나 · E_RATE 면 retryAfter 쉬고 다시(설계 S11 ⑩)
+- [x] K6-6 `core/teamkit.js` 에 `kmd-team-import` 스킬을 더한다(`TEAM_SKILLS`) — 개편 S11 1019272(작성가이드 사본 둘 · TEAM_KIT_REV 3)
 
 ### K7 가져올 곳 (팀 일꾼 · 하나씩)
 - [x] K7-1 문서 폴더 · git · DB 에서 들어온 것마다 들이기 스킬로 기록 + 조각을 한 번에 저장 · 정리 일감으로 넘기지 않는다(`server/hub.js` runSource 의 `holdWhy` 갈래) — 개편 S7 552b6c7(`intake(item)` 콜백 · `hub.openJob` · 이 PC 는 지금 길 그대로)
@@ -130,9 +131,9 @@
 - [ ] K10-5 정리 관련 시험(`test/tidy.test.mjs` 등)을 들이기 시험으로 바꾸거나 걷는다
 
 ### K11 설치 · 개인 프로그램 안내
-- [ ] K11-1 `/a/` 한 줄(에이전트 설치)에 `claude` 설치 · 로그인 **확인**을 더한다 · 없으면 안내만(K-D12)
-- [ ] K11-2 팀 화면 옆 메뉴 「개인 프로그램 설치」 안내 글을 「개인 지식을 쓰려면」으로 좁힌다 · 에이전트 설치 화면에 「대량 넣기는 Claude Code 에서」 를 적는다
-- [ ] K11-3 팀 사용자 PC 에 놓이는 것 정리: 스킬(`kmd-team-work` · `kmd-team-save` · `kmd-team-import`) · `kmd-team` 연결 · 기기 열쇠 · (대량 넣기 때) 파서
+- [x] K11-1 `/a/` 한 줄(에이전트 설치)에 `claude` 설치 · 로그인 **확인**을 더한다 · 없으면 안내만(K-D12) — 개편 S11 1019272(`claudeCheckPs` · 있나 · 로그인 · 모름 · KMD_SKIP_CLAUDE_CHECK)
+- [x] K11-2 팀 화면 옆 메뉴 「개인 프로그램 설치」 안내 글을 「개인 지식을 쓰려면」으로 좁힌다 · 에이전트 설치 화면에 「대량 넣기는 Claude Code 에서」 를 적는다 — 개편 S11 1019272(옆 메뉴 · 화면 「개인 지식 쓰기」 · agBulk)
+- [x] K11-3 팀 사용자 PC 에 놓이는 것 정리: 스킬(`kmd-team-work` · `kmd-team-save` · `kmd-team-import`) · `kmd-team` 연결 · 기기 열쇠 · (대량 넣기 때) 파서 — 개편 S11 1019272(서비스 전체 9-3 표 · 설명서 사용자 8 · 9절)
 
 ### K12 전환 순서 · 측정
 - [ ] K12-1 순서: K1 기준 → K2 저장 문 → K3 세션 스킬 조각 늘 → **2주 측정** → K7 · K5 들이기 하나씩 → K4 고치기 → K6 대량 넣기 → K9 보내기 → K10 정리 걷기
