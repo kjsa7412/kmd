@@ -84,14 +84,17 @@ async function eight(mode) {
     fs.writeFileSync(path.join(repo, 'Retry.java'), `class Retry { int waitSec = ${mode === 'pc' ? 7 : 5}; }\n`)
     execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-am', `재시도 대기 바꿈 ${mode}`], { cwd: repo })
     const cr = (await s.hub.sourceRun('dpms', 'dpms-api 코드'))[0]
-    out.code = { first: a.run[0].state, records: cr.codeRecords, title: (await s.hub.get('dpms')).works.some((w) => w.tags.includes('code-change') && w.title.startsWith(`재시도 대기 바꿈 ${mode}: `)) }
+    // 팀 — 커밋은 들이기 일감(S7) · 팀 일꾼(가짜 claude)이 기록 + 항목 글을 한 번에 · 이 PC 는 커밋 기록을 바로
+    if (mode !== 'pc') await workOnce({ server: s.url, key: (await s.auth.workerAdd()).key })
+    s.hub.forget('dpms')
+    out.code = { first: a.run[0].state, records: cr.codeRecords, title: (await s.hub.get('dpms')).works.some((w) => w.tags.includes('code-change') && w.title.startsWith(`재시도 대기 바꿈 ${mode}`)) }
     // 무인 커밋 — 사람 아닌 작성자의 기록은 자동 쓰기 표의 태그만
     const dir = path.join(root, 'dpms')
     const bad = []
     for (const f of ['work', 'log'].flatMap((sub) => fs.readdirSync(path.join(dir, sub)).map((x) => `${sub}/${x}`))) {
       const w = parseRecord(fs.readFileSync(path.join(dir, ...f.split('/')), 'utf8'), path.basename(f))
       if (!w || !['kmd', 'kmd-auto', 'kmd-worker'].includes(w.author)) continue
-      if (!w.tags.some((t) => [...SYSTEM_TAGS, 'sources', 'code-change'].includes(t))) bad.push(`${w.author} ${f} [${w.tags}]`)
+      if (!w.tags.some((t) => [...SYSTEM_TAGS, 'sources', 'code-change', 'intake'].includes(t))) bad.push(`${w.author} ${f} [${w.tags}]`)
     }
     // 사람 아닌 작성자의 묶음마다 — 자동 쓰기 표의 기록(work/*.md) · 이력(log/*.md)을 싣거나, kmd 가 쓰는 파일만 건드리거나, 처음 묶음
     const loose = []

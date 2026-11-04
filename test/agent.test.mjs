@@ -284,8 +284,9 @@ test('문서 폴더 가져오기도 파일 넣기와 같은 길: 파일마다 �
   fs.mkdirSync(src, { recursive: true })
   fs.writeFileSync(path.join(src, 'HNC_통화_스크립트.md'), HNC)
   const r = (await s.hub.sourceAdd(ME, '폴더넣기', { name: '테스트문서', kind: 'docs', at: src, rules: [{ rule: 'docs', into: { doc: '테스트' } }] })).run[0]
-  assert.deepEqual([r.state, r.recs, r.runs], ['changed', 1, 1], JSON.stringify(r).slice(0, 300))
-  const row = r.rows.find((x) => x.kind === 'run')
+  // 이 PC — 파일 넣기 길(importFiles)이 Claude Code 일로 넘긴 것은 「들이기에 넘김」(queued) 줄 · 그 일 id(run)
+  assert.deepEqual([r.state, r.recs, r.queued], ['changed', 1, 1], JSON.stringify(r).slice(0, 300))
+  const row = r.rows.find((x) => x.kind === 'queued' && x.run)
   await s.hub.curateIdle('폴더넣기')
   const run = s.hub.runGet(ME, row.run)
   assert.equal(run.state, 'done', run.msg)

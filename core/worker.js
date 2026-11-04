@@ -1,12 +1,17 @@
-// 정리 일꾼 — kmd 서버 밖에서 도는 클라이언트(`kmd worker`). 서버 프로세스는 Claude 를 부르지 않고 그 로그인도 못 읽는다.
+// 팀 일꾼 — kmd 서버 밖에서 도는 클라이언트(`kmd worker`). 서버 프로세스는 Claude 를 부르지 않고 그 로그인도 못 읽는다.
 //
 //   1  일꾼 열쇠(kmdw_)로 다음 일감을 받는다 — 그 일감 · 그 지식에만 쓰는 단기 열쇠(kmdd_)가 같이 온다
 //   2  단기 열쇠로 재료를 받는다(「Claude 에 보내지 않음」 지식은 서버가 재료를 내주지 않는다)
-//   3  묶음마다 claude -p 한 번(도구 0) → JSON 초안 · 넣은 파일은 에이전트(Claude Code + 서버 MCP · 단기 열쇠)가 세션처럼 넣는다
-//   4  초안을 올린다 — 서버가 검사하고 넣는다(일꾼은 쓰지 않는다)
-//   로그인이 끝났거나 한도면 다시 시도하지 않고 멈춘 뒤 서버에 알린다(멈춤 한 줄 「자동 정리가 쉬고 있다」)
+//   3  들이기 일감(kind intake · S7)은 원천 하나를 claude -p 한 번(도구 0)으로 기록 + 조각 초안 하나 → 서버가 저장 문 한 번으로 넣는다.
+//      고칠 수 있는 까닭으로 돌려보내면 그 까닭을 붙여 KMD_INGEST_FIX 번(1 ~ 2 · 기본 2)까지 다시 쓴다(intakeOnce)
+//   4  정리 일감(옛 · S13 에 걷음)은 묶음마다 claude -p 한 번 → JSON 초안 · 넣은 파일은 에이전트(Claude Code + 서버 MCP · 단기 열쇠)
+//   로그인이 끝났거나 한도면 다시 시도하지 않고 멈춘 뒤 서버에 알린다(멈춤 한 줄 「팀 일꾼이 쉬고 있다」)
+//   환경 변수(K7-3 · S-D38): KMD_WORKER_PAR · KMD_WORKER_JOBS · KMD_WORKER_TICK_MS · KMD_INGEST_BUDGET · KMD_INGEST_EFFORT · KMD_INGEST_FIX —
+//   옛 이름 KMD_TIDY_PAR · _JOBS · _TICK_MS · _BUDGET · _EFFORT 도 뒤 순서로 읽는다 · KMD_TIDY_BATCH · _PATCH 는 정리 일감에만(S13 에 걷음)
 
 import { runClaude } from './claude.js'
+import { INTAKE_SCHEMA, intakePromptOf, intakeFixPromptOf } from './ingest.js'
+import { WRITE_RULES } from './writerules.js'
 import { promptOf, fixPromptOf, patchPromptOf, PATCH_RULE, PATCH_SCHEMA, BATCH_OUT, DRAFT_SCHEMA, TOUCH_SCHEMA, INGEST_SCHEMA, spotKey, spotTarget, batchesOf, batchPromptOf, BATCH_SCHEMA, BATCH_PATCH_SCHEMA, BATCH_MAX } from './tidy.js'
 import { runAgent, agentAvailable } from './agent.js'
 import { modelOf } from './models.js'
@@ -50,8 +55,10 @@ async function agentIngest({ server, dkey, kn, g, log, models }) {
   return { placed: !!d.placed, error: r.ok ? null : r.error }
 }
 
-// 한 번에 쓰는 자리 수 — 자리마다 claude -p 한 번이라 하나씩이면 자리 수백 개가 몇 시간이 된다(KMD_TIDY_PAR · 1~8)
-const PAR = Math.min(8, Math.max(1, Number(process.env.KMD_TIDY_PAR) || 3))
+// 환경 변수 — 새 이름 먼저 · 없으면 옛 이름(188 의 worker.env 에 옛 이름이 있다 · S-D38)
+const envOf = (now, old) => process.env[now] ?? process.env[old]
+// claude 동시 호출 상한 — 일감 둘이 나란히 돌아도 합쳐서(KMD_WORKER_PAR · 1~8 · 기본 3)
+const PAR = Math.min(8, Math.max(1, Number(envOf('KMD_WORKER_PAR', 'KMD_TIDY_PAR')) || 3))
 // 자리 하나의 글 쓰기 시간 — 기록이 많이 모인 자리는 3분을 넘기기도 한다 · 항목 글이 길면(화면설계서 한 항목 9천 자) 다시 쓰는 데 5분을 넘긴다:
 //   프롬프트 2천 자마다 1분을 더한다(15분까지)
 const TIDY_TIMEOUT = 5 * 60_000
@@ -62,14 +69,80 @@ const BATCH = Math.max(1, Number(process.env.KMD_TIDY_BATCH) || BATCH_MAX)
 //   조각 항목도 같은 문서끼리 claude 한 번에 묶는다(A9 · 답이 바뀐 양만큼이라 큰 항목도 묶인다 · form bpatch)
 const PATCH = () => (['off', 'big', 'all'].includes(process.env.KMD_TIDY_PATCH) ? process.env.KMD_TIDY_PATCH : 'big')
 const patchOn = (g) => g.kind === 'section' && (PATCH() === 'all' || (PATCH() === 'big' && (g.content || '').length > BATCH_OUT))
-// 생각 정도(KMD_TIDY_EFFORT · low · medium · high · max · 비면 그 PC 의 기본)
-const EFFORT = () => process.env.KMD_TIDY_EFFORT || ''
-// Claude 한 번의 예산 상한(KMD_TIDY_BUDGET · 달러 · 비면 0.5) — 긴 항목은 생각 글이 많아 0.5 를 넘겨 초안을 받지 못한다(188 「4. 구성 순서」 · 11-03)
-const BUDGET = () => (Number(process.env.KMD_TIDY_BUDGET) > 0 ? Number(process.env.KMD_TIDY_BUDGET) : 0.5)
+// 생각 정도(KMD_INGEST_EFFORT · low · medium · high · max · 비면 그 PC 의 기본)
+const EFFORT = () => envOf('KMD_INGEST_EFFORT', 'KMD_TIDY_EFFORT') || ''
+// Claude 한 번의 예산 상한(KMD_INGEST_BUDGET · 달러 · 비면 1.0) — 들이기 한 번은 파일 하나 + 후보 다섯 × 1500자를 읽고 기록과 항목 글을 같이 쓴다
+//   (옛 정리 기본 0.5 는 긴 항목에서 생각 글만으로 넘겼다 · 188 「4. 구성 순서」 · 11-03)
+const BUDGET = () => (Number(envOf('KMD_INGEST_BUDGET', 'KMD_TIDY_BUDGET')) > 0 ? Number(envOf('KMD_INGEST_BUDGET', 'KMD_TIDY_BUDGET')) : 1.0)
+// 고쳐 쓰기 횟수(KMD_INGEST_FIX · 1 ~ 2 · 기본 2) — 서버도 같은 수를 센다(일꾼 말을 믿지 않는다 · S-D20)
+const INGEST_FIX = () => Math.min(2, Math.max(1, Number(process.env.KMD_INGEST_FIX) || 2))
 // Claude 호출 하나의 id — 화면이 같은 호출의 넣을 곳을 한 묶음으로
 const callId = () => Math.random().toString(36).slice(2, 10)
 // 쓰는 동안 소식 간격 — 이 사이 소식이 없으면 화면이 「멈춘 것 같다」 를 1분에 띄운다
-const TICK = () => Number(process.env.KMD_TIDY_TICK_MS) || 15_000
+const TICK = () => Number(envOf('KMD_WORKER_TICK_MS', 'KMD_TIDY_TICK_MS')) || 15_000
+
+// 들이기 일감 하나(S7 · 설계 3-5) — 재료 → claude -p → done → { fix } 이면 까닭을 붙여 다시(KMD_INGEST_FIX 번까지) → 마지막.
+//   일꾼은 쓰지 않는다: 서버가 시도를 세고(본문의 tries 를 믿지 않는다) · 검사하고 · 저장 한 번으로 넣거나 기록만 + 넣지 못함
+//   돌려주는 것 { job, summary: { put, held }, rec?, skipped? }
+export async function intakeOnce({ server, key, job, dkey, log = () => {}, budget = BUDGET(), models = null, gate = slots(PAR) }) {
+  const kn = encodeURIComponent(job.kn)
+  const base = `/api/k/${kn}/worker/intake`
+  let lost = false
+  const gone = (e) => {
+    if (e.status === 401 || e.status === 403) lost = true
+    else log(`${job.kn}: 서버에 소식을 올리지 못했다(${e.status || e.message})`)
+    return {}
+  }
+  let g
+  try {
+    g = await call(server, dkey, base)
+  } catch (e) {
+    log(`재료를 받지 못했다: ${job.kn}: ${e.message}`)
+    // 「Claude 에 보내지 않음」 이 그사이 켜졌다 · 원천이 없다 — 일감은 서버가 시계로 닫는다(24시간) · 여기서는 쉰다
+    return { job, summary: { put: 0, held: 0 }, skipped: e.message }
+  }
+  const name = `${job.kn}: ${g.src?.file || g.src?.title || job.id}`
+  const model = modelOf('ingest', models)
+  const opt = { writeRules: WRITE_RULES }
+  let prompt = intakePromptOf(g, opt)
+  for (let i = 0; i <= INGEST_FIX(); i++) {
+    const p0 = await call(server, dkey, `${base}/progress`, {}).catch(gone)
+    if (lost || p0.stop) return { job, summary: { put: 0, held: 0 }, skipped: lost ? 'lost' : 'stopped' }
+    await gate.take()
+    let r
+    const t0 = Date.now()
+    try {
+      r = await runClaude({ prompt, schema: INTAKE_SCHEMA, budget, model, timeoutMs: timeoutOf(prompt), effort: EFFORT(), tickMs: TICK(), onTick: () => call(server, dkey, `${base}/progress`, { tick: true }).catch(gone) })
+    } finally { gate.give() }
+    log(`${name}: ${r.error ? `초안을 받지 못했다(${r.error}${r.message ? ' · ' + String(r.message).slice(0, 80) : ''})` : '초안'} · ${Math.round((Date.now() - t0) / 1000)}초 · 보낸 글 ${prompt.length}자${r.model ? ` · ${r.model}` : ''}`)
+    await call(server, dkey, `${base}/progress`, { end: true, ok: !r.error, why: r.error ? String(r.message || r.error).slice(0, 200) : null }).catch(gone)
+    if (lost) return { job, summary: { put: 0, held: 0 }, skipped: 'lost' }
+    if (r.error) {
+      const code = ['login', 'limit', 'missing', 'budget', 'shape'].includes(r.error) ? r.error : /^시간이 넘었다/.test(r.message || '') ? 'timeout' : 'fail'
+      const why = String(r.message || r.error).replace(/\s+/g, ' ').slice(0, 200)
+      const d = await call(server, dkey, `${base}/fail`, { code, why }).catch((e) => (gone(e), null))
+      if (STOP[r.error]) {
+        log(`팀 일꾼이 쉰다: ${STOP[r.error]}`)
+        await call(server, key, '/api/worker/status', { ok: false, reason: r.error, message: STOP[r.error] }).catch((e) => log(`일꾼 상태를 알리지 못했다(${e.status || e.message})`))
+        return { job, summary: { put: 0, held: 0 }, skipped: r.error, stop: r.error }
+      }
+      if (d?.retry) continue
+      return { job, summary: { put: 0, held: d?.held || 0 }, rec: d?.rec || null }
+    }
+    const d = await call(server, dkey, `${base}/done`, { draft: r.value, cost: r.cost || 0 }).catch((e) => (gone(e), { error: e.message }))
+    if (lost) return { job, summary: { put: 0, held: 0 }, skipped: 'lost' }
+    if (d.error) { log(`${name}: 초안을 넣지 못했다(${d.error})`); return { job, summary: { put: 0, held: 0 }, skipped: d.error } }
+    if (d.fix) {
+      log(`${name}: 검사에 걸렸다 · 고쳐 쓴다(${String(d.fix).slice(0, 120)})`)
+      prompt = intakeFixPromptOf(g, r.value, d.fix, opt)
+      continue
+    }
+    await call(server, key, '/api/worker/status', { ok: true }).catch((e) => log(`일꾼 상태를 알리지 못했다(${e.status || e.message})`))
+    log(`${name}: ${d.same ? '같은 것을 이미 들였다' : `넣음 ${d.put || 0} · 넣지 못함 ${(d.held || []).length}`}`)
+    return { job, summary: { put: d.put || 0, held: (d.held || []).length }, rec: d.rec || null }
+  }
+  return { job, summary: { put: 0, held: 0 } }
+}
 
 // 일감 하나 — 없으면 null · models — 일마다 모델(core/models.js · 없으면 기본 배분)
 //   한 문서의 항목은 batch 개까지 claude -p 한 번에(batchesOf) · 그 묶음을 PAR 개씩 같이 쓰고, 초안을 받으면 그 자리만 바로 올린다(서버가 검사해 넣고 받은 것에서 빠진다) ·
@@ -77,6 +150,7 @@ const TICK = () => Number(process.env.KMD_TIDY_TICK_MS) || 15_000
 export async function workOnce({ server, key, log = () => {}, budget = BUDGET(), models = null, par = PAR, batch = BATCH, gate = slots(par) }) {
   const n = await call(server, key, '/api/worker/next', {})
   if (!n.job) return null
+  if (n.job.kind === 'intake') return intakeOnce({ server, key, job: n.job, dkey: n.key, log, budget, models, gate })
   const { job, key: dkey } = n
   const kn = encodeURIComponent(job.kn)
   let groups = []
@@ -138,7 +212,7 @@ export async function workOnce({ server, key, log = () => {}, budget = BUDGET(),
     if (e.stop) quit = true
     if (STOP[r.error] && !stop) {
       stop = r.error
-      log(`정리 일꾼이 쉰다: ${STOP[stop]}`)
+      log(`팀 일꾼이 쉰다: ${STOP[stop]}`)
     }
     const item = { group: slim(g), draft: r.value ?? null, model: r.model, error: r.error || null, why: r.error ? r.message || null : null }
     if (!item.draft || lost) { items.push(item); return }
@@ -150,7 +224,7 @@ export async function workOnce({ server, key, log = () => {}, budget = BUDGET(),
   }
   // 고쳐 쓰기 한 번 — 서버가 이미 「까닭을 알려 고쳐 쓴다」 줄을 달았다
   const refix = async (g) => {
-    const model = modelOf(g.kind === 'touches' ? 'touch' : 'tidy', models)
+    const model = modelOf(g.kind === 'touches' ? 'touch' : 'ingest', models)
     const patch = g.kind === 'section' && !('content' in g.fix.draft)
     const fp = patch ? [fixPromptOf(g, g.fix.draft, g.fix.why), PATCH_RULE].join('\n\n') : fixPromptOf(g, g.fix.draft, g.fix.why)
     if (await begin(g, model, null, { call: callId(), form: 'fix', limit: timeoutOf(fp), chars: fp.length })) await finish(g, await ask(patch ? [fixPromptOf(g, g.fix.draft, g.fix.why), PATCH_RULE].join('\n\n') : fixPromptOf(g, g.fix.draft, g.fix.why), { schema: patch ? PATCH_SCHEMA : schemaOf(g), model }, [spotKey(g)]), false)
@@ -162,20 +236,20 @@ export async function workOnce({ server, key, log = () => {}, budget = BUDGET(),
       const a = await agentIngest({ server, dkey, kn, g, log, models }).catch((e) => ({ placed: false, error: null, why: e.message }))
       if (STOP[a.error]) {
         stop = a.error
-        log(`정리 일꾼이 쉰다: ${STOP[stop]}`)
+        log(`팀 일꾼이 쉰다: ${STOP[stop]}`)
         items.push({ group: slim(g), error: stop })
         return
       }
       if (a.placed) return
     }
-    const model = modelOf(g.kind === 'touches' ? 'touch' : 'tidy', models)
+    const model = modelOf(g.kind === 'touches' ? 'touch' : 'ingest', models)
     const p0 = patchOn(g) ? patchPromptOf(g) : promptOf(g)
     if (await begin(g, model, g.again || null, { call: callId(), form: patchOn(g) ? 'patch' : 'single', limit: timeoutOf(p0), chars: p0.length })) await finish(g, await write(g, model))
   }
   // 한 문서의 항목 묶음 — claude -p 한 번에 쓰고 자리마다 초안으로 나눈다. 묶음 답이 틀렸거나 그 자리 답이 없으면 그 자리를 일 줄에 되돌려
   //   빈 칸이 따로 다시 쓴다(까닭을 줄에 남긴다 · 같은 칸에서 차례로 쓰면 묶음 6분 + 자리마다 5분이 한 줄로 쌓이고 화면에는 아무 줄도 없었다)
   const many = async (gs) => {
-    const model = modelOf('tidy', models)
+    const model = modelOf('ingest', models)
     const go = []
     // 묶음은 한 호출 — 같은 call 로 알린다(상한 · 보낼 글은 묶음 프롬프트로)
     const cid = callId()
@@ -250,8 +324,8 @@ export function sweepProjects({ home = os.homedir(), log = () => {}, ageMs = 24 
 // 늘 — poll 마다 일감을 본다
 // onLost — 서버가 열쇠를 끊었다(401 · 다시 정하기 · 떠남) · 멈추고 알린다
 // before — 일감을 묻기 전마다(팀 서버 일꾼: 정리 전용 로그인을 다시 읽는다)
-// jobs — 일감을 나란히 맡는 수(다른 지식 · 같은 지식은 서버가 한 일감만 낸다 · KMD_TIDY_JOBS) · claude 동시 호출은 둘이 합쳐 PAR
-const JOBS = Math.min(4, Math.max(1, Number(process.env.KMD_TIDY_JOBS) || 2))
+// jobs — 일감을 나란히 맡는 수(KMD_WORKER_JOBS · 1 ~ 4 · 기본 2) · claude 동시 호출은 둘이 합쳐 PAR
+const JOBS = Math.min(4, Math.max(1, Number(envOf('KMD_WORKER_JOBS', 'KMD_TIDY_JOBS')) || 2))
 export function runWorker({ server, key, poll = 10_000, log = (...a) => console.log('[kmd worker]', ...a), onLost = null, models = null, before = null, jobs = JOBS }) {
   let stopped = false
   const gate = slots(PAR)
@@ -266,7 +340,7 @@ export function runWorker({ server, key, poll = 10_000, log = (...a) => console.
         if (before) await before()
         const r = await workOnce({ server, key, log, models, gate })
         if (r) {
-          log(`${r.job.kn}: 넣음 ${r.summary?.put ?? 0} · 값 바뀜 ${r.summary?.changed ?? 0} · 그대로 둠 ${r.summary?.left ?? 0}`)
+          log(r.job.kind === 'intake' ? `${r.job.kn}: 들이기 · 넣음 ${r.summary?.put ?? 0} · 넣지 못함 ${r.summary?.held ?? 0}` : `${r.job.kn}: 넣음 ${r.summary?.put ?? 0} · 값 바뀜 ${r.summary?.changed ?? 0} · 그대로 둠 ${r.summary?.left ?? 0}`)
           continue
         }
       } catch (e) {

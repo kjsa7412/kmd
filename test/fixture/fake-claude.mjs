@@ -8,6 +8,7 @@
 //   「주입」 → 글에 머리 줄을 넣는다 · 「A → B」 꼴(값) → 지금 글의 A 를 B 로 바꾸고 drop 에 A
 //   이름 바로잡기 → 후보의 첫 이름
 //   고쳐 쓰기(fixPromptOf · 「지난 초안이 kmd 검사에 걸렸다」) → 「고쳐쓰기」 가 든 기록만 고친다(누락 · 지어낸 것을 하지 않는다)
+// 들이기(「넣을 것을 지식에 들인다」 · S7) → 기록 + 조각 초안(아래 갈래 · FAKE_CLAUDE_MODE=bad · badall · content · nosec · names · outside)
 // FAKE_CLAUDE_MODE=logout → 로그인 끝 · FAKE_CLAUDE_LOG=<파일> → 부를 때마다 한 줄
 
 import fs from 'node:fs'
@@ -33,6 +34,69 @@ function answer() {
   const ok = args.includes('-p') && args.includes('--tools') && val('--tools') === '' && args.includes('--strict-mcp-config') && JSON.parse(val('--mcp-config') || '{}').mcpServers && val('--json-schema') && fs.readdirSync(process.cwd()).length === 0
   if (!ok) return say({ is_error: true, subtype: 'error', result: '가짜 claude: 도구 0 · 빈 MCP · 스키마 · 빈 폴더를 지키지 않았다' })
   if (process.env.FAKE_CLAUDE_MODE === 'logout') return say({ is_error: true, subtype: 'error', result: 'Invalid API key · Please run /login' })
+  // 들이기(S7 · core/ingest.js intakePromptOf) — 기록 + 조각 초안 하나
+  //   커밋: 「바뀐 값: A → B」 의 A 가 든 후보 항목을 B 로(꼭 한 번이면 조각 · 아니면 새 글) · 없으면 updates 비움
+  //   파일: 파일의 ## 머리가 후보 항목과 같으면 그 항목을 파일 글로(새 글) · 나머지는 새 문서(경로 = 파일 이름)
+  //   FAKE_CLAUDE_MODE=bad → 처음 답에 지어낸 값(999초) · badall → 고쳐 써도 · content → 커밋도 조각 대신 새 글 · nosec → 새 문서에 항목 없음 ·
+  //   names → 새 항목의 이름(term:<머리>)을 싣는다 · outside → 후보 밖 문서를 고친다
+  if (prompt.startsWith('넣을 것을 지식에 들인다')) {
+    if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'intake\n')
+    const FIXI = '\n\n지난 초안이 kmd 검사에 걸렸다'
+    const fixingI = prompt.includes(FIXI)
+    if (fixingI && process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'fix\n')
+    const p = fixingI ? prompt.slice(0, prompt.indexOf(FIXI)) : prompt
+    const mode = process.env.FAKE_CLAUDE_MODE || ''
+    const cands = (p.split('문서 후보:\n')[1] || '').split(/\n\n넣을 것\((?:파일|커밋) · /)[0]
+    const docs = cands.split(/^\[doc /m).slice(1).map((blk) => {
+      const path = blk.slice(0, blk.indexOf(']'))
+      const secs = [...blk.matchAll(/^## (.+)\n\(base ([0-9a-f]{16})\)\n([\s\S]*?)(?=\n## |(?![\s\S]))/gm)].map((m) => ({ h: m[1].trim(), base: m[2], body: m[3] }))
+      return { path, secs }
+    })
+    const srcM = /\n\n넣을 것\((파일|커밋) · ([^)]*)\):\n([\s\S]*)$/.exec(p)
+    const kind = srcM ? srcM[1] : '파일'
+    const name = srcM ? srcM[2] : '넣을 것'
+    const md = srcM ? srcM[3] : ''
+    const lie = (mode === 'bad' && !fixingI) || mode === 'badall'
+    const out = { record: { title: '', body: '', changes: [] }, updates: [], newDoc: null, names: [], why: '' }
+    if (kind === '커밋') {
+      const sw = /바뀐 값:? (\S+) → (\S+?)(?::|\s|$)/.exec(md)
+      out.record.title = name.split(': ')[0] || name
+      out.record.body = '코드가 바뀌었다.'
+      if (sw) {
+        const [, a, b] = sw
+        for (const d of docs) for (const s of d.secs) {
+          if (out.updates.length || !s.body.includes(a)) continue
+          out.record.changes.push(`${s.h}: ${a} → ${b}`)
+          const once = s.body.split(a).length === 2
+          if (once && mode !== 'content') out.updates.push({ doc: d.path, heading: s.h, base: s.base, edits: [{ find: a, replace: b + (lie ? ' 그리고 999초 기다린다' : '') }] })
+          else out.updates.push({ doc: d.path, heading: s.h, base: s.base, content: s.body.split(a).join(b) + (lie ? ' 그리고 999초 기다린다.' : '') })
+        }
+      }
+      if (!out.updates.length) out.why = '문서와 상관없는 커밋'
+      return say({ structured_output: out })
+    }
+    const file = name.split('/').pop().replace(/\.[^.]+$/, '')
+    const secs = [...md.matchAll(/^## (.+)\n([\s\S]*?)(?=\n## |(?![\s\S]))/gm)].map((m) => ({ heading: m[1].trim(), content: m[2].trim() }))
+    out.record.title = `${file}: 들임`
+    out.record.body = `${file} 을 들였다.`
+    for (const s of secs) {
+      const d = docs.find((x) => x.secs.some((y) => y.h === s.heading))
+      if (!d) continue
+      const at = d.secs.find((y) => y.h === s.heading)
+      out.updates.push({ doc: d.path, heading: s.heading, base: at.base, content: s.content })
+    }
+    const rest = secs.filter((s) => !out.updates.some((u) => u.heading === s.heading))
+    if (mode === 'outside') out.updates.push({ doc: '없는/후보밖', heading: '무엇', content: rest[0]?.content || '글' })
+    if (mode === 'nosec') out.newDoc = { path: file, sections: [] }
+    else if (rest.length) out.newDoc = { path: file, sections: rest.map((s) => ({ heading: s.heading, content: s.content })) }
+    if (lie) {
+      const t = out.newDoc?.sections?.[0] || out.updates[0]
+      if (t) t.content += ' 그리고 999초 기다린다.'
+    }
+    if (mode === 'names') out.names = rest.map((s) => ({ name: s.heading, kind: 'term' }))
+    out.why = out.updates.length ? '같은 항목이 있다' : '이어지는 문서가 없다'
+    return say({ structured_output: out })
+  }
   // 넣은 파일 — 파일의 머리(##)가 후보 문서의 항목과 같으면 그 항목을 파일 글로 · 아니면 새 문서(경로 = 파일 이름)
   if (prompt.startsWith('넣은 파일(기록)을 지식에 들인다')) {
     const cands = (prompt.split('문서 후보:\n')[1] || '').split('\n\n넣은 파일(')[0]

@@ -1,6 +1,6 @@
 // 감시 단계 2 필수 — 문서 폴더 감시 · 원본이 주인 · 내 PC 폴더 → 팀은 걷었다.
 //
-// 문서 폴더: 파일 넣기와 같은 길 — 처음 → 파일마다 기록(반영 대기) · 사본 문서 없음 / 한 파일 고침 → 그 파일만 새 기록 / 지움 → 지식은 그대로 /
+// 문서 폴더: 파일마다 들이기 일감(S7) — 처음 → 파일마다 일감(정리 일감 0 · 「새 10」 브레이크 없음) → 팀 일꾼이 기록 + 조각 · 사본 문서 없음 / 한 파일 고침 → 그 파일만 새 일감 / 지움 → 지식은 그대로 /
 // 한꺼번에 많이 사라지면 멈춤 · 예전 사본 문서(표지 watched)는 원본이 주인으로 남는다 · 내 PC 폴더(파일을 팀으로 나르기)는 없다 — 지식은 「보내기」 로(send.test)
 
 import { test, before, after } from 'node:test'
@@ -11,6 +11,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { copyDir } from './helpers.mjs'
+import { workOnce } from '../core/worker.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, team, pc, docsDir
@@ -22,6 +23,7 @@ before(async () => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-watch2-'))
   process.env.HOME = process.env.USERPROFILE = process.env.APPDATA = tmp
   process.env.KMD_NO_CLAUDE = '1'
+  process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
   copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'kn'))
   docsDir = path.join(tmp, 'src', '운영문서')
   for (let i = 1; i <= 12; i++) W(path.join(docsDir, `절차${String(i).padStart(2, '0')}.md`), `# 절차${i}\n\n## 순서\n${i} 번째.\n`)
@@ -41,13 +43,19 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('문서 폴더: 바뀐 파일만 기록(반영 대기)으로 · 사본 문서를 만들지 않는다 · 지움은 지식을 바꾸지 않는다 · 많이 사라지면 멈춤', async () => {
+test('문서 폴더: 바뀐 파일만 들이기 일감으로(정리 일감 0 · 새 10 브레이크 없음) · 사본 문서를 만들지 않는다 · 지움은 지식을 바꾸지 않는다 · 많이 사라지면 멈춤', async () => {
   const kd = path.join(tmp, 'kn', 'dpms')
   const ingested = async () => (await team.hub.get('dpms')).works.filter((w) => w.tags.some((x) => x.startsWith('ingest/운영문서/')))
+  const wk = (await team.auth.workerAdd()).key
+  const drain = async () => { while (team.hub.intakesOf('dpms').some((j) => j.state === 'queued')) await workOnce({ server: team.url, key: wk }) }
   const r0 = await team.hub.sourceAdd(ADMIN, 'dpms', { name: '운영문서', kind: 'docs', at: docsDir, rules: [{ rule: 'docs', into: { doc: '운영문서' } }] })
   assert.equal(r0.run[0].state, 'changed', JSON.stringify(r0.run[0]).slice(0, 600))
-  assert.equal(r0.run[0].recs, 13, 'md 13 → 기록 13(잠금 파일 ~$ 는 뺀다)')
-  // 파일 넣기와 같은 길 — 파일마다 기록(태그 ingest/…) · 글 그대로 · 정리가 자리를 골라 넣는다
+  assert.equal(r0.run[0].queued, 13, 'md 13 → 들이기 일감 13(잠금 파일 ~$ 는 뺀다 · 새 파일 10 을 넘어도 멈추지 않는다)')
+  assert.equal(team.hub.intakesOf('dpms').length, 13)
+  assert.equal(team.hub.jobsOf('dpms').length, 0, '정리 일감은 세우지 않는다')
+  assert.equal((await ingested()).length, 0, '기록은 일꾼이 기록 + 조각을 한 번에 지을 때')
+  // 팀 일꾼 — 파일마다 기록(태그 ingest/…) · 원천 글을 기록에 싣는다
+  await drain()
   const w0 = (await ingested()).find((w) => w.tags.includes('ingest/운영문서/회의/10월.md'))
   assert.ok(w0 && /화 · 목 배포/.test(w0.body), '기록에 파일 글')
   assert.equal((await ingested()).length, 13)
@@ -59,7 +67,8 @@ test('문서 폴더: 바뀐 파일만 기록(반영 대기)으로 · 사본 문�
   // 한 파일 고침 → 그 파일만 새 기록
   W(path.join(docsDir, '절차03.md'), '# 절차3\n\n## 순서\n3 번째: 고침.\n')
   const r1 = (await team.hub.sourceRun('dpms', '운영문서'))[0]
-  assert.deepEqual([r1.state, r1.files, r1.recs], ['changed', 1, 1])
+  assert.deepEqual([r1.state, r1.files, r1.queued], ['changed', 1, 1])
+  await drain()
   assert.ok((await ingested()).some((w) => w.tags.includes('ingest/운영문서/절차03.md') && /3 번째: 고침/.test(w.body)))
   assert.equal((await team.hub.sourceRun('dpms', '운영문서'))[0].state, 'same', '그대로면 기록 없음')
 

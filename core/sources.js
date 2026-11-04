@@ -10,7 +10,10 @@
 //          폴더는 허락된 원천 루트 안만(팀) · <data> · 지식 폴더 · 백업 주소 거절 · 숨김 · .git · node_modules 는 읽지 않음 · 1MB
 //
 // 원천 실행기는 판정하지 않고 대기열에 세우지 않고 블록 밖 글 · 표지 · 다른 이름을 바꾸지 않는다.
-// LLM 은 스스로 부르지 않는다 — 커밋 기록의 분석만 hub 가 넘긴 analyze 로(runCode).
+// LLM 은 스스로 부르지 않는다 — 들어온 것(문서 폴더의 파일 · 커밋 · 뜻 갱신)은 hub 가 넘긴 intake(item) 하나로 넘긴다(S7 · 설계 4-5):
+//   item = { kind: 'file', rel, data } | { kind: 'commit', info, diffs, raw } → { state: 'queued' | 'put' | 'held' | 'same' | 'fail' | 'skip' | 'record', recId?, job?, why?, note? }
+//   팀은 들이기 일감(팀 일꾼의 claude -p 한 번 → 기록 + 조각 저장 한 번) · 개인 프로그램은 지금 길(파일 넣기 · 커밋 분석 → 기록 · 저장 즉시 넣기)
+//   표 블록 저장(runTables · runDb)은 save 로 그대로(이미 기록 + 표 한 번에)
 
 import fs from 'node:fs/promises'
 import { existsSync, realpathSync } from 'node:fs'
@@ -21,7 +24,7 @@ import { tryGit, maskUrl, commitPaths, ensureRepo } from './git.js'
 import { readText, nfc } from './text.js'
 import { parseDoc, headingMatches } from './sections.js'
 import { renderRecord } from './frontmatter.js'
-import { localStamp, save as coreSave, serial, recordTakenSync } from './save.js'
+import { localStamp, serial, recordTakenSync } from './save.js'
 import { RULES, splitBlocks, putBlock, tableMd, sameTable, sameRows, probe, parseTable } from './baseline.js'
 import { getSecret, setSecret } from './secrets.js'
 import { KmdError } from './errors.js'
@@ -357,11 +360,29 @@ async function gitFetch(src, { dataDir, kn }) {
 //   처음   지금 커밋을 기준으로 둔다(기록 없음) — 다음부터 기준 뒤의 새 커밋마다 바뀐 코드로 기록 하나(커밋 메시지 · 바뀐 값 · 차이)
 //   이력   얕게 받고 새 커밋이 있으면 기준에 닿을 때까지 50 씩 더 받는다(200 까지) · 닿지 않으면(강제 밀기 · 너무 멀다) 기준 ↔ 지금 차이 하나로
 //   커밋   합침 커밋은 건너뛴다 · 코드 파일(시험 · 빌드 결과 · 잠금 파일 빼고)이 안 바뀐 커밋은 기록하지 않는다 · 한 번에 20 커밋 · 커밋마다 20 파일
-//   정리   기록을 남기면 hub 가 그 지식의 정리를 건다(Claude 에 보내지 않는 지식 · 이 PC 의 자동 정리 끔이면 기록만 남는다)
+//   들이기 커밋마다 intake 하나 — 팀은 들이기 일감(Claude 에 보내지 않는 지식은 기록만 + 넣지 못함) · 개인 프로그램은 기록(저장 즉시 넣기가 넣는다)
 const DEEPEN = 50
+// 들이기 결과 말(줄 · 요약)
+const STATE_T = { queued: '들이기에 넘김', put: '넣음', held: '넣지 못함', same: '같은 것: 그대로', fail: '못 들임', skip: '읽지 않는 종류', record: '기록' }
+const tally = () => ({ queued: 0, put: 0, held: 0, same: 0, fail: 0, skip: 0, record: 0 })
+const tallyText = (c) => [c.put ? `넣음 ${c.put}` : '', c.held ? `넣지 못함 ${c.held}` : '', c.queued ? `들이기에 넘김 ${c.queued}` : '', c.record ? `기록 ${c.record}` : '', c.fail ? `못 들임 ${c.fail}` : ''].filter(Boolean).join(' · ')
+// intake 를 부르고 줄을 남긴다 — 던지면 그 하나만 못 들임(그만두기는 그대로 던진다)
+async function intakeOne(intake, item, line, name) {
+  let r
+  try {
+    r = (await intake(item)) || { state: 'fail', why: '결과가 없다' }
+  } catch (e) {
+    if (e?.cancelled) throw e
+    r = { state: 'fail', why: e.message }
+  }
+  if (!(r.state in STATE_T)) r = { ...r, state: 'fail' }
+  if (r.note) line(r.state === 'fail' ? 'err' : 'ok', r.note)
+  line(r.state === 'fail' || r.state === 'held' ? 'err' : 'ok', `${name}: ${STATE_T[r.state]}${r.why ? ` · ${r.why}` : ''}`)
+  return r
+}
 const DEEPEN_MAX = 200
-//   분석   analyze(c, diffs, rec) 가 있으면 Claude 가 차이를 읽고 무엇이 왜 바뀌었는지 쓴 기록으로(core/analyze.js) · 없거나 실패면 차이 그대로
-async function runCode(k, src, { dataDir, save, first = false, full = false, analyze = null, onStage = async () => {}, line = () => {} }) {
+async function runCode(k, src, { dataDir, intake, first = false, full = false, onStage = async () => {}, line = () => {} }) {
+  if (!intake) throw new KmdError('E_INPUT', '코드 바뀜은 들이기 길(intake)로만 들인다')
   const st = await readState(dataDir, k.id)
   const s0 = (st[src.name] ||= {})
   const now = new Date().toISOString()
@@ -401,6 +422,7 @@ async function runCode(k, src, { dataDir, save, first = false, full = false, ana
     let files = 0
     let quiet = 0 // 코드 파일이 안 바뀐 묶음 — 줄마다 적지 않고 끝에 수로
     const recIds = []
+    const c = tally()
     const todo = pairs.slice(-CODE_MAX)
     for (const [i, [a, b]] of todo.entries()) {
       const names = (await tryGit(g.bare, ['diff', '--name-status', '--no-renames', '-z', a, b])).out.split('\0').filter(Boolean)
@@ -422,21 +444,16 @@ async function runCode(k, src, { dataDir, save, first = false, full = false, ana
       const minus = diffs.reduce((n, f) => n + f.d.minus, 0)
       line('tool', `${i + 1}/${todo.length} · ${info.sha} ${String(info.subject || '').slice(0, 60)} · 코드 파일 ${diffs.length} (+${plus} −${minus})`)
       const raw = commitRecord(k, src, info, diffs, { skipped: i === 0 ? skipped : 0, more: code.length - diffs.length })
-      let rec = raw
-      if (analyze) {
-        rec = (await analyze(info, diffs, raw).catch(() => null)) || raw
-        line(rec === raw ? 'err' : 'ok', rec === raw ? '요약 못함. 차이 그대로 기록한다' : `요약: ${rec.title.split(/ — |: /)[0]}`)
-      }
-      const saved = await save({ record: rec })
-      if (saved?.id) recIds.push(saved.id)
-      line('ok', `기록 저장 · ${rec.touches?.length ? `걸린 항목 ${rec.touches.join(' · ')}` : '걸린 항목 없음. 넣을 문서를 정리가 찾는다'}`)
-      codeRecords++
+      const r = await intakeOne(intake, { kind: 'commit', info, diffs, raw }, line, info.sha)
+      c[r.state]++
+      if (r.recId) recIds.push(r.recId)
+      if (r.state !== 'fail' && r.state !== 'same') codeRecords++
     }
-    const note = `새 묶음 ${pairs.length}${codeRecords ? ` · 코드 바뀜 기록 ${codeRecords}` : ' · 코드는 그대로'}${quiet ? ` · 코드 안 바뀐 묶음 ${quiet}` : ''}${skipped ? ` · 앞선 ${skipped} 은 건너뜀` : ''}`
+    const note = `새 묶음 ${pairs.length}${codeRecords ? ` · 코드 바뀜 ${codeRecords}: ${tallyText(c)}` : ' · 코드는 그대로'}${quiet ? ` · 코드 안 바뀐 묶음 ${quiet}` : ''}${skipped ? ` · 앞선 ${skipped} 은 건너뜀` : ''}`
     line('ok', note)
     await onStage(3)
     await keep(note, { lastChange: { at: now, commits: pairs.length, files, records: codeRecords, tables: 0 }, ...(codeRecords ? { lastCode: { at: now, n: codeRecords } } : {}) })
-    return { state: codeRecords ? 'changed' : 'same', n: codeRecords, files, codeRecords, commits: pairs.length, recIds }
+    return { state: codeRecords ? 'changed' : 'same', n: codeRecords, files, codeRecords, commits: pairs.length, recIds, ...c }
   } catch (e) {
     if (e?.cancelled) throw e // 그만두기(일 줄) — 못 가져옴으로 세지 않는다
     s0.failures = (s0.failures || 0) + 1
@@ -530,8 +547,8 @@ async function runDb(k, src, { dataDir, save, first = false, force = false, full
 // 문서 폴더 — 바뀐 파일만 파일 넣기와 같은 길로(기록 → 정리가 자리를 골라 문서에) · 지운 파일은 지식을 바꾸지 않는다 · 브레이크는 한꺼번에 많이 사라질 때만
 // (문서는 묶음으로 더해지는 일이 흔하고 더함은 아무것도 지우지 않는다 — 사라짐 10% 초과만 멈춘다)
 const DOC_MAX_FILE = 32 << 20
-async function runDocs(k, src, { dataDir, first = false, force = false, full = false, pass = null, onProgress = null, ingest = null, onStage = async () => {}, line = () => {} }) {
-  if (!ingest) throw new KmdError('E_INPUT', '문서 폴더는 파일 넣기 길(ingest)로만 들인다')
+async function runDocs(k, src, { dataDir, first = false, force = false, full = false, pass = null, onProgress = null, intake = null, onStage = async () => {}, line = () => {} }) {
+  if (!intake) throw new KmdError('E_INPUT', '문서 폴더는 들이기 길(intake)로만 들인다')
   const st = await readState(dataDir, k.id)
   const s0 = (st[src.name] ||= {})
   const now = new Date().toISOString()
@@ -557,24 +574,33 @@ async function runDocs(k, src, { dataDir, first = false, force = false, full = f
       return { state: 'stopped', n: 0, files: n, ...s0.stopped }
     }
     await onStage(2)
-    // 파일 넣기와 같은 길(ingest — hub.importFiles) — 파일마다 기록(반영 대기)을 세우고 이 PC 는 Claude Code 가 · 팀은 정리가 자리를 골라 넣는다.
-    //   원본에서 지운 파일은 지식을 바꾸지 않는다(사본 문서를 만들지 않으니 「원본에 없다」 를 달 문서도 없다)
+    // 파일마다 intake 하나(S7) — 팀은 들이기 일감(팀 일꾼이 기록 + 조각을 저장 한 번에) · 이 PC 는 파일 넣기 길(Claude Code · 저장 즉시 넣기).
+    //   장부는 파일마다(끊겨도 남은 파일은 다음 확인이 다시 본다) · 원본에서 지운 파일은 지식을 바꾸지 않는다(사본 문서를 만들지 않으니 「원본에 없다」 를 달 문서도 없다)
+    //   크게 바뀜 브레이크는 사라짐 10% 만 그대로(K7-2) — 새 파일이 많으면 일감이 그만큼 선다(하루 상한은 hub openJob)
     const pre = docPrefix(src)
-    const files = []
-    for (const rel of [...scan.changes.added, ...scan.changes.changed]) files.push({ path: pre ? `${pre}/${rel}` : rel, data: await scan.readBuf(rel) })
-    const r = files.length ? await ingest(files) : { summary: {}, rows: [] }
-    const sm = r.summary || {}
-    const recs = (sm.record || 0) + (sm.run || 0), docs = sm.doc || 0, fails = sm.fail || 0
-    line(fails ? 'err' : 'ok', `기록 ${recs}${docs ? ' · 문서 ' + docs : ''}${sm.run ? ' · Claude Code 일 ' + sm.run : ''}${fails ? ' · 못 넣음 ' + fails : ''}${gone ? ` · 원본에서 지움 ${gone}(지식은 그대로)` : ''}`)
+    const c = tally()
+    const rows = []
+    const ledger = { ...L, v: 1, files: { ...(L.files || {}) }, out: {}, rules: JSON.stringify(src.rules) }
+    for (const rel of [...scan.changes.added, ...scan.changes.changed]) {
+      const name = pre ? `${pre}/${rel}` : rel
+      const r = await intakeOne(intake, { kind: 'file', rel: name, data: await scan.readBuf(rel) }, line, name)
+      c[r.state]++
+      rows.push({ name, kind: r.state, ...(r.why ? { msg: r.why } : {}), ...(r.recId ? { rec: r.recId } : {}), ...(r.job ? { job: r.job } : {}), ...(r.run ? { run: r.run } : {}) })
+      ledger.files[rel] = scan.files[rel]
+      await writeLedger(dataDir, k.id, src.name, ledger)
+    }
+    line(c.fail || c.held ? 'err' : 'ok', `${tallyText(c) || '그대로'}${gone ? ` · 원본에서 지움 ${gone}(지식은 그대로)` : ''}`)
     await onStage(3)
     await writeLedger(dataDir, k.id, src.name, { v: 1, files: scan.files, out: {}, rules: JSON.stringify(src.rules), recs: 1 })
     const real = full ? 0 : n
+    // recs · docs — 화면 「마지막으로 바뀐 것」 이 읽는 옛 칸(recs: 기록이 서거나 들이기에 넘긴 파일 · docs: 문서에 넣은 파일)
+    const recs = c.queued + c.held + c.record, docs = c.put
     const got = recs + docs > 0
-    const lastChange = got ? { at: now, files: real, recs, docs, tables: 0, removed: gone, added: full ? 0 : scan.changes.added.length, changed: full ? 0 : scan.changes.changed.length } : s0.lastChange
-    const note = got ? `${full ? '다시 맞춤: ' : ''}기록 ${recs}${docs ? ' · 문서 ' + docs : ''}${fails ? ' · 못 넣음 ' + fails : ''}` : full ? '다시 맞춤: 그대로' : n ? `바뀐 파일 ${n} · 기록은 그대로` : '그대로'
+    const lastChange = got ? { at: now, files: real, recs, docs, queued: c.queued, held: c.held, tables: 0, removed: gone, added: full ? 0 : scan.changes.added.length, changed: full ? 0 : scan.changes.changed.length } : s0.lastChange
+    const note = got ? `${full ? '다시 맞춤: ' : ''}${tallyText(c)}` : full ? '다시 맞춤: 그대로' : n ? `바뀐 파일 ${n} · 기록은 그대로` : '그대로'
     Object.assign(s0, { checkedAt: now, failures: 0, failingSince: null, stopped: null, lastChange, lastNote: note })
     await writeState(dataDir, k.id, st)
-    return { state: got ? 'changed' : 'same', n: recs + docs, files: n, docs, recs, runs: sm.run || 0, fails, removed: gone, rows: r.rows || [] }
+    return { state: got ? 'changed' : 'same', n: recs + docs, files: n, docs, recs, ...c, fails: c.fail, removed: gone, rows }
   } catch (e) {
     if (e?.cancelled) throw e // 그만두기(일 줄) — 못 가져옴으로 세지 않는다
     s0.failures = (s0.failures || 0) + 1
@@ -589,7 +615,7 @@ async function runDocs(k, src, { dataDir, first = false, force = false, full = f
 export const docPrefix = (src) => String(src.rules?.[0]?.into?.doc ?? src.name).replace(/^docs\/|\/+$/g, '').replace(/[<>:"|?*\\]/g, '').trim()
 
 // meaning — 뜻 갱신(소스 변경 → 기록)을 해도 되나(지식이 「Claude 에 보내지 않음」 이면 hub 가 false)
-async function runTables(k, src, { dataDir, save, first = false, force = false, full = false, pass = null, onProgress = null, meaning = true, onStage = async () => {}, line = () => {} }) {
+async function runTables(k, src, { dataDir, save, intake = null, first = false, force = false, full = false, pass = null, onProgress = null, meaning = true, onStage = async () => {}, line = () => {} }) {
   const st = await readState(dataDir, k.id)
   const s0 = (st[src.name] ||= {})
   const now = new Date().toISOString()
@@ -636,8 +662,9 @@ async function runTables(k, src, { dataDir, save, first = false, force = false, 
       const part = plan.changed.slice(i, i + 200)
       await save({ record: { title: `가져옴: ${src.name} · 바뀐 표 ${part.length}`, body: [`바뀐 파일 ${n}: ${[...scan.changes.added, ...scan.changes.changed, ...scan.changes.removed].slice(0, 20).join(' · ')}${n > 20 ? ' …' : ''}`, '', ...part.map((c) => `- ${c.doc.replace(/^docs\/|\.md$/g, '')} › ${c.heading}`)].join('\n'), tags: ['sources'] }, sections: part.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) })
     }
-    // 뜻 갱신 — 바뀐 코드 파일마다 기록 하나(이름이 걸리면 그 항목 정리로) · 처음 · 전체 다시 맞추기는 사본만 맞춘다
+    // 뜻 갱신 — 바뀐 코드 파일마다 intake 하나(팀은 들이기 일감 · 이 PC 는 기록) · 처음 · 전체 다시 맞추기는 사본만 맞춘다
     let codeRecords = 0
+    const ct = tally()
     if (src.meaning) {
       const code = (xs) => xs.filter(wantCode)
       const ch = { added: code(scan.changes.added), changed: code(scan.changes.changed), removed: code(scan.changes.removed) }
@@ -650,8 +677,9 @@ async function runTables(k, src, { dataDir, save, first = false, force = false, 
           if (!d.plus && !d.minus) continue
           const rec = codeRecord(k, src, rel, d, status)
           if (rel === todo[Math.min(todo.length, CODE_MAX) - 1][0] && todo.length > CODE_MAX) rec.body += `\n\n그 밖에 바뀐 코드 ${todo.length - CODE_MAX}: ${todo.slice(CODE_MAX).map((x) => x[0]).slice(0, 40).join(' · ')}`
-          await save({ record: rec })
-          codeRecords++
+          const r = intake ? await intakeOne(intake, { kind: 'commit', info: { sha: `${commit ? commit.slice(0, 7) + ':' : ''}${rel}`, subject: rec.title }, diffs: [], raw: rec }, line, rel) : (await save({ record: rec }), { state: 'record' })
+          ct[r.state]++
+          if (r.state !== 'fail' && r.state !== 'same') codeRecords++
         }
         if (folder) await syncSnap(dataDir, k.id, src.name, [...ch.added, ...ch.changed], scan.readBuf, ch.removed)
       } else if (folder) await syncSnap(dataDir, k.id, src.name, [...ch.added, ...ch.changed], scan.readBuf, ch.removed)
@@ -662,11 +690,11 @@ async function runTables(k, src, { dataDir, save, first = false, force = false, 
     // 전체 다시 맞추기는 모든 파일을 다시 읽어 「고침」 으로 세므로 바뀐 파일 수로 알리지 않는다 — 실제로 다른 표만 말한다
     const real = full ? 0 : n
     const lastChange = real || plan.changed.length ? { at: now, files: real, tables: plan.changed.length, added: full ? 0 : scan.changes.added.length, changed: full ? 0 : scan.changes.changed.length, removed: scan.changes.removed.length } : s0.lastChange
-    const note = (full ? (plan.changed.length ? `다시 맞춤: 바뀐 표 ${plan.changed.length}` : '다시 맞춤: 그대로') : plan.changed.length ? `바뀐 표 ${plan.changed.length}` : n ? `바뀐 파일 ${n} · 표는 그대로` : '그대로') + (codeRecords ? ` · 코드 바뀜 기록 ${codeRecords}: 정리가 항목 글을 맞춘다` : '')
+    const note = (full ? (plan.changed.length ? `다시 맞춤: 바뀐 표 ${plan.changed.length}` : '다시 맞춤: 그대로') : plan.changed.length ? `바뀐 표 ${plan.changed.length}` : n ? `바뀐 파일 ${n} · 표는 그대로` : '그대로') + (codeRecords ? ` · 코드 바뀜 ${codeRecords}: ${tallyText(ct)}` : '')
     Object.assign(s0, { sig: commit || null, asof, checkedAt: now, items: plan.items, failures: 0, failingSince: null, stopped: null, lastChange, lastNote: note })
     if (codeRecords) s0.lastCode = { at: now, n: codeRecords }
     await writeState(dataDir, k.id, st)
-    return { state: plan.changed.length || codeRecords ? 'changed' : 'same', n: plan.changed.length, files: n, codeRecords }
+    return { state: plan.changed.length || codeRecords ? 'changed' : 'same', n: plan.changed.length, files: n, codeRecords, ...(codeRecords ? ct : {}) }
   } catch (e) {
     if (e?.cancelled) throw e // 그만두기(일 줄) — 못 가져옴으로 세지 않는다
     s0.failures = (s0.failures || 0) + 1

@@ -280,6 +280,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const auth = await makeAuth({ dataDir, mode, scryptN: scryptN || hub.config.scryptN || null })
   hub.admins = () => auth.users().filter((u) => u.admin && !u.off && u.kind === 'person').map((u) => u.id)
   hub.people = () => auth.people()
+  // 들이기 일감의 자리(intakeCtx · S-D43) — 일감을 끝낼 때 그 사람을 명부에서 다시 읽는다(떠났으면 없음)
+  hub.userOf = (id) => auth.users().find((u) => u.id === id && u.kind === 'person') || null
   const mcp = makeMcp(hub)
   if (pcUser) await auth.ensurePc(pcUser)
   const teamLogin = makeTeamLogin({ dataDir })
@@ -380,7 +382,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const GET_OK = [
     /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|admin\/groups|claude\/state|busy|send\/teams)$/,
     /^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
-    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|tidy\/plan|sources|send|backup|backup\/lost|owner|access|worker\/material|guard)$/,
+    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|tidy\/plan|sources|send|backup|backup\/lost|owner|access|worker\/material|worker\/intake|guard)$/,
   ]
   const api = async (req, res, url, ctx, set) => {
     const p = url.pathname
@@ -434,6 +436,19 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (!ctx?.worker) throw new KmdError('E_FORBIDDEN', '정리 일꾼 열쇠로 부른다')
       if (p === '/api/worker/next') return out(200, hub.workerNext(ctx) || { job: null })
       return out(200, await hub.workerStatus(ctx, await readBody(req)))
+    }
+    // 들이기 일감(S7 · 설계 3-5) — 재료(GET) · 소식 · 끝 · 못 받음(POST · S-D54) · 열쇠의 지식 · 일감 꼴은 hub 가 본다
+    const wi = p.match(/^\/api\/k\/([^/]+)\/worker\/intake(?:\/(progress|done|fail))?$/)
+    if (wi) {
+      if (!ctx?.draft) throw new KmdError('E_FORBIDDEN', '이 일감의 열쇠로 부른다')
+      const kn = dec(wi[1])
+      if (!wi[2]) return out(200, await hub.intakeMaterial(ctx, kn))
+      if (req.method !== 'POST') throw new KmdError('E_METHOD', 'POST 로 보낸다')
+      const b = await readBody(req, wi[2] === 'done' ? 8 << 20 : undefined)
+      if (!b || typeof b !== 'object' || Array.isArray(b)) throw new KmdError('E_INPUT', '몸은 { … } 이다')
+      if (wi[2] === 'progress') return out(200, hub.intakeProgress(ctx, kn, b))
+      if (wi[2] === 'done') return out(200, await hub.intakeDone(ctx, kn, { draft: b.draft, cost: b.cost }))
+      return out(200, await hub.intakeFail(ctx, kn, { why: b.why, code: b.code }))
     }
     const wk = p.match(/^\/api\/k\/([^/]+)\/worker\/(material|drafts|progress|agent|agent\/log|agent\/done)$/)
     if (wk) {

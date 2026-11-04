@@ -3603,7 +3603,7 @@ async function agentCopy(id, area) {
   render()
 }
 // 일마다 Claude 모델 — 이 PC 만(core/models.js) · 옮겨 적기 · 고르기는 가벼운 모델 · 판단은 큰 모델
-const MODEL_T = [['convert', 'pdf · hwp 를 글로', '글이 없는 pdf · 표가 깨진 hwp 만: 옮겨 적기'], ['read', '넣은 파일의 기록 정리', '무엇 · 핵심 · 정한 것 · 남은 것'], ['touch', '기록의 이름 고르기', '후보 안에서 고른다'], ['tidy', '항목 글 초안', '기록을 항목에 넣어 다시 쓴다'], ['commit', '코드 바뀜 분석', '묶음 차이를 읽는다'], ['agent', '지식에 들이기(에이전트)', '둘러보고 자리 · 이름을 정한다']]
+const MODEL_T = [['convert', 'pdf · hwp 를 글로', '글이 없는 pdf · 표가 깨진 hwp 만: 옮겨 적기'], ['read', '넣은 파일의 기록 정리', '무엇 · 핵심 · 정한 것 · 남은 것'], ['touch', '기록의 이름 고르기', '후보 안에서 고른다'], ['ingest', '들이기 초안', '넣은 파일 · 기록을 항목에 넣어 다시 쓴다'], ['commit', '코드 바뀜 분석', '묶음 차이를 읽는다'], ['agent', '지식에 들이기(에이전트)', '둘러보고 자리 · 이름을 정한다']]
 function modelCard(st) {
   if (isTeam() || !st.models) return ''
   const opt = [['haiku', 'Haiku: 빠르고 싸다'], ['sonnet', 'Sonnet'], ['opus', 'Opus'], ['', '기본: Claude Code 의 모델']]

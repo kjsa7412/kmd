@@ -174,6 +174,8 @@ export function checkIngest(k, g, d) {
   const ups = Array.isArray(d.updates) ? d.updates : null
   const nd = d.newDoc && typeof d.newDoc === 'object' ? d.newDoc : null
   if (!ups || (nd && !Array.isArray(nd.sections))) return { ok: false, why: '초안 모양이 아니다' }
+  // 새 문서는 ## 항목으로만 세운다(K14-1 · S-D31) — 항목이 없는 새 문서는 좌표가 서지 않는다
+  if (nd && !nd.sections.length) return { ok: false, why: '새 문서는 ## 항목으로 세운다' }
   if (!ups.length && !nd?.sections?.length) return { ok: false, why: '넣을 곳을 고르지 않았다' }
   const outs = []
   const olds = []

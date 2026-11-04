@@ -62,7 +62,7 @@ export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_
         clearInterval(tick)
         if (buf) line(buf)
         // 시간이 넘어 끊었다(종료 143 · SIGTERM) — 「종료 143」 만으로는 무엇인지 모른다
-        resolve(late ? { code, so: '', se: `시간이 넘었다(${Math.round(timeoutMs / 60_000)}분): 글이 길면 다음 정리 때 다시` } : { code, so, se })
+        resolve(late ? { code, so: '', se: `시간이 넘었다(${Math.round(timeoutMs / 60_000)}분): 글이 길면 나눠 넣거나 다시 시도한다` } : { code, so, se })
       })
       p.stdin.end(prompt)
     })
