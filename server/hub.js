@@ -1665,7 +1665,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!curator && w.author !== ctx.user) {
         const authors = new Set((w.reflects || []).map((x) => k.byWork.get(x)?.author).filter(Boolean))
         if (!authors.has(ctx.user)) throw new KmdError('E_FORBIDDEN', '남의 기록은 그 지식의 지식관리자가 되돌린다')
-        if ([...authors].some((a) => a !== ctx.user)) throw new KmdError('E_FORBIDDEN', '이 정리에는 다른 사람의 기록도 들어 있다. 지식관리자에게 되돌려 달라고 한다')
+        if ([...authors].some((a) => a !== ctx.user)) throw new KmdError('E_FORBIDDEN', '이 일에는 다른 사람의 기록도 들어 있다. 지식관리자에게 되돌려 달라고 한다')
       }
       const whole = !doc && !heading
       if (whole && k.reverted?.has(record)) throw new KmdError('E_CONFLICT', '이미 되돌렸다')
@@ -2788,7 +2788,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     //   어느 쪽이든 그 기록은 「넣음」(reflects) · 넣은 일은 이력에 · 지식마다 한 줄로(저장은 바로 돌려주고 뒤에서)
     // role — 그 일의 모델(core/models.js · 설정 › Claude 모델)
     async askClaude(id, prompt, schema, { budget = 0.5, timeoutMs, role = 'ingest' } = {}) {
-      if (mode !== 'pc') return { why: '팀 서버는 이 길로 Claude 를 부르지 않는다(정리 일꾼이 한다)' }
+      if (mode !== 'pc') return { why: '팀 서버는 이 길로 Claude 를 부르지 않는다(팀 일꾼이 한다)' }
       if (!hub.meaningOk(id)) return { why: 'Claude 를 쓰지 않는다' }
       const r = await runClaude({ prompt, schema, budget, model: hub.modelOf(role), ...(timeoutMs ? { timeoutMs } : {}) })
       if (r.error) {
@@ -3314,7 +3314,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         await hub.ingestAgent(id, recId, run, { original: data && PCONLY.includes(rel.split('.').pop().toLowerCase()) ? data : null })
       } catch (e) {
         run.state = e?.cancelled ? 'cancel' : 'fail'
-        run.msg = e?.cancelled ? `그만뒀다. 「${STAGES[STAGE_PUT]}」 에서 · 기록은 남았다(정리 때 다시 넣는다)` : e.message
+        run.msg = e?.cancelled ? `그만뒀다. 「${STAGES[STAGE_PUT]}」 에서 · 기록은 남았다(kmd 가 곧 문서에 넣는다)` : e.message
         hub.runLine(run, e?.cancelled ? 'sys' : 'err', run.msg)
       } finally {
         hub.ingestEnd(id, run, recId, meta)
@@ -3334,7 +3334,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const k = await hub.get(id)
       const w = k.byWork.get(recId)
       if (!w || (w.state !== 'pend' && w.state !== 'nowhere') || w.touches.length) return { why: '들일 기록이 없다' }
-      if (w.tags.includes('code-change')) return { why: '코드 바뀜은 기록으로 둔다. 걸린 항목 글은 정리가 맞춘다' }
+      if (w.tags.includes('code-change')) return { why: '코드 바뀜은 기록으로 둔다' }
       const tag = w.tags.find((t) => t.startsWith('ingest/'))
       const file = tag ? tag.slice(7) : `${w.title.split(/ — |: /)[0].replace(/[\\/<>:"|?*\u0000-\u001f]/g, '').trim() || '메모'}.md`
       // 갈래 장부도 같이(material 과 같은 묶음) — 없으면 Claude 가 파일 이름으로 새 문서를 세우고 가드(「회의록-1021」 은 「회의록」 갈래다)에 걸려 늘 규칙 길로 갔다
@@ -3451,7 +3451,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         curateQ.delete(id)
         // 넣은 것이 없으면(다른 일이 맡은 기록뿐) 줄에 남기지 않는다
         if (cj && !n && !stop) Q.drop(cj)
-        else if (cj) Q.end(cj, stop ? 'cancel' : 'done', stop ? '그만뒀다. 남은 기록은 다음 정리 때 넣는다' : `넣은 기록 ${n}`)
+        else if (cj) Q.end(cj, stop ? 'cancel' : 'done', stop ? '그만뒀다. 남은 기록은 kmd 가 곧 문서에 넣는다' : `넣은 기록 ${n}`)
       }
       if (n) {
         const meta = await hub.meta(id)

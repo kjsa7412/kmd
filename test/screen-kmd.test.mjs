@@ -268,6 +268,9 @@ test('정리를 걷었다(S13): 조각 없는 기록은 메모 · 옛 정리 화
   await mg(page, 'team', 'gen')
   await page.waitForSelector('[data-t=knTable]')
   assert.equal(await page.locator('[data-t=tidyTable]').count(), 0)
+  assert.equal(await page.locator('[data-t=knTable] button .chip').count(), 0, '칩을 단추로 쓰지 않는다(컨벤션 5절)')
+  // 걷은 정리 말이 서버가 화면에 보내는 글에 남지 않는다(컨벤션 9절)
+  assert.doesNotMatch(fs.readFileSync(new URL('../server/hub.js', import.meta.url), 'utf8'), /정리 일꾼이 한다|정리 때 다시 넣는다|이 정리에는|정리가 맞춘다|다음 정리 때 넣는다/)
   const sw = '[data-t=knRow][data-name="DPMS 지식"] [data-t=noClaudeSw]'
   assert.equal(await page.locator(sw).getAttribute('aria-checked'), 'false')
   await page.click(sw)
