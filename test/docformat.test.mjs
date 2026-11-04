@@ -146,7 +146,7 @@ test('저장: 새 꼴로 쓰고 옛 경과를 잃지 않는다 · base 는 본�
   assert.ok(!v.sections[0].html.includes('kmd:참고'))
   assert.ok(!v.sections[0].html.includes('옛 기록'))
   assert.ok(!v.sections[0].html.includes('srcrefs'))
-  assert.equal(typeof v.sections[0].pendN, 'number')
+  assert.equal(typeof v.sections[0].heldN, 'number')
   assert.equal(v.refs.n, 2)
 })
 

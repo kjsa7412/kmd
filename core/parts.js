@@ -133,6 +133,42 @@ export function dropPart(body, name) {
   return (s.slice(0, at) + s.slice(end)).replace(/\s+$/, '')
 }
 
+// 버림(S10 · S-D25) — 지식관리자가 넣지 않기로 한 넣지 못함 · 개편 전 기록의 결정 기록(태그 drop · log/ · 이력 「버림」 · 원 기록은 kept)
+export function dropRecord(w, reason) {
+  const short = String(w.title || w.id).split(/ — |: /)[0].slice(0, 160)
+  return {
+    title: `버림: ${short}`,
+    body: `- ${w.id}: ${reason}`,
+    tags: ['drop'],
+    curates: [{ id: w.id, verdict: 'keep', rule: 'drop', reason }],
+  }
+}
+
+// 세울 이름 · 세울 갈래(S-D51 · 저장 문이 기록 본문 끝에 싣는 칸 · hub saveIn 의 꼴) → { names:[{ coord, label, doc?, heading?, aliases? }], forms:[…] }
+//   [이름 세우기] 가 읽는다 — 부르는 쪽이 넣지 못함 칸(code names)이 있는 기록에만 쓴다(사람 글의 같은 머리로 장부가 늘지 않게)
+export function namesOfRecord(body) {
+  const names = []
+  for (const l of (lineBlock(body, '세울 이름') || '').split('\n')) {
+    const m = l.match(/^- (.+?) \(([^()\s:]+:[^()\n]+?)\)(?: → (.+?)(?: › (.+?))?)?(?: · 다른 이름 (.+))?\s*$/)
+    if (m) names.push({ coord: m[2], label: m[1], ...(m[3] ? { doc: m[3] } : {}), ...(m[4] ? { heading: m[4] } : {}), ...(m[5] ? { aliases: m[5].split(', ').filter(Boolean) } : {}) })
+  }
+  const forms = []
+  for (const l of (lineBlock(body, '세울 갈래') || '').split('\n')) {
+    if (!l.startsWith('- ')) continue
+    const [name, ...rest] = l.slice(2).trim().split(' · ')
+    if (!name) continue
+    const f = { name }
+    for (const x of rest) {
+      if (x.startsWith('다른 이름 ')) f.aliases = x.slice(6).split(', ').filter(Boolean)
+      else if (x.startsWith('폴더 ')) f.folder = x.slice(3)
+      else if (x.startsWith('이름 ')) f.pattern = x.slice(3)
+      else f.kind = x
+    }
+    forms.push(f)
+  }
+  return { names, forms }
+}
+
 export function decisionRecord(curates) {
   return {
     title: `정리: 알아서 한 것 ${curates.length}`,

@@ -150,16 +150,17 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.deepEqual(await page.locator('[data-t=docPane] h2[data-sec]').evaluateAll((els) => els.map((e) => e.dataset.sec)), ['준비', '카나리', '헬스 체크', '롤백', '꾸러미 판'])
   assert.deepEqual(await page.locator('.aside .ap > h4').evaluateAll((els) => els.map((e) => e.firstChild.textContent.trim())), ['개요', '넣은 기록', '연결', '속성'])
   assert.equal(await page.locator('[data-t=olRow]').count(), 5)
-  // 아직 안 넣은 기록은 본문 사이에 상자로 끼우지 않는다 — 롤백 머리 오른쪽 「반영 대기 1」 칩 · 누르면 그 머리 바로 아래 참고 칸(작성기준 1절)
+  // 넣지 못한 기록은 본문 사이에 상자로 끼우지 않는다 — 롤백 머리 오른쪽 「넣지 못함 1」 칩(개편 전 기록 · 지식관리자) · 누르면 그 머리 바로 아래 참고 칸(작성기준 1절 · S10)
   assert.equal(await page.locator('[data-t=penrec]').count(), 0)
-  assert.equal(await page.locator('[data-t=pendChip]').count(), 1)
-  assert.equal(await page.locator('.hrow:has(h2[data-sec="롤백"]) [data-t=pendChip]').innerText(), '반영 대기 1')
-  await page.click('.hrow:has(h2[data-sec="롤백"]) [data-t=pendChip]')
-  await page.waitForSelector('[data-t=pendPanel] [data-t=pendRow]')
-  assert.equal(await page.locator('[data-t=pendPanel] [data-t=pendRow]').count(), 1)
-  assert.equal(await page.locator('.hrow:has(h2[data-sec="롤백"]) [data-t=pendChip]').getAttribute('aria-expanded'), 'true')
-  await page.click('.hrow:has(h2[data-sec="롤백"]) [data-t=pendChip]')
-  assert.equal(await page.locator('[data-t=pendPanel]').count(), 0, '다시 누르면 접힌다')
+  assert.equal(await page.locator('[data-t=heldChip]').count(), 1)
+  assert.equal(await page.locator('.hrow:has(h2[data-sec="롤백"]) [data-t=heldChip]').innerText(), '넣지 못함 1')
+  await page.click('.hrow:has(h2[data-sec="롤백"]) [data-t=heldChip]')
+  await page.waitForSelector('[data-t=heldPanel] [data-t=heldRow2]')
+  assert.equal(await page.locator('[data-t=heldPanel] [data-t=heldRow2]').count(), 1)
+  assert.match(await page.locator('[data-t=heldPanel] [data-t=heldRow2]').innerText(), /개편 전 기록/)
+  assert.equal(await page.locator('.hrow:has(h2[data-sec="롤백"]) [data-t=heldChip]').getAttribute('aria-expanded'), 'true')
+  await page.click('.hrow:has(h2[data-sec="롤백"]) [data-t=heldChip]')
+  assert.equal(await page.locator('[data-t=heldPanel]').count(), 0, '다시 누르면 접힌다')
   assert.equal(await page.locator('[data-t=docRefs]').count(), 1, '오른쪽 칸 「참고」')
   assert.ok((await page.locator('.btn.pri:visible').count()) <= 1, '주 단추는 하나까지')
   assert.deepEqual(await bannedIn(page), [])
@@ -174,7 +175,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   await page.click('[data-t=closeSplit]')
   await page.click('[data-t=rec][data-state=pend]')
   await page.waitForSelector('[data-t=recPane]')
-  assert.equal(await page.locator('[data-t=recState]').innerText(), '반영 대기')
+  assert.equal(await page.locator('[data-t=recState]').innerText(), '개편 전 기록')
   assert.equal(await page.locator('[data-t=recItem]').count(), 1)
 
   // 글 속 항목 이름 → 항목 링크 · 마우스를 올리면 미리보기 카드
@@ -186,10 +187,10 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   // 항목으로 보기(M6) — 종류별 목록 · 항목 한 화면 · 옆 칸
   await page.click('[data-t=rb-items]')
   await page.waitForSelector('[data-t=itemList] [data-t=itemRow]')
-  assert.deepEqual(await page.locator('.fcs .fc').allInnerTexts(), ['반영 대기', '최근 바뀐 것', '내가 쓴 것'])
+  assert.deepEqual(await page.locator('.fcs .fc').allInnerTexts(), ['넣지 못함', '최근 바뀐 것', '내가 쓴 것'])
   await page.click('[data-t=itemRow][data-name="헬스 체크"]')
   await page.waitForSelector('[data-t=itemPage]')
-  assert.deepEqual(await page.locator('[data-t=itemPage] .isec > h3').evaluateAll((els) => els.map((e) => e.firstChild.textContent.trim())), ['지금', '반영 대기', '지난 기록', '이 항목을 쓰는 곳', '다른 이름'])
+  assert.deepEqual(await page.locator('[data-t=itemPage] .isec > h3').evaluateAll((els) => els.map((e) => e.firstChild.textContent.trim())), ['지금', '넣지 못함', '지난 기록', '이 항목을 쓰는 곳', '다른 이름'])
   assert.ok((await page.locator('[data-t=itemHistRow]').count()) >= 5)
   assert.ok((await page.locator('[data-t=coItem]').count()) >= 1)
   // 항목 이름 = 값 + 설명(컨벤션 5절) — 항목 머리 첫 줄에 값 · 목록 줄에 값 · 항목 찾기는 값으로도
@@ -561,7 +562,7 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 정리 �
   await mg(page, 'team', 'gen')
   assert.equal(await page.locator('[data-t=mgNav] .mgt').innerText(), '설정')
   assert.equal(await page.locator('[data-t=setTitle]').innerText(), '일반')
-  assert.deepEqual(await mgItems(page), ['가져오기', '정리', '일반', '사람', 'Claude 연결', '에이전트 설치', '관리'])
+  assert.deepEqual(await mgItems(page), ['가져오기', '정리', '넣지 못함', '일반', '사람', 'Claude 연결', '에이전트 설치', '관리'])
   await page.waitForSelector('[data-t=auto-find]')
   assert.match(await page.locator('.main .card .ch').first().innerText(), /이 팀 서버/)
   await page.click('[data-t=sw-find]')
@@ -904,7 +905,7 @@ test('개인 화면: 지식 보내기 · 받는 팀 지식 고르기 · 지식 �
   }
 })
 
-test('팀 화면: 팀 지식만 — 지식 목록 · 이력 · 설정 · 정리 · 1280 · 1024 · 600 · 375 에서 잘린 요소 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('팀 화면: 팀 지식만 — 지식 목록 · 이력 · 설정 · 정리 · 넣지 못함 · 1280 · 1024 · 600 · 375 에서 잘린 요소 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   const page = await browser.newPage({ viewport: VIEW })
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
@@ -917,7 +918,7 @@ test('팀 화면: 팀 지식만 — 지식 목록 · 이력 · 설정 · 정리 
     // 개인 프로그램을 부르지 않는다 — 팀 화면의 요청은 팀 서버로만
     const asked = []
     page.on('request', (r) => { if (!r.url().startsWith(s.url)) asked.push(r.url()) })
-    const screens = [['home', null], ['history', async () => hist(page)], ['settings', async () => mg(page, 'team', 'gen')], ['tidy', async () => mg(page, 'team', 'tidy')]]
+    const screens = [['home', null], ['history', async () => hist(page)], ['settings', async () => mg(page, 'team', 'gen')], ['tidy', async () => mg(page, 'team', 'tidy')], ['held', async () => mg(page, 'team', 'held')]]
     for (const [name, open] of screens) {
       await page.setViewportSize(VIEW)
       if (open) await open(); else { await page.goto(s.url + '/'); await page.waitForSelector('[data-t=klist]') }
@@ -1166,4 +1167,92 @@ test('고치기(S9): 쓰기 자리 편집기는 말 하나 · 읽은 뒤 바뀌�
     assert.deepEqual(await bannedIn(page), [])
     assert.deepEqual(errors, [])
   } finally { await page.close() }
+})
+
+test('넣지 못함(S10): 쓰기 자리는 내 것만 · 까닭 · [고치기] 는 기록 고치기 창 · 지식관리자는 개편 전 기록 띠 · 넣을 곳 고르기 · [버리기] 는 ask · 네 폭 잘림 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+  const wr = await signIn(s, { id: 'test-held', admin: false })
+  await seat(s, 'test-held', { dpms: 'write' })
+  // 쓰기 자리 저장 — 기록에 없는 값을 항목에 넣으려 했다 → 기록만 + 넣지 못함
+  const k = await s.hub.get('dpms')
+  const body = sectionOf(k, 'proc:준비').sec.body
+  const line = body.split('\n').find((l) => l.trim())
+  const r = await s.hub.save({ user: 'test-held' }, 'dpms', { record: { title: '준비: 테스트 넣지 못함', body: '## 바뀐 것\n- 준비: 문장을 다듬었다', touches: ['proc:준비'] }, sections: [{ coord: 'proc:준비', base: sha16(body), edits: [{ find: line, replace: line + ' 테스트 9876초 기다린다.' }] }] }, { channel: 'session' })
+  s.hub.forget?.('dpms')
+  assert.equal((await s.hub.get('dpms')).byWork.get(r.id).state, 'held', JSON.stringify(r))
+  const login = async (page, u) => {
+    await page.goto(s.url)
+    await page.fill('#lgId', u.id)
+    await page.fill('#lgPw', u.pw)
+    await page.click('[data-t=loginBtn]')
+    await page.waitForSelector('[data-t=klist] [data-t=krow]')
+  }
+  const widths = async (page, name) => {
+    for (const w of [1280, 1024, 600, 375]) {
+      await page.setViewportSize({ width: w, height: 820 })
+      await page.waitForTimeout(300)
+      const c = await cutAt(page)
+      assert.deepEqual(c.cut, [], `${name} ${w}: 잘린 요소 없음`)
+      assert.ok(c.sw <= c.w, `${name} ${w}: 가로 넘침 없음 ${c.sw}`)
+      await page.screenshot({ path: path.join(SHOTS, `app-team-${name}-${w}.png`) })
+    }
+    await page.setViewportSize(VIEW)
+  }
+  const page = await browser.newPage({ viewport: VIEW })
+  const errors = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  try {
+    // 쓰기 자리 — 지식 카드 칩 · 넣지 못함 화면은 내 것만
+    await login(page, wr)
+    assert.equal(await page.locator('[data-t=krow][data-name="DPMS 지식"] [data-t=knHeld]').innerText(), '넣지 못함 1')
+    await page.click('[data-t=krow][data-name="DPMS 지식"] [data-t=knHeldGo]')
+    await page.waitForSelector('[data-t=heldList] [data-t=heldRow]')
+    assert.match(await page.locator('.hdy .big').innerText(), /^넣지 못함: DPMS 지식/)
+    assert.deepEqual(await page.locator('[data-t=heldRow]').evaluateAll((els) => els.map((e) => e.dataset.rec)), [r.id])
+    assert.match(await page.locator('[data-t=heldWhy]').first().innerText(), /값이 맞지 않음/)
+    assert.match(await page.locator('[data-t=hdSum]').innerText(), /1 넣지 못함[\s\S]*오늘 넣음[\s\S]*메모[\s\S]*내 것만 보인다/)
+    assert.equal(await page.locator('[data-t=hdLegacy]').count(), 0, '개편 전 기록 띠는 지식관리자만')
+    await page.click('[data-t=heldRow] .kebab')
+    assert.equal(await page.locator('[data-t=heldDrop]').count(), 0, '버리기는 지식관리자만')
+    await page.keyboard.press('Escape')
+    await widths(page, 'held-write')
+    // [고치기] — 값 까닭은 기록 고치기 창
+    await page.click('[data-t=heldFix]')
+    await page.waitForSelector('[data-t=recFixWin]')
+    await page.keyboard.press('Escape')
+    assert.equal(await page.locator('[data-t=recFixWin]').count(), 0)
+    assert.deepEqual(await bannedIn(page), [])
+    await page.close()
+
+    // 지식관리자 — 모두(개편 전 기록 포함) · 띠 · 넣을 곳 고르기 · 버리기
+    const pg = await browser.newPage({ viewport: VIEW })
+    pg.on('pageerror', (e) => errors.push(e.message))
+    try {
+      await login(pg, me)
+      await mg(pg, 'team', 'held')
+      if (await pg.locator('[data-t=hdKnSel]').count()) await pg.selectOption('[data-t=hdKnSel]', 'dpms')
+      await pg.waitForSelector('[data-t=heldList] [data-t=heldRow]')
+      assert.match(await pg.locator('[data-t=hdLegacy]').innerText(), /개편 전 기록 \d+[\s\S]*옛 기록 다시 들이기/)
+      assert.equal(await pg.locator(`[data-t=heldRow][data-rec="${r.id}"]`).count(), 1)
+      assert.ok((await pg.locator('[data-t=heldRow][data-legacy="1"]').count()) >= 1)
+      await widths(pg, 'held')
+      // 넣을 곳 고르기(개편 전 기록) — 창 · Esc
+      await pg.locator('[data-t=heldRow][data-legacy="1"] [data-t=heldFix]').first().click()
+      await pg.waitForSelector('[data-t=heldPickWin]')
+      assert.equal(await pg.locator('[data-t=heldPickWin]').getAttribute('role'), 'dialog')
+      await widths(pg, 'held-pick')
+      await pg.keyboard.press('Escape')
+      assert.equal(await pg.locator('[data-t=heldPickWin]').count(), 0)
+      // 버리기 — ask 창 → 목록에서 빠진다 · 원 기록은 kept
+      await pg.click(`[data-t=heldRow][data-rec="${r.id}"] .kebab`)
+      await pg.click('[data-t=heldDrop]')
+      await pg.waitForSelector('[data-t=askWin]')
+      assert.match(await pg.locator('[data-t=askText]').innerText(), /문서에 넣지 않는다\. 기록은 남는다/)
+      await pg.click('[data-t=askOk]')
+      await pg.waitForSelector(`[data-t=heldRow][data-rec="${r.id}"]`, { state: 'detached' })
+      s.hub.forget?.('dpms')
+      assert.equal((await s.hub.get('dpms')).byWork.get(r.id).state, 'kept')
+      assert.deepEqual(await bannedIn(pg), [])
+    } finally { await pg.close() }
+    assert.deepEqual(errors, [])
+  } finally { if (!page.isClosed()) await page.close() }
 })

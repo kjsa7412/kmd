@@ -94,8 +94,8 @@ function need(key, path) {
   return null
 }
 const treeOf = (k) => need('tree:' + k, `/api/k/${encodeURIComponent(k)}/tree`)
-// 기록은 최근 200 개씩(서버 Q71) — { total, more, next } · 첫 쪽에는 그보다 옛 반영 대기 · 넣을 곳 찾는 중이 덧붙어 다음 쪽과 겹칠 수 있다 → id 로 거른다.
-//   받은 것 · 반영 대기(myPend · 정리)는 첫 쪽만으로 맞다. 남은 수는 total - 받은 수
+// 기록은 최근 200 개씩(서버 Q71) — { total, more, next } · 첫 쪽에는 그보다 옛 안 넣은 기록 · 넣지 못함이 덧붙어 다음 쪽과 겹칠 수 있다 → id 로 거른다.
+//   받은 것 · 넣지 못함(myHeld · 정리)은 첫 쪽만으로 맞다. 남은 수는 total - 받은 수
 const recLeft = (tr) => (tr && tr.total != null ? Math.max(0, tr.total - (tr.records || []).length) : 0)
 const recOrd = (a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id))
 async function treeMore(k) {
@@ -117,8 +117,16 @@ const docEdOf = (k, d) => need(`doc:${k}:${d}:ed`, `/api/k/${encodeURIComponent(
 const recOf = (k, r) => need(`rec:${k}:${r}`, `/api/k/${encodeURIComponent(k)}/rec?r=${encodeURIComponent(r)}`)
 // 읽는 중 — 빙빙이 + 글(컨벤션 10절)
 const loadingHtml = '<p class="loading" data-t="loading">읽는 중…</p>'
-// 아직 안 넣은 기록이 언제 문서에 — 팀 지식은 정리 때 · 개인 지식은 kmd 가 곧바로
-const pendWhen = (k) => (KN(k) && KN(k).pendText) || (isTeam() && KN(k) && !isPersonal(KN(k)) ? '정리 때 문서에 들어간다' : 'kmd 가 곧바로 문서에 넣는다')
+// 넣지 못함(S10 · 설계 4-8) — 저장 검사를 넘지 못해 기록만 남은 것(held) · 팀은 개편 전 기록(옛 pend · nowhere 사람 기록)도
+//   서버가 센 수(knowledge 줄의 held · heldMine · 넣지 못함 화면)를 쓰고, 나무 · 항목의 점은 받은 기록의 상태로 그린다
+const teamKn = (k) => isTeam() && KN(k) && !isPersonal(KN(k))
+const heldR = (k, r) => r.state === 'held' || (teamKn(k) && (r.state === 'pend' || r.state === 'nowhere') && r.author !== 'kmd' && r.author !== 'kmd-auto')
+// 아직 안 넣은 기록(개인 지식 · 개편 전 팀 기록) — 개인은 kmd 가 곧바로 넣는다
+const pendWhen = (k) => (teamKn(k) ? '개편 전 기록: 넣지 못함 화면에서 다시 들인다' : 'kmd 가 곧바로 문서에 넣는다')
+// 넣지 못함 까닭(code → 말 · 컨벤션 9절)
+const HELD_CODE = { values: '값이 맞지 않음', names: '세울 이름', 'legacy-mix': '섞인 자리', format: '문서 꼴', conflict: '그사이 바뀜', notfound: '넣을 곳 없음', nosec: '넣을 곳 없음', watched: '원본이 주인', machine: '저절로 채우는 표', reverts: '되돌린 값', edits: '조각이 맞지 않음', seat: '자리 잃음', noclaude: 'Claude 에 보내지 않음', worker: '팀 일꾼이 받지 않음', claude: '팀 일꾼이 짓지 못함', 'legacy-send': '개편 전 보내기', legacy: '개편 전 기록', held: '넣지 못함' }
+// 넣을 곳을 고르면 되는 까닭(S-D42) — [고치기] 가 넣을 곳 고르기 창을 연다(그 밖은 기록 고치기 창)
+const HELD_PICK = new Set(['notfound', 'nosec', 'legacy'])
 // 오류 — 무엇이 · 왜 + 「다시 읽기」(그 받은 값을 지우고 다시 받는다). key 를 모르면(v.key 도 없으면) 단추 없이
 const keyOf = (v) => (v && typeof v === 'object' ? Object.keys(S.cache).find((x) => S.cache[x] === v) : null)
 // 화면 읽기 프로그램에 오류를 알린다 — 그린 칸에는 role=alert 를 달지 않는다(3초마다 다시 그리면 같은 오류를 되풀이해 읽는다).
@@ -177,6 +185,7 @@ function go(r) {
   const prevKn = S.route.kn
   S.route = Object.assign({ scr: 'home', kn: S.route.kn }, r)
   S.menu = null
+  if (S.route.scr !== 'held') S.hdPick = null
   if (S.route.scr !== 'tidy') S.tdJobId = null // 「지금 하는 일」 에서 고른 정리 일감은 정리 화면을 떠나면 푼다
   if (S._flashSel && S.route.scr !== (S._flashSel === 'imp' ? 'import' : 'tidy')) S._flashSel = null
   if (S.route.scr === 'import') { dropSrcs(); setTimeout(pollRuns, 0) }
@@ -494,16 +503,16 @@ function placePop() {
   p.style.top = Math.max(8, y) + 'px'
 }
 function viewOf(s) {
-  if (!isTeam() && (s === 'tidy' || s === 'members' || s === 'admin')) s = 'home' // 팀의 일 — 개인 화면에는 없다
+  if (!isTeam() && (s === 'tidy' || s === 'held' || s === 'members' || s === 'admin')) s = 'home' // 팀의 일 — 개인 화면에는 없다
   if (isTeam() && s === 'send') s = 'home' // 지식 보내기는 개인 화면에서만
   if (!isTeam() && s === 'install') s = 'home' // 개인 프로그램 설치는 팀 화면의 자리
-  const f0 = { home: viewHome, docs: viewDocsV, items: viewItems, graph: viewGraph, today: viewToday, log: viewToday, tidy: viewTidy, members: viewMembers, import: viewImport, install: viewInstall, add: viewHome, send: viewSend, settings: viewSettings, admin: viewAdmin }[s]
+  const f0 = { home: viewHome, docs: viewDocsV, items: viewItems, graph: viewGraph, today: viewToday, log: viewToday, tidy: viewTidy, held: viewHeld, members: viewMembers, import: viewImport, install: viewInstall, add: viewHome, send: viewSend, settings: viewSettings, admin: viewAdmin }[s]
   const v = f0 ? f0() : viewLater(s)
   return MGSCR.includes(s) && !gated() ? mgWrap(s, v) : v
 }
 // 지식 관리 화면들(설정 · 팀 / 설정 · 개인 안) — 왼쪽에 그 영역의 메뉴를 세우고 오른쪽에 고른 화면
 //   이력은 설정 밖(옆 메뉴 지식 관리 › 이력) · 팀 + 개인을 한 화면에
-const MGSCR = ['import', 'tidy', 'send', 'settings', 'members', 'admin']
+const MGSCR = ['import', 'tidy', 'held', 'send', 'settings', 'members', 'admin']
 const HISTSCR = ['today', 'log']
 function mgItems() {
   const adm = !!(S.me && S.me.admin) || anyAdm()
@@ -511,7 +520,8 @@ function mgItems() {
   if (!isTeam()) return [['import', '', '가져오기'], ['send', '', '지식 보내기'], set('gen', '일반'), set('claude', 'Claude 연결'), set('agent', '에이전트 설치')]
   // 가져오기 — 쓰기 자리가 있는 팀 지식이 하나라도 있으면(파일 넣기 · S-D34) · 가져올 곳 탭과 더하기는 지식관리자
   const imp = adm || (S.kns || []).some((x) => !isPersonal(x) && !x.hidden && lvOf(x) && lvOf(x) !== 'read')
-  return [...(imp ? [['import', '', '가져오기']] : []), ['tidy', '', '정리'], set('gen', '일반'), set('people', '사람'), set('claude', 'Claude 연결'), set('agent', '에이전트 설치'), ...(adm ? [set('admin', '관리')] : [])]
+  //   넣지 못함(S10) — 쓰기 자리부터(내 것) · 지식관리자는 모두 · 옛 정리 메뉴는 S13 에 걷는다
+  return [...(imp ? [['import', '', '가져오기']] : []), ['tidy', '', '정리'], ...(imp ? [['held', '', '넣지 못함']] : []), set('gen', '일반'), set('people', '사람'), set('claude', 'Claude 연결'), set('agent', '에이전트 설치'), ...(adm ? [set('admin', '관리')] : [])]
 }
 function mgWrap(scr, v) {
   const area = setArea(), items = mgItems()
@@ -651,7 +661,8 @@ const shownKns = () => S.kns.filter((x) => !x.hidden)
 const knRoot = () => (isTeam() ? (S.me.admin ? S.me.root || '' : '') : pcRoot())
 function kcardHtml(n, team) {
   const tag = team ? '<span class="kt team">팀</span>' : ''
-  const chips = team && (n.level || (n.role && n.role !== '기록')) ? `${lvChip(n)}${lvOf(n) === 'admin' && n.pend ? `<span class="chip c-pend">반영 대기 ${n.pend}</span>` : ''}` : n.sendN ? `<span class="chip c-pend">보내지 않은 기록 ${n.sendN}</span>` : ''
+  const hn = lvOf(n) === 'admin' ? n.held || 0 : n.heldMine || 0
+  const chips = team && (n.level || (n.role && n.role !== '기록')) ? `${lvChip(n)}${hn ? `<span class="chip c-warn" data-t="knHeld">넣지 못함 ${hn}</span><button type="button" class="lk small" data-a="openHeld" data-k="${esc(n.id)}" data-t="knHeldGo">보기</button>` : ''}` : n.sendN ? `<span class="chip c-pend">보내지 않은 기록 ${n.sendN}</span>` : ''
   const mk = 'kn:' + n.id
   const own = !n.dim
   const items = own ? [
@@ -883,10 +894,12 @@ function knAside(k) {
   return `<h4>속성</h4><div class="kv" data-t="knProps">${team ? `<span>쓰는 사람</span>${whoHtml(k)}` : '<span>주인</span><span>나: 저장하면 바로 문서에 들어간다</span>'}
   <span>자동으로 가져올 곳</span><span data-t="knSrcN">${knSrcN(k)}<small><button type="button" class="lk" data-a="nav" data-s="import">가져오기 ›</button></small></span></div>`
 }
-function myPend(tr) { return (tr && tr.records ? tr.records : []).filter((r) => r.state === 'pend' && r.author === S.me.user) }
+function myHeld(k, tr) { return (tr && tr.records ? tr.records : []).filter((r) => heldR(k, r) && r.author === S.me.user) }
+// 내 넣지 못함 n(S10) — 팀 지식 · 넣지 못함 화면으로 · 개인 지식은 곧바로 넣으니 띠가 없다
 function waitHtml(k, tr) {
-  const p = myPend(tr)
-  return p.length ? `<div class="wait" data-t="wait"><i></i>${p.map((x) => esc(whenTxt(x.date)) + ' 에 쓴 기록 1: ' + pendWhen(k) + ' · ' + esc(x.title.split(/ — |: /)[0])).join('<br>')} · 그동안도 문서 옆에 같이 읽힌다</div>` : ''
+  if (!teamKn(k)) return ''
+  const p = myHeld(k, tr)
+  return p.length ? `<div class="callout warn stop" data-t="myHeld"><i></i><span><b>내 넣지 못함 ${p.length}</b>: ${esc(p[0].title.split(/ — |: /)[0])}${p.length > 1 ? ` 외 ${p.length - 1}` : ''} · 기록만 남았다. 고치거나 팀 일꾼에게 다시 들이게 한다</span><button type="button" class="btn sm r" data-a="openHeld" data-k="${esc(k)}" data-t="myHeldGo">보기</button></div>` : ''
 }
 function docsEmpty(k) {
   const n = KN(k), tr = treeOf(k)
@@ -898,7 +911,7 @@ function docsEmpty(k) {
 }
 // 지식 점검(지식관리자) — 지식 생성 가드가 보는 것의 지금 상태(문서 작성기준 9절 · core/guard.js audit)
 const guardOf = (k) => need('guard:' + k, `/api/k/${encodeURIComponent(k)}/guard`)
-const GUARD_ROWS = [['unnamed', '이름 없는 기록', 'rec'], ['outside', '장부 밖 이름을 단 기록', 'rec'], ['deprecatedUse', '폐기된 이름을 단 반영 대기 기록', 'rec'], ['lost', '자리 잃은 이름', 'item'], ['noName', '이름 없는 항목', 'sec'], ['aliasClash', '다른 이름 겹침', 'word'], ['sameLabel', '같은 보이는 이름(알림)', 'word'], ['brokenHead', '깨진 머리', 'sec'], ['spaced', '값에 빈칸이 든 옛 이름', 'name']]
+const GUARD_ROWS = [['unnamed', '이름 없는 기록', 'rec'], ['outside', '장부 밖 이름을 단 기록', 'rec'], ['deprecatedUse', '폐기된 이름을 단 안 넣은 기록', 'rec'], ['lost', '자리 잃은 이름', 'item'], ['noName', '이름 없는 항목', 'sec'], ['aliasClash', '다른 이름 겹침', 'word'], ['sameLabel', '같은 보이는 이름(알림)', 'word'], ['brokenHead', '깨진 머리', 'sec'], ['spaced', '값에 빈칸이 든 옛 이름', 'name']]
 function guardCard(k) {
   const n = KN(k)
   if (!n || !(isPersonal(n) || n.level === 'admin')) return ''
@@ -925,10 +938,10 @@ function treeHtml(k) {
   const all = S.all, list = all ? ds : ds.slice(0, 11)
   const head = (f, l, cnt, extra) => `<div class="tf" data-a="fold" data-f="${f}" data-t="fold-${f}"><span class="ar">${fk(f) ? '▸' : '▾'}</span>${l}${extra || ''}<span class="cnt">${cnt}</span></div>`
   let h = `<div class="tree" data-t="tree">` + head('docs', '문서', ds.length)
-  if (!fk('docs')) h += list.map((d) => `<div class="tn${isAct('doc', k, d.id) ? ' on' : ''}" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="doc" data-name="${esc(d.title)}" data-pv="doc|${esc(k)}|${esc(d.id)}">${svg('doc')}<span class="nm">${esc(d.title)}${list.filter((o) => o.title === d.title).length > 1 ? ` <small class="muted mono">${esc(d.id)}</small>` : ''}</span>${d.pend ? '<i class="pd" title="반영 대기 기록이 있다: 정리 때 문서에 들어간다"></i>' : ''}</div>`).join('') + (!all && ds.length > 11 ? `<div class="tn more" data-a="allDocs" data-t="moreDocs">${ds.length - 11}개 더</div>` : '')
+  if (!fk('docs')) h += list.map((d) => `<div class="tn${isAct('doc', k, d.id) ? ' on' : ''}" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="doc" data-name="${esc(d.title)}" data-pv="doc|${esc(k)}|${esc(d.id)}">${svg('doc')}<span class="nm">${esc(d.title)}${list.filter((o) => o.title === d.title).length > 1 ? ` <small class="muted mono">${esc(d.id)}</small>` : ''}</span>${d.held ? '<i class="pd hd" title="넣지 못한 기록이 있다"></i>' : ''}</div>`).join('') + (!all && ds.length > 11 ? `<div class="tn more" data-a="allDocs" data-t="moreDocs">${ds.length - 11}개 더</div>` : '')
   const rs = tr.records, left = recLeft(tr)
   h += head('recs', '기록', tr.total ?? rs.length, ' <small>날짜 순</small>')
-  if (!fk('recs')) h += rs.length ? rs.map((r) => `<div class="tn${isAct('rec', k, r.id) ? ' on' : ''}" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="rec" data-state="${r.state}" data-pv="rec|${esc(k)}|${esc(r.id)}">${r.state === 'pend' ? '<i class="pd" title="반영 대기"></i>' : ''}<span class="dt">${esc(isToday(r.date) ? hhmm(r.date) : whenTxt(r.date))}</span><span class="nm">${esc(r.title.split(/ — |: /)[0])}</span></div>`).join('') + (left && tr.next ? `<div class="tn more" data-a="treeMore" data-k="${esc(k)}" data-t="moreRecs"${S.wait['treeMore:' + k] ? ' aria-busy="true"' : ''}>${S.wait['treeMore:' + k] ? '읽는 중…' : `더 보기(남은 ${left})`}</div>` : '') : `<div class="tn muted nc">${isTeam() ? '아직 없다' : '내 지식은 고치면 바로 문서다'}</div>`
+  if (!fk('recs')) h += rs.length ? rs.map((r) => `<div class="tn${isAct('rec', k, r.id) ? ' on' : ''}" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="rec" data-state="${r.state}" data-pv="rec|${esc(k)}|${esc(r.id)}">${heldR(k, r) ? '<i class="pd hd" title="넣지 못함"></i>' : ''}<span class="dt">${esc(isToday(r.date) ? hhmm(r.date) : whenTxt(r.date))}</span><span class="nm">${esc(r.title.split(/ — |: /)[0])}</span></div>`).join('') + (left && tr.next ? `<div class="tn more" data-a="treeMore" data-k="${esc(k)}" data-t="moreRecs"${S.wait['treeMore:' + k] ? ' aria-busy="true"' : ''}>${S.wait['treeMore:' + k] ? '읽는 중…' : `더 보기(남은 ${left})`}</div>` : '') : `<div class="tn muted nc">${isTeam() ? '아직 없다' : '내 지식은 고치면 바로 문서다'}</div>`
   const at = tr.atts
   h += head('atts', '첨부', at.length)
   if (!fk('atts')) h += at.length ? at.map((a) => `<div class="tn${isAct('att', k, a) ? ' on' : ''}" data-a="openAtt" data-k="${esc(k)}" data-v="${esc(a)}" data-t="att">${svg('clip')}<span class="nm">${esc(a)}</span></div>`).join('') : '<div class="tn muted nc">없다</div>'
@@ -948,9 +961,9 @@ function refAside(k, d) {
 }
 function docAside(k, d) {
   const bl = d.backlinks
-  const ol = d.sections.map((s) => `<div class="olr" data-a="scrollSec" data-h="${esc(s.h)}" data-t="olRow">${esc(s.h)}${s.pend.length ? '<i class="pd"></i>' : ''}</div>`).join('')
+  const ol = d.sections.map((s) => `<div class="olr" data-a="scrollSec" data-h="${esc(s.h)}" data-t="olRow">${esc(s.h)}${(s.held || []).length ? '<i class="pd hd" title="넣지 못함"></i>' : ''}</div>`).join('')
   const none = '<div class="muted small alr">없다</div>'
-  const recs = bl.recs.map((r) => `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="blRec" data-pv="rec|${esc(k)}|${esc(r.id)}"><span class="dt">${r.state === 'pend' ? '●' : esc(whenTxt(r.date).replace(/^(오늘|어제) /, ''))}</span><span class="nm">${esc(r.title)}</span></div>`).join('')
+  const recs = bl.recs.map((r) => `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="blRec" data-pv="rec|${esc(k)}|${esc(r.id)}"><span class="dt">${heldR(k, r) ? '<i class="pd hd" title="넣지 못함"></i>' : esc(whenTxt(r.date).replace(/^(오늘|어제) /, ''))}</span><span class="nm">${esc(r.title)}</span></div>`).join('')
   const docs = bl.linkers.map((o) => `<div class="alr" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(o.id)}" data-t="blDoc" data-pv="doc|${esc(k)}|${esc(o.id)}">${svg('doc')}<span class="nm">${esc(o.title)}</span></div>`).join('')
   // 이 문서가 가리키는 문서(Q94) — 본문 종이 밖 「연결」 의 한 묶음으로
   const outs = (d.links || []).map((x) => `<div class="alr" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(x.id)}" data-t="dlink" data-pv="doc|${esc(k)}|${esc(x.id)}">${svg('doc')}<span class="nm">${esc(x.title)}</span></div>`).join('')
@@ -966,15 +979,15 @@ function docAside(k, d) {
    <div class="bg" title="이 문서를 링크한 문서">문서 <b data-t="blDocN">${bl.linkers.length}</b></div>${docs || none}
    <div class="bg" title="링크 없이 이름만 나온 곳">언급 <b data-t="blMentN">${bl.ments.length}</b></div>${ments || none}
    <div class="bg" title="이 문서의 본문 링크가 가리키는 문서">이 문서가 가리키는 문서 <b data-t="dlinksN">${(d.links || []).length}</b></div>${outs || none}</div>
-  <div class="ap" data-t="props"><h4>속성</h4><div class="kv"><span>마지막 정리</span><span>${esc(d.last ? whenTxt(d.last.date) + ': ' + d.last.author + '의 기록에서' : whenTxt(d.when))}</span><span>가져올 곳</span><span>${d.watched ? esc(d.watched.src) + (d.watched.orphan ? ': 없어졌다' : '') : '없음'}</span><span>자리</span><span>${esc(knWhere(KN(k)) || (isTeam() ? '팀 서버' : '이 PC'))}</span>${isTeam() && !isPersonal(KN(k)) ? `<span>쓰는 사람</span>${whoHtml(k)}` : ''}<span>항목</span><span>${M(k) ? M(k).items.filter((i) => i.doc === d.id).length : d.items}</span></div></div>
+  <div class="ap" data-t="props"><h4>속성</h4><div class="kv"><span>마지막으로 넣음</span><span>${esc(d.last ? whenTxt(d.last.date) + ': ' + d.last.author + '의 기록에서' : whenTxt(d.when))}</span><span>가져올 곳</span><span>${d.watched ? esc(d.watched.src) + (d.watched.orphan ? ': 없어졌다' : '') : '없음'}</span><span>자리</span><span>${esc(knWhere(KN(k)) || (isTeam() ? '팀 서버' : '이 PC'))}</span>${isTeam() && !isPersonal(KN(k)) ? `<span>쓰는 사람</span>${whoHtml(k)}` : ''}<span>항목</span><span>${M(k) ? M(k).items.filter((i) => i.doc === d.id).length : d.items}</span></div></div>
   ${nbGraph(k, 'd:' + d.id)}`
 }
-// 참고 칸(본문과 다른 꼴) — 반영 대기: 기록마다 때 · 누구 · 제목(누르면 기록) + 언제 들어가나 / 출처: 줄마다 날짜 · 제목(누르면 기록) · 한 마디
-function pendPanel(k, s) {
+// 참고 칸(본문과 다른 꼴) — 넣지 못함: 기록마다 때 · 누구 · 제목(누르면 기록) · 까닭 / 출처: 줄마다 날짜 · 제목(누르면 기록) · 한 마디
+function heldPanel(k, s) {
   const who = (w) => (w === S.me.user ? '나' : w)
-  const li = s.pend.map((x) => `<li data-t="pendRow"><time>${esc(whenTxt(x.date))}</time><span>${esc(who(x.author))} · <button type="button" class="lk" data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}">${esc(x.title)}</button>${x.nowhere ? ' · 넣을 곳은 지식관리자가 고른다' : ''}</span></li>`).join('')
-  const more = s.pendMore ? `<li class="muted">그 밖에 ${s.pendMore}</li>` : ''
-  return `<div class="refpanel" data-t="pendPanel"><div class="rp-h">반영 대기 <small>${esc(pendWhen(k))} · 그동안도 이 항목 옆에 같이 읽힌다</small></div><ul>${li}${more}</ul></div>`
+  const li = (s.held || []).map((x) => `<li data-t="heldRow2"><time>${esc(whenTxt(x.date))}</time><span>${esc(who(x.author))} · <button type="button" class="lk" data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}">${esc(x.title)}</button> · ${esc(x.legacy ? '개편 전 기록' : x.why || '넣지 못함')}</span></li>`).join('')
+  const more = s.heldMore ? `<li class="muted">그 밖에 ${s.heldMore}</li>` : ''
+  return `<div class="refpanel" data-t="heldPanel"><div class="rp-h">넣지 못함 <small>기록만 남았다 · 문서 본문이 아니다</small><button type="button" class="lk r small" data-a="openHeld" data-k="${esc(k)}" data-t="heldPanelGo">넣지 못함 화면</button></div><ul>${li}${more}</ul></div>`
 }
 function refsPanel(k, refs, title) {
   const li = refs.map((r) => `<li data-t="refRow"><span class="dt">${esc(r.date || '')}</span><span>${r.title == null ? (r.html != null ? linkify(r.html, k, null) : esc(r.note || '')) : `${r.id ? `<button type="button" class="lk" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}">${esc(r.title)}</button>` : esc(r.title)}${r.note ? ` <small class="muted">· ${esc(r.note)}</small>` : ''}`}</span></li>`).join('')
@@ -1009,7 +1022,7 @@ function docPane(t, right) {
   const flashH = right ? null : t.flashH
   if (flashH) t.flashH = null
   const loc = isTeam() ? n.name + ' › ' + d.title : n.name + ' › ' + d.path.replace(/^docs\//, '')
-  const mine = d.sections.flatMap((s) => s.pend.filter((x) => x.author === S.me.user))
+  const mine = d.sections.flatMap((s) => (s.held || []).filter((x) => x.author === S.me.user))
   const editing = !right && S.edit && S.edit.tab === t.id
   const de = editing ? docEdOf(k, t.ref) : null
   const body = editing && !de
@@ -1024,13 +1037,13 @@ function docPane(t, right) {
     // 찾기로 연 것만 「찾은 곳」 · 링크 · 개요로 연 항목은 머리를 잠깐 빛낸다
     const lit = q && hl && s.h === hl
     const it = itemAt(k, d.id, s.h)
-    const pn = s.pendN != null ? s.pendN : s.pend.length, rn = (s.refs || []).length
-    const ok = `${t.id}|${s.h}`, po = (S.refOpen || {})[ok + '|pend'], ro = (S.refOpen || {})[ok + '|refs']
-    // 머리 줄(Q93) — h2 에는 이름만. 참고 칩(반영 대기 · 출처 · 오늘 넣음 · 기록 n)은 h2 옆 .hrow 에(읽기 · 복사 · 찾기에 섞이지 않게)
-    //   반영 대기 칩이 있으면 「기록 n」 의 점은 뺀다(같은 것을 두 번 보이지 않게)
-    const chips = right ? '' : `${pn ? `<button type="button" class="refchip pend" data-a="refToggle" data-v="${esc(ok + '|pend')}" data-t="pendChip" aria-expanded="${po ? 'true' : 'false'}" title="아직 문서에 들어가지 않은 기록">반영 대기 ${pn}</button>` : ''}${rn ? `<button type="button" class="refchip" data-a="refToggle" data-v="${esc(ok + '|refs')}" data-t="refChip" aria-expanded="${ro ? 'true' : 'false'}" title="이 항목에 무엇이 언제 어느 기록에서 들어왔나">출처 ${rn}</button>` : ''}${s.by && isToday(s.by.date) ? `<span class="hchip" data-t="byChip" title="오늘 이 항목에 넣은 기록">${esc(whenTxt(s.by.date))} 넣음: ${esc(s.by.author)}의 기록에서</span>` : ''}`
-    const hn = it ? `<span class="hn" data-a="openItem" data-k="${esc(k)}" data-n="${esc(it.key)}" data-t="hn" title="항목으로 보기">${s.pend.length && !(chips && pn) ? '<i class="pd"></i>' : ''}기록 ${s.recs}</span>` : ''
-    const panel = (po && pn ? pendPanel(k, s) : '') + (ro && rn ? refsPanel(k, s.refs, '출처') : '')
+    const pn = s.heldN != null ? s.heldN : (s.held || []).length, rn = (s.refs || []).length
+    const ok = `${t.id}|${s.h}`, po = (S.refOpen || {})[ok + '|held'], ro = (S.refOpen || {})[ok + '|refs']
+    // 머리 줄(Q93) — h2 에는 이름만. 참고 칩(넣지 못함 · 출처 · 오늘 넣음 · 기록 n)은 h2 옆 .hrow 에(읽기 · 복사 · 찾기에 섞이지 않게)
+    //   넣지 못함 칩이 있으면 「기록 n」 의 점은 뺀다(같은 것을 두 번 보이지 않게) · 넣지 못함은 지식관리자 · 쓴 사람에게만(서버가 거른다)
+    const chips = right ? '' : `${pn ? `<button type="button" class="refchip held" data-a="refToggle" data-v="${esc(ok + '|held')}" data-t="heldChip" aria-expanded="${po ? 'true' : 'false'}" title="저장 검사를 넘지 못해 기록만 남은 것">넣지 못함 ${pn}</button>` : ''}${rn ? `<button type="button" class="refchip" data-a="refToggle" data-v="${esc(ok + '|refs')}" data-t="refChip" aria-expanded="${ro ? 'true' : 'false'}" title="이 항목에 무엇이 언제 어느 기록에서 들어왔나">출처 ${rn}</button>` : ''}${s.by && isToday(s.by.date) ? `<span class="hchip" data-t="byChip" title="오늘 이 항목에 넣은 기록">${esc(whenTxt(s.by.date))} 넣음: ${esc(s.by.author)}의 기록에서</span>` : ''}`
+    const hn = it ? `<span class="hn" data-a="openItem" data-k="${esc(k)}" data-n="${esc(it.key)}" data-t="hn" title="항목으로 보기">${(s.held || []).length && !(chips && pn) ? '<i class="pd hd"></i>' : ''}기록 ${s.recs}</span>` : ''
+    const panel = (po && pn ? heldPanel(k, s) : '') + (ro && rn ? refsPanel(k, s.refs, '출처') : '')
     const inner = secInner(k, s, it)
     return `<section class="dsec"><div class="hrow"><h2 data-sec="${esc(s.h)}"${!q && flashH && s.h === flashH ? ' class="flash"' : ''}>${esc(s.h)}</h2>${chips ? `<span class="hrefs">${chips}</span>` : ''}${hn}</div>${panel}${lit ? `<div class="lit" data-t="lit"><span class="tag">찾은 곳</span>${inner}</div>` : inner}</section>`
   }).join('')
@@ -1040,7 +1053,7 @@ function docPane(t, right) {
   ${q ? `<div class="found" data-t="found"><span>찾기 <b>‘${esc(q)}’</b> 로 열었다</span><button type="button" class="lk" data-a="reopenSearch">찾은 것으로 돌아가기</button></div>` : ''}
   <div class="ttl"><div class="path"><span>${esc(loc)}</span><span class="r">마지막으로 바뀐 때 ${esc(whenTxt(d.when))}</span></div>${editing || right || d.watched ? '' : `<button class="btn pri" data-a="editDoc" data-t="editBtn"${noSec ? ' disabled title="## 항목이 없는 문서: 화면에서 고칠 수 없다"' : roAttr(k)}>고치기</button>`}</div>
   ${d.watched && d.watched.orphan ? `<div class="callout warn stop" data-t="watchedOrphan"><i></i><span><b>원본이 없어졌다</b>: 가져오던 곳 「${esc(d.watched.src)}」 이 지워졌다 · 내 문서로 하면 고칠 수 있다</span><button class="btn sm r" data-a="unwatchDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="unwatchBtn">내 문서로</button></div>` : ''}${d.watched && !d.watched.orphan ? `<div class="callout ${d.watched.missing ? 'warn' : 'gray'} stop" data-t="watched"><i></i><span><b>${d.watched.missing ? `원본에 없다: ${esc(d.watched.missing)} 부터` : '원본이 주인이다'}</b>: ${esc(d.watched.src)} 의 <span class="mono">${esc(d.watched.path)}</span> 에서 온다 · 고치려면 원본 파일을 고친다 · 덧붙일 말은 기록으로 남긴다</span></div>` : ''}
-  ${mine.length && !editing ? `<div class="wait" data-t="wait"><i></i>${esc(whenTxt(mine[0].date))} 에 쓴 기록 ${mine.length}: ${pendWhen(t.kn)} · 그동안도 문서 옆에 같이 읽힌다</div>` : ''}
+  ${mine.length && !editing ? `<div class="callout warn stop" data-t="myHeld"><i></i><span><b>내 넣지 못함 ${mine.length}</b>: 이 문서의 항목에 넣지 못한 내 기록이다. 고치거나 팀 일꾼에게 다시 들이게 한다</span><button type="button" class="btn sm r" data-a="openHeld" data-k="${esc(k)}" data-t="myHeldGo">보기</button></div>` : ''}
   <div class="paper"><h1>${esc(d.title)}</h1>${noSec && !editing && !right ? '<div class="callout gray" data-t="noSecEdit">이 문서는 ## 항목이 없어 화면에서 고칠 수 없다. 맨 위 ### 머리를 ## 로 올리면 항목으로 나뉜다</div>' : ''}${d.intro ? `<div class="dlead" data-t="docLead">${pvLinks(linkify(d.intro, k, null), k)}</div>` : ''}${body}</div></div>`
   return { html: main, aside: right ? null : docAside(k, d), title: d.title }
 }
@@ -1049,18 +1062,26 @@ function recPane(t, right) {
   if (!r) return { html: loadingHtml, title: tabTitle(t) }
   if (r.error) return { html: r.code === 'E_NOTFOUND' ? '<p class="muted" data-t="recGone">이 기록은 이제 없다. 정리되어 다른 이름으로 남았을 수 있다</p>' : errHtml(r, `rec:${k}:${t.ref}`), title: '기록' }
   const fx = r.fixes[0], fb = r.fixedBy, who = (w) => (w === S.me.user ? '나' : w)
-  const html = `<div class="docw" data-t="recPane" data-name="${esc(r.title)}">${right ? rpHead() : ''}<div class="ttl"><div class="path"><span>${esc(KN(k).name)} › ${r.log ? '이력' : '기록'} › ${esc(r.date)}</span><span class="r">${r.ingest && !r.ingest.read && !isTeam() && !right ? `<button class="btn sm" data-a="readRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="readRec"${S.reading && S.reading[r.id] ? ' disabled' : ''} title="넣은 파일을 Claude 가 읽고 무엇 · 핵심 · 정한 것 · 남은 것 + 본문으로 기록을 다시 쓴다">${S.reading && S.reading[r.id] ? 'Claude 가 읽는 중…' : 'Claude 로 기록 정리'}</button> ` : ''}${recFixOk(k, r) && !right ? `<button type="button" class="btn sm" data-a="recFix" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="recFixBtn" title="원래 기록은 두고 정정 기록을 새로 남긴다">고치기</button> ` : ''}${r.log ? `<span class="chip c-mute" data-t="recLog">이력 · ${esc(r.log)}: kmd 가 한 일</span>` : ''}${r.state === 'pend' ? '<span class="chip c-pend" data-t="recState">반영 대기</span>' : r.state === 'in' ? '<span class="chip c-mute" data-t="recState">문서에 들어감</span>' : ''}</span></div></div>
+  const html = `<div class="docw" data-t="recPane" data-name="${esc(r.title)}">${right ? rpHead() : ''}<div class="ttl"><div class="path"><span>${esc(KN(k).name)} › ${r.log ? '이력' : '기록'} › ${esc(r.date)}</span><span class="r">${r.ingest && !r.ingest.read && !isTeam() && !right ? `<button class="btn sm" data-a="readRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="readRec"${S.reading && S.reading[r.id] ? ' disabled' : ''} title="넣은 파일을 Claude 가 읽고 무엇 · 핵심 · 정한 것 · 남은 것 + 본문으로 기록을 다시 쓴다">${S.reading && S.reading[r.id] ? 'Claude 가 읽는 중…' : 'Claude 로 기록 정리'}</button> ` : ''}${recFixOk(k, r) && !right ? `<button type="button" class="btn sm" data-a="recFix" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="recFixBtn" title="원래 기록은 두고 정정 기록을 새로 남긴다">고치기</button> ` : ''}${r.log ? `<span class="chip c-mute" data-t="recLog">이력 · ${esc(r.log)}: kmd 가 한 일</span>` : ''}${recStateChip(k, r)}</span></div></div>
   <div class="paper"><h1>${esc(r.title)}</h1><p class="muted small">${esc(r.author)} · ${esc(r.date)}</p>${linkify(r.html, k, null)}
   ${fx ? `<div class="callout warn">이 기록은 ${esc(whenTxt(fx.date))} ${esc(who(fx.author))}의 기록을 바로잡았다. <button type="button" class="lk" data-a="openRec" data-k="${esc(k)}" data-r="${esc(fx.id)}">${esc(fx.title)}</button></div>` : ''}${fb.map((x) => `<div class="callout gray">${esc(whenTxt(x.date))} ${esc(who(x.author))}이 이 기록을 바로잡았다. <button type="button" class="lk" data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}">${esc(x.title)}</button></div>`).join('')}
-  ${r.state === 'pend' ? `<div class="callout pend">${pendWhen(k)}: 그동안도 그 항목 옆에 같이 읽힌다</div>` : ''}${r.state === 'nowhere' && (r.tags || []).includes('code-change') && !isTeam() ? `<div class="callout pend" data-t="codeWait">아직 문서에 안 들어간 코드 바뀜 기록: Claude Code 가 차례로 이 저장소의 기능 문서에 넣는다(하나에 몇 분) · 지금 하는 일 점(옆 메뉴 맨 위 · 좁은 화면은 머리 줄)에서 본다</div>` : ''}</div></div>`
+  ${r.state === 'held' ? `<div class="callout warn" data-t="recHeld"><span><b>넣지 못함</b>: ${esc(r.why || '저장 검사를 넘지 못해 기록만 남았다')}</span>${teamKn(k) && !right ? `<button type="button" class="btn sm r" data-a="openHeld" data-k="${esc(k)}" data-t="recHeldGo">넣지 못함 화면</button>` : ''}</div>` : r.state === 'pend' || r.state === 'nowhere' ? `<div class="callout gray" data-t="recPend">${esc(pendWhen(k))}</div>` : ''}${r.state === 'nowhere' && (r.tags || []).includes('code-change') && !isTeam() ? `<div class="callout pend" data-t="codeWait">아직 문서에 안 들어간 코드 바뀜 기록: Claude Code 가 차례로 이 저장소의 기능 문서에 넣는다(하나에 몇 분) · 지금 하는 일 점(옆 메뉴 맨 위 · 좁은 화면은 머리 줄)에서 본다</div>` : ''}</div></div>`
   // 이 기록이 간 문서 — 이 기록(또는 이 기록을 넣은 정리)이 넣은 항목 · 정리 기록이면 그 정리가 넣은 기록
   const went = r.went || [], via = r.via || [], from = r.from || []
-  const wentHtml = `<div class="ap" data-t="recWent"><h4 title="${r.log ? '이 일이 넣은 문서' : '이 기록이 들어간 문서'}">문서 <small data-t="recWentN">${went.length}</small></h4>${went.map((d) => `<div class="alr" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-h="${esc(d.hs[0] || '')}" data-t="wentDoc" data-pv="doc|${esc(k)}|${esc(d.id)}">${svg('doc')}<span class="nm">${esc(d.title)}<small>항목 ${d.hs.length}: ${esc(d.hs.slice(0, 3).join(' · '))}${d.hs.length > 3 ? ' …' : ''}</small></span></div>`).join('') || `<div class="muted small alr">${r.state === 'pend' ? '아직 문서에 들어가지 않았다' : '없다'}</div>`}${via.map((x) => `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}" data-t="viaRec"><span class="dt">정리</span><span class="nm">${esc(x.title.split(/ — |: /)[0])}<small>${esc(whenTxt(x.date))} · ${esc(x.author)} 가 넣었다</small></span></div>`).join('')}${from.map((x) => `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}" data-t="fromRec"><span class="dt">기록</span><span class="nm">${esc(x.title.split(/ — |: /)[0])}<small>이 일이 넣은 기록 · ${esc(whenTxt(x.date))} · ${esc(x.author)}</small></span></div>`).join('')}</div>`
+  const wentHtml = `<div class="ap" data-t="recWent"><h4 title="${r.log ? '이 일이 넣은 문서' : '이 기록이 들어간 문서'}">문서 <small data-t="recWentN">${went.length}</small></h4>${went.map((d) => `<div class="alr" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-h="${esc(d.hs[0] || '')}" data-t="wentDoc" data-pv="doc|${esc(k)}|${esc(d.id)}">${svg('doc')}<span class="nm">${esc(d.title)}<small>항목 ${d.hs.length}: ${esc(d.hs.slice(0, 3).join(' · '))}${d.hs.length > 3 ? ' …' : ''}</small></span></div>`).join('') || `<div class="muted small alr">${r.state === 'pend' || r.state === 'held' ? '아직 문서에 들어가지 않았다' : '없다'}</div>`}${via.map((x) => `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}" data-t="viaRec"><span class="dt">정리</span><span class="nm">${esc(x.title.split(/ — |: /)[0])}<small>${esc(whenTxt(x.date))} · ${esc(x.author)} 가 넣었다</small></span></div>`).join('')}${from.map((x) => `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}" data-t="fromRec"><span class="dt">기록</span><span class="nm">${esc(x.title.split(/ — |: /)[0])}<small>이 일이 넣은 기록 · ${esc(whenTxt(x.date))} · ${esc(x.author)}</small></span></div>`).join('')}</div>`
   const aside = wentHtml + `<div class="ap" data-t="recItems"><h4 title="${r.log ? '이 일이 건드린 항목' : '이 기록이 건드린 항목'}">항목 <small>${r.items.length}</small></h4>${r.items.map((i) => `<div class="alr" data-a="openItem" data-k="${esc(k)}" data-n="${esc(i.coord)}" data-t="recItem" data-pv="item|${esc(k)}|${esc(i.coord)}">${svg('tag')}<span class="nm">${esc(i.name)}<small>${esc(i.docTitle ? i.docTitle : '문서가 없는 항목')}</small></span></div>`).join('') || '<div class="muted small alr">없다</div>'}</div>
   <div class="ap" data-t="recFix"><h4 title="이 기록이 바로잡은 기록 · 이 기록을 바로잡은 기록">정정</h4>${fx ? `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(fx.id)}" data-t="fixRow"><span class="dt">${esc(whenTxt(fx.date).replace(/^(오늘|어제) /, ''))}</span><span class="nm">${esc(fx.title)}<small>이 기록이 바로잡음</small></span></div>` : ''}${fb.map((x) => `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}" data-t="fixRow"><span class="dt">${esc(whenTxt(x.date).replace(/^(오늘|어제) /, ''))}</span><span class="nm">${esc(x.title)}<small>이 기록을 바로잡음</small></span></div>`).join('')}${fx || fb.length ? '' : '<div class="muted small alr">없다</div>'}</div>
-  <div class="ap" data-t="recProps"><h4>속성</h4><div class="kv"><span>종류</span><span>${r.log ? '이력: kmd 가 한 일' : '기록'}</span><span>쓴 사람</span><span>${esc(who(r.author))}</span><span>때</span><span>${esc(whenTxt(r.date))}</span><span>상태</span><span>${r.state === 'pend' ? '반영 대기: ' + pendWhen(k) : r.state === 'in' ? '문서에 들어감' : '넣을 곳 없음'}</span>${(r.tags || []).length ? `<span>태그</span><span>${esc(r.tags.join(' · '))}</span>` : ''}</div></div>
+  <div class="ap" data-t="recProps"><h4>속성</h4><div class="kv"><span>종류</span><span>${r.log ? '이력: kmd 가 한 일' : '기록'}</span><span>쓴 사람</span><span>${esc(who(r.author))}</span><span>때</span><span>${esc(whenTxt(r.date))}</span><span>상태</span><span data-t="recStateTx">${esc(recStateTx(k, r))}</span>${(r.tags || []).length ? `<span>태그</span><span>${esc(r.tags.join(' · '))}</span>` : ''}</div></div>
   ${nbGraph(k, 'r:' + r.id)}`
   return { html, aside: right ? null : aside, title: r.title.split(/ — |: /)[0] }
+}
+// 기록 상태(S10 · 설계 4-8) — 칩 · 속성 말: 넣지 못함(c-warn) · 메모(c-mute) · 바로잡힘(c-ok) · 버림 · 되돌림 · 개편 전 기록
+function recStateTx(k, r) {
+  return { held: '넣지 못함: ' + (r.why || '기록만 남았다'), memo: '메모: 문서는 바꾸지 않았다', fixed: '바로잡힘: 나중 기록이 고쳤다', kept: '버림: 문서에 넣지 않기로 했다', reverted: '되돌림', in: '문서에 들어감', none: 'kmd 가 한 일', pend: pendWhen(k), nowhere: teamKn(k) ? pendWhen(k) : '넣을 곳 없음' }[r.state] || '문서에 들어감'
+}
+function recStateChip(k, r) {
+  const c = { held: ['c-warn', '넣지 못함'], memo: ['c-mute', '메모'], fixed: ['c-ok', '바로잡힘'], kept: ['c-mute', '버림'], reverted: ['c-mute', '되돌림'], in: ['c-mute', '문서에 들어감'], pend: teamKn(k) ? ['c-mute', '개편 전 기록'] : ['c-pend', '넣는 중'], nowhere: teamKn(k) ? ['c-mute', '개편 전 기록'] : null }[r.state]
+  return c ? `<span class="chip ${c[0]}" data-t="recState">${c[1]}</span>` : ''
 }
 // 기록 고치기(정정 기록 · S9 · 설계 4-3) — 팀 지식 · 쓰기 이상 · 이력이 아닌 기록 · 내가 쓴 기록이거나 지식관리자(서버도 같은 판정)
 const recFixOk = (k, r) => isTeam() && !r.log && canWrite(k) && (r.author === S.me.user || lvOf(KN(k)) === 'admin')
@@ -1083,6 +1104,7 @@ async function recFixSave() {
     const r = await postJSON(`/api/k/${encodeURIComponent(w.k)}/rec/${encodeURIComponent(w.rec)}/fix`, { body: w.body, ...(from ? { from, to } : {}) })
     S.recFix = null
     forgetKn(w.k)
+    delete S.cache['held:' + w.k] // 넣지 못함 화면의 [고치기] 로 열었으면 그 목록도 새로
     toast(esc(r.job ? '팀 일꾼에게 넘겼다: 넣으면 이력에 남는다' : r.held ? `넣지 못함: ${r.why || '까닭은 이력에 있다'}` : `정정 기록을 남겼다 · 문서 ${r.put || 0}곳에 넣었다`), 7000)
   } catch (e) {
     if (S.recFix) { S.recFix.busy = false; if (e.code !== 'E_CANCEL') S.recFix.err = e.message }
@@ -1113,7 +1135,7 @@ function qoList() {
     const kn = KN(k).name
     tr.docs.forEach((d) => out.push({ kind: 'doc', label: d.title, sub: kn + ' · 문서', k, ref: d.id }))
     itemsOf(k).forEach((i) => { if (i.table && !q) return; out.push({ kind: 'item', label: i.val && !sameTxt(i.val, i.name) ? `${i.short} ${i.name}` : i.name, sub: kn + ' · 항목 · ' + i.kind, k, ref: i.key, alias: [...i.aliases, ...(i.val ? [i.val] : [])] }) })
-    tr.records.forEach((r) => out.push({ kind: 'rec', label: r.title, sub: kn + ' · 기록 · ' + (r.state === 'pend' ? '● 반영 대기' : whenTxt(r.date)), k, ref: r.id }))
+    tr.records.forEach((r) => out.push({ kind: 'rec', label: r.title, sub: kn + ' · 기록 · ' + (heldR(k, r) ? '넣지 못함 · ' + whenTxt(r.date) : whenTxt(r.date)), k, ref: r.id }))
   })
   if (!q) return out.filter((x) => x.kind !== 'rec').slice(0, 12)
   const ord = { doc: 0, item: 1, rec: 2 }
@@ -1254,7 +1276,7 @@ function inmHtml(i) {
 const itemHit = (i, nq) => norm(i.name).includes(nq) || (i.val && norm(i.val).includes(nq)) || (i.coord && norm(i.coord).includes(nq)) || i.aliases.some((a) => norm(a).includes(nq))
 const itemByKey = (k, key) => (M(k) ? M(k).byKey.get(key) || null : null)
 const recsOfItem = (k, i) => (i && M(k) ? M(k).recsByItem.get(i.key) || [] : [])
-const itemPend = (k, i) => recsOfItem(k, i).filter((r) => r.state === 'pend')
+const itemHeld = (k, i) => recsOfItem(k, i).filter((r) => heldR(k, r))
 const usesOf = (k, i) => ((M(k) && M(k).uses[i.key]) || []).map((x) => itemByKey(k, x)).filter(Boolean)
 const firstLine = (k, i) => i.first || (recsOfItem(k, i)[0] ? recsOfItem(k, i)[0].title : '아직 글이 없다')
 const recDt = (d) => (isToday(d) ? hhmm(d) : whenTxt(d))
@@ -1292,7 +1314,7 @@ function linkify(h, k, self) {
 }
 
 // ───────────── 보기 둘 — 항목으로 보기(목업 M6) ─────────────
-const IFL = [['pend', '반영 대기'], ['recent', '최근 바뀐 것'], ['mine', '내가 쓴 것']]
+const IFL = [['held', '넣지 못함'], ['recent', '최근 바뀐 것'], ['mine', '내가 쓴 것']]
 const KINDS = ['화면', '절차', '테이블', 'API', '용어']
 function viewItems() {
   const k = pickKn()
@@ -1312,7 +1334,7 @@ const itemMine = (k, i) => recsOfItem(k, i).some((r) => r.author === S.me.user)
 function kindFolded(k, kd) { return S.kfold[kd] !== undefined ? S.kfold[kd] : kd === '테이블' && itemsOf(k).filter((i) => i.kind === kd).length > 40 }
 function itemListBody(k) {
   const q = S.iq.trim(), nq = norm(q), f = S.ifilt
-  const its = itemsOf(k).filter((i) => (!f.pend || itemPend(k, i).length) && (!f.recent || itemRecent(k, i)) && (!f.mine || itemMine(k, i)))
+  const its = itemsOf(k).filter((i) => (!f.held || itemHeld(k, i).length) && (!f.recent || itemRecent(k, i)) && (!f.mine || itemMine(k, i)))
   const hits = q ? its.filter((i) => itemHit(i, nq)) : its
   if (q && !hits.length) {
     const toks = q.split(/\s+/).filter(Boolean)
@@ -1334,17 +1356,17 @@ function itemListBody(k) {
   return h || '<div class="muted small" style="padding:8px">이 거름에 맞는 항목이 없다</div>'
 }
 function itemRowHtml(k, i, dt) {
-  const rs = recsOfItem(k, i), p = rs.filter((r) => r.state === 'pend').length
-  return `<div class="tn${isAct('item', k, i.key) ? ' on' : ''}" data-a="openItem" data-k="${esc(k)}" data-n="${esc(i.key)}" data-t="${dt || 'itemRow'}" data-name="${esc(i.name)}" data-pv="item|${esc(k)}|${esc(i.key)}"><span class="nm">${inmHtml(i)}</span>${p ? '<i class="pd" title="반영 대기"></i>' : ''}${!i.doc ? '<small class="nd">문서 없음</small>' : ''}${rs.length ? `<span class="rc" title="기록">${rs.length}</span>` : ''}</div>`
+  const rs = recsOfItem(k, i), p = rs.filter((r) => heldR(k, r)).length
+  return `<div class="tn${isAct('item', k, i.key) ? ' on' : ''}" data-a="openItem" data-k="${esc(k)}" data-n="${esc(i.key)}" data-t="${dt || 'itemRow'}" data-name="${esc(i.name)}" data-pv="item|${esc(k)}|${esc(i.key)}"><span class="nm">${inmHtml(i)}</span>${p ? '<i class="pd hd" title="넣지 못함"></i>' : ''}${!i.doc ? '<small class="nd">문서 없음</small>' : ''}${rs.length ? `<span class="rc" title="기록">${rs.length}</span>` : ''}</div>`
 }
 function itemsEmpty(k) {
   if (!M(k)) return `<div class="pg-text"><div class="big">${esc(KN(k).name)}: 항목</div>${modelErr(k) ? errHtml(modelErr(k), 'model:' + k) : loadingHtml}</div>`
   const its = itemsOf(k)
   const kinds = [...KINDS, ...new Set(its.map((i) => i.kind).filter((x) => !KINDS.includes(x)))]
   const by = kinds.map((kd) => [kd, its.filter((i) => i.kind === kd).length]).filter((x) => x[1])
-  const pend = its.filter((i) => itemPend(k, i).length)
-  return `<div class="pg-text"><div class="big">${esc(KN(k).name)}: 항목</div><p class="lead">항목 하나를 고르면 그 항목의 지금 글 · 반영 대기 기록 · 지난 기록이 한 화면에 모인다.</p><div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:12px">${by.map(([kd, n]) => `<span class="kn">${esc(kd)} ${n}</span>`).join('')}</div>${waitHtml(k, treeOf(k))}
-  ${pend.length ? `<div class="card"><div class="ch">반영 대기가 있는 항목 <span class="chip c-pend">${pend.length}</span></div><div class="cb" style="padding:6px 8px">${pend.map((i) => itemRowHtml(k, i, 'pendItem')).join('')}</div></div>` : ''}</div>`
+  const held = its.filter((i) => itemHeld(k, i).length)
+  return `<div class="pg-text"><div class="big">${esc(KN(k).name)}: 항목</div><p class="lead">항목 하나를 고르면 그 항목의 지금 글 · 넣지 못한 기록 · 지난 기록이 한 화면에 모인다.</p><div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:12px">${by.map(([kd, n]) => `<span class="kn">${esc(kd)} ${n}</span>`).join('')}</div>${waitHtml(k, treeOf(k))}
+  ${held.length ? `<div class="card"><div class="ch">넣지 못함이 있는 항목 <span class="chip c-warn">${held.length}</span></div><div class="cb" style="padding:6px 8px">${held.map((i) => itemRowHtml(k, i, 'heldItem')).join('')}</div></div>` : ''}</div>`
 }
 const itemOf = (k, key) => need(`item:${k}:${key}`, `/api/k/${encodeURIComponent(k)}/item?key=${encodeURIComponent(key)}`)
 function itemPane(t, right) {
@@ -1353,21 +1375,21 @@ function itemPane(t, right) {
   if (!it) return { html: '<p class="muted">이 항목은 이제 없다</p>', title: t.ref }
   const v = it.doc ? itemOf(k, it.key) : null
   const d = it.doc && M(k).docById.get(it.doc)
-  const rs = recsOfItem(k, it), pend = rs.filter((r) => r.state === 'pend')
+  const rs = recsOfItem(k, it), held = rs.filter((r) => heldR(k, r))
   const all = M(k).recs
-  const past = rs.filter((r) => r.state !== 'pend').slice().sort((a, b) => (b.fixes.length ? 1 : 0) - (a.fixes.length ? 1 : 0) || b.date.localeCompare(a.date))
+  const past = rs.filter((r) => !heldR(k, r)).slice().sort((a, b) => (b.fixes.length ? 1 : 0) - (a.fixes.length ? 1 : 0) || b.date.localeCompare(a.date))
   const uses = usesOf(k, it), al = it.aliases
   const who = (w) => (w === S.me.user ? '나' : w)
-  const li = (r, cls) => `<li class="${cls || ''}" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="${cls === 'pend' ? 'itemPendRow' : 'itemHistRow'}" data-pv="rec|${esc(k)}|${esc(r.id)}"><span class="dt">${esc(recDt(r.date))}</span><span class="tx"><b>${esc(r.title)}</b>${r.fixes.length ? ' <span class="chip c-warn">바로잡음</span>' : ''}${all.some((x) => x.fixes.includes(r.id)) ? ' <span class="chip c-mute">바로잡힘</span>' : ''}<small>${esc(who(r.author))} · ${esc(r.body || '')}</small></span></li>`
+  const li = (r, cls) => `<li class="${cls || ''}" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="${cls === 'held' ? 'itemHeldRow' : 'itemHistRow'}" data-pv="rec|${esc(k)}|${esc(r.id)}"><span class="dt">${esc(recDt(r.date))}</span><span class="tx"><b>${esc(r.title)}</b>${r.fixes.length ? ' <span class="chip c-warn">바로잡음</span>' : ''}${all.some((x) => x.fixes.includes(r.id)) ? ' <span class="chip c-mute">바로잡힘</span>' : ''}<small>${esc(who(r.author))} · ${esc(r.body || '')}</small></span></li>`
   let now
   if (it.doc && !v) now = loadingHtml
   else if (v && v.html != null) now = `<div class="paper ip">${linkify(v.html, k, it.key)}${v.by && isToday(v.by.date) ? `<div class="hc"><span class="hchip">${esc(whenTxt(v.by.date))} 넣음: ${esc(who(v.by.author))}의 기록에서</span></div>` : ''}</div>`
-  else if (d) now = `<div class="callout gray">문서 ${esc(d.title)} 에서 이 항목의 글이 빠졌다. 다음 정리 때 kmd 가 자리를 다시 찾는다</div>`
-  else now = `<div class="callout gray" data-t="noDoc">아직 문서에 없다. 기록 ${rs.length} 이 같이 읽힌다</div>${rs.length ? `<div class="refpanel" data-t="noDocRecs"><div class="rp-h">반영 대기 <small>기록이다 · 문서 본문이 아니다 · ${esc(pendWhen(k))}</small></div><ul>${rs.map((r) => `<li><time>${esc(recDt(r.date))}</time><span>${esc(who(r.author))} · <button type="button" class="lk" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}">${esc(r.title)}</button>${r.body ? ' · ' + esc(r.body) : ''}</span></li>`).join('')}</ul></div>` : '<p class="muted">기록도 아직 없다</p>'}`
+  else if (d) now = `<div class="callout gray">문서 ${esc(d.title)} 에서 이 항목의 글이 빠졌다. 문서에서 그 머리를 다시 세우거나 지식 점검에서 본다</div>`
+  else now = `<div class="callout gray" data-t="noDoc">아직 문서에 없다. 기록 ${rs.length} 이 같이 읽힌다</div>${rs.length ? `<div class="refpanel" data-t="noDocRecs"><div class="rp-h">기록 <small>기록이다 · 문서 본문이 아니다</small></div><ul>${rs.map((r) => `<li><time>${esc(recDt(r.date))}</time><span>${esc(who(r.author))} · <button type="button" class="lk" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}">${esc(r.title)}</button>${r.body ? ' · ' + esc(r.body) : ''}</span></li>`).join('')}</ul></div>` : '<p class="muted">기록도 아직 없다</p>'}`
   const html = `<div class="docw" data-t="itemPage" data-name="${esc(it.name)}">${right ? rpHead() : ''}
   <div class="ih"><span class="kt src">${esc(it.kind)}</span>${it.val ? `<span class="iv" data-t="itemVal" title="${esc(it.coord)}">${esc(it.val)}</span>` : ''}<h1>${esc(it.name)}</h1>${d ? `<span class="muted small">${esc(d.title)} › ${esc(it.sec)}</span>` : '<span class="chip c-mute">문서 없음</span>'}${al.length ? `<span class="r small muted">다른 이름: ${al.map(esc).join(' · ')}</span>` : ''}</div>
   <section class="isec" data-t="itemNow"><h3>지금${d ? ` <small>: ${esc(d.title)} 안의 그 부분</small>` : ''}${d && !right ? `<button class="btn pri sm r" data-a="itemToDoc" data-k="${esc(k)}" data-n="${esc(it.key)}" data-t="itemToDoc">문서로 보기에서 열기</button>` : ''}</h3>${now}</section>
-  <section class="isec" data-t="itemPend"><h3>반영 대기 <span class="chip c-pend" data-t="itemPendN">${pend.length}</span> <small>${esc(pendWhen(k))}</small></h3>${pend.length ? `<ul class="rl">${pend.map((r) => li(r, 'pend')).join('')}</ul>` : '<p class="muted small">없다. 모두 문서에 들어갔다</p>'}</section>
+  <section class="isec" data-t="itemHeld"><h3>넣지 못함 <span class="chip ${held.length ? 'c-warn' : 'c-mute'}" data-t="itemHeldN">${held.length}</span> <small>기록만 남았다</small>${held.length && teamKn(k) && !right ? `<button type="button" class="lk r small" data-a="openHeld" data-k="${esc(k)}" data-t="itemHeldGo">넣지 못함 화면</button>` : ''}</h3>${held.length ? `<ul class="rl">${held.map((r) => li(r, 'held')).join('')}</ul>` : '<p class="muted small">없다</p>'}</section>
   <section class="isec" data-t="itemHist"><h3>지난 기록 <small>이력 · 바로잡은 것 위</small> <span class="chip c-mute" data-t="itemHistN">${past.length}</span></h3>${past.length ? `<ul class="rl">${past.map((r) => li(r)).join('')}</ul>` : '<p class="muted small">없다</p>'}</section>
   <section class="isec" data-t="itemUses"><h3>이 항목을 쓰는 곳 <span class="chip c-mute">${uses.length}</span></h3>${uses.length ? `<ul class="rl">${uses.map((u) => `<li data-a="openItem" data-k="${esc(k)}" data-n="${esc(u.key)}" data-t="useRow" data-pv="item|${esc(k)}|${esc(u.key)}"><span class="tx"><b>${esc(u.doc ? (M(k).docById.get(u.doc) || {}).title || u.doc : '')} › ${esc(u.short || u.name)}</b>${u.val && !sameTxt(u.short, u.name) ? `<small>${esc(u.name)}</small>` : ''}<small>${esc(firstLine(k, u))}</small></span></li>`).join('')}</ul>` : '<p class="muted small">없다</p>'}</section>
   <section class="isec" data-t="itemAlias"><h3>다른 이름</h3>${al.length ? al.map((a) => `<span class="kn">${esc(a)}</span>`).join(' ') : '<p class="muted small">없다. 같은 말로 이틀 찾으면 저절로 붙는다</p>'}</section></div>`
@@ -1391,9 +1413,9 @@ function graphData(k, fo, bundle) {
   const N = [], has = {}
   const add = (id, kind, label, x) => { N.push(Object.assign({ id, kind, label }, x || {})); has[id] = 1 }
   const pendI = new Set()
-  rs.filter((r) => r.state === 'pend').forEach((r) => r.items.forEach((i) => pendI.add(i)))
+  rs.filter((r) => heldR(k, r)).forEach((r) => r.items.forEach((i) => pendI.add(i)))
   const tr = treeOf(k)
-  const pendD = new Set(tr && tr.docs ? tr.docs.filter((d) => d.pend).map((d) => d.id) : [])
+  const pendD = new Set(tr && tr.docs ? tr.docs.filter((d) => d.held).map((d) => d.id) : [])
   const tables = its.filter((i) => i.table)
   const iid = (i) => (i.table && !B ? 'b:table' : 'i:' + i.key)
   if (f.item) {
@@ -1402,7 +1424,7 @@ function graphData(k, fo, bundle) {
   }
   if (f.doc) ds.forEach((d) => add('d:' + d.id, 'doc', d.title, { pend: pendD.has(d.id) }))
   const cut = Date.now() - 30 * 864e5
-  if (f.rec) rs.forEach((r) => { if (f.recent && (stampDate(r.date) || 0) < cut) return; add('r:' + r.id, 'rec', r.title.split(/ — |: /)[0], { pend: r.state === 'pend' }) })
+  if (f.rec) rs.forEach((r) => { if (f.recent && (stampDate(r.date) || 0) < cut) return; add('r:' + r.id, 'rec', r.title.split(/ — |: /)[0], { pend: heldR(k, r) }) })
   if (f.src) srcs.forEach((s) => add('s:' + s.id, 'src', s.name))
   const E = [], seen = new Set()
   const edge = (a, b, t) => { const key = a + '>' + b + '>' + t; if (has[a] && has[b] && a !== b && !seen.has(key)) { seen.add(key); E.push({ a, b, t }) } }
@@ -1652,24 +1674,24 @@ function graphFilter(k) {
   return `<div class="gf" data-t="gFilter">
   <input class="inp" id="gQ" aria-label="그래프에서 찾기" data-in="gQ" data-t="gQ" value="${esc(f.q)}" placeholder="찾기: 맞는 점을 밝힌다" autocomplete="off">
   <div class="gh">종류</div>${kd('item', '항목')}${kd('doc', '문서')}${kd('rec', '기록')}${kd('src', '가져올 곳')}
-  <div class="gh">거름</div>${sw('pend', '반영 대기만')}${sw('recent', '기간: 최근 30일 기록', f.rec ? '' : '기록을 켜면 쓴다')}${sw('orph', '외톨이 숨기기')}
+  <div class="gh">거름</div>${sw('pend', '넣지 못함만')}${sw('recent', '기간: 최근 30일 기록', f.rec ? '' : '기록을 켜면 쓴다')}${sw('orph', '외톨이 숨기기')}
   <div class="gh">보기</div>${sw('line', '선 보기', '끄면 고른 점 · 올린 점의 선만')}${sw('label', '점 제목 늘 보기', '끄면 점에 올리거나 고를 때만')}${sw('spin', '천천히 돌기', '끌거나 점에 올리면 멈춘다')}
   <div class="gh">깊이 <small>고른 점 중심</small></div><div class="seg" data-t="gDepth">${[0, 1, 2, 3].map((d) => `<button class="${f.depth === d ? 'on' : ''}" data-a="gDepth" data-v="${d}" data-t="gd-${d}"${d && !S.g.sel ? ' disabled' : ''}>${d || '전체'}</button>`).join('')}</div>${S.g.sel ? '' : '<div class="small muted" style="margin:4px">점을 고르면 깊이를 쓴다</div>'}
   ${tables ? `<div class="gh">큰 종류</div><div class="gr"><span class="tx">테이블 ${tables}<small>${S.g.bundle ? '펴 두었다. 점 ' + tables : '묶음 점 하나로 접어 두었다. 누르면 편다'}</small></span>${S.g.bundle ? '<button type="button" class="lk" data-a="gBundle" data-t="gFold">접기</button>' : '<button type="button" class="lk" data-a="gBundle" data-t="gUnfold">펴기</button>'}</div>` : ''}</div>`
 }
 function nodeInfo(k, id) {
   const i = id.indexOf(':'), t = id.slice(0, i), ref = id.slice(i + 1), m = M(k)
-  if (t === 'i') { const it = itemByKey(k, ref); if (!it) return null; const rs = recsOfItem(k, it); return { kind: it.kind + (it.val ? ' · ' + it.val : ''), name: it.name, first: firstLine(k, it), recs: rs.length, pend: rs.filter((r) => r.state === 'pend').length, doc: it.doc ? { ref: it.doc, hl: it.sec } : null, item: it.key } }
-  if (t === 'd') { const d = m.docById.get(ref); if (!d) return null; const its = d.items.map((x) => itemByKey(k, x)).filter(Boolean); const rs = m.recs.filter((r) => r.items.some((x) => d.items.includes(x))); return { kind: '항목 ' + its.length, name: d.title, first: d.first, recs: rs.length, pend: rs.filter((r) => r.state === 'pend').length, doc: { ref: d.id }, item: its[0] ? its[0].key : null } }
-  if (t === 'r') { const r = m.recById.get(ref); if (!r) return null; return { kind: r.author + ' · ' + recDt(r.date), name: r.title, first: r.body, recs: 1, pend: r.state === 'pend' ? 1 : 0, doc: { rec: r.id }, item: r.items[0] || null } }
+  if (t === 'i') { const it = itemByKey(k, ref); if (!it) return null; const rs = recsOfItem(k, it); return { kind: it.kind + (it.val ? ' · ' + it.val : ''), name: it.name, first: firstLine(k, it), recs: rs.length, pend: rs.filter((r) => heldR(k, r)).length, doc: it.doc ? { ref: it.doc, hl: it.sec } : null, item: it.key } }
+  if (t === 'd') { const d = m.docById.get(ref); if (!d) return null; const its = d.items.map((x) => itemByKey(k, x)).filter(Boolean); const rs = m.recs.filter((r) => r.items.some((x) => d.items.includes(x))); return { kind: '항목 ' + its.length, name: d.title, first: d.first, recs: rs.length, pend: rs.filter((r) => heldR(k, r)).length, doc: { ref: d.id }, item: its[0] ? its[0].key : null } }
+  if (t === 'r') { const r = m.recById.get(ref); if (!r) return null; return { kind: r.author + ' · ' + recDt(r.date), name: r.title, first: r.body, recs: 1, pend: heldR(k, r) ? 1 : 0, doc: { rec: r.id }, item: r.items[0] || null } }
   return null
 }
 function graphAside(k, G) {
   const id = S.g.sel, n = id && G.nodes.find((x) => x.id === id), info = n && nodeInfo(k, id)
   const card = !info
     ? '<div class="gcard muted small" data-t="gCard">점을 누르면 여기에: 이름 · 첫 줄 · 기록 수.<br>[문서로 보기] · [항목으로 보기] 로 연다.</div>'
-    : `<div class="gcard" data-t="gCard" data-name="${esc(info.name)}"><div class="row"><i class="kd" style="background:${KCOL[n.kind]}"></i><span class="small muted">${KLAB[n.kind]}${info.kind ? ' · ' + esc(info.kind) : ''}</span><button type="button" class="lk r small" data-a="gUnsel" title="고르기 풀기">×</button></div><div class="gn">${esc(info.name)}</div><div class="small">${esc(info.first)}</div><div class="small muted" data-t="gCardRecs" style="margin:4px 0 10px">기록 ${info.recs}${info.pend ? ' · 반영 대기 ' + info.pend : ''}</div><div class="row" style="flex-wrap:wrap"><button class="btn pri sm" data-a="gOpen" data-v="docs" data-t="gOpenDocs"${info.doc ? '' : ' disabled'}>문서로 보기</button><button class="btn sm" data-a="gOpen" data-v="items" data-t="gOpenItems"${info.item ? '' : ' disabled'}>항목으로 보기</button></div></div>`
-  const legend = `<div class="ap" data-t="gLegend"><h4>점: 색</h4>${['item', 'doc', 'rec', 'src'].map((v) => `<div class="lgr"><i class="kd" style="background:${KCOL[v]}"></i>${KLAB[v]}</div>`).join('')}<div class="lgr"><i class="kd ringk"></i>반영 대기가 있다</div><h4 style="margin-top:10px">선</h4>${ELAB.map(([t, l, s]) => `<div class="lgr" data-t="lg-${t}"><svg class="lgl" viewBox="0 0 34 8"><line x1="1" y1="4" x2="33" y2="4" stroke="${ECOL[t].c}" stroke-width="${ECOL[t].w || 1.2}"${ECOL[t].d ? ` stroke-dasharray="${ECOL[t].d.join(' ')}"` : ''}/></svg><span>${l}<small>${s}</small></span></div>`).join('')}</div>`
+    : `<div class="gcard" data-t="gCard" data-name="${esc(info.name)}"><div class="row"><i class="kd" style="background:${KCOL[n.kind]}"></i><span class="small muted">${KLAB[n.kind]}${info.kind ? ' · ' + esc(info.kind) : ''}</span><button type="button" class="lk r small" data-a="gUnsel" title="고르기 풀기">×</button></div><div class="gn">${esc(info.name)}</div><div class="small">${esc(info.first)}</div><div class="small muted" data-t="gCardRecs" style="margin:4px 0 10px">기록 ${info.recs}${info.pend ? ' · 넣지 못함 ' + info.pend : ''}</div><div class="row" style="flex-wrap:wrap"><button class="btn pri sm" data-a="gOpen" data-v="docs" data-t="gOpenDocs"${info.doc ? '' : ' disabled'}>문서로 보기</button><button class="btn sm" data-a="gOpen" data-v="items" data-t="gOpenItems"${info.item ? '' : ' disabled'}>항목으로 보기</button></div></div>`
+  const legend = `<div class="ap" data-t="gLegend"><h4>점: 색</h4>${['item', 'doc', 'rec', 'src'].map((v) => `<div class="lgr"><i class="kd" style="background:${KCOL[v]}"></i>${KLAB[v]}</div>`).join('')}<div class="lgr"><i class="kd ringk"></i>넣지 못함이 있다</div><h4 style="margin-top:10px">선</h4>${ELAB.map(([t, l, s]) => `<div class="lgr" data-t="lg-${t}"><svg class="lgl" viewBox="0 0 34 8"><line x1="1" y1="4" x2="33" y2="4" stroke="${ECOL[t].c}" stroke-width="${ECOL[t].w || 1.2}"${ECOL[t].d ? ` stroke-dasharray="${ECOL[t].d.join(' ')}"` : ''}/></svg><span>${l}<small>${s}</small></span></div>`).join('')}</div>`
   // 점 목록(Q52) — 그림(canvas)을 키보드 · 화면 읽기로 쓰는 길. 찾기 글에 맞는 것 · 선이 많은 것부터 40
   const f = S.g.f, nq = norm(f.q || '')
   const pool = G.nodes.filter((x) => !nq || norm(x.label || '').includes(nq)).sort((a, b) => (G.deg[b.id] || 0) - (G.deg[a.id] || 0) || String(a.label).localeCompare(String(b.label)))
@@ -1700,9 +1722,9 @@ function pvHtml(spec) {
   const parts = String(spec).split('|'), kind = parts[0], k = parts[1], ref = parts.slice(2).join('|')
   const m = M(k)
   if (!m) return ''
-  if (kind === 'item') { const it = itemByKey(k, ref); if (!it) return ''; const d = it.doc && m.docById.get(it.doc), rs = recsOfItem(k, it), p = rs.filter((r) => r.state === 'pend').length; return `<div class="pv" data-t="pv"><div class="ph"><span class="kt src">${esc(it.kind)}</span><b>${esc(it.name)}</b></div><div>${esc(firstLine(k, it))}</div><div class="pm">${d ? esc(d.title + ' › ' + it.sec) + ' · 바뀐 때 ' + esc(whenTxt(d.when)) : '아직 문서에 없다'} · 기록 ${rs.length}${p ? ' · 반영 대기 ' + p : ''}</div></div>` }
+  if (kind === 'item') { const it = itemByKey(k, ref); if (!it) return ''; const d = it.doc && m.docById.get(it.doc), rs = recsOfItem(k, it), p = rs.filter((r) => heldR(k, r)).length; return `<div class="pv" data-t="pv"><div class="ph"><span class="kt src">${esc(it.kind)}</span><b>${esc(it.name)}</b></div><div>${esc(firstLine(k, it))}</div><div class="pm">${d ? esc(d.title + ' › ' + it.sec) + ' · 바뀐 때 ' + esc(whenTxt(d.when)) : '아직 문서에 없다'} · 기록 ${rs.length}${p ? ' · 넣지 못함 ' + p : ''}</div></div>` }
   if (kind === 'doc') { const d = m.docById.get(ref); if (!d) return ''; return `<div class="pv" data-t="pv"><div class="ph">${svg('doc')}<b>${esc(d.title)}</b></div><div>${esc(d.first)}</div><div class="pm">바뀐 때 ${esc(whenTxt(d.when))} · 항목 ${d.items.length}</div></div>` }
-  if (kind === 'rec') { const r = m.recById.get(ref); if (!r) return ''; return `<div class="pv" data-t="pv"><div class="ph"><i class="pd"></i><b>${esc(r.title)}</b></div><div>${esc(r.body)}</div><div class="pm">${esc(r.author)} · ${esc(recDt(r.date))}${r.state === 'pend' ? ' · 반영 대기' : ''}</div></div>` }
+  if (kind === 'rec') { const r = m.recById.get(ref); if (!r) return ''; return `<div class="pv" data-t="pv"><div class="ph"><i class="pd"></i><b>${esc(r.title)}</b></div><div>${esc(r.body)}</div><div class="pm">${esc(r.author)} · ${esc(recDt(r.date))}${heldR(k, r) ? ' · 넣지 못함' : ''}</div></div>` }
   return ''
 }
 function showPv(el) {
@@ -1957,6 +1979,85 @@ function viewToday() {
   ${checkCard}${flowCard}</div>`
   return { crumb, main }
 }
+
+// ───────────── 넣지 못함(S10 · 설계 4-8 · 컨벤션 9절) ─────────────
+//   저장 검사를 넘지 못해 기록만 남은 것 · 팀의 개편 전 기록. 지식관리자는 모두 · 쓰기 자리는 내 것만(서버가 거른다)
+//   [고치기](넣을 곳이면 넣을 곳 고르기 · 아니면 기록 고치기) · [다시 들이기](팀 일꾼) · [이름 세우기] · ⋯ [버리기](지식관리자)
+const heldOf = (k) => need('held:' + k, `/api/k/${encodeURIComponent(k)}/held`)
+const heldKns = () => S.kns.filter((x) => !isPersonal(x) && !x.hidden && lvOf(x) && lvOf(x) !== 'read')
+function heldKn() {
+  const ks = heldKns()
+  const n = (x) => (lvOf(x) === 'admin' ? x.held || 0 : x.heldMine || 0)
+  if (!ks.some((x) => x.id === S.hdKn)) S.hdKn = (ks.slice().sort((a, b) => n(b) - n(a))[0] || {}).id || null
+  return S.hdKn
+}
+const HD_ROUTE = { sess: ['세션', 'Claude Code 대화 · 화면에서 남긴 기록'], send: ['보내기', '개인 지식에서 지식 보내기로 보냄'], file: ['파일', '파일 넣기 · 가져오기로 들인 파일'], code: ['코드', '가져오기 git 이 남긴 코드 바뀜'], intake: ['팀 일꾼', '팀 일꾼이 들인 것(파일 · 정정 · 다시 들이기)'], src: ['가져올 곳', '가져올 곳에서 저절로 들인 것'], fix: ['정정', '기록 고치기로 남긴 정정 기록'] }
+const hdRt = (r) => { const x = HD_ROUTE[r] || HD_ROUTE.sess; return `<span class="hd-rt" title="${esc(x[1])}">${x[0]}</span>` }
+const hdAv = (who) => (who === 'kmd' || who === 'kmd-auto' ? `<span class="hd-av sys" title="kmd">${svg('sync')}</span>` : `<span class="hd-av" title="${esc(who)}">${esc(String(who || '?').slice(0, 2))}</span>`)
+function heldRowHtml(k, d, r) {
+  const mk = 'hd:' + r.rec, busy = (S.hdBusy || {})[r.rec]
+  const pick = r.parts.some((p) => HELD_PICK.has(p.code))
+  const mine = r.author === S.me.user
+  const can = d.admin || mine
+  if (S.menu === mk) S._pop = { key: mk, html: `<div class="mi" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.rec)}">기록 보기<small>${esc((HD_ROUTE[r.route] || HD_ROUTE.sess)[1])}</small></div>${d.admin ? `<div class="sep"></div><div class="mi dan" data-a="heldDrop" data-v="${esc(r.rec)}" data-t="heldDrop">버리기<small>문서에 넣지 않는다 · 기록은 남는다</small></div>` : ''}` }
+  const why = r.parts.slice(0, 3).map((p) => `<div class="why" data-t="heldWhy" title="${esc(p.why)}"><b>${esc(HELD_CODE[p.code] || p.code || '넣지 못함')}</b>${p.doc ? ` · ${esc(String(p.doc).replace(/^docs\/|\.md$/g, ''))}${p.heading ? ' › ' + esc(p.heading) : ''}` : ''}${p.why ? ': ' + esc(p.why) : ''}</div>`).join('') + (r.parts.length > 3 ? `<div class="muted small">그 밖에 ${r.parts.length - 3}</div>` : '')
+  const st = r.job ? '<span class="chip c-pend" data-t="heldJob">다시 들이는 중</span>' : r.legacy ? '<span class="chip c-mute">개편 전 기록</span>' : '<span class="chip c-warn">넣지 못함</span>'
+  const acts = !can ? '' : [
+    r.names && d.admin ? `<button type="button" class="btn sm" data-a="heldNames" data-v="${esc(r.rec)}" data-t="heldNames"${busy ? ' disabled' : ''}>이름 세우기</button>` : '',
+    `<button type="button" class="btn sm" data-a="heldFix" data-v="${esc(r.rec)}" data-t="heldFix"${busy || r.job ? ' disabled' : ''} title="${pick ? '넣을 곳을 고르고 다시 들인다' : '정정 기록을 새로 남긴다'}">고치기</button>`,
+    `<button type="button" class="btn sm" data-a="heldAgain" data-v="${esc(r.rec)}" data-t="heldAgain"${busy || r.job ? ' disabled' : ''} title="팀 일꾼이 기록 + 문서로 다시 짓는다">다시 들이기</button>`,
+  ].join('')
+  return `<div class="hd-r" data-t="heldRow" data-rec="${esc(r.rec)}"${r.legacy ? ' data-legacy="1"' : ''}>
+   <div class="c-av">${hdAv(r.author)}</div>
+   <div class="c-rt">${hdRt(r.route)}</div>
+   <div class="c-tx"><button type="button" class="lk hd-tt" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.rec)}" title="${esc(r.title)}">${esc(r.title)}</button><small>${esc(recDt(r.date))} · ${esc(r.author)}</small>${why}</div>
+   <div class="c-st">${st}</div>
+   <div class="c-ac">${acts}</div>
+   <div class="c-mk"><button class="kebab${S.menu === mk ? ' on' : ''}" data-a="menu" data-m="${esc(mk)}" title="기록 보기${d.admin ? ' · 버리기' : ''}" aria-label="기록 보기${d.admin ? ' · 버리기' : ''}">⋯</button></div></div>`
+}
+// 넣을 곳 고르기(S-D42 · 옛 tdPickModal 의 꼴) — 고른 뒤 다시 들인다
+function heldPickModal(k) {
+  const d = heldOf(k), r = d && !d.error ? d.rows.find((x) => x.rec === S.hdPick) : null
+  if (!r) return ''
+  const m = M(k)
+  const shell = (mb, mf) => `<div class="scrim fix" data-a="heldPickClose" data-self="1"><div class="modal w560" role="dialog" aria-modal="true" aria-labelledby="hdPickH" data-t="heldPickWin"><div class="mh" id="hdPickH">넣을 곳 고르기 <small>${esc(r.title)} · ${esc(r.author)}</small><button class="x" data-a="heldPickClose" title="닫기" aria-label="닫기">×</button></div><div class="mb">${mb}</div><div class="mf">${mf}</div></div></div>`
+  if (!m) { const me = modelErr(k); return shell(me ? errHtml(me, 'model:' + k) : loadingHtml, '<span class="acts"><button class="btn ghost" data-a="heldPickClose">취소</button></span>') }
+  const items = m.items.filter((i) => i.coord && i.doc && i.sec)
+  const words = new Set(String(r.title).toLowerCase().split(/[^0-9a-z가-힣]+/).filter((x) => x.length >= 2))
+  const score = (i) => [...new Set(`${i.name} ${i.sec} ${(m.docById.get(i.doc) || {}).title || ''}`.toLowerCase().split(/[^0-9a-z가-힣]+/))].filter((x) => words.has(x)).length
+  const cands = items.map((i) => [i, score(i)]).filter(([, x]) => x).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([i]) => i)
+  const nm = (i) => `${(m.docById.get(i.doc) || {}).title || i.doc} › ${i.sec}`
+  const other = !cands.length
+  return shell(`<p class="muted small mt0">이 기록을 넣을 항목을 고른다. 고르면 팀 일꾼이 그 항목에 다시 들인다.</p>
+   ${cands.map((i, n) => `<label class="trow"><input type="radio" name="hdp" value="${esc(i.coord)}"${n ? '' : ' checked'}><span class="tn"><b>${esc(nm(i))}</b><small>${esc(i.first || '')}</small></span></label>`).join('')}
+   <label class="trow"><input type="radio" name="hdp" value="" data-t="heldPickOther"${other ? ' checked' : ''}><span class="tn"><b>다른 항목</b><small>${other ? '말이 겹치는 항목이 없다. ' : ''}아래 목록에서 고른다</small></span></label>
+   <div class="field hd-pick-sel"><label for="hdPickSel">다른 항목</label><select class="inp" id="hdPickSel" data-t="heldPickSel"><option value="">고르지 않음</option>${items.map((i) => `<option value="${esc(i.coord)}">${esc(nm(i))}</option>`).join('')}</select></div>`, `<span class="acts"><button class="btn ghost" data-a="heldPickClose">취소</button><button class="btn pri" data-a="heldPickDo" data-t="heldPickDo">여기로 정하고 다시 들이기</button></span>`)
+}
+function viewHeld() {
+  const k = heldKn()
+  const head = (n) => `<div class="pg-h"><div><div class="big">넣지 못함${n ? ': ' + esc(n.name) : ''}</div><p class="lead">저장 검사를 넘지 못해 기록만 남은 것이다. 고쳐서 다시 넣거나 팀 일꾼에게 다시 들이게 하거나 버린다. <a class="lk" href="/manual/지식관리자.html#held" target="_blank" rel="noopener">설명서</a></p></div></div>`
+  if (!k) return { crumb: '넣지 못함', main: `<div class="hdy">${head(null)}<p class="muted">쓰기 자리가 있는 팀 지식이 없다</p></div>` }
+  const n = KN(k), ks = heldKns()
+  const pick = ks.length > 1 ? `<div class="field hd-kn"><label for="hdKnSel">팀 지식</label><select class="inp" id="hdKnSel" data-t="hdKnSel">${ks.map((x) => `<option value="${esc(x.id)}"${x.id === k ? ' selected' : ''}>${esc(x.name)} · 넣지 못함 ${lvOf(x) === 'admin' ? x.held || 0 : x.heldMine || 0}</option>`).join('')}</select></div>` : ''
+  const d = heldOf(k)
+  if (!d) return { crumb: '넣지 못함', main: `<div class="hdy">${head(n)}${pick}${loadingHtml}</div>` }
+  if (d.error) return { crumb: '넣지 못함', main: `<div class="hdy">${head(n)}${pick}${errHtml(d, 'held:' + k)}</div>` }
+  const sum = `<div class="hd-sum" data-t="hdSum"><span class="${d.held ? 'w' : ''}"><b>${d.held}</b> 넣지 못함</span><span><b>${d.today}</b> 오늘 넣음</span><span><b>${d.memo}</b> 메모</span>${d.admin ? '' : '<span class="muted small">내 것만 보인다</span>'}</div>`
+  const old = d.admin && d.legacy ? `<div class="callout warn stop" data-t="hdLegacy"><i></i><span><b>개편 전 기록 ${d.legacy}</b>: 문서에 아직 넣지 않은 옛 기록이다. 팀 일꾼에게 한 번 다시 들이게 한다</span><button type="button" class="btn sm r" data-a="heldAgainAll" data-t="heldAgainAll"${S.hdAll ? ' disabled' : ''}>${S.hdAll ? '거는 중…' : '옛 기록 다시 들이기'}</button></div>` : ''
+  const body = d.rows.length
+    ? `<div class="hd-grid" data-t="heldList"><div class="hd-r hd"><div class="c-av">사람</div><div class="c-rt">들어온 길</div><div class="c-tx">기록 · 까닭</div><div class="c-st">상태</div><div class="c-ac"></div><div class="c-mk"></div></div>${d.rows.map((r) => heldRowHtml(k, d, r)).join('')}</div>`
+    : '<div class="card"><div class="empty2" data-t="heldEmpty"><b>넣지 못한 기록이 없다</b>저장 검사를 넘지 못한 기록이 생기면 여기에 모인다</div></div>'
+  return { crumb: '넣지 못함', main: `<div class="hdy">${head(n)}${pick}${sum}${old}${body}${S.hdPick ? heldPickModal(k) : ''}</div>` }
+}
+const heldRow = (k, rec) => { const d = heldOf(k); return d && !d.error ? d.rows.find((x) => x.rec === rec) : null }
+const heldForget = (k) => { delete S.cache['held:' + k]; forgetKn(k); delete S.cache.history; reloadKns().then(render) }
+async function heldPost(k, rec, what, body) {
+  S.hdBusy ||= {}
+  S.hdBusy[rec] = true; render()
+  try { return await postJSON(`/api/k/${encodeURIComponent(k)}/held/${encodeURIComponent(rec)}/${what}`, body || {}) }
+  finally { delete S.hdBusy[rec]; heldForget(k); render() }
+}
+const againMsg = (r) => (r.state === 'held' ? `넣지 못함: ${r.why || '까닭은 기록에 있다'}` : r.state === 'same' ? '같은 것을 이미 들였다' : r.again ? '이미 팀 일꾼이 다시 들이는 중이다' : '팀 일꾼에게 넘겼다: 넣으면 이력에 남는다')
 
 // ───────────── 정리(목업 M12) ─────────────
 const tidyOf = (k) => need('tidy:' + k, `/api/k/${encodeURIComponent(k)}/tidy`)
@@ -4617,6 +4718,52 @@ const ACT = {
   tdSelClear: () => { S.tdSel = new Set(); render() },
   tdSelRun: () => tidyNow(tidyKn(), [...S.tdSel]),
   tdSpot: (el) => { S.tdSpot = el.getAttribute('aria-expanded') === 'true' ? '-' : el.dataset.v; render() },
+  // 넣지 못함(S10)
+  openHeld: (el) => { S.hdKn = el.dataset.k; go({ scr: 'held' }) },
+  heldAgain: async (el) => {
+    const k = heldKn(), rec = el.dataset.v
+    try { toast(esc(againMsg(await heldPost(k, rec, 'again'))), 7000) } catch (e) { toastErr(e) }
+  },
+  heldFix: (el) => {
+    const k = heldKn(), r = heldRow(k, el.dataset.v)
+    if (!r) return
+    S.menu = null
+    if (r.parts.some((p) => HELD_PICK.has(p.code))) { S.hdPick = r.rec; render(); return }
+    S.recFix = { k, rec: r.rec, title: r.title, from: '', to: '', body: '', busy: false, err: null }
+    render()
+  },
+  heldPickClose: () => { S.hdPick = null; render() },
+  heldPickDo: async () => {
+    const k = heldKn(), rec = S.hdPick, pick = $('input[name=hdp]:checked')?.value, coord = pick || $('#hdPickSel').value
+    if (!coord) return toast('항목을 고른다')
+    try {
+      await postJSON(`/api/k/${encodeURIComponent(k)}/rec/${encodeURIComponent(rec)}/touches`, { coord })
+      S.hdPick = null
+      toast(esc('넣을 곳을 정했다 · ' + againMsg(await heldPost(k, rec, 'again'))), 7000)
+    } catch (e) { toastErr(e) }
+    render()
+  },
+  heldNames: async (el) => {
+    const k = heldKn()
+    try { const r = await heldPost(k, el.dataset.v, 'names'); toast(`이름 ${r.names}${r.forms ? ' · 갈래 ' + r.forms : ''} 을 세웠다`) } catch (e) { toastErr(e) }
+  },
+  heldDrop: async (el) => {
+    const k = heldKn(), r = heldRow(k, el.dataset.v)
+    S.menu = null
+    if (!r) return
+    if (!(await ask({ t: '이 기록을 버린다', d: `「${r.title}」 은 문서에 넣지 않는다. 기록은 남는다 · 이력에 「버림」 으로 남는다`, ok: '버리기', danger: true }))) return
+    try { await heldPost(k, r.rec, 'drop', {}); toast('버렸다: 기록은 남았다') } catch (e) { toastErr(e) }
+  },
+  heldAgainAll: async () => {
+    const k = heldKn(), d = heldOf(k)
+    if (!d || d.error || S.hdAll) return
+    if (!(await ask({ t: '옛 기록을 다시 들인다', d: `개편 전 기록 ${d.legacy} 을 팀 일꾼이 하나씩 다시 들인다. 넘으면 문서에 들어가고, 못 넘으면 넣지 못함으로 남는다`, ok: '다시 들이기' }))) return
+    S.hdAll = true; render()
+    try {
+      const r = await postJSON(`/api/k/${encodeURIComponent(k)}/held/again-all`, {})
+      toast(esc(`팀 일꾼에게 넘겼다 ${r.jobs}${r.open ? ` · 이미 도는 것 ${r.open}` : ''}${r.held ? ` · 넣지 못함 ${r.held}` : ''}${r.stop ? ` · 멈춤: ${r.stop}` : ''}`), 8000)
+    } catch (e) { toastErr(e) } finally { S.hdAll = false; heldForget(k); render() }
+  },
   tdPick: (el) => { S.tdPick = el.dataset.v; S.menu = null; render() },
   tdPickClose: () => { S.tdPick = null; render() },
   tdPickDo: async () => {
@@ -4799,7 +4946,7 @@ document.addEventListener('input', (ev) => {
 })
 // 파일 · 폴더 — 고르기 · 끌어다 놓기
 document.addEventListener('toggle', (ev) => { const d = ev.target; if (d.dataset && d.dataset.keep) (S.detOpen ||= {})[d.dataset.keep] = d.open }, true)
-document.addEventListener('change', (ev) => { const t = ev.target; if (t.dataset && t.dataset.acc) { accPick(t); return } if (t.dataset && t.dataset.seat) { const o = t.dataset.seat === 'add' ? S.admAdd : S.seatWin; if (o) (o.seats ||= {})[t.dataset.k] = t.value; return } if (t.dataset && t.dataset.grp != null) { (S.grpPick ||= {})[t.dataset.grp] = t.value; render(); return } if (t.dataset && t.dataset.grpadd != null && S.grpAdd) { const m = new Set(S.grpAdd.members); if (t.checked) m.add(t.dataset.grpadd); else m.delete(t.dataset.grpadd); S.grpAdd.members = [...m]; return } if (t.dataset && t.dataset.model != null) { ACT.pickModel(t); return } if (t.id === 'impKn') { S.impKn = t.value; render(); return } if (t.id === 'impAtt') { S.impAtt = t.checked; return } if (t.id === 'tdKnSel') { if (S.tdKn !== t.value) { S.tdKn = t.value; S.tdJobId = null; S.tdSel = new Set(); S.tdSpot = null; S.menu = null; render() } return } if (t.id === 'tdPickSel') { const o = $('[data-t=tdPickOther]'); if (o) o.checked = true; return } if (t.dataset && t.dataset.se && S.se) { S.se[t.dataset.se] = t.value; render(); return } if (t.dataset && t.dataset.sf) { sfState()[t.dataset.sf] = t.type === 'checkbox' ? t.checked : t.value; if (t.dataset.sf === 'rule') render(); return } if (t.id === 'logKn') { S.logKn = t.value; render(); return } if (t.id === 'logWho') { S.logWho = t.value; render(); return } if (t.id === 'impOrg' || t.id === 'impRes') { S[t.id] = t.value; S.impPage = 0; render(); return } if (t.dataset && t.dataset.cap) { postJSON('/api/queue/caps', { [t.dataset.cap]: Number(t.value) }).then(() => toast(`동시에 도는 수: ${t.dataset.cap === 'claude' ? 'Claude' : '가져오기'} ${t.value}`), (e) => toastErr(e)).finally(() => { t.blur(); pollRuns() }); return } if (t.id === 'fileIn' || t.id === 'dirIn') { takeFiles(t.files); t.value = '' } })
+document.addEventListener('change', (ev) => { const t = ev.target; if (t.dataset && t.dataset.acc) { accPick(t); return } if (t.dataset && t.dataset.seat) { const o = t.dataset.seat === 'add' ? S.admAdd : S.seatWin; if (o) (o.seats ||= {})[t.dataset.k] = t.value; return } if (t.dataset && t.dataset.grp != null) { (S.grpPick ||= {})[t.dataset.grp] = t.value; render(); return } if (t.dataset && t.dataset.grpadd != null && S.grpAdd) { const m = new Set(S.grpAdd.members); if (t.checked) m.add(t.dataset.grpadd); else m.delete(t.dataset.grpadd); S.grpAdd.members = [...m]; return } if (t.dataset && t.dataset.model != null) { ACT.pickModel(t); return } if (t.id === 'impKn') { S.impKn = t.value; render(); return } if (t.id === 'impAtt') { S.impAtt = t.checked; return } if (t.id === 'tdKnSel') { if (S.tdKn !== t.value) { S.tdKn = t.value; S.tdJobId = null; S.tdSel = new Set(); S.tdSpot = null; S.menu = null; render() } return } if (t.id === 'tdPickSel') { const o = $('[data-t=tdPickOther]'); if (o) o.checked = true; return } if (t.id === 'hdKnSel') { if (S.hdKn !== t.value) { S.hdKn = t.value; S.hdPick = null; S.menu = null; render() } return } if (t.id === 'hdPickSel') { const o = $('[data-t=heldPickOther]'); if (o) o.checked = true; return } if (t.dataset && t.dataset.se && S.se) { S.se[t.dataset.se] = t.value; render(); return } if (t.dataset && t.dataset.sf) { sfState()[t.dataset.sf] = t.type === 'checkbox' ? t.checked : t.value; if (t.dataset.sf === 'rule') render(); return } if (t.id === 'logKn') { S.logKn = t.value; render(); return } if (t.id === 'logWho') { S.logWho = t.value; render(); return } if (t.id === 'impOrg' || t.id === 'impRes') { S[t.id] = t.value; S.impPage = 0; render(); return } if (t.dataset && t.dataset.cap) { postJSON('/api/queue/caps', { [t.dataset.cap]: Number(t.value) }).then(() => toast(`동시에 도는 수: ${t.dataset.cap === 'claude' ? 'Claude' : '가져오기'} ${t.value}`), (e) => toastErr(e)).finally(() => { t.blur(); pollRuns() }); return } if (t.id === 'fileIn' || t.id === 'dirIn') { takeFiles(t.files); t.value = '' } })
 document.addEventListener('dragstart', (ev) => { const c = ev.target.closest && ev.target.closest('[data-drag]'); if (!c) return; S.dragK = c.dataset.drag; c.classList.add('drag'); ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', c.dataset.drag) } catch {} })
 document.addEventListener('dragend', () => { S.dragK = null; for (const x of document.querySelectorAll('.kcard.drag,.kcard.over')) x.classList.remove('drag', 'over') })
 document.addEventListener('dragover', (ev) => { const c = S.dragK && ev.target.closest && ev.target.closest('[data-drag]'); if (c) { ev.preventDefault(); for (const x of document.querySelectorAll('.kcard.over')) if (x !== c) x.classList.remove('over'); if (c.dataset.drag !== S.dragK) c.classList.add('over') } })

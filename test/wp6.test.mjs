@@ -88,7 +88,7 @@ test('이름 장부에 없는 항목도 쓰기 자리의 고치기가 바로 들
   assert.equal(r1.direct, true)
   assert.match(sec.html, /팀원이 고친 글: 하나/, '문서에 바로 들어갔다')
   assert.equal(sec.by?.id, r1.id, '그 항목의 표지가 고친 기록')
-  assert.ok(!sec.pend.some((p) => p.id === r1.id), '아직 안 넣은 기록으로 서지 않는다')
+  assert.ok(!sec.held.some((p) => p.id === r1.id), '넣지 못함으로 서지 않는다')
   const w = (await s.hub.get('gdi')).byWork.get(r1.id)
   assert.ok(w.path.startsWith('log/') && w.tags.includes('edit') && w.tags.includes('put'), w.tags.join(' '))
 })

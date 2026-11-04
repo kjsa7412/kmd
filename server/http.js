@@ -126,7 +126,7 @@ const MANUAL_DIR = path.join(APP, '..', 'docs_ops', 'manual')
 const MANUALS = [
   { slug: '사용자', title: '쓰는 사람', sub: '팀 화면에서 보기 · 찾기 · 고치기 · 가져오기', img: 't-doc.png', modes: ['team'] },
   { slug: '개인', title: '개인 프로그램', sub: '내 PC 의 kmd · 파일 넣기 · 지식 보내기', img: 'p-home.png', modes: ['team', 'pc'] },
-  { slug: '지식관리자', title: '지식관리자', sub: '정리 · 권한 · 가져올 곳', img: 't-tidy.png', modes: ['team'] },
+  { slug: '지식관리자', title: '지식관리자', sub: '넣지 못함 · 정리 · 권한 · 가져올 곳', img: 't-tidy.png', modes: ['team'] },
   { slug: '관리자', title: '총괄 관리자', sub: '설치 · 사람 · Claude 연결 · 백업 · 셸 명령', img: 't-people.png', modes: ['team'] },
   { slug: '운영', title: '운영 · 되살리기', sub: '밤 묶음 · 되살리기 · 새 판', img: 't-admin.png', modes: ['team', 'pc'] },
 ]
@@ -388,10 +388,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     throw new KmdError('E_NOTFOUND', '그런 길은 없다')
   }
 
+  // 넣지 못함을 볼 자리(S10) — 팀이면 개편 전 기록도 · 지식관리자는 모두 · 그 밖은 내 것만(화면 거르기)
+  const seeOf = (ctx, id) => ({ team: mode === 'team', user: ctx?.user || null, admin: hub.levelOf(ctx, id) === 'admin' })
   const GET_OK = [
     /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|admin\/groups|claude\/state|busy|send\/teams)$/,
     /^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
-    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|tidy\/plan|sources|send|backup|backup\/lost|owner|access|worker\/material|worker\/intake|guard)$/,
+    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|tidy|tidy\/plan|held|sources|send|backup|backup\/lost|owner|access|worker\/material|worker\/intake|guard)$/,
   ]
   const api = async (req, res, url, ctx, set) => {
     const p = url.pathname
@@ -735,8 +737,30 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (body != null && typeof body !== 'string') throw new KmdError('E_INPUT', 'body 는 글이다')
       return out(200, await hub.fixRecord(ctx, dec(rf[1]), rec, { ...(title != null ? { title } : {}), body: body ?? '', ...(from != null ? { from } : {}), ...(to != null ? { to } : {}) }))
     }
+    // 넣지 못함(S10 · 설계 4-8) — 목록은 GET(읽기 자리 · hub.meta) · 손잡이는 POST 만(그 밖은 위에서 405) · :rec 는 기록 id 꼴(\d{4}-\d{4}- · 80자)
+    const hl = p.match(/^\/api\/k\/([^/]+)\/held(?:\/(again-all)|\/([^/]+)\/(again|drop|names))?$/)
+    if (hl) {
+      const id = dec(hl[1])
+      if (!hl[2] && !hl[3]) return out(200, await hub.heldList(ctx, id))
+      if (hl[2]) return out(200, await hub.heldAgainAll(ctx, id))
+      const rec = dec(hl[3])
+      if (rec.length > 80 || !/^\d{4}-\d{4}-[^\\/\s\u0000-\u001f]+$/.test(rec)) throw new KmdError('E_INPUT', '기록 id 가 아니다')
+      if (hl[4] === 'again') return out(200, await hub.heldAgain(ctx, id, rec))
+      if (hl[4] === 'names') return out(200, await hub.heldNames(ctx, id, rec))
+      const b = await readBody(req)
+      const why = b && typeof b === 'object' && !Array.isArray(b) ? b.why : null
+      if (why != null && (typeof why !== 'string' || /[\r\n]/.test(why) || why.length > 200)) throw new KmdError('E_INPUT', 'why 는 한 줄 200자 안이다')
+      return out(200, await hub.heldDrop(ctx, id, rec, why || ''))
+    }
+    // 넣을 곳 고르기(S-D42) — POST 만 · :rec 는 기록 id 꼴
     const rt = p.match(/^\/api\/k\/([^/]+)\/rec\/([^/]+)\/touches$/)
-    if (rt) return out(200, await hub.setTouches(ctx, dec(rt[1]), dec(rt[2]), (await readBody(req)).coord))
+    if (rt) {
+      const rec = dec(rt[2])
+      if (rec.length > 80 || /[\\/\s\u0000-\u001f]/.test(rec) || rec.startsWith('.')) throw new KmdError('E_INPUT', '기록 id 가 아니다')
+      const b = await readBody(req)
+      if (typeof b?.coord !== 'string' || b.coord.length > 200) throw new KmdError('E_INPUT', 'coord 는 이름 글이다')
+      return out(200, await hub.setTouches(ctx, dec(rt[1]), rec, b.coord))
+    }
     const tm = p.match(/^\/api\/k\/([^/]+)\/tidy$/)
     if (tm) {
       const id = dec(tm[1])
@@ -770,7 +794,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         const row = hub.owner(k.id)
         const sv = mode === 'pc' && (await sendLib.destsOf(k.dir)).length ? await hub.sendView(ctx, k.id).catch(() => null) : null
         // level — 이 지식에서의 내 자리(read · write · admin) · role 은 그 화면 이름(PC 는 주인)
-        return { ...V.knowledgeRow(k), level: hub.levelOf(ctx, k.id), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null } : {}), tidyAt: hub.tidyAtOf(k.id), tidyMode: hub.tidyModeOf(k.id), pendText: hub.pendText(k.id), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
+        return { ...V.knowledgeRow(k, seeOf(ctx, k.id)), level: hub.levelOf(ctx, k.id), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null } : {}), tidyAt: hub.tidyAtOf(k.id), tidyMode: hub.tidyModeOf(k.id), pendText: hub.pendText(k.id), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
       })))
     }
     // 에이전트 일 — 목록 · 줄(터미널)
@@ -1017,17 +1041,17 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (what === 'tree') {
       // 문서 목록은 그대로 · 기록은 최근 limit(기본 200)만. 첫 쪽(before 없음)에는 그보다 옛 것이라도 아직 넣지 않은 기록(pend · nowhere)을
       // 함께 싣는다(받은 것 · 반영 대기 수가 첫 쪽만으로 맞게 · 화면은 id 로 겹침을 거른다). ?all=1 은 예전처럼 모두
-      const t = V.tree(k)
+      const t = V.tree(k, seeOf(ctx, id))
       if (url.searchParams.get('all') === '1') return out(200, { ...t, total: t.records.length, more: 0, next: null })
       const limit = pageLimit(url, 200)
       const byId = new Map(k.works.map((w) => [w.id, w]))
       const older = olderThan(url.searchParams.get('before'), byId)
       const all = older ? t.records.filter(older) : t.records
       const head = all.slice(0, limit)
-      const open = older ? [] : all.slice(limit).filter((r) => r.state === 'pend' || r.state === 'nowhere')
+      const open = older ? [] : all.slice(limit).filter((r) => r.state === 'pend' || r.state === 'nowhere' || r.state === 'held')
       const more = all.length - head.length
-      // held — 넣지 못함 수(저장 문이 넣지 못한 조각이 있는 기록 · S4 · 목록 화면은 S10)
-      return out(200, { ...t, records: open.length ? [...head, ...open] : head, total: t.records.length, more, next: more > 0 && head.length ? cursorOf(head[head.length - 1]) : null, held: k.works.filter((w) => w.state === 'held').length })
+      // held — 넣지 못함 수(볼 수 있는 것 · 넣지 못함 화면과 같은 값 · S10)
+      return out(200, { ...t, records: open.length ? [...head, ...open] : head, total: t.records.length, more, next: more > 0 && head.length ? cursorOf(head[head.length - 1]) : null, held: k.works.filter(V.heldSee(k, seeOf(ctx, id))).length })
     }
     if (what === 'model') return out(200, V.model(k))
     if (what === 'guard') return out(200, await hub.guardAudit(ctx, id))
@@ -1045,7 +1069,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return send(res, 200, await fs.readFile(path.join(k.dir, ...rel.split('/'))), type)
     }
     if (what === 'doc') {
-      const v = V.docView(k, url.searchParams.get('d'), { src: await hub.sourceState(k.id), edit: url.searchParams.get('edit') === '1' })
+      const v = V.docView(k, url.searchParams.get('d'), { src: await hub.sourceState(k.id), edit: url.searchParams.get('edit') === '1', see: seeOf(ctx, id) })
       if (!v) throw new KmdError('E_NOTFOUND', '이 문서는 이제 없다')
       // 원본이 주인인 문서 — 어디서 왔나 · 고치기 없음
       const dd = k.docs.find((x) => x.id === url.searchParams.get('d'))

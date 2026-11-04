@@ -46,7 +46,7 @@ test('화면 자료: 지식 목록 · 나무 · 문서 한 장', async () => {
   assert.deepEqual(tr.atts.sort(), ['배포 흐름.png', '운영 대시보드.png'])
   const d = (await j('/api/k/dpms/doc?d=' + encodeURIComponent('배포절차'))).body
   assert.deepEqual(d.sections.map((x) => x.h), ['준비', '카나리', '헬스 체크', '롤백', '꾸러미 판'])
-  assert.equal(d.sections[3].pend.length, 1, '롤백에 아직 안 넣은 기록 1')
+  assert.equal(d.sections[3].held.length, 1, '롤백에 넣지 못함(개편 전 기록) 1')
   assert.match(d.sections[3].html, /data-a="openDoc" data-k="dpms" data-d="롤백절차"/, '문서 링크는 화면 안에서 연다')
   assert.match(d.sections[4].html, /<table class="t">/)
   assert.deepEqual(d.links.map((x) => x.id).sort(), ['롤백절차', '서버목록'])

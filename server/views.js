@@ -5,7 +5,8 @@
 
 import MarkdownIt from 'markdown-it'
 import path from 'node:path'
-import { coordsOfSection, labelOf, sectionOf, pendPick } from '../core/knowledge.js'
+import { coordsOfSection, labelOf, sectionOf, isLegacy, PEND_MAX } from '../core/knowledge.js'
+import { parseHeld } from '../core/parts.js'
 import { locateDoc } from '../core/registry.js'
 import { sha16 } from '../core/text.js'
 import { splitBlocks, parseTable } from '../core/baseline.js'
@@ -249,12 +250,20 @@ export function refOf(docPath, line, k = null) {
   return { date: r.date, title: r.title, id: to.t === 'rec' ? to.r : null, sub: to.t === 'rec' ? to.sub : null, note: r.note }
 }
 
-export function knowledgeRow(k) {
-  // 반영 대기 — 정리를 기다리는 기록 + 넣을 곳 없는 기록(비공개는 따로 · 컨벤션 9절) · 화면은 이 수만 쓴다
+// 넣지 못함(S10 · 설계 4-8) — held 기록 + 팀의 「개편 전 기록」(옛 pend · nowhere 사람 기록 · S-D46) · 장부를 따로 두지 않는다
+//   see — { team, user, admin } · admin 은 모두 · 그 밖은 내 것만(화면 거르기 · 보안 경계는 넣지 못함 손잡이의 자리 판정)
+export const isHeld = (k, w, team) => w.state === 'held' || (!!team && isLegacy(k, w))
+export const heldSee = (k, see = {}) => (w) => isHeld(k, w, see.team) && (!!see.admin || (!!see.user && w.author === see.user))
+
+export function knowledgeRow(k, see = null) {
+  // pend — 정리 화면(S13 까지)의 수: 정리를 기다리는 기록 + 넣을 곳 없는 기록(비공개는 뺀다)
   const priv = (w) => w.tags.some((t) => /^private$/i.test(t))
   const pend = k.works.filter((w) => (w.state === 'pend' || w.state === 'nowhere') && !priv(w)).length
   const when = [k.docs[0]?.mtime, k.works[0] ? isoOfStamp(k.works[0].date) : null].filter(Boolean).sort().pop() || null
-  return { id: k.id, name: k.name, docs: k.docs.length, records: k.works.length, pend, when }
+  // 넣지 못함 n — held(모두 · 지식관리자 화면) · heldMine(내 것) · legacy(그 가운데 개편 전 기록) · 서버가 센 한 값
+  const all = see ? k.works.filter((w) => isHeld(k, w, see.team)) : []
+  const held = see ? { held: all.length, heldMine: all.filter((w) => w.author === see.user).length, legacy: all.filter((w) => w.state !== 'held').length } : {}
+  return { id: k.id, name: k.name, docs: k.docs.length, records: k.works.length, pend, ...held, when }
 }
 
 // 기록의 날짜(YYYY-MM-DD HH:MM · 지역 시각) → ISO
@@ -264,15 +273,21 @@ export function isoOfStamp(s) {
   return new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)).toISOString()
 }
 
-function docPend(k) {
-  const s = new Set()
-  for (const w of k.works) {
-    if (w.state !== 'pend') continue
-    for (const c of w.touches) {
-      const x = sectionOf(k, c)
-      if (x?.loc) s.add(x.loc.doc)
-    }
+// 넣지 못한 기록이 걸린 항목 — 넣지 못함 칸의 문서 · 머리 + 기록의 이름(touches)이 가리키는 항목
+function heldSpots(k, w) {
+  const out = []
+  if (w.state === 'held') for (const x of parseHeld(w.body)) if (x.doc) out.push({ doc: x.doc, heading: x.heading || null })
+  for (const c of w.touches) {
+    const x = sectionOf(k, c)
+    if (x?.loc) out.push({ doc: x.loc.doc, heading: x.loc.heading || null })
   }
+  return out
+}
+// 넣지 못한 기록이 걸린 문서(나무의 점) — 볼 수 있는 것만
+function docHeld(k, see) {
+  const s = new Set()
+  const ok = heldSee(k, see)
+  for (const w of k.works) if (ok(w)) for (const x of heldSpots(k, w)) s.add(x.doc)
   return s
 }
 
@@ -281,15 +296,15 @@ const routeOf = (w) => (w.tags.some((t) => t.startsWith('sent/')) ? 'send' : w.t
 const recRow = (w) => {
   const route = routeOf(w)
   const from = route === 'send' ? (String(w.body).match(/^(.{1,80})에서 보냄/) || [])[1] || '' : route === 'file' ? w.tags.find((t) => t.startsWith('ingest/')).slice(7) : ''
-  return { id: w.id, date: w.date, title: w.title, author: w.author, state: w.state, route, ...(from ? { from } : {}), ...(w.tags.some((t) => /^private$/i.test(t)) ? { priv: true } : {}) }
+  return { id: w.id, date: w.date, title: w.title, author: w.author, state: w.state, route, ...(from ? { from } : {}), ...(w.tags.some((t) => /^private$/i.test(t)) ? { priv: true } : {}), ...(w.state === 'held' ? { why: [...new Set(parseHeld(w.body).map((x) => String(x.why || x.code || '')).filter(Boolean))].join(' · ').slice(0, 160) || '넣지 못함' } : {}) }
 }
 
-export function tree(k) {
-  const pend = docPend(k)
+export function tree(k, see = {}) {
+  const held = docHeld(k, see)
   return {
     id: k.id,
     name: k.name,
-    docs: k.docs.map((d) => ({ id: d.id, title: d.title, when: d.mtime, pend: pend.has(d.path) })),
+    docs: k.docs.map((d) => ({ id: d.id, title: d.title, when: d.mtime, held: held.has(d.path) })),
     records: k.works.map(recRow),
     atts: k.atts.map((a) => a.replace(/^(docs|work)\/assets\//i, '')),
   }
@@ -354,7 +369,9 @@ function originsOf(k, d) {
 
 export const atTag = (docId, heading) => 'at/' + sha16(`${docId}\n${String(heading).normalize('NFC')}`).slice(0, 12)
 // edit — 편집기용 md · 잠긴 표도 싣는다(Q84 · 읽기만 할 때는 본문이 두 번 실리지 않게 · 「고치기」 를 누를 때 ?edit=1 로)
-export function docView(k, docId, { src = {}, edit = false } = {}) {
+//   see — { team, user, admin }: 항목마다 넣지 못함(held · heldN)은 볼 수 있는 것만(지식관리자 · 쓴 사람)
+export function docView(k, docId, { src = {}, edit = false, see = {} } = {}) {
+  const okHeld = heldSee(k, see)
   const d = k.docs.find((x) => x.id === docId)
   if (!d) return null
   const last = [...d.sections.map((s) => s.applied && k.byWork.get(s.applied)), d.rec && k.byWork.get(d.rec)].filter(Boolean).sort((a, b) => b.date.localeCompare(a.date))[0]
@@ -363,21 +380,23 @@ export function docView(k, docId, { src = {}, edit = false } = {}) {
     // 이름 장부에 없는 항목을 화면에서 고친 기록 — 「at/<문서 · 머리 지문>」 으로 이 항목에 선다(넣을 곳은 관리자가 고른다)
     const at = atTag(d.id, s.h)
     const recs = k.works.filter((w) => w.touches.some((c) => coords.includes(c)) || w.tags.includes(at))
-    const { pick: pendRecs, more: pendMore } = pendPick(recs.map((w) => (w.state === 'nowhere' && w.tags.includes(at) ? { ...w, state: 'pend', nowhere: true } : w)))
+    // 넣지 못함 — 이 항목에 걸린(이름 · 넣지 못함 칸의 문서 › 머리 · at/ 표지) 볼 수 있는 기록 · 최신 8 + 넘친 수
+    const heldAll = k.works.filter((w) => okHeld(w) && (recs.includes(w) || (w.state === 'held' && parseHeld(w.body).some((x) => x.doc === d.path && x.heading === s.h)))).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+    const heldRecs = heldAll.slice(0, PEND_MAX).reverse()
     const by = s.applied && k.byWork.get(s.applied)
     const refs = (s.log || []).map((l) => refOf(d.path, l, k))
     return {
       h: s.h,
-      // 본문만 — 출처(refs) · 반영 대기(pend · pendN)는 화면이 항목 옆 칩 · 참고 칸으로 따로 그린다
+      // 본문만 — 출처(refs) · 넣지 못함(held · heldN)은 화면이 항목 옆 칩 · 참고 칸으로 따로 그린다
       html: render(k, d.path, s.body, { src }),
       ...(edit ? editParts(s.body, { src }) : {}),
 
       base: sha16(s.body),
       recs: recs.length,
-      pend: pendRecs.map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title, ...(w.nowhere ? { nowhere: true } : {}) })),
-      pendMore,
-      // 반영 대기 n — 보이는 8건 + 넘친 수
-      pendN: pendRecs.length + pendMore,
+      held: heldRecs.map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title, ...(w.state !== 'held' ? { legacy: true } : { why: whyOf(w, d.path, s.h) }) })),
+      heldMore: heldAll.length - heldRecs.length,
+      // 넣지 못함 n — 보이는 8건 + 넘친 수
+      heldN: heldAll.length,
       // 출처 — 문서 끝 참고 블록의 이 항목 줄(본문 html 에는 나오지 않는다)
       refs,
       by: by ? { id: by.id, date: by.date, author: by.author } : null,
@@ -400,6 +419,13 @@ export function docView(k, docId, { src = {}, edit = false } = {}) {
     last: last ? { date: last.date, author: last.author } : null,
     items: sections.filter((s) => s.named).length,
   }
+}
+
+// 넣지 못함 까닭 한 줄 — 이 항목의 것을 먼저
+function whyOf(w, doc, h) {
+  const ps = parseHeld(w.body)
+  const p = ps.find((x) => x.doc === doc && x.heading === h) || ps[0]
+  return String(p?.why || p?.code || '넣지 못함').slice(0, 200)
 }
 
 export function recView(k, id) {

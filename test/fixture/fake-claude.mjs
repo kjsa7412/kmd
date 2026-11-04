@@ -65,14 +65,15 @@ function answer() {
     if (fixingI && process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'fix\n')
     const p = fixingI ? prompt.slice(0, prompt.indexOf(FIXI)) : prompt
     const mode = process.env.FAKE_CLAUDE_MODE || ''
-    const cands = (p.split('문서 후보:\n')[1] || '').split(/\n\n넣을 것\((?:파일|커밋) · /)[0]
+    const cands = (p.split('문서 후보:\n')[1] || '').split(/\n\n넣을 것\((?:파일|커밋|기록) · /)[0]
     const docs = cands.split(/^\[doc /m).slice(1).map((blk) => {
       const path = blk.slice(0, blk.indexOf(']'))
       const secs = [...blk.matchAll(/^## (.+)\n\(base ([0-9a-f]{16})\)\n([\s\S]*?)(?=\n## |(?![\s\S]))/gm)].map((m) => ({ h: m[1].trim(), base: m[2], body: m[3] }))
       return { path, secs }
     })
-    const srcM = /\n\n넣을 것\((파일|커밋) · ([^)]*)\):\n([\s\S]*)$/.exec(p)
-    const kind = srcM ? srcM[1] : '파일'
+    // 기록(다시 들이기 · S10) — 파일과 같이 다룬다(## 머리가 후보 항목과 같으면 그 항목 · 나머지는 새 문서)
+    const srcM = /\n\n넣을 것\((파일|커밋|기록) · ([^)]*)\):\n([\s\S]*)$/.exec(p)
+    const kind = srcM && srcM[1] === '커밋' ? '커밋' : '파일'
     const name = srcM ? srcM[2] : '넣을 것'
     const md = srcM ? srcM[3] : ''
     const lie = (mode === 'bad' && !fixingI) || mode === 'badall'

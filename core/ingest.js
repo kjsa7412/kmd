@@ -129,7 +129,8 @@ export const INTAKE_SRC_MAX = 60_000
 export const HELD_SRC_HEAD = 2000
 
 const formLine = (g) => `- 이 지식의 갈래(갈래 장부): ${(g.forms || []).map((f) => `${f.folder ? f.folder + '/' : ''}${f.name}(${f.kind}${f.aliases?.length ? ' · ' + f.aliases.join(', ') : ''})`).join(' · ') || '없음'}. 다른 이름에 걸리는 글은 그 갈래 문서로 간다(newDoc.path 는 폴더/갈래 이름).${g.formsOwn ? ' 갈래 장부에 없는 새 문서는 세우지 않는다: 이어지는 후보 문서에 넣는다.' : ''}`
-const srcHead = (g) => (g.type === 'commit' ? `넣을 것(커밋 · ${g.src?.title || ''}):` : `넣을 것(파일 · ${g.src?.file || g.src?.title || ''}):`)
+// 다시 들이기(S10 · type again) — 넣지 못한 기록의 원천(남겨 둔 파일 글 · 없으면 그 기록 글)을 「기록」 으로
+const srcHead = (g) => (g.type === 'commit' ? `넣을 것(커밋 · ${g.src?.title || ''}):` : g.type === 'again' ? `넣을 것(기록 · ${g.src?.title || ''}):` : `넣을 것(파일 · ${g.src?.file || g.src?.title || ''}):`)
 
 // 들이기 프롬프트 — g: 서버 재료(/api/k/:kn/worker/intake) { type, src: { title, author, date, file?, md, commit? }, docs, forms, formsOwn, names, kinds } ·
 //   writeRules — 작성기준 3 ~ 5절 줄임(core/writerules.js · 일꾼이 싣는다)
@@ -169,7 +170,7 @@ export function intakeFixPromptOf(g, draft, why, opt = {}) {
 export const intakeTags = (src) => (src?.type === 'file' && src.rel ? [`ingest/${src.rel}`.slice(0, 60), ...(/^[0-9a-f]{16}$/.test(src.sha || '') ? [`md/${src.sha}`] : [])] : [])
 // 원천 글을 기록에 싣는 칸 — 줄마다 「> 」(원천 속 「## 넣은 것」 같은 머리가 kmd 칸으로 읽히지 않게)
 export const quoteSrc = (md, max) => String(md || '').slice(0, max).replace(/\r/g, '').split('\n').map((l) => `> ${l}`).join('\n')
-const srcLine = (src, md) => `- ${src?.type === 'commit' ? `커밋 ${src.commit || ''}${src.src ? ` · ${src.src}` : ''}` : `파일 ${src?.rel || src?.file || src?.title || ''}`} · 지문 ${sha16(String(md || ''))}`
+const srcLine = (src, md) => `- ${src?.type === 'commit' ? `커밋 ${src.commit || ''}${src.src ? ` · ${src.src}` : ''}` : src?.type === 'again' ? `다시 들이기 · 기록 ${src.rec || ''}` : `파일 ${src?.rel || src?.file || src?.title || ''}`} · 지문 ${sha16(String(md || ''))}`
 // 넣지 못함으로 끝난 들이기의 기록 — 원천 앞 2000자와 지문만(S-D50)
 export function heldRecord(src, md, { why = '' } = {}) {
   // 정정(S9) — 들고 있던 정정 기록 초안 그대로(원천 글이 아니다) · 까닭은 넣지 못함 칸에
@@ -184,7 +185,7 @@ export function heldRecord(src, md, { why = '' } = {}) {
   const title = String(src?.title || '넣을 것').replace(/\s+/g, ' ').trim().slice(0, 180)
   return {
     title: `${title}: 들이지 못함`.slice(0, 200),
-    body: [`${src?.type === 'commit' ? '커밋' : '파일'} 하나를 문서에 들이지 못했다${why ? `: ${String(why).replace(/\s+/g, ' ').slice(0, 200)}` : ''}.`, `## 원천\n${srcLine(src, md)}\n\n${quoteSrc(md, HELD_SRC_HEAD)}`].join('\n\n'),
+    body: [`${src?.type === 'commit' ? '커밋' : src?.type === 'again' ? '기록' : '파일'} 하나를 문서에 들이지 못했다${why ? `: ${String(why).replace(/\s+/g, ' ').slice(0, 200)}` : ''}.`, `## 원천\n${srcLine(src, md)}\n\n${quoteSrc(md, HELD_SRC_HEAD)}`].join('\n\n'),
     tags: intakeTags(src),
     ...(Array.isArray(src?.touches) && src.touches.length ? { touches: src.touches } : {}),
     ...(src?.rec ? { fixes: [src.rec] } : {}),

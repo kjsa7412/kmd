@@ -13,7 +13,7 @@ import { save as coreSave, saveRecords, serial, localStamp, recordTakenSync, SEC
 import { audit as guardAudit, recordBody, RECORD_PARTS } from '../core/guard.js'
 import { recover as recoverSave } from '../core/journal.js'
 import { decide } from '../core/curate.js'
-import { decisionRecord, renderReverted, parseReverted, parsePut, dropPart, parseHeld, PUT_PART, HELD_PART, REVERTED_PART, itemKey } from '../core/parts.js'
+import { decisionRecord, dropRecord, namesOfRecord, renderReverted, parseReverted, parsePut, dropPart, parseHeld, PUT_PART, HELD_PART, REVERTED_PART, itemKey } from '../core/parts.js'
 import { revertPlan } from '../core/revert.js'
 import * as collect from '../core/collect.js'
 import crypto from 'node:crypto'
@@ -866,6 +866,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     await fs.writeFile(path.join(dir, `${rec}.md`), String(md ?? ''))
     if (bin && bin.length <= 32 << 20) await fs.writeFile(path.join(dir, `${rec}.bin`), bin)
   }
+  // 버린 넣지 못함의 원천은 바로 걷는다(jobTick 도 걷는다)
+  async function keepHeldDrop(id, rec) {
+    if (!rec || /[\\/]|\.\./.test(rec)) return
+    for (const x of ['md', 'bin']) await fs.rm(path.join(heldDir(id), `${rec}.${x}`), { force: true })
+  }
+  // 들어온 길(views.js routeOf 에 들이기 · 정정을 더한다) — 화면 말 「세션 · 정정 · 파일 · 가져올 곳 · 보내기 · 팀 일꾼」
+  const routeOfRec = (w) => (w.tags.some((t) => t.startsWith('sent/')) ? 'send' : w.tags.some((t) => t.startsWith('ingest/')) ? 'file' : w.tags.includes('code-change') ? 'code' : w.tags.includes('intake') ? (w.author === 'kmd' ? 'src' : 'intake') : w.fixes?.length ? 'fix' : 'sess')
   // 정정 일감의 끝(S9 · S-D23) — 규칙을 지금 글로 다시 가르고(규칙 조각) · 남은 항목은 일꾼 조각(보인 지문) → 정정 기록 + 조각 한 저장.
   //   일꾼이 고치지 않은 남은 항목은 그 항목의 넣지 못함(notfound) · 마지막 전에는 마른 검사(고칠 수 있는 까닭이면 { fix })
   async function fixDone(j, id, k, md, body, last) {
@@ -906,6 +913,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     intakeLine(j, held ? 'err' : 'ok', same ? '같은 것을 이미 들였다' : `넣음 ${put}${docs.length ? `: ${docs.slice(0, 3).join(' · ')}` : ''}${held ? ` · 넣지 못함${why ? `: ${why}` : ''}` : ''}${rec ? ` · 기록 ${rec}` : ''}`)
     intakeRunEnd(j)
     saveJobs()
+    // 넣지 못함으로 끝났다(S10 · K8-2) — 일감을 만든 사람에게 알림 한 줄(가져올 곳 · 문서 폴더의 kmd 는 넣지 못함 목록이 맡는다)
+    if (held && !same && rec && j.by && j.by !== 'kmd') {
+      try {
+        const name = (await hub.meta(j.kn))?.name || j.kn
+        const title = String(j.src?.title || j.src?.rel || rec).replace(/: 들이지 못함$/, '').split(/ — |: /)[0].slice(0, 80)
+        await feed.add(dataDir, j.by, { kind: 'held', rec, kn: j.kn, dot: 'warn', text: `넣지 못함: ${name} 「${title}」`, small: String(why || '까닭은 기록에 있다').slice(0, 200) })
+      } catch (e) { log('넣지 못함 알림', j.id, e.message) }
+    }
   }
   // 그만두기(S8 · 파일 넣기 일 줄) — 아직 쓰지 않은 들이기는 기록 없이 닫는다(원천도 걷는다)
   async function intakeCancel(j, by) {
@@ -2266,7 +2281,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const meta = await hub.meta(id, ctx)
       const k = await hub.get(id, ctx)
       const w = k.byWork.get(String(rec))
-      if (!w || (w.state !== 'pend' && w.state !== 'nowhere')) throw new KmdError('E_NOTFOUND', '정리를 기다리는 기록이 아니다')
+      //   넣지 못함(held · S10 · S-D42)도 — 고른 뒤 [다시 들이기] 를 건다(touches-fix 기록은 바로잡힘이 아니다 · S-D46)
+      if (!w || !['pend', 'nowhere', 'held'].includes(w.state)) throw new KmdError('E_NOTFOUND', '넣지 못한 기록이 아니다')
       hub.need(ctx, id, 'write')
       if (levelFor(id, ctx) !== 'admin' && w.author !== ctx.user) throw new KmdError('E_FORBIDDEN', '자리는 쓴 사람이나 이 지식의 지식관리자가 정한다')
       if (!sectionOf(k, String(coord || ''))?.loc) throw new KmdError('E_INPUT', '그런 항목이 없다')
@@ -2275,8 +2291,109 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       cache.delete(id)
       return { record: saved.id }
     },
+    // ── 넣지 못함(S10 · K8 · K10-3 · 설계 4-8 · S-D24 ~ S-D26 · S-D42 · S-D46 · S-D51) ──
+    //   장부를 따로 두지 않는다 — 목록은 held 태그 기록(+ 팀의 「개편 전 기록」: 옛 pend · nowhere 사람 기록 · S-D46)
+    //   읽기 자리 미만은 404(hub.meta) · 지식관리자는 모두, 그 밖은 내 것만(화면 거르기 — 보안 경계는 again · drop · names 의 자리 판정)
+    async heldList(ctx, id) {
+      await hub.meta(id, ctx)
+      const k = await hub.get(id, ctx)
+      const adm = levelFor(id, ctx) === 'admin'
+      const team = mode === 'team'
+      const open = new Map(hub.intakesOf(id).filter((j) => ['queued', 'running', 'closing'].includes(j.state) && (j.type === 'again' || j.type === 'fix')).map((j) => [j.src?.rec, j]))
+      const rows = []
+      let legacy = 0
+      for (const w of k.works) {
+        const old = team && isLegacy(k, w)
+        if (w.state !== 'held' && !old) continue
+        if (!adm && w.author !== ctx.user) continue
+        if (old) legacy++
+        const parts = old ? [{ code: 'legacy', why: '개편 전 기록: 문서에 아직 넣지 않았다' }] : parseHeld(w.body).map((x) => ({ ...(x.doc ? { doc: x.doc } : {}), ...(x.heading ? { heading: x.heading } : {}), ...(x.coord ? { coord: x.coord } : {}), code: String(x.code || ''), why: String(x.why || '').slice(0, 300) }))
+        const j = open.get(w.id)
+        const nm = parts.some((x) => x.code === 'names') ? namesOfRecord(w.body) : { names: [], forms: [] }
+        rows.push({ rec: w.id, date: w.date, author: w.author, title: w.title, route: routeOfRec(w), state: w.state, parts: parts.length ? parts : [{ code: 'held', why: '넣지 못함' }], ...(old ? { legacy: true } : {}), ...(nm.names.length || nm.forms.length ? { names: true } : {}), ...(j ? { job: { id: j.id, type: j.type, state: j.state } } : {}), ...(w.tags.some((t) => /^private$/i.test(t)) ? { priv: true } : {}) })
+      }
+      const today = localDay(new Date())
+      const mine = (w) => adm || w.author === ctx.user
+      return {
+        kn: id,
+        admin: adm,
+        rows,
+        held: rows.length - legacy,
+        legacy,
+        memo: k.works.filter((w) => w.state === 'memo' && mine(w)).length,
+        today: k.works.filter((w) => w.state === 'in' && w.tags.includes('put') && String(w.date).startsWith(today) && mine(w)).length,
+      }
+    },
+    // 넣지 못한 기록 하나 — held 이거나 팀의 개편 전 기록 · 자리: 내 것은 쓰기 · 남의 것은 지식관리자
+    async heldOf(ctx, id, rec, { admin = false } = {}) {
+      const meta = await hub.meta(id, ctx)
+      const k = await hub.get(id, ctx)
+      const w = k.byWork.get(String(rec))
+      if (!w || k.logs.includes(w) || !(w.state === 'held' || (mode === 'team' && isLegacy(k, w)))) throw new KmdError('E_NOTFOUND', '넣지 못한 기록이 아니다')
+      hub.need(ctx, id, admin ? 'admin' : 'write')
+      if (w.author !== ctx.user) hub.need(ctx, id, 'admin')
+      return { meta, k, w }
+    },
+    // 다시 들이기(S-D25) — 들이기 일감 again(원천은 남겨 둔 held/<지식>/<기록>.md · 없으면 그 기록 글) · 넘으면 fixes:[rec] 새 기록 → 원 기록 바로잡힘 ·
+    //   못 넘으면 새 기록이 held(원 기록은 넘겨받음 handedOff 로 「개편 전」 에서 빠진다) · 한 기록에 열린 again 은 하나(S-D47 · 열쇠 r:<rec>)
+    async heldAgain(ctx, id, rec, { bulk = false } = {}) {
+      const { w } = await hub.heldOf(ctx, id, rec)
+      if (mode !== 'team') throw new KmdError('E_INPUT', '다시 들이기는 팀 서버가 한다')
+      const dir = heldDir(id)
+      const md0 = await fs.readFile(path.join(dir, `${w.id}.md`), 'utf8').catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
+      const bin = await fs.readFile(path.join(dir, `${w.id}.bin`)).catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
+      const md = md0 ?? [PUT_PART, HELD_PART, REVERTED_PART].reduce((b, n) => dropPart(b, n), w.body).trim()
+      const title = String(w.title).replace(/: 들이지 못함$/, '').slice(0, 180)
+      return hub.openJob(id, { type: 'again', by: ctx.user, bulk, src: { rec: w.id, title, owner: w.author, ...(w.touches.length ? { touches: w.touches } : {}) }, md, bin })
+    },
+    // 버리기(S-D25) — 지식관리자 · system 저장의 결정 기록(제목 「버림: …」 · 태그 drop · log/) → 원 기록 kept · 이력 「버림」 · 기록은 지우지 않는다
+    async heldDrop(ctx, id, rec, why = '') {
+      const { w } = await hub.heldOf(ctx, id, rec, { admin: true })
+      const reason = String(why || '').replace(/\s+/g, ' ').trim().slice(0, 200) || `${ctx.user} 가 넣지 않기로 했다`
+      const r = await hub.save(ctx, id, { record: dropRecord(w, reason) }, { system: true })
+      cache.delete(id)
+      try { await keepHeldDrop(id, w.id) } catch (e) { log('넣지 못함 원천 걷기', id, e.message) }
+      return { ok: true, record: r.id }
+    },
+    // 이름 세우기(S-D51) — 지식관리자 · 그 기록의 「세울 이름 · 세울 갈래」 칸으로 system 저장 하나(fixes:[rec] → 원 기록 바로잡힘)
+    async heldNames(ctx, id, rec) {
+      const { w } = await hub.heldOf(ctx, id, rec, { admin: true })
+      const { names, forms } = w.state === 'held' && parseHeld(w.body).some((x) => x.code === 'names') ? namesOfRecord(w.body) : { names: [], forms: [] }
+      if (!names.length && !forms.length) throw new KmdError('E_INPUT', '이 기록에는 세울 이름이 없다')
+      const title = `이름 세움: ${String(w.title).split(/ — |: /)[0]}`.slice(0, 200)
+      const body = [`${w.author} 의 기록에 실려 있던 이름을 ${ctx.user} 가 세웠다.`, names.length ? `## 바뀐 것\n${names.map((n) => `- 이름: ${n.label} (${n.coord})`).join('\n')}` : '', forms.length ? `## 세운 갈래\n${forms.map((f) => `- ${f.name}`).join('\n')}` : ''].filter(Boolean).join('\n\n')
+      const r = await hub.save(ctx, id, { record: { title, body, fixes: [w.id], ...(names.length ? { touches: names.map((n) => n.coord) } : { touchesEmpty: '갈래만 세웠다' }) }, ...(names.length ? { names } : {}), ...(forms.length ? { forms } : {}) }, { system: true })
+      cache.delete(id)
+      return { ok: true, record: r.id, names: names.length, forms: forms.length }
+    },
+    // 옛 기록 다시 들이기(S-D26 · K10-3) — 지식관리자 · 「개편 전 기록」 마다 again 일감(열린 일감이 있는 기록은 건너뜀 · 한 번에 500) · 하루 상한에 걸리면 거기서 멈춘다
+    async heldAgainAll(ctx, id) {
+      await hub.meta(id, ctx)
+      hub.need(ctx, id, 'admin')
+      if (mode !== 'team') throw new KmdError('E_INPUT', '다시 들이기는 팀 서버가 한다')
+      const k = await hub.get(id, ctx)
+      const olds = k.works.filter((w) => isLegacy(k, w)).slice(0, 500)
+      let jobs = 0
+      let open = 0
+      let held = 0
+      let stop = null
+      for (const w of olds) {
+        try {
+          const r = await hub.heldAgain(ctx, id, w.id, { bulk: true })
+          if (r.again) open++
+          else if (r.state === 'queued') jobs++
+          else if (r.state === 'held') held++
+        } catch (e) {
+          if (e.code === 'E_RATE') { stop = e.message; break }
+          if (e.code === 'E_NOTFOUND') continue // 그사이 들어갔다 · 바로잡혔다
+          throw e
+        }
+      }
+      return { jobs, open, held, left: Math.max(0, olds.length - jobs - open - held), ...(stop ? { stop } : {}) }
+    },
     // 정리 일꾼(팀)을 마지막으로 본 때 · 기다리는 정리 — 멈춤 줄 · 관리 화면
-    workerSeen: () => ({ at: teamSeenAt ? new Date(teamSeenAt).toISOString() : null, queued: [...jobs.values()].filter((j) => j.state === 'queued') }),
+    //   queued — 정리 일감만 · intakes — 기다리는 들이기 일감(S10 에서 나눴다)
+    workerSeen: () => ({ at: teamSeenAt ? new Date(teamSeenAt).toISOString() : null, queued: [...jobs.values()].filter((j) => j.state === 'queued' && j.kind !== 'intake'), intakes: [...jobs.values()].filter((j) => j.state === 'queued' && j.kind === 'intake') }),
     // 일꾼 — 다음 일감 하나 + 그 일감 · 그 지식에만 쓰는 단기 열쇠(30분 · 한 일감)
     workerNext(wctx) {
       teamSeenAt = Date.now()
@@ -2373,7 +2490,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 일감을 세우는 한 곳(S-D47) — { state: 'queued', job } | { state: 'held', rec, why } | { state: 'same', rec }
     //   type: file · commit(S7 · fix · again · polish 는 S9 · S10 · S13) · by: 만든 사람(가져올 곳 · 문서 폴더는 kmd) · auto: 가져올 곳(하루 상한을 넘으면 기록만)
     //   src: { rel, sha, title, file } | { src, commit, title, touches } · md: 원천 글 · bin: 원천 파일 바이트 · qj: 줄을 남길 가져오기 일
-    async openJob(id, { type, by, auto = false, src = {}, md = '', bin = null, qj = null }) {
+    //   bulk — 지식관리자의 [옛 기록 다시 들이기](S10 · S-D26) — 사람마다 기다림 상한(20)을 세지 않는다(하루 상한은 센다)
+    async openJob(id, { type, by, auto = false, bulk = false, src = {}, md = '', bin = null, qj = null }) {
       if (mode !== 'team') throw new KmdError('E_INPUT', '들이기 일감은 팀 서버만 세운다')
       if (!['file', 'commit', 'fix', 'again', 'polish'].includes(type)) throw new KmdError('E_INPUT', '모르는 들이기 일감이다')
       if (!by || typeof by !== 'string') throw new KmdError('E_INPUT', '일감을 만든 사람이 없다')
@@ -2387,7 +2505,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // Claude 에 보내지 않는 지식 — 일감을 세우지 않고 기록만 + 넣지 못함(S-D22)
       if (rowFor(id)?.noClaude) return hub.intakeHeld(base, md, bin, 'noclaude', 'Claude 에 보내지 않는 지식: 기록만 남겼다')
       // 사람마다 기다리는 수(가져올 곳 · 문서 폴더는 세지 않는다) · 지식마다 하루 수(S-D47 — 팀 구독 비용의 경계)
-      if (by !== 'kmd') {
+      if (by !== 'kmd' && !bulk) {
         const cap = config.intakeQueue ?? 20
         if ([...jobs.values()].filter((j) => j.kind === 'intake' && j.kn === id && j.by === by && j.state === 'queued').length >= cap) throw new KmdError('E_RATE', `들이기를 기다리는 일이 ${cap} 개다. 끝난 뒤에 다시 보낸다`, { details: { retryAfter: 60 } })
       }
@@ -2417,7 +2535,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const lv = levelFor(j.kn, { user: j.by, admin: !!u.admin })
       if (!owners.atLeast(lv, 'write') || (j.type === 'polish' && lv !== 'admin')) return null
       // 정정(S9) — 원래 기록을 쓴 사람이 아니면 지식관리자 자리가 그대로 있어야 한다
-      if (j.type === 'fix' && j.src?.owner !== j.by && lv !== 'admin') return null
+      //   다시 들이기(S10)도 같다 — 남의 넣지 못함은 지식관리자가 다시 들인다
+      if ((j.type === 'fix' || j.type === 'again') && j.src?.owner && j.src.owner !== j.by && lv !== 'admin') return null
       return { user: j.by, intake: true }
     },
     userOf: (u) => ({ id: u }), // 사람 명부 — http 가 auth 로 바꿔 끼운다(hub 만 쓰는 시험은 있는 사람으로)
@@ -2762,7 +2881,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const logIds = new Set(logs.map((x) => x.w.id))
       // 받음 — 개인 지식에서 보낸 기록이 이 지식에 섰다(예전 줄은 글로) · 보냄 줄과 화면이 잇는다
       const kindOf = (x) => (x.from != null || (x.kind === 'save' && /에서 받음$/.test(x.text || '')) ? 'recv' : x.kind) || (x.revert || /^kmd 가 정리/.test(x.text || '') ? 'tidy' : /^새 기기/.test(x.text || '') ? 'device' : /^(지식을 |되살렸다)/.test(x.text || '') ? 'kn' : /보냈다|옮겼다/.test(x.text || '') ? 'send' : /^파일 /.test(x.text || '') ? 'import' : /에서 (바뀐 표|새 묶음)/.test(x.text || '') ? 'source' : 'save')
-      const FEED_KIND = { save: '저장', import: '가져오기', source: '가져오기', tidy: '정리', send: '보내기', recv: '받음', kn: '지식', device: '지식' }
+      const FEED_KIND = { save: '저장', import: '가져오기', source: '가져오기', tidy: '정리', send: '보내기', recv: '받음', kn: '지식', device: '지식', held: '넣지 못함' }
       const putFields = (kn, rec, w) => {
         const p = kn && rec ? putOf.get(`${kn}\n${rec}`) : null
         return p ? { items: p.items, canRevert: p.canRevert, ...(p.yl ? { yl: true } : {}), ...(w && (w.state === 'reverted' || kById[kn]?.reverted?.has(rec)) ? { reverted: true } : {}) } : {}
@@ -4233,8 +4352,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 정리 일꾼이 일감을 받지 않는다 — 기다리는 팀 정리가 10분 넘었고 일꾼을 10분 넘게 못 봤다(설치 뒤 일꾼을 띄우지 않았다 · 일꾼이 멈췄다)
       if (mode === 'team' && curates && !id && !(ws && ws.ok === false)) {
         const w = hub.workerSeen()
+        //   기다리는 정리 · 기다리는 들이기를 따로 센다(S10)
         const old = w.queued.filter((j) => Date.now() - Date.parse(j.at) > 10 * 60_000)
-        if (old.length && (!w.at || Date.now() - Date.parse(w.at) > 10 * 60_000)) out.push(stopLine({ kind: 'worker', level: 'warn', what: '정리 일꾼이 일감을 받지 않는다', amount: `기다리는 정리 ${old.length}`, fix: ctx.admin ? '서버에서 정리 일꾼을 띄운다. 관리자 설명서 › Claude 연결' : null, told: ctx.admin ? (w.at ? `마지막으로 본 때 ${w.at.slice(5, 16).replace('T', ' ')}` : '한 번도 묻지 않았다') : '관리자에게 알렸다' }))
+        const oldI = (w.intakes || []).filter((j) => Date.now() - Date.parse(j.at) > 10 * 60_000)
+        if ((old.length || oldI.length) && (!w.at || Date.now() - Date.parse(w.at) > 10 * 60_000)) out.push(stopLine({ kind: 'worker', level: 'warn', what: '정리 일꾼이 일감을 받지 않는다', amount: [old.length ? `기다리는 정리 ${old.length}` : '', oldI.length ? `기다리는 들이기 ${oldI.length}` : ''].filter(Boolean).join(' · '), fix: ctx.admin ? '서버에서 정리 일꾼을 띄운다. 관리자 설명서 › Claude 연결' : null, told: ctx.admin ? (w.at ? `마지막으로 본 때 ${w.at.slice(5, 16).replace('T', ' ')}` : '한 번도 묻지 않았다') : '관리자에게 알렸다' }))
       }
       // 주인 장부를 다시 읽지 못했다 — 관리자에게 한 줄(옛 장부로 돌고 있다)
       if (regBad && ctx.admin && !id) out.push(stopLine({ kind: 'owners', level: 'warn', what: 'owners.json 을 읽지 못해 앞의 장부로 돌고 있다', amount: '고칠 때까지', fix: '서버의 owners.json 모양을 바로잡는다', told: regBad.why, since: `${regBad.since.slice(5, 16).replace('T', ' ')} 부터` }))

@@ -264,6 +264,8 @@ export function recordState(k, w) {
 export function isLegacy(k, w) {
   if (w.state !== 'pend' && w.state !== 'nowhere') return false
   if (isReservedUser(w.author) || k.handedOff?.has(w.id)) return false
+  // 넣을 곳 고르기(touches-fix · S-D42)는 원 기록의 이름만 바로잡은 것 — 그 자신은 넣을 기록이 아니다(S10)
+  if ((w.tags || []).includes('touches-fix')) return false
   return !k.cutoverAt || arrivedOf(w) < k.cutoverAt
 }
 

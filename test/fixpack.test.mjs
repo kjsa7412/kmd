@@ -84,7 +84,7 @@ test('I7: 안 넣은 기록은 최신 8 · 날짜 순 · 넘친 수', async () =
   assert.equal(sec.notYetMore, 4)
   assert.deepEqual(sec.notYetInDocs.map((x) => x.title), [5, 6, 7, 8, 9, 10, 11, 12].map((i) => `준비 메모 ${i}`))
   const doc = await (await fetch(s.url + '/api/k/dpms/doc?d=' + encodeURIComponent('배포절차'), { headers: { cookie: me.cookie } })).json()
-  assert.deepEqual(doc.sections.find((x) => x.h === '준비').pend.map((x) => x.title), sec.notYetInDocs.map((x) => x.title), '화면과 같은 고름')
+  assert.deepEqual(doc.sections.find((x) => x.h === '준비').held.map((x) => x.title), sec.notYetInDocs.map((x) => x.title), '화면과 같은 고름')
 })
 
 test('주인: _members.md 가 따라간다 · 팀 서버의 지식은 자리 표대로 본다(개인 지식은 개인 프로그램에만)', async () => {
