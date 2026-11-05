@@ -198,6 +198,8 @@ export function heldRecord(src, md, { why = '' } = {}) {
 //   g — 서버 재료(후보 문서의 base 는 일꾼에게 보인 것) · k — 지금 지식(값 근거는 그 항목의 지금 글 전체) · draft — INTAKE_SCHEMA 꼴
 //   후보 밖 문서 · 없는 머리에 조각 → 그 조각만 넣지 못함(notfound) · 새 문서에 ## 항목이 없다 → 넣지 못함(nosec · S-D31)
 //   넣을 곳이 하나도 없다 → 넣지 못함(notfound) — 기록만 남은 들이기가 「개편 전 기록」 으로 정리에 집히지 않게
+// 일꾼이 머리 줄 그대로(「## 4. 개소 현황」) 보내도 항목 머리로 읽는다 — 머리는 # 없이 견준다
+export const bareHeading = (h) => String(h).normalize('NFC').trim().replace(/^#{1,6}\s+/, '').trim()
 export function draftToSave(k, g, draft) {
   if (!draft || typeof draft !== 'object' || Array.isArray(draft)) return { ok: false, why: '초안 모양이 아니다' }
   const rec = draft.record
@@ -216,7 +218,7 @@ export function draftToSave(k, g, draft) {
   const nowSec = (doc, h) => k.byDocPath?.get(doc)?.sections.find((x) => x.h === h) || null
   for (const u of ups) {
     if (!u || typeof u !== 'object' || typeof u.doc !== 'string' || !one(u.heading)) return { ok: false, why: '초안 모양이 아니다: updates 의 doc · heading' }
-    const heading = u.heading.trim()
+    const heading = bareHeading(u.heading)
     const c = cand(u.doc)
     const edits = Array.isArray(u.edits) && u.edits.length ? u.edits : null
     if (!c) {
@@ -253,7 +255,7 @@ export function draftToSave(k, g, draft) {
     else {
       for (const s of secs) {
         if (!s || !one(s.heading) || typeof s.content !== 'string') return { ok: false, why: '초안 모양이 아니다: newDoc 의 항목' }
-        const h = s.heading.trim()
+        const h = bareHeading(s.heading)
         const have = nowSec(rel, h)
         const seen = c?.sections.find((x) => x.h === h)
         if (have && !seen) { held.push({ doc: rel, heading: h, code: 'notfound', why: '이미 있는 항목이다(후보 밖): 넣을 곳을 지식관리자가 고른다', content: s.content }); continue }
@@ -334,7 +336,7 @@ export function polishToSave(k, g, draft) {
   const same = (a, b) => a.size === b.size && [...a].every((v) => b.has(v))
   for (const u of draft.updates.slice(0, 200)) {
     if (!u || typeof u.heading !== 'string' || typeof u.content !== 'string') return { ok: false, why: '초안 모양이 아니다: updates 의 heading · content' }
-    const h = u.heading.trim()
+    const h = bareHeading(u.heading)
     const seen = (g.sections || []).find((s) => s.h === h)
     if (!seen) { dropped.push({ heading: h, why: '받은 항목이 아니다' }); continue }
     if (String(u.base || '') !== seen.base) { dropped.push({ heading: h, why: 'base 가 받은 것과 다르다' }); continue }

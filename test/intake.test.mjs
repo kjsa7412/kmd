@@ -312,3 +312,17 @@ test('문서 다듬기(S13 · K10-4 · S-D37): 같은 문서 두 번 → 일감 
   await s.hub.setOwner(SHELL, 'dpms', { noClaude: true })
   try { await assert.rejects(s.hub.polish(ADMIN, 'dpms', { doc }), { code: 'E_FORBIDDEN' }) } finally { await s.hub.setOwner(SHELL, 'dpms', { noClaude: false }) }
 })
+
+test('일꾼이 머리를 「## 머리」 꼴로 보내도 그 항목에 댄다(notfound 가 아니다) · 새 문서 항목 머리도 # 없이', async () => {
+  const { draftToSave } = await import('../core/ingest.js')
+  const body = '- 일정: 12-10 ~ 12-16\n'
+  const k = { byDocPath: new Map([['docs/a.md', { sections: [{ h: '4. 개소 현황', body }] }]]) }
+  const g = { docs: [{ doc: 'docs/a.md', sections: [{ h: '4. 개소 현황', body, base: 'b0' }] }], src: { md: '시험 일정이 12-21 ~ 12-24 로 바뀌었다' } }
+  const r = draftToSave(k, g, { record: { title: '테스트 일정' }, updates: [{ doc: 'a', heading: '## 4. 개소 현황', edits: [{ find: '12-10 ~ 12-16', replace: '12-21 ~ 12-24' }] }], newDoc: { path: '테스트/새문서', sections: [{ heading: '## 테스트 항목', content: '글' }] } })
+  assert.equal(r.ok, true)
+  assert.deepEqual(r.held, [])
+  const sec = r.input.sections.find((x) => x.doc === 'docs/a.md')
+  assert.equal(sec.heading, '4. 개소 현황')
+  assert.equal(sec.base, 'b0')
+  assert.equal(r.input.sections.find((x) => x.doc !== 'docs/a.md').heading, '테스트 항목')
+})
