@@ -326,3 +326,11 @@ test('일꾼이 머리를 「## 머리」 꼴로 보내도 그 항목에 댄다(
   assert.equal(sec.base, 'b0')
   assert.equal(r.input.sections.find((x) => x.doc !== 'docs/a.md').heading, '테스트 항목')
 })
+
+test('항목에 이미 있던 가로줄(---)은 프런트매터로 걸지 않는다 · 새로 든 --- 는 건다', async () => {
+  const { draftBad } = await import('../core/gate.js')
+  const cur = '- 질매: 10월 말\n\n---\n'
+  assert.equal(draftBad('- 질매: 11월 말\n\n---\n', cur, { old: cur }), null)
+  assert.equal(draftBad('---\n- 질매: 11월 말\n\n---\n', cur, { old: cur }), '프런트매터 줄(---)')
+  assert.equal(draftBad('---\n글\n', '', { old: null }), '프런트매터 줄(---)')
+})

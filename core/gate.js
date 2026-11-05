@@ -25,9 +25,12 @@ export function draftLint(outs) {
 }
 // 초안 글 검사 — 저장의 문서 꼴 검사 + 프런트매터 · script · 저절로 채우는 표를 고쳤나(cur 의 표와 같아야 한다)
 export function draftBad(t, cur = '', { doc = null, old = null } = {}) {
-  if (/^---\s*$/m.test(t)) return '프런트매터 줄(---)'
-  if (/<script/i.test(t)) return 'script'
   // 지금 글에 이미 있던 줄은 초안 탓이 아니다(옛 들이기 · 옛 정리 · 손으로 쓴 줄) — 새로 든 줄만
+  //   가로줄(---)은 항목 끝 구분으로 지금 글에 있을 수 있다 — 지금 글보다 늘었을 때만 프런트매터로 본다
+  const was = String(old ?? cur ?? '')
+  const rules = (x) => (x.match(/^---\s*$/gm) || []).length
+  if (rules(t) > rules(was)) return '프런트매터 줄(---)'
+  if (/<script/i.test(t) && !/<script/i.test(was)) return 'script'
   const p = formatProblems(t, { doc, old })
   if (p.length) return p.slice(0, 2).map((x) => `${x.line}째 줄 ${x.what}`).join(' / ')
   if (hasBlockMarker(t) && JSON.stringify(splitBlocks(t).blocks) !== JSON.stringify(splitBlocks(cur).blocks)) return '저절로 채우는 표를 고쳤다'
