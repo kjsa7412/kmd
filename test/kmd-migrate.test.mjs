@@ -68,6 +68,27 @@ test('이어진 기록: 항목 표지 · 오래된 순 · 표시', async () => {
   assert.match(s.text, /^# dpms — 항목 \d+ · 기록 없는 항목 \d+/)
 })
 
+test('빠진 사건 채우기: 진단이 찾고 · 재료에 없는 값 · 머리 꼴 거절 · 넣으면 빠진 목록에서 사라짐', async () => {
+  const EV = 'docs/장애대응.md'
+  fs.writeFileSync(path.join(dir, '_forms.md'), '# 갈래 장부\n\n| 갈래 | 다른 이름 | 폴더 | 종류 | 이름 | 서식 |\n|---|---|---|---|---|---|\n| 장애대응 | 카나리 | - | 사건 | - | 작업기록 |\n')
+  await tryGit(dir, ['add', '-A'])
+  await tryGit(dir, ['commit', '-qm', '갈래 장부'])
+  const { eventGaps } = await import('../scripts/kmd-migrate.mjs')
+  const g0 = eventGaps(await load()).find((g) => g.doc === EV)
+  assert.ok(g0.missing.some((w) => w.id === '2026-1017-카나리'), '제목에 갈래의 다른 이름이 든 기록이 빠진 후보')
+  const mk = (heading, content) => input('ev.json', { record: { title: `회의록 채우기: ${heading}`, body: '장애대응 문서에 빠진 카나리 결정을 그 기록으로 채웠다.\n\n## 바뀐 것\n- 장애대응 항목: 카나리 새로 둠\n\n## 근거\n- 재료 기록: 2026-1017-카나리' }, sections: [{ doc: EV, heading, new: true, sources: ['2026-1017-카나리'], content }] })
+  const good = '- **정한 것**: 첫 30분은 요청의 10% 만 보낸다. 오류율 1% 를 넘으면 멈춘다'
+  assert.match((await run('check', dir, mk('2026-10-17 카나리', good.replace('10%', '20%')))).text, /근거에 없는 값이 있다: 20%/)
+  assert.match((await run('check', dir, mk('카나리', good))).text, /사건 갈래 문서의 머리는/)
+  assert.match((await run('check', dir, input('ev2.json', { record: { title: 't', body: 'b\n\n## 바뀐 것\n- x' }, sections: [{ doc: EV, heading: '2026-10-17 카나리', new: true, sources: [], content: good }] }))).text, /sources/)
+  const p = await run('put', dir, mk('2026-10-17 카나리', good), '--user', 'kim')
+  assert.equal(p.thrown, null, p.text)
+  const k = await load()
+  assert.ok(k.byDocPath.get(EV).sections.some((s) => s.h === '2026-10-17 카나리'))
+  assert.ok(!eventGaps(k).find((g) => g.doc === EV).missing.some((w) => w.id === '2026-1017-카나리'), '채운 뒤 빠진 목록에서 사라진다')
+  assert.match((await run('check', dir, mk('2026-10-17 카나리', good))).text, /이미 있는 머리다/)
+})
+
 test('사라지는 표 행 · 문장', () => {
   const old = '첫 문장은 운영 배포 창을 정하는 팀의 규칙을 설명한다.\n\n| 꾸러미 | 판 |\n|---|---|\n| spring-boot | 3.3.4 |\n| mybatis | 3.0.3 |'
   const r = dropsOf(old, '| 꾸러미 | 판 |\n|---|---|\n| spring-boot | 3.3.4 |')

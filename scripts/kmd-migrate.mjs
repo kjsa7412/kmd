@@ -2,12 +2,14 @@
 //   지식 폴더(git)를 손에 쥔 사람이 세션에서 「기록으로 항목을 다시 그리기」 를 할 때, 서비스의 기준(저장 검사 · 값 대조 · 참고 블록 · 기록)을 그대로 지나게 한다.
 //   기능(화면 · 길)이 아니다. 서버를 거치지 않고 core 의 저장(core/save.js)과 검사(core/gate.js)를 지식 폴더에 바로 건다.
 //
-//   node scripts/kmd-migrate.mjs scan  <지식 폴더> [--doc docs/x.md] [--json]          진단: 문서마다 항목 · 기록 없는 항목 · 큰 항목 · 날짜 줄 · 같은 글 · 다시 그릴 만한 항목
+//   node scripts/kmd-migrate.mjs scan  <지식 폴더> [--doc docs/x.md] [--json]          진단: 문서마다 항목 · 기록 없는 항목 · 큰 항목 · 날짜 줄 · 같은 글 · 다시 그릴 만한 항목 · 사건 갈래 문서에 빠진 기록
+//   node scripts/kmd-migrate.mjs rec   <지식 폴더> <기록 id> [--json]                         기록 하나: 머리 · 상태 · 이름 · 넣은 곳 · 본문
 //   node scripts/kmd-migrate.mjs trail <지식 폴더> <docs/x.md> <머리> [--json] [--full]  항목 하나: 지금 글 · base · 이어진 기록(오래된 순 · 표시) · 넣은 줄
 //   node scripts/kmd-migrate.mjs check <지식 폴더> <input.json>                          마른 검사: 쓰지 않는다 · 값 대조 · 꼴 · 사라지는 표 행 · 문장
 //   node scripts/kmd-migrate.mjs put   <지식 폴더> <input.json> --user <사람> [--allow-drop]  넣기: 줄 안에서 다시 검사 → 기록 + 항목 + git 커밋 한 묶음
 //
 //   input.json = { record: { title, body, touches?, tags? }, sections: [{ doc, heading, base, content | contentFile }] }
+//     빠진 항목 채우기: sections[] 에 base 대신 new: true · sources: [재료 기록 id](있는 문서의 없는 머리 · 사건 갈래면 「YYYY-MM-DD 무엇」)
 //     record.body 는 기록 서식(docs/템플릿/기록.md): 「## 바뀐 것」 에 이 항목의 「옛 값 → 새 값」 · 뺀 값은 「옛 값 → (뺌)」 · 까닭 · 근거
 //   공통: --cutover "YYYY-MM-DD HH:MM"(개편 때 · 없으면 <지식 폴더>/../.kmd/cutover.json)
 //
@@ -171,7 +173,9 @@ async function scan(dir, o) {
     boiler: boiler.length,
     adrift: adrift ? adrift.length : null,
   }
-  if (o.json) return console.log(JSON.stringify({ sum, items, boiler, adrift }, null, 1))
+  const gaps = eventGaps(k).filter((g) => !o.doc || g.doc === o.doc)
+  sum.gaps = gaps.reduce((n, g) => n + g.missing.length, 0)
+  if (o.json) return console.log(JSON.stringify({ sum, items, boiler, adrift, gaps }, null, 1))
   const pct = (n) => (all ? `${Math.round((n / all) * 100)}%` : '-')
   console.log(`# ${k.id} — 항목 ${all} · 기록 없는 항목 ${sum.unsourced}(${pct(sum.unsourced)}) · 다시 그릴 만한 항목(이어진 기록 5↑) ${sum.rich} · 큰 항목(40줄↑) ${sum.big} · 날짜 줄 3↑ ${sum.diary} · 같은 글 ${sum.dup}(틀 문장 ${sum.boiler} 줄 따로)${adrift ? ` · 닿지 않은 기록 ${adrift.length}` : ''}`)
   console.log('\n| 문서 | 항목 | 기록 없음 | 다시 그릴 만함 | 큰 항목 |\n|---|---|---|---|---|')
@@ -186,6 +190,48 @@ async function scan(dir, o) {
     console.log('\n## 틀 문장(여러 항목에 같은 글 · 다시 그리기 대상 아님)')
     for (const b of boiler.slice(0, 10)) console.log(`- ${b.items}곳: ${b.line}`)
   }
+  for (const g of gaps) {
+    console.log(`\n## 갈래 문서에 빠진 사건 기록: ${g.form} (${g.doc}${g.exists ? ` · 항목 ${g.items}` : ' · 문서 없음'})`)
+    if (!g.missing.length) console.log('- 없음')
+    for (const w of g.missing) console.log(`- ${w.date} · ${w.id} · ${w.title}${w.state ? ` [${w.state}]` : ''}`)
+  }
+}
+
+// 사건 갈래(회의록 · 장애 대응 · 주간보고 …) 문서에 항목이 없는 사건 기록 — 후보다(이름 · 태그로 고른다 · 사람이 가른다)
+//   후보: 제목 · id · 태그에 갈래 이름이나 다른 이름이 든 기록(넣지 못함 · 메모 · 바로잡힘 · 두기 · kmd 의 일 뺌)
+//   빠짐: 그 문서 어느 항목에도 이어지지 않았고, 그 문서 항목에 이어진 기록 본문(채우기 기록의 「## 근거」)에 id 가 없다
+export function eventGaps(k) {
+  const out = []
+  for (const f of k.forms?.rows || []) {
+    if (f.kind !== '사건') continue
+    const docPath = `docs/${f.folder ? `${f.folder}/` : ''}${f.name}.md`
+    const d = k.byDocPath.get(docPath)
+    const words = [f.name, ...(f.aliases || [])].filter(Boolean)
+    const hit = (w) => words.some((x) => `${w.title} ${w.id} ${w.tags.join(' ')}`.includes(x))
+    const linked = new Set()
+    const said = []
+    for (const s of d?.sections || []) for (const x of linksOf(k, d, s)) {
+      linked.add(x.id)
+      said.push(x.body)
+    }
+    const told = said.join('\n')
+    const missing = k.works
+      .filter((w) => hit(w) && !['held', 'memo', 'fixed', 'kept'].includes(w.state) && !w.tags.includes('memo') && !k.superseded.has(w.id))
+      .filter((w) => !linked.has(w.id) && !told.includes(w.id))
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((w) => ({ id: w.id, date: w.date, title: w.title, state: w.state || null }))
+    out.push({ form: f.name, doc: docPath, exists: !!d, items: d?.sections.length || 0, missing })
+  }
+  return out
+}
+
+async function rec(dir, id, o) {
+  const k = await load(dir, o)
+  const w = k.byWork.get(id)
+  if (!w) throw new Error(`없는 기록: ${id}`)
+  const put = parsePut(w.body)
+  if (o.json) return console.log(JSON.stringify({ id: w.id, date: w.date, author: w.author, title: w.title, state: w.state || null, tags: w.tags, touches: w.touches, put, body: w.body }, null, 1))
+  console.log(`# ${w.id}\n제목: ${w.title}\n때: ${w.date} · 쓴 사람: ${w.author || '-'} · 상태: ${w.state || 'log'}\n태그: ${w.tags.join(' · ') || '-'}\n이름: ${w.touches.join(' · ') || '-'}${put.length ? `\n넣은 곳: ${put.map((p) => `${p.doc} › ${p.heading}`).join(' / ')}` : ''}\n\n${w.body}`)
 }
 
 async function trail(dir, docPath, heading, o) {
@@ -255,14 +301,45 @@ function inspect(k, input) {
   return input.sections.map((s) => {
     const d = k.byDocPath.get(s.doc)
     const sec = d?.sections.find((x) => x.h === s.heading) || null
-    if (!d) return { doc: s.doc, heading: s.heading, ok: false, why: '문서가 없다(다시 그리기는 있는 항목만)' }
-    if (!sec) return { doc: s.doc, heading: s.heading, ok: false, why: '머리가 없다(다시 그리기는 있는 항목만 · 머리 이름은 바꾸지 않는다)' }
+    const no = (why) => ({ doc: s.doc, heading: s.heading, ok: false, why, lostRows: [], lostLines: [] })
+    if (!d) return no('문서가 없다(새 문서는 세우지 않는다 · 갈래 문서를 먼저 세운다)')
+    if (s.new) return inspectNew(k, input, s, d, sec, spread)
+    if (!sec) return no('머리가 없다(있는 항목만 다시 그린다 · 빠진 항목을 채우려면 new: true 와 sources)')
     const links = linksOf(k, d, sec)
     const legacyPend = links.filter((x) => x.mark.includes('pend')).map((x) => x.id)
     const r = checkSection(k, { doc: s.doc, heading: s.heading, base: s.base, content: s.content, record: input.record, spread, legacyPend })
     const drop = dropsOf(sec.body, s.content)
     return { doc: s.doc, heading: s.heading, ok: !!r.ok, code: r.code || null, why: r.why || null, changed: r.changed || [], lint: r.lint || null, lostRows: drop.rows, lostLines: drop.lines, sources: sourceOf(links).length }
   })
+}
+
+// 빠진 항목 채우기(new) — 있는 문서에 없는 머리 · 재료 기록(sources)이 값의 근거다.
+//   재료 기록 본문은 검사에만 「## 근거」 아래로 내려 싣는다(그 기록의 「바뀐 것」 이 이 항목의 요구 값이 되지 않게 · 지어낸 값은 잡히게)
+//   사건 갈래 문서(회의록 · 장애 대응 …)의 머리는 「YYYY-MM-DD 무엇」
+function inspectNew(k, input, s, d, sec, spread) {
+  const no = (why) => ({ doc: s.doc, heading: s.heading, ok: false, why, lostRows: [], lostLines: [] })
+  if (sec) return no('이미 있는 머리다(있는 항목은 new 없이 base 와 함께 다시 그린다)')
+  if (!/\S/.test(s.heading) || /[\r\n]/.test(s.heading) || s.heading.length > 120) return no('머리는 한 줄 · 120자 안')
+  if (formOfDoc(k, d)?.kind === '사건' && !/^\d{4}-\d{2}-\d{2} \S/.test(s.heading)) return no('사건 갈래 문서의 머리는 「YYYY-MM-DD 무엇」')
+  const ids = Array.isArray(s.sources) ? s.sources : []
+  if (!ids.length) return no('sources(재료 기록 id)가 있어야 한다')
+  const ws = []
+  for (const id of ids) {
+    const w = k.byWork.get(String(id))
+    if (!w) return no(`없는 기록: ${id}`)
+    if (w.state === 'held' || w.state === 'memo' || w.tags.includes('memo')) return no(`넣지 못함 · 메모 기록은 재료가 아니다: ${id}`)
+    ws.push(w)
+  }
+  const ground = ws.map((w) => `### ${w.title}\n${String(w.body).replace(/^#{1,2} /gm, '### ')}`).join('\n\n')
+  const record = { title: input.record.title, body: `${input.record.body}\n\n## 근거\n${ground}` }
+  const r = checkSection(k, { doc: s.doc, heading: s.heading, base: null, content: s.content, record, spread })
+  return { doc: s.doc, heading: s.heading, new: true, ok: !!r.ok, code: r.code || null, why: r.why || null, changed: [], lint: r.lint || null, lostRows: [], lostLines: [], sources: ws.length }
+}
+
+// 문서의 갈래(갈래 장부 _forms.md · 폴더/이름.md)
+function formOfDoc(k, d) {
+  const rows = k.forms?.rows || []
+  return rows.find((f) => d.path === `docs/${f.folder ? `${f.folder}/` : ''}${f.name}.md`) || null
 }
 
 const show = (rs) => {
@@ -282,7 +359,7 @@ async function check(dir, file, o) {
   if (o.json) return console.log(JSON.stringify(rs, null, 1))
   show(rs)
   const bad = rs.filter((r) => !r.ok).length
-  const drops = rs.filter((r) => r.lostRows.length || r.lostLines.length).length
+  const drops = rs.filter((r) => r.lostRows?.length || r.lostLines?.length).length
   console.log(`\n= 항목 ${rs.length} · 걸림 ${bad} · 사라지는 것 있음 ${drops}${bad ? ' — 걸린 까닭을 고쳐 다시 check' : drops ? ' — 사람이 본 뒤 put --allow-drop' : ' — put 으로 넣을 수 있다'}`)
   process.exitCode = bad ? 2 : 0
 }
@@ -299,7 +376,7 @@ async function put(dir, file, o) {
     const k = await load(abs, o)
     const rs = inspect(k, input)
     const bad = rs.filter((r) => !r.ok)
-    const drops = rs.filter((r) => r.lostRows.length || r.lostLines.length)
+    const drops = rs.filter((r) => r.lostRows?.length || r.lostLines?.length)
     if (bad.length) fail = { why: '검사에 걸렸다', rs: bad }
     else if (drops.length && !o['allow-drop']) fail = { why: '사라지는 표 행 · 문장이 있다(사람이 본 뒤 --allow-drop)', rs: drops }
     if (fail) return { abort: { same: false, id: null } }
@@ -325,9 +402,10 @@ export async function main(argv) {
   const [cmd, dir, a, b] = pos
   if (cmd === 'scan' && dir) return scan(dir, o)
   if (cmd === 'trail' && dir && a && b) return trail(dir, a, b, o)
+  if (cmd === 'rec' && dir && a) return rec(dir, a, o)
   if (cmd === 'check' && dir && a) return check(dir, a, o)
   if (cmd === 'put' && dir && a) return put(dir, a, o)
-  console.error('쓰기: kmd-migrate.mjs scan <지식 폴더> | trail <지식 폴더> <docs/x.md> <머리> | check <지식 폴더> <input.json> | put <지식 폴더> <input.json> --user <사람> [--allow-drop]')
+  console.error('쓰기: kmd-migrate.mjs scan <지식 폴더> | rec <지식 폴더> <기록 id> | trail <지식 폴더> <docs/x.md> <머리> | check <지식 폴더> <input.json> | put <지식 폴더> <input.json> --user <사람> [--allow-drop]')
   process.exitCode = 1
 }
 
