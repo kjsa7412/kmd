@@ -191,7 +191,7 @@ async function scan(dir, o) {
     for (const b of boiler.slice(0, 10)) console.log(`- ${b.items}곳: ${b.line}`)
   }
   for (const g of gaps) {
-    console.log(`\n## 갈래 문서에 빠진 사건 기록: ${g.form} (${g.doc}${g.exists ? ` · 항목 ${g.items}` : ' · 문서 없음'})`)
+    console.log(`\n## 갈래 문서에 빠진 사건 기록: ${g.form} (${g.doc}${g.exists ? ` · 항목 ${g.items}` : ' · 문서 없음'}${g.disorder ? ` · 날짜 차례 어긋난 항목 ${g.disorder}` : ''})`)
     if (!g.missing.length) console.log('- 없음')
     for (const w of g.missing) console.log(`- ${w.date} · ${w.id} · ${w.title}${w.state ? ` [${w.state}]` : ''}`)
   }
@@ -220,7 +220,7 @@ export function eventGaps(k) {
       .filter((w) => !linked.has(w.id) && !told.includes(w.id))
       .sort((a, b) => a.date.localeCompare(b.date))
       .map((w) => ({ id: w.id, date: w.date, title: w.title, state: w.state || null }))
-    out.push({ form: f.name, doc: docPath, exists: !!d, items: d?.sections.length || 0, missing })
+    out.push({ form: f.name, doc: docPath, exists: !!d, items: d?.sections.length || 0, disorder: d ? outOfOrder(d) : 0, missing })
   }
   return out
 }
@@ -333,7 +333,34 @@ function inspectNew(k, input, s, d, sec, spread) {
   const ground = ws.map((w) => `### ${w.title}\n${String(w.body).replace(/^#{1,2} /gm, '### ')}`).join('\n\n')
   const record = { title: input.record.title, body: `${input.record.body}\n\n## 근거\n${ground}` }
   const r = checkSection(k, { doc: s.doc, heading: s.heading, base: null, content: s.content, record, spread })
-  return { doc: s.doc, heading: s.heading, new: true, ok: !!r.ok, code: r.code || null, why: r.why || null, changed: [], lint: r.lint || null, lostRows: [], lostLines: [], sources: ws.length }
+  let before = null
+  if (s.before != null) {
+    if (!d.sections.some((x) => x.h === s.before)) return no(`before 머리가 없다: ${s.before}`)
+    before = s.before
+  } else if (formOfDoc(k, d)?.kind === '사건') before = dateSlot(d, s.heading)
+  s.before = before
+  return { doc: s.doc, heading: s.heading, new: true, before, ok: !!r.ok, code: r.code || null, why: r.why || null, changed: [], lint: r.lint || null, lostRows: [], lostLines: [], sources: ws.length }
+}
+
+// 사건 문서의 날짜 자리 — 새 머리의 날짜보다 늦은 첫 항목(그 앞에 끼운다) · 없으면 끝(null)
+//   같은 날짜는 뒤에 · 날짜 없는 머리는 건너뛴다
+const dayOf = (h) => (String(h).match(/^(\d{4}-\d{2}-\d{2})/) || [])[1] || null
+export function dateSlot(d, heading) {
+  const day = dayOf(heading)
+  if (!day) return null
+  return d.sections.find((x) => dayOf(x.h) && dayOf(x.h) > day)?.h || null
+}
+// 사건 문서의 차례 어긋남 — 앞 항목보다 이른 날짜의 항목 수
+export function outOfOrder(d) {
+  let last = null
+  let n = 0
+  for (const x of d.sections) {
+    const day = dayOf(x.h)
+    if (!day) continue
+    if (last && day < last) n++
+    else last = day
+  }
+  return n
 }
 
 // 문서의 갈래(갈래 장부 _forms.md · 폴더/이름.md)
@@ -345,6 +372,7 @@ function formOfDoc(k, d) {
 const show = (rs) => {
   for (const r of rs) {
     console.log(`\n## ${r.doc} › ${r.heading}\n검사: ${r.ok ? '넘음' : `걸림(${r.code || '-'}) ${r.why}`}${r.sources != null ? ` · 이어진 기록 ${r.sources}` : ''}`)
+    if (r.new) console.log(`자리: ${r.before ? `「${r.before}」 앞` : '문서 끝'}`)
     if (r.changed?.length) console.log(`바뀐 값: ${r.changed.map((c) => `${c.from} → ${c.to}`).join(' / ')}`)
     if (r.lint) console.log(`글 다듬을 곳: ${JSON.stringify(r.lint)}`)
     if (r.lostRows?.length) console.log(`사라지는 표 행(${r.lostRows.length}): ${r.lostRows.join(' · ')}`)
@@ -386,7 +414,7 @@ async function put(dir, file, o) {
       if (coords.length) rec.touches = coords
       else rec.touchesEmpty = rec.touchesEmpty || '다시 그리기: 이 항목에 걸린 이름이 없다'
     }
-    return { sections: input.sections.map((s) => ({ doc: s.doc, heading: s.heading, content: s.content, base: s.base })) }
+    return { sections: input.sections.map((s) => ({ doc: s.doc, heading: s.heading, content: s.content, base: s.base, ...(s.new && s.before ? { before: s.before } : {}) })) }
   }
   const r = await save(abs, { ...input, record: rec }, { user: o.user, prepare, partial: true })
   if (fail) {

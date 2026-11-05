@@ -319,7 +319,8 @@ export function renameSection(text, { level = 2, heading, to }) {
 // 항목 하나를 갈아 끼운다 — 없으면 문서 끝에 새로 붙인다. 블록과 그 항목 밖의 줄은 바이트 그대로 둔다
 //   log — 그 항목의 참고 줄 전부(없으면 지금 줄을 그대로) · 글 끝에 경과 꼬리가 오면 떼어 줄에 보탠다
 //   그 항목의 옛 꼴(경과 꼬리 · 규칙 대체 줄)은 이때 참고 블록으로 옮긴다
-export function replaceSection(text, { level = 2, heading, body, applied, log }) {
+// before — 새 항목(없는 머리)일 때만: 이 머리 앞에 끼운다(사건 문서의 날짜 차례 · 없으면 끝에). 있는 항목은 제자리
+export function replaceSection(text, { level = 2, heading, body, applied, log, before = null }) {
   const { lines, ref, found } = splitRef(String(text).split('\n'))
   const h = findHeading(headsOf(lines).filter((x) => x.level === level), heading, (x) => x.heading)
   const name = h ? h.heading : heading
@@ -336,8 +337,12 @@ export function replaceSection(text, { level = 2, heading, body, applied, log })
     const gap = tail.length && tail.some((l) => l.trim()) ? [''] : []
     out = [...lines.slice(0, h.line + 1), ...block, ...gap, ...tail]
   } else {
-    const base = lines.join('\n').replace(/\s+$/, '')
-    out = `${base}${base ? '\n\n' : ''}${'#'.repeat(level)} ${heading}\n${block.join('\n')}\n`.split('\n')
+    const at = before ? findHeading(headsOf(lines).filter((x) => x.level === level), before, (x) => x.heading) : null
+    if (at) out = [...lines.slice(0, at.line), `${'#'.repeat(level)} ${heading}`, ...block, '', ...lines.slice(at.line)]
+    else {
+      const base = lines.join('\n').replace(/\s+$/, '')
+      out = `${base}${base ? '\n\n' : ''}${'#'.repeat(level)} ${heading}\n${block.join('\n')}\n`.split('\n')
+    }
   }
   if (next.length) ref.set(name, next)
   else ref.delete(name)

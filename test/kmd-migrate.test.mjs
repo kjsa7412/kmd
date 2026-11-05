@@ -87,6 +87,17 @@ test('빠진 사건 채우기: 진단이 찾고 · 재료에 없는 값 · 머�
   assert.ok(k.byDocPath.get(EV).sections.some((s) => s.h === '2026-10-17 카나리'))
   assert.ok(!eventGaps(k).find((g) => g.doc === EV).missing.some((w) => w.id === '2026-1017-카나리'), '채운 뒤 빠진 목록에서 사라진다')
   assert.match((await run('check', dir, mk('2026-10-17 카나리', good))).text, /이미 있는 머리다/)
+  // 날짜 차례 — 더 이른 날의 새 항목은 늦은 항목 앞에 끼운다(옛 줄은 그대로)
+  const before = fs.readFileSync(path.join(dir, ...EV.split('/')), 'utf8')
+  const early = input('ev3.json', { record: { title: '회의록 채우기: 2026-10-10 처음 10분', body: '앞선 날의 항목을 채웠다.\n\n## 바뀐 것\n- 장애대응 항목: 처음 10분 새로 둠' }, sections: [{ doc: EV, heading: '2026-10-10 처음 10분', new: true, sources: ['2026-1017-카나리'], content: '- **정한 것**: 오류율 1% 를 넘으면 멈춘다' }] })
+  assert.match((await run('check', dir, early)).text, /자리: 「2026-10-17 카나리」 앞/)
+  assert.equal((await run('put', dir, early, '--user', 'kim')).thrown, null)
+  const heads = (await load()).byDocPath.get(EV).sections.map((s) => s.h)
+  assert.ok(heads.indexOf('2026-10-10 처음 10분') === heads.indexOf('2026-10-17 카나리') - 1, '날짜 자리')
+  const after = fs.readFileSync(path.join(dir, ...EV.split('/')), 'utf8')
+  for (const l of before.split('\n').filter((x) => x.trim() && !/kmd:참고|^\*\*참고|^- |^  - /.test(x))) assert.ok(after.includes(l), `옛 줄 그대로: ${l}`)
+  const { outOfOrder } = await import('../scripts/kmd-migrate.mjs')
+  assert.equal(outOfOrder({ sections: [{ h: '2026-11-04 a' }, { h: '2026-09-30 b' }, { h: '머리' }, { h: '2026-12-01 c' }] }), 1)
 })
 
 test('사라지는 표 행 · 문장', () => {

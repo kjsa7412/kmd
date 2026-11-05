@@ -105,6 +105,7 @@ function sectionShape(secs, { many = false } = {}) {
     if (s.coord == null && (s.doc == null || s.heading == null)) fail('E_INPUT', '항목은 이름(coord) 또는 문서 · 머리(doc · heading)로 가리킨다')
     if (s.coord != null && !(typeof s.coord === 'string' && COORD.test(s.coord.trim()))) fail('E_INPUT', `이름 모양이 아니다: ${s.coord}`)
     if (s.heading != null && !(oneLine(s.heading) && s.heading.trim())) fail('E_INPUT', '머리는 한 줄 글이다')
+    if (s.before != null && !(typeof s.before === 'string' && oneLine(s.before) && s.before.trim())) fail('E_INPUT', 'before 는 한 줄 머리다(새 항목을 그 머리 앞에)')
     if (String(s.content ?? '').length > MAX_BODY) fail('E_INPUT', '항목 글이 너무 길다')
     if (s.base != null && !(typeof s.base === 'string' && /^[0-9a-f]{16}$/.test(s.base))) fail('E_INPUT', 'base 는 읽을 때 받은 16자 지문이다')
   }
@@ -432,7 +433,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
       if (!touches.includes(coord)) touches.push(coord)
       p = { ...docPath(dir, loc.doc), level: loc.level, heading: loc.heading, content: s.content, base: s.base, ...(system && s.applied !== undefined ? { applied: s.applied } : {}) }
     } else {
-      p = { ...docPath(dir, s.doc), level: 2, heading: nfc(s.heading.trim()), content: s.content ?? '', base: s.base, ...(s.remove ? { remove: true } : {}), ...(s.rename != null ? { rename: nfc(String(s.rename).trim()) } : {}), ...(system && s.applied !== undefined ? { applied: s.applied } : {}) }
+      p = { ...docPath(dir, s.doc), level: 2, heading: nfc(s.heading.trim()), content: s.content ?? '', base: s.base, ...(s.remove ? { remove: true } : {}), ...(s.rename != null ? { rename: nfc(String(s.rename).trim()) } : {}), ...(s.before != null ? { before: nfc(String(s.before).trim()) } : {}), ...(system && s.applied !== undefined ? { applied: s.applied } : {}) }
     }
     if (system && Array.isArray(s.rough)) p.rough = s.rough.map(String)
     p.src = s
@@ -608,7 +609,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
         for (const w of logged) if (!logHas(log, w.id)) log.push(logLine(p.rel, w, p.rough?.includes(w.id) ? ROUGH : ''))
         content = now.log.length || r.found ? now.body : content
       }
-      const after = p.remove ? removeSection(start, { level: p.level, heading: p.heading }) : p.rename ? renameSection(start, { level: p.level, heading: p.heading, to: p.rename }) : replaceSection(start, { level: p.level, heading: p.heading, body: content, applied: p.applied !== undefined ? p.applied : id, log })
+      const after = p.remove ? removeSection(start, { level: p.level, heading: p.heading }) : p.rename ? renameSection(start, { level: p.level, heading: p.heading, to: p.rename }) : replaceSection(start, { level: p.level, heading: p.heading, body: content, applied: p.applied !== undefined ? p.applied : id, log, before: p.before || null })
       if (!docs.includes(p.rel)) {
         await j.add(p.rel)
         docs.push(p.rel)
