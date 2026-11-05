@@ -65,7 +65,7 @@ const HELP = `kmd ${VERSION}
       바깥 생성기용 기계 열쇠(그 지식 · 그 표만 · 1년)
   kmd search-check <지식> [--freeze]           찾기 점검: 얼린 시험지 위에서 나빠진 문항
   kmd guard <지식> | --all [--list]           지식 점검: 이름 없는 기록 · 장부 밖 이름 · 이름 없는 항목 · 자리 잃은 이름 · 다른 이름 겹침 · 깨진 머리 수 · --list 는 목록까지
-  kmd docfmt <지식> | --all [--dry] [--lift]   옛 문서 옮기기: 항목 끝 출처 목록을 문서 끝 참고로(본문은 그대로) · --dry 는 보기만 · --lift 는 ## 없는 문서의 ### 을 ## 로(자리 장부도 같이)
+  kmd docfmt <지식> | --all [--dry] [--lift] [--levels]   옛 문서 옮기기: 항목 끝 출처 목록을 문서 끝 참고로(본문은 그대로) · --dry 는 보기만 · --lift 는 ## 없는 문서의 ### 을 ## 로(자리 장부도 같이) · --levels 는 ### 소제목 · 들여쓴 목록을 수준 표시(1. · 1.1. · 1) · - · *)로
   kmd auth reapply <auth.log>                  옛 명부로 되살린 뒤 늦은 일을 다시 적용
 
   둘 다
@@ -722,22 +722,23 @@ async function docfmtCmd(o) {
   const all = o.all !== undefined && !flagVal(o.all)
   const dry = o.dry !== undefined
   const lift = o.lift !== undefined
+  const levels = o.levels !== undefined
   try {
-    if (!id && !all) throw new Error('kmd docfmt <지식> | --all [--dry] [--lift]')
+    if (!id && !all) throw new Error('kmd docfmt <지식> | --all [--dry] [--lift] [--levels]')
     const hub = await makeHub({ root: rootOf(o), dataDir: dataOf(o), log: () => {} })
     const ids = all ? (await hub.list()).map((k) => k.id) : [id]
     for (const x of ids) {
       try {
-        const r = await hub.docfmt(x, SHELL, { dry, lift })
+        const r = await hub.docfmt(x, SHELL, { dry, lift, levels })
         const bad = r.docs.filter((d) => !d.ok)
-        console.log(`${r.name}: ${dry ? '옮길' : '옮긴'} 문서 ${r.files} · 줄 ${r.moved}${r.lifted ? ` · ### 올림 ${r.lifted}` : ''}${bad.length ? ` · 옮기지 않음 ${bad.length}` : ''}${r.log ? ` · 이력 ${r.log}` : ''}`)
+        console.log(`${r.name}: ${dry ? '옮길' : '옮긴'} 문서 ${r.files} · 줄 ${r.moved}${r.lifted ? ` · ### 올림 ${r.lifted}` : ''}${r.levels ? ` · 수준 표시 ${r.levels}` : ''}${bad.length ? ` · 옮기지 않음 ${bad.length}` : ''}${r.log ? ` · 이력 ${r.log}` : ''}`)
         // 짜임 알림(옮긴 뒤 글을 본 것 · 고치지는 않는다) — 문서 수 · 알림 수 · 갈래(code)별 수
         const lt = r.lint || { docs: 0, n: 0, codes: {} }
         if (lt.n) console.log(`  짜임 알림: 문서 ${lt.docs} · 알림 ${lt.n} (${Object.entries(lt.codes || {}).sort((a, b) => b[1] - a[1]).map(([c, n]) => `${c} ${n}`).join(' · ')})`)
         for (const d of r.docs) {
           const ln = d.lint || { n: 0 }, ks = d.kinds || {}
           if (!d.changed && d.ok && !ln.n) continue
-          const extra = [ks.change ? `변경 이력 ${ks.change}` : '', ks.top ? `머리 앞 걷음 ${ks.top}` : '', d.lifted ? `### 올림 ${d.lifted} · 장부 줄 ${d.regRows || 0}` : '', ln.n ? `짜임 알림 ${ln.n}` : ''].filter(Boolean).join(' · ')
+          const extra = [ks.change ? `변경 이력 ${ks.change}` : '', ks.top ? `머리 앞 걷음 ${ks.top}` : '', d.lifted ? `### 올림 ${d.lifted} · 장부 줄 ${d.regRows || 0}` : '', d.levels ? `수준 표시: 소제목 ${d.levels.heads} · 목록 줄 ${d.levels.lists} · 왼쪽으로 ${d.levels.lifted}` : '', ln.n ? `짜임 알림 ${ln.n}` : ''].filter(Boolean).join(' · ')
           console.log(`  ${d.ok ? '-' : '!'} ${d.doc}: ${d.ok ? `줄 ${d.moved}` : d.why}${extra ? ` · ${extra}` : ''}`)
           for (const x of ln.top || []) console.log(`      ${x.line}째 줄 ${x.msg}`)
         }

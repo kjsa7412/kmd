@@ -11,6 +11,7 @@ import { locateDoc } from '../core/registry.js'
 import { sha16 } from '../core/text.js'
 import { splitBlocks, parseTable } from '../core/baseline.js'
 import { parseRefLine } from '../core/sections.js'
+import { levelOf, eachLive } from '../core/levels.js'
 
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
@@ -136,11 +137,33 @@ export function autoHtml(b, { checked = null, lock = false } = {}) {
   const t = parseTable(b.table)
   return `<div class="auto${lock ? ' lock' : ''}" data-t="${lock ? 'autoLock' : 'auto'}"><div class="ah">${SYNC} <b>저절로 채우는 표</b> · ${esc(b.src)} · ${esc(String(b.asof).slice(5, 16))} 부터 · ${esc(hm(checked))} 확인</div><table class="t"><tr>${t.cols.map((c) => `<th>${esc(c)}</th>`).join('')}</tr>${t.rows.map((r) => `<tr>${t.cols.map((_, i) => `<td>${esc(r[i] ?? '')}</td>`).join('')}</tr>`).join('')}</table>${lock ? `<div class="lkl">${LOCK} ${esc(b.src)}에서 저절로: 여기서는 고치지 않는다</div>` : ''}${b.missing ? `<div class="lkl">원천에 없다: ${esc(b.missing.slice(5))} 확인</div>` : ''}</div>`
 }
+// 수준 표시 줄(작성기준 5-1절) — md 목록으로 넘기지 않고 먼저 떼어 그린다(번호를 다시 매기지 않는다 · 들이지 않는다)
+//   md 그대로면 「1.」 · 「1)」 은 번호 목록이 되어 번호가 다시 매겨지고 「1.1.」 은 문단이 되며 붙은 줄은 한 문단으로 합쳐진다
+function levelLines(text) {
+  const lines = text.split('\n')
+  const lv = []
+  eachLive(lines, (ln, i, head) => {
+    if (head) return
+    const x = levelOf(ln)
+    if (!x) return
+    lines[i] = `\n\nKMDLV${lv.length}\n\n`
+    lv.push(x)
+  })
+  return { text: lines.join('\n'), lv }
+}
+const plainOf = (h) => h.replace(/<[^>]+>/g, '').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim()
 export function render(k, fromPath, text, { src = {} } = {}) {
   const env = { k, fromPath }
-  const { text: t, blocks } = splitBlocks(String(text || ''))
+  const { text: t0, blocks } = splitBlocks(String(text || ''))
+  const { text: t, lv } = levelLines(t0)
   const html = md.render(t.replace(/\u0000block(\d+)\u0000/g, '\n\nKMDBLOCK$1\n\n'), env).replace(/<p>([\s\S]*?)<\/p>/g, (all, inner) => inner.split('<br>\n').map((x) => `<p>${x}</p>`).join('\n'))
-  return html.replace(/<p>KMDBLOCK(\d+)<\/p>/g, (_, n) => autoHtml(blocks[Number(n)], { checked: src[blocks[Number(n)].src]?.checkedAt }))
+  return html
+    .replace(/<p>KMDBLOCK(\d+)<\/p>/g, (_, n) => autoHtml(blocks[Number(n)], { checked: src[blocks[Number(n)].src]?.checkedAt }))
+    .replace(/<p>KMDLV(\d+)<\/p>/g, (_, n) => {
+      const x = lv[Number(n)]
+      const inner = md.renderInline(x.text, env)
+      return `<div class="lv l${x.n}"${x.n <= 3 ? ` data-lv="${esc(plainOf(inner))}"` : ''}><span class="lvm">${esc(x.mark)}</span><span class="lvx">${inner}</span></div>`
+    })
 }
 // 편집기용 — 블록 뺀 글 · 잠긴 표
 export function editParts(body, { src = {} } = {}) {

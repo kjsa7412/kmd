@@ -21,6 +21,7 @@ import { watchedOf } from './watchmark.js'
 import { LOG_DIR } from './names.js'
 import { serial, localStamp, recordTaken } from './save.js'
 import { parseRegistry } from './registry.js'
+import { lintLevels, toLevels, verifyLevels } from './levels.js'
 
 const FENCE = /^\s{0,3}(`{3,}|~{3,})/
 const APPLIED_LINE = /^\s*<!--\s*applied:.*-->\s*$/
@@ -489,6 +490,7 @@ function dropTopApplied(text) {
 // ── 문서 짜임 검사(알림만 · 거절하지 않는다) — 작성기준 3절 「# 제목 하나 → 요약(1~3문장) → ## 항목 · 소제목은 ### · #### 까지」
 //   lintDoc(text) → [{ code, msg, line }] (줄은 1부터 · 참고 블록 · 코드 울타리 안은 보지 않는다)
 //   code: no-title · many-titles · top-applied · no-summary · long-summary · ops-word · sub-before-sec · skip-level · too-deep · repeat-note
+//         · 수준 표시(작성기준 5-1 · core/levels.js): sub-head · indent-list · level-skip
 // 머리글(요약 자리)에 두지 않는 kmd 운영 말
 export const OPS_WORDS = ['좌표', '섹션', '기준선', '원천', '동기화', '등록부', 'touches', '_vocab', '_managed', 'applied']
 const LIST_LINE = /^\s*(?:[-*+]|\d+[.)])\s/
@@ -551,6 +553,8 @@ export function lintDoc(text0) {
     if (h.level >= 5) add('too-deep', h.i + 1, `${h.level}단계 머리(${h.h.slice(0, 20)}): 소제목은 #### 까지`)
     prev = h.level
   }
+  // 수준 표시(작성기준 5-1절) — 새로 쓴 ### 소제목 · 들여쓴 목록 · 수준 건너뜀
+  for (const x of lintLevels(lines)) out.push(x)
   // 되풀이 글(Q86) — 같은 인용 줄(출처 · 상태 문장: 「> 아래는 매뉴얼에서 옮긴 것이다」 · 「> 운영 DB 에 없다」)이 다섯 번 이상(REPEAT_NOTE)
   //   처음 나온 줄에 한 번 알린다 · 날짜 · 수가 달라도 같은 문장으로 본다
   const seen = new Map()
@@ -569,7 +573,7 @@ export const REPEAT_NOTE = 5
 // 항목 글 하나(머리 아래 내용)의 머리 단계 — 정리 초안 알림용 · ## 아래로 본다
 export function lintSection(body) {
   return lintDoc(`# x\n\n요약.\n\n## x\n${String(body ?? '')}`)
-    .filter((x) => x.code === 'skip-level' || x.code === 'too-deep')
+    .filter((x) => ['skip-level', 'too-deep', 'level-skip'].includes(x.code))
     .map((x) => ({ ...x, line: x.line - 5 }))
 }
 // 검사 결과 줄임 — { n, codes: { code: 수 }, top: [{ code, line, msg }] (앞 3) } · 없으면 { n: 0 }
@@ -597,6 +601,16 @@ export function lintMessage(doc, xs) {
   return `「${doc}」 문서 짜임(알림 · 저장은 했다): ${xs.slice(0, 3).map((x) => `${x.line}째 줄 ${x.msg.split(':')[0]}`).join(' / ')}${xs.length > 3 ? ` / 그 밖 ${xs.length - 3}` : ''}`
 }
 
+// 앞서 수준 표시로 옮긴 문서 — 이력(log/)의 「…-수준-표시-옮김」 기록 줄 「- <문서>: 수준 표시 …」
+async function levelsDone(dir) {
+  const done = new Set()
+  const files = await fs.readdir(path.join(dir, LOG_DIR)).catch(() => [])
+  for (const f of files.filter((x) => /-수준-표시-옮김(?:-\d+)?\.md$/.test(nfc(x)))) {
+    const t = await fs.readFile(path.join(dir, LOG_DIR, f), 'utf8').catch(() => '')
+    for (const m of t.matchAll(/^- (.+?): 수준 표시 /gm)) done.add(nfc(m[1]))
+  }
+  return done
+}
 async function docFiles(dir, rel = 'docs', out = []) {
   for (const e of await fs.readdir(path.join(dir, ...rel.split('/')), { withFileTypes: true }).catch(() => [])) {
     const p = `${rel}/${e.name}`
@@ -610,10 +624,13 @@ async function docFiles(dir, rel = 'docs', out = []) {
 // 지식 하나 — { docs: [{ doc, changed, moved, ok, why, skipped?, lifted? }], moved, files, commit, log, lifted }
 //   dry 면 쓰지 않는다 · ok 인 것만 쓴다 · 원본이 주인인 문서는 건너뛴다
 //   lift — ### 올리기(liftH3)도 · 문서와 자리 장부(_managed.md)의 그 문서 줄을 같은 커밋으로(사람이 --dry 로 본 뒤 · S-D31)
-export function docfmtDir(dir, { dry = false, lift = false, user = 'kmd', by = null, now = new Date() } = {}) {
+//   levels — 수준 표시로 옮기기(작성기준 5-1 · core/levels.js toLevels · verifyLevels) · 한 번 옮긴 문서(앞선 「수준 표시 옮김」 이력에 있는 것)는 다시 옮기지 않는다
+export function docfmtDir(dir, { dry = false, lift = false, levels = false, user = 'kmd', by = null, now = new Date() } = {}) {
   return serial(path.resolve(dir), async () => {
     const rows = []
     const put = []
+    const lvDone = levels ? await levelsDone(dir) : new Set()
+    let lvDocs = 0
     const regFile = path.join(dir, '_managed.md')
     const reg0 = lift ? await fs.readFile(regFile, 'utf8').then(readText, (e) => (e.code === 'ENOENT' ? '' : Promise.reject(e))) : ''
     let reg = reg0
@@ -640,9 +657,19 @@ export function docfmtDir(dir, { dry = false, lift = false, user = 'kmd', by = n
           if (v.ok) { text = l.text; reg = r2.text; lifted += l.lifted }
         }
       }
-      const changed = c.changed || !!up?.n
-      rows.push({ doc, changed, moved: c.moved, kinds: c.kinds, ok: c.ok, why: up?.why ? `### 올리지 않음: ${up.why}` : c.why, lint: lintSummary(lintDoc(text)), ...(up?.n ? { lifted: up.n, regRows: up.reg } : {}) })
-      if (c.ok && changed) put.push({ rel, full, text, moved: c.moved, doc, lifted: up?.n || 0 })
+      // 수준 표시 — 옮긴 글 위에서 · 검사를 넘지 못하면 그 문서는 수준 표시로 옮기지 않는다(다른 옮기기는 그대로)
+      let lv = null
+      if (levels && c.ok && !lvDone.has(doc)) {
+        const r = toLevels(text)
+        if (r.changed) {
+          const v = verifyLevels(text, r.text)
+          lv = v.ok ? { heads: r.heads, lists: r.lists, lifted: r.lifted } : { why: v.why }
+          if (v.ok) { text = r.text; lvDocs++ }
+        }
+      }
+      const changed = c.changed || !!up?.n || !!lv?.heads || !!lv?.lists || !!lv?.lifted
+      rows.push({ doc, changed, moved: c.moved, kinds: c.kinds, ok: c.ok, why: up?.why ? `### 올리지 않음: ${up.why}` : lv?.why ? `수준 표시로 옮기지 않음: ${lv.why}` : c.why, lint: lintSummary(lintDoc(text)), ...(up?.n ? { lifted: up.n, regRows: up.reg } : {}), ...(lv && !lv.why ? { levels: lv } : {}) })
+      if (c.ok && changed) put.push({ rel, full, text, moved: c.moved, doc, lifted: up?.n || 0, levels: lv && !lv.why ? lv : null })
     }
     const moved = put.reduce((n, x) => n + x.moved, 0)
     // 짜임 알림 합계 — { docs(알림이 있는 문서 수), n(알림 수), codes }
@@ -653,15 +680,18 @@ export function docfmtDir(dir, { dry = false, lift = false, user = 'kmd', by = n
       lint.n += x.lint.n
       for (const [c, n] of Object.entries(x.lint.codes)) lint.codes[c] = (lint.codes[c] || 0) + n
     }
-    if (dry || !put.length) return { docs: rows, moved, files: put.length, commit: null, log: null, dry, lint, lifted }
+    if (dry || !put.length) return { docs: rows, moved, files: put.length, commit: null, log: null, dry, lint, lifted, levels: lvDocs }
     await ensureRepo(dir)
     const date = localStamp(now)
     const day = date.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2$3')
-    let id = `${day}-문서-꼴-옮김`
-    for (let n = 2; await recordTaken(dir, id); n++) id = `${day}-문서-꼴-옮김-${n}`
+    const base = lvDocs ? '수준-표시-옮김' : '문서-꼴-옮김'
+    let id = `${day}-${base}`
+    for (let n = 2; await recordTaken(dir, id); n++) id = `${day}-${base}-${n}`
     const logRel = `${LOG_DIR}/${id}.md`
-    const title = `문서 꼴 옮김: 문서 ${put.length} · 줄 ${moved}${lifted ? ` · ### 올림 ${lifted}` : ''}`
-    const body = [`옛 꼴(항목 끝 **경과** 목록 · 「기록 그대로」 줄 · 옛 CDP 경과 · 표 · 생성 주석)을 문서 끝 참고 블록으로 옮겼다. 본문 글은 그대로다${lifted ? ' · ## 항목이 없던 문서는 머리를 한 단씩 올리고(### → ##) 자리 장부의 그 문서 줄도 같이 고쳤다' : ''}${by ? ` · 부른 사람 ${by}` : ''}`, ...put.map((x) => `- ${x.doc}: 줄 ${x.moved}${x.lifted ? ` · ### 올림 ${x.lifted}` : ''}`), ...rows.filter((x) => !x.ok).map((x) => `- 옮기지 않음 ${x.doc}: ${x.why}`)].join('\n')
+    const lvSum = put.reduce((a, x) => (x.levels ? [a[0] + x.levels.heads, a[1] + x.levels.lists] : a), [0, 0])
+    const title = lvDocs ? `수준 표시 옮김: 문서 ${lvDocs} · 소제목 ${lvSum[0]} · 목록 줄 ${lvSum[1]}${moved ? ` · 참고로 옮긴 줄 ${moved}` : ''}` : `문서 꼴 옮김: 문서 ${put.length} · 줄 ${moved}${lifted ? ` · ### 올림 ${lifted}` : ''}`
+    const lvBody = lvDocs ? [`항목 안의 옛 짜임(### · #### 소제목 · 들여쓴 목록 · 맨 왼쪽 번호 목록)을 수준 표시(1. · 1.1. · 1) · 1.1) · - · *)로 옮겼다(작성기준 5-1절). 표시 · 빈칸 · 머리 기호 말고 글은 그대로다 · 소제목의 옛 번호(3.1)는 표시로 그대로 쓴다${by ? ` · 부른 사람 ${by}` : ''}`, ...put.filter((x) => x.levels).map((x) => `- ${x.doc}: 수준 표시 · 소제목 ${x.levels.heads} · 목록 줄 ${x.levels.lists} · 왼쪽으로 ${x.levels.lifted}`), ...rows.filter((x) => /^수준 표시로 옮기지 않음/.test(x.why || '')).map((x) => `- 옮기지 않음 ${x.doc}: ${x.why}`)] : []
+    const body = lvDocs ? lvBody.join('\n') : [`옛 꼴(항목 끝 **경과** 목록 · 「기록 그대로」 줄 · 옛 CDP 경과 · 표 · 생성 주석)을 문서 끝 참고 블록으로 옮겼다. 본문 글은 그대로다${lifted ? ' · ## 항목이 없던 문서는 머리를 한 단씩 올리고(### → ##) 자리 장부의 그 문서 줄도 같이 고쳤다' : ''}${by ? ` · 부른 사람 ${by}` : ''}`, ...put.map((x) => `- ${x.doc}: 줄 ${x.moved}${x.lifted ? ` · ### 올림 ${x.lifted}` : ''}`), ...rows.filter((x) => !x.ok).map((x) => `- 옮기지 않음 ${x.doc}: ${x.why}`)].join('\n')
     const j = await begin(dir)
     try {
       for (const x of put) {
@@ -675,10 +705,10 @@ export function docfmtDir(dir, { dry = false, lift = false, user = 'kmd', by = n
       }
       await fs.mkdir(path.join(dir, LOG_DIR), { recursive: true })
       await j.add(logRel)
-      await writeAtomic(path.join(dir, LOG_DIR, `${id}.md`), renderRecord({ id, title, date, author: user, tags: ['docfmt'] }, body))
+      await writeAtomic(path.join(dir, LOG_DIR, `${id}.md`), renderRecord({ id, title, date, author: user, tags: lvDocs ? ['docfmt', 'levels'] : ['docfmt'] }, body))
       const commit = await commitPaths(dir, [...put.map((x) => x.rel), ...(regPut ? ['_managed.md'] : []), logRel], title, user)
       await j.done()
-      return { docs: rows, moved, files: put.length, commit, log: id, dry, lint, lifted }
+      return { docs: rows, moved, files: put.length, commit, log: id, dry, lint, lifted, levels: lvDocs }
     } catch (e) {
       await j.undo().catch(() => {})
       throw e

@@ -49,7 +49,7 @@ html,body{background:var(--bg)}
 <div class="sg">
   <div class="sg-h"><h1>kmd 디자인 견본</h1><span class="muted small">docs/kmd_디자인_컨벤션.md v0.2 · 값은 app/kmd.css 맨 위 <code>:root</code> 하나에서 온다</span></div>
   <nav class="sg-nav" aria-label="견본 차례">
-    <a href="#color">색</a><a href="#size">글 · 간격 · 모서리 · 그림자</a><a href="#btn">단추</a><a href="#inp">칸</a><a href="#chip">칩 · 표지</a><a href="#card">카드</a><a href="#modal">모달 · 팝업</a><a href="#table">표</a><a href="#tabs">탭</a><a href="#state">빈 화면 · 읽는 중 · 오류</a><a href="#link">링크</a><a href="#ref">참고 정보</a><a href="#term">터미널</a><a href="#resp">반응형</a>
+    <a href="#color">색</a><a href="#size">글 · 간격 · 모서리 · 그림자</a><a href="#btn">단추</a><a href="#inp">칸</a><a href="#chip">칩 · 표지</a><a href="#card">카드</a><a href="#modal">모달 · 팝업</a><a href="#table">표</a><a href="#tabs">탭</a><a href="#state">빈 화면 · 읽는 중 · 오류</a><a href="#link">링크</a><a href="#ref">문서 화면</a><a href="#term">터미널</a><a href="#resp">반응형</a>
   </nav>
 
   <section id="color">
@@ -273,18 +273,27 @@ html,body{background:var(--bg)}
   </section>
 
   <section id="ref">
-    <h2>참고 정보 <small>항목 옆 칩 · 접는 참고 칸(본문과 다른 꼴)</small></h2>
-    <div class="paper">
-      <div class="hrow"><h2>헬스 체크</h2><span class="hrefs"><button class="refchip" aria-expanded="true">출처 3</button><button class="refchip held">넣지 못함 1</button></span></div>
-      <p>서버마다 /health 를 30초마다 부른다.</p>
-      <details class="refpanel" open>
-        <summary>출처 <small>이 항목을 만든 기록</small></summary>
-        <ul>
-          <li><time>10-28 14:02</time><span>kim · 헬스 주기를 30초로</span></li>
-          <li><time>10-21 09:15</time><span>lee · 처음 적음</span></li>
-          <li><time>10-20 18:40</time><span>가져온 것 · docs/ops/health.md</span></li>
-        </ul>
-      </details>
+    <h2>문서 화면 <small>가운데는 내용만 · 수준 표시 줄 · 문서 폭 · 오른쪽 다섯 묶음(컨벤션 5절 · 11-2절)</small></h2>
+    <div class="g2">
+      <div>
+        <div class="ttl"><div class="path"><span>DPMS 지식 › 게이트웨이운영설계서</span></div><span class="wseg" role="group" aria-label="문서 폭"><button type="button" aria-pressed="true">기본 폭</button><button type="button" aria-pressed="false">넓게</button></span><button class="btn">다듬기</button><button class="btn pri">고치기</button></div>
+        <div class="paper">
+          <div class="hrow"><h2>설치</h2></div>
+          <div class="lv l1"><span class="lvm">1.</span><span class="lvx">준비</span></div>
+          <div class="lv l4"><span class="lvm">1)</span><span class="lvx">설치 PC 에 PostgreSQL 이 기동돼 있다.</span></div>
+          <div class="lv l5"><span class="lvm">1.1)</span><span class="lvx">판은 회신을 받아 정한다.</span></div>
+          <div class="lv l7"><span class="lvm">-</span><span class="lvx">서비스가 돌고 있으면 멈춘다.</span></div>
+          <div class="lv l8"><span class="lvm">*</span><span class="lvx">이미 jar 가 있으면 prev 로 남긴다.</span></div>
+          <div class="lv l2"><span class="lvm">1.1.</span><span class="lvx">단계</span></div>
+        </div>
+      </div>
+      <div class="card" style="padding:var(--sp-3)">
+        <section class="ag"><button type="button" class="agh" aria-expanded="false"><span class="ar">▸</span><span class="agn">개요</span><span class="agc">4</span></button></section>
+        <section class="ag open"><button type="button" class="agh" aria-expanded="true"><span class="ar">▸</span><span class="agn">문서</span><span class="agc">3</span></button><div class="agb"><div class="bg">이 문서</div><div class="alr cur" aria-current="true"><span class="nm">게이트웨이운영설계서</span><span class="chip c-acc now">지금</span></div><div class="bg">이 문서가 가리키는 문서 <b>2</b></div><div class="alr" role="button" tabindex="0"><span class="nm">PLC연계규격서</span></div></div></section>
+        <section class="ag"><button type="button" class="agh" aria-expanded="false"><span class="ar">▸</span><span class="agn">기록</span><span class="agc">5</span></button></section>
+        <section class="ag"><button type="button" class="agh" aria-expanded="false"><span class="ar">▸</span><span class="agn">항목</span><span class="agc">4</span></button></section>
+        <section class="ag"><button type="button" class="agh" aria-expanded="false"><span class="ar">▸</span><span class="agn">속성</span></button></section>
+      </div>
     </div>
   </section>
 

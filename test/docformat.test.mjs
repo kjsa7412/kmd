@@ -625,10 +625,12 @@ test('문서 짜임 검사(lintDoc): 제목 · 요약 · 운영 말 · ## 앞 �
   assert.equal(c.ok, true, c.why)
   assert.equal(c.kinds.top, 1)
   assert.ok(!c.text.includes('applied'))
-  assert.deepEqual(lintDoc('# 제목\n\n이 문서는 배포를 다룬다. 창은 화 · 목이다.\n\n## A\n### a\n#### b\n'), [])
+  assert.deepEqual(lintDoc('# 제목\n\n이 문서는 배포를 다룬다. 창은 화 · 목이다.\n\n## A\n1. a\n1.1. b\n1) c\n- d\n'), [])
+  // 작성기준 v1.2 5-1절 — ### 소제목은 받되 수준 표시로 쓰라는 알림
+  assert.deepEqual(lintDoc('# 제목\n\n이 문서는 배포를 다룬다. 창은 화 · 목이다.\n\n## A\n### a\n#### b\n').map((x) => x.code), ['sub-head', 'sub-head'])
   assert.equal(lintDoc('# 제목\n\n한. 둘. 셋. 넷.\n\n## A\n')[0].code, 'long-summary')
   // 저장 알림은 새로 생긴 것만
-  assert.deepEqual(lintNew('# t\n\n요약.\n\n## A\n#### x\n', '# t\n\n요약.\n\n## A\n#### x\n## B\n#### y\n').map((x) => x.code), ['skip-level'])
+  assert.deepEqual(lintNew('# t\n\n요약.\n\n## A\n#### x\n', '# t\n\n요약.\n\n## A\n#### x\n## B\n#### y\n').map((x) => x.code), ['skip-level', 'sub-head'])
 })
 
 test('Q86 짜임 알림: 같은 인용 문장(출처 · 상태)이 다섯 번 이상이면 한 번 알린다 · 넷이면 없다', async () => {

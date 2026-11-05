@@ -21,7 +21,7 @@ const S = {
   stops: [],
   srcRun: {}, sf: null, sfMsg: null, imports: [], addDraft: '', addMsg: null, sending: false,
   openToday: null, picker: false,
-  iq: '', ifilt: { pend: false, recent: false, mine: false }, kfold: {}, tablesAll: false, nbOpen: false,
+  iq: '', ifilt: { pend: false, recent: false, mine: false }, kfold: {}, tablesAll: false, gPop: false, curSec: null,
   g: { kn: null, pos: {}, cam: { rx: -0.35, ry: 0.6, zoom: 1, base: 1, px: 0, py: 0, needFit: true }, sel: null, bundle: false, layoutKey: '', f: { q: '', item: true, doc: true, rec: false, src: false, pend: false, recent: false, orph: false, depth: 0, label: false, line: false, spin: true } },
 }
 // 고른 지식을 따르는 화면 — 지식 관리(이력 · 설정 · 넣지 못함 · 가져오기 · 보내기)는 고른 지식과 따로다
@@ -411,6 +411,56 @@ function askDone(i) {
   render()
   a.res(v)
 }
+// ── 화면 자리(컨벤션 11-2) — 옆 메뉴 · 오른쪽 칸 접기(레일) · 너비 · 문서 폭 · 오른쪽 묶음 펼침. 이 브라우저에만 남긴다 ──
+const UI_KEY = 'kmd.ui'
+const SW = [200, 420, 248], AW = [260, 560, 300] // 최소 · 최대 · 기본
+const UI = (() => {
+  const d = { sw: SW[2], aw: AW[2], sideRail: false, asideRail: false, wide: false, ag: {} }
+  try { return { ...d, ...JSON.parse(localStorage.getItem(UI_KEY) || '{}') } } catch (e) { console.warn('화면 자리 읽기 못 함', e); return d }
+})()
+function saveUi() { try { localStorage.setItem(UI_KEY, JSON.stringify(UI)) } catch (e) { console.warn('화면 자리 남기기 못 함', e) } }
+function placeUi() {
+  app.style.setProperty('--sw', UI.sw + 'px')
+  app.style.setProperty('--aw', UI.aw + 'px')
+  app.classList.toggle('side-rail', !!UI.sideRail)
+  app.classList.toggle('aside-rail', !!UI.asideRail)
+}
+function setW(which, w) {
+  const [lo, hi] = which === 'side' ? SW : AW
+  const v = Math.round(Math.min(hi, Math.max(lo, w)))
+  if (which === 'side') UI.sw = v
+  else UI.aw = v
+  placeUi()
+  const g = document.querySelector(`#app [data-grip=${which}]`)
+  if (g) g.setAttribute('aria-valuenow', v)
+}
+// 끌기 · 두 번 누르면 처음 너비 · 끄는 동안은 다시 그리지 않고 CSS 변수만 바꾼다
+let GR = null
+document.addEventListener('pointerdown', (ev) => {
+  const g = ev.target.closest && ev.target.closest('[data-grip]')
+  if (g) {
+    ev.preventDefault()
+    GR = { which: g.dataset.grip, x: ev.clientX, w: g.dataset.grip === 'side' ? UI.sw : UI.aw }
+    g.classList.add('drag')
+    document.body.classList.add('resizing')
+    return
+  }
+  // 그래프 팝업 — 바깥을 누르면 접는다
+  if (S.gPop && !(ev.target.closest && ev.target.closest('[data-t=gDock]'))) { S.gPop = false; render() }
+})
+document.addEventListener('pointermove', (ev) => { if (GR) setW(GR.which, GR.which === 'side' ? GR.w + (ev.clientX - GR.x) : GR.w - (ev.clientX - GR.x)) })
+document.addEventListener('pointerup', () => {
+  if (!GR) return
+  GR = null
+  for (const g of document.querySelectorAll('[data-grip].drag')) g.classList.remove('drag')
+  document.body.classList.remove('resizing')
+  saveUi()
+})
+document.addEventListener('dblclick', (ev) => { const g = ev.target.closest && ev.target.closest('[data-grip]'); if (g) { setW(g.dataset.grip, g.dataset.grip === 'side' ? SW[2] : AW[2]); saveUi() } })
+const gripHtml = (which) => {
+  const [lo, hi] = which === 'side' ? SW : AW
+  return `<div class="grip" data-grip="${which}" data-t="${which}Grip" role="separator" tabindex="0" aria-orientation="vertical" aria-label="${which === 'side' ? '옆 메뉴' : '오른쪽 칸'} 너비: ← → 로 바꾼다 · 두 번 누르면 처음 너비" aria-valuemin="${lo}" aria-valuemax="${hi}" aria-valuenow="${which === 'side' ? UI.sw : UI.aw}"></div>`
+}
 function draw() {
   if (!S.me) { app.innerHTML = `<div class="col"><div class="main">${S.err ? `<div class="callout danger err" data-t="bootErr">${sayErr(S.err)}<b>${esc(S.err)}</b><button type="button" class="btn sm retry" data-a="retryBoot" data-t="retry">다시 읽기</button></div>` : loadingHtml}</div></div>`; return }
   hidePv()
@@ -418,19 +468,20 @@ function draw() {
   let scr
   try { scr = gated() ? gateView() : viewOf(S.route.scr) } catch (e) { console.error(e); scr = { main: drawErrHtml(e) } }
   const center = scr.tabs
-    ? `<div class="center">${tabbarHtml()}<div class="panes"><div class="main${scr.full ? ' full' : ''}" data-t="main">${scr.main}</div>${scr.right != null ? `<div class="main rp" data-t="rightPane">${scr.right}</div>` : ''}</div></div>`
+    ? `<div class="center">${tabbarHtml()}<div class="panes"><div class="main${scr.full ? ' full' : ''}${UI.wide ? ' wide' : ''}" data-t="main">${scr.main}</div>${scr.right != null ? `<div class="main rp" data-t="rightPane">${scr.right}</div>` : ''}</div></div>`
     : `<div class="main" data-t="main">${scr.main}</div>`
   // 다시 그려도 보던 자리 그대로 — 같은 화면 · 같은 탭이면 가운데 · 옆 목록 · 옆 칸의 스크롤을 지킨다(go 로 다른 화면에 가면 맨 위)
   const view = `${S.route.scr}|${S.route.kn}|${S.active || ''}|${S.split || ''}`
   const lpView = `${gated() ? '' : defaultKn()}|${VIEWS3.includes(S.route.scr) ? S.route.scr : S.ktab || 'docs'}`
-  const keep = ['.main[data-t=main]', '[data-t=rightPane]', '[data-t=leftPane]', '[data-t=aside]'].map((q) => { const el = app.querySelector(q); return el ? [q, el.scrollTop] : null }).filter((x) => x && (x[0] === '[data-t=leftPane]' ? S._lpView === lpView : S._view === view))
+  const keep = ['.main[data-t=main]', '[data-t=rightPane]', '[data-t=leftPane]', '[data-t=asideScroll]'].map((q) => { const el = app.querySelector(q); return el ? [q, el.scrollTop] : null }).filter((x) => x && (x[0] === '[data-t=leftPane]' ? S._lpView === lpView : S._view === view))
   const sameView = S._view === view
   S._view = view
   S._lpView = lpView
   S._hasAside = !!scr.aside
-  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${gated() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside">${scr.aside}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.recFix ? recFixHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}`
+  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${gated() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside"><button type="button" class="hb afold" data-a="asideRail" data-t="asideFold" aria-expanded="${!UI.asideRail}" title="${UI.asideRail ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'} (Ctrl ])" aria-label="${UI.asideRail ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'}">${svg(UI.asideRail ? 'sideL' : 'sideR')}</button><div class="asc" data-t="asideScroll">${scr.aside}</div>${gripHtml('aside')}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.recFix ? recFixHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}`
   app.classList.toggle('side-open', !!S.sideOpen && !gated())
   app.classList.toggle('aside-open', !!S.asideOpen && !!scr.aside)
+  placeUi()
   placePop()
   for (const [q, top] of keep) { const el = app.querySelector(q); if (el) el.scrollTop = top }
   // 좁은 폭은 창 전체가 스크롤된다 — 같은 화면을 다시 그리는 동안 잠깐 짧아져(읽는 중) 맨 위로 밀리지 않게, 사람이 둔 자리로 되돌린다
@@ -465,9 +516,11 @@ const FLASH_Q = {
 function subHead(h2, sub) {
   const nm = (x) => String(x || '').normalize('NFC').replace(/\s+/g, ' ').trim()
   const want = nm(sub)
+  // 옛 ### 소제목 · 수준 표시 1 ~ 3 줄(작성기준 5-1 · data-lv 는 표시를 뗀 글)
+  const txt = (x) => nm(x.dataset && x.dataset.lv != null ? x.dataset.lv : x.textContent)
   for (let n = h2.nextElementSibling; n && n.tagName !== 'H2'; n = n.nextElementSibling) {
-    const hs = n.tagName === 'H3' ? [n] : [...n.querySelectorAll('h3')]
-    const hit = hs.find((x) => nm(x.textContent) === want)
+    const hs = n.tagName === 'H3' || (n.matches && n.matches('.lv[data-lv]')) ? [n] : [...n.querySelectorAll('h3, .lv[data-lv]')]
+    const hit = hs.find((x) => txt(x) === want)
     if (hit) return hit
   }
   return null
@@ -552,7 +605,13 @@ function sideHtml(left) {
   const k = dim ? null : defaultKn()
   const cur = k ? KN(k) : null
   // 맨 위 — 들어온 사람(누르면 설정 · 나가기) · 지금 하는 일 점 · 들어오기 전에는 kmd
-  let h = `<aside class="side${dim ? ' dim' : ''}"><div class="sb-top">${anon() ? `<div class="logo${team ? '' : ' me'}">K</div><span class="brand">kmd</span>` : meHtml()}${busyDot()}</div><div class="where">${team ? '팀 서버에서 돈다 · ' + esc(S.me.host) : '이 PC 에서 돈다'}</div>`
+  const fold = dim ? '' : `<button type="button" class="hb sfold" data-a="sideRail" data-t="sideFold" aria-expanded="${!UI.sideRail}" title="${UI.sideRail ? '옆 메뉴 펴기' : '옆 메뉴 접기'} (Ctrl [)" aria-label="${UI.sideRail ? '옆 메뉴 펴기' : '옆 메뉴 접기'}">${svg(UI.sideRail ? 'sideR' : 'sideL')}</button>`
+  // 접힌 옆 메뉴(레일) — 아이콘만: 문서 · 항목 · 그래프 · 빨리 열기 · 이력 · 설정 · 개인 지식 쓰기(팀)
+  const vt0 = VIEWS3.includes(r.scr) ? r.scr : S.ktab || 'docs'
+  const rb = (a, ic, l, on, extra = '', dot = '') => `<button type="button" class="hb${on ? ' on' : ''}" ${a} title="${l}" aria-label="${l}"${extra}>${svg(ic)}${dot}</button>`
+  const nCheck0 = dim ? 0 : histChecks()
+  const rail = dim ? '' : `<div class="srail" data-t="sideRailNav">${fold}${[['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['graph', '그래프', 'graph']].map(([v, l, ic]) => rb(`data-a="view" data-v="${v}" data-t="rl-${v}"`, ic, l + '로 보기', VIEWS3.includes(r.scr) && vt0 === v)).join('')}${rb('data-a="openQo" data-t="rl-qo"', 'search', '빨리 열기 (Ctrl O)', false)}<span class="rsep"></span>${rb('data-a="nav" data-s="today" data-t="rl-history"', 'hour', '이력', HISTSCR.includes(r.scr), '', nCheck0 ? '<i class="rdot"></i>' : '')}${rb(`data-a="setArea" data-v="${team ? 'team' : 'me'}" data-t="rl-settings"`, 'gear', '설정', MGSCR.includes(r.scr))}${team ? rb('data-a="nav" data-s="install" data-t="rl-install"', 'user', '개인 지식 쓰기', r.scr === 'install') : ''}</div>`
+  let h = `<aside class="side${dim ? ' dim' : ''}">${rail}<div class="sb-top">${anon() ? `<div class="logo${team ? '' : ' me'}">K</div><span class="brand">kmd</span>` : meHtml()}${busyDot()}${fold}</div><div class="where">${team ? '팀 서버에서 돈다 · ' + esc(S.me.host) : '이 PC 에서 돈다'}</div>`
   if (!dim) {
     // 지식 고르기 영역
     const vk = shownKns()
@@ -573,7 +632,7 @@ function sideHtml(left) {
   h += set(team ? 'team' : 'me', '설정')
   if (team && !dim) h += `<div class="sb-i${r.scr === 'install' ? ' on' : ''}" data-a="nav" data-s="install" data-t="nav-install">${svg('user')}<span>개인 지식 쓰기</span></div>`
   h += '</div></div>'
-  return h + '</aside>'
+  return h + (dim ? '' : gripHtml('side')) + '</aside>'
 }
 // 들어온 사람 — 왼쪽 메뉴 맨 위 · 누르면 설정 · (팀) 나가기
 function meHtml() {
@@ -950,49 +1009,104 @@ function treeHtml(k) {
 }
 function rpHead() { return '<div class="rph"><i class="pd"></i>나란히 보기: 읽기만<button type="button" class="lk r small" data-a="closeSplit" data-t="closeSplit">나누기 닫기 ×</button></div>' }
 
-// 오른쪽 칸 「참고」 — 문서 끝 참고 블록(kmd 가 적는 출처)의 요약: 항목마다 출처 수(누르면 그 항목의 출처 칸) · 문서 전체 줄이 있으면 그것도
-// 본문(머리글 · 항목) 글 속 기록 링크 수 — 확정 지식과 근거 기록이 섞여 있다는 알림(작성기준 4절: 기록은 출처 칸으로)
-const recLinkN = (d) => [d.intro || '', ...d.sections.map((x) => x.html || '')].join('').split('class="dlink rec').length - 1
-function refAside(k, d) {
-  const rf = d.refs || { n: 0, items: [] }
-  const whole = Array.isArray(rf.doc) ? rf.doc : []
-  const open = (S.detOpen || {}).docRefs
-  const rows = (rf.items || []).map((x) => `<div class="alr" data-a="refGo" data-h="${esc(x.h)}" data-t="refItem"><span class="nm">${esc(x.h)}</span><span class="rc" title="출처">${x.n}</span></div>`).join('')
-  return `<details class="ap refs" data-t="docRefs" data-keep="docRefs"${open ? ' open' : ''}><summary><h4 title="문서 끝 참고 블록: 이 문서에 무엇이 언제 어느 기록에서 들어왔나(kmd 가 적는다)">참고 <small data-t="docRefN">${(rf.n || 0) + whole.length}</small></h4></summary>${rows || (whole.length ? '' : '<div class="muted small alr">없다</div>')}${whole.length ? refsPanel(k, whole, '문서 전체') : ''}${recLinkN(d) ? `<div class="muted small alr" data-t="recLinkN" title="본문 글 속에 걸린 기록 링크: 근거 기록이다 · 문서 본문이 아니다">본문에 기록 링크 ${recLinkN(d)}</div>` : ''}</details>`
+// ── 오른쪽 칸: 개요 · 문서 · 기록 · 항목 · 속성 다섯 묶음(컨벤션 5절 · 2026-11-05) ──
+//   화면(문서 · 항목 · 기록)마다 속은 다르다 · 처음은 모두 접힘 · 펼친 것은 화면 종류마다 이 브라우저에 남긴다(UI.ag)
+//   지금 보는 것(이 문서 · 이 항목 · 이 기록 · 스크롤 중인 항목)은 그 묶음 안에서 「지금」 으로 표시한다
+const AG_IC = { ol: 'list', docs: 'doc', recs: 'rec', items: 'tag', props: 'info' }
+const AG_KIND = { doc: '이 문서', item: '이 항목', rec: '이 기록' }
+const agOpen = (kind, g) => !!(UI.ag[kind] || {})[g]
+function agWrap(kind, gs) {
+  const sec = gs.map((g) => {
+    const on = agOpen(kind, g.id)
+    return `<section class="ag${on ? ' open' : ''}" data-t="ag-${g.id}"><button type="button" class="agh" data-a="agToggle" data-k="${kind}" data-g="${g.id}" aria-expanded="${on}"><span class="ar" aria-hidden="true">▸</span><span class="agn">${g.t}</span>${g.n === '' || g.n == null ? '' : `<span class="agc" data-t="agN-${g.id}">${g.n}</span>`}</button>${on ? `<div class="agb">${g.body()}</div>` : ''}</section>`
+  }).join('')
+  const rail = gs.map((g) => `<button type="button" class="hb" data-a="agRail" data-k="${kind}" data-g="${g.id}" data-t="rlg-${g.id}" title="${g.t}${g.n === '' || g.n == null ? '' : ' ' + g.n}" aria-label="${g.t}">${svg(AG_IC[g.id])}</button>`).join('')
+  return `<div class="agtop" data-t="agTop"><b>${AG_KIND[kind]}</b><button type="button" class="btn ghost sm" data-a="agFold" data-k="${kind}" data-t="agFold">모두 접기</button></div>${sec}<div class="arl" data-t="asideRailNav">${rail}</div>`
 }
-function docAside(k, d) {
-  const bl = d.backlinks
-  const ol = d.sections.map((s) => `<div class="olr" data-a="scrollSec" data-h="${esc(s.h)}" data-t="olRow">${esc(s.h)}${(s.held || []).length ? '<i class="pd hd" title="넣지 못함"></i>' : ''}</div>`).join('')
-  const none = '<div class="muted small alr">없다</div>'
-  const recs = bl.recs.map((r) => `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="blRec" data-pv="rec|${esc(k)}|${esc(r.id)}"><span class="dt">${heldR(k, r) ? '<i class="pd hd" title="넣지 못함"></i>' : esc(whenTxt(r.date).replace(/^(오늘|어제) /, ''))}</span><span class="nm">${esc(r.title)}</span></div>`).join('')
-  const docs = bl.linkers.map((o) => `<div class="alr" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(o.id)}" data-t="blDoc" data-pv="doc|${esc(k)}|${esc(o.id)}">${svg('doc')}<span class="nm">${esc(o.title)}</span></div>`).join('')
-  // 이 문서가 가리키는 문서(Q94) — 본문 종이 밖 「연결」 의 한 묶음으로
-  const outs = (d.links || []).map((x) => `<div class="alr" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(x.id)}" data-t="dlink" data-pv="doc|${esc(k)}|${esc(x.id)}">${svg('doc')}<span class="nm">${esc(x.title)}</span></div>`).join('')
-  const ments = bl.ments.map((x) => `<div class="alr" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(x.d)}" data-h="${esc(x.h)}" data-t="blMent" data-pv="doc|${esc(k)}|${esc(x.d)}">${svg('doc')}<span class="nm">${esc(x.title)} › ${esc(x.h)}<small>「${esc(x.x)}」</small></span></div>`).join('')
-  // 넣은 기록(「출처」 가 아니다 — 출처는 참고 블록 줄에만) — 항목에 넣은 기록(넣은 파일 · 기록)과 그 기록을 넣은 kmd 기록(옛 정리 · 바로 넣기)
-  const og = d.origins || []
-  const ogRow = (r) => `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="originRow" data-how="${r.how}" data-pv="rec|${esc(k)}|${esc(r.id)}"><span class="dt">${r.how === 'kmd' ? 'kmd' : '기록'}</span><span class="nm">${esc(r.title.split(/ — |: /)[0])}<small>${esc(whenTxt(r.date))} · ${esc(r.author)} · 항목 ${r.hs.length}${r.hs.length ? ': ' + esc(r.hs.slice(0, 2).join(' · ')) + (r.hs.length > 2 ? ' …' : '') : ''}</small></span></div>`
-  return `<div class="ap" data-t="outline"><h4>개요</h4>${ol}</div>
-  ${refAside(k, d)}
-  <div class="ap" data-t="origins"><h4 title="이 문서에 마지막으로 넣은 기록과 그 기록을 넣은 kmd 기록 · 「출처」 는 참고 블록의 줄이다">넣은 기록 <small data-t="originN">${og.length}</small></h4>${og.map(ogRow).join('') || '<div class="muted small alr">없다. 손으로 쓴 문서이거나 표지가 없다</div>'}</div>
-  <div class="ap" data-t="backlinks"><h4 title="이 문서를 가리키는 기록 · 문서 · 이름이 나온 곳">연결</h4>
-   <div class="bg" title="이 문서의 항목을 건드린 기록">기록 <b data-t="blRecN">${bl.recs.length}</b></div>${recs || none}
-   <div class="bg" title="이 문서를 링크한 문서">문서 <b data-t="blDocN">${bl.linkers.length}</b></div>${docs || none}
-   <div class="bg" title="링크 없이 이름만 나온 곳">언급 <b data-t="blMentN">${bl.ments.length}</b></div>${ments || none}
-   <div class="bg" title="이 문서의 본문 링크가 가리키는 문서">이 문서가 가리키는 문서 <b data-t="dlinksN">${(d.links || []).length}</b></div>${outs || none}</div>
-  <div class="ap" data-t="props"><h4>속성</h4><div class="kv"><span>마지막으로 넣음</span><span>${esc(d.last ? whenTxt(d.last.date) + ': ' + d.last.author + '의 기록에서' : whenTxt(d.when))}</span><span>가져올 곳</span><span>${d.watched ? esc(d.watched.src) + (d.watched.orphan ? ': 없어졌다' : '') : '없음'}</span><span>자리</span><span>${esc(knWhere(KN(k)) || (isTeam() ? '팀 서버' : '이 PC'))}</span>${isTeam() && !isPersonal(KN(k)) ? `<span>쓰는 사람</span>${whoHtml(k)}` : ''}<span>항목</span><span>${M(k) ? M(k).items.filter((i) => i.doc === d.id).length : d.items}</span></div></div>
-  ${nbGraph(k, 'd:' + d.id)}`
+// 한 줄 — a(누르면 할 일) · nm(이미 고친 HTML) · sub · dt(날짜 칸) · ic · cur(지금) · spy(스크롤 따라 「지금」 이 옮겨 가는 줄)
+function agRow(o) {
+  const act = o.a && !(o.cur && !o.spy)
+  return `<div class="alr${o.cur ? ' cur' : ''}"${act ? ` data-a="${o.a}" role="button" tabindex="0"` : ''}${o.attrs || ''} data-t="${o.t || 'agRow'}"${o.cur ? ' aria-current="true"' : ''}${o.spy != null ? ` data-spy="${esc(o.spy)}"` : ''}${o.pv && !o.cur ? ` data-pv="${o.pv}"` : ''}>${o.dt != null ? `<span class="dt">${esc(o.dt)}</span>` : o.ic ? svg(o.ic) : ''}<span class="nm">${o.nm}${o.sub ? `<small>${esc(o.sub)}</small>` : ''}</span><span class="chip c-acc now">지금</span>${o.rc != null ? `<span class="rc">${o.rc}</span>` : ''}</div>`
 }
-// 참고 칸(본문과 다른 꼴) — 넣지 못함: 기록마다 때 · 누구 · 제목(누르면 기록) · 까닭 / 출처: 줄마다 날짜 · 제목(누르면 기록) · 한 마디
-function heldPanel(k, s) {
-  const who = (w) => (w === S.me.user ? '나' : w)
-  const li = (s.held || []).map((x) => `<li data-t="heldRow2"><time>${esc(whenTxt(x.date))}</time><span>${esc(who(x.author))} · <button type="button" class="lk" data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}">${esc(x.title)}</button> · ${esc(x.legacy ? '개편 전 기록' : x.why || '넣지 못함')}</span></li>`).join('')
-  const more = s.heldMore ? `<li class="muted">그 밖에 ${s.heldMore}</li>` : ''
-  return `<div class="refpanel" data-t="heldPanel"><div class="rp-h">넣지 못함 <small>기록만 남았다 · 문서 본문이 아니다</small><button type="button" class="lk r small" data-a="openHeld" data-k="${esc(k)}" data-t="heldPanelGo">넣지 못함 화면</button></div><ul>${li}${more}</ul></div>`
+const agSub = (t, n) => `<div class="bg">${t}${n == null ? '' : ` <b>${n}</b>`}</div>`
+const agNone = '<div class="muted small alr">없다</div>'
+const agKv = (pairs) => `<div class="kv">${pairs.filter(Boolean).map(([a, b]) => `<span>${a}</span><span>${b}</span>`).join('')}</div>`
+const dt5 = (s) => whenTxt(s).replace(/^(오늘|어제) /, '')
+const docRow = (k, id, title, x = {}) => agRow({ a: 'openDoc', attrs: ` data-k="${esc(k)}" data-d="${esc(id)}"${x.h ? ` data-h="${esc(x.h)}"` : ''}`, ic: 'doc', nm: esc(title), sub: x.sub, cur: x.cur, pv: `doc|${esc(k)}|${esc(id)}`, t: x.t })
+const recRow = (k, r, x = {}) => agRow({ a: 'openRec', attrs: ` data-k="${esc(k)}" data-r="${esc(r.id)}"`, dt: dt5(r.date), nm: esc(r.title.split(/ — |: /)[0]), sub: x.sub != null ? x.sub : r.author, cur: x.cur, pv: `rec|${esc(k)}|${esc(r.id)}`, t: x.t || 'agRec' })
+const itemRow = (k, it, x = {}) => agRow({ a: 'openItem', attrs: ` data-k="${esc(k)}" data-n="${esc(it.key)}"`, ic: 'tag', nm: inmHtml(it), sub: x.sub, cur: x.cur, spy: x.spy, rc: x.rc, pv: `item|${esc(k)}|${esc(it.key)}`, t: x.t || 'agItem' })
+// 문서 화면 — 스크롤 중인 항목(S.curSec)
+const curSecOf = (t, d) => (S.curSec && S.curSec.tab === t.id && d.sections.some((s) => s.h === S.curSec.h) ? S.curSec.h : (d.sections[0] || {}).h)
+function docAside(k, d, t) {
+  const bl = d.backlinks, m = M(k)
+  const cur = curSecOf(t, d)
+  const order = new Map(d.sections.map((s, i) => [s.h, i]))
+  const its = m ? m.items.filter((i) => i.doc === d.id).sort((a, b) => (order.get(a.sec) ?? 1e9) - (order.get(b.sec) ?? 1e9)) : []
+  const hist = bl.recs.filter((r) => !heldR(k, r)).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)))
+  const nDocs = 1 + (d.links || []).length + bl.linkers.length + bl.ments.length
+  return agWrap('doc', [
+    { id: 'ol', t: '개요', n: d.sections.length, body: () => d.sections.map((s) => agRow({ a: 'scrollSec', attrs: ` data-h="${esc(s.h)}"`, nm: esc(s.h), cur: s.h === cur, spy: s.h, t: 'olRow' })).join('') || agNone },
+    { id: 'docs', t: '문서', n: nDocs, body: () => agSub('이 문서') + docRow(k, d.id, d.title, { cur: true, sub: d.path.replace(/^docs\/|[^/]*$/g, '').replace(/\/$/, ''), t: 'agDocMe' })
+      + agSub('이 문서가 가리키는 문서', (d.links || []).length) + ((d.links || []).map((x) => docRow(k, x.id, x.title, { t: 'dlink' })).join('') || agNone)
+      + agSub('이 문서를 가리키는 문서', bl.linkers.length) + (bl.linkers.map((o) => docRow(k, o.id, o.title, { t: 'blDoc' })).join('') || agNone)
+      + (bl.ments.length ? agSub('이름이 나온 곳', bl.ments.length) + bl.ments.map((x) => docRow(k, x.d, `${x.title} › ${x.h}`, { h: x.h, sub: `「${x.x}」`, t: 'blMent' })).join('') : '') },
+    { id: 'recs', t: '기록', n: hist.length, body: () => agSub('이 문서의 이력 · 새것 위') + (hist.map((r) => recRow(k, r, { t: 'blRec' })).join('') || agNone) + `<div class="muted small alr">항목마다 옛 값 → 새 값 · 되돌리기는 <button type="button" class="lk" data-a="nav" data-s="today">이력</button>에서</div>` },
+    { id: 'items', t: '항목', n: its.length, body: () => agSub('이 문서의 항목', its.length) + (its.map((i) => itemRow(k, i, { cur: i.sec === cur, spy: i.sec })).join('') || agNone) },
+    { id: 'props', t: '속성', n: '', body: () => agKv([
+      ['지금 보는 항목', `<b data-t="curSec">${esc(cur || '')}</b>`],
+      ['마지막으로 바뀜', esc(d.last ? whenTxt(d.last.date) + ': ' + d.last.author + '의 기록에서' : whenTxt(d.when))],
+      ['폴더', esc(d.path.replace(/^docs\/?|[^/]*$/g, '').replace(/\/$/, '') || '-')],
+      ['가져올 곳', d.watched ? esc(d.watched.src) + (d.watched.orphan ? ': 없어졌다' : '') : '없음'],
+      ['자리', esc(knWhere(KN(k)) || (isTeam() ? '팀 서버' : '이 PC'))],
+      isTeam() && !isPersonal(KN(k)) ? ['쓰는 사람', whoHtml(k)] : null,
+      ['항목', String(its.length || d.items || 0)],
+    ]) },
+  ])
 }
-function refsPanel(k, refs, title) {
-  const li = refs.map((r) => `<li data-t="refRow"><span class="dt">${esc(r.date || '')}</span><span>${r.title == null ? (r.html != null ? linkify(r.html, k, null) : esc(r.note || '')) : `${r.id ? `<button type="button" class="lk" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}">${esc(r.title)}</button>` : esc(r.title)}${r.note ? ` <small class="muted">· ${esc(r.note)}</small>` : ''}`}</span></li>`).join('')
-  return `<div class="refpanel" data-t="refsPanel"><div class="rp-h">${esc(title)} <small>kmd 가 적는다 · 문서 본문이 아니다</small></div><ul>${li}</ul></div>`
+// 스크롤 따라 「지금 보는 항목」 — 가운데 위쪽에 걸린 ## 머리(맨 아래면 마지막) · 다시 그리지 않고 줄 표시만 옮긴다
+function spySec() {
+  const t = activeTab()
+  const main = $('#app .main[data-t=main]')
+  if (!t || t.kind !== 'doc' || !main) return
+  const hs = [...main.querySelectorAll('h2[data-sec]')]
+  if (!hs.length) return
+  const top = main.getBoundingClientRect().top + 72
+  let cur = hs[0]
+  for (const h of hs) if (h.getBoundingClientRect().top <= top) cur = h
+  const winBottom = innerHeight + scrollY >= document.documentElement.scrollHeight - 2
+  if (main.scrollTop + main.clientHeight >= main.scrollHeight - 2 && (main.scrollHeight > main.clientHeight || winBottom)) cur = hs[hs.length - 1]
+  const h = cur.dataset.sec
+  if (S.curSec && S.curSec.tab === t.id && S.curSec.h === h) return
+  S.curSec = { tab: t.id, h }
+  for (const el of document.querySelectorAll('#app .aside [data-spy]')) { const on = el.dataset.spy === h; el.classList.toggle('cur', on); if (on) el.setAttribute('aria-current', 'true'); else el.removeAttribute('aria-current') }
+  const c = $('#app .aside [data-t=curSec]')
+  if (c) c.textContent = h
+}
+document.addEventListener('scroll', () => { if (S.route && S.route.scr === 'docs') spySec() }, true)
+
+// 문서 폭 — 기본(글 읽기 좋은 폭) · 넓게(가운데 칸 전체) · 문서 · 항목 · 기록 같은 값
+const wideSeg = () => `<span class="wseg" role="group" aria-label="문서 폭" data-t="wideSeg"><button type="button" data-a="docWide" data-v="0" aria-pressed="${!UI.wide}" title="글 읽기 좋은 폭" data-t="wideOff">${svg('narrow')}기본 폭</button><button type="button" data-a="docWide" data-v="1" aria-pressed="${!!UI.wide}" title="가운데 칸을 다 쓴다(넓은 표 · 그림)" data-t="wideOn">${svg('wide')}넓게</button></span>`
+
+// 그래프 — 본문 오른쪽 위 접힌 단추 · 누르면 한 겹 이웃 팝업 · 점을 누르면 그 문서 · 항목 · 기록이 열린다
+function nbOf(k, c) {
+  if (!M(k)) return null
+  const G = graphData(k, { q: '', item: true, doc: true, rec: true, src: false, pend: false, recent: false, orph: false, depth: 0 }, true)
+  const nb = []
+  G.edges.forEach((e) => { if (e.a === c && !nb.includes(e.b)) nb.push(e.b); if (e.b === c && !nb.includes(e.a)) nb.push(e.a) })
+  const nm = {}
+  G.nodes.forEach((n) => (nm[n.id] = n))
+  return { nb: nb.filter((id) => nm[id]), nm, me: nm[c] || { kind: 'doc', label: '?' } }
+}
+function gdockHtml(k, c) {
+  const x = nbOf(k, c)
+  const n = x ? x.nb.length : '…'
+  return `<div class="gdock" data-t="gDock"><button type="button" class="gbtn" data-a="gPop" data-t="gPopBtn" aria-expanded="${!!S.gPop}" aria-controls="gPop">${svg('graph')}그래프 <span class="muted small">${n}</span><span aria-hidden="true">${S.gPop ? '▴' : '▾'}</span></button>${S.gPop ? `<div class="gpop" id="gPop" role="dialog" aria-label="그래프: 한 겹 이웃" data-t="gPop"><div class="gph"><b>한 겹 이웃</b><span class="muted small">점을 누르면 그것이 열린다</span><button type="button" class="hb" data-a="gPop" data-t="gPopX" aria-label="그래프 접기">×</button></div>${x ? popGraph(k, c, x) : loadingHtml}<div class="gpf">${['doc', 'item', 'rec'].map((kd) => `<span><i style="background:${KCOL[kd]}"></i>${KLAB[kd]}</span>`).join('')}<button type="button" class="btn ghost sm r" data-a="openGraph" data-n="${esc(c)}" data-t="gPopBig">그래프 화면에서 크게</button></div></div>` : ''}</div>`
+}
+function popGraph(k, c, x) {
+  const sh = x.nb.slice(0, 16), W = 380, H = 260, cx = W / 2, cy = H / 2 - 6
+  const pos = sh.map((id, i) => { const a = (i / Math.max(sh.length, 1)) * Math.PI * 2 - Math.PI / 2; return [cx + Math.cos(a) * 150, cy + Math.sin(a) * 92] })
+  const lab = (s) => esc(String(s).length > 12 ? String(s).slice(0, 12) + '…' : s)
+  return `<svg class="gpsvg" viewBox="0 0 ${W} ${H}" role="group" aria-label="이웃 ${x.nb.length}">${pos.map((p) => `<line x1="${cx}" y1="${cy}" x2="${p[0].toFixed(1)}" y2="${p[1].toFixed(1)}"/>`).join('')}${sh.map((id, i) => `<g class="gnd" data-a="gNode" data-k="${esc(k)}" data-n="${esc(id)}" data-t="gNode" tabindex="0" role="button" aria-label="${esc(x.nm[id].label)} 열기"><title>${esc(x.nm[id].label)}</title><circle cx="${pos[i][0].toFixed(1)}" cy="${pos[i][1].toFixed(1)}" r="6" fill="${KCOL[x.nm[id].kind]}"/><text x="${pos[i][0].toFixed(1)}" y="${(pos[i][1] + 17).toFixed(1)}" text-anchor="middle">${lab(x.nm[id].label)}</text></g>`).join('')}<g class="gnd me"><circle cx="${cx}" cy="${cy}" r="9" fill="${KCOL[x.me.kind]}"/><text x="${cx}" y="${cy - 14}" text-anchor="middle" class="c">${lab(x.me.label)}</text></g></svg>${x.nb.length > 16 ? `<div class="small muted gpm">이웃 ${x.nb.length} · 16 만 보인다</div>` : ''}`
 }
 // 본문의 문서 · 항목 링크에 미리보기 카드(이 지식 안)
 const pvLinks = (h, k) => String(h).replace(/(<a class="dlink (?:doc|item)" data-a="openDoc" data-k="[^"]*" data-d="([^"]*)")/g, (m, a, d) => `${a} data-pv="doc|${esc(k)}|${d}"`)
@@ -1023,7 +1137,6 @@ function docPane(t, right) {
   const flashH = right ? null : t.flashH
   if (flashH) t.flashH = null
   const loc = isTeam() ? n.name + ' › ' + d.title : n.name + ' › ' + d.path.replace(/^docs\//, '')
-  const mine = d.sections.flatMap((s) => (s.held || []).filter((x) => x.author === S.me.user))
   const editing = !right && S.edit && S.edit.tab === t.id
   const de = editing ? docEdOf(k, t.ref) : null
   const body = editing && !de
@@ -1038,42 +1151,50 @@ function docPane(t, right) {
     // 찾기로 연 것만 「찾은 곳」 · 링크 · 개요로 연 항목은 머리를 잠깐 빛낸다
     const lit = q && hl && s.h === hl
     const it = itemAt(k, d.id, s.h)
-    const pn = s.heldN != null ? s.heldN : (s.held || []).length, rn = (s.refs || []).length
-    const ok = `${t.id}|${s.h}`, po = (S.refOpen || {})[ok + '|held'], ro = (S.refOpen || {})[ok + '|refs']
-    // 머리 줄(Q93) — h2 에는 이름만. 참고 칩(넣지 못함 · 출처 · 오늘 넣음 · 기록 n)은 h2 옆 .hrow 에(읽기 · 복사 · 찾기에 섞이지 않게)
-    //   넣지 못함 칩이 있으면 「기록 n」 의 점은 뺀다(같은 것을 두 번 보이지 않게) · 넣지 못함은 지식관리자 · 쓴 사람에게만(서버가 거른다)
-    const chips = right ? '' : `${pn ? `<button type="button" class="refchip held" data-a="refToggle" data-v="${esc(ok + '|held')}" data-t="heldChip" aria-expanded="${po ? 'true' : 'false'}" title="저장 검사를 넘지 못해 기록만 남은 것">넣지 못함 ${pn}</button>` : ''}${rn ? `<button type="button" class="refchip" data-a="refToggle" data-v="${esc(ok + '|refs')}" data-t="refChip" aria-expanded="${ro ? 'true' : 'false'}" title="이 항목에 무엇이 언제 어느 기록에서 들어왔나">출처 ${rn}</button>` : ''}${s.by && isToday(s.by.date) ? `<span class="hchip" data-t="byChip" title="오늘 이 항목에 넣은 기록">${esc(whenTxt(s.by.date))} 넣음: ${esc(s.by.author)}의 기록에서</span>` : ''}`
-    const hn = it ? `<span class="hn" data-a="openItem" data-k="${esc(k)}" data-n="${esc(it.key)}" data-t="hn" title="항목으로 보기">${(s.held || []).length && !(chips && pn) ? '<i class="pd hd"></i>' : ''}기록 ${s.recs}</span>` : ''
-    const panel = (po && pn ? heldPanel(k, s) : '') + (ro && rn ? refsPanel(k, s.refs, '출처') : '')
+    // 가운데는 문서 내용만(컨벤션 5절 · 2026-11-05) — 머리 줄에는 항목 이름만. 출처 · 기록 · 넣지 못함 · 이력은 오른쪽 칸 다섯 묶음으로
     const inner = secInner(k, s, it)
-    return `<section class="dsec"><div class="hrow"><h2 data-sec="${esc(s.h)}"${!q && flashH && s.h === flashH ? ' class="flash"' : ''}>${esc(s.h)}</h2>${chips ? `<span class="hrefs">${chips}</span>` : ''}${hn}</div>${panel}${lit ? `<div class="lit" data-t="lit"><span class="tag">찾은 곳</span>${inner}</div>` : inner}</section>`
+    return `<section class="dsec"><div class="hrow"><h2 data-sec="${esc(s.h)}"${!q && flashH && s.h === flashH ? ' class="flash"' : ''}>${esc(s.h)}</h2></div>${lit ? `<div class="lit" data-t="lit"><span class="tag">찾은 곳</span>${inner}</div>` : inner}</section>`
   }).join('')
   // ## 항목이 없는 문서(맨 위가 ###) — 글이 모두 머리글이라 편집기가 빈 칸으로 열린다 · 고치기 · 다듬기를 막고 까닭을 보인다
   const noSec = !d.sections.length
   const main = `<div class="docw" data-t="docPane" data-name="${esc(d.title)}">${right ? rpHead() : ''}
   ${q ? `<div class="found" data-t="found"><span>찾기 <b>‘${esc(q)}’</b> 로 열었다</span><button type="button" class="lk" data-a="reopenSearch">찾은 것으로 돌아가기</button></div>` : ''}
-  <div class="ttl"><div class="path"><span>${esc(loc)}</span><span class="r">마지막으로 바뀐 때 ${esc(whenTxt(d.when))}</span></div>${editing || right || d.watched || noSec || !isTeam() || isPersonal(KN(k)) || lvOf(KN(k)) !== 'admin' ? '' : `<button class="btn" data-a="polishDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="polishBtn"${KN(k).noClaude ? ' disabled title="Claude 에 보내지 않는 지식: 다듬기는 팀 일꾼(Claude)이 한다 · 설정 › 일반 › 팀 지식에서 바꾼다"' : ' title="팀 일꾼이 문체 · 짜임만 정돈한다 · 값은 그대로"'}>다듬기</button>`}${editing || right || d.watched ? '' : `<button class="btn pri" data-a="editDoc" data-t="editBtn"${noSec ? ' disabled title="## 항목이 없는 문서: 화면에서 고칠 수 없다"' : roAttr(k)}>고치기</button>`}</div>
+  <div class="ttl"><div class="path"><span>${esc(loc)}</span></div>${right ? '' : wideSeg()}${editing || right || d.watched || noSec || !isTeam() || isPersonal(KN(k)) || lvOf(KN(k)) !== 'admin' ? '' : `<button class="btn" data-a="polishDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="polishBtn"${KN(k).noClaude ? ' disabled title="Claude 에 보내지 않는 지식: 다듬기는 팀 일꾼(Claude)이 한다 · 설정 › 일반 › 팀 지식에서 바꾼다"' : ' title="팀 일꾼이 문체 · 짜임만 정돈한다 · 값은 그대로"'}>다듬기</button>`}${editing || right || d.watched ? '' : `<button class="btn pri" data-a="editDoc" data-t="editBtn"${noSec ? ' disabled title="## 항목이 없는 문서: 화면에서 고칠 수 없다"' : roAttr(k)}>고치기</button>`}</div>
   ${d.watched && d.watched.orphan ? `<div class="callout warn stop" data-t="watchedOrphan"><i></i><span><b>원본이 없어졌다</b>: 가져오던 곳 「${esc(d.watched.src)}」 이 지워졌다 · 내 문서로 하면 고칠 수 있다</span><button class="btn sm r" data-a="unwatchDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="unwatchBtn">내 문서로</button></div>` : ''}${d.watched && !d.watched.orphan ? `<div class="callout ${d.watched.missing ? 'warn' : 'gray'} stop" data-t="watched"><i></i><span><b>${d.watched.missing ? `원본에 없다: ${esc(d.watched.missing)} 부터` : '원본이 주인이다'}</b>: ${esc(d.watched.src)} 의 <span class="mono">${esc(d.watched.path)}</span> 에서 온다 · 고치려면 원본 파일을 고친다 · 덧붙일 말은 기록으로 남긴다</span></div>` : ''}
-  ${mine.length && !editing ? `<div class="callout warn stop" data-t="myHeld"><i></i><span><b>내 넣지 못함 ${mine.length}</b>: 이 문서의 항목에 넣지 못한 내 기록이다. 고치거나 팀 일꾼에게 다시 들이게 한다</span><button type="button" class="btn sm r" data-a="openHeld" data-k="${esc(k)}" data-t="myHeldGo">보기</button></div>` : ''}
-  <div class="paper"><h1>${esc(d.title)}</h1>${noSec && !editing && !right ? '<div class="callout gray" data-t="noSecEdit">이 문서는 ## 항목이 없어 화면에서 고칠 수 없다. 맨 위 ### 머리를 ## 로 올리면 항목으로 나뉜다</div>' : ''}${d.intro ? `<div class="dlead" data-t="docLead">${pvLinks(linkify(d.intro, k, null), k)}</div>` : ''}${body}</div></div>`
-  return { html: main, aside: right ? null : docAside(k, d), title: d.title }
+  ${right || editing ? '' : gdockHtml(k, 'd:' + d.id)}<div class="paper"><h1>${esc(d.title)}</h1>${noSec && !editing && !right ? '<div class="callout gray" data-t="noSecEdit">이 문서는 ## 항목이 없어 화면에서 고칠 수 없다. 맨 위 ### 머리를 ## 로 올리면 항목으로 나뉜다</div>' : ''}${d.intro ? `<div class="dlead" data-t="docLead">${pvLinks(linkify(d.intro, k, null), k)}</div>` : ''}${body}</div></div>`
+  return { html: main, aside: right ? null : docAside(k, d, t), title: d.title }
 }
 function recPane(t, right) {
   const k = t.kn, r = recOf(k, t.ref)
   if (!r) return { html: loadingHtml, title: tabTitle(t) }
   if (r.error) return { html: r.code === 'E_NOTFOUND' ? '<p class="muted" data-t="recGone">이 기록은 이제 없다. 다른 이름으로 남았을 수 있다</p>' : errHtml(r, `rec:${k}:${t.ref}`), title: '기록' }
   const fx = r.fixes[0], fb = r.fixedBy, who = (w) => (w === S.me.user ? '나' : w)
-  const html = `<div class="docw" data-t="recPane" data-name="${esc(r.title)}">${right ? rpHead() : ''}<div class="ttl"><div class="path"><span>${esc(KN(k).name)} › ${r.log ? '이력' : '기록'} › ${esc(r.date)}</span><span class="r">${r.ingest && !r.ingest.read && !isTeam() && !right ? `<button class="btn sm" data-a="readRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="readRec"${S.reading && S.reading[r.id] ? ' disabled' : ''} title="넣은 파일을 Claude 가 읽고 무엇 · 핵심 · 정한 것 · 남은 것 + 본문으로 기록을 다시 쓴다">${S.reading && S.reading[r.id] ? 'Claude 가 읽는 중…' : 'Claude 로 기록 정리'}</button> ` : ''}${recFixOk(k, r) && !right ? `<button type="button" class="btn sm" data-a="recFix" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="recFixBtn" title="원래 기록은 두고 정정 기록을 새로 남긴다">고치기</button> ` : ''}${r.log ? `<span class="chip c-mute" data-t="recLog">이력 · ${esc(r.log)}: kmd 가 한 일</span>` : ''}${recStateChip(k, r)}</span></div></div>
-  <div class="paper"><h1>${esc(r.title)}</h1><p class="muted small">${esc(r.author)} · ${esc(r.date)}</p>${linkify(r.html, k, null)}
-  ${fx ? `<div class="callout warn">이 기록은 ${esc(whenTxt(fx.date))} ${esc(who(fx.author))}의 기록을 바로잡았다. <button type="button" class="lk" data-a="openRec" data-k="${esc(k)}" data-r="${esc(fx.id)}">${esc(fx.title)}</button></div>` : ''}${fb.map((x) => `<div class="callout gray">${esc(whenTxt(x.date))} ${esc(who(x.author))}이 이 기록을 바로잡았다. <button type="button" class="lk" data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}">${esc(x.title)}</button></div>`).join('')}
-  ${r.state === 'held' ? `<div class="callout warn" data-t="recHeld"><span><b>넣지 못함</b>: ${esc(r.why || '저장 검사를 넘지 못해 기록만 남았다')}</span>${teamKn(k) && !right && (lvOf(KN(k)) === 'admin' || (lvOf(KN(k)) === 'write' && r.author === S.me.user)) ? `<button type="button" class="btn sm r" data-a="openHeld" data-k="${esc(k)}" data-t="recHeldGo">넣지 못함 화면</button>` : ''}</div>` : r.state === 'pend' || r.state === 'nowhere' ? `<div class="callout gray" data-t="recPend">${esc(pendWhen(k))}</div>` : ''}${r.state === 'nowhere' && (r.tags || []).includes('code-change') && !isTeam() ? `<div class="callout pend" data-t="codeWait">아직 문서에 안 들어간 코드 바뀜 기록: Claude Code 가 차례로 이 저장소의 기능 문서에 넣는다(하나에 몇 분) · 지금 하는 일 점(옆 메뉴 맨 위 · 좁은 화면은 머리 줄)에서 본다</div>` : ''}</div></div>`
-  // 이 기록이 간 문서 — 이 기록(또는 이 기록을 넣은 정리)이 넣은 항목 · 정리 기록이면 그 정리가 넣은 기록
+  const html = `<div class="docw" data-t="recPane" data-name="${esc(r.title)}">${right ? rpHead() : ''}<div class="ttl"><div class="path"><span>${esc(KN(k).name)} › ${r.log ? '이력' : '기록'} › ${esc(r.date)}</span><span class="r">${r.ingest && !r.ingest.read && !isTeam() && !right ? `<button class="btn sm" data-a="readRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="readRec"${S.reading && S.reading[r.id] ? ' disabled' : ''} title="넣은 파일을 Claude 가 읽고 무엇 · 핵심 · 정한 것 · 남은 것 + 본문으로 기록을 다시 쓴다">${S.reading && S.reading[r.id] ? 'Claude 가 읽는 중…' : 'Claude 로 기록 정리'}</button> ` : ''}${recFixOk(k, r) && !right ? `<button type="button" class="btn sm" data-a="recFix" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="recFixBtn" title="원래 기록은 두고 정정 기록을 새로 남긴다">고치기</button> ` : ''}${r.log ? `<span class="chip c-mute" data-t="recLog">이력 · ${esc(r.log)}: kmd 가 한 일</span>` : ''}${recStateChip(k, r)}</span></div>${right ? '' : wideSeg()}</div>
+  ${right ? '' : gdockHtml(k, 'r:' + r.id)}<div class="paper"><h1>${esc(r.title)}</h1>${linkify(r.html, k, null)}</div></div>`
+  // 가운데는 기록 글만(2026-11-05) — 쓴 사람 · 때 · 상태 · 정정은 오른쪽 칸으로
   const went = r.went || [], via = r.via || [], from = r.from || []
-  const wentHtml = `<div class="ap" data-t="recWent"><h4 title="${r.log ? '이 일이 넣은 문서' : '이 기록이 들어간 문서'}">문서 <small data-t="recWentN">${went.length}</small></h4>${went.map((d) => `<div class="alr" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-h="${esc(d.hs[0] || '')}" data-t="wentDoc" data-pv="doc|${esc(k)}|${esc(d.id)}">${svg('doc')}<span class="nm">${esc(d.title)}<small>항목 ${d.hs.length}: ${esc(d.hs.slice(0, 3).join(' · '))}${d.hs.length > 3 ? ' …' : ''}</small></span></div>`).join('') || `<div class="muted small alr">${r.state === 'pend' || r.state === 'held' ? '아직 문서에 들어가지 않았다' : '없다'}</div>`}${via.map((x) => `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}" data-t="viaRec"><span class="dt">kmd</span><span class="nm">${esc(x.title.split(/ — |: /)[0])}<small>${esc(whenTxt(x.date))} · ${esc(x.author)} 가 넣었다</small></span></div>`).join('')}${from.map((x) => `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}" data-t="fromRec"><span class="dt">기록</span><span class="nm">${esc(x.title.split(/ — |: /)[0])}<small>이 일이 넣은 기록 · ${esc(whenTxt(x.date))} · ${esc(x.author)}</small></span></div>`).join('')}</div>`
-  const aside = wentHtml + `<div class="ap" data-t="recItems"><h4 title="${r.log ? '이 일이 건드린 항목' : '이 기록이 건드린 항목'}">항목 <small>${r.items.length}</small></h4>${r.items.map((i) => `<div class="alr" data-a="openItem" data-k="${esc(k)}" data-n="${esc(i.coord)}" data-t="recItem" data-pv="item|${esc(k)}|${esc(i.coord)}">${svg('tag')}<span class="nm">${esc(i.name)}<small>${esc(i.docTitle ? i.docTitle : '문서가 없는 항목')}</small></span></div>`).join('') || '<div class="muted small alr">없다</div>'}</div>
-  <div class="ap" data-t="recFix"><h4 title="이 기록이 바로잡은 기록 · 이 기록을 바로잡은 기록">정정</h4>${fx ? `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(fx.id)}" data-t="fixRow"><span class="dt">${esc(whenTxt(fx.date).replace(/^(오늘|어제) /, ''))}</span><span class="nm">${esc(fx.title)}<small>이 기록이 바로잡음</small></span></div>` : ''}${fb.map((x) => `<div class="alr" data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}" data-t="fixRow"><span class="dt">${esc(whenTxt(x.date).replace(/^(오늘|어제) /, ''))}</span><span class="nm">${esc(x.title)}<small>이 기록을 바로잡음</small></span></div>`).join('')}${fx || fb.length ? '' : '<div class="muted small alr">없다</div>'}</div>
-  <div class="ap" data-t="recProps"><h4>속성</h4><div class="kv"><span>종류</span><span>${r.log ? '이력: kmd 가 한 일' : '기록'}</span><span>쓴 사람</span><span>${esc(who(r.author))}</span><span>때</span><span>${esc(whenTxt(r.date))}</span><span>상태</span><span data-t="recStateTx">${esc(recStateTx(k, r))}</span>${(r.tags || []).length ? `<span>태그</span><span>${esc(r.tags.join(' · '))}</span>` : ''}</div></div>
-  ${nbGraph(k, 'r:' + r.id)}`
+  const heldGo = r.state === 'held' && teamKn(k) && !right && (lvOf(KN(k)) === 'admin' || (lvOf(KN(k)) === 'write' && r.author === S.me.user)) ? ` <button type="button" class="lk" data-a="openHeld" data-k="${esc(k)}" data-t="recHeldGo">넣지 못함 화면</button>` : ''
+  // 개요 — 기록 본문의 머리(## · ###)와 수준 표시 1 ~ 3 줄
+  const heads = [...String(r.html || '').matchAll(/<h([2-4])[^>]*>([\s\S]*?)<\/h\1>|<div class="lv l([1-3])" data-lv="([^"]*)"/g)].map((m) => (m[1] ? { lv: +m[1] - 1, tx: m[2].replace(/<[^>]+>/g, '').trim() } : { lv: +m[3], tx: m[4].replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&') })).filter((x) => x.tx)
+  const nRecs = 1 + (fx ? 1 : 0) + fb.length + via.length + from.length
+  const aside = agWrap('rec', [
+    { id: 'ol', t: '개요', n: heads.length, body: () => heads.map((x) => agRow({ a: 'scrollTx', attrs: ` data-v="${esc(x.tx)}"`, nm: esc(x.tx), t: 'olRec', sub: '' })).join('') || agNone },
+    { id: 'docs', t: '문서', n: went.length, body: () => agSub(r.log ? '이 일이 넣은 문서' : '이 기록이 들어간 문서') + (went.map((d) => docRow(k, d.id, d.title, { h: d.hs[0] || '', sub: `항목 ${d.hs.length}: ${d.hs.slice(0, 3).join(' · ')}${d.hs.length > 3 ? ' …' : ''}`, t: 'wentDoc' })).join('') || `<div class="muted small alr">${r.state === 'pend' || r.state === 'held' ? '아직 문서에 들어가지 않았다' : '없다'}</div>`) },
+    { id: 'recs', t: '기록', n: nRecs, body: () => agSub('이 기록') + recRow(k, r, { cur: true, sub: who(r.author), t: 'recMe' })
+      + agSub('바로잡은 · 바로잡힌 기록', (fx ? 1 : 0) + fb.length) + ((fx ? recRow(k, fx, { sub: '이 기록이 바로잡음', t: 'fixRow' }) : '') + fb.map((x) => recRow(k, x, { sub: '이 기록을 바로잡음', t: 'fixRow' })).join('') || agNone)
+      + (via.length ? agSub('이 기록을 넣은 kmd 기록', via.length) + via.map((x) => recRow(k, x, { sub: `${x.author} 가 넣었다`, t: 'viaRec' })).join('') : '')
+      + (from.length ? agSub('이 일이 넣은 기록', from.length) + from.map((x) => recRow(k, x, { sub: x.author, t: 'fromRec' })).join('') : '') },
+    { id: 'items', t: '항목', n: r.items.length, body: () => agSub(r.log ? '이 일이 건드린 항목' : '이 기록이 건드린 항목', r.items.length) + (r.items.map((i) => agRow({ a: 'openItem', attrs: ` data-k="${esc(k)}" data-n="${esc(i.coord)}"`, ic: 'tag', nm: esc(i.name), sub: i.docTitle || '문서가 없는 항목', pv: `item|${esc(k)}|${esc(i.coord)}`, t: 'recItem' })).join('') || agNone) },
+    { id: 'props', t: '속성', n: '', body: () => agKv([
+      ['종류', r.log ? '이력: kmd 가 한 일' : '기록'],
+      ['쓴 사람', esc(who(r.author))],
+      ['때', esc(r.date)],
+      ['상태', `<span data-t="recStateTx">${esc(recStateTx(k, r))}</span>${heldGo}`],
+      r.state === 'pend' || r.state === 'nowhere' ? ['넣는 때', `<span data-t="recPend">${esc(pendWhen(k))}</span>`] : null,
+      r.state === 'nowhere' && (r.tags || []).includes('code-change') && !isTeam() ? ['코드 바뀜', '<span data-t="codeWait">Claude Code 가 차례로 이 저장소의 기능 문서에 넣는다(하나에 몇 분) · 지금 하는 일 점에서 본다</span>'] : null,
+      (r.tags || []).length ? ['태그', esc(r.tags.join(' · '))] : null,
+    ]) },
+  ])
   return { html, aside: right ? null : aside, title: r.title.split(/ — |: /)[0] }
 }
 // 기록 상태(S10 · 설계 4-8) — 칩 · 속성 말: 넣지 못함(c-warn) · 메모(c-mute) · 바로잡힘(c-ok) · 버림 · 되돌림 · 개편 전 기록
@@ -1376,28 +1497,38 @@ function itemPane(t, right) {
   if (!it) return { html: '<p class="muted">이 항목은 이제 없다</p>', title: t.ref }
   const v = it.doc ? itemOf(k, it.key) : null
   const d = it.doc && M(k).docById.get(it.doc)
-  const rs = recsOfItem(k, it), held = rs.filter((r) => heldR(k, r))
-  const all = M(k).recs
-  const past = rs.filter((r) => !heldR(k, r)).slice().sort((a, b) => (b.fixes.length ? 1 : 0) - (a.fixes.length ? 1 : 0) || b.date.localeCompare(a.date))
+  const rs = recsOfItem(k, it)
+  const past = rs.filter((r) => !heldR(k, r)).slice().sort((a, b) => b.date.localeCompare(a.date))
   const uses = usesOf(k, it), al = it.aliases
   const who = (w) => (w === S.me.user ? '나' : w)
-  const li = (r, cls) => `<li class="${cls || ''}" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="${cls === 'held' ? 'itemHeldRow' : 'itemHistRow'}" data-pv="rec|${esc(k)}|${esc(r.id)}"><span class="dt">${esc(recDt(r.date))}</span><span class="tx"><b>${esc(r.title)}</b>${r.fixes.length ? ' <span class="chip c-warn">바로잡음</span>' : ''}${all.some((x) => x.fixes.includes(r.id)) ? ' <span class="chip c-mute">바로잡힘</span>' : ''}<small>${esc(who(r.author))} · ${esc(r.body || '')}</small></span></li>`
   let now
   if (it.doc && !v) now = loadingHtml
-  else if (v && v.html != null) now = `<div class="paper ip">${linkify(v.html, k, it.key)}${v.by && isToday(v.by.date) ? `<div class="hc"><span class="hchip">${esc(whenTxt(v.by.date))} 넣음: ${esc(who(v.by.author))}의 기록에서</span></div>` : ''}</div>`
+  else if (v && v.html != null) now = `<div class="paper ip">${linkify(v.html, k, it.key)}</div>`
   else if (d) now = `<div class="callout gray">문서 ${esc(d.title)} 에서 이 항목의 글이 빠졌다. 문서에서 그 머리를 다시 세우거나 지식 점검에서 본다</div>`
-  else now = `<div class="callout gray" data-t="noDoc">아직 문서에 없다. 기록 ${rs.length} 이 같이 읽힌다</div>${rs.length ? `<div class="refpanel" data-t="noDocRecs"><div class="rp-h">기록 <small>기록이다 · 문서 본문이 아니다</small></div><ul>${rs.map((r) => `<li><time>${esc(recDt(r.date))}</time><span>${esc(who(r.author))} · <button type="button" class="lk" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}">${esc(r.title)}</button>${r.body ? ' · ' + esc(r.body) : ''}</span></li>`).join('')}</ul></div>` : '<p class="muted">기록도 아직 없다</p>'}`
+  else now = `<div class="callout gray" data-t="noDoc">아직 문서에 없다. 오른쪽 「기록」 에서 이 항목을 건드린 기록 ${rs.length} 을 본다</div>`
+  // 가운데는 항목 글만(2026-11-05) — 넣지 못함 · 지난 기록 · 쓰는 곳 · 다른 이름은 오른쪽 칸 다섯 묶음으로
   const html = `<div class="docw" data-t="itemPage" data-name="${esc(it.name)}">${right ? rpHead() : ''}
-  <div class="ih"><span class="kt src">${esc(it.kind)}</span>${it.val ? `<span class="iv" data-t="itemVal" title="${esc(it.coord)}">${esc(it.val)}</span>` : ''}<h1>${esc(it.name)}</h1>${d ? `<span class="muted small">${esc(d.title)} › ${esc(it.sec)}</span>` : '<span class="chip c-mute">문서 없음</span>'}${al.length ? `<span class="r small muted">다른 이름: ${al.map(esc).join(' · ')}</span>` : ''}</div>
-  <section class="isec" data-t="itemNow"><h3>지금${d ? ` <small>: ${esc(d.title)} 안의 그 부분</small>` : ''}${d && !right ? `<button class="btn pri sm r" data-a="itemToDoc" data-k="${esc(k)}" data-n="${esc(it.key)}" data-t="itemToDoc">문서로 보기에서 열기</button>` : ''}</h3>${now}</section>
-  <section class="isec" data-t="itemHeld"><h3>넣지 못함 <span class="chip ${held.length ? 'c-warn' : 'c-mute'}" data-t="itemHeldN">${held.length}</span> <small>기록만 남았다</small>${held.length && teamKn(k) && !right ? `<button type="button" class="lk r small" data-a="openHeld" data-k="${esc(k)}" data-t="itemHeldGo">넣지 못함 화면</button>` : ''}</h3>${held.length ? `<ul class="rl">${held.map((r) => li(r, 'held')).join('')}</ul>` : '<p class="muted small">없다</p>'}</section>
-  <section class="isec" data-t="itemHist"><h3>지난 기록 <small>이력 · 바로잡은 것 위</small> <span class="chip c-mute" data-t="itemHistN">${past.length}</span></h3>${past.length ? `<ul class="rl">${past.map((r) => li(r)).join('')}</ul>` : '<p class="muted small">없다</p>'}</section>
-  <section class="isec" data-t="itemUses"><h3>이 항목을 쓰는 곳 <span class="chip c-mute">${uses.length}</span></h3>${uses.length ? `<ul class="rl">${uses.map((u) => `<li data-a="openItem" data-k="${esc(k)}" data-n="${esc(u.key)}" data-t="useRow" data-pv="item|${esc(k)}|${esc(u.key)}"><span class="tx"><b>${esc(u.doc ? (M(k).docById.get(u.doc) || {}).title || u.doc : '')} › ${esc(u.short || u.name)}</b>${u.val && !sameTxt(u.short, u.name) ? `<small>${esc(u.name)}</small>` : ''}<small>${esc(firstLine(k, u))}</small></span></li>`).join('')}</ul>` : '<p class="muted small">없다</p>'}</section>
-  <section class="isec" data-t="itemAlias"><h3>다른 이름</h3>${al.length ? al.map((a) => `<span class="kn">${esc(a)}</span>`).join(' ') : '<p class="muted small">없다. 같은 말로 이틀 찾으면 저절로 붙는다</p>'}</section></div>`
+  <div class="ttl"><div class="path"><span>${d ? `${esc(d.title)} › ${esc(it.sec)}` : '문서 없음'}</span></div>${right ? '' : wideSeg()}${d && !right ? `<button class="btn pri" data-a="itemToDoc" data-k="${esc(k)}" data-n="${esc(it.key)}" data-t="itemToDoc">문서로 보기에서 열기</button>` : ''}</div>
+  ${right ? '' : gdockHtml(k, 'i:' + it.key)}<div class="ih"><span class="kt src">${esc(it.kind)}</span>${it.val ? `<span class="iv" data-t="itemVal" title="${esc(it.coord)}">${esc(it.val)}</span>` : ''}<h1>${esc(it.name)}</h1></div>
+  <section class="isec" data-t="itemNow">${now}</section></div>`
+  // 오른쪽 칸 — 개요(들어 있는 문서의 차례 · 이 항목에 「지금」) · 문서 · 기록(이 항목의 이력) · 항목 · 속성
+  const sibs = d ? M(k).items.filter((i) => i.doc === d.id) : []
+  const useDocs = [...new Set(uses.map((u) => u.doc).filter((x) => x && (!d || x !== d.id)))]
   const co = coItems(k, it)
-  const aside = `<div class="ap" data-t="coItems"><h4 title="같은 기록이 함께 건드린 항목 · 많은 순">항목 <small>${co.length}</small></h4>${co.length ? co.map((c) => `<div class="alr" data-a="openItem" data-k="${esc(k)}" data-n="${esc(c.it.key)}" data-t="coItem" data-pv="item|${esc(k)}|${esc(c.it.key)}">${svg('tag')}<span class="nm">${inmHtml(c.it)}</span><span class="rc">${c.n}</span></div>`).join('') : '<div class="muted small alr">없다</div>'}</div>
-  <div class="ap" data-t="inDocs"><h4 title="이 항목이 들어 있는 문서">문서</h4>${d ? `<div class="alr" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-h="${esc(it.sec)}" data-t="inDoc" data-pv="doc|${esc(k)}|${esc(d.id)}">${svg('doc')}<span class="nm">${esc(d.title)}</span></div>` : '<div class="muted small alr">아직 없다</div>'}</div>
-  ${nbGraph(k, 'i:' + it.key)}`
+  const aside = agWrap('item', [
+    { id: 'ol', t: '개요', n: sibs.length, body: () => (d ? agSub(`${esc(d.title)}의 차례`) : '') + (sibs.map((i) => itemRow(k, i, { cur: i.key === it.key, t: 'olItem' })).join('') || agNone) },
+    { id: 'docs', t: '문서', n: (d ? 1 : 0) + useDocs.length, body: () => agSub('이 항목이 있는 문서') + (d ? docRow(k, d.id, d.title, { h: it.sec, sub: it.sec, t: 'inDoc' }) : agNone) + agSub('이 항목을 쓰는 문서', useDocs.length) + (useDocs.map((x) => docRow(k, x, (M(k).docById.get(x) || {}).title || x, { t: 'useDoc' })).join('') || agNone) },
+    { id: 'recs', t: '기록', n: past.length, body: () => agSub('이 항목의 이력 · 새것 위') + (past.map((r) => recRow(k, r, { sub: `${who(r.author)}${r.fixes.length ? ' · 바로잡음' : ''}${M(k).recs.some((x) => x.fixes.includes(r.id)) ? ' · 바로잡힘' : ''}`, t: 'itemHistRow' })).join('') || agNone) },
+    { id: 'items', t: '항목', n: 1 + uses.length + co.length, body: () => agSub('이 항목') + itemRow(k, it, { cur: true, t: 'itemMe' }) + agSub('이 항목을 쓰는 곳', uses.length) + (uses.map((u) => itemRow(k, u, { sub: u.doc ? (M(k).docById.get(u.doc) || {}).title || u.doc : '', t: 'useRow' })).join('') || agNone) + agSub('함께 바뀐 항목', co.length) + (co.map((c) => itemRow(k, c.it, { rc: c.n, t: 'coItem' })).join('') || agNone) },
+    { id: 'props', t: '속성', n: '', body: () => agKv([
+      ['종류', esc(it.kind)],
+      it.val ? ['값', `<b class="mono">${esc(it.val)}</b>`] : null,
+      ['다른 이름', al.length ? al.map(esc).join(' · ') : '<span class="muted">없다. 같은 말로 이틀 찾으면 저절로 붙는다</span>'],
+      ['문서', d ? `${esc(d.title)} › ${esc(it.sec)}` : '없음'],
+      ['마지막으로 바뀜', v && v.by ? `${esc(whenTxt(v.by.date))}: ${esc(who(v.by.author))}의 기록에서` : d ? esc(whenTxt(d.when)) : '-'],
+      ['기록', String(rs.length)],
+    ]) },
+  ])
   return { html, aside: right ? null : aside, title: it.short || it.name }
 }
 
@@ -1699,21 +1830,6 @@ function graphAside(k, G) {
   const rows = pool.slice(0, 40).map((x) => `<div class="alr${x.id === id ? ' on' : ''}" data-a="gPick" data-v="${esc(x.id)}" data-t="gListRow" aria-current="${x.id === id ? 'true' : 'false'}"><i class="kd" style="background:${KCOL[x.kind]}"></i><span class="nm">${esc(x.label || '')}<small>${KLAB[x.kind] || ''} · 선 ${G.deg[x.id] || 0}</small></span></div>`).join('')
   const list = `<div class="ap" data-t="gList"><h4>점 목록 <small>${pool.length > 40 ? '선 많은 40 / ' + pool.length : pool.length}</small></h4>${rows || '<div class="muted small alr">맞는 점이 없다</div>'}</div>`
   return `<h4>고른 점</h4>${card}${list}${legend}`
-}
-// 옆 칸 「그래프」 — 이웃 한 겹(접힘) — 한 겹 · 누르면 그래프로
-function nbGraph(k, center) { return `<details class="ap nb" data-t="nbGraph"${S.nbOpen ? ' open' : ''}><summary data-a="nbToggle" title="한 겹 이웃 · 누르면 그래프 화면으로">그래프</summary>${S.nbOpen ? miniGraph(k, center) : ''}</details>` }
-function miniGraph(k, c) {
-  if (!M(k)) return loadingHtml
-  const G = graphData(k, { q: '', item: true, doc: true, rec: true, src: true, pend: false, recent: false, orph: false, depth: 0 }, false)
-  const nb = []
-  G.edges.forEach((e) => { if (e.a === c && !nb.includes(e.b)) nb.push(e.b); if (e.b === c && !nb.includes(e.a)) nb.push(e.a) })
-  const nm = {}
-  G.nodes.forEach((n) => (nm[n.id] = n))
-  const sh = nb.slice(0, 12), R = 64
-  const pos = sh.map((id, i) => { const a = (i / Math.max(sh.length, 1)) * Math.PI * 2 - Math.PI / 2; return [Math.cos(a) * R, Math.sin(a) * R * 0.8] })
-  const lab = (s) => esc(String(s).length > 8 ? String(s).slice(0, 8) + '…' : s)
-  const cn = nm[c] || { kind: 'doc', label: '?' }
-  return `<svg class="mini" viewBox="-115 -80 230 160" data-a="openGraph" data-n="${esc(c)}" data-t="miniGraph"><title>그래프에서 보기</title>${pos.map((p) => `<line x1="0" y1="0" x2="${p[0].toFixed(1)}" y2="${p[1].toFixed(1)}"/>`).join('')}${sh.map((id, i) => `<circle cx="${pos[i][0].toFixed(1)}" cy="${pos[i][1].toFixed(1)}" r="4" fill="${KCOL[nm[id].kind]}"/><text x="${pos[i][0].toFixed(1)}" y="${(pos[i][1] + 12).toFixed(1)}" text-anchor="middle">${lab(nm[id].label)}</text>`).join('')}<circle r="7" fill="${KCOL[cn.kind]}"/><text y="-11" text-anchor="middle" class="c">${lab(cn.label)}</text></svg><div class="small muted">이웃 ${nb.length}${nb.length > 12 ? ' · 12 만 보인다' : ''}</div>`
 }
 
 // ───────────── 미리보기 카드(이름 · 링크에 마우스) ─────────────
@@ -3880,6 +3996,27 @@ function openDocAt(k, d, h, q, view, sub) {
 const ACT = {
   // 서랍 — ☰(600 이하 옆 메뉴) · 옆 칸(1024 이하 오른쪽 칸) · 덮개를 누르거나 Esc 면 닫는다
   sideToggle: () => { S.sideOpen = !S.sideOpen; S.asideOpen = false; S.menu = null; render(); if (S.sideOpen) { const f = focusables($('#app .side'))[0]; if (f) f.focus() } },
+  // 화면 자리(컨벤션 11-2) — 접기 · 묶음 펼침 · 문서 폭 · 그래프 팝업
+  sideRail: () => { UI.sideRail = !UI.sideRail; saveUi(); render(); const b = [...document.querySelectorAll('#app [data-t=sideFold]')].find((x) => x.getClientRects().length); if (b) b.focus() },
+  asideRail: () => { UI.asideRail = !UI.asideRail; saveUi(); render(); const b = $('#app [data-t=asideFold]'); if (b) b.focus() },
+  agToggle: (el) => { const k = el.dataset.k, g = el.dataset.g; UI.ag[k] = { ...(UI.ag[k] || {}), [g]: !agOpen(k, g) }; saveUi(); render(); const b = $(`#app .aside [data-a=agToggle][data-g="${g}"]`); if (b) b.focus() },
+  agRail: (el) => { const k = el.dataset.k, g = el.dataset.g; UI.asideRail = false; UI.ag[k] = { ...(UI.ag[k] || {}), [g]: true }; saveUi(); render(); const b = $(`#app .aside [data-a=agToggle][data-g="${g}"]`); if (b) { b.scrollIntoView({ block: 'nearest' }); b.focus() } },
+  agFold: (el) => { UI.ag[el.dataset.k] = {}; saveUi(); render() },
+  docWide: (el) => { UI.wide = el.dataset.v === '1'; saveUi(); render() },
+  gPop: () => { S.gPop = !S.gPop; render(); const f = S.gPop ? $('#app [data-t=gNode]') : $('#app [data-t=gPopBtn]'); if (f) f.focus() },
+  gNode: (el) => {
+    const k = el.dataset.k, id = el.dataset.n, ref = id.slice(2)
+    S.gPop = false
+    if (id.startsWith('d:')) return openDocAt(k, ref, null, null)
+    if (id.startsWith('i:')) { openTab({ kind: 'item', kn: k, ref }); render(); return scrollTopMain() }
+    if (id.startsWith('r:')) { openTab({ kind: 'rec', kn: k, ref }); render(); return scrollTopMain() }
+    render()
+  },
+  scrollTx: (el) => {
+    const want = el.dataset.v
+    const h = [...document.querySelectorAll('#app .main[data-t=main] .paper :is(h2,h3,h4,.lv[data-lv])')].find((x) => (x.dataset.lv != null ? x.dataset.lv : x.textContent.trim()) === want)
+    if (h) { h.scrollIntoView({ block: 'start', behavior: 'smooth' }); h.classList.remove('flash'); void h.offsetWidth; h.classList.add('flash') }
+  },
   asideToggle: () => { S.asideOpen = !S.asideOpen; S.sideOpen = false; S.menu = null; render(); if (S.asideOpen) { const f = focusables($('#app .aside'))[0]; if (f) f.focus() } },
   drawerClose: () => drawerShut(),
   // 다시 읽기 — 그 받은 값(cache key)을 지우고 다시 받는다 · 그리다 넘어졌으면 모두
@@ -4318,9 +4455,6 @@ const ACT = {
   foldKind: (el) => { const kd = el.dataset.v; S.kfold[kd] = !kindFolded(S.route.kn, kd); render() },
   moreTables: () => { S.tablesAll = true; render() },
   itemToDoc: (el) => { const it = itemByKey(el.dataset.k, el.dataset.n); if (it && it.doc) openDocAt(el.dataset.k, it.doc, it.sec, null, 'docs') },
-  refToggle: (el) => { S.refOpen ||= {}; S.refOpen[el.dataset.v] = !S.refOpen[el.dataset.v]; render() },
-  refGo: (el) => { const t = activeTab(); if (!t) return; S.refOpen ||= {}; S.refOpen[`${t.id}|${el.dataset.h}|refs`] = true; S.asideOpen = false; t.flashH = el.dataset.h; S._lit = true; render() },
-  nbToggle: (el, ev) => { ev.preventDefault(); S.nbOpen = !S.nbOpen; render() },
   openGraph: (el) => { S.g.sel = el.dataset.n; S.g.f.depth = 1; setView('graph') },
   gSet: (el) => { const v = el.dataset.v; S.g.f[v] = !S.g.f[v]; render() },
   gDepth: (el) => { S.g.f.depth = Number(el.dataset.v); render() },
@@ -4498,13 +4632,23 @@ document.addEventListener('keydown', (ev) => {
     return
   }
   const t = ev.target
-  if ((ev.key === 'Enter' || ev.key === ' ') && !ev.isComposing && t && t.matches && t.matches('[role=button][data-a]:not(button,a[href]),[role=tab][data-a],[role=link][data-a]')) { ev.preventDefault(); t.click() }
+  if ((ev.key === 'Enter' || ev.key === ' ') && !ev.isComposing && t && t.matches && t.matches('[role=button][data-a]:not(button,a[href]),[role=tab][data-a],[role=link][data-a]')) { ev.preventDefault(); if (t.click) t.click(); else t.dispatchEvent(new MouseEvent('click', { bubbles: true })) }
 }, true)
 document.addEventListener('keydown', (ev) => {
   const ctrl = ev.ctrlKey || ev.metaKey, low = String(ev.key).toLowerCase(), code = ev.code
   if (ev.key === 'Enter' && !ev.isComposing && ev.target.id === 'askIn') { ev.preventDefault(); askDone(0); return }
   if (ev.key === 'Escape' && S.ask && !S.sudo) { askDone(null); return }
   if (!S.me || anon()) return
+  if (ev.key === 'Escape' && S.gPop) { ACT.gPop(); return }
+  // 너비 잡이 — ← → 10px(Shift 40px) · Home 처음 너비
+  const gr = ev.target && ev.target.dataset && ev.target.dataset.grip
+  if (gr && (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight' || ev.key === 'Home')) {
+    ev.preventDefault()
+    const step = (ev.shiftKey ? 40 : 10) * (ev.key === 'ArrowRight' ? 1 : -1) * (gr === 'side' ? 1 : -1)
+    setW(gr, ev.key === 'Home' ? (gr === 'side' ? SW[2] : AW[2]) : (gr === 'side' ? UI.sw : UI.aw) + step)
+    saveUi()
+    return
+  }
   if (S.edit && ev.target.id === 'edTx' && ctrl && (low === 's' || code === 'KeyS')) { ev.preventDefault(); saveDoc(); return }
   if (S.edit && ev.target.id === 'edTx' && ev.key === 'Escape' && !S.sudo) { ev.preventDefault(); ACT.cancelEdit(); return }
   if (S.qo && ev.target.id === 'qoIn' && listKeys(ev, S.qo, 'qoBody', qoBody, qoPick)) return
@@ -4514,6 +4658,8 @@ document.addEventListener('keydown', (ev) => {
     if (low === 'o' || low === 't' || code === 'KeyO' || code === 'KeyT') { ev.preventDefault(); openQo(); return }
     if (low === 'p' || code === 'KeyP') { ev.preventDefault(); openCmd(); return }
     if (ev.key === '\\' || code === 'Backslash') { ev.preventDefault(); toggleSplit(); return }
+    if (ev.key === '[' || code === 'BracketLeft') { ev.preventDefault(); ACT.sideRail(); return }
+    if ((ev.key === ']' || code === 'BracketRight') && S._hasAside) { ev.preventDefault(); ACT.asideRail(); return }
   }
   if (ev.altKey && !ctrl && (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') && !/^(TEXTAREA|INPUT)$/.test(ev.target.tagName)) { ev.preventDefault(); histGo(ev.key === 'ArrowLeft' ? -1 : 1); return }
   if (ev.key === 'Enter' && !ev.isComposing && ev.target.id === 'sudoPw') { ev.preventDefault(); sudoOk(); return }

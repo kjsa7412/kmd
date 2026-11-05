@@ -33,6 +33,8 @@
   --z-menu:20;--z-scrim:70;--z-pop:80;--z-toast:90;
   /* 화면 최대 폭(2절) · 옆 메뉴 · 오른쪽 칸 */
   --w-text:820px;--w-list:980px;--w-grid:1100px;--w-side:248px;--w-aside:300px;
+  /* 접힌 옆 메뉴 · 오른쪽 칸(레일) · 너비 잡이 · 그래프 팝업 */
+  --w-rail:48px;--w-grip:6px;--w-graph:400px;
   /* 글꼴 — 모노는 경로 · 주소 · 이름 · 시각에만 */
   --font:Pretendard,-apple-system,"Segoe UI",system-ui,"Malgun Gothic",sans-serif;
   --mono:Consolas,"Cascadia Mono",D2Coding,"Malgun Gothic",monospace;
@@ -51,9 +53,10 @@ a{color:var(--accent);cursor:pointer}
 .col{flex:1;min-width:0;display:flex;flex-direction:column}
 .body{flex:1;display:flex;min-height:0;min-width:0}
 .main{flex:1;padding:18px var(--sp-9);overflow:auto;min-width:0}
-.aside{width:var(--w-aside);flex:none;border-left:1px solid var(--border);background:var(--surface);padding:var(--sp-7);overflow:auto}
+.aside{width:var(--aw,var(--w-aside));flex:none;position:relative;border-left:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;overflow:hidden}
+.asc{flex:1;min-height:0;overflow:auto;padding:calc(var(--sp-9) * 2) var(--sp-7) var(--sp-7)}
 .aside h4{margin:var(--sp-1) 0 var(--sp-5);font-size:var(--fs)}
-.side{width:var(--w-side);flex:none;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:var(--sp-6) var(--sp-5)}
+.side{width:var(--sw,var(--w-side));flex:none;position:relative;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:var(--sp-6) var(--sp-5)}
 .side.dim .nav{opacity:.45;pointer-events:none}
 .sb-top{display:flex;align-items:center;gap:var(--sp-4);padding:var(--sp-1) var(--sp-3) var(--sp-5)}
 .logo{width:22px;height:22px;border-radius:var(--r);background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-weight:700;font-size:var(--fs-mono);flex:none}
@@ -465,8 +468,6 @@ kbd{font:var(--fs-xs) var(--mono);color:var(--text-3);border:1px solid var(--bor
 .docw{max-width:none;min-width:0}
 .dlink{color:var(--accent);cursor:pointer;font-weight:600}
 .ilink{color:var(--accent);text-decoration:underline dotted;text-underline-offset:3px;cursor:pointer}
-.paper .hn{margin-left:auto;font-size:var(--fs-xs);font-weight:500;color:var(--text-3);border:1px solid var(--border);border-radius:var(--r-pill);padding:0 var(--sp-4);cursor:pointer;white-space:nowrap;display:inline-flex;gap:5px;align-items:center}
-.paper .hn:hover{color:var(--accent);border-color:var(--accent-line)}
 .paper h2.flash,.paper h3.flash{animation:flash 1.4s}
 .attph{border:1px dashed var(--border-strong);border-radius:var(--r-md);padding:40px;text-align:center;color:var(--text-3);margin-top:var(--sp-5)}
 .ap{margin-bottom:var(--sp-8)}
@@ -489,10 +490,6 @@ details.nb>summary::before{content:"▸ ";color:var(--text-3)}
 details.nb[open]>summary::before{content:"▾ "}
 details.nb>summary::-webkit-details-marker{display:none}
 details.nb summary small{font-weight:400;color:var(--text-3)}
-svg.mini{width:100%;height:150px;display:block;cursor:pointer;margin-top:var(--sp-3);background:var(--hover);border-radius:var(--r);stroke:none}
-svg.mini line{stroke:var(--border-strong);stroke-width:1}
-svg.mini text{fill:var(--text-2);font-size:var(--fs-xs);stroke:none}
-svg.mini text.c{fill:var(--text);font-weight:700;font-size:var(--fs-xs)}
 .ih{display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap;margin:0 0 var(--sp-3)}
 .ih h1{font-size:var(--fs-xl);margin:0}
 .isec{margin:var(--sp-8) 0 0}
@@ -1004,22 +1001,6 @@ a.dlink:hover{text-decoration:underline;text-underline-offset:2px}
 .ilink.coord{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 9h16M4 15h16M10 3 8 21M16 3l-2 18'/%3E%3C/svg%3E");display:inline-flex;align-items:baseline;gap:3px}
 .ilink.coord::before{content:"";width:11px;height:11px;flex:none;align-self:center;background:currentColor;opacity:.75;-webkit-mask:var(--ic) center/contain no-repeat;mask:var(--ic) center/contain no-repeat}
 /* 참고 정보 — 항목 옆 작은 칩(「출처 n」 · 「넣지 못함 n」 · 누르면 참고 칸) · 접는 참고 칸(본문과 다른 꼴) */
-.refchip{display:inline-flex;align-items:center;gap:3px;height:18px;padding:0 var(--sp-3);border:1px solid var(--border);border-radius:var(--r-pill);background:var(--surface-2);color:var(--text-2);font:500 var(--fs-xs)/1 var(--font);white-space:nowrap;cursor:pointer;vertical-align:1px}
-.refchip:hover{border-color:var(--border-strong);color:var(--text)}
-.refchip.pend{background:var(--pending-bg);border-color:var(--pending-line);color:var(--pending)}
-.refchip.held{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn)}
-.refchip.on,.refchip[aria-expanded=true]{background:var(--accent-bg);border-color:var(--accent-line);color:var(--accent)}
-.refpanel{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);margin:var(--sp-3) 0;font-size:var(--fs-sm);color:var(--text-2);line-height:1.6}
-.refpanel>summary,.refpanel>.rp-h{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3) var(--sp-5);cursor:pointer;font-weight:600;color:var(--text-2);list-style:none}
-.refpanel>summary::-webkit-details-marker{display:none}
-.refpanel>summary::before{content:"▸";color:var(--text-3);font-size:var(--fs-xs)}
-.refpanel[open]>summary::before{content:"▾"}
-.refpanel>summary small,.refpanel>.rp-h small{font-weight:400;color:var(--text-3)}
-.refpanel ul{list-style:none;margin:0;padding:0 var(--sp-5) var(--sp-3)}
-.refpanel li{display:flex;gap:var(--sp-4);align-items:baseline;padding:var(--sp-2) 0;border-top:1px dashed var(--border);min-width:0;overflow-wrap:anywhere}
-.refpanel li:first-child{border-top:0}
-.refpanel time,.refpanel .dt{font:var(--fs-xs) var(--mono);color:var(--text-3);flex:none}
-.refpanel .rp-b{padding:0 var(--sp-5) var(--sp-4)}
 /* 지식 자리 칩 — 읽기 · 쓰기 · 관리 */
 .kt.lv-read{background:var(--surface-3);color:var(--text-2)}
 .kt.lv-write{background:var(--accent-bg);color:var(--accent)}
@@ -1148,8 +1129,6 @@ button.hlink{border:0;background:none;font:inherit;padding:0}
 .paper .dsec{content-visibility:auto;contain-intrinsic-size:auto 320px}
 .paper .hrow{display:flex;align-items:center;flex-wrap:wrap;gap:var(--sp-3) var(--sp-4);margin:18px 0 var(--sp-3)}
 .paper .hrow h2{margin:0;min-width:0}
-.paper .hrefs{display:inline-flex;gap:var(--sp-2);flex-wrap:wrap;align-items:center}
-.paper .hrefs+.hn{margin-left:auto}
 .paper .refpanel{margin:0 0 var(--sp-5)}
 .paper .refpanel li>span{min-width:0}
 /* 오른쪽 칸 「참고」 — 접는 칸 */
@@ -1211,4 +1190,94 @@ details.ap.refs[open]>summary h4::after{content:"▾"}
  .hd-r .c-av{order:1}.hd-r .c-tx{order:2;flex:1 1 calc(100% - 80px)}.hd-r .c-mk{order:3}
  .hd-r .c-rt{order:4;margin-left:34px}.hd-r .c-st{order:5}.hd-r .c-ac{order:6;flex:1 1 100%;justify-content:flex-start;margin-left:34px}
  .hd-r .why{white-space:normal}
+}
+
+/* ── 화면 자리(컨벤션 11-2) — 옆 메뉴 · 오른쪽 칸 접기(레일) · 너비 잡이 · 오른쪽 다섯 묶음 · 문서 폭 · 그래프 팝업 ── */
+.sfold,.afold,.srail .hb,.arl .hb{width:28px;height:28px;display:inline-grid;place-items:center;border-color:transparent;background:none;flex:none}
+.sfold:hover,.afold:hover{border-color:var(--border)}
+.afold{position:absolute;top:var(--sp-4);left:var(--sp-4);z-index:1}
+.srail,.arl{display:none;flex-direction:column;align-items:center;gap:var(--sp-2)}
+.srail .hb,.arl .hb{position:relative}
+.srail .hb.on{background:var(--accent-bg);color:var(--accent)}
+.srail .rsep{width:60%;border-top:1px solid var(--border);margin:var(--sp-2) 0}
+.rdot{position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;background:var(--warn-line)}
+.grip{position:absolute;top:0;bottom:0;width:var(--w-grip);cursor:col-resize;z-index:var(--z-menu);touch-action:none}
+.side>.grip{right:calc(var(--w-grip) / -2)}
+.aside>.grip{left:calc(var(--w-grip) / -2)}
+.grip:hover,.grip.drag,.grip:focus-visible{background:var(--accent-line);outline:none}
+body.resizing{cursor:col-resize;user-select:none}
+/* 접힘(레일) — 데스크톱만(1025~) · 1024 이하 오른쪽 칸 · 600 이하 옆 메뉴는 서랍 그대로 */
+@media (min-width:1025px){
+  .app.aside-rail .aside{width:var(--w-rail)}
+  .app.aside-rail .aside>.grip,.app.aside-rail .asc>:not(.arl){display:none}
+  .app.aside-rail .asc{padding:calc(var(--sp-4) + 36px) 0 var(--sp-4);overflow:hidden}
+  .app.aside-rail .asc>.arl{display:flex}
+  .app.aside-rail .afold{left:50%;transform:translateX(-50%)}
+}
+@media (min-width:601px){
+  .app.side-rail .side{width:var(--w-rail);padding:var(--sp-6) 0}
+  .app.side-rail .side>:not(.srail){display:none}
+  .app.side-rail .srail{display:flex}
+}
+/* 오른쪽 다섯 묶음 — 개요 · 문서 · 기록 · 항목 · 속성 · 처음은 모두 접힘 */
+.agtop{display:flex;align-items:center;gap:var(--sp-3);margin:calc(var(--sp-4) - var(--sp-9) * 2) 0 var(--sp-4) 30px;min-height:28px}
+.agtop b{flex:1;font-size:var(--fs);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ag{border-bottom:1px solid var(--border)}
+.agh{width:100%;display:flex;align-items:center;gap:var(--sp-3);border:0;background:none;padding:var(--sp-4) var(--sp-3);cursor:pointer;text-align:left;border-radius:var(--r);color:var(--text)}
+.agh:hover{background:var(--hover)}
+.agh .ar{width:12px;color:var(--text-3);font-size:var(--fs-xs);transition:transform .15s}
+.ag.open .agh .ar{transform:rotate(90deg)}
+.agh .agn{flex:1;font-weight:600;font-size:var(--fs)}
+.agh .agc{font-size:var(--fs-xs);color:var(--text-3);font-variant-numeric:tabular-nums}
+.agb{padding:0 0 var(--sp-5)}
+.agb .kv{grid-template-columns:96px minmax(0,1fr);font-size:var(--fs-mono);padding:var(--sp-2) var(--sp-3)}
+.agb .kv>span:nth-child(odd){color:var(--text-3)}
+.alr .chip.now{display:none;margin-left:auto}
+.alr.cur{background:var(--accent-bg)}
+.alr.cur .nm{color:var(--accent);font-weight:600}
+.alr.cur .chip.now{display:inline-flex}
+.alr .nm small{display:block;margin:0}
+/* 문서 폭 — 기본(글 폭) · 넓게(가운데 칸 전체) */
+.main .docw{max-width:var(--w-text);margin:0 auto}
+.main.wide .docw,.main.rp .docw{max-width:none}
+.wseg{display:inline-flex;border:1px solid var(--border-strong);border-radius:var(--r);overflow:hidden;background:var(--surface);flex:none}
+.wseg button{border:0;background:none;padding:var(--sp-2) var(--sp-5);cursor:pointer;display:inline-flex;gap:var(--sp-2);align-items:center;color:var(--text-2);white-space:nowrap;font-size:var(--fs-sm)}
+.wseg button+button{border-left:1px solid var(--border-strong)}
+.wseg button:hover{background:var(--hover)}
+.wseg button[aria-pressed=true]{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.wseg svg{width:13px;height:13px}
+.ttl{flex-wrap:wrap}
+/* 그래프 — 본문 오른쪽 위 접힌 단추 · 팝업(한 겹 이웃) */
+.gdock{position:relative;z-index:var(--z-menu);height:0;display:flex;justify-content:flex-end}
+.gbtn{position:relative;top:var(--sp-6);right:var(--sp-7);height:28px;display:inline-flex;align-items:center;gap:var(--sp-3);border:1px solid var(--border-strong);background:var(--surface);border-radius:var(--r-pill);padding:0 var(--sp-6);cursor:pointer;box-shadow:var(--shadow-1);white-space:nowrap;color:var(--text)}
+.gbtn:hover{background:var(--hover)}
+.gbtn[aria-expanded=true]{background:var(--accent-bg);color:var(--accent);border-color:var(--accent-line)}
+.gpop{position:absolute;top:calc(var(--sp-6) + 34px);right:var(--sp-7);width:min(var(--w-graph),calc(100vw - 32px));background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow-2)}
+.gph,.gpf{display:flex;align-items:center;gap:var(--sp-4);padding:var(--sp-4) var(--sp-6)}
+.gph{border-bottom:1px solid var(--border)}.gph b{flex:1}
+.gpf{border-top:1px solid var(--border);font-size:var(--fs-sm);color:var(--text-3);flex-wrap:wrap}
+.gpf i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:var(--sp-2);vertical-align:-1px}
+.gpf .r{margin-left:auto}
+.gpsvg{width:100%;height:auto;display:block}
+.gpsvg line{stroke:var(--border-strong);stroke-width:1}
+.gpsvg text{fill:var(--text-2);font-size:var(--fs-xs);stroke:none}
+.gpsvg text.c{fill:var(--text);font-weight:700}
+.gnd[data-a]{cursor:pointer}
+.gnd[data-a]:hover circle,.gnd[data-a]:focus circle{stroke:var(--accent);stroke-width:3}
+.gnd:focus{outline:none}
+.gpm{padding:0 var(--sp-6)}
+.paper>h1,.docw>.ih{padding-right:120px}
+/* 수준 표시(작성기준 5-1절) — 들이지 않는다 · 표시는 쓴 그대로 · 1 ~ 3 수준만 글 무게와 위 여백 */
+.lv{display:flex;gap:var(--sp-2);margin:var(--sp-1) 0;line-height:1.6}
+.lv .lvm{flex:none;color:var(--text-2);font-variant-numeric:tabular-nums}
+.lv .lvx{flex:1;min-width:0}
+.lv.l1{margin-top:var(--sp-7);font-weight:700;font-size:var(--fs-md)}
+.lv.l2{margin-top:var(--sp-5);font-weight:600}
+.lv.l3{font-weight:600}
+.lv.l1 .lvm,.lv.l2 .lvm,.lv.l3 .lvm{color:var(--accent)}
+.lv[data-lv]{scroll-margin-top:var(--sp-8)}
+.paper .lv.flash{animation:flash 1.4s}
+@media (max-width:600px){
+  .gbtn{right:0}.gpop{right:0}
+  .paper>h1,.docw>.ih{padding-right:0;padding-top:var(--sp-9)}
 }

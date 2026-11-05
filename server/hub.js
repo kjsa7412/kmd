@@ -1528,14 +1528,15 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 옛 문서 옮기기(작성기준 10절) — 항목 끝 경과 · 「기록 그대로」 줄을 문서 끝 참고 블록으로. 그 지식의 관리 자리 · 셸만
     //   dry 면 쓰지 않고 결과만 · 본문 글이 달라지는 문서 · 원본이 주인인 문서는 옮기지 않는다 · 옮긴 것은 git 한 묶음 + 이력 하나
-    async docfmt(id, ctx, { dry = false, lift = false } = {}) {
+    //   levels — 수준 표시로 옮기기(작성기준 5-1 · 10절 --levels)
+    async docfmt(id, ctx, { dry = false, lift = false, levels = false } = {}) {
       const meta = await hub.meta(id, ctx)
       if (ctx) hub.need(ctx, id, 'admin')
       if (!dry) {
         const shut = backup.closed(meta)
         if (shut) throw new KmdError('E_BEHIND', shut.message)
       }
-      const r = await docfmtDir(meta.dir, { dry, lift: !!lift, user: 'kmd', by: ctx?.user && ctx.user !== 'kmd' ? ctx.user : null })
+      const r = await docfmtDir(meta.dir, { dry, lift: !!lift, levels: !!levels, user: 'kmd', by: ctx?.user && ctx.user !== 'kmd' ? ctx.user : null })
       if (r.commit) {
         cache.delete(id)
         if (backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})

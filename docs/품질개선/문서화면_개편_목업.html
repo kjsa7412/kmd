@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>문서 화면 개편 목업</title>
+<style>
+/* 목업 — 토큰은 app/kmd.css :root 와 같은 값(컨벤션 1절). 새 토큰 후보는 --w-side-min 등 「새」 표시 */
+:root{
+  --bg:#f6f7f9;--surface:#fff;--surface-2:#f1f3f7;--surface-3:#e6eaf0;--hover:#f5f7fa;
+  --border:#e2e6ed;--border-strong:#c9d1dd;--border-input:#7d8799;
+  --text:#11151c;--text-2:#515a68;--text-3:#646d7b;--on-accent:#fff;
+  --accent:#3358e6;--accent-hover:#2a4bd0;--accent-bg:#e9eeff;--accent-line:#c3d0fb;
+  --ok:#237a47;--ok-bg:#e6f5ec;--ok-line:#bfe3cc;
+  --warn:#8c5c00;--warn-bg:#fcf3e0;--warn-line:#d39a2c;
+  --danger:#b8321f;--danger-bg:#fdeceb;--danger-line:#efb7b1;
+  --pending:#6247c4;--pending-bg:#efedfd;--pending-line:#d9d2fb;
+  --ink:#11151c;--ink-2:#262d3b;--ink-text:#e8ecf3;
+  --fs-xs:11px;--fs-sm:11.5px;--fs-mono:12px;--fs:13px;--fs-md:14px;--fs-lg:16px;--fs-xl:20px;
+  --sp-1:2px;--sp-2:4px;--sp-3:6px;--sp-4:8px;--sp-5:10px;--sp-6:12px;--sp-7:14px;--sp-8:16px;--sp-9:22px;
+  --r-xs:4px;--r-sm:5px;--r:7px;--r-md:10px;--r-lg:12px;--r-pill:999px;
+  --shadow-1:0 1px 2px rgba(15,23,42,.05),0 1px 3px rgba(15,23,42,.07);
+  --shadow-2:0 2px 6px -1px rgba(15,23,42,.08),0 14px 32px -8px rgba(15,23,42,.18);
+  --shadow-3:0 18px 48px rgba(15,23,42,.28);
+  --focus-ring:0 0 0 2px var(--surface),0 0 0 4px var(--accent);
+  --z-menu:20;--z-scrim:70;--z-pop:80;--z-toast:90;
+  --w-text:820px;--w-side:248px;--w-aside:300px;
+  /* 새 토큰 후보(개발 때 kmd.css 에 더한다) */
+  --w-rail:48px;--w-side-min:200px;--w-side-max:420px;--w-aside-min:260px;--w-aside-max:560px;--w-grip:6px;--w-graph:400px;
+  --font:Pretendard,-apple-system,"Segoe UI",system-ui,"Malgun Gothic",sans-serif;
+  --mono:Consolas,"Cascadia Mono",D2Coding,"Malgun Gothic",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:var(--fs)/1.55 var(--font)}
+button{font:inherit;color:inherit}
+svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+
+/* 목업 조종 띠(실제 화면에는 없다) */
+.mk{display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap;background:var(--ink);color:var(--ink-text);padding:var(--sp-3) var(--sp-6);font-size:var(--fs-sm)}
+.mk b{font-weight:700;margin-right:var(--sp-4)}
+.mk button{background:var(--ink-2);border:1px solid var(--ink-2);color:var(--ink-text);border-radius:var(--r-pill);padding:var(--sp-1) var(--sp-6);cursor:pointer}
+.mk button.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.mk .r{margin-left:auto;opacity:.75}
+
+/* 앱 틀 */
+.app{display:flex;height:calc(100dvh - 34px);overflow:hidden;position:relative}
+.side{width:var(--sw,var(--w-side));flex:none;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:relative;min-width:0}
+.col{flex:1;min-width:0;display:flex;flex-direction:column}
+.hdr{display:flex;align-items:center;gap:var(--sp-4);padding:var(--sp-4) var(--sp-8);border-bottom:1px solid var(--border);background:var(--surface);min-height:44px}
+.crumb{color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.crumb b{color:var(--text)}
+.hdr .r{margin-left:auto;display:flex;gap:var(--sp-3);align-items:center}
+.body{flex:1;display:flex;min-height:0}
+.center{flex:1;min-width:0;display:flex;flex-direction:column}
+.tabbar{display:flex;gap:var(--sp-2);padding:var(--sp-3) var(--sp-8) 0;border-bottom:1px solid var(--border);overflow-x:auto;background:var(--bg)}
+.tab{display:flex;align-items:center;gap:var(--sp-3);border:1px solid var(--border);border-bottom:0;background:var(--surface-2);border-radius:var(--r) var(--r) 0 0;padding:var(--sp-2) var(--sp-6);white-space:nowrap;cursor:pointer;color:var(--text-2)}
+.tab.on{background:var(--surface);color:var(--text);font-weight:600}
+.main{flex:1;overflow:auto;padding:var(--sp-8) var(--sp-9);min-width:0;position:relative}
+.aside{width:var(--aw,var(--w-aside));flex:none;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;position:relative;min-width:0}
+
+/* 단추 */
+.btn{display:inline-flex;align-items:center;gap:var(--sp-3);border:1px solid var(--border-strong);background:var(--surface);border-radius:var(--r);padding:var(--sp-2) var(--sp-6);cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--hover)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.pri:hover{background:var(--accent-hover)}
+.btn.ghost{border-color:transparent;background:none;color:var(--text-2)}
+.btn.ghost:hover{background:var(--hover)}
+.btn.sm{padding:0 var(--sp-4);height:24px;font-size:var(--fs-sm)}
+.btn.on{background:var(--accent-bg);color:var(--accent);border-color:var(--accent-line)}
+.ib{width:28px;height:28px;display:grid;place-items:center;border:0;background:none;border-radius:var(--r);cursor:pointer;color:var(--text-2);flex:none}
+.ib:hover{background:var(--hover);color:var(--text)}
+.chip{display:inline-flex;align-items:center;border-radius:var(--r-pill);padding:0 var(--sp-4);font-size:var(--fs-xs);border:1px solid;line-height:18px;white-space:nowrap}
+.c-warn{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-line)}
+.c-mute{background:var(--surface-2);color:var(--text-2);border-color:var(--border)}
+.c-acc{background:var(--accent-bg);color:var(--accent);border-color:var(--accent-line)}
+.c-ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-line)}
+.muted{color:var(--text-3)}.small{font-size:var(--fs-sm)}
+.mono{font-family:var(--mono);font-size:var(--fs-mono)}
+
+/* ── 1. 왼쪽 칸: 접기(레일) · 너비 조절 ── */
+.sb-top{display:flex;align-items:center;gap:var(--sp-4);padding:var(--sp-6) var(--sp-5) var(--sp-4)}
+.av{width:28px;height:28px;border-radius:50%;background:var(--accent-bg);color:var(--accent);display:grid;place-items:center;font-weight:700;flex:none}
+.who{min-width:0;flex:1}.who b{display:block}.who small{color:var(--text-3);font-size:var(--fs-xs)}
+.kn{margin:0 var(--sp-5) var(--sp-4);border:1px solid var(--border-strong);border-radius:var(--r-md);padding:var(--sp-4) var(--sp-5);display:flex;gap:var(--sp-4);align-items:center}
+.kn .rk{font:700 var(--fs-xs) var(--mono);background:var(--accent-bg);color:var(--accent);border-radius:var(--r-sm);padding:var(--sp-1) 5px}
+.kn .nm{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seg{display:flex;margin:0 var(--sp-5) var(--sp-4);background:var(--surface-2);border-radius:var(--r-md);padding:var(--sp-1)}
+.seg button{flex:1;border:0;background:none;border-radius:var(--r);padding:var(--sp-2);cursor:pointer;color:var(--text-2);display:flex;gap:var(--sp-2);align-items:center;justify-content:center;white-space:nowrap}
+.seg button.on{background:var(--surface);color:var(--accent);font-weight:600;box-shadow:var(--shadow-1)}
+.tree{flex:1;overflow:auto;padding:0 var(--sp-3)}
+.tf{font-weight:600;color:var(--text-2);padding:var(--sp-3) var(--sp-3);display:flex;gap:var(--sp-2);align-items:center}
+.tf .cnt{margin-left:auto;color:var(--text-3);font-weight:400;font-size:var(--fs-xs)}
+.tn{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-1) var(--sp-4) var(--sp-1) var(--sp-7);border-radius:var(--r);cursor:pointer;white-space:nowrap;overflow:hidden}
+.tn:hover{background:var(--hover)}
+.tn.on{background:var(--accent-bg);color:var(--accent)}
+.tn span{overflow:hidden;text-overflow:ellipsis}
+.nav{border-top:1px solid var(--border);padding:var(--sp-4) var(--sp-3)}
+.nv{display:flex;gap:var(--sp-5);align-items:center;padding:var(--sp-3) var(--sp-4);border-radius:var(--r);cursor:pointer;white-space:nowrap;border:0;background:none;width:100%;text-align:left}
+.nv:hover{background:var(--hover)}
+.nv .n{margin-left:auto;background:var(--warn-bg);color:var(--warn);border-radius:var(--r-pill);padding:0 var(--sp-3);font-size:var(--fs-xs)}
+.side .fold{position:absolute;top:var(--sp-6);right:var(--sp-3)}
+/* 레일(접힘) */
+.side.rail{width:var(--w-rail)}
+.side.rail .who,.side.rail .kn,.side.rail .tree,.side.rail .seg,.side.rail .nv .t,.side.rail .nv .n,.side.rail .where{display:none}
+.side.rail .sb-top{flex-direction:column;padding:var(--sp-6) 0 var(--sp-4)}
+.side.rail .fold{position:static}
+.rl{display:none;flex-direction:column;align-items:center;gap:var(--sp-2);padding:var(--sp-4) 0;flex:1}
+.side.rail .rl{display:flex}
+.side.rail .nav{padding:var(--sp-4) var(--sp-2)}
+.side.rail .nv{justify-content:center;padding:var(--sp-3) 0;position:relative}
+.side.rail .nv .dot{display:block}
+.dot{display:none;position:absolute;top:4px;right:8px;width:7px;height:7px;border-radius:50%;background:var(--warn-line)}
+.rl .ib.on{background:var(--accent-bg);color:var(--accent)}
+.where{font-size:var(--fs-xs);color:var(--text-3);padding:0 var(--sp-6) var(--sp-4)}
+/* 잡이(너비 조절) */
+.grip{position:absolute;top:0;bottom:0;width:var(--w-grip);cursor:col-resize;z-index:5;background:transparent;border:0;padding:0}
+.grip:hover,.grip.drag,.grip:focus-visible{background:var(--accent-line)}
+.side .grip{right:calc(var(--w-grip) / -2)}
+.aside .grip{left:calc(var(--w-grip) / -2)}
+.side.rail .grip,.aside.rail .grip{display:none}
+.gtip{position:fixed;z-index:var(--z-toast);background:var(--ink);color:var(--ink-text);font:var(--fs-xs) var(--mono);padding:var(--sp-1) var(--sp-4);border-radius:var(--r-sm);pointer-events:none;display:none}
+
+/* ── 3. 가운데: 문서 내용만 ── */
+.tool{display:flex;align-items:center;flex-wrap:wrap;gap:var(--sp-4);max-width:var(--w-text);margin:0 auto var(--sp-4)}
+.tool .path{color:var(--text-3);font-size:var(--fs-sm);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 문서 폭: 기본(--w-text 820) · 넓게(가운데 칸 전체) */
+.main.wide .tool,.main.wide .paper,.main.wide .gdock{max-width:none}
+.wseg{display:inline-flex;border:1px solid var(--border-strong);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.wseg button{border:0;background:none;padding:var(--sp-2) var(--sp-5);cursor:pointer;display:inline-flex;gap:var(--sp-2);align-items:center;color:var(--text-2);white-space:nowrap}
+.wseg button+button{border-left:1px solid var(--border-strong)}
+.wseg button:hover{background:var(--hover)}
+.wseg button[aria-pressed=true]{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.paper{max-width:var(--w-text);margin:0 auto;border:1px solid var(--border);border-radius:var(--r-md);padding:var(--sp-9) 28px;background:var(--surface);position:relative}
+.paper h1{font-size:var(--fs-xl);margin:0 0 var(--sp-4)}
+.paper h2{font-size:var(--fs-lg);margin:28px 0 var(--sp-4);scroll-margin-top:var(--sp-8)}
+.paper h2 .iv{font:700 var(--fs-md) var(--mono);color:var(--text-2);margin-right:var(--sp-4)}
+.paper .lead{color:var(--text-2);margin:0 0 var(--sp-6)}
+.paper p{margin:var(--sp-3) 0}
+.paper code{font-family:var(--mono);font-size:var(--fs-mono);background:var(--surface-2);border-radius:var(--r-xs);padding:0 var(--sp-2)}
+.paper table{border-collapse:collapse;width:100%;margin:var(--sp-4) 0;font-size:var(--fs)}
+.paper th,.paper td{border:1px solid var(--border);padding:var(--sp-3) var(--sp-5);text-align:left;vertical-align:top}
+.paper th{background:var(--surface-2)}
+.tblwrap{overflow-x:auto}
+.paper pre{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r);padding:var(--sp-5) var(--sp-6);white-space:pre-wrap;font:var(--fs-mono)/1.55 var(--mono);margin:var(--sp-4) 0}
+.ilink{color:var(--accent);text-decoration:underline dotted;cursor:pointer}
+.ih{display:flex;align-items:baseline;gap:var(--sp-4);flex-wrap:wrap;margin-bottom:var(--sp-6)}
+.ih .kt{font-size:var(--fs-xs);border:1px solid var(--border-strong);border-radius:var(--r-sm);padding:0 var(--sp-3);color:var(--text-2)}
+.ih .iv{font:700 var(--fs-sm) var(--mono);color:var(--text-2)}
+.ih h1{margin:0;flex-basis:100%}
+
+/* ── 5. 수준 표시 줄(들여쓰지 않고 쓴 것을 화면이 매달아 보인다) ── */
+/* 들여쓰지 않는다: 모든 줄이 맨 왼쪽에서 시작 · 수준은 표시(번호 · 줄표 · 점)와 글 무게로만 */
+.lv{display:flex;gap:var(--sp-2);margin:var(--sp-1) 0}
+.lv .m{flex:none;color:var(--text-2);font-variant-numeric:tabular-nums}
+.lv .x{flex:1;min-width:0}
+.lv.l1{margin-top:var(--sp-6);font-weight:700;font-size:var(--fs-md)}
+.lv.l2{margin-top:var(--sp-4);font-weight:600}
+.lv.l3{font-weight:600}
+.lv.l1 .m,.lv.l2 .m,.lv.l3 .m{color:var(--accent)}
+
+/* ── 4. 그래프: 본문 오른쪽 위 접힌 팝업 ── */
+.gdock{position:sticky;top:0;z-index:var(--z-menu);max-width:var(--w-text);margin:0 auto;height:0;display:flex;justify-content:flex-end}
+.gbtn{transform:translateY(var(--sp-7))}
+.paper>h1,.paper>.ih{padding-right:120px}
+.gbtn{position:relative;right:var(--sp-7);border:1px solid var(--border-strong);background:var(--surface);border-radius:var(--r-pill);padding:var(--sp-1) var(--sp-6);display:flex;gap:var(--sp-3);align-items:center;cursor:pointer;box-shadow:var(--shadow-1);height:28px}
+.gbtn:hover{background:var(--hover)}
+.gbtn[aria-expanded=true]{background:var(--accent-bg);color:var(--accent);border-color:var(--accent-line)}
+.gpop{position:absolute;top:calc(var(--sp-7) + 34px);right:var(--sp-7);width:min(var(--w-graph),calc(100vw - 32px));background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow-2);display:none}
+.gpop.open{display:block}
+.gpop .gh{display:flex;align-items:center;gap:var(--sp-4);padding:var(--sp-4) var(--sp-6);border-bottom:1px solid var(--border)}
+.gpop .gh b{flex:1}
+.gpop svg.g{width:100%;height:auto;display:block}
+.gpop .gf{display:flex;align-items:center;gap:var(--sp-4);padding:var(--sp-4) var(--sp-6);border-top:1px solid var(--border);font-size:var(--fs-sm);color:var(--text-3)}
+.gpop .gf .r{margin-left:auto}
+.nd{cursor:pointer}
+.nd circle{stroke-width:1.5}
+.nd text{font:var(--fs-xs) var(--font);fill:var(--text-2);stroke:none}
+.nd:hover circle,.nd:focus circle{stroke:var(--accent);stroke-width:2.5}
+.nd:focus{outline:none}
+.nd.me circle{fill:var(--accent);stroke:var(--accent)}
+.nd.doc circle{fill:var(--surface);stroke:var(--border-input)}
+.nd.item circle{fill:var(--accent-bg);stroke:var(--accent-line)}
+.nd.rec circle{fill:var(--pending-bg);stroke:var(--pending-line)}
+.eg{stroke:var(--border-strong);stroke-width:1.2}
+.lg{display:flex;gap:var(--sp-5);align-items:center}
+.lg i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:var(--sp-2);vertical-align:-1px;border:1px solid}
+
+/* ── 2 · 4. 오른쪽 칸: 접기(레일) · 너비 조절 · 묶음 기본 접힘 ── */
+.ah{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-5) var(--sp-5) var(--sp-4) var(--sp-7);border-bottom:1px solid var(--border)}
+.ah b{flex:1}
+.ascroll{flex:1;overflow:auto;padding:var(--sp-3) var(--sp-4) var(--sp-8)}
+.grp{border-bottom:1px solid var(--border)}
+.grp>button.gs{width:100%;display:flex;align-items:center;gap:var(--sp-3);border:0;background:none;padding:var(--sp-4) var(--sp-3);cursor:pointer;text-align:left;border-radius:var(--r)}
+.grp>button.gs:hover{background:var(--hover)}
+.grp .ar{width:12px;color:var(--text-3);transition:transform .15s}
+.grp.open .ar{transform:rotate(90deg)}
+.grp .gt{flex:1;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grp .gn{font-size:var(--fs-xs);color:var(--text-3);font-variant-numeric:tabular-nums}
+.grp .gn.w{background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn-line);border-radius:var(--r-pill);padding:0 var(--sp-3)}
+.grp .gb{display:none;padding:0 var(--sp-2) var(--sp-5)}
+.grp.open .gb{display:block}
+.grp.now{background:var(--surface-2);border-radius:var(--r);border-bottom:0;margin-bottom:var(--sp-3)}
+.grp.now .gt small{font-weight:400;color:var(--text-3);margin-left:var(--sp-2)}
+.alr{display:flex;gap:var(--sp-3);align-items:flex-start;padding:var(--sp-2) var(--sp-3);border-radius:var(--r);cursor:pointer;font-size:var(--fs-mono);border:0;background:none;width:100%;text-align:left}
+.alr:hover{background:var(--hover)}
+.alr .dt{font:var(--fs-xs) var(--mono);color:var(--text-3);flex:none;width:38px;padding-top:var(--sp-1)}
+.alr .nm{flex:1;min-width:0}
+.alr .nm small{display:block;color:var(--text-3);font-size:var(--fs-xs);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.alr .rc{font-size:var(--fs-xs);color:var(--text-3)}
+.alr.cur{background:var(--accent-bg);cursor:default}
+.alr.cur .nm{color:var(--accent);font-weight:600}
+.alr>.chip{flex:none;margin-top:var(--sp-1)}
+.lv[id]{scroll-margin-top:var(--sp-8)}
+.sub{font-size:var(--fs-xs);color:var(--text-3);padding:var(--sp-3) var(--sp-3) var(--sp-1);font-weight:600}
+.kv{display:grid;grid-template-columns:92px minmax(0,1fr);gap:var(--sp-2) var(--sp-5);font-size:var(--fs-mono);padding:var(--sp-2) var(--sp-3)}
+.kv span:nth-child(odd){color:var(--text-3)}
+.ol{font-size:var(--fs-mono)}
+.ol .alr.on{background:var(--accent-bg);color:var(--accent)}
+.vch{font-size:var(--fs-xs);color:var(--warn);background:var(--warn-bg);border-radius:var(--r-xs);padding:0 var(--sp-2);margin-top:var(--sp-1);display:inline-block}
+/* 레일(접힘) */
+.aside.rail{width:var(--w-rail)}
+.aside.rail .ah b,.aside.rail .ascroll{display:none}
+.aside.rail .ah{flex-direction:column;border:0;padding:var(--sp-6) 0 var(--sp-3)}
+.arl{display:none;flex-direction:column;align-items:center;gap:var(--sp-2)}
+.aside.rail .arl{display:flex}
+.arl .ib{position:relative}
+.arl .ib i{position:absolute;top:2px;right:2px;width:7px;height:7px;border-radius:50%;background:var(--warn-line)}
+.tip{position:fixed;z-index:var(--z-toast);background:var(--ink);color:var(--ink-text);font-size:var(--fs-xs);padding:var(--sp-1) var(--sp-4);border-radius:var(--r-sm);pointer-events:none;display:none;white-space:nowrap}
+
+/* 검토 화면 */
+.review{max-width:980px;margin:0 auto;padding:var(--sp-9) var(--sp-8) 60px}
+.review h1{font-size:var(--fs-xl);margin:0 0 var(--sp-3)}
+.review h2{font-size:var(--fs-lg);margin:28px 0 var(--sp-4);padding-top:var(--sp-4);border-top:1px solid var(--border)}
+.review table{border-collapse:collapse;width:100%;background:var(--surface);font-size:var(--fs)}
+.review th,.review td{border:1px solid var(--border);padding:var(--sp-4) var(--sp-5);text-align:left;vertical-align:top}
+.review th{background:var(--surface-2);white-space:nowrap}
+.review .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--sp-7) var(--sp-8);box-shadow:var(--shadow-1);margin:var(--sp-6) 0}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-7);align-items:start}
+.two pre{margin:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--sp-6);font:var(--fs-mono)/1.6 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
+.two .paper{padding:var(--sp-7) var(--sp-8);margin:0}
+.cap{font-size:var(--fs-sm);color:var(--text-3);margin:0 0 var(--sp-3)}
+.callout{border:1px solid var(--warn-line);background:var(--warn-bg);border-radius:var(--r-md);padding:var(--sp-5) var(--sp-7);margin:var(--sp-6) 0}
+.callout.gray{border-color:var(--border);background:var(--surface-2)}
+
+/* 반응형(컨벤션 11절) */
+.only-t,.only-m{display:none}
+.scrim{display:none}
+@media (max-width:1024px){
+  .aside{position:fixed;top:34px;right:0;bottom:0;z-index:var(--z-scrim);box-shadow:var(--shadow-3);width:min(var(--w-aside),100%);transform:translateX(100%);transition:transform .2s}
+  .aside.rail{width:min(var(--w-aside),100%)}
+  .aside.rail .ascroll{display:block}.aside.rail .ah b{display:block}.aside.rail .arl{display:none}.aside.rail .ah{flex-direction:row;border-bottom:1px solid var(--border);padding:var(--sp-5) var(--sp-5) var(--sp-4) var(--sp-7)}
+  .app.aside-open .aside{transform:none}
+  .aside .grip,.aside .afold{display:none}
+  .only-t{display:inline-flex}
+  .app.aside-open .scrim,.app.side-open .scrim{display:block;position:fixed;inset:34px 0 0 0;background:rgba(15,23,42,.25);z-index:calc(var(--z-scrim) - 1)}
+}
+@media (max-width:600px){
+  .side{position:fixed;top:34px;left:0;bottom:0;z-index:var(--z-scrim);width:min(var(--w-side),85%)!important;transform:translateX(-100%);transition:transform .2s}
+  .app.side-open .side{transform:none}
+  .side .grip,.side .fold{display:none}
+  .side.rail .who,.side.rail .kn,.side.rail .tree,.side.rail .seg,.side.rail .nv .t,.side.rail .where{display:revert}
+  .side.rail .rl{display:none}
+  .only-m{display:inline-flex}
+  .main{padding:var(--sp-6)}
+  .paper{padding:var(--sp-8) var(--sp-7)}
+  .hdr{padding:var(--sp-4) var(--sp-5)}
+  .tabbar{padding:var(--sp-3) var(--sp-5) 0}
+  .two{grid-template-columns:1fr}
+  .gpop{right:0}
+  .gbtn{right:0}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="mk" role="toolbar" aria-label="목업 조종(실제 화면에는 없다)">
+  <b>목업</b>
+  <button type="button" data-v="doc" class="on">문서</button>
+  <button type="button" data-v="item">항목</button>
+  <button type="button" data-v="rec">기록</button>
+  <button type="button" data-v="guide">5. 작성 기준</button>
+  <button type="button" data-v="review">검토 내용</button>
+  <span class="r">자료: DPMS 지식(C:\sjinc\dpms\dpms_wiki) · 끌기 · 접기 상태는 이 브라우저에만 남는다</span>
+</div>
+
+<div class="app" id="app">
+  <aside class="side" id="side" aria-label="옆 메뉴">
+    <div class="sb-top">
+      <span class="av">k</span>
+      <span class="who"><b>kjsa</b><small>팀 서버 · 총괄 관리자</small></span>
+      <button type="button" class="ib fold" id="sideFold" aria-label="옆 메뉴 접기" aria-expanded="true" data-tip="옆 메뉴 접기 (Ctrl [)"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 10l-2 2 2 2"/></svg></button>
+    </div>
+    <div class="where">팀 서버에서 돈다 · 10.10.20.188:8090</div>
+    <div class="kn"><span class="rk">DP</span><span class="nm">DPMS 지식</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+    <div class="seg" role="tablist"><button type="button" class="on" role="tab" aria-selected="true">문서</button><button type="button" role="tab" aria-selected="false">항목</button><button type="button" role="tab" aria-selected="false">그래프</button></div>
+    <div class="tree" id="tree"></div>
+    <div class="rl" aria-label="접힌 옆 메뉴">
+      <button type="button" class="ib on" data-tip="문서" aria-label="문서"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg></button>
+      <button type="button" class="ib" data-tip="항목" aria-label="항목"><svg viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.2"/></svg></button>
+      <button type="button" class="ib" data-tip="그래프" aria-label="그래프"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="10" cy="18" r="2.5"/><path d="M8 7l8 1M7 8l2 8M16.5 10l-5 6"/></svg></button>
+      <button type="button" class="ib" data-tip="빨리 열기 (Ctrl O)" aria-label="빨리 열기"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></svg></button>
+    </div>
+    <div class="nav">
+      <button type="button" class="nv" data-tip="이력"><svg viewBox="0 0 24 24"><path d="M6 3h12M6 21h12M7 3c0 6 10 6 10 9s-10 3-10 9M17 3c0 6-10 6-10 9"/></svg><span class="t">이력</span><span class="n">4</span><i class="dot"></i></button>
+      <button type="button" class="nv" data-tip="설정"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg><span class="t">설정</span></button>
+    </div>
+    <button type="button" class="grip" id="sideGrip" role="separator" aria-orientation="vertical" aria-label="옆 메뉴 너비" aria-valuemin="200" aria-valuemax="420" aria-valuenow="248"></button>
+  </aside>
+
+  <div class="col">
+    <div class="hdr">
+      <button type="button" class="ib only-m" id="menuBtn" aria-label="옆 메뉴 열기"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <span class="crumb" id="crumb"></span>
+      <span class="r">
+        <button type="button" class="btn sm">찾기 <span class="muted mono">Ctrl K</span></button>
+        <button type="button" class="ib only-t" id="asideBtn" aria-label="옆 칸 열기" data-tip="옆 칸"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+      </span>
+    </div>
+    <div class="body" id="bodyRow">
+      <div class="center">
+        <div class="tabbar" id="tabbar"></div>
+        <main class="main" id="main"></main>
+      </div>
+      <aside class="aside" id="aside" aria-label="옆 칸">
+        <button type="button" class="grip" id="asideGrip" role="separator" aria-orientation="vertical" aria-label="옆 칸 너비" aria-valuemin="260" aria-valuemax="560" aria-valuenow="300"></button>
+        <div class="ah">
+          <button type="button" class="ib afold" id="asideFold" aria-label="옆 칸 접기" aria-expanded="true" data-tip="옆 칸 접기 (Ctrl ])"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16M9 10l2 2-2 2"/></svg></button>
+          <b id="asideTitle">이 문서</b>
+          <button type="button" class="btn ghost sm" id="allFold">모두 접기</button>
+          <button type="button" class="ib only-t" id="asideClose" aria-label="옆 칸 닫기">×</button>
+        </div>
+        <div class="arl" id="arl"></div>
+        <div class="ascroll" id="ascroll"></div>
+      </aside>
+    </div>
+  </div>
+  <div class="scrim" id="scrim"></div>
+</div>
+<div class="tip" id="tip"></div>
+<div class="gtip" id="gtip"></div>
+
+<script>
+const $ = (q, el = document) => el.querySelector(q)
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const ICON = {
+  doc: '<svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></svg>',
+  tag: '<svg viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.2"/></svg>',
+  graph: '<svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="10" cy="18" r="2.5"/><path d="M8 7l8 1M7 8l2 8M16.5 10l-5 6"/></svg>',
+  list: '<svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h1M4 12h1M4 18h1"/></svg>',
+  warn: '<svg viewBox="0 0 24 24"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/></svg>',
+  src: '<svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>',
+  hist: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  link: '<svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/></svg>',
+  info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg>',
+  rec: '<svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M9 4v16"/></svg>',
+  alias: '<svg viewBox="0 0 24 24"><path d="M4 7h10M4 12h16M4 17h10"/></svg>',
+}
+
+// ── 자료(DPMS 지식에서 옮김) ──
+const DOCS = ['용어집', '사업계획서분석서', '수행범위정의서', '사업현황및이해관계자', '위험및이슈관리대장', 'PLC연계요구사항정의서', '요구사항정의서', '시스템아키텍처정의서', 'PLC연계규격서', 'SCADA연계규격서', 'DPMS연계API정의서', '게이트웨이운영설계서', '게이트웨이프로그램설계서', '게이트웨이테이블정의서', '화면설계서', '테이블정의서']
+const RECS = [['10-31', '종합상황판 · 3D 공정 도식'], ['10-30', '공수 부족(ISS-15)'], ['10-29', '4주차 진도 미달 원인 정리'], ['10-26', '펄스명령 · 게이트웨이판단 · 자동복귀'], ['10-19', '[업데이트] dpms_docs 58700f8'], ['09-17', 'PLC와 CIMON SCADA의 구조 및 데이터 흐름']]
+
+const V = {
+  doc: {
+    tab: '게이트웨이운영설계서', icon: 'doc', crumb: 'DPMS 지식 › 문서로 보기 › <b>게이트웨이운영설계서</b>', asideTitle: '이 문서', treeOn: '게이트웨이운영설계서',
+    path: 'DPMS 지식 › 3.3_게이트웨이설계', tools: '<button type="button" class="btn">다듬기</button><button type="button" class="btn pri">고치기</button>',
+    body: () => `<h1>게이트웨이운영설계서</h1>
+<p class="lead">연계 게이트웨이를 상황실 제어망 PC 에 설치하고, 현장 값을 넣고, 운영 · 갱신 · 점검하는 방식을 정한 문서다. 원격 작업이 불가해 설치 · 패치 · 장애 대응은 현장 방문으로 한다.</p>
+<h2 id="s-목적"><span class="iv">목적</span>목적 · 전제</h2>
+<p>연계 게이트웨이(<code>dpms_gateway</code>)를 상황실 제어망 PC 에 설치하고, 현장 값을 넣고, 운영 · 갱신 · 점검하는 방식을 정한다.</p>
+${lv(`1. 원격 작업 불가
+- 유지보수 업체의 원격 접속을 허용하지 않는다(${il('DPMS-ISS-08')}).
+- 설치 · 패치 · 장애 대응은 현장 방문으로 한다.
+2. 패키지형 납품
+- 현장 값 없이 설치할 수 있는 패키지를 납품하고, 현장 값은 설치 때 설정 · 기준정보로 넣는다(${il('DPMS-ISS-16')}).
+3. 폐쇄망(상황실 제어망)
+- Java · 라이브러리를 현장에서 받지 않는다. 전용 JRE 를 패키지에 넣는다.`)}
+<h2 id="s-설치"><span class="iv">설치</span>설치 순서</h2>
+${lv(`1. 준비
+1) 설치 PC 에 PostgreSQL 이 설치 · 기동돼 있고 <code>127.0.0.1</code> 로만 받는다.
+1.1) 판 · 설치 주체는 회신을 받아 정한다(${il('DPMS-ISS-03')}).
+2) 패키지 zip 을 반입 절차대로 들여와 풀고, <code>checksums.txt</code> 로 파일을 확인한다.
+3) 관리자 권한 PowerShell 을 연다.
+2. 단계
+1) 복사: 설치 폴더와 <code>config</code> · <code>data</code> · <code>logs</code> 를 만든다.
+- 서비스가 돌고 있으면 멈춘다.
+- 이미 jar 가 있으면 <code>prev\\dpms-gateway.jar</code> 로 남긴다.
+2) 설정: <code>config\\application.yml</code> 을 매개변수로 만든다.
+* 있으면 그대로 둔다(손으로 고친 값을 지키기 위해).
+3) 비밀값: <code>jwt.key</code> 와 두 클라이언트 비밀값을 무작위로 만든다.
+- 클라이언트 비밀값은 화면에 한 번만 나온다.
+3. 서비스 내리기
+1) <code>uninstall.ps1</code>: 서비스와 방화벽 규칙만 지운다.
+2) 설치 폴더와 DB <code>dpms_gw</code> 는 남긴다.`)}
+<div class="tblwrap"><table><tr><th>매개변수</th><th>기본값</th><th>뜻</th></tr>
+<tr><td><code>-AllowIps</code></td><td>(필수)</td><td>DPMS 연계 API 에 붙을 수 있는 주소 목록</td></tr>
+<tr><td><code>-Target</code></td><td><code>C:\\dpms-gw</code></td><td>설치 폴더</td></tr>
+<tr><td><code>-Port</code></td><td>18443</td><td>DPMS 연계 API 포트</td></tr></table></div>
+<h2 id="s-설정"><span class="iv">설정</span>설정</h2>
+${lv(`1. 값을 두는 세 곳
+1) <code>config\\application.yml</code>: 설치 값
+2) <code>secrets.dat</code>: 비밀값(DPAPI)
+3) 기준정보: 엑셀 양식으로 넣는다(${il('매핑표반영도구')}).`)}
+<h2 id="s-점검"><span class="iv">점검</span>점검</h2>
+${lv(`1. 게이트웨이 뷰어(먼저 본다)
+- 주소 <code>http://127.0.0.1:18444/viewer/</code>
+- 명령 점검: 접수 결과 · 동작 결과 · 지연 표시
+2. API · DB 로 볼 때
+- 접속 기록 조회는 문자 코드로 비교한다.`)}`,
+    aside: () => asideDoc(),
+    graph: { me: '게이트웨이운영설계서', n: [['게이트웨이프로그램설계서', 'doc'], ['DPMS연계API정의서', 'doc'], ['PLC연계규격서', 'doc'], ['설치절차서', 'doc'], ['DPMS-ISS-03', 'item'], ['DPMS-ISS-08', 'item'], ['DPMS-ISS-16', 'item'], ['매핑표반영도구', 'item'], ['10-19 업데이트', 'rec']] },
+  },
+  item: {
+    tab: 'SCADA', icon: 'tag', crumb: 'DPMS 지식 › 항목으로 보기 › <b>SCADA</b>', asideTitle: '이 항목', treeOn: '용어집',
+    path: '용어집 › SCADA', tools: '<button type="button" class="btn pri">문서로 보기에서 열기</button>',
+    body: () => `<div class="ih"><span class="kt">용어</span><span class="iv">SCADA</span><h1>PLC 를 감시·수집하고 명령을 전달하는 상위 시스템</h1></div>
+<p><b>별칭</b> · CIMON SCADA, 스카다</p>
+<p><b>PLC 의 상태를 감시하고 데이터를 수집하며, 필요하면 PLC 에 명령을 전달하는 상위 시스템.</b></p>
+${lv(`- 이 사업의 SCADA 는 CIMON SCADA 다: ${il('CimonD')}(개발 · 설정) · ${il('CimonX')}(Runtime) · ${il('IODriver')}(PLC 통신) · ${il('SCADA_VIEWER')}(운영자 화면).
+- 데이터 흐름은 양방향이다. 조회는 PLC → SCADA, 제어는 SCADA → PLC.
+- 조회: <code>PLC → I/O Driver → CimonX → SCADA Tag → SCADA_VIEWER → 운영자</code>
+- 제어: <code>운영자 → SCADA_VIEWER → CimonX → SCADA Tag → I/O Driver → PLC → PLC 프로그램 → 설비</code>
+- DPMS 연계 경로에는 없다(PLC 직결). PLC 를 따로 감시 · 제어하는 다른 제어 주체이고, DPMS 명령과 겹치면 PLC 가 ${il('경합')} 으로 정리한다.`)}
+<p>관련: ${il('PLC')} · ${il('SCADA태그')} · ${il('경합')}</p>`,
+    aside: () => asideItem(),
+    graph: { me: 'SCADA', n: [['PLC', 'item'], ['CimonD', 'item'], ['CimonX', 'item'], ['SCADA_VIEWER', 'item'], ['IODriver', 'item'], ['SCADA태그', 'item'], ['경합', 'item'], ['용어집', 'doc'], ['09-17 구조 · 데이터 흐름', 'rec']] },
+  },
+  rec: {
+    tab: 'PLC와 CIMON SCADA…', icon: 'rec', crumb: 'DPMS 지식 › 기록 › <b>PLC와 CIMON SCADA의 구조 및 데이터 흐름</b>', asideTitle: '이 기록', treeOn: null,
+    path: '기록 › 2026-09-17', tools: '<button type="button" class="btn">고치기</button>',
+    body: () => `<h1>PLC와 CIMON SCADA의 구조 및 데이터 흐름</h1>
+<p class="lead">PLC, SCADA, CimonD, CimonX, SCADA_VIEWER 의 역할과 데이터가 흐르는 구조를 정리했다.</p>
+${lv(`1. 전체 개념
+- PLC: 현장 설비를 실제로 제어하는 장치
+- PLC 프로그램: PLC 가 어떤 조건에서 어떤 설비를 동작시킬지 정의하는 제어 로직
+- SCADA: PLC 의 상태를 감시하고 데이터를 수집하며, 필요하면 PLC 에 명령을 전달하는 상위 시스템
+- CimonD: CIMON SCADA 프로젝트를 개발 · 설정하는 환경
+- CimonX: CIMON SCADA 프로젝트를 실제 운전하는 Runtime
+2. 데이터 흐름
+1) 조회: PLC → I/O Driver → CimonX → SCADA Tag → SCADA_VIEWER
+2) 제어: SCADA_VIEWER → CimonX → SCADA Tag → I/O Driver → PLC`)}`,
+    aside: () => asideRec(),
+    graph: { me: '09-17 구조 · 데이터 흐름', n: [['용어집', 'doc'], ['PLC', 'item'], ['SCADA', 'item'], ['CimonD', 'item'], ['CimonX', 'item'], ['SCADA_VIEWER', 'item'], ['IODriver', 'item'], ['SCADA태그', 'item']] },
+  },
+}
+const d = (t) => `<button type="button" class="alr" data-open="doc">${ICON.doc}<span class="nm">${esc(t)}</span></button>`
+const il = (t) => `<span class="ilink" data-open="item" title="항목: ${esc(t)}">${esc(t)}</span>`
+
+// 5. 수준 표시 줄 — 줄 머리의 표시로 수준을 정한다(들여쓰기 없음)
+const LV = [[/^(\d+\.\d+\.\d+\.)\s+/, 3], [/^(\d+\.\d+\.)\s+/, 2], [/^(\d+\.)\s+/, 1], [/^(\d+\.\d+\.\d+\))\s+/, 6], [/^(\d+\.\d+\))\s+/, 5], [/^(\d+\))\s+/, 4], [/^(-)\s+/, 7], [/^(\*)\s+/, 8]]
+// 들이지 않는다 — 줄마다 맨 왼쪽 · 표시는 쓴 그대로(번호를 다시 매기지 않는다)
+function lv(src) {
+  return src.split('\n').map((line) => {
+    for (const [re, n] of LV) {
+      const m = line.match(re)
+      if (m) return `<div class="lv l${n}"${n === 1 ? ` id="v-${esc(line.slice(m[0].length).replace(/<[^>]+>/g, ''))}"` : ''}><span class="m">${m[1]}</span><span class="x">${line.slice(m[0].length)}</span></div>`
+    }
+    return `<p>${line}</p>`
+  }).join('')
+}
+
+// ── 상태(이 브라우저에만 · 실패해도 화면은 돈다) ──
+const KEY = 'kmd.layout.mock'
+let L = { side: 248, sideRail: false, aside: 300, asideRail: false, open: {} }
+try { Object.assign(L, JSON.parse(localStorage.getItem(KEY) || '{}')) } catch {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(L)) } catch {} }
+let view = 'doc', gOpen = false, nowSec = '목적'
+
+// ── 오른쪽 칸: 개요 · 문서 · 기록 · 항목 · 속성 다섯 묶음. 화면(문서 · 항목 · 기록)마다 속은 다르고, 지금 보는 것은 「지금」 으로 표시 ──
+const row = ({ ic, nm, sub, dt, cur, open, go, vch, mono }) => `<button type="button" class="alr${cur ? ' cur' : ''}"${open && !cur ? ` data-open="${open}"` : ''}${go ? ` data-go="${go}"` : ''}${cur ? ' aria-current="true"' : ''}>${dt ? `<span class="dt">${esc(dt)}</span>` : ICON[ic] || ''}<span class="nm">${mono ? `<b class="mono">${esc(nm)}</b>` : esc(nm)}${sub ? `<small>${esc(sub)}</small>` : ''}${vch ? `<span class="vch">${esc(vch)}</span>` : ''}</span>${cur ? '<span class="chip c-acc">지금</span>' : ''}</button>`
+const sub = (t, n) => `<div class="sub">${t}${n != null ? ` ${n}` : ''}</div>`
+const none = '<div class="small muted" style="padding:var(--sp-1) var(--sp-3)">없다</div>'
+const more = (n) => `<div class="small muted" style="padding:var(--sp-1) var(--sp-3)">${n}개 더</div>`
+const kv = (pairs) => `<div class="kv">${pairs.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('')}</div>`
+const G = (id, ic, t, n, body) => ({ id, ic, t, n, body })
+
+const DOC_SECS = { 목적: ['목적 · 전제', '10-18 망 구간 담당 정정'], 설치: ['설치 순서', '10-19 kjsa 의 기록에서'], 설정: ['설정', '10-19 접수 번호 상한 30초'], 점검: ['점검', '10-16 게이트웨이 뷰어'] }
+function asideDoc() {
+  const hist = [['10-19', '[업데이트] dpms_docs 58700f8', 'kjsa · 설정 · 점검', 'gw.command.ack-give-up-sec: 없음 → 30초'], ['10-18', '망 구간 담당 정정', 'kjsa · 목적 · 점검', ''], ['10-16', '게이트웨이 뷰어(UXR-G-17)', 'kjsa · 점검', ''], ['10-16', 'TermFlow 테이블 설계 가이드 적용', 'kjsa · 설정', 'RJCT → RJCT_GW'], ['10-15', '처음 씀', 'kjsa · 모든 항목', '']]
+  return [
+    G('ol', 'list', '개요', 4, () => `<div class="ol">${Object.keys(DOC_SECS).map((h) => row({ ic: '', nm: h, sub: DOC_SECS[h][0], go: 's-' + h, mono: true, cur: h === nowSec })).join('')}</div>`),
+    G('docs', 'doc', '문서', 6, () => sub('이 문서') + row({ ic: 'doc', nm: '게이트웨이운영설계서', sub: '3.3_게이트웨이설계', cur: true }) + sub('이 문서가 가리키는 문서', 2) + ['PLC연계규격서', '위험및이슈관리대장'].map((x) => row({ ic: 'doc', nm: x, open: 'doc' })).join('') + sub('이 문서를 가리키는 문서', 3) + ['게이트웨이프로그램설계서', 'DPMS연계API정의서', '설치절차서'].map((x) => row({ ic: 'doc', nm: x, open: 'doc' })).join('')),
+    G('recs', 'rec', '기록', 5, () => sub('이 문서의 이력 · 새것 위') + hist.map(([dt, nm, s, c]) => row({ dt, nm, sub: s, vch: c, open: 'rec' })).join('') + '<div class="small muted" style="padding:var(--sp-2) var(--sp-3)">줄을 열면 항목마다 옛 값 → 새 값 · [되돌리기]</div>'),
+    G('items', 'tag', '항목', 8, () => sub('이 문서의 항목', 4) + Object.keys(DOC_SECS).map((h) => row({ ic: 'tag', nm: h, sub: DOC_SECS[h][0], mono: true, open: 'item', cur: h === nowSec })).join('') + sub('본문이 가리키는 항목', 4) + [['DPMS-ISS-03', '위험및이슈관리대장'], ['DPMS-ISS-08', '위험및이슈관리대장'], ['DPMS-ISS-16', '위험및이슈관리대장'], ['매핑표반영도구', '용어집']].map(([n, s]) => row({ ic: 'tag', nm: n, sub: s, mono: true, open: 'item' })).join('')),
+    G('props', 'info', '속성', '', () => kv([['지금 보는 항목', `<b class="mono">${esc(nowSec)}</b> <span class="muted">· ${esc(DOC_SECS[nowSec][1])}</span>`], ['폴더', '3.3_게이트웨이설계'], ['갈래', '대상'], ['마지막으로 바뀜', '10-19: kjsa 의 기록에서'], ['가져올 곳', '없음'], ['쓰는 사람', '지식관리자 2 · 쓰기 5'], ['항목', '4']])),
+  ]
+}
+function asideItem() {
+  const sibs = ['PLC', 'SCADA', 'CimonD', 'CimonX', 'SCADA_VIEWER', 'IODriver', 'PLC디바이스주소', 'SCADA태그']
+  return [
+    G('ol', 'list', '개요', 34, () => sub('용어집의 차례') + `<div class="ol">${sibs.map((x) => row({ ic: '', nm: x, mono: true, cur: x === 'SCADA', open: 'item' })).join('')}</div>` + more(26)),
+    G('docs', 'doc', '문서', 1, () => sub('이 항목이 있는 문서') + row({ ic: 'doc', nm: '용어집', sub: '0_공통 › SCADA', open: 'doc' }) + sub('이 항목을 쓰는 문서', 0) + none),
+    G('recs', 'rec', '기록', 2, () => sub('이 항목의 이력 · 새것 위') + row({ dt: '10-19', nm: '[업데이트] dpms_docs 58700f8', sub: 'kjsa · PLC 연계 요구사항정의서 v0.2 반영', vch: '연계 경로: SCADA 경유 → PLC 직결', open: 'rec' }) + row({ dt: '09-17', nm: 'PLC와 CIMON SCADA의 구조 및 데이터 흐름', sub: 'kjsa · 처음 씀', open: 'rec' })),
+    G('items', 'tag', '항목', 12, () => sub('이 항목') + row({ ic: 'tag', nm: 'SCADA', sub: 'PLC 를 감시·수집하고 명령을 전달하는 상위 시스템', mono: true, cur: true }) + sub('본문이 가리키는 항목', 7) + ['CimonD', 'CimonX', 'IODriver', 'SCADA_VIEWER', 'PLC', 'SCADA태그', '경합'].map((x) => row({ ic: 'tag', nm: x, mono: true, open: 'item' })).join('') + sub('이 항목을 쓰는 항목', 0) + none + sub('함께 바뀐 항목', 41) + ['게이트웨이설계:개요', 'PLC연계', '경합'].map((x) => row({ ic: 'tag', nm: x, mono: true, open: 'item' })).join('') + more(38)),
+    G('props', 'info', '속성', '', () => kv([['종류', '용어'], ['값', '<b class="mono">SCADA</b>'], ['다른 이름', 'CIMON SCADA · 스카다'], ['문서', '용어집 › SCADA'], ['마지막으로 바뀜', '10-19: kjsa 의 기록에서'], ['쓰는 사람', '지식관리자 2 · 쓰기 5']])),
+  ]
+}
+function asideRec() {
+  return [
+    G('ol', 'list', '개요', 2, () => `<div class="ol">${[['1.', '전체 개념'], ['2.', '데이터 흐름']].map(([m, h]) => row({ ic: '', nm: `${m} ${h}`, go: 'v-' + h })).join('')}</div>`),
+    G('docs', 'doc', '문서', 1, () => sub('이 기록이 들어간 문서') + row({ ic: 'doc', nm: '용어집', sub: '항목 8: PLC · SCADA · CimonD …', open: 'doc' })),
+    G('recs', 'rec', '기록', 1, () => sub('이 기록') + row({ dt: '09-17', nm: 'PLC와 CIMON SCADA의 구조 및 데이터 흐름', sub: 'kjsa', cur: true }) + sub('바로잡은 기록 · 바로잡힌 기록', 0) + none),
+    G('items', 'tag', '항목', 8, () => sub('이 기록이 건드린 항목', 8) + ['PLC', 'SCADA', 'CimonD', 'CimonX', 'SCADA_VIEWER', 'IODriver', 'PLC디바이스주소', 'SCADA태그'].map((x) => row({ ic: 'tag', nm: x, sub: '용어집', mono: true, open: 'item' })).join('')),
+    G('props', 'info', '속성', '', () => kv([['쓴 사람', 'kjsa'], ['때', '2026-09-17 10:00'], ['상태', '<span class="chip c-ok">넣음</span>'], ['들어온 길', '가져올 곳: dpms_docs@8c4a26b'], ['태그', 'dpms_docs']])),
+  ]
+}
+
+function drawTree() {
+  const v = V[view]
+  $('#tree').innerHTML = `<div class="tf">▾ 문서<span class="cnt">33</span></div>${DOCS.map((t) => `<div class="tn${v && v.treeOn === t ? ' on' : ''}" data-open="doc">${ICON.doc}<span>${t}</span></div>`).join('')}<div class="tf">▾ 기록 <small class="muted">날짜 순</small><span class="cnt">79</span></div>${RECS.map(([dt, t], i) => `<div class="tn${view === 'rec' && i === 5 ? ' on' : ''}" data-open="rec"><span class="mono muted">${dt}</span><span>${t}</span></div>`).join('')}`
+}
+
+function drawGraph(g) {
+  const W = 400, H = 280, cx = W / 2, cy = H / 2, R = 105
+  const pts = g.n.map((n, i) => { const a = (i / g.n.length) * Math.PI * 2 - Math.PI / 2; return { x: cx + Math.cos(a) * R * 1.45, y: cy + Math.sin(a) * R, n } })
+  return `<svg class="g" viewBox="0 0 ${W} ${H}" role="group" aria-label="한 겹 이웃">${pts.map((p) => `<line class="eg" x1="${cx}" y1="${cy}" x2="${p.x}" y2="${p.y}"/>`).join('')}
+  <g class="nd me" tabindex="0" role="button" aria-label="${esc(g.me)}: 지금 보는 것"><circle cx="${cx}" cy="${cy}" r="10"/><text x="${cx}" y="${cy + 24}" text-anchor="middle" style="font-weight:700;fill:var(--text)">${esc(g.me)}</text></g>
+  ${pts.map((p) => `<g class="nd ${p.n[1]}" tabindex="0" role="button" data-open="${p.n[1]}" aria-label="${esc(p.n[0])} 열기"><circle cx="${p.x}" cy="${p.y}" r="7"/><text x="${p.x}" y="${p.y + 19}" text-anchor="middle">${esc(p.n[0])}</text></g>`).join('')}</svg>`
+}
+
+function draw() {
+  document.querySelectorAll('.mk button').forEach((b) => b.classList.toggle('on', b.dataset.v === view))
+  const app = $('#app')
+  const side = $('#side'), aside = $('#aside')
+  side.classList.toggle('rail', L.sideRail)
+  side.style.setProperty('--sw', L.side + 'px')
+  aside.style.setProperty('--aw', L.aside + 'px')
+  aside.classList.toggle('rail', L.asideRail)
+  $('#sideFold').setAttribute('aria-expanded', String(!L.sideRail)); $('#sideFold').setAttribute('aria-label', L.sideRail ? '옆 메뉴 펴기' : '옆 메뉴 접기'); $('#sideFold').dataset.tip = L.sideRail ? '옆 메뉴 펴기 (Ctrl [)' : '옆 메뉴 접기 (Ctrl [)'
+  $('#asideFold').setAttribute('aria-expanded', String(!L.asideRail)); $('#asideFold').dataset.tip = L.asideRail ? '옆 칸 펴기 (Ctrl ])' : '옆 칸 접기 (Ctrl ])'
+  drawTree()
+  if (view === 'guide' || view === 'review') {
+    aside.style.display = 'none'
+    $('#tabbar').innerHTML = `<div class="tab on">${view === 'guide' ? '5. 작성 기준 견본' : '검토 내용'}</div>`
+    $('#crumb').innerHTML = view === 'guide' ? '목업 › <b>문서 작성 기준(수준 표시)</b>' : '목업 › <b>검토 내용</b>'
+    $('#main').innerHTML = view === 'guide' ? guideHtml() : reviewHtml()
+    return
+  }
+  aside.style.display = ''
+  const v = V[view]
+  $('#crumb').innerHTML = v.crumb
+  $('#tabbar').innerHTML = ['doc', 'item', 'rec'].map((k) => `<div class="tab${k === view ? ' on' : ''}" data-tab="${k}">${ICON[V[k].icon]}${esc(V[k].tab)} <span class="muted">×</span></div>`).join('')
+  $('#main').classList.toggle('wide', !!L.wide)
+  const wseg = `<span class="wseg" role="group" aria-label="문서 폭"><button type="button" data-w="0" aria-pressed="${!L.wide}" title="글 읽기 좋은 폭(820px)"><svg viewBox="0 0 24 24"><path d="M8 4v16M16 4v16"/></svg>기본 폭</button><button type="button" data-w="1" aria-pressed="${!!L.wide}" title="가운데 칸을 다 쓴다(넓은 표 · 그림)"><svg viewBox="0 0 24 24"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg>넓게</button></span>`
+  $('#main').innerHTML = `<div class="tool"><span class="path">${esc(v.path)}</span>${wseg}${v.tools}</div><div class="gdock"><button type="button" class="gbtn" id="gbtn" aria-expanded="${gOpen}" aria-controls="gpop">${ICON.graph} 그래프 <span class="muted small">${v.graph.n.length}</span> <span aria-hidden="true">${gOpen ? '▴' : '▾'}</span></button>
+    <div class="gpop${gOpen ? ' open' : ''}" id="gpop" role="dialog" aria-label="그래프: 한 겹 이웃"><div class="gh"><b>한 겹 이웃</b><span class="muted small">점을 누르면 그 문서 · 항목이 열린다</span><button type="button" class="ib" id="gclose" aria-label="그래프 접기">×</button></div>${drawGraph(v.graph)}<div class="gf"><span class="lg"><span><i style="background:var(--surface);border-color:var(--border-input)"></i>문서</span><span><i style="background:var(--accent-bg);border-color:var(--accent-line)"></i>항목</span><span><i style="background:var(--pending-bg);border-color:var(--pending-line)"></i>기록</span></span><button type="button" class="btn ghost sm r">그래프 화면에서 크게 ›</button></div></div></div>
+  <article class="paper" id="paper">${v.body()}</article>`
+  $('#asideTitle').textContent = v.asideTitle
+  drawAside()
+  spy()
+}
+function drawAside() {
+  const gs = V[view].aside(), sc = $('#ascroll'), top = sc.scrollTop
+  const isOpen = (g) => !!L.open[view + ':' + g.id]
+  sc.innerHTML = gs.map((g) => `<section class="grp${isOpen(g) ? ' open' : ''}" data-g="${g.id}"><button type="button" class="gs" aria-expanded="${isOpen(g)}"><span class="ar">▸</span><span class="gt">${g.t}</span>${g.n !== '' ? `<span class="gn">${g.n}</span>` : ''}</button><div class="gb">${g.body()}</div></section>`).join('')
+  sc.scrollTop = top
+  $('#arl').innerHTML = gs.map((g) => `<button type="button" class="ib" data-rail="${g.id}" data-tip="${esc(g.t)}${g.n !== '' ? ' ' + g.n : ''}" aria-label="${esc(g.t)}">${ICON[g.ic]}</button>`).join('')
+}
+
+function guideHtml() {
+  const before = `## 설치: 3. 설치 순서
+
+### 3.1 준비
+
+- 설치 PC 에 PostgreSQL 이 ... 받는다 **[확인: 판 · 설치 주체]**.
+- 패키지 zip 을 ... 확인한다.
+
+### 3.3 단계
+
+| 단계 | 하는 일 | 다시 실행할 때 |
+|--:|---|---|
+| 1 복사 | 설치 폴더와 ... 남긴다. ... | 갱신(7절) |
+
+- 설치가 끝나면 기준정보를 넣는다(5절).
+  - 기준정보가 없으면 PLC 에 붙지 않는다.`
+  const after = `## 설치: 설치 순서
+
+1. 준비
+1) 설치 PC 에 PostgreSQL 이 ... 받는다.
+1.1) 판 · 설치 주체는 회신을 받아 정한다.
+2) 패키지 zip 을 ... 확인한다.
+2. 단계
+1) 복사: 설치 폴더와 config · data · logs 를 만든다.
+- 서비스가 돌고 있으면 멈춘다.
+- 이미 jar 가 있으면 prev 로 남긴다.
+2) 설정: application.yml 을 매개변수로 만든다.
+* 있으면 그대로 둔다.
+3. 설치 뒤
+1) 기준정보를 넣는다.
+- 기준정보가 없으면 PLC 에 붙지 않는다.`
+  return `<div class="review">
+<h1>5. 문서 작성 기준: 수준 표시로 쓴다</h1>
+<p class="muted">들여쓰지 않는다. 원문도 화면도 줄마다 맨 왼쪽에서 시작한다. 수준은 줄 머리의 표시(쓴 그대로 · 번호를 다시 매기지 않음)로만 구분하고, 1 ~ 3 수준만 글 무게 · 위 여백을 준다.</p>
+<div class="card"><table>
+<tr><th>수준</th><th>표시</th><th>쓰는 곳</th><th>화면</th></tr>
+<tr><td>1</td><td><code>1.</code></td><td>항목 안의 큰 덩이(옛 <code>###</code> 소제목 자리)</td><td>굵게 · 조금 크게 · 위 여백</td></tr>
+<tr><td>2</td><td><code>1.1.</code></td><td>덩이 안의 작은 덩이</td><td>반굵게 · 위 여백</td></tr>
+<tr><td>3</td><td><code>1.1.1.</code></td><td>그 안의 작은 덩이</td><td>반굵게</td></tr>
+<tr><td>4</td><td><code>1)</code></td><td>순서 있는 낱낱(절차 · 조건)</td><td>보통 글</td></tr>
+<tr><td>5</td><td><code>1.1)</code></td><td>그 낱낱의 세부</td><td>보통 글</td></tr>
+<tr><td>6</td><td><code>1.1.1)</code></td><td>더 세부</td><td>보통 글</td></tr>
+<tr><td>7</td><td><code>-</code></td><td>순서 없는 나열 · 바로 위 줄의 덧말</td><td>보통 글 · 쓴 그대로 <code>-</code></td></tr>
+<tr><td>8</td><td><code>*</code></td><td><code>-</code> 아래 덧말(예외 · 주의)</td><td>보통 글 · 쓴 그대로 <code>*</code></td></tr>
+</table>
+<p class="small muted" style="margin:var(--sp-5) 0 0">규칙: 한 줄에 하나 · 수준은 한 번에 하나씩만 내려간다(<code>1.</code> 바로 아래 <code>1.1.1.</code> 없음) · 번호는 항목(<code>##</code>) 안에서 1 부터 센다 · <code>-</code> · <code>*</code> 는 위 수준이 없어도 쓸 수 있다 · 표 · 코드 블록은 그대로.</p></div>
+<h2>DPMS 「게이트웨이운영설계서 › 설치」 를 옮겨 본 것</h2>
+<div class="two"><div><p class="cap">지금(### 소제목 + 들여쓴 목록 · 3.1 처럼 항목 번호가 박힘)</p><pre>${esc(before)}</pre></div><div><p class="cap">바뀐 기준(원문)</p><pre>${esc(after)}</pre></div></div>
+<p class="cap" style="margin-top:var(--sp-7)">바뀐 기준(화면)</p>
+<div class="paper" style="margin:0">${lv(after.split('\n').slice(2).join('\n'))}</div>
+<div class="callout gray small">저장 검사: 들여쓴 목록 줄 · 수준 건너뜀은 받되 짜임 알림(<code>indent</code> · <code>level-skip</code>)으로 알린다. 넣지 못함으로 돌리지 않는다(옛 문서 777줄 대부분이 참고 블록 · 본문은 10줄). 옛 문서는 지식관리자의 [다듬기] 로 옮긴다.</div>
+</div>`
+}
+
+function reviewHtml() {
+  return `<div class="review">
+<h1>검토 내용 · DPMS 지식으로 본 것</h1>
+<p class="muted">본 것: DPMS 지식 문서 33 · 기록 79 · 지금 화면 코드(app/main.js docPane · itemPane · recPane · docAside · nbGraph) · 컨벤션 v0.2 · 작성기준 v1.1</p>
+<h2>요구사항마다</h2>
+<table>
+<tr><th>#</th><th>요구</th><th>목업에서 정한 모양</th><th>걸리는 것</th></tr>
+<tr><td>1</td><td>왼쪽 칸 접기 · 너비</td><td>머리 오른쪽 접기 단추 → 48px 레일(문서 · 항목 · 그래프 · 빨리 열기 · 이력 · 설정 아이콘, 넣지 못함은 점). 오른쪽 가장자리 잡이로 200 ~ 420px · 두 번 누르면 248 로. 키보드: 잡이에 초점 뒤 ← → (Shift 는 40px). 펼침 상태 · 너비는 브라우저에 남긴다</td><td>600 이하는 지금처럼 서랍(접기 · 잡이 없음). 새 토큰 <code>--w-rail</code> · <code>--w-side-min/max</code> 를 컨벤션 1절에 더한다</td></tr>
+<tr><td>2</td><td>오른쪽 칸 접기 · 너비</td><td>머리 왼쪽 접기 단추 → 48px 레일(묶음마다 아이콘 · 누르면 펴고 그 묶음만 연다). 왼쪽 가장자리 잡이로 260 ~ 560px</td><td>1024 이하는 지금처럼 서랍. 레일과 서랍이 섞이지 않게 1024 이하에서는 레일을 쓰지 않는다</td></tr>
+<tr><td>3</td><td>가운데는 내용만</td><td>문서 · 항목 · 기록 모두 제목 · 요약 · 본문만. 항목 머리 옆 칩 · 펼치는 칸 · 「내 넣지 못함」 띠 · 항목 화면의 지난 기록 · 쓰는 곳 · 다른 이름 · 기록의 쓴 사람 · 상태 · 정정은 오른쪽 다섯 묶음으로. 가운데 위에는 경로 + 폭 · 다듬기 · 고치기만</td><td>「원본이 주인이다」 처럼 고치기를 막는 알림은 가운데 위 한 줄로 남기기를 권한다(목업에는 없음)</td></tr>
+<tr><td>4</td><td>오른쪽 칸: 다섯 묶음 · 기본 접힘 · 그래프 팝업</td><td>개요 · 문서 · 기록 · 항목 · 속성 다섯 묶음(아래 표). 모두 접힘 · 연 묶음은 화면 종류마다 기억 · [모두 접기]. 지금 보는 것(이 문서 · 이 항목 · 이 기록 · 스크롤 중인 항목)은 그 묶음 안에서 「지금」 으로 표시. 그래프는 본문 오른쪽 위 팝업 · 점을 누르면 그것이 열린다</td><td>뺀 것: 넣지 못함(넣지 못함 화면 · 옆 메뉴 수로만) · 출처(참고 블록 요약 · 기록 묶음의 이력과 겹침) · 넣은 기록(이력과 겹침) · 지금 보는 항목(속성 맨 위 줄로). 「바뀐 이력」 은 「기록」 묶음 안 「이 문서의 이력」. 화면 말은 「노드」 대신 「점」</td></tr>
+<tr><td>3-1</td><td>문서 폭 기본 · 넓게</td><td>가운데 위 일 하는 줄(다듬기 · 고치기 왼쪽)에 「기본 폭 | 넓게」 고르기. 기본은 820px(<code>--w-text</code>) · 넓게는 가운데 칸 전체. 문서 · 항목 · 기록 모두 같은 값 · 브라우저에 남긴다</td><td>넓게에서도 글 줄은 한없이 길어지므로 넓은 표 · 그림이 있는 문서에 쓴다. 600 이하는 원래 꽉 차서 차이 없음</td></tr>
+<tr><td>5</td><td>작성 기준: 수준 표시 · 들여쓰기 안 씀</td><td>「5. 작성 기준」 화면 참고. 1. › 1.1. › 1.1.1. › 1) › 1.1) › 1.1.1) › - › * · 원문 · 화면 모두 들이지 않는다</td><td>아래 「5번이 바꾸는 것」</td></tr>
+</table>
+<h2>오른쪽 칸 다섯 묶음: 화면마다 속</h2>
+<table>
+<tr><th>묶음</th><th>문서 화면</th><th>항목 화면</th><th>기록 화면</th></tr>
+<tr><td>개요</td><td>이 문서의 항목 차례(누르면 그 자리로) · 스크롤 중인 항목에 「지금」</td><td>들어 있는 문서의 차례 · 이 항목에 「지금」</td><td>기록 본문의 <code>1.</code> 줄 차례(누르면 그 자리로)</td></tr>
+<tr><td>문서</td><td>이 문서(「지금」) · 이 문서가 가리키는 문서 · 이 문서를 가리키는 문서</td><td>이 항목이 있는 문서 · 이 항목을 쓰는 문서</td><td>이 기록이 들어간 문서</td></tr>
+<tr><td>기록</td><td>이 문서의 이력(새것 위 · 옛 값 → 새 값)</td><td>이 항목의 이력</td><td>이 기록(「지금」) · 바로잡은 · 바로잡힌 기록</td></tr>
+<tr><td>항목</td><td>이 문서의 항목(스크롤 중인 것에 「지금」) · 본문이 가리키는 항목</td><td>이 항목(「지금」) · 본문이 가리키는 항목 · 이 항목을 쓰는 항목 · 함께 바뀐 항목</td><td>이 기록이 건드린 항목</td></tr>
+<tr><td>속성(맨 아래)</td><td>지금 보는 항목 · 폴더 · 갈래 · 마지막으로 바뀜 · 가져올 곳 · 쓰는 사람 · 항목 수</td><td>종류 · 값 · 다른 이름 · 문서 · 마지막으로 바뀜 · 쓰는 사람</td><td>쓴 사람 · 때 · 상태 · 들어온 길 · 태그</td></tr>
+</table>
+<p class="small muted">개요와 항목의 차이: 개요는 이 화면 안에서 옮겨 가기(스크롤), 항목은 그 항목 화면을 연다.</p>
+<h2>DPMS 지식에서 잰 것</h2>
+<table>
+<tr><th>무엇</th><th>수</th><th>뜻</th></tr>
+<tr><td>본문 <code>###</code> 소제목</td><td>187 (번호 붙은 것 141: 「### 3.1 준비」)</td><td><code>1.</code> 수준으로 옮길 대상. 3.1 처럼 항목 번호를 박아 둬서 항목 차례가 바뀌면 번호가 틀어진다 → 항목 안에서 1 부터</td></tr>
+<tr><td><code>##</code> 항목 머리에 번호(「목적: 1. 목적 · 전제」)</td><td>166 / 432</td><td>보이는 이름(설명)에 번호가 들었다. 번호는 화면이 붙이거나 빼기를 권한다(사람이 정할 것 2)</td></tr>
+<tr><td>들여쓴 목록 줄</td><td>777 (본문은 10 · 나머지는 참고 블록)</td><td>본문은 거의 들여쓰지 않는다 → 옮길 양이 적다. 참고 블록은 kmd 가 쓰는 곳이라 이 기준 밖</td></tr>
+<tr><td>들여쓰지 않은 목록 줄</td><td>1037</td><td><code>-</code> 는 그대로 7 수준. 그대로 둬도 맞다</td></tr>
+<tr><td>표 줄</td><td>5468</td><td>DPMS 는 표가 많다(단계 · 매개변수). 표 안 칸은 이 기준 밖 · 표를 목록으로 바꾸라고 하지 않는다</td></tr>
+</table>
+<h2>5번이 바꾸는 것(개발 때)</h2>
+<table>
+<tr><th>곳</th><th>할 일</th></tr>
+<tr><td>그리기(server/views.js render)</td><td>md 로 넘기기 전에 수준 표시 줄을 먼저 떼어 <code>.lv.l1~l8</code> 로 그린다(들임 없음 · 표시는 쓴 그대로). md 그대로면 「1.」 · 「1)」 은 번호 목록이 되어 번호가 다시 매겨지고, 「1.1.」 은 문단이 되며, 붙은 줄은 한 문단으로 합쳐진다</td></tr>
+<tr><td>작성기준 3 · 5절 · 템플릿 셋</td><td>「항목 안 소제목은 ### · ####」 을 「수준 표시 1. ~ *」 로 바꾸고 예시를 넣는다</td></tr>
+<tr><td>claude 프롬프트(들이기 · 다듬기 · 스킬)</td><td>작성기준 7-1절대로 규칙과 예시를 싣는다</td></tr>
+<tr><td>저장 검사(core/save.js · docformat.js)</td><td>들여쓴 목록 · 수준 건너뜀은 알림만(넣지 못함으로 돌리지 않는다)</td></tr>
+<tr><td>옛 문서</td><td>[다듬기] 가 옮긴다(값은 그대로 · 짜임만)</td></tr>
+<tr><td>항목 안 찾기 · 이동(subHead)</td><td>지금은 ### 로 「항목 안 머리」 를 찾는다 → <code>1.</code> 줄도 찾게</td></tr>
+</table>
+<h2>사람이 정할 것</h2>
+<table>
+<tr><th>#</th><th>물음</th><th>권장</th></tr>
+<tr><td>1</td><td><code>1.</code> 번호를 어디서부터 세나</td><td>항목(<code>##</code>) 안에서 1 부터(항목 차례가 바뀌어도 안 틀어짐). 다른 안: 문서 전체(3.1 처럼)</td></tr>
+<tr><td>2</td><td>항목 머리의 번호(「1. 목적 · 전제」)</td><td>원문에서 빼고 화면이 차례 번호를 붙인다(개요 · 머리 둘 다)</td></tr>
+<tr><td>3</td><td><code>###</code> 를 아예 막나</td><td>막지 않고 알림만 · 다듬기로 옮김</td></tr>
+<tr><td>4</td><td>접기 · 너비를 어디에 남기나</td><td>브라우저(사람마다 · 기기마다). 다른 안: 서버 내 설정</td></tr>
+<tr><td>5</td><td>그래프 팝업의 점을 누르면</td><td>새 탭으로 연다(지금 문서는 그대로). 다른 안: 지금 탭을 바꾼다</td></tr>
+<tr><td>6</td><td>넣지 못함을 문서 화면에서 뺀 뒤, 쓴 사람은 어디서 아나</td><td>옆 메뉴 「넣지 못함 n」 · 이력의 수로 충분(문서 화면에는 두지 않음)</td></tr>
+<tr><td>7</td><td>출처를 화면에서 뺀 뒤 문서 끝 참고 블록(kmd:참고)은</td><td>파일에는 그대로 둔다(되돌리기 · 다시 그리기가 읽는다) · 화면에만 안 보인다</td></tr>
+</table>
+<h2>188 화면 확인</h2>
+<p>앱 안 브라우저로 http://10.10.20.188:8090 을 열었고, 들어가기(로그인) 화면에서 멈췄다. 비밀번호는 대신 넣지 않는다 · 들어가 주시면 이어서 지금 화면과 견준다. 위 내용은 화면 코드와 첨부 그림(항목 SCADA)으로 본 것이다.</p>
+</div>`
+}
+
+// ── 지금 보는 항목(스크롤 따라) ──
+function spy() {
+  const m = $('#main'), hs = [...m.querySelectorAll('.paper h2[id]')]
+  if (!hs.length) return
+  const top = m.getBoundingClientRect().top + 60
+  let cur = hs[0]
+  for (const h of hs) if (h.getBoundingClientRect().top <= top) cur = h
+  if (m.scrollTop + m.clientHeight >= m.scrollHeight - 2) cur = hs[hs.length - 1] // 맨 아래면 마지막 항목
+  const name = cur.id.slice(2)
+  if (name !== nowSec && view === 'doc') { nowSec = name; drawAside() } // 개요 · 항목의 「지금」 · 속성의 지금 보는 항목이 따라 바뀐다
+}
+$('#main').addEventListener('scroll', spy)
+
+// ── 누름 ──
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('button,[data-open],[data-tab],.tn')
+  if (!t) { if (gOpen && !e.target.closest('#gpop')) { gOpen = false; draw() } return }
+  if (t.closest('.mk') && t.dataset.v) { view = t.dataset.v; gOpen = false; $('#main').scrollTop = 0; draw(); return }
+  if (t.dataset.tab) { view = t.dataset.tab; gOpen = false; $('#main').scrollTop = 0; nowSec = '목적'; draw(); return }
+  if (t.dataset.open) { const to = t.dataset.open; if (V[to]) { view = to; gOpen = false; $('#main').scrollTop = 0; nowSec = '목적'; closeDrawers(); draw() } return }
+  if (t.dataset.w) { L.wide = t.dataset.w === '1'; save(); draw(); return }
+  if (t.id === 'gbtn') { gOpen = !gOpen; draw(); if (gOpen) $('#gpop .nd:not(.me)')?.focus(); return }
+  if (t.id === 'gclose') { gOpen = false; draw(); $('#gbtn').focus(); return }
+  if (t.id === 'sideFold') { L.sideRail = !L.sideRail; save(); draw(); return }
+  if (t.id === 'asideFold') { L.asideRail = !L.asideRail; save(); draw(); return }
+  if (t.dataset.rail) { L.asideRail = false; L.open[view + ':' + t.dataset.rail] = true; save(); draw(); $(`#ascroll [data-g=${t.dataset.rail}]`)?.scrollIntoView({ block: 'nearest' }); return }
+  if (t.classList.contains('gs')) { const g = t.parentElement.dataset.g, k = view + ':' + g; L.open[k] = !t.parentElement.classList.contains('open'); save(); t.parentElement.classList.toggle('open', L.open[k]); t.setAttribute('aria-expanded', L.open[k]); return }
+  if (t.id === 'allFold') { for (const g of V[view].aside()) L.open[view + ':' + g.id] = false; save(); draw(); return }
+  if (t.dataset.go) { const h = document.getElementById(t.dataset.go); h && h.scrollIntoView({ behavior: 'smooth', block: 'start' }); return }
+  if (t.id === 'menuBtn') { $('#app').classList.add('side-open'); return }
+  if (t.id === 'asideBtn') { $('#app').classList.add('aside-open'); return }
+  if (t.id === 'asideClose') { closeDrawers(); return }
+})
+$('#scrim').addEventListener('click', closeDrawers)
+function closeDrawers() { $('#app').classList.remove('side-open', 'aside-open') }
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { if (gOpen) { gOpen = false; draw(); $('#gbtn')?.focus() } closeDrawers() }
+  if (e.ctrlKey && e.key === '[') { e.preventDefault(); L.sideRail = !L.sideRail; save(); draw() }
+  if (e.ctrlKey && e.key === ']') { e.preventDefault(); L.asideRail = !L.asideRail; save(); draw() }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.nd[data-open]')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })) }
+})
+
+// ── 잡이(끌기 · 키보드 · 두 번 누르면 기본) ──
+function grip(el, which) {
+  const lim = which === 'side' ? [200, 420, 248] : [260, 560, 300]
+  const set = (w) => { L[which] = Math.round(Math.min(lim[1], Math.max(lim[0], w))); el.setAttribute('aria-valuenow', L[which]); (which === 'side' ? $('#side') : $('#aside')).style.setProperty(which === 'side' ? '--sw' : '--aw', L[which] + 'px'); showTip(el, L[which] + 'px') }
+  el.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); el.setPointerCapture(e.pointerId); el.classList.add('drag')
+    const x0 = e.clientX, w0 = L[which]
+    const mv = (ev) => set(which === 'side' ? w0 + (ev.clientX - x0) : w0 - (ev.clientX - x0))
+    const up = () => { el.classList.remove('drag'); el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); save(); $('#gtip').style.display = 'none' }
+    el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up)
+  })
+  el.addEventListener('dblclick', () => { set(lim[2]); save(); setTimeout(() => ($('#gtip').style.display = 'none'), 600) })
+  el.addEventListener('keydown', (e) => {
+    const s = e.shiftKey ? 40 : 10, dir = which === 'side' ? 1 : -1
+    if (e.key === 'ArrowRight') { e.preventDefault(); set(L[which] + s * dir); save() }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); set(L[which] - s * dir); save() }
+  })
+  el.addEventListener('blur', () => ($('#gtip').style.display = 'none'))
+}
+function showTip(el, txt) { const r = el.getBoundingClientRect(), g = $('#gtip'); g.textContent = txt; g.style.display = 'block'; g.style.left = r.left + 10 + 'px'; g.style.top = r.top + 60 + 'px' }
+grip($('#sideGrip'), 'side'); grip($('#asideGrip'), 'aside')
+
+// 툴팁(레일 아이콘)
+document.addEventListener('mouseover', (e) => {
+  const t = e.target.closest('[data-tip]'), tip = $('#tip')
+  if (!t || !(t.closest('.rail') || t.closest('.afold') || t.closest('.fold'))) { tip.style.display = 'none'; return }
+  const r = t.getBoundingClientRect(); tip.textContent = t.dataset.tip; tip.style.display = 'block'
+  const left = t.closest('.aside') ? r.left - tip.offsetWidth - 8 : r.right + 8
+  tip.style.left = Math.max(4, left) + 'px'; tip.style.top = r.top + 4 + 'px'
+})
+
+draw()
+</script>
+</body>
+</html>
