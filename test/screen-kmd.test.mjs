@@ -119,7 +119,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.match(await page.locator('.hdr .hmid').innerText(), /빨리 열기[\s\S]*Ctrl O[\s\S]*찾기[\s\S]*Ctrl K/)
   assert.match(await page.locator('.hdr .hright').innerText(), /Claude[\s\S]*설명서/)
   // 들어온 사람은 왼쪽 메뉴 맨 위(누르면 설정 · 나가기)
-  assert.match(await page.locator('.side .sb-top [data-t=me]').innerText(), /kim[\s\S]*팀 서버 · 관리자/)
+  assert.match(await page.locator('.side .sb-top [data-t=me]').innerText(), /kim[\s\S]*팀 서버 · 총괄 관리자/)
   assert.equal(await page.locator('.band .who').innerText(), '팀 서버의 kmd · 같이 쓴다')
   assert.deepEqual(await page.locator('[data-t=krow]').evaluateAll((els) => els.map((e) => e.dataset.name)), ['DPMS 지식', 'GDI 지식'])
   // 팀 화면은 팀 지식만 — 개인 칸 · 「내 PC 지식 폴더」 띠 · 「+ 새 개인 지식」 이 없다(분리)

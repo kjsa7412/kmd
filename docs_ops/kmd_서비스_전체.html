@@ -984,13 +984,13 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 
 <div class="m-cards sc7">
 <a class="m-card" href="manual/지식관리자.html#held"><img src="manual/img/t-held.png" alt="" loading="lazy"><b>넣지 못함</b><p>요약 줄 · 개편 전 기록 · 까닭 · [고치기] · [다시 들이기]</p></a>
-<a class="m-card" href="manual/사용자.html#screen"><img src="manual/img/t-doc.png" alt="" loading="lazy"><b>팀 화면 · 문서</b><p>칩 · 오른쪽 칸 · 개편 전 화면</p></a>
-<a class="m-card" href="manual/사용자.html#import"><img src="manual/img/t-import.png" alt="" loading="lazy"><b>가져오기 · 일 줄</b><p>개편 전 화면: 지금 단계는 수집 › 검토 › 짓기 › 넣기 · 메뉴 「정리」 는 「넣지 못함」</p></a>
-<a class="m-card" href="manual/사용자.html#history"><img src="manual/img/t-history.png" alt="" loading="lazy"><b>이력</b><p>개편 전 화면: 지금은 정리 줄이 없고 저장마다 「옛 값 → 새 값」</p></a>
-<a class="m-card" href="manual/개인.html#screen"><img src="manual/img/p-home.png" alt="" loading="lazy"><b>개인 화면</b><p>지식 폴더 띠 · 개인 지식 · 개편 전 화면</p></a>
-<a class="m-card" href="manual/개인.html#send"><img src="manual/img/p-send.png" alt="" loading="lazy"><b>지식 보내기</b><p>개편 전 화면: 지금은 「정리 때」 가 아니라 보내는 그 순간 넣거나 넣지 못함</p></a>
+<a class="m-card" href="manual/사용자.html#screen"><img src="manual/img/t-doc.png" alt="" loading="lazy"><b>팀 화면 · 문서</b><p>넣지 못함 칩 · [다듬기] · 오른쪽 칸</p></a>
+<a class="m-card" href="manual/사용자.html#import"><img src="manual/img/t-import.png" alt="" loading="lazy"><b>가져오기 · 일 줄</b><p>수집 › 검토 › 짓기 › 넣기 · 넣은 문서 › 항목</p></a>
+<a class="m-card" href="manual/사용자.html#history"><img src="manual/img/t-history.png" alt="" loading="lazy"><b>이력</b><p>저장마다 「옛 값 → 새 값」 · 넣지 못함 줄</p></a>
+<a class="m-card" href="manual/개인.html#screen"><img src="manual/img/p-home.png" alt="" loading="lazy"><b>개인 화면</b><p>지식 폴더 띠 · 개인 지식 카드</p></a>
+<a class="m-card" href="manual/개인.html#send"><img src="manual/img/p-send.png" alt="" loading="lazy"><b>지식 보내기</b><p>받는 팀 지식 하나 · 받을 때 곧바로 문서에</p></a>
 </div>
-<p class="small muted">「개편 전 화면」 은 2026-11-02 에 찍은 그림이다(정리 메뉴 · 「정리 때 문서에」 말이 남아 있다). 「넣지 못함」 그림만 개편 뒤(2026-11-04)에 다시 찍었다. 다시 찍는 법은 <a href="kmd_서비스_전체.md">글 판</a> 13절 끝.</p>
+<p class="small muted">그림은 개편 뒤 로컬 시험 환경(시험 데이터)에서 1280 폭으로 찍었다(2026-11-05 · 넣지 못함은 2026-11-04). 다시 찍는 법은 <a href="kmd_서비스_전체.md">글 판</a> 13절 끝.</p>
 </article>
 
 <article class="man">
@@ -1311,7 +1311,7 @@ curl -s localhost:8090/healthz                 # build 가 새 판인지</code><
 </svg>
 </div>
 <p class="small muted">줄 글은 <code>server/hub.js</code> · <code>core/backup.js</code> 의 멈춤 줄 그대로다. 명령은 팀 서버에서 그냥 <code>kmd</code>(kmd 사용자 · <code>/srv/kmd</code> 로 돈다). 자세히는 <a href="manual/운영.html">운영 설명서</a> 6절.</p>
-<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 관리</span></div><div class="m-pic"><img src="manual/img/t-admin.png" alt="관리 화면" loading="lazy"></div></div><figcaption>관리 화면은 문제 줄만 보인다. 개편 전 화면(2026-11-02): 설정 메뉴의 「정리」 는 지금 「넣지 못함」 이다. 자세히는 <a href="manual/운영.html">운영 설명서</a>.</figcaption></figure>
+<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 관리</span></div><div class="m-pic"><img src="manual/img/t-admin.png" alt="관리 화면" loading="lazy"></div></div><figcaption>관리 화면은 문제 줄만 보인다(문제가 없으면 「오늘은 문제가 없다」). 자세히는 <a href="manual/운영.html">운영 설명서</a>.</figcaption></figure>
 </article>
 
 <article class="man">
