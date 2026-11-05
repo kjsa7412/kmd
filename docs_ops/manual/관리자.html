@@ -13,6 +13,8 @@
 <h1>총괄 관리자</h1>
 <p class="m-lead">팀 서버(팀 프로그램)를 세우고, 사람 · 지식마다의 자리 · 백업 · 팀 일꾼 Claude 로그인을 돌본다. 지식 하나의 넣지 못함 · 다듬기 · 가져오기 · 권한은 <a href="지식관리자.html">지식관리자 설명서</a>, 밤 묶음 · 되살리기 · 새 판은 <a href="운영.html">운영 설명서</a>.</p>
 
+<div class="m-note"><b>그림</b><p>「개편 전 화면」 이라 적힌 그림은 「저장이 곧 반영」 개편(2026-11) 전에 찍었다. 그때 있던 정리 메뉴 · 정리 줄이 보이고, 옆 메뉴 맨 아래 「개인 프로그램 설치」 는 지금 「개인 지식 쓰기」 다. 글이 지금 화면을 말한다.</p></div>
+
 <h2 id="setup"><span class="m-no">1</span>팀 서버 세우기</h2>
 <div class="m-flow"><div class="m-st"><b>팀 꾸러미</b><small>kmd-&lt;판&gt;-team.tgz</small></div><span class="m-ar">›</span><div class="m-st m-hi"><b>kmd-install.sh</b><small>/opt/kmd · systemd</small></div><span class="m-ar">›</span><div class="m-st"><b>첫 설정 주소</b><small>총괄 관리자 만들기</small></div><span class="m-ar">›</span><div class="m-st m-ok"><b>사람 더하기</b><small>처음 들어오기 링크</small></div></div>
 <pre><code>tar -xzf kmd-&lt;판&gt;-team.tgz &amp;&amp; cd kmd-&lt;판&gt;-team
@@ -29,7 +31,7 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 
 <h2 id="admin"><span class="m-no">2</span>관리 화면: 문제 줄만</h2>
 <figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 관리</span></div><div class="m-pic"><img src="img/t-admin.png" alt="관리 화면: 문제 줄 · 백업 · 지식" loading="lazy"></div></div>
-<figcaption>잘 될 때는 비어 있다. 손볼 것만 줄로 선다.</figcaption></figure>
+<figcaption>개편 전 화면. 잘 될 때는 비어 있다. 손볼 것만 줄로 선다.</figcaption></figure>
 <div class="m-tbl"><table><tr><th>문제 줄</th><th>하는 것</th></tr>
 <tr><td>비밀번호를 안 정한 사람</td><td>사람 카드 ⋯ › [새 링크](이 사람만 · 24시간 · 한 번). 떠난 사람이면 [떠남]</td></tr>
 <tr><td>잠김</td><td>여러 번 틀린 자리는 잠시 막힌다(맞는 사람은 그대로 쓴다). [풀기]</td></tr>
@@ -42,7 +44,7 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 
 <h2 id="people"><span class="m-no">3</span>사람</h2>
 <figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 사람</span></div><div class="m-pic"><img src="img/t-people.png" alt="사람 카드: 상태 · 기기 · 지식마다 자리" loading="lazy">
-<span class="m-pin" style="left:40%;top:54%">1</span><span class="m-pin" style="left:45%;top:33%">2</span><span class="m-pin" style="left:95%;top:38%">3</span></div></div></figure>
+<span class="m-pin" style="left:40%;top:54%">1</span><span class="m-pin" style="left:45%;top:33%">2</span><span class="m-pin" style="left:95%;top:38%">3</span></div></div><figcaption>개편 전 화면(왼쪽 설정 메뉴의 정리는 지금 없다).</figcaption></figure>
 <ol class="m-legend">
 <li><b>+ 사람 더하기</b>: 아이디 · 총괄 관리자 여부 · 지식마다 자리 표.</li>
 <li><b>사람 카드</b>: 상태(들어온다 · 링크 보냄 · 비밀번호를 안 정함) · 기기 · 「지식 n개에 자리」.</li>
@@ -64,15 +66,15 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 </ul>
 <div class="m-tbl"><table><tr><th>일</th><th>총괄 관리자</th><th>지식관리자</th><th>쓰기</th><th>읽기</th></tr>
 <tr><td>보기 · 찾기 · Claude 로 읽기</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
-<tr><td>기록 남기기 · 파일 넣기 · 가져오기 부탁</td><td>✓</td><td>✓</td><td>✓</td><td></td></tr>
-<tr><td>바로 고치기 · 다듬기 · 넣지 못함(남의 것) · 되돌리기 · 지식 설정 · 권한 주기</td><td>✓</td><td>✓</td><td></td><td></td></tr>
+<tr><td>저장(그 순간 문서에) · 문서 고치기 · 파일 넣기 · 가져오기 부탁 · 자기 저장 되돌리기 · 자기 넣지 못함</td><td>✓</td><td>✓</td><td>✓</td><td></td></tr>
+<tr><td>항목 지우기 · 이름 바꾸기 · 다듬기 · 넣지 못함(남의 것) · 남의 저장 되돌리기 · 지식 설정 · 권한 주기</td><td>✓</td><td>✓</td><td></td><td></td></tr>
 <tr><td>가져올 곳(허락된 호스트의 https git · DB)</td><td>✓</td><td>✓</td><td></td><td></td></tr>
 <tr><td>사람 · 묶음 · 지식 세우기/지우기/되살리기 · 주인 넘기기</td><td>✓</td><td></td><td></td><td></td></tr>
 <tr><td>백업 · Claude 연결 · 일 줄 멈춤 · 동시에 도는 수 · 서버 폴더 · ssh 가져올 곳</td><td>✓</td><td></td><td></td><td></td></tr>
 </table></div>
 
 <h2 id="claude"><span class="m-no">5</span>Claude 연결: 팀 일꾼 로그인</h2>
-<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › Claude 연결</span></div><div class="m-pic"><img src="img/t-claude.png" alt="Claude 연결: 팀 일꾼 로그인 상태" loading="lazy"></div></div></figure>
+<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › Claude 연결</span></div><div class="m-pic"><img src="img/t-claude.png" alt="Claude 연결: 팀 일꾼 로그인 상태" loading="lazy"></div></div><figcaption>개편 전 화면. 지금 이 화면(설정 › Claude 연결)의 카드는 「팀 일꾼 로그인」 을 다루고, 쓰는 곳은 들이기(파일 넣기 · 가져올 곳 · 정정 · 다시 들이기 · 다듬기)다.</figcaption></figure>
 <ol class="m-steps">
 <li><b>[로그인 시작]</b>: 15분 안에 비밀번호를 넣지 않았으면 「비밀번호 한 번 더」 창이 먼저 뜬다.</li>
 <li><b>화면 있는 서버</b>(Windows · macOS · 화면 있는 Linux)면 그 PC 에 「kmd: Claude 로그인」 창이 뜬다. 거기서 로그인하면 관리 화면이 몇 초마다 저절로 확인한다.</li>
@@ -86,7 +88,7 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 <p>일꾼 손잡이는 <code>/etc/kmd/worker.env</code> 의 환경 변수다: <code>KMD_WORKER_PAR</code>(Claude 동시 호출 · 기본 3) · <code>KMD_WORKER_JOBS</code>(일감을 나란히 · 기본 2) · <code>KMD_INGEST_BUDGET</code>(들이기 한 번의 예산 달러 · 기본 1.0) · <code>KMD_INGEST_EFFORT</code> · <code>KMD_INGEST_FIX</code>(고쳐 쓰기 · 기본 2). 옛 이름 <code>KMD_TIDY_*</code> 도 읽는다. 고친 뒤 <code>systemctl restart kmd-worker</code>.</p>
 
 <h2 id="general"><span class="m-no">6</span>일반 설정 · 백업 자리</h2>
-<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 일반</span></div><div class="m-pic"><img src="img/t-gen.png" alt="일반: 이 팀 서버 · 팀 지식(넣지 못함 · Claude 에 보내지 않음) · 저절로 하는 일" loading="lazy"></div></div></figure>
+<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 일반</span></div><div class="m-pic"><img src="img/t-gen.png" alt="일반: 이 팀 서버 · 저절로 하는 일" loading="lazy"></div></div><figcaption>개편 전 화면. 오른쪽 위 카드는 지금 「팀 지식」 표다: 지식마다 넣지 못함 수와 「Claude 에 보내지 않음」 스위치(지식관리자 · <a href="지식관리자.html#polish">지식관리자 설명서 3절</a>).</figcaption></figure>
 <ul>
 <li>팀 지식의 백업: GitLab 봇(<code>serve.json</code> 의 <code>gitlab</code>)이 저절로 붙이거나 <code>kmd backup add &lt;지식&gt; &lt;주소&gt;</code>(<code>backupRoots</code> 안의 폴더 · https · ssh).</li>
 <li>저장 뒤 바로 보내고, 안 되면 1 · 5 · 15 · 60분 · 매일 다시. 6시간 밀리면 노랑 · 24시간이면 빨강 한 줄.</li>
