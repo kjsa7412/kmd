@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KMD 개편 결과</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 짜임: kmd 화면 토큰(파랑 accent · 옅은 회청 바탕)을 그대로 — 왼쪽 목차 + 본문 한 단, 좁으면 한 단 */
+:root{
+  --bg:#f6f7f9;--surface:#fff;--surface-2:#f1f3f7;--border:#e2e6ed;--border-strong:#c9d1dd;
+  --text:#11151c;--text-2:#515a68;--text-3:#646d7b;
+  --accent:#3358e6;--accent-bg:#e9eeff;--ok:#237a47;--ok-bg:#e6f4ec;--warn:#8c5c00;--warn-bg:#fcf3e0;--danger:#b8321f;--danger-bg:#fdeceb;--pend:#6247c4;--pend-bg:#efedfd;
+  --shadow:0 1px 2px rgba(15,23,42,.05),0 1px 3px rgba(15,23,42,.07);
+  --font:"IBM Plex Sans KR",Pretendard,"Malgun Gothic",system-ui,sans-serif;--mono:"IBM Plex Mono",Consolas,"Malgun Gothic",monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f131a;--surface:#161b24;--surface-2:#1c2330;--border:#283141;--border-strong:#36415a;--text:#e7ebf2;--text-2:#a9b3c3;--text-3:#8d97a8;--accent:#7f9cff;--accent-bg:#1d2747;--ok:#6fcf97;--ok-bg:#15301f;--warn:#e7b85a;--warn-bg:#33270f;--danger:#ff8a7a;--danger-bg:#3a1a16;--pend:#b3a3ff;--pend-bg:#2a2350;--shadow:0 1px 2px rgba(0,0,0,.4);color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f131a;--surface:#161b24;--surface-2:#1c2330;--border:#283141;--border-strong:#36415a;--text:#e7ebf2;--text-2:#a9b3c3;--text-3:#8d97a8;--accent:#7f9cff;--accent-bg:#1d2747;--ok:#6fcf97;--ok-bg:#15301f;--warn:#e7b85a;--warn-bg:#33270f;--danger:#ff8a7a;--danger-bg:#3a1a16;--pend:#b3a3ff;--pend-bg:#2a2350;--shadow:0 1px 2px rgba(0,0,0,.4);color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font:15px/1.65 var(--font)}
+.wrap{max-width:1180px;margin:0 auto;padding-block:32px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;grid-template-columns:200px minmax(0,1fr);gap:40px}
+nav.toc{position:sticky;top:max(24px,env(safe-area-inset-top,0px));align-self:start;font-size:13px}
+nav.toc b{display:block;font-size:11px;letter-spacing:.08em;color:var(--text-3);margin-bottom:8px}
+nav.toc a{display:block;color:var(--text-2);text-decoration:none;padding:4px 0 4px 10px;border-left:2px solid var(--border)}
+nav.toc a:hover,nav.toc a:focus-visible{color:var(--accent);border-left-color:var(--accent);outline:none}
+main{min-width:0}
+header.hero{padding-bottom:22px;border-bottom:1px solid var(--border);margin-bottom:28px}
+.eyebrow{font:500 12px var(--mono);color:var(--accent);letter-spacing:.04em}
+h1{font-size:30px;line-height:1.25;margin:6px 0 10px;text-wrap:balance}
+.lead{color:var(--text-2);max-width:68ch;margin:0}
+.meta{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:14px;font:13px var(--mono);color:var(--text-3)}
+h2{font-size:21px;margin:44px 0 6px;text-wrap:balance;scroll-margin-top:20px}
+h3{font-size:16px;margin:24px 0 8px}
+p{max-width:72ch}
+.sub{color:var(--text-2);margin:0 0 16px;max-width:72ch}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0}
+.tile{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow)}
+.tile .n{font:600 28px/1.1 var(--mono);font-variant-numeric:tabular-nums}
+.tile .l{font-size:13px;color:var(--text-2);margin-top:4px}
+.tile .s{font-size:12px;color:var(--text-3)}
+.three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;min-width:0}
+.box h4{margin:0 0 8px;font-size:13px;letter-spacing:.04em}
+.box.cause h4{color:var(--warn)}.box.fixed h4{color:var(--ok)}.box.left h4{color:var(--pend)}
+.box ul{margin:0;padding-left:18px}.box li{margin:4px 0;font-size:14px}
+.reqs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.req{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;min-width:0}
+.req .h{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.req .h b{font-size:15px}
+.req p{margin:6px 0 0;font-size:14px;color:var(--text-2)}
+.chip{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.c-ok{background:var(--ok-bg);color:var(--ok)}.c-warn{background:var(--warn-bg);color:var(--warn)}.c-pend{background:var(--pend-bg);color:var(--pend)}.c-danger{background:var(--danger-bg);color:var(--danger)}.c-acc{background:var(--accent-bg);color:var(--accent)}
+code,.mono{font-family:var(--mono);font-size:.9em}
+code{background:var(--surface-2);padding:1px 5px;border-radius:4px}
+figure{margin:14px 0;min-width:0}
+figure img{display:block;width:100%;height:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
+figcaption{font-size:13px;color:var(--text-3);margin-top:6px}
+.shots{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(0,1fr);gap:14px;align-items:start}
+.shots>*,.widths>*,.three>*,.reqs>*{min-width:0}
+.widths{display:grid;grid-template-columns:minmax(0,1280fr) minmax(0,600fr) minmax(0,375fr);gap:12px;align-items:start}
+.tw{overflow-x:auto;border:1px solid var(--border);border-radius:10px;background:var(--surface);margin:12px 0}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+th{background:var(--surface-2);font-weight:600;font-size:12.5px;color:var(--text-2);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono)}
+.m-ok{color:var(--ok);font-weight:600}.m-no{color:var(--danger);font-weight:600}.m-mid{color:var(--warn);font-weight:600}
+pre.diff{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;overflow-x:auto;font:12.5px/1.55 var(--mono);margin:12px 0}
+pre.diff .d{color:var(--danger)}pre.diff .a{color:var(--ok)}pre.diff .c{color:var(--text-3)}
+.bars{display:grid;gap:10px;margin:14px 0;max-width:640px}
+.bar{display:grid;grid-template-columns:52px minmax(0,1fr) 72px;gap:10px;align-items:center;font-size:13px}
+.bar .t{display:flex;height:18px;border-radius:5px;overflow:hidden;background:var(--surface-2)}
+.bar .t i{display:block;height:100%}
+.bar .t .nw{background:var(--ok)}.bar .t .lt{background:var(--pend)}
+.bar .v{font-family:var(--mono);color:var(--text-2);font-variant-numeric:tabular-nums}
+.legend{display:flex;gap:16px;font-size:12.5px;color:var(--text-2)}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.callout{border:1px solid var(--border);border-left:3px solid var(--pend);background:var(--surface);border-radius:8px;padding:12px 14px;margin:14px 0;font-size:14px}
+.callout.warn{border-left-color:var(--warn)}
+ol.steps{padding-left:20px}ol.steps li{margin:6px 0}
+@media (max-width:900px){.wrap{grid-template-columns:1fr;gap:12px}nav.toc{position:static;display:flex;flex-wrap:wrap;gap:4px 12px}nav.toc b{width:100%}nav.toc a{border:0;padding:2px 0}.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.three,.reqs,.shots{grid-template-columns:1fr}.widths{grid-template-columns:1fr 1fr}.widths figure:first-child{grid-column:1/-1}}
+@media (max-width:480px){h1{font-size:24px}.tile .n{font-size:22px}}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head><body>
+<div class="wrap">
+<nav class="toc" aria-label="목차"><b>목차</b>
+<a href="#sum">한눈에</a><a href="#why">원인 · 고친 것 · 남은 것</a><a href="#stage">단계별 커밋</a><a href="#review">끝 검토</a><a href="#docs">문서 · 그림</a><a href="#deploy">188 배포</a><a href="#left">사람이 할 일</a></nav>
+<main>
+<header class="hero" id="sum">
+<div class="eyebrow">kmd · 「저장이 곧 반영」 개편 · 2026-11-05</div>
+<h1>KMD 개편 결과: 정리를 걷고 저장이 곧 반영으로</h1>
+<p class="lead">KMD_개편_TODO 와 설계(S1 ~ S13)를 처음부터 끝까지 구현했습니다. 이제 모든 채널은 기록과 항목 조각을 저장 한 번에 같이 보내고, 팀은 그 자리에서 검사해 넣거나 「넣지 못함」 으로 남깁니다. 끝 검토(네 축)로 고친 뒤 공식 문서 · 설명서 그림까지 맞추고 188 에 배포했습니다.</p>
+<div class="meta"><span>main e764294 (배포한 코드)</span><span>188 빌드 0.1.0-20261105-1040</span><span>개편 커밋 46</span><span>push 안 함</span></div>
+</header>
+<div class="tiles">
+<div class="tile"><div class="n">13</div><div class="l">설계 단계 S1 ~ S13</div><div class="s">모두 커밋 · TODO 표시</div></div>
+<div class="tile"><div class="n">4</div><div class="l">끝 검토 축</div><div class="s">저장 · 화면 · 들이기 · 정리 걷기</div></div>
+<div class="tile"><div class="n">28</div><div class="l">설명서 그림 다시 찍음</div><div class="s">개편 전 그림 0</div></div>
+<div class="tile"><div class="n">0</div><div class="l">점검 위반(188 두 지식)</div><div class="s">알림 「같은 보이는 이름」 2 만</div></div>
+</div>
+
+<h2 id="why">원인 · 고친 것 · 남은 것</h2>
+<div class="three">
+<div class="box cause"><h4>원인</h4><ul>
+<li>기록은 먼저 쌓이고 문서 반영은 「정리」 가 모아서 나중에 했다. 반영 대기가 쌓이고, 정리 일꾼 호출이 느리고 비싸며, 검사를 못 넘은 조각이 끝없이 다시 돌았다.</li>
+<li>채널(세션 · 고치기 · 파일 넣기 · 가져올 곳 · 보내기)마다 저장 길이 달라 권한 · 검사 · 기록 모양이 갈렸다.</li>
+</ul></div>
+<div class="box fixed"><h4>고친 것</h4><ul>
+<li>저장 문 하나: 기록 + 조각(edits · base 지문)을 hub.save 한 덩이로, 팀은 줄 안에서 조각마다 검사(core/gate.js) · 못 넘은 조각은 「넣지 못함」(held) · 지문이 어긋나면 E_CONFLICT 로 아무것도 쓰지 않음 · 조각 없는 기록은 메모.</li>
+<li>들이기(팀 일꾼) · 팀 파일 넣기(20개) · 고치기(바로 문서에 · 정정 기록) · 넣지 못함 화면 · 대량 넣기(kmd-parse + 스킬 kmd-team-import) · 보내기(글마다 저장 한 번) · 정리 걷기 · 문서 다듬기 · ### 올리기.</li>
+<li>항목마다 되돌리기 · 「옛 값 → 새 값」 이력 · 하루 상한(E_RATE) · savelog 측정 도구.</li>
+<li>기준 문서(권한 모델 · 작성기준 · 컨벤션 · CLAUDE.md)를 같은 커밋에서 맞춤.</li>
+</ul></div>
+<div class="box left"><h4>남은 것</h4><ul>
+<li>2주 측정(savelog) · 한 팀이 2 ~ 4주 쓰기 · 그 뒤 순서 결정(K12 · K13 · K15).</li>
+<li>보내기에서 이름 장부를 채울지(K14-2): 측정 뒤 사람이 정한다.</li>
+<li>188 의 개편 전 반영 대기 기록은 넣지 못함 화면의 「개편 전 기록」 으로 보인다. 지식관리자가 [옛 기록 다시 들이기] 를 누를지 정한다.</li>
+<li>push 는 하지 않았다.</li>
+</ul></div>
+</div>
+
+<h2 id="stage">단계별 커밋</h2>
+<div class="tblwrap"><table>
+<thead><tr><th>단계</th><th>무엇</th><th>커밋</th></tr></thead><tbody>
+<tr><td>S1</td><td>기준 문서 먼저 · 설계 문서</td><td class="mono">7d0e805 · 933697f</td></tr>
+<tr><td>S2</td><td>모듈 나누기(edits · values · writerules · gate · ingest · revert · parts)</td><td class="mono">1ba08ab</td></tr>
+<tr><td>S3 ~ S7</td><td>저장 문 · 넣지 못함 표지 · 되돌리기 · 세션 저장 · 들이기(팀 일꾼)</td><td>각 단계 「개편 Sx:」 커밋 + 검토 커밋</td></tr>
+<tr><td>S8</td><td>팀 화면 파일 넣기 · 20개 · 원본 첨부 기본 해제 · 64MB 413</td><td class="mono">c8e4f58</td></tr>
+<tr><td>S9</td><td>고치기 · 기록 고치기(정정 기록)</td><td class="mono">90f2bc0</td></tr>
+<tr><td>S10</td><td>넣지 못함 화면 · 다시 들이기 · 버리기 · 이름 세우기</td><td class="mono">e012db0</td></tr>
+<tr><td>S11</td><td>대량 넣기 · 파서 꾸러미 · 설치 안내</td><td class="mono">1019272</td></tr>
+<tr><td>S12</td><td>보내기 · 글마다 저장 한 번</td><td class="mono">0ff4d85</td></tr>
+<tr><td>S13</td><td>정리 걷기 · 문서 다듬기 · ### 올리기</td><td class="mono">2bfe194</td></tr>
+</tbody></table></div>
+
+<h2 id="review">끝 검토(S8 ~ S13 · 네 축)</h2>
+<div class="tblwrap"><table>
+<thead><tr><th>축</th><th>고친 것</th><th>커밋</th></tr></thead><tbody>
+<tr><td>저장 · 장부</td><td>원본 첨부를 켜고 같은 이름의 고친 파일을 넣으면 E_CONFLICT 가 끝없이 돌던 것 · 깨진 장부를 빈 것으로 덮던 것(.broken- 으로 비켜 둠) · 오류 삼킴 · 하루 첨부 합 되돌리기</td><td class="mono">a36722d</td></tr>
+<tr><td>화면 · 말</td><td>칩을 단추로 쓰던 것 · 읽기 자리에 보이던 [넣지 못함 화면] · 남은 정리 말 · px 토큰</td><td class="mono">f039d47</td></tr>
+<tr><td>들이기 · 보내기</td><td>정정이 손대지 않을 항목까지 넣지 못함으로 만들던 것 · 정정 겹침 E_CONFLICT · 보내기 채널 조건 · 대량 넣기 스킬 noClaude(스킬 판 4)</td><td class="mono">337b712</td></tr>
+<tr><td>정리 걷기</td><td>--lift 를 기준 문서에 · 팀 touches-fix 가 반영 대기가 되던 것 · 쓰지 않는 함수</td><td class="mono">424de60</td></tr>
+</tbody></table></div>
+<p>시험: 단계마다 걸린 test/*.test.mjs 만 돌려 녹색. screen-kmd 13 은 네 폭(1280 · 1024 · 600 · 375) 잘림 0 · 가로 넘침 0 을 단언한다. 일 줄 타이밍에 따른 흔들림이 가끔 1 ~ 4개 나며 따로 돌리면 통과한다(S9 부터 적힘). owners 10번(/healthz build 칸)은 개편 전부터 넘어지던 것이다.</p>
+
+<h2 id="docs">문서 · 그림</h2>
+<ul>
+<li>docs_ops 서비스 전체(md · 그림 판)와 설명서 다섯 편을 지금 코드에 맞췄다: 단계 표시 · 「반영 대기」 · 「정리 일꾼」 0, 자리 표 · 백업 간격 · 넣지 못함 까닭 바로잡음(4e6816e).</li>
+<li>CLAUDE.md 「말」 줄을 「넣지 못함 n」 · 「팀 일꾼」 으로(e7f47bf), TODO K1-4 [x].</li>
+<li>설명서 그림 28장을 로컬 시험 환경(가짜 Claude · 「테스트」 데이터)에서 개편 뒤 화면으로 다시 찍고, 쓰지 않는 t-tidy* 셋을 지웠다. 그 김에 옆 메뉴 · 설정 › 일반의 「관리자」 를 용어집대로 「총괄 관리자」 로 고쳤다(e764294).</li>
+</ul>
+
+<h2 id="deploy">188 배포</h2>
+<ul>
+<li>배포 전 /srv/kmd/.kmd/jobs.json 에 도는 일 0.</li>
+<li>git archive HEAD(e764294) → pack → scp → kmd-install.sh --team. 빌드 0.1.0-20261105-1040, kmd · kmd-worker active, 대량 넣기 파서 kmd-parse-93c177958879 를 받기 자리에 둠.</li>
+<li>첫 켜기에 개편 때를 적음(cutover.json 2026-11-05 10:41). 그 전 기록은 개편 전 기록으로 본다.</li>
+<li>확인: /healthz build · /opt/kmd/app/main.js 의 「총괄 관리자」 · /manual/img 200 · guard --all 위반 0.</li>
+<li>/etc/systemd/system/kmd-worker.service.d/budget.conf(KMD_TIDY_BUDGET=2)는 그대로 둠: 팀 일꾼이 같은 이름을 읽는다.</li>
+</ul>
+
+<h2 id="left">사람이 할 일</h2>
+<ol>
+<li>2주 savelog 측정(scripts/savelog.mjs) · 한 팀이 2 ~ 4주 써 보기.</li>
+<li>넣지 못함 화면의 개편 전 기록: [옛 기록 다시 들이기] 여부.</li>
+<li>세션 쓰는 사람은 팀 스킬 판 4 로 다시 설치(옛 판은 다시 설치하라는 답을 받는다) · 개인 프로그램은 설치 한 줄로 올림.</li>
+<li>원격 push.</li>
+</ol>
+</main></div>
+</body></html>
