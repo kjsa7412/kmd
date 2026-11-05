@@ -324,10 +324,10 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <rect class="zone" x="440" y="394" width="330" height="62" rx="5"/><text class="l" x="448" y="412">줄 안에서 지식을 새로 읽고 prepare:</text><text class="l" x="448" y="430">같은 저장 · 넣을 곳 · 지문 · 꼴 · 값 대조</text><text class="l" x="448" y="448">못 넘은 조각은 held · 지문 어긋남은 E_CONFLICT</text>
 <path class="ln w" d="M775 480 H916" marker-end="url(#ah-arch-2)"/><text class="l" x="782" y="474">기록 + 문서 + 참고 · commit</text>
 <path class="ln w" d="M635 516 H916" marker-end="url(#ah-arch-2)"/><text class="l" x="642" y="510">커밋 뒤(던지지 않음): 측정 줄 · 알림 · 백업 밀기</text>
-<path class="ln g" d="M635 570 H79" marker-end="url(#ah-arch-2)"/><text class="l" x="82" y="564">결과: saved · docs · put · held · proposals[] · note · warnings · (reinstall)</text>
+<path class="ln g" d="M635 570 H79" marker-end="url(#ah-arch-2)"/><text class="l" x="82" y="564">결과: saved · docs · put · held · proposals[] · note · warnings · (reinstall · nokit)</text>
 </svg>
 </div>
-<p class="small muted">스킬 판 <code>kit</code> 이 옛것이거나 없으면 저장은 그대로 하고 답에 <code>reinstall</code> 을 싣는다(지금 판 <code>TEAM_KIT_REV</code> 4 · <code>core/teamkit.js</code>). 커밋 뒤의 일(측정 줄 <code>&lt;data&gt;/savelog/&lt;지식&gt;.jsonl</code> · 알림 · 백업)은 실패해도 저장을 되돌리지 않고 log 만 남긴다.</p>
+<p class="small muted">스킬 판 <code>kit</code> 이 옛것이면 저장은 그대로 하고 답에 <code>reinstall</code> 을, 없으면 <code>nokit</code>(스킬을 거치지 않은 저장 · 다시 설치 아님)을 싣는다(지금 판 <code>TEAM_KIT_REV</code> 4 · <code>core/teamkit.js</code>). 커밋 뒤의 일(측정 줄 <code>&lt;data&gt;/savelog/&lt;지식&gt;.jsonl</code> · 알림 · 백업)은 실패해도 저장을 되돌리지 않고 log 만 남긴다.</p>
 
 <h3 id="arch-wk">팀 일꾼이 들이기 일감을 받는 길</h3>
 <p class="small muted">팀 일꾼은 서버 밖 클라이언트라 지식을 직접 쓰지 않는다. 원천 하나를 <code>claude -p</code> 한 번(도구 0)으로 기록 + 조각 초안으로 짓고, 서버가 같은 저장 문으로 넣는다. 걸리면 까닭을 받아 고쳐 쓴다(<code>KMD_INGEST_FIX</code> · 기본 2번까지).</p>
@@ -855,7 +855,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 
 <h3 id="core-steps">저장 한 번의 단계</h3>
 <ol>
-<li>원천을 지은 쪽(세션 스킬 · 들이기 · 사람 글)이 <b>기록 + 조각 + 지문(base)</b> 을 한 번에 보낸다(세션은 스킬 판 <code>kit</code> 도: 옛 판이거나 없으면 저장은 하고 답에 「다시 설치」 <code>reinstall</code>).</li>
+<li>원천을 지은 쪽(세션 스킬 · 들이기 · 사람 글)이 <b>기록 + 조각 + 지문(base)</b> 을 한 번에 보낸다(세션은 스킬 판 <code>kit</code> 도: 옛 판이면 저장은 하고 답에 「다시 설치」 <code>reinstall</code> · 없으면 <code>nokit</code>(스킬을 거치지 않은 저장 · 다시 설치 아님)).</li>
 <li>서버 저장 검사 한 곳: 자리(쓰기 이상) · 저장 속도(<code>E_RATE</code>) · 같은 저장(<code>same</code>) · 조각마다 꼴(<code>E_FORMAT</code>) · 값 대조 · 지문 · 원본이 주인 · 저절로 채우는 표 · 섞인 자리(같은 항목에 아직 안 들어간 개편 전 기록). 조각 검사는 팀만 한다(개인 프로그램은 바로 넣기가 넣는다).</li>
 <li>넘으면 문서 · 참고 블록 · 기록 · git <b>한 묶음</b>(하나가 실패하면 모두 되돌린다) · 기록 본문 끝에 <code>## 넣은 것</code>(값이 바뀌면 「옛 값 → 새 값」) · 이력에 항목마다 「옛 값 → 새 값」 · [되돌리기](그 기록을 쓴 사람 · 지식관리자). 값 바꿈도 바로 들어가고 따로 알리지 않는다.</li>
 <li>지문이 어긋나면 사람 · 세션 · 보내기는 <code>E_CONFLICT</code> 로 아무것도 쓰지 않는다(다시 읽고 다시 댄다). 들이기는 서버가 새 글에 조각을 한 번 다시 대고, 그래도 안 되면 그 조각만 넣지 못함(<code>content</code> 조각은 다시 대지 않고 넣지 못함).</li>
@@ -1092,7 +1092,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <dt>예</dt><dd class="c8-ex">section { knowledge: "dpms", coord: "proc:카나리" }</dd></dl></div>
 <div class="c8-tool save"><h4>save</h4><p>기록 + 조각 한 번 · 기록은 서식 칸으로만(줄글 하나는 E_INPUT)</p><dl>
 <dt>넣는 것</dt><dd>{ knowledge*, kit, record*{ title*, changes, body, why, dropped, impact, refs, touches | touchesEmpty, fixes, memo }, sections[{ coord | doc · heading, base, edits | content }], names, forms, attach }</dd>
-<dt>받는 것</dt><dd>{ saved, date, docs, note, put, held, memo, warnings, proposals[], reinstall? } · 같으면 { same: true }</dd>
+<dt>받는 것</dt><dd>{ saved, date, docs, note, put, held, memo, warnings, proposals[], reinstall?, nokit? } · 같으면 { same: true }</dd>
 <dt>거절</dt><dd>E_INPUT · E_CONFLICT(지문) · E_NOTFOUND(넣을 문서 없음) · E_RATE · E_BEHIND · E_FORBIDDEN</dd>
 <dt>예</dt><dd class="c8-ex">saved: "2026-1104-카나리-비율"</dd></dl></div>
 </div>
@@ -1583,7 +1583,7 @@ const KMD_DETAIL = {
 s1: { g: '1 채널', t: '세션', what: 'Claude Code 세션이 일 뒤에 배운 것을 <b>기록 + 항목 조각</b>으로 한 번에 남긴다. 짓는 쪽은 사람의 PC 에서 도는 세션의 Claude(내 구독)이고, 서버는 받은 덩이를 저장 문으로 검사한다.',
   rules: ['일 전 <code>kmd-team-work</code>: brief → match → (없으면 search) → section 으로 지금 글과 지문(base)을 읽는다.', '일 뒤 <code>kmd-team-save</code>: 확정(머지 · 배포 · 결정)인지 · 어느 지식인지 사람에게 묻는다. 확정이 아니면 <code>memo: true</code>.', '조각은 <code>{ coord | doc · heading, base, edits[{ find, replace }] | content }</code> · 한 번에 50 항목까지 · 스킬 판 <code>kit</code> 을 같이 보낸다.', '걸리면 그 자리에서 고쳐 다시 save · <code>record.fixes</code> 에 앞 기록 id(내 것만).'],
   ok: [{ cap: 'save 입력(예)', code: 'save { knowledge: "dpms", kit: "4",\n  record: { title: "카나리 비율: 10% → 20%", changes: ["카나리 첫 30분 비율: 10% → 20%"], touches: ["proc:카나리"] },\n  sections: [{ coord: "proc:카나리", base: "<section 이 준 16자>",\n    edits: [{ find: "요청의 10% 만", replace: "요청의 20% 만" }] }] }' }],
-  bad: [{ in: 'kit 이 없거나 옛 판', msg: '저장은 한다 · 답에 reinstall: 「이 폴더의 kmd 팀 스킬이 옛 판이다(저장은 했다). 팀 화면 › 설정 › 에이전트 설치의 한 줄을 이 폴더에서 다시 붙여 넣…」' }],
+  bad: [{ in: 'kit 이 없음', msg: '저장은 한다 · 답에 nokit: 「스킬 판(kit) 없이 저장했다(다시 설치할 일은 아니다). kmd-team-save 스킬 글대로 kit 을 싣는다」' }, { in: 'kit 이 옛 판', msg: '저장은 한다 · 답에 reinstall: 「이 폴더의 kmd 팀 스킬이 옛 판이다(저장은 했다). 팀 화면 › 설정 › 에이전트 설치의 한 줄을 이 폴더에서 다시 붙여 넣…」' }],
   src: 'agent/team/skills/kmd-team-save · server/mcp.js save · core/teamkit.js TEAM_KIT_REV', std: '권한 모델 7절 · 작성기준 6절' },
 s2: { g: '1 채널', t: '문서 고치기', what: '쓰기 자리 이상이 팀 화면에서 항목을 직접 고친다. 사람이 쓴 글이라 <b>값 대조 없이 고친 글 그대로</b> 들어가고, 이력에 「고침」(옛 값 → 새 값)이 남는다.',
   rules: ['지문(base) · 원본이 주인 · 문서 꼴 · 저절로 채우는 표는 core 가 본다(팀 조각 검사 gatePrepare 는 거치지 않는다).', '항목 지우기 · 이름 바꾸기는 지식관리자만(structure).', '읽은 뒤 누가 고쳤으면 E_CONFLICT · 새 글을 다시 읽는다.'],

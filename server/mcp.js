@@ -58,7 +58,7 @@ const TOOLS = [
   {
     name: 'save',
     description: [
-      '기록을 남긴다. 제목 · 서식 칸 · 건드린 이름(touches). 기록 글은 서식으로만 받는다(E_INPUT): changes(바뀐 것: 「무엇: 옛 값 → 새 값」 목록 · 꼭 · 메모는 없어도 된다) · why(까닭) · dropped(버린 안) · impact(영향) · refs(근거: 커밋 · 문서 판) · body 는 한두 문장 요약(300자 안 · 문단 하나). kmd 가 칸마다 머리(## 바뀐 것 …)를 달아 글로 엮는다. touches 는 match 로 찾은 이름 장부의 이름만 받는다(장부에 없는 이름 · 폐기된 이름은 거절하고 가까운 이름을 알려 준다). 건드린 이름이 정말 없으면 touches 를 비우고 touchesEmpty 에 까닭 한 줄을 적는다(둘 다 비면 거절). 새 문서는 갈래 장부의 갈래 이름으로만 선다(파일 이름 · 날짜 · 판이 든 이름은 거절 · 통화 · 미팅 메모는 회의록 문서의 「YYYY-MM-DD 무엇」 항목으로). 팀 지식: 항목 글을 고쳤으면 sections 에 바꿀 조각(edits: find → replace) 또는 새 글(content)을 base 와 같이 보낸다. 쓰기 자리 이상이면 서버가 Claude 없이 조각을 대어 검사(꼴 · 값 대조 · 지문)하고, 넘으면 값 바꿈까지 그 순간 문서에 넣는다(기록과 한 묶음 · 기록의 「넣은 것」 에 옛 값 → 새 값). 못 넘은 조각은 기록에 「넣지 못함」 으로 남는다: 응답 proposals 로 자리마다 결과(ok · applied · why · code · changed · near)가 오니 그 자리에서 조각을 고쳐 다시 save 하고 record.fixes 에 앞 기록 id 를 단다. 읽은 뒤 누가 고친 항목(지문이 다름 · base 없음)이 하나라도 있으면 E_CONFLICT 로 아무것도 쓰지 않는다(details.stale 의 항목을 section 으로 다시 읽는다). E_RATE 면 details.retryAfter 초 뒤에 다시. 팀 지식: kit 에 스킬 글이 준 판을 늘 싣는다 · 없거나 옛 판이면 저장은 그대로 하고 답에 reinstall(다시 설치 안내)이 온다: 사람에게 그대로 한 줄로 전한다. 값이 확정되지 않았으면 record.memo: true(기록만 · 항목 글 없이). 새 이름(테이블 · 화면 · API · 절차 · 용어 …)을 세웠으면 names 로 이름 장부 · 자리 장부에 같이 올린다. 그 항목이 항목으로 보기 · 찾기에 그 종류로 선다. 한 번에 한 묶음으로 남는다.',
+      '기록을 남긴다. 제목 · 서식 칸 · 건드린 이름(touches). 기록 글은 서식으로만 받는다(E_INPUT): changes(바뀐 것: 「무엇: 옛 값 → 새 값」 목록 · 꼭 · 메모는 없어도 된다) · why(까닭) · dropped(버린 안) · impact(영향) · refs(근거: 커밋 · 문서 판) · body 는 한두 문장 요약(300자 안 · 문단 하나). kmd 가 칸마다 머리(## 바뀐 것 …)를 달아 글로 엮는다. touches 는 match 로 찾은 이름 장부의 이름만 받는다(장부에 없는 이름 · 폐기된 이름은 거절하고 가까운 이름을 알려 준다). 건드린 이름이 정말 없으면 touches 를 비우고 touchesEmpty 에 까닭 한 줄을 적는다(둘 다 비면 거절). 새 문서는 갈래 장부의 갈래 이름으로만 선다(파일 이름 · 날짜 · 판이 든 이름은 거절 · 통화 · 미팅 메모는 회의록 문서의 「YYYY-MM-DD 무엇」 항목으로). 팀 지식: 항목 글을 고쳤으면 sections 에 바꿀 조각(edits: find → replace) 또는 새 글(content)을 base 와 같이 보낸다. 쓰기 자리 이상이면 서버가 Claude 없이 조각을 대어 검사(꼴 · 값 대조 · 지문)하고, 넘으면 값 바꿈까지 그 순간 문서에 넣는다(기록과 한 묶음 · 기록의 「넣은 것」 에 옛 값 → 새 값). 못 넘은 조각은 기록에 「넣지 못함」 으로 남는다: 응답 proposals 로 자리마다 결과(ok · applied · why · code · changed · near)가 오니 그 자리에서 조각을 고쳐 다시 save 하고 record.fixes 에 앞 기록 id 를 단다. 읽은 뒤 누가 고친 항목(지문이 다름 · base 없음)이 하나라도 있으면 E_CONFLICT 로 아무것도 쓰지 않는다(details.stale 의 항목을 section 으로 다시 읽는다). E_RATE 면 details.retryAfter 초 뒤에 다시. 팀 지식: kit 에 스킬 글이 준 판을 늘 싣는다 · 옛 판이면 저장은 그대로 하고 답에 reinstall(다시 설치 안내)이 온다: 사람에게 그대로 한 줄로 전한다 · 없으면 답에 nokit(스킬을 거치지 않은 저장 · 다시 설치할 일은 아니다): 다음 저장부터 kmd-team-save 스킬 글대로 한다. 값이 확정되지 않았으면 record.memo: true(기록만 · 항목 글 없이). 새 이름(테이블 · 화면 · API · 절차 · 용어 …)을 세웠으면 names 로 이름 장부 · 자리 장부에 같이 올린다. 그 항목이 항목으로 보기 · 찾기에 그 종류로 선다. 한 번에 한 묶음으로 남는다.',
       '항목 글(sections.content)은 본문만: 대상 하나의 지금을 확정된 것만 「…한다 · …이다」 로. 링크는 지식 문서 [배포 절차](배포절차.md) · 항목 [준비](배포절차.md#준비) · 바깥 https://… 만.',
       '받지 않는 것(E_FORMAT): 기록 · 이력 링크(../work/… · ../log/…) · /api/… 같은 시스템 주소 · <!-- --> 주석 · 끝의 **경과** 기록 링크 목록 · 닫히지 않은 코드 울타리 · # · ## 머리 줄(소제목은 ###). 지금 글에 이미 있던 줄은 거절하지 않는다(새로 넣은 줄만). 출처 줄은 kmd 가 참고에 단다.',
       '좋은 예: 「배포 창은 화 · 목 14:00 ~ 17:00 이다.」 나쁜 예: 「배포 창을 바꿨다는 기록이 있다([기록](../work/2026-1021-배포-창.md))」.',
@@ -287,11 +287,14 @@ export function makeMcp(store) {
       }
       // 채널은 서버가 정한다(S-D3 · 설계 2-1) — 넣은 파일 표지(ingest/)가 있으면 대량 넣기, 아니면 세션
       const channel = (Array.isArray(record?.tags) ? record.tags : []).some((t) => String(t).startsWith('ingest/')) ? 'bulk' : 'session'
-      // 스킬 판(S-D15) — 팀 세션만 본다(kmd 가 띄운 넣기 에이전트 · 이 PC 는 팀 스킬이 아니다). 옛것 · 없음이면 저장은 그대로 하고 답에 reinstall
+      // 스킬 판(S-D15) — 팀 세션만 본다(kmd 가 띄운 넣기 에이전트 · 이 PC 는 팀 스킬이 아니다). 저장은 그대로 한다
+      //   옛것이면 답에 reinstall(다시 설치) · 없음(또는 판 모양이 아님)이면 nokit — 스킬을 거치지 않은 저장이라 다시 설치해도 그대로다
       const have = typeof kit === 'number' || (typeof kit === 'string' && /^\s*\d{1,6}\s*$/.test(kit)) ? Number(kit) : null
-      const reinstall = store.mode !== 'pc' && !ctx?.agent && !(Number.isInteger(have) && have >= TEAM_KIT_REV)
-        ? { reinstall: { have, want: TEAM_KIT_REV, how: '이 폴더의 kmd 팀 스킬이 옛 판이다(저장은 했다). 팀 화면 › 설정 › 에이전트 설치의 한 줄을 이 폴더에서 다시 붙여 넣고 Claude Code 를 새로 연다' } }
-        : {}
+      const teamSession = store.mode !== 'pc' && !ctx?.agent
+      const reinstall = !teamSession || (Number.isInteger(have) && have >= TEAM_KIT_REV) ? {}
+        : Number.isInteger(have)
+          ? { reinstall: { have, want: TEAM_KIT_REV, how: '이 폴더의 kmd 팀 스킬이 옛 판이다(저장은 했다). 팀 화면 › 설정 › 에이전트 설치의 한 줄을 이 폴더에서 다시 붙여 넣고 Claude Code 를 새로 연다' } }
+          : { nokit: { want: TEAM_KIT_REV, how: `스킬 판(kit) 없이 저장했다(저장은 했다 · 다시 설치할 일은 아니다). 팀 지식 저장은 kmd-team-save 스킬 글대로 하고 save 에 kit: "${TEAM_KIT_REV}" 를 싣는다` } }
       const r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}), ...(forms ? { forms } : {}), ...(attach ? { attach } : {}) }, { guard: 'strict', form: true, channel, ...(Number.isInteger(have) ? { kit: have } : {}) })
       if (r.same) return { saved: r.id, same: true, docs: [], note: r.note, ...reinstall }
       const n = r.docs.length

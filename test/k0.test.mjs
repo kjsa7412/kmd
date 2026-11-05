@@ -89,7 +89,7 @@ test('MCP save: 기록 글은 서식 칸으로 · 팀 지식은 검사를 넘은
   const id = out.saved
   assert.deepEqual(out.docs, ['배포절차'], '검사를 넘은 조각은 그 순간 문서에')
   assert.match(out.note, /저장했다\. 기록 1 · 넣음 1 · 넣지 못함 0/)
-  assert.equal(out.reinstall?.want, TEAM_KIT_REV, '스킬 판(kit) 없이 온 세션 저장: 저장은 하고 다시 설치 안내(S6)')
+  assert.deepEqual([out.nokit?.want, out.reinstall], [TEAM_KIT_REV, undefined], '스킬 판(kit) 없이 온 세션 저장: 저장은 하고 nokit 안내(다시 설치가 아니다)')
   assert.equal(out.proposals[0].ok, true, out.proposals[0].why)
   assert.equal(out.proposals[0].applied, true)
   assert.match(out.proposals[0].changed[0].from, /10%/)

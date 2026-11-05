@@ -396,7 +396,7 @@ test('서버: 측정 줄(savelog) — 저장마다 한 줄 · E_CONFLICT 도 · 
   fs.rmSync(path.join(sroot, '.kmd', 'savelog'), { force: true })
 })
 
-test('MCP save: 스킬 판(kit)이 없거나 옛것이면 저장은 하고 reinstall · 지금 판이면 없음 · 측정 줄에 판 · brief 의 mine · you · kit(S6)', async () => {
+test('MCP save: 스킬 판(kit)이 옛것이면 저장은 하고 reinstall · 없으면 nokit(다시 설치 안내 아님) · 지금 판이면 없음 · 측정 줄에 판 · brief 의 mine · you · kit(S6)', async () => {
   const s = await server()
   const mcp = makeMcp(s.hub)
   const call = async (name, args, ctx = LEE) => (await mcp.call({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }, ctx)).result
@@ -406,15 +406,19 @@ test('MCP save: 스킬 판(kit)이 없거나 옛것이면 저장은 하고 reins
   const n = none.structuredContent
   assert.equal(n.memo, true, '저장은 된다')
   assert.ok((await s.hub.get('dpms')).byWork.get(n.saved))
-  assert.deepEqual([n.reinstall.have, n.reinstall.want], [null, TEAM_KIT_REV])
-  assert.match(n.reinstall.how, /에이전트 설치의 한 줄/)
+  assert.equal(n.reinstall, undefined, 'kit 이 없으면 옛 판이 아니다 — 다시 설치하라고 하지 않는다')
+  assert.equal(n.nokit.want, TEAM_KIT_REV)
+  assert.match(n.nokit.how, /kmd-team-save/)
+  assert.doesNotMatch(n.nokit.how, /에이전트 설치의 한 줄/)
   const old = (await call('save', { knowledge: 'dpms', kit: '1', record: rec('옛것') })).structuredContent
-  assert.deepEqual([old.reinstall?.have, !!old.saved], [1, true])
+  assert.deepEqual([old.reinstall?.have, old.reinstall?.want, !!old.saved, old.nokit], [1, TEAM_KIT_REV, true, undefined])
+  assert.match(old.reinstall.how, /에이전트 설치의 한 줄/)
   const cur = (await call('save', { knowledge: 'dpms', kit: String(TEAM_KIT_REV), record: rec('지금') })).structuredContent
   assert.ok(cur.saved)
-  assert.equal(cur.reinstall, undefined, '지금 판이면 없다')
+  assert.deepEqual([cur.reinstall, cur.nokit], [undefined, undefined], '지금 판이면 없다')
   assert.equal((await call('save', { knowledge: 'dpms', kit: TEAM_KIT_REV, record: rec('수') })).structuredContent.reinstall, undefined, '수로 와도')
-  assert.deepEqual((await call('save', { knowledge: 'dpms', kit: 'v2', record: rec('모양') })).structuredContent.reinstall?.have, null, '판 모양이 아니면 없음으로')
+  const odd = (await call('save', { knowledge: 'dpms', kit: 'v2', record: rec('모양') })).structuredContent
+  assert.deepEqual([odd.reinstall, odd.nokit?.want], [undefined, TEAM_KIT_REV], '판 모양이 아니면 없음으로')
   const f = path.join(sroot, '.kmd', 'savelog', 'dpms.jsonl')
   const lines = fs.readFileSync(f, 'utf8').trim().split('\n').map((l) => JSON.parse(l))
   assert.deepEqual([n.saved, old.saved, cur.saved].map((id) => lines.find((l) => l.rec === id)?.kit), [null, 1, TEAM_KIT_REV], '측정 줄에 판')
