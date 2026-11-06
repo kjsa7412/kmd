@@ -126,7 +126,6 @@ test('권한 창: 주인이 「모두」 를 없음으로 · rd 를 읽기로 �
   await p2.waitForSelector('[data-t=whoVal]')
   assert.match(await p2.locator('[data-t=whoVal]').innerText(), /나: 읽기/)
   assert.equal(await p2.locator('[data-t=accOpenSide]').count(), 0)
-  if (await p2.locator('[data-t=moreDocs]').count()) await p2.click('[data-t=moreDocs]')
   await p2.click('[data-t=doc][data-name="배포절차"]')
   await p2.waitForSelector('[data-t=editBtn]')
   assert.ok(await p2.locator('[data-t=editBtn]').isDisabled(), '읽기 자리: 고치기 흐림')

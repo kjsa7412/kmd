@@ -34,6 +34,11 @@ before(async () => {
   const env = { ...process.env } // Chrome 은 원래 집 폴더로 띄운다(임시 APPDATA 면 프로필을 거절한다)
   process.env.HOME = process.env.USERPROFILE = process.env.APPDATA = tmp
   copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'kn'))
+  // 문서 나무 — 폴더 안 문서 둘(같은 제목 · 다른 폴더)
+  for (const p of ['3.4_웹설계', '3.3_게이트웨이설계']) {
+    fs.mkdirSync(path.join(tmp, 'kn', 'dpms', 'docs', p), { recursive: true })
+    fs.writeFileSync(path.join(tmp, 'kn', 'dpms', 'docs', p, p.startsWith('3.4') ? '테이블정의서.md' : '게이트웨이테이블정의서.md'), ['# 테이블정의서', '', '## 개요', '표를 적는다.', ''].join(String.fromCharCode(10)))
+  }
   // 팀 화면이 내 Claude(내 PC 쪽)를 확인한다 — 진짜 claude 대신 가짜로
   process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
   // 개인 프로그램 — 개인 화면 시험(지식 보내기 · 받는 팀 지식)이 쓴다
@@ -141,10 +146,18 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   await page.waitForSelector('[data-t=guardCard] [data-t=guard-unnamed]')
   assert.match(await page.locator('[data-t=guardCard]').innerText(), /지식 점검[\s\S]*이름 없는 기록[\s\S]*장부 밖 이름을 단 기록[\s\S]*이름 없는 항목/)
   assert.deepEqual(await page.locator('.tree .tf').evaluateAll((els) => els.map((e) => e.dataset.t)), ['fold-docs', 'fold-recs', 'fold-atts'])
-  assert.equal(await page.locator('[data-t=moreDocs]').innerText(), '6개 더')
+  // 문서 나무 — docs/ 폴더 짜임 그대로 · 폴더 먼저(숫자 차례) · 처음은 접힘 · 누르면 펴고 접는다
+  assert.deepEqual(await page.locator('[data-t=tree] [data-t=dir] .nm').allInnerTexts(), ['3.3_게이트웨이설계', '3.4_웹설계'])
+  assert.equal(await page.locator('[data-t=tree] [data-t=dir][aria-expanded=true]').count(), 0, '처음은 접힘')
+  assert.equal(await page.locator('[data-t=tree] [data-t=doc]').count(), 17, '맨 위 문서 열일곱')
+  await page.click('[data-t=dir][data-p="3.4_웹설계"]')
+  assert.equal(await page.locator('[data-t=dir][data-p="3.4_웹설계"]').getAttribute('aria-expanded'), 'true')
+  assert.equal(await page.locator('[data-t=doc][data-d="3.4_웹설계/테이블정의서"]').innerText(), '테이블정의서', '다른 폴더의 같은 제목은 꼬리표 없이')
+  assert.equal(await page.locator('[data-t=doc][data-d="3.4_웹설계/테이블정의서"]').evaluate((e) => getComputedStyle(e).paddingLeft), '31px', '한 겹 들임')
+  await page.click('[data-t=dir][data-p="3.4_웹설계"]')
+  assert.equal(await page.locator('[data-t=doc][data-d="3.4_웹설계/테이블정의서"]').count(), 0, '다시 접힘')
 
   // 문서 하나 — 탭 · 항목 다섯 · 가운데는 내용만 · 오른쪽 칸 다섯 묶음(개요 · 문서 · 기록 · 항목 · 속성 · 처음은 모두 접힘)
-  await page.click('[data-t=moreDocs]')
   await page.click('[data-t=doc][data-name="배포절차"]')
   await page.waitForSelector('[data-t=docPane]')
   assert.deepEqual(await page.locator('[data-t=tab] .nm').allInnerTexts(), ['배포절차'])
@@ -315,7 +328,6 @@ test('정리를 걷었다(S13): 조각 없는 기록은 메모 · 옛 정리 화
   await page.waitForSelector('[data-t=klist] [data-t=krow]')
   await page.click('[data-t=krow][data-name="DPMS 지식"]')
   await page.waitForSelector('[data-t=tree] [data-t=doc]')
-  if (!(await page.locator('[data-t=doc][data-name="배포절차"]').count())) await page.click('[data-t=moreDocs]')
   await page.click('[data-t=doc][data-name="배포절차"]')
   await page.waitForSelector('[data-t=docPane] [data-t=polishBtn]')
   await page.click('[data-t=polishBtn]')
@@ -1083,8 +1095,7 @@ test('고치기(S9): 쓰기 자리 편집기는 말 하나 · 읽은 뒤 바뀌�
     await page.waitForSelector('[data-t=klist] [data-t=krow]')
     await page.click('[data-t=krow][data-name="DPMS 지식"]')
     await page.waitForSelector('[data-t=tree] [data-t=doc]')
-    if (!(await page.locator('[data-t=doc][data-name="배포절차"]').count())) await page.click('[data-t=moreDocs]')
-    await page.click('[data-t=doc][data-name="배포절차"]')
+      await page.click('[data-t=doc][data-name="배포절차"]')
     await page.waitForSelector('[data-t=docPane]')
     await page.click('[data-t=editBtn]')
     await page.waitForSelector('[data-t=edTx]')

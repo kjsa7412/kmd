@@ -412,7 +412,7 @@ td.go2{text-align:right;white-space:nowrap}
 .tf .ar{width:10px;color:var(--text-3);font-size:var(--fs-xs)}
 .tf small{font-weight:400;color:var(--text-3)}
 .tf .cnt{margin-left:auto;font-weight:400;color:var(--text-3);font-size:var(--fs-xs)}
-.tn{display:flex;align-items:center;gap:var(--sp-3);padding:3px var(--sp-3) 3px 21px;border-radius:var(--r);cursor:pointer;white-space:nowrap;font-size:var(--fs);min-width:0}
+.tn{display:flex;align-items:center;gap:var(--sp-3);padding:3px var(--sp-3) 3px calc(21px + var(--sp-5) * var(--dep, 0));border-radius:var(--r);cursor:pointer;white-space:nowrap;font-size:var(--fs);min-width:0}
 .tn:hover{background:var(--surface-2)}
 .tn.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
 .app .tn svg{width:13px;height:13px;color:var(--text-3)}
@@ -426,6 +426,9 @@ td.go2{text-align:right;white-space:nowrap}
 .tn .dt{font:var(--fs-xs) var(--mono);color:var(--text-3);flex:none}
 .tn .rc,.alr .rc{font-size:var(--fs-xs);color:var(--text-3);background:var(--surface-2);border-radius:var(--r-pill);padding:0 var(--sp-3);flex:none}
 .tn .nd{font-size:var(--fs-xs);color:var(--text-3);border:1px dashed var(--border-strong);border-radius:var(--r-xs);padding:0 var(--sp-2);flex:none}
+.tn.dir{color:var(--text-2);font-weight:600;padding-left:calc(var(--sp-3) + var(--sp-5) * var(--dep, 0));gap:var(--sp-2)}
+.tn.dir .ar{width:10px;flex:none;color:var(--text-3);font-size:var(--fs-xs)}
+.tn.dir svg{flex:none}
 .tn.more{color:var(--accent);font-weight:600}
 .hmore{display:flex;justify-content:center;padding:var(--sp-4) var(--sp-5);border-top:1px solid var(--border)}
 .tn.nc{cursor:default;font-size:var(--fs-sm)}

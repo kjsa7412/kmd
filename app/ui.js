@@ -8,7 +8,7 @@ export const uid = () => 'u' + UID++
 
 const C = (x, y, r) => `M${x - r} ${y}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 -${2 * r} 0`
 const IC = {
-  doc: 'M6 3h9l3 3v15H6z M14 3v4h4', list: 'M8 6h12 M8 12h12 M8 18h12 M4 6h.01 M4 12h.01 M4 18h.01',
+  doc: 'M6 3h9l3 3v15H6z M14 3v4h4', folder: 'M3 6h6l2 2h10v11H3z', list: 'M8 6h12 M8 12h12 M8 18h12 M4 6h.01 M4 12h.01 M4 18h.01',
   check: 'M5 12l4 4 10-10', plug: 'M9 3v5 M15 3v5 M6 8h12v3a6 6 0 0 1-12 0z M12 17v4', pair: 'M4 8h13l-3-3 M20 16H7l3 3',
   hour: 'M7 3h10 M7 21h10 M8 3c0 5 8 5 8 9s-8 4-8 9 M16 3c0 5-8 5-8 9s8 4 8 9', users: C(9, 8, 3) + 'M3 20c0-4 3-6 6-6s6 2 6 6 M16 5a3 3 0 0 1 0 6 M21 20c0-3-2-5-4-5.5',
   server: 'M4 4h16v6H4z M4 14h16v6H4z M8 7h.01 M8 17h.01', book: 'M4 5c3-1 5-1 8 1 3-2 5-2 8-1v14c-3-1-5-1-8 1-3-2-5-2-8-1z M12 6v14',

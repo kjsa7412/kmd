@@ -15,7 +15,7 @@ const S = {
   route: { scr: 'home', kn: '*' },
   lastKn: null,
   tabs: [], active: null, split: null, hist: [], hpos: -1,
-  fold: {}, all: false,
+  fold: {},
   menu: null, pal: null, qo: null, cmd: null,
   cache: {}, wait: {}, err: null,
   stops: [],
@@ -415,7 +415,7 @@ function askDone(i) {
 const UI_KEY = 'kmd.ui'
 const SW = [200, 420, 248], AW = [260, 560, 300] // 최소 · 최대 · 기본
 const UI = (() => {
-  const d = { sw: SW[2], aw: AW[2], sideRail: false, asideRail: false, wide: false, ag: {} }
+  const d = { sw: SW[2], aw: AW[2], sideRail: false, asideRail: false, wide: false, ag: {}, dirs: {} }
   try { return { ...d, ...JSON.parse(localStorage.getItem(UI_KEY) || '{}') } } catch (e) { console.warn('화면 자리 읽기 못 함', e); return d }
 })()
 function saveUi() { try { localStorage.setItem(UI_KEY, JSON.stringify(UI)) } catch (e) { console.warn('화면 자리 남기기 못 함', e) } }
@@ -990,15 +990,45 @@ function guardCard(k) {
   const rows = GUARD_ROWS.map(([key, label, kind]) => `<div class="srow${c[key] ? '' : ' dim'}" data-t="guard-${key}"><span class="nm">${label}</span><span class="chip ${c[key] ? (key === 'sameLabel' || key === 'spaced' ? 'c-mute' : 'c-warn') : 'c-acc'}">${c[key]}</span>${c[key] ? `<button type="button" class="btn ghost sm" data-a="guardOpen" data-v="${key}" aria-expanded="${open === key}">${open === key ? '접기' : '보기'}</button>` : ''}</div>${open === key ? `<ul class="plain dl" data-t="guardList">${(g[key] || []).slice(0, 100).map((x) => li(kind, x)).join('')}${c[key] > 100 ? `<li class="muted small">그 밖에 ${c[key] - 100}: kmd guard ${esc(k)} --list</li>` : ''}</ul>` : ''}`).join('')
   return `<div class="card" data-t="guardCard"><div class="ch">지식 점검 <small>이름 ${c.live} · 기록 ${c.records} · 항목 ${c.sections} · 갈래 장부 ${g.forms.own ? g.forms.rows.length : '없음(기본 갈래)'}</small><button type="button" class="btn ghost sm r" data-a="guardRe" data-t="guardRe">다시 읽기</button></div><div class="cb" style="padding:2px 14px 6px">${rows}</div></div>`
 }
+// 문서 나무(컨벤션 5절) — docs/ 폴더 짜임 그대로. 폴더 먼저 · 이름 차례(숫자는 수로) · 처음은 접힘 · 지금 연 문서가 든 폴더는 펼침
+//   펼침은 UI.dirs[지식:폴더] — 없으면 기본(지금 문서의 폴더면 펼침), true/false 는 사람이 고른 것
+const byName = (a, b) => a.localeCompare(b, 'ko', { numeric: true })
+function docTreeHtml(k, ds) {
+  const root = { dirs: new Map(), docs: [], n: 0 }
+  for (const d of ds) {
+    const parts = d.id.split('/'), name = parts.pop()
+    let node = root
+    root.n++
+    for (const p of parts) { if (!node.dirs.has(p)) node.dirs.set(p, { dirs: new Map(), docs: [], n: 0 }); node = node.dirs.get(p); node.n++ }
+    node.docs.push({ ...d, name })
+  }
+  const t = activeTab(), cur = t && t.kind === 'doc' && t.kn === k ? t.ref : ''
+  const isOpen = (p) => { const v = UI.dirs[k + ':' + p]; return v != null ? v : cur.startsWith(p + '/') }
+  const pad = (dep) => (dep ? ` style="--dep:${dep}"` : '')
+  const walk = (node, pre, dep) => {
+    let h = ''
+    for (const name of [...node.dirs.keys()].sort(byName)) {
+      const p = pre ? pre + '/' + name : name, c = node.dirs.get(name), open = isOpen(p)
+      h += `<div class="tn dir" data-a="dirFold" data-p="${esc(p)}" data-t="dir" aria-expanded="${open}"${pad(dep)}><span class="ar" aria-hidden="true">${open ? '▾' : '▸'}</span>${svg('folder')}<span class="nm">${esc(name)}</span><span class="rc">${c.n}</span></div>`
+      if (open) h += walk(c, p, dep + 1)
+    }
+    const docs = [...node.docs].sort((a, b) => byName(a.title, b.title) || byName(a.name, b.name))
+    for (const d of docs) {
+      const twin = docs.filter((o) => o.title === d.title).length > 1
+      h += `<div class="tn${isAct('doc', k, d.id) ? ' on' : ''}" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="doc" data-name="${esc(d.title)}" data-pv="doc|${esc(k)}|${esc(d.id)}"${pad(dep)}>${svg('doc')}<span class="nm" title="${esc(d.id)}">${esc(d.title)}${twin ? ` <small class="muted mono">${esc(d.name)}</small>` : ''}</span>${d.held ? '<i class="pd hd" title="넣지 못한 기록이 있다"></i>' : ''}</div>`
+    }
+    return h
+  }
+  return walk(root, '', 0) || '<div class="tn muted nc">없다</div>'
+}
 function treeHtml(k) {
   const n = KN(k), tr = treeOf(k)
   if (!tr) return `<div class="tree" data-t="tree">${loadingHtml}</div>`
   if (tr.error) return `<div class="tree" data-t="tree">${errHtml(tr)}</div>`
   const ds = tr.docs, fk = (f) => !!S.fold[k + ':' + f]
-  const all = S.all, list = all ? ds : ds.slice(0, 11)
   const head = (f, l, cnt, extra) => `<div class="tf" data-a="fold" data-f="${f}" data-t="fold-${f}"><span class="ar">${fk(f) ? '▸' : '▾'}</span>${l}${extra || ''}<span class="cnt">${cnt}</span></div>`
   let h = `<div class="tree" data-t="tree">` + head('docs', '문서', ds.length)
-  if (!fk('docs')) h += list.map((d) => `<div class="tn${isAct('doc', k, d.id) ? ' on' : ''}" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="doc" data-name="${esc(d.title)}" data-pv="doc|${esc(k)}|${esc(d.id)}">${svg('doc')}<span class="nm">${esc(d.title)}${list.filter((o) => o.title === d.title).length > 1 ? ` <small class="muted mono">${esc(d.id)}</small>` : ''}</span>${d.held ? '<i class="pd hd" title="넣지 못한 기록이 있다"></i>' : ''}</div>`).join('') + (!all && ds.length > 11 ? `<div class="tn more" data-a="allDocs" data-t="moreDocs">${ds.length - 11}개 더</div>` : '')
+  if (!fk('docs')) h += docTreeHtml(k, ds)
   const rs = tr.records, left = recLeft(tr)
   h += head('recs', '기록', tr.total ?? rs.length, ' <small>날짜 순</small>')
   if (!fk('recs')) h += rs.length ? rs.map((r) => `<div class="tn${isAct('rec', k, r.id) ? ' on' : ''}" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="rec" data-state="${r.state}" data-pv="rec|${esc(k)}|${esc(r.id)}">${heldR(k, r) ? '<i class="pd hd" title="넣지 못함"></i>' : ''}<span class="dt">${esc(isToday(r.date) ? hhmm(r.date) : whenTxt(r.date))}</span><span class="nm">${esc(r.title.split(/ — |: /)[0])}</span></div>`).join('') + (left && tr.next ? `<div class="tn more" data-a="treeMore" data-k="${esc(k)}" data-t="moreRecs"${S.wait['treeMore:' + k] ? ' aria-busy="true"' : ''}>${S.wait['treeMore:' + k] ? '읽는 중…' : `더 보기(남은 ${left})`}</div>` : '') : `<div class="tn muted nc">${isTeam() ? '아직 없다' : '내 지식은 고치면 바로 문서다'}</div>`
@@ -4488,7 +4518,7 @@ const ACT = {
   openQo: () => openQo(),
   openSearch: () => openPal(),
   fold: (el) => { const key = S.route.kn + ':' + el.dataset.f; S.fold[key] = !S.fold[key]; render() },
-  allDocs: () => { S.all = true; render() },
+  dirFold: (el) => { const key = S.route.kn + ':' + el.dataset.p; UI.dirs[key] = el.getAttribute('aria-expanded') !== 'true'; saveUi(); render() },
   openDoc: (el) => openDocAt(el.dataset.k, el.dataset.d, el.dataset.h, null, undefined, el.dataset.sub),
   logKind: (el) => { S.logKind = el.dataset.v; render() },
   // 위 요약 칸 — 값 바뀜 · 오늘 팀 · 오늘 개인 · 보낸 것으로 거른다
@@ -4536,7 +4566,7 @@ document.addEventListener('click', (ev) => {
   if (!f) return
   if (el.tagName === 'A') ev.preventDefault()
   if (S.menu && !['menu', 'kmenu', 'pickKn'].includes(el.dataset.a) && !ev.target.closest('.menu,.pop')) S.menu = null
-  if ((S.sideOpen || S.asideOpen) && el.closest('.side,.aside,.pop') && !['menu', 'kmenu', 'fold', 'allDocs', 'sideToggle', 'asideToggle', 'itemFilt'].includes(el.dataset.a)) { S.sideOpen = false; S.asideOpen = false }
+  if ((S.sideOpen || S.asideOpen) && el.closest('.side,.aside,.pop') && !['menu', 'kmenu', 'fold', 'dirFold', 'sideToggle', 'asideToggle', 'itemFilt'].includes(el.dataset.a)) { S.sideOpen = false; S.asideOpen = false }
   // 감싸지 않은 곳의 오류도 알린다(단추가 아무 말 없이 먹지 않게) — 돌려받은 Promise 까지
   try { Promise.resolve(f(el, ev)).catch(actFail) } catch (e) { actFail(e) }
 })
