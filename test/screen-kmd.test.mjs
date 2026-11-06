@@ -154,6 +154,21 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.ok((await page.locator('[data-t=tree] [data-t=rec]').count()) > 0)
   assert.equal(await page.locator('[data-t=tree] [data-t=doc]').count(), 0, '기록 탭에는 문서 줄이 없다')
   assert.equal(await page.locator('[data-t=tf-mine]').getAttribute('aria-pressed'), 'false')
+  // 머리는 굴려도 위에 붙고 그 위 틈으로 줄이 비치지 않는다(목록 위 · 옆 안쪽 여백까지 덮는다)
+  const gap = await page.evaluate(() => {
+    const lp = document.querySelector('[data-t=leftPane]'), h = lp.querySelector('.lhead')
+    lp.style.maxHeight = '260px'
+    lp.scrollTop = 120
+    const r = lp.getBoundingClientRect(), hr = h.getBoundingClientRect()
+    const xs = [r.left + 3, r.left + r.width / 2, r.right - 3]
+    const leak = xs.map((x) => document.elementFromPoint(x, r.top + 3)).filter((el) => el && el.closest('[data-t=rec]')).length
+    const out = { scrolled: lp.scrollTop > 0, top: Math.round(hr.top - r.top), leak }
+    lp.style.maxHeight = ''; lp.scrollTop = 0
+    return out
+  })
+  assert.ok(gap.scrolled, '굴릴 수 있다')
+  assert.equal(gap.leak, 0, `머리 위 틈으로 기록 줄이 비친다 ${JSON.stringify(gap)}`)
+  assert.ok(gap.top <= 1, `머리가 목록 맨 위에 붙는다 ${JSON.stringify(gap)}`)
   await page.click('[data-t=st-doc]')
   // 문서 나무 — docs/ 폴더 짜임 그대로 · 폴더 먼저(숫자 차례) · 처음은 접힘 · 누르면 펴고 접는다
   assert.deepEqual(await page.locator('[data-t=tree] [data-t=dir] .nm').allInnerTexts(), ['3.3_게이트웨이설계', '3.4_웹설계'])

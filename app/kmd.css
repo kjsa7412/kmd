@@ -429,7 +429,8 @@ td.go2{text-align:right;white-space:nowrap}
 .tn.dir{color:var(--text-2);font-weight:600;padding-left:calc(var(--sp-3) + var(--sp-5) * var(--dep, 0));gap:var(--sp-2)}
 .tn.dir .ar{width:10px;flex:none;color:var(--text-3);font-size:var(--fs-xs)}
 .tn.dir svg{flex:none}
-.lhead{position:sticky;top:0;z-index:1;background:var(--surface);display:flex;flex-direction:column;gap:var(--sp-4);padding:0 var(--sp-1) var(--sp-4);margin:0 0 var(--sp-2)}
+/* 머리는 목록(.lp)의 위 · 옆 안쪽 여백까지 덮는다 — 굴린 줄이 머리 위 틈으로 비치지 않게 */
+.lhead{position:sticky;top:calc(var(--sp-4) * -1);z-index:1;background:var(--surface);display:flex;flex-direction:column;gap:var(--sp-4);padding:var(--sp-4) calc(var(--sp-1) * 2) var(--sp-4);margin:calc(var(--sp-4) * -1) calc(var(--sp-1) * -1) var(--sp-2)}
 .stabs{display:flex;border-bottom:1px solid var(--border)}
 .stabs button{flex:1;border:0;background:none;padding:var(--sp-3) 0 var(--sp-4);font-size:var(--fs);color:var(--text-2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;justify-content:center;align-items:baseline;gap:var(--sp-2);white-space:nowrap}
 .stabs button em{font-style:normal;font-size:var(--fs-xs);color:var(--text-3)}
