@@ -100,6 +100,22 @@ test('빠진 사건 채우기: 진단이 찾고 · 재료에 없는 값 · 머�
   assert.equal(outOfOrder({ sections: [{ h: '2026-11-04 a' }, { h: '2026-09-30 b' }, { h: '머리' }, { h: '2026-12-01 c' }] }), 1)
 })
 
+test('빠진 사건 채우기: 갈래 문서가 없으면 new 항목이 그 문서를 세운다 · 장부에 없는 문서는 거절', async () => {
+  const WK = 'docs/주간보고.md'
+  fs.writeFileSync(path.join(dir, '_forms.md'), '# 갈래 장부\n\n| 갈래 | 다른 이름 | 폴더 | 종류 | 이름 | 서식 |\n|---|---|---|---|---|---|\n| 장애대응 | 카나리 | - | 사건 | - | 작업기록 |\n| 주간보고 | 주간 업무 보고 | - | 사건 | - | 작업기록 |\n')
+  await tryGit(dir, ['add', '-A'])
+  await tryGit(dir, ['commit', '-qm', '갈래 장부: 주간보고'])
+  assert.ok(!fs.existsSync(path.join(dir, ...WK.split('/'))))
+  const mk = (doc) => input('wk.json', { record: { title: '주간보고 채우기: 2026-10-17 카나리 주', body: '주간보고 문서가 없어 세우고 첫 항목을 넣었다.\n\n## 바뀐 것\n- 주간보고 항목: 카나리 주 새로 둠' }, sections: [{ doc, heading: '2026-10-17 카나리 주', new: true, sources: ['2026-1017-카나리'], content: '- **정한 것**: 오류율 1% 를 넘으면 멈춘다' }] })
+  assert.match((await run('check', dir, mk('docs/없는갈래.md'))).text, /문서가 없다/)
+  assert.match((await run('check', dir, mk(WK))).text, /자리: 새 문서/)
+  const p = await run('put', dir, mk(WK), '--user', 'kim')
+  assert.equal(p.thrown, null, p.text)
+  const d = (await load()).byDocPath.get(WK)
+  assert.deepEqual(d.sections.map((s) => s.h), ['2026-10-17 카나리 주'])
+  assert.match(fs.readFileSync(path.join(dir, ...WK.split('/')), 'utf8'), /^# 주간보고/)
+})
+
 test('사라지는 표 행 · 문장', () => {
   const old = '첫 문장은 운영 배포 창을 정하는 팀의 규칙을 설명한다.\n\n| 꾸러미 | 판 |\n|---|---|\n| spring-boot | 3.3.4 |\n| mybatis | 3.0.3 |'
   const r = dropsOf(old, '| 꾸러미 | 판 |\n|---|---|\n| spring-boot | 3.3.4 |')

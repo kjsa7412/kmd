@@ -299,10 +299,12 @@ async function readInput(file) {
 function inspect(k, input) {
   const spread = input.sections.length > 1
   return input.sections.map((s) => {
-    const d = k.byDocPath.get(s.doc)
+    let d = k.byDocPath.get(s.doc)
     const sec = d?.sections.find((x) => x.h === s.heading) || null
     const no = (why) => ({ doc: s.doc, heading: s.heading, ok: false, why, lostRows: [], lostLines: [] })
-    if (!d) return no('문서가 없다(새 문서는 세우지 않는다 · 갈래 문서를 먼저 세운다)')
+    // 갈래 문서가 아직 없으면 — 빠진 항목 채우기(new)만 그 갈래 문서를 세운다(갈래 장부의 폴더 · 이름 그대로 · 저장의 새 문서 G4 가 # 이름을 단다)
+    if (!d && s.new && formOfDoc(k, { path: s.doc })) d = { path: s.doc, sections: [], fresh: true }
+    if (!d) return no('문서가 없다(새 문서는 갈래 장부에 있는 갈래 문서를 그 폴더 · 이름으로 · new 항목으로만 세운다)')
     if (s.new) return inspectNew(k, input, s, d, sec, spread)
     if (!sec) return no('머리가 없다(있는 항목만 다시 그린다 · 빠진 항목을 채우려면 new: true 와 sources)')
     const links = linksOf(k, d, sec)
@@ -339,7 +341,7 @@ function inspectNew(k, input, s, d, sec, spread) {
     before = s.before
   } else if (formOfDoc(k, d)?.kind === '사건') before = dateSlot(d, s.heading)
   s.before = before
-  return { doc: s.doc, heading: s.heading, new: true, before, ok: !!r.ok, code: r.code || null, why: r.why || null, changed: [], lint: r.lint || null, lostRows: [], lostLines: [], sources: ws.length }
+  return { doc: s.doc, heading: s.heading, new: true, fresh: !!d.fresh, before, ok: !!r.ok, code: r.code || null, why: r.why || null, changed: [], lint: r.lint || null, lostRows: [], lostLines: [], sources: ws.length }
 }
 
 // 사건 문서의 날짜 자리 — 새 머리의 날짜보다 늦은 첫 항목(그 앞에 끼운다) · 없으면 끝(null)
@@ -372,7 +374,7 @@ function formOfDoc(k, d) {
 const show = (rs) => {
   for (const r of rs) {
     console.log(`\n## ${r.doc} › ${r.heading}\n검사: ${r.ok ? '넘음' : `걸림(${r.code || '-'}) ${r.why}`}${r.sources != null ? ` · 이어진 기록 ${r.sources}` : ''}`)
-    if (r.new) console.log(`자리: ${r.before ? `「${r.before}」 앞` : '문서 끝'}`)
+    if (r.new) console.log(`자리: ${r.fresh ? '새 문서(갈래 문서를 세우고 첫 항목)' : r.before ? `「${r.before}」 앞` : '문서 끝'}`)
     if (r.changed?.length) console.log(`바뀐 값: ${r.changed.map((c) => `${c.from} → ${c.to}`).join(' / ')}`)
     if (r.lint) console.log(`글 다듬을 곳: ${JSON.stringify(r.lint)}`)
     if (r.lostRows?.length) console.log(`사라지는 표 행(${r.lostRows.length}): ${r.lostRows.join(' · ')}`)
