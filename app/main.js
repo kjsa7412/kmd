@@ -1792,28 +1792,35 @@ function gPaint() {
   const nb = Hd ? G.nbr[Hd] : null
   const nq = norm(f.q || ''), hits = new Set()
   if (nq) shown.forEach((n) => { if (norm(n.label).includes(nq)) hits.add(n.id) })
-  // 선 — 한 가지
+  // 선 — 한 가지. 투명도 통(0.05 간격)마다 Path2D 하나에 모아 한 번 그린다(선마다 stroke 하면 수천 번 · 실측 70 ms 넘게)
+  //   굵기는 1px(굵은 선을 모으면 오히려 느려진다) · 올린 점의 선만 따로 굵게 · 끄는 동안 선이 많으면(1500 넘게) 올린 점 선만
   const es = G.edges.filter((e) => by[e.a] && by[e.b])
   const fade = Math.min(1, Math.sqrt(400 / Math.max(1, es.length))), lim = Math.max(70, Math.min(W, H0) * 0.2)
-  ctx.strokeStyle = T.line; ctx.lineWidth = 1.2; ctx.setLineDash([])
-  let drawn = 0
+  const moving = !!(GD && GD.moved) && es.length > 1500
+  const bins = new Map()
+  let litP = null, drawn = 0
   es.forEach((e) => {
     const p = by[e.a], q = by[e.b]
     const lit = !!Hd && (e.a === Hd || e.b === Hd)
     if (!f.line && !lit && !vis) return
-    if (!lit && !gBranch(G, e)) return
+    if (!lit && (moving || !gBranch(G, e))) return
     const len = Math.hypot(q.X - p.X, q.Y - p.Y)
     const off = (!!Hd && !lit) || (!!nq && !(hits.has(e.a) || hits.has(e.b)))
-    ctx.globalAlpha = lit ? 0.95 : off ? 0.06 : vis ? 0.75 : 0.6 * fade * Math.min(1, Math.sqrt(lim / Math.max(1, len))) * (p.dep + q.dep) / 2
-    ctx.lineWidth = lit ? 1.6 : 1.2
-    drawn++
-    ctx.beginPath()
-    if (lit || vis || len <= lim) { ctx.moveTo(p.X, p.Y); ctx.lineTo(q.X, q.Y) } else {
-      const s = Math.min(len * 0.15, 28), ux = (q.X - p.X) / len, uy = (q.Y - p.Y) / len
-      ctx.moveTo(p.X, p.Y); ctx.lineTo(p.X + ux * (s + p.r), p.Y + uy * (s + p.r)); ctx.moveTo(q.X, q.Y); ctx.lineTo(q.X - ux * (s + q.r), q.Y - uy * (s + q.r))
+    let path
+    if (lit) path = litP || (litP = new Path2D())
+    else {
+      const al = Math.max(0.05, Math.round((off ? 0.06 : vis ? 0.75 : 0.6 * fade * Math.min(1, Math.sqrt(lim / Math.max(1, len))) * (p.dep + q.dep) / 2) * 20) / 20)
+      path = bins.get(al) || bins.set(al, new Path2D()).get(al)
     }
-    ctx.stroke()
+    drawn++
+    if (lit || vis || len <= lim) { path.moveTo(p.X, p.Y); path.lineTo(q.X, q.Y) } else {
+      const s = Math.min(len * 0.15, 28), ux = (q.X - p.X) / len, uy = (q.Y - p.Y) / len
+      path.moveTo(p.X, p.Y); path.lineTo(p.X + ux * (s + p.r), p.Y + uy * (s + p.r)); path.moveTo(q.X, q.Y); path.lineTo(q.X - ux * (s + q.r), q.Y - uy * (s + q.r))
+    }
   })
+  ctx.strokeStyle = T.line; ctx.setLineDash([]); ctx.lineWidth = 1
+  bins.forEach((path, al) => { ctx.globalAlpha = al; ctx.stroke(path) })
+  if (litP) { ctx.globalAlpha = 0.95; ctx.lineWidth = 1.6; ctx.stroke(litP) }
   // 점 — 먼 것부터 · 고른 점과 이웃은 맨 나중
   const sel = S.g.sel, cur = S.g.cur
   const rank = (t) => (t.n.id === Hd || t.n.id === cur ? 3 : hits.has(t.n.id) ? 2 : nb && nb.has(t.n.id) ? 1 : 0)
@@ -1975,19 +1982,21 @@ function gErdSvg(k, G) {
     if (b.rx <= a.lx) return `M${b.rx} ${b.y}C${(b.rx + a.lx) / 2} ${b.y} ${(b.rx + a.lx) / 2} ${a.y} ${a.lx} ${a.y}`
     return `M${a.rx} ${a.y}C${a.rx + 36} ${a.y} ${b.rx + 36} ${b.y} ${b.rx} ${b.y}`
   }
-  let back = '', front = '', nl = 0
+  // 나머지 선은 path 하나(요소 수천 개면 옮길 때마다 느리다) · 끌거나 휠을 굴리는 동안은 숨긴다(CSS .gerdw.drag)
+  const backD = []
+  let front = '', nl = 0
   for (const e of G.edges) {
     if (e.t === 'in') continue
     const a = at[e.a], b = at[e.b]
     if (!a || !b) continue
     const mine = !!sel && (e.a === sel || e.b === sel || S.g.open.includes(e.a) || S.g.open.includes(e.b))
-    if (mine) { front += `<path class="gln lit" d="${path(a, b)}"/>`; nl++ } else if (f.line) { back += `<path class="gln" d="${path(a, b)}"/>`; nl++ }
+    if (mine) { front += `<path class="gln lit" d="${path(a, b)}"/>`; nl++ } else if (f.line) { backD.push(path(a, b)); nl++ }
   }
   // 가운데 점 끝에 점 하나 — 선이 어디서 나가는지
   const sa = sel && at[sel]
   const dot = sa ? `<circle class="gdot" cx="${sa.rx}" cy="${sa.y}" r="3.5"/><circle class="gdot" cx="${sa.lx}" cy="${sa.y}" r="3.5"/>` : ''
   const H = best.H, c = gC2()
-  return `<svg class="gerd" role="group" aria-label="${esc(`그래프 2D 표: 점 ${nodes.length} · 선 ${nl}`)}" data-t="gErd" data-n="${nodes.length}" data-lines="${nl}" data-w="${W}" data-h="${H}"><g id="gerdg" transform="translate(${f1(c.px)} ${f1(c.py)}) scale(${+c.z.toFixed(3)})">${back}${front}${recS}${boxS}${dot}</g></svg>`
+  return `<svg class="gerd" role="group" aria-label="${esc(`그래프 2D 표: 점 ${nodes.length} · 선 ${nl}`)}" data-t="gErd" data-n="${nodes.length}" data-lines="${nl}" data-w="${W}" data-h="${H}"><g id="gerdg" transform="translate(${f1(c.px)} ${f1(c.py)}) scale(${+c.z.toFixed(3)})">${backD.length ? `<path class="gln gbk" d="${backD.join(' ')}"/>` : ''}${front}${recS}${boxS}${dot}</g></svg>`
 }
 // 2D 표 카메라 — 처음(고른 점 · 보는 방법 · 지식이 바뀌면): 고른 뒤에는 다 들어오게 · 전체는 폭에 맞춰 위부터
 const gC2 = () => S.g.cam2 || (S.g.cam2 = { z: 1, px: 8, py: 64, needFit: true })
@@ -2027,7 +2036,8 @@ document.addEventListener('pointermove', (ev) => {
 })
 document.addEventListener('pointerup', () => { if (!GD2) return; if (GD2.moved) G2MOVED = Date.now(); GD2 = null; const w = $('#app .gerdw'); if (w) w.classList.remove('drag') })
 document.addEventListener('click', (ev) => { if (Date.now() - G2MOVED < 300 && ev.target.closest && ev.target.closest('.gerdw')) { ev.stopImmediatePropagation(); ev.preventDefault() } }, true)
-document.addEventListener('wheel', (ev) => { const w = ev.target.closest && ev.target.closest('.gerdw'); if (!w) return; ev.preventDefault(); const r = w.getBoundingClientRect(); gErdZoom(ev.clientX - r.left, ev.clientY - r.top, Math.exp(-ev.deltaY * 0.0015)) }, { passive: false })
+let GWT = 0
+document.addEventListener('wheel', (ev) => { const w = ev.target.closest && ev.target.closest('.gerdw'); if (!w) return; ev.preventDefault(); w.classList.add('drag'); clearTimeout(GWT); GWT = setTimeout(() => w.classList.remove('drag'), 160); const r = w.getBoundingClientRect(); gErdZoom(ev.clientX - r.left, ev.clientY - r.top, Math.exp(-ev.deltaY * 0.0015)) }, { passive: false })
 // 스페이스 — 그래프 칸 위에서 누르고 있으면 잡아 옮긴다(3D · 2D 표 같음 · 가운데 단추 끌기와 같은 일)
 let GSPACE = false, GOVER = false
 document.addEventListener('pointerover', (ev) => { GOVER = !!(ev.target.closest && ev.target.closest('#app .gwrap')) })
@@ -2077,7 +2087,7 @@ function gCardHtml(k, G) {
   const nb = G.nbr[id] ? G.nbr[id].size : 0
   return `<div class="gov" data-t="gCard" data-name="${esc(info.name)}"><div class="row">${glyphIcon(n.kind)}<span class="small muted">${KLAB[n.kind]}${info.kind ? ' · ' + esc(info.kind) : ''}</span><button type="button" class="hb r" data-a="gUnsel" data-t="gClose" title="고르기 닫기: 전체 그래프로" aria-label="고르기 닫기: 전체 그래프로">×</button></div><div class="gn">${esc(info.name)}</div><div class="small gfirst">${esc(info.first)}</div><div class="small muted" data-t="gCardRecs">기록 ${info.recs} · 이웃 ${nb}</div><div class="row" style="flex-wrap:wrap"><button class="btn pri sm" data-a="gOpen" data-v="docs" data-t="gOpenDocs"${info.doc ? '' : ' disabled'}>문서로 보기</button><button class="btn sm" data-a="gOpen" data-v="items" data-t="gOpenItems"${info.item ? '' : ' disabled'}>항목으로 보기</button></div>${S.g.mode === '2d' && (S.g.trail || []).length ? `<div class="gtrail small" data-t="gTrail"><span class="muted">지나온 점</span>${S.g.trail.slice(-5).map((t) => { const o = G.nodes.find((x) => x.id === t); return o ? `<button type="button" class="lk" data-a="gBack" data-v="${esc(t)}" title="${esc(o.label)}">${esc(gFit(o.label, 110, 12))}</button>` : '' }).join('<span class="muted">›</span>')}</div>` : ''}<div class="small muted gcap">${S.g.mode === '2d' ? '점을 누르면 그 점이 가운데 · × 로 닫으면 전체' : '이웃을 누르면 그 점에서 한 겹 더 · × 로 닫으면 전체'}</div></div>`
 }
-// 왼쪽 칸 — 그래프를 어떻게 보일지 정하는 판 넷: 찾기 · 보는 방법(3D | 2D 표) · 보기(선 · 제목 · 회전) · 종류(문서 · 항목 · 기록)
+// 왼쪽 칸 — 그래프를 어떻게 보일지 정하는 판 넷(묶음마다 이름표): 찾기 · 보는 방법(3D | 2D 표) · 보기(선 · 제목 · 회전) · 종류(문서 · 항목 · 기록)
 //   찾기는 맞는 점을 밝히고 Enter 면 맞는 첫 점(선 많은 차례)을 고른다 · 제목 · 회전은 3D 에서만 쓴다
 function graphFilter() {
   const f = S.g.f, d3 = S.g.mode !== '2d'
@@ -2085,10 +2095,10 @@ function graphFilter() {
   const kd = (v, l) => `<button type="button" class="fbtn" aria-pressed="${!!f[v]}" data-a="gSet" data-v="${v}" data-t="gk-${v}">${glyphIcon(v)}${l}</button>`
   const md = (v, l, title) => fbtn(v === '3d' ? d3 : !d3, ` data-a="gMode" data-v="${v}" data-t="gm-${v}"`, l, title)
   return `<div class="gf" data-t="gFilter">
-  <div class="lhead"><input class="inp" id="gQ" aria-label="그래프에서 찾기 · Enter 면 맞는 첫 점을 고른다" data-in="gQ" data-t="gQ" value="${esc(f.q)}" placeholder="찾기: 맞는 점을 밝힌다 · Enter 로 고른다" autocomplete="off"></div>
-  <div class="vgrp gfr" role="group" aria-label="보는 방법" data-t="gMode">${md('3d', '3D', '힘 배치 · 끌어 돌린다')}${md('2d', '2D 표', '문서 상자 안에 항목 줄 · 기록은 왼쪽 열')}</div>
-  <div class="vgrp gfr" role="group" aria-label="보기" data-t="gView">${vb('line', 'line', '선', '모든 선을 그린다. 끄면 고른 점의 이웃 선만')}${vb('label', 'title', '제목', '모든 점의 제목을 쓴다. 끄면 올리거나 고른 점만', !d3)}${vb('spin', 'sync', '회전', '천천히 돈다. 끌거나 점에 올리면 멈춘다', !d3)}</div>
-  <div class="vgrp gfr" role="group" aria-label="종류" data-t="gKind">${kd('doc', '문서')}${kd('item', '항목')}${kd('rec', '기록')}</div></div>`
+  <div class="gfs"><div class="gh" id="gh-q">찾기</div><div class="lhead"><input class="inp" id="gQ" aria-labelledby="gh-q" aria-describedby="gq-tip" data-in="gQ" data-t="gQ" value="${esc(f.q)}" placeholder="이름 · 맞는 점을 밝힌다" autocomplete="off"></div><div class="small muted gtip" id="gq-tip">Enter 면 맞는 첫 점을 고른다</div></div>
+  <div class="gfs"><div class="gh" id="gh-mode">보는 방법</div><div class="vgrp gfr" role="group" aria-labelledby="gh-mode" data-t="gMode">${md('3d', '3D', '힘 배치 · 끌어 돌린다')}${md('2d', '2D 표', '문서 상자 안에 항목 줄 · 기록은 왼쪽 열')}</div></div>
+  <div class="gfs"><div class="gh" id="gh-view">보기</div><div class="vgrp gfr" role="group" aria-labelledby="gh-view" data-t="gView">${vb('line', 'line', '선', '모든 선을 그린다. 끄면 고른 점의 이웃 선만')}${vb('label', 'title', '제목', '모든 점의 제목을 쓴다. 끄면 올리거나 고른 점만', !d3)}${vb('spin', 'sync', '회전', '천천히 돈다. 끌거나 점에 올리면 멈춘다', !d3)}</div></div>
+  <div class="gfs"><div class="gh" id="gh-kind">종류</div><div class="vgrp gfr" role="group" aria-labelledby="gh-kind" data-t="gKind">${kd('doc', '문서')}${kd('item', '항목')}${kd('rec', '기록')}</div></div></div>`
 }
 // 찾기 칸 Enter — 맞는 첫 점(선 많은 차례)을 고른다
 document.addEventListener('keydown', (ev) => {

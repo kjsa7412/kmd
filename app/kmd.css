@@ -449,7 +449,11 @@ td.go2{text-align:right;white-space:nowrap}
 .fbtn[aria-pressed=true] .ck{display:block}
 .fbtn .kd{width:8px;height:8px;border-radius:var(--r-pill);flex:none}
 .vgrp{display:flex;gap:var(--sp-2)}
-.gf .gfr{margin:var(--sp-5) var(--sp-2) 0}
+.gf .gfs{margin-top:var(--sp-4)}
+.gf .gfs>.gh{margin:var(--sp-5) var(--sp-2) var(--sp-3)}
+.gf .gfs .lhead{position:static;padding-top:0;padding-bottom:0}
+.gf .gtip{margin:var(--sp-2) var(--sp-2) 0}
+.gf .gfr{margin:0 var(--sp-2)}
 .gf .gfr .fbtn{flex:1;justify-content:center;height:30px;min-width:0}
 .vgrp .fbtn{flex:1;justify-content:center;height:30px}
 .app .vgrp .fbtn svg{width:14px;height:14px;stroke-width:1.7}
@@ -553,6 +557,7 @@ svg.gki{width:14px;height:14px;flex:none;overflow:visible;stroke:none;vertical-a
 /* 2D 표 — 칸 전체가 그림(스크롤 없음) · 수 · 범례 · 카드 · 확대 단추는 그 위에 뜬다 */
 .gerdw{position:absolute;inset:0;overflow:hidden;cursor:grab;user-select:none;touch-action:none}
 .gerdw.drag,.gwrap.grab .gerdw{cursor:grabbing}
+.gerdw.drag .gbk{visibility:hidden}
 .gwrap.erd .gtl,.gwrap.erd .glg,.gwrap.erd .gz,.gwrap.erd .ghint,.gwrap.erd .gov{z-index:2}
 .gwrap.erd .gtl{background:var(--surface);padding:0 var(--sp-2);border-radius:var(--r-xs)}
 .gwrap.grab #gcv{cursor:grab}
