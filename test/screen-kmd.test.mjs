@@ -118,7 +118,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   await page.waitForSelector('[data-t=klist] [data-t=krow]')
   // 셸 — 리본 없음 · 옆 메뉴 두 영역(지식 고르기: 고르기 · 문서 · 항목 · 그래프 탭 · 목록 / 지식 관리: 공통 메뉴) · 머리(찾기 가운데 · 설명서 · 나 오른쪽) · 띠 · 아래 줄
   assert.equal(await page.locator('.ribbon').count(), 0)
-  assert.deepEqual(await page.locator('[data-t=ktabs] span').allInnerTexts(), ['문서', '항목', '그래프'])
+  assert.deepEqual(await page.locator('[data-t=ktabs] button').allInnerTexts(), ['문서', '항목', '그래프'])
   // 지식 관리 — 이력과 설정(팀 화면은 팀 지식만 · 개인 지식은 개인 화면에서)
   assert.deepEqual(await page.locator('[data-t=manageArea] .sb-i').evaluateAll((els) => els.map((e) => e.querySelector('span').textContent)), ['이력', '설정', '개인 지식 쓰기'])
   assert.match(await page.locator('.hdr .hmid').innerText(), /빨리 열기[\s\S]*Ctrl O[\s\S]*찾기[\s\S]*Ctrl K/)
@@ -145,7 +145,15 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   // 지식 점검(지식관리자) — 지식 생성 가드가 보는 것의 지금 상태 · 줄마다 수 · [보기] 로 목록
   await page.waitForSelector('[data-t=guardCard] [data-t=guard-unnamed]')
   assert.match(await page.locator('[data-t=guardCard]').innerText(), /지식 점검[\s\S]*이름 없는 기록[\s\S]*장부 밖 이름을 단 기록[\s\S]*이름 없는 항목/)
-  assert.deepEqual(await page.locator('.tree .tf').evaluateAll((els) => els.map((e) => e.dataset.t)), ['fold-docs', 'fold-recs', 'fold-atts'])
+  // 옆 메뉴 짜임(컨벤션 5절) — 보기 단추는 button role=tab · 문서 보기는 갈래 탭(문서 · 기록 · 첨부) 한 번에 하나
+  assert.deepEqual(await page.locator('[data-t=ktabs] button[role=tab]').evaluateAll((els) => els.map((e) => e.dataset.t + ':' + e.getAttribute('aria-selected'))), ['rb-docs:true', 'rb-items:false', 'rb-graph:false'])
+  assert.deepEqual(await page.locator('[data-t=stabs] button').evaluateAll((els) => els.map((e) => e.dataset.t + ':' + e.getAttribute('aria-selected'))), ['st-doc:true', 'st-rec:false', 'st-att:false'])
+  assert.equal(await page.locator('.tree .tf, [data-t=tree] [data-t=rec], [data-t=tree] [data-t=att]').count(), 0, '문서 탭에는 기록 · 첨부 줄이 없다')
+  await page.click('[data-t=st-rec]')
+  assert.ok((await page.locator('[data-t=tree] [data-t=rec]').count()) > 0)
+  assert.equal(await page.locator('[data-t=tree] [data-t=doc]').count(), 0, '기록 탭에는 문서 줄이 없다')
+  assert.equal(await page.locator('[data-t=tf-mine]').getAttribute('aria-pressed'), 'false')
+  await page.click('[data-t=st-doc]')
   // 문서 나무 — docs/ 폴더 짜임 그대로 · 폴더 먼저(숫자 차례) · 처음은 접힘 · 누르면 펴고 접는다
   assert.deepEqual(await page.locator('[data-t=tree] [data-t=dir] .nm').allInnerTexts(), ['3.3_게이트웨이설계', '3.4_웹설계'])
   assert.equal(await page.locator('[data-t=tree] [data-t=dir][aria-expanded=true]').count(), 0, '처음은 접힘')
@@ -156,6 +164,15 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.equal(await page.locator('[data-t=doc][data-d="3.4_웹설계/테이블정의서"]').evaluate((e) => getComputedStyle(e).paddingLeft), '31px', '한 겹 들임')
   await page.click('[data-t=dir][data-p="3.4_웹설계"]')
   assert.equal(await page.locator('[data-t=doc][data-d="3.4_웹설계/테이블정의서"]').count(), 0, '다시 접힘')
+  // 문서 찾기 — 맞는 폴더를 펼쳐 보인다 · 모두 펴기 / 모두 접기
+  await page.fill('[data-t=treeQ]', '테이블')
+  assert.deepEqual(await page.locator('[data-t=tree] [data-t=doc]').evaluateAll((els) => els.map((e) => e.dataset.d)), ['3.3_게이트웨이설계/게이트웨이테이블정의서', '3.4_웹설계/테이블정의서'])
+  await page.fill('[data-t=treeQ]', '')
+  await page.click('[data-t=dirAll]')
+  assert.equal(await page.locator('[data-t=tree] [data-t=dir][aria-expanded=true]').count(), 2)
+  assert.equal(await page.locator('[data-t=dirAll]').innerText(), '모두 접기')
+  await page.click('[data-t=dirAll]')
+  assert.equal(await page.locator('[data-t=tree] [data-t=dir][aria-expanded=true]').count(), 0)
 
   // 문서 하나 — 탭 · 항목 다섯 · 가운데는 내용만 · 오른쪽 칸 다섯 묶음(개요 · 문서 · 기록 · 항목 · 속성 · 처음은 모두 접힘)
   await page.click('[data-t=doc][data-name="배포절차"]')
@@ -203,8 +220,10 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   await page.keyboard.press('Control+Backslash')
   await page.waitForSelector('[data-t=rightPane] [data-t=docPane]')
   await page.click('[data-t=closeSplit]')
+  await page.click('[data-t=st-rec]')
   await page.click('[data-t=rec][data-state=pend]')
   await page.waitForSelector('[data-t=recPane]')
+  await page.click('[data-t=st-doc]')
   assert.equal(await page.locator('[data-t=recState]').innerText(), '개편 전 기록')
   await page.click('.aside [data-a=agToggle][data-g=items]')
   assert.equal(await page.locator('[data-t=recItem]').count(), 1)
@@ -218,8 +237,13 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
 
   // 항목으로 보기(M6) — 종류별 목록 · 항목 한 화면 · 옆 칸
   await page.click('[data-t=rb-items]')
-  await page.waitForSelector('[data-t=itemList] [data-t=itemRow]')
-  assert.deepEqual(await page.locator('.fcs .fc').allInnerTexts(), ['넣지 못함', '최근 바뀐 것', '내가 쓴 것'])
+  // 처음은 모두 접힘 · 거르기는 단추(aria-pressed) · 모두 펴기
+  await page.waitForSelector('[data-t=itemList] [data-t^=kind-]')
+  assert.equal(await page.locator('[data-t=itemList] [data-t^=kind-][aria-expanded=true]').count(), 0, '처음은 모두 접힘')
+  assert.equal(await page.locator('[data-t=itemList] [data-t=itemRow]').count(), 0)
+  assert.deepEqual(await page.locator('[data-t=itemList] button.fbtn').evaluateAll((els) => els.map((e) => e.textContent + ':' + e.getAttribute('aria-pressed'))), ['넣지 못함:false', '최근 바뀜:false', '내가 쓴 것:false'])
+  await page.click('[data-t=kindAll]')
+  assert.equal(await page.locator('[data-t=itemList] [data-t^=kind-][aria-expanded=false]').count(), 0)
   await page.click('[data-t=itemRow][data-name="헬스 체크"]')
   await page.waitForSelector('[data-t=itemPage]')
   // 가운데는 항목 글만 · 지난 기록 · 쓰는 곳 · 다른 이름은 오른쪽 다섯 묶음으로
@@ -240,12 +264,16 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   const ga = (k) => page.getAttribute('#gcv', 'data-' + k).then(Number)
   assert.ok((await ga('n')) > 10)
   assert.equal(await page.locator('[data-t=gLegend] .lgr').count(), 11) // 점 5 · 선 6(근거 더함)
-  // 점 제목 — 기본은 숨김(올리거나 고를 때) · 「점 제목 늘 보기」 를 켜면 모두
+  // 보기는 맨 위 · 선 · 제목 · 회전 거르기 단추(스위치 아님)
+  assert.deepEqual(await page.locator('[data-t=gView] button.fbtn').allInnerTexts(), ['선', '제목', '회전'])
+  assert.equal(await page.locator('[data-t=gFilter] .sw').count(), 0)
+  // 점 제목 — 기본은 숨김(올리거나 고를 때) · 「제목」 을 켜면 모두
   assert.equal(await ga('shown'), 0)
   await page.click('[data-t=g-label]')
   assert.ok((await ga('shown')) > 10)
+  assert.equal(await page.locator('[data-t=g-label]').getAttribute('aria-pressed'), 'true')
   await page.click('[data-t=g-label]')
-  // 선 — 기본은 끔(고른 점 · 올린 점의 선만) · 「선 보기」 를 켜면 모두
+  // 선 — 기본은 끔(고른 점 · 올린 점의 선만) · 「선」 을 켜면 모두
   assert.equal(await ga('lines'), 0)
   await page.click('[data-t=g-line]')
   assert.ok((await ga('lines')) > 10)
@@ -1130,6 +1158,8 @@ test('고치기(S9): 쓰기 자리 편집기는 말 하나 · 읽은 뒤 바뀌�
     await page.goto(s.url)
     await page.waitForSelector('[data-t=klist] [data-t=krow]')
     await page.click('[data-t=krow][data-name="DPMS 지식"]')
+    await page.waitForSelector('[data-t=st-rec]')
+    if ((await page.locator('[data-t=st-rec]').getAttribute('aria-selected')) !== 'true') await page.click('[data-t=st-rec]')
     await page.waitForSelector(`[data-t=rec][data-r="${mine.id}"]`)
     await page.click(`[data-t=rec][data-r="${mine.id}"]`)
     await page.waitForSelector('[data-t=recFixBtn]')

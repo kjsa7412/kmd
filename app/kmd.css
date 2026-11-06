@@ -429,15 +429,32 @@ td.go2{text-align:right;white-space:nowrap}
 .tn.dir{color:var(--text-2);font-weight:600;padding-left:calc(var(--sp-3) + var(--sp-5) * var(--dep, 0));gap:var(--sp-2)}
 .tn.dir .ar{width:10px;flex:none;color:var(--text-3);font-size:var(--fs-xs)}
 .tn.dir svg{flex:none}
+.lhead{position:sticky;top:0;z-index:1;background:var(--surface);display:flex;flex-direction:column;gap:var(--sp-4);padding:0 var(--sp-1) var(--sp-4);margin:0 0 var(--sp-2)}
+.stabs{display:flex;border-bottom:1px solid var(--border)}
+.stabs button{flex:1;border:0;background:none;padding:var(--sp-3) 0 var(--sp-4);font-size:var(--fs);color:var(--text-2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;justify-content:center;align-items:baseline;gap:var(--sp-2);white-space:nowrap}
+.stabs button em{font-style:normal;font-size:var(--fs-xs);color:var(--text-3)}
+.stabs button:hover{color:var(--text)}
+.stabs button[aria-selected=true]{color:var(--text);font-weight:700;border-bottom-color:var(--accent)}
+.tools{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2)}
+.tools .r{margin-left:auto}
+.fbtn{display:inline-flex;align-items:center;gap:var(--sp-2);height:24px;padding:0 var(--sp-4);border:1px solid var(--border-input);border-radius:var(--r);background:var(--surface);color:var(--text);font-size:var(--fs-sm);cursor:pointer;white-space:nowrap}
+.fbtn:hover:not([disabled]){background:var(--hover)}
+.fbtn[disabled]{color:var(--text-3);border-color:var(--border-strong);cursor:not-allowed}
+.fbtn[aria-pressed=true]{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);font-weight:600}
+.app .fbtn svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.fbtn .ck{display:none}
+.fbtn[aria-pressed=true] .ck{display:block}
+.fbtn .kd{width:8px;height:8px;border-radius:var(--r-pill);flex:none}
+.vgrp{display:flex;gap:var(--sp-2)}
+.vgrp .fbtn{flex:1;justify-content:center;height:30px}
+.app .vgrp .fbtn svg{width:14px;height:14px;stroke-width:1.7}
+.ktabs button:focus-visible,.stabs button:focus-visible,.fbtn:focus-visible{outline:0;box-shadow:var(--focus-ring)}
 .tn.more{color:var(--accent);font-weight:600}
 .hmore{display:flex;justify-content:center;padding:var(--sp-4) var(--sp-5);border-top:1px solid var(--border)}
 .tn.nc{cursor:default;font-size:var(--fs-sm)}
 .pd{width:7px;height:7px;border-radius:50%;background:var(--pending);flex:none;display:inline-block}
 .pd.hd{background:var(--warn)} /* 넣지 못함(S10) — 노랑 점 */
 .nw{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none;display:inline-block}
-.fcs{display:flex;flex-wrap:wrap;gap:var(--sp-2);margin:var(--sp-3) var(--sp-1) var(--sp-4)}
-.fc{font-size:var(--fs-xs);border:1px solid var(--border-strong);border-radius:var(--r-pill);padding:1px var(--sp-4);cursor:pointer;color:var(--text-2);background:var(--surface);user-select:none}
-.fc.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .lp .inp{min-height:28px;font-size:var(--fs-mono)}
 .ig{font-size:var(--fs-sm);color:var(--text-2);font-weight:700;margin:var(--sp-3) var(--sp-3) var(--sp-2)}
 .empty2{margin:var(--sp-4) var(--sp-2);padding:9px var(--sp-5);border-radius:var(--r);background:var(--surface-2);color:var(--text-2);font-size:var(--fs-sm);line-height:1.6}
@@ -559,11 +576,11 @@ li.new{animation:flash 1.6s}
 /* ── 옆 메뉴 두 영역 · 머리(정정 2026-10-23 — 리본을 걷었다) ── */
 .sb-know{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
 .ktabs{display:flex;gap:var(--sp-1);background:var(--surface-2);border-radius:var(--r-md);padding:3px;margin:0 0 var(--sp-1)}
-.ktabs span{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:5px 0;border-radius:var(--r);font-size:var(--fs);color:var(--text-2);cursor:pointer;user-select:none}
+.ktabs button{flex:1;border:0;background:none;display:flex;align-items:center;justify-content:center;gap:5px;padding:5px 0;border-radius:var(--r);font-size:var(--fs);color:var(--text-2);cursor:pointer;user-select:none}
 .app .ktabs svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.ktabs span:hover{color:var(--text)}
-.ktabs span.on{background:var(--surface);color:var(--accent);font-weight:700;box-shadow:var(--shadow-1)}
-.ktabs span.cur{color:var(--text);font-weight:600}
+.ktabs button:hover{color:var(--text)}
+.ktabs button.on{background:var(--surface);color:var(--accent);font-weight:700;box-shadow:var(--shadow-1)}
+.ktabs button.cur{color:var(--text);font-weight:600}
 .sb-know .lp{margin-top:var(--sp-3)}
 .sb-mg{flex:none;border-top:1px solid var(--border);padding-top:var(--sp-3);margin-top:var(--sp-4)}
 .sb-mg .sb-g{margin-top:var(--sp-2)}

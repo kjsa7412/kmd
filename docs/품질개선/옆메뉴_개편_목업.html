@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>옆 메뉴 개편 목업</title>
+<style>
+/* 토큰 · 기본 부품은 app/kmd.css 에서 옮긴 그대로 */
+:root{
+  /* 면 · 선 */
+  --bg:#f6f7f9;--surface:#fff;--surface-2:#f1f3f7;--surface-3:#e6eaf0;--hover:#f5f7fa;
+  --border:#e2e6ed;--border-strong:#c9d1dd;--border-input:#7d8799;
+  /* 글 — --text-3 #646d7b: 흰 바탕 5.23:1 · --surface-2(#f1f3f7) 위 4.71:1(WCAG 상대 휘도로 잼 · 옛 #858e9d 는 3.31 · 2.98) */
+  --text:#11151c;--text-2:#515a68;--text-3:#646d7b;--on-accent:#fff;
+  /* 뜻 색 — 파랑=주 일 · 고른 것 / 초록=됨 · 켜짐 / 노랑=멈춤 · 값 바뀜 / 빨강=못 함 · 지우기 / 보라=기다림 · 받은 것 */
+  --accent:#3358e6;--accent-hover:#2a4bd0;--accent-bg:#e9eeff;--accent-line:#c3d0fb;
+  /* --ok #237a47: ok-bg 위 4.72 · 흰 바탕 5.32 · surface-2 위 4.79(옛 #2e9b5b 는 3.13 · 3.53 — 작은 굵은 글에 모자랐다) */
+  --ok:#237a47;--ok-bg:#e6f5ec;--ok-line:#bfe3cc;
+  --warn:#8c5c00;--warn-bg:#fcf3e0;--warn-line:#d39a2c;
+  /* --danger #b8321f: danger-bg 위 5.23 · 흰 바탕 5.98(옛 #cb3a2c 는 danger-bg 위 4.39) */
+  --danger:#b8321f;--danger-bg:#fdeceb;--danger-line:#efb7b1;
+  --pending:#6247c4;--pending-bg:#efedfd;--pending-line:#d9d2fb;
+  /* 진한 띠(토스트 · 툴팁 · 고른 띠 · 「나」 표지) · 터미널(7절) */
+  --ink:#11151c;--ink-2:#262d3b;--ink-text:#e8ecf3;
+  --term-bg:#0f141c;--term-text:#d7dde8;--term-dim:#7d8696;--term-tool:#8fb0ff;--term-ok:#7fd69a;--term-err:#ff8f86;
+  /* 글 크기 */
+  --fs-xs:11px;--fs-sm:11.5px;--fs-mono:12px;--fs:13px;--fs-md:14px;--fs-lg:16px;--fs-xl:20px;
+  /* 간격 — 카드 안 · 카드 사이 14 · 영역 사이 22 */
+  --sp-1:2px;--sp-2:4px;--sp-3:6px;--sp-4:8px;--sp-5:10px;--sp-6:12px;--sp-7:14px;--sp-8:16px;--sp-9:22px;
+  /* 모서리 — 표지 · 작은 칩 · 단추 · 칸(팝업 · 모달) · 카드 · 알약 */
+  --r-xs:4px;--r-sm:5px;--r:7px;--r-md:10px;--r-lg:12px;--r-pill:999px;
+  /* 그림자 — 카드 · 팝업과 모달 · 맨 위에 뜨는 것(찾기 창 · 서랍) · 키보드 초점 고리 */
+  --shadow-1:0 1px 2px rgba(15,23,42,.05),0 1px 3px rgba(15,23,42,.07);
+  --shadow-2:0 2px 6px -1px rgba(15,23,42,.08),0 14px 32px -8px rgba(15,23,42,.18);
+  --shadow-3:0 18px 48px rgba(15,23,42,.28);
+  --focus-ring:0 0 0 2px var(--surface),0 0 0 4px var(--accent);
+  /* 층 — 토스트는 모달 위 */
+  --z-menu:20;--z-scrim:70;--z-pop:80;--z-toast:90;
+  /* 화면 최대 폭(2절) · 옆 메뉴 · 오른쪽 칸 */
+  --w-text:820px;--w-list:980px;--w-grid:1100px;--w-side:248px;--w-aside:300px;
+  /* 접힌 옆 메뉴 · 오른쪽 칸(레일) · 너비 잡이 · 그래프 팝업 */
+  --w-rail:48px;--w-grip:6px;--w-graph:400px;
+  /* 글꼴 — 모노는 경로 · 주소 · 이름 · 시각에만 */
+  --font:Pretendard,-apple-system,"Segoe UI",system-ui,"Malgun Gothic",sans-serif;
+  --mono:Consolas,"Cascadia Mono",D2Coding,"Malgun Gothic",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:var(--fs)/1.55 var(--font)}
+button,input,textarea,select{font:inherit}
+.btn{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 11px;border-radius:var(--r);border:1px solid var(--border-input);background:var(--surface);font-size:var(--fs-mono);cursor:pointer;color:var(--text);white-space:nowrap}
+.btn:hover:where(:not([disabled])){background:var(--hover)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+.btn.pri:hover:where(:not([disabled])){background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn.sm{height:24px;padding:0 var(--sp-4);font-size:var(--fs-sm)}
+.muted{color:var(--text-3)}
+.small{font-size:var(--fs-sm)}
+.inp{width:100%;min-height:32px;border:1px solid var(--border-input);border-radius:var(--r);padding:5px var(--sp-5);font-size:var(--fs);background:var(--surface);color:var(--text)}
+.inp:hover:not([disabled]):not([readonly]):not(:focus){border-color:var(--text-3)}
+.inp:focus{outline:2px solid transparent;outline-offset:2px;border-color:var(--accent);box-shadow:var(--focus-ring)}
+.inp[disabled],.inp[readonly]{background:var(--surface-2);color:var(--text-3)}
+.inp[disabled]{cursor:not-allowed}
+.inp.af{background:var(--accent-bg);border-color:var(--accent-line);font-family:var(--mono)}
+.inp.mono{font-family:var(--mono)}
+.lk{color:var(--accent);cursor:pointer;font-weight:600}
+.lk.q{color:var(--text-3);font-weight:500}
+.seg{display:flex;border:1px solid var(--border-strong);border-radius:var(--r);overflow:hidden;margin:0 var(--sp-2)}
+.seg button{flex:1;border:0;background:var(--surface);padding:3px 0;font-size:var(--fs-mono);cursor:pointer;border-left:1px solid var(--border)}
+.seg button:first-child{border-left:0}
+.seg button.on{background:var(--accent);color:var(--on-accent);font-weight:600}
+.seg button:hover:not([disabled]):not(.on){background:var(--hover)}
+.seg button[disabled]{color:var(--text-3);cursor:not-allowed}
+.btn.danger{background:var(--surface);border-color:var(--danger-line);color:var(--danger);font-weight:600}
+.btn.danger:hover:where(:not([disabled])){background:var(--danger-bg);border-color:var(--danger)}
+.btn.ghost{border-color:transparent;background:none;color:var(--text-2)}
+.btn.ghost:hover:where(:not([disabled])){background:var(--hover);color:var(--text)}
+.btn.ghost[disabled]{color:var(--text-3)}
+button.lk{border:0;background:none;padding:0;font:inherit;font-weight:600;color:var(--accent);cursor:pointer;text-align:inherit}
+button.lk.q{color:var(--text-3);font-weight:500}
+.lk:hover:where(:not([disabled])){text-decoration:underline;text-underline-offset:2px}
+.btn.on,.btn[aria-pressed=true]{background:var(--accent-bg);border-color:var(--accent-line);color:var(--accent)}
+button.hlink{border:0;background:none;font:inherit;padding:0}
+body.resizing{cursor:col-resize;user-select:none}
+/* 목업 전용 — 값은 모두 kmd.css :root 토큰 */
+body{background:var(--bg);color:var(--text);font-size:var(--fs);margin:0}
+.wrap{max-width:var(--w-grid);margin:0 auto;padding:var(--sp-9) var(--sp-8)}
+h1{font-size:var(--fs-xl);margin:0 0 var(--sp-3)}
+h2{font-size:var(--fs-lg);margin:var(--sp-9) 0 var(--sp-5)}
+.lead{color:var(--text-2);margin:0 0 var(--sp-8)}
+.tblwrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:var(--fs)}
+th,td{text-align:left;padding:var(--sp-4) var(--sp-5);border-bottom:1px solid var(--border);vertical-align:top}
+th{background:var(--surface-2);color:var(--text-2);font-weight:700;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td b{font-weight:700}
+
+/* 옆 메뉴 넷을 나란히 */
+.mocks{display:flex;flex-wrap:wrap;gap:var(--sp-8);align-items:flex-start}
+.mock{width:min(var(--w-side),100%)}
+.cap{font-size:var(--fs-sm);color:var(--text-2);margin:0 0 var(--sp-3);font-weight:700}
+.cap small{display:block;font-weight:400;color:var(--text-3)}
+.side-m{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--sp-6) var(--sp-5);height:560px;display:flex;flex-direction:column;gap:var(--sp-4);box-shadow:var(--shadow-1)}
+.side-m svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ① 보기 단추(맨 위 · 지금과 같다 · span → button) */
+.vtabs{display:flex;gap:var(--sp-1);background:var(--surface-2);border-radius:var(--r-md);padding:3px}
+.vtabs button{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:5px 0;border:0;background:none;border-radius:var(--r);font-size:var(--fs);color:var(--text-2);cursor:pointer}
+.vtabs button:hover{color:var(--text)}
+.vtabs button[aria-selected=true]{background:var(--surface);color:var(--accent);font-weight:700;box-shadow:var(--shadow-1)}
+
+/* ② 갈래 탭(새 · 문서 보기 안: 문서 | 기록 | 첨부 — 한 번에 하나) */
+.stabs{display:flex;border-bottom:1px solid var(--border)}
+.stabs button{flex:1;border:0;background:none;padding:var(--sp-3) 0 var(--sp-4);font-size:var(--fs);color:var(--text-2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;justify-content:center;gap:var(--sp-2);align-items:baseline}
+.stabs button em{font-style:normal;font-size:var(--fs-xs);color:var(--text-3)}
+.stabs button:hover{color:var(--text)}
+.stabs button[aria-selected=true]{color:var(--text);font-weight:700;border-bottom-color:var(--accent)}
+
+/* ③ 도구 줄 — 거르기 단추(새 부품 .fbtn · 누르는 것은 단추 모양) */
+.tools{display:flex;flex-wrap:wrap;gap:var(--sp-2);align-items:center}
+.fbtn{display:inline-flex;align-items:center;gap:var(--sp-2);height:24px;padding:0 var(--sp-4);border:1px solid var(--border-input);border-radius:var(--r);background:var(--surface);color:var(--text);font-size:var(--fs-sm);cursor:pointer;white-space:nowrap}
+.fbtn:hover{background:var(--hover)}
+.fbtn .ck{width:12px;height:12px;display:none}
+.fbtn[aria-pressed=true]{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);font-weight:600}
+.fbtn[aria-pressed=true] .ck{display:block}
+.fbtn:focus-visible,.vtabs button:focus-visible,.stabs button:focus-visible,.row:focus-visible{outline:0;box-shadow:var(--focus-ring)}
+.fbtn .dot{width:8px;height:8px;border-radius:var(--r-pill)}
+.tools .r{margin-left:auto}
+
+/* ④ 목록 — 묶음 줄(폴더 · 항목 종류 같은 꼴) · 끝 줄 */
+.list{flex:1;min-height:0;overflow:auto;margin:0 calc(var(--sp-2) * -1)}
+.row{display:flex;align-items:center;gap:var(--sp-3);padding:3px var(--sp-3) 3px calc(var(--sp-3) + 14px + var(--sp-2) + var(--sp-5) * var(--d,0));border-radius:var(--r);cursor:pointer;white-space:nowrap;min-width:0}
+.row:hover{background:var(--surface-2)}
+.row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.row svg{width:13px;height:13px;color:var(--text-3)}
+.row.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.row.grp{padding-left:calc(var(--sp-3) + var(--sp-5) * var(--d,0));gap:var(--sp-2);color:var(--text-2);font-weight:600}
+.row.grp .ar{width:14px;flex:none;text-align:center;color:var(--text-3);font-size:var(--fs-xs)}
+.rc{font-size:var(--fs-xs);color:var(--text-3);background:var(--surface-2);border-radius:var(--r-pill);padding:0 var(--sp-3);flex:none;font-weight:400}
+.row .dt{font:var(--fs-xs) var(--mono);color:var(--text-3);flex:none}
+.row .iv{font-family:var(--mono);font-weight:700;font-size:var(--fs-mono)}
+.row .id{color:var(--text-3);margin-left:var(--sp-2)}
+.more{color:var(--accent);font-weight:600}
+
+/* 그래프 칸 */
+.gh2{font-size:var(--fs-xs);font-weight:700;color:var(--text-3);margin:var(--sp-4) 0 var(--sp-1)}
+.vgrp{display:flex;gap:var(--sp-2)}
+.vgrp .fbtn{flex:1;justify-content:center;height:30px}
+.vgrp .fbtn svg{width:14px;height:14px}
+
+.note{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--sp-6) var(--sp-7);margin-top:var(--sp-8)}
+.note li{margin:var(--sp-2) 0}
+code{font-family:var(--mono);font-size:var(--fs-mono);background:var(--surface-2);padding:0 var(--sp-2);border-radius:var(--r-xs)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>옆 메뉴 개편 목업</h1>
+<p class="lead">문서 · 항목 · 그래프 세 보기의 옆 메뉴를 한 짜임으로 맞춘다. 아래 넷은 누르면 실제처럼 움직인다(탭 · 폴더 접기 · 거르기 단추).</p>
+
+<h2>1. 지금 문제</h2>
+<div class="tblwrap"><table>
+<thead><tr><th>어디</th><th>지금</th><th>고칠 것</th></tr></thead>
+<tbody>
+<tr><td>문서 보기</td><td>「문서 · 기록 · 첨부」 묶음 머리가 폴더 줄과 같은 꼴(▸ + 굵은 글 + 수)이다. 어디까지가 갈래이고 어디부터 폴더인지 안 보인다. 셋이 한꺼번에 길게 이어져 기록 100줄이 문서를 밀어낸다</td><td>셋을 <b>갈래 탭</b>(밑줄 탭 · 수)으로 올려 <b>한 번에 하나</b>만 보인다. 나무에는 폴더 · 문서만 남는다</td></tr>
+<tr><td>항목 보기</td><td>종류 묶음이 펼쳐진 채로 시작(테이블만 40 넘으면 접힘). 처음 볼 때 너무 길다</td><td><b>처음은 모두 접힘</b>. 찾기를 쓰면 맞은 종류만 펼친다. 도구 줄 끝에 「모두 펴기 / 모두 접기」</td></tr>
+<tr><td>항목 거르기</td><td>「넣지 못함 · 최근 바뀐 것 · 내가 쓴 것」 이 둥근 알약(칩 꼴)이다. 칩은 상태 표시라(컨벤션 5절) 누르는 것으로 안 보인다. 또 <code>&lt;span&gt;</code> 이라 단추가 아니다</td><td><b>거르기 단추</b>(<code>.fbtn</code> · <code>&lt;button aria-pressed&gt;</code>). 단추와 같은 테두리 · 모서리. 켜지면 파란 바탕 + ✓</td></tr>
+<tr><td>그래프 보기</td><td>스위치 열 줄 + 설명 글(「점 제목 늘 보기」 · 「끄면 고른 점 · 올린 점의 선만」). 말이 길고 낯설다. 자주 쓰는 「보기」 가 아래에 있다</td><td>맨 위에 <b>보기: [선] [제목] [회전]</b> 아이콘 단추 셋. 종류 · 거름도 같은 거르기 단추. 설명은 올리면 뜨는 글(title)로</td></tr>
+<tr><td>세 보기 공통</td><td>문서 보기에는 찾기 칸이 없고, 항목 · 그래프에만 있다. 묶음 수 표시가 둥근 수(폴더) · 맨 수(항목 종류) 두 꼴. 맨 위 보기 단추가 <code>&lt;span&gt;</code></td><td>세 보기 모두 <b>보기 단추 → (갈래 탭) → 찾기 칸 → 도구 줄 → 목록</b> 차례. 수는 둥근 수 하나. 보기 단추는 <code>&lt;button role=tab&gt;</code></td></tr>
+</tbody></table></div>
+
+<h2>2. 목업</h2>
+<div class="mocks">
+
+<!-- A. 문서 보기 · 문서 탭 -->
+<div class="mock" data-mock="docs">
+  <p class="cap">A. 문서 보기 › 문서<small>폴더 나무 · 갈래 탭은 한 번에 하나</small></p>
+  <div class="side-m">
+    <div class="vtabs" role="tablist" aria-label="보기">
+      <button role="tab" aria-selected="true"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg>문서</button>
+      <button role="tab" aria-selected="false"><svg viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z M7.5 8h.01"/></svg>항목</button>
+      <button role="tab" aria-selected="false"><svg viewBox="0 0 24 24"><path d="M8 6l8 1 M7 8l2 8 M11 18l6-1 M18 9v6"/></svg>그래프</button>
+    </div>
+    <div class="stabs" role="tablist" aria-label="갈래">
+      <button role="tab" aria-selected="true" data-st="doc">문서 <em>35</em></button>
+      <button role="tab" aria-selected="false" data-st="rec">기록 <em>100</em></button>
+      <button role="tab" aria-selected="false" data-st="att">첨부 <em>32</em></button>
+    </div>
+    <input class="inp" placeholder="문서 찾기: 제목 · 폴더" aria-label="문서 찾기" data-q>
+    <div class="tools"><button type="button" class="fbtn" aria-pressed="false"><svg class="ck" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>넣지 못함</button><button type="button" class="lk r" data-all>모두 펴기</button></div>
+    <div class="list" data-list></div>
+  </div>
+</div>
+
+<!-- B. 문서 보기 · 기록 탭 -->
+<div class="mock" data-mock="recs">
+  <p class="cap">B. 문서 보기 › 기록<small>같은 자리에서 탭만 바뀐다</small></p>
+  <div class="side-m">
+    <div class="vtabs" role="tablist" aria-label="보기">
+      <button role="tab" aria-selected="true"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg>문서</button>
+      <button role="tab" aria-selected="false"><svg viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z M7.5 8h.01"/></svg>항목</button>
+      <button role="tab" aria-selected="false"><svg viewBox="0 0 24 24"><path d="M8 6l8 1 M7 8l2 8 M11 18l6-1 M18 9v6"/></svg>그래프</button>
+    </div>
+    <div class="stabs" role="tablist" aria-label="갈래">
+      <button role="tab" aria-selected="false">문서 <em>35</em></button>
+      <button role="tab" aria-selected="true">기록 <em>100</em></button>
+      <button role="tab" aria-selected="false">첨부 <em>32</em></button>
+    </div>
+    <input class="inp" placeholder="기록 찾기: 제목 · 쓴 사람" aria-label="기록 찾기">
+    <div class="tools"><button type="button" class="fbtn" aria-pressed="false"><svg class="ck" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>넣지 못함</button><button type="button" class="fbtn" aria-pressed="false"><svg class="ck" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>내가 쓴 것</button><span class="muted small r">새것 위</span></div>
+    <div class="list">
+      <div class="row" tabindex="0"><span class="dt">10:21</span><span class="nm">게이트웨이 장애 통화</span></div>
+      <div class="row" tabindex="0"><span class="dt">09:02</span><span class="nm">주간보고 2주차</span></div>
+      <div class="row" tabindex="0"><span class="dt">어제</span><span class="nm">SCADA 연계 회의</span></div>
+      <div class="row" tabindex="0"><span class="dt">11-04</span><span class="nm">화면설계서 DPA020 보탬</span></div>
+      <div class="row" tabindex="0"><span class="dt">11-03</span><span class="nm">개발 환경 확정</span></div>
+      <div class="row" tabindex="0"><span class="dt">11-02</span><span class="nm">이름 없는 항목 112</span></div>
+      <div class="row" tabindex="0"><span class="dt">10-30</span><span class="nm">백오피스 리디자인</span></div>
+      <div class="row" tabindex="0"><span class="dt">10-28</span><span class="nm">PLC 연계 요구 정리</span></div>
+      <div class="row more" tabindex="0">더 보기(남은 92)</div>
+    </div>
+  </div>
+</div>
+
+<!-- C. 항목 보기 -->
+<div class="mock" data-mock="items">
+  <p class="cap">C. 항목 보기<small>처음은 모두 접힘 · 거르기는 단추</small></p>
+  <div class="side-m">
+    <div class="vtabs" role="tablist" aria-label="보기">
+      <button role="tab" aria-selected="false"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg>문서</button>
+      <button role="tab" aria-selected="true"><svg viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z M7.5 8h.01"/></svg>항목</button>
+      <button role="tab" aria-selected="false"><svg viewBox="0 0 24 24"><path d="M8 6l8 1 M7 8l2 8 M11 18l6-1 M18 9v6"/></svg>그래프</button>
+    </div>
+    <input class="inp" placeholder="항목 찾기: 이름 · 다른 이름" aria-label="항목 찾기">
+    <div class="tools">
+      <button type="button" class="fbtn" aria-pressed="false"><svg class="ck" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>넣지 못함</button>
+      <button type="button" class="fbtn" aria-pressed="false"><svg class="ck" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>최근 바뀜</button>
+      <button type="button" class="fbtn" aria-pressed="false"><svg class="ck" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>내가 쓴 것</button>
+    </div>
+    <div class="tools"><span class="muted small">종류 22 · 항목 412</span><button type="button" class="lk r" data-all>모두 펴기</button></div>
+    <div class="list" data-list></div>
+  </div>
+</div>
+
+<!-- D. 그래프 보기 -->
+<div class="mock" data-mock="graph">
+  <p class="cap">D. 그래프 보기<small>보기를 맨 위로 · 스위치 대신 단추</small></p>
+  <div class="side-m">
+    <div class="vtabs" role="tablist" aria-label="보기">
+      <button role="tab" aria-selected="false"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg>문서</button>
+      <button role="tab" aria-selected="false"><svg viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z M7.5 8h.01"/></svg>항목</button>
+      <button role="tab" aria-selected="true"><svg viewBox="0 0 24 24"><path d="M8 6l8 1 M7 8l2 8 M11 18l6-1 M18 9v6"/></svg>그래프</button>
+    </div>
+    <input class="inp" placeholder="찾기: 맞는 점을 밝힌다" aria-label="그래프에서 찾기">
+    <div class="list" style="margin:0">
+      <div class="gh2">보기</div>
+      <div class="vgrp">
+        <button type="button" class="fbtn" aria-pressed="false" title="모든 선을 그린다. 끄면 고른 점 · 올린 점의 선만"><svg viewBox="0 0 24 24"><path d="M4 18L20 6"/></svg>선</button>
+        <button type="button" class="fbtn" aria-pressed="true" title="모든 점의 제목을 쓴다. 끄면 올리거나 고른 점만"><svg viewBox="0 0 24 24"><path d="M5 6h14 M12 6v13"/></svg>제목</button>
+        <button type="button" class="fbtn" aria-pressed="true" title="천천히 돈다. 끌거나 점에 올리면 멈춘다"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5l2 2 M20 4v5h-5"/></svg>회전</button>
+      </div>
+      <div class="gh2">종류</div>
+      <div class="tools">
+        <button type="button" class="fbtn" aria-pressed="true"><i class="dot" style="background:var(--accent)"></i>항목</button>
+        <button type="button" class="fbtn" aria-pressed="true"><i class="dot" style="background:var(--text-3)"></i>문서</button>
+        <button type="button" class="fbtn" aria-pressed="false"><i class="dot" style="background:var(--pending)"></i>기록</button>
+        <button type="button" class="fbtn" aria-pressed="false"><i class="dot" style="background:var(--ok)"></i>가져올 곳</button>
+      </div>
+      <div class="gh2">거르기</div>
+      <div class="tools">
+        <button type="button" class="fbtn" aria-pressed="false"><svg class="ck" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>넣지 못함</button>
+        <button type="button" class="fbtn" aria-pressed="false" title="기록을 켜면 쓴다"><svg class="ck" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>최근 30일</button>
+        <button type="button" class="fbtn" aria-pressed="false" title="선이 하나도 없는 점을 뺀다"><svg class="ck" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>안 이어진 점 빼기</button>
+      </div>
+      <div class="gh2">깊이 <span class="muted">· 점을 고르면 쓴다</span></div>
+      <div class="seg" style="margin:0"><button class="on">전체</button><button disabled>1</button><button disabled>2</button><button disabled>3</button></div>
+      <div class="gh2">큰 종류</div>
+      <div class="tools"><span class="small">테이블 70 · 점 하나로 접음</span><button type="button" class="lk r">펴기</button></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="note">
+<b>정하는 것</b>
+<ul>
+<li><b>층 셋</b>: 보기 단추(회색 바탕 · 알약) → 갈래 탭(밑줄) → 목록. 층마다 꼴이 달라 위아래가 섞이지 않는다.</li>
+<li><b>누르는 것은 단추 꼴</b>: 거르기는 모두 <code>.fbtn</code>(테두리 단추 · 켜지면 파랑 + ✓). 칩(<code>.chip</code>)은 상태 표시에만. 그래프의 스위치 열 줄도 <code>.fbtn</code> 로 바꾼다.</li>
+<li><b>묶음 줄 하나</b>: 폴더(문서)와 종류(항목)는 같은 꼴(▸ · 굵은 회색 글 · 둥근 수). 처음은 모두 접힘 · 지금 연 것이 든 묶음만 펼침 · 찾기를 쓰면 맞은 묶음만 펼침.</li>
+<li><b>갈래 탭은 이 브라우저에 남긴다</b>(지식마다). 기록 탭에서 기록을 열어도 탭은 그대로.</li>
+<li><b>그래프 말</b>: 「선 보기 · 점 제목 늘 보기 · 천천히 돌기」 → 「선 · 제목 · 회전」, 「외톨이 숨기기」 → 「안 이어진 점 빼기」, 「거름」 → 「거르기」. 긴 설명은 올리면 뜨는 글로.</li>
+<li>항목의 「최근 바뀐 것」 → 「최근 바뀜」(단추 셋이 한 줄에 들게).</li>
+<li>컨벤션에 더할 것: 5절 <code>.fbtn</code> 거르기 단추 · 갈래 탭 · 묶음 줄 / 10절 상태(기본 · 올림 · 켜짐 · 초점 · 흐림) / 9절 용어(회전 · 거르기).</li>
+</ul>
+</div>
+</div>
+
+<script>
+const FOLDERS = [['0_공통', ['용어집']], ['1.1_착수', ['수행계획서', '착수보고']], ['1.2_사업관리', ['사업현황및이해관계자', '회의록', '주간보고서', '이슈 대장']], ['2.1_요구사항분석', ['PLC연계요구사항정의서', '요구사항정의서']], ['3.1_전체아키텍처', ['시스템아키텍처']], ['3.2_SCADA연계설계', ['SCADA 작업 사양서', '연계규격', '연계API', '작업사양']], ['3.3_게이트웨이설계', ['게이트웨이설계서', '테이블정의서', '인터페이스정의서', '헬스체크']], ['3.4_DPMS웹설계', ['테이블정의서', '코드정의서', '화면설계서', '프로그램사양서', '프로세스정의서', '기능정의서_프로그램목록', 'GIS지도방식검토서']], ['4.1_개발환경', ['내부시험서버구성서']], ['5.5_게이트웨이단위시험', ['단위시험계획', '단위시험결과']], ['8.1_통합시험', ['통합시험계획', '통합시험결과']], ['8.2_운영시험', ['운영시험결과']], ['8.3_설치준비', ['설치계획', '설치체크리스트', '현장 설정']], ['10.3_납품', ['납품목록']]]
+const KINDS = [['용어', 34, ['DPMS', 'PLC', '게이트웨이', 'SCADA']], ['테이블정의서', 70, ['TB_DEVICE 장비', 'TB_ALARM 경보', 'TB_USER 사용자']], ['코드정의서', 41, ['DP031 장비 상태', 'DP032 경보 등급']], ['사업분석', 12, ['범위', '일정']], ['이슈', 19, ['DPMS-ISS-15 공수 부족', 'DPMS-ISS-16 망 분리']], ['요구사항', 4, ['USR-01 실시간 감시']], ['게이트웨이설계', 18, ['헬스 체크', '재접속']], ['화면설계서', 35, ['DPA020 대시보드', 'DPA021 경보 목록']]]
+const ck = '<svg class="ck" viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg>'
+const IC = { doc: 'M6 3h9l3 3v15H6z M14 3v4h4', folder: 'M3 6h6l2 2h10v11H3z', clip: 'M8 12l6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l7-7' }
+const ico = (k) => `<svg viewBox="0 0 24 24"><path d="${IC[k]}"/></svg>`
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+const st = { docs: { open: { '3.4_DPMS웹설계': true }, tab: 'doc', q: '' }, items: { open: {}, q: '' } }
+const grp = (key, name, n, open, d) => `<div class="row grp" role="button" tabindex="0" aria-expanded="${open}" data-g="${esc(key)}" style="--d:${d}"><span class="ar">${open ? '▾' : '▸'}</span>${d === null ? '' : ico('folder')}<span class="nm">${esc(name)}</span><span class="rc">${n}</span></div>`
+function drawDocs() {
+  const m = document.querySelector('[data-mock=docs]'), s = st.docs, L = m.querySelector('[data-list]')
+  if (s.tab === 'rec') { L.innerHTML = '<div class="row" tabindex="0"><span class="dt">10:21</span><span class="nm">게이트웨이 장애 통화</span></div><div class="row" tabindex="0"><span class="dt">09:02</span><span class="nm">주간보고 2주차</span></div><div class="row" tabindex="0"><span class="dt">어제</span><span class="nm">SCADA 연계 회의</span></div><div class="row more" tabindex="0">더 보기(남은 97)</div>'; return }
+  if (s.tab === 'att') { L.innerHTML = ['게이트웨이_구성도.png', '테이블정의서_v3.xlsx', '화면설계서.pptx', '현장사진_01.jpg'].map((a) => `<div class="row" tabindex="0">${ico('clip')}<span class="nm">${a}</span></div>`).join(''); return }
+  const q = s.q.trim()
+  let h = ''
+  for (const [f, ds] of FOLDERS) {
+    const hit = q ? ds.filter((d) => d.includes(q) || f.includes(q)) : ds
+    if (!hit.length) continue
+    const open = q ? true : !!s.open[f]
+    h += grp(f, f, hit.length, open, 0)
+    if (open) h += hit.map((d) => `<div class="row${f === '3.4_DPMS웹설계' && d === '테이블정의서' ? ' on' : ''}" tabindex="0" style="--d:1">${ico('doc')}<span class="nm">${esc(d)}</span></div>`).join('')
+  }
+  L.innerHTML = h || '<div class="muted small" style="padding:var(--sp-4)">맞는 문서가 없다</div>'
+  m.querySelector('[data-all]').textContent = FOLDERS.every(([f]) => s.open[f]) ? '모두 접기' : '모두 펴기'
+}
+function drawItems() {
+  const m = document.querySelector('[data-mock=items]'), s = st.items
+  let h = ''
+  for (const [k, n, ex] of KINDS) {
+    const open = !!s.open[k]
+    h += `<div class="row grp" role="button" tabindex="0" aria-expanded="${open}" data-g="${esc(k)}"><span class="ar">${open ? '▾' : '▸'}</span><span class="nm">${esc(k)}</span><span class="rc">${n}</span></div>`
+    if (open) h += ex.map((e) => { const [v, ...r] = e.split(' '); return `<div class="row" tabindex="0" style="--d:1"><span class="nm"><span class="iv">${esc(v)}</span>${r.length ? `<span class="id">${esc(r.join(' '))}</span>` : ''}</span></div>` }).join('') + (n > ex.length ? `<div class="row more" tabindex="0" style="--d:1">${n - ex.length}개 더</div>` : '')
+  }
+  m.querySelector('[data-list]').innerHTML = h
+  m.querySelector('[data-all]').textContent = KINDS.every(([k]) => s.open[k]) ? '모두 접기' : '모두 펴기'
+}
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('button,.row.grp'); if (!t) return
+  const mock = t.closest('[data-mock]'), id = mock && mock.dataset.mock
+  if (t.classList.contains('tg')) { t.setAttribute('aria-pressed', t.getAttribute('aria-pressed') !== 'true'); return }
+  if (t.dataset.st && id === 'docs') { st.docs.tab = t.dataset.st; mock.querySelectorAll('.stabs button').forEach((b) => b.setAttribute('aria-selected', b === t)); mock.querySelector('[data-q]').placeholder = { doc: '문서 찾기: 제목 · 폴더', rec: '기록 찾기: 제목 · 쓴 사람', att: '첨부 찾기: 파일 이름' }[t.dataset.st]; drawDocs(); return }
+  if (t.dataset.g && id === 'docs') { st.docs.open[t.dataset.g] = !st.docs.open[t.dataset.g]; drawDocs(); return }
+  if (t.dataset.g && id === 'items') { st.items.open[t.dataset.g] = !st.items.open[t.dataset.g]; drawItems(); return }
+  if (t.hasAttribute('data-all')) { const s = st[id], keys = id === 'docs' ? FOLDERS.map((x) => x[0]) : KINDS.map((x) => x[0]), all = keys.every((k) => s.open[k]); keys.forEach((k) => (s.open[k] = !all)); id === 'docs' ? drawDocs() : drawItems() }
+})
+document.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('grp')) { e.preventDefault(); e.target.click() } })
+document.querySelector('[data-mock=docs] [data-q]').addEventListener('input', (e) => { st.docs.q = e.target.value; drawDocs() })
+drawDocs(); drawItems()
+</script>
+</body>
+</html>

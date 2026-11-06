@@ -21,7 +21,7 @@ const S = {
   stops: [],
   srcRun: {}, sf: null, sfMsg: null, imports: [], addDraft: '', addMsg: null, sending: false,
   openToday: null, picker: false,
-  iq: '', ifilt: { pend: false, recent: false, mine: false }, kfold: {}, tablesAll: false, gPop: false, curSec: null,
+  iq: '', ifilt: { held: false, recent: false, mine: false }, kfold: {}, tq: '', tfilt: { held: false, mine: false }, tablesAll: false, gPop: false, curSec: null,
   g: { kn: null, pos: {}, cam: { rx: -0.35, ry: 0.6, zoom: 1, base: 1, px: 0, py: 0, needFit: true }, sel: null, bundle: false, layoutKey: '', f: { q: '', item: true, doc: true, rec: false, src: false, pend: false, recent: false, orph: false, depth: 0, label: false, line: false, spin: true } },
 }
 // 고른 지식을 따르는 화면 — 지식 관리(이력 · 설정 · 넣지 못함 · 가져오기 · 보내기)는 고른 지식과 따로다
@@ -415,7 +415,7 @@ function askDone(i) {
 const UI_KEY = 'kmd.ui'
 const SW = [200, 420, 248], AW = [260, 560, 300] // 최소 · 최대 · 기본
 const UI = (() => {
-  const d = { sw: SW[2], aw: AW[2], sideRail: false, asideRail: false, wide: false, ag: {}, dirs: {} }
+  const d = { sw: SW[2], aw: AW[2], sideRail: false, asideRail: false, wide: false, ag: {}, dirs: {}, stab: {} }
   try { return { ...d, ...JSON.parse(localStorage.getItem(UI_KEY) || '{}') } } catch (e) { console.warn('화면 자리 읽기 못 함', e); return d }
 })()
 function saveUi() { try { localStorage.setItem(UI_KEY, JSON.stringify(UI)) } catch (e) { console.warn('화면 자리 남기기 못 함', e) } }
@@ -618,7 +618,7 @@ function sideHtml(left) {
     const cnt = team ? '팀 ' + vk.length : '내 지식 ' + vk.length
     const home = r.scr === 'home'
     h += `<div class="sb-know" data-t="knowArea"><div class="sb-repo" data-a="kmenu" data-t="kpick">${cur && !home ? `<span class="rk">${esc(cur.name.slice(0, 2))}</span><span class="rn">${esc(cur.name)} <small>${esc(knWhere(cur))}</small></span>` : `<span class="rk">전체</span><span class="rn">지식 전체<small>${cnt}</small></span>`}<span class="rc">▾</span>${S.menu === 'kmenu' ? `<div class="kmenu"><div class="mi" data-a="pickKn" data-k="*" data-t="nav-home">${svg('list')} 지식 목록: 전체</div>${shownKns().map((x) => `<div class="mi" data-a="pickKn" data-k="${esc(x.id)}" data-t="kmenuKn">${esc(x.name)} ${knTag(x)}</div>`).join('')}<div class="sep"></div><div class="mi" data-a="openAdd" data-t="nav-add">+ 새 지식</div></div>` : ''}</div>`
-    h += `<div class="ktabs" data-t="ktabs">${[['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['graph', '그래프', 'graph']].map(([v, l, ic]) => `<span class="${VIEWS3.includes(r.scr) && vt === v ? 'on' : vt === v ? 'cur' : ''}" data-a="view" data-v="${v}" data-t="rb-${v}" title="${l}로 보기">${svg(ic)}${l}</span>`).join('')}</div>`
+    h += `<div class="ktabs" role="tablist" aria-label="보기" data-t="ktabs">${[['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['graph', '그래프', 'graph']].map(([v, l, ic]) => `<button type="button" role="tab" aria-selected="${VIEWS3.includes(r.scr) && vt === v}" class="${VIEWS3.includes(r.scr) && vt === v ? 'on' : vt === v ? 'cur' : ''}" data-a="view" data-v="${v}" data-t="rb-${v}" title="${l}로 보기">${svg(ic)}${l}</button>`).join('')}</div>`
     h += `<div class="lp" data-t="leftPane">${left || sideList(vt, k)}</div></div>`
   }
   // 지식 관리 — 옆 메뉴에는 이력 · 설정. 설정을 누르면 본문 왼쪽에 메뉴(가져오기 · 넣지 못함 · 지식 보내기 · 설정 탭)가 선다
@@ -992,8 +992,12 @@ function guardCard(k) {
 }
 // 문서 나무(컨벤션 5절) — docs/ 폴더 짜임 그대로. 폴더 먼저 · 이름 차례(숫자는 수로) · 처음은 접힘 · 지금 연 문서가 든 폴더는 펼침
 //   펼침은 UI.dirs[지식:폴더] — 없으면 기본(지금 문서의 폴더면 펼침), true/false 는 사람이 고른 것
+const CK = '<svg viewBox="0 0 24 24" class="ck" aria-hidden="true"><path d="M5 12l4 4 10-10"/></svg>'
+const fbtn = (on, attrs, label, title) => `<button type="button" class="fbtn" aria-pressed="${!!on}"${attrs}${title ? ` title="${esc(title)}"` : ''}>${CK}${label}</button>`
 const byName = (a, b) => a.localeCompare(b, 'ko', { numeric: true })
-function docTreeHtml(k, ds) {
+function docTreeHtml(k, ds, q = '') {
+  const nq = norm(q)
+  if (nq) ds = ds.filter((d) => norm(d.title).includes(nq) || norm(d.id).includes(nq))
   const root = { dirs: new Map(), docs: [], n: 0 }
   for (const d of ds) {
     const parts = d.id.split('/'), name = parts.pop()
@@ -1003,7 +1007,7 @@ function docTreeHtml(k, ds) {
     node.docs.push({ ...d, name })
   }
   const t = activeTab(), cur = t && t.kind === 'doc' && t.kn === k ? t.ref : ''
-  const isOpen = (p) => { const v = UI.dirs[k + ':' + p]; return v != null ? v : cur.startsWith(p + '/') }
+  const isOpen = (p) => { if (nq) return true; const v = UI.dirs[k + ':' + p]; return v != null ? v : cur.startsWith(p + '/') }
   const pad = (dep) => (dep ? ` style="--dep:${dep}"` : '')
   const walk = (node, pre, dep) => {
     let h = ''
@@ -1019,23 +1023,35 @@ function docTreeHtml(k, ds) {
     }
     return h
   }
-  return walk(root, '', 0) || '<div class="tn muted nc">없다</div>'
+  return walk(root, '', 0) || `<div class="tn muted nc" data-t="docNone">${q ? '맞는 문서가 없다' : '없다'}</div>`
 }
+const dirsOf = (ds) => [...new Set(ds.flatMap((d) => d.id.split('/').slice(0, -1).map((_, i, a) => a.slice(0, i + 1).join('/'))))]
+// 문서 보기(컨벤션 5절 옆 메뉴 짜임) — 갈래 탭 → 찾기 → 거르기 · 모두 펴기 → 목록. 갈래 탭은 UI.stab[지식]
+const stabOf = (k) => UI.stab[k] || 'doc'
 function treeHtml(k) {
-  const n = KN(k), tr = treeOf(k)
+  const tr = treeOf(k)
   if (!tr) return `<div class="tree" data-t="tree">${loadingHtml}</div>`
   if (tr.error) return `<div class="tree" data-t="tree">${errHtml(tr)}</div>`
-  const ds = tr.docs, fk = (f) => !!S.fold[k + ':' + f]
-  const head = (f, l, cnt, extra) => `<div class="tf" data-a="fold" data-f="${f}" data-t="fold-${f}"><span class="ar">${fk(f) ? '▸' : '▾'}</span>${l}${extra || ''}<span class="cnt">${cnt}</span></div>`
-  let h = `<div class="tree" data-t="tree">` + head('docs', '문서', ds.length)
-  if (!fk('docs')) h += docTreeHtml(k, ds)
-  const rs = tr.records, left = recLeft(tr)
-  h += head('recs', '기록', tr.total ?? rs.length, ' <small>날짜 순</small>')
-  if (!fk('recs')) h += rs.length ? rs.map((r) => `<div class="tn${isAct('rec', k, r.id) ? ' on' : ''}" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="rec" data-state="${r.state}" data-pv="rec|${esc(k)}|${esc(r.id)}">${heldR(k, r) ? '<i class="pd hd" title="넣지 못함"></i>' : ''}<span class="dt">${esc(isToday(r.date) ? hhmm(r.date) : whenTxt(r.date))}</span><span class="nm">${esc(r.title.split(/ — |: /)[0])}</span></div>`).join('') + (left && tr.next ? `<div class="tn more" data-a="treeMore" data-k="${esc(k)}" data-t="moreRecs"${S.wait['treeMore:' + k] ? ' aria-busy="true"' : ''}>${S.wait['treeMore:' + k] ? '읽는 중…' : `더 보기(남은 ${left})`}</div>` : '') : `<div class="tn muted nc">${isTeam() ? '아직 없다' : '내 지식은 고치면 바로 문서다'}</div>`
-  const at = tr.atts
-  h += head('atts', '첨부', at.length)
-  if (!fk('atts')) h += at.length ? at.map((a) => `<div class="tn${isAct('att', k, a) ? ' on' : ''}" data-a="openAtt" data-k="${esc(k)}" data-v="${esc(a)}" data-t="att">${svg('clip')}<span class="nm">${esc(a)}</span></div>`).join('') : '<div class="tn muted nc">없다</div>'
-  return h + '</div>'
+  const st = stabOf(k), f = S.tfilt
+  const tabs = [['doc', '문서', tr.docs.length], ['rec', '기록', tr.total ?? tr.records.length], ['att', '첨부', tr.atts.length]]
+  const ph = { doc: '문서 찾기: 제목 · 폴더', rec: '기록 찾기: 제목 · 쓴 사람', att: '첨부 찾기: 파일 이름' }[st]
+  let tools = ''
+  if (st === 'doc') {
+    const dirs = dirsOf(tr.docs), allOpen = dirs.length && dirs.every((p) => UI.dirs[k + ':' + p])
+    tools = fbtn(f.held, ' data-a="tFilt" data-v="held" data-t="tf-held"', '넣지 못함') + (dirs.length ? `<button type="button" class="lk r" data-a="dirAll" data-t="dirAll">${allOpen ? '모두 접기' : '모두 펴기'}</button>` : '')
+  } else if (st === 'rec') tools = fbtn(f.held, ' data-a="tFilt" data-v="held" data-t="tf-held"', '넣지 못함') + fbtn(f.mine, ' data-a="tFilt" data-v="mine" data-t="tf-mine"', '내가 쓴 것') + '<span class="muted small r">새것 위</span>'
+  return `<div class="tree" data-t="tree"><div class="lhead"><div class="stabs" role="tablist" aria-label="갈래" data-t="stabs">${tabs.map(([v, l, n]) => `<button type="button" role="tab" aria-selected="${st === v}" data-a="sTab" data-v="${v}" data-t="st-${v}">${l} <em>${n}</em></button>`).join('')}</div><input class="inp" id="treeQ" aria-label="${esc(ph.split(':')[0])}" data-in="treeQ" data-t="treeQ" value="${esc(S.tq)}" placeholder="${esc(ph)}" autocomplete="off">${tools ? `<div class="tools">${tools}</div>` : ''}</div><div id="treeBody">${treeBody(k)}</div></div>`
+}
+function treeBody(k) {
+  const tr = treeOf(k), st = stabOf(k), q = S.tq.trim(), nq = norm(q), f = S.tfilt
+  if (st === 'doc') return docTreeHtml(k, f.held ? tr.docs.filter((d) => d.held) : tr.docs, q)
+  if (st === 'rec') {
+    const rs = tr.records.filter((r) => (!f.held || heldR(k, r)) && (!f.mine || r.author === S.me.user) && (!nq || norm(r.title).includes(nq) || norm(r.author || '').includes(nq))), left = recLeft(tr)
+    if (!tr.records.length) return `<div class="tn muted nc">${isTeam() ? '아직 없다' : '내 지식은 고치면 바로 문서다'}</div>`
+    return (rs.map((r) => `<div class="tn${isAct('rec', k, r.id) ? ' on' : ''}" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="rec" data-state="${r.state}" data-pv="rec|${esc(k)}|${esc(r.id)}">${heldR(k, r) ? '<i class="pd hd" title="넣지 못함"></i>' : ''}<span class="dt">${esc(isToday(r.date) ? hhmm(r.date) : whenTxt(r.date))}</span><span class="nm">${esc(r.title.split(/ — |: /)[0])}</span></div>`).join('') || '<div class="tn muted nc">맞는 기록이 없다</div>') + (left && tr.next ? `<div class="tn more" data-a="treeMore" data-k="${esc(k)}" data-t="moreRecs"${S.wait['treeMore:' + k] ? ' aria-busy="true"' : ''}>${S.wait['treeMore:' + k] ? '읽는 중…' : `더 보기(남은 ${left})`}</div>` : '')
+  }
+  const at = tr.atts.filter((a) => !nq || norm(a).includes(nq))
+  return at.length ? at.map((a) => `<div class="tn${isAct('att', k, a) ? ' on' : ''}" data-a="openAtt" data-k="${esc(k)}" data-v="${esc(a)}" data-t="att">${svg('clip')}<span class="nm">${esc(a)}</span></div>`).join('') : `<div class="tn muted nc">${q ? '맞는 첨부가 없다' : '없다'}</div>`
 }
 function rpHead() { return '<div class="rph"><i class="pd"></i>나란히 보기: 읽기만<button type="button" class="lk r small" data-a="closeSplit" data-t="closeSplit">나누기 닫기 ×</button></div>' }
 
@@ -1466,7 +1482,7 @@ function linkify(h, k, self) {
 }
 
 // ───────────── 보기 둘 — 항목으로 보기(목업 M6) ─────────────
-const IFL = [['held', '넣지 못함'], ['recent', '최근 바뀐 것'], ['mine', '내가 쓴 것']]
+const IFL = [['held', '넣지 못함'], ['recent', '최근 바뀜'], ['mine', '내가 쓴 것']]
 const KINDS = ['화면', '절차', '테이블', 'API', '용어']
 function viewItems() {
   const k = pickKn()
@@ -1476,14 +1492,16 @@ function viewItems() {
 }
 function itemListHtml(k) {
   if (!M(k)) return `<div class="ilist" data-t="itemList">${modelErr(k) ? errHtml(modelErr(k), 'model:' + k) : loadingHtml}</div>`
-  return `<div class="ilist" data-t="itemList"><input class="inp" id="itemQ" aria-label="항목 찾기" data-in="itemQ" data-t="itemQ" value="${esc(S.iq)}" placeholder="항목 찾기: 이름 · 다른 이름" autocomplete="off"><div class="fcs">${IFL.map(([v, l]) => `<span class="fc${S.ifilt[v] ? ' on' : ''}" data-a="itemFilt" data-v="${v}" data-t="if-${v}">${l}</span>`).join('')}</div><div id="itemListBody">${itemListBody(k)}</div></div>`
+  const kinds = [...new Set(itemsOf(k).map((i) => i.kind))], allOpen = kinds.length && kinds.every((kd) => S.kfold[kd] === false)
+  return `<div class="ilist" data-t="itemList"><div class="lhead"><input class="inp" id="itemQ" aria-label="항목 찾기" data-in="itemQ" data-t="itemQ" value="${esc(S.iq)}" placeholder="항목 찾기: 이름 · 다른 이름" autocomplete="off"><div class="tools">${IFL.map(([v, l]) => fbtn(S.ifilt[v], ` data-a="itemFilt" data-v="${v}" data-t="if-${v}"`, l)).join('')}</div><div class="tools"><span class="muted small">종류 ${kinds.length} · 항목 ${itemsOf(k).length}</span><button type="button" class="lk r" data-a="kindAll" data-t="kindAll">${allOpen ? '모두 접기' : '모두 펴기'}</button></div></div><div id="itemListBody">${itemListBody(k)}</div></div>`
 }
 function itemRecent(k, i) {
   const cut = Date.now() - 3 * 864e5
   return recsOfItem(k, i).some((r) => r.state === 'pend' || (stampDate(r.date) || 0) >= cut)
 }
 const itemMine = (k, i) => recsOfItem(k, i).some((r) => r.author === S.me.user)
-function kindFolded(k, kd) { return S.kfold[kd] !== undefined ? S.kfold[kd] : kd === '테이블' && itemsOf(k).filter((i) => i.kind === kd).length > 40 }
+// 항목 종류 묶음 — 처음은 모두 접힘(컨벤션 5절 묶음 줄) · 지금 연 항목의 종류는 펼침
+function kindFolded(k, kd) { if (S.kfold[kd] !== undefined) return S.kfold[kd]; const t = activeTab(); return !(t && t.kind === 'item' && t.kn === k && (itemByKey(k, t.ref) || {}).kind === kd) }
 function itemListBody(k) {
   const q = S.iq.trim(), nq = norm(q), f = S.ifilt
   const its = itemsOf(k).filter((i) => (!f.held || itemHeld(k, i).length) && (!f.recent || itemRecent(k, i)) && (!f.mine || itemMine(k, i)))
@@ -1498,18 +1516,18 @@ function itemListBody(k) {
   kinds.forEach((kd) => {
     const g = hits.filter((i) => i.kind === kd)
     if (!g.length) return
-    const folded = q ? false : kindFolded(k, kd)
-    h += `<div class="tf" data-a="foldKind" data-v="${esc(kd)}" data-t="kind-${esc(kd)}"><span class="ar">${folded ? '▸' : '▾'}</span>${esc(kd)}<span class="cnt">${g.length}</span></div>`
+    const folded = q || f.held || f.recent || f.mine ? false : kindFolded(k, kd)
+    h += `<div class="tn dir" data-a="foldKind" data-v="${esc(kd)}" data-t="kind-${esc(kd)}" aria-expanded="${!folded}"><span class="ar" aria-hidden="true">${folded ? '▸' : '▾'}</span><span class="nm">${esc(kd)}</span><span class="rc">${g.length}</span></div>`
     if (folded) return
     const show = !S.tablesAll && g.length > 30 ? g.slice(0, 30) : g
-    h += show.map((i) => itemRowHtml(k, i)).join('')
-    if (show.length < g.length) h += `<div class="tn more" data-a="moreTables" data-t="moreTables">${g.length - show.length}개 더</div>`
+    h += show.map((i) => itemRowHtml(k, i, '', 1)).join('')
+    if (show.length < g.length) h += `<div class="tn more" style="--dep:1" data-a="moreTables" data-t="moreTables">${g.length - show.length}개 더</div>`
   })
   return h || '<div class="muted small" style="padding:8px">이 거름에 맞는 항목이 없다</div>'
 }
-function itemRowHtml(k, i, dt) {
+function itemRowHtml(k, i, dt, dep) {
   const rs = recsOfItem(k, i), p = rs.filter((r) => heldR(k, r)).length
-  return `<div class="tn${isAct('item', k, i.key) ? ' on' : ''}" data-a="openItem" data-k="${esc(k)}" data-n="${esc(i.key)}" data-t="${dt || 'itemRow'}" data-name="${esc(i.name)}" data-pv="item|${esc(k)}|${esc(i.key)}"><span class="nm">${inmHtml(i)}</span>${p ? '<i class="pd hd" title="넣지 못함"></i>' : ''}${!i.doc ? '<small class="nd">문서 없음</small>' : ''}${rs.length ? `<span class="rc" title="기록">${rs.length}</span>` : ''}</div>`
+  return `<div class="tn${isAct('item', k, i.key) ? ' on' : ''}" data-a="openItem" data-k="${esc(k)}" data-n="${esc(i.key)}" data-t="${dt || 'itemRow'}" data-name="${esc(i.name)}" data-pv="item|${esc(k)}|${esc(i.key)}"${dep ? ` style="--dep:${dep}"` : ''}><span class="nm">${inmHtml(i)}</span>${p ? '<i class="pd hd" title="넣지 못함"></i>' : ''}${!i.doc ? '<small class="nd">문서 없음</small>' : ''}${rs.length ? `<span class="rc" title="기록">${rs.length}</span>` : ''}</div>`
 }
 function itemsEmpty(k) {
   if (!M(k)) return `<div class="pg-text"><div class="big">${esc(KN(k).name)}: 항목</div>${modelErr(k) ? errHtml(modelErr(k), 'model:' + k) : loadingHtml}</div>`
@@ -1831,15 +1849,16 @@ function viewGraph() {
 }
 function graphFilter(k) {
   const f = S.g.f, tables = itemsOf(k).filter((i) => i.table).length
-  const sw = (v, l, sub) => `<div class="gr"><span class="tx">${l}${sub ? `<small>${sub}</small>` : ''}</span><button class="sw${f[v] ? ' on' : ''}" role="switch" aria-checked="${f[v] ? 'true' : 'false'}" data-a="gSet" data-v="${v}" data-t="g-${v}" aria-label="${l}"></button></div>`
-  const kd = (v, l) => `<div class="gr"><span class="tx"><i class="kd" style="background:${KCOL[v]}"></i>${l}</span><button class="sw${f[v] ? ' on' : ''}" role="switch" aria-checked="${f[v] ? 'true' : 'false'}" data-a="gSet" data-v="${v}" data-t="gk-${v}" aria-label="${l}"></button></div>`
+  const tb = (v, l, title, extra = '') => fbtn(f[v], ` data-a="gSet" data-v="${v}" data-t="g-${v}"${extra}`, l, title)
+  const vb = (v, ic, l, title) => `<button type="button" class="fbtn" aria-pressed="${!!f[v]}" data-a="gSet" data-v="${v}" data-t="g-${v}" title="${esc(title)}">${svg(ic)}${l}</button>`
+  const kd = (v, l) => `<button type="button" class="fbtn" aria-pressed="${!!f[v]}" data-a="gSet" data-v="${v}" data-t="gk-${v}"><i class="kd" style="background:${KCOL[v]}"></i>${l}</button>`
   return `<div class="gf" data-t="gFilter">
-  <input class="inp" id="gQ" aria-label="그래프에서 찾기" data-in="gQ" data-t="gQ" value="${esc(f.q)}" placeholder="찾기: 맞는 점을 밝힌다" autocomplete="off">
-  <div class="gh">종류</div>${kd('item', '항목')}${kd('doc', '문서')}${kd('rec', '기록')}${kd('src', '가져올 곳')}
-  <div class="gh">거름</div>${sw('pend', '넣지 못함만')}${sw('recent', '기간: 최근 30일 기록', f.rec ? '' : '기록을 켜면 쓴다')}${sw('orph', '외톨이 숨기기')}
-  <div class="gh">보기</div>${sw('line', '선 보기', '끄면 고른 점 · 올린 점의 선만')}${sw('label', '점 제목 늘 보기', '끄면 점에 올리거나 고를 때만')}${sw('spin', '천천히 돌기', '끌거나 점에 올리면 멈춘다')}
-  <div class="gh">깊이 <small>고른 점 중심</small></div><div class="seg" data-t="gDepth">${[0, 1, 2, 3].map((d) => `<button class="${f.depth === d ? 'on' : ''}" data-a="gDepth" data-v="${d}" data-t="gd-${d}"${d && !S.g.sel ? ' disabled' : ''}>${d || '전체'}</button>`).join('')}</div>${S.g.sel ? '' : '<div class="small muted" style="margin:4px">점을 고르면 깊이를 쓴다</div>'}
-  ${tables ? `<div class="gh">큰 종류</div><div class="gr"><span class="tx">테이블 ${tables}<small>${S.g.bundle ? '펴 두었다. 점 ' + tables : '묶음 점 하나로 접어 두었다. 누르면 편다'}</small></span>${S.g.bundle ? '<button type="button" class="lk" data-a="gBundle" data-t="gFold">접기</button>' : '<button type="button" class="lk" data-a="gBundle" data-t="gUnfold">펴기</button>'}</div>` : ''}</div>`
+  <div class="lhead"><input class="inp" id="gQ" aria-label="그래프에서 찾기" data-in="gQ" data-t="gQ" value="${esc(f.q)}" placeholder="찾기: 맞는 점을 밝힌다" autocomplete="off"></div>
+  <div class="gh">보기</div><div class="vgrp" data-t="gView">${vb('line', 'line', '선', '모든 선을 그린다. 끄면 고른 점 · 올린 점의 선만')}${vb('label', 'title', '제목', '모든 점의 제목을 쓴다. 끄면 올리거나 고른 점만')}${vb('spin', 'sync', '회전', '천천히 돈다. 끌거나 점에 올리면 멈춘다')}</div>
+  <div class="gh">종류</div><div class="tools">${kd('item', '항목')}${kd('doc', '문서')}${kd('rec', '기록')}${kd('src', '가져올 곳')}</div>
+  <div class="gh">거르기</div><div class="tools">${tb('pend', '넣지 못함')}${tb('recent', '최근 30일', f.rec ? '최근 30일 안의 기록만' : '기록을 켜면 쓴다', f.rec ? '' : ' disabled')}${tb('orph', '안 이어진 점 빼기', '선이 하나도 없는 점을 뺀다')}</div>
+  <div class="gh">깊이 <small>${S.g.sel ? '고른 점 중심' : '점을 고르면 쓴다'}</small></div><div class="seg" data-t="gDepth">${[0, 1, 2, 3].map((d) => `<button class="${f.depth === d ? 'on' : ''}" data-a="gDepth" data-v="${d}" data-t="gd-${d}"${d && !S.g.sel ? ' disabled' : ''}>${d || '전체'}</button>`).join('')}</div>
+  ${tables ? `<div class="gh">큰 종류</div><div class="gr"><span class="tx">테이블 ${tables}<small>${S.g.bundle ? '펴 두었다. 점 ' + tables : '점 하나로 접어 두었다'}</small></span>${S.g.bundle ? '<button type="button" class="lk" data-a="gBundle" data-t="gFold">접기</button>' : '<button type="button" class="lk" data-a="gBundle" data-t="gUnfold">펴기</button>'}</div>` : ''}</div>`
 }
 function nodeInfo(k, id) {
   const i = id.indexOf(':'), t = id.slice(0, i), ref = id.slice(i + 1), m = M(k)
@@ -4518,6 +4537,10 @@ const ACT = {
   openQo: () => openQo(),
   openSearch: () => openPal(),
   fold: (el) => { const key = S.route.kn + ':' + el.dataset.f; S.fold[key] = !S.fold[key]; render() },
+  sTab: (el) => { UI.stab[S.route.kn] = el.dataset.v; saveUi(); S.tq = ''; render() },
+  tFilt: (el) => { S.tfilt[el.dataset.v] = !S.tfilt[el.dataset.v]; render() },
+  dirAll: () => { const k = S.route.kn, tr = treeOf(k), ds = dirsOf(tr.docs), all = ds.every((p) => UI.dirs[k + ':' + p]); ds.forEach((p) => { UI.dirs[k + ':' + p] = !all }); saveUi(); render() },
+  kindAll: () => { const k = S.route.kn, ks = [...new Set(itemsOf(k).map((i) => i.kind))], all = ks.every((kd) => S.kfold[kd] === false); ks.forEach((kd) => { S.kfold[kd] = all }); render() },
   dirFold: (el) => { const key = S.route.kn + ':' + el.dataset.p; UI.dirs[key] = el.getAttribute('aria-expanded') !== 'true'; saveUi(); render() },
   openDoc: (el) => openDocAt(el.dataset.k, el.dataset.d, el.dataset.h, null, undefined, el.dataset.sub),
   logKind: (el) => { S.logKind = el.dataset.v; render() },
@@ -4566,7 +4589,7 @@ document.addEventListener('click', (ev) => {
   if (!f) return
   if (el.tagName === 'A') ev.preventDefault()
   if (S.menu && !['menu', 'kmenu', 'pickKn'].includes(el.dataset.a) && !ev.target.closest('.menu,.pop')) S.menu = null
-  if ((S.sideOpen || S.asideOpen) && el.closest('.side,.aside,.pop') && !['menu', 'kmenu', 'fold', 'dirFold', 'sideToggle', 'asideToggle', 'itemFilt'].includes(el.dataset.a)) { S.sideOpen = false; S.asideOpen = false }
+  if ((S.sideOpen || S.asideOpen) && el.closest('.side,.aside,.pop') && !['menu', 'kmenu', 'fold', 'dirFold', 'dirAll', 'sTab', 'tFilt', 'kindAll', 'foldKind', 'sideToggle', 'asideToggle', 'itemFilt'].includes(el.dataset.a)) { S.sideOpen = false; S.asideOpen = false }
   // 감싸지 않은 곳의 오류도 알린다(단추가 아무 말 없이 먹지 않게) — 돌려받은 Promise 까지
   try { Promise.resolve(f(el, ev)).catch(actFail) } catch (e) { actFail(e) }
 })
@@ -4582,6 +4605,7 @@ document.addEventListener('input', (ev) => {
   if (k === 'impQ') { S.impQ = t.value; S.impPage = 0; const b = $('#impDone'); if (b) b.innerHTML = impDoneRows(impJobs()) }
   if (k === 'qo') { S.qo.q = t.value; S.qo.sel = 0; $('#qoBody').innerHTML = qoBody(); actDesc(t, 'qoBody') }
   if (k === 'cmd') { S.cmd.q = t.value; S.cmd.sel = 0; $('#cmdBody').innerHTML = cmdBody(); actDesc(t, 'cmdBody') }
+  if (k === 'treeQ') { S.tq = t.value; $('#treeBody').innerHTML = treeBody(S.route.kn) }
   if (k === 'itemQ') { S.iq = t.value; $('#itemListBody').innerHTML = itemListBody(S.route.kn) }
   if (k === 'gQ') { S.g.f.q = t.value; gPaint() }
   if (k === 'del' && S.del) { S.del.typed = t.value; const n = KN(S.del.kn); $('#delBtnBox').innerHTML = delBtn(!!n && t.value.trim() === n.name) }
