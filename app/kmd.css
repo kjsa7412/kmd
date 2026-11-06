@@ -992,7 +992,9 @@ table.done tr.tr-term td{background:var(--surface-2)}
 .mgwrap{display:flex;gap:20px;align-items:flex-start}
 .mgnav{flex:none;width:168px;position:sticky;top:0;border-right:1px solid var(--border);padding-right:var(--sp-6)}
 .mgnav .mgt{font-size:var(--fs-mono);color:var(--text-2);font-weight:600;padding:var(--sp-1) var(--sp-5) var(--sp-4)}
-.mgnav .mgi{padding:7px var(--sp-5);border-radius:var(--r);font-size:var(--fs);cursor:pointer;color:var(--text)}
+.mgnav .mgi{display:block;width:100%;text-align:left;border:0;background:none;font:inherit;padding:7px var(--sp-5);border-radius:var(--r);font-size:var(--fs);cursor:pointer;color:var(--text)}
+.mgnav .mgi:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.mgnav .mgg{font-size:var(--fs-xs);color:var(--text-3);font-weight:700;padding:var(--sp-4) var(--sp-5) var(--sp-1)}
 .mgnav .mgi:hover{background:var(--surface-2)}
 .mgnav .mgi.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
 .mgbody{flex:1;min-width:0}
@@ -1083,7 +1085,7 @@ a.dlink:hover{text-decoration:underline;text-underline-offset:2px}
   .g2{grid-template-columns:1fr}
   .srow{flex-wrap:wrap}.srow .sc{flex-basis:100%}
   .qwrap{grid-template-columns:1fr}.det{position:static}
-  .mgwrap{flex-direction:column}.mgnav{position:static;width:auto;border:0;padding:0;display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+  .mgwrap{flex-direction:column}.mgnav{position:static;width:auto;border:0;padding:0;display:flex;flex-wrap:wrap;gap:var(--sp-2)}.mgnav .mgi{width:auto}.mgnav .mgg{display:none}
   /* 칸 나눔은 본문 폭을 본다 — 옆 메뉴 · 오른쪽 칸이 남은 폭에서도 두 칸으로 좁아지지 않게 */
   .fgrid{grid-template-columns:1fr}
   .stflow{flex-direction:column}.arr{height:14px;width:auto;transform:rotate(90deg)}.det .meta{grid-template-columns:auto 1fr}

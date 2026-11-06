@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>설정 화면 개선 검토</title>
+<style>
+:root{
+  --bg:#f6f7f9;--surface:#fff;--surface-2:#f1f3f7;--surface-3:#e6eaf0;
+  --border:#e2e6ed;--border-strong:#c9d1dd;
+  --text:#11151c;--text-2:#515a68;--text-3:#646d7b;
+  --accent:#3358e6;--accent-bg:#e9eeff;--accent-line:#c3d0fb;
+  --ok:#237a47;--ok-bg:#e6f5ec;--warn:#8c5c00;--warn-bg:#fcf3e0;--danger:#b8321f;--danger-bg:#fdeceb;
+  --pending:#6247c4;--pending-bg:#efedfd;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1218;--surface:#161b23;--surface-2:#1c222c;--surface-3:#252d3a;
+  --border:#2a3240;--border-strong:#3a4456;
+  --text:#e8ecf3;--text-2:#b3bccb;--text-3:#8d97a8;
+  --accent:#8aa4ff;--accent-bg:#1d2747;--accent-line:#34457e;
+  --ok:#74d39c;--ok-bg:#15301f;--warn:#e6b85c;--warn-bg:#33270f;--danger:#ff9389;--danger-bg:#3a1a17;
+  --pending:#b9a8ff;--pending-bg:#2a2448;
+}}
+:root[data-theme="dark"]{
+  --bg:#0f1218;--surface:#161b23;--surface-2:#1c222c;--surface-3:#252d3a;
+  --border:#2a3240;--border-strong:#3a4456;
+  --text:#e8ecf3;--text-2:#b3bccb;--text-3:#8d97a8;
+  --accent:#8aa4ff;--accent-bg:#1d2747;--accent-line:#34457e;
+  --ok:#74d39c;--ok-bg:#15301f;--warn:#e6b85c;--warn-bg:#33270f;--danger:#ff9389;--danger-bg:#3a1a17;
+  --pending:#b9a8ff;--pending-bg:#2a2448;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.7 "Pretendard Variable",Pretendard,"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;-webkit-text-size-adjust:100%;word-break:keep-all;overflow-wrap:anywhere}
+a{color:var(--accent)}
+.wrap{max-width:1200px;margin:0 auto;padding:28px 16px 80px;display:grid;grid-template-columns:200px minmax(0,1fr);gap:28px}
+nav.toc{position:sticky;top:16px;align-self:start;font-size:13px;line-height:1.5}
+nav.toc b{display:block;color:var(--text-3);font-size:12px;margin:0 0 8px}
+nav.toc a{display:block;padding:5px 10px;border-radius:6px;color:var(--text-2);text-decoration:none}
+nav.toc a:hover{background:var(--surface-2);color:var(--text)}
+@media (max-width:900px){.wrap{grid-template-columns:1fr}nav.toc{position:static;display:flex;flex-wrap:wrap;gap:4px}nav.toc b{width:100%}nav.toc a{padding:3px 8px;background:var(--surface);border:1px solid var(--border)}}
+header.hero{grid-column:1/-1;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:26px 28px}
+header.hero h1{margin:0 0 6px;font-size:26px;line-height:1.35}
+header.hero p{margin:4px 0;color:var(--text-2)}
+.meta{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:12px;font-size:13px;color:var(--text-3)}
+.meta span b{color:var(--text-2);font-weight:600;margin-right:4px}
+main{min-width:0}
+section{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 26px;margin-bottom:18px;scroll-margin-top:12px}
+@media (max-width:600px){section,header.hero{padding:18px 16px}}
+h2{margin:0 0 14px;font-size:20px;line-height:1.4;display:flex;align-items:baseline;gap:10px}
+h2 .no{color:var(--accent);font-size:15px;font-weight:700}
+h3{margin:22px 0 8px;font-size:16px}
+h4{margin:14px 0 6px;font-size:14px;color:var(--text-2)}
+p{margin:6px 0 10px}
+ul,ol{margin:6px 0 10px;padding-left:22px}
+li{margin:3px 0}
+.muted{color:var(--text-3)}
+.small{font-size:13px}
+code{font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;font-size:12.5px;background:var(--surface-2);border:1px solid var(--border);padding:0 5px;border-radius:4px}
+.tbl{overflow-x:auto;margin:8px 0 12px;border:1px solid var(--border);border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:14px;min-width:560px}
+th,td{padding:9px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--border)}
+th{background:var(--surface-2);font-weight:600;color:var(--text-2);font-size:13px;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.chip{display:inline-block;padding:0 8px;border-radius:999px;font-size:12px;font-weight:700;line-height:20px;border:1px solid transparent;white-space:nowrap}
+.c-ok{color:var(--ok);background:var(--ok-bg)}
+.c-warn{color:var(--warn);background:var(--warn-bg)}
+.c-danger{color:var(--danger);background:var(--danger-bg)}
+.c-pend{color:var(--pending);background:var(--pending-bg)}
+.c-acc{color:var(--accent);background:var(--accent-bg)}
+.c-mute{color:var(--text-3);background:var(--surface-2);border-color:var(--border)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0 4px}
+.kpi{border:1px solid var(--border);border-radius:12px;padding:12px 14px;background:var(--surface-2)}
+.kpi b{display:block;font-size:24px;line-height:1.2}
+.kpi span{font-size:13px;color:var(--text-2)}
+.callout{border:1px solid var(--accent-line);background:var(--accent-bg);border-radius:10px;padding:12px 14px;margin:10px 0}
+.callout.warn{border-color:transparent;background:var(--warn-bg)}
+.callout.danger{border-color:transparent;background:var(--danger-bg)}
+.callout.ok{border-color:transparent;background:var(--ok-bg)}
+.callout b:first-child{margin-right:4px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.card{border:1px solid var(--border);border-radius:12px;padding:14px 16px;background:var(--surface)}
+.card h4{margin:0 0 6px;color:var(--text)}
+.card .q{color:var(--text-2);font-size:14px;margin:0 0 8px;padding-left:10px;border-left:3px solid var(--accent-line)}
+.card ul{padding-left:18px;font-size:14px}
+.persona .who{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.persona .av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:700;color:var(--accent);background:var(--accent-bg);flex:none}
+.persona .who b{display:block;line-height:1.3}
+.persona .who small{color:var(--text-3);font-size:12px}
+.flow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0 14px}
+@media (max-width:700px){.flow{grid-template-columns:1fr}}
+.flow ol{margin:0;padding-left:20px;font-size:14px}
+.flow .bx{border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+.flow .bx.before{background:var(--surface-2)}
+.flow .bx.after{border-color:var(--accent-line);background:var(--accent-bg)}
+.flow .bx > b{display:block;font-size:12px;color:var(--text-3);margin-bottom:4px}
+.tree{border:1px solid var(--border);border-radius:12px;padding:6px 0;background:var(--surface-2)}
+.tree .g{padding:10px 16px 4px;font-size:12px;font-weight:700;color:var(--text-3)}
+.tree .g small{font-weight:400;margin-left:6px}
+.tree .it{display:grid;grid-template-columns:minmax(120px,190px) 1fr;gap:4px 14px;padding:8px 16px;border-top:1px solid var(--border)}
+@media (max-width:600px){.tree .it{grid-template-columns:1fr}}
+.tree .it .nm{font-weight:700}
+.tree .it .nm small{display:block;font-weight:400;color:var(--text-3);font-size:12px}
+.tree .it ul{margin:0;padding-left:18px;font-size:14px}
+.tree .it .from{font-size:12px;color:var(--text-3);margin-top:2px}
+/* 와이어프레임: kmd 설정 화면의 짜임을 흉내 낸다 */
+.wf{border:1px solid var(--border-strong);border-radius:12px;overflow:hidden;margin:10px 0 18px;background:var(--bg)}
+.wf-top{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface);font-size:12px;color:var(--text-3)}
+.wf-top b{color:var(--text)}
+.wf-body{display:grid;grid-template-columns:170px minmax(0,1fr)}
+@media (max-width:640px){.wf-body{grid-template-columns:1fr}}
+.wf-nav{border-right:1px solid var(--border);background:var(--surface);padding:10px 8px;font-size:13px}
+@media (max-width:640px){.wf-nav{border-right:0;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:2px}}
+.wf-nav .gt{font-size:11px;color:var(--text-3);font-weight:700;padding:8px 8px 2px}
+@media (max-width:640px){.wf-nav .gt{width:100%}}
+.wf-nav .i{padding:5px 10px;border-radius:7px;color:var(--text-2)}
+.wf-nav .i.on{background:var(--accent-bg);color:var(--accent);font-weight:700}
+.wf-nav .i .n{float:right;font-size:11px;color:var(--warn);font-weight:700}
+.wf-main{padding:14px 16px;min-width:0}
+.wf-main .ttl{font-size:18px;font-weight:700;margin:0 0 2px}
+.wf-main .ld{font-size:12.5px;color:var(--text-3);margin:0 0 10px}
+.wf-card{border:1px solid var(--border);border-radius:10px;background:var(--surface);margin:0 0 10px}
+.wf-card .h{padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700}
+.wf-card .h small{font-weight:400;color:var(--text-3);margin-left:6px}
+.wf-card .b{padding:8px 12px;font-size:13px;color:var(--text-2)}
+.wf-card .b .r{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--border)}
+.wf-card .b .r:last-child{border-bottom:0}
+.wf-card .b .r > span:first-child{flex:1;min-width:0}
+.wf-card .b .r small{display:block;color:var(--text-3);font-size:11.5px}
+.wf-sw{width:28px;height:16px;border-radius:9px;background:var(--border-strong);position:relative;flex:none}
+.wf-sw.on{background:var(--accent)}
+.wf-sw::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff}
+.wf-sw.on::after{left:14px}
+.wf-btn{display:inline-block;border:1px solid var(--border-strong);border-radius:7px;padding:1px 9px;font-size:12px;color:var(--text);background:var(--surface);white-space:nowrap}
+.wf-btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+.wf-tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin:0 0 10px;font-size:13px;overflow-x:auto}
+.wf-tabs span{padding:5px 10px;color:var(--text-3);border-bottom:2px solid transparent;white-space:nowrap}
+.wf-tabs span.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:700}
+.wf-note{font-size:12.5px;color:var(--text-3);padding:8px 12px;border-top:1px dashed var(--border);background:var(--surface)}
+.dup td:first-child{font-weight:700}
+.sev{font-weight:700}
+.sev.h{color:var(--danger)}.sev.m{color:var(--warn)}.sev.l{color:var(--text-3)}
+details.more{border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin:8px 0;background:var(--surface-2)}
+details.more summary{cursor:pointer;font-weight:600;font-size:14px}
+.phase{border-left:3px solid var(--accent);padding:4px 0 4px 14px;margin:10px 0}
+.phase b{display:block}
+footer{grid-column:1/-1;color:var(--text-3);font-size:12.5px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hero">
+  <h1>설정 화면 개선 검토</h1>
+  <p>kmd 설정(팀 화면 · 개인 화면)의 메뉴 · 페이지 · 카드를 업무 흐름 순서로 다시 묶고, 겹친 것과 필요 없는 것을 걷는 안.</p>
+  <div class="meta">
+    <span><b>대상</b>kmd v0.1.0 설정 › 가져오기 · 넣지 못함 · 문서 짜임 · 일반 · 사람 · Claude 연결 · 에이전트 설치 · 관리 (개인 화면 6개 포함)</span>
+    <span><b>근거</b><code>app/main.js</code> 줄 번호 · 서버 <code>server/http.js</code> · <code>server/hub.js</code> · 사용자 캡처(팀 화면 설정 › 일반)</span>
+    <span><b>방법</b>페르소나 5명 독립 검토 → 제품 책임자 종합 → 반대 검토</span>
+    <span><b>날짜</b>2026-11-06</span>
+    <span><b>상태</b><span class="chip c-pend">검토안</span> 코드는 고치지 않았다</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <b>차례</b>
+  <a href="#s1">1. 한눈에</a>
+  <a href="#s2">2. 검토 방법</a>
+  <a href="#s3">3. 지금 구성</a>
+  <a href="#s4">4. 페르소나 검토</a>
+  <a href="#s5">5. 업무 흐름 전 · 후</a>
+  <a href="#s6">6. 통합 구성안</a>
+  <a href="#s7">7. 페이지별 화면안</a>
+  <a href="#s8">8. 옮김 · 합침 · 걷음</a>
+  <a href="#s9">9. 기능 · 코드 구조</a>
+  <a href="#s10">10. 단계 이행</a>
+  <a href="#s11">11. 정할 것</a>
+</nav>
+
+<main>
+<section id="s1">
+  <h2><span class="no">1</span>한눈에</h2>
+  <p>지금 설정은 <b>작업 도구</b>(가져오기 · 넣지 못함 · 문서 짜임), <b>설정값</b>(일반 · 사람 · Claude 연결), <b>설치 안내</b>(에이전트 설치), <b>점검</b>(관리)이 묶음 없이 한 줄 메뉴 8칸에 섞여 있다. 같은 카드가 두 곳에 나오고(사람 · 묶음, 백업, 넣지 못함 수), 메뉴 정의가 코드에 세 벌 있다. 다섯 페르소나 모두 이 섞임과 겹침을 첫 문제로 꼽았고, 엔지니어는 세 벌 정의를 잦은 수정의 구조적 원인으로 짚었다.</p>
+  <p>제안은 설정을 <b>업무 차례</b>로 다시 놓는 것이다: <b>점검</b>(매일) › <b>팀 서버 · 팀 지식</b>(세우기) › <b>사람 · 묶음</b>(들이기) › <b>에이전트 설치</b>(붙이기) › <b>나</b>. 날마다 쓰는 작업 도구 셋은 설정 밖 옆 메뉴 「지식 관리」 로 꺼내는 것을 권하되, 예전에 반대로 옮긴 이력이 있어 마지막 단계에 사람이 정하고 한다. 메뉴는 표 하나에서 나오게 하고, 서버 권한 판정과 팀/개인 화면 분리는 그대로 둔다.</p>
+  <div class="kpis">
+    <div class="kpi"><b>8 → 6</b><span>총괄 관리자 설정 메뉴</span></div>
+    <div class="kpi"><b>8 → 3</b><span>지식관리자 (작업 셋은 옆 메뉴로)</span></div>
+    <div class="kpi"><b>6 → 2</b><span>쓰기 자리 (에이전트 설치 · 나)</span></div>
+    <div class="kpi"><b>6곳</b><span>같은 것이 두 곳 이상</span></div>
+    <div class="kpi"><b>2건</b><span>코드로 확인한 버그</span></div>
+    <div class="kpi"><b>5단계</b><span>화면 그대로 정리부터</span></div>
+  </div>
+  <div class="callout warn"><b>바로 고칠 버그 둘.</b> ① 지식관리자에게 「관리」 메뉴가 보이는데 열면 일반 페이지가 나온다(§3). ② 설정 안에서 일반 · 사람 · Claude 연결 · 에이전트 설치 사이를 옮겨도 앱 안 뒤로 가기 기록에 남지 않아 ‹ 를 누르면 설정 밖으로 나간다(§9). 둘 다 1단계(화면 그대로 정리)에서 고친다.</div>
+  <div class="callout"><b>종합안에서 바로잡은 것.</b> 종합 에이전트는 팀 화면 「저절로 하는 일」 을 총괄 관리자 전용 「팀 서버」 로 옮겼지만, 이 스위치는 서버 값이 아니라 <b>사람마다 저장되는 값</b>이다(<code>hub.autoOf(user, key)</code>, server/hub.js:1274). 옮기면 일반 팀원이 자기 값을 못 바꾼다. 이 문서는 「나 › 내 설정」 으로 고쳐 실었다. 이 밖에 반대 검토가 짚은 권한 나눔 · 되살리기 · 과거 결정(Q11 · 9a25187) 10건도 반영했다(§6 끝).</div>
+</section>
+
+<section id="s2">
+  <h2><span class="no">2</span>검토 방법</h2>
+  <p>같은 설정 화면을 역할이 다른 다섯 사람의 눈으로 따로 본 뒤(서로의 결과를 보지 않음), 제품 책임자 역할이 합의 · 충돌을 가려 하나의 구성안으로 묶었다. 그 뒤 반대 검토자(kmd 아키텍트)가 종합안을 서버 권한 판정 · 과거 결정과 대조해 10건을 짚었고, 이 문서는 그것을 반영했다(§6 끝). 모든 지적은 코드 줄로 확인할 수 있게 적었다.</p>
+  <div class="tbl"><table>
+    <tr><th>페르소나</th><th>보는 것</th><th>대표 업무</th></tr>
+    <tr><td><b>총괄 관리자</b><br><span class="muted small">팀 서버 운영 담당</span></td><td>사람 · 묶음 · 지식 세우기/지우기 · 백업 · 팀 일꾼 로그인 · 문제</td><td>서버 처음 세우기 · 새 팀원 들이기 · 매일 상태 보기</td></tr>
+    <tr><td><b>지식관리자</b><br><span class="muted small">팀 지식 하나의 담당</span></td><td>가져오기 · 넣지 못함 · 문서 짜임 · 그 지식의 권한</td><td>자료 넣기 · 넣지 못함 처리 · 폴더 · 이름 · 차례 정리</td></tr>
+    <tr><td><b>일반 팀원</b><br><span class="muted small">쓰기 자리 · 새로 온 사람</span></td><td>내가 할 수 있는 것만 보이나</td><td>에이전트 설치 · 내 넣지 못함 · 나가기 · 개인 지식 쓰기 판단</td></tr>
+    <tr><td><b>IA · UX 설계자</b></td><td>메뉴 묶음 · 순서 · 이름 · 겹침 · 컨벤션</td><td>항목 분류 · 새 메뉴 · 페이지 배치</td></tr>
+    <tr><td><b>기능 · 코드 엔지니어</b></td><td>라우팅 · 상태 · 권한 판정 · 시험 영향</td><td>자주 바뀐 구조적 원인 · 이행 단계</td></tr>
+  </table></div>
+  <p class="small muted">한계: 188 서버 실화면은 내장 브라우저에서 로그인이 필요해 들어가지 않았다. 팀 화면은 사용자 캡처(설정 › 일반)와 코드로, 나머지 페이지 · 자리별 상태는 코드로 재구성했다. 버그로 적은 것은 코드 읽기로 확인했고 실행 확인은 하지 않았다.</p>
+</section>
+
+<section id="s3">
+  <h2><span class="no">3</span>지금 구성</h2>
+  <h3>자리마다 보이는 설정 메뉴 <span class="muted small">main.js:571-580 mgItems</span></h3>
+  <div class="tbl"><table>
+    <tr><th>자리</th><th>왼쪽 설정 메뉴(차례대로)</th><th>수</th></tr>
+    <tr><td>총괄 관리자</td><td>가져오기 · 넣지 못함 · 문서 짜임 · 일반 · 사람 · Claude 연결 · 에이전트 설치 · 관리</td><td>8</td></tr>
+    <tr><td>지식관리자</td><td>가져오기 · 넣지 못함 · 문서 짜임 · 일반 · 사람 · Claude 연결 · 에이전트 설치 · <b>관리</b> <span class="chip c-danger">버그</span></td><td>8</td></tr>
+    <tr><td>쓰기</td><td>가져오기 · 넣지 못함 · 일반 · 사람 · Claude 연결 · 에이전트 설치</td><td>6</td></tr>
+    <tr><td>읽기만</td><td>일반 · 사람 · Claude 연결 · 에이전트 설치</td><td>4</td></tr>
+    <tr><td>개인 화면</td><td>가져오기 · 문서 짜임 · 지식 보내기 · 일반 · Claude 연결 · 에이전트 설치</td><td>6</td></tr>
+  </table></div>
+  <div class="callout danger"><b>지식관리자에게 「관리」 가 보이지만 열면 「일반」 이 나온다.</b> 메뉴는 <code>adm = 총괄 관리자 || anyAdm()</code>(지식관리자 자리가 하나라도 있으면) 일 때 관리를 넣는데(main.js:579), 페이지 쪽 탭 목록은 총괄 관리자일 때만 관리를 둔다(main.js:3585). 그래서 메뉴는 「관리」 가 켜지고 위치 줄도 「설정 › 관리」 인데 본문은 일반 페이지다. 메뉴 정의가 두 군데라 생긴 어긋남이다.</div>
+
+  <h3>페이지 · 카드 <span class="muted small">팀 화면 기준</span></h3>
+  <div class="tbl"><table>
+    <tr><th>메뉴</th><th>성격</th><th>들어 있는 것</th><th>보는 사람</th></tr>
+    <tr><td><b>가져오기</b></td><td>작업 도구</td><td>파일 · 폴더 끌어 넣기 · 일 줄 · 가져올 곳(자동) · + 가져올 곳 더하기</td><td>쓰기 이상(가져올 곳은 지식관리자)</td></tr>
+    <tr><td><b>넣지 못함</b></td><td>작업 도구</td><td>지식 고르기 · 요약(넣지 못함 · 오늘 넣음 · 메모) · 줄마다 고쳐 넣기 · 다시 들이기 · 버리기 · 옛 기록 다시 들이기</td><td>쓰기(내 것) · 지식관리자(모두)</td></tr>
+    <tr><td><b>문서 짜임</b></td><td>작업 도구</td><td>나무 끌어 옮기기 · 이름 바꾸기 · 새 문서 · 새 폴더 · 제목으로 맞추기 · 저장</td><td>지식관리자</td></tr>
+    <tr><td><b>일반</b></td><td>섞임</td><td>① 이 팀 서버: 들어가기(내 아이디 · 나가기) · 나(자리) · 백업 주소 · 판 · 「관리: 문제 · 백업 →」 ② 팀 지식 표: 넣지 못함 수 · Claude 에 보내지 않음 스위치 ③ 저절로 하는 일: 넣은 파일을 글로 · 찾기</td><td>모두(스위치는 지식관리자)</td></tr>
+    <tr><td><b>사람</b></td><td>설정값</td><td>총괄 관리자: 사람 카드 · 묶음 카드 · 자리 규칙 / 그 밖: 이름 목록(읽기만)</td><td>모두</td></tr>
+    <tr><td><b>Claude 연결</b></td><td>설정값</td><td>총괄 관리자: 팀 일꾼 로그인 흐름 · 어떻게 하나 / 그 밖: 상태 한 줄(읽기만)</td><td>모두</td></tr>
+    <tr><td><b>에이전트 설치</b></td><td>설치 안내</td><td>4단계 안내 · 대량 넣기 안내 · 팀 지식마다 [설치 명령 복사]</td><td>모두</td></tr>
+    <tr><td><b>관리</b></td><td>섞임</td><td>오늘(문제 줄: 비밀번호 안 정함 · 잠김 · 가져올 곳 부탁 · 팀 일꾼 쉼 · 백업 어긋남) · <b>사람 카드 · 묶음 카드(사람 탭과 같은 것)</b> · 저장소 연결 · 잘 도는 것(접힘)</td><td>총괄 관리자</td></tr>
+  </table></div>
+  <p class="small muted">옆 메뉴 「지식 관리」 에는 이력 · 설정 · 개인 지식 쓰기가 따로 있다. 개인 지식 쓰기(viewInstall)는 설정 밖에 있지만 에이전트 설치와 같은 「이 PC 에 깔기」 일이고, 팀 화면에서 「내 기기」 카드는 여기에만 있다.</p>
+
+  <h3>겹침 지도 <span class="muted small">같은 것이 두 곳 이상</span></h3>
+  <div class="tbl"><table class="dup">
+    <tr><th>무엇</th><th>나오는 곳</th><th>문제</th></tr>
+    <tr><td>사람 · 묶음 카드</td><td>설정 › 사람 · 설정 › 관리</td><td>같은 함수(admPeopleCard · admGroupsCard)를 두 페이지가 그린다(main.js:3613 · 4089-4090). 어디서 고쳐야 하나 헷갈린다.</td></tr>
+    <tr><td>백업</td><td>일반(주소 · 읽기) · 관리(저장소 연결 · 문제 줄 · 잘 도는 것)</td><td>보는 곳과 고치는 곳이 다르다. 일반에서 「관리: 문제 · 백업 →」 로 한 번 더 건너간다.</td></tr>
+    <tr><td>넣지 못함 수</td><td>일반의 팀 지식 표 · 넣지 못함 페이지 지식 고르기 · 옆 메뉴 거르기</td><td>설정값 페이지에 작업 현황이 섞였다.</td></tr>
+    <tr><td>팀 일꾼 상태</td><td>Claude 연결 · 관리(문제 줄 · 잘 도는 것)</td><td>상태 줄은 관리, 고치기는 Claude 연결. 링크로 오간다.</td></tr>
+    <tr><td>설치 한 줄</td><td>설정 › 에이전트 설치 · 옆 메뉴 개인 지식 쓰기</td><td>둘 다 「이 PC 에 붙이기」 인데 한쪽은 설정 안, 한쪽은 설정 밖이다. 서로를 가리키는 글이 있다.</td></tr>
+    <tr><td>메뉴 정의</td><td><code>mgItems</code>(main.js:571) · <code>viewSettings</code> 의 <code>ST</code>(main.js:3584)</td><td>같은 탭 목록을 두 번 정의한다. 위 「관리」 버그의 원인. <code>viewSettings</code> 안의 <code>tabs</code> 는 만들기만 하고 쓰지 않는다(main.js:3590, 죽은 코드).</td></tr>
+  </table></div>
+
+  <h3>이름과 실제가 다른 것</h3>
+  <ul>
+    <li><b>「일반」 의 안내는 「팀 서버의 것만」 인데</b>, 저절로 하는 일 스위치는 서버 값이 아니라 <b>사람마다의 값</b>이다(<code>hub.setAuto</code>: 팀이면 <code>users[ctx.user]</code> 에 저장, server/hub.js:1277-1283). 내 계정 설정이 서버 설정 페이지에 있다.</li>
+    <li><b>「이 팀 서버」 카드에 내 계정이 섞였다.</b> 들어가기(내 아이디 · 나가기) · 나(자리)는 내 것, 백업 · 판은 서버 것.</li>
+    <li><b>「Claude 에 보내지 않음」 은 지식마다의 정책</b>인데 서버 일반 페이지의 표에 있다. 그 지식의 다른 정책(권한 · 저장소)은 지식 카드 ⋯ › 권한 · 관리 › 저장소 연결에 있다.</li>
+  </ul>
+</section>
+
+<section id="s4">
+  <h2><span class="no">4</span>페르소나 검토</h2>
+  <p>다섯 명이 서로의 결과를 보지 않고 따로 낸 한 줄 평과 주요 지적이다. 심각도: <span class="sev h">상</span> · <span class="sev m">중</span> · <span class="sev l">하</span>.</p>
+  <div class="grid2">
+    <div class="card persona">
+      <div class="who"><span class="av">총</span><span><b>총괄 관리자</b><small>팀 서버 운영 담당</small></span></div>
+      <p class="q">매일 볼 것(관리)은 메뉴 맨 끝에 있다. 백업 · 사람 · Claude 연결 · 지식 설정은 일반 · 사람 · 관리 · 지식 카드 ⋯ 네 곳에 흩어져 있고, 같은 카드가 두 탭에 겹쳐 나온다.</p>
+      <ul>
+        <li><span class="sev h">상</span> 사람 · 묶음 카드가 사람 탭과 관리 탭에 똑같이 나온다</li>
+        <li><span class="sev h">상</span> 백업은 일반에서 보고 관리 › 저장소 연결에서 고친다</li>
+        <li><span class="sev h">상</span> 문제 줄이 있는 「관리」 가 맨 끝이고, 이름으로는 문제 목록인 줄 모른다</li>
+        <li><span class="sev h">상</span> 팀 지식 하나의 설정이 일반 표 · 지식 카드 ⋯ › 권한 · 관리 › 저장소 연결 · ⋯ › 지우기 네 곳</li>
+        <li><span class="sev m">중</span> 새 팀원 들이기가 사람 · 권한 · 에이전트 설치로 끊긴다</li>
+      </ul>
+      <p class="small muted">바라는 것: 첫 화면 「오늘」 · 세우기 차례(팀 서버 → 팀 지식 → 사람 · 묶음 → 에이전트 설치)</p>
+    </div>
+    <div class="card persona">
+      <div class="who"><span class="av">지</span><span><b>지식관리자</b><small>DPMS 지식 같은 팀 지식 하나의 담당</small></span></div>
+      <p class="q">내 일 다섯 가지가 설정 메뉴 셋, 일반 탭 표 하나, 설정 밖 지식 카드 ⋯ 메뉴(권한)로 흩어져 있다. 일반 탭은 서버 · 백업 · 판처럼 총괄 관리자 것이 첫 화면을 채운다.</p>
+      <ul>
+        <li><span class="sev h">상</span> 내가 할 수 있는 「지식마다 자리 주기」 가 설정 안에 없다(지식 카드 ⋯ › 권한 창에 숨음)</li>
+        <li><span class="sev h">상</span> 「Claude 에 보내지 않음」 이 서버 일반 페이지 표에 묻혀 있다</li>
+        <li><span class="sev m">중</span> 가져오기 · 넣지 못함 · 문서 짜임이 지식 고르기를 따로따로 들고 있다</li>
+        <li><span class="sev m">중</span> 지식 일과 서버 일이 묶음 없이 한 줄 메뉴로 섞였다</li>
+        <li><span class="sev l">하</span> 가져오기의 끌어 놓기 띠가 「가져올 곳」 탭에서는 사라진다</li>
+      </ul>
+      <p class="small muted">바라는 것: 「지식 맡기」 묶음(가져오기 · 넣지 못함 · 문서 짜임 · 이 지식의 설정)</p>
+    </div>
+    <div class="card persona">
+      <div class="who"><span class="av">팀</span><span><b>일반 팀원</b><small>쓰기 자리 · 이번 주에 들어온 사람</small></span></div>
+      <p class="q">설정을 열면 내가 못 바꾸는 서버 · 백업 · 판 정보가 먼저 나온다. 정작 내가 할 일(에이전트 설치 · 내 넣지 못함 · 내 자리)은 메뉴 뒤쪽에 흩어져 있다.</p>
+      <ul>
+        <li><span class="sev h">상</span> 설정 첫 화면(일반)이 읽기 전용 관리 정보</li>
+        <li><span class="sev h">상</span> 첫날 할 일인 에이전트 설치가 메뉴 6번째, 이름도 낯설다</li>
+        <li><span class="sev h">상</span> 사람 탭에 「지식마다 내 자리」 가 없다</li>
+        <li><span class="sev m">중</span> Claude 연결 탭은 누를 것이 없는 읽기 한 줄</li>
+        <li><span class="sev m">중</span> 내 기기(기기 열쇠 끊기)가 개인 지식 쓰기 페이지 안에만 있다</li>
+      </ul>
+      <p class="small muted">바라는 것: 「내 일」 · 「나」(내 자리 · 사람 · 내 기기 · 나가기) · 「이 팀 서버(보기만)」</p>
+    </div>
+    <div class="card persona">
+      <div class="who"><span class="av">IA</span><span><b>IA · UX 설계자</b><small>메뉴 묶음 · 순서 · 이름</small></span></div>
+      <p class="q">한 줄 메뉴 8개에 작업 도구 · 설정값 · 설치 안내가 섞여 있다. 같은 카드가 두 탭에 다시 나오고, 업무 순서(세우기 → 사람 → 넣기 → 다듬기 → 지켜보기 → 연결)와 거꾸로 서 있다.</p>
+      <ul>
+        <li><span class="sev h">상</span> 「일반」 한 페이지에 정보 표시 · 지식마다 정책 · 서버 설정 세 성격</li>
+        <li><span class="sev m">중</span> 팀 일꾼 상태가 머리 칩 · 창 · 설정 탭 · 관리 네 곳</li>
+        <li><span class="sev m">중</span> 설치 안내가 옆 메뉴(개인 지식 쓰기)와 설정 탭으로 갈렸다</li>
+        <li><span class="sev m">중</span> 한 번 정하는 「가져올 곳」 이 매일 쓰는 일 줄 탭 옆에 있다</li>
+        <li><span class="sev l">하</span> 옆 메뉴 「지식 관리」 와 설정 「관리」 이름이 겹친다</li>
+      </ul>
+      <p class="small muted">바라는 것: 설정을 단계(세우기 · 사람 · 일꾼 · 지켜보기 · 연결)로 묶기</p>
+    </div>
+    <div class="card persona">
+      <div class="who"><span class="av">엔</span><span><b>기능 · 코드 엔지니어</b><small>kmd 프런트 · 서버</small></span></div>
+      <p class="q">메뉴 정의가 셋(mgItems · viewSettings ST · STOP_T)이고, 길도 둘(scr 와 setTab)이라 메뉴 하나를 바꾸면 서너 군데를 같이 고쳐야 한다. 설정 화면이 자주 바뀐 구조적 원인이다.</p>
+      <ul>
+        <li><span class="sev h">상</span> 메뉴 정의 중복과 권한 조건 불일치(지식관리자 「관리」 버그)</li>
+        <li><span class="sev h">상</span> setTab 은 주소에 없는 메모리 상태: 새로 고침 · 링크 공유 때 일반으로 돌아간다(짐작, go 확인 필요)</li>
+        <li><span class="sev h">상</span> 관리가 단독 화면(scr admin)이자 설정 탭: 멈춤 줄로 가면 왼쪽 메뉴 선택 표시가 없다</li>
+        <li><span class="sev m">중</span> 설정 들어가는 길 셋(옆 메뉴 · 내 메뉴 · mgGo)이 여는 탭이 다르다</li>
+        <li><span class="sev m">중</span> 그리지 않는 탭 줄(setTabs) 죽은 코드</li>
+      </ul>
+      <p class="small muted">바라는 것: 메뉴 표 하나(MENU) · 주소 하나(#settings/&lt;id&gt;) · 옛 주소 대응표 하나</p>
+    </div>
+  </div>
+
+  <h3>합의가 큰 것</h3>
+  <div class="tbl"><table>
+    <tr><th>지적</th><th>같은 말을 한 페르소나</th></tr>
+    <tr><td>작업 도구(가져오기 · 넣지 못함 · 문서 짜임)와 설정값을 묶음으로 나눈다</td><td>5 / 5</td></tr>
+    <tr><td>「일반」 을 쪼갠다: 내 계정 · 팀 서버 · 지식마다 정책</td><td>총괄 관리자 · 지식관리자 · 일반 팀원 · IA (4)</td></tr>
+    <tr><td>관리 탭 안의 사람 · 묶음 카드를 걷는다</td><td>총괄 관리자 · IA · 엔지니어 (3)</td></tr>
+    <tr><td>지식 하나의 설정(Claude 에 보내지 않음 · 자리 · 저장소 · 지우기)을 한 자리에</td><td>총괄 관리자 · 지식관리자 · IA (3)</td></tr>
+    <tr><td>넣지 못함 수는 넣지 못함 화면 하나(일반 표의 칸을 걷는다)</td><td>지식관리자 · 일반 팀원 · IA (3)</td></tr>
+    <tr><td>메뉴 정의를 하나로</td><td>엔지니어 · 총괄 관리자 · IA (3)</td></tr>
+    <tr><td>「관리」 를 문제 중심 이름(오늘 · 점검)으로, 총괄 관리자에게 앞자리</td><td>총괄 관리자 · IA (2)</td></tr>
+    <tr><td>설치 안내 한 자리(에이전트 설치 + 개인 지식 쓰기), 내 기기를 내 계정 쪽으로</td><td>일반 팀원 · IA (2)</td></tr>
+  </table></div>
+</section>
+<section id="s5">
+  <h2><span class="no">5</span>업무 흐름 전 · 후</h2>
+  <p>페르소나 검토에서 나온 대표 업무를 지금 구성과 새 구성으로 나란히 놓았다.</p>
+  <h3>매일 상태 보기와 고치기 <span class="muted small">총괄 관리자</span></h3>
+  <div class="flow"><div class="bx before"><b>지금</b><ol><li>머리 경고 n 팝업 확인</li><li>백업 멈춤이면 설정 › 일반으로 가지만 거기서는 못 고친다</li><li>관리(메뉴 맨 끝) › 저장소 연결까지 다시 내린다</li><li>넣지 못함 수는 일반 표, 팀 일꾼 쉼 · 부탁 · 잠김은 관리에서 따로 본다</li></ol></div><div class="bx after"><b>제안</b><ol><li>설정을 열면 점검이 먼저 선다: 요약 칩 + 문제 줄 한 목록</li><li>줄의 단추를 누르면 고치는 자리(팀 지식 그 줄 · 팀 일꾼 로그인 · 넣지 못함 거른 목록)로 바로 간다</li><li>문제가 없으면 한 줄로 끝난다</li></ol></div></div>
+  <h3>팀 서버 처음 세우기(팀 일꾼 · 첫 지식 · 백업) <span class="muted small">총괄 관리자</span></h3>
+  <div class="flow"><div class="bx before"><b>지금</b><ol><li>지식 목록의 새 팀 지식 카드(설정 밖)</li><li>설정 › 관리 › 저장소 연결</li><li>설정 › Claude 연결 › 팀 일꾼 로그인</li><li>설정 › 일반 › 저절로 하는 일 · Claude 에 보내지 않음 확인</li></ol></div><div class="bx after"><b>제안</b><ol><li>설정 › 팀 서버: 팀 일꾼 로그인 · 주소 · 판 · https 를 한 페이지에서</li><li>설정 › 팀 지식: [새 팀 지식] 뒤 그 줄 ⋯ 에서 백업 붙이기 · Claude 에 보내지 않음</li><li>메뉴 차례(세우기 › 사람 들이기)가 할 일 차례다</li></ol></div></div>
+  <h3>새 팀원 들이기 <span class="muted small">총괄 관리자 · 일반 팀원</span></h3>
+  <div class="flow"><div class="bx before"><b>지금</b><ol><li>설정 › 사람(또는 관리) › 더하기 › 링크 복사</li><li>설치 안내는 손으로 써서 메신저로 보낸다</li><li>팀원은 설정 › 일반이 먼저 열리고 에이전트 설치(7번째)를 찾아간다</li></ol></div><div class="bx after"><b>제안</b><ol><li>설정 › 사람 · 묶음 › 더하기 창 › [안내 복사] 한 번(링크 + 팀 주소 + 에이전트 설치 길)</li><li>팀원이 설정을 열면 에이전트 설치가 첫 화면이다</li><li>내 자리 칩이 붙은 팀 지식 줄에서 [설치 명령 복사]</li></ol></div></div>
+  <h3>내 지식의 자리 주기 · Claude 에 보내지 않음 정하기 <span class="muted small">지식관리자</span></h3>
+  <div class="flow"><div class="bx before"><b>지금</b><ol><li>설정 › 사람에는 이름 목록뿐이다</li><li>설정을 나와 지식 고르기 ⋯ › 권한 창</li><li>Claude 에 보내지 않음은 설정 › 일반 표에서 찾는다</li></ol></div><div class="bx after"><b>제안</b><ol><li>설정 › 팀 지식(내 지식 줄만 보인다)</li><li>그 줄의 스위치와 영향 한 줄, ⋯ › 자리(같은 권한 창)</li><li>저장 실패는 서버 판정대로 줄에 보인다</li></ol></div></div>
+  <h3>파일 넣고 넣지 못함 처리하기 <span class="muted small">지식관리자 · 쓰기 자리</span></h3>
+  <div class="flow"><div class="bx before"><b>지금</b><ol><li>옆 메뉴 설정을 누르면 일반이 먼저 선다</li><li>가져오기 › 일 줄 탭에 끌어다 놓는다. 가져올 곳 탭으로 가면 띠가 사라진다</li><li>넣지 못함은 설정 메뉴 · 일반 표 [보기] · 나무의 점 세 길, 지식 select 를 다시 고른다</li></ol></div><div class="bx after"><b>제안</b><ol><li>옆 메뉴 지식 관리 › 가져오기를 한 번 누른다(넣을 곳은 고른 지식)</li><li>띠와 가져올 곳 요약이 늘 위에 있고 아래가 일 줄이다</li><li>옆 메뉴 넣지 못함 배지 › 고른 지식으로 열린다 › 고치기 · 다시 들이기</li></ol></div></div>
+  <h3>메뉴 항목 하나 바꾸기(코드) <span class="muted small">엔지니어</span></h3>
+  <div class="flow"><div class="bx before"><b>지금</b><ol><li>mgItems 고치기(main.js:571)</li><li>viewSettings ST · 본문 분기 고치기(3583-3594)</li><li>STOP_T · stopWinHtml 갈 곳 고치기(670, 683)</li><li>MGSCR · 옛 주소 고치기(568, 558-562)</li><li>시험 선택자 mg-* · st-* 확인</li></ol></div><div class="bx after"><b>제안</b><ol><li>MENU 표 한 줄을 고친다</li><li>왼쪽 메뉴 · 선택 표시 · 경로 표시 · 멈춤 줄 글 · ALIAS 가 표에서 나온다</li><li>시험은 data-t=mg-&lt;id&gt; 도우미 하나로 자리마다 메뉴 목록을 본다</li></ol></div></div>
+</section>
+<section id="s6">
+  <h2><span class="no">6</span>통합 구성안</h2>
+  <h3>재구성 원칙</h3>
+  <ol>
+    <li><b>설정값과 작업 도구를 나눈다.</b> 날마다 쓰는 가져오기 · 넣지 못함 · 문서 짜임은 작업, 설정은 가끔 정하는 것만.</li>
+    <li><b>같은 것은 한 자리.</b> 한 카드는 한 페이지에만. 상태를 보이는 곳과 고치는 곳이 다르면 고치는 곳으로 바로 보낸다.</li>
+    <li><b>업무 차례대로.</b> 지켜보기(매일) › 세우기(팀 서버 · 팀 지식) › 사람 들이기 › 작업 폴더에 붙이기 › 나.</li>
+    <li><b>자리에 맞는 것만 보인다.</b> 못 하는 항목은 숨기고, 설정을 열면 자리마다 첫 화면이 다르다. 판정은 서버가 정본, 화면은 보이기만 정한다.</li>
+    <li><b>팀 화면과 개인 화면은 따로.</b> 팀 화면에 개인 지식을 싣지 않는다. 개인 화면도 같은 묶음 틀로 맞춘다.</li>
+    <li><b>메뉴 정의는 표 하나.</b> 왼쪽 메뉴 · 위치 줄 · 멈춤 줄 갈 곳 · 옛 길 대응이 모두 그 표에서 나온다.</li>
+    <li><b>바깥에 박힌 이름은 지킨다.</b> 「에이전트 설치」 는 이미 깔린 CLAUDE.md 안내 줄이 가리키므로 이름을 바꾸지 않는다.</li>
+  </ol>
+
+  <h3>새 구성 <span class="muted small">팀 화면</span></h3>
+  <div class="tree">
+    <div class="g">작업 <small>설정 밖 · 옆 메뉴 「지식 관리」 · 위에서 고른 지식이 기본값 · 4단계</small></div>
+    <div class="it"><div class="nm">이력<small>누구나</small></div><div>지금 그대로</div></div>
+    <div class="it"><div class="nm">가져오기<small>쓰기 이상</small></div><div><ul><li>위: 끌어다 놓기 띠(탭과 상관없이 늘 보임) · 가져올 곳 요약(n곳 · 마지막 맞춤) · [가져올 곳 더하기] 창(지식관리자)</li><li>아래: 일 줄(살펴볼 일 먼저) · 끝난 일 접기</li></ul><div class="from">← 설정 › 가져오기의 일 줄 · 가져올 곳 · 끝난 일 탭</div></div></div>
+    <div class="it"><div class="nm">넣지 못함<small>쓰기(내 것) · 지식관리자(모두)</small></div><div><ul><li>옆 메뉴 배지 n · 고른 지식으로 열림 · 제목 옆 칩으로 지식 바꾸기</li><li>쓰기 자리에게 「내가 남긴 것만 보인다」 한 줄</li></ul><div class="from">← 설정 › 넣지 못함 · 일반 › 팀 지식 표의 넣지 못함 칸</div></div></div>
+    <div class="it"><div class="nm">문서 짜임<small>지식관리자</small></div><div><ul><li>고른 지식 기본 · 화면과 저장 흐름은 그대로</li></ul><div class="from">← 설정 › 문서 짜임</div></div></div>
+
+    <div class="g">매일: 지켜보기</div>
+    <div class="it"><div class="nm">점검<small>총괄 관리자 · 설정 첫 화면</small></div><div><ul><li>요약 칩: 멈춤 n · 넣지 못함 n · 백업 n · 팀 일꾼 됨/쉼</li><li>문제 줄만: 비밀번호 안 정한 사람 · 잠김 [풀기] · 가져올 곳 부탁 [더하기] · [거절] · 팀 일꾼 쉼 · https 아님. 줄마다 고칠 자리로 가는 단추 하나</li><li><b>백업 어긋남 줄은 점검 안에서 바로 고친다</b>(이어 쓰기 · 덮기 · 받기, 지금 관리 줄의 동작 그대로)</li><li>아래 한 줄: 찾기 점검 수치</li></ul><div class="from">← 설정 › 관리의 오늘 문제 줄 · 잘 도는 것(찾기 점검만) · 머리 경고 팝업과 링크로 잇기</div></div></div>
+
+    <div class="g">1. 세우기</div>
+    <div class="it"><div class="nm">팀 서버<small>총괄 관리자</small></div><div><ul><li>팀 일꾼 로그인: 상태 · 로그인 흐름(창 · 번호 붙여 넣기) · 확인 · 어떻게 하나</li><li>이 서버: 주소 · 판 · https</li></ul><div class="from">← 설정 › Claude 연결(총괄 관리자 갈래) · 일반 카드1 의 서버 주소 · 판</div></div></div>
+    <div class="it"><div class="nm">팀 지식<small>총괄 관리자(모두) · 지식관리자(자기 지식 줄)</small></div><div><ul><li>표 위 [새 팀 지식](총괄 관리자, 지식 목록 더하기 카드와 같은 창)</li><li>지식 한 줄: 이름 · 주인 · 사람 수 · 백업(칩) · Claude 에 보내지 않음(스위치 + 영향 한 줄) · 가져올 곳 n · ⋯</li><li>⋯ 은 자리마다 다르다. <b>지식관리자</b>: 자리(지금 권한 창) · Claude 에 보내지 않음 · 가져올 곳. <b>총괄 관리자만</b>: [새 팀 지식] · 주인 넘기기 · 백업 저장소 붙이기 · 지우기(서버가 총괄 관리자만 받는다, server/http.js:703 · 978-983 · 1060-1065)</li><li>줄 거르기는 화면이 한다(서버는 보이는 지식을 모두 준다). 백업 칩 · 사람 수는 총괄 관리자 길(<code>/api/admin/*</code>)에서만 오므로 지식관리자에게는 사람 수를 <code>/api/k/:id/access</code> 로 채우고 백업 칸은 비운다</li><li>표 아래 「백업에서 되살리기」(주소 · 이름 · 연습, 총괄 관리자). 지우기는 보관 없이 완전히 지우므로 「지운 지식」 목록은 만들 수 없다</li></ul><div class="from">← 일반 › 팀 지식 표 · 관리 › 저장소 연결 · 일반 카드1 백업 줄 · 지식 카드 ⋯ › 권한 · 지우기</div></div></div>
+
+    <div class="g">2. 사람 들이기</div>
+    <div class="it"><div class="nm">사람 · 묶음<small>총괄 관리자</small></div><div><ul><li>사람 더하기 창: 아이디 · 총괄 관리자 체크 · 지식마다 자리 › 만들기 › [링크만 복사] · <b>[안내 복사]</b>(들어오기 링크 + 팀 주소 + 에이전트 설치 가는 길). 묶음은 사람 만들기 길이 받지 않으므로(server/http.js:899-907) 만든 뒤 두 번째 단계로</li><li>사람 ⋯: 새 링크 · 지식마다 자리 · 총괄 관리자로 하기/거두기 · 기기 모두 끊기 · 잠김 풀기 · 떠남 · 묶음 카드 · 자리 규칙 한 줄</li></ul><div class="from">← 설정 › 사람(총괄 관리자 갈래). 관리 탭의 같은 카드는 걷는다</div></div></div>
+
+    <div class="g">3. 작업 폴더에 붙이기</div>
+    <div class="it"><div class="nm">에이전트 설치<small>누구나 · 쓰기 · 읽기 자리의 첫 화면</small></div><div><ul><li>카드1 작업 폴더에 팀 지식 붙이기: 팀 지식마다 내 자리 칩 + [설치 명령 복사] · 단계 셋 · 막혔을 때 볼 것 접기 · 대량 넣기 안내</li><li>카드2 개인 지식 쓰기(고를 수 있음): 필요한지 두 줄 · [한 줄 복사]. 개인 지식 내용은 싣지 않는다</li></ul><div class="from">← 설정 › 에이전트 설치 · 옆 메뉴 개인 지식 쓰기(설치 카드)</div></div></div>
+
+    <div class="g">나</div>
+    <div class="it"><div class="nm">나<small>누구나</small></div><div><ul><li><b>내 자리</b> 표: 자격 · 지식마다 읽기 · 쓰기 · 지식관리자 (지금은 볼 곳이 없다)</li><li><b>내 설정</b>: 저절로 하는 일(넣은 파일을 글로 · 찾기). 사람마다 값</li><li>내 기기: 팀에 이은 PC · 기기 열쇠 끊기</li><li>나가기 · 모든 곳에서 나가기</li><li>팀 사람 · 자리란?(접기) · 이 팀 서버 한 줄(주소 · 판 · 팀 일꾼 됨/쉼 · 백업 됨/안 됨)</li></ul><div class="from">← 일반 카드1 들어가기 · 나 · [나가기] · 일반 카드3 저절로 하는 일 · 사람(비관리자 목록) · Claude 연결(비관리자 읽기만) · 개인 지식 쓰기 안의 내 기기</div></div></div>
+  </div>
+
+  <h3>자리마다 보이는 설정 메뉴 <span class="muted small">전 → 후</span></h3>
+  <div class="tbl"><table>
+    <tr><th>자리</th><th>지금</th><th>제안</th><th>첫 화면</th></tr>
+    <tr><td>총괄 관리자</td><td>8칸</td><td>점검 · 팀 서버 · 팀 지식 · 사람 · 묶음 · 에이전트 설치 · 나 (6)</td><td>점검</td></tr>
+    <tr><td>지식관리자</td><td>8칸(관리는 열리지 않음)</td><td>팀 지식 · 에이전트 설치 · 나 (3) + 옆 메뉴 작업 셋</td><td>팀 지식</td></tr>
+    <tr><td>쓰기</td><td>6칸</td><td>에이전트 설치 · 나 (2) + 옆 메뉴 가져오기 · 넣지 못함</td><td>에이전트 설치</td></tr>
+    <tr><td>읽기만</td><td>4칸</td><td>에이전트 설치 · 나 (2)</td><td>에이전트 설치</td></tr>
+  </table></div>
+
+  <h3>개인 화면</h3>
+  <div class="tbl"><table>
+    <tr><th>새 자리</th><th>들어 있는 것</th><th>지금 자리</th></tr>
+    <tr><td>옆 메뉴 지식 관리(작업)</td><td>가져오기 · 문서 짜임 · 지식 보내기(보내는 길 표를 이 화면 위로)</td><td>개인 설정 › 가져오기 · 문서 짜임 · 지식 보내기 · 일반의 보내는 길 표</td></tr>
+    <tr><td>설정 › 이 PC</td><td>지식 폴더 · 백업 자리 · 되살리기 · 저절로 하는 일(편집기 저장 · 넣은 파일을 글로 · 자동으로 가져올 곳 · Claude 로 · 찾기) · 이어진 것(Claude Code 작업 폴더 · 팀) · 내 기기 · 판</td><td>개인 설정 › 일반</td></tr>
+    <tr><td>설정 › Claude 연결</td><td>내 Claude 로그인 · 일마다 모델</td><td>그대로</td></tr>
+    <tr><td>설정 › 에이전트 설치</td><td>작업 폴더에 개인 지식 붙이기</td><td>그대로</td></tr>
+  </table></div>
+
+  <h3>페르소나 사이 충돌과 정리</h3>
+  <div class="tbl"><table>
+    <tr><th>무엇</th><th>갈린 의견</th><th>정리</th></tr>
+    <tr><td>작업 도구 셋의 자리</td><td>IA · 지식관리자 · 일반 팀원: 옆 메뉴로. 총괄 관리자 · 엔지니어: 설정 안 묶음으로</td><td>옆 메뉴를 권한다. 다만 4단계로 미루고 그 전까지는 설정 안 「작업」 묶음 머리로 나눠 둔다. 메뉴 표의 묶음 칸만 바꾸면 된다. 예전에 옆 메뉴에서 설정 안으로 옮긴 이력이 있어 사람이 정한다(§11)</td></tr>
+    <tr><td>관리의 새 이름</td><td>총괄 관리자: 오늘. IA: 점검</td><td>「점검」. 「오늘」 은 이력 화면(today)과 겹친다</td></tr>
+    <tr><td>지식 설정의 모양</td><td>총괄 관리자 · IA: 모든 지식 한 표. 지식관리자: 고른 지식 하나</td><td>한 표로 하되 서버가 자리에 맞는 줄만 준다. 지식관리자는 자기 줄만, 위에서 고른 지식 줄을 먼저 편다</td></tr>
+    <tr><td>사람 탭</td><td>일반 팀원: 내 자리. 총괄 관리자 · IA: 편집</td><td>둘로 나눈다. 사람 · 묶음(총괄 관리자 편집) · 나(누구나)</td></tr>
+    <tr><td>못 하는 메뉴</td><td>IA: 회색 + 꼬리말. 나머지: 숨김</td><td>숨김 유지(지금 방식 · 권한 원칙). 설명서에 자리별 메뉴 표를 둔다</td></tr>
+  </table></div>
+
+  <h3>반대 검토로 바로잡은 것 <span class="muted small">종합안을 서버 판정 · 과거 결정과 대조</span></h3>
+  <div class="tbl"><table>
+    <tr><th>종합안</th><th>문제</th><th>이 문서에서</th></tr>
+    <tr><td>저절로 하는 일 → 팀 서버</td><td>사람마다 값이다(hub.js:1274)</td><td>나 › 내 설정</td></tr>
+    <tr><td>팀 지식 ⋯ 한 목록</td><td>새 지식 · 지우기 · 백업 · 주인 넘기기는 총괄 관리자만(http.js:703 · 978 · 1060-1065)</td><td>⋯ 을 자리마다 나눔</td></tr>
+    <tr><td>「서버가 자기 지식 줄만 거른다」</td><td>서버는 보이는 지식을 모두 준다. 백업 · 사람 수는 총괄 관리자 길에서만</td><td>화면이 거름 · 사람 수는 access 길 · 백업 칸 비움</td></tr>
+    <tr><td>점검 백업 줄 → 팀 지식으로 보냄</td><td>이어 쓰기 · 덮기 · 받기가 갈 곳이 없다(main.js:4494-4510)</td><td>점검 안에서 바로 고침</td></tr>
+    <tr><td>가져올 곳 부탁은 점검에만</td><td>서버는 지식관리자에게도 준다(http.js:733-737). [거절] 이 빠졌다</td><td>가져오기 화면에도 · [거절] 추가</td></tr>
+    <tr><td>사람 더하기 창에 묶음</td><td>사람 만들기 길이 묶음을 받지 않는다. 총괄 관리자 체크가 빠졌다</td><td>묶음은 두 번째 단계 · 체크 유지</td></tr>
+    <tr><td>사람 ⋯ 셋만</td><td>총괄 관리자로 하기/거두기 · 기기 모두 끊기 · 잠김 풀기가 빠졌다</td><td>더함</td></tr>
+    <tr><td>지운 지식 되살리기</td><td>지우기는 완전히 지운다. /api/restore 는 백업 주소에서 되살리는 길</td><td>백업에서 되살리기</td></tr>
+    <tr><td>자리마다 다른 첫 화면 · 위 지식을 기본값으로</td><td>Q11(누르면 어디로 가나 예측) · 9a25187(공통 메뉴는 고른 지식에 묶지 않는다)과 부딪힘</td><td>정할 것 1 · 10 · 11</td></tr>
+    <tr><td>STOP_T 만 메뉴 표에서</td><td>옛 메뉴 이름이 app · server · 설명서 여러 곳에 박혀 있다</td><td>1단계에 목록 만들기</td></tr>
+  </table></div>
+</section>
+<section id="s7">
+  <h2><span class="no">7</span>페이지별 화면안</h2>
+  <p class="small muted">kmd 설정 화면의 짜임(왼쪽 설정 메뉴 + 본문 카드)을 흉내 낸 와이어프레임이다. 부품은 컨벤션의 것(card · 표 t · 스위치 sw · chip · btn)만 쓴다고 보고 그렸다. 값은 예시다.</p>
+
+  <h3>① 왼쪽 메뉴 · 총괄 관리자 <span class="muted small">지금 → 제안</span></h3>
+  <div class="grid2">
+    <div class="wf"><div class="wf-top"><b>지금</b> 설정 › 일반</div><div class="wf-body" style="grid-template-columns:1fr"><div class="wf-nav" style="border-right:0">
+      <div class="gt">설정</div><div class="i">가져오기</div><div class="i">넣지 못함</div><div class="i">문서 짜임</div><div class="i on">일반</div><div class="i">사람</div><div class="i">Claude 연결</div><div class="i">에이전트 설치</div><div class="i">관리</div>
+    </div></div><div class="wf-note">묶음 없음 · 작업과 설정이 섞임 · 매일 볼 관리가 맨 끝 · 첫 화면은 일반</div></div>
+    <div class="wf"><div class="wf-top"><b>제안</b> 설정 › 점검</div><div class="wf-body" style="grid-template-columns:1fr"><div class="wf-nav" style="border-right:0">
+      <div class="gt">매일</div><div class="i on">점검 <span class="n">3</span></div>
+      <div class="gt">1. 세우기</div><div class="i">팀 서버</div><div class="i">팀 지식</div>
+      <div class="gt">2. 사람 들이기</div><div class="i">사람 · 묶음</div>
+      <div class="gt">3. 붙이기</div><div class="i">에이전트 설치</div>
+      <div class="gt">나</div><div class="i">나</div>
+    </div></div><div class="wf-note">묶음 머리가 일 차례를 말한다 · 점검 옆 문제 수 · 작업 셋은 옆 메뉴 「지식 관리」</div></div>
+  </div>
+
+  <h3>② 설정 › 점검 <span class="muted small">총괄 관리자 첫 화면</span></h3>
+  <div class="wf"><div class="wf-top">설정 › <b>점검</b></div><div class="wf-body"><div class="wf-nav"><div class="gt">매일</div><div class="i on">점검 <span class="n">3</span></div><div class="gt">1. 세우기</div><div class="i">팀 서버</div><div class="i">팀 지식</div><div class="gt">2. 사람 들이기</div><div class="i">사람 · 묶음</div><div class="gt">3. 붙이기</div><div class="i">에이전트 설치</div><div class="gt">나</div><div class="i">나</div></div>
+    <div class="wf-main"><div class="ttl">점검</div><p class="ld">문제가 있을 때만 줄이 선다. 풀리면 저절로 사라진다.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px"><span class="chip c-warn">멈춤 1</span><span class="chip c-warn">넣지 못함 4</span><span class="chip c-danger">백업 1</span><span class="chip c-ok">팀 일꾼 됨</span></div>
+      <div class="wf-card"><div class="h">오늘 3 <small>16:09</small></div><div class="b">
+        <div class="r"><span><b>GDI 지식: 백업과 갈라졌다</b><small>어느 쪽이 맞는지 정한다</small></span><span class="wf-btn">이어 쓰기</span><span class="wf-btn">덮기</span></div>
+        <div class="r"><span><b>넣지 못함 4 · DPMS 지식</b><small>저장 검사를 넘지 못한 기록</small></span><span class="wf-btn">넣지 못함</span></div>
+        <div class="r"><span><b>가져올 곳 「회의록 폴더」 더해 달라는 부탁: 홍길동</b><small>→ DPMS 지식 › 회의록 · 그 지식의 지식관리자도 가져오기 화면에서 본다</small></span><span class="wf-btn pri">더하기</span><span class="wf-btn">거절</span></div>
+      </div></div>
+      <p class="ld" style="margin:0">찾기 점검: DPMS 지식 92%(48) · GDI 지식 88%(31)</p>
+    </div></div>
+    <div class="wf-note">사람 · 묶음 · 저장소 편집 카드는 두지 않는다. 줄마다 단추 하나가 고치는 자리로 바로 보낸다. 제목은 한 번만(지금은 설정 머리 「관리」 와 viewAdmin 의 「관리」 가 두 번 선다)</div></div>
+
+  <h3>③ 설정 › 팀 지식 <span class="muted small">총괄 관리자는 모든 줄 · 지식관리자는 자기 지식 줄</span></h3>
+  <div class="wf"><div class="wf-top">설정 › <b>팀 지식</b></div><div class="wf-body"><div class="wf-nav"><div class="gt">매일</div><div class="i">점검</div><div class="gt">1. 세우기</div><div class="i">팀 서버</div><div class="i on">팀 지식</div><div class="gt">2. 사람 들이기</div><div class="i">사람 · 묶음</div><div class="gt">3. 붙이기</div><div class="i">에이전트 설치</div><div class="gt">나</div><div class="i">나</div></div>
+    <div class="wf-main"><div style="display:flex;align-items:center;gap:8px"><div class="ttl" style="flex:1">팀 지식</div><span class="wf-btn pri">+ 새 팀 지식</span></div><p class="ld">지식마다 정하는 것: 자리 · 백업 저장소 · Claude 에 보내지 않음 · 가져올 곳</p>
+      <div class="wf-card"><div class="b" style="overflow-x:auto">
+        <table style="min-width:520px;font-size:12.5px"><tr><th>팀 지식</th><th>주인</th><th>사람</th><th>백업</th><th>Claude 에 보내지 않음</th><th>가져올 곳</th><th></th></tr>
+        <tr><td><b>DPMS 지식</b></td><td>kjsa</td><td>9</td><td><span class="chip c-ok">맞음</span></td><td><span class="wf-sw"></span></td><td>2</td><td>⋯</td></tr>
+        <tr><td><b>GDI 지식</b></td><td>kjsa</td><td>5</td><td><span class="chip c-danger">갈라졌다</span></td><td><span class="wf-sw"></span></td><td>0</td><td>⋯</td></tr></table>
+      </div><div class="wf-note" style="border-top:1px solid var(--border)">⋯ : 자리(지금 권한 창 그대로) · 주인 넘기기 · 백업 저장소 붙이기 · 지우기 &nbsp;|&nbsp; 스위치를 켜면 「들이기 · 다듬기를 하지 않고 기록만 남긴다」 한 줄이 그 아래 선다</div></div>
+    </div></div>
+    <div class="wf-note">일반의 팀 지식 표 · 관리의 저장소 연결 · 지식 카드 ⋯ › 권한 · 지우기를 한 표로. 넣지 못함 칸은 걷는다(넣지 못함 화면 · 점검이 맡는다)</div></div>
+
+  <h3>④ 설정 › 나 <span class="muted small">누구나</span></h3>
+  <div class="wf"><div class="wf-top">설정 › <b>나</b> <span class="muted">(쓰기 자리로 본 화면)</span></div><div class="wf-body"><div class="wf-nav"><div class="gt">3. 붙이기</div><div class="i">에이전트 설치</div><div class="gt">나</div><div class="i on">나</div></div>
+    <div class="wf-main"><div class="ttl">나</div><p class="ld">아이디 hong · 이 브라우저에서 들어와 있다</p>
+      <div class="grid2" style="gap:10px">
+        <div class="wf-card"><div class="h">내 자리</div><div class="b"><div class="r"><span>DPMS 지식</span><span class="chip c-acc">쓰기</span></div><div class="r"><span>GDI 지식</span><span class="chip c-mute">읽기</span></div></div></div>
+        <div class="wf-card"><div class="h">내 설정 <small>나에게만</small></div><div class="b"><div class="r"><span>넣은 파일을 글로<small>끄면 원본 첨부만</small></span><span class="wf-sw on"></span></div><div class="r"><span>찾기<small>딱 맞는 항목이 없으면 비슷한 글에서</small></span><span class="wf-sw on"></span></div></div></div>
+        <div class="wf-card"><div class="h">내 기기 <small>팀에 이은 PC</small></div><div class="b"><div class="r"><span>DESKTOP-SJ01<small>Claude Code · 마지막 사용 오늘</small></span><span class="wf-btn">끊기</span></div></div></div>
+        <div class="wf-card"><div class="h">나가기</div><div class="b"><div class="r"><span>이 브라우저에서</span><span class="wf-btn">나가기</span></div><div class="r"><span>다른 기기 · 브라우저도</span><span class="wf-btn">모든 곳에서 나가기</span></div></div></div>
+      </div>
+      <p class="ld" style="margin:6px 0 0">이 팀 서버: 10.10.20.188:8090 · kmd v0.1.0 · 팀 일꾼 됨 · 백업 됨 &nbsp;·&nbsp; <u>팀 사람 9</u> · <u>자리란?</u></p>
+    </div></div>
+    <div class="wf-note">일반 카드1 의 내 계정 줄 · 일반 카드3 저절로 하는 일(사람마다 값) · 사람 탭(비관리자) · Claude 연결(비관리자 읽기만) · 개인 지식 쓰기 안의 내 기기를 한 페이지로</div></div>
+
+  <h3>⑤ 설정 › 에이전트 설치 <span class="muted small">쓰기 · 읽기 자리의 첫 화면</span></h3>
+  <div class="wf"><div class="wf-top">설정 › <b>에이전트 설치</b></div><div class="wf-body"><div class="wf-nav"><div class="gt">3. 붙이기</div><div class="i on">에이전트 설치</div><div class="gt">나</div><div class="i">나</div></div>
+    <div class="wf-main"><div class="ttl">에이전트 설치</div><p class="ld">작업 폴더의 Claude Code 에 내가 읽을 수 있는 팀 지식을 붙인다</p>
+      <div class="wf-card"><div class="h">작업 폴더에 팀 지식 붙이기</div><div class="b">
+        <div class="r"><span>1. 작업 폴더에서 PowerShell 을 연다 · 2. [설치 명령 복사] · 3. 붙여 넣고 Claude Code 를 새로 연다</span></div>
+        <div class="r"><span><b>DPMS 지식</b> <span class="chip c-acc">쓰기</span></span><span class="wf-btn pri">설치 명령 복사</span></div>
+        <div class="r"><span><b>GDI 지식</b> <span class="chip c-mute">읽기</span></span><span class="wf-btn">설치 명령 복사</span></div>
+        <div class="r"><span class="muted">▸ 막혔을 때 볼 것 · ▸ 파일이 많으면(대량 넣기)</span></div>
+      </div></div>
+      <div class="wf-card"><div class="h">개인 지식 쓰기 <small>고를 수 있음</small></div><div class="b"><div class="r"><span>팀 지식만 쓰면 필요 없다. 내 지식 · 내 Claude 로그인을 따로 쓰려면 이 PC 에 개인 프로그램을 깐다</span><span class="wf-btn">한 줄 복사</span></div></div></div>
+    </div></div>
+    <div class="wf-note">단계 넷의 긴 꼬리말은 접기로. 지식 줄마다 내 자리 칩. 옆 메뉴 「개인 지식 쓰기」 칸은 걷고 카드2 로 합친다(내 기기는 「나」 로)</div></div>
+</section>
+<section id="s8">
+  <h2><span class="no">8</span>옮김 · 합침 · 걷음</h2>
+  <p>지금 설정의 요소(메뉴 · 탭 · 카드 · 링크) 하나하나가 새 구성의 어디로 가는지. 빠진 기능이 없는지 보는 표다. <span class="chip c-acc">옮김 13</span> <span class="chip c-pend">합침 6</span> <span class="chip c-danger">걷음 8</span> <span class="chip c-warn">이름 바꿈 4</span> <span class="chip c-mute">유지 7</span> <span class="chip c-ok">새로 2</span></p>
+  <div class="tbl"><table>
+    <tr><th>지금</th><th>처리</th><th>새 자리</th><th>까닭</th></tr>
+    <tr><td>설정 메뉴 › 가져오기</td><td><span class="chip c-acc">옮김</span></td><td>옆 메뉴 지식 관리 › 가져오기</td><td class="small">작업 도구다. 설정은 정하는 것만 둔다</td></tr>
+    <tr><td>가져오기 › 가져올 곳 탭 · 일 줄 탭 · 끝난 일 탭</td><td><span class="chip c-pend">합침</span></td><td>가져오기 한 화면(위 넣기 띠 + 가져올 곳 요약 · [더하기] 창, 아래 일 줄 · 끝난 일 접기)</td><td class="small">끌어다 놓기 띠가 탭에 따라 사라지는 문제를 없앤다</td></tr>
+    <tr><td>설정 메뉴 › 넣지 못함</td><td><span class="chip c-acc">옮김</span></td><td>옆 메뉴 지식 관리 › 넣지 못함(배지 n)</td><td class="small">작업 도구다. 수는 배지 하나로만 보인다</td></tr>
+    <tr><td>넣지 못함 hdKnSel · 문서 짜임 sxKnSel · 가져오기 넣을 곳 고르기</td><td><span class="chip c-pend">합침</span></td><td>위 지식 고르기(S.route.kn) 기본값 + 화면 안 칩</td><td class="small">지식을 두 번 고르지 않게 한다</td></tr>
+    <tr><td>설정 메뉴 › 문서 짜임</td><td><span class="chip c-acc">옮김</span></td><td>옆 메뉴 지식 관리 › 문서 짜임</td><td class="small">지식관리자의 작업 도구다. 화면은 그대로 둔다</td></tr>
+    <tr><td>설정 › 일반(탭)</td><td><span class="chip c-danger">걷음</span></td><td>카드마다 팀 서버 · 팀 지식 · 나로 나눈다</td><td class="small">「일반」 은 무엇이 있는지 말하지 않고, 성격이 다른 세 카드를 담는다</td></tr>
+    <tr><td>일반 lead 「팀 서버의 것만: …」</td><td><span class="chip c-danger">걷음</span></td><td>없음(페이지마다 「이 페이지에서 정하는 것」 한 줄)</td><td class="small">메뉴 묶음 이름이 그 역할을 한다</td></tr>
+    <tr><td>일반 카드1 들어가기(아이디) · [나가기]</td><td><span class="chip c-acc">옮김</span></td><td>설정 › 나 › 나가기 · 모든 곳에서 나가기</td><td class="small">내 메뉴와 겹치고, 모든 곳에서 나가기가 빠져 있었다</td></tr>
+    <tr><td>일반 카드1 나(자격)</td><td><span class="chip c-acc">옮김</span></td><td>설정 › 나 › 내 자리 표 맨 위</td><td class="small">나에 관한 것은 한 곳</td></tr>
+    <tr><td>일반 카드1 백업 줄(git 주소 읽기)</td><td><span class="chip c-pend">합침</span></td><td>설정 › 팀 지식 › 백업 칸(칩) · ⋯ 백업 붙이기</td><td class="small">보여 주는 곳과 고치는 곳을 하나로</td></tr>
+    <tr><td>일반 카드1 판 · 서버 주소</td><td><span class="chip c-acc">옮김</span></td><td>설정 › 팀 서버(총괄 관리자) · 설정 › 나 맨 아래 한 줄(누구나)</td><td class="small">서버 자체의 정보는 팀 서버에 둔다</td></tr>
+    <tr><td>일반 카드1 링크 「관리: 문제 · 백업 →」</td><td><span class="chip c-danger">걷음</span></td><td>없음(점검이 총괄 관리자의 첫 화면)</td><td class="small">점검이 맨 위로 오면 필요 없다</td></tr>
+    <tr><td>일반 카드2 팀 지식 표 · Claude 에 보내지 않음 스위치</td><td><span class="chip c-acc">옮김</span></td><td>설정 › 팀 지식 › 지식 한 줄 스위치(영향 한 줄 같이)</td><td class="small">지식 하나의 설정은 그 지식 줄에 둔다. 스위치는 지금처럼 그 지식의 지식관리자만</td></tr>
+    <tr><td>일반 카드2 넣지 못함 n · [보기]</td><td><span class="chip c-danger">걷음</span></td><td>옆 메뉴 넣지 못함 배지 · 점검 지식별 넣지 못함 줄</td><td class="small">같은 수가 세 곳에 나왔다</td></tr>
+    <tr><td>일반 카드3 저절로 하는 일(팀)</td><td><span class="chip c-acc">옮김</span></td><td>설정 › 나 › 내 설정(저절로 하는 일)</td><td class="small">사람마다 저장되는 값이다(hub.autoOf(user, key), server/hub.js:1274). 종합안의 「팀 서버」 를 바로잡음</td></tr>
+    <tr><td>설정 › 사람(총괄 관리자: admPeopleCard · admGroupsCard · roleRule)</td><td><span class="chip c-warn">이름 바꿈</span></td><td>설정 › 사람 · 묶음 + 만든 뒤 [안내 복사]</td><td class="small">편집은 이곳 하나. 들이기를 한 번에 끝낸다</td></tr>
+    <tr><td>설정 › 사람(비관리자 이름 목록 · 긴 권한 규칙)</td><td><span class="chip c-acc">옮김</span></td><td>설정 › 나 › 팀 사람(접기) · 자리란?(접기)</td><td class="small">비관리자는 이 탭에서 할 일이 없다. 내 자리가 먼저다</td></tr>
+    <tr><td>설정 › Claude 연결(팀, admClaudeCard · claudeHowCard)</td><td><span class="chip c-acc">옮김</span></td><td>설정 › 팀 서버 › 팀 일꾼 로그인</td><td class="small">팀 화면에서 하는 일은 팀 일꾼 로그인 하나다</td></tr>
+    <tr><td>설정 › Claude 연결(팀, 비관리자 「읽기만」)</td><td><span class="chip c-danger">걷음</span></td><td>설정 › 나 맨 아래 한 줄 + 머리 Claude 칩</td><td class="small">누를 것이 없는 메뉴 칸이다</td></tr>
+    <tr><td>설정 › 에이전트 설치</td><td><span class="chip c-mute">유지</span></td><td>설정 › 에이전트 설치 카드1(단계 셋, 내 자리 칩)</td><td class="small">설치된 CLAUDE.md 표지 줄이 「팀 화면 › 설정 › 에이전트 설치」 를 가리킨다. 걷었다 되살린 이력(d18fa44)도 있다</td></tr>
+    <tr><td>옆 메뉴 › 개인 지식 쓰기(rl-install · nav-install, viewInstall 한 줄 카드)</td><td><span class="chip c-pend">합침</span></td><td>설정 › 에이전트 설치 카드2 「개인 지식 쓰기(고를 수 있음)」</td><td class="small">같은 「한 줄 붙여 넣기」 안내다. 쓰지 않는 사람이 더 많다. 개인 지식은 싣지 않고 설치 한 줄만 둔다</td></tr>
+    <tr><td>viewInstall 안 내 기기(devCard)</td><td><span class="chip c-acc">옮김</span></td><td>설정 › 나 › 내 기기</td><td class="small">에이전트 설치로 생긴 기기 열쇠도 끊을 곳이 있어야 한다</td></tr>
+    <tr><td>설정 › 관리(탭 + 단독 scr admin)</td><td><span class="chip c-warn">이름 바꿈</span></td><td>설정 › 점검, 총괄 관리자 메뉴 맨 위 · 첫 화면</td><td class="small">내용은 문제 줄이다. 「관리」 는 옆 메뉴 「지식 관리」 와 겹친다. 「오늘」 은 이력의 today 와 겹친다</td></tr>
+    <tr><td>관리 › 오늘 문제 줄 · https 경고</td><td><span class="chip c-mute">유지</span></td><td>점검 › 문제 줄(줄마다 고칠 자리 단추)</td><td class="small">「문제가 있을 때만 줄이 선다」 방식은 그대로 둔다</td></tr>
+    <tr><td>관리 › 사람 · 묶음 카드</td><td><span class="chip c-danger">걷음</span></td><td>없음(사람 · 묶음 하나)</td><td class="small">사람 탭과 똑같은 카드다</td></tr>
+    <tr><td>관리 › 저장소 연결(admRepoCard)</td><td><span class="chip c-acc">옮김</span></td><td>설정 › 팀 지식 › ⋯ 백업 저장소 붙이기(카드 줄 재사용)</td><td class="small">백업은 지식마다 붙이는 것이다</td></tr>
+    <tr><td>관리 › 지식 세우기 · 지우기, 지식 카드 ⋯ › 지우기(delHtml), 새 팀 지식 카드</td><td><span class="chip c-pend">합침</span></td><td>설정 › 팀 지식 [새 팀 지식] · ⋯ 지우기 · 지운 지식 접기</td><td class="small">지식 일을 한 곳에서. 지식 목록의 더하기 카드는 그대로 두고 같은 창을 연다</td></tr>
+    <tr><td>지식 카드 ⋯ › 권한(accHtml)</td><td><span class="chip c-mute">유지</span></td><td>그대로 + 설정 › 팀 지식 ⋯ 자리에서도 같은 창</td><td class="small">지식관리자가 설정 안에서도 찾을 수 있게 한다. 판정은 서버</td></tr>
+    <tr><td>관리 › 잘 도는 것 details(백업 · 사람 · 가져올 곳 · 팀 일꾼 줄)</td><td><span class="chip c-danger">걷음</span></td><td>찾기 점검 수치만 점검 아래 한 줄</td><td class="small">각 페이지에 이미 있는 값이다</td></tr>
+    <tr><td>viewSettings ST · tabs(data-t=setTabs)</td><td><span class="chip c-danger">걷음</span></td><td>MENU 표 하나</td><td class="small">이중 정의와 그리지 않는 죽은 코드. test/screen-kmd.test.mjs:735 의 setTabs 대기를 먼저 확인한다</td></tr>
+    <tr><td>viewMembers · viewOf 의 tidy/members 처리</td><td><span class="chip c-pend">합침</span></td><td>ALIAS 표 {tidy:held, members:people, admin:check, …}</td><td class="small">옛 주소를 한 곳에서 받고 렌더 부작용을 없앤다</td></tr>
+    <tr><td>STOP_T backup '설정 › 일반 › 백업' · worker '설정 › Claude 연결'</td><td><span class="chip c-warn">이름 바꿈</span></td><td>backup → 설정 › 팀 지식(그 지식 줄), worker → 설정 › 팀 서버 › 팀 일꾼 로그인. 글은 MENU 이름에서</td><td class="small">고칠 수 있는 자리로 바로 보낸다</td></tr>
+    <tr><td>머리 경고 n 팝업</td><td><span class="chip c-mute">유지</span></td><td>그대로 + 팝업 끝 「점검 ›」(총괄 관리자)</td><td class="small">어느 화면에서나 멈춤을 알린다</td></tr>
+    <tr><td>Claude 칩 창 [팀 일꾼 로그인 ›]</td><td><span class="chip c-mute">유지</span></td><td>설정 › 팀 서버 › 팀 일꾼 로그인으로 바로</td><td class="small">상태는 칩, 손대는 곳은 하나</td></tr>
+    <tr><td>내 메뉴 › 설정 · 나가기 · 모든 곳에서 나가기</td><td><span class="chip c-mute">유지</span></td><td>설정은 openSettings() 로 자리별 첫 화면</td><td class="small">진입 길마다 열리는 탭이 달랐다</td></tr>
+    <tr><td>(없음) 내 자리 표</td><td><span class="chip c-ok">새로</span></td><td>설정 › 나</td><td class="small">지금은 내 자리를 볼 곳이 없다. lvOf 값만 보인다</td></tr>
+    <tr><td>(없음) 백업에서 되살리기(팀 화면)</td><td><span class="chip c-ok">새로</span></td><td>설정 › 팀 지식 표 아래(총괄 관리자)</td><td class="small">서버 길 /api/restore 는 백업 주소에서 새 지식으로 되살린다(server/http.js:659 · hub.js:4517). 지우기는 보관 없이 완전히 지우므로 「지운 지식」 목록이 아니다(반대 검토로 바로잡음)</td></tr>
+    <tr><td>개인 설정 › 일반(setLeft · autoCard · routeTable)</td><td><span class="chip c-warn">이름 바꿈</span></td><td>개인 설정 › 이 PC(보내는 길 표는 지식 보내기로 옮김)</td><td class="small">이름이 내용을 말하게 하고, 보내는 길은 바꾸는 곳에 둔다</td></tr>
+    <tr><td>개인 설정 › 가져오기 · 문서 짜임 · 지식 보내기</td><td><span class="chip c-acc">옮김</span></td><td>개인 화면 옆 메뉴 지식 관리</td><td class="small">팀 화면과 같은 틀</td></tr>
+    <tr><td>개인 설정 › Claude 연결 · 에이전트 설치</td><td><span class="chip c-mute">유지</span></td><td>그대로</td><td class="small">개인 프로그램의 것만 담는다</td></tr>
+  </table></div>
+</section>
+<section id="s9">
+  <h2><span class="no">9</span>기능 · 코드 구조</h2>
+  <h3>설정이 자주 바뀐 구조적 원인 <span class="muted small">코드 읽기로 확인</span></h3>
+  <div class="tbl"><table>
+    <tr><th>원인</th><th>근거</th><th>생기는 일</th></tr>
+    <tr><td><b>메뉴 정의가 셋</b></td><td><code>mgItems</code>(main.js:571-580) · <code>viewSettings</code> 의 <code>ST</code>(3584-3585) · 멈춤 줄 갈 곳 글 <code>STOP_T</code>(670, 680-685)</td><td>메뉴 하나를 바꾸면 세 곳을 같이 고친다. 권한 조건이 어긋나 지식관리자에게 「관리」 가 보이고 열면 일반이 나온다.</td></tr>
+    <tr><td><b>길이 둘</b></td><td>가져오기 · 넣지 못함 · 문서 짜임 · 관리는 화면(<code>scr</code>), 일반 · 사람 · Claude 연결 · 에이전트 설치 · 관리는 <code>S.setTab</code></td><td>앱 안 뒤로 가기 기록(<code>snap</code>, main.js:269)은 <code>scr</code> · <code>kn</code> 만 담는다. 설정 탭 사이를 옮겨도 기록되지 않아 ‹ 를 누르면 설정 밖으로 나간다. 같은 왼쪽 메뉴인데 앞 셋은 기록되고 뒤 넷은 안 된다.</td></tr>
+    <tr><td><b>관리가 화면이자 탭</b></td><td>단독 <code>scr 'admin'</code>(main.js:563, MGSCR) · 설정 탭 <code>admin</code>(viewSettings 가 <code>viewAdmin().main</code> 을 끼움)</td><td>멈춤 줄(팀 백업)은 <code>scr 'admin'</code> 으로 가는데 왼쪽 메뉴는 <code>['settings','admin']</code> 만 알아 선택 표시가 없다.</td></tr>
+    <tr><td><b>들어가는 길 셋</b></td><td>옆 메뉴 · 레일 <code>setArea</code>(4364, 일반으로 되돌림) · 내 메뉴 「설정」(지난 탭 그대로) · <code>mgGo</code>(v 가 있을 때만 바꿈)</td><td>같은 「설정」 인데 열리는 페이지가 다르다.</td></tr>
+    <tr><td><b>렌더 중 상태 바꾸기 · 죽은 코드</b></td><td><code>viewMembers</code>(2438)가 그리면서 <code>S.setTab</code> 을 바꾼다 · <code>viewSettings</code> 의 <code>tabs</code>(3590)는 만들고 쓰지 않는다</td><td>옛 길을 걷을 때마다 흔적이 남는다.</td></tr>
+    <tr><td><b>이름과 저장 단위가 다르다</b></td><td>일반의 「저절로 하는 일」 은 팀이면 사람마다 저장(<code>hub.setAuto</code>, server/hub.js:1277-1283)</td><td>「팀 서버의 것만」 페이지에 내 값이 있다. 총괄 관리자가 끄면 모두가 꺼진다고 오해하기 쉽다.</td></tr>
+  </table></div>
+
+  <h3>고치는 방향</h3>
+  <ol>
+    <li><b>메뉴 표 하나.</b> <code>SETTINGS_MENU = [{ id, 이름, 묶음, view, 보이기(팀/개인 · 자리), 갈 곳 글 }]</code> 에서 왼쪽 메뉴 · 페이지 제목 · 위치 줄 · 멈춤 줄 갈 곳 글을 모두 만든다. <code>mgItems</code> · <code>ST</code> · <code>MGSCR</code> · <code>STOP_T</code> 의 경로 글은 이 표에서 나온다.</li>
+    <li><b>길 하나.</b> 설정 페이지는 모두 <code>{ scr: 'settings', page: id }</code> 로 가고 <code>snap</code> 에 <code>page</code> 를 싣는다. 뒤로 가기 · 선택 표시 · 위치 줄이 한 규칙을 따른다. <code>S.setTab</code> 은 걷는다.</li>
+    <li><b>옛 길 대응표 하나.</b> <code>{ members: 'people', admin: '오늘(점검)', tidy: 'held' }</code> 처럼 걷은 화면 이름을 한곳에서 새 페이지로 보낸다. <code>viewMembers</code> 는 걷는다.</li>
+    <li><b>권한은 지금처럼 서버가 판정</b>하고(<code>hub.need</code> · <code>ctx.admin</code>), 화면 노출은 메뉴 표의 <code>보이기</code> 함수 하나로만 정한다. 메뉴에 보이는데 페이지가 거절하는 일이 없게 한다.</li>
+    <li><b>화면 시험 영향.</b> <code>test/screen-kmd.test.mjs</code>(mgNav 8곳 · setTitle 2곳) · <code>test/access-ui.test.mjs</code>(mgNav · mg-people) 가 설정 메뉴의 <code>data-t</code> 를 본다. 메뉴 id 를 바꾸는 단계에서 같은 커밋으로 맞춘다.</li>
+  </ol>
+  <div class="callout"><b>주소 경로는 따로 정할 일.</b> 엔지니어 · 종합안은 <code>#settings/&lt;id&gt;</code> 주소를 제안했지만, kmd 는 지금 화면을 주소에 싣지 않는다(해시는 한 번용 번호 <code>#once=</code> 만 받고 주소를 <code>/</code> 로 되돌린다, main.js:180 · 5022-5036). 설정만 주소를 갖게 하면 앱 안에서 규칙이 둘이 된다. 이 검토는 앱 안 기록(<code>snap</code>)에 <code>page</code> 를 싣는 데까지만 권하고, 주소 경로 도입은 앱 전체 결정으로 남긴다(§11).</div>
+
+  <h3>기능 개선 목록</h3>
+  <div class="tbl"><table>
+    <tr><th>바꿀 것</th><th>까닭</th><th>품</th><th>위험 · 확인</th></tr>
+    <tr><td>메뉴 표 하나(MENU)에서 mgItems · ST · MGSCR · STOP_T 갈 곳 글을 끌어낸다. 1단계는 정의만 옮기고 data-t 는 그대로</td><td>세 벌 정의가 잦은 수정의 구조적 원인</td><td><span class="chip c-warn">중</span></td><td>화면 시험 mg-* 선택자. data-t 를 두면 영향 작음</td></tr>
+    <tr><td>메뉴 보이기 조건을 서버 판정과 맞춘다(점검 · 팀 서버 · 사람 · 묶음은 총괄 관리자)</td><td>지식관리자 「관리」 버그</td><td><span class="chip c-ok">소</span></td><td>access-ui 시험 기대값</td></tr>
+    <tr><td>설정 페이지를 <code>{ scr: 'settings', page }</code> 하나로, 들어가기는 <code>openSettings(id)</code> 하나로(setArea · 내 메뉴 · mgGo · toTeamClaude · stopGo)</td><td>뒤로 가기 · 선택 표시 · 첫 화면이 한 규칙</td><td><span class="chip c-warn">중</span></td><td>옛 이름은 대응표로 살린다</td></tr>
+    <tr><td>죽은 코드와 중복 걷기: setTabs 생성 · viewMembers · 관리 탭 사람 · 묶음 카드 · 잘 도는 것 접기 · STOP_T 팀 백업 기본값</td><td>같은 편집 화면 두 곳, 시험도 두 번</td><td><span class="chip c-ok">소</span></td><td><code>test/screen-kmd.test.mjs:735</code> 가 <code>[data-t=setTabs]</code> 를 기다린다. 무엇을 보는 시험인지 먼저 확인</td></tr>
+    <tr><td>멈춤 줄 갈 곳을 고칠 수 있는 자리로(백업 → 팀 지식 그 줄, 팀 일꾼 → 팀 서버)</td><td>찾아가서 다시 옮기는 일 없애기</td><td><span class="chip c-ok">소</span></td><td></td></tr>
+    <tr><td>설정 › 팀 지식 페이지: 지금 표를 늘려 백업 칸 · 가져올 곳 수 · ⋯(권한 창 · 저장소 줄 · 지우기 재사용)</td><td>지식 하나의 일을 한 줄에서</td><td><span class="chip c-danger">대</span></td><td>API 는 그대로. 지식관리자에게 저장소 붙이기를 열지는 서버 판정(지금 총괄 관리자)</td></tr>
+    <tr><td>사람 만들기 결과에 [안내 복사](링크 + 팀 주소 + 에이전트 설치 길)</td><td>새 팀원 들이기를 한 번에</td><td><span class="chip c-ok">소</span></td><td></td></tr>
+    <tr><td>점검이 한 번 읽어 그리게 overview 에 지식별 넣지 못함 · 멈춤 줄을 같이 싣는다. 쓰기 자리 넣지 못함 모아 보기</td><td>넣지 못함을 지식마다 따로 부르지 않게</td><td><span class="chip c-warn">중</span></td><td>서버 API 추가 · 판정은 서버</td></tr>
+  </table></div>
+</section>
+<section id="s10">
+  <h2><span class="no">10</span>단계 이행</h2>
+  <p>동작을 바꾸지 않는 코드 정리부터 한다. 단계마다 화면 시험(screen-kmd · access-ui)과 네 폭(1280 · 1024 · 600 · 375) 확인을 같은 커밋에서 맞춘다.</p>
+  <div class="phase"><b>1단계 · 코드 정리 (화면 그대로)</b><ul>
+    <li>메뉴 표 도입, mgItems · ST · MGSCR 끌어내기(data-t 유지)</li>
+    <li>관리 메뉴 보이기 조건을 총괄 관리자로 맞추기 <span class="chip c-danger">버그</span></li>
+    <li>설정 페이지를 앱 안 기록에 싣기(뒤로 가기) · openSettings 하나 · 옛 이름 대응표 <span class="chip c-danger">버그</span></li>
+    <li>setTabs · viewMembers · STOP_T 팀 백업 기본값 · 관리 탭 사람 · 묶음 카드 · 잘 도는 것 접기 걷기(screen-kmd:735 먼저 확인)</li>
+    <li>옛 메뉴 이름이 박힌 글 목록 만들기: app(main.js:1218 「설정 › 일반 › 팀 지식」 · 3612 · 4069) · server(http.js:557 · 562 「설정 · 팀 › Claude 연결」) · docs_ops/manual. 자리를 옮기는 단계와 같은 커밋에서 바꾼다</li>
+  </ul></div>
+  <div class="phase"><b>2단계 · 이름과 자리 (서버 변경 없음)</b><ul>
+    <li>관리 → 점검, 총괄 관리자 메뉴 맨 위 · 첫 화면 · 제목 한 번</li>
+    <li>Claude 연결(총괄 관리자 갈래) + 서버 주소 · 판 → 팀 서버</li>
+    <li>일반 걷기: 카드는 팀 서버 · 팀 지식 · 나로</li>
+    <li>나 페이지: 내 자리 표 · <b>내 설정(저절로 하는 일)</b> · 내 기기 · 나가기 · 서버 한 줄</li>
+    <li>개인 지식 쓰기를 에이전트 설치 카드2 로, 옆 메뉴 칸 걷기 · 자리별 첫 화면 · 묶음 머리</li>
+  </ul></div>
+  <div class="phase"><b>3단계 · 팀 지식 한 곳</b><ul>
+    <li>설정 › 팀 지식 표(백업 · Claude 에 보내지 않음 · 가져올 곳 수 · ⋯) · [새 팀 지식]</li>
+    <li>⋯ 에서 권한 창 · 저장소 붙이기 · 지우기 · 주인 넘기기</li>
+    <li>멈춤 줄 백업 → 팀 지식 그 줄 · 사람 만들기 [안내 복사]</li>
+  </ul></div>
+  <div class="phase"><b>4단계 · 작업 도구를 옆 메뉴로 (사람이 정한 뒤)</b><ul>
+    <li>가져오기 · 넣지 못함 · 문서 짜임을 옆 메뉴 지식 관리로(옛 이름은 대응표로)</li>
+    <li>넣지 못함 배지 · 지식 고르기 규칙 하나(heldKn · sxKn · impTarget)</li>
+    <li>가져오기 탭 합치기 · 가져올 곳 더하기 창 · 개인 화면도 같은 틀</li>
+  </ul></div>
+  <div class="phase"><b>5단계 · 서버와 설명서</b><ul>
+    <li>overview 에 지식별 넣지 못함 · 멈춤 줄 · 쓰기 자리 넣지 못함 모아 보기</li>
+    <li>팀 화면 「백업에서 되살리기」 를 팀 지식 표 아래에(서버 길 <code>/api/restore</code> 는 있다, server/http.js:659)</li>
+    <li>가져올 곳 부탁을 지식관리자에게도 가져오기 화면에서 보이기(서버는 이미 자기 지식 것을 준다, server/http.js:733-737 · 화면은 부르지 않음)</li>
+    <li>설명서 관리자 · 지식관리자 · 사용자 · 개인.html 의 설정 절과 그림, 자리별 메뉴 표</li>
+  </ul></div>
+</section>
+<section id="s11">
+  <h2><span class="no">11</span>정할 것</h2>
+  <div class="tbl"><table>
+    <tr><th>#</th><th>정할 것</th><th>검토 의견</th></tr>
+    <tr><td>1</td><td>작업 도구 셋(가져오기 · 넣지 못함 · 문서 짜임)을 옆 메뉴로 꺼낼지, 설정 안 「작업」 묶음으로 둘지</td><td>꺼내기를 권한다. 다만 예전에 설정 · 팀 / 설정 · 개인 안으로 넣은 까닭이 「이력 · 가져오기는 그 영역(팀 · 개인)의 지식만 본다」 였다(커밋 9a25187 · CHANGELOG). 꺼내더라도 팀 화면에는 팀 지식만 보이는 영역 거르기를 지킨다. 4단계 전에 정한다</td></tr>
+    <tr><td>2</td><td>팀 화면 「저절로 하는 일」 을 지금처럼 사람마다 값으로 둘지, 서버 값으로 바꿀지</td><td>사람마다 값이면 「나 › 내 설정」, 서버 값으로 바꾸면 「팀 서버」. 이 문서는 지금 동작대로 「나」 에 실었다</td></tr>
+    <tr><td>3</td><td>관리의 새 이름 「점검」 이 컨벤션 9절 용어에 맞는가(다른 안: 상태)</td><td>「오늘」 은 이력의 today 와 겹쳐 뺐다</td></tr>
+    <tr><td>4</td><td>지식관리자에게 팀 지식 줄의 백업 저장소 붙이기를 열지</td><td>지금 서버 판정은 총괄 관리자. 열지 않으면 그 칸은 지식관리자에게 읽기만</td></tr>
+    <tr><td>5</td><td>가져올 곳 더하기를 가져오기 화면 창에 둘지, 팀 지식 줄 펼침에 둘지</td><td>가져오기 창을 권한다(넣는 흐름 옆에서 확인)</td></tr>
+    <tr><td>6</td><td>쓰기 자리용 넣지 못함 「모든 팀 지식 모아 보기」 를 서버에 만들지</td><td>만들지 않으면 고른 지식 기준만</td></tr>
+    <tr><td>7</td><td>쓰기 · 읽기 자리의 설정 메뉴가 2칸(에이전트 설치 · 나)이 되는데 이대로 좋은가</td><td>좋다고 본다. 못 하는 항목은 숨기는 지금 원칙과 같다</td></tr>
+    <tr><td>8</td><td>화면 주소 경로(#settings/…)를 앱 전체에 도입할지</td><td>설정만 따로 하지 않는다. 앱 전체 결정으로</td></tr>
+    <tr><td>9</td><td>개인 화면 설정을 같은 단계에서 바꿀지, 팀 화면이 끝난 뒤 따로 할지</td><td>메뉴 표는 1단계에 같이 들이고, 자리 옮김은 팀 화면 뒤에</td></tr>
+    <tr><td>10</td><td>자리마다 설정 첫 화면을 다르게 할지(Q11 은 「옆 메뉴 설정은 설정 › 일반으로 연다」 로 예측 가능성을 정했다, main.js:4362-4364)</td><td>「보이는 메뉴의 첫 칸이 곧 도착 화면」 규칙으로 맞추면 Q11 의 까닭(누르면 어디로 가나 안다)을 지킨다</td></tr>
+    <tr><td>11</td><td>작업 화면의 지식 기본값을 위에서 고른 지식으로 할지</td><td>화면 안 지식 칩을 정본으로, 위에서 고른 지식은 처음 값으로만 쓴다(공통 메뉴를 고른 지식에 묶지 않는다는 9a25187 의 까닭)</td></tr>
+  </table></div>
+</section>
+</main>
+<footer>kmd 설정 화면 개선 검토 · 2026-11-06 · 검토안(코드 변경 없음)</footer>
+</div>
+</body>
+</html>
