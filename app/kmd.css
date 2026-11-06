@@ -550,9 +550,18 @@ svg.gki{width:14px;height:14px;flex:none;overflow:visible;stroke:none;vertical-a
 .gov .gcap{margin-top:var(--sp-4)}
 /* 2D 표(ERD 처럼) — 문서 상자 · 항목 줄 · 기록 열 · 선 한 가지 */
 .gwrap.erd{background:var(--surface);touch-action:auto}
-.gerdw{position:absolute;inset:64px 0 0 0;overflow:auto}
-.gerdw.wc{right:min(324px,40%)}
-.gerd{display:block;stroke:none}
+/* 2D 표 — 칸 전체가 그림(스크롤 없음) · 수 · 범례 · 카드 · 확대 단추는 그 위에 뜬다 */
+.gerdw{position:absolute;inset:0;overflow:hidden;cursor:grab;user-select:none;touch-action:none}
+.gerdw.drag,.gwrap.grab .gerdw{cursor:grabbing}
+.gwrap.erd .gtl,.gwrap.erd .glg,.gwrap.erd .gz,.gwrap.erd .ghint,.gwrap.erd .gov{z-index:2}
+.gwrap.erd .gtl{background:var(--surface);padding:0 var(--sp-2);border-radius:var(--r-xs)}
+.gwrap.grab #gcv{cursor:grab}
+.gerd .gdot{fill:var(--accent)}
+.gov .gtrail{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-3);margin-top:var(--sp-4)}
+/* 그래프 칸은 가운데 칸의 남은 높이를 다 쓴다 */
+.main.full:has(>.gwrap){display:flex;flex-direction:column}
+.main.full>.gwrap{flex:1 1 auto;height:auto;min-height:320px}
+.gerd{display:block;stroke:none;width:100%;height:100%}
 .gerd .gbx{fill:var(--surface);stroke:var(--border-strong)}
 .gerd .ghr{fill:var(--surface-2);stroke:var(--border-strong)}
 .gerd .grow{fill:transparent}
@@ -561,11 +570,14 @@ svg.gki{width:14px;height:14px;flex:none;overflow:visible;stroke:none;vertical-a
 .gerd .gt.b{font-weight:700}
 .gerd .gs{font-size:var(--fs-xs);fill:var(--text-3)}
 .gerd .gln,svg.gki .gln{fill:none;stroke:var(--border-strong);stroke-width:1.4}
-.gerd .gln.lit{stroke:var(--accent);stroke-width:1.8}
+.gerd .gln{stroke-opacity:.7}
+.gerd .gln.lit{stroke:var(--accent);stroke-width:2;stroke-opacity:.9}
 .gerd .ge{cursor:pointer}
 .gerd .ge.off{cursor:default}
 .gerd .ge:not(.off):hover .grow,.gerd .ge:not(.off):hover .ghr,.gerd .ge:not(.off):hover .grec,.gerd .ge:focus .grow,.gerd .ge:focus .ghr,.gerd .ge:focus .grec,.gerd .ge.sel .grow,.gerd .ge.sel .ghr,.gerd .ge.sel .grec{fill:var(--accent-bg)}
 .gerd .ge:focus{outline:none}
+.gerd .ge.nb .grow,.gerd .ge.nb .ghr,.gerd .ge.nb .grec{fill:var(--accent-bg)}
+.gerd .ge.nb .gt{font-weight:600}
 .gerd .ge.on .grow,.gerd .ge.on .ghr,.gerd .ge.on .grec{fill:var(--accent-bg);stroke:var(--accent);stroke-width:1.5}
 .gerd .ge.hit .grow,.gerd .ge.hit .ghr,.gerd .ge.hit .grec{fill:var(--warn-bg)}
 .gh{font-size:var(--fs-sm);font-weight:700;color:var(--text-2);margin:var(--sp-6) var(--sp-2) var(--sp-2)}
@@ -1116,7 +1128,6 @@ a.dlink:hover{text-decoration:underline;text-underline-offset:2px}
   .paper .tblwrap table{display:table;overflow:visible}
 }
 @media (max-width:600px){
-  .gerdw.wc{right:0} /* 좁으면 카드가 그림 위에 뜬다(× 로 닫는다) */
   .tn .nm .iv + .id,.alr .nm .iv + .id{display:none}
   .hb.menu-btn{display:inline-grid}
   /* 창 전체가 길어진다 — 가운데(문서 본문)가 0 높이로 접히지 않고 글만큼 선다 */

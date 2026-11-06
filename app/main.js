@@ -1875,15 +1875,23 @@ function gHit(x, y) {
 // 시험이 점 자리를 묻는다(canvas 라 DOM 에 점이 없다)
 window.kmdGraphPt = (id) => { const t = GCV && GCV.pts.find((t) => t.n.id === id); return t ? { x: GCV.rc.left + t.X, y: GCV.rc.top + t.Y } : null }
 function zoomAt(lx, ly, k) { const C = S.g.cam, cv = $('#gcv'); if (!cv) return; const r = cv.getBoundingClientRect(), z2 = Math.max(0.2, Math.min(8, C.zoom * k)), q = z2 / C.zoom, ox = lx - r.width / 2, oy = ly - r.height / 2; C.px = ox - (ox - C.px) * q; C.py = oy - (oy - C.py) * q; C.zoom = z2; gPaint() }
-// 점을 누르면 — 고른 점이 없거나 안 보이는 점이면 그 점을 고른다(한 겹 이웃만) · 보이는 이웃이면 그 점에서 한 겹 더 뻗는다
+// 점을 누르면
+//   3D — 고른 점이 없거나 안 보이는 점이면 그 점을 고른다(한 겹 이웃만) · 보이는 이웃이면 그 점에서 한 겹 더 뻗는다
+//   2D 표 — 누른 점이 새 가운데(그 점 + 한 겹 이웃) · 앞의 가운데는 「지나온 점」 으로 남아 카드에서 되돌아간다
+//          (뻗기를 쌓으면 표에서는 선이 늘어 누른 선이 묻힌다)
 function gClick(id) {
   if (id === 'b:table') { S.g.bundle = true; toast('테이블 ' + itemsOf(S.route.kn).filter((i) => i.table).length + ' 을 폈다. 다른 지식을 열었다 오면 다시 접힌다'); render(); return }
   const G = CURG
-  if (!S.g.sel || !G || !G.vis || !G.vis.has(id)) Object.assign(S.g, { sel: id, open: [], cur: id })
+  if (S.g.mode === '2d') {
+    if (S.g.sel && S.g.sel !== id) S.g.trail = [...(S.g.trail || []).filter((x) => x !== id), S.g.sel].slice(-12)
+    Object.assign(S.g, { sel: id, open: [], cur: id })
+  } else if (!S.g.sel || !G || !G.vis || !G.vis.has(id)) Object.assign(S.g, { sel: id, open: [], cur: id })
   else { if (id !== S.g.sel && !S.g.open.includes(id)) S.g.open = [...S.g.open, id]; S.g.cur = id }
   render()
 }
-// 2D 표(ERD 처럼) — 문서 상자 안에 항목 줄 · 기록은 왼쪽 열(위가 최근) · 선은 상자 · 줄 가장자리 사이 한 가지
+// 2D 표(ERD 처럼) — 문서 상자 안에 항목 줄 · 기록은 왼쪽 열(위가 최근)
+//   가운데 점이 든 상자를 맨 앞 열에 둔다(선이 한쪽으로 흐른다) · 선은 상자 뒤 · 가운데 점의 선은 강조색 · 이어진 점의 줄은 옅게 칠한다
+//   그림은 한 장(<g id="gerdg">) · 옮기기 · 크게 · 작게는 transform 만 바꾼다(스크롤 없음 · 다시 그리지 않음)
 const gW = (ch) => (/[ᄀ-ᇿ㄰-㆏가-힯一-鿿]/.test(ch) ? 1 : 0.6)
 function gFit(s, px, fs = 12) {
   const a = [...String(s || '')], lim = px / fs
@@ -1891,11 +1899,12 @@ function gFit(s, px, fs = 12) {
   for (let i = 0; i < a.length; i++) { w += gW(a[i]); if (w > lim) return a.slice(0, Math.max(1, i - 1)).join('') + '…' }
   return a.join('')
 }
+const f1 = (v) => +v.toFixed(1)
 const gAvail = (max) => { const m = $('#app .main'), w = m ? m.clientWidth - 40 : innerWidth - 300; return Math.round(Math.max(640, Math.min(max, w))) }
 function gErdSvg(k, G) {
   const m = M(k), vis = G.vis, cur = S.g.cur, sel = S.g.sel, f = S.g.f, nq = norm(f.q || '')
   const nodes = vis ? G.nodes.filter((n) => vis.has(n.id)) : G.nodes
-  if (!nodes.length) return '<div class="empty2" data-t="gEmpty"><b>보일 점이 없다</b>왼쪽 「종류」 에서 문서 · 항목 · 기록을 켠다.</div>'
+  if (!nodes.length) return '<div class="empty2" data-t="gEmpty"><b>보일 점이 없다</b>왼쪽 「문서 · 항목 · 기록」 을 켠다.</div>'
   const byId = new Map(nodes.map((n) => [n.id, n]))
   const dOrder = new Map(m.docs.map((d, i) => [d.id, i]))
   const recs = nodes.filter((n) => n.kind === 'rec').sort((a, b) => (stampDate((m.recById.get(b.id.slice(2)) || {}).date) || 0) - (stampDate((m.recById.get(a.id.slice(2)) || {}).date) || 0))
@@ -1907,13 +1916,17 @@ function gErdSvg(k, G) {
     ;(d ? boxOf(d, dd ? dd.title : d, byId.get('d:' + d) || null) : boxOf('_out', '문서 밖 항목', null)).rows.push(n)
   })
   nodes.filter((n) => n.kind === 'bundle').forEach((n) => boxOf('_bnd', n.label, n))
-  const list = [...boxes.values()].sort((a, b) => (dOrder.has(a.key) ? dOrder.get(a.key) : 1e9) - (dOrder.has(b.key) ? dOrder.get(b.key) : 1e9) || a.title.localeCompare(b.title))
+  // 가운데 점이 든 상자 — 맨 앞
+  const selBox = sel && (sel.startsWith('d:') ? sel.slice(2) : sel.startsWith('i:') ? (() => { const it = m.byKey.get(sel.slice(2)); return it ? it.doc || it.whole || '_out' : null })() : null)
+  const list = [...boxes.values()].sort((a, b) => (a.key === selBox ? -1 : b.key === selBox ? 1 : 0) || (dOrder.has(a.key) ? dOrder.get(a.key) : 1e9) - (dOrder.has(b.key) ? dOrder.get(b.key) : 1e9) || a.title.localeCompare(b.title))
   list.forEach((b) => { const d = m.docById.get(b.key), io = new Map(((d && d.items) || []).map((x, i) => ['i:' + x, i])); b.rows.sort((p, q) => (io.has(p.id) ? io.get(p.id) : 1e9) - (io.has(q.id) ? io.get(q.id) : 1e9)) })
   const W = gAvail(1600), PAD = 16, TOP = 16, RH = 24, HH = 30, BW = 232, GX = 72
   const recW = recs.length ? 220 : 0, x0 = PAD + (recW ? recW + GX : 0)
   const nc = Math.max(1, Math.floor((W - x0 - PAD + GX) / (BW + GX)))
   const colH = new Array(nc).fill(TOP), at = {}
-  const cls = (id) => (id === cur ? ' on' : '') + (id === sel ? ' sel' : '') + (nq && byId.get(id) && norm(byId.get(id).label).includes(nq) ? ' hit' : '')
+  // 가운데 점과 이어진 점 — 줄을 옅게 칠해 선이 상자 뒤로 숨어도 무엇과 이어졌는지 보인다
+  const nbs = new Set(sel && G.nbr[sel] ? [...G.nbr[sel], ...S.g.open.flatMap((o) => [...(G.nbr[o] || [])])] : [])
+  const cls = (id) => (id === cur ? ' on' : '') + (id === sel ? ' sel' : '') + (nbs.has(id) && id !== sel ? ' nb' : '') + (nq && byId.get(id) && norm(byId.get(id).label).includes(nq) ? ' hit' : '')
   const el = (n, inner) => `<g class="ge${cls(n.id)}" data-a="gTap" data-v="${esc(n.id)}" data-t="gEl" data-l="${esc(norm(n.label))}" role="button" tabindex="0" aria-label="${esc((KLAB[n.kind] || '') + ' ' + n.label)}"><title>${esc(n.label)}</title>${inner}</g>`
   let boxS = '', recS = ''
   for (const b of list) {
@@ -1937,22 +1950,77 @@ function gErdSvg(k, G) {
     at[n.id] = { lx: PAD, rx: PAD + recW, y: ry + 20 }
     ry += 48
   }
-  // 선 — 한 가지 · 「선」 을 켰거나 고른 뒤 보이는 이웃 그림일 때만 · 문서 ⊃ 항목은 상자가 보여 주므로 그리지 않는다
-  let lineS = '', nl = 0
-  if (f.line || vis) for (const e of G.edges) {
-    if (e.t === 'in' || !gBranch(G, e)) continue
+  // 선 — 상자 뒤에 그린다(글을 가로지르지 않게). 가운데 점의 선은 강조색 · 「선」 을 켜면 나머지 선은 옅게 · 문서 ⊃ 항목은 상자가 보여 준다
+  const path = (a, b) => {
+    if (a.rx <= b.lx) return `M${a.rx} ${a.y}C${(a.rx + b.lx) / 2} ${a.y} ${(a.rx + b.lx) / 2} ${b.y} ${b.lx} ${b.y}`
+    if (b.rx <= a.lx) return `M${b.rx} ${b.y}C${(b.rx + a.lx) / 2} ${b.y} ${(b.rx + a.lx) / 2} ${a.y} ${a.lx} ${a.y}`
+    return `M${a.rx} ${a.y}C${a.rx + 36} ${a.y} ${b.rx + 36} ${b.y} ${b.rx} ${b.y}`
+  }
+  let back = '', front = '', nl = 0
+  for (const e of G.edges) {
+    if (e.t === 'in') continue
     const a = at[e.a], b = at[e.b]
     if (!a || !b) continue
-    let d
-    if (a.rx <= b.lx) d = `M${a.rx} ${a.y}C${(a.rx + b.lx) / 2} ${a.y} ${(a.rx + b.lx) / 2} ${b.y} ${b.lx} ${b.y}`
-    else if (b.rx <= a.lx) d = `M${b.rx} ${b.y}C${(b.rx + a.lx) / 2} ${b.y} ${(b.rx + a.lx) / 2} ${a.y} ${a.lx} ${a.y}`
-    else d = `M${a.rx} ${a.y}C${a.rx + 36} ${a.y} ${b.rx + 36} ${b.y} ${b.rx} ${b.y}`
-    lineS += `<path class="gln${vis && (e.a === cur || e.b === cur) ? ' lit' : ''}" d="${d}"/>`
-    nl++
+    const mine = !!sel && (e.a === sel || e.b === sel || S.g.open.includes(e.a) || S.g.open.includes(e.b))
+    if (mine) { front += `<path class="gln lit" d="${path(a, b)}"/>`; nl++ } else if (f.line) { back += `<path class="gln" d="${path(a, b)}"/>`; nl++ }
   }
-  const H = Math.max(ry, ...colH) + PAD
-  return `<svg class="gerd" viewBox="0 0 ${W} ${H}" style="width:${W}px;height:${H}px" role="group" aria-label="${esc(`그래프 2D 표: 점 ${nodes.length} · 선 ${nl}`)}" data-t="gErd" data-n="${nodes.length}" data-lines="${nl}">${lineS}${recS}${boxS}</svg>`
+  // 가운데 점 끝에 점 하나 — 선이 어디서 나가는지
+  const sa = sel && at[sel]
+  const dot = sa ? `<circle class="gdot" cx="${sa.rx}" cy="${sa.y}" r="3.5"/><circle class="gdot" cx="${sa.lx}" cy="${sa.y}" r="3.5"/>` : ''
+  const H = Math.max(ry, ...colH) + PAD, c = gC2()
+  return `<svg class="gerd" role="group" aria-label="${esc(`그래프 2D 표: 점 ${nodes.length} · 선 ${nl}`)}" data-t="gErd" data-n="${nodes.length}" data-lines="${nl}" data-w="${W}" data-h="${H}"><g id="gerdg" transform="translate(${f1(c.px)} ${f1(c.py)}) scale(${+c.z.toFixed(3)})">${back}${front}${recS}${boxS}${dot}</g></svg>`
 }
+// 2D 표 카메라 — 처음(고른 점 · 보는 방법 · 지식이 바뀌면): 고른 뒤에는 다 들어오게 · 전체는 폭에 맞춰 위부터
+const gC2 = () => S.g.cam2 || (S.g.cam2 = { z: 1, px: 8, py: 64, needFit: true })
+function gErdApply() { const g = $('#gerdg'), c = gC2(); if (g) g.setAttribute('transform', `translate(${f1(c.px)} ${f1(c.py)}) scale(${+c.z.toFixed(3)})`) }
+function gErdFit() {
+  const w = $('#app .gerdw'), sv = $('#app .gerd'), c = gC2()
+  if (!w || !sv) return
+  if (!c.needFit) return gErdApply()
+  const cw = w.clientWidth, ch = w.clientHeight, W = Number(sv.dataset.w), H = Number(sv.dataset.h), top = 64
+  if (!cw || !ch || !W || !H) return
+  const vis = !!(CURG && CURG.vis)
+  c.z = Math.max(0.2, Math.min(vis ? 1.25 : 1, (cw - 16) / W, vis ? (ch - top - 8) / H : Infinity))
+  c.px = Math.max(8, (cw - W * c.z) / 2)
+  c.py = vis ? Math.max(top, top + (ch - top - H * c.z) / 2) : top
+  c.needFit = false
+  gErdApply()
+}
+function gErdZoom(lx, ly, k) { const c = gC2(), z2 = Math.max(0.15, Math.min(3, c.z * k)), q = z2 / c.z; c.px = lx - (lx - c.px) * q; c.py = ly - (ly - c.py) * q; c.z = z2; gErdApply() }
+// 2D 표 — 끌어 옮기기(왼쪽 끌기 · 가운데 단추 · 스페이스 + 끌기) · 휠: 크게 · 작게(마우스 자리 중심) · 끌고 난 누름은 점 고르기가 아니다
+let GD2 = null, G2MOVED = 0
+document.addEventListener('pointerdown', (ev) => {
+  const w = ev.target.closest && ev.target.closest('.gerdw')
+  if (!w || ev.button === 2) return
+  const c = gC2()
+  GD2 = { x: ev.clientX, y: ev.clientY, px: c.px, py: c.py, moved: false }
+  if (GSPACE || ev.button === 1) ev.preventDefault()
+})
+document.addEventListener('pointermove', (ev) => {
+  if (!GD2) return
+  const dx = ev.clientX - GD2.x, dy = ev.clientY - GD2.y
+  if (!GD2.moved && Math.hypot(dx, dy) < 5) return
+  GD2.moved = true
+  const c = gC2()
+  c.px = GD2.px + dx; c.py = GD2.py + dy
+  gErdApply()
+  const w = $('#app .gerdw'); if (w) w.classList.add('drag')
+})
+document.addEventListener('pointerup', () => { if (!GD2) return; if (GD2.moved) G2MOVED = Date.now(); GD2 = null; const w = $('#app .gerdw'); if (w) w.classList.remove('drag') })
+document.addEventListener('click', (ev) => { if (Date.now() - G2MOVED < 300 && ev.target.closest && ev.target.closest('.gerdw')) { ev.stopImmediatePropagation(); ev.preventDefault() } }, true)
+document.addEventListener('wheel', (ev) => { const w = ev.target.closest && ev.target.closest('.gerdw'); if (!w) return; ev.preventDefault(); const r = w.getBoundingClientRect(); gErdZoom(ev.clientX - r.left, ev.clientY - r.top, Math.exp(-ev.deltaY * 0.0015)) }, { passive: false })
+// 스페이스 — 그래프 칸 위에서 누르고 있으면 잡아 옮긴다(3D · 2D 표 같음 · 가운데 단추 끌기와 같은 일)
+let GSPACE = false, GOVER = false
+document.addEventListener('pointerover', (ev) => { GOVER = !!(ev.target.closest && ev.target.closest('#app .gwrap')) })
+document.addEventListener('keydown', (ev) => {
+  if (ev.code !== 'Space' || !GOVER || S.route.scr !== 'graph') return
+  const t = ev.target
+  if (t && t.matches && t.matches('input, textarea, select, [contenteditable]')) return
+  ev.preventDefault(); ev.stopImmediatePropagation()
+  if (!GSPACE) { GSPACE = true; const w = $('#app .gwrap'); if (w) w.classList.add('grab') }
+}, true)
+document.addEventListener('keyup', (ev) => { if (ev.code === 'Space' && GSPACE) { GSPACE = false; const w = $('#app .gwrap'); if (w) w.classList.remove('grab') } })
+window.addEventListener('blur', () => { GSPACE = false })
 function viewGraph() {
   const k = pickKn()
   if (!k) return { crumb: '그래프', main: viewHome().main }
@@ -1966,7 +2034,7 @@ function viewGraph() {
   if (S.g.cur && !G.nbr[S.g.cur]) S.g.cur = S.g.sel
   G.vis = gVisible(G)
   const vk = S.g.sel ? S.g.sel + '|' + S.g.open.join('|') : ''
-  if (vk !== S.g.visKey) { S.g.visKey = vk; S.g.cam.needFit = true }
+  if (vk !== S.g.visKey) { S.g.visKey = vk; S.g.cam.needFit = true; gC2().needFit = true }
   const d3 = S.g.mode !== '2d'
   if (d3) {
     layoutGraph(G)
@@ -1974,12 +2042,13 @@ function viewGraph() {
   }
   CURG = G
   const nV = G.vis ? G.vis.size : G.nodes.length, eV = G.vis ? G.edges.filter((e) => G.vis.has(e.a) && G.vis.has(e.b) && gBranch(G, e)).length : G.edges.length
-  const count = `<div class="gtl small"><span data-t="gCount">점 ${nV} · 선 ${eV}${G.vis ? ' · 고른 점에서 ' + (S.g.open.length + 1) + '번 뻗음' : ''}</span> <b class="t-warn" data-t="gHits"></b></div>`
+  const count = `<div class="gtl small"><span data-t="gCount">점 ${nV} · 선 ${eV}${G.vis ? (d3 ? ' · 고른 점에서 ' + (S.g.open.length + 1) + '번 뻗음' : ' · 고른 점 중심' + ((S.g.trail || []).length ? ' · 지나온 점 ' + S.g.trail.length : '')) : ''}</span> <b class="t-warn" data-t="gHits"></b></div>`
   const legend = `<div class="glg small" data-t="gLegend">${['doc', 'item', 'rec'].map((v) => `<span class="lgr">${glyphIcon(v)}${KLAB[v]}</span>`).join('')}<span class="lgr"><svg class="gki" viewBox="0 0 16 16" aria-hidden="true"><line class="gln" x1="1" y1="8" x2="15" y2="8"/></svg>이어져 있다</span></div>`
   const card = gCardHtml(k, G)
   const main = d3
-    ? `<div class="gwrap" data-t="graph" data-mode="3d"><canvas id="gcv" data-t="gcanvas" role="img" aria-label="그래프: 점 ${nV} · 선 ${eV}${S.g.cur ? ' · 고른 점 ' + esc((G.nodes.find((n) => n.id === S.g.cur) || {}).label || '') : ''} · 키보드로는 왼쪽 「점 목록」 에서 고른다"></canvas>${count}${legend}${card}<div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit" title="보이는 점이 다 들어오게 · 처음 각도로">처음 크기</button></div><div class="ghint small">끌기: 돌리기 · Shift · 오른쪽 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 이웃 한 겹 · 이웃을 누르면 더 뻗는다</div></div>`
-    : `<div class="gwrap erd" data-t="graph" data-mode="2d">${count}${legend}${card}<div class="gerdw${card ? ' wc' : ''}" data-t="gErdWrap">${gErdSvg(k, G)}</div></div>`
+    ? `<div class="gwrap" data-t="graph" data-mode="3d"><canvas id="gcv" data-t="gcanvas" role="img" aria-label="그래프: 점 ${nV} · 선 ${eV}${S.g.cur ? ' · 고른 점 ' + esc((G.nodes.find((n) => n.id === S.g.cur) || {}).label || '') : ''} · 키보드로는 왼쪽 「점 목록」 에서 고른다"></canvas>${count}${legend}${card}<div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit" title="보이는 점이 다 들어오게 · 처음 각도로">처음 크기</button></div><div class="ghint small">끌기: 돌리기 · 스페이스 · Shift · 오른쪽 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 이웃 한 겹 · 이웃을 누르면 더 뻗는다</div></div>`
+    : `<div class="gwrap erd" data-t="graph" data-mode="2d"><div class="gerdw" data-t="gErdWrap">${gErdSvg(k, G)}</div>${count}${legend}${card}<div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit" title="처음 크기">처음 크기</button></div><div class="ghint small">끌기 · 스페이스 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 그 점이 가운데</div></div>`
+  if (!d3) requestAnimationFrame(gErdFit)
   return { crumb: '그래프', main, tabs: true, left: graphFilter(), full: true }
 }
 // 고른 점 카드 — 그래프 칸 안 오른쪽 위 · × 는 고르기를 닫고 전체 그래프로
@@ -1987,7 +2056,7 @@ function gCardHtml(k, G) {
   const id = S.g.cur, n = id && G.nodes.find((x) => x.id === id), info = n && nodeInfo(k, id)
   if (!info) return ''
   const nb = G.nbr[id] ? G.nbr[id].size : 0
-  return `<div class="gov" data-t="gCard" data-name="${esc(info.name)}"><div class="row">${glyphIcon(n.kind)}<span class="small muted">${KLAB[n.kind]}${info.kind ? ' · ' + esc(info.kind) : ''}</span><button type="button" class="hb r" data-a="gUnsel" data-t="gClose" title="고르기 닫기: 전체 그래프로" aria-label="고르기 닫기: 전체 그래프로">×</button></div><div class="gn">${esc(info.name)}</div><div class="small gfirst">${esc(info.first)}</div><div class="small muted" data-t="gCardRecs">기록 ${info.recs} · 이웃 ${nb}</div><div class="row" style="flex-wrap:wrap"><button class="btn pri sm" data-a="gOpen" data-v="docs" data-t="gOpenDocs"${info.doc ? '' : ' disabled'}>문서로 보기</button><button class="btn sm" data-a="gOpen" data-v="items" data-t="gOpenItems"${info.item ? '' : ' disabled'}>항목으로 보기</button></div><div class="small muted gcap">이웃을 누르면 그 점에서 한 겹 더 · × 로 닫으면 전체</div></div>`
+  return `<div class="gov" data-t="gCard" data-name="${esc(info.name)}"><div class="row">${glyphIcon(n.kind)}<span class="small muted">${KLAB[n.kind]}${info.kind ? ' · ' + esc(info.kind) : ''}</span><button type="button" class="hb r" data-a="gUnsel" data-t="gClose" title="고르기 닫기: 전체 그래프로" aria-label="고르기 닫기: 전체 그래프로">×</button></div><div class="gn">${esc(info.name)}</div><div class="small gfirst">${esc(info.first)}</div><div class="small muted" data-t="gCardRecs">기록 ${info.recs} · 이웃 ${nb}</div><div class="row" style="flex-wrap:wrap"><button class="btn pri sm" data-a="gOpen" data-v="docs" data-t="gOpenDocs"${info.doc ? '' : ' disabled'}>문서로 보기</button><button class="btn sm" data-a="gOpen" data-v="items" data-t="gOpenItems"${info.item ? '' : ' disabled'}>항목으로 보기</button></div>${S.g.mode === '2d' && (S.g.trail || []).length ? `<div class="gtrail small" data-t="gTrail"><span class="muted">지나온 점</span>${S.g.trail.slice(-5).map((t) => { const o = G.nodes.find((x) => x.id === t); return o ? `<button type="button" class="lk" data-a="gBack" data-v="${esc(t)}" title="${esc(o.label)}">${esc(gFit(o.label, 110, 12))}</button>` : '' }).join('<span class="muted">›</span>')}</div>` : ''}<div class="small muted gcap">${S.g.mode === '2d' ? '점을 누르면 그 점이 가운데 · × 로 닫으면 전체' : '이웃을 누르면 그 점에서 한 겹 더 · × 로 닫으면 전체'}</div></div>`
 }
 // 왼쪽 칸 — 그래프를 어떻게 보일지 정하는 판 넷: 찾기 · 보는 방법(3D | 2D 표) · 보기(선 · 제목 · 회전) · 종류(문서 · 항목 · 기록)
 //   찾기는 맞는 점을 밝히고 Enter 면 맞는 첫 점(선 많은 차례)을 고른다 · 제목 · 회전은 3D 에서만 쓴다
@@ -2051,7 +2120,7 @@ let GD = null
 document.addEventListener('pointerdown', (ev) => {
   const cv = ev.target.closest && ev.target.closest('#gcv')
   if (!cv) return
-  const pan = ev.shiftKey || ev.button === 1 || ev.button === 2, C = S.g.cam
+  const pan = ev.shiftKey || GSPACE || ev.button === 1 || ev.button === 2, C = S.g.cam
   GD = { cv, pan, node: pan ? null : gHit(ev.clientX, ev.clientY), sx: ev.clientX, sy: ev.clientY, moved: false, rx: C.rx, ry: C.ry, px: C.px, py: C.py }
   ev.preventDefault()
 })
@@ -4910,11 +4979,12 @@ const ACT = {
   itemToDoc: (el) => { const it = itemByKey(el.dataset.k, el.dataset.n); if (it && it.doc) openDocAt(el.dataset.k, it.doc, it.sec, null, 'docs') },
   openGraph: (el) => { S.gPop = false; Object.assign(S.g, { kn: S.route.kn, sel: el.dataset.n, open: [], cur: el.dataset.n }); setView('graph') },
   gSet: (el) => { const v = el.dataset.v; S.g.f[v] = !S.g.f[v]; render() },
-  gMode: (el) => { S.g.mode = el.dataset.v; S.g.cam.needFit = true; render() },
-  gZoom: (el) => { const cv = $('#gcv'); if (cv) zoomAt(cv.clientWidth / 2, cv.clientHeight / 2, Number(el.dataset.v)) },
-  gFit: () => { Object.assign(S.g.cam, { rx: -0.35, ry: 0.6, needFit: true }); gPaint() },
+  gMode: (el) => { S.g.mode = el.dataset.v; if (S.g.mode === '2d' && S.g.sel) Object.assign(S.g, { sel: S.g.cur || S.g.sel, open: [] }); S.g.cam.needFit = true; gC2().needFit = true; render() },
+  gZoom: (el) => { const cv = $('#gcv'), w = $('#app .gerdw'); if (cv) zoomAt(cv.clientWidth / 2, cv.clientHeight / 2, Number(el.dataset.v)); else if (w) gErdZoom(w.clientWidth / 2, w.clientHeight / 2, Number(el.dataset.v)) },
+  gFit: () => { Object.assign(S.g.cam, { rx: -0.35, ry: 0.6, needFit: true }); gC2().needFit = true; gPaint(); gErdFit() },
+  gBack: (el) => { const v = el.dataset.v, t = S.g.trail || [], i = t.indexOf(v); Object.assign(S.g, { sel: v, cur: v, open: [], trail: i >= 0 ? t.slice(0, i) : t }); render() },
   gTap: (el) => gClick(el.dataset.v),
-  gUnsel: () => { Object.assign(S.g, { sel: null, open: [], cur: null }); render() },
+  gUnsel: () => { Object.assign(S.g, { sel: null, open: [], cur: null, trail: [] }); render() },
   gOpen: (el) => {
     const k = S.route.kn, info = nodeInfo(k, S.g.cur)
     if (!info) return
