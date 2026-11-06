@@ -554,12 +554,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, { pc: mode === 'pc', ok: ws ? ws.ok : null, reason: ws?.reason || null, since: ws?.since || null, at: ws?.at || null, off: mode === 'pc' ? !hub.autoOf(ctx.user, 'claude') : false })
     }
     if (p === '/api/claude/login' && req.method === 'POST') {
-      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀 일꾼 로그인은 설정 · 팀 › Claude 연결에서')
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀 일꾼 로그인은 설정 › 팀 서버에서')
       return out(200, pcLogin())
     }
     // 이 PC — 로그인 확인(작은 부르기 한 번) · 됐으면 쉼 줄을 걷는다
     if (p === '/api/claude/check' && req.method === 'POST') {
-      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀 일꾼 로그인은 설정 · 팀 › Claude 연결에서')
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀 일꾼 로그인은 설정 › 팀 서버에서')
       const r = await checkClaude()
       await hub.workerStatus({ worker: { id: null } }, r.ok ? { ok: true } : { ok: false, reason: r.reason, message: r.message })
       return out(200, { ok: r.ok, reason: r.reason || null })

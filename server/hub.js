@@ -4223,7 +4223,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const curates = !!ctx.admin
       if (ws && ws.ok === false && !id) {
         const d = (Date.now() - Date.parse(ws.since)) / 864e5
-        out.push(stopLine({ kind: 'worker', level: 'warn', what: mode === 'pc' ? '바로 넣기(내 Claude)가 쉬고 있다' : '팀 일꾼이 쉬고 있다', amount: d < 1 ? '오늘부터' : `${Math.round(d)}일`, fix: mode === 'pc' ? '설정 › Claude 연결에서 다시 로그인하면 이어서 한다 · 그동안은 규칙으로 넣는다' : ctx.admin ? '설정 · 팀 › Claude 연결에서 다시 로그인하면 이어서 한다 · 그동안 들이기는 기다린다' : '그동안 들이기는 기다린다', told: ctx.admin ? null : curates ? '관리자에게 알렸다' : null }))
+        out.push(stopLine({ kind: 'worker', level: 'warn', what: mode === 'pc' ? '바로 넣기(내 Claude)가 쉬고 있다' : '팀 일꾼이 쉬고 있다', amount: d < 1 ? '오늘부터' : `${Math.round(d)}일`, fix: mode === 'pc' ? '설정 › Claude 연결에서 다시 로그인하면 이어서 한다 · 그동안은 규칙으로 넣는다' : ctx.admin ? '설정 › 팀 서버에서 다시 로그인하면 이어서 한다 · 그동안 들이기는 기다린다' : '그동안 들이기는 기다린다', told: ctx.admin ? null : curates ? '관리자에게 알렸다' : null }))
       }
       // 팀 일꾼이 일감을 받지 않는다 — 기다리는 들이기가 10분 넘었고 일꾼을 10분 넘게 못 봤다(설치 뒤 일꾼을 띄우지 않았다 · 일꾼이 멈췄다)
       if (mode === 'team' && curates && !id && !(ws && ws.ok === false)) {
@@ -4335,7 +4335,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       log(`권한 옮김(한 번): 기본 자리를 없음으로 · 있던 사람 ${people.length}명에게 옛 기본 자리 · 지식 ${touched.length}`)
       return touched
     },
-    // 한 사람의 지식마다 자리 — 보기(설정 › 사람 카드 · 총괄 관리자): 사람 줄 · 묶음 · 주인 · 실제 자리
+    // 한 사람의 지식마다 자리 — 보기(설정 › 사람 · 묶음 · 총괄 관리자): 사람 줄 · 묶음 · 주인 · 실제 자리
     async seatsOf(ctx, user) {
       if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '사람의 자리는 총괄 관리자가 본다')
       const reg = R()
@@ -4461,7 +4461,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       list = null
       return { team: changed.filter((c) => c.own).length, curate: changed.filter((c) => !c.own && c.cur).length, seat: changed.filter((c) => !c.own && !c.cur).length, to }
     },
-    // 사람마다 — 주인인 팀 지식 · 정리하는 지식 · 자리 있는 지식(주인 · 정리 · 사람 줄 · 묶음 줄)의 수(관리 › 사람 · 떠남 확인)
+    // 사람마다 — 주인인 팀 지식 · 정리하는 지식 · 자리 있는 지식(주인 · 정리 · 사람 줄 · 묶음 줄)의 수(설정 › 사람 · 묶음 · 떠남 확인)
     async peopleRoles() {
       const out = {}
       const add = (u, key) => { (out[u] ||= { team: 0, curate: 0, kns: 0 })[key]++ }

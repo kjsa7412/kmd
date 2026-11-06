@@ -635,7 +635,7 @@ function sideHtml(left) {
   const cur = k ? KN(k) : null
   // 맨 위 — 들어온 사람(누르면 설정 · 나가기) · 지금 하는 일 점 · 들어오기 전에는 kmd
   const fold = dim ? '' : `<button type="button" class="hb sfold" data-a="sideRail" data-t="sideFold" aria-expanded="${!UI.sideRail}" title="${UI.sideRail ? '옆 메뉴 펴기' : '옆 메뉴 접기'} (Ctrl [)" aria-label="${UI.sideRail ? '옆 메뉴 펴기' : '옆 메뉴 접기'}">${svg(UI.sideRail ? 'sideR' : 'sideL')}</button>`
-  // 접힌 옆 메뉴(레일) — 아이콘만: 문서 · 항목 · 그래프 · 빨리 열기 · 이력 · 설정 · 개인 지식 쓰기(팀)
+  // 접힌 옆 메뉴(레일) — 아이콘만: 문서 · 항목 · 그래프 · 빨리 열기 · 이력 · 작업 · 설정
   const vt0 = VIEWS3.includes(r.scr) ? r.scr : S.ktab || 'docs'
   const rb = (a, ic, l, on, extra = '', dot = '') => `<button type="button" class="hb${on ? ' on' : ''}" ${a} title="${l}" aria-label="${l}"${extra}>${svg(ic)}${dot}</button>`
   const nCheck0 = dim ? 0 : histChecks()
@@ -1228,7 +1228,7 @@ function docPane(t, right) {
   const noSec = !d.sections.length
   const main = `<div class="docw" data-t="docPane" data-name="${esc(d.title)}">${right ? rpHead() : ''}
   ${q ? `<div class="found" data-t="found"><span>찾기 <b>‘${esc(q)}’</b> 로 열었다</span><button type="button" class="lk" data-a="reopenSearch">찾은 것으로 돌아가기</button></div>` : ''}
-  <div class="ttl"><div class="path"><span>${esc(loc)}</span></div>${right ? '' : wideSeg()}${editing || right || d.watched || noSec || !isTeam() || isPersonal(KN(k)) || lvOf(KN(k)) !== 'admin' ? '' : `<button class="btn" data-a="polishDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="polishBtn"${KN(k).noClaude ? ' disabled title="Claude 에 보내지 않는 지식: 다듬기는 팀 일꾼(Claude)이 한다 · 설정 › 일반 › 팀 지식에서 바꾼다"' : ' title="팀 일꾼이 문체 · 짜임만 정돈한다 · 값은 그대로"'}>다듬기</button>`}${editing || right || d.watched ? '' : `<button class="btn pri" data-a="editDoc" data-t="editBtn"${noSec ? ' disabled title="## 항목이 없는 문서: 화면에서 고칠 수 없다"' : roAttr(k)}>고치기</button>`}</div>
+  <div class="ttl"><div class="path"><span>${esc(loc)}</span></div>${right ? '' : wideSeg()}${editing || right || d.watched || noSec || !isTeam() || isPersonal(KN(k)) || lvOf(KN(k)) !== 'admin' ? '' : `<button class="btn" data-a="polishDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="polishBtn"${KN(k).noClaude ? ' disabled title="Claude 에 보내지 않는 지식: 다듬기는 팀 일꾼(Claude)이 한다 · 설정 › 팀 지식에서 바꾼다"' : ' title="팀 일꾼이 문체 · 짜임만 정돈한다 · 값은 그대로"'}>다듬기</button>`}${editing || right || d.watched ? '' : `<button class="btn pri" data-a="editDoc" data-t="editBtn"${noSec ? ' disabled title="## 항목이 없는 문서: 화면에서 고칠 수 없다"' : roAttr(k)}>고치기</button>`}</div>
   ${d.watched && d.watched.orphan ? `<div class="callout warn stop" data-t="watchedOrphan"><i></i><span><b>원본이 없어졌다</b>: 가져오던 곳 「${esc(d.watched.src)}」 이 지워졌다 · 내 문서로 하면 고칠 수 있다</span><button class="btn sm r" data-a="unwatchDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="unwatchBtn">내 문서로</button></div>` : ''}${d.watched && !d.watched.orphan ? `<div class="callout ${d.watched.missing ? 'warn' : 'gray'} stop" data-t="watched"><i></i><span><b>${d.watched.missing ? `원본에 없다: ${esc(d.watched.missing)} 부터` : '원본이 주인이다'}</b>: ${esc(d.watched.src)} 의 <span class="mono">${esc(d.watched.path)}</span> 에서 온다 · 고치려면 원본 파일을 고친다 · 덧붙일 말은 기록으로 남긴다</span></div>` : ''}
   ${right || editing ? '' : gdockHtml(k, 'd:' + d.id)}<div class="paper"><h1>${esc(d.title)}</h1>${noSec && !editing && !right ? '<div class="callout gray" data-t="noSecEdit">이 문서는 ## 항목이 없어 화면에서 고칠 수 없다. 맨 위 ### 머리를 ## 로 올리면 항목으로 나뉜다</div>' : ''}${d.intro ? `<div class="dlead" data-t="docLead">${pvLinks(linkify(d.intro, k, null), k)}</div>` : ''}${body}</div></div>`
   return { html: main, aside: right ? null : docAside(k, d, t), title: d.title }
@@ -2460,7 +2460,6 @@ async function sxSave() {
 // 「이 지식의 사람」 화면은 걷었다 — 주인 바꾸기 · 자리(지식관리자)는 지식 카드 ⋯ › 권한에서(accHtml) · 정리 설정은 S13 에 걷었다
 const ownerOf = (k) => need('owner:' + k, `/api/k/${encodeURIComponent(k)}/owner`)
 const peopleOf = () => need('people', '/api/people')
-// 예전 주소(#members) — 팀 화면이면 설정 · 팀 › 사람으로
 async function setOwnerRow(k, patch) {
   try {
     await postJSON(`/api/k/${encodeURIComponent(k)}/owner`, patch)
@@ -3181,6 +3180,14 @@ function impTabsHtml() {
   const tabs = [['queue', '일 줄', `<em>${q.length}</em>${attn ? `<em class="w" title="멈춤 · 크게 바뀜 · 못함">살펴볼 일 ${attn}</em>` : ''}`], ...(impSrcOk() ? [['src', '가져올 곳', `<em>${v && !v.error ? v.items.filter((s) => s.kind !== 'pc').length : v && v.error ? '!' : '…'}</em>`]] : []), ['done', '끝난 일', `<em>${js.filter((j) => j.fin).length}</em>`]]
   return `<div class="tabs" data-t="impTabs">${tabs.map(([k, l, b]) => `<span class="${tab === k ? 'on' : ''}" data-a="impTab" data-v="${k}" data-t="impTab-${k}">${l} ${b}</span>`).join('')}</div>`
 }
+// 가져올 곳 부탁(가져오기 화면 위) — 총괄 관리자는 모두 · 지식관리자는 자기 지식 것(서버가 거른다) · 더하기 · 거절
+const requestsOf = () => need('requests', '/api/requests')
+function reqHtml() {
+  if (!isTeam() || !(S.me.admin || anyAdm())) return ''
+  const rs = requestsOf()
+  if (!Array.isArray(rs) || !rs.length) return ''
+  return `<div class="card" data-t="impReqs"><div class="ch">가져올 곳 부탁 ${rs.length} <small>더하면 그 지식의 가져올 곳이 된다 · 거절 까닭은 부탁한 사람에게 간다</small></div><ul class="plain pl">${rs.slice(0, 10).map((r) => `<li data-t="impReq"><span class="dot pu"></span><span class="tx"><b>「${esc(r.name)}」: ${esc(r.by)}</b><small>${esc(whenTxt(r.at))} · → ${esc((KN(r.kn) || {}).name || r.kn)} › ${esc((r.rules[0] && r.rules[0].into && r.rules[0].into.doc) || '')} · ${esc(r.at2)}</small></span><button class="btn sm" data-a="admAddReq" data-id="${esc(r.id)}" data-t="impReqAdd">더하기</button><button class="btn sm ghost" data-a="admNoReq" data-id="${esc(r.id)}" data-t="impReqNo">거절</button></li>`).join('')}</ul></div>`
+}
 function viewImport() {
   const team = isTeam(), v = sourcesOf()
   const can = impCan(v)
@@ -3192,6 +3199,7 @@ function viewImport() {
     ${team ? `<label class="impatt" data-t="impAttWrap"><input type="checkbox" id="impAtt" data-t="impAtt"${S.impAtt ? ' checked' : ''}> 원본 파일도 첨부로 둔다</label>` : ''}
     <small data-t="dropNote">${team ? `md · txt · csv · html · json · docx · pptx · xlsx · hwpx · pdf · hwp 는 글로 바꾼다 · 파일마다 들이기: 팀 일꾼이 기록과 문서를 한 번에 짓는다 · 한 번에 ${TEAM_IMPORT_MAX} 파일 · 파일 하나 32MB · 많으면 Claude Code 에서 대량 넣기 · 글이 없는 pdf(스캔)도 대량 넣기에서` : 'md · txt · csv · html · json · docx · pptx · xlsx · hwpx · pdf · hwp 는 글로 바꿔 들이고 원본은 첨부로 · 파일마다 Claude Code 가 지식을 둘러보고 갈래 · 주제 문서의 항목으로 넣는다 · 안 되면 규칙으로 · 한 번에 300 파일 · 200MB'}</small></div>${many}` : ''
   const main = `<div class="imp"><div class="pg-h"><div><div class="big">가져오기</div><p class="lead">들여오는 일은 모두 <b>일 줄</b>에 서서 차례로 돈다. 수집 › 검토 › 짓기 › 넣기. 줄을 고르면 흐름과 터미널이 보인다. 빈 지식을 새로 세우려면 <button type="button" class="lk" data-a="openAdd" data-t="toAdd">지식 목록 › 새 지식</button></p></div><span class="acts">${!impSrcOk() ? '' : can ? `<button class="btn pri" data-a="sfOpen" data-t="sfOpen">+ 가져올 곳 더하기</button>` : '<button class="btn" data-a="sfOpen" data-t="sfOpen">+ 더해 달라고 부탁</button>'}</span></div>
+  ${reqHtml()}
   ${impTabsHtml()}
   ${drop}<div id="impBody">${impBodyHtml()}</div></div>`
   return { crumb: '가져오기', main }
@@ -3595,7 +3603,7 @@ document.addEventListener('visibilitychange', () => {
   loadStops()
   if (S.route.scr === 'import') pollRuns()
 })
-// ── 설정(목업 M13) — 일반 · Claude 연결 · 에이전트 설치 ──
+// ── 설정 — 팀: 점검 · 팀 서버 · 팀 지식 · 사람 · 묶음 · 에이전트 설치 · 나 / 개인: 이 PC · Claude 연결 · 에이전트 설치 ──
 const settingsOf = () => need('settings', '/api/settings')
 const dropSettings = () => { delete S.cache.settings }
 const devicesOf = () => need('devices', '/api/me/devices')
@@ -3895,7 +3903,7 @@ function claudeChip() {
 }
 function claudeWinHtml() {
   const c = S.claude || {}, st = claudeTone(S.claude), L = S.pcLogin
-  const stateTxt = { ok: '연결됨. 이 PC 의 Claude Code 로그인', bad: c.reason === 'limit' ? 'Claude 사용 한도에 닿았다. 한도가 풀리면 저절로 이어진다' : '로그인이 필요하다. 아래 [Claude 로그인]', off: 'Claude 쓰지 않기로 해 두었다. 설정 › 일반 › 저절로 하는 일에서 켠다', unk: '아직 확인 전: [로그인 확인] 으로 본다', err: `상태를 읽지 못했다: ${S.claudeErr || ''} · [로그인 확인] 으로 다시 읽는다` }[st]
+  const stateTxt = { ok: '연결됨. 이 PC 의 Claude Code 로그인', bad: c.reason === 'limit' ? 'Claude 사용 한도에 닿았다. 한도가 풀리면 저절로 이어진다' : '로그인이 필요하다. 아래 [Claude 로그인]', off: 'Claude 쓰지 않기로 해 두었다. 설정 › 이 PC › 저절로 하는 일에서 켠다', unk: '아직 확인 전: [로그인 확인] 으로 본다', err: `상태를 읽지 못했다: ${S.claudeErr || ''} · [로그인 확인] 으로 다시 읽는다` }[st]
   const when = c.at ? ` · ${esc(whenTxt(c.at))} 확인` : ''
   const why = '<p class="small" style="margin:0 0 8px">kmd 는 가져온 지식: <b>넣은 파일 · git 묶음</b>: 을 Claude 가 읽고 분석해 <b>기록</b>으로 쓰고, 그 기록으로 <b>문서</b>를 세운다. 그래서 구독형 Claude(Pro · Max · Team · Enterprise) 로그인이 있어야 한다. 로그인이 없으면 받은 글 그대로 기록하고 규칙으로만 넣는다.</p>'
   let body, foot
@@ -4413,8 +4421,7 @@ const ACT = {
   openSet: (el) => openSet(el.dataset.v),
   guardOpen: (el) => { S.guardOpen = S.guardOpen === el.dataset.v ? '' : el.dataset.v; render() },
   guardRe: () => { delete S.cache['guard:' + S.route.kn]; render() },
-  // 설정 · 팀은 넣지 못함 · 설정 · 개인은 가져오기 · 이 PC 의 설정은 일반부터
-  // 옆 메뉴 「설정」 은 이름대로 설정 › 일반으로 연다(Q11 · 넣지 못함 · 가져오기는 본문 왼쪽 메뉴에서)
+  // 옆 메뉴 「설정」 은 보이는 첫 칸으로 연다(Q11 의 예측 가능: 총괄 관리자 점검 · 지식관리자 팀 지식 · 그 밖 에이전트 설치)
   setArea: () => openSettings(),
   sendOpen: (el) => { S.sendSrc = el.dataset.k; go({ scr: 'send' }) },
   pickModel: async (el) => { const st = settingsOf(); if (!st) return; try { const r = await postJSON('/api/settings/model', { role: el.dataset.model, model: el.value }); st.models[r.role] = r.model } catch (e) { toastErr(e) } render() },
@@ -4431,7 +4438,7 @@ const ACT = {
   pcLoginCancel: () => { S.pcLogin = null; render() },
   claudeOpen: () => { claudeOpen(); loadClaude() },
   claudeClose: () => { S.claudeWin = false; render() },
-  // 설정 · 팀 › Claude 연결 — 팀 일꾼 로그인은 거기서 다 한다
+  // 설정 › 팀 서버 — 팀 일꾼 로그인은 거기서 다 한다
   toTeamClaude: () => { S.claudeWin = false; S.stopWin = false; openSet('server') },
   claudeLogin: async () => { S.menu = null; try { await postJSON('/api/claude/login', {}); S.claudeOpening = true; setTimeout(() => { S.claudeOpening = false; dropSettings(); render() }, 60000) } catch (e) { toastErr(e) } render() },
   claudeOff: async () => { S.menu = null; try { await postJSON('/api/settings/auto', { key: 'claude', on: false }); dropSettings(); loadClaude(); toast('Claude 쓰지 않기: 규칙으로 되는 것만 한다 · 저절로 하는 일에서 다시 켠다') } catch (e) { toastErr(e) } render() },
@@ -4503,7 +4510,7 @@ const ACT = {
   admNoReq: async (el) => {
     const why = await ask({ t: '부탁 거절', d: '거절 까닭은 부탁한 사람에게 간다(비워도 된다)', input: { label: '거절 까닭', value: '' }, ok: '거절하기' })
     if (why === null) return
-    try { await postJSON(`/api/requests/${encodeURIComponent(el.dataset.id)}/close`, { state: 'no', why }); delete S.cache.admin; toast('거절했다. 부탁한 사람에게 알렸다') } catch (e) { toastErr(e) }
+    try { await postJSON(`/api/requests/${encodeURIComponent(el.dataset.id)}/close`, { state: 'no', why }); delete S.cache.admin; delete S.cache.requests; toast('거절했다. 부탁한 사람에게 알렸다') } catch (e) { toastErr(e) }
     render()
   },
   sudoOk: () => sudoOk(),
@@ -4542,9 +4549,10 @@ const ACT = {
   sudoCancel: () => sudoCancel(),
   admUnlock: async (el) => { try { await postJSON(`/api/admin/users/${encodeURIComponent(el.dataset.v)}/unlock`, {}); delete S.cache.admin; toast('풀었다') } catch (e) { toastErr(e) } render() },
   admAddReq: async (el) => {
-    const r = ((overviewOf() || {}).requests || []).find((x) => x.id === el.dataset.id)
+    const pool = [...((S.cache.admin || {}).requests || []), ...(Array.isArray(S.cache.requests) ? S.cache.requests : [])]
+    const r = pool.find((x) => x.id === el.dataset.id)
     if (!r) return
-    try { await postJSON(`/api/k/${encodeURIComponent(r.kn)}/sources`, { name: r.name, at: r.at2, kind: r.kind, rules: r.rules, every: r.every, db: r.db }); delete S.cache.admin; dropSrcs(); toast('더했다: ' + esc(r.name)) } catch (e) { toastErr(e) }
+    try { await postJSON(`/api/k/${encodeURIComponent(r.kn)}/sources`, { name: r.name, at: r.at2, kind: r.kind, rules: r.rules, every: r.every, db: r.db }); delete S.cache.admin; delete S.cache.requests; dropSrcs(); toast('더했다: ' + esc(r.name)) } catch (e) { toastErr(e) }
     render()
   },
   admKeep: async (el) => {
@@ -4657,7 +4665,6 @@ const ACT = {
   meRootCancel: () => { S.meRootEdit = null; S.meRootErr = null; render() },
   meRootSave: () => meRootSave(),
   meRootDrop: () => meRootDrop(),
-  // 지식 관리 — 설정 · 팀 / 설정 · 개인 안의 왼쪽 메뉴
   doAdd: () => doAdd(),
   openAdd: () => openAdd(),
   addClose: () => { if (S.addPop && !S.addPop.busy) { S.addPop = null; render() } },
@@ -4758,7 +4765,7 @@ const ACT = {
       toast(esc(`팀 일꾼에게 넘겼다 ${r.jobs}${r.open ? ` · 이미 도는 것 ${r.open}` : ''}${r.held ? ` · 넣지 못함 ${r.held}` : ''}${r.stop ? ` · 멈춤: ${r.stop}` : ''}`), 8000)
     } catch (e) { toastErr(e) } finally { S.hdAll = false; heldForget(k); render() }
   },
-  // Claude 에 보내지 않음(지식관리자 · 설정 › 일반 › 팀 지식) — 들이기 · 다듬기에 이 지식의 글을 보내지 않는다
+  // Claude 에 보내지 않음(지식관리자 · 설정 › 팀 지식) — 들이기 · 다듬기에 이 지식의 글을 보내지 않는다
   toggleNoClaude: (el) => { const k = el.dataset.k, kn = KN(k); if (kn) setOwnerRow(k, { noClaude: !kn.noClaude }) },
   // 문서 다듬기(S13 · K10-4) — 지식관리자 · 팀 일꾼이 문체 · 짜임만 정돈한다
   polishDoc: async (el) => {

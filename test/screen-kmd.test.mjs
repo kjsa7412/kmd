@@ -691,7 +691,7 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 팀 일�
   }
   // 설정 · 개인은 팀 화면에 없다(분리 — 개인 화면에서)
   assert.equal(await page.locator('[data-t=nav-settings-me]').count(), 0)
-  // 관리 — 문제 줄만 · 정리 로그인은 설정 · 팀 › Claude 연결에서 다 한다(비밀번호 한 번 더 → 주소 → 번호 → 로그인됨)
+  // 관리 — 문제 줄만 · 팀 일꾼 로그인은 설정 › 팀 서버에서 다 한다(비밀번호 한 번 더 → 주소 → 번호 → 로그인됨)
   await mg(page, 'team', 'check')
   await page.waitForSelector('[data-t=admList]')
   assert.match(await page.locator('.main .lead').last().innerText(), /문제가 있을 때만 줄이 선다/)

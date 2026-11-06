@@ -249,3 +249,20 @@ test('설정 › 팀 지식: ⋯ 은 자리마다(지식관리자 권한만 · �
   assert.deepEqual(b._errs, [])
   await b.close()
 })
+
+test('가져올 곳 부탁: 그 지식의 지식관리자가 가져오기 화면에서 본다 · 거절', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+  // rd(쓰기 자리)가 dpms 에 가져올 곳을 부탁한다 — own(지식관리자 · 총괄 관리자 아님)이 가져오기 위에서 보고 거절한다
+  await s.hub.setAccess(SHELL, 'dpms', { all: 'write' })
+  await s.hub.sourceRequest({ user: 'rd' }, 'dpms', { name: '테스트-부탁', at: 'https://git.example/team/test.git', kind: 'git', rules: [] })
+  const page = await login(P.own)
+  await page.click('[data-t=manageArea] [data-t=nav-import]')
+  await page.waitForSelector('[data-t=impReqs] [data-t=impReq]')
+  assert.match(await page.locator('[data-t=impReqs]').innerText(), /테스트-부탁[\s\S]*rd/)
+  await page.click('[data-t=impReqs] [data-t=impReqNo]')
+  await page.waitForSelector('[data-t=askWin]')
+  await page.click('[data-t=askOk]')
+  await page.waitForSelector('[data-t=impReqs]', { state: 'detached' })
+  assert.equal((await s.hub.requests()).length, 0)
+  assert.deepEqual(page._errs, [])
+  await page.close()
+})
