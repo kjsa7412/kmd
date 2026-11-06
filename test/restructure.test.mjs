@@ -179,3 +179,29 @@ test('서버: 문서 짜임 — 쓰기 자리는 403 · 지식관리자는 읽�
     try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
   }
 })
+
+test('제목만 맞추기(titles) — 경로는 그대로 · `# 제목` 만 파일 이름으로 · 한 커밋', async () => {
+  const dir = make(BASE)
+  const r = await applyRestructure(dir, { titles: ['설계/게이트웨이테이블정의서'] }, { user: 'kim' })
+  assert.ok(r.commit)
+  assert.equal(r.summary.titled, 1)
+  assert.match(read(dir, 'docs/설계/게이트웨이테이블정의서.md'), /^# 게이트웨이테이블정의서$/m)
+  assert.ok(r.lines.some((l) => l.startsWith('- 제목:')))
+  assert.match(git(dir, 'log', '-1', '--format=%s'), /제목 1/)
+  assert.equal(git(dir, 'status', '--porcelain').trim(), '')
+  await assert.rejects(applyRestructure(dir, { titles: ['원본'] }, { user: 'kim' }), /원본이 주인/)
+  fs.rmSync(dir, { recursive: true, force: true })
+})
+
+test('옮겼다 되돌리면 같은 글 — %xx 링크 꼴 그대로 · 갈래 장부 폴더 칸이 따라온다(맨 위 → 다시 폴더)', async () => {
+  const files = { ...BASE, 'docs/공통/용어집.md': '# 용어집\n\n## PLC\n- [기록](../../work/2026-1101-%EA%B0%80.md) · [설계](../%EC%84%A4%EA%B3%84/%EA%B2%8C%EC%9D%B4%ED%8A%B8%EC%9B%A8%EC%9D%B4%EC%84%A4%EA%B3%84%EC%84%9C.md)\n', 'work/2026-1101-가.md': '---\nid: 2026-1101-가\ntitle: "가"\ndate: 2026-11-01 09:00\nauthor: 김\n---\n\n# 가\n', '_forms.md': BASE['_forms.md'] + '| 용어집 | 용어 | 공통 | 대장 | `term:*` | 지식문서 |\n' }
+  const dir = make(files)
+  const t0 = read(dir, 'docs/공통/용어집.md')
+  await applyRestructure(dir, { moves: [{ from: '공통/용어집', to: '용어집' }] }, { user: 'kim' })
+  assert.match(read(dir, '_forms.md'), /\| 용어집 \| 용어 \| — \|/)
+  assert.match(read(dir, 'docs/용어집.md'), /\(\.\.\/work\/2026-1101-%EA%B0%80\.md\)/, '%xx 꼴 그대로')
+  await applyRestructure(dir, { moves: [{ from: '용어집', to: '공통/용어집' }] }, { user: 'kim' })
+  assert.match(read(dir, '_forms.md'), /\| 용어집 \| 용어 \| 공통 \|/, '다시 폴더로 오면 폴더 칸도')
+  assert.equal(read(dir, 'docs/공통/용어집.md'), t0, '옮겼다 되돌리면 글이 같다')
+  fs.rmSync(dir, { recursive: true, force: true })
+})

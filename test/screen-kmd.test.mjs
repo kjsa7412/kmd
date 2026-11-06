@@ -40,6 +40,8 @@ before(async () => {
     fs.mkdirSync(path.join(tmp, 'kn', 'dpms', 'docs', p), { recursive: true })
     fs.writeFileSync(path.join(tmp, 'kn', 'dpms', 'docs', p, p.startsWith('3.4') ? '테이블정의서.md' : '게이트웨이테이블정의서.md'), ['# 테이블정의서', '', '## 개요', '표를 적는다.', ''].join(String.fromCharCode(10)))
   }
+  // 문서 짜임 — 제목과 파일 이름이 다른 문서(제목만 파일 이름에 맞춘다)
+  fs.writeFileSync(path.join(tmp, 'kn', 'dpms', 'docs', '3.4_웹설계', '화면설계서.md'), ['# 화면 설계', '', '## 개요', '화면을 적는다.', ''].join(String.fromCharCode(10)))
   // 팀 화면이 내 Claude(내 PC 쪽)를 확인한다 — 진짜 claude 대신 가짜로
   process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
   // 개인 프로그램 — 개인 화면 시험(지식 보내기 · 받는 팀 지식)이 쓴다
@@ -1363,10 +1365,15 @@ test('문서 짜임: 나무 하나 · 줄 안 이름 바꾸기 · 새 문서 · 
     assert.ok(c.sw <= w, `문서 짜임 ${w}: 가로 넘침 ${c.sw}`)
   }
   await page.setViewportSize(VIEW)
+  // 제목만 파일 이름으로 — 경로는 그대로라 옮김이 아니라 제목
+  await page.click('#sxTree [data-p="3.4_웹설계"]')
+  await page.dblclick('#sxTree [data-t=sxDoc][data-d="3.4_웹설계/화면설계서"] .nm')
+  await page.fill('#sxIn', '화면설계서')
+  await page.press('#sxIn', 'Enter')
   // 저장 — 마른 실행 요약 → 확인 → 한 커밋
   await page.click('[data-t=sxSave]')
   await page.waitForSelector('[data-t=askWin]')
-  assert.match(await page.locator('[data-t=askWin]').innerText(), /옮김 1[\s\S]*새 문서 1/)
+  assert.match(await page.locator('[data-t=askWin]').innerText(), /옮김 1[\s\S]*제목 2[\s\S]*새 문서 1/) // 제목 2 = 이름을 바꿔 옮긴 문서 + 제목만 맞춘 문서
   await page.click('[data-t=askWin] .btn.pri')
   await page.waitForSelector('[data-t=sxBar]', { state: 'detached' })
   const gitK = (...a) => execFileSync('git', a, { cwd: path.join(tmp, 'kn', 'dpms'), encoding: 'utf8' }).trim()
@@ -1374,6 +1381,7 @@ test('문서 짜임: 나무 하나 · 줄 안 이름 바꾸기 · 새 문서 · 
   assert.equal(gitK('status', '--porcelain', '--', 'docs', '_managed.md', '_order.md'), '', '한 커밋에 다 들었다')
   assert.ok(fs.existsSync(path.join(tmp, 'kn', 'dpms', 'docs', '3.3_게이트웨이설계', '보관', '게이트웨이 테이블정의서.md')))
   assert.ok(fs.existsSync(path.join(tmp, 'kn', 'dpms', 'docs', '3.3_게이트웨이설계', '보관', '접속 순서.md')))
+  assert.match(fs.readFileSync(path.join(tmp, 'kn', 'dpms', 'docs', '3.4_웹설계', '화면설계서.md'), 'utf8'), /^# 화면설계서$/m, '제목만 바꾼 것도 들어갔다')
   // 옆 메뉴 문서 나무가 같은 차례
   await page.click('[data-t=krow][data-name="DPMS 지식"]').catch(() => {})
   await page.goto(s.url + '#docs')

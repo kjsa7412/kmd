@@ -2298,9 +2298,11 @@ function sxOps() {
   const x = S.sx, idOf = (d) => (d.folder ? d.folder + '/' : '') + sxFile(d)
   const moves = x.W.filter((d) => sxO(d.id) && idOf(d) !== d.id).map((d) => ({ from: d.id, to: idOf(d) }))
   const creates = x.W.filter((d) => !sxO(d.id)).map(idOf)
+  // 제목이 바뀐 문서 — 파일 이름이 그대로여도 `# 제목` 을 이름으로(제목을 파일 이름에 맞출 때 · 경로가 안 바뀌어 moves 에 없다)
+  const titles = x.W.filter((d) => sxO(d.id) && d.name !== d.title).map((d) => d.id)
   const order = {}
   for (const p of ['', ...sxDirs()]) order[p] = sxSibs(p).map((k) => (k.startsWith('f:') ? sxSplit(k.slice(2))[1] + '/' : sxFile(sxW(k.slice(2)))))
-  return { moves, creates, dirs: sxDirs().filter((f) => !sxDeep(f)), order }
+  return { moves, creates, titles, dirs: sxDirs().filter((f) => !sxDeep(f)), order }
 }
 function sxMoveDoc(id, to) {
   const d = sxW(id)
@@ -2414,7 +2416,7 @@ async function sxSave() {
     const dry = await postJSON(`/api/k/${encodeURIComponent(k)}/structure`, { ops, base: x.fp, dry: true })
     x.busy = false; render()
     const s = dry.summary || {}
-    const ok = await ask({ t: '문서 짜임 저장', d: `바뀐 것 ${sxDiff().length} 대로 바꾼다. ${[s.moved ? `옮김 ${s.moved}` : '', s.created ? `새 문서 ${s.created}` : '', s.links ? `고칠 링크 ${s.links}` : '', s.registry ? `장부 줄 ${s.registry + (s.forms || 0)}` : ''].filter(Boolean).join(' · ')}`, ok: '저장' })
+    const ok = await ask({ t: '문서 짜임 저장', d: `바뀐 것 ${sxDiff().length} 대로 바꾼다. ${[s.moved ? `옮김 ${s.moved}` : '', s.titled ? `제목 ${s.titled}` : '', s.created ? `새 문서 ${s.created}` : '', s.links ? `고칠 링크 ${s.links}` : '', s.registry ? `장부 줄 ${s.registry + (s.forms || 0)}` : ''].filter(Boolean).join(' · ')}`, ok: '저장' })
     if (!ok) return
     x.busy = true; render()
     const r = await postJSON(`/api/k/${encodeURIComponent(k)}/structure`, { ops, base: x.fp })

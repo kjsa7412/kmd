@@ -3,6 +3,7 @@
 //   계획(planRestructure · 순수 함수) — 파일 글을 받아 바뀔 글을 돌려준다. 쓰지 않는다
 //     moves   [{ from: 'a/b', to: 'c/d' }]   문서 id(docs/ 아래 · .md 없이). 이름이 바뀌면 `# 제목` 도 그 이름으로
 //     creates ['c/새 문서' | { doc }]          새 문서 `# 이름` 한 줄 · 갈래 장부가 있는 지식이면 그 갈래 줄을 같이 세운다(G4)
+//     titles  ['a/b']                         경로는 그대로 두고 `# 제목` 만 끝 이름(파일 이름)으로 — 제목만 파일 이름에 맞출 때(이름 = 제목 = 파일 이름)
 //     dirs    ['c/빈 폴더']                   문서가 없는 폴더(차례 장부에만 남는다 · git 은 빈 폴더를 남기지 않는다)
 //     order   { '': ['0_공통/', '용어집'], '0_공통': [...] }   폴더마다 형제 차례(폴더는 끝에 /) · 없으면 폴더 먼저 · 이름 차례
 //   같이 고치는 것 — 옮긴 문서를 가리키는 링크 · 옮긴 문서 안의 상대 링크(다른 문서 · 첨부 · 참고 블록의 기록) ·
@@ -57,6 +58,8 @@ const pathProblem = (p, { doc = false } = {}) => {
 // ── 링크 다시 쓰기 ──
 const safeDec = (s) => { try { return decodeURIComponent(s) } catch { return null } }
 const encPath = (p) => p.replace(/%/g, '%25').replace(/ /g, '%20').replace(/\(/g, '%28').replace(/\)/g, '%29')
+// 원래 %xx 로 쓴 링크(한글까지 %EA…)는 그 꼴 그대로 — 옮긴 문서의 다른 링크 글이 쓸데없이 바뀌지 않게
+const encAll = (p) => encodeURI(p).replace(/\(/g, '%28').replace(/\)/g, '%29')
 // 글 속 링크 · 그림 `](href)` · `](<href>)` — 코드 울타리 안은 건드리지 않는다
 const LINK = /(\]\()(<[^>\n]*>|[^)\s]+)((?:\s+"[^"\n]*")?\))/g
 function rewriteLinks(text, fromOld, fromNew, mapDoc, docSet) {
@@ -86,7 +89,7 @@ function rewriteLinks(text, fromOld, fromNew, mapDoc, docSet) {
       if (tNew === tOld && fromNew === fromOld) return all
       let rel = root ? '/' + tNew : P.relative(P.dirname(fromNew), tNew) || P.basename(tNew)
       if (noExt) rel = rel.replace(/\.md$/i, '')
-      const out = (angle ? `<${rel}>` : encPath(rel)) + frag
+      const out = (angle ? `<${rel}>` : /%[89a-f][0-9a-f]/i.test(part) ? encAll(rel) : encPath(rel)) + frag
       if (out === href0) return all
       n++
       return a + out + z
@@ -137,6 +140,7 @@ export function planRestructure(files, ops = {}) {
   const relOf = (id) => `docs/${id}.md`
   const moves = (Array.isArray(ops.moves) ? ops.moves : []).map((m) => ({ from: nfc(String(m?.from ?? '')).replace(/^\/+|\/+$/g, ''), to: nfc(String(m?.to ?? '')).replace(/^\/+|\/+$/g, '') })).filter((m) => m.from !== m.to)
   const creates = (Array.isArray(ops.creates) ? ops.creates : []).map((c) => nfc(String((typeof c === 'string' ? c : c?.doc) ?? '')).replace(/^\/+|\/+$/g, ''))
+  const titles = new Set((Array.isArray(ops.titles) ? ops.titles : []).map((t) => `docs/${nfc(String(t ?? '')).replace(/^\/+|\/+$/g, '')}.md`))
   const dirs = (Array.isArray(ops.dirs) ? ops.dirs : []).map((d) => nfc(String(d ?? '')).replace(/^\/+|\/+$/g, '')).filter(Boolean)
   if (moves.length + creates.length > 500) fail('E_INPUT', '한 번에 500 개까지 바꾼다')
   // 옮김표 — 옛 rel → 새 rel
@@ -174,20 +178,30 @@ export function planRestructure(files, ops = {}) {
     claim(relOf(c), c)
   }
   for (const d of dirs) { const w = pathProblem(d); if (w) err(d + '/', w) }
+  for (const t of titles) {
+    if (!docSet.has(t)) err(idOf(t), '없는 문서다')
+    else if (watchedOf(readText(docs.get(t)))) err(idOf(t), '원본이 주인인 문서라 제목을 바꾸지 않는다')
+  }
   if (errors.length) return { errors, moves: [], writes: [], creates: [], summary: null, lines: [] }
 
   // 문서 글 — 옮긴 문서는 새 자리 기준으로 · 제목은 새 이름 · 모든 문서의 링크
   const outDocs = []
   let links = 0
+  let titled = 0
   for (const rel of [...docSet].sort()) {
     const to = map.get(rel) || rel
     let text = readText(docs.get(rel))
     const r = rewriteLinks(text, rel, to, map, docSet)
     text = r.text
     links += r.n
-    if (to !== rel && P.basename(to) !== P.basename(rel)) text = retitle(text, P.basename(to, '.md'))
+    // 이름 = 제목 = 파일 이름 — 파일 이름이 바뀌었거나 제목만 맞추라고 했으면 `# 제목` 을 끝 이름으로
+    if ((to !== rel && P.basename(to) !== P.basename(rel)) || titles.has(rel)) {
+      const t2 = retitle(text, P.basename(to, '.md'))
+      if (t2 !== text) titled++
+      text = t2
+    }
     if (to !== rel) outDocs.push({ kind: 'move', from: rel, to, text })
-    else if (r.n) outDocs.push({ kind: 'write', rel, text })
+    else if (text !== readText(docs.get(rel))) outDocs.push({ kind: 'write', rel, text })
   }
   const writes = outDocs.filter((x) => x.kind === 'write').map((x) => ({ rel: x.rel, text: x.text }))
   const mv = outDocs.filter((x) => x.kind === 'move').map((x) => ({ from: x.from, to: x.to, text: x.text }))
@@ -213,10 +227,10 @@ export function planRestructure(files, ops = {}) {
       const oldName = P.basename(a, '.md'), newName = P.basename(b, '.md')
       const oldDir = P.dirname(idOf(a)) === '.' ? '' : P.dirname(idOf(a)), newDir = P.dirname(idOf(b)) === '.' ? '' : P.dirname(idOf(b))
       const row = rows.find((f) => f.name === oldName && (!f.folder || f.folder === oldDir))
-      if (!row || (oldName === newName && (row.folder || '') === (row.folder ? newDir : ''))) continue
+      if (!row || (oldName === newName && (row.folder || '') === newDir)) continue
       const i = lines.findIndex((l) => { const c = l.match(/^\|(.+)\|\s*$/)?.[1].split('|'); return c && strip(c[0]) === oldName })
       if (i < 0) continue
-      lines[i] = editFormRow(lines[i], newName, row.folder ? newDir : '')
+      lines[i] = editFormRow(lines[i], newName, newDir)
       formRows++
     }
     for (const f of newForms) {
@@ -264,10 +278,11 @@ export function planRestructure(files, ops = {}) {
   const created = creates.map((c) => ({ rel: relOf(c), text: `# ${P.basename(c)}\n` }))
   const lines = [
     ...mv.map((m) => `- ${P.basename(idOf(m.from)) !== P.basename(idOf(m.to)) && P.dirname(m.from) === P.dirname(m.to) ? '이름' : '옮김'}: ${idOf(m.from)} → ${idOf(m.to)}`),
+    ...[...titles].filter((t) => !map.has(t)).map((t) => `- 제목: ${idOf(t)} → ${P.basename(t, '.md')}`),
     ...creates.map((c) => `- 새 문서: ${c}`),
     ...dirs.filter((d) => !finalIds.some((id) => id.startsWith(d + '/'))).map((d) => `- 빈 폴더: ${d}/`),
   ]
-  const summary = { moved: mv.length, created: creates.length, links, registry: regRows, forms: formRows, sources: srcRows, order: orderChanged, docsTouched: writes.filter((w) => w.rel.startsWith('docs/')).length }
+  const summary = { moved: mv.length, titled, created: creates.length, links, registry: regRows, forms: formRows, sources: srcRows, order: orderChanged, docsTouched: writes.filter((w) => w.rel.startsWith('docs/')).length }
   return { errors: [], moves: mv, writes, creates: created, summary, lines }
 }
 
@@ -319,7 +334,7 @@ export function applyRestructure(dir, ops, { user, by = null, base = null, dry =
     for (let n = 2; await recordTaken(dir, id); n++) id = `${day}-문서-짜임-바꿈-${n}`
     const logRel = `${LOG_DIR}/${id}.md`
     const s = plan.summary
-    const title = `문서 짜임 바꿈: ${[s.moved ? `옮김 ${s.moved}` : '', s.created ? `새 문서 ${s.created}` : '', s.links ? `링크 ${s.links}` : '', s.order ? '차례' : ''].filter(Boolean).join(' · ') || '장부'}`
+    const title = `문서 짜임 바꿈: ${[s.moved ? `옮김 ${s.moved}` : '', s.titled ? `제목 ${s.titled}` : '', s.created ? `새 문서 ${s.created}` : '', s.links ? `링크 ${s.links}` : '', s.order ? '차례' : ''].filter(Boolean).join(' · ') || '장부'}`
     const body = [`문서 짜임 화면에서 바꿨다(옛 경로 → 새 경로). 이름이 바뀐 문서는 제목도 그 이름이다${by ? ` · 바꾼 사람 ${by}` : ''}`, ...plan.lines, s.links ? `- 고친 링크 ${s.links}(문서 ${s.docsTouched + s.moved})` : '', s.registry ? `- 자리 장부 줄 ${s.registry}` : '', s.forms ? `- 갈래 장부 줄 ${s.forms}` : '', s.sources ? `- 가져올 곳 ${s.sources}` : '', s.order ? '- 차례 장부' : ''].filter(Boolean).join('\n')
     const j = await begin(dir)
     const paths = []

@@ -1565,8 +1565,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async restructure(id, ctx, { ops, base = null, dry = false } = {}) {
       const meta = await hub.meta(id, ctx)
       if (ctx) hub.need(ctx, id, 'admin')
-      if (!ops || typeof ops !== 'object' || Array.isArray(ops)) throw new KmdError('E_INPUT', 'ops 는 { moves, creates, dirs, order } 다')
-      for (const k of ['moves', 'creates', 'dirs']) if (ops[k] != null && !Array.isArray(ops[k])) throw new KmdError('E_INPUT', `${k} 는 목록이다`)
+      if (!ops || typeof ops !== 'object' || Array.isArray(ops)) throw new KmdError('E_INPUT', 'ops 는 { moves, creates, titles, dirs, order } 다')
+      for (const k of ['moves', 'creates', 'dirs', 'titles']) if (ops[k] != null && !Array.isArray(ops[k])) throw new KmdError('E_INPUT', `${k} 는 목록이다`)
       if (ops.order != null && (typeof ops.order !== 'object' || Array.isArray(ops.order))) throw new KmdError('E_INPUT', 'order 는 { 폴더: [이름] } 이다')
       if (base != null && !(typeof base === 'string' && /^[0-9a-f]{16}$/.test(base))) throw new KmdError('E_INPUT', 'base 는 읽을 때 받은 16자 지문이다')
       if (!dry) {
