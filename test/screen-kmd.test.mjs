@@ -321,6 +321,16 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   await page.waitForSelector('[data-t=graph] [data-t=gCard][data-name="헬스 체크"]')
   const one = await ga('n')
   assert.ok(one < whole && one >= 2, `한 겹만: ${one} < ${whole}`)
+  // 고르면 그 점 기준으로 다시 배치 · 누른 점이 칸 가운데 · 끌어 돌려도 그 점이 가운데에서 돈다
+  const mid = async () => { const b = await page.locator('#gcv').boundingBox(), q = await page.evaluate(() => window.kmdGraphPt('i:proc:헬스 체크')); return Math.hypot(q.x - (b.x + b.width / 2), q.y - (b.y + b.height / 2)) }
+  assert.ok((await mid()) < 3, '고른 점이 가운데')
+  {
+    const b = await page.locator('#gcv').boundingBox(), x0 = b.x + 30, y0 = b.y + b.height - 60
+    await page.locator('#gcv').dispatchEvent('pointerdown', { button: 0, clientX: x0, clientY: y0 })
+    await page.dispatchEvent('body', 'pointermove', { clientX: x0 + 120, clientY: y0 - 40 })
+    await page.dispatchEvent('body', 'pointerup', { clientX: x0 + 120, clientY: y0 - 40 })
+  }
+  assert.ok((await mid()) < 3, '돌려도 고른 점이 가운데')
   // 2D 표로 바꿔도 고른 그대로 · 스크롤 없이 칸 전체 · 이어진 점의 줄을 칠한다
   await page.click('[data-t=gm-2d]')
   await page.waitForSelector('[data-t=gErd]')

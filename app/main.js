@@ -1725,10 +1725,17 @@ function layoutGraph(G) {
     const r0 = R * 0.15
     px[i] = dir[i][0] * r0 + jit(n.id, 'x') * 0.2; py[i] = dir[i][1] * r0 + jit(n.id, 'y') * 0.2; pz[i] = dir[i][2] * r0 + jit(n.id, 'z') * 0.2
   })
+  gRelax(px, py, pz, mass, ea, eb, ew, !whole ? 60 : N <= 120 ? 260 : N <= 400 ? 140 : 80, whole ? 1 : 0.4, -1)
+  // 멀리 떨어진 몇 점(외톨이 · 작은 덩어리)이 전체 맞춤을 작게 만들지 않게 — 90% 반지름의 1.2배 밖은 넘은 거리를 1/10 로(방향은 그대로)
+  const rs = [...Array(N).keys()].map((i) => Math.hypot(px[i], py[i], pz[i])), r9 = [...rs].sort((a, b) => a - b)[Math.floor((N - 1) * 0.9)] || 1, lim = r9 * 1.2
+  ns.forEach((n, i) => { const r = rs[i], k = r > lim ? (lim + (r - lim) * 0.1) / r : 1; P[n.id] = { x: px[i] * k, y: py[i] * k, z: pz[i] * k } })
+}
+// 힘 풀기 — 질량 밀어내기 · LinLog 당김 · 중력(원점으로). pin 번 점은 원점에 묶는다(고른 점 기준 배치)
+function gRelax(px, py, pz, mass, ea, eb, ew, TICKS, amp, pin) {
+  const N = px.length, E = ea.length
   const fx = new Float64Array(N), fy = new Float64Array(N), fz = new Float64Array(N)
-  const TICKS = !whole ? 60 : N <= 120 ? 260 : N <= 400 ? 140 : 80
   for (let s = 0; s < TICKS; s++) {
-    const al = (whole ? 1 : 0.4) * (1 - s / TICKS)
+    const al = amp * (1 - s / TICKS)
     fx.fill(0); fy.fill(0); fz.fill(0)
     for (let i = 0; i < N; i++) {
       const xi = px[i], yi = py[i], zi = pz[i], mi = mass[i] * G3.KR
@@ -1748,15 +1755,45 @@ function layoutGraph(G) {
     }
     const cap = G3.CAP * al + 0.2
     for (let i = 0; i < N; i++) {
+      if (i === pin) { px[i] = py[i] = pz[i] = 0; continue }
       const x = px[i], y = py[i], z = pz[i], m0 = Math.hypot(x, y, z) || 1, g = G3.GR * mass[i]
       const ax = (fx[i] - (x / m0) * g) / mass[i], ay = (fy[i] - (y / m0) * g) / mass[i], az = (fz[i] - (z / m0) * g) / mass[i]
       const m = Math.hypot(ax, ay, az), k = m > cap ? cap / m : 1
       px[i] = x + ax * k; py[i] = y + ay * k; pz[i] = z + az * k
     }
   }
-  // 멀리 떨어진 몇 점(외톨이 · 작은 덩어리)이 전체 맞춤을 작게 만들지 않게 — 90% 반지름의 1.2배 밖은 넘은 거리를 1/10 로(방향은 그대로)
-  const rs = [...Array(N).keys()].map((i) => Math.hypot(px[i], py[i], pz[i])), r9 = [...rs].sort((a, b) => a - b)[Math.floor((N - 1) * 0.9)] || 1, lim = r9 * 1.2
-  ns.forEach((n, i) => { const r = rs[i], k = r > lim ? (lim + (r - lim) * 0.1) / r : 1; P[n.id] = { x: px[i] * k, y: py[i] * k, z: pz[i] * k } })
+}
+// 고른 점 기준 배치 — 고르면 전체 배치를 풀고, 보이는 점(고른 점 + 뻗은 이웃)만 지금 누른 점(cur)을 원점에 묶어 다시 푼다
+//   선은 뻗은 선(고른 점 · 펼친 점에 닿는 선)만 쓴다 — 누른 점과 그 선이 기준
+//   처음 자리는 바로 앞 배치(앞서 고른 배치 · 없으면 전체 배치)를 누른 점이 원점이 되게 옮긴 것 — 점이 제자리에서 움직여 간다
+//   원점 = 누른 점이라 돌리기도 그 점을 중심으로 돈다. × 로 닫으면 전체 배치(S.g.pos)로 돌아간다
+function layoutSub(G) {
+  const cur = G.vis.has(S.g.cur) ? S.g.cur : S.g.sel
+  const key = [...G.vis].sort().join('|') + '@' + cur
+  const sub = S.g.sub
+  if (sub && sub.key === key) return sub.pos
+  const prev = sub && sub.pos && sub.pos[cur] ? sub.pos : S.g.pos, o = prev[cur] || { x: 0, y: 0, z: 0 }
+  const ns = G.nodes.filter((n) => G.vis.has(n.id)), N = ns.length, ix = new Map(ns.map((n, i) => [n.id, i]))
+  const es = G.edges.filter((e) => ix.has(e.a) && ix.has(e.b) && (e.a === S.g.sel || e.b === S.g.sel || S.g.open.includes(e.a) || S.g.open.includes(e.b)))
+  const ea = Int32Array.from(es, (e) => ix.get(e.a)), eb = Int32Array.from(es, (e) => ix.get(e.b)), ew = Float64Array.from(es, (e) => G3.ATT * (e.t === 'in' ? 1 : 0.6))
+  const deg = new Float64Array(N); for (let k = 0; k < es.length; k++) { deg[ea[k]]++; deg[eb[k]]++ }
+  const mass = Float64Array.from(deg, (d) => d + 1)
+  const px = new Float64Array(N), py = new Float64Array(N), pz = new Float64Array(N)
+  const jit = (id, s) => (hashf(id + s) - 0.5) * 40
+  ns.forEach((n, i) => {
+    let p = prev[n.id]
+    if (!p) { const e = es.find((e) => (e.a === n.id && prev[e.b]) || (e.b === n.id && prev[e.a])); const q = e ? prev[e.a === n.id ? e.b : e.a] : o; p = { x: q.x + jit(n.id, 'x'), y: q.y + jit(n.id, 'y'), z: q.z + jit(n.id, 'z') } }
+    px[i] = p.x - o.x; py[i] = p.y - o.y; pz[i] = p.z - o.z
+  })
+  gRelax(px, py, pz, mass, ea, eb, ew, N <= 150 ? 160 : 100, 1, ix.get(cur))
+  // 점이 적으면 힘이 맞는 거리가 몇 px 뿐이다 — 90% 반지름을 점 수에 맞춘 크기(160 ~ 400)로 늘린다(누른 점은 원점 그대로)
+  const rs = ns.map((_, i) => Math.hypot(px[i], py[i], pz[i])).sort((a, b) => a - b), r9 = rs[Math.floor((N - 1) * 0.9)] || 1
+  const sc = Math.min(400, 160 * Math.max(1, Math.cbrt(N / 12))) / r9
+  const pos = {}
+  ns.forEach((n, i) => { pos[n.id] = { x: px[i] * sc, y: py[i] * sc, z: pz[i] * sc } })
+  S.g.sub = { key, pos }
+  S.g.cam.needFit = true
+  return pos
 }
 // 점 크기 — 종류 바탕 + 중요도(√, 위 8) · 중요도가 큰 점이 커서 어디가 중심인지 보인다
 function nodeR(n, w) { if (n.kind === 'bundle') return 13; if (n.table) return 3; return (n.kind === 'doc' ? 5 : n.kind === 'rec' ? 3.5 : 3) + Math.min(8, Math.sqrt(w) * 0.9) }
@@ -1775,15 +1812,14 @@ function gPaint() {
   const ctx = cv.getContext('2d'), T = gTok()
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, W, H0)
-  const C = S.g.cam, P = S.g.pos, f = S.g.f, cx = W / 2, cy = H0 / 2, vis = G.vis
+  const C = S.g.cam, P = G.P || S.g.pos, f = S.g.f, cx = W / 2, cy = H0 / 2, vis = G.vis
   const shown = vis ? G.nodes.filter((n) => vis.has(n.id)) : G.nodes
   const sy = Math.sin(C.ry), cy2 = Math.cos(C.ry), sx = Math.sin(C.rx), cx2 = Math.cos(C.rx), D = G.R3 * 2.6
   const raw = (p) => { const x1 = p.x * cy2 - p.z * sy, z1 = p.x * sy + p.z * cy2, y1 = p.y * cx2 - z1 * sx, z2 = p.y * sx + z1 * cx2, sc = D / Math.max(D * 0.35, D + z2); return [x1 * sc, y1 * sc, z2, sc] }
   if (C.needFit) {
-    // 보이는 점이 다 들어오게 — 고르면 그 이웃으로 당겨 오고, 닫으면 전체로
+    // 보이는 점이 다 들어오게 — 고르면 누른 점(원점)이 칸 가운데 · 돌려도 그 점이 제자리에서 돈다 · 닫으면 전체로
     let mx = 1, my = 1, ax = 0, ay = 0
     const qs = shown.map((n) => raw(P[n.id]))
-    if (vis && qs.length) { ax = qs.reduce((s, q) => s + q[0], 0) / qs.length; ay = qs.reduce((s, q) => s + q[1], 0) / qs.length }
     qs.forEach((q) => { mx = Math.max(mx, Math.abs(q[0] - ax)); my = Math.max(my, Math.abs(q[1] - ay)) })
     C.base = Math.max(0.02, Math.min(vis ? 3 : 6, Math.min((W / 2 - 60) / mx, (H0 / 2 - 50) / my)))
     C.zoom = 1; C.px = -ax * C.base; C.py = -ay * C.base; C.needFit = false
@@ -2055,7 +2091,7 @@ window.addEventListener('blur', () => { GSPACE = false })
 function viewGraph() {
   const k = pickKn()
   if (!k) return { crumb: '그래프', main: viewHome().main }
-  if (S.g.kn !== k) Object.assign(S.g, { kn: k, pos: {}, sel: null, open: [], cur: null, visKey: '', layoutKey: '', bundle: false, cam: { rx: -0.35, ry: 0.6, zoom: 1, base: 1, px: 0, py: 0, needFit: true } })
+  if (S.g.kn !== k) Object.assign(S.g, { kn: k, pos: {}, sub: null, sel: null, open: [], cur: null, visKey: '', layoutKey: '', bundle: false, cam: { rx: -0.35, ry: 0.6, zoom: 1, base: 1, px: 0, py: 0, needFit: true } })
   if (!M(k)) { const me = modelErr(k); return { crumb: '그래프', main: me ? errHtml(me, 'model:' + k) : loadingHtml, tabs: true, left: `<div class="gf">${me ? '' : loadingHtml}</div>` } }
   const G = graphData(k)
   G.deg = {}; G.nbr = {}
@@ -2075,7 +2111,8 @@ function viewGraph() {
   const d3 = S.g.mode !== '2d'
   if (d3) {
     layoutGraph(G)
-    G.R3 = Math.max(100, ...G.nodes.map((n) => { const p = S.g.pos[n.id]; return Math.hypot(p.x, p.y, p.z) }))
+    if (G.vis) G.P = layoutSub(G); else { G.P = S.g.pos; S.g.sub = null }
+    G.R3 = Math.max(100, ...G.nodes.filter((n) => G.P[n.id]).map((n) => { const p = G.P[n.id]; return Math.hypot(p.x, p.y, p.z) }))
   }
   CURG = G
   const nV = G.vis ? G.vis.size : G.nodes.length, eV = G.vis ? G.edges.filter((e) => G.vis.has(e.a) && G.vis.has(e.b) && gBranch(G, e)).length : G.edges.length
