@@ -36,7 +36,7 @@
 <li><b>지식 고르기</b>: 지식을 바꾸거나 「지식 목록: 전체」 로 간다.</li>
 <li><b>보는 법 셋</b>: 문서 · 항목 · 그래프.</li>
 <li><b>목록(나무)</b>: 문서 · 기록 · 첨부. 다른 화면에 가도 그대로다.</li>
-<li><b>지식 관리</b>: 이력 · 설정(가져오기 · 넣지 못함 · 일반 …) · 개인 지식 쓰기.</li>
+<li><b>지식 관리</b>: 이력 · 가져오기 · 넣지 못함(배지) · 문서 짜임(지식관리자) · 설정(에이전트 설치 · 나 …).</li>
 <li><b>빨리 열기 · 찾기</b>: <kbd>Ctrl</kbd> <kbd>O</kbd> · <kbd>Ctrl</kbd> <kbd>K</kbd>.</li>
 <li><b>옆 메뉴</b>: 맨 위 「문서 · 항목 · 그래프」 로 보기를 고른다. 문서 보기는 「문서 · 기록 · 첨부」 탭으로 한 번에 하나만 보이고, 문서는 지식 폴더(<code>docs/</code>)의 폴더 짜임 그대로 나무로 보인다. 폴더 줄 · 항목 종류 줄을 누르면 접고 편다(처음은 모두 접힘 · 지금 연 것의 묶음은 펼침 · 「모두 펴기」). 「넣지 못함 · 최근 바뀜 · 내가 쓴 것」 은 거르기 단추라 누르면 파랗게 켜진다. 그래프는 맨 위 「보기: 선 · 제목 · 회전」 을 켜고 끈다.</li>
 <li><b>문서</b>: 탭으로 여러 개 · 나란히 보기 <kbd>Ctrl</kbd> <kbd>\</kbd>.</li>
@@ -98,10 +98,10 @@
 <div class="m-note m-tip"><b>문서에 넣는 글의 기준</b><p>본문에는 확정된 지식만 쓴다. 회의 경위 · 초안 · 「언제 누가 바꿨나」 는 기록과 이력에 남고, 출처 줄은 kmd 가 문서 끝 「참고」 에 단다. 링크는 문서(<code>x.md</code>) · 항목(<code>x.md#머리</code>) · 바깥(<code>https://…</code>) 셋만.</p></div>
 
 <h2 id="import"><span class="m-no">6</span>가져오기: 파일 · 폴더 넣기</h2>
-<p>설정 › <b>가져오기</b>. 탭 셋: <b>일 줄</b> · <b>가져올 곳</b>(지식관리자) · <b>끝난 일</b>. 쓰기 자리가 있는 팀 지식이 하나라도 있으면 메뉴가 보이고, 파일은 화면 어디에 끌어다 놓아도 된다.</p>
+<p>옆 메뉴 지식 관리 › <b>가져오기</b>. 끌어다 놓기 띠는 늘 위에 있고, 탭 셋: <b>일 줄</b> · <b>가져올 곳</b>(지식관리자) · <b>끝난 일</b>. 쓰기 자리가 있는 팀 지식이 하나라도 있으면 메뉴가 보이고, 파일은 화면 어디에 끌어다 놓아도 된다.</p>
 <div class="m-flow"><div class="m-st m-hi"><b>1 수집</b><small>받기 · 글로 바꾸기</small></div><span class="m-ar">›</span><div class="m-st"><b>2 검토</b><small>같은 파일 · 크기 확인</small></div><span class="m-ar">›</span><div class="m-st m-pd"><b>3 짓기</b><small>팀 일꾼이 기록 + 문서를 짓는다</small></div><span class="m-ar">›</span><div class="m-st m-ok"><b>4 넣기</b><small>저장 한 번 · 이력에 남는다</small></div></div>
-<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 가져오기 · 일 줄</span></div><div class="m-pic"><img src="img/t-import.png" alt="가져오기 일 줄: 넣을 곳 · 줄 · 오른쪽 자세히의 흐름" loading="lazy">
-<span class="m-pin" style="left:37%;top:32%">1</span><span class="m-pin" style="left:37%;top:44%">2</span><span class="m-pin" style="left:85%;top:49%">3</span><span class="m-pin" style="left:76%;top:84%">4</span></div></div>
+<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>지식 관리 › 가져오기 · 일 줄</span></div><div class="m-pic"><img src="img/t-import.png" alt="가져오기 일 줄: 넣을 곳 · 줄 · 오른쪽 자세히의 흐름" loading="lazy">
+</div></div>
 <figcaption>「테스트 배포 회의 메모.md」 를 DPMS 지식에 넣은 뒤. 네 단계가 모두 끝남이고, 상태 칸에 넣은 문서 › 항목이 보인다.</figcaption></figure>
 <ol class="m-legend">
 <li><b>넣는 곳</b>: 끌어다 놓기 · 파일 고르기 · 폴더 고르기 · 넣을 지식.</li>
@@ -128,12 +128,17 @@
 <ul>
 <li>내 값이 바뀐 줄은 맨 위 <b>값 바뀜</b>(노랑). 저장 줄을 펼치면 넣은 항목마다 「옛 값 → 새 값」 이 보이고, 내 저장(지식관리자는 모든 저장)은 그 항목만 [되돌리기] 한다. 그 뒤 누가 다시 고친 항목은 되돌리지 않는다.</li>
 <li>갈래 · 지식으로 거르고, 줄을 누르면 펼쳐 그 일 · 문서를 연다.</li>
-<li>「새 기기가 이어졌다」 줄이 내가 한 것이 아니면 개인 지식 쓰기 › 내 기기에서 끊는다.</li>
+<li>「새 기기가 이어졌다」 줄이 내가 한 것이 아니면 설정 › 나 › 내 기기에서 끊는다.</li>
 </ul>
 
 <h2 id="claude"><span class="m-no">8</span>Claude Code 에 팀 지식 붙이기</h2>
-<p>설정 › <b>에이전트 설치</b>(누구나). 작업 폴더의 Claude Code 가 팀 지식을 읽고 남기게 한다.</p>
-<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 에이전트 설치</span></div><div class="m-pic"><img src="img/t-agent.png" alt="에이전트 설치: 팀 지식마다 설치 명령 복사" loading="lazy"></div></div><figcaption>네 걸음 안내 · 대량 넣기 안내 · 붙일 팀 지식마다 [설치 명령 복사].</figcaption></figure>
+<p>설정 › <b>에이전트 설치</b>(누구나 · 쓰기 · 읽기 자리는 설정을 열면 여기가 먼저). 작업 폴더의 Claude Code 가 팀 지식을 읽고 남기게 한다.</p>
+<div class="m-tbl"><table><tr><th>자리</th><th>설정 메뉴(업무 차례)</th><th>설정을 열면</th></tr>
+<tr><td>총괄 관리자</td><td>점검 · 팀 서버 · 팀 지식 · 사람 · 묶음 · 에이전트 설치 · 나</td><td>점검</td></tr>
+<tr><td>지식관리자</td><td>팀 지식 · 에이전트 설치 · 나</td><td>팀 지식</td></tr>
+<tr><td>쓰기 · 읽기</td><td>에이전트 설치 · 나</td><td>에이전트 설치</td></tr></table></div>
+<p>날마다 쓰는 <b>가져오기 · 넣지 못함 · 문서 짜임</b>은 설정 밖, 옆 메뉴 「지식 관리」 에 바로 있다(자리가 있을 때만 보인다).</p>
+<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 에이전트 설치</span></div><div class="m-pic"><img src="img/t-agent.png" alt="에이전트 설치: 팀 지식마다 설치 명령 복사" loading="lazy"></div></div><figcaption>네 걸음 안내(막혔을 때 볼 것은 접어 둔다) · 대량 넣기 안내 · 팀 지식마다 나의 자리 칩과 [설치 명령 복사].</figcaption></figure>
 <ol class="m-steps">
 <li><b>붙일 팀 지식의 [설치 명령 복사]</b>내가 읽기 자리 이상인 팀 지식만 고를 수 있다.</li>
 <li><b>작업 폴더의 PowerShell 에 붙여 넣고 Enter</b>그 폴더에 팀 스킬 셋(<code>kmd-team-work</code> · <code>kmd-team-save</code> · <code>kmd-team-import</code>) · 연결 <code>kmd-team</code>(.mcp.json) · CLAUDE.md 안내만 쓴다. 다른 연결 · 사람이 쓴 줄은 그대로다. 끝에 Claude Code 가 이 PC 에 있나 · 로그인했나를 한 줄로 알린다(없으면 깔고, 로그인하지 않았으면 터미널에서 <code>claude auth login</code>). 팀 지식만 쓰면 개인 프로그램은 깔지 않아도 된다.</li>
@@ -144,20 +149,20 @@
 <ol class="m-steps">
 <li><b>어느 팀 지식에 넣을지 묻는다</b>쓰기 자리 이상인 팀 지식에만 넣는다.</li>
 <li><b>처음 한 번 파서를 받는다</b>파일을 글로 바꾸는 kmd 파서(몇십 MB)를 팀 서버에서 받아도 되는지 묻는다. 받은 것은 <code>%USERPROFILE%\.kmd\parse</code> 에 두고, 판이 같으면 다시 받지 않는다. 팀 화면 · 개인 프로그램과 같은 바꾸기다.</li>
-<li><b>파일마다 기록과 항목 글을 한 번에 저장한다</b>검사를 넘은 것은 그 순간 문서에 들어가고, 못 넘은 조각은 한 번 고쳐 다시 보낸다. 그래도 안 되면 설정 › 넣지 못함에 남는다(내 것은 내가 [다시 들이기] · 남의 것은 지식관리자). 글이 없는 pdf(스캔)는 Claude Code 가 원본을 직접 읽는다.</li>
+<li><b>파일마다 기록과 항목 글을 한 번에 저장한다</b>검사를 넘은 것은 그 순간 문서에 들어가고, 못 넘은 조각은 한 번 고쳐 다시 보낸다. 그래도 안 되면 지식 관리 › 넣지 못함에 남는다(내 것은 내가 [다시 들이기] · 남의 것은 지식관리자). 글이 없는 pdf(스캔)는 Claude Code 가 원본을 직접 읽는다.</li>
 <li><b>끝에 「넣음 n · 넣지 못함 n · 이미 넣음 n」</b>중간에 멈췄으면 같은 폴더로 다시 시킨다. 넣은 파일은 「이미 넣음」 으로 건너뛴다. 원본 파일도 첨부로 두려면 「원본도 첨부」 라고 말한다(한 파일 8MB 까지).</li>
 </ol>
 <div class="m-note"><b>다시 설치</b><p>팀 스킬이 새 판으로 바뀌면 세션이 저장 뒤에 「팀 스킬이 옛 판이다」 를 전한다. 저장은 된 것이다. 이 화면의 한 줄을 그 폴더에서 다시 붙여 넣고 Claude Code 를 새로 연다.</p></div>
-<div class="m-note"><b>열쇠</b><p>연결은 이 PC 의 <b>기기 열쇠</b>(Windows 자격 저장소 · <code>%USERPROFILE%\.kmd\keys</code>)로 팀 서버에 「누구인지」 알린다. 내 자리대로만 읽고 쓴다. 잃어버린 PC 는 <b>개인 지식 쓰기 › 내 기기</b>에서 끊는다.</p></div>
+<div class="m-note"><b>열쇠</b><p>연결은 이 PC 의 <b>기기 열쇠</b>(Windows 자격 저장소 · <code>%USERPROFILE%\.kmd\keys</code>)로 팀 서버에 「누구인지」 알린다. 내 자리대로만 읽고 쓴다. 잃어버린 PC 는 <b>설정 › 나 › 내 기기</b>에서 끊는다.</p></div>
 
 <h2 id="install"><span class="m-no">9</span>개인 지식 쓰기</h2>
-<p>옆 메뉴 맨 아래 <b>개인 지식 쓰기</b>(누구나). 팀 지식만 쓰면 개인 프로그램은 필요 없다(8절 에이전트 설치 한 줄이면 된다). 개인 지식을 쓰려면: 이 PC 에 개인 프로그램을 깔고(또는 새 판으로 올리고) 팀에 잇는 한 줄과 내 기기 목록이 여기 있다.</p>
-<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>개인 지식 쓰기</span></div><div class="m-pic"><img src="img/t-install.png" alt="개인 지식 쓰기: 설치 · 업데이트 · 잇기 한 줄과 내 기기" loading="lazy"></div></div>
+<p>설정 › 에이전트 설치의 둘째 카드 <b>개인 지식 쓰기</b>(고를 수 있음). 팀 지식만 쓰면 개인 프로그램은 필요 없다(8절 한 줄이면 된다). 개인 지식을 쓰려면 이 PC 에 개인 프로그램을 깔고(또는 새 판으로 올리고) 팀에 잇는 한 줄이 여기 있다. 이은 기기는 설정 › 나 › 내 기기에 보인다.</p>
+<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 에이전트 설치 › 개인 지식 쓰기</span></div><div class="m-pic"><img src="img/t-install.png" alt="개인 지식 쓰기 카드: 설치 · 업데이트 · 잇기 한 줄" loading="lazy"></div></div>
 <figcaption>[한 줄 복사] → PowerShell 에 붙여 넣는다(10분 · 한 번). 그 뒤의 일은 <a href="개인.html">개인 프로그램 설명서</a>.</figcaption></figure>
 
 <h2 id="out"><span class="m-no">10</span>나가기 · 밖으로 나가는 것</h2>
 <ul>
-<li><b>나가기</b>: 왼쪽 위 내 이름 › 나가기(이 브라우저) · 모든 곳에서 나가기(다른 기기 · 브라우저도. Claude Code 의 기기 열쇠는 그대로).</li>
+<li><b>나가기</b>: 왼쪽 위 내 이름 › 나가기 또는 설정 › 나 › 나가기(이 브라우저) · 모든 곳에서 나가기(다른 기기 · 브라우저도. Claude Code 의 기기 열쇠는 그대로).</li>
 <li>팀 지식이 밖으로 나가는 길은 <b>백업</b>(지식마다 정한 git 자리)과 <b>Claude 들이기 · 다듬기</b>(팀 서버의 팀 일꾼 로그인)뿐이다. 「Claude 에 보내지 않음」 지식은 Claude 에 보내지 않는다.</li>
 </ul>
 </article>
