@@ -558,6 +558,8 @@ svg.gki{width:14px;height:14px;flex:none;overflow:visible;stroke:none;vertical-a
 .gerdw{position:absolute;inset:0;overflow:hidden;cursor:grab;user-select:none;touch-action:none}
 .gerdw.drag,.gwrap.grab .gerdw{cursor:grabbing}
 .gerdw.drag .gbk{visibility:hidden}
+.gerd .gbk{stroke:var(--text-3);stroke-opacity:.35;stroke-width:1}
+svg.gki .gln{stroke:var(--text-3);stroke-opacity:.6}
 .gwrap.erd .gtl,.gwrap.erd .glg,.gwrap.erd .gz,.gwrap.erd .ghint,.gwrap.erd .gov{z-index:2}
 .gwrap.erd .gtl{background:var(--surface);padding:0 var(--sp-2);border-radius:var(--r-xs)}
 .gwrap.grab #gcv{cursor:grab}

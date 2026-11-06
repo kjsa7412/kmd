@@ -1631,7 +1631,7 @@ let CURG = null, GTOK = null
 function gTok() {
   if (GTOK) return GTOK
   const cs = getComputedStyle(document.documentElement), v = (n, d) => cs.getPropertyValue(n).trim() || d
-  return (GTOK = { doc: v('--k-doc', '#334155'), item: v('--k-item', '#3358e6'), rec: v('--k-rec', '#c2410c'), line: v('--border-strong', '#c9d1dd'), text: v('--text', '#11151c'), text2: v('--text-2', '#515a68'), bg: v('--hover', '#f5f7fa'), hit: '#f0b400' })
+  return (GTOK = { doc: v('--k-doc', '#334155'), item: v('--k-item', '#3358e6'), rec: v('--k-rec', '#c2410c'), line: v('--text-3', '#646d7b'), text: v('--text', '#11151c'), text2: v('--text-2', '#515a68'), bg: v('--hover', '#f5f7fa'), hit: '#f0b400' })
 }
 // 모양 — 같은 모양을 SVG(2D 표 · 범례 · 목록 · 팝업)와 canvas(3D)에 그린다
 function glyphSvg(kind, x, y, r = 6) {
@@ -1760,7 +1760,7 @@ function nodeR(n, dg) { if (n.kind === 'bundle') return 13; if (n.table) return 
 let GCV = null, GH = null, GRAF = 0
 // 그리기(3D) — canvas 하나 · 원근 투영 · 먼 것부터
 //   선은 한 가지 색 · 한 가지 굵기 · 화살표 없음. 「선」 을 끄면 고른 점 · 올린 점의 선만(고른 뒤 보이는 이웃 그림은 늘 선을 그린다)
-//   길수록 · 선이 많을수록 옅게(√(400/선 수)) · 긴 선은 양 끝 토막만(화면을 가로지르는 판을 막는다)
+//   선이 많을수록 · 멀수록 조금 옅게(투명도 0.12 ~ 0.6) · 끝까지 다 그린다(토막으로 자르면 수염처럼 보였다)
 //   고른 점이 있으면 보이는 점(고른 점 + 펼친 이웃)만 그린다 · 자리는 전체 배치 그대로
 function gPaint() {
   const cv = $('#gcv'), G = CURG
@@ -1795,7 +1795,7 @@ function gPaint() {
   // 선 — 한 가지. 투명도 통(0.05 간격)마다 Path2D 하나에 모아 한 번 그린다(선마다 stroke 하면 수천 번 · 실측 70 ms 넘게)
   //   굵기는 1px(굵은 선을 모으면 오히려 느려진다) · 올린 점의 선만 따로 굵게 · 끄는 동안 선이 많으면(1500 넘게) 올린 점 선만
   const es = G.edges.filter((e) => by[e.a] && by[e.b])
-  const fade = Math.min(1, Math.sqrt(400 / Math.max(1, es.length))), lim = Math.max(70, Math.min(W, H0) * 0.2)
+  const fade = Math.max(0.35, Math.min(1, Math.sqrt(400 / Math.max(1, es.length))))
   const moving = !!(GD && GD.moved) && es.length > 1500
   const bins = new Map()
   let litP = null, drawn = 0
@@ -1804,19 +1804,15 @@ function gPaint() {
     const lit = !!Hd && (e.a === Hd || e.b === Hd)
     if (!f.line && !lit && !vis) return
     if (!lit && (moving || !gBranch(G, e))) return
-    const len = Math.hypot(q.X - p.X, q.Y - p.Y)
     const off = (!!Hd && !lit) || (!!nq && !(hits.has(e.a) || hits.has(e.b)))
     let path
     if (lit) path = litP || (litP = new Path2D())
     else {
-      const al = Math.max(0.05, Math.round((off ? 0.06 : vis ? 0.75 : 0.6 * fade * Math.min(1, Math.sqrt(lim / Math.max(1, len))) * (p.dep + q.dep) / 2) * 20) / 20)
+      const al = off ? 0.05 : Math.round((vis ? 0.7 : Math.max(0.12, 0.6 * fade * (p.dep + q.dep) / 2)) * 20) / 20
       path = bins.get(al) || bins.set(al, new Path2D()).get(al)
     }
     drawn++
-    if (lit || vis || len <= lim) { path.moveTo(p.X, p.Y); path.lineTo(q.X, q.Y) } else {
-      const s = Math.min(len * 0.15, 28), ux = (q.X - p.X) / len, uy = (q.Y - p.Y) / len
-      path.moveTo(p.X, p.Y); path.lineTo(p.X + ux * (s + p.r), p.Y + uy * (s + p.r)); path.moveTo(q.X, q.Y); path.lineTo(q.X - ux * (s + q.r), q.Y - uy * (s + q.r))
-    }
+    path.moveTo(p.X, p.Y); path.lineTo(q.X, q.Y)
   })
   ctx.strokeStyle = T.line; ctx.setLineDash([]); ctx.lineWidth = 1
   bins.forEach((path, al) => { ctx.globalAlpha = al; ctx.stroke(path) })
