@@ -153,6 +153,22 @@ test('core save — 붙잡아 두기: 폐기 이름은 바꿔 달고 이름 없�
   assert.equal(r2.touchesEmpty, '가져옴: 파일')
 })
 
+test('core save — 장부만 바꾼 저장은 이력(log/ · ledger) · 이름을 세우며 건드린 기록은 기록(work/)', async () => {
+  const d = mk('ledger')
+  const r = await save(d, { record: { title: '갈래 장부: 회의록 폴더', body: 'x', touchesEmpty: '갈래 장부만 고쳤다' }, forms: [{ name: '회의록', folder: '1.2_사업관리', kind: '사건' }] }, { user: 'kim' })
+  assert.equal(r.record, `log/${r.id}.md`)
+  const w = parseRecord(fs.readFileSync(path.join(d, 'log', `${r.id}.md`), 'utf8'), `${r.id}.md`)
+  assert.ok(w.tags.includes('ledger'))
+  const r2 = await save(d, { record: { title: '이름만', body: 'x', touchesEmpty: '이름 장부만' }, names: [{ coord: '이슈:DPMS-ISS-15', label: '공수 부족', doc: 'docs/대장.md', heading: 'DPMS-ISS-15 — 공수 부족' }] }, { user: 'kim' })
+  assert.match(r2.record, /^log[/]/)
+  const r3 = await save(d, { record: { title: '새 이슈: 인원', body: '인원이 모자란다', touches: ['이슈:DPMS-ISS-21'] }, names: [{ coord: '이슈:DPMS-ISS-21', label: '인원 부족' }] }, { user: 'kim' })
+  assert.match(r3.record, /^work[/]/)
+  await assert.rejects(async () => save(d, { record: { title: '흉내', body: 'x', touchesEmpty: 'y', tags: ['ledger'] } }, { user: 'kim' }), /kmd 가 쓰는 태그/)
+  const { logKind } = await import('../server/views.js')
+  assert.equal(logKind(w), '장부')
+  assert.equal(logKind({ tags: ['structure'], title: '문서 짜임 바꿈' }), '짜임')
+})
+
 test('saveRecords(받기) — 같은 말 이름을 바꿔 달고 이름 없는 기록은 「받음」 까닭', async () => {
   const d = mk('recv')
   const r = await saveRecords(d, [{ title: '받은 것', body: 'x', touches: ['이슈:ISS-15'] }, { title: '받은 메모', body: 'y' }], { user: 'kim' })

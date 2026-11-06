@@ -750,7 +750,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 저절로 메모(S-D3 · S13) — 팀에서 조각 없이 온 사람 기록은 메모(문서를 바꾸지 않는다 · 정리를 기다리는 pend 를 만들지 않는다).
     //   예외는 서버가 정한 채널로 가른다(입력 태그로 피하지 못하게): 들이기 · 다듬기는 일감이 정하고 · 대량 넣기(bulk)는 조각이 없으면 넣지 못함(notfound)
     let autoMemo = false
-    if (team && !intake && rec0 && rec0.memo !== true && !(Array.isArray(input?.sections) && input.sections.length) && !extraHeld.length) {
+    //   지식관리자가 곧바로 세우는 이름 · 갈래(장부만 바꾸는 저장)는 메모가 아니다 — 저장 문이 이력(log/ · ledger)으로 남긴다
+    if (team && !intake && rec0 && rec0.memo !== true && !(Array.isArray(input?.sections) && input.sections.length) && !extraHeld.length && !((input?.names?.length || input?.forms?.length) && !rec0.touches?.length)) {
       if (channel === 'bulk') extraHeld.push({ code: 'notfound', why: '대량 넣기: 넣을 항목이 없다(조각 없이 기록만 왔다)' })
       else if (channel !== 'send') {
         autoMemo = true
@@ -2436,7 +2437,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!names.length && !forms.length) throw new KmdError('E_INPUT', '이 기록에는 세울 이름이 없다')
       const title = `이름 세움: ${String(w.title).split(/ — |: /)[0]}`.slice(0, 200)
       const body = [`${w.author} 의 기록에 실려 있던 이름을 ${ctx.user} 가 세웠다.`, names.length ? `## 바뀐 것\n${names.map((n) => `- 이름: ${n.label} (${n.coord})`).join('\n')}` : '', forms.length ? `## 세운 갈래\n${forms.map((f) => `- ${f.name}`).join('\n')}` : ''].filter(Boolean).join('\n\n')
-      const r = await hub.save(ctx, id, { record: { title, body, fixes: [w.id], ...(names.length ? { touches: names.map((n) => n.coord) } : { touchesEmpty: '갈래만 세웠다' }) }, ...(names.length ? { names } : {}), ...(forms.length ? { forms } : {}) }, { system: true })
+      const r = await hub.save(ctx, id, { record: { title, body, fixes: [w.id], tags: ['ledger'], ...(names.length ? { touches: names.map((n) => n.coord) } : { touchesEmpty: '갈래만 세웠다' }) }, ...(names.length ? { names } : {}), ...(forms.length ? { forms } : {}) }, { system: true })
       cache.delete(id)
       return { ok: true, record: r.id, names: names.length, forms: forms.length }
     },

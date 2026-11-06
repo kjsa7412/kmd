@@ -479,6 +479,8 @@ export function logKind(w) {
   if (t.includes('edit')) return '고침'
   if (t.includes('polish')) return '다듬기'
   if (t.includes('drop')) return '버림'
+  if (t.includes('ledger')) return '장부'
+  if (t.includes('structure')) return '짜임'
   if (t.includes('intake')) return '들이기'
   if (t.includes('put')) return '저장'
   if (t.includes('held')) return '넣지 못함'

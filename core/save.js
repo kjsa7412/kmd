@@ -547,6 +547,9 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
   if (r.memo === true) tags.push('memo')
   if (held.length) tags.push('held')
   if (putRows.length) tags.push('put')
+  // 장부만 바꾼 저장은 지식 이야기가 아니다 — 이력(log/ · 태그 ledger). 문서 · 항목 · 첨부 · 넣지 못함이 없고 메모가 아니고 건드린 이름이 없을 때
+  //   (이름을 세우며 그 이름을 건드린 기록 「새 이슈: 인원 부족」 은 지식 이야기다 — 기록에 남는다 · 넣지 못함의 [이름 세우기]는 hub 가 ledger 를 단다)
+  if ((names.length || formsIn.length) && !plan.length && !held.length && !atts.length && !attSame.length && r.memo !== true && !touches.length) tags.push('ledger')
   const allTags = [...new Set(tags)]
   const sub = isLogRecord(allTags) ? LOG_DIR : 'work'
   await fs.mkdir(path.join(dir, sub), { recursive: true })
