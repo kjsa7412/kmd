@@ -10,6 +10,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright-core'
+import { execFileSync } from 'node:child_process'
 import { startServer } from '../server/http.js'
 import { copyDir, signIn, seat } from './helpers.mjs'
 import { workOnce } from '../core/worker.js'
@@ -576,7 +577,7 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 팀 일�
   await mg(page, 'team', 'gen')
   assert.equal(await page.locator('[data-t=mgNav] .mgt').innerText(), '설정')
   assert.equal(await page.locator('[data-t=setTitle]').innerText(), '일반')
-  assert.deepEqual(await mgItems(page), ['가져오기', '넣지 못함', '일반', '사람', 'Claude 연결', '에이전트 설치', '관리'])
+  assert.deepEqual(await mgItems(page), ['가져오기', '넣지 못함', '문서 짜임', '일반', '사람', 'Claude 연결', '에이전트 설치', '관리'])
   await page.waitForSelector('[data-t=auto-find]')
   assert.match(await page.locator('.main .card .ch').first().innerText(), /이 팀 서버/)
   await page.click('[data-t=sw-find]')
@@ -842,7 +843,7 @@ test('개인 화면: 지식 보내기 · 받는 팀 지식 고르기 · 지식 �
     // 지식 관리 — 개인 화면에도 지식 보내기
     await mg(page, 'me', 'send')
     await page.waitForSelector('[data-t=mgNav]')
-    assert.deepEqual(await mgItems(page), ['가져오기', '지식 보내기', '일반', 'Claude 연결', '에이전트 설치'])
+    assert.deepEqual(await mgItems(page), ['가져오기', '문서 짜임', '지식 보내기', '일반', 'Claude 연결', '에이전트 설치'])
     await page.click('[data-t=sendSrc]')
     await page.locator('[data-t=sendSrcItem]').filter({ hasText: '테스트-보내기' }).click()
     await page.waitForSelector('[data-t=sendSetup]')
@@ -1286,4 +1287,84 @@ test('넣지 못함(S10): 쓰기 자리는 내 것만 · 까닭 · [고치기] �
     } finally { await pg.close() }
     assert.deepEqual(errors, [])
   } finally { if (!page.isClosed()) await page.close() }
+})
+
+test('문서 짜임: 나무 하나 · 줄 안 이름 바꾸기 · 새 문서 · 새 폴더 · 끌어 옮기기(안 · 사이) · Alt ↑↓ · 저장(마른 실행 → 확인 → 한 커밋) · 옆 메뉴가 같은 차례 · 네 폭', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+  const page = await browser.newPage({ viewport: VIEW })
+  const errors = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  await page.goto(s.url)
+  await page.fill('#lgId', 'kim')
+  await page.fill('#lgPw', me.pw)
+  await page.click('[data-t=loginBtn]')
+  await page.waitForSelector('[data-t=klist]')
+  await mg(page, 'team', 'structure')
+  await page.waitForSelector('[data-t=sxTree] [data-t=sxDir]')
+  if (await page.locator('[data-t=sxKnSel]').count()) await page.selectOption('[data-t=sxKnSel]', 'dpms')
+  await page.waitForSelector('[data-t=sxTree] [data-p="3.3_게이트웨이설계"]')
+  // 입력 칸은 찾기뿐(줄 안 이름 칸은 고칠 때만) · 바뀐 것 바는 없다
+  assert.equal(await page.locator('.sxy input:not([type=hidden])').count(), 1)
+  assert.equal(await page.locator('[data-t=sxBar]').count(), 0)
+  // 이름 바꾸기 — 두 번 누름 · 같은 이름 막힘 · Enter
+  await page.click('#sxTree [data-p="3.3_게이트웨이설계"]')
+  const doc = '#sxTree [data-t=sxDoc][data-d="3.3_게이트웨이설계/게이트웨이테이블정의서"]'
+  await page.dblclick(doc + ' .nm')
+  await page.waitForSelector('#sxIn')
+  await page.fill('#sxIn', '권한 신청')
+  await page.fill('#sxIn', 'a/b')
+  assert.match(await page.locator('#sxWhy').innerText(), /글자/)
+  await page.fill('#sxIn', '게이트웨이 테이블정의서')
+  await page.press('#sxIn', 'Enter')
+  assert.equal(await page.locator(doc + ' .nm').innerText(), '게이트웨이 테이블정의서')
+  // 새 폴더(고른 문서의 폴더 안) → 문서를 끌어 그 안으로
+  await page.click('[data-t=sxNewDir]')
+  await page.fill('#sxIn', '보관')
+  await page.press('#sxIn', 'Enter')
+  await page.waitForSelector('#sxTree [data-p="3.3_게이트웨이설계/보관"]')
+  await page.dragAndDrop(doc, '#sxTree [data-p="3.3_게이트웨이설계/보관"]')
+  assert.equal(await page.locator('#sxTree [data-p="3.3_게이트웨이설계/보관"] .rc').innerText(), '1')
+  // 새 문서 — 맨 위(고른 것 없음이 아니라 고른 문서의 폴더 안)
+  await page.click('[data-t=sxNewDoc]')
+  await page.fill('#sxIn', '접속 순서')
+  await page.press('#sxIn', 'Enter')
+  // 폴더를 줄 사이에 — 3.4 를 3.3 앞에
+  await page.dragAndDrop('#sxTree [data-p="3.4_웹설계"]', '#sxTree [data-p="3.3_게이트웨이설계"]', { targetPosition: { x: 40, y: 3 } })
+  const firstDirs = await page.locator('[data-t=sxTree] > [data-t=sxDir]').evaluateAll((els) => els.map((e) => e.dataset.p))
+  assert.deepEqual(firstDirs.slice(0, 2), ['3.4_웹설계', '3.3_게이트웨이설계'])
+  // Alt ↑ — 맨 위 문서 차례
+  await page.focus('#sxTree [data-t=sxDoc][data-d="롤백절차"]')
+  await page.keyboard.press('Alt+ArrowUp')
+  await page.click('[data-t=sxBar] [data-a=sxBarT]')
+  const bar = await page.locator('[data-t=sxBar]').innerText()
+  assert.match(bar, /바뀐 것 \d+/)
+  assert.match(bar, /옮김 1/)
+  assert.match(bar, /새 문서 1/)
+  assert.match(bar, /차례/)
+  await page.screenshot({ path: path.join(SHOTS, 'app-structure.png'), fullPage: true })
+  for (const w of [1280, 1024, 600, 375]) {
+    await page.setViewportSize({ width: w, height: 820 })
+    const c = await cutAt(page)
+    assert.deepEqual(c.cut, [], `문서 짜임 ${w}: 잘린 요소`)
+    assert.ok(c.sw <= w, `문서 짜임 ${w}: 가로 넘침 ${c.sw}`)
+  }
+  await page.setViewportSize(VIEW)
+  // 저장 — 마른 실행 요약 → 확인 → 한 커밋
+  await page.click('[data-t=sxSave]')
+  await page.waitForSelector('[data-t=askWin]')
+  assert.match(await page.locator('[data-t=askWin]').innerText(), /옮김 1[\s\S]*새 문서 1/)
+  await page.click('[data-t=askWin] .btn.pri')
+  await page.waitForSelector('[data-t=sxBar]', { state: 'detached' })
+  const gitK = (...a) => execFileSync('git', a, { cwd: path.join(tmp, 'kn', 'dpms'), encoding: 'utf8' }).trim()
+  assert.match(gitK('log', '-1', '--format=%s'), /^문서 짜임 바꿈/)
+  assert.equal(gitK('status', '--porcelain', '--', 'docs', '_managed.md', '_order.md'), '', '한 커밋에 다 들었다')
+  assert.ok(fs.existsSync(path.join(tmp, 'kn', 'dpms', 'docs', '3.3_게이트웨이설계', '보관', '게이트웨이 테이블정의서.md')))
+  assert.ok(fs.existsSync(path.join(tmp, 'kn', 'dpms', 'docs', '3.3_게이트웨이설계', '보관', '접속 순서.md')))
+  // 옆 메뉴 문서 나무가 같은 차례
+  await page.click('[data-t=krow][data-name="DPMS 지식"]').catch(() => {})
+  await page.goto(s.url + '#docs')
+  await page.waitForSelector('[data-t=tree] [data-t=dir]')
+  const side = await page.locator('[data-t=tree] [data-t=dir]').evaluateAll((els) => els.map((e) => e.dataset.p))
+  assert.deepEqual(side.slice(0, 2), ['3.4_웹설계', '3.3_게이트웨이설계'])
+  assert.deepEqual(errors, [])
+  await page.close()
 })

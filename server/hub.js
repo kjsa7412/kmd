@@ -47,6 +47,10 @@ import { FILE_SCHEMA, filePrompt, fileRecord, COMMIT_SCHEMA, commitPrompt, commi
 import { renderRecord } from '../core/frontmatter.js'
 import { stampAll, headingMatches, findHeading } from '../core/sections.js'
 import { docfmtDir, checkFormat } from '../core/docformat.js'
+import { applyRestructure, readStructure, structureFp } from '../core/restructure.js'
+import { parseOrder } from '../core/order.js'
+import { parseDoc as parseDocText } from '../core/sections.js'
+import { parseForms } from '../core/guard.js'
 import { fileURLToPath } from 'node:url'
 import { existsSync, readFileSync, statSync, watch as fsWatch } from 'node:fs'
 import * as sendLib from '../core/send.js'
@@ -1542,6 +1546,42 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
       }
       return { kn: id, name: meta.name, ...r }
+    },
+
+    // 문서 짜임(권한 모델 7-1절) — 지식관리자 · 개인 프로그램. 읽기는 지금 짜임 + 지문 · 바꾸기는 한 커밋 + 이력 하나(core/restructure.js)
+    //   문서마다 { id, title, watched, form(갈래 장부에 있는 이름) } · 폴더는 문서 경로 + 차례 장부의 빈 폴더 · 지문이 어긋나면 바꾸기가 E_CONFLICT
+    async structure(id, ctx) {
+      const meta = await hub.meta(id, ctx)
+      if (ctx) hub.need(ctx, id, 'admin')
+      const f = await readStructure(meta.dir)
+      const forms = new Set(parseForms(f.forms).map((x) => x.name))
+      const docs = [...f.docs].map(([rel, text]) => {
+        const did = rel.slice(5, -3), base = did.split('/').pop()
+        return { id: did, title: parseDocText(text, base).title || base, watched: /^<!--\s*watched:/.test(text), form: forms.has(base) }
+      })
+      const o = parseOrder(f.order)
+      return { kn: id, name: meta.name, fp: structureFp(docs.map((d) => d.id), f.order), docs, order: o.order, dirs: o.dirs }
+    },
+    async restructure(id, ctx, { ops, base = null, dry = false } = {}) {
+      const meta = await hub.meta(id, ctx)
+      if (ctx) hub.need(ctx, id, 'admin')
+      if (!ops || typeof ops !== 'object' || Array.isArray(ops)) throw new KmdError('E_INPUT', 'ops 는 { moves, creates, dirs, order } 다')
+      for (const k of ['moves', 'creates', 'dirs']) if (ops[k] != null && !Array.isArray(ops[k])) throw new KmdError('E_INPUT', `${k} 는 목록이다`)
+      if (ops.order != null && (typeof ops.order !== 'object' || Array.isArray(ops.order))) throw new KmdError('E_INPUT', 'order 는 { 폴더: [이름] } 이다')
+      if (base != null && !(typeof base === 'string' && /^[0-9a-f]{16}$/.test(base))) throw new KmdError('E_INPUT', 'base 는 읽을 때 받은 16자 지문이다')
+      if (!dry) {
+        const shut = backup.closed(meta)
+        if (shut) throw new KmdError('E_BEHIND', shut.message)
+      }
+      const user = ctx?.user || 'kmd'
+      const r = await applyRestructure(meta.dir, ops, { user, by: user, base, dry: !!dry })
+      // ── 커밋 뒤는 던지지 않는다 ──
+      if (r.commit) {
+        cache.delete(id)
+        try { if (backup.attached(meta)) backup.enqueue(meta, { log }).catch((e) => log(`백업 걸기 실패 ${id}: ${e.message}`)) } catch (e) { log(`백업 걸기 실패 ${id}: ${e.message}`) }
+        try { feed.add(dataDir, user, { kind: 'save', rec: r.log, kn: id, dot: 'acc', text: `문서 짜임: ${meta.name}`, small: r.lines.slice(0, 3).map((x) => x.replace(/^- /, '')).join(' · ') }).catch((e) => log(`오늘 바뀐 것 줄을 쓰지 못했다 ${id}: ${e.message}`)) } catch (e) { log(`오늘 바뀐 것 줄을 쓰지 못했다 ${id}: ${e.message}`) }
+      }
+      return { kn: id, ...r }
     },
 
     // 조각을 넣는 판정(S-D6) — 이 PC · 그 지식의 에이전트 · 쓰기 이상. 장부 · 되돌리기 · 받은편지함은 canDirect(지식관리자) 그대로

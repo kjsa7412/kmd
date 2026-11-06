@@ -415,7 +415,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const GET_OK = [
     /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|admin\/groups|claude\/state|busy|send\/teams)$/,
     /^\/api\/agent\/parser$/, /^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
-    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|held|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard)$/,
+    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|held|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure)$/,
   ]
   const api = async (req, res, url, ctx, set) => {
     const p = url.pathname
@@ -682,6 +682,15 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       else need(ctx)
       const b = await readBody(req)
       return out(200, await hub.docfmt(dec(dfm[1]), ctx, { dry: !!b.dry, lift: b.lift === true }))
+    }
+    // 문서 짜임(권한 모델 7-1절) — 지식관리자 · GET 은 지금 짜임 + 지문 · POST { ops, base, dry } 는 옮김 · 이름 · 새 문서 · 빈 폴더 · 차례를 한 커밋으로
+    const stm = p.match(/^\/api\/k\/([^/]+)\/structure$/)
+    if (stm) {
+      need(ctx)
+      if (req.method === 'GET') return out(200, await hub.structure(dec(stm[1]), ctx))
+      if (req.method !== 'POST') throw new KmdError('E_METHOD', 'GET · POST 만 받는다')
+      const b = await readBody(req)
+      return out(200, await hub.restructure(dec(stm[1]), ctx, { ops: b.ops, base: b.base ?? null, dry: b.dry === true }))
     }
     // 지식 추가 — 새 이름 · 내 폴더(PC)
     if (p === '/api/knowledge/add') {

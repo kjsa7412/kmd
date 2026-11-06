@@ -19,6 +19,7 @@ import { parseRegistry, locate } from './registry.js'
 import { LOG_TAGS, isLogRecord, isReservedUser } from './names.js'
 import { parsePut, parseReverted, itemKey } from './parts.js'
 import { watchedOf } from './watchmark.js'
+import { parseOrder, ORDER_FILE } from './order.js'
 
 const isDir = (p) => fs.stat(p).then((s) => s.isDirectory(), () => false)
 const readOr = (p) => fs.readFile(p, 'utf8').then(readText, () => null)
@@ -113,7 +114,9 @@ export async function loadKnowledge({ id, name, dir }, { cache = null, cutoverAt
   const registry = parseRegistry(await readOr(path.join(dir, '_managed.md')))
   // 갈래 장부 — 새 문서가 설 수 있는 갈래(없으면 기본 갈래 · core/guard.js)
   const forms = formsOf(await readOr(path.join(dir, '_forms.md')))
-  const k = { id, name, dir, docs, works, logs, atts, vocab, registry, forms }
+  // 차례 장부 — 옆 메뉴 나무 · 문서 짜임의 차례 · 문서가 없는 폴더(core/order.js)
+  const order = parseOrder(await readOr(path.join(dir, ORDER_FILE)))
+  const k = { id, name, dir, docs, works, logs, atts, vocab, registry, forms, order }
   k.byDocPath = new Map(docs.map((d) => [d.path, d]))
   // byWork — 기록 · 이력 모두(항목 표지 · 판정 · 바로잡기가 이력의 id 를 가리킨다)
   k.byWork = new Map([...works, ...logs].map((w) => [w.id, w]))

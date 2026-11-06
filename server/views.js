@@ -330,6 +330,9 @@ export function tree(k, see = {}) {
     docs: k.docs.map((d) => ({ id: d.id, title: d.title, when: d.mtime, held: held.has(d.path) })),
     records: k.works.map(recRow),
     atts: k.atts.map((a) => a.replace(/^(docs|work)\/assets\//i, '')),
+    // 차례 장부(core/order.js) — 폴더마다 형제 차례 · 문서가 없는 폴더
+    order: k.order?.order || {},
+    dirs: k.order?.dirs || [],
   }
 }
 

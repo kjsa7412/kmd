@@ -1184,6 +1184,57 @@ details.ap.refs[open]>summary h4::after{content:"▾"}
 .paper a.dlink.rec,.paper .dlink.rec{color:var(--text-2);font-weight:400;text-decoration:underline dotted;text-underline-offset:2px}
 .paper .dlink.rec::before{content:"기록";display:inline-block;margin-right:var(--sp-2);padding:0 var(--sp-2);border-radius:var(--r-xs);background:var(--pending-bg);color:var(--pending);font-size:var(--fs-xs);font-weight:600;line-height:1.5;vertical-align:1px;text-decoration:none}
 /* 넣지 못함(S10 · 설계 4-8) — 요약 줄 · 표(사람 · 들어온 길 · 기록 · 까닭 · 상태 · 손잡이 · ⋯) · 좁으면 줄을 접는다(옛 정리 화면 td-* 의 꼴 · td-* 는 S13 에 걷었다) */
+/* 문서 짜임(설정 › 문서 짜임 · 컨벤션 5절) — 나무 하나 · 끌어 옮기기 · 줄 안 이름 칸 · 아래 바 */
+.sxy{max-width:min(var(--w-list),100%);padding-bottom:120px}
+.sx-h{display:block}
+.sx-tools{margin:var(--sp-5) 0 0;display:flex;gap:var(--sp-4);align-items:center;flex-wrap:wrap}
+.sx-tools .sx-q{flex:1 1 160px;min-width:0}
+.sx-tools .sx-kn{width:min(200px,100%)}
+.sx-strip{display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap;margin:0 0 var(--sp-6)}
+.sx-strip .btn{margin-left:auto}
+.sx-tree{border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);padding:var(--sp-3)}
+.sx-root{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-2) var(--sp-3);border-radius:var(--r);color:var(--text-3);font-size:var(--fs-sm);border:1px dashed transparent;margin-bottom:var(--sp-1)}
+.sx-tree.dragging .sx-root{border-color:var(--border-strong)}
+.sx-row{display:flex;align-items:center;gap:var(--sp-3);min-height:30px;padding:2px var(--sp-3) 2px calc(var(--sp-3) + 14px + var(--sp-2) + var(--sp-6) * var(--dep, 0));border-radius:var(--r);cursor:pointer;white-space:nowrap;min-width:0;user-select:none}
+.sx-row[draggable=true]{cursor:grab}
+.sx-row:hover{background:var(--surface-2)}
+.sx-row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sx-row.dir{padding-left:calc(var(--sp-3) + var(--sp-6) * var(--dep, 0));gap:var(--sp-2);color:var(--text-2);font-weight:600}
+.sx-row .ar{width:14px;flex:none;text-align:center;color:var(--text-3);font-size:var(--fs-xs)}
+.sx-row.on{background:var(--accent-bg)}
+.sx-row.drag{opacity:.45}
+.sx-row.before{box-shadow:inset 0 2px 0 var(--accent)}
+.sx-row.after{box-shadow:inset 0 -2px 0 var(--accent)}
+.sx-row.into,.sx-root.into{background:var(--accent-bg);box-shadow:inset 0 0 0 2px var(--accent)}
+.sx-row .rc{font-size:var(--fs-xs);color:var(--text-3);background:var(--surface-2);border-radius:var(--r-pill);padding:0 var(--sp-3);flex:none;font-weight:400}
+.sx-row svg,.sx-root svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none;color:var(--text-3)}
+.sx-dot{width:7px;height:7px;border-radius:var(--r-pill);flex:none}
+.sx-dot.ch{background:var(--accent)}
+.sx-dot.new{background:var(--ok)}
+.sx-dot.df{background:var(--warn-line)}
+.sx-lock{display:inline-flex;flex:none}
+.sx-ib{border:0;background:none;color:var(--text-3);cursor:pointer;border-radius:var(--r-xs);padding:var(--sp-1) var(--sp-2);display:none;line-height:0}
+.sx-ib svg{color:currentColor}
+.sx-row:hover .sx-ib,.sx-row:focus-within .sx-ib,.sx-row.on .sx-ib{display:inline-flex}
+.sx-ib:hover{background:var(--surface-3);color:var(--text)}
+.sx-ib.del:hover{color:var(--danger)}
+.sx-row:focus-visible,.sx-ib:focus-visible{outline:0;box-shadow:var(--focus-ring)}
+.sx-row.edit{cursor:default}
+.sx-in{flex:1;min-width:0;min-height:26px;padding:2px var(--sp-4);font-weight:400}
+.sx-in[aria-invalid=true]{border-color:var(--danger);box-shadow:0 0 0 2px var(--danger-bg)}
+.sx-why{font-size:var(--fs-xs);color:var(--danger);flex:none;max-width:45%;overflow:hidden;text-overflow:ellipsis}
+.sx-tip{margin:var(--sp-4) 0 0}
+.sx-bar{position:sticky;bottom:var(--sp-6);margin-top:var(--sp-7);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-2);z-index:var(--z-menu)}
+.sx-bh{display:flex;align-items:center;gap:var(--sp-4);padding:var(--sp-5) var(--sp-7);flex-wrap:wrap}
+.sx-bh .r{margin-left:auto;display:flex;gap:var(--sp-4)}
+.sx-chg{list-style:none;margin:0;padding:0 var(--sp-7) var(--sp-4);max-height:220px;overflow:auto;border-top:1px solid var(--border)}
+.sx-chg li{display:flex;align-items:center;gap:var(--sp-4);padding:var(--sp-3) 0;border-bottom:1px solid var(--border);min-width:0}
+.sx-chg li:last-child{border-bottom:0}
+.sx-chg .fr{min-width:0;flex:1;overflow-wrap:anywhere}
+.sx-chg .fr s{color:var(--text-3)}
+.sx-kd{font-size:var(--fs-xs);font-weight:700;border-radius:var(--r-sm);padding:0 var(--sp-3);flex:none;white-space:nowrap;background:var(--surface-3);color:var(--text-2)}
+.sx-kd.new{background:var(--ok-bg);color:var(--ok)}
+@media (max-width:600px){.sx-tools .sx-kn{width:100%}}
 .hdy{container-type:inline-size}
 .hd-kn{max-width:min(360px,100%);margin:0 0 var(--sp-6)}
 .hd-sum{display:flex;flex-wrap:wrap;gap:var(--sp-3) var(--sp-8);align-items:baseline;font-size:var(--fs);color:var(--text-2);margin:0 0 var(--sp-7);padding:0 var(--sp-2)}
