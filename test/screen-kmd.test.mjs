@@ -123,7 +123,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.equal(await page.locator('.ribbon').count(), 0)
   assert.deepEqual(await page.locator('[data-t=ktabs] button').allInnerTexts(), ['문서', '항목', '그래프'])
   // 지식 관리 — 이력과 설정(팀 화면은 팀 지식만 · 개인 지식은 개인 화면에서)
-  assert.deepEqual(await page.locator('[data-t=manageArea] .sb-i').evaluateAll((els) => els.map((e) => e.querySelector('span').textContent)), ['이력', '설정', '개인 지식 쓰기'])
+  assert.deepEqual(await page.locator('[data-t=manageArea] .sb-i').evaluateAll((els) => els.map((e) => e.querySelector('span').textContent)), ['이력', '설정']) // 개인 지식 쓰기는 설정 › 에이전트 설치 카드로
   assert.match(await page.locator('.hdr .hmid').innerText(), /빨리 열기[\s\S]*Ctrl O[\s\S]*찾기[\s\S]*Ctrl K/)
   assert.match(await page.locator('.hdr .hright').innerText(), /Claude[\s\S]*설명서/)
   // 들어온 사람은 왼쪽 메뉴 맨 위(누르면 설정 · 나가기)
@@ -345,8 +345,8 @@ test('정리를 걷었다(S13): 조각 없는 기록은 메모 · 옛 정리 화
   await page.click('#oldTidy')
   await page.waitForFunction(() => /^넣지 못함/.test(document.querySelector('.main .big')?.textContent || ''))
   assert.equal(await page.locator('[data-t=tdKnSel], [data-t=tidyBtn], [data-t=tdSum]').count(), 0)
-  // 설정 › 일반 — 팀 지식 표(넣지 못함 · Claude 에 보내지 않음) · 옛 정리 표는 없다
-  await mg(page, 'team', 'gen')
+  // 설정 › 팀 지식 — 지식마다 표(나의 자리 · Claude 에 보내지 않음) · 옛 정리 표 · 넣지 못함 칸은 없다
+  await mg(page, 'team', 'kns')
   await page.waitForSelector('[data-t=knTable]')
   assert.equal(await page.locator('[data-t=tidyTable]').count(), 0)
   assert.equal(await page.locator('[data-t=knTable] button .chip').count(), 0, '칩을 단추로 쓰지 않는다(컨벤션 5절)')
@@ -591,32 +591,37 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 팀 일�
   await page.fill('#lgPw', me.pw)
   await page.click('[data-t=loginBtn]')
   await page.waitForSelector('[data-t=klist]')
-  await mg(page, 'team', 'gen')
+  await mg(page, 'team', 'mine')
   assert.equal(await page.locator('[data-t=mgNav] .mgt').innerText(), '설정')
-  assert.equal(await page.locator('[data-t=setTitle]').innerText(), '일반')
-  assert.deepEqual(await mgItems(page), ['가져오기', '넣지 못함', '문서 짜임', '일반', '사람', 'Claude 연결', '에이전트 설치', '관리'])
+  assert.equal(await page.locator('[data-t=setTitle]').innerText(), '나')
+  // 업무 차례: 매일 › 세우기 › 사람 들이기 › 붙이기 › 나 · 작업은 끝에
+  assert.deepEqual(await mgItems(page), ['점검', '팀 서버', '팀 지식', '사람 · 묶음', '에이전트 설치', '나', '가져오기', '넣지 못함', '문서 짜임'])
+  assert.deepEqual(await page.locator('[data-t=mgNav] [data-t=mgGroup]').allInnerTexts(), ['매일', '1. 세우기', '2. 사람 들이기', '3. 붙이기', '나', '작업'])
   await page.waitForSelector('[data-t=auto-find]')
-  assert.match(await page.locator('.main .card .ch').first().innerText(), /이 팀 서버/)
+  assert.match(await page.locator('.main .card .ch').first().innerText(), /내 자리/)
+  assert.match(await page.locator('[data-t=autoCard] .ch').innerText(), /내 설정[\s\S]*나에게만/)
+  await page.waitForSelector('[data-t=devList]')
+  assert.equal(await page.locator('[data-t=mineLogout] [data-t=mineLogoutAll]').count(), 1)
   await page.click('[data-t=sw-find]')
   await page.waitForFunction(() => /꺼 두었다/.test(document.querySelector('[data-t=auto-find]').textContent))
   await page.click('[data-t=sw-find]')
   await page.waitForFunction(() => !/꺼 두었다/.test(document.querySelector('[data-t=auto-find]').textContent))
   assert.deepEqual(await bannedIn(page), [])
   await page.screenshot({ path: path.join(SHOTS, 'app-settings.png') })
-  await page.click('[data-t=mg-claude]')
-  // 관리자 — 정리 전용 로그인을 이 탭에서 다 한다(관리로 보내지 않는다)
+  await page.click('[data-t=mg-server]')
+  // 총괄 관리자 — 팀 일꾼 로그인을 팀 서버 페이지에서 다 한다(점검으로 보내지 않는다)
   await page.waitForSelector('[data-t=admClaude] [data-t=admLoginStart]')
   assert.equal(await page.locator('[data-t=toAdmClaude]').count(), 0)
-  // 개인 지식 쓰기(옆 메뉴 · 누구나 · 옛 「개인 프로그램 설치」 · K11-2) — 설치 · 잇기 한 줄 · 내 기기 한 곳(작업 폴더에 팀 지식 붙이기는 설정 › 에이전트 설치 탭)
-  await page.click('[data-t=nav-install]')
+  // 개인 지식 쓰기(옛 옆 메뉴 칸 · K11-2) — 설정 › 에이전트 설치의 둘째 카드 · 옆 메뉴 칸은 걷었다 · 옛 이름 install 은 에이전트 설치로
+  assert.equal(await page.locator('[data-t=nav-install]').count(), 0)
+  await page.evaluate(() => { const x = document.createElement('button'); x.dataset.a = 'nav'; x.dataset.s = 'install'; x.id = 'oldInstall'; document.querySelector('#app').appendChild(x) })
+  await page.click('#oldInstall')
   await page.waitForSelector('[data-t=installCard]')
-  assert.equal(await page.locator('.hdr .crumb').innerText(), '개인 지식 쓰기')
-  assert.match(await page.locator('[data-t=installLead]').innerText(), /^팀 지식만 쓰면 개인 프로그램은 필요 없다\(설정 › 에이전트 설치 한 줄이면 된다\)\. 개인 지식을 쓰려면:/)
-  assert.equal(await page.locator('[data-t=installToAgent]').evaluate((e) => e.tagName), 'BUTTON')
+  assert.equal(await page.locator('.hdr .crumb').innerText(), '설정 › 에이전트 설치')
+  assert.match(await page.locator('[data-t=installLead]').innerText(), /^팀 지식만 쓰면 개인 프로그램은 필요 없다/)
   await page.click('[data-t=installCopy]')
   await page.waitForSelector('[data-t=installLine]')
   assert.match(await page.locator('[data-t=installLine]').innerText(), /\/i\/kmdt_[A-Za-z0-9_-]+/)
-  await page.waitForSelector('[data-t=devList]')
   for (const w of [1280, 1024, 600, 375]) {
     await page.setViewportSize({ width: w, height: 820 })
     const r = await cutAt(page)
@@ -625,7 +630,6 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 팀 일�
     await page.screenshot({ path: path.join(SHOTS, `app-install-${w}.png`) })
   }
   await page.setViewportSize(VIEW)
-  assert.equal(await page.locator('[data-t=agentCard]').count(), 0, '개인 프로그램 설치에 에이전트 설치 카드가 없다')
   await mg(page, 'team', 'agent')
   await page.waitForSelector('[data-t=agentCard]')
   assert.equal(await page.locator('[data-t=setTitle]').innerText(), '에이전트 설치')
@@ -639,7 +643,7 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 팀 일�
   assert.equal(await page.locator('[data-t=agGuide] > li').count(), 4)
   // 스킬 셋 · Claude Code 확인 · 대량 넣기는 Claude Code 에서(K11-2 · K11-3)
   assert.match(await page.locator('[data-t=agGuide]').innerText(), /kmd-team-work · kmd-team-save · kmd-team-import/)
-  assert.match(await page.locator('[data-t=agGuide]').innerText(), /claude auth login/)
+  assert.match(await page.locator('[data-t=agHelp]').textContent(), /claude auth login/)
   assert.match(await page.locator('[data-t=agBulk]').innerText(), /^대량 넣기는 Claude Code 에서[\s\S]*kmd-team-import[\s\S]*파서는 처음 할 때 한 번 받는다/)
   assert.deepEqual(await bannedIn(page), [])
   const teamRows = await page.locator('[data-t=agInstTeam] [data-t=agInstRow]').evaluateAll((els) => els.map((e) => e.dataset.name))
@@ -684,11 +688,11 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 팀 일�
   // 설정 · 개인은 팀 화면에 없다(분리 — 개인 화면에서)
   assert.equal(await page.locator('[data-t=nav-settings-me]').count(), 0)
   // 관리 — 문제 줄만 · 정리 로그인은 설정 · 팀 › Claude 연결에서 다 한다(비밀번호 한 번 더 → 주소 → 번호 → 로그인됨)
-  await mg(page, 'team', 'admin')
+  await mg(page, 'team', 'check')
   await page.waitForSelector('[data-t=admList]')
   assert.match(await page.locator('.main .lead').last().innerText(), /문제가 있을 때만 줄이 선다/)
   assert.equal(await page.locator('[data-t=admClaude]').count(), 0)
-  await mg(page, 'team', 'claude')
+  await mg(page, 'team', 'server')
   await page.waitForSelector('[data-t=admClaude]')
   await page.waitForSelector('[data-t=claudeHow]')
   // 비밀번호 한 번 더는 공통 창(Q13) — 카드 안 칸이 없다 · 15분 안이면 묻지 않는다
@@ -793,7 +797,7 @@ test('이 PC 화면: 정리가 따로 없다는 말(지식 만들기 · 설정) 
     assert.equal(await page.locator('[data-t=cap-fetch]').inputValue(), '2')
     assert.equal(await page.locator('[data-t=qHold]').innerText(), '줄 멈춤')
     // 설정 — Claude 스위치는 「정해진 시각의 자동 정리」 가 아니라 기록을 곧바로 문서로
-    await mg(page, 'me', 'gen')
+    await mg(page, 'me', 'pc')
     await page.waitForSelector('[data-t=auto-claude]')
     assert.match(await page.locator('[data-t=auto-claude]').innerText(), /기록을 문서로: Claude 로[\s\S]*곧바로/)
     // 지식 추가 — 지식 고르기의 「+ 지식 추가」 → 지식 목록 위 팝업(이름만) · 지식 폴더 띠(경로 · 동기화) — 요구 v0.2 R2
@@ -860,7 +864,7 @@ test('개인 화면: 지식 보내기 · 받는 팀 지식 고르기 · 지식 �
     // 지식 관리 — 개인 화면에도 지식 보내기
     await mg(page, 'me', 'send')
     await page.waitForSelector('[data-t=mgNav]')
-    assert.deepEqual(await mgItems(page), ['가져오기', '문서 짜임', '지식 보내기', '일반', 'Claude 연결', '에이전트 설치'])
+    assert.deepEqual(await mgItems(page), ['이 PC', 'Claude 연결', '에이전트 설치', '가져오기', '문서 짜임', '지식 보내기'])
     await page.click('[data-t=sendSrc]')
     await page.locator('[data-t=sendSrcItem]').filter({ hasText: '테스트-보내기' }).click()
     await page.waitForSelector('[data-t=sendSetup]')
@@ -962,7 +966,7 @@ test('팀 화면: 팀 지식만 — 지식 목록 · 이력 · 설정 · 넣지 
     // 개인 프로그램을 부르지 않는다 — 팀 화면의 요청은 팀 서버로만
     const asked = []
     page.on('request', (r) => { if (!r.url().startsWith(s.url)) asked.push(r.url()) })
-    const screens = [['home', null], ['history', async () => hist(page)], ['settings', async () => mg(page, 'team', 'gen')], ['held', async () => mg(page, 'team', 'held')]]
+    const screens = [['home', null], ['history', async () => hist(page)], ['settings', async () => mg(page, 'team', 'mine')], ['check', async () => mg(page, 'team', 'check')], ['agent', async () => mg(page, 'team', 'agent')], ['held', async () => mg(page, 'team', 'held')]]
     for (const [name, open] of screens) {
       await page.setViewportSize(VIEW)
       if (open) await open(); else { await page.goto(s.url + '/'); await page.waitForSelector('[data-t=klist]') }
@@ -998,10 +1002,10 @@ test('따로 할 것(Q11 · Q50 · Q51 · Q52): 설정은 일반으로 · 고르
     const card = page.locator('[data-t=krow][data-name="DPMS 지식"]')
     assert.equal(await card.getAttribute('role'), 'group')
     assert.equal(await card.locator('[data-t=knOpen]').evaluate((e) => e.tagName), 'BUTTON')
-    // Q11 — 옆 메뉴 「설정」 은 설정 › 일반
+    // Q11 — 옆 메뉴 「설정」 은 보이는 첫 칸(총괄 관리자는 점검)
     await page.click('[data-t=nav-settings-team]')
     await page.waitForSelector('[data-t=mgNav]')
-    assert.equal((await page.locator('[data-t=mgNav] .mgi.on').innerText()).trim(), '일반')
+    assert.equal((await page.locator('[data-t=mgNav] .mgi.on').innerText()).trim(), '점검')
     // Q50 — 빨리 열기: combobox · listbox · 고른 줄이 activedescendant
     await page.keyboard.press('Control+o')
     await page.waitForSelector('#qoIn[role=combobox]')

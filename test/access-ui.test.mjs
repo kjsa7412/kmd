@@ -197,7 +197,8 @@ test('설정 메뉴 표 하나: 지식관리자에게 관리가 없다 · 설정
   await page.click('[data-t=nav-settings-team]')
   await page.waitForSelector('[data-t=mgNav]')
   const items = await page.locator('[data-t=mgNav] .mgi').allInnerTexts()
-  assert.ok(!items.includes('관리'), '지식관리자 메뉴에 관리가 없다: ' + items)
+  assert.deepEqual(items, ['팀 지식', '에이전트 설치', '나', '가져오기', '넣지 못함', '문서 짜임'], '지식관리자 메뉴: 점검 · 팀 서버 · 사람 · 묶음은 없다')
+  assert.equal((await page.locator('[data-t=setTitle]').innerText()).trim(), '팀 지식', '지식관리자의 첫 화면은 팀 지식')
   assert.equal(await page.locator('[data-t=mgNav] .mgi').first().evaluate((e) => e.tagName), 'BUTTON')
   // 설정 페이지 사이를 옮기면 앱 안 기록에 남는다 — ‹ 로 앞 페이지
   const first = (await page.locator('[data-t=setTitle]').innerText()).trim()
@@ -211,7 +212,7 @@ test('설정 메뉴 표 하나: 지식관리자에게 관리가 없다 · 설정
   // boss — 총괄 관리자에게는 관리가 있고, 관리에는 사람 · 묶음 카드가 다시 나오지 않는다
   const b = await login(P.boss)
   await b.click('[data-t=nav-settings-team]')
-  await b.click('[data-t=mgNav] [data-t=mg-admin]')
+  await b.click('[data-t=mgNav] [data-t=mg-check]')
   await b.waitForSelector('[data-t=admList]')
   assert.equal(await b.locator('[data-t=admPeople], [data-t=admGroups]').count(), 0)
   assert.equal(await b.locator('.main .big').count(), 1, '제목은 한 번')
