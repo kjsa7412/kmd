@@ -1920,36 +1920,55 @@ function gErdSvg(k, G) {
   const selBox = sel && (sel.startsWith('d:') ? sel.slice(2) : sel.startsWith('i:') ? (() => { const it = m.byKey.get(sel.slice(2)); return it ? it.doc || it.whole || '_out' : null })() : null)
   const list = [...boxes.values()].sort((a, b) => (a.key === selBox ? -1 : b.key === selBox ? 1 : 0) || (dOrder.has(a.key) ? dOrder.get(a.key) : 1e9) - (dOrder.has(b.key) ? dOrder.get(b.key) : 1e9) || a.title.localeCompare(b.title))
   list.forEach((b) => { const d = m.docById.get(b.key), io = new Map(((d && d.items) || []).map((x, i) => ['i:' + x, i])); b.rows.sort((p, q) => (io.has(p.id) ? io.get(p.id) : 1e9) - (io.has(q.id) ? io.get(q.id) : 1e9)) })
-  const W = gAvail(1600), PAD = 16, TOP = 16, RH = 24, HH = 30, BW = 232, GX = 72
-  const recW = recs.length ? 220 : 0, x0 = PAD + (recW ? recW + GX : 0)
-  const nc = Math.max(1, Math.floor((W - x0 - PAD + GX) / (BW + GX)))
-  const colH = new Array(nc).fill(TOP), at = {}
+  // 배치 — 칸의 가로 · 세로 비율에 맞춘다. 문서 상자 열 수(nc)를 바꿔 가며 상자를 낮은 열부터 채우고, 기록은 그 높이에 맞춰 여러 열로 접는다.
+  //   그중 「칸에 다 들어올 때의 배율」 이 가장 큰 배치를 고른다(아래로만 길게 늘어지지 않게)
+  const PAD = 16, TOP = 16, RH = 24, HH = 30, BW = 232, GX = 72, RW = 220, RG = 14, RHH = 48
+  const bhOf = (b) => HH + b.rows.length * RH + (b.rows.length ? 8 : 0)
+  const wrap = $('#app .gerdw'), cw = (wrap && wrap.clientWidth) || gAvail(1600), ch = (wrap && wrap.clientHeight) || Math.max(400, innerHeight - 260)
+  // 열 하나보다 긴 상자는 잘라 다음 열에서 이어 간다(머리 「(이어서)」) — 큰 문서 하나가 높이를 정하지 않게
+  const total = list.reduce((a, b) => a + bhOf(b) + 18, 0)
+  const place = (nc) => {
+    const cap = Math.max(8, Math.floor((total / nc - HH - 8) / RH))
+    const pieces = []
+    for (const b of list) { if (b.rows.length <= cap) pieces.push({ b, rows: b.rows, cont: false }); else for (let i = 0; i < b.rows.length; i += cap) pieces.push({ b, rows: b.rows.slice(i, i + cap), cont: i > 0 }) }
+    const h = new Array(nc).fill(TOP), pos = []
+    for (const pc of pieces) { const c = h.indexOf(Math.min(...h)); pos.push([c, h[c]]); h[c] += HH + pc.rows.length * RH + (pc.rows.length ? 8 : 0) + 18 }
+    return { pieces, pos, H: Math.max(...h) }
+  }
+  let best = null
+  for (let n = 1; n <= Math.max(1, Math.min(40, list.length)); n++) {
+    const p = place(n)
+    const rc = recs.length ? Math.max(1, Math.ceil((recs.length * RHH) / Math.max(RHH, p.H - TOP))) : 0, rr = rc ? Math.ceil(recs.length / rc) : 0
+    const H = Math.max(p.H, TOP + rr * RHH) + PAD, W = PAD + (rc ? rc * RW + (rc - 1) * RG + GX : 0) + n * BW + (n - 1) * GX + PAD
+    const sc = Math.min(cw / W, (ch - 64) / H)
+    if (!best || sc > best.sc + 1e-9) best = { nc: n, rc, rr, p, W, H, sc }
+  }
+  const { rc, rr, p: placed, W } = best
+  const x0 = PAD + (rc ? rc * RW + (rc - 1) * RG + GX : 0), at = {}
   // 가운데 점과 이어진 점 — 줄을 옅게 칠해 선이 상자 뒤로 숨어도 무엇과 이어졌는지 보인다
   const nbs = new Set(sel && G.nbr[sel] ? [...G.nbr[sel], ...S.g.open.flatMap((o) => [...(G.nbr[o] || [])])] : [])
   const cls = (id) => (id === cur ? ' on' : '') + (id === sel ? ' sel' : '') + (nbs.has(id) && id !== sel ? ' nb' : '') + (nq && byId.get(id) && norm(byId.get(id).label).includes(nq) ? ' hit' : '')
   const el = (n, inner) => `<g class="ge${cls(n.id)}" data-a="gTap" data-v="${esc(n.id)}" data-t="gEl" data-l="${esc(norm(n.label))}" role="button" tabindex="0" aria-label="${esc((KLAB[n.kind] || '') + ' ' + n.label)}"><title>${esc(n.label)}</title>${inner}</g>`
   let boxS = '', recS = ''
-  for (const b of list) {
-    const c = colH.indexOf(Math.min(...colH)), bx = x0 + c * (BW + GX), by = colH[c], bh = HH + b.rows.length * RH + (b.rows.length ? 8 : 0)
+  placed.pieces.forEach((pc, bi) => {
+    const b = pc.b, [c, by] = placed.pos[bi], bx = x0 + c * (BW + GX), bh = HH + pc.rows.length * RH + (pc.rows.length ? 8 : 0)
     let s = `<rect class="gbx" x="${bx}" y="${by}" width="${BW}" height="${bh}" rx="8"/>`
-    const head = `<rect class="ghr" x="${bx}" y="${by}" width="${BW}" height="${HH}" rx="8"/>${glyphSvg(b.head ? b.head.kind : 'doc', bx + 15, by + 15, 6)}<text class="gt b" x="${bx + 28}" y="${by + 19}">${esc(gFit(b.title, BW - 40, 12))}</text>`
+    const head = `<rect class="ghr" x="${bx}" y="${by}" width="${BW}" height="${HH}" rx="8"/>${glyphSvg(b.head ? b.head.kind : 'doc', bx + 15, by + 15, 6)}<text class="gt b" x="${bx + 28}" y="${by + 19}">${esc(gFit(b.title, BW - (pc.cont ? 90 : 40), 12))}</text>${pc.cont ? `<text class="gs" x="${bx + BW - 10}" y="${by + 19}" text-anchor="end">(이어서)</text>` : ''}`
     s += b.head ? el(b.head, head) : `<g class="ge off">${head}</g>`
-    if (b.head) at[b.head.id] = { lx: bx, rx: bx + BW, y: by + 15 }
-    b.rows.forEach((n, i) => {
+    if (b.head && !pc.cont) at[b.head.id] = { lx: bx, rx: bx + BW, y: by + 15 }
+    pc.rows.forEach((n, i) => {
       const y = by + HH + 4 + i * RH
       s += el(n, `<rect class="grow" x="${bx + 4}" y="${y}" width="${BW - 8}" height="${RH - 2}" rx="5"/>${glyphSvg(n.kind, bx + 16, y + 11, 5)}<text class="gt" x="${bx + 28}" y="${y + 15}">${esc(gFit(n.label, BW - 40, 12))}</text>`)
       at[n.id] = { lx: bx + 4, rx: bx + BW - 4, y: y + 11 }
     })
     boxS += s
-    colH[c] = by + bh + 18
-  }
-  let ry = TOP
-  for (const n of recs) {
-    const r = m.recById.get(n.id.slice(2))
-    recS += el(n, `<rect class="grec" x="${PAD}" y="${ry}" width="${recW}" height="40" rx="8"/>${glyphSvg('rec', PAD + 15, ry + 20, 6)}<text class="gt" x="${PAD + 30}" y="${ry + 17}">${esc(gFit(n.label, recW - 40, 12))}</text><text class="gs" x="${PAD + 30}" y="${ry + 32}">${esc(r ? recDt(r.date) + ' · ' + r.author : '')}</text>`)
-    at[n.id] = { lx: PAD, rx: PAD + recW, y: ry + 20 }
-    ry += 48
-  }
+  })
+  // 기록 — 위가 최근 · 열을 위에서 아래로 채우고 다음 열로
+  recs.forEach((n, j) => {
+    const r = m.recById.get(n.id.slice(2)), rx = PAD + Math.floor(j / rr) * (RW + RG), ry = TOP + (j % rr) * RHH
+    recS += el(n, `<rect class="grec" x="${rx}" y="${ry}" width="${RW}" height="40" rx="8"/>${glyphSvg('rec', rx + 15, ry + 20, 6)}<text class="gt" x="${rx + 30}" y="${ry + 17}">${esc(gFit(n.label, RW - 40, 12))}</text><text class="gs" x="${rx + 30}" y="${ry + 32}">${esc(r ? recDt(r.date) + ' · ' + r.author : '')}</text>`)
+    at[n.id] = { lx: rx, rx: rx + RW, y: ry + 20 }
+  })
   // 선 — 상자 뒤에 그린다(글을 가로지르지 않게). 가운데 점의 선은 강조색 · 「선」 을 켜면 나머지 선은 옅게 · 문서 ⊃ 항목은 상자가 보여 준다
   const path = (a, b) => {
     if (a.rx <= b.lx) return `M${a.rx} ${a.y}C${(a.rx + b.lx) / 2} ${a.y} ${(a.rx + b.lx) / 2} ${b.y} ${b.lx} ${b.y}`
@@ -1967,7 +1986,7 @@ function gErdSvg(k, G) {
   // 가운데 점 끝에 점 하나 — 선이 어디서 나가는지
   const sa = sel && at[sel]
   const dot = sa ? `<circle class="gdot" cx="${sa.rx}" cy="${sa.y}" r="3.5"/><circle class="gdot" cx="${sa.lx}" cy="${sa.y}" r="3.5"/>` : ''
-  const H = Math.max(ry, ...colH) + PAD, c = gC2()
+  const H = best.H, c = gC2()
   return `<svg class="gerd" role="group" aria-label="${esc(`그래프 2D 표: 점 ${nodes.length} · 선 ${nl}`)}" data-t="gErd" data-n="${nodes.length}" data-lines="${nl}" data-w="${W}" data-h="${H}"><g id="gerdg" transform="translate(${f1(c.px)} ${f1(c.py)}) scale(${+c.z.toFixed(3)})">${back}${front}${recS}${boxS}${dot}</g></svg>`
 }
 // 2D 표 카메라 — 처음(고른 점 · 보는 방법 · 지식이 바뀌면): 고른 뒤에는 다 들어오게 · 전체는 폭에 맞춰 위부터
@@ -1980,9 +1999,9 @@ function gErdFit() {
   const cw = w.clientWidth, ch = w.clientHeight, W = Number(sv.dataset.w), H = Number(sv.dataset.h), top = 64
   if (!cw || !ch || !W || !H) return
   const vis = !!(CURG && CURG.vis)
-  c.z = Math.max(0.2, Math.min(vis ? 1.25 : 1, (cw - 16) / W, vis ? (ch - top - 8) / H : Infinity))
+  c.z = Math.max(0.05, Math.min(vis ? 1.25 : 1, (cw - 16) / W, (ch - top - 8) / H))
   c.px = Math.max(8, (cw - W * c.z) / 2)
-  c.py = vis ? Math.max(top, top + (ch - top - H * c.z) / 2) : top
+  c.py = Math.max(top, top + (ch - top - H * c.z) / 2)
   c.needFit = false
   gErdApply()
 }
