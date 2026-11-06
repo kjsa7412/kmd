@@ -3639,15 +3639,31 @@ function mineHtml(st) {
   const right = autoCard(st, true) + devCard()
   return `<div class="g2"><div>${left}</div><div>${right}</div></div><p class="small muted" data-t="mineServer">이 팀 서버: ${esc(st.host)} · kmd v${esc(st.version)} · 팀 일꾼 ${wk} · 백업 ${st.backup.n ? (st.backup.n < st.backup.of ? '일부만' : '됨') : '안 됨'}</p>`
 }
-// 팀 지식마다 넣지 못함 · Claude 에 보내지 않음(S13 · 옛 정리 표) — 넣지 못함은 그 화면으로 · 스위치는 그 지식의 지식관리자만
+// 팀 지식(설정 › 팀 지식) — 지식 하나의 설정을 한 줄에: 나의 자리 · 백업 · Claude 에 보내지 않음 · ⋯(권한 · 백업 저장소 · 지우기)
+//   ⋯ 는 자리마다 다르다(서버 판정과 같게): 지식관리자 — 권한 · 스위치 / 총괄 관리자만 — 새 팀 지식 · 백업 저장소 붙이기 · 지우기 · 백업에서 되살리기
+//   줄 거르기는 화면이 한다(서버는 보이는 지식을 모두 준다) · 백업 칸은 총괄 관리자 길(/api/admin/overview)에서만 와서 그 밖에는 걷는다
 function knTable() {
-  const ks = S.kns.filter((x) => !isPersonal(x))
+  const boss = !!S.me.admin
+  const a = boss ? overviewOf() : null
+  const bk = (k) => { const b = a && !a.error ? (a.backups || []).find((x) => x.id === k.id || x.name === k.name) : null; if (!b) return a ? '<span class="muted">확인 전</span>' : loadingHtml; const v = b.off ? ['c-mute', '없음'] : REPO_V[b.verdict] || ['c-mute', '확인 전']; return `<span class="chip ${v[0]}" data-t="knBackup" title="${esc(b.off ? '저장소가 없다: 이 서버를 잃으면 지식도 잃는다' : b.url || '')}">${v[1]}</span>` }
+  const ks = S.kns.filter((x) => !isPersonal(x) && !x.dim && (boss || lvOf(x) === 'admin'))
   const rows = ks.map((k) => {
     const adm = lvOf(k) === 'admin'
     const sw = adm ? `<button type="button" class="sw${k.noClaude ? ' on' : ''}" role="switch" aria-checked="${k.noClaude ? 'true' : 'false'}" aria-label="${esc(k.name)}: Claude 에 보내지 않음" data-a="toggleNoClaude" data-k="${esc(k.id)}" data-t="noClaudeSw"></button>` : `<span class="muted">${k.noClaude ? '보내지 않음' : '보냄'}</span>`
-    return `<tr data-t="knRow" data-name="${esc(k.name)}"><td><b>${esc(k.name)}</b></td><td>${lvChip(k)}</td><td>${sw}</td></tr>`
+    const mk = 'knset:' + k.id
+    const b = boss && a && !a.error ? (a.backups || []).find((x) => x.id === k.id || x.name === k.name) : null
+    const items = [
+      accCan(k) ? `<div class="mi" data-a="accOpen" data-k="${esc(k.id)}" data-t="knSetAcc">권한<small>모두 · 사람 · 묶음의 자리 · 주인</small></div>` : '',
+      b ? `<div class="mi" data-a="repoEdit" data-k="${esc(k.id)}" data-t="knSetRepo">${b.off ? '백업 저장소 붙이기' : '백업 저장소 주소 바꾸기'}<small>저장할 때마다 kmd 가 민다</small></div>` : '',
+      canDelete(k) ? `<div class="sep"></div><div class="mi dan" data-a="delOpen" data-k="${esc(k.id)}" data-t="knSetDel">지식 지우기<small>보관하지 않고 완전히</small></div>` : '',
+    ].join('')
+    const kebab = items ? `<button class="kebab${S.menu === mk ? ' on' : ''}" data-a="menu" data-m="${esc(mk)}" data-t="knSetKebab" title="권한 · 백업 저장소 · 지우기" aria-label="${esc(k.name)}: 권한 · 백업 저장소 · 지우기">⋯${S.menu === mk ? popHtml(mk, `<div>${items}</div>`) : ''}</button>` : ''
+    const edit = S.repoEdit === k.id && b ? `<tr data-t="repoEditRow"><td colspan="${boss ? 5 : 4}"><span class="row" style="margin:0"><input class="inp mono" id="repoUrl" aria-label="저장소 주소" data-t="repoUrl" style="flex:1;min-width:min(240px,100%)" placeholder="예: git@gitlab.team:kmd/dpms.git · https://…" value="${esc(b.off ? '' : b.url || '')}"><button class="btn sm pri" data-a="repoSave" data-k="${esc(k.id)}" data-t="repoSave">붙이기</button><button type="button" class="btn sm ghost" data-a="repoEdit" data-k="">취소</button></span><small class="muted" style="display:block;margin-top:4px">저장소는 비었거나 이 지식의 지난 이력이어야 붙는다 · 밀기는 서버 OS 사용자 kmd 의 git 자격으로 · 주소 속 열쇠는 화면 · 기록에 가린다</small></td></tr>` : ''
+    return `<tr data-t="knRow" data-name="${esc(k.name)}"><td><b>${esc(k.name)}</b></td><td>${lvChip(k)}</td>${boss ? `<td>${bk(k)}</td>` : ''}<td>${sw}</td><td style="text-align:right">${kebab}</td></tr>${edit}`
   }).join('')
-  return `<div class="card" data-t="knTable"><div class="ch">팀 지식 <small>지식마다 자리 · Claude 에 보내지 않음</small></div><div class="cb tight"><div class="tblwrap"><table class="t"><tr><th>팀 지식</th><th>나의 자리</th><th>Claude 에 보내지 않음</th></tr>${rows || '<tr><td class="muted" colspan="3">팀 지식이 없다</td></tr>'}</table></div></div><div class="cf small muted">Claude 에 보내지 않는 지식은 들이기 · 다듬기를 하지 않고 기록만 남긴다(스위치는 그 지식의 지식관리자)</div></div>`
+  const add = boss ? '<button type="button" class="btn pri sm" data-a="openAdd" data-v="team" data-t="knSetAdd">+ 새 팀 지식</button>' : ''
+  const restore = boss ? `<div class="card" data-t="teamRestore"><div class="ch">백업에서 되살리기 <small>백업 저장소 주소에서 새 팀 지식으로 · 지우기는 보관하지 않으므로 지운 지식은 백업에서만 돌아온다</small></div><div class="cb" style="padding:8px 14px 10px"><div class="row" style="flex-wrap:wrap"><input class="inp mono" id="rsUrl" aria-label="되살릴 저장소 주소" data-t="rsUrl" style="flex:1;min-width:min(220px,100%)" placeholder="백업 주소: 예: git@gitlab.team:kmd/dpms.git"><input class="inp" id="rsName" aria-label="되살릴 지식 이름" data-t="rsName" style="width:min(160px,100%)" placeholder="이름(비우면 주소의 끝)"><label class="small"><input type="checkbox" id="rsPractice" data-t="rsPractice"> 연습(백업에 보내지 않는다)</label><button class="btn sm" data-a="restoreDo" data-t="restoreDo"${S.restoring ? ' disabled' : ''}>${S.restoring ? '되살리는 중…' : '되살리기'}</button></div></div></div>` : ''
+  return `<div class="card" data-t="knTable" style="overflow:visible"><div class="ch">팀 지식 ${ks.length} <small>${boss ? '모든 팀 지식' : '내가 지식관리자인 팀 지식'}</small>${add ? `<span style="margin-left:auto">${add}</span>` : ''}</div><div class="cb tight"><div class="tblwrap"><table class="t"><tr><th>팀 지식</th><th>나의 자리</th>${boss ? '<th>백업</th>' : ''}<th>Claude 에 보내지 않음</th><th></th></tr>${rows || `<tr><td class="muted" colspan="${boss ? 5 : 4}">팀 지식이 없다</td></tr>`}</table></div></div><div class="cf small muted">Claude 에 보내지 않는 지식은 들이기 · 다듬기를 하지 않고 기록만 남긴다(스위치는 그 지식의 지식관리자) · 자리는 ⋯ › 권한 · 넣지 못함은 작업 › 넣지 못함</div></div>${restore}`
 }
 // 사람 — 총괄 관리자 하나와 지식마다의 자리(읽기 · 쓰기 · 관리 — docs/kmd_권한_모델.md). 관리자는 사람 · 묶음을 다룬다, 그 밖에는 읽기만
 const ROLE_RULE = '<div class="cf small muted" data-t="roleRule"><span><b>총괄 관리자</b>: 사람 · 묶음 · 팀 지식 세우기 · 지우기 · 백업 · Claude 연결, 모든 지식에서 지식관리자 &nbsp;·&nbsp; <b>지식마다 자리</b>: 읽기(보기 · 찾기) · 쓰기(+ 기록 남기기 · 파일 넣기) · 지식관리자(+ 문서에 바로 고치기 · 다듬기 · 넣지 못함 · 가져올 곳 · 권한). 받지 않은 지식은 보이지 않는다 · 한 사람의 자리는 주인 · 사람 줄 · 든 묶음 · 모두 가운데 가장 높은 것 · 주는 곳은 설정 › 사람 · 묶음(사람 ⋯ › 지식마다 자리) · 설정 › 팀 지식(⋯ › 권한)</span></div>'
@@ -4039,13 +4055,14 @@ const overviewOf = () => need('admin', '/api/admin/overview')
 const usersOf = () => need('users', '/api/admin/users')
 const leftMin = (iso) => Math.max(0, Math.round((Date.parse(iso) - Date.now()) / 60000))
 // 사람 카드 — 더하기 · 사람마다 새 링크(골라서) · 관리자 켜고 끄기 · 기기 끊기 · 떠남. 떠난 사람은 접어 둔다(아이디는 되쓰지 않는다)
+const admGuideText = (L) => [`kmd 팀 지식에 들어오기: ${L.id}`, '', `1. 처음 들어오기 링크(24시간 · 한 번): ${L.link}`, '   링크를 열고 비밀번호를 정한다', `2. 다음부터는 ${location.origin} 에서 아이디 ${L.id} 로 들어온다`, '3. 작업 폴더의 Claude Code 에 팀 지식을 붙이려면: 설정 › 에이전트 설치 › [설치 명령 복사]'].join('\n')
 function admPeopleCard() {
   const u = usersOf()
   if (!u || u.error) return `<div class="card" data-t="admPeople"><div class="ch">사람</div><div class="cb" style="padding:8px 14px">${u ? errHtml(u) : loadingHtml}</div></div>`
   const live = u.users.filter((x) => !x.off && !x.legacyOnly), gone = u.users.filter((x) => x.off)
   const st = (x) => x.password ? '들어온다' : x.firstOpen ? `링크 보냄 · ${Math.floor(leftMin(x.firstExp) / 60)}시간 ${leftMin(x.firstExp) % 60}분 남음` : '비밀번호를 안 정함'
   const mk = (x) => 'pp:' + x.id
-  const row = (x) => `<li data-t="admPerson" data-name="${esc(x.id)}"><span class="av2">${esc(x.id.slice(0, 1))}</span><span class="nm">${esc(x.id)}${x.admin ? ' <span class="kt role">총괄 관리자</span>' : ''}<small>${esc(st(x))} · 기기 ${x.devices}${x.roles.team ? ` · 주인 ${x.roles.team}` : ''}${x.admin ? ' · 모든 지식 지식관리자' : ` · <span data-t="admPersonKns">지식 ${x.roles.kns || 0}개에 자리</span>`}</small></span>${S.admLink && S.admLink.id === x.id ? `<span class="mono small ell mw260" data-t="admLinkOut">${esc(S.admLink.link)}</span><button type="button" class="lk" data-a="admCopyLink" data-t="admCopyLink">복사</button>` : ''}${x.id === S.me.user ? '' : `<button class="kebab${S.menu === mk(x) ? ' on' : ''}" data-a="menu" data-m="${esc(mk(x))}" data-t="admPersonKebab" title="지식마다 자리 · 새 링크 · 총괄 관리자 · 기기 · 떠남">⋯${S.menu === mk(x) ? popHtml(mk(x), `<div>${x.admin ? '' : `<div class="mi" data-a="seatOpen" data-v="${esc(x.id)}" data-t="seatOpen">지식마다 자리<small>없음 · 읽기 · 쓰기 · 지식관리자</small></div><div class="sep"></div>`}<div class="mi" data-a="admLink1" data-v="${esc(x.id)}" data-t="admLink1">새 링크<small>이 사람만 · 24시간 · 한 번: 지금 비밀번호는 지워진다</small></div><div class="mi" data-a="admAdminSet" data-v="${esc(x.id)}" data-on="${x.admin ? '' : '1'}" data-t="admAdminSet">${x.admin ? '총괄 관리자 아님으로' : '총괄 관리자로'}</div><div class="mi" data-a="admRevokeAll" data-v="${esc(x.id)}" data-t="admRevokeAll">기기 모두 끊기<small>그 사람의 Claude Code 팀 연결 · 개인 프로그램의 팀 잇기가 다시 이어야 한다</small></div><div class="sep"></div><div class="mi danger" data-a="admOffOpen" data-v="${esc(x.id)}" data-t="admOffOpen">떠남…<small>들어가기 · 기기를 끊고 지식을 넘긴다</small></div></div>`) : ''}</button>`}</li>`
+  const row = (x) => `<li data-t="admPerson" data-name="${esc(x.id)}"><span class="av2">${esc(x.id.slice(0, 1))}</span><span class="nm">${esc(x.id)}${x.admin ? ' <span class="kt role">총괄 관리자</span>' : ''}<small>${esc(st(x))} · 기기 ${x.devices}${x.roles.team ? ` · 주인 ${x.roles.team}` : ''}${x.admin ? ' · 모든 지식 지식관리자' : ` · <span data-t="admPersonKns">지식 ${x.roles.kns || 0}개에 자리</span>`}</small></span>${S.admLink && S.admLink.id === x.id ? `<span class="mono small ell mw260" data-t="admLinkOut">${esc(S.admLink.link)}</span><button type="button" class="lk" data-a="admCopyLink" data-t="admCopyLink">링크만 복사</button><button type="button" class="lk" data-a="admCopyGuide" data-t="admCopyGuide">안내 복사</button>` : ''}${x.id === S.me.user ? '' : `<button class="kebab${S.menu === mk(x) ? ' on' : ''}" data-a="menu" data-m="${esc(mk(x))}" data-t="admPersonKebab" title="지식마다 자리 · 새 링크 · 총괄 관리자 · 기기 · 떠남">⋯${S.menu === mk(x) ? popHtml(mk(x), `<div>${x.admin ? '' : `<div class="mi" data-a="seatOpen" data-v="${esc(x.id)}" data-t="seatOpen">지식마다 자리<small>없음 · 읽기 · 쓰기 · 지식관리자</small></div><div class="sep"></div>`}<div class="mi" data-a="admLink1" data-v="${esc(x.id)}" data-t="admLink1">새 링크<small>이 사람만 · 24시간 · 한 번: 지금 비밀번호는 지워진다</small></div><div class="mi" data-a="admAdminSet" data-v="${esc(x.id)}" data-on="${x.admin ? '' : '1'}" data-t="admAdminSet">${x.admin ? '총괄 관리자 아님으로' : '총괄 관리자로'}</div><div class="mi" data-a="admRevokeAll" data-v="${esc(x.id)}" data-t="admRevokeAll">기기 모두 끊기<small>그 사람의 Claude Code 팀 연결 · 개인 프로그램의 팀 잇기가 다시 이어야 한다</small></div><div class="sep"></div><div class="mi danger" data-a="admOffOpen" data-v="${esc(x.id)}" data-t="admOffOpen">떠남…<small>들어가기 · 기기를 끊고 지식을 넘긴다</small></div></div>`) : ''}</button>`}</li>`
   const add = S.admAdd ? `<div class="flow" data-t="admAddForm"><div class="row"><input class="inp" id="admAddIn"${invAttr(S.admAdd.err, 'admAddErr')} aria-label="새 사람 아이디" data-in="admAddId" data-t="admAddIn" value="${esc(S.admAdd.id || '')}" placeholder="아이디: 영문 · 숫자 · . _ -" autocomplete="off" style="flex:1"><label class="small"><input type="checkbox" id="admAddAdmin"${S.admAdd.admin ? ' checked' : ''} data-a="admAddAdmin" data-t="admAddAdmin"> 총괄 관리자</label></div>${seatTable(S.admAdd.seats, 'add', S.admAdd.admin)}${S.admAdd.err ? formErr(S.admAdd.err, 'admAddErr') : ''}<div class="row" style="margin-top:8px;justify-content:flex-end"><button type="button" class="btn ghost" data-a="admAddCancel">취소</button><button class="btn pri" data-a="admAddDo" data-t="admAddDo">더하기</button></div></div>` : ''
   return `<div class="card" data-t="admPeople" style="overflow:visible"><div class="ch">사람 ${live.length} <small>처음 들어오기 링크는 사람마다 따로 보낸다</small></div><div class="cb" style="padding:2px 14px 10px">${add}<ul class="plain pl">${live.map(row).join('')}</ul>${gone.length ? `<details class="more" data-t="admGone"><summary>떠난 사람 ${gone.length}: 아이디는 되쓰지 않는다</summary><div class="in">${gone.map((x) => `${esc(x.id)} · ${esc(String(x.off.at).slice(0, 10))}`).join(' · ')}</div></details>` : ''}</div><div class="cf">${S.admAdd ? '' : '<button class="btn pri" data-a="admAddOpen" data-t="admAddOpen">사람 더하기</button>'}<span>더하면 처음 들어오기 링크(24시간 · 한 번)가 나온다. 아이디와 함께 그 사람에게만 보낸다 · 비밀번호는 그 사람이 정한다</span></div></div>`
 }
@@ -4135,25 +4152,10 @@ function viewAdmin() {
   const now = clock().split(' ').pop()
   return { crumb: '관리', main: `<div class="pg-text">${checkChips(a)}
   <div class="card"><div class="ch">오늘 ${rows.length} <small>${esc(now)}</small></div><ul class="plain pl" data-t="admList">${rows.join('') || '<li class="muted" data-t="admEmpty">오늘은 문제가 없다</li>'}</ul>${a.https ? '' : '<div class="cf">아직 https 가 아니다. 사내 인증서가 생기면 켤 수 있다</div>'}</div>
-  ${admRepoCard(a)}
   <p class="small muted" data-t="admChecks">찾기 점검: ${a.checks.map((c) => `${esc(c.name)} ${c.in}%(${c.n})`).join(' · ') || '아직 재지 않았다'}</p></div>` }
 }
-// 저장소 연결 — 팀 지식마다 git 저장소(GitLab · 다른 서버 · 허락한 폴더)를 붙인다. 저장할 때마다 kmd 가 그 저장소로 민다(백업)
-//   붙이기 전에 저장소가 비었거나 이 지식의 지난 이력이어야 한다(앞섰거나 갈라졌으면 멈춘다) · 밀기는 서버 OS 사용자 kmd 의 git 자격으로
+// 백업 저장소 상태 이름(설정 › 팀 지식의 백업 칸) — 저장소 붙이기 · 주소 바꾸기는 그 줄 ⋯
 const REPO_V = { ok: ['c-ok', '맞음'], lag: ['c-pend', '보내는 중'], gone: ['c-warn', '저장소가 비었다 · 다시 보낸다'], rewound: ['c-warn', '저장소가 뒤로 갔다 · 다시 보낸다'], behind: ['c-danger', '저장소가 앞섰다'], moved: ['c-danger', '갈라졌다'] }
-function admRepoCard(a) {
-  const ks = a.backups
-  if (!ks.length) return ''
-  const row = (b) => {
-    const v = b.off ? ['c-mute', '없음'] : REPO_V[b.verdict] || ['c-mute', '확인 전']
-    const edit = S.repoEdit === b.id
-    const tail = edit
-      ? `<span class="row" style="flex:1;min-width:min(260px,100%);margin:0"><input class="inp mono" id="repoUrl" aria-label="저장소 주소" data-t="repoUrl" style="flex:1" placeholder="예: git@gitlab.team:kmd/dpms.git · https://…"><button class="btn sm pri" data-a="repoSave" data-k="${esc(b.id)}" data-t="repoSave">붙이기</button><button class="btn sm ghost" data-a="repoEdit" data-k="">취소</button></span>`
-      : `<button class="btn sm" data-a="repoEdit" data-k="${esc(b.id)}" data-t="repoEdit">${b.off ? '저장소 붙이기' : '주소 바꾸기'}</button>`
-    return `<li data-t="repoRow" data-name="${esc(b.name)}"><span class="tx"><b>${esc(b.name)} <span class="chip ${v[0]}">${v[1]}</span></b><small class="mono">${b.off ? '저장소가 없다: 이 서버를 잃으면 지식도 잃는다' : `${esc(b.url)} · ${esc(b.branch || 'main')}${b.at ? ' · 붙인 때 ' + esc(whenTxt(b.at)) : ''}`}</small></span>${tail}</li>`
-  }
-  return `<div class="card" data-t="repoCard"><div class="ch">저장소 연결 <small>팀 지식마다 git 저장소 · 저장할 때마다 kmd 가 민다</small></div><ul class="plain pl">${ks.map(row).join('')}</ul><div class="cf">저장소는 비었거나 이 지식의 지난 이력이어야 붙는다. 밀기는 서버 OS 사용자 kmd 의 git 자격(ssh 키 · 주소 속 열쇠)으로 한다. 주소 속 열쇠는 화면 · 기록에 가린다</div></div>`
-}
 const hhmmOf = (iso) => { const d = new Date(iso); return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) }
 function admDoneBtn() { const ok = !!(S.admCode || '').trim() && !S.admBusy; return `<button class="btn pri" data-a="admDone" data-t="admDone"${ok ? '' : ' disabled'}>${S.admBusy ? '마치는 중…' : '마치기'}</button>` }
 function admClaudeCard(a) {
@@ -4465,6 +4467,8 @@ const ACT = {
     render()
   },
   admCopyLink: () => { if (S.admLink) { copyText(S.admLink.link); toast('복사했다: ' + esc(S.admLink.id) + ' 에게만') } },
+  // 들이기 안내 한 덩이 — 아이디 · 들어오기 링크 · 팀 주소 · 들어온 뒤 할 일(에이전트 설치)
+  admCopyGuide: () => { const L = S.admLink; if (!L) return; copyText(admGuideText(L)); toast('들이기 안내를 복사했다: ' + esc(L.id) + ' 에게만') },
   admAdminSet: async (el) => { S.menu = null; try { await postJSON(`/api/admin/users/${encodeURIComponent(el.dataset.v)}/admin`, { admin: !!el.dataset.on }); delete S.cache.users; toast(el.dataset.on ? `총괄 관리자로 했다: ${esc(el.dataset.v)}` : `총괄 관리자에서 뺐다: ${esc(el.dataset.v)}`) } catch (e) { if (e.code !== 'E_CANCEL') toastErr(e) } render() },
   admRevokeAll: async (el) => {
     S.menu = null
@@ -4495,7 +4499,7 @@ const ACT = {
     render()
   },
   sudoOk: () => sudoOk(),
-  repoEdit: (el) => { S.repoEdit = el.dataset.k || null; S._focus = 'repoUrl'; render() },
+  repoEdit: (el) => { S.menu = null; S.repoEdit = el.dataset.k || null; S._focus = 'repoUrl'; render() },
   repoSave: async (el) => {
     const url = (($('#repoUrl') || {}).value || '').trim()
     if (!url) return toast('저장소 주소를 쓴다')
