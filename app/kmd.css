@@ -17,6 +17,10 @@
   --pending:#6247c4;--pending-bg:#efedfd;--pending-line:#d9d2fb;
   /* 그래프 점 종류(모양과 함께만 쓴다 · 색만으로 가르지 않는다) — 흰 바탕 대비: 문서 10.35 · 항목 5.71 · 기록 5.18 · 파랑 · 주황은 색각 이상에도 갈린다 */
   --k-doc:#334155;--k-item:#3358e6;--k-rec:#c2410c;
+  --g-ring:#fff;
+  /* 그래프 칸 어두운 바탕(그래프만 · .gwrap.dark 가 위 토큰을 갈아 끼운다) — 글 대비: 글 #e6ebf5 15.8 · 흐린 글 #8a97b3 6.5 · 문서 #cbd5e1 12.8 · 항목 #7c9cff 7.3 · 기록 #fb923c 8.4(바탕 #0b1020 위) */
+  --gd-bg:#0b1020;--gd-surface:#121a2e;--gd-surface-2:#18223a;--gd-border:#253252;--gd-border-strong:#3a4a72;
+  --gd-text:#e6ebf5;--gd-text-2:#b2bdd3;--gd-text-3:#8a97b3;--gd-k-doc:#cbd5e1;--gd-k-item:#7c9cff;--gd-k-rec:#fb923c;--gd-accent:#8aa4ff;--gd-accent-bg:#1f2a4d;--gd-warn-bg:#3a2e12;
   /* 진한 띠(토스트 · 툴팁 · 고른 띠 · 「나」 표지) · 터미널(7절) */
   --ink:#11151c;--ink-2:#262d3b;--ink-text:#e8ecf3;
   --term-bg:#0f141c;--term-text:#d7dde8;--term-dim:#7d8696;--term-tool:#8fb0ff;--term-ok:#7fd69a;--term-err:#ff8f86;
@@ -554,6 +558,8 @@ svg.gki{width:14px;height:14px;flex:none;overflow:visible;stroke:none;vertical-a
 .gov .gcap{margin-top:var(--sp-4)}
 /* 2D 표(ERD 처럼) — 문서 상자 · 항목 줄 · 기록 열 · 선 한 가지 */
 .gwrap.erd{background:var(--surface);touch-action:auto}
+.gwrap.dark{--hover:var(--gd-bg);--surface:var(--gd-surface);--surface-2:var(--gd-surface-2);--border:var(--gd-border);--border-strong:var(--gd-border-strong);--border-input:var(--gd-border-strong);--text:var(--gd-text);--text-2:var(--gd-text-2);--text-3:var(--gd-text-3);--k-doc:var(--gd-k-doc);--k-item:var(--gd-k-item);--k-rec:var(--gd-k-rec);--accent:var(--gd-accent);--accent-bg:var(--gd-accent-bg);--warn-bg:var(--gd-warn-bg);--g-ring:var(--gd-bg);background:var(--hover);color:var(--text);border-color:var(--border)}
+.gwrap.dark.erd{background:var(--hover)}
 /* 2D 표 — 칸 전체가 그림(스크롤 없음) · 수 · 범례 · 카드 · 확대 단추는 그 위에 뜬다 */
 .gerdw{position:absolute;inset:0;overflow:hidden;cursor:grab;user-select:none;touch-action:none}
 .gerdw.drag,.gwrap.grab .gerdw{cursor:grabbing}
