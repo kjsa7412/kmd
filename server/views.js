@@ -533,6 +533,26 @@ export const kindOf = (coord) => (coord ? KIND[coord.split(':')[0]] || coord.spl
 const firstOf = (body) => String(body || '').slice(0, 1500).split('\n').map((l) => l.replace(/[`*#>|]/g, '').trim()).find((l) => l && !/^[-:| ]+$/.test(l)) || ''
 const keyOf = (coord, doc, h) => coord || `#${doc}#${h}`
 
+// 글 속 이름 찾기(그래프 「가리킨다」 · 항목의 「이 항목을 쓰는 곳」) — 흔한 말 · 짧은 이름이 가짜 허브가 되지 않게
+//   이름 = 장부 이름의 값(`화면:PSA010` 의 PSA010) · 보이는 이름 · 다른 이름. USES_MIN 글자 이상만
+//   낱말 경계: 앞 글자가 글자 · 숫자면 안 된다. 영문 · 숫자로 끝나는 이름은 뒤도(PSA 가 PSA010 · OPS-PSA-1 에 걸리지 않게)
+//   한 이름이 항목 글의 USES_SHARE 넘게(적어도 USES_SHARE_MIN) 나오면 흔한 말로 보고 세지 않는다
+export const USES_MIN = 3, USES_SHARE = 0.1, USES_SHARE_MIN = 20
+const LW = /[\p{L}\p{N}]/u, AW = /[A-Za-z0-9]/
+export function usesNames(it) {
+  const v = it.coord && it.coord.includes(':') ? it.coord.slice(it.coord.indexOf(':') + 1) : null
+  return [...new Set([v, it.name, ...(it.aliases || [])].filter((x) => x && [...x].length >= USES_MIN))]
+}
+export function mentions(text, n) {
+  for (let i = text.indexOf(n); i >= 0; i = text.indexOf(n, i + 1)) {
+    const p = text[i - 1] || '', p2 = text[i - 2] || '', q = text[i + n.length] || '', q2 = text[i + n.length + 1] || ''
+    if (p && (LW.test(p) || (/[-_.]/.test(p) && AW.test(p2) && AW.test(n[0])))) continue
+    if (q && AW.test(n[n.length - 1]) && (AW.test(q) || (/[-_]/.test(q) && AW.test(q2)))) continue
+    return true
+  }
+  return false
+}
+
 const models = new WeakMap()
 export function model(k) {
   if (models.has(k)) return models.get(k)
@@ -581,18 +601,24 @@ export function model(k) {
       grams.get(g).push(i)
     }
   })
+  // 이름마다 그 이름을 쓰는 항목 — 둘 이상이면 누구 것인지 몰라 세지 않는다(usesNames)
+  const owners = new Map()
+  for (const it of items) for (const n of usesNames(it)) { if (!owners.has(n)) owners.set(n, new Set()); owners.get(n).add(it.key) }
+  const common = Math.max(USES_SHARE_MIN, bodies.length * USES_SHARE)
   for (const it of items) {
     if (it.table) continue
-    const names = [it.name, ...it.aliases].filter((x) => x && x.length >= 2)
     const hit = new Set()
-    for (const n of names) {
+    for (const n of usesNames(it)) {
+      if (owners.get(n).size > 1) continue
       const low = n.toLowerCase()
       let best = null
       for (let j = 0; j < low.length - 1; j++) {
         const l = grams.get(low.slice(j, j + 2)) || []
         if (!best || l.length < best.length) best = l
       }
-      for (const i of best || []) if (bodies[i].key !== it.key && bodies[i].text.includes(n)) hit.add(bodies[i].key)
+      const got = (best || []).filter((i) => bodies[i].key !== it.key && mentions(bodies[i].text, n))
+      if (got.length > common) continue // 글 열에 하나 넘게 나오는 이름은 흔한 말이다
+      for (const i of got) hit.add(bodies[i].key)
     }
     if (hit.size) uses[it.key] = [...hit].sort()
   }

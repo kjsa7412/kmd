@@ -276,31 +276,31 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.ok((await page.locator('[data-t=itemRow] .iv').count()) >= 5, '목록 줄에 값')
   await page.screenshot({ path: path.join(SHOTS, 'app-items.png') })
 
-  // 그래프(M7) — 점 · 선 · 거름 · 범례 · 점을 누르면 카드
+  // 그래프 — 2D 보기 둘(지도 · 계보) · 종류는 모양 · 3D · 회전 · canvas 는 걷었다(docs/품질개선/그래프_화면_개선검토.html)
   await page.click('[data-t=rb-graph]')
-  await page.waitForSelector('#gcv[data-n]')
-  const ga = (k) => page.getAttribute('#gcv', 'data-' + k).then(Number)
-  assert.ok((await ga('n')) > 10)
-  assert.equal(await page.locator('[data-t=gLegend] .lgr').count(), 11) // 점 5 · 선 6(근거 더함)
-  // 보기는 맨 위 · 선 · 제목 · 회전 거르기 단추(스위치 아님)
-  assert.deepEqual(await page.locator('[data-t=gView] button.fbtn').allInnerTexts(), ['선', '제목', '회전'])
+  await page.waitForSelector('[data-t=gMap][data-n]')
+  assert.ok(Number(await page.getAttribute('[data-t=gMap]', 'data-n')) >= 2, '문서마다 점 하나')
+  assert.equal(await page.locator('#gcv').count(), 0, 'canvas 3D 공은 없다')
+  assert.deepEqual(await page.locator('[data-t=gView] button.fbtn').allInnerTexts(), ['지도', '계보'])
   assert.equal(await page.locator('[data-t=gFilter] .sw').count(), 0)
-  // 점 제목 — 기본은 숨김(올리거나 고를 때) · 「제목」 을 켜면 모두
-  assert.equal(await ga('shown'), 0)
-  await page.click('[data-t=g-label]')
-  assert.ok((await ga('shown')) > 10)
-  assert.equal(await page.locator('[data-t=g-label]').getAttribute('aria-pressed'), 'true')
-  await page.click('[data-t=g-label]')
-  // 선 — 기본은 끔(고른 점 · 올린 점의 선만) · 「선」 을 켜면 모두
-  assert.equal(await ga('lines'), 0)
-  await page.click('[data-t=g-line]')
-  assert.ok((await ga('lines')) > 10)
-  await page.click('[data-t=g-line]')
-  const pt = await page.evaluate(() => window.kmdGraphPt('i:proc:헬스 체크'))
-  assert.ok(pt)
-  await page.locator('#gcv').dispatchEvent('pointerdown', { button: 0, clientX: pt.x, clientY: pt.y })
-  await page.dispatchEvent('body', 'pointerup')
+  assert.equal(await page.locator('[data-t=gFilter] [data-t=g-line], [data-t=gFilter] [data-t=g-spin]').count(), 0, '선 · 제목 · 회전 단추는 걷었다')
+  // 범례 — 점 모양 넷 + 넣지 못함 배지 · 종류마다 모양이 다르다
+  assert.equal(await page.locator('[data-t=gLegend] .lgr').count(), 5)
+  assert.deepEqual(await page.locator('[data-t=gLegend] .lgr svg .gk').evaluateAll((els) => els.map((e) => e.tagName.toLowerCase())), ['rect', 'circle', 'path', 'path'])
+  // 지도에서 문서를 누르면 그 문서의 계보 · 계보 줄을 누르면 그 점으로 옮긴다
+  await page.locator('[data-t=gDoc][data-name="배포절차"]').dispatchEvent('click')
+  await page.waitForSelector('[data-t=gLin]')
+  await page.waitForSelector('[data-t=gCard][data-name="배포절차"]')
+  assert.equal(await page.getAttribute('[data-t=graph]', 'data-view'), 'lin')
+  // 찾기 — 시작 점 목록이 바뀌고 누르면 그 점의 계보
+  await page.fill('#gQ', '헬스')
+  await page.locator('[data-t=gList] [data-t=gListRow]', { hasText: '헬스 체크' }).first().click()
   await page.waitForSelector('[data-t=gCard][data-name="헬스 체크"]')
+  assert.match(await page.locator('[data-t=gLin] .grw.on').first().textContent(), /헬스 체크/, '들어 있는 문서 카드에서 고른 줄을 밝힌다')
+  // 쓰는 곳 깊이 1 · 2 — 계보에서만
+  await page.click('[data-t=gd-2]')
+  assert.equal(await page.getAttribute('[data-t=gd-2]', 'aria-pressed'), 'true')
+  await page.click('[data-t=gd-1]')
   await page.screenshot({ path: path.join(SHOTS, 'app-graph.png') })
   await page.click('[data-t=gOpenDocs]')
   await page.waitForSelector('[data-t=docPane][data-name="배포절차"]')
@@ -1011,14 +1011,45 @@ test('따로 할 것(Q11 · Q50 · Q51 · Q52): 설정은 일반으로 · 고르
     const ad = await page.getAttribute('#qoIn', 'aria-activedescendant')
     assert.equal(await page.locator(`#${ad}`).getAttribute('aria-selected'), 'true')
     await page.keyboard.press('Escape')
-    // Q52 — 그래프: canvas 대체 글 · 옆 칸 점 목록을 누르면 고른다
+    // Q52 — 그래프: SVG 대체 글 · 점은 키보드로 닿는 단추(role=button) · 시작 점 목록을 누르면 그 점의 계보
     await page.goto(s.url + '/')
     await page.click('[data-t=krow][data-name="DPMS 지식"] [data-t=knOpen]')
     await page.click('[data-t=rb-graph]')
     await page.waitForSelector('[data-t=gList] [data-t=gListRow]')
-    assert.match(await page.getAttribute('#gcv', 'aria-label'), /^그래프: 점 \d+ · 선 \d+/)
+    assert.match(await page.getAttribute('[data-t=gMap]', 'aria-label'), /^문서 지도: 문서 \d+ · 이어짐 \d+/)
     await page.locator('[data-t=gList] [data-t=gListRow]').first().click()
     await page.waitForSelector('[data-t=gCard][data-name]')
+    await page.waitForSelector('[data-t=gLin]')
+    assert.match(await page.getAttribute('[data-t=gLin]', 'aria-label'), /^계보: /)
+    // 계보 줄은 Tab 으로 닿고 Enter 로 그 점에 간다
+    const gRow = page.locator('[data-t=gLin] [data-t=gRow][role=button]').last()
+    if (await gRow.count()) {
+      const before = await page.getAttribute('[data-t=gLin]', 'aria-label')
+      await gRow.focus()
+      await page.keyboard.press('Enter')
+      await page.waitForFunction((b) => { const l = document.querySelector('[data-t=gLin]'); return l && l.getAttribute('aria-label') !== b }, before)
+    }
+    // 네 폭 — 잘린 요소 · 가로 넘침 0(계보는 칸 안에서 가로로 민다)
+    for (const w of [1280, 1024, 600, 375]) {
+      await page.setViewportSize({ width: w, height: 800 })
+      await page.waitForTimeout(350)
+      const c = await cutAt(page)
+      assert.deepEqual(c.cut, [], `그래프 ${w}: 잘린 요소 없음`)
+      assert.ok(c.sw <= w, `그래프 ${w}: 가로 넘침 없음`)
+    }
+    await page.setViewportSize(VIEW)
+    // 문서 화면 팝업 「그래프 화면에서 크게」 뒤에도 목록 줄을 (진짜 마우스로) 누르면 옮겨 간다 — 팝업이 열린 채로 남아 누름을 삼키던 것
+    await page.click('[data-t=gOpenDocs]')
+    await page.click('[data-t=gPopBtn]')
+    await page.waitForSelector('[data-t=gPop] [data-t=gNode]')
+    await page.click('[data-t=gPopBig]')
+    await page.waitForSelector('[data-t=graph][data-view=lin]')
+    const before = await page.getAttribute('[data-t=gLin]', 'aria-label')
+    const other = page.locator('[data-t=gList] [data-t=gListRow]:not(.on)').first()
+    if (await other.count()) {
+      await other.click()
+      await page.waitForFunction((b) => { const l = document.querySelector('[data-t=graph] [data-t=gLin]'); return l && l.getAttribute('aria-label') !== b }, before)
+    }
     assert.deepEqual(errors, [])
   } finally { await page.close() }
 })
