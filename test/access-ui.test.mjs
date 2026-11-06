@@ -197,7 +197,7 @@ test('설정 메뉴 표 하나: 지식관리자에게 관리가 없다 · 설정
   await page.click('[data-t=nav-settings-team]')
   await page.waitForSelector('[data-t=mgNav]')
   const items = await page.locator('[data-t=mgNav] .mgi').allInnerTexts()
-  assert.deepEqual(items, ['팀 지식', '에이전트 설치', '나', '가져오기', '넣지 못함', '문서 짜임'], '지식관리자 메뉴: 점검 · 팀 서버 · 사람 · 묶음은 없다')
+  assert.deepEqual(items, ['팀 지식', '에이전트 설치', '나'], '지식관리자 메뉴: 점검 · 팀 서버 · 사람 · 묶음은 없다')
   assert.equal((await page.locator('[data-t=setTitle]').innerText()).trim(), '팀 지식', '지식관리자의 첫 화면은 팀 지식')
   assert.equal(await page.locator('[data-t=mgNav] .mgi').first().evaluate((e) => e.tagName), 'BUTTON')
   // 설정 페이지 사이를 옮기면 앱 안 기록에 남는다 — ‹ 로 앞 페이지

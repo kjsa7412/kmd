@@ -568,7 +568,7 @@ function viewOf(s) {
 // 설정 메뉴 표 하나 — 왼쪽 메뉴 · 페이지 제목 · 위치 줄 · 멈춤 줄 갈 곳이 모두 여기서 나온다(docs/품질개선/설정_화면_개선검토.html)
 //   scr 가 있으면 따로 선 화면, 없으면 설정 페이지(route.page = id) · 보이기는 서버 판정과 같은 자리로만(판정은 서버, 화면은 숨기기만)
 //   이력은 설정 밖(옆 메뉴 지식 관리 › 이력)
-const MGSCR = ['import', 'held', 'structure', 'send', 'settings']
+const MGSCR = ['settings']
 const HISTSCR = ['today', 'log']
 // 옛 화면 이름 → 설정 페이지(go 가 한곳에서 바꾼다) · 관리 → 점검 · 개인 지식 쓰기 → 에이전트 설치(카드 둘째)
 const SET_ALIAS = { members: 'people', admin: 'check', install: 'agent' }
@@ -576,10 +576,7 @@ const SET_ALIAS = { members: 'people', admin: 'check', install: 'agent' }
 //   설정을 열면 보이는 첫 칸이 열린다(Q11 의 「누르면 어디로 가나」): 총괄 관리자 점검 · 지식관리자 팀 지식 · 그 밖 에이전트 설치
 function setMenu() {
   const boss = !!(S.me && S.me.admin), kadm = boss || anyAdm()
-  if (!isTeam()) return [{ id: 'pc', l: '이 PC', g: '설정' }, { id: 'claude', l: 'Claude 연결', g: '설정' }, { id: 'agent', l: '에이전트 설치', g: '설정' },
-    { id: 'import', scr: 'import', l: '가져오기', g: '작업' }, { id: 'structure', scr: 'structure', l: '문서 짜임', g: '작업' }, { id: 'send', scr: 'send', l: '지식 보내기', g: '작업' }]
-  // 가져오기 · 넣지 못함 — 쓰기 자리가 있는 팀 지식이 하나라도 있으면(파일 넣기 · S-D34) · 문서 짜임 — 지식관리자 자리(작성기준 6-1절)
-  const imp = kadm || (S.kns || []).some((x) => !isPersonal(x) && !x.hidden && lvOf(x) && lvOf(x) !== 'read')
+  if (!isTeam()) return [{ id: 'pc', l: '이 PC' }, { id: 'claude', l: 'Claude 연결' }, { id: 'agent', l: '에이전트 설치' }]
   return [
     // 점검 · 팀 서버 · 사람 · 묶음 — 총괄 관리자만(서버 /api/admin/* 도 총괄 관리자만) · 팀 지식 — 지식관리자 자리부터(줄마다 자리로 거른다)
     boss && { id: 'check', l: '점검', g: '매일' },
@@ -587,17 +584,26 @@ function setMenu() {
     boss && { id: 'people', l: '사람 · 묶음', g: '2. 사람 들이기' },
     { id: 'agent', l: '에이전트 설치', g: '3. 붙이기' },
     { id: 'mine', l: '나', g: '나' },
-    imp && { id: 'import', scr: 'import', l: '가져오기', g: '작업' }, imp && { id: 'held', scr: 'held', l: '넣지 못함', g: '작업' }, kadm && { id: 'structure', scr: 'structure', l: '문서 짜임', g: '작업' },
   ].filter(Boolean)
 }
+// 작업 — 날마다 쓰는 도구(옆 메뉴 「지식 관리」 · 설정을 거치지 않는다) · 팀 화면은 팀 지식만 · 개인 화면은 개인 지식만(영역 거르기 그대로)
+//   가져오기 · 넣지 못함 — 쓰기 자리가 있는 팀 지식이 하나라도 있으면(파일 넣기 · S-D34) · 문서 짜임 — 지식관리자 자리(작성기준 6-1절)
+function workMenu() {
+  if (!isTeam()) return [{ id: 'import', scr: 'import', l: '가져오기', ic: 'arrow' }, { id: 'structure', scr: 'structure', l: '문서 짜임', ic: 'folder' }, { id: 'send', scr: 'send', l: '지식 보내기', ic: 'sync' }]
+  const kadm = !!(S.me && S.me.admin) || anyAdm()
+  const imp = kadm || (S.kns || []).some((x) => !isPersonal(x) && !x.hidden && lvOf(x) && lvOf(x) !== 'read')
+  return [imp && { id: 'import', scr: 'import', l: '가져오기', ic: 'arrow' }, imp && { id: 'held', scr: 'held', l: '넣지 못함', ic: 'check' }, kadm && { id: 'structure', scr: 'structure', l: '문서 짜임', ic: 'folder' }].filter(Boolean)
+}
+// 넣지 못함 수(옆 메뉴 배지) — 지식관리자는 그 지식 모두 · 쓰기 자리는 내 것
+const heldSum = () => (S.kns || []).filter((x) => !isPersonal(x)).reduce((n, x) => n + (lvOf(x) === 'admin' ? x.held || 0 : x.heldMine || 0), 0)
 const setPages = () => setMenu().filter((x) => !x.scr)
 // 지금 설정 페이지 — 메뉴에 없는 이름이면 보이는 첫 페이지
 const setPage = () => { const ps = setPages(); return ps.find((x) => x.id === S.route.page) || ps[0] }
 // 메뉴 이름으로 쓴 갈 곳 글 — 멈춤 줄 · 안내 글이 메뉴 이름을 따로 적지 않게
-const setWhere = (id) => { const x = setMenu().find((y) => y.id === id); return !x ? '' : x.scr ? x.l : '설정 › ' + x.l }
+const setWhere = (id) => { const x = [...setMenu(), ...workMenu()].find((y) => y.id === id); return !x ? '' : x.scr ? x.l : '설정 › ' + x.l }
 function openSet(id) {
   S.menu = null
-  const x = setMenu().find((y) => y.id === id)
+  const x = [...setMenu(), ...workMenu()].find((y) => y.id === id)
   if (x && x.scr) go({ scr: x.scr })
   else go({ scr: 'settings', page: id || undefined })
 }
@@ -633,7 +639,7 @@ function sideHtml(left) {
   const vt0 = VIEWS3.includes(r.scr) ? r.scr : S.ktab || 'docs'
   const rb = (a, ic, l, on, extra = '', dot = '') => `<button type="button" class="hb${on ? ' on' : ''}" ${a} title="${l}" aria-label="${l}"${extra}>${svg(ic)}${dot}</button>`
   const nCheck0 = dim ? 0 : histChecks()
-  const rail = dim ? '' : `<div class="srail" data-t="sideRailNav">${fold}${[['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['graph', '그래프', 'graph']].map(([v, l, ic]) => rb(`data-a="view" data-v="${v}" data-t="rl-${v}"`, ic, l + '로 보기', VIEWS3.includes(r.scr) && vt0 === v)).join('')}${rb('data-a="openQo" data-t="rl-qo"', 'search', '빨리 열기 (Ctrl O)', false)}<span class="rsep"></span>${rb('data-a="nav" data-s="today" data-t="rl-history"', 'hour', '이력', HISTSCR.includes(r.scr), '', nCheck0 ? '<i class="rdot"></i>' : '')}${rb(`data-a="setArea" data-v="${team ? 'team' : 'me'}" data-t="rl-settings"`, 'gear', '설정', MGSCR.includes(r.scr))}</div>`
+  const rail = dim ? '' : `<div class="srail" data-t="sideRailNav">${fold}${[['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['graph', '그래프', 'graph']].map(([v, l, ic]) => rb(`data-a="view" data-v="${v}" data-t="rl-${v}"`, ic, l + '로 보기', VIEWS3.includes(r.scr) && vt0 === v)).join('')}${rb('data-a="openQo" data-t="rl-qo"', 'search', '빨리 열기 (Ctrl O)', false)}<span class="rsep"></span>${rb('data-a="nav" data-s="today" data-t="rl-history"', 'hour', '이력', HISTSCR.includes(r.scr), '', nCheck0 ? '<i class="rdot"></i>' : '')}${workMenu().map((x) => rb(`data-a="nav" data-s="${x.scr}" data-t="rl-${x.id}"`, x.ic, x.l, r.scr === x.scr, '', x.id === 'held' && heldSum() ? '<i class="rdot"></i>' : '')).join('')}${rb(`data-a="setArea" data-v="${team ? 'team' : 'me'}" data-t="rl-settings"`, 'gear', '설정', MGSCR.includes(r.scr))}</div>`
   let h = `<aside class="side${dim ? ' dim' : ''}">${rail}<div class="sb-top">${anon() ? `<div class="logo${team ? '' : ' me'}">K</div><span class="brand">kmd</span>` : meHtml()}${busyDot()}${fold}</div><div class="where">${team ? '팀 서버에서 돈다 · ' + esc(S.me.host) : '이 PC 에서 돈다'}</div>`
   if (!dim) {
     // 지식 고르기 영역
@@ -644,7 +650,7 @@ function sideHtml(left) {
     h += `<div class="ktabs" role="tablist" aria-label="보기" data-t="ktabs">${[['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['graph', '그래프', 'graph']].map(([v, l, ic]) => `<button type="button" role="tab" aria-selected="${VIEWS3.includes(r.scr) && vt === v}" class="${VIEWS3.includes(r.scr) && vt === v ? 'on' : vt === v ? 'cur' : ''}" data-a="view" data-v="${v}" data-t="rb-${v}" title="${l}로 보기">${svg(ic)}${l}</button>`).join('')}</div>`
     h += `<div class="lp" data-t="leftPane">${left || sideList(vt, k)}</div></div>`
   }
-  // 지식 관리 — 옆 메뉴에는 이력 · 설정. 설정을 누르면 본문 왼쪽에 메뉴(가져오기 · 넣지 못함 · 지식 보내기 · 설정 탭)가 선다
+  // 지식 관리 — 옆 메뉴에는 이력 · 작업(가져오기 · 넣지 못함 · 문서 짜임 · 지식 보내기) · 설정. 설정을 누르면 본문 왼쪽에 설정 메뉴가 선다
   //   팀 화면은 팀 지식만 · 개인 화면은 개인 지식만
   //   셋 다 위에서 고른 지식과 따로다
   const inMg = !dim && MGSCR.includes(r.scr)
@@ -652,6 +658,7 @@ function sideHtml(left) {
   const nCheck = histChecks()
   h += `<div class="sb-mg" data-t="manageArea"><div class="sb-g">지식 관리</div><div class="nav">`
   if (!dim) h += `<div class="sb-i${HISTSCR.includes(r.scr) ? ' on' : ''}" data-a="nav" data-s="today" data-t="nav-history">${svg('hour')}<span>이력</span>${nCheck ? `<span class="bd warn" data-t="histBadge" title="값 바뀜">${nCheck}</span>` : ''}</div>`
+  if (!dim) for (const x of workMenu()) { const n = x.id === 'held' ? heldSum() : 0; h += `<div class="sb-i${r.scr === x.scr ? ' on' : ''}" data-a="nav" data-s="${x.scr}" data-t="nav-${x.id}">${svg(x.ic)}<span>${esc(x.l)}</span>${n ? `<span class="bd warn" data-t="heldBadge" title="넣지 못함">${n}</span>` : ''}</div>` }
   h += set(team ? 'team' : 'me', '설정')
   h += '</div></div>'
   return h + (dim ? '' : gripHtml('side')) + '</aside>'
@@ -3181,7 +3188,7 @@ function viewImport() {
   if (!impSrcOk() && S.impTab === 'src') S.impTab = 'queue'
   const tab = S.impTab || 'queue'
   const many = team && S.impMany ? `<div class="callout warn" data-t="impMany"><span>파일 ${S.impMany}개는 보내지 않았다. 팀 화면에서는 한 번에 ${TEAM_IMPORT_MAX}개까지 · 많으면 Claude Code 에서 대량 넣기(스킬 kmd-team-import) · <button type="button" class="lk" data-a="openSet" data-v="agent" data-t="impManyGo">설정 › 에이전트 설치</button></span></div>` : ''
-  const drop = tab === 'queue' ? `<div class="drop bar" id="drop" data-t="drop"><b>파일 · 폴더를 이 화면 어디든 끌어다 놓는다</b><span>넣을 곳 ${impPick(target)}</span><span class="lks"><label>파일 고르기<input type="file" multiple id="fileIn" aria-label="파일 고르기" data-t="fileIn"></label> · <label>폴더 고르기<input type="file" webkitdirectory directory multiple id="dirIn" aria-label="폴더 고르기" data-t="dirIn"></label></span>
+  const drop = tab ? `<div class="drop bar" id="drop" data-t="drop"><b>파일 · 폴더를 이 화면 어디든 끌어다 놓는다</b><span>넣을 곳 ${impPick(target)}</span><span class="lks"><label>파일 고르기<input type="file" multiple id="fileIn" aria-label="파일 고르기" data-t="fileIn"></label> · <label>폴더 고르기<input type="file" webkitdirectory directory multiple id="dirIn" aria-label="폴더 고르기" data-t="dirIn"></label></span>
     ${team ? `<label class="impatt" data-t="impAttWrap"><input type="checkbox" id="impAtt" data-t="impAtt"${S.impAtt ? ' checked' : ''}> 원본 파일도 첨부로 둔다</label>` : ''}
     <small data-t="dropNote">${team ? `md · txt · csv · html · json · docx · pptx · xlsx · hwpx · pdf · hwp 는 글로 바꾼다 · 파일마다 들이기: 팀 일꾼이 기록과 문서를 한 번에 짓는다 · 한 번에 ${TEAM_IMPORT_MAX} 파일 · 파일 하나 32MB · 많으면 Claude Code 에서 대량 넣기 · 글이 없는 pdf(스캔)도 대량 넣기에서` : 'md · txt · csv · html · json · docx · pptx · xlsx · hwpx · pdf · hwp 는 글로 바꿔 들이고 원본은 첨부로 · 파일마다 Claude Code 가 지식을 둘러보고 갈래 · 주제 문서의 항목으로 넣는다 · 안 되면 규칙으로 · 한 번에 300 파일 · 200MB'}</small></div>${many}` : ''
   const main = `<div class="imp"><div class="pg-h"><div><div class="big">가져오기</div><p class="lead">들여오는 일은 모두 <b>일 줄</b>에 서서 차례로 돈다. 수집 › 검토 › 짓기 › 넣기. 줄을 고르면 흐름과 터미널이 보인다. 빈 지식을 새로 세우려면 <button type="button" class="lk" data-a="openAdd" data-t="toAdd">지식 목록 › 새 지식</button></p></div><span class="acts">${!impSrcOk() ? '' : can ? `<button class="btn pri" data-a="sfOpen" data-t="sfOpen">+ 가져올 곳 더하기</button>` : '<button class="btn" data-a="sfOpen" data-t="sfOpen">+ 더해 달라고 부탁</button>'}</span></div>
@@ -3298,6 +3305,7 @@ const fileB64 = (f) => new Promise((ok, no) => { const r = new FileReader(); r.o
 async function takeFiles(files) {
   files = [...files]
   if (!files.length) return
+  S.impTab = 'queue' // 띠는 어느 탭에서나 받는다 — 넣은 것은 일 줄에서 본다
   let t = impTarget()
   if (t.none) { toastErr(t.label + '. 넣을 곳이 없다'); return }
   try {

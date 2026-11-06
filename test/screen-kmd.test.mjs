@@ -71,7 +71,10 @@ after(async () => {
 
 // 지식 관리 — 옆 메뉴의 설정 · 팀 / 설정 · 개인(이 PC 는 설정)을 누르고 본문 왼쪽 메뉴에서 고른다 · 이력은 옆 메뉴에 따로
 const hist = (page) => page.click('[data-t=nav-history]')
+// 작업(가져오기 · 넣지 못함 · 문서 짜임 · 지식 보내기)은 옆 메뉴 지식 관리에서 바로 · 나머지는 설정 메뉴에서
+const WORK = ['import', 'held', 'structure', 'send']
 async function mg(page, area, item) {
+  if (WORK.includes(item)) return page.click(`[data-t=manageArea] [data-t=nav-${item}]`)
   await page.click(`[data-t=nav-settings-${area}]`)
   await page.click(`[data-t=mgNav] [data-t=mg-${item}]`)
 }
@@ -123,7 +126,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.equal(await page.locator('.ribbon').count(), 0)
   assert.deepEqual(await page.locator('[data-t=ktabs] button').allInnerTexts(), ['문서', '항목', '그래프'])
   // 지식 관리 — 이력과 설정(팀 화면은 팀 지식만 · 개인 지식은 개인 화면에서)
-  assert.deepEqual(await page.locator('[data-t=manageArea] .sb-i').evaluateAll((els) => els.map((e) => e.querySelector('span').textContent)), ['이력', '설정']) // 개인 지식 쓰기는 설정 › 에이전트 설치 카드로
+  assert.deepEqual(await page.locator('[data-t=manageArea] .sb-i').evaluateAll((els) => els.map((e) => e.querySelector('span').textContent)), ['이력', '가져오기', '넣지 못함', '문서 짜임', '설정']) // 작업 셋은 옆 메뉴에서 바로 · 개인 지식 쓰기는 설정 › 에이전트 설치 카드로
   assert.match(await page.locator('.hdr .hmid').innerText(), /빨리 열기[\s\S]*Ctrl O[\s\S]*찾기[\s\S]*Ctrl K/)
   assert.match(await page.locator('.hdr .hright').innerText(), /Claude[\s\S]*설명서/)
   // 들어온 사람은 왼쪽 메뉴 맨 위(누르면 설정 · 나가기)
@@ -595,8 +598,9 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 팀 일�
   assert.equal(await page.locator('[data-t=mgNav] .mgt').innerText(), '설정')
   assert.equal(await page.locator('[data-t=setTitle]').innerText(), '나')
   // 업무 차례: 매일 › 세우기 › 사람 들이기 › 붙이기 › 나 · 작업은 끝에
-  assert.deepEqual(await mgItems(page), ['점검', '팀 서버', '팀 지식', '사람 · 묶음', '에이전트 설치', '나', '가져오기', '넣지 못함', '문서 짜임'])
-  assert.deepEqual(await page.locator('[data-t=mgNav] [data-t=mgGroup]').allInnerTexts(), ['매일', '1. 세우기', '2. 사람 들이기', '3. 붙이기', '나', '작업'])
+  assert.deepEqual(await mgItems(page), ['점검', '팀 서버', '팀 지식', '사람 · 묶음', '에이전트 설치', '나'])
+  assert.equal(await page.locator('[data-t=manageArea] [data-t=nav-import]').count(), 1, '작업은 옆 메뉴 지식 관리')
+  assert.deepEqual(await page.locator('[data-t=mgNav] [data-t=mgGroup]').allInnerTexts(), ['매일', '1. 세우기', '2. 사람 들이기', '3. 붙이기', '나'])
   await page.waitForSelector('[data-t=auto-find]')
   assert.match(await page.locator('.main .card .ch').first().innerText(), /내 자리/)
   assert.match(await page.locator('[data-t=autoCard] .ch').innerText(), /내 설정[\s\S]*나에게만/)
@@ -862,9 +866,11 @@ test('개인 화면: 지식 보내기 · 받는 팀 지식 고르기 · 지식 �
     assert.equal(await page.locator('[data-t=meRootIn]').inputValue(), path.join(tmp, 'pc'))
     await page.click('[data-a=meRootCancel]')
     // 지식 관리 — 개인 화면에도 지식 보내기
-    await mg(page, 'me', 'send')
+    await page.click('[data-t=nav-settings-me]')
     await page.waitForSelector('[data-t=mgNav]')
-    assert.deepEqual(await mgItems(page), ['이 PC', 'Claude 연결', '에이전트 설치', '가져오기', '문서 짜임', '지식 보내기'])
+    assert.deepEqual(await mgItems(page), ['이 PC', 'Claude 연결', '에이전트 설치'])
+    assert.deepEqual(await page.locator('[data-t=manageArea] .sb-i').evaluateAll((els) => els.map((e) => e.querySelector('span').textContent)), ['이력', '가져오기', '문서 짜임', '지식 보내기', '설정'])
+    await mg(page, 'me', 'send')
     await page.click('[data-t=sendSrc]')
     await page.locator('[data-t=sendSrcItem]').filter({ hasText: '테스트-보내기' }).click()
     await page.waitForSelector('[data-t=sendSetup]')
