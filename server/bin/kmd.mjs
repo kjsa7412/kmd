@@ -435,8 +435,9 @@ async function backupCmd(o) {
       console.log(r.ok ? `붙였다: ${id} → ${r.backup.url} · 지금까지 보냈다` : `붙였다: ${id} · 아직 못 보냈다(다시 보내기를 건다)`)
     } else if (sub === 'pull') {
       if (!id) throw new Error('kmd backup pull <지식>')
+      await hub.start() // 백업 상태(.kmd/backup/<지식>.json)는 start 가 읽는다. 없으면 「백업 자리가 없다」 로 늘 거절됐다
       const r = await hub.backupPull(SHELL, id)
-      console.log(r.pulled ? `받았다: ${r.pulled}개 · 이제 다시 저장된다` : '받을 것이 없다')
+      console.log(r.pulled ? `받았다: ${r.pulled}개 · 이제 다시 저장된다 · 팀 서버가 돌고 있으면 다시 띄운다(systemctl restart kmd: 서버가 지식을 캐시로 들고 있다)` : '받을 것이 없다')
     } else {
       await hub.start()
       for (const k of await hub.list()) {
