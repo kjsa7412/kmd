@@ -195,6 +195,13 @@ export function makeMcp(store) {
         const thin = !r.exact.length || r.exact.some((c) => !c.heading)
         if (thin) ladders.push({ knowledge: r.knowledge, coords: r.coords, passages: r.passages, more: r.more, exhaustive: false, label: r.label })
       }
+      // 문서 제목 맞음(빈칸 무시) — 이름 장부에 없어도 그 문서를 확정으로 싣는다
+      const sq = (x) => String(x || '').normalize('NFC').replace(/\s+/g, '').toLowerCase()
+      for (const r of rs) {
+        const k = await store.get(r.knowledge, ctx).catch(() => null)
+        for (const d of k ? k.docs : []) if (sq(d.title) === sq(q) || sq(d.id) === sq(q)) found.unshift({ knowledge: r.knowledge, coord: null, name: d.title, doc: d.id, heading: null, exact: true, inDocs: true, kind: 'doc', headings: d.sections.map((x) => x.h).slice(0, 40) })
+      }
+      found.sort((a, b) => (a.inDocs ? 0 : 1) - (b.inDocs ? 0 : 1))
       const out = { found }
       if (weak.length) out.weak = { items: weak, note: '말이 이름을 품거나 이름이 말을 품어 걸렸다. 확정하지 말 것' }
       if (ladders.some((l) => l.coords.length || l.passages.length)) out.ladder = ladders

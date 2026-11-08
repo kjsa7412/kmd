@@ -5801,3 +5801,19 @@ document.addEventListener('pointermove', (ev) => {
   zoomAt((a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top, d1 / d0)
 }, true)
 for (const t of ['pointerup', 'pointercancel']) document.addEventListener(t, (ev) => GP.delete(ev.pointerId), true)
+// 편집기 붙여넣기 — 엑셀 · 표 글(탭으로 나뉜 줄)은 md 표로 · 그림은 넣을 수 없다고 알린다(UX G4-04)
+document.addEventListener('paste', (ev) => {
+  const ta = ev.target; if (!ta || ta.id !== 'edTx' || !ev.clipboardData) return
+  if ([...ev.clipboardData.items || []].some((x) => x.kind === 'file' && /^image\//.test(x.type))) { ev.preventDefault(); toast('그림은 여기 붙여 넣을 수 없다: 가져오기 › 파일 넣기로 첨부하고 링크를 단다', 7000); return }
+  const t = ev.clipboardData.getData('text/plain') || ''
+  const rows = t.replace(/\r/g, '').split('\n').filter((l) => l.length)
+  if (rows.length < 2 || !rows.every((l) => l.includes('\t'))) return
+  ev.preventDefault()
+  const cells = rows.map((l) => l.split('\t').map((c) => c.trim().replace(/\|/g, '\|')))
+  const n = Math.max(...cells.map((r) => r.length))
+  const line = (r) => '| ' + Array.from({ length: n }, (_, i) => r[i] || '').join(' | ') + ' |'
+  const md = [line(cells[0]), '|' + ' --- |'.repeat(n), ...cells.slice(1).map(line)].join('\n') + '\n'
+  if (!(document.execCommand && document.execCommand('insertText', false, md))) { const a = ta.selectionStart; ta.setRangeText(md, a, ta.selectionEnd, 'end') }
+  if (S.edit) S.edit.text = ta.value
+  toast('표로 바꿔 붙였다')
+})
