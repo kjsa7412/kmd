@@ -1470,3 +1470,4 @@ body.resizing{cursor:col-resize;user-select:none}
   a.dlink::after{content:""}
 }
 details.paste{margin:var(--sp-4) 0}details.paste>summary{cursor:pointer;color:var(--text-2)}details.paste textarea{width:100%}
+.busy.err{color:var(--warn);border-color:var(--warn-line)}

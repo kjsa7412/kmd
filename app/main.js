@@ -769,7 +769,7 @@ function sideHtml(left) {
 }
 // 들어온 사람 — 왼쪽 메뉴 맨 위 · 누르면 설정 · (팀) 나가기
 function meHtml() {
-  const menu = S.menu === 'me' ? popHtml('me', `<div data-t="meMenu"><div class="mi muted small" data-t="meWhere" aria-disabled="true">${isTeam() ? '팀 서버 · ' + esc(S.me.host || '') : '이 PC 에서 돈다'}</div><div class="sep"></div><div class="mi" data-a="setArea" data-t="meSettings">설정</div><div class="mi" data-a="keysOpen" data-t="meKeys">단축키<small>? · Ctrl /</small></div>${isTeam() ? '<div class="sep"></div><div class="mi" data-a="logout" data-t="meLogout">나가기<small>이 브라우저에서</small></div><div class="mi" data-a="logoutAll" data-t="meLogoutAll">모든 곳에서 나가기<small>다른 기기 · 브라우저도</small></div>' : ''}</div>`) : ''
+  const menu = S.menu === 'me' ? popHtml('me', `<div data-t="meMenu"><div class="mi muted small" data-t="meWhere" aria-disabled="true">${isTeam() ? '팀 서버 · ' + esc(S.me.host || '') : '이 PC 에서 돈다'}</div><div class="sep"></div><div class="mi" data-a="setArea" data-t="meSettings">설정</div><div class="mi" data-a="keysOpen" data-t="meKeys">단축키<small>? · Ctrl /</small></div>${isTeam() ? '<div class="sep"></div><div class="mi" data-a="logout" data-t="meLogout">나가기<small>이 브라우저에서</small></div><div class="mi" data-a="logoutAll" data-t="meLogoutAll">모든 곳에서 나가기<small>다른 기기 · 브라우저도</small></div>' : '<div class="sep"></div><div class="mi" data-a="logout" data-t="meLogout">나가기<small>이 브라우저에서 · 다시 열려면 시작 메뉴 › kmd</small></div>'}</div>`) : ''
   return `<div class="sb-me-top" data-a="menu" data-m="me" data-t="me" title="설정 · 나가기">${menu}<span class="av">${esc(String(S.me.user).slice(0, 1))}</span><span class="un"><b>${esc(S.me.user)}</b><small>${isTeam() ? "팀 서버" : "이 PC"}${S.me.admin && isTeam() ? " · 총괄 관리자" : ""}</small></span><span class="rc">▾</span></div>`
 }
 function hdrHtml(crumb) {
@@ -3013,7 +3013,7 @@ function viewLogin() {
   ${gateErr()}<button class="btn pri" type="submit" data-t="loginBtn">들어가기</button></form>`
   const old = S.me.legacy && !legacy ? ` <button type="button" class="lk" data-a="legacyOpen" data-t="legacyOpen">예전 열쇠로 들어가기</button>` : legacy ? ` <button type="button" class="lk" data-a="legacyClose">아이디 · 비밀번호로</button>` : ''
   return `<div class="gatewrap"><div class="gate"><div class="card"><div class="cb">
-  <div class="mk">${svg('user')}</div><div class="big">팀 kmd 에 들어간다</div><p class="lead">한 번 들어오면 일주일쯤 이어진다.</p>
+  <div class="mk">${svg('user')}</div><div class="big">팀 kmd 에 들어간다</div><p class="lead">한 번 들어오면 쓰는 동안 이어진다(12시간 쉬면 · 7일이 지나면 다시 들어간다).</p>
   ${form}
   <div class="links">잊었으면 관리자에게: 새 링크를 보내 준다${old}</div>
  </div></div></div></div>`
@@ -4171,7 +4171,7 @@ function mineHtml(st) {
   const ppl = Array.isArray(p) ? p.map((x) => `<li data-t="pplRow"><span class="av2">${esc(String(x).slice(0, 1))}</span><span class="nm">${esc(x)}${x === S.me.user ? ' <small>나</small>' : ''}</span></li>`).join('') : ''
   const left = `<div class="card" data-t="mineSeats"><div class="ch">내 자리 <small>아이디 ${esc(S.me.user)} · 지식마다 읽기 · 쓰기 · 지식관리자</small></div><div class="cb tight">${seats}</div>
    <details class="more" data-t="minePeople" style="margin:8px 14px"><summary>팀 사람 ${Array.isArray(p) ? p.length : ''} · 자리란?</summary><div class="in"><ul class="plain pl">${ppl || `<li class="muted">${p ? '' : '읽는 중…'}</li>`}</ul>${ROLE_RULE}</div></details></div>
-   <div class="card" data-t="mineLogout"><div class="ch">나가기</div><div class="cb" style="padding:2px 14px"><div class="set"><span class="tx"><b>이 브라우저에서</b><small>한 번 들어오면 일주일쯤 이어진다</small></span><button type="button" class="btn" data-a="logout" data-t="logout">나가기</button></div><div class="set"><span class="tx"><b>모든 곳에서</b><small>다른 기기 · 브라우저도</small></span><button type="button" class="btn" data-a="logoutAll" data-t="mineLogoutAll">모든 곳에서 나가기</button></div></div></div>`
+   <div class="card" data-t="mineLogout"><div class="ch">나가기</div><div class="cb" style="padding:2px 14px"><div class="set"><span class="tx"><b>이 브라우저에서</b><small>한 번 들어오면 쓰는 동안 이어진다(12시간 쉬면 · 7일이 지나면 다시 들어간다)</small></span><button type="button" class="btn" data-a="logout" data-t="logout">나가기</button></div><div class="set"><span class="tx"><b>모든 곳에서</b><small>다른 기기 · 브라우저도</small></span><button type="button" class="btn" data-a="logoutAll" data-t="mineLogoutAll">모든 곳에서 나가기</button></div></div></div>`
   const right = autoCard(st, true) + devCard()
   return `<div class="g2"><div>${left}</div><div>${right}</div></div><p class="small muted" data-t="mineServer">이 팀 서버: ${esc(st.host)} · kmd v${esc(st.version)} · 팀 일꾼 ${wk} · 백업 ${st.backup.n ? (st.backup.n < st.backup.of ? '일부만' : '됨') : '안 됨'}</p>`
 }
@@ -4355,7 +4355,7 @@ function busyDot(hdr) {
   if (anon() || gated()) return ''
   const n = ((S.busy && S.busy.items) || []).length
   if (S.menu === 'busy') S._pop = { key: 'busy', html: busyPopHtml() }
-  return `<button type="button" class="busy${n ? ' on' : ''}${S.menu === 'busy' ? ' open' : ''}" data-a="menu" data-m="busy" data-t="${hdr ? 'busyDotHdr' : 'busyDot'}" data-n="${n}" aria-haspopup="true" aria-expanded="${S.menu === 'busy' ? 'true' : 'false'}" title="${S.busyErr ? '지금 하는 일을 읽지 못했다' : n ? `지금 하는 일 ${n}: 누르면 내역` : '지금 하는 일 없음'}"><i></i>${n ? `<span>${n}</span>` : ''}</button>`
+  return `<button type="button" class="busy${n ? ' on' : ''}${S.busyErr ? ' err' : ''}${S.menu === 'busy' ? ' open' : ''}"${S.busyErr ? ' aria-label="지금 하는 일을 읽지 못했다(서버에 닿지 않는다)"' : ''} data-a="menu" data-m="busy" data-t="${hdr ? 'busyDotHdr' : 'busyDot'}" data-n="${n}" aria-haspopup="true" aria-expanded="${S.menu === 'busy' ? 'true' : 'false'}" title="${S.busyErr ? '지금 하는 일을 읽지 못했다' : n ? `지금 하는 일 ${n}: 누르면 내역` : '지금 하는 일 없음'}"><i></i>${n ? `<span>${n}</span>` : ''}</button>`
 }
 // 줄 — 누르면 그 일의 진행 현황(가져오기 › 일 줄) · 오른쪽 끝 작은 「문서」 는 그 지식의 문서로
 function busyPopHtml() {
@@ -4972,8 +4972,8 @@ const ACT = {
   agentAllNew: () => agentDo('up'),
   agentMore: (el) => { S.menu = null; S.agAdding = true; S.agDraft = el.dataset.v; S._focus = 'agKnMe'; render() },
   agentDrop: async (el) => { const k = agKnOf(el); if (!await ask1('지식 떼기', '떼기', true, `이 작업 폴더에서 「${k.knName}」 을 뗀다. 다른 지식은 그대로 둔다`)) { S.menu = null; return render() } agentDo('rm', el.dataset.v, k) },
-  logoutAll: async () => { S.menu = null; if (!await ask1('모든 곳에서 나가기', '나가기', true, '모든 곳에서 나간다. 이 브라우저와 다른 기기 · 브라우저의 들어온 것이 모두 끊긴다(Claude Code 의 기기 열쇠는 그대로)')) return render(); try { await postJSON('/api/me/logout-all', {}) } catch {}  location.href = '/' },
-  logout: async () => { await postJSON('/logout', {}).catch((e) => console.warn('나가기를 서버에 알리지 못했다', e)); location.href = '/' },
+  logoutAll: async () => { S.menu = null; if (!(await edLeave('나가'))) return render(); if (!await ask1('모든 곳에서 나가기', '나가기', true, '모든 곳에서 나간다. 이 브라우저와 다른 기기 · 브라우저의 들어온 것이 모두 끊긴다(Claude Code 의 기기 열쇠는 그대로)')) return render(); try { await postJSON('/api/me/logout-all', {}) } catch {}  location.href = '/' },
+  logout: async () => { if (!(await edLeave('나가'))) return; edDrop(); await postJSON('/logout', {}).catch((e) => console.warn('나가기를 서버에 알리지 못했다', e)); location.href = '/' },
   admAddOpen: () => { S.admAdd = { id: '', admin: false, seats: {} }; S._focus = 'admAddIn'; render() },
   admAddAdmin: (el) => { if (S.admAdd) { S.admAdd.admin = el.checked; render() } },
   seatOpen: (el) => { S.menu = null; delete S.cache['seats:' + el.dataset.v]; S.seatWin = { user: el.dataset.v, seats: null }; render() },
@@ -5363,8 +5363,9 @@ const ACT = {
   edAddSec: () => {
     const ta = $('#edTx')
     if (!ta || !S.edit) return
-    const v = ta.value.replace(/\s+$/, '') + '\n\n## 새 항목\n'
-    ta.value = v
+    ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length)
+    const ins = (ta.value.endsWith('\n') ? '\n' : '\n\n') + '## 새 항목\n'
+    const v = document.execCommand && document.execCommand('insertText', false, ins) ? ta.value : (ta.value = ta.value.replace(/\s+$/, '') + '\n\n## 새 항목\n')
     S.edit.text = v
     ta.focus()
     ta.setSelectionRange(v.length - '새 항목\n'.length, v.length - 1)
@@ -5438,7 +5439,7 @@ const ACT = {
   },
   splitToggle: () => toggleSplit(),
   closeSplit: () => { S.split = null; render() },
-  closeOthers: () => { S.tabs = S.tabs.filter((t) => t.id === S.active); S.split = null; S.menu = null; pushHist(); render() },
+  closeOthers: async () => { S.menu = null; if (S.edit && S.edit.tab !== S.active) { if (!(await edLeave('다른 탭을 모두 닫으'))) return render(); edDrop() } S.tabs = S.tabs.filter((t) => t.id === S.active); S.split = null; pushHist(); render() },
   scrollSec: (el) => { const h = [...document.querySelectorAll('#app .main[data-t=main] h2[data-sec]')].find((x) => x.dataset.sec === el.dataset.h); if (h) { h.scrollIntoView({ block: 'start', behavior: 'smooth' }); h.classList.remove('flash'); void h.offsetWidth; h.classList.add('flash') } },
   qoPick: (el) => qoPick(Number(el.dataset.i)),
   qoClose: () => { S.qo = null; render() },

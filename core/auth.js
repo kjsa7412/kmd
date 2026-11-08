@@ -7,7 +7,7 @@
 //   <data>/keys-used.json 열쇠의 마지막 사용(하루 한 번 적는다) — 90일 안 쓴 기기 열쇠는 끊긴다
 //
 // 권한은 사람에게, 자격은 신원만 — 열쇠 · 쿠키는 「누구인가」 만 말하고, 무엇을 보나는 주인 장부(owners)가 정한다.
-// 들어가기 실패의 답은 하나다(없는 아이디 · 틀린 비밀번호 · 잠김이 같은 글 · 같은 상태).
+// 들어가기 실패의 답 — 없는 아이디 · 틀린 비밀번호는 같은 글 · 같은 상태. 잠김은 「잠김 · 풀리는 때」 를 알리되 비밀번호가 맞았는지는 말하지 않는다(UX G5-01 · 정함).
 
 import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
@@ -18,6 +18,7 @@ import { isReservedUser } from './names.js'
 import * as pw from './passwd.js'
 
 export const FAIL = '아이디나 비밀번호를 확인하세요. 여러 번 틀리면 잠시 막힌다'
+export const LOCKED = (until) => `여러 번 틀려 잠시 막혔다${until ? `: ${new Date(until).toTimeString().slice(0, 5)} 쯤 풀린다` : ''}. 급하면 총괄 관리자에게 「풀기」 를 부탁한다(새 링크는 비밀번호를 지운다)`
 const H = 3600_000
 const IDLE_MS = 12 * H
 const MAX_MS = 7 * 24 * H
@@ -188,7 +189,8 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
       // 잠긴 동안에는 판정하지 않는다 — 그래도 같은 시간을 쓴다(가짜 해시)
       if (!markOk && locks.locked(id, ip)) {
         await pw.verifyPassword(null, ph, { N })
-        throw new KmdError('E_AUTH', FAIL)
+        const u = (locks.list().filter((x) => x.user === id).map((x) => x.until).sort().pop()) || null
+        throw new KmdError('E_AUTH', LOCKED(u))
       }
       const ok = await pw.verifyPassword(known?.pw, ph, { N })
       if (!ok) {
