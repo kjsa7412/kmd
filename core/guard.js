@@ -335,7 +335,7 @@ export function audit(k, { sectionOf, coordsOfSection }) {
   const spaced = live.filter(([c]) => /\s/.test(valueOf(c))).map(([c]) => c)
   // 깨진 문서 링크(UX T2-15) — 본문의 [글](x.md · x.md#머리)가 가리키는 문서가 없다 · 바깥 주소 · 기록 링크는 보지 않는다
   const brokenLink = []
-  const byName = new Set(k.docs.flatMap((d) => [d.path, d.path.replace(/^docs\//, '')]))
+  const byName = new Set(k.docs.filter((d) => d.path).flatMap((d) => [d.path, d.path.replace(/^docs\//, '')]))
   for (const d of k.docs.filter((x) => x.path)) for (const sec of d.sections || []) for (const m of String(sec.body || '').matchAll(/\]\(([^)\s#]+\.md)(?:#[^)]*)?\)/g)) {
     let href = m[1]
     try { href = decodeURIComponent(href) } catch {}
