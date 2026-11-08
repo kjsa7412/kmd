@@ -333,8 +333,21 @@ export function audit(k, { sectionOf, coordsOfSection }) {
   const brokenHead = []
   for (const d of k.docs) for (const s of d.sections) if (BROKEN_HEAD.test(s.h || '')) brokenHead.push({ doc: d.id, heading: s.h })
   const spaced = live.filter(([c]) => /\s/.test(valueOf(c))).map(([c]) => c)
+  // 깨진 문서 링크(UX T2-15) — 본문의 [글](x.md · x.md#머리)가 가리키는 문서가 없다 · 바깥 주소 · 기록 링크는 보지 않는다
+  const brokenLink = []
+  const byName = new Set(k.docs.flatMap((d) => [d.path, d.path.replace(/^docs\//, '')]))
+  for (const d of k.docs) for (const sec of d.sections) for (const m of String(sec.body || '').matchAll(/\]\(([^)\s#]+\.md)(?:#[^)]*)?\)/g)) {
+    let href = m[1]
+    try { href = decodeURIComponent(href) } catch {}
+    if (/^[a-z]+:/i.test(href) || /(^|\/)(work|log)\//.test(href)) continue
+    const base = d.path.replace(/[^/]*$/, '')
+    const parts = (base + href).split('/'), out = []
+    for (const x of parts) { if (x === '..') out.pop(); else if (x && x !== '.') out.push(x) }
+    const p = out.join('/')
+    if (!byName.has(p) && !byName.has(href) && !byName.has('docs/' + href)) brokenLink.push({ doc: d.id, heading: sec.h, link: m[1] })
+  }
   return {
-    counts: { names: k.vocab.coords.size, live: live.length, records: k.works.length, sections: k.docs.reduce((n, d) => n + d.sections.length, 0), unnamed: unnamed.length, outside: outside.length, deprecatedUse: deprecatedUse.length, lost: lost.length, noName: noName.length, aliasClash: aliasClash.length, sameLabel: sameLabel.length, brokenHead: brokenHead.length, spaced: spaced.length },
-    unnamed, outside, deprecatedUse, lost, noName, aliasClash, sameLabel, brokenHead, spaced,
+    counts: { brokenLink: brokenLink.length, names: k.vocab.coords.size, live: live.length, records: k.works.length, sections: k.docs.reduce((n, d) => n + d.sections.length, 0), unnamed: unnamed.length, outside: outside.length, deprecatedUse: deprecatedUse.length, lost: lost.length, noName: noName.length, aliasClash: aliasClash.length, sameLabel: sameLabel.length, brokenHead: brokenHead.length, spaced: spaced.length },
+    unnamed, outside, deprecatedUse, lost, noName, aliasClash, sameLabel, brokenHead, spaced, brokenLink,
   }
 }

@@ -1122,7 +1122,7 @@ function docsEmpty(k) {
 }
 // 지식 점검(지식관리자) — 지식 생성 가드가 보는 것의 지금 상태(문서 작성기준 9절 · core/guard.js audit)
 const guardOf = (k) => need('guard:' + k, `/api/k/${encodeURIComponent(k)}/guard`)
-const GUARD_ROWS = [['unnamed', '이름 없는 기록', 'rec'], ['outside', '장부 밖 이름을 단 기록', 'rec'], ['deprecatedUse', '폐기된 이름을 단 안 넣은 기록', 'rec'], ['lost', '자리 잃은 이름', 'item'], ['noName', '이름 없는 항목', 'sec'], ['aliasClash', '다른 이름 겹침', 'word'], ['sameLabel', '같은 보이는 이름(알림)', 'word'], ['brokenHead', '깨진 머리', 'sec'], ['spaced', '값에 빈칸이 든 옛 이름', 'name']]
+const GUARD_ROWS = [['unnamed', '이름 없는 기록', 'rec'], ['outside', '장부 밖 이름을 단 기록', 'rec'], ['deprecatedUse', '폐기된 이름을 단 안 넣은 기록', 'rec'], ['lost', '자리 잃은 이름', 'item'], ['noName', '이름 없는 항목', 'sec'], ['aliasClash', '다른 이름 겹침', 'word'], ['sameLabel', '같은 보이는 이름(알림)', 'word'], ['brokenHead', '깨진 머리', 'sec'], ['spaced', '값에 빈칸이 든 옛 이름', 'name'], ['brokenLink', '깨진 문서 링크', 'sec']]
 function staleCard(k) {
   const n = KN(k), tr = treeOf(k)
   if (!n || !tr || tr.error || !(isPersonal(n) || n.level === 'admin')) return ''
