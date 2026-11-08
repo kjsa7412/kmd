@@ -1603,9 +1603,12 @@ function palBody() {
     const at = x.r ? `data-r="${esc(x.r)}"` : `data-d="${esc(x.d)}" data-h="${esc(x.h)}"${x.coord ? ` data-c="${esc(x.coord)}"` : ''}`
     return `<div class="hit${i === 0 ? ' sel' : ''}" data-a="openHit" data-k="${esc(x.k)}" ${at} data-t="hit"><div class="ht"><b>${esc(x.title)}${x.h ? ' › ' + esc(x.h) : ''}</b>${tags}${x.r && x.state && x.state !== 'in' ? ' ' + recStateChip(x.k, { state: x.state }) : ''}<span class="r">${esc(x.kn)}</span></div><div class="tx">${snip(x.text, r.toks)}</div></div>`
   }
-  if (r.exact) return `${names}<div class="g" data-t="gExact">문서의 항목</div>${r.hits.map(hit).join('')}`
-  const N = r.hits.length, more = S.pal.more, sh = more ? r.hits : r.hits.slice(0, 5)
-  return `${names}<div class="g" data-t="gSim">딱 맞는 항목이 없어 비슷한 글에서 찾았다</div>${sh.map(hit).join('')}<div class="ft" data-t="simCount">비슷한 글 ${N}개${N > 5 ? (more ? ': 모두 보인다' : `: 5개 · <button type="button" class="lk" data-a="palMore" data-t="palMore">${N - 5}개 더 보기</button>`) : ''}</div>`
+  const pf = S.palF || 'all'
+  const fbar = `<div class="tools" data-t="palFilter">${[['all', '모두'], ['doc', '문서만'], ['rec', '기록만']].map(([v, l]) => `<button type="button" class="fbtn" data-a="palF" data-v="${v}" aria-pressed="${pf === v}">${l}</button>`).join('')}</div>`
+  const hs = r.hits.filter((x) => pf === 'all' || (pf === 'rec' ? !!x.r : !x.r))
+  if (r.exact) return `${names}${fbar}<div class="g" data-t="gExact">문서의 항목</div>${hs.map(hit).join('')}`
+  const N = hs.length, more = S.pal.more, sh = more ? hs : hs.slice(0, 5)
+  return `${names}${fbar}<div class="g" data-t="gSim">딱 맞는 항목이 없어 비슷한 글에서 찾았다</div>${sh.map(hit).join('')}<div class="ft" data-t="simCount">비슷한 글 ${N}개${N > 5 ? (more ? ': 모두 보인다' : `: 5개 · <button type="button" class="lk" data-a="palMore" data-t="palMore">${N - 5}개 더 보기</button>`) : ''}</div>`
 }
 
 // ───────────── 지식 한 벌의 모양 — 항목 · 기록 · 쓰는 곳(서버 /model) ─────────────
@@ -5358,6 +5361,7 @@ const ACT = {
   edTheirs: () => { const e = S.edit; if (!e) return; const v = S.cache[`doc:${e.kn}:${e.doc}:ed`]; e.text = v ? edOrig(v) : null; e.keepBase = null; e.conflict = null; e.err = null; render() },
   edPreview: () => { if (!S.edit) return; const ta = $('#edTx'); if (ta && !S.edit.busy) S.edit.text = ta.value; S.edit.preview = !S.edit.preview; render() },
   reLogin: async () => { if (canRelogin()) { await askLogin(); S.loginLost = false; loadStops(); loadBusy(); render() } else location.reload() },
+  palF: (el) => { S.palF = el.dataset.v; const b = $('#palBody') || $('[data-t=palBody]'); if (b) b.innerHTML = palBody(); else render() },
   keysClose: () => { S.keys = false; render() },
   keysOpen: () => { S.menu = null; S.keys = true; render() },
   mgFold: () => { UI.mgFold = !UI.mgFold; saveUi(); render() },
