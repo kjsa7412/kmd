@@ -5054,11 +5054,12 @@ const ACT = {
   },
   restoreDo: async () => {
     const url = (($('#rsUrl') || {}).value || '').trim()
+    const name = (($('#rsName') || {}).value || '').trim() || undefined, practice = !!($('#rsPractice') || {}).checked
     if (!url || S.restoring) return
     S.restoring = true
     render()
     try {
-      const r = await postJSON('/api/restore', { url, name: (($('#rsName') || {}).value || '').trim() || undefined, ...(($('#rsPractice') || {}).checked ? { attach: false } : {}) })
+      const r = await postJSON('/api/restore', { url, name, ...(practice ? { attach: false } : {}) })
       await reloadKns()
       dropSettings()
       toast(`되살렸다: ${esc(r.id)} · 문서 ${r.docs} · 기록 ${r.records}${r.attached ? ' · 같은 백업으로 이어 보낸다' : ' · 읽기만 사본(원래 백업에 보내지 않는다)'}`, 8000)

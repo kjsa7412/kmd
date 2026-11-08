@@ -1087,6 +1087,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     sweepJobs()
     const now = Date.now()
     for (const j of [...jobs.values()]) {
+      // 줄 멈춤 동안은 기다림을 세지 않는다 — 긴 멈춤 뒤 일감이 기록만 남기고 닫히지 않게(UX T6-05)
+      if (Q.hold) break
       if (j.kind !== 'intake' || j.state !== 'queued' || now - Date.parse(j.at) < INTAKE_STALE_MS) continue
       j.state = 'closing'
       await hub.intakeGiveUp(j, 'worker', '팀 일꾼이 24시간 넘게 일감을 받지 않았다: 기록만 남겼다').catch((e) => { j.state = 'queued'; log('들이기 일감 닫기', j.id, e.message) })
@@ -2471,7 +2473,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     workerSeen: () => ({ at: teamSeenAt ? new Date(teamSeenAt).toISOString() : null, intakes: [...jobs.values()].filter((j) => j.state === 'queued' && j.kind === 'intake') }),
     // 일꾼 — 다음 들이기 일감 하나 + 그 일감 · 그 지식에만 쓰는 단기 열쇠(30분 · 한 일감)
     workerNext(wctx) {
-      teamSeenAt = Date.now()
+      teamSeenAt = Date.now() // 멈춤 중에도 일꾼은 보인다(「안 보임」 경고로 바뀌지 않게)
+      // 줄 멈춤이면 들이기 일감도 주지 않는다(UX T6-05) · 이미 맡은 일감의 초안은 그대로 받는다
+      if (Q.hold) return null
       sweepJobs()
       const q = [...jobs.values()].filter((x) => x.state === 'queued' && x.kind === 'intake')
       const j = q.find((x) => !x.auto) || q[0]
@@ -3913,17 +3917,18 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const st = await sendLib.readState(dataDir, id)
       const pickDocs = (Array.isArray(docs) ? docs : []).map((x) => ({ d: k.byDocPath.get(String(x?.path || '')) })).filter((x) => x.d)
       const recIds = [...new Set((Array.isArray(recs) ? recs : []).map(String))].filter((x) => { const w = k.byWork.get(x); return w && !isSystemRecord(w) && !w.tags.some((t) => t.startsWith('sent/')) })
+      const pathOf = new WeakMap() // 조각 → 보낸 문서 경로(받는 팀에는 싣지 않는다)
       const items = [
-        ...pickDocs.map(({ d }) => sendLib.docItem(k, d)),
-        ...recIds.map((x) => sendLib.recItem(k, k.byWork.get(x))),
-      ].flatMap((it) => sendLib.split(it))
+        ...pickDocs.flatMap(({ d }) => sendLib.split(sendLib.docItem(k, d)).map((it) => (pathOf.set(it, d.path), it))),
+        ...recIds.flatMap((x) => sendLib.split(sendLib.recItem(k, k.byWork.get(x)))),
+      ]
       if (!items.length) throw new KmdError('E_INPUT', '보낼 것을 고른다')
       const dest = { kn: route.kn, ...(route.url ? { url: route.url } : {}) }
       // 받는 팀(주소가 있는 길)은 글마다 저장 문으로(S12) — 넣음 · 넣지 못함 · 이미 넣음 · 닿지 않음(wait) · 거절(fail) ·
       //   넣지 못함이 남은 글은 fail 줄([지금 다시] 는 앞 기록 id 를 fixes 로) · 닿지 않은 글은 wait 줄(저절로 다시) · 같은 PC 의 옛 길은 받기 그대로
       let res
       if (dest.url) {
-        res = { sent: 0, wait: 0, fail: 0, put: 0, held: 0, same: 0, why: [], waits: [] }
+        res = { sent: 0, wait: 0, fail: 0, put: 0, held: 0, same: 0, why: [], waits: [], heldPaths: new Set() }
         for (const it of items) {
           const payload = { engine: 'save', src: id, from: meta.name, items: [it] }
           try {
@@ -3932,7 +3937,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             res.same += r.same
             res.sent += r.put + r.held
             const b = badOf(dest, payload, r)
-            if (b) { res.held++; res.waits.push(b); res.why.push(b.why) }
+            if (b) { res.held++; res.waits.push(b); res.why.push(b.why); if (pathOf.has(it)) res.heldPaths.add(pathOf.get(it)) }
           } catch (e) {
             const w = waitOf(dest, payload, e)
             res.waits.push(w)
@@ -3946,7 +3951,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       await sendState(id, (st) => {
         st.wait.push(...waits)
         if (sent || wait || res.same) {
+          // 문서는 팀이 넣었을 때만 「보낸 그대로」(넣지 못함이 있으면 그대로 두어 다시 보낼 수 있게 · UX T6-01) · 기록은 닿았으면 보냄
           for (const { d } of pickDocs) {
+            if (res.heldPaths ? res.heldPaths.has(d.path) : Number(res.held) > 0) continue
             st.sent[d.path] = { ...sendLib.marks(d), at }
             delete st.dropped[d.path]
           }
@@ -4057,7 +4064,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         st.wait = st.wait.flatMap((x) => (x.id !== wid ? [x] : next ? [{ ...next, id: wid, at: w.at }] : []))
         if (sentN) st.log.unshift({ at: new Date().toISOString(), n: sentN, to: [w.to.kn], late: w.at })
       })
-      if (next) throw new KmdError('E_INPUT', `보내지 못했다: ${next.why}${next.fix ? ' · ' + next.fix : ''}${sentN ? ` · ${sentN}개는 보냈다` : ''}`)
+      if (next) throw new KmdError('E_INPUT', `${next.state === 'wait' ? '보내지 못했다(닿지 않았다)' : '팀이 받았지만 넣지 못했다'}: ${next.why}${next.fix ? ' · ' + next.fix : ''}${sentN ? ` · ${sentN}개는 넣었다` : ''}`)
       return { sent: sentN }
     },
     // 받기 — 기록 하나씩(같은 지문이면 0) · 이름은 이 지식의 장부에 정확히 맞는 것만
@@ -4249,7 +4256,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const kadm = mode !== 'team' || hub.canSource(ctx, k.id)
         if (boss) out.push(...backup.lines(k, { name: k.name }))
         // 보내기는 개인 프로그램이 보낸다 — 닿지 않음 · 보내지 못함은 개인 화면에(UX T7-03)
-        const all = mode === 'pc' ? (await sendLib.readState(dataDir, k.id)).wait : []
+        const all = mode === 'pc' || mode === 'team' ? (await sendLib.readState(dataDir, k.id)).wait : []
         const sw = all.filter((w) => w.state === 'wait')
         const sf = all.filter((w) => w.state !== 'wait')
         if (sw.length) out.push(stopLine({ kind: 'send', kn: k.id, level: 'warn', what: `${k.name}: 보낼 곳에 닿지 않는다`, amount: `${sw.reduce((a, w) => a + w.payload.items.length, 0)}개`, fix: '닿으면 저절로 보낸다', since: `${sw[0].at.slice(5, 10)} ${new Date(sw[0].at).toTimeString().slice(0, 5)} 에 누른 것` }))
@@ -4543,7 +4550,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const doAttach = attach === false ? false : attach === true ? true : !used && same
       const r = await restoreFrom({ url: t.url, dir, check, local: t.local })
       // 주인 · 개인 · 정리 설정을 목록에 보이기 전에 건다(되살린 개인 지식이 한순간도 팀에 열리지 않게)
-      const owner = await mutateReg((next) => owners.adoptMembers(next, nm, dir, { restore: true }))
+      const practice = !doAttach && mode === 'team'
+      const owner = practice
+        ? await mutateReg((next) => { next.knowledge = next.knowledge || {}; next.knowledge[nm] = { owner: ctx.user || null, curators: [], noClaude: true, access: { all: 'none' } }; return next.knowledge[nm] })
+        : await mutateReg((next) => owners.adoptMembers(next, nm, dir, { restore: true }))
       list = null
       const meta = await hub.meta(nm)
       if (doAttach) await backup.attach(meta, t.url, { dataDir }).catch((e) => log('되살린 지식 백업 붙이기', nm, e.message))
