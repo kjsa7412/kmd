@@ -6,7 +6,7 @@
 import MarkdownIt from 'markdown-it'
 import path from 'node:path'
 import { coordsOfSection, labelOf, sectionOf, isLegacy, PEND_MAX } from '../core/knowledge.js'
-import { parseHeld } from '../core/parts.js'
+import { parseHeld, dropPart } from '../core/parts.js'
 import { locateDoc } from '../core/registry.js'
 import { sha16 } from '../core/text.js'
 import { splitBlocks, parseTable } from '../core/baseline.js'
@@ -469,7 +469,9 @@ export function recView(k, id) {
   const went = landedIn(k, new Set([w.id, ...via.map((o) => o.id)]))
   const from = (w.reflects || []).map((x) => k.byWork.get(x)).filter(Boolean).map(recRow)
   const ingest = w.tags.some((t) => t.startsWith('ingest/')) && !k.logs.includes(w)
-  return { ...recRow(w), html: render(k, w.path, w.body), tags: w.tags, items, fixes, fixedBy, went, via: via.map(recRow), from, ...(ingest ? { ingest: { read: w.tags.includes('ingest-read') } } : {}), ...(k.logs.includes(w) ? { log: logKind(w) } : {}) }
+  const heldParts = w.state === 'held' ? parseHeld(w.body).map((x) => ({ doc: x.doc || null, heading: x.heading || null, coord: x.coord || null, code: x.code || '', why: String(x.why || '').slice(0, 400), ...(typeof x.content === 'string' ? { html: render(k, w.path, x.content.slice(0, 20000)) } : {}) })) : []
+  const shown = heldParts.length ? dropPart(w.body, '넣지 못함') : w.body
+  return { ...recRow(w), html: render(k, w.path, shown), heldParts, tags: w.tags, items, fixes, fixedBy, went, via: via.map(recRow), from, ...(ingest ? { ingest: { read: w.tags.includes('ingest-read') } } : {}), ...(k.logs.includes(w) ? { log: logKind(w) } : {}) }
 }
 
 // 이력의 갈래(설계 3-4) — 가져오기 · 가져올 곳(설정) · 되돌림 · 고침 · 다듬기 · 버림 · 들이기 · 저장(저장 문이 넣은 기록) · 넣지 못함 · 정리(옛 기록)
