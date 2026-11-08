@@ -180,6 +180,10 @@ html,body{background:var(--bg)}
     <h2>칩 · 표지 <small>칩은 상태만(누르지 않는다) · 표지는 갈래만</small></h2>
     <div class="sg-row"><span class="chip c-ok">됨 · 넣음</span><span class="chip c-acc">새로 · 바뀜</span><span class="chip c-mute">그대로</span><span class="chip c-warn">멈춤</span><span class="chip c-danger">못 함</span><span class="chip c-pend">가져오는 중</span><span class="chip c-warn">넣지 못함</span></div>
     <div class="sg-row" style="margin-top:var(--sp-5)"><span class="kt team">팀</span><span class="kt me">개인</span><span class="kt role">지식관리자</span><span class="kt src">가져온 것</span><span class="kt gone">없어짐</span><span class="kn">DPMS 지식</span><span class="kn none">지식 없음</span></div>
+    <h3>칩 갈래 — chipOf(갈래, 글) 하나로(ok · new/chg/now · same/rest · stop/held · fail · run/wait)</h3>
+    <div class="sg-row"><span class="chip c-ok">문서에 들어감</span><span class="chip c-ok">바로잡힘</span><span class="chip c-acc">보낸 뒤 고침</span><span class="chip c-mute">메모</span><span class="chip c-warn">크게 바뀜</span><span class="chip c-pend">도는 중</span></div>
+    <h3>거르기 단추 .fbtn(하나뿐 · aria-pressed) · 경고 단추 .btn.sm.stopbtn(위 줄 · 칩이 아니다)</h3>
+    <div class="sg-row"><button type="button" class="fbtn" aria-pressed="false">모두 <b>12</b></button><button type="button" class="fbtn" aria-pressed="true"><svg class="ck" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="2"/></svg>넣지 못함 <b>3</b></button><button type="button" class="fbtn" disabled>기록만</button><button type="button" class="btn sm stopbtn">⚠ 경고 2<span>줄이 멈췄다</span></button><button type="button" class="btn sm stopbtn bad">⚠ 경고 1<span>백업이 갈라졌다</span></button></div>
     <h3>지식 자리 — 읽기 · 쓰기 · 관리</h3>
     <div class="sg-row"><span class="kt lv-read">읽기</span><span class="kt lv-write">쓰기</span><span class="kt lv-admin">관리</span></div>
     <h3>항목 이름 — 값(.iv) + 설명(.id) · 값과 설명이 같으면 값만 · 600 이하는 값만</h3>

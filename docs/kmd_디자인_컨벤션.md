@@ -69,7 +69,7 @@ CSS 에 색 · 크기를 바로 쓰지 않는다. 아래 토큰만 쓴다(`var(-
 
 - **줄**(`.srow`) — 왼쪽 표지(유형 · 아이콘) · 이름(굵게) + 작은 둘째 줄 · 가운데 정보 칸 · 오른쪽 칩 · 작은 단추. 줄 전체를 누르면 자세히(모달)로. 줄 안 단추는 누름이 줄로 번지지 않게.
 - **그리드 카드**(`.kgrid > .kcard`) — 지식처럼 「고르는 것」. 이름 · 표지 · 두 줄 정보 · 오른쪽 위 ⋯ · 끌어 순서 바꾸기. 더하기는 그리드 끝 점선 카드(`.kcard.add`).
-- **칩**(`.chip`) — 상태만: `c-ok`(됨 · 넣음 · 켜짐) · `c-acc`(새로 · 바뀜) · `c-mute`(그대로 · 쉼 · 그만둠) · `c-warn`(멈춤 · 값 바뀜 · 넣지 않고 둠 · 넣지 못함) · `c-danger`(못 함) · `c-pend`(도는 중 · 기다림). 「됨」 은 초록 하나다(1절). 칩을 단추로 쓰지 않는다. 상태가 아닌 덧말(「여럿이 합침」 · 「비공개 n 뺌」)은 칩이 아니라 흐린 글(`.muted.small`)로 쓴다. 탭 수(`.tabs em`)는 수만 쓰고 상태 색(노랑)을 쓰지 않는다.
+- **칩**(`.chip`) — 상태만: `c-ok`(됨 · 넣음 · 켜짐) · `c-acc`(새로 · 바뀜) · `c-mute`(그대로 · 쉼 · 그만둠) · `c-warn`(멈춤 · 값 바뀜 · 넣지 않고 둠 · 넣지 못함) · `c-danger`(못 함) · `c-pend`(도는 중 · 기다림). 「됨」 은 초록 하나다(1절). 칩은 `chipOf(갈래, 글)` 로만 그린다 — 갈래는 `ok`(됨 · 넣음 · 들어감 · 맞음 · 바로잡힘) · `new` · `chg` · `now`(새로 · 바뀜 · 지금) · `same` · `rest`(그대로 · 메모 · 버림 · 그만둠) · `stop` · `held`(멈춤 · 크게 바뀜 · 넣지 못함) · `fail`(못 함) · `run` · `wait`(도는 중 · 기다림). 칩을 단추로 쓰지 않는다 — 위 줄 경고(「⚠ 경고 n」 · 「다시 들어가기」)는 경고 단추 `.btn.sm.stopbtn`(노랑 · 빨강은 `.bad`). 상태가 아닌 덧말(「여럿이 합침」 · 「비공개 n 뺌」)은 칩이 아니라 흐린 글(`.muted.small`)로 쓴다. 탭 수(`.tabs em`)는 수만 쓰고 상태 색(노랑)을 쓰지 않는다.
 - **들어온 길**(`.hd-rt`) — 기록이 들어온 길(세션 · 보내기 · 파일 · 코드)은 갈래라 `.kt` 처럼 중립색이다. 상태 색을 빌리지 않는다.
 - **표지**(`.kt`) — 갈래(팀 · 개인 · 유형)만.
 - **항목 이름 = 값 + 설명**(`.iv` 값 · `.id` 설명) — 항목의 이름은 장부 이름의 값(`이슈:DPMS-ISS-15` 의 `DPMS-ISS-15` · 짧고 하나뿐)이고, 보이는 이름(label)은 설명이다. 줄(항목 목록 · 오른쪽 「항목」 · 「이 항목을 쓰는 곳」)은 값(고정폭 · 굵게) + 설명(흐림 · 한 줄 말줄임 · 올리면 전체). 값과 설명이 같으면 설명을 뺀다. 600 이하는 값만. 항목 화면 머리는 첫 줄에 「종류 · 값」(작게) · 큰 머리는 설명(줄바꿈). 탭은 값만. 그래프 점 글씨는 값(같은 값이 둘 이상이면 「종류:값」) · 고른 점 카드에 설명 전체. 찾기는 값으로도 찾는다. 값은 칩으로 그리지 않는다. 장부 밖 항목(문서 머리만 있는 것)은 머리 글 그대로.
@@ -161,6 +161,8 @@ CSS 에 색 · 크기를 바로 쓰지 않는다. 아래 토큰만 쓴다(`var(-
 
 ## 10. 부품 상태
 
+인라인 `style` 은 자리 맞춤(margin · width · min/max-width · 간격 토큰)만 쓴다. 그 밖의 자리 값(flex · display · padding · gap · 줄 높이)은 자리 도우미 `u-*`(`kmd.css` 끝 · 토큰 값 · `!important`)로 — `u-f1`(flex 1 · 줄어듦) · `u-blk` · `u-wrap` · `u-tr` · `u-nw` · `u-full` · `u-ovv` · `u-mhn` · `u-je` · `u-lhr` · `u-flex` · `u-p<간격>`(예: `u-p1-7` = `--sp-1 --sp-7`) · `u-g<간격>` · `u-pl<간격>`. 거르기는 모두 `.fbtn`(옛 `.qf` 는 걷었다).
+
 모든 누르는 것은 `<button>` 또는 `href` 있는 `<a>` 다(키보드로 닿게). div · span 에 `data-a` 만 달지 않는다 — 어쩔 수 없으면 `role="button" tabindex="0"`(위임 처리기가 Enter · Space 를 누름으로 바꾼다).
 
 | 부품 | 기본 | hover | 비활성 | 선택 | 초점(키보드) |
@@ -176,6 +178,9 @@ CSS 에 색 · 크기를 바로 쓰지 않는다. 아래 토큰만 쓴다(`var(-
 | `.stabs` 갈래 탭 · `.ktabs` 보기 단추 | text-2 | text | — | `aria-selected=true`: 갈래 탭은 accent 밑줄 · text 굵게 / 보기 단추는 surface 바탕 · accent 글 · shadow-1 | focus-ring · `role=tab` |
 | `.tn.dir` 묶음 줄 | text-2 굵게 · ▸ · 둥근 수 | surface-2 바탕 | — | `aria-expanded=true`: ▾ | focus-ring |
 | `.tabs` 탭 | text-2 | text · hover 바탕 | text-3 | `.on`: accent 밑줄 · text | focus-ring · `role=tab` |
+| `.stopbtn` 경고 단추(위 줄) | warn-bg 바탕 · warn-line 선 · warn 글(`.bad` 는 danger) | 조금 어둡게 | 위와 같음 | — | focus-ring |
+| 탭 줄(`role=tablist`) | 고른 탭만 Tab 으로 닿는다(roving `tabindex`) | | | | ← → Home End 로 옮기며 고른다 |
+| 메뉴(`.kmenu` · `.menu` · `.pop` 의 `.mi`) | `role=menu` · 줄은 `menuitem`(Tab 이 아니라 ↑↓ Home End) · 여는 것은 `aria-haspopup=menu` · `aria-expanded` | | | | Esc 로 닫고 연 단추로 |
 | 모달 | `.scrim.fix > .modal` · `role=dialog` · `aria-modal` | — | 도는 중이면 닫기 막음 | — | 열면 첫 칸에 초점 · Tab 은 창 안에서만 |
 | 표 `table.t` | 머리 surface-2 | 줄 `--hover` | — | `.sel` accent-bg | — |
 | 빈 화면 `.empty2` | 굵은 한 줄 + 다음에 할 일 단추 | | | | |

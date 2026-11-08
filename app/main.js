@@ -421,7 +421,7 @@ function a11yPass() {
   // 스위치 — 켜짐을 class on 으로만 그린 곳도 읽히게
   for (const b of document.querySelectorAll('#app button.sw')) { b.setAttribute('role', 'switch'); b.setAttribute('aria-checked', b.classList.contains('on') ? 'true' : 'false') }
   // 고른 것 — seg 단추 · 일 줄 거름 칩은 aria-pressed · 나무의 연 문서 · 옆 메뉴의 지금 화면은 aria-current · 접기 머리는 aria-expanded
-  for (const b of document.querySelectorAll('#app .seg > button, #app .qf')) b.setAttribute('aria-pressed', b.classList.contains('on') ? 'true' : 'false')
+  for (const b of document.querySelectorAll('#app .seg > button')) b.setAttribute('aria-pressed', b.classList.contains('on') ? 'true' : 'false')
   for (const b of document.querySelectorAll('#app .tn, #app .sb-i')) { if (b.classList.contains('on')) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current') }
   for (const b of document.querySelectorAll('#app .tf')) { const ar = b.querySelector('.ar'); if (ar) b.setAttribute('aria-expanded', ar.textContent.trim() === '▾' ? 'true' : 'false') }
   const dr = drawerBox()
@@ -432,6 +432,19 @@ function a11yPass() {
   const back = dr ? (dr.classList.contains('side') ? [$('#app .col')] : [...app.querySelectorAll('.col > .hdr, .col .center, .col > .body > .main, .col .band')]) : []
   for (const el of app.querySelectorAll('[inert]')) if (!back.includes(el)) el.removeAttribute('inert')
   for (const el of back) if (el) el.setAttribute('inert', '')
+  const kp = $('#app [data-t=kpick]'); if (kp) { kp.setAttribute('aria-haspopup', 'menu'); kp.setAttribute('aria-expanded', S.menu === 'kmenu' ? 'true' : 'false'); kp.setAttribute('aria-label', '지식 고르기: ' + (kp.querySelector('.rn')?.firstChild?.textContent || '').trim()) }
+  for (const m of document.querySelectorAll('#app .kmenu, #app .menu, #app .pop')) {
+    const its = [...m.querySelectorAll('[data-a]')]
+    if (!its.length || m.querySelector('input,select,textarea') || !its.every((x) => x.classList.contains('mi'))) continue // 칸 · 일 줄이 든 팝업(지금 하는 일)은 메뉴가 아니다
+    m.setAttribute('role', 'menu')
+    for (const it of its) { it.setAttribute('role', 'menuitem'); it.tabIndex = -1 }
+    for (const sp of m.querySelectorAll('.sep')) sp.setAttribute('role', 'separator')
+  }
+  for (const tl of document.querySelectorAll('#app [role=tablist]')) {
+    const ts = [...tl.querySelectorAll('[role=tab]')].filter((t) => t.closest('[role=tablist]') === tl)
+    const on = ts.find((t) => t.getAttribute('aria-selected') === 'true') || ts[0]
+    for (const t of ts) t.tabIndex = t === on ? 0 : -1
+  }
   for (const b of document.querySelectorAll('#app [data-m]')) { b.setAttribute('aria-haspopup', 'menu'); b.setAttribute('aria-expanded', S.menu === b.dataset.m ? 'true' : 'false'); if (!b.hasAttribute('aria-label') && b.title) b.setAttribute('aria-label', b.title) } // ⋯ 은 이름이 「⋯」 뿐 — title 을 이름으로
 }
 // 모달 — role=dialog · 제목으로 이름 · 열리면 첫 칸(없으면 첫 단추)에 초점 · 닫히면 연 단추로 돌아간다
@@ -478,6 +491,9 @@ function menuBack(k) {
 //   ask({ t: 제목, d: 설명, ok: '지우기', danger: true }) → true / false
 //   ask({ t, d, btns: [['drop', '사본도 지우기', 'danger'], ['keep', '사본은 남기기', 'pri']] }) → 'drop' / 'keep' / false(취소)
 //   ask({ t, d, input: { label, value } }) → 쓴 글 / null(취소)
+// 칩 갈래(컨벤션 5절) — 상태 뜻 → 색 하나. 칩은 이 표로만 그린다(같은 상태가 화면마다 다른 색이 되지 않게 · UX T1-04)
+const CHIP = { ok: 'c-ok', new: 'c-acc', chg: 'c-acc', now: 'c-acc', same: 'c-mute', rest: 'c-mute', stop: 'c-warn', held: 'c-warn', fail: 'c-danger', run: 'c-pend', wait: 'c-pend' }
+const chipOf = (st, text, attrs = '') => `<span class="chip ${CHIP[st] || 'c-mute'}"${attrs}>${text}</span>`
 function ask(o) {
   return new Promise((res) => { if (S.ask) S.ask.res(S.ask.input || S.ask.select ? null : false); S.ask = { ...o, input: o.input && { ...o.input }, res }; render() })
 }
@@ -723,10 +739,10 @@ function mgWrap(scr, v) {
 const VIEWS3 = ['docs', 'items', 'graph']
 function sideList(vt, k) {
   // 지식 목록(전체) 화면 — 지식을 고르면 그 지식의 문서 · 항목이 선다
-  if (S.route.scr === 'home') return '<div class="lh">지식을 고른다</div>' + shownKns().map((x) => `<div class="tn" style="padding-left:8px" data-a="openKn" data-k="${esc(x.id)}" data-t="sideKn">${svg('doc')}<span class="nm">${esc(x.name)}</span></div>`).join('')
-  if (!k || !KN(k)) return `<p class="muted small" style="padding:6px 8px" data-t="sideNoKn">지식이 없다. <button type="button" class="btn sm" data-a="openAdd" data-t="sideAdd">새 지식</button></p>`
+  if (S.route.scr === 'home') return '<div class="lh">지식을 고른다</div>' + shownKns().map((x) => `<div class="tn u-pl4" data-a="openKn" data-k="${esc(x.id)}" data-t="sideKn">${svg('doc')}<span class="nm">${esc(x.name)}</span></div>`).join('')
+  if (!k || !KN(k)) return `<p class="muted small u-p3-4" data-t="sideNoKn">지식이 없다. <button type="button" class="btn sm" data-a="openAdd" data-t="sideAdd">새 지식</button></p>`
   if (vt === 'items') return itemListHtml(k)
-  if (vt === 'graph') return `<div class="muted small" style="padding:6px 8px" data-t="graphHint">그래프는 가운데에 그린다. <button type="button" class="lk" data-a="view" data-v="graph">열기</button></div>`
+  if (vt === 'graph') return `<div class="muted small u-p3-4" data-t="graphHint">그래프는 가운데에 그린다. <button type="button" class="lk" data-a="view" data-v="graph">열기</button></div>`
   return treeHtml(k)
 }
 const VIEW_LABEL = { docs: '문서로 보기', items: '항목으로 보기', graph: '그래프로 보기' }
@@ -801,7 +817,7 @@ function bandHtml() {
   else left = team ? '팀 지식 · 팀 서버' : '내 지식 · ' + ((KN(k) && KN(k).dir) || '') + ' · 나만'
   const mine = team && k && KN(k)
   const st = stopsFor(k)
-  const right = S.loginLost ? '<button type="button" class="chip c-warn stopbtn" data-a="reLogin" data-t="loginLost">들어간 것이 끝났다 · 다시 들어가기</button>' : st.length ? stopBtnHtml(st) : team ? '' : `<span class="muted">${esc(OUTBOUND_TX)}</span>`
+  const right = S.loginLost ? '<button type="button" class="btn sm stopbtn" data-a="reLogin" data-t="loginLost">들어간 것이 끝났다 · 다시 들어가기</button>' : st.length ? stopBtnHtml(st) : team ? '' : `<span class="muted">${esc(OUTBOUND_TX)}</span>`
   return `<div class="band ${team ? 'team' : 'me'}"><span class="who"><i></i>${esc(left)}${mine ? ` · 나: ${lvChip(KN(k))}` : ''}</span><span class="out">${right}</span></div>`
 }
 // ── 멈춤 한 줄(서버가 준 줄 그대로) ──
@@ -812,7 +828,7 @@ const STOP_T = { backup: ['백업', 'pc'], source: ['가져오기', 'import'], s
 function stopBtnHtml(st) {
   if (!st.length) return ''
   const bad = st.some((x) => x.level === 'bad')
-  return `<button class="chip ${bad ? 'c-danger' : 'c-warn'} stopbtn" data-a="stopOpen" data-t="stopBtn" title="경고를 모두 본다">⚠ 경고 ${st.length}<span>${esc(st[0].b)}${st.length > 1 ? ` 외 ${st.length - 1}` : ''}</span></button>`
+  return `<button type="button" class="btn sm stopbtn${bad ? ' bad' : ''}" data-a="stopOpen" data-t="stopBtn" title="경고를 모두 본다">⚠ 경고 ${st.length}<span>${esc(st[0].b)}${st.length > 1 ? ` 외 ${st.length - 1}` : ''}</span></button>`
 }
 function stopWinHtml() {
   const st = S.stops
@@ -919,7 +935,7 @@ function localRootBar() {
   if (isTeam()) return ''
   const ed = S.meRootEdit != null || S.me.none
   const body = ed
-    ? `<input class="inp mono" id="meRootIn"${invAttr(S.meRootErr, 'meRootErr')} aria-label="지식 폴더 경로" data-in="meRoot" data-t="meRootIn" value="${esc(S.meRootEdit || '')}" placeholder="예: D:\\kmd" autocomplete="off" style="flex:1;min-width:min(220px,100%)"><span class="acts"><button class="btn pri" data-a="meRootSave" data-t="meRootSave"${S.meRootBusy ? ' disabled' : ''}>${S.meRootBusy ? '바꾸는 중…' : '이 폴더로'}</button>${S.me.none ? '' : '<button class="btn ghost" data-a="meRootCancel">취소</button>'}</span>`
+    ? `<input class="inp mono u-f1" id="meRootIn"${invAttr(S.meRootErr, 'meRootErr')} aria-label="지식 폴더 경로" data-in="meRoot" data-t="meRootIn" value="${esc(S.meRootEdit || '')}" placeholder="예: D:\\kmd" autocomplete="off" style="min-width:min(220px,100%)"><span class="acts"><button class="btn pri" data-a="meRootSave" data-t="meRootSave"${S.meRootBusy ? ' disabled' : ''}>${S.meRootBusy ? '바꾸는 중…' : '이 폴더로'}</button>${S.me.none ? '' : '<button class="btn ghost" data-a="meRootCancel">취소</button>'}</span>`
     : `<span class="fp" data-t="rootPath">${esc(S.me.root || '')}</span><span class="acts"><button class="btn" data-a="copyRoot" data-t="copyRoot">경로 복사</button><button class="btn" data-a="syncKn" data-t="syncKn"${S.syncing ? ' disabled' : ''}>${S.syncing ? '읽는 중…' : '동기화'}</button><button class="btn" data-a="meRootEdit" data-t="meRootEdit">바꾸기</button><button class="btn" data-a="meRootDrop" data-t="meRootDrop"${S.meRootBusy ? ' disabled' : ''} title="이 PC 의 지식 폴더를 뗀다(폴더의 파일은 지우지 않는다)">지식 폴더 떼기</button></span>`
   const note = S.me.none ? '지식 폴더를 뺐다. 경로를 쓰면 그 폴더에 세운다 · 이미 kmd 지식 폴더(.kmd 가 있는 곳)면 그대로 쓴다'
     : '지식 하나 = 이 폴더 안의 폴더 하나 · 다른 곳에서 만든 지식은 폴더째 여기에 놓고 [동기화]. 메뉴 맨 아래에 들어온다 · [바꾸기] 로 다른 폴더를 잇는다(.kmd 가 없거나 빈 폴더면 새로 세운다 · 옛 폴더는 그대로)'
@@ -976,12 +992,12 @@ function addPopHtml() {
   const mine = a.where === 'local'
 
   const teamKns = mine ? sendTeams() : [] // 받는 곳은 쓰기 자리 이상(권한 모델) · 개인 화면은 이 PC 가 이은 팀의 목록
-  const toFld = mine && teamKns.length ? `<div class="field" style="margin:10px 0 0"><label for="addTo">받는 팀 지식 <span class="muted">(선택 · 나중에 지식 보내기에서 정해도 된다)</span></label><select class="inp" id="addTo" data-in="addTo" data-t="addTo"><option value="">정하지 않음</option>${teamKns.map((k) => `<option value="${esc(k.key)}"${a.to === k.key ? ' selected' : ''}>${esc(k.name)}${k.host ? ' · ' + esc(k.host) : ''}</option>`).join('')}</select><div class="hint">정하면 이 개인 지식에서 보내는 것은 모두 그곳으로만 간다</div></div>` : ''
+  const toFld = mine && teamKns.length ? `<div class="field" style="margin:var(--sp-5) 0 0"><label for="addTo">받는 팀 지식 <span class="muted">(선택 · 나중에 지식 보내기에서 정해도 된다)</span></label><select class="inp" id="addTo" data-in="addTo" data-t="addTo"><option value="">정하지 않음</option>${teamKns.map((k) => `<option value="${esc(k.key)}"${a.to === k.key ? ' selected' : ''}>${esc(k.name)}${k.host ? ' · ' + esc(k.host) : ''}</option>`).join('')}</select><div class="hint">정하면 이 개인 지식에서 보내는 것은 모두 그곳으로만 간다</div></div>` : ''
   const hint = a.where === 'team' ? '팀 지식 폴더에 팀 지식으로 선다. 처음에는 나(주인)와 총괄 관리자만 본다 · 세운 뒤 카드 ⋯ › 권한에서 읽기 · 쓰기 · 지식관리자를 준다'
     : '지식 폴더 안에 선다. 나만 본다 · 폴더 경로를 쓰면 그 폴더의 글(md · docx · pptx · xlsx)을 한 번 들인다(원본은 그대로)'
 
-  const dirFld = mine && !team ?`<div class="field" style="margin:10px 0 0"><label for="addDir">들일 폴더 경로 <span class="muted">(선택 · 쓰면 이름은 폴더 이름)</span></label><input class="inp mono" id="addDir" data-in="addDir" data-t="addDir" value="${esc(a.dir || '')}" placeholder="예: D:\\문서\\배포 노트" autocomplete="off"></div>` : ''
-  return `<div class="scrim fix" data-a="addClose" data-self="1"><div class="modal w420" data-t="addPop"><div class="mh">새 지식<button class="x" data-a="addClose" title="닫기">×</button></div><div class="mb"><div class="field" style="margin:0"><label for="addIn">이름</label><input class="inp" id="addIn" data-in="addName" data-t="addIn"${invAttr(a.err, 'addMsg')} value="${esc(a.name)}" placeholder="예: 회의" autocomplete="off"></div>${dirFld}${toFld}<div class="hint" style="margin-top:8px">${esc(hint)}</div>${a.err ? formErr(a.err, 'addMsg') : ''}</div><div class="mf"><span class="l">새 지식은 메뉴 맨 아래에 들어온다</span><span class="acts"><button class="btn ghost" data-a="addClose">취소</button><button class="btn pri" data-a="doAdd" data-t="addBtn"${a.busy ? ' disabled' : ''}>${a.busy ? '만드는 중…' : '만들기'}</button></span></div></div></div>`
+  const dirFld = mine && !team ?`<div class="field" style="margin:var(--sp-5) 0 0"><label for="addDir">들일 폴더 경로 <span class="muted">(선택 · 쓰면 이름은 폴더 이름)</span></label><input class="inp mono" id="addDir" data-in="addDir" data-t="addDir" value="${esc(a.dir || '')}" placeholder="예: D:\\문서\\배포 노트" autocomplete="off"></div>` : ''
+  return `<div class="scrim fix" data-a="addClose" data-self="1"><div class="modal w420" data-t="addPop"><div class="mh">새 지식<button class="x" data-a="addClose" title="닫기">×</button></div><div class="mb"><div class="field" style="margin:0"><label for="addIn">이름</label><input class="inp" id="addIn" data-in="addName" data-t="addIn"${invAttr(a.err, 'addMsg')} value="${esc(a.name)}" placeholder="예: 회의" autocomplete="off"></div>${dirFld}${toFld}<div class="hint" style="margin-top:var(--sp-4)">${esc(hint)}</div>${a.err ? formErr(a.err, 'addMsg') : ''}</div><div class="mf"><span class="l">새 지식은 메뉴 맨 아래에 들어온다</span><span class="acts"><button class="btn ghost" data-a="addClose">취소</button><button class="btn pri" data-a="doAdd" data-t="addBtn"${a.busy ? ' disabled' : ''}>${a.busy ? '만드는 중…' : '만들기'}</button></span></div></div></div>`
 }
 async function doAdd() {
   const a = S.addPop
@@ -1118,7 +1134,7 @@ function docsEmpty(k) {
   <div class="callout gray" data-t="docsEmpty">왼쪽 나무에서 문서나 기록을 연다. 여러 개를 탭으로 띄우고, <b>Ctrl \\</b> 로 둘을 나란히 본다. 이름으로 바로 열려면 <b>Ctrl O</b>.</div>
   ${tr && tr.readme ? `<div class="card" data-t="readmeCard"><div class="ch">먼저 읽을 것 <small>README</small></div><div class="cb paper">${tr.readme}</div></div>` : tr && n.level === 'admin' ? '<p class="hint" data-t="readmeHint">지식 폴더 README.md 에 처음 읽을 문서 차례를 적어 두면 여기 「먼저 읽을 것」 으로 보인다</p>' : ''}
   ${staleCard(k)}
-  <div class="card"><div class="ch">최근 바뀐 문서 <small>문서 ${tr ? ds.length : "…"}</small></div><div class="cb" style="padding:2px 14px 4px"><ul class="plain dl">${tr ? ds.slice(0, 5).map((d) => `<li data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="recentDoc" data-pv="doc|${esc(k)}|${esc(d.id)}">${svg('doc', 'di')}<span class="nm">${esc(d.title)}</span><span class="when${isToday(d.when) ? ' td' : ''}">${esc(whenTxt(d.when))}</span></li>`).join('') : `<li>${loadingHtml}</li>`}</ul></div></div>${guardCard(k)}</div>`
+  <div class="card"><div class="ch">최근 바뀐 문서 <small>문서 ${tr ? ds.length : "…"}</small></div><div class="cb u-p1-7-2"><ul class="plain dl">${tr ? ds.slice(0, 5).map((d) => `<li data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="recentDoc" data-pv="doc|${esc(k)}|${esc(d.id)}">${svg('doc', 'di')}<span class="nm">${esc(d.title)}</span><span class="when${isToday(d.when) ? ' td' : ''}">${esc(whenTxt(d.when))}</span></li>`).join('') : `<li>${loadingHtml}</li>`}</ul></div></div>${guardCard(k)}</div>`
 }
 // 지식 점검(지식관리자) — 지식 생성 가드가 보는 것의 지금 상태(문서 작성기준 9절 · core/guard.js audit)
 const guardOf = (k) => need('guard:' + k, `/api/k/${encodeURIComponent(k)}/guard`)
@@ -1129,7 +1145,7 @@ function staleCard(k) {
   const day = 864e5, now = Date.now()
   const old = (tr.docs || []).filter((d) => d.when && now - Date.parse(d.when) > 180 * day).sort((a, b) => Date.parse(a.when) - Date.parse(b.when))
   if (!old.length) return ''
-  return `<div class="card" data-t="staleCard"><div class="ch">오래 안 바뀐 문서 ${old.length} <small>180일 넘게 · 지금도 맞는지 본다</small></div><div class="cb" style="padding:2px 14px 4px"><ul class="plain dl">${old.slice(0, 8).map((d) => `<li><button type="button" class="lk" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}">${esc(d.title)}</button><span class="r small muted">${esc(whenTxt(d.when))}</span></li>`).join('')}</ul></div></div>`
+  return `<div class="card" data-t="staleCard"><div class="ch">오래 안 바뀐 문서 ${old.length} <small>180일 넘게 · 지금도 맞는지 본다</small></div><div class="cb u-p1-7-2"><ul class="plain dl">${old.slice(0, 8).map((d) => `<li><button type="button" class="lk" data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}">${esc(d.title)}</button><span class="r small muted">${esc(whenTxt(d.when))}</span></li>`).join('')}</ul></div></div>`
 }
 function guardCard(k) {
   const n = KN(k)
@@ -1146,8 +1162,8 @@ function guardCard(k) {
     if (kind === 'word') return `<li data-t="guardWord"><span class="nm">${esc(x.word)}</span><small class="muted">${x.names.map(esc).join(' · ')}</small></li>`
     return `<li data-t="guardName"><span class="nm"><span class="iv">${esc(x)}</span></span></li>`
   }
-  const rows = GUARD_ROWS.map(([key, label, kind]) => `<div class="srow${c[key] ? '' : ' dim'}" data-t="guard-${key}"><span class="nm">${label}</span><span class="chip ${c[key] ? (key === 'sameLabel' || key === 'spaced' ? 'c-mute' : 'c-warn') : 'c-acc'}">${c[key]}</span>${c[key] ? `<button type="button" class="btn ghost sm" data-a="guardOpen" data-v="${key}" aria-expanded="${open === key}">${open === key ? '접기' : '보기'}</button>` : ''}</div>${open === key ? `<ul class="plain dl" data-t="guardList">${(g[key] || []).slice(0, 100).map((x) => li(kind, x)).join('')}${c[key] > 100 ? `<li class="muted small">그 밖에 ${c[key] - 100}: kmd guard ${esc(k)} --list</li>` : ''}</ul>` : ''}`).join('')
-  return `<div class="card" data-t="guardCard"><div class="ch">지식 점검 <small>이름 ${c.live} · 기록 ${c.records} · 항목 ${c.sections} · 갈래 장부 ${g.forms.own ? g.forms.rows.length : '없음(기본 갈래)'}</small><button type="button" class="btn ghost sm r" data-a="guardRe" data-t="guardRe">다시 읽기</button></div><div class="cb" style="padding:2px 14px 6px">${rows}</div></div>`
+  const rows = GUARD_ROWS.map(([key, label, kind]) => `<div class="srow${c[key] ? '' : ' dim'}" data-t="guard-${key}"><span class="nm">${label}</span><span class="chip ${c[key] ? (key === 'sameLabel' || key === 'spaced' ? 'c-mute' : 'c-warn') : 'c-ok'}">${c[key]}</span>${c[key] ? `<button type="button" class="btn ghost sm" data-a="guardOpen" data-v="${key}" aria-expanded="${open === key}">${open === key ? '접기' : '보기'}</button>` : ''}</div>${open === key ? `<ul class="plain dl" data-t="guardList">${(g[key] || []).slice(0, 100).map((x) => li(kind, x)).join('')}${c[key] > 100 ? `<li class="muted small">그 밖에 ${c[key] - 100}: kmd guard ${esc(k)} --list</li>` : ''}</ul>` : ''}`).join('')
+  return `<div class="card" data-t="guardCard"><div class="ch">지식 점검 <small>이름 ${c.live} · 기록 ${c.records} · 항목 ${c.sections} · 갈래 장부 ${g.forms.own ? g.forms.rows.length : '없음(기본 갈래)'}</small><button type="button" class="btn ghost sm r" data-a="guardRe" data-t="guardRe">다시 읽기</button></div><div class="cb u-p1-7-3">${rows}</div></div>`
 }
 // 문서 나무(컨벤션 5절) — docs/ 폴더 짜임 그대로. 폴더 먼저 · 이름 차례(숫자는 수로) · 처음은 접힘 · 지금 연 문서가 든 폴더는 펼침
 //   펼침은 UI.dirs[지식:폴더] — 없으면 기본(지금 문서의 폴더면 펼침), true/false 는 사람이 고른 것
@@ -1371,7 +1387,7 @@ function docPane(t, right) {
     : editing
     ? `<div class="ed" data-t="editor"><div class="lbl"><b>고치는 중</b> · 「## 」 으로 시작하는 줄이 항목 이름이다 · md 로 쓴다. **굵게** · - 목록 · [링크](주소) · Ctrl S 저장 · Esc 취소</div><div class="toolbar"><button class="btn sm" data-a="edAddSec" data-t="edAddSec">항목 더하기</button><button class="btn sm${S.edit.preview ? ' on' : ''}" data-a="edPreview" data-t="edPreview" aria-pressed="${!!S.edit.preview}">바뀐 것 보기</button><span class="muted small">${de.structure ? '항목을 지우려면 그 「## 」 줄과 글을 지운다 · 이름을 바꾸려면 「## 」 줄만 고친다' : '항목을 지우거나 이름을 바꾸는 일은 지식관리자가 한다'}</span></div><textarea id="edTx" aria-label="문서 글(md)" data-in="edTx" data-t="edTx" spellcheck="false"${S.edit.busy ? ' readonly aria-busy="true"' : ''}>${esc(edText(de))}</textarea>
    ${de.sections.filter((s) => s.locks).map((s) => `<div class="lockh">항목 「${esc(s.h)}」 의 표: 회색은 잠겨 있다</div>${s.locks}`).join('')}
-   <div class="row" style="margin-top:10px"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><input id="edWhy" data-in="edWhy" data-t="edWhy" maxlength="200" class="inp edwhy" placeholder="바꾼 까닭(선택) · 예: 10-21 주간회의에서 배포 창 변경" aria-label="바꾼 까닭" value="${esc(S.edit.why || '')}"><span class="r small muted" data-t="edNote">저장하면 바로 문서에 들어간다 · 이력에 남는다</span></div>${S.edit.preview ? `<div class="edprev" data-t="edPrev"><div class="small muted">저장하면 바뀌는 것(저장 전 · 막지 않는다)</div>${edPreviewHtml(k, de)}</div>` : ''}${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.errSecs || []).length ? `<div class="row" data-t="edErrSecs">${S.edit.errSecs.map((h) => `<button type="button" class="btn sm" data-a="edGoSec" data-v="${esc(h)}">「${esc(h)}」 로</button>`).join('')}</div>` : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}</div>`
+   <div class="row" style="margin-top:var(--sp-5)"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><input id="edWhy" data-in="edWhy" data-t="edWhy" maxlength="200" class="inp edwhy" placeholder="바꾼 까닭(선택) · 예: 10-21 주간회의에서 배포 창 변경" aria-label="바꾼 까닭" value="${esc(S.edit.why || '')}"><span class="r small muted" data-t="edNote">저장하면 바로 문서에 들어간다 · 이력에 남는다</span></div>${S.edit.preview ? `<div class="edprev" data-t="edPrev"><div class="small muted">저장하면 바뀌는 것(저장 전 · 막지 않는다)</div>${edPreviewHtml(k, de)}</div>` : ''}${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.errSecs || []).length ? `<div class="row" data-t="edErrSecs">${S.edit.errSecs.map((h) => `<button type="button" class="btn sm" data-a="edGoSec" data-v="${esc(h)}">「${esc(h)}」 로</button>`).join('')}</div>` : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}</div>`
     : d.sections.map((s) => {
     // 찾기로 연 것만 「찾은 곳」 · 링크 · 개요로 연 항목은 머리를 잠깐 빛낸다
     const lit = q && hl && s.h === hl
@@ -1430,8 +1446,8 @@ function recStateTx(k, r) {
   return { held: '넣지 못함: ' + (r.why || '기록만 남았다'), memo: '메모: 문서는 바꾸지 않았다', fixed: '바로잡힘: 나중 기록이 고쳤다', kept: '버림: 문서에 넣지 않기로 했다', reverted: '되돌림', in: '문서에 들어감', none: 'kmd 가 한 일', pend: pendWhen(k), nowhere: teamKn(k) ? pendWhen(k) : '넣을 곳 없음' }[r.state] || '문서에 들어감'
 }
 function recStateChip(k, r) {
-  const c = { held: ['c-warn', '넣지 못함'], memo: ['c-mute', '메모'], fixed: ['c-ok', '바로잡힘'], kept: ['c-mute', '버림'], reverted: ['c-mute', '되돌림'], in: ['c-mute', '문서에 들어감'], pend: teamKn(k) ? ['c-mute', '개편 전 기록'] : ['c-pend', '넣는 중'], nowhere: teamKn(k) ? ['c-mute', '개편 전 기록'] : null }[r.state]
-  return c ? `<span class="chip ${c[0]}" data-t="recState" title="${esc(recStateTx(k, r))}">${c[1]}</span>` : ''
+  const c = { held: ['held', '넣지 못함'], memo: ['same', '메모'], fixed: ['ok', '바로잡힘'], kept: ['rest', '버림'], reverted: ['rest', '되돌림'], in: ['ok', '문서에 들어감'], pend: teamKn(k) ? ['same', '개편 전 기록'] : ['run', '넣는 중'], nowhere: teamKn(k) ? ['same', '개편 전 기록'] : null }[r.state]
+  return c ? chipOf(c[0], c[1], ` data-t="recState" title="${esc(recStateTx(k, r))}"`) : ''
 }
 // 기록 고치기(정정 기록 · S9 · 설계 4-3) — 팀 지식 · 쓰기 이상 · 이력이 아닌 기록 · 내가 쓴 기록이거나 지식관리자(서버도 같은 판정)
 const recFixOk = (k, r) => isTeam() && !r.log && canWrite(k) && (r.author === S.me.user || lvOf(KN(k)) === 'admin')
@@ -1720,7 +1736,7 @@ function itemListBody(k) {
     h += show.map((i) => itemRowHtml(k, i, '', 1)).join('')
     if (show.length < g.length) h += `<div class="tn more" style="--dep:1" data-a="moreTables" data-t="moreTables">${g.length - show.length}개 더</div>`
   })
-  return h || '<div class="muted small" style="padding:8px">이 거름에 맞는 항목이 없다</div>'
+  return h || '<div class="muted small u-p4">이 거름에 맞는 항목이 없다</div>'
 }
 function itemRowHtml(k, i, dt, dep) {
   const rs = recsOfItem(k, i), p = rs.filter((r) => heldR(k, r)).length
@@ -1732,8 +1748,8 @@ function itemsEmpty(k) {
   const kinds = [...KINDS, ...new Set(its.map((i) => i.kind).filter((x) => !KINDS.includes(x)))]
   const by = kinds.map((kd) => [kd, its.filter((i) => i.kind === kd).length]).filter((x) => x[1])
   const held = its.filter((i) => itemHeld(k, i).length)
-  return `<div class="pg-text"><div class="big">${esc(KN(k).name)}: 항목</div><p class="lead">항목 하나를 고르면 그 항목의 지금 글 · 넣지 못한 기록 · 지난 기록이 한 화면에 모인다.</p><div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:12px">${by.map(([kd, n]) => `<span class="kn">${esc(kd)} ${n}</span>`).join('')}</div>${waitHtml(k, treeOf(k))}
-  ${held.length ? `<div class="card"><div class="ch">넣지 못함이 있는 항목 <span class="chip c-warn">${held.length}</span></div><div class="cb" style="padding:6px 8px">${held.map((i) => itemRowHtml(k, i, 'heldItem')).join('')}</div></div>` : ''}</div>`
+  return `<div class="pg-text"><div class="big">${esc(KN(k).name)}: 항목</div><p class="lead">항목 하나를 고르면 그 항목의 지금 글 · 넣지 못한 기록 · 지난 기록이 한 화면에 모인다.</p><div class="row u-wrap u-g3" style="margin-bottom:var(--sp-6)">${by.map(([kd, n]) => `<span class="kn">${esc(kd)} ${n}</span>`).join('')}</div>${waitHtml(k, treeOf(k))}
+  ${held.length ? `<div class="card"><div class="ch">넣지 못함이 있는 항목 <span class="chip c-warn">${held.length}</span></div><div class="cb u-p3-4">${held.map((i) => itemRowHtml(k, i, 'heldItem')).join('')}</div></div>` : ''}</div>`
 }
 const itemOf = (k, key) => need(`item:${k}:${key}`, `/api/k/${encodeURIComponent(k)}/item?key=${encodeURIComponent(key)}`)
 function itemPane(t, right) {
@@ -2345,7 +2361,7 @@ function gCardHtml(k, G) {
   const id = S.g.cur, n = id && G.nodes.find((x) => x.id === id), info = n && nodeInfo(k, id)
   if (!info) return ''
   const nb = G.nbr[id] ? G.nbr[id].size : 0
-  return `<div class="gov" data-t="gCard" data-name="${esc(info.name)}"><div class="row">${glyphIcon(n.kind)}<span class="small muted">${KLAB[n.kind]}${info.kind ? ' · ' + esc(info.kind) : ''}</span><button type="button" class="hb r" data-a="gUnsel" data-t="gClose" title="고르기 닫기: 전체 그래프로" aria-label="고르기 닫기: 전체 그래프로">×</button></div><div class="gn">${esc(info.name)}</div><div class="small gfirst">${esc(plainMd(info.first).slice(0, 160))}</div><div class="small muted" data-t="gCardRecs">기록 ${info.recs} · 이웃 ${nb}</div><div class="row" style="flex-wrap:wrap"><button class="btn pri sm" data-a="gOpen" data-v="docs" data-t="gOpenDocs"${info.doc ? '' : ' disabled'}>문서로 보기</button><button class="btn sm" data-a="gOpen" data-v="items" data-t="gOpenItems"${info.item ? '' : ' disabled'}>항목으로 보기</button>${S.g.mode !== '2d' && (S.g.open || []).length ? '<button class="btn ghost sm" data-a="gUndoOpen" data-t="gUndoOpen" title="마지막으로 뻗은 것을 거둔다">뻗기 거두기</button><button class="btn ghost sm" data-a="gFirst" data-t="gFirst" title="처음 고른 점만">처음 점으로</button>' : ''}</div>${S.g.mode === '2d' && (S.g.trail || []).length ? `<div class="gtrail small" data-t="gTrail"><span class="muted">지나온 점</span>${S.g.trail.slice(-5).map((t) => { const o = G.nodes.find((x) => x.id === t); return o ? `<button type="button" class="lk" data-a="gBack" data-v="${esc(t)}" title="${esc(o.label)}">${esc(gFit(o.label, 110, 12))}</button>` : '' }).join('<span class="muted">›</span>')}</div>` : ''}<div class="small muted gcap">${S.g.mode === '2d' ? '점을 누르면 그 점이 가운데 · × 로 닫으면 전체' : '이웃을 누르면 그 점에서 한 겹 더 · × 로 닫으면 전체'}</div></div>`
+  return `<div class="gov" data-t="gCard" data-name="${esc(info.name)}"><div class="row">${glyphIcon(n.kind)}<span class="small muted">${KLAB[n.kind]}${info.kind ? ' · ' + esc(info.kind) : ''}</span><button type="button" class="hb r" data-a="gUnsel" data-t="gClose" title="고르기 닫기: 전체 그래프로" aria-label="고르기 닫기: 전체 그래프로">×</button></div><div class="gn">${esc(info.name)}</div><div class="small gfirst">${esc(plainMd(info.first).slice(0, 160))}</div><div class="small muted" data-t="gCardRecs">기록 ${info.recs} · 이웃 ${nb}</div><div class="row u-wrap"><button class="btn pri sm" data-a="gOpen" data-v="docs" data-t="gOpenDocs"${info.doc ? '' : ' disabled'}>문서로 보기</button><button class="btn sm" data-a="gOpen" data-v="items" data-t="gOpenItems"${info.item ? '' : ' disabled'}>항목으로 보기</button>${S.g.mode !== '2d' && (S.g.open || []).length ? '<button class="btn ghost sm" data-a="gUndoOpen" data-t="gUndoOpen" title="마지막으로 뻗은 것을 거둔다">뻗기 거두기</button><button class="btn ghost sm" data-a="gFirst" data-t="gFirst" title="처음 고른 점만">처음 점으로</button>' : ''}</div>${S.g.mode === '2d' && (S.g.trail || []).length ? `<div class="gtrail small" data-t="gTrail"><span class="muted">지나온 점</span>${S.g.trail.slice(-5).map((t) => { const o = G.nodes.find((x) => x.id === t); return o ? `<button type="button" class="lk" data-a="gBack" data-v="${esc(t)}" title="${esc(o.label)}">${esc(gFit(o.label, 110, 12))}</button>` : '' }).join('<span class="muted">›</span>')}</div>` : ''}<div class="small muted gcap">${S.g.mode === '2d' ? '점을 누르면 그 점이 가운데 · × 로 닫으면 전체' : '이웃을 누르면 그 점에서 한 겹 더 · × 로 닫으면 전체'}</div></div>`
 }
 // 왼쪽 칸 — 그래프를 어떻게 보일지 정하는 판 다섯(묶음마다 이름표): 찾기 · 보는 방법(3D | 2D 표) · 보기(선 · 제목 · 회전) · 종류(문서 · 항목 · 기록) · 바탕(밝게 | 어둡게)
 //   찾기는 맞는 점을 밝히고 Enter 면 맞는 첫 점(선 많은 차례)을 고른다 · 제목 · 회전은 3D 에서만 쓴다
@@ -2614,7 +2630,7 @@ function traceHtml(x, all) {
     L.push(li('ok', r.at, `${r.knName} · 받은 것에 섰다`, r.title))
     L.push(r.st === 'in' ? li('ok', '', '문서에 들어갔다', '받을 때 넣었다') : r.st === 'held' ? li('w', '', '넣지 못함', '지식관리자가 넣지 못함에서 고친다') : li('w', '', '개편 전 기록', r.sub || ''))
   } else L.push(li('n', '', `${s.to || '팀 지식'} 의 받은 것`, '팀 쪽 줄을 찾지 못했다: 보낸 지 오래됐거나 아직 닿지 않았다'))
-  return `<div class="small muted" style="margin:2px 0">보낸 기록이 지나간 길</div><ul class="trace" data-t="histTrace">${L.join('')}</ul>`
+  return `<div class="small muted" style="margin:var(--sp-1) 0">보낸 기록이 지나간 길</div><ul class="trace" data-t="histTrace">${L.join('')}</ul>`
 }
 // 저장 문이 넣은 항목 한 줄 — 「문서 › 머리」 · 옛 값 → 새 값(또는 새 항목) · [되돌리기](서버가 준 canRevert 이고 지금도 그 기록이 표지인 항목만)
 function histItem(x, it, i) {
@@ -2629,7 +2645,7 @@ function histRow(x, all) {
   let ex = ''
   if (open) {
     ex += '<div class="open" data-t="todayOpen">'
-    if (x.sub) ex += `<div class="small muted" style="margin-bottom:6px">${esc(x.sub)}</div>`
+    if (x.sub) ex += `<div class="small muted" style="margin-bottom:var(--sp-3)">${esc(x.sub)}</div>`
     if (team && (x.kind === '보내기' && x.to || x.kind === '받음')) ex += traceHtml(x, all)
     if (x.items && x.items.length) ex += `<div class="small muted">넣은 항목</div><ul class="hitems" data-t="histItems">${x.items.map((it, i) => histItem(x, it, i)).join('')}</ul>`
     if (x.revert) ex += `<div class="small muted">비교</div>${diffHtml(diffOf(x.kn, x.revert))}`
@@ -2639,12 +2655,12 @@ function histRow(x, all) {
     const links = []
     if (x.go) links.push(`<button type="button" class="lk" data-a="todayGo" data-id="${esc(x.id)}">문서 열기 ›</button>`)
     if (x.rec && x.kn && KN(x.kn)) links.push(`<button type="button" class="lk" data-a="openRec" data-k="${esc(x.kn)}" data-r="${esc(x.rec)}" data-t="histRec">그 일 열기 ›</button>`)
-    if (links.length) ex += `<div style="margin-top:6px;display:flex;gap:12px">${links.join('')}</div>`
+    if (links.length) ex += `<div class="u-flex u-g6" style="margin-top:var(--sp-3)">${links.join('')}</div>`
     ex += '</div>'
   }
   const kind = isCheck(x) ? HIST_CHECK : x.kind
-  const sent = team && x.kind === '보내기' && x.to && !open ? (sentDone(x, all) ? ' <span class="chip c-acc" data-t="sentState">문서에 들어감</span>' : histPair(x, all) ? ' <span class="chip c-warn" data-t="sentState">넣지 못함</span>' : '') : ''
-  return `<div class="hrow${team ? ' ' + x.a : ''}${isCheck(x) ? ' yl' : ''}${x.reverted ? ' done' : ''}" data-t="histRow" data-kind="${esc(x.kind)}" data-area="${x.a}" data-id="${esc(x.id)}"><div class="hl" data-a="toggleToday" data-id="${esc(x.id)}"><span class="tm">${tmOf(x.at)}</span><span class="chip ${isCheck(x) ? 'c-warn' : 'c-mute'}" style="flex:none">${esc(kind)}</span><span class="tx"><b>${esc(x.title)}</b>${sent}${x.reverted ? ' <span class="chip c-mute" data-t="reverted">되돌렸다</span>' : ''}${x.sub && !open ? `<small>${esc(x.sub)}</small>` : ''}</span><span class="kn2">${esc(x.knName || '')}</span><span class="who">${esc(x.who || '')}</span><span class="act" data-t="viewBtn">${open ? '접기' : '보기'}</span></div>${ex}</div>`
+  const sent = team && x.kind === '보내기' && x.to && !open ? (sentDone(x, all) ? ' ' + chipOf('ok', '문서에 들어감', ' data-t="sentState"') : histPair(x, all) ? ' <span class="chip c-warn" data-t="sentState">넣지 못함</span>' : '') : ''
+  return `<div class="hrow${team ? ' ' + x.a : ''}${isCheck(x) ? ' yl' : ''}${x.reverted ? ' done' : ''}" data-t="histRow" data-kind="${esc(x.kind)}" data-area="${x.a}" data-id="${esc(x.id)}"><div class="hl" data-a="toggleToday" data-id="${esc(x.id)}"><span class="tm">${tmOf(x.at)}</span><span class="chip ${isCheck(x) ? 'c-warn' : 'c-mute'} u-fnone">${esc(kind)}</span><span class="tx"><b>${esc(x.title)}</b>${sent}${x.reverted ? ' <span class="chip c-mute" data-t="reverted">되돌렸다</span>' : ''}${x.sub && !open ? `<small>${esc(x.sub)}</small>` : ''}</span><span class="kn2">${esc(x.knName || '')}</span><span class="who">${esc(x.who || '')}</span><span class="act" data-t="viewBtn">${open ? '접기' : '보기'}</span></div>${ex}</div>`
 }
 // 이력 새 줄 수(UX T4-03 · 정함 ① ) — 마지막으로 이력을 본 때(이 브라우저) 뒤에 생긴 줄
 const histSeenAt = () => { try { return Number(localStorage.getItem('kmd.histSeen')) || 0 } catch { return 0 } }
@@ -2683,8 +2699,8 @@ function viewToday() {
   const days = []
   for (const x of flow) { const d = dayOf(x.at); const g = days[days.length - 1]; if (g && g.d === d) g.rows.push(x); else days.push({ d, rows: [x] }) }
   const row = (x) => histRow(x, all)
-  const checkCard = checks.length ? `<div class="card" data-t="histCheck"><div class="ch">값 바뀜 <span class="chip c-warn">${checks.length}</span><small>내 값이 바뀌었다(누가 바꿨든). [되돌리기] 가 있는 줄은 그 줄만 되돌릴 수 있다</small></div><div class="cb" style="padding:0">${checks.map(row).join('')}</div></div>` : ''
-  const flowCard = `<div class="card" data-t="feed"><div class="cb" style="padding:0">${days.map((g) => `<div class="hday" data-t="histDay">${esc(g.d)}<small>${g.rows.length}</small></div>${g.rows.map(row).join('')}`).join('') || '<p class="muted" style="margin:12px 14px" data-t="logEmpty">아직 없다</p>'}${flowLeft > 0 ? `<div class="hmore"><button type="button" class="btn sm" data-a="histMore" data-t="histMore">더 보기(남은 ${flowLeft})</button></div>` : ''}</div><div class="cf">줄을 누르면 펼친다 · ${team ? '팀 줄은 팀 지식의 git · 개인 줄은 개인 지식 폴더의 git 에 남는다' : 'kmd 가 다룬 일은 지식의 git 에 그대로 남아 되살리기 · 백업에 같이 간다'} · 나에게 온 줄은 7일 둔다</div></div>`
+  const checkCard = checks.length ? `<div class="card" data-t="histCheck"><div class="ch">값 바뀜 <span class="chip c-warn">${checks.length}</span><small>내 값이 바뀌었다(누가 바꿨든). [되돌리기] 가 있는 줄은 그 줄만 되돌릴 수 있다</small></div><div class="cb u-p0">${checks.map(row).join('')}</div></div>` : ''
+  const flowCard = `<div class="card" data-t="feed"><div class="cb u-p0">${days.map((g) => `<div class="hday" data-t="histDay">${esc(g.d)}<small>${g.rows.length}</small></div>${g.rows.map(row).join('')}`).join('') || '<p class="muted" style="margin:var(--sp-6) var(--sp-7)" data-t="logEmpty">아직 없다</p>'}${flowLeft > 0 ? `<div class="hmore"><button type="button" class="btn sm" data-a="histMore" data-t="histMore">더 보기(남은 ${flowLeft})</button></div>` : ''}</div><div class="cf">줄을 누르면 펼친다 · ${team ? '팀 줄은 팀 지식의 git · 개인 줄은 개인 지식 폴더의 git 에 남는다' : 'kmd 가 다룬 일은 지식의 git 에 그대로 남아 되살리기 · 백업에 같이 간다'} · 나에게 온 줄은 7일 둔다</div></div>`
 
   const main = `<div class="pg-list">${head}${tiles}
   <div class="hfl" data-t="logKinds">${seg}<div class="tabs">${chip('', '모든 갈래', cnt((x) => pass(x, 'kind')))}${kinds.map((k) => chip(k, k, kindN(k))).join('')}</div><span class="r">${knSel}${whoSel}</span></div>
@@ -3108,7 +3124,7 @@ function askSudo() {
 // 바깥 누름으로는 닫지 않는다(잘못 한 번 누르면 나가지거나 하던 일이 그만두어진다) — × · 취소 · Esc 로만
 function sudoHtml() {
   const v = S.sudo
-  return `<div class="scrim fix"${v.busy ? ' data-busy="1"' : ''}><div class="modal w420" data-t="sudoWin"><div class="mh">${v.login ? `다시 들어가기: ${esc(S.me.user)}` : '비밀번호 한 번 더: 총괄 관리자 확인'}<button type="button" class="x" data-a="sudoCancel" title="닫기" aria-label="닫기">×</button></div><div class="mb"><p class="small muted mt0">${v.login ? '들어온 것이 끝났다(12시간 쉬었거나 · 7일이 지났거나 · 다른 곳에서 「모든 곳에서 나가기」 를 했거나 · 비밀번호를 다시 정했다). 쓰던 글은 그대로 있다 · 비밀번호가 맞지 않으면 관리자가 새 링크를 보냈거나 떠남으로 했을 수 있다: 받은 링크로 다시 정하거나 관리자에게 묻는다' : '총괄 관리자 일은 15분마다 비밀번호를 한 번 더 넣는다. 확인되면 하던 일을 이어서 한다'}</p><input class="inp wfull" type="password" id="sudoPw" data-t="sudoPw" aria-label="비밀번호" autocomplete="current-password">${v.err ? `<div class="callout danger" style="margin-top:10px">${sayErr(v.err)}<i></i><span>${esc(v.err)}</span></div>` : ''}</div><div class="mf"><span class="acts"><button type="button" class="btn ghost" data-a="sudoCancel" data-t="sudoCancel">취소</button><button type="button" class="btn pri" data-a="sudoOk" data-t="sudoOk"${v.busy ? ' disabled' : ''}>${v.busy ? '확인하는 중…' : '확인'}</button></span></div></div></div>`
+  return `<div class="scrim fix"${v.busy ? ' data-busy="1"' : ''}><div class="modal w420" data-t="sudoWin"><div class="mh">${v.login ? `다시 들어가기: ${esc(S.me.user)}` : '비밀번호 한 번 더: 총괄 관리자 확인'}<button type="button" class="x" data-a="sudoCancel" title="닫기" aria-label="닫기">×</button></div><div class="mb"><p class="small muted mt0">${v.login ? '들어온 것이 끝났다(12시간 쉬었거나 · 7일이 지났거나 · 다른 곳에서 「모든 곳에서 나가기」 를 했거나 · 비밀번호를 다시 정했다). 쓰던 글은 그대로 있다 · 비밀번호가 맞지 않으면 관리자가 새 링크를 보냈거나 떠남으로 했을 수 있다: 받은 링크로 다시 정하거나 관리자에게 묻는다' : '총괄 관리자 일은 15분마다 비밀번호를 한 번 더 넣는다. 확인되면 하던 일을 이어서 한다'}</p><input class="inp wfull" type="password" id="sudoPw" data-t="sudoPw" aria-label="비밀번호" autocomplete="current-password">${v.err ? `<div class="callout danger" style="margin-top:var(--sp-5)">${sayErr(v.err)}<i></i><span>${esc(v.err)}</span></div>` : ''}</div><div class="mf"><span class="acts"><button type="button" class="btn ghost" data-a="sudoCancel" data-t="sudoCancel">취소</button><button type="button" class="btn pri" data-a="sudoOk" data-t="sudoOk"${v.busy ? ' disabled' : ''}>${v.busy ? '확인하는 중…' : '확인'}</button></span></div></div></div>`
 }
 async function sudoOk() {
   const v = S.sudo
@@ -3266,7 +3282,7 @@ function impTarget() {
 }
 function impPick(target) {
   if (target.none) return `<b class="muted" data-t="impNone">${esc(target.label)}</b>`
-  return `<select class="inp" data-t="impKn" id="impKn" aria-label="넣을 지식" style="width:auto;margin:0 4px">${impKns().map((x) => `<option value="${esc(x.id)}"${x.id === target.kn ? ' selected' : ''}>${esc(x.name)}${isPersonal(x) ? ' · 나만' : ' · 팀'}</option>`).join('')}${impKns().some((x) => x.name === '받은편지함') || isTeam() ? '' : `<option value=""${target.kn ? '' : ' selected'}>받은편지함(새로: 이름이 걸리는 지식으로 저절로 옮긴다)</option>`}</select>`
+  return `<select class="inp" data-t="impKn" id="impKn" aria-label="넣을 지식" style="width:auto;margin:0 var(--sp-2)">${impKns().map((x) => `<option value="${esc(x.id)}"${x.id === target.kn ? ' selected' : ''}>${esc(x.name)}${isPersonal(x) ? ' · 나만' : ' · 팀'}</option>`).join('')}${impKns().some((x) => x.name === '받은편지함') || isTeam() ? '' : `<option value=""${target.kn ? '' : ' selected'}>받은편지함(새로: 이름이 걸리는 지식으로 저절로 옮긴다)</option>`}</select>`
 }
 const KIND_T = { docs: '문서 폴더', folder: '코드 폴더(예전)', git: '소스 코드 · git', db: 'DB · 읽기만', pc: '이 PC 폴더(예전)' }
 const KIND_I = { docs: 'doc', folder: 'doc', git: 'sync', db: 'server', pc: 'pair' }
@@ -3315,18 +3331,18 @@ function srcModalHtml() {
   if (!s) return ''
   const v = sourcesOf(), can = v && !v.error ? v.can : false, team = isTeam(), st = s.state || {}, id = e.id
   const ro = !can
-  const evSel = `<div class="field"><label for="se-every">언제</label><div class="row"><select class="inp" id="se-every" data-se="every" style="flex:1"${ro ? ' disabled' : ''}>${[['hourly', '1시간마다'], ['daily', '매일'], ['weekly', '매주 월'], ['change', '바뀔 때만: 5분마다 보고 바뀐 것만'], ['manual', '손으로만']].map(([x, l]) => `<option value="${x}"${e.every === x ? ' selected' : ''}>${l}</option>`).join('')}</select>${e.every === 'daily' ? `<input class="inp mono" type="time" id="se-at2" aria-label="매일 가져올 시각" data-in="se" data-f="at2" value="${esc(e.at2)}" style="width:120px"${ro ? ' disabled' : ''}>` : ''}</div>${s.kind === 'docs' ? '<div class="hint">폴더는 실시간으로도 지켜본다. 이것은 놓친 것을 잡는 때</div>' : ''}</div>`
+  const evSel = `<div class="field"><label for="se-every">언제</label><div class="row"><select class="inp u-f1" id="se-every" data-se="every"${ro ? ' disabled' : ''}>${[['hourly', '1시간마다'], ['daily', '매일'], ['weekly', '매주 월'], ['change', '바뀔 때만: 5분마다 보고 바뀐 것만'], ['manual', '손으로만']].map(([x, l]) => `<option value="${x}"${e.every === x ? ' selected' : ''}>${l}</option>`).join('')}</select>${e.every === 'daily' ? `<input class="inp mono" type="time" id="se-at2" aria-label="매일 가져올 시각" data-in="se" data-f="at2" value="${esc(e.at2)}" style="width:min(120px,100%)"${ro ? ' disabled' : ''}>` : ''}</div>${s.kind === 'docs' ? '<div class="hint">폴더는 실시간으로도 지켜본다. 이것은 놓친 것을 잡는 때</div>' : ''}</div>`
   let where = ''
   if (s.kind === 'db') where = `<div class="fgrid">${seFld('호스트', 'host', e.host, 'db.team.local', { mono: 1, ro })}${seFld('포트', 'port', e.port, '5432', { mono: 1, ro })}${seFld('DB 이름', 'database', e.database, '', { mono: 1, ro })}${seFld('스키마', 'schema', e.schema, 'public', { mono: 1, ro })}${seFld('계정', 'user', e.user, '', { mono: 1, ro })}${team ? `<div class="field"><label>비밀번호</label><div class="hint" data-t="credLine">화면으로 받지 않는다. 서버에서 <code>kmd secret set ${esc(s.secret.name)}</code> · ${s.secret.has ? '있음' : '없음'}</div></div>` : seFld('비밀번호', 'password', e.password, s.secret && s.secret.has ? '그대로(바꿀 때만 쓴다)' : '이 PC 의 자격 저장소에만', { pw: 1, ro })}</div>`
   else where = seFld(s.kind === 'git' ? 'git 주소 · 저장소 폴더' : '문서 폴더 경로', 'at', e.at, '', { mono: 1, ro }) + (s.kind === 'git' && !team ? `<div class="fgrid">${seFld('계정', 'gitUser', e.gitUser, s.secret && s.secret.has ? '그대로' : '들어가야 하는 저장소면', { ro })}${seFld('읽기 열쇠', 'gitToken', e.gitToken, s.secret && s.secret.has ? '그대로(바꿀 때만 쓴다)' : '읽기 권한 열쇠', { pw: 1, ro })}</div>` : '')
   // 넣을 지식 › 문서 — 지식을 바꾸면 옛 지식에서 걷고 새 지식으로 처음부터 다시 가져온다
-  const knSel = `<select class="inp" id="se-kn" data-se="kn" data-t="seKn" style="flex:1;min-width:0"${ro ? ' disabled' : ''}>${S.kns.map((k) => `<option value="${esc(k.id)}"${k.id === e.kn ? ' selected' : ''}>${esc(k.name)}</option>`).join('')}</select>`
+  const knSel = `<select class="inp u-f1" id="se-kn" data-se="kn" data-t="seKn"${ro ? ' disabled' : ''}>${S.kns.map((k) => `<option value="${esc(k.id)}"${k.id === e.kn ? ' selected' : ''}>${esc(k.name)}</option>`).join('')}</select>`
   const moved = e.kn !== s.kn ? ' · <b>다른 지식으로 옮기면 처음부터 다시 가져온다</b>' : ''
   const into = isCode(s)
     ? `<div class="field"><label for="se-kn">넣을 지식</label><div class="row">${knSel}</div><div class="hint">코드 바뀜 기록: 묶음마다 기록 하나 · 걸린 항목 글은 들이기가 맞춘다${moved}</div></div>`
-    : `<div class="field"><label for="se-kn">넣을 지식 › ${s.kind === 'docs' ? '폴더' : '문서'}</label><div class="row">${knSel}<input class="inp" id="se-doc" aria-label="넣을 문서 · 폴더 이름" data-in="se" data-f="doc" data-t="seDoc" value="${esc(e.doc || '')}" autocomplete="off" style="flex:1;min-width:0"${ro ? ' readonly' : ''}></div><div class="hint">${s.kind === 'docs' ? '지식 안 이 이름의 폴더로 문서가 선다' : '테이블마다 이 문서의 항목으로'} · 바꾸면 처음부터 다시 가져온다${moved}</div></div>`
+    : `<div class="field"><label for="se-kn">넣을 지식 › ${s.kind === 'docs' ? '폴더' : '문서'}</label><div class="row">${knSel}<input class="inp u-f1" id="se-doc" aria-label="넣을 문서 · 폴더 이름" data-in="se" data-f="doc" data-t="seDoc" value="${esc(e.doc || '')}" autocomplete="off"${ro ? ' readonly' : ''}></div><div class="hint">${s.kind === 'docs' ? '지식 안 이 이름의 폴더로 문서가 선다' : '테이블마다 이 문서의 항목으로'} · 바꾸면 처음부터 다시 가져온다${moved}</div></div>`
   const mean = s.kind === 'git' ? `<div class="field"><label for="seMeaningSw">뜻 갱신</label><div class="row"><button class="sw${e.meaning ? ' on' : ''}" id="seMeaningSw" role="switch" aria-checked="${e.meaning ? 'true' : 'false'}" aria-label="뜻 갱신" data-a="seMeaning" data-t="seMeaning"${ro ? ' disabled' : ''}></button><span class="small muted">바뀐 코드로 걸린 항목 글도 맞춘다. Claude 로${s.meaningBlocked ? ' · 이 지식은 Claude 에 보내지 않아 쉰다' : ''}</span></div></div>` : ''
-  const stat = `<div class="kv" style="margin-bottom:14px" data-t="seState"><span>유형</span><span>${esc(KIND_T[s.kind] || s.kind)} · ${esc(String(s.since || ''))} 부터${s.by ? ' · ' + esc(s.by) : ''}</span><span>상태</span><span>${srcChip(s)} <small>${esc(st.lastNote || '')}</small></span><span>마지막 확인</span><span>${st.checkedAt ? esc(whenTxt(st.checkedAt)) : '-'}</span><span>다음</span><span>${s.watch === 'live' ? '바뀌면 바로 · ' + esc(nextTxt(s.every, st.checkedAt)) : esc(nextTxt(s.every, st.checkedAt))}</span>${srcChange(s) ? `<span>마지막 바뀜</span><span data-t="lastChange">${esc(srcChange(s))}</span>` : ''}</div>`
+  const stat = `<div class="kv" style="margin-bottom:var(--sp-7)" data-t="seState"><span>유형</span><span>${esc(KIND_T[s.kind] || s.kind)} · ${esc(String(s.since || ''))} 부터${s.by ? ' · ' + esc(s.by) : ''}</span><span>상태</span><span>${srcChip(s)} <small>${esc(st.lastNote || '')}</small></span><span>마지막 확인</span><span>${st.checkedAt ? esc(whenTxt(st.checkedAt)) : '-'}</span><span>다음</span><span>${s.watch === 'live' ? '바뀌면 바로 · ' + esc(nextTxt(s.every, st.checkedAt)) : esc(nextTxt(s.every, st.checkedAt))}</span>${srcChange(s) ? `<span>마지막 바뀜</span><span data-t="lastChange">${esc(srcChange(s))}</span>` : ''}</div>`
   const msg = e.msg ? `<div class="callout ${e.msg.cls || ''}" data-t="seMsg"><i></i><span>${e.msg.t}</span></div>` : ''
   const rs = s.resync, run = S.srcRun[id]
   const foot = e.del
@@ -3389,23 +3405,23 @@ function sfForm(can) {
   if (f.type === 'docs') f.rule = 'docs'
   if (f.type === 'git') f.rule = ''
   const grid = (x) => `<div class="fgrid">${x}</div>`
-  const full = (x) => `<div style="grid-column:1/-1">${x}</div>`
+  const full = (x) => `<div class="u-full">${x}</div>`
   const kns = S.kns
   const sel = (f2, opts, v) => `<select class="inp wfull" id="sf-${f2}" data-sf="${f2}">${opts.map(([val, l]) => `<option value="${esc(val)}"${val === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`
-  const res = S.sfMsg ? `<div class="callout ${S.sfMsg.cls || ''}" data-t="sfMsg" style="margin:12px 0 0"><i></i><span>${S.sfMsg.t}</span></div>` : ''
-  const tabs = `<div class="tabs" data-t="sfTabs" style="margin:0 0 14px">${types.map(([v, l]) => `<span class="${f.type === v ? 'on' : ''}" data-a="sfType" data-v="${v}" data-t="sf-${v}">${l}</span>`).join('')}</div>`
+  const res = S.sfMsg ? `<div class="callout ${S.sfMsg.cls || ''}" data-t="sfMsg" style="margin:var(--sp-6) 0 0"><i></i><span>${S.sfMsg.t}</span></div>` : ''
+  const tabs = `<div class="tabs" data-t="sfTabs" style="margin:0 0 var(--sp-7)">${types.map(([v, l]) => `<span class="${f.type === v ? 'on' : ''}" data-a="sfType" data-v="${v}" data-t="sf-${v}">${l}</span>`).join('')}</div>`
   let where = ''
   if (f.type === 'docs') where = full(fld(team ? '서버의 문서 폴더 경로' : '문서 폴더 경로', 'at', f.at, team ? '예: /srv/share/운영문서: 서버에서 허락된 폴더 안만' : '예: D:\\공유\\운영문서', { need: 1, mono: 1 }))
-  if (f.type === 'git') where = full(fld(team ? 'git 주소' : 'git 주소 · 이 PC 의 저장소 폴더', 'at', f.at, team ? '예: https://gitlab.team.local/dpms/dpms-api.git' : '예: https://gitlab.team.local/dpms/dpms-api.git · D:\\work\\dpms-api', { need: 1, mono: 1 })) + (team ? '<div class="small muted" style="grid-column:1/-1" data-t="credNote">들어가야 하는 저장소면: 더한 뒤 서버에서 자격 한 줄(표의 그 줄에 보인다) · 화면으로는 받지 않는다</div>' : fld('계정', 'gitUser', f.gitUser, '사내 저장소에 들어가는 계정') + fld('읽기 열쇠', 'gitToken', f.gitToken, '읽기 권한 열쇠', { pw: 1 }))
+  if (f.type === 'git') where = full(fld(team ? 'git 주소' : 'git 주소 · 이 PC 의 저장소 폴더', 'at', f.at, team ? '예: https://gitlab.team.local/dpms/dpms-api.git' : '예: https://gitlab.team.local/dpms/dpms-api.git · D:\\work\\dpms-api', { need: 1, mono: 1 })) + (team ? '<div class="small muted u-full" data-t="credNote">들어가야 하는 저장소면: 더한 뒤 서버에서 자격 한 줄(표의 그 줄에 보인다) · 화면으로는 받지 않는다</div>' : fld('계정', 'gitUser', f.gitUser, '사내 저장소에 들어가는 계정') + fld('읽기 열쇠', 'gitToken', f.gitToken, '읽기 권한 열쇠', { pw: 1 }))
   if (f.type === 'db') where = fld('호스트', 'host', f.host, '예: db.team.local', { need: 1, mono: 1 }) + fld('포트', 'port', f.port, '5432', { need: 1, mono: 1 }) + fld('DB 이름', 'database', f.database, '예: gdi', { need: 1, mono: 1 }) + fld('스키마', 'schema', f.schema, 'public', { mono: 1 }) + fld('계정', 'user', f.user, '예: kmd_read', { need: 1, mono: 1 }) + (team ? '<div class="small muted" data-t="credNote" style="align-self:end">비밀번호는 화면으로 받지 않는다. 더한 뒤 서버에서 한 줄(표의 그 줄에 보인다)</div>' : fld('비밀번호', 'password', f.password, '이 PC 의 자격 저장소에만', { need: 1, pw: 1 }))
   const docsLike = f.type === 'docs'
-  const what = f.type === 'git' ? '<div class="field" style="margin:0" data-t="codeWhat"><label>무엇을</label><div class="small" style="padding:8px 0">묶음. 더한 뒤 저장소에 새로 올라온 묶음마다 바뀐 코드로 기록 하나</div><div class="hint">묶음 설명 · 바뀐 값(3초 → 5초) · 차이 · 걸린 항목 이름 · 팀 일꾼이 그 항목 글을 맞춘다(Claude: 값이 바뀌면 노란 줄 · 되돌릴 수 있다) · 지금 묶음이 기준 · 합친 묶음 · 시험 · 빌드 결과는 보지 않는다</div></div>' : ruleSet ? `<div class="field" style="margin:0"><label for="sf-rule">무엇을 채우나</label>${sel('rule', ruleSet.map((r) => [r[0], r[1]]), f.rule)}<div class="hint">${esc(ruleSet.find((r) => r[0] === f.rule)[2])}</div></div>` : '<div class="field" style="margin:0"><label>무엇을</label><div class="small" style="padding:8px 0">문서: md · docx · pptx · xlsx · hwpx · hwp · pdf 는 문서로(원본은 첨부) · 그림은 첨부로</div><div class="hint">바뀐 파일만 다시 · 들어온 문서는 원본이 주인(화면에서 고치지 않는다) · 원본에서 지우면 「원본에 없다」</div></div>'
-  const into = f.type === 'git' ? `<div class="field" style="margin:0"><label for="sf-kn">넣을 지식</label>${sel('kn', kns.map((k) => [k.id, k.name]), f.kn)}<div class="hint">기록은 이 지식에 · 이름 장부의 항목이 걸리면 그 항목으로 들인다</div></div>` : `<div class="field" style="margin:0"><label for="sf-kn">넣을 지식 › ${docsLike ? '출처 이름' : '문서'}</label><div style="display:flex;gap:6px">${sel('kn', kns.map((k) => [k.id, k.name]), f.kn)}<input class="inp" id="sf-doc" aria-label="${docsLike ? '출처 이름' : '넣을 문서 이름'}" data-in="sf" data-f="doc" value="${esc(f.doc || '')}" placeholder="${esc(docsLike ? sfAutoName(f) || '폴더 이름' : SF_DOC[f.rule])}" style="width:45%"></div><div class="hint">${docsLike ? '파일마다 기록으로 들고 팀 일꾼이 갈래 · 주제 문서의 항목으로 넣는다(파일 이름 문서를 세우지 않는다) · 이 이름은 기록의 출처' : '문서가 없으면 새로 선다 · 표는 그 문서 안 「저절로 채우는 표」 상자로'}</div></div>`
+  const what = f.type === 'git' ? '<div class="field" style="margin:0" data-t="codeWhat"><label>무엇을</label><div class="small u-p4-0">묶음. 더한 뒤 저장소에 새로 올라온 묶음마다 바뀐 코드로 기록 하나</div><div class="hint">묶음 설명 · 바뀐 값(3초 → 5초) · 차이 · 걸린 항목 이름 · 팀 일꾼이 그 항목 글을 맞춘다(Claude: 값이 바뀌면 노란 줄 · 되돌릴 수 있다) · 지금 묶음이 기준 · 합친 묶음 · 시험 · 빌드 결과는 보지 않는다</div></div>' : ruleSet ? `<div class="field" style="margin:0"><label for="sf-rule">무엇을 채우나</label>${sel('rule', ruleSet.map((r) => [r[0], r[1]]), f.rule)}<div class="hint">${esc(ruleSet.find((r) => r[0] === f.rule)[2])}</div></div>` : '<div class="field" style="margin:0"><label>무엇을</label><div class="small u-p4-0">문서: md · docx · pptx · xlsx · hwpx · hwp · pdf 는 문서로(원본은 첨부) · 그림은 첨부로</div><div class="hint">바뀐 파일만 다시 · 들어온 문서는 원본이 주인(화면에서 고치지 않는다) · 원본에서 지우면 「원본에 없다」</div></div>'
+  const into = f.type === 'git' ? `<div class="field" style="margin:0"><label for="sf-kn">넣을 지식</label>${sel('kn', kns.map((k) => [k.id, k.name]), f.kn)}<div class="hint">기록은 이 지식에 · 이름 장부의 항목이 걸리면 그 항목으로 들인다</div></div>` : `<div class="field" style="margin:0"><label for="sf-kn">넣을 지식 › ${docsLike ? '출처 이름' : '문서'}</label><div class="u-flex u-g3">${sel('kn', kns.map((k) => [k.id, k.name]), f.kn)}<input class="inp" id="sf-doc" aria-label="${docsLike ? '출처 이름' : '넣을 문서 이름'}" data-in="sf" data-f="doc" value="${esc(f.doc || '')}" placeholder="${esc(docsLike ? sfAutoName(f) || '폴더 이름' : SF_DOC[f.rule])}" style="width:45%"></div><div class="hint">${docsLike ? '파일마다 기록으로 들고 팀 일꾼이 갈래 · 주제 문서의 항목으로 넣는다(파일 이름 문서를 세우지 않는다) · 이 이름은 기록의 출처' : '문서가 없으면 새로 선다 · 표는 그 문서 안 「저절로 채우는 표」 상자로'}</div></div>`
   const paths = ''
   const when = `<div class="field" style="margin:0"><label for="sf-every">언제</label>${sel('every', [['hourly', '1시간마다'], ['daily 06:00', '매일 06:00'], ['weekly', '매주 월'], ['change', '바뀔 때만: 5분마다 보고 바뀐 것만']], f.every)}${f.type === 'docs' ? '<div class="hint">폴더는 실시간으로도 지켜본다. 이것은 놓친 것을 잡는 때</div>' : f.type === 'git' ? '<div class="hint">이때마다 새 묶음을 본다</div>' : ''}</div>`
   const nm = fld('이름', 'name', f.name, sfAutoName(f) || '예: dpms-api 코드')
   const meaning = '' // 뜻 갱신 체크는 걷었다 — 소스 코드(git)는 묶음마다 기록이 그 일이다
-  const dbNote = f.type === 'db' ? '<div class="callout gray" data-t="dbNote" style="margin:12px 0 0"><i></i><span><b>테이블마다 정의 표를 채우고 바뀐 테이블만 고친다</b>: 읽기 전용으로만 붙어 테이블 목록(테이블 · 칸 · 형 · 키 · 설명)만 읽는다 · 행은 읽지 않는다 · 어떤 계정이든 세션을 읽기 전용으로 열어 쓰지 않는다 · [연결 확인] 으로 먼저 붙어 본다</span></div>' : ''
+  const dbNote = f.type === 'db' ? '<div class="callout gray" data-t="dbNote" style="margin:var(--sp-6) 0 0"><i></i><span><b>테이블마다 정의 표를 채우고 바뀐 테이블만 고친다</b>: 읽기 전용으로만 붙어 테이블 목록(테이블 · 칸 · 형 · 키 · 설명)만 읽는다 · 행은 읽지 않는다 · 어떤 계정이든 세션을 읽기 전용으로 열어 쓰지 않는다 · [연결 확인] 으로 먼저 붙어 본다</span></div>' : ''
   const probe = f.type === 'db' ? '<button class="btn" data-a="sfCheck" data-t="sfCheck">연결 확인</button>' : can && f.type === 'git' ? '<button class="btn" data-a="sfProbe" data-t="sfProbe">살펴보기</button>' : ''
   const go = can ? `<button class="btn pri" data-a="sfAdd" data-t="sfAdd">더하기</button>` : '<button class="btn pri" data-a="sfAsk" data-t="sfAsk">관리자에게 부탁</button>'
   return `<div class="scrim fix" data-a="sfClose" data-self="1"><div class="modal w760" data-t="sfCard"><div class="mh">가져올 곳 더하기 <small>유형을 고르고 칸을 채운다</small><button class="x" data-a="sfClose" title="닫기">×</button></div>
@@ -3547,12 +3563,12 @@ function impDetHtml(j) {
     ? `<div class="sec"><div class="sh">터미널 <small>${j.kind === 'file' ? (isTeam() ? '팀 일꾼 · kmd 가 하는 일' : 'Claude Code · kmd 가 하는 일') : 'kmd 가 하는 일'}</small><span class="tfil">${[['all', '전체'], ...STG_S.map((s, i) => [String(i), s])].map(([v, l]) => `<span class="${fil === v ? 'on' : ''}" data-a="impTfil" data-v="${v}">${l}</span>`).join('')}</span></div>${termHtml(j.id, fil)}</div>`
     : `<div class="sec"><div class="sh">하는 일 <small>${j.kind === 'intake' ? '팀 일꾼이 한다' : '화면이 올린다'}</small></div><div class="term"><div class="sys">· ${esc(j.msg || '-')}</div></div></div>`
   const made = []
-  for (const d of j.docs || []) made.push(`<li><span class="chip c-acc">문서</span><button type="button" class="lk" data-a="impGo" data-k="${esc(j.kn)}" data-d="${esc(d)}">${esc(d)}</button></li>`)
-  if (j.rec) made.push(`<li><span class="chip c-pend">기록</span><button type="button" class="lk" data-a="openRec" data-k="${esc(j.kn)}" data-r="${esc(j.rec)}">${esc(j.title)}</button></li>`)
+  for (const d of j.docs || []) made.push(`<li><span class="muted small">문서</span><button type="button" class="lk" data-a="impGo" data-k="${esc(j.kn)}" data-d="${esc(d)}">${esc(d)}</button></li>`)
+  if (j.rec) made.push(`<li><span class="muted small">기록</span><button type="button" class="lk" data-a="openRec" data-k="${esc(j.kn)}" data-r="${esc(j.rec)}">${esc(j.title)}</button></li>`)
   const x = j.imp
-  if (x && x.go) made.push(`<li><span class="chip c-acc">문서</span><button type="button" class="lk" data-a="impGo" data-k="${esc(x.go.kn)}" data-d="${esc(x.go.doc)}">${esc(x.go.doc)}</button></li>`)
-  if (x && x.rec) made.push(`<li><span class="chip c-pend">기록</span><button type="button" class="lk" data-a="openRec" data-k="${esc(x.rec.kn)}" data-r="${esc(x.rec.id)}">${esc(x.title)}</button></li>`)
-  if (j.names) made.push(`<li><span class="chip c-mute">이름</span><span>새 이름 ${j.names}</span></li>`)
+  if (x && x.go) made.push(`<li><span class="muted small">문서</span><button type="button" class="lk" data-a="impGo" data-k="${esc(x.go.kn)}" data-d="${esc(x.go.doc)}">${esc(x.go.doc)}</button></li>`)
+  if (x && x.rec) made.push(`<li><span class="muted small">기록</span><button type="button" class="lk" data-a="openRec" data-k="${esc(x.rec.kn)}" data-r="${esc(x.rec.id)}">${esc(x.title)}</button></li>`)
+  if (j.names) made.push(`<li><span class="muted small">이름</span><span>새 이름 ${j.names}</span></li>`)
   const took = j.at ? durTxt((j.end ? Date.parse(j.end) : Date.now()) - Date.parse(j.at)) : '-'
   const acts = impActs(j, false)
   return `<div class="card det" data-t="impDet" data-id="${esc(j.id)}">
@@ -3565,8 +3581,9 @@ function impDetHtml(j) {
   </div>`
 }
 function impChip(j) {
-  if (j.state === 'rule') return '<span class="chip c-warn">규칙으로 넣음</span>'
-  return { run: '<span class="chip c-acc">도는 중</span>', pausing: '<span class="chip c-warn">멈추는 중</span>', wait: '<span class="chip c-mute">기다림</span>', pause: '<span class="chip c-warn">멈춤</span>', check: '<span class="chip c-warn">크게 바뀜</span>', fail: '<span class="chip c-danger">못함</span>', done: '<span class="chip c-ok">끝남</span>', cancel: '<span class="chip c-mute">그만둠</span>' }[j.state] || ''
+  if (j.state === 'rule') return chipOf('ok', '규칙으로 넣음')
+  const m = { run: ['run', '도는 중'], pausing: ['stop', '멈추는 중'], wait: ['wait', '기다림'], pause: ['stop', '멈춤'], check: ['stop', '크게 바뀜'], fail: ['fail', '못함'], done: ['ok', '끝남'], cancel: ['rest', '그만둠'] }[j.state]
+  return m ? chipOf(m[0], m[1]) : ''
 }
 // 고른 일 — 줄의 id · 「지금 하는 일」 에서 온 가져올 곳(src:지식|이름)
 function impPicked(js, q) {
@@ -3599,7 +3616,7 @@ function impQueueHtml(js) {
   const wk = v && v.worker
   const wkBand = wk && !wk.ok ? `<div class="callout warn" data-t="workerBand"><b>${wk.resting ? '팀 일꾼이 쉬고 있다' : '팀 일꾼이 일감을 받지 않는다'}</b>: 기다리는 들이기 ${wk.waiting}개는 일꾼이 돌아오면 이어서 짓는다 · ${wk.staleHours}시간을 넘게 기다리면 기록만 남고 넣지 못함이 된다 · ${S.me && S.me.admin ? `<button type="button" class="lk" data-a="openSet" data-v="server">설정 › 팀 서버 › Claude 연결 ›</button>` : '총괄 관리자에게 알린다'}</div>` : ''
   return `${wkBand}${S.queueErr ? `<div class="callout danger err" data-t="queueErr">${sayErr('일 줄을 읽지 못했다: ' + S.queueErr)}<b>일 줄을 읽지 못했다: ${esc(S.queueErr)}</b><button type="button" class="btn sm retry" data-a="queueRetry">다시 읽기</button></div>` : ''}${hold ? `<div class="callout warn hold" data-t="holdBand"><span><b>줄 멈춤</b>: 도는 일은 지금 단계를 마치고 서고, 기다리는 일은 시작하지 않는다 · 정한 때 · 실시간으로 오는 일도 줄에만 선다</span>${can ? '<button class="btn sm" data-a="qHold" data-v="0">줄 다시 돌리기</button>' : ''}</div>` : ''}
-   <div class="qbar">${IMP_F.map(([k, l, fn]) => `<span class="qf${(S.impFil || 'all') === k ? ' on' : ''}" data-a="impFil" data-v="${k}" data-t="impFil-${k}">${l} <b>${q.filter(fn).length}</b></span>`).join('')}
+   <div class="qbar">${IMP_F.map(([k, l, fn]) => fbtn((S.impFil || 'all') === k, ` data-a="impFil" data-v="${k}" data-t="impFil-${k}"`, `${l} <b>${q.filter(fn).length}</b>`)).join('')}
     <span class="r">동시에 ${lane('claude', 'Claude')}${lane('fetch', '가져오기')}${can ? `<button class="btn sm" data-a="qHold" data-v="${hold ? 0 : 1}" data-t="qHold">${hold ? '줄 다시 돌리기' : '줄 멈춤'}</button>` : ''}</span></div>
    <div class="qwrap"><div class="qlist" data-t="queue">${list}</div>${impDetHtml(sel)}</div>`
 }
@@ -3622,11 +3639,11 @@ function impDoneRows(js) {
   }
   if (!rows) rows = `<tr><td colspan="5" class="none">${js.some((j) => j.fin) ? '맞는 일이 없다' : '아직 끝난 일이 없다'}</td></tr>`
   const pager = pages > 1 ? `<div class="pager">${Array.from({ length: pages }, (_, i) => `<span class="${i === pg ? 'on' : ''}" data-a="impPage" data-v="${i}">${i + 1}</span>`).join('')}</div>` : ''
-  return `<div class="tblwrap"><table class="done"><thead><tr><th style="width:56px">시각</th><th>일</th><th style="width:110px">단계</th><th style="width:96px">결과</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>${pager}`
+  return `<div class="tblwrap"><table class="done"><thead><tr><th style="width:min(56px,100%)">시각</th><th>일</th><th style="width:min(110px,100%)">단계</th><th style="width:min(96px,100%)">결과</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>${pager}`
 }
 function impDoneHtml(js) {
   const sel = (id, v, opts) => `<select class="inp" id="${id}" aria-label="${id === 'impOrg' ? '갈래로 거르기' : '결과로 거르기'}" style="width:auto">${opts.map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${l}</option>`).join('')}</select>`
-  return `<div class="qbar"><input class="inp" data-in="impQ" id="impQ" aria-label="끝난 일 찾기" value="${esc(S.impQ || '')}" placeholder="파일 · 제목 찾기" style="width:220px" autocomplete="off">${sel('impOrg', S.impOrg || '', [['', '모든 갈래'], ...Object.entries(ORG_T)])}${sel('impRes', S.impRes || '', [['', '모든 결과'], ['done', '끝남'], ['cancel', '그만둠'], ['fail', '못함']])}<span class="r">30일 동안 남는다(터미널 줄까지)</span></div>
+  return `<div class="qbar"><input class="inp" data-in="impQ" id="impQ" aria-label="끝난 일 찾기" value="${esc(S.impQ || '')}" placeholder="파일 · 제목 찾기" style="width:min(220px,100%)" autocomplete="off">${sel('impOrg', S.impOrg || '', [['', '모든 갈래'], ...Object.entries(ORG_T)])}${sel('impRes', S.impRes || '', [['', '모든 결과'], ['done', '끝남'], ['cancel', '그만둠'], ['fail', '못함']])}<span class="r">30일 동안 남는다(터미널 줄까지)</span></div>
    <div class="card" id="impDone" data-t="doneTable">${impDoneRows(js)}</div>`
 }
 function impSrcHtml(srcs, v, can) {
@@ -4016,7 +4033,7 @@ function viewSend() {
   const info = r ? `<div class="rinfo">${svg('lock')}<span><b>${esc(src.name)}</b> 에서 보내는 것은 모두 <b>${esc(r.name)}</b>${r.name.length && ro(r.name).endsWith('으로') ? '으로' : '로'}만 간다${r.since ? ` · ${esc(whenTxt(r.since))} 에 정했다` : ''} · ${r.times ? r.times + '번 보냈다' : '아직 보내지 않았다'}</span><button class="btn sm" data-a="sendWin" data-v="change" data-t="sendChange">받는 지식 바꾸기</button></div>` : ''
   const route = `<div class="card route" data-t="sendRoute"><div class="rrow">${left}<div class="rarr">${svg('arrow')}</div>${right}</div>${info}</div>`
   let top = ''
-  for (const w of v.wait) top += `<div class="callout ${w.state === 'wait' ? 'gray' : 'warn'} stop" data-t="sendWait" data-state="${esc(w.held ? 'held' : w.state)}"><i></i><span><b>${w.state === 'wait' ? '받는 지식에 닿지 않았다' : w.held ? '넣지 못함' : '보내지 못했다'}: ${esc(sendNm(w.to))} ${w.n}개</b> · ${w.state === 'wait' ? '저절로 다시 보낸다' : esc(w.why || '')}${w.fix ? ' · ' + esc(w.fix) : ''} · ${esc(whenTxt(w.at))} 에 누른 것${w.tries ? ` · ${w.tries}번 다시 했다(${esc(whenTxt(w.lastAt))})${w.sameWhy ? ' · 같은 까닭: 받는 지식의 지식관리자가 팀 화면 › 넣지 못함에서 본다' : ''}` : ''}</span><span class="r" style="display:flex;gap:8px;margin-left:auto"><button class="btn sm" data-a="sendWaitAct" data-k="${esc(src.id)}" data-id="${esc(w.id)}" data-v="retry" data-t="sendRetry">지금 다시</button><button class="btn sm ghost" data-a="sendWaitAct" data-k="${esc(src.id)}" data-id="${esc(w.id)}" data-v="drop" data-t="sendDrop">버리기</button></span></div>`
+  for (const w of v.wait) top += `<div class="callout ${w.state === 'wait' ? 'gray' : 'warn'} stop" data-t="sendWait" data-state="${esc(w.held ? 'held' : w.state)}"><i></i><span><b>${w.state === 'wait' ? '받는 지식에 닿지 않았다' : w.held ? '넣지 못함' : '보내지 못했다'}: ${esc(sendNm(w.to))} ${w.n}개</b> · ${w.state === 'wait' ? '저절로 다시 보낸다' : esc(w.why || '')}${w.fix ? ' · ' + esc(w.fix) : ''} · ${esc(whenTxt(w.at))} 에 누른 것${w.tries ? ` · ${w.tries}번 다시 했다(${esc(whenTxt(w.lastAt))})${w.sameWhy ? ' · 같은 까닭: 받는 지식의 지식관리자가 팀 화면 › 넣지 못함에서 본다' : ''}` : ''}</span><span class="r u-flex u-g4" style="margin-left:auto"><button class="btn sm" data-a="sendWaitAct" data-k="${esc(src.id)}" data-id="${esc(w.id)}" data-v="retry" data-t="sendRetry">지금 다시</button><button class="btn sm ghost" data-a="sendWaitAct" data-k="${esc(src.id)}" data-id="${esc(w.id)}" data-v="drop" data-t="sendDrop">버리기</button></span></div>`
   if (!r || r.gone) {
     // 받는 지식을 정하기 전 — 정하기 칸만(보낼 것은 열지 않는다)
     const teams = sendTeams() // 받는 곳은 쓰기 자리 이상
@@ -4035,11 +4052,11 @@ function viewSend() {
     const rows = list.map((x) => x.sent
       ? `<div class="drow dim" data-t="sendRec" data-sent="1"><input type="checkbox" disabled><span class="ic2">${svg('doc')}</span><span class="dn"><b>${esc(x.title)}</b><small>${esc(x.author || '')} · ${esc(whenTxt(x.when))}</small></span><span class="chip c-mute">${typeof x.sent === 'string' ? esc(whenTxt(x.sent)) + ' 보냄' : '보냄'}</span></div>`
       : `<label class="drow${picked('r|' + x.id) ? ' on' : ''}" data-t="sendRec">${box(picked('r|' + x.id), 'r|' + x.id)}<span class="ic2">${svg('doc')}</span><span class="dn"><b>${esc(x.title)}</b><small>${esc(x.author || '')} · ${esc(whenTxt(x.when))}</small></span><span class="chip c-acc">보내지 않음</span></label>`).join('')
-    body = `<div class="tbar"><span class="seg in" data-t="sendRecSeg"><button class="${S.sendRecAll ? '' : 'on'}" data-a="sendRecAll" data-v="">보내지 않은 것 ${unsent.length}</button><button class="${S.sendRecAll ? 'on' : ''}" data-a="sendRecAll" data-v="1">모두 ${v.recs.length}</button></span><span class="r"><button class="btn sm ghost" data-a="sendAll" data-v="1" data-t="sendAllOn">모두 고르기</button><button class="btn sm ghost" data-a="sendAll" data-v="" data-t="sendAllOff">모두 빼기</button><input class="inp" id="sendQ" aria-label="보낼 기록 찾기" data-in="sendQ" data-t="sendQ" value="${esc(S.sendQ || '')}" placeholder="제목으로 찾기" style="width:170px"></span></div><div class="dlist">${rows || `<div class="empty3 sm">${S.sendRecAll ? '기록이 없다' : '보내지 않은 기록이 없다. 이 개인 지식에 기록을 남기면 여기에 모인다'}</div>`}</div>`
+    body = `<div class="tbar"><span class="seg in" data-t="sendRecSeg"><button class="${S.sendRecAll ? '' : 'on'}" data-a="sendRecAll" data-v="">보내지 않은 것 ${unsent.length}</button><button class="${S.sendRecAll ? 'on' : ''}" data-a="sendRecAll" data-v="1">모두 ${v.recs.length}</button></span><span class="r"><button class="btn sm ghost" data-a="sendAll" data-v="1" data-t="sendAllOn">모두 고르기</button><button class="btn sm ghost" data-a="sendAll" data-v="" data-t="sendAllOff">모두 빼기</button><input class="inp" id="sendQ" aria-label="보낼 기록 찾기" data-in="sendQ" data-t="sendQ" value="${esc(S.sendQ || '')}" placeholder="제목으로 찾기" style="width:min(170px,100%)"></span></div><div class="dlist">${rows || `<div class="empty3 sm">${S.sendRecAll ? '기록이 없다' : '보내지 않은 기록이 없다. 이 개인 지식에 기록을 남기면 여기에 모인다'}</div>`}</div>`
   } else if (tab === 'doc') {
     const rows = v.docs.map((d) => {
       const on = picked('d|' + d.path)
-      const chip = d.st === 'new' ? '<span class="chip c-acc">보낸 적 없음</span>' : d.st === 'chg' ? `<span class="chip c-warn">보낸 뒤 고침${d.heads.length ? ' ' + d.heads.length : ''}</span>` : '<span class="chip c-mute">보낸 그대로</span>'
+      const chip = d.st === 'new' ? '<span class="chip c-acc">보낸 적 없음</span>' : d.st === 'chg' ? chipOf('chg', `보낸 뒤 고침${d.heads.length ? ' ' + d.heads.length : ''}`) : '<span class="chip c-mute">보낸 그대로</span>'
       const sentAt = typeof d.sent === 'string' ? ` · ${whenTxt(d.sent)} 에 보냄` : d.sent ? ' · 보냄' : ''
       const sub = d.st === 'chg' && d.heads.length ? `보낸 뒤 고친 항목: ${d.heads.join(' · ')} · ${whenTxt(d.when)}${sentAt}` : whenTxt(d.when) + sentAt
       const how = '<span class="how">문서 통째로</span>'
@@ -4068,12 +4085,12 @@ function sendWinHtml() {
       const how = d.st === 'new' ? '문서 통째로 · 처음' : '문서 통째로'
       return `<li><b>${esc(d.title)}</b> <small class="muted">: ${esc(how)}</small></li>`
     }).join('')
-    return `<div class="scrim fix" data-a="sendWinClose" data-self="1"><div class="modal w560" data-t="sendConfirm"><div class="mh">보내기 확인<button class="x" data-a="sendWinClose" title="닫기">×</button></div><div class="mb"><div class="bigroute"><span class="e"><small>보내는 지식 · 개인 · 나만</small><b>${esc(src.name)}</b></span>${svg('arrow')}<span class="e"><small>받는 지식 · 팀 · ${esc(teamWho(r).split(' · ')[1])}</small><b data-t="sendConfirmTo">${esc(r.name)}</b></span></div><ul class="plain sum">${rows}</ul>${sendPrevHtml(src, v, sel)}<p class="small muted" style="margin:10px 0 0">고른 것마다 이 PC 의 Claude 가 ${esc(r.name)} 의 작성기준에 맞춰 기록과 항목 글로 짓는다 · 받는 지식이 검사해 넘은 것은 그 순간 문서에, 못 넘은 것은 넣지 못함으로 남는다 · ${esc(S.me.user)} 이름으로 간다 · 내 개인 지식의 글은 그대로다</p></div><div class="mf"><span class="l">이 프로그램이 이 PC 의 기기 열쇠로 보낸다</span><span class="acts"><button class="btn ghost" data-a="sendWinClose">취소</button><button class="btn pri" data-a="doSend" data-t="sendGo"${S.sending ? ' disabled' : ''}>${S.sending ? '보내는 중…' : esc(ro(r.name)) + ' 보내기'}</button></span></div></div></div>`
+    return `<div class="scrim fix" data-a="sendWinClose" data-self="1"><div class="modal w560" data-t="sendConfirm"><div class="mh">보내기 확인<button class="x" data-a="sendWinClose" title="닫기">×</button></div><div class="mb"><div class="bigroute"><span class="e"><small>보내는 지식 · 개인 · 나만</small><b>${esc(src.name)}</b></span>${svg('arrow')}<span class="e"><small>받는 지식 · 팀 · ${esc(teamWho(r).split(' · ')[1])}</small><b data-t="sendConfirmTo">${esc(r.name)}</b></span></div><ul class="plain sum">${rows}</ul>${sendPrevHtml(src, v, sel)}<p class="small muted" style="margin:var(--sp-5) 0 0">고른 것마다 이 PC 의 Claude 가 ${esc(r.name)} 의 작성기준에 맞춰 기록과 항목 글로 짓는다 · 받는 지식이 검사해 넘은 것은 그 순간 문서에, 못 넘은 것은 넣지 못함으로 남는다 · ${esc(S.me.user)} 이름으로 간다 · 내 개인 지식의 글은 그대로다</p></div><div class="mf"><span class="l">이 프로그램이 이 PC 의 기기 열쇠로 보낸다</span><span class="acts"><button class="btn ghost" data-a="sendWinClose">취소</button><button class="btn pri" data-a="doSend" data-t="sendGo"${S.sending ? ' disabled' : ''}>${S.sending ? '보내는 중…' : esc(ro(r.name)) + ' 보내기'}</button></span></div></div></div>`
   }
   const teams = sendTeams().filter((t) => !(t.id === r.kn && t.url === r.url))
   const pt = w.to && sendTeamOf(w.to)
   const rows = teams.map((t) => `<label class="trow${w.to === t.key ? ' on' : ''}" data-t="sendChangeTeam"><input type="radio" name="sendTo2" data-a="sendWinTo" data-v="${esc(t.key)}"${w.to === t.key ? ' checked' : ''}><span class="tn"><b>${esc(t.name)}</b><small>${esc(teamWho())}${t.host ? ' · ' + esc(t.host) : ''}</small></span><span class="kt team">팀</span></label>`).join('')
-  return `<div class="scrim fix" data-a="sendWinClose" data-self="1"><div class="modal w560" data-t="sendChangeWin"><div class="mh">받는 지식 바꾸기 <small>${esc(src.name)}</small><button class="x" data-a="sendWinClose" title="닫기">×</button></div><div class="mb"><div class="callout warn" style="margin-top:0">바꾸면 <b>${esc(src.name)}</b> 에서 앞으로 보내는 것이 모두 새 곳으로 간다. ${esc(r.name)} 에 이미 보낸 것은 그대로 남는다.</div><div class="small b6 mt-sec">지금: ${esc(r.name)} · 새 받는 지식</div>${rows || '<p class="muted small">쓰기 자리가 있는 다른 팀 지식이 없다</p>'}${pt ? `<div class="field" style="margin:10px 0 0"><label for="sendType">확인: 새 받는 지식 이름 「${esc(pt.name)}」 를 그대로 친다</label><input class="inp" id="sendType" data-in="sendType" data-t="sendType" value="${esc(w.type || '')}" placeholder="${esc(pt.name)}" autocomplete="off"></div>` : ''}${w.err ? formErr(w.err, 'sendWinErr') : ''}</div><div class="mf"><span class="l">바꾼 일은 이력에 남는다</span><span class="acts"><button class="btn ghost" data-a="sendWinClose">취소</button><button class="btn pri" data-a="sendChangeGo" data-t="sendChangeGo"${pt && (w.type || '').trim() === pt.name && !S.sending ? '' : ' disabled'}>${pt ? esc(ro(pt.name)) + ' 바꾸기' : '바꾸기'}</button></span></div></div></div>`
+  return `<div class="scrim fix" data-a="sendWinClose" data-self="1"><div class="modal w560" data-t="sendChangeWin"><div class="mh">받는 지식 바꾸기 <small>${esc(src.name)}</small><button class="x" data-a="sendWinClose" title="닫기">×</button></div><div class="mb"><div class="callout warn" style="margin-top:0">바꾸면 <b>${esc(src.name)}</b> 에서 앞으로 보내는 것이 모두 새 곳으로 간다. ${esc(r.name)} 에 이미 보낸 것은 그대로 남는다.</div><div class="small b6 mt-sec">지금: ${esc(r.name)} · 새 받는 지식</div>${rows || '<p class="muted small">쓰기 자리가 있는 다른 팀 지식이 없다</p>'}${pt ? `<div class="field" style="margin:var(--sp-5) 0 0"><label for="sendType">확인: 새 받는 지식 이름 「${esc(pt.name)}」 를 그대로 친다</label><input class="inp" id="sendType" data-in="sendType" data-t="sendType" value="${esc(w.type || '')}" placeholder="${esc(pt.name)}" autocomplete="off"></div>` : ''}${w.err ? formErr(w.err, 'sendWinErr') : ''}</div><div class="mf"><span class="l">바꾼 일은 이력에 남는다</span><span class="acts"><button class="btn ghost" data-a="sendWinClose">취소</button><button class="btn pri" data-a="sendChangeGo" data-t="sendChangeGo"${pt && (w.type || '').trim() === pt.name && !S.sending ? '' : ' disabled'}>${pt ? esc(ro(pt.name)) + ' 바꾸기' : '바꾸기'}</button></span></div></div></div>`
 }
 // 길 정하기 · 바꾸기 — 서버가 다시 본다(바꾸기는 새 이름을 그대로 · 팀 지식만)
 async function sendRoute(src, key, confirm) {
@@ -4108,10 +4125,10 @@ function sendPrevHtml(src, v, sel) {
       .finally(() => { delete S.wait[key]; scheduleRender() })
   }
   const p = S.cache[key]
-  if (!p) return `<div class="small muted" data-t="sendPrev" style="margin:10px 0 0">${esc(sendNm(v.route.kn) || v.route.name)} 의 이름 장부와 맞춰 보는 중…</div>`
-  if (p.unavailable) return `<div class="small muted" data-t="sendPrev" style="margin:10px 0 0">이름 미리 보기를 하지 못했다: ${esc(p.unavailable)} · 보내기에는 지장이 없다</div>`
-  if (!p.unnamed.length) return `<div class="small" data-t="sendPrev" style="margin:10px 0 0"><span class="chip c-acc">이름 맞음</span> 고른 것이 모두 ${esc(sendNm(v.route.kn) || v.route.name)} 의 이름에 닿는다${p.same ? ` · 이미 보낸 것 ${p.same}` : ''}</div>`
-  return `<div class="callout warn" data-t="sendPrev" style="margin:10px 0 0"><span><b>${p.unnamed.length}개는 ${esc(sendNm(v.route.kn) || v.route.name)} 의 이름 장부에서 이름을 못 찾았다.</b> 그대로 보내면 Claude 가 받는 지식의 문서에서 넣을 곳을 찾는다. 못 찾으면 넣지 못함으로 남고 [지금 다시] 로 다시 지을 수 있다<small>${p.unnamed.slice(0, 5).map(esc).join(' · ')}${p.unnamed.length > 5 ? ` 외 ${p.unnamed.length - 5}` : ''}</small></span></div>`
+  if (!p) return `<div class="small muted" data-t="sendPrev" style="margin:var(--sp-5) 0 0">${esc(sendNm(v.route.kn) || v.route.name)} 의 이름 장부와 맞춰 보는 중…</div>`
+  if (p.unavailable) return `<div class="small muted" data-t="sendPrev" style="margin:var(--sp-5) 0 0">이름 미리 보기를 하지 못했다: ${esc(p.unavailable)} · 보내기에는 지장이 없다</div>`
+  if (!p.unnamed.length) return `<div class="small" data-t="sendPrev" style="margin:var(--sp-5) 0 0">${chipOf('ok', '이름 맞음')} 고른 것이 모두 ${esc(sendNm(v.route.kn) || v.route.name)} 의 이름에 닿는다${p.same ? ` · 이미 보낸 것 ${p.same}` : ''}</div>`
+  return `<div class="callout warn" data-t="sendPrev" style="margin:var(--sp-5) 0 0"><span><b>${p.unnamed.length}개는 ${esc(sendNm(v.route.kn) || v.route.name)} 의 이름 장부에서 이름을 못 찾았다.</b> 그대로 보내면 Claude 가 받는 지식의 문서에서 넣을 곳을 찾는다. 못 찾으면 넣지 못함으로 남고 [지금 다시] 로 다시 지을 수 있다<small>${p.unnamed.slice(0, 5).map(esc).join(' · ')}${p.unnamed.length > 5 ? ` 외 ${p.unnamed.length - 5}` : ''}</small></span></div>`
 }
 async function doSend() {
   const src = sendSrc(), v = src && S.cache['send:' + src.id]
@@ -4182,7 +4199,7 @@ const SET_LEAD = {
 function viewSettings() {
   const team = isTeam(), st = settingsOf()
   const pg = setPage() || { id: 'mine', l: '나' }, tab = pg.id
-  const head = `<div class="big" data-t="setTitle">${esc(pg.l)}</div>${(tab === 'agent' && !isTeam() ? AGENT_LEAD_PC : SET_LEAD[tab]) ? `<p class="lead" data-t="setLead" style="margin-bottom:10px">${tab === 'agent' && !isTeam() ? AGENT_LEAD_PC : SET_LEAD[tab]}</p>` : ''}`
+  const head = `<div class="big" data-t="setTitle">${esc(pg.l)}</div>${(tab === 'agent' && !isTeam() ? AGENT_LEAD_PC : SET_LEAD[tab]) ? `<p class="lead" data-t="setLead" style="margin-bottom:var(--sp-5)">${tab === 'agent' && !isTeam() ? AGENT_LEAD_PC : SET_LEAD[tab]}</p>` : ''}`
   if (!st || st.error) return { crumb: '설정', main: `<div class="pg-list">${head}${st ? errHtml(st) : loadingHtml}</div>` }
   const one = (h) => `<div class="pg-text">${h}</div>`
   const body = !team
@@ -4199,15 +4216,15 @@ function serverCards(st) {
 // 나(누구나) — 내 자리 · 내 설정(저절로 하는 일: 사람마다 값 · hub.autoOf) · 내 기기 · 나가기 · 팀 사람 · 자리란? · 이 팀 서버 한 줄
 function mineHtml(st) {
   const ks = S.kns.filter((x) => !isPersonal(x) && !x.dim)
-  const seats = S.me.admin ? '<p class="small" data-t="mineBoss" style="margin:8px 14px"><span class="kt role">총괄 관리자</span> 모든 팀 지식이 보이고 모두 지식관리자다</p>'
+  const seats = S.me.admin ? '<p class="small" data-t="mineBoss" style="margin:var(--sp-4) var(--sp-7)"><span class="kt role">총괄 관리자</span> 모든 팀 지식이 보이고 모두 지식관리자다</p>'
     : `<div class="tblwrap"><table class="t"><tr><th>팀 지식</th><th>나의 자리</th></tr>${ks.map((k) => `<tr data-t="mineSeat" data-name="${esc(k.name)}"><td><b>${esc(k.name)}</b></td><td>${lvChip(k)}</td></tr>`).join('') || '<tr><td class="muted" colspan="2">받은 팀 지식이 없다. 관리자가 자리를 주면 여기에 보인다</td></tr>'}</table></div>`
   const w = st.claude && st.claude.worker, wk = w && w.ok === false ? '쉼' : (st.claude && st.claude.team && st.claude.team.token) || (w && w.ok) ? '됨' : '로그인 전'
   const p = peopleOf()
   const ppl = Array.isArray(p) ? p.map((x) => `<li data-t="pplRow"><span class="av2">${esc(String(x).slice(0, 1))}</span><span class="nm">${esc(x)}${x === S.me.user ? ' <small>나</small>' : ''}</span></li>`).join('') : ''
   const left = `<div class="card" data-t="mineSeats"><div class="ch">내 자리 <small>아이디 ${esc(S.me.user)} · 지식마다 읽기 · 쓰기 · 지식관리자</small></div><div class="cb tight">${seats}</div>
-   <details class="more" data-t="minePeople" style="margin:8px 14px"><summary>팀 사람 ${Array.isArray(p) ? p.length : ''} · 자리란?</summary><div class="in"><ul class="plain pl">${ppl || `<li class="muted">${p ? '' : '읽는 중…'}</li>`}</ul>${ROLE_RULE}</div></details></div>
+   <details class="more" data-t="minePeople" style="margin:var(--sp-4) var(--sp-7)"><summary>팀 사람 ${Array.isArray(p) ? p.length : ''} · 자리란?</summary><div class="in"><ul class="plain pl">${ppl || `<li class="muted">${p ? '' : '읽는 중…'}</li>`}</ul>${ROLE_RULE}</div></details></div>
    ${isTeam() ? `<div class="card" data-t="minePw"><div class="ch">비밀번호 바꾸기 <small>이 브라우저는 그대로 · 다른 곳은 다시 들어간다 · 기기 열쇠는 그대로</small></div><div class="cb"><div class="fgrid"><div class="field"><label for="pwOld">지금 비밀번호</label><input class="inp" id="pwOld" type="password" autocomplete="current-password" data-t="pwOld"></div><div class="field"><label for="pwNew">새 비밀번호</label><input class="inp" id="pwNew" type="password" autocomplete="new-password" data-t="pwNew"><div class="hint">10자 이상</div></div></div><button type="button" class="btn" data-a="pwChange" data-t="pwChange">바꾸기</button></div></div>` : ''}
-   <div class="card" data-t="mineLogout"><div class="ch">나가기</div><div class="cb" style="padding:2px 14px"><div class="set"><span class="tx"><b>이 브라우저에서</b><small>한 번 들어오면 쓰는 동안 이어진다(12시간 쉬면 · 7일이 지나면 다시 들어간다)</small></span><button type="button" class="btn" data-a="logout" data-t="logout">나가기</button></div><div class="set"><span class="tx"><b>모든 곳에서</b><small>다른 기기 · 브라우저도</small></span><button type="button" class="btn" data-a="logoutAll" data-t="mineLogoutAll">모든 곳에서 나가기</button></div></div></div>`
+   <div class="card" data-t="mineLogout"><div class="ch">나가기</div><div class="cb u-p1-7"><div class="set"><span class="tx"><b>이 브라우저에서</b><small>한 번 들어오면 쓰는 동안 이어진다(12시간 쉬면 · 7일이 지나면 다시 들어간다)</small></span><button type="button" class="btn" data-a="logout" data-t="logout">나가기</button></div><div class="set"><span class="tx"><b>모든 곳에서</b><small>다른 기기 · 브라우저도</small></span><button type="button" class="btn" data-a="logoutAll" data-t="mineLogoutAll">모든 곳에서 나가기</button></div></div></div>`
   const right = autoCard(st, true) + devCard()
   return `<div class="g2"><div>${left}</div><div>${right}</div></div><p class="small muted" data-t="mineServer">이 팀 서버: ${esc(st.host)} · kmd v${esc(st.version)} · 팀 일꾼 ${wk} · 백업 ${st.backup.n ? (st.backup.n < st.backup.of ? '일부만' : '됨') : '안 됨'}</p>`
 }
@@ -4230,12 +4247,12 @@ function knTable() {
       canDelete(k) ? `<div class="sep"></div><div class="mi dan" data-a="delOpen" data-k="${esc(k.id)}" data-t="knSetDel">지식 지우기<small>보관하지 않고 완전히</small></div>` : '',
     ].join('')
     const kebab = items ? `<button class="kebab${S.menu === mk ? ' on' : ''}" data-a="menu" data-m="${esc(mk)}" data-t="knSetKebab" title="권한 · 백업 저장소 · 지우기" aria-label="${esc(k.name)}: 권한 · 백업 저장소 · 지우기">⋯${S.menu === mk ? popHtml(mk, `<div>${items}</div>`) : ''}</button>` : ''
-    const edit = S.repoEdit === k.id && b ? `<tr data-t="repoEditRow"><td colspan="${boss ? 5 : 4}"><span class="row" style="margin:0"><input class="inp mono" id="repoUrl" aria-label="저장소 주소" data-t="repoUrl" style="flex:1;min-width:min(240px,100%)" placeholder="예: git@gitlab.team:kmd/dpms.git · https://…" value="${esc(b.off ? '' : b.url || '')}"><button class="btn sm pri" data-a="repoSave" data-k="${esc(k.id)}" data-t="repoSave">붙이기</button><button type="button" class="btn sm ghost" data-a="repoEdit" data-k="">취소</button></span><small class="muted" style="display:block;margin-top:4px">저장소는 비었거나 이 지식의 지난 이력이어야 붙는다 · 밀기는 서버 OS 사용자 kmd 의 git 자격으로 · 주소 속 열쇠는 화면 · 기록에 가린다</small></td></tr>` : ''
-    return `<tr data-t="knRow" data-name="${esc(k.name)}"><td><b>${esc(k.name)}</b></td><td>${lvChip(k)}</td>${boss ? `<td>${bk(k)}</td>` : ''}<td>${sw}</td><td style="text-align:right;white-space:nowrap">${accCan(k) ? `<button type="button" class="btn sm" data-a="accOpen" data-k="${esc(k.id)}" data-t="knRowAcc">권한</button> ` : ''}${kebab}</td></tr>${edit}`
+    const edit = S.repoEdit === k.id && b ? `<tr data-t="repoEditRow"><td colspan="${boss ? 5 : 4}"><span class="row" style="margin:0"><input class="inp mono u-f1" id="repoUrl" aria-label="저장소 주소" data-t="repoUrl" style="min-width:min(240px,100%)" placeholder="예: git@gitlab.team:kmd/dpms.git · https://…" value="${esc(b.off ? '' : b.url || '')}"><button class="btn sm pri" data-a="repoSave" data-k="${esc(k.id)}" data-t="repoSave">붙이기</button><button type="button" class="btn sm ghost" data-a="repoEdit" data-k="">취소</button></span><small class="muted u-blk" style="margin-top:var(--sp-2)">저장소는 비었거나 이 지식의 지난 이력이어야 붙는다 · 밀기는 서버 OS 사용자 kmd 의 git 자격으로 · 주소 속 열쇠는 화면 · 기록에 가린다</small></td></tr>` : ''
+    return `<tr data-t="knRow" data-name="${esc(k.name)}"><td><b>${esc(k.name)}</b></td><td>${lvChip(k)}</td>${boss ? `<td>${bk(k)}</td>` : ''}<td>${sw}</td><td class="u-tr u-nw">${accCan(k) ? `<button type="button" class="btn sm" data-a="accOpen" data-k="${esc(k.id)}" data-t="knRowAcc">권한</button> ` : ''}${kebab}</td></tr>${edit}`
   }).join('')
   const add = boss ? '<button type="button" class="btn pri sm" data-a="openAdd" data-v="team" data-t="knSetAdd">+ 새 팀 지식</button>' : ''
-  const restore = boss ? `<div class="card" data-t="teamRestore"><div class="ch">백업에서 되살리기 <small>백업 저장소 주소에서 새 팀 지식으로 · 지우기는 보관하지 않으므로 지운 지식은 백업에서만 돌아온다</small></div><div class="cb" style="padding:8px 14px 10px"><div class="row" style="flex-wrap:wrap"><input class="inp mono" id="rsUrl" aria-label="되살릴 저장소 주소" data-t="rsUrl" style="flex:1;min-width:min(220px,100%)" placeholder="백업 주소: 예: git@gitlab.team:kmd/dpms.git"><input class="inp" id="rsName" aria-label="되살릴 지식 이름" data-t="rsName" style="width:min(160px,100%)" placeholder="이름(비우면 주소의 끝)"><label class="small"><input type="checkbox" id="rsPractice" data-t="rsPractice"> 연습(백업에 보내지 않는다)</label><button class="btn sm" data-a="restoreDo" data-t="restoreDo"${S.restoring ? ' disabled' : ''}>${S.restoring ? '되살리는 중…' : '되살리기'}</button></div></div></div>` : ''
-  return `<div class="card" data-t="knTable" style="overflow:visible"><div class="ch">팀 지식 ${ks.length} <small>${boss ? '모든 팀 지식' : '내가 지식관리자인 팀 지식'}</small>${add ? `<span style="margin-left:auto">${add}</span>` : ''}</div><div class="cb tight"><div class="tblwrap"><table class="t"><tr><th>팀 지식</th><th>나의 자리</th>${boss ? '<th>백업</th>' : ''}<th>Claude 에 보내지 않음</th><th></th></tr>${rows || `<tr><td class="muted" colspan="${boss ? 5 : 4}">팀 지식이 없다</td></tr>`}</table></div></div><div class="cf small muted">Claude 에 보내지 않는 지식은 들이기 · 다듬기를 하지 않고 기록만 남긴다(스위치는 그 지식의 지식관리자) · 자리는 ⋯ › 권한 · 넣지 못함은 옆 메뉴 › 넣지 못함</div></div>${restore}`
+  const restore = boss ? `<div class="card" data-t="teamRestore"><div class="ch">백업에서 되살리기 <small>백업 저장소 주소에서 새 팀 지식으로 · 지우기는 보관하지 않으므로 지운 지식은 백업에서만 돌아온다</small></div><div class="cb u-p4-7-5"><div class="row u-wrap"><input class="inp mono u-f1" id="rsUrl" aria-label="되살릴 저장소 주소" data-t="rsUrl" style="min-width:min(220px,100%)" placeholder="백업 주소: 예: git@gitlab.team:kmd/dpms.git"><input class="inp" id="rsName" aria-label="되살릴 지식 이름" data-t="rsName" style="width:min(160px,100%)" placeholder="이름(비우면 주소의 끝)"><label class="small"><input type="checkbox" id="rsPractice" data-t="rsPractice"> 연습(백업에 보내지 않는다)</label><button class="btn sm" data-a="restoreDo" data-t="restoreDo"${S.restoring ? ' disabled' : ''}>${S.restoring ? '되살리는 중…' : '되살리기'}</button></div></div></div>` : ''
+  return `<div class="card u-ovv" data-t="knTable"><div class="ch">팀 지식 ${ks.length} <small>${boss ? '모든 팀 지식' : '내가 지식관리자인 팀 지식'}</small>${add ? `<span style="margin-left:auto">${add}</span>` : ''}</div><div class="cb tight"><div class="tblwrap"><table class="t"><tr><th>팀 지식</th><th>나의 자리</th>${boss ? '<th>백업</th>' : ''}<th>Claude 에 보내지 않음</th><th></th></tr>${rows || `<tr><td class="muted" colspan="${boss ? 5 : 4}">팀 지식이 없다</td></tr>`}</table></div></div><div class="cf small muted">Claude 에 보내지 않는 지식은 들이기 · 다듬기를 하지 않고 기록만 남긴다(스위치는 그 지식의 지식관리자) · 자리는 ⋯ › 권한 · 넣지 못함은 옆 메뉴 › 넣지 못함</div></div>${restore}`
 }
 // 사람 — 총괄 관리자 하나와 지식마다의 자리(읽기 · 쓰기 · 관리 — docs/kmd_권한_모델.md). 관리자는 사람 · 묶음을 다룬다, 그 밖에는 읽기만
 // 자리 설명 한 벌(docs/kmd_권한_모델.md 1절 · 개편 뒤 「저장이 곧 반영」) — 사람 카드 · 지식 권한 창 · 자리란? 이 같이 쓴다
@@ -4256,7 +4273,7 @@ const agKnOf = (el) => { const f = ((S.cache.agent || {}).folders || []).find((x
 function agChips(f) {
   const ks = agKns(f)
   if (!ks.length) return '<span class="chip c-mute">지식을 정하지 않음</span>'
-  return `<span style="display:flex;flex-wrap:wrap;gap:4px 8px;justify-content:flex-end" data-t="agentKns">${ks.map((k) => `<span data-t="agentKn" data-kn="${esc(k.kn)}" data-area="me"><span class="kt me">개인</span> <b class="small">${esc(k.knName || k.kn)}</b></span>`).join('')}</span>`
+  return `<span class="u-flex u-wrap u-g2-4 u-je" data-t="agentKns">${ks.map((k) => `<span data-t="agentKn" data-kn="${esc(k.kn)}" data-area="me"><span class="kt me">개인</span> <b class="small">${esc(k.knName || k.kn)}</b></span>`).join('')}</span>`
 }
 // 에이전트 설치(팀 화면 › 설정 · 누구나) — 팀 지식을 고르면 그 지식의 설치 한 줄을 복사한다(core/teamkit.js).
 //   한 줄은 작업 폴더에 팀 스킬 · 연결 kmd-team · 팀 안내만 쓴다. 개인 프로그램을 깔거나 올리지 않는다 · 이 PC 에 팀 열쇠가 없을 때만 표(10분 · 한 번)로 하나 받는다
@@ -4264,9 +4281,9 @@ function agChips(f) {
 function agentInstallCard() {
   const team = S.kns
   const C = S.agCopied
-  const row = (k, area) => `<li data-t="agInstRow" data-area="${area}" data-name="${esc(k.name)}"${C && C.id === k.id ? ' class="on"' : ''}><span style="flex:1;min-width:0"><b>${esc(k.name)}</b> ${area === 'team' ? lvChip(k) : '<span class="kt me">개인</span>'}</span><button class="btn sm${C && C.id === k.id ? ' pri' : ''}" data-a="agentCopy" data-k="${esc(k.id)}" data-area="${area}" data-t="agentCopy">${C && C.id === k.id ? '다시 복사' : '설치 명령 복사'}</button></li>`
-  const copied = C ? `<div class="callout gray" data-t="agCopied" style="display:block;margin:10px 0 0"><b>「${esc(C.name)}」 설치 명령을 복사했다</b> · 10분 안에 붙여 넣는다<div class="urlbox" style="max-height:none" data-t="agCopiedLine">${esc(C.line)}</div></div>` : ''
-  return `<div class="card" data-t="agentCard"><div class="ch">작업 폴더에 팀 지식 붙이기 <small>작업 폴더의 Claude Code 에 내가 읽을 수 있는 팀 지식을 붙인다</small></div><div class="cb" style="padding:10px 14px 12px">
+  const row = (k, area) => `<li data-t="agInstRow" data-area="${area}" data-name="${esc(k.name)}"${C && C.id === k.id ? ' class="on"' : ''}><span class="u-f1"><b>${esc(k.name)}</b> ${area === 'team' ? lvChip(k) : '<span class="kt me">개인</span>'}</span><button class="btn sm${C && C.id === k.id ? ' pri' : ''}" data-a="agentCopy" data-k="${esc(k.id)}" data-area="${area}" data-t="agentCopy">${C && C.id === k.id ? '다시 복사' : '설치 명령 복사'}</button></li>`
+  const copied = C ? `<div class="callout gray u-blk" data-t="agCopied" style="margin:var(--sp-5) 0 0"><b>「${esc(C.name)}」 설치 명령을 복사했다</b> · 10분 안에 붙여 넣는다<div class="urlbox u-mhn" data-t="agCopiedLine">${esc(C.line)}</div></div>` : ''
+  return `<div class="card" data-t="agentCard"><div class="ch">작업 폴더에 팀 지식 붙이기 <small>작업 폴더의 Claude Code 에 내가 읽을 수 있는 팀 지식을 붙인다</small></div><div class="cb u-p5-7-6">
    <p class="muted small" data-t="agWinOnly">지금은 Windows PC 만 된다${/Windows/i.test(navigator.userAgent) ? '' : ' · 이 PC 는 Windows 가 아니다: 아래 줄을 붙이지 않는다(설명서 › 쓰는 사람 8절)'}</p>
    <ol class="lsteps" data-t="agGuide">
     <li><b>작업 폴더에서 PowerShell 을 연다</b><small>그 폴더의 탐색기 주소 줄에 powershell 을 치고 Enter</small></li>
@@ -4278,7 +4295,7 @@ function agentInstallCard() {
     <li>지금은 Windows 만 · 개인 프로그램은 깔지 않는다. 이 PC 에 팀 열쇠가 없을 때만 10분 · 한 번짜리 번호로 하나 받는다(설정 › 나 › 내 기기)</li>
     <li>Claude Code 가 이 PC 에 있나 · 로그인했나도 한 줄로 알린다. 없으면 깔고, 로그인하지 않았으면 터미널에서 claude auth login</li>
     <li>한 폴더에 팀 지식 여럿을 붙이려면 명령을 차례로 붙인다(남길 때 세션이 어느 팀 지식에 남길지 묻는다) · 열려 있던 Claude Code 는 다시 연다</li></ul></div></details>
-   <div class="callout gray" data-t="agBulk" style="display:block;margin:10px 0 0"><b>대량 넣기는 Claude Code 에서</b> · 폴더째 많은 파일(팀 화면 파일 넣기는 한 번에 ${TEAM_IMPORT_MAX}개)은 붙인 폴더의 Claude Code 에 「이 폴더를 팀 지식에 넣어 줘」 라고 한다(스킬 kmd-team-import · 내 PC · 내 Claude 구독) · 파일을 글로 바꾸는 파서는 처음 할 때 한 번 받는다 · 글이 없는 pdf(스캔)도 Claude Code 가 원본을 읽는다</div>
+   <div class="callout gray u-blk" data-t="agBulk" style="margin:var(--sp-5) 0 0"><b>대량 넣기는 Claude Code 에서</b> · 폴더째 많은 파일(팀 화면 파일 넣기는 한 번에 ${TEAM_IMPORT_MAX}개)은 붙인 폴더의 Claude Code 에 「이 폴더를 팀 지식에 넣어 줘」 라고 한다(스킬 kmd-team-import · 내 PC · 내 Claude 구독) · 파일을 글로 바꾸는 파서는 처음 할 때 한 번 받는다 · 글이 없는 pdf(스캔)도 Claude Code 가 원본을 읽는다</div>
    <div class="rh">팀 지식 <small class="muted">팀 서버 · 팀 모두</small></div><ul class="plain" data-t="agInstTeam">${team.map((k) => row(k, 'team')).join('') || '<li class="muted">팀 지식이 없다</li>'}</ul>
 
    ${copied}</div></div>`
@@ -4287,11 +4304,11 @@ function agentInstallCard() {
 //   팀 지식만 쓰는 사람은 개인 프로그램이 필요 없다(설정 › 에이전트 설치 한 줄) ·
 //   내 기기(팀 서버가 아는 것만 · PC 에 묻지 않는다). 개인 지식 · 개인 폴더는 보이지 않는다
 function installCardHtml() {
-  const line = S.lastInstall ? `<div class="callout gray" data-t="installLine" style="display:block;margin:10px 0 0"><b>설치 · 잇기 한 줄을 복사했다</b> · 10분 동안 한 번만 · 남에게 주지 않는다${S.lastInstallVer ? ` · 개인 프로그램 판 ${esc(S.lastInstallVer)}` : ''}<div class="urlbox" style="max-height:none">${esc(S.lastInstall)}</div></div>` : ''
-  return `<div class="card" data-t="installCard"><div class="ch">개인 지식 쓰기 <small>고를 수 있음 · 이 PC 에 개인 프로그램을 깔거나 팀 서버의 판으로 올리고 팀에 잇는다</small></div><div class="cb" style="padding:10px 14px 12px">
+  const line = S.lastInstall ? `<div class="callout gray u-blk" data-t="installLine" style="margin:var(--sp-5) 0 0"><b>설치 · 잇기 한 줄을 복사했다</b> · 10분 동안 한 번만 · 남에게 주지 않는다${S.lastInstallVer ? ` · 개인 프로그램 판 ${esc(S.lastInstallVer)}` : ''}<div class="urlbox u-mhn">${esc(S.lastInstall)}</div></div>` : ''
+  return `<div class="card" data-t="installCard"><div class="ch">개인 지식 쓰기 <small>고를 수 있음 · 이 PC 에 개인 프로그램을 깔거나 팀 서버의 판으로 올리고 팀에 잇는다</small></div><div class="cb u-p5-7-6">
    <p class="small mt0" data-t="installLead">팀 지식만 쓰면 개인 프로그램은 필요 없다(위 카드 한 줄이면 된다). 내 지식 · 내 Claude 로그인을 따로 쓰려면 개인 프로그램을 깔고 팀에 잇는다. 개인 지식은 팀 화면에 나오지 않는다.</p>
    <ol class="lsteps"><li><b>[한 줄 복사] 를 누른다</b><small>10분 동안 한 번만 · 내 이름의 기기 열쇠가 만들어진다(설정 › 나 › 내 기기)</small></li><li><b>PowerShell 에 붙여 넣고 Enter</b><small>없으면 깔고 · 옛 판이면 팀 서버의 판으로 올리고(앞 판은 남는다) · 팀에 다시 잇는다 · 관리자 권한은 쓰지 않는다</small></li><li><b>끝에 개인 화면이 열린다</b><small>다음부터는 시작 메뉴 › kmd</small></li></ol>
-   <div class="row" style="margin-top:8px"><button class="btn" data-a="copyInstall" data-v="" data-t="installCopy">한 줄 복사</button></div>${line}</div></div>`
+   <div class="row" style="margin-top:var(--sp-4)"><button class="btn" data-a="copyInstall" data-v="" data-t="installCopy">한 줄 복사</button></div>${line}</div></div>`
 }
 // 설치 명령 복사 — 그 팀 지식을 실은 설치 한 줄(팀 서버가 만든다)
 async function agentCopy(id, area) {
@@ -4310,33 +4327,33 @@ const MODEL_T = [['convert', 'pdf · hwp 를 글로', '글이 없는 pdf · 표�
 function modelCard(st) {
   if (isTeam() || !st.models) return ''
   const opt = [['haiku', 'Haiku: 빠르고 싸다'], ['sonnet', 'Sonnet'], ['opus', 'Opus'], ['', '기본: Claude Code 의 모델']]
-  return `<div class="card" data-t="modelCard"><div class="ch">Claude 모델 <small>일마다</small></div><div class="cb" style="padding:2px 14px">${MODEL_T.map(([r, l, d]) => `<div class="set" data-t="model-${r}"><span class="tx"><b>${l}</b><small>${d}</small></span><select class="inp" data-model="${r}" data-t="msel-${r}" aria-label="쓰는 모델" style="width:auto">${opt.map(([v, t]) => `<option value="${v}"${st.models[r] === v ? ' selected' : ''}>${t}</option>`).join('')}</select></div>`).join('')}</div><div class="cf">옮겨 적기 · 고르기는 가벼운 모델로, 판단이 필요한 일만 큰 모델로: 같은 일을 덜 쓰고 빨리 한다.</div></div>`
+  return `<div class="card" data-t="modelCard"><div class="ch">Claude 모델 <small>일마다</small></div><div class="cb u-p1-7">${MODEL_T.map(([r, l, d]) => `<div class="set" data-t="model-${r}"><span class="tx"><b>${l}</b><small>${d}</small></span><select class="inp" data-model="${r}" data-t="msel-${r}" aria-label="쓰는 모델" style="width:auto">${opt.map(([v, t]) => `<option value="${v}"${st.models[r] === v ? ' selected' : ''}>${t}</option>`).join('')}</select></div>`).join('')}</div><div class="cf">옮겨 적기 · 고르기는 가벼운 모델로, 판단이 필요한 일만 큰 모델로: 같은 일을 덜 쓰고 빨리 한다.</div></div>`
 }
 function autoCard(st, mine = false) {
   const A = AUTO_T[isTeam() ? 'team' : 'pc']
   const all = A.every((a) => st.auto[a[0]])
-  return `<div class="card" data-t="autoCard"><div class="ch">${mine ? '내 설정' : '저절로 하는 일'} <small>${mine ? '저절로 하는 일 · 나에게만 · ' : ''}${all ? '모두 켬' : '일부 끔'}</small></div><div class="cb" style="padding:2px 14px">${A.map((a) => `<div class="set" data-t="auto-${a[0]}"><span class="tx"><b>${a[1]}</b><small>${st.auto[a[0]] ? a[2] : '꺼 두었다. 켜면 다시 한다'}</small></span><button class="sw${st.auto[a[0]] ? ' on' : ''}" role="switch" aria-checked="${st.auto[a[0]] ? 'true' : 'false'}" data-a="toggleAuto" data-v="${a[0]}" data-t="sw-${a[0]}" aria-label="${a[1]}"></button></div>`).join('')}</div><div class="cf">멈추면 맨 위에 한 줄로 알린다.</div></div>`
+  return `<div class="card" data-t="autoCard"><div class="ch">${mine ? '내 설정' : '저절로 하는 일'} <small>${mine ? '저절로 하는 일 · 나에게만 · ' : ''}${all ? '모두 켬' : '일부 끔'}</small></div><div class="cb u-p1-7">${A.map((a) => `<div class="set" data-t="auto-${a[0]}"><span class="tx"><b>${a[1]}</b><small>${st.auto[a[0]] ? a[2] : '꺼 두었다. 켜면 다시 한다'}</small></span><button class="sw${st.auto[a[0]] ? ' on' : ''}" role="switch" aria-checked="${st.auto[a[0]] ? 'true' : 'false'}" data-a="toggleAuto" data-v="${a[0]}" data-t="sw-${a[0]}" aria-label="${a[1]}"></button></div>`).join('')}</div><div class="cf">멈추면 맨 위에 한 줄로 알린다.</div></div>`
 }
 function devCard() {
   const devs = devicesOf()
-  const rows = !devs ? `<li>${loadingHtml}</li>` : devs.error ? `<li>${errHtml(devs, 'devices')}</li>` : devs.map((d) => `<li data-t="devRow" data-name="${esc(d.host || d.id)}"><span style="flex:1"><b>${esc(d.host || '이름 없는 기기')}</b><small class="muted" style="display:block">Claude Code · ${d.used ? '마지막 사용 ' + esc(whenTxt(d.used)) : '이은 때 ' + esc(whenTxt(d.at))}</small></span><button class="kebab" data-a="menu" data-m="dev:${esc(d.id)}" data-t="devKebab" title="끊기" aria-label="${esc(d.host || d.id)}: 끊기 메뉴">⋯${S.menu === 'dev:' + d.id ? popHtml('dev:' + d.id, `<div><div class="mi" data-a="unlinkMyDev" data-id="${esc(d.id)}" data-t="unlinkBtn">끊기<small>그 기기의 Claude Code 는 다시 이어야 한다</small></div></div>`) : ''}</button></li>`).join('')
-  return `<div class="card" style="overflow:visible"><div class="ch">내 기기 <small>내 이름으로 ${isTeam() ? '팀에 이은 PC(개인 프로그램 · Claude Code)' : '이 kmd 를 쓰는 곳'} · 팀 서버가 아는 것만</small></div><div class="cb" style="padding:2px 14px"><ul class="plain" data-t="devList">${rows || '<li class="muted">이어진 기기가 없다</li>'}</ul><p class="small muted">90일 안 쓰면 저절로 끊긴다.</p></div></div>`
+  const rows = !devs ? `<li>${loadingHtml}</li>` : devs.error ? `<li>${errHtml(devs, 'devices')}</li>` : devs.map((d) => `<li data-t="devRow" data-name="${esc(d.host || d.id)}"><span class="u-f1"><b>${esc(d.host || '이름 없는 기기')}</b><small class="muted u-blk">Claude Code · ${d.used ? '마지막 사용 ' + esc(whenTxt(d.used)) : '이은 때 ' + esc(whenTxt(d.at))}</small></span><button class="kebab" data-a="menu" data-m="dev:${esc(d.id)}" data-t="devKebab" title="끊기" aria-label="${esc(d.host || d.id)}: 끊기 메뉴">⋯${S.menu === 'dev:' + d.id ? popHtml('dev:' + d.id, `<div><div class="mi" data-a="unlinkMyDev" data-id="${esc(d.id)}" data-t="unlinkBtn">끊기<small>그 기기의 Claude Code 는 다시 이어야 한다</small></div></div>`) : ''}</button></li>`).join('')
+  return `<div class="card u-ovv"><div class="ch">내 기기 <small>내 이름으로 ${isTeam() ? '팀에 이은 PC(개인 프로그램 · Claude Code)' : '이 kmd 를 쓰는 곳'} · 팀 서버가 아는 것만</small></div><div class="cb u-p1-7"><ul class="plain" data-t="devList">${rows || '<li class="muted">이어진 기기가 없다</li>'}</ul><p class="small muted">90일 안 쓰면 저절로 끊긴다.</p></div></div>`
 }
 // 백업 · 되살리기 — 개인 화면
 function pcBackupCard(st) {
-  return `<div class="card" data-t="pcBackupCard"><div class="ch">백업 <small>이 PC 를 잃어도 남게: 다른 드라이브 · 네트워크 폴더 · USB</small></div><div class="cb" style="padding:4px 14px 10px">
-   <div class="row"><input class="inp mono" id="bkRoot" aria-label="백업 자리 경로" data-t="bkRoot" style="flex:1" value="${esc(st.backup.root || '')}" placeholder="예: E:\\kmd-백업 · \\\\nas\\kmd"><button class="btn sm" data-a="bkRootSet" data-t="bkRootSet">${st.backup.root ? '바꾸기' : '정하기'}</button></div>
-   <p class="small muted" style="margin:6px 0 0">정하면 붙지 않은 지식을 모두 그 아래(<span class="mono">&lt;지식&gt;.git</span>)에 붙이고 저장할 때마다 보낸다 · 새 지식 · 되살린 지식도 저절로</p>
-   ${(st.backup.list || []).filter((x) => !x.url).length ? `<p class="small" style="margin:6px 0 0">아직 없는 지식: ${esc(st.backup.list.filter((x) => !x.url).map((x) => x.name).join(' · '))}</p>` : ''}
-   <div class="rh" style="margin-top:10px">백업에서 되살리기</div>
-   <div class="row" style="flex-wrap:wrap"><input class="inp mono" id="rsUrl" aria-label="되살릴 저장소 주소" data-t="rsUrl" style="flex:1;min-width:min(220px,100%)" placeholder="백업 주소: 예: E:\\kmd-백업\\설계메모.git"><input class="inp" id="rsName" aria-label="되살릴 지식 이름" data-t="rsName" style="width:140px" placeholder="이름(비우면 주소의 끝)"><label class="small"><input type="checkbox" id="rsPractice" data-t="rsPractice"> 연습(백업에 보내지 않는다)</label><button class="btn sm" data-a="restoreDo" data-t="restoreDo"${S.restoring ? ' disabled' : ''}>${S.restoring ? '되살리는 중…' : '되살리기'}</button></div></div></div>`
+  return `<div class="card" data-t="pcBackupCard"><div class="ch">백업 <small>이 PC 를 잃어도 남게: 다른 드라이브 · 네트워크 폴더 · USB</small></div><div class="cb u-p2-7-5">
+   <div class="row"><input class="inp mono u-f1" id="bkRoot" aria-label="백업 자리 경로" data-t="bkRoot" value="${esc(st.backup.root || '')}" placeholder="예: E:\\kmd-백업 · \\\\nas\\kmd"><button class="btn sm" data-a="bkRootSet" data-t="bkRootSet">${st.backup.root ? '바꾸기' : '정하기'}</button></div>
+   <p class="small muted" style="margin:var(--sp-3) 0 0">정하면 붙지 않은 지식을 모두 그 아래(<span class="mono">&lt;지식&gt;.git</span>)에 붙이고 저장할 때마다 보낸다 · 새 지식 · 되살린 지식도 저절로</p>
+   ${(st.backup.list || []).filter((x) => !x.url).length ? `<p class="small" style="margin:var(--sp-3) 0 0">아직 없는 지식: ${esc(st.backup.list.filter((x) => !x.url).map((x) => x.name).join(' · '))}</p>` : ''}
+   <div class="rh" style="margin-top:var(--sp-5)">백업에서 되살리기</div>
+   <div class="row u-wrap"><input class="inp mono u-f1" id="rsUrl" aria-label="되살릴 저장소 주소" data-t="rsUrl" style="min-width:min(220px,100%)" placeholder="백업 주소: 예: E:\\kmd-백업\\설계메모.git"><input class="inp" id="rsName" aria-label="되살릴 지식 이름" data-t="rsName" style="width:min(140px,100%)" placeholder="이름(비우면 주소의 끝)"><label class="small"><input type="checkbox" id="rsPractice" data-t="rsPractice"> 연습(백업에 보내지 않는다)</label><button class="btn sm" data-a="restoreDo" data-t="restoreDo"${S.restoring ? ' disabled' : ''}>${S.restoring ? '되살리는 중…' : '되살리기'}</button></div></div></div>`
 }
 function setLeft(st) {
   const bk = st.backup.n ? `${esc(st.backup.urls.join(' · '))} · 저장할 때마다 저절로${st.backup.n < st.backup.of ? ` · 지식 ${st.backup.of - st.backup.n} 은 아직 없다` : ''}` : '아직 없다. 관리자가 붙인다'
   const pcBad = S.stops.find((x) => x.kind === 'backup')
   return `<div class="card"><div class="ch">이 PC</div><div class="cb"><div class="kv"><span>지식 폴더</span><span><span class="mono">${esc(st.root)}</span>: 지식 ${st.kns}</span><span>백업 자리</span><span data-t="pcBackup">${st.backup.root ? `<span class="mono">${esc(st.backup.root)}</span> · ` : ''}붙음 ${st.backup.n}/${st.backup.of}${st.backup.bad ? ` · <b class="t-warn">맞지 않음 ${st.backup.bad}</b>` : ''} ${!st.backup.n ? '<span class="chip c-warn">백업 없음</span>' : pcBad ? `<span class="chip c-warn">${esc(pcBad.b)}</span><small>${esc(pcBad.t)}</small>` : st.backup.n < st.backup.of ? '<span class="chip c-warn">일부만</span>' : '<span class="chip c-acc">잘 된다</span>'}</span><span>판</span><span>kmd v${esc(st.version)}</span></div></div></div>
   ${pcBackupCard(st)}
-  <div class="card" style="overflow:visible"><div class="ch">이어진 것</div><div class="cb" style="padding:2px 14px"><ul class="plain"><li><span style="flex:1"><b>Claude Code</b><small class="muted" style="display:block">작업 폴더 ${(S.cache.agent && S.cache.agent.folders ? S.cache.agent.folders.length : 0)} <button type="button" class="lk" data-a="openSet" data-v="agent">에이전트 설치 ›</button></small></span></li><li><span style="flex:1"><b>팀</b><small class="muted" style="display:block">${st.teams && st.teams.length ? '이 PC 의 기기 열쇠로 이었다: Claude Code 의 팀 연결(kmd-team) · 지식 보내기가 쓴다 · 끊기는 팀 화면 › 내 기기에서' : '아직 잇지 않았다. 팀 화면의 설치 한 줄'}</small></span></li>${(st.teams || []).map((u) => `<li data-t="teamRow"><span style="flex:1"><a href="${esc(/^https?:\/\//.test(u) ? u : 'http://' + u)}" target="_blank" rel="noopener" title="팀 화면을 새 탭에서">${esc(u.replace(/^https?:\/\//, ''))} ↗</a></span></li>`).join('')}</ul><p class="small muted">밖으로 나가는 것은 백업 · Claude 바로 넣기뿐이다.</p></div></div>`
+  <div class="card u-ovv"><div class="ch">이어진 것</div><div class="cb u-p1-7"><ul class="plain"><li><span class="u-f1"><b>Claude Code</b><small class="muted u-blk">작업 폴더 ${(S.cache.agent && S.cache.agent.folders ? S.cache.agent.folders.length : 0)} <button type="button" class="lk" data-a="openSet" data-v="agent">에이전트 설치 ›</button></small></span></li><li><span class="u-f1"><b>팀</b><small class="muted u-blk">${st.teams && st.teams.length ? '이 PC 의 기기 열쇠로 이었다: Claude Code 의 팀 연결(kmd-team) · 지식 보내기가 쓴다 · 끊기는 팀 화면 › 내 기기에서' : '아직 잇지 않았다. 팀 화면의 설치 한 줄'}</small></span></li>${(st.teams || []).map((u) => `<li data-t="teamRow"><span class="u-f1"><a href="${esc(/^https?:\/\//.test(u) ? u : 'http://' + u)}" target="_blank" rel="noopener" title="팀 화면을 새 탭에서">${esc(u.replace(/^https?:\/\//, ''))} ↗</a></span></li>`).join('')}</ul><p class="small muted">밖으로 나가는 것은 백업 · Claude 바로 넣기뿐이다.</p></div></div>`
 }
 function claudeCard(st) {
   const c = st.claude, w = c.worker
@@ -4344,11 +4361,11 @@ function claudeCard(st) {
     // 로그인 — 「kmd — Claude 로그인」 창(claude auth login)이 브라우저를 연다(팀 화면의 개인 쪽이면 이 PC 에) · 화면은 그 창을 알려 주고 저절로 확인한다
     const L = S.pcLogin || null
     let flow = ''
-    if (L) flow = `<div class="flow" data-t="claudeFlow"><p style="margin:0 0 6px"><b>작업 표시줄의 「kmd: Claude 로그인」 창</b>이 떴다. 그 창이 브라우저를 연다. 브라우저에서 Claude 에 들어가면 끝이다.</p><p class="small muted" style="margin:0 0 8px">창이 안 보이면 작업 표시줄에서 그 창을 누른다 · 브라우저가 안 열리면 그 창에 나온 주소를 연다 · 다 되면 그 창은 닫아도 된다</p><div class="row"><span class="prog" data-t="claudeWait"><i></i>${L.checking ? '로그인을 확인하는 중…' : L.last ? esc(L.last) : '로그인을 기다린다. 몇 초마다 저절로 확인한다'}</span><button type="button" class="btn ghost sm" data-a="pcLoginCancel" data-t="claudeCancel" style="margin-left:auto">취소</button><button class="btn sm" data-a="pcLoginCheck" data-t="claudeCheck">지금 확인</button></div></div>`
+    if (L) flow = `<div class="flow" data-t="claudeFlow"><p style="margin:0 0 var(--sp-3)"><b>작업 표시줄의 「kmd: Claude 로그인」 창</b>이 떴다. 그 창이 브라우저를 연다. 브라우저에서 Claude 에 들어가면 끝이다.</p><p class="small muted" style="margin:0 0 var(--sp-4)">창이 안 보이면 작업 표시줄에서 그 창을 누른다 · 브라우저가 안 열리면 그 창에 나온 주소를 연다 · 다 되면 그 창은 닫아도 된다</p><div class="row"><span class="prog" data-t="claudeWait"><i></i>${L.checking ? '로그인을 확인하는 중…' : L.last ? esc(L.last) : '로그인을 기다린다. 몇 초마다 저절로 확인한다'}</span><button type="button" class="btn ghost sm" data-a="pcLoginCancel" data-t="claudeCancel" style="margin-left:auto">취소</button><button class="btn sm" data-a="pcLoginCheck" data-t="claudeCheck">지금 확인</button></div></div>`
     const ok = w && w.ok, bad = w && w.ok === false
     const state = bad ? (w.reason === 'limit' ? 'Claude 사용 한도에 닿았다' : '로그인이 끝났다. 다시 로그인한다') : ok ? '로그인됨. 이 PC 의 Claude Code' : '아직 확인 전: [로그인 확인] 으로 본다'
     const row = `<div class="set"><span class="tx"><b data-t="claudeState">${state}</b><small>파일 · 기록을 Claude 로 다듬어 문서에 넣는다(안 되면 규칙으로) · 이번 달 ${c.month}건 · 로그인은 이 PC 의 Claude Code 로그인</small></span>${L ? '' : `<button class="btn" data-a="pcLoginCheck" data-t="claudeCheck" style="width:auto">로그인 확인</button><button class="btn${ok ? '' : ' pri'}" data-a="pcLoginStart" data-t="claudeLogin" style="width:auto">${ok ? '다시 로그인' : 'Claude 로그인'}</button>`}<button class="kebab${S.menu === 'claude' ? ' on' : ''}" data-a="menu" data-m="claude" data-t="claudeKebab" title="쓰지 않기">⋯${S.menu === 'claude' ? popHtml('claude', '<div><div class="mi" data-a="claudeOff" data-t="claudeOff">Claude 쓰지 않기<small>규칙으로 되는 것만</small></div></div>') : ''}</button></div>`
-    return `<div class="card" data-t="claudeCard" style="overflow:visible"><div class="ch">Claude 연결 <small>${isTeam() ? '개인 프로그램이 쓰는 내 Claude 로그인 · 개인 지식만' : '이 프로그램이 쓰는 Claude 로그인'}</small></div><div class="cb" style="padding:2px 14px 10px">${row}${flow}</div><div class="cf">Claude Code 의 로그인은 진짜 터미널 창에서 돈다. [Claude 로그인] 이 「kmd: Claude 로그인」 창을 띄우고, 이 화면이 저절로 확인한다</div></div>`
+    return `<div class="card u-ovv" data-t="claudeCard"><div class="ch">Claude 연결 <small>${isTeam() ? '개인 프로그램이 쓰는 내 Claude 로그인 · 개인 지식만' : '이 프로그램이 쓰는 Claude 로그인'}</small></div><div class="cb u-p1-7-5">${row}${flow}</div><div class="cf">Claude Code 의 로그인은 진짜 터미널 창에서 돈다. [Claude 로그인] 이 「kmd: Claude 로그인」 창을 띄우고, 이 화면이 저절로 확인한다</div></div>`
   }
   // 팀 서버 — 관리자는 여기서 팀 일꾼 로그인을 다 한다(상태 · 로그인 시작 · 다시 로그인 · 확인) · 일반은 읽기만
   if (S.me.admin) {
@@ -4358,11 +4375,11 @@ function claudeCard(st) {
   }
   const rest = w && w.ok === false
   const days = rest ? Math.max(1, Math.round((Date.now() - Date.parse(w.since)) / 864e5)) : 0
-  return `<div class="card" data-t="claudeCard"><div class="ch">Claude 연결 <small>읽기만</small></div><div class="cb" style="padding:2px 14px"><div class="set"><span class="tx"><b data-t="claudeRead">팀 들이기는 팀 일꾼 로그인으로 돈다. 쉬면 관리자에게 알린다</b><small>${rest ? `지금 쉬고 있다 · ${days}일: 관리자에게 알렸다` : (c.team && c.team.token) || (w && w.ok) ? '지금 돈다 · 로그인해 두는 것은 관리자' : '아직 로그인하지 않았다. 관리자가 한다'}</small></span></div></div><div class="cf">로그인은 관리자가 이 화면에서 한다</div></div>`
+  return `<div class="card" data-t="claudeCard"><div class="ch">Claude 연결 <small>읽기만</small></div><div class="cb u-p1-7"><div class="set"><span class="tx"><b data-t="claudeRead">팀 들이기는 팀 일꾼 로그인으로 돈다. 쉬면 관리자에게 알린다</b><small>${rest ? `지금 쉬고 있다 · ${days}일: 관리자에게 알렸다` : (c.team && c.team.token) || (w && w.ok) ? '지금 돈다 · 로그인해 두는 것은 관리자' : '아직 로그인하지 않았다. 관리자가 한다'}</small></span></div></div><div class="cf">로그인은 관리자가 이 화면에서 한다</div></div>`
 }
 // 팀 일꾼 로그인이 무엇이고 어떻게 하는지 — 로그인 카드 아래
 function claudeHowCard(a) {
-  return `<div class="card" data-t="claudeHow"><div class="ch">어떻게 하나</div><div class="cb" style="padding:4px 14px 10px"><ul class="plain small">
+  return `<div class="card" data-t="claudeHow"><div class="ch">어떻게 하나</div><div class="cb u-p2-7-5"><ul class="plain small">
    <li><span><b>쓰는 곳</b>: 팀 지식의 들이기(파일 넣기 · 가져올 곳 · 다시 들이기 · 정정) · 문서 다듬기. 로그인이 없거나 쉬면 들이기는 기다린다(24시간 넘으면 기록만 남기고 넣지 못함)</span></li>
    <li><span><b>서버 PC 에 화면이 있으면</b>: 그 PC 에 「kmd: Claude 로그인」 창이 뜬다. 그 PC 의 브라우저에서 들어가면 이 화면이 저절로 확인한다</span></li>
    <li><span><b>화면이 없는 서버면</b>: 이 브라우저에서 주소를 열어 Claude 계정(Pro · Max · Team · Enterprise)으로 들어가고, 받은 번호를 붙여 넣는다</span></li>
@@ -4398,7 +4415,7 @@ function busyPopHtml() {
   const xs = (S.busy && S.busy.items) || []
   const ago = (t) => { const s = Math.max(0, Math.round((Date.now() - Date.parse(t)) / 1000)); return s < 60 ? `${s}초` : s < 3600 ? `${Math.floor(s / 60)}분` : `${Math.floor(s / 3600)}시간 ${Math.floor((s % 3600) / 60)}분` }
   const rows = xs.map((x) => `<div class="brow-w"><button type="button" class="mi brow" data-a="busyGo" data-kind="${esc(x.kind)}" data-k="${esc(x.kn)}" data-name="${esc(x.name || '')}" data-run="${esc(x.run || '')}" data-qid="${esc(x.qid || '')}" data-job="${esc(x.job || '')}" data-t="busyRow"><i class="bd"></i><span class="bt"><b>${esc(x.title)}</b><small>${esc(BUSY_K[x.kind] || x.kind)} · ${esc(x.knName)} · ${esc(x.small || '')}</small></span><small>${ago(x.since)}</small></button><button type="button" class="lk bdoc" data-a="busyDoc" data-k="${esc(x.kn)}" data-t="busyDoc" title="${esc(x.knName)} 의 문서">문서</button></div>`).join('')
-  const bad = S.busyErr ? `<div class="callout danger err" data-t="busyErr" style="margin:4px 8px">${sayErr('지금 하는 일을 읽지 못했다')}<b>읽지 못했다: ${esc(S.busyErr)}${xs.length ? ' · 아래는 지난번 것' : ''}</b><button type="button" class="btn sm retry" data-a="busyRetry" data-t="retry">다시 읽기</button></div>` : ''
+  const bad = S.busyErr ? `<div class="callout danger err" data-t="busyErr" style="margin:var(--sp-2) var(--sp-4)">${sayErr('지금 하는 일을 읽지 못했다')}<b>읽지 못했다: ${esc(S.busyErr)}${xs.length ? ' · 아래는 지난번 것' : ''}</b><button type="button" class="btn sm retry" data-a="busyRetry" data-t="retry">다시 읽기</button></div>` : ''
   return `<div class="gray pop-h"><b>지금 하는 일</b> ${xs.length ? xs.length : ''}</div>${bad}${rows || (S.busyErr ? '' : '<div class="gray" data-t="busyNone">지금 하는 일이 없다. 가져오기 · 들이기 · Claude Code 일이 돌면 여기 보인다</div>')}`
 }
 let busyTimer = null
@@ -4464,18 +4481,18 @@ function claudeWinHtml() {
   const c = S.claude || {}, st = claudeTone(S.claude), L = S.pcLogin
   const stateTxt = { ok: '연결됨. 이 PC 의 Claude Code 로그인', bad: c.reason === 'limit' ? 'Claude 사용 한도에 닿았다. 한도가 풀리면 저절로 이어진다' : '로그인이 필요하다. 아래 [Claude 로그인]', off: 'Claude 쓰지 않기로 해 두었다. 설정 › 이 PC › 저절로 하는 일에서 켠다', unk: '아직 확인 전: [로그인 확인] 으로 본다', err: `상태를 읽지 못했다: ${S.claudeErr || ''} · [로그인 확인] 으로 다시 읽는다` }[st]
   const when = c.at ? ` · ${esc(whenTxt(c.at))} 확인` : ''
-  const why = '<p class="small" style="margin:0 0 8px">kmd 는 가져온 지식: <b>넣은 파일 · git 묶음</b>: 을 Claude 가 읽고 분석해 <b>기록</b>으로 쓰고, 그 기록으로 <b>문서</b>를 세운다. 그래서 구독형 Claude(Pro · Max · Team · Enterprise) 로그인이 있어야 한다. 로그인이 없으면 받은 글 그대로 기록하고 규칙으로만 넣는다.</p>'
+  const why = '<p class="small" style="margin:0 0 var(--sp-4)">kmd 는 가져온 지식: <b>넣은 파일 · git 묶음</b>: 을 Claude 가 읽고 분석해 <b>기록</b>으로 쓰고, 그 기록으로 <b>문서</b>를 세운다. 그래서 구독형 Claude(Pro · Max · Team · Enterprise) 로그인이 있어야 한다. 로그인이 없으면 받은 글 그대로 기록하고 규칙으로만 넣는다.</p>'
   let body, foot
   if (c.pc) {
-    const flow = L ? `<div class="callout gray" data-t="claudeWinFlow" style="display:block"><b>작업 표시줄의 「kmd: Claude 로그인」 창</b>이 떴다. 그 창이 브라우저를 연다.<ol class="small"><li>브라우저에서 Claude 계정(구독)으로 들어가 <b>허락</b>을 누른다</li><li>「로그인됨」 이 나오면 그 창은 닫아도 된다</li><li>이 창이 몇 초마다 저절로 확인한다</li></ol><div class="row" style="margin-top:8px"><span class="prog" data-t="claudeWait"><i></i>${L.checking ? '로그인을 확인하는 중…' : L.last ? esc(L.last) : '로그인을 기다린다'}</span><button type="button" class="btn ghost sm" data-a="pcLoginCancel" style="margin-left:auto">취소</button></div><p class="small muted" style="margin:6px 0 0">창이 안 보이면 작업 표시줄에서 누른다 · 브라우저가 안 열리면 그 창에 나온 주소를 연다</p></div>` : ''
-    body = `${why}<div class="cst cchip ${st}" data-t="claudeWinState"><i class="cdot"></i><b>${stateTxt}</b><small class="muted">${when}</small></div>${flow}<p class="small muted" style="margin:8px 0 0">로그인은 이 PC 의 Claude Code 에 남아 다시 켜도 이어진다 · kmd 가 때때로 확인하고 끝나면 이 창을 다시 띄운다</p>`
+    const flow = L ? `<div class="callout gray u-blk" data-t="claudeWinFlow"><b>작업 표시줄의 「kmd: Claude 로그인」 창</b>이 떴다. 그 창이 브라우저를 연다.<ol class="small"><li>브라우저에서 Claude 계정(구독)으로 들어가 <b>허락</b>을 누른다</li><li>「로그인됨」 이 나오면 그 창은 닫아도 된다</li><li>이 창이 몇 초마다 저절로 확인한다</li></ol><div class="row" style="margin-top:var(--sp-4)"><span class="prog" data-t="claudeWait"><i></i>${L.checking ? '로그인을 확인하는 중…' : L.last ? esc(L.last) : '로그인을 기다린다'}</span><button type="button" class="btn ghost sm" data-a="pcLoginCancel" style="margin-left:auto">취소</button></div><p class="small muted" style="margin:var(--sp-3) 0 0">창이 안 보이면 작업 표시줄에서 누른다 · 브라우저가 안 열리면 그 창에 나온 주소를 연다</p></div>` : ''
+    body = `${why}<div class="cst cchip ${st}" data-t="claudeWinState"><i class="cdot"></i><b>${stateTxt}</b><small class="muted">${when}</small></div>${flow}<p class="small muted" style="margin:var(--sp-4) 0 0">로그인은 이 PC 의 Claude Code 에 남아 다시 켜도 이어진다 · kmd 가 때때로 확인하고 끝나면 이 창을 다시 띄운다</p>`
     foot = `<button type="button" class="btn ghost" data-a="claudeClose">닫기</button><button class="btn" data-a="pcLoginCheck" data-t="claudeWinCheck"${L && L.checking ? ' disabled' : ''}>로그인 확인</button>${L ? '' : `<button class="btn${st === 'ok' ? '' : ' pri'}" data-a="pcLoginStart" data-t="claudeWinLogin">${st === 'ok' ? '다시 로그인' : 'Claude 로그인'}</button>`}`
   } else {
     // 팀 화면 — 팀 일꾼 로그인(팀 서버 · 팀 지식 · 총괄 관리자가 한다) · 내 Claude 로그인은 개인 화면에서
 
 
 
-    body = `${why}<div class="rh" style="margin:0 0 4px">팀 일꾼 로그인 <small class="muted">팀 지식 · 팀 서버 · 총괄 관리자가 한다 · 내 Claude 로그인은 개인 화면 › 설정 › Claude 연결</small></div><div class="cst cchip ${st}" data-t="claudeWinState"><i class="cdot"></i><b>${st === 'ok' ? '팀 일꾼 로그인이 돈다' : st === 'bad' ? '팀 일꾼 로그인이 쉬고 있다. 관리자에게 알렸다' : '팀 일꾼 로그인: 관리자가 해 둔다'}</b><small class="muted">${when}</small></div>`
+    body = `${why}<div class="rh" style="margin:0 0 var(--sp-2)">팀 일꾼 로그인 <small class="muted">팀 지식 · 팀 서버 · 총괄 관리자가 한다 · 내 Claude 로그인은 개인 화면 › 설정 › Claude 연결</small></div><div class="cst cchip ${st}" data-t="claudeWinState"><i class="cdot"></i><b>${st === 'ok' ? '팀 일꾼 로그인이 돈다' : st === 'bad' ? '팀 일꾼 로그인이 쉬고 있다. 관리자에게 알렸다' : '팀 일꾼 로그인: 관리자가 해 둔다'}</b><small class="muted">${when}</small></div>`
 
     foot = `<button type="button" class="btn ghost" data-a="claudeClose">닫기</button>${S.me.admin ? '<button class="btn" data-a="toTeamClaude" data-t="claudeToTeam">팀 일꾼 로그인 ›</button>' : ''}`
   }
@@ -4503,15 +4520,15 @@ function agentCard() {
       const ks = agKns(f)
       const kv = (k) => `data-v="${esc(f.path)}" data-area="me" data-kn="${esc(k.kn)}"`
       const knMenu = ks.length > 1 ? ks.map((k) => `<div class="mi" data-a="agentDrop" ${kv(k)} data-t="agentDrop">「${esc(k.knName || k.kn)}」 떼기<small>다른 개인 지식은 그대로</small></div>`).join('') : ''
-      return `<li data-t="agentRow" data-name="${esc(f.name)}"><span style="flex:1;min-width:0"><b>${esc(f.name)}</b><small class="muted mono" style="display:block">${esc(f.path)}</small></span>${agChips(f)}${old ? `<span class="chip c-warn" data-t="agentState">${f.state === 'none' ? '없음. 다시 붙인다' : '옛 판: 고침 있음'}</span><small class="muted">${esc(f.ver || '')}</small>` : `<span class="chip c-acc" data-t="agentState">최신 · ${esc(A.latest)}</span>`}<button class="kebab${S.menu === mk ? ' on' : ''}" data-a="menu" data-m="${esc(mk)}" data-t="agentKebab" title="지식 더하기 · 떼기 · 빼기">⋯${S.menu === mk ? popHtml(mk, `<div>${old ? `<div class="mi" data-a="agentUp" data-v="${esc(f.path)}" data-t="agentUp">최신으로<small>kmd 안내만 바꾼다</small></div>` : ''}<div class="mi" data-a="agentMore" data-v="${esc(f.path)}" data-t="agentMoreKn">개인 지식 더하기<small>팀 지식은 팀 화면 › 설정 › 에이전트 설치</small></div>${knMenu}<div class="mi" data-a="agentRm" data-v="${esc(f.path)}" data-t="agentRm">빼기<small>스킬 · 연결 · kmd 안내를 걷는다</small></div></div>`) : ''}</button></li>`
+      return `<li data-t="agentRow" data-name="${esc(f.name)}"><span class="u-f1"><b>${esc(f.name)}</b><small class="muted mono u-blk">${esc(f.path)}</small></span>${agChips(f)}${old ? `<span class="chip c-warn" data-t="agentState">${f.state === 'none' ? '없음. 다시 붙인다' : '옛 판: 고침 있음'}</span><small class="muted">${esc(f.ver || '')}</small>` : `<span class="chip c-acc" data-t="agentState">최신 · ${esc(A.latest)}</span>`}<button class="kebab${S.menu === mk ? ' on' : ''}" data-a="menu" data-m="${esc(mk)}" data-t="agentKebab" title="지식 더하기 · 떼기 · 빼기">⋯${S.menu === mk ? popHtml(mk, `<div>${old ? `<div class="mi" data-a="agentUp" data-v="${esc(f.path)}" data-t="agentUp">최신으로<small>kmd 안내만 바꾼다</small></div>` : ''}<div class="mi" data-a="agentMore" data-v="${esc(f.path)}" data-t="agentMoreKn">개인 지식 더하기<small>팀 지식은 팀 화면 › 설정 › 에이전트 설치</small></div>${knMenu}<div class="mi" data-a="agentRm" data-v="${esc(f.path)}" data-t="agentRm">빼기<small>스킬 · 연결 · kmd 안내를 걷는다</small></div></div>`) : ''}</button></li>`
     }).join('')
-    const add = S.agAdding ? `<div class="paste" style="margin-top:10px"><input class="inp mono" id="agIn" aria-label="작업 폴더 경로" data-in="ag" data-t="agIn" value="${esc(S.agDraft || '')}" placeholder="작업 폴더 경로: 예: D:\\work\\dpms-batch" autocomplete="off"><select class="inp" id="agKnMe" aria-label="붙일 개인 지식" data-in="agKnMe" data-t="agKnMe" style="width:auto">${agMeKns().map((k) => `<option value="${esc(k.id)}"${k.id === (S.agKnMe || (agMeKns()[0] || {}).id) ? ' selected' : ''}>${esc(k.name)}</option>`).join('')}</select><span id="agBtnBox">${agBtn()}</span></div>` : '<button class="btn pri" data-a="agentAdd" data-t="agentAddBtn" style="margin-top:10px">폴더 더하기</button>'
-    return `<div class="card" data-t="agentCard" style="overflow:visible"><div class="ch">에이전트 설치 <small>Claude Code 에 개인 지식을 붙인다 · 작업 폴더마다 여럿</small><span class="r"><button class="kebab${S.menu === 'agAll' ? ' on' : ''}" data-a="menu" data-m="agAll" data-t="agentAllKebab" title="지금 모두 최신으로">⋯${S.menu === 'agAll' ? popHtml('agAll', `<div><div class="mi" data-a="agentAllNew" data-t="agentAllNew">지금 모두 최신으로<small>${oldN ? '옛 판 ' + oldN : '모두 최신'}</small></div></div>`) : ''}</button></span></div><div class="cb" style="padding:2px 14px 12px">${S.agMsg ? `<div class="callout" data-t="agentMsg">${S.agMsg}</div>` : ''}<ul class="plain" data-t="agentList">${rows || '<li class="muted">아직 붙인 폴더가 없다</li>'}</ul>${add}
+    const add = S.agAdding ? `<div class="paste" style="margin-top:var(--sp-5)"><input class="inp mono" id="agIn" aria-label="작업 폴더 경로" data-in="ag" data-t="agIn" value="${esc(S.agDraft || '')}" placeholder="작업 폴더 경로: 예: D:\\work\\dpms-batch" autocomplete="off"><select class="inp" id="agKnMe" aria-label="붙일 개인 지식" data-in="agKnMe" data-t="agKnMe" style="width:auto">${agMeKns().map((k) => `<option value="${esc(k.id)}"${k.id === (S.agKnMe || (agMeKns()[0] || {}).id) ? ' selected' : ''}>${esc(k.name)}</option>`).join('')}</select><span id="agBtnBox">${agBtn()}</span></div>` : '<button class="btn pri" data-a="agentAdd" data-t="agentAddBtn" style="margin-top:var(--sp-5)">폴더 더하기</button>'
+    return `<div class="card u-ovv" data-t="agentCard"><div class="ch">에이전트 설치 <small>Claude Code 에 개인 지식을 붙인다 · 작업 폴더마다 여럿</small><span class="r"><button class="kebab${S.menu === 'agAll' ? ' on' : ''}" data-a="menu" data-m="agAll" data-t="agentAllKebab" title="지금 모두 최신으로">⋯${S.menu === 'agAll' ? popHtml('agAll', `<div><div class="mi" data-a="agentAllNew" data-t="agentAllNew">지금 모두 최신으로<small>${oldN ? '옛 판 ' + oldN : '모두 최신'}</small></div></div>`) : ''}</button></span></div><div class="cb u-p1-7-6">${S.agMsg ? `<div class="callout" data-t="agentMsg">${S.agMsg}</div>` : ''}<ul class="plain" data-t="agentList">${rows || '<li class="muted">아직 붙인 폴더가 없다</li>'}</ul>${add}
    <details class="more" data-t="agentMore"><summary>자세히: 무엇이 깔리나</summary><div class="in">개인 스킬 셋: <code>kmd-work</code> · <code>kmd-save</code> · <code>kmd-build</code>(파일을 지식에 들이기)<br>연결: <code>kmd</code>(이 PC 의 개인 프로그램) 하나 · 열쇠는 이 PC 의 자격 저장소에서 꺼낸다<br>이 폴더의 개인 지식: CLAUDE.md 안내에 표가 적힌다. 세션은 표의 지식 모두에서 읽고, 여럿이면 남기기 전에 어느 지식에 남길지 묻는다<br>팀 지식: 따로 붙인다(팀 화면 › 설정 › 에이전트 설치 · 스킬 <code>kmd-team-work</code> · <code>kmd-team-save</code> · 연결 <code>kmd-team</code>). 여기서는 건드리지 않는다<br>안내 한 단락: <code>CLAUDE.md</code> 안 kmd 안내 · 사람이 고친 줄은 그대로 두고 kmd 안내만 바꾼다</div></details></div></div>`
   }
   const devs = devicesOf()
-  return `<div class="card" data-t="agentCard"><div class="ch">에이전트 설치 <small>Claude Code 에 kmd 를 붙인다</small></div><div class="cb" style="padding:2px 14px 12px"><div class="set"><span class="tx"><b>이 PC 의 Claude Code 로 쓰려면: 설치 한 줄 복사</b><small>작업 폴더의 터미널에 붙여 넣는다 · 10분 동안 한 번만 · 개인 프로그램이 있으면 그 프로그램에 폴더를 더한다</small></span><button class="btn pri" data-a="copyInstall" data-t="copyInstall">설치 한 줄 복사</button></div>
-  <div class="rh">내 기기</div><ul class="plain" data-t="agentDevs">${!devs ? `<li>${loadingHtml}</li>` : devs.error ? `<li>${errHtml(devs, 'devices')}</li>` : devs.map((d) => `<li data-t="agentDev" data-name="${esc(d.host || d.id)}"><span style="flex:1"><b>${esc(d.host || '이름 없는 기기')}</b><small class="muted" style="display:block">Claude Code · ${d.used ? '마지막 사용 ' + esc(whenTxt(d.used)) : '이은 때 ' + esc(whenTxt(d.at))}</small></span></li>`).join('') || '<li class="muted">아직 붙인 기기가 없다</li>'}</ul><p class="small muted">기기의 kmd 스킬은 그 기기의 kmd 가 최신으로 맞춘다.</p></div></div>`
+  return `<div class="card" data-t="agentCard"><div class="ch">에이전트 설치 <small>Claude Code 에 kmd 를 붙인다</small></div><div class="cb u-p1-7-6"><div class="set"><span class="tx"><b>이 PC 의 Claude Code 로 쓰려면: 설치 한 줄 복사</b><small>작업 폴더의 터미널에 붙여 넣는다 · 10분 동안 한 번만 · 개인 프로그램이 있으면 그 프로그램에 폴더를 더한다</small></span><button class="btn pri" data-a="copyInstall" data-t="copyInstall">설치 한 줄 복사</button></div>
+  <div class="rh">내 기기</div><ul class="plain" data-t="agentDevs">${!devs ? `<li>${loadingHtml}</li>` : devs.error ? `<li>${errHtml(devs, 'devices')}</li>` : devs.map((d) => `<li data-t="agentDev" data-name="${esc(d.host || d.id)}"><span class="u-f1"><b>${esc(d.host || '이름 없는 기기')}</b><small class="muted u-blk">Claude Code · ${d.used ? '마지막 사용 ' + esc(whenTxt(d.used)) : '이은 때 ' + esc(whenTxt(d.at))}</small></span></li>`).join('') || '<li class="muted">아직 붙인 기기가 없다</li>'}</ul><p class="small muted">기기의 kmd 스킬은 그 기기의 kmd 가 최신으로 맞춘다.</p></div></div>`
 }
 // 에이전트에 붙일 개인 지식 — 개인 화면의 지식 모두
 const agMeKns = () => S.kns
@@ -4633,28 +4650,28 @@ const leftMin = (iso) => Math.max(0, Math.round((Date.parse(iso) - Date.now()) /
 const admGuideText = (L) => [`kmd 팀 지식에 들어오기: ${L.id}`, '', `1. 처음 들어오기 링크(24시간 · 한 번): ${L.link}`, '   링크를 열고 비밀번호를 정한다', `2. 다음부터는 ${location.origin} 에서 아이디 ${L.id} 로 들어온다`, '3. 작업 폴더의 Claude Code 에 팀 지식을 붙이려면: 설정 › 에이전트 설치 › [설치 명령 복사]'].join('\n')
 function admPeopleCard() {
   const u = usersOf()
-  if (!u || u.error) return `<div class="card" data-t="admPeople"><div class="ch">사람</div><div class="cb" style="padding:8px 14px">${u ? errHtml(u) : loadingHtml}</div></div>`
+  if (!u || u.error) return `<div class="card" data-t="admPeople"><div class="ch">사람</div><div class="cb u-p4-7">${u ? errHtml(u) : loadingHtml}</div></div>`
   const live = u.users.filter((x) => !x.off && !x.legacyOnly), gone = u.users.filter((x) => x.off)
   const st = (x) => (u && Array.isArray(u.locked) ? u.locked : []).some((l) => l.user === x.id) ? '여러 번 틀려 잠시 막힘(점검에서 풀기)' : x.password ? '들어온다' : x.firstExp && leftMin(x.firstExp) <= 0 ? '링크 지남: 새 링크를 만든다' : x.firstOpen ? `링크 보냄 · ${Math.floor(leftMin(x.firstExp) / 60)}시간 ${leftMin(x.firstExp) % 60}분 남음` : '비밀번호를 안 정함'
   const mk = (x) => 'pp:' + x.id
   const row = (x) => `<li data-t="admPerson" data-name="${esc(x.id)}"><span class="av2">${esc(x.id.slice(0, 1))}</span><span class="nm">${esc(x.id)}${x.admin ? ' <span class="kt role">총괄 관리자</span>' : ''}<small>${esc(st(x))} · 기기 ${x.devices}${x.roles.team ? ` · 주인 ${x.roles.team}` : ''}${x.admin ? ' · 모든 지식 지식관리자' : ` · <span data-t="admPersonKns">지식 ${x.roles.kns || 0}개에 자리</span>`}</small></span>${S.admLink && S.admLink.id === x.id ? `<span class="mono small ell mw260" data-t="admLinkOut">${esc(S.admLink.link)}</span><button type="button" class="lk" data-a="admCopyLink" data-t="admCopyLink">링크만 복사</button><button type="button" class="lk" data-a="admCopyGuide" data-t="admCopyGuide">안내 복사</button>` : ''}${x.id === S.me.user ? '' : `<button class="kebab${S.menu === mk(x) ? ' on' : ''}" data-a="menu" data-m="${esc(mk(x))}" data-t="admPersonKebab" title="지식마다 자리 · 새 링크 · 총괄 관리자 · 기기 · 떠남">⋯${S.menu === mk(x) ? popHtml(mk(x), `<div>${x.admin ? '' : `<div class="mi" data-a="seatOpen" data-v="${esc(x.id)}" data-t="seatOpen">지식마다 자리<small>없음 · 읽기 · 쓰기 · 지식관리자</small></div><div class="sep"></div>`}<div class="mi" data-a="admLink1" data-v="${esc(x.id)}" data-pw="${x.password ? 1 : 0}" data-t="admLink1">새 링크<small>이 사람만 · 24시간 · 한 번: 지금 비밀번호는 지워진다 · 기기 열쇠는 그대로</small></div><div class="mi" data-a="admLogoutAll" data-v="${esc(x.id)}" data-t="admLogoutAll">모든 곳에서 내보내기<small>비밀번호는 그대로 · 브라우저 들어간 것만 끊는다</small></div><div class="mi" data-a="admAdminSet" data-v="${esc(x.id)}" data-on="${x.admin ? '' : '1'}" data-t="admAdminSet">${x.admin ? '총괄 관리자 아님으로' : '총괄 관리자로'}</div><div class="mi" data-a="admRevokeAll" data-v="${esc(x.id)}" data-t="admRevokeAll">기기 모두 끊기<small>그 사람의 Claude Code 팀 연결 · 개인 프로그램의 팀 잇기가 다시 이어야 한다</small></div><div class="sep"></div><div class="mi danger" data-a="admOffOpen" data-v="${esc(x.id)}" data-t="admOffOpen">떠남…<small>들어가기 · 기기를 끊고 지식을 넘긴다</small></div></div>`) : ''}</button>`}</li>`
-  const add = S.admAdd ? `<div class="flow" data-t="admAddForm"><div class="row"><input class="inp" id="admAddIn"${invAttr(S.admAdd.err, 'admAddErr')} aria-label="새 사람 아이디" data-in="admAddId" data-t="admAddIn" value="${esc(S.admAdd.id || '')}" placeholder="아이디: 영문 · 숫자 · . _ -" autocomplete="off" style="flex:1"><label class="small"><input type="checkbox" id="admAddAdmin"${S.admAdd.admin ? ' checked' : ''} data-a="admAddAdmin" data-t="admAddAdmin"> 총괄 관리자</label></div>${seatTable(S.admAdd.seats, 'add', S.admAdd.admin)}${S.admAdd.err ? formErr(S.admAdd.err, 'admAddErr') : ''}<div class="row" style="margin-top:8px;justify-content:flex-end"><button type="button" class="btn ghost" data-a="admAddCancel">취소</button><button class="btn pri" data-a="admAddDo" data-t="admAddDo">더하기</button></div></div>` : ''
-  return `<div class="card" data-t="admPeople" style="overflow:visible"><div class="ch">사람 ${live.length} <small>처음 들어오기 링크는 사람마다 따로 보낸다</small></div><div class="cb" style="padding:2px 14px 10px">${add}<ul class="plain pl">${live.map(row).join('')}</ul>${gone.length ? `<details class="more" data-t="admGone"><summary>떠난 사람 ${gone.length}: 아이디는 되쓰지 않는다</summary><div class="in">${gone.map((x) => `${esc(x.id)} · ${esc(String(x.off.at).slice(0, 10))}`).join(' · ')}</div></details>` : ''}</div><div class="cf">${S.admAdd ? '' : '<button class="btn pri" data-a="admAddOpen" data-t="admAddOpen">사람 더하기</button>'}<span>더하면 처음 들어오기 링크(24시간 · 한 번)가 나온다. 아이디와 함께 그 사람에게만 보낸다 · 비밀번호는 그 사람이 정한다</span></div></div>`
+  const add = S.admAdd ? `<div class="flow" data-t="admAddForm"><div class="row"><input class="inp u-f1" id="admAddIn"${invAttr(S.admAdd.err, 'admAddErr')} aria-label="새 사람 아이디" data-in="admAddId" data-t="admAddIn" value="${esc(S.admAdd.id || '')}" placeholder="아이디: 영문 · 숫자 · . _ -" autocomplete="off"><label class="small"><input type="checkbox" id="admAddAdmin"${S.admAdd.admin ? ' checked' : ''} data-a="admAddAdmin" data-t="admAddAdmin"> 총괄 관리자</label></div>${seatTable(S.admAdd.seats, 'add', S.admAdd.admin)}${S.admAdd.err ? formErr(S.admAdd.err, 'admAddErr') : ''}<div class="row u-je" style="margin-top:var(--sp-4)"><button type="button" class="btn ghost" data-a="admAddCancel">취소</button><button class="btn pri" data-a="admAddDo" data-t="admAddDo">더하기</button></div></div>` : ''
+  return `<div class="card u-ovv" data-t="admPeople"><div class="ch">사람 ${live.length} <small>처음 들어오기 링크는 사람마다 따로 보낸다</small></div><div class="cb u-p1-7-5">${add}<ul class="plain pl">${live.map(row).join('')}</ul>${gone.length ? `<details class="more" data-t="admGone"><summary>떠난 사람 ${gone.length}: 아이디는 되쓰지 않는다</summary><div class="in">${gone.map((x) => `${esc(x.id)} · ${esc(String(x.off.at).slice(0, 10))}`).join(' · ')}</div></details>` : ''}</div><div class="cf">${S.admAdd ? '' : '<button class="btn pri" data-a="admAddOpen" data-t="admAddOpen">사람 더하기</button>'}<span>더하면 처음 들어오기 링크(24시간 · 한 번)가 나온다. 아이디와 함께 그 사람에게만 보낸다 · 비밀번호는 그 사람이 정한다</span></div></div>`
 }
 // 지식마다 자리 표 — 사람 더하기 · 사람 ⋯ › 지식마다 자리 창. 팀 지식마다 없음 · 읽기 · 쓰기 · 지식관리자(고르지 않으면 없음 — 보이지 않는다)
 //   info — 창에서: 그 사람의 묶음 · 주인 자리(사람 줄과 따로 · 실제 자리는 가장 높은 것)
 const SEAT_LV = ['none', 'read', 'write', 'admin']
 function seatTable(seats = {}, key, all = false, info = null) {
   const ks = S.kns.filter((k) => !k.dim)
-  if (all) return '<p class="small muted" data-t="seatAll" style="margin:8px 0 0">총괄 관리자는 모든 지식이 보이고 모두 지식관리자다</p>'
-  if (!ks.length) return '<p class="small muted" style="margin:8px 0 0">팀 지식이 아직 없다</p>'
+  if (all) return '<p class="small muted" data-t="seatAll" style="margin:var(--sp-4) 0 0">총괄 관리자는 모든 지식이 보이고 모두 지식관리자다</p>'
+  if (!ks.length) return '<p class="small muted" style="margin:var(--sp-4) 0 0">팀 지식이 아직 없다</p>'
   const row = (k) => {
     const i = info && info[k.id]
     const extra = i ? [i.owner ? '주인' : '', ...(i.groups || []).map((g) => `묶음 ${g.group}: ${LV_N[g.level]}`), i.all && i.all !== 'none' ? `모두: ${LV_N[i.all]}` : ''].filter(Boolean).join(' · ') : ''
     const sel = `<select class="inp" data-seat="${esc(key)}" data-k="${esc(k.id)}" data-t="seatSel" aria-label="${esc(k.name)} 의 자리"${i && i.owner ? ' disabled' : ''}>${SEAT_LV.map((l) => `<option value="${l}"${(seats[k.id] || 'none') === l ? ' selected' : ''}>${LV_N[l]}</option>`).join('')}</select>`
-    return `<tr data-t="seatRow" data-name="${esc(k.name)}"><td><b>${esc(k.name)}</b>${extra ? `<small class="muted" style="display:block">${esc(extra)}${i.level && i.level !== (seats[k.id] || 'none') ? ' · 지금 실제 자리 ' + esc(LV_N[i.level]) : ''}</small>` : ''}</td><td style="text-align:right">${sel}</td></tr>`
+    return `<tr data-t="seatRow" data-name="${esc(k.name)}"><td><b>${esc(k.name)}</b>${extra ? `<small class="muted u-blk">${esc(extra)}${i.level && i.level !== (seats[k.id] || 'none') ? ' · 지금 실제 자리 ' + esc(LV_N[i.level]) : ''}</small>` : ''}</td><td class="u-tr">${sel}</td></tr>`
   }
-  return `<div class="tblwrap" style="margin-top:8px" data-t="seatTable"><table class="t"><tr><th>팀 지식</th><th style="text-align:right">자리</th></tr>${ks.map(row).join('')}</table></div>`
+  return `<div class="tblwrap" style="margin-top:var(--sp-4)" data-t="seatTable"><table class="t"><tr><th>팀 지식</th><th class="u-tr">자리</th></tr>${ks.map(row).join('')}</table></div>`
 }
 const seatsOfUser = (u) => need('seats:' + u, `/api/admin/users/${encodeURIComponent(u)}/seats`)
 function seatWinHtml() {
@@ -4669,7 +4686,7 @@ function seatWinHtml() {
 const groupsOf = () => need('groups', '/api/admin/groups')
 function admGroupsCard() {
   const v = groupsOf()
-  if (!v || v.error) return `<div class="card" data-t="admGroups"><div class="ch">묶음</div><div class="cb" style="padding:8px 14px">${v ? errHtml(v, 'groups') : loadingHtml}</div></div>`
+  if (!v || v.error) return `<div class="card" data-t="admGroups"><div class="ch">묶음</div><div class="cb u-p4-7">${v ? errHtml(v, 'groups') : loadingHtml}</div></div>`
   const people = v.people || []
   const pick = S.grpPick || {}
   const row = (g) => {
@@ -4679,8 +4696,8 @@ function admGroupsCard() {
     return `<li data-t="grpRow" data-name="${esc(g.name)}"><span class="av2 all">${esc(g.name.slice(0, 1))}</span><span class="nm">${esc(g.name)}<small data-t="grpKns">지식 ${g.kns.length}개에 자리 · 사람 ${g.members.length}</small><span class="gms">${chips}</span>${add}</span><button type="button" class="btn sm ghost" data-a="grpDel" data-v="${esc(g.name)}" data-t="grpDel">지우기</button></li>`
   }
   const f = S.grpAdd
-  const form = f ? `<div class="flow" data-t="grpAddForm"><div class="field" style="margin:0"><label for="grpName">묶음 이름</label><input class="inp" id="grpName"${invAttr(f.err, 'grpAddErr')} data-in="grpName" data-t="grpName" value="${esc(f.name || '')}" placeholder="예: 개발 · 운영" autocomplete="off"></div><div class="small b6" style="margin:8px 0 4px">넣을 사람</div><div class="gpick" data-t="grpAddPeople">${people.map((p) => `<label class="small"><input type="checkbox" data-grpadd="${esc(p)}"${(f.members || []).includes(p) ? ' checked' : ''}> ${esc(p)}</label>`).join('') || '<span class="muted small">사람이 없다</span>'}</div>${f.err ? formErr(`<i></i><span>${esc(f.err)}</span>`, 'grpAddErr', '', true) : ''}<div class="row" style="margin-top:8px"><button type="button" class="btn ghost" data-a="grpAddCancel">취소</button><button type="button" class="btn pri" data-a="grpAddDo" data-t="grpAddDo"${(f.name || '').trim() && !f.busy ? '' : ' disabled'}>더하기</button></div></div>` : ''
-  return `<div class="card" data-t="admGroups"><div class="ch">묶음 ${v.groups.length} <small>사람 여럿에 한 번에 자리를 준다 · 자리는 지식 카드 ⋯ › 권한에서</small></div><div class="cb" style="padding:2px 14px 10px">${form}<ul class="plain pl">${v.groups.map(row).join('') || '<li class="muted" data-t="grpNone">아직 묶음이 없다</li>'}</ul></div><div class="cf">${f ? '' : '<button class="btn pri" data-a="grpAddOpen" data-t="grpAddOpen">묶음 더하기</button>'}<span>묶음을 지우면 지식마다 준 그 묶음 줄도 빠진다</span></div></div>`
+  const form = f ? `<div class="flow" data-t="grpAddForm"><div class="field" style="margin:0"><label for="grpName">묶음 이름</label><input class="inp" id="grpName"${invAttr(f.err, 'grpAddErr')} data-in="grpName" data-t="grpName" value="${esc(f.name || '')}" placeholder="예: 개발 · 운영" autocomplete="off"></div><div class="small b6" style="margin:var(--sp-4) 0 var(--sp-2)">넣을 사람</div><div class="gpick" data-t="grpAddPeople">${people.map((p) => `<label class="small"><input type="checkbox" data-grpadd="${esc(p)}"${(f.members || []).includes(p) ? ' checked' : ''}> ${esc(p)}</label>`).join('') || '<span class="muted small">사람이 없다</span>'}</div>${f.err ? formErr(`<i></i><span>${esc(f.err)}</span>`, 'grpAddErr', '', true) : ''}<div class="row" style="margin-top:var(--sp-4)"><button type="button" class="btn ghost" data-a="grpAddCancel">취소</button><button type="button" class="btn pri" data-a="grpAddDo" data-t="grpAddDo"${(f.name || '').trim() && !f.busy ? '' : ' disabled'}>더하기</button></div></div>` : ''
+  return `<div class="card" data-t="admGroups"><div class="ch">묶음 ${v.groups.length} <small>사람 여럿에 한 번에 자리를 준다 · 자리는 지식 카드 ⋯ › 권한에서</small></div><div class="cb u-p1-7-5">${form}<ul class="plain pl">${v.groups.map(row).join('') || '<li class="muted" data-t="grpNone">아직 묶음이 없다</li>'}</ul></div><div class="cf">${f ? '' : '<button class="btn pri" data-a="grpAddOpen" data-t="grpAddOpen">묶음 더하기</button>'}<span>묶음을 지우면 지식마다 준 그 묶음 줄도 빠진다</span></div></div>`
 }
 // 묶음 바꾸기 — 사람 목록을 통째로 보낸다(관리자 일 · 비밀번호 한 번 더) · 사람 카드의 「지식 n개에 자리」 도 새로
 async function grpSet(name, members) {
@@ -4699,10 +4716,10 @@ function offHtml() {
   if (!x) return ''
   const r = x.roles
   return `<div class="scrim fix" data-a="offClose" data-self="1"${v.busy ? ' data-busy="1"' : ''}><div class="modal w560" data-t="offWin"><div class="mh">떠남: ${esc(x.id)}<button type="button" class="x" data-a="offClose" title="닫기" aria-label="닫기">×</button></div><div class="mb">
-  <div class="callout danger" style="margin:0 0 12px"><i></i><span><b>한 번에 끊는다. 들어가기 · 기기 ${x.devices}</b> · 되돌릴 수 없다 · 아이디는 남겨 두고 되쓰지 않는다(같은 아이디로 다시 들일 수 없다 · 잠시 쉬는 사람은 기기 끊기 + 새 링크로)</span></div>
-  <p class="small" style="margin:0 0 6px">${esc(x.id)} 이 주인인 지식: 팀 지식 ${r.team} · 지식관리자로 받은 지식 ${r.curate}(자리에서 뺀다)</p>
-  <label class="small" style="display:block;margin:6px 0"><input type="radio" name="offTo" value="me"${v.to === 'me' ? ' checked' : ''} data-a="offTo" data-v="me" data-t="offToMe"> 내가 주인을 잇는다</label>
-  <label class="small" style="display:block;margin:6px 0"><input type="radio" name="offTo" value="none"${v.to === 'me' ? '' : ' checked'} data-a="offTo" data-v="none" data-t="offToNone"> 주인 칸을 비운다. 자리를 받은 사람에게는 그대로 보인다(나중에 지식 카드 ⋯ › 권한 › 주인 바꾸기로 새 주인을 정한다)</label>
+  <div class="callout danger" style="margin:0 0 var(--sp-6)"><i></i><span><b>한 번에 끊는다. 들어가기 · 기기 ${x.devices}</b> · 되돌릴 수 없다 · 아이디는 남겨 두고 되쓰지 않는다(같은 아이디로 다시 들일 수 없다 · 잠시 쉬는 사람은 기기 끊기 + 새 링크로)</span></div>
+  <p class="small" style="margin:0 0 var(--sp-3)">${esc(x.id)} 이 주인인 지식: 팀 지식 ${r.team} · 지식관리자로 받은 지식 ${r.curate}(자리에서 뺀다)</p>
+  <label class="small u-blk" style="margin:var(--sp-3) 0"><input type="radio" name="offTo" value="me"${v.to === 'me' ? ' checked' : ''} data-a="offTo" data-v="me" data-t="offToMe"> 내가 주인을 잇는다</label>
+  <label class="small u-blk" style="margin:var(--sp-3) 0"><input type="radio" name="offTo" value="none"${v.to === 'me' ? '' : ' checked'} data-a="offTo" data-v="none" data-t="offToNone"> 주인 칸을 비운다. 자리를 받은 사람에게는 그대로 보인다(나중에 지식 카드 ⋯ › 권한 › 주인 바꾸기로 새 주인을 정한다)</label>
   ${v.err ? formErr(`<i></i><span>${esc(v.err)}</span>`, 'offErr', '', true) : ''}
   </div><div class="mf"><span class="acts"><button type="button" class="btn ghost" data-a="offClose" data-t="offClose">취소</button><button class="btn danger" data-a="offDo" data-t="offDo"${v.busy ? ' disabled' : ''}>${v.busy ? '끊는 중…' : '떠남으로'}</button></span></div></div></div>`
 }
@@ -4712,7 +4729,7 @@ function checkChips(a) {
   const bk = a.backups.filter((x) => x.off || (x.verdict && x.verdict !== 'ok' && x.verdict !== 'lag')).length
   const rest = a.worker && a.worker.ok === false
   const c = (cls, t, k) => `<span class="chip ${cls}" data-t="chk-${k}">${t}</span>`
-  return `<div class="row" data-t="checkChips" style="flex-wrap:wrap;gap:6px;margin:0 0 10px">${c(S.stops.length ? 'c-warn' : 'c-mute', '멈춤 ' + S.stops.length, 'stop')}${c(held ? 'c-warn' : 'c-mute', '넣지 못함 ' + held, 'held')}${c(bk ? 'c-danger' : 'c-mute', '백업 문제 ' + bk, 'backup')}${c(rest ? 'c-warn' : a.claude.token || (a.worker && a.worker.ok) ? 'c-ok' : 'c-mute', '팀 일꾼 ' + (rest ? '쉼' : a.claude.token || (a.worker && a.worker.ok) ? '됨' : '로그인 전'), 'worker')}${held ? ` <button type="button" class="lk small" data-a="openSet" data-v="held" data-t="chkHeldGo">넣지 못함 ›</button>` : ''}</div>`
+  return `<div class="row u-wrap u-g3" data-t="checkChips" style="margin:0 0 var(--sp-5)">${c(S.stops.length ? 'c-warn' : 'c-mute', '멈춤 ' + S.stops.length, 'stop')}${c(held ? 'c-warn' : 'c-mute', '넣지 못함 ' + held, 'held')}${c(bk ? 'c-danger' : 'c-mute', '백업 문제 ' + bk, 'backup')}${c(rest ? 'c-warn' : a.claude.token || (a.worker && a.worker.ok) ? 'c-ok' : 'c-mute', '팀 일꾼 ' + (rest ? '쉼' : a.claude.token || (a.worker && a.worker.ok) ? '됨' : '로그인 전'), 'worker')}${held ? ` <button type="button" class="lk small" data-a="openSet" data-v="held" data-t="chkHeldGo">넣지 못함 ›</button>` : ''}</div>`
 }
 function viewAdmin() {
   if (!S.me.admin) return { crumb: '관리', main: '<div class="callout gray">총괄 관리자만 본다</div>' }
@@ -4739,18 +4756,18 @@ function admClaudeCard(a) {
   const rest = a.worker && a.worker.ok === false, step = S.admStep
   let flow = ''
   if (step === 'wait') flow = '<div class="flow"><span class="prog" data-t="admWait"><i></i>팀 서버가 팀 일꾼 로그인을 띄우는 중…</span></div>'
-  else if (step === 'window') flow = `<div class="flow" data-t="admWindow"><p style="margin:0 0 6px"><b>팀 서버 PC 화면에 「kmd: Claude 로그인」 창</b>이 떴다. 그 창이 브라우저를 연다. 그 PC 의 브라우저에서 Claude 에 들어가면 끝이다.</p><p class="small muted" style="margin:0 0 8px">창이 안 보이면 그 PC 의 작업 표시줄에서 그 창을 누른다 · 팀 일꾼은 그 PC 의 Claude Code 로그인을 쓴다 · 다 되면 그 창은 닫아도 된다</p><div class="row"><span class="prog" data-t="admWinWait"><i></i>${S.admChecking ? '로그인을 확인하는 중…' : S.admLast ? esc(S.admLast) : '로그인을 기다린다. 몇 초마다 저절로 확인한다'}</span><button type="button" class="btn ghost sm" data-a="admFlowCancel" style="margin-left:auto">취소</button><button class="btn sm" data-a="admCheck" data-t="admCheck">지금 확인</button></div></div>`
+  else if (step === 'window') flow = `<div class="flow" data-t="admWindow"><p style="margin:0 0 var(--sp-3)"><b>팀 서버 PC 화면에 「kmd: Claude 로그인」 창</b>이 떴다. 그 창이 브라우저를 연다. 그 PC 의 브라우저에서 Claude 에 들어가면 끝이다.</p><p class="small muted" style="margin:0 0 var(--sp-4)">창이 안 보이면 그 PC 의 작업 표시줄에서 그 창을 누른다 · 팀 일꾼은 그 PC 의 Claude Code 로그인을 쓴다 · 다 되면 그 창은 닫아도 된다</p><div class="row"><span class="prog" data-t="admWinWait"><i></i>${S.admChecking ? '로그인을 확인하는 중…' : S.admLast ? esc(S.admLast) : '로그인을 기다린다. 몇 초마다 저절로 확인한다'}</span><button type="button" class="btn ghost sm" data-a="admFlowCancel" style="margin-left:auto">취소</button><button class="btn sm" data-a="admCheck" data-t="admCheck">지금 확인</button></div></div>`
   else if (!step && S.admErr) flow = `<div class="flow">${formErr(S.admErr, 'admErr')}</div>`
   // 기다리던 로그인이 끝났다(시간이 지났다 · 팀 서버가 다시 켜졌다) — 그 번호는 못 쓴다 · 새 주소로 다시
-  else if (step === 'expired') flow = `<div class="flow" data-t="admExpired"><div class="callout warn" style="margin:0 0 8px"><b>기다리던 로그인이 끝났다</b>. ${esc(S.admErr || '')}</div><div class="row"><button type="button" class="btn ghost sm" data-a="admFlowCancel">취소</button><button class="btn pri" data-a="admLoginStart" data-t="admRestart">다시 시작</button></div></div>`
+  else if (step === 'expired') flow = `<div class="flow" data-t="admExpired"><div class="callout warn" style="margin:0 0 var(--sp-4)"><b>기다리던 로그인이 끝났다</b>. ${esc(S.admErr || '')}</div><div class="row"><button type="button" class="btn ghost sm" data-a="admFlowCancel">취소</button><button class="btn pri" data-a="admLoginStart" data-t="admRestart">다시 시작</button></div></div>`
   // 화면 없는 서버 — 둘: 이 브라우저에서 주소를 열어 로그인 → 받은 번호를 붙여 넣기(주소는 길어 두 줄까지만 보이고 복사 · 열기로)
   else if (step === 'code') flow = `<div class="flow" data-t="admCode"><ol class="lsteps">
    <li><b>Claude 로그인 주소를 연다</b><small>새 탭에서 Claude 계정(Pro · Max · Team · Enterprise)으로 들어가 [Authorize] 를 누르면 번호가 나온다 · 메일로 오는 링크는 같은 브라우저에서 연다${S.admUntil ? ` · <b data-t="admUntil">${new Date(S.admUntil).toTimeString().slice(0, 5)} 까지</b>` : ''}</small><div class="row"><a class="btn pri sm" href="${esc(S.admUrl)}" target="_blank" rel="noopener noreferrer" data-t="admOpenUrl">주소 열기 ↗</a><button class="btn sm" data-a="admCopyUrl" data-t="admCopyUrl">주소 복사</button></div><div class="urlbox" data-t="admUrl" title="${esc(S.admUrl)}">${esc(S.admUrl)}</div></li>
-   <li><b>받은 번호를 붙여 넣는다</b><small>Claude 화면에 나온 번호를 그대로 · 한 번용이라 저장하지 않는다</small><div class="paste"><input class="inp mono" id="admCodeIn" aria-label="로그인 코드" data-in="admCode" data-t="admCodeIn" value="${esc(S.admCode || '')}" placeholder="받은 번호 붙여 넣기" autocomplete="off"><span id="admDoneBox">${admDoneBtn()}</span></div>${S.admBusy ? '<div class="row" style="margin-top:8px"><span class="prog" data-t="admBusy"><i></i>번호를 넘기고 Claude 의 열쇠를 받는 중… 30초까지 걸린다</span></div>' : ''}</li></ol>
-   ${S.admErr ? formErr(S.admErr, 'admCodeErr') : ''}<div class="row" style="margin-top:2px"><span class="hint" style="margin:0">${a.https ? '로그인한 열쇠는 팀 서버 비밀로만 남는다' : '아직 https 가 아니다. 사내 https 뒤 권장'}</span><button type="button" class="btn ghost sm" data-a="admFlowCancel" style="margin-left:auto">취소</button></div></div>`
+   <li><b>받은 번호를 붙여 넣는다</b><small>Claude 화면에 나온 번호를 그대로 · 한 번용이라 저장하지 않는다</small><div class="paste"><input class="inp mono" id="admCodeIn" aria-label="로그인 코드" data-in="admCode" data-t="admCodeIn" value="${esc(S.admCode || '')}" placeholder="받은 번호 붙여 넣기" autocomplete="off"><span id="admDoneBox">${admDoneBtn()}</span></div>${S.admBusy ? '<div class="row" style="margin-top:var(--sp-4)"><span class="prog" data-t="admBusy"><i></i>번호를 넘기고 Claude 의 열쇠를 받는 중… 30초까지 걸린다</span></div>' : ''}</li></ol>
+   ${S.admErr ? formErr(S.admErr, 'admCodeErr') : ''}<div class="row" style="margin-top:var(--sp-1)"><span class="hint" style="margin:0">${a.https ? '로그인한 열쇠는 팀 서버 비밀로만 남는다' : '아직 https 가 아니다. 사내 https 뒤 권장'}</span><button type="button" class="btn ghost sm" data-a="admFlowCancel" style="margin-left:auto">취소</button></div></div>`
   const state = rest ? `쉬고 있다 · ${Math.max(1, Math.round((Date.now() - Date.parse(a.worker.since)) / 864e5))}일: 로그인이 끝났다` : a.claude.token ? '로그인됨 · 팀 일꾼' : a.worker && a.worker.ok ? '로그인됨. 팀 서버 PC 의 Claude Code' : '아직 로그인하지 않았다'
   const inn = a.claude.token || (a.worker && a.worker.ok)
-  return `<div class="card" data-t="admClaude"><div class="ch">Claude 연결 <small>팀 일꾼 로그인: 팀 서버의 팀 일꾼이 쓴다</small></div><div class="cb" style="padding:2px 14px 10px"><div class="set"><span class="tx"><b data-t="admClaudeState">${state}</b><small>쓰는 곳: 들이기 · 다시 들이기 · 정정 · 문서 다듬기${rest ? ' · 그동안 들이기는 기다린다' : ''}</small></span>${step ? '' : `<button class="btn${rest || !inn ? ' pri' : ''}" data-a="admLoginStart" data-t="admLoginStart">${rest || !inn ? '로그인 시작' : '다시 로그인'}</button>`}</div>${flow}</div></div>`
+  return `<div class="card" data-t="admClaude"><div class="ch">Claude 연결 <small>팀 일꾼 로그인: 팀 서버의 팀 일꾼이 쓴다</small></div><div class="cb u-p1-7-5"><div class="set"><span class="tx"><b data-t="admClaudeState">${state}</b><small>쓰는 곳: 들이기 · 다시 들이기 · 정정 · 문서 다듬기${rest ? ' · 그동안 들이기는 기다린다' : ''}</small></span>${step ? '' : `<button class="btn${rest || !inn ? ' pri' : ''}" data-a="admLoginStart" data-t="admLoginStart">${rest || !inn ? '로그인 시작' : '다시 로그인'}</button>`}</div>${flow}</div></div>`
 }
 // 로그인 시작 — 비밀번호 한 번 더는 공통 창(Q13 · postJSON 이 E_SUDO 를 받으면 askSudo 로 묻고 이어서 한다)
 async function admLoginStart() {
@@ -4823,15 +4840,15 @@ function delHtml() {
   const ok = (S.del.typed || '').trim() === n.name
   const where = isTeam() ? '팀 서버의 이 지식 폴더가 통째로 사라진다. 팀 모두가 더는 보지 못한다' : `지식 폴더의 「${n.dir || n.name}」 폴더가 통째로 사라진다`
   return `<div class="scrim fix" data-a="delClose" data-self="1"${S.del.busy ? ' data-busy="1"' : ''}><div class="modal w560" data-t="delWin"><div class="mh">지식 지우기: ${esc(n.name)}<button type="button" class="x" data-a="delClose" title="닫기" aria-label="닫기">×</button></div><div class="mb">
-  <div class="callout danger" data-t="delWarn" style="margin:0 0 12px"><i></i><span><b>보관하지 않고 완전히 지운다. 되돌릴 수 없다</b></span></div>
-  <ul class="plain small" style="margin:0 0 12px;line-height:1.7">
+  <div class="callout danger" data-t="delWarn" style="margin:0 0 var(--sp-6)"><i></i><span><b>보관하지 않고 완전히 지운다. 되돌릴 수 없다</b></span></div>
+  <ul class="plain small u-lhr" style="margin:0 0 var(--sp-6)">
    <li>문서 ${n.docs} · 기록 ${n.records} · 첨부를 모두 지운다. 휴지통 · 보관함에 남기지 않는다</li>
    <li>${esc(where)}</li>
    <li>이 지식의 넣지 못함 원천 · 보낼 곳 · 자동으로 가져올 곳 · 찾기 색인 · 사람 설정도 함께 사라진다</li>
    <li>백업 자리에 이미 보낸 이력은 kmd 가 지우지 않는다. 그것까지 없애려면 백업 자리에서 지운다</li>
   </ul>
   <label for="delIn" class="small">지우려면 지식 이름을 그대로 쓴다. <b>${esc(n.name)}</b></label>
-  <input class="inp wfull" id="delIn" data-in="del" data-t="delIn" value="${esc(S.del.typed || '')}" autocomplete="off" style="margin-top:6px">
+  <input class="inp wfull" id="delIn" data-in="del" data-t="delIn" value="${esc(S.del.typed || '')}" autocomplete="off" style="margin-top:var(--sp-3)">
   ${S.del.err ? formErr(`<i></i><span>${esc(S.del.err)}</span>`, 'delErr', '', true) : ''}
   </div><div class="mf"><span class="acts"><button type="button" class="btn ghost" data-a="delClose" data-t="delClose">취소</button><span id="delBtnBox">${delBtn(ok)}</span></span></div></div></div>`
 }
@@ -5679,7 +5696,21 @@ document.addEventListener('keydown', (ev) => {
     if (S.sideOpen || S.asideOpen) drawerShut()
     return
   }
-  if (S.menu && (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') && ev.target.closest && ev.target.closest('.pop,.menu,.kmenu,[data-m]')) {
+  // 탭 — ← → Home End 로 옮기며 고른다(APG 자동 고르기)
+  if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(ev.key) && ev.target.getAttribute && ev.target.getAttribute('role') === 'tab' && !ev.altKey && !ev.ctrlKey) {
+    const tl = ev.target.closest('[role=tablist]'), ts = tl ? [...tl.querySelectorAll('[role=tab]')].filter((t) => t.closest('[role=tablist]') === tl && !t.disabled) : []
+    const i = ts.indexOf(ev.target)
+    if (i >= 0 && ts.length > 1) {
+      ev.preventDefault()
+      const n = ev.key === 'Home' ? 0 : ev.key === 'End' ? ts.length - 1 : (i + (ev.key === 'ArrowRight' ? 1 : ts.length - 1)) % ts.length
+      const sel = tl.dataset.t, pos = n
+      ts[n].click()
+      requestAnimationFrame(() => { const tl2 = sel ? $(`#app [data-t="${sel}"]`) : null; const t2 = tl2 ? [...tl2.querySelectorAll('[role=tab]')][pos] : null; if (t2) t2.focus() })
+    }
+    return
+  }
+  if (S.menu && (ev.key === 'Home' || ev.key === 'End') && ev.target.closest && ev.target.closest('.pop,.menu,.kmenu')) { const its = menuItems(); if (its.length) { ev.preventDefault(); its[ev.key === 'Home' ? 0 : its.length - 1].focus({ preventScroll: true }) } return }
+  if (S.menu && (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') && ev.target.closest && ev.target.closest('.pop,.menu,.kmenu,[data-m],[data-t=kpick]')) {
     const its = menuItems()
     if (its.length) { ev.preventDefault(); const i = its.indexOf(document.activeElement); const n = i < 0 ? (ev.key === 'ArrowDown' ? 0 : its.length - 1) : (i + (ev.key === 'ArrowDown' ? 1 : its.length - 1)) % its.length; its[n].focus({ preventScroll: true }) }
     return

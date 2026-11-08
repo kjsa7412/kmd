@@ -778,9 +778,11 @@ li.new{animation:flash 1.6s}
 .sb-me-top .un small{font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sb-me-top .rc{color:var(--text-3);font-size:var(--fs-xs);margin-left:var(--sp-1)}
 /* 머리 띠의 경고 단추 · 경고 팝업 */
-.stopbtn{border:0;cursor:pointer;gap:var(--sp-3);max-width:min(520px,100%);min-width:0}
+.stopbtn{gap:var(--sp-3);max-width:min(520px,100%);min-width:0;background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn);font-weight:600}
+.stopbtn.bad{background:var(--danger-bg);border-color:var(--danger);color:var(--danger)}
 .stopbtn span{font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.stopbtn:hover{filter:brightness(.97);text-decoration:underline}
+.stopbtn:hover:not([disabled]){filter:brightness(.97);background:var(--warn-bg)}
+.stopbtn.bad:hover:not([disabled]){background:var(--danger-bg)}
 [data-t=stopWin] .stop{display:flex;gap:var(--sp-5);align-items:flex-start}
 [data-t=stopWin] .stop small{display:block;margin-top:var(--sp-1);opacity:.8}
 [data-t=stopWin] .stop .btn{margin-left:auto;flex:none}
@@ -867,8 +869,6 @@ li.new{animation:flash 1.6s}
 .kstrip .kc small{display:block;color:var(--text-3);font-size:var(--fs-sm)}
 .qbar .r{margin-left:auto;display:flex;gap:var(--sp-4);align-items:center;font-size:var(--fs-mono);color:var(--text-3)}
 .qbar .lead{font-size:var(--fs)}
-.qf{border:1px solid var(--border);background:var(--surface);border-radius:var(--r-pill);padding:3px var(--sp-5);font-size:var(--fs-mono);cursor:pointer;color:var(--text-2)}
-.qf.on{border-color:var(--accent);background:var(--accent-bg);color:var(--accent);font-weight:600}
 .qwrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:var(--sp-7);align-items:start}
 .qlist{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);overflow:hidden}
 .qlist .none,.det .none{padding:var(--sp-9) var(--sp-7);color:var(--text-3);text-align:center}
@@ -1485,3 +1485,7 @@ details.paste{margin:var(--sp-4) 0}details.paste>summary{cursor:pointer;color:va
 /* T1-18 넣지 못함 표 머리 칸이 줄과 같은 칸 */
 .hd-grid .hd-r.hd>*{min-width:0}
 button.sx-root{display:flex;align-items:center;gap:var(--sp-3);width:100%;background:none;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer;border-radius:var(--r-xs)}button.sx-root.on{background:var(--accent-bg);color:var(--accent)}
+
+/* 자리 도우미(u-*) — 인라인 style 대신(컨벤션 1절 · 인라인은 margin · width 만) */
+.u-f1{flex:1!important;min-width:0!important}.u-blk{display:block!important}.u-ovv{overflow:visible!important}.u-wrap{flex-wrap:wrap!important}.u-tr{text-align:right!important}.u-nw{white-space:nowrap!important}.u-fnone{flex:none!important}.u-full{grid-column:1/-1!important}.u-mhn{max-height:none!important}.u-je{justify-content:flex-end!important}.u-lhr{line-height:var(--lh-read)!important}.u-flex{display:flex!important}
+.u-pl4{padding-left:var(--sp-4)!important}.u-p3-4{padding:var(--sp-3) var(--sp-4)!important}.u-p1-7-2{padding:var(--sp-1) var(--sp-7) var(--sp-2)!important}.u-p1-7-3{padding:var(--sp-1) var(--sp-7) var(--sp-3)!important}.u-p4{padding:var(--sp-4)!important}.u-g3{gap:var(--sp-3)!important}.u-g6{gap:var(--sp-6)!important}.u-p0{padding:0!important}.u-p4-0{padding:var(--sp-4) 0!important}.u-g4{gap:var(--sp-4)!important}.u-p1-7{padding:var(--sp-1) var(--sp-7)!important}.u-p4-7-5{padding:var(--sp-4) var(--sp-7) var(--sp-5)!important}.u-g2-4{gap:var(--sp-2) var(--sp-4)!important}.u-p5-7-6{padding:var(--sp-5) var(--sp-7) var(--sp-6)!important}.u-p2-7-5{padding:var(--sp-2) var(--sp-7) var(--sp-5)!important}.u-p1-7-5{padding:var(--sp-1) var(--sp-7) var(--sp-5)!important}.u-p1-7-6{padding:var(--sp-1) var(--sp-7) var(--sp-6)!important}.u-p4-7{padding:var(--sp-4) var(--sp-7)!important}
