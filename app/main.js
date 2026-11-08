@@ -65,10 +65,14 @@ const roAttr = (k) => (canWrite(k) ? '' : ' aria-disabled="true" data-ro="1" tit
 const knTag = () => (isTeam() ? '<span class="kt team">팀</span>' : '<span class="kt me">개인</span>')
 
 // ───────────── 자료 ─────────────
+const BG = ['/api/busy', '/api/stops', '/api/claude/state', '/api/feed']
 async function getJSON(p) {
   const r = await fetch(p, { headers: { accept: 'application/json' } }).catch(() => { throw Object.assign(new Error('서버에 닿지 않는다'), { code: 'E_REACH' }) })
-  if (r.status === 401 && canRelogin()) { await askLogin(); return getJSON(p) }
+  const bg = BG.some((x) => p.startsWith(x))
+  if (r.status === 401 && bg && S.me && !S.me.anon) { if (!S.loginLost) { S.loginLost = true; setTimeout(render) } throw Object.assign(new Error('들어간 것이 끝났다'), { code: 'E_AUTH' }) }
+  if (r.status === 401 && canRelogin()) { await askLogin(); S.loginLost = false; return getJSON(p) }
   const j = await r.json().catch(() => ({}))
+  if (r.ok && S.loginLost && !bg) { S.loginLost = false; setTimeout(render) }
   if (r.status === 401 && S.me && !S.me.anon) { S.me = { ...S.me, anon: true }; setTimeout(render) }
   if (!r.ok) throw Object.assign(new Error(j.message || '서버에 닿지 않는다'), { code: j.error })
   return j
@@ -797,7 +801,7 @@ function bandHtml() {
   else left = team ? '팀 지식 · 팀 서버' : '내 지식 · ' + ((KN(k) && KN(k).dir) || '') + ' · 나만'
   const mine = team && k && KN(k)
   const st = stopsFor(k)
-  const right = st.length ? stopBtnHtml(st) : team ? '' : `<span class="muted">${esc(OUTBOUND_TX)}</span>`
+  const right = S.loginLost ? '<button type="button" class="chip c-warn stopbtn" data-a="reLogin" data-t="loginLost">들어간 것이 끝났다 · 다시 들어가기</button>' : st.length ? stopBtnHtml(st) : team ? '' : `<span class="muted">${esc(OUTBOUND_TX)}</span>`
   return `<div class="band ${team ? 'team' : 'me'}"><span class="who"><i></i>${esc(left)}${mine ? ` · 나: ${lvChip(KN(k))}` : ''}</span><span class="out">${right}</span></div>`
 }
 // ── 멈춤 한 줄(서버가 준 줄 그대로) ──
@@ -2035,7 +2039,8 @@ function gPaint() {
   const pts = shown.map((n) => { const q = raw(at(n.id)); const t = { n, X: cx + q[0] * Z + C.px, Y: cy + q[1] * Z + C.py, z: q[2], sc: q[3] }; t.r = nodeR(n, G.w[n.id] || 0) * Math.max(0.6, Math.min(1.6, q[3])) * rk; t.dep = Math.max(0.45, Math.min(1, q[3])); by[n.id] = t; return t })
   const Hd = GH != null && by[GH] ? GH : null
   const nb = Hd ? G.nbr[Hd] : null
-  const nq = norm(f.q || ''), hits = new Set()
+  // 점을 고른 동안은 찾기로 흐리지 않는다 — 막 보려는 이웃이 흐려지지 않게(UX G1-04)
+  const nq = S.g.sel ? '' : norm(f.q || ''), hits = new Set()
   if (nq) shown.forEach((n) => { if (norm(n.label).includes(nq)) hits.add(n.id) })
   // 선 — 한 가지. 투명도 통(0.05 간격)마다 Path2D 하나에 모아 한 번 그린다(선마다 stroke 하면 수천 번 · 실측 70 ms 넘게)
   //   굵기는 1px(굵은 선을 모으면 오히려 느려진다) · 올린 점의 선만 따로 굵게 · 끄는 동안 선이 많으면(1500 넘게) 올린 점 선만
@@ -2327,7 +2332,7 @@ function viewGraph() {
   const legend = `<div class="glg small" data-t="gLegend">${['doc', 'item', 'rec'].map((v) => `<span class="lgr">${glyphIcon(v)}${KLAB[v]}</span>`).join('')}<span class="lgr"><svg class="gki" viewBox="0 0 16 16" aria-hidden="true"><line class="gln" x1="1" y1="8" x2="15" y2="8"/></svg>이어져 있다</span></div>`
   const card = gCardHtml(k, G)
   const main = d3
-    ? `<div class="gwrap${UI.gdark ? ' dark' : ''}" data-t="graph" data-mode="3d"><canvas id="gcv" data-t="gcanvas" role="img" aria-label="${esc(gAria(G))}"></canvas>${count}${legend}${card}<div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit" title="보이는 점이 다 들어오게 · 처음 각도로">처음 크기</button></div><div class="ghint small">끌기: 돌리기 · 스페이스 · Shift · 오른쪽 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 이웃 한 겹 · 이웃을 누르면 더 뻗는다</div></div>`
+    ? `<div class="gwrap${UI.gdark ? ' dark' : ''}" data-t="graph" data-mode="3d"><canvas id="gcv" data-t="gcanvas" role="img" aria-label="${esc(gAria(G))}"></canvas>${(G.vis ? G.vis.size : G.nodes.length) ? '' : '<div class="empty2 gempty3" data-t="gEmpty3"><b>보일 점이 없다</b>왼쪽 「문서 · 항목 · 기록」 을 켠다.</div>'}${count}${legend}${card}<div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit" title="보이는 점이 다 들어오게 · 처음 각도로">처음 크기</button></div><div class="ghint small">끌기: 돌리기 · 스페이스 · Shift · 오른쪽 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 이웃 한 겹 · 이웃을 누르면 더 뻗는다</div></div>`
     : `<div class="gwrap erd${UI.gdark ? ' dark' : ''}" data-t="graph" data-mode="2d"><div class="gerdw" data-t="gErdWrap">${gErdSvg(k, G)}</div>${count}${legend}${card}<div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit" title="처음 크기">처음 크기</button></div><div class="ghint small">끌기 · 스페이스 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 그 점이 가운데</div></div>`
   if (!d3) requestAnimationFrame(gErdFit)
   return { crumb: '그래프', main, tabs: true, left: graphFilter(), full: true }
@@ -5349,6 +5354,7 @@ const ACT = {
   edForce: async () => { const e = S.edit; if (!e) return; if (!await ask1('내 글로 저장', '내 글로 저장', true, `그사이 바뀐 글(${(e.conflict || []).map((x) => x.h).join(' · ')})을 내 글로 바꾼다. 남이 고친 것은 이력에 남아 되돌릴 수 있다`)) return; e.keepBase = null; e.conflict = null; e.err = null; await saveDoc() },
   edTheirs: () => { const e = S.edit; if (!e) return; const v = S.cache[`doc:${e.kn}:${e.doc}:ed`]; e.text = v ? edOrig(v) : null; e.keepBase = null; e.conflict = null; e.err = null; render() },
   edPreview: () => { if (!S.edit) return; const ta = $('#edTx'); if (ta && !S.edit.busy) S.edit.text = ta.value; S.edit.preview = !S.edit.preview; render() },
+  reLogin: async () => { if (canRelogin()) { await askLogin(); S.loginLost = false; loadStops(); loadBusy(); render() } else location.reload() },
   keysClose: () => { S.keys = false; render() },
   keysOpen: () => { S.menu = null; S.keys = true; render() },
   mgFold: () => { UI.mgFold = !UI.mgFold; saveUi(); render() },
