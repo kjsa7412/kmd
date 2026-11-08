@@ -18,6 +18,7 @@ import { makeMcp } from './mcp.js'
 import { makeHub, defaultDataDir } from './hub.js'
 import { TEAM_IMPORT_MAX } from '../core/importer.js'
 import { VERSION, BUILD } from './version.js'
+import { stopLine } from '../core/stopline.js'
 import * as V from './views.js'
 import * as kit from '../core/kit.js'
 import * as teamkit from '../core/teamkit.js'
@@ -329,6 +330,25 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   // 이 PC 가 이은 팀 주소(kmd connect 가 적은 <data>/teams.json) — 설정 · 에이전트 설치가 읽는다
   const teamsFile = path.join(dataDir, 'teams.json')
   const teamsOf = async () => (await fs.readFile(teamsFile, 'utf8').then(JSON.parse, () => [])).map((u) => { try { return new URL(u).origin } catch { return null } }).filter(Boolean)
+  // 이은 팀 서버의 판(개인 프로그램 · UX T6-27) — 30분에 한 번 /healthz · 더 새 판이면 경고 줄 하나(설치 한 줄로 새로 깐다)
+  const teamVer = { at: 0, list: [] }
+  const newerBuild = (a, b) => String(a || '').localeCompare(String(b || ''), undefined, { numeric: true }) > 0
+  async function teamVerLines() {
+    if (mode !== 'pc') return []
+    if (Date.now() - teamVer.at > 30 * 60_000) {
+      teamVer.at = Date.now()
+      const out = []
+      for (const o of (await teamsOf()).slice(0, 5)) {
+        try {
+          const r = await fetch(o + '/healthz', { signal: AbortSignal.timeout(3000) })
+          const j = r.ok ? await r.json() : null
+          if (j && j.build) out.push({ origin: o, build: String(j.build).slice(0, 60) })
+        } catch (e) { (log || console.log)('[kmd] 팀 서버 판을 보지 못했다', o, e.message) }
+      }
+      teamVer.list = out
+    }
+    return teamVer.list.filter((t) => newerBuild(t.build, BUILD)).map((t) => stopLine({ kind: 'ver', level: 'warn', what: '팀 서버에 새 판이 있다', amount: t.build, fix: `${t.origin} 팀 화면 › 설정 › 에이전트 설치의 설치 한 줄을 PowerShell 에 다시 붙여 넣으면 이 프로그램이 새 판으로 바뀐다(지식 · 설정은 그대로)`, told: `이 PC: ${BUILD}` }))
+  }
   // 다른 출처에서 온 요청 — 개인 프로그램은 살아 있나(/healthz)만 연다 · 팀 화면은 개인 프로그램을 부르지 않는다(분리)
   async function crossOrigin(req, res, p) {
     const origin = req.headers.origin
@@ -628,6 +648,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         checks,
         claude: { token: !!(await getSecret(dataDir, 'claude-token').catch(() => null)), flow: teamLogin.state, kind: teamLogin.kind },
         https: req.headers['x-forwarded-proto'] === 'https',
+        ops: hub.opsView(),
       })
     }
     if (p === '/api/admin/links' && req.method === 'POST') {
@@ -805,12 +826,14 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       // 메뉴 순서대로 · 뺀 지식은 hidden(목록 아래 「뺀 지식」 · 옆 메뉴에는 안 나온다)
       const menu = await hub.menuOf(ctx, ks0.map((k) => k.id))
       const ks = [...ks0].sort((a, b) => menu.order.indexOf(a.id) - menu.order.indexOf(b.id))
+      const reqs = mode === 'team' ? await hub.requests() : []
       return out(200, await Promise.all(ks.map(async (k) => {
+        const chk = mode === 'team' && !k.gone ? await hub.knChecks(ctx, k.id, reqs).catch((e) => { console.log('[kmd] 지식 카드 배지', k.id, e.message); return null }) : null
         // 개인 화면의 개인 지식 — 받는 지식(보내는 길) · 보내지 않은 기록 수(옆 메뉴 「지식 보내기」 의 수)
         const row = hub.owner(k.id)
         const sv = mode === 'pc' && (await sendLib.destsOf(k.dir)).length ? await hub.sendView(ctx, k.id).catch(() => null) : null
         // level — 이 지식에서의 내 자리(read · write · admin) · role 은 그 화면 이름(PC 는 주인)
-        return { ...V.knowledgeRow(k, seeOf(ctx, k.id)), level: hub.levelOf(ctx, k.id), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null, noClaude: !!row?.noClaude } : {}), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
+        return { ...V.knowledgeRow(k, seeOf(ctx, k.id)), level: hub.levelOf(ctx, k.id), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null, noClaude: !!row?.noClaude } : {}), ...(chk ? { chk } : {}), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
       })))
     }
     // 에이전트 일 — 목록 · 줄(터미널)
@@ -830,7 +853,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     }
     const rn = p.match(/^\/api\/runs\/([0-9a-f]{12})$/)
     if (rn) { need(ctx); return out(200, hub.runGet(ctx, rn[1], Number(url.searchParams.get('from')) || 0)) }
-    if (p === '/api/stops') return out(200, await hub.stops(ctx))
+    if (p === '/api/stops') return out(200, [...await hub.stops(ctx), ...await teamVerLines()])
     if (p === '/api/find') {
       const rs = await hub.search(ctx, url.searchParams.get('k') || null, { q: url.searchParams.get('q') || '' })
       return out(200, V.findView(await Promise.all(rs.map(async (r) => ({ k: await hub.get(r.knowledge), r })))))

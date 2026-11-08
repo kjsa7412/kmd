@@ -108,6 +108,7 @@ export function revertsOfDoc(k, doc, now = Date.now()) {
 
 export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log = (...a) => console.log('[kmd]', ...a) }) {
   const config = await loadConfig(dataDir)
+  const guardCounts = new WeakMap() // 읽은 지식 → 지식 점검 경고 수(지식 카드 배지)
   // 주인 장부 — 읽을 때마다 R()(셸이 바꿨으면 mtime 을 보고 다시 읽는다) · 고칠 때는 mutateReg 하나로(한 줄로 서서
   // 디스크의 것을 다시 읽고 → 고치고 → 쓴다 · 둘이 겹쳐 앞사람의 「나만」 줄을 덮어 지우지 않게)
   let reg = await owners.load(dataDir)
@@ -1494,6 +1495,23 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
 
     // 지식 점검 — 지식 생성 가드가 보는 것의 지금 상태(이름 없는 기록 · 장부 밖 이름 · 이름 없는 항목 · 자리 잃은 이름 · 같은 말 여러 이름 · 깨진 머리)
     //   지식관리자만 · 목록은 줄마다 200 까지(수는 그대로)
+    // 지식 카드 배지(지식관리자 · UX T6-11) — { guard, req, src } · 0 이면 빼고 없으면 null
+    async knChecks(ctx, id, reqs = null) {
+      if (hub.levelOf(ctx, id) !== 'admin') return null
+      const k = await hub.get(id)
+      let g = guardCounts.get(k)
+      if (g == null) {
+        try { const c = guardAudit(k, { sectionOf, coordsOfSection }).counts; g = ['unnamed', 'outside', 'deprecatedUse', 'lost', 'noName', 'aliasClash', 'brokenHead', 'brokenLink'].reduce((n, x) => n + (c[x] || 0), 0) } catch (e) { log(`지식 점검 수를 세지 못했다 ${id}: ${e.message}`); g = 0 }
+        guardCounts.set(k, g)
+      }
+      const req = (reqs || await hub.requests()).filter((q) => q.kn === id).length
+      const src = (await hub.sources(ctx, id).catch(() => [])).filter((x) => x.state && (x.state.failures || x.state.stopped)).length
+      const o = {}
+      if (g) o.guard = g
+      if (req) o.req = req
+      if (src) o.src = src
+      return Object.keys(o).length ? o : null
+    },
     async guardAudit(ctx, id) {
       const k = await hub.get(id, ctx)
       hub.need(ctx, id, 'admin')
@@ -3048,6 +3066,16 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     queueHold(ctx, on) {
       if (mode !== 'pc' && !ctx.admin) throw new KmdError('E_FORBIDDEN', '줄 멈춤은 총괄 관리자가 한다')
       return Q.setHold(on)
+    },
+    // 운영 값(설정 › 팀 서버 「운영 값」 · 총괄 관리자 · 읽기만) — 바꾸는 곳은 그 값의 화면 · serve.json(UX T6-26)
+    opsView() {
+      const SAFE = ['helpContact', 'backupRoot', 'backupRoots', 'sourceRoots', 'sourceHosts', 'collect', 'trustProxy', 'attachDaily', 'intakeDaily', 'intakeQueue', 'saveRate', 'savelogMax', 'cutoverAt', 'dl', 'prepMax', 'scryptN']
+      const SECRET = ['gitlab']
+      const conf = {}
+      for (const k of SAFE) if (config[k] != null) conf[k] = config[k]
+      for (const k of SECRET) if (config[k] != null) conf[k] = '(정함 · 값은 보이지 않는다)'
+      const other = Object.keys(config).filter((k) => !SAFE.includes(k) && !SECRET.includes(k))
+      return { mode, root, dataDir, hold: !!Q.hold, caps: Q.caps, conf, other }
     },
     queueCaps(ctx, x) {
       if (mode !== 'pc' && !ctx.admin) throw new KmdError('E_FORBIDDEN', '동시에 도는 수는 총괄 관리자가 정한다')

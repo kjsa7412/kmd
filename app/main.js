@@ -824,7 +824,7 @@ function bandHtml() {
 function stopsFor(k) { return S.stops.filter((x) => !k || !x.kn || x.kn === k) }
 // 경고(멈춤 줄) — 화면마다 띠로 깔지 않고 머리 띠의 「경고 n」 단추 하나 · 누르면 팝업에 모두(무엇 · 얼마나 · 풀리는 길 · 그 일로 가기)
 // 멈춤 줄의 종류 · 갈 곳(메뉴 id) — 갈 곳 글은 메뉴 표의 이름(setWhere)
-const STOP_T = { backup: ['백업', 'pc'], source: ['가져오기', 'import'], send: ['지식 보내기', 'send'], worker: ['팀 일꾼', 'claude'] }
+const STOP_T = { backup: ['백업', 'pc'], source: ['가져오기', 'import'], send: ['지식 보내기', 'send'], worker: ['팀 일꾼', 'claude'], ver: ['새 판', ''] }
 function stopBtnHtml(st) {
   if (!st.length) return ''
   const bad = st.some((x) => x.level === 'bad')
@@ -884,10 +884,16 @@ function knMeta(n) {
 // 지식 목록 — 새 지식와 한 화면(요구 v0.2 R2): 지식 폴더 띠 · 그리드(메뉴 순서 · 끌어 옮기기) · + 새 지식(팝업 · 이름만) · 뺀 지식
 const shownKns = () => S.kns.filter((x) => !x.hidden)
 const knRoot = () => (isTeam() ? (S.me.admin ? S.me.root || '' : '') : pcRoot())
+// 지식관리자 아침 점검(UX T6-11) — 카드 아래 한 줄: 점검 경고 · 부탁 · 가져오기 문제. 누르면 그 화면으로
+function kchkHtml(n) {
+  const c = n.chk; if (!c) return ''
+  const b = (v, l, a, t) => v ? `<button type="button" class="lk small" data-a="${a}" data-k="${esc(n.id)}" data-t="${t}">${l} ${v}</button>` : ''
+  return `<span class="kchk" data-t="knChk">${b(c.guard, '점검 경고', 'kchkGuard', 'knChkGuard')}${b(c.req, '부탁', 'kchkReq', 'knChkReq')}${b(c.src, '가져오기 문제', 'kchkSrc', 'knChkSrc')}</span>`
+}
 function kcardHtml(n, team) {
   const tag = team ? '<span class="kt team">팀</span>' : ''
   const hn = lvOf(n) === 'admin' ? n.held || 0 : n.heldMine || 0
-  const chips = team && (n.level || (n.role && n.role !== '기록')) ? `${lvChip(n)}${hn ? `<span class="chip c-warn" data-t="knHeld">넣지 못함 ${hn}</span><button type="button" class="lk small" data-a="openHeld" data-k="${esc(n.id)}" data-t="knHeldGo">보기</button>` : ''}` : n.sendN ? `<span class="chip c-pend">보내지 않은 기록 ${n.sendN}</span>` : ''
+  const chips = team && (n.level || (n.role && n.role !== '기록')) ? `${lvChip(n)}${hn ? `<span class="chip c-warn" data-t="knHeld">넣지 못함 ${hn}</span><button type="button" class="lk small" data-a="openHeld" data-k="${esc(n.id)}" data-t="knHeldGo">보기</button>` : ''}${kchkHtml(n)}` : n.sendN ? `<span class="chip c-pend">보내지 않은 기록 ${n.sendN}</span>` : ''
   const mk = 'kn:' + n.id
   const own = !n.dim
   const items = own ? [
@@ -4207,11 +4213,26 @@ function viewSettings() {
     : tab === 'check' ? viewAdmin().main : tab === 'server' ? one(serverCards(st)) : tab === 'kns' ? one(knTable()) : tab === 'people' ? one(peopleCard()) : tab === 'agent' ? one(agentInstallCard() + installCardHtml()) : mineHtml(st)
   return { crumb: pg.l, main: `<div class="pg-list">${head}${body}</div>` }
 }
+// 운영 값(읽기만 · UX T6-26) — 흩어진 손잡이를 한 곳에서 본다. 바꾸는 곳은 줄마다 적은 곳
+const OPS_NAME = { helpContact: ['잊었을 때 부탁할 곳', '들어가기 화면'], backupRoot: ['백업 자리', '지식 카드 ⋯ › 백업'], backupRoots: ['백업으로 허락한 폴더', ''], sourceRoots: ['가져올 곳으로 허락한 폴더', ''], sourceHosts: ['가져올 곳으로 허락한 주소', ''], collect: ['편집기로 고친 문서 거두기', ''], trustProxy: ['앞단 프록시 믿기', ''], attachDaily: ['하루 첨부 한도', ''], intakeDaily: ['하루 들이기 한도', ''], intakeQueue: ['들이기 줄 길이', ''], saveRate: ['저장 빠르기 한도', ''], savelogMax: ['저장 측정 줄 길이', ''], cutoverAt: ['개편을 켠 때', ''], dl: ['꾸러미 자리', ''], prepMax: ['미리 읽기 한도', ''], scryptN: ['비밀번호 굳히기 세기', ''], gitlab: ['GitLab 연결', ''] }
+function opsCard(a) {
+  const o = a.ops; if (!o) return ''
+  const v = (x) => Array.isArray(x) ? (x.length ? x.join(' · ') : '없음') : typeof x === 'object' ? JSON.stringify(x) : String(x)
+  const conf = Object.entries(o.conf || {}).map(([k, x]) => `<span>${esc((OPS_NAME[k] || [k])[0])} <small class="muted mono">${esc(k)}</small></span><span class="mono">${esc(v(x))}</span>`).join('')
+  return `<div class="card" data-t="opsCard"><div class="ch">운영 값 <small>읽기만 · 바꾸는 곳은 줄마다 · 서버 파일은 <span class="mono">serve.json</span>(고친 뒤 서버를 다시 켠다)</small></div><div class="cb"><div class="kv">
+   <span>줄 멈춤</span><span>${o.hold ? '<b>멈춤</b>' : '돈다'} <small class="muted">· 가져오기 › 일 줄</small></span>
+   <span>동시에 도는 수</span><span>Claude ${esc(String(o.caps?.claude ?? '—'))} · 가져오기 ${esc(String(o.caps?.fetch ?? '—'))} <small class="muted">· 가져오기 › 일 줄</small></span>
+   <span>지식 폴더</span><span class="mono">${esc(o.root || '')}</span>
+   <span>살림 자리</span><span class="mono">${esc(o.dataDir || '')}</span>
+   ${conf || '<span>serve.json</span><span class="muted">따로 정한 값이 없다(모두 기본값)</span>'}
+   ${(o.other || []).length ? `<span>그 밖에 정한 것</span><span class="mono small">${esc(o.other.join(' · '))}</span>` : ''}
+  </div></div></div>`
+}
 // 팀 서버(총괄 관리자) — 팀 일꾼 로그인 · 어떻게 하나 · 이 서버(주소 · 판 · https)
 function serverCards(st) {
   const a = overviewOf()
   if (!a || a.error) return a ? errHtml(a) : loadingHtml
-  return admClaudeCard(a) + claudeHowCard(a) + `<div class="card" data-t="serverCard"><div class="ch">이 서버</div><div class="cb"><div class="kv"><span>주소</span><span class="mono">${esc(st.host)}</span><span>판</span><span>kmd v${esc(st.version)}</span><span>https</span><span>${a.https ? '켬' : '아직 아니다. 사내 인증서가 생기면 켤 수 있다'}</span></div></div></div>`
+  return admClaudeCard(a) + claudeHowCard(a) + opsCard(a) + `<div class="card" data-t="serverCard"><div class="ch">이 서버</div><div class="cb"><div class="kv"><span>주소</span><span class="mono">${esc(st.host)}</span><span>판</span><span>kmd v${esc(st.version)}</span><span>https</span><span>${a.https ? '켬' : '아직 아니다. 사내 인증서가 생기면 켤 수 있다'}</span></div></div></div>`
 }
 // 나(누구나) — 내 자리 · 내 설정(저절로 하는 일: 사람마다 값 · hub.autoOf) · 내 기기 · 나가기 · 팀 사람 · 자리란? · 이 팀 서버 한 줄
 function mineHtml(st) {
@@ -4334,10 +4355,26 @@ function autoCard(st, mine = false) {
   const all = A.every((a) => st.auto[a[0]])
   return `<div class="card" data-t="autoCard"><div class="ch">${mine ? '내 설정' : '저절로 하는 일'} <small>${mine ? '저절로 하는 일 · 나에게만 · ' : ''}${all ? '모두 켬' : '일부 끔'}</small></div><div class="cb u-p1-7">${A.map((a) => `<div class="set" data-t="auto-${a[0]}"><span class="tx"><b>${a[1]}</b><small>${st.auto[a[0]] ? a[2] : '꺼 두었다. 켜면 다시 한다'}</small></span><button class="sw${st.auto[a[0]] ? ' on' : ''}" role="switch" aria-checked="${st.auto[a[0]] ? 'true' : 'false'}" data-a="toggleAuto" data-v="${a[0]}" data-t="sw-${a[0]}" aria-label="${a[1]}"></button></div>`).join('')}</div><div class="cf">멈추면 맨 위에 한 줄로 알린다.</div></div>`
 }
+// 내 기기 줄 — 설정 › 나 · 에이전트 설치가 같이 쓴다. PC(이름 · 사용자)마다 가장 최근 열쇠가 위 · 같은 PC 의 옛 열쇠는 접는다(끊을 줄을 가려내게)
+const DEV_SAY = '내 이름의 기기 열쇠: 팀에 이은 PC 의 Claude Code · 개인 프로그램 · 팀 서버가 아는 것만'
+function devRowHtml(d, old) {
+  const nm = d.host || '이름 없는 기기'
+  return `<li data-t="devRow" data-name="${esc(d.host || d.id)}"${old ? ' data-old="1"' : ''}><span class="u-f1"><b>${esc(nm)}</b>${d.osuser ? ` <small class="muted">${esc(d.osuser)}</small>` : ''}<small class="muted u-blk">열쇠 ${esc(String(d.id).slice(-4))} · 이은 때 ${esc(whenTxt(d.at))} · ${d.used ? '마지막 사용 ' + esc(whenTxt(d.used)) : '아직 쓰지 않음'}${old ? ' · 같은 PC 에서 다시 이어 남은 옛 열쇠' : ''}</small></span><button type="button" class="btn sm${old ? '' : ' ghost'}" data-a="unlinkMyDev" data-id="${esc(d.id)}" data-t="unlinkBtn" aria-label="${esc(nm)} 열쇠 ${esc(String(d.id).slice(-4))} 끊기">끊기</button></li>`
+}
+function devRowsHtml(devs) {
+  if (!devs) return `<li>${loadingHtml}</li>`
+  if (devs.error) return `<li>${errHtml(devs, 'devices')}</li>`
+  if (!devs.length) return '<li class="muted">이어진 기기가 없다</li>'
+  const t = (d) => Date.parse(d.used || d.at || 0) || 0
+  const by = new Map()
+  for (const d of devs) { const k = (d.host || d.id) + '|' + (d.osuser || ''); if (!by.has(k)) by.set(k, []); by.get(k).push(d) }
+  const cur = [], old = []
+  for (const g of by.values()) { g.sort((a, b) => t(b) - t(a)); cur.push(g[0]); old.push(...g.slice(1)) }
+  cur.sort((a, b) => t(b) - t(a))
+  return cur.map((d) => devRowHtml(d, false)).join('') + (old.length ? `<li class="u-blk"><details class="more" data-t="devOld"><summary>옛 열쇠 ${old.length} <small class="muted">같은 PC 에서 다시 이어 남은 것 · 끊어도 그 PC 는 그대로 쓴다</small></summary><ul class="plain">${old.map((d) => devRowHtml(d, true)).join('')}</ul><button type="button" class="btn sm" data-a="unlinkOldDevs" data-v="${esc(old.map((d) => d.id).join(','))}" data-t="unlinkOld">옛 열쇠 ${old.length} 모두 끊기</button></details></li>` : '')
+}
 function devCard() {
-  const devs = devicesOf()
-  const rows = !devs ? `<li>${loadingHtml}</li>` : devs.error ? `<li>${errHtml(devs, 'devices')}</li>` : devs.map((d) => `<li data-t="devRow" data-name="${esc(d.host || d.id)}"><span class="u-f1"><b>${esc(d.host || '이름 없는 기기')}</b><small class="muted u-blk">Claude Code · ${d.used ? '마지막 사용 ' + esc(whenTxt(d.used)) : '이은 때 ' + esc(whenTxt(d.at))}</small></span><button class="kebab" data-a="menu" data-m="dev:${esc(d.id)}" data-t="devKebab" title="끊기" aria-label="${esc(d.host || d.id)}: 끊기 메뉴">⋯${S.menu === 'dev:' + d.id ? popHtml('dev:' + d.id, `<div><div class="mi" data-a="unlinkMyDev" data-id="${esc(d.id)}" data-t="unlinkBtn">끊기<small>그 기기의 Claude Code 는 다시 이어야 한다</small></div></div>`) : ''}</button></li>`).join('')
-  return `<div class="card u-ovv"><div class="ch">내 기기 <small>내 이름으로 ${isTeam() ? '팀에 이은 PC(개인 프로그램 · Claude Code)' : '이 kmd 를 쓰는 곳'} · 팀 서버가 아는 것만</small></div><div class="cb u-p1-7"><ul class="plain" data-t="devList">${rows || '<li class="muted">이어진 기기가 없다</li>'}</ul><p class="small muted">90일 안 쓰면 저절로 끊긴다.</p></div></div>`
+  return `<div class="card u-ovv"><div class="ch">내 기기 <small>${isTeam() ? DEV_SAY : '이 kmd 를 쓰는 곳'}</small></div><div class="cb u-p1-7"><ul class="plain" data-t="devList">${devRowsHtml(devicesOf())}</ul><p class="small muted">90일 안 쓰면 저절로 끊긴다. 내가 이은 것이 아니면 끊고 비밀번호를 바꾼다.</p></div></div>`
 }
 // 백업 · 되살리기 — 개인 화면
 function pcBackupCard(st) {
@@ -4528,7 +4565,7 @@ function agentCard() {
   }
   const devs = devicesOf()
   return `<div class="card" data-t="agentCard"><div class="ch">에이전트 설치 <small>Claude Code 에 kmd 를 붙인다</small></div><div class="cb u-p1-7-6"><div class="set"><span class="tx"><b>이 PC 의 Claude Code 로 쓰려면: 설치 한 줄 복사</b><small>작업 폴더의 터미널에 붙여 넣는다 · 10분 동안 한 번만 · 개인 프로그램이 있으면 그 프로그램에 폴더를 더한다</small></span><button class="btn pri" data-a="copyInstall" data-t="copyInstall">설치 한 줄 복사</button></div>
-  <div class="rh">내 기기</div><ul class="plain" data-t="agentDevs">${!devs ? `<li>${loadingHtml}</li>` : devs.error ? `<li>${errHtml(devs, 'devices')}</li>` : devs.map((d) => `<li data-t="agentDev" data-name="${esc(d.host || d.id)}"><span class="u-f1"><b>${esc(d.host || '이름 없는 기기')}</b><small class="muted u-blk">Claude Code · ${d.used ? '마지막 사용 ' + esc(whenTxt(d.used)) : '이은 때 ' + esc(whenTxt(d.at))}</small></span></li>`).join('') || '<li class="muted">아직 붙인 기기가 없다</li>'}</ul><p class="small muted">기기의 kmd 스킬은 그 기기의 kmd 가 최신으로 맞춘다.</p></div></div>`
+  <div class="rh">내 기기 <small class="muted">${DEV_SAY}</small></div><ul class="plain" data-t="agentDevs">${devRowsHtml(devs)}</ul><p class="small muted">기기의 kmd 스킬은 그 기기의 kmd 가 최신으로 맞춘다.</p></div></div>`
 }
 // 에이전트에 붙일 개인 지식 — 개인 화면의 지식 모두
 const agMeKns = () => S.kns
@@ -5020,6 +5057,7 @@ const ACT = {
   sendOpen: (el) => { S.sendSrc = el.dataset.k; go({ scr: 'send' }) },
   pickModel: async (el) => { const st = settingsOf(); if (!st) return; try { const r = await postJSON('/api/settings/model', { role: el.dataset.model, model: el.value }); st.models[r.role] = r.model } catch (e) { toastErr(e) } render() },
   toggleAuto: async (el) => { const st = settingsOf(); if (!st) return; try { const r = await postJSON('/api/settings/auto', { key: el.dataset.v, on: !st.auto[el.dataset.v] }); st.auto[r.key] = r.on } catch (e) { toastErr(e) } render() },
+  unlinkOldDevs: async (el) => { const ids = String(el.dataset.v || '').split(',').filter(Boolean); if (!ids.length || !await ask1(`옛 열쇠 ${ids.length} 끊기`, '끊기', true, '같은 PC 에서 다시 이어 남은 옛 열쇠만 끊는다. 지금 쓰는 열쇠는 그대로다')) return render(); let n = 0; for (const id of ids) { try { await postJSON('/api/me/devices/revoke', { id }); n++ } catch (e) { toastErr(e); break } } toast(`옛 열쇠 ${n} 를 끊었다`); delete S.cache.devices; render() },
   unlinkMyDev: async (el) => { S.menu = null; if (!await ask1('기기 끊기', '끊기', true, '이 기기를 끊는다. 그 기기의 Claude Code · 개인 프로그램은 다시 이어야 한다')) return render(); try { await postJSON('/api/me/devices/revoke', { id: el.dataset.id }); toast('끊었다. 그 기기의 Claude Code 는 다시 이어야 한다') } catch (e) { toastErr(e) } delete S.cache.devices; render() },
   pcLoginStart: async () => {
     S.menu = null
@@ -5319,6 +5357,9 @@ const ACT = {
   },
   // 넣지 못함(S10)
   openHeld: (el) => { S.hdKn = el.dataset.k; go({ scr: 'held' }) },
+  kchkGuard: (el) => { go({ scr: 'docs', kn: el.dataset.k }); S.active = null; S.split = null; render(); requestAnimationFrame(() => { const c = $('#app [data-t=guardCard]'); if (c) { c.scrollIntoView({ block: 'start' }); const b = c.querySelector('button'); if (b) b.focus({ preventScroll: true }) } }) },
+  kchkReq: (el) => { S.impKn = el.dataset.k; S.impTab = 'src'; go({ scr: 'import' }) },
+  kchkSrc: (el) => { S.impKn = el.dataset.k; S.impTab = 'src'; go({ scr: 'import' }) },
   heldAgain: async (el) => {
     const k = heldKn(), rec = el.dataset.v
     try { toast(esc(againMsg(await heldPost(k, rec, 'again'))), 7000) } catch (e) { toastErr(e) }
