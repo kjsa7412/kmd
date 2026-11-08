@@ -109,7 +109,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   // 들어가기 — 두 칸 + [들어가기] · 옆 메뉴는 흐리게 · 틀리면 한 줄
   await page.goto(s.url)
   await page.waitForSelector('[data-t=loginBtn]')
-  assert.match(await page.locator('.gate').innerText(), /팀 kmd 에 들어간다[\s\S]*한 번 들어오면 일주일쯤 이어진다/)
+  assert.match(await page.locator('.gate').innerText(), /팀 kmd 에 들어간다[\s\S]*한 번 들어오면 쓰는 동안 이어진다/)
   assert.equal(await page.locator('.side.dim').count(), 1)
   assert.equal(await page.getAttribute('#lgPw', 'autocomplete'), 'current-password')
   await page.fill('#lgId', 'kim')

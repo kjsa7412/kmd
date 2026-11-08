@@ -1471,3 +1471,4 @@ body.resizing{cursor:col-resize;user-select:none}
 }
 details.paste{margin:var(--sp-4) 0}details.paste>summary{cursor:pointer;color:var(--text-2)}details.paste textarea{width:100%}
 .busy.err{color:var(--warn);border-color:var(--warn-line)}
+.ed .row{flex-wrap:wrap}.ed .edwhy{flex:1 1 14em;min-width:0;max-width:100%}

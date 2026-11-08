@@ -1367,7 +1367,7 @@ function docPane(t, right) {
     : editing
     ? `<div class="ed" data-t="editor"><div class="lbl"><b>고치는 중</b> · 「## 」 으로 시작하는 줄이 항목 이름이다 · md 로 쓴다. **굵게** · - 목록 · [링크](주소) · Ctrl S 저장 · Esc 취소</div><div class="toolbar"><button class="btn sm" data-a="edAddSec" data-t="edAddSec">항목 더하기</button><button class="btn sm${S.edit.preview ? ' on' : ''}" data-a="edPreview" data-t="edPreview" aria-pressed="${!!S.edit.preview}">바뀐 것 보기</button><span class="muted small">${de.structure ? '항목을 지우려면 그 「## 」 줄과 글을 지운다 · 이름을 바꾸려면 「## 」 줄만 고친다' : '항목을 지우거나 이름을 바꾸는 일은 지식관리자가 한다'}</span></div><textarea id="edTx" aria-label="문서 글(md)" data-in="edTx" data-t="edTx" spellcheck="false"${S.edit.busy ? ' readonly aria-busy="true"' : ''}>${esc(edText(de))}</textarea>
    ${de.sections.filter((s) => s.locks).map((s) => `<div class="lockh">항목 「${esc(s.h)}」 의 표: 회색은 잠겨 있다</div>${s.locks}`).join('')}
-   <div class="row" style="margin-top:10px"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><input class="inp" id="edWhy" data-in="edWhy" data-t="edWhy" maxlength="200" style="flex:1;min-width:min(220px,100%)" placeholder="바꾼 까닭(선택) · 예: 10-21 주간회의에서 배포 창 변경" aria-label="바꾼 까닭" value="${esc(S.edit.why || '')}"><span class="r small muted" data-t="edNote">저장하면 바로 문서에 들어간다 · 이력에 남는다</span></div>${S.edit.preview ? `<div class="edprev" data-t="edPrev"><div class="small muted">저장하면 바뀌는 것(저장 전 · 막지 않는다)</div>${edPreviewHtml(k, de)}</div>` : ''}${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}</div>`
+   <div class="row" style="margin-top:10px"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><input id="edWhy" data-in="edWhy" data-t="edWhy" maxlength="200" class="inp edwhy" placeholder="바꾼 까닭(선택) · 예: 10-21 주간회의에서 배포 창 변경" aria-label="바꾼 까닭" value="${esc(S.edit.why || '')}"><span class="r small muted" data-t="edNote">저장하면 바로 문서에 들어간다 · 이력에 남는다</span></div>${S.edit.preview ? `<div class="edprev" data-t="edPrev"><div class="small muted">저장하면 바뀌는 것(저장 전 · 막지 않는다)</div>${edPreviewHtml(k, de)}</div>` : ''}${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}</div>`
     : d.sections.map((s) => {
     // 찾기로 연 것만 「찾은 곳」 · 링크 · 개요로 연 항목은 머리를 잠깐 빛낸다
     const lit = q && hl && s.h === hl
@@ -1991,7 +1991,7 @@ function gExpand(id) {
 function gGrow() { gPaint(); if (S.g.grow) requestAnimationFrame(gGrow) }
 function gCountText(G, d3) {
   const nV = G.vis ? G.vis.size : G.nodes.length, eV = G.vis ? G.edges.filter((e) => G.vis.has(e.a) && G.vis.has(e.b) && gBranch(G, e)).length : G.edges.length
-  return `점 ${nV} · 선 ${eV}${G.vis ? (d3 ? ' · 고른 점에서 ' + (S.g.open.length + 1) + '번 뻗음' : ' · 고른 점 중심' + ((S.g.trail || []).length ? ' · 지나온 점 ' + S.g.trail.length : '')) : ''}`
+  return `점 ${nV} · 선 ${eV}${!S.g.f.line && !G.vis && S.g.mode !== '2d' ? '(그린 선 0 · 「선」 을 켜면 모두)' : ''}${G.vis ? (d3 ? ' · 고른 점에서 ' + (S.g.open.length + 1) + '번 뻗음' : ' · 고른 점 중심' + ((S.g.trail || []).length ? ' · 지나온 점 ' + S.g.trail.length : '')) : ''}`
 }
 function gAria(G) {
   const nV = G.vis ? G.vis.size : G.nodes.length, eV = G.vis ? G.edges.filter((e) => G.vis.has(e.a) && G.vis.has(e.b) && gBranch(G, e)).length : G.edges.length
@@ -2115,7 +2115,7 @@ function gPaint() {
 // 천천히 돈다 — 끌거나 점에 올려 둔 동안은 멈춘다(누르려는 점이 달아나지 않게)
 const gCalm = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 function gLoop() { GRAF = 0; if (!$('#gcv') || !S.g.f.spin || GD || GH != null || gCalm()) return; S.g.cam.ry += 0.0016; gPaint(); GRAF = requestAnimationFrame(gLoop) }
-function gStart() { gPaint(); if (!GRAF && S.g.f.spin && !gCalm()) GRAF = requestAnimationFrame(gLoop) }
+function gStart() { if (!S.g.spinSet && GCV && GCV.pts && GCV.pts.length > 400) { S.g.f.spin = false; S.g.spinSet = true } gPaint(); if (!GRAF && S.g.f.spin && !gCalm()) GRAF = requestAnimationFrame(gLoop) }
 function gHit(x, y) {
   if (!GCV) return null
   const lx = x - GCV.rc.left, ly = y - GCV.rc.top
@@ -5383,7 +5383,7 @@ const ACT = {
   moreTables: () => { S.tablesAll = true; render() },
   itemToDoc: (el) => { const it = itemByKey(el.dataset.k, el.dataset.n); if (it && it.doc) openDocAt(el.dataset.k, it.doc, it.sec, null, 'docs') },
   openGraph: (el) => { S.gPop = false; Object.assign(S.g, { kn: S.route.kn, sel: el.dataset.n, open: [], cur: el.dataset.n }); setView('graph') },
-  gSet: (el) => { const v = el.dataset.v; S.g.f[v] = !S.g.f[v]; render() },
+  gSet: (el) => { const v = el.dataset.v; S.g.f[v] = !S.g.f[v]; if (v === 'spin') S.g.spinSet = true; render() },
   // 그래프 칸만 어두운 바탕 — 화면 자리(UI)에 남긴다 · 캔버스 색은 다시 읽는다
   gDark: (el) => { UI.gdark = el.dataset.v === '1'; saveUi(); GTOK = null; render() },
   gMode: (el) => { S.g.mode = el.dataset.v; if (S.g.mode === '2d' && S.g.sel) Object.assign(S.g, { sel: S.g.cur || S.g.sel, open: [] }); S.g.cam.needFit = true; gC2().needFit = true; render() },
