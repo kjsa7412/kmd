@@ -916,7 +916,7 @@ function localRootBar() {
   const ed = S.meRootEdit != null || S.me.none
   const body = ed
     ? `<input class="inp mono" id="meRootIn"${invAttr(S.meRootErr, 'meRootErr')} aria-label="지식 폴더 경로" data-in="meRoot" data-t="meRootIn" value="${esc(S.meRootEdit || '')}" placeholder="예: D:\\kmd" autocomplete="off" style="flex:1;min-width:min(220px,100%)"><span class="acts"><button class="btn pri" data-a="meRootSave" data-t="meRootSave"${S.meRootBusy ? ' disabled' : ''}>${S.meRootBusy ? '바꾸는 중…' : '이 폴더로'}</button>${S.me.none ? '' : '<button class="btn ghost" data-a="meRootCancel">취소</button>'}</span>`
-    : `<span class="fp" data-t="rootPath">${esc(S.me.root || '')}</span><span class="acts"><button class="btn" data-a="copyRoot" data-t="copyRoot">경로 복사</button><button class="btn" data-a="syncKn" data-t="syncKn"${S.syncing ? ' disabled' : ''}>${S.syncing ? '읽는 중…' : '동기화'}</button><button class="btn" data-a="meRootEdit" data-t="meRootEdit">바꾸기</button><button class="btn" data-a="meRootDrop" data-t="meRootDrop"${S.meRootBusy ? ' disabled' : ''}>빼기</button></span>`
+    : `<span class="fp" data-t="rootPath">${esc(S.me.root || '')}</span><span class="acts"><button class="btn" data-a="copyRoot" data-t="copyRoot">경로 복사</button><button class="btn" data-a="syncKn" data-t="syncKn"${S.syncing ? ' disabled' : ''}>${S.syncing ? '읽는 중…' : '동기화'}</button><button class="btn" data-a="meRootEdit" data-t="meRootEdit">바꾸기</button><button class="btn" data-a="meRootDrop" data-t="meRootDrop"${S.meRootBusy ? ' disabled' : ''} title="이 PC 의 지식 폴더를 뗀다(폴더의 파일은 지우지 않는다)">지식 폴더 떼기</button></span>`
   const note = S.me.none ? '지식 폴더를 뺐다. 경로를 쓰면 그 폴더에 세운다 · 이미 kmd 지식 폴더(.kmd 가 있는 곳)면 그대로 쓴다'
     : '지식 하나 = 이 폴더 안의 폴더 하나 · 다른 곳에서 만든 지식은 폴더째 여기에 놓고 [동기화]. 메뉴 맨 아래에 들어온다 · [바꾸기] 로 다른 폴더를 잇는다(.kmd 가 없거나 빈 폴더면 새로 세운다 · 옛 폴더는 그대로)'
   return `<div class="fbar" data-t="addRoot"><span class="fl">${svg('doc')}지식 폴더</span>${body}<small>${note}</small></div>${S.meRootErr ? formErr(S.meRootErr, 'meRootErr') : ''}`
@@ -932,7 +932,7 @@ async function localRootWait() {
 // 지식 폴더 빼기 — 개인 프로그램은 켠 채(팀 연결 · 내 Claude 그대로) 빈자리로 다시 켜진다 · 폴더의 파일은 그대로 · 경로를 쓰면 다시 붙는다
 async function meRootDrop() {
   const r0 = meRootNow()
-  if (!r0 || !await ask1('지식 폴더 빼기', '빼기', true, `지식 폴더를 뺀다: ${r0}\n\n폴더의 파일은 지우지 않는다. 개인 지식은 경로를 다시 쓰기 전까지 보이지 않는다.`)) return
+  if (!r0 || !await ask1('지식 폴더 떼기', '떼기', true, `지식 폴더를 뗀다: ${r0}\n\n폴더의 파일은 지우지 않는다. 개인 지식은 경로를 다시 쓰기 전까지 보이지 않는다.`)) return
   await meRootPost({ none: true })
 }
 async function meRootSave() {
@@ -4077,10 +4077,10 @@ function sendPrevHtml(src, v, sel) {
       .finally(() => { delete S.wait[key]; scheduleRender() })
   }
   const p = S.cache[key]
-  if (!p) return `<div class="small muted" data-t="sendPrev" style="margin:10px 0 0">${esc(v.route.name)} 의 이름 장부와 맞춰 보는 중…</div>`
+  if (!p) return `<div class="small muted" data-t="sendPrev" style="margin:10px 0 0">${esc(sendNm(v.route.kn) || v.route.name)} 의 이름 장부와 맞춰 보는 중…</div>`
   if (p.unavailable) return `<div class="small muted" data-t="sendPrev" style="margin:10px 0 0">이름 미리 보기를 하지 못했다: ${esc(p.unavailable)} · 보내기에는 지장이 없다</div>`
-  if (!p.unnamed.length) return `<div class="small" data-t="sendPrev" style="margin:10px 0 0"><span class="chip c-acc">이름 맞음</span> 고른 것이 모두 ${esc(v.route.name)} 의 이름에 닿는다${p.same ? ` · 이미 보낸 것 ${p.same}` : ''}</div>`
-  return `<div class="callout warn" data-t="sendPrev" style="margin:10px 0 0"><span><b>${p.unnamed.length}개는 ${esc(v.route.name)} 의 이름 장부에서 이름을 못 찾았다.</b> 그대로 보내면 Claude 가 받는 지식의 문서에서 넣을 곳을 찾는다. 못 찾으면 넣지 못함으로 남고 [지금 다시] 로 다시 지을 수 있다<small>${p.unnamed.slice(0, 5).map(esc).join(' · ')}${p.unnamed.length > 5 ? ` 외 ${p.unnamed.length - 5}` : ''}</small></span></div>`
+  if (!p.unnamed.length) return `<div class="small" data-t="sendPrev" style="margin:10px 0 0"><span class="chip c-acc">이름 맞음</span> 고른 것이 모두 ${esc(sendNm(v.route.kn) || v.route.name)} 의 이름에 닿는다${p.same ? ` · 이미 보낸 것 ${p.same}` : ''}</div>`
+  return `<div class="callout warn" data-t="sendPrev" style="margin:10px 0 0"><span><b>${p.unnamed.length}개는 ${esc(sendNm(v.route.kn) || v.route.name)} 의 이름 장부에서 이름을 못 찾았다.</b> 그대로 보내면 Claude 가 받는 지식의 문서에서 넣을 곳을 찾는다. 못 찾으면 넣지 못함으로 남고 [지금 다시] 로 다시 지을 수 있다<small>${p.unnamed.slice(0, 5).map(esc).join(' · ')}${p.unnamed.length > 5 ? ` 외 ${p.unnamed.length - 5}` : ''}</small></span></div>`
 }
 async function doSend() {
   const src = sendSrc(), v = src && S.cache['send:' + src.id]
@@ -4122,6 +4122,8 @@ document.addEventListener('visibilitychange', () => {
   loadBusy()
   loadStops()
   if (S.route.scr === 'import') pollRuns()
+  const t = activeTab()
+  if (t && !S.edit && KNSCR.includes(S.route.scr)) { for (const key of Object.keys(S.cache)) if (key === 'tree:' + t.kn || key.startsWith(`doc:${t.kn}:${t.ref}`) || key.startsWith(`item:${t.kn}:`) || key.startsWith(`model:${t.kn}`)) delete S.cache[key]; render() }
 })
 // ── 설정 — 팀: 점검 · 팀 서버 · 팀 지식 · 사람 · 묶음 · 에이전트 설치 · 나 / 개인: 이 PC · Claude 연결 · 에이전트 설치 ──
 const settingsOf = () => need('settings', '/api/settings')
