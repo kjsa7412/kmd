@@ -362,7 +362,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         return { ctx: dctx }
       }
       const ctx = auth.bearer(m[1])
-      if (!ctx) throw new KmdError('E_AUTH', '열쇠가 맞지 않는다. 끊겼거나 90일 동안 쓰지 않았다. 팀 화면 › 설치 한 줄을 다시 붙여 넣는다')
+      if (!ctx) throw new KmdError('E_AUTH', '열쇠가 맞지 않는다. 끊겼거나 90일 동안 쓰지 않았다. 팀 화면 › 설정 › 에이전트 설치의 한 줄을 다시 붙여 넣는다')
       return { ctx }
     }
     const s = auth.session(req.headers.cookie)

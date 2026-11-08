@@ -647,6 +647,9 @@ li.new{animation:flash 1.6s}
 .sb-know .lp{margin-top:var(--sp-3)}
 .sb-mg{flex:none;border-top:1px solid var(--border);padding-top:var(--sp-3);margin-top:var(--sp-4)}
 .sb-mg .sb-g{margin-top:var(--sp-2)}
+.sb-mg button.sb-g{display:flex;align-items:center;gap:var(--sp-2);width:calc(100% - var(--sp-8));background:none;border:0;padding:var(--sp-1) 0;font:inherit;font-size:var(--fs-sm);color:var(--text-3);cursor:pointer;text-align:left;border-radius:var(--r-xs)}
+.sb-mg button.sb-g:hover{color:var(--text)}
+.sb-mg button.sb-g .bd{margin-left:auto}
 .kmenu .sep{height:1px;background:var(--border);margin:var(--sp-2) 0}
 .hdr .crumb{flex:1 1 0}
 .hmid{flex:0 1 460px;display:flex;align-items:center;gap:var(--sp-3);min-width:0}

@@ -3766,7 +3766,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           continue
         }
         const t = await hub.teamKns(d.url).catch(() => null)
-        if (t?.error === 401) throw new KmdError('E_INPUT', '이 PC 의 열쇠를 그 팀이 받지 않는다. 팀 화면 › 설치 한 줄로 다시 잇는다')
+        if (t?.error === 401) throw new KmdError('E_INPUT', '이 PC 의 열쇠를 그 팀이 받지 않는다. 팀 화면 › 설정 › 에이전트 설치의 한 줄로 다시 잇는다')
         if (t?.kns && !t.kns.some((k) => k.id === d.kn)) throw new KmdError('E_INPUT', `그 팀에 「${d.kn}」 지식이 없다. 팀 › 지식 목록에서 고른다`)
       }
       const conf = await sendLib.readConf(meta.dir)
@@ -3801,7 +3801,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       for (const u of teams) {
         const url = String(u).replace(/\/+$/, '')
         const t = await hub.teamKns(url).catch(() => ({ error: 'reach' }))
-        out.push({ url, ...(t.kns ? { kns: t.kns } : { error: t.error === 401 ? '이 PC 의 열쇠를 그 팀이 받지 않는다. 다시 잇는다' : t.error === 'nokey' ? '이 PC 가 그 팀에 이어지지 않았다. 팀 화면 › 설치 한 줄' : '그 팀에 닿지 않는다' }) })
+        out.push({ url, ...(t.kns ? { kns: t.kns } : { error: t.error === 401 ? '이 PC 의 열쇠를 그 팀이 받지 않는다. 다시 잇는다' : t.error === 'nokey' ? '이 PC 가 그 팀에 이어지지 않았다. 팀 화면 › 설정 › 에이전트 설치의 한 줄' : '그 팀에 닿지 않는다' }) })
       }
       return { teams: out, local: mode === 'team' ? [] : (await hub.list()).map((k) => ({ id: k.id, name: k.name })) }
     },

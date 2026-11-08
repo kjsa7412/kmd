@@ -180,9 +180,9 @@ md.renderer.rules.link_open = (tokens, i, opts, env, self) => {
   const kid = env?.k?.id ?? ''
   // 없는 항목(그 문서에 그 머리가 없다)은 흐리게 · 누르면 문서만 연다(data-h 없음)
   if (to.t === 'item' && to.miss) t.attrs = [['class', 'dlink item missing'], ['data-a', 'openDoc'], ['data-k', kid], ['data-d', to.d], ['title', '없는 항목']]
-  else if (to.t === 'doc' || to.t === 'item') t.attrs = [['class', to.t === 'item' ? 'dlink item' : 'dlink doc'], ['data-a', 'openDoc'], ['data-k', kid], ['data-d', to.d], ...(to.h ? [['data-h', to.h]] : []), ...(to.sub ? [['data-sub', to.sub]] : [])]
+  else if (to.t === 'doc' || to.t === 'item') t.attrs = [['href', '#/k/' + encodeURIComponent(kid) + '/d/' + encodeURIComponent(to.d) + (to.h ? '/h/' + encodeURIComponent(to.h) : '')], ['class', to.t === 'item' ? 'dlink item' : 'dlink doc'], ['data-a', 'openDoc'], ['data-k', kid], ['data-d', to.d], ...(to.h ? [['data-h', to.h]] : []), ...(to.sub ? [['data-sub', to.sub]] : [])]
   else if (to.t === 'missing') t.attrs = [['class', 'dlink doc missing'], ['title', '없는 문서']]
-  else if (to.t === 'rec') t.attrs = [['class', `dlink rec${to.gone ? ' missing' : ''}`], ['data-a', 'openRec'], ['data-k', kid], ['data-r', to.r], ...(to.gone ? [['title', '없는 기록']] : [])]
+  else if (to.t === 'rec') t.attrs = [...(to.gone ? [] : [['href', '#/k/' + encodeURIComponent(kid) + '/r/' + encodeURIComponent(to.r)]]), ['class', `dlink rec${to.gone ? ' missing' : ''}`], ['data-a', 'openRec'], ['data-k', kid], ['data-r', to.r], ...(to.gone ? [['title', '없는 기록']] : [])]
   else if (to.t === 'ext') t.attrs = [['href', href], ['class', 'xlink'], ['target', '_blank'], ['rel', 'noopener noreferrer']]
   else if (to.t === 'mail') t.attrs = [['href', href], ['class', 'xlink']]
   else {

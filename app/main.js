@@ -202,6 +202,11 @@ function go(r) {
   leaveGate()
   r = r || {}
   const prevKn = S.route.kn
+  // 지식 화면에서 작업 화면으로 — 위에서 고른 지식을 처음 값으로(UX T5-02 · 정할 것 11 채택) · 화면 안에서 바꾸면 그것을 기억한다
+  const fromKn = KNSCR.includes(S.route.scr) && prevKn && prevKn !== '*' ? prevKn : null
+  if (fromKn && r.scr === 'import') S.impKn = fromKn
+  if (fromKn && r.scr === 'held') S.hdKn = fromKn
+  if (fromKn && r.scr === 'structure') S.sxKn = fromKn
   S.route = Object.assign({ scr: 'home', kn: S.route.kn }, r)
   // 옛 화면 이름은 설정 페이지로(SET_ALIAS 한곳) · 설정 페이지는 { scr: 'settings', page } 하나로 간다(앱 안 기록에 실린다)
   if (SET_ALIAS[S.route.scr]) S.route = { ...S.route, scr: 'settings', page: SET_ALIAS[S.route.scr] }
@@ -288,14 +293,60 @@ function toggleSplit() {
   if (!['docs', 'items'].includes(S.route.scr)) S.route.scr = 'docs'
   render()
 }
+const HASH_TAB = { doc: 'd', item: 'i', rec: 'r' }
+function hashOf(s) {
+  const e = encodeURIComponent
+  if (s.tab && HASH_TAB[s.tab.kind]) return `#/k/${e(s.tab.kn)}/${HASH_TAB[s.tab.kind]}/${e(s.tab.ref)}`
+  if (s.scr === 'settings') return '#/settings' + (s.page ? '/' + e(s.page) : '')
+  if (s.kn && s.kn !== '*' && KNSCR.includes(s.scr)) return `#/k/${e(s.kn)}/${s.scr}`
+  return s.scr && s.scr !== 'home' ? '#/' + s.scr : '#/'
+}
+// 주소 → 갈 곳(모르는 꼴이면 null) — #once= · #code= 는 이 길이 아니다
+function parseHash(h) {
+  const m = String(h || '').match(/^#\/(.*)$/)
+  if (!m) return null
+  let p
+  try { p = m[1].split('/').map(decodeURIComponent) } catch { return null }
+  if (p[0] === 'k' && p[1]) {
+    const kind = { d: 'doc', i: 'item', r: 'rec' }[p[2]]
+    if (kind && p[3]) return { scr: kind === 'item' ? 'items' : 'docs', kn: p[1], tab: { kind, kn: p[1], ref: p[3] }, sec: p[4] === 'h' && p[5] ? p[5] : null }
+    return { scr: p[2] || 'docs', kn: p[1] }
+  }
+  if (p[0] === 'settings') return { scr: 'settings', page: p[1] || null }
+  return { scr: p[0] || 'home', kn: '*' }
+}
+// 주소로 연다(처음 들어올 때 · 브라우저 뒤로) — 보이지 않는 지식이면 지식 목록으로
+function openHash(r) {
+  if (!r) return false
+  if (r.kn && r.kn !== '*' && !KN(r.kn)) { toast('그 지식이 없거나 볼 자리가 없다'); S.route = { scr: 'home', kn: '*' }; return true }
+  S.route = { scr: r.scr, kn: r.kn || S.route.kn, ...(r.page ? { page: r.page } : {}) }
+  if (SET_ALIAS[S.route.scr]) S.route = { ...S.route, scr: 'settings', page: SET_ALIAS[S.route.scr] }
+  if (r.tab) { if (r.tab.kind === 'doc' && r.sec) openDocAt(r.kn, r.tab.ref, r.sec, null, 'docs'); else openTab(Object.assign({}, r.tab), { noHist: true, view: r.scr }) }
+  return true
+}
+let hashSkip = false // 앱이 바꾼 주소에는 popstate 로 다시 옮겨 가지 않는다
+function syncHash(push) {
+  if (!S.me || anon() || gated()) return
+  const h = hashOf(snap())
+  if (location.hash === h) return
+  try { if (push) history.pushState({ kmd: S.hpos }, '', h); else history.replaceState({ kmd: S.hpos }, '', h) } catch {}
+}
+window.addEventListener('popstate', (ev) => {
+  if (!S.me || anon()) return
+  const st = ev.state
+  if (st && typeof st.kmd === 'number' && S.hist[st.kmd] && st.kmd !== S.hpos) { hashSkip = true; histGo(st.kmd - S.hpos); hashSkip = false; return }
+  const r = parseHash(location.hash)
+  if (r) { S.menu = null; S.pal = null; S.qo = null; S.cmd = null; openHash(r); pushHist(true); render() }
+})
 function snap() { const t = ['docs', 'items'].includes(S.route.scr) ? activeTab() : null; return { scr: S.route.scr, kn: S.route.kn, page: S.route.scr === 'settings' ? S.route.page || null : null, tab: t ? { kind: t.kind, kn: t.kn, ref: t.ref } : null } }
-function pushHist() {
+function pushHist(replace = false) {
   const s = snap(), c = S.hist[S.hpos]
   if (c && JSON.stringify(c) === JSON.stringify(s)) return
   S.hist = S.hist.slice(0, S.hpos + 1)
   S.hist.push(s)
   if (S.hist.length > 80) S.hist.shift()
   S.hpos = S.hist.length - 1
+  syncHash(!replace && S.hist.length > 1)
 }
 function histGo(d) {
   leaveGate()
@@ -306,6 +357,7 @@ function histGo(d) {
   S.route = { scr: s.scr, kn: s.kn, ...(s.page ? { page: s.page } : {}) }
   S.menu = null; S.pal = null; S.qo = null; S.cmd = null
   if (s.tab) openTab(Object.assign({}, s.tab), { noHist: true, view: s.scr })
+  if (!hashSkip) syncHash(false)
   render()
   scrollTopMain()
 }
@@ -687,7 +739,9 @@ function sideHtml(left) {
   const inMg = !dim && MGSCR.includes(r.scr)
   const set = (area, l) => `<div class="sb-i${inMg && setArea() === area ? ' on' : ''}" data-a="setArea" data-v="${area}" data-t="nav-settings-${area}">${svg('gear')}<span>${l}</span></div>`
   const nCheck = histChecks()
-  h += `<div class="sb-mg" data-t="manageArea"><div class="sb-g">지식 관리</div><div class="nav">`
+  // 접을 수 있는 묶음(UX T5-06) — 접어도 넣지 못함 · 값 바뀜 배지는 머리에 남는다 · 접은 것은 이 브라우저에
+  const mgN = (dim ? 0 : histChecks()) + (dim ? 0 : heldSum())
+  h += `<div class="sb-mg" data-t="manageArea"><button type="button" class="sb-g" data-a="mgFold" data-t="mgFold" aria-expanded="${!UI.mgFold}">${UI.mgFold ? '▸' : '▾'} 지식 관리${UI.mgFold && mgN ? ` <span class="bd warn">${mgN}</span>` : ''}</button><div class="nav"${UI.mgFold ? ' hidden' : ''}>`
   if (!dim) h += `<div class="sb-i${HISTSCR.includes(r.scr) ? ' on' : ''}" data-a="nav" data-s="today" data-t="nav-history">${svg('hour')}<span>이력</span>${nCheck ? `<span class="bd warn" data-t="histBadge" title="값 바뀜">${nCheck}</span>` : ''}</div>`
   if (!dim) for (const x of workMenu()) { const n = x.id === 'held' ? heldSum() : 0; h += `<div class="sb-i${r.scr === x.scr ? ' on' : ''}" data-a="nav" data-s="${x.scr}" data-t="nav-${x.id}">${svg(x.ic)}<span>${esc(x.l)}</span>${n ? `<span class="bd warn" data-t="heldBadge" title="넣지 못함">${n}</span>` : ''}</div>` }
   h += set(team ? 'team' : 'me', '설정')
@@ -815,7 +869,7 @@ function viewHome() {
 
   const grids = team
     ? `<div class="sec-h" data-t="teamSec"><b>팀 지식</b><small>팀 서버 · 지식마다 자리(읽기 · 쓰기 · 지식관리자)가 다르다 · 카드 아래 칩이 나의 자리${S.me.admin ? '' : ' · 새 팀 지식은 관리자가 세운다'}</small></div>${fbar}
-  <div class="kgrid" data-t="klist">${shown.map((n) => kcardHtml(n, team)).join('')}${addTeam}</div>${!shown.length && !addTeam ? '<p class="hint" data-t="teamEmpty">아직 볼 수 있는 팀 지식이 없다. 관리자가 자리를 주면 여기에 보인다</p>' : ''}`
+  <div class="kgrid" data-t="klist">${shown.map((n) => kcardHtml(n, team)).join('')}${addTeam}</div>${!shown.length && !addTeam ? `<div class="empty2" data-t="teamEmpty"><b>아직 볼 수 있는 팀 지식이 없다</b><p class="hint">총괄 관리자나 그 지식의 지식관리자가 자리(읽기 · 쓰기)를 주면 여기에 보인다 · 받으면 이 화면을 다시 열 때 저절로 보인다</p><button type="button" class="btn" data-a="copySeatAsk" data-t="copySeatAsk">자리 부탁 글 복사</button></div>` : ''}`
     : `${localRootBar() || fbar}<div class="kgrid" data-t="klist">${shown.map((n) => kcardHtml(n, team)).join('')}${add}</div>`
   return {
     crumb: '지식 목록',
@@ -1364,7 +1418,10 @@ function attPane(t, right) {
 function openQo() { leaveGate(); S.pal = null; S.cmd = null; S.menu = null; S.qo = { q: '', sel: 0 }; render() }
 function qoList() {
   const q = (S.qo.q || '').trim(), nq = norm(q)
-  const ks = S.route.kn && S.route.kn !== '*' ? [S.route.kn] : S.kns.filter((x) => !x.dim).map((x) => x.id), out = []
+  // 범위 — 지식 화면이면 그 지식, 아니면(또는 「모든 지식」 을 고르면) 모든 지식(UX T5-04)
+  const one = !S.qo.all && KNSCR.includes(S.route.scr) && S.route.kn && S.route.kn !== '*' && KN(S.route.kn)
+  S.qo.scope = one ? KN(S.route.kn).name : '모든 지식'
+  const ks = one ? [S.route.kn] : S.kns.filter((x) => !x.dim).map((x) => x.id), out = []
   // 건너뛴 지식 — 읽는 중 · 못 읽음(결과가 비어도 「없다」 라고 하지 않게)
   S.qo.wait = 0; S.qo.bad = []
   ks.forEach((k) => {
@@ -1373,13 +1430,16 @@ function qoList() {
     if (tr.error) { S.qo.bad.push(k); return }
     const kn = KN(k).name
     tr.docs.forEach((d) => out.push({ kind: 'doc', label: d.title, sub: kn + ' · 문서', k, ref: d.id }))
+    // 「문서 + 항목」 꼴(배포 절차 롤백) — 문서 제목과 항목 이름을 이은 이름으로도 찾는다
+    if (q) itemsOf(k).forEach((i) => { const d = i.doc && tr.docs.find((x) => x.id === i.doc); if (d) out.push({ kind: 'item', label: d.title + ' ' + i.name, sub: kn + ' · 항목', k, ref: i.key, joined: true }) })
     itemsOf(k).forEach((i) => { if (i.table && !q) return; out.push({ kind: 'item', label: i.val && !sameTxt(i.val, i.name) ? `${i.short} ${i.name}` : i.name, sub: kn + ' · 항목 · ' + i.kind, k, ref: i.key, alias: [...i.aliases, ...(i.val ? [i.val] : [])] }) })
     tr.records.forEach((r) => out.push({ kind: 'rec', label: r.title, sub: kn + ' · 기록 · ' + (heldR(k, r) ? '넣지 못함 · ' + whenTxt(r.date) : whenTxt(r.date)), k, ref: r.id }))
   })
   if (!q) return out.filter((x) => x.kind !== 'rec').slice(0, 12)
   const ord = { doc: 0, item: 1, rec: 2 }
   const sc = (x) => { const l = norm(x.label); if (l === nq) return 0; if (l.startsWith(nq)) return 1; if (l.includes(nq)) return 2; if ((x.alias || []).some((a) => norm(a).includes(nq))) return 3; return 9 }
-  return out.map((x) => Object.assign({ s: sc(x) }, x)).filter((x) => x.s < 9).sort((a, b) => a.s - b.s || ord[a.kind] - ord[b.kind]).slice(0, 30)
+  const seen = new Set()
+  return out.map((x) => Object.assign({ s: sc(x) + (x.joined ? 0.5 : 0) }, x)).filter((x) => x.s < 9).sort((a, b) => a.s - b.s).filter((x) => { const key = x.kind + '|' + x.k + '|' + x.ref; if (seen.has(key)) return false; seen.add(key); return true }).sort((a, b) => a.s - b.s || ord[a.kind] - ord[b.kind]).slice(0, 30)
 }
 function qoBody() {
   const L = qoList()
@@ -1387,10 +1447,10 @@ function qoBody() {
   if (S.qo.sel >= L.length) S.qo.sel = Math.max(0, L.length - 1)
   const bad = S.qo.bad || []
   const top = (S.qo.wait ? loadingHtml : '') + (bad.length ? `<div class="callout danger err" data-t="qoErr">${sayErr(`지식 ${bad.length} 을 읽지 못했다`)}<b>지식 ${bad.length} 을 읽지 못했다: ${esc(bad.map(knNm).join(' · '))}</b><button type="button" class="btn sm retry" data-a="qoRetry" data-t="retry">다시 읽기</button></div>` : '')
-  if (!L.length) return top || '<div class="empty" data-t="qoNone"><b>이 이름으로는 없다</b>글 속 낱말은 Ctrl K 찾기로</div>'
+  if (!L.length) return top || `<div class="empty" data-t="qoNone"><b>${esc(S.qo.scope)}에는 이 이름이 없다</b>글 속 낱말은 Ctrl K 찾기로${S.qo.scope !== '모든 지식' ? ' · <button type="button" class="btn ghost sm" data-a="qoAll" data-t="qoAll">모든 지식에서 찾기</button>' : ''}</div>`
   return top + '<div role="listbox" id="qoList" aria-label="찾은 이름">' + L.map((x, i) => `<div class="qr${i === S.qo.sel ? ' sel' : ''}" role="option" id="qo-o${i}" aria-selected="${i === S.qo.sel}" tabindex="-1" data-a="qoPick" data-i="${i}" data-t="qoRow" data-kind="${x.kind}" data-name="${esc(x.label)}"><span class="qk">${x.kind === 'doc' ? svg('doc') : x.kind === 'item' ? svg('tag') : '<i class="pd"></i>'}</span><span class="nm">${esc(x.label)}</span><span class="r small muted">${esc(x.sub)}</span></div>`).join('') + '</div><div class="ft">문서 · 항목 · 기록 이름으로 연다. ↑↓ 로 고르고 Enter · 글 속 낱말은 <b>Ctrl K</b></div>'
 }
-function qoHtml() { return `<div class="pscrim" data-a="qoClose" data-self="1"><div class="pal" data-t="qo"><div class="pin">${svg('search')}<input id="qoIn" role="combobox" aria-expanded="true" aria-controls="qoList" aria-autocomplete="list" aria-activedescendant="qo-o${S.qo.sel || 0}" aria-label="빨리 열기: 이름" data-in="qo" data-t="qoIn" value="${esc(S.qo.q)}" placeholder="빨리 열기: 문서 · 항목 · 기록 이름" autocomplete="off"><span class="r">↑↓ · Enter · Esc</span></div><div id="qoBody">${qoBody()}</div></div></div>` }
+function qoHtml() { const scope = !S.qo.all && KNSCR.includes(S.route.scr) && S.route.kn && S.route.kn !== '*' && KN(S.route.kn) ? KN(S.route.kn).name : '모든 지식'; return `<div class="pscrim" data-a="qoClose" data-self="1"><div class="pal" data-t="qo"><div class="pin">${svg('search')}<span class="kt" data-t="qoScope" title="찾는 범위">${esc(scope)}</span><input id="qoIn" role="combobox" aria-expanded="true" aria-controls="qoList" aria-autocomplete="list" aria-activedescendant="qo-o${S.qo.sel || 0}" aria-label="빨리 열기: 이름" data-in="qo" data-t="qoIn" value="${esc(S.qo.q)}" placeholder="빨리 열기: 문서 · 항목 · 기록 이름" autocomplete="off"><span class="r">↑↓ · Enter · Esc</span></div><div id="qoBody">${qoBody()}</div></div></div>` }
 function qoPick(i) {
   const x = S.qo && S.qo.list && S.qo.list[i]
   S.qo = null
@@ -2868,7 +2928,7 @@ function viewFirst() {
   if (S.gate === 'done')
     return `<div class="gatewrap"><div class="gate"><div class="card"><div class="cb" data-t="firstDone">
   <div class="mk">${svg('check')}</div><div class="big">✓ 정했다. 들어왔다.</div>
-  <p class="lead">작업 폴더의 Claude Code 에 팀 지식을 붙이려면 설정 › 에이전트 설치(개인 프로그램은 필요 없다). 개인 지식도 쓰려면 이 PC 에 개인 프로그램을: <button type="button" class="lk" data-a="copyInstall" data-t="copyInstall">한 줄 복사</button><br><span class="muted small">10분 동안 한 번만 · 남에게 주지 않는다 · 나중에는 옆 메뉴 › 개인 지식 쓰기</span></p>
+  <p class="lead">작업 폴더의 Claude Code 에 팀 지식을 붙이려면 설정 › 에이전트 설치(개인 프로그램은 필요 없다). 개인 지식도 쓰려면 이 PC 에 개인 프로그램을: <button type="button" class="lk" data-a="copyInstall" data-t="copyInstall">한 줄 복사</button><br><span class="muted small">10분 동안 한 번만 · 남에게 주지 않는다 · 나중에는 설정 › 에이전트 설치 › 개인 지식 쓰기</span></p>
   <div class="links"><button type="button" class="lk" data-a="gateHome" data-t="gateHome">지식 목록 ›</button></div>
  </div></div></div></div>`
   const who = S.gateUser
@@ -2967,7 +3027,8 @@ async function afterLogin(notice) {
   S.gate = S.gate === 'done' ? 'done' : null
   S.gateErr = null
   S.legacyOpen = false
-  if (location.pathname !== '/' || location.hash) history.replaceState(null, '', '/')
+  const keep = /^#\//.test(location.hash) ? location.hash : ''
+  if (location.pathname !== '/' || (location.hash && !keep)) history.replaceState(null, '', '/' + keep)
   await loadAll()
   if (notice) toast(esc(notice), 9000)
 }
@@ -3068,7 +3129,7 @@ function impTarget() {
   // 사람이 「받은편지함(새로)」 를 골랐다 · 받은편지함은 개인 지식이라 이 PC 에만(팀 서버에는 개인 지식을 세우지 않는다)
   if (S.impKn === '' && !isTeam()) return { kn: null, label: '받은편지함(새로)' }
   const ok = (k) => impKns().some((x) => x.id === k)
-  // 넣을 곳은 이 화면에서 고른 것(넣으면 기억한다) · 위에서 고른 지식을 따르지 않는다
+  // 넣을 곳은 이 화면에서 고른 것(넣으면 기억한다) · 지식 화면에서 들어오면 위에서 고른 지식이 처음 값(go · UX T5-02)
   const k = S.impKn && ok(S.impKn) ? S.impKn : null
   if (k) return { kn: k, label: KN(k).name }
   const ib = impKns().find((x) => x.name === '받은편지함') || impKns()[0]
@@ -3956,6 +4017,8 @@ const typing = () => !!document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.tes
 // 숨은 탭에서는 다시 읽기를 쉰다(지금 하는 일 · 일 줄 · 경고) — 다시 보이면 곧바로 한 번 읽고 이어 간다
 // 사람이 스크롤한 자리(창 전체) — 다시 그리기 바로 뒤에 오는 스크롤(짧아져 밀린 것)은 사람 것이 아니다
 addEventListener('scroll', () => { if (performance.now() - (S._renderAt || 0) > 150) S._wantY = scrollY }, { passive: true })
+// 자리를 받으면 — 지식이 하나도 없던 사람이 화면으로 돌아오면 목록을 다시 읽는다(UX T5-03)
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.me && !anon() && isTeam() && !(S.kns || []).filter((x) => !isPersonal(x)).length) reloadKns().then(render, (e) => console.error(e)) })
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return
   if (!S.me || anon()) return
@@ -4041,7 +4104,7 @@ function knTable() {
   }).join('')
   const add = boss ? '<button type="button" class="btn pri sm" data-a="openAdd" data-v="team" data-t="knSetAdd">+ 새 팀 지식</button>' : ''
   const restore = boss ? `<div class="card" data-t="teamRestore"><div class="ch">백업에서 되살리기 <small>백업 저장소 주소에서 새 팀 지식으로 · 지우기는 보관하지 않으므로 지운 지식은 백업에서만 돌아온다</small></div><div class="cb" style="padding:8px 14px 10px"><div class="row" style="flex-wrap:wrap"><input class="inp mono" id="rsUrl" aria-label="되살릴 저장소 주소" data-t="rsUrl" style="flex:1;min-width:min(220px,100%)" placeholder="백업 주소: 예: git@gitlab.team:kmd/dpms.git"><input class="inp" id="rsName" aria-label="되살릴 지식 이름" data-t="rsName" style="width:min(160px,100%)" placeholder="이름(비우면 주소의 끝)"><label class="small"><input type="checkbox" id="rsPractice" data-t="rsPractice"> 연습(백업에 보내지 않는다)</label><button class="btn sm" data-a="restoreDo" data-t="restoreDo"${S.restoring ? ' disabled' : ''}>${S.restoring ? '되살리는 중…' : '되살리기'}</button></div></div></div>` : ''
-  return `<div class="card" data-t="knTable" style="overflow:visible"><div class="ch">팀 지식 ${ks.length} <small>${boss ? '모든 팀 지식' : '내가 지식관리자인 팀 지식'}</small>${add ? `<span style="margin-left:auto">${add}</span>` : ''}</div><div class="cb tight"><div class="tblwrap"><table class="t"><tr><th>팀 지식</th><th>나의 자리</th>${boss ? '<th>백업</th>' : ''}<th>Claude 에 보내지 않음</th><th></th></tr>${rows || `<tr><td class="muted" colspan="${boss ? 5 : 4}">팀 지식이 없다</td></tr>`}</table></div></div><div class="cf small muted">Claude 에 보내지 않는 지식은 들이기 · 다듬기를 하지 않고 기록만 남긴다(스위치는 그 지식의 지식관리자) · 자리는 ⋯ › 권한 · 넣지 못함은 작업 › 넣지 못함</div></div>${restore}`
+  return `<div class="card" data-t="knTable" style="overflow:visible"><div class="ch">팀 지식 ${ks.length} <small>${boss ? '모든 팀 지식' : '내가 지식관리자인 팀 지식'}</small>${add ? `<span style="margin-left:auto">${add}</span>` : ''}</div><div class="cb tight"><div class="tblwrap"><table class="t"><tr><th>팀 지식</th><th>나의 자리</th>${boss ? '<th>백업</th>' : ''}<th>Claude 에 보내지 않음</th><th></th></tr>${rows || `<tr><td class="muted" colspan="${boss ? 5 : 4}">팀 지식이 없다</td></tr>`}</table></div></div><div class="cf small muted">Claude 에 보내지 않는 지식은 들이기 · 다듬기를 하지 않고 기록만 남긴다(스위치는 그 지식의 지식관리자) · 자리는 ⋯ › 권한 · 넣지 못함은 옆 메뉴 › 넣지 못함</div></div>${restore}`
 }
 // 사람 — 총괄 관리자 하나와 지식마다의 자리(읽기 · 쓰기 · 관리 — docs/kmd_권한_모델.md). 관리자는 사람 · 묶음을 다룬다, 그 밖에는 읽기만
 // 자리 설명 한 벌(docs/kmd_권한_모델.md 1절 · 개편 뒤 「저장이 곧 반영」) — 사람 카드 · 지식 권한 창 · 자리란? 이 같이 쓴다
@@ -5141,6 +5204,9 @@ const ACT = {
   // 충돌 고르기 — 내 글로: 새 지문으로 다시 보낸다(이력에 남아 되돌릴 수 있다) · 그쪽 글로: 쓰던 글을 버리고 새 글로
   edForce: async () => { const e = S.edit; if (!e) return; if (!await ask1('내 글로 저장', '내 글로 저장', true, `그사이 바뀐 글(${(e.conflict || []).map((x) => x.h).join(' · ')})을 내 글로 바꾼다. 남이 고친 것은 이력에 남아 되돌릴 수 있다`)) return; e.keepBase = null; e.conflict = null; e.err = null; await saveDoc() },
   edTheirs: () => { const e = S.edit; if (!e) return; const v = S.cache[`doc:${e.kn}:${e.doc}:ed`]; e.text = v ? edOrig(v) : null; e.keepBase = null; e.conflict = null; e.err = null; render() },
+  mgFold: () => { UI.mgFold = !UI.mgFold; saveUi(); render() },
+  qoAll: () => { if (S.qo) { S.qo.all = true; render() } },
+  copySeatAsk: async () => { const t = `kmd 팀 지식 자리를 부탁합니다: 아이디 ${S.me.user} · 볼 지식과 자리(읽기 · 쓰기)를 정해 주세요 · 팀 화면 ${location.origin}`; try { await navigator.clipboard.writeText(t); toast('부탁 글을 복사했다. 관리자에게 보낸다') } catch { toast(esc(t), 12000) } },
   editDoc: async () => {
     const t = activeTab()
     if (!t) return
@@ -5258,6 +5324,8 @@ document.addEventListener('click', (ev) => {
   if (el.dataset.self && ev.target !== el) return
   const f = ACT[el.dataset.a]
   if (!f) return
+  // 주소가 있는 링크를 Ctrl · Shift · ⌘ 로 누르면 브라우저에 맡긴다(새 탭 · 새 창)
+  if (el.tagName === 'A' && el.getAttribute('href') && (ev.ctrlKey || ev.metaKey || ev.shiftKey)) return
   if (el.tagName === 'A') ev.preventDefault()
   if (S.menu && !['menu', 'kmenu', 'pickKn'].includes(el.dataset.a) && !ev.target.closest('.menu,.pop')) S.menu = null
   if ((S.sideOpen || S.asideOpen) && el.closest('.side,.aside,.pop') && !['menu', 'kmenu', 'fold', 'dirFold', 'dirAll', 'sTab', 'tFilt', 'kindAll', 'foldKind', 'sideToggle', 'asideToggle', 'itemFilt'].includes(el.dataset.a)) { S.sideOpen = false; S.asideOpen = false }
@@ -5443,7 +5511,9 @@ async function loadAll() {
   clearInterval(claudeTimer)
   claudeTimer = setInterval(() => loadClaude({ verify: true }), 30 * 60_000)
   document.title = isTeam() ? 'kmd: 팀' : 'kmd'
-  if (!S.hist.length) pushHist()
+  const fromHash = parseHash(location.hash)
+  if (fromHash && !S.hist.length) openHash(fromHash)
+  if (!S.hist.length) pushHist(true)
   render() // openTab 은 그리지 않는다 — 여기서 그린다
 }
 

@@ -151,7 +151,7 @@ export function teamAgentPs({ origin, ticket, kn }) {
     '  $key = $r.key',
     '  New-Item -ItemType Directory -Force (Split-Path $kf) | Out-Null',
     "  [IO.File]::WriteAllText($kf, [Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Protect($u8.GetBytes($key), $null, 'CurrentUser')) + \"`n\")",
-    '  Write-Host "✓ 이 PC 를 팀 $o 에 $($r.user) 로 이었다. 팀 화면 › 개인 지식 쓰기 › 내 기기에 한 줄이 생긴다"',
+    '  Write-Host "✓ 이 PC 를 팀 $o 에 $($r.user) 로 이었다. 팀 화면 › 설정 › 나 › 내 기기에 한 줄이 생긴다"',
     '}',
     // ② 팀 덩이 · 스킬 — 지금 CLAUDE.md 의 팀 덩이 · 옛 덩이만 보내고 새 덩이를 받는다
     "$cf = Join-Path $d 'CLAUDE.md'",

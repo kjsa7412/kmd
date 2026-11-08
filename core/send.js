@@ -203,7 +203,7 @@ export async function mcpCall(url, key, tool, args) {
 }
 // 거절의 까닭 → 고칠 곳(사람이 읽는 한 줄)
 export function fixOf(e) {
-  if (e.status === 401) return '이 PC 의 열쇠를 팀이 받지 않는다. 팀 화면 › 설치 한 줄로 다시 잇는다'
+  if (e.status === 401) return '이 PC 의 열쇠를 팀이 받지 않는다. 팀 화면 › 설정 › 에이전트 설치의 한 줄로 다시 잇는다'
   if (e.status === 403) return '그 팀 지식에 보낼 수 없다. 팀 지식의 주인 · 관리자에게'
   if (e.status === 404) return '팀에 그 지식이 없다. 보낼 곳을 다시 고른다'
   if (e.status === 409) return '팀 지식이 백업 뒤에 멈춰 있다. 관리자가 맞춘 뒤 [다시]'
