@@ -1602,7 +1602,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     //   쓰기 이상이면 모두 저장 문 한 번으로 곧바로 문서에(Claude 없음 · 값 검사 없음 · 이력 「고침」 · 넣은 것 칸에 옛 값 → 새 값).
     //   항목 지우기 · 이름 바꾸기는 지식관리자만(structure · S-D44) · needBase(화면 길)면 이미 있는 항목은 지문(base)이 꼭 있다 ·
     //   같은 사람이 같은 글을 1분 안에 다시 보내면(두 번 누름) 앞의 것을 돌려준다
-    async edit(ctx, id, { doc, sections = [], remove = [], rename = [], fixes = [] } = {}, { needBase = false } = {}) {
+    async edit(ctx, id, { doc, sections = [], remove = [], rename = [], fixes = [], why = '' } = {}, { needBase = false } = {}) {
       const k = await hub.get(id, ctx)
       hub.need(ctx, id, 'write')
       const d = k.docs.find((x) => x.id === doc)
@@ -1641,7 +1641,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 기록(이력 log/ · 태그 edit) + 조각 한 저장 — 이 PC 와 지식관리자는 kmd 자신의 쓰기(system)로 표까지 ·
       //   쓰기 자리는 사람의 쓰기(문서 꼴 · 원본이 주인 · 표를 core 가 본다)
       const r = await hub.save(ctx, id, {
-        record: { title: `화면에서 고침: ${d.title} 「${what.join(' · ')}」`.slice(0, 200), body: `화면에서 고쳤다: ${what.map((h) => `${d.title} › ${h}`).join(' · ')}`, ...(coords.length ? { touches: coords } : {}), tags: ['edit'], ...(Array.isArray(fixes) && fixes.length ? { fixes: fixes.slice(0, 10).map((x) => String(x).slice(0, 120)) } : {}) },
+        record: { title: `화면에서 고침: ${d.title} 「${what.join(' · ')}」`.slice(0, 200), body: `화면에서 고쳤다: ${what.map((h) => `${d.title} › ${h}`).join(' · ')}${typeof why === 'string' && why.trim() ? `\n\n## 까닭\n${why.replace(/[\r\n]+/g, ' ').trim().slice(0, 200)}` : ''}`, ...(coords.length ? { touches: coords } : {}), tags: ['edit'], ...(Array.isArray(fixes) && fixes.length ? { fixes: fixes.slice(0, 10).map((x) => String(x).slice(0, 120)) } : {}) },
         sections: [
           ...sections.map((s) => ({ doc: d.path, heading: String(s.h).trim(), content: String(s.body ?? ''), ...(s.base ? { base: s.base } : {}) })),
           ...remove.map((h) => ({ doc: d.path, heading: h, remove: true, base: sha16(d.sections.find((s) => s.h === h).body) })),

@@ -1460,3 +1460,13 @@ body.resizing{cursor:col-resize;user-select:none}
 /* T1-09 본문으로 건너뛰기 */
 .skip{position:absolute;left:var(--sp-4);top:calc(var(--sp-9) * -3);z-index:var(--z-toast);background:var(--ink);color:var(--ink-text);padding:var(--sp-3) var(--sp-5);border-radius:var(--r)}.skip:focus{top:var(--sp-4)}
 #gcv{touch-action:none}
+
+/* T4-06 인쇄 — 문서 본문만 · 높이 제한 없이(토큰만) */
+@media print{
+  .side,.hdr,.band,.tabbar,[data-t=tabbar],.aside,.status,.gdock,.wseg,.toast,#toastHost,#pvHost,.skip,.ttl .btn,.ttl button,.secnew{display:none !important}
+  html,body,#app,.col,.body,.center,.panes,.main{height:auto !important;overflow:visible !important;background:var(--surface) !important}
+  .paper{border:0;padding:0}
+  .dsec{break-inside:avoid-page}
+  a.dlink::after{content:""}
+}
+details.paste{margin:var(--sp-4) 0}details.paste>summary{cursor:pointer;color:var(--text-2)}details.paste textarea{width:100%}

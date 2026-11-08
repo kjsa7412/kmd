@@ -248,7 +248,11 @@ function setView(v) { if (VIEWS3.includes(v)) S.ktab = v; go({ scr: v, kn: defau
 function activeTab() { return S.tabs.find((t) => t.id === S.active) || null }
 function tabOf(id) { return S.tabs.find((t) => t.id === id) || null }
 function isAct(kind, k, ref) { const t = activeTab(); return !!t && t.kind === kind && t.kn === k && t.ref === ref }
+// 최근 본 것(UX T4-08) — localStorage · 실패해도 화면은 그대로
+const recentGet = () => { try { return JSON.parse(localStorage.getItem('kmd.recent') || '[]').slice(0, 8) } catch { return [] } }
+function recentAdd(t) { try { const a = recentGet().filter((x) => !(x.kind === t.kind && x.k === t.kn && x.ref === t.ref)); a.unshift({ kind: t.kind, k: t.kn, ref: t.ref }); localStorage.setItem('kmd.recent', JSON.stringify(a.slice(0, 8))) } catch {} }
 function openTab(t, o) {
+  if (t && t.kind && t.kn && t.ref) recentAdd(t)
   o = o || {}
   let ex = S.tabs.find((x) => x.kind === t.kind && x.kn === t.kn && x.ref === t.ref)
   if (ex) { ex.hl = t.hl || null; ex.q = t.q || null }
@@ -757,7 +761,7 @@ function sideHtml(left) {
   // 접을 수 있는 묶음(UX T5-06) — 접어도 넣지 못함 · 값 바뀜 배지는 머리에 남는다 · 접은 것은 이 브라우저에
   const mgN = (dim ? 0 : histChecks()) + (dim ? 0 : heldSum())
   h += `<div class="sb-mg" data-t="manageArea"><button type="button" class="sb-g" data-a="mgFold" data-t="mgFold" aria-expanded="${!UI.mgFold}">${UI.mgFold ? '▸' : '▾'} 지식 관리${UI.mgFold && mgN ? ` <span class="bd warn">${mgN}</span>` : ''}</button><div class="nav"${UI.mgFold ? ' hidden' : ''}>`
-  if (!dim) h += `<div class="sb-i${HISTSCR.includes(r.scr) ? ' on' : ''}" data-a="nav" data-s="today" data-t="nav-history">${svg('hour')}<span>이력</span>${nCheck ? `<span class="bd warn" data-t="histBadge" title="값 바뀜">${nCheck}</span>` : ''}</div>`
+  if (!dim) h += `<div class="sb-i${HISTSCR.includes(r.scr) ? ' on' : ''}" data-a="nav" data-s="today" data-t="nav-history">${svg('hour')}<span>이력</span>${nCheck ? `<span class="bd warn" data-t="histBadge" title="값 바뀜">${nCheck}</span>` : ''}${!HISTSCR.includes(r.scr) && histNew() ? `<span class="bd" data-t="histNew" title="마지막으로 본 뒤 새 줄">새 ${histNew()}</span>` : ''}</div>`
   if (!dim) for (const x of workMenu()) { const n = x.id === 'held' ? heldSum() : 0; h += `<div class="sb-i${r.scr === x.scr ? ' on' : ''}" data-a="nav" data-s="${x.scr}" data-t="nav-${x.id}">${svg(x.ic)}<span>${esc(x.l)}</span>${n ? `<span class="bd warn" data-t="heldBadge" title="넣지 못함">${n}</span>` : ''}</div>` }
   h += set(team ? 'team' : 'me', '설정')
   h += '</div></div>'
@@ -1362,7 +1366,7 @@ function docPane(t, right) {
     : editing
     ? `<div class="ed" data-t="editor"><div class="lbl"><b>고치는 중</b> · 「## 」 으로 시작하는 줄이 항목 이름이다 · md 로 쓴다. **굵게** · - 목록 · [링크](주소) · Ctrl S 저장 · Esc 취소</div><div class="toolbar"><button class="btn sm" data-a="edAddSec" data-t="edAddSec">항목 더하기</button><button class="btn sm${S.edit.preview ? ' on' : ''}" data-a="edPreview" data-t="edPreview" aria-pressed="${!!S.edit.preview}">바뀐 것 보기</button><span class="muted small">${de.structure ? '항목을 지우려면 그 「## 」 줄과 글을 지운다 · 이름을 바꾸려면 「## 」 줄만 고친다' : '항목을 지우거나 이름을 바꾸는 일은 지식관리자가 한다'}</span></div><textarea id="edTx" aria-label="문서 글(md)" data-in="edTx" data-t="edTx" spellcheck="false"${S.edit.busy ? ' readonly aria-busy="true"' : ''}>${esc(edText(de))}</textarea>
    ${de.sections.filter((s) => s.locks).map((s) => `<div class="lockh">항목 「${esc(s.h)}」 의 표: 회색은 잠겨 있다</div>${s.locks}`).join('')}
-   <div class="row" style="margin-top:10px"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><span class="r small muted" data-t="edNote">저장하면 바로 문서에 들어간다 · 이력에 남는다</span></div>${S.edit.preview ? `<div class="edprev" data-t="edPrev"><div class="small muted">저장하면 바뀌는 것(저장 전 · 막지 않는다)</div>${edPreviewHtml(k, de)}</div>` : ''}${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}</div>`
+   <div class="row" style="margin-top:10px"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><input class="inp" id="edWhy" data-in="edWhy" data-t="edWhy" maxlength="200" style="flex:1;min-width:min(220px,100%)" placeholder="바꾼 까닭(선택) · 예: 10-21 주간회의에서 배포 창 변경" aria-label="바꾼 까닭" value="${esc(S.edit.why || '')}"><span class="r small muted" data-t="edNote">저장하면 바로 문서에 들어간다 · 이력에 남는다</span></div>${S.edit.preview ? `<div class="edprev" data-t="edPrev"><div class="small muted">저장하면 바뀌는 것(저장 전 · 막지 않는다)</div>${edPreviewHtml(k, de)}</div>` : ''}${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}</div>`
     : d.sections.map((s) => {
     // 찾기로 연 것만 「찾은 곳」 · 링크 · 개요로 연 항목은 머리를 잠깐 빛낸다
     const lit = q && hl && s.h === hl
@@ -1483,7 +1487,7 @@ function qoList() {
     itemsOf(k).forEach((i) => { if (i.table && !q) return; out.push({ kind: 'item', label: i.val && !sameTxt(i.val, i.name) ? `${i.short} ${i.name}` : i.name, sub: kn + ' · 항목 · ' + i.kind, k, ref: i.key, alias: [...i.aliases, ...(i.val ? [i.val] : [])] }) })
     tr.records.forEach((r) => out.push({ kind: 'rec', label: r.title, sub: kn + ' · 기록 · ' + (heldR(k, r) ? '넣지 못함 · ' + whenTxt(r.date) : whenTxt(r.date)), k, ref: r.id }))
   })
-  if (!q) return out.filter((x) => x.kind !== 'rec').slice(0, 12)
+  if (!q) { const rec = recentGet().map((r) => out.find((x) => x.kind === r.kind && x.k === r.k && x.ref === r.ref)).filter(Boolean).map((x) => ({ ...x, sub: '최근 본 것 · ' + x.sub })); const seen = new Set(rec.map((x) => x.kind + x.k + x.ref)); return [...rec, ...out.filter((x) => x.kind !== 'rec' && !seen.has(x.kind + x.k + x.ref))].slice(0, 14) }
   const ord = { doc: 0, item: 1, rec: 2 }
   const sc = (x) => { const l = norm(x.label); if (l === nq) return 0; if (l.startsWith(nq)) return 1; if (l.includes(nq)) return 2; if ((x.alias || []).some((a) => norm(a).includes(nq))) return 3; return 9 }
   const seen = new Set()
@@ -2494,7 +2498,7 @@ async function saveDoc() {
   e.busy = true
   render()
   try {
-    const r = await postJSON(`/api/k/${encodeURIComponent(e.kn)}/edit`, { ...(e.fixes ? { fixes: e.fixes } : {}), doc: e.doc, sections: changed.map((p) => ({ h: p.h, body: p.body, ...(old.has(p.h) ? { base: (e.keepBase && e.keepBase[p.h]) || old.get(p.h).base } : {}) })), remove, rename })
+    const r = await postJSON(`/api/k/${encodeURIComponent(e.kn)}/edit`, { ...(e.fixes ? { fixes: e.fixes } : {}), ...((($('#edWhy') || {}).value || e.why || '').trim() ? { why: (($('#edWhy') || {}).value || e.why || '').trim().slice(0, 200) } : {}), doc: e.doc, sections: changed.map((p) => ({ h: p.h, body: p.body, ...(old.has(p.h) ? { base: (e.keepBase && e.keepBase[p.h]) || old.get(p.h).base } : {}) })), remove, rename })
     // 그사이 더 쓴 글(붙여 넣기 · 다른 탭)이 있으면 버리지 않는다 — 저장한 글을 바탕으로 이어 고친다
     const later = S.edit === e && e.text != null && e.text !== txt
     if (later) { e.orig = txt; e.busy = false; e.keepBase = null; e.conflict = null } else edDrop()
@@ -2630,7 +2634,11 @@ function histRow(x, all) {
   const sent = team && x.kind === '보내기' && x.to && !open ? (sentDone(x, all) ? ' <span class="chip c-acc" data-t="sentState">문서에 들어감</span>' : histPair(x, all) ? ' <span class="chip c-warn" data-t="sentState">넣지 못함</span>' : '') : ''
   return `<div class="hrow${team ? ' ' + x.a : ''}${isCheck(x) ? ' yl' : ''}${x.reverted ? ' done' : ''}" data-t="histRow" data-kind="${esc(x.kind)}" data-area="${x.a}" data-id="${esc(x.id)}"><div class="hl" data-a="toggleToday" data-id="${esc(x.id)}"><span class="tm">${tmOf(x.at)}</span><span class="chip ${isCheck(x) ? 'c-warn' : 'c-mute'}" style="flex:none">${esc(kind)}</span><span class="tx"><b>${esc(x.title)}</b>${sent}${x.reverted ? ' <span class="chip c-mute" data-t="reverted">되돌렸다</span>' : ''}${x.sub && !open ? `<small>${esc(x.sub)}</small>` : ''}</span><span class="kn2">${esc(x.knName || '')}</span><span class="who">${esc(x.who || '')}</span><span class="act" data-t="viewBtn">${open ? '접기' : '보기'}</span></div>${ex}</div>`
 }
+// 이력 새 줄 수(UX T4-03 · 정함 ① ) — 마지막으로 이력을 본 때(이 브라우저) 뒤에 생긴 줄
+const histSeenAt = () => { try { return Number(localStorage.getItem('kmd.histSeen')) || 0 } catch { return 0 } }
+function histNew() { const h = S.cache.history; const xs = h && !h.error ? (Array.isArray(h) ? h : h.items || h.rows || []) : []; const t0 = histSeenAt(); return t0 ? xs.filter((x) => Date.parse(x.at || x.time || x.date || 0) > t0 && x.by !== (S.me && S.me.user)).length : 0 }
 function viewToday() {
+  try { localStorage.setItem('kmd.histSeen', String(Date.now())) } catch {}
   const team = isTeam()
   const crumb = '지식 관리 › 이력'
   const head = `<div class="big">이력</div><p class="lead">${team ? '내가 볼 수 있는 팀 지식의 이력을 한 흐름으로: 내가 저장 · 가져오기 한 것, kmd 가 가져오고 들인 것 · 다듬은 것, 받은 기록이 문서에 들어간 것.' : '이 PC 의 지식에서 바뀐 것: 내가 저장 · 가져오기 · 보내기 한 것, kmd 가 가져오고 문서에 넣은 것, 화면 · 편집기에서 바로 고친 것.'} 내 값이 바뀐 줄은 맨 위 「값 바뀜」 에: [보기] 에서 「옛 값 → 새 값」 을 보고, 되돌릴 수 있는 줄은 그 항목만 되돌린다.</p>`
@@ -3701,6 +3709,7 @@ function viewImport() {
   const tab = S.impTab || 'queue'
   const many = team && S.impMany ? `<div class="callout warn" data-t="impMany"><span>파일 ${S.impMany}개는 보내지 않았다. 팀 화면에서는 한 번에 ${TEAM_IMPORT_MAX}개까지 · 많으면 Claude Code 에서 대량 넣기(스킬 kmd-team-import) · <button type="button" class="lk" data-a="openSet" data-v="agent" data-t="impManyGo">설정 › 에이전트 설치</button></span></div>` : ''
   const drop = tab ? `<div class="drop bar" id="drop" data-t="drop"><b>파일 · 폴더를 이 화면 어디든 끌어다 놓는다</b><span>넣을 곳 ${impPick(target)}</span><span class="lks"><label>파일 고르기<input type="file" multiple id="fileIn" aria-label="파일 고르기" data-t="fileIn"></label> · <label>폴더 고르기<input type="file" webkitdirectory directory multiple id="dirIn" aria-label="폴더 고르기" data-t="dirIn"></label></span>
+    <details class="paste" data-t="pasteBox"><summary>글 붙여넣기 · 회의 결정 · 메모</summary><div class="field"><label for="pasteTitle">제목</label><input class="inp" id="pasteTitle" data-t="pasteTitle" placeholder="무엇에 대한 글인가"></div><textarea class="inp" id="pasteTx" rows="6" aria-label="붙여 넣을 글" data-t="pasteTx" placeholder="확정된 것은 문서에 · 아닌 것은 기록(메모)으로 남는다"></textarea><div class="row" style="margin-top:var(--sp-4)"><button type="button" class="btn" data-a="pasteGo" data-t="pasteGo">이 글 넣기</button><span class="muted small">파일 하나처럼 들인다: ${team ? '팀 일꾼이 기록 + 문서를 짓는다' : 'Claude Code 가 넣는다'}</span></div></details>
     ${team ? `<label class="impatt" data-t="impAttWrap"><input type="checkbox" id="impAtt" data-t="impAtt"${S.impAtt ? ' checked' : ''}> 원본 파일도 첨부로 둔다</label>` : ''}
     <small data-t="dropNote">${team ? `md · txt · csv · html · json · docx · pptx · xlsx · hwpx · pdf · hwp 는 글로 바꾼다 · 파일마다 들이기: 팀 일꾼이 기록과 문서를 한 번에 짓는다 · 한 번에 ${TEAM_IMPORT_MAX} 파일 · 파일 하나 32MB · 글 20만 자까지 · 많으면 Claude Code 에서 대량 넣기 · 글이 없는 pdf(스캔)도 대량 넣기에서` : 'md · txt · csv · html · json · docx · pptx · xlsx · hwpx · pdf · hwp 는 글로 바꿔 들이고 원본은 첨부로 · 파일마다 Claude Code 가 지식을 둘러보고 갈래 · 주제 문서의 항목으로 넣는다 · 안 되면 규칙으로 · 한 번에 300 파일 · 200MB · 파일마다 글 20만 자까지'}</small></div>${many}` : ''
   const main = `<div class="imp"><div class="pg-h"><div><div class="big">가져오기</div><p class="lead">들여오는 일은 모두 <b>일 줄</b>에 서서 차례로 돈다. 수집 › 검토 › 짓기 › 넣기. 줄을 고르면 흐름과 터미널이 보인다. 빈 지식을 새로 세우려면 <button type="button" class="lk" data-a="openAdd" data-t="toAdd">지식 목록 › 새 지식</button></p></div><span class="acts">${!impSrcOk() ? '' : can ? `<button class="btn pri" data-a="sfOpen" data-t="sfOpen">+ 가져올 곳 더하기</button>` : '<button class="btn" data-a="sfOpen" data-t="sfOpen">+ 더해 달라고 부탁</button>'}</span></div>
@@ -5293,6 +5302,12 @@ const ACT = {
   },
   // 충돌 고르기 — 내 글로: 새 지문으로 다시 보낸다(이력에 남아 되돌릴 수 있다) · 그쪽 글로: 쓰던 글을 버리고 새 글로
   // 넣지 못함 [고쳐 넣기](UX T6-02 · 정함 안 A) — 값이 맞지 않음은 옛 정정 창, 그 밖(꼴 · 그사이 바뀜 · 조각)은 넣으려던 글을 편집기에
+  pasteGo: async () => {
+    const tx = (($('#pasteTx') || {}).value || '').trim(), ti = (($('#pasteTitle') || {}).value || '').trim() || tx.split('\n')[0].slice(0, 40)
+    if (!tx) { toast('붙여 넣을 글이 없다'); return }
+    const name = (ti.replace(/[\\/:*?"<>|#%]/g, ' ').trim() || '붙여넣은 글').slice(0, 40) + '.md'
+    await takeFiles([new File(['# ' + ti + '\n\n' + tx + '\n'], name, { type: 'text/markdown' })])
+  },
   copyDocPath: (el) => { copyText(el.dataset.v); toast('파일 경로를 복사했다: 편집기로 고치면 곧 문서에 들어간다') },
   hdMemo: () => { S.hdMemo = !S.hdMemo; render() },
   hdCode: (el) => { S.hdCode = S.hdCode === el.dataset.v ? null : el.dataset.v; render() },
@@ -5463,6 +5478,7 @@ window.addEventListener('unhandledrejection', (ev) => { const e = ev.reason; if 
 document.addEventListener('input', (ev) => {
   const t = ev.target, k = t.dataset && t.dataset.in
   if (!k) return
+  if (k === 'edWhy') { if (S.edit) S.edit.why = t.value; return }
   // 칸은 다시 그리지 않는다(한글 입력이 끊기지 않게) — 결과 자리만 바꾼다
   if (k === 'pal') { S.pal.q = t.value; runFind() }
   if (k === 'askIn' && S.ask && S.ask.input) S.ask.input.value = t.value // 다시 그려도 쓰던 글이 남게
