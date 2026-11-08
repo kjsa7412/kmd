@@ -2399,6 +2399,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         count: rows.length, // 넣지 못함 n — 옆 메뉴 배지 · 지식 카드와 같은 셈(개편 전 기록 포함 · views.knowledgeRow)
         legacy,
         memo: k.works.filter((w) => w.state === 'memo' && mine(w)).length,
+        memos: k.works.filter((w) => w.state === 'memo' && mine(w)).slice(0, 200).map((w) => ({ rec: w.id, date: w.date, author: w.author, title: w.title })),
         today: k.works.filter((w) => w.state === 'in' && w.tags.includes('put') && String(w.date).startsWith(today) && mine(w)).length,
       }
     },
@@ -2407,7 +2408,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const meta = await hub.meta(id, ctx)
       const k = await hub.get(id, ctx)
       const w = k.byWork.get(String(rec))
-      if (!w || k.logs.includes(w) || !(w.state === 'held' || (mode === 'team' && isLegacy(k, w)))) throw new KmdError('E_NOTFOUND', '넣지 못한 기록이 아니다')
+      if (!w || k.logs.includes(w) || !(w.state === 'held' || (mode === 'team' && isLegacy(k, w)) || (admin && w.state === 'memo'))) throw new KmdError('E_NOTFOUND', '넣지 못한 기록이 아니다')
       hub.need(ctx, id, admin ? 'admin' : 'write')
       if (w.author !== ctx.user) hub.need(ctx, id, 'admin')
       return { meta, k, w }

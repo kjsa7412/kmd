@@ -2659,6 +2659,17 @@ function heldKn() {
 const HD_ROUTE = { sess: ['세션', 'Claude Code 대화 · 화면에서 남긴 기록'], send: ['보내기', '개인 지식에서 지식 보내기로 보냄'], file: ['파일', '파일 넣기 · 가져오기로 들인 파일'], code: ['코드', '가져오기 git 이 남긴 코드 바뀜'], intake: ['팀 일꾼', '팀 일꾼이 들인 것(파일 · 정정 · 다시 들이기)'], src: ['가져올 곳', '가져올 곳에서 저절로 들인 것'], fix: ['정정', '기록 고치기로 남긴 정정 기록'] }
 const hdRt = (r) => { const x = HD_ROUTE[r] || HD_ROUTE.sess; return `<span class="hd-rt" title="${esc(x[1])}">${x[0]}</span>` }
 const hdAv = (who) => (who === 'kmd' || who === 'kmd-auto' ? `<span class="hd-av sys" title="kmd">${svg('sync')}</span>` : `<span class="hd-av" title="${esc(who)}">${esc(String(who || '?').slice(0, 2))}</span>`)
+// 넣지 못함 거르기 — 까닭(code) 하나 · 메모 보기
+function heldFilterHtml(d) {
+  const codes = [...new Set(d.rows.flatMap((r) => r.parts.map((p) => p.code)))].filter(Boolean)
+  if (codes.length < 2 && !d.admin) return ''
+  return `<div class="tools" data-t="hdFilter">${codes.map((c) => `<button type="button" class="fbtn" data-a="hdCode" data-v="${esc(c)}" aria-pressed="${S.hdCode === c}">${esc(HELD_CODE[c] || c)}</button>`).join('')}${d.admin && d.rows.length ? `<button type="button" class="btn sm ghost" data-a="hdDropShown" data-t="hdDropShown">보이는 ${heldShown(d).length}건 버리기</button>` : ''}</div>`
+}
+const heldShown = (d) => d.rows.filter((r) => !S.hdCode || r.parts.some((p) => p.code === S.hdCode))
+function memoRowsHtml(k, d) {
+  if (!(d.memos || []).length) return '<div class="empty2"><b>메모가 없다</b></div>'
+  return `<div class="hd-grid" data-t="memoList">${d.memos.map((m) => `<div class="hd-r" data-t="memoRow"><span>${esc(m.author)}</span><span><button type="button" class="lk" data-a="openRec" data-k="${esc(k)}" data-r="${esc(m.rec)}">${esc(m.title)}</button><small class="muted"> · ${esc(whenTxt(m.date))}</small></span><span class="muted small">확정되면 쓴 사람이 조각을 실어 다시 저장한다(record.fixes)</span>${d.admin ? `<button type="button" class="btn sm ghost" data-a="hdDropOne" data-k="${esc(k)}" data-v="${esc(m.rec)}">버리기</button>` : '<span></span>'}</div>`).join('')}</div>`
+}
 function heldRowHtml(k, d, r) {
   const mk = 'hd:' + r.rec, busy = (S.hdBusy || {})[r.rec]
   const pick = r.parts.some((p) => HELD_PICK.has(p.code))
@@ -2708,12 +2719,12 @@ function viewHeld() {
   const d = heldOf(k)
   if (!d) return { crumb: '넣지 못함', main: `<div class="hdy">${head(n)}${pick}${loadingHtml}</div>` }
   if (d.error) return { crumb: '넣지 못함', main: `<div class="hdy">${head(n)}${pick}${errHtml(d, 'held:' + k)}</div>` }
-  const sum = `<div class="hd-sum" data-t="hdSum"><span class="${(d.count ?? d.held) ? 'w' : ''}"><b>${d.count ?? d.held}</b> 넣지 못함${d.legacy ? ` <small class="muted">(개편 전 ${d.legacy} 포함)</small>` : ''}</span><span><b>${d.today}</b> 오늘 넣음</span><span><b>${d.memo}</b> 메모</span>${d.admin ? '' : '<span class="muted small">내 것만 보인다</span>'}</div>`
+  const sum = `<div class="hd-sum" data-t="hdSum"><span class="${(d.count ?? d.held) ? 'w' : ''}"><b>${d.count ?? d.held}</b> 넣지 못함${d.legacy ? ` <small class="muted">(개편 전 ${d.legacy} 포함)</small>` : ''}</span><span><b>${d.today}</b> 오늘 넣음</span><button type="button" class="fbtn" data-a="hdMemo" data-t="hdMemoBtn" aria-pressed="${!!S.hdMemo}">메모 ${d.memo}</button>${d.admin ? '' : '<span class="muted small">내 것만 보인다</span>'}</div>`
   const old = d.admin && d.legacy ? `<div class="callout warn stop" data-t="hdLegacy"><i></i><span><b>개편 전 기록 ${d.legacy}</b>: 문서에 아직 넣지 않은 옛 기록이다. 팀 일꾼에게 한 번 다시 들이게 한다</span><button type="button" class="btn sm r" data-a="heldAgainAll" data-t="heldAgainAll"${S.hdAll ? ' disabled' : ''}>${S.hdAll ? '거는 중…' : '옛 기록 다시 들이기'}</button></div>` : ''
   const body = d.rows.length
-    ? `<div class="hd-grid" data-t="heldList"><div class="hd-r hd"><div class="c-av">사람</div><div class="c-rt">들어온 길</div><div class="c-tx">기록 · 까닭</div><div class="c-st">상태</div><div class="c-ac"></div><div class="c-mk"></div></div>${d.rows.map((r) => heldRowHtml(k, d, r)).join('')}</div>`
+    ? `<div class="hd-grid" data-t="heldList"><div class="hd-r hd"><div class="c-av">사람</div><div class="c-rt">들어온 길</div><div class="c-tx">기록 · 까닭</div><div class="c-st">상태</div><div class="c-ac"></div><div class="c-mk"></div></div>${heldShown(d).map((r) => heldRowHtml(k, d, r)).join('')}</div>`
     : '<div class="card"><div class="empty2" data-t="heldEmpty"><b>넣지 못한 기록이 없다</b>저장 검사를 넘지 못한 기록이 생기면 여기에 모인다</div></div>'
-  return { crumb: '넣지 못함', main: `<div class="hdy">${head(n)}${pick}${sum}${old}${body}${S.hdPick ? heldPickModal(k) : ''}</div>` }
+  return { crumb: '넣지 못함', main: `<div class="hdy">${head(n)}${pick}${sum}${old}${S.hdMemo ? memoRowsHtml(k, d) : heldFilterHtml(d) + body}${S.hdPick ? heldPickModal(k) : ''}</div>` }
 }
 const heldRow = (k, rec) => { const d = heldOf(k); return d && !d.error ? d.rows.find((x) => x.rec === rec) : null }
 const heldForget = (k) => { delete S.cache['held:' + k]; forgetKn(k); delete S.cache.history; reloadKns().then(render) }
@@ -5253,6 +5264,18 @@ const ACT = {
   },
   // 충돌 고르기 — 내 글로: 새 지문으로 다시 보낸다(이력에 남아 되돌릴 수 있다) · 그쪽 글로: 쓰던 글을 버리고 새 글로
   // 넣지 못함 [고쳐 넣기](UX T6-02 · 정함 안 A) — 값이 맞지 않음은 옛 정정 창, 그 밖(꼴 · 그사이 바뀜 · 조각)은 넣으려던 글을 편집기에
+  hdMemo: () => { S.hdMemo = !S.hdMemo; render() },
+  hdCode: (el) => { S.hdCode = S.hdCode === el.dataset.v ? null : el.dataset.v; render() },
+  hdDropOne: async (el) => { if (!await ask1('버리기', '버리기', true, '이 기록을 문서에 넣지 않기로 한다(기록은 남고 이력에 「버림」)')) return; try { await postJSON(`/api/k/${encodeURIComponent(el.dataset.k)}/held/${encodeURIComponent(el.dataset.v)}/drop`, {}); delete S.cache['held:' + el.dataset.k]; await reloadKns() } catch (e) { toastErr(e) } render() },
+  hdDropShown: async () => {
+    const k = heldKn(), d = S.cache['held:' + k]
+    if (!d || !d.rows) return
+    const xs = heldShown(d)
+    if (!xs.length || !await ask1(`${xs.length}건 버리기`, '모두 버리기', true, `보이는 넣지 못함 ${xs.length}건을 문서에 넣지 않기로 한다\n${xs.slice(0, 5).map((r) => '· ' + r.title).join('\n')}${xs.length > 5 ? '\n그 밖 ' + (xs.length - 5) : ''}`)) return
+    let n = 0
+    for (const r of xs) { try { await postJSON(`/api/k/${encodeURIComponent(k)}/held/${encodeURIComponent(r.rec)}/drop`, {}); n++ } catch (e) { toastErr(e); break } }
+    delete S.cache['held:' + k]; await reloadKns(); toast(`버렸다: ${n}건`); render()
+  },
   heldEdit: async (el) => {
     const k = el.dataset.k, rec = el.dataset.r, d0 = S.cache['held:' + k], row = d0 && d0.rows && d0.rows.find((x) => x.rec === rec)
     const p = row && row.parts.find((x) => x.doc && (x.content || x.edits))
