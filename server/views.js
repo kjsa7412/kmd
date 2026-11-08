@@ -522,11 +522,14 @@ export function findView(pairs) {
     const body = (p) => p.text.split('\n').slice(1).join(' ').replace(/`/g, '').slice(0, 220)
     for (const p of r.passages) {
       if (p.doc) hits.push({ k: k.id, kn: k.name, d: p.doc, title: k.docs.find((x) => x.id === p.doc)?.title || p.doc, h: p.head, text: body(p), label: p.label })
-      else if (p.record) hits.push({ k: k.id, kn: k.name, r: p.record, title: k.byWork.get(p.record)?.title || p.record, h: '', text: body(p), label: p.label })
+      else if (p.record) { const w = k.byWork.get(p.record); hits.push({ k: k.id, kn: k.name, r: p.record, title: w?.title || p.record, h: '', text: body(p), label: p.label, state: w?.state || null }) }
     }
     more += (r.more?.coords?.n || 0) + (r.more?.passages?.n || 0)
   }
-  return { hits: exact ? hits.filter((h) => h.exact) : hits.slice(0, 30), toks: words, exact, more }
+  // 바로잡힌 · 버린 · 되돌린 기록은 맨 뒤로(옛 값이 첫 줄에 오지 않게 · UX G3-01)
+  const late = (h) => (h.state === 'fixed' || h.state === 'kept' || h.state === 'reverted' ? 1 : 0)
+  const sorted = hits.map((h, i) => [h, i]).sort((a, b) => late(a[0]) - late(b[0]) || a[1] - b[1]).map((x) => x[0])
+  return { hits: exact ? sorted.filter((h) => h.exact) : sorted.slice(0, 30), toks: words, exact, more }
 }
 
 // ── 지식 한 벌의 모양 — 항목으로 보기 · 그래프 · 글 속 항목 이름 · 미리보기 카드가 같이 쓴다 ──
