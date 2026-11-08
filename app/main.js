@@ -1195,6 +1195,14 @@ const AG_IC = { ol: 'list', docs: 'doc', recs: 'rec', items: 'tag', props: 'info
 const AG_KIND = { doc: '이 문서', item: '이 항목', rec: '이 기록' }
 // 남긴 값이 없으면 「개요」 만 펴 둔다 — 첫 화면에서 문서 짜임이 보이게(UX T2-16 · 정함)
 const agOpen = (kind, g) => { const m = UI.ag[kind] || {}; return g in m ? !!m[g] : g === 'ol' }
+// 출처 줄 — 참고 블록(문서 끝 <!-- kmd:참고 -->)이 적은 「어느 기록에서 들어왔나」 · 이름은 「출처」 하나(Q89)
+function srcHtml(k, d, cur) {
+  const s = d.sections.find((x) => x.h === cur) || null
+  const row = (r) => r.id ? recRow(k, { id: r.id, title: r.title || r.id, date: r.date || '', author: '' }, { sub: r.note || '', t: 'srcRow' }) : `<div class="alr muted small" data-t="srcNote">${r.html || esc(r.note || '')}</div>`
+  const mine = s && (s.refs || []).length ? agSub(`지금 보는 항목의 출처 · ${esc(s.h)}`, s.refs.length) + s.refs.map(row).join('') : ''
+  const docs = d.refs && (d.refs.doc || []).length ? agSub('문서 전체의 출처', d.refs.doc.length) + d.refs.doc.map(row).join('') : ''
+  return mine + docs
+}
 function agWrap(kind, gs) {
   const sec = gs.map((g) => {
     const on = agOpen(kind, g.id)
@@ -1232,7 +1240,7 @@ function docAside(k, d, t) {
       + agSub('이 문서가 가리키는 문서', (d.links || []).length) + ((d.links || []).map((x) => docRow(k, x.id, x.title, { t: 'dlink' })).join('') || agNone)
       + agSub('이 문서를 가리키는 문서', bl.linkers.length) + (bl.linkers.map((o) => docRow(k, o.id, o.title, { t: 'blDoc' })).join('') || agNone)
       + (bl.ments.length ? agSub('이름이 나온 곳', bl.ments.length) + bl.ments.map((x) => docRow(k, x.d, `${x.title} › ${x.h}`, { h: x.h, sub: `「${x.x}」`, t: 'blMent' })).join('') : '') },
-    { id: 'recs', t: '기록', n: hist.length, body: () => agSub('이 문서의 이력 · 새것 위') + (hist.map((r) => recRow(k, r, { t: 'blRec' })).join('') || agNone) + `<div class="muted small alr">항목마다 옛 값 → 새 값 · 되돌리기는 <button type="button" class="lk" data-a="nav" data-s="today">이력</button>에서</div>` },
+    { id: 'recs', t: '기록', n: hist.length, body: () => srcHtml(k, d, cur) + agSub('이 문서의 이력 · 새것 위') + (hist.map((r) => recRow(k, r, { t: 'blRec' })).join('') || agNone) + `<div class="muted small alr">항목마다 옛 값 → 새 값 · 되돌리기는 <button type="button" class="lk" data-a="nav" data-s="today">이력</button>에서</div>` },
     { id: 'items', t: '항목', n: its.length, body: () => agSub('이 문서의 항목', its.length) + (its.map((i) => itemRow(k, i, { cur: i.sec === cur, spy: i.sec })).join('') || agNone) },
     { id: 'props', t: '속성', n: '', body: () => agKv([
       ['지금 보는 항목', `<b data-t="curSec">${esc(cur || '')}</b>`],

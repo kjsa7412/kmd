@@ -118,6 +118,12 @@ export async function loadKnowledge({ id, name, dir }, { cache = null, cutoverAt
   const order = parseOrder(await readOr(path.join(dir, ORDER_FILE)))
   // README 본문(첫 # 제목 줄 뒤) — 지식 홈 「먼저 읽을 것」 카드(UX T5-09)
   const readme = String((await readOr(path.join(dir, 'README.md'))) || '').replace(/^\s*#\s+.*\n?/, '').trim().slice(0, 6000)
+  // 기본 갈래(갈래 장부가 없는 지식)가 같은 이름의 문서와 부딪치면 — 그 문서 머리가 사건 꼴(날짜 머리)이 아닐 때 그 기본 갈래는 쓰지 않는다
+  //   (「장애 대응」 갈래가 절차 문서 「장애대응」 에 사건 기록을 넣으라고 하지 않게 · UX T2-14)
+  if (!forms.own) {
+    const sq = (x) => String(x).replace(/s+/g, '')
+    forms.rows = forms.rows.filter((f) => { const d = docs.find((x) => sq(x.title) === sq(f.name)); return !d || !(d.sections || []).length || (d.sections || []).some((x) => /^d{4}-d{2}-d{2}/.test(x.h)) })
+  }
   const k = { id, name, dir, docs, works, logs, atts, vocab, registry, forms, order, readme }
   k.byDocPath = new Map(docs.map((d) => [d.path, d]))
   // byWork — 기록 · 이력 모두(항목 표지 · 판정 · 바로잡기가 이력의 id 를 가리킨다)
