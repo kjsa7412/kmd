@@ -3821,7 +3821,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const items = dests.length ? [...sendLib.queue(k, st), ...sendLib.recQueue(k, st)].sort((a, b) => String(b.when).localeCompare(String(a.when))) : []
       const docs = dests.length ? k.docs.map((d) => ({ path: d.path, id: d.id, title: d.title, when: d.mtime })) : []
       const recs = dests.length ? k.works.filter((w) => !w.tags.some((t) => t.startsWith('sent/'))).map((w) => ({ id: w.id, title: w.title, author: w.author, when: w.date })) : []
-      return { dests, items, docs, recs, wait: st.wait.map((w) => ({ id: w.id, state: w.state, to: w.to.kn, url: w.to.url || null, n: w.payload.items.length, at: w.at, why: w.why, fix: w.fix || null })), log: st.log }
+      return { dests, items, docs, recs, wait: st.wait.map((w) => ({ id: w.id, state: w.state, to: w.to.kn, url: w.to.url || null, n: w.payload.items.length, at: w.at, why: w.why, fix: w.fix || null, tries: w.tries || 0, lastAt: w.lastAt || null, sameWhy: !!w.sameWhy })), log: st.log }
     },
     async sendDrop(ctx, id, { path: p, on }) {
       await hub.meta(id, ctx)
@@ -3876,7 +3876,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const heads = prev ? Object.keys(m.secs).filter((h) => prev.secs[h] !== m.secs[h]) : []
         return { path: d.path, id: d.id, title: d.title, when: d.mtime, st: !prev ? 'new' : prev.sha === m.sha ? 'same' : 'chg', heads, sent: prev ? prev.at || true : null }
       })
-      return { route, recs, docs, wait: st.wait.map((w) => ({ id: w.id, state: w.state, to: w.to.kn, n: w.payload.items.length, at: w.at, why: w.why, fix: w.fix || null, ...(Array.isArray(w.payload.prevs) && w.payload.prevs.length ? { held: true } : {}) })), log: st.log }
+      return { route, recs, docs, wait: st.wait.map((w) => ({ id: w.id, state: w.state, to: w.to.kn, n: w.payload.items.length, at: w.at, why: w.why, fix: w.fix || null, tries: w.tries || 0, lastAt: w.lastAt || null, sameWhy: !!w.sameWhy, ...(Array.isArray(w.payload.prevs) && w.payload.prevs.length ? { held: true } : {}) })), log: st.log }
     },
     // 길 정하기 · 바꾸기 — 받는 지식은 같은 서버의 팀 지식 · 이미 길이 있으면 confirm 에 새 이름을 그대로
     async sendRoute(ctx, id, { to, confirm, url } = {}) {
@@ -4062,7 +4062,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         next = waitOf(w.to, w.payload, e)
       }
       await sendState(id, (st) => {
-        st.wait = st.wait.flatMap((x) => (x.id !== wid ? [x] : next ? [{ ...next, id: wid, at: w.at }] : []))
+        st.wait = st.wait.flatMap((x) => (x.id !== wid ? [x] : next ? [{ ...next, id: wid, at: w.at, tries: (w.tries || 0) + 1, lastAt: new Date().toISOString(), sameWhy: next.why === w.why }] : []))
         if (sentN) st.log.unshift({ at: new Date().toISOString(), n: sentN, to: [w.to.kn], late: w.at })
       })
       if (next) throw new KmdError('E_INPUT', `${next.state === 'wait' ? '보내지 못했다(닿지 않았다)' : '팀이 받았지만 넣지 못했다'}: ${next.why}${next.fix ? ' · ' + next.fix : ''}${sentN ? ` · ${sentN}개는 넣었다` : ''}`)
