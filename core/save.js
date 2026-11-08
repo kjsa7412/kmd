@@ -78,7 +78,7 @@ function check(input, { system = false, many = false } = {}) {
   if (!oneLine(r.title) || !r.title.trim()) fail('E_INPUT', '제목은 한 줄 글이다')
   if (r.title.length > 200) fail('E_INPUT', '제목이 너무 길다. 200자 안')
   if (typeof r.body !== 'string') fail('E_INPUT', '글(body)이 없다')
-  if (r.body.length > MAX_BODY) fail('E_INPUT', '글이 너무 길다')
+  if (r.body.length > MAX_BODY) fail('E_INPUT', `글이 너무 길다(${Math.round(String(r.body).length / 1000)}천 자 · 한도 ${Math.round(MAX_BODY / 1000)}천 자). ## 항목으로 나눠 넣거나, 많으면 Claude Code 에서 대량 넣기`)
   if (r.date != null && !(oneLine(r.date) && DATE.test(r.date))) fail('E_INPUT', '날짜는 YYYY-MM-DD 또는 YYYY-MM-DD HH:MM 모양이다')
   for (const [k, re] of [['touches', COORD], ['tags', /^[^\n]{1,60}$/], ['fixes', /^[^\s/\\]{1,120}$/]]) {
     if (r[k] == null) continue
@@ -106,7 +106,7 @@ function sectionShape(secs, { many = false } = {}) {
     if (s.coord != null && !(typeof s.coord === 'string' && COORD.test(s.coord.trim()))) fail('E_INPUT', `이름 모양이 아니다: ${s.coord}`)
     if (s.heading != null && !(oneLine(s.heading) && s.heading.trim())) fail('E_INPUT', '머리는 한 줄 글이다')
     if (s.before != null && !(typeof s.before === 'string' && oneLine(s.before) && s.before.trim())) fail('E_INPUT', 'before 는 한 줄 머리다(새 항목을 그 머리 앞에)')
-    if (String(s.content ?? '').length > MAX_BODY) fail('E_INPUT', '항목 글이 너무 길다')
+    if (String(s.content ?? '').length > MAX_BODY) fail('E_INPUT', `항목 글이 너무 길다(${Math.round(String(s.content ?? '').length / 1000)}천 자 · 한도 ${Math.round(MAX_BODY / 1000)}천 자). ## 항목으로 나눠 넣거나, 많으면 Claude Code 에서 대량 넣기`)
     if (s.base != null && !(typeof s.base === 'string' && /^[0-9a-f]{16}$/.test(s.base))) fail('E_INPUT', 'base 는 읽을 때 받은 16자 지문이다')
   }
   return secs

@@ -50,7 +50,10 @@ export function tryGit(cwd, args, { timeout = 0, env: extra = {} } = {}) {
   })
 }
 
+// 지식 폴더 자신의 저장소인가 — .git 이 없으면 git 은 위 폴더(바깥 저장소)를 찾아 그 묶음을 제 것으로 센다(UX T7-08)
+const ownRepo = (dir) => fs.stat(path.join(dir, '.git')).then(() => true, () => false)
 export const headSha = async (dir) => {
+  if (!(await ownRepo(dir))) return null
   const r = await tryGit(dir, ['rev-parse', '--verify', '-q', 'HEAD'])
   return r.ok ? r.out.trim() : null
 }
@@ -68,6 +71,7 @@ export async function remoteUrl(dir, remote) {
 export const maskUrl = (u) => String(u || '').replace(/\/\/[^/@\s]+@/, '//')
 // 커밋 시각(초) — 안 보낸 것 중 가장 오래된 것의 나이를 잰다
 export async function oldestAfter(dir, from) {
+  if (!(await ownRepo(dir))) return { count: 0, oldest: null }
   const r = await tryGit(dir, ['log', '--reverse', '--format=%ct', from ? `${from}..HEAD` : 'HEAD'])
   const xs = r.ok ? r.out.trim().split('\n').filter(Boolean) : []
   return { count: xs.length, oldest: xs.length ? Number(xs[0]) * 1000 : null }

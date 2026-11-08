@@ -2382,7 +2382,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (w.state !== 'held' && !old) continue
         if (!adm && w.author !== ctx.user) continue
         if (old) legacy++
-        const parts = old ? [{ code: 'legacy', why: '개편 전 기록: 문서에 아직 넣지 않았다' }] : parseHeld(w.body).map((x) => ({ ...(x.doc ? { doc: x.doc } : {}), ...(x.heading ? { heading: x.heading } : {}), ...(x.coord ? { coord: x.coord } : {}), code: String(x.code || ''), why: String(x.why || '').slice(0, 300) }))
+        const parts = old ? [{ code: 'legacy', why: '문서에 아직 넣지 않았다' }] : parseHeld(w.body).map((x) => ({ ...(x.doc ? { doc: x.doc } : {}), ...(x.heading ? { heading: x.heading } : {}), ...(x.coord ? { coord: x.coord } : {}), code: String(x.code || ''), why: String(x.why || '').slice(0, 300) }))
         const j = open.get(w.id)
         const nm = parts.some((x) => x.code === 'names') ? namesOfRecord(w.body) : { names: [], forms: [] }
         rows.push({ rec: w.id, date: w.date, author: w.author, title: w.title, route: routeOfRec(w), state: w.state, parts: parts.length ? parts : [{ code: 'held', why: '넣지 못함' }], ...(old ? { legacy: true } : {}), ...(nm.names.length || nm.forms.length ? { names: true } : {}), ...(j ? { job: { id: j.id, type: j.type, state: j.state } } : {}), ...(w.tags.some((t) => /^private$/i.test(t)) ? { priv: true } : {}) })
@@ -2394,6 +2394,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         admin: adm,
         rows,
         held: rows.length - legacy,
+        count: rows.length, // 넣지 못함 n — 옆 메뉴 배지 · 지식 카드와 같은 셈(개편 전 기록 포함 · views.knowledgeRow)
         legacy,
         memo: k.works.filter((w) => w.state === 'memo' && mine(w)).length,
         today: k.works.filter((w) => w.state === 'in' && w.tags.includes('put') && String(w.date).startsWith(today) && mine(w)).length,
@@ -2978,7 +2979,15 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const sum = r.same ? '같은 것을 이미 들였다' : t.result ? `넣음 ${r.put || 0}${r.held ? ` · 넣지 못함 ${r.held}` : ''}` : ''
         items.push({ id: 't:' + t.id, kind: 'intake', origin: t.by === 'kmd' ? 'kmd' : 'person', kn: t.kn, knName: ks.get(t.kn), title: `${INTAKE_TITLE[t.type] || '들이기'}: ${String(t.src?.title || t.src?.doc || t.src?.rel || t.src?.rec || '').slice(0, 80)}`, by: t.by || 'kmd', auto: t.auto ? 'src' : null, state, stage: STAGE_WRITE, stages: [{ state: 'skip' }, { state: 'skip' }, { state: state === 'cancel' ? 'cancel' : state }, { state: 'skip' }], order: 1e9, at: t.at, startedAt: t.at, endedAt: t.done || null, msg: t.state === 'running' && t.stop ? `그만두는 중: ${t.stop.by}` : t.state === 'queued' ? (t.why || '팀 일꾼을 기다린다') : t.state === 'running' ? '팀 일꾼이 짓는 중' : sum || t.why || '', ...(r.rec ? { rec: r.rec } : {}), n: 0, fin: !['queued', 'running', 'closing'].includes(t.state), retry: false })
       }
-      return { hold: Q.hold, caps: Q.caps, lanes: Q.lanes(), can: mode === 'pc' || !!ctx.admin, items }
+      let worker = null
+      if (mode === 'team') {
+        const ws = await fs.readFile(path.join(dataDir, 'worker.json'), 'utf8').then(JSON.parse, () => null)
+        const seen = hub.workerSeen()
+        const waiting = seen.intakes.filter((j) => ks.has(j.kn)).length
+        const quiet = !seen.at || Date.now() - Date.parse(seen.at) > 5 * 60_000
+        worker = { ok: !(ws && ws.ok === false) && !(waiting && quiet), resting: !!(ws && ws.ok === false), since: ws && ws.ok === false ? ws.since || null : null, seenAt: seen.at, waiting, staleHours: Math.round(INTAKE_STALE_MS / 3600_000) }
+      }
+      return { hold: Q.hold, caps: Q.caps, lanes: Q.lanes(), can: mode === 'pc' || !!ctx.admin, items, worker }
     },
     async queueGet(ctx, id, from = 0) {
       const j = Q.get(id)
@@ -4234,10 +4243,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       // 주인 장부를 다시 읽지 못했다 — 관리자에게 한 줄(옛 장부로 돌고 있다)
       if (regBad && ctx.admin && !id) out.push(stopLine({ kind: 'owners', level: 'warn', what: 'owners.json 을 읽지 못해 앞의 장부로 돌고 있다', amount: '고칠 때까지', fix: '서버의 owners.json 모양을 바로잡는다', told: regBad.why, since: `${regBad.since.slice(5, 16).replace('T', ' ')} 부터` }))
+      // 멈춤 줄은 손쓸 수 있는 사람에게만(UX T7-07 · 화면에서 숨기지 않고 서버가 거른다): 백업은 총괄 관리자 · 가져오기 · 보내기는 그 지식의 지식관리자 · 개인 프로그램은 그 사람 하나
+      const boss = mode !== 'team' || !!ctx.admin
       for (const k of ks) {
-        out.push(...backup.lines(k, { name: k.name }))
-        // 보내기 멈춤은 팀 화면에만(개인 프로그램에는 보내기가 없다)
-        const all = mode === 'team' ? (await sendLib.readState(dataDir, k.id)).wait : []
+        const kadm = mode !== 'team' || hub.canSource(ctx, k.id)
+        if (boss) out.push(...backup.lines(k, { name: k.name }))
+        // 보내기는 개인 프로그램이 보낸다 — 닿지 않음 · 보내지 못함은 개인 화면에(UX T7-03)
+        const all = mode === 'pc' ? (await sendLib.readState(dataDir, k.id)).wait : []
         const sw = all.filter((w) => w.state === 'wait')
         const sf = all.filter((w) => w.state !== 'wait')
         if (sw.length) out.push(stopLine({ kind: 'send', kn: k.id, level: 'warn', what: `${k.name}: 보낼 곳에 닿지 않는다`, amount: `${sw.reduce((a, w) => a + w.payload.items.length, 0)}개`, fix: '닿으면 저절로 보낸다', since: `${sw[0].at.slice(5, 10)} ${new Date(sw[0].at).toTimeString().slice(0, 5)} 에 누른 것` }))
@@ -4247,8 +4259,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           out.push(stopLine({ kind: 'source', kn: k.id, level: 'bad', what: `${k.name}: ${DECL_BROKEN}`, amount: '가져오기 · 고치기 멈춤', fix: hub.canSource(ctx, k.id) ? '지식 폴더의 _sources.json 을 바로잡거나 git 에서 앞의 판으로 되돌린다' : null, told: hub.canSource(ctx, k.id) ? String(e.message).slice(0, 160) : '관리자에게 알렸다' }))
           return []
         })
-        if (decl.length) out.push(...sourceLines(k, decl, await readSourceState(dataDir, k.id), { admin: hub.canSource(ctx, k.id) }))
-        if (!backup.attached(k)) {
+        if (decl.length && kadm) out.push(...sourceLines(k, decl, await readSourceState(dataDir, k.id), { admin: hub.canSource(ctx, k.id) }))
+        if (boss && !backup.attached(k)) {
           const u = await unbacked(k)
           if (u) out.push(stopLine({ kind: 'backup', kn: k.id, level: 'warn', what: `${k.name}: 백업 자리가 없다`, amount: `백업 안 된 저장 ${u.n}번`, fix: mode === 'pc' ? '설정 › 이 PC 에서 백업 자리를 정하면 저절로 붙고 그동안의 것을 모두 보낸다' : '관리자가 백업 자리를 붙이면 그동안의 것을 모두 보낸다', since: `${u.since} 부터` }))
         }
