@@ -275,7 +275,9 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.match(await page.locator('[data-t=itemMe]').innerText(), /헬스 체크[\s\S]*지금/)
   assert.ok((await page.locator('[data-t=coItem]').count()) >= 1)
   // 항목 이름 = 값 + 설명(컨벤션 5절) — 항목 머리 첫 줄에 값 · 목록 줄에 값 · 항목 찾기는 값으로도
-  assert.equal(await page.locator('[data-t=itemVal]').innerText(), '헬스 체크')
+  // 값과 이름이 같으면 머리에 값을 두 번 쓰지 않는다(UX T7-22 「롤백 롤백」)
+  assert.equal(await page.locator('[data-t=itemVal]').count(), 0)
+  assert.match(await page.locator('[data-t=itemPage] h1').innerText(), /헬스 체크/)
   assert.ok((await page.locator('[data-t=itemRow] .iv').count()) >= 5, '목록 줄에 값')
   await page.screenshot({ path: path.join(SHOTS, 'app-items.png') })
 
@@ -682,7 +684,7 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 팀 일�
   // 업무 차례: 매일 › 세우기 › 사람 들이기 › 붙이기 › 나 · 작업은 끝에
   assert.deepEqual(await mgItems(page), ['점검', '팀 서버', '팀 지식', '사람 · 묶음', '에이전트 설치', '나'])
   assert.equal(await page.locator('[data-t=manageArea] [data-t=nav-import]').count(), 1, '작업은 옆 메뉴 지식 관리')
-  assert.deepEqual(await page.locator('[data-t=mgNav] [data-t=mgGroup]').allInnerTexts(), ['매일', '1. 세우기', '2. 사람 들이기', '3. 붙이기', '나'])
+  assert.deepEqual(await page.locator('[data-t=mgNav] [data-t=mgGroup]').allInnerTexts(), ['매일', '세우기', '사람 들이기', '붙이기', '내 것'])
   await page.waitForSelector('[data-t=auto-find]')
   assert.match(await page.locator('.main .card .ch').first().innerText(), /내 자리/)
   assert.match(await page.locator('[data-t=autoCard] .ch').innerText(), /내 설정[\s\S]*나에게만/)
@@ -1276,7 +1278,7 @@ test('고치기(S9): 쓰기 자리 편집기는 말 하나 · 읽은 뒤 바뀌�
     await s.hub.edit({ user: 'kim', admin: true }, 'dpms', { doc: '배포절차', sections: [{ h: '롤백', body: 'DB 를 먼저 되돌리고, 그다음 앱을 이전 판으로 내린다. 자세히는 [롤백 절차](롤백절차.md). 테스트: 남의 글.' }] })
     await page.click('[data-t=saveBtn]')
     await page.waitForSelector('[data-t=edErr]')
-    assert.match(await page.locator('[data-t=edErr]').innerText(), /읽은 뒤 누가 고쳤다: 새 글을 다시 읽었다/)
+    assert.match(await page.locator('[data-t=edErr]').innerText(), /읽은 뒤 누가 고친 항목이 있다/)
     assert.equal(await page.inputValue('[data-t=edTx]'), typed, '쓴 글은 지킨다')
     for (const w of [1280, 1024, 600, 375]) {
       await page.setViewportSize({ width: w, height: 820 })
@@ -1286,8 +1288,12 @@ test('고치기(S9): 쓰기 자리 편집기는 말 하나 · 읽은 뒤 바뀌�
       assert.ok(c.sw <= c.w, `편집기 ${w}: 가로 넘침 없음 ${c.sw}`)
     }
     await page.setViewportSize(VIEW)
-    // 다시 저장 — 새 지문으로 들어간다
+    // 그대로 다시 저장하면 막힌다(남의 고침을 말없이 덮지 않는다 · UX T2-01) — [내 글로 저장] 을 골라야 새 지문으로 들어간다
     await page.click('[data-t=saveBtn]')
+    await page.waitForSelector('[data-t=edConflict]')
+    assert.equal(await page.inputValue('[data-t=edTx]'), typed, '다시 막혀도 쓴 글은 지킨다')
+    await page.click('[data-t=edForce]')
+    await page.click('[data-t=askOk]')
     await page.waitForSelector('[data-t=editBtn]')
     assert.match(fs.readFileSync(path.join(tmp, 'kn', 'dpms', 'docs', '배포절차.md'), 'utf8'), /테스트: 내 글\./)
 

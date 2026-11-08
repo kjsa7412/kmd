@@ -697,7 +697,7 @@ function mgWrap(scr, v) {
   const nav = `<nav class="mgnav" data-t="mgNav" data-area="${setArea()}" aria-label="설정"><div class="mgt">설정</div>${items.map((x, i) => `${x.g && (!i || items[i - 1].g !== x.g) ? `<div class="mgg" data-t="mgGroup">${esc(x.g)}</div>` : ''}<button type="button" class="mgi${x.id === cur ? ' on' : ''}" data-a="openSet" data-v="${x.id}" data-t="mg-${x.id}"${x.id === cur ? ' aria-current="page"' : ''}>${esc(x.l)}</button>`).join('')}</nav>`
   const it = items.find((x) => x.id === cur)
 // 설정 메뉴는 옆 메뉴 나무 자리에(UX T5-19 · 정함) — 왼쪽 메뉴가 두 줄 서지 않게 · 좁은 폭(옆 메뉴가 서랍)에서는 본문 위에도
-  return { ...v, crumb: '설정 › ' + (it ? it.l : v.crumb), left: nav, main: `<div class="mgwrap">${nav}<div class="mgbody">${v.main}</div></div>` }
+  return { ...v, crumb: '설정 › ' + (it ? it.l : v.crumb), left: nav, main: `<div class="mgwrap">${nav.replace('data-t="mgNav"', 'data-t="mgNavNarrow"').replace(/ data-t="mg-[^"]*"/g, '').replace(/ data-t="mgGroup"/g, '')}<div class="mgbody">${v.main}</div></div>` }
 }
 // 옆 메뉴 — 두 영역(정정 2026-10-23 · 리본을 걷었다)
 //   지식 고르기 — 지식 고르기 · 문서 · 항목 · 그래프 탭 · 그 탭의 목록(다른 화면에서도 그대로 보인다)
@@ -764,7 +764,7 @@ function hdrHtml(crumb) {
   const kn = r.kn && r.kn !== '*' && KNSCR.includes(r.scr) && KN(r.kn) ? KN(r.kn).name : ''
   const parts = String(crumb || '').split(' › ').filter(Boolean)
   // 지식 조각은 누르면 그 지식 홈으로 · 맨 앞 「지식 목록」 은 목록으로(UX T5-12 · T5-15)
-  const c = (anon() || parts[0] === '지식 목록' ? '' : '<button type="button" class="lk crumbk" data-a="nav" data-s="home" data-t="crumbHome">지식 목록</button> › ') + (kn && parts[0] !== kn ? '<button type="button" class="lk crumbk" data-a="openKn" data-k="' + esc(r.kn) + '" data-t="crumbKn">' + esc(kn) + '</button> › ' : '') + parts.map((x, i) => (i === parts.length - 1 ? '<b>' + esc(x) + '</b>' : esc(x))).join(' › ')
+  const c = (anon() || !kn || parts[0] === '지식 목록' ? '' : '<button type="button" class="lk crumbk" data-a="nav" data-s="home" data-t="crumbHome">지식 목록</button> › ') + (kn && parts[0] !== kn ? '<button type="button" class="lk crumbk" data-a="openKn" data-k="' + esc(r.kn) + '" data-t="crumbKn">' + esc(kn) + '</button> › ' : '') + parts.map((x, i) => (i === parts.length - 1 ? '<b>' + esc(x) + '</b>' : esc(x))).join(' › ')
   const hb = `<span class="hist"><button class="hb" data-a="histGo" data-v="-1" data-t="histBack" title="이전 (Alt ←)"${S.hpos > 0 ? '' : ' disabled'}>‹</button><button class="hb" data-a="histGo" data-v="1" data-t="histFwd" title="다음 (Alt →)"${S.hpos < S.hist.length - 1 ? '' : ' disabled'}>›</button></span>`
   const me = anon() ? '<span class="hme muted" data-t="me">아직 들어오지 않았다</span>' : ''
   const right = `<div class="hright">${anon() ? '' : claudeChip()}<a class="hlink" data-t="manual" href="/manual" target="_blank" rel="noopener" title="설명서: 새 탭">${svg('book')}<span>설명서</span></a>${me}</div>`
