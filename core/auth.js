@@ -308,6 +308,7 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
       const devices = (u.keys || []).length
       u.off = { at: new Date(now()).toISOString(), by }
       u.admin = false
+      u.goneKeys = [...(u.keys || []).map((k) => k.sha), ...(u.legacy || [])].filter(Boolean).slice(0, 50)
       u.keys = []
       u.legacy = []
       delete u.pw
@@ -493,6 +494,12 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
     },
 
     // Bearer → ctx · 기기 열쇠(90일 안 쓰면 끊김) · 기계 열쇠(1년) · 예전 열쇠
+    // 떠난 사람의 열쇠인가 — { user, at } 또는 null(bearer 가 null 일 때만 본다)
+    leftOf(token) {
+      const s = pw.sha(String(token || ''))
+      for (const [id, u] of Object.entries(db.users)) if (u.off && (u.goneKeys || []).includes(s)) return { user: id, at: u.off.at }
+      return null
+    },
     bearer(token) {
       reload()
       const t = String(token || '')

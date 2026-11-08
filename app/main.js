@@ -587,7 +587,7 @@ function draw() {
   S._view = view
   S._lpView = lpView
   S._hasAside = !!scr.aside
-  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${gated() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside"><button type="button" class="hb afold" data-a="asideRail" data-t="asideFold" aria-expanded="${!UI.asideRail}" title="${UI.asideRail ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'} (Ctrl ])" aria-label="${UI.asideRail ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'}">${svg(UI.asideRail ? 'sideL' : 'sideR')}</button><div class="asc" data-t="asideScroll">${scr.aside}</div>${gripHtml('aside')}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.recFix ? recFixHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}${S.keys ? keysHtml() : ''}`
+  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${gated() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside"><button type="button" class="hb afold" data-a="asideRail" data-t="asideFold" aria-expanded="${!UI.asideRail}" title="${UI.asideRail ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'} (Ctrl ])" aria-label="${UI.asideRail ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'}">${svg(UI.asideRail ? 'sideL' : 'sideR')}</button><div class="asc" data-t="asideScroll">${scr.aside}</div>${gripHtml('aside')}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.recFix ? recFixHtml() : ''}${S.past ? pastHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}${S.keys ? keysHtml() : ''}`
   app.classList.toggle('side-open', !!S.sideOpen && !gated())
   app.classList.toggle('aside-open', !!S.asideOpen && !!scr.aside)
   placeUi()
@@ -897,7 +897,7 @@ function kcardHtml(n, team) {
   const mk = 'kn:' + n.id
   const own = !n.dim
   const items = own ? [
-    accCan(n) ? `<div class="mi" data-a="accOpen" data-k="${esc(n.id)}" data-t="accOpen">권한<small>모두 · 사람 · 묶음의 자리</small></div><div class="sep"></div>` : '',
+    accCan(n) ? `<div class="mi" data-a="accOpen" data-k="${esc(n.id)}" data-t="accOpen">권한<small>모두 · 사람 · 묶음의 자리</small></div>${isTeam() && lvOf(n) === 'admin' ? `<div class="mi" data-a="knIssue" data-k="${esc(n.id)}" data-t="knIssue">이슈 주소<small>${n.issueUrl ? '정함' : '이슈 번호를 이슈 화면으로 잇기'}</small></div>` : ''}<div class="sep"></div>` : '',
     n.hidden ? '' : `<div class="mi" data-a="knMove" data-k="${esc(n.id)}" data-v="-1" data-t="knUp">앞으로<small>메뉴 순서</small></div><div class="mi" data-a="knMove" data-k="${esc(n.id)}" data-v="1" data-t="knDown">뒤로</div>`,
     `<div class="mi" data-a="knHide" data-k="${esc(n.id)}" data-v="${n.hidden ? '' : '1'}" data-t="knHide">${n.hidden ? '메뉴에 올리기' : '메뉴에서 빼기'}<small>${n.hidden ? '옆 메뉴에 다시' : '지우지 않는다'}</small></div>`,
     canDelete(n) ? `<div class="sep"></div><div class="mi dan" data-a="delOpen" data-k="${esc(n.id)}" data-t="delOpen">지식 지우기<small>보관하지 않고 완전히</small></div>` : '',
@@ -1409,7 +1409,7 @@ function docPane(t, right) {
   const oldShape = noSec && /<h[3-6][\s>]/.test(d.intro || '') // ## 없이 ### 로 시작하는 옛 문서 — 화면에서 고치면 글이 섞인다
   const main = `<div class="docw" data-t="docPane" data-name="${esc(d.title)}">${right ? rpHead() : ''}
   ${q ? `<div class="found" data-t="found"><span>찾기 <b>‘${esc(q)}’</b> 로 열었다</span><button type="button" class="lk" data-a="reopenSearch">찾은 것으로 돌아가기</button></div>` : ''}
-  <div class="ttl"><div class="path"><span>${esc(loc)}</span></div>${right ? '' : wideSeg()}${!right && !isTeam() && KN(k) && KN(k).dir ? `<button type="button" class="btn ghost sm" data-a="copyDocPath" data-v="${esc(KN(k).dir + '\\' + String(d.path).split('/').join('\\'))}" data-t="copyDocPath" title="편집기로 고쳐도 된다: 저장하면 곧 들어간다">파일 경로 복사</button>` : ''}${editing || right || d.watched || noSec || !isTeam() || isPersonal(KN(k)) || lvOf(KN(k)) !== 'admin' ? '' : `<button class="btn" data-a="polishDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="polishBtn"${KN(k).noClaude ? ' disabled title="Claude 에 보내지 않는 지식: 다듬기는 팀 일꾼(Claude)이 한다 · 설정 › 팀 지식에서 바꾼다"' : ' title="팀 일꾼이 문체 · 짜임만 정돈한다 · 값은 그대로"'}>다듬기</button>`}${editing || right || d.watched ? '' : `<button class="btn pri" data-a="editDoc" data-t="editBtn"${oldShape ? ' disabled title="## 항목이 없는 옛 문서: 화면에서 고칠 수 없다"' : roAttr(k)}>고치기</button>`}</div>
+  <div class="ttl"><div class="path"><span>${esc(loc)}</span></div>${right ? '' : wideSeg()}${!right && !isTeam() && KN(k) && KN(k).dir ? `<button type="button" class="btn ghost sm" data-a="copyDocPath" data-v="${esc(KN(k).dir + '\\' + String(d.path).split('/').join('\\'))}" data-t="copyDocPath" title="편집기로 고쳐도 된다: 저장하면 곧 들어간다">파일 경로 복사</button>` : ''}${editing || right || d.watched || noSec || !isTeam() || isPersonal(KN(k)) || lvOf(KN(k)) !== 'admin' ? '' : `<button class="btn" data-a="polishDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="polishBtn"${KN(k).noClaude ? ' disabled title="Claude 에 보내지 않는 지식: 다듬기는 팀 일꾼(Claude)이 한다 · 설정 › 팀 지식에서 바꾼다"' : ' title="팀 일꾼이 문체 · 짜임만 정돈한다 · 값은 그대로"'}>다듬기</button>`}${editing || right ? '' : `<button type="button" class="btn ghost sm" data-a="pastOpen" data-k="${esc(k)}" data-d="${esc(d.id)}" data-v="${esc(d.title)}" data-t="pastOpen" title="이 문서의 옛 판 · 지금과 견주기">옛 판</button>`}${editing || right || d.watched ? '' : `<button class="btn pri" data-a="editDoc" data-t="editBtn"${oldShape ? ' disabled title="## 항목이 없는 옛 문서: 화면에서 고칠 수 없다"' : roAttr(k)}>고치기</button>`}</div>
   ${d.watched && d.watched.orphan ? `<div class="callout warn stop" data-t="watchedOrphan"><i></i><span><b>원본이 없어졌다</b>: 가져오던 곳 「${esc(d.watched.src)}」 이 지워졌다 · 내 문서로 하면 고칠 수 있다</span><button class="btn sm r" data-a="unwatchDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="unwatchBtn">내 문서로</button></div>` : ''}${d.watched && !d.watched.orphan ? `<div class="callout ${d.watched.missing ? 'warn' : 'gray'} stop" data-t="watched"><i></i><span><b>${d.watched.missing ? `원본에 없다: ${esc(d.watched.missing)} 부터` : '원본이 주인이다'}</b>: ${esc(d.watched.src)} 의 <span class="mono">${esc(d.watched.path)}</span> 에서 온다 · 고치려면 원본 파일을 고친다 · 덧붙일 말은 기록으로 남긴다</span></div>` : ''}
   ${right || editing ? '' : gdockHtml(k, 'd:' + d.id)}<div class="paper"><h1>${esc(d.title)}</h1><div class="docmeta muted small" data-t="docMeta">${d.last ? `${esc(whenTxt(d.last.date))} 바뀜 · ${esc(d.last.author)}` : d.when ? `${esc(whenTxt(d.when))} 바뀜(파일 날짜)` : ''}</div>${noSec && !oldShape && !editing && !right ? '<div class="callout gray" data-t="newDocEdit">빈 문서다. [고치기] 로 첫 항목(## 머리 + 글)을 쓴다</div>' : ''}${oldShape && !editing && !right ? '<div class="callout gray" data-t="noSecEdit">이 문서는 ## 항목이 없어 화면에서 고칠 수 없다. 맨 위 ### 머리를 ## 로 올리면 항목으로 나뉜다</div>' : ''}${d.intro ? `<div class="dlead" data-t="docLead">${pvLinks(linkify(d.intro, k, null), k)}</div>` : ''}${body}</div></div>`
   return { html: main, aside: right ? null : docAside(k, d, t), title: d.title }
@@ -1457,6 +1457,24 @@ function recStateChip(k, r) {
 }
 // 기록 고치기(정정 기록 · S9 · 설계 4-3) — 팀 지식 · 쓰기 이상 · 이력이 아닌 기록 · 내가 쓴 기록이거나 지식관리자(서버도 같은 판정)
 const recFixOk = (k, r) => isTeam() && !r.log && canWrite(k) && (r.author === S.me.user || lvOf(KN(k)) === 'admin')
+// 옛 판(UX T4-10) — 판 목록 → 그때의 글 · [지금과 견주기](항목마다 빠진 줄 · 더한 줄)
+function pastDiff(a, b) {
+  const split = (t) => { const m = new Map(); let h = '(머리말)'; m.set(h, []); for (const l of String(t).split('\n')) { const x = /^##\s+(.+?)\s*$/.exec(l); if (x) { h = x[1]; m.set(h, []) } else m.get(h).push(l) } return m }
+  const A = split(a), B = split(b), out = []
+  for (const [h, al] of A) { const bl = B.get(h); const aa = al.filter((l) => l.trim()), bb = (bl || []).filter((l) => l.trim()); if (bl && aa.join('\n') === bb.join('\n')) continue; out.push({ h, gone: !bl, del: aa.filter((l) => !bb.includes(l)), add: bb.filter((l) => !aa.includes(l)) }) }
+  for (const [h, bl] of B) if (!A.has(h)) out.push({ h, isNew: true, del: [], add: bl.filter((l) => l.trim()) })
+  return out
+}
+function pastHtml() {
+  const w = S.past, k = w.k
+  const L = need(`past:${k}:${w.d}`, `/api/k/${encodeURIComponent(k)}/past?d=${encodeURIComponent(w.d)}`)
+  const V0 = w.at ? need(`past:${k}:${w.d}:${w.at}`, `/api/k/${encodeURIComponent(k)}/past?d=${encodeURIComponent(w.d)}&at=${w.at}`) : null
+  const list = !L ? loadingHtml : L.error ? errHtml(L, `past:${k}:${w.d}`) : !L.versions.length ? '<p class="muted">git 에 남은 판이 없다</p>' : `<ul class="plain past-l" data-t="pastList">${L.versions.map((v, i) => `<li><button type="button" class="past-v${w.at === v.sha ? ' on' : ''}" data-a="pastPick" data-v="${esc(v.sha)}" aria-pressed="${w.at === v.sha}" data-t="pastVer"><b>${esc(whenTxt(v.at))}${i === 0 ? ' · 지금' : ''}</b><small class="muted u-blk">${esc(v.who)} · ${esc(v.msg)}</small></button></li>`).join('')}</ul>`
+  let view = '<p class="muted">왼쪽에서 판을 고른다</p>'
+  if (w.at) view = !V0 ? loadingHtml : V0.error ? errHtml(V0, `past:${k}:${w.d}:${w.at}`) : w.cmp ? (() => { const ch = pastDiff(V0.md, V0.cur); return ch.length ? ch.map((c) => `<div class="diff"><div class="fh">${esc(c.h)}${c.isNew ? ' · 그 뒤 새로' : c.gone ? ' · 그 뒤 지움' : ''}</div>${c.del.map((l) => `<div class="ln2 del">${esc(l)}</div>`).join('')}${c.add.map((l) => `<div class="ln2 add">${esc(l)}</div>`).join('')}</div>`).join('') : '<p class="muted">지금과 같다</p>' })() : `<div class="paper">${V0.html}</div>`
+  const tools = w.at && V0 && !V0.error ? `<div class="seg in" data-t="pastSeg"><button type="button" class="${w.cmp ? '' : 'on'}" data-a="pastCmp" data-v="">그때의 글</button><button type="button" class="${w.cmp ? 'on' : ''}" data-a="pastCmp" data-v="1" data-t="pastCmp">지금과 견주기</button></div>` : ''
+  return `<div class="scrim fix" data-a="pastClose" data-self="1"><div class="modal w760" role="dialog" aria-modal="true" data-t="pastWin"><div class="mh">옛 판 <small>${esc(w.title || w.d)}</small><button type="button" class="x" data-a="pastClose" title="닫기" aria-label="닫기">×</button></div><div class="mb past-b"><div class="past-side">${list}</div><div class="past-main">${tools}${view}</div></div><div class="mf"><span class="small muted">읽기만 · 되돌리려면 이력의 [되돌리기]</span><span class="acts"><button type="button" class="btn ghost" data-a="pastClose">닫기</button></span></div></div></div>`
+}
 function recFixHtml() {
   const w = S.recFix
   const busy = w.busy ? ' data-busy="1"' : ''
@@ -1588,6 +1606,33 @@ function runFind() {
     } catch (e) { if (S.pal) { S.pal.res = { error: e.message }; paintPal(); const h = document.getElementById('srLive'); if (h) h.textContent = '찾지 못했다: ' + e.message } }
   }, 120)
 }
+// 다른 이름을 더할 수 있는 지식 — 찾은 범위(하나면 그것) 가운데 쓰기 자리 이상
+const palAliasKns = () => { const k = scopeKn(); return (k ? [KN(k)] : shownKns()).filter((n) => n && canWrite(n.id)) }
+async function palAliasGo() {
+  const q = S.pal && S.pal.q.trim(); if (!q) return
+  if (q.length > 60 || /[`|,\r\n]/.test(q)) { toast('<b>다른 이름은 60자 안 · 쉼표 · ` · | 없이</b>', 0, true); return }
+  const ks = palAliasKns()
+  let k = ks.length === 1 ? ks[0].id : await ask({ t: '어느 지식의 항목인가', select: { label: '지식', options: ks.map((n) => [n.id, n.name]), value: ks[0].id }, ok: '다음' })
+  if (!k) return
+  let m = M(k)
+  if (!m) { try { S.cache['model:' + k] = await getJSON(`/api/k/${encodeURIComponent(k)}/model`); m = M(k) } catch (e) { toastErr(e); return } }
+  const part = await ask({ t: `「${q}」 를 다른 이름으로 달 항목`, d: '항목 이름이나 값의 일부를 쓴다(예: 롤백 · DPMS-ISS-15)', input: { label: '항목', value: '' }, ok: '찾기' })
+  if (!part || !part.trim()) return
+  const w = norm(part.trim())
+  const hits = m.items.filter((i) => i.coord && (norm(i.name).includes(w) || norm(i.val || '').includes(w) || (i.aliases || []).some((a) => norm(a).includes(w)))).slice(0, 40)
+  if (!hits.length) { toast(`<b>「${esc(part.trim())}」 가 든 항목이 없다</b> · 장부에 이름이 있는 항목만 다른 이름을 단다`, 0, true); return }
+  const coord = hits.length === 1 ? hits[0].coord : await ask({ t: '항목 고르기', d: `맞는 항목 ${hits.length}${hits.length === 40 ? '(앞 40)' : ''}`, select: { label: '항목', options: hits.map((i) => [i.coord, `${i.name} · ${i.coord}`]), value: hits[0].coord }, ok: '더하기' })
+  if (!coord) return
+  const it = hits.find((i) => i.coord === coord)
+  const kadm = lvOf(KN(k)) === 'admin' || !isTeam()
+  try {
+    await postJSON(`/api/k/${encodeURIComponent(k)}/learn`, { q, coord })
+    const r = await postJSON(`/api/k/${encodeURIComponent(k)}/save`, { record: { title: `다른 이름 더하기: ${q} → ${it.name}`.slice(0, 120), body: `찾기에서 「${q}」 로 찾은 것이 없어 ${it.name}(${coord}) 의 다른 이름으로 더한다.`, touches: [coord] }, names: [{ coord, label: it.name, aliases: [q] }] })
+    delete S.cache['model:' + k]
+    toast(kadm && !((Array.isArray(r.held) ? r.held.length : r.held) || 0) ? `<b>「${esc(q)}」 를 ${esc(it.name)} 의 다른 이름으로 더했다</b> · 이제 이 말로 찾힌다` : `<b>찾기에 배웠다</b> · 이 말로 ${esc(it.name)} 가 찾힌다. 이름 장부의 다른 이름은 지식관리자가 넣지 못함에서 세운다`, 9000)
+    runFind()
+  } catch (e) { toastErr(e) }
+}
 function paintPal() { const b = $('#palBody'); if (b) b.innerHTML = palBody() }
 function palHtml() {
   const k = scopeKn(), where = k ? KN(k).name + '에서' : '지식 전체에서'
@@ -1619,7 +1664,7 @@ function palBody() {
   const nh = nameHits(S.pal.q.trim())
   const names = nh.length ? `<div class="g" data-t="gName">이름이 맞는 것</div>${nh.map((x) => `<div class="hit" data-a="palName" data-kind="${x.kind}" data-k="${esc(x.k)}" data-v="${esc(x.ref)}" data-t="nameHit"><div class="ht"><b>${esc(x.label)}</b><span class="tg">${x.kind === 'doc' ? '문서' : '항목'}</span><span class="r">${esc((KN(x.k) || {}).name || '')}</span></div></div>`).join('')}` : ''
   if (!r.hits.length && names) return names
-  if (!r.hits.length) return '<div class="empty" data-t="none"><b>이 말로는 못 찾았다. 없다는 뜻은 아니다</b>다른 이름이나 문서 목록으로<br><button type="button" class="lk" data-a="palDocs">문서 목록 ›</button><button type="button" class="lk" data-a="palQo" data-t="palQo">빨리 열기로 이름 찾기 ›</button><button type="button" class="lk" data-a="palClear">다른 말로 다시 ›</button></div>'
+  if (!r.hits.length) return '<div class="empty" data-t="none"><b>이 말로는 못 찾았다. 없다는 뜻은 아니다</b>다른 이름이나 문서 목록으로<br><button type="button" class="lk" data-a="palDocs">문서 목록 ›</button><button type="button" class="lk" data-a="palQo" data-t="palQo">빨리 열기로 이름 찾기 ›</button><button type="button" class="lk" data-a="palClear">다른 말로 다시 ›</button>' + (palAliasKns().length ? `<div class="pal-alias" data-t="palAliasBox">맞는 항목을 안다면: <button type="button" class="btn sm" data-a="palAlias" data-t="palAlias">「${esc(S.pal.q.trim().slice(0, 40))}」 을 항목의 다른 이름으로 더하기</button><small class="muted u-blk">다음부터 이 말로 찾힌다 · 영문 · 줄임말 · 바꿔 말한 말</small></div>` : '') + '</div>'
   const hit = (x, i) => {
     const tags = (x.alias && x.exact ? '<span class="tg nm">다른 이름</span>' : '') + (x.r ? '<span class="tg">기록</span>' : '')
     const at = x.r ? `data-r="${esc(x.r)}"` : `data-d="${esc(x.d)}" data-h="${esc(x.h)}"${x.coord ? ` data-c="${esc(x.coord)}"` : ''}`
@@ -1758,6 +1803,8 @@ function itemsEmpty(k) {
   ${held.length ? `<div class="card"><div class="ch">넣지 못함이 있는 항목 <span class="chip c-warn">${held.length}</span></div><div class="cb u-p3-4">${held.map((i) => itemRowHtml(k, i, 'heldItem')).join('')}</div></div>` : ''}</div>`
 }
 const itemOf = (k, key) => need(`item:${k}:${key}`, `/api/k/${encodeURIComponent(k)}/item?key=${encodeURIComponent(key)}`)
+// 이슈 주소(UX T4-13) — 지식 설정의 주소 틀에 항목 값을 넣는다(갈래 이름에 「이슈」 가 든 항목만)
+const issueHref = (k, it) => { const u = KN(k) && KN(k).issueUrl; return u && it && it.val && /이슈|issue/i.test(it.kind || '') ? u.replace('{값}', encodeURIComponent(it.val)) : '' }
 function itemPane(t, right) {
   const k = t.kn, it = itemByKey(k, t.ref)
   if (!M(k)) return { html: modelErr(k) ? errHtml(modelErr(k), 'model:' + k) : loadingHtml, title: tabTitle(t) }
@@ -1776,7 +1823,7 @@ function itemPane(t, right) {
   // 가운데는 항목 글만(2026-11-05) — 넣지 못함 · 지난 기록 · 쓰는 곳 · 다른 이름은 오른쪽 칸 다섯 묶음으로
   const html = `<div class="docw" data-t="itemPage" data-name="${esc(it.name)}">${right ? rpHead() : ''}
   <div class="ttl"><div class="path"><span>${d ? `${esc(d.title)} › ${esc(it.sec)}` : '문서 없음'}</span></div>${right ? '' : wideSeg()}${d && !right ? `<button class="btn pri" data-a="itemToDoc" data-k="${esc(k)}" data-n="${esc(it.key)}" data-t="itemToDoc">문서로 보기에서 열기</button>` : ''}</div>
-  ${right ? '' : gdockHtml(k, 'i:' + it.key)}<div class="ih"><span class="kt src">${esc(it.kind)}</span>${it.val && !sameTxt(it.val, it.name) ? `<span class="iv" data-t="itemVal" title="${esc(it.coord)}">${esc(it.val)}</span>` : ''}<h1>${esc(it.name)}</h1></div>
+  ${right ? '' : gdockHtml(k, 'i:' + it.key)}<div class="ih"><span class="kt src">${esc(it.kind)}</span>${it.val && !sameTxt(it.val, it.name) ? `<span class="iv" data-t="itemVal" title="${esc(it.coord)}">${esc(it.val)}</span>` : ''}${issueHref(k, it) ? `<a class="lk small" href="${esc(issueHref(k, it))}" target="_blank" rel="noopener" data-t="issueLink">이슈 열기 ↗</a>` : ''}<h1>${esc(it.name)}</h1></div>
   <section class="isec" data-t="itemNow">${now}</section></div>`
   // 오른쪽 칸 — 개요(들어 있는 문서의 차례 · 이 항목에 「지금」) · 문서 · 기록(이 항목의 이력) · 항목 · 속성
   const sibs = d ? M(k).items.filter((i) => i.doc === d.id) : []
@@ -4768,6 +4815,15 @@ function checkChips(a) {
   const c = (cls, t, k) => `<span class="chip ${cls}" data-t="chk-${k}">${t}</span>`
   return `<div class="row u-wrap u-g3" data-t="checkChips" style="margin:0 0 var(--sp-5)">${c(S.stops.length ? 'c-warn' : 'c-mute', '멈춤 ' + S.stops.length, 'stop')}${c(held ? 'c-warn' : 'c-mute', '넣지 못함 ' + held, 'held')}${c(bk ? 'c-danger' : 'c-mute', '백업 문제 ' + bk, 'backup')}${c(rest ? 'c-warn' : a.claude.token || (a.worker && a.worker.ok) ? 'c-ok' : 'c-mute', '팀 일꾼 ' + (rest ? '쉼' : a.claude.token || (a.worker && a.worker.ok) ? '됨' : '로그인 전'), 'worker')}${held ? ` <button type="button" class="lk small" data-a="openSet" data-v="held" data-t="chkHeldGo">넣지 못함 ›</button>` : ''}</div>`
 }
+// 감사 기록(UX T4-04 · 총괄 관리자) — 관리 쓰기 요청을 한 곳에서: 때 · 누가 · 무엇 · 지식 · 결과
+const AUDIT_SAY = [[/\/admin\/users\/[^/]+\/reset$/, '비밀번호 다시 정하기'], [/\/admin\/users\/[^/]+\/unlock$/, '잠금 풀기'], [/\/admin\/users\/[^/]+\/revoke-all$/, '기기 열쇠 모두 끊기'], [/\/admin\/users\/[^/]+\/logout-all$/, '모든 곳에서 내보내기'], [/\/admin\/users\/[^/]+\/admin$/, '총괄 관리자 주기 · 걷기'], [/\/admin\/users\/[^/]+\/off$/, '사람 끄기 · 켜기'], [/\/admin\/users\/[^/]+\/seats$/, '자리 주기'], [/\/admin\/users$/, '사람 더하기'], [/\/admin\/groups/, '묶음'], [/\/admin\/links$/, '설치 한 줄 만들기'], [/\/admin\/claude/, 'Claude 연결'], [/\/queue\/caps$/, '동시에 도는 수'], [/\/queue\/hold$/, '줄 멈춤'], [/\/requests\/.+\/close$/, '가져올 곳 부탁 닫기'], [/\/knowledge\/add$/, '지식 세우기'], [/\/knowledge\/sync$/, '지식 폴더 다시 읽기'], [/\/restore$/, '되살리기'], [/\/sudo$/, '비밀번호 한 번 더'], [/\/me\/password$/, '내 비밀번호 바꾸기'], [/\/me\/logout-all$/, '모든 곳에서 나가기'], [/\/me\/devices\/revoke$/, '내 기기 끊기'], [/\/device\/ticket$/, '설치 번호 받기'], [/\/owner$/, '주인 · 지식 설정'], [/\/access$/, '권한'], [/\/delete$/, '지식 지우기'], [/\/structure$/, '문서 짜임'], [/\/polish$/, '문서 다듬기'], [/\/revert$/, '되돌리기'], [/\/unwatch$/, '원본 떼기'], [/\/docfmt$/, '문서 꼴 고치기'], [/\/backup/, '백업'], [/\/sources/, '가져올 곳'], [/\/held/, '넣지 못함'], [/\/rec\/[^/]+\/fix$/, '기록 바로잡기']]
+const auditSay = (p) => (AUDIT_SAY.find(([re]) => re.test(p)) || [null, p])[1]
+const auditOf = () => need('audit', '/api/admin/audit?n=300')
+function auditCard() {
+  const a = auditOf()
+  const body = !a ? loadingHtml : a.error ? errHtml(a, 'audit') : !a.rows.length ? '<p class="muted">아직 적힌 것이 없다</p>' : `<div class="tblwrap"><table class="t" data-t="auditTbl"><thead><tr><th>때</th><th>누가</th><th>무엇</th><th>지식 · 사람</th><th>결과</th></tr></thead><tbody>${a.rows.slice(0, S.auditMore ? 300 : 30).map((x) => `<tr><td class="u-nw">${esc(whenTxt(x.at))}</td><td>${esc(x.user || '')}${x.admin ? ' <small class="muted">총괄</small>' : ''}</td><td title="${esc(x.path)}">${esc(auditSay(x.path))}</td><td>${esc(x.knName || x.who || '')}</td><td>${x.status < 400 ? chipOf('ok', '됨') : chipOf(x.status === 403 || x.status === 401 ? 'stop' : 'fail', '못 함 ' + x.status)}</td></tr>`).join('')}</tbody></table></div>${a.rows.length > 30 && !S.auditMore ? `<button type="button" class="lk small" data-a="auditMore" data-t="auditMore">더 보기(${a.rows.length})</button>` : ''}`
+  return `<div class="card" data-t="auditCard"><div class="ch">감사 기록 <small>관리 쓰기 요청 · 새것 위 · 본문은 적지 않는다</small><button type="button" class="btn ghost sm r" data-a="auditRe" data-t="auditRe">다시 읽기</button></div><div class="cb">${body}</div></div>`
+}
 function viewAdmin() {
   if (!S.me.admin) return { crumb: '관리', main: '<div class="callout gray">총괄 관리자만 본다</div>' }
   const a = overviewOf()
@@ -4783,7 +4839,7 @@ function viewAdmin() {
   const now = clock().split(' ').pop()
   return { crumb: '관리', main: `<div class="pg-text">${checkChips(a)}
   ${warnRows ? `<div class="card" data-t="admWarn"><div class="ch">경고 ${(S.stops || []).length} <small>저절로 하는 일이 멈췄거나 막혔다 · 풀리면 저절로 걷힌다</small></div><div class="cb">${warnRows}</div></div>` : ''}<div class="card"><div class="ch">오늘 ${rows.length} <small>${esc(now)}</small></div><ul class="plain pl" data-t="admList">${rows.join('') || (warnRows ? '<li class="muted" data-t="admEmpty">위 경고 밖에는 문제가 없다</li>' : '<li class="muted" data-t="admEmpty">오늘은 문제가 없다</li>')}</ul>${a.https ? '' : '<div class="cf">아직 https 가 아니다. 사내 인증서가 생기면 켤 수 있다</div>'}</div>
-  <p class="small muted" data-t="admChecks">찾기 점검: ${a.checks.map((c) => `${esc(c.name)} ${c.in}%(${c.n})`).join(' · ') || '아직 재지 않았다'}</p></div>` }
+  <p class="small muted" data-t="admChecks">찾기 점검: ${a.checks.map((c) => `${esc(c.name)} ${c.in}%(${c.n})`).join(' · ') || '아직 재지 않았다'}</p>${auditCard()}</div>` }
 }
 // 백업 저장소 상태 이름(설정 › 팀 지식의 백업 칸) — 저장소 붙이기 · 주소 바꾸기는 그 줄 ⋯
 const REPO_V = { ok: ['c-ok', '맞음'], lag: ['c-pend', '보내는 중'], gone: ['c-warn', '저장소가 비었다 · 다시 보낸다'], rewound: ['c-warn', '저장소가 뒤로 갔다 · 다시 보낸다'], behind: ['c-danger', '저장소가 앞섰다'], moved: ['c-danger', '갈라졌다'] }
@@ -5356,6 +5412,20 @@ const ACT = {
     try { await postJSON('/api/me/devices/revoke', { id: x.device }); x.unlinked = true; toast('끊었다. 그 기기의 Claude Code 는 다시 이어야 한다'); render() } catch (e) { toastErr(e) }
   },
   // 넣지 못함(S10)
+  knIssue: async (el) => {
+    S.menu = null
+    const k = el.dataset.k, n = KN(k)
+    const v = await ask({ t: '이슈 주소', d: '갈래 이름에 「이슈」 가 든 항목의 값(예: DPMS-ISS-15)을 {값} 자리에 넣어 연다. 비우면 걷는다', input: { label: '주소 틀', value: (n && n.issueUrl) || 'https://' }, ok: '저장' })
+    if (v == null) return
+    const u = v.trim() === 'https://' ? '' : v.trim()
+    try { await postJSON(`/api/k/${encodeURIComponent(k)}/owner`, { issueUrl: u }); await reloadKns(); toast(u ? '<b>이슈 주소를 정했다</b> · 항목 화면에 [이슈 열기]' : '<b>이슈 주소를 걷었다</b>') } catch (e) { toastErr(e) }
+  },
+  auditMore: () => { S.auditMore = true; render() },
+  auditRe: () => { delete S.cache.audit; render() },
+  pastOpen: (el) => { S.past = { k: el.dataset.k, d: el.dataset.d, title: el.dataset.v, at: null, cmp: false }; render() },
+  pastPick: (el) => { S.past.at = el.dataset.v; render() },
+  pastCmp: (el) => { S.past.cmp = !!el.dataset.v; render() },
+  pastClose: () => { S.past = null; render() },
   openHeld: (el) => { S.hdKn = el.dataset.k; go({ scr: 'held' }) },
   kchkGuard: (el) => { go({ scr: 'docs', kn: el.dataset.k }); S.active = null; S.split = null; render(); requestAnimationFrame(() => { const c = $('#app [data-t=guardCard]'); if (c) { c.scrollIntoView({ block: 'start' }); const b = c.querySelector('button'); if (b) b.focus({ preventScroll: true }) } }) },
   kchkReq: (el) => { S.impKn = el.dataset.k; S.impTab = 'src'; go({ scr: 'import' }) },
@@ -5458,6 +5528,7 @@ const ACT = {
   edGoSec: (el) => { const ta = $('#edTx'); if (!ta) return; const i = ta.value.indexOf('## ' + el.dataset.v); if (i < 0) return; ta.focus(); ta.setSelectionRange(i, i + 3 + el.dataset.v.length); const lh = ta.scrollHeight / Math.max(1, ta.value.split('\n').length); ta.scrollTop = ta.value.slice(0, i).split('\n').length * lh - 40 },
   edPreview: () => { if (!S.edit) return; const ta = $('#edTx'); if (ta && !S.edit.busy) S.edit.text = ta.value; S.edit.preview = !S.edit.preview; render() },
   reLogin: async () => { if (canRelogin()) { await askLogin(); S.loginLost = false; loadStops(); loadBusy(); render() } else location.reload() },
+  palAlias: () => palAliasGo(),
   palF: (el) => { S.palF = el.dataset.v; const b = $('#palBody') || $('[data-t=palBody]'); if (b) b.innerHTML = palBody(); else render() },
   keysClose: () => { S.keys = false; render() },
   keysOpen: () => { S.menu = null; S.keys = true; render() },

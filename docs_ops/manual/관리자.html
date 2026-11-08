@@ -47,6 +47,8 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 </table></div>
 <div class="m-note m-warn"><b>비밀번호 한 번 더</b><p>[풀기] · 새 링크 · 사람 더하기 · 떠남 · 백업 맞추기 · 주인 넘기기 · 팀 지식 지우기 · Claude 로그인 시작은 「비밀번호 한 번 더: 관리자 확인」 창 하나가 뜨고, 맞으면 하던 일을 이어서 한다(15분 안에는 다시 묻지 않는다).</p></div>
 
+<p><b>감사 기록</b>(점검 맨 아래): 관리 쓰기 요청(사람 · 자리 · 총괄 관리자 주기 · 지식 세우기/지우기 · 주인 · 권한 · 문서 짜임 · 되돌림 · 가져올 곳 · 넣지 못함 · 계정)을 때 · 누가 · 무엇 · 지식 · 결과로 적는다. 보낸 글(본문 · 비밀번호)은 적지 않는다. 서버의 <code>&lt;살림 자리&gt;/audit.jsonl</code>(2MB 넘으면 <code>audit.1.jsonl</code> 로 민다).</p>
+
 <h2 id="people"><span class="m-no">3</span>사람 · 묶음</h2>
 <figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 사람 · 묶음</span></div><div class="m-pic"><img src="img/t-people.png" alt="사람 카드: 상태 · 기기 · 지식마다 자리" loading="lazy">
 </div></div><figcaption>사람 카드와 묶음 카드. 사람을 더하면 [링크만 복사] · [안내 복사](아이디 · 들어오기 링크 · 팀 주소 · 에이전트 설치 길 한 덩이)가 나온다.</figcaption></figure>
@@ -61,7 +63,7 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 <li><b>뒤에도 바꾼다</b>사람 카드의 같은 표 · 또는 지식 카드 ⋯ › 권한. 묶음(개발 · 운영 …)으로 받은 자리는 따로 보인다.</li>
 </ol>
 <h3>사람이 떠날 때</h3>
-<p>⋯ <b>떠남</b> 한 번이 다 한다. 들어가기 · 기기 · 예전 열쇠를 끊고 아이디는 남긴다(같은 아이디로 새 사람을 더하지 못한다). 그 사람이 주인인 지식은 <b>내가 주인을 잇는다</b> 또는 <b>주인 칸을 비운다</b>(뒤에 권한 창에서 넘긴다). 셸로는 <code>kmd user off &lt;아이디&gt; [--to &lt;받을 사람&gt;]</code>.</p>
+<p>⋯ <b>떠남</b> 한 번이 다 한다(그 사람의 기기 열쇠로 오면 「팀을 떠났다」 로 답한다). 들어가기 · 기기 · 예전 열쇠를 끊고 아이디는 남긴다(같은 아이디로 새 사람을 더하지 못한다). 그 사람이 주인인 지식은 <b>내가 주인을 잇는다</b> 또는 <b>주인 칸을 비운다</b>(뒤에 권한 창에서 넘긴다). 셸로는 <code>kmd user off &lt;아이디&gt; [--to &lt;받을 사람&gt;]</code>.</p>
 
 <h2 id="knowledge"><span class="m-no">4</span>팀 지식 세우기 · 권한</h2>
 <ul>

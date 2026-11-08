@@ -209,5 +209,5 @@ test('HTTP: 일반은 지식을 세우지 못한다 · 없는 사람은 주인 �
   for (const p of ['/api/me/personal', '/api/me/worker', '/api/knowledge/fromteam']) assert.notEqual((await post(p, park, {})).status, 200, p)
   assert.notEqual((await fetch(s.url + '/api/k/dpms/bundle', { headers: { cookie: park.cookie } })).status, 200)
   const h = await fetch(s.url + '/healthz').then((x) => x.json())
-  assert.deepEqual(Object.keys(h).sort(), ['mode', 'ok', 'version'])
+  assert.deepEqual(Object.keys(h).sort(), ['build', 'mode', 'ok', 'version'])
 })

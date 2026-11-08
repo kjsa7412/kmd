@@ -18,6 +18,8 @@ import { makeMcp } from './mcp.js'
 import { makeHub, defaultDataDir } from './hub.js'
 import { TEAM_IMPORT_MAX } from '../core/importer.js'
 import { VERSION, BUILD } from './version.js'
+import { tryGit } from '../core/git.js'
+import * as owners from '../core/owners.js'
 import { stopLine } from '../core/stopline.js'
 import * as V from './views.js'
 import * as kit from '../core/kit.js'
@@ -384,6 +386,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         return { ctx: dctx }
       }
       const ctx = auth.bearer(m[1])
+      const left = ctx ? null : auth.leftOf(m[1])
+      if (left) throw new KmdError('E_AUTH', `이 열쇠의 사람(${left.user})은 ${String(left.at).slice(0, 10)} 에 팀을 떠났다. 이 PC 의 kmd 연결은 더 쓰지 못한다: 다시 쓰려면 관리자에게 묻는다`, { left: true })
       if (!ctx) throw new KmdError('E_AUTH', '열쇠가 맞지 않는다. 끊겼거나 90일 동안 쓰지 않았다. 팀 화면 › 설정 › 에이전트 설치의 한 줄을 다시 붙여 넣는다')
       return { ctx }
     }
@@ -435,10 +439,27 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   // 넣지 못함을 볼 자리(S10) — 팀이면 개편 전 기록도 · 지식관리자는 모두 · 그 밖은 내 것만(화면 거르기)
   const seeOf = (ctx, id) => ({ team: mode === 'team', user: ctx?.user || null, admin: hub.levelOf(ctx, id) === 'admin' })
   const GET_OK = [
-    /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/users|admin\/groups|claude\/state|busy|send\/teams)$/,
+    /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/audit|admin\/users|admin\/groups|claude\/state|busy|send\/teams)$/,
     /^\/api\/agent\/parser$/, /^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
-    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|held|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure)$/,
+    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|held|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|past)$/,
   ]
+  const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|k\/[^/]+\/(?:owner|access|delete|structure|polish|revert|unwatch|docfmt|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names)|rec\/[^/]+\/fix))$/
+  const auditFile = path.join(dataDir, 'audit.jsonl')
+  let auditQ = Promise.resolve()
+  const auditAdd = (line) => {
+    auditQ = auditQ.then(async () => {
+      const st = await fs.stat(auditFile).catch(() => null)
+      if (st && st.size > 2 << 20) await fs.rename(auditFile, path.join(dataDir, 'audit.1.jsonl'))
+      await fs.appendFile(auditFile, JSON.stringify(line) + '\n', 'utf8')
+    }).catch((e) => console.log('[kmd] 감사 기록을 쓰지 못했다', e.message))
+  }
+  const auditWatch = (req, res, p, ctx) => {
+    if (mode !== 'team' || req.method !== 'POST' || !ctx || ctx.machine || ctx.worker || ctx.draft || !AUDIT_RE.test(p)) return
+    const km = p.match(/^\/api\/k\/([^/]+)\//), um = p.match(/^\/api\/admin\/users\/([^/]+)\//)
+    let kn = null, who = null
+    try { kn = km ? decodeURIComponent(km[1]).slice(0, 80) : null; who = um ? decodeURIComponent(um[1]).slice(0, 40) : null } catch { /* 깨진 조각은 길 그대로 */ }
+    res.on('finish', () => auditAdd({ at: new Date().toISOString(), user: ctx.user || null, admin: !!ctx.admin, path: p.slice(0, 200), ...(kn ? { kn } : {}), ...(who ? { who } : {}), status: res.statusCode, ip: String(ipOf(req) || '').slice(0, 60) }))
+  }
   const api = async (req, res, url, ctx, set) => {
     const p = url.pathname
     const out = (status, body) => send(res, status, body, undefined, set ? { 'set-cookie': set } : {})
@@ -627,6 +648,18 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, { n: pick.length })
     }
     // 관리 — 문제 줄만 · 팀 일꾼 로그인 · 링크 한꺼번에
+    // 감사 기록 보기(총괄 관리자) — 새것 위 · n 줄(기본 200 · 1000 까지) · 지식 이름은 지금 이름
+    if (p === '/api/admin/audit' && req.method === 'GET') {
+      admin(ctx, { sudo: false })
+      const n = Math.min(1000, Math.max(1, Number(url.searchParams.get('n')) || 200))
+      const read = async (f) => (await fs.readFile(f, 'utf8').catch(() => '')).split('\n').filter(Boolean)
+      let lines = await read(auditFile)
+      if (lines.length < n) lines = [...await read(path.join(dataDir, 'audit.1.jsonl')), ...lines]
+      const names = new Map((await hub.all(ctx)).map((k) => [k.id, k.name]))
+      const rows = []
+      for (const l of lines.slice(-n).reverse()) { try { const x = JSON.parse(l); rows.push({ ...x, ...(x.kn ? { knName: names.get(x.kn) || x.kn } : {}) }) } catch { /* 깨진 줄은 건너뛴다 */ } }
+      return out(200, { rows, total: lines.length })
+    }
     if (p === '/api/admin/overview') {
       admin(ctx, { sudo: false })
       const users = auth.users()
@@ -833,7 +866,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         const row = hub.owner(k.id)
         const sv = mode === 'pc' && (await sendLib.destsOf(k.dir)).length ? await hub.sendView(ctx, k.id).catch(() => null) : null
         // level — 이 지식에서의 내 자리(read · write · admin) · role 은 그 화면 이름(PC 는 주인)
-        return { ...V.knowledgeRow(k, seeOf(ctx, k.id)), level: hub.levelOf(ctx, k.id), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null, noClaude: !!row?.noClaude } : {}), ...(chk ? { chk } : {}), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
+        return { ...V.knowledgeRow(k, seeOf(ctx, k.id)), level: hub.levelOf(ctx, k.id), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null, noClaude: !!row?.noClaude, ...(row?.issueUrl ? { issueUrl: row.issueUrl } : {}) } : {}), ...(chk ? { chk } : {}), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
       })))
     }
     // 에이전트 일 — 목록 · 줄(터미널)
@@ -1046,6 +1079,27 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     }
     const uw = p.match(/^\/api\/k\/([^/]+)\/unwatch$/)
     if (uw) return out(200, await hub.unwatch(ctx, dec(uw[1]), await readBody(req)))
+    const pm = req.method === 'GET' && p.match(/^\/api\/k\/([^/]+)\/past$/)
+    if (pm) {
+      const id = dec(pm[1])
+      await hub.meta(id, ctx)
+      const k = await hub.get(id, ctx)
+      const d = k.docs.find((x) => x.id === url.searchParams.get('d'))
+      if (!d || !d.path) throw new KmdError('E_NOTFOUND', '이 문서는 이제 없다')
+      const clean = (t) => String(t || '').replace(/\r\n/g, '\n').replace(/^---\n[\s\S]*?\n---\n/, '').replace(/<!--\s*kmd:참고[\s\S]*$/, '').replace(/<!--[\s\S]*?-->/g, '').replace(/\n{3,}/g, '\n\n').trim()
+      const lg = await tryGit(k.dir, ['log', '--follow', '-n', '80', '--format=%x1e%H%x1f%cI%x1f%an%x1f%s', '--name-only', '--', d.path], { timeout: 15000 })
+      if (!lg.ok) throw new KmdError('E_INTERNAL', '이 문서의 판을 읽지 못했다: ' + lg.err.split('\n')[0].slice(0, 120))
+      const versions = lg.out.split('\x1e').map((x) => x.trim()).filter(Boolean).map((x) => { const [head, ...names] = x.split('\n'); const [sha, at, who, msg] = head.split('\x1f'); return { sha, at, who, msg: String(msg || '').slice(0, 160), path: names.map((n) => n.trim()).filter(Boolean).pop() || d.path } })
+      const at = url.searchParams.get('at')
+      if (!at) return out(200, { doc: d.id, title: d.title, versions: versions.map(({ path: _p, ...v }) => v) })
+      const v = versions.find((x) => x.sha === at)
+      if (!v) throw new KmdError('E_NOTFOUND', '이 문서의 판이 아니다')
+      const sh = await tryGit(k.dir, ['show', `${v.sha}:${v.path}`], { timeout: 15000 })
+      if (!sh.ok) throw new KmdError('E_NOTFOUND', '그때 이 문서는 없었다')
+      const past = clean(sh.out)
+      const cur = clean(await fs.readFile(path.join(k.dir, ...d.path.split('/')), 'utf8').catch(() => ''))
+      return out(200, { doc: d.id, sha: v.sha, at: v.at, who: v.who, msg: v.msg, md: past, cur, html: V.render(k, d.path, past) })
+    }
     const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|backup|backup\/pull|owner|learn|edit|revert|guard)$/)
     if (!m) throw new KmdError('E_NOTFOUND', '그런 길은 없다')
     const id = dec(m[1])
@@ -1088,6 +1142,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         const people = new Set(auth.users().filter((u) => u.kind === 'person' && !u.off).map((u) => u.id))
         for (const u of [body.owner, ...(Array.isArray(body.curators) ? body.curators : [])].filter((x) => x != null && x !== '')) if (!people.has(String(u))) throw new KmdError('E_INPUT', `그런 사람은 없다: ${String(u).slice(0, 40)}`)
         // 주인 넘기기 — 관리자(팀 서버)는 비밀번호 한 번 더(남의 지식을 넘기는 일)
+        if (body.issueUrl != null && body.issueUrl !== '' && (typeof body.issueUrl !== 'string' || !owners.ISSUE_URL_RE.test(body.issueUrl) || !body.issueUrl.includes('{값}'))) throw new KmdError('E_INPUT', '이슈 주소는 http(s):// 로 시작하고 {값} 자리가 있는 한 줄이다(200자까지) · 예: https://jira.example/browse/{값}')
         const cur = hub.owner(id)
         if (mode === 'team' && ctx.admin && body.owner != null && body.owner !== (cur?.owner ?? null)) admin(ctx)
         return out(200, await hub.setOwner(ctx, id, body))
@@ -1245,7 +1300,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         const out = await mcp.call(body, ctx)
         return out ? send(res, 200, out) : (res.writeHead(202), res.end())
       }
-      if (p.startsWith('/api/')) return await api(req, res, url, ctx, set)
+      if (p.startsWith('/api/')) { auditWatch(req, res, p, ctx); return await api(req, res, url, ctx, set) }
       if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, '읽기만', 'text/plain; charset=utf-8')
       return await staticFile(res, p)
     } catch (e) {
