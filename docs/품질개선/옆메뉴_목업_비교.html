@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>옆 메뉴 세 안</title>
+<style>
+/* 토큰 — app/kmd.css 의 :root 를 옮겼다(2026-11-08) */
+:root{
+  --hit:24px;
+  /* 면 · 선 */
+  --bg:#f6f7f9;--surface:#fff;--surface-2:#f1f3f7;--surface-3:#e6eaf0;--hover:#f5f7fa;
+  --border:#e2e6ed;--border-strong:#c9d1dd;--border-input:#7d8799;
+  /* 글 — --text-3 #646d7b: 흰 바탕 5.23:1 · --surface-2(#f1f3f7) 위 4.71:1(WCAG 상대 휘도로 잼 · 옛 #858e9d 는 3.31 · 2.98) */
+  --text:#11151c;--text-2:#515a68;--text-3:#646d7b;--on-accent:#fff;
+  /* 뜻 색 — 파랑=주 일 · 고른 것 / 초록=됨 · 켜짐 / 노랑=멈춤 · 값 바뀜 / 빨강=못 함 · 지우기 / 보라=기다림 · 받은 것 */
+  --accent:#3358e6;--accent-hover:#2a4bd0;--accent-bg:#e9eeff;--accent-line:#c3d0fb;
+  /* --ok #237a47: ok-bg 위 4.72 · 흰 바탕 5.32 · surface-2 위 4.79(옛 #2e9b5b 는 3.13 · 3.53 — 작은 굵은 글에 모자랐다) */
+  --ok:#237a47;--ok-bg:#e6f5ec;--ok-line:#bfe3cc;
+  --warn:#8c5c00;--warn-bg:#fcf3e0;--warn-line:#d39a2c;
+  /* --danger #b8321f: danger-bg 위 5.23 · 흰 바탕 5.98(옛 #cb3a2c 는 danger-bg 위 4.39) */
+  --danger:#b8321f;--danger-bg:#fdeceb;--danger-line:#efb7b1;
+  --pending:#6247c4;--pending-bg:#efedfd;--pending-line:#d9d2fb;
+  /* 그래프 점 종류(모양과 함께만 쓴다 · 색만으로 가르지 않는다) — 흰 바탕 대비: 문서 10.35 · 항목 5.71 · 기록 5.18 · 파랑 · 주황은 색각 이상에도 갈린다 */
+  --k-doc:#334155;--k-item:#3358e6;--k-rec:#c2410c;
+  --g-ring:#fff;
+  /* 그래프 칸 어두운 바탕(그래프만 · .gwrap.dark 가 위 토큰을 갈아 끼운다) — 글 대비: 글 #e6ebf5 15.8 · 흐린 글 #8a97b3 6.5 · 문서 #cbd5e1 12.8 · 항목 #7c9cff 7.3 · 기록 #fb923c 8.4(바탕 #0b1020 위) */
+  --gd-bg:#0b1020;--gd-surface:#121a2e;--gd-surface-2:#18223a;--gd-border:#253252;--gd-border-strong:#3a4a72;
+  --gd-text:#e6ebf5;--gd-text-2:#b2bdd3;--gd-text-3:#8a97b3;--gd-k-doc:#cbd5e1;--gd-k-item:#7c9cff;--gd-k-rec:#fb923c;--gd-accent:#8aa4ff;--gd-accent-bg:#1f2a4d;--gd-warn-bg:#3a2e12;
+  /* 진한 띠(토스트 · 툴팁 · 고른 띠 · 「나」 표지) · 터미널(7절) */
+  --ink:#11151c;--ink-2:#262d3b;--ink-text:#e8ecf3;
+  --term-bg:#0f141c;--term-text:#d7dde8;--term-dim:#7d8696;--term-tool:#8fb0ff;--term-ok:#7fd69a;--term-err:#ff8f86;
+  /* 글 크기 */
+  --fs-xs:11px;--fs-sm:11.5px;--fs-mono:12px;--fs:13px;--fs-md:14px;--fs-lg:16px;--fs-xl:20px;
+  --lh-tight:1.25;--lh:1.55;--lh-read:1.7;
+  /* 간격 — 카드 안 · 카드 사이 14 · 영역 사이 22 */
+  --sp-1:2px;--sp-2:4px;--sp-3:6px;--sp-4:8px;--sp-5:10px;--sp-6:12px;--sp-7:14px;--sp-8:16px;--sp-9:22px;
+  /* 모서리 — 표지 · 작은 칩 · 단추 · 칸(팝업 · 모달) · 카드 · 알약 */
+  --r-xs:4px;--r-sm:5px;--r:7px;--r-md:10px;--r-lg:12px;--r-pill:999px;
+  /* 그림자 — 카드 · 팝업과 모달 · 맨 위에 뜨는 것(찾기 창 · 서랍) · 키보드 초점 고리 */
+  --shadow-1:0 1px 2px rgba(15,23,42,.05),0 1px 3px rgba(15,23,42,.07);
+  --shadow-2:0 2px 6px -1px rgba(15,23,42,.08),0 14px 32px -8px rgba(15,23,42,.18);
+  --shadow-3:0 18px 48px rgba(15,23,42,.28);
+  --focus-ring:0 0 0 2px var(--surface),0 0 0 4px var(--accent);
+  /* 층 — 토스트는 모달 위 */
+  --z-menu:20;--z-scrim:70;--z-pop:80;--z-toast:90;
+  /* 화면 최대 폭(2절) · 옆 메뉴 · 오른쪽 칸 */
+  --w-text:820px;--w-list:980px;--w-grid:1100px;--w-side:248px;--w-aside:300px;
+  /* 접힌 옆 메뉴 · 오른쪽 칸(레일) · 너비 잡이 · 그래프 팝업 */
+  --w-rail:48px;--w-grip:6px;--w-graph:400px;
+  /* 글꼴 — 모노는 경로 · 주소 · 이름 · 시각에만 */
+  --font:"Malgun Gothic","Apple SD Gothic Neo",-apple-system,"Segoe UI",system-ui,sans-serif;
+  --mono:Consolas,"Cascadia Mono",D2Coding,"Malgun Gothic",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:var(--fs)/var(--lh) var(--font);word-break:keep-all;overflow-wrap:break-word}
+.wrap{max-width:var(--w-grid);margin:0 auto;padding:var(--sp-9) var(--sp-8)}
+h1{font-size:var(--fs-xl);margin:0 0 var(--sp-3)}
+h2{font-size:var(--fs-lg);margin:var(--sp-9) 0 var(--sp-5)}
+.lead{color:var(--text-2);margin:0 0 var(--sp-7)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);padding:var(--sp-8)}
+.rec{border-left:3px solid var(--accent)}
+.rec b{color:var(--accent)}
+.tblwrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:760px}
+th,td{padding:var(--sp-4) var(--sp-5);border-bottom:1px solid var(--border);text-align:left;vertical-align:top;font-size:var(--fs)}
+thead th{background:var(--surface-2);font-weight:700}
+td:first-child{color:var(--text-2);font-weight:600;white-space:nowrap}
+th.pick,td.pick{background:var(--accent-bg)}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--sp-7)}
+.shot{display:flex;flex-direction:column;gap:var(--sp-4)}
+.frame{position:relative;width:100%;aspect-ratio:1280/800;overflow:hidden;border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface)}
+.frame iframe{position:absolute;top:0;left:0;width:1280px;height:800px;border:0;transform-origin:0 0;pointer-events:none}
+.shot a{font-weight:700;color:var(--accent)}
+.shot p{margin:0;color:var(--text-2);font-size:var(--fs-sm)}
+ul{margin:var(--sp-3) 0 0;padding-left:var(--sp-9)}
+li{margin:var(--sp-2) 0}
+.muted{color:var(--text-3)}
+@media (max-width:1024px){.grid{grid-template-columns:1fr}}
+@media (max-width:600px){.wrap{padding:var(--sp-7) var(--sp-5)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>옆 메뉴 세 안</h1>
+<p class="lead">검토: <a href="옆메뉴_검토.md">옆메뉴_검토.md</a> · 같은 시험 지식(문서 29 · 항목 26 · 기록 17 · 첨부 2)으로 그렸다. 목업마다 오른쪽 아래 조종판에서 팀 · 개인 · 지식관리자 · 접기를 바꾼다. 창 폭을 1280 · 1024 · 600 · 375 로 줄여 보면 600 이하에서 ☰ 서랍이 된다.</p>
+
+<div class="card rec">
+<b>권장: A 층 합치기</b>
+<ul>
+<li>날마다 하는 일(문서 · 항목 · 기록 · 그래프)은 <b>글 탭</b>으로 남기고, 드물게 하는 일(이력 · 가져오기 · 넣지 못함 · 문서 짜임 · 설정)만 아이콘으로 접는다 — 자주 쓰는 것은 읽히고 드문 것은 자리를 덜 먹는다.</li>
+<li>나무 12줄 → 24줄 · 나무 위 층 5 → 3 · 「문서」 겹침 없음 · 「넣지 못함」 한 곳.</li>
+<li>폭 248 · 너비 잡이 · 서랍 · 오른쪽 칸을 그대로 둬서 바꾸는 범위가 옆 메뉴 안에 머문다. 레일은 편 메뉴와 같은 차례의 아이콘이다.</li>
+<li>B 는 짜임이 가장 깨끗하지만(레일 = 막대) 보기 넷까지 아이콘이라 처음 쓰는 사람이 배울 것이 늘고 폭이 22 늘어난다. C 는 층이 넷 남고 「문서」 겹침 · 넣지 못함 둘이 그대로라 지적(「그대로」)을 풀지 못한다.</li>
+</ul>
+</div>
+
+<h2>견주기</h2>
+<div class="tblwrap"><table>
+<thead><tr><th></th><th>지금</th><th class="pick">A 층 합치기 (권장)</th><th>B 활동 막대</th><th>C 지금 짜임 줄이기</th></tr></thead>
+<tbody><tr><td>나무 위 층</td><td>5(지식 · 보기 · 갈래 · 찾기 · 거르기)</td><td class="pick">3(지식 · 보기 한 줄 · 찾기)</td><td>2(지식 · 찾기) + 왼쪽 막대</td><td>4(사람 · 지식+보기 · 갈래 · 찾기)</td></tr><tr><td>1280×800 나무 줄</td><td>12(관리자 10)</td><td class="pick">24</td><td>26</td><td>22</td></tr><tr><td>「문서」 겹침</td><td>보기 · 갈래 두 층</td><td class="pick">없음 — 문서 · 항목 · 기록 · 그래프 한 줄 · 첨부는 문서 나무 끝 묶음</td><td>없음 — 막대 아이콘 넷</td><td>남음(보기 아이콘 · 갈래 탭)</td></tr><tr><td>관리 일</td><td>아래 다섯 줄 173px</td><td class="pick">아래 아이콘 한 줄 36px(이름은 올리면)</td><td>막대 아래쪽 아이콘(보기와 선으로 갈림)</td><td>「지식 관리 ▴」 한 줄 → 팝업</td></tr><tr><td>넣지 못함</td><td>거르기 + 메뉴 둘</td><td class="pick">관리 줄 배지 하나 · 나무는 노란 점만</td><td>막대 배지 하나 · 나무는 노란 점만</td><td>거르기(찾기 칸 안) + 관리 배지 — 둘 그대로</td></tr><tr><td>사람(설정 · 나가기)</td><td>맨 위 51px</td><td class="pick">머리 줄 오른쪽 동그라미</td><td>막대 맨 아래 동그라미(+ 지금 하는 일 점)</td><td>맨 위 그대로</td></tr><tr><td>접힌 레일</td><td>편 메뉴와 다른 차례</td><td class="pick">같은 차례의 아이콘</td><td>막대가 곧 레일(판만 접힘 · 고른 보기를 한 번 더 누르면)</td><td>조금 다름(기록 없음)</td></tr><tr><td>폭</td><td>248</td><td class="pick">248 그대로</td><td>48 + 222 = 270</td><td>248 그대로</td></tr><tr><td>600 이하 서랍</td><td>같은 다섯 층 · 나무 12줄</td><td class="pick">나무 24줄</td><td>막대 + 판 · 나무 26줄</td><td>나무 22줄</td></tr><tr><td>새로 배울 것</td><td>-</td><td class="pick">관리 아이콘 다섯(이름은 올리면)</td><td>보기 넷도 아이콘 · 판 접기 동작</td><td>거의 없음</td></tr><tr><td>고칠 크기</td><td>-</td><td class="pick">중(sideHtml · treeHtml · 레일 · CSS · 컨벤션 5 · 11-2)</td><td>대(옆 메뉴 틀 · 서랍 · 접기 · 너비 잡이까지)</td><td>소</td></tr></tbody>
+</table></div>
+
+<h2>목업</h2>
+<div class="grid">
+<div class="shot"><div class="frame"><iframe src="옆메뉴_목업_A_층합치기.html" title="A 층 합치기 (권장)" tabindex="-1"></iframe></div><a href="옆메뉴_목업_A_층합치기.html">A 층 합치기 (권장) 열기</a><p>보기 탭과 갈래 탭을 한 줄로 · 관리는 아래 아이콘 한 줄 · 사람은 머리 줄 오른쪽</p></div><div class="shot"><div class="frame"><iframe src="옆메뉴_목업_B_활동막대.html" title="B 활동 막대" tabindex="-1"></iframe></div><a href="옆메뉴_목업_B_활동막대.html">B 활동 막대 열기</a><p>왼쪽 세로 아이콘 줄(보기 넷 · 관리 · 설정 · 사람) + 목록 판 · 접으면 막대만</p></div><div class="shot"><div class="frame"><iframe src="옆메뉴_목업_C_줄이기.html" title="C 지금 짜임 줄이기" tabindex="-1"></iframe></div><a href="옆메뉴_목업_C_줄이기.html">C 지금 짜임 줄이기 열기</a><p>층은 두고 줄인다: 지식 카드에 보기 아이콘 · 거르기는 찾기 칸 안 · 관리는 한 줄 팝업</p></div>
+</div>
+
+<h2>세 안 공통으로 바뀌는 것</h2>
+<ul>
+<li>나무 위 거르기 [넣지 못함] 을 뺀다 — 넣지 못함은 관리 쪽 배지 → 넣지 못함 화면 한 곳. 나무 · 기록 줄 끝 노란 점은 남는다(개인 지식에는 없다).</li>
+<li>「첨부」 는 갈래 탭이 아니라 문서 나무 끝 묶음 줄(A · B). C 는 갈래 탭 그대로.</li>
+<li>기록 보기의 「내가 쓴 것」 은 찾기 칸 옆 거르기 단추 하나.</li>
+<li>그래프 보기의 왼쪽 판(찾기 · 보는 방법 · 보기 · 종류 · 바탕)은 그대로 목록 자리에 선다.</li>
+<li>설정은 본문 안 설정 메뉴(다른 세션이 되돌린 T5-19) 그대로 — 옆 메뉴의 설정 아이콘은 들어가는 입구 하나.</li>
+</ul>
+<p class="muted small">목업 조종판은 목업에만 있다. 색 · 글 크기 · 간격은 app/kmd.css 토큰만 쓴다.</p>
+</div>
+<script>
+// 줄인 그림 — 칸 폭에 맞춰 1280×800 을 줄인다
+const fit = () => document.querySelectorAll('.frame').forEach((f) => { f.querySelector('iframe').style.transform = 'scale(' + f.clientWidth / 1280 + ')' })
+addEventListener('resize', fit); fit()
+</script>
+</body>
+</html>

@@ -462,7 +462,7 @@ test('화면: PC 전용 안내 · 같은 탭의 새 번호 · 처음 들어오�
     await tp.fill('#fsPw', 'choi-password-1')
     await tp.click('[data-t=firstBtn]')
     await tp.waitForSelector('[data-t=firstDone]')
-    assert.match(await tp.locator('[data-t=me]').innerText(), /choi/)
+    assert.match(await tp.locator('[data-t=me]').getAttribute('aria-label'), /choi/)
     assert.equal(await tp.locator('aside.side.dim').count(), 0, '옆 메뉴가 흐리지 않다')
     await tp.goto(`${team.url}/first#code=${code}`)
     await tp.waitForSelector('[data-t=firstGone]')

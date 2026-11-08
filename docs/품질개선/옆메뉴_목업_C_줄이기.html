@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>옆 메뉴 목업 C</title>
+<meta name="description" content="층은 두고 줄인다: 지식 카드에 보기 아이콘 · 거르기는 찾기 칸 안 · 관리는 한 줄 팝업">
+<style>
+/* 토큰 — app/kmd.css 의 :root 를 그대로 옮겼다(목업 만들 때 2026-11-08). 아래 규칙은 이 토큰만 쓴다 */
+:root{
+  --hit:24px;
+  /* 면 · 선 */
+  --bg:#f6f7f9;--surface:#fff;--surface-2:#f1f3f7;--surface-3:#e6eaf0;--hover:#f5f7fa;
+  --border:#e2e6ed;--border-strong:#c9d1dd;--border-input:#7d8799;
+  /* 글 — --text-3 #646d7b: 흰 바탕 5.23:1 · --surface-2(#f1f3f7) 위 4.71:1(WCAG 상대 휘도로 잼 · 옛 #858e9d 는 3.31 · 2.98) */
+  --text:#11151c;--text-2:#515a68;--text-3:#646d7b;--on-accent:#fff;
+  /* 뜻 색 — 파랑=주 일 · 고른 것 / 초록=됨 · 켜짐 / 노랑=멈춤 · 값 바뀜 / 빨강=못 함 · 지우기 / 보라=기다림 · 받은 것 */
+  --accent:#3358e6;--accent-hover:#2a4bd0;--accent-bg:#e9eeff;--accent-line:#c3d0fb;
+  /* --ok #237a47: ok-bg 위 4.72 · 흰 바탕 5.32 · surface-2 위 4.79(옛 #2e9b5b 는 3.13 · 3.53 — 작은 굵은 글에 모자랐다) */
+  --ok:#237a47;--ok-bg:#e6f5ec;--ok-line:#bfe3cc;
+  --warn:#8c5c00;--warn-bg:#fcf3e0;--warn-line:#d39a2c;
+  /* --danger #b8321f: danger-bg 위 5.23 · 흰 바탕 5.98(옛 #cb3a2c 는 danger-bg 위 4.39) */
+  --danger:#b8321f;--danger-bg:#fdeceb;--danger-line:#efb7b1;
+  --pending:#6247c4;--pending-bg:#efedfd;--pending-line:#d9d2fb;
+  /* 그래프 점 종류(모양과 함께만 쓴다 · 색만으로 가르지 않는다) — 흰 바탕 대비: 문서 10.35 · 항목 5.71 · 기록 5.18 · 파랑 · 주황은 색각 이상에도 갈린다 */
+  --k-doc:#334155;--k-item:#3358e6;--k-rec:#c2410c;
+  --g-ring:#fff;
+  /* 그래프 칸 어두운 바탕(그래프만 · .gwrap.dark 가 위 토큰을 갈아 끼운다) — 글 대비: 글 #e6ebf5 15.8 · 흐린 글 #8a97b3 6.5 · 문서 #cbd5e1 12.8 · 항목 #7c9cff 7.3 · 기록 #fb923c 8.4(바탕 #0b1020 위) */
+  --gd-bg:#0b1020;--gd-surface:#121a2e;--gd-surface-2:#18223a;--gd-border:#253252;--gd-border-strong:#3a4a72;
+  --gd-text:#e6ebf5;--gd-text-2:#b2bdd3;--gd-text-3:#8a97b3;--gd-k-doc:#cbd5e1;--gd-k-item:#7c9cff;--gd-k-rec:#fb923c;--gd-accent:#8aa4ff;--gd-accent-bg:#1f2a4d;--gd-warn-bg:#3a2e12;
+  /* 진한 띠(토스트 · 툴팁 · 고른 띠 · 「나」 표지) · 터미널(7절) */
+  --ink:#11151c;--ink-2:#262d3b;--ink-text:#e8ecf3;
+  --term-bg:#0f141c;--term-text:#d7dde8;--term-dim:#7d8696;--term-tool:#8fb0ff;--term-ok:#7fd69a;--term-err:#ff8f86;
+  /* 글 크기 */
+  --fs-xs:11px;--fs-sm:11.5px;--fs-mono:12px;--fs:13px;--fs-md:14px;--fs-lg:16px;--fs-xl:20px;
+  --lh-tight:1.25;--lh:1.55;--lh-read:1.7;
+  /* 간격 — 카드 안 · 카드 사이 14 · 영역 사이 22 */
+  --sp-1:2px;--sp-2:4px;--sp-3:6px;--sp-4:8px;--sp-5:10px;--sp-6:12px;--sp-7:14px;--sp-8:16px;--sp-9:22px;
+  /* 모서리 — 표지 · 작은 칩 · 단추 · 칸(팝업 · 모달) · 카드 · 알약 */
+  --r-xs:4px;--r-sm:5px;--r:7px;--r-md:10px;--r-lg:12px;--r-pill:999px;
+  /* 그림자 — 카드 · 팝업과 모달 · 맨 위에 뜨는 것(찾기 창 · 서랍) · 키보드 초점 고리 */
+  --shadow-1:0 1px 2px rgba(15,23,42,.05),0 1px 3px rgba(15,23,42,.07);
+  --shadow-2:0 2px 6px -1px rgba(15,23,42,.08),0 14px 32px -8px rgba(15,23,42,.18);
+  --shadow-3:0 18px 48px rgba(15,23,42,.28);
+  --focus-ring:0 0 0 2px var(--surface),0 0 0 4px var(--accent);
+  /* 층 — 토스트는 모달 위 */
+  --z-menu:20;--z-scrim:70;--z-pop:80;--z-toast:90;
+  /* 화면 최대 폭(2절) · 옆 메뉴 · 오른쪽 칸 */
+  --w-text:820px;--w-list:980px;--w-grid:1100px;--w-side:248px;--w-aside:300px;
+  /* 접힌 옆 메뉴 · 오른쪽 칸(레일) · 너비 잡이 · 그래프 팝업 */
+  --w-rail:48px;--w-grip:6px;--w-graph:400px;
+  /* 글꼴 — 모노는 경로 · 주소 · 이름 · 시각에만 */
+  --font:"Malgun Gothic","Apple SD Gothic Neo",-apple-system,"Segoe UI",system-ui,sans-serif;
+  --mono:Consolas,"Cascadia Mono",D2Coding,"Malgun Gothic",monospace;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:var(--fs)/var(--lh) var(--font);word-break:keep-all;overflow-wrap:break-word}
+button,input{font:inherit;color:inherit}
+svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.app{display:flex;height:100vh;height:100dvh;overflow:hidden}
+.col{flex:1;min-width:0;display:flex;flex-direction:column}
+.hdr{height:46px;flex:none;display:flex;align-items:center;gap:var(--sp-5);padding:0 var(--sp-7);background:var(--surface);border-bottom:1px solid var(--border)}
+.hb{width:28px;height:28px;display:inline-grid;place-items:center;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text-2);cursor:pointer;flex:none;position:relative;padding:0}
+.hb:hover{background:var(--hover);color:var(--text)}
+.hb:focus-visible,.tb:focus-visible,.tn:focus-visible,.ab:focus-visible,.mb2:focus-visible,.kp:focus-visible{outline:0;box-shadow:var(--focus-ring)}
+.crumb{color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.crumb b{color:var(--text)}
+.hmid{flex:1;display:flex;gap:var(--sp-4);justify-content:center;min-width:0}
+.qbtn,.search{height:30px;display:flex;align-items:center;gap:var(--sp-3);border:1px solid var(--border-strong);border-radius:var(--r);padding:0 var(--sp-5);color:var(--text-2);background:var(--surface);white-space:nowrap}
+.search{width:min(260px,100%)}
+.hright{display:flex;align-items:center;gap:var(--sp-6);color:var(--text-2);white-space:nowrap}
+.menu-btn,.aside-btn{display:none}
+.band{height:30px;flex:none;display:flex;align-items:center;gap:var(--sp-4);padding:0 var(--sp-7);background:var(--accent-bg);color:var(--text);font-weight:600;font-size:var(--fs-sm)}
+.band.me{background:var(--ok-bg)}
+.band i{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.band.me i{background:var(--ok)}
+.body{flex:1;display:flex;min-height:0}
+.main{flex:1;min-width:0;overflow:auto;padding:var(--sp-7) var(--sp-9)}
+.paper{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--sp-9);max-width:var(--w-text);box-shadow:var(--shadow-1)}
+.paper h1{font-size:var(--fs-xl);margin:0 0 var(--sp-2)}
+.paper h2{font-size:var(--fs-lg);margin:var(--sp-9) 0 var(--sp-4);padding-top:var(--sp-6);border-top:1px solid var(--border)}
+.paper p{line-height:var(--lh-read);margin:0 0 var(--sp-5)}
+.muted{color:var(--text-3)}.small{font-size:var(--fs-sm)}
+.aside{width:var(--w-aside);flex:none;border-left:1px solid var(--border);background:var(--surface);padding:var(--sp-7);overflow:auto}
+.aside .agh{display:flex;justify-content:space-between;padding:var(--sp-4) var(--sp-3);border-bottom:1px solid var(--border);font-weight:600}
+.aside .agh span{color:var(--text-3);font-weight:400;font-size:var(--fs-xs)}
+.drawer-scrim{display:none;position:fixed;inset:0;background:color-mix(in srgb,var(--ink) 32%,transparent);z-index:calc(var(--z-scrim) - 2)}
+/* 옆 메뉴 공통 부품 */
+.side{flex:none;position:relative;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.inp{width:100%;height:30px;border:1px solid var(--border-input);border-radius:var(--r);padding:0 var(--sp-5);background:var(--surface);font-size:var(--fs)}
+.inp:focus{outline:0;box-shadow:var(--focus-ring)}
+.lp{flex:1;min-height:0;overflow:auto;padding:var(--sp-2) 0}
+.tn{display:flex;align-items:center;gap:var(--sp-3);height:26px;padding:0 var(--sp-4);border-radius:var(--r);cursor:pointer;white-space:nowrap;color:var(--text);border:0;background:none;width:100%;text-align:left;font-size:var(--fs)}
+.tn:hover{background:var(--hover)}
+.tn.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.tn .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.tn svg{color:var(--text-3)}
+.tn.on svg{color:var(--accent)}
+.tn.dir{color:var(--text-2);font-weight:600}
+.tn .ar{width:10px;color:var(--text-3);font-size:var(--fs-xs)}
+.tn .rc{font-size:var(--fs-xs);color:var(--text-3);background:var(--surface-2);border-radius:var(--r-pill);padding:0 var(--sp-3)}
+.tn .dt{font:var(--fs-xs) var(--mono);color:var(--text-3);width:40px;flex:none}
+.tn .iv{font:600 var(--fs-mono) var(--mono)}
+.pd{width:7px;height:7px;border-radius:50%;background:var(--warn-line);flex:none}
+.bd{min-width:16px;height:16px;padding:0 var(--sp-2);border-radius:var(--r-pill);background:var(--warn-bg);color:var(--warn);font-size:var(--fs-xs);font-weight:700;display:inline-grid;place-items:center;line-height:1}
+.gfs{padding:var(--sp-4) var(--sp-3)}
+.gfs .gh{font-size:var(--fs-sm);color:var(--text-3);margin-bottom:var(--sp-3)}
+.gfr{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.fbtn{height:24px;border:1px solid var(--border-input);border-radius:var(--r);background:var(--surface);padding:0 var(--sp-4);font-size:var(--fs-sm);cursor:pointer}
+.fbtn[aria-pressed=true]{background:var(--accent-bg);border-color:var(--accent);color:var(--accent)}
+.kp{display:flex;align-items:center;gap:var(--sp-4);min-width:0;border:0;background:none;padding:var(--sp-3) var(--sp-4);border-radius:var(--r);cursor:pointer;text-align:left}
+.kp:hover{background:var(--surface-2)}
+.kp .rk{font:700 var(--fs-xs) var(--mono);background:var(--accent-bg);color:var(--accent);border-radius:var(--r-sm);padding:var(--sp-1) var(--sp-2)}
+.band.me~* .kp .rk,.me-scr .kp .rk{background:var(--ok-bg);color:var(--ok)}
+.kp .rn{flex:1;min-width:0;font-weight:700;font-size:var(--fs-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kp .rc{color:var(--text-3);font-size:var(--fs-xs)}
+.av{width:26px;height:26px;border-radius:50%;background:var(--accent-bg);color:var(--accent);display:grid;place-items:center;font-weight:700;font-size:var(--fs-mono);flex:none}
+.pop{position:absolute;z-index:var(--z-pop);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow-2);padding:var(--sp-2);min-width:200px}
+.pop .mi{display:flex;align-items:center;gap:var(--sp-4);width:100%;border:0;background:none;padding:var(--sp-4) var(--sp-5);border-radius:var(--r);cursor:pointer;text-align:left;font-size:var(--fs)}
+.pop .mi:hover{background:var(--hover)}
+.pop .mi .bd{margin-left:auto}
+.pop .sep{border-top:1px solid var(--border);margin:var(--sp-2) 0}
+/* 목업 조종판(목업만) */
+.mk{position:fixed;right:var(--sp-5);bottom:var(--sp-5);z-index:var(--z-toast);display:flex;flex-wrap:wrap;gap:var(--sp-2);align-items:center;background:var(--ink);color:var(--ink-text);border-radius:var(--r-md);padding:var(--sp-3) var(--sp-4);font-size:var(--fs-xs);box-shadow:var(--shadow-3);max-width:calc(100vw - var(--sp-9))}
+.mk b{margin-right:var(--sp-3)}
+.mk button{border:1px solid var(--ink-2);background:var(--ink-2);color:var(--ink-text);border-radius:var(--r-xs);padding:var(--sp-1) var(--sp-4);cursor:pointer;font-size:var(--fs-xs)}
+.mk button[aria-pressed=true]{background:var(--accent);border-color:var(--accent)}
+.mk a{color:var(--accent-line)}
+.mk .x{margin-left:var(--sp-2)}
+.mk.mini{padding:var(--sp-2)}
+@media (max-width:1024px){
+  .aside{display:none}.aside-btn{display:inline-grid;width:auto;padding:0 var(--sp-4);font-size:var(--fs-sm)}
+  .qbtn kbd,.search .sk{display:none}
+}
+@media (max-width:600px){
+  .menu-btn{display:inline-grid}
+  .hmid .qbtn{display:none}.search{width:30px;padding:0;justify-content:center}.search .sl{display:none}
+  .hright .hl{display:none}
+  .hdr{padding:0 var(--sp-5);gap:var(--sp-3)}
+  .main{padding:var(--sp-5)}
+  .paper{padding:var(--sp-7)}
+  .side{position:fixed;top:0;left:0;bottom:0;z-index:calc(var(--z-scrim) - 1);box-shadow:var(--shadow-3);transform:translateX(-100%);visibility:hidden;transition:transform .2s,visibility .2s}
+  .app.side-open .side{transform:none;visibility:visible}
+  .app.side-open~.drawer-scrim{display:block}
+  .mk:not(.mini){left:var(--sp-5);right:var(--sp-5);bottom:var(--sp-3)}
+}
+
+/* ── C 지금 짜임 줄이기 ── */
+
+.side{width:var(--w-side);padding:var(--sp-5) var(--sp-4) 0}
+.c-me{display:flex;align-items:center;gap:var(--sp-4);padding:0 var(--sp-3) var(--sp-4)}
+.c-me b{flex:1;font-size:var(--fs-md)}
+.c-me small{display:block;font-size:var(--fs-xs);color:var(--text-3);font-weight:400}
+.c-kn{display:flex;align-items:center;gap:var(--sp-2);border:1px solid var(--border-strong);border-radius:var(--r-md);padding:var(--sp-2);margin-bottom:var(--sp-4)}
+.c-kn .kp{flex:1;padding:var(--sp-2) var(--sp-3)}
+.c-seg{display:flex;gap:var(--sp-1);background:var(--surface-2);border-radius:var(--r);padding:var(--sp-1)}
+.c-seg button{width:26px;height:26px;display:grid;place-items:center;border:0;background:none;border-radius:var(--r-sm);color:var(--text-2);cursor:pointer}
+.c-seg button[aria-selected=true]{background:var(--surface);color:var(--accent);box-shadow:var(--shadow-1)}
+.stabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:var(--sp-4)}
+.stabs button{flex:1;border:0;background:none;padding:var(--sp-2) 0 var(--sp-3);font-size:var(--fs);color:var(--text-2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.stabs button em{font-style:normal;font-size:var(--fs-xs);color:var(--text-3)}
+.stabs button[aria-selected=true]{color:var(--text);font-weight:700;border-bottom-color:var(--accent)}
+.c-find{position:relative;margin-bottom:var(--sp-2)}
+.c-find .inp{padding-right:calc(var(--sp-9) + var(--sp-4))}
+.c-find .hb{position:absolute;right:var(--sp-1);top:var(--sp-1);width:24px;height:24px;border-color:transparent;background:none}
+.c-mg{flex:none;border-top:1px solid var(--border);margin:0 calc(var(--sp-4) * -1);padding:var(--sp-2) var(--sp-4);position:relative}
+.c-mg>button{display:flex;align-items:center;gap:var(--sp-4);width:100%;border:0;background:none;padding:var(--sp-4) var(--sp-4);border-radius:var(--r);cursor:pointer;color:var(--text-2);font-size:var(--fs)}
+.c-mg>button:hover{background:var(--hover);color:var(--text)}
+.c-mg>button .bd{margin-left:auto}
+.c-mg .pop{bottom:calc(100% + var(--sp-2));left:var(--sp-4);right:var(--sp-4)}
+.srail{display:none}
+@media (min-width:601px){
+  .app.side-rail .side{width:var(--w-rail);padding:var(--sp-5) 0;align-items:center}
+  .app.side-rail .side>:not(.srail){display:none}
+  .app.side-rail .srail{display:flex;flex-direction:column;align-items:center;gap:var(--sp-2)}
+}
+.srail .hb{border-color:transparent;background:none}.srail .hb.on{background:var(--accent-bg);color:var(--accent)}
+.srail .rsep{width:60%;border-top:1px solid var(--border);margin:var(--sp-2) 0}
+@media (max-width:600px){.side{width:min(var(--w-side),calc(100vw - 48px))}}
+
+</style>
+</head>
+<body>
+<div id="app" class="app"></div>
+<div class="drawer-scrim" data-a="scrim"></div>
+<div id="mk" class="mk" aria-label="목업 조종판"></div>
+<script>
+const VAR = 'C', PERSON_IN_HDR = false
+
+const I = {
+  doc:'M6 3h8l4 4v14H6zM14 3v4h4', tag:'M3 12V3h9l9 9-9 9zM7.5 7.5h.01', rec:'M5 4h14v16H5zM8 9h8M8 13h8M8 17h5',
+  graph:'M7 7m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0M17 7m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0M12 18m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0M9 9l2 6.5M15 9l-2 6.5M9.5 7h5',
+  hour:'M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9', arrow:'M4 12h15M13 6l6 6-6 6',
+  held:'M4 13l3-8h10l3 8v6H4zM4 13h5l1 2h4l1-2h5', folder:'M3 6h6l2 2h10v11H3z',
+  gear:'M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1',
+  send:'M4 12l16-8-6 16-2-7z', search:'M11 11m-6 0a6 6 0 1 0 12 0a6 6 0 1 0-12 0M20 20l-4.5-4.5', clip:'M8 12l6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l7-7',
+  sideL:'M4 4h16v16H4zM9 4v16', filter:'M4 5h16l-6 8v6l-4-2v-4z', expand:'M7 9l5-5 5 5M7 15l5 5 5-5', book:'M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM19 19v2H6', list:'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
+}
+const svg = (n) => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + I[n] + '"/></svg>'
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+// 시험 지식(목업만) — 문서 31 · 기록 17 · 첨부 2 · 항목 26
+const DOCS = [
+  ['개요', 0], ['서버 목록', 0], ['용어 모음', 0], ['이슈 대장', 1],
+  ['운영/', [['배포 절차', 0], ['배포 체크리스트', 0], ['롤백 절차', 0], ['릴리스 노트', 0], ['모니터링', 0], ['장애 대응', 0], ['점검 일정', 0]]],
+  ['보안/', [['권한 신청', 0], ['로그 보관', 0], ['백업 절차', 0], ['접속 규칙', 0], ['비밀번호 정책', 0]]],
+  ['일정/', [['배치 일정', 0], ['회의록/', [['회의록 2026-11', 0], ['회의록 2026-10', 1], ['회의록 2026-09', 0], ['회의록 2026-08', 0]]]]],
+  ['연동/', [['GDI 연동', 0], ['메일 서버', 0], ['SSO 설정', 0], ['외부 API 목록', 0]]],
+  ['개발/', [['코드 규칙', 0], ['브랜치 규칙', 0], ['빌드 절차', 0], ['테스트 서버', 0]]],
+]
+const RECS = [['23:05','배포 절차: 승인자 바뀜',1],['22:40','이슈 DPMS-ISS-15: 닫힘'],['18:12','회의록 11-06'],['11-06','서버 목록: WAS 3 추가'],['11-06','권한 신청: 담당 박'],['11-05','롤백 절차: 시간 30분'],['11-05','용어: KMD'],['11-04','배치 일정: 02시'],['11-04','모니터링: 경보 기준',1],['11-03','회의록 11-03'],['11-02','로그 보관: 180일'],['11-01','백업 절차: 주 1회'],['10-31','SSO 설정'],['10-30','메일 서버 교체'],['10-29','릴리스 노트 3.2'],['10-28','장애 대응: 연락망'],['10-27','점검 일정: 넷째 주']]
+const ITEMS = [['이슈', [['DPMS-ISS-15','로그인 지연'],['DPMS-ISS-16','배치 실패'],['DPMS-ISS-17','메일 반송'],['DPMS-ISS-18','권한 누락'],['DPMS-ISS-19','백업 느림']]], ['서버', [['WAS-1','운영 WAS'],['WAS-2','운영 WAS'],['WAS-3','새 WAS'],['DB-1','운영 DB']]], ['용어', [['KMD','지식 관리'],['GDI','연동 시스템'],['SSO','한 번 로그인'],['RPO','복구 시점'],['RTO','복구 시간'],['WAS','웹 앱 서버']]], ['절차', [['배포','배포 절차'],['롤백','롤백 절차'],['백업','백업 절차'],['점검','점검 일정'],['권한','권한 신청']]], ['담당', [['박','지식관리자'],['이','운영'],['김','총괄']]], ['일정', [['배치','02시'],['점검','넷째 주'],['백업','일요일']]]]
+const ST = { team: true, view: 'docs', rail: false, open: { '운영/': true }, cur: '권한 신청', pop: '', adm: false }
+try { Object.assign(ST, JSON.parse(sessionStorage.getItem('mk.' + VAR) || '{}')) } catch {}
+const save = () => { try { sessionStorage.setItem('mk.' + VAR, JSON.stringify(ST)) } catch {} }
+const nDocs = (() => { let n = 0; const w = (a) => a.forEach(([t, x]) => Array.isArray(x) ? w(x) : n++); w(DOCS); return n })()
+function treeRows(arr = DOCS, depth = 0, pre = '') {
+  let h = ''
+  for (const [t, x] of arr) {
+    const pad = 'style="padding-left:calc(var(--sp-4) + var(--sp-5) * ' + depth + ')"'
+    if (Array.isArray(x)) {
+      const key = pre + t, on = !!ST.open[key]
+      const cnt = (function c(a) { return a.reduce((n, [, y]) => n + (Array.isArray(y) ? c(y) : 1), 0) })(x)
+      h += '<button type="button" class="tn dir" ' + pad + ' data-a="dir" data-k="' + esc(key) + '" aria-expanded="' + on + '"><span class="ar">' + (on ? '▾' : '▸') + '</span>' + svg('folder') + '<span class="nm">' + esc(t.slice(0, -1)) + '</span><span class="rc">' + cnt + '</span></button>'
+      if (on) h += treeRows(x, depth + 1, key)
+    } else h += '<button type="button" class="tn' + (ST.cur === t ? ' on' : '') + '" ' + pad + ' data-a="doc" data-k="' + esc(t) + '">' + svg('doc') + '<span class="nm">' + esc(t) + '</span>' + (x && ST.team ? '<i class="pd" title="넣지 못함"></i>' : '') + '</button>'
+  }
+  return h
+}
+const attRows = (depth = 0) => { const key = '첨부', on = !!ST.open[key]; return '<button type="button" class="tn dir" data-a="dir" data-k="첨부" aria-expanded="' + on + '"><span class="ar">' + (on ? '▾' : '▸') + '</span>' + svg('clip') + '<span class="nm">첨부</span><span class="rc">2</span></button>' + (on ? ['배포도.png', '연락망.xlsx'].map((a) => '<button type="button" class="tn" style="padding-left:calc(var(--sp-4) + var(--sp-5))">' + svg('clip') + '<span class="nm">' + a + '</span></button>').join('') : '') }
+const recRows = (mineOnly) => RECS.map(([d, t, held]) => '<button type="button" class="tn">' + (held && ST.team ? '<i class="pd" title="넣지 못함"></i>' : '') + '<span class="dt">' + d + '</span><span class="nm">' + esc(t) + '</span></button>').join('')
+const itemRows = () => ITEMS.map(([k, xs]) => { const on = ST.open['i:' + k] !== false; return '<button type="button" class="tn dir" data-a="dir" data-k="i:' + k + '" data-def="1" aria-expanded="' + on + '"><span class="ar">' + (on ? '▾' : '▸') + '</span>' + svg('tag') + '<span class="nm">' + k + '</span><span class="rc">' + xs.length + '</span></button>' + (on ? xs.map(([v, d]) => '<button type="button" class="tn" style="padding-left:calc(var(--sp-4) + var(--sp-5))"><span class="iv">' + v + '</span><span class="nm muted">' + d + '</span></button>').join('') : '') }).join('')
+const graphPanel = () => [['찾기', '<input class="inp" placeholder="점 찾기">'], ['보는 방법', '<button class="fbtn" aria-pressed="true">3D</button><button class="fbtn">2D 표</button>'], ['보기', '<button class="fbtn" aria-pressed="true">선</button><button class="fbtn" aria-pressed="true">제목</button><button class="fbtn">회전</button>'], ['종류', '<button class="fbtn" aria-pressed="true">문서</button><button class="fbtn" aria-pressed="true">항목</button><button class="fbtn" aria-pressed="true">기록</button>'], ['바탕', '<button class="fbtn" aria-pressed="true">밝게</button><button class="fbtn">어둡게</button>']].map(([h, b]) => '<div class="gfs"><div class="gh">' + h + '</div><div class="gfr">' + b + '</div></div>').join('')
+const KN = () => ST.team ? { rk: 'DP', name: 'DPMS 지식', where: '팀' } : { rk: '내', name: '내 운영 메모', where: 'D:\\kmd\\memo' }
+// 관리 일 — 팀: 이력 · 가져오기 · 넣지 못함 · (문서 짜임: 지식관리자부터) · 설정 / 개인: 이력 · 가져오기 · 문서 짜임 · 지식 보내기 · 설정
+const MG = () => ST.team ? [['hist', '이력', 'hour', 0], ['import', '가져오기', 'arrow', 0], ['held', '넣지 못함', 'held', 3], ...(ST.adm ? [['structure', '문서 짜임', 'folder', 0]] : []), ['settings', '설정', 'gear', 0]] : [['hist', '이력', 'hour', 0], ['import', '가져오기', 'arrow', 0], ['structure', '문서 짜임', 'folder', 0], ['send', '지식 보내기', 'send', 0], ['settings', '설정', 'gear', 0]]
+const VIEWS = [['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['recs', '기록', 'rec'], ['graph', '그래프', 'graph']]
+function mainHtml(personInHdr) {
+  const k = KN()
+  const crumb = ST.page ? '<b>' + esc(ST.page) + '</b>' : esc(k.name) + ' › ' + (ST.view === 'graph' ? '<b>그래프</b>' : '<b>' + esc(ST.cur) + '</b>')
+  const hdr = '<header class="hdr"><button type="button" class="hb menu-btn" data-a="drawer" aria-label="옆 메뉴" aria-expanded="' + !!ST.drawer + '">☰</button><span class="crumb">' + crumb + '</span><div class="hmid"><div class="qbtn">빨리 열기 <kbd class="small muted">Ctrl O</kbd></div><div class="search">' + svg('search') + '<span class="sl">찾기</span><span class="sk small muted">Ctrl K</span></div></div><button type="button" class="hb aside-btn">옆 칸</button><div class="hright"><span class="hl">' + svg('book') + ' 설명서</span>' + (personInHdr ? '<button type="button" class="hb" style="border-radius:50%;width:30px;height:30px;border:0;background:var(--accent-bg);color:var(--accent);font-weight:700" title="lee · 팀 서버 — 설정 · 단축키 · 나가기" aria-label="lee: 설정 · 나가기">l</button>' : '') + '</div></header>'
+  const band = '<div class="band ' + (ST.team ? 'team' : 'me') + '"><i></i>' + (ST.team ? '팀 지식 · 팀 서버 · 나: 쓰기' : '내 지식 · ' + esc(k.where) + ' · 나만') + '</div>'
+  const paper = ST.page ? '<div class="paper"><h1>' + esc(ST.page) + '</h1><p class="muted">관리 화면(목업은 비워 둠). 옆 메뉴의 목록은 그대로 남는다.</p></div>' : ST.view === 'graph' ? '<div class="paper" style="height:min(520px,70vh);display:grid;place-items:center;color:var(--text-3)">그래프 칸(가운데)</div>' : '<div class="paper"><h1>' + esc(ST.cur) + '</h1><div class="muted small">10-23 바뀜</div><h2>개요</h2><p>운영 접속 권한은 박에게 신청한다. 신청서에는 쓸 서버 · 기간 · 까닭을 적는다.</p><h2>절차</h2><p>1. 신청서를 쓴다. 2. 지식관리자가 승인한다. 3. 계정이 열리면 메일로 알린다.</p><h2>담당</h2><p>박(지식관리자) · 이(운영)</p></div>'
+  const aside = '<aside class="aside"><div class="agh">이 문서</div>' + ['개요 3', '문서 2', '기록 4', '항목 3', '속성'].map((x) => { const [a, b] = x.split(' '); return '<div class="agh">▸ ' + a + '<span>' + (b || '') + '</span></div>' }).join('') + '</aside>'
+  return '<div class="col">' + hdr + band + '<div class="body"><main class="main">' + paper + '</main>' + aside + '</div></div>'
+}
+function mkHtml() {
+  const b = (a, v, l, on) => '<button type="button" data-a="' + a + '" data-v="' + v + '" aria-pressed="' + on + '">' + l + '</button>'
+  return '<b>목업 ' + VAR + '</b>' + b('team', 1, '팀', ST.team) + b('team', 0, '개인', !ST.team) + (ST.team ? b('adm', 1, '지식관리자', ST.adm) : '') + b('rail', 1, '접기', ST.rail) + '<a class="x" href="옆메뉴_목업_비교.html">비교로</a><button type="button" data-a="mkHide" aria-label="조종판 숨기기" title="조종판 숨기기">×</button>'
+}
+function render() {
+  document.getElementById('app').className = 'app' + (ST.drawer ? ' side-open' : '') + (ST.rail ? ' side-rail' : '') + (ST.team ? '' : ' me-scr')
+  document.getElementById('app').innerHTML = sideHtml() + mainHtml(PERSON_IN_HDR)
+  const mk = document.getElementById('mk'); mk.innerHTML = ST.mkHide ? '<button type="button" data-a="mkHide" aria-pressed="false">목업 ' + VAR + '</button>' : mkHtml(); mk.classList.toggle('mini', !!ST.mkHide)
+  save()
+}
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-a]')
+  if (!el) { if (ST.pop && !e.target.closest('.pop')) { ST.pop = ''; render() } return }
+  const a = el.dataset.a, v = el.dataset.v, k = el.dataset.k
+  if (a === 'dir') { ST.open[k] = el.dataset.def ? ST.open[k] === false : !ST.open[k]; if (el.dataset.def && ST.open[k] === true) ST.open[k] = true }
+  else if (a === 'doc') { ST.cur = k; ST.page = ''; ST.drawer = false }
+  else if (a === 'view') { if (VAR === 'B' && ST.view === v && !ST.page) ST.rail = !ST.rail; else { ST.view = v; ST.page = ''; if (VAR === 'B') ST.rail = false } }
+  else if (a === 'page') { ST.page = v; ST.pop = ''; ST.drawer = false }
+  else if (a === 'team') { ST.team = v === '1'; ST.page = '' }
+  else if (a === 'adm') ST.adm = !ST.adm
+  else if (a === 'rail') ST.rail = !ST.rail
+  else if (a === 'drawer') ST.drawer = !ST.drawer
+  else if (a === 'pop') ST.pop = ST.pop === v ? '' : v
+  else if (a === 'scrim') ST.drawer = false
+  else if (a === 'mine') ST.mine = !ST.mine
+  else if (a === 'mkHide') ST.mkHide = !ST.mkHide
+  else return
+  render()
+})
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && (ST.pop || ST.drawer)) { ST.pop = ''; ST.drawer = false; render() } })
+render()
+
+
+function sideHtml() {
+  const k = KN(), mg = MG()
+  const v3 = ST.view === 'recs' ? 'docs' : ST.view
+  const seg = '<div class="c-seg" role="tablist" aria-label="보기">' + VIEWS.filter((x) => x[0] !== 'recs').map(([v, l, ic]) => '<button type="button" role="tab" data-a="view" data-v="' + v + '" aria-selected="' + (v3 === v) + '" title="' + l + '로 보기" aria-label="' + l + '로 보기">' + svg(ic) + '</button>').join('') + '</div>'
+  const sub = ST.view === 'recs' ? 'rec' : (ST.sub || 'doc')
+  const stabs = v3 === 'docs' ? '<div class="stabs" role="tablist" aria-label="갈래">' + [['doc', '문서', nDocs, 'docs'], ['rec', '기록', 17, 'recs'], ['att', '첨부', 2, 'docs']].map(([s, l, n, vv]) => '<button type="button" role="tab" data-a="view" data-v="' + vv + '" aria-selected="' + (ST.view === 'recs' ? s === 'rec' : s === 'doc') + '">' + l + ' <em>' + n + '</em></button>').join('') + '</div>' : ''
+  const ph = { docs: '문서 찾기: 제목 · 폴더', items: '항목 찾기: 값 · 설명', recs: '기록 찾기: 제목 · 쓴 사람' }[ST.view]
+  const find = ST.view === 'graph' ? '' : '<div class="c-find"><input class="inp" placeholder="' + ph + '" aria-label="' + ph.split(':')[0] + '"><button type="button" class="hb" data-a="pop" data-v="flt" title="거르기 · 모두 펴기" aria-label="거르기 · 모두 펴기">' + svg('filter') + '</button>' + (ST.pop === 'flt' ? '<div class="pop" style="top:34px;right:0"><button class="mi">✓ 넣지 못함만</button><button class="mi">내가 쓴 것만</button><div class="sep"></div><button class="mi">폴더 모두 펴기</button></div>' : '') + '</div>'
+  const list = ST.view === 'graph' ? graphPanel() : ST.view === 'items' ? itemRows() : ST.view === 'recs' ? recRows() : treeRows()
+  const heldN = mg.reduce((n, x) => n + x[3], 0)
+  const mgPop = ST.pop === 'mg' ? '<div class="pop" role="menu">' + mg.map(([id, l, ic, b]) => '<button class="mi" role="menuitem" data-a="page" data-v="' + l + '">' + svg(ic) + l + (b ? '<span class="bd">' + b + '</span>' : '') + '</button>').join('') + '</div>' : ''
+  const mgRow = '<div class="c-mg">' + mgPop + '<button type="button" data-a="pop" data-v="mg" aria-haspopup="menu" aria-expanded="' + (ST.pop === 'mg') + '">' + svg('gear') + '지식 관리 ▴' + (heldN ? '<span class="bd" title="넣지 못함">' + heldN + '</span>' : '') + '</button></div>'
+  const rail = '<div class="srail"><button type="button" class="hb" data-a="rail" title="옆 메뉴 펴기" aria-label="옆 메뉴 펴기">' + svg('sideL') + '</button>' + VIEWS.filter((x) => x[0] !== 'recs').map(([v, l, ic]) => '<button type="button" class="hb' + (v3 === v ? ' on' : '') + '" data-a="view" data-v="' + v + '" title="' + l + '" aria-label="' + l + '">' + svg(ic) + '</button>').join('') + '<span class="rsep"></span>' + mg.map(([id, l, ic]) => '<button type="button" class="hb" data-a="page" data-v="' + l + '" title="' + l + '" aria-label="' + l + '">' + svg(ic) + '</button>').join('') + '</div>'
+  return '<aside class="side" aria-label="옆 메뉴">' + rail + '<div class="c-me"><span class="av">l</span><b>lee<small>' + (ST.team ? '팀 서버' : '이 PC') + '</small></b><button type="button" class="hb" data-a="rail" title="옆 메뉴 접기" aria-label="옆 메뉴 접기" style="border-color:transparent;background:none">' + svg('sideL') + '</button></div><div class="c-kn"><button type="button" class="kp" title="지식 고르기"><span class="rk">' + k.rk + '</span><span class="rn">' + esc(k.name) + '</span><span class="rc">▾</span></button>' + seg + '</div>' + stabs + find + '<div class="lp">' + list + '</div>' + mgRow + '</aside>'
+}
+
+</script>
+</body>
+</html>

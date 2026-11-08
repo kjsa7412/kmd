@@ -43,13 +43,20 @@ html,body{background:var(--bg)}
 .tabs span.sg-hover{color:var(--text);background:var(--hover)}
 .pop .mi.sg-hover{background:var(--surface-2)}
 .lk.sg-hover{text-decoration:underline;text-underline-offset:2px}
+/* 옆 메뉴 견본 — 앱 틀(.app)의 높이만 줄였다 */
+.sg-sidebox{align-items:flex-start}
+.app.sg-app{height:min(520px,80vh);border:1px solid var(--border);border-radius:var(--r-md);flex:none}
+.app.sg-app:first-child{width:min(var(--w-side),100%)}
+.app.sg-app .side{width:100%}
+.app.sg-app .side.sg-rail{width:var(--w-rail);padding:var(--sp-6) 0}
+.app.sg-app .sg-rail .srail{display:flex}
 </style>
 </head>
 <body>
 <div class="sg">
   <div class="sg-h"><h1>kmd 디자인 견본</h1><span class="muted small">docs/kmd_디자인_컨벤션.md v0.2 · 값은 app/kmd.css 맨 위 <code>:root</code> 하나에서 온다</span></div>
   <nav class="sg-nav" aria-label="견본 차례">
-    <a href="#color">색</a><a href="#size">글 · 간격 · 모서리 · 그림자</a><a href="#btn">단추</a><a href="#inp">칸</a><a href="#chip">칩 · 표지</a><a href="#card">카드</a><a href="#modal">모달 · 팝업</a><a href="#table">표</a><a href="#tabs">탭</a><a href="#state">빈 화면 · 읽는 중 · 오류</a><a href="#link">링크</a><a href="#ref">문서 화면</a><a href="#term">터미널</a><a href="#resp">반응형</a>
+    <a href="#color">색</a><a href="#size">글 · 간격 · 모서리 · 그림자</a><a href="#btn">단추</a><a href="#inp">칸</a><a href="#chip">칩 · 표지</a><a href="#card">카드</a><a href="#modal">모달 · 팝업</a><a href="#table">표</a><a href="#tabs">탭</a><a href="#state">빈 화면 · 읽는 중 · 오류</a><a href="#link">링크</a><a href="#side">옆 메뉴</a><a href="#ref">문서 화면</a><a href="#term">터미널</a><a href="#resp">반응형</a>
   </nav>
 
   <section id="color">
@@ -273,6 +280,24 @@ html,body{background:var(--bg)}
     <div class="paper">
       <p><a class="dlink doc" href="#link">배포절차</a> 문서 · <a class="dlink item" href="#link">헬스 체크</a> 항목 · <a class="xlink" href="#link">바깥 주소</a> · <span class="deadlink">없는 곳</span> · <a class="dlink missing" href="#link">아직 없는 문서</a></p>
       <p class="small muted">.dlink.doc · .dlink.item · .xlink(↗) · .deadlink(흐림 · 누르지 않음) · .dlink.missing(흐림 점선)</p>
+    </div>
+  </section>
+
+  <section id="side">
+    <h2>옆 메뉴 <small>지식 고르기 줄 → 보기 탭 한 줄 → 찾기 + 도구 아이콘 → 목록 · 아래 관리 줄(아이콘) · 접으면 같은 차례의 레일(컨벤션 2절 · 5절 · 11-2절)</small></h2>
+    <div class="sg-row sg-sidebox">
+      <div class="app sg-app">
+        <aside class="side" aria-label="옆 메뉴 견본">
+          <div class="sb-top"><div class="sb-kn"><button type="button" class="sb-repo" title="DPMS 지식 · 팀"><span class="rk">DP</span><span class="rn">DPMS 지식</span><span class="rc">▾</span></button></div><button type="button" class="busy" title="지금 하는 일 없음"><i></i></button><button type="button" class="hb sfold" title="옆 메뉴 접기 (Ctrl [)" aria-label="옆 메뉴 접기"><svg viewBox="0 0 24 24"><path d="M3 4h18v16H3z M9 4v16 M15 10l-2 2 2 2"/></svg></button></div>
+          <div class="sb-know"><div class="ktabs" role="tablist" aria-label="보기"><button type="button" role="tab" aria-selected="true">문서 <em>17</em></button><button type="button" role="tab" aria-selected="false">항목 <em>33</em></button><button type="button" role="tab" aria-selected="false">기록 <em>17</em></button><button type="button" role="tab" aria-selected="false" class="ic" title="그래프로 보기" aria-label="그래프"><svg viewBox="0 0 24 24"><path d="M3.8 6a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0M15.8 7a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0M6.8 18a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0M16.2 17a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0 -3.6 0 M8.2 6.2l7.6.6 M6.6 8.1l1.8 7.8 M11.2 17.8l5-.6 M17.9 9.2l.1 6"/></svg></button></div>
+          <div class="lp"><div class="tree"><div class="lhead"><div class="lfind"><input class="inp" aria-label="문서 찾기" placeholder="문서 찾기: 제목 · 폴더 · 첨부"><button type="button" class="hb ltool" title="폴더 모두 펴기" aria-label="폴더 모두 펴기"><svg viewBox="0 0 24 24"><path d="M8 9l4-4 4 4 M8 15l4 4 4-4"/></svg></button></div></div>
+            <div class="tn dir" aria-expanded="true"><span class="ar">▾</span><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg><span class="nm">3.4_웹설계</span><span class="rc">2</span></div><div class="tn" style="--dep:1"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">테이블정의서</span></div><div class="tn" style="--dep:1"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">화면정의서</span></div><div class="tn on"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">배포절차</span><i class="pd hd" title="넣지 못한 기록이 있다"></i></div><div class="tn"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">롤백 절차</span></div><div class="tn"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">장애 대응</span></div>
+            <div class="tn dir" aria-expanded="false"><span class="ar">▸</span><svg viewBox="0 0 24 24"><path d="M8 12l6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l7-7"/></svg><span class="nm">첨부</span><span class="rc">2</span></div></div></div></div>
+          <nav class="sb-mg" aria-label="지식 관리"><button type="button" class="sb-ic" title="이력 · 값 바뀜 2" aria-label="이력 · 값 바뀜 2"><svg viewBox="0 0 24 24"><path d="M7 3h10 M7 21h10 M8 3c0 5 8 5 8 9s-8 4-8 9 M16 3c0 5-8 5-8 9s8 4 8 9"/></svg><span class="bd warn">2</span></button><button type="button" class="sb-ic" title="가져오기" aria-label="가져오기"><svg viewBox="0 0 24 24"><path d="M4 12h15 M13 6l6 6-6 6"/></svg></button><button type="button" class="sb-ic on" title="넣지 못함 3" aria-label="넣지 못함 3" aria-current="page"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg><span class="bd warn">3</span></button><button type="button" class="sb-ic" title="문서 짜임" aria-label="문서 짜임"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg></button><button type="button" class="sb-ic" title="설정" aria-label="설정"><svg viewBox="0 0 24 24"><path d="M9 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0 M12 3v3 M12 18v3 M3 12h3 M18 12h3 M5.6 5.6l2.1 2.1 M16.3 16.3l2.1 2.1 M5.6 18.4l2.1-2.1 M16.3 7.7l2.1-2.1"/></svg></button></nav>
+        </aside>
+      </div>
+      <div class="app sg-app"><aside class="side sg-rail" aria-label="접힌 옆 메뉴 견본"><div class="srail"><button type="button" class="hb sfold" aria-label="옆 메뉴 펴기"><svg viewBox="0 0 24 24"><path d="M3 4h18v16H3z M15 4v16 M9 10l2 2-2 2"/></svg></button><button type="button" class="hb on" title="문서" aria-label="문서"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg></button><button type="button" class="hb" title="항목" aria-label="항목"><svg viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z M7.5 8h.01"/></svg></button><button type="button" class="hb" title="기록" aria-label="기록"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z M9 4v16"/></svg></button><button type="button" class="hb" title="그래프" aria-label="그래프"><svg viewBox="0 0 24 24"><path d="M3.8 6a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0M15.8 7a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0M6.8 18a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0M16.2 17a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0 -3.6 0 M8.2 6.2l7.6.6 M6.6 8.1l1.8 7.8 M11.2 17.8l5-.6 M17.9 9.2l.1 6"/></svg></button><span class="rsep"></span><button type="button" class="hb" title="이력" aria-label="이력"><svg viewBox="0 0 24 24"><path d="M7 3h10 M7 21h10 M8 3c0 5 8 5 8 9s-8 4-8 9 M16 3c0 5-8 5-8 9s8 4 8 9"/></svg></button><button type="button" class="hb" title="가져오기" aria-label="가져오기"><svg viewBox="0 0 24 24"><path d="M4 12h15 M13 6l6 6-6 6"/></svg></button><button type="button" class="hb" title="넣지 못함 3" aria-label="넣지 못함 3"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg><i class="rdot"></i></button><button type="button" class="hb" title="문서 짜임" aria-label="문서 짜임"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg></button><button type="button" class="hb" title="설정" aria-label="설정"><svg viewBox="0 0 24 24"><path d="M9 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0 M12 3v3 M12 18v3 M3 12h3 M18 12h3 M5.6 5.6l2.1 2.1 M16.3 16.3l2.1 2.1 M5.6 18.4l2.1-2.1 M16.3 7.7l2.1-2.1"/></svg></button></div></aside></div>
+      <div class="sg-cell"><span>머리 줄 오른쪽 — 들어온 사람</span><button type="button" class="hav" aria-haspopup="menu" aria-expanded="false" title="lee · 팀 서버: 설정 · 단축키 · 나가기" aria-label="lee · 팀 서버: 설정 · 단축키 · 나가기">l</button><button type="button" class="hav" aria-haspopup="menu" aria-expanded="true" aria-label="열림">l</button></div>
     </div>
   </section>
 

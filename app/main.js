@@ -460,7 +460,7 @@ function a11yPass() {
   for (const b of document.querySelectorAll('#app button.sw')) { b.setAttribute('role', 'switch'); b.setAttribute('aria-checked', b.classList.contains('on') ? 'true' : 'false') }
   // 고른 것 — seg 단추 · 일 줄 거름 칩은 aria-pressed · 나무의 연 문서 · 옆 메뉴의 지금 화면은 aria-current · 접기 머리는 aria-expanded
   for (const b of document.querySelectorAll('#app .seg > button')) b.setAttribute('aria-pressed', b.classList.contains('on') ? 'true' : 'false')
-  for (const b of document.querySelectorAll('#app .tn, #app .sb-i')) { if (b.classList.contains('on')) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current') }
+  for (const b of document.querySelectorAll('#app .tn')) { if (b.classList.contains('on')) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current') }
   for (const b of document.querySelectorAll('#app .tf')) { const ar = b.querySelector('.ar'); if (ar) b.setAttribute('aria-expanded', ar.textContent.trim() === '▾' ? 'true' : 'false') }
   const dr = drawerBox()
   for (const b of document.querySelectorAll('#app .side, #app .aside')) {
@@ -777,9 +777,12 @@ function mgWrap(scr, v) {
 // 설정 메뉴는 본문 안 왼쪽에(T5-19 를 되돌림 · 사람 요청 2026-11-08) — 옆 메뉴는 설정에서도 지식 나무 그대로
   return { ...v, crumb: '설정 › ' + (it ? it.l : v.crumb), main: `<div class="mgwrap">${nav}<div class="mgbody">${v.main}</div></div>` }
 }
-// 옆 메뉴 — 두 영역(정정 2026-10-23 · 리본을 걷었다)
-//   지식 고르기 — 지식 고르기 · 문서 · 항목 · 그래프 탭 · 그 탭의 목록(다른 화면에서도 그대로 보인다)
-//   지식 관리   — 모든 지식에 공통: 바뀐 것 · 이력 · 가져오기 · 지식 보내기 · 설정(팀이면 지식관리자(예전 정리하는 사람) · 관리도)
+// 옆 메뉴(A 층 합치기 · 2026-11-09 · docs/품질개선/옆메뉴_검토.md · 컨벤션 5절) — 나무 위 세 층 + 아래 관리 줄
+//   1 지식 고르기 · 지금 하는 일 점 · 접기
+//   2 보기 탭 한 줄(.ktabs): 문서 n · 항목 n · 기록 n · 그래프(아이콘) — 기록은 문서 보기의 기록 목록(UI.stab[지식] = 'rec') · 첨부는 문서 나무 끝 묶음
+//   3 찾기 칸 + 도구 아이콘(문서: 모두 펴기 · 기록: 내가 쓴 것만 · 항목: 모두 펴기) → 목록
+//   아래 관리 줄(.sb-mg · 아이콘만 · 이름은 title · aria-label · 수는 배지): 이력 · 작업(workMenu) · 설정 — 위에서 고른 지식과 따로
+//   접힌 레일은 같은 차례의 아이콘 · 들어온 사람은 머리 줄 오른쪽 동그라미(meHtml)
 const VIEWS3 = ['docs', 'items', 'graph']
 function sideList(vt, k) {
   // 지식 목록(전체) 화면 — 지식을 고르면 그 지식의 문서 · 항목이 선다
@@ -794,48 +797,61 @@ const KEYS = [['Ctrl K', '찾기 — 글 속 낱말까지'], ['Ctrl O', '빨리 
 function keysHtml() {
   return `<div class="scrim fix" data-a="keysClose" data-self="1"><div class="modal w420" role="dialog" aria-modal="true" aria-label="단축키" data-t="keysWin"><div class="mh">단축키<button type="button" class="x" data-a="keysClose" title="닫기" aria-label="닫기">×</button></div><div class="mb"><table class="t"><tbody>${KEYS.map(([k, d]) => `<tr><td><kbd>${esc(k)}</kbd></td><td>${esc(d)}</td></tr>`).join('')}</tbody></table></div><div class="mf"><span class="l">설명서 › 쓰는 사람에도 있다</span><span class="acts"><button type="button" class="btn ghost" data-a="keysClose" data-focus>닫기</button></span></div></div></div>`
 }
+// 보기 탭 넷 — 기록은 문서 보기 안의 기록 목록
+const LTABS = [['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['recs', '기록', 'rec'], ['graph', '그래프', 'graph']]
+const ltabOf = (vt, k) => (vt === 'docs' && k && stabOf(k) === 'rec' ? 'recs' : vt)
+// 탭의 수 — 이미 읽은 것만(수 때문에 따로 읽지 않는다)
+function ltabN(v, k) {
+  const tr = S.cache['tree:' + k], m = S.cache['model:' + k]
+  if (v === 'docs') return tr && !tr.error ? tr.docs.length : ''
+  if (v === 'recs') return tr && !tr.error ? tr.total ?? tr.records.length : ''
+  if (v === 'items') return m && !m.error ? m.items.length : ''
+  return ''
+}
+// 관리 줄 · 레일이 같이 쓰는 차례 — 이력 · 작업 · 설정 { id, a(누르면), ic, l(이름), on, n(배지 수), nt(배지 이름) }
+function mgItems() {
+  const r = S.route, team = isTeam()
+  const nCheck = histChecks(), nNew = !HISTSCR.includes(r.scr) ? histNew() : 0
+  return [
+    { id: 'history', a: 'data-a="nav" data-s="today"', ic: 'hour', l: '이력', on: HISTSCR.includes(r.scr), n: nCheck || nNew, nt: nCheck ? '값 바뀜' : '새 줄', warn: !!nCheck },
+    ...workMenu().map((x) => { const n = x.id === 'held' ? heldSum() : 0; return { id: x.id, a: `data-a="nav" data-s="${x.scr}"`, ic: x.ic, l: x.l, on: r.scr === x.scr, n, nt: '넣지 못함', warn: true } }),
+    { id: 'settings-' + (team ? 'team' : 'me'), a: `data-a="setArea" data-v="${team ? 'team' : 'me'}"`, ic: 'gear', l: '설정', on: MGSCR.includes(r.scr) },
+  ]
+}
 function sideHtml(left) {
   const r = S.route, team = isTeam()
   const dim = anon()
+  if (dim) return `<aside class="side dim"><div class="sb-top"><div class="logo${team ? '' : ' me'}">K</div><span class="brand">kmd</span></div></aside>`
   const vt = VIEWS3.includes(r.scr) ? r.scr : S.ktab || 'docs'
-  const k = dim ? null : defaultKn()
+  const k = defaultKn()
   const cur = k ? KN(k) : null
-  // 맨 위 — 들어온 사람(누르면 설정 · 나가기) · 지금 하는 일 점 · 들어오기 전에는 kmd
-  const fold = dim ? '' : `<button type="button" class="hb sfold" data-a="sideRail" data-t="sideFold" aria-expanded="${!UI.sideRail}" title="${UI.sideRail ? '옆 메뉴 펴기' : '옆 메뉴 접기'} (Ctrl [)" aria-label="${UI.sideRail ? '옆 메뉴 펴기' : '옆 메뉴 접기'}">${svg(UI.sideRail ? 'sideR' : 'sideL')}</button>`
-  // 접힌 옆 메뉴(레일) — 아이콘만: 문서 · 항목 · 그래프 · 빨리 열기 · 이력 · 작업 · 설정
-  const vt0 = VIEWS3.includes(r.scr) ? r.scr : S.ktab || 'docs'
-  const rb = (a, ic, l, on, extra = '', dot = '') => `<button type="button" class="hb${on ? ' on' : ''}" ${a} title="${l}" aria-label="${l}"${extra}>${svg(ic)}${dot}</button>`
-  const nCheck0 = dim ? 0 : histChecks()
-  const rail = dim ? '' : `<div class="srail" data-t="sideRailNav">${fold}${[['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['graph', '그래프', 'graph']].map(([v, l, ic]) => rb(`data-a="view" data-v="${v}" data-t="rl-${v}"`, ic, VIEW_LABEL[v], VIEWS3.includes(r.scr) && vt0 === v)).join('')}${rb('data-a="openQo" data-t="rl-qo"', 'list', '빨리 열기 (Ctrl O)', false)}<span class="rsep"></span>${rb('data-a="nav" data-s="today" data-t="rl-history"', 'hour', '이력', HISTSCR.includes(r.scr), '', nCheck0 ? '<i class="rdot"></i>' : '')}${workMenu().map((x) => rb(`data-a="nav" data-s="${x.scr}" data-t="rl-${x.id}"`, x.ic, x.l, r.scr === x.scr, '', x.id === 'held' && heldSum() ? '<i class="rdot"></i>' : '')).join('')}${rb(`data-a="setArea" data-v="${team ? 'team' : 'me'}" data-t="rl-settings"`, 'gear', '설정', MGSCR.includes(r.scr))}</div>`
-  let h = `<aside class="side${dim ? ' dim' : ''}">${rail}<div class="sb-top">${anon() ? `<div class="logo${team ? '' : ' me'}">K</div><span class="brand">kmd</span>` : meHtml()}${busyDot()}${fold}</div>`
-  if (!dim) {
-    // 지식 고르기 영역
-    const vk = shownKns()
-    const cnt = team ? '팀 ' + vk.length : '내 지식 ' + vk.length
-    const home = r.scr === 'home'
-    h += `<div class="sb-know" data-t="knowArea"><div class="sb-repo" data-a="kmenu" data-t="kpick">${cur && !home ? `<span class="rk">${esc(cur.name.slice(0, 2))}</span><span class="rn">${esc(cur.name)} <small>${esc(knWhere(cur))}</small></span>` : `<span class="rk">전체</span><span class="rn">지식 전체<small>${cnt}</small></span>`}<span class="rc">▾</span>${S.menu === 'kmenu' ? `<div class="kmenu"><div class="mi" data-a="pickKn" data-k="*" data-t="nav-home">${svg('list')} 지식 목록: 전체</div>${shownKns().map((x) => `<div class="mi" data-a="pickKn" data-k="${esc(x.id)}" data-t="kmenuKn">${esc(x.name)} ${knTag(x)}</div>`).join('')}${!isTeam() || S.me.admin ? '<div class="sep"></div><div class="mi" data-a="openAdd" data-t="nav-add">+ 새 지식</div>' : ''}</div>` : ''}</div>`
-    h += `<div class="ktabs" role="tablist" aria-label="보기" data-t="ktabs">${[['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['graph', '그래프', 'graph']].map(([v, l, ic]) => `<button type="button" role="tab" aria-selected="${VIEWS3.includes(r.scr) && vt === v}" class="${VIEWS3.includes(r.scr) && vt === v ? 'on' : vt === v ? 'cur' : ''}" data-a="view" data-v="${v}" data-t="rb-${v}" title="${l}로 보기">${svg(ic)}${l}</button>`).join('')}</div>`
-    h += `<div class="lp" data-t="leftPane">${left || sideList(vt, k)}</div></div>`
-  }
-  // 지식 관리 — 옆 메뉴에는 이력 · 작업(가져오기 · 넣지 못함 · 문서 짜임 · 지식 보내기) · 설정. 설정을 누르면 본문 왼쪽에 설정 메뉴가 선다
-  //   팀 화면은 팀 지식만 · 개인 화면은 개인 지식만
-  //   셋 다 위에서 고른 지식과 따로다
-  const inMg = !dim && MGSCR.includes(r.scr)
-  const set = (area, l) => `<div class="sb-i${inMg && setArea() === area ? ' on' : ''}" data-a="setArea" data-v="${area}" data-t="nav-settings-${area}">${svg('gear')}<span>${l}</span></div>`
-  const nCheck = histChecks()
-  // 접을 수 있는 묶음(UX T5-06) — 접어도 넣지 못함 · 값 바뀜 배지는 머리에 남는다 · 접은 것은 이 브라우저에
-  const mgN = (dim ? 0 : histChecks()) + (dim ? 0 : heldSum())
-  h += `<div class="sb-mg" data-t="manageArea"><button type="button" class="sb-g" data-a="mgFold" data-t="mgFold" aria-expanded="${!UI.mgFold}">${UI.mgFold ? '▸' : '▾'} 지식 관리${UI.mgFold && mgN ? ` <span class="bd warn">${mgN}</span>` : ''}</button><div class="nav"${UI.mgFold ? ' hidden' : ''}>`
-  if (!dim) h += `<div class="sb-i${HISTSCR.includes(r.scr) ? ' on' : ''}" data-a="nav" data-s="today" data-t="nav-history">${svg('hour')}<span>이력</span>${nCheck ? `<span class="bd warn" data-t="histBadge" title="값 바뀜">${nCheck}</span>` : ''}${!HISTSCR.includes(r.scr) && histNew() ? `<span class="bd" data-t="histNew" title="마지막으로 본 뒤 새 줄">새 ${histNew()}</span>` : ''}</div>`
-  if (!dim) for (const x of workMenu()) { const n = x.id === 'held' ? heldSum() : 0; h += `<div class="sb-i${r.scr === x.scr ? ' on' : ''}" data-a="nav" data-s="${x.scr}" data-t="nav-${x.id}">${svg(x.ic)}<span>${esc(x.l)}</span>${n ? `<span class="bd warn" data-t="heldBadge" title="넣지 못함">${n}</span>` : ''}</div>` }
-  h += set(team ? 'team' : 'me', '설정')
-  h += '</div></div>'
-  return h + (dim ? '' : gripHtml('side')) + '</aside>'
+  const home = r.scr === 'home'
+  const lt = home ? '' : ltabOf(vt, k)
+  const fold = `<button type="button" class="hb sfold" data-a="sideRail" data-t="sideFold" aria-expanded="${!UI.sideRail}" title="${UI.sideRail ? '옆 메뉴 펴기' : '옆 메뉴 접기'} (Ctrl [)" aria-label="${UI.sideRail ? '옆 메뉴 펴기' : '옆 메뉴 접기'}">${svg(UI.sideRail ? 'sideR' : 'sideL')}</button>`
+  const mg = mgItems()
+  const lab = (x) => x.l + (!x.n ? '' : x.nt === x.l ? ` ${x.n}` : ` · ${x.nt} ${x.n}`)
+  // 접힌 옆 메뉴(레일) — 편 메뉴와 같은 차례: 보기 넷 · 선 · 관리 줄
+  const rb = (a, ic, l, on, dot = '') => `<button type="button" class="hb${on ? ' on' : ''}" ${a} title="${l}" aria-label="${l}">${svg(ic)}${dot}</button>`
+  const rail = `<div class="srail" data-t="sideRailNav">${fold}${LTABS.map(([v, l, ic]) => rb(`data-a="ltab" data-v="${v}" data-t="rl-${v}"`, ic, l, lt === v)).join('')}<span class="rsep"></span>${mg.map((x) => rb(`${x.a} data-t="rl-${x.id}"`, x.ic, lab(x), x.on, x.n && x.warn ? '<i class="rdot"></i>' : '')).join('')}</div>`
+  let h = `<aside class="side" aria-label="옆 메뉴">${rail}`
+  // 1 지식 고르기
+  const vk = shownKns()
+  const cnt = team ? '팀 ' + vk.length : '내 지식 ' + vk.length
+  const kmenu = S.menu === 'kmenu' ? `<div class="kmenu"><div class="mi" data-a="pickKn" data-k="*" data-t="nav-home">${svg('list')} 지식 목록: 전체</div>${vk.map((x) => `<div class="mi" data-a="pickKn" data-k="${esc(x.id)}" data-t="kmenuKn">${esc(x.name)} ${knTag(x)}</div>`).join('')}${!isTeam() || S.me.admin ? '<div class="sep"></div><div class="mi" data-a="openAdd" data-t="nav-add">+ 새 지식</div>' : ''}</div>` : ''
+  h += `<div class="sb-top"><div class="sb-kn"><button type="button" class="sb-repo" data-a="kmenu" data-t="kpick" title="${cur && !home ? esc(cur.name + ' · ' + knWhere(cur)) : '지식 전체 · ' + cnt}">${cur && !home ? `<span class="rk">${esc(cur.name.slice(0, 2))}</span><span class="rn">${esc(cur.name)}</span>` : `<span class="rk">전체</span><span class="rn">지식 전체 <small>${cnt}</small></span>`}<span class="rc">▾</span></button>${kmenu}</div>${busyDot()}${fold}</div>`
+  // 2 보기 탭 한 줄
+  h += `<div class="sb-know" data-t="knowArea"><div class="ktabs" role="tablist" aria-label="보기" data-t="ktabs">${LTABS.map(([v, l, ic]) => { const n = k && !home ? ltabN(v, k) : '', g = v === 'graph'; return `<button type="button" role="tab" aria-selected="${lt === v}" class="${g ? 'ic' : ''}" data-a="ltab" data-v="${v}" data-t="rb-${v}" title="${VIEW_LABEL[v] || l + ' 보기'}"${g ? ` aria-label="${l}"` : ''}>${g ? svg(ic) : `${l}${n !== '' ? ` <em>${n}</em>` : ''}`}</button>` }).join('')}</div>`
+  // 3 찾기 · 목록(목록 쪽이 찾기 칸을 그린다)
+  h += `<div class="lp" data-t="leftPane">${left || sideList(vt, k)}</div></div>`
+  // 관리 줄
+  h += `<nav class="sb-mg" data-t="manageArea" aria-label="지식 관리">${mg.map((x) => `<button type="button" class="sb-ic${x.on ? ' on' : ''}" ${x.a} data-t="nav-${x.id}" title="${lab(x)}" aria-label="${lab(x)}"${x.on ? ' aria-current="page"' : ''}>${svg(x.ic)}${x.n ? `<span class="bd${x.warn ? ' warn' : ''}" data-t="${x.id === 'history' ? (x.warn ? 'histBadge' : 'histNew') : 'heldBadge'}" aria-hidden="true">${x.n}</span>` : ''}</button>`).join('')}</nav>`
+  return h + gripHtml('side') + '</aside>'
 }
-// 들어온 사람 — 왼쪽 메뉴 맨 위 · 누르면 설정 · (팀) 나가기
+// 들어온 사람 — 머리 줄 오른쪽 동그라미 · 누르면 설정 · 단축키 · 나가기
 function meHtml() {
-  const menu = S.menu === 'me' ? popHtml('me', `<div data-t="meMenu"><div class="mi muted small" data-t="meWhere" aria-disabled="true">${isTeam() ? '팀 서버 · ' + esc(S.me.host || '') : '이 PC 에서 돈다'}</div><div class="sep"></div><div class="mi" data-a="setArea" data-t="meSettings">설정</div><div class="mi" data-a="keysOpen" data-t="meKeys">단축키<small>? · Ctrl /</small></div>${isTeam() ? '<div class="sep"></div><div class="mi" data-a="logout" data-t="meLogout">나가기<small>이 브라우저에서</small></div><div class="mi" data-a="logoutAll" data-t="meLogoutAll">모든 곳에서 나가기<small>다른 기기 · 브라우저도</small></div>' : '<div class="sep"></div><div class="mi" data-a="logout" data-t="meLogout">나가기<small>이 브라우저에서 · 다시 열려면 시작 메뉴 › kmd</small></div>'}</div>`) : ''
-  return `<div class="sb-me-top" data-a="menu" data-m="me" data-t="me" title="설정 · 나가기">${menu}<span class="av">${esc(String(S.me.user).slice(0, 1))}</span><span class="un"><b>${esc(S.me.user)}</b><small>${isTeam() ? "팀 서버" : "이 PC"}${S.me.admin && isTeam() ? " · 총괄 관리자" : ""}</small></span><span class="rc">▾</span></div>`
+  const menu = S.menu === 'me' ? popHtml('me', `<div data-t="meMenu"><div class="mi muted small" data-t="meWhere" aria-disabled="true"><b>${esc(S.me.user)}</b>${isTeam() ? ' · 팀 서버 · ' + esc(S.me.host || '') + (S.me.admin ? ' · 총괄 관리자' : '') : ' · 이 PC 에서 돈다'}</div><div class="sep"></div><div class="mi" data-a="setArea" data-t="meSettings">설정</div><div class="mi" data-a="keysOpen" data-t="meKeys">단축키<small>? · Ctrl /</small></div>${isTeam() ? '<div class="sep"></div><div class="mi" data-a="logout" data-t="meLogout">나가기<small>이 브라우저에서</small></div><div class="mi" data-a="logoutAll" data-t="meLogoutAll">모든 곳에서 나가기<small>다른 기기 · 브라우저도</small></div>' : '<div class="sep"></div><div class="mi" data-a="logout" data-t="meLogout">나가기<small>이 브라우저에서 · 다시 열려면 시작 메뉴 › kmd</small></div>'}</div>`) : ''
+  const who = `${S.me.user} · ${isTeam() ? '팀 서버' : '이 PC'}${S.me.admin && isTeam() ? ' · 총괄 관리자' : ''}`
+  return `<button type="button" class="hav" data-a="menu" data-m="me" data-t="me" aria-haspopup="menu" aria-expanded="${S.menu === 'me'}" title="${esc(who)}: 설정 · 단축키 · 나가기" aria-label="${esc(who)}: 설정 · 단축키 · 나가기">${menu}${esc(String(S.me.user).slice(0, 1))}</button>`
 }
 function hdrHtml(crumb) {
   const r = S.route
@@ -844,7 +860,7 @@ function hdrHtml(crumb) {
   // 지식 조각은 누르면 그 지식 홈으로 · 맨 앞 「지식 목록」 은 목록으로(UX T5-12 · T5-15)
   const c = (anon() || !kn || parts[0] === '지식 목록' ? '' : '<button type="button" class="lk crumbk" data-a="nav" data-s="home" data-t="crumbHome">지식 목록</button> › ') + (kn && parts[0] !== kn ? '<button type="button" class="lk crumbk" data-a="openKn" data-k="' + esc(r.kn) + '" data-t="crumbKn">' + esc(kn) + '</button> › ' : '') + parts.map((x, i) => (i === parts.length - 1 ? '<b>' + esc(x) + '</b>' : esc(x))).join(' › ')
   const hb = `<span class="hist"><button class="hb" data-a="histGo" data-v="-1" data-t="histBack" title="이전 (Alt ←)"${S.hpos > 0 ? '' : ' disabled'}>‹</button><button class="hb" data-a="histGo" data-v="1" data-t="histFwd" title="다음 (Alt →)"${S.hpos < S.hist.length - 1 ? '' : ' disabled'}>›</button></span>`
-  const me = anon() ? '<span class="hme muted" data-t="me">아직 들어오지 않았다</span>' : ''
+  const me = anon() ? '<span class="hme muted" data-t="me">아직 들어오지 않았다</span>' : meHtml()
   const right = `<div class="hright">${anon() ? '' : claudeChip()}<a class="hlink" data-t="manual" href="/manual" target="_blank" rel="noopener" title="설명서: 새 탭">${svg('book')}<span>설명서</span></a>${me}</div>`
   const menuBtn = gated() ? '' : `<button type="button" class="hb menu-btn" data-a="sideToggle" data-t="menuBtn" aria-label="옆 메뉴" aria-expanded="${S.sideOpen ? 'true' : 'false'}" title="옆 메뉴">☰</button>`
   const asideBtn = S._hasAside && !gated() ? `<button type="button" class="hb aside-btn${S.asideOpen ? ' on' : ''}" data-a="asideToggle" data-t="asideBtn" aria-expanded="${S.asideOpen ? 'true' : 'false'}" title="오른쪽 칸: 개요 · 문서 · 기록 · 항목 · 속성">옆 칸</button>` : ''
@@ -1267,32 +1283,40 @@ function docTreeHtml(k, ds, q = '', tr = null) {
   return walk(root, '', 0) || `<div class="tn muted nc" data-t="docNone">${q ? '맞는 문서가 없다' : '없다'}</div>`
 }
 const dirsOf = (ds) => [...new Set(ds.flatMap((d) => d.id.split('/').slice(0, -1).map((_, i, a) => a.slice(0, i + 1).join('/'))))]
-// 문서 보기(컨벤션 5절 옆 메뉴 짜임) — 갈래 탭 → 찾기 → 거르기 · 모두 펴기 → 목록. 갈래 탭은 UI.stab[지식]
-const stabOf = (k) => UI.stab[k] || 'doc'
+// 문서 보기(컨벤션 5절 옆 메뉴 짜임) — 보기 탭 「문서」 · 「기록」 이 이 목록 하나를 갈라 쓴다(UI.stab[지식] doc | rec) → 찾기 + 도구 아이콘 → 목록. 첨부는 문서 나무 끝 묶음
+const stabOf = (k) => (UI.stab[k] === 'rec' ? 'rec' : 'doc')
+// 찾기 칸 옆 도구 아이콘 — 눌린 것은 aria-pressed
+const ltool = (attrs, ic, l, on) => `<button type="button" class="hb ltool"${attrs} title="${l}" aria-label="${l}"${on == null ? '' : ` aria-pressed="${!!on}"`}>${svg(ic)}</button>`
 function treeHtml(k) {
   const tr = treeOf(k)
   if (!tr) return `<div class="tree" data-t="tree">${loadingHtml}</div>`
   if (tr.error) return `<div class="tree" data-t="tree">${errHtml(tr)}</div>`
   const st = stabOf(k), f = S.tfilt
-  const tabs = [['doc', '문서', tr.docs.length], ['rec', '기록', tr.total ?? tr.records.length], ['att', '첨부', tr.atts.length]]
-  const ph = { doc: '문서 찾기: 제목 · 폴더', rec: '기록 찾기: 제목 · 쓴 사람', att: '첨부 찾기: 파일 이름' }[st]
-  let tools = ''
+  const ph = { doc: '문서 찾기: 제목 · 폴더 · 첨부', rec: '기록 찾기: 제목 · 쓴 사람' }[st]
+  let tool = ''
   if (st === 'doc') {
     const dirs = dirsOf(tr.docs), allOpen = dirs.length && dirs.every((p) => UI.dirs[k + ':' + p])
-    tools = fbtn(f.held, ' data-a="tFilt" data-v="held" data-t="tf-held"', '넣지 못함') + (dirs.length ? `<button type="button" class="lk r" data-a="dirAll" data-t="dirAll">${allOpen ? '모두 접기' : '모두 펴기'}</button>` : '')
-  } else if (st === 'rec') tools = fbtn(f.held, ' data-a="tFilt" data-v="held" data-t="tf-held"', '넣지 못함') + fbtn(f.mine, ' data-a="tFilt" data-v="mine" data-t="tf-mine"', '내가 쓴 것') + '<span class="muted small r">새것 위</span>'
-  return `<div class="tree" data-t="tree"><div class="lhead"><div class="stabs" role="tablist" aria-label="갈래" data-t="stabs">${tabs.map(([v, l, n]) => `<button type="button" role="tab" aria-selected="${st === v}" data-a="sTab" data-v="${v}" data-t="st-${v}">${l} <em>${n}</em></button>`).join('')}</div><input class="inp" id="treeQ" aria-label="${esc(ph.split(':')[0])}" data-in="treeQ" data-t="treeQ" value="${esc(S.tq)}" placeholder="${esc(ph)}" autocomplete="off">${tools ? `<div class="tools">${tools}</div>` : ''}</div><div id="treeBody">${treeBody(k)}</div></div>`
+    if (dirs.length) tool = ltool(' data-a="dirAll" data-t="dirAll"', allOpen ? 'fold' : 'unfold', allOpen ? '폴더 모두 접기' : '폴더 모두 펴기')
+  } else tool = ltool(' data-a="tFilt" data-v="mine" data-t="tf-mine"', 'filter', '내가 쓴 것만', f.mine)
+  return `<div class="tree" data-t="tree"><div class="lhead"><div class="lfind"><input class="inp" id="treeQ" aria-label="${esc(ph.split(':')[0])}" data-in="treeQ" data-t="treeQ" value="${esc(S.tq)}" placeholder="${esc(ph)}" autocomplete="off">${tool}</div></div><div id="treeBody">${treeBody(k)}</div></div>`
+}
+// 첨부 묶음(문서 나무 끝) — 접고 편 것은 문서 폴더처럼 이 브라우저에(키 「지식://att」 · 폴더 이름과 겹치지 않는다)
+function attGroupHtml(k, tr, nq) {
+  const at = tr.atts.filter((a) => !nq || norm(a).includes(nq))
+  if (!at.length) return ''
+  const open = nq ? true : !!UI.dirs[k + '://att'] || tr.atts.some((a) => isAct('att', k, a))
+  return `<div class="tn dir" data-a="dirFold" data-p="//att" data-t="attDir" aria-expanded="${open}"><span class="ar" aria-hidden="true">${open ? '▾' : '▸'}</span>${svg('clip')}<span class="nm">첨부</span><span class="rc">${at.length}</span></div>` + (open ? at.map((a) => `<div class="tn${isAct('att', k, a) ? ' on' : ''}" data-a="openAtt" data-k="${esc(k)}" data-v="${esc(a)}" data-t="att" style="--dep:1">${svg('clip')}<span class="nm">${esc(a)}</span></div>`).join('') : '')
 }
 function treeBody(k) {
   const tr = treeOf(k), st = stabOf(k), q = S.tq.trim(), nq = norm(q), f = S.tfilt
-  if (st === 'doc') return docTreeHtml(k, f.held ? tr.docs.filter((d) => d.held) : tr.docs, q, f.held ? { order: tr.order } : tr)
-  if (st === 'rec') {
-    const rs = tr.records.filter((r) => (!f.held || heldR(k, r)) && (!f.mine || r.author === S.me.user) && (!nq || norm(r.title).includes(nq) || norm(r.author || '').includes(nq))), left = recLeft(tr)
-    if (!tr.records.length) return `<div class="tn muted nc">${isTeam() ? '아직 없다' : '내 지식은 고치면 바로 문서다'}</div>`
-    return (rs.map((r) => `<div class="tn${isAct('rec', k, r.id) ? ' on' : ''}" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="rec" data-state="${r.state}" data-pv="rec|${esc(k)}|${esc(r.id)}">${heldR(k, r) ? '<i class="pd hd" title="넣지 못함"></i>' : ''}<span class="dt">${esc(isToday(r.date) ? hhmm(r.date) : whenTxt(r.date))}</span><span class="nm">${esc(r.title.split(/ — |: /)[0])}</span></div>`).join('') || '<div class="tn muted nc">맞는 기록이 없다</div>') + (left && tr.next ? `<div class="tn more" data-a="treeMore" data-k="${esc(k)}" data-t="moreRecs"${S.wait['treeMore:' + k] ? ' aria-busy="true"' : ''}>${S.wait['treeMore:' + k] ? '읽는 중…' : `더 보기(남은 ${left})`}</div>` : '')
+  if (st === 'doc') {
+    const att = attGroupHtml(k, tr, nq)
+    const docs = docTreeHtml(k, tr.docs, q, tr)
+    return att && docs.includes('data-t="docNone"') ? att : docs + att
   }
-  const at = tr.atts.filter((a) => !nq || norm(a).includes(nq))
-  return at.length ? at.map((a) => `<div class="tn${isAct('att', k, a) ? ' on' : ''}" data-a="openAtt" data-k="${esc(k)}" data-v="${esc(a)}" data-t="att">${svg('clip')}<span class="nm">${esc(a)}</span></div>`).join('') : `<div class="tn muted nc">${q ? '맞는 첨부가 없다' : '없다'}</div>`
+  const rs = tr.records.filter((r) => (!f.mine || r.author === S.me.user) && (!nq || norm(r.title).includes(nq) || norm(r.author || '').includes(nq))), left = recLeft(tr)
+  if (!tr.records.length) return `<div class="tn muted nc">${isTeam() ? '아직 없다' : '내 지식은 고치면 바로 문서다'}</div>`
+  return (rs.map((r) => `<div class="tn${isAct('rec', k, r.id) ? ' on' : ''}" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="rec" data-state="${r.state}" data-pv="rec|${esc(k)}|${esc(r.id)}">${heldR(k, r) ? '<i class="pd hd" title="넣지 못함"></i>' : ''}<span class="dt">${esc(isToday(r.date) ? hhmm(r.date) : whenTxt(r.date))}</span><span class="nm">${esc(r.title.split(/ — |: /)[0])}</span></div>`).join('') || '<div class="tn muted nc">맞는 기록이 없다</div>') + (left && tr.next ? `<div class="tn more" data-a="treeMore" data-k="${esc(k)}" data-t="moreRecs"${S.wait['treeMore:' + k] ? ' aria-busy="true"' : ''}>${S.wait['treeMore:' + k] ? '읽는 중…' : `더 보기(남은 ${left})`}</div>` : '')
 }
 function rpHead() { return '<div class="rph"><i class="pd"></i>나란히 보기: 읽기만<button type="button" class="lk r small" data-a="closeSplit" data-t="closeSplit">나누기 닫기 ×</button></div>' }
 
@@ -1797,7 +1821,7 @@ function linkify(h, k, self) {
 }
 
 // ───────────── 보기 둘 — 항목으로 보기(목업 M6) ─────────────
-const IFL = [['held', '넣지 못함'], ['recent', '최근 바뀜'], ['mine', '내가 쓴 것']]
+const IFL = [['recent', '최근 바뀜'], ['mine', '내가 쓴 것']]
 const KINDS = ['화면', '절차', '테이블', 'API', '용어']
 function viewItems() {
   const k = pickKn()
@@ -1808,7 +1832,7 @@ function viewItems() {
 function itemListHtml(k) {
   if (!M(k)) return `<div class="ilist" data-t="itemList">${modelErr(k) ? errHtml(modelErr(k), 'model:' + k) : loadingHtml}</div>`
   const kinds = [...new Set(itemsOf(k).map((i) => i.kind))], allOpen = kinds.length && kinds.every((kd) => S.kfold[kd] === false)
-  return `<div class="ilist" data-t="itemList"><div class="lhead"><input class="inp" id="itemQ" aria-label="항목 찾기" data-in="itemQ" data-t="itemQ" value="${esc(S.iq)}" placeholder="항목 찾기: 이름 · 다른 이름" autocomplete="off"><div class="tools">${IFL.map(([v, l]) => fbtn(S.ifilt[v], ` data-a="itemFilt" data-v="${v}" data-t="if-${v}"`, l)).join('')}</div><div class="tools"><span class="muted small">종류 ${kinds.length} · 항목 ${itemsOf(k).length}</span><button type="button" class="lk r" data-a="kindAll" data-t="kindAll">${allOpen ? '모두 접기' : '모두 펴기'}</button></div></div><div id="itemListBody">${itemListBody(k)}</div></div>`
+  return `<div class="ilist" data-t="itemList"><div class="lhead"><div class="lfind"><input class="inp" id="itemQ" aria-label="항목 찾기" data-in="itemQ" data-t="itemQ" value="${esc(S.iq)}" placeholder="항목 찾기: 이름 · 다른 이름" autocomplete="off">${kinds.length ? ltool(' data-a="kindAll" data-t="kindAll"', allOpen ? 'fold' : 'unfold', allOpen ? '종류 모두 접기' : '종류 모두 펴기') : ''}</div><div class="tools">${IFL.map(([v, l]) => fbtn(S.ifilt[v], ` data-a="itemFilt" data-v="${v}" data-t="if-${v}"`, l)).join('')}</div></div><div id="itemListBody">${itemListBody(k)}</div></div>`
 }
 function itemRecent(k, i) {
   const cut = Date.now() - 3 * 864e5
@@ -5646,7 +5670,6 @@ const ACT = {
   palF: (el) => { S.palF = el.dataset.v; const b = $('#palBody') || $('[data-t=palBody]'); if (b) b.innerHTML = palBody(); else render() },
   keysClose: () => { S.keys = false; render() },
   keysOpen: () => { S.menu = null; S.keys = true; render() },
-  mgFold: () => { UI.mgFold = !UI.mgFold; saveUi(); render() },
   qoAll: () => { if (S.qo) { S.qo.all = true; render() } },
   copySeatAsk: async () => { const t = `kmd 팀 지식 자리를 부탁합니다: 아이디 ${S.me.user} · 볼 지식과 자리(읽기 · 쓰기)를 정해 주세요 · 팀 화면 ${location.origin}`; try { await navigator.clipboard.writeText(t); toast('부탁 글을 복사했다. 관리자에게 보낸다') } catch { toast(esc(t), 12000) } },
   editDoc: async () => {
@@ -5723,7 +5746,8 @@ const ACT = {
   openQo: () => openQo(),
   openSearch: () => openPal(),
   fold: (el) => { const key = S.route.kn + ':' + el.dataset.f; S.fold[key] = !S.fold[key]; render() },
-  sTab: (el) => { UI.stab[S.route.kn] = el.dataset.v; saveUi(); S.tq = ''; render() },
+  // 보기 탭 — 문서 · 기록은 문서 보기의 두 목록(UI.stab) · 항목 · 그래프는 보기 그대로
+  ltab: (el) => { const v = el.dataset.v; if (v !== 'docs' && v !== 'recs') return setView(v); const k = defaultKn(), st = v === 'recs' ? 'rec' : 'doc'; if (k && stabOf(k) !== st) { UI.stab[k] = st; saveUi(); S.tq = '' } setView('docs') },
   tFilt: (el) => { S.tfilt[el.dataset.v] = !S.tfilt[el.dataset.v]; render() },
   dirAll: () => { const k = S.route.kn, tr = treeOf(k), ds = dirsOf(tr.docs), all = ds.every((p) => UI.dirs[k + ':' + p]); ds.forEach((p) => { UI.dirs[k + ':' + p] = !all }); saveUi(); render() },
   kindAll: () => { const k = S.route.kn, ks = [...new Set(itemsOf(k).map((i) => i.kind))], all = ks.every((kd) => S.kfold[kd] === false); ks.forEach((kd) => { S.kfold[kd] = all }); render() },
@@ -5778,7 +5802,7 @@ document.addEventListener('click', (ev) => {
   if (el.tagName === 'A' && el.getAttribute('href') && (ev.ctrlKey || ev.metaKey || ev.shiftKey)) return
   if (el.tagName === 'A') ev.preventDefault()
   if (S.menu && !['menu', 'kmenu', 'pickKn'].includes(el.dataset.a) && !ev.target.closest('.menu,.pop')) S.menu = null
-  if ((S.sideOpen || S.asideOpen) && el.closest('.side,.aside,.pop') && !['menu', 'kmenu', 'fold', 'dirFold', 'dirAll', 'sTab', 'tFilt', 'kindAll', 'foldKind', 'sideToggle', 'asideToggle', 'itemFilt', 'agToggle', 'agFold', 'agRail', 'mgFold', 'gSet', 'gMode', 'gDark'].includes(el.dataset.a)) { S.sideOpen = false; S.asideOpen = false }
+  if ((S.sideOpen || S.asideOpen) && el.closest('.side,.aside,.pop') && !['menu', 'kmenu', 'fold', 'dirFold', 'dirAll', 'tFilt', 'kindAll', 'foldKind', 'sideToggle', 'asideToggle', 'itemFilt', 'agToggle', 'agFold', 'agRail', 'gSet', 'gMode', 'gDark'].includes(el.dataset.a)) { S.sideOpen = false; S.asideOpen = false }
   // 감싸지 않은 곳의 오류도 알린다(단추가 아무 말 없이 먹지 않게) — 돌려받은 Promise 까지
   try { Promise.resolve(f(el, ev)).catch(actFail) } catch (e) { actFail(e) }
 })

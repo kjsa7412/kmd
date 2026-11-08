@@ -23,6 +23,8 @@ const IC = {
   rec: 'M5 4h14v16H5z M9 4v16', info: C(12, 12, 9) + ' M12 11v6 M12 7.5h.01',
   sideL: 'M3 4h18v16H3z M9 4v16 M15 10l-2 2 2 2', sideR: 'M3 4h18v16H3z M15 4v16 M9 10l2 2-2 2',
   wide: 'M3 12h18 M7 8l-4 4 4 4 M17 8l4 4-4 4', narrow: 'M8 4v16 M16 4v16',
+  // 옆 메뉴 도구 아이콘 — 모두 펴기 · 모두 접기 · 거르기
+  unfold: 'M8 9l4-4 4 4 M8 15l4 4 4-4', fold: 'M8 5l4 4 4-4 M8 19l4-4 4 4', filter: 'M4 5h16l-6 7.5V19l-4-2v-4.5z',
 }
 export const svg = (k, c) => `<svg viewBox="0 0 24 24"${c ? ` class="${c}"` : ''}><path d="${IC[k] || IC.doc}"/></svg>`
 
