@@ -18,7 +18,7 @@ import { headsOf, headingMatches, blankRef } from './sections.js'
 import { locate } from './registry.js'
 import { labelOf, sectionOf, coordsOfSection } from './knowledge.js'
 
-export const INDEX_VERSION = 4 // 4 — 참고 블록을 색인하지 않는다
+export const INDEX_VERSION = 5 // 4 — 참고 블록을 색인하지 않는다 · 5 — 기록 머리글(--- … ---) · md 링크 주소를 세지 않는다(UX G3-03 · G3-07)
 const CHUNK = 1200
 const MAX_FILE = 4 << 20
 
@@ -48,7 +48,8 @@ export function wordsOf(q, common = COMMON) {
 // 낱말표 토큰 — 한글은 2글자 조각, 영문 · 숫자는 낱말. 덩어리(말 전체) 토큰은 두지 않는다(AND · 덮는 비율의 분모에서 뺀다)
 export function tokens(text) {
   const out = []
-  for (const run of nfc(String(text)).toLowerCase().matchAll(/[\p{Script=Hangul}]+|[a-z0-9]+/gu)) {
+  const clean = String(text).replace(/\]\([^)\s]*\)/g, ']').replace(/^---\n[\s\S]*?\n---\n?/, '')
+  for (const run of nfc(clean).toLowerCase().matchAll(/[\p{Script=Hangul}]+|[a-z0-9]+/gu)) {
     const r = run[0]
     if (/^[a-z0-9]+$/.test(r)) {
       if (r.length >= 2) out.push(r)
@@ -64,13 +65,19 @@ const tf = (toks) => {
 }
 
 // 말이 글에 들었나(참/거짓) — 빈칸을 무시한 부분 일치(「결의서」 → 지출결의서 · 「승인단계」 → 승인 단계)
-const hitIn = (normText, w) => normText.includes(w)
+const hitIn = (normText, w) => {
+  if (/^\d/.test(w)) { const re = new RegExp('(^|\\D)' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?!\\d)'); return re.test(normText) }
+  if (normText.includes(w)) return true
+  const st = stripJosa(w)
+  return st !== w && st.length >= 2 && normText.includes(st)
+}
 
 // ── 토막 자르기 ──
 // 머리(#)마다 덩어리 → 표는 행 경계에서 자르고 토막마다 머리 줄과 표 머리 행을 붙인다 · 긴 문단은 문장 경계에서
 //   문서 끝 참고 블록은 토막에 넣지 않는다(빈 줄로 · 줄 번호는 그대로) — 마지막 항목의 글로 잡히지 않게
 export function chunkText(text) {
   const lines = blankRef(readText(text).split('\n'))
+  if (lines[0] === '---') { const e = lines.indexOf('---', 1); if (e > 0) for (let i = 0; i <= e; i++) lines[i] = '' }
   const heads = headsOf(lines)
   const blocks = []
   let start = 0
