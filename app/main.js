@@ -561,7 +561,7 @@ function draw() {
   S._view = view
   S._lpView = lpView
   S._hasAside = !!scr.aside
-  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${gated() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside"><button type="button" class="hb afold" data-a="asideRail" data-t="asideFold" aria-expanded="${!UI.asideRail}" title="${UI.asideRail ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'} (Ctrl ])" aria-label="${UI.asideRail ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'}">${svg(UI.asideRail ? 'sideL' : 'sideR')}</button><div class="asc" data-t="asideScroll">${scr.aside}</div>${gripHtml('aside')}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.recFix ? recFixHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}`
+  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${gated() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside"><button type="button" class="hb afold" data-a="asideRail" data-t="asideFold" aria-expanded="${!UI.asideRail}" title="${UI.asideRail ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'} (Ctrl ])" aria-label="${UI.asideRail ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'}">${svg(UI.asideRail ? 'sideL' : 'sideR')}</button><div class="asc" data-t="asideScroll">${scr.aside}</div>${gripHtml('aside')}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.recFix ? recFixHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}${S.keys ? keysHtml() : ''}`
   app.classList.toggle('side-open', !!S.sideOpen && !gated())
   app.classList.toggle('aside-open', !!S.asideOpen && !!scr.aside)
   placeUi()
@@ -696,7 +696,8 @@ function mgWrap(scr, v) {
   const items = setMenu(), cur = scr === 'settings' ? (setPage() || {}).id : scr
   const nav = `<nav class="mgnav" data-t="mgNav" data-area="${setArea()}" aria-label="설정"><div class="mgt">설정</div>${items.map((x, i) => `${x.g && (!i || items[i - 1].g !== x.g) ? `<div class="mgg" data-t="mgGroup">${esc(x.g)}</div>` : ''}<button type="button" class="mgi${x.id === cur ? ' on' : ''}" data-a="openSet" data-v="${x.id}" data-t="mg-${x.id}"${x.id === cur ? ' aria-current="page"' : ''}>${esc(x.l)}</button>`).join('')}</nav>`
   const it = items.find((x) => x.id === cur)
-  return { ...v, crumb: '설정 › ' + (it ? it.l : v.crumb), main: `<div class="mgwrap">${nav}<div class="mgbody">${v.main}</div></div>` }
+// 설정 메뉴는 옆 메뉴 나무 자리에(UX T5-19 · 정함) — 왼쪽 메뉴가 두 줄 서지 않게 · 좁은 폭(옆 메뉴가 서랍)에서는 본문 위에도
+  return { ...v, crumb: '설정 › ' + (it ? it.l : v.crumb), left: nav, main: `<div class="mgwrap">${nav}<div class="mgbody">${v.main}</div></div>` }
 }
 // 옆 메뉴 — 두 영역(정정 2026-10-23 · 리본을 걷었다)
 //   지식 고르기 — 지식 고르기 · 문서 · 항목 · 그래프 탭 · 그 탭의 목록(다른 화면에서도 그대로 보인다)
@@ -711,6 +712,10 @@ function sideList(vt, k) {
   return treeHtml(k)
 }
 const VIEW_LABEL = { docs: '문서로 보기', items: '항목으로 보기', graph: '그래프로 보기' }
+const KEYS = [['Ctrl K', '찾기 — 글 속 낱말까지'], ['Ctrl O', '빨리 열기 — 문서 · 항목 · 기록 이름으로'], ['Ctrl P', '명령 창'], ['Ctrl \\', '탭 둘을 나란히'], ['Ctrl [', '옆 메뉴 접기 · 펴기'], ['Ctrl ]', '오른쪽 칸 접기 · 펴기'], ['Alt ← · Alt →', '이전 · 다음 화면'], ['Ctrl S', '고치는 중 저장'], ['Esc', '창 · 고치기 닫기'], ['? · Ctrl /', '이 창']]
+function keysHtml() {
+  return `<div class="scrim fix" data-a="keysClose" data-self="1"><div class="modal w420" role="dialog" aria-modal="true" aria-label="단축키" data-t="keysWin"><div class="mh">단축키<button type="button" class="x" data-a="keysClose" title="닫기" aria-label="닫기">×</button></div><div class="mb"><table class="t"><tbody>${KEYS.map(([k, d]) => `<tr><td><kbd>${esc(k)}</kbd></td><td>${esc(d)}</td></tr>`).join('')}</tbody></table></div><div class="mf"><span class="l">설명서 › 쓰는 사람에도 있다</span><span class="acts"><button type="button" class="btn ghost" data-a="keysClose" data-focus>닫기</button></span></div></div></div>`
+}
 function sideHtml(left) {
   const r = S.route, team = isTeam()
   const dim = anon()
@@ -723,7 +728,7 @@ function sideHtml(left) {
   const vt0 = VIEWS3.includes(r.scr) ? r.scr : S.ktab || 'docs'
   const rb = (a, ic, l, on, extra = '', dot = '') => `<button type="button" class="hb${on ? ' on' : ''}" ${a} title="${l}" aria-label="${l}"${extra}>${svg(ic)}${dot}</button>`
   const nCheck0 = dim ? 0 : histChecks()
-  const rail = dim ? '' : `<div class="srail" data-t="sideRailNav">${fold}${[['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['graph', '그래프', 'graph']].map(([v, l, ic]) => rb(`data-a="view" data-v="${v}" data-t="rl-${v}"`, ic, VIEW_LABEL[v], VIEWS3.includes(r.scr) && vt0 === v)).join('')}${rb('data-a="openQo" data-t="rl-qo"', 'search', '빨리 열기 (Ctrl O)', false)}<span class="rsep"></span>${rb('data-a="nav" data-s="today" data-t="rl-history"', 'hour', '이력', HISTSCR.includes(r.scr), '', nCheck0 ? '<i class="rdot"></i>' : '')}${workMenu().map((x) => rb(`data-a="nav" data-s="${x.scr}" data-t="rl-${x.id}"`, x.ic, x.l, r.scr === x.scr, '', x.id === 'held' && heldSum() ? '<i class="rdot"></i>' : '')).join('')}${rb(`data-a="setArea" data-v="${team ? 'team' : 'me'}" data-t="rl-settings"`, 'gear', '설정', MGSCR.includes(r.scr))}</div>`
+  const rail = dim ? '' : `<div class="srail" data-t="sideRailNav">${fold}${[['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['graph', '그래프', 'graph']].map(([v, l, ic]) => rb(`data-a="view" data-v="${v}" data-t="rl-${v}"`, ic, VIEW_LABEL[v], VIEWS3.includes(r.scr) && vt0 === v)).join('')}${rb('data-a="openQo" data-t="rl-qo"', 'list', '빨리 열기 (Ctrl O)', false)}<span class="rsep"></span>${rb('data-a="nav" data-s="today" data-t="rl-history"', 'hour', '이력', HISTSCR.includes(r.scr), '', nCheck0 ? '<i class="rdot"></i>' : '')}${workMenu().map((x) => rb(`data-a="nav" data-s="${x.scr}" data-t="rl-${x.id}"`, x.ic, x.l, r.scr === x.scr, '', x.id === 'held' && heldSum() ? '<i class="rdot"></i>' : '')).join('')}${rb(`data-a="setArea" data-v="${team ? 'team' : 'me'}" data-t="rl-settings"`, 'gear', '설정', MGSCR.includes(r.scr))}</div>`
   let h = `<aside class="side${dim ? ' dim' : ''}">${rail}<div class="sb-top">${anon() ? `<div class="logo${team ? '' : ' me'}">K</div><span class="brand">kmd</span>` : meHtml()}${busyDot()}${fold}</div>`
   if (!dim) {
     // 지식 고르기 영역
@@ -751,7 +756,7 @@ function sideHtml(left) {
 }
 // 들어온 사람 — 왼쪽 메뉴 맨 위 · 누르면 설정 · (팀) 나가기
 function meHtml() {
-  const menu = S.menu === 'me' ? popHtml('me', `<div data-t="meMenu"><div class="mi muted small" data-t="meWhere" aria-disabled="true">${isTeam() ? '팀 서버 · ' + esc(S.me.host || '') : '이 PC 에서 돈다'}</div><div class="sep"></div><div class="mi" data-a="setArea" data-t="meSettings">설정</div>${isTeam() ? '<div class="sep"></div><div class="mi" data-a="logout" data-t="meLogout">나가기<small>이 브라우저에서</small></div><div class="mi" data-a="logoutAll" data-t="meLogoutAll">모든 곳에서 나가기<small>다른 기기 · 브라우저도</small></div>' : ''}</div>`) : ''
+  const menu = S.menu === 'me' ? popHtml('me', `<div data-t="meMenu"><div class="mi muted small" data-t="meWhere" aria-disabled="true">${isTeam() ? '팀 서버 · ' + esc(S.me.host || '') : '이 PC 에서 돈다'}</div><div class="sep"></div><div class="mi" data-a="setArea" data-t="meSettings">설정</div><div class="mi" data-a="keysOpen" data-t="meKeys">단축키<small>? · Ctrl /</small></div>${isTeam() ? '<div class="sep"></div><div class="mi" data-a="logout" data-t="meLogout">나가기<small>이 브라우저에서</small></div><div class="mi" data-a="logoutAll" data-t="meLogoutAll">모든 곳에서 나가기<small>다른 기기 · 브라우저도</small></div>' : ''}</div>`) : ''
   return `<div class="sb-me-top" data-a="menu" data-m="me" data-t="me" title="설정 · 나가기">${menu}<span class="av">${esc(String(S.me.user).slice(0, 1))}</span><span class="un"><b>${esc(S.me.user)}</b><small>${isTeam() ? "팀 서버" : "이 PC"}${S.me.admin && isTeam() ? " · 총괄 관리자" : ""}</small></span><span class="rc">▾</span></div>`
 }
 function hdrHtml(crumb) {
@@ -1085,6 +1090,7 @@ function docsEmpty(k) {
   if (tr && tr.error) return `<div class="pg-text"><div class="big">${esc(n.name)}</div>${errHtml(tr)}</div>`
   return `<div class="pg-text"><div class="big">${esc(n.name)}</div><p class="lead">${isPersonal(n) ? '내 지식' + (n.dir ? ' · ' + esc(n.dir) : '') + ' · 나만' : `팀 지식 · 나: ${lvChip(n)}`}</p>${waitHtml(k, tr)}
   <div class="callout gray" data-t="docsEmpty">왼쪽 나무에서 문서나 기록을 연다. 여러 개를 탭으로 띄우고, <b>Ctrl \\</b> 로 둘을 나란히 본다. 이름으로 바로 열려면 <b>Ctrl O</b>.</div>
+  ${tr && tr.readme ? `<div class="card" data-t="readmeCard"><div class="ch">먼저 읽을 것 <small>README</small></div><div class="cb paper">${tr.readme}</div></div>` : tr && n.level === 'admin' ? '<p class="hint" data-t="readmeHint">지식 폴더 README.md 에 처음 읽을 문서 차례를 적어 두면 여기 「먼저 읽을 것」 으로 보인다</p>' : ''}
   <div class="card"><div class="ch">최근 바뀐 문서 <small>문서 ${tr ? ds.length : "…"}</small></div><div class="cb" style="padding:2px 14px 4px"><ul class="plain dl">${tr ? ds.slice(0, 5).map((d) => `<li data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="recentDoc" data-pv="doc|${esc(k)}|${esc(d.id)}">${svg('doc', 'di')}<span class="nm">${esc(d.title)}</span><span class="when${isToday(d.when) ? ' td' : ''}">${esc(whenTxt(d.when))}</span></li>`).join('') : `<li>${loadingHtml}</li>`}</ul></div></div>${guardCard(k)}</div>`
 }
 // 지식 점검(지식관리자) — 지식 생성 가드가 보는 것의 지금 상태(문서 작성기준 9절 · core/guard.js audit)
@@ -4206,7 +4212,7 @@ function setLeft(st) {
   const pcBad = S.stops.find((x) => x.kind === 'backup')
   return `<div class="card"><div class="ch">이 PC</div><div class="cb"><div class="kv"><span>지식 폴더</span><span><span class="mono">${esc(st.root)}</span>: 지식 ${st.kns}</span><span>백업 자리</span><span data-t="pcBackup">${st.backup.root ? `<span class="mono">${esc(st.backup.root)}</span> · ` : ''}붙음 ${st.backup.n}/${st.backup.of}${st.backup.bad ? ` · <b class="t-warn">맞지 않음 ${st.backup.bad}</b>` : ''} ${!st.backup.n ? '<span class="chip c-warn">백업 없음</span>' : pcBad ? `<span class="chip c-warn">${esc(pcBad.b)}</span><small>${esc(pcBad.t)}</small>` : st.backup.n < st.backup.of ? '<span class="chip c-warn">일부만</span>' : '<span class="chip c-acc">잘 된다</span>'}</span><span>판</span><span>kmd v${esc(st.version)}</span></div></div></div>
   ${pcBackupCard(st)}
-  <div class="card" style="overflow:visible"><div class="ch">이어진 것</div><div class="cb" style="padding:2px 14px"><ul class="plain"><li><span style="flex:1"><b>Claude Code</b><small class="muted" style="display:block">작업 폴더 ${(S.cache.agent && S.cache.agent.folders ? S.cache.agent.folders.length : 0)} <button type="button" class="lk" data-a="openSet" data-v="agent">에이전트 설치 ›</button></small></span></li><li><span style="flex:1"><b>팀</b><small class="muted" style="display:block">${st.teams && st.teams.length ? '이 PC 의 기기 열쇠로 이었다: Claude Code 의 팀 연결(kmd-team) · 지식 보내기가 쓴다 · 끊기는 팀 화면 › 내 기기에서' : '아직 잇지 않았다. 팀 화면의 설치 한 줄'}</small></span></li>${(st.teams || []).map((u) => `<li data-t="teamRow"><span style="flex:1">${esc(u.replace(/^https?:\/\//, ''))}</span></li>`).join('')}</ul><p class="small muted">밖으로 나가는 것은 백업 · Claude 바로 넣기뿐이다.</p></div></div>`
+  <div class="card" style="overflow:visible"><div class="ch">이어진 것</div><div class="cb" style="padding:2px 14px"><ul class="plain"><li><span style="flex:1"><b>Claude Code</b><small class="muted" style="display:block">작업 폴더 ${(S.cache.agent && S.cache.agent.folders ? S.cache.agent.folders.length : 0)} <button type="button" class="lk" data-a="openSet" data-v="agent">에이전트 설치 ›</button></small></span></li><li><span style="flex:1"><b>팀</b><small class="muted" style="display:block">${st.teams && st.teams.length ? '이 PC 의 기기 열쇠로 이었다: Claude Code 의 팀 연결(kmd-team) · 지식 보내기가 쓴다 · 끊기는 팀 화면 › 내 기기에서' : '아직 잇지 않았다. 팀 화면의 설치 한 줄'}</small></span></li>${(st.teams || []).map((u) => `<li data-t="teamRow"><span style="flex:1"><a href="${esc(/^https?:\/\//.test(u) ? u : 'http://' + u)}" target="_blank" rel="noopener" title="팀 화면을 새 탭에서">${esc(u.replace(/^https?:\/\//, ''))} ↗</a></span></li>`).join('')}</ul><p class="small muted">밖으로 나가는 것은 백업 · Claude 바로 넣기뿐이다.</p></div></div>`
 }
 function claudeCard(st) {
   const c = st.claude, w = c.worker
@@ -5206,6 +5212,8 @@ const ACT = {
   // 충돌 고르기 — 내 글로: 새 지문으로 다시 보낸다(이력에 남아 되돌릴 수 있다) · 그쪽 글로: 쓰던 글을 버리고 새 글로
   edForce: async () => { const e = S.edit; if (!e) return; if (!await ask1('내 글로 저장', '내 글로 저장', true, `그사이 바뀐 글(${(e.conflict || []).map((x) => x.h).join(' · ')})을 내 글로 바꾼다. 남이 고친 것은 이력에 남아 되돌릴 수 있다`)) return; e.keepBase = null; e.conflict = null; e.err = null; await saveDoc() },
   edTheirs: () => { const e = S.edit; if (!e) return; const v = S.cache[`doc:${e.kn}:${e.doc}:ed`]; e.text = v ? edOrig(v) : null; e.keepBase = null; e.conflict = null; e.err = null; render() },
+  keysClose: () => { S.keys = false; render() },
+  keysOpen: () => { S.menu = null; S.keys = true; render() },
   mgFold: () => { UI.mgFold = !UI.mgFold; saveUi(); render() },
   qoAll: () => { if (S.qo) { S.qo.all = true; render() } },
   copySeatAsk: async () => { const t = `kmd 팀 지식 자리를 부탁합니다: 아이디 ${S.me.user} · 볼 지식과 자리(읽기 · 쓰기)를 정해 주세요 · 팀 화면 ${location.origin}`; try { await navigator.clipboard.writeText(t); toast('부탁 글을 복사했다. 관리자에게 보낸다') } catch { toast(esc(t), 12000) } },
@@ -5450,6 +5458,8 @@ document.addEventListener('keydown', (ev) => {
   if (S.edit && ev.target.id === 'edTx' && ev.key === 'Escape' && !S.sudo) { ev.preventDefault(); ACT.cancelEdit(); return }
   if (S.qo && ev.target.id === 'qoIn' && listKeys(ev, S.qo, 'qoBody', qoBody, qoPick)) return
   if (S.cmd && ev.target.id === 'cmdIn' && listKeys(ev, S.cmd, 'cmdBody', cmdBody, cmdPick)) return
+  if (S.me && !anon() && !gated() && ((ev.key === '?' && !/^(TEXTAREA|INPUT|SELECT)$/.test(ev.target.tagName) && !ev.target.isContentEditable) || (ctrl && (ev.key === '/' || code === 'Slash')))) { ev.preventDefault(); S.keys = true; render(); return }
+  if (ev.key === 'Escape' && S.keys) { S.keys = false; render(); return }
   if (ctrl && !ev.altKey) {
     if (low === 'k' || code === 'KeyK') { ev.preventDefault(); openPal(); return }
     if (low === 'o' || low === 't' || code === 'KeyO' || code === 'KeyT') { ev.preventDefault(); openQo(); return }

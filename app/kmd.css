@@ -1032,6 +1032,8 @@ table.done tr.tr-term td{background:var(--surface-2)}
 .mgnav .mgg{font-size:var(--fs-xs);color:var(--text-3);font-weight:700;padding:var(--sp-4) var(--sp-5) var(--sp-1)}
 .mgnav .mgi:hover{background:var(--surface-2)}
 .mgnav .mgi.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.lp .mgnav{width:auto;position:static;border-right:0;padding-right:0}
+@media (min-width:601px){.mgwrap>.mgnav{display:none}}
 .mgbody{flex:1;min-width:0}
 /* 옛 정리 화면(td-*)은 S13 에 걷었다 — 넣지 못함 화면은 hd-* · 이력의 값 바뀜은 .vchg */
 .vchg{font:600 var(--fs-sm) var(--mono);color:var(--warn);white-space:nowrap}

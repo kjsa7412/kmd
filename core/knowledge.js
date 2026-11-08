@@ -116,7 +116,9 @@ export async function loadKnowledge({ id, name, dir }, { cache = null, cutoverAt
   const forms = formsOf(await readOr(path.join(dir, '_forms.md')))
   // 차례 장부 — 옆 메뉴 나무 · 문서 짜임의 차례 · 문서가 없는 폴더(core/order.js)
   const order = parseOrder(await readOr(path.join(dir, ORDER_FILE)))
-  const k = { id, name, dir, docs, works, logs, atts, vocab, registry, forms, order }
+  // README 본문(첫 # 제목 줄 뒤) — 지식 홈 「먼저 읽을 것」 카드(UX T5-09)
+  const readme = String((await readOr(path.join(dir, 'README.md'))) || '').replace(/^\s*#\s+.*\n?/, '').trim().slice(0, 6000)
+  const k = { id, name, dir, docs, works, logs, atts, vocab, registry, forms, order, readme }
   k.byDocPath = new Map(docs.map((d) => [d.path, d]))
   // byWork — 기록 · 이력 모두(항목 표지 · 판정 · 바로잡기가 이력의 id 를 가리킨다)
   k.byWork = new Map([...works, ...logs].map((w) => [w.id, w]))

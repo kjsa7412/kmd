@@ -327,6 +327,7 @@ export function tree(k, see = {}) {
   return {
     id: k.id,
     name: k.name,
+    readme: k.readme ? render(k, 'README.md', k.readme) : '',
     docs: k.docs.map((d) => ({ id: d.id, title: d.title, when: d.mtime, held: held.has(d.path) })),
     records: k.works.map(recRow),
     atts: k.atts.map((a) => a.replace(/^(docs|work)\/assets\//i, '')),
