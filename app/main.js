@@ -663,10 +663,10 @@ function setMenu() {
   return [
     // 점검 · 팀 서버 · 사람 · 묶음 — 총괄 관리자만(서버 /api/admin/* 도 총괄 관리자만) · 팀 지식 — 지식관리자 자리부터(줄마다 자리로 거른다)
     boss && { id: 'check', l: '점검', g: '매일' },
-    boss && { id: 'server', l: '팀 서버', g: '1. 세우기' }, kadm && { id: 'kns', l: '팀 지식', g: '1. 세우기' },
-    boss && { id: 'people', l: '사람 · 묶음', g: '2. 사람 들이기' },
-    { id: 'agent', l: '에이전트 설치', g: '3. 붙이기' },
-    { id: 'mine', l: '나', g: '나' },
+    boss && { id: 'server', l: '팀 서버', g: '세우기' }, kadm && { id: 'kns', l: '팀 지식', g: '세우기' },
+    boss && { id: 'people', l: '사람 · 묶음', g: '사람 들이기' },
+    { id: 'agent', l: '에이전트 설치', g: '붙이기' },
+    { id: 'mine', l: '나', g: '내 것' },
   ].filter(Boolean)
 }
 // 작업 — 날마다 쓰는 도구(옆 메뉴 「지식 관리」 · 설정을 거치지 않는다) · 팀 화면은 팀 지식만 · 개인 화면은 개인 지식만(영역 거르기 그대로)
@@ -710,6 +710,7 @@ function sideList(vt, k) {
   if (vt === 'graph') return `<div class="muted small" style="padding:6px 8px" data-t="graphHint">그래프는 가운데에 그린다. <button type="button" class="lk" data-a="view" data-v="graph">열기</button></div>`
   return treeHtml(k)
 }
+const VIEW_LABEL = { docs: '문서로 보기', items: '항목으로 보기', graph: '그래프로 보기' }
 function sideHtml(left) {
   const r = S.route, team = isTeam()
   const dim = anon()
@@ -722,7 +723,7 @@ function sideHtml(left) {
   const vt0 = VIEWS3.includes(r.scr) ? r.scr : S.ktab || 'docs'
   const rb = (a, ic, l, on, extra = '', dot = '') => `<button type="button" class="hb${on ? ' on' : ''}" ${a} title="${l}" aria-label="${l}"${extra}>${svg(ic)}${dot}</button>`
   const nCheck0 = dim ? 0 : histChecks()
-  const rail = dim ? '' : `<div class="srail" data-t="sideRailNav">${fold}${[['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['graph', '그래프', 'graph']].map(([v, l, ic]) => rb(`data-a="view" data-v="${v}" data-t="rl-${v}"`, ic, l + '로 보기', VIEWS3.includes(r.scr) && vt0 === v)).join('')}${rb('data-a="openQo" data-t="rl-qo"', 'search', '빨리 열기 (Ctrl O)', false)}<span class="rsep"></span>${rb('data-a="nav" data-s="today" data-t="rl-history"', 'hour', '이력', HISTSCR.includes(r.scr), '', nCheck0 ? '<i class="rdot"></i>' : '')}${workMenu().map((x) => rb(`data-a="nav" data-s="${x.scr}" data-t="rl-${x.id}"`, x.ic, x.l, r.scr === x.scr, '', x.id === 'held' && heldSum() ? '<i class="rdot"></i>' : '')).join('')}${rb(`data-a="setArea" data-v="${team ? 'team' : 'me'}" data-t="rl-settings"`, 'gear', '설정', MGSCR.includes(r.scr))}</div>`
+  const rail = dim ? '' : `<div class="srail" data-t="sideRailNav">${fold}${[['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['graph', '그래프', 'graph']].map(([v, l, ic]) => rb(`data-a="view" data-v="${v}" data-t="rl-${v}"`, ic, VIEW_LABEL[v], VIEWS3.includes(r.scr) && vt0 === v)).join('')}${rb('data-a="openQo" data-t="rl-qo"', 'search', '빨리 열기 (Ctrl O)', false)}<span class="rsep"></span>${rb('data-a="nav" data-s="today" data-t="rl-history"', 'hour', '이력', HISTSCR.includes(r.scr), '', nCheck0 ? '<i class="rdot"></i>' : '')}${workMenu().map((x) => rb(`data-a="nav" data-s="${x.scr}" data-t="rl-${x.id}"`, x.ic, x.l, r.scr === x.scr, '', x.id === 'held' && heldSum() ? '<i class="rdot"></i>' : '')).join('')}${rb(`data-a="setArea" data-v="${team ? 'team' : 'me'}" data-t="rl-settings"`, 'gear', '설정', MGSCR.includes(r.scr))}</div>`
   let h = `<aside class="side${dim ? ' dim' : ''}">${rail}<div class="sb-top">${anon() ? `<div class="logo${team ? '' : ' me'}">K</div><span class="brand">kmd</span>` : meHtml()}${busyDot()}${fold}</div>`
   if (!dim) {
     // 지식 고르기 영역
@@ -757,12 +758,13 @@ function hdrHtml(crumb) {
   const r = S.route
   const kn = r.kn && r.kn !== '*' && KNSCR.includes(r.scr) && KN(r.kn) ? KN(r.kn).name : ''
   const parts = String(crumb || '').split(' › ').filter(Boolean)
-  const c = (kn && parts[0] !== kn ? '<span>' + esc(kn) + '</span> › ' : '') + parts.map((x, i) => (i === parts.length - 1 ? '<b>' + esc(x) + '</b>' : esc(x))).join(' › ')
+  // 지식 조각은 누르면 그 지식 홈으로 · 맨 앞 「지식 목록」 은 목록으로(UX T5-12 · T5-15)
+  const c = (anon() || parts[0] === '지식 목록' ? '' : '<button type="button" class="lk crumbk" data-a="nav" data-s="home" data-t="crumbHome">지식 목록</button> › ') + (kn && parts[0] !== kn ? '<button type="button" class="lk crumbk" data-a="openKn" data-k="' + esc(r.kn) + '" data-t="crumbKn">' + esc(kn) + '</button> › ' : '') + parts.map((x, i) => (i === parts.length - 1 ? '<b>' + esc(x) + '</b>' : esc(x))).join(' › ')
   const hb = `<span class="hist"><button class="hb" data-a="histGo" data-v="-1" data-t="histBack" title="이전 (Alt ←)"${S.hpos > 0 ? '' : ' disabled'}>‹</button><button class="hb" data-a="histGo" data-v="1" data-t="histFwd" title="다음 (Alt →)"${S.hpos < S.hist.length - 1 ? '' : ' disabled'}>›</button></span>`
   const me = anon() ? '<span class="hme muted" data-t="me">아직 들어오지 않았다</span>' : ''
   const right = `<div class="hright">${anon() ? '' : claudeChip()}<a class="hlink" data-t="manual" href="/manual" target="_blank" rel="noopener" title="설명서: 새 탭">${svg('book')}<span>설명서</span></a>${me}</div>`
   const menuBtn = gated() ? '' : `<button type="button" class="hb menu-btn" data-a="sideToggle" data-t="menuBtn" aria-label="옆 메뉴" aria-expanded="${S.sideOpen ? 'true' : 'false'}" title="옆 메뉴">☰</button>`
-  const asideBtn = S._hasAside && !gated() ? `<button type="button" class="hb aside-btn${S.asideOpen ? ' on' : ''}" data-a="asideToggle" data-t="asideBtn" aria-expanded="${S.asideOpen ? 'true' : 'false'}" title="오른쪽 칸: 개요 · 참고 · 연결">옆 칸</button>` : ''
+  const asideBtn = S._hasAside && !gated() ? `<button type="button" class="hb aside-btn${S.asideOpen ? ' on' : ''}" data-a="asideToggle" data-t="asideBtn" aria-expanded="${S.asideOpen ? 'true' : 'false'}" title="오른쪽 칸: 개요 · 문서 · 기록 · 항목 · 속성">옆 칸</button>` : ''
   if (anon()) return `<header class="hdr">${menuBtn}<span class="crumb">${c}</span><div class="hmid"></div>${right}</header>`
   return `<header class="hdr">${menuBtn}${hb}<span class="crumb">${c}</span><div class="hmid"><div class="qbtn" data-a="openQo" data-t="qoBtn" title="문서 · 항목 · 기록 이름으로 바로 연다">빨리 열기 <kbd>Ctrl O</kbd></div><div class="search" data-a="openSearch" data-t="search">${svg('search')}<span class="sl">찾기</span><span class="sk">Ctrl K</span></div></div>${asideBtn}<span class="hbusy">${busyDot(true)}</span>${right}</header>`
 }
@@ -2915,7 +2917,7 @@ function viewLogin() {
   ${gateErr()}<button class="btn pri" type="submit" data-t="legacyBtn">다음</button></form>`
     : `<form data-f="login" autocomplete="on">
   <div class="field"><label for="lgId">아이디</label><input class="inp" id="lgId" name="username" autocomplete="username" value="${esc(S.gateUser || '')}" data-focus></div>
-  <div class="field"><label for="lgPw">비밀번호</label><input class="inp" id="lgPw"${invAttr(S.gateErr, 'loginErr')} type="password" name="password" autocomplete="current-password"><div class="hint">브라우저가 채웠다. Enter 만 누르면 된다</div></div>
+  <div class="field"><label for="lgPw">비밀번호</label><input class="inp" id="lgPw"${invAttr(S.gateErr, 'loginErr')} type="password" name="password" autocomplete="current-password"><div class="hint">아이디 · 비밀번호를 넣고 [들어가기] 를 누른다(Enter)</div></div>
   ${gateErr()}<button class="btn pri" type="submit" data-t="loginBtn">들어가기</button></form>`
   const old = S.me.legacy && !legacy ? ` <button type="button" class="lk" data-a="legacyOpen" data-t="legacyOpen">예전 열쇠로 들어가기</button>` : legacy ? ` <button type="button" class="lk" data-a="legacyClose">아이디 · 비밀번호로</button>` : ''
   return `<div class="gatewrap"><div class="gate"><div class="card"><div class="cb">
@@ -2929,7 +2931,7 @@ function viewFirst() {
     return `<div class="gatewrap"><div class="gate"><div class="card"><div class="cb" data-t="firstDone">
   <div class="mk">${svg('check')}</div><div class="big">✓ 정했다. 들어왔다.</div>
   <p class="lead">작업 폴더의 Claude Code 에 팀 지식을 붙이려면 설정 › 에이전트 설치(개인 프로그램은 필요 없다). 개인 지식도 쓰려면 이 PC 에 개인 프로그램을: <button type="button" class="lk" data-a="copyInstall" data-t="copyInstall">한 줄 복사</button><br><span class="muted small">10분 동안 한 번만 · 남에게 주지 않는다 · 나중에는 설정 › 에이전트 설치 › 개인 지식 쓰기</span></p>
-  <div class="links"><button type="button" class="lk" data-a="gateHome" data-t="gateHome">지식 목록 ›</button></div>
+  <div class="links"><button type="button" class="btn pri" data-a="gateHome" data-t="gateHome">지식 목록으로</button></div>
  </div></div></div></div>`
   const who = S.gateUser
   // 쓴 링크 · 지난 링크 — 서버는 둘을 가르지 않는다. 들어와 있으면 그대로 이어 쓰고, 아니면 비밀번호로 들어가거나 새 링크

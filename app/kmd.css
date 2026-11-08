@@ -105,6 +105,7 @@ a{color:var(--accent);cursor:pointer}
 .hdr{height:46px;display:flex;align-items:center;gap:var(--sp-5);padding:0 var(--sp-7);background:var(--surface);border-bottom:1px solid var(--border)}
 .crumb{font-size:var(--fs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .crumb b{color:var(--text);font-weight:600}
+.crumb .crumbk{font:inherit;color:var(--text-3);background:none;border:0;padding:0;cursor:pointer}.crumb .crumbk:hover{color:var(--accent);text-decoration:underline}
 .search{margin-left:auto;flex:0 1 220px;min-width:110px;height:30px;border:1px solid var(--border);border-radius:var(--r);display:flex;align-items:center;padding:0 var(--sp-5);color:var(--text-3);font-size:var(--fs-mono);cursor:text;background:var(--surface)}
 .search:hover{border-color:var(--border-strong)}
 .band{display:flex;align-items:center;gap:var(--sp-5);padding:var(--sp-3) var(--sp-7);font-size:var(--fs-mono);border-bottom:1px solid var(--border);background:var(--surface-2);color:var(--text-2);flex-wrap:wrap;row-gap:var(--sp-2)}
