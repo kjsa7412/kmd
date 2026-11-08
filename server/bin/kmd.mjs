@@ -96,7 +96,8 @@ function defaultPcRoot() {
   if (process.env.KMD_PC_ROOT) return path.resolve(process.env.KMD_PC_ROOT)
   const picked = readPcRoot()
   if (picked) return picked
-  if (process.platform === 'win32' && fs.existsSync('D:\\')) return 'D:\\kmd'
+  // D: 는 쓸 수 있는 디스크일 때만(광학 · 꽂는 디스크 · 읽기만이면 집 폴더 · UX T6-28)
+  if (process.platform === 'win32' && fs.existsSync('D:\\')) { try { const t = 'D:\\.kmd-write-test'; fs.writeFileSync(t, ''); fs.rmSync(t); return 'D:\\kmd' } catch {} }
   return path.join(os.homedir(), 'kmd')
 }
 
