@@ -198,6 +198,8 @@ export function teamAgentPs({ origin, ticket, kn }) {
     '[IO.File]::WriteAllText($cf, $c, $u8)',
     'Write-Host "✓ $d 에 팀 지식 「$($r.name)」 을 붙였다. 이 폴더의 팀 지식 $($r.n) · 스킬 $($r.skillNames -join \' · \') · 연결 kmd-team"',
     'if ($r.dropLegacy) { Write-Host "    예전 한 덩이 kmd 안내 · 스킬(kmd-work · kmd-save · kmd-build)을 걷었다" } elseif ($r.legacy) { Write-Host "    개인 지식 안내(kmd)는 개인 프로그램이 고친다: 개인 화면 › 설정 › 에이전트 설치 › 지금 모두 최신으로" }',
+    // 연결 시험 — 같은 열쇠로 /mcp 에 brief 를 한 번 묻는다
+    'try { $tb = $u8.GetBytes((@{ jsonrpc = "2.0"; id = 1; method = "tools/call"; params = @{ name = "brief"; arguments = @{ knowledge = $kn } } } | ConvertTo-Json -Compress -Depth 6)); $tr = Invoke-RestMethod "$o/mcp" -Method Post -Headers @{ Authorization = "Bearer $key" } -ContentType \'application/json; charset=utf-8\' -Body $tb -UseBasicParsing; if ($tr.error) { Write-Host "· 연결 시험이 막혔다: $($tr.error.message)" } else { Write-Host "✓ 연결 시험: 이 PC 열쇠로 팀 지식 「$($r.name)」 을 읽었다" } } catch { Write-Host "· 연결 시험이 막혔다: $(Why $_)" }',
     ...claudeCheckPs(),
     'Write-Host "    이 폴더에서 Claude Code 를 새로 연다(열려 있던 것은 다시 연다) · 폴더째 많은 파일은 그 Claude Code 에서 대량 넣기(kmd-team-import)"',
     '}',

@@ -573,7 +573,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const list = await kit.folders(dataDir)
       if (!ag[1]) return out(200, { latest: await kit.kitVersion(), folders: await Promise.all(list.map(async (f) => ({ ...f, ...(await kit.status(f.path)) }))) })
       const b = await readBody(req)
-      const urls = (f) => ({ meUrl: `http://${req.headers.host}`, kns: f.kns || [] })
+      const urls = (f) => ({ meUrl: `${res.kmdSecure ? 'https' : 'http'}://${req.headers.host}`, kns: f.kns || [] })
       const same = (f, dir) => path.resolve(f.path).toLowerCase() === path.resolve(String(dir)).toLowerCase()
       if (ag[1] === 'add') {
         // 개인 지식 하나를 더한다 — 같은 폴더면 붙어 있던 개인 지식은 그대로
@@ -632,7 +632,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       admin(ctx)
       const ids = (await readBody(req)).users
       const links = []
-      for (const id of Array.isArray(ids) ? ids.slice(0, 100) : []) links.push({ id, link: `http://${req.headers.host}/first#code=${(await auth.reset(id, { by: ctx.user })).code}` })
+      for (const id of Array.isArray(ids) ? ids.slice(0, 100) : []) links.push({ id, link: `${res.kmdSecure ? 'https' : 'http'}://${req.headers.host}/first#code=${(await auth.reset(id, { by: ctx.user })).code}` })
       return out(200, { links })
     }
     const ac = p.match(/^\/api\/admin\/claude\/(start|code|cancel|check)$/)
@@ -838,7 +838,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (p === '/api/device/ticket') {
       if (ctx.device || ctx.legacy) throw new KmdError('E_FORBIDDEN', '열쇠로는 다른 열쇠를 만들지 못한다')
       const t = auth.ticket(ctx, { ip: ipOf(req) })
-      const origin = `http://${req.headers.host}`
+      const origin = `${res.kmdSecure ? 'https' : 'http'}://${req.headers.host}`
       // 붙일 팀 지식(에이전트 설치 · 팀) — 보이는 팀 지식만 · 그 한 줄은 /a/ (작업 폴더에 붙이기만 · 개인 프로그램을 깔지 않는다)
       const kb = req.method === 'POST' ? await readBody(req).catch((e) => { (log || console.error)('표: 본문을 읽지 못했다 ' + e.message); return {} }) : {}
       const kn = kb.kn ? safeKn(kb.kn) : null
@@ -903,7 +903,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (typeof seats !== 'object' || Array.isArray(seats)) throw new KmdError('E_INPUT', '자리는 { 지식: 자리 } 이다')
       const r = await auth.addUser({ id: b.id, admin: b.admin })
       const given = Object.keys(seats).length ? await hub.setSeats(ctx, r.id, seats) : { kns: [] }
-      return out(200, { id: r.id, link: `http://${req.headers.host}/first#code=${r.code}`, kns: given.kns })
+      return out(200, { id: r.id, link: `${res.kmdSecure ? 'https' : 'http'}://${req.headers.host}/first#code=${r.code}`, kns: given.kns })
     }
     const am = p.match(/^\/api\/admin\/users\/([^/]+)\/(reset|unlock|revoke-all|logout-all|admin|off|seats)$/)
     if (am) {
@@ -925,7 +925,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       }
       if (am[2] === 'reset') {
         const r = await auth.reset(id, { by: ctx.user })
-        return out(200, { id, link: `http://${req.headers.host}/first#code=${r.code}` })
+        return out(200, { id, link: `${res.kmdSecure ? 'https' : 'http'}://${req.headers.host}/first#code=${r.code}` })
       }
       if (am[2] === 'unlock') return out(200, { ok: auth.unlock(id) ?? true })
       if (am[2] === 'revoke-all') return out(200, { revoked: await auth.revokeDevice(id, '*') })
@@ -1163,7 +1163,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       // kmd 가 없는 Windows PC 면 받기 자리의 PC 꾸러미를 받아 <집>/versions/<판> 에 풀고 실행기(<집>/bin)를 사용자 PATH 에 더한 뒤 잇는다
       const im = mode === 'team' && req.method === 'GET' && p.match(/^\/i\/(kmdt_[A-Za-z0-9_-]{10,80})(\.sh)?$/)
       if (im) {
-        const origin = `http://${req.headers.host}`
+        const origin = `${res.kmdSecure ? 'https' : 'http'}://${req.headers.host}`
         const pkg = await pcPackage()
         const sp = new URL(req.url, origin).searchParams
         const pr = safeRoot(sp.get('root'))
@@ -1176,7 +1176,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (am0) {
         const kn = safeKn(new URL(req.url, 'http://x').searchParams.get('kn'))
         if (!kn) return send(res, 400, "Write-Host '· 붙일 팀 지식이 없다. 팀 화면 › 설정 › 에이전트 설치에서 한 줄을 다시 복사한다'", 'text/plain; charset=utf-8')
-        return send(res, 200, teamkit.teamAgentPs({ origin: `http://${req.headers.host}`, ticket: am0[1], kn }), 'text/plain; charset=utf-8')
+        return send(res, 200, teamkit.teamAgentPs({ origin: `${res.kmdSecure ? 'https' : 'http'}://${req.headers.host}`, ticket: am0[1], kn }), 'text/plain; charset=utf-8')
       }
       // 꾸러미 받기 — PC 꾸러미(serve.json dl · 기본 <살림 자리>/dl · 팀 설치가 꾸러미 안의 것을 둔다). 비밀이 아니라 들어오지 않아도 받는다
       if (mode === 'team' && req.method === 'GET' && (p === '/dl' || p.startsWith('/dl/'))) {
