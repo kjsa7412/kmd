@@ -735,7 +735,7 @@ function sideHtml(left) {
     const vk = shownKns()
     const cnt = team ? '팀 ' + vk.length : '내 지식 ' + vk.length
     const home = r.scr === 'home'
-    h += `<div class="sb-know" data-t="knowArea"><div class="sb-repo" data-a="kmenu" data-t="kpick">${cur && !home ? `<span class="rk">${esc(cur.name.slice(0, 2))}</span><span class="rn">${esc(cur.name)} <small>${esc(knWhere(cur))}</small></span>` : `<span class="rk">전체</span><span class="rn">지식 전체<small>${cnt}</small></span>`}<span class="rc">▾</span>${S.menu === 'kmenu' ? `<div class="kmenu"><div class="mi" data-a="pickKn" data-k="*" data-t="nav-home">${svg('list')} 지식 목록: 전체</div>${shownKns().map((x) => `<div class="mi" data-a="pickKn" data-k="${esc(x.id)}" data-t="kmenuKn">${esc(x.name)} ${knTag(x)}</div>`).join('')}<div class="sep"></div><div class="mi" data-a="openAdd" data-t="nav-add">+ 새 지식</div></div>` : ''}</div>`
+    h += `<div class="sb-know" data-t="knowArea"><div class="sb-repo" data-a="kmenu" data-t="kpick">${cur && !home ? `<span class="rk">${esc(cur.name.slice(0, 2))}</span><span class="rn">${esc(cur.name)} <small>${esc(knWhere(cur))}</small></span>` : `<span class="rk">전체</span><span class="rn">지식 전체<small>${cnt}</small></span>`}<span class="rc">▾</span>${S.menu === 'kmenu' ? `<div class="kmenu"><div class="mi" data-a="pickKn" data-k="*" data-t="nav-home">${svg('list')} 지식 목록: 전체</div>${shownKns().map((x) => `<div class="mi" data-a="pickKn" data-k="${esc(x.id)}" data-t="kmenuKn">${esc(x.name)} ${knTag(x)}</div>`).join('')}${!isTeam() || S.me.admin ? '<div class="sep"></div><div class="mi" data-a="openAdd" data-t="nav-add">+ 새 지식</div>' : ''}</div>` : ''}</div>`
     h += `<div class="ktabs" role="tablist" aria-label="보기" data-t="ktabs">${[['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['graph', '그래프', 'graph']].map(([v, l, ic]) => `<button type="button" role="tab" aria-selected="${VIEWS3.includes(r.scr) && vt === v}" class="${VIEWS3.includes(r.scr) && vt === v ? 'on' : vt === v ? 'cur' : ''}" data-a="view" data-v="${v}" data-t="rb-${v}" title="${l}로 보기">${svg(ic)}${l}</button>`).join('')}</div>`
     h += `<div class="lp" data-t="leftPane">${left || sideList(vt, k)}</div></div>`
   }
@@ -1495,7 +1495,7 @@ function cmdDefs() {
     { n: '빨리 열기', s: 'Ctrl O', f: () => openQo() },
     { n: '찾기', s: 'Ctrl K', f: () => openPal() },
     { n: '이력', s: '모든 지식에서 바뀐 것 · 값 바뀜', f: () => go({ scr: 'today' }) },
-    { n: '지식 보내기', s: '내 개인 지식 → 팀 지식', f: () => go({ scr: 'send' }) },
+    !isTeam() && { n: '지식 보내기', s: '내 개인 지식 → 팀 지식', f: () => go({ scr: 'send' }) },
     { n: '설정', s: '', f: () => openSettings() },
     { n: '지식 목록', s: '전체', f: () => go({ scr: 'home', kn: '*' }) },
     { n: '탭 닫기', s: '지금 탭', f: () => { if (S.active) closeTab(S.active); render() } },
@@ -1503,7 +1503,7 @@ function cmdDefs() {
     { n: '다음으로', s: 'Alt →', f: () => histGo(1) },
   ]
 }
-function cmdList() { const nq = norm(S.cmd.q || ''); return cmdDefs().filter((c) => !nq || norm(c.n).includes(nq)) }
+function cmdList() { const nq = norm(S.cmd.q || ''); return cmdDefs().filter(Boolean).filter((c) => !nq || norm(c.n).includes(nq)) }
 function cmdBody() {
   const L = cmdList()
   S.cmd.list = L
@@ -2467,7 +2467,7 @@ async function saveDoc() {
   e.busy = true
   render()
   try {
-    const r = await postJSON(`/api/k/${encodeURIComponent(e.kn)}/edit`, { doc: e.doc, sections: changed.map((p) => ({ h: p.h, body: p.body, ...(old.has(p.h) ? { base: (e.keepBase && e.keepBase[p.h]) || old.get(p.h).base } : {}) })), remove, rename })
+    const r = await postJSON(`/api/k/${encodeURIComponent(e.kn)}/edit`, { ...(e.fixes ? { fixes: e.fixes } : {}), doc: e.doc, sections: changed.map((p) => ({ h: p.h, body: p.body, ...(old.has(p.h) ? { base: (e.keepBase && e.keepBase[p.h]) || old.get(p.h).base } : {}) })), remove, rename })
     // 그사이 더 쓴 글(붙여 넣기 · 다른 탭)이 있으면 버리지 않는다 — 저장한 글을 바탕으로 이어 고친다
     const later = S.edit === e && e.text != null && e.text !== txt
     if (later) { e.orig = txt; e.busy = false; e.keepBase = null; e.conflict = null } else edDrop()
@@ -2525,7 +2525,7 @@ const diffOf = (k, record) => need(`diff:${k}:${record}`, `/api/k/${encodeURICom
 //   위에서 고른 지식과 따로다
 const historyOf = () => need('history', '/api/history')
 const HIST_CHECK = '값 바뀜'
-const HIST_KINDS = [HIST_CHECK, '저장', '고침', '들이기', '다듬기', '되돌림', '넣지 못함', '버림', '가져오기', '바로 넣기', '정리', '보내기', '받음', '설정', '지식']
+const HIST_KINDS = [HIST_CHECK, '저장', '고침', '들이기', '다듬기', '되돌림', '넣지 못함', '버림', '가져오기', '바로 넣기', '짜임', '장부', '보내기', '받음', '설정', '지식']
 const isCheck = (x) => x.yl && !x.reverted && !x.unlinked
 const HIST_PAGE = 200
 // 한 흐름 — 팀 화면은 팀 지식만 · 개인 화면은 개인 지식만
@@ -2669,7 +2669,8 @@ function heldRowHtml(k, d, r) {
   const st = r.job ? '<span class="chip c-pend" data-t="heldJob">다시 들이는 중</span>' : r.legacy ? '<span class="chip c-mute">개편 전 기록</span>' : '<span class="chip c-warn">넣지 못함</span>'
   const acts = !can ? '' : [
     r.names && d.admin ? `<button type="button" class="btn sm" data-a="heldNames" data-v="${esc(r.rec)}" data-t="heldNames"${busy ? ' disabled' : ''}>이름 세우기</button>` : '',
-    `<button type="button" class="btn sm" data-a="heldFix" data-v="${esc(r.rec)}" data-t="heldFix"${busy || r.job ? ' disabled' : ''} title="${pick ? '넣을 곳을 고르고 다시 들인다' : '정정 기록을 새로 남긴다'}">고치기</button>`,
+    // 까닭에 맞는 [고치기](UX T6-02 · 정함): 넣으려던 글이 있고 값 어긋남이 아니면 그 글을 편집기에서 고쳐 넣는다(저장이 원 기록을 바로잡는다)
+    r.parts.some((p) => p.doc && (p.content || p.edits) && p.code !== 'values') && !r.legacy ? `<button type="button" class="btn sm" data-a="heldEdit" data-k="${esc(k)}" data-r="${esc(r.rec)}" data-t="heldEdit"${busy || r.job ? ' disabled' : ''} title="넣으려던 글을 편집기에서 고쳐 넣는다">고쳐 넣기</button>` : `<button type="button" class="btn sm" data-a="heldFix" data-v="${esc(r.rec)}" data-t="heldFix"${busy || r.job ? ' disabled' : ''} title="${pick ? '넣을 곳을 고르고 다시 들인다' : '옛 값 → 새 값 정정 기록을 남긴다'}">고치기</button>`,
     `<button type="button" class="btn sm" data-a="heldAgain" data-v="${esc(r.rec)}" data-t="heldAgain"${busy || r.job ? ' disabled' : ''} title="팀 일꾼이 기록 + 문서로 다시 짓는다">다시 들이기</button>`,
   ].join('')
   return `<div class="hd-r" data-t="heldRow" data-rec="${esc(r.rec)}"${r.legacy ? ' data-legacy="1"' : ''}>
@@ -3557,7 +3558,7 @@ function impSrcHtml(srcs, v, can) {
 // 가져올 곳 더하기 — 이 PC 프로그램 · 팀은 관리 자리(총괄 관리자 · 그 지식의 관리 자리) · 개인 영역은 개인 지식 폴더를 정한 사람
 const impCan = () => !isTeam() || !!S.me.admin || anyAdm()
 // 가져올 곳 탭 · [가져올 곳 더하기] — 팀은 지식관리자만(쓰기 자리는 파일 넣기만 · S-D34)
-const impSrcOk = () => impCan()
+const impSrcOk = () => impCan() || (isTeam() && (S.kns || []).some((x) => !isPersonal(x) && !x.hidden && canWrite(x.id)))
 // 지식 하나의 관리 자리 — 지금 가져오기 · 고치기는 관리 자리만(서버도 막는다)
 const admKn = (kn) => !isTeam() || !!S.me.admin || lvOf(KN(kn)) === 'admin'
 function impBodyHtml() {
@@ -4550,9 +4551,9 @@ function admPeopleCard() {
   const u = usersOf()
   if (!u || u.error) return `<div class="card" data-t="admPeople"><div class="ch">사람</div><div class="cb" style="padding:8px 14px">${u ? errHtml(u) : loadingHtml}</div></div>`
   const live = u.users.filter((x) => !x.off && !x.legacyOnly), gone = u.users.filter((x) => x.off)
-  const st = (x) => x.password ? '들어온다' : x.firstOpen ? `링크 보냄 · ${Math.floor(leftMin(x.firstExp) / 60)}시간 ${leftMin(x.firstExp) % 60}분 남음` : '비밀번호를 안 정함'
+  const st = (x) => x.password ? '들어온다' : x.firstExp && leftMin(x.firstExp) <= 0 ? '링크 지남: 새 링크를 만든다' : x.firstOpen ? `링크 보냄 · ${Math.floor(leftMin(x.firstExp) / 60)}시간 ${leftMin(x.firstExp) % 60}분 남음` : '비밀번호를 안 정함'
   const mk = (x) => 'pp:' + x.id
-  const row = (x) => `<li data-t="admPerson" data-name="${esc(x.id)}"><span class="av2">${esc(x.id.slice(0, 1))}</span><span class="nm">${esc(x.id)}${x.admin ? ' <span class="kt role">총괄 관리자</span>' : ''}<small>${esc(st(x))} · 기기 ${x.devices}${x.roles.team ? ` · 주인 ${x.roles.team}` : ''}${x.admin ? ' · 모든 지식 지식관리자' : ` · <span data-t="admPersonKns">지식 ${x.roles.kns || 0}개에 자리</span>`}</small></span>${S.admLink && S.admLink.id === x.id ? `<span class="mono small ell mw260" data-t="admLinkOut">${esc(S.admLink.link)}</span><button type="button" class="lk" data-a="admCopyLink" data-t="admCopyLink">링크만 복사</button><button type="button" class="lk" data-a="admCopyGuide" data-t="admCopyGuide">안내 복사</button>` : ''}${x.id === S.me.user ? '' : `<button class="kebab${S.menu === mk(x) ? ' on' : ''}" data-a="menu" data-m="${esc(mk(x))}" data-t="admPersonKebab" title="지식마다 자리 · 새 링크 · 총괄 관리자 · 기기 · 떠남">⋯${S.menu === mk(x) ? popHtml(mk(x), `<div>${x.admin ? '' : `<div class="mi" data-a="seatOpen" data-v="${esc(x.id)}" data-t="seatOpen">지식마다 자리<small>없음 · 읽기 · 쓰기 · 지식관리자</small></div><div class="sep"></div>`}<div class="mi" data-a="admLink1" data-v="${esc(x.id)}" data-t="admLink1">새 링크<small>이 사람만 · 24시간 · 한 번: 지금 비밀번호는 지워진다</small></div><div class="mi" data-a="admAdminSet" data-v="${esc(x.id)}" data-on="${x.admin ? '' : '1'}" data-t="admAdminSet">${x.admin ? '총괄 관리자 아님으로' : '총괄 관리자로'}</div><div class="mi" data-a="admRevokeAll" data-v="${esc(x.id)}" data-t="admRevokeAll">기기 모두 끊기<small>그 사람의 Claude Code 팀 연결 · 개인 프로그램의 팀 잇기가 다시 이어야 한다</small></div><div class="sep"></div><div class="mi danger" data-a="admOffOpen" data-v="${esc(x.id)}" data-t="admOffOpen">떠남…<small>들어가기 · 기기를 끊고 지식을 넘긴다</small></div></div>`) : ''}</button>`}</li>`
+  const row = (x) => `<li data-t="admPerson" data-name="${esc(x.id)}"><span class="av2">${esc(x.id.slice(0, 1))}</span><span class="nm">${esc(x.id)}${x.admin ? ' <span class="kt role">총괄 관리자</span>' : ''}<small>${esc(st(x))} · 기기 ${x.devices}${x.roles.team ? ` · 주인 ${x.roles.team}` : ''}${x.admin ? ' · 모든 지식 지식관리자' : ` · <span data-t="admPersonKns">지식 ${x.roles.kns || 0}개에 자리</span>`}</small></span>${S.admLink && S.admLink.id === x.id ? `<span class="mono small ell mw260" data-t="admLinkOut">${esc(S.admLink.link)}</span><button type="button" class="lk" data-a="admCopyLink" data-t="admCopyLink">링크만 복사</button><button type="button" class="lk" data-a="admCopyGuide" data-t="admCopyGuide">안내 복사</button>` : ''}${x.id === S.me.user ? '' : `<button class="kebab${S.menu === mk(x) ? ' on' : ''}" data-a="menu" data-m="${esc(mk(x))}" data-t="admPersonKebab" title="지식마다 자리 · 새 링크 · 총괄 관리자 · 기기 · 떠남">⋯${S.menu === mk(x) ? popHtml(mk(x), `<div>${x.admin ? '' : `<div class="mi" data-a="seatOpen" data-v="${esc(x.id)}" data-t="seatOpen">지식마다 자리<small>없음 · 읽기 · 쓰기 · 지식관리자</small></div><div class="sep"></div>`}<div class="mi" data-a="admLink1" data-v="${esc(x.id)}" data-pw="${x.password ? 1 : 0}" data-t="admLink1">새 링크<small>이 사람만 · 24시간 · 한 번: 지금 비밀번호는 지워진다</small></div><div class="mi" data-a="admAdminSet" data-v="${esc(x.id)}" data-on="${x.admin ? '' : '1'}" data-t="admAdminSet">${x.admin ? '총괄 관리자 아님으로' : '총괄 관리자로'}</div><div class="mi" data-a="admRevokeAll" data-v="${esc(x.id)}" data-t="admRevokeAll">기기 모두 끊기<small>그 사람의 Claude Code 팀 연결 · 개인 프로그램의 팀 잇기가 다시 이어야 한다</small></div><div class="sep"></div><div class="mi danger" data-a="admOffOpen" data-v="${esc(x.id)}" data-t="admOffOpen">떠남…<small>들어가기 · 기기를 끊고 지식을 넘긴다</small></div></div>`) : ''}</button>`}</li>`
   const add = S.admAdd ? `<div class="flow" data-t="admAddForm"><div class="row"><input class="inp" id="admAddIn"${invAttr(S.admAdd.err, 'admAddErr')} aria-label="새 사람 아이디" data-in="admAddId" data-t="admAddIn" value="${esc(S.admAdd.id || '')}" placeholder="아이디: 영문 · 숫자 · . _ -" autocomplete="off" style="flex:1"><label class="small"><input type="checkbox" id="admAddAdmin"${S.admAdd.admin ? ' checked' : ''} data-a="admAddAdmin" data-t="admAddAdmin"> 총괄 관리자</label></div>${seatTable(S.admAdd.seats, 'add', S.admAdd.admin)}${S.admAdd.err ? formErr(S.admAdd.err, 'admAddErr') : ''}<div class="row" style="margin-top:8px;justify-content:flex-end"><button type="button" class="btn ghost" data-a="admAddCancel">취소</button><button class="btn pri" data-a="admAddDo" data-t="admAddDo">더하기</button></div></div>` : ''
   return `<div class="card" data-t="admPeople" style="overflow:visible"><div class="ch">사람 ${live.length} <small>처음 들어오기 링크는 사람마다 따로 보낸다</small></div><div class="cb" style="padding:2px 14px 10px">${add}<ul class="plain pl">${live.map(row).join('')}</ul>${gone.length ? `<details class="more" data-t="admGone"><summary>떠난 사람 ${gone.length}: 아이디는 되쓰지 않는다</summary><div class="in">${gone.map((x) => `${esc(x.id)} · ${esc(String(x.off.at).slice(0, 10))}`).join(' · ')}</div></details>` : ''}</div><div class="cf">${S.admAdd ? '' : '<button class="btn pri" data-a="admAddOpen" data-t="admAddOpen">사람 더하기</button>'}<span>더하면 처음 들어오기 링크(24시간 · 한 번)가 나온다. 아이디와 함께 그 사람에게만 보낸다 · 비밀번호는 그 사람이 정한다</span></div></div>`
 }
@@ -4614,7 +4615,7 @@ function offHtml() {
   if (!x) return ''
   const r = x.roles
   return `<div class="scrim fix" data-a="offClose" data-self="1"${v.busy ? ' data-busy="1"' : ''}><div class="modal w560" data-t="offWin"><div class="mh">떠남: ${esc(x.id)}<button type="button" class="x" data-a="offClose" title="닫기" aria-label="닫기">×</button></div><div class="mb">
-  <div class="callout danger" style="margin:0 0 12px"><i></i><span><b>한 번에 끊는다. 들어가기 · 기기 ${x.devices}</b> · 아이디는 남겨 두고 되쓰지 않는다(같은 이름의 새 사람은 다른 아이디로)</span></div>
+  <div class="callout danger" style="margin:0 0 12px"><i></i><span><b>한 번에 끊는다. 들어가기 · 기기 ${x.devices}</b> · 되돌릴 수 없다 · 아이디는 남겨 두고 되쓰지 않는다(같은 아이디로 다시 들일 수 없다 · 잠시 쉬는 사람은 기기 끊기 + 새 링크로)</span></div>
   <p class="small" style="margin:0 0 6px">${esc(x.id)} 이 주인인 지식: 팀 지식 ${r.team} · 지식관리자로 받은 지식 ${r.curate}(자리에서 뺀다)</p>
   <label class="small" style="display:block;margin:6px 0"><input type="radio" name="offTo" value="me"${v.to === 'me' ? ' checked' : ''} data-a="offTo" data-v="me" data-t="offToMe"> 내가 주인을 잇는다</label>
   <label class="small" style="display:block;margin:6px 0"><input type="radio" name="offTo" value="none"${v.to === 'me' ? '' : ' checked'} data-a="offTo" data-v="none" data-t="offToNone"> 주인 칸을 비운다. 자리를 받은 사람에게는 그대로 보인다(나중에 지식 카드 ⋯ › 권한 › 주인 바꾸기로 새 주인을 정한다)</label>
@@ -4949,14 +4950,14 @@ const ACT = {
   },
   admLink1: async (el) => {
     S.menu = null
-    if (!await ask1('새 처음 들어오기 링크', '만들기', true, `${el.dataset.v}: 새 처음 들어오기 링크를 만든다 · 지금 비밀번호와 들어온 곳은 끊긴다`)) return render()
-    try { const r = await postJSON(`/api/admin/users/${encodeURIComponent(el.dataset.v)}/reset`, {}); S.admLink = { id: r.id, link: r.link }; delete S.cache.users; delete S.cache.admin } catch (e) { if (e.code !== 'E_CANCEL') toastErr(e) }
+    if (!await ask1('새 처음 들어오기 링크', '만들기', true, `${el.dataset.v}: 새 처음 들어오기 링크를 만든다 · 앞의 링크는 못 쓴다${el.dataset.pw === '1' ? ' · 이미 정한 비밀번호와 들어온 곳은 끊긴다' : ''} · 만들면 바로 복사한다(이 화면을 닫으면 다시 볼 수 없다)`)) return render()
+    try { const r = await postJSON(`/api/admin/users/${encodeURIComponent(el.dataset.v)}/reset`, {}); S.admLink = { id: r.id, link: r.link }; copyText(r.link); toast('새 링크를 복사했다: ' + esc(r.id) + ' 에게만'); delete S.cache.users; delete S.cache.admin } catch (e) { if (e.code !== 'E_CANCEL') toastErr(e) }
     render()
   },
   admCopyLink: () => { if (S.admLink) { copyText(S.admLink.link); toast('복사했다: ' + esc(S.admLink.id) + ' 에게만') } },
   // 들이기 안내 한 덩이 — 아이디 · 들어오기 링크 · 팀 주소 · 들어온 뒤 할 일(에이전트 설치)
   admCopyGuide: () => { const L = S.admLink; if (!L) return; copyText(admGuideText(L)); toast('들이기 안내를 복사했다: ' + esc(L.id) + ' 에게만') },
-  admAdminSet: async (el) => { S.menu = null; try { await postJSON(`/api/admin/users/${encodeURIComponent(el.dataset.v)}/admin`, { admin: !!el.dataset.on }); delete S.cache.users; toast(el.dataset.on ? `총괄 관리자로 했다: ${esc(el.dataset.v)}` : `총괄 관리자에서 뺐다: ${esc(el.dataset.v)}`) } catch (e) { if (e.code !== 'E_CANCEL') toastErr(e) } render() },
+  admAdminSet: async (el) => { S.menu = null; if (el.dataset.on && !await ask1('총괄 관리자 주기', '총괄 관리자로', true, `${el.dataset.v} 에게 총괄 관리자를 준다: 모든 지식의 지식관리자 · 사람 · 묶음 · 백업 · Claude 연결을 다룬다`)) return render(); try { await postJSON(`/api/admin/users/${encodeURIComponent(el.dataset.v)}/admin`, { admin: !!el.dataset.on }); delete S.cache.users; toast(el.dataset.on ? `총괄 관리자로 했다: ${esc(el.dataset.v)}` : `총괄 관리자에서 뺐다: ${esc(el.dataset.v)}`) } catch (e) { if (e.code !== 'E_CANCEL') toastErr(e) } render() },
   admRevokeAll: async (el) => {
     S.menu = null
     if (!await ask1('기기 모두 끊기', '끊기', true, `${el.dataset.v} 의 기기를 모두 끊는다. 그 사람의 Claude Code 팀 연결 · 개인 프로그램의 팀 잇기가 다시 이어야 한다`)) return render()
@@ -5036,7 +5037,8 @@ const ACT = {
   admAdopt: async (el) => {
     const k = S.kns.find((x) => x.name === el.dataset.v)
     if (!k) return
-    const b0 = (overviewOf() || {}).backups.find((x) => x.name === el.dataset.v)
+    const b0 = ((overviewOf() || {}).backups || []).find((x) => x.name === el.dataset.v)
+    if (b0 && b0.verdict !== 'moved' && !await ask1('백업의 글로 잇기', '잇기', true, `${k.name}: 백업의 글로 이어 쓴다 · 서버에만 있던 것은 가지(kmd-before-…)로 남는다`)) return
     if (b0 && b0.verdict === 'moved') {
       const lost = await getJSON(`/api/k/${encodeURIComponent(k.id)}/backup/lost`).catch(() => null)
       const n = lost ? lost.records.length : 0
@@ -5250,6 +5252,24 @@ const ACT = {
     } catch (e) { toastErr(e) }
   },
   // 충돌 고르기 — 내 글로: 새 지문으로 다시 보낸다(이력에 남아 되돌릴 수 있다) · 그쪽 글로: 쓰던 글을 버리고 새 글로
+  // 넣지 못함 [고쳐 넣기](UX T6-02 · 정함 안 A) — 값이 맞지 않음은 옛 정정 창, 그 밖(꼴 · 그사이 바뀜 · 조각)은 넣으려던 글을 편집기에
+  heldEdit: async (el) => {
+    const k = el.dataset.k, rec = el.dataset.r, d0 = S.cache['held:' + k], row = d0 && d0.rows && d0.rows.find((x) => x.rec === rec)
+    const p = row && row.parts.find((x) => x.doc && (x.content || x.edits))
+    if (!p) { toast('넣으려던 글이 기록에 없다: [다시 들이기] 를 쓴다'); return }
+    const docId = String(p.doc).replace(/^docs\//, '').replace(/\.md$/, '')
+    openTab({ kind: 'doc', kn: k, ref: docId }); go({ scr: 'docs', kn: k })
+    const v = await getJSON(`/api/k/${encodeURIComponent(k)}/doc?d=${encodeURIComponent(docId)}&edit=1`)
+    S.cache[`doc:${k}:${docId}:ed`] = v
+    let body = typeof p.content === 'string' ? p.content : null
+    const sec = v.sections.find((x) => x.h === p.heading)
+    if (body == null && sec) { body = sec.md; for (const e1 of p.edits || []) if (e1 && typeof e1.find === 'string' && body.includes(e1.find)) body = body.replace(e1.find, e1.replace ?? '') }
+    const orig = edOrig(v)
+    const text = sec ? v.sections.map((x) => '## ' + x.h + '\n' + (x.h === p.heading ? body : x.md)).join('\n\n') : orig + '\n\n## ' + (p.heading || '새 항목') + '\n' + (body || '')
+    S.edit = { tab: S.active, kn: k, doc: docId, orig, text, fixes: [rec], err: `넣지 못한 글을 열었다(${HELD_CODE[p.code] || p.code}): 고친 뒤 저장하면 이 기록이 바로잡힘으로 닫힌다` }
+    S._focus = 'edTx'
+    render()
+  },
   edForce: async () => { const e = S.edit; if (!e) return; if (!await ask1('내 글로 저장', '내 글로 저장', true, `그사이 바뀐 글(${(e.conflict || []).map((x) => x.h).join(' · ')})을 내 글로 바꾼다. 남이 고친 것은 이력에 남아 되돌릴 수 있다`)) return; e.keepBase = null; e.conflict = null; e.err = null; await saveDoc() },
   edTheirs: () => { const e = S.edit; if (!e) return; const v = S.cache[`doc:${e.kn}:${e.doc}:ed`]; e.text = v ? edOrig(v) : null; e.keepBase = null; e.conflict = null; e.err = null; render() },
   edPreview: () => { if (!S.edit) return; const ta = $('#edTx'); if (ta && !S.edit.busy) S.edit.text = ta.value; S.edit.preview = !S.edit.preview; render() },
