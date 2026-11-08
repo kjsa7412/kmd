@@ -1,3 +1,4 @@
+import zlib from 'node:zlib'
 // HTTP 서버 — 화면(app/) · 화면 자료(/api) · MCP(/mcp) · 들어가기 · 살아 있나(/healthz) 를 한 포트로.
 //
 // 누구인가 — 요청마다 한 번: Bearer 열쇠(기기 kmdk_ · 기계 kmdm_ · 예전 열쇠) 또는 서명 쿠키(화면).
@@ -34,6 +35,7 @@ import { pipeline } from 'node:stream/promises'
 import { writeJsonAtomic } from '../core/atomic.js'
 
 const APP = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'app')
+const GZ = new Map() // 정적 파일 지문 → 눌러 둔 몸(UX G2-05)
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.json': 'application/json' }
 const MAX_BODY = 2 << 20
 // MCP 본문 — 들어온 사람만(save 의 첨부 attach 한 번 8MB · base64 4/3 · S-D30)
@@ -1127,6 +1129,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (String(res.req?.headers['if-none-match'] || '').split(',').map((x) => x.trim()).includes(etag)) {
       res.writeHead(304, { ...cc, 'x-content-type-options': 'nosniff' })
       return res.end()
+    }
+    // 눌러 보내기 — 받는 쪽이 gzip 을 받으면(지문마다 한 번 누른 것을 기억)
+    if (/gzip/.test(String(res.req?.headers['accept-encoding'] || '')) && /\.(js|css|svg|json)$/.test(full) && buf.length > 1024) {
+      let z = GZ.get(etag)
+      if (!z) { z = zlib.gzipSync(buf, { level: 6 }); if (GZ.size > 50) GZ.clear(); GZ.set(etag, z) }
+      return send(res, 200, z, type, { ...cc, 'content-encoding': 'gzip', vary: 'accept-encoding' })
     }
     send(res, 200, buf, type, cc)
   }

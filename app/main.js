@@ -590,6 +590,7 @@ function draw() {
   if (S.me && !anon() && document.title !== ttl) document.title = ttl
   { const on = app.querySelector('.tabbar .on, [data-t=tabbar] .tab.on'), bar = on && on.parentElement; if (on && bar && bar.scrollWidth > bar.clientWidth) { const l = on.offsetLeft - bar.offsetLeft; if (l < bar.scrollLeft || l + on.offsetWidth > bar.scrollLeft + bar.clientWidth) bar.scrollLeft = Math.max(0, l - 24) } }
   if (!sameView && (document.activeElement === document.body || !document.activeElement) && mainEl && !S._focus && !$('#palIn,#qoIn,#cmdIn')) mainEl.focus({ preventScroll: true })
+  if ($('#edTx')) edFit($('#edTx'))
   if (edPos) { const ta = $('#edTx'); if (ta) { ta.scrollTop = edPos.top; try { ta.setSelectionRange(edPos.a, edPos.b) } catch {} } }
   if (refocus && (document.activeElement === document.body || !document.activeElement)) { const el = app.querySelectorAll(refocus[0])[Math.max(0, refocus[1])]; if (el) el.focus({ preventScroll: true }) }
   fillAtts()
@@ -2443,6 +2444,7 @@ function edDrop() { if (S.edit) { try { sessionStorage.removeItem(edKey(S.edit))
 // 고치는 중인 글을 버리는 길(그만두기 · 탭 닫기 · 지식 지우기 …) — 바뀐 글이 있으면 묻는다
 async function edLeave(what) { return !edDirty() || (await ask1('고치던 글 버리기', '버리기', true, `저장하지 않은 글이 있다: ${what}면 버린다`)) }
 window.addEventListener('beforeunload', (ev) => { if (edDirty() || (S.imports || []).some((x) => x.cls === 'run' || x.busy || x.sending)) { ev.preventDefault(); ev.returnValue = '' } })
+function edFit(ta) { if (!ta) return; ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight + 4, Math.max(320, innerHeight - 220)) + 'px' }
 function edChanges(d, txt) {
   const parts = []
   let cur = null
@@ -5481,6 +5483,7 @@ document.addEventListener('input', (ev) => {
   const t = ev.target, k = t.dataset && t.dataset.in
   if (!k) return
   if (k === 'edWhy') { if (S.edit) S.edit.why = t.value; return }
+  if (k === 'edTx') edFit(t)
   // 칸은 다시 그리지 않는다(한글 입력이 끊기지 않게) — 결과 자리만 바꾼다
   if (k === 'pal') { S.pal.q = t.value; runFind() }
   if (k === 'askIn' && S.ask && S.ask.input) S.ask.input.value = t.value // 다시 그려도 쓰던 글이 남게
