@@ -92,7 +92,8 @@ test('세션 판: 모든 기기에서 나가기 · 다시 정하기가 옛 쿠�
   assert.equal((await req('/first', { body: { code, pw: prehash('kim', 'again-12345') } })).status, 401, '링크는 한 번')
   kim.pw = 'new-pw-12345'
   const r = await login('kim', kim.pw, { ip: '10.0.1.1' })
-  assert.match(r.body.notice || '', /관리자가 새 링크를 만들었다/)
+  // 링크로 스스로 다시 정했으면 뒤늦은 「새 링크」 경고는 없다(UX G5-05) — 경고는 링크를 쓰지 않은 채 옛 비밀번호로 들어올 때만
+  assert.doesNotMatch(r.body.notice || '', /관리자가 새 링크를 만들었다/)
 })
 
 test('기기 열쇠: 설치 표는 한 번 · 열쇠로는 들어가기 · 표 만들기 · 관리 불가', async () => {
