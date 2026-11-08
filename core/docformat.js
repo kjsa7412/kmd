@@ -567,6 +567,15 @@ export function lintDoc(text0) {
     seen.set(key, x)
   }
   for (const x of seen.values()) if (x.n >= REPEAT_NOTE) add('repeat-note', x.first + 1, `같은 인용 문장이 ${x.n}번 되풀이된다(${x.text.replace(/[*_`]/g, '').slice(0, 24)}…): 출처 · 상태 문장은 (문서) 참고 메모에 한 번 · 공통 설명은 한 항목에 두고 링크`)
+  // 표 칸 수 — 머리 줄(다음 줄이 |---|) 칸 수와 다른 줄
+  const cells = (ln) => ln.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).length
+  let head = null
+  for (const i of live) {
+    const ln = lines[i]
+    if (!/^\s*\|/.test(ln)) { head = null; continue }
+    if (head == null && /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(lines[i + 1] || '') && /-/.test(lines[i + 1] || '')) { head = cells(ln); continue }
+    if (head != null && !/^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(ln) && cells(ln) !== head) add('table-cols', i + 1, `표 줄 칸 수: 머리는 ${head}칸인데 이 줄은 ${cells(ln)}칸이다`)
+  }
   return out.sort((a, b) => a.line - b.line)
 }
 export const REPEAT_NOTE = 5
