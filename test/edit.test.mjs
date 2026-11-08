@@ -73,7 +73,7 @@ test('팀 지식: 쓰기 자리의 항목 글도 검사를 넘으면 그 순간 
   const dw = (await s.hub.get('dpms')).byWork.get(d.id)
   assert.ok(dw.path.startsWith('log/') && dw.tags.includes('edit') && dw.tags.includes('put'), dw.tags.join(' '))
   assert.equal(dw.author, 'lee')
-  assert.match(dw.body, /## 넣은 것\n- docs\/서버목록\.md › 점검 시간: 04 → 05/)
+  assert.match(dw.body, /## 넣은 것\n- docs\/서버목록\.md › 점검 시간: 04:00 → 05:00/)
   // 쓰기 자리는 항목 지우기 · 이름 바꾸기를 못 한다 · 읽은 뒤 바뀐 항목은 E_CONFLICT(아무것도 쓰지 않는다)
   assert.equal(await code(s.hub.edit(LEE, 'dpms', { doc: '서버목록', rename: [{ from: '점검 시간', to: '점검 때' }] })), 'E_FORBIDDEN')
   assert.equal(await code(s.hub.edit(LEE, 'dpms', { doc: '서버목록', sections: [{ h: '점검 시간', base: b0, body: '다른 글.' }] })), 'E_CONFLICT')

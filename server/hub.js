@@ -836,10 +836,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     try {
       if (mode === 'pc' && !opt.system && !opt.noCurate) hub.curateSoon(id).catch((e) => log('바로 넣기', id, e.message))
     } catch (e) { log(`바로 넣기 걸기 실패 ${id}: ${e.message}`) }
-    // 백업 — 3초까지 기다린다(경고를 응답에 싣게) · 여럿을 받는 길(receive)은 끝에 한 번
+    // 백업 — 걸어 두고 기다리지 않는다 · 여럿을 받는 길(receive)은 끝에 한 번
     let backupLines = []
     try {
-      if (backup.attached(meta)) await Promise.race([backup.enqueue(meta, { log }), new Promise((ok) => setTimeout(ok, 3000).unref?.())])
+      // 응답은 백업을 기다리지 않는다 — 걸어만 두고 지금 아는 백업 상태만 싣는다(밀기 실패는 경고 띠가 알린다 · UX G2-04)
+      if (backup.attached(meta)) backup.enqueue(meta, { log }).catch((e) => log(`백업 밀기 실패 ${id}: ${e.message}`))
       backupLines = backup.lines(meta, { name: meta.name }).map((l) => l.text)
     } catch (e) { log(`백업 걸기 실패 ${id}: ${e.message}`) }
     const { proposals: _p, warnings: w0, ...rest } = r0
