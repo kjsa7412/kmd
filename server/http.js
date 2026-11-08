@@ -890,7 +890,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return send(res, 200, { ok: true }, undefined, { 'set-cookie': r.cookies })
     }
     if (p === '/api/me/logout-all') {
-      await auth.logoutAll(ctx.user)
+      const lb = req.method === 'POST' ? await readBody(req).catch(() => ({})) : {}
+      await auth.logoutAll(ctx.user, { devices: !!(lb && lb.devices === true) })
       return send(res, 200, { ok: true }, undefined, { 'set-cookie': auth.logoutCookie() })
     }
     // ── 관리 — 사람 ──

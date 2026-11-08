@@ -4985,7 +4985,7 @@ const ACT = {
   agentAllNew: () => agentDo('up'),
   agentMore: (el) => { S.menu = null; S.agAdding = true; S.agDraft = el.dataset.v; S._focus = 'agKnMe'; render() },
   agentDrop: async (el) => { const k = agKnOf(el); if (!await ask1('지식 떼기', '떼기', true, `이 작업 폴더에서 「${k.knName}」 을 뗀다. 다른 지식은 그대로 둔다`)) { S.menu = null; return render() } agentDo('rm', el.dataset.v, k) },
-  logoutAll: async () => { S.menu = null; if (!(await edLeave('나가'))) return render(); if (!await ask1('모든 곳에서 나가기', '나가기', true, '모든 곳에서 나간다. 이 브라우저와 다른 기기 · 브라우저의 들어온 것이 모두 끊긴다(Claude Code 의 기기 열쇠는 그대로)')) return render(); try { await postJSON('/api/me/logout-all', {}) } catch {}  location.href = '/' },
+  logoutAll: async () => { S.menu = null; if (!(await edLeave('나가'))) return render(); const c = await ask({ t: '모든 곳에서 나가기', d: '이 브라우저와 다른 기기 · 브라우저의 들어온 것이 모두 끊긴다. 기기 열쇠(Claude Code 연결 · 개인 프로그램의 팀 잇기)까지 끊을지 고른다', btns: [['dev', '기기 열쇠까지 끊기', 'danger'], ['web', '브라우저만', 'pri']] }); if (!c) return render(); try { await postJSON('/api/me/logout-all', { devices: c === 'dev' }) } catch (e) { toastErr(e); return } location.href = '/' },
   logout: async () => { if (!(await edLeave('나가'))) return; edDrop(); await postJSON('/logout', {}).catch((e) => console.warn('나가기를 서버에 알리지 못했다', e)); location.href = '/' },
   admAddOpen: () => { S.admAdd = { id: '', admin: false, seats: {} }; S._focus = 'admAddIn'; render() },
   admAddAdmin: (el) => { if (S.admAdd) { S.admAdd.admin = el.checked; render() } },

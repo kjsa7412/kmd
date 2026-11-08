@@ -289,12 +289,15 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
       await note({ what: 'password', user: ctx.user, by: ctx.user })
       return { cookies: [issue(ctx.user)] }
     },
-    async logoutAll(id) {
+    async logoutAll(id, { devices = false } = {}) {
       const u = userOf(id)
       if (!u) throw new KmdError('E_NOTFOUND', '그런 사람은 없다')
       u.sv = (u.sv || 0) + 1
+      const n = devices ? (u.keys || []).length : 0
+      if (devices) u.keys = []
       await persist()
-      await note({ what: 'sv', user: id })
+      await note({ what: 'sv', user: id, ...(devices ? { devices: n } : {}) })
+      return { devices: n }
     },
     // 떠남 — 들어가기 · 기기 · 예전 열쇠를 한 번에 끊고 아이디를 남겨 둔다(되쓰지 않는다 · 다시 정하기 링크도 막는다)
     async off(id, { by = null } = {}) {
