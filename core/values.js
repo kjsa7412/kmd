@@ -61,11 +61,23 @@ export const oldValues = (body) => {
 // 값 바뀜 — 옛 글에만 있는 값 → 새 글에만 있는 값(각 5개까지 · 「, 」 로 잇는다). 바뀐 값이 없으면 null
 //   저장 문이 기록의 `## 넣은 것` 줄(「문서 › 머리: 5분 → 10분」)에 싣는다(설계 2-2)
 export const DIFF_MAX = 5
+// 보이기 전용 값 목록(같은 값도 수만큼) — 시각(10:30) · 주소:포트(10.0.0.1:8090)는 쪼개지 않는다(UX T2-08 「00 → 30」)
+const WHOLE_RE = /\b\d{1,3}(?:\.\d{1,3}){3}(?::\d{2,5})?\b|\b\d{1,2}:\d{2}(?::\d{2})?\b/g
+function valueList(text) {
+  const s0 = String(text || '').replace(/^[ \t]*(?:`{3,}|~{3,}).*$/gm, '')
+  const out = [...s0.matchAll(WHOLE_RE)].map((m) => m[0])
+  const s = s0.replace(WHOLE_RE, ' ')
+  for (const m of s.matchAll(VALUE_RE)) {
+    if (m[4] && inName(s, m.index, m[0].length)) continue
+    out.push((m[1] || m[2] || m[3] || m[4]).replace(/\s+/g, ''))
+  }
+  return out
+}
+const minus = (a, b) => { const left = [...b]; return a.filter((v) => { const i = left.indexOf(v); if (i >= 0) { left.splice(i, 1); return false } return true }) }
 export function valueDiff(oldText, newText) {
-  const a = valuesOf(oldText)
-  const b = valuesOf(newText)
-  const from = [...a].filter((v) => !b.has(v)).slice(0, DIFF_MAX)
-  const to = [...b].filter((v) => !a.has(v)).slice(0, DIFF_MAX)
+  const a = valueList(oldText), b = valueList(newText)
+  const from = [...new Set(minus(a, b))].slice(0, DIFF_MAX)
+  const to = [...new Set(minus(b, a))].slice(0, DIFF_MAX)
   if (!from.length && !to.length) return null
   return { from: from.join(', '), to: to.join(', ') }
 }

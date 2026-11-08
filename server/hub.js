@@ -822,7 +822,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     }
     // 그 사람의 「오늘 바뀐 것」 한 줄 — 본인 줄만(남에게 알리지 않는다 · K-D13)
     const title = input?.record?.title || ''
-    const short = title.split(/ — |: /)[0]
+    const short = title.length > 60 ? title.slice(0, 59) + '…' : title // 「무엇: 어떻게」 의 어떻게(결정 값)를 자르지 않는다(UX T2-09)
     const line = team && (put || held.length)
       ? { kind: 'save', rec: r0.id, kn: id, dot: held.length ? 'warn' : 'acc', text: `저장: ${meta.name} 「${short}」`, small: `넣음 ${put} · 넣지 못함 ${held.length}` }
       : !r0.docs.length

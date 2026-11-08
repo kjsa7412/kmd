@@ -1193,7 +1193,8 @@ function rpHead() { return '<div class="rph"><i class="pd"></i>나란히 보기:
 //   지금 보는 것(이 문서 · 이 항목 · 이 기록 · 스크롤 중인 항목)은 그 묶음 안에서 「지금」 으로 표시한다
 const AG_IC = { ol: 'list', docs: 'doc', recs: 'rec', items: 'tag', props: 'info' }
 const AG_KIND = { doc: '이 문서', item: '이 항목', rec: '이 기록' }
-const agOpen = (kind, g) => !!(UI.ag[kind] || {})[g]
+// 남긴 값이 없으면 「개요」 만 펴 둔다 — 첫 화면에서 문서 짜임이 보이게(UX T2-16 · 정함)
+const agOpen = (kind, g) => { const m = UI.ag[kind] || {}; return g in m ? !!m[g] : g === 'ol' }
 function agWrap(kind, gs) {
   const sec = gs.map((g) => {
     const on = agOpen(kind, g.id)
@@ -1212,7 +1213,9 @@ const agNone = '<div class="muted small alr">없다</div>'
 const agKv = (pairs) => `<div class="kv">${pairs.filter(Boolean).map(([a, b]) => `<span>${a}</span><span>${b}</span>`).join('')}</div>`
 const dt5 = (s) => whenTxt(s).replace(/^(오늘|어제) /, '')
 const docRow = (k, id, title, x = {}) => agRow({ a: 'openDoc', attrs: ` data-k="${esc(k)}" data-d="${esc(id)}"${x.h ? ` data-h="${esc(x.h)}"` : ''}`, ic: 'doc', nm: esc(title), sub: x.sub, cur: x.cur, pv: `doc|${esc(k)}|${esc(id)}`, t: x.t })
-const recRow = (k, r, x = {}) => agRow({ a: 'openRec', attrs: ` data-k="${esc(k)}" data-r="${esc(r.id)}"`, dt: dt5(r.date), nm: esc(r.title.split(/ — |: /)[0]), sub: x.sub != null ? x.sub : r.author, cur: x.cur, pv: `rec|${esc(k)}|${esc(r.id)}`, t: x.t || 'agRec' })
+// 기록 제목 「무엇: 어떻게」 — 무엇은 굵게 · 어떻게(결정 값)는 흐리게 한 줄 · 전체는 title(UX T2-09)
+const recNm = (t) => { const m = String(t).match(/^(.+?)(: | — )(.+)$/); return m ? `<span title="${esc(t)}">${esc(m[1])} <small class="muted">${esc(m[3])}</small></span>` : esc(t) }
+const recRow = (k, r, x = {}) => agRow({ a: 'openRec', attrs: ` data-k="${esc(k)}" data-r="${esc(r.id)}"`, dt: dt5(r.date), nm: recNm(r.title) + (r.state && r.state !== 'in' ? ' ' + recStateChip(k, r) : ''), sub: x.sub != null ? x.sub : r.author, cur: x.cur, pv: `rec|${esc(k)}|${esc(r.id)}`, t: x.t || 'agRec' })
 const itemRow = (k, it, x = {}) => agRow({ a: 'openItem', attrs: ` data-k="${esc(k)}" data-n="${esc(it.key)}"`, ic: 'tag', nm: inmHtml(it), sub: x.sub, cur: x.cur, spy: x.spy, rc: x.rc, pv: `item|${esc(k)}|${esc(it.key)}`, t: x.t || 'agItem' })
 // 문서 화면 — 스크롤 중인 항목(S.curSec)
 const curSecOf = (t, d) => (S.curSec && S.curSec.tab === t.id && d.sections.some((s) => s.h === S.curSec.h) ? S.curSec.h : (d.sections[0] || {}).h)
@@ -1323,24 +1326,27 @@ function docPane(t, right) {
     : editing && de.error
     ? errHtml(de, `doc:${k}:${t.ref}:ed`)
     : editing
-    ? `<div class="ed" data-t="editor"><div class="lbl"><b>고치는 중</b> · 「## 」 으로 시작하는 줄이 항목 이름이다 · md 로 쓴다. **굵게** · - 목록 · [링크](주소) · Ctrl S 저장 · Esc 취소</div><div class="toolbar"><button class="btn sm" data-a="edAddSec" data-t="edAddSec">항목 더하기</button><span class="muted small">${de.structure ? '항목을 지우려면 그 「## 」 줄과 글을 지운다 · 이름을 바꾸려면 「## 」 줄만 고친다' : '항목을 지우거나 이름을 바꾸는 일은 지식관리자가 한다'}</span></div><textarea id="edTx" aria-label="문서 글(md)" data-in="edTx" data-t="edTx" spellcheck="false"${S.edit.busy ? ' readonly aria-busy="true"' : ''}>${esc(edText(de))}</textarea>
+    ? `<div class="ed" data-t="editor"><div class="lbl"><b>고치는 중</b> · 「## 」 으로 시작하는 줄이 항목 이름이다 · md 로 쓴다. **굵게** · - 목록 · [링크](주소) · Ctrl S 저장 · Esc 취소</div><div class="toolbar"><button class="btn sm" data-a="edAddSec" data-t="edAddSec">항목 더하기</button><button class="btn sm${S.edit.preview ? ' on' : ''}" data-a="edPreview" data-t="edPreview" aria-pressed="${!!S.edit.preview}">바뀐 것 보기</button><span class="muted small">${de.structure ? '항목을 지우려면 그 「## 」 줄과 글을 지운다 · 이름을 바꾸려면 「## 」 줄만 고친다' : '항목을 지우거나 이름을 바꾸는 일은 지식관리자가 한다'}</span></div><textarea id="edTx" aria-label="문서 글(md)" data-in="edTx" data-t="edTx" spellcheck="false"${S.edit.busy ? ' readonly aria-busy="true"' : ''}>${esc(edText(de))}</textarea>
    ${de.sections.filter((s) => s.locks).map((s) => `<div class="lockh">항목 「${esc(s.h)}」 의 표: 회색은 잠겨 있다</div>${s.locks}`).join('')}
-   <div class="row" style="margin-top:10px"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><span class="r small muted" data-t="edNote">저장하면 바로 문서에 들어간다 · 이력에 남는다</span></div>${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}</div>`
+   <div class="row" style="margin-top:10px"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><span class="r small muted" data-t="edNote">저장하면 바로 문서에 들어간다 · 이력에 남는다</span></div>${S.edit.preview ? `<div class="edprev" data-t="edPrev"><div class="small muted">저장하면 바뀌는 것(저장 전 · 막지 않는다)</div>${edPreviewHtml(k, de)}</div>` : ''}${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}</div>`
     : d.sections.map((s) => {
     // 찾기로 연 것만 「찾은 곳」 · 링크 · 개요로 연 항목은 머리를 잠깐 빛낸다
     const lit = q && hl && s.h === hl
     const it = itemAt(k, d.id, s.h)
     // 가운데는 문서 내용만(컨벤션 5절 · 2026-11-05) — 머리 줄에는 항목 이름만. 출처 · 기록 · 넣지 못함 · 이력은 오른쪽 칸 다섯 묶음으로
     const inner = secInner(k, s, it)
-    return `<section class="dsec"><div class="hrow"><h2 data-sec="${esc(s.h)}"${!q && flashH && s.h === flashH ? ' class="flash"' : ''}>${esc(s.h)}</h2></div>${lit ? `<div class="lit" data-t="lit"><span class="tag">찾은 곳</span>${inner}</div>` : inner}</section>`
+    const newer = it ? recsOfItem(k, it).filter((r) => r.state === 'held' || r.state === 'memo') : []
+    const newerTx = newer.length ? `<div class="secnew muted small" data-t="secNewer" title="문서에 넣지 않은 기록 — 본문과 다를 수 있다 · 오른쪽 칸 「기록」 에서 본다">확인 중인 더 새 기록 ${newer.length} · ${esc(whenTxt(newer[0].date))}</div>` : ''
+    return `<section class="dsec"><div class="hrow"><h2 data-sec="${esc(s.h)}"${!q && flashH && s.h === flashH ? ' class="flash"' : ''}>${esc(s.h)}</h2></div>${newerTx}${lit ? `<div class="lit" data-t="lit"><span class="tag">찾은 곳</span>${inner}</div>` : inner}</section>`
   }).join('')
   // ## 항목이 없는 문서(맨 위가 ###) — 글이 모두 머리글이라 편집기가 빈 칸으로 열린다 · 고치기 · 다듬기를 막고 까닭을 보인다
   const noSec = !d.sections.length
+  const oldShape = noSec && /<h[3-6][\s>]/.test(d.intro || '') // ## 없이 ### 로 시작하는 옛 문서 — 화면에서 고치면 글이 섞인다
   const main = `<div class="docw" data-t="docPane" data-name="${esc(d.title)}">${right ? rpHead() : ''}
   ${q ? `<div class="found" data-t="found"><span>찾기 <b>‘${esc(q)}’</b> 로 열었다</span><button type="button" class="lk" data-a="reopenSearch">찾은 것으로 돌아가기</button></div>` : ''}
-  <div class="ttl"><div class="path"><span>${esc(loc)}</span></div>${right ? '' : wideSeg()}${editing || right || d.watched || noSec || !isTeam() || isPersonal(KN(k)) || lvOf(KN(k)) !== 'admin' ? '' : `<button class="btn" data-a="polishDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="polishBtn"${KN(k).noClaude ? ' disabled title="Claude 에 보내지 않는 지식: 다듬기는 팀 일꾼(Claude)이 한다 · 설정 › 팀 지식에서 바꾼다"' : ' title="팀 일꾼이 문체 · 짜임만 정돈한다 · 값은 그대로"'}>다듬기</button>`}${editing || right || d.watched ? '' : `<button class="btn pri" data-a="editDoc" data-t="editBtn"${noSec ? ' disabled title="## 항목이 없는 문서: 화면에서 고칠 수 없다"' : roAttr(k)}>고치기</button>`}</div>
+  <div class="ttl"><div class="path"><span>${esc(loc)}</span></div>${right ? '' : wideSeg()}${editing || right || d.watched || noSec || !isTeam() || isPersonal(KN(k)) || lvOf(KN(k)) !== 'admin' ? '' : `<button class="btn" data-a="polishDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="polishBtn"${KN(k).noClaude ? ' disabled title="Claude 에 보내지 않는 지식: 다듬기는 팀 일꾼(Claude)이 한다 · 설정 › 팀 지식에서 바꾼다"' : ' title="팀 일꾼이 문체 · 짜임만 정돈한다 · 값은 그대로"'}>다듬기</button>`}${editing || right || d.watched ? '' : `<button class="btn pri" data-a="editDoc" data-t="editBtn"${oldShape ? ' disabled title="## 항목이 없는 옛 문서: 화면에서 고칠 수 없다"' : roAttr(k)}>고치기</button>`}</div>
   ${d.watched && d.watched.orphan ? `<div class="callout warn stop" data-t="watchedOrphan"><i></i><span><b>원본이 없어졌다</b>: 가져오던 곳 「${esc(d.watched.src)}」 이 지워졌다 · 내 문서로 하면 고칠 수 있다</span><button class="btn sm r" data-a="unwatchDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="unwatchBtn">내 문서로</button></div>` : ''}${d.watched && !d.watched.orphan ? `<div class="callout ${d.watched.missing ? 'warn' : 'gray'} stop" data-t="watched"><i></i><span><b>${d.watched.missing ? `원본에 없다: ${esc(d.watched.missing)} 부터` : '원본이 주인이다'}</b>: ${esc(d.watched.src)} 의 <span class="mono">${esc(d.watched.path)}</span> 에서 온다 · 고치려면 원본 파일을 고친다 · 덧붙일 말은 기록으로 남긴다</span></div>` : ''}
-  ${right || editing ? '' : gdockHtml(k, 'd:' + d.id)}<div class="paper"><h1>${esc(d.title)}</h1>${noSec && !editing && !right ? '<div class="callout gray" data-t="noSecEdit">이 문서는 ## 항목이 없어 화면에서 고칠 수 없다. 맨 위 ### 머리를 ## 로 올리면 항목으로 나뉜다</div>' : ''}${d.intro ? `<div class="dlead" data-t="docLead">${pvLinks(linkify(d.intro, k, null), k)}</div>` : ''}${body}</div></div>`
+  ${right || editing ? '' : gdockHtml(k, 'd:' + d.id)}<div class="paper"><h1>${esc(d.title)}</h1><div class="docmeta muted small" data-t="docMeta">${d.last ? `${esc(whenTxt(d.last.date))} 바뀜 · ${esc(d.last.author)}` : d.when ? `${esc(whenTxt(d.when))} 바뀜(파일 날짜)` : ''}</div>${noSec && !oldShape && !editing && !right ? '<div class="callout gray" data-t="newDocEdit">빈 문서다. [고치기] 로 첫 항목(## 머리 + 글)을 쓴다</div>' : ''}${oldShape && !editing && !right ? '<div class="callout gray" data-t="noSecEdit">이 문서는 ## 항목이 없어 화면에서 고칠 수 없다. 맨 위 ### 머리를 ## 로 올리면 항목으로 나뉜다</div>' : ''}${d.intro ? `<div class="dlead" data-t="docLead">${pvLinks(linkify(d.intro, k, null), k)}</div>` : ''}${body}</div></div>`
   return { html: main, aside: right ? null : docAside(k, d, t), title: d.title }
 }
 function recPane(t, right) {
@@ -1349,7 +1355,7 @@ function recPane(t, right) {
   if (r.error) return { html: r.code === 'E_NOTFOUND' ? '<p class="muted" data-t="recGone">이 기록은 이제 없다. 다른 이름으로 남았을 수 있다</p>' : errHtml(r, `rec:${k}:${t.ref}`), title: '기록' }
   const fx = r.fixes[0], fb = r.fixedBy, who = (w) => (w === S.me.user ? '나' : w)
   const html = `<div class="docw" data-t="recPane" data-name="${esc(r.title)}">${right ? rpHead() : ''}<div class="ttl"><div class="path"><span>${esc(KN(k).name)} › ${r.log ? '이력' : '기록'} › ${esc(r.date)}</span><span class="r">${r.ingest && !r.ingest.read && !isTeam() && !right ? `<button class="btn sm" data-a="readRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="readRec"${S.reading && S.reading[r.id] ? ' disabled' : ''} title="넣은 파일을 Claude 가 읽고 무엇 · 핵심 · 정한 것 · 남은 것 + 본문으로 기록을 다시 쓴다">${S.reading && S.reading[r.id] ? 'Claude 가 읽는 중…' : 'Claude 로 기록 정리'}</button> ` : ''}${recFixOk(k, r) && !right ? `<button type="button" class="btn sm" data-a="recFix" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="recFixBtn" title="원래 기록은 두고 정정 기록을 새로 남긴다">고치기</button> ` : ''}${r.log ? `<span class="chip c-mute" data-t="recLog">이력 · ${esc(r.log)}: kmd 가 한 일</span>` : ''}${recStateChip(k, r)}</span></div>${right ? '' : wideSeg()}</div>
-  ${right ? '' : gdockHtml(k, 'r:' + r.id)}<div class="paper"><h1>${esc(r.title)}</h1>${linkify(r.html, k, null)}</div></div>`
+  ${right ? '' : gdockHtml(k, 'r:' + r.id)}<div class="paper"><h1>${esc(r.title)}</h1><div class="docmeta muted small" data-t="recMeta">${esc(who(r.author))} · ${esc(recDt(r.date))}${r.state ? ' · ' + esc(recStateTx(k, r)) : ''}</div>${linkify(r.html, k, null)}</div></div>`
   // 가운데는 기록 글만(2026-11-05) — 쓴 사람 · 때 · 상태 · 정정은 오른쪽 칸으로
   const went = r.went || [], via = r.via || [], from = r.from || []
   const heldGo = r.state === 'held' && teamKn(k) && !right && (lvOf(KN(k)) === 'admin' || (lvOf(KN(k)) === 'write' && r.author === S.me.user)) ? ` <button type="button" class="lk" data-a="openHeld" data-k="${esc(k)}" data-t="recHeldGo">넣지 못함 화면</button>` : ''
@@ -2389,6 +2395,7 @@ function forgetKn(k) { for (const key of Object.keys(S.cache)) if (key.startsWit
 const edOrig = (d) => d.sections.map((s) => '## ' + s.h + '\n' + s.md).join('\n\n')
 function edText(d) {
   if (S.edit.orig == null) S.edit.orig = edOrig(d)
+  if (S.edit.text == null && !d.sections.length && !S.edit.orig) S.edit.text = '## 개요\n\n'
   return S.edit.text != null ? S.edit.text : S.edit.orig
 }
 const edKey = (e) => `kmdDraft:${e.kn}|${e.doc}`
@@ -2397,6 +2404,27 @@ function edDrop() { if (S.edit) { try { sessionStorage.removeItem(edKey(S.edit))
 // 고치는 중인 글을 버리는 길(그만두기 · 탭 닫기 · 지식 지우기 …) — 바뀐 글이 있으면 묻는다
 async function edLeave(what) { return !edDirty() || (await ask1('고치던 글 버리기', '버리기', true, `저장하지 않은 글이 있다: ${what}면 버린다`)) }
 window.addEventListener('beforeunload', (ev) => { if (edDirty() || (S.imports || []).some((x) => x.cls === 'run' || x.busy || x.sending)) { ev.preventDefault(); ev.returnValue = '' } })
+function edChanges(d, txt) {
+  const parts = []
+  let cur = null
+  for (const line of String(txt).split('\n')) { const m = line.match(/^##\s+(.+)$/); if (m) { cur = { h: m[1].trim(), b: [] }; parts.push(cur) } else if (cur) cur.b.push(line) }
+  const old = new Map(d.sections.map((x) => [x.h, x.md]))
+  const out = []
+  for (const p of parts) {
+    const now = p.b.join('\n').trim(), was = (old.get(p.h) || '').trim()
+    if (old.has(p.h) && now === was) continue
+    const a = was.split('\n').filter((l) => l.trim()), b = now.split('\n').filter((l) => l.trim())
+    out.push({ h: p.h, isNew: !old.has(p.h), del: a.filter((l) => !b.includes(l)), add: b.filter((l) => !a.includes(l)) })
+  }
+  for (const h of old.keys()) if (!parts.some((p) => p.h === h)) out.push({ h, gone: true, del: [], add: [] })
+  return out
+}
+function edPreviewHtml(k, d) {
+  const ch = edChanges(d, edText(d))
+  if (!ch.length) return '<div class="diff" data-t="edDiff"><div class="ln2">아직 바뀐 글이 없다</div></div>'
+  return ch.map((c) => { const it = itemAt(k, d.id, c.h), wait = it ? recsOfItem(k, it).filter((r) => r.state === 'held' || r.state === 'memo') : []
+    return `<div class="diff" data-t="edDiff"><div class="fh">${esc(c.h)}${c.isNew ? ' · 새 항목' : c.gone ? ' · 지움' : ''}</div>${c.del.map((l) => `<div class="ln2 del">${esc(l)}</div>`).join('')}${c.add.map((l) => `<div class="ln2 add">${esc(l)}</div>`).join('')}${wait.length ? `<div class="ln2 muted small">이 항목에 넣지 않은 기록 ${wait.length}: ${wait.slice(0, 3).map((r) => esc(r.title)).join(' · ')}</div>` : ''}</div>` }).join('')
+}
 async function saveDoc() {
   const e = S.edit
   if (!e || e.busy) return
@@ -2404,11 +2432,13 @@ async function saveDoc() {
   if (!d || d.error) return
   const txt = e.text != null ? e.text : $('#edTx').value
   const parts = []
+  const pre = [] // 첫 ## 위 글
   let cur = null
   txt.split('\n').forEach((line) => {
     const m = line.match(/^##\s+(.+)$/)
-    if (m) { cur = { h: m[1].trim(), b: [] }; parts.push(cur) } else { if (!cur) { cur = { h: '머리말', b: [] }; parts.push(cur) } cur.b.push(line) }
+    if (m) { cur = { h: m[1].trim(), b: [] }; parts.push(cur) } else { if (!cur) { if (line.trim()) pre.push(line); return } cur.b.push(line) }
   })
+  if (pre.length) { e.err = `첫 「## 」 줄 위에 글이 있다: 「${pre[0].trim().slice(0, 30)}」. 항목 글은 「## 머리」 아래에 쓴다(문서 요약은 문서 다듬기 · 세션이 쓴다)`; render(); return }
   const old = new Map(d.sections.map((s) => [s.h, s]))
   const now = parts.map((p) => ({ h: p.h, body: p.b.join('\n').replace(/^\n+|\n+$/g, '') }))
   const trim = (x) => String(x).replace(/\s+$/, '')
@@ -2459,7 +2489,8 @@ async function saveDoc() {
         e.conflict = stale.map((h) => ({ h, theirs: (v.sections.find((s) => s.h === h) || {}).md || '' }))
         e.err = `읽은 뒤 누가 고친 항목이 있다: ${stale.join(' · ') || '알 수 없음'}. 아래 그사이 바뀐 글을 보고 내 글에 합친 뒤 [내 글로 저장] 을 누르거나 [그쪽 글로] 를 고른다`
       } catch (x) { e.err = `읽은 뒤 누가 고쳤다. 새 글을 다시 읽지 못했다: ${x.message}` }
-    } else if (err.code !== 'E_CANCEL') toastErr(err)
+    } else if (err.code === 'E_FORMAT' || err.code === 'E_INPUT') e.err = `저장하지 않았다: ${err.message}`
+    else if (err.code !== 'E_CANCEL') toastErr(err)
   }
   render()
 }
@@ -5212,6 +5243,7 @@ const ACT = {
   // 충돌 고르기 — 내 글로: 새 지문으로 다시 보낸다(이력에 남아 되돌릴 수 있다) · 그쪽 글로: 쓰던 글을 버리고 새 글로
   edForce: async () => { const e = S.edit; if (!e) return; if (!await ask1('내 글로 저장', '내 글로 저장', true, `그사이 바뀐 글(${(e.conflict || []).map((x) => x.h).join(' · ')})을 내 글로 바꾼다. 남이 고친 것은 이력에 남아 되돌릴 수 있다`)) return; e.keepBase = null; e.conflict = null; e.err = null; await saveDoc() },
   edTheirs: () => { const e = S.edit; if (!e) return; const v = S.cache[`doc:${e.kn}:${e.doc}:ed`]; e.text = v ? edOrig(v) : null; e.keepBase = null; e.conflict = null; e.err = null; render() },
+  edPreview: () => { if (!S.edit) return; const ta = $('#edTx'); if (ta && !S.edit.busy) S.edit.text = ta.value; S.edit.preview = !S.edit.preview; render() },
   keysClose: () => { S.keys = false; render() },
   keysOpen: () => { S.menu = null; S.keys = true; render() },
   mgFold: () => { UI.mgFold = !UI.mgFold; saveUi(); render() },

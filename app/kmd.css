@@ -1427,3 +1427,8 @@ body.resizing{cursor:col-resize;user-select:none}
 
 /* 단축키 안내 — 마우스 없는(터치) 기기에서는 숨긴다(UX T7-21) */
 @media (hover:none) and (pointer:coarse){kbd,.sk,.kbd-hint{display:none}}
+
+/* 문서 머리 흐린 한 줄 — 바뀐 때 · 사람(UX T2-10 · 정함) */
+.paper .docmeta{margin:calc(var(--sp-3) * -1) 0 var(--sp-6);color:var(--text-2)}
+.dsec .secnew{margin:calc(var(--sp-2) * -1) 0 var(--sp-3);color:var(--warn)}
+.ed .edprev{margin-top:var(--sp-6)}

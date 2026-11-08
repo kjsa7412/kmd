@@ -263,10 +263,12 @@ export function recordState(k, w) {
   if (tags.includes('put')) {
     const items = parsePut(w.body)
     const back = k.revertedItems?.get(w.id)
-    return items.length && back && items.every((x) => back.has(itemKey(x.doc, x.heading))) ? 'reverted' : 'in'
+    if (items.length && back && items.every((x) => back.has(itemKey(x.doc, x.heading)))) return 'reverted'
+    return sup ? 'fixed' : 'in' // 넣은 뒤 정정 기록이 바로잡았으면 바로잡힘(UX T2-03 · 정함 안 A)
   }
   const s = stateOld(k, w) // ⑧
-  return sup && (s === 'pend' || s === 'nowhere') ? 'fixed' : s
+  // 옛 기록이 「늦은 기록이 들었다」 추정으로 in 이어도, 정정 기록이 가리키면 바로잡힘이 먼저(UX T2-03)
+  return sup && (s === 'pend' || s === 'nowhere' || s === 'in') ? 'fixed' : s
 }
 
 // 개편 전 기록(S-D46) — 아직 안 넣은(pend · nowhere) 사람 기록 가운데 들이기가 넘겨받지 않았고 cutoverAt 앞에 들어온 것
