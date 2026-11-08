@@ -1821,7 +1821,7 @@ function graphData(k, fo, bundle) {
   }
   if (f.doc) ds.forEach((d) => add('d:' + d.id, 'doc', d.title))
   const cut = Date.now() - 30 * 864e5
-  if (f.rec) rs.forEach((r) => { if (f.recent && (stampDate(r.date) || 0) < cut) return; add('r:' + r.id, 'rec', r.title.split(/ — |: /)[0]) })
+  if (f.rec) rs.forEach((r) => { if (f.recent && (stampDate(r.date) || 0) < cut) return; add('r:' + r.id, 'rec', String(r.date || '').slice(5, 10) + ' ' + r.title.split(/ — |: /)[0]) })
   // 선은 한 가지(이어져 있다) — 같은 두 점 사이는 하나만. in(문서 ⊃ 항목)은 2D 표에서 상자로 보인다
   const E = [], seen = new Set()
   const edge = (a, b, t) => { const key = a < b ? a + '>' + b : b + '>' + a; if (has[a] && has[b] && a !== b && !seen.has(key)) { seen.add(key); E.push({ a, b, t }) } }

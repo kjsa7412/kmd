@@ -501,6 +501,7 @@ export function findView(pairs) {
   const words = []
   let more = 0
   for (const { k, r } of pairs) {
+    const k0 = hits.length
     for (const w of r.words || []) if (!words.includes(w)) words.push(w)
     const secText = (docId, h) => {
       const d = k.docs.find((x) => x.id === docId)
@@ -525,10 +526,11 @@ export function findView(pairs) {
       else if (p.record) { const w = k.byWork.get(p.record); hits.push({ k: k.id, kn: k.name, r: p.record, title: w?.title || p.record, h: '', text: body(p), label: p.label, state: w?.state || null }) }
     }
     more += (r.more?.coords?.n || 0) + (r.more?.passages?.n || 0)
+    for (let i = k0; i < hits.length; i++) hits[i]._rrf = 1 / (60 + (i - k0))
   }
   // 바로잡힌 · 버린 · 되돌린 기록은 맨 뒤로(옛 값이 첫 줄에 오지 않게 · UX G3-01)
   const late = (h) => (h.state === 'fixed' || h.state === 'kept' || h.state === 'reverted' ? 1 : 0)
-  const sorted = hits.map((h, i) => [h, i]).sort((a, b) => late(a[0]) - late(b[0]) || a[1] - b[1]).map((x) => x[0])
+  const sorted = hits.map((h, i) => [h, i]).sort((a, b) => late(a[0]) - late(b[0]) || (b[0]._rrf || 0) - (a[0]._rrf || 0) || a[1] - b[1]).map((x) => { delete x[0]._rrf; return x[0] })
   return { hits: exact ? sorted.filter((h) => h.exact) : sorted.slice(0, 30), toks: words, exact, more }
 }
 
