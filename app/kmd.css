@@ -1459,3 +1459,4 @@ body.resizing{cursor:col-resize;user-select:none}
 .tb1 .x,.x,.busy,.hlink{position:relative}.tb1 .x::after,.busy::after{content:"";position:absolute;inset:calc(var(--sp-2) * -1)}
 /* T1-09 본문으로 건너뛰기 */
 .skip{position:absolute;left:var(--sp-4);top:calc(var(--sp-9) * -3);z-index:var(--z-toast);background:var(--ink);color:var(--ink-text);padding:var(--sp-3) var(--sp-5);border-radius:var(--r)}.skip:focus{top:var(--sp-4)}
+#gcv{touch-action:none}

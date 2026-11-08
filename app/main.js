@@ -834,6 +834,8 @@ async function loadStops() {
     const st = await getJSON('/api/stops')
     S.stopsAt = Date.now()
     if (S.stopsErr) { S.stopsErr = null; if (S.stopWin) render() }
+    if (S.stopsAt0 && Array.isArray(S.stops)) { const was = new Set(S.stops.map((x) => x.kind + '|' + (x.kn || '') + '|' + x.b)); const fresh = st.filter((x) => !was.has(x.kind + '|' + (x.kn || '') + '|' + x.b)); if (fresh.length) toast('새 경고: ' + esc(fresh[0].b) + (fresh.length > 1 ? ` 외 ${fresh.length - 1}` : ''), 7000) }
+    S.stopsAt0 = true
     if (JSON.stringify(st) !== JSON.stringify(S.stops)) { S.stops = st; if (!S.qo && !S.pal && !S.cmd && !gated()) render() }
     return true
   } catch (e) {
@@ -1988,7 +1990,7 @@ function gCountText(G, d3) {
 }
 function gAria(G) {
   const nV = G.vis ? G.vis.size : G.nodes.length, eV = G.vis ? G.edges.filter((e) => G.vis.has(e.a) && G.vis.has(e.b) && gBranch(G, e)).length : G.edges.length
-  return `그래프: 점 ${nV} · 선 ${eV}${S.g.cur ? ' · 고른 점 ' + ((G.nodes.find((n) => n.id === S.g.cur) || {}).label || '') : ''} · 키보드로는 왼쪽 「점 목록」 에서 고른다`
+  return `그래프: 점 ${nV} · 선 ${eV}${S.g.cur ? ' · 고른 점 ' + ((G.nodes.find((n) => n.id === S.g.cur) || {}).label || '') : ''} · 키보드: 왼쪽 찾기 칸에서 Enter 로 맞는 첫 점을 고르거나, 보는 방법 「2D 표」 에서 점을 Tab 으로 고른다`
 }
 // 점 크기 — 종류 바탕 + 중요도(√, 위 8) · 중요도가 큰 점이 커서 어디가 중심인지 보인다
 function nodeR(n, w) { if (n.kind === 'bundle') return 13; if (n.table) return 3; return (n.kind === 'doc' ? 5 : n.kind === 'rec' ? 3.5 : 3) + Math.min(8, Math.sqrt(w) * 0.9) }
@@ -5451,7 +5453,7 @@ document.addEventListener('click', (ev) => {
   if (el.tagName === 'A' && el.getAttribute('href') && (ev.ctrlKey || ev.metaKey || ev.shiftKey)) return
   if (el.tagName === 'A') ev.preventDefault()
   if (S.menu && !['menu', 'kmenu', 'pickKn'].includes(el.dataset.a) && !ev.target.closest('.menu,.pop')) S.menu = null
-  if ((S.sideOpen || S.asideOpen) && el.closest('.side,.aside,.pop') && !['menu', 'kmenu', 'fold', 'dirFold', 'dirAll', 'sTab', 'tFilt', 'kindAll', 'foldKind', 'sideToggle', 'asideToggle', 'itemFilt'].includes(el.dataset.a)) { S.sideOpen = false; S.asideOpen = false }
+  if ((S.sideOpen || S.asideOpen) && el.closest('.side,.aside,.pop') && !['menu', 'kmenu', 'fold', 'dirFold', 'dirAll', 'sTab', 'tFilt', 'kindAll', 'foldKind', 'sideToggle', 'asideToggle', 'itemFilt', 'agToggle', 'agFold', 'agRail', 'mgFold', 'gSet', 'gMode', 'gDark'].includes(el.dataset.a)) { S.sideOpen = false; S.asideOpen = false }
   // 감싸지 않은 곳의 오류도 알린다(단추가 아무 말 없이 먹지 않게) — 돌려받은 Promise 까지
   try { Promise.resolve(f(el, ev)).catch(actFail) } catch (e) { actFail(e) }
 })
@@ -5748,3 +5750,19 @@ document.addEventListener('drop', (ev) => {
   sxDrag = null; render()
 })
 document.addEventListener('dragend', () => { if (!sxDrag && !$('#sxTree .drag')) return; sxDrag = null; sxClearDrop(); document.querySelectorAll('#sxTree .drag').forEach((z) => z.classList.remove('drag')); const b = $('#sxTree'); if (b) b.classList.remove('dragging') })
+// 일부만 다시 그린 곳(찾기 결과 · 일 줄 · 나무 찾기 · 창 안 상자)도 역할 · 이름 · 키보드가 닿게 — 줄이 바뀐 뒤 한 번(UX T1-08)
+{ let a11yT = null; const host = document.getElementById('app'); if (host) new MutationObserver(() => { clearTimeout(a11yT); a11yT = setTimeout(() => { try { a11yPass() } catch (e) { console.error(e) } }, 60) }).observe(host, { childList: true, subtree: true }) }
+// 그래프 두 손가락 — 집어 확대 · 축소(터치 · UX T1-31 정함) · 한 손가락 끌기는 지금처럼 돌리기
+const GP = new Map()
+document.addEventListener('pointerdown', (ev) => { if (ev.target.closest && ev.target.closest('#gcv')) GP.set(ev.pointerId, { x: ev.clientX, y: ev.clientY }) }, true)
+document.addEventListener('pointermove', (ev) => {
+  if (!GP.has(ev.pointerId) || GP.size !== 2) { if (GP.has(ev.pointerId)) GP.set(ev.pointerId, { x: ev.clientX, y: ev.clientY }); return }
+  const [a0, b0] = [...GP.values()], d0 = Math.hypot(a0.x - b0.x, a0.y - b0.y)
+  GP.set(ev.pointerId, { x: ev.clientX, y: ev.clientY })
+  const [a, b] = [...GP.values()], d1 = Math.hypot(a.x - b.x, a.y - b.y), cv = $('#gcv')
+  if (!cv || !d0 || !d1) return
+  const r = cv.getBoundingClientRect()
+  GD = null // 두 손가락이면 돌리기를 멈춘다
+  zoomAt((a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top, d1 / d0)
+}, true)
+for (const t of ['pointerup', 'pointercancel']) document.addEventListener(t, (ev) => GP.delete(ev.pointerId), true)
