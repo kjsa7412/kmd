@@ -1730,8 +1730,8 @@ function layoutGraph(G) {
   const rs = [...Array(N).keys()].map((i) => Math.hypot(px[i], py[i], pz[i])), r9 = [...rs].sort((a, b) => a - b)[Math.floor((N - 1) * 0.9)] || 1, lim = r9 * 1.2
   ns.forEach((n, i) => { const r = rs[i], k = r > lim ? (lim + (r - lim) * 0.1) / r : 1; P[n.id] = { x: px[i] * k, y: py[i] * k, z: pz[i] * k } })
 }
-// 힘 풀기 — 질량 밀어내기 · LinLog 당김 · 중력(원점으로). pin 번 점은 원점에 묶는다(고른 점 기준 배치)
-function gRelax(px, py, pz, mass, ea, eb, ew, TICKS, amp, pin) {
+// 힘 풀기 — 질량 밀어내기 · LinLog 당김 · 중력(원점으로). pin 번 점은 원점에 묶는다(고른 점 기준 배치) · fixed[i] 가 참인 점은 그 자리에 둔다(뻗기)
+function gRelax(px, py, pz, mass, ea, eb, ew, TICKS, amp, pin, fixed) {
   const N = px.length, E = ea.length
   const fx = new Float64Array(N), fy = new Float64Array(N), fz = new Float64Array(N)
   for (let s = 0; s < TICKS; s++) {
@@ -1756,6 +1756,7 @@ function gRelax(px, py, pz, mass, ea, eb, ew, TICKS, amp, pin) {
     const cap = G3.CAP * al + 0.2
     for (let i = 0; i < N; i++) {
       if (i === pin) { px[i] = py[i] = pz[i] = 0; continue }
+      if (fixed && fixed[i]) continue
       const x = px[i], y = py[i], z = pz[i], m0 = Math.hypot(x, y, z) || 1, g = G3.GR * mass[i]
       const ax = (fx[i] - (x / m0) * g) / mass[i], ay = (fy[i] - (y / m0) * g) / mass[i], az = (fz[i] - (z / m0) * g) / mass[i]
       const m = Math.hypot(ax, ay, az), k = m > cap ? cap / m : 1
@@ -1769,7 +1770,7 @@ function gRelax(px, py, pz, mass, ea, eb, ew, TICKS, amp, pin) {
 //   원점 = 누른 점이라 돌리기도 그 점을 중심으로 돈다. × 로 닫으면 전체 배치(S.g.pos)로 돌아간다
 function layoutSub(G) {
   const cur = G.vis.has(S.g.cur) ? S.g.cur : S.g.sel
-  const key = [...G.vis].sort().join('|') + '@' + cur
+  const key = gSubKey(G.vis, cur)
   const sub = S.g.sub
   if (sub && sub.key === key) return sub.pos
   const prev = sub && sub.pos && sub.pos[cur] ? sub.pos : S.g.pos, o = prev[cur] || { x: 0, y: 0, z: 0 }
@@ -1791,9 +1792,59 @@ function layoutSub(G) {
   const sc = Math.min(400, 160 * Math.max(1, Math.cbrt(N / 12))) / r9
   const pos = {}
   ns.forEach((n, i) => { pos[n.id] = { x: px[i] * sc, y: py[i] * sc, z: pz[i] * sc } })
-  S.g.sub = { key, pos }
+  // 원근 거리(R3)는 이 배치 때 정해 두고 뻗어도 바꾸지 않는다(바꾸면 점들이 조금씩 움직인다)
+  const R3 = Math.max(100, ...ns.map((n) => { const p = pos[n.id]; return Math.hypot(p.x, p.y, p.z) }))
+  S.g.sub = { key, pos, sc, R3 }
   S.g.cam.needFit = true
   return pos
+}
+const gSubKey = (vis, cur) => [...vis].sort().join('|') + '@' + cur
+// 뻗기(3D) — 보이는 이웃을 누르면 화면을 다시 그리지 않고 그 자리에서 새 이웃만 붙인다
+//   카메라(크기 · 각도 · 옮김)와 지금 점들의 자리는 그대로 · 새 점만 누른 점 바깥쪽에 놓고 그것만 푼다(지금 점은 묶어 둔다)
+//   새 점은 누른 점 자리에서 제자리로 0.35초 동안 뻗어 나간다 · 수 · 카드만 바꿔 끼운다(캔버스는 그대로 · 깜빡임 없음)
+function gExpand(id) {
+  const G = CURG, sub = S.g.sub
+  if (!G || !G.vis || !sub || !sub.pos[id]) return false
+  if (id !== S.g.sel && !S.g.open.includes(id)) S.g.open = [...S.g.open, id]
+  S.g.cur = id
+  const vis = gVisible(G)
+  const ns = G.nodes.filter((n) => vis.has(n.id)), N = ns.length, ix = new Map(ns.map((n, i) => [n.id, i]))
+  const es = G.edges.filter((e) => ix.has(e.a) && ix.has(e.b) && (e.a === S.g.sel || e.b === S.g.sel || S.g.open.includes(e.a) || S.g.open.includes(e.b)))
+  const ea = Int32Array.from(es, (e) => ix.get(e.a)), eb = Int32Array.from(es, (e) => ix.get(e.b)), ew = Float64Array.from(es, (e) => G3.ATT * (e.t === 'in' ? 1 : 0.6))
+  const deg = new Float64Array(N); for (let k = 0; k < es.length; k++) { deg[ea[k]]++; deg[eb[k]]++ }
+  const mass = Float64Array.from(deg, (d) => d + 1), fixed = new Uint8Array(N)
+  const sc = sub.sc || 1, o = sub.pos[id], ol = Math.hypot(o.x, o.y, o.z) || 1, out = [o.x / ol, o.y / ol, o.z / ol]
+  const px = new Float64Array(N), py = new Float64Array(N), pz = new Float64Array(N), fresh = []
+  ns.forEach((n, i) => {
+    const p = sub.pos[n.id]
+    if (p) { px[i] = p.x / sc; py[i] = p.y / sc; pz[i] = p.z / sc; fixed[i] = 1; return }
+    fresh.push(n.id)
+    const j = (s) => (hashf(n.id + s) - 0.5) * 2
+    px[i] = (o.x + (out[0] * 0.6 + j('x') * 0.5) * 90) / sc; py[i] = (o.y + (out[1] * 0.6 + j('y') * 0.5) * 90) / sc; pz[i] = (o.z + (out[2] * 0.6 + j('z') * 0.5) * 90) / sc
+  })
+  if (fresh.length) gRelax(px, py, pz, mass, ea, eb, ew, 80, 0.6, -1, fixed)
+  const pos = {}, from = {}
+  ns.forEach((n, i) => { pos[n.id] = { x: px[i] * sc, y: py[i] * sc, z: pz[i] * sc } })
+  fresh.forEach((x) => { from[x] = { x: o.x, y: o.y, z: o.z } })
+  S.g.sub = { key: gSubKey(vis, id), pos, sc, R3: sub.R3 }
+  S.g.visKey = S.g.sel + '|' + S.g.open.join('|')
+  G.vis = vis; G.P = pos
+  S.g.grow = fresh.length ? { t0: performance.now(), from } : null
+  // 수 · 카드만 바꿔 끼운다
+  const c = $('[data-t=gCount]'); if (c) c.textContent = gCountText(G, true)
+  const old = $('#app [data-t=gCard]'); if (old) old.outerHTML = gCardHtml(S.route.kn, G)
+  const cv = $('#gcv'); if (cv) cv.setAttribute('aria-label', gAria(G))
+  gGrow()
+  return true
+}
+function gGrow() { gPaint(); if (S.g.grow) requestAnimationFrame(gGrow) }
+function gCountText(G, d3) {
+  const nV = G.vis ? G.vis.size : G.nodes.length, eV = G.vis ? G.edges.filter((e) => G.vis.has(e.a) && G.vis.has(e.b) && gBranch(G, e)).length : G.edges.length
+  return `점 ${nV} · 선 ${eV}${G.vis ? (d3 ? ' · 고른 점에서 ' + (S.g.open.length + 1) + '번 뻗음' : ' · 고른 점 중심' + ((S.g.trail || []).length ? ' · 지나온 점 ' + S.g.trail.length : '')) : ''}`
+}
+function gAria(G) {
+  const nV = G.vis ? G.vis.size : G.nodes.length, eV = G.vis ? G.edges.filter((e) => G.vis.has(e.a) && G.vis.has(e.b) && gBranch(G, e)).length : G.edges.length
+  return `그래프: 점 ${nV} · 선 ${eV}${S.g.cur ? ' · 고른 점 ' + ((G.nodes.find((n) => n.id === S.g.cur) || {}).label || '') : ''} · 키보드로는 왼쪽 「점 목록」 에서 고른다`
 }
 // 점 크기 — 종류 바탕 + 중요도(√, 위 8) · 중요도가 큰 점이 커서 어디가 중심인지 보인다
 function nodeR(n, w) { if (n.kind === 'bundle') return 13; if (n.table) return 3; return (n.kind === 'doc' ? 5 : n.kind === 'rec' ? 3.5 : 3) + Math.min(8, Math.sqrt(w) * 0.9) }
@@ -1826,7 +1877,11 @@ function gPaint() {
   }
   const Z = C.base * C.zoom, rk = Math.max(0.7, Math.min(2.6, Math.sqrt(C.zoom)))
   const by = {}
-  const pts = shown.map((n) => { const q = raw(P[n.id]); const t = { n, X: cx + q[0] * Z + C.px, Y: cy + q[1] * Z + C.py, z: q[2], sc: q[3] }; t.r = nodeR(n, G.w[n.id] || 0) * Math.max(0.6, Math.min(1.6, q[3])) * rk; t.dep = Math.max(0.45, Math.min(1, q[3])); by[n.id] = t; return t })
+  // 뻗기 — 새 점은 누른 점 자리에서 제자리로(0.35초 · 감속)
+  const gr = S.g.grow, ge = gr ? Math.min(1, (performance.now() - gr.t0) / 350) : 1, gk = 1 - (1 - ge) ** 3
+  if (gr && ge >= 1) S.g.grow = null
+  const at = (id) => { const p = P[id], f = gr && gr.from[id]; return f && ge < 1 ? { x: f.x + (p.x - f.x) * gk, y: f.y + (p.y - f.y) * gk, z: f.z + (p.z - f.z) * gk } : p }
+  const pts = shown.map((n) => { const q = raw(at(n.id)); const t = { n, X: cx + q[0] * Z + C.px, Y: cy + q[1] * Z + C.py, z: q[2], sc: q[3] }; t.r = nodeR(n, G.w[n.id] || 0) * Math.max(0.6, Math.min(1.6, q[3])) * rk; t.dep = Math.max(0.45, Math.min(1, q[3])); by[n.id] = t; return t })
   const Hd = GH != null && by[GH] ? GH : null
   const nb = Hd ? G.nbr[Hd] : null
   const nq = norm(f.q || ''), hits = new Set()
@@ -1918,6 +1973,7 @@ function gHit(x, y) {
   return best
 }
 // 시험이 점 자리를 묻는다(canvas 라 DOM 에 점이 없다)
+window.kmdGraphIds = () => (GCV ? GCV.pts.map((t) => t.n.id) : [])
 window.kmdGraphPt = (id) => { const t = GCV && GCV.pts.find((t) => t.n.id === id); return t ? { x: GCV.rc.left + t.X, y: GCV.rc.top + t.Y } : null }
 function zoomAt(lx, ly, k) { const C = S.g.cam, cv = $('#gcv'); if (!cv) return; const r = cv.getBoundingClientRect(), z2 = Math.max(0.2, Math.min(8, C.zoom * k)), q = z2 / C.zoom, ox = lx - r.width / 2, oy = ly - r.height / 2; C.px = ox - (ox - C.px) * q; C.py = oy - (oy - C.py) * q; C.zoom = z2; gPaint() }
 // 점을 누르면
@@ -1931,7 +1987,8 @@ function gClick(id) {
     if (S.g.sel && S.g.sel !== id) S.g.trail = [...(S.g.trail || []).filter((x) => x !== id), S.g.sel].slice(-12)
     Object.assign(S.g, { sel: id, open: [], cur: id })
   } else if (!S.g.sel || !G || !G.vis || !G.vis.has(id)) Object.assign(S.g, { sel: id, open: [], cur: id })
-  else { if (id !== S.g.sel && !S.g.open.includes(id)) S.g.open = [...S.g.open, id]; S.g.cur = id }
+  else { if (gExpand(id)) return; if (id !== S.g.sel && !S.g.open.includes(id)) S.g.open = [...S.g.open, id]; S.g.cur = id }
+  S.g.grow = null
   render()
 }
 // 2D 표(ERD 처럼) — 문서 상자 안에 항목 줄 · 기록은 왼쪽 열(위가 최근)
@@ -2112,15 +2169,14 @@ function viewGraph() {
   if (d3) {
     layoutGraph(G)
     if (G.vis) G.P = layoutSub(G); else { G.P = S.g.pos; S.g.sub = null }
-    G.R3 = Math.max(100, ...G.nodes.filter((n) => G.P[n.id]).map((n) => { const p = G.P[n.id]; return Math.hypot(p.x, p.y, p.z) }))
+    G.R3 = G.vis && S.g.sub && S.g.sub.R3 ? S.g.sub.R3 : Math.max(100, ...G.nodes.filter((n) => G.P[n.id]).map((n) => { const p = G.P[n.id]; return Math.hypot(p.x, p.y, p.z) }))
   }
   CURG = G
-  const nV = G.vis ? G.vis.size : G.nodes.length, eV = G.vis ? G.edges.filter((e) => G.vis.has(e.a) && G.vis.has(e.b) && gBranch(G, e)).length : G.edges.length
-  const count = `<div class="gtl small"><span data-t="gCount">점 ${nV} · 선 ${eV}${G.vis ? (d3 ? ' · 고른 점에서 ' + (S.g.open.length + 1) + '번 뻗음' : ' · 고른 점 중심' + ((S.g.trail || []).length ? ' · 지나온 점 ' + S.g.trail.length : '')) : ''}</span> <b class="t-warn" data-t="gHits"></b></div>`
+  const count = `<div class="gtl small"><span data-t="gCount">${gCountText(G, d3)}</span> <b class="t-warn" data-t="gHits"></b></div>`
   const legend = `<div class="glg small" data-t="gLegend">${['doc', 'item', 'rec'].map((v) => `<span class="lgr">${glyphIcon(v)}${KLAB[v]}</span>`).join('')}<span class="lgr"><svg class="gki" viewBox="0 0 16 16" aria-hidden="true"><line class="gln" x1="1" y1="8" x2="15" y2="8"/></svg>이어져 있다</span></div>`
   const card = gCardHtml(k, G)
   const main = d3
-    ? `<div class="gwrap${UI.gdark ? ' dark' : ''}" data-t="graph" data-mode="3d"><canvas id="gcv" data-t="gcanvas" role="img" aria-label="그래프: 점 ${nV} · 선 ${eV}${S.g.cur ? ' · 고른 점 ' + esc((G.nodes.find((n) => n.id === S.g.cur) || {}).label || '') : ''} · 키보드로는 왼쪽 「점 목록」 에서 고른다"></canvas>${count}${legend}${card}<div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit" title="보이는 점이 다 들어오게 · 처음 각도로">처음 크기</button></div><div class="ghint small">끌기: 돌리기 · 스페이스 · Shift · 오른쪽 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 이웃 한 겹 · 이웃을 누르면 더 뻗는다</div></div>`
+    ? `<div class="gwrap${UI.gdark ? ' dark' : ''}" data-t="graph" data-mode="3d"><canvas id="gcv" data-t="gcanvas" role="img" aria-label="${esc(gAria(G))}"></canvas>${count}${legend}${card}<div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit" title="보이는 점이 다 들어오게 · 처음 각도로">처음 크기</button></div><div class="ghint small">끌기: 돌리기 · 스페이스 · Shift · 오른쪽 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 이웃 한 겹 · 이웃을 누르면 더 뻗는다</div></div>`
     : `<div class="gwrap erd${UI.gdark ? ' dark' : ''}" data-t="graph" data-mode="2d"><div class="gerdw" data-t="gErdWrap">${gErdSvg(k, G)}</div>${count}${legend}${card}<div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit" title="처음 크기">처음 크기</button></div><div class="ghint small">끌기 · 스페이스 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 그 점이 가운데</div></div>`
   if (!d3) requestAnimationFrame(gErdFit)
   return { crumb: '그래프', main, tabs: true, left: graphFilter(), full: true }
