@@ -82,9 +82,46 @@ function fillAtts() {
   for (const img of app.querySelectorAll('img[data-att]:not([src])')) img.src = `/api/k/${encodeURIComponent(img.dataset.ak)}/att?a=${encodeURIComponent(img.dataset.att)}`
 }
 // 지식 목록 — 실패하면 지금 목록 그대로
+// 문서 지켜보기(UX T4-03) — { 'kn|doc': { at, title } } · 이 브라우저에만(사람마다 편의)
+const WATCH_KEY = 'kmd.watch'
+function watchList() { try { return JSON.parse(localStorage.getItem(WATCH_KEY) || '{}') || {} } catch (e) { console.warn('지켜보기 목록을 읽지 못했다', e); return {} } }
+function watchSave(w) { try { localStorage.setItem(WATCH_KEY, JSON.stringify(w)) } catch (e) { console.warn('지켜보기 목록을 남기지 못했다', e) } }
+const myWrites = new Map() // 'kn|doc' → 내가 저장한 때(그 바뀜은 알리지 않는다)
+async function watchTick() {
+  if (!S.me || anon()) return
+  const w = watchList(), keys = Object.keys(w)
+  if (!keys.length) return
+  const changed = []
+  for (const k of [...new Set(keys.map((x) => x.split('|')[0]))]) {
+    if (!KN(k)) continue
+    const tr = await getJSON(`/api/k/${encodeURIComponent(k)}/tree`).catch((e) => { console.warn('지켜보는 지식을 읽지 못했다', k, e.message); return null })
+    if (!tr || !tr.docs) continue
+    for (const d of tr.docs) {
+      const key = k + '|' + d.id, it = w[key]
+      if (!it || !d.when) continue
+      const t = Date.parse(d.when)
+      if (t > it.at && !(myWrites.get(key) && Math.abs(myWrites.get(key) - t) < 120000)) changed.push({ k, d: d.id, title: d.title || it.title })
+      it.at = Math.max(it.at, t || 0)
+    }
+  }
+  watchSave(w)
+  if (!changed.length) return
+  forgetKn(changed[0].k)
+  toast(`<b>지켜보는 문서가 바뀌었다</b> · ${changed.slice(0, 3).map((c) => `<button type="button" class="lk" data-a="openDoc" data-k="${esc(c.k)}" data-d="${esc(c.d)}">${esc(c.title)}</button>`).join(' · ')}${changed.length > 3 ? ` 외 ${changed.length - 3}` : ''}`, 12000)
+  if (document.hidden && window.Notification && Notification.permission === 'granted') { try { new Notification('kmd: 지켜보는 문서가 바뀌었다', { body: changed.map((c) => c.title).join(' · ').slice(0, 160), tag: 'kmd-watch' }) } catch (e) { console.warn('화면 밖 알림을 띄우지 못했다', e) } }
+}
+setInterval(() => { watchTick().catch((e) => console.warn('지켜보기', e)) }, 60000)
+// 넣지 못함이 늘었는지(UX T7-17) — 지식 목록을 다시 읽을 때마다 내 넣지 못함 합을 견주어 늘었으면 한 번 알린다(넣지 못함 화면이 아닐 때)
+let heldSeen = null
+
 async function reloadKns() {
   const ks = await getJSON('/api/knowledge').catch((e) => { console.warn('지식 목록을 읽지 못했다', e); return null })
-  if (ks) S.kns = ks
+  if (ks) {
+    S.kns = ks
+    const n = heldSum()
+    if (heldSeen != null && n > heldSeen && S.route.scr !== 'held' && isTeam()) toast(`<b>넣지 못함이 ${n - heldSeen} 늘었다</b> · <button type="button" class="lk" data-a="goHeldAny">넣지 못함 보기</button>`, 9000, true)
+    heldSeen = n
+  }
 }
 // 있으면 바로 · 없으면 받기 시작하고 null(받으면 다시 그린다) · 실패는 15초만 기억한다(서버가 돌아오면 다시 받는다)
 function need(key, path) {
@@ -129,6 +166,7 @@ const heldR = (k, r) => r.state === 'held' || (teamKn(k) && (r.state === 'pend' 
 const pendWhen = (k) => (teamKn(k) ? '개편 전 기록: 넣지 못함 화면에서 다시 들인다' : 'kmd 가 곧바로 문서에 넣는다')
 // 넣지 못함 까닭(code → 말 · 컨벤션 9절)
 const HELD_SAY = {
+  review: '이 지식은 지식관리자가 승인해야 문서에 들어간다. 지식관리자가 [승인해 넣기] 하거나 버린다',
   values: '기록의 값과 문서의 값이 다르다. 맞는 값으로 [고치기] 하거나, 문서를 직접 고친다',
   names: '기록이 아직 장부에 없는 이름을 단다. 지식관리자가 [이름 세우기] 를 한다',
   'legacy-mix': '같은 항목에 아직 넣지 않은 옛 기록이 있다. 지식관리자가 옛 기록부터 정리한다',
@@ -147,7 +185,7 @@ const HELD_SAY = {
   'legacy-send': '옛 개인 프로그램이 보낸 것이다. 개인 프로그램을 새 판으로 올려 다시 보낸다',
   legacy: '개편 전에 들어와 아직 문서에 넣지 않았다. 지식관리자가 [옛 기록 다시 들이기] 를 한다',
 }
-const HELD_CODE = { values: '값이 맞지 않음', names: '세울 이름', 'legacy-mix': '섞인 자리', format: '문서 꼴', conflict: '그사이 바뀜', notfound: '넣을 곳 없음', nosec: '넣을 곳 없음', watched: '원본이 주인', machine: '저절로 채우는 표', reverts: '되돌린 값', edits: '조각이 맞지 않음', seat: '자리 잃음', noclaude: 'Claude 에 보내지 않음', worker: '팀 일꾼이 받지 않음', claude: '팀 일꾼이 짓지 못함', 'legacy-send': '개편 전 보내기', legacy: '개편 전 기록', held: '넣지 못함' }
+const HELD_CODE = { review: '승인 기다림', values: '값이 맞지 않음', names: '세울 이름', 'legacy-mix': '섞인 자리', format: '문서 꼴', conflict: '그사이 바뀜', notfound: '넣을 곳 없음', nosec: '넣을 곳 없음', watched: '원본이 주인', machine: '저절로 채우는 표', reverts: '되돌린 값', edits: '조각이 맞지 않음', seat: '자리 잃음', noclaude: 'Claude 에 보내지 않음', worker: '팀 일꾼이 받지 않음', claude: '팀 일꾼이 짓지 못함', 'legacy-send': '개편 전 보내기', legacy: '개편 전 기록', held: '넣지 못함' }
 // 넣을 곳을 고르면 되는 까닭(S-D42) — [고치기] 가 넣을 곳 고르기 창을 연다(그 밖은 기록 고치기 창)
 const HELD_PICK = new Set(['notfound', 'nosec', 'legacy'])
 // 오류 — 무엇이 · 왜 + 「다시 읽기」(그 받은 값을 지우고 다시 받는다). key 를 모르면(v.key 도 없으면) 단추 없이
@@ -518,6 +556,12 @@ const UI = (() => {
   const d = { sw: SW[2], aw: AW[2], sideRail: false, asideRail: false, wide: false, ag: {}, dirs: {}, stab: {} }
   try { return { ...d, ...JSON.parse(localStorage.getItem(UI_KEY) || '{}') } } catch (e) { console.warn('화면 자리 읽기 못 함', e); return d }
 })()
+// 화면 밝기(UX T1-32) — UI.theme: '' 시스템 따라 · 'light' · 'dark'(이 브라우저에만)
+function applyTheme() { const t = UI.theme === 'light' || UI.theme === 'dark' ? UI.theme : ''; if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; GTOK = null }
+function themeCard() {
+  const t = UI.theme || ''
+  return `<div class="card" data-t="themeCard"><div class="ch">화면 밝기 <small>이 브라우저에만</small></div><div class="cb u-p1-7-5"><div class="seg in" role="group" aria-label="화면 밝기">${[['', '시스템 따라'], ['light', '밝게'], ['dark', '어둡게']].map(([v, l]) => `<button type="button" class="${t === v ? 'on' : ''}" data-a="setTheme" data-v="${v}" data-t="theme-${v || 'auto'}">${l}</button>`).join('')}</div></div></div>`
+}
 function saveUi() { try { localStorage.setItem(UI_KEY, JSON.stringify(UI)) } catch (e) { console.warn('화면 자리 남기기 못 함', e) } }
 function placeUi() {
   app.style.setProperty('--sw', UI.sw + 'px')
@@ -730,8 +774,8 @@ function mgWrap(scr, v) {
   const items = setMenu(), cur = scr === 'settings' ? (setPage() || {}).id : scr
   const nav = `<nav class="mgnav" data-t="mgNav" data-area="${setArea()}" aria-label="설정"><div class="mgt">설정</div>${items.map((x, i) => `${x.g && (!i || items[i - 1].g !== x.g) ? `<div class="mgg" data-t="mgGroup">${esc(x.g)}</div>` : ''}<button type="button" class="mgi${x.id === cur ? ' on' : ''}" data-a="openSet" data-v="${x.id}" data-t="mg-${x.id}"${x.id === cur ? ' aria-current="page"' : ''}>${esc(x.l)}</button>`).join('')}</nav>`
   const it = items.find((x) => x.id === cur)
-// 설정 메뉴는 옆 메뉴 나무 자리에(UX T5-19 · 정함) — 왼쪽 메뉴가 두 줄 서지 않게 · 좁은 폭(옆 메뉴가 서랍)에서는 본문 위에도
-  return { ...v, crumb: '설정 › ' + (it ? it.l : v.crumb), left: nav, main: `<div class="mgwrap">${nav.replace('data-t="mgNav"', 'data-t="mgNavNarrow"').replace(/ data-t="mg-[^"]*"/g, '').replace(/ data-t="mgGroup"/g, '')}<div class="mgbody">${v.main}</div></div>` }
+// 설정 메뉴는 본문 안 왼쪽에(T5-19 를 되돌림 · 사람 요청 2026-11-08) — 옆 메뉴는 설정에서도 지식 나무 그대로
+  return { ...v, crumb: '설정 › ' + (it ? it.l : v.crumb), main: `<div class="mgwrap">${nav}<div class="mgbody">${v.main}</div></div>` }
 }
 // 옆 메뉴 — 두 영역(정정 2026-10-23 · 리본을 걷었다)
 //   지식 고르기 — 지식 고르기 · 문서 · 항목 · 그래프 탭 · 그 탭의 목록(다른 화면에서도 그대로 보인다)
@@ -845,7 +889,7 @@ function stopRow(x) {
     const scr = to && where ? to : ''
     const attrs = ''
     const kn = x.kn && KN(x.kn) ? KN(x.kn).name : ''
-    return `<div class="callout ${x.level === 'bad' ? 'danger' : 'warn'} stop" data-t="stop" data-kind="${esc(x.kind)}"><i></i><span><b>${esc(x.b)}</b>${x.t ? ': ' + esc(x.t) : ''}<small>${esc(kind)}${kn ? ' · ' + esc(kn) : ''}${x.r ? ' · ' + esc(x.r) : ''}</small></span>${scr ? `<button class="btn sm" data-a="stopGo" data-v="${scr}" data-k="${esc(x.kn || '')}"${attrs} data-t="stopGo">${esc(where)} ›</button>` : where ? `<small class="muted">${esc(where)}</small>` : ''}</div>`
+    return `<div class="callout ${x.level === 'bad' ? 'danger' : 'warn'} stop" data-t="stop" data-kind="${esc(x.kind)}"><i></i><span><b>${esc(x.b)}</b>${x.t ? ': ' + esc(x.t) : ''}<small>${esc(kind)}${kn ? ' · ' + esc(kn) : ''}${x.r ? ' · ' + esc(x.r) : ''}</small></span>${scr ? `<button class="btn sm" data-a="stopGo" data-v="${scr}" data-k="${esc(x.kn || '')}"${attrs} data-t="stopGo">${esc(where)} ›</button>` : where ? `<small class="muted">${esc(where)}</small>` : ''}${x.key ? `<button type="button" class="btn ghost sm" data-a="stopAck" data-v="${esc(x.key)}" data-t="stopAck" title="나에게서 이 경고를 걷는다 · 양이나 까닭이 바뀌면 다시 선다">알았다</button>` : ''}</div>`
   }
 }
 function stopWinBody(st, row) {
@@ -897,7 +941,7 @@ function kcardHtml(n, team) {
   const mk = 'kn:' + n.id
   const own = !n.dim
   const items = own ? [
-    accCan(n) ? `<div class="mi" data-a="accOpen" data-k="${esc(n.id)}" data-t="accOpen">권한<small>모두 · 사람 · 묶음의 자리</small></div>${isTeam() && lvOf(n) === 'admin' ? `<div class="mi" data-a="knIssue" data-k="${esc(n.id)}" data-t="knIssue">이슈 주소<small>${n.issueUrl ? '정함' : '이슈 번호를 이슈 화면으로 잇기'}</small></div>` : ''}<div class="sep"></div>` : '',
+    accCan(n) ? `<div class="mi" data-a="accOpen" data-k="${esc(n.id)}" data-t="accOpen">권한<small>모두 · 사람 · 묶음의 자리</small></div>${isTeam() && lvOf(n) === 'admin' ? `<div class="mi" data-a="knIssue" data-k="${esc(n.id)}" data-t="knIssue">이슈 주소<small>${n.issueUrl ? '정함' : '이슈 번호를 이슈 화면으로 잇기'}</small></div><div class="mi" data-a="knReview" data-k="${esc(n.id)}" data-t="knReview">${n.review ? '승인 받고 넣기 끄기' : '승인 받고 넣기'}<small>${n.review ? '켜짐: 쓰기 자리의 저장은 승인을 기다린다' : '쓰기 자리의 저장을 지식관리자가 승인한 뒤 넣는다'}</small></div>` : ''}<div class="sep"></div>` : '',
     n.hidden ? '' : `<div class="mi" data-a="knMove" data-k="${esc(n.id)}" data-v="-1" data-t="knUp">앞으로<small>메뉴 순서</small></div><div class="mi" data-a="knMove" data-k="${esc(n.id)}" data-v="1" data-t="knDown">뒤로</div>`,
     `<div class="mi" data-a="knHide" data-k="${esc(n.id)}" data-v="${n.hidden ? '' : '1'}" data-t="knHide">${n.hidden ? '메뉴에 올리기' : '메뉴에서 빼기'}<small>${n.hidden ? '옆 메뉴에 다시' : '지우지 않는다'}</small></div>`,
     canDelete(n) ? `<div class="sep"></div><div class="mi dan" data-a="delOpen" data-k="${esc(n.id)}" data-t="delOpen">지식 지우기<small>보관하지 않고 완전히</small></div>` : '',
@@ -1416,7 +1460,7 @@ function docPane(t, right) {
   const oldShape = noSec && /<h[3-6][\s>]/.test(d.intro || '') // ## 없이 ### 로 시작하는 옛 문서 — 화면에서 고치면 글이 섞인다
   const main = `<div class="docw" data-t="docPane" data-name="${esc(d.title)}">${right ? rpHead() : ''}
   ${q ? `<div class="found" data-t="found"><span>찾기 <b>‘${esc(q)}’</b> 로 열었다</span><button type="button" class="lk" data-a="reopenSearch">찾은 것으로 돌아가기</button></div>` : ''}
-  <div class="ttl"><div class="path"><span>${esc(loc)}</span></div>${right ? '' : wideSeg()}${!right && !isTeam() && KN(k) && KN(k).dir ? `<button type="button" class="btn ghost sm" data-a="copyDocPath" data-v="${esc(KN(k).dir + '\\' + String(d.path).split('/').join('\\'))}" data-t="copyDocPath" title="편집기로 고쳐도 된다: 저장하면 곧 들어간다">파일 경로 복사</button>` : ''}${editing || right || d.watched || noSec || !isTeam() || isPersonal(KN(k)) || lvOf(KN(k)) !== 'admin' ? '' : `<button class="btn" data-a="polishDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="polishBtn"${KN(k).noClaude ? ' disabled title="Claude 에 보내지 않는 지식: 다듬기는 팀 일꾼(Claude)이 한다 · 설정 › 팀 지식에서 바꾼다"' : ' title="팀 일꾼이 문체 · 짜임만 정돈한다 · 값은 그대로"'}>다듬기</button>`}${editing || right ? '' : `<button type="button" class="btn ghost sm" data-a="pastOpen" data-k="${esc(k)}" data-d="${esc(d.id)}" data-v="${esc(d.title)}" data-t="pastOpen" title="이 문서의 옛 판 · 지금과 견주기">옛 판</button>`}${editing || right || d.watched ? '' : `<button class="btn pri" data-a="editDoc" data-t="editBtn"${oldShape ? ' disabled title="## 항목이 없는 옛 문서: 화면에서 고칠 수 없다"' : roAttr(k)}>고치기</button>`}</div>
+  <div class="ttl"><div class="path"><span>${esc(loc)}</span></div>${right ? '' : wideSeg()}${!right && !isTeam() && KN(k) && KN(k).dir ? `<button type="button" class="btn ghost sm" data-a="copyDocPath" data-v="${esc(KN(k).dir + '\\' + String(d.path).split('/').join('\\'))}" data-t="copyDocPath" title="편집기로 고쳐도 된다: 저장하면 곧 들어간다">파일 경로 복사</button>` : ''}${editing || right || d.watched || noSec || !isTeam() || isPersonal(KN(k)) || lvOf(KN(k)) !== 'admin' ? '' : `<button class="btn" data-a="polishDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="polishBtn"${KN(k).noClaude ? ' disabled title="Claude 에 보내지 않는 지식: 다듬기는 팀 일꾼(Claude)이 한다 · 설정 › 팀 지식에서 바꾼다"' : ' title="팀 일꾼이 문체 · 짜임만 정돈한다 · 값은 그대로"'}>다듬기</button>`}${editing || right || !isTeam() ? '' : `<button type="button" class="btn ghost sm" data-a="watchDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-v="${esc(d.title)}" data-t="watchDoc" aria-pressed="${!!watchList()[k + '|' + d.id]}" title="남이 이 문서를 바꾸면 알린다(이 브라우저)">${watchList()[k + '|' + d.id] ? '지켜보는 중' : '지켜보기'}</button>`}${editing || right ? '' : `<button type="button" class="btn ghost sm" data-a="pastOpen" data-k="${esc(k)}" data-d="${esc(d.id)}" data-v="${esc(d.title)}" data-t="pastOpen" title="이 문서의 옛 판 · 지금과 견주기">옛 판</button>`}${editing || right || d.watched ? '' : `<button class="btn pri" data-a="editDoc" data-t="editBtn"${oldShape ? ' disabled title="## 항목이 없는 옛 문서: 화면에서 고칠 수 없다"' : roAttr(k)}>고치기</button>`}</div>
   ${d.watched && d.watched.orphan ? `<div class="callout warn stop" data-t="watchedOrphan"><i></i><span><b>원본이 없어졌다</b>: 가져오던 곳 「${esc(d.watched.src)}」 이 지워졌다 · 내 문서로 하면 고칠 수 있다</span><button class="btn sm r" data-a="unwatchDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="unwatchBtn">내 문서로</button></div>` : ''}${d.watched && !d.watched.orphan ? `<div class="callout ${d.watched.missing ? 'warn' : 'gray'} stop" data-t="watched"><i></i><span><b>${d.watched.missing ? `원본에 없다: ${esc(d.watched.missing)} 부터` : '원본이 주인이다'}</b>: ${esc(d.watched.src)} 의 <span class="mono">${esc(d.watched.path)}</span> 에서 온다 · 고치려면 원본 파일을 고친다 · 덧붙일 말은 기록으로 남긴다</span></div>` : ''}
   ${right || editing ? '' : gdockHtml(k, 'd:' + d.id)}<div class="paper"><h1>${esc(d.title)}</h1><div class="docmeta muted small" data-t="docMeta">${d.last ? `${esc(whenTxt(d.last.date))} 바뀜 · ${esc(d.last.author)}` : d.when ? `${esc(whenTxt(d.when))} 바뀜(파일 날짜)` : ''}</div>${noSec && !oldShape && !editing && !right ? '<div class="callout gray" data-t="newDocEdit">빈 문서다. [고치기] 로 첫 항목(## 머리 + 글)을 쓴다</div>' : ''}${oldShape && !editing && !right ? '<div class="callout gray" data-t="noSecEdit">이 문서는 ## 항목이 없어 화면에서 고칠 수 없다. 맨 위 ### 머리를 ## 로 올리면 항목으로 나뉜다</div>' : ''}${d.intro ? `<div class="dlead" data-t="docLead">${pvLinks(linkify(d.intro, k, null), k)}</div>` : ''}${body}</div></div>`
   return { html: main, aside: right ? null : docAside(k, d, t), title: d.title }
@@ -1916,10 +1960,21 @@ function gVisible(G) {
   if (!sel || !G.nbr[sel]) return null
   const vis = new Set([sel])
   for (const id of [sel, ...S.g.open]) if (vis.has(id) && G.nbr[id]) G.nbr[id].forEach((x) => vis.add(x))
+  if (S.g.recsOf === sel) for (const r of gRecsOf(G, sel)) vis.add(r)
   return vis
 }
+// 고른 점의 기록 점 — 바로 이웃 기록 + 이웃 항목(문서 ⊃ 항목)에 닿은 기록(UX G1-01)
+function gRecsOf(G, id) {
+  const kind = G._kind || (G._kind = new Map(G.nodes.map((n) => [n.id, n.kind])))
+  const out = new Set()
+  for (const x of G.nbr[id] || []) {
+    if (kind.get(x) === 'rec') out.add(x)
+    else if (kind.get(x) === 'item') for (const y of G.nbr[x] || []) if (kind.get(y) === 'rec') out.add(y)
+  }
+  return out
+}
 // 뻗은 선 — 고른 뒤에는 고른 점 · 펼친 점에 닿는 선만 그린다(「선」 을 켜면 보이는 점 사이 모두)
-const gBranch = (G, e) => !G.vis || S.g.f.line || e.a === S.g.sel || e.b === S.g.sel || S.g.open.includes(e.a) || S.g.open.includes(e.b)
+const gBranch = (G, e) => !G.vis || S.g.f.line || e.a === S.g.sel || e.b === S.g.sel || S.g.open.includes(e.a) || S.g.open.includes(e.b) || (S.g.recsOf === S.g.sel && G._kind && (G._kind.get(e.a) === 'rec' || G._kind.get(e.b) === 'rec'))
 function hashf(s) { let h = 2166136261; for (const c of String(s)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619) } return ((h >>> 0) % 10007) / 10007 }
 // 3D 배치 — 질량 밀어내기(ForceAtlas2 의 기본 힘) · 허브를 가운데 몰지 않고 퍼뜨린다
 //   밀어내기 = KR · (연결 수 + 1)(연결 수 + 1) / 거리 — 허브끼리 서로 밀어 흩어지고, 허브마다 제 이웃을 끌고 간다
@@ -1959,16 +2014,32 @@ function layoutGraph(G) {
     const r0 = R * 0.15
     px[i] = dir[i][0] * r0 + jit(n.id, 'x') * 0.2; py[i] = dir[i][1] * r0 + jit(n.id, 'y') * 0.2; pz[i] = dir[i][2] * r0 + jit(n.id, 'z') * 0.2
   })
-  gRelax(px, py, pz, mass, ea, eb, ew, !whole ? 60 : N <= 120 ? 260 : N <= 400 ? 140 : 80, whole ? 1 : 0.4, -1)
+  const T = !whole ? 60 : N <= 120 ? 260 : N <= 400 ? 140 : 80, amp = whole ? 1 : 0.4
   // 멀리 떨어진 몇 점(외톨이 · 작은 덩어리)이 전체 맞춤을 작게 만들지 않게 — 90% 반지름의 1.2배 밖은 넘은 거리를 1/10 로(방향은 그대로)
-  const rs = [...Array(N).keys()].map((i) => Math.hypot(px[i], py[i], pz[i])), r9 = [...rs].sort((a, b) => a - b)[Math.floor((N - 1) * 0.9)] || 1, lim = r9 * 1.2
-  ns.forEach((n, i) => { const r = rs[i], k = r > lim ? (lim + (r - lim) * 0.1) / r : 1; P[n.id] = { x: px[i] * k, y: py[i] * k, z: pz[i] * k } })
+  const fin = () => {
+    const rs = [...Array(N).keys()].map((i) => Math.hypot(px[i], py[i], pz[i])), r9 = [...rs].sort((a, b) => a - b)[Math.floor((N - 1) * 0.9)] || 1, lim = r9 * 1.2
+    ns.forEach((n, i) => { const r = rs[i], k = r > lim ? (lim + (r - lim) * 0.1) / r : 1; P[n.id] = { x: px[i] * k, y: py[i] * k, z: pz[i] * k } })
+  }
+  if (!(whole && N > 400)) { gRelax(px, py, pz, mass, ea, eb, ew, T, amp, -1); fin(); return }
+  let t = 0
+  S.g.layBusy = true
+  fin()
+  const step = () => {
+    if (S.g.layoutKey !== key) return
+    const t0 = performance.now()
+    while (t < T && performance.now() - t0 < 24) { gRelax(px, py, pz, mass, ea, eb, ew, T, amp, -1, null, t, t + 1); t++ }
+    fin()
+    if (t >= T) { S.g.layBusy = false; S.g.cam.needFit = true; const h = $('#app [data-t=gLayBusy]'); if (h) h.hidden = true }
+    if ($('#gcv') && CURG) { if (CURG.vis) render(); else gPaint() }
+    if (t < T) setTimeout(step, 0)
+  }
+  setTimeout(step, 0)
 }
 // 힘 풀기 — 질량 밀어내기 · LinLog 당김 · 중력(원점으로). pin 번 점은 원점에 묶는다(고른 점 기준 배치) · fixed[i] 가 참인 점은 그 자리에 둔다(뻗기)
-function gRelax(px, py, pz, mass, ea, eb, ew, TICKS, amp, pin, fixed) {
+function gRelax(px, py, pz, mass, ea, eb, ew, TICKS, amp, pin, fixed, from = 0, to = TICKS) {
   const N = px.length, E = ea.length
   const fx = new Float64Array(N), fy = new Float64Array(N), fz = new Float64Array(N)
-  for (let s = 0; s < TICKS; s++) {
+  for (let s = from; s < Math.min(to, TICKS); s++) {
     const al = amp * (1 - s / TICKS)
     fx.fill(0); fy.fill(0); fz.fill(0)
     for (let i = 0; i < N; i++) {
@@ -2423,7 +2494,7 @@ function viewGraph() {
   const legend = `<div class="glg small" data-t="gLegend">${['doc', 'item', 'rec'].map((v) => `<span class="lgr">${glyphIcon(v)}${KLAB[v]}</span>`).join('')}<span class="lgr"><svg class="gki" viewBox="0 0 16 16" aria-hidden="true"><line class="gln" x1="1" y1="8" x2="15" y2="8"/></svg>이어져 있다</span></div>`
   const card = gCardHtml(k, G)
   const main = d3
-    ? `<div class="gwrap${UI.gdark ? ' dark' : ''}" data-t="graph" data-mode="3d"><canvas id="gcv" data-t="gcanvas" role="img" aria-label="${esc(gAria(G))}"></canvas><div class="gerd-tip" data-t="gOutHint" role="status"${S.g.outHint && G.vis ? '' : ' hidden'}>뻗은 점 가운데 칸 밖 · 카드 밑에 있는 것이 있다 <button type="button" class="lk small" data-a="gRefit" data-t="gRefit">다 보이게</button></div>${(G.vis ? G.vis.size : G.nodes.length) ? '' : '<div class="empty2 gempty3" data-t="gEmpty3"><b>보일 점이 없다</b>왼쪽 「문서 · 항목 · 기록」 을 켠다.</div>'}${count}${legend}${card}<div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit" title="보이는 점이 다 들어오게 · 처음 각도로">처음 크기</button></div><div class="ghint small">끌기: 돌리기 · 스페이스 · Shift · 오른쪽 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 이웃 한 겹 · 이웃을 누르면 더 뻗는다</div></div>`
+    ? `<div class="gwrap${UI.gdark ? ' dark' : ''}" data-t="graph" data-mode="3d"><canvas id="gcv" data-t="gcanvas" role="img" aria-label="${esc(gAria(G))}"></canvas><div class="gerd-tip" data-t="gLayBusy" role="status"${S.g.layBusy ? '' : ' hidden'}>점이 많아 그래프를 나눠 펴는 중이다 · 그사이 돌리거나 골라도 된다</div><div class="gerd-tip" data-t="gOutHint" role="status"${S.g.outHint && G.vis ? '' : ' hidden'}>뻗은 점 가운데 칸 밖 · 카드 밑에 있는 것이 있다 <button type="button" class="lk small" data-a="gRefit" data-t="gRefit">다 보이게</button></div>${(G.vis ? G.vis.size : G.nodes.length) ? '' : '<div class="empty2 gempty3" data-t="gEmpty3"><b>보일 점이 없다</b>왼쪽 「문서 · 항목 · 기록」 을 켠다.</div>'}${count}${legend}${card}<div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit" title="보이는 점이 다 들어오게 · 처음 각도로">처음 크기</button></div><div class="ghint small">끌기: 돌리기 · 스페이스 · Shift · 오른쪽 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 이웃 한 겹 · 이웃을 누르면 더 뻗는다</div></div>`
     : `<div class="gwrap erd${UI.gdark ? ' dark' : ''}" data-t="graph" data-mode="2d"><div class="gerdw" data-t="gErdWrap">${gErdSvg(k, G)}</div><div class="gerd-tip" data-t="gErdTip" role="status"${gC2().small ? '' : ' hidden'}>전체가 커서 읽히는 크기로 일부만 보인다 · 끌어 옮기거나 점을 고른다 <button type="button" class="lk small" data-a="gErdAll" data-t="gErdAll">다 넣기</button>${S.g.f.rec ? '<button type="button" class="lk small" data-a="gSet" data-v="rec" data-t="gErdNoRec">기록 열 끄기</button>' : ''}</div>${count}${legend}${card}<div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit" title="처음 크기">처음 크기</button></div><div class="ghint small">끌기 · 스페이스 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 그 점이 가운데</div></div>`
   if (!d3) requestAnimationFrame(gErdFit)
   return { crumb: '그래프', main, tabs: true, left: graphFilter(), full: true }
@@ -2433,7 +2504,7 @@ function gCardHtml(k, G) {
   const id = S.g.cur, n = id && G.nodes.find((x) => x.id === id), info = n && nodeInfo(k, id)
   if (!info) return ''
   const nb = G.nbr[id] ? G.nbr[id].size : 0
-  return `<div class="gov" data-t="gCard" data-name="${esc(info.name)}"><div class="row">${glyphIcon(n.kind)}<span class="small muted">${KLAB[n.kind]}${info.kind ? ' · ' + esc(info.kind) : ''}</span><button type="button" class="hb r" data-a="gUnsel" data-t="gClose" title="고르기 닫기: 전체 그래프로" aria-label="고르기 닫기: 전체 그래프로">×</button></div><div class="gn">${esc(info.name)}</div><div class="small gfirst">${esc(plainMd(info.first).slice(0, 160))}</div><div class="small muted" data-t="gCardRecs">기록 ${info.recs} · 이웃 ${nb}</div><div class="row u-wrap"><button class="btn pri sm" data-a="gOpen" data-v="docs" data-t="gOpenDocs"${info.doc ? '' : ' disabled'}>문서로 보기</button><button class="btn sm" data-a="gOpen" data-v="items" data-t="gOpenItems"${info.item ? '' : ' disabled'}>항목으로 보기</button>${S.g.mode !== '2d' && (S.g.open || []).length ? '<button class="btn ghost sm" data-a="gUndoOpen" data-t="gUndoOpen" title="마지막으로 뻗은 것을 거둔다">뻗기 거두기</button><button class="btn ghost sm" data-a="gFirst" data-t="gFirst" title="처음 고른 점만">처음 점으로</button>' : ''}</div>${S.g.mode === '2d' && (S.g.trail || []).length ? `<div class="gtrail small" data-t="gTrail"><span class="muted">지나온 점</span>${S.g.trail.slice(-5).map((t) => { const o = G.nodes.find((x) => x.id === t); return o ? `<button type="button" class="lk" data-a="gBack" data-v="${esc(t)}" title="${esc(o.label)}">${esc(gFit(o.label, 110, 12))}</button>` : '' }).join('<span class="muted">›</span>')}</div>` : ''}<div class="small muted gcap">${S.g.mode === '2d' ? '점을 누르면 그 점이 가운데 · × 로 닫으면 전체' : '이웃을 누르면 그 점에서 한 겹 더 · × 로 닫으면 전체'}</div></div>`
+  return `<div class="gov" data-t="gCard" data-name="${esc(info.name)}"><div class="row">${glyphIcon(n.kind)}<span class="small muted">${KLAB[n.kind]}${info.kind ? ' · ' + esc(info.kind) : ''}</span><button type="button" class="hb r" data-a="gUnsel" data-t="gClose" title="고르기 닫기: 전체 그래프로" aria-label="고르기 닫기: 전체 그래프로">×</button></div><div class="gn">${esc(info.name)}</div><div class="small gfirst">${esc(plainMd(info.first).slice(0, 160))}</div><div class="small muted" data-t="gCardRecs">${info.recs && n.kind !== 'rec' && id === S.g.sel ? `<button type="button" class="lk small" data-a="gRecs" data-t="gRecs" aria-pressed="${S.g.recsOf === id}">${S.g.recsOf === id ? '기록 거두기' : `기록 ${info.recs} 펴기`}</button>` : `기록 ${info.recs}`} · 이웃 ${nb}</div><div class="row u-wrap"><button class="btn pri sm" data-a="gOpen" data-v="docs" data-t="gOpenDocs"${info.doc ? '' : ' disabled'}>문서로 보기</button><button class="btn sm" data-a="gOpen" data-v="items" data-t="gOpenItems"${info.item ? '' : ' disabled'}>항목으로 보기</button>${S.g.mode !== '2d' && (S.g.open || []).length ? '<button class="btn ghost sm" data-a="gUndoOpen" data-t="gUndoOpen" title="마지막으로 뻗은 것을 거둔다">뻗기 거두기</button><button class="btn ghost sm" data-a="gFirst" data-t="gFirst" title="처음 고른 점만">처음 점으로</button>' : ''}</div>${S.g.mode === '2d' && (S.g.trail || []).length ? `<div class="gtrail small" data-t="gTrail"><span class="muted">지나온 점</span>${S.g.trail.slice(-5).map((t) => { const o = G.nodes.find((x) => x.id === t); return o ? `<button type="button" class="lk" data-a="gBack" data-v="${esc(t)}" title="${esc(o.label)}">${esc(gFit(o.label, 110, 12))}</button>` : '' }).join('<span class="muted">›</span>')}</div>` : ''}<div class="small muted gcap">${S.g.mode === '2d' ? '점을 누르면 그 점이 가운데 · × 로 닫으면 전체' : '이웃을 누르면 그 점에서 한 겹 더 · × 로 닫으면 전체'}</div></div>`
 }
 // 왼쪽 칸 — 그래프를 어떻게 보일지 정하는 판 다섯(묶음마다 이름표): 찾기 · 보는 방법(3D | 2D 표) · 보기(선 · 제목 · 회전) · 종류(문서 · 항목 · 기록) · 바탕(밝게 | 어둡게)
 //   찾기는 맞는 점을 밝히고 Enter 면 맞는 첫 점(선 많은 차례)을 고른다 · 제목 · 회전은 3D 에서만 쓴다
@@ -2602,6 +2673,7 @@ async function saveDoc() {
     // 그사이 더 쓴 글(붙여 넣기 · 다른 탭)이 있으면 버리지 않는다 — 저장한 글을 바탕으로 이어 고친다
     const later = S.edit === e && e.text != null && e.text !== txt
     if (later) { e.orig = txt; e.busy = false; e.keepBase = null; e.conflict = null; e.errSecs = null } else edDrop()
+    myWrites.set(e.kn + '|' + e.doc, Date.now())
     forgetKn(e.kn)
     // 저장은 했다 — 서버 알림(문서 짜임 · 그대로 둔 줄 · 백업)은 오류가 아닌 알림으로 같은 토스트에(role=status)
     const msg = (r.held || []).length ? `넣지 못함: ${r.held[0].why || '까닭은 이력에 있다'}` : '저장했다. 문서에도 넣었다'
@@ -2814,6 +2886,7 @@ function heldRowHtml(k, d, r) {
   const why = r.parts.slice(0, 3).map((p) => `<div class="why" data-t="heldWhy" title="${esc(p.why)}"><b>${esc(HELD_CODE[p.code] || p.code || '넣지 못함')}</b>${p.doc ? ` · ${esc(String(p.doc).replace(/^docs\/|\.md$/g, ''))}${p.heading ? ' › ' + esc(p.heading) : ''}` : ''}${HELD_SAY[p.code] ? `<small class="say" data-t="heldSay">${esc(HELD_SAY[p.code])}</small>` : p.why ? ': ' + esc(p.why) : ''}</div>`).join('') + (r.parts.length > 3 ? `<div class="muted small">그 밖에 ${r.parts.length - 3}</div>` : '')
   const st = r.job ? '<span class="chip c-pend" data-t="heldJob">다시 들이는 중</span>' : r.legacy ? '<span class="chip c-mute">개편 전 기록</span>' : '<span class="chip c-warn">넣지 못함</span>'
   const acts = !can ? '' : [
+    d.admin && r.parts.some((p) => p.code === 'review') ? `<button type="button" class="btn pri sm" data-a="heldApprove" data-v="${esc(r.rec)}" data-t="heldApprove"${busy ? ' disabled' : ''} title="넣으려던 글 그대로 문서에 넣는다">승인해 넣기</button>` : '',
     r.names && d.admin ? `<button type="button" class="btn sm" data-a="heldNames" data-v="${esc(r.rec)}" data-t="heldNames"${busy ? ' disabled' : ''}>이름 세우기</button>` : '',
     // 까닭에 맞는 [고치기](UX T6-02 · 정함): 넣으려던 글이 있고 값 어긋남이 아니면 그 글을 편집기에서 고쳐 넣는다(저장이 원 기록을 바로잡는다)
     r.parts.some((p) => p.doc && (p.content || p.edits) && p.code !== 'values') && !r.legacy ? `<button type="button" class="btn sm" data-a="heldEdit" data-k="${esc(k)}" data-r="${esc(r.rec)}" data-t="heldEdit"${busy || r.job ? ' disabled' : ''} title="넣으려던 글을 편집기에서 고쳐 넣는다">고쳐 넣기</button>` : `<button type="button" class="btn sm" data-a="heldFix" data-v="${esc(r.rec)}" data-t="heldFix"${busy || r.job ? ' disabled' : ''} title="${pick ? '넣을 곳을 고르고 다시 들인다' : '옛 값 → 새 값 정정 기록을 남긴다'}">고치기</button>`,
@@ -2847,7 +2920,7 @@ function heldPickModal(k) {
 }
 function viewHeld() {
   const k = heldKn()
-  const head = (n) => `<div class="pg-h"><div><div class="big">넣지 못함${n ? ': ' + esc(n.name) : ''}</div><p class="lead">저장 검사를 넘지 못해 기록만 남은 것이다. 고쳐서 다시 넣거나 팀 일꾼에게 다시 들이게 하거나 버린다. <a class="lk" href="/manual/지식관리자.html#held" target="_blank" rel="noopener">설명서</a></p></div></div>`
+  const head = (n) => `<div class="pg-h"><div><div class="big">넣지 못함${n ? ': ' + esc(n.name) : ''}</div><p class="lead">저장 검사를 넘지 못해 기록만 남은 것이다. 고쳐서 다시 넣거나 팀 일꾼에게 다시 들이게 하거나 버린다. <a class="lk" href="${n && lvOf(n) === 'admin' ? '/manual/지식관리자.html#held' : '/manual/사용자.html#words'}" target="_blank" rel="noopener">설명서</a></p></div></div>`
   if (!k) return { crumb: '넣지 못함', main: `<div class="hdy">${head(null)}<p class="muted">쓰기 자리가 있는 팀 지식이 없다</p></div>` }
   const n = KN(k), ks = heldKns()
   const pick = ks.length > 1 ? `<div class="field hd-kn"><label for="hdKnSel">팀 지식</label><select class="inp" id="hdKnSel" data-t="hdKnSel">${ks.map((x) => `<option value="${esc(x.id)}"${x.id === k ? ' selected' : ''}>${esc(x.name)} · 넣지 못함 ${lvOf(x) === 'admin' ? x.held || 0 : x.heldMine || 0}</option>`).join('')}</select></div>` : ''
@@ -4312,7 +4385,7 @@ function mineHtml(st) {
    <details class="more" data-t="minePeople" style="margin:var(--sp-4) var(--sp-7)"><summary>팀 사람 ${Array.isArray(p) ? p.length : ''} · 자리란?</summary><div class="in"><ul class="plain pl">${ppl || `<li class="muted">${p ? '' : '읽는 중…'}</li>`}</ul>${ROLE_RULE}</div></details></div>
    ${isTeam() ? `<div class="card" data-t="minePw"><div class="ch">비밀번호 바꾸기 <small>이 브라우저는 그대로 · 다른 곳은 다시 들어간다 · 기기 열쇠는 그대로</small></div><div class="cb"><div class="fgrid"><div class="field"><label for="pwOld">지금 비밀번호</label><input class="inp" id="pwOld" type="password" autocomplete="current-password" data-t="pwOld"></div><div class="field"><label for="pwNew">새 비밀번호</label><input class="inp" id="pwNew" type="password" autocomplete="new-password" data-t="pwNew"><div class="hint">10자 이상</div></div></div><button type="button" class="btn" data-a="pwChange" data-t="pwChange">바꾸기</button></div></div>` : ''}
    <div class="card" data-t="mineLogout"><div class="ch">나가기</div><div class="cb u-p1-7"><div class="set"><span class="tx"><b>이 브라우저에서</b><small>한 번 들어오면 쓰는 동안 이어진다(12시간 쉬면 · 7일이 지나면 다시 들어간다)</small></span><button type="button" class="btn" data-a="logout" data-t="logout">나가기</button></div><div class="set"><span class="tx"><b>모든 곳에서</b><small>다른 기기 · 브라우저도</small></span><button type="button" class="btn" data-a="logoutAll" data-t="mineLogoutAll">모든 곳에서 나가기</button></div></div></div>`
-  const right = autoCard(st, true) + devCard()
+  const right = autoCard(st, true) + themeCard() + devCard()
   return `<div class="g2"><div>${left}</div><div>${right}</div></div><p class="small muted" data-t="mineServer">이 팀 서버: ${esc(st.host)} · kmd v${esc(st.version)} · 팀 일꾼 ${wk} · 백업 ${st.backup.n ? (st.backup.n < st.backup.of ? '일부만' : '됨') : '안 됨'}</p>`
 }
 // 팀 지식(설정 › 팀 지식) — 지식 하나의 설정을 한 줄에: 나의 자리 · 백업 · Claude 에 보내지 않음 · ⋯(권한 · 백업 저장소 · 지우기)
@@ -4455,7 +4528,7 @@ function setLeft(st) {
   const bk = st.backup.n ? `${esc(st.backup.urls.join(' · '))} · 저장할 때마다 저절로${st.backup.n < st.backup.of ? ` · 지식 ${st.backup.of - st.backup.n} 은 아직 없다` : ''}` : '아직 없다. 관리자가 붙인다'
   const pcBad = S.stops.find((x) => x.kind === 'backup')
   return `<div class="card"><div class="ch">이 PC</div><div class="cb"><div class="kv"><span>지식 폴더</span><span><span class="mono">${esc(st.root)}</span>: 지식 ${st.kns}</span><span>백업 자리</span><span data-t="pcBackup">${st.backup.root ? `<span class="mono">${esc(st.backup.root)}</span> · ` : ''}붙음 ${st.backup.n}/${st.backup.of}${st.backup.bad ? ` · <b class="t-warn">맞지 않음 ${st.backup.bad}</b>` : ''} ${!st.backup.n ? '<span class="chip c-warn">백업 없음</span>' : pcBad ? `<span class="chip c-warn">${esc(pcBad.b)}</span><small>${esc(pcBad.t)}</small>` : st.backup.n < st.backup.of ? '<span class="chip c-warn">일부만</span>' : '<span class="chip c-acc">잘 된다</span>'}</span><span>판</span><span>kmd v${esc(st.version)}</span></div></div></div>
-  ${pcBackupCard(st)}
+  ${pcBackupCard(st)}${themeCard()}
   <div class="card u-ovv"><div class="ch">이어진 것</div><div class="cb u-p1-7"><ul class="plain"><li><span class="u-f1"><b>Claude Code</b><small class="muted u-blk">작업 폴더 ${(S.cache.agent && S.cache.agent.folders ? S.cache.agent.folders.length : 0)} <button type="button" class="lk" data-a="openSet" data-v="agent">에이전트 설치 ›</button></small></span></li><li><span class="u-f1"><b>팀</b><small class="muted u-blk">${st.teams && st.teams.length ? '이 PC 의 기기 열쇠로 이었다: Claude Code 의 팀 연결(kmd-team) · 지식 보내기가 쓴다 · 끊기는 팀 화면 › 내 기기에서' : '아직 잇지 않았다. 팀 화면의 설치 한 줄'}</small></span></li>${(st.teams || []).map((u) => `<li data-t="teamRow"><span class="u-f1"><a href="${esc(/^https?:\/\//.test(u) ? u : 'http://' + u)}" target="_blank" rel="noopener" title="팀 화면을 새 탭에서">${esc(u.replace(/^https?:\/\//, ''))} ↗</a></span></li>`).join('')}</ul><p class="small muted">밖으로 나가는 것은 백업 · Claude 바로 넣기뿐이다.</p></div></div>`
 }
 function claudeCard(st) {
@@ -4539,6 +4612,8 @@ async function loadBusy() {
     if (S.route.scr === 'import' && was.some((x) => !v.items.some((y) => y.kind === 'source' && y.kn === x.kn && y.name === x.name))) {
       await fetchSrcs()
     }
+    const gone = ((S.busy && S.busy.items) || []).filter((x) => (x.kind === 'run' || x.kind === 'intake') && !v.items.some((y) => (y.qid || y.job || y.run) === (x.qid || x.job || x.run)))
+    if (gone.length && S.route.scr !== 'import') { toast(`<b>${esc(gone[0].title)} 끝났다</b>${gone.length > 1 ? ` 외 ${gone.length - 1}` : ''} · <button type="button" class="lk" data-a="openSet" data-v="import">가져오기에서 보기</button>`, 9000); reloadKns().then(() => render()) }
     S.busy = v
     // 바뀌었거나 팝업이 열려 있으면(지난 시간) 다시 그린다 — 쓰는 중인 칸은 건드리지 않는다
     //   글 칸만 「쓰는 중」 이다(파일 고르기 · 고르기 칸에 초점이 남아도 점은 바뀌어야 한다 — 188 시험 T12)
@@ -5431,6 +5506,17 @@ const ACT = {
     try { await postJSON('/api/me/devices/revoke', { id: x.device }); x.unlinked = true; toast('끊었다. 그 기기의 Claude Code 는 다시 이어야 한다'); render() } catch (e) { toastErr(e) }
   },
   // 넣지 못함(S10)
+  knReview: async (el) => {
+    S.menu = null
+    const k = el.dataset.k, n = KN(k), on = !(n && n.review)
+    if (!await ask1(on ? '승인 받고 넣기 켜기' : '승인 받고 넣기 끄기', on ? '켜기' : '끄기', false, on ? '쓰기 자리의 저장(세션 · 화면 고치기)은 문서에 바로 들어가지 않고 넣지 못함 「승인 기다림」 으로 남는다. 지식관리자가 [승인해 넣기] 한다' : '쓰기 자리의 저장이 다시 저장하는 순간 문서에 들어간다. 이미 기다리는 것은 넣지 못함에 남는다')) return
+    try { await postJSON(`/api/k/${encodeURIComponent(k)}/owner`, { review: on }); await reloadKns(); toast(on ? '<b>승인 받고 넣기를 켰다</b>' : '<b>승인 받고 넣기를 껐다</b>') } catch (e) { toastErr(e) }
+    render()
+  },
+  heldApprove: async (el) => {
+    const k = heldKn()
+    try { const r = await heldPost(k, el.dataset.v, 'approve'); toast((r.held || []).length ? `<b>일부만 넣었다</b> · ${esc(r.held[0].why || '')}` : `<b>승인해 넣었다</b> · 항목 ${r.put}`) } catch (e) { toastErr(e) }
+  },
   knIssue: async (el) => {
     S.menu = null
     const k = el.dataset.k, n = KN(k)
@@ -5451,6 +5537,9 @@ const ACT = {
     try { await postJSON(`/api/k/${encodeURIComponent(k)}/removed/restore`, { rec: el.dataset.r, doc: el.dataset.d, heading: el.dataset.v }); delete S.cache['removed:' + k]; forgetKn(k); toast(`<b>「${esc(el.dataset.v)}」 를 되살렸다</b>`) } catch (e) { toastErr(e) }
     render()
   },
+  goHeldAny: () => go({ scr: 'held' }),
+  stopAck: async (el) => { try { await postJSON('/api/stops/ack', { key: el.dataset.v }); S.stops = S.stops.filter((x) => x.key !== el.dataset.v); toast('경고를 걷었다 · 양이나 까닭이 바뀌면 다시 선다'); render() } catch (e) { toastErr(e) } },
+  watchDoc: (el) => { const key = el.dataset.k + '|' + el.dataset.d; const w = watchList(); if (w[key]) delete w[key]; else { w[key] = { at: Date.now(), title: el.dataset.v }; if (window.Notification && Notification.permission === 'default') Notification.requestPermission().catch((e) => console.warn('알림 허락을 묻지 못했다', e)) } watchSave(w); toast(w[key] ? '<b>지켜본다</b> · 남이 바꾸면 알린다(이 브라우저)' : '지켜보기를 그만뒀다'); render() },
   openHeld: (el) => { S.hdKn = el.dataset.k; go({ scr: 'held' }) },
   kchkGuard: (el) => { go({ scr: 'docs', kn: el.dataset.k }); S.active = null; S.split = null; render(); requestAnimationFrame(() => { const c = $('#app [data-t=guardCard]'); if (c) { c.scrollIntoView({ block: 'start' }); const b = c.querySelector('button'); if (b) b.focus({ preventScroll: true }) } }) },
   kchkReq: (el) => { S.impKn = el.dataset.k; S.impTab = 'src'; go({ scr: 'import' }) },
@@ -5596,9 +5685,11 @@ const ACT = {
   openGraph: (el) => { S.gPop = false; Object.assign(S.g, { kn: S.route.kn, sel: el.dataset.n, open: [], cur: el.dataset.n }); setView('graph') },
   gSet: (el) => { const v = el.dataset.v; S.g.f[v] = !S.g.f[v]; if (v === 'spin') S.g.spinSet = true; render() },
   // 그래프 칸만 어두운 바탕 — 화면 자리(UI)에 남긴다 · 캔버스 색은 다시 읽는다
+  setTheme: (el) => { UI.theme = el.dataset.v || ''; saveUi(); applyTheme(); render() },
   gDark: (el) => { UI.gdark = el.dataset.v === '1'; saveUi(); GTOK = null; render() },
   gMode: (el) => { S.g.mode = el.dataset.v; if (S.g.mode === '2d' && S.g.sel) Object.assign(S.g, { sel: S.g.cur || S.g.sel, open: [] }); S.g.cam.needFit = true; gC2().needFit = true; render() },
   gZoom: (el) => { const cv = $('#gcv'), w = $('#app .gerdw'); if (cv) zoomAt(cv.clientWidth / 2, cv.clientHeight / 2, Number(el.dataset.v)); else if (w) gErdZoom(w.clientWidth / 2, w.clientHeight / 2, Number(el.dataset.v)) },
+  gRecs: () => { S.g.recsOf = S.g.recsOf === S.g.sel ? null : S.g.sel; S.g.f.rec = true; render() },
   gRefit: () => { S.g.cam.needFit = true; S.g.outHint = false; const h = $('#app [data-t=gOutHint]'); if (h) h.hidden = true; gPaint() },
   gErdAll: () => { const c = gC2(); c.all = true; c.needFit = true; gErdFit() },
   gFit: () => { Object.assign(S.g.cam, { rx: -0.35, ry: 0.6, needFit: true }); gC2().needFit = true; gPaint(); gErdFit() },
@@ -5937,6 +6028,8 @@ async function boot() {
     await loadAll()
   } catch (e) { bootFail(e) }
 }
+try { applyTheme() } catch (e) { console.warn('화면 밝기를 맞추지 못했다', e) }
+if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { GTOK = null; if (S.me) render() })
 boot()
 // 문서 짜임 — 줄 안 이름 칸(Enter 넣기 · Esc 취소 · 벗어나면 맞으면 넣기) · 줄(F2 이름 · Alt ↑↓ 차례 · Enter 고르기)
 document.addEventListener('keydown', (ev) => {

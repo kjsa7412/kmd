@@ -2,6 +2,7 @@
    기준은 docs/kmd_디자인_컨벤션.md v0.2 — 색 · 글 크기 · 간격 · 모서리 · 그림자 · 층 · 폭은 아래 :root 토큰만 쓴다(1절).
    부품 견본: app/styleguide.html */
 :root{
+  --hit:24px;
   /* 면 · 선 */
   --bg:#f6f7f9;--surface:#fff;--surface-2:#f1f3f7;--surface-3:#e6eaf0;--hover:#f5f7fa;
   --border:#e2e6ed;--border-strong:#c9d1dd;--border-input:#7d8799;
@@ -1034,8 +1035,6 @@ table.done tr.tr-term td{background:var(--surface-2)}
 .mgnav .mgg{font-size:var(--fs-xs);color:var(--text-3);font-weight:700;padding:var(--sp-4) var(--sp-5) var(--sp-1)}
 .mgnav .mgi:hover{background:var(--surface-2)}
 .mgnav .mgi.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
-.lp .mgnav{width:auto;position:static;border-right:0;padding-right:0}
-@media (min-width:601px){.mgwrap>.mgnav{display:none}}
 .mgbody{flex:1;min-width:0}
 /* 옛 정리 화면(td-*)은 S13 에 걷었다 — 넣지 못함 화면은 hd-* · 이력의 값 바뀜은 .vchg */
 .vchg{font:600 var(--fs-sm) var(--mono);color:var(--warn);white-space:nowrap}
@@ -1503,3 +1502,45 @@ button.sx-root{display:flex;align-items:center;gap:var(--sp-3);width:100%;backgr
 @media (max-width:600px){.past-b{grid-template-columns:1fr;max-height:none}.past-side{max-height:180px}}
 .gerd-tip{position:absolute;left:50%;transform:translateX(-50%);top:var(--sp-6);z-index:2;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-pill);box-shadow:var(--shadow-1);padding:var(--sp-2) var(--sp-6);font-size:var(--fs-sm);color:var(--text-2);display:flex;gap:var(--sp-4);align-items:center;max-width:min(560px,calc(100% - 24px));flex-wrap:wrap}
 .gerd-tip[hidden]{display:none}
+
+/* 누름 칸(--hit · UX T1-13) — 보이는 크기는 그대로 두고 누르는 자리만 넓힌다 */
+.modal .mh .x,.win .tb .x,.tb1 .x,.sx-ib,.hb,.kebab{min-width:var(--hit);min-height:var(--hit)}
+.modal .mh .x,.win .tb .x,.tb1 .x{display:inline-grid;place-items:center}
+.t .lk,.t .btn.sm,.lk.small,.plain .lk,.mi{min-height:var(--hit)}
+.lk.small,.t .lk{display:inline-flex;align-items:center}
+
+/* 어두운 테마(UX T1-32) — 색 토큰만 갈아 끼운다 · 설정 › 나(개인 화면은 이 PC)의 「화면 밝기」 · 고르지 않았으면 시스템 따라 */
+:root[data-theme=dark]{
+  --bg:#0f131a;--surface:#161b24;--surface-2:#1c222d;--surface-3:#262d3a;--hover:#1f2632;
+  --border:#2a3240;--border-strong:#3a4456;--border-input:#5b667a;
+  --text:#e6eaf0;--text-2:#b4bccb;--text-3:#8e98aa;--on-accent:#0b1020;
+  --accent:#7c9cff;--accent-hover:#93adff;--accent-bg:#1f2a4d;--accent-line:#34457a;
+  --ok:#5fd08b;--ok-bg:#14301f;--ok-line:#24553a;
+  --warn:#f0b54a;--warn-bg:#33270f;--warn-line:#7a5a1a;
+  --danger:#ff8a7a;--danger-bg:#3a1714;--danger-line:#7a2e27;
+  --pending:#b3a3ff;--pending-bg:#251e45;--pending-line:#3f3478;
+  --k-doc:#cbd5e1;--k-item:#7c9cff;--k-rec:#fb923c;--g-ring:#161b24;
+  --ink:#2a3242;--ink-2:#343d4f;--ink-text:#e8ecf3;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35),0 1px 3px rgba(0,0,0,.4);
+  --shadow-2:0 2px 6px -1px rgba(0,0,0,.4),0 14px 32px -8px rgba(0,0,0,.6);
+  --shadow-3:0 18px 48px rgba(0,0,0,.7);
+  color-scheme:dark;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme=light]):not([data-theme=dark]){
+  --bg:#0f131a;--surface:#161b24;--surface-2:#1c222d;--surface-3:#262d3a;--hover:#1f2632;
+  --border:#2a3240;--border-strong:#3a4456;--border-input:#5b667a;
+  --text:#e6eaf0;--text-2:#b4bccb;--text-3:#8e98aa;--on-accent:#0b1020;
+  --accent:#7c9cff;--accent-hover:#93adff;--accent-bg:#1f2a4d;--accent-line:#34457a;
+  --ok:#5fd08b;--ok-bg:#14301f;--ok-line:#24553a;
+  --warn:#f0b54a;--warn-bg:#33270f;--warn-line:#7a5a1a;
+  --danger:#ff8a7a;--danger-bg:#3a1714;--danger-line:#7a2e27;
+  --pending:#b3a3ff;--pending-bg:#251e45;--pending-line:#3f3478;
+  --k-doc:#cbd5e1;--k-item:#7c9cff;--k-rec:#fb923c;--g-ring:#161b24;
+  --ink:#2a3242;--ink-2:#343d4f;--ink-text:#e8ecf3;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35),0 1px 3px rgba(0,0,0,.4);
+  --shadow-2:0 2px 6px -1px rgba(0,0,0,.4),0 14px 32px -8px rgba(0,0,0,.6);
+  --shadow-3:0 18px 48px rgba(0,0,0,.7);
+  color-scheme:dark;
+  }
+}

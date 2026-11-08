@@ -443,8 +443,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     /^\/api\/agent\/parser$/, /^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
     /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|held|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|past|removed)$/,
   ]
-  const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|k\/[^/]+\/(?:owner|access|delete|structure|polish|revert|unwatch|docfmt|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names)|rec\/[^/]+\/fix|removed\/restore))$/
+  const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|stops\/ack|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|k\/[^/]+\/(?:owner|access|delete|structure|polish|revert|unwatch|docfmt|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names|approve)|rec\/[^/]+\/fix|removed\/restore))$/
   const auditFile = path.join(dataDir, 'audit.jsonl')
+  // 걷은 경고 — <살림>/acks.json { 사람: { key: 걷은 때 } } · 깨졌으면 빈 것으로 보되 덮지 않는다(쓰기 때 다시 읽어 깨졌으면 던진다)
+  const stopKey = (x) => crypto.createHash('sha256').update([x.kind, x.kn || '', x.b || ''].join('\n')).digest('hex').slice(0, 16)
+  const readAcks = async () => { const t = await fs.readFile(path.join(dataDir, 'acks.json'), 'utf8').catch(() => null); if (t == null) return {}; try { return JSON.parse(t) } catch (e) { console.log('[kmd] acks.json 이 깨졌다 · 걷은 경고 없이 보인다', e.message); return {} } }
+  let ackQ = Promise.resolve()
   let auditQ = Promise.resolve()
   const auditAdd = (line) => {
     auditQ = auditQ.then(async () => {
@@ -820,7 +824,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, await hub.fixRecord(ctx, dec(rf[1]), rec, { ...(title != null ? { title } : {}), body: body ?? '', ...(from != null ? { from } : {}), ...(to != null ? { to } : {}) }))
     }
     // 넣지 못함(S10 · 설계 4-8) — 목록은 GET(읽기 자리 · hub.meta) · 손잡이는 POST 만(그 밖은 위에서 405) · :rec 는 기록 id 꼴(\d{4}-\d{4}- · 80자)
-    const hl = p.match(/^\/api\/k\/([^/]+)\/held(?:\/(again-all)|\/([^/]+)\/(again|drop|names))?$/)
+    const hl = p.match(/^\/api\/k\/([^/]+)\/held(?:\/(again-all)|\/([^/]+)\/(again|drop|names|approve))?$/)
     if (hl) {
       const id = dec(hl[1])
       if (!hl[2] && !hl[3]) return out(200, await hub.heldList(ctx, id))
@@ -829,6 +833,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (rec.length > 80 || !/^\d{4}-\d{4}-[^\\/\s\u0000-\u001f]+$/.test(rec)) throw new KmdError('E_INPUT', '기록 id 가 아니다')
       if (hl[4] === 'again') return out(200, await hub.heldAgain(ctx, id, rec))
       if (hl[4] === 'names') return out(200, await hub.heldNames(ctx, id, rec))
+      if (hl[4] === 'approve') return out(200, await hub.heldApprove(ctx, id, rec))
       const b = await readBody(req)
       const why = b && typeof b === 'object' && !Array.isArray(b) ? b.why : null
       if (why != null && (typeof why !== 'string' || /[\r\n]/.test(why) || why.length > 200)) throw new KmdError('E_INPUT', 'why 는 한 줄 200자 안이다')
@@ -866,7 +871,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         const row = hub.owner(k.id)
         const sv = mode === 'pc' && (await sendLib.destsOf(k.dir)).length ? await hub.sendView(ctx, k.id).catch(() => null) : null
         // level — 이 지식에서의 내 자리(read · write · admin) · role 은 그 화면 이름(PC 는 주인)
-        return { ...V.knowledgeRow(k, seeOf(ctx, k.id)), level: hub.levelOf(ctx, k.id), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null, noClaude: !!row?.noClaude, ...(row?.issueUrl ? { issueUrl: row.issueUrl } : {}) } : {}), ...(chk ? { chk } : {}), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
+        return { ...V.knowledgeRow(k, seeOf(ctx, k.id)), level: hub.levelOf(ctx, k.id), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null, noClaude: !!row?.noClaude, ...(row?.issueUrl ? { issueUrl: row.issueUrl } : {}), ...(row?.review ? { review: true } : {}) } : {}), ...(chk ? { chk } : {}), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
       })))
     }
     // 에이전트 일 — 목록 · 줄(터미널)
@@ -886,7 +891,27 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     }
     const rn = p.match(/^\/api\/runs\/([0-9a-f]{12})$/)
     if (rn) { need(ctx); return out(200, hub.runGet(ctx, rn[1], Number(url.searchParams.get('from')) || 0)) }
-    if (p === '/api/stops') return out(200, [...await hub.stops(ctx), ...await teamVerLines()])
+    if (p === '/api/stops' && req.method === 'GET') {
+      need(ctx)
+      const all = [...await hub.stops(ctx), ...await teamVerLines()]
+      const ack = (await readAcks())[ctx.user] || {}
+      return out(200, all.filter((x) => !ack[stopKey(x)]).map((x) => ({ ...x, key: stopKey(x) })))
+    }
+    // 경고 걷기(UX T7-07) — { key }(그 줄의 key) · 사람마다 · 30일 지나면 잊는다
+    if (p === '/api/stops/ack' && req.method === 'POST') {
+      need(ctx)
+      const b = await readBody(req)
+      const key = typeof b.key === 'string' && /^[0-9a-f]{16}$/.test(b.key) ? b.key : null
+      if (!key) throw new KmdError('E_INPUT', '걷을 경고(key)가 없다')
+      await ackQ.then(async () => {
+        const all = await readAcks(), mine = all[ctx.user] || (all[ctx.user] = {})
+        const cut = Date.now() - 30 * 864e5
+        for (const k of Object.keys(mine)) if (Date.parse(mine[k]) < cut) delete mine[k]
+        mine[key] = new Date().toISOString()
+        await writeJsonAtomic(path.join(dataDir, 'acks.json'), all, { indent: 1 })
+      })
+      return out(200, { ok: true })
+    }
     if (p === '/api/find') {
       const rs = await hub.search(ctx, url.searchParams.get('k') || null, { q: url.searchParams.get('q') || '' })
       return out(200, V.findView(await Promise.all(rs.map(async (r) => ({ k: await hub.get(r.knowledge), r })))))
@@ -1153,6 +1178,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         const people = new Set(auth.users().filter((u) => u.kind === 'person' && !u.off).map((u) => u.id))
         for (const u of [body.owner, ...(Array.isArray(body.curators) ? body.curators : [])].filter((x) => x != null && x !== '')) if (!people.has(String(u))) throw new KmdError('E_INPUT', `그런 사람은 없다: ${String(u).slice(0, 40)}`)
         // 주인 넘기기 — 관리자(팀 서버)는 비밀번호 한 번 더(남의 지식을 넘기는 일)
+        if (body.review != null && typeof body.review !== 'boolean') throw new KmdError('E_INPUT', 'review 는 참 · 거짓이다')
         if (body.issueUrl != null && body.issueUrl !== '' && (typeof body.issueUrl !== 'string' || !owners.ISSUE_URL_RE.test(body.issueUrl) || !body.issueUrl.includes('{값}'))) throw new KmdError('E_INPUT', '이슈 주소는 http(s):// 로 시작하고 {값} 자리가 있는 한 줄이다(200자까지) · 예: https://jira.example/browse/{값}')
         const cur = hub.owner(id)
         if (mode === 'team' && ctx.admin && body.owner != null && body.owner !== (cur?.owner ?? null)) admin(ctx)

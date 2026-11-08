@@ -257,11 +257,13 @@ export const rowOf = (reg, id) => {
 // noClaude — Claude 에 보내지 않음 · 옛 정리 설정(tidyAt · tidyMode)은 개편 S13 에 걷었다: 받아도 쓰지 않고 옛 줄의 칸도 걷는다
 // issueUrl — 이슈 주소 틀(https://… 에 {값} 하나 · 빈 글이면 걷는다)
 export const ISSUE_URL_RE = /^https?:\/\/[^\s<>"']{1,200}$/
-export function setOwner(reg, id, { owner = null, curators, noClaude, issueUrl } = {}) {
+export function setOwner(reg, id, { owner = null, curators, noClaude, issueUrl, review } = {}) {
   const prev = reg.knowledge[id] || {}
   const { private: _p, workerOk: _w, tidyAt: _a, tidyMode: _m, ...keep } = prev
   const row = { ...keep, owner: owner ?? prev.owner ?? null, curators: curators ?? prev.curators ?? [], at: new Date().toISOString() }
   if (noClaude != null) row.noClaude = !!noClaude
+  if (review === true) row.review = true
+  else if (review === false) delete row.review
   if (issueUrl === '') delete row.issueUrl
   else if (typeof issueUrl === 'string' && ISSUE_URL_RE.test(issueUrl) && issueUrl.includes('{값}')) row.issueUrl = issueUrl
   if (row.owner) delete row.restored
@@ -280,7 +282,8 @@ export function parseMembers(text) {
   let acc = null
   const ids = (s) => s.split(/[,\s·]+/).map((x) => x.trim().toLowerCase()).filter(Boolean)
   for (const line of String(text || '').split(/\r?\n/)) {
-    const m = /^\s*[-*]\s*(주인|정리 방식|정리|Claude 에 보내지 않음|이슈 주소|모두|읽기|쓰기|지식관리자|관리|묶음)\s*[:：]\s*(.*?)\s*$/.exec(line)
+    const m = /^\s*[-*]\s*(주인|정리 방식|정리|Claude 에 보내지 않음|이슈 주소|승인 받고 넣기|모두|읽기|쓰기|지식관리자|관리|묶음)\s*[:：]\s*(.*?)\s*$/.exec(line)
+    if (m && m[1] === '승인 받고 넣기') { out.review = /^(예|네|yes|true|1)$/i.test(m[2]); continue }
     if (m && m[1] === '이슈 주소') { if (ISSUE_URL_RE.test(m[2]) && m[2].includes('{값}')) out.issueUrl = m[2]; continue }
     if (!m) continue
     if (['모두', '읽기', '쓰기', '지식관리자', '관리', '묶음'].includes(m[1])) {
@@ -305,9 +308,10 @@ export function parseMembers(text) {
   if (acc) out.access = acc
   return out
 }
-export function renderMembers({ owner = null, curators = [], noClaude = false, access = null, issueUrl = null } = {}) {
+export function renderMembers({ owner = null, curators = [], noClaude = false, access = null, issueUrl = null, review = false } = {}) {
   const lines = ['# 사람', '', `- 주인: ${owner || ''}`, `- 정리: ${(curators || []).join(', ')}`, `- Claude 에 보내지 않음: ${noClaude ? '예' : '아니오'}`]
   if (issueUrl) lines.push(`- 이슈 주소: ${issueUrl}`)
+  if (review) lines.push('- 승인 받고 넣기: 예')
   if (access) {
     const a = accessOf({ access })
     const who = (l) => Object.keys(a.users).filter((u) => a.users[u] === l).sort().join(', ')
@@ -342,7 +346,7 @@ export async function adoptMembers(reg, id, dir, { restore = false } = {}) {
     return null
   }
   const settings = m.settings ? { noClaude: !!m.noClaude } : restore ? { noClaude: true } : {}
-  const row = setOwner(reg, id, { owner: m.owner, curators: m.curators, ...settings, issueUrl: m.issueUrl || '' })
+  const row = setOwner(reg, id, { owner: m.owner, curators: m.curators, ...settings, issueUrl: m.issueUrl || '', review: !!m.review })
   // 자리 표 — 새 꼴이면 따른다 · 없으면 옛 규칙
   if (m.access) row.access = mdAccess(reg, m.access)
   else delete row.access

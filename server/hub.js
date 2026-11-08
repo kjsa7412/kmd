@@ -783,7 +783,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const k = await loadKnowledge(meta, { cache: files.get(id), cutoverAt: config.cutoverAt || null, team: mode === 'team' })
         const same = sameKey(k, input.record, ctx.user)
         if (same) return { abort: { same: true, id: same } }
-        const p = gatePrepare(k, input, { user: ctx.user, newDoc: intake ? true : hub.canDirect(ctx, id), intake: !!intake })
+        let p = gatePrepare(k, input, { user: ctx.user, newDoc: intake ? true : hub.canDirect(ctx, id), intake: !!intake })
+        // 승인 받고 넣기(UX T4-07) — 쓰기 자리의 넘은 조각은 문서에 넣지 않고 「승인 기다림」 으로(넣으려던 글 그대로 · 지식관리자가 넣는다)
+        if (rowFor(id)?.review && !intake && !hub.canDirect(ctx, id) && p.sections.length) {
+          const wait = p.sections.map((x) => { const at = x.coord ? placeOf(k, { coord: x.coord }) : null; return { ...(x.coord ? { coord: x.coord } : {}), doc: at ? at.doc : x.doc, heading: at ? at.heading : x.heading, code: 'review', why: '승인을 기다린다: 이 지식은 지식관리자가 승인해야 문서에 들어간다', ...(x.base ? { base: x.base } : {}), content: x.content } })
+          p = { ...p, sections: [], held: [...p.held, ...wait], proposals: p.proposals.map((q) => (q.ok ? { ...q, ok: false, code: 'review', why: '승인을 기다린다', applied: false } : q)) }
+        }
         return extraHeld.length ? { ...p, held: [...p.held, ...extraHeld] } : p
       }
       if (!files.has(id)) files.set(id, new Map())
@@ -1650,6 +1655,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const w = watchedOf(await fs.readFile(path.join(k.dir, ...d.path.split('/')), 'utf8').catch((e) => (e.code === 'ENOENT' ? '' : Promise.reject(e))))
       if (w) throw new KmdError('E_FORBIDDEN', `이 문서는 원본이 주인이다: ${w.src} 의 ${w.path} 를 고친다 · 덧붙일 말은 기록으로 남긴다`)
       const what = [...hs, ...remove.map((h) => `${h} 지움`), ...rename.map((x) => `${x.from} → ${x.to}`)]
+      if (rowFor(id)?.review && !structure && mode === 'team') {
+        const wait = sections.map((x) => ({ doc: d.path, heading: String(x.h).trim(), code: 'review', why: '승인을 기다린다: 이 지식은 지식관리자가 승인해야 문서에 들어간다', ...(x.base ? { base: x.base } : {}), content: String(x.body ?? '') }))
+        const r = await hub.save(ctx, id, { record: { title: `화면에서 고침(승인 기다림): ${d.title} 「${what.join(' · ')}」`.slice(0, 200), body: `화면에서 고쳤다(승인을 기다린다): ${what.map((h) => `${d.title} › ${h}`).join(' · ')}${typeof why === 'string' && why.trim() ? `\n\n## 까닭\n${why.replace(/[\r\n]+/g, ' ').trim().slice(0, 200)}` : ''}`, ...(coords.length ? { touches: coords } : { touchesEmpty: '이름 없는 항목' }) }, sections: [] }, { channel: 'edit', held: wait })
+        return { direct: false, review: true, ...r }
+      }
       // 문서 꼴(작성기준 7절) — 화면에서 고친 글도 본문만. 지금 글에 있던 줄은 거절하지 않는다 · 거절하면 몇째 줄 · 까닭이 화면에 나온다
       for (const s of sections) {
         const h = String(s.h || '').trim()
@@ -2487,6 +2497,16 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       cache.delete(id)
       try { await keepHeldDrop(id, w.id) } catch (e) { log('넣지 못함 원천 걷기', id, e.message) }
       return { ok: true, record: r.id }
+    },
+    // 승인해 넣기(UX T4-07) — 지식관리자 · 그 기록의 「승인 기다림」 조각을 같은 글로 저장(지문이 어긋나면 E_CONFLICT) · fixes:[rec] → 원 기록 바로잡힘
+    async heldApprove(ctx, id, rec) {
+      const { w } = await hub.heldOf(ctx, id, rec, { admin: true })
+      const parts = parseHeld(w.body).filter((x) => x.code === 'review' && typeof x.content === 'string' && x.doc && x.heading)
+      if (!parts.length) throw new KmdError('E_INPUT', '이 기록에는 승인을 기다리는 글이 없다')
+      const title = `승인: ${String(w.title).replace(/\(승인 기다림\)/, '').split(/ — /)[0]}`.slice(0, 200)
+      const r = await hub.save(ctx, id, { record: { title, body: `${w.author} 의 기록을 ${ctx.user} 가 승인해 넣었다: ${parts.map((x) => `${String(x.doc).replace(/^docs\/|\.md$/g, '')} › ${x.heading}`).join(' · ')}`, fixes: [w.id], ...(w.touches.length ? { touches: w.touches } : { touchesEmpty: '이름 없는 항목' }) }, sections: parts.map((x) => ({ doc: x.doc, heading: x.heading, content: x.content, ...(x.base ? { base: x.base } : {}) })) }, { channel: 'http' })
+      cache.delete(id)
+      return { ok: true, record: r.id, put: r.put ?? 0, held: r.held || [] }
     },
     // 이름 세우기(S-D51) — 지식관리자 · 그 기록의 「세울 이름 · 세울 갈래」 칸으로 system 저장 하나(fixes:[rec] → 원 기록 바로잡힘)
     async heldNames(ctx, id, rec) {

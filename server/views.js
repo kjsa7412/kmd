@@ -539,7 +539,7 @@ export function findView(pairs) {
 // 항목 = 이름 장부의 이름(그 이름이 드는 문서 항목이 있으면 거기) + 장부에 없는 문서 항목 머리.
 // 항목 열쇠(key)는 이름(coord)이 있으면 그것, 없으면 `#문서#머리`.
 const KIND = { table: '테이블', screen: '화면', api: 'API', term: '용어', proc: '절차', code: '코드', module: '모듈', issue: '이슈', ops: '운영', prog: '프로그램', batch: '배치', req: '요구사항', func: '기능', arch: '구조', test: '시험', scenario: '시나리오', domain: '업무 영역' }
-export const kindOf = (coord) => (coord ? KIND[coord.split(':')[0]] || coord.split(':')[0] : '항목')
+export const kindOf = (coord) => (coord ? KIND[coord.split(':')[0]] || coord.split(':')[0] : '이름 없는 항목')
 const firstOf = (body) => String(body || '').slice(0, 1500).split('\n').map((l) => l.replace(/[`*#>|]/g, '').trim()).find((l) => l && !/^[-:| ]+$/.test(l)) || ''
 const keyOf = (coord, doc, h) => coord || `#${doc}#${h}`
 
@@ -583,7 +583,7 @@ export function model(k) {
   for (const d of k.docs)
     for (const s of d.sections) {
       if (coordsOfSection(k, d, s.h).length) continue
-      add({ key: keyOf(null, d.id, s.h), coord: null, name: s.h, kind: '항목', doc: d.id, sec: s.h, aliases: [], table: false, first: firstOf(s.body) })
+      add({ key: keyOf(null, d.id, s.h), coord: null, name: s.h, kind: '이름 없는 항목', doc: d.id, sec: s.h, aliases: [], table: false, first: firstOf(s.body) })
     }
   // 기록이 건드렸지만 장부에도 문서에도 없는 이름 — 「문서가 없는 항목」
   for (const w of k.works)
