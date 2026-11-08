@@ -1473,3 +1473,12 @@ details.paste{margin:var(--sp-4) 0}details.paste>summary{cursor:pointer;color:va
 .busy.err{color:var(--warn);border-color:var(--warn-line)}
 .ed .row{flex-wrap:wrap}.ed .edwhy{flex:1 1 14em;min-width:0;max-width:100%}
 .gwrap .gempty3{position:absolute;inset:0;display:grid;place-content:center;text-align:center;pointer-events:none}
+
+/* T7-13 빈 상태는 한 꼴(.empty2) — 옛 .empty · .none 도 같은 꼴로 */
+.empty,.none{margin:var(--sp-4) var(--sp-2);padding:9px var(--sp-5);border-radius:var(--r);background:var(--surface-2);color:var(--text-2);font-size:var(--fs-sm);line-height:1.6}
+.empty b,.none b,.empty2 b{display:block;color:var(--text);margin-bottom:var(--sp-1)}
+/* T1-19 1024 이하 머리 줄 찾기는 아이콘만(빨리 열기는 남는다) */
+@media (max-width:1024px){.search{flex:0 0 auto;min-width:0}.search .sl,.search .sk{display:none}}
+/* T1-18 넣지 못함 표 머리 칸이 줄과 같은 칸 */
+.hd-grid .hd-r.hd>*{min-width:0}
+button.sx-root{display:flex;align-items:center;gap:var(--sp-3);width:100%;background:none;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer;border-radius:var(--r-xs)}button.sx-root.on{background:var(--accent-bg);color:var(--accent)}

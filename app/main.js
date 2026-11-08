@@ -2402,9 +2402,11 @@ function showPv(el) {
   c.style.top = Math.max(8, y) + 'px'
 }
 let pvOff = null // 누른 요소 — 떠날 때까지 카드를 다시 띄우지 않는다
+let pvMouse = true // 마지막 누름이 마우스였나(터치 · 펜이면 미리보기를 띄우지 않는다 · UX T1-29)
+document.addEventListener('pointerdown', (ev) => { pvMouse = ev.pointerType === 'mouse' }, true)
 document.addEventListener('pointerdown', (ev) => { const el = ev.target.closest && ev.target.closest('[data-pv]'); if (el) pvOff = el; hidePv() }, true)
 document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' || ev.key === 'Enter') hidePv() }, true)
-document.addEventListener('mouseover', (ev) => { const el = ev.target.closest && ev.target.closest('[data-pv]'); if (!el || el === pvOff) return; if (ev.relatedTarget && el.contains(ev.relatedTarget)) return; clearTimeout(pvT); pvT = setTimeout(() => showPv(el), 250) })
+document.addEventListener('mouseover', (ev) => { const el = ev.target.closest && ev.target.closest('[data-pv]'); if (!el || el === pvOff || !pvMouse) return; if (ev.relatedTarget && el.contains(ev.relatedTarget)) return; clearTimeout(pvT); pvT = setTimeout(() => showPv(el), 250) })
 document.addEventListener('mouseout', (ev) => { const el = ev.target.closest && ev.target.closest('[data-pv]'); if (!el) return; if (ev.relatedTarget && el.contains(ev.relatedTarget)) return; if (el === pvOff) pvOff = null; hidePv() })
 
 // 그래프 — 왼쪽 끌기: 돌리기 · Shift · 가운데 · 오른쪽 끌기: 옮기기 · 휠: 크게 · 작게(마우스 자리 중심) · 누르면 고른다
@@ -2847,12 +2849,12 @@ function sxOps() {
   for (const p of ['', ...sxDirs()]) order[p] = sxSibs(p).map((k) => (k.startsWith('f:') ? sxSplit(k.slice(2))[1] + '/' : sxFile(sxW(k.slice(2)))))
   return { moves, creates, titles, dirs: sxDirs().filter((f) => !sxDeep(f)), order }
 }
-function sxMoveDoc(id, to) {
+function sxMoveDoc(id, to, { open = false } = {}) {
   const d = sxW(id)
   if (!d || d.watched) { toast('<b>원본이 주인인 문서는 옮기지 않는다</b>', 0, true); return false }
   if (d.folder === to) return true
   if (sxClash(to, sxFile(d), id)) { toast(`<b>「${esc(to || '맨 위')}」 에 같은 이름이 있다</b>`, 0, true); return false }
-  d.folder = to; if (to) S.sx.open[to] = true; S.sx.sel = 'd:' + id; return true
+  d.folder = to; if (to && open) S.sx.open[to] = true; S.sx.sel = 'd:' + id; return true // 끌어 옮기면 그 폴더를 펴지 않는다 — 다음 끌 자리가 밀리지 않게(UX G4-08)
 }
 function sxMoveDir(from, toParent, newName) {
   const x = S.sx, nm = newName ?? sxSplit(from)[1], to = toParent ? toParent + '/' + nm : nm
@@ -2925,7 +2927,7 @@ function sxTreeHtml() {
     if (e && e.t === 'newdoc' && e.parent === p) h += sxEditRow('', dep, false)
     return h
   }
-  return `<div class="sx-root" data-sxroot="1">${svg('folder')}맨 위</div>${walk('', 0) || '<div class="empty2"><b>맞는 문서가 없다</b>다른 말로 찾는다</div>'}`
+  return `<button type="button" class="sx-root${!S.sx.sel ? ' on' : ''}" data-sxroot="1" data-a="sxRootSel" data-t="sxRoot" aria-pressed="${!S.sx.sel}" title="맨 위를 고른다 · [+ 폴더] 는 여기에 선다">${svg('folder')}맨 위</button>${walk('', 0) || '<div class="empty2"><b>맞는 문서가 없다</b>다른 말로 찾는다</div>'}`
 }
 function sxBarHtml() {
   const ch = sxDiff(), n = ch.length
@@ -2949,7 +2951,7 @@ function viewStructure() {
   const x = S.sx
   const df = x.W.filter((z) => { const o = sxO(z.id); return o && o.file !== o.title && !z.sync && !z.watched }).length
   const tools = `<div class="sx-tools">${pick}<input class="inp sx-q" id="sxQ" data-in="sxQ" data-t="sxQ" value="${esc(x.q)}" placeholder="찾기" aria-label="문서 찾기" autocomplete="off"><button type="button" class="btn" data-a="sxNewDir" data-t="sxNewDir">+ 폴더</button><button type="button" class="btn pri" data-a="sxNewDoc" data-t="sxNewDoc">+ 새 문서</button></div>`
-  const strip = df ? `<div class="callout warn sx-strip" data-t="sxStrip"><span>파일 이름이 제목과 다른 문서 <b>${df}</b></span><button type="button" class="btn sm" data-a="sxFix" data-t="sxFix">제목으로 맞추기</button></div>` : ''
+  const strip = df ? `<div class="callout warn sx-strip" data-t="sxStrip"><span><i class="sx-dot df" aria-hidden="true"></i> 파일 이름이 제목과 다른 문서 <b>${df}</b> <small class="muted">· 점: 파랑 바뀜 · 초록 새것 · 노랑 파일 이름 ≠ 제목</small></span><button type="button" class="btn sm" data-a="sxFix" data-t="sxFix">제목으로 맞추기</button></div>` : ''
   return { crumb: '문서 짜임', main: `<div class="sxy">${head(n, tools)}${strip}<div class="sx-tree" id="sxTree" role="tree" aria-label="문서 짜임" data-t="sxTree">${sxTreeHtml()}</div><p class="muted small sx-tip">끌어서 옮긴다 · 줄 사이에 놓으면 그 자리에 · 이름은 두 번 누르거나 F2 · 차례는 Alt ↑↓</p>${sxBarHtml()}</div>` }
 }
 async function sxSave() {
@@ -4861,6 +4863,7 @@ const ACT = {
   sxRen: (el) => { const key = el.dataset.sk; sxEditStart(key.startsWith('f:') ? { t: 'dir', id: key.slice(2) } : { t: 'doc', id: key.slice(2) }) },
   sxRm: (el) => { const key = el.dataset.sk, x = S.sx; if (key.startsWith('f:')) x.WDIRS.delete(key.slice(2)); else x.W = x.W.filter((d) => d.id !== key.slice(2)); x.sel = null; render() },
   sxNewDoc: () => { const p = sxSelFolder(); if (p) S.sx.open[p] = true; sxEditStart({ t: 'newdoc', parent: p }) },
+  sxRootSel: () => { S.sx.sel = null; render() },
   sxNewDir: () => { const p = sxSelFolder(); if (p) S.sx.open[p] = true; sxEditStart({ t: 'newdir', parent: p }) },
   sxUndo: (el) => { const id = el.dataset.d, o = sxO(id); if (o) Object.assign(sxW(id), o, { sync: false }); else S.sx.W = S.sx.W.filter((d) => d.id !== id); render() },
   sxUndoOrd: (el) => { const p = el.dataset.p; S.sx.ORDER[p] = [...(S.sx.OORDER[p] || [])]; render() },
@@ -5058,7 +5061,7 @@ const ACT = {
   impStop: (el) => { const x = S.imports.find((r) => r.id === el.dataset.v); if (x) { x.stop = true; x.msg = '그만두는 중: 보내던 묶음까지 넣는다'; render() } },
   impTab: (el) => { S.impTab = el.dataset.v; render() },
   impFil: (el) => { S.impFil = el.dataset.v; paintJobs() },
-  impSel: (el) => { S.impSel = el.dataset.id; S.impTfil = 'all'; paintJobs(); pollRuns() },
+  impSel: (el) => { S.impSel = el.dataset.id; S.impTfil = 'all'; paintJobs(); pollRuns(); if (innerWidth <= 600) setTimeout(() => { const d = $('[data-t=impDet]'); if (d) d.scrollIntoView({ block: 'start', behavior: 'smooth' }) }, 50) },
   qAct: (el) => qAct(el.dataset.id, el.dataset.v),
   qHold: async (el) => { try { await postJSON('/api/queue/hold', { on: el.dataset.v === '1' }); toast(el.dataset.v === '1' ? '줄 멈춤: 도는 일은 지금 단계를 마치고 선다' : '줄을 다시 돌린다') } catch (e) { toastErr(e) } pollRuns() },
   srcOpenQ: (el) => { const s = (sourcesOf()?.items || []).find((x) => x.kn === el.dataset.k && x.name === el.dataset.v); if (s) srcOpen(srcId(s)) },
