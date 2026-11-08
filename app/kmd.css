@@ -170,6 +170,8 @@ code{font:var(--fs-mono) var(--mono);background:var(--surface-2);padding:1px 5px
 .callout.warn{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn)}
 .callout.danger{background:var(--danger-bg);border-color:var(--danger-line);color:var(--danger)}
 .callout.pend{background:var(--pending-bg);border-color:var(--pending-line);color:var(--pending)}
+.cfpre{white-space:pre-wrap;font:var(--fs-mono)/1.5 var(--mono);background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--r-xs);padding:var(--sp-3) var(--sp-4);margin:var(--sp-2) 0;max-height:14em;overflow:auto}
+[data-t=edConflict] .row{display:flex;gap:var(--sp-4);margin-top:var(--sp-4)}
 .callout.gray{background:var(--surface-2);border-color:var(--border);color:var(--text-2)}
 .stop{display:flex;align-items:center;gap:var(--sp-5);margin:0 0 var(--sp-6)}
 .stop i{width:8px;height:8px;border-radius:50%;background:var(--warn-line);flex:none}

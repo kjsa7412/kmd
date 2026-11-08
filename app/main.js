@@ -478,6 +478,15 @@ function draw() {
   const lpView = `${gated() ? '' : defaultKn()}|${VIEWS3.includes(S.route.scr) ? S.route.scr : S.ktab || 'docs'}`
   const keep = ['.main[data-t=main]', '[data-t=rightPane]', '[data-t=leftPane]', '[data-t=asideScroll]'].map((q) => { const el = app.querySelector(q); return el ? [q, el.scrollTop] : null }).filter((x) => x && (x[0] === '[data-t=leftPane]' ? S._lpView === lpView : S._view === view))
   const sameView = S._view === view
+  // 초점 · 편집기 자리 — innerHTML 을 통째로 바꿔도 같은 요소(id 또는 data-t + 차례)로 되돌린다
+  const fa = document.activeElement
+  let refocus = null
+  if (sameView && fa && fa !== document.body && app.contains(fa)) {
+    const q = fa.id ? '#' + CSS.escape(fa.id) : fa.dataset && fa.dataset.t ? `[data-t="${CSS.escape(fa.dataset.t)}"]` : null
+    if (q) refocus = [q, [...app.querySelectorAll(q)].indexOf(fa)]
+  }
+  const ta0 = $('#edTx')
+  const edPos = ta0 ? { top: ta0.scrollTop, a: ta0.selectionStart, b: ta0.selectionEnd } : null
   S._view = view
   S._lpView = lpView
   S._hasAside = !!scr.aside
@@ -497,6 +506,8 @@ function draw() {
   // 고칠 칸이 아직 읽는 중이면(편집기 · Q84) 그려질 때까지 기다린다
   if (S.route.scr === 'graph') gStart()
   if (S._focus) { const el = document.getElementById(S._focus); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length) } catch {} S._focus = null } else if (S._focus !== 'edTx' || !S.edit) S._focus = null }
+  if (edPos) { const ta = $('#edTx'); if (ta) { ta.scrollTop = edPos.top; try { ta.setSelectionRange(edPos.a, edPos.b) } catch {} } }
+  if (refocus && (document.activeElement === document.body || !document.activeElement)) { const el = app.querySelectorAll(refocus[0])[Math.max(0, refocus[1])]; if (el) el.focus({ preventScroll: true }) }
   fillAtts()
   // 터미널 — 새 줄이 오면 아래로 · 사람이 위로 올려 보고 있으면 그 자리 그대로(컨벤션 7절)
   ;[...app.querySelectorAll('.term')].forEach((t, i) => { const up = termUp.get(i); t.scrollTop = up != null ? up : t.scrollHeight })
@@ -1229,9 +1240,9 @@ function docPane(t, right) {
     : editing && de.error
     ? errHtml(de, `doc:${k}:${t.ref}:ed`)
     : editing
-    ? `<div class="ed" data-t="editor"><div class="lbl"><b>고치는 중</b> · 「## 」 으로 시작하는 줄이 항목 이름이다 · md 로 쓴다. **굵게** · - 목록 · [링크](주소) · Ctrl S 저장 · Esc 취소</div><div class="toolbar"><button class="btn sm" data-a="edAddSec" data-t="edAddSec">항목 더하기</button><span class="muted small">${de.structure ? '항목을 지우려면 그 「## 」 줄과 글을 지운다 · 이름을 바꾸려면 「## 」 줄만 고친다' : '항목을 지우거나 이름을 바꾸는 일은 지식관리자가 한다'}</span></div><textarea id="edTx" aria-label="문서 글(md)" data-in="edTx" data-t="edTx" spellcheck="false">${esc(edText(de))}</textarea>
+    ? `<div class="ed" data-t="editor"><div class="lbl"><b>고치는 중</b> · 「## 」 으로 시작하는 줄이 항목 이름이다 · md 로 쓴다. **굵게** · - 목록 · [링크](주소) · Ctrl S 저장 · Esc 취소</div><div class="toolbar"><button class="btn sm" data-a="edAddSec" data-t="edAddSec">항목 더하기</button><span class="muted small">${de.structure ? '항목을 지우려면 그 「## 」 줄과 글을 지운다 · 이름을 바꾸려면 「## 」 줄만 고친다' : '항목을 지우거나 이름을 바꾸는 일은 지식관리자가 한다'}</span></div><textarea id="edTx" aria-label="문서 글(md)" data-in="edTx" data-t="edTx" spellcheck="false"${S.edit.busy ? ' readonly aria-busy="true"' : ''}>${esc(edText(de))}</textarea>
    ${de.sections.filter((s) => s.locks).map((s) => `<div class="lockh">항목 「${esc(s.h)}」 의 표: 회색은 잠겨 있다</div>${s.locks}`).join('')}
-   <div class="row" style="margin-top:10px"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><span class="r small muted" data-t="edNote">저장하면 바로 문서에 들어간다 · 이력에 남는다</span></div>${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}</div>`
+   <div class="row" style="margin-top:10px"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><span class="r small muted" data-t="edNote">저장하면 바로 문서에 들어간다 · 이력에 남는다</span></div>${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}</div>`
     : d.sections.map((s) => {
     // 찾기로 연 것만 「찾은 곳」 · 링크 · 개요로 연 항목은 머리를 잠깐 빛낸다
     const lit = q && hl && s.h === hl
@@ -2319,8 +2330,10 @@ async function saveDoc() {
   e.busy = true
   render()
   try {
-    const r = await postJSON(`/api/k/${encodeURIComponent(e.kn)}/edit`, { doc: e.doc, sections: changed.map((p) => ({ h: p.h, body: p.body, ...(old.has(p.h) ? { base: old.get(p.h).base } : {}) })), remove, rename })
-    edDrop()
+    const r = await postJSON(`/api/k/${encodeURIComponent(e.kn)}/edit`, { doc: e.doc, sections: changed.map((p) => ({ h: p.h, body: p.body, ...(old.has(p.h) ? { base: (e.keepBase && e.keepBase[p.h]) || old.get(p.h).base } : {}) })), remove, rename })
+    // 그사이 더 쓴 글(붙여 넣기 · 다른 탭)이 있으면 버리지 않는다 — 저장한 글을 바탕으로 이어 고친다
+    const later = S.edit === e && e.text != null && e.text !== txt
+    if (later) { e.orig = txt; e.busy = false; e.keepBase = null; e.conflict = null } else edDrop()
     forgetKn(e.kn)
     // 저장은 했다 — 서버 알림(문서 짜임 · 그대로 둔 줄 · 백업)은 오류가 아닌 알림으로 같은 토스트에(role=status)
     const msg = (r.held || []).length ? `넣지 못함: ${r.held[0].why || '까닭은 이력에 있다'}` : '저장했다. 문서에도 넣었다'
@@ -2333,10 +2346,19 @@ async function saveDoc() {
       const key = `doc:${e.kn}:${e.doc}:ed`
       try {
         const v = await getJSON(`/api/k/${encodeURIComponent(e.kn)}/doc?d=${encodeURIComponent(e.doc)}&edit=1`)
+        const hOf = (c) => String(c).replace(/^.*#/, '')
+        const nb = Object.fromEntries(v.sections.map((s) => [s.h, s.base])) // 내가 고친 항목 가운데 지문이 바뀐 것 — 서버 stale 은 이름(coord)일 수 있어 화면이 직접 견준다
+        const ob = (h) => (e.keepBase && e.keepBase[h]) || (old.has(h) ? old.get(h).base : null) // 이미 겹쳐 지킨 지문이 있으면 그것
+        const stale = changed.map((p) => p.h).filter((h) => ob(h) && nb[h] !== ob(h))
+        if (!stale.length) stale.push(...((err.details && err.details.stale) || []).map(hOf))
+        const oldBase = Object.fromEntries(stale.map((h) => [h, ob(h)]))
         S.cache[key] = v
         if (e.text == null) e.text = txt
         e.orig = edOrig(v)
-        e.err = '읽은 뒤 누가 고쳤다: 새 글을 다시 읽었다. 고친 곳을 확인하고 다시 저장한다'
+        // 겹친 항목은 읽던 때의 지문을 지킨다 — 그대로 [저장] 하면 다시 막힌다(남의 고침을 말없이 덮지 않는다)
+        e.keepBase = Object.fromEntries(stale.filter((h) => oldBase[h]).map((h) => [h, oldBase[h]]))
+        e.conflict = stale.map((h) => ({ h, theirs: (v.sections.find((s) => s.h === h) || {}).md || '' }))
+        e.err = `읽은 뒤 누가 고친 항목이 있다: ${stale.join(' · ') || '알 수 없음'}. 아래 그사이 바뀐 글을 보고 내 글에 합친 뒤 [내 글로 저장] 을 누르거나 [그쪽 글로] 를 고른다`
       } catch (x) { e.err = `읽은 뒤 누가 고쳤다. 새 글을 다시 읽지 못했다: ${x.message}` }
     } else if (err.code !== 'E_CANCEL') toastErr(err)
   }
@@ -2851,7 +2873,7 @@ async function postJSON(p, body) {
   if (!r.ok && j.error === 'E_SUDO' && p !== '/api/sudo') { await askSudo(); return postJSON(p, body) }
   // 들어온 것이 끝났다(12시간 쉼 · 7일) — 쓰던 글은 그대로 두고 그 자리에서 다시 들어간 뒤 같은 요청을 다시
   if (r.status === 401 && canRelogin() && !['/login', '/api/sudo', '/first', '/setup', '/once'].includes(p)) { await askLogin(); return postJSON(p, body) }
-  if (!r.ok) throw Object.assign(new Error(j.message || '서버에 닿지 않는다'), { code: j.error, need: j.need || null })
+  if (!r.ok) throw Object.assign(new Error(j.message || '서버에 닿지 않는다'), { code: j.error, need: j.need || null, details: j.details || null })
   return j
 }
 const canRelogin = () => isTeam() && !!S.me && !S.me.anon && !S.gate
@@ -3985,7 +4007,9 @@ function knTable() {
   return `<div class="card" data-t="knTable" style="overflow:visible"><div class="ch">팀 지식 ${ks.length} <small>${boss ? '모든 팀 지식' : '내가 지식관리자인 팀 지식'}</small>${add ? `<span style="margin-left:auto">${add}</span>` : ''}</div><div class="cb tight"><div class="tblwrap"><table class="t"><tr><th>팀 지식</th><th>나의 자리</th>${boss ? '<th>백업</th>' : ''}<th>Claude 에 보내지 않음</th><th></th></tr>${rows || `<tr><td class="muted" colspan="${boss ? 5 : 4}">팀 지식이 없다</td></tr>`}</table></div></div><div class="cf small muted">Claude 에 보내지 않는 지식은 들이기 · 다듬기를 하지 않고 기록만 남긴다(스위치는 그 지식의 지식관리자) · 자리는 ⋯ › 권한 · 넣지 못함은 작업 › 넣지 못함</div></div>${restore}`
 }
 // 사람 — 총괄 관리자 하나와 지식마다의 자리(읽기 · 쓰기 · 관리 — docs/kmd_권한_모델.md). 관리자는 사람 · 묶음을 다룬다, 그 밖에는 읽기만
-const ROLE_RULE = '<div class="cf small muted" data-t="roleRule"><span><b>총괄 관리자</b>: 사람 · 묶음 · 팀 지식 세우기 · 지우기 · 백업 · Claude 연결, 모든 지식에서 지식관리자 &nbsp;·&nbsp; <b>지식마다 자리</b>: 읽기(보기 · 찾기) · 쓰기(+ 기록 남기기 · 파일 넣기) · 지식관리자(+ 문서에 바로 고치기 · 다듬기 · 넣지 못함 · 가져올 곳 · 권한). 받지 않은 지식은 보이지 않는다 · 한 사람의 자리는 주인 · 사람 줄 · 든 묶음 · 모두 가운데 가장 높은 것 · 주는 곳은 설정 › 사람 · 묶음(사람 ⋯ › 지식마다 자리) · 설정 › 팀 지식(⋯ › 권한)</span></div>'
+// 자리 설명 한 벌(docs/kmd_권한_모델.md 1절 · 개편 뒤 「저장이 곧 반영」) — 사람 카드 · 지식 권한 창 · 자리란? 이 같이 쓴다
+const ROLE_TEXT = '읽기(보기 · 찾기) · 쓰기(+ 문서 고치기 · 기록 · 파일 넣기 · 가져올 곳 부탁 — 저장 검사를 넘으면 바로 문서에 들어간다) · 지식관리자(+ 항목 지우기 · 이름 바꾸기 · 남의 기록 · 넣지 못함 · 문서 짜임 · 다듬기 · 가져올 곳 · 권한)'
+const ROLE_RULE = '<div class="cf small muted" data-t="roleRule"><span><b>총괄 관리자</b>: 사람 · 묶음 · 팀 지식 세우기 · 지우기 · 백업 · Claude 연결, 모든 지식에서 지식관리자 &nbsp;·&nbsp; <b>지식마다 자리</b>: ' + ROLE_TEXT + '. 받지 않은 지식은 보이지 않는다 · 한 사람의 자리는 주인 · 사람 줄 · 든 묶음 · 모두 가운데 가장 높은 것 · 주는 곳은 설정 › 사람 · 묶음(사람 ⋯ › 지식마다 자리) · 설정 › 팀 지식(⋯ › 권한)</span></div>'
 // 사람 · 묶음(총괄 관리자) — 다른 자리는 나 › 팀 사람에서 본다
 function peopleCard() {
   const rule = ROLE_RULE
@@ -4322,7 +4346,7 @@ function accHtml() {
   <div class="sub">묶음 ${gs.length} <small class="muted">묶음 안 사람 모두에게</small></div>
   <ul class="plain pl acc" data-t="accGroups">${gs.map(gRow).join('') || `<li class="muted small" data-t="accGroupsNone">${(v.groupNames || []).length ? '따로 준 묶음이 없다' : '묶음이 없다. 관리자가 관리 › 묶음에서 만든다'}</li>`}</ul>
   ${addRow('G', freeG, a.addG, '묶음 고르기', '묶음 더하기')}
-  <p class="hint">한 사람의 자리는 주인 · 사람 줄 · 든 묶음 · 모두 가운데 가장 높은 것. 없음이면 이 지식이 보이지 않는다 · 읽기는 보기 · 찾기만 · 쓰기는 기록 남기기 · 지식관리자는 문서에 바로 고치기 · 다듬기 · 넣지 못함 · 권한까지. 지식관리자는 사람 줄에서 준다${v.legacy ? ' · 아직 자리 표가 없다(기본 없음). 저장하면 이 표로 적힌다' : ''}</p>
+  <p class="hint">한 사람의 자리는 주인 · 사람 줄 · 든 묶음 · 모두 가운데 가장 높은 것. 없음이면 이 지식이 보이지 않는다 · 자리는 ${ROLE_TEXT}. 지식관리자는 사람 줄에서 준다${v.legacy ? ' · 아직 자리 표가 없다(기본 없음). 저장하면 이 표로 적힌다' : ''}</p>
   ${a.err ? formErr(`<i></i><span>${esc(a.err)}</span>`, 'accErr', '', true) : ''}
   </div><div class="mf"><span class="l" data-t="accNote">${nCh ? '바꾼 것이 있다 · 저장하면 곧바로 적용된다' : '바꾼 것이 없다'}</span><span class="acts"><button type="button" class="btn ghost" data-a="accClose" data-t="accCancel">취소</button><button type="button" class="btn pri" data-a="accSave" data-t="accSave"${nCh && !a.busy ? '' : ' disabled'}>${a.busy ? '저장하는 중…' : '저장'}</button></span></div></div></div>`
 }
@@ -5077,9 +5101,13 @@ const ACT = {
       toast(r.state === 'held' ? '다듬기를 걸지 못했다' : r.again ? '이미 팀 일꾼이 다듬는 중이다' : '일 줄에 올렸다: 팀 일꾼이 다듬으면 이력에 「다듬기」 로 남는다', 7000)
     } catch (e) { toastErr(e) }
   },
-  editDoc: () => {
+  // 충돌 고르기 — 내 글로: 새 지문으로 다시 보낸다(이력에 남아 되돌릴 수 있다) · 그쪽 글로: 쓰던 글을 버리고 새 글로
+  edForce: async () => { const e = S.edit; if (!e) return; if (!await ask1('내 글로 저장', '내 글로 저장', true, `그사이 바뀐 글(${(e.conflict || []).map((x) => x.h).join(' · ')})을 내 글로 바꾼다. 남이 고친 것은 이력에 남아 되돌릴 수 있다`)) return; e.keepBase = null; e.conflict = null; e.err = null; await saveDoc() },
+  edTheirs: () => { const e = S.edit; if (!e) return; const v = S.cache[`doc:${e.kn}:${e.doc}:ed`]; e.text = v ? edOrig(v) : null; e.keepBase = null; e.conflict = null; e.err = null; render() },
+  editDoc: async () => {
     const t = activeTab()
     if (!t) return
+    if (S.edit && (S.edit.kn !== t.kn || S.edit.doc !== t.ref)) { if (!(await edLeave(`「${S.edit.doc}」 를 고치던 중이다. 다른 문서를 고치`))) return; edDrop() }
     S.edit = { tab: t.id, kn: t.kn, doc: t.ref }
     delete S.cache[`doc:${t.kn}:${t.ref}:ed`] // 고칠 때마다 지금 글로
     let draft = null
