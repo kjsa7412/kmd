@@ -441,9 +441,9 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const GET_OK = [
     /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/audit|admin\/users|admin\/groups|claude\/state|busy|send\/teams)$/,
     /^\/api\/agent\/parser$/, /^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
-    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|held|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|past)$/,
+    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|held|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|past|removed)$/,
   ]
-  const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|k\/[^/]+\/(?:owner|access|delete|structure|polish|revert|unwatch|docfmt|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names)|rec\/[^/]+\/fix))$/
+  const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|k\/[^/]+\/(?:owner|access|delete|structure|polish|revert|unwatch|docfmt|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names)|rec\/[^/]+\/fix|removed\/restore))$/
   const auditFile = path.join(dataDir, 'audit.jsonl')
   let auditQ = Promise.resolve()
   const auditAdd = (line) => {
@@ -666,7 +666,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const ws = await fs.readFile(path.join(dataDir, 'worker.json'), 'utf8').then(JSON.parse, () => null)
       const ks = await hub.visible(ctx)
       const checks = []
-      for (const k of ks) { const c = await fs.readFile(path.join(dataDir, 'searchcheck', `${encodeURIComponent(k.id)}.json`), 'utf8').then(JSON.parse, () => null); if (c?.score) checks.push({ name: k.name, in: c.score.in, n: c.score.n, at: c.at }) }
+      for (const k of ks) { const c = await fs.readFile(path.join(dataDir, 'searchcheck', `${encodeURIComponent(k.id)}.json`), 'utf8').then(JSON.parse, () => null); if (c?.score) checks.push({ name: k.name, in: c.score.in, n: c.score.n, at: c.at, ...(c.hard ? { hard: c.hard.in, hn: c.hard.n, miss: (c.miss || []).map((m) => m.q) } : {}) }) }
       return out(200, {
         nopw: users.filter((u) => u.kind === 'person' && !u.off && !u.password && !u.firstOpen).map((u) => u.id),
         waiting: users.filter((u) => u.kind === 'person' && !u.off && u.firstOpen).map((u) => u.id),
@@ -1079,6 +1079,17 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     }
     const uw = p.match(/^\/api\/k\/([^/]+)\/unwatch$/)
     if (uw) return out(200, await hub.unwatch(ctx, dec(uw[1]), await readBody(req)))
+    const rmv = p.match(/^\/api\/k\/([^/]+)\/removed(\/restore)?$/)
+    if (rmv) {
+      const id = dec(rmv[1])
+      await hub.meta(id, ctx)
+      if (!rmv[2]) return out(200, await hub.removed(ctx, id))
+      if (req.method !== 'POST') throw new KmdError('E_METHOD', 'POST 로 보낸다')
+      const b = await readBody(req)
+      const str = (v, n) => typeof v === 'string' && v.length > 0 && v.length <= n && !/[\r\n]/.test(v)
+      if (!str(b.rec, 120) || !str(b.doc, 300) || !str(b.heading, 200)) throw new KmdError('E_INPUT', '되살릴 것은 { rec, doc, heading } 한 줄 글이다')
+      return out(200, await hub.restoreRemoved(ctx, id, { rec: b.rec, doc: b.doc, heading: b.heading }))
+    }
     const pm = req.method === 'GET' && p.match(/^\/api\/k\/([^/]+)\/past$/)
     if (pm) {
       const id = dec(pm[1])

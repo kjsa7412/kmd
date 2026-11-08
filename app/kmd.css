@@ -1501,3 +1501,5 @@ button.sx-root{display:flex;align-items:center;gap:var(--sp-3);width:100%;backgr
 .past-v:focus-visible{outline:0;box-shadow:var(--focus-ring)}
 .past-main .seg{margin:0 0 var(--sp-5)}
 @media (max-width:600px){.past-b{grid-template-columns:1fr;max-height:none}.past-side{max-height:180px}}
+.gerd-tip{position:absolute;left:50%;transform:translateX(-50%);top:var(--sp-6);z-index:2;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-pill);box-shadow:var(--shadow-1);padding:var(--sp-2) var(--sp-6);font-size:var(--fs-sm);color:var(--text-2);display:flex;gap:var(--sp-4);align-items:center;max-width:min(560px,calc(100% - 24px));flex-wrap:wrap}
+.gerd-tip[hidden]{display:none}

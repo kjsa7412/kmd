@@ -1672,6 +1672,41 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       for (const [key, v] of editDup) if (Date.now() - v.at > 60_000) editDup.delete(key)
       return out
     },
+    // 최근에 지운 항목(UX T4-09) — 지금 문서에 다시 없는 것만 · 새것 위 20
+    async removed(ctx, id) {
+      const k = await hub.get(id, ctx)
+      hub.need(ctx, id, 'write')
+      const out = []
+      for (const w of [...k.logs].sort((a, b) => b.date.localeCompare(a.date))) {
+        if (!w.tags.includes('edit') || !/ 지움/.test(w.title)) continue
+        const m = /^화면에서 고쳤다: (.+)$/m.exec(w.body || '')
+        if (!m) continue
+        for (const part of m[1].split(' · ')) {
+          const x = /^(.+) › (.+) 지움$/.exec(part.trim())
+          if (!x) continue
+          const d = k.docs.find((z) => z.title === x[1])
+          if (!d || d.sections.some((z) => z.h === x[2])) continue
+          if (out.some((o) => o.doc === d.id && o.heading === x[2])) continue
+          out.push({ rec: w.id, at: w.date, who: w.author, doc: d.id, docTitle: d.title, heading: x[2] })
+        }
+        if (out.length >= 20) break
+      }
+      return out
+    },
+    async restoreRemoved(ctx, id, { rec, doc, heading } = {}) {
+      const k = await hub.get(id, ctx)
+      hub.need(ctx, id, 'write')
+      const it = (await hub.removed(ctx, id)).find((x) => x.rec === rec && x.doc === doc && x.heading === heading)
+      if (!it) throw new KmdError('E_NOTFOUND', '되살릴 항목이 없다(이미 되살렸거나 다시 세웠다)')
+      const d = k.docs.find((z) => z.id === doc)
+      const lg = await tryGit(k.dir, ['log', '-n', '1', '--format=%H', '--diff-filter=A', '--', `log/${rec}.md`, `work/${rec}.md`])
+      const sha = lg.ok ? lg.out.trim().split('\n')[0] : ''
+      if (!/^[0-9a-f]{40}$/.test(sha)) throw new KmdError('E_NOTFOUND', '지운 때의 판을 찾지 못했다')
+      const before = await tryGit(k.dir, ['show', `${sha}^:${d.path}`])
+      const old = before.ok ? parseDocText(before.out, '').sections.find((z) => z.h === heading) : null
+      if (!old) throw new KmdError('E_NOTFOUND', '지운 때의 앞 판에서 그 항목을 찾지 못했다')
+      return hub.edit(ctx, id, { doc: d.id, sections: [{ h: heading, body: old.body }], why: `지운 항목 되살림(${rec})` })
+    },
     // 기록 고치기(K4-2 ~ K4-4 · 설계 3-6 · 4-3 · S-D23) — 원래 기록은 두고 「정정: <원래 기록>」 기록을 새로 남긴다.
     //   규칙(옛 값이 그 항목에 글자 그대로 한 곳)으로 다 되면 정정 기록 + 조각 한 저장(Claude 없음) ·
     //   못 한 항목이 하나라도 있으면 저장하지 않고 팀 일꾼 들이기 일감(type fix · 정정 기록 초안을 일감이 들고 있다) ·

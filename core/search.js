@@ -504,5 +504,36 @@ export async function searchCheck(k, index, { dataDir = null, freeze = false, ma
     await fs.mkdir(path.dirname(f), { recursive: true })
     await fs.writeFile(f, JSON.stringify({ at: new Date().toISOString(), questions: qs, rows, score }, null, 1))
   }
-  return { score, worse, frozen: !!frozen && !freeze }
+  // 바꾼 문제(UX G3-10) — 이름을 걷은 말 · 얼린 시험지와 따로(늘 지금 기록으로)
+  const strip = (t, want) => {
+    let q = String(t || '')
+    for (const c of want) {
+      const v = k.vocab?.coords?.get(c)
+      for (const w of [v?.label, ...(v?.aliases || []), c.slice(c.indexOf(':') + 1)].filter((x) => x && x.length >= 2).sort((a, b) => b.length - a.length)) q = q.split(w).join(' ')
+    }
+    return q.replace(/[A-Za-z]{2,}[-_]?\d[\w-]*/g, ' ').replace(/[#*`>|[\]()]/g, ' ').replace(/\s+/g, ' ').trim()
+  }
+  const enough = (q) => [...q.replace(/[^\p{L}\p{N}]/gu, '')].length >= 4
+  const hq = []
+  for (const w of k.works) {
+    const want = w.touches.filter((c) => !c.startsWith('domain:'))
+    if (!want.length) continue
+    let q = strip(w.title, want)
+    if (!enough(q)) q = strip(String(w.body || '').split('\n').find((l) => l.trim() && !/^\s*(#|>|\||```)/.test(l) && !/\d{4}-\d{2}-\d{2}/.test(l)) || '', want).slice(0, 80)
+    if (enough(q)) hq.push({ id: w.id, q, want })
+  }
+  const hrows = []
+  for (const x of hq.slice(0, 300)) {
+    const r = await ladder(k, index, { q: x.q, max, exclude: (p) => p === `work/${x.id}.md` })
+    const got = [...r.exact.map((c) => c.coord), ...r.coords.map((c) => c.coord)].filter(Boolean).slice(0, max)
+    hrows.push({ id: x.id, q: x.q, in: got.some((c) => x.want.includes(c)), first: x.want.includes(got[0]) })
+  }
+  const hn = hrows.length || 1
+  const hard = { n: hrows.length, in: Math.round((hrows.filter((r) => r.in).length / hn) * 1000) / 10, first: Math.round((hrows.filter((r) => r.first).length / hn) * 1000) / 10 }
+  const miss = hrows.filter((r) => !r.in).slice(0, 5).map((r) => ({ id: r.id, q: r.q.slice(0, 60) }))
+  if (f) {
+    const cur = await fs.readFile(f, 'utf8').then(JSON.parse, () => null)
+    if (cur) await fs.writeFile(f, JSON.stringify({ ...cur, hard, miss, hardAt: new Date().toISOString() }, null, 1))
+  }
+  return { score, hard, miss, worse, frozen: !!frozen && !freeze }
 }
