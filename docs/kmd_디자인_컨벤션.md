@@ -23,6 +23,8 @@ CSS 에 색 · 크기를 바로 쓰지 않는다. 아래 토큰만 쓴다(`var(-
 | 진한 띠 | `--ink` · `--ink-2` · `--ink-text` | 토스트 · 툴팁 · 고른 띠 · 「나」 표지 |
 | 터미널 | `--term-bg` · `--term-text` · `--term-dim` · `--term-tool` · `--term-ok` · `--term-err` | 7절 |
 | 글 크기 | `--fs-xs` 11px · `--fs-sm` 11.5px · `--fs-mono` 12px · `--fs` 13px · `--fs-md` 14px · `--fs-lg` 16px · `--fs-xl` 20px | 작은 표지 · 작은 글 · 모노 · 본문 · 영역 제목 · 큰 수 · 화면 제목 |
+| 줄 높이 | `--lh-tight` 1.25 · `--lh` 1.55 · `--lh-read` 1.7 | 머리 · 화면 글 · 지식 문서 읽기 본문(`.paper` 는 `--fs-md` + `--lh-read` · UX T1-06) |
+| 줄바꿈 | 한글은 어절로(`word-break:keep-all` · `overflow-wrap:break-word`) · 코드 · 표 칸만 아무 데서나 | 터치 기기(`pointer:coarse`) 입력칸은 `--fs-lg`(누를 때 확대 막기) |
 | 간격 | `--sp-1` 2 · `--sp-2` 4 · `--sp-3` 6 · `--sp-4` 8 · `--sp-5` 10 · `--sp-6` 12 · `--sp-7` 14 · `--sp-8` 16 · `--sp-9` 22px | 카드 안 · 카드 사이 14 · 영역 사이 22 |
 | 모서리 | `--r-xs` 4 · `--r-sm` 5 · `--r` 7 · `--r-md` 10 · `--r-lg` 12 · `--r-pill` 999px | 표지 · 작은 칩 · 단추 · 칸 · 팝업 · 모달 · 카드 · 알약 |
 | 그림자 | `--shadow-1`(카드) · `--shadow-2`(팝업 · 모달) · `--shadow-3`(찾기 창처럼 맨 위에 뜨는 것) · `--focus-ring` | |

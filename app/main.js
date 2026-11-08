@@ -407,6 +407,8 @@ function a11yPass() {
     if (!el.hasAttribute('tabindex')) el.tabIndex = 0
   }
   for (const t of document.querySelectorAll('#app .tabs')) t.setAttribute('role', 'tablist')
+  for (const b of document.querySelectorAll('#app button[title]:not([aria-label])')) if (/^[‹›+−×⋯▸▾☰]$/.test(b.textContent.trim())) b.setAttribute('aria-label', b.title)
+  for (const a of document.querySelectorAll('#app a.dlink, #app .ilink')) if (a.getAttribute('role') === 'button') a.removeAttribute('role')
   for (const a of document.querySelectorAll('#app .paper .dlink.rec:not([title])')) a.title = '기록: 문서 본문이 아니다'
   // 스위치 — 켜짐을 class on 으로만 그린 곳도 읽히게
   for (const b of document.querySelectorAll('#app button.sw')) { b.setAttribute('role', 'switch'); b.setAttribute('aria-checked', b.classList.contains('on') ? 'true' : 'false') }
@@ -577,6 +579,13 @@ function draw() {
   // 고칠 칸이 아직 읽는 중이면(편집기 · Q84) 그려질 때까지 기다린다
   if (S.route.scr === 'graph') gStart()
   if (S._focus) { const el = document.getElementById(S._focus); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length) } catch {} S._focus = null } else if (S._focus !== 'edTx' || !S.edit) S._focus = null }
+  const mainEl = app.querySelector('.main[data-t=main]')
+  if (mainEl) { mainEl.id = 'main'; mainEl.setAttribute('role', 'main'); if (!mainEl.hasAttribute('tabindex')) mainEl.tabIndex = -1 }
+  if (!document.querySelector('.skip')) document.body.insertAdjacentHTML('afterbegin', '<a class="skip" href="#main">본문으로 건너뛰기</a>')
+  const ttl = [String(scr.crumb || '').split(' › ').pop(), S.route.kn && S.route.kn !== '*' && KN(S.route.kn) ? KN(S.route.kn).name : '', isTeam() ? 'kmd 팀' : 'kmd'].filter(Boolean).join(' · ')
+  if (S.me && !anon() && document.title !== ttl) document.title = ttl
+  { const on = app.querySelector('.tabbar .on, [data-t=tabbar] .tab.on'), bar = on && on.parentElement; if (on && bar && bar.scrollWidth > bar.clientWidth) { const l = on.offsetLeft - bar.offsetLeft; if (l < bar.scrollLeft || l + on.offsetWidth > bar.scrollLeft + bar.clientWidth) bar.scrollLeft = Math.max(0, l - 24) } }
+  if (!sameView && (document.activeElement === document.body || !document.activeElement) && mainEl && !S._focus && !$('#palIn,#qoIn,#cmdIn')) mainEl.focus({ preventScroll: true })
   if (edPos) { const ta = $('#edTx'); if (ta) { ta.scrollTop = edPos.top; try { ta.setSelectionRange(edPos.a, edPos.b) } catch {} } }
   if (refocus && (document.activeElement === document.body || !document.activeElement)) { const el = app.querySelectorAll(refocus[0])[Math.max(0, refocus[1])]; if (el) el.focus({ preventScroll: true }) }
   fillAtts()

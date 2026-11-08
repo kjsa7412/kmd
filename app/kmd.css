@@ -26,6 +26,7 @@
   --term-bg:#0f141c;--term-text:#d7dde8;--term-dim:#7d8696;--term-tool:#8fb0ff;--term-ok:#7fd69a;--term-err:#ff8f86;
   /* 글 크기 */
   --fs-xs:11px;--fs-sm:11.5px;--fs-mono:12px;--fs:13px;--fs-md:14px;--fs-lg:16px;--fs-xl:20px;
+  --lh-tight:1.25;--lh:1.55;--lh-read:1.7;
   /* 간격 — 카드 안 · 카드 사이 14 · 영역 사이 22 */
   --sp-1:2px;--sp-2:4px;--sp-3:6px;--sp-4:8px;--sp-5:10px;--sp-6:12px;--sp-7:14px;--sp-8:16px;--sp-9:22px;
   /* 모서리 — 표지 · 작은 칩 · 단추 · 칸(팝업 · 모달) · 카드 · 알약 */
@@ -42,11 +43,11 @@
   /* 접힌 옆 메뉴 · 오른쪽 칸(레일) · 너비 잡이 · 그래프 팝업 */
   --w-rail:48px;--w-grip:6px;--w-graph:400px;
   /* 글꼴 — 모노는 경로 · 주소 · 이름 · 시각에만 */
-  --font:Pretendard,-apple-system,"Segoe UI",system-ui,"Malgun Gothic",sans-serif;
+  --font:"Malgun Gothic","Apple SD Gothic Neo",-apple-system,"Segoe UI",system-ui,sans-serif;
   --mono:Consolas,"Cascadia Mono",D2Coding,"Malgun Gothic",monospace;
 }
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--text);font:var(--fs)/1.55 var(--font)}
+html,body{margin:0;background:var(--bg);color:var(--text);font:var(--fs)/var(--lh) var(--font);word-break:keep-all;overflow-wrap:break-word}
 button,input,textarea,select{font:inherit}
 a{color:var(--accent);cursor:pointer}
 
@@ -729,7 +730,8 @@ li.new{animation:flash 1.6s}
 .trace small{display:block;color:var(--text-3);font-size:var(--fs-sm)}
 
 /* ── 문서 본문 — 가운데 영역을 다 쓰고, 넘치지 않는다(긴 줄은 접는다 · 표 · 그림은 종이 안에서) ── */
-.paper{min-width:0;overflow-wrap:anywhere}
+.paper{min-width:0;overflow-wrap:break-word;word-break:keep-all;font-size:var(--fs-md);line-height:var(--lh-read)}
+.paper code,.paper pre,.paper td{overflow-wrap:anywhere}
 .paper pre{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;max-width:100%;overflow-x:auto;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r);padding:var(--sp-5) var(--sp-6);font-size:var(--fs);line-height:1.55}
 .paper pre code{white-space:inherit;background:none;padding:0}
 .paper table{max-width:100%}
@@ -1433,3 +1435,27 @@ body.resizing{cursor:col-resize;user-select:none}
 .dsec .secnew{margin:calc(var(--sp-2) * -1) 0 var(--sp-3);color:var(--warn)}
 .ed .edprev{margin-top:var(--sp-6)}
 .btn[aria-disabled=true]{opacity:.5;cursor:not-allowed}
+
+/* ── UX 검토 화면 기본기(2026-11-08) ── */
+/* T1-23 수 · 시각은 고정폭 숫자 */
+.dt,.rc,.bd,.hd-sum b,.num,.tile .n,table.t td{font-variant-numeric:tabular-nums}
+/* T1-11 고대비에서도 고른 탭 · 줄이 보인다 */
+@media (forced-colors:active){.on,[aria-selected=true],[aria-current=page],[aria-pressed=true]{outline:2px solid Highlight;outline-offset:-2px}}
+/* T1-20 문서 도구 줄 경로는 한 줄 말줄임 */
+.ttl .path{min-width:0;overflow:hidden}.ttl .path span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:600px){
+  /* T1-14 머리 줄은 위에 붙는다 */
+  .hdr{position:sticky;top:0;z-index:var(--z-menu)}
+  /* T1-21 팝업 메뉴 설명은 다음 줄로 */
+  .pop .mi{flex-wrap:wrap}.pop .mi small{flex-basis:100%;white-space:normal}
+  /* T1-22 설정 메뉴는 한 줄 가로 밀기 */
+  .mgwrap>.mgnav{display:flex;flex-wrap:nowrap;overflow-x:auto;width:auto;border-right:0;padding-right:0}.mgwrap>.mgnav .mgt,.mgwrap>.mgnav .mgg{display:none}.mgwrap>.mgnav .mgi{width:auto;white-space:nowrap}.mgwrap{flex-direction:column;gap:var(--sp-4)}
+  /* T1-20 좁으면 문서 폭 고르기는 뜻이 없다 */
+  .wseg{display:none}
+}
+/* T1-30 터치 기기 입력칸은 16px(누를 때 확대되지 않게 · 크기 토큰 --fs-lg) */
+@media (pointer:coarse){.inp,select,textarea,#palIn,#qoIn,#cmdIn{font-size:var(--fs-lg)}}
+/* T1-13 작은 닫기 · 점 단추의 누름 칸을 24px 로(보이는 크기는 그대로) */
+.tb1 .x,.x,.busy,.hlink{position:relative}.tb1 .x::after,.busy::after{content:"";position:absolute;inset:calc(var(--sp-2) * -1)}
+/* T1-09 본문으로 건너뛰기 */
+.skip{position:absolute;left:var(--sp-4);top:calc(var(--sp-9) * -3);z-index:var(--z-toast);background:var(--ink);color:var(--ink-text);padding:var(--sp-3) var(--sp-5);border-radius:var(--r)}.skip:focus{top:var(--sp-4)}
