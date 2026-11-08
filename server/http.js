@@ -426,7 +426,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (req.method !== 'POST' && !(['GET', 'HEAD'].includes(req.method) && GET_OK.some((re) => re.test(p)))) throw new KmdError('E_METHOD', 'POST 로 보낸다')
     if (ctx?.agent) throw new KmdError('E_FORBIDDEN', '에이전트 열쇠는 MCP 길만 쓴다')
     if (p === '/api/me') {
-      if (!ctx) return out(200, { mode, anon: true, setup: !auth.hasUsers(), legacy: auth.legacyWaiting(), version: VERSION, host: req.headers.host })
+      if (!ctx) return out(200, { mode, anon: true, setup: !auth.hasUsers(), legacy: auth.legacyWaiting(), version: VERSION, host: req.headers.host, ...(typeof hub.config.helpContact === 'string' && hub.config.helpContact.trim() ? { help: hub.config.helpContact.trim().slice(0, 120) } : {}) }) // 들어가기 화면의 「잊었으면」 줄(serve.json helpContact · UX G5-04)
       return out(200, { mode, user: ctx.user, admin: !!ctx.admin, sudo: !!ctx.sudo, password: ctx.password !== false, version: VERSION, host: req.headers.host, ...(mode === 'pc' ? { root: path.resolve(root), ...(isNoneRoot(root) ? { none: true } : {}) } : {}), ...(mode === 'team' && ctx.admin ? { root: path.resolve(root) } : {}) })
     }
     // 이 PC 의 지식 폴더 바꾸기 — 그 폴더에 .kmd 가 있으면 그대로 잇고 · 없거나 빈 폴더면 새로 세운다 · 다른 파일만 있는 폴더는 받지 않는다.

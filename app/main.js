@@ -3027,7 +3027,7 @@ function viewLogin() {
   return `<div class="gatewrap"><div class="gate"><div class="card"><div class="cb">
   <div class="mk">${svg('user')}</div><div class="big">팀 kmd 에 들어간다</div><p class="lead">한 번 들어오면 쓰는 동안 이어진다(12시간 쉬면 · 7일이 지나면 다시 들어간다).</p>
   ${form}
-  <div class="links">잊었으면 관리자에게: 새 링크를 보내 준다${old}</div>
+  <div class="links">잊었거나 막혔으면 ${S.me && S.me.help ? esc(S.me.help) : '총괄 관리자에게'}: 새 링크를 보내 주거나 잠김을 풀어 준다${old}</div>
  </div></div></div></div>`
 }
 function viewFirst() {
