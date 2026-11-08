@@ -626,7 +626,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!at) {
         // 들어갈 문서가 없다 — 저장 단위 입력 오류(아무것도 쓰지 않는다) · 지식관리자는 새 문서를 세울 수 있다(core G4)
         if (coord) throw new KmdError('E_NOTFOUND', `「${s.coord}」 이 들어갈 문서가 정해져 있지 않다. 기록만 보내거나 문서 · 머리로 가리킨다`)
-        if (!newDoc || typeof s.content !== 'string') throw new KmdError('E_NOTFOUND', `「${s.doc || ''}」 문서가 없다. 기록만 보내거나 있는 문서 · 머리로 가리킨다`)
+        if (!newDoc || typeof s.content !== 'string') throw new KmdError('E_NOTFOUND', `「${s.doc || ''}」 문서가 없다(아무것도 쓰지 않았다). ${newDoc ? '새 문서 조각은 글 전체(content)로 보낸다' : '새 문서는 지식관리자가 세운다(you.ledgers 가 거짓) — 그 조각은 빼고 기록(메모)으로 남기거나'} 있는 문서 · 머리로 가리킨다`)
         out.push({ doc: s.doc, heading: s.heading, content: s.content })
         proposals.push({ ...row, ok: true, changed: [] })
         continue
@@ -2974,10 +2974,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 들이기 일감(S13) — 파일 넣기 · 가져오기 줄에 매이지 않은 것(다시 들이기 · 정정 · 다듬기 · 가져올 곳)도 같은 줄에 · 기다리는 것은 뺄 수 있다
       for (const t of jobs.values()) {
         if (!ks.has(t.kn) || t.kind !== 'intake' || runOfJob(t)) continue
-        const state = t.state === 'running' && t.stop ? 'pausing' : { queued: 'wait', running: 'run', closing: 'run', failed: 'fail', cancelled: 'cancel' }[t.state] || (t.result?.held ? 'fail' : 'done')
+        const state = t.state === 'running' && t.stop ? 'pausing' : { queued: 'wait', running: 'run', closing: 'run', failed: 'fail', cancelled: 'cancel' }[t.state] || 'done'
         const r = t.result || {}
         const sum = r.same ? '같은 것을 이미 들였다' : t.result ? `넣음 ${r.put || 0}${r.held ? ` · 넣지 못함 ${r.held}` : ''}` : ''
-        items.push({ id: 't:' + t.id, kind: 'intake', origin: t.by === 'kmd' ? 'kmd' : 'person', kn: t.kn, knName: ks.get(t.kn), title: `${INTAKE_TITLE[t.type] || '들이기'}: ${String(t.src?.title || t.src?.doc || t.src?.rel || t.src?.rec || '').slice(0, 80)}`, by: t.by || 'kmd', auto: t.auto ? 'src' : null, state, stage: STAGE_WRITE, stages: [{ state: 'skip' }, { state: 'skip' }, { state: state === 'cancel' ? 'cancel' : state }, { state: 'skip' }], order: 1e9, at: t.at, startedAt: t.at, endedAt: t.done || null, msg: t.state === 'running' && t.stop ? `그만두는 중: ${t.stop.by}` : t.state === 'queued' ? (t.why || '팀 일꾼을 기다린다') : t.state === 'running' ? '팀 일꾼이 짓는 중' : sum || t.why || '', ...(r.rec ? { rec: r.rec } : {}), n: 0, fin: !['queued', 'running', 'closing'].includes(t.state), retry: false })
+        items.push({ held: r.held || 0, id: 't:' + t.id, kind: 'intake', origin: t.by === 'kmd' ? 'kmd' : 'person', kn: t.kn, knName: ks.get(t.kn), title: `${INTAKE_TITLE[t.type] || '들이기'}: ${String(t.src?.title || t.src?.doc || t.src?.rel || t.src?.rec || '').slice(0, 80)}`, by: t.by || 'kmd', auto: t.auto ? 'src' : null, state, stage: STAGE_WRITE, stages: [{ state: 'skip' }, { state: 'skip' }, { state: state === 'cancel' ? 'cancel' : state }, { state: 'skip' }], order: 1e9, at: t.at, startedAt: t.at, endedAt: t.done || null, msg: t.state === 'running' && t.stop ? `그만두는 중: ${t.stop.by}` : t.state === 'queued' ? (t.why || '팀 일꾼을 기다린다') : t.state === 'running' ? '팀 일꾼이 짓는 중' : sum || t.why || '', ...(r.rec ? { rec: r.rec } : {}), n: 0, fin: !['queued', 'running', 'closing'].includes(t.state), retry: false })
       }
       let worker = null
       if (mode === 'team') {

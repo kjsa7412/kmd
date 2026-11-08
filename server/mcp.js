@@ -60,7 +60,7 @@ const TOOLS = [
     description: [
       '기록을 남긴다. 제목 · 서식 칸 · 건드린 이름(touches). 기록 글은 서식으로만 받는다(E_INPUT): changes(바뀐 것: 「무엇: 옛 값 → 새 값」 목록 · 꼭 · 메모는 없어도 된다) · why(까닭) · dropped(버린 안) · impact(영향) · refs(근거: 커밋 · 문서 판) · body 는 한두 문장 요약(300자 안 · 문단 하나). kmd 가 칸마다 머리(## 바뀐 것 …)를 달아 글로 엮는다. touches 는 match 로 찾은 이름 장부의 이름만 받는다(장부에 없는 이름 · 폐기된 이름은 거절하고 가까운 이름을 알려 준다). 건드린 이름이 정말 없으면 touches 를 비우고 touchesEmpty 에 까닭 한 줄을 적는다(둘 다 비면 거절). 새 문서는 갈래 장부의 갈래 이름으로만 선다(파일 이름 · 날짜 · 판이 든 이름은 거절 · 통화 · 미팅 메모는 회의록 문서의 「YYYY-MM-DD 무엇」 항목으로). 팀 지식: 항목 글을 고쳤으면 sections 에 바꿀 조각(edits: find → replace) 또는 새 글(content)을 base 와 같이 보낸다. 쓰기 자리 이상이면 서버가 Claude 없이 조각을 대어 검사(꼴 · 값 대조 · 지문)하고, 넘으면 값 바꿈까지 그 순간 문서에 넣는다(기록과 한 묶음 · 기록의 「넣은 것」 에 옛 값 → 새 값). 못 넘은 조각은 기록에 「넣지 못함」 으로 남는다: 응답 proposals 로 자리마다 결과(ok · applied · why · code · changed · near)가 오니 그 자리에서 조각을 고쳐 다시 save 하고 record.fixes 에 앞 기록 id 를 단다. 읽은 뒤 누가 고친 항목(지문이 다름 · base 없음)이 하나라도 있으면 E_CONFLICT 로 아무것도 쓰지 않는다(details.stale 의 항목을 section 으로 다시 읽는다). E_RATE 면 details.retryAfter 초 뒤에 다시. 팀 지식: kit 에 스킬 글이 준 판을 늘 싣는다 · 옛 판이면 저장은 그대로 하고 답에 reinstall(다시 설치 안내)이 온다: 사람에게 그대로 한 줄로 전한다 · 없으면 답에 nokit(스킬을 거치지 않은 저장 · 다시 설치할 일은 아니다): 다음 저장부터 kmd-team-save 스킬 글대로 한다. 값이 확정되지 않았으면 record.memo: true(기록만 · 항목 글 없이). 새 이름(테이블 · 화면 · API · 절차 · 용어 …)을 세웠으면 names 로 이름 장부 · 자리 장부에 같이 올린다. 그 항목이 항목으로 보기 · 찾기에 그 종류로 선다. 한 번에 한 묶음으로 남는다.',
       '항목 글(sections.content)은 본문만: 대상 하나의 지금을 확정된 것만 「…한다 · …이다」 로. 링크는 지식 문서 [배포 절차](배포절차.md) · 항목 [준비](배포절차.md#준비) · 바깥 https://… 만.',
-      '받지 않는 것(E_FORMAT): 기록 · 이력 링크(../work/… · ../log/…) · /api/… 같은 시스템 주소 · <!-- --> 주석 · 끝의 **경과** 기록 링크 목록 · 닫히지 않은 코드 울타리 · # · ## 머리 줄(소제목은 ###). 지금 글에 이미 있던 줄은 거절하지 않는다(새로 넣은 줄만). 출처 줄은 kmd 가 참고에 단다.',
+      '넣지 않는 것(팀: 그 조각만 넣지 못함으로 남고 기록은 선다 · 고쳐 다시 보낼 때 record.fixes 에 앞 기록 id · 개인 프로그램: E_FORMAT 거절): 기록 · 이력 링크(../work/… · ../log/…) · /api/… 같은 시스템 주소 · <!-- --> 주석 · 끝의 **경과** 기록 링크 목록 · 닫히지 않은 코드 울타리 · # · ## 머리 줄(소제목은 ###). 지금 글에 이미 있던 줄은 거절하지 않는다(새로 넣은 줄만). 출처 줄은 kmd 가 참고에 단다.',
       '좋은 예: 「배포 창은 화 · 목 14:00 ~ 17:00 이다.」 나쁜 예: 「배포 창을 바꿨다는 기록이 있다([기록](../work/2026-1021-배포-창.md))」.',
       '알림만(거절하지 않는다 · warnings 에 「문서 짜임」): 머리 단계 건너뜀(## 바로 아래 ####) · ##### 머리 · 제목 · 요약 없음(메타 표는 요약이 아니다) · 머리글의 kmd 운영 말(좌표 · 섹션 · 동기화 · touches 같은 말). 이 저장으로 새로 생긴 것만 알린다.',
     ].join(' '),
@@ -224,9 +224,14 @@ export function makeMcp(store) {
       let d = null
       let sec = null
       let coords = []
+      // 무엇을 읽을지 없으면 — 「문서 undefined 가 없다」 대신(UX T3-09)
+      if (!coord && !doc) throw new KmdError('E_INPUT', 'coord(이름) 또는 doc(문서 · 필요하면 heading)를 준다')
       if (coord) {
         const x = sectionOf(k, coord)
-        if (!x) throw new KmdError('E_NOTFOUND', `「${labelOf(k, coord)}」 이 들어갈 문서가 정해져 있지 않다. 기록에만 있다`)
+        if (!x) {
+          const known = k.vocab?.coords?.has?.(coord) || k.works.some((w) => w.touches.includes(coord))
+          throw new KmdError('E_NOTFOUND', known ? `「${labelOf(k, coord)}」 이 들어갈 문서가 정해져 있지 않다. 기록에만 있다` : `「${coord}」 은 이름 장부에 없다. match 로 가까운 이름을 찾는다`)
+        }
         d = x.doc
         sec = x.sec
         coords = [coord]
@@ -304,7 +309,7 @@ export function makeMcp(store) {
   }
 
   // 상태 말 — 저장 문의 새 상태(넣지 못함 · 메모 · 바로잡힘 · 되돌림)는 「문서에 들어감」 으로 보이지 않게(S4 · 나머지 말은 S10)
-  const STATE_WORD = { pend: '아직 문서에 안 넣음', held: '넣지 못함', memo: '메모', fixed: '바로잡힘', reverted: '되돌림', kept: '버림' }
+  const STATE_WORD = { pend: store.mode === 'pc' ? '아직 문서에 안 넣음' : '개편 전 기록(저절로 들어가지 않는다)', held: '넣지 못함', memo: '메모', fixed: '바로잡힘', reverted: '되돌림', kept: '버림' }
   const recOut = (w) => ({ id: w.id, date: w.date, author: w.author, title: w.title, state: STATE_WORD[w.state] || '문서에 들어감' })
 
   async function call(msg, ctx) {
