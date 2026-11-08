@@ -124,6 +124,25 @@ const heldR = (k, r) => r.state === 'held' || (teamKn(k) && (r.state === 'pend' 
 // 아직 안 넣은 기록(개인 지식 · 개편 전 팀 기록) — 개인은 kmd 가 곧바로 넣는다
 const pendWhen = (k) => (teamKn(k) ? '개편 전 기록: 넣지 못함 화면에서 다시 들인다' : 'kmd 가 곧바로 문서에 넣는다')
 // 넣지 못함 까닭(code → 말 · 컨벤션 9절)
+const HELD_SAY = {
+  values: '기록의 값과 문서의 값이 다르다. 맞는 값으로 [고치기] 하거나, 문서를 직접 고친다',
+  names: '기록이 아직 장부에 없는 이름을 단다. 지식관리자가 [이름 세우기] 를 한다',
+  'legacy-mix': '같은 항목에 아직 넣지 않은 옛 기록이 있다. 지식관리자가 옛 기록부터 정리한다',
+  format: '문서 꼴(작성기준)에 맞지 않는다. [고치기] 로 글을 바로잡는다',
+  conflict: '그사이 남이 같은 항목을 고쳤다. [다시 들이기] 로 새 글에 다시 댄다',
+  notfound: '넣을 문서 · 항목이 없다. 항목을 먼저 세우거나 지식관리자에게 부탁한다',
+  nosec: '넣을 문서 · 항목이 없다. 항목을 먼저 세우거나 지식관리자에게 부탁한다',
+  watched: '이 문서는 가져올 곳의 원본이 주인이다. 원본을 고친다',
+  machine: '저절로 채우는 표는 가져올 곳에서 고친다',
+  reverts: '7일 안에 두 번 되돌린 문서다. 값 바꿈은 지식관리자가 직접 고친다',
+  edits: '고칠 조각이 지금 글과 맞지 않는다. [다시 들이기] 로 새 글에 다시 댄다',
+  seat: '쓰기 자리를 잃었다. 지식관리자에게 자리를 부탁한다',
+  noclaude: '이 지식은 Claude 에 보내지 않는다. 사람이 문서를 고친다',
+  worker: '팀 일꾼이 받지 않았다. 일꾼이 돌아오면 [다시 들이기] 를 누른다',
+  claude: '팀 일꾼이 글을 짓지 못했다. [다시 들이기] 를 누르거나 문서를 직접 고친다',
+  'legacy-send': '옛 개인 프로그램이 보낸 것이다. 개인 프로그램을 새 판으로 올려 다시 보낸다',
+  legacy: '개편 전에 들어와 아직 문서에 넣지 않았다. 지식관리자가 [옛 기록 다시 들이기] 를 한다',
+}
 const HELD_CODE = { values: '값이 맞지 않음', names: '세울 이름', 'legacy-mix': '섞인 자리', format: '문서 꼴', conflict: '그사이 바뀜', notfound: '넣을 곳 없음', nosec: '넣을 곳 없음', watched: '원본이 주인', machine: '저절로 채우는 표', reverts: '되돌린 값', edits: '조각이 맞지 않음', seat: '자리 잃음', noclaude: 'Claude 에 보내지 않음', worker: '팀 일꾼이 받지 않음', claude: '팀 일꾼이 짓지 못함', 'legacy-send': '개편 전 보내기', legacy: '개편 전 기록', held: '넣지 못함' }
 // 넣을 곳을 고르면 되는 까닭(S-D42) — [고치기] 가 넣을 곳 고르기 창을 연다(그 밖은 기록 고치기 창)
 const HELD_PICK = new Set(['notfound', 'nosec', 'legacy'])
@@ -652,7 +671,7 @@ function sideHtml(left) {
   const rb = (a, ic, l, on, extra = '', dot = '') => `<button type="button" class="hb${on ? ' on' : ''}" ${a} title="${l}" aria-label="${l}"${extra}>${svg(ic)}${dot}</button>`
   const nCheck0 = dim ? 0 : histChecks()
   const rail = dim ? '' : `<div class="srail" data-t="sideRailNav">${fold}${[['docs', '문서', 'doc'], ['items', '항목', 'tag'], ['graph', '그래프', 'graph']].map(([v, l, ic]) => rb(`data-a="view" data-v="${v}" data-t="rl-${v}"`, ic, l + '로 보기', VIEWS3.includes(r.scr) && vt0 === v)).join('')}${rb('data-a="openQo" data-t="rl-qo"', 'search', '빨리 열기 (Ctrl O)', false)}<span class="rsep"></span>${rb('data-a="nav" data-s="today" data-t="rl-history"', 'hour', '이력', HISTSCR.includes(r.scr), '', nCheck0 ? '<i class="rdot"></i>' : '')}${workMenu().map((x) => rb(`data-a="nav" data-s="${x.scr}" data-t="rl-${x.id}"`, x.ic, x.l, r.scr === x.scr, '', x.id === 'held' && heldSum() ? '<i class="rdot"></i>' : '')).join('')}${rb(`data-a="setArea" data-v="${team ? 'team' : 'me'}" data-t="rl-settings"`, 'gear', '설정', MGSCR.includes(r.scr))}</div>`
-  let h = `<aside class="side${dim ? ' dim' : ''}">${rail}<div class="sb-top">${anon() ? `<div class="logo${team ? '' : ' me'}">K</div><span class="brand">kmd</span>` : meHtml()}${busyDot()}${fold}</div><div class="where">${team ? '팀 서버에서 돈다 · ' + esc(S.me.host) : '이 PC 에서 돈다'}</div>`
+  let h = `<aside class="side${dim ? ' dim' : ''}">${rail}<div class="sb-top">${anon() ? `<div class="logo${team ? '' : ' me'}">K</div><span class="brand">kmd</span>` : meHtml()}${busyDot()}${fold}</div>`
   if (!dim) {
     // 지식 고르기 영역
     const vk = shownKns()
@@ -677,7 +696,7 @@ function sideHtml(left) {
 }
 // 들어온 사람 — 왼쪽 메뉴 맨 위 · 누르면 설정 · (팀) 나가기
 function meHtml() {
-  const menu = S.menu === 'me' ? popHtml('me', `<div data-t="meMenu"><div class="mi" data-a="setArea" data-t="meSettings">설정</div>${isTeam() ? '<div class="sep"></div><div class="mi" data-a="logout" data-t="meLogout">나가기<small>이 브라우저에서</small></div><div class="mi" data-a="logoutAll" data-t="meLogoutAll">모든 곳에서 나가기<small>다른 기기 · 브라우저도</small></div>' : ''}</div>`) : ''
+  const menu = S.menu === 'me' ? popHtml('me', `<div data-t="meMenu"><div class="mi muted small" data-t="meWhere" aria-disabled="true">${isTeam() ? '팀 서버 · ' + esc(S.me.host || '') : '이 PC 에서 돈다'}</div><div class="sep"></div><div class="mi" data-a="setArea" data-t="meSettings">설정</div>${isTeam() ? '<div class="sep"></div><div class="mi" data-a="logout" data-t="meLogout">나가기<small>이 브라우저에서</small></div><div class="mi" data-a="logoutAll" data-t="meLogoutAll">모든 곳에서 나가기<small>다른 기기 · 브라우저도</small></div>' : ''}</div>`) : ''
   return `<div class="sb-me-top" data-a="menu" data-m="me" data-t="me" title="설정 · 나가기">${menu}<span class="av">${esc(String(S.me.user).slice(0, 1))}</span><span class="un"><b>${esc(S.me.user)}</b><small>${isTeam() ? "팀 서버" : "이 PC"}${S.me.admin && isTeam() ? " · 총괄 관리자" : ""}</small></span><span class="rc">▾</span></div>`
 }
 function hdrHtml(crumb) {
@@ -2309,7 +2328,7 @@ const edDirty = () => !!S.edit && S.edit.text != null && S.edit.text !== S.edit.
 function edDrop() { if (S.edit) { try { sessionStorage.removeItem(edKey(S.edit)) } catch {} } S.edit = null }
 // 고치는 중인 글을 버리는 길(그만두기 · 탭 닫기 · 지식 지우기 …) — 바뀐 글이 있으면 묻는다
 async function edLeave(what) { return !edDirty() || (await ask1('고치던 글 버리기', '버리기', true, `저장하지 않은 글이 있다: ${what}면 버린다`)) }
-window.addEventListener('beforeunload', (ev) => { if (edDirty()) { ev.preventDefault(); ev.returnValue = '' } })
+window.addEventListener('beforeunload', (ev) => { if (edDirty() || (S.imports || []).some((x) => x.cls === 'run' || x.busy || x.sending)) { ev.preventDefault(); ev.returnValue = '' } })
 async function saveDoc() {
   const e = S.edit
   if (!e || e.busy) return
@@ -2539,7 +2558,7 @@ function heldRowHtml(k, d, r) {
   const mine = r.author === S.me.user
   const can = d.admin || mine
   if (S.menu === mk) S._pop = { key: mk, html: `<div class="mi" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.rec)}">기록 보기<small>${esc((HD_ROUTE[r.route] || HD_ROUTE.sess)[1])}</small></div>${d.admin ? `<div class="sep"></div><div class="mi dan" data-a="heldDrop" data-v="${esc(r.rec)}" data-t="heldDrop">버리기<small>문서에 넣지 않는다 · 기록은 남는다</small></div>` : ''}` }
-  const why = r.parts.slice(0, 3).map((p) => `<div class="why" data-t="heldWhy" title="${esc(p.why)}"><b>${esc(HELD_CODE[p.code] || p.code || '넣지 못함')}</b>${p.doc ? ` · ${esc(String(p.doc).replace(/^docs\/|\.md$/g, ''))}${p.heading ? ' › ' + esc(p.heading) : ''}` : ''}${p.why ? ': ' + esc(p.why) : ''}</div>`).join('') + (r.parts.length > 3 ? `<div class="muted small">그 밖에 ${r.parts.length - 3}</div>` : '')
+  const why = r.parts.slice(0, 3).map((p) => `<div class="why" data-t="heldWhy" title="${esc(p.why)}"><b>${esc(HELD_CODE[p.code] || p.code || '넣지 못함')}</b>${p.doc ? ` · ${esc(String(p.doc).replace(/^docs\/|\.md$/g, ''))}${p.heading ? ' › ' + esc(p.heading) : ''}` : ''}${HELD_SAY[p.code] ? `<small class="say" data-t="heldSay">${esc(HELD_SAY[p.code])}</small>` : p.why ? ': ' + esc(p.why) : ''}</div>`).join('') + (r.parts.length > 3 ? `<div class="muted small">그 밖에 ${r.parts.length - 3}</div>` : '')
   const st = r.job ? '<span class="chip c-pend" data-t="heldJob">다시 들이는 중</span>' : r.legacy ? '<span class="chip c-mute">개편 전 기록</span>' : '<span class="chip c-warn">넣지 못함</span>'
   const acts = !can ? '' : [
     r.names && d.admin ? `<button type="button" class="btn sm" data-a="heldNames" data-v="${esc(r.rec)}" data-t="heldNames"${busy ? ' disabled' : ''}>이름 세우기</button>` : '',
@@ -3724,10 +3743,12 @@ async function takeMany(files, t) {
     } catch (e) { row.rows.push(...part.map((f) => ({ name: f.webkitRelativePath || f._rel || f.name, kind: 'fail', msg: e.message }))) }
     row.done += part.length
     const n = (k) => row.rows.filter((x) => x.kind === k).length
-    row.msg = `${row.stop ? '그만뒀다' : row.done < row.total ? '넣는 중' : '넣었다'}: ${row.done}/${row.total} · ${isTeam() ? `팀 일꾼에게 넘김 ${n('run')}${n('held') ? ' · 넣지 못함 ' + n('held') : ''}` : `문서 ${n('doc')} · 기록 ${n('record')} · Claude 일 ${n('run')}`} · 첨부 ${n('att')}${n('same') ? ' · 그대로 ' + n('same') : ''}${n('fail') ? ' · 못 넣음 ' + n('fail') : ''}${n('skip') ? ' · 읽지 못하는 종류 ' + n('skip') : ''}`
+    const okN = row.rows.filter((x) => !['fail', 'skip', 'held', 'same'].includes(x.kind)).length
+    row.msg = `${row.stop ? '그만뒀다' : row.done < row.total ? '넣는 중' : !okN && row.rows.length ? (n('same') === row.rows.length ? '모두 이미 있다' : '못 넣었다') : okN < row.rows.length - n('same') ? '일부 넣었다' : '넣었다'}: ${row.done}/${row.total} · ${isTeam() ? `팀 일꾼에게 넘김 ${n('run')}${n('held') ? ' · 넣지 못함 ' + n('held') : ''}` : `문서 ${n('doc')} · 기록 ${n('record')} · Claude 일 ${n('run')}`} · 첨부 ${n('att')}${n('same') ? ' · 그대로 ' + n('same') : ''}${n('fail') ? ' · 못 넣음 ' + n('fail') : ''}${n('skip') ? ' · 읽지 못하는 종류 ' + n('skip') : ''}`
     render()
   }
-  row.cls = row.rows.some((x) => x.kind === 'fail' || x.kind === 'skip' || x.kind === 'held') ? 'bad' : ''
+  // 못함(빨강)은 하나도 넣지 못했을 때만 — 일부만 못 넣었으면 결과 글이 수를 말한다
+  row.cls = row.rows.length && row.rows.every((x) => ['fail', 'skip', 'held'].includes(x.kind)) ? 'bad' : ''
   row.tm = nowHm()
   const runIds = row.rows.filter((x) => x.kind === 'run').map((x) => x.run)
   if (runIds.length) row.run = runIds[0]
@@ -3953,6 +3974,8 @@ const AUTO_T = {
 // 설정 — 팀 화면은 팀 서버의 것만 · 개인 화면은 개인 프로그램의 것만
 const setArea = () => (isTeam() ? 'team' : 'me')
 // 페이지마다 한 줄 안내 — 무엇을 여기서 정하나
+// 개인 화면의 에이전트 설치 — 붙이는 것은 개인 지식 연결 kmd(이 PC · 나만) · 팀 지식 연결 kmd-team 은 팀 화면에서(UX T7-14)
+const AGENT_LEAD_PC = '작업 폴더의 Claude Code 에 개인 지식(연결 kmd · 이 PC · 나만)을 붙인다 · 팀 지식(연결 kmd-team · 그 지식 팀원)은 팀 화면 › 설정 › 에이전트 설치에서'
 const SET_LEAD = {
   check: '문제가 있을 때만 줄이 선다. 풀리면 저절로 사라진다',
   server: '팀 서버 자체의 것: 팀 일꾼 로그인 · 주소 · 판',
@@ -3966,7 +3989,7 @@ const SET_LEAD = {
 function viewSettings() {
   const team = isTeam(), st = settingsOf()
   const pg = setPage() || { id: 'mine', l: '나' }, tab = pg.id
-  const head = `<div class="big" data-t="setTitle">${esc(pg.l)}</div>${SET_LEAD[tab] ? `<p class="lead" data-t="setLead" style="margin-bottom:10px">${SET_LEAD[tab]}</p>` : ''}`
+  const head = `<div class="big" data-t="setTitle">${esc(pg.l)}</div>${(tab === 'agent' && !isTeam() ? AGENT_LEAD_PC : SET_LEAD[tab]) ? `<p class="lead" data-t="setLead" style="margin-bottom:10px">${tab === 'agent' && !isTeam() ? AGENT_LEAD_PC : SET_LEAD[tab]}</p>` : ''}`
   if (!st || st.error) return { crumb: '설정', main: `<div class="pg-list">${head}${st ? errHtml(st) : loadingHtml}</div>` }
   const one = (h) => `<div class="pg-text">${h}</div>`
   const body = !team

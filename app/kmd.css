@@ -769,7 +769,7 @@ li.new{animation:flash 1.6s}
 .sb-me-top .av{width:26px;height:26px;border-radius:50%;background:var(--accent-bg);color:var(--accent);display:grid;place-items:center;font-weight:700;font-size:var(--fs-mono);flex:none}
 .sb-me-top .un{display:flex;flex-direction:column;min-width:0;line-height:1.25}
 .sb-me-top .un b{font-size:var(--fs-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sb-me-top .un small{font-size:var(--fs-xs);color:var(--text-3)}
+.sb-me-top .un small{font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sb-me-top .rc{color:var(--text-3);font-size:var(--fs-xs);margin-left:var(--sp-1)}
 /* 머리 띠의 경고 단추 · 경고 팝업 */
 .stopbtn{border:0;cursor:pointer;gap:var(--sp-3);max-width:min(520px,100%);min-width:0}
@@ -1317,6 +1317,7 @@ details.ap.refs[open]>summary h4::after{content:"▾"}
 .hd-r .c-tx .hd-tt{display:block;max-width:100%;font-weight:600;color:var(--text);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hd-r .c-tx small{display:block;color:var(--text-3);font-size:var(--fs-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hd-r .why{font-size:var(--fs-sm);color:var(--warn);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hd-r .why .say{display:block;color:var(--text-2);white-space:normal}
 .hd-r .c-ac{display:flex;gap:var(--sp-2);justify-content:flex-end;flex-wrap:wrap}
 .hd-r .kebab{width:24px;height:24px}
 .hd-pick-sel{margin-top:var(--sp-5)}
@@ -1417,3 +1418,6 @@ body.resizing{cursor:col-resize;user-select:none}
   .gbtn{right:0}.gpop{right:0}
   .paper>h1,.docw>.ih{padding-right:0;padding-top:var(--sp-9)}
 }
+
+/* 단축키 안내 — 마우스 없는(터치) 기기에서는 숨긴다(UX T7-21) */
+@media (hover:none) and (pointer:coarse){kbd,.sk,.kbd-hint{display:none}}
