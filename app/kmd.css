@@ -1432,3 +1432,4 @@ body.resizing{cursor:col-resize;user-select:none}
 .paper .docmeta{margin:calc(var(--sp-3) * -1) 0 var(--sp-6);color:var(--text-2)}
 .dsec .secnew{margin:calc(var(--sp-2) * -1) 0 var(--sp-3);color:var(--warn)}
 .ed .edprev{margin-top:var(--sp-6)}
+.btn[aria-disabled=true]{opacity:.5;cursor:not-allowed}

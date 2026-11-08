@@ -61,7 +61,7 @@ function whoHtml(k) {
   const sum = !a ? '읽는 중…' : accSum(a)
   return `<span data-t="whoVal">${esc(sum)} <button type="button" class="lk" data-a="accOpen" data-k="${esc(k)}" data-t="accOpenSide">권한</button></span>`
 }
-const roAttr = (k) => (canWrite(k) ? '' : ' disabled title="이 지식에 쓰기 자리가 없다"')
+const roAttr = (k) => (canWrite(k) ? '' : ' aria-disabled="true" data-ro="1" title="이 지식은 읽기 자리다: 고치려면 지식관리자에게 쓰기 자리를 부탁한다"')
 const knTag = () => (isTeam() ? '<span class="kt team">팀</span>' : '<span class="kt me">개인</span>')
 
 // ───────────── 자료 ─────────────
@@ -3653,7 +3653,7 @@ function reqHtml() {
   if (!isTeam() || !(S.me.admin || anyAdm())) return ''
   const rs = requestsOf()
   if (!Array.isArray(rs) || !rs.length) return ''
-  return `<div class="card" data-t="impReqs"><div class="ch">가져올 곳 부탁 ${rs.length} <small>더하면 그 지식의 가져올 곳이 된다 · 거절 까닭은 부탁한 사람에게 간다</small></div><ul class="plain pl">${rs.slice(0, 10).map((r) => `<li data-t="impReq"><span class="dot pu"></span><span class="tx"><b>「${esc(r.name)}」: ${esc(r.by)}</b><small>${esc(whenTxt(r.at))} · → ${esc((KN(r.kn) || {}).name || r.kn)} › ${esc((r.rules[0] && r.rules[0].into && r.rules[0].into.doc) || '')} · ${esc(r.at2)}</small></span><button class="btn sm" data-a="admAddReq" data-id="${esc(r.id)}" data-t="impReqAdd">더하기</button><button class="btn sm ghost" data-a="admNoReq" data-id="${esc(r.id)}" data-t="impReqNo">거절</button></li>`).join('')}</ul></div>`
+  return `<div class="card" data-t="impReqs"><div class="ch">가져올 곳 부탁 ${rs.length} <small>더하면 그 지식의 가져올 곳이 된다 · 거절 까닭은 부탁한 사람에게 간다</small></div><ul class="plain pl">${rs.slice(0, 10).map((r) => `<li data-t="impReq"><span class="dot pu"></span><span class="tx"><b>「${esc(r.name)}」: ${esc(r.by)}</b><small>${esc(whenTxt(r.at))} · ${esc({ docs: '문서 폴더', git: '소스 코드', db: 'DB' }[r.kind] || r.kind || '')} · ${esc(r.every || '')} → ${esc((KN(r.kn) || {}).name || r.kn)} › ${esc((r.rules && r.rules[0] && r.rules[0].into && r.rules[0].into.doc) || '넣을 곳은 팀 일꾼이 고른다')}${r.at2 ? ' · ' + esc(r.at2) : ''}</small></span><button class="btn sm" data-a="admAddReq" data-id="${esc(r.id)}" data-t="impReqAdd">더하기</button><button class="btn sm ghost" data-a="admNoReq" data-id="${esc(r.id)}" data-t="impReqNo">거절</button></li>`).join('')}</ul></div>`
 }
 function viewImport() {
   const team = isTeam(), v = sourcesOf()
@@ -4148,7 +4148,7 @@ function knTable() {
     ].join('')
     const kebab = items ? `<button class="kebab${S.menu === mk ? ' on' : ''}" data-a="menu" data-m="${esc(mk)}" data-t="knSetKebab" title="권한 · 백업 저장소 · 지우기" aria-label="${esc(k.name)}: 권한 · 백업 저장소 · 지우기">⋯${S.menu === mk ? popHtml(mk, `<div>${items}</div>`) : ''}</button>` : ''
     const edit = S.repoEdit === k.id && b ? `<tr data-t="repoEditRow"><td colspan="${boss ? 5 : 4}"><span class="row" style="margin:0"><input class="inp mono" id="repoUrl" aria-label="저장소 주소" data-t="repoUrl" style="flex:1;min-width:min(240px,100%)" placeholder="예: git@gitlab.team:kmd/dpms.git · https://…" value="${esc(b.off ? '' : b.url || '')}"><button class="btn sm pri" data-a="repoSave" data-k="${esc(k.id)}" data-t="repoSave">붙이기</button><button type="button" class="btn sm ghost" data-a="repoEdit" data-k="">취소</button></span><small class="muted" style="display:block;margin-top:4px">저장소는 비었거나 이 지식의 지난 이력이어야 붙는다 · 밀기는 서버 OS 사용자 kmd 의 git 자격으로 · 주소 속 열쇠는 화면 · 기록에 가린다</small></td></tr>` : ''
-    return `<tr data-t="knRow" data-name="${esc(k.name)}"><td><b>${esc(k.name)}</b></td><td>${lvChip(k)}</td>${boss ? `<td>${bk(k)}</td>` : ''}<td>${sw}</td><td style="text-align:right">${kebab}</td></tr>${edit}`
+    return `<tr data-t="knRow" data-name="${esc(k.name)}"><td><b>${esc(k.name)}</b></td><td>${lvChip(k)}</td>${boss ? `<td>${bk(k)}</td>` : ''}<td>${sw}</td><td style="text-align:right;white-space:nowrap">${accCan(k) ? `<button type="button" class="btn sm" data-a="accOpen" data-k="${esc(k.id)}" data-t="knRowAcc">권한</button> ` : ''}${kebab}</td></tr>${edit}`
   }).join('')
   const add = boss ? '<button type="button" class="btn pri sm" data-a="openAdd" data-v="team" data-t="knSetAdd">+ 새 팀 지식</button>' : ''
   const restore = boss ? `<div class="card" data-t="teamRestore"><div class="ch">백업에서 되살리기 <small>백업 저장소 주소에서 새 팀 지식으로 · 지우기는 보관하지 않으므로 지운 지식은 백업에서만 돌아온다</small></div><div class="cb" style="padding:8px 14px 10px"><div class="row" style="flex-wrap:wrap"><input class="inp mono" id="rsUrl" aria-label="되살릴 저장소 주소" data-t="rsUrl" style="flex:1;min-width:min(220px,100%)" placeholder="백업 주소: 예: git@gitlab.team:kmd/dpms.git"><input class="inp" id="rsName" aria-label="되살릴 지식 이름" data-t="rsName" style="width:min(160px,100%)" placeholder="이름(비우면 주소의 끝)"><label class="small"><input type="checkbox" id="rsPractice" data-t="rsPractice"> 연습(백업에 보내지 않는다)</label><button class="btn sm" data-a="restoreDo" data-t="restoreDo"${S.restoring ? ' disabled' : ''}>${S.restoring ? '되살리는 중…' : '되살리기'}</button></div></div></div>` : ''
@@ -5393,6 +5393,7 @@ document.addEventListener('click', (ev) => {
   const el = ev.target.closest('[data-a]')
   if (!el) { if (S.menu && !ev.target.closest('.menu,.pop')) { S.menu = null; render() } return }
   if (el.dataset.self && ev.target !== el) return
+  if (el.dataset.ro === '1') { ev.preventDefault(); toast('이 지식은 읽기 자리다. 고치려면 지식관리자(또는 총괄 관리자)에게 쓰기 자리를 부탁한다 · <button type="button" class="lk" data-a="copySeatAsk">부탁 글 복사</button>', 9000); return }
   const f = ACT[el.dataset.a]
   if (!f) return
   // 주소가 있는 링크를 Ctrl · Shift · ⌘ 로 누르면 브라우저에 맡긴다(새 탭 · 새 창)
