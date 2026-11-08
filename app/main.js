@@ -4231,6 +4231,7 @@ function agentInstallCard() {
   const row = (k, area) => `<li data-t="agInstRow" data-area="${area}" data-name="${esc(k.name)}"${C && C.id === k.id ? ' class="on"' : ''}><span style="flex:1;min-width:0"><b>${esc(k.name)}</b> ${area === 'team' ? lvChip(k) : '<span class="kt me">개인</span>'}</span><button class="btn sm${C && C.id === k.id ? ' pri' : ''}" data-a="agentCopy" data-k="${esc(k.id)}" data-area="${area}" data-t="agentCopy">${C && C.id === k.id ? '다시 복사' : '설치 명령 복사'}</button></li>`
   const copied = C ? `<div class="callout gray" data-t="agCopied" style="display:block;margin:10px 0 0"><b>「${esc(C.name)}」 설치 명령을 복사했다</b> · 10분 안에 붙여 넣는다<div class="urlbox" style="max-height:none" data-t="agCopiedLine">${esc(C.line)}</div></div>` : ''
   return `<div class="card" data-t="agentCard"><div class="ch">작업 폴더에 팀 지식 붙이기 <small>작업 폴더의 Claude Code 에 내가 읽을 수 있는 팀 지식을 붙인다</small></div><div class="cb" style="padding:10px 14px 12px">
+   <p class="muted small" data-t="agWinOnly">지금은 Windows PC 만 된다${/Windows/i.test(navigator.userAgent) ? '' : ' · 이 PC 는 Windows 가 아니다: 아래 줄을 붙이지 않는다(설명서 › 쓰는 사람 8절)'}</p>
    <ol class="lsteps" data-t="agGuide">
     <li><b>작업 폴더에서 PowerShell 을 연다</b><small>그 폴더의 탐색기 주소 줄에 powershell 을 치고 Enter</small></li>
     <li><b>붙일 팀 지식의 [설치 명령 복사] 를 누른다</b><small>10분 안에 붙여 넣는다</small></li>
