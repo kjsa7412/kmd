@@ -227,6 +227,7 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
       u.pw = await pw.hashPassword(ph, { N })
       u.sv = (u.sv || 0) + 1
       delete u.first
+      delete u.pwSetBy
       await persist()
       await note({ what: 'password', user: id })
       locks.clear(id)
@@ -235,6 +236,10 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
     firstUser(code) {
       const hit = Object.entries(db.users).find(([, u]) => (u.kind || 'person') === 'person' && pw.checkCode(u.first, code, { now: now() }))
       return hit ? hit[0] : null
+    },
+    firstIsReset(code) {
+      const hit = Object.entries(db.users).find(([, u]) => (u.kind || 'person') === 'person' && pw.checkCode(u.first, code, { now: now() }))
+      return !!(hit && hit[1].pwSetBy)
     },
 
     // ── 세션 ──
@@ -271,6 +276,18 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
       }
       const s = open(parseCookies(cookieHeader).kmd_s)
       return cookie('kmd_s', seal({ ...s, su: now() + SUDO_MS, lst: now() }), MAX_MS - (now() - s.iat))
+    },
+    async changePassword(ctx, { old: oh, pw: ph, ip }) {
+      const u = userOf(ctx.user)
+      if (!u || (u.kind || 'person') !== 'person') throw new KmdError('E_FORBIDDEN', '사람 자리만 비밀번호를 바꾼다')
+      if (locks.locked(ctx.user, ip)) throw new KmdError('E_INPUT', LOCKED(null))
+      if (!(await pw.verifyPassword(u.pw, oh, { N }))) { locks.fail(ctx.user, ip); throw new KmdError('E_INPUT', '지금 비밀번호가 맞지 않는다') }
+      u.pw = await pw.hashPassword(ph, { N })
+      u.sv = (u.sv || 0) + 1
+      delete u.pwSetBy
+      await persist()
+      await note({ what: 'password', user: ctx.user, by: ctx.user })
+      return { cookies: [issue(ctx.user)] }
     },
     async logoutAll(id) {
       const u = userOf(id)

@@ -395,7 +395,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     }
     if (p === '/logout') return send(res, 200, { ok: true }, undefined, { 'set-cookie': auth.logoutCookie() })
     if (p === '/first') {
-      if (b.check) return send(res, 200, { user: auth.firstUser(b.code) })
+      if (b.check) return send(res, 200, { user: auth.firstUser(b.code), reset: auth.firstIsReset(b.code) })
       const r = await auth.first({ code: b.code, pw: b.pw })
       return send(res, 200, { user: r.user }, undefined, { 'set-cookie': r.cookies })
     }
@@ -883,6 +883,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     }
     if (p === '/api/me/devices') return out(200, auth.devices(ctx.user))
     if (p === '/api/me/devices/revoke') return out(200, { revoked: await auth.revokeDevice(ctx.user, String((await readBody(req)).id || '')) })
+    if (p === '/api/me/password' && req.method === 'POST') {
+      const b = await readBody(req)
+      if (!b || typeof b.old !== 'string' || typeof b.pw !== 'string' || b.old.length > 200 || b.pw.length > 200 || !b.pw) throw new KmdError('E_INPUT', '지금 비밀번호와 새 비밀번호를 준다')
+      const r = await auth.changePassword(ctx, { old: b.old, pw: b.pw, ip: ipOf(req) })
+      return send(res, 200, { ok: true }, undefined, { 'set-cookie': r.cookies })
+    }
     if (p === '/api/me/logout-all') {
       await auth.logoutAll(ctx.user)
       return send(res, 200, { ok: true }, undefined, { 'set-cookie': auth.logoutCookie() })
