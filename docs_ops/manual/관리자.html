@@ -24,6 +24,7 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 <li>systemd 로 둘을 늘 켠다: <code>kmd.service</code>(팀 서버) · <code>kmd-worker.service</code>(팀 일꾼 · 열쇠와 환경 변수는 root 만 읽는 <code>/etc/kmd/worker.env</code> · 다시 깔아도 덮지 않는다).</li>
 <li>GitLab 열쇠는 숨김 입력으로만 받는다. <b>만들기 권한만</b> 있는 봇 열쇠(지우기 · 보호 해제 없음). 지식마다 저장소를 만들어 백업 자리로 붙인다.</li>
 <li>끝에 찍힌 <b>첫 설정 주소</b>를 브라우저로 열어 총괄 관리자 아이디 · 비밀번호를 정한다.</li>
+<li>들어가기 화면 아래 「잊었거나 막혔으면 ○○에게」 의 ○○ 은 <code>/srv/kmd/.kmd/serve.json</code> 의 <code>helpContact</code>(글 한 줄 · 없으면 「총괄 관리자에게」). 고친 뒤 <code>systemctl restart kmd</code>.</li>
 <li>팀 꾸러미 안의 PC 꾸러미(<code>kmd-&lt;판&gt;-pc.zip</code>)는 받기 자리 <code>/srv/kmd/.kmd/dl/</code> 에 놓인다(<code>&lt;팀 주소&gt;/dl</code>). 사람들의 설치 한 줄이 여기서 받아 간다.</li>
 <li>셸 명령 <code>kmd</code>(<code>/usr/local/bin/kmd</code>)도 둔다. 어느 사용자로 쳐도 kmd 사용자로 · 이 지식 폴더로 돈다.</li>
 </ul>
@@ -39,7 +40,7 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 <figcaption>위 칩 줄: 멈춤 · 넣지 못함 · 백업 문제 · 팀 일꾼. 잘 될 때는 「오늘은 문제가 없다」 만 보인다. 손볼 것만 줄로 서고, 줄마다 고치는 자리로 가는 단추가 있다(백업 어긋남은 이 자리에서 이어 쓰기 · 덮기).</figcaption></figure>
 <div class="m-tbl"><table><tr><th>문제 줄</th><th>하는 것</th></tr>
 <tr><td>비밀번호를 안 정한 사람</td><td>사람 카드 ⋯ › [새 링크](이 사람만 · 24시간 · 한 번). 떠난 사람이면 [떠남]</td></tr>
-<tr><td>잠김</td><td>여러 번 틀린 자리는 잠시 막힌다(맞는 사람은 그대로 쓴다). [풀기]</td></tr>
+<tr><td>잠김</td><td>여러 번 틀린 자리는 잠시 막힌다(맞는 사람은 그대로 쓴다 · 사람 줄에도 잠김이 보인다). [풀기]</td></tr>
 <tr><td>관리자에게 부탁</td><td>쓰기 자리 사람이 더해 달라는 가져올 곳. [더하기] 또는 [거절](까닭과 함께 · 부탁한 사람의 이력에 남는다)</td></tr>
 <tr><td>팀 일꾼이 쉬고 있다</td><td>팀 일꾼 Claude 로그인이 끝났거나 한도. 그동안 들이기는 기다린다(24시간 넘으면 기록만 + 넣지 못함). 아래 Claude 연결에서 다시</td></tr>
 <tr><td>팀 일꾼이 일감을 받지 않는다</td><td>10분 넘게 받지 않으면 선다. <code>systemctl status kmd-worker</code> · 서버의 <code>claude</code> 로그인을 본다</td></tr>
@@ -55,7 +56,7 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 <ol class="m-legend">
 <li><b>+ 사람 더하기</b>: 아이디 · 총괄 관리자 여부 · 지식마다 자리 표.</li>
 <li><b>사람 카드</b>: 상태(들어온다 · 링크 보냄 · 비밀번호를 안 정함) · 기기 · 「지식 n개에 자리」.</li>
-<li><b>⋯</b>: 새 링크 · 총괄 관리자로 · 기기 모두 끊기 · 떠남.</li>
+<li><b>⋯</b>: 새 링크 · 총괄 관리자로 · 모든 곳에서 내보내기(그 사람의 브라우저만 끊는다 · 비밀번호와 기기 열쇠는 그대로) · 기기 모두 끊기 · 떠남.</li>
 </ol>
 <ol class="m-steps">
 <li><b>사람 더하기</b>아이디(영문 · 숫자 · . _ -)와 지식마다 자리(없음 · 읽기 · 쓰기 · 지식관리자)를 고른다. 고르지 않은 지식은 없음이다.</li>
@@ -81,7 +82,7 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 </table></div>
 
 <h2 id="claude"><span class="m-no">5</span>설정 › 팀 서버: 팀 일꾼 로그인</h2>
-<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 팀 서버</span></div><div class="m-pic"><img src="img/t-claude.png" alt="팀 서버: 팀 일꾼 로그인 상태 · 이 서버" loading="lazy"></div></div><figcaption>「Claude 연결」 카드(팀 일꾼 로그인) · 어떻게 하나 · 이 서버(주소 · 판 · https): 로그인됨 · [다시 로그인]. 쓰는 곳은 들이기(파일 넣기 · 가져올 곳 · 정정 · 다시 들이기)와 문서 다듬기다.</figcaption></figure>
+<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 팀 서버</span></div><div class="m-pic"><img src="img/t-claude.png" alt="팀 서버: 팀 일꾼 로그인 상태 · 이 서버" loading="lazy"></div></div><figcaption>「Claude 연결」 카드(팀 일꾼 로그인: 아직이면 [로그인 시작] · 됐으면 「로그인됨」 · [다시 로그인]) · 어떻게 하나 · 운영 값(읽기만). 쓰는 곳은 들이기(파일 넣기 · 가져올 곳 · 정정 · 다시 들이기)와 문서 다듬기다.</figcaption></figure>
 <ol class="m-steps">
 <li><b>[로그인 시작]</b>: 15분 안에 비밀번호를 넣지 않았으면 「비밀번호 한 번 더」 창이 먼저 뜬다.</li>
 <li><b>화면 있는 서버</b>(Windows · macOS · 화면 있는 Linux)면 그 PC 에 「kmd: Claude 로그인」 창이 뜬다. 거기서 로그인하면 관리 화면이 몇 초마다 저절로 확인한다.</li>

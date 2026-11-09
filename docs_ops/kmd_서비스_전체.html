@@ -200,7 +200,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <div class="m-hero">
 <h1>kmd 서비스 전체</h1>
 <p>팀과 내 PC 의 지식(md 문서 · 기록)을 사람은 화면으로, Claude Code 세션은 MCP 로 같이 읽고 쓴다. 어느 길로 들어오든 기록과 항목 조각이 <b>한 번의 저장</b>으로 같이 바뀌고, 저장 검사를 넘지 못한 것은 기록만 남아 「넣지 못함」 으로 보인다. 지식 하나 = 폴더 하나 = git 저장소 하나.</p>
-<p class="small muted">기준일 2026-11-05 · HEAD e764294 · 188 빌드 0.1.0-20261105-1040 · 글로 보는 판 <a href="kmd_서비스_전체.md">kmd_서비스_전체.md</a> · 화면별 쓰는 법 <a href="manual/">설명서</a></p>
+<p class="small muted">기준일 2026-11-09 · HEAD 24b4b72 · 188 빌드 0.1.0-20261109-0047 · 글로 보는 판 <a href="kmd_서비스_전체.md">kmd_서비스_전체.md</a> · 화면별 쓰는 법 <a href="manual/">설명서</a></p>
 <p class="small muted">「저장이 곧 반영」 개편(2026-11 · <a href="../docs/품질개선/KMD_개편_설계.md">KMD_개편_설계.md</a>): 예전에는 기록을 모아 두었다가 정리 때 문서에 넣었다. 개편으로 정리를 걷었고, 지금은 모든 채널이 기록과 항목 조각을 한 번에 저장하고 그 자리에서 넣거나 「넣지 못함」 으로 남긴다.</p>
 <div class="kpis">
 <div class="kpi"><b>2</b><small>프로그램: 팀 프로그램(팀 서버) · 개인 프로그램</small></div>
@@ -413,6 +413,10 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <tr><td><b>바로 넣기</b></td><td>개인 프로그램이 저장 뒤 곧바로 남은 기록을 문서 항목에 넣는 일(<code>core/pcplace.js</code>). 팀에는 없다</td><td>개인 지식만</td></tr>
 <tr><td><b>문서 다듬기</b></td><td>지식관리자가 문서 하나를 골라 거는 문체 · 짜임 정돈. 항목마다 값이 같을 때만 넣는다</td><td>문서 머리 [다듬기] · 일감 polish</td></tr>
 <tr><td><b>다시 그리기 · 빠진 항목 채우기</b></td><td>있는 항목을 그 항목의 기록 전부로 지금 상태로 다시 쓰거나, 사건 문서(회의록 …)에 빠진 회의를 그 기록으로 날짜 자리에 채운다. 저장 검사는 화면 저장과 같고 항목마다 사람이 승인한다. 화면 기능이 아니다</td><td>Claude Code 스킬 <code>kmd-migrate</code>(지식관리자) · 지식관리자 설명서 6절</td></tr>
+<tr><td><b>승인 받고 넣기</b></td><td>지식관리자가 켜는 지식 설정. 쓰기 자리의 저장은 검사를 넘어도 넣지 못함 「승인 기다림」 으로 두고, 지식관리자가 [승인해 넣기] 로 넣으려던 글 그대로 넣는다(지식관리자 자신의 저장 · 들이기는 그대로)</td><td>지식 카드 ⋯ · <code>_members.md</code></td></tr>
+<tr><td><b>옛 판 · 지운 항목</b></td><td>문서 머리 [옛 판] 은 그 문서를 바꾼 판(git)과 그때의 글 · [지금과 견주기]. 지식 홈 「최근에 지운 항목」 은 지운 때의 글로 다시 세운다(쓰기 자리부터)</td><td>이력에 남는다</td></tr>
+<tr><td><b>지식 점검</b></td><td>지식 홈 카드(지식관리자): 이름 없는 기록 · 장부 밖 이름 · 자리 잃은 이름 · 이름 없는 항목 · 다른 이름 겹침 · 깨진 머리 · 깨진 문서 링크</td><td><code>core/guard.js</code> · <code>kmd guard</code></td></tr>
+<tr><td><b>감사 기록 · 찾기 점검</b></td><td>관리 쓰기 요청을 누가 · 때 · 길 · 지식 · 결과로(본문 없음). 찾기 점검은 「제목 문제」 와 이름을 걷어 낸 「바꾼 문제」 를 함께 잰다</td><td>설정 › 점검 · <code>audit.jsonl</code> · <code>kmd search-check</code></td></tr>
 <tr><td><b>표지 · 출처</b></td><td>눈에 안 보이는 주석 셋(<code>applied</code> · <code>watched</code> · <code>baseline</code>)과 문서 끝 <code>&lt;!-- kmd:참고 --&gt;</code> 블록</td><td>화면의 「출처 n」 칩</td></tr>
 <tr><td><b>자리 · 기기 열쇠</b></td><td>지식 하나에 갖는 권한(없음 · 읽기 · 쓰기 · 지식관리자) · PC 마다 사람 이름으로 만든 열쇠 <code>kmdk_</code></td><td><a href="#roles">4 사람과 자리</a></td></tr>
 </table></div></div></div>
@@ -922,22 +926,22 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 
 <h3>화면 지도 · 두 판</h3>
 <div class="flowfig" role="figure" aria-label="팀 화면과 개인 화면의 지도">
-<svg class="arch" viewBox="0 0 1000 470" role="img" aria-label="팀 화면과 개인 화면은 머리 띠 · 옆 메뉴 · 보기가 같고, 설정 탭이 다르다. 팀 화면 설정은 가져오기 · 넣지 못함 · 일반 · 사람 · Claude 연결 · 에이전트 설치 · 관리, 개인 화면 설정은 가져오기 · 지식 보내기 · 일반 · Claude 연결 · 에이전트 설치">
-<rect class="zone" x="10" y="10" width="480" height="450" rx="12"/><text class="z" x="26" y="32">팀 화면 · 팀 서버</text>
-<rect class="zone" x="510" y="10" width="480" height="450" rx="12"/><text class="z" x="526" y="32">개인 화면 · 개인 프로그램 127.0.0.1:7373</text>
-<rect class="box team" x="26" y="44" width="448" height="52" rx="8"/><text class="t" x="40" y="66">들어가기</text><text class="l" x="40" y="86">아이디 · 비밀번호(처음 들어오기 링크로 정함) · 자리 받은 팀 지식만</text>
-<rect class="box" x="26" y="106" width="448" height="52" rx="8"/><text class="t" x="40" y="128">머리 띠</text><text class="l" x="40" y="148">빨리 열기 Ctrl O · 찾기 Ctrl K · Claude 상태 · 설명서 · 「⚠ 경고 n」</text>
-<rect class="box" x="26" y="168" width="448" height="70" rx="8"/><text class="t" x="40" y="190">옆 메뉴</text><text class="l" x="40" y="210">지식 고르기 · 문서 · 항목 · 그래프 · 지식 관리(이력 · 가져오기 · 넣지 못함 · 문서 짜임 · 설정)</text><text class="l" x="40" y="228">맨 아래 「개인 지식 쓰기」(개인 프로그램을 깔고 잇는 한 줄)</text>
-<rect class="box" x="26" y="248" width="448" height="70" rx="8"/><text class="t" x="40" y="270">보기</text><text class="l" x="40" y="290">문서 탭 여럿 · 가운데는 내용만 · 문서 폭 기본 | 넓게</text><text class="l" x="40" y="308">오른쪽 칸 개요 · 문서 · 기록 · 항목 · 속성 · 칸 접기 · 너비</text>
-<rect class="box team" x="26" y="328" width="448" height="118" rx="8"/><text class="t" x="40" y="350">설정</text><text class="l" x="40" y="372">가져오기 · 넣지 못함(쓰기 자리부터 · 가져올 곳 탭은 지식관리자)</text><text class="l" x="40" y="392">일반 · 사람 · Claude 연결(팀 일꾼) · 에이전트 설치</text><text class="l" x="40" y="412">관리(총괄 관리자)</text><text class="l" x="40" y="432">지식 관리 › 이력: 볼 수 있는 팀 지식의 바뀐 것 · 값 바뀜</text>
+<svg class="arch" viewBox="0 0 1000 560" role="img" aria-label="팀 화면과 개인 화면은 머리 줄 · 옆 메뉴 · 보기가 같다. 옆 메뉴는 위에서부터 지식 고르기 · 보기 탭(문서 · 항목 · 기록 · 그래프) · 찾기 칸과 목록 · 맨 아래 지식 관리 아이콘 줄. 팀 화면 설정은 점검 · 팀 서버 · 팀 지식 · 사람 · 묶음 · 에이전트 설치 · 나, 개인 화면 설정은 이 PC · Claude 연결 · 에이전트 설치">
+<rect class="zone" x="10" y="10" width="480" height="540" rx="12"/><text class="z" x="26" y="32">팀 화면 · 팀 서버</text>
+<rect class="zone" x="510" y="10" width="480" height="540" rx="12"/><text class="z" x="526" y="32">개인 화면 · 개인 프로그램 127.0.0.1:7373</text>
+<rect class="box team" x="26" y="44" width="448" height="52" rx="8"/><text class="t" x="40" y="66">들어가기</text><text class="l" x="40" y="86">아이디 · 비밀번호 · 「잊었거나 막혔으면 ○○에게」</text>
+<rect class="box" x="26" y="106" width="448" height="70" rx="8"/><text class="t" x="40" y="128">머리 줄 · 위 띠</text><text class="l" x="40" y="148">빨리 열기 Ctrl O · 찾기 Ctrl K · Claude 상태 · 설명서 · 나(동그라미)</text><text class="l" x="40" y="166">위 띠: 나의 자리 · 「⚠ 경고 n」 [알았다] · [다시 들어가기]</text>
+<rect class="box" x="26" y="186" width="448" height="108" rx="8"/><text class="t" x="40" y="208">옆 메뉴(위에서부터)</text><text class="l" x="40" y="228">① 지식 고르기 ▾</text><text class="l" x="40" y="246">② 보기 탭 「문서 · 항목 · 기록 · 그래프」</text><text class="l" x="40" y="264">③ 찾기 칸 + 도구 → 목록(첨부는 문서 나무 끝)</text><text class="l" x="40" y="282">④ 아이콘 줄: 이력 · 가져오기 · 넣지 못함 · 문서 짜임 · 설정</text>
+<rect class="box" x="26" y="304" width="448" height="70" rx="8"/><text class="t" x="40" y="326">보기</text><text class="l" x="40" y="346">지식 홈 · 문서 탭 여럿 · [옛 판] · [지켜보기] · 그래프 3D · 2D 표</text><text class="l" x="40" y="364">오른쪽 칸 개요 · 문서 · 기록 · 항목 · 속성 · 칸 접기 · 너비</text>
+<rect class="box team" x="26" y="384" width="448" height="152" rx="8"/><text class="t" x="40" y="406">설정(본문 안 왼쪽 메뉴 · 자리마다 보이는 것만)</text><text class="l" x="40" y="428">점검(감사 기록) · 팀 서버(Claude 연결 · 운영 값): 총괄 관리자</text><text class="l" x="40" y="448">팀 지식: 지식관리자부터 · 사람 · 묶음: 총괄 관리자</text><text class="l" x="40" y="468">에이전트 설치: 누구나 · 둘째 카드 「개인 지식 쓰기」</text><text class="l" x="40" y="488">나: 내 자리 · 내 설정 · 화면 밝기 · 비밀번호 바꾸기</text><text class="l" x="40" y="508">· 내 기기 · 나가기</text>
 <rect class="box pc" x="526" y="44" width="448" height="52" rx="8"/><text class="t" x="540" y="66">들어가기</text><text class="l" x="540" y="86">한 번용 주소(시작 메뉴 › kmd · kmd open) · 개인 지식만</text>
-<rect class="box" x="526" y="106" width="448" height="52" rx="8"/><text class="t" x="540" y="128">머리 띠(같음)</text><text class="l" x="540" y="148">Claude 상태는 내 로그인 · 「⚠ 경고 n」</text>
-<rect class="box" x="526" y="168" width="448" height="70" rx="8"/><text class="t" x="540" y="190">옆 메뉴</text><text class="l" x="540" y="210">지식 고르기 · 지식 폴더 띠 · 문서 · 항목 · 그래프 · 이력 · 설정</text><text class="l" x="540" y="228">「개인 지식 쓰기」 는 없다(팀 화면의 자리)</text>
-<rect class="box" x="526" y="248" width="448" height="70" rx="8"/><text class="t" x="540" y="270">보기(같음)</text><text class="l" x="540" y="290">기록은 남는 즉시 바로 넣기가 문서에 넣는다</text><text class="l" x="540" y="308">편집기로 직접 고친 문서도 감시해 기록을 남긴다</text>
-<rect class="box pc" x="526" y="328" width="448" height="118" rx="8"/><text class="t" x="540" y="350">설정</text><text class="l" x="540" y="372">가져오기 · 지식 보내기(개인 → 팀)</text><text class="l" x="540" y="392">일반 · Claude 연결(내 로그인) · 에이전트 설치</text><text class="l" x="540" y="412">넣지 못함 · 사람 · 관리는 없다</text><text class="l" x="540" y="432">지식 관리 › 이력: 개인 지식의 바뀐 것</text>
+<rect class="box" x="526" y="106" width="448" height="70" rx="8"/><text class="t" x="540" y="128">머리 줄 · 위 띠(같음)</text><text class="l" x="540" y="148">Claude 상태는 내 로그인</text><text class="l" x="540" y="166">위 띠: 밖으로 나가는 것 · 「⚠ 경고 n」</text>
+<rect class="box" x="526" y="186" width="448" height="108" rx="8"/><text class="t" x="540" y="208">옆 메뉴(같은 차례)</text><text class="l" x="540" y="228">①②③ 같음 · 지식 목록에 지식 폴더 띠</text><text class="l" x="540" y="246">([경로 복사] · [동기화] · [바꾸기] · [떼기])</text><text class="l" x="540" y="264">④ 아이콘 줄: 이력 · 가져오기 · 문서 짜임 · 지식 보내기 · 설정</text><text class="l" x="540" y="282">넣지 못함은 없다(바로 넣기)</text>
+<rect class="box" x="526" y="304" width="448" height="70" rx="8"/><text class="t" x="540" y="326">보기(같음)</text><text class="l" x="540" y="346">기록은 남는 즉시 바로 넣기가 문서에 넣는다</text><text class="l" x="540" y="364">편집기로 직접 고친 문서도 감시해 기록을 남긴다</text>
+<rect class="box pc" x="526" y="384" width="448" height="152" rx="8"/><text class="t" x="540" y="406">설정</text><text class="l" x="540" y="428">이 PC: 지식 폴더 · 백업 · 저절로 하는 일 · 보내는 길</text><text class="l" x="540" y="448">Claude 연결: 내 로그인 · 일마다 모델</text><text class="l" x="540" y="468">에이전트 설치: 작업 폴더에 개인 지식 더하기</text><text class="l" x="540" y="488">점검 · 팀 서버 · 사람 · 나는 없다</text>
 </svg>
 </div>
-<p class="small muted">메뉴 이름은 <code>app/main.js</code> 의 <code>mgItems</code> · <code>sideHtml</code> 그대로다. 팀 화면의 가져오기 · 넣지 못함은 쓰기 자리가 있는 팀 지식이 하나라도 있을 때, 관리는 총괄 관리자에게만 선다. 옛 정리 화면 주소(<code>#tidy</code>)는 넣지 못함 화면으로 간다.</p>
+<p class="small muted">메뉴 이름은 <code>core/menupath.js</code>(설정 <code>SET_TEAM</code> · <code>SET_PC</code> · 지식 관리 <code>WORK</code>)와 <code>app/main.js</code> 의 <code>setMenu</code> · <code>workMenu</code> · <code>mgItems</code> · <code>sideHtml</code> 그대로다(<code>test/menupath.test.mjs</code> 가 설명서 글의 「설정 › …」 길까지 맞춰 본다). 팀 화면의 가져오기 · 넣지 못함은 쓰기 자리가 있는 팀 지식이 하나라도 있을 때, 문서 짜임은 지식관리자에게 선다. 옛 정리 화면 주소(<code>#tidy</code>)는 넣지 못함 화면으로 간다.</p>
 
 <h3>저장 하나가 화면에 보이는 길</h3>
 <div class="flowfig" role="figure" aria-label="저장 하나의 결과가 화면 여러 곳에 보이는 길">
@@ -1163,6 +1167,7 @@ curl -s localhost:8090/healthz                 # build 가 새 판인지</code><
 <tr><td><code>KMD_INGEST_FIX</code></td><td>고쳐 쓰기(서버는 <code>serve.json</code> 의 <code>ingestFix</code>)</td><td>2(1 ~ 2)</td></tr>
 </table></div>
 <p class="small muted"><code>/etc/kmd/worker.env</code> 에 더한다. 옛 이름 <code>KMD_TIDY_PAR</code> · <code>_JOBS</code> · <code>_TICK_MS</code> · <code>_BUDGET</code> · <code>_EFFORT</code> 도 뒤 순서로 읽는다(<code>core/worker.js</code>). 들이기 한도는 <code>serve.json</code> 의 <code>intakeQueue</code> · <code>intakeDaily</code> · <code>intakeStaleMs</code>(<a href="#flows-import">5-③</a>).</p>
+<p class="small muted">들어가기 화면 아래 「잊었거나 막혔으면 ○○에게」 의 ○○ 은 <code>serve.json</code> 의 <code>helpContact</code>(글 한 줄 · 없으면 「총괄 관리자에게」). 설정 › 팀 서버 「운영 값」 카드가 <code>serve.json</code> 손잡이를 읽기만으로 보인다.</p>
 
 <h3>PC: 설치 한 줄 하나가 고르는 길</h3>
 <p>팀 화면 › 설정 › 에이전트 설치 › 개인 지식 쓰기 카드의 한 줄을 PowerShell 에 붙이면, 팀 서버가 그 PC 에 맞는 본문(<code>GET /i/&lt;표&gt;</code>)을 준다. 깔려 있나 · 판이 옛 것인가에 따라 세 길로 갈렸다가, 모두 <code>kmd connect</code> 로 모인다.</p>
@@ -1374,6 +1379,7 @@ curl -s localhost:8090/healthz                 # build 가 새 판인지</code><
 </svg>
 </div>
 <p class="small muted">① · ④ · ⑥ · ⑧ server/http.js · ⑤ server/hub.js · ② app/prehash.js · ③ core/passwd.js · core/auth.js · ⑦ core/atomic.js · core/owners.js. 오류 답은 모두 <code>{ error, message }</code> 꼴 · 상태 번호는 core/errors.js(E_INPUT 400 · E_AUTH 401 · E_FORBIDDEN · E_SUDO 403 · E_NOTFOUND 404).</p>
+<p class="small muted">계정: 잠긴 동안은 「잠김 · 풀리는 때」 를 알린다(비밀번호가 맞았는지 · 아이디가 있는지는 말하지 않는다). 사람은 설정 › 나에서 스스로 비밀번호를 바꾸고(이 브라우저는 이어 쓰고 다른 곳은 끊는다), 모든 곳에서 나가기는 기기 열쇠까지 끊을지 고른다. 총괄 관리자는 사람 카드 ⋯ 에서 한 사람만 모든 곳에서 내보낸다.</p>
 <h3>비밀이 사는 곳</h3>
 <p>비밀은 화면 · 로그 · 응답 · 설정 파일 어디에도 값으로 나오지 않는다. 사는 곳은 셋(PC 자격 저장소 · 서버 secrets.json · 서버 메모리)뿐 · 바깥에는 좁은 권한으로만 닿는다.</p>
 <div class="flowfig" role="figure" aria-label="비밀이 사는 곳">
@@ -1573,7 +1579,7 @@ curl -s localhost:8090/healthz                 # build 가 새 판인지</code><
 <a class="m-card" href="manual/운영.html"><b>운영 · 되살리기</b><p>밤 묶음 · 되살리기 · 새 판 · 막힐 때</p></a>
 <a class="m-card" href="kmd_서비스_전체.md"><b>이 장의 글 판</b><p>kmd_서비스_전체.md</p></a>
 </div>
-<p class="m-foot">기준일 2026-11-05 · HEAD e764294 · 188 빌드 0.1.0-20261105-1040. 남은 개선 거리는 <a href="../docs/품질개선/종합검토.md">종합검토</a> 「따로 할 것」 · 개편은 <a href="../docs/품질개선/KMD_개편_설계.md">KMD_개편_설계.md</a> · <a href="../docs/품질개선/KMD_개편_TODO.md">KMD_개편_TODO.md</a> · 판마다 바뀐 것은 <a href="../CHANGELOG.md">CHANGELOG</a>.</p>
+<p class="m-foot">기준일 2026-11-09 · HEAD 24b4b72 · 188 빌드 0.1.0-20261109-0047. 남은 개선 거리는 <a href="../docs/품질개선/종합검토.md">종합검토</a> 「따로 할 것」 · 개편은 <a href="../docs/품질개선/KMD_개편_설계.md">KMD_개편_설계.md</a> · <a href="../docs/품질개선/KMD_개편_TODO.md">KMD_개편_TODO.md</a> · 판마다 바뀐 것은 <a href="../CHANGELOG.md">CHANGELOG</a>.</p>
 </article>
 
 </div>
