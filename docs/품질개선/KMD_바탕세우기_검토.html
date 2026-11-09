@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>바탕 세우기 검토</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--bg:#f7f7f5;--card:#fff;--ink:#1d1f21;--sub:#5d6166;--line:#e3e3df;--acc:#2f5bd3;--accbg:#eaf0ff;--ok:#1f7a4d;--okbg:#e6f4ec;--warn:#9a5b00;--warnbg:#fff3df;--bad:#b3261e;--badbg:#fdecea;--r:10px;--mono:'IBM Plex Mono',monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#131416;--card:#1c1d20;--ink:#e8e8e6;--sub:#a0a4a9;--line:#2e3034;--acc:#8aa8ff;--accbg:#1f2740;--ok:#6fcf9b;--okbg:#17291f;--warn:#f0b65c;--warnbg:#2e2412;--bad:#f28b82;--badbg:#341b19}}
+:root[data-theme="dark"]{--bg:#131416;--card:#1c1d20;--ink:#e8e8e6;--sub:#a0a4a9;--line:#2e3034;--acc:#8aa8ff;--accbg:#1f2740;--ok:#6fcf9b;--okbg:#17291f;--warn:#f0b65c;--warnbg:#2e2412;--bad:#f28b82;--badbg:#341b19}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 'IBM Plex Sans KR',system-ui,sans-serif}
+main{max-width:min(980px,100%);margin:0 auto;padding:32px 16px 64px}
+h1{font-size:26px;margin:0 0 4px}h2{font-size:19px;margin:36px 0 12px}h3{font-size:16px;margin:20px 0 8px}
+.sub{color:var(--sub)}.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;margin:12px 0}
+.hero{border-left:4px solid var(--acc)}code{font-family:var(--mono);font-size:13px;background:var(--accbg);padding:1px 5px;border-radius:5px}
+.tblwrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px}th,td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}th{color:var(--sub);font-weight:600}
+.chip{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;font-weight:600}.ok{background:var(--okbg);color:var(--ok)}.warn{background:var(--warnbg);color:var(--warn)}.bad{background:var(--badbg);color:var(--bad)}
+.flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;counter-reset:s}
+.step{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;font-size:13.5px}
+.step b{display:block;font-size:14px}.step.ap{border-color:var(--acc);background:var(--accbg)}
+ul{padding-left:20px}li{margin:3px 0}
+</style></head><body><main>
+<h1>바탕 세우기(kmd-seed) 검토</h1>
+<p class="sub">있던 문서 폴더로 지식의 구조를 잡아 세우는 공식 기능 · 2026-11-09 · 설계 3각도 → 반박 → 심사 · 합성 → 끝 검토(opus · 에이전트 8) · 상세: <code>docs/품질개선/KMD_바탕세우기_설계.md</code></p>
+
+<div class="card hero"><b>결론:</b> 공식 기능으로 만든다. 다만 화면 기능이 아니라 <b>Claude Code 세션 스킬 + 스크립트</b>(「기록으로 다시 그리기」 kmd-migrate 와 같은 꼴)로 만든다. 지식 사본에서 구조안을 짓고 사람이 승인한 뒤, 저장 문을 거쳐 넣고, 마지막에 한 번만 서버에 붙인다(팀: push → 「백업에서 받기」 · 개인: <code>kmd restore --practice</code>).</div>
+
+<h2>원인: 지금 길로 왜 안 되나</h2>
+<div class="tblwrap"><table>
+<tr><th>지금 길</th><th>막히는 곳</th></tr>
+<tr><td>개인 「내 폴더로 지식 추가」</td><td>파일 하나 = 문서 하나로 글 그대로 옮긴다(<code>hub.js:1184-1222</code>). 원본 폴더 · 파일 이름 · 판(최종 · v2)이 구조로 굳는다. 팀에서는 막혀 있다.</td></tr>
+<tr><td>팀 대량 넣기 <code>kmd-team-import</code></td><td>이미 있는 문서에 조각을 넣는 전제다. 빈 지식에서는 넣을 곳이 없다. 쓰기 자리는 새 문서를 못 세운다. 갈래 장부가 서면 G4 가 장부 밖 문서를 거절한다.</td></tr>
+<tr><td>빈 지식 세우기</td><td>README 만 남는다. docs/ · work/ 는 git 에 실리지 않는다.</td></tr>
+<tr><td>문서 짜임</td><td>경로와 제목만 다룬다. 항목 글은 쓰지 않는다.</td></tr>
+</table></div>
+
+<h2>권장안: 흐름</h2>
+<p class="sub">파란 칸 = 사람 승인. 스크립트는 규칙으로 잴 수 있는 일, Claude Code 는 뜻을 읽는 일을 맡는다.</p>
+<div class="flow">
+<div class="step"><b>0 자리 잡기</b>원본 · 대상 지식 · 짓는 사람. 팀은 총괄 관리자가 빈 지식을 세우고 clone</div>
+<div class="step"><b>1 시작 검사</b>문서 · 기록 · 장부가 비어 있어야 시작</div>
+<div class="step"><b>2 조사</b>파서 → manifest: 판 묶음 · 같은 글 · 스캔 · 갈래 후보 · digest</div>
+<div class="step ap"><b>3 승인 ①</b>걸러 두기 표: 정본 · 옛 판 · 비밀 의심 · 실패</div>
+<div class="step"><b>4 구조안</b>파일마다 카드 → plan.json(갈래 · 폴더 · 문서 · 항목 · 이름 · 차례)</div>
+<div class="step"><b>5 plan-check</b>G1 · G4 · 별칭 충돌 · 덮임 · 크기 · 거울 지수</div>
+<div class="step ap"><b>6 승인 ②</b>나무 · 원본 → 항목 대응 · 경고. plan 지문 고정</div>
+<div class="step"><b>7 뼈대</b>갈래 장부(save) + 문서 짜임(restructure)</div>
+<div class="step"><b>8 재료</b>정본마다 work/ 기록(저장 문)</div>
+<div class="step ap"><b>9 문서마다 짓기</b>항목 글 → check(재료로만 값 대조) → put. 처음 몇 개는 하나씩 승인</div>
+<div class="step"><b>10 덮임</b>빠진 값 · 사라진 문장 · 고아 재료</div>
+<div class="step"><b>11 마감</b>「바탕 세움」 이력(save system) · audit 0</div>
+<div class="step ap"><b>12 승인 ③</b>끝 진단 → 팀 push + 받기 / 개인 restore</div>
+</div>
+
+<h2>구조 최적화 기준</h2>
+<div class="card"><ul>
+<li><b>문서</b> = 주제 · 대상 하나, 사건 갈래 하나, 대장 하나. 원본 폴더 나무와 파일 경계는 참고만 한다. 이름에 날짜 · 판 · 「최종」 을 쓰지 않는다.</li>
+<li><b>항목</b> = 대상 하나의 「지금」. 같은 대상의 여러 파일은 모으고 늦은 판이 이긴다. 옛 판은 기본 skip.</li>
+<li><b>갈래</b>: 날짜 사건(회의 · 장애)은 「YYYY-MM-DD 무엇」, ID 대장은 패턴, 나머지는 대상 문서. 같은 꼴이 셋 넘게 되풀이될 때만 세운다.</li>
+<li><b>이름</b>: 둘 넘는 곳에서 가리키는 고유물만 세운다. 종류는 8~10개 안팎.</li>
+<li><b>크기</b>: 폴더 2단 · 폴더당 문서 3~12 · 문서당 항목 5~40 · 항목 300줄 안. 넘으면 plan-check 가 경고한다.</li>
+<li><b>덮임</b>: 모든 정본은 어딘가에 배정되거나 까닭과 함께 skip된다. 비밀이 든 파일은 보류한다.</li>
+</ul></div>
+
+<h2>세 안 점수</h2>
+<div class="tblwrap"><table>
+<tr><th>안</th><th>구조 품질</th><th>원칙</th><th>코드 양</th><th>운영 안전</th><th>사람 수고</th><th>합</th><th></th></tr>
+<tr><td>A 세션 스킬</td><td>4</td><td>4</td><td>3</td><td>4</td><td>3</td><td><b>18</b></td><td><span class="chip ok">바탕</span></td></tr>
+<tr><td>B 뼈대 먼저 + 대량 넣기</td><td>3</td><td>3</td><td>4</td><td>2</td><td>3</td><td>15</td><td><span class="chip warn">진단만 가져옴</span></td></tr>
+<tr><td>C 위험 우선</td><td>4</td><td>3</td><td>2</td><td>3</td><td>3</td><td>15</td><td><span class="chip warn">조사 · 승인 가져옴</span></td></tr>
+</table></div>
+<p class="sub">B 를 버린 까닭: 미리 세운 이름의 coord 길이 G4 를 건너뛰고(<code>save.js:405</code>), 갈래 · 문서 · 이름이 서버에 반쯤 선 상태로 남는다. C 를 버린 까닭: 서버가 <code>_members.md</code> 를 스스로 커밋해 잠금이 뚫리고, 범위가 크다.</p>
+
+<h2>반박 · 끝 검토에서 고친 것 (주요)</h2>
+<div class="tblwrap"><table>
+<tr><th></th><th>문제</th><th>고침</th></tr>
+<tr><td><span class="chip bad">막힘</span></td><td>새 태그를 예약하면 비system 저장이 거절한다(<code>save.js:227</code>)</td><td>예약하지 않는다. kmd-migrate DERIVED 에만 <code>seed</code> 를 더한다</td></tr>
+<tr><td><span class="chip bad">막힘</span></td><td>새 항목 기록의 touches 가 비어 「이름 없는 기록」 이 쌓인다</td><td>put 이 input.names 를 touches 로 단다</td></tr>
+<tr><td><span class="chip bad">숨김</span></td><td>마감 reflects 를 원본 전부에 달면 고아가 「넣음」 으로 숨는다</td><td>reflects 는 쓰인 재료만. 고아는 cover 가 내고 0 이어야 sealed</td></tr>
+<tr><td><span class="chip warn">구멍</span></td><td>값 대조가 기록 본문도 근거로 센다(Claude 가 같이 지어내면 넘음)</td><td>seed check 는 재료 본문만 근거로</td></tr>
+<tr><td><span class="chip warn">원칙</span></td><td>마감 이력을 core 직접 쓰기로</td><td><code>save(…, {system:true})</code> 저장 문으로</td></tr>
+<tr><td><span class="chip warn">운영</span></td><td>짓는 동안 자리를 바꾸면 <code>_members.md</code> 커밋으로 갈라진다</td><td>자리는 clone 전에 끝내고, 짓는 동안 바꾸지 않는다. 받기가 moved 면 멈춘다</td></tr>
+<tr><td><span class="chip warn">운영</span></td><td>개인 restore 가 스크래치를 백업 자리로 붙인다</td><td><code>--practice</code> 필수</td></tr>
+</table></div>
+<p class="sub">전체 12건은 설계 문서 10절에 있다.</p>
+
+<h2>바꿀 것 · 단계</h2>
+<div class="tblwrap"><table>
+<tr><th>단계</th><th>하는 일</th><th>크기</th></tr>
+<tr><td>T1</td><td><code>core/seed.js</code> survey · digest · 판 묶음 (쓰지 않음 · 바로 쓸모 있음)</td><td>1일</td></tr>
+<tr><td>T2</td><td>plan.json 꼴 · plan-check · 지문 + 테스트 · 스킬 4~6단계 · 작성기준 11절</td><td>1일</td></tr>
+<tr><td>T3</td><td>kmd-migrate 함수 떼기(태그 · touches · team 인자) · <code>scripts/kmd-seed.mjs</code> skeleton · stock · check · put · cover · seal + 테스트 · pack · teamkit 판 6→7</td><td>1~1.5일</td></tr>
+<tr><td>T4</td><td>개인 스크래치 시범(원본 30~50개) → restore --practice · 넣지 못함 · 빠진 값 · 거울 지수 잼</td><td>0.5~1일</td></tr>
+<tr><td>T5</td><td>팀 시범 「바탕 세우기(테스트)」 → push → 받기 (188 받기 시점은 사람이)</td><td>0.5일</td></tr>
+<tr><td>T6</td><td>(선택) <code>kmd seed</code> CLI 키트 · 비밀 정규식 · 이력 접기</td><td></td></tr>
+</table></div>
+
+<h2>남은 것: 사람이 정할 것</h2>
+<div class="tblwrap"><table>
+<tr><th>정할 것</th><th>권장</th></tr>
+<tr><td>갈래 장부가 문서 목록까지 담게 되는 지금 동작(restructure 가 장부 밖 문서를 줄로 더함)</td><td>받아들인다(코드 그대로 · 엉뚱한 새 문서를 막아 줌)</td></tr>
+<tr><td>원본 파일 첨부</td><td>기본 붙이지 않음(manifest 에 경로 · sha 만)</td></tr>
+<tr><td>옛 판</td><td>기본 skip · 사람이 고른 묶음만 「근거만」 기록</td></tr>
+<tr><td>시범 차례</td><td>개인 스크래치 → 팀 「바탕 세우기(테스트)」</td></tr>
+<tr><td>저장소가 없는 지식관리자 PC</td><td>1차는 저장소를 가진 운영자가 돌린다 · CLI 키트는 T6</td></tr>
+</table></div>
+</main></body></html>
