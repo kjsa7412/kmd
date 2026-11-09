@@ -194,12 +194,15 @@ export function teamAgentPs({ origin, ticket, kn }) {
     '  $mt = [regex]::Match($c, $rt)',
     '}',
     // .mcp.json 이 git 에 실린 폴더(동료와 나눈다) — 이 PC 경로가 든 연결은 local 범위로(UX T3-07)
+    // 바깥 프로그램 부르기 — 위의 ErrorActionPreference Stop 에서 PowerShell 5.1 은 stderr 한 줄(2>$null 이어도)을 멈추는 오류로 바꾼다.
+    // 이 함수 안에서만 Continue 로 두고 종료 코드만 돌려준다(git 저장소가 아닌 폴더 · claude 의 경고에 설치가 끊기지 않게)
+    "function Nat([scriptblock]$b) { $ErrorActionPreference = 'Continue'; $global:LASTEXITCODE = 0; & $b 2>$null | Out-Null; $LASTEXITCODE }",
     '$tracked = $false',
-    "if (Get-Command git -ErrorAction SilentlyContinue) { git -C $d ls-files --error-unmatch .mcp.json 2>$null | Out-Null; if ($LASTEXITCODE -eq 0) { $tracked = $true } }",
+    "if (Get-Command git -ErrorAction SilentlyContinue) { if ((Nat { git -C $d ls-files --error-unmatch .mcp.json }) -eq 0) { $tracked = $true } }",
     '$local = $false',
     "if ($tracked -and (Get-Command claude -ErrorAction SilentlyContinue)) {",
     "  $sj = ([pscustomobject]@{ type = 'http'; url = \"$o/mcp\"; headersHelper = $hh } | ConvertTo-Json -Compress -Depth 5)",
-    "  Push-Location $d; try { claude mcp remove -s local kmd-team 2>$null | Out-Null; claude mcp add-json -s local kmd-team ($sj.Replace('\"', '\\\"')) 2>$null | Out-Null; if ($LASTEXITCODE -eq 0) { $local = $true } } finally { Pop-Location }",
+    "  Push-Location $d; try { Nat { claude mcp remove -s local kmd-team } | Out-Null; if ((Nat { claude mcp add-json -s local kmd-team ($sj.Replace('\"', '\\\"')) }) -eq 0) { $local = $true } } finally { Pop-Location }",
     '}',
     "if ($local) { $m.mcpServers.PSObject.Properties.Remove('kmd-team'); [IO.File]::WriteAllText($mf, ($m | ConvertTo-Json -Depth 20), $u8); Write-Host '· 이 폴더의 .mcp.json 은 git 으로 나눈다: kmd-team 연결은 이 PC 에만(Claude Code local 범위) 걸었다 · 동료는 각자 설치 한 줄로' }",
     "else { [IO.File]::WriteAllText($mf, ($m | ConvertTo-Json -Depth 20), $u8); if ($tracked) { Write-Host '· 주의: 이 폴더의 .mcp.json 은 git 으로 나누는데 claude 명령을 찾지 못해 거기에 이 PC 경로를 넣었다. 이 바뀜은 커밋하지 않는다(동료는 각자 설치 한 줄로)' } }",
