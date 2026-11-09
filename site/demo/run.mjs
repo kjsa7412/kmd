@@ -1,4 +1,4 @@
-// 소개 사이트 데모 — 시험 지식(content.mjs)을 임시 팀 서버에 세우고, 줄거리(STEPS)를 채널마다 저장 문으로 지나게 한 뒤
+// 소개 사이트 데모: 시험 지식(content.mjs)을 임시 팀 서버에 세우고, 줄거리(STEPS)를 채널마다 저장 문으로 지나게 한 뒤
 //   화면을 찍고(라이트 · 다크 · 1280×800) 그래프 · 문서 · 기록 자료를 site/data/story.js 로 낸다.
 //   node site/demo/run.mjs [--no-shots]
 //   찍는 것은 진짜 화면이고 내용은 가상이다. 사람이 PNG 를 넘겨 본 뒤 커밋한다.
@@ -32,7 +32,7 @@ const kim = await signIn(s, { id: 'kim' })
 const people = {}
 for (const p of PEOPLE) { people[p.id] = await signIn(s, { id: p.id, admin: false }); await seat(s, p.id, { [KN]: p.seat }) }
 
-// 줄거리 — 채널마다 저장 문
+// 줄거리: 채널마다 저장 문
 const sec = async (coord) => sectionOf(await s.hub.get(KN), coord).sec
 const piece = async ({ coord, from, to }) => {
   const body = (await sec(coord)).body
@@ -46,7 +46,7 @@ for (const st of STEPS) {
     const k = await s.hub.get(KN)
     const d = k.docs.find((x) => x.title === st.doc)
     const old = d.sections.find((x) => x.h === st.heading)
-    r = await s.hub.edit({ user: 'kim', admin: true }, KN, { doc: d.id, sections: [{ h: st.heading, body: old.body.replace(st.from, st.to), base: sha16(old.body) }], why: '첫날 시작을 30분 당겼다' })
+    r = await s.hub.edit({ user: 'kim', admin: true }, KN, { doc: d.id, sections: [{ h: st.heading, body: old.body.replace(st.from, st.to), base: sha16(old.body) }], why: '노트북 설정이 첫날에서 빠져 팀 소개를 오전으로 당겼다' })
   } else {
     const sections = await Promise.all(st.sections.map(piece))
     const record = { title: st.title, body: st.body }
@@ -64,7 +64,7 @@ for (const st of STEPS) {
   results.push({ key: st.key, id: r.id || r.saved || null, held })
 }
 
-// 자료 — 그래프(문서 ⊃ 항목 · 기록 → 항목 · 문서 → 문서) · 문서 글 · 기록
+// 자료: 그래프(문서 ⊃ 항목 · 기록 → 항목 · 문서 → 문서) · 문서 글 · 기록
 const get = async (u, who = kim) => { const x = await fetch(s.url + u, { headers: { cookie: who.cookie } }); if (!x.ok) throw new Error(u + ' ' + x.status); return x.json() }
 const model = await get(`/api/k/${KN}/model`)
 const k = await s.hub.get(KN)
@@ -73,7 +73,7 @@ const add = (id, kind, label, x = {}) => { nodes.push({ id, kind, label, ...x })
 for (const d of model.docs) add('d:' + d.id, 'doc', d.title)
 for (const i of model.items) add('i:' + i.key, 'item', i.name, { coord: i.coord, kindLabel: i.kind, doc: i.doc })
 const stepOf = new Map(results.filter((x) => x.id).map((x) => [x.id, x.key]))
-for (const w of model.recs) add('r:' + w.id, 'rec', w.title.replace(/\(테스트\)/, '').split(/ — /)[0], { step: stepOf.get(w.id) || null, held: (results.find((x) => x.id === w.id)?.held.length || 0) > 0 })
+for (const w of model.recs) add('r:' + w.id, 'rec', w.title.replace(/\(테스트\)/, ''), { step: stepOf.get(w.id) || null, held: (results.find((x) => x.id === w.id)?.held.length || 0) > 0 })
 const seen = new Set()
 const edge = (a, b, t) => { const key = [a, b].sort().join('>'); if (has.has(a) && has.has(b) && a !== b && !seen.has(key)) { seen.add(key); edges.push({ a, b, t }) } }
 for (const i of model.items) if (i.doc) edge('d:' + i.doc, 'i:' + i.key, 'in')
@@ -81,10 +81,10 @@ for (const w of model.recs) for (const c of w.items) edge('r:' + w.id, 'i:' + c,
 for (const d of model.docs) for (const b of d.links) edge('d:' + d.id, 'd:' + b, 'link')
 const docs = k.docs.map((d) => ({ id: d.id, title: d.title, intro: (d.intro || '').trim(), sections: d.sections.map((x) => ({ h: x.h, body: x.body.trim() })) }))
 const recs = k.works.map((w) => ({ id: w.id, title: w.title, author: w.author, state: w.state || null, touches: w.touches, body: w.body.trim().slice(0, 1200), step: stepOf.get(w.id) || null }))
-write(path.join(SITE, 'data', 'story.js'), `// site/demo/run.mjs 가 만든다 — 손으로 고치지 않는다\nwindow.KMD_STORY = ${JSON.stringify({ kn: KN, name: k.name, steps: STEPS.map(({ sections, ...x }) => ({ ...x, sections: sections || null, result: results.find((r) => r.key === x.key) })), graph: { nodes, edges }, docs, recs }, null, 1)}\n`)
+write(path.join(SITE, 'data', 'story.js'), `// site/demo/run.mjs 가 만든다: 손으로 고치지 않는다\nwindow.KMD_STORY = ${JSON.stringify({ kn: KN, name: k.name, steps: STEPS.map(({ sections, ...x }) => ({ ...x, sections: sections || null, result: results.find((r) => r.key === x.key) })), graph: { nodes, edges }, docs, recs }, null, 1)}\n`)
 console.log('자료', nodes.length, '점', edges.length, '선')
 
-// 화면 — 라이트 · 다크
+// 화면: 라이트 · 다크
 if (!NO_SHOTS) {
   if (!CHROME) throw new Error('Chrome 이나 Edge 가 있어야 화면을 찍는다')
   const ascii = path.join(ROOT, '.kmd-data', 'tmp'); fs.mkdirSync(ascii, { recursive: true }); process.env.TEMP = process.env.TMP = ascii
@@ -109,7 +109,7 @@ if (!NO_SHOTS) {
     })
     const shot = async (name) => { await p.mouse.move(V.width - 4, V.height - 4); await mask(); await p.waitForTimeout(700); await p.screenshot({ path: path.join(SHOTS, `${name}-${scheme}.png`) }); console.log('찍음', name, scheme) }
     const step = async (name, fn) => { try { await fn(); await shot(name) } catch (e) { console.log('못 찍음', name, scheme, e.message.split('\n')[0]) } }
-    // 새로 읽고(지식 목록이 온 뒤) 주소만 바꾼다 — 처음부터 깊은 주소로 열면 목록이 오기 전에 열어 「그 지식이 없다」 가 된다
+    // 새로 읽고(지식 목록이 온 뒤) 주소만 바꾼다: 처음부터 깊은 주소로 열면 목록이 오기 전에 열어 「그 지식이 없다」 가 된다
     const go = async (u, wait) => {
       await p.goto(s.url + '/#/'); await p.reload(); await p.waitForSelector('[data-t=klist]'); await p.waitForTimeout(400)
       const h = u.slice(s.url.length + 1)
