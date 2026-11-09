@@ -4,15 +4,39 @@
     {
       "name": "kmd-local",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["scripts/local.mjs"],
+      "runtimeArgs": [
+        "scripts/local.mjs"
+      ],
       "port": 7381,
       "url": "http://localhost:7381"
     },
     {
       "name": "mockup",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["--yes", "http-server", "docs", "-p", "7391", "-c-1", "-s"],
+      "runtimeArgs": [
+        "--yes",
+        "http-server",
+        "docs",
+        "-p",
+        "7391",
+        "-c-1",
+        "-s"
+      ],
       "port": 7391
+    },
+    {
+      "name": "site",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "--yes",
+        "http-server",
+        "site",
+        "-p",
+        "7392",
+        "-c-1",
+        "-s"
+      ],
+      "port": 7392
     }
   ]
 }

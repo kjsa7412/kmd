@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>kmd — 기록이 쌓이면 문서가 된다</title>
+<meta name="description" content="팀 지식을 기록 · 항목 · 문서 세 층으로 두고, 어느 길로 들어오든 기록과 문서를 한 번에 저장한다. 사람은 화면으로, Claude Code 는 MCP 로 같이 읽고 쓴다.">
+<meta property="og:title" content="kmd — 기록이 쌓이면 문서가 된다">
+<meta property="og:description" content="세션 · 파일 · 코드 · 개인 메모 — 어느 길로 들어오든 기록과 문서가 한 번에 바뀐다.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<script>try{var t=localStorage.getItem('kmd-site-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<a class="skip" href="#main">본문으로</a>
+<header class="top">
+  <div class="wrap top-in">
+    <a class="logo" href="#" aria-label="kmd 처음으로"><span class="mark">k</span><b>kmd</b></a>
+    <nav class="menu" aria-label="사이트">
+      <a href="#concept">개념</a><a href="#story">한 주의 이야기</a><a href="#find">찾아가기</a><a href="#graph">그래프</a><a href="#claude">Claude Code</a><a href="#screens">화면</a><a href="#start">시작하기</a>
+    </nav>
+    <button type="button" class="theme" id="themeBtn" aria-label="밝기 바꾸기" title="밝기 바꾸기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg></button>
+  </div>
+</header>
+
+<main id="main">
+<!-- 첫 화면 -->
+<section class="hero">
+  <div class="wrap hero-in">
+    <div class="hero-text">
+      <p class="eyebrow">팀 지식 · 기록 · Claude Code</p>
+      <h1>기록이 쌓이면,<br>문서가 된다</h1>
+      <p class="lede">회의 결정 · 파일 · 코드 커밋 · 내 메모 — 어느 길로 들어오든 kmd 는 <b>기록</b>과 문서의 <b>항목</b>을 <b>한 번의 저장</b>으로 같이 바꾼다. 사람은 화면으로, Claude Code 세션은 MCP 로 같은 지식을 읽고 쓴다.</p>
+      <div class="cta"><a class="btn pri" href="#story">한 주의 이야기 보기</a><a class="btn" href="#graph">그래프로 뻗어 보기</a></div>
+      <ul class="facts">
+        <li><b>7</b><span>들어오는 길</span></li>
+        <li><b>1</b><span>저장 문</span></li>
+        <li><b>4</b><span>자리(권한)</span></li>
+      </ul>
+    </div>
+    <figure class="frame hero-shot">
+      <div class="bar"><i></i><i></i><i></i><span>팀 화면 · 문서 보기</span></div>
+      <button type="button" class="zoom" data-zoom="doc"><img data-shot="doc" alt="kmd 팀 화면 — 「첫 주 안내」 문서. 왼쪽에 문서 나무, 가운데에 항목 넷, 오른쪽에 이 문서의 차례 · 문서 · 기록 · 항목" width="1280" height="800"></button>
+    </figure>
+  </div>
+</section>
+
+<!-- 개념 -->
+<section id="concept" class="sec">
+  <div class="wrap">
+    <p class="kicker">개념</p>
+    <h2>세 층 — 기록 · 항목 · 문서</h2>
+    <p class="sub">이 사이트의 모든 예는 시험 지식 하나, <b>「신규 입사 온보딩(테스트)」</b> 다. 새로 온 사람이 첫 주를 헤매지 않게 인사팀 · IT 지원 · 팀이 같이 쓰는 지식이다.</p>
+    <div class="three">
+      <article class="card kind rec"><span class="glyph" aria-hidden="true"></span><h3>기록</h3><p>누가 · 언제 · 왜 바꿨나. 사람 · 세션 · 파일 · 커밋이 남긴 글 하나. <b>지운 적 없이 쌓인다.</b></p><code>work/노트북은-입사-전날-집으로-보낸다.md</code></article>
+      <article class="card kind item"><span class="glyph" aria-hidden="true"></span><h3>항목</h3><p>문서 안의 <code>## 머리</code> 한 덩이. 저장 · 링크 · 출처의 단위이고, 이름(<code>proc:노트북 받기</code>)으로 가리킨다.</p><code>## 노트북 받기</code></article>
+      <article class="card kind doc"><span class="glyph" aria-hidden="true"></span><h3>문서</h3><p>확정된 지식만 담는 md 한 파일. 기록은 본문에 섞이지 않고 문서 끝 참고 블록에 출처로 남는다.</p><code>docs/첫 주 안내.md</code></article>
+    </div>
+    <div class="anatomy" id="anatomy">
+      <div class="an-col">
+        <p class="an-h">기록 <small>월요일 · test-lee · 세션</small></p>
+        <div class="card an-rec" id="anRec"></div>
+      </div>
+      <svg class="an-lines" id="anLines" aria-hidden="true"></svg>
+      <div class="an-col">
+        <p class="an-h">문서 <small>docs/첫 주 안내.md</small></p>
+        <div class="card an-doc" id="anDoc"></div>
+      </div>
+    </div>
+    <p class="note">기록 하나가 항목 둘을 바꿨다. 항목은 어느 기록에서 왔는지 알고, 기록은 어느 항목에 들어갔는지 안다 — 그래서 어느 쪽에서든 거꾸로 찾아갈 수 있다.</p>
+  </div>
+</section>
+
+<!-- 이야기 -->
+<section id="story" class="sec alt">
+  <div class="wrap">
+    <p class="kicker">한 주의 이야기</p>
+    <h2>여섯 길로 들어와, 한 문으로 저장된다</h2>
+    <p class="sub">월요일 회의부터 금요일 메모까지, 같은 지식이 채널마다 자란다. 어느 길이든 <b>기록 + 항목 조각 + 지문</b>을 한 덩이로 보내고, 서버의 저장 검사 한 곳이 들어갈지 정한다. 못 넘으면 기록만 남고 <b>「넣지 못함」</b> 으로 보인다.</p>
+    <div class="flow card">
+      <svg id="flowSvg" viewBox="0 0 900 300" role="img" aria-label="채널 여섯이 저장 문 하나를 지나 기록과 문서로, 못 넘은 것은 넣지 못함으로 가는 그림"></svg>
+    </div>
+    <div class="tabs" role="tablist" aria-label="요일별 채널" id="stepTabs"></div>
+    <div class="step" id="stepPanel" role="tabpanel"></div>
+  </div>
+</section>
+
+<!-- 찾아가기 -->
+<section id="find" class="sec">
+  <div class="wrap">
+    <p class="kicker">뷰어에서 찾아가기</p>
+    <h2>「노트북 언제 받지?」 에서 출처까지 다섯 걸음</h2>
+    <p class="sub">새로 온 사람이 묻는다. 찾기 한 번이면 항목이 나오고, 항목은 그 값을 바꾼 기록과 들어 있는 문서를 같이 보여 준다.</p>
+    <div class="finder">
+      <ol class="fsteps" id="findSteps"></ol>
+      <figure class="frame fshot">
+        <div class="bar"><i></i><i></i><i></i><span id="findBar">팀 화면</span></div>
+        <button type="button" class="zoom" id="findZoom" data-zoom="home"><img id="findImg" data-shot="home" alt="" width="1280" height="800"></button>
+        <figcaption id="findCap"></figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- 그래프 -->
+<section id="graph" class="sec dark">
+  <div class="wrap">
+    <p class="kicker">그래프</p>
+    <h2>점 하나에서 뻗어 나가 찾는다</h2>
+    <p class="sub">항목 · 문서 · 기록은 모두 이어져 있다. 점을 누르면 이웃 한 겹이 펼쳐지고, 이웃을 누르면 더 뻗는다 — 「노트북 받기」 하나에서 시작해 지식 전체를 건너가 본다.</p>
+    <div class="gbox">
+      <div class="gstage">
+        <svg id="gSvg" role="img" aria-label="온보딩 지식의 그래프 — 문서 네모, 항목 동그라미, 기록 마름모"></svg>
+        <div class="glegend" aria-hidden="true"><span class="lg doc">문서</span><span class="lg item">항목</span><span class="lg rec">기록</span><span class="lg held">넣지 못함</span></div>
+      </div>
+      <aside class="gside">
+        <ol class="gtour" id="gTour"></ol>
+        <div class="gcard" id="gCard" aria-live="polite"></div>
+        <div class="gbtns"><button type="button" class="btn" id="gPlay">처음부터</button><button type="button" class="btn ghost" id="gAll">모두 보기</button></div>
+        <p class="ghint">점을 눌러 직접 뻗어 볼 수 있다.</p>
+      </aside>
+    </div>
+    <figure class="frame gshot">
+      <div class="bar"><i></i><i></i><i></i><span>팀 화면 · 그래프(3D)</span></div>
+      <button type="button" class="zoom" data-zoom="graph"><img data-shot="graph" alt="kmd 팀 화면의 그래프 보기 — 같은 지식의 점 21 · 선 37" width="1280" height="800" loading="lazy"></button>
+    </figure>
+  </div>
+</section>
+
+<!-- Claude Code -->
+<section id="claude" class="sec">
+  <div class="wrap two">
+    <div>
+      <p class="kicker">Claude Code 와 함께</p>
+      <h2>일 전에 읽고, 일 뒤에 남긴다</h2>
+      <p class="sub">작업 폴더에 팀 지식을 붙이면 세션이 일을 시작하기 전에 사실을 찾아 읽고(<code>brief</code> · <code>match</code> · <code>section</code>), 끝나면 배운 것을 기록과 조각으로 남긴다(<code>save</code>). 확정이 아니면 메모로만 남고 문서는 그대로다.</p>
+      <ul class="tools">
+        <li><code>brief</code><span>지식 한눈에 · 내 넣지 못함 · 안 넣은 메모</span></li>
+        <li><code>match</code><span>말 → 이름(다른 이름까지)</span></li>
+        <li><code>search</code><span>글 속에서 찾기</span></li>
+        <li><code>section</code><span>항목 글과 지문(base)</span></li>
+        <li><code>save</code><span>기록 + 조각 + 지문 한 덩이</span></li>
+      </ul>
+    </div>
+    <div class="term" id="term" aria-label="Claude Code 세션 재생"><div class="term-bar"><i></i><i></i><i></i><span>claude — onboarding</span><button type="button" class="term-re" id="termRe">다시</button></div><pre id="termOut" aria-live="off"></pre></div>
+  </div>
+</section>
+
+<!-- 화면 -->
+<section id="screens" class="sec alt">
+  <div class="wrap">
+    <p class="kicker">화면</p>
+    <h2>실제 화면, 가상의 내용</h2>
+    <p class="sub">아래 그림은 모두 kmd 팀 화면을 그대로 찍었다. 내용은 시험 지식이다. 누르면 크게 본다 · 밝기를 바꾸면 그림도 바뀐다.</p>
+    <div class="gallery" id="gallery"></div>
+  </div>
+</section>
+
+<!-- 시작하기 -->
+<section id="start" class="sec">
+  <div class="wrap">
+    <p class="kicker">시작하기</p>
+    <h2>두 프로그램, 네 자리</h2>
+    <div class="two-cards">
+      <article class="card prog"><h3>팀 프로그램 <small>팀 서버 · Linux</small></h3><p>팀 지식 · 팀 화면 · 사람과 자리 · 들이기(팀 일꾼) · 가져올 곳 · 백업 · MCP <code>kmd-team</code>. 지식 하나는 폴더 하나 · git 저장소 하나이고, 저장마다 한 묶음이 되어 백업 자리로 밀린다.</p><pre class="cmd">kmd-install.sh --team --url http://&lt;서버&gt;:8090 --root /srv/kmd</pre></article>
+      <article class="card prog"><h3>개인 프로그램 <small>내 PC · Windows</small></h3><p>내 PC 에만 있는 개인 지식 · 개인 화면 · 파일 넣기 · 편집기 직접 고침 감시 · MCP <code>kmd</code>. 팀으로는 고른 글만 <b>지식 보내기</b>로 — 개인 메모가 팀에 섞이지 않는다.</p><pre class="cmd">&lt;팀 서버&gt;/dl 에서 PC 꾸러미 받기 → kmd up</pre></article>
+    </div>
+    <div class="tblwrap card">
+      <table class="seats">
+        <caption>지식마다 사람에게 자리를 준다 · 받지 않은 지식은 보이지 않는다</caption>
+        <thead><tr><th scope="col">할 수 있는 일</th><th scope="col">읽기</th><th scope="col">쓰기</th><th scope="col">지식관리자</th><th scope="col">총괄 관리자</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">보기 · 찾기 · Claude 로 읽기</th><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+          <tr><th scope="row">기록 남기기 · 문서 고치기 · 파일 넣기</th><td></td><td>✓</td><td>✓</td><td>✓</td></tr>
+          <tr><th scope="row">넣지 못함 처리 · 되돌리기 · 문서 짜임 · 권한 주기</th><td></td><td></td><td>✓</td><td>✓</td></tr>
+          <tr><th scope="row">사람 · 지식 세우기 · 백업 · Claude 연결</th><td></td><td></td><td></td><td>✓</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <span><b>kmd</b> <span id="ver">0.1.0</span> · 팀과 내 PC 의 지식</span>
+    <span>화면은 실제 kmd, 내용은 시험 지식 「신규 입사 온보딩(테스트)」 — 사람 · 주소는 지어낸 것이다.</span>
+  </div>
+</footer>
+
+<dialog class="lightbox" id="lightbox" aria-label="화면 크게 보기">
+  <form method="dialog"><button class="btn ghost lb-x" aria-label="닫기">닫기 ✕</button></form>
+  <img id="lbImg" alt="">
+  <p id="lbCap"></p>
+</dialog>
+
+<script src="data/story.js"></script>
+<script src="site.js"></script>
+</body>
+</html>
