@@ -21,6 +21,7 @@
 //   partial · intake 저장은 넣은 항목을 기록 끝 `## 넣은 것`(태그 put) · 못 넣은 조각을 `## 넣지 못함`(태그 held) 칸으로 남긴다(core/parts.js)
 //   approve   { accepted, values?, linked, fresh } — approve 모드 저장 문(무인 채널은 intake 와 같이 · values = `## 값 대조` · P6)(저장 승인 설계 P3 · hub saveIn 만 단다): 넣지 못함 없이 들어감 하나(태그 put ·
 //             `## 넣은 것` · 글 그대로 이은 항목 `## 이은 항목` · 승인한 경고 `## 받아들인 경고` · 새로 세운 것 `## 새로 세움` · core/parts.js)
+//   migrate   이행 기록(저장 승인 P8 · kmd-migrate held-put) — approve 와 같이 · 예약 태그 migrate-held 를 단다(그 fixes 가 가리킨 옛 기록은 들어감 · core/knowledge.js)
 //   record.memo — 메모(태그 memo · 항목 글을 받지 않는다) · input.attach — docs/assets/ 아래 첨부(같은 저널 · 같은 커밋)
 //   shape     { tags } — 문서 짜임의 글 걸음(바탕 세우기 설계 4-3 · hub.shapeStep 만 단다). 저장 문이 붙이는 예약 태그(shape · shape-done · shape/<work>/<n>) ·
 //             항목 지우기(출처 걷기)를 받는다(structure) · prepare 가 돌려준 place([{ coord, doc, heading }] · 자리 장부 placeExact) ·
@@ -230,7 +231,7 @@ export function serial(key, f) {
 // guard — 지식 생성 가드(core/guard.js)의 길. 'strict'(거절형 — 세션 · 화면) · 'hold'(붙잡아 두기 — 그 밖의 길 · 기본)
 //         holdWhy — hold 에서 이름 없는 기록에 kmd 가 다는 까닭 · proposed — 세울 이름으로 실어 둔 이름(일반 자리의 names)
 //   shape.strict — approve 모드 지식의 짜임 걸음(저장 승인 P-D24 · P7): 조각 하나라도 걸리면 넣지 못함 대신 걸음 입력 오류(E_INPUT · details.stepFail · 아무것도 쓰지 않는다)
-export function save(dir, input, { user, now = new Date(), system = false, agent = false, guard = 'hold', holdWhy = null, proposed = [], prepare = null, onCommit = null, partial = false, asEdit = false, structure = false, correction = false, intake = null, shape = null, approve = null, accepted = null, marks: marksIn = false } = {}) {
+export function save(dir, input, { user, now = new Date(), system = false, agent = false, guard = 'hold', holdWhy = null, proposed = [], prepare = null, onCommit = null, partial = false, asEdit = false, structure = false, correction = false, intake = null, shape = null, approve = null, accepted = null, marks: marksIn = false, migrate = false } = {}) {
   if (!user || !oneLine(user)) fail('E_INPUT', '누가 쓰는지 모른다')
   // 들이기 일감은 예약 사람 kmd 로 쓸 수 있다(가져올 곳) — kmd-auto · kmd-worker 는 아니다(S-D43)
   const kmdIntake = !!intake && nfc(user).trim().toLowerCase() === 'kmd'
@@ -250,6 +251,11 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
     const t = intake.tags ?? []
     if (!Array.isArray(t) || t.some((x) => typeof x !== 'string' || !INTAKE_TAG(x))) fail('E_INPUT', '들이기 태그는 intake · job/<일감 id> · code-change · polish 만 붙인다')
     serverTags = [...new Set(['intake', ...t])]
+  }
+  //   migrate — 이행 기록(저장 승인 P8 · scripts/kmd-migrate.mjs held-put 만) · approve 저장 문 위에서만 · 예약 태그 migrate-held
+  if (migrate) {
+    if (!approve || intake || shape) fail('E_INPUT', '이행 저장은 approve 저장 문으로만 쓴다')
+    serverTags = [...new Set([...serverTags, 'migrate-held'])]
   }
   if (shape) {
     const t = shape.tags ?? []

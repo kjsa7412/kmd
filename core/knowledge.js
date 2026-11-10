@@ -154,8 +154,14 @@ export async function loadKnowledge({ id, name, dir }, { cache = null, cutoverAt
   //   (누가 fixes 를 실을 수 있는지는 쓸 때 막는다 · S-D17) · handedOff — 들이기 기록이 fixes 로 가리킨 기록(held 여도 일을 넘겨받았다)
   k.superseded = new Set()
   k.handedOff = new Set()
+  // 이행(저장 승인 P8 · P-D21) — 이행 기록(예약 태그 migrate-held)이 가리킨 옛 넣지 못함 · 메모 · 개편 전 기록은 이은 항목 이력의 들어간 기록(바로잡힘이 아니다)
+  k.migrated = new Set()
   for (const w of all) {
     if (!w.fixes?.length) continue
+    if (w.tags.includes('migrate-held')) {
+      for (const x of w.fixes) k.migrated.add(x)
+      continue
+    }
     if (w.tags.includes('intake')) for (const x of w.fixes) k.handedOff.add(x)
     if (w.tags.includes('held') || w.tags.includes('touches-fix')) continue
     for (const x of w.fixes) k.superseded.add(x)
@@ -255,6 +261,7 @@ export function reflectedIn(k, w, sec) {
 //   「개편 전 기록」 이 되거나 다음 정리 · 다시 들이기가 되돌린 값을 다시 넣지 않게
 export function recordState(k, w) {
   const tags = w.tags || []
+  if (k.migrated?.has(w.id)) return 'in' // ⓪ 이행된 옛 기록(P8) — 글 그대로 이은 들어간 기록
   const sup = !!k.superseded?.has(w.id)
   if (tags.includes('held') && sup) return 'fixed' // ① R-A3 의 kept 보다 먼저
   if (k.kept?.has(w.id)) return 'kept' // ②
