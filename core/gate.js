@@ -238,3 +238,74 @@ export function checkIngest(k, g, d) {
   if (invented.length) return { ok: false, why: `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` }
   return { ok: true, changed, ...draftLint(outs) }
 }
+
+// 문서 짜임의 글 걸음 검사(바탕 세우기 설계 4-5 · 권한 모델 7-2) — 나누기 · 합치기 · 엮임 · 문서 요약 · 바탕 새 항목. 팀 · 개인 모두 돈다.
+//   unit — { targets: [{ doc(docs/x.md), h, content }], sources: [{ doc, h, base }], intros: [{ doc, text, ground }], ground?(바탕: 재료 글) }
+//   근거는 출처 항목의 지금 글(바탕은 재료 글)뿐이다 — 기록 본문 · 제목은 근거가 아니다(「기록에도 같이 지어 넣으면 넘는」 구멍)
+//   legacy(doc, h) → 그 항목에 아직 안 들어간 개편 전 기록 id(섞인 자리) · → { ok, code(conflict · legacy-mix · format · values), why, warnings }
+export function checkShape(k, unit, { legacy = null } = {}) {
+  const plain = (t) => (hasBlockMarker(t) ? splitBlocks(t).text.replace(/\u0000block\d+\u0000/g, '') : String(t || ''))
+  const secOf = (doc, h) => k.byDocPath.get(doc)?.sections.find((s) => s.h === h) || null
+  // 지문 — 출처 항목마다 지금 글이 지을 때와 같아야 한다(하나라도 다르면 단위 전체 E_CONFLICT)
+  const srcText = []
+  for (const s of unit.sources || []) {
+    const sec = secOf(s.doc, s.h)
+    if (!sec) return { ok: false, code: 'conflict', stale: true, why: `출처 항목이 없다: ${s.doc.replace(/^docs\/|\.md$/g, '')} › ${s.h}` }
+    if (s.base && sha16(sec.body) !== s.base) return { ok: false, code: 'conflict', stale: true, why: `그사이 출처 항목이 바뀌었다: ${s.h}` }
+    srcText.push(sec.body)
+  }
+  // 섞인 자리 — 출처 · 목표에 아직 안 들어간 개편 전 기록
+  if (legacy) {
+    for (const x of [...(unit.sources || []), ...(unit.targets || [])]) {
+      const ids = legacy(x.doc, x.h) || []
+      if (ids.length) return { ok: false, code: 'legacy-mix', why: `「${x.h}」 에 개편 전 기록 ${ids.length} 이 아직 안 들어갔다: 지식관리자가 [옛 기록 다시 들이기] 를 하면 풀린다` }
+    }
+  }
+  // 꼴 — 머리 · 표지 · 표 · 문서 꼴 · 빈 글 · 목표 문서 갈래의 머리 꼴
+  for (const t of unit.targets || []) {
+    if (typeof t.content !== 'string' || !t.content.trim()) return { ok: false, code: 'format', why: `「${t.h}」 글이 비었다` }
+    const cur = secOf(t.doc, t.h)
+    const bad = draftBad(t.content, cur ? cur.body : '', { doc: t.doc, old: cur ? cur.body : null })
+    if (bad) return { ok: false, code: bad === '저절로 채우는 표를 고쳤다' ? 'machine' : 'format', why: `「${t.h}」 글에 머리 · 표지가 들었다: ${bad}` }
+    const f = k.forms ? guardNewDoc(k.forms, t.doc, [t.h]) : null
+    const headBad = f?.errors.find((e) => /머리 꼴/.test(e.message))
+    if (headBad) return { ok: false, code: 'format', why: headBad.message }
+  }
+  for (const x of unit.intros || []) {
+    if (typeof x.text !== 'string' || !x.text.trim()) return { ok: false, code: 'format', why: '요약이 비었다' }
+    const bad = draftBad(x.text, '', { doc: x.doc, old: null })
+    if (bad || /^#{1,6}\s/m.test(x.text)) return { ok: false, code: 'format', why: `요약에 머리 · 표지가 들었다: ${bad || '머리 줄'}` }
+  }
+  // 값 대조 — 지어낸 값(목표 ⊂ 출처 ∪ 이름) · 잃은 값(출처 ⊂ 목표 합 · 바탕 · 요약은 묻지 않는다)
+  const groundText = [...srcText, unit.ground || ''].map(plain).join('\n')
+  const srcV = valuesOf(groundText)
+  const heads = valuesOf([...(unit.sources || []).map((s) => s.h), ...(unit.targets || []).map((t) => t.h)].join(' '))
+  const named = new Set()
+  for (const t of unit.targets || []) for (const n of namesIn(k, k.byDocPath.get(t.doc))) named.add(n)
+  const grounded = groundedIn(groundText, srcV, heads)
+  const all = new Set()
+  for (const t of unit.targets || []) {
+    const v = valuesOf(plain(t.content))
+    for (const x of v) all.add(x)
+    const invented = [...v].filter((x) => !srcV.has(x) && !heads.has(x) && !named.has(x) && !grounded(x))
+    if (invented.length) return { ok: false, code: 'values', why: `「${t.h}」 에 출처에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` }
+  }
+  for (const x of unit.intros || []) {
+    const g = valuesOf(plain(x.ground || ''))
+    const gg = groundedIn(plain(x.ground || ''), g)
+    const invented = [...valuesOf(x.text)].filter((v) => !g.has(v) && !named.has(v) && !gg(v))
+    if (invented.length) return { ok: false, code: 'values', why: `요약에 문서에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` }
+  }
+  if ((unit.sources || []).length) {
+    const tHeads = valuesOf((unit.targets || []).map((t) => t.h).join(' '))
+    const lost = [...valuesOf(srcText.map(plain).join('\n'))].filter((v) => !all.has(v) && !tHeads.has(v))
+    if (lost.length) return { ok: false, code: 'values', why: `출처의 값이 새 글에 없다: ${lost.slice(0, 3).join(' · ')}` }
+  }
+  // 사라지는 문장 어림 — 거절하지 않고 알린다(끝 진단)
+  const warnings = []
+  const sentences = (t) => plain(t).split(/(?<=[.다])\s+|\n+/).map((x) => x.replace(/[\s*`>|-]+/g, '')).filter((x) => x.length >= 8)
+  const now = (unit.targets || []).map((t) => plain(t.content).replace(/[\s*`>|-]+/g, '')).join('\n')
+  const dropped = srcText.flatMap(sentences).filter((x) => !now.includes(x))
+  if (dropped.length) warnings.push(`글이 바뀐 문장 ${dropped.length}`)
+  return { ok: true, warnings, ...draftLint((unit.targets || []).map((t) => t.content)) }
+}

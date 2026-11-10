@@ -438,3 +438,18 @@ export function moveSection(srcText, dstText, { heading, to = heading, before = 
   if (same) return { src: out(lines, D.ref), dst: null, body: chunk }
   return { src: out(rest, S.ref), dst: out(lines, D.ref), body: chunk }
 }
+
+// 문서 요약(작성기준 3절 3) — `# 제목` 아래 · 첫 `##` 앞의 글을 갈아 끼운다. 참고 블록 · 항목은 바이트 그대로(문서 짜임의 요약 걸음)
+export function replaceIntro(text, intro) {
+  const { lines, ref, found } = splitRef(String(text).split('\n'))
+  const heads = headsOf(lines)
+  const h1 = heads.find((h) => h.level === 1)
+  const h2 = heads.find((h) => h.level === 2)
+  const from = h1 ? h1.line + 1 : 0
+  const to = h2 ? h2.line : lines.length
+  const body = String(intro ?? '').replace(/^\n+|\s+$/g, '')
+  const mid = body ? [...(h1 ? [''] : []), ...body.split('\n'), ...(h2 ? [''] : [])] : h1 && h2 ? [''] : []
+  const out = [...lines.slice(0, from), ...mid, ...lines.slice(to)]
+  if (!found) return out.join('\n').replace(/\n*$/, '\n')
+  return withRef(out, ref)
+}

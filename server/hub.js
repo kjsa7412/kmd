@@ -23,7 +23,7 @@ import { check as checkDraft } from '../core/gate.js'
 import { INGEST_SCHEMA, ingestCandidates, formsOf, supersededIngest, draftToSave, polishToSave, POLISH_MAX, heldRecord, intakeTags, INTAKE_SCHEMA, intakePromptOf, intakeFixPromptOf, docRel, quoteSrc } from '../core/ingest.js'
 import { WRITE_RULES } from '../core/writerules.js'
 import { checkProposal, placeOf, PROPOSAL_PART } from '../core/propose.js'
-import { checkSection } from '../core/gate.js'
+import { checkSection, checkShape } from '../core/gate.js'
 import { valuesOf, mustValues } from '../core/values.js'
 import { splitBlocks, hasBlockMarker } from '../core/baseline.js'
 import { validEdits } from '../core/edits.js'
@@ -48,7 +48,7 @@ import { renderRecord } from '../core/frontmatter.js'
 import { stampAll, headingMatches, findHeading } from '../core/sections.js'
 import { docfmtDir, checkFormat } from '../core/docformat.js'
 import { applyRestructure, readStructure, structureFp } from '../core/restructure.js'
-import { readShape, cleanPlan, planCheck, stepsOf } from '../core/shape.js'
+import { readShape, cleanPlan, planCheck, stepsOf, diffPlan, unitFp } from '../core/shape.js'
 import { parseOrder } from '../core/order.js'
 import { parseDoc as parseDocText } from '../core/sections.js'
 import { parseForms } from '../core/guard.js'
@@ -547,7 +547,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   // ── 저장 문(S4 · docs/품질개선/KMD_개편_설계.md 3-3) ──
   // 저장 속도(S-D28) — 지식 + 기기(없으면 사람)마다 토큰 통. 토큰은 await 앞에서 동기로 뺀다(MCP 묶음이 동시에 돈다)
   const rates = new Map()
-  const SAVE_CHANNELS = new Set(['session', 'bulk', 'http', 'send', 'edit', 'fix'])
+  // shape — 문서 짜임의 글 걸음(hub.shapeWrite 만 · opt.shape · 속도 한도는 세지 않는다 · 바탕 세우기 설계 4-3)
+  const SAVE_CHANNELS = new Set(['session', 'bulk', 'http', 'send', 'edit', 'fix', 'shape'])
   // 들이기 일감의 채널(측정 줄 · 속도 한도는 세지 않는다 · 비용 한도는 openJob)
   const INTAKE_CHANNELS = new Set(['intake-file', 'intake-commit', 'intake-src', 'intake-fix', 'intake-again', 'polish'])
   function rateTake(ctx, id, n = 1) {
@@ -697,7 +698,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     if (!opt.system && (Array.isArray(rec0?.tags) ? rec0.tags : []).some((t) => String(t).trim().startsWith('sent/')) && channel !== 'send') throw new KmdError('E_INPUT', 'sent/ 표지는 보내기만 단다')
     // 화면 문서 고치기(opt.edit · S9 · hub.edit 만 단다)는 팀 검사(gatePrepare)를 거치지 않는다 — 값 검사 없이 고친 글 그대로(K-D4) ·
     //   지문(base) · 원본이 주인 · 문서 꼴 · 저절로 채우는 표는 core 가 본다
-    const team = mode === 'team' && !opt.system && !opt.edit
+    //   문서 짜임의 글 걸음(opt.shape · hub.shapeWrite 만 단다)도 팀 검사 대신 checkShape 로 가른다(팀 · 개인 모두 · 권한 모델 7-2)
+    const team = mode === 'team' && !opt.system && !opt.edit && !opt.shape
     // 들이기 일감의 저장(S-D19 · S-D43) — 자리는 intakeCtx 가 일감을 끝낼 때 정했다 · 예약 사람 kmd · 저장 문이 붙이는 태그 · 새 문서를 세운다
     const intake = opt.intake && ctx.intake ? opt.intake : null
     const rctx = intake ? undefined : ctx
@@ -761,7 +763,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
     }
     let r0
-    if (team) {
+    if (opt.shape) {
+      // 걸음 재료(조각 · 걷을 출처 · 자리 장부 줄 · 요약)는 줄 안에서 새로 읽은 지식으로 엔진이 만든다(prepare) — 입력 sections 는 받지 않는다
+      if (input?.sections?.length || input?.names?.length || input?.forms?.length) throw new KmdError('E_INPUT', '짜임 글 걸음은 조각을 입력으로 받지 않는다')
+      if (!files.has(id)) files.set(id, new Map())
+      r0 = await coreSave(meta.dir, { record: input.record, sections: [] }, { user: ctx.user, system: !!opt.system, guard: 'hold', partial: true, correction: true, prepare: opt.shape.prepare || null, shape: { tags: opt.shape.tags }, onCommit: () => cache.delete(id) })
+    } else if (team) {
       // 조각의 모양 — core 는 edits 를 모른다(prepare 가 새 글로 바꾼다) · 그래서 입력 조각은 여기서 본다
       const secs = Array.isArray(input.sections) ? input.sections : []
       if (secs.length > SECTIONS_MAX) throw new KmdError('E_INPUT', `항목은 한 번에 ${SECTIONS_MAX}개까지 보낸다`)
@@ -1450,7 +1457,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!ctx.machine && !asIntake) hub.need(ctx, id, 'write')
       const channel = SAVE_CHANNELS.has(opt.channel) || (asIntake && INTAKE_CHANNELS.has(opt.channel)) ? opt.channel : null
       // 저장 속도(S-D28) — 바깥에서 온 저장(세션 · HTTP · 보내기)만 · 서버 안의 저장(가져오기 · 받은편지함 · 되돌리기)은 세지 않는다
-      if (channel && !opt.system && !asIntake) rateTake(ctx, id)
+      if (channel && !opt.system && !asIntake && !opt.shape) rateTake(ctx, id)
       // 첨부(S-D30) — 쓰기 이상 · 지식마다 하루 합(들이기 저장의 첨부는 파일 넣기가 받은 그때 셌다)
       let took = 0
       if (input?.attach != null && !asIntake) {
@@ -1696,6 +1703,111 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       ]
       return { kn: id, work: w.work, fp: S.fp, ok: r.ok, stale: r.stale, errors: r.errors.slice(0, 200), warnings: r.warnings.slice(0, 200), summary: r.summary, steps, changes: changes.slice(0, 1000) }
     },
+    // 글 걸음 하나(바탕 세우기 설계 4-3 · 4-5 · 4-8) — 나누기 · 합치기 · 엮임 · 문서 요약 단위 n 을 저장 문(opt.shape)으로 한 번.
+    //   서버 안 함수만 부른다(HTTP 로 열지 않는다). 받는 것은 구조안 · 단위 번호 · 목표 글(texts: [{ doc, h, content }]) · 요약 글(intros: { 문서: 글 })뿐 —
+    //   걷을 출처 · 조각 · 자리 장부 줄 · 참고 줄은 저장 줄 안에서 새로 읽은 지식과 구조안으로 엔진이 만든다.
+    //   멱등: 같은 걸음 표지(shape/<work>/<n>) 기록이 들어갔으면 건너뛴다 · 넣지 못함이면 다시 넣되 새 기록에 fixes
+    //   걸리면(값 · 꼴 · 섞인 자리) 기록(work/ · 태그 shape) + 넣지 못함 · 출처 지문이 어긋나면 E_CONFLICT(아무것도 쓰지 않는다)
+    async shapeWrite(ctx, id, { plan, n, fp = null, texts = [], intros = {}, work, step } = {}) {
+      if (!ctx?.user) throw new KmdError('E_INPUT', '누가 넣는지 모른다')
+      const meta = await hub.meta(id, ctx)
+      hub.need(ctx, id, 'admin')
+      if (!/^[0-9a-f]{12}$/.test(String(work)) || step !== `shape/${work}/${n}` || !Number.isInteger(n) || n < 1) throw new KmdError('E_INPUT', '걸음 표지 꼴이 아니다')
+      const c = cleanPlan(plan)
+      if (c.error) throw new KmdError('E_INPUT', c.error)
+      if (fp != null && !/^[0-9a-f]{16}$/.test(String(fp))) throw new KmdError('E_INPUT', 'fp 는 16자 지문이다')
+      if (!Array.isArray(texts) || texts.length > SECTIONS_MAX || texts.some((x) => !x || typeof x.doc !== 'string' || typeof x.h !== 'string' || typeof x.content !== 'string' || x.content.length > 200_000)) throw new KmdError('E_INPUT', 'texts 는 [{ doc, h, content }] 다')
+      if (!intros || typeof intros !== 'object' || Array.isArray(intros) || Object.keys(intros).some((x) => ['__proto__', 'prototype', 'constructor'].includes(x)) || Object.values(intros).some((x) => typeof x !== 'string' || x.length > 4000)) throw new KmdError('E_INPUT', 'intros 는 { 문서: 글 } 이다')
+      const unitOf = async (k) => {
+        const S = readShape(k, await readStructure(meta.dir))
+        const d = diffPlan(S, c.plan)
+        const u = d.writes.find((x) => x.n === n)
+        if (!u) throw new KmdError('E_CONFLICT', `그 글 걸음(${n})이 구조안에 없다: 구조안을 다시 맞춘다`)
+        return u
+      }
+      // 멱등 — 같은 걸음 표지
+      const k0 = await hub.get(id, ctx)
+      const prev = k0.works.filter((w) => w.tags.includes(step))
+      const done = prev.find((w) => w.state !== 'held' && w.state !== 'fixed')
+      if (done) return { kn: id, skipped: true, id: done.id }
+      const fixes = prev.filter((w) => w.state === 'held').map((w) => w.id)
+      const u0 = await unitOf(k0)
+      const rel = (doc) => `docs/${doc}.md`
+      const nm = (x) => `${x.doc} › ${x.h}`
+      const kindWord = { merge: '합치기', split: '나누기', mixed: '나누기 · 합치기', seed: '바탕 세움', intro: '문서 요약', rewrite: '다시 씀' }[u0.kind]
+      const what = u0.sources.length ? `${u0.sources.map(nm).join(' · ')} → ${u0.targets.map(nm).join(' · ')}` : u0.targets.length ? u0.targets.map(nm).join(' · ') : u0.intros.map((x) => x.doc).join(' · ')
+      const title = `${kindWord}: ${what}`.slice(0, 200)
+      // 건드린 이름 — 출처 · 목표 항목에 닿는 이름 모두(work/ 기록이 「이름 없는 기록」 이 되지 않게)
+      const touches = new Set(u0.sources.flatMap((s) => s.coords))
+      for (const t of u0.targets) {
+        const dObj = k0.byDocPath.get(rel(t.doc))
+        const sec = dObj?.sections.find((s) => s.h === t.h)
+        if (sec) for (const x of coordsOfSection(k0, dObj, sec.h)) touches.add(x)
+      }
+      for (const x of c.plan.names) if (u0.targets.some((t) => t.doc === x.doc && t.h === x.h)) touches.add(x.coord)
+      const body = `문서 짜임으로 다시 썼다(짜임 일 ${work} · 걸음 ${n}). 새 글의 값은 출처 항목의 값만 쓴다.\n\n## 바뀐 것\n- ${kindWord}: ${what}`
+      const record = { title, body, ...(touches.size ? { touches: [...touches] } : { touchesEmpty: '이름 없는 항목을 다시 썼다' }), ...(fixes.length ? { fixes } : {}) }
+      const legacyOf = (k) => (mode === 'team' ? (doc, h) => { const docObj = k.byDocPath.get(doc); const sec = docObj?.sections.find((s) => s.h === h); return docObj && sec ? legacyPendOf(k, { docObj, sec, heading: h }, null) : [] } : null)
+      const prepare = async () => {
+        // 줄 안 — 새로 읽은 지식으로 단위를 다시 만든다(입력 걸음 재료는 받지 않는다)
+        const k = await loadKnowledge(meta, { cache: files.get(id), cutoverAt: config.cutoverAt || null, team: mode === 'team' })
+        const u = await unitOf(k)
+        if (JSON.stringify(u.sources.map(nm)) !== JSON.stringify(u0.sources.map(nm)) || JSON.stringify(u.targets.map(nm)) !== JSON.stringify(u0.targets.map(nm))) throw new KmdError('E_CONFLICT', '그사이 짜임이 바뀌었다: 구조안을 다시 맞춘다')
+        // 글 지문 — 목표 글을 지을 때 본 출처 글과 지금이 같아야 한다(4-5 · 어긋나면 그 단위 전체 E_CONFLICT · 다시 맞추기)
+        if (fp && unitFp(u) !== fp) throw new KmdError('E_CONFLICT', '글을 지은 뒤 출처 항목이 바뀌었다: 다시 맞춘다')
+        // 기록 상태 앞뒤 같음 — 출처에 아직 안 넣은 기록이 걸려 있으면 이 저장이 그 기록을 조용히 「넣음」 으로 만든다
+        for (const s of u.sources) {
+          const docObj = k.byDocPath.get(rel(s.doc))
+          const sec = docObj?.sections.find((x) => x.h === s.h)
+          const pend = sec ? k.works.filter((w) => w.state === 'pend' && !(mode === 'team' && isLegacy(k, w)) && w.touches.some((x) => s.coords.includes(x)) && !reflectedIn(k, w, sec)) : []
+          if (pend.length) throw new KmdError('E_CONFLICT', `「${nm(s)}」 에 아직 안 넣은 기록 ${pend.length} 이 걸려 있다: 먼저 넣거나 두기로 정한다`)
+        }
+        const textOf = (t) => texts.find((x) => x.doc === t.doc && x.h === t.h)?.content ?? (typeof t.text === 'string' ? t.text : null)
+        const targets = u.targets.map((t) => ({ doc: rel(t.doc), h: t.h, content: textOf(t), base: t.base || null, plan: t }))
+        const missing = targets.find((t) => typeof t.content !== 'string')
+        // 요약 근거 — 그 문서의 지금 항목 글 + 이 단위의 목표 글
+        const introRows = u.intros.map((x) => ({ doc: rel(x.doc), text: typeof intros[x.doc] === 'string' ? intros[x.doc] : x.text ?? null, ground: [...(k.byDocPath.get(rel(x.doc))?.sections || []).map((s) => s.body), ...targets.filter((t) => t.doc === rel(x.doc)).map((t) => t.content || '')].join('\n') }))
+        const holdAll = (code, why) => ({ sections: [], held: [...targets.map((t) => ({ doc: t.doc, heading: t.h, code, why, ...(typeof t.content === 'string' ? { content: t.content } : {}) })), ...introRows.map((x) => ({ doc: x.doc, heading: '(요약)', code, why, ...(typeof x.text === 'string' ? { content: x.text } : {}) }))].slice(0, 50) })
+        if (missing) return holdAll('format', `「${missing.h}」 글이 없다`)
+        if (introRows.some((x) => typeof x.text !== 'string')) return holdAll('format', '요약 글이 없다')
+        const r = checkShape(k, { targets, sources: u.sources.map((s) => ({ doc: rel(s.doc), h: s.h, base: s.sha })), intros: introRows }, { legacy: legacyOf(k) })
+        if (!r.ok && r.code === 'conflict') throw new KmdError('E_CONFLICT', r.why)
+        if (!r.ok) return holdAll(r.code, r.why)
+        // 이름 다시 놓기 — 출처에 닿던 이름은 구조안 names 의 목표 항목으로(placeExact)
+        const place = []
+        for (const s of u.sources) {
+          for (const coord of s.coords) {
+            const at = c.plan.names.find((x) => x.coord === coord)
+            if (!at || !u.targets.some((t) => t.doc === at.doc && t.h === at.h)) return holdAll('names', `「${coord}」 을 놓을 새 항목이 구조안에 없다`)
+            place.push({ coord, doc: rel(at.doc), heading: at.h })
+          }
+        }
+        // 참고 줄 — 출처 항목의 줄을 목표 문서 깊이로 옮겨 목표 조각에 싣는다(removeSection 이 버리기 전에)
+        const srcLog = (t) => u.sources.filter((s) => t.plan.from.some((f) => f.doc === s.doc && f.h === s.h)).flatMap((s) => {
+          const sec = k.byDocPath.get(rel(s.doc))?.sections.find((x) => x.h === s.h)
+          const up = '../'.repeat(t.doc.split('/').length - 1)
+          return (sec?.log || []).map((l) => String(l).replace(/\]\((?:\.\.\/)*(work|log)\//, `](${up}$1/`))
+        })
+        // 차례 — 목표 문서의 계획 차례에서 다음에 오는(지금 있는 · 이 단위가 먼저 쓴) 항목 앞에. 뒤에서부터 쓴다
+        const sections = []
+        const written = new Set()
+        for (const t of [...targets].reverse()) {
+          const pd = c.plan.docs.find((x) => x.id === t.plan.doc)
+          const i = pd ? pd.items.findIndex((x) => x.h === t.h) : -1
+          const now = new Set((k.byDocPath.get(t.doc)?.sections || []).map((s) => s.h))
+          const gone = new Set(u.sources.filter((s) => rel(s.doc) === t.doc && !s.keep).map((s) => s.h))
+          const next = i < 0 ? null : pd.items.slice(i + 1).find((x) => (now.has(x.h) && !gone.has(x.h)) || written.has(`${t.doc}\n${x.h}`))
+          sections.push({ doc: t.doc, heading: t.h, content: t.content, ...(t.base ? { base: t.base } : next ? { before: next.h } : {}), log: srcLog(t) })
+          written.add(`${t.doc}\n${t.h}`)
+        }
+        // 출처 걷기 — 목표를 먼저 쓰고 · 고쳐 쓰는 출처(keep)는 걷지 않는다
+        for (const s of u.sources) if (!s.keep) sections.push({ doc: rel(s.doc), heading: s.h, remove: true, base: s.sha })
+        return { sections, held: [], place, intros: introRows.map((x) => ({ doc: x.doc, text: x.text })), warnings: r.warnings }
+      }
+      const tags = ['shape', step]
+      const r = await hub.save(ctx, id, { record }, { channel: 'shape', noCurate: true, shape: { tags, prepare } })
+      return { kn: id, ...r }
+    },
 
     // 조각을 넣는 판정(S-D6) — 이 PC · 그 지식의 에이전트 · 쓰기 이상. 장부 · 되돌리기 · 받은편지함은 canDirect(지식관리자) 그대로
     canSave(ctx, id) {
@@ -1859,6 +1971,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       hub.need(ctx, id, 'write')
       const w = k.byWork.get(record)
       if (!w) throw new KmdError('E_NOTFOUND', '그 기록이 없다')
+      // 문서 짜임으로 다시 쓴 기록(나누기 · 합치기 · 바탕 새 항목 · 바탕 세우기 설계 4-3 되돌리기 1)은 여기서 되돌리지 않는다
+      if (w.tags.includes('shape') || w.tags.includes('shape-done')) throw new KmdError('E_FORBIDDEN', '짜임으로 다시 쓴 항목은 문서 짜임의 되돌리기 구조안이나 문서 고치기로 되돌린다')
       // 자리(S-D13) — 지식관리자 · 그 기록을 쓴 사람 · 그 기록이 반영한 기록의 쓴 사람이 나 하나뿐
       const curator = hub.canDirect(ctx, id)
       if (!curator && w.author !== ctx.user) {
@@ -2949,7 +3063,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             last.set(key, w.author)
             return { doc: x.doc, name: x.doc.replace(/^docs\/|\.md$/g, ''), heading: x.heading, from: x.from, to: x.to, isNew: x.isNew, live, reverted: !!back?.has(key) || !!k.reverted?.has(w.id) }
           })
-          const canRevert = write && (curator || w.author === ctx.user) && items.some((x) => x.live)
+          const canRevert = write && (curator || w.author === ctx.user) && items.some((x) => x.live) && !w.tags.includes('shape') // 짜임 기록은 문서 짜임에서 되돌린다
           putOf.set(`${k.id}\n${w.id}`, { items, canRevert, yl })
         }
       }

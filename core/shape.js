@@ -377,3 +377,6 @@ export function stepsOf(diff) {
   return steps.map((s, i) => ({ n: i + 1, ...s }))
 }
 export { FORM_KINDS }
+
+// 글 걸음 지문(4-2) — 단위의 출처 항목마다 글 지문(sha16). 글을 지을 때 본 출처와 넣을 때의 출처가 같아야 한다(어긋나면 E_CONFLICT)
+export const unitFp = (u) => hash16((u.sources || []).map((s) => `${s.doc}\n${s.h}\n${s.sha}`).join('\n') + '\n--\n' + (u.targets || []).map((t) => `${t.doc}\n${t.h}`).join('\n'))

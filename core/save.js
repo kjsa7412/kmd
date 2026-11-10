@@ -20,6 +20,9 @@
 //   correction 좌표정정(touches-fix) 판정을 건너뛴다(서버가 정한 다시 저장) · onCommit — 커밋 뒤 줄을 놓기 전에(던져도 log 만)
 //   partial · intake 저장은 넣은 항목을 기록 끝 `## 넣은 것`(태그 put) · 못 넣은 조각을 `## 넣지 못함`(태그 held) 칸으로 남긴다(core/parts.js)
 //   record.memo — 메모(태그 memo · 항목 글을 받지 않는다) · input.attach — docs/assets/ 아래 첨부(같은 저널 · 같은 커밋)
+//   shape     { tags } — 문서 짜임의 글 걸음(바탕 세우기 설계 4-3 · hub.shapeStep 만 단다). 저장 문이 붙이는 예약 태그(shape · shape-done · shape/<work>/<n>) ·
+//             항목 지우기(출처 걷기)를 받는다(structure) · prepare 가 돌려준 place([{ coord, doc, heading }] · 자리 장부 placeExact) ·
+//             intros([{ doc, text }] · 문서 요약) · sections[].log(출처 항목의 참고 줄 · 목표 항목 줄에 합친다)를 쓴다
 
 import fs from 'node:fs/promises'
 import { existsSync } from 'node:fs'
@@ -27,7 +30,7 @@ import path from 'node:path'
 import { fail, KmdError } from './errors.js'
 import { nfc, oneLine, readText, sha16 } from './text.js'
 import { renderRecord, parseRecord } from './frontmatter.js'
-import { replaceSection, removeSection, renameSection, parseDoc, findHeading, splitLog, splitRef, mergeLog, logLine, logHas, ROUGH } from './sections.js'
+import { replaceSection, removeSection, renameSection, replaceIntro, parseDoc, findHeading, splitLog, splitRef, mergeLog, logLine, logHas, ROUGH } from './sections.js'
 import { formatCheck, formatMessage, keptMessage, lintNew, lintMessage } from './docformat.js'
 import { isReservedUser, isReservedTag, isLogRecord, LOG_DIR } from './names.js'
 import { isReservedFile } from './owners.js'
@@ -37,7 +40,7 @@ import { parseVocab } from './vocab.js'
 import { ensureRepo, commitPaths, headSha } from './git.js'
 import { begin, recover, writeAtomic } from './journal.js'
 import { watchedOf } from './watchmark.js'
-import { upsertVocab, upsertRegistry, cleanNames, upsertPatternRow, upsertForms, cleanForms } from './namebook.js'
+import { upsertVocab, upsertRegistry, cleanNames, upsertPatternRow, upsertForms, cleanForms, placeExact } from './namebook.js'
 import { guardRecord, guardNames, guardNewDoc, formsOf, EMPTY_MAX } from './guard.js'
 import { valuesOf, valueDiff } from './values.js'
 import { renderPut, renderHeld, KMD_PART_RE } from './parts.js'
@@ -54,6 +57,8 @@ const ASSET_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'p
 const DEVICE = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i
 // 들이기 저장에 저장 문이 붙이는 예약 태그(S-D43)
 const INTAKE_TAG = (t) => ['intake', 'code-change', 'polish'].includes(t) || /^job\/[A-Za-z0-9_-]{1,64}$/.test(t)
+// 문서 짜임 글 걸음에 저장 문이 붙이는 예약 태그
+const SHAPE_TAG = (t) => ['shape', 'shape-done'].includes(t) || /^shape\/[0-9a-f]{12}\/\d{1,4}$/.test(t)
 
 const pad = (n) => String(n).padStart(2, '0')
 export function localStamp(d = new Date()) {
@@ -215,7 +220,7 @@ export function serial(key, f) {
 //         원본이 주인인 문서 · 저절로 채우는 표 · kmd 파일은 사람 · 세션과 같이 막힌다(system 이 아니다)
 // guard — 지식 생성 가드(core/guard.js)의 길. 'strict'(거절형 — 세션 · 화면) · 'hold'(붙잡아 두기 — 그 밖의 길 · 기본)
 //         holdWhy — hold 에서 이름 없는 기록에 kmd 가 다는 까닭 · proposed — 세울 이름으로 실어 둔 이름(일반 자리의 names)
-export function save(dir, input, { user, now = new Date(), system = false, agent = false, guard = 'hold', holdWhy = null, proposed = [], prepare = null, onCommit = null, partial = false, asEdit = false, structure = false, correction = false, intake = null } = {}) {
+export function save(dir, input, { user, now = new Date(), system = false, agent = false, guard = 'hold', holdWhy = null, proposed = [], prepare = null, onCommit = null, partial = false, asEdit = false, structure = false, correction = false, intake = null, shape = null } = {}) {
   if (!user || !oneLine(user)) fail('E_INPUT', '누가 쓰는지 모른다')
   // 들이기 일감은 예약 사람 kmd 로 쓸 수 있다(가져올 곳) — kmd-auto · kmd-worker 는 아니다(S-D43)
   const kmdIntake = !!intake && nfc(user).trim().toLowerCase() === 'kmd'
@@ -232,6 +237,12 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
     const t = intake.tags ?? []
     if (!Array.isArray(t) || t.some((x) => typeof x !== 'string' || !INTAKE_TAG(x))) fail('E_INPUT', '들이기 태그는 intake · job/<일감 id> · code-change · polish 만 붙인다')
     serverTags = [...new Set(['intake', ...t])]
+  }
+  if (shape) {
+    const t = shape.tags ?? []
+    if (intake || !Array.isArray(t) || !t.length || t.some((x) => typeof x !== 'string' || !SHAPE_TAG(x))) fail('E_INPUT', '짜임 태그는 shape · shape-done · shape/<일 id>/<걸음> 만 붙인다')
+    serverTags = [...new Set(t)]
+    structure = true
   }
   // 항목 지우기 · 이름 바꾸기 — 화면의 고치기(지식관리자)만 · 저절로 채우는 표는 고치지 않는다(partial 이면 그 항목만 넣지 못함)
   const g0 = guardSections(secs0, { system, structure, partial })
@@ -260,7 +271,11 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
       }
       held = [...cleanHeld(prep.held), ...held]
     }
-    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, partial, marks: partial || !!intake, intake: !!intake, serverTags, correction, attach: input.attach || [], onCommit, prep })
+    // 문서 짜임 — 자리 장부 정확한 줄 · 문서 요약(prepare 가 새로 읽은 지식으로 만든다)
+    const place = shape ? (Array.isArray(prep?.place) ? prep.place : []) : []
+    const intros = shape ? (Array.isArray(prep?.intros) ? prep.intros : []) : []
+    if (place.some((x) => !x || !COORD.test(String(x.coord || '')) || !oneLine(x.doc) || !oneLine(x.heading)) || intros.some((x) => !x || !oneLine(x.doc) || typeof x.text !== 'string' || x.text.length > 4000)) fail('E_INPUT', '짜임 자리 · 요약 모양이 아니다')
+    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, partial, marks: partial || !!intake, intake: !!intake, serverTags, correction, attach: input.attach || [], onCommit, prep, shape: !!shape, place, intros })
   })
 }
 
@@ -373,7 +388,7 @@ export function sectionBase(text, heading) {
   return sha16(sec ? sec.body : '')
 }
 
-async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], partial = false, marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null }) {
+async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], partial = false, marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null, shape = false, place = [], intros = [] }) {
   const held = [...heldIn]
   const regRaw = await fs.readFile(path.join(dir, '_managed.md'), 'utf8').then(readText, () => null)
   const vocRaw = await fs.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => null)
@@ -415,6 +430,8 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
       if (g.registryRow) regNext = upsertPatternRow(regNext, g.registryRow.pattern, g.registryRow.doc)
     }
   }
+  // 문서 짜임 — 이름이 새 항목에 닿게(정확한 줄은 제자리 · 패턴 줄로 닿던 이름은 패턴 줄 위에)
+  if (place.length) regNext = placeExact(regNext, place)
   const registry = parseRegistry(regNext)
 
   // 항목 자리 먼저 — 하나라도 못 찾으면 아무것도 쓰지 않는다(partial 이면 그 항목만 넣지 못함 · S-D8)
@@ -537,6 +554,19 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
     }
     atts.push({ ...p, buf })
   }
+  // 문서 요약(짜임 글 걸음) — 쓰기 전에 본다: 문서가 없음 · 원본이 주인 · 문서 꼴은 넣지 못함(기록 끝 칸에 실리게)
+  const introsOk = []
+  for (const x of intros) {
+    const p = docPath(dir, x.doc)
+    const cur = await fs.readFile(p.full, 'utf8').then(readText, (e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
+    const row = (code, why) => held.push(heldRow({ doc: p.rel, heading: '(요약)', content: x.text }, code, why))
+    if (cur == null) { row('notfound', '요약을 달 문서가 없다'); continue }
+    if (watchedOf(cur)) { row('watched', '원본이 주인인 문서다'); continue }
+    const fc = formatCheck(x.text, { doc: p.rel, old: parseDoc(cur, '').intro || null })
+    if (fc.problems.length) { row('format', formatMessage('요약', fc.problems)); continue }
+    if (/^#{1,6}\s/m.test(x.text)) { row('format', '요약에 머리 줄을 넣지 않는다'); continue }
+    introsOk.push({ ...p, text: nfc(x.text) })
+  }
 
   await ensureRepo(dir)
   const day = date.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2$3')
@@ -608,7 +638,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
       if (!p.remove && p.rename == null && !watchedOf(start)) {
         const r = splitRef(content.split('\n'))
         const now = splitLog(r.lines.join('\n'))
-        log = mergeLog(old?.log || [], now.log, ...r.ref.values())
+        log = mergeLog(old?.log || [], now.log, ...r.ref.values(), ...(shape && Array.isArray(p.src.log) ? [p.src.log.map(String)] : []))
         for (const w of logged) if (!logHas(log, w.id)) log.push(logLine(p.rel, w, p.rough?.includes(w.id) ? ROUGH : ''))
         content = now.log.length || r.found ? now.body : content
       }
@@ -620,6 +650,14 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
       await fs.mkdir(path.dirname(p.full), { recursive: true })
       await writeAtomic(p.full, after)
       shape.get(p.rel).after = after
+    }
+    // 문서 요약(짜임 글 걸음) — 그 문서의 지금 글(이 저장이 쓴 것 다음)에서 `# 제목` 아래만 · 원본이 주인 · 문서 꼴은 넣지 못함
+    for (const p of introsOk) {
+      const cur = readText(await fs.readFile(p.full, 'utf8'))
+      const after = replaceIntro(cur, p.text)
+      if (after === cur) continue
+      if (!docs.includes(p.rel)) { await j.add(p.rel); docs.push(p.rel) }
+      await writeAtomic(p.full, after)
     }
     // 이름 장부 · 자리 장부 — 바뀐 것만
     const books = []
