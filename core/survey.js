@@ -22,7 +22,7 @@ import { DATE_RE, topicOfName } from './ingest.js'
 import { formFor, DEFAULT_FORMS } from './guard.js'
 import { readText } from './text.js'
 import { writeFileAtomic, writeJsonAtomic } from './atomic.js'
-import { cleanPlan, readShape, planCheck } from './shape.js'
+import { cleanPlan, readShape, planCheck, SEED_RULES } from './shape.js'
 import { formatProblems } from './docformat.js'
 import { WRITE_RULES } from './writerules.js'
 import { KmdError } from './errors.js'
@@ -341,17 +341,8 @@ export async function packCheck(dir, { k = null, files = null } = {}) {
   return { ok: !errors.length, stale: r.stale, base: S.fp, errors, warnings, summary: r.summary, counts: P.counts }
 }
 
-// ── 판단 기준(바탕 설계 6-1 · 구조안 프롬프트 · 스킬 · planCheck 공통) ──
-export const SEED_RULES = [
-  '짜임 판단 기준:',
-  '1. 문서는 주제 · 대상 하나 · 사건 갈래 하나 · 대장 하나. 파일 경계 · 원본 폴더 나무는 참고만. 문서 이름에 날짜 · 판 · 최종 · 확장자를 쓰지 않는다.',
-  '2. 항목은 대상 하나의 「지금」. 같은 대상의 여러 파일은 모으고 늦은 판이 이긴다. 옛 판은 빼기가 기본.',
-  '3. 갈래: 날짜 사건(회의 · 장애 · 주간보고)은 사건 갈래 「YYYY-MM-DD 무엇」, ID 가 붙어 되풀이되는 것은 대장 갈래(pattern 「이슈:*」), 나머지는 대상. 갈래는 같은 꼴이 셋 이상 되풀이될 때만 세운다. 갈래의 다른 이름은 계획한 문서 이름과 부분 문자열로 겹치지 않게. 준비 글(안건 · 스크립트 · 체크리스트)은 문서로 만들지 않고 그 안의 확정 사실만 옮긴다.',
-  '4. 이름(종류:값): 둘 이상 파일 · 문서에서 가리키는 고유물만. 종류는 8~10개 안팎. 빈 ## 머리 · 「작성 예정」 은 쓰지 않는다.',
-  '5. 크기: 폴더 깊이 2단 · 폴더당 문서 3~12 · 문서당 항목 5~40 · 항목 300줄 안.',
-  '6. 차례: 업무 흐름 순서. 숫자 앞붙임은 원본에 그 체계가 있을 때만. 폴더 안에서는 개요 문서가 먼저. 문서 요약 1~3문장은 # 제목 아래(intro · 「## 개요」 항목으로 두지 않는다).',
-  '7. 덮임: 넣음으로 고른 재료는 모두 어느 항목의 src 이거나 skip 에 까닭과 함께. 비밀이 든 재료는 쓰지 않는다.',
-].join('\n')
+// ── 판단 기준(바탕 설계 6-1) — core/shape.js 한 벌(구조안 프롬프트 · 스킬 · planCheck 공통 · Z6 에서 옮김) ──
+export { SEED_RULES }
 
 const CARD_FORM = '{ "src": "m:<16자>", "path": "<원본 경로>", "topic": "<대상 이름>", "form": "대상|사건|대장|서술", "date": "YYYY-MM-DD|null", "names": ["종류:값"], "facts": ["확정 사실 한 줄(값 글자 그대로)"], "secret": false, "note": "애매한 것 한 줄" }'
 

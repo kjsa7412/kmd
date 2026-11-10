@@ -443,8 +443,9 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/audit|admin\/users|admin\/groups|claude\/state|busy|send\/teams)$/,
     /^\/api\/agent\/parser$/, /^\/api\/gitlab\/groups$/,/^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
     /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|held|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|shape|past|removed|manage)$/,
+    /^\/api\/k\/[^/]+\/shape\/job\/[0-9a-f]{12}$/,
   ]
-  const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|stops\/ack|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|k\/[^/]+\/(?:owner|save-mode|access|delete|structure|polish|revert|unwatch|docfmt|shape(?:\/[a-z]+)?|seed\/upload|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names|approve)|rec\/[^/]+\/fix|removed\/restore))$/
+  const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|stops\/ack|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|k\/[^/]+\/(?:owner|save-mode|access|delete|structure|polish|revert|unwatch|docfmt|shape(?:\/[a-z]+|\/job\/[0-9a-f]{12}\/stop)?|seed\/upload|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names|approve)|rec\/[^/]+\/fix|removed\/restore))$/
   const auditFile = path.join(dataDir, 'audit.jsonl')
   // 걷은 경고 — <살림>/acks.json { 사람: { key: 걷은 때 } } · 깨졌으면 빈 것으로 보되 덮지 않는다(쓰기 때 다시 읽어 깨졌으면 던진다)
   const stopKey = (x) => crypto.createHash('sha256').update([x.kind, x.kn || '', x.b || ''].join('\n')).digest('hex').slice(0, 16)
@@ -515,7 +516,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     // 팀 일꾼 — 일감 받기 · 상태 알리기(kmdw_) · 들이기 재료 · 초안(kmdd_)
     if (p === '/api/worker/next' || p === '/api/worker/status') {
       if (!ctx?.worker) throw new KmdError('E_FORBIDDEN', '팀 일꾼 열쇠로 부른다')
-      if (p === '/api/worker/next') return out(200, hub.workerNext(ctx) || { job: null })
+      if (p === '/api/worker/next') return out(200, hub.workerNext(ctx, req.method === 'POST' ? await readBody(req) : {}) || { job: null })
       return out(200, await hub.workerStatus(ctx, await readBody(req)))
     }
     // 들이기 일감(S7 · 설계 3-5) — 재료(GET) · 소식 · 끝 · 못 받음(POST · S-D54) · 열쇠의 지식 · 일감 꼴은 hub 가 본다
@@ -764,6 +765,31 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     }
     // 문서 짜임 넓히기(바탕 세우기 설계 8-1 · 권한 모델 7-2) — 지식관리자 · GET 지금 짜임 + shapeFp + 열린 짜임 일 · POST shape/check { plan } 구조안 검사(초안을 장부에) ·
     //   shape/try 연습 판에 해 보기 · shape/put 넣기 · 이어 넣기(다시 맞추기는 그 안에서) · shape/stop 그만두기 · shape/undo 되돌리기 구조안. 걸음 내용(ops · remove)은 받지 않는다
+    // Claude 짜임(Z6 · 바탕 세우기 설계 8-1) — POST shape/ask { plan?, note? } 구조안 받기 · POST shape/write { sources, targets } 글 짓기 → { job } ·
+    //   GET shape/job/:job 일 하나(도는 중 · 끝 · 못함) · POST shape/job/:job/stop 그만두기. 지식관리자만 · 「Claude 에 보내지 않음」 지식은 403
+    const sha = p.match(/^\/api\/k\/([^/]+)\/shape\/(ask|write)$/)
+    if (sha) {
+      need(ctx)
+      if (req.method !== 'POST') throw new KmdError('E_METHOD', 'POST 만 받는다')
+      const kn = dec(sha[1])
+      await hub.meta(kn, ctx)
+      hub.need(ctx, kn, 'admin')
+      const b = await readBody(req)
+      if (!b || typeof b !== 'object' || Array.isArray(b)) throw new KmdError('E_INPUT', '몸은 { … } 이다')
+      if (sha[2] === 'ask') return out(200, await hub.shapeAsk(ctx, kn, { type: 'shape-plan', plan: b.plan ?? null, note: b.note ?? '' }))
+      return out(200, await hub.shapeAsk(ctx, kn, { type: 'shape-write', sources: b.sources, targets: b.targets }))
+    }
+    const shj = p.match(/^\/api\/k\/([^/]+)\/shape\/job\/([0-9a-f]{12})(\/stop)?$/)
+    if (shj) {
+      need(ctx)
+      const kn = dec(shj[1])
+      if (!shj[3]) {
+        if (req.method !== 'GET') throw new KmdError('E_METHOD', 'GET 만 받는다')
+        return out(200, await hub.shapeAskOf(ctx, kn, shj[2]))
+      }
+      if (req.method !== 'POST') throw new KmdError('E_METHOD', 'POST 만 받는다')
+      return out(200, await hub.shapeAskStop(ctx, kn, shj[2]))
+    }
     const shm = p.match(/^\/api\/k\/([^/]+)\/shape(?:\/(check|try|put|stop|undo))?$/)
     if (shm) {
       need(ctx)

@@ -1411,6 +1411,8 @@ details.ap.refs[open]>summary h4::after{content:"▾"}
 .sx-nm{display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap;margin:0 0 var(--sp-4)}
 .sx-nm .inp{width:auto;max-width:100%;min-width:0}
 .sx-cl{display:inline-flex;align-items:center;gap:var(--sp-2);flex:none}
+/* Claude 짜임 줄(Z6) — 도는 중 · 끝 · 못함 한 줄 + 단추(좁으면 내려 앉는다) */
+.sx-cj{display:flex;align-items:center;flex-wrap:wrap;gap:var(--sp-3) var(--sp-5)}.sx-cj .loading{margin:0}
 .sxg{display:flex;gap:var(--sp-7);align-items:flex-start;min-width:0}
 .sxg>.sxt{flex:1;min-width:0}
 .sxg>.sxc{width:min(360px,40%);flex:none;position:sticky;top:0}

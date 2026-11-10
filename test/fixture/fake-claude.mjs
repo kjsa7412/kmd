@@ -34,6 +34,51 @@ function answer() {
   const ok = args.includes('-p') && args.includes('--tools') && val('--tools') === '' && args.includes('--strict-mcp-config') && JSON.parse(val('--mcp-config') || '{}').mcpServers && val('--json-schema') && fs.readdirSync(process.cwd()).length === 0
   if (!ok) return say({ is_error: true, subtype: 'error', result: '가짜 claude: 도구 0 · 빈 MCP · 스키마 · 빈 폴더를 지키지 않았다' })
   if (process.env.FAKE_CLAUDE_MODE === 'logout') return say({ is_error: true, subtype: 'error', result: 'Invalid API key · Please run /login' })
+  // Claude 짜임 구조안(Z6 · core/shape.js shapePlanPromptOf) — 지금 짜임 그대로 + 문서마다 끝 낱말이 같은 항목 둘 이상을 「<낱말> 목록」 하나로 합친다
+  //   FAKE_CLAUDE_MODE=badplan → 처음 답은 항목 하나를 빠뜨린다(덮임 걸림 → 고쳐 쓰기) · badplanall → 고쳐 써도
+  if (prompt.startsWith('문서 짜임 구조안을 짓는다')) {
+    const fixing = prompt.includes('\n\n지난 초안이 kmd 검사에 걸렸다')
+    if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, fixing ? 'shape-plan fix\n' : 'shape-plan\n')
+    const p = prompt.split('\n\n지난 초안이')[0]
+    const body = p.slice(p.indexOf('지금 짜임(지문'))
+    const docs = body.split(/^\[doc /m).slice(1).map((blk) => ({ id: blk.slice(0, blk.indexOf(']')), heads: [...blk.matchAll(/^- ## (.+?) \(\d+줄/gm)].map((m) => m[1]) }))
+    const out = { docs: [], names: [], empty: [], why: '끝 낱말이 같은 항목을 합쳤다' }
+    for (const d of docs) {
+      const by = new Map()
+      for (const h of d.heads) { const w = h.split(' ').pop(); if (h.includes(' ')) by.set(w, [...(by.get(w) || []), h]) }
+      const items = []
+      const done = new Set()
+      for (const h of d.heads) {
+        if (done.has(h)) continue
+        const g = by.get(h.split(' ').pop())
+        if (h.includes(' ') && g && g.length > 1) { g.forEach((x) => done.add(x)); items.push({ h: `${h.split(' ').pop()} 목록`, from: g.map((x) => ({ doc: d.id, h: x })), note: '같은 대상' }) }
+        else items.push({ h, from: [{ doc: d.id, h }] })
+      }
+      out.docs.push({ id: d.id, was: d.id, items })
+    }
+    const mode = process.env.FAKE_CLAUDE_MODE || ''
+    if ((mode === 'badplan' && !fixing) || mode === 'badplanall') { const d = out.docs.find((x) => x.items.length); if (d) d.items.pop() }
+    return say({ structured_output: out })
+  }
+  // Claude 짜임 글(Z6 · core/shape.js shapeWritePromptOf) — 합치기는 출처 글을 잇는다 · 나누기는 출처 줄을 목표 수로 고루 나눈다
+  //   FAKE_CLAUDE_MODE=badwrite → 처음 답에 머리 줄(꼴 걸림 → 고쳐 쓰기) · badwriteall → 고쳐 써도(걸음 실패) · lie → 지어낸 값(999초 · 재기만)
+  if (prompt.startsWith('문서 짜임의 항목 글을 짓는다')) {
+    const fixing = prompt.includes('\n\n지난 초안이 kmd 검사에 걸렸다')
+    if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, fixing ? 'shape-write fix\n' : 'shape-write\n')
+    const p = prompt.split('\n\n지난 초안이')[0]
+    const targets = [...p.matchAll(/^\[target (.+?) › (.+?)\](?: 몫: .*)?$/gm)].map((m) => ({ doc: m[1], h: m[2] }))
+    const srcs = p.split('\n출처:\n')[1] || ''
+    const bodies = srcs.split(/^\[source .+\]$/m).map((x) => x.trim()).filter(Boolean)
+    const lines = bodies.join('\n').split('\n').filter((l) => l.trim())
+    const mode = process.env.FAKE_CLAUDE_MODE || ''
+    const items = targets.map((t, i) => {
+      let text = targets.length === 1 ? bodies.join('\n\n') : lines.filter((_, j) => Math.floor((j * targets.length) / lines.length) === i).join('\n') || lines[0] || '글'
+      if ((mode === 'badwrite' && !fixing) || mode === 'badwriteall') text = `## 주입\n${text}`
+      if (mode === 'lie' && i === 0) text += '\n그리고 999초 기다린다.'
+      return { doc: t.doc, h: t.h, text }
+    })
+    return say({ structured_output: { items, why: '출처 글로 지었다' } })
+  }
   // 문서 다듬기(S13 · core/ingest.js polishPromptOf) — 항목마다 끝에 「(다듬음)」 한 줄 · 첫 항목만 값을 바꾼다(서버가 그 항목을 빼는지 본다)
   if (prompt.startsWith('문서 「') && prompt.includes('의 항목 글을 다듬는다')) {
     if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'polish\n')

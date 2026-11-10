@@ -11,6 +11,8 @@ import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 import { startServer } from '../server/http.js'
 import { signIn } from './helpers.mjs'
+import { workOnce } from '../core/worker.js'
+import { SHELL } from '../server/hub.js'
 import { parseDoc } from '../core/sections.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -29,7 +31,9 @@ const FILES = {
   '_managed.md': '| 이름 | 문서 | 항목 |\n|---|---|---|\n| `proc:배포창` | `docs/배포 절차.md` | `## 배포 창` |\n| `check:*` | `docs/배포 절차.md` | `## {값}` |\n',
   '_vocab.md': '# 이름 장부\n\n## proc\n\n- `proc:배포창`: 배포 창\n\n## check\n\n- `check:사전 점검`: 사전 점검\n- `check:사후 점검`: 사후 점검\n',
 }
-let tmp, s, browser, me
+let tmp, s, browser, me, wk
+// 팀 일꾼 한 번(가짜 Claude) — 화면이 일감을 세울 때까지 기다렸다가
+const work1 = async () => { for (let i = 0; i < 100; i++) { const r = await workOnce({ server: s.url, key: wk }); if (r) return r; await new Promise((ok) => setTimeout(ok, 100)) } throw new Error('일감이 서지 않았다') }
 const kdir = () => path.join(tmp, 'kn', 'ops')
 const heads = (doc) => parseDoc(fs.readFileSync(path.join(kdir(), 'docs', doc + '.md'), 'utf8'), '').sections.map((x) => x.h)
 
@@ -44,6 +48,9 @@ before(async () => {
   }
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
   me = await signIn(s, { id: 'kim' })
+  process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
+  delete process.env.FAKE_CLAUDE_MODE
+  wk = (await s.auth.workerAdd()).key
   if (!/^[\x20-\x7e]*$/.test(os.tmpdir())) {
     const ascii = path.join(HERE, '..', '.kmd-data', 'tmp')
     fs.mkdirSync(ascii, { recursive: true })
@@ -90,8 +97,8 @@ test('구조 다시 잡기: 단순 [저장] 그대로 · 합치기 · 항목 옮
     await page.waitForSelector('[data-t=sxTree] [data-t=sxDoc][data-d="회의 규칙"]')
     assert.equal(await page.locator('[data-t=sxSteps]').count(), 0, '처음엔 단계 띠가 없다')
     assert.equal(await page.locator('[data-t=sxTabs]').count(), 0, '팀은 탭 없음(점검은 확인 › 점검)')
-    assert.equal(await page.locator('[data-t=sxClaude]').isDisabled(), true, 'Claude 단추는 꺼 둠(Z6)')
-    await page.click('[data-t="tip-sx.claude"]'); assert.match(await page.locator('#tipPop').innerText(), /준비 중/); await page.keyboard.press('Escape')
+    assert.equal(await page.locator('[data-t=sxClaude]').isDisabled(), false, 'Claude 단추가 켜졌다(Z6)')
+    await page.click('[data-t="tip-sx.claude"]'); assert.match(await page.locator('#tipPop').innerText(), /구조안/); await page.keyboard.press('Escape')
 
     // 단순 길 — 문서 이름만: 단계 띠 없이 [저장](마른 실행 요약 → 확인 → 한 번) 그대로
     await page.dblclick('#sxTree [data-t=sxDoc][data-d="회의 규칙"] .nm')
@@ -116,7 +123,7 @@ test('구조 다시 잡기: 단순 [저장] 그대로 · 합치기 · 항목 옮
     assert.equal(await page.getAttribute('[data-t=sxMergeWin]', 'role'), 'dialog')
     const tx = await page.inputValue('#sxwTx')
     assert.match(tx, /디스크 80% 확인[\s\S]*헬스 체크 3회/, '출처 글이 채워진다')
-    assert.equal(await page.locator('[data-t=sxMergeWin] [data-t=sxwClaude]').isDisabled(), true)
+    assert.equal(await page.locator('[data-t=sxMergeWin] [data-t=sxwClaude]').isDisabled(), false)
     // 머리 겹침 막기 — 같은 문서의 「배포 창」
     await page.fill('#sxwHd', '배포 창')
     await page.click('[data-t=sxwGo]')
@@ -252,6 +259,84 @@ test('구조 다시 잡기: 걸음 실패 — 까닭 · [구조안 고치기] ·
   } finally {
     await page.close()
     fs.rmSync(s.hub.shapeFile('ops'), { force: true })
+  }
+})
+
+// 바탕 세우기 Z6 — [Claude 구조안](팀 일꾼 · 가짜 Claude) → 나무에 놓음 · 글 필요 → [Claude 짓기] → 글 · 검사 걸림 0 · 창 [Claude 짓기] · Claude 에 보내지 않는 지식은 꺼짐 · 네 폭
+test('구조 다시 잡기: Claude 구조안 · Claude 짓기(팀 일꾼) · 꺼짐 까닭 · 네 폭', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+  const page = await browser.newPage({ viewport: VIEW })
+  const errors = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  try {
+    await login(page)
+    // Claude 에 보내지 않는 지식 — 단추가 꺼지고 까닭(title)
+    await s.hub.setOwner(SHELL, 'ops', { noClaude: true })
+    try {
+      await page.goto(s.url + '/#/k/ops/shape')
+      await page.waitForSelector('[data-t=sxTree] [data-t=sxDoc][data-d="장애 대응"]')
+      await page.waitForFunction(() => /Claude 에 보내지 않는/.test(document.querySelector('[data-t=sxClaude]')?.title || ''))
+      assert.equal(await page.locator('[data-t=sxClaude]').isDisabled(), true)
+      assert.match(await page.getAttribute('[data-t=sxClaude]', 'title'), /Claude 에 보내지 않는 지식/)
+    } finally { await s.hub.setOwner(SHELL, 'ops', { noClaude: false }) }
+    await page.reload()
+    await page.waitForSelector('[data-t=sxTree] [data-t=sxDoc][data-d="장애 대응"]')
+    await page.waitForFunction(() => document.querySelector('[data-t=sxClaude]')?.disabled === false)
+
+    // [Claude 구조안] — 도는 줄 · 그만두기 → 일꾼이 지으면 나무에 놓는다(끝 낱말이 같은 「사전 점검」 · 「사후 점검」 → 「점검 목록」)
+    await page.click('[data-t=sxClaude]')
+    await page.waitForSelector('[data-t=sxCj] [data-t=sxCjStop]')
+    assert.match(await page.locator('[data-t=sxCj]').innerText(), /구조안을 짓는 중/)
+    assert.equal((await work1()).job.type, 'shape-plan')
+    await page.waitForSelector('[data-t=sxCj] [data-t=sxCjWrite]', LONG)
+    assert.match(await page.locator('[data-t=sxCj]').innerText(), /나무에 놓았다[\s\S]*글 필요 1/)
+    assert.deepEqual(heads('배포 절차'), ['배포 창', '사전 점검', '사후 점검'], '지식은 그대로')
+    await page.click('#sxTree [data-t=sxDoc][data-d="배포 절차"]')
+    await page.waitForSelector('[data-t=sxItem][data-h="점검 목록"]')
+    // 네 폭 — Claude 줄 · 단계 띠
+    for (const w of [1280, 1024, 600, 375]) {
+      await page.setViewportSize({ width: w, height: 820 })
+      const c = await cutAt(page)
+      assert.deepEqual(c.cut, [], `Claude 줄 ${w}: 잘린 요소`)
+      assert.ok(c.sw <= w, `Claude 줄 ${w}: 가로 넘침 ${c.sw}`)
+    }
+    await page.setViewportSize(VIEW)
+    // [Claude 짓기 1] — 합칠 글을 지어 항목에 놓는다 → 검사 걸림 0
+    await page.click('[data-t=sxCjWrite]')
+    await page.waitForSelector('[data-t=sxCj] [data-t=sxCjStop]')
+    assert.equal((await work1()).job.type, 'shape-write')
+    await page.waitForFunction(() => /글 지음 1/.test(document.querySelector('[data-t=sxCj]')?.innerText || ''), null, LONG)
+    await go(page).click()
+    await page.waitForSelector('[data-t=sxCheck]', LONG)
+    const ck = await page.locator('[data-t=sxCheck]').innerText()
+    assert.match(ck, /합치기/)
+    assert.match(ck, /걸림 0/, ck)
+
+    // 창 [Claude 짓기] — 나누기 창의 목표 줄 글을 짓는다(도는 동안 글 칸은 읽는 중 · 끝나면 채움)
+    await page.click('#sxTree [data-t=sxDoc][data-d="장애 대응"]')
+    await pickItem(page, '롤백')
+    await page.click('[data-t=sxISplit]')
+    await page.waitForSelector('[data-t=sxSplitWin] #sxwTx0')
+    await page.fill('#sxwHd1', '되돌리는 때')
+    await page.click('[data-t=sxSplitWin] [data-t=sxwClaude]')
+    await page.waitForSelector('[data-t=sxwCj] [data-t=sxwCjStop]')
+    assert.equal(await page.locator('[data-t=sxwGo]').isDisabled(), true, '짓는 동안 [나누기] 꺼짐')
+    assert.equal((await work1()).job.type, 'shape-write')
+    await page.waitForSelector('#sxwTx1', LONG)
+    assert.equal(await page.locator('[data-t=sxwCj]').count(), 0)
+    assert.match((await page.inputValue('#sxwTx0')) + (await page.inputValue('#sxwTx1')), /5분 안에/)
+    for (const w of [1280, 375]) {
+      await page.setViewportSize({ width: w, height: 820 })
+      const c = await cutAt(page)
+      assert.deepEqual(c.cut, [], `나누기 창 ${w}: 잘린 요소`)
+    }
+    await page.setViewportSize(VIEW)
+    await page.click('[data-t=sxSplitWin] .btn.ghost[data-a=sxwClose]')
+    const text = await page.evaluate(() => document.body.innerText)
+    assert.deepEqual(BANNED.filter((x) => text.includes(x)), [])
+    assert.deepEqual(errors, [])
+  } finally {
+    await page.close()
+    await s.hub.shapeStop({ user: 'kim', admin: true }, 'ops').catch((e) => e) // 검사로 연 짜임 일 걷기
   }
 })
 

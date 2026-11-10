@@ -545,7 +545,8 @@ function popHtml(key, html) { S._pop = { key, html }; return '' }
 //   누름 · Enter · Space 로 열고 닫는다(hover 로 열지 않는다) · Esc(초점은 단추로) · 바깥 누름 · 초점이 밖으로 · 단추가 화면 밖이면 닫는다 · 한 번에 하나
 const TIPS = {
   'sx.flow': ['항목을 옮기거나 합치거나 나누면 단계를 지난다: 구조안 검사 · 연습 판에 해 보기 · 넣기. 넣기 전에는 지식이 바뀌지 않는다', ''],
-  'sx.claude': ['준비 중. 지금은 손으로 짜고 손으로 쓴다', ''],
+  'sx.claude': ['Claude 가 지금 짜임을 보고 구조안을 지어 나무에 놓는다. 넣기 전에는 지식이 바뀌지 않는다 · 고쳐서 쓰거나 모두 처음대로', ''],
+  'sx.claudeW': ['Claude 가 출처 글로 새 글을 짓는다. 걸리는 꼴은 고쳐 쓰고 · 출처에 없는 값은 알려 준다', ''],
   'sx.write': ['합치거나 나눈 항목의 새 글. 출처 글의 값(숫자 · 주소 · 이름)만 쓴다. 지어낸 값이 있으면 그 걸음은 넣지 않는다', ''],
   'sx.stepFail': ['걸린 걸음은 아무것도 쓰지 않고 멈췄다. 앞에서 넣은 걸음은 그대로다. 구조안을 고쳐 검사 · 해 보기 · 넣기를 다시 한다', ''],
   'set.check': ['문제가 있을 때만 줄이 선다. 풀리면 저절로 사라진다 · 지식 폴더 다시 읽기 · 운영 값도 여기', ''],
@@ -3728,11 +3729,11 @@ function viewStructure() {
   const tabs = isTeam() ? '' : `<div class="tabs" role="tablist" aria-label="문서" data-t="sxTabs">${[['shape', '구조'], ['check', '점검']].map(([v, l]) => `<button type="button" role="tab" aria-selected="${(S.sxTab || 'shape') === v}" tabindex="${(S.sxTab || 'shape') === v ? 0 : -1}" data-a="sxTab" data-v="${v}" data-t="sxTab-${v}">${l}</button>`).join('')}</div>`
   if (!isTeam() && S.sxTab === 'check') return { crumb: '문서 › 구조', main: `<div class="sxy">${head(n)}${tabs}${guardBodyHtml(k)}</div>` }
   const df = x.W.filter((z) => { const o = sxO(z.id); return o && o.file !== o.title && !z.sync && !z.watched }).length
-  const tools = `<div class="sx-tools"><input class="inp sx-q" id="sxQ" data-in="sxQ" data-t="sxQ" value="${esc(x.q)}" placeholder="찾기" aria-label="문서 찾기" autocomplete="off"><button type="button" class="btn" data-a="sxPick" data-t="sxPick" aria-pressed="${x.pick}" title="누르는 줄마다 고른다(Ctrl · Shift 를 누르고 눌러도 된다)">여러 개 고르기</button><button type="button" class="btn" data-a="sxNewDir" data-t="sxNewDir">+ 폴더</button><button type="button" class="btn pri" data-a="sxNewDoc" data-t="sxNewDoc">+ 새 문서</button><span class="sx-cl"><button type="button" class="btn" data-t="sxClaude" disabled>Claude 구조안</button>${tipb('sx.claude', 'Claude 구조안')}</span></div>`
+  const tools = `<div class="sx-tools"><input class="inp sx-q" id="sxQ" data-in="sxQ" data-t="sxQ" value="${esc(x.q)}" placeholder="찾기" aria-label="문서 찾기" autocomplete="off"><button type="button" class="btn" data-a="sxPick" data-t="sxPick" aria-pressed="${x.pick}" title="누르는 줄마다 고른다(Ctrl · Shift 를 누르고 눌러도 된다)">여러 개 고르기</button><button type="button" class="btn" data-a="sxNewDir" data-t="sxNewDir">+ 폴더</button><button type="button" class="btn pri" data-a="sxNewDoc" data-t="sxNewDoc">+ 새 문서</button>${sxClaudeBtn(sh)}</div>`
   const strip = df ? `<div class="callout warn sx-strip" data-t="sxStrip"><span><i class="sx-dot df" aria-hidden="true"></i> 파일 이름이 제목과 다른 문서 <b>${df}</b> <small class="muted">· 점: 파랑 바뀜 · 초록 새것 · 노랑 파일 이름 ≠ 제목</small></span><button type="button" class="btn sm" data-a="sxFix" data-t="sxFix">제목으로 맞추기</button></div>` : ''
   const card = sxCardHtml(k, sh)
   const tree = `<div class="sx-tree" id="sxTree" role="tree" aria-multiselectable="true" aria-label="문서 짜임" data-t="sxTree">${sxTreeHtml()}</div>`
-  return { crumb: '문서 › 구조', main: `<div class="sxy">${head(n, tools)}${tabs}${sxWorkHtml(sh, f)}${sxFlowOn() ? sxFlowHtml() : ''}${strip}${x.multi.size ? `<div class="sx-sel" data-t="sxSel" role="status"><b>고른 것 ${x.multi.size}</b><button type="button" class="btn pri sm" data-a="sxMvSel" data-t="sxMvSel">옮기기…</button><button type="button" class="btn ghost sm" data-a="sxSelClear" data-t="sxSelClear">고르기 풀기</button></div>` : ''}${card ? `<div class="sxg"><div class="sxt">${tree}</div><div class="sxc">${card}</div></div>` : tree}<p class="muted small sx-tip">끌거나 [옮기기](M) 로 옮긴다 · 여럿은 Ctrl · Shift 로 누르거나 [여러 개 고르기](Ctrl + Space) · 이름은 두 번 누르거나 F2 · 차례는 Alt ↑↓</p>${sxBarHtml()}${S.sxw && S.sxw.k === k ? sxWinHtml() : ''}</div>` }
+  return { crumb: '문서 › 구조', main: `<div class="sxy">${head(n, tools)}${tabs}${sxCjHtml(k)}${sxWorkHtml(sh, f)}${sxFlowOn() ? sxFlowHtml() : ''}${strip}${x.multi.size ? `<div class="sx-sel" data-t="sxSel" role="status"><b>고른 것 ${x.multi.size}</b><button type="button" class="btn pri sm" data-a="sxMvSel" data-t="sxMvSel">옮기기…</button><button type="button" class="btn ghost sm" data-a="sxSelClear" data-t="sxSelClear">고르기 풀기</button></div>` : ''}${card ? `<div class="sxg"><div class="sxt">${tree}</div><div class="sxc">${card}</div></div>` : tree}<p class="muted small sx-tip">끌거나 [옮기기](M) 로 옮긴다 · 여럿은 Ctrl · Shift 로 누르거나 [여러 개 고르기](Ctrl + Space) · 이름은 두 번 누르거나 F2 · 차례는 Alt ↑↓</p>${sxBarHtml()}${S.sxw && S.sxw.k === k ? sxWinHtml() : ''}</div>` }
 }
 async function sxSave() {
   const x = S.sx, k = x.k, ops = sxOps()
@@ -3981,11 +3982,11 @@ const sxAtOpts = (wid, skip) => [['', '맨 끝'], ...sxItems(wid).filter((it) =>
 const sxSel = (id, t, opts, v, extra = '') => `<select class="inp" id="${id}" data-sxw="${t}"${extra}>${opts.map(([o, l]) => `<option value="${esc(o)}"${o === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`
 const sxItemOf = (key) => { const i = key.indexOf('\n'), wid = key.slice(0, i), h = key.slice(i + 1); return { wid, h, it: sxItems(wid).find((z) => z.h === h) } }
 function sxWinHtml() {
-  const w = S.sxw, cl = `<span class="sx-cl"><button type="button" class="btn sm" disabled data-t="sxwClaude">Claude 짓기</button>${tipb('sx.claude', 'Claude 짓기')}</span>`
-  const shell = (t, title, sub, mb, go, wide) => `<div class="scrim fix" data-a="sxwClose" data-self="1"><div class="modal ${wide ? 'w760' : 'w560'}" role="dialog" aria-modal="true" aria-labelledby="sxwH" data-t="${t}"><div class="mh" id="sxwH">${title} <small>${esc(sub)}</small><button type="button" class="x" data-a="sxwClose" title="닫기" aria-label="닫기">×</button></div><div class="mb">${mb}${w.err ? formErr(w.err, 'sxwErr') : ''}</div><div class="mf"><span class="l small muted">구조안에만 적는다</span><span class="acts"><button type="button" class="btn ghost" data-a="sxwClose">취소</button><button type="button" class="btn pri" data-a="sxwGo" data-t="sxwGo"${w.loading ? ' disabled' : ''}>${go}</button></span></div></div></div>`
+  const w = S.sxw, cl = sxwClaudeBtn(w)
+  const shell = (t, title, sub, mb, go, wide) => `<div class="scrim fix" data-a="sxwClose" data-self="1"><div class="modal ${wide ? 'w760' : 'w560'}" role="dialog" aria-modal="true" aria-labelledby="sxwH" data-t="${t}"><div class="mh" id="sxwH">${title} <small>${esc(sub)}</small><button type="button" class="x" data-a="sxwClose" title="닫기" aria-label="닫기">×</button></div><div class="mb">${mb}${sxwCjHtml(w)}${w.err ? formErr(w.err, 'sxwErr') : ''}</div><div class="mf"><span class="l small muted">구조안에만 적는다</span><span class="acts"><button type="button" class="btn ghost" data-a="sxwClose">취소</button><button type="button" class="btn pri" data-a="sxwGo" data-t="sxwGo"${w.loading || w.cj?.state === 'run' ? ' disabled' : ''}>${go}</button></span></div></div></div>`
   const fld = (id, label, inner, last) => `<div class="field"${last ? ' style="margin-bottom:0"' : ''}><label for="${id}">${label}</label>${inner}</div>`
   const place = (skip) => fld('sxwTo', '문서', sxSel('sxwTo', 'to', sxDocOpts(), w.to)) + fld('sxwAt', '놓을 차례', sxSel('sxwAt', 'at', sxAtOpts(w.to, skip), w.at)) + fld('sxwHd', '머리', `<input class="inp" id="sxwHd" data-in="sxw" data-f="h" value="${esc(w.h)}" autocomplete="off">`)
-  const txt = (id, v, i) => (w.loading ? loadingHtml : `<textarea class="inp" id="${id}" rows="6" data-in="sxw" data-f="text"${i != null ? ` data-i="${i}"` : ''}>${esc(v || '')}</textarea>`)
+  const txt = (id, v, i) => (w.loading ? loadingHtml : w.cj?.state === 'run' ? '<p class="loading" data-t="sxwCjRun">Claude 가 짓는 중…</p>' : `<textarea class="inp" id="${id}" rows="6" data-in="sxw" data-f="text"${i != null ? ` data-i="${i}"` : ''}>${esc(v || '')}</textarea>`)
   if (w.t === 'move') return shell('sxMoveWin', '항목 옮기기', w.src.h, place([sxIKey(w.src.wid, w.src.h)]), '옮기기')
   if (w.t === 'merge') {
     const srcs = `<ul class="sx-ul" data-t="sxwSrcs">${w.srcs.map((s, i) => `<li><b>${esc(sxPath(sxW(s.wid)))} › ${esc(s.h)}</b>${w.srcs.length > 2 ? ` <button type="button" class="btn ghost sm" data-a="sxwDrop" data-i="${i}">빼기</button>` : ''}</li>`).join('')}</ul>`
@@ -4055,6 +4056,177 @@ function sxwGo() {
   }
   S.sxw = null
   render()
+}
+
+// ── Claude 짜임(바탕 세우기 Z6 · 설계 5-4) — [Claude 구조안](나무에 덧씌움 · 넣기 전에는 지식이 바뀌지 않는다) · [Claude 짓기](합치기 · 나누기 창 · 구조안이 놓은 글 필요 항목).
+//   개인은 이 PC 의 claude -p, 팀은 팀 일꾼 일감. 일은 POST shape/ask · shape/write → GET shape/job/:job 를 돌며 본다 · 그만두기 POST …/stop.
+//   「Claude 에 보내지 않음」 지식은 단추가 꺼지고 까닭을 보인다. 글은 결정적 오류만 고쳐 쓰고(그래도면 「걸음 실패」) · 출처에 없는 값은 알림(값 대조)
+const sxIdOf = (d) => (d.folder ? d.folder + '/' : '') + sxFile(d)
+const sxCjOff = (sh) => (!sh ? '짜임을 읽는 중' : sh.error ? '짜임을 읽지 못했다' : sh.claude && !sh.claude.ok ? sh.claude.why : '')
+function sxClaudeBtn(sh) {
+  const off = sxCjOff(sh), c = S.sxc && S.sx && S.sxc.k === S.sx.k ? S.sxc : null, run = c && c.state === 'run'
+  return `<span class="sx-cl"><button type="button" class="btn" data-a="sxClaude" data-t="sxClaude"${off || run ? ' disabled' : ''}${off ? ` title="${esc(off)}"` : ''}${run ? ' aria-busy="true"' : ''}>${c && c.state === 'done' ? 'Claude 다시 받기' : 'Claude 구조안'}</button>${tipb('sx.claude', 'Claude 구조안')}</span>`
+}
+function sxwClaudeBtn(w) {
+  const off = sxCjOff(shOf(w.k)), run = w.cj && w.cj.state === 'run'
+  return `<span class="sx-cl"><button type="button" class="btn sm" data-a="sxwClaude" data-t="sxwClaude"${off || run || w.loading ? ' disabled' : ''}${off ? ` title="${esc(off)}"` : ''}${run ? ' aria-busy="true"' : ''}>${run ? '짓는 중…' : 'Claude 짓기'}</button>${tipb('sx.claudeW', 'Claude 짓기')}</span>`
+}
+const sxSecs = (t0) => Math.max(0, Math.round((Date.now() - t0) / 1000))
+const sxCjWait = (c) => (c.old ? ' · 팀 일꾼 판이 옛것이다: 손으로 짜거나 일꾼을 다시 설치한다' : c.queued ? ' · 팀 일꾼을 기다린다' : '')
+// 구조안 · 모두 짓기 줄(도구 줄 아래) — 도는 중 · 끝 · 못함 · 바꿀 것 없음을 가른다
+function sxCjHtml(k) {
+  const c = S.sxc && S.sxc.k === k ? S.sxc : null
+  if (!c) return ''
+  const close = '<button type="button" class="btn ghost sm" data-a="sxCjClose" data-t="sxCjClose">닫기</button>'
+  if (c.state === 'run') return `<div class="callout sx-cj" data-t="sxCj" role="status"><span class="loading u-f1">${c.wr ? `Claude 가 글을 짓는 중 ${c.wr.i}/${c.wr.m}` : 'Claude 가 구조안을 짓는 중'} · ${sxSecs(c.t0)}초${sxCjWait(c)}</span><button type="button" class="btn ghost sm" data-a="sxCjStop" data-t="sxCjStop">그만두기</button></div>`
+  if (c.state === 'fail') return `<div class="callout danger sx-cj" data-t="sxCj" role="alert"><span class="u-f1">${c.wr ? '글을 짓지 못했다' : '구조안을 받지 못했다'}: ${esc(c.why || '까닭을 모른다')}</span><button type="button" class="btn sm" data-a="${c.wr ? 'sxCjWrite' : 'sxClaude'}" data-t="sxCjAgain">다시</button>${close}</div>`
+  if (c.state === 'cancel') return `<div class="callout gray sx-cj" data-t="sxCj"><span class="u-f1">그만뒀다 · 나무는 그대로다</span>${close}</div>`
+  const need = sxNeedGroups().reduce((n, g) => n + g.items.length, 0)
+  const wr = c.wrDone ? ` · 글 지음 ${c.wrDone.ok}${c.wrDone.fail.length ? ` · 걸림 ${c.wrDone.fail.length}` : ''}${c.wrDone.values ? ` · 값 알림 ${c.wrDone.values}` : ''}` : ''
+  const fails = c.wrDone && c.wrDone.fail.length ? `<ul class="sx-ul" data-t="sxCjFails">${c.wrDone.fail.slice(0, 5).map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''
+  if (c.none) return `<div class="callout gray sx-cj" data-t="sxCj"><span class="u-f1">Claude 가 바꿀 것이 없다고 했다${c.why ? ' · ' + esc(c.why) : ''}</span>${close}</div>`
+  return `<div class="callout sx-cj" data-t="sxCj"><span class="u-f1">Claude 구조안을 나무에 놓았다 · 바뀐 것 ${c.n}${need ? ` · 글 필요 ${need}` : ''}${wr}${c.why ? ` <small class="muted">${esc(c.why)}</small>` : ''}</span>${need ? `<button type="button" class="btn sm" data-a="sxCjWrite" data-t="sxCjWrite"${sxCjOff(shOf(k)) ? ' disabled' : ''}>Claude 짓기 ${need}</button>` : ''}${close}</div>${fails}`
+}
+// 창 안 짓기 줄 — 도는 중은 글 칸 자리 · 끝은 값 알림 · 걸음 실패 · 못함(+ 다시)
+function sxwCjHtml(w) {
+  const c = w.cj
+  if (!c || c.state === 'run') return c ? `<div class="callout sx-cj" data-t="sxwCj" role="status"><span class="u-f1">${sxSecs(c.t0)}초${sxCjWait(c)}</span><button type="button" class="btn ghost sm" data-a="sxwCjStop" data-t="sxwCjStop">그만두기</button></div>` : ''
+  if (c.state === 'done') return c.values && c.values.length ? `<div class="callout warn" data-t="sxwCjVals">출처에 없는 값: ${c.values.slice(0, 3).map((v) => esc(v.why)).join(' · ')}</div>` : ''
+  if (c.state === 'cancel') return ''
+  return `<div class="callout danger sx-cj" data-t="sxwCjFail" role="alert"><span class="u-f1">${esc(c.why || '짓지 못했다')}${c.stepFail ? ' · 고쳐 쓰거나 손으로 쓴다' : ''}</span><button type="button" class="btn sm" data-a="sxwClaude" data-t="sxwCjAgain">다시</button></div>`
+}
+// 일 하나를 끝까지 본다 — 1.5초마다 · 그만두거나 다른 일로 바뀌면(alive 거짓) 서지 않고 놓는다
+async function sxCjPoll(k, job, alive, onTick) {
+  for (;;) {
+    await new Promise((ok) => setTimeout(ok, 1500))
+    if (!alive()) return null
+    let r
+    try { r = await getJSON(`/api/k/${encodeURIComponent(k)}/shape/job/${job}`) } catch (e) { return { state: 'fail', why: e.message } }
+    if (!alive()) return null
+    if (r.state !== 'queued' && r.state !== 'running') return r
+    onTick(r)
+    render()
+  }
+}
+// 구조안 받기 — 손으로 고친 것이 있으면 같이 준다(ask) · 받은 안을 나무에 덧씌운다
+async function sxClaude() {
+  const x = S.sx
+  if (!x || sxHold()) return
+  const k = x.k, ch = sxDiff().length + sxItemDiff().length
+  if (ch && !(await ask({ t: 'Claude 구조안', d: `손으로 고친 것 ${ch} 을 Claude 에게 같이 준다. 받은 안이 지금 나무를 바꾼다`, ok: '받기' }))) return
+  const c = { k, state: 'run', t0: Date.now() }
+  S.sxc = c; render()
+  try {
+    const r = await postJSON(shapeUrl(k, 'ask'), { plan: ch && x.IT ? sxPlan() : null })
+    c.job = r.job
+    const end = await sxCjPoll(k, r.job, () => S.sxc === c && c.state === 'run', (t) => { c.queued = t.state === 'queued'; c.old = !!t.old })
+    if (!end) return
+    if (end.state !== 'done') { Object.assign(c, { state: end.state === 'cancelled' ? 'cancel' : 'fail', why: end.why }); return }
+    if (!S.sx || S.sx.k !== k) { S.sxc = null; return }
+    const n = sxApplyPlan(end.result.plan)
+    Object.assign(c, { state: 'done', n, none: !n, why: end.result.why || '' })
+  } catch (e) { Object.assign(c, { state: 'fail', why: e.message }) } finally { render() }
+}
+// 받은 구조안 → 나무(문서 옮김 · 새 문서 · 항목 · 걷기 · 이름 자리). 합치기 · 나누기 항목은 글이 비어 있다(need) — [Claude 짓기] · 손으로
+function sxApplyPlan(plan) {
+  const x = S.sx, sh = x.shSrc
+  if (!x.IT && sh) sxItemsInit(sh)
+  const before = sxDiff().length + sxItemDiff().length
+  const lineOf = (z) => { const d = sh && sh.docs.find((y) => y.id === z.doc); const it = d && d.items.find((y) => y.h === z.h); return it ? { lines: it.lines, names: it.names } : { lines: 0, names: 0 } }
+  const uses = new Map()
+  for (const d of plan.docs) for (const it of d.items) for (const z of it.from) uses.set(z.doc + '\n' + z.h, (uses.get(z.doc + '\n' + z.h) || 0) + 1)
+  const widOf = new Map()
+  for (const d of plan.docs) {
+    const [folder, nm] = sxSplit(d.id)
+    let w = d.was ? sxW(d.was) : null
+    if (w && w.watched) { widOf.set(d.id, w.id); continue }
+    if (w) {
+      if (sxIdOf(w) !== d.id) { w.folder = folder; w.name = nm; w.sync = nm === w.title && w.file !== nm }
+    } else {
+      w = { id: 'new:' + (++x.seq), folder, file: nm, title: nm, name: nm, watched: false }
+      x.W.push(w)
+    }
+    widOf.set(d.id, w.id)
+    x.IT.set(w.id, d.items.map((it) => {
+      const sum = it.from.map(lineOf).reduce((a, b) => ({ lines: a.lines + b.lines, names: a.names + b.names }), { lines: 0, names: 0 })
+      const write = it.from.length > 1 || it.from.some((z) => (uses.get(z.doc + '\n' + z.h) || 0) > 1)
+      return { h: it.h, from: it.from.map((z) => ({ doc: z.doc, h: z.h })), ...sum, ...(write ? { text: '', need: true, ...(it.part ? { part: it.part } : {}) } : {}) }
+    }))
+  }
+  x.empty = new Set((plan.empty || []).filter((id) => sxW(id) && sxO(id)))
+  x.names = (plan.names || []).filter((nm) => widOf.has(nm.doc)).map((nm) => ({ coord: nm.coord, wid: widOf.get(nm.doc), h: nm.h }))
+  x.ipick = new Set(); x.isel = null
+  const after = sxDiff().length + sxItemDiff().length
+  return after || (after !== before ? 1 : 0)
+}
+// 글이 필요한 항목(구조안이 놓은 합치기 · 나누기) — 출처가 같은 나누기 목표는 한 번에
+function sxNeedGroups() {
+  const x = S.sx, groups = []
+  if (!x || !x.IT) return groups
+  for (const d of x.W) for (const it of sxItems(d.id)) {
+    if (!it.need || String(it.text || '').trim()) continue
+    const key = it.from.map((z) => z.doc + '\n' + z.h).join('|')
+    let g = it.from.length === 1 ? groups.find((y) => y.key === key) : null
+    if (!g) groups.push((g = { key, sources: it.from.map((z) => ({ doc: z.doc, h: z.h })), items: [] }))
+    g.items.push({ wid: d.id, h: it.h, part: it.part || '' })
+  }
+  return groups
+}
+async function sxCjWrite() {
+  const x = S.sx
+  if (!x || sxHold()) return
+  const k = x.k, gs = sxNeedGroups()
+  if (!gs.length) return
+  const c = { k, state: 'run', t0: Date.now(), wr: { i: 0, m: gs.length }, n: (S.sxc && S.sxc.n) || 0, why: '' }
+  S.sxc = c; render()
+  const done = { ok: 0, fail: [], values: 0 }
+  for (const g of gs) {
+    if (S.sxc !== c || c.state !== 'run') return
+    c.wr.i++
+    try {
+      const r = await postJSON(shapeUrl(k, 'write'), { sources: g.sources, targets: g.items.map((t) => ({ doc: sxIdOf(sxW(t.wid)), h: t.h, ...(t.part ? { part: t.part } : {}) })) })
+      c.job = r.job
+      const end = await sxCjPoll(k, r.job, () => S.sxc === c && c.state === 'run', (t) => { c.queued = t.state === 'queued'; c.old = !!t.old })
+      if (!end) return
+      const texts = (end.result && end.result.texts) || end.texts || []
+      for (const t of g.items) { const it = sxItems(t.wid).find((z) => z.h === t.h); const tx = texts.find((y) => y.h === t.h); if (it && tx) it.text = tx.content }
+      if (end.state === 'done') { done.ok += g.items.length; done.values += (end.result.values || []).length } else done.fail.push(`${g.items.map((t) => t.h).join(' · ')}: ${end.why || '짓지 못했다'}`)
+    } catch (e) { done.fail.push(`${g.items.map((t) => t.h).join(' · ')}: ${e.message}`) }
+  }
+  if (S.sxc === c) Object.assign(c, { state: 'done', wr: null, wrDone: done })
+  render()
+}
+async function sxCjStop(c, job) {
+  if (!c) return
+  const was = c.state
+  c.state = 'cancel'
+  render()
+  if (was === 'run' && job) { try { await postJSON(`/api/k/${encodeURIComponent(c.k || S.sx.k)}/shape/job/${job}/stop`, {}) } catch (e) { toastErr(e) } }
+}
+// 창(합치기 · 나누기)의 [Claude 짓기] — 출처는 그 항목들의 지금 자리 · 목표는 창의 문서 · 머리
+async function sxwClaude() {
+  const w = S.sxw, x = S.sx
+  if (!w || w.t === 'move' || (w.cj && w.cj.state === 'run')) return
+  const its = (w.t === 'merge' ? w.srcs : [w.src]).map((z) => sxItems(z.wid).find((it) => it.h === z.h)).filter(Boolean)
+  const sources = []
+  for (const it of its) for (const z of it.from) if (!sources.some((y) => y.doc === z.doc && y.h === z.h)) sources.push({ doc: z.doc, h: z.h })
+  const rows = w.t === 'merge' ? [{ to: w.to, h: w.h, text: '' }] : w.rows
+  const bad = rows.map((r) => sxHeadBad(String(r.h || '').trim())).find(Boolean)
+  if (bad) { w.err = bad; render(); return }
+  w.err = ''
+  const targets = rows.map((r, i) => ({ doc: sxIdOf(sxW(r.to)), h: String(r.h).trim(), ...(w.t === 'split' && i && r.text && r.text.length <= 500 ? { part: r.text } : {}) }))
+  const c = { state: 'run', t0: Date.now() }
+  w.cj = c; render()
+  try {
+    const r = await postJSON(shapeUrl(x.k, 'write'), { sources, targets })
+    c.job = r.job
+    const end = await sxCjPoll(x.k, r.job, () => S.sxw === w && w.cj === c && c.state === 'run', (t) => { c.queued = t.state === 'queued'; c.old = !!t.old })
+    if (!end) return
+    const texts = (end.result && end.result.texts) || end.texts || []
+    const put = (i, h) => { const tx = texts.find((y) => y.h === h) || texts[i]; return tx ? tx.content : null }
+    if (w.t === 'merge') { const v = put(0, targets[0].h); if (v != null) w.text = v } else w.rows.forEach((r, i) => { const v = put(i, targets[i].h); if (v != null) r.text = v })
+    Object.assign(c, end.state === 'done' ? { state: 'done', values: end.result.values || [] } : { state: end.state === 'cancelled' ? 'cancel' : 'fail', why: end.why, stepFail: end.stepFail || null })
+  } catch (e) { Object.assign(c, { state: 'fail', why: e.message }) } finally { if (S.sxw === w) render() }
 }
 
 // ───────────── 주인 줄(지식관리자 · Claude 에 보내지 않음) ─────────────
@@ -6057,6 +6229,12 @@ const ACT = {
   sxwGo: () => sxwGo(),
   sxwDrop: (el) => { const w = S.sxw, i = Number(el.dataset.i); if (w.t === 'merge') w.srcs.splice(i, 1); else w.rows.splice(i, 1); render() },
   sxwAddRow: () => { const w = S.sxw; w.rows.push({ to: w.src.wid, h: '', text: '' }); render() },
+  sxClaude: () => sxClaude(),
+  sxCjWrite: () => sxCjWrite(),
+  sxCjStop: () => sxCjStop(S.sxc, S.sxc && S.sxc.job),
+  sxCjClose: () => { S.sxc = null; render() },
+  sxwClaude: () => sxwClaude(),
+  sxwCjStop: () => { const c = S.sxw && S.sxw.cj; if (c) sxCjStop(c, c.job) },
   sxBarT: () => { S.sx.barOpen = !S.sx.barOpen; render() },
   sxSave: () => sxSave(),
   sxFix: async () => {

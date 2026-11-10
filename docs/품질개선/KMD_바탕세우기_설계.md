@@ -574,6 +574,7 @@ v1 과 달리 push · 「백업에서 받기」 가 없다. 그래서 push ~ 받
 - `shape-plan` · `shape-write` 일감은 「Claude 에 보내지 않음」(`noClaude`) 지식에서 세우지 않는다(`E_FORBIDDEN` · 권한 모델 7 「모든 일감 꼴」).
 - 팀 일꾼(`core/worker.js:75-80`)은 type 마다 스키마 · 프롬프트를 고른다. 새 type 을 모르는 옛 일꾼이 들이기 프롬프트로 지어 버리지 않게, 일꾼이 상태 보고에 아는 type 목록을 싣고 서버는 아는 일꾼에게만 `shape-*` 일감을 준다. 모르면 화면에 「팀 일꾼 판이 옛것이다: 손으로 짜거나 일꾼을 다시 설치한다」.
 - 개인 프로그램의 다시 잡기는 같은 프롬프트 · 스키마를 이 PC 의 `claude -p` 로(`hub.askClaude` · `hub.js:2917` · pc 만).
+- **Z6 에서 한 것**: 판단 기준 · 스키마 · 프롬프트 · 재료는 `core/shape.js` 한 벌(`SEED_RULES` · `RESHAPE_RULES` · `SHAPE_PLAN_SCHEMA` · `SHAPE_WRITE_SCHEMA` · `planMaterial` · `writeMaterial` · `planOfDraft` · `writeOfDraft` · `core/survey.js` 는 `SEED_RULES` 를 다시 내보냄). 길은 8-1 의 `shape/ask { plan?, note? }` · `shape/write { sources, targets }`(단위 번호 대신 출처 · 목표 — 창이 구조안에 놓기 전에도 짓는다) + `GET shape/job/:job` · `POST shape/job/:job/stop`. 열쇠는 `s:<사람>:<입력 지문>` · `w:<입력 지문>`(그만두는 중인 일은 다시 잡지 않음). 일꾼은 `/api/worker/next` 에 아는 type 을 싣고, 열 분 안에 물은 일꾼이 모두 모르면 화면 「팀 일꾼 판이 옛것이다」 · 새 일은 E_CONFLICT. 개인 프로그램은 `askClaude` 의 「Claude 로 들이기」 스위치를 따르지 않고(들이기 스위치) `claude -p` 를 바로(같은 모델 · 예산) · 메모리 안 일(다시 켜면 사라짐 · 동시에 넷). 결과는 지식에 쓰지 않는다: 구조안은 나무에 덧씌움 · 합치기 · 나누기 항목은 글이 빈 채 놓이고 [Claude 짓기 n] 이 출처가 같은 묶음마다 짓는다. 글의 꼴 오류(`judgeShape` errors)는 두 번까지 고쳐 쓰고 그래도면 「걸음 실패」(지은 글은 남긴다 · 규칙 길 없음 · P-D24), 값 대조는 알림(P-D15). 구조안의 덮임 · 겹침 걸림도 두 번까지 고쳐 쓰고(이름 자리 걸림은 화면이 놓으므로 빼고) 그래도면 걸림과 함께 나무로. 팀 일꾼이 지은 구조안은 일꾼에게 보인 지문과 지금이 다르면 버린다(「그사이 짜임이 바뀌었다」).
 
 ### 7-4. 권한 모델 맞춤
 

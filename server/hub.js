@@ -48,7 +48,7 @@ import { renderRecord } from '../core/frontmatter.js'
 import { stampAll, headingMatches, findHeading } from '../core/sections.js'
 import { docfmtDir, checkFormat } from '../core/docformat.js'
 import { applyRestructure, readStructure, structureFp, stepFp } from '../core/restructure.js'
-import { readShape, cleanPlan, planCheck, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO } from '../core/shape.js'
+import { readShape, cleanPlan, planCheck, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO, SHAPE_CLAUDE_TYPES, SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, planMaterial, writeMaterial, planOfDraft, writeOfDraft, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf } from '../core/shape.js'
 import { parseOrder } from '../core/order.js'
 import { parseDoc as parseDocText } from '../core/sections.js'
 import { parseForms } from '../core/guard.js'
@@ -291,7 +291,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   let attachDay = {} // 지식 → { day, bytes } — 하루 첨부 합(S-D30 · config.attachDaily · 다시 켜도 잇는다)
   let jobTimer = null
   // 같은 원천의 열린 일감을 찾는 열쇠(S-D47)
-  const intakeKey = (type, src = {}) => (type === 'file' ? `f:${src.rel}:${src.sha}` : type === 'commit' ? `c:${src.src}:${src.commit}` : type === 'polish' ? `d:${src.doc}` : type === 'fix' ? `x:${src.rec}` : `r:${src.rec}`)
+  const intakeKey = (type, src = {}) => (type === 'file' ? `f:${src.rel}:${src.sha}` : type === 'commit' ? `c:${src.src}:${src.commit}` : type === 'polish' ? `d:${src.doc}` : type === 'fix' ? `x:${src.rec}` : type === 'shape-plan' ? `s:${src.who}:${src.key}` : type === 'shape-write' ? `w:${src.key}` : `r:${src.rec}`)
+  // Claude 짜임 일감(Z6 · 바탕 세우기 설계 7-3) — 구조안 받기 · 글 짓기. 결과는 <살림>/queue/<일감>.shape.json(장부에서 빠질 때 걷는다)
+  const SHAPE_T = new Set(SHAPE_CLAUDE_TYPES)
+  const shapeResOf = (jid) => path.join(dataDir, 'queue', `${jid}.shape.json`)
   // 하루 첨부 합(S-D30 · 지식마다 config.attachDaily ?? 200MB) — 넘으면 E_RATE. 파일 넣기는 받은 그때 센다(들이기 저장이 나중에 실어도 다시 세지 않는다)
   async function attachTake(id, bytes) {
     const day = localDay(new Date())
@@ -332,12 +335,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const saveJobs = () => {
     const live = (j) => j.state === 'queued' || j.state === 'running'
     const per = new Map()
-    const keep = [...jobs.values()].filter((j) => live(j) || Date.now() - Date.parse(j.done || j.at) < JOB_KEEP_MS).reverse().filter((j) => live(j) || (per.set(j.kn, (per.get(j.kn) || 0) + 1).get(j.kn) <= JOB_KEEP_N)).reverse()
+    // Claude 짜임 일감(Z6)은 결과를 화면이 가져가면 끝 — 하루만 두고 들이기 줄 50 에 세지 않는다
+    const shapeT = (j) => SHAPE_CLAUDE_TYPES.includes(j.type)
+    const keep = [...jobs.values()].filter((j) => live(j) || Date.now() - Date.parse(j.done || j.at) < (shapeT(j) ? 24 * 3600_000 : JOB_KEEP_MS)).reverse().filter((j) => live(j) || shapeT(j) || (per.set(j.kn, (per.get(j.kn) || 0) + 1).get(j.kn) <= JOB_KEEP_N)).reverse()
     for (const j of [...jobs.values()]) {
       if (keep.includes(j)) continue
       jobs.delete(j.id)
       // 남겨 둔 원천(규칙 길까지 못 넣은 들이기 · P6)도 장부에서 빠질 때 걷는다
-      if (j.kind === 'intake') for (const p of [intakeMdOf(j.id), binOf(j.id)]) fs.rm(p, { force: true }).catch((e) => log('들이기 원천 걷기', j.id, e.message))
+      if (j.kind === 'intake') for (const p of [intakeMdOf(j.id), binOf(j.id), shapeResOf(j.id)]) fs.rm(p, { force: true }).catch((e) => log('들이기 원천 걷기', j.id, e.message))
     }
     jobsW = jobsW.then(() => fs.mkdir(dataDir, { recursive: true })).then(() => fs.writeFile(jobsFile + '.tmp', JSON.stringify(keep))).then(() => fs.rename(jobsFile + '.tmp', jobsFile)).catch((e) => log(`정리 일감 장부를 쓰지 못했다: ${e.message}`))
     return jobsW
@@ -366,6 +371,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   // 팀 일꾼 — 쉬는 중(로그인 끝 · 한도)이면 들이기 일감은 기다린다 · 마지막으로 물은 때
   let wsNow = null
   let teamSeenAt = 0
+  const teamTypes = new Map() // 일꾼 → { types, at } — 일감을 물을 때 알린 type(바탕 세우기 설계 7-3)
   const sha = (t) => crypto.createHash('sha256').update(String(t)).digest('hex')
   const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   // 되돌림 — 그 문서에서 7일 안에 되돌린 수
@@ -710,6 +716,90 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const stepFailErr = (rows) => new KmdError('E_INPUT', `걸음 실패: ${rows.slice(0, 3).map((h) => `${h.heading ? h.heading + ': ' : ''}${h.why}`).join(' · ')}`, { details: { stepFail: rows.slice(0, 50) } })
   const stepFailOf = (e) => (e instanceof KmdError && e.code === 'E_INPUT' && Array.isArray(e.details?.stepFail) ? e.details.stepFail : null)
   const failWhy = (rows) => rows.slice(0, 5).map((x) => `${x.heading ? x.heading + ': ' : ''}${x.why}`).join(' · ')
+  // ── Claude 짜임 안 함수(Z6) ──
+  const shapeAsks = new Map() // 개인 프로그램의 claude -p 짜임 일(메모리 · 한 시간 뒤 걷음)
+  const SHAPE_SEAT = '일을 건 사람이 이 지식의 지식관리자 자리를 잃었다'
+  const shapeIn = (md) => { try { const x = JSON.parse(md); return x && typeof x === 'object' ? x : {} } catch { return {} } }
+  // 재료 — 지금 지식에서 짓는다 → { g } | { error }
+  async function shapeG(id, k, type, input) {
+    const S = readShape(k, await readStructure(k.dir))
+    if (type === 'shape-plan') return { g: planMaterial(k, S, { plan: input.plan || null, note: input.note || '' }), S }
+    const g = writeMaterial(k, S, { sources: input.sources || [], targets: input.targets || [] })
+    return g.error ? { error: g.error } : { g, S }
+  }
+  // 받은 초안 하나 — { fix: 까닭 } | { result } | { fail: 까닭, stepFail?, texts? }
+  //   구조안: cleanPlan 이 안 되거나 planCheck 걸림(이름 자리는 화면이 놓으므로 빼고)이면 고쳐 쓰게 · 마지막이면 꼴이 된 안은 걸림과 함께 화면으로(사람이 고친다)
+  //   글: 결정적 오류(꼴 · 섞인 자리 · 저절로 채우는 표)면 고쳐 쓰게 · 마지막이면 걸음 실패 · 값 대조(지어낸 · 잃은 값)는 재기만
+  async function shapeDraft(id, k, type, sg, draft, last, seen = null) {
+    if (type === 'shape-plan') {
+      const p = planOfDraft(sg.S, draft)
+      if (p.error) return last ? { fail: `구조안 꼴이 아니다: ${p.error}` } : { fix: p.error }
+      const r = planCheck(k, sg.S, p.plan)
+      const bad = r.errors.filter((e) => e.code !== 'names')
+      if (bad.length && !last) return { fix: bad.slice(0, 5).map((e) => `${e.where}: ${e.why}`).join(' · ') }
+      return { result: { plan: p.plan, notes: p.notes, why: p.why, fp: sg.S.fp, errors: r.errors.slice(0, 100), warnings: r.warnings.slice(0, 100) } }
+    }
+    const w = writeOfDraft(sg.g, draft)
+    if (w.error) return last ? { fail: w.error } : { fix: w.error }
+    const legacy = mode === 'team' ? (doc, h) => { const docObj = k.byDocPath.get(doc); const sec = docObj?.sections.find((x) => x.h === h); return docObj && sec ? legacyPendOf(k, { docObj, sec, heading: h }, null) : [] } : null
+    const rel = (doc) => `docs/${doc}.md`
+    const unit = { targets: w.texts.map((t) => ({ doc: rel(t.doc), h: t.h, content: t.content })), sources: sg.g.sources.map((s) => ({ doc: rel(s.doc), h: s.h, base: seen?.find((x) => x.doc === s.doc && x.h === s.h)?.base || s.base })), intros: [] }
+    const j = judgeShape(k, unit, { legacy })
+    const c = j.errors.find((e) => e.code === 'conflict')
+    if (c) return { fail: `${c.why}: [다시] 로 새 글로 짓는다` }
+    if (j.errors.length) {
+      const why = j.errors.slice(0, 3).map((e) => e.why).join(' · ')
+      if (!last) return { fix: why }
+      return { fail: `걸음 실패: ${why}`, stepFail: j.errors.slice(0, 20).map((e) => ({ code: e.code, why: e.why })), texts: w.texts }
+    }
+    return { result: { texts: w.texts, why: w.why, values: j.warnings.slice(0, 20).map((x) => ({ code: x.code, heading: x.heading, why: x.why })) } }
+  }
+  // 개인 프로그램 — claude -p 한 번 → 검사 → 고쳐 쓰기(INTAKE_FIX 번까지)
+  async function pcShapeRun(a, input) {
+    const plan = a.type === 'shape-plan'
+    let prev = null
+    let fixWhy = null
+    for (let n = 0; n <= INTAKE_FIX; n++) {
+      cache.delete(a.kn)
+      const k = await hub.get(a.kn)
+      const sg = await shapeG(a.kn, k, a.type, input)
+      if (sg.error) return Object.assign(a, { state: 'fail', why: sg.error })
+      const seen = n === 0 ? null : a.seen
+      if (n === 0 && !plan) a.seen = sg.g.sources.map((x) => ({ doc: x.doc, h: x.h, base: x.base }))
+      const prompt = plan ? (prev ? shapePlanFixPromptOf(sg.g, prev, fixWhy) : shapePlanPromptOf(sg.g)) : prev ? shapeWriteFixPromptOf(sg.g, prev, fixWhy, { writeRules: WRITE_RULES }) : shapeWritePromptOf(sg.g, { writeRules: WRITE_RULES })
+      const r = await runClaude({ prompt, schema: plan ? SHAPE_PLAN_SCHEMA : SHAPE_WRITE_SCHEMA, budget: Number(process.env.KMD_INGEST_BUDGET) > 0 ? Number(process.env.KMD_INGEST_BUDGET) : 1.0, model: hub.modelOf('ingest'), timeoutMs: 600_000 })
+      a.tries = n + 1
+      if (!r.error) await hub.workerStatus({ worker: { id: null } }, { ok: true }).catch((e) => log('Claude 상태', e.message))
+      if (a.state !== 'running') return a // 그만뒀다 — 받은 초안은 버린다
+      if (r.error) {
+        if (r.error === 'login' || r.error === 'limit') await hub.workerStatus({ worker: { id: null } }, { ok: false, reason: r.error, message: r.message }).catch((e) => log('Claude 상태', e.message))
+        return Object.assign(a, { state: 'fail', why: r.error === 'login' ? 'Claude 로그인이 없다. 머리의 「Claude」 에서 로그인' : r.error === 'limit' ? 'Claude 사용 한도' : `Claude 가 답하지 않았다${r.message ? ': ' + String(r.message).slice(0, 120) : ''}` })
+      }
+      const d = await shapeDraft(a.kn, k, a.type, sg, r.value, n === INTAKE_FIX, seen || a.seen)
+      if (a.state !== 'running') return a
+      if (d.fix) { prev = r.value; fixWhy = d.fix; continue }
+      if (d.result) return Object.assign(a, { state: 'done', result: d.result })
+      return Object.assign(a, { state: 'fail', why: d.fail, ...(d.stepFail ? { stepFail: d.stepFail, texts: d.texts } : {}) })
+    }
+    return a
+  }
+  // 팀 일꾼 초안 끝(intakeDone) — 결과는 파일로(장부를 무겁게 하지 않는다) · 일감은 닫는다(쓰는 것 없음)
+  async function shapeJobDone(j, id, k, md, body, last) {
+    if (!hub.intakeCtx(j)) return intakeAbort(j, SHAPE_SEAT)
+    const input = shapeIn(md)
+    const sg = await shapeG(id, k, j.type, input)
+    if (sg.error) return intakeAbort(j, sg.error)
+    if (j.type === 'shape-plan' && j.seen?.[0]?.fp && j.seen[0].fp !== sg.S.fp) {
+      await writeJsonAtomic(shapeResOf(j.id), { state: 'fail', why: '그사이 짜임이 바뀌었다: [다시] 로 새로 받는다' })
+      await intakeClose(j, { why: '그사이 짜임이 바뀌었다' })
+      return { ok: true, rec: null, put: 0, held: [], why: '그사이 짜임이 바뀌었다' }
+    }
+    const d = await shapeDraft(id, k, j.type, sg, body?.draft, last, j.type === 'shape-write' ? j.seen : null)
+    if (d.fix) { saveJobs(); return { fix: d.fix } }
+    await writeJsonAtomic(shapeResOf(j.id), d.result ? { state: 'done', result: d.result } : { state: 'fail', why: d.fail, ...(d.stepFail ? { stepFail: d.stepFail, texts: d.texts } : {}) })
+    await intakeClose(j, { why: d.fail || null })
+    return { ok: true, rec: null, put: 0, held: [], ...(d.fail ? { why: d.fail } : {}) }
+  }
   //   strict — approve 모드 지식(P-D24): 걸리면 넣지 못함(holdAll) 대신 걸음 입력 오류 · 앞 넣지 못함 바로잡기(fixes)도 없다
   async function shapeJob({ dir, k0, loadK, plan, n, fp = null, texts = [], intros = {}, work, step, strict = false }) {
     const unitOf = async (k) => {
@@ -1358,7 +1448,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   // 일꾼이 알리는 실패 까닭(S-D54) — login · limit · missing 은 일꾼이 쉰다(일감은 다시 기다림)
   const INTAKE_FAIL = new Set(['login', 'limit', 'missing', 'budget', 'timeout', 'fail', 'shape'])
   // 들이기 일감의 보이는 이름(일 줄 · 지금 하는 일)
-  const INTAKE_TITLE = { file: '들이기', commit: '들이기', fix: '정정', again: '다시 들이기', polish: '다듬기' }
+  const INTAKE_TITLE = { file: '들이기', commit: '들이기', fix: '정정', again: '다시 들이기', polish: '다듬기', 'shape-plan': 'Claude 구조안', 'shape-write': 'Claude 짓기' }
   const intakeChannel = (j) => (j.type === 'polish' ? 'polish' : j.auto ? 'intake-src' : `intake-${j.type}`)
   // 저장 문이 붙이는 예약 태그(S-D43) — intake 는 core 가 늘 붙인다
   const intakeTagsOf = (j) => [`job/${j.id}`, ...(j.type === 'commit' ? ['code-change'] : []), ...(j.type === 'polish' ? ['polish'] : [])]
@@ -2070,7 +2160,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       watchers.splice(0, watchers.length, ...watchers.filter((x) => !(x.dir && path.resolve(x.dir) === dir)))
       clearTimeout(decideTimers.get(id))
       decideTimers.delete(id)
-      for (const [jid, j] of jobs) if (j.kn === id) { if (j.kind === 'intake') for (const x of ['.md', '.bin']) await fs.rm(binOf(jid).replace(/\.bin$/, x), { force: true }).catch((e) => log('들이기 원천 지우기', jid, e.message)); jobs.delete(jid) }
+      for (const [jid, j] of jobs) if (j.kn === id) { if (j.kind === 'intake') for (const x of ['.md', '.bin', '.shape.json']) await fs.rm(binOf(jid).replace(/\.bin$/, x), { force: true }).catch((e) => log('들이기 원천 지우기', jid, e.message)); jobs.delete(jid) }
       await fs.rm(heldDir(id), { recursive: true, force: true }).catch((e) => log('넣지 못함 원천 지우기', id, e.message))
       for (const [key, w] of srcWatch) if (key.startsWith(id + '\n')) { w.close(); srcWatch.delete(key) }
       for (const x of [backup.repo, backup.copy]) await x.detach(meta).catch((e) => log(`${x.label} 떼기`, id, e.message))
@@ -2613,7 +2703,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const S = readShape(k, await readStructure(meta.dir))
       const w = await hub.shapeWork(id)
       const work = !w ? null : w.broken ? { broken: true } : { work: w.work, by: w.by, stage: w.stage, opened: w.opened, at: w.at, draft: !!w.plan, mine: !ctx || w.by === ctx.user, steps: w.tried?.steps?.length || 0, done: (w.done || []).length, blockers: w.tried?.diag?.blockers?.length || 0, ...(w.stage === 'stopped' && w.last?.fail ? { fail: w.last.fail } : {}), ...(w.undoOf ? { undoOf: w.undoOf } : {}) }
-      return { kn: id, name: meta.name, fp: S.fp, docs: S.docs.map((d) => ({ id: d.id, title: d.title, watched: d.watched, intro: d.intro, items: d.items.map((it) => ({ h: it.h, lines: it.lines, names: it.coords.length })) })), forms: S.forms, work }
+      return { kn: id, name: meta.name, fp: S.fp, docs: S.docs.map((d) => ({ id: d.id, title: d.title, watched: d.watched, intro: d.intro, items: d.items.map((it) => ({ h: it.h, lines: it.lines, names: it.coords.length })) })), forms: S.forms, work, claude: hub.shapeClaudeState(id) }
     },
     // 구조안 검사(POST /api/k/:id/shape/check { plan }) — planCheck · diffPlan · 짜임 마른 실행 → 걸림 · 경고 · 바뀔 것 · 걸음.
     //   짜임 일을 열고(처음이면) 초안을 장부에 둔다. 단계를 잇는 것은 연 사람만(그만두게 하기는 지식관리자 누구나)
@@ -2670,6 +2760,102 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         ...(d.forms ? ['갈래 장부'] : []),
       ]
       return { kn: id, work: w.work, fp: S.fp, ok: r.ok, stale: r.stale, errors: r.errors.slice(0, 200), warnings: r.warnings.slice(0, 200), summary: r.summary, steps, changes: changes.slice(0, 1000) }
+    },
+    // ── Claude 짜임(Z6 · 바탕 세우기 설계 5-4 · 7-3) — [Claude 구조안] · [Claude 짓기] ──
+    //   개인 프로그램은 이 PC 의 claude -p(메모리 안 일 · 다시 켜면 사라짐), 팀은 팀 일꾼 일감 shape-plan · shape-write(들이기 일감 줄 · 하루 수 · 24시간).
+    //   구조안은 화면 나무에 덧씌우는 초안이고 저절로 넣지 않는다. 글은 결정적 오류(judgeShape errors)면 고쳐 쓰게 하고(FIX 두 번 · P-D15)
+    //   그래도면 「걸음 실패」(P-D24 · 규칙 길이 아니다) · 값 대조는 재기만(values). 「Claude 에 보내지 않음」 지식은 E_FORBIDDEN
+    shapeClaudeState(id) {
+      if (rowFor(id)?.noClaude) return { ok: false, why: 'Claude 에 보내지 않는 지식: 손으로 짠다' }
+      // 팀 일꾼 판 — 열 분 안에 일감을 물은 일꾼이 있는데 아무도 짜임 type 을 모르면 옛것
+      const seen = mode === 'team' ? [...teamTypes.values()].filter((x) => Date.now() - x.at < 10 * 60_000) : []
+      if (seen.length && !seen.some((x) => SHAPE_CLAUDE_TYPES.every((t) => x.types.includes(t)))) return { ok: true, team: true, old: true }
+      return { ok: true, team: mode === 'team' }
+    },
+    async shapeAsk(ctx, id, { type, plan = null, note = '', sources, targets } = {}) {
+      const meta = await hub.meta(id, ctx)
+      hub.need(ctx, id, 'admin')
+      if (!ctx?.user) throw new KmdError('E_INPUT', '누가 거는지 모른다')
+      if (!SHAPE_T.has(type)) throw new KmdError('E_INPUT', 'type 은 shape-plan · shape-write')
+      const st = hub.shapeClaudeState(id)
+      if (!st.ok) throw new KmdError('E_FORBIDDEN', st.why)
+      if (st.old) throw new KmdError('E_CONFLICT', '팀 일꾼 판이 옛것이다: 손으로 짜거나 일꾼을 다시 설치한다')
+      const one = (v, max) => typeof v === 'string' && v.trim() && v.length <= max && !/[\r\n]/.test(v)
+      let input
+      if (type === 'shape-plan') {
+        if (note != null && (typeof note !== 'string' || note.length > 1000)) throw new KmdError('E_INPUT', 'note 는 1000자 안의 글이다')
+        let p = null
+        if (plan != null) {
+          const c = cleanPlan(plan)
+          if (c.error) throw new KmdError('E_INPUT', c.error)
+          if (c.plan.kind !== 'reshape') throw new KmdError('E_INPUT', '다시 잡기 구조안만 준다')
+          p = c.plan
+        }
+        input = { plan: p, note: String(note || '').trim() }
+      } else {
+        const at = (x, part) => !!x && typeof x === 'object' && !Array.isArray(x) && one(x.doc, 200) && one(x.h, 120) && (!part || x.part == null || (typeof x.part === 'string' && x.part.length <= 500))
+        if (!Array.isArray(sources) || !sources.length || sources.length > 20 || !sources.every((x) => at(x))) throw new KmdError('E_INPUT', 'sources 는 [{ doc, h }] 1 ~ 20')
+        if (!Array.isArray(targets) || !targets.length || targets.length > 20 || !targets.every((x) => at(x, true))) throw new KmdError('E_INPUT', 'targets 는 [{ doc, h, part? }] 1 ~ 20')
+        const clean = (x) => ({ doc: x.doc.normalize('NFC').replace(/^\/+|\/+$/g, ''), h: x.h.normalize('NFC').trim(), ...(typeof x.part === 'string' && x.part.trim() ? { part: x.part.trim() } : {}) })
+        input = { sources: sources.map(clean), targets: targets.map(clean) }
+        if (new Set(input.targets.map((t) => t.doc + '\n' + t.h)).size !== input.targets.length) throw new KmdError('E_INPUT', '같은 목표 머리가 둘이다')
+      }
+      // 재료를 먼저 지어 본다 — 없는 출처 · 원본이 주인인 출처는 일을 세우지 않는다
+      const sg = await shapeG(id, await hub.get(id, ctx), type, input)
+      if (sg.error) throw new KmdError('E_INPUT', sg.error)
+      if (mode === 'team') {
+        const title = type === 'shape-plan' ? (meta.name || id) : input.targets.map((t) => t.h).join(' · ')
+        const r = await hub.openJob(id, { type, by: ctx.user, src: { title: String(title).slice(0, 80), who: ctx.user, key: sha16(JSON.stringify(input)) }, md: JSON.stringify(input) })
+        return { job: r.job, state: 'queued', ...(r.again ? { again: true } : {}) }
+      }
+      for (const [k0, a0] of shapeAsks) if (Date.now() - Date.parse(a0.at) > 3600_000 && !a0.busy) shapeAsks.delete(k0)
+      if ([...shapeAsks.values()].filter((a0) => a0.busy).length >= 4) throw new KmdError('E_RATE', 'Claude 짜임 일이 넷 돌고 있다. 끝난 뒤에 다시 건다', { details: { retryAfter: 30 } })
+      const a = { id: crypto.randomBytes(6).toString('hex'), kn: id, type, by: ctx.user, state: 'running', at: new Date().toISOString(), tries: 0, busy: true }
+      shapeAsks.set(a.id, a)
+      pcShapeRun(a, input).catch((e) => { log('Claude 짜임', a.id, e.message); if (a.state === 'running') Object.assign(a, { state: 'fail', why: e.message }) }).finally(() => { a.busy = false })
+      return { job: a.id, state: 'running' }
+    },
+    // 일 하나 — { job, type, state: queued | running | done | fail | cancelled, result?, why?, stepFail?, old? } · 그 지식의 지식관리자만
+    async shapeAskOf(ctx, id, jid) {
+      await hub.meta(id, ctx)
+      hub.need(ctx, id, 'admin')
+      if (!/^[0-9a-f]{12}$/.test(String(jid))) throw new KmdError('E_INPUT', '일 id 꼴이 아니다')
+      if (mode !== 'team') {
+        const a = shapeAsks.get(jid)
+        if (!a || a.kn !== id) throw new KmdError('E_NOTFOUND', '그 일이 없다(프로그램을 다시 켰으면 다시 건다)')
+        return { job: a.id, type: a.type, state: a.state, tries: a.tries, ...(a.result ? { result: a.result } : {}), ...(a.why ? { why: a.why } : {}), ...(a.stepFail ? { stepFail: a.stepFail, texts: a.texts } : {}) }
+      }
+      const j = jobs.get(jid)
+      if (!j || j.kn !== id || j.kind !== 'intake' || !SHAPE_T.has(j.type)) throw new KmdError('E_NOTFOUND', '그 일이 없다')
+      const base = { job: j.id, type: j.type, tries: j.tries || 0 }
+      if (['queued', 'running', 'closing'].includes(j.state)) return { ...base, state: j.state === 'queued' ? 'queued' : 'running', ...(j.state === 'queued' && hub.shapeClaudeState(id).old ? { old: true } : {}), ...(j.why && j.state === 'queued' ? { why: j.why } : {}) }
+      if (j.state === 'cancelled') return { ...base, state: 'cancelled' }
+      const res = await fs.readFile(shapeResOf(j.id), 'utf8').then(JSON.parse, (e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
+      if (res?.state === 'done') return { ...base, state: 'done', result: res.result }
+      if (res?.state === 'fail') return { ...base, state: 'fail', why: res.why, ...(res.stepFail ? { stepFail: res.stepFail, texts: res.texts } : {}) }
+      return { ...base, state: 'fail', why: j.why || '팀 일꾼이 짓지 못했다' }
+    },
+    // 그만두기 — 기다리는 일은 닫고 · 짓는 중이면 받은 초안을 버린다
+    async shapeAskStop(ctx, id, jid) {
+      await hub.meta(id, ctx)
+      hub.need(ctx, id, 'admin')
+      if (!/^[0-9a-f]{12}$/.test(String(jid))) throw new KmdError('E_INPUT', '일 id 꼴이 아니다')
+      if (mode !== 'team') {
+        const a = shapeAsks.get(jid)
+        if (!a || a.kn !== id) throw new KmdError('E_NOTFOUND', '그 일이 없다')
+        if (a.state === 'running') Object.assign(a, { state: 'cancelled', why: `그만뒀다: ${ctx.user}` })
+        return { ok: true, state: a.state }
+      }
+      const j = jobs.get(jid)
+      if (!j || j.kn !== id || j.kind !== 'intake' || !SHAPE_T.has(j.type)) throw new KmdError('E_NOTFOUND', '그 일이 없다')
+      if (j.state === 'queued') { await intakeCancel(j, ctx.user); return { ok: true, state: 'cancelled' } }
+      if (j.state === 'running') {
+        if (!j.stop) j.stop = { by: ctx.user, at: new Date().toISOString() }
+        j.leaseUntil = Math.min(j.leaseUntil || Infinity, Date.now() + 5 * 60_000)
+        saveJobs()
+        return { ok: true, state: 'stopping' }
+      }
+      return { ok: true, state: j.state }
     },
     // 글 걸음 하나(바탕 세우기 설계 4-3 · 4-5 · 4-8) — 나누기 · 합치기 · 엮임 · 문서 요약 단위 n 을 저장 문(opt.shape)으로 한 번.
     //   서버 안 함수만 부른다(HTTP 로 열지 않는다). 받는 것은 구조안 · 단위 번호 · 목표 글(texts: [{ doc, h, content }]) · 요약 글(intros: { 문서: 글 })뿐 —
@@ -4181,12 +4367,15 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 팀 일꾼을 마지막으로 본 때 · 기다리는 들이기 일감 — 멈춤 줄 · 관리 화면
     workerSeen: () => ({ at: teamSeenAt ? new Date(teamSeenAt).toISOString() : null, intakes: [...jobs.values()].filter((j) => j.state === 'queued' && j.kind === 'intake') }),
     // 일꾼 — 다음 들이기 일감 하나 + 그 일감 · 그 지식에만 쓰는 단기 열쇠(30분 · 한 일감)
-    workerNext(wctx) {
+    //   body.types — 일꾼이 아는 일감 type(옛 일꾼은 싣지 않는다 → 짜임 일감 shape-* 을 주지 않는다 · 바탕 세우기 설계 7-3)
+    workerNext(wctx, body = {}) {
+      const types = Array.isArray(body?.types) ? body.types.filter((t) => typeof t === 'string' && t.length <= 32).slice(0, 20) : []
+      if (wctx?.worker?.id) teamTypes.set(String(wctx.worker.id), { types, at: Date.now() })
       teamSeenAt = Date.now() // 멈춤 중에도 일꾼은 보인다(「안 보임」 경고로 바뀌지 않게)
       // 줄 멈춤이면 들이기 일감도 주지 않는다(UX T6-05) · 이미 맡은 일감의 초안은 그대로 받는다
       if (Q.hold) return null
       sweepJobs()
-      const q = [...jobs.values()].filter((x) => x.state === 'queued' && x.kind === 'intake')
+      const q = [...jobs.values()].filter((x) => x.state === 'queued' && x.kind === 'intake' && (!SHAPE_T.has(x.type) || types.includes(x.type)))
       const j = q.find((x) => !x.auto) || q[0]
       if (!j) return null
       j.state = 'running'
@@ -4232,15 +4421,17 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     //   bulk — 지식관리자의 [옛 기록 다시 들이기](S10 · S-D26) — 사람마다 기다림 상한(20)을 세지 않는다(하루 상한은 센다)
     async openJob(id, { type, by, auto = false, bulk = false, src = {}, md = '', bin = null, qj = null }) {
       if (mode !== 'team') throw new KmdError('E_INPUT', '들이기 일감은 팀 서버만 세운다')
-      if (!['file', 'commit', 'fix', 'again', 'polish'].includes(type)) throw new KmdError('E_INPUT', '모르는 들이기 일감이다')
+      if (!['file', 'commit', 'fix', 'again', 'polish', ...SHAPE_T].includes(type)) throw new KmdError('E_INPUT', '모르는 들이기 일감이다')
       if (!by || typeof by !== 'string') throw new KmdError('E_INPUT', '일감을 만든 사람이 없다')
       await hub.meta(id)
       sweepJobs()
       const key = intakeKey(type, src)
       // 같은 원천에 열린 일감이 있으면 그것(한 원천 = 일감 하나)
-      const open = [...jobs.values()].find((j) => j.kind === 'intake' && j.kn === id && j.key === key && ['queued', 'running', 'closing'].includes(j.state))
+      const open = [...jobs.values()].find((j) => j.kind === 'intake' && j.kn === id && j.key === key && ['queued', 'running', 'closing'].includes(j.state) && !(SHAPE_T.has(type) && j.stop))
       if (open) return { state: 'queued', job: open.id, again: true }
       const base = { id: crypto.randomBytes(6).toString('hex'), kn: id, kind: 'intake', type, key, by, auto: !!auto, at: new Date().toISOString(), src: { ...src, type }, tries: 0, leases: 0, cost: 0, calls: 0, ...(qj ? { qj } : {}) }
+      // Claude 짜임(Z6) — 「Claude 에 보내지 않음」 지식에는 세우지 않는다(바탕 세우기 설계 7-3 · 권한 모델 7)
+      if (SHAPE_T.has(type) && rowFor(id)?.noClaude) throw new KmdError('E_FORBIDDEN', 'Claude 에 보내지 않는 지식: 손으로 짠다')
       // Claude 에 보내지 않는 지식 — 일감을 세우지 않고 기록만 + 넣지 못함(S-D22)
       if (rowFor(id)?.noClaude) return hub.intakeHeld(base, md, bin, 'noclaude', approveOf(id) ? 'Claude 에 보내지 않는 지식: 규칙 길로 넣었다' : 'Claude 에 보내지 않는 지식: 기록만 남겼다')
       // 사람마다 기다리는 수(가져올 곳 · 문서 폴더는 세지 않는다) · 지식마다 하루 수(S-D47 — 팀 구독 비용의 경계)
@@ -4252,7 +4443,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const n0 = intakeDay[id]?.day === day ? intakeDay[id].n : 0
       const dcap = config.intakeDaily ?? 300
       if (n0 >= dcap) {
-        if (auto || (approveOf(id) && type !== 'polish')) return hub.intakeHeld(base, md, bin, 'worker', approveOf(id) ? `오늘 들이기 수(${dcap})를 넘었다: Claude 없이 규칙 길로 넣었다` : `오늘 들이기 수(${dcap})를 넘었다: 기록만 남겼다`)
+        if (auto || (approveOf(id) && type !== 'polish' && !SHAPE_T.has(type))) return hub.intakeHeld(base, md, bin, 'worker', approveOf(id) ? `오늘 들이기 수(${dcap})를 넘었다: Claude 없이 규칙 길로 넣었다` : `오늘 들이기 수(${dcap})를 넘었다: 기록만 남겼다`)
         throw new KmdError('E_RATE', `이 지식의 오늘 들이기 수(${dcap})를 넘었다. 내일 다시 보낸다`, { details: { retryAfter: 3600 } })
       }
       intakeDay = { ...Object.fromEntries(Object.entries(intakeDay).filter(([, v]) => v.day === day)), [id]: { day, n: n0 + 1 } }
@@ -4289,7 +4480,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const u = hub.userOf(j.by)
       if (!u || u.off) return null
       const lv = levelFor(j.kn, { user: j.by, admin: !!u.admin })
-      if (!owners.atLeast(lv, 'write') || (j.type === 'polish' && lv !== 'admin')) return null
+      if (!owners.atLeast(lv, 'write') || ((j.type === 'polish' || SHAPE_T.has(j.type)) && lv !== 'admin')) return null
       // 정정(S9) — 원래 기록을 쓴 사람이 아니면 지식관리자 자리가 그대로 있어야 한다
       //   다시 들이기(S10)도 같다 — 남의 넣지 못함은 지식관리자가 다시 들인다
       if ((j.type === 'fix' || j.type === 'again') && j.src?.owner && j.src.owner !== j.by && lv !== 'admin') return null
@@ -4313,9 +4504,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 일감을 끝낸다 — 일꾼이 끝내지 못했다(임대 세 번 · 24시간 기다림) · 원천을 기록만 + 넣지 못함으로
     async intakeGiveUp(j, code, why) {
-      if (j.type === 'polish') {
-        await intakeClose(j, { why })
-        return { state: 'closed', why }
+      if (j.type === 'polish' || SHAPE_T.has(j.type)) {
+        const w = SHAPE_T.has(j.type) ? String(why || '').replace(/: (기록만 남겼다|규칙 길로 넣었다)$/, '') : why
+        await intakeClose(j, { why: w })
+        return { state: 'closed', why: w }
       }
       const md = await fs.readFile(intakeMdOf(j.id), 'utf8').catch((e) => (e.code === 'ENOENT' ? '' : Promise.reject(e)))
       const bin = await fs.readFile(binOf(j.id)).catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
@@ -4340,6 +4532,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         await hub.intakeGiveUp(j, 'noclaude', ap ? 'Claude 에 보내지 않는 지식: 규칙 길로 넣었다' : 'Claude 에 보내지 않는 지식: 기록만 남겼다').catch((e) => { Object.assign(j, { state: 'queued', worker: null }); log('들이기 일감 닫기', j.id, e.message) })
         throw new KmdError('E_FORBIDDEN', ap ? '이 지식은 Claude 에 보내지 않는다: 규칙 길로 넣었다' : '이 지식은 Claude 에 보내지 않는다: 기록만 남겼다')
       }
+      // Claude 짜임(Z6) — 건 사람이 그사이 지식관리자 자리를 잃었으면 Claude 에 보내지 않고 닫는다
+      if (SHAPE_T.has(j.type) && !hub.intakeCtx(j)) {
+        await intakeAbort(j, SHAPE_SEAT)
+        throw new KmdError('E_FORBIDDEN', SHAPE_SEAT)
+      }
       // approve 모드(P6 · Q5) — 일을 건 사람이 그사이 자리를 잃었으면 Claude 에 보내지 않고 아무것도 쓰지 않고 닫는다
       if (approveOf(id) && j.type !== 'polish' && !hub.intakeCtx(j)) {
         await intakeAbort(j, SEAT_LOST)
@@ -4353,6 +4550,18 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const md = await fs.readFile(intakeMdOf(j.id), 'utf8').catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
       if (md == null) throw new KmdError('E_NOTFOUND', '들일 글이 남아 있지 않다')
       const k = await hub.get(id)
+      // Claude 짜임 재료 — 지금 지식에서 서버가 짓는다 · 글 짓기는 일꾼에게 보인 출처 지문을 남긴다(끝에서 견준다)
+      if (SHAPE_T.has(j.type)) {
+        const sg = await shapeG(id, k, j.type, shapeIn(md))
+        if (sg.error) {
+          await intakeAbort(j, sg.error)
+          throw new KmdError('E_CONFLICT', sg.error)
+        }
+        j.seen = j.type === 'shape-write' ? sg.g.sources.map((x) => ({ doc: x.doc, h: x.h, base: x.base })) : [{ fp: sg.g.fp }]
+        j.beat = new Date().toISOString()
+        saveJobs()
+        return sg.g
+      }
       const g = j.type === 'fix' ? fixG(k, j, md) : j.type === 'polish' ? polishG(k, j) : intakeG(k, j, md)
       // 파일 넣기 일 줄 — 「짓기」(팀 일꾼이 기록 + 조각을 짓는다)
       const run = runOfJob(j)
@@ -4396,6 +4605,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const bin = await fs.readFile(binOf(j.id)).catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
       cache.delete(id)
       const k = await hub.get(id)
+      if (SHAPE_T.has(j.type)) return shapeJobDone(j, id, k, md, body, last)
       if (j.type === 'fix') return approveOf(id) ? fixApprove(j, id, k, md, body, last) : fixDone(j, id, k, md, body, last)
       if (j.type === 'polish') return polishDone(j, id, k, body, last)
       const g = intakeG(k, j, md, { seen: j.seen })
@@ -4452,7 +4662,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       j.calls = (j.calls || 0) + 1
       j.tries = (j.tries || 0) + 1
-      if (j.tries < INTAKE_FIX + 1 && !(approveOf(id) && j.type !== 'polish')) { saveJobs(); return { ok: true, retry: true } }
+      if (j.tries < INTAKE_FIX + 1 && !(approveOf(id) && j.type !== 'polish' && !SHAPE_T.has(j.type))) { saveJobs(); return { ok: true, retry: true } }
       const r = await hub.intakeGiveUp(j, 'claude', `팀 일꾼이 초안을 받지 못했다: ${why || code}`)
       return { ok: true, rec: r.rec || null, held: r.state === 'held' ? 1 : 0, ...(r.state === 'rule' ? { rule: r.why } : {}), ...(r.state === 'aborted' ? { aborted: true } : {}) }
     },

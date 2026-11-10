@@ -23,6 +23,7 @@ import { coordsOfSection, reflectedIn } from './knowledge.js'
 import { watchedOf } from './watchmark.js'
 import { hasBlockMarker } from './baseline.js'
 import { judgeId } from './values.js'
+import { WRITE_RULES } from './writerules.js'
 
 export { stepFp }
 const P = path.posix
@@ -501,3 +502,141 @@ export function undoPlan(snap, S) {
 
 // 글 걸음 지문(4-2) — 단위의 출처 항목마다 글 지문(sha16). 글을 지을 때 본 출처와 넣을 때의 출처가 같아야 한다(어긋나면 E_CONFLICT)
 export const unitFp = (u) => hash16((u.sources || []).map((s) => `${s.doc}\n${s.h}\n${s.sha}`).join('\n') + '\n--\n' + (u.targets || []).map((t) => `${t.doc}\n${t.h}`).join('\n'))
+
+// ── Claude 짜임(Z6 · 바탕 세우기 설계 5-4 · 6-1 · 7-3) — 구조안 받기(shape-plan) · 글 짓기(shape-write)의 판단 기준 · 스키마 · 재료 · 프롬프트 · 초안 다듬기.
+//   개인 프로그램은 이 PC 의 claude -p, 팀은 팀 일꾼(core/worker.js)이 같은 프롬프트 · 스키마로 부른다. 초안은 서버가 다시 본다(cleanPlan · planCheck · judgeShape).
+//   구조안은 화면 나무에 덧씌우는 초안일 뿐 저절로 넣지 않는다. 글은 짜임 걸음 판정(judgeShape)의 결정적 오류만 고쳐 쓰게 한다(값 대조는 잰다 · P-D15 · P-D24).
+
+// 판단 기준(6-1) — 바탕 세우기(SEED_RULES · core/survey.js 가 같이 쓴다) · 다시 잡기(RESHAPE_RULES)
+const RULES_BASE = [
+  '짜임 판단 기준:',
+  '1. 문서는 주제 · 대상 하나 · 사건 갈래 하나 · 대장 하나. 파일 경계 · 원본 폴더 나무는 참고만. 문서 이름에 날짜 · 판 · 최종 · 확장자를 쓰지 않는다.',
+  '2. 항목은 대상 하나의 「지금」. 같은 대상의 여러 파일은 모으고 늦은 판이 이긴다. 옛 판은 빼기가 기본.',
+  '3. 갈래: 날짜 사건(회의 · 장애 · 주간보고)은 사건 갈래 「YYYY-MM-DD 무엇」, ID 가 붙어 되풀이되는 것은 대장 갈래(pattern 「이슈:*」), 나머지는 대상. 갈래는 같은 꼴이 셋 이상 되풀이될 때만 세운다. 갈래의 다른 이름은 계획한 문서 이름과 부분 문자열로 겹치지 않게. 준비 글(안건 · 스크립트 · 체크리스트)은 문서로 만들지 않고 그 안의 확정 사실만 옮긴다.',
+  '4. 이름(종류:값): 둘 이상 파일 · 문서에서 가리키는 고유물만. 종류는 8~10개 안팎. 빈 ## 머리 · 「작성 예정」 은 쓰지 않는다.',
+  '5. 크기: 폴더 깊이 2단 · 폴더당 문서 3~12 · 문서당 항목 5~40 · 항목 300줄 안.',
+  '6. 차례: 업무 흐름 순서. 숫자 앞붙임은 원본에 그 체계가 있을 때만. 폴더 안에서는 개요 문서가 먼저. 문서 요약 1~3문장은 # 제목 아래(intro · 「## 개요」 항목으로 두지 않는다).',
+]
+export const SEED_RULES = [...RULES_BASE, '7. 덮임: 넣음으로 고른 재료는 모두 어느 항목의 src 이거나 skip 에 까닭과 함께. 비밀이 든 재료는 쓰지 않는다.'].join('\n')
+export const RESHAPE_RULES = [
+  ...RULES_BASE,
+  '7. 덮임: 지금 항목은 모두 새 짜임 어딘가로 간다(지우기는 문서 고치기에서 · 이 일이 아니다).',
+  '8. 다시 잡기: 글이 그대로 갈 수 있으면 옮기기 · 이름 바꾸기를 먼저 쓴다. 나누기 · 합치기는 같은 대상이 두 곳에 갈라져 있거나 한 항목에 대상이 둘 이상 섞였을 때만. 원본이 주인인 문서는 그대로 둔다.',
+].join('\n')
+
+// 스키마(claude -p --json-schema) — 구조안은 글을 싣지 않는다(합치기 · 나누기 글은 shape-write 가 짓는다)
+const STR = { type: 'string' }
+const AT = { type: 'object', additionalProperties: false, required: ['doc', 'h'], properties: { doc: STR, h: STR } }
+export const SHAPE_PLAN_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['docs', 'why'],
+  properties: {
+    docs: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['id', 'was', 'items'], properties: { id: STR, was: { type: ['string', 'null'] }, items: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['h', 'from'], properties: { h: STR, from: { type: 'array', items: AT }, part: STR, note: STR } } } } } },
+    names: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['coord', 'doc', 'h'], properties: { coord: STR, doc: STR, h: STR } } },
+    empty: { type: 'array', items: STR },
+    why: STR,
+  },
+}
+export const SHAPE_WRITE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['items', 'why'],
+  properties: { items: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['doc', 'h', 'text'], properties: { doc: STR, h: STR, text: STR } } }, why: STR },
+}
+export const SHAPE_CLAUDE_TYPES = ['shape-plan', 'shape-write']
+
+const firstLine = (body) => String(body || '').split('\n').map((l) => l.trim()).find((l) => l && !l.startsWith('<!--'))?.slice(0, 100) || ''
+const secOfK = (k, id, h) => k?.byDocPath.get(`docs/${id}.md`)?.sections.find((s) => s.h === h) || null
+
+// 구조안 재료 — 지금 짜임(문서 · 항목 머리 · 줄 수 · 첫 줄 · 이름 · 갈래 · 원본이 주인). 항목 글 전체는 보내지 않는다(5-4)
+export function planMaterial(k, S, { plan = null, note = '' } = {}) {
+  return {
+    type: 'shape-plan',
+    fp: S.fp,
+    docs: S.docs.map((d) => ({ id: d.id, title: d.title, watched: d.watched, items: d.items.map((it) => ({ h: it.h, lines: it.lines, first: firstLine(secOfK(k, d.id, it.h)?.body), names: it.coords.slice(0, 10) })) })),
+    forms: S.forms.map((f) => ({ name: f.name, kind: f.kind, ...(f.folder ? { folder: f.folder } : {}), ...(f.pattern ? { pattern: f.pattern } : {}) })),
+    ...(plan ? { plan } : {}),
+    ...(note ? { note: String(note).slice(0, 1000) } : {}),
+  }
+}
+// 글 재료 — 출처 항목의 지금 글 · 지문(base) · 목표(문서 · 머리 · 몫) → g | { error }(없는 출처 · 원본이 주인인 출처 · 너무 긴 출처)
+export const WRITE_SRC_MAX = 20000
+export function writeMaterial(k, S, { sources, targets }) {
+  const watched = new Set(S.docs.filter((d) => d.watched).map((d) => d.id))
+  const srcs = []
+  for (const s of sources) {
+    const sec = secOfK(k, s.doc, s.h)
+    if (!sec) return { error: `출처 항목이 없다: ${s.doc} › ${s.h}` }
+    if (watched.has(s.doc)) return { error: `원본이 주인인 문서의 항목은 다시 쓰지 않는다: ${s.doc} › ${s.h}` }
+    if (sec.body.length > WRITE_SRC_MAX) return { error: `출처 항목 글이 ${WRITE_SRC_MAX}자를 넘는다: 손으로 쓴다(${s.h})` }
+    srcs.push({ doc: s.doc, h: s.h, body: sec.body, base: sha16(sec.body) })
+  }
+  const kind = srcs.length > 1 ? 'merge' : targets.length > 1 ? 'split' : 'rewrite'
+  return { type: 'shape-write', kind, sources: srcs, targets: targets.map((t) => ({ doc: t.doc, h: t.h, ...(t.part ? { part: t.part } : {}) })) }
+}
+
+const FIXED = '지난 초안이 kmd 검사에 걸렸다'
+export function shapePlanPromptOf(g) {
+  return [
+    '문서 짜임 구조안을 짓는다. 지식의 지금 짜임(문서 · 항목 머리 · 줄 수 · 첫 줄 · 이름)을 보고 새 짜임 전체를 JSON 하나로 돌려준다. 항목 글은 쓰지 않는다.',
+    '꼴: docs[{ id(새 문서 id · 「폴더/이름」 · .md 없이), was(지금 문서 id · 새 문서면 null), items[{ h(새 머리), from[{ doc(지금 문서 id), h(지금 머리) }], part?(나누기에서 이 항목이 가져갈 몫을 말로), note?(바꾼 까닭 한 줄) }] }] · names[{ coord, doc, h }](옮기거나 합친 항목에 닿던 이름의 새 자리 · 바뀌는 것만) · empty[](항목이 모두 떠나 걷을 지금 문서 id) · why(한두 문장)',
+    '- 지금 항목은 모두 어느 items 의 from 에 나온다. 지금 문서는 모두 어느 docs 의 was 이거나 empty 에 든다.',
+    '- from 하나 = 옮기기 · 이름 바꾸기, 둘 이상 = 합치기, 같은 출처를 둘 이상의 항목이 쓰면 = 나누기. 머리끼리 같거나 앞부분이 겹치지 않게.',
+    '- 원본이 주인인 문서는 was = id · 항목 그대로 둔다. 바꿀 것이 없으면 지금 짜임 그대로를 돌려준다.',
+    RESHAPE_RULES,
+    ...(g.note ? [`지식관리자의 말: ${g.note}`] : []),
+    ...(g.plan ? [`화면의 지금 구조안(손으로 고친 것 · 이것을 바탕으로 고친다):\n${JSON.stringify({ docs: g.plan.docs, names: g.plan.names, empty: g.plan.empty })}`] : []),
+    ...(g.forms?.length ? [`갈래: ${g.forms.map((f) => `${f.name}(${f.kind}${f.pattern ? ' · ' + f.pattern : ''})`).join(' · ')}`] : []),
+    `지금 짜임(지문 ${g.fp}):`,
+    ...g.docs.map((d) => [`[doc ${d.id}] ${d.title}${d.watched ? ' · 원본이 주인' : ''}`, ...d.items.map((it) => `- ## ${it.h} (${it.lines}줄${it.names.length ? ' · 이름 ' + it.names.join(', ') : ''})${it.first ? ' ' + it.first : ''}`)].join('\n')),
+  ].join('\n')
+}
+export const shapePlanFixPromptOf = (g, prev, why) => [shapePlanPromptOf(g), `${FIXED}: ${why}`, '걸린 곳만 고친다.', `지난 초안:\n${JSON.stringify(prev)}`].join('\n\n')
+export function shapeWritePromptOf(g, { writeRules = WRITE_RULES } = {}) {
+  const what = { merge: '합치기: 출처 글을 하나로 녹여 다시 쓴다. 출처의 값은 모두 남긴다.', split: '나누기: 목표마다 그 몫(part)의 글만 쓴다. 출처의 값은 목표 가운데 어느 하나에 남는다.', rewrite: '다시 쓰기: 출처 글을 목표 머리에 맞게 다시 쓴다. 출처의 값은 모두 남긴다.' }[g.kind]
+  return [
+    '문서 짜임의 항목 글을 짓는다. 출처 항목의 지금 글만 읽고 목표 항목마다 새 글을 쓴다.',
+    `- ${what}`,
+    '- 출처의 값(숫자 · 날짜 · 주소 · 이름 · 코드)은 글자 그대로 옮긴다. 출처에 없는 값을 지어내지 않는다.',
+    '- items 는 목표마다 하나 · doc 와 h 는 아래 목표 그대로 · text 는 항목 본문만(## 머리 없이).',
+    writeRules,
+    '목표:',
+    ...g.targets.map((t) => `[target ${t.doc} › ${t.h}]${t.part ? ` 몫: ${t.part}` : ''}`),
+    '출처:',
+    ...g.sources.map((s) => `[source ${s.doc} › ${s.h}]\n${s.body}`),
+  ].join('\n')
+}
+export const shapeWriteFixPromptOf = (g, prev, why, opt) => [shapeWritePromptOf(g, opt), `${FIXED}: ${why}`, '걸린 곳만 고치고 값은 출처 글 그대로 둔다.', `지난 초안:\n${JSON.stringify(prev)}`].join('\n\n')
+
+// 받은 구조안 초안 → 구조안(cleanPlan) · 바꾼 까닭 줄 — { plan, notes, why } | { error }
+export function planOfDraft(S, draft) {
+  if (!draft || typeof draft !== 'object' || !Array.isArray(draft.docs)) return { error: '구조안 꼴이 아니다: docs 가 없다' }
+  const notes = []
+  const docs = draft.docs.map((d) => ({
+    id: d?.id,
+    was: d?.was ?? null,
+    items: Array.isArray(d?.items)
+      ? d.items.map((it) => {
+        if (it && typeof it.note === 'string' && it.note.trim() && typeof d.id === 'string') notes.push({ doc: cleanId(d.id), h: nfc(String(it.h || '').trim()), note: it.note.trim().slice(0, 200) })
+        return { h: it?.h, from: it?.from, ...(typeof it?.part === 'string' && it.part.trim() ? { part: it.part.slice(0, 500) } : {}) }
+      })
+      : d?.items,
+  }))
+  const c = cleanPlan({ v: 1, kind: 'reshape', base: S.fp, forms: null, dirs: [], docs, names: Array.isArray(draft.names) ? draft.names.map((x) => ({ ...x, label: '' })) : [], empty: Array.isArray(draft.empty) ? draft.empty : [] })
+  if (c.error) return { error: c.error }
+  return { plan: c.plan, notes: notes.slice(0, 500), why: typeof draft.why === 'string' ? draft.why.slice(0, 400) : '' }
+}
+// 받은 글 초안 → 목표마다 글 — { texts: [{ doc, h, content }], why } | { error }
+export function writeOfDraft(g, draft) {
+  const items = Array.isArray(draft?.items) ? draft.items : null
+  if (!items) return { error: '글 꼴이 아니다: items 가 없다' }
+  const texts = []
+  for (const [i, t] of g.targets.entries()) {
+    const x = items.find((y) => y && cleanId(y.doc) === t.doc && nfc(String(y.h || '').trim()) === t.h) || (items.length === g.targets.length ? items[i] : null)
+    if (!x || typeof x.text !== 'string' || !x.text.trim()) return { error: `「${t.h}」 글이 없다` }
+    if (x.text.length > PLAN_LIMITS.text) return { error: `「${t.h}」 글이 너무 길다` }
+    texts.push({ doc: t.doc, h: t.h, content: x.text.replace(/\r\n/g, '\n').trim() + '\n' })
+  }
+  return { texts, why: typeof draft.why === 'string' ? draft.why.slice(0, 400) : '' }
+}

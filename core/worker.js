@@ -5,6 +5,8 @@
 //   3  들이기 일감(kind intake · S7)은 원천 하나를 claude -p 한 번(도구 0)으로 기록 + 조각 초안 하나 → 서버가 저장 문 한 번으로 넣는다.
 //      고칠 수 있는 까닭으로 돌려보내면 그 까닭을 붙여 KMD_INGEST_FIX 번(1 ~ 2 · 기본 2)까지 다시 쓴다(intakeOnce)
 //      정정(type fix)은 남은 항목의 조각만(FIX_SCHEMA) · 다듬기(type polish · S13)는 문서 하나의 항목 글(POLISH_SCHEMA · 값은 그대로)
+//      Claude 짜임(type shape-plan · shape-write · 바탕 세우기 Z6)은 구조안(SHAPE_PLAN_SCHEMA) · 합치기 · 나누기 글(SHAPE_WRITE_SCHEMA) — 서버가 cleanPlan · judgeShape 로 다시 본다
+//      일감을 물을 때 아는 type 을 싣는다(KNOWN_TYPES) — 서버는 아는 일꾼에게만 shape-* 일감을 준다(옛 일꾼이 들이기 프롬프트로 짓지 않게)
 //   4  옛 정리 일감 · 팀 쪽 에이전트 길은 개편 S13 에 걷었다(서버가 들이기 일감만 낸다 · S-D21)
 //   로그인이 끝났거나 한도면 다시 시도하지 않고 멈춘 뒤 서버에 알린다(멈춤 한 줄 「팀 일꾼이 쉬고 있다」)
 //   환경 변수(K7-3 · S-D38): KMD_WORKER_PAR · KMD_WORKER_JOBS · KMD_WORKER_TICK_MS · KMD_INGEST_BUDGET · KMD_INGEST_EFFORT · KMD_INGEST_FIX —
@@ -14,12 +16,15 @@ import { runClaude } from './claude.js'
 import { INTAKE_SCHEMA, intakePromptOf, intakeFixPromptOf, POLISH_SCHEMA, polishPromptOf } from './ingest.js'
 import { FIX_SCHEMA, corrPromptOf, corrRetryPromptOf } from './fix.js'
 import { WRITE_RULES } from './writerules.js'
+import { SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SHAPE_CLAUDE_TYPES } from './shape.js'
 import { modelOf } from './models.js'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
 // 멈추는 까닭 — 다음 자리에서 다시 불러도 같다(로그인 · 한도 · claude 없음)
+// 이 일꾼이 아는 일감 type(일감을 물을 때 싣는다)
+export const KNOWN_TYPES = ['file', 'commit', 'fix', 'again', 'polish', ...SHAPE_CLAUDE_TYPES]
 const STOP = { login: '로그인이 끝났다', limit: '한도에 닿았다', missing: 'Claude Code(claude) 가 설치되어 있지 않다' }
 async function call(server, key, p, body) {
   const r = await fetch(server + p, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
@@ -72,8 +77,11 @@ export async function intakeOnce({ server, key, job, dkey, log = () => {}, budge
   // 정정 일감(S9 · type fix) — 남은 항목마다 조각만(FIX_SCHEMA) · 다듬기(S13 · type polish) — 문서 하나의 항목 글(POLISH_SCHEMA) · 그 밖은 기록 + 조각(INTAKE_SCHEMA)
   const corr = g.type === 'fix'
   const pol = g.type === 'polish'
-  const schema = corr ? FIX_SCHEMA : pol ? POLISH_SCHEMA : INTAKE_SCHEMA
-  let prompt = corr ? corrPromptOf(g, opt) : pol ? polishPromptOf(g, opt) : intakePromptOf(g, opt)
+  // Claude 짜임(Z6) — 구조안 · 글. 고쳐 쓰기도 같은 프롬프트에 까닭과 지난 초안을 붙인다
+  const spl = g.type === 'shape-plan'
+  const swr = g.type === 'shape-write'
+  const schema = spl ? SHAPE_PLAN_SCHEMA : swr ? SHAPE_WRITE_SCHEMA : corr ? FIX_SCHEMA : pol ? POLISH_SCHEMA : INTAKE_SCHEMA
+  let prompt = spl ? shapePlanPromptOf(g) : swr ? shapeWritePromptOf(g, opt) : corr ? corrPromptOf(g, opt) : pol ? polishPromptOf(g, opt) : intakePromptOf(g, opt)
   for (let i = 0; i <= INGEST_FIX(); i++) {
     const p0 = await call(server, dkey, `${base}/progress`, {}).catch(gone)
     if (lost || p0.stop) return { job, summary: { put: 0, held: 0 }, skipped: lost ? 'lost' : 'stopped' }
@@ -104,7 +112,7 @@ export async function intakeOnce({ server, key, job, dkey, log = () => {}, budge
     if (d.error) { log(`${name}: 초안을 넣지 못했다(${d.error})`); return { job, summary: { put: 0, held: 0 }, skipped: d.error } }
     if (d.fix) {
       log(`${name}: 검사에 걸렸다 · 고쳐 쓴다(${String(d.fix).slice(0, 120)})`)
-      prompt = corr ? corrRetryPromptOf(g, r.value, d.fix, opt) : pol ? [polishPromptOf(g, opt), `지난 초안이 kmd 검사에 걸렸다: ${d.fix}`, '걸린 항목만 고치고 값은 옛 글 그대로 둔다.', `지난 초안:\n${JSON.stringify(r.value)}`].join('\n\n') : intakeFixPromptOf(g, r.value, d.fix, opt)
+      prompt = spl ? shapePlanFixPromptOf(g, r.value, d.fix) : swr ? shapeWriteFixPromptOf(g, r.value, d.fix, opt) : corr ? corrRetryPromptOf(g, r.value, d.fix, opt) : pol ? [polishPromptOf(g, opt), `지난 초안이 kmd 검사에 걸렸다: ${d.fix}`, '걸린 항목만 고치고 값은 옛 글 그대로 둔다.', `지난 초안:\n${JSON.stringify(r.value)}`].join('\n\n') : intakeFixPromptOf(g, r.value, d.fix, opt)
       continue
     }
     await call(server, key, '/api/worker/status', { ok: true }).catch((e) => log(`일꾼 상태를 알리지 못했다(${e.status || e.message})`))
@@ -118,7 +126,7 @@ export async function intakeOnce({ server, key, job, dkey, log = () => {}, budge
 
 // 일감 하나 — 없으면 null · models — 일마다 모델(core/models.js · 없으면 기본 배분) · 서버는 들이기 일감만 낸다(S13)
 export async function workOnce({ server, key, log = () => {}, budget = BUDGET(), models = null, gate = slots(PAR) }) {
-  const n = await call(server, key, '/api/worker/next', {})
+  const n = await call(server, key, '/api/worker/next', { types: KNOWN_TYPES })
   if (!n.job) return null
   if (n.job.kind !== 'intake') {
     log(`모르는 일감이다(${n.job.kind}): 건너뛴다`)
@@ -171,7 +179,7 @@ export function runWorker({ server, key, poll = 10_000, log = (...a) => console.
         if (before) await before()
         const r = await workOnce({ server, key, log, models, gate })
         if (r) {
-          log(`${r.job.kn}: ${r.job.type === 'polish' ? '다듬기' : '들이기'} · 넣음 ${r.summary?.put ?? 0}${r.summary?.rule ? ' · 규칙 길' : ''}${r.summary?.held ? ` · 넣지 못함 ${r.summary.held}` : ''}`)
+          log(`${r.job.kn}: ${{ polish: '다듬기', 'shape-plan': 'Claude 구조안', 'shape-write': 'Claude 짓기' }[r.job.type] || '들이기'} · 넣음 ${r.summary?.put ?? 0}${r.summary?.rule ? ' · 규칙 길' : ''}${r.summary?.held ? ` · 넣지 못함 ${r.summary.held}` : ''}`)
           continue
         }
       } catch (e) {
