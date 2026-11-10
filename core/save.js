@@ -229,13 +229,14 @@ export function serial(key, f) {
 //         원본이 주인인 문서 · 저절로 채우는 표 · kmd 파일은 사람 · 세션과 같이 막힌다(system 이 아니다)
 // guard — 지식 생성 가드(core/guard.js)의 길. 'strict'(거절형 — 세션 · 화면) · 'hold'(붙잡아 두기 — 그 밖의 길 · 기본)
 //         holdWhy — hold 에서 이름 없는 기록에 kmd 가 다는 까닭 · proposed — 세울 이름으로 실어 둔 이름(일반 자리의 names)
-export function save(dir, input, { user, now = new Date(), system = false, agent = false, guard = 'hold', holdWhy = null, proposed = [], prepare = null, onCommit = null, partial = false, asEdit = false, structure = false, correction = false, intake = null, shape = null, approve = null } = {}) {
+export function save(dir, input, { user, now = new Date(), system = false, agent = false, guard = 'hold', holdWhy = null, proposed = [], prepare = null, onCommit = null, partial = false, asEdit = false, structure = false, correction = false, intake = null, shape = null, approve = null, accepted = null, marks: marksIn = false } = {}) {
   if (!user || !oneLine(user)) fail('E_INPUT', '누가 쓰는지 모른다')
   // 들이기 일감은 예약 사람 kmd 로 쓸 수 있다(가져올 곳) — kmd-auto · kmd-worker 는 아니다(S-D43)
   const kmdIntake = !!intake && nfc(user).trim().toLowerCase() === 'kmd'
   if (isReservedUser(user) && !system && !agent && !kmdIntake) fail('E_FORBIDDEN', `「${user}」 는 kmd 가 쓰는 이름이다`)
   if (prepare != null && typeof prepare !== 'function') fail('E_INPUT', 'prepare 는 함수다')
-  const fresh = !!(prepare || partial || intake || approve) // 새 저장 문 — 항목 수를 센다
+  //   marks — approve 모드 지식의 화면 고치기(넣지 못함 없이 · 못 넣으면 오류)도 넣은 것 칸 · put 표지(저장 승인 P5)
+  const fresh = !!(prepare || partial || intake || approve || marksIn) // 새 저장 문 — 항목 수를 센다
   if (approve != null && (typeof approve !== 'object' || partial || intake || shape)) fail('E_INPUT', 'approve 저장은 넣지 못함 · 들이기 · 짜임과 같이 쓰지 않는다')
   const secs0 = check(input, { system, many: fresh && !system })
   // 예약 태그 — 입력으로는 받지 않는다(저장 문이 붙이는 것은 아래 serverTags) · asEdit 은 edit 하나만
@@ -287,7 +288,7 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
     const relink = shape ? (Array.isArray(prep?.relink) ? prep.relink : []) : []
     if (relink.some((x) => !x || !oneLine(x.from?.doc) || !oneLine(x.from?.h) || !oneLine(x.to?.doc) || !oneLine(x.to?.h))) fail('E_INPUT', '짜임 링크 모양이 아니다')
     if (place.some((x) => !x || !COORD.test(String(x.coord || '')) || !oneLine(x.doc) || !oneLine(x.heading)) || intros.some((x) => !x || !oneLine(x.doc) || typeof x.text !== 'string' || x.text.length > 4000)) fail('E_INPUT', '짜임 자리 · 요약 모양이 아니다')
-    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, partial, marks: partial || !!intake || !!approve, intake: !!intake, approve, serverTags, correction, attach: input.attach || [], onCommit, prep, shape: !!shape, place, intros, relink })
+    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, partial, marks: partial || !!intake || !!approve || !!marksIn, intake: !!intake, approve, serverTags, correction, attach: input.attach || [], onCommit, prep, shape: !!shape, place, intros, relink, accepted: approve ? null : accepted })
   })
 }
 
@@ -400,7 +401,7 @@ export function sectionBase(text, heading) {
   return sha16(sec ? sec.body : '')
 }
 
-async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], partial = false, marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null, shape = false, place = [], intros = [], relink = [], approve = null }) {
+async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], partial = false, marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null, shape = false, place = [], intros = [], relink = [], approve = null, accepted = null }) {
   const held = [...heldIn]
   const regRaw = await fs.readFile(path.join(dir, '_managed.md'), 'utf8').then(readText, () => null)
   const vocRaw = await fs.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => null)
@@ -626,7 +627,8 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
   let body = nfc(r.body)
   {
     const lead = body.replace(/\s+$/, '')
-    const ap = approve ? [renderLinked(approve.linked), renderAccepted(approve.accepted), renderFresh(approve.fresh)] : []
+    //   화면 문서 고치기(asEdit · approve 모드 지식 · 저장 승인 P5)의 승인한 경고도 같은 칸
+    const ap = approve ? [renderLinked(approve.linked), renderAccepted(approve.accepted), renderFresh(approve.fresh)] : Array.isArray(accepted) && accepted.length ? [renderAccepted(accepted)] : []
     const withParts = (slim) => [lead, renderPut(putRows), renderHeld(held, { slim }), ...ap].filter(Boolean).join('\n\n')
     if (putRows.length || held.length || ap.some(Boolean)) {
       body = withParts(false)

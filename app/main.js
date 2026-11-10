@@ -586,6 +586,10 @@ const TIPS = {
   'chk.sec': ['이름 없는 항목: 이름을 달지 않은 항목 · 깨진 머리: 머리 꼴이 깨진 항목 · 깨진 링크: 없는 문서 · 항목을 가리키는 링크', ''],
   'chk.word': ['이름 겹침: 다른 이름이 둘 이상의 이름에 겹친다 · 같은 이름: 보이는 이름이 같은 이름이 둘 이상(알림)', ''],
   'job.ctl': ['잠깐 멈춤은 지금 단계를 마치고 서고, [이어서] 로 잇는다. 그만두기는 바로 끝내며 이어 할 수 없다', ''],
+  // 저장 확인 창(저장 승인 P5)
+  'kd.save': ['켜면 사람의 저장은 저장 제안을 보고 승인해야 들어간다. 넣지 못함 · 메모가 없다. 넣지 못함 · 메모 · 개편 전 기록이 0 일 때만 켠다', ''],
+  'sv': ['저장 제안이다. 아직 쓰지 않았다. [넣기] 를 누르면 이대로 기록과 문서에 한 번에 들어간다', ''],
+  'sv.warn': ['[넣기] 를 누르면 경고를 받아들이고 그대로 남긴다(기록의 받아들인 경고). 고치려면 취소하고 글을 고친다', ''],
   'send.to': ['정하면 이 개인 지식에서 보내는 것은 모두 그곳으로만 간다. 바꾸려면 새 이름을 그대로 친다', ''],
   'send': ['내 개인 지식의 기록 · 문서를 묶인 팀 지식으로 보낸다. 받는 쪽 작성기준으로 지어 보내고, 못 넘은 것은 팀의 넣지 못함에 남는다', ''],
   'band.out': ['이 PC 밖으로 나가는 것은 지식백업 · Claude(바로 넣기 · 문서 다듬기) · 공유다. 공유는 누를 때만 받는 팀 지식으로 간다', ''],
@@ -773,7 +777,7 @@ function draw() {
   S._view = view
   S._lpView = lpView
   S._hasAside = !!scr.aside
-  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${gated() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside"><button type="button" class="hb afold" data-a="asideRail" data-t="asideFold" aria-expanded="${!UI.asideRail}" title="${UI.asideRail ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'} (Ctrl ])" aria-label="${UI.asideRail ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'}">${svg(UI.asideRail ? 'sideL' : 'sideR')}</button><div class="asc" data-t="asideScroll">${scr.aside}</div>${gripHtml('aside')}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.rsWin ? rsWinHtml() : ''}${S.devWin ? devWinHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S.paste && S.route.scr === 'import' ? pasteWinHtml() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.recFix ? recFixHtml() : ''}${S.past ? pastHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}${S.keys ? keysHtml() : ''}`
+  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${gated() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside"><button type="button" class="hb afold" data-a="asideRail" data-t="asideFold" aria-expanded="${!UI.asideRail}" title="${UI.asideRail ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'} (Ctrl ])" aria-label="${UI.asideRail ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'}">${svg(UI.asideRail ? 'sideL' : 'sideR')}</button><div class="asc" data-t="asideScroll">${scr.aside}</div>${gripHtml('aside')}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.rsWin ? rsWinHtml() : ''}${S.devWin ? devWinHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S.paste && S.route.scr === 'import' ? pasteWinHtml() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.recFix ? recFixHtml() : ''}${S.sv ? svHtml() : ''}${S.past ? pastHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}${S.keys ? keysHtml() : ''}`
   app.classList.toggle('side-open', !!S.sideOpen && !gated())
   app.classList.toggle('aside-open', !!S.asideOpen && !!scr.aside)
   placeUi()
@@ -1252,10 +1256,11 @@ function kdRepo(n) {
   const v = team ? (b ? (b.off ? ['c-mute', '없음'] : REPO_V[b.verdict] || ['c-mute', '확인 전']) : ['c-mute', '없음']) : url ? ['c-ok', '붙음'] : ['c-mute', '없음']
   return `<div class="field"><div class="lbrow"><label for="repoUrl">저장소</label>${tipb('kd.repo', '저장소')}</div><input class="inp mono" id="repoUrl" data-t="repoUrl" value="${esc(url)}" placeholder="예: git@gitlab.team:kmd/dpms.git · https://…" autocomplete="off"></div><div class="row kdacts"><span class="chip ${v[0]}" data-t="kdRepoState">${v[1]}</span>${b && b.branch ? `<span class="chip c-mute">가지 ${esc(b.branch)}</span>` : ''}<button type="button" class="btn pri" data-a="repoSave" data-k="${id}" data-t="repoSave">${url ? '바꾸기' : '붙이기'}</button></div>`
 }
-// 정책(팀 · 지식관리자) — Claude 에 보내기 · 승인 받고 넣기 · 이슈 주소
+// 정책(팀 · 지식관리자) — Claude 에 보내기 · 승인 받고 넣기(승인 저장 지식은 「들어간 것 하루 요약」 · P-D13) · 저장 승인(총괄 관리자 · P5) · 이슈 주소
 function kdPolicy(n) {
-  const id = esc(n.id)
-  return `<div class="kdsw col" data-t="kdPolicy">${swHtml(!n.noClaude, 'Claude 에 보내기', `role="switch" aria-checked="${!n.noClaude}" data-a="toggleNoClaude" data-k="${id}" data-t="noClaudeSw"`)}${swHtml(!!n.review, '승인 받고 넣기', `role="switch" aria-checked="${!!n.review}" data-a="knReview" data-k="${id}" data-t="knReview"`)}</div><div class="kv kdissue"><span>이슈 주소</span><span><span class="mono small">${n.issueUrl ? esc(n.issueUrl) : '<span class="muted">없음</span>'}</span> <button type="button" class="lk" data-a="knIssue" data-k="${id}" data-t="knIssue">${n.issueUrl ? '바꾸기' : '정하기'}</button></span></div>`
+  const id = esc(n.id), apv = n.save === 'approve'
+  const save = isBoss() ? `<span class="swl-t">${swHtml(apv, '저장 승인', `role="switch" aria-checked="${apv}" data-a="knSaveMode" data-k="${id}" data-t="knSaveMode"`)}${tipb('kd.save', '저장 승인')}</span>` : ''
+  return `<div class="kdsw col" data-t="kdPolicy">${swHtml(!n.noClaude, 'Claude 에 보내기', `role="switch" aria-checked="${!n.noClaude}" data-a="toggleNoClaude" data-k="${id}" data-t="noClaudeSw"`)}${swHtml(!!n.review, apv ? '들어간 것 하루 요약' : '승인 받고 넣기', `role="switch" aria-checked="${!!n.review}" data-a="knReview" data-k="${id}" data-t="knReview"`)}${save}</div><div class="kv kdissue"><span>이슈 주소</span><span><span class="mono small">${n.issueUrl ? esc(n.issueUrl) : '<span class="muted">없음</span>'}</span> <button type="button" class="lk" data-a="knIssue" data-k="${id}" data-t="knIssue">${n.issueUrl ? '바꾸기' : '정하기'}</button></span></div>`
 }
 // 삭제(개인 · 총괄 관리자) — 이름을 쳐서 확인하는 창(delHtml)
 function kdDel(n) {
@@ -1775,7 +1780,7 @@ function docPane(t, right) {
     : editing
     ? `<div class="ed" data-t="editor"><div class="lbl"><b>고치는 중</b> · 「## 」 으로 시작하는 줄이 항목 이름이다 · md 로 쓴다. **굵게** · - 목록 · [링크](주소) · Ctrl S 저장 · Esc 취소</div><div class="toolbar"><button class="btn sm" data-a="edAddSec" data-t="edAddSec">항목 더하기</button><button class="btn sm${S.edit.preview ? ' on' : ''}" data-a="edPreview" data-t="edPreview" aria-pressed="${!!S.edit.preview}">바뀐 것 보기</button><span class="muted small">${de.structure ? '항목을 지우려면 그 「## 」 줄과 글을 지운다 · 이름을 바꾸려면 「## 」 줄만 고친다' : '항목을 지우거나 이름을 바꾸는 일은 지식관리자가 한다'}</span></div><textarea id="edTx" aria-label="문서 글(md)" data-in="edTx" data-t="edTx" spellcheck="false"${S.edit.busy ? ' readonly aria-busy="true"' : ''}>${esc(edText(de))}</textarea>
    ${de.sections.filter((s) => s.locks).map((s) => `<div class="lockh">항목 「${esc(s.h)}」 의 표: 회색은 잠겨 있다</div>${s.locks}`).join('')}
-   <div class="row" style="margin-top:var(--sp-5)"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><input id="edWhy" data-in="edWhy" data-t="edWhy" maxlength="200" class="inp edwhy" placeholder="바꾼 까닭(선택) · 예: 10-21 주간회의에서 배포 창 변경" aria-label="바꾼 까닭" value="${esc(S.edit.why || '')}"><span class="r small muted" data-t="edNote">저장하면 바로 문서에 들어간다 · 이력에 남는다</span></div>${S.edit.preview ? `<div class="edprev" data-t="edPrev"><div class="small muted">저장하면 바뀌는 것(저장 전 · 막지 않는다)</div>${edPreviewHtml(k, de)}</div>` : ''}${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.errSecs || []).length ? `<div class="row" data-t="edErrSecs">${S.edit.errSecs.map((h) => `<button type="button" class="btn sm" data-a="edGoSec" data-v="${esc(h)}">「${esc(h)}」 로</button>`).join('')}</div>` : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}</div>`
+   <div class="row" style="margin-top:var(--sp-5)"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><input id="edWhy" data-in="edWhy" data-t="edWhy" maxlength="200" class="inp edwhy" placeholder="바꾼 까닭(선택) · 예: 10-21 주간회의에서 배포 창 변경" aria-label="바꾼 까닭" value="${esc(S.edit.why || '')}"><span class="r small muted" data-t="edNote">${svApprove(k) ? '저장하면 확인 창 뒤 문서에 들어간다' : '저장하면 바로 문서에 들어간다 · 이력에 남는다'}</span></div>${S.edit.preview ? `<div class="edprev" data-t="edPrev"><div class="small muted">저장하면 바뀌는 것(저장 전 · 막지 않는다)</div>${edPreviewHtml(k, de)}</div>` : ''}${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.errSecs || []).length ? `<div class="row" data-t="edErrSecs">${S.edit.errSecs.map((h) => `<button type="button" class="btn sm" data-a="edGoSec" data-v="${esc(h)}">「${esc(h)}」 로</button>`).join('')}</div>` : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}</div>`
     : d.sections.map((s) => {
     // 찾기로 연 것만 「찾은 곳」 · 링크 · 개요로 연 항목은 머리를 잠깐 빛낸다
     const lit = q && hl && s.h === hl
@@ -2008,9 +2013,21 @@ async function palAliasGo() {
   if (!coord) return
   const it = hits.find((i) => i.coord === coord)
   const kadm = lvOf(KN(k)) === 'admin' || !isTeam()
+  const input = { record: { title: `다른 이름 더하기: ${q} → ${it.name}`.slice(0, 120), body: `찾기에서 「${q}」 로 찾은 것이 없어 ${it.name}(${coord}) 의 다른 이름으로 더한다.`, touches: [coord] }, names: [{ coord, label: it.name, aliases: [q] }] }
   try {
     await postJSON(`/api/k/${encodeURIComponent(k)}/learn`, { q, coord })
-    const r = await postJSON(`/api/k/${encodeURIComponent(k)}/save`, { record: { title: `다른 이름 더하기: ${q} → ${it.name}`.slice(0, 120), body: `찾기에서 「${q}」 로 찾은 것이 없어 ${it.name}(${coord}) 의 다른 이름으로 더한다.`, touches: [coord] }, names: [{ coord, label: it.name, aliases: [q] }] })
+    // 승인 저장 지식(저장 승인 P5) — 이름 장부의 다른 이름은 지식관리자가 저장 확인 창에서 넣는다 · 쓰기 자리는 찾기에 배운 것까지
+    if (svApprove(k)) {
+      if (!kadm) { toast(`<b>찾기에 배웠다</b> · 이 말로 ${esc(it.name)} 가 찾힌다. 이름 장부의 다른 이름은 지식관리자가 더한다`, 9000); runFind(); return }
+      const kk = encodeURIComponent(k)
+      return svOpen({
+        k, fields: null,
+        again: () => postJSON(`/api/k/${kk}/propose`, input),
+        send: (proposal) => postJSON(`/api/k/${kk}/save`, { ...input, proposal }),
+        done: () => { delete S.cache['model:' + k]; toast(`<b>「${esc(q)}」 를 ${esc(it.name)} 의 다른 이름으로 더했다</b> · 이제 이 말로 찾힌다`, 9000); runFind() },
+      })
+    }
+    const r = await postJSON(`/api/k/${encodeURIComponent(k)}/save`, input)
     delete S.cache['model:' + k]
     toast(kadm && !((Array.isArray(r.held) ? r.held.length : r.held) || 0) ? `<b>「${esc(q)}」 를 ${esc(it.name)} 의 다른 이름으로 더했다</b> · 이제 이 말로 찾힌다` : `<b>찾기에 배웠다</b> · 이 말로 ${esc(it.name)} 가 찾힌다. 이름 장부의 다른 이름은 지식관리자가 넣지 못함에서 세운다`, 9000)
     runFind()
@@ -2997,45 +3014,169 @@ async function saveDoc() {
   if (!changed.length && !remove.length && !rename.length) { edDrop(); toast('바뀐 글이 없다. 그대로 두었다'); render(); return }
   e.err = null; e.errSecs = null
   if ((remove.length || rename.length) && !d.structure) { e.err = `항목을 지우거나 이름을 바꾸는 일은 지식관리자가 한다: ${[...remove, ...rename.map((x) => x.from)].join(' · ')} 의 「## 」 줄을 되살린다`; render(); return }
+  // 승인 저장 지식(저장 승인 P5 · P-D39) — [저장] 은 저장 확인 창(저장 제안을 보고 [넣기] 가 승인 · 지움 · 이름 바뀜 줄도 그 창에)
+  if (svApprove(e.kn)) return saveDocSv(e, txt, old, changed, remove, rename)
   if ((remove.length || rename.length) && !await ask1('항목 지우기 · 이름 바꾸기', '이대로 저장', false, [remove.length ? `지울 항목 ${remove.length}: ${remove.join(' · ')}` : '', rename.length ? `이름 바꿀 항목 ${rename.length}: ${rename.map((x) => x.from + ' → ' + x.to).join(' · ')}` : '', changed.length ? `고친 항목 ${changed.length}` : ''].filter(Boolean).join('\n') + '\n\n이대로 저장한다')) return
   e.busy = true
   render()
   try {
-    const r = await postJSON(`/api/k/${encodeURIComponent(e.kn)}/edit`, { ...(e.fixes ? { fixes: e.fixes } : {}), ...((($('#edWhy') || {}).value || e.why || '').trim() ? { why: (($('#edWhy') || {}).value || e.why || '').trim().slice(0, 200) } : {}), doc: e.doc, sections: changed.map((p) => ({ h: p.h, body: p.body, ...(old.has(p.h) ? { base: (e.keepBase && e.keepBase[p.h]) || old.get(p.h).base } : {}) })), remove, rename })
-    // 그사이 더 쓴 글(붙여 넣기 · 다른 탭)이 있으면 버리지 않는다 — 저장한 글을 바탕으로 이어 고친다
-    const later = S.edit === e && e.text != null && e.text !== txt
-    if (later) { e.orig = txt; e.busy = false; e.keepBase = null; e.conflict = null; e.errSecs = null } else edDrop()
-    myWrites.set(e.kn + '|' + e.doc, Date.now())
-    forgetKn(e.kn)
-    // 저장은 했다 — 서버 알림(문서 짜임 · 그대로 둔 줄 · 백업)은 오류가 아닌 알림으로 같은 토스트에(role=status)
-    const msg = (r.held || []).length ? `넣지 못함: ${r.held[0].why || '까닭은 이력에 있다'}` : '저장했다. 문서에도 넣었다'
-    const warns = (Array.isArray(r.warnings) ? r.warnings : []).filter(Boolean)
-    toast(warns.length ? `<span class="tw">${esc(msg)}<small data-t="saveWarn">${warns.slice(0, 3).map((w) => esc(w)).join('<br>')}${warns.length > 3 ? `<br>그 밖 ${warns.length - 3}` : ''}</small></span>` : esc(msg), warns.length ? 10000 : 7000)
+    const r = await postJSON(`/api/k/${encodeURIComponent(e.kn)}/edit`, { ...edBody(e, old, changed, remove, rename), ...(edWhy(e) ? { why: edWhy(e) } : {}) })
+    saveDocDone(e, txt, r)
   } catch (err) {
     e.busy = false
-    if (err.code === 'E_CONFLICT') {
-      // 읽은 뒤 누가 고쳤다 — 새 글을 다시 받아 바탕(orig · base)만 바꾸고 쓰던 글은 지킨다(설계 4-2)
-      const key = `doc:${e.kn}:${e.doc}:ed`
-      try {
-        const v = await getJSON(`/api/k/${encodeURIComponent(e.kn)}/doc?d=${encodeURIComponent(e.doc)}&edit=1`)
-        const hOf = (c) => String(c).replace(/^.*#/, '')
-        const nb = Object.fromEntries(v.sections.map((s) => [s.h, s.base])) // 내가 고친 항목 가운데 지문이 바뀐 것 — 서버 stale 은 이름(coord)일 수 있어 화면이 직접 견준다
-        const ob = (h) => (e.keepBase && e.keepBase[h]) || (old.has(h) ? old.get(h).base : null) // 이미 겹쳐 지킨 지문이 있으면 그것
-        const stale = changed.map((p) => p.h).filter((h) => ob(h) && nb[h] !== ob(h))
-        if (!stale.length) stale.push(...((err.details && err.details.stale) || []).map(hOf))
-        const oldBase = Object.fromEntries(stale.map((h) => [h, ob(h)]))
-        S.cache[key] = v
-        if (e.text == null) e.text = txt
-        e.orig = edOrig(v)
-        // 겹친 항목은 읽던 때의 지문을 지킨다 — 그대로 [저장] 하면 다시 막힌다(남의 고침을 말없이 덮지 않는다)
-        e.keepBase = Object.fromEntries(stale.filter((h) => oldBase[h]).map((h) => [h, oldBase[h]]))
-        e.conflict = stale.map((h) => ({ h, theirs: (v.sections.find((s) => s.h === h) || {}).md || '' }))
-        e.err = `읽은 뒤 누가 고친 항목이 있다: ${stale.join(' · ') || '알 수 없음'}. 아래 그사이 바뀐 글을 보고 내 글에 합친 뒤 [내 글로 저장] 을 누르거나 [그쪽 글로] 를 고른다`
-      } catch (x) { e.err = `읽은 뒤 누가 고쳤다. 새 글을 다시 읽지 못했다: ${x.message}` }
-    } else if (err.code === 'E_FORMAT' || err.code === 'E_INPUT') { e.err = `저장하지 않았다(함께 고친 항목 ${changed.length}개 모두): ${err.message}`; e.errSecs = changed.map((p) => p.h).filter((h) => String(err.message).includes(h)) }
-    else if (err.code !== 'E_CANCEL') toastErr(err)
+    await saveDocFail(e, err, txt, old, changed)
   }
   render()
+}
+// 고치기 몸(글 · 지문) — 겹쳐 지킨 지문(keepBase)이 있으면 그것
+const edBody = (e, old, changed, remove, rename) => ({ ...(e.fixes ? { fixes: e.fixes } : {}), doc: e.doc, sections: changed.map((p) => ({ h: p.h, body: p.body, ...(old.has(p.h) ? { base: (e.keepBase && e.keepBase[p.h]) || old.get(p.h).base } : {}) })), remove, rename })
+const edWhy = (e) => ((($('#edWhy') || {}).value || e.why || '').trim()).slice(0, 200)
+// 승인 저장 지식의 고치기 — 창이 dry(쓰지 않는 저장 제안) → [넣기] 가 proposal 을 싣는다(서버가 같은 제안을 다시 만들어 대 본다)
+function saveDocSv(e, txt, old, changed, remove, rename) {
+  const url = `/api/k/${encodeURIComponent(e.kn)}/edit`
+  const body = edBody(e, old, changed, remove, rename)
+  const flds = (f) => ({ ...(f.changes.length ? { changes: f.changes } : {}), ...(f.why ? { why: f.why } : {}) })
+  return svOpen({
+    k: e.kn,
+    ops: [...remove.map((h) => [h, '지움']), ...rename.map((x) => [`${x.from} → ${x.to}`, '이름 바뀜'])],
+    fields: { changes: [], why: edWhy(e) },
+    fill: true,
+    again: async (f) => (await postJSON(url, { ...body, ...flds(f), dry: true })).propose,
+    send: (proposal, f) => postJSON(url, { ...body, ...flds(f), ...(proposal ? { proposal } : {}) }),
+    done: (r, f) => { if (S.edit === e) e.why = f.why; saveDocDone(e, txt, r); render() },
+    fail: async (err) => { await saveDocFail(e, err, txt, old, changed); render() },
+  })
+}
+// 저장한 뒤 — 그사이 더 쓴 글(붙여 넣기 · 다른 탭)이 있으면 버리지 않는다 · 저장한 글을 바탕으로 이어 고친다
+function saveDocDone(e, txt, r) {
+  const later = S.edit === e && e.text != null && e.text !== txt
+  if (later) { e.orig = txt; e.busy = false; e.keepBase = null; e.conflict = null; e.errSecs = null } else edDrop()
+  myWrites.set(e.kn + '|' + e.doc, Date.now())
+  forgetKn(e.kn)
+  // 저장은 했다 — 서버 알림(문서 짜임 · 그대로 둔 줄 · 백업)은 오류가 아닌 알림으로 같은 토스트에(role=status)
+  const msg = (r.held || []).length ? `넣지 못함: ${r.held[0].why || '까닭은 이력에 있다'}` : '저장했다. 문서에도 넣었다'
+  const warns = (Array.isArray(r.warnings) ? r.warnings : []).filter(Boolean)
+  toast(warns.length ? `<span class="tw">${esc(msg)}<small data-t="saveWarn">${warns.slice(0, 3).map((w) => esc(w)).join('<br>')}${warns.length > 3 ? `<br>그 밖 ${warns.length - 3}` : ''}</small></span>` : esc(msg), warns.length ? 10000 : 7000)
+}
+// 저장하지 못함 — 읽은 뒤 바뀜(E_CONFLICT)은 새 글을 다시 읽어 바탕만 바꾸고 쓴 글은 지킨다 · 꼴 · 입력 오류는 편집기 아래
+async function saveDocFail(e, err, txt, old, changed) {
+  // 그사이 저장 방식이 바뀌었다(승인 저장으로 켜짐 · 꺼짐) — 지식 줄을 다시 읽고 맞는 길로 한 번 더(창 · 바로)
+  if ((err.code === 'E_APPROVE' && err.details && err.details.propose && !svApprove(e.kn)) || (err.code === 'E_INPUT' && err.details && err.details.mode && svApprove(e.kn))) {
+    await reloadKns()
+    if (svApprove(e.kn) === (err.code === 'E_APPROVE')) { e.busy = false; return saveDoc() }
+  }
+  if (err.code === 'E_CONFLICT') {
+    // 읽은 뒤 누가 고쳤다 — 새 글을 다시 받아 바탕(orig · base)만 바꾸고 쓰던 글은 지킨다(설계 4-2)
+    const key = `doc:${e.kn}:${e.doc}:ed`
+    try {
+      const v = await getJSON(`/api/k/${encodeURIComponent(e.kn)}/doc?d=${encodeURIComponent(e.doc)}&edit=1`)
+      const hOf = (c) => String(c).replace(/^.*(#| › )/, '')
+      const nb = Object.fromEntries(v.sections.map((s) => [s.h, s.base])) // 내가 고친 항목 가운데 지문이 바뀐 것 — 서버 stale 은 이름(coord)일 수 있어 화면이 직접 견준다
+      const ob = (h) => (e.keepBase && e.keepBase[h]) || (old.has(h) ? old.get(h).base : null) // 이미 겹쳐 지킨 지문이 있으면 그것
+      const stale = changed.map((p) => p.h).filter((h) => ob(h) && nb[h] !== ob(h))
+      if (!stale.length) stale.push(...((err.details && err.details.stale) || []).map(hOf))
+      const oldBase = Object.fromEntries(stale.map((h) => [h, ob(h)]))
+      S.cache[key] = v
+      if (e.text == null) e.text = txt
+      e.orig = edOrig(v)
+      // 겹친 항목은 읽던 때의 지문을 지킨다 — 그대로 [저장] 하면 다시 막힌다(남의 고침을 말없이 덮지 않는다)
+      e.keepBase = Object.fromEntries(stale.filter((h) => oldBase[h]).map((h) => [h, oldBase[h]]))
+      e.conflict = stale.map((h) => ({ h, theirs: (v.sections.find((s) => s.h === h) || {}).md || '' }))
+      e.err = `읽은 뒤 누가 고친 항목이 있다: ${stale.join(' · ') || '알 수 없음'}. 아래 그사이 바뀐 글을 보고 내 글에 합친 뒤 [내 글로 저장] 을 누르거나 [그쪽 글로] 를 고른다`
+    } catch (x) { e.err = `읽은 뒤 누가 고쳤다. 새 글을 다시 읽지 못했다: ${x.message}` }
+  } else if (err.code === 'E_FORMAT' || err.code === 'E_INPUT') { e.err = `저장하지 않았다(함께 고친 항목 ${changed.length}개 모두): ${err.message}`; e.errSecs = changed.map((p) => p.h).filter((h) => String(err.message).includes(h)) }
+  else if (err.code !== 'E_CANCEL') toastErr(err)
+}
+
+// ───────────── 저장 확인 창(저장 승인 설계 2-3 · P-D39 · P5) ─────────────
+//   승인 저장 지식(지식 줄 save === 'approve' · 팀 · 개인 같은 창)에서 사람이 화면에서 쓰는 저장(문서 고치기 · 다른 이름 더하기 …)은
+//   먼저 저장 제안(쓰지 않음)을 받아 이 창에 보이고, [넣기] 가 승인이다(경고를 받아들인다 · 서버가 같은 제안을 다시 만들어 지문을 대 본다).
+//   S.sv = { k, p(제안) · ops([이름, 갈래] 지움 · 이름 바뀜) · fields({ changes, why } | null) · dirty · busy · err · note · raw ·
+//            again(fields) → 제안 · send(proposal, fields) → 결과 · done(결과, fields) · fail(오류)(읽은 뒤 바뀜 · 꼴 · 입력 오류) }
+const svApprove = (k) => !!KN(k) && KN(k).save === 'approve'
+const svChanged = (p) => (p && p.items || []).flatMap((x) => (x.changed || []).map((c) => `${x.heading}: ${c.from} → ${c.to}`.slice(0, 200))).slice(0, 20)
+async function svOpen(o) {
+  S.sv = { ...o, p: null, busy: true, dirty: false, err: null, note: null, raw: false }
+  render()
+  await svAsk()
+}
+// 제안 받기 — 처음(fill)에는 바뀐 값으로 「바뀐 것」 을 채워 한 번 더(차이에서 채움 · 고칠 수 있음)
+async function svAsk() {
+  const w = S.sv
+  if (!w) return
+  w.busy = true; w.err = null
+  // 읽는 동안 칸을 고치면 다시 볼 것으로 남긴다(고친 글을 덮지 않는다)
+  const snap = JSON.stringify(w.fields)
+  try {
+    let p = await w.again(w.fields)
+    if (S.sv !== w) return
+    if (w.fill && w.fields && !w.fields.changes.length && svChanged(p).length && JSON.stringify(w.fields) === snap) {
+      const was = w.fields.changes
+      w.fields.changes = svChanged(p)
+      try { p = await w.again(w.fields) } catch (err) { if (S.sv !== w) return; if (err.code !== 'E_INPUT') throw err; w.fields.changes = was }
+    }
+    w.fill = false
+    if (S.sv !== w) return
+    w.p = p
+    w.dirty = w.dirty && JSON.stringify(w.fields) !== snap
+  } catch (err) {
+    if (S.sv !== w) return
+    if (await svFail(w, err)) return
+  }
+  w.busy = false
+  render()
+}
+// 창 밖에서 다룰 오류(읽은 뒤 바뀜 · 꼴 · 입력 오류)는 창을 닫고 부른 쪽이 · 그 밖은 창 안 오류 줄
+async function svFail(w, err) {
+  if (err.code === 'E_CANCEL') { w.busy = false; render(); return true }
+  if (w.fail && ['E_CONFLICT', 'E_FORMAT', 'E_INPUT', 'E_FORBIDDEN', 'E_NOTFOUND'].includes(err.code)) { S.sv = null; render(); await w.fail(err); return true }
+  w.err = err.message
+  return false
+}
+async function svGo() {
+  const w = S.sv
+  if (!w || w.busy) return
+  if (w.dirty || (!w.p && !w.ops?.length)) return svAsk()
+  if (w.p && w.p.errors.length) return
+  w.busy = true; w.err = null; w.note = null
+  render()
+  try {
+    const r = await w.send(w.p ? w.p.proposal : null, w.fields)
+    if (S.sv === w) S.sv = null
+    await w.done(r, w.fields)
+  } catch (err) {
+    if (S.sv !== w) return
+    // 그사이 제안이 바뀌었다 — 새 제안을 보이고 다시 [넣기](서버가 준 것이 없으면 다시 묻는다)
+    if (err.code === 'E_APPROVE') {
+      w.note = '그사이 바뀌었다. 다시 보고 넣는다'
+      if (err.details && err.details.propose) w.p = err.details.propose
+      else { w.busy = false; return svAsk() }
+    } else if (await svFail(w, err)) return
+    w.busy = false
+  }
+  render()
+}
+function svClose() { if (S.sv && !S.sv.busy) { S.sv = null; render() } }
+const SV_KIND = { 고침: '고침', 신설: '새 항목', 잇기: '글 그대로' }
+// 바뀐 줄만(편집기 「바뀐 것 보기」 와 같은 꼴)
+function svItemHtml(x) {
+  const a = String(x.before || '').split('\n').filter((l) => l.trim()), b = String(x.after || '').split('\n').filter((l) => l.trim())
+  const del = x.kind === '고침' ? a.filter((l) => !b.includes(l)) : [], add = x.kind === '잇기' ? [] : x.kind === '고침' ? b.filter((l) => !a.includes(l)) : b.slice(0, 6)
+  return `<div class="diff" data-t="svItem"><div class="fh">${esc(x.at)} <small class="muted">${esc(SV_KIND[x.kind] || x.kind)}</small></div>${del.map((l) => `<div class="ln2 del">${esc(l)}</div>`).join('')}${add.map((l) => `<div class="ln2 add">${esc(l)}</div>`).join('')}</div>`
+}
+function svHtml() {
+  const w = S.sv, p = w.p, n = KN(w.k)
+  const items = p ? p.items.map(svItemHtml).join('') : ''
+  const ops = (w.ops || []).map(([h, g]) => `<div class="diff" data-t="svOp"><div class="fh">${esc(h)} <small class="muted">${esc(g)}</small></div></div>`).join('')
+  const fresh = p && (p.fresh || []).filter((x) => x.kind !== '항목').length ? `<div class="small" data-t="svFresh"><b>새로 생긴 것</b> ${p.fresh.filter((x) => x.kind !== '항목').map((x) => `${esc(x.kind)} ${esc(String(x.name).replace(/^docs\//, '').replace(/\.md$/, ''))}`).join(' · ')}</div>` : ''
+  const fl = w.fields ? `<div class="field"><label for="svChg">바뀐 것</label><textarea class="inp" id="svChg" rows="2" data-in="svChg" data-t="svChg" placeholder="무엇: 옛 값 → 새 값(줄마다)">${esc(w.fields.changes.join('\n'))}</textarea></div><div class="field"><label for="svWhy">까닭</label><input class="inp" id="svWhy" data-in="svWhy" data-t="svWhy" maxlength="200" value="${esc(w.fields.why || '')}" autocomplete="off"></div>` : ''
+  const warn = p && p.warnings.length ? `<div class="callout warn" data-t="svWarn"><div><b>경고 ${p.warnings.length}</b>${tipb('sv.warn', '경고')}${p.warnings.map((x) => `<div class="small">${esc(x.at)}: ${esc(x.why)}</div>`).join('')}</div></div>` : ''
+  const errs = p && p.errors.length ? `<div class="callout danger" role="alert" data-t="svErrs"><div><b>오류 ${p.errors.length}</b> · 고쳐서 다시${p.errors.map((x) => `<div class="small">${esc(x.at)}: ${esc(x.why)}</div>`).join('')}</div></div>` : ''
+  const raw = p && p.text ? `<button type="button" class="lk" data-a="svRaw" data-t="svRaw" aria-expanded="${!!w.raw}">저장 제안 글</button>${w.raw ? `<pre class="cfpre" data-t="svText">${esc(p.text)}</pre>` : ''}` : ''
+  const body = !p && !w.ops?.length ? loadingHtml : `${items}${ops}${fresh}${fl}${warn}${errs}${raw}`
+  const block = w.busy || (p && p.errors.length && !w.dirty)
+  const lbl = w.busy ? (p || w.ops?.length ? '넣는 중…' : '읽는 중…') : w.dirty ? '다시 보기' : '넣기'
+  return `<div class="scrim fix" data-a="svClose" data-self="1"${w.busy ? ' data-busy="1"' : ''}><div class="modal w560" role="dialog" aria-modal="true" data-t="saveWin"><div class="mh">저장 확인 <small>${esc(n ? n.name : w.k)}</small>${tipb('sv', '저장 확인')}<button type="button" class="x" data-a="svClose" title="닫기" aria-label="닫기">×</button></div><div class="mb" aria-busy="${!!w.busy}">${body}${w.note ? `<div class="callout warn" role="status" data-t="svNote"><span>${esc(w.note)}</span></div>` : ''}${w.err ? formErr(w.err, 'svErr') : ''}</div><div class="mf"><span class="acts"><button type="button" class="btn" data-a="svClose" data-t="svCancel"${w.busy ? ' disabled' : ''}>취소</button><button type="button" class="btn pri" data-a="svGo" data-t="svGo"${block ? ' disabled' : ''}>${lbl}</button></span></div></div></div>`
 }
 
 // ───────────── 오늘 바뀐 것(목업 M9) ─────────────
@@ -4964,9 +5105,22 @@ function sendPrevHtml(src, v, sel) {
   }
   const p = S.cache[key]
   if (!p) return `<div class="small muted" data-t="sendPrev" style="margin:var(--sp-5) 0 0">${esc(sendNm(v.route.kn) || v.route.name)} 의 이름 장부와 맞춰 보는 중…</div>`
+  if (!p.unavailable && Array.isArray(p.proposals) && p.proposals.length) return sendPropHtml(p)
   if (p.unavailable) return `<div class="small muted" data-t="sendPrev" style="margin:var(--sp-5) 0 0">이름 미리 보기를 하지 못했다: ${esc(p.unavailable)} · 보내기에는 지장이 없다</div>`
   if (!p.unnamed.length) return `<div class="small" data-t="sendPrev" style="margin:var(--sp-5) 0 0">${chipOf('ok', '이름 맞음')} 고른 것이 모두 ${esc(sendNm(v.route.kn) || v.route.name)} 의 이름에 닿는다${p.same ? ` · 이미 보낸 것 ${p.same}` : ''}</div>`
   return `<div class="callout warn" data-t="sendPrev" style="margin:var(--sp-5) 0 0"><span><b>${p.unnamed.length}개는 ${esc(sendNm(v.route.kn) || v.route.name)} 의 이름 장부에서 이름을 못 찾았다.</b> 그대로 보내면 Claude 가 받는 지식의 문서에서 넣을 곳을 찾는다. 못 찾으면 넣지 못함으로 남고 [지금 다시] 로 다시 지을 수 있다<small>${p.unnamed.slice(0, 5).map(esc).join(' · ')}${p.unnamed.length > 5 ? ` 외 ${p.unnamed.length - 5}` : ''}</small></span></div>`
+}
+// 받는 팀 지식의 저장 제안(저장 승인 P-D22) — 미리 보기가 기록마다 팀의 propose 결과를 실으면(proposals[{ rec, title, propose }] · P7) 보내기 창이 곧 제안서다.
+//   항목마다 [빼기](뺀 것은 보내지 않고 개인 쪽에 남는다 · S.sendEx[기록] = 뺀 넣을 곳) · [보내기] 가 승인(경고 받아들임). 싣지 않는 옛 판은 위 이름 미리 보기 그대로
+function sendPropHtml(p) {
+  const ex = S.sendEx || {}
+  return p.proposals.map((x) => {
+    const pr = x.propose || {}, out = ex[x.rec] || []
+    const rows = (pr.items || []).map((it) => { const off = out.includes(it.at); return `<div class="row" data-t="sendPropItem"><span class="small${off ? ' muted' : ''}">${esc(it.at)} <small class="muted">${esc(SV_KIND[it.kind] || it.kind)}</small></span><button type="button" class="btn sm" style="margin-left:auto" data-a="sendEx" data-r="${esc(x.rec)}" data-v="${esc(it.at)}" aria-pressed="${off}" data-t="sendExBtn">${off ? '되넣기' : '빼기'}</button></div>` }).join('')
+    const warn = (pr.warnings || []).length ? `<div class="small" data-t="sendPropWarn">경고 ${pr.warnings.length}${tipb('sv.warn', '경고')}</div>` : ''
+    const errs = (pr.errors || []).length ? `<div class="small" role="alert" data-t="sendPropErr">오류 ${pr.errors.length}: ${esc(pr.errors[0].why || '')}</div>` : ''
+    return `<div class="diff" data-t="sendProp"><div class="fh">${esc(x.title || x.rec)}</div><div class="u-p4-7">${rows}${warn}${errs}</div></div>`
+  }).join('')
 }
 async function doSend() {
   const src = sendSrc(), v = src && S.cache['send:' + src.id]
@@ -4978,7 +5132,9 @@ async function doSend() {
   render()
   try {
     // to — 화면이 본 받는 지식 · 그새 바뀌었으면 서버가 보내지 않는다
-    const r = await postJSON(`/api/k/${encodeURIComponent(src.id)}/send`, { to: v.route.kn, recs, docs })
+    const ex = Object.fromEntries(Object.entries(S.sendEx || {}).filter(([, xs]) => xs.length))
+    const r = await postJSON(`/api/k/${encodeURIComponent(src.id)}/send`, { to: v.route.kn, recs, docs, ...(Object.keys(ex).length ? { excluded: ex } : {}) })
+    S.sendEx = {}
     S.sendSel = {}
     S.sendWhole = {}
     // 넣음 · 넣지 못함 · 이미 넣음(S12) — 넣지 못함은 위 줄에서 [지금 다시] · [버리기]
@@ -6216,8 +6372,23 @@ const ACT = {
   knReview: async (el) => {
     S.menu = null
     const k = el.dataset.k, n = KN(k), on = !(n && n.review)
+    // 승인 저장 지식 — 같은 스위치가 「들어간 것 하루 요약」 알림(알리기만 · P-D13)
+    if (n && n.save === 'approve') {
+      if (!await ask1(on ? '하루 요약 켜기' : '하루 요약 끄기', on ? '켜기' : '끄기', false, on ? '하루에 한 번 지난날 들어간 기록 수를 지식관리자에게 알린다' : '하루 요약 알림을 그만 보낸다')) return
+      try { await postJSON(`/api/k/${encodeURIComponent(k)}/owner`, { review: on }); await reloadKns(); toast(on ? '<b>하루 요약을 켰다</b>' : '<b>하루 요약을 껐다</b>') } catch (e) { toastErr(e) }
+      render()
+      return
+    }
     if (!await ask1(on ? '승인 받고 넣기 켜기' : '승인 받고 넣기 끄기', on ? '켜기' : '끄기', false, on ? '쓰기 자리의 저장(세션 · 화면 고치기)은 문서에 바로 들어가지 않고 넣지 못함 「승인 기다림」 으로 남는다. 지식관리자가 [승인해 넣기] 한다' : '쓰기 자리의 저장이 다시 저장하는 순간 문서에 들어간다. 이미 기다리는 것은 넣지 못함에 남는다')) return
     try { await postJSON(`/api/k/${encodeURIComponent(k)}/owner`, { review: on }); await reloadKns(); toast(on ? '<b>승인 받고 넣기를 켰다</b>' : '<b>승인 받고 넣기를 껐다</b>') } catch (e) { toastErr(e) }
+    render()
+  },
+  // 저장 승인(총괄 관리자 · 비밀번호 한 번 더 · P-D18 · P5) — 켜기는 이행이 끝난 지식만(서버가 까닭을 준다)
+  knSaveMode: async (el) => {
+    S.menu = null
+    const k = el.dataset.k, n = KN(k), on = !(n && n.save === 'approve')
+    if (!await ask1(on ? '저장 승인 켜기' : '저장 승인 끄기', on ? '켜기' : '끄기', !on, on ? '사람의 저장은 저장 확인 창 · 세션의 저장 제안을 승인해야 들어간다. 넣지 못함 · 메모가 생기지 않는다' : '옛 저장으로 돌아간다. 검사를 넘지 못한 것은 넣지 못함으로 남는다')) return
+    try { await postJSON(`/api/k/${encodeURIComponent(k)}/save-mode`, { save: on ? 'approve' : 'held' }); await reloadKns(); toast(on ? '<b>저장 승인을 켰다</b>' : '<b>저장 승인을 껐다</b>') } catch (e) { if (e.code !== 'E_CANCEL') toast(`<b>바꾸지 않았다</b> · ${esc(e.message)}`, 0, true) }
     render()
   },
   heldApprove: async (el) => {
@@ -6384,6 +6555,10 @@ const ACT = {
   retryDoc: (el) => { delete S.cache[el.dataset.k]; render() },
   saveDoc: () => saveDoc(),
   recFix: (el) => { const r = recOf(el.dataset.k, el.dataset.r); if (!r || r.error) return; S.recFix = { k: el.dataset.k, rec: el.dataset.r, title: r.title, from: '', to: '', body: '', busy: false, err: null }; render() },
+  svGo: () => svGo(),
+  sendEx: (el) => { const r = el.dataset.r, at = el.dataset.v; S.sendEx = S.sendEx || {}; const xs = S.sendEx[r] || []; S.sendEx[r] = xs.includes(at) ? xs.filter((x) => x !== at) : [...xs, at]; render() },
+  svClose: () => svClose(),
+  svRaw: () => { if (S.sv) { S.sv.raw = !S.sv.raw; render() } },
   recFixClose: () => { if (S.recFix && !S.recFix.busy) { S.recFix = null; render() } },
   recFixSave: () => recFixSave(),
   openItem: (el) => { openTab({ kind: 'item', kn: el.dataset.k, ref: el.dataset.n }); render(); scrollTopMain() },
@@ -6533,6 +6708,16 @@ document.addEventListener('input', (ev) => {
   const t = ev.target, k = t.dataset && t.dataset.in
   if (!k) return
   if (k === 'edWhy') { if (S.edit) S.edit.why = t.value; return }
+  // 저장 확인 창의 칸 — 고치면 제안을 다시 본다(지문이 바뀐다)
+  if (k === 'svChg' || k === 'svWhy') {
+    const w = S.sv
+    if (!w || !w.fields) return
+    if (k === 'svChg') w.fields.changes = t.value.split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 20)
+    else w.fields.why = t.value.trim().slice(0, 200)
+    w.dirty = true
+    const b = $('[data-t=svGo]'); if (b && !w.busy) { b.textContent = '다시 보기'; b.disabled = false }
+    return
+  }
   if (k === 'edTx') edFit(t)
   // 칸은 다시 그리지 않는다(한글 입력이 끊기지 않게) — 결과 자리만 바꾼다
   if (k === 'pal') { S.pal.q = t.value; runFind() }

@@ -898,7 +898,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         // 관리 값(issueUrl · review)은 그 지식의 지식관리자에게만 — GET /owner 와 같게(그 밖은 owner · noClaude 만)
         // 저장소 붙음 여부(모든 지식 표 · 6-4) — 그 지식의 지식관리자에게만 · 주소는 싣지 않는다
         const repo = lv === 'admin' && !k.gone ? !!hub.backupStateSync(k) : undefined
-        return { ...V.knowledgeRow(k, seeOf(ctx, k.id)), level: lv, ...(repo !== undefined ? { repo } : {}), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null, noClaude: !!row?.noClaude, ...(lv === 'admin' && row?.issueUrl ? { issueUrl: row.issueUrl } : {}), ...(lv === 'admin' && row?.review ? { review: true } : {}) } : {}), ...(chk ? { chk } : {}), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
+        // save — 저장 방식(팀 approve · held / 개인 approve · pc · 저장 승인 P5): 화면이 저장 확인 창을 띄울지 가른다
+        return { ...V.knowledgeRow(k, seeOf(ctx, k.id)), level: lv, save: k.gone ? null : hub.saveModeOf(k.id), ...(repo !== undefined ? { repo } : {}), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null, noClaude: !!row?.noClaude, ...(lv === 'admin' && row?.issueUrl ? { issueUrl: row.issueUrl } : {}), ...(lv === 'admin' && row?.review ? { review: true } : {}) } : {}), ...(chk ? { chk } : {}), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
       })))
     }
     // 에이전트 일 — 목록 · 줄(터미널)

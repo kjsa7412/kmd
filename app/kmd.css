@@ -1111,6 +1111,7 @@ table.done tr.tr-term td{background:var(--surface-2)}
 .kdback{display:none}
 .kdsw{display:flex;flex-wrap:wrap;gap:var(--sp-5);margin-top:var(--sp-6)}
 .kdsw.col{flex-direction:column;align-items:flex-start;margin-top:0}
+.swl-t{display:inline-flex;align-items:center;gap:var(--sp-2)}
 .kdacts{margin-top:var(--sp-5);gap:var(--sp-3);flex-wrap:wrap;align-items:center}
 .kdissue{margin-top:var(--sp-6)}
 .tabs [role=tab]{border:0;background:none;font:inherit;padding:calc((var(--sp-3) + var(--sp-4)) / 2) var(--sp-6);font-size:var(--fs);color:var(--text-2);border-bottom:2px solid transparent;border-radius:0}

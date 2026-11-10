@@ -1077,7 +1077,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
     } else {
       // 문서 고치기(opt.edit)는 넣은 것 칸(옛 값 → 새 값 · 이력 「고침」)을 남기고 · edit 태그 하나를 받고 · 지식관리자만 항목 지우기 · 이름 바꾸기(structure · S-D44)
-      r0 = await coreSave(meta.dir, input, { user: ctx.user, system: !!opt.system, guard: opt.guard || 'hold', holdWhy: opt.holdWhy || null, proposed, ...(opt.edit ? { partial: true, asEdit: true, structure: !!opt.edit.structure } : {}) })
+      r0 = await coreSave(meta.dir, input, { user: ctx.user, system: !!opt.system, guard: opt.guard || 'hold', holdWhy: opt.holdWhy || null, proposed, ...(opt.edit ? { partial: !opt.edit.approve, marks: !!opt.edit.approve, asEdit: true, structure: !!opt.edit.structure, ...(opt.edit.accepted?.length ? { accepted: opt.edit.accepted } : {}) } : {}) })
     }
     // ── 여기부터 던지지 않는다(S-D49): 하나씩 try/catch + log ──
     cache.delete(id)
@@ -1822,7 +1822,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const viewers = viewersOf(id)
       // approve 모드(P3) — 저장 문이 줄 안에서 같은 판정을 다시 돌린다(쓰기 자리 새 문서 · memo 오류 · 본문 반영 · 기록 모음 달 항목) · 다시 제안 수를 센다
       const approve = hub.saveModeOf(id) === 'approve'
-      if (approve) proposeRounds.set(roundsKey(ctx, id), (proposeRounds.get(roundsKey(ctx, id)) || 0) + 1)
+      //   opt.count === false — 화면 문서 고치기의 제안(측정 줄에 rounds 가 없다 · 세션이 쌓은 수를 흐리지 않는다)
+      if (approve && opt.count !== false) proposeRounds.set(roundsKey(ctx, id), (proposeRounds.get(roundsKey(ctx, id)) || 0) + 1)
       if (!files.has(id)) files.set(id, new Map())
       return serial(path.resolve(meta.dir), async () => {
         await recoverSave(meta.dir)
@@ -2623,7 +2624,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     //   쓰기 이상이면 모두 저장 문 한 번으로 곧바로 문서에(Claude 없음 · 값 검사 없음 · 이력 「고침」 · 넣은 것 칸에 옛 값 → 새 값).
     //   항목 지우기 · 이름 바꾸기는 지식관리자만(structure · S-D44) · needBase(화면 길)면 이미 있는 항목은 지문(base)이 꼭 있다 ·
     //   같은 사람이 같은 글을 1분 안에 다시 보내면(두 번 누름) 앞의 것을 돌려준다
-    async edit(ctx, id, { doc, sections = [], remove = [], rename = [], fixes = [], why = '' } = {}, { needBase = false } = {}) {
+    //   approve 모드 지식의 화면 길(needBase · 저장 승인 설계 P-D39 · 2-3 · P5): 고친 항목은 저장 제안을 거친다 — dry 면 쓰지 않고 그 제안({ dry, propose })을,
+    //   아니면 그 제안(proposal)이 의무(없거나 어긋나면 E_APPROVE + 새 propose 결과 · 오류면 입력 오류) · [넣기] 가 승인이고 경고를 받아들인다(기록 「## 받아들인 경고」).
+    //   changes(바뀐 것 「무엇: 옛 값 → 새 값」 의 줄)는 approve 모드 기록 칸 · 항목 지우기 · 이름 바꾸기만인 고침은 제안이 없다(지문 · 지식관리자 판정 그대로)
+    async edit(ctx, id, { doc, sections = [], remove = [], rename = [], fixes = [], why = '', changes = null, proposal = null, dry = false } = {}, { needBase = false } = {}) {
       const k = await hub.get(id, ctx)
       hub.need(ctx, id, 'write')
       const d = k.docs.find((x) => x.id === doc)
@@ -2633,6 +2637,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       rename = (Array.isArray(rename) ? rename : []).map((x) => ({ from: String(x?.from || '').trim(), to: String(x?.to || '').trim() })).filter((x) => x.from && x.to && x.from !== x.to)
       if (!sections.length && !remove.length && !rename.length) throw new KmdError('E_INPUT', '바뀐 항목이 없다')
       if (sections.some((x) => !x || typeof x !== 'object' || Array.isArray(x) || (x.base != null && !(typeof x.base === 'string' && /^[0-9a-f]{16}$/.test(x.base))))) throw new KmdError('E_INPUT', '항목마다 { h, body, base? } 이다(base 는 읽을 때 받은 16자 지문)')
+      if (changes != null && (!Array.isArray(changes) || changes.length > 20 || changes.some((x) => typeof x !== 'string' || x.length > 200 || /[\r\n]/.test(x)))) throw new KmdError('E_INPUT', '바뀐 것(changes)은 한 줄 200자 안의 글 20개까지다')
+      if (proposal != null && (typeof proposal !== 'string' || !/^[0-9a-f]{64}$/.test(proposal))) throw new KmdError('E_INPUT', 'proposal 은 저장 제안이 준 64자 지문이다')
+      if (typeof why !== 'string') why = ''
       const structure = hub.canDirect(ctx, id)
       if ((remove.length || rename.length) && !structure) throw new KmdError('E_FORBIDDEN', '항목을 지우거나 이름을 바꾸는 일은 지식관리자가 한다')
       const hs = sections.map((s) => String(s.h || '').trim())
@@ -2645,13 +2652,31 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const near = d.sections.find((x) => headingMatches(x.h, h))
         if (near) throw new KmdError('E_INPUT', `새 항목 「${h}」 의 이름이 있는 항목 「${near.h}」 의 앞부분과 같다. 다른 이름을 쓴다`)
       }
-      const dupKey = sha(JSON.stringify([ctx.user, id, doc, sections, remove, rename]))
-      const dup = editDup.get(dupKey)
+      const approve = needBase && hub.saveModeOf(id) === 'approve'
+      if (dry && !approve) throw new KmdError('E_INPUT', '저장 제안은 승인 저장 지식에서만 미리 본다', { details: { mode: hub.saveModeOf(id) } })
+      const dupKey = sha(JSON.stringify([ctx.user, id, doc, sections, remove, rename, changes, why, proposal]))
+      const dup = dry ? null : editDup.get(dupKey)
       if (dup && Date.now() - dup.at < 60_000) return dup.r
       const coords = [...new Set([...hs, ...remove, ...rename.map((x) => x.from)].flatMap((h) => coordsOfSection(k, d, h)))]
       const w = watchedOf(await fs.readFile(path.join(k.dir, ...d.path.split('/')), 'utf8').catch((e) => (e.code === 'ENOENT' ? '' : Promise.reject(e))))
       if (w) throw new KmdError('E_FORBIDDEN', `이 문서는 원본이 주인이다: ${w.src} 의 ${w.path} 를 고친다 · 덧붙일 말은 기록으로 남긴다`)
       const what = [...hs, ...remove.map((h) => `${h} 지움`), ...rename.map((x) => `${x.from} → ${x.to}`)]
+      const title = `화면에서 고침: ${d.title} 「${what.join(' · ')}」`.slice(0, 200)
+      // 요약은 한두 문장(approve 모드 기록 칸 · SUMMARY_MAX 300) — 고친 항목이 많으면 앞 것만 + 「외 n」
+      const leadOf = (n) => `화면에서 고쳤다: ${what.slice(0, n).map((h) => `${d.title} › ${h}`).join(' · ')}${what.length > n ? ` 외 ${what.length - n}` : ''}`
+      let lead = leadOf(what.length)
+      for (let n = what.length - 1; approve && lead.length > 280 && n >= 1; n--) lead = leadOf(n)
+      if (approve && lead.length > 280) lead = lead.slice(0, 279) + '…'
+      const why1 = why.replace(/[\r\n]+/g, ' ').trim().slice(0, 200)
+      // approve 모드 기록 글 — 요약 + 칸(바뀐 것 · 까닭) · 제안과 저장이 같은 글을 본다
+      let abody = null, accepted = null
+      if (approve) {
+        const b = recordBody({ body: lead, changes: Array.isArray(changes) ? changes : [], why: why1 ? [why1] : [] }, { trail: true })
+        if (b.error) throw new KmdError('E_INPUT', b.error)
+        abody = b.body
+      }
+      // 건드린 이름 — 이름 장부 밖 항목만 고쳤으면 approve 모드는 까닭 한 줄(touchesEmpty · 없으면 제안 오류)
+      const tch = coords.length ? { touches: coords } : approve ? { touchesEmpty: '화면에서 고친 항목에 이름이 없다' } : {}
       if (rowFor(id)?.review && !structure && mode === 'team' && hub.saveModeOf(id) !== 'approve') { // approve 모드는 승인 받고 넣기가 없다(P-D13 · 하루 요약 알림)
         const wait = sections.map((x) => ({ doc: d.path, heading: String(x.h).trim(), code: 'review', why: '승인을 기다린다: 이 지식은 지식관리자가 승인해야 문서에 들어간다', ...(x.base ? { base: x.base } : {}), content: String(x.body ?? '') }))
         const r = await hub.save(ctx, id, { record: { title: `화면에서 고침(승인 기다림): ${d.title} 「${what.join(' · ')}」`.slice(0, 200), body: `화면에서 고쳤다(승인을 기다린다): ${what.map((h) => `${d.title} › ${h}`).join(' · ')}${typeof why === 'string' && why.trim() ? `\n\n## 까닭\n${why.replace(/[\r\n]+/g, ' ').trim().slice(0, 200)}` : ''}`, ...(coords.length ? { touches: coords } : { touchesEmpty: '이름 없는 항목' }) }, sections: [] }, { channel: 'edit', held: wait })
@@ -2664,16 +2689,27 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         // 저절로 채우는 표는 지식관리자만 고친다(편집기는 표를 뺀 글을 준다 · 저장이 원래 표를 되붙인다)
         if (!structure && hasBlockMarker(String(s.body ?? ''))) throw new KmdError('E_FORBIDDEN', '저절로 채우는 표는 kmd 가 가져온 곳에서 채운다. 표 밖의 글만 고친다')
       }
+      // approve 모드 — 고친 항목의 저장 제안(쓰지 않는다 · 줄 안에서 새로 읽은 지식) · 지움 · 이름 바꿈만이면 제안 없음
+      if (approve && sections.length) {
+        const pin = { record: { title, body: abody, ...tch }, sections: sections.map((s) => ({ doc: d.path, heading: String(s.h).trim(), content: String(s.body ?? ''), ...(s.base ? { base: s.base } : {}) })) }
+        const p = await hub.propose(ctx, id, pin, { path: '화면', count: false })
+        if (p.errors.some((x) => x.stale)) throw proposeFail(p)
+        if (dry) return { dry: true, propose: p }
+        if (!proposal) throw Object.assign(new KmdError('E_APPROVE', '저장 확인 창에서 저장 제안을 보고 [넣기] 를 누른다(아무것도 쓰지 않았다)', { details: { propose: p } }), { unproposed: true })
+        if (p.errors.length) throw proposeFail(p)
+        if (p.proposal !== proposal) throw new KmdError('E_APPROVE', '그사이 저장 제안이 바뀌었다(입력이나 지식이 바뀌었다). 새 제안을 보고 다시 넣는다(아무것도 쓰지 않았다)', { details: { propose: p } })
+        accepted = p.warnings.map(({ id: wid, code, at, why: y }) => ({ id: wid, code, at, why: y }))
+      } else if (dry) return { dry: true, propose: null }
       // 기록(이력 log/ · 태그 edit) + 조각 한 저장 — 이 PC 와 지식관리자는 kmd 자신의 쓰기(system)로 표까지 ·
       //   쓰기 자리는 사람의 쓰기(문서 꼴 · 원본이 주인 · 표를 core 가 본다)
       const r = await hub.save(ctx, id, {
-        record: { title: `화면에서 고침: ${d.title} 「${what.join(' · ')}」`.slice(0, 200), body: `화면에서 고쳤다: ${what.map((h) => `${d.title} › ${h}`).join(' · ')}${typeof why === 'string' && why.trim() ? `\n\n## 까닭\n${why.replace(/[\r\n]+/g, ' ').trim().slice(0, 200)}` : ''}`, ...(coords.length ? { touches: coords } : {}), tags: ['edit'], ...(Array.isArray(fixes) && fixes.length ? { fixes: fixes.slice(0, 10).map((x) => String(x).slice(0, 120)) } : {}) },
+        record: { title, body: abody ?? `${lead}${why1 ? `\n\n## 까닭\n${why1}` : ''}`, ...tch, tags: ['edit'], ...(Array.isArray(fixes) && fixes.length ? { fixes: fixes.slice(0, 10).map((x) => String(x).slice(0, 120)) } : {}) },
         sections: [
           ...sections.map((s) => ({ doc: d.path, heading: String(s.h).trim(), content: String(s.body ?? ''), ...(s.base ? { base: s.base } : {}) })),
           ...remove.map((h) => ({ doc: d.path, heading: h, remove: true, base: sha16(d.sections.find((s) => s.h === h).body) })),
           ...rename.map((x) => ({ doc: d.path, heading: x.from, rename: x.to, base: sha16(d.sections.find((s) => s.h === x.from).body) })),
         ],
-      }, { channel: 'edit', system: structure, edit: { structure } })
+      }, { channel: 'edit', system: structure, edit: { structure, ...(approve ? { approve: true } : {}), ...(accepted ? { accepted } : {}) } })
       const out = { direct: true, ...r }
       editDup.set(dupKey, { at: Date.now(), r: out })
       for (const [key, v] of editDup) if (Date.now() - v.at > 60_000) editDup.delete(key)
