@@ -69,12 +69,12 @@ after(async () => {
   try { if (tmp) fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-// 지식 관리 — 옆 메뉴의 설정 · 팀 / 설정 · 개인(이 PC 는 설정)을 누르고 본문 왼쪽 메뉴에서 고른다 · 이력은 옆 메뉴에 따로
-const hist = (page) => page.click('[data-t=nav-history]')
-// 작업(가져오기 · 넣지 못함 · 문서 짜임 · 지식 보내기)은 옆 메뉴 지식 관리에서 바로 · 나머지는 설정 메뉴에서
-const WORK = ['import', 'held', 'structure', 'send']
+// 옆 메뉴(메뉴 개편 N4) — 지식 메뉴(생성 · 확인 · 공유 · 문서 · 이력)는 옆 메뉴 층 2 에서 바로 · 구조는 문서 나무 머리 [구조] · 나머지는 공통 메뉴 「설정」 을 누르고 본문 왼쪽 메뉴에서
+const hist = (page) => page.click('[data-t=knMenu] [data-t=nav-history]')
+const WORK = ['import', 'held', 'send']
 async function mg(page, area, item) {
-  if (WORK.includes(item)) return page.click(`[data-t=manageArea] [data-t=nav-${item}]`)
+  if (WORK.includes(item)) return page.click(`[data-t=knMenu] [data-t=nav-${item}]`)
+  if (item === 'structure') { await page.click('[data-t=knMenu] [data-t=nav-docs]'); return page.click('[data-t=tree] [data-t=treeStruct]') }
   await page.click(`[data-t=nav-settings-${area}]`)
   await page.click(`[data-t=mgNav] [data-t=mg-${item}]`)
 }
@@ -92,6 +92,22 @@ async function cutAt(page) {
       if (b.width && b.height && b.right > W + 1 && b.left < W && !scrolls(el)) out.push(`${el.tagName}.${el.className} ${Math.round(b.right)}`)
     }
     return { cut: out, sw: document.documentElement.scrollWidth, w: W }
+  })
+}
+// 옆 메뉴 — 층 1 ~ 4 의 요소가 옆 메뉴 폭 안에 들고 제 글이 넘치지 않는가 · 나무 한 줄 높이로 보이는 줄 수
+async function sideFit(page) {
+  return page.evaluate(() => {
+    const sd = document.querySelector('#app .side'), r = sd.getBoundingClientRect(), out = []
+    for (const el of sd.querySelectorAll('.sb-top, .sb-repo, .kmn .kmi, .ktabs button, .lhead, .sb-mg .sb-ic')) {
+      if (getComputedStyle(el).display === 'none') continue
+      const b = el.getBoundingClientRect(), nm = el.dataset.t || el.className
+      if (b.width && (b.left < r.left - 1 || b.right > r.right + 1)) out.push('밖 ' + nm)
+      if (!el.matches('.sb-repo') && el.scrollWidth > el.clientWidth + 1) out.push('넘침 ' + nm)
+    }
+    const lp = sd.querySelector('[data-t=leftPane]'), row = sd.querySelector('[data-t=tree] .tn')
+    const rows = lp && row ? Math.floor((lp.clientHeight - (sd.querySelector('.lhead')?.offsetHeight || 0)) / row.offsetHeight) : 0
+    const scroll = getComputedStyle(sd).overflowX !== 'visible' // 펼친 옆 메뉴는 넘쳐도 밀리지 않는다(너비 잡이가 가장자리에 걸친다) · 서랍은 스크롤 상자
+    return { out, sw: scroll ? sd.scrollWidth : sd.clientWidth, cw: sd.clientWidth, page: document.documentElement.scrollWidth, w: innerWidth, rows }
   })
 }
 async function bannedIn(page) {
@@ -125,9 +141,15 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   await page.waitForSelector('[data-t=klist] [data-t=krow]')
   // 셸 — 리본 없음 · 옆 메뉴 두 영역(지식 고르기: 고르기 · 문서 · 항목 · 그래프 탭 · 목록 / 지식 관리: 공통 메뉴) · 머리(찾기 가운데 · 설명서 · 나 오른쪽) · 띠 · 아래 줄
   assert.equal(await page.locator('.ribbon').count(), 0)
-  assert.deepEqual(await page.locator('[data-t=ktabs] button').evaluateAll((els) => els.map((e) => e.dataset.t)), ['rb-docs', 'rb-items', 'rb-recs', 'rb-graph'])
-  // 지식 관리 줄 — 아이콘만(이름은 aria-label · title) · 이력 · 작업 · 설정(팀 화면은 팀 지식만 · 개인 지식은 개인 화면에서)
-  assert.deepEqual(await page.locator('[data-t=manageArea] .sb-ic').evaluateAll((els) => els.map((e) => e.dataset.t + ':' + e.getAttribute('aria-label').split(' · ')[0].replace(/ \d+$/, ''))), ['nav-history:이력', 'nav-import:생성', 'nav-held:확인', 'nav-structure:구조', 'nav-settings-team:설정']) // 작업 셋은 옆 메뉴에서 바로 · 개인 지식 쓰기는 설정 › 에이전트 설치 카드로
+  // 옆 메뉴(메뉴 개편 N4 · 7절) — 지식 고르기 · 지식 메뉴(팀: 확인 · 생성 · 문서 · 이력 · 아이콘 + 이름) · 층 3(보기 탭 · 나무)은 문서에서만 · 공통 메뉴(지식관리 · 설정)
+  assert.deepEqual(await page.locator('[data-t=knMenu] .kmi').evaluateAll((els) => els.map((e) => e.dataset.t + ':' + e.querySelector('span').textContent + ':' + e.tagName)), ['nav-held:확인:BUTTON', 'nav-import:생성:BUTTON', 'nav-docs:문서:BUTTON', 'nav-history:이력:BUTTON'])
+  assert.deepEqual(await page.locator('[data-t=manageArea] .sb-ic').evaluateAll((els) => els.map((e) => e.dataset.t + ':' + e.textContent.trim())), ['nav-manage:지식관리', 'nav-settings-team:설정'])
+  assert.equal(await page.locator('[data-t=nav-manage]').getAttribute('aria-current'), 'page', '지식 목록은 공통 메뉴 「지식관리」')
+  assert.equal(await page.locator('[data-t=knMenu] [aria-current]').count(), 0)
+  assert.equal(await page.locator('[data-t=ktabs], [data-t=leftPane]').count(), 0, '보기 탭 · 나무는 「문서」 에서만')
+  assert.match(await page.locator('[data-t=kpick] .rn').innerText(), /지식/, '지식 고르기는 지식 목록에서도 고른 지식 이름')
+  // 레일(접힘)도 같은 차례 — 지식 약자 · 지식 메뉴 · 선 · 공통 메뉴
+  assert.deepEqual(await page.locator('[data-t=sideRailNav] button').evaluateAll((els) => els.map((e) => e.dataset.t)), ['sideFold', 'rl-kn', 'rl-held', 'rl-import', 'rl-docs', 'rl-history', 'rl-manage', 'rl-settings-team'])
   assert.match(await page.locator('.hdr .hmid').innerText(), /빨리 열기[\s\S]*Ctrl O[\s\S]*찾기[\s\S]*Ctrl K/)
   assert.match(await page.locator('.hdr .hright').innerText(), /Claude[\s\S]*설명서/)
   // 들어온 사람은 머리 줄 오른쪽 동그라미(누르면 설정 · 단축키 · 나가기)
@@ -148,6 +170,20 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   // 문서로 보기 — 나무 · 빈 가운데 · 이 지식
   await page.click('[data-t=krow][data-name="DPMS 지식"]')
   await page.waitForSelector('[data-t=tree] [data-t=doc]')
+  assert.equal(await page.locator('[data-t=knMenu] [data-t=nav-docs]').getAttribute('aria-current'), 'page', '문서 보기는 지식 메뉴 「문서」')
+  assert.equal(await page.locator('[data-t=nav-manage]').getAttribute('aria-current'), null)
+  assert.equal(await page.locator('[data-t=tree] .lhead [data-t=treeStruct]').getAttribute('aria-label'), '구조', '나무 머리 [구조](지식관리자 · 총괄 관리자)')
+  // 옆 메뉴 네 폭 — 층 1 ~ 4 가 옆 메뉴 안에 들고 넘치지 않는다(600 이하는 서랍을 열고) · 1280×800 나무 줄 18 이상(메뉴 개편 7절)
+  for (const w of [1280, 1024, 600, 375]) {
+    await page.setViewportSize({ width: w, height: 800 })
+    if (w <= 600) { await page.click('[data-t=menuBtn]'); await page.waitForSelector('#app.side-open') }
+    const f = await sideFit(page)
+    assert.deepEqual(f.out, [], `${w} 옆 메뉴에서 잘림 ${JSON.stringify(f)}`)
+    assert.ok(f.sw <= f.cw + 1 && f.page <= f.w, `${w} 가로 넘침 ${JSON.stringify(f)}`)
+    if (w === 1280) assert.ok(f.rows >= 18, `1280×800 나무 줄 ${f.rows}`)
+    if (w <= 600) { await page.keyboard.press('Escape'); await page.waitForFunction(() => !document.querySelector('#app.side-open')) }
+  }
+  await page.setViewportSize(VIEW)
   assert.equal(await page.locator('.tabbar .none').innerText(), '열린 탭이 없다. 왼쪽에서 열거나 Ctrl O')
   assert.match(await page.locator('[data-t=docsEmpty]').innerText(), /왼쪽 나무에서 문서나 기록을 연다/)
   // 지식 점검(지식관리자) — 지식 생성 가드가 보는 것의 지금 상태 · 줄마다 수 · [보기] 로 목록
@@ -431,8 +467,8 @@ test('정리를 걷었다(S13): 조각 없는 기록은 메모 · 옛 정리 화
   await page.waitForSelector('[data-t=mgNav]')
   assert.ok(!(await mgItems(page)).includes('정리'), '정리 메뉴는 걷었다')
   // 옛 정리 화면(#tidy)은 넣지 못함으로
-  await page.evaluate(() => { const x = document.createElement('button'); x.dataset.a = 'nav'; x.dataset.s = 'tidy'; x.id = 'oldTidy'; document.querySelector('#app').appendChild(x) })
-  await page.click('#oldTidy')
+  // 다시 그리기가 #app 을 통째로 바꾸므로 단추는 #app 밖(body)에 두고 만든 그 자리에서 누른다(옛 시험은 누르기 전에 지워져 가끔 실패했다)
+  await page.evaluate(() => { const x = document.createElement('button'); x.type = 'button'; x.dataset.a = 'nav'; x.dataset.s = 'tidy'; document.body.appendChild(x); x.click(); x.remove() })
   await page.waitForFunction(() => /^넣지 못함/.test(document.querySelector('.main .big')?.textContent || ''))
   assert.equal(await page.locator('[data-t=tdKnSel], [data-t=tidyBtn], [data-t=tdSum]').count(), 0)
   // 설정 › 팀 지식 — 지식마다 표(나의 자리 · Claude 에 보내지 않음) · 옛 정리 표 · 넣지 못함 칸은 없다
@@ -739,7 +775,8 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 팀 일�
   await page.setViewportSize(VIEW)
   // 업무 차례: 매일 › 세우기 › 사람 들이기 › 붙이기 › 나 · 작업은 끝에
   assert.deepEqual(await mgItems(page), ['운영', '팀 일꾼', '팀 지식', '사람', '에이전트 설치', '서버 정보'])
-  assert.equal(await page.locator('[data-t=manageArea] [data-t=nav-import]').count(), 1, '작업은 옆 메뉴 지식 관리')
+  assert.equal(await page.locator('[data-t=knMenu] [data-t=nav-import]').count(), 1, '생성은 옆 메뉴 지식 메뉴')
+  assert.equal(await page.locator('[data-t=nav-settings-team]').getAttribute('aria-current'), 'page', '설정 페이지는 공통 메뉴 「설정」')
   assert.deepEqual(await page.locator('[data-t=mgNav] [data-t=mgGroup]').allInnerTexts(), ['매일', '세우기', '사람 들이기', '붙이기', '내 것'])
   await page.waitForSelector('[data-t=auto-find]')
   assert.match(await page.locator('.main .card .ch').first().innerText(), /내 자리/)
@@ -1011,7 +1048,8 @@ test('개인 화면: 지식 보내기 · 받는 팀 지식 고르기 · 지식 �
     await page.click('[data-t=nav-settings-me]')
     await page.waitForSelector('[data-t=mgNav]')
     assert.deepEqual(await mgItems(page), ['이 PC', 'Claude 연결', '에이전트 설치'])
-    assert.deepEqual(await page.locator('[data-t=manageArea] .sb-ic').evaluateAll((els) => els.map((e) => e.dataset.t)), ['nav-history', 'nav-import', 'nav-structure', 'nav-send', 'nav-settings-me'])
+    assert.deepEqual(await page.locator('[data-t=knMenu] .kmi').evaluateAll((els) => els.map((e) => e.dataset.t + ':' + e.querySelector('span').textContent)), ['nav-import:생성', 'nav-send:공유', 'nav-docs:문서', 'nav-history:이력'], '개인 지식 메뉴(확인 없음)')
+    assert.deepEqual(await page.locator('[data-t=manageArea] .sb-ic').evaluateAll((els) => els.map((e) => e.dataset.t)), ['nav-manage', 'nav-settings-me'])
     await mg(page, 'me', 'send')
     await page.click('[data-t=sendSrc]')
     await page.locator('[data-t=sendSrcItem]').filter({ hasText: '테스트-보내기' }).click()

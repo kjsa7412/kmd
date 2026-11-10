@@ -1,16 +1,16 @@
 // 메뉴 길 말(UX T5-07 · 메뉴 개편 N3) — 화면 메뉴 이름과 글 속 메뉴 길이 한 곳(core/menupath.js)과 맞는가
-//   지금 화면에 있는 길만 쓴다. 목표 메뉴(N4 ~ N6)에만 있는 길은 아직 쓰지 않는다 — 화면을 옮기는 단계에서 이 시험을 뒤집는다
+//   지금 화면에 있는 길만 쓴다. 목표 메뉴(N5 · N6)에만 있는 길은 아직 쓰지 않는다 — 화면을 옮기는 단계에서 이 시험을 뒤집는다(N4: 옆 메뉴 · 「문서 › 구조」)
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { SET_TEAM, SET_PC, WORK, IMP_TABS, BRIDGE, okNow, okTarget } from '../core/menupath.js'
+import { SET_TEAM, SET_PC, KN_MENU_PC, KN_MENU_TEAM, COMMON, IMP_TABS, BRIDGE, okNow, okTarget } from '../core/menupath.js'
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 const main = fs.readFileSync(path.join(ROOT, 'app', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
 
-test('화면의 설정 메뉴 · 작업 메뉴 · 생성 탭 이름이 core/menupath.js 와 같다', () => {
+test('화면의 설정 메뉴 · 옆 메뉴(지식 메뉴 · 공통 메뉴) · 생성 탭 이름이 core/menupath.js 와 같다', () => {
   const body = (name) => { const i = main.indexOf(`function ${name}()`); assert.ok(i >= 0, name); return main.slice(i, main.indexOf('\n}', i)) }
   const labels = (src) => [...src.matchAll(/\bl: '([^']+)'/g)].map((m) => m[1])
   const set = body('setMenu')
@@ -18,9 +18,14 @@ test('화면의 설정 메뉴 · 작업 메뉴 · 생성 탭 이름이 core/menu
   const pc = labels(pcLine), team = labels(set.replace(pcLine, ''))
   assert.deepEqual(pc, [...SET_PC])
   assert.deepEqual(team, [...SET_TEAM])
-  const work = labels(body('workMenu'))
-  for (const l of work) assert.ok(WORK.includes(l), `작업 메뉴 「${l}」 가 core/menupath.js WORK 에 없다`)
-  assert.deepEqual([...new Set(work)].sort(), [...WORK].sort(), 'WORK 는 화면 작업 메뉴 이름 그대로')
+  // 지식 메뉴 — 개인 줄(!isTeam()) · 팀 줄 차례 그대로 · 공통 메뉴 둘(sideItems)
+  const km = body('kmItems')
+  const kmPc = km.split('\n').find((l) => l.includes('!isTeam()'))
+  assert.deepEqual(labels(kmPc), [...KN_MENU_PC])
+  assert.deepEqual(labels(km.replace(kmPc, '')), [...KN_MENU_TEAM])
+  assert.deepEqual(labels(body('sideItems')), [...COMMON])
+  // 작업 화면 갈 곳 글(workMenu) — 지식 메뉴 이름이거나 「문서 › 구조」
+  for (const l of labels(body('workMenu'))) assert.ok(KN_MENU_PC.includes(l) || KN_MENU_TEAM.includes(l) || l === '문서 › 구조', `작업 갈 곳 「${l}」`)
   assert.deepEqual([...body('impTabsHtml').matchAll(/\['(?:queue|src|done)', '([^']+)'/g)].map((m) => m[1]), [...IMP_TABS])
   // BRIDGE — 화면에 남은 설정 페이지만 · 목표 길은 목표 메뉴에 있다
   for (const [k, to] of Object.entries(BRIDGE)) {
@@ -54,7 +59,7 @@ test('글 속 메뉴 길이 지금 화면에 있는 메뉴로 시작한다', () 
   assert.deepEqual(bad, [], '없는 메뉴를 가리키는 길:\n' + bad.join('\n'))
 })
 
-test('목표 메뉴(N4 ~ N6)에만 있는 길은 아직 쓰지 않는다', () => {
+test('목표 메뉴(N5 · N6)에만 있는 길은 아직 쓰지 않는다', () => {
   const early = paths().filter((p) => !okNow(p.menu, p.rest) && okTarget(p.menu, p.rest)).map((p) => p.at)
   assert.deepEqual(early, [], '화면에 아직 없는 길(그 단계에서 쓴다):\n' + early.join('\n'))
 })

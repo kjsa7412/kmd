@@ -25,6 +25,8 @@ const IC = {
   wide: 'M3 12h18 M7 8l-4 4 4 4 M17 8l4 4-4 4', narrow: 'M8 4v16 M16 4v16',
   // 옆 메뉴 도구 아이콘 — 모두 펴기 · 모두 접기 · 거르기
   unfold: 'M8 9l4-4 4 4 M8 15l4 4 4-4', fold: 'M8 5l4 4 4-4 M8 19l4-4 4 4', filter: 'M4 5h16l-6 7.5V19l-4-2v-4.5z',
+  // 옆 메뉴 지식 메뉴 · 공통 메뉴(메뉴 개편 N4) — 생성 · 공유 · 지식관리
+  gen: 'M12 5v14 M5 12h14', share: 'M4 13v6h16v-6 M12 4v11 M7.5 8.5L12 4l4.5 4.5', layers: 'M4 7l8-4 8 4-8 4z M4 12l8 4 8-4 M4 17l8 4 8-4',
 }
 export const svg = (k, c) => `<svg viewBox="0 0 24 24"${c ? ` class="${c}"` : ''}><path d="${IC[k] || IC.doc}"/></svg>`
 

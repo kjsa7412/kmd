@@ -86,6 +86,27 @@ a{color:var(--accent);cursor:pointer}
 .sb-ic.on{background:var(--accent-bg);color:var(--accent)}
 .sb-ic .bd{position:absolute;top:var(--sp-1);left:calc(50% + var(--sp-3));min-width:16px;padding:0 var(--sp-2);border-radius:var(--r-pill);background:var(--pending-bg);color:var(--pending);font-size:var(--fs-xs);font-weight:700;line-height:16px;text-align:center}
 .sb-ic .bd.warn{background:var(--warn-bg);color:var(--warn)}
+/* 층 2 지식 메뉴(메뉴 개편 N4 · 컨벤션 5절) — 아이콘 위 + 이름 아래 · 넷(팀 읽기 자리는 둘) · 지금 화면은 aria-current · 배지는 확인 넣지 못함 · 이력 값 바뀜 */
+.kmn{flex:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sp-1);padding:var(--sp-2) 0 var(--sp-4);border-bottom:1px solid var(--border)}
+.kmn.n2{grid-template-columns:repeat(2,minmax(0,1fr))}.kmn.n3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.kmi{position:relative;display:flex;flex-direction:column;align-items:center;gap:var(--sp-1);border:0;background:none;border-radius:var(--r);padding:var(--sp-3) 0 var(--sp-2);color:var(--text-2);font:inherit;font-size:var(--fs-sm);cursor:pointer;min-width:0}
+.app .kmi svg{width:var(--ctl-xs);height:var(--ctl-xs);stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.kmi:hover{background:var(--hover);color:var(--text)}
+.kmi[aria-current=page]{background:var(--accent-bg);color:var(--accent);font-weight:700}
+.kmi[aria-disabled=true],.kmi[aria-disabled=true]:hover{color:var(--text-3);background:none;cursor:not-allowed;opacity:.6}
+.kmi:focus-visible,.sb-mg.nm2 .sb-ic:focus-visible,.srail .hb:focus-visible{outline:0;box-shadow:var(--focus-ring)}
+.kmi .bd{position:absolute;top:var(--sp-1);left:calc(50% + var(--sp-4));min-width:var(--ctl-2xs);padding:0 var(--sp-2);border-radius:var(--r-pill);background:var(--danger-bg);color:var(--danger);font-size:var(--fs-xs);font-weight:700;line-height:var(--ctl-2xs);text-align:center}
+.kmi .bd.warn{background:var(--warn-bg);color:var(--warn)}
+/* 층 3 자리(문서가 아닐 때 비움) · 층 4 공통 메뉴(아이콘 + 이름 둘) */
+.sb-sp{flex:1 1 auto}
+.sb-mg.nm2 .sb-ic{display:flex;gap:var(--sp-3);justify-content:center;align-items:center;font:inherit;font-size:var(--fs);font-weight:600}
+.sb-mg.nm2 .sb-ic[aria-current=page]{background:var(--accent-bg);color:var(--accent)}
+/* 지식이 없을 때 층 1 */
+.sb-kn.side-empty{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-3);padding:var(--sp-3) var(--sp-2)}
+/* 지식 고르기 줄(단추) · 고른 지식 */
+.kmenu button.mi{width:100%;border:0;background:none;font:inherit;color:inherit;text-align:left}
+.kmenu .mi.on{font-weight:700;color:var(--accent)}
+.kmenu .mi:focus-visible{outline:0;box-shadow:var(--focus-ring)}
 /* 머리 줄 오른쪽 — 들어온 사람(누르면 설정 · 단축키 · 나가기) */
 .hav{width:28px;height:28px;flex:none;border-radius:50%;border:0;background:var(--accent-bg);color:var(--accent);font-weight:700;font-size:var(--fs-mono);cursor:pointer;display:grid;place-items:center;padding:0}
 .hav:hover{box-shadow:0 0 0 2px var(--accent-line)}
@@ -654,7 +675,7 @@ li.new{animation:flash 1.6s}
 .lfind .inp{flex:1;min-width:0}
 .hb.ltool{width:28px;height:28px;display:grid;place-items:center;flex:none;background:none;border-color:transparent}
 .hb.ltool:hover{background:var(--hover);color:var(--text)}
-.hb.ltool[aria-pressed=true]{background:var(--accent-bg);border-color:var(--accent);color:var(--accent)}
+.hb.ltool[aria-current=page],.hb.ltool[aria-pressed=true]{background:var(--accent-bg);border-color:var(--accent);color:var(--accent)}
 .app .ltool svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .kmenu .sep{height:1px;background:var(--border);margin:var(--sp-2) 0}
 .hdr .crumb{flex:1 1 0}
@@ -1150,6 +1171,7 @@ a.dlink:hover{text-decoration:underline;text-underline-offset:2px}
   .app:not(:has(.menu-btn)) .side{width:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:var(--sp-2);border-right:0;border-bottom:1px solid var(--border);padding:var(--sp-4)}
   .app:not(:has(.menu-btn)) .sb-top{flex-basis:100%;padding:0}
   .app:not(:has(.menu-btn)) .sb-know{flex-basis:100%}
+  .app:not(:has(.menu-btn)) .kmn{flex-basis:100%}
   .app:not(:has(.menu-btn)) .sb-mg{flex-basis:100%;margin:0}
   .app:not(:has(.menu-btn)) .lp{flex-basis:100%;max-height:260px}
   /* 본문이 창 스크롤로 서므로 넓은 표가 잘리지 않게 — .tblwrap 으로 감싸지 않은 문서 표는 표 안에서 가로로 민다 */
@@ -1166,6 +1188,7 @@ a.dlink:hover{text-decoration:underline;text-underline-offset:2px}
   .main{padding:var(--sp-6)}
   .app:has(.menu-btn) .side{position:fixed;top:0;left:0;bottom:0;width:min(var(--w-side),calc(100vw - 48px));z-index:calc(var(--z-scrim) - 1);overflow:auto;box-shadow:var(--shadow-3);transform:translateX(-100%);visibility:hidden;transition:transform .2s,visibility .2s}
   .app.side-open .side{transform:none;visibility:visible}
+  .app:has(.menu-btn) .side>.grip{display:none} /* 서랍은 너비 잡이가 없다(11-2절) · 가장자리에 걸쳐 서랍이 가로로 밀리지 않게 */
   .app.side-open .drawer-scrim,.app.side-open~.drawer-scrim{display:block}
   .hdr{gap:var(--sp-3);padding:0 var(--sp-5)}
   .gwrap{height:min(420px,60vh);height:min(420px,60dvh);min-height:0}
@@ -1354,6 +1377,9 @@ details.ap.refs[open]>summary h4::after{content:"▾"}
 .srail .hb,.arl .hb{position:relative}
 .srail .hb.on{background:var(--accent-bg);color:var(--accent)}
 .srail .rsep{width:60%;border-top:1px solid var(--border);margin:var(--sp-2) 0}
+.srail .kab{font:700 var(--fs-sm) var(--font);color:var(--accent)}
+.srail .hb[aria-disabled=true]{opacity:.6;cursor:not-allowed}
+.srail .hb .rdot.dan{background:var(--danger)}
 .rdot{position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;background:var(--warn-line)}
 .grip{position:absolute;top:0;bottom:0;width:var(--w-grip);cursor:col-resize;z-index:var(--z-menu);touch-action:none}
 .side>.grip{right:calc(var(--w-grip) / -2)}
