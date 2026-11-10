@@ -19,6 +19,8 @@
 //   asEdit    edit 태그 하나를 받는다(사람의 화면 고치기) · structure — 항목 지우기 · 이름 바꾸기를 받는다(지식관리자 화면 고치기)
 //   correction 좌표정정(touches-fix) 판정을 건너뛴다(서버가 정한 다시 저장) · onCommit — 커밋 뒤 줄을 놓기 전에(던져도 log 만)
 //   partial · intake 저장은 넣은 항목을 기록 끝 `## 넣은 것`(태그 put) · 못 넣은 조각을 `## 넣지 못함`(태그 held) 칸으로 남긴다(core/parts.js)
+//   approve   { accepted, linked, fresh } — approve 모드 저장 문(저장 승인 설계 P3 · hub saveIn 만 단다): 넣지 못함 없이 들어감 하나(태그 put ·
+//             `## 넣은 것` · 글 그대로 이은 항목 `## 이은 항목` · 승인한 경고 `## 받아들인 경고` · 새로 세운 것 `## 새로 세움` · core/parts.js)
 //   record.memo — 메모(태그 memo · 항목 글을 받지 않는다) · input.attach — docs/assets/ 아래 첨부(같은 저널 · 같은 커밋)
 //   shape     { tags } — 문서 짜임의 글 걸음(바탕 세우기 설계 4-3 · hub.shapeStep 만 단다). 저장 문이 붙이는 예약 태그(shape · shape-done · shape/<work>/<n>) ·
 //             항목 지우기(출처 걷기)를 받는다(structure) · prepare 가 돌려준 place([{ coord, doc, heading }] · 자리 장부 placeExact) ·
@@ -43,7 +45,8 @@ import { watchedOf } from './watchmark.js'
 import { upsertVocab, upsertRegistry, cleanNames, upsertPatternRow, upsertForms, cleanForms, placeExact } from './namebook.js'
 import { guardRecord, guardNames, guardNewDoc, formsOf, EMPTY_MAX } from './guard.js'
 import { valuesOf, valueDiff } from './values.js'
-import { renderPut, renderHeld, KMD_PART_RE } from './parts.js'
+import { renderPut, renderHeld, renderAccepted, renderLinked, renderFresh, KMD_PART_RE } from './parts.js'
+import { RECORDS_DOC_PATH } from './guard.js'
 
 const DATE = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/
 const COORD = /^[^\s:`]+:[^\n`]+$/
@@ -172,6 +175,8 @@ function guardSections(secs, { system = false, structure = false, partial = fals
   for (const s of secs) {
     if (!system && !structure && (s.remove || s.rename != null)) fail('E_FORBIDDEN', '항목 지우기 · 이름 바꾸기는 화면의 고치기로 한다')
     if (s.doc != null && isReservedFile(relOf(s.doc))) fail('E_FORBIDDEN', `kmd 가 쓰는 파일이다: ${s.doc}`)
+    // 기록 모음(P-D29 · Q12) — 달 항목은 기록이 이어지는 자리라 지우기 · 이름 바꾸기를 막는다(짜임 · kmd 자신의 쓰기는 system)
+    if (!system && (s.remove || s.rename != null) && s.doc != null && relOf(s.doc) === RECORDS_DOC_PATH) fail('E_FORBIDDEN', '기록 모음의 항목은 지우거나 이름을 바꾸지 않는다')
     if (!system && hasBlockMarker(s.content ?? '')) {
       const why = '저절로 채우는 표는 kmd 가 원천에서 채운다. 고치지 않는다'
       if (!partial) fail('E_FORBIDDEN', why, { need: 'machine' })
@@ -224,13 +229,14 @@ export function serial(key, f) {
 //         원본이 주인인 문서 · 저절로 채우는 표 · kmd 파일은 사람 · 세션과 같이 막힌다(system 이 아니다)
 // guard — 지식 생성 가드(core/guard.js)의 길. 'strict'(거절형 — 세션 · 화면) · 'hold'(붙잡아 두기 — 그 밖의 길 · 기본)
 //         holdWhy — hold 에서 이름 없는 기록에 kmd 가 다는 까닭 · proposed — 세울 이름으로 실어 둔 이름(일반 자리의 names)
-export function save(dir, input, { user, now = new Date(), system = false, agent = false, guard = 'hold', holdWhy = null, proposed = [], prepare = null, onCommit = null, partial = false, asEdit = false, structure = false, correction = false, intake = null, shape = null } = {}) {
+export function save(dir, input, { user, now = new Date(), system = false, agent = false, guard = 'hold', holdWhy = null, proposed = [], prepare = null, onCommit = null, partial = false, asEdit = false, structure = false, correction = false, intake = null, shape = null, approve = null } = {}) {
   if (!user || !oneLine(user)) fail('E_INPUT', '누가 쓰는지 모른다')
   // 들이기 일감은 예약 사람 kmd 로 쓸 수 있다(가져올 곳) — kmd-auto · kmd-worker 는 아니다(S-D43)
   const kmdIntake = !!intake && nfc(user).trim().toLowerCase() === 'kmd'
   if (isReservedUser(user) && !system && !agent && !kmdIntake) fail('E_FORBIDDEN', `「${user}」 는 kmd 가 쓰는 이름이다`)
   if (prepare != null && typeof prepare !== 'function') fail('E_INPUT', 'prepare 는 함수다')
-  const fresh = !!(prepare || partial || intake) // 새 저장 문 — 항목 수를 센다
+  const fresh = !!(prepare || partial || intake || approve) // 새 저장 문 — 항목 수를 센다
+  if (approve != null && (typeof approve !== 'object' || partial || intake || shape)) fail('E_INPUT', 'approve 저장은 넣지 못함 · 들이기 · 짜임과 같이 쓰지 않는다')
   const secs0 = check(input, { system, many: fresh && !system })
   // 예약 태그 — 입력으로는 받지 않는다(저장 문이 붙이는 것은 아래 serverTags) · asEdit 은 edit 하나만
   const bad = (input.record.tags || []).filter(isReservedTag).filter((t) => !(asEdit && String(t).trim() === 'edit'))
@@ -281,7 +287,7 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
     const relink = shape ? (Array.isArray(prep?.relink) ? prep.relink : []) : []
     if (relink.some((x) => !x || !oneLine(x.from?.doc) || !oneLine(x.from?.h) || !oneLine(x.to?.doc) || !oneLine(x.to?.h))) fail('E_INPUT', '짜임 링크 모양이 아니다')
     if (place.some((x) => !x || !COORD.test(String(x.coord || '')) || !oneLine(x.doc) || !oneLine(x.heading)) || intros.some((x) => !x || !oneLine(x.doc) || typeof x.text !== 'string' || x.text.length > 4000)) fail('E_INPUT', '짜임 자리 · 요약 모양이 아니다')
-    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, partial, marks: partial || !!intake, intake: !!intake, serverTags, correction, attach: input.attach || [], onCommit, prep, shape: !!shape, place, intros, relink })
+    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, partial, marks: partial || !!intake || !!approve, intake: !!intake, approve, serverTags, correction, attach: input.attach || [], onCommit, prep, shape: !!shape, place, intros, relink })
   })
 }
 
@@ -394,7 +400,7 @@ export function sectionBase(text, heading) {
   return sha16(sec ? sec.body : '')
 }
 
-async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], partial = false, marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null, shape = false, place = [], intros = [], relink = [] }) {
+async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], partial = false, marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null, shape = false, place = [], intros = [], relink = [], approve = null }) {
   const held = [...heldIn]
   const regRaw = await fs.readFile(path.join(dir, '_managed.md'), 'utf8').then(readText, () => null)
   const vocRaw = await fs.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => null)
@@ -603,7 +609,8 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
   const tags = [...(r.tags || []).map((t) => nfc(t.trim())), ...serverTags]
   if (r.memo === true) tags.push('memo')
   if (held.length) tags.push('held')
-  if (putRows.length) tags.push('put')
+  // approve 모드 — 들어감 하나(조각이 없어도 · 글 그대로 이은 기록도 put · recordState 가 「들어감」 으로 읽는다)
+  if (putRows.length || approve) tags.push('put')
   // 장부만 바꾼 저장은 지식 이야기가 아니다 — 이력(log/ · 태그 ledger). 문서 · 항목 · 첨부 · 넣지 못함이 없고 메모가 아니고 건드린 이름이 없을 때
   //   (이름을 세우며 그 이름을 건드린 기록 「새 이슈: 인원 부족」 은 지식 이야기다 — 기록에 남는다 · 넣지 못함의 [이름 세우기]는 hub 가 ledger 를 단다)
   if ((names.length || formsIn.length) && !plan.length && !held.length && !atts.length && !attSame.length && r.memo !== true && !touches.length) tags.push('ledger')
@@ -619,8 +626,9 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
   let body = nfc(r.body)
   {
     const lead = body.replace(/\s+$/, '')
-    const withParts = (slim) => [lead, renderPut(putRows), renderHeld(held, { slim })].filter(Boolean).join('\n\n')
-    if (putRows.length || held.length) {
+    const ap = approve ? [renderLinked(approve.linked), renderAccepted(approve.accepted), renderFresh(approve.fresh)] : []
+    const withParts = (slim) => [lead, renderPut(putRows), renderHeld(held, { slim }), ...ap].filter(Boolean).join('\n\n')
+    if (putRows.length || held.length || ap.some(Boolean)) {
       body = withParts(false)
       if (body.length > MAX_BODY) body = withParts(true)
     }

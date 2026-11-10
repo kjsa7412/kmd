@@ -124,11 +124,11 @@ test('near(P-D10): 정규화가 같으면 오류 · distinct 로 넘음 · 비�
   const ok = await mcp('propose', { ...base, names: [{ coord: 'proc:헬스체크', label: '헬스체크' }], distinct: ['proc:헬스체크'], record: { ...base.record, touches: ['proc:카나리', 'proc:헬스체크'] } })
   assert.deepEqual(ok.errors, [], JSON.stringify(ok.errors))
   assert.deepEqual(ok.newNames.map((n) => n.coord), ['proc:헬스체크'])
-  const sim = await mcp('propose', { ...base, names: [{ coord: 'proc:카나리배포', label: '카나리 배포' }], record: { ...base.record, touches: ['proc:카나리', 'proc:카나리배포'] } })
+  const sim = await mcp('propose', { ...base, names: [{ coord: 'proc:카나리2', label: '카나리 2' }], record: { ...base.record, touches: ['proc:카나리', 'proc:카나리2'] } })
   assert.deepEqual(sim.errors, [])
-  assert.deepEqual(sim.warnings.filter((w) => w.code === 'near').map((w) => w.at), ['proc:카나리배포'])
+  assert.deepEqual(sim.warnings.filter((w) => w.code === 'near').map((w) => w.at), ['proc:카나리2'])
   assert.deepEqual(sim.newNames[0].near, ['proc:카나리'])
-  assert.match(sim.text, /―― 새 이름 ――\n {2}proc:카나리배포 {3}신설 {3}자리: 없음 · 비슷한 이름 proc:카나리/)
+  assert.match(sim.text, /―― 새 이름 ――\n {2}proc:카나리2 {3}신설 {3}자리: 없음 · 비슷한 이름 proc:카나리/)
   const kd = await mcp('propose', { ...base, names: [{ coord: 'job:야간배치', label: '야간 배치' }], kinds: ['Proc'.toLowerCase() + 's'], record: { ...base.record, touches: ['proc:카나리', 'job:야간배치'] } })
   assert.deepEqual(kd.newKinds.map((x) => x.name).sort(), ['job', 'procs'])
   assert.ok(kd.warnings.some((w) => w.code === 'near' && w.at === 'procs'), '새 종류 procs 는 proc 과 비슷하다')
@@ -199,7 +199,8 @@ test('save 가 거절할 입력은 제안서 없이 E_INPUT · 사람 글은 들
 
 test('near 셈 · 줄 차이(core)', () => {
   assert.deepEqual(nearOf(['헬스 체크', '카나리', '롤백'], '헬스체크'), { same: ['헬스 체크'], similar: [] })
-  assert.deepEqual(nearOf(['카나리'], '카나리배포'), { same: [], similar: ['카나리'] })
+  assert.deepEqual(nearOf(['카나리'], '카나리2'), { same: [], similar: ['카나리'] })
+  assert.deepEqual(nearOf(['카나리'], '카나리배포'), { same: [], similar: [] }, 'NEAR_RATIO 0.75(P3 에서 DPMS · GDI 장부로 잼): 3/5 는 비슷하지 않다')
   assert.deepEqual(nearOf(['카'], '카나리'), { same: [], similar: [] }, '한 글자는 비슷함으로 치지 않는다')
   assert.deepEqual(nearOf(['배포'], '배포절차체크리스트'), { same: [], similar: [] }, '길이 비가 문턱 아래면 비슷하지 않다')
   const vocab = { coords: new Map([['proc:헬스 체크', { label: '헬스 체크', aliases: ['상태 점검'], deprecated: null }]]) }

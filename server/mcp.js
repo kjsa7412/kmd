@@ -87,6 +87,10 @@ const TOOLS = [
       properties: {
         knowledge: str('지식 id'),
         kit: str('팀 지식: 스킬 판(kmd-team-save · kmd-team-import 스킬 글이 준 값 그대로 · 예 "3")'),
+        proposal: str('승인한 저장 제안의 지문(propose 가 준 proposal 64자 그대로): 저장 제안을 받는 팀 지식은 꼭 싣는다. 없거나 어긋나면 E_APPROVE 로 아무것도 쓰지 않고 새 제안(details.propose)을 돌려준다'),
+        distinct: { type: 'array', items: { type: 'string' }, description: 'propose 에 보낸 distinct 그대로' },
+        excluded: { type: 'array', items: { type: 'object', properties: { name: str('뺀 이름 · 항목'), why: str('까닭 한 줄') }, required: ['name'] }, description: 'propose 에 보낸 excluded 그대로' },
+        kinds: { type: 'array', items: { type: 'string' }, description: 'propose 에 보낸 kinds 그대로' },
         attach: { type: 'array', description: '원본 첨부(쓰기 자리부터 · 사람이 원본도 첨부하라고 했을 때만): 파일마다 { path: docs/assets/ 아래 자리, b64: 파일 바이트의 base64 }. save 한 번에 합 8MB 까지 · 그림 · pdf · 오피스 · hwp · txt · zip. 같은 자리에 같은 파일이 있으면 그대로(same) · 다른 파일이 있으면 덮지 않고 E_CONFLICT. 기록 · 조각과 한 묶음', items: { type: 'object', properties: { path: str('docs/assets/<경로>'), b64: str('파일 바이트의 base64') }, required: ['path', 'b64'] } },
         record: {
           type: 'object',
@@ -305,13 +309,13 @@ export function makeMcp(store) {
       return store.propose(ctx, knowledge, input, { form: true, path: '이 세션의 작업' })
     },
 
-    async save({ knowledge, record, sections, names, forms, kit, attach }, ctx) {
+    async save({ knowledge, record, sections, names, forms, kit, attach, proposal, distinct, excluded, kinds }, ctx) {
       // 도구 모양을 배포 전에 받아 둔 세션은 모르는 칸(forms 등)의 목록을 글(JSON)로 보낸다 — 목록 글이면 풀어 받는다
       const listOf = (v) => {
         if (typeof v !== 'string') return v
         try { const x = JSON.parse(v); return Array.isArray(x) ? x : v } catch { return v }
       }
-      ;[sections, names, forms, attach] = [listOf(sections), listOf(names), listOf(forms), listOf(attach)]
+      ;[sections, names, forms, attach, distinct, excluded, kinds] = [listOf(sections), listOf(names), listOf(forms), listOf(attach), listOf(distinct), listOf(excluded), listOf(kinds)]
       // 첨부(S-D30 · K6-4) — 사람이 「원본도 첨부」 라고 했을 때만 스킬이 싣는다 · 한 번 합 8MB · 모양 · 자리 · 쓰기 자리는 저장 문이 본다
       if (attach != null) {
         if (!Array.isArray(attach)) throw new KmdError('E_INPUT', 'attach 는 { path, b64 } 의 목록이다')
@@ -340,7 +344,15 @@ export function makeMcp(store) {
         : Number.isInteger(have)
           ? { reinstall: { have, want: TEAM_KIT_REV, how: '이 폴더의 kmd 팀 스킬이 옛 판이다(저장은 했다). 팀 화면 › 설정 › 에이전트 설치의 한 줄을 이 폴더에서 다시 붙여 넣고 Claude Code 를 새로 연다' } }
           : { nokit: { want: TEAM_KIT_REV, how: `스킬 판(kit) 없이 저장했다(저장은 했다 · 다시 설치할 일은 아니다). 팀 지식 저장은 kmd-team-save 스킬 글대로 하고 save 에 kit: "${TEAM_KIT_REV}" 를 싣는다` } }
-      const r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}), ...(forms ? { forms } : {}), ...(attach ? { attach } : {}) }, { guard: 'strict', form: true, channel, ...(Number.isInteger(have) ? { kit: have } : {}) })
+      // 승인한 저장 제안(저장 승인 설계 P-D5 · P3) — approve 모드 팀 지식은 proposal 이 의무(없거나 어긋나면 E_APPROVE + 새 propose 결과 · 옛 판이면 다시 설치 안내도)
+      const extra = { ...(proposal != null ? { proposal } : {}), ...(distinct != null ? { distinct } : {}), ...(excluded != null ? { excluded } : {}), ...(kinds != null ? { kinds } : {}) }
+      let r
+      try {
+        r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}), ...(forms ? { forms } : {}), ...(attach ? { attach } : {}), ...extra }, { guard: 'strict', form: true, channel, ...(Number.isInteger(have) ? { kit: have } : {}) })
+      } catch (e) {
+        if (e instanceof KmdError && e.code === 'E_APPROVE' && (reinstall.reinstall || reinstall.nokit)) e.details = { ...(e.details || {}), ...reinstall }
+        throw e
+      }
       if (r.same) return { saved: r.id, same: true, docs: [], note: r.note, ...reinstall }
       const n = r.docs.length
       const note = r.note || (n ? `저장했다. 기록 1 · 문서 ${n}` : store.mode === 'pc' ? '기록했다. 이 PC 는 kmd 가 곧바로 문서에 넣는다' : '저장했다. 기록 1')

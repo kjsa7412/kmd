@@ -127,7 +127,7 @@ const whoOf = (by, user) => (by == null ? '모름' : isReservedUser(by) ? 'kmd(�
 export function summarize(lines) {
   const chans = new Map()
   const of = (ch) => {
-    if (!chans.has(ch)) chans.set(ch, { ch, saves: 0, same: 0, memo: 0, pieces: 0, put: 0, held: 0, errors: {}, reasons: new Map(), perSpot: [], ms: [], usd: 0, calls: 0, costPieces: 0, kits: {}, retry: { events: 0, done: 0 } })
+    if (!chans.has(ch)) chans.set(ch, { ch, saves: 0, same: 0, memo: 0, pieces: 0, put: 0, held: 0, errors: {}, reasons: new Map(), perSpot: [], ms: [], usd: 0, calls: 0, costPieces: 0, kits: {}, retry: { events: 0, done: 0 }, ap: { lines: 0, saves: 0, unproposed: 0, accepted: {}, acceptedSaves: 0, rounds: 0, linked: 0, fresh: 0 } })
     return chans.get(ch)
   }
   const pairs = new Map()
@@ -147,9 +147,24 @@ export function summarize(lines) {
       const t = timeOf(x.at)
       if (lines.slice(i + 1).some((y) => y.user === x.user && y.kn === x.kn && !y.err && timeOf(y.at) - t <= RETRY_MS && timeOf(y.at) >= t && putIn(y, coord))) c.retry.done++
     }
+    // approve 모드 줄(저장 승인 설계 P-D37 · P3) — 승인 없음(unproposed) · 받아들인 경고(code 별) · 다시 제안 수 · 글 그대로 이음 · 새로 세움
+    const ap = x.mode === 'approve' ? c.ap : null
+    if (ap) {
+      ap.lines++
+      if (x.unproposed) ap.unproposed++
+    }
     if (x.err) {
       c.errors[x.err] = (c.errors[x.err] || 0) + 1
       return
+    }
+    if (ap && !x.same) {
+      ap.saves++
+      const acc = Array.isArray(x.accepted) ? x.accepted : []
+      if (acc.length) ap.acceptedSaves++
+      for (const code of acc) ap.accepted[code] = (ap.accepted[code] || 0) + 1
+      ap.rounds += Number(x.rounds) || 0
+      ap.linked += Number(x.linked) || 0
+      ap.fresh += Number(x.fresh) || 0
     }
     c.saves++
     if (x.same) { c.same++; return }
@@ -189,6 +204,7 @@ export function summarize(lines) {
     msPerSpot: median(c.perSpot),
     cost: c.calls || c.usd ? { usd: c.usd, calls: c.calls, perSpot: c.costPieces ? c.usd / c.costPieces : null } : null,
     kits: c.kits,
+    ...(c.ap.lines ? { approve: { ...c.ap, acceptedRatio: c.ap.saves ? c.ap.acceptedSaves / c.ap.saves : null, roundsPerSave: c.ap.saves ? c.ap.rounds / c.ap.saves : null } } : {}),
     goal: { pass: c.pieces ? c.put / c.pieces >= GOAL.pass : null, time: c.perSpot.length ? median(c.perSpot) <= GOAL.msPerSpot : null },
   })).sort((a, b) => b.saves - a.saves || a.ch.localeCompare(b.ch))
   return { lines: lines.length, channels, pairs: [...pairs.entries()].sort((a, b) => b[1] - a[1]).map(([pair, n]) => ({ pair, n })) }
@@ -252,6 +268,11 @@ export function render(sum, { tidy = null, broken = 0, trendRows = null, opt = {
   for (const c of sum.channels) {
     const errs = Object.entries(c.errors).map(([e, n]) => `${e} ${n}`).join(' · ')
     const kits = Object.entries(c.kits).map(([k, n]) => `${k}: ${n}`).join(' · ')
+    if (c.approve) {
+      const a = c.approve
+      out.push('')
+      out.push(`[${c.ch}] approve: 들어감 ${a.saves} · 승인 없음 ${a.unproposed} · 받아들인 경고가 든 저장 ${pct(a.acceptedRatio)}(${Object.entries(a.accepted).map(([k, n]) => `${k} ${n}`).join(' · ') || '없음'}) · 다시 제안 ${a.roundsPerSave == null ? '-' : a.roundsPerSave.toFixed(1)}/저장 · 글 그대로 이음 ${a.linked} · 새로 세움 ${a.fresh}`)
+    }
     if (!c.reasons.length && !errs) continue
     out.push('')
     out.push(`[${c.ch}] 걸린 까닭 상위${errs ? ` · 저장 전체 실패 ${errs}` : ''} · 스킬 판 ${kits}`)

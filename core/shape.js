@@ -16,7 +16,7 @@ import crypto from 'node:crypto'
 import path from 'node:path'
 import { nfc, readText, sha16 } from './text.js'
 import { parseDoc, headingMatches } from './sections.js'
-import { parseForms, formsOf, formFor, headingFits, formHeadRule, FORM_KINDS } from './guard.js'
+import { parseForms, formsOf, formFor, headingFits, formHeadRule, FORM_KINDS, RECORDS_DOC } from './guard.js'
 import { cleanForms } from './namebook.js'
 import { nameProblem, stepFp, brokenLinks } from './restructure.js'
 import { coordsOfSection, reflectedIn } from './knowledge.js'
@@ -351,7 +351,7 @@ export function planCheck(k, S, Pl) {
   }
   // 바탕 세우기 — 빈 지식에서만 · 재료 덮임
   if (Pl.kind === 'seed') {
-    if (S.docs.some((d) => d.id !== '처음')) err('kind', '바탕 세우기는 빈 지식에서만 한다')
+    if (S.docs.some((d) => d.id !== '처음' && d.id !== RECORDS_DOC)) err('kind', '바탕 세우기는 빈 지식에서만 한다')
     for (const d of Pl.docs) for (const it of d.items) if (!it.src?.length && typeof it.text !== 'string') err(`${d.id} › ${it.h}`, '바탕 세우기 항목은 재료(src)나 글(text)이 있어야 한다')
   }
   const stale = !!Pl.base && Pl.base !== S.fp

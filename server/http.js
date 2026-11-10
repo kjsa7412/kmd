@@ -443,7 +443,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     /^\/api\/agent\/parser$/, /^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
     /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|held|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|shape|past|removed|manage)$/,
   ]
-  const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|stops\/ack|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|k\/[^/]+\/(?:owner|access|delete|structure|polish|revert|unwatch|docfmt|shape(?:\/[a-z]+)?|seed\/upload|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names|approve)|rec\/[^/]+\/fix|removed\/restore))$/
+  const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|stops\/ack|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|k\/[^/]+\/(?:owner|save-mode|access|delete|structure|polish|revert|unwatch|docfmt|shape(?:\/[a-z]+)?|seed\/upload|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names|approve)|rec\/[^/]+\/fix|removed\/restore))$/
   const auditFile = path.join(dataDir, 'audit.jsonl')
   // 걷은 경고 — <살림>/acks.json { 사람: { key: 걷은 때 } } · 깨졌으면 빈 것으로 보되 덮지 않는다(쓰기 때 다시 읽어 깨졌으면 던진다)
   const stopKey = (x) => crypto.createHash('sha256').update([x.kind, x.kn || '', x.b || ''].join('\n')).digest('hex').slice(0, 16)
@@ -1181,11 +1181,11 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const cur = clean(await fs.readFile(path.join(k.dir, ...d.path.split('/')), 'utf8').catch(() => ''))
       return out(200, { doc: d.id, sha: v.sha, at: v.at, who: v.who, msg: v.msg, md: past, cur, html: V.render(k, d.path, past) })
     }
-    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|propose|backup|backup\/pull|owner|learn|edit|revert|guard)$/)
+    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|save-mode|propose|backup|backup\/pull|owner|learn|edit|revert|guard)$/)
     if (!m) throw new KmdError('E_NOTFOUND', '그런 길은 없다')
     const id = dec(m[1])
     const what = m[2]
-    if (['save', 'propose', 'backup', 'backup/pull', 'owner', 'learn', 'edit', 'revert'].includes(what)) {
+    if (['save', 'save-mode', 'propose', 'backup', 'backup/pull', 'owner', 'learn', 'edit', 'revert'].includes(what)) {
       // 저장소 보기(메뉴 개편 6-4 · 권한 모델 7절) — 그 지식의 지식관리자부터(읽기 미만 404 · 쓰기 · 읽기 403) · 주소는 가려서 · 가지 · 상태만
       if (what === 'backup' && req.method === 'GET') {
         const meta = await hub.meta(id, ctx.shell ? undefined : ctx)
@@ -1220,6 +1220,13 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (what === 'propose') {
         const { channel: _c, ...input } = body && typeof body === 'object' && !Array.isArray(body) ? body : {}
         return out(200, await hub.propose(ctx, id, input, { path: '화면' }))
+      }
+      // 저장 방식(저장 승인 설계 P-D18 · Q14 · P3) — 총괄 관리자(비밀번호 한 번 더) · { save: 'approve' | 'held' } · approve 는 이행이 끝난 지식만
+      if (what === 'save-mode') {
+        admin(ctx)
+        const save = body && typeof body === 'object' && !Array.isArray(body) ? body.save : null
+        if (save !== 'approve' && save !== 'held') throw new KmdError('E_INPUT', "save 는 'approve' 또는 'held' 이다")
+        return out(200, await hub.setSaveMode(ctx, id, save))
       }
       if (what === 'learn') return out(200, await hub.learn(ctx, id, body))
       // 문서 고치기(S9) — 화면 길은 이미 있는 항목의 지문(base)을 꼭 받는다

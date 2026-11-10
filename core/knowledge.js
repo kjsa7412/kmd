@@ -17,7 +17,7 @@ import { parseVocab } from './vocab.js'
 import { formsOf } from './guard.js'
 import { parseRegistry, locate } from './registry.js'
 import { LOG_TAGS, isLogRecord, isReservedUser } from './names.js'
-import { parsePut, parseReverted, itemKey } from './parts.js'
+import { parsePut, parseReverted, parseLinked, itemKey } from './parts.js'
 import { watchedOf } from './watchmark.js'
 import { parseOrder, ORDER_FILE } from './order.js'
 
@@ -96,7 +96,7 @@ export async function loadKnowledge({ id, name, dir }, { cache = null, cutoverAt
     if (/^docs\/.+\.md$/i.test(p)) {
       const docId = p.slice(5, -3)
       // rec — 문서 감시가 들인 사본의 앞 기록(표지의 rec · 문서 전체가 그 기록에서 왔다)
-      docs.push(await parsed(f, p, (text, st) => ({ id: docId, path: p, mtime: st.mtime.toISOString(), ...parseDoc(text, path.basename(docId)), rec: watchedOf(text)?.rec || null })))
+      docs.push(await parsed(f, p, (text, st) => ({ id: docId, path: p, mtime: st.mtime.toISOString(), ...parseDoc(text, path.basename(docId)), rec: watchedOf(text)?.rec || null, watched: !!watchedOf(text) })))
     } else if (/^(work|log)\/[^/]+\.md$/i.test(p)) {
       const r = await parsed(f, p, (text) => {
         const x = parseRecord(text, path.basename(p))
@@ -317,7 +317,7 @@ export const HISTORY_MAX = 20
 export function sectionHistory(k, doc, h, { max = HISTORY_MAX } = {}) {
   const coords = new Set(coordsOfSection(k, doc, h))
   const sec = doc.sections.find((s) => s.h === h) || null
-  const hit = (w) => w.touches.some((c) => coords.has(c)) || (sec?.applied && sec.applied === w.id) || ((w.tags || []).includes('put') && parsePut(w.body).some((x) => x.doc === doc.path && headingMatches(x.heading || '', h)))
+  const hit = (w) => w.touches.some((c) => coords.has(c)) || (sec?.applied && sec.applied === w.id) || ((w.tags || []).includes('put') && [...parsePut(w.body), ...parseLinked(w.body)].some((x) => x.doc === doc.path && headingMatches(x.heading || '', h)))
   const all = k.works.filter(hit).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
   return { items: all.slice(0, max), more: Math.max(0, all.length - max) }
 }

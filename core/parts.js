@@ -3,6 +3,12 @@
 //   `## 넣은 것`     저장 문이 넣은 항목 한 줄씩(「docs/x.md › 머리: 옛 값 → 새 값」 · 「(새 항목)」) — 태그 put 이 있는 기록만 읽는다
 //   `## 넣지 못함`   저장 문이 넣지 못한 조각(```json``` 목록 { doc, heading, coord, code, why, base?, edits?, content? }) — 태그 held
 //   `## 되돌린 항목` 되돌림 기록이 되돌린 항목 한 줄씩(「<기록 id>: docs/x.md › 머리」) — 태그 revert
+//   (저장 승인 P3 · approve 모드 저장 문이 단다 · 사람 입력에는 쓰지 못한다)
+//   `## 받아들인 경고` 사람이 승인한 제안서의 경고(```json``` 목록 { id, code, at, why }) — 승인 = 경고 받아들임(P-D5 · P-D27)
+//   `## 값 대조`     무인 채널의 값 경고(같은 꼴 · 측정만 · P-D2 · P-D37 · P6 부터 쓴다)
+//   `## 이은 항목`   글을 바꾸지 않고 이 기록을 이은 항목 한 줄씩(「docs/x.md › 머리」 · 글 그대로 · P-D12 · 기록 모음 달 항목 P-D29)
+//   `## 새로 세움`   이 저장이 새로 세운 것 한 줄씩(「문서 docs/x.md」 · 「항목 docs/x.md › 머리」 · 「이름 종류:값」 · 「갈래 이름」 · 「종류 이름」) —
+//                    점검 지표 「새로 생긴 것」(P-D27) · fresh 표지는 기록 날짜에서 FRESH_DAYS 가 지나면 저절로 떨어진다(P-D10 · Q15)
 //
 //   칸은 본문 끝에 붙는다. 읽을 때는 그 칸의 **마지막** 것만 본다(사람 글에 같은 머리가 있어도 위조가 되지 않게 ·
 //   사람 입력의 그 머리는 core/save.js 가 E_INPUT 으로 거절한다 · S-D45). 이 모듈은 다른 kmd 모듈을 부르지 않는다.
@@ -12,7 +18,13 @@ export const HELD_PART = '넣지 못함'
 export const REVERTED_PART = '되돌린 항목'
 // 사람 입력 본문에 쓰지 못하는 머리 — kmd 가 쓰는 칸 + 옛 「고친 조각」(개편 전 제안 칸 · 옛 기록 읽기에만 · S4 부터 새 입력은 거절)
 //   줄 끝 \r 도 같이 본다(CRLF 로 온 글이 읽을 때 \n 으로 바뀌어 칸이 되지 않게)
-export const KMD_PART_RE = /^## (넣은 것|넣지 못함|되돌린 항목|고친 조각)[ \t\r]*$/m
+export const ACCEPTED_PART = '받아들인 경고'
+export const VALUES_PART = '값 대조'
+export const LINKED_PART = '이은 항목'
+export const FRESH_PART = '새로 세움'
+export const KMD_PART_RE = /^## (넣은 것|넣지 못함|되돌린 항목|고친 조각|받아들인 경고|값 대조|이은 항목|새로 세움)[ \t\r]*$/m
+// 울타리(json) 칸 — 떼기(dropPart)가 울타리 끝까지 본다
+const JSON_PARTS = new Set([HELD_PART, ACCEPTED_PART, VALUES_PART])
 // 넣지 못함 칸이 이보다 길면 content · edits 를 떼고 까닭만 남긴다(S-D1)
 export const HELD_JSON_MAX = 40_000
 const NEW_MARK = ' (새 항목)'
@@ -121,7 +133,7 @@ export function dropPart(body, name) {
   const at = lastHead(s, name)
   if (at < 0) return s
   let end
-  if (name === HELD_PART) {
+  if (JSON_PARTS.has(name)) {
     const m = s.slice(at).match(/^## [^\n]*\n(`{3,})json\n[\s\S]*?\n\1[ \t]*$/m)
     end = m ? at + m.index + m[0].length : -1
   }
@@ -176,4 +188,70 @@ export function decisionRecord(curates) {
     tags: ['curate-auto'],
     curates,
   }
+}
+
+// ── 저장 승인 P3 칸 ──
+// 경고 칸(받아들인 경고 · 값 대조) — { id, code, at, why } 만 · 글은 한 줄 300자 · 많으면 200개까지
+const WARN_KEYS = ['id', 'code', 'at', 'why']
+const warnRow = (w) => Object.fromEntries(WARN_KEYS.filter((x) => w?.[x] != null).map((x) => [x, String(w[x]).replace(/\s+/g, ' ').slice(0, 300)]))
+function renderWarnPart(name, rows) {
+  if (!rows?.length) return ''
+  const json = JSON.stringify(rows.slice(0, 200).map(warnRow), null, 1)
+  const fence = fenceFor(json)
+  return `## ${name}\n${fence}json\n${json}\n${fence}`
+}
+function parseWarnPart(body, name) {
+  const s = String(body || '')
+  const at = lastHead(s, name)
+  if (at < 0) return []
+  const m = s.slice(at).match(/^## [^\n]*\n(`{3,})json\n([\s\S]*?)\n\1[ \t]*$/m)
+  if (!m) return []
+  try {
+    const v = JSON.parse(m[2])
+    return Array.isArray(v) ? v.filter((x) => x && typeof x === 'object' && !Array.isArray(x)).map(warnRow) : []
+  } catch {
+    return [] // 손으로 깨진 칸 — 경고가 없는 것으로
+  }
+}
+export const renderAccepted = (rows) => renderWarnPart(ACCEPTED_PART, rows)
+export const parseAccepted = (body) => parseWarnPart(body, ACCEPTED_PART)
+export const renderValues = (rows) => renderWarnPart(VALUES_PART, rows)
+export const parseValues = (body) => parseWarnPart(body, VALUES_PART)
+
+// 이은 항목 — 「- docs/x.md › 머리」
+export function renderLinked(rows) {
+  const seen = new Set()
+  const xs = (rows || []).filter((r) => r?.doc && r?.heading && !/[\r\n]/.test(r.heading) && !seen.has(itemKey(r.doc, r.heading)) && seen.add(itemKey(r.doc, r.heading)))
+  return xs.length ? `## ${LINKED_PART}\n${xs.map((r) => `- ${itemKey(r.doc, r.heading)}`).join('\n')}` : ''
+}
+export function parseLinked(body) {
+  const b = lineBlock(body, LINKED_PART)
+  if (b == null) return []
+  return b.split('\n').map((l) => l.match(/^- (docs\/.+?\.md) › (.+)$/)).filter(Boolean).map((m) => ({ doc: m[1], heading: m[2].trim() }))
+}
+
+// 새로 세움 — 「- 문서 docs/x.md」 · 「- 항목 docs/x.md › 머리」 · 「- 이름 종류:값」 · 「- 갈래 이름」 · 「- 종류 이름」
+export const FRESH_DAYS = 14
+const FRESH_KINDS = ['문서', '항목', '이름', '갈래', '종류']
+export function renderFresh(rows) {
+  const xs = (rows || []).filter((r) => FRESH_KINDS.includes(r?.kind) && r.name && !/[\r\n]/.test(String(r.name)))
+  return xs.length ? `## ${FRESH_PART}\n${xs.map((r) => `- ${r.kind} ${r.name}`).join('\n')}` : ''
+}
+export function parseFresh(body) {
+  const b = lineBlock(body, FRESH_PART)
+  if (b == null) return []
+  return b.split('\n').map((l) => l.match(/^- (문서|항목|이름|갈래|종류) (.+)$/)).filter(Boolean).map((m) => ({ kind: m[1], name: m[2].trim() }))
+}
+// fresh 표지 — 최근 days 안에 선 기록이 새로 세운 것(그 뒤 저절로 떨어진다 · 지식관리자의 조치를 기다리지 않는다)
+//   works — [{ id, date('YYYY-MM-DD HH:MM'), author, body }] → [{ kind, name, rec, date, author }]
+export function freshItems(works, { now = new Date(), days = FRESH_DAYS } = {}) {
+  const pad = (n) => String(n).padStart(2, '0')
+  const d = new Date(now.getTime() - days * 86_400_000)
+  const cut = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  const out = []
+  for (const w of works || []) {
+    if (!w?.date || String(w.date).padEnd(16, ' ') < cut || !String(w.body || '').includes(`## ${FRESH_PART}`)) continue
+    for (const x of parseFresh(w.body)) out.push({ ...x, rec: w.id, date: w.date, author: w.author })
+  }
+  return out
 }

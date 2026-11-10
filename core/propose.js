@@ -8,12 +8,12 @@
 
 import { sha16 } from './text.js'
 import { sectionOf } from './knowledge.js'
-import { oldValues, valuesOf, judgeId } from './values.js'
+import { oldValues, valuesOf, judgeId, judgeReflect } from './values.js'
 import { judgeSection, foldJudge } from './gate.js'
 import { judgeEdits, validEdits } from './edits.js'
 import { headingMatches } from './sections.js'
 import { createHash } from 'node:crypto'
-import { guardRecord, guardNames, guardNewDoc, nearOf, nameNear, nearKey } from './guard.js'
+import { guardRecord, guardNames, guardNewDoc, nearOf, nameNear, nearKey, RECORDS_DOC, RECORDS_DOC_PATH } from './guard.js'
 import { mustValues } from './values.js'
 
 // 조각 대는 법은 core/edits.js 로 옮겼다(S2 · propose ↔ 옛 정리 모듈 순환 끊기) — 부르는 곳을 바꾸지 않게 다시 내보낸다
@@ -139,10 +139,19 @@ export function proposalHash(x) {
   return createHash('sha256').update(JSON.stringify(nf(x)), 'utf8').digest('hex')
 }
 
-export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [], head = {}, extraErrors = [] } = {}) {
+//   approve 모드(P3 · opt.approve) — 저장 문이 줄 안에서 같은 판정을 다시 돌려 해시를 대 본다(hub saveIn):
+//     memo 는 오류(P-D34) · 「바뀐 것」 값이 이은 항목 글에 없으면 오류(본문 반영 judgeReflect · P-D12 · watched 는 넘음) ·
+//     조각도 건드린 이름도 없고 touchesEmpty 까닭이 있으면 기록 모음 달 항목(opt.month 'YYYY-MM')에 잇는다(P-D29) ·
+//     되돌림 잦은 문서(opt.reverts(doc) ≥ 2)의 값 바꿈은 경고(reverts) · 새 문서 갈래는 같은 제안의 forms 까지 본다(P-D9)
+//   → 더해 linked([{ doc, heading }] 글 그대로 이은 항목) · fresh([{ kind, name }] 새로 세운 것)
+//   opt.curator — 지식관리자(approve 모드에서 있는 이름 · 갈래의 장부 고침을 받는다 · 「장부 고침」 줄)
+export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [], head = {}, extraErrors = [], approve = false, reverts = null, month = null, curator = false } = {}) {
   const rec = input.record && typeof input.record === 'object' ? input.record : {}
   const record = { title: String(rec.title || ''), body: String(rec.body || '') }
   const secs = Array.isArray(input.sections) ? input.sections : []
+  // 새 문서 갈래 — 같은 제안이 세우는 갈래까지(장부가 없던 지식도 이 제안으로 장부가 선다)
+  const formsIn = (Array.isArray(input.forms) ? input.forms : []).filter((f) => f && typeof f.name === 'string' && f.name.trim())
+  const formsNow = approve && formsIn.length ? { own: true, rows: [...k.forms.rows, ...formsIn.filter((f) => !k.forms.rows.some((x) => x.name === f.name.trim().normalize('NFC'))).map((f) => ({ name: f.name.trim().normalize('NFC'), aliases: Array.isArray(f.aliases) ? f.aliases : [], ...(f.folder ? { folder: String(f.folder) } : {}), ...(f.kind ? { kind: String(f.kind) } : {}), ...(f.pattern ? { pattern: String(f.pattern) } : {}), ...(f.form ? { form: String(f.form) } : {}) }))] } : k.forms
   const distinct = new Set((input.distinct || []).map((x) => nearKey(x)))
   const passes = (name) => distinct.has(nearKey(name))
   const errors = []
@@ -162,13 +171,16 @@ export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [
   }
   for (const e of extraErrors) err(e.code, e.at, e.why)
   if (!record.title.trim()) err('record', '기록', '제목(title)이 없다')
-  if (rec.memo === true && secs.length) err('record', '기록', '메모는 항목 글을 받지 않는다')
+  if (approve && rec.memo === true) err('memo', '기록', '메모(기록만)는 남기지 않는다. 정해진 부분만 골라 다시 제안한다(정해지지 않은 것은 저장하지 않는다 · 풀리지 않은 물음은 이슈 갈래가 있으면 이슈 항목으로)')
+  else if (rec.memo === true && secs.length) err('record', '기록', '메모는 항목 글을 받지 않는다')
   const spread = secs.length > 1
   const done = new Set()
   const texts = []
   for (const s of secs) {
     const coord = s.coord != null ? String(s.coord).trim().normalize('NFC') : null
     const at = placeOf(k, { coord, doc: s.doc, heading: s.heading })
+    // 기록 모음(P-D29) — 달 항목은 저장 문만 세우고 본문은 서버가 쓴 한 줄뿐이다(사람 조각을 받지 않는다)
+    if (approve && (at ? at.doc : `docs/${String(s.doc ?? '').replace(/\\/g, '/').replace(/^\/+/, '').replace(/^docs\//, '').replace(/\.md$/, '').normalize('NFC')}.md`) === RECORDS_DOC_PATH) { err('records', atOf(RECORDS_DOC_PATH, s.heading ?? ''), `「${RECORDS_DOC}」 은 저장 문이 달 항목을 세우는 문서다. 글을 보내지 않는다(이을 항목이 없는 기록은 touchesEmpty 까닭으로 그 달 항목에 이어진다)`); continue }
     if (!at) {
       const where = coord || atOf(s.doc, s.heading)
       if (coord) { err('notfound', where, `「${coord}」 이 들어갈 문서가 정해져 있지 않다. 기록만 보내거나 문서 · 머리로 가리킨다`); continue }
@@ -176,7 +188,7 @@ export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [
       const heading = String(s.heading ?? '').trim().normalize('NFC')
       if (!newDoc) { err('newdoc', where, `「${rel}」 문서가 없다. 새 문서는 지식관리자가 세운다(you.ledgers) · 있는 문서 · 머리로 가리킨다`); continue }
       if (typeof s.content !== 'string') { err('newdoc', where, '새 문서 조각은 글 전체(content)로 보낸다'); continue }
-      const g = guardNewDoc(k.forms, rel, [heading])
+      const g = guardNewDoc(formsNow, rel, [heading])
       for (const e of g.errors) err('format', where, e.message)
       const name = rel.split('/').pop()
       const r = nearOf(k.docs.flatMap((d) => [d.id.split('/').pop(), d.title]), name)
@@ -209,6 +221,8 @@ export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [
       : { ...judgeSection(k, { doc: at.doc, heading: at.heading, base: s.base, content: s.content, record, spread, legacyPend }), text: s.content }
     for (const e of j.errors) err(e.code, where, e.why, { ...(e.near ? { near: [e.near] } : {}), ...(e.stale ? { stale: true } : {}) })
     for (const w of j.warnings) warnings.push(warnOf(w))
+    // 되돌림 잦은 문서(S-D11) — held 모드는 그 조각을 넣지 못함으로 · approve 모드는 경고(승인하면 받아들임)
+    if (approve && reverts && j.changed?.length && !j.errors.length && reverts(at.doc) >= 2) warnings.push({ id: judgeId('reverts', at.doc, at.heading, ...j.changed.map((c) => `${c.from}>${c.to}`).sort()), code: 'reverts', at: where, why: '7일 안에 두 번 되돌린 문서의 값을 바꾼다' })
     const after = typeof j.text === 'string' ? j.text : before
     items.push({ kind: '고침', ...(coord ? { coord } : {}), doc: at.doc, heading: at.heading, at: where, base: sha16(before), before, after, changed: j.changed || [] })
     texts.push({ heading: at.heading, content: after, coord })
@@ -224,9 +238,16 @@ export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [
   const names = (Array.isArray(input.names) ? input.names : []).filter((n) => n && typeof n.coord === 'string')
   for (const e of guardNames(k.vocab, names).errors) err('name', e.name || '이름', e.message)
   const kindsWanted = new Map()
+  // 장부에 이미 있는 이름 · 갈래를 다시 보내면 자리 · 다른 이름 · 갈래 줄이 바뀐다(core/namebook.js upsert) — approve 모드에서는
+  //   지식관리자만 · 제안서 「장부 고침」 줄로 보인다(쓰기 자리는 새로 세우기만 · 보이지 않는 장부 고침을 막는다)
+  const ledgerFix = []
   for (const n of names) {
     const c = n.coord.trim().normalize('NFC')
-    if (k.vocab.coords.has(c)) continue
+    if (k.vocab.coords.has(c)) {
+      if (approve && !curator) err('name', c, `「${c}」 는 이미 있는 이름이다. 이름의 자리 · 다른 이름을 바꾸는 것은 지식관리자가 한다(새 이름만 세운다 · 그 이름을 건드리려면 touches 에 단다)`)
+      else if (approve) ledgerFix.push(`  ${c}   장부 고침${n.doc ? `   자리: ${docName(n.doc)}${n.heading ? ` › ${n.heading}` : ''}` : ''}${Array.isArray(n.aliases) && n.aliases.length ? ` · 다른 이름 ${n.aliases.join(', ')}` : ''}`)
+      continue
+    }
     const r = nameNear(k.vocab, c, n.label)
     near('새 이름', c, c, r)
     newNames.push({ coord: c, label: String(n.label || ''), ...(n.doc ? { doc: String(n.doc) } : {}), ...(n.heading ? { heading: String(n.heading) } : {}), near: [...r.same, ...r.similar].slice(0, 5) })
@@ -237,7 +258,10 @@ export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [
     const t = String(typeof x === 'string' ? x : x?.name || '').trim().normalize('NFC')
     if (t && !kinds.has(t)) kindsWanted.set(t, typeof x === 'object' && x?.label ? String(x.label) : kindsWanted.get(t) ?? null)
   }
+  // 종류는 그 종류의 새 이름이 같이 설 때만 선다(종류만 따로 세우는 장부가 없다)
+  const usedKinds = new Set(newNames.map((n) => n.coord.slice(0, Math.max(0, n.coord.indexOf(':')))))
   for (const [t, label] of kindsWanted) {
+    if (approve && !usedKinds.has(t)) { err('kind', t, `새 종류 「${t}」 를 쓰는 새 이름이 없다. 종류는 그 종류의 이름(names)과 같이 세운다`); continue }
     const r = nearOf([...kinds], t)
     near('새 종류', t, t, r)
     newKinds.push({ name: t, ...(label ? { label } : {}), near: [...r.same, ...r.similar].slice(0, 5) })
@@ -246,7 +270,12 @@ export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [
   const formNames = k.forms.rows.flatMap((f) => [f.name, ...(f.aliases || [])])
   for (const f of Array.isArray(input.forms) ? input.forms : []) {
     const name = String(f?.name || '').trim().normalize('NFC')
-    if (!name || k.forms.rows.some((x) => x.name === name)) continue
+    if (!name) continue
+    if (k.forms.rows.some((x) => x.name === name)) {
+      if (approve && !curator) err('form', name, `「${name}」 는 이미 있는 갈래다. 갈래 줄을 바꾸는 것은 지식관리자가 한다(새 갈래만 세운다)`)
+      else if (approve) ledgerFix.push(`  갈래 ${name}   장부 고침${f.folder ? ` · 폴더 ${f.folder}` : ''}${f.kind ? ` · ${f.kind}` : ''}${f.pattern ? ` · 이름 ${f.pattern}` : ''}`)
+      continue
+    }
     const r = nearOf(formNames, name)
     near('새 갈래', name, name, r)
     newForms.push({ name, ...(f.kind ? { kind: String(f.kind) } : {}), ...(f.folder ? { folder: String(f.folder) } : {}), near: [...r.same, ...r.similar].slice(0, 5) })
@@ -262,7 +291,18 @@ export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [
     if (done.has(`${x.loc.doc}\n${h}`)) continue
     done.add(`${x.loc.doc}\n${h}`)
     const body = x.sec ? x.sec.body : null
-    items.push({ kind: '잇기', coord: c, doc: x.loc.doc, heading: h, at: atOf(x.loc.doc, h), base: body == null ? null : sha16(body), before: body, after: body, changed: [] })
+    items.push({ kind: '잇기', coord: c, doc: x.loc.doc, heading: h, at: atOf(x.loc.doc, h), base: body == null ? null : sha16(body), before: body, after: body, changed: [], ...(x.doc?.watched ? { watched: true } : {}) })
+  }
+  // 이을 항목이 없는 기록(P-D29 · P-D34) — 조각도 건드린 이름도 없고 touchesEmpty 까닭이 있으면 기록 모음의 달 항목에 잇는다
+  if (approve && !secs.length && !g.touches.length && !g.errors.length && rec.touchesEmpty && month) {
+    const d = k.docs.find((x) => x.id === RECORDS_DOC)
+    const sec = d?.sections.find((x) => x.h === month) || null
+    items.push({ kind: '잇기', doc: RECORDS_DOC_PATH, heading: month, at: atOf(RECORDS_DOC_PATH, month), base: sec ? sha16(sec.body) : null, before: sec ? sec.body : null, after: sec ? sec.body : null, changed: [], records: true })
+  }
+  // 본문 반영(P-D12) — 「바뀐 것」 값이 이은 항목(고침 · 신설의 새 글 · 잇기의 지금 글) 어디에도 없으면 오류(사람 채널)
+  if (approve && !errors.length) {
+    const r = judgeReflect(record, items.map((x) => ({ doc: x.doc, heading: x.heading, text: x.after ?? '', watched: !!x.watched })))
+    for (const e of r.errors) err('unreflected', items.length ? items.map((x) => x.at).slice(0, 2).join(' · ') : '기록', e.why)
   }
   const excluded = (Array.isArray(input.excluded) ? input.excluded : []).map((x) => ({ name: String(x.name), why: String(x.why || '') }))
   // ── 제안서 글(2-1) ──
@@ -288,7 +328,7 @@ export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [
   sect('새 항목', items.filter((x) => x.kind === '신설').map((x) => `  ${x.at}   신설   ${first(x.after)}`))
   sect('새 문서', newDocs.map((d) => `  ${docName(d.doc)}   신설${d.form ? `   갈래: ${d.form}` : ''}${d.near.length ? ` · 비슷한 문서 ${d.near.join(' · ')}` : ''}`))
   sect('새 갈래 · 새 종류', [...newForms.map((f) => `  갈래 ${f.name}   신설${f.near.length ? ` · 비슷한 갈래 ${f.near.join(' · ')}` : ''}`), ...newKinds.map((t) => `  종류 ${t.name}   신설${t.near.length ? ` · 비슷한 종류 ${t.near.join(' · ')}` : ''}`)])
-  sect('새 이름', newNames.map((n) => `  ${n.coord}   신설   자리: ${n.doc ? `${docName(n.doc)}${n.heading ? ` › ${n.heading}` : ''}` : '없음'} · ${n.near.length ? `비슷한 이름 ${n.near.join(' · ')}` : '비슷한 이름 없음'}`))
+  sect('새 이름', [...ledgerFix, ...newNames.map((n) => `  ${n.coord}   신설   자리: ${n.doc ? `${docName(n.doc)}${n.heading ? ` › ${n.heading}` : ''}` : '없음'} · ${n.near.length ? `비슷한 이름 ${n.near.join(' · ')}` : '비슷한 이름 없음'}`)])
   sect('이을 항목(글 그대로)', items.filter((x) => x.kind === '잇기').map((x) => `  ${x.at}   잇기${x.before == null ? '   (항목이 아직 없음)' : ''}`))
   sect('뺀다', excluded.map((x) => `  ${x.name}   ${x.why || '뺌'}`))
   L.push('―― 검사 ――')
@@ -308,5 +348,13 @@ export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [
     kinds: setOf(input.kinds, (x) => String(typeof x === 'string' ? x : x?.name || '')), excluded: setOf(excluded, (x) => x.name), distinct: [...new Set((input.distinct || []).map((x) => nearKey(x)))].sort(),
     bases: items.map((x) => [x.at, x.base]), warnings: warnings.map((w) => w.id), text: L.slice(1).join('\n'),
   })
-  return { text, items, newDocs, newNames, newForms, newKinds, warnings, errors, proposal }
+  const linked = items.filter((x) => x.kind === '잇기').map((x) => ({ doc: x.doc, heading: x.heading, ...(x.records ? { records: true, missing: x.before == null } : {}) }))
+  const fresh = [
+    ...newDocs.map((d) => ({ kind: '문서', name: d.doc })),
+    ...items.filter((x) => x.kind === '신설').map((x) => ({ kind: '항목', name: `${x.doc} › ${x.heading}` })),
+    ...newNames.map((n) => ({ kind: '이름', name: n.coord })),
+    ...newForms.map((x) => ({ kind: '갈래', name: x.name })),
+    ...newKinds.map((x) => ({ kind: '종류', name: x.name })),
+  ]
+  return { text, items, newDocs, newNames, newForms, newKinds, warnings, errors, proposal, linked, fresh }
 }

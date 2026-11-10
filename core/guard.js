@@ -95,8 +95,10 @@ export function nearNames(vocab, text, n = 3) {
 // ── 저장 제안(저장 승인 설계 P-D10 · Q8) — 새 이름 · 문서 · 머리 · 갈래 · 종류가 있는 것과 너무 비슷한가 ──
 //   정규화(빈칸 · 문장 부호 · 대소문자 뺌 · NFC)가 같으면 same(propose 오류 · distinct 로 넘음), 그 밖에 한쪽이 다른 쪽을 품고
 //   짧은 쪽이 2자 이상 · 긴 쪽의 NEAR_RATIO 이상이면 similar(경고). 편집 거리는 쓰지 않는다(한글 두세 글자 이름에서 거의 다 걸린다).
-//   NEAR_RATIO 는 자리 값이다 — P3 에서 실제 이름 장부(테스트 지식 · DPMS · GDI 사본)로 재어 그 커밋에 박는다
-export const NEAR_RATIO = 0.5
+//   NEAR_RATIO 0.75 — P3 에서 실제 이름 장부(DPMS 사본 392 · GDI 사본 1423 · 시험 지식 25)로 한 이름씩 빼고 다시 세운다고 쳐서 잼:
+//   0.5 면 DPMS 49% · GDI 39% 가 경고(승인 피로) · 0.75 면 9.2% · 15.8%(dp_alrm ~ dp_alrm_cd · 표시설정 ~ dp_disp_setu 같은 쌍).
+//   근거 · 문턱별 표는 docs/품질개선/KMD_저장승인_설계.md 8절 Q8 줄 뒤 「NEAR_RATIO 잼」
+export const NEAR_RATIO = 0.75
 export const nearKey = norm
 export function nearOf(cands, name) {
   const n = norm(name)
@@ -294,12 +296,23 @@ export function formFor(forms, docName) {
 
 // 새 문서 하나 — 경로(docs/ 아래 · .md 없이)와 처음 머리들
 //   { errors[], form, registryRow? }
+// 기록 모음(저장 승인 설계 P-D29 · Q12) — 서버 고정 갈래 · 문서 `docs/기록 모음.md` · 항목은 달마다 `## YYYY-MM`(이을 항목이 없는 기록이 잇는다).
+//   지식을 세울 때 서버가 세우고 이름 바꾸기 · 지우기는 막는다(core/save.js) · 갈래 장부에 없어도 선다(고정 갈래)
+export const RECORDS_DOC = '기록 모음'
+export const RECORDS_DOC_PATH = `docs/${RECORDS_DOC}.md`
+export const RECORDS_INTRO = '이을 항목이 없던 기록을 달마다 잇는다. 기록은 각 달 항목의 이력으로 붙는다.'
+export const RECORDS_MONTH_TEXT = '이 달에 이을 항목이 없던 기록을 잇는다.'
+export const isRecordsMonth = (h) => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(h || '').trim())
 export function guardNewDoc(forms, docRel, headings = []) {
   const errors = []
   const p = nfc(String(docRel)).replace(/\\/g, '/').replace(/^docs\//, '').replace(/\.md$/, '')
   const parts = p.split('/')
   const name = parts.pop()
   const folder = parts.join('/')
+  if (p === RECORDS_DOC) {
+    const bad = headings.filter((h) => !isRecordsMonth(h))
+    return { errors: bad.length ? [{ code: 'E_INPUT', form: RECORDS_DOC, message: `「${RECORDS_DOC}」 의 항목 머리는 달(YYYY-MM)이다: ${bad.slice(0, 3).join(' · ')}` }] : [], form: { name: RECORDS_DOC, kind: '사건', fixed: true } }
+  }
   if (FILEISH.some((re) => re.test(name))) errors.push({ code: 'E_INPUT', message: `새 문서 이름 「${name}」 에 파일 이름 조각(날짜 · 판 · 최종 · 확장자)이 있다. 문서 이름은 갈래 · 주제로 짓는다(예: 회의록 · 게이트웨이 설계)` })
   if (name.length > 40) errors.push({ code: 'E_INPUT', message: `새 문서 이름이 너무 길다(40자 안). 문서 이름은 갈래 · 주제다` })
   const f = formFor(forms, name)
@@ -340,7 +353,8 @@ export const RECORD_PARTS = [['changes', '바뀐 것'], ['why', '까닭'], ['dro
 export const SUMMARY_MAX = 300
 const PART_MAX = 40
 //   memo — 메모(record.memo · S-D2)는 바뀐 것(changes)이 없어도 된다(값이 아직 확정되지 않았다) · 요약(body)이나 다른 칸이 있어야 한다
-export function recordBody(rec, { memo = false } = {}) {
+//   trail — 경위만인 기록(저장 승인 P-D12 · approve 모드): 바뀐 것이 없어도 된다(값이 있으면 저장 문의 본문 반영 검사가 본다)
+export function recordBody(rec, { memo = false, trail = false } = {}) {
   const items = (v) => {
     if (typeof v === 'string') try { const x = JSON.parse(v); if (Array.isArray(x)) v = x } catch { /* 글 한 덩이 */ }
     const xs = Array.isArray(v) ? v : typeof v === 'string' ? v.split('\n') : []
@@ -348,8 +362,8 @@ export function recordBody(rec, { memo = false } = {}) {
   }
   const summary = String(rec?.body ?? '').trim()
   const parts = RECORD_PARTS.map(([k, h]) => [h, items(rec?.[k])])
-  if (!parts[0][1].length && memo) {
-    if (!summary && !parts.some(([, xs]) => xs.length)) return { error: '메모 글이 없다. body(한두 문장)나 칸(why · refs …)을 쓴다' }
+  if (!parts[0][1].length && (memo || trail)) {
+    if (!summary && !parts.some(([, xs]) => xs.length)) return { error: `${memo ? '메모' : '기록'} 글이 없다. body(한두 문장)나 칸(why · refs …)을 쓴다` }
   } else if (!parts[0][1].length) {
     if (/^## 바뀐 것\s*$/m.test(summary)) return { body: summary }
     return { error:`기록 글은 서식으로 쓴다: changes(바뀐 것: 「무엇: 옛 값 → 새 값」 의 목록)가 있어야 한다. why(까닭) · dropped(버린 안) · impact(영향) · refs(근거: 커밋 · 문서 판)는 있으면. body 는 한두 문장 요약(${SUMMARY_MAX}자 안)` }
