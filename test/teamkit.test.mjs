@@ -62,7 +62,8 @@ after(async () => {
 //   (판 3 은 S11: 대량 넣기 스킬 kmd-team-import · 그 작성가이드 사본 · 팀 덩이의 대량 넣기 줄)
 //   (판 5 는 작성기준 v1.2: 수준 표시 · 들여쓰지 않음)
 //   (판 6 은 UX 검토: 쓰기 자리 새 문서 조각 · 넣지 못함과 fixes · 머리 「값: 설명」 예 · 걷은 정리 말)
-const KIT_HASH = { 2: '10d1b294', 3: '85c4e1b0', 4: 'a91c981e', 5: '34c6e455', 6: '530dee29' }
+//   (판 7 은 바탕 세우기 Z9: 대량 넣기 0단계의 빈 지식 한 줄(기초 세우기 먼저 · 넘으면 kmd-seed))
+const KIT_HASH = { 2: '10d1b294', 3: '85c4e1b0', 4: 'a91c981e', 5: '34c6e455', 6: '530dee29', 7: '4ec95b65' }
 test('스킬 판: 스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다 · 스킬 글의 {{KIT_REV}} 를 판으로 바꿔 싣는다', async () => {
   const parts = await teamKitParts()
   assert.equal(parts.rev, TEAM_KIT_REV)
@@ -87,6 +88,7 @@ test('스킬 판: 스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다 · 스킬 �
   assert.match(imp, /record\.fixes/)
   assert.match(imp, /넣음 n · 넣지 못함 n · 이미 넣음 n/)
   assert.match(imp, /어느 팀 지식에 넣을까요/)
+  assert.match(imp, /빈 지식[^\n]*지식관리 › 기초 세우기[^\n]*kmd-seed/, '빈 팀 지식이면 기초 세우기 먼저 · 넘으면 kmd-seed')
   assert.doesNotMatch(imp.replace('줄표(—)', ''), /—/, '줄표를 쓰지 않는다')
   assert.match(parts.block, /kmd-team-import/, '팀 덩이가 대량 넣기 스킬을 말한다')
 })

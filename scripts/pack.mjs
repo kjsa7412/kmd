@@ -21,7 +21,8 @@ const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'))
 const DIST = path.join(ROOT, 'dist')
 // scripts/savelog.mjs — 저장 측정 읽기(설계 9절 · 팀 서버에서 node /opt/kmd/scripts/savelog.mjs /srv/kmd/.kmd)
-const SRC = ['app', 'core', 'server', 'agent', 'package.json', 'CHANGELOG.md', 'scripts/savelog.mjs', 'scripts/kmd-migrate.mjs']
+// scripts/kmd-seed.mjs — 짜임 꾸러미(세션 스킬 kmd-seed · 바탕 세우기 설계 6절 · 지식에 쓰지 않음)
+const SRC = ['app', 'core', 'server', 'agent', 'package.json', 'CHANGELOG.md', 'scripts/savelog.mjs', 'scripts/kmd-migrate.mjs', 'scripts/kmd-seed.mjs']
 // 화면의 「설명서」(/manual)가 그리는 설명서 폴더(html · manual.css · img) — server/http.js 의 MANUAL_DIR
 const MANUAL = path.join('docs_ops', 'manual')
 
