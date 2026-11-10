@@ -486,7 +486,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     const prev = bad.find((b) => b.prev)?.prev
     const prevs = prev ? [...new Set([...(Array.isArray(payload.prevs) ? payload.prevs : []), prev])].slice(-10) : null
     const w = waitOf(to, { ...payload, items: bad.map((b) => payload.items[b.i]), ...(prevs ? { prevs } : {}) }, Object.assign(new Error(bad.map((b) => String(b.why || '받지 않았다')).join(' · ')), { status: 400, reach: true }))
-    if (prev) w.fix = '[지금 다시] 는 다시 지어 보내고 앞 기록을 바로잡는다 · 받는 지식의 지식관리자가 팀 화면 › 넣지 못함에서 고칠 수도 있다'
+    if (prev) w.fix = '[지금 다시] 는 다시 지어 보내고 앞 기록을 바로잡는다 · 받는 지식의 지식관리자가 팀 화면 › 확인 › 넣지 못함에서 고칠 수도 있다'
     return w
   }
   // 보낼 곳마다 묶음으로 — 보낸 수 · 닿지 않아 둔 수(wait) · 거절된 수(fail) · 대기 줄(상태 파일에 넣는 것은 부르는 쪽)
@@ -584,7 +584,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   // 되돌림 — 그 문서에서 7일 안에 되돌린 수(줄 안에서 새로 읽은 지식으로)
   const revertsIn = (k, doc) => revertsOfDoc(k, doc)
   // 아직 안 넣은 기록(pend)의 말 — PC 는 저장 즉시 넣기가 넣는다 · 팀은 S13 뒤 새로 생기지 않는다(남은 것은 개편 전 기록 · 넣지 못함 화면)
-  const pendText = () => (mode === 'pc' ? 'kmd 가 곧바로 문서에 넣는다' : '개편 전 기록: 넣지 못함 화면에서 다시 들인다')
+  const pendText = () => (mode === 'pc' ? 'kmd 가 곧바로 문서에 넣는다' : '개편 전 기록: 확인 › 넣지 못함에서 다시 들인다')
   // 섞인 자리(S-D55) — 그 항목에 아직 안 들어간 개편 전 기록(제안 칸이 없는 것) · held · memo · fixed · reverted 는 상태가 달라 빠진다
   function legacyPendOf(k, at, coord) {
     const coords = coord ? [coord] : at.sec && at.docObj ? coordsOfSection(k, at.docObj, at.sec.h) : []
@@ -1606,7 +1606,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (r.commit) {
         cache.delete(id)
         try { if (backup.attached(meta)) backup.enqueue(meta, { log }).catch((e) => log(`백업 걸기 실패 ${id}: ${e.message}`)) } catch (e) { log(`백업 걸기 실패 ${id}: ${e.message}`) }
-        try { feed.add(dataDir, user, { kind: 'save', rec: r.log, kn: id, dot: 'acc', text: `문서 짜임: ${meta.name}`, small: r.lines.slice(0, 3).map((x) => x.replace(/^- /, '')).join(' · ') }).catch((e) => log(`오늘 바뀐 것 줄을 쓰지 못했다 ${id}: ${e.message}`)) } catch (e) { log(`오늘 바뀐 것 줄을 쓰지 못했다 ${id}: ${e.message}`) }
+        try { feed.add(dataDir, user, { kind: 'save', rec: r.log, kn: id, dot: 'acc', text: `구조: ${meta.name}`, small: r.lines.slice(0, 3).map((x) => x.replace(/^- /, '')).join(' · ') }).catch((e) => log(`오늘 바뀐 것 줄을 쓰지 못했다 ${id}: ${e.message}`)) } catch (e) { log(`오늘 바뀐 것 줄을 쓰지 못했다 ${id}: ${e.message}`) }
       }
       return { kn: id, ...r }
     },
@@ -3122,7 +3122,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (mode !== 'pc' && !ctx.admin) throw new KmdError('E_FORBIDDEN', '줄 멈춤은 총괄 관리자가 한다')
       return Q.setHold(on)
     },
-    // 운영 값(설정 › 팀 서버 「운영 값」 · 총괄 관리자 · 읽기만) — 바꾸는 곳은 그 값의 화면 · serve.json(UX T6-26)
+    // 운영 값(설정 › 팀 일꾼 「운영 값」 · N6 에서 설정 › 운영 · 총괄 관리자 · 읽기만) — 바꾸는 곳은 그 값의 화면 · serve.json(UX T6-26)
     opsView() {
       const SAFE = ['helpContact', 'backupRoot', 'backupRoots', 'sourceRoots', 'sourceHosts', 'collect', 'trustProxy', 'attachDaily', 'intakeDaily', 'intakeQueue', 'saveRate', 'savelogMax', 'cutoverAt', 'dl', 'prepMax', 'scryptN']
       const SECRET = ['gitlab']
@@ -3411,7 +3411,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           if (!md) {
             run.state = 'fail'
             run.msg = '글로 바꾸지 못했다. 원본은 첨부로 두었다'
-            await coreSave(meta.dir, { record: { title: `글로 바꾸지 못한 파일: ${rel.split('/').pop()}`, body: `원본은 첨부로 두었다. docs/assets/${rel}\n- 까닭: ${hub.agentOk(id) ? 'Claude Code 가 글로 옮기지 못했다' : 'Claude 를 쓰지 않는다(로그인 · 「Claude 에 보내지 않음」)'}\n- 다시: 지식 만들기 › 파일 넣기에 같은 파일을 다시 넣는다`, tags: ['curate-auto'] } }, { user: 'kmd-auto', system: true })
+            await coreSave(meta.dir, { record: { title: `글로 바꾸지 못한 파일: ${rel.split('/').pop()}`, body: `원본은 첨부로 두었다. docs/assets/${rel}\n- 까닭: ${hub.agentOk(id) ? 'Claude Code 가 글로 옮기지 못했다' : 'Claude 를 쓰지 않는다(로그인 · 「Claude 에 보내지 않음」)'}\n- 다시: 생성 화면의 파일 넣기에 같은 파일을 다시 넣는다`, tags: ['curate-auto'] } }, { user: 'kmd-auto', system: true })
             hub.ingestEnd(id, run, null, meta)
             return null
           }
@@ -3923,7 +3923,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     //   길은 개인 지식마다 하나(.kmd.json send: 팀 주소 · 지식 · 이름) · 바꾸려면 새 이름을 그대로 친다
     //   보낼 것은 기록(보내지 않은 것) · 문서(통째로) 둘뿐이다
     async routeMeta(ctx, id) {
-      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '지식 보내기는 개인 화면의 개인 지식에서 한다')
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '공유는 개인 화면의 개인 지식에서 한다')
       return hub.meta(id, ctx)
     },
     async routeOf(meta) {
@@ -4325,7 +4325,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const curates = !!ctx.admin
       if (ws && ws.ok === false && !id) {
         const d = (Date.now() - Date.parse(ws.since)) / 864e5
-        out.push(stopLine({ kind: 'worker', level: 'warn', what: mode === 'pc' ? '바로 넣기(내 Claude)가 쉬고 있다' : '팀 일꾼이 쉬고 있다', amount: d < 1 ? '오늘부터' : `${Math.round(d)}일`, fix: mode === 'pc' ? '설정 › Claude 연결에서 다시 로그인하면 이어서 한다 · 그동안은 규칙으로 넣는다' : ctx.admin ? '설정 › 팀 서버에서 다시 로그인하면 이어서 한다 · 그동안 들이기는 기다린다' : '그동안 들이기는 기다린다', told: ctx.admin ? null : curates ? '관리자에게 알렸다' : null }))
+        out.push(stopLine({ kind: 'worker', level: 'warn', what: mode === 'pc' ? '바로 넣기(내 Claude)가 쉬고 있다' : '팀 일꾼이 쉬고 있다', amount: d < 1 ? '오늘부터' : `${Math.round(d)}일`, fix: mode === 'pc' ? '설정 › Claude 연결에서 다시 로그인하면 이어서 한다 · 그동안은 규칙으로 넣는다' : ctx.admin ? '설정 › 팀 일꾼에서 다시 로그인하면 이어서 한다 · 그동안 들이기는 기다린다' : '그동안 들이기는 기다린다', told: ctx.admin ? null : curates ? '관리자에게 알렸다' : null }))
       }
       // 팀 일꾼이 일감을 받지 않는다 — 기다리는 들이기가 10분 넘었고 일꾼을 10분 넘게 못 봤다(설치 뒤 일꾼을 띄우지 않았다 · 일꾼이 멈췄다)
       if (mode === 'team' && curates && !id && !(ws && ws.ok === false)) {
@@ -4345,7 +4345,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const sw = all.filter((w) => w.state === 'wait')
         const sf = all.filter((w) => w.state !== 'wait')
         if (sw.length) out.push(stopLine({ kind: 'send', kn: k.id, level: 'warn', what: `${k.name}: 보낼 곳에 닿지 않는다`, amount: `${sw.reduce((a, w) => a + w.payload.items.length, 0)}개`, fix: '닿으면 저절로 보낸다', since: `${sw[0].at.slice(5, 10)} ${new Date(sw[0].at).toTimeString().slice(0, 5)} 에 누른 것` }))
-        if (sf.length) out.push(stopLine({ kind: 'send', kn: k.id, level: 'warn', what: `${k.name}: 보내지 못했다(${sf[0].to.kn})`, amount: `${sf.reduce((a, w) => a + w.payload.items.length, 0)}개`, fix: sf[0].fix || '지식 보내기에서 [다시] · [버리기]', told: sf[0].why }))
+        if (sf.length) out.push(stopLine({ kind: 'send', kn: k.id, level: 'warn', what: `${k.name}: 보내지 못했다(${sf[0].to.kn})`, amount: `${sf.reduce((a, w) => a + w.payload.items.length, 0)}개`, fix: sf[0].fix || '공유에서 [다시] · [버리기]', told: sf[0].why }))
         const decl = await readDecl(k.dir).catch((e) => {
           // 장부가 깨졌다 — 가져오기 · 고치기가 멈춘다(덮어쓰지 않는다) · 사람에게 한 줄
           out.push(stopLine({ kind: 'source', kn: k.id, level: 'bad', what: `${k.name}: ${DECL_BROKEN}`, amount: '가져오기 · 고치기 멈춤', fix: hub.canSource(ctx, k.id) ? '지식 폴더의 _sources.json 을 바로잡거나 git 에서 앞의 판으로 되돌린다' : null, told: hub.canSource(ctx, k.id) ? String(e.message).slice(0, 160) : '관리자에게 알렸다' }))
@@ -4354,7 +4354,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (decl.length && kadm) out.push(...sourceLines(k, decl, await readSourceState(dataDir, k.id), { admin: hub.canSource(ctx, k.id) }))
         if (boss && !backup.attached(k)) {
           const u = await unbacked(k)
-          if (u) out.push(stopLine({ kind: 'backup', kn: k.id, level: 'warn', what: `${k.name}: 백업 자리가 없다`, amount: `백업 안 된 저장 ${u.n}번`, fix: mode === 'pc' ? '설정 › 이 PC 에서 백업 자리를 정하면 저절로 붙고 그동안의 것을 모두 보낸다' : '관리자가 백업 자리를 붙이면 그동안의 것을 모두 보낸다', since: `${u.since} 부터` }))
+          if (u) out.push(stopLine({ kind: 'backup', kn: k.id, level: 'warn', what: `${k.name}: ${mode === 'pc' ? '지식백업이 없다' : '저장소가 없다'}`, amount: `백업 안 된 저장 ${u.n}번`, fix: mode === 'pc' ? '설정 › 이 PC 의 지식백업을 정하면 저절로 붙고 그동안의 것을 모두 보낸다' : '관리자가 설정 › 팀 지식 ⋯ › 저장소 붙이기로 붙이면 그동안의 것을 모두 보낸다', since: `${u.since} 부터` }))
         }
       }
       return out
@@ -4620,7 +4620,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 되살리기 — 백업 자리에서 새 폴더로(지식 받아 오기 · 새 PC 의 [이 PC 로 되살리기]) · 받은 곳을 그대로 백업 자리로 붙인다
     async restore(ctx, { url, name, attach = null }) {
-      if (!ctx.admin && !ctx.shell && mode !== 'pc') throw new KmdError('E_FORBIDDEN', '되살리기는 총괄 관리자가 한다')
+      if (!ctx.admin && !ctx.shell && mode !== 'pc') throw new KmdError('E_FORBIDDEN', '불러오기는 총괄 관리자가 한다')
       if (await looksLikeKnowledge(root)) throw new KmdError('E_INPUT', '이 kmd 는 지식 하나만 연다')
       const t = checkUrl(url, { roots: config.backupRoots || [], pc: mode === 'pc' })
       const nm = String(name || '').normalize('NFC').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').trim() || path.basename(t.url).replace(/\.git$/i, '')

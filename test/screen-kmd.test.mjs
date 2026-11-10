@@ -127,7 +127,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.equal(await page.locator('.ribbon').count(), 0)
   assert.deepEqual(await page.locator('[data-t=ktabs] button').evaluateAll((els) => els.map((e) => e.dataset.t)), ['rb-docs', 'rb-items', 'rb-recs', 'rb-graph'])
   // 지식 관리 줄 — 아이콘만(이름은 aria-label · title) · 이력 · 작업 · 설정(팀 화면은 팀 지식만 · 개인 지식은 개인 화면에서)
-  assert.deepEqual(await page.locator('[data-t=manageArea] .sb-ic').evaluateAll((els) => els.map((e) => e.dataset.t + ':' + e.getAttribute('aria-label').split(' · ')[0].replace(/ \d+$/, ''))), ['nav-history:이력', 'nav-import:가져오기', 'nav-held:넣지 못함', 'nav-structure:문서 짜임', 'nav-settings-team:설정']) // 작업 셋은 옆 메뉴에서 바로 · 개인 지식 쓰기는 설정 › 에이전트 설치 카드로
+  assert.deepEqual(await page.locator('[data-t=manageArea] .sb-ic').evaluateAll((els) => els.map((e) => e.dataset.t + ':' + e.getAttribute('aria-label').split(' · ')[0].replace(/ \d+$/, ''))), ['nav-history:이력', 'nav-import:생성', 'nav-held:확인', 'nav-structure:구조', 'nav-settings-team:설정']) // 작업 셋은 옆 메뉴에서 바로 · 개인 지식 쓰기는 설정 › 에이전트 설치 카드로
   assert.match(await page.locator('.hdr .hmid').innerText(), /빨리 열기[\s\S]*Ctrl O[\s\S]*찾기[\s\S]*Ctrl K/)
   assert.match(await page.locator('.hdr .hright').innerText(), /Claude[\s\S]*설명서/)
   // 들어온 사람은 머리 줄 오른쪽 동그라미(누르면 설정 · 단축키 · 나가기)
@@ -137,7 +137,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.deepEqual(await page.locator('[data-t=krow]').evaluateAll((els) => els.map((e) => e.dataset.name)), ['DPMS 지식', 'GDI 지식'])
   // 팀 화면은 팀 지식만 — 개인 칸 · 「내 PC 지식 폴더」 띠 · 「+ 새 개인 지식」 이 없다(분리)
   assert.deepEqual(await page.locator('.sec-h b').allInnerTexts(), ['팀 지식 2'])
-  assert.equal(await page.locator('[data-t=klist] [data-t=addCardTeam]').count(), 1, '팀 지식 끝 「+ 새 팀 지식」')
+  assert.equal(await page.locator('[data-t=klist] [data-t=addCardTeam]').count(), 1, '팀 지식 끝 「+ 새 지식」')
   assert.equal(await page.locator('[data-t=meList], [data-t=meWhere], [data-t=meSec]').count(), 0, '개인 지식 칸이 없다')
   assert.equal(await page.locator('text=+ 지식 만들기').count(), 0, '지식 목록의 「지식 만들기」 단추는 걷었다')
   assert.match(await page.locator('[data-t=rootPath]').innerText(), /kn/, '팀 관리자에게는 서버의 지식 폴더 · [동기화]')
@@ -152,7 +152,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.match(await page.locator('[data-t=docsEmpty]').innerText(), /왼쪽 나무에서 문서나 기록을 연다/)
   // 지식 점검(지식관리자) — 지식 생성 가드가 보는 것의 지금 상태 · 줄마다 수 · [보기] 로 목록
   await page.waitForSelector('[data-t=guardCard] [data-t=guard-unnamed]')
-  assert.match(await page.locator('[data-t=guardCard]').innerText(), /지식 점검[\s\S]*이름 없는 기록[\s\S]*장부 밖 이름을 단 기록[\s\S]*이름 없는 항목/)
+  assert.match(await page.locator('[data-t=guardCard]').innerText(), /점검[\s\S]*이름 없음[\s\S]*장부 밖[\s\S]*이름 없는 항목/)
   // 옆 메뉴 짜임(컨벤션 5절 · A 층 합치기) — 보기 탭 한 줄(문서 · 항목 · 기록 · 그래프) · 갈래 탭 · 넣지 못함 거르기 없음 · 첨부는 문서 나무 끝 묶음(접힘)
   assert.deepEqual(await page.locator('[data-t=ktabs] button[role=tab]').evaluateAll((els) => els.map((e) => e.dataset.t + ':' + e.getAttribute('aria-selected'))), ['rb-docs:true', 'rb-items:false', 'rb-recs:false', 'rb-graph:false'])
   assert.equal(await page.locator('[data-t=stabs], [data-t=tf-held]').count(), 0, '갈래 탭 · 넣지 못함 거르기는 걷었다')
@@ -470,7 +470,7 @@ test('정리를 걷었다(S13): 조각 없는 기록은 메모 · 옛 정리 화
   await page.waitForSelector('[role=dialog]')
   assert.match(await page.locator('[role=dialog]').innerText(), /문체 · 짜임만 정돈한다[\s\S]*값은 바꾸지 않는다/)
   await page.locator('[role=dialog] .btn.pri').click()
-  await page.waitForFunction(() => /일 줄에 올렸다|이미 팀 일꾼이 다듬는 중/.test(document.body.innerText))
+  await page.waitForFunction(() => /도는 일에 올렸다|이미 팀 일꾼이 다듬는 중/.test(document.body.innerText))
   assert.ok(s.hub.intakesOf('dpms').some((j) => j.type === 'polish' && j.src?.doc === 'docs/배포절차.md'), '다듬기 일감')
   // 다듬기 일감은 그만두어 뒤 시험(가져오기 일 줄)에 남기지 않는다
   for (const j of s.hub.intakesOf('dpms').filter((x) => x.type === 'polish' && x.state === 'queued')) await s.hub.queueAct({ user: 'kim', admin: true }, 't:' + j.id, 'cancel')
@@ -515,7 +515,7 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10): 목�
   await mg(page, 'team', 'import')
   await page.waitForSelector('[data-t=drop]')
   // 탭 셋 — 일 줄(넣는 칸 · 도는 일 · 자세히) · 가져올 곳(지켜보며 맞추기) · 끝난 일 · 더하기는 유형마다 칸
-  assert.deepEqual((await page.locator('[data-t=impTabs] > span').allInnerTexts()).map((x) => x.replace(/\s*\d.*$/s, '')), ['일 줄', '가져올 곳', '끝난 일'])
+  assert.deepEqual((await page.locator('[data-t=impTabs] > span').allInnerTexts()).map((x) => x.replace(/\s*\d.*$/s, '')), ['도는 일', '자동수집', '끝난 일'])
   assert.match(await page.locator('[data-t=queue]').innerText(), /줄이 비었다/)
   // 가져올 곳 더하기는 팝업 — 머리의 단추로 연다(단추는 단추로 · 요구 v0.2 R5)
   await page.click('[data-t=sfOpen]')
@@ -616,7 +616,7 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10): 목�
     await wp.waitForSelector('[data-t=klist]')
     await mg(wp, 'team', 'import')
     await wp.waitForSelector('[data-t=drop]')
-    assert.deepEqual((await wp.locator('[data-t=impTabs] > span').allInnerTexts()).map((x) => x.replace(/\s*\d.*$/s, '')), ['일 줄', '가져올 곳', '끝난 일'])
+    assert.deepEqual((await wp.locator('[data-t=impTabs] > span').allInnerTexts()).map((x) => x.replace(/\s*\d.*$/s, '')), ['도는 일', '자동수집', '끝난 일'])
     // 쓰기 자리는 가져올 곳 탭에서 [관리자에게 부탁] 으로 간다(UX T6-07) — 일 줄 탭에는 더하기 단추가 없다
     assert.ok((await wp.locator('[data-t=sfOpen]').count()) <= 1)
     assert.equal(await wp.locator('#impAtt').count(), 1)
@@ -687,11 +687,14 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 팀 일�
   await page.waitForSelector('[data-t=klist]')
   await mg(page, 'team', 'mine')
   assert.equal(await page.locator('[data-t=mgNav] .mgt').innerText(), '설정')
-  assert.equal(await page.locator('[data-t=setTitle]').innerText(), '나')
+  assert.equal(await page.locator('[data-t=setTitle]').innerText(), '서버 정보')
   // 정보 단추 (!) — 페이지 안내는 제목 옆 (!) 로(옛 .lead 걷음) · 누르면 단추 바로 뒤에 툴팁 하나 · Esc 면 닫히고 초점은 단추로 · 바깥 누름 · 다시 누름으로 닫힘(컨벤션 4절)
   assert.equal(await page.locator('[data-t=setLead]').count(), 0)
+  // 이 서버 카드(주소 · 판 · 팀 일꾼 · 저장소 · 총괄 관리자에게는 https)는 서버 정보에(N3 · 팀 일꾼 페이지에는 없다)
+  await page.waitForFunction(() => /https/.test(document.querySelector('[data-t=serverCard]')?.textContent || ''))
+  assert.match(await page.locator('[data-t=serverCard]').innerText(), /주소[\s\S]*판[\s\S]*https[\s\S]*팀 일꾼[\s\S]*저장소/)
   const tipB = page.locator('[data-t="tip-set.mine"]')
-  assert.equal(await tipB.getAttribute('aria-label'), '나 도움말')
+  assert.equal(await tipB.getAttribute('aria-label'), '서버 정보 도움말')
   assert.equal(await tipB.getAttribute('aria-expanded'), 'false')
   await tipB.click()
   assert.equal(await page.locator('#tipPop').count(), 1)
@@ -735,7 +738,7 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 팀 일�
   await page.keyboard.press('Escape')
   await page.setViewportSize(VIEW)
   // 업무 차례: 매일 › 세우기 › 사람 들이기 › 붙이기 › 나 · 작업은 끝에
-  assert.deepEqual(await mgItems(page), ['점검', '팀 서버', '팀 지식', '사람 · 묶음', '에이전트 설치', '나'])
+  assert.deepEqual(await mgItems(page), ['운영', '팀 일꾼', '팀 지식', '사람', '에이전트 설치', '서버 정보'])
   assert.equal(await page.locator('[data-t=manageArea] [data-t=nav-import]').count(), 1, '작업은 옆 메뉴 지식 관리')
   assert.deepEqual(await page.locator('[data-t=mgNav] [data-t=mgGroup]').allInnerTexts(), ['매일', '세우기', '사람 들이기', '붙이기', '내 것'])
   await page.waitForSelector('[data-t=auto-find]')
@@ -753,6 +756,7 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 팀 일�
   // 총괄 관리자 — 팀 일꾼 로그인을 팀 서버 페이지에서 다 한다(점검으로 보내지 않는다)
   await page.waitForSelector('[data-t=admClaude] [data-t=admLoginStart]')
   assert.equal(await page.locator('[data-t=toAdmClaude]').count(), 0)
+  assert.equal(await page.locator('[data-t=serverCard]').count(), 0, '이 서버 카드는 서버 정보로 옮겼다')
   // 개인 지식 쓰기(옛 옆 메뉴 칸 · K11-2) — 설정 › 에이전트 설치의 둘째 카드 · 옆 메뉴 칸은 걷었다 · 옛 이름 install 은 에이전트 설치로
   assert.equal(await page.locator('[data-t=nav-install]').count(), 0)
   await page.evaluate(() => { const x = document.createElement('button'); x.dataset.a = 'nav'; x.dataset.s = 'install'; x.id = 'oldInstall'; document.querySelector('#app').appendChild(x) })
@@ -940,7 +944,7 @@ test('이 PC 화면: 정리가 따로 없다는 말(지식 만들기 · 설정) 
     // 설정 — Claude 스위치는 「정해진 시각의 자동 정리」 가 아니라 기록을 곧바로 문서로
     await mg(page, 'me', 'pc')
     await page.waitForSelector('[data-t=auto-claude]')
-    assert.match(await page.locator('[data-t=auto-claude]').innerText(), /기록을 문서로: Claude 로[\s\S]*곧바로/)
+    assert.match(await page.locator('[data-t=auto-claude]').innerText(), /바로 넣기[\s\S]*곧바로/)
     // 지식 추가 — 지식 고르기의 「+ 지식 추가」 → 지식 목록 위 팝업(이름만) · 지식 폴더 띠(경로 · 동기화) — 요구 v0.2 R2
     await page.click('[data-t=kpick]')
     await page.click('[data-t=nav-add]')
@@ -1150,7 +1154,7 @@ test('따로 할 것(Q11 · Q50 · Q51 · Q52): 설정은 일반으로 · 고르
     // Q11 — 옆 메뉴 「설정」 은 보이는 첫 칸(총괄 관리자는 점검)
     await page.click('[data-t=nav-settings-team]')
     await page.waitForSelector('[data-t=mgNav]')
-    assert.equal((await page.locator('[data-t=mgNav] .mgi.on').innerText()).trim(), '점검')
+    assert.equal((await page.locator('[data-t=mgNav] .mgi.on').innerText()).trim(), '운영')
     // Q50 — 빨리 열기: combobox · listbox · 고른 줄이 activedescendant
     await page.keyboard.press('Control+o')
     await page.waitForSelector('#qoIn[role=combobox]')

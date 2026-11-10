@@ -64,7 +64,7 @@ const HELP = `kmd ${VERSION}
   kmd machine add <지식> <원천> [--types 가,나] · kmd machine revoke <machine-…>
       바깥 생성기용 기계 열쇠(그 지식 · 그 표만 · 1년)
   kmd search-check <지식> [--freeze]           찾기 점검: 얼린 시험지 위에서 나빠진 문항
-  kmd guard <지식> | --all [--list]           지식 점검: 이름 없는 기록 · 장부 밖 이름 · 이름 없는 항목 · 자리 잃은 이름 · 다른 이름 겹침 · 깨진 머리 수 · --list 는 목록까지
+  kmd guard <지식> | --all [--list]           점검: 이름 없는 기록 · 장부 밖 이름 · 이름 없는 항목 · 자리 잃은 이름 · 다른 이름 겹침 · 깨진 머리 수 · --list 는 목록까지
   kmd docfmt <지식> | --all [--dry] [--lift] [--levels]   옛 문서 옮기기: 항목 끝 출처 목록을 문서 끝 참고로(본문은 그대로) · --dry 는 보기만 · --lift 는 ## 없는 문서의 ### 을 ## 로(자리 장부도 같이) · --levels 는 ### 소제목 · 들여쓴 목록을 수준 표시(1. · 1.1. · 1) · - · *)로
   kmd auth reapply <auth.log>                  옛 명부로 되살린 뒤 늦은 일을 다시 적용
 
@@ -818,7 +818,7 @@ async function connectCmd(o) {
     try {
       root = pcRootKind(o.root).root
     } catch (e) {
-      console.error(`지식 폴더로 쓰지 못한다: ${o.root} · ${e.message}. 팀 화면 › 지식 목록 › 지식 폴더에서 다른 경로로 설치 한 줄을 다시 받는다`)
+      console.error(`지식 폴더로 쓰지 못한다: ${o.root} · ${e.message}. 다른 경로로 다시 깐다: 팀 화면 › 설정 › 에이전트 설치 › 개인 프로그램 설치 카드의 한 줄을 다시 받거나 --root 로 다른 폴더를 준다`)
       process.exitCode = 1
       return
     }

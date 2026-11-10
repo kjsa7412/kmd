@@ -713,14 +713,14 @@ export function sourceLines(k, decl, st, { now = Date.now(), admin = false } = {
     const s = st[src.name] || {}
     if (s.stopped) {
       const what = s.stopped.vanished ? `${src.name} 에서 항목 ${s.stopped.vanished}개가 한꺼번에 사라졌다` : `${src.name} 에서 새 항목 ${s.stopped.added}개가 한꺼번에 생겼다`
-      out.push(stopLine({ kind: 'source', kn: k.id, level: 'warn', what, fix: '표는 그대로 둠', told: admin ? '[그대로 맞추기] 는 가져오기 › 일 줄의 「크게 바뀜」 에서' : '관리자에게 알렸다' }))
+      out.push(stopLine({ kind: 'source', kn: k.id, level: 'warn', what, fix: '표는 그대로 둠', told: admin ? '[그대로 맞추기] 는 생성 › 도는 일의 「크게 바뀜」 에서' : '관리자에게 알렸다' }))
       continue
     }
     if ((s.failures || 0) >= 2 && s.checkedAt && now - Date.parse(s.checkedAt) >= 2 * everyMs(src.every)) {
       out.push(stopLine({ kind: 'source', kn: k.id, level: 'warn', what: `${src.name} 표를 못 가져왔다`, amount: ageText(now - Date.parse(s.checkedAt)), fix: `표는 ${String(s.asof || '').slice(5, 10)} 것`, told: admin ? s.lastNote : '관리자에게 알렸다' }))
     } else if ((s.failures || 0) >= 2 && !s.checkedAt) {
       // 처음부터 한 번도 가져오지 못했다 — 두 번째 실패부터 줄을 세운다(주소 · 자격이 틀렸다)
-      out.push(stopLine({ kind: 'source', kn: k.id, level: 'warn', what: `${src.name} 을 아직 한 번도 가져오지 못했다`, amount: `${s.failures}번`, fix: admin ? '지식 만들기 › 가져올 곳에서 주소 · 자격을 고친다' : null, told: admin ? s.lastNote : '관리자에게 알렸다' }))
+      out.push(stopLine({ kind: 'source', kn: k.id, level: 'warn', what: `${src.name} 을 아직 한 번도 가져오지 못했다`, amount: `${s.failures}번`, fix: admin ? '생성 › 자동수집에서 주소 · 자격을 고친다' : null, told: admin ? s.lastNote : '관리자에게 알렸다' }))
     }
   }
   return out

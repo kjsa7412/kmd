@@ -132,7 +132,7 @@ function readBody(req, max = MAX_BODY, big = 'E_INPUT') {
 const MANUAL_DIR = path.join(APP, '..', 'docs_ops', 'manual')
 const MANUALS = [
   { slug: '사용자', title: '쓰는 사람', sub: '팀 화면에서 보기 · 찾기 · 고치기 · 가져오기', img: 't-doc.png', modes: ['team'] },
-  { slug: '개인', title: '개인 프로그램', sub: '내 PC 의 kmd · 파일 넣기 · 지식 보내기', img: 'p-home.png', modes: ['team', 'pc'] },
+  { slug: '개인', title: '개인 프로그램', sub: '내 PC 의 kmd · 파일 넣기 · 공유', img: 'p-home.png', modes: ['team', 'pc'] },
   { slug: '지식관리자', title: '지식관리자', sub: '넣지 못함 · 권한 · 가져올 곳 · 다듬기', img: 't-held.png', modes: ['team'] },
   { slug: '관리자', title: '총괄 관리자', sub: '설치 · 사람 · Claude 연결 · 백업 · 셸 명령', img: 't-people.png', modes: ['team'] },
   { slug: '운영', title: '운영 · 되살리기', sub: '밤 묶음 · 되살리기 · 새 판', img: 't-admin.png', modes: ['team', 'pc'] },
@@ -601,12 +601,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, { pc: mode === 'pc', ok: ws ? ws.ok : null, reason: ws?.reason || null, since: ws?.since || null, at: ws?.at || null, off: mode === 'pc' ? !hub.autoOf(ctx.user, 'claude') : false })
     }
     if (p === '/api/claude/login' && req.method === 'POST') {
-      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀 일꾼 로그인은 설정 › 팀 서버에서')
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀 일꾼 로그인은 설정 › 팀 일꾼에서')
       return out(200, pcLogin())
     }
     // 이 PC — 로그인 확인(작은 부르기 한 번) · 됐으면 쉼 줄을 걷는다
     if (p === '/api/claude/check' && req.method === 'POST') {
-      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀 일꾼 로그인은 설정 › 팀 서버에서')
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀 일꾼 로그인은 설정 › 팀 일꾼에서')
       const r = await checkClaude()
       await hub.workerStatus({ worker: { id: null } }, r.ok ? { ok: true } : { ok: false, reason: r.reason, message: r.message })
       return out(200, { ok: r.ok, reason: r.reason || null })
@@ -867,7 +867,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const reqs = mode === 'team' ? await hub.requests() : []
       return out(200, await Promise.all(ks.map(async (k) => {
         const chk = mode === 'team' && !k.gone ? await hub.knChecks(ctx, k.id, reqs).catch((e) => { console.log('[kmd] 지식 카드 배지', k.id, e.message); return null }) : null
-        // 개인 화면의 개인 지식 — 받는 지식(보내는 길) · 보내지 않은 기록 수(옆 메뉴 「지식 보내기」 의 수)
+        // 개인 화면의 개인 지식 — 받는 지식(보내는 길) · 보내지 않은 기록 수(옆 메뉴 「공유」 의 수)
         const row = hub.owner(k.id)
         const sv = mode === 'pc' && (await sendLib.destsOf(k.dir)).length ? await hub.sendView(ctx, k.id).catch(() => null) : null
         // level — 이 지식에서의 내 자리(read · write · admin) · role 은 그 화면 이름(PC 는 주인)
@@ -1077,7 +1077,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     //   보내는 지식은 개인 프로그램의 개인 지식(팀 서버는 옛 개인 지식만) · 받는 것은 팀 서버
     // 받는 팀 지식 고르기(개인 화면) — 이 PC 가 이은 팀마다 이 PC 의 기기 열쇠로 본 팀 지식(쓰기 자리 이상)
     if (p === '/api/send/teams' && req.method === 'GET') {
-      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '지식 보내기는 개인 프로그램에서 한다')
+      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '공유는 개인 프로그램에서 한다')
       need(ctx)
       return out(200, { teams: (await hub.sendTargets(ctx)).teams })
     }

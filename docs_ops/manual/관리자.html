@@ -11,7 +11,7 @@
 <article class="man">
 <div class="m-who"><span class="m-role r-admin">총괄 관리자</span></div>
 <h1>총괄 관리자</h1>
-<p class="m-lead">팀 서버(팀 프로그램)를 세우고, 사람 · 지식마다의 자리 · 백업 · 팀 일꾼 Claude 로그인을 돌본다. 지식 하나의 넣지 못함 · 다듬기 · 가져오기 · 권한은 <a href="지식관리자.html">지식관리자 설명서</a>, 밤 묶음 · 되살리기 · 새 판은 <a href="운영.html">운영 설명서</a>.</p>
+<p class="m-lead">팀 서버(팀 프로그램)를 세우고, 사람 · 지식마다의 자리 · 백업 · 팀 일꾼 Claude 로그인을 돌본다. 지식 하나의 넣지 못함 · 다듬기 · 자동수집 · 권한은 <a href="지식관리자.html">지식관리자 설명서</a>, 밤 묶음 · 불러오기 · 새 판은 <a href="운영.html">운영 설명서</a>.</p>
 
 
 <h2 id="setup"><span class="m-no">1</span>팀 서버 세우기</h2>
@@ -22,21 +22,21 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 <ul>
 <li>node 22 · git 이 있어야 한다. 코드는 <code>/opt/kmd</code>, 지식은 <code>/srv/kmd/&lt;지식&gt;/</code>, 살림 자리는 <code>/srv/kmd/.kmd</code>(명부 · 상태 · 비밀).</li>
 <li>systemd 로 둘을 늘 켠다: <code>kmd.service</code>(팀 서버) · <code>kmd-worker.service</code>(팀 일꾼 · 열쇠와 환경 변수는 root 만 읽는 <code>/etc/kmd/worker.env</code> · 다시 깔아도 덮지 않는다).</li>
-<li>GitLab 열쇠는 숨김 입력으로만 받는다. <b>만들기 권한만</b> 있는 봇 열쇠(지우기 · 보호 해제 없음). 지식마다 저장소를 만들어 백업 자리로 붙인다.</li>
+<li>GitLab 열쇠는 숨김 입력으로만 받는다. <b>만들기 권한만</b> 있는 봇 열쇠(지우기 · 보호 해제 없음). 지식마다 저장소를 만들어 붙인다.</li>
 <li>끝에 찍힌 <b>첫 설정 주소</b>를 브라우저로 열어 총괄 관리자 아이디 · 비밀번호를 정한다.</li>
 <li>들어가기 화면 아래 「잊었거나 막혔으면 ○○에게」 의 ○○ 은 <code>/srv/kmd/.kmd/serve.json</code> 의 <code>helpContact</code>(글 한 줄 · 없으면 「총괄 관리자에게」). 고친 뒤 <code>systemctl restart kmd</code>.</li>
 <li>팀 꾸러미 안의 PC 꾸러미(<code>kmd-&lt;판&gt;-pc.zip</code>)는 받기 자리 <code>/srv/kmd/.kmd/dl/</code> 에 놓인다(<code>&lt;팀 주소&gt;/dl</code>). 사람들의 설치 한 줄이 여기서 받아 간다.</li>
 <li>셸 명령 <code>kmd</code>(<code>/usr/local/bin/kmd</code>)도 둔다. 어느 사용자로 쳐도 kmd 사용자로 · 이 지식 폴더로 돈다.</li>
 </ul>
 
-<h2 id="admin"><span class="m-no">2</span>설정 › 점검: 문제 줄만</h2>
-<p>설정은 업무 차례로 묶여 있다: <b>매일</b> 점검 › <b>세우기</b> 팀 서버 · 팀 지식 › <b>사람 들이기</b> 사람 · 묶음 › <b>붙이기</b> 에이전트 설치 › <b>나</b>. 총괄 관리자가 설정을 열면 점검이 먼저 선다.</p>
+<h2 id="admin"><span class="m-no">2</span>설정 › 운영: 문제 줄만</h2>
+<p>설정은 업무 차례로 묶여 있다: <b>매일</b> 운영 › <b>세우기</b> 팀 일꾼 · 팀 지식 › <b>사람 들이기</b> 사람 › <b>붙이기</b> 에이전트 설치 › <b>내 것</b> 서버 정보. 총괄 관리자가 설정을 열면 운영이 먼저 선다.</p>
 <div class="m-tbl"><table><tr><th>자리</th><th>설정 메뉴(업무 차례)</th><th>설정을 열면</th></tr>
-<tr><td>총괄 관리자</td><td>점검 · 팀 서버 · 팀 지식 · 사람 · 묶음 · 에이전트 설치 · 나</td><td>점검</td></tr>
-<tr><td>지식관리자</td><td>팀 지식 · 에이전트 설치 · 나</td><td>팀 지식</td></tr>
-<tr><td>쓰기 · 읽기</td><td>에이전트 설치 · 나</td><td>에이전트 설치</td></tr></table></div>
-<p>날마다 쓰는 <b>가져오기 · 넣지 못함 · 문서 짜임</b>은 설정 밖, 옆 메뉴 맨 아래 「지식 관리」 아이콘 줄에 바로 있다(자리가 있을 때만 보인다 · 아이콘에 마우스를 올리면 이름).</p>
-<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 점검</span></div><div class="m-pic"><img src="img/t-admin.png" alt="점검: 요약 칩과 오늘의 문제 줄" loading="lazy"></div></div>
+<tr><td>총괄 관리자</td><td>운영 · 팀 일꾼 · 팀 지식 · 사람 · 에이전트 설치 · 서버 정보</td><td>운영</td></tr>
+<tr><td>지식관리자</td><td>팀 지식 · 에이전트 설치 · 서버 정보</td><td>팀 지식</td></tr>
+<tr><td>쓰기 · 읽기</td><td>에이전트 설치 · 서버 정보</td><td>에이전트 설치</td></tr></table></div>
+<p>날마다 쓰는 <b>생성 · 확인 · 구조</b>는 설정 밖, 옆 메뉴 맨 아래 「지식 관리」 아이콘 줄에 바로 있다(자리가 있을 때만 보인다 · 아이콘에 마우스를 올리면 이름).</p>
+<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 운영</span></div><div class="m-pic"><img src="img/t-admin.png" alt="운영: 요약 칩과 오늘의 문제 줄" loading="lazy"></div></div>
 <figcaption>위 칩 줄: 멈춤 · 넣지 못함 · 백업 문제 · 팀 일꾼. 잘 될 때는 「오늘은 문제가 없다」 만 보인다. 손볼 것만 줄로 서고, 줄마다 고치는 자리로 가는 단추가 있다(백업 어긋남은 이 자리에서 이어 쓰기 · 덮기).</figcaption></figure>
 <div class="m-tbl"><table><tr><th>문제 줄</th><th>하는 것</th></tr>
 <tr><td>비밀번호를 안 정한 사람</td><td>사람 카드 ⋯ › [새 링크](이 사람만 · 24시간 · 한 번). 떠난 사람이면 [떠남]</td></tr>
@@ -46,12 +46,12 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 <tr><td>팀 일꾼이 일감을 받지 않는다</td><td>10분 넘게 받지 않으면 선다. <code>systemctl status kmd-worker</code> · 서버의 <code>claude</code> 로그인을 본다</td></tr>
 <tr><td>백업이 앞섰다 · 갈라졌다</td><td>[백업에서 받기](앞으로만) · [이 백업 이어 쓰기] · [서버 것으로 백업 덮기](<a href="운영.html#restore">운영</a>)</td></tr>
 </table></div>
-<div class="m-note m-warn"><b>비밀번호 한 번 더</b><p>[풀기] · 새 링크 · 사람 더하기 · 떠남 · 백업 맞추기 · 주인 넘기기 · 팀 지식 지우기 · Claude 로그인 시작은 「비밀번호 한 번 더: 관리자 확인」 창 하나가 뜨고, 맞으면 하던 일을 이어서 한다(15분 안에는 다시 묻지 않는다).</p></div>
+<div class="m-note m-warn"><b>비밀번호 한 번 더</b><p>[풀기] · 새 링크 · 사람 더하기 · 떠남 · 백업 맞추기 · 주인 넘기기 · 지식 삭제 · Claude 로그인 시작은 「비밀번호 한 번 더: 관리자 확인」 창 하나가 뜨고, 맞으면 하던 일을 이어서 한다(15분 안에는 다시 묻지 않는다).</p></div>
 
-<p><b>감사 기록</b>(점검 맨 아래): 관리 쓰기 요청(사람 · 자리 · 총괄 관리자 주기 · 지식 세우기/지우기 · 주인 · 권한 · 문서 짜임 · 되돌림 · 가져올 곳 · 넣지 못함 · 계정)을 때 · 누가 · 무엇 · 지식 · 결과로 적는다. 보낸 글(본문 · 비밀번호)은 적지 않는다. 서버의 <code>&lt;살림 자리&gt;/audit.jsonl</code>(2MB 넘으면 <code>audit.1.jsonl</code> 로 민다).</p>
+<p><b>감사 기록</b>(운영 맨 아래): 관리 쓰기 요청(사람 · 자리 · 총괄 관리자 주기 · 지식 세우기/지우기 · 주인 · 권한 · 구조 · 되돌림 · 가져올 곳 · 넣지 못함 · 계정)을 때 · 누가 · 무엇 · 지식 · 결과로 적는다. 보낸 글(본문 · 비밀번호)은 적지 않는다. 서버의 <code>&lt;살림 자리&gt;/audit.jsonl</code>(2MB 넘으면 <code>audit.1.jsonl</code> 로 민다).</p>
 
-<h2 id="people"><span class="m-no">3</span>사람 · 묶음</h2>
-<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 사람 · 묶음</span></div><div class="m-pic"><img src="img/t-people.png" alt="사람 카드: 상태 · 기기 · 지식마다 자리" loading="lazy">
+<h2 id="people"><span class="m-no">3</span>사람</h2>
+<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 사람</span></div><div class="m-pic"><img src="img/t-people.png" alt="사람 카드: 상태 · 기기 · 지식마다 자리" loading="lazy">
 </div></div><figcaption>사람 카드와 묶음 카드. 사람을 더하면 [링크만 복사] · [안내 복사](아이디 · 들어오기 링크 · 팀 주소 · 에이전트 설치 길 한 덩이)가 나온다.</figcaption></figure>
 <ol class="m-legend">
 <li><b>+ 사람 더하기</b>: 아이디 · 총괄 관리자 여부 · 지식마다 자리 표.</li>
@@ -68,21 +68,21 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 
 <h2 id="knowledge"><span class="m-no">4</span>팀 지식 세우기 · 권한</h2>
 <ul>
-<li>팀 서버에는 <b>팀 지식만</b> 선다. 지식 목록 끝의 「+ 새 팀 지식」(총괄 관리자만). 세운 사람이 주인이고, 처음에는 주인 · 총괄 관리자에게만 보인다.</li>
+<li>팀 서버에는 <b>팀 지식만</b> 선다. 지식 목록 끝의 「+ 새 지식」(총괄 관리자만). 세운 사람이 주인이고, 처음에는 주인 · 총괄 관리자에게만 보인다.</li>
 <li>다른 곳에서 만든 지식 폴더를 <code>/srv/kmd</code> 아래 통째로 놓고 지식 목록의 [동기화] 를 누르면 목록 맨 아래로 들어온다.</li>
-<li>팀 지식 지우기는 비밀번호 한 번 더 · 보관하지 않고 완전히 지운다(되살리기는 백업에서).</li>
+<li>지식 삭제는 비밀번호 한 번 더 · 보관하지 않고 완전히 지운다(불러오기는 저장소에서).</li>
 </ul>
 <div class="m-tbl"><table><tr><th>일</th><th>총괄 관리자</th><th>지식관리자</th><th>쓰기</th><th>읽기</th></tr>
 <tr><td>보기 · 찾기 · Claude 로 읽기</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
-<tr><td>저장(그 순간 문서에) · 문서 고치기 · 파일 넣기 · 가져오기 부탁 · 자기 저장 되돌리기 · 자기 넣지 못함</td><td>✓</td><td>✓</td><td>✓</td><td></td></tr>
+<tr><td>저장(그 순간 문서에) · 문서 고치기 · 파일 넣기 · 가져올 곳 부탁 · 자기 저장 되돌리기 · 자기 넣지 못함</td><td>✓</td><td>✓</td><td>✓</td><td></td></tr>
 <tr><td>항목 지우기 · 이름 바꾸기 · 다듬기 · 넣지 못함(남의 것) · 남의 저장 되돌리기 · 지식 설정 · 권한 주기</td><td>✓</td><td>✓</td><td></td><td></td></tr>
 <tr><td>가져올 곳(허락된 호스트의 https git · DB)</td><td>✓</td><td>✓</td><td></td><td></td></tr>
-<tr><td>사람 · 묶음 · 지식 세우기/지우기/되살리기 · 주인 넘기기</td><td>✓</td><td></td><td></td><td></td></tr>
-<tr><td>백업 · Claude 연결 · 일 줄 멈춤 · 동시에 도는 수 · 서버 폴더 · ssh 가져올 곳</td><td>✓</td><td></td><td></td><td></td></tr>
+<tr><td>사람 · 묶음 · 지식 세우기/지우기/불러오기 · 주인 넘기기</td><td>✓</td><td></td><td></td><td></td></tr>
+<tr><td>백업 · Claude 연결 · 줄 멈춤 · 동시에 도는 수 · 서버 폴더 · ssh 가져올 곳</td><td>✓</td><td></td><td></td><td></td></tr>
 </table></div>
 
-<h2 id="claude"><span class="m-no">5</span>설정 › 팀 서버: 팀 일꾼 로그인</h2>
-<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 팀 서버</span></div><div class="m-pic"><img src="img/t-claude.png" alt="팀 서버: 팀 일꾼 로그인 상태 · 이 서버" loading="lazy"></div></div><figcaption>「Claude 연결」 카드(팀 일꾼 로그인: 아직이면 [로그인 시작] · 됐으면 「로그인됨」 · [다시 로그인]) · 어떻게 하나 · 운영 값(읽기만). 쓰는 곳은 들이기(파일 넣기 · 가져올 곳 · 정정 · 다시 들이기)와 문서 다듬기다.</figcaption></figure>
+<h2 id="claude"><span class="m-no">5</span>설정 › 팀 일꾼: 로그인</h2>
+<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 팀 일꾼</span></div><div class="m-pic"><img src="img/t-claude.png" alt="팀 일꾼: 로그인 상태 · 이 서버" loading="lazy"></div></div><figcaption>「Claude 연결」 카드(팀 일꾼 로그인: 아직이면 [로그인 시작] · 됐으면 「로그인됨」 · [다시 로그인]) · 어떻게 하나 · 운영 값(읽기만). 쓰는 곳은 들이기(파일 넣기 · 가져올 곳 · 정정 · 다시 들이기)와 문서 다듬기다.</figcaption></figure>
 <ol class="m-steps">
 <li><b>[로그인 시작]</b>: 15분 안에 비밀번호를 넣지 않았으면 「비밀번호 한 번 더」 창이 먼저 뜬다.</li>
 <li><b>화면 있는 서버</b>(Windows · macOS · 화면 있는 Linux)면 그 PC 에 「kmd: Claude 로그인」 창이 뜬다. 거기서 로그인하면 관리 화면이 몇 초마다 저절로 확인한다.</li>
@@ -96,11 +96,11 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 </ul>
 <p>일꾼 손잡이는 <code>/etc/kmd/worker.env</code> 의 환경 변수다: <code>KMD_WORKER_PAR</code>(Claude 동시 호출 · 기본 3) · <code>KMD_WORKER_JOBS</code>(일감을 나란히 · 기본 2) · <code>KMD_INGEST_BUDGET</code>(들이기 한 번의 예산 달러 · 기본 1.0) · <code>KMD_INGEST_EFFORT</code> · <code>KMD_INGEST_FIX</code>(고쳐 쓰기 · 기본 2). 옛 이름 <code>KMD_TIDY_*</code> 도 읽는다. 고친 뒤 <code>systemctl restart kmd-worker</code>.</p>
 
-<h2 id="general"><span class="m-no">6</span>설정 › 팀 지식 · 백업 자리</h2>
-<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 팀 지식</span></div><div class="m-pic"><img src="img/t-kns.png" alt="팀 지식: 지식마다 나의 자리 · 백업 · Claude 에 보내지 않음 · ⋯" loading="lazy"></div></div><figcaption>지식 한 줄에 그 지식의 설정이 모인다: 나의 자리 · 백업 상태 · 「Claude 에 보내지 않음」 스위치(지식관리자 · <a href="지식관리자.html#polish">지식관리자 설명서 3절</a>) · ⋯(권한 · 백업 저장소 붙이기/주소 바꾸기 · 지우기). 표 위 [+ 새 팀 지식], 아래 「백업에서 되살리기」. 지식관리자에게는 자기 지식 줄만, ⋯ 에는 권한만 보인다.</figcaption></figure>
+<h2 id="general"><span class="m-no">6</span>설정 › 팀 지식 · 저장소</h2>
+<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 팀 지식</span></div><div class="m-pic"><img src="img/t-kns.png" alt="팀 지식: 지식마다 나의 자리 · 백업 · Claude 에 보내지 않음 · ⋯" loading="lazy"></div></div><figcaption>지식 한 줄에 그 지식의 설정이 모인다: 나의 자리 · 백업 상태 · 「Claude 에 보내지 않음」 스위치(지식관리자 · <a href="지식관리자.html#polish">지식관리자 설명서 3절</a>) · ⋯(권한 · 저장소 붙이기/저장소 주소 바꾸기 · 삭제). 표 위 [+ 새 지식], 아래 「불러오기」. 지식관리자에게는 자기 지식 줄만, ⋯ 에는 권한만 보인다.</figcaption></figure>
 <ul>
-<li>내 계정 · 내 설정(저절로 하는 일: 넣은 파일을 글로 · 찾기 · 사람마다) · 내 기기 · 나가기는 설정 › 나.</li>
-<li>팀 지식의 백업: 설정 › 팀 지식 › 그 줄 ⋯ › 백업 저장소 붙이기 · GitLab 봇(<code>serve.json</code> 의 <code>gitlab</code>)이 저절로 붙이거나 <code>kmd backup add &lt;지식&gt; &lt;주소&gt;</code>(<code>backupRoots</code> 안의 폴더 · https · ssh).</li>
+<li>내 계정 · 내 설정(저절로 하는 일: 글로 바꾸기 · 비슷한 글 · 사람마다) · 내 기기 · 나가기는 설정 › 서버 정보.</li>
+<li>팀 지식의 저장소: 설정 › 팀 지식 › 그 줄 ⋯ › 저장소 붙이기 · GitLab 봇(<code>serve.json</code> 의 <code>gitlab</code>)이 저절로 붙이거나 <code>kmd backup add &lt;지식&gt; &lt;주소&gt;</code>(<code>backupRoots</code> 안의 폴더 · https · ssh).</li>
 <li>저장 뒤 바로 보내고, 안 되면 1 · 5 · 15 · 60분 · 매일 다시. 6시간 밀리면 노랑 · 24시간이면 빨강 한 줄.</li>
 <li>개인 지식의 백업은 그 사람의 개인 프로그램이 한다.</li>
 </ul>
@@ -117,12 +117,12 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 <tr><td><code>kmd group [add &lt;묶음&gt; &lt;아이디,…&gt; | rm &lt;묶음&gt;]</code></td><td>묶음 만들기 · 지우기 · 사람 넣고 빼기</td></tr>
 <tr><td><code>kmd worker add</code></td><td>팀 일꾼 열쇠 만들기(한 번만 보인다)</td></tr>
 <tr><td><code>kmd worker &lt;팀 주소&gt;</code></td><td>팀 일꾼: 늘 돈다(이 OS 사용자의 Claude Code 로그인으로 · 들이기 일감)</td></tr>
-<tr><td><code>kmd backup [add &lt;지식&gt; &lt;주소&gt; | pull &lt;지식&gt;]</code></td><td>백업 상태 · 백업 자리 붙이기 · 백업에서 받기(앞으로만)</td></tr>
+<tr><td><code>kmd backup [add &lt;지식&gt; &lt;주소&gt; | pull &lt;지식&gt;]</code></td><td>백업 상태 · 저장소 붙이기 · 백업에서 받기(앞으로만)</td></tr>
 <tr><td><code>kmd secret set &lt;이름&gt;</code></td><td>비밀 넣기(gitlab · 원천 git 자격 · claude-token): 숨김 입력</td></tr>
 <tr><td><code>kmd machine add &lt;지식&gt; &lt;원천&gt;</code></td><td>바깥 생성기용 기계 열쇠(그 지식 · 그 표만 · 1년)</td></tr>
-<tr><td><code>kmd guard &lt;지식&gt; | --all</code></td><td>지식 점검: 이름 없는 기록 · 장부 밖 이름 · 깨진 머리 수</td></tr>
+<tr><td><code>kmd guard &lt;지식&gt; | --all</code></td><td>점검: 이름 없음 · 장부 밖 · 깨진 머리 수</td></tr>
 <tr><td><code>kmd search-check &lt;지식&gt;</code></td><td>찾기 점검: 얼린 시험지 위에서 나빠진 문항</td></tr>
-<tr><td><code>kmd restore &lt;백업 주소&gt; [이름] [--practice | --attach]</code></td><td>지식 되살리기(<a href="운영.html#restore">운영</a>)</td></tr>
+<tr><td><code>kmd restore &lt;저장소 주소&gt; [이름] [--practice | --attach]</code></td><td>지식 불러오기(<a href="운영.html#restore">운영</a>)</td></tr>
 <tr><td><code>kmd auth reapply &lt;auth.log&gt;</code></td><td>옛 명부로 되살린 뒤 늦은 일 다시 적용</td></tr>
 </table></div>
 </article>
