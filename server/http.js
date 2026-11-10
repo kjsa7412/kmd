@@ -134,7 +134,7 @@ const MANUALS = [
   { slug: '사용자', title: '쓰는 사람', sub: '팀 화면에서 보기 · 찾기 · 고치기 · 가져오기', img: 't-doc.png', modes: ['team'] },
   { slug: '개인', title: '개인 프로그램', sub: '내 PC 의 kmd · 파일 넣기 · 공유', img: 'p-home.png', modes: ['team', 'pc'] },
   { slug: '지식관리자', title: '지식관리자', sub: '넣지 못함 · 권한 · 가져올 곳 · 다듬기', img: 't-held.png', modes: ['team'] },
-  { slug: '관리자', title: '총괄 관리자', sub: '설치 · 사람 · Claude 연결 · 백업 · 셸 명령', img: 't-people.png', modes: ['team'] },
+  { slug: '관리자', title: '총괄 관리자', sub: '설치 · 사람 · Claude 연결 · 저장소 · 셸 명령', img: 't-people.png', modes: ['team'] },
   { slug: '운영', title: '운영 · 되살리기', sub: '밤 묶음 · 되살리기 · 새 판', img: 't-admin.png', modes: ['team', 'pc'] },
 ]
 const MANUAL_IMG = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', svg: 'image/svg+xml' }
@@ -567,7 +567,9 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     // ── 설정(S7) — 이 팀 서버 · 이 PC · 저절로 하는 일 · Claude 연결 · 에이전트 설치 ──
     if (p === '/api/settings') {
       const ks = await hub.visible(ctx)
-      const bk = ks.map((k) => hub.backupStateSync(k)).filter(Boolean)
+      // 개인 프로그램의 「지식백업」 은 이 PC 사본(copy) · 팀은 저장소(G1)
+      const bkOf = (k) => (mode === 'pc' ? hub.copyStateSync(k) : hub.backupStateSync(k))
+      const bk = ks.map(bkOf).filter(Boolean)
       const ws = await fs.readFile(path.join(dataDir, 'worker.json'), 'utf8').then(JSON.parse, () => null)
       const keys = mode === 'pc' ? ['save', 'file', 'src', 'claude', 'find'] : ['file', 'find']
       const month = new Date().toISOString().slice(0, 7)
@@ -585,7 +587,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         host: req.headers.host,
         root: mode === 'pc' ? path.resolve(root) : undefined,
         kns: ks.length,
-        backup: { n: bk.length, of: ks.length, urls: [...new Set(bk.map((b) => b.url))].slice(0, 3), bad: bk.filter((b) => b.verdict && b.verdict !== 'ok' && b.verdict !== 'lag').length, ...(mode === 'pc' ? { root: hub.config.backupRoot || null, list: ks.map((k) => { const b = hub.backupStateSync(k); return { id: k.id, name: k.name, url: b?.url || null, verdict: b?.verdict || null } }) } : {}) },
+        backup: { n: bk.length, of: ks.length, urls: [...new Set(bk.map((b) => b.url))].slice(0, 3), bad: bk.filter((b) => b.verdict && b.verdict !== 'ok' && b.verdict !== 'lag').length, ...(mode === 'pc' ? { root: hub.config.backupRoot || null, list: ks.map((k) => { const b = bkOf(k); const rp = hub.backupStateSync(k); return { id: k.id, name: k.name, url: b?.url || null, verdict: b?.verdict || null, repo: !!rp } }) } : {}) },
         teams: mode === 'pc' ? await teamsOf() : undefined,
         auto: Object.fromEntries(keys.map((x) => [x, hub.autoOf(ctx.user, x)])),
         ...(mode === 'pc' ? { models: hub.models() } : {}),
@@ -1189,7 +1191,10 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         const meta = await hub.meta(id, ctx.shell ? undefined : ctx)
         if (!ctx.shell) hub.need(ctx, id, 'admin')
         const b = hub.backupStateSync(meta)
-        return out(200, b ? { url: maskUrl(b.url || ''), branch: b.branch || null, at: b.at || null, verdict: b.verdict || null, last: b.last ? { at: b.last.at || null, ok: !!b.last.ok } : null } : { off: true })
+        // 개인 프로그램은 지식백업(사본) 상태도 따로 — 저장소와 나눴다(G1)
+        const c = mode === 'pc' ? hub.copyStateSync(meta) : null
+        const copy = mode === 'pc' ? { copy: c ? { url: c.url || null, branch: c.branch || null, verdict: c.verdict || null, last: c.last ? { at: c.last.at || null, ok: !!c.last.ok } : null } : { off: true } } : {}
+        return out(200, b ? { url: maskUrl(b.url || ''), branch: b.branch || null, at: b.at || null, verdict: b.verdict || null, last: b.last ? { at: b.last.at || null, ok: !!b.last.ok } : null, ...copy } : { off: true, ...copy })
       }
       // 주인 줄 — 그 지식을 보는 사람에게만. 자리 표(access) · 지식관리자는 관리 자리에게만(자리 표 보기와 같게) · 옛 정리 설정 칸은 걷었다(S13)
       if (what === 'owner' && req.method === 'GET') {
@@ -1234,7 +1239,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         return out(200, await hub.setOwner(ctx, id, body))
       }
       admin(ctx)
-      if (what === 'backup') return out(200, await hub.backupAttach(ctx, id, String(body.url || '')))
+      if (what === 'backup') return out(200, await hub.backupAttach(ctx, id, String(body.url || ''), { branch: body.branch ?? null }))
       return out(200, await hub.backupPull(ctx, id))
     }
     const k = await hub.get(id, ctx)

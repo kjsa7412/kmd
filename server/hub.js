@@ -32,7 +32,7 @@ import { runClaude } from '../core/claude.js'
 import * as feed from '../core/feed.js'
 import { inside as insideDir, checkTarget, readSource, probe, readDecl, editDecl, DECL_BROKEN, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit } from '../core/sources.js'
 import { check } from '../core/check.js'
-import { commitPaths, ensureRepo, tryGit, maskUrl } from '../core/git.js'
+import { commitPaths, ensureRepo, tryGit, maskUrl, remoteUrl } from '../core/git.js'
 import { stopLine, ageText } from '../core/stopline.js'
 import * as backup from '../core/backup.js'
 import * as owners from '../core/owners.js'
@@ -553,6 +553,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const rates = new Map()
   // shape — 문서 짜임의 글 걸음(hub.shapeWrite 만 · opt.shape · 속도 한도는 세지 않는다 · 바탕 세우기 설계 4-3)
   // seed — 기초 세우기 짓기 결과(hub.seedAsIs 만 · 「폴더 그대로」 · 팀 검사를 지난다 · 속도 한도는 세지 않는다: 비용 경계는 짓기 일을 열 때의 하루 들이기 한도 · 메뉴개편 8-1 · 8-2)
+  // 원격 둘(저장소 · 지식백업 · G1)에 걸기 — 붙은 것만 · 부르는 쪽이 기다리지 않는다
+  const pushRemotes = (meta, opt) => Promise.all([backup.repo, backup.copy].filter((x) => x.attached(meta)).map((x) => x.enqueue(meta, opt)))
   const SAVE_CHANNELS = new Set(['session', 'bulk', 'http', 'send', 'edit', 'fix', 'shape', 'seed'])
   // 들이기 일감의 채널(측정 줄 · 속도 한도는 세지 않는다 · 비용 한도는 openJob)
   const INTAKE_CHANNELS = new Set(['intake-file', 'intake-commit', 'intake-src', 'intake-fix', 'intake-again', 'polish'])
@@ -968,9 +970,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     let backupLines = []
     try {
       // 응답은 백업을 기다리지 않는다 — 걸어만 두고 지금 아는 백업 상태만 싣는다(밀기 실패는 경고 띠가 알린다 · UX G2-04)
-      if (backup.attached(meta)) backup.enqueue(meta, { log }).catch((e) => log(`백업 밀기 실패 ${id}: ${e.message}`))
-      backupLines = backup.lines(meta, { name: meta.name }).map((l) => l.text)
-    } catch (e) { log(`백업 걸기 실패 ${id}: ${e.message}`) }
+      pushRemotes(meta, { log }).catch((e) => log(`저장소 · 지식백업 밀기 실패 ${id}: ${e.message}`))
+      backupLines = [...backup.lines(meta, { name: meta.name }), ...backup.copy.lines(meta, { name: meta.name })].map((l) => l.text)
+    } catch (e) { log(`저장소 · 지식백업 걸기 실패 ${id}: ${e.message}`) }
     const { proposals: _p, warnings: w0, ...rest } = r0
     return {
       ...rest,
@@ -1296,8 +1298,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         // 아는 지식에 더하기 — 한 줄로(여럿이 같은 때 만들어도 앞사람의 것을 잃어 다음 동기화가 「새로 놓인 지식」 으로 보지 않게)
         await (knownQ = knownQ.then(async () => hub.known([...new Set([...(await hub.known()), id])])).catch(() => {}))
         if (mode === 'pc' && started) watchers.push(Object.assign(collect.watch(d, () => hub.collect(id)), { dir: d })) // 편집기에서 고친 것 거두기 — 켤 때 없던 지식도
-        await hub.gitlabAttach(id).catch((e) => log('GitLab 백업 자리', id, e.message))
-        await hub.autoBackup(id).catch((e) => log('백업 자리', id, e.message))
+        await hub.gitlabAttach(id).catch((e) => log('GitLab 저장소', id, e.message))
+        await hub.autoBackup(id).catch((e) => log('지식백업', id, e.message))
         feed.add(dataDir, ctx.user, { kind: 'kn', kn: id, dot: 'acc', text: `지식을 추가했다: ${nm}`, small: mode === 'team' ? `팀 지식 · 팀 모두 본다 · 주인 ${ctx.user}` : d }).catch(() => {})
         return { id, name: nm, dir: mode === 'pc' ? d : undefined }
       }
@@ -1363,7 +1365,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       for (const [jid, j] of jobs) if (j.kn === id) { if (j.kind === 'intake') for (const x of ['.md', '.bin']) await fs.rm(binOf(jid).replace(/\.bin$/, x), { force: true }).catch((e) => log('들이기 원천 지우기', jid, e.message)); jobs.delete(jid) }
       await fs.rm(heldDir(id), { recursive: true, force: true }).catch((e) => log('넣지 못함 원천 지우기', id, e.message))
       for (const [key, w] of srcWatch) if (key.startsWith(id + '\n')) { w.close(); srcWatch.delete(key) }
-      await backup.detach(meta).catch(() => {})
+      for (const x of [backup.repo, backup.copy]) await x.detach(meta).catch((e) => log(`${x.label} 떼기`, id, e.message))
       cache.delete(id)
       files.delete(id)
       indexes.delete(id)
@@ -1471,8 +1473,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       if (mode === 'team') await hub.reconcileOwners()
       for (const k of added) {
-        await hub.gitlabAttach(k.id).catch((e) => log('GitLab 백업 자리', k.id, e.message))
-        await hub.autoBackup(k.id).catch((e) => log('백업 자리', k.id, e.message))
+        await hub.gitlabAttach(k.id).catch((e) => log('GitLab 저장소', k.id, e.message))
+        await hub.autoBackup(k.id).catch((e) => log('지식백업', k.id, e.message))
       }
       const m = await hub.menuOf(ctx)
       await hub.menuSet(ctx, { order: [...m.order.filter((x) => now.some((k) => k.id === x)), ...added.map((k) => k.id)], hidden: m.hidden.filter((x) => now.some((k) => k.id === x)) })
@@ -1694,7 +1696,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const r = await docfmtDir(meta.dir, { dry, lift: !!lift, levels: !!levels, user: 'kmd', by: ctx?.user && ctx.user !== 'kmd' ? ctx.user : null })
       if (r.commit) {
         cache.delete(id)
-        if (backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
+        pushRemotes(meta, { log }).catch(() => {})
       }
       return { kn: id, name: meta.name, ...r }
     },
@@ -1732,7 +1734,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // ── 커밋 뒤는 던지지 않는다 ──
       if (r.commit) {
         cache.delete(id)
-        try { if (backup.attached(meta)) backup.enqueue(meta, { log }).catch((e) => log(`백업 걸기 실패 ${id}: ${e.message}`)) } catch (e) { log(`백업 걸기 실패 ${id}: ${e.message}`) }
+        try { pushRemotes(meta, { log }).catch((e) => log(`저장소 · 지식백업 걸기 실패 ${id}: ${e.message}`)) } catch (e) { log(`저장소 · 지식백업 걸기 실패 ${id}: ${e.message}`) }
         try { feed.add(dataDir, user, { kind: 'save', rec: r.log, kn: id, dot: 'acc', text: `구조: ${meta.name}`, small: r.lines.slice(0, 3).map((x) => x.replace(/^- /, '')).join(' · ') }).catch((e) => log(`오늘 바뀐 것 줄을 쓰지 못했다 ${id}: ${e.message}`)) } catch (e) { log(`오늘 바뀐 것 줄을 쓰지 못했다 ${id}: ${e.message}`) }
       }
       return { kn: id, ...r }
@@ -2570,7 +2572,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // ── 자동으로 가져올 곳(v0.6 §5) — 더하기는 관리자(팀) · 주인(PC) · 그 밖은 [관리자에게 부탁] ──
     async sourceCtx(id) {
       const metas = await hub.list()
-      const backups = metas.map((m) => backup.stateOf(m)?.url).filter(Boolean)
+      const backups = metas.flatMap((m) => [backup.stateOf(m)?.url, backup.copy.stateOf(m)?.url]).filter(Boolean)
       return { roots: (config.sourceRoots || []).map((r) => path.resolve(r)), dataDir, knowledgeDirs: metas.map((m) => m.dir), backups, pc: mode === 'pc' }
     },
     canSource(ctx, id) {
@@ -2584,7 +2586,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async sourceGuard(ctx, id, { kind, at = null, host = null }) {
       if (kind === 'git' && at != null) {
         const { backups } = await hub.sourceCtx(id)
-        if (backups.some((b) => repoKey(b) === repoKey(at))) throw new KmdError('E_INPUT', '이 kmd 의 백업 자리는 가져올 곳이 될 수 없다')
+        if (backups.some((b) => repoKey(b) === repoKey(at))) throw new KmdError('E_INPUT', '이 kmd 의 저장소 · 지식백업은 가져올 곳이 될 수 없다')
       }
       if (hub.sourceServer(ctx)) return
       const hosts = (config.sourceHosts || []).map((h) => String(h).trim().toLowerCase()).filter(Boolean)
@@ -2765,7 +2767,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (srcRuns.get(key) === job) srcRuns.delete(key)
         if (srcPend.get(key)?.job === job) srcPend.delete(key)
       }
-      if (out.some((x) => x.state === 'changed') && backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
+      if (out.some((x) => x.state === 'changed')) pushRemotes(meta, { log }).catch(() => {})
       return out
     },
     // 전체 다시 맞추기 — 뒤에서 일감으로 · 진행률 · 끊기면(서버를 다시 켜면) 같은 pass 로 이어서. 쓰는 것은 다른 것뿐
@@ -4192,7 +4194,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       run.endedAt = new Date().toISOString()
       hub.runSave(run)
       cache.delete(id)
-      if (backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
+      pushRemotes(meta, { log }).catch(() => {})
     },
     // 이름 없는 기록 하나(넣은 파일 · 세션 메모)를 문서로 — 이어지는 문서의 항목에 넣거나 새 문서
     async ingestNow(id, recId, { claude = true, why: why0 = null } = {}) {
@@ -4322,7 +4324,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       if (n) {
         const meta = await hub.meta(id)
-        if (backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
+        pushRemotes(meta, { log }).catch(() => {})
       }
       return { n }
     },
@@ -4438,7 +4440,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           if (paths.length) await commitPaths(meta.dir, paths, `첨부: ${ctx.user} · ${paths.length}`, ctx.user)
         })
         cache.delete(id)
-        if (backup.attached(meta)) backup.enqueue(meta, { log }).catch((e) => log('백업 걸기', id, e.message))
+        pushRemotes(meta, { log }).catch((e) => log('저장소 · 지식백업 걸기', id, e.message))
       }
       const s = summary(rows)
       const bad = rows.filter((x) => x.kind === 'fail' || x.kind === 'held')
@@ -4558,7 +4560,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 이력 — 넣기 한 번이 한 줄(파일마다 줄을 쌓지 않는다) · 못 넣은 파일과 까닭도
       if (s.doc || s.record || s.run || s.fail || s.skip) feed.add(dataDir, ctx.user, { kind: 'import', kn: id, dot: s.fail ? 'warn' : 'acc', text: `파일 ${plan.rows.length}개 가운데 ${plan.rows.filter((x) => !['fail', 'held', 'same', 'skip'].includes(x.kind)).length}개를 넣었다: ${meta.name}`, small: [s.doc ? `문서 ${s.doc}` : '', s.record ? `기록 ${s.record}` : '', s.run ? `Claude Code 일 ${s.run}` : '', s.att ? `첨부 ${s.att}` : '', s.fail ? `못 넣음 ${s.fail}: ${plan.rows.filter((x) => x.kind === 'fail').slice(0, 3).map((x) => `${x.name}: ${x.msg}`).join(' · ')}` : '', s.skip ? `읽지 못하는 종류 ${s.skip}` : ''].filter(Boolean).join(' · ') }).catch(() => {})
       // 넣은 파일의 기록 — 이 PC 는 위에서 이미 문서까지 · 팀 화면은 importTeam(들이기 일감)이다(S8 · 정리를 걷었다 S13)
-      if ((plan.docs.length || plan.atts.length) && backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
+      if (plan.docs.length || plan.atts.length) pushRemotes(meta, { log }).catch(() => {})
       if (gj) hub.groupAdd(gj, plan.rows, files.length, !!group.last)
       return { direct, summary: s, rows: plan.rows, ...(gj ? { group: gj.id } : {}) }
     },
@@ -4932,7 +4934,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
               scheduleDecide(id)
               hub.curateSoon(id).catch((e) => log('바로 넣기', id, e.message))
             }
-            if (backup.attached(meta)) backup.enqueue(meta, { log }).catch((e) => log(`백업 걸기 실패 ${id}: ${e.message}`))
+            pushRemotes(meta, { log }).catch((e) => log(`저장소 · 지식백업 걸기 실패 ${id}: ${e.message}`))
           }
         }
         bad.sort((a, b) => a.i - b.i)
@@ -5061,7 +5063,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const boss = mode !== 'team' || !!ctx.admin
       for (const k of ks) {
         const kadm = mode !== 'team' || hub.canSource(ctx, k.id)
-        if (boss) out.push(...backup.lines(k, { name: k.name }))
+        // 저장소 줄(개인 프로그램은 갈래 repo — 「지식백업」 줄과 따로) · 지식백업 줄(개인만)
+        if (boss) out.push(...backup.lines(k, { name: k.name, kind: mode === 'pc' ? 'repo' : 'backup' }))
+        if (mode === 'pc') out.push(...backup.copy.lines(k, { name: k.name }))
         // 보내기는 개인 프로그램이 보낸다 — 닿지 않음 · 보내지 못함은 개인 화면에(UX T7-03)
         const all = mode === 'pc' || mode === 'team' ? (await sendLib.readState(dataDir, k.id)).wait : []
         const sw = all.filter((w) => w.state === 'wait')
@@ -5074,9 +5078,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           return []
         })
         if (decl.length && kadm) out.push(...sourceLines(k, decl, await readSourceState(dataDir, k.id), { admin: hub.canSource(ctx, k.id) }))
-        if (boss && !backup.attached(k)) {
+        if (boss && !(mode === 'pc' ? backup.copy.attached(k) : backup.attached(k))) {
           const u = await unbacked(k)
-          if (u) out.push(stopLine({ kind: 'backup', kn: k.id, level: 'warn', what: `${k.name}: ${mode === 'pc' ? '지식백업이 없다' : '저장소가 없다'}`, amount: `백업 안 된 저장 ${u.n}번`, fix: mode === 'pc' ? '설정 › 지식백업에서 경로를 정하면 저절로 붙고 그동안의 것을 모두 보낸다' : '관리자가 지식관리 › 모든 지식 › 지식 상세 › 저장소에서 붙이면 그동안의 것을 모두 보낸다', since: `${u.since} 부터` }))
+          if (u) out.push(stopLine({ kind: 'backup', kn: k.id, level: 'warn', what: `${k.name}: ${mode === 'pc' ? '지식백업이 없다' : '저장소가 없다'}`, amount: `${mode === 'pc' ? '지식백업' : '저장소'}에 안 보낸 저장 ${u.n}번`, fix: mode === 'pc' ? '설정 › 지식백업에서 경로를 정하면 저절로 붙고 그동안의 것을 모두 보낸다' : '관리자가 지식관리 › 모든 지식 › 지식 상세 › 저장소에서 붙이면 그동안의 것을 모두 보낸다', since: `${u.since} 부터` }))
         }
       }
       return out
@@ -5141,7 +5145,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         level: hub.levelOf(ctx, id), noClaude: !!row.noClaude, review: !!row.review, issueUrl: row.issueUrl || '',
         sources: Array.isArray(decl) ? decl.length : 0,
         backup: bk ? { url: bk.url || null, branch: bk.branch || null, verdict: bk.verdict || null, at: bk.at || null, last: bk.last ? { at: bk.last.at || null, ok: !!bk.last.ok, reason: bk.last.reason || null } : null } : null,
-        ...(mode === 'pc' ? { dir: meta.dir } : {}),
+        ...(mode === 'pc' ? { dir: meta.dir, copy: (() => { const c = backup.copy.stateOf(meta); return c ? { url: c.url || null, verdict: c.verdict || null, at: c.at || null } : null })() } : {}),
       }
     },
     // 자리 표 바꾸기 — 그 지식의 관리 자리(총괄 관리자는 부르는 쪽이 비밀번호를 한 번 더) · 장부와 `_members.md` 를 같이
@@ -5324,32 +5328,37 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       return out
     },
 
-    // 백업 — 붙이기 · 받기 · 상태(관리자만)
-    async backupAttach(ctx, id, url) {
-      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '백업 자리는 관리자가 붙인다')
+    // 저장소 — 붙이기 · 받기 · 상태(총괄 관리자 · 보기는 GET /api/k/:id/backup 지식관리자부터) · branch 는 보낼 가지(처음 값 main · git 가지 이름 규칙)
+    async backupAttach(ctx, id, url, { branch = null } = {}) {
+      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '저장소는 총괄 관리자가 붙인다')
       url = String(url || '').trim()
-      if (!url || /[\s\0]/.test(url) || /^ext::|^-/i.test(url)) throw new KmdError('E_INPUT', '백업 자리 주소가 아니다')
+      if (!url || url.length > 500 || /[\s\0]/.test(url) || /^ext::|^-/i.test(url)) throw new KmdError('E_INPUT', '저장소 주소가 아니다')
+      // 가지를 정하지 않으면 붙어 있던 가지(처음이면 main) — core attach 가 정한다
+      const br = branch == null || branch === '' ? null : backup.checkBranch(branch)
       if (isLocalPath(url) && mode === 'team') {
         const roots = (config.backupRoots || []).map((r) => path.resolve(r))
         const full = path.resolve(url)
         const meta = await hub.meta(id)
-        if (insideDir(full, meta.dir) || insideDir(full, dataDir)) throw new KmdError('E_INPUT', '지식 폴더 · 살림 자리 안에는 백업을 둘 수 없다')
-        if (!roots.some((r) => insideDir(full, r))) throw new KmdError('E_FORBIDDEN', '이 폴더는 백업 자리로 허락되지 않았다. serve.json 의 backupRoots 에 더한다')
+        if (insideDir(full, meta.dir) || insideDir(full, dataDir)) throw new KmdError('E_INPUT', '지식 폴더 · 살림 자리 안에는 저장소를 둘 수 없다')
+        if (!roots.some((r) => insideDir(full, r))) throw new KmdError('E_FORBIDDEN', '이 폴더는 저장소로 허락되지 않았다. serve.json 의 backupRoots 에 더한다')
       }
       const meta = await hub.meta(id)
-      const r = await backup.attach(meta, url, { dataDir })
+      // 지식백업 사본 자리를 저장소로 붙이지 않는다(두 원격이 한 곳에 밀면 판정이 갈라진다)
+      const cp = backup.copy.stateOf(meta)
+      if (isLocalPath(url) && ((mode === 'pc' && config.backupRoot && insideDir(path.resolve(url), path.resolve(config.backupRoot))) || (cp && path.resolve(url).toLowerCase() === path.resolve(cp.url).toLowerCase()))) throw new KmdError('E_INPUT', '지식백업 사본 자리는 저장소로 붙이지 않는다')
+      const r = await backup.attach(meta, url, { dataDir, branch: br })
       return { ...r, backup: backup.stateOf(meta) }
     },
     async backupPull(ctx, id) {
-      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '백업에서 받기는 총괄 관리자가 한다')
+      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '저장소에서 받기는 총괄 관리자가 한다')
       const meta = await hub.meta(id, ctx)
       const r = await backup.pull(meta, { check })
       cache.delete(id)
       return r
     },
-    // 이 백업 이어 쓰기 — 갈라졌을 때 백업 쪽이 맞다고 사람이 정한다(지금 머리는 가지로 남긴다)
+    // 이 저장소 이어 쓰기 — 갈라졌을 때 저장소 쪽이 맞다고 사람이 정한다(지금 머리는 가지로 남긴다)
     async backupAdopt(ctx, id) {
-      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '백업 이어 쓰기는 총괄 관리자가 한다')
+      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '저장소 이어 쓰기는 총괄 관리자가 한다')
       const meta = await hub.meta(id)
       // 갈라졌으면 — 서버에만 있던 기록을 쓴 사람에게 알린다(가지 kmd-before-… 에 남는다 · 다시 남기면 들어간다)
       const lost = await backup.lostIfAdopt(meta).catch(() => ({ records: [], docs: [] }))
@@ -5357,25 +5366,29 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       cache.delete(id)
       const by = {}
       for (const x of lost.records) if (x.author && !/^kmd/.test(x.author)) (by[x.author] ||= []).push(x)
-      if (r.kept) for (const [u, recs] of Object.entries(by)) await feed.add(dataDir, u, { kind: 'kn', kn: id, yl: true, b: `${meta.name} 을 백업의 글로 되돌렸다. 내 기록 ${recs.length} 이 지식에서 빠졌다`, small: `${recs.slice(0, 3).map((x) => x.title).join(' · ')} · 가지 ${r.kept} 에 남아 있다. 필요하면 다시 남긴다` }).catch(() => {})
+      if (r.kept) for (const [u, recs] of Object.entries(by)) await feed.add(dataDir, u, { kind: 'kn', kn: id, yl: true, b: `${meta.name} 을 저장소의 글로 되돌렸다. 내 기록 ${recs.length} 이 지식에서 빠졌다`, small: `${recs.slice(0, 3).map((x) => x.title).join(' · ')} · 가지 ${r.kept} 에 남아 있다. 필요하면 다시 남긴다` }).catch(() => {})
       return { ...r, lost: lost.records.length }
     },
-    // 되살리기 — 백업 자리에서 새 폴더로(지식 받아 오기 · 새 PC 의 [이 PC 로 되살리기]) · 받은 곳을 그대로 백업 자리로 붙인다
-    async restore(ctx, { url, name, attach = null }) {
+    // 불러오기(되살리기) — 저장소 · 지식백업 사본에서 새 폴더로(지식 받아 오기 · 새 PC 의 [이 PC 로 되살리기]) · 받은 곳 · 가지를 그대로 저장소로 붙인다
+    //   branch — 받을 가지(없으면 원격의 기본 가지 · git 가지 이름 규칙) · 이 PC 의 지식백업 사본 자리에서 받으면 저장소로 붙이지 않는다(지식백업이 다시 붙는다)
+    async restore(ctx, { url, name, attach = null, branch = null }) {
       if (!ctx.admin && !ctx.shell && mode !== 'pc') throw new KmdError('E_FORBIDDEN', '불러오기는 총괄 관리자가 한다')
       if (await looksLikeKnowledge(root)) throw new KmdError('E_INPUT', '이 kmd 는 지식 하나만 연다')
       const t = checkUrl(url, { roots: config.backupRoots || [], pc: mode === 'pc' })
+      const br = branch == null || branch === '' ? null : backup.checkBranch(branch)
+      const fromCopy = mode === 'pc' && t.local && !!config.backupRoot && insideDir(path.resolve(t.url), path.resolve(config.backupRoot))
       const nm = String(name || '').normalize('NFC').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').trim() || path.basename(t.url).replace(/\.git$/i, '')
       if (!nm || nm.startsWith('.')) throw new KmdError('E_INPUT', '이름을 정한다')
       if ((await hub.list()).some((k) => k.id.toLowerCase() === nm.toLowerCase())) throw new KmdError('E_CONFLICT', `「${nm}」 지식이 이미 있다`)
       const dir = path.join(root, nm)
-      // 백업에 이어 붙이나 — 같은 주소를 이 kmd 의 다른 지식이 쓰면 붙이지 않는다(연습 사본이 운영 백업에 밀어 넣지 않게) ·
+      // 저장소로 이어 붙이나 — 같은 주소를 이 kmd 의 다른 지식이 쓰면 붙이지 않는다(연습 사본이 운영 저장소에 밀어 넣지 않게) ·
       // 정하지 않았으면 원래 이름(주소의 끝)으로 되살릴 때만 붙인다 · 다른 이름이면 읽기만 사본
       const used = (await hub.list()).find((k) => backup.stateOf(k)?.url === maskUrl(t.url))
-      if (attach === true && used) throw new KmdError('E_CONFLICT', `같은 백업 자리를 「${used.name}」 이 쓰고 있다. 연습이면 붙이지 않고 되살린다(--practice)`)
+      if (attach === true && used) throw new KmdError('E_CONFLICT', `같은 저장소를 「${used.name}」 이 쓰고 있다. 연습이면 붙이지 않고 불러온다(--practice)`)
       const same = nm.toLowerCase() === path.basename(String(t.url).replace(/[\\/]+$/, '')).replace(/\.git$/i, '').toLowerCase()
-      const doAttach = attach === false ? false : attach === true ? true : !used && same
-      const r = await restoreFrom({ url: t.url, dir, check, local: t.local })
+      if (fromCopy && attach === true) throw new KmdError('E_INPUT', '지식백업 사본에서 불러온 지식은 저장소로 붙이지 않는다(지식백업이 다시 붙는다)')
+      const doAttach = fromCopy || attach === false ? false : attach === true ? true : !used && same
+      const r = await restoreFrom({ url: t.url, dir, check, local: t.local, branch: br })
       // 주인 · 개인 · 정리 설정을 목록에 보이기 전에 건다(되살린 개인 지식이 한순간도 팀에 열리지 않게)
       const practice = !doAttach && mode === 'team'
       const owner = practice
@@ -5383,18 +5396,21 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         : await mutateReg((next) => owners.adoptMembers(next, nm, dir, { restore: true }))
       list = null
       const meta = await hub.meta(nm)
-      if (doAttach) await backup.attach(meta, t.url, { dataDir }).catch((e) => log('되살린 지식 백업 붙이기', nm, e.message))
+      if (doAttach) await backup.attach(meta, t.url, { dataDir, branch: r.branch }).catch((e) => log('불러온 지식 저장소 붙이기', nm, e.message))
       else {
-        // 읽기만 사본 — 원래 백업에는 보내지 않는다(이 PC 의 백업 자리가 있으면 거기로 새로)
+        // 읽기만 사본 — 원래 저장소에는 보내지 않는다
         await tryGit(dir, ['remote', 'remove', backup.REMOTE])
-        await hub.autoBackup(nm).catch(() => {})
+      }
+      // 이 PC 의 지식백업 — 저장소와 따로 붙는다
+      {
+        await hub.autoBackup(nm).catch((e) => log('불러온 지식 지식백업', nm, e.message))
       }
       // 받을 사람 — 되살린 사람과(셸이면 없다) 주인에게 · 주인이 명부에 없으면 되살린 사람만
-      if (owner?.check) for (const who of new Set([ctx.shell ? null : ctx.user, owner.owner].filter(Boolean))) feed.add(dataDir, who, { kind: 'kn', kn: nm, dot: 'warn', text: `되살린 지식의 정리 설정을 다시 본다: ${meta.name}`, small: '옛 백업이라 정리 방식 · Claude 에 보내지 않음이 없어 「손으로만 · 보내지 않음」 으로 두었다. 이 지식의 사람에서 바꾼다' }).catch(() => {})
-      feed.add(dataDir, ctx.user || 'kmd', { kind: 'kn', kn: nm, dot: 'acc', text: `되살렸다: ${meta.name}`, small: `문서 ${r.docs} · 기록 ${r.records} · 첨부 ${r.atts}${r.errors.length ? ' · 검사 줄 ' + r.errors.length : ''}` }).catch(() => {})
+      if (owner?.check) for (const who of new Set([ctx.shell ? null : ctx.user, owner.owner].filter(Boolean))) feed.add(dataDir, who, { kind: 'kn', kn: nm, dot: 'warn', text: `되살린 지식의 정리 설정을 다시 본다: ${meta.name}`, small: '옛 저장소라 정리 방식 · Claude 에 보내지 않음이 없어 「손으로만 · 보내지 않음」 으로 두었다. 이 지식의 사람에서 바꾼다' }).catch(() => {})
+      feed.add(dataDir, ctx.user || 'kmd', { kind: 'kn', kn: nm, dot: 'acc', text: `불러왔다: ${meta.name}`, small: `문서 ${r.docs} · 기록 ${r.records} · 첨부 ${r.atts}${r.errors.length ? ' · 검사 줄 ' + r.errors.length : ''}` }).catch(() => {})
       return { id: nm, ...r, owner: owner?.owner || null, check: !!owner?.check, attached: doAttach }
     },
-    // GitLab 봇 — 백업 자리가 없는 팀 지식에 저장소를 찾거나 만들어 붙인다(안 되면 지금처럼 · 멈춤 줄이 남는다)
+    // GitLab 봇 — 저장소가 없는 팀 지식에 저장소를 찾거나 만들어 붙인다(가지 main)(안 되면 지금처럼 · 멈춤 줄이 남는다)
     async gitlabAttach(id) {
       const g = config.gitlab
       if (!g || mode !== 'team') return null
@@ -5404,35 +5420,72 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!token) return null
       const p = await ensureProject({ api: g.api, group: g.group, token, name: meta.id })
       await ensureRepo(meta.dir) // 아직 git 이 없는 지식이면 있던 글을 첫 묶음으로
-      await backup.attach(meta, p.url, { dataDir })
-      log(`${meta.name}: GitLab 백업 자리를 ${p.created ? '만들어' : '찾아'} 붙였다`)
+      await backup.attach(meta, p.url, { dataDir, branch: 'main' })
+      log(`${meta.name}: GitLab 저장소를 ${p.created ? '만들어' : '찾아'} 붙였다`)
       return p
     },
     backupStateSync: (meta) => backup.stateOf(meta),
+    copyStateSync: (meta) => backup.copy.stateOf(meta),
+    // 옛 지식백업 옮기기(G1) — 나누기 전에는 이 PC 의 사본(<backupRoot>/<지식>.git)이 저장소 원격 kmd-backup · <살림>/backup/ 에 붙어 있었다.
+    //   그 주소가 사본 자리 안이면 원격 이름을 kmd-copy 로 · 상태 파일을 <살림>/copy/ 로 옮긴다(원자: 새 파일을 쓴 뒤 옛 파일을 지운다) · 켤 때 한 번
+    //   옛 사본 = 상태 파일의 주소가 이 PC 의 폴더이고 지금 사본 자리 안이거나 옛 사본 이름(<지식>.git · 앞의 지식백업 경로).
+    //   걸음(원격 이름 · 새 상태 파일 · 옛 상태 파일 지우기)마다 다시 해도 되게 — 반쯤 옮기다 넘어져도 다음 켤 때 잇는다 · 지식마다 따로(하나가 넘어져도 나머지는)
+    async copyMigrate() {
+      const base = config.backupRoot ? path.resolve(config.backupRoot) : null
+      let moved = 0
+      for (const m of await hub.list()) {
+        try {
+          const e = encodeURIComponent(m.id)
+          const from = path.join(dataDir, 'backup', `${e}.json`)
+          const to = path.join(dataDir, 'copy', `${e}.json`)
+          const t0 = await fs.readFile(from, 'utf8').catch((x) => (x.code === 'ENOENT' ? null : Promise.reject(x)))
+          if (t0 == null) continue
+          let st
+          try { st = JSON.parse(t0) } catch (x) { log('지식백업 옮기기: 저장소 상태 파일이 깨졌다(그대로 둔다)', m.id, x.message); continue }
+          const url = String(st?.url || '')
+          const full = url && isLocalPath(url) ? path.resolve(url) : null
+          if (!full || !((base && insideDir(full, base)) || path.basename(full).toLowerCase() === `${m.id}.git`.toLowerCase())) continue
+          const cur = await remoteUrl(m.dir, backup.COPY_REMOTE)
+          if (!cur) {
+            const old = await remoteUrl(m.dir, backup.REMOTE)
+            const g = old ? await tryGit(m.dir, ['remote', 'rename', backup.REMOTE, backup.COPY_REMOTE]) : await tryGit(m.dir, ['remote', 'add', backup.COPY_REMOTE, full])
+            if (!g.ok) { log('지식백업 옮기기: 원격을 옮기지 못했다', m.id, g.err); continue }
+          } else if (await remoteUrl(m.dir, backup.REMOTE)) {
+            const g = await tryGit(m.dir, ['remote', 'remove', backup.REMOTE])
+            if (!g.ok) { log('지식백업 옮기기: 옛 원격을 떼지 못했다', m.id, g.err); continue }
+          }
+          if (!existsSync(to)) await writeJsonAtomic(to, st, { indent: 1, nl: true })
+          await fs.rm(from, { force: true })
+          moved++
+        } catch (x) { log('지식백업 옮기기', m.id, x.message) }
+      }
+      if (moved) log(`지식백업 옮김: ${moved}`)
+      return moved
+    },
     async backupState(ctx, id) {
       return backup.stateOf(await hub.meta(id, ctx.admin || ctx.shell ? undefined : ctx))
     },
-    // 저절로 붙이기 — 이 PC 만 · 백업 자리(backupRoot) 아래(팀 지식은 관리자가 붙인다 · GitLab 봇)
-    //   새 지식 · 동기화 · 되살리기 · 켤 때(붙지 않은 것)
+    // 지식백업 저절로 붙이기 — 이 PC 만 · 사본 자리(backupRoot) 아래 <지식>.git · 원격 kmd-copy(G1 · 저장소를 붙여도 꺼지지 않는다)
+    //   새 지식 · 동기화 · 불러오기 · 켤 때(붙지 않은 것)
     async autoBackup(id) {
       const meta = await hub.meta(id)
-      if (backup.attached(meta)) return null
+      if (backup.copy.attached(meta)) return null
       const base = mode === 'pc' ? config.backupRoot : null
       if (!base) return null
       const bare = path.join(path.resolve(base), `${id}.git`)
       await fs.mkdir(path.dirname(bare), { recursive: true })
       if (!existsSync(bare)) {
         const r = await tryGit(path.dirname(bare), ['init', '-q', '--bare', '-b', 'main', bare])
-        if (!r.ok) throw new KmdError('E_INPUT', `백업 자리를 만들지 못했다: ${r.err.split('\n')[0]}`)
+        if (!r.ok) throw new KmdError('E_INPUT', `지식백업 사본을 만들지 못했다: ${r.err.split('\n')[0]}`)
       }
-      await backup.attach(meta, bare, { dataDir })
+      await backup.copy.attach(meta, bare, { dataDir, branch: 'main' })
       return bare
     },
-    // 이 PC 의 백업 자리 정하기 — serve.json 의 backupRoot · 정하면 붙지 않은 지식을 모두 붙인다
+    // 이 PC 의 지식백업 경로 정하기 — serve.json 의 backupRoot · 정하면 붙지 않은 지식을 모두 붙이고, 다른 경로의 사본은 새 경로로 옮겨 붙인다(옛 사본은 지우지 않는다)
     async setBackupRoot(ctx, dir) {
       if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '이 PC 의 일이다') // 팀 화면이면 이 PC 에서 확인을 받은 뒤다(PAIR_ASK)
       const full = path.resolve(String(dir || '').trim())
-      if (!String(dir || '').trim()) throw new KmdError('E_INPUT', '백업 자리 폴더를 쓴다')
+      if (!String(dir || '').trim()) throw new KmdError('E_INPUT', '지식백업 경로를 쓴다')
       const inside = insideDir // 대소문자를 가리지 않고(Windows) — sources.inside 하나로
       if (inside(full, path.resolve(root)) || inside(full, path.resolve(dataDir)) || inside(path.resolve(root), full)) throw new KmdError('E_INPUT', '지식 폴더 · 살림 자리와 겹치지 않는 곳에 둔다(다른 드라이브 · 네트워크 폴더)')
       await fs.mkdir(full, { recursive: true }).catch((e) => { throw new KmdError('E_INPUT', `그 폴더를 만들 수 없다: ${e.code || e.message}`) })
@@ -5442,11 +5495,16 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       let attached = 0
       const failed = []
       for (const m of await hub.list()) {
-        try { if (await hub.autoBackup(m.id)) attached++ } catch (e) { failed.push(`${m.name}: ${e.message}`) }
+        try {
+          const meta = await hub.meta(m.id)
+          const c = backup.copy.stateOf(meta)
+          if (c && !insideDir(path.resolve(c.url), full)) await backup.copy.detach(meta)
+          if (await hub.autoBackup(m.id)) attached++
+        } catch (e) { failed.push(`${m.name}: ${e.message}`) }
       }
       return { root: full, attached, failed }
     },
-    // 갈라졌을 때 — 이어 쓰기가 빼는 것(서버에만 있는 기록 · 문서) · 서버 것으로 백업 덮기
+    // 갈라졌을 때 — 이어 쓰기가 빼는 것(서버에만 있는 기록 · 문서) · 서버 것으로 저장소 덮기
     async backupLost(ctx, id) {
       if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '총괄 관리자가 한다')
       return backup.lostIfAdopt(await hub.meta(id))
@@ -5522,19 +5580,20 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const back = await serial(path.resolve(m.dir), () => recoverSave(m.dir)).catch((e) => (log('반쯤 쓴 저장 되돌리기', m.id, e.message), []))
         if (back.length) { cache.delete(m.id); log('반쯤 쓴 저장을 되돌렸다', m.id, back.join(' · ')) }
       }
+      if (mode === 'pc') await hub.copyMigrate().catch((e) => log('지식백업 옮기기', e.message))
       await backup.start(await hub.list(), { dataDir, log })
       // GitLab 봇 — 백업 자리가 없는 지식마다(켤 때 한 번 · 지식 추가 때)
       // 못 붙인 것(GitLab · 저장소가 잠깐 닿지 않음)은 30초 · 2분 · 10분 · 그 뒤 한 시간마다 다시 — 다시 켤 때까지 백업 없이 두지 않게
       if (config.gitlab) {
         const sweep = async (i) => {
           let left = 0
-          for (const m of await hub.list().catch(() => [])) await hub.gitlabAttach(m.id).catch((e) => { left++; log('GitLab 백업 자리', m.id, e.message) })
+          for (const m of await hub.list().catch(() => [])) await hub.gitlabAttach(m.id).catch((e) => { left++; log('GitLab 저장소', m.id, e.message) })
           if (left && started) setTimeout(() => sweep(i + 1), [30_000, 120_000, 600_000][i] ?? 3600_000).unref?.()
         }
         setTimeout(() => sweep(0), 500).unref?.()
       }
       // 이 PC 의 백업 자리 · 팀 서버의 개인 지식 백업 자리 — 붙지 않은 지식마다(켤 때 한 번)
-      if (config.backupRoot) setTimeout(async () => { for (const m of await hub.list().catch(() => [])) await hub.autoBackup(m.id).catch((e) => log('백업 자리', m.id, e.message)) }, 800).unref?.()
+      if (config.backupRoot) setTimeout(async () => { for (const m of await hub.list().catch(() => [])) await hub.autoBackup(m.id).catch((e) => log('지식백업', m.id, e.message)) }, 800).unref?.()
       // 거두기 — PC(또는 serve.json collect)에서 편집기로 고친 문서를 30초 고요 뒤 들인다
       await hub.known().catch(() => {}) // 처음 켤 때 — 지금 있는 지식을 아는 것으로
       if (mode === 'pc' || config.collect) for (const m of await hub.list()) watchers.push(Object.assign(collect.watch(m.dir, () => hub.collect(m.id)), { dir: m.dir }))
@@ -5612,7 +5671,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (r.reverted?.length) log(`${meta.name}: 손으로 고친 기록 · 장부를 되돌렸다: ${r.reverted.join(' · ')}`)
         // 되돌린 손 고침 — 이력에 노란 줄(까닭 · 사본 자리) · 글은 사본으로 남았다
         for (const x of r.rescued || []) await feed.add(dataDir, user, { kind: 'edit', kn: id, yl: true, b: `편집기 고침을 되돌렸다: ${meta.name} › ${x.path}`, small: `${x.why} · 고친 글의 사본: ${x.copy}` }).catch(() => {})
-        if (r.id && backup.attached(meta)) backup.enqueue(meta, { log }).catch(() => {})
+        if (r.id) pushRemotes(meta, { log }).catch(() => {})
       }
       return r
     },

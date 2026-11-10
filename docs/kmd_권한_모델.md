@@ -153,7 +153,8 @@
 - `/api/admin/overview` 의 `ops`(줄 멈춤 · 동시에 도는 수 · 지식 폴더 · 살림 자리 · `serve.json` 손잡이)는 총괄 관리자만(overview 와 같다). 비밀 값(`gitlab`)은 값 대신 「정함」.
 - 개인 프로그램의 `/api/stops` 에 이은 팀 서버의 판 경고(`kind: ver`) — 팀 서버 `/healthz`(들어오지 않아도 받는 판 · 갈래)만 읽는다.
 
-- 지식 상세(메뉴 개편 N6 · 2026-11-10): `GET /api/k/:id/manage`(정보: 문서 · 기록 · 첨부 수 · 만든 때 · 주인 · 지식 설정 · 저장소 상태 · 개인만 폴더) · `GET /api/k/:id/backup`(저장소 보기: 주소는 `maskUrl` · 가지 · 마지막 보냄 · 상태) — 둘 다 `hub.meta(id, ctx)`(read 미만 404) 뒤 `hub.need(ctx, id, 'admin')`(쓰기 · 읽기 403). **저장소 보기는 지식관리자부터(주소 가림) · 붙이기 · 바꾸기 · GitLab 새로는 총괄 관리자**(`POST /api/k/:id/backup` · `ctx.admin`).
+- 지식 상세(메뉴 개편 N6 · 2026-11-10): `GET /api/k/:id/manage`(정보: 문서 · 기록 · 첨부 수 · 만든 때 · 주인 · 지식 설정 · 저장소 상태 · 개인만 폴더) · `GET /api/k/:id/backup`(저장소 보기: 주소는 `maskUrl` · 가지 · 마지막 보냄 · 상태) — 둘 다 `hub.meta(id, ctx)`(read 미만 404) 뒤 `hub.need(ctx, id, 'admin')`(쓰기 · 읽기 403). **저장소 보기는 지식관리자부터(주소 가림) · 붙이기 · 바꾸기 · GitLab 새로는 총괄 관리자**(`POST /api/k/:id/backup { url, branch }` · `ctx.admin`). 가지(`branch` · 처음 값 main)는 git 가지 이름 규칙 · 100자(`checkBranch` · 아니면 400) · 불러오기 `POST /api/restore { url, name, branch }` 도 같다(메뉴 개편 G1).
+- 저장소 · 지식백업 나눔(G1 · 메뉴 개편 8-3 · 11절 5): 저장소 = 지식마다 git 주소 + 가지(원격 `kmd-backup` · `<살림>/backup/` · behind · moved 면 저장을 닫음). 지식백업 = 개인 프로그램만 · 이 PC 의 사본 자리(`backupRoot`) 아래 `<지식>.git`(원격 `kmd-copy` · `<살림>/copy/` · 저장을 닫지 않음) · 저장소를 붙여도 꺼지지 않고 저장마다 둘 다 보낸다 · 사본 자리를 저장소로 붙이지 못한다. 상태(`GET /api/k/:id/backup` 의 `copy` · 개인만) · 멈춤 줄은 원격마다(개인의 저장소 줄은 갈래 `repo`). 옛 지식백업(저장소 원격에 붙은 사본)은 켤 때 옮긴다.
 - `/api/k/:id/past`(옛 판 · 그때의 글 · 지금 글) — 읽기 자리부터(`hub.meta(id, ctx)` · read 미만 404). 그 문서를 바꾼 판(git log --follow)만 고를 수 있다.
 - `/api/admin/audit`(감사 기록) — 총괄 관리자만. 팀 서버의 관리 쓰기 POST(사람 · 자리 · 지식 · 주인 · 권한 · 짜임 · 되돌림 · 가져올 곳 · 넣지 못함 · 계정)를 `<살림>/audit.jsonl` 에 누가 · 때 · 길 · 지식 · 결과로(본문은 적지 않는다).
 - 찾기 0건의 「다른 이름 더하기」 — 찾기 학습(`learn` · 쓰기 자리부터) + 저장 문의 `names`(지식관리자는 바로 장부에 · 쓰기 자리는 넣지 못함 「세울 이름」). 새 길은 없다.

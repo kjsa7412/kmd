@@ -126,7 +126,7 @@ export const inside = (p, root) => {
 export function checkTarget(at, { kind, roots = [], dataDir, knowledgeDirs = [], backups = [], pc = false }) {
   const s = String(at || '').trim()
   if (!s || /[\r\n\0]/.test(s) || /^-/.test(s) || /^ext::/i.test(s) || /^file:/i.test(s)) throw new KmdError('E_INPUT', '이 주소는 받지 않는다')
-  if (backups.some((b) => b && maskUrl(b) === maskUrl(s))) throw new KmdError('E_INPUT', '이 kmd 의 백업 자리는 가져올 곳이 될 수 없다')
+  if (backups.some((b) => b && maskUrl(b) === maskUrl(s))) throw new KmdError('E_INPUT', '이 kmd 의 저장소 · 지식백업은 가져올 곳이 될 수 없다')
   const isUrl = /^(https?|ssh):\/\//i.test(s) || /^[^/\\\s]+@[^/\\\s]+:/.test(s)
   if (kind === 'git' && isUrl) return { url: s }
   // 이 PC 의 폴더(폴더 원천 · 이 PC 의 git 저장소)

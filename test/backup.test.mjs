@@ -12,6 +12,7 @@ import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
+import { SHELL } from '../server/hub.js'
 import * as backup from '../core/backup.js'
 import { copyDir, signIn } from './helpers.mjs'
 
@@ -19,7 +20,7 @@ const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixture', '
 let tmp, s, kn, bare, me
 const G = (cwd, ...a) => execFileSync('git', ['-c', 'user.name=남', '-c', 'user.email=nam@x', '-c', 'core.autocrlf=false', ...a], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
 const rec = (title) => ({ record: { title, body: title + '본문', touches: ['proc:카나리'] } })
-const ctx = { user: '김' }
+const ctx = { user: 'kim' }
 const ADMIN = { user: '이', admin: true }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 // git 한 번이 수 초씩 걸리는 PC(보안 프로그램 · 다른 시험)가 있다 — 기다림은 넉넉히, 판정은 끝난 보내기로
@@ -46,6 +47,8 @@ before(async () => {
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {} })
   me = await signIn(s, { id: 'kim' })
   kn = { id: 'dpms', dir: path.join(tmp, 'kn', 'dpms') }
+  // 받지 않은 지식은 없음이 기본(권한 모델 v1.1) — 저장하는 사람에게 쓰기 자리
+  await s.hub.setAccess(SHELL, 'dpms', { users: { kim: 'write' } })
   await s.hub.save(ctx, 'dpms', rec('첫 저장'))
 })
 after(async () => {
@@ -100,7 +103,7 @@ test('지워진 백업 → 다시 올리고 하루 빨강 · 판정은 순수 �
   assert.equal(backup.judge({ head: 'b', remote: 'c' }), 'moved')
   // healthz 는 들어오지 않아도 받으므로 살아 있나 · 판만 — 멈춤 줄(지식 이름이 든다)은 들어온 사람의 /api/stops 로만
   const h = await (await fetch(s.url + '/healthz')).json()
-  assert.deepEqual(Object.keys(h).sort(), ['mode', 'ok', 'version'])
+  assert.deepEqual(Object.keys(h).sort(), ['build', 'mode', 'ok', 'version'])
 })
 
 test('끊긴 동안 저장은 그대로 · 나이 경보 · 닿으면 저절로 다시 보낸다', async () => {
@@ -156,6 +159,7 @@ test('상태 파일 없는 clone: origin 은 백업이 아니다 · 보내지 �
   const before = remoteHead()
   G(path.join(tmp, 'kn'), 'clone', '-q', bare, 'cl')
   s.hub.forget()
+  await s.hub.setAccess(SHELL, 'cl', { users: { kim: 'write' } })
   await s.hub.save(ctx, 'cl', rec('받아 온 지식에 저장'))
   assert.equal(remoteHead(), before)
   assert.equal(backup.stateOf({ id: 'cl', dir: path.join(tmp, 'kn', 'cl') }), null)
