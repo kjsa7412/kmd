@@ -245,8 +245,6 @@ function go(r) {
   r = r || {}
   const prevKn = S.route.kn
   // 지식 메뉴 화면(생성 · 확인 · 공유 · 이력 · 구조)은 옆 메뉴에서 고른 지식을 따른다(메뉴 개편 N5 · 화면 안 지식 고르기는 걷었다)
-  const fromKn = prevKn && prevKn !== '*' ? prevKn : null
-  if (fromKn && r.scr === 'structure') S.sxKn = fromKn
   S.route = Object.assign({ scr: 'home', kn: S.route.kn }, r)
   if (KM_SCR.includes(S.route.scr) && (!S.route.kn || S.route.kn === '*')) S.route.kn = defaultKn() || '*'
   if (r.sub !== undefined) subSet(S.route.scr, r.sub)
@@ -887,6 +885,8 @@ function routeFix(rt) {
     else if (r.page === 'pc') r.page = 'backup'
     else if (r.page === 'install' && !isTeam()) r.page = 'agent'
   }
+  // 공유는 개인 화면만 — 팀 주소 #/send · #/k/<지식>/share 는 지식관리로
+  if (r.scr === 'send' && isTeam()) r = { scr: 'home', kn: '*' }
   if (r.scr !== 'settings' && r.scr !== 'home') delete r.page
   if (r.scr !== 'home' || (r.page && r.page !== 'all')) { delete r.mk; delete r.mt }
   return r
@@ -927,17 +927,17 @@ function kmGo(scr, k, sub) {
   const x = sub !== undefined ? { sub } : {}
   if (!k || !KN(k)) return go({ scr, ...x })
   if (k !== S.route.kn) { S.hdPick = null; S.hdCode = null; S.logKn = ''; S.ckAll = false } // 다른 지식 — 그 지식의 처음 값으로
-  if (scr === 'structure' && S.sxKn !== k) { S.sxKn = k; S.sx = null }
   if (scr === 'docs') return go({ scr: VIEWS3.includes(S.ktab) ? S.ktab : 'docs', kn: k })
   go({ scr, kn: k, ...x })
 }
 const kmOn = (id) => { const s = S.route.scr; return id === 'docs' ? DOCSCR.includes(s) : id === 'history' ? HISTSCR.includes(s) : s === id }
 // 고른 지식의 넣지 못함 수(확인 배지) — 지식관리자는 그 지식 모두 · 쓰기 자리는 내 것
-const heldN = (n) => (!n || !isTeam() ? 0 : lvOf(n) === 'admin' ? n.held || 0 : n.heldMine || 0)
+//   승인 기다림(heldRv · heldRvMine)은 확인 › 승인 탭 수라 빼고 센다(확인 › 넣지 못함 탭 수와 같다)
+const heldN = (n) => (!n || isPersonal(n) || !isTeam() ? 0 : lvOf(n) === 'admin' ? Math.max(0, (n.held || 0) - (n.heldRv || 0)) : Math.max(0, (n.heldMine || 0) - (n.heldRvMine || 0)))
 // 문서 › 구조 를 여나(나무 머리 [구조]) — 개인은 주인 · 팀은 그 지식의 지식관리자 · 총괄 관리자
 const canStruct = (k) => !!k && !!KN(k) && admKn(k)
 // 넣지 못함 수(옆 메뉴 배지) — 지식관리자는 그 지식 모두 · 쓰기 자리는 내 것
-const heldSum = () => (S.kns || []).filter((x) => !isPersonal(x)).reduce((n, x) => n + (lvOf(x) === 'admin' ? x.held || 0 : x.heldMine || 0), 0)
+const heldSum = () => (S.kns || []).reduce((n, x) => n + heldN(x), 0)
 const setPages = () => setMenu().filter((x) => !x.scr)
 // 지금 설정 페이지 — 메뉴에 없는 이름이면 보이는 첫 페이지
 const setPage = () => { const ps = setPages(); return ps.find((x) => x.id === S.route.page) || ps[0] }
@@ -1087,9 +1087,9 @@ function stopRow(x) {
   {
     // 갈 곳 — 팀 서버의 백업은 고치는 자리(총괄 관리자만) · 그 밖은 관리자에게 알린다
     let [kind, to] = STOP_T[x.kind] || ['kmd', '']
-    if (isTeam() && x.kind === 'backup') { kind = '저장소'; to = S.me.admin ? 'kns' : '' }
+    if (isTeam() && x.kind === 'backup') { kind = '저장소'; to = S.me.admin || (x.kn && KN(x.kn) && lvOf(KN(x.kn)) === 'admin') ? 'repo' : '' }
     if (isTeam() && x.kind === 'worker') to = S.me.admin ? 'server' : 'mine'
-    const where = to ? setWhere(to) : isTeam() && x.kind === 'backup' ? '관리자에게 알린다' : ''
+    const where = to === 'repo' ? '지식관리 › 모든 지식 › 저장소' : to ? setWhere(to) : isTeam() && x.kind === 'backup' ? '관리자에게 알린다' : ''
     const scr = to && where ? to : ''
     const attrs = ''
     const kn = x.kn && KN(x.kn) ? KN(x.kn).name : ''
@@ -1151,6 +1151,9 @@ const repoTail = (u) => String(u || '').replace(/\.git$/, '').split(/[\\/:]/).fi
 const pcRepo = (n) => { const st = settingsOf(); return st && !st.error ? (st.backup.list || []).find((x) => x.id === n.id || x.name === n.name) || null : null }
 const bossRepo = (n) => { const a = overviewOf(); return a && !a.error ? (a.backups || []).find((x) => x.id === n.id || x.name === n.name) || null : null }
 function repoCell(n) {
+  const src = !isTeam() ? settingsOf() : isBoss() ? overviewOf() : true
+  if (!src) return '<span class="muted" data-t="knRepoWait" aria-label="읽는 중">…</span>'
+  if (src.error) return '<span class="chip c-warn" data-t="knRepoErr">못 읽음</span>'
   if (!isTeam()) { const b = pcRepo(n); return b && b.url ? `<span class="mono small" data-t="knRepo" title="${esc(b.url)}">${esc(repoTail(b.url))}</span>` : `<span class="chip c-mute" data-t="knRepo">없음</span>` }
   if (isBoss()) { const b = bossRepo(n); if (!b) return '<span class="muted">-</span>'; const v = b.off ? ['c-mute', '없음'] : REPO_V[b.verdict] || ['c-mute', '확인 전']; return `<span class="chip ${v[0]}" data-t="knBackup" title="${esc(b.off ? '' : b.url || '')}">${v[1]}</span>` }
   if (lvOf(n) !== 'admin' || n.repo == null) return '<span class="muted">-</span>'
@@ -1179,7 +1182,7 @@ function knRowHtml(n, cols, sel) {
   const kebab = items ? `<button type="button" class="kebab${S.menu === mk ? ' on' : ''}" data-a="menu" data-m="${esc(mk)}" data-t="knKebab" aria-haspopup="menu" aria-expanded="${S.menu === mk}" title="순서 · 메뉴에서 빼기" aria-label="${esc(n.name)}: 순서 · 메뉴에서 빼기">⋯</button>` : ''
   const drag = own && !n.hidden ? ` draggable="true" data-drag="${id}"` : ''
   const claude = lvOf(n) === 'admin' ? (n.noClaude ? '<span class="chip c-mute">보내지 않음</span>' : '보냄') : '<span class="muted">-</span>'
-  return `<tr class="krow${sel ? ' on' : ''}${n.hidden ? ' hid' : ''}${n.dim ? ' dim' : ''}" data-a="kdet" data-k="${id}" data-t="${n.hidden ? 'kHid' : 'krow'}" data-name="${esc(n.name)}"${drag}><td class="kgr">${drag ? '<span class="kgrip" aria-hidden="true" title="끌어서 순서를 바꾼다">⋮⋮</span>' : ''}</td><td><button type="button" class="kn3" data-a="kdet" data-k="${id}" data-t="knOpen"${sel ? ' aria-current="true"' : ''}>${esc(n.name)}</button></td>${cols.role ? `<td class="opt">${lvChip(n)}</td>` : ''}<td class="opt u-tr">${n.docs ?? ''}</td>${cols.repo ? `<td>${repoCell(n)}</td>` : ''}${cols.claude ? `<td class="opt">${claude}</td>` : ''}${cols.route ? `<td class="opt">${n.route ? esc(sendNm(n.route)) : '<span class="muted">없음</span>'}</td>` : ''}<td class="kst">${knStateHtml(n) || '<span class="muted">-</span>'}</td><td class="u-tr">${kebab}</td></tr>`
+  return `<tr class="krow${sel ? ' on' : ''}${n.hidden ? ' hid' : ''}${n.dim ? ' dim' : ''}" data-k="${id}" data-t="${n.hidden ? 'kHid' : 'krow'}" data-name="${esc(n.name)}"${drag}><td class="kgr">${drag ? '<span class="kgrip" aria-hidden="true" title="끌어서 순서를 바꾼다">⋮⋮</span>' : ''}</td><td><button type="button" class="kn3" data-a="kdet" data-k="${id}" data-t="knOpen"${sel ? ' aria-current="true"' : ''}>${esc(n.name)}</button></td>${cols.role ? `<td class="opt">${lvChip(n)}</td>` : ''}<td class="opt u-tr">${n.docs ?? ''}</td>${cols.repo ? `<td>${repoCell(n)}</td>` : ''}${cols.claude ? `<td class="opt">${claude}</td>` : ''}${cols.route ? `<td class="opt">${n.route ? esc(sendNm(n.route)) : '<span class="muted">없음</span>'}</td>` : ''}<td class="kst">${knStateHtml(n) || '<span class="muted">-</span>'}</td><td class="u-tr">${kebab}</td></tr>`
 }
 // 모든 지식(5-2 · 6-2) — 머리 「모든 지식 n (!)」 · [불러오기] [+ 새 지식](개인 · 총괄 관리자) · 개인은 지식 폴더 줄 · 표(끌어 순서 · 사람마다) · 줄을 누르면 지식 상세
 function mgAllHtml() {
@@ -1194,7 +1197,9 @@ function mgAllHtml() {
   const table = list.length
     ? `<div class="tblwrap"><table class="t ktab" data-t="knTable"><thead><tr><th><span class="sr-only">순서</span></th><th>이름</th>${cols.role ? '<th class="opt">나의 자리</th>' : ''}<th class="opt u-tr">문서</th>${cols.repo ? '<th>저장소</th>' : ''}${cols.claude ? '<th class="opt">Claude</th>' : ''}${cols.route ? '<th class="opt">받을 곳</th>' : ''}<th>상태</th><th><span class="sr-only">메뉴</span></th></tr></thead><tbody data-t="klist">${list.map((n) => knRowHtml(n, cols, sel && sel.id === n.id)).join('')}</tbody></table></div>`
     : `<div class="empty2" data-t="${team ? 'teamEmpty' : 'knEmptyAll'}"><div class="pt"><b>${make ? '지식이 없다' : '받은 지식 없음'}</b>${make ? '' : tipb('kn.empty', '받은 지식 없음')}</div>${make ? '<button type="button" class="btn pri" data-a="openAdd" data-t="addKnEmpty">+ 새 지식</button>' : '<button type="button" class="btn" data-a="copySeatAsk" data-t="copySeatAsk">자리 부탁 글 복사</button>'}</div>`
-  const pane = `<div class="kmlist">${head}${localRootBar()}${msg}${table}</div>`
+  const rsrc = list.length && cols.repo ? (!team ? settingsOf() : isBoss() ? overviewOf() : null) : null
+  const rerr = rsrc && rsrc.error ? errHtml(rsrc, team ? 'admin' : 'settings') : ''
+  const pane = `<div class="kmlist">${head}${rerr}${localRootBar()}${msg}${table}</div>`
   return `<div class="kmsplit${sel ? ' has' : ''}" data-t="allPage">${pane}${sel ? kdHtml(sel) : ''}</div>`
 }
 // 지식 상세(5-2 · 6-2 · 11절 10) — 1025 이상은 표 오른쪽 판 · 1024 이하는 따로 페이지(같은 주소 #/manage/k/<지식>/<탭>)
@@ -3179,7 +3184,9 @@ function viewToday() {
 //   저장 검사를 넘지 못해 기록만 남은 것 · 팀의 개편 전 기록. 지식관리자는 모두 · 쓰기 자리는 내 것만(서버가 거른다)
 //   [고치기](넣을 곳이면 넣을 곳 고르기 · 아니면 기록 고치기) · [다시 들이기](팀 일꾼) · [이름 세우기] · ⋯ [버리기](지식관리자)
 const heldOf = (k) => need('held:' + k, `/api/k/${encodeURIComponent(k)}/held`)
-const heldKns = () => S.kns.filter((x) => !isPersonal(x) && !x.hidden && lvOf(x) && lvOf(x) !== 'read')
+const heldOk = (x) => !!x && !isPersonal(x) && !!lvOf(x) && lvOf(x) !== 'read'
+// 「모든 지식」 표 · 고르기 수 — 메뉴에서 뺀(hidden) 지식은 싣지 않는다 · 고른 지식 판정(heldKn)은 hidden 이어도 그 지식
+const heldKns = () => S.kns.filter((x) => heldOk(x) && !x.hidden)
 const HD_ROUTE = { sess: ['세션', 'Claude Code 대화 · 화면에서 남긴 기록'], send: ['보내기', '개인 지식에서 공유로 보냄'], file: ['파일', '수기수집으로 들인 파일'], code: ['코드', '자동수집 git 이 남긴 코드 바뀜'], intake: ['팀 일꾼', '팀 일꾼이 들인 것(파일 · 정정 · 다시 들이기)'], src: ['가져올 곳', '가져올 곳에서 저절로 들인 것'], fix: ['정정', '기록 고치기로 남긴 정정 기록'] }
 const hdRt = (r) => { const x = HD_ROUTE[r] || HD_ROUTE.sess; return `<span class="hd-rt" title="${esc(x[1])}">${x[0]}</span>` }
 const hdAv = (who) => (who === 'kmd' || who === 'kmd-auto' ? `<span class="hd-av sys" title="kmd">${svg('sync')}</span>` : `<span class="hd-av" title="${esc(who)}">${esc(String(who || '?').slice(0, 2))}</span>`)
@@ -3242,7 +3249,7 @@ function heldPickModal(k) {
 const isReview = (r) => r.parts.some((p) => p.code === 'review')
 function heldKn() {
   const k = defaultKn()
-  return heldKns().some((x) => x.id === k) ? k : null
+  return heldOk(KN(k)) ? k : null
 }
 // 점검 수 — 알림 줄(같은 이름 · 빈칸 이름)은 세지 않는다
 const GUARD_SOFT = ['sameLabel', 'spaced']
@@ -3297,11 +3304,11 @@ const againMsg = (r) => (r.state === 'held' ? `넣지 못함: ${r.why || '까닭
 //   나무 하나로 — 끌어 옮기기(폴더 안 · 줄 사이) · 줄 안에서 이름 바꾸기(두 번 누름 · F2) · 새 문서 · 새 폴더 · Alt ↑↓ 차례.
 //   고친 짜임은 이 화면에만(S.sx) · [저장] 이 마른 실행으로 요약을 보이고 확인 뒤 한 번에 넣는다(커밋 하나 · 지문이 어긋나면 다시 읽기)
 //   이름 = 제목 = 파일 이름 — 이름을 바꾸면 파일 이름도 · 제목과 다른 옛 문서는 「제목으로 맞추기」
-const sxKns = () => S.kns.filter((x) => !x.hidden && lvOf(x) === 'admin' && (isTeam() ? !isPersonal(x) : isPersonal(x)))
+//   고른 지식(S.route.kn) 하나만 — 주소 · 뒤로 · 앞으로도 그 지식 · 메뉴에서 뺀(hidden) 지식이어도 그 지식(다른 지식으로 바꿔 열지 않는다)
+const sxOk = (x) => !!x && lvOf(x) === 'admin' && (isTeam() ? !isPersonal(x) : isPersonal(x))
 function sxKn() {
-  const ks = sxKns()
-  if (!ks.some((x) => x.id === S.sxKn)) S.sxKn = (ks.find((x) => x.id === S.route.kn) || ks[0] || {}).id || null
-  return S.sxKn
+  const k = S.route.kn
+  return k && k !== '*' && sxOk(KN(k)) ? k : null
 }
 const sxOf = (k) => need('sx:' + k, `/api/k/${encodeURIComponent(k)}/structure`)
 const sxSplit = (p) => { const i = p.lastIndexOf('/'); return i < 0 ? ['', p] : [p.slice(0, i), p.slice(i + 1)] }
@@ -3475,16 +3482,15 @@ function sxBarHtml() {
 function viewStructure() {
   const head = (n, extra = '') => `<div class="pg-h sx-h"><div><div class="big">구조${n ? ': ' + esc(n.name) : ''}</div></div>${extra}</div>`
   const k = sxKn()
-  if (!k) return { crumb: '문서 › 구조', main: `<div class="sxy">${head(null)}<p class="muted" data-t="sxNone">지식관리자 자리인 지식이 없다</p></div>` }
-  const n = KN(k), ks = sxKns()
-  const pick = ks.length > 1 ? `<select class="inp sx-kn" id="sxKnSel" data-t="sxKnSel" aria-label="지식">${ks.map((z) => `<option value="${esc(z.id)}"${z.id === k ? ' selected' : ''}>${esc(z.name)}</option>`).join('')}</select>` : ''
+  if (!k) { const n0 = KN(S.route.kn); return { crumb: '문서 › 구조', main: `<div class="sxy">${head(n0)}<div class="empty2" data-t="sxNone"><b>이 지식에 지식관리자 자리가 없다</b></div></div>` } }
+  const n = KN(k)
   const d = sxOf(k)
   if (!d) return { crumb: '문서 › 구조', main: `<div class="sxy">${head(n)}${loadingHtml}</div>` }
   if (d.error) return { crumb: '문서 › 구조', main: `<div class="sxy">${head(n)}${errHtml(d, 'sx:' + k)}</div>` }
   if (!S.sx || S.sx.k !== k || S.sx.src !== d) { sxInit(k, d); S.sx.src = d }
   const x = S.sx
   const df = x.W.filter((z) => { const o = sxO(z.id); return o && o.file !== o.title && !z.sync && !z.watched }).length
-  const tools = `<div class="sx-tools">${pick}<input class="inp sx-q" id="sxQ" data-in="sxQ" data-t="sxQ" value="${esc(x.q)}" placeholder="찾기" aria-label="문서 찾기" autocomplete="off"><button type="button" class="btn" data-a="sxPick" data-t="sxPick" aria-pressed="${x.pick}" title="누르는 줄마다 고른다(Ctrl · Shift 를 누르고 눌러도 된다)">여러 개 고르기</button><button type="button" class="btn" data-a="sxNewDir" data-t="sxNewDir">+ 폴더</button><button type="button" class="btn pri" data-a="sxNewDoc" data-t="sxNewDoc">+ 새 문서</button></div>`
+  const tools = `<div class="sx-tools"><input class="inp sx-q" id="sxQ" data-in="sxQ" data-t="sxQ" value="${esc(x.q)}" placeholder="찾기" aria-label="문서 찾기" autocomplete="off"><button type="button" class="btn" data-a="sxPick" data-t="sxPick" aria-pressed="${x.pick}" title="누르는 줄마다 고른다(Ctrl · Shift 를 누르고 눌러도 된다)">여러 개 고르기</button><button type="button" class="btn" data-a="sxNewDir" data-t="sxNewDir">+ 폴더</button><button type="button" class="btn pri" data-a="sxNewDoc" data-t="sxNewDoc">+ 새 문서</button></div>`
   const strip = df ? `<div class="callout warn sx-strip" data-t="sxStrip"><span><i class="sx-dot df" aria-hidden="true"></i> 파일 이름이 제목과 다른 문서 <b>${df}</b> <small class="muted">· 점: 파랑 바뀜 · 초록 새것 · 노랑 파일 이름 ≠ 제목</small></span><button type="button" class="btn sm" data-a="sxFix" data-t="sxFix">제목으로 맞추기</button></div>` : ''
   return { crumb: '문서 › 구조', main: `<div class="sxy">${head(n, tools)}${strip}${x.multi.size ? `<div class="sx-sel" data-t="sxSel" role="status"><b>고른 것 ${x.multi.size}</b><button type="button" class="btn pri sm" data-a="sxMvSel" data-t="sxMvSel">옮기기…</button><button type="button" class="btn ghost sm" data-a="sxSelClear" data-t="sxSelClear">고르기 풀기</button></div>` : ''}<div class="sx-tree" id="sxTree" role="tree" aria-multiselectable="true" aria-label="문서 짜임" data-t="sxTree">${sxTreeHtml()}</div><p class="muted small sx-tip">끌거나 [옮기기](M) 로 옮긴다 · 여럿은 Ctrl · Shift 로 누르거나 [여러 개 고르기](Ctrl + Space) · 이름은 두 번 누르거나 F2 · 차례는 Alt ↑↓</p>${sxBarHtml()}</div>` }
 }
@@ -4716,8 +4722,8 @@ function opsCard(a) {
   const v = (x) => Array.isArray(x) ? (x.length ? x.join(' · ') : '없음') : typeof x === 'object' ? JSON.stringify(x) : String(x)
   const conf = Object.entries(o.conf || {}).map(([k, x]) => `<span>${esc((OPS_NAME[k] || [k])[0])} <small class="muted mono">${esc(k)}</small></span><span class="mono">${esc(v(x))}</span>`).join('')
   return `<div class="card" data-t="opsCard"><div class="ch">운영 값 <small>읽기만 · 바꾸는 곳은 줄마다 · 서버 파일은 <span class="mono">serve.json</span>(고친 뒤 서버를 다시 켠다)</small></div><div class="cb"><div class="kv">
-   <span>줄 멈춤</span><span>${o.hold ? '<b>멈춤</b>' : '돈다'} <small class="muted">· 생성 › 도는 일</small></span>
-   <span>동시에 도는 수</span><span>Claude ${esc(String(o.caps?.claude ?? '—'))} · 자동수집 ${esc(String(o.caps?.fetch ?? '—'))} <small class="muted">· 생성 › 도는 일</small></span>
+   <span>줄 멈춤</span><span>${o.hold ? '<b>멈춤</b>' : '돈다'} <small class="muted">· 설정 › 팀 일꾼</small></span>
+   <span>동시에 도는 수</span><span>Claude ${esc(String(o.caps?.claude ?? '—'))} · 자동수집 ${esc(String(o.caps?.fetch ?? '—'))} <small class="muted">· 설정 › 팀 일꾼</small></span>
    <span>지식 폴더</span><span class="mono">${esc(o.root || '')}</span>
    <span>살림 자리</span><span class="mono">${esc(o.dataDir || '')}</span>
    ${conf || '<span>serve.json</span><span class="muted">따로 정한 값이 없다(모두 기본값)</span>'}
@@ -4728,8 +4734,16 @@ function opsCard(a) {
 function serverCards(st) {
   const a = overviewOf()
   if (!a || a.error) return a ? errHtml(a) : loadingHtml
-  return admClaudeCard(a) + claudeHowCard(a)
+  return admClaudeCard(a) + queueCard(a) + claudeHowCard(a)
 }
+// 일 줄(총괄 관리자) — 동시에 도는 수 · 줄 멈춤 · 생성 › 진행과 같은 손잡이(data-cap · qHold) · 지식이 없어도 여기서 닿는다
+function queueCard(a) {
+  const o = a.ops || {}, caps = o.caps || {}
+  const sel = (k, l) => `<span class="qcap">${l} <select class="inp" data-t="cap-${k}" data-cap="${k}" aria-label="${l}: 동시에 도는 수" style="width:auto">${[1, 2, 3, 4].map((n) => `<option${n === Number(caps[k]) ? ' selected' : ''}>${n}</option>`).join('')}</select></span>`
+  return `<div class="card" data-t="queueCard"><div class="ch">일 줄${tipb('imp.ahead', '일 줄')}</div><div class="cb"><div class="kv"><span>동시에 도는 수</span><span>${sel('claude', 'Claude')} ${sel('fetch', '자동수집')}</span><span>줄 멈춤</span><span>${o.hold ? '<b>멈춤</b>' : '돈다'} <button type="button" class="btn sm" data-a="qHold" data-v="${o.hold ? 0 : 1}" data-t="qHold">${o.hold ? '줄 다시 돌리기' : '줄 멈춤'}</button></span></div></div></div>`
+}
+// 일 줄 손잡이를 바꾼 뒤 — 팀 일꾼 · 운영 화면의 값(overview.ops)도 맞춘다
+function opsQueueSet(f) { const a = S.cache.admin; if (a && !a.error && a.ops) { f(a.ops); render() } }
 // 운영(총괄 관리자 · 옛 점검 · 6-2) — 경고 · 오늘 · 감사 기록 · 지식 폴더 다시 읽기([동기화]) · 운영 값
 function opsHtml() {
   const v = viewAdmin().main, a = S.me.admin ? overviewOf() : null, root = knRoot()
@@ -5643,7 +5657,7 @@ const ACT = {
   impFil: (el) => { S.impFil = el.dataset.v; paintJobs() },
   impSel: (el) => { S.impSel = el.dataset.id; S.impTfil = 'all'; paintJobs(); pollRuns(); if (innerWidth <= 600) setTimeout(() => { const d = $('[data-t=impDet]'); if (d) d.scrollIntoView({ block: 'start', behavior: 'smooth' }) }, 50) },
   qAct: (el) => qAct(el.dataset.id, el.dataset.v),
-  qHold: async (el) => { try { await postJSON('/api/queue/hold', { on: el.dataset.v === '1' }); toast(el.dataset.v === '1' ? '줄 멈춤: 도는 일은 지금 단계를 마치고 선다' : '줄을 다시 돌린다') } catch (e) { toastErr(e) } pollRuns() },
+  qHold: async (el) => { try { await postJSON('/api/queue/hold', { on: el.dataset.v === '1' }); opsQueueSet((o) => { o.hold = el.dataset.v === '1' }); toast(el.dataset.v === '1' ? '줄 멈춤: 도는 일은 지금 단계를 마치고 선다' : '줄을 다시 돌린다') } catch (e) { toastErr(e) } pollRuns() },
   srcOpenQ: (el) => { const s = (sourcesOf()?.items || []).find((x) => x.kn === el.dataset.k && x.name === el.dataset.v); if (s) srcOpen(srcId(s)) },
   impStg: (el) => { S.impTfil = S.impTfil === el.dataset.v ? 'all' : el.dataset.v; paintJobs() },
   impTfil: (el) => { S.impTfil = el.dataset.v; paintJobs() },
@@ -5766,7 +5780,14 @@ const ACT = {
   stopOpen: () => { S.stopWin = true; S.menu = null; loadStops(); render() },
   stopClose: () => { S.stopWin = false; render() },
   stopReload: () => loadStops().then((r) => { render(); if (r !== true) toastErr('경고를 읽지 못했다: ' + ((r && r.message) || '')) }),
-  stopGo: (el) => { S.stopWin = false; const id = el.dataset.v; if (id === 'import') { S.impTab = 'queue'; S.impFil = 'attn' } openSet(id) },
+  stopGo: (el) => {
+    S.stopWin = false; S.menu = null
+    const id = el.dataset.v, k = el.dataset.k && KN(el.dataset.k) ? el.dataset.k : null
+    // 저장소(팀) — 그 지식의 상세 › 저장소 · 지식 메뉴 화면(자동수집 · 공유) — 멈춤 줄의 지식으로
+    if (id === 'repo') return go(k ? { scr: 'home', kn: '*', page: 'all', mk: k, mt: 'repo' } : { scr: 'home', kn: '*', page: 'all' })
+    if (k && KM_SCR.includes(id)) return kmGo(id, k, id === 'import' ? 'auto' : undefined)
+    openSet(id)
+  },
   srcOpen: (el) => srcOpen(el.dataset.id),
   seClose: () => { if (S.se && !S.se.busy) { S.se = null; render() } },
   seSave: () => seSave(),
@@ -6136,7 +6157,12 @@ const ACT = {
 document.addEventListener('click', (ev) => {
   if (ev.target.closest && ev.target.closest('#tipPop') && !ev.target.closest('#tipPop [data-a]')) return // 툴팁 글을 누름 — 둘레 줄 · 카드의 일을 하지 않는다
   const el = ev.target.closest('[data-a]')
-  if (!el) { if (S.menu && !ev.target.closest('.menu,.pop')) { S.menu = null; render() } return }
+  if (!el) {
+    // 모든 지식 표의 줄 — 줄 어디를 눌러도 상세(줄은 단추가 아니다 · 키보드는 이름 단추 .kn3)
+    const tr = ev.target.closest && ev.target.closest('tr.krow')
+    if (tr && !ev.target.closest('.menu,.pop')) { S.menu = null; try { ACT.kdet(tr, ev) } catch (e) { actFail(e) } return }
+    if (S.menu && !ev.target.closest('.menu,.pop')) { S.menu = null; render() } return
+  }
   if (el.dataset.self && ev.target !== el) return
   if (el.dataset.ro === '1') { ev.preventDefault(); toast('이 지식은 읽기 자리다. 고치려면 지식관리자(또는 총괄 관리자)에게 쓰기 자리를 부탁한다 · <button type="button" class="lk" data-a="copySeatAsk">부탁 글 복사</button>', 9000); return }
   const f = ACT[el.dataset.a]
@@ -6189,7 +6215,7 @@ document.addEventListener('input', (ev) => {
 })
 // 파일 · 폴더 — 고르기 · 끌어다 놓기
 document.addEventListener('toggle', (ev) => { const d = ev.target; if (d.dataset && d.dataset.keep) (S.detOpen ||= {})[d.dataset.keep] = d.open }, true)
-document.addEventListener('change', (ev) => { const t = ev.target; if (t.dataset && t.dataset.acc) { accPick(t); return } if (t.dataset && t.dataset.seat) { const o = t.dataset.seat === 'add' ? S.admAdd : S.seatWin; if (o) (o.seats ||= {})[t.dataset.k] = t.value; return } if (t.dataset && t.dataset.grp != null) { (S.grpPick ||= {})[t.dataset.grp] = t.value; render(); return } if (t.dataset && t.dataset.grpadd != null && S.grpAdd) { const m = new Set(S.grpAdd.members); if (t.checked) m.add(t.dataset.grpadd); else m.delete(t.dataset.grpadd); S.grpAdd.members = [...m]; return } if (t.dataset && t.dataset.model != null) { ACT.pickModel(t); return } if (t.id === 'sxKnSel') { if (S.sxKn !== t.value) { S.sxKn = t.value; S.sx = null; render() } return } if (t.id === 'ckScope') { S.ckAll = t.value === '*'; S.hdPick = null; render(); return } if (t.id === 'hdPickSel') { const o = $('[data-t=heldPickOther]'); if (o) o.checked = true; return } if (t.dataset && t.dataset.se && S.se) { S.se[t.dataset.se] = t.value; render(); return } if (t.dataset && t.dataset.sf) { sfState()[t.dataset.sf] = t.type === 'checkbox' ? t.checked : t.value; if (t.dataset.sf === 'rule') render(); return } if (t.id === 'logKn') { S.logKn = t.value; render(); return } if (t.id === 'logKind') { S.logKind = t.value; render(); return } if (t.id === 'logWho') { S.logWho = t.value; render(); return } if (t.id === 'impOrg' || t.id === 'impRes') { S[t.id] = t.value; S.impPage = 0; render(); return } if (t.dataset && t.dataset.cap) { postJSON('/api/queue/caps', { [t.dataset.cap]: Number(t.value) }).then(() => toast(`동시에 도는 수: ${t.dataset.cap === 'claude' ? 'Claude' : '가져오기'} ${t.value}`), (e) => toastErr(e)).finally(() => { t.blur(); pollRuns() }); return } if (t.id === 'fileIn' || t.id === 'dirIn') { takeFiles(t.files); t.value = '' } })
+document.addEventListener('change', (ev) => { const t = ev.target; if (t.dataset && t.dataset.acc) { accPick(t); return } if (t.dataset && t.dataset.seat) { const o = t.dataset.seat === 'add' ? S.admAdd : S.seatWin; if (o) (o.seats ||= {})[t.dataset.k] = t.value; return } if (t.dataset && t.dataset.grp != null) { (S.grpPick ||= {})[t.dataset.grp] = t.value; render(); return } if (t.dataset && t.dataset.grpadd != null && S.grpAdd) { const m = new Set(S.grpAdd.members); if (t.checked) m.add(t.dataset.grpadd); else m.delete(t.dataset.grpadd); S.grpAdd.members = [...m]; return } if (t.dataset && t.dataset.model != null) { ACT.pickModel(t); return } if (t.id === 'ckScope') { S.ckAll = t.value === '*'; S.hdPick = null; render(); return } if (t.id === 'hdPickSel') { const o = $('[data-t=heldPickOther]'); if (o) o.checked = true; return } if (t.dataset && t.dataset.se && S.se) { S.se[t.dataset.se] = t.value; render(); return } if (t.dataset && t.dataset.sf) { sfState()[t.dataset.sf] = t.type === 'checkbox' ? t.checked : t.value; if (t.dataset.sf === 'rule') render(); return } if (t.id === 'logKn') { S.logKn = t.value; render(); return } if (t.id === 'logKind') { S.logKind = t.value; render(); return } if (t.id === 'logWho') { S.logWho = t.value; render(); return } if (t.id === 'impOrg' || t.id === 'impRes') { S[t.id] = t.value; S.impPage = 0; render(); return } if (t.dataset && t.dataset.cap) { postJSON('/api/queue/caps', { [t.dataset.cap]: Number(t.value) }).then(() => { opsQueueSet((o) => { (o.caps ||= {})[t.dataset.cap] = Number(t.value) }); return toast(`동시에 도는 수: ${t.dataset.cap === 'claude' ? 'Claude' : '가져오기'} ${t.value}`) }, (e) => toastErr(e)).finally(() => { t.blur(); pollRuns() }); return } if (t.id === 'fileIn' || t.id === 'dirIn') { takeFiles(t.files); t.value = '' } })
 document.addEventListener('dragstart', (ev) => { const c = ev.target.closest && ev.target.closest('[data-drag]'); if (!c) return; S.dragK = c.dataset.drag; c.classList.add('drag'); ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', c.dataset.drag) } catch {} })
 document.addEventListener('dragend', () => { S.dragK = null; for (const x of document.querySelectorAll('[data-drag].drag,[data-drag].over')) x.classList.remove('drag', 'over') })
 document.addEventListener('dragover', (ev) => { const c = S.dragK && ev.target.closest && ev.target.closest('[data-drag]'); if (c) { ev.preventDefault(); for (const x of document.querySelectorAll('[data-drag].over')) if (x !== c) x.classList.remove('over'); if (c.dataset.drag !== S.dragK) c.classList.add('over') } })

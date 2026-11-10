@@ -84,6 +84,7 @@ test('목록: 지식관리자는 모두(넣지 못함 + 개편 전) · 쓰기 �
   assert.equal((await api(choi, '/api/k/dpms/held')).status, 404)
   const row = (await (await api(lee, '/api/knowledge')).json()).find((k) => k.id === 'dpms')
   assert.equal(row.heldMine, 1)
+  assert.equal(row.heldRvMine, 0, '승인 기다림 수(배지는 빼고 센다)')
   // 넣지 못함 알림(만든 사람) · 이력 갈래 「넣지 못함」
   const h = await s.hub.history(LEE)
   assert.ok(h.some((x) => x.kind === '넣지 못함' && x.rec === r1), JSON.stringify(h.slice(0, 5)))

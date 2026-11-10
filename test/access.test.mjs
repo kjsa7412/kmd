@@ -16,6 +16,7 @@ import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
 import * as owners from '../core/owners.js'
 import * as feed from '../core/feed.js'
+import * as backup from '../core/backup.js'
 import { copyDir, signIn } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -347,9 +348,12 @@ test('맞추기: 손으로 고쳐 깨진 _members.md(나쁜 묶음 이름)가 �
 
 // 지식관리 › 모든 지식 · 지식 상세(메뉴 개편 N6 · 6-4) — 정보(GET manage) · 저장소 보기(GET backup)는 그 지식의 지식관리자부터 · 목록 줄의 저장소 붙음은 지식관리자에게만
 test('지식 상세 길: GET manage · backup 은 지식관리자부터(없음 404 · 읽기 · 쓰기 403) · 목록의 repo 는 지식관리자만', async () => {
+  // 읽기 자리 — 앞 시험(떠남)이 rd 를 끈 뒤라 새 사람으로
+  const rd = await signIn(s, { id: 'test-rd2', admin: false })
+  await s.hub.setAccess(SHELL, 'dpms', { all: 'none', users: { 'test-rd2': 'read' }, groups: { 개발: 'write' } })
   for (const p of ['/api/k/dpms/manage', '/api/k/dpms/backup']) {
     assert.equal((await req(p, P.no)).status, 404, p + ' 없음')
-    assert.equal((await req(p, P.rd)).status, 403, p + ' 읽기')
+    assert.equal((await req(p, rd)).status, 403, p + ' 읽기')
     assert.equal((await req(p, P.wr)).status, 403, p + ' 쓰기')
     assert.equal((await req(p, P.own)).status, 200, p + ' 주인(지식관리자)')
     assert.equal((await req(p, P.boss)).status, 200, p + ' 총괄 관리자')
@@ -361,6 +365,18 @@ test('지식 상세 길: GET manage · backup 은 지식관리자부터(없음 4
   assert.deepEqual((await req('/api/k/dpms/backup', P.own)).j, { off: true })
   const row = (who) => (req('/api/knowledge', who)).then((r) => r.j.find((k) => k.id === 'dpms'))
   assert.equal((await row(P.own)).repo, false, '지식관리자: 붙음 여부')
-  assert.equal('repo' in (await row(P.rd)), false, '읽기: 저장소 칸 없음')
+  assert.equal('repo' in (await row(rd)), false, '읽기: 저장소 칸 없음')
   assert.equal('repo' in (await row(P.wr)), false, '쓰기: 저장소 칸 없음')
+})
+
+// 저장소 보기(메뉴 개편 N6 검토) — 주소에 든 아이디 · 비밀번호는 가려서 준다(지식관리자에게도)
+test('지식 상세 길: GET backup 은 자격이 든 저장소 주소를 가린다', async () => {
+  const url = 'https://test-user:s3cret-tok@git.example.com/team/dpms.git'
+  fs.mkdirSync(path.join(data, 'backup'), { recursive: true })
+  fs.writeFileSync(path.join(data, 'backup', 'dpms.json'), JSON.stringify({ url, branch: 'main', at: null }))
+  await backup.register({ id: 'dpms', dir: path.join(root, 'dpms') }, { dataDir: data })
+  const r = await req('/api/k/dpms/backup', P.own)
+  assert.equal(r.status, 200)
+  assert.equal(r.j.url, 'https://git.example.com/team/dpms.git')
+  assert.doesNotMatch(JSON.stringify(r.j), /s3cret|test-user/)
 })
