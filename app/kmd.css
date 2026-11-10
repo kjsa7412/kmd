@@ -86,9 +86,9 @@ a{color:var(--accent);cursor:pointer}
 .sb-ic.on{background:var(--accent-bg);color:var(--accent)}
 .sb-ic .bd{position:absolute;top:var(--sp-1);left:calc(50% + var(--sp-3));min-width:16px;padding:0 var(--sp-2);border-radius:var(--r-pill);background:var(--pending-bg);color:var(--pending);font-size:var(--fs-xs);font-weight:700;line-height:16px;text-align:center}
 .sb-ic .bd.warn{background:var(--warn-bg);color:var(--warn)}
-/* 층 2 지식 메뉴(메뉴 개편 N4 · 컨벤션 5절) — 아이콘 위 + 이름 아래 · 넷(팀 읽기 자리는 둘) · 지금 화면은 aria-current · 배지는 확인 넣지 못함 · 이력 값 바뀜 */
+/* 층 2 지식 메뉴(메뉴 개편 N4 · 컨벤션 5절) — 아이콘 위 + 이름 아래 · 넷(개인 다섯 · 팀 읽기 자리는 둘) · 지금 화면은 aria-current · 배지는 이력 값 바뀜만(점검 배지 없음 · 저장 승인 P10) */
 .kmn{flex:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sp-1);padding:var(--sp-2) 0 var(--sp-4);border-bottom:1px solid var(--border)}
-.kmn.n2{grid-template-columns:repeat(2,minmax(0,1fr))}.kmn.n3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.kmn.n2{grid-template-columns:repeat(2,minmax(0,1fr))}.kmn.n3{grid-template-columns:repeat(3,minmax(0,1fr))}.kmn.n5{grid-template-columns:repeat(5,minmax(0,1fr))}
 .kmi{position:relative;display:flex;flex-direction:column;align-items:center;gap:var(--sp-1);border:0;background:none;border-radius:var(--r);padding:var(--sp-3) 0 var(--sp-2);color:var(--text-2);font:inherit;font-size:var(--fs-sm);cursor:pointer;min-width:0}
 .app .kmi svg{width:var(--ctl-xs);height:var(--ctl-xs);stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .kmi:hover{background:var(--hover);color:var(--text)}
@@ -892,14 +892,14 @@ li.new{animation:flash 1.6s}
 .imp .genprog{margin-top:var(--sp-9)}
 .prog-h{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:var(--sp-4)}
 .prog-h .sh{font-size:var(--fs-md);font-weight:700;margin:0 var(--sp-2) 0 0}
-/* 확인 › 점검 — 줄 묶음 머리 · 요약 줄 */
+/* 점검 › 점검 — 줄 묶음 머리 · 요약 줄 */
 .ck-g{display:flex;align-items:center;gap:var(--sp-2);margin:var(--sp-5) 0 var(--sp-2);font-size:var(--fs-sm);color:var(--text-2)}
 .ck-g:first-child{margin-top:var(--sp-2)}
 .hdy .tabs span{display:flex;gap:var(--sp-3);align-items:center}
 .hdy .tabs em{font-style:normal;font-size:var(--fs-xs);font-weight:700;background:var(--surface-3);color:var(--text-2);border-radius:var(--r-pill);padding:0 var(--sp-3)}
 .hdy .tabs span.on em{background:var(--accent-bg);color:var(--accent)}
 .ck-sum{display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap;margin:0 0 var(--sp-4)}
-/* 수가 0 인 탭(확인 · 점검 · 승인)은 흐리게 — 누를 수는 있다 */
+/* 수가 0 인 탭(넣지 못함 · 점검)은 흐리게 — 누를 수는 있다 */
 .tabs span.z,.tabs span.z em{color:var(--text-3)}
 .drop.bar{display:flex;align-items:center;gap:var(--sp-3) var(--sp-6);flex-wrap:wrap;text-align:left;padding:var(--sp-4) var(--sp-6);margin-bottom:var(--sp-6);border-radius:var(--r-md)}
 .drop.bar b{display:inline;margin:0;font-size:var(--fs)}

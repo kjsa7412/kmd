@@ -285,7 +285,7 @@ export function knowledgeRow(k, see = null) {
   const pend = k.works.filter((w) => (w.state === 'pend' || w.state === 'nowhere') && !priv(w)).length
   const when = [k.docs[0]?.mtime, k.works[0] ? isoOfStamp(k.works[0].date) : null].filter(Boolean).sort().pop() || null
   // 넣지 못함 n — held(모두 · 지식관리자 화면) · heldMine(내 것) · legacy(그 가운데 개편 전 기록) · 서버가 센 한 값
-  //   heldRv · heldRvMine — 그 가운데 승인 기다림(code review · 확인 › 승인 탭) · 화면 배지는 빼고 센다(확인 › 넣지 못함 탭 수와 같게)
+  //   heldRv · heldRvMine — 그 가운데 승인 기다림(code review · 점검 › 넣지 못함 탭(승인 기다림)) · 화면 배지는 빼고 센다(점검 › 넣지 못함 탭 수와 같게)
   const all = see ? k.works.filter((w) => isHeld(k, w, see.team)) : []
   const rv = all.filter((w) => w.state === 'held' && parseHeld(w.body).some((x) => x.code === 'review'))
   const held = see ? { held: all.length, heldMine: all.filter((w) => w.author === see.user).length, legacy: all.filter((w) => w.state !== 'held').length, heldRv: rv.length, heldRvMine: rv.filter((w) => w.author === see.user).length } : {}

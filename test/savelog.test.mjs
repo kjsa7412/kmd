@@ -120,3 +120,40 @@ test('명령: node scripts/savelog.mjs <data> 가 표를 낸다', async () => {
   const bad = await new Promise((ok) => { const c = spawn(process.execPath, [SCRIPT]); c.on('close', ok) })
   assert.equal(bad, 1, '쓰는 법이 틀리면 1')
 })
+
+test('지표 칸(P-D37 · P10): 무인 값 경고 · 규칙 길 · FIX · 다시 대기 · 입력 오류 · core/metrics.js 지표 줄 여섯(기간 · 새로 생긴 것은 fresh 표지)', async () => {
+  const { metricsOf, readKnLines, daysOf, sinceOf } = await import('../core/metrics.js')
+  const lines = [
+    { at: '2026-11-10 10:00', kn: 'apv', user: 'wr', ch: 'session', err: 'E_INPUT', mode: 'approve', code: ['format'] },
+    { at: '2026-11-10 10:01', kn: 'apv', user: 'wr', ch: 'session', rec: 'a1', n: 1, put: 1, held: [], mode: 'approve', accepted: ['missing'], rounds: 3, linked: 0, fresh: 1 },
+    { at: '2026-11-10 10:02', kn: 'apv', user: 'kmd', ch: 'intake', rec: 'u1', n: 1, put: 1, held: [], mode: 'approve', warned: ['invented', 'missing'], fix: 2, conflict: 1, linked: 0, fresh: 0 },
+    { at: '2026-11-10 10:03', kn: 'apv', user: 'kmd', ch: 'intake', rec: 'u2', n: 1, put: 1, held: [], mode: 'approve', warned: [], rule: '꼴 오류가 남음', linked: 0, fresh: 0 },
+    { at: '2026-11-10 10:04', kn: 'apv', user: 'wr', ch: 'session', rec: 'old', n: 1, put: 1, held: [] },
+  ]
+  const s = summarize(lines)
+  const a = s.channels.find((c) => c.ch === 'intake').approve
+  assert.deepEqual([a.un, a.warnedSaves, a.warned.invented, a.warnedRatio, a.rule, a.ruleRatio, a.fix, a.conflict], [2, 1, 1, 0.5, 1, 0.5, 2, 1])
+  assert.deepEqual(s.channels.find((c) => c.ch === 'session').approve.code, { format: 1 })
+  // 지표 줄 — 기록 이름 · 새로 생긴 것(기간 안 fresh 표지)
+  const works = [
+    { id: 'a1', title: '사람 저장', date: '2026-11-10 10:01', author: 'wr', body: '본문\n\n## 새로 세움\n- 문서 docs/새 문서.md\n- 이름 sys:새것\n' },
+    { id: 'z9', title: '옛 것', date: '2026-10-01 10:01', author: 'wr', body: '## 새로 세움\n- 문서 docs/옛 문서.md\n' },
+    { id: 'u1', title: '들인 것', date: '2026-11-10 10:02', author: 'kmd', body: '' },
+  ]
+  const m = metricsOf(lines, { works, days: 14, now: new Date('2026-11-11T12:00:00') })
+  const by = Object.fromEntries(m.rows.map((r) => [r.key, r]))
+  assert.deepEqual(m.rows.map((r) => r.key), ['fresh', 'accepted', 'warned', 'rule', 'fix', 'rounds'])
+  assert.deepEqual([by.fresh.n, by.fresh.recs.map((x) => x.rec), by.fresh.codes], [2, ['a1'], { 문서: 1, 이름: 1 }])
+  assert.deepEqual([by.accepted.n, by.accepted.base, by.accepted.recs[0].title], [1, 1, '사람 저장'])
+  assert.deepEqual([by.warned.n, by.warned.base, by.warned.codes], [1, 2, { invented: 1, missing: 1 }])
+  assert.deepEqual([by.rule.n, by.rule.recs[0].rec, by.fix.n, by.rounds.n], [1, 'u2', 2, 2])
+  assert.equal(by.rule.recs[0].title, null, '없는 기록은 이름 없음')
+  assert.deepEqual([daysOf('30'), daysOf('5'), daysOf(null), sinceOf(14, new Date('2026-11-14T09:00:00'))], [30, 14, 14, '2026-11-01'])
+  // 기록 목록은 새 것 위 · 50 까지(줄이 많아도 최근 것이 빠지지 않는다)
+  const many = Array.from({ length: 300 }, (_, i) => ({ at: '2026-11-10 ' + String(Math.floor(i / 60)).padStart(2, '0') + ':' + String(i % 60).padStart(2, '0'), ch: 'intake', rec: 'r' + i, mode: 'approve', warned: ['missing'] }))
+  const w2 = metricsOf(many, { days: 14, now: new Date('2026-11-11T12:00:00') }).rows.find((r) => r.key === 'warned')
+  assert.deepEqual([w2.n, w2.recs.length, w2.recs[0].rec], [300, 50, 'r299'])
+  // 파일 읽기 — 기간 밖 · 깨진 줄
+  const r = await readKnLines(data, 'dpms', '2026-11-11')
+  assert.deepEqual([r.lines.length, r.broken], [4, 1])
+})

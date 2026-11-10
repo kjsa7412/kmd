@@ -151,8 +151,8 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   await page.waitForSelector('[data-t=klist] [data-t=krow]')
   // 셸 — 리본 없음 · 옆 메뉴 두 영역(지식 고르기: 고르기 · 문서 · 항목 · 그래프 탭 · 목록 / 지식 관리: 공통 메뉴) · 머리(찾기 가운데 · 설명서 · 나 오른쪽) · 띠 · 아래 줄
   assert.equal(await page.locator('.ribbon').count(), 0)
-  // 옆 메뉴(메뉴 개편 N4 · 7절) — 지식 고르기 · 지식 메뉴(팀: 확인 · 생성 · 문서 · 이력 · 아이콘 + 이름) · 층 3(보기 탭 · 나무)은 문서에서만 · 공통 메뉴(지식관리 · 설정)
-  assert.deepEqual(await page.locator('[data-t=knMenu] .kmi').evaluateAll((els) => els.map((e) => e.dataset.t + ':' + e.querySelector('span').textContent + ':' + e.tagName)), ['nav-held:확인:BUTTON', 'nav-import:생성:BUTTON', 'nav-docs:문서:BUTTON', 'nav-history:이력:BUTTON'])
+  // 옆 메뉴(메뉴 개편 N4 · 7절) — 지식 고르기 · 지식 메뉴(팀: 점검 · 생성 · 문서 · 이력 · 아이콘 + 이름 · 저장 승인 P10) · 층 3(보기 탭 · 나무)은 문서에서만 · 공통 메뉴(지식관리 · 설정)
+  assert.deepEqual(await page.locator('[data-t=knMenu] .kmi').evaluateAll((els) => els.map((e) => e.dataset.t + ':' + e.querySelector('span').textContent + ':' + e.tagName)), ['nav-held:점검:BUTTON', 'nav-import:생성:BUTTON', 'nav-docs:문서:BUTTON', 'nav-history:이력:BUTTON'])
   assert.deepEqual(await page.locator('[data-t=manageArea] .sb-ic').evaluateAll((els) => els.map((e) => e.dataset.t + ':' + e.textContent.trim())), ['nav-manage:지식관리', 'nav-settings-team:설정'])
   assert.equal(await page.locator('[data-t=nav-manage]').getAttribute('aria-current'), 'page', '지식 목록은 공통 메뉴 「지식관리」')
   assert.equal(await page.locator('[data-t=knMenu] [aria-current]').count(), 0)
@@ -217,17 +217,18 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   await page.setViewportSize(VIEW)
   assert.equal(await page.locator('.tabbar .none').innerText(), '열린 탭이 없다. 왼쪽에서 열거나 Ctrl O')
   assert.match(await page.locator('[data-t=docsEmpty]').innerText(), /왼쪽 나무에서 문서나 기록을 연다/)
-  // 지식 점검(지식관리자) — 팀은 지식 홈 카드가 아니라 확인 › 점검(메뉴 개편 N5) · 줄 묶음마다 (!) · 줄마다 수 · [보기] 로 목록
+  // 지식 점검(지식관리자) — 팀은 지식 홈 카드가 아니라 점검 › 점검(메뉴 개편 N5 · 저장 승인 P10) · 줄 묶음마다 (!) · 줄마다 수 · [보기] 로 목록
   assert.equal(await page.locator('[data-t=guardCard]').count(), 0, '팀 지식 홈에는 점검 카드가 없다')
   await page.click('[data-t=knMenu] [data-t=nav-held]')
   await page.waitForSelector('[data-t=ckTabs]')
-  assert.deepEqual((await page.locator('[data-t=ckTabs] > span').allInnerTexts()).map((x) => x.replace(/\s*[\d…].*$/s, '')), ['넣지 못함', '점검'], '승인은 승인 받고 넣기를 켠 지식만')
+  assert.deepEqual((await page.locator('[data-t=ckTabs] > span').allInnerTexts()).map((x) => x.replace(/\s*[\d…].*$/s, '')), ['넣지 못함', '점검', '지표'], 'held 모드 지식: 넣지 못함이 앞 · 승인 탭 없음')
+  assert.equal(await page.locator('[data-t=knMenu] .bd').count(), 0, '점검 배지 없음')
   await page.click('[data-t=ckTab-check]')
   await page.waitForSelector('[data-t=guardCard] [data-t=guard-unnamed]')
   assert.match(await page.locator('[data-t=guardCard]').innerText(), /이름 없음[\s\S]*장부 밖[\s\S]*이름 없는 항목/)
   assert.equal(await page.locator('[data-t=ckGroup] .tipb').count(), 4, '줄 묶음마다 (!)')
   assert.ok((await page.locator('.main .tipb').count()) <= 5, '(!) 는 화면에 다섯까지')
-  assert.match(page.url(), /#\/k\/[^/]+\/check\/check$/, '확인 › 점검 주소')
+  assert.match(page.url(), /#\/k\/[^/]+\/check\/check$/, '점검 › 점검 주소')
   await page.click('[data-t=knMenu] [data-t=nav-docs]')
   await page.waitForSelector('[data-t=docsEmpty]')
   // 옆 메뉴 짜임(컨벤션 5절 · A 층 합치기) — 보기 탭 한 줄(문서 · 항목 · 기록 · 그래프) · 갈래 탭 · 넣지 못함 거르기 없음 · 첨부는 문서 나무 끝 묶음(접힘)
@@ -507,10 +508,10 @@ test('정리를 걷었다(S13): 조각 없는 기록은 메모 · 옛 정리 화
   await page.click('[data-t=nav-settings-team]')
   await page.waitForSelector('[data-t=mgNav]')
   assert.ok(!(await mgItems(page)).includes('정리'), '정리 메뉴는 걷었다')
-  // 옛 정리 화면(#tidy)은 넣지 못함으로
+  // 옛 정리 화면(#tidy)은 점검(넣지 못함)으로
   // 다시 그리기가 #app 을 통째로 바꾸므로 단추는 #app 밖(body)에 두고 만든 그 자리에서 누른다(옛 시험은 누르기 전에 지워져 가끔 실패했다)
   await page.evaluate(() => { const x = document.createElement('button'); x.type = 'button'; x.dataset.a = 'nav'; x.dataset.s = 'tidy'; document.body.appendChild(x); x.click(); x.remove() })
-  await page.waitForFunction(() => /^확인/.test(document.querySelector('.main .big')?.textContent || ''))
+  await page.waitForFunction(() => /^점검/.test(document.querySelector('.main .big')?.textContent || ''))
   assert.equal(await page.locator('[data-t=tdKnSel], [data-t=tidyBtn], [data-t=tdSum]').count(), 0)
   // 지식관리 › 모든 지식(옛 설정 › 팀 지식 · N6) — 지식마다 표 · 옛 정리 표는 없다 · Claude 에 보내기는 지식 상세 › 정책
   await mg(page, 'team', 'kns')
@@ -1173,7 +1174,7 @@ test('개인 화면: 지식 보내기 · 받는 팀 지식 고르기 · 지식 �
     await page.click('[data-t=nav-settings-me]')
     await page.waitForSelector('[data-t=mgNav]')
     assert.deepEqual(await mgItems(page), ['지식백업', 'Claude 연결', '에이전트 설치', '팀 연결'])
-    assert.deepEqual(await page.locator('[data-t=knMenu] .kmi').evaluateAll((els) => els.map((e) => e.dataset.t + ':' + e.querySelector('span').textContent)), ['nav-import:생성', 'nav-send:공유', 'nav-docs:문서', 'nav-history:이력'], '개인 지식 메뉴(확인 없음)')
+    assert.deepEqual(await page.locator('[data-t=knMenu] .kmi').evaluateAll((els) => els.map((e) => e.dataset.t + ':' + e.querySelector('span').textContent)), ['nav-held:점검', 'nav-import:생성', 'nav-send:공유', 'nav-docs:문서', 'nav-history:이력'], '개인 지식 메뉴(점검 · P-D43)')
     assert.deepEqual(await page.locator('[data-t=manageArea] .sb-ic').evaluateAll((els) => els.map((e) => e.dataset.t)), ['nav-manage', 'nav-settings-me'])
     await mg(page, 'me', 'send')
     // 보내는 지식은 옆 메뉴에서 고른 지식(메뉴 개편 N5 · 화면 안 고르기는 걷었다) · 위 줄 「<이 지식> → [받을 곳 정하기]」
@@ -1641,11 +1642,11 @@ test('넣지 못함(S10): 쓰기 자리는 내 것만 · 까닭 · [고치기] �
     assert.equal(await page.locator('[data-t=krow][data-name="DPMS 지식"] [data-t=knHeld]').innerText(), '넣지 못함 1')
     await page.click('[data-t=krow][data-name="DPMS 지식"] [data-t=knHeldGo]')
     await page.waitForSelector('[data-t=heldList] [data-t=heldRow]')
-    // 확인(메뉴 개편 N5) — 고른 지식을 따른다(옆 메뉴 배지와 같은 수) · 쓰기 자리는 넣지 못함 탭만(점검 · 승인 없음)
-    assert.equal(await page.locator('.hdy .big').innerText(), '확인')
+    // 점검(메뉴 개편 N5 · 저장 승인 P10) — 고른 지식을 따른다 · held 모드 지식의 쓰기 자리는 넣지 못함 탭만(점검 · 지표 없음) · 배지 없음
+    assert.equal(await page.locator('.hdy .big').innerText(), '점검')
     assert.match(await page.locator('[data-t=kpick]').innerText(), /DPMS 지식/)
     assert.deepEqual((await page.locator('[data-t=ckTabs] > span').allInnerTexts()).map((x) => x.replace(/\s*\d.*$/s, '')), ['넣지 못함'])
-    assert.equal(await page.locator('[data-t=heldBadge]').innerText(), String(await page.locator('[data-t=heldRow]').count()), '배지 = 고른 지식의 넣지 못함')
+    assert.equal(await page.locator('[data-t=heldBadge]').count(), 0, '점검 배지 없음(P-D28)')
     assert.match(page.url(), /#\/k\/dpms\/check$/)
     assert.deepEqual(await page.locator('[data-t=heldRow]').evaluateAll((els) => els.map((e) => e.dataset.rec)), [r.id])
     assert.match(await page.locator('[data-t=heldWhy]').first().innerText(), /값이 맞지 않음/)
@@ -1668,11 +1669,11 @@ test('넣지 못함(S10): 쓰기 자리는 내 것만 · 까닭 · [고치기] �
     pg.on('pageerror', (e) => errors.push(e.message))
     try {
       await login(pg, me)
-      // 옛 주소 #/held → 확인(고른 지식) · 새 주소로 바꿔 적는다
+      // 옛 주소 #/held → 점검(고른 지식 · held 모드는 넣지 못함 탭) · 새 주소로 바꿔 적는다
       await pg.goto(s.url + '/#/held')
       await pg.waitForSelector('[data-t=heldList] [data-t=heldRow]')
       await pg.waitForFunction(() => /#\/k\/dpms\/check$/.test(location.hash))
-      assert.deepEqual((await pg.locator('[data-t=ckTabs] > span').allInnerTexts()).map((x) => x.replace(/\s*[\d…].*$/s, '')), ['넣지 못함', '점검'], '지식관리자: 점검 탭')
+      assert.deepEqual((await pg.locator('[data-t=ckTabs] > span').allInnerTexts()).map((x) => x.replace(/\s*[\d…].*$/s, '')), ['넣지 못함', '점검', '지표'], '지식관리자: 점검 · 지표 탭')
       // 「모든 지식」 — 지식마다 넣지 못함 수 · [보기] 는 그 지식으로
       await pg.selectOption('[data-t=ckScope]', '*')
       await pg.waitForSelector('[data-t=ckAll] [data-t=ckAllRow]')
@@ -1824,7 +1825,7 @@ test('메뉴 개편 N4 ~ N6 검토: 구조 주소는 그 지식 · 멈춤 줄 �
   await page.goBack()
   await page.waitForFunction(() => /GDI/i.test(document.querySelector('.sx-h .big')?.innerText || ''))
   assert.ok(page.url().endsWith('#/k/gdi/shape'), page.url())
-  // 확인 — 메뉴에서 뺀 지식이어도 고른 지식이면 그 지식의 넣지 못함
+  // 점검 — 메뉴에서 뺀 지식이어도 고른 지식이면 그 지식의 점검
   await page.goto(s.url + '/#/k/dpms/check')
   await page.waitForSelector('[data-t=ckTabs]')
   assert.equal(await page.locator('[data-t=ckNone]').count(), 0)
@@ -2214,6 +2215,91 @@ test('저장 승인 P6: 진행 탭 무인 일 결과 줄 — 「규칙 길」 �
     await rule.locator('[data-t=runGo]').click()
     await page.waitForSelector('[data-t=docPane]')
     assert.match(await page.locator('[data-t=docPane]').innerText(), /문은 22시에 잠근다/)
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
+})
+
+test('저장 승인 P10: 점검 · 지표 — 탭 점검 · 지표(배지 없음) · 지표 줄 여섯 · [보기] → 기록 · 기간 · 빈 상태 · 오류 + 다시 읽기 · 옛 주소 · held 지식은 재지 않음 · 네 폭 잘림 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+  const { localStamp } = await import('../core/save.js')
+  const { renderRecord } = await import('../core/frontmatter.js')
+  const dir = path.join(tmp, 'kn', 'apv10')
+  copyDir(path.join(HERE, 'fixture', 'kmd', 'dpms'), dir)
+  fs.rmSync(path.join(dir, 'work'), { recursive: true, force: true })
+  fs.mkdirSync(path.join(dir, 'work'), { recursive: true })
+  fs.writeFileSync(path.join(dir, 'README.md'), '# 테스트 지표 지식\n')
+  const at = localStamp(new Date(Date.now() - 10 * 86_400_000))
+  fs.writeFileSync(path.join(dir, 'work', 'test-p10a.md'), renderRecord({ id: 'test-p10a', title: '테스트 지표 기록', date: at, author: 'kim', touchesEmpty: '시험', tags: ['put'] }, '본문\n\n## 새로 세움\n- 문서 docs/테스트 새 문서.md\n'))
+  await s.hub.sync({ user: 'kim', admin: true })
+  await s.hub.setSaveMode({ shell: true }, 'apv10', 'approve')
+  const sl = path.join(tmp, 'kn', '.kmd', 'savelog')
+  fs.mkdirSync(sl, { recursive: true })
+  fs.writeFileSync(path.join(sl, 'apv10.jsonl'), [
+    { at, kn: 'apv10', user: 'kim', ch: 'session', rec: 'test-p10a', n: 1, put: 1, held: [], mode: 'approve', accepted: ['missing'], rounds: 3, linked: 0, fresh: 1 },
+    { at, kn: 'apv10', user: 'kmd', ch: 'intake', rec: 'test-p10a', n: 1, put: 1, held: [], mode: 'approve', warned: ['invented'], rule: '꼴 오류가 남음', fix: 1, linked: 0, fresh: 0 },
+  ].map((x) => JSON.stringify(x)).join('\n') + '\n')
+  const page = await browser.newPage({ viewport: VIEW })
+  const errors = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  const tabs = () => page.locator('[data-t=ckTabs] > span').allInnerTexts().then((xs) => xs.map((x) => x.replace(/\s*[\d…].*$/s, '')))
+  try {
+    await page.goto(s.url)
+    await page.fill('#lgId', me.id)
+    await page.fill('#lgPw', me.pw)
+    await page.click('[data-t=loginBtn]')
+    await page.waitForSelector('[data-t=klist] [data-t=krow]')
+    // 지표(기본 14일) — 줄 여섯 · 문턱 넘은 줄은 경고 칩 · 요약 줄
+    await page.goto(s.url + '/#/k/apv10/check/metrics')
+    await page.waitForSelector('[data-t=mtCard]')
+    assert.equal(await page.locator('.hdy .big').innerText(), '점검')
+    assert.deepEqual(await tabs(), ['점검', '지표'], '승인 저장 지식: 넣지 못함 탭 없음')
+    assert.equal(await page.locator('[data-t=knMenu] .bd').count(), 0, '점검 배지 없음')
+    assert.deepEqual(await page.locator('[data-t=mtCard] .srow').evaluateAll((els) => els.map((e) => e.dataset.t)), ['mt-fresh', 'mt-accepted', 'mt-warned', 'mt-rule', 'mt-fix', 'mt-rounds'])
+    assert.match(await page.locator('[data-t=mtSum]').innerText(), /저장 2 · 사람 1 · 무인 1/)
+    assert.match(await page.locator('[data-t=mt-warned]').innerText(), /무인 값 경고[\s\S]*지어낸 값 1[\s\S]*1 \/ 1/)
+    assert.equal(await page.locator('[data-t=mt-warned] [data-t=mtVal].c-warn').count(), 1, '무인 값 경고 20% 넘음')
+    assert.match(await page.locator('[data-t=mt-rounds] [data-t=mtVal]').innerText(), /^2$/)
+    assert.match(page.url(), /#\/k\/apv10\/check\/metrics$/)
+    for (const w of [1280, 1024, 600, 375]) {
+      await page.setViewportSize({ width: w, height: 820 })
+      await page.waitForTimeout(300)
+      const c = await cutAt(page)
+      assert.deepEqual(c.cut, [], `지표 ${w}: 잘린 요소 없음`)
+      assert.ok(c.sw <= c.w, `지표 ${w}: 가로 넘침 없음 ${c.sw}`)
+      await page.screenshot({ path: path.join(SHOTS, `app-team-metrics-${w}.png`) })
+    }
+    await page.setViewportSize(VIEW)
+    // [보기] → 그 기록들 · 누르면 기록
+    await page.click('[data-t=mt-fresh] [data-t=mtOpen]')
+    await page.waitForSelector('[data-t=mtList] [data-t=mtRec]')
+    assert.match(await page.locator('[data-t=mtList]').innerText(), /테스트 지표 기록[\s\S]*문서 docs\/테스트 새 문서\.md/)
+    assert.equal(await page.locator('[data-t=mtRec]').first().evaluate((e) => e.tagName), 'BUTTON')
+    await page.click('[data-t=mtList] [data-t=mtRec]')
+    await page.waitForSelector('[data-t=recMeta]')
+    // 기간 — 7일이면 빈 상태(줄은 10일 전) · 14일로 돌아오면 줄
+    await page.goto(s.url + '/#/k/apv10/check/metrics')
+    await page.waitForSelector('[data-t=mtCard]')
+    await page.selectOption('[data-t=mtDays]', '7')
+    await page.waitForSelector('[data-t=mtEmpty]')
+    assert.equal(await page.locator('[data-t=mtCard]').count(), 0)
+    // 오류 — 빈 목록이 아니라 오류 + 다시 읽기
+    await page.route('**/api/k/apv10/metrics**', (r) => r.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: '테스트 오류', code: 'E_INTERNAL' }) }))
+    await page.selectOption('[data-t=mtDays]', '30')
+    await page.waitForSelector('.hdy [data-t=err] [data-t=retry]')
+    assert.equal(await page.locator('[data-t=mtEmpty], [data-t=mtCard]').count(), 0)
+    await page.unroute('**/api/k/apv10/metrics**')
+    await page.click('.hdy [data-t=retry]')
+    await page.waitForSelector('[data-t=mtCard]')
+    await page.selectOption('[data-t=mtDays]', '14')
+    await page.waitForSelector('[data-t=mtCard]')
+    // 옛 주소 check/review → 처음 탭(점검)
+    await page.goto(s.url + '/#/k/apv10/check/review')
+    await page.waitForSelector('[data-t=ckTab-check].on')
+    // held 모드 지식(dpms) — 넣지 못함 탭이 앞 · 지표는 재지 않음(빈 상태와 다른 말)
+    await page.goto(s.url + '/#/k/dpms/check/metrics')
+    await page.waitForSelector('[data-t=mtOff], [data-t=mtCard], [data-t=mtEmpty]')
+    assert.deepEqual(await tabs(), ['넣지 못함', '점검', '지표'])
+    assert.equal(await page.locator('[data-t=mtOff]').count(), 1, 'held 지식은 재지 않음')
+    assert.deepEqual(await bannedIn(page), [])
     assert.deepEqual(errors, [])
   } finally { await page.close() }
 })

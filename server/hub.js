@@ -23,6 +23,7 @@ import { check as checkDraft } from '../core/gate.js'
 import { INGEST_SCHEMA, ingestCandidates, formsOf, supersededIngest, draftToSave, polishToSave, POLISH_MAX, heldRecord, ruleRecord, RULE_MARK, intakeTags, intakeSrcPart, INTAKE_SCHEMA, intakePromptOf, intakeFixPromptOf, docRel, quoteSrc } from '../core/ingest.js'
 import { WRITE_RULES } from '../core/writerules.js'
 import { checkProposal, placeOf, PROPOSAL_PART, buildProposal } from '../core/propose.js'
+import { metricsOf, readKnLines, daysOf, sinceOf } from '../core/metrics.js'
 import { checkSection, checkShape, judgeShape } from '../core/gate.js'
 import { valuesOf, mustValues } from '../core/values.js'
 import { splitBlocks, hasBlockMarker } from '../core/baseline.js'
@@ -593,7 +594,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     const prev = bad.find((b) => b.prev)?.prev
     const prevs = prev ? [...new Set([...(Array.isArray(payload.prevs) ? payload.prevs : []), prev])].slice(-10) : null
     const w = waitOf(to, { ...payload, items: bad.map((b) => payload.items[b.i]), ...(prevs ? { prevs } : {}) }, Object.assign(new Error(bad.map((b) => String(b.why || '받지 않았다')).join(' · ')), { status: 400, reach: true }))
-    if (prev) w.fix = '[지금 다시] 는 다시 지어 보내고 앞 기록을 바로잡는다 · 받는 지식의 지식관리자가 팀 화면 › 확인 › 넣지 못함에서 고칠 수도 있다'
+    if (prev) w.fix = '[지금 다시] 는 다시 지어 보내고 앞 기록을 바로잡는다 · 받는 지식의 지식관리자가 팀 화면 › 점검 › 넣지 못함에서 고칠 수도 있다'
     return w
   }
   // 보낼 곳마다 묶음으로 — 보낸 수 · 닿지 않아 둔 수(wait) · 거절된 수(fail) · 대기 줄(상태 파일에 넣는 것은 부르는 쪽)
@@ -695,7 +696,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   // 되돌림 — 그 문서에서 7일 안에 되돌린 수(줄 안에서 새로 읽은 지식으로)
   const revertsIn = (k, doc) => revertsOfDoc(k, doc)
   // 아직 안 넣은 기록(pend)의 말 — PC 는 저장 즉시 넣기가 넣는다 · 팀은 S13 뒤 새로 생기지 않는다(남은 것은 개편 전 기록 · 넣지 못함 화면)
-  const pendText = () => (mode === 'pc' ? 'kmd 가 곧바로 문서에 넣는다' : '개편 전 기록: 확인 › 넣지 못함에서 다시 들인다')
+  const pendText = () => (mode === 'pc' ? 'kmd 가 곧바로 문서에 넣는다' : '개편 전 기록: 점검 › 넣지 못함에서 다시 들인다')
   // 글 걸음 하나의 재료(바탕 세우기 설계 4-3 · 4-5) — 기록(제목 · 본문 · touches · fixes) · prepare(줄 안에서 새로 읽은 지식으로 조각 · 걷을 출처 · 자리 장부 줄 · 요약).
   //   진짜(hub.shapeWrite → hub.save opt.shape)와 연습 판(core save 를 연습 판 폴더에 바로)이 같이 쓴다 — 같은 core 검사(checkShape · 저장 문)를 지난다(4-6)
   //   → { skipped: 기록 id } | { record, prepare, tags }
@@ -2764,7 +2765,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (!ws.length) continue
         out.push({ kn: m.id, n: ws.length })
         for (const u of await hub.curatorsOf(m.id)) {
-          await feed.add(dataDir, u, { kind: 'save', kn: m.id, dot: 'acc', text: `하루 요약: ${k.name} 에 ${day} 들어간 기록 ${ws.length}`, small: ws.slice(0, 3).map((w) => w.title).join(' · ') }).catch((e) => log(`하루 요약을 알리지 못했다 ${m.id}: ${e.message}`))
+          await feed.add(dataDir, u, { kind: 'save', kn: m.id, dot: 'acc', text: `들어간 것 하루 요약: ${k.name} · ${day} 기록 ${ws.length}`, small: ws.slice(0, 3).map((w) => w.title).join(' · ') }).catch((e) => log(`하루 요약을 알리지 못했다 ${m.id}: ${e.message}`))
         }
       }
       if (touched) await writeJsonAtomic(f, sent, { indent: 1 })
@@ -5585,6 +5586,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 받음 — 개인 지식에서 보낸 기록이 이 지식에 섰다(예전 줄은 글로) · 보냄 줄과 화면이 잇는다
       //   옛 줄의 갈래 tidy(정리 · 바로 넣기)는 place 로 읽는다(S13) · place 의 화면 이름은 「들이기」(저장 승인 PC3 · 옛 줄은 읽기만)
       const kindOf = (x) => (x.from != null || (x.kind === 'save' && /에서 받음$/.test(x.text || '')) ? 'recv' : x.kind === 'tidy' ? 'place' : x.kind) || (x.revert || /^kmd 가 정리/.test(x.text || '') ? 'place' : /^새 기기/.test(x.text || '') ? 'device' : /^(지식을 |되살렸다)/.test(x.text || '') ? 'kn' : /보냈다|옮겼다/.test(x.text || '') ? 'send' : /^파일 /.test(x.text || '') ? 'import' : /에서 (바뀐 표|새 묶음)/.test(x.text || '') ? 'source' : 'save')
+      // 갈래 말(저장 승인 P10 · 6-4) — held 는 held 모드 지식의 줄만(approve 지식은 넣지 못함이 생기지 않는다 · P11 에서 걷음) · place 는 「들이기」
       const FEED_KIND = { save: '저장', import: '가져오기', source: '가져오기', place: '들이기', send: '보내기', recv: '받음', kn: '지식', device: '지식', held: '넣지 못함' }
       const putFields = (kn, rec, w) => {
         const p = kn && rec ? putOf.get(`${kn}\n${rec}`) : null
@@ -5612,7 +5614,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const sub = p.items?.length
           ? p.items.slice(0, 3).map(itemText).join(' · ') + (p.items.length > 3 ? ` 외 ${p.items.length - 3}` : '') + (held.length ? ` · 넣지 못함 ${held.length}` : '')
           : held.length ? `넣지 못함 ${held.length}: ${String(held[0].why || '').slice(0, 160)}` : plain.slice(0, 200)
-        rows.push({ id: `l:${k.id}:${w.id}`, at: isoOfStamp(w.date), kind: logKind(w), kn: k.id, title: w.title, sub, who: w.author, rec: w.id, ...p })
+        // 글 그대로(저장 승인 P10 · 6-3) — 들어갔지만 항목 글은 그대로(이은 항목만 · 넣은 글 없음)
+        const asIs = !p.items?.length && !held.length && w.body.includes(`## ${LINKED_PART}`)
+        rows.push({ id: `l:${k.id}:${w.id}`, at: isoOfStamp(w.date), kind: logKind(w), kn: k.id, title: w.title, sub, who: w.author, rec: w.id, ...p, ...(asIs ? { asIs: true } : {}) })
       }
       for (const r of rows) r.knName = r.kn ? names[r.kn] || r.kn : ''
       rows.sort((a, b) => String(b.at).localeCompare(String(a.at)))
@@ -7283,6 +7287,20 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 지식 관리 › 기본 정보(지식관리 설계 7-2 · 9-2) — 그 지식의 지식관리자(총괄 관리자 포함)만 · 읽기 미만은 「없는 지식」(404) · 쓰기 · 읽기는 403
     //   폴더 경로(dir)는 개인 프로그램에서만 싣는다(팀 응답에는 서버 경로를 싣지 않는다)
+    // 점검 지표(저장 승인 설계 P-D27 · P-D28 · P10) — 그 지식의 지식관리자(개인은 주인) · 읽기 미만 404 · 그 밖 403 · 자리 판정 뒤에 읽는다
+    //   측정 줄 <살림>/savelog/<지식>.jsonl(이 서버 · 이 PC 의 것만 · P-D43) + 기록 끝 「새로 세움」 표지 · days 7 · 14(기본) · 30 · 90
+    async metrics(ctx, id, days) {
+      await hub.meta(id, ctx)
+      hub.need(ctx, id, 'admin')
+      const d = daysOf(days)
+      const now = new Date()
+      const since = sinceOf(d, now)
+      const k = await hub.get(id, ctx)
+      const { lines, broken } = await readKnLines(dataDir, id, since)
+      const m = metricsOf(lines, { works: k.works, days: d, now, since })
+      // mode — 측정 칸(P-D37)은 approve 모드 지식의 저장에만 붙는다 · held 모드(옛 저장 길) 지식은 화면이 「재지 않음」 을 따로 보인다
+      return { id: k.id, name: k.name, days: d, since, mode: hub.saveModeOf(id) === 'approve' ? 'approve' : 'held', ...m, ...(broken ? { broken } : {}) }
+    },
     async manageInfo(ctx, id) {
       const meta = await hub.meta(id, ctx)
       hub.need(ctx, id, 'admin')

@@ -119,7 +119,7 @@ const TOOLS = [
         },
         forms: {
           type: 'array',
-          description: '세울 갈래(지식관리자): 새 문서가 설 수 있는 갈래를 갈래 장부에 더한다. 일반 자리는 기록에 실어 두고 지식관리자가 확인 › 넣지 못함에서 세운다',
+          description: '세울 갈래(지식관리자): 새 문서가 설 수 있는 갈래를 갈래 장부에 더한다. 일반 자리는 기록에 실어 두고 지식관리자가 점검 › 넣지 못함에서 세운다',
           items: { type: 'object', properties: { name: str('갈래 = 문서 이름: 예 회의록'), aliases: { type: 'array', items: { type: 'string' }, description: '이 갈래로 모을 다른 이름: 예 통화 · 미팅' }, folder: str('문서 폴더: 예 1.2_사업관리'), kind: str('대상 · 서술 · 사건 · 대장'), pattern: str('그 문서의 항목 이름 패턴: 예 이슈:*'), form: str('서식: 지식문서 · 결정기록 · 작업기록') }, required: ['name'] },
         },
         names: {

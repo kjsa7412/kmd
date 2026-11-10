@@ -133,7 +133,7 @@ const MANUAL_DIR = path.join(APP, '..', 'docs_ops', 'manual')
 const MANUALS = [
   { slug: '사용자', title: '쓰는 사람', sub: '팀 화면에서 보기 · 찾기 · 고치기 · 가져오기', img: 't-doc.png', modes: ['team'] },
   { slug: '개인', title: '개인 프로그램', sub: '내 PC 의 kmd · 파일 넣기 · 공유', img: 'p-home.png', modes: ['team', 'pc'] },
-  { slug: '지식관리자', title: '지식관리자', sub: '넣지 못함 · 권한 · 가져올 곳 · 다듬기', img: 't-held.png', modes: ['team'] },
+  { slug: '지식관리자', title: '지식관리자', sub: '점검 · 지표 · 권한 · 가져올 곳 · 다듬기', img: 't-held.png', modes: ['team'] },
   { slug: '관리자', title: '총괄 관리자', sub: '설치 · 사람 · Claude 연결 · 저장소 · 셸 명령', img: 't-people.png', modes: ['team'] },
   { slug: '운영', title: '운영 · 되살리기', sub: '밤 묶음 · 되살리기 · 새 판', img: 't-admin.png', modes: ['team', 'pc'] },
 ]
@@ -442,7 +442,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const GET_OK = [
     /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/audit|admin\/users|admin\/groups|claude\/state|busy|send\/teams|seed\/open)$/,
     /^\/api\/agent\/parser$/, /^\/api\/gitlab\/groups$/,/^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
-    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|held|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|shape|seed|past|removed|manage)$/,
+    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|held|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|shape|seed|past|removed|manage|metrics)$/,
     /^\/api\/k\/[^/]+\/shape\/job\/[0-9a-f]{12}$/,
   ]
   const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|stops\/ack|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|shape\/survey|k\/[^/]+\/(?:owner|save-mode|access|delete|structure|polish|revert|unwatch|docfmt|shape(?:\/[a-z]+|\/job\/[0-9a-f]{12}\/stop)?|seed(?:\/(?:upload|pick|plan|write|try|step))?|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names|approve)|rec\/[^/]+\/fix|removed\/restore))$/
@@ -1235,6 +1235,13 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (req.method === 'POST') throw new KmdError('E_METHOD', 'GET 으로 읽는다')
       need(ctx)
       return out(200, await hub.manageInfo(ctx, dec(mgi[1])))
+    }
+    // 점검 지표(저장 승인 P10 · P-D28) — 읽기 길(GET) · 그 지식의 지식관리자(개인 주인)만(hub.metrics 가 meta + need admin) · ?days=7|14|30|90
+    const mtm = p.match(/^\/api\/k\/([^/]+)\/metrics$/)
+    if (mtm) {
+      if (req.method === 'POST') throw new KmdError('E_METHOD', 'GET 으로 읽는다')
+      need(ctx)
+      return out(200, await hub.metrics(ctx, dec(mtm[1]), url.searchParams.get('days')))
     }
     const pm = req.method === 'GET' && p.match(/^\/api\/k\/([^/]+)\/past$/)
     if (pm) {

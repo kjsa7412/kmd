@@ -407,7 +407,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <tr><td><b>저장</b></td><td>기록 + 항목 조각 + 지문(base) 한 덩이. 서버 저장 검사 한 곳이 정한다 · 넘으면 그 순간 문서에 · git 한 묶음</td><td><a href="#core">6 핵심 로직</a></td></tr>
 <tr><td><b>조각</b></td><td>항목 글을 바꾸는 단위: 지금 글에 꼭 한 번 나오는 글 → 바꿀 글. 새 항목은 글 전체</td><td><code>sections[{ coord | doc · heading, base, edits | content }]</code></td></tr>
 <tr><td><b>들이기</b></td><td>쓴 사람이 없는 것(파일 · 가져올 곳 · 규칙 밖 정정)을 Claude 가 기록 + 조각으로 지어 한 번에 저장(보내기는 내 PC 의 Claude 가 짓는다)</td><td>팀 일꾼 · 도는 일</td></tr>
-<tr><td><b>넣지 못함 n</b></td><td>저장 검사를 넘지 못해 기록만 남은 수. 까닭 · 들어온 길 · [고치기] · [다시 들이기] · [이름 세우기] · [버리기]</td><td>확인 › 넣지 못함 · 지식 카드 · 항목 머리 칩</td></tr>
+<tr><td><b>넣지 못함 n</b></td><td>저장 검사를 넘지 못해 기록만 남은 수. 까닭 · 들어온 길 · [고치기] · [다시 들이기] · [이름 세우기] · [버리기]</td><td>점검 › 넣지 못함 · 지식 카드 · 항목 머리 칩</td></tr>
 <tr><td><b>메모</b></td><td>확정이 아니라 문서를 바꾸지 않고 기록만 남긴 것. 팀에서 조각 없이 온 사람 기록도 메모</td><td>brief 「안 넣은 메모 n」</td></tr>
 <tr><td><b>정정 기록</b></td><td>기록을 고칠 때 원래 기록은 두고 새로 남기는 기록(옛 값 → 새 값)</td><td>규칙 · 안 되면 팀 일꾼</td></tr>
 <tr><td><b>바로 넣기</b></td><td>개인 프로그램이 저장 뒤 곧바로 남은 기록을 문서 항목에 넣는 일(<code>core/pcplace.js</code>). 팀에는 없다</td><td>개인 지식만</td></tr>
@@ -748,7 +748,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <li><time>읽기</time><b>팀 지식</b>이 PC 의 기기 열쇠로 MCP brief · match · section(이름 · 후보 문서의 항목 글 · 지문)</li>
 <li><time>짓기</time><b>내 Claude</b>들이기와 같은 프롬프트로 기록 + 조각 · 넣을 곳을 고르지 못한 조각은 <code>left</code>(넣지 못함 notfound)</li>
 <li><time>저장</time><b>팀 저장 문</b><code>channel: send</code> · 조각마다 검사 · 넘은 것은 그 순간 문서, 못 넘은 것은 기록에 넣지 못함</li>
-<li><time>다시</time><b>바로잡기</b>[지금 다시] 는 다시 지어 보내고 앞의 넣지 못함 기록을 <code>fixes</code> 로 바로잡는다 · 받는 지식의 지식관리자는 팀 화면 › 확인 › 넣지 못함에서 같은 기록을 고친다</li>
+<li><time>다시</time><b>바로잡기</b>[지금 다시] 는 다시 지어 보내고 앞의 넣지 못함 기록을 <code>fixes</code> 로 바로잡는다 · 받는 지식의 지식관리자는 팀 화면 › 점검 › 넣지 못함에서 같은 기록을 고친다</li>
 </ol>
 </div></div>
 <figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>개인 화면 · 공유</span></div><div class="m-pic"><img src="manual/img/p-send.png" alt="공유 화면" loading="lazy"></div></div><figcaption>공유 화면. 쓰는 법은 <a href="manual/개인.html#send">설명서 › 공유</a>.</figcaption></figure>
@@ -888,8 +888,8 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <tr><td><code>legacy</code> · <code>legacy-send</code></td><td>개편 전 기록 · 개편 전 보내기</td><td>개편 앞에 들어와 아직 문서에 안 넣은 기록 · 옛 판 개인 프로그램의 receive</td></tr>
 </table></div>
 <p class="small muted">화면 말은 <code>app/main.js</code> 의 <code>HELD_CODE</code>. 넣지 못함은 따로 장부를 두지 않는다: 그 기록 자체가 목록이다. 쓰기 자리는 자기 것, 지식관리자는 그 지식의 것 모두를 본다.</p></div>
-<div class="ex"><div class="ex-h"><span class="tag p">화면</span><b>확인 › 넣지 못함</b></div>
-<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>확인 › 넣지 못함</span></div><div class="m-pic"><img src="manual/img/t-held.png" alt="넣지 못함 화면: 요약 줄 · 개편 전 기록 띠 · 사람 · 들어온 길 · 기록 · 까닭 · 고치기 · 다시 들이기" loading="lazy"></div></div><figcaption>위에 「넣지 못함 n · 오늘 넣음 n · 메모 n」, 개편 전 기록이 있으면 노란 띠와 [옛 기록 다시 들이기](지식관리자), 줄마다 들어온 길 · 까닭 · [고치기] · [다시 들이기] · [이름 세우기](지식관리자 · 세울 이름이 있을 때) · ⋯(기록 보기 · 버리기(지식관리자)).</figcaption></figure>
+<div class="ex"><div class="ex-h"><span class="tag p">화면</span><b>점검 › 넣지 못함</b></div>
+<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>점검 › 넣지 못함</span></div><div class="m-pic"><img src="manual/img/t-held.png" alt="넣지 못함 화면: 요약 줄 · 개편 전 기록 띠 · 사람 · 들어온 길 · 기록 · 까닭 · 고치기 · 다시 들이기" loading="lazy"></div></div><figcaption>위에 「넣지 못함 n · 오늘 넣음 n · 메모 n」, 개편 전 기록이 있으면 노란 띠와 [옛 기록 다시 들이기](지식관리자), 줄마다 들어온 길 · 까닭 · [고치기] · [다시 들이기] · [이름 세우기](지식관리자 · 세울 이름이 있을 때) · ⋯(기록 보기 · 버리기(지식관리자)).</figcaption></figure>
 <p>개편 앞에 들어와 아직 문서에 안 넣은 기록은 「개편 전 기록」 으로 이 화면에 보이고, 지식관리자가 [옛 기록 다시 들이기] 로 팀 일꾼에게 한 번에 넘긴다. 개편을 켠 때는 팀 서버가 처음 켤 때 <code>&lt;data&gt;/cutover.json</code> 에 적는다(<code>serve.json</code> 의 <code>cutoverAt</code> 이 있으면 그것이 먼저).</p>
 </div></div>
 
@@ -931,7 +931,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <rect class="zone" x="510" y="10" width="480" height="540" rx="12"/><text class="z" x="526" y="32">개인 화면 · 개인 프로그램 127.0.0.1:7373</text>
 <rect class="box team" x="26" y="44" width="448" height="52" rx="8"/><text class="t" x="40" y="66">들어가기</text><text class="l" x="40" y="86">아이디 · 비밀번호 · 「잊었거나 막혔으면 ○○에게」</text>
 <rect class="box" x="26" y="106" width="448" height="70" rx="8"/><text class="t" x="40" y="128">머리 줄 · 위 띠</text><text class="l" x="40" y="148">빨리 열기 Ctrl O · 찾기 Ctrl K · Claude 상태 · 설명서 · 나(동그라미)</text><text class="l" x="40" y="166">위 띠: 나의 자리 · 「⚠ 경고 n」 [알았다] · [다시 들어가기]</text>
-<rect class="box" x="26" y="186" width="448" height="108" rx="8"/><text class="t" x="40" y="208">옆 메뉴(위에서부터)</text><text class="l" x="40" y="228">① 지식 고르기 ▾ ② 지식 메뉴: 확인 · 생성 · 문서 · 이력</text><text class="l" x="40" y="246">③ 문서일 때: 보기 탭 「목차 · 항목 · 기록 · 그래프」</text><text class="l" x="40" y="264">   찾기 칸 + 도구([구조]) → 목록(첨부는 나무 끝)</text><text class="l" x="40" y="282">④ 공통 메뉴: 지식관리 · 설정</text>
+<rect class="box" x="26" y="186" width="448" height="108" rx="8"/><text class="t" x="40" y="208">옆 메뉴(위에서부터)</text><text class="l" x="40" y="228">① 지식 고르기 ▾ ② 지식 메뉴: 점검 · 생성 · 문서 · 이력</text><text class="l" x="40" y="246">③ 문서일 때: 보기 탭 「목차 · 항목 · 기록 · 그래프」</text><text class="l" x="40" y="264">   찾기 칸 + 도구([구조]) → 목록(첨부는 나무 끝)</text><text class="l" x="40" y="282">④ 공통 메뉴: 지식관리 · 설정</text>
 <rect class="box" x="26" y="304" width="448" height="70" rx="8"/><text class="t" x="40" y="326">보기</text><text class="l" x="40" y="346">지식 홈 · 문서 탭 여럿 · [옛 판] · [지켜보기] · 그래프 3D · 2D 표</text><text class="l" x="40" y="364">오른쪽 칸 개요 · 문서 · 기록 · 항목 · 속성 · 칸 접기 · 너비</text>
 <rect class="box team" x="26" y="384" width="448" height="152" rx="8"/><text class="t" x="40" y="406">설정(본문 안 왼쪽 메뉴 · 자리마다 보이는 것만)</text><text class="l" x="40" y="428">운영(감사 기록) · 팀 일꾼(Claude 연결 · 운영 값): 총괄 관리자</text><text class="l" x="40" y="448">팀 지식: 지식관리자부터 · 사람(묶음): 총괄 관리자</text><text class="l" x="40" y="468">에이전트 설치: 누구나 · 둘째 카드 「개인 프로그램 설치」</text><text class="l" x="40" y="488">서버 정보: 내 자리 · 내 설정 · 화면 밝기 · 비밀번호 바꾸기</text><text class="l" x="40" y="508">· 내 기기 · 나가기</text>
 <rect class="box pc" x="526" y="44" width="448" height="52" rx="8"/><text class="t" x="540" y="66">들어가기</text><text class="l" x="540" y="86">한 번용 주소(시작 메뉴 › kmd · kmd open) · 개인 지식만</text>
@@ -941,19 +941,19 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <rect class="box pc" x="526" y="384" width="448" height="152" rx="8"/><text class="t" x="540" y="406">설정</text><text class="l" x="540" y="428">이 PC: 지식 폴더 · 지식백업 · 저절로 하는 일 · 보내는 길</text><text class="l" x="540" y="448">Claude 연결: 내 로그인 · 일마다 모델</text><text class="l" x="540" y="468">에이전트 설치: 작업 폴더에 개인 지식 더하기</text><text class="l" x="540" y="488">운영 · 팀 일꾼 · 사람 · 서버 정보는 없다</text>
 </svg>
 </div>
-<p class="small muted">메뉴 이름은 <code>core/menupath.js</code>(설정 <code>SET_TEAM</code> · <code>SET_PC</code> · 지식 메뉴 <code>KN_MENU_PC</code> · <code>KN_MENU_TEAM</code> · 화면 탭 <code>GEN_TABS</code> · <code>PROGRESS</code> · <code>CHECK_TABS</code>)와 <code>app/main.js</code> 의 <code>setMenu</code> · <code>kmItems</code> · <code>sideItems</code> 그대로다(<code>test/menupath.test.mjs</code> 가 설명서 글의 「설정 › …」 · 「생성 › …」 · 「확인 › …」 길까지 맞춰 본다). 팀 화면의 생성 · 확인은 옆 메뉴에서 고른 지식에 쓰기 자리부터, 구조는 지식관리자에게 선다. 지식 메뉴 화면 주소는 고른 지식에 딸린다(<code>#/k/&lt;지식&gt;/gen</code> · <code>check</code> · <code>share</code> · <code>history</code> · <code>shape</code>) · 옛 주소(<code>#/import</code> · <code>#/held</code> · <code>#/send</code> · <code>#/structure</code> · 옛 정리 화면 <code>#tidy</code>)는 새 화면으로 간다.</p>
+<p class="small muted">메뉴 이름은 <code>core/menupath.js</code>(설정 <code>SET_TEAM</code> · <code>SET_PC</code> · 지식 메뉴 <code>KN_MENU_PC</code> · <code>KN_MENU_TEAM</code> · 화면 탭 <code>GEN_TABS</code> · <code>PROGRESS</code> · <code>CHECK_TABS</code>)와 <code>app/main.js</code> 의 <code>setMenu</code> · <code>kmItems</code> · <code>sideItems</code> 그대로다(<code>test/menupath.test.mjs</code> 가 설명서 글의 「설정 › …」 · 「생성 › …」 · 「점검 › …」 길까지 맞춰 본다). 팀 화면의 생성 · 확인은 옆 메뉴에서 고른 지식에 쓰기 자리부터, 구조는 지식관리자에게 선다. 지식 메뉴 화면 주소는 고른 지식에 딸린다(<code>#/k/&lt;지식&gt;/gen</code> · <code>check</code> · <code>share</code> · <code>history</code> · <code>shape</code>) · 옛 주소(<code>#/import</code> · <code>#/held</code> · <code>#/send</code> · <code>#/structure</code> · 옛 정리 화면 <code>#tidy</code>)는 새 화면으로 간다.</p>
 
 <h3>저장 하나가 화면에 보이는 길</h3>
 <div class="flowfig" role="figure" aria-label="저장 하나의 결과가 화면 여러 곳에 보이는 길">
-<svg class="arch" viewBox="0 0 1000 300" role="img" aria-label="저장이 넣음이면 문서의 항목 글 · 출처 칩 · 이력의 옛 값 → 새 값으로, 넣지 못함이면 지식 카드 · 항목 머리 칩 · 확인 › 넣지 못함 · brief 로, 메모면 기록 칩과 brief 로 보인다">
+<svg class="arch" viewBox="0 0 1000 300" role="img" aria-label="저장이 넣음이면 문서의 항목 글 · 출처 칩 · 이력의 옛 값 → 새 값으로, 넣지 못함이면 지식 카드 · 항목 머리 칩 · 점검 › 넣지 못함 · brief 로, 메모면 기록 칩과 brief 로 보인다">
 <defs><marker id="ah-screens" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0,0 L10,5 L0,10 z"/></marker></defs>
 <rect class="box team" x="10" y="110" width="170" height="80" rx="10"/><text class="t" x="24" y="136">저장 하나</text><text class="l" x="24" y="158">기록 + 조각</text><text class="l" x="24" y="176">어느 채널이든</text>
 <rect class="box pc" x="220" y="20" width="240" height="80" rx="10"/><text class="t" x="234" y="44">넣음</text><text class="l" x="234" y="66">기록 칩 「문서에 들어감」</text><text class="l" x="234" y="84">기록 끝 「넣은 것」</text>
 <rect class="box bk" x="220" y="110" width="240" height="80" rx="10"/><text class="t" x="234" y="134">넣지 못함</text><text class="l" x="234" y="156">기록 칩 「넣지 못함」 · 까닭</text><text class="l" x="234" y="174">쓴 사람 · 지식관리자에게만</text>
 <rect class="box" x="220" y="200" width="240" height="80" rx="10"/><text class="t" x="234" y="224">메모</text><text class="l" x="234" y="246">기록 칩 「메모」</text><text class="l" x="234" y="264">문서는 그대로</text>
 <rect class="box" x="500" y="20" width="490" height="80" rx="10"/><text class="t" x="514" y="44">문서 · 이력</text><text class="l" x="514" y="66">항목 글(수준 표시) · 오른쪽 칸 「기록」 = 이 문서의 이력</text><text class="l" x="514" y="84">이력: 「옛 값 → 새 값」 · 항목마다 [되돌리기]</text>
-<rect class="box" x="500" y="110" width="490" height="80" rx="10"/><text class="t" x="514" y="134">넣지 못함이 보이는 곳</text><text class="l" x="514" y="156">지식 카드 「넣지 못함 n」 · 항목 머리 칩 · 확인 › 넣지 못함</text><text class="l" x="514" y="174">세션 brief 의 mine · you.recent · 개인 공유 화면</text>
-<rect class="box" x="500" y="200" width="490" height="80" rx="10"/><text class="t" x="514" y="224">메모가 보이는 곳</text><text class="l" x="514" y="246">확인 › 넣지 못함 요약 「메모 n」</text><text class="l" x="514" y="264">세션 brief 「안 넣은 메모 n」</text>
+<rect class="box" x="500" y="110" width="490" height="80" rx="10"/><text class="t" x="514" y="134">넣지 못함이 보이는 곳</text><text class="l" x="514" y="156">지식 카드 「넣지 못함 n」 · 항목 머리 칩 · 점검 › 넣지 못함</text><text class="l" x="514" y="174">세션 brief 의 mine · you.recent · 개인 공유 화면</text>
+<rect class="box" x="500" y="200" width="490" height="80" rx="10"/><text class="t" x="514" y="224">메모가 보이는 곳</text><text class="l" x="514" y="246">점검 › 넣지 못함 요약 「메모 n」</text><text class="l" x="514" y="264">세션 brief 「안 넣은 메모 n」</text>
 <path class="ln a" d="M180 150 H200 V60 H216" marker-end="url(#ah-screens)"/><path class="ln w" d="M200 150 H216" marker-end="url(#ah-screens)"/><path class="ln" d="M200 150 V240 H216" marker-end="url(#ah-screens)"/>
 <path class="ln g" d="M460 60 H496" marker-end="url(#ah-screens)"/><path class="ln w" d="M460 150 H496" marker-end="url(#ah-screens)"/><path class="ln" d="M460 240 H496" marker-end="url(#ah-screens)"/>
 </svg>
@@ -1663,7 +1663,7 @@ o1: { g: '3 끝', t: '넣음', what: '넘은 조각은 <b>그 순간</b> 문서 
   ok: [{ cap: '기록 끝에 붙는 칸', code: '## 넣은 것\n- docs/배포절차.md › 카나리: 10% → 20%' }],
   src: 'core/parts.js renderPut · core/knowledge.js recordState', std: '개편 설계 2-2' },
 o2: { g: '3 끝', t: '넣지 못함', what: '못 넘은 조각은 버리지 않는다. <b>기록만 남고</b> 「## 넣지 못함」 칸에 조각 · 까닭(code · why)이 실린다. 따로 장부를 두지 않는다: 그 기록 자체가 목록이다.',
-  rules: ['응답 <code>proposals[]</code> 에 조각마다 <code>{ ok: false, why, code, near? }</code>.', '그 사람의 brief(mine · you.recent) · 확인 › 넣지 못함(쓰기 자리는 내 것 · 지식관리자는 모두) · 지식 카드 · 항목 머리 칩.', '들이기 원천은 <code>&lt;data&gt;/held/&lt;지식&gt;/</code> 에 남는다(다시 들이기에 쓴다).'],
+  rules: ['응답 <code>proposals[]</code> 에 조각마다 <code>{ ok: false, why, code, near? }</code>.', '그 사람의 brief(mine · you.recent) · 점검 › 넣지 못함(쓰기 자리는 내 것 · 지식관리자는 모두) · 지식 카드 · 항목 머리 칩.', '들이기 원천은 <code>&lt;data&gt;/held/&lt;지식&gt;/</code> 에 남는다(다시 들이기에 쓴다).'],
   ok: [{ cap: '기록 끝에 붙는 칸(꼴)', code: '## 넣지 못함\n```json\n[{ "doc": "docs/배포절차.md", "heading": "카나리", "code": "values", "why": "근거에 없는 값이 있다: 60분", "edits": [...] }]\n```' }],
   src: 'core/parts.js renderHeld · server/hub.js held · app/main.js HELD_CODE', std: '개편 설계 3-1' },
 o3: { g: '3 끝', t: '메모', what: '확정이 아니라 문서를 바꾸지 않고 기록만 남긴 것(태그 memo).',

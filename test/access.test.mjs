@@ -377,6 +377,34 @@ test('지식 상세 길: GET manage · backup 은 지식관리자부터(없음 4
   assert.equal('repo' in (await row(P.wr)), false, '쓰기: 저장소 칸 없음')
 })
 
+// 점검 지표(저장 승인 P10 · P-D28) — GET metrics 는 그 지식의 지식관리자부터 · 측정 줄 + 새로 세움 · 기간 · POST 는 받지 않는다 · 사람 이름은 싣지 않는다
+test('점검 지표 길: GET metrics 는 지식관리자부터(없음 404 · 읽기 · 쓰기 403) · 측정 줄 · 기간 · POST 는 받지 않음', async () => {
+  const rd = await signIn(s, { id: 'test-rd4', admin: false })
+  await s.hub.setAccess(SHELL, 'dpms', { all: 'none', users: { 'test-rd4': 'read' }, groups: { 개발: 'write' } })
+  const day = new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+  fs.mkdirSync(path.join(data, 'savelog'), { recursive: true })
+  fs.appendFileSync(path.join(data, 'savelog', 'dpms.jsonl'), [
+    { at: `${day} 09:00`, kn: 'dpms', user: 'wr', ch: 'intake', rec: 'test-u1', n: 1, put: 1, held: [], mode: 'approve', warned: ['invented'], rule: '꼴 오류', fix: 2 },
+    { at: '2020-01-01 09:00', kn: 'dpms', user: 'wr', ch: 'session', rec: 'test-old', n: 1, put: 1, held: [], mode: 'approve', accepted: ['missing'], rounds: 2 },
+  ].map((x) => JSON.stringify(x)).join('\n') + '\n')
+  const p = '/api/k/dpms/metrics'
+  assert.equal((await req(p, P.no)).status, 404, '없음')
+  assert.equal((await req(p, rd)).status, 403, '읽기')
+  assert.equal((await req(p, P.wr)).status, 403, '쓰기')
+  assert.equal((await req('/api/k/nope/metrics', P.boss)).status, 404, '없는 지식')
+  const m = (await req(p + '?days=30', P.own))
+  assert.equal(m.status, 200, JSON.stringify(m.j))
+  assert.equal(m.j.days, 30)
+  const by = Object.fromEntries(m.j.rows.map((r) => [r.key, r]))
+  assert.deepEqual([by.warned.n, by.warned.base, by.rule.n, by.fix.n, by.accepted.n], [1, 1, 1, 2, 0], '기간 밖 줄은 세지 않는다')
+  assert.equal(by.warned.recs[0].rec, 'test-u1')
+  assert.ok(!JSON.stringify(m.j).includes('"wr"'), '사람 이름은 싣지 않는다')
+  assert.equal((await req(p + '?days=abc', P.boss)).j.days, 14, '모르는 기간은 14일')
+  assert.equal((await req(p, P.own, {})).status, 405, 'POST 는 받지 않는다(E_METHOD)')
+  assert.equal(m.j.mode, 'held', '옛 저장 길 지식은 화면이 재지 않음을 따로 보인다')
+  assert.equal((await req(p, P.boss)).status, 200, '총괄 관리자')
+})
+
 // 저장소 보기(메뉴 개편 N6 검토) — 주소에 든 아이디 · 비밀번호는 가려서 준다(지식관리자에게도)
 test('지식 상세 길: GET backup 은 자격이 든 저장소 주소를 가린다', async () => {
   const url = 'https://test-user:s3cret-tok@git.example.com/team/dpms.git'

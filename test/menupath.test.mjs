@@ -1,11 +1,11 @@
 // 메뉴 길 말(UX T5-07 · 메뉴 개편 N3) — 화면 메뉴 이름과 글 속 메뉴 길이 한 곳(core/menupath.js)과 맞는가
-//   지금 화면에 있는 길만 쓴다. 목표 메뉴(N6)에만 있는 길은 아직 쓰지 않는다 — 화면을 옮기는 단계에서 이 시험을 뒤집는다(N4: 옆 메뉴 · 「문서 › 구조」 · N5: 생성 › 수기수집 · 자동수집 · 진행 · 확인 › 넣지 못함 · 점검 · 승인)
+//   지금 화면에 있는 길만 쓴다. 목표 메뉴(N6)에만 있는 길은 아직 쓰지 않는다 — 화면을 옮기는 단계에서 이 시험을 뒤집는다(N4: 옆 메뉴 · 「문서 › 구조」 · N5: 생성 › 수기수집 · 자동수집 · 진행 · P10: 점검 › 점검 · 지표(held 모드 지식은 점검 › 넣지 못함) · 옛 「확인 › …」 은 없는 길)
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { SET_TEAM, SET_PC, KN_MENU_PC, KN_MENU_TEAM, COMMON, GEN_TABS, PROGRESS, CHECK_TABS, MANAGE_PC, MANAGE_TEAM, DETAIL_PC, DETAIL_TEAM, okNow, okTarget } from '../core/menupath.js'
+import { SET_TEAM, SET_PC, KN_MENU_PC, KN_MENU_TEAM, COMMON, GEN_TABS, PROGRESS, CHECK_TABS, CHECK_HELD, MANAGE_PC, MANAGE_TEAM, DETAIL_PC, DETAIL_TEAM, okNow, okTarget } from '../core/menupath.js'
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 const main = fs.readFileSync(path.join(ROOT, 'app', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
@@ -32,7 +32,12 @@ test('화면의 설정 메뉴 · 옆 메뉴(지식 메뉴 · 공통 메뉴) · �
   assert.deepEqual([...gen[1].matchAll(/\['(?:manual|auto)', '([^']+)'\]/g)].map((m) => m[1]), [...GEN_TABS])
   assert.match(body('progHeadHtml'), />진행</)
   assert.deepEqual(['진행', ...[...body('progTabsHtml').matchAll(/\['(?:queue|done)', '([^']+)'/g)].map((m) => m[1])], [...PROGRESS])
-  assert.deepEqual([...body('ckTabsHtml').matchAll(/\['(?:held|check|review)', '([^']+)'/g)].map((m) => m[1]), [...CHECK_TABS])
+  // 점검(저장 승인 P10) — 탭 점검 · 지표 · held 모드 지식은 P11 까지 넣지 못함 탭이 앞 · 승인 탭은 걷었다
+  const ck = main.match(/const CK_NAME = \{ held: '([^']+)', check: '([^']+)', metrics: '([^']+)' \}/)
+  assert.ok(ck, 'CK_NAME')
+  assert.deepEqual([ck[2], ck[3]], [...CHECK_TABS])
+  assert.equal(ck[1], CHECK_HELD)
+  assert.ok(!/'review'/.test(body('ckTabsHtml')), '승인 탭은 걷었다')
   // 지식관리(N6) — 본문 왼쪽 메뉴(mgMenu: 팀만 사람) · 지식 상세 탭(kdTabs: 개인 줄 · 팀 줄)
   const mgm = labels(body('mgMenu'))
   assert.deepEqual(mgm, [...MANAGE_TEAM])
@@ -58,7 +63,7 @@ function paths() {
   for (const f of files.filter((x) => x !== self)) {
     fs.readFileSync(f, 'utf8').split('\n').forEach((l, i) => {
       if (/^\s*(\/\/|\*|#)/.test(l) && !/\.(md|html)$/.test(f)) return
-      for (const m of l.matchAll(/(설정|지식관리|생성|확인|문서)\s*(?:›|&rsaquo;|<b>›<\/b>)\s*(?:<b>)?([^\n]{0,20})/g)) {
+      for (const m of l.matchAll(/(설정|지식관리|생성|점검|확인|문서)\s*(?:›|&rsaquo;|<b>›<\/b>)\s*(?:<b>)?([^\n]{0,20})/g)) {
         if (/^(['"`$…]|<\/)/.test(m[2])) continue // 코드로 잇는 길 · 링크 이름 끝(「생성 ›」 단추) · 「설정 › …」 꼴의 말
         out.push({ at: `${path.relative(ROOT, f)}:${i + 1} 「${m[1]} › ${m[2].slice(0, 12)}」`, menu: m[1], rest: m[2].replace(/<[^>]+>/g, '') })
       }

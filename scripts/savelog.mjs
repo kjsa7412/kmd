@@ -8,6 +8,7 @@
 //   동시 쓰기  conflictWith 가 있는 줄을 「채널 ↔ 그 항목에 먼저 넣은 쪽」 짝으로 센다(K12-4)
 //   비교 기준  같은 data 폴더의 정리 장부 tidy/*.json 이 있으면 정리의 넣음 비율 · 자리당 시간을 옆에 낸다
 //   목표       통과 70% 이상 · 자리당 1분대(2분 안)
+//   approve    받아들인 경고 · 다시 제안 · 무인 값 경고(code 별) · 규칙 길(까닭) · FIX 번 수 · 다시 대기 · 입력 오류(code) — 같은 측정 줄(P-D37)을 지표 탭(GET /api/k/:id/metrics · core/metrics.js)도 읽는다(탭은 그 가운데 줄 여섯 · 입력 오류 · 다시 대기는 이 표에만)
 //   --trend    지식 폴더를 읽어 날마다 열린 넣지 못함 · 메모 수(K12-3 「쌓이나 줄어드나」) · 지식 폴더는 --root, 없으면 data 폴더의 위
 //
 // 읽기만 한다(188 에서도 사람이 돌린다: node /opt/kmd/scripts/savelog.mjs /srv/kmd/.kmd). 아무것도 쓰지 않는다.
@@ -18,7 +19,8 @@ import { fileURLToPath } from 'node:url'
 import { listKnowledge, loadKnowledge } from '../core/knowledge.js'
 import { isReservedUser } from '../core/names.js'
 
-export const GOAL = { pass: 0.7, msPerSpot: 120_000 }
+// 문턱(P-D37 · Q2): 규칙 길 10% · 무인 값 경고 20% 를 넘는 채널부터 고친다
+export const GOAL = { pass: 0.7, msPerSpot: 120_000, rule: 0.1, warned: 0.2 }
 const RETRY_MS = 30 * 60_000
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 
@@ -127,7 +129,7 @@ const whoOf = (by, user) => (by == null ? '모름' : isReservedUser(by) ? 'kmd(�
 export function summarize(lines) {
   const chans = new Map()
   const of = (ch) => {
-    if (!chans.has(ch)) chans.set(ch, { ch, saves: 0, same: 0, memo: 0, pieces: 0, put: 0, held: 0, errors: {}, reasons: new Map(), perSpot: [], ms: [], usd: 0, calls: 0, costPieces: 0, kits: {}, retry: { events: 0, done: 0 }, ap: { lines: 0, saves: 0, unproposed: 0, accepted: {}, acceptedSaves: 0, rounds: 0, linked: 0, fresh: 0 } })
+    if (!chans.has(ch)) chans.set(ch, { ch, saves: 0, same: 0, memo: 0, pieces: 0, put: 0, held: 0, errors: {}, reasons: new Map(), perSpot: [], ms: [], usd: 0, calls: 0, costPieces: 0, kits: {}, retry: { events: 0, done: 0 }, ap: { lines: 0, saves: 0, unproposed: 0, accepted: {}, acceptedSaves: 0, rounds: 0, linked: 0, fresh: 0, human: 0, un: 0, warned: {}, warnedSaves: 0, rule: 0, rules: {}, fix: 0, conflict: 0, code: {} } })
     return chans.get(ch)
   }
   const pairs = new Map()
@@ -152,6 +154,7 @@ export function summarize(lines) {
     if (ap) {
       ap.lines++
       if (x.unproposed) ap.unproposed++
+      for (const code of Array.isArray(x.code) ? x.code : []) ap.code[code] = (ap.code[code] || 0) + 1
     }
     if (x.err) {
       c.errors[x.err] = (c.errors[x.err] || 0) + 1
@@ -165,6 +168,16 @@ export function summarize(lines) {
       ap.rounds += Number(x.rounds) || 0
       ap.linked += Number(x.linked) || 0
       ap.fresh += Number(x.fresh) || 0
+      // 지표(P-D37 · P10) — 사람 채널(accepted 칸) · 무인 채널(warned 칸) · 규칙 길 · FIX 번 수 · 다시 대기
+      if (Array.isArray(x.accepted)) ap.human++
+      if (Array.isArray(x.warned)) {
+        ap.un++
+        if (x.warned.length) ap.warnedSaves++
+        for (const code of x.warned) ap.warned[code] = (ap.warned[code] || 0) + 1
+      }
+      if (x.rule) { ap.rule++; const r = String(x.rule).slice(0, 40); ap.rules[r] = (ap.rules[r] || 0) + 1 }
+      ap.fix += Number(x.fix) || 0
+      ap.conflict += Number(x.conflict) || 0
     }
     c.saves++
     if (x.same) { c.same++; return }
@@ -204,7 +217,7 @@ export function summarize(lines) {
     msPerSpot: median(c.perSpot),
     cost: c.calls || c.usd ? { usd: c.usd, calls: c.calls, perSpot: c.costPieces ? c.usd / c.costPieces : null } : null,
     kits: c.kits,
-    ...(c.ap.lines ? { approve: { ...c.ap, acceptedRatio: c.ap.saves ? c.ap.acceptedSaves / c.ap.saves : null, roundsPerSave: c.ap.saves ? c.ap.rounds / c.ap.saves : null } } : {}),
+    ...(c.ap.lines ? { approve: { ...c.ap, acceptedRatio: c.ap.human ? c.ap.acceptedSaves / c.ap.human : null, warnedRatio: c.ap.un ? c.ap.warnedSaves / c.ap.un : null, ruleRatio: c.ap.un ? c.ap.rule / c.ap.un : null, roundsPerSave: c.ap.saves ? c.ap.rounds / c.ap.saves : null } } : {}),
     goal: { pass: c.pieces ? c.put / c.pieces >= GOAL.pass : null, time: c.perSpot.length ? median(c.perSpot) <= GOAL.msPerSpot : null },
   })).sort((a, b) => b.saves - a.saves || a.ch.localeCompare(b.ch))
   return { lines: lines.length, channels, pairs: [...pairs.entries()].sort((a, b) => b[1] - a[1]).map(([pair, n]) => ({ pair, n })) }
@@ -272,6 +285,8 @@ export function render(sum, { tidy = null, broken = 0, trendRows = null, opt = {
       const a = c.approve
       out.push('')
       out.push(`[${c.ch}] approve: 들어감 ${a.saves} · 승인 없음 ${a.unproposed} · 받아들인 경고가 든 저장 ${pct(a.acceptedRatio)}(${Object.entries(a.accepted).map(([k, n]) => `${k} ${n}`).join(' · ') || '없음'}) · 다시 제안 ${a.roundsPerSave == null ? '-' : a.roundsPerSave.toFixed(1)}/저장 · 글 그대로 이음 ${a.linked} · 새로 세움 ${a.fresh}`)
+      if (a.un) out.push(`[${c.ch}] 무인: 저장 ${a.un} · 무인 값 경고 ${pct(a.warnedRatio)}${a.warnedRatio != null && a.warnedRatio > GOAL.warned ? ' ✗' : ''}(${Object.entries(a.warned).map(([k, n]) => `${k} ${n}`).join(' · ') || '없음'}) · 규칙 길 ${pct(a.ruleRatio)}${a.ruleRatio != null && a.ruleRatio > GOAL.rule ? ' ✗' : ''}(${Object.entries(a.rules).map(([k, n]) => `${k} ${n}`).join(' · ') || '없음'}) · FIX ${a.fix}번 · 다시 대기 ${a.conflict}`)
+      if (Object.keys(a.code).length) out.push(`[${c.ch}] 입력 오류: ${Object.entries(a.code).map(([k, n]) => `${k} ${n}`).join(' · ')}`)
     }
     if (!c.reasons.length && !errs) continue
     out.push('')
