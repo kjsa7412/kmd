@@ -37,7 +37,7 @@ import { stopLine, ageText } from '../core/stopline.js'
 import * as backup from '../core/backup.js'
 import * as owners from '../core/owners.js'
 import { buildIndex, ladder, loadLearned, learn, searchCheck, exact } from '../core/search.js'
-import { planImport, summary, MAX_FILES, MAX_BYTES, PCONLY, TEAM_IMPORT_MAX, fileToMd, cleanPath } from '../core/importer.js'
+import { planImport, summary, MAX_FILES, MAX_BYTES, PCONLY, TEAM_IMPORT_MAX, fileToMd, cleanPath, seedAsIsDoc, SEED_CHUNK } from '../core/importer.js'
 import { imagesOf } from '../core/ooxml.js'
 import { runAgent, agentAvailable } from '../core/agent.js'
 import { createQueue, Cancelled, isFinal, STAGES, STAGE_WRITE, STAGE_PUT } from '../core/queue.js'
@@ -61,7 +61,7 @@ import { isSystemRecord, labelOf, isLegacy, reflectedIn } from '../core/knowledg
 import { isReservedTag } from '../core/names.js' // 예약 접두사(job/)까지 본다(S3)
 import { isoOfStamp, logKind, atTag } from './views.js'
 import { restore as restoreFrom, checkUrl } from '../core/restore.js'
-import { writeJsonAtomic } from '../core/atomic.js'
+import { writeJsonAtomic, writeFileAtomic } from '../core/atomic.js'
 import { watchedOf } from '../core/watchmark.js'
 import { connect as dbConnect, catalog as dbCatalog } from '../core/db.js'
 import { ensureProject } from '../core/gitlab.js'
@@ -252,6 +252,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   //   고쳐 쓰기 횟수(S-D20 · 서버가 센다) · 기다림 상한(S-D22 · jobTimer) · 사람 × 지식 기다림 상한 · 지식마다 하루 상한(S-D47)
   const INTAKE_FIX = Math.min(2, Math.max(1, Number(config.ingestFix ?? process.env.KMD_INGEST_FIX) || 2))
   const INTAKE_STALE_MS = config.intakeStaleMs ?? 24 * 3600_000
+  // 기초 세우기 묶음 id(서버가 준다 · 12자 16진)
+  const SEED_GID = /^[0-9a-f]{12}$/
+  // 남의 기초 세우기 묶음을 걷지 못하는 동안(올리는 중 · 짓기를 기다림 · 깨진 장부)
+  const SEED_HOLD_MS = 24 * 3600_000
   const intakeMdOf = (jid) => path.join(dataDir, 'queue', `${jid}.md`)
   const heldDir = (id) => path.join(dataDir, 'held', encodeURIComponent(id))
   const intakeDayFile = path.join(dataDir, 'intake-day.json')
@@ -548,7 +552,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   // 저장 속도(S-D28) — 지식 + 기기(없으면 사람)마다 토큰 통. 토큰은 await 앞에서 동기로 뺀다(MCP 묶음이 동시에 돈다)
   const rates = new Map()
   // shape — 문서 짜임의 글 걸음(hub.shapeWrite 만 · opt.shape · 속도 한도는 세지 않는다 · 바탕 세우기 설계 4-3)
-  const SAVE_CHANNELS = new Set(['session', 'bulk', 'http', 'send', 'edit', 'fix', 'shape'])
+  // seed — 기초 세우기 짓기 결과(hub.seedAsIs 만 · 「폴더 그대로」 · 팀 검사를 지난다 · 속도 한도는 세지 않는다: 비용 경계는 짓기 일을 열 때의 하루 들이기 한도 · 메뉴개편 8-1 · 8-2)
+  const SAVE_CHANNELS = new Set(['session', 'bulk', 'http', 'send', 'edit', 'fix', 'shape', 'seed'])
   // 들이기 일감의 채널(측정 줄 · 속도 한도는 세지 않는다 · 비용 한도는 openJob)
   const INTAKE_CHANNELS = new Set(['intake-file', 'intake-commit', 'intake-src', 'intake-fix', 'intake-again', 'polish'])
   function rateTake(ctx, id, n = 1) {
@@ -1369,6 +1374,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       for (const [rid, r] of runs) if (r.kn === id) runs.delete(rid)
       for (const [t, a] of agentKeys) if (a.kn === id) agentKeys.delete(t)
       for (const p of [`backup/${e}.json`, `send/${e}.json`, `inbox/${e}.json`, `tidy/${e}.json`, `baseline/${e}.json`, `searchcheck/${e}.json`, `learn/${e}.json`, `runs/${e}.json`, `index/${e}`, `sources/${e}`, `watch/${e}`]) await fs.rm(path.join(dataDir, p), { recursive: true, force: true }).catch(() => {})
+      // 기초 세우기 재료 — 도는 올리기와 한 줄로(올리기가 폴더를 되살리지 않게)
+      await serial(hub.seedDir(id), () => fs.rm(hub.seedDir(id), { recursive: true, force: true })).catch((x) => log('기초 세우기 재료 지우기', id, x.message))
       for (const x of await listSecrets(dataDir).catch(() => [])) if (x.name.startsWith(secretPrefix(id))) await delSecret(dataDir, x.name).catch(() => {}) // 가져올 곳의 자격
       const lf = path.join(dataDir, 'links.json')
       const links = await fs.readFile(lf, 'utf8').then(JSON.parse, () => null)
@@ -1566,7 +1573,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!ctx.machine && !asIntake) hub.need(ctx, id, 'write')
       const channel = SAVE_CHANNELS.has(opt.channel) || (asIntake && INTAKE_CHANNELS.has(opt.channel)) ? opt.channel : null
       // 저장 속도(S-D28) — 바깥에서 온 저장(세션 · HTTP · 보내기)만 · 서버 안의 저장(가져오기 · 받은편지함 · 되돌리기)은 세지 않는다
-      if (channel && !opt.system && !asIntake && !opt.shape) rateTake(ctx, id)
+      if (channel && channel !== 'seed' && !opt.system && !asIntake && !opt.shape) rateTake(ctx, id)
       // 첨부(S-D30) — 쓰기 이상 · 지식마다 하루 합(들이기 저장의 첨부는 파일 넣기가 받은 그때 셌다)
       let took = 0
       if (input?.attach != null && !asIntake) {
@@ -1846,6 +1853,222 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (job.skipped) return { kn: id, skipped: true, id: job.skipped }
       const r = await hub.save(ctx, id, { record: job.record }, { channel: 'shape', noCurate: true, shape: { tags: job.tags, prepare: job.prepare } })
       return { kn: id, ...r }
+    },
+
+    // ── 기초 세우기 재료(메뉴개편 8-2 · N7 · 권한 모델 7절) ──
+    //   재료 <살림>/shape/<지식>.seed/ — 묶음 장부 <묶음>.json(연 사람 · 누계 파일 · 바이트 · 파일 줄) + <묶음>/<sha16>.md(fileToMd 로 바꾼 글).
+    //   원본은 두지 않는다(글만). 묶음 누계 300 파일 · 200MB(MAX_FILES · MAX_BYTES)를 서버가 센다(다시 보낸 같은 파일은 다시 세지 않는다).
+    //   지식마다 묶음 하나 — 새 묶음을 열면 앞 묶음을 걷는다(남이 24시간 안에 이어 올리는 묶음이 있으면 E_CONFLICT).
+    //   하루 들이기 한도(intakeDaily)는 여기서 세지 않는다: 올리기는 Claude 를 부르지 않는다 · 짓기 일감(팀 일꾼 shape-plan · shape-write · TODO 10)을 열 때 센다
+    seedDir(id) {
+      return path.join(dataDir, 'shape', `${encodeURIComponent(id)}.seed`)
+    },
+    // 자리 · 빈 지식 — 큰 본문을 읽기 전에(http) · 올리기 · 짓기가 다시 본다. 읽기 미만 404 · 지식관리자 아니면 403 · 문서가 있으면 409
+    async seedGate(ctx, id, { empty = true } = {}) {
+      const meta = await hub.meta(id, ctx)
+      hub.need(ctx, id, 'admin')
+      if (empty) {
+        const k = await hub.get(id, ctx)
+        if (k.docs.length) throw new KmdError('E_CONFLICT', `빈 지식이 아니다(문서 ${k.docs.length}): 기초 세우기는 빈 지식에만 한다`)
+      }
+      return meta
+    },
+    // 묶음 장부 읽기 — 없으면 null · 깨졌으면 빈 것으로 읽어 덮지 않고 멈춘다
+    async seedGroup(id, gid) {
+      if (!SEED_GID.test(String(gid))) throw new KmdError('E_INPUT', '묶음 id 꼴이 아니다')
+      const f = path.join(hub.seedDir(id), `${gid}.json`)
+      const t = await fs.readFile(f, 'utf8').catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
+      if (t == null) return null
+      try {
+        const g = JSON.parse(t)
+        if (!g || typeof g !== 'object' || g.id !== gid || !Array.isArray(g.rows) || !Number.isInteger(g.files) || !Number.isInteger(g.bytes)) throw new Error('꼴')
+        return g
+      } catch (e) {
+        log(`기초 세우기 묶음 장부가 깨졌다 ${id}/${gid}: ${e.message}`)
+        throw new KmdError('E_CONFLICT', '잠깐 멈춤: 기초 세우기 묶음 장부가 깨졌다. 새 묶음으로 다시 올린다')
+      }
+    },
+    // 올리기(POST /api/k/:id/seed/upload) — { group: { id?, total?, last? }, files: [{ path, b64 }] } → 받은 줄 · 누계
+    //   group.id 없음 = 새 묶음(서버가 id 를 준다 · 이어 보낼 때 그 id) · last = 이 묶음을 닫는다(짓기는 닫힌 묶음만)
+    async seedUpload(ctx, id, { group = null, files = [] } = {}) {
+      if (!ctx?.user) throw new KmdError('E_INPUT', '누가 올리는지 모른다')
+      await hub.seedGate(ctx, id)
+      const g0 = group == null ? {} : group
+      if (typeof g0 !== 'object' || Array.isArray(g0)) throw new KmdError('E_INPUT', 'group 은 { id, total, last } 다')
+      if (g0.id != null && !SEED_GID.test(String(g0.id))) throw new KmdError('E_INPUT', '묶음 id 꼴이 아니다')
+      if (g0.total != null && !(Number.isInteger(g0.total) && g0.total >= 0 && g0.total <= MAX_FILES)) throw new KmdError('E_INPUT', `total 은 0 ~ ${MAX_FILES} 의 수다`)
+      if (g0.last != null && typeof g0.last !== 'boolean') throw new KmdError('E_INPUT', 'last 는 참 · 거짓이다')
+      if (!Array.isArray(files) || files.length > MAX_FILES) throw new KmdError('E_INPUT', `files 는 ${MAX_FILES}개 안의 { path, b64 } 목록이다`)
+      const got = files.map((x) => {
+        if (!x || typeof x !== 'object' || typeof x.path !== 'string' || !x.path.trim() || x.path.length > 500 || typeof x.b64 !== 'string' || !/^[A-Za-z0-9+/]*={0,2}$/.test(x.b64)) throw new KmdError('E_INPUT', '파일마다 { path(500자 안), b64(base64 글) } 다')
+        const rel = cleanPath(x.path)
+        if (rel.length > 300 || rel.split('/').some((p) => p.length > 120)) throw new KmdError('E_INPUT', `경로가 너무 길다: ${rel.slice(0, 80)}`)
+        const data = Buffer.from(x.b64, 'base64')
+        return { rel, data, orig: crypto.createHash('sha256').update(data).digest('hex').slice(0, 16) }
+      })
+      const dir = hub.seedDir(id)
+      return serial(dir, async () => {
+        const now = new Date().toISOString()
+        let g
+        if (g0.id != null) {
+          g = await hub.seedGroup(id, String(g0.id))
+          if (!g) throw new KmdError('E_NOTFOUND', '그 묶음이 없다(걷혔거나 다른 묶음이 열렸다): 처음부터 다시 올린다')
+          if (g.by !== ctx.user) throw new KmdError('E_CONFLICT', `${g.by} 가 연 묶음이다`)
+          if (g.last) throw new KmdError('E_CONFLICT', '닫힌 묶음이다: 더 올리려면 새 묶음으로')
+        } else {
+          // 지식마다 묶음 하나 — 남의 묶음이 24시간 안이면(올리는 중 · 닫고 짓기를 기다림 · 짓는 중) 막는다 · 다 지은 묶음 · 내 묶음 · 오래된 묶음은 걷는다.
+          //   깨진 장부는 빈 것으로 보지 않는다: 24시간 안이면 409 로 멈추고, 그보다 오래면 log 를 남기고 걷는다
+          const ents = await fs.readdir(dir).catch((e) => (e.code === 'ENOENT' ? [] : Promise.reject(e)))
+          for (const n of ents) {
+            const m = /^([0-9a-f]{12})\.json$/.exec(n)
+            if (!m) continue
+            let o
+            try {
+              o = await hub.seedGroup(id, m[1])
+            } catch (e) {
+              const st = await fs.stat(path.join(dir, n)).catch(() => null)
+              if (st && Date.now() - st.mtimeMs < SEED_HOLD_MS) throw e
+              log('기초 세우기: 오래된 깨진 묶음 장부를 걷는다', id, m[1], e.message)
+              continue
+            }
+            if (o && o.by !== ctx.user && !o.put?.finished && Date.now() - Date.parse(o.at) < SEED_HOLD_MS) throw new KmdError('E_CONFLICT', `${o.by} 가 이 지식의 기초 세우기 재료를 쓰는 중이다: 끝나거나 24시간 뒤에 연다`)
+          }
+          await fs.rm(dir, { recursive: true, force: true })
+          g = { v: 1, kn: id, id: crypto.randomBytes(6).toString('hex'), by: ctx.user, opened: now, at: now, total: 0, last: false, files: 0, bytes: 0, rows: [] }
+        }
+        // 누계 — 다시 보낸 같은 파일(경로 · 원본 지문 같음)은 다시 세지 않는다 · 같은 경로의 다른 원본은 앞 것을 빼고 센다(앞 재료 글은 아래에서 걷는다)
+        const rows = new Map(g.rows.map((r) => [r.path, r]))
+        let nf = g.files
+        let nb = g.bytes
+        const todo = []
+        const same = []
+        for (const x of got) {
+          const old = rows.get(x.rel)
+          if (old && old.orig === x.orig) { same.push(old); continue }
+          if (old) { nf -= 1; nb -= old.size || 0 }
+          nf += 1
+          nb += x.data.length
+          rows.set(x.rel, { path: x.rel, orig: x.orig, size: x.data.length })
+          todo.push(x)
+        }
+        if (nf > MAX_FILES) throw new KmdError('E_INPUT', `한 묶음에 ${MAX_FILES} 파일까지(지금 ${g.files} · 더 ${nf - g.files}): 많으면 kmd-seed 대량`)
+        if (nb > MAX_BYTES) throw new KmdError('E_INPUT', `한 묶음에 ${Math.round(MAX_BYTES / 1048576)}MB 까지: 많으면 kmd-seed 대량`)
+        // 글로 바꿔 재료로 — 원본은 두지 않는다
+        const out = []
+        for (const x of todo) {
+          const fm = await fileToMd(x.rel, x.data, { convert: true })
+          const row = { path: x.rel, orig: x.orig, size: x.data.length, kind: fm.kind }
+          const md = typeof fm.md === 'string' ? fm.md : ''
+          if (md.trim()) {
+            const src = crypto.createHash('sha256').update(md.trim()).digest('hex').slice(0, 16)
+            await writeFileAtomic(path.join(dir, g.id, `${src}.md`), md)
+            Object.assign(row, { src: `m:${src}`, chars: md.length })
+          } else row.why = fm.why || (fm.scan ? '글 층이 없다(스캔): kmd-seed 로 글을 만든다' : fm.blank ? '글이 없다(그림만)' : fm.kind === 'img' ? '그림: 재료 글이 아니다' : '글로 바꾸지 못하는 꼴이다')
+          rows.set(x.rel, row)
+          out.push(row)
+        }
+        g = { ...g, at: now, files: nf, bytes: nb, total: g0.total ?? g.total, last: g0.last === true, rows: [...rows.values()] }
+        await writeJsonAtomic(path.join(dir, `${g.id}.json`), g, { indent: 1, nl: true })
+        // 줄이 가리키지 않는 재료 글을 치운다(같은 경로를 다른 원본으로 바꿔 보낸 앞 글 — 누계에서 뺀 글이 디스크에 쌓이지 않게) · 장부를 쓴 뒤라 던지지 않는다
+        try {
+          const keep = new Set(g.rows.filter((r) => r.src).map((r) => `${r.src.slice(2)}.md`))
+          for (const n of await fs.readdir(path.join(dir, g.id)).catch((e) => (e.code === 'ENOENT' ? [] : Promise.reject(e)))) if (!keep.has(n)) await fs.rm(path.join(dir, g.id, n), { force: true })
+        } catch (e) { log('기초 세우기: 앞 재료 글을 걷지 못했다', id, e.message) }
+        const view = (r, kind = r.kind) => ({ path: r.path, kind, ok: !!r.src, ...(r.src ? { src: r.src, chars: r.chars } : { why: r.why }) })
+        return {
+          kn: id, group: g.id, files: g.files, bytes: g.bytes, total: g.total, last: g.last,
+          max: { files: MAX_FILES, bytes: MAX_BYTES },
+          rows: [...out.map((r) => view(r)), ...same.map((r) => ({ ...view(r), same: true }))],
+        }
+      })
+    },
+    // 「폴더 그대로」 짓기(메뉴개편 8-1 끝 점 · 8-2 d) — 닫힌 묶음의 재료 글마다 hub.save(기록 + sections[{ doc, heading, content }] · 채널 'seed').
+    //   Claude 를 부르지 않는다. 팀은 저장 문 검사(checkSection · 값 대조 · 꼴)를 지나고 못 넘은 조각은 넣지 못함(held)으로 남는다.
+    //   한 저장 50 항목 · 기록 19만 자를 넘는 재료는 덩이로 나눠 여러 저장(「(1/n)」) · 덩이마다 기록 본문은 그 덩이의 글(값 대조 근거).
+    //   기록 태그는 md/<sha16> 만(ingest/ 를 달면 결정 규칙이 같은 앞 53자 경로를 「새 판」 으로 걷는다).
+    //   asDocs · commitPaths 를 바로 쓰는 옛 길(개인 kind: 'folder')은 쓰지 않는다. 짓는 것은 묶음을 연 사람만.
+    //   이어 하기: 첫 저장 전에 장부에 put 을 적고(못 적으면 쓰지 않고 던진다) 덩이마다 done 에 「경로#n」 을 더한다 · 다시 부르면 남은 덩이만.
+    //   화면 길(짓기 단계)은 TODO 9 · 10 에서 이 함수를 부른다(지금은 서버 안 함수만 · 하루 들이기 한도는 Claude 를 부르는 짓기 일감에서)
+    async seedAsIs(ctx, id, { group } = {}) {
+      if (!ctx?.user) throw new KmdError('E_INPUT', '누가 넣는지 모른다')
+      if (!SEED_GID.test(String(group))) throw new KmdError('E_INPUT', '묶음 id 꼴이 아니다')
+      const dir = hub.seedDir(id)
+      await hub.seedGate(ctx, id, { empty: false })
+      // 장부에 put 을 적고 시작 — 처음이면 빈 지식이어야 한다 · 이어 하기(put 이 있음)는 이 묶음이 세운 문서가 있어도 된다
+      const g0 = await serial(dir, async () => {
+        const g = await hub.seedGroup(id, String(group))
+        if (!g) throw new KmdError('E_NOTFOUND', '그 묶음이 없다')
+        if (g.by !== ctx.user) throw new KmdError('E_CONFLICT', `${g.by} 가 연 묶음이다: 연 사람이 짓는다`)
+        if (!g.last) throw new KmdError('E_CONFLICT', '아직 올리는 중인 묶음이다: 마지막 묶음(last)을 보낸 뒤 짓는다')
+        if (g.put) return g
+        await hub.seedGate(ctx, id)
+        const next = { ...g, put: { by: ctx.user, at: new Date().toISOString(), done: [] } }
+        await writeJsonAtomic(path.join(dir, `${g.id}.json`), next, { indent: 1, nl: true })
+        return next
+      })
+      const done = new Set(g0.put.done || [])
+      const taken = new Set((await hub.get(id, ctx)).docs.map((d) => String(d.path || '').toLowerCase()))
+      // 이어 하기 — 이 묶음이 앞에서 세운 문서 자리는 그대로 다시 쓴다(-2 로 새로 세우지 않게)
+      const placed = g0.put.docs || {}
+      const out = []
+      let retry = false
+      const mark = async (key, docOf) => {
+        // 넣은 덩이를 장부에 — 커밋 뒤라 던지지 않는다(다시 부르면 sameKey 가 같은 기록을 다시 쓰지 않는다)
+        try {
+          await serial(dir, async () => {
+            const g = await hub.seedGroup(id, g0.id)
+            if (!g?.put) return
+            const put = { ...g.put, at: new Date().toISOString(), done: [...new Set([...(g.put.done || []), key])], docs: { ...(g.put.docs || {}), ...docOf } }
+            await writeJsonAtomic(path.join(dir, `${g.id}.json`), { ...g, put }, { indent: 1, nl: true })
+          })
+        } catch (e) { log('기초 세우기: 넣은 덩이를 장부에 적지 못했다', id, e.message) }
+      }
+      for (const r of g0.rows) {
+        if (!r.src) { out.push({ path: r.path, kind: 'skip', why: r.why || '재료 글이 없다' }); continue }
+        const md = await fs.readFile(path.join(dir, g0.id, `${r.src.slice(2)}.md`), 'utf8').catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
+        if (md == null) { out.push({ path: r.path, kind: 'skip', why: '재료 글이 없다(걷혔다): 다시 올린다' }); continue }
+        const p = seedAsIsDoc(r.path, md)
+        if (!p.chunks.length) { out.push({ path: r.path, kind: 'skip', why: '빈 글이다' }); continue }
+        let doc = placed[r.path]
+        if (!doc) {
+          doc = p.doc
+          for (let n = 2; taken.has(`docs/${doc}.md`.toLowerCase()); n++) doc = `${p.doc}-${n}`
+        }
+        const rel = `docs/${doc}.md`
+        taken.add(rel.toLowerCase())
+        const name = r.path.split('/').pop()
+        const row = { path: r.path, doc, recs: [], held: 0, fail: [] }
+        for (const [i, c] of p.chunks.entries()) {
+          const key = `${r.path}#${i + 1}`
+          if (done.has(key)) continue
+          if (c.too) { row.fail.push(`「${c.sections[0].heading}」 항목 글이 ${Math.round(SEED_CHUNK.chars / 1000)}천 자를 넘는다: ## 로 나눠 다시 올리거나 kmd-seed 대량`); continue }
+          const record = { title: `${name}: 기초 세우기(폴더 그대로)${p.chunks.length > 1 ? ` (${i + 1}/${p.chunks.length})` : ''}`.slice(0, 200), body: c.body, tags: [`md/${r.src.slice(2)}`], touchesEmpty: '기초 세우기: 폴더 그대로' }
+          let sv
+          try {
+            sv = await hub.save(ctx, id, { record, sections: c.sections.map((s) => ({ doc: rel, heading: s.heading, content: s.content })) }, { channel: 'seed', noCurate: true })
+          } catch (e) {
+            if (!(e instanceof KmdError) || !['E_INPUT', 'E_NOTFOUND', 'E_FORBIDDEN'].includes(e.code)) throw e
+            row.fail.push(e.message)
+            retry = true
+            continue
+          }
+          row.recs.push(sv.id || null)
+          row.held += (sv.held || []).length
+          await mark(key, { [r.path]: doc })
+        }
+        if (!row.recs.length && !row.fail.length) continue // 앞에서 모두 넣었다
+        out.push({ path: r.path, kind: row.fail.length && !row.recs.length ? 'fail' : row.held || row.fail.length ? 'held' : 'doc', doc, recs: row.recs, held: row.held, ...(row.fail.length ? { why: row.fail.slice(0, 3).join(' · ') } : {}) })
+      }
+      // 다 넣었으면(넣지 못함 · 너무 큰 항목은 기록 · 까닭으로 끝났다) 끝 표지(다른 지식관리자가 새 묶음을 열 수 있다) · 덩이가 남았으면(넘어진 저장) 다시 부르면 남은 것만
+      if (!retry) {
+        try {
+          await serial(dir, async () => {
+            const g = await hub.seedGroup(id, g0.id)
+            if (g?.put) await writeJsonAtomic(path.join(dir, `${g.id}.json`), { ...g, put: { ...g.put, finished: new Date().toISOString() } }, { indent: 1, nl: true })
+          })
+        } catch (e) { log('기초 세우기: 끝 표지를 적지 못했다', id, e.message) }
+      }
+      return { kn: id, group: g0.id, rows: out, put: out.filter((x) => x.kind === 'doc').length, held: out.filter((x) => x.kind === 'held').length, skip: out.filter((x) => x.kind === 'skip' || x.kind === 'fail').length }
     },
 
     // ── 연습 판 · 넣기 · 다시 맞추기 · 그만두기 · 되돌리기 구조안(바탕 세우기 설계 4-6 · 4-7 · 권한 모델 7-2) ──

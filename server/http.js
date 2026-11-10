@@ -443,7 +443,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     /^\/api\/agent\/parser$/, /^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
     /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|held|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|shape|past|removed|manage)$/,
   ]
-  const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|stops\/ack|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|k\/[^/]+\/(?:owner|access|delete|structure|polish|revert|unwatch|docfmt|shape(?:\/[a-z]+)?|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names|approve)|rec\/[^/]+\/fix|removed\/restore))$/
+  const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|stops\/ack|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|k\/[^/]+\/(?:owner|access|delete|structure|polish|revert|unwatch|docfmt|shape(?:\/[a-z]+)?|seed\/upload|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names|approve)|rec\/[^/]+\/fix|removed\/restore))$/
   const auditFile = path.join(dataDir, 'audit.jsonl')
   // 걷은 경고 — <살림>/acks.json { 사람: { key: 걷은 때 } } · 깨졌으면 빈 것으로 보되 덮지 않는다(쓰기 때 다시 읽어 깨졌으면 던진다)
   const stopKey = (x) => crypto.createHash('sha256').update([x.kind, x.kn || '', x.b || ''].join('\n')).digest('hex').slice(0, 16)
@@ -1072,6 +1072,17 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       hub.need(ctx, id, 'admin')
       if (mode === 'team' && ctx.admin) admin(ctx)
       return out(200, await hub.setAccess(ctx, id, { all: b.all ?? undefined, users: b.users ?? undefined, groups: b.groups ?? undefined }))
+    }
+    // 팀 기초 세우기 올리기(메뉴개편 8-2 · 권한 모델 7절) — { group: { id, total, last }, files: [{ path, b64 }] } → 재료(fileToMd 글 · 원본은 두지 않는다)
+    //   자리부터(본문을 읽기 전에): 읽기 미만 404 · 지식관리자 아니면 403 · 빈 지식이 아니면 409 · 요청 하나 64MB · 묶음 누계 300 파일 · 200MB 는 hub 가 센다
+    const su = p.match(/^\/api\/k\/([^/]+)\/seed\/upload$/)
+    if (su) {
+      if (req.method !== 'POST') throw new KmdError('E_METHOD', 'POST 로 보낸다')
+      const sid = dec(su[1])
+      await hub.seedGate(ctx, sid)
+      const b = await readBody(req, 64 << 20, 'E_TOO_BIG')
+      if (!b || typeof b !== 'object' || Array.isArray(b)) throw new KmdError('E_INPUT', '{ group, files } 를 보낸다')
+      return out(200, await hub.seedUpload(ctx, sid, { group: b.group ?? null, files: b.files ?? [] }))
     }
     // 파일 · 폴더 넣기 — { files: [{ path, b64 }] } · 한 번에 300 파일 · 200MB(글자로 바꾸면 커져 길 상한은 280MB)
     const im = p.match(/^\/api\/k\/([^/]+)\/import$/)

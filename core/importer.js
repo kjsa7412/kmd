@@ -186,6 +186,61 @@ export async function fileToMd(rel, buf, { convert: conv = true, mdOf = null } =
   }
 }
 
+// 기초 세우기 「폴더 그대로」(메뉴개편 8-1 · 8-2 · N7) — 재료 글 하나 → 문서 자리 · ## 항목 · 저장 덩이(Claude 를 부르지 않는다).
+//   문서 자리 = 올린 경로(폴더 짜임 그대로 · 확장자 뺌 · 링크 꼴과 부딪히는 # · % 는 뺌 · 빈 조각은 「문서」) ·
+//   비어 있지 않은 첫 줄이 # 줄이면 문서 제목이라 뺀다 · 머리(##) 앞 글은 「개요」 · ## 마다 항목(같은 머리는 「머리 (2)」) ·
+//   항목 글 속 # 줄은 ### 로(머리 표지가 아니게) · <!-- --> 는 걷는다(작성기준 3절) · 코드 울타리 안은 그대로.
+//   저장 덩이(chunks) — 한 저장에 항목 50(SECTIONS_MAX) · 기록 본문 19만 자 안으로 나눈다. 덩이마다 기록 본문은 그 덩이의 항목 글
+//   (### 머리 + 글 · # · ## 줄은 울타리 안까지 ### 로 내림 — 기록 서식 칸 · kmd 칸으로 읽히지 않게)이라 저장 문 값 대조의 근거가 된다(바탕 설계 4-4 · 306줄).
+//   항목 하나가 19만 자를 넘으면 그 항목만 든 덩이에 too 를 단다(부르는 쪽이 넣지 않고 까닭을 남긴다)
+//   → { doc, sections: [{ heading, content }], chunks: [{ sections, body, too? }] }
+const FENCE = /^\s*(?:`{3,}|~{3,})/
+export const SEED_CHUNK = { sections: 50, chars: 190_000 }
+export function seedAsIsDoc(rel, md, max = SEED_CHUNK) {
+  const clean = String(md || '').replace(/\r\n?/g, '\n').replace(/<!--[\s\S]*?-->/g, '')
+  const all = clean.split('\n')
+  const first = all.findIndex((l) => l.trim())
+  const lines = []
+  let fence = false
+  for (const [i, l] of all.entries()) {
+    const edge = FENCE.test(l)
+    if (edge) fence = !fence
+    if (i === first && /^# \S/.test(l)) continue
+    lines.push({ l, fence: fence || edge })
+  }
+  const secs = []
+  let cur = { heading: '개요', content: [] }
+  const push = () => { if (cur.content.join('\n').trim()) secs.push({ heading: cur.heading, content: cur.content.join('\n').trim() }) }
+  for (const { l, fence: f } of lines) {
+    const m = !f && /^## (.+)$/.exec(l)
+    if (m) {
+      push()
+      cur = { heading: m[1].replace(/#+\s*$/, '').trim().slice(0, 120) || '개요', content: [] }
+    } else cur.content.push(!f ? l.replace(/^# (?=\S)/, '### ') : l)
+  }
+  push()
+  // 같은 머리는 「머리 (2)」 — 앞의 「개요」 는 머리 앞 글이다
+  const names = new Set()
+  for (const s of secs) {
+    let h = s.heading
+    for (let n = 2; names.has(h); n++) h = `${s.heading} (${n})`
+    names.add(h)
+    s.heading = h
+  }
+  const doc = String(rel).replace(/\.[^./]+$/, '').split('/').map((x) => x.replace(/[#%]/g, '').trim() || '문서').join('/')
+  const lower = (t) => t.replace(/^#{1,2} (?=\S)/gm, '### ')
+  const chunks = []
+  let c = null
+  for (const s of secs) {
+    const part = `### ${s.heading}\n${lower(s.content)}`
+    if (part.length > max.chars) { chunks.push({ sections: [s], body: '', too: true }); c = null; continue }
+    if (!c || c.sections.length >= max.sections || c.body.length + part.length + 2 > max.chars) chunks.push((c = { sections: [], body: '' }))
+    c.sections.push(s)
+    c.body = c.body ? `${c.body}\n\n${part}` : part
+  }
+  return { doc, sections: secs, chunks }
+}
+
 // files: [{ path, data(Buffer) }] → 계획 { docs, atts, records, rows }
 // read(rel) → 지금 글(Buffer) 또는 null — 같은 파일이면 쓰지 않는다
 // convert — docx · pptx · xlsx 를 md 로 바꾸나(설정 「넣은 파일을 문서로」 · 끄면 원본 첨부만)
