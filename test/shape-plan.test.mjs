@@ -122,6 +122,10 @@ test('합치기 · 나누기 · 엮임 판정 — write 단위 · 고쳐 쓰기 
   // 이름을 다시 놓지 않으면 걸림
   const noName = P({ ...base, names: [] })
   assert.ok(planCheck(k, S, noName).errors.some((e) => e.code === 'names' && /proc:사전점검/.test(e.where)))
+  // 판정 id(저장 승인 P1) — 걸림 · 경고마다 · 같은 구조안이면 같은 id
+  const ids = (x) => [...x.errors, ...x.warnings].map((e) => e.id)
+  assert.ok(ids(planCheck(k, S, noName)).every((id) => /^[a-z0-9-]+:[0-9a-f]{10}$/.test(id)), JSON.stringify(ids(planCheck(k, S, noName))))
+  assert.deepEqual(ids(planCheck(k, S, noName)), ids(planCheck(k, S, P({ ...base, names: [] }))))
   // 엮임 — 출처 · 목표가 서로 걸리면 한 단위 · 50 넘으면 걸림
   const many = { 'docs/큰 문서.md': '# 큰 문서\n\n' + Array.from({ length: 30 }, (_, i) => `## 칸 ${i}\n글 ${i}\n`).join('\n') }
   const dir2 = make(many)

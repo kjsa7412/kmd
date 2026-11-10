@@ -22,6 +22,7 @@ import { nameProblem, stepFp, brokenLinks } from './restructure.js'
 import { coordsOfSection, reflectedIn } from './knowledge.js'
 import { watchedOf } from './watchmark.js'
 import { hasBlockMarker } from './baseline.js'
+import { judgeId } from './values.js'
 
 export { stepFp }
 const P = path.posix
@@ -258,7 +259,7 @@ export function diffPlan(S, Pl) {
 
 // ── 구조안 검사(4-2 · 6-1) ──
 //   k — 지금 지식(loadKnowledge) · S — readShape(k, files) · Pl — cleanPlan 의 plan
-//   → { ok, stale(base 가 지금과 다름), errors: [{ where, why, code? }], warnings: [{ where, why }], diff, summary }
+//   → { ok, stale(base 가 지금과 다름), errors: [{ id, where, why, code? }], warnings: [{ id, where, why }], diff, summary } · id 는 같은 입력이면 같다(P1)
 const norm = (s) => nfc(String(s || '')).toLowerCase().replace(/\s+/g, '')
 export function planCheck(k, S, Pl) {
   const errors = []
@@ -365,6 +366,8 @@ export function planCheck(k, S, Pl) {
     drops: diff.tidy.drops.length,
     forms: !!diff.forms,
   }
+  // 판정 id(저장 승인 설계 P1) — 같은 구조안 · 같은 지식이면 같은 id(갈래 · 자리 · 까닭). 경고를 받아들인 표 · 지표가 이 id 를 쓴다
+  for (const x of [...errors, ...warnings]) if (!x.id) x.id = judgeId(x.code || (errors.includes(x) ? 'plan' : 'plan-warn'), x.where, x.why)
   return { ok: !errors.length, stale, errors, warnings, diff, summary }
 }
 

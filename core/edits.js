@@ -58,21 +58,34 @@ export function nearest(t, f) {
   return null
 }
 
-// 조각을 댄다 — { ok, text, why, at(몇째 조각) , near }. 겹치는 조각은 거절. 차례는 원문 위치 순으로 댄다
-export function applyEdits(text, edits) {
+// 조각 판정(저장 승인 설계 P1) — 못 대는 조각을 첫 하나에서 멈추지 않고 모두 오류로 낸다(제안서가 한 번에 보이게).
+//   → { text?(모두 댔을 때), errors: [{ code: 'edits', why, at?(몇째 조각 · 0 부터), near? }] } · 모양이 틀리면 그 하나만(대어 보지 않는다)
+export function judgeEdits(text, edits) {
   const v = validEdits(edits)
-  if (!v.ok) return { ok: false, why: v.why }
+  if (!v.ok) return { errors: [{ code: 'edits', why: v.why }] }
   const src = nfc(text)
+  const errors = []
   const spots = []
   for (const [i, e] of edits.entries()) {
     const at = locate(src, e.find)
-    if (at.why) return { ok: false, why: `${i + 1}째 조각을 댈 수 없다: ${at.why}`, at: i, ...(at.near ? { near: at.near } : {}) }
+    if (at.why) { errors.push({ code: 'edits', why: `${i + 1}째 조각을 댈 수 없다: ${at.why}`, at: i, ...(at.near ? { near: at.near } : {}) }); continue }
     spots.push({ ...at, i, replace: nfc(e.replace) })
   }
+  if (errors.length) return { errors }
   spots.sort((a, b) => a.start - b.start)
-  for (let n = 1; n < spots.length; n++) if (spots[n].start < spots[n - 1].end) return { ok: false, why: `${spots[n].i + 1}째 조각이 ${spots[n - 1].i + 1}째 조각과 겹친다`, at: spots[n].i }
+  for (let n = 1; n < spots.length; n++) if (spots[n].start < spots[n - 1].end) errors.push({ code: 'edits', why: `${spots[n].i + 1}째 조각이 ${spots[n - 1].i + 1}째 조각과 겹친다`, at: spots[n].i })
+  if (errors.length) return { errors }
   let out = '', pos = 0
   for (const s of spots) { out += src.slice(pos, s.start) + s.replace; pos = s.end }
   out += src.slice(pos)
-  return { ok: true, text: out }
+  return { text: out, errors }
+}
+
+// 조각을 댄다 — { ok, text, why, at(몇째 조각) , near }. 겹치는 조각은 거절. 차례는 원문 위치 순으로 댄다
+//   P1 부터 judgeEdits 위의 얇은 덮개(첫 오류만)
+export function applyEdits(text, edits) {
+  const j = judgeEdits(text, edits)
+  const e = j.errors[0]
+  if (e) return { ok: false, why: e.why, ...(e.at != null ? { at: e.at } : {}), ...(e.near ? { near: e.near } : {}) }
+  return { ok: true, text: j.text }
 }

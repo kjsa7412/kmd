@@ -8,9 +8,9 @@
 
 import { sha16 } from './text.js'
 import { sectionOf } from './knowledge.js'
-import { oldValues, valuesOf } from './values.js'
-import { checkSection } from './gate.js'
-import { applyEdits, validEdits } from './edits.js'
+import { oldValues, valuesOf, judgeId } from './values.js'
+import { judgeSection, foldJudge } from './gate.js'
+import { judgeEdits, validEdits } from './edits.js'
 import { headingMatches } from './sections.js'
 
 // 조각 대는 법은 core/edits.js 로 옮겼다(S2 · propose ↔ 옛 정리 모듈 순환 끊기) — 부르는 곳을 바꾸지 않게 다시 내보낸다
@@ -31,26 +31,41 @@ export function placeOf(k, { coord, doc, heading }) {
   return { doc: d.path, heading: sec ? sec.h : h, sec, docObj: d }
 }
 
+// 제안 하나의 판정(저장 승인 설계 P1) — 쓰지 않고 오류 · 경고를 나눠 낸다
+//   → { text?(조각을 다 댄 새 글), at?(항목 자리), errors: [{ id, code(notfound · conflict · edits · legacy-mix · format · machine), why, stale?, near?, at? }],
+//       warnings: [{ id, code(missing · invented · lost · remain), doc, heading, values, why }], changed, lint }
+//   remain(기록이 바꿨다는 옛 값이 글에 아직 남음)은 held 모드에서도 막지 않는 알림이다. 다른 값 경고는 held 모드에서 「못 넘음」(checkProposal)
+export function judgeProposal(k, { coord, doc, heading, base, edits, record, spread = false, legacyPend = [] }) {
+  const at = placeOf(k, { coord, doc, heading })
+  const where = at ? [at.doc, at.heading] : [doc ?? coord ?? '', heading ?? '']
+  const fail = (code, why, extra = {}) => ({ errors: [{ id: judgeId(code, ...where, why), code, why, ...extra }], warnings: [], changed: [] })
+  if (!at?.sec) return fail('notfound', '그 항목이 아직 없다. 새 항목이면 doc · heading 과 content(새 글 전체)로 보낸다')
+  const cur = at.sec.body
+  if (!base) return { ...fail('conflict', '항목 지문(base)이 없다. section 이 준 base 를 같이 보낸다', { stale: true }), at }
+  if (String(base) !== sha16(cur)) return { ...fail('conflict', '그사이 항목이 바뀌었다. section 으로 다시 읽고 그 위에서 조각을 만든다', { stale: true }), at }
+  const e = judgeEdits(cur, edits)
+  if (e.errors.length) return { errors: e.errors.map((x) => ({ id: judgeId('edits', ...where, x.why), ...x })), warnings: [], changed: [], at }
+  const j = judgeSection(k, { doc: at.doc, heading: at.heading, base, content: e.text, record, spread, legacyPend })
+  // 기록이 바꿨다는 옛 값이 글에 아직 남아 있다 — 고친 범위가 모자란 것일 수 있어 알린다(같은 값이 다른 뜻일 수 있다)
+  const nowV = valuesOf(e.text)
+  const remain = oldValues(String(record?.body || '')).filter((x) => nowV.has(x))
+  const warnings = [...j.warnings]
+  if (remain.length) warnings.push({ id: judgeId('remain', at.doc, at.heading, ...[...remain].sort()), code: 'remain', doc: at.doc, heading: at.heading, values: remain, why: `옛 값 ${remain.slice(0, 3).join(' · ')} 이 글에 아직 남아 있다` })
+  return { text: e.text, at, errors: j.errors, warnings, changed: j.changed, ...(j.lint ? { lint: j.lint } : {}) }
+}
+
 // 제안 하나를 지금 지식에 대어 검사한다 — { ok, text, why, code, changed, stale, near, warnings, lint }
 //   k — 지식 · coord 또는 doc + heading — 항목 · base — 세션이 읽은 지문 · edits — 조각 · record — 함께 보낸 기록({ title, body }) ·
 //   spread — 조각이 여럿(기록의 값이 항목들에 나뉜다) · legacyPend — 이 항목에 아직 안 들어간 개편 전 기록 id(섞인 자리 · legacy-mix)
-export function checkProposal(k, { coord, doc, heading, base, edits, record, spread = false, legacyPend = [] }) {
-  const at = placeOf(k, { coord, doc, heading })
-  if (!at?.sec) return { ok: false, code: 'notfound', why: '그 항목이 아직 없다. 새 항목이면 doc · heading 과 content(새 글 전체)로 보낸다' }
-  const cur = at.sec.body
-  if (!base) return { ok: false, code: 'conflict', stale: true, why: '항목 지문(base)이 없다. section 이 준 base 를 같이 보낸다' }
-  if (String(base) !== sha16(cur)) return { ok: false, code: 'conflict', stale: true, why: '그사이 항목이 바뀌었다. section 으로 다시 읽고 그 위에서 조각을 만든다' }
-  const v = validEdits(edits)
-  if (!v.ok) return { ok: false, code: 'edits', why: v.why }
-  const a = applyEdits(cur, edits)
-  if (!a.ok) return { ok: false, code: 'edits', why: a.why, ...(a.near ? { near: a.near } : {}) }
-  const r = checkSection(k, { doc: at.doc, heading: at.heading, base, content: a.text, record, spread, legacyPend })
-  if (!r.ok) return { ok: false, code: r.code, why: r.why, ...(r.stale ? { stale: true } : {}) }
-  // 기록이 바꿨다는 옛 값이 글에 아직 남아 있다 — 고친 범위가 모자란 것일 수 있어 알린다(거절하지 않는다: 같은 값이 다른 뜻일 수 있다)
-  const nowV = valuesOf(a.text)
-  const remain = oldValues(String(record?.body || '')).filter((x) => nowV.has(x))
-  const warnings = remain.length ? [`옛 값 ${remain.slice(0, 3).join(' · ')} 이 글에 아직 남아 있다`] : []
-  return { ok: true, text: a.text, changed: r.changed, ...(warnings.length ? { warnings } : {}), ...(r.lint ? { lint: r.lint } : {}) }
+//   P1 부터 judgeProposal 위의 얇은 덮개(held 모드 판정 그대로: 첫 오류 · 없으면 remain 아닌 첫 값 경고가 「못 넘음」)
+export function checkProposal(k, input) {
+  const j = judgeProposal(k, input)
+  const e = j.errors[0]
+  if (e) return { ok: false, code: e.code, why: e.why, ...(e.stale ? { stale: true } : {}), ...(e.code === 'edits' && e.near ? { near: e.near } : {}) }
+  const f = foldJudge(j, { pass: (w) => w.code === 'remain' })
+  if (f) return f
+  const warnings = j.warnings.filter((w) => w.code === 'remain').map((w) => w.why)
+  return { ok: true, text: j.text, changed: j.changed, ...(warnings.length ? { warnings } : {}), ...(j.lint ? { lint: j.lint } : {}) }
 }
 
 // 옛 기록 본문의 「## 고친 조각」 칸 — 개편 전(S4 전) 세션 저장이 제안을 기록에 실었다. 새 입력에서는 받지 않는다(core/parts.js KMD_PART_RE) ·
