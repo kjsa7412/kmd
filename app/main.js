@@ -162,8 +162,10 @@ const loadingHtml = '<p class="loading" data-t="loading">읽는 중…</p>'
 //   서버가 센 수(knowledge 줄의 held · heldMine · 넣지 못함 화면)를 쓰고, 나무 · 항목의 점은 받은 기록의 상태로 그린다
 const teamKn = (k) => isTeam() && KN(k) && !isPersonal(KN(k))
 const heldR = (k, r) => r.state === 'held' || (teamKn(k) && (r.state === 'pend' || r.state === 'nowhere') && r.author !== 'kmd' && r.author !== 'kmd-auto')
-// 아직 안 넣은 기록(개인 지식 · 개편 전 팀 기록) — 개인은 kmd 가 곧바로 넣는다
-const pendWhen = (k) => (teamKn(k) ? '개편 전 기록: 넣지 못함 화면에서 다시 들인다' : 'kmd 가 곧바로 문서에 넣는다')
+// 아직 안 넣은 기록(개인 지식 · 개편 전 팀 기록) — 저장 승인 전 개인 지식(옛 길)은 kmd 가 넣는다 · 승인 저장 개인 지식에는 새로 생기지 않는다(옛 기록 · 저장 승인 P-D41 · PC3)
+const pendWhen = (k) => (teamKn(k) ? '개편 전 기록: 넣지 못함 화면에서 다시 들인다' : svApprove(k) ? '옛 기록: 저장 승인 전에 남았다' : '옛 길: kmd 가 문서에 넣는다')
+// 승인 저장 개인 지식의 옛 상태(넣는 중 · 넣을 곳 없음 · 버림 · 메모) — 칩 「옛 기록」 하나(옛 개인 지식은 PC6 까지 그대로)
+const pcOld = (k, r) => !teamKn(k) && !isTeam() && svApprove(k) && ['pend', 'nowhere', 'kept', 'memo'].includes(r.state)
 // 넣지 못함 까닭(code → 말 · 컨벤션 9절)
 const HELD_SAY = {
   review: '이 지식은 지식관리자가 승인해야 문서에 들어간다. 지식관리자가 [승인해 넣기] 하거나 버린다',
@@ -592,7 +594,7 @@ const TIPS = {
   'sv.warn': ['[넣기] 를 누르면 경고를 받아들이고 그대로 남긴다(기록의 받아들인 경고). 고치려면 취소하고 글을 고친다', ''],
   'send.to': ['정하면 이 개인 지식에서 보내는 것은 모두 그곳으로만 간다. 바꾸려면 새 이름을 그대로 친다', ''],
   'send': ['내 개인 지식의 기록 · 문서를 묶인 팀 지식으로 보낸다. 받는 쪽 작성기준으로 지어 보내고, 못 넘은 것은 팀의 넣지 못함에 남는다', ''],
-  'band.out': ['이 PC 밖으로 나가는 것은 지식백업 · Claude(바로 넣기 · 문서 다듬기) · 공유다. 공유는 누를 때만 받는 팀 지식으로 간다', ''],
+  'band.out': ['이 PC 밖으로 나가는 것은 지식백업 · Claude(들이기 · 문서 다듬기) · 공유다. 공유는 누를 때만 받는 팀 지식으로 간다', ''],
   'acc': ['자리는 받은 것 가운데 가장 높은 것 하나다. 쓰기는 저장 검사를 넘으면 바로 문서에 들어가고, 없음이면 이 지식이 보이지 않는다', ''],
   'mine.pw': ['이 브라우저는 그대로 이어진다. 다른 곳은 다시 들어가고, 기기 열쇠는 그대로다', ''],
   // 새 지식 창
@@ -1827,7 +1829,7 @@ function recPane(t, right) {
       ['쓴 사람', esc(who(r.author))],
       ['때', esc(r.date)],
       ['상태', `<span data-t="recStateTx">${esc(recStateTx(k, r))}</span>${heldGo}`],
-      r.state === 'pend' || r.state === 'nowhere' ? ['넣는 때', `<span data-t="recPend">${esc(pendWhen(k))}</span>`] : null,
+      (r.state === 'pend' || r.state === 'nowhere') && !pcOld(k, r) ? ['넣는 때', `<span data-t="recPend">${esc(pendWhen(k))}</span>`] : null,
       r.state === 'nowhere' && (r.tags || []).includes('code-change') && !isTeam() ? ['코드 바뀜', '<span data-t="codeWait">Claude Code 가 차례로 이 저장소의 기능 문서에 넣는다(하나에 몇 분) · 지금 하는 일 점에서 본다</span>'] : null,
       (r.tags || []).length ? ['태그', esc(r.tags.join(' · '))] : null,
     ]) },
@@ -1836,9 +1838,11 @@ function recPane(t, right) {
 }
 // 기록 상태(S10 · 설계 4-8) — 칩 · 속성 말: 넣지 못함(c-warn) · 메모(c-mute) · 바로잡힘(c-ok) · 버림 · 되돌림 · 개편 전 기록
 function recStateTx(k, r) {
+  if (pcOld(k, r)) return '옛 기록: 저장 승인 전에 남았다'
   return { held: '넣지 못함: ' + (r.why || '기록만 남았다'), memo: '메모: 문서는 바꾸지 않았다', fixed: '바로잡힘: 나중 기록이 고쳤다', kept: '버림: 문서에 넣지 않기로 했다', reverted: '되돌림', in: '문서에 들어감', none: 'kmd 가 한 일', pend: pendWhen(k), nowhere: teamKn(k) ? pendWhen(k) : '넣을 곳 없음' }[r.state] || '문서에 들어감'
 }
 function recStateChip(k, r) {
+  if (pcOld(k, r)) return chipOf('same', '옛 기록', ` data-t="recState" title="${esc(recStateTx(k, r))}"`)
   const c = { held: ['held', '넣지 못함'], memo: ['same', '메모'], fixed: ['ok', '바로잡힘'], kept: ['rest', '버림'], reverted: ['rest', '되돌림'], in: ['ok', '문서에 들어감'], pend: teamKn(k) ? ['same', '개편 전 기록'] : ['run', '넣는 중'], nowhere: teamKn(k) ? ['same', '개편 전 기록'] : null }[r.state]
   return c ? chipOf(c[0], c[1], ` data-t="recState" title="${esc(recStateTx(k, r))}"`) : ''
 }
@@ -3201,7 +3205,7 @@ const diffOf = (k, record) => need(`diff:${k}:${record}`, `/api/k/${encodeURICom
 //   위에서 고른 지식과 따로다
 const historyOf = () => need('history', '/api/history')
 const HIST_CHECK = '값 바뀜'
-const HIST_KINDS = [HIST_CHECK, '저장', '고침', '들이기', '다듬기', '되돌림', '넣지 못함', '버림', '가져오기', '바로 넣기', '짜임', '장부', '보내기', '받음', '설정', '지식']
+const HIST_KINDS = [HIST_CHECK, '저장', '고침', '들이기', '다듬기', '되돌림', '넣지 못함', '버림', '가져오기', '짜임', '장부', '보내기', '받음', '설정', '지식']
 const isCheck = (x) => x.yl && !x.reverted && !x.unlinked
 const HIST_PAGE = 200
 // 한 흐름 — 팀 화면은 팀 지식만 · 개인 화면은 개인 지식만
@@ -5181,7 +5185,7 @@ function viewSettings() {
   if (!st || st.error) return { crumb: '설정', main: `<div class="pg-list">${head}${st ? errHtml(st) : loadingHtml}</div>` }
   const one = (h) => `<div class="pg-text">${h}</div>`
   const body = !team
-    ? tab === 'claude' ? one(claudeCard(st) + `<div class="card" data-t="claudeAuto"><div class="cb u-p4-7">${autoSw('claude', '바로 넣기')}</div></div>` + modelCard(st)) : tab === 'agent' ? one(agentCard()) : tab === 'team' ? one(teamLinkCard(st)) : one(pcBackupCard(st))
+    ? tab === 'claude' ? one(claudeCard(st) + `<div class="card" data-t="claudeAuto"><div class="cb u-p4-7">${autoSw('claude', 'Claude 로 들이기')}</div></div>` + modelCard(st)) : tab === 'agent' ? one(agentCard()) : tab === 'team' ? one(teamLinkCard(st)) : one(pcBackupCard(st))
     : tab === 'check' ? opsHtml() : tab === 'server' ? one(serverCards(st)) : tab === 'agent' ? one(agentInstallCard()) : tab === 'install' ? one(installCardHtml()) : mineHtml(st)
   return { crumb: pg.l, main: `<div class="pg-list">${head}${body}</div>` }
 }
@@ -6266,7 +6270,7 @@ const ACT = {
     render()
   },
   sfType: (el) => { const f = sfState(); f.type = el.dataset.v; f.rule = f.type === 'db' ? 'dbtables' : f.rule === 'dbtables' ? 'deps' : f.rule; S.sfMsg = null; render() },
-  // 지금 하는 일 팝업의 줄 — 그 일의 진행 현황으로(D6): 가져오기 · Claude Code · 바로 넣기 · 파일 묶음은 생성 › 도는 일의 그 줄 ·
+  // 지금 하는 일 팝업의 줄 — 그 일의 진행 현황으로(D6): 가져오기 · Claude Code · 기록을 문서에 넣기(옛 개인 지식) · 파일 묶음은 생성 › 도는 일의 그 줄 ·
   //   팀 들이기 일감도 생성 › 도는 일의 그 줄(t:<일감>). 개인 프로그램 쪽 일(~)이면 개인 영역으로 바꿔 그쪽 일 줄을 읽는다 · 그 줄로 스크롤하고 잠깐 빛낸다
   busyGo: (el) => {
     S.menu = null
