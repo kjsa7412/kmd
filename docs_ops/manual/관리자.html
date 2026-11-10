@@ -101,7 +101,8 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 <figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>지식관리 › 모든 지식</span></div><div class="m-pic"><img src="img/t-kns.png" alt="팀 지식: 지식마다 나의 자리 · 백업 · Claude 에 보내지 않음 · ⋯" loading="lazy"></div></div><figcaption>지식 한 줄에 그 지식의 설정이 모인다: 나의 자리 · 백업 상태 · 「Claude 에 보내지 않음」 스위치(지식관리자 · <a href="지식관리자.html#polish">지식관리자 설명서 3절</a>) · ⋯(권한 · 저장소 붙이기/저장소 주소 바꾸기 · 삭제). 표 위 [+ 새 지식], 아래 「불러오기」. 지식관리자에게는 자기 지식 줄만, ⋯ 에는 권한만 보인다.</figcaption></figure>
 <ul>
 <li>내 계정 · 비슷한 글(사람마다) · 나가기는 설정 › 서버 정보 · 화면 밝기 · 내 기기는 오른쪽 위 내 메뉴 · 글로 바꾸기는 생성 › 수기수집 판.</li>
-<li>팀 지식의 저장소: 지식관리 › 모든 지식 › 지식 상세 › 저장소 · GitLab 봇(<code>serve.json</code> 의 <code>gitlab</code>)이 저절로 붙이거나 <code>kmd backup add &lt;지식&gt; &lt;주소&gt;</code>(<code>backupRoots</code> 안의 폴더 · https · ssh).</li>
+<li>팀 지식의 저장소: 지식관리 › 모든 지식 › 지식 상세 › 저장소(총괄 관리자 · 비밀번호 한 번 더). 아직 없는 지식은 <b>GitLab 새로</b>(그룹 · 저장소 이름 · 가지를 골라 만들어 붙인다 · 서버에 GitLab 연결이 있을 때) 또는 <b>있는 주소</b>(주소 + 가지). 가지는 주소 칸 옆 「가지 main ▸」 를 눌러 바꾼다. 붙은 지식은 [바꾸기](있는 저장소로만) · [떼기](저장소 쪽 이력은 남는다). 한 저장소는 한 지식만 쓴다(다른 지식이 쓰면 막는다). 셸은 <code>kmd backup add &lt;지식&gt; &lt;주소&gt;</code>(<code>backupRoots</code> 안의 폴더 · https · ssh).</li>
+<li>[+ 새 지식] 의 저장소 붙이기 ▸ 에서도 같은 셋(GitLab 새로 · 있는 주소 · 나중에)을 고른다. 화면에서 만든 지식은 GitLab 봇이 저절로 붙이지 않고 고른 대로만 붙인다.</li>
 <li>저장 뒤 바로 보내고, 안 되면 1 · 5 · 15 · 60분 · 매일 다시. 6시간 밀리면 노랑 · 24시간이면 빨강 한 줄.</li>
 <li>개인 지식의 백업은 그 사람의 개인 프로그램이 한다.</li>
 </ul>

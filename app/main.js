@@ -556,6 +556,7 @@ const TIPS = {
   'set.teamHow': ['팀 화면 › 설정 › 개인 프로그램 설치의 한 줄로 잇는다. 끊기는 팀 화면 내 메뉴 › 내 기기', ''],
   'kn.root': ['지식 하나 = 이 폴더 안의 폴더 하나. 다른 곳에서 만든 지식은 폴더째 놓고 [동기화] · [바꾸기] 는 다른 폴더를 잇는다(.kmd 가 없거나 빈 폴더면 새로 세운다)', ''],
   'kn.rootTeam': ['팀 지식 하나 = 이 폴더 안의 폴더 하나. 서버에 폴더째 놓은 지식은 [동기화] 로 읽는다', ''],
+  'kd.gitlab': ['서버의 GitLab 연결로 새 저장소를 만들어 붙인다. 그룹은 봇이 만들 수 있는 곳 · 이름은 영문 · 숫자 · . _ - · 가지 처음 값 main', ''],
   'kd.repo': ['지식마다 붙이는 git 저장소다. 저장할 때마다 kmd 가 보낸다 · 비었거나 이 지식의 지난 이력이어야 붙는다 · 주소 속 열쇠는 가린다', ''],
   'mg.seed': ['빈 지식을 폴더째 재료로 한 번에 세운다. 파일 몇 개는 생성 › 수기수집', ''],
   'mg.people': ['사람을 들이고 지식마다 자리를 준다. 바꾸기는 총괄 관리자만', ''],
@@ -1082,7 +1083,7 @@ function bandHtml() {
 function stopsFor(k) { return S.stops.filter((x) => !k || !x.kn || x.kn === k) }
 // 경고(멈춤 줄) — 화면마다 띠로 깔지 않고 머리 띠의 「경고 n」 단추 하나 · 누르면 팝업에 모두(무엇 · 얼마나 · 풀리는 길 · 그 일로 가기)
 // 멈춤 줄의 종류 · 갈 곳(메뉴 id) — 갈 곳 글은 메뉴 표의 이름(setWhere)
-const STOP_T = { backup: ['지식백업', 'backup'], source: ['자동수집', 'import'], send: ['공유', 'send'], worker: ['팀 일꾼', 'claude'], ver: ['새 판', ''] }
+const STOP_T = { backup: ['지식백업', 'backup'], repo: ['저장소', 'repo'], source: ['자동수집', 'import'], send: ['공유', 'send'], worker: ['팀 일꾼', 'claude'], ver: ['새 판', ''] }
 function stopBtnHtml(st) {
   if (!st.length) return ''
   const bad = st.some((x) => x.level === 'bad')
@@ -1241,8 +1242,9 @@ function kdPerm(n) {
   const rows = [[`<b>${esc(v.owner || '-')}</b>`, '주인'], ['<b>모두</b>', LV_N[v.all] || '없음'], ...Object.entries(v.groups || {}).map(([g, l]) => [`묶음 ${esc(g)}`, LV_N[l] || l]), ...Object.entries(v.users || {}).filter(([u]) => u !== v.owner).map(([u, l]) => [esc(u), LV_N[l] || l])]
   return `<div class="tblwrap"><table class="t" data-t="kdPermTable"><thead><tr><th>누구</th><th>자리${tipb('acc', '자리')}</th></tr></thead><tbody>${rows.map(([a, b]) => `<tr data-t="kdPermRow"><td>${a}</td><td>${esc(b)}</td></tr>`).join('')}</tbody></table></div><div class="row kdacts"><button type="button" class="btn pri" data-a="accOpen" data-k="${esc(n.id)}" data-t="accOpen">바꾸기</button></div>`
 }
-// 저장소(6-4 · 8-3) — 개인 · 총괄 관리자: 주소 · 상태 · [붙이기]/[바꾸기] · 지식관리자: 보기만(GET /api/k/:id/backup · 주소 가림)
-//   가지는 지금 그 지식의 가지 그대로(가지 받기는 G1) · 지식백업과 다른 곳(설정 › 지식백업은 경로 + 사본 수)
+// 저장소(6-4 · 8-3 · 지식관리 2) — 개인 · 총괄 관리자: 주소 · 가지(접힘 「가지 main ▸」) · 상태 · [붙이기]/[바꾸기] · [떼기] ·
+//   팀 총괄 관리자가 아직 붙이지 않은 지식은 「GitLab 새로(그룹 · 이름 · 가지) | 있는 주소」 · 지식관리자: 보기만(GET /api/k/:id/backup · 주소 가림)
+//   지식백업과 다른 곳(설정 › 지식백업은 경로 + 사본 수)
 function kdRepo(n) {
   const team = isTeam(), id = esc(n.id)
   if (team && !isBoss()) {
@@ -1255,9 +1257,66 @@ function kdRepo(n) {
   if (!src) return loadingHtml
   if (src.error) return errHtml(src, team ? 'admin' : 'settings')
   const url = b && !b.off ? b.url || '' : ''
+  if (!S.rf || S.rf.kn !== n.id) S.rf = { kn: n.id, url: null, br: null, brOpen: false, mode: null, group: '', rname: '' }
+  const f = S.rf, cur = (b && b.branch) || 'main'
   const v = team ? (b ? (b.off ? ['c-mute', '없음'] : REPO_V[b.verdict] || ['c-mute', '확인 전']) : ['c-mute', '없음']) : url ? ['c-ok', '붙음'] : ['c-mute', '없음']
-  return `<div class="field"><div class="lbrow"><label for="repoUrl">저장소</label>${tipb('kd.repo', '저장소')}</div><input class="inp mono" id="repoUrl" data-t="repoUrl" value="${esc(url)}" placeholder="예: git@gitlab.team:kmd/dpms.git · https://…" autocomplete="off"></div><div class="row kdacts"><span class="chip ${v[0]}" data-t="kdRepoState">${v[1]}</span>${b && b.branch ? `<span class="chip c-mute">가지 ${esc(b.branch)}</span>` : ''}<button type="button" class="btn pri" data-a="repoSave" data-k="${id}" data-t="repoSave">${url ? '바꾸기' : '붙이기'}</button></div>`
+  const state = `<span class="chip ${v[0]}" data-t="kdRepoState">${v[1]}</span>`
+  // 아직 없는 팀 지식 — GitLab 새로 | 있는 주소(나중에는 없다 · 6-1)
+  const mode = !url && team ? repoMode(f) : 'url'
+  const seg = !url && team ? repoSeg(f, 'rf', false) : ''
+  if (mode === 'gitlab') return `${seg}${glFields(f, 'rf', n.name)}<div class="row kdacts">${state}<button type="button" class="btn pri" data-a="repoGitlab" data-k="${id}" data-t="repoGitlab"${glReady() ? '' : ' disabled'}>만들어 붙이기</button></div>`
+  const val = f.url != null ? f.url : url
+  return `${seg}<div class="field"><div class="lbrow"><label for="repoUrl">저장소</label>${tipb('kd.repo', '저장소')}</div><div class="row u-g3"><input class="inp mono u-f1" id="repoUrl" data-in="rfUrl" data-t="repoUrl" value="${esc(val)}" placeholder="예: git@gitlab.team:kmd/dpms.git · https://…" autocomplete="off">${brFold(f, 'rf', cur)}</div>${brField(f, 'rf', cur)}</div><div class="row kdacts">${state}<button type="button" class="btn pri" data-a="repoSave" data-k="${id}" data-t="repoSave">${url ? '바꾸기' : '붙이기'}</button>${url ? `<button type="button" class="btn danger" data-a="repoDetach" data-k="${id}" data-t="repoDetach">떼기</button>` : ''}</div>`
 }
+// 가지 접기(메뉴개편 8-3) — 저장소 칸 오른쪽 「가지 main ▸」(.btn.ghost.sm · aria-expanded) · 누르면 아래 가지 칸 · 바꾼 값이면 접혀도 그 이름
+//   key: add(새 지식) · rs(불러오기) · rf(지식 상세 › 저장소) — 상태는 그 창의 것(S.addPop · S.rs · S.rf)
+const brState = (key) => (key === 'add' ? S.addPop : key === 'rs' ? S.rs : key === 'rf' ? S.rf : null)
+const brVal = (f, dflt = 'main') => (f && f.br != null && String(f.br).trim() ? String(f.br).trim() : dflt)
+function brFold(f, key, dflt = 'main') {
+  return `<button type="button" class="btn ghost sm u-fnone" id="${key}BrFold" data-a="brFold" data-v="${key}" aria-expanded="${!!f.brOpen}" data-t="${key}BrFold">가지 ${esc(brVal(f, dflt))} ${f.brOpen ? '▾' : '▸'}</button>`
+}
+function brField(f, key, dflt = 'main') {
+  return f.brOpen ? `<div class="field" style="margin:var(--sp-3) 0 0"><label for="${key}Br">가지</label><input class="inp mono" id="${key}Br" data-in="br" data-k="${key}" data-t="${key}Br" value="${esc(f.br || '')}" placeholder="${esc(dflt)}" autocomplete="off"></div>` : ''
+}
+// GitLab 연결(총괄 관리자 · 팀) — 그룹 목록 · 처음 값(serve.json group) · 없으면 { why }
+const glOf = () => (isTeam() && isBoss() ? need('gitlab', '/api/gitlab/groups') : null)
+const glReady = () => { const g = glOf(); return !!(g && !g.error && !g.why && Array.isArray(g.groups) && g.groups.length) }
+// 저장소 고르기 — 처음 값: 팀 총괄 관리자는 GitLab 이 되면 GitLab 새로 · 아니면 있는 주소
+function repoMode(f) {
+  if (f.mode) return f.mode
+  if (isTeam() && isBoss()) { const g = glOf(); if (!g || glReady()) return 'gitlab' }
+  return 'url'
+}
+function repoSeg(f, key, later) {
+  const m = repoMode(f), gl = isTeam() && isBoss()
+  const opts = [...(gl ? [['gitlab', 'GitLab 새로']] : []), ['url', '있는 주소'], ...(later ? [['later', '나중에']] : [])]
+  return `<div class="seg in" role="radiogroup" aria-label="저장소 고르기" data-t="${key}Mode" style="margin:0 0 var(--sp-4)">${opts.map(([v, l]) => `<button type="button" role="radio" aria-checked="${m === v}" class="${m === v ? 'on' : ''}" data-a="repoMode" data-k="${key}" data-v="${v}" data-t="${key}Mode-${v}">${l}</button>`).join('')}</div>`
+}
+// 저장소 이름 처음 값 — 지식 이름의 영문 · 숫자 · . _ - (한글뿐이면 knowledge-n · 관리 설계 6)
+const repoSlug = (nm) => String(nm || '').normalize('NFC').toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^[-._]+|[-._]+$/g, '').slice(0, 100) || `knowledge-${(S.kns || []).length + 1}`
+const GL_WHY = { noconfig: 'GitLab 연결이 없다', nosecret: 'GitLab 열쇠가 없다' }
+function glFields(f, key, nm) {
+  const g = glOf()
+  if (!g) return loadingHtml
+  if (g.error) return errHtml(g, 'gitlab')
+  if (g.why || !glReady()) return `<div class="callout warn" data-t="${key}GlOff"><i></i><span>${esc(GL_WHY[g.why] || '봇이 저장소를 만들 수 있는 그룹이 없다')}: 「있는 주소」 로 붙인다</span></div>`
+  const grp = f.group || (g.groups.some((x) => x.path === g.group) ? g.group : g.groups[0].path)
+  const rn = f.rname || repoSlug(nm)
+  return `<div class="field" style="margin:0"><div class="lbrow"><label for="${key}Grp">그룹</label>${tipb('kd.gitlab', 'GitLab 새로')}</div><select class="inp mono" id="${key}Grp" data-in="glf" data-k="${key}" data-f="group" data-t="${key}Grp">${g.groups.map((x) => `<option value="${esc(x.path)}"${x.path === grp ? ' selected' : ''}>${esc(x.path)}</option>`).join('')}</select></div><div class="field" style="margin:var(--sp-4) 0 0"><label for="${key}Rn">저장소 이름</label><div class="row u-g3"><input class="inp mono u-f1" id="${key}Rn" data-in="glf" data-k="${key}" data-f="rname" data-t="${key}Rn" value="${esc(rn)}" autocomplete="off">${brFold(f, key)}</div>${brField(f, key)}</div>`
+}
+// GitLab 새로 결과 → 사람 말(지식관리 2 · 관리 설계 9-2) — 붙었으면 ''
+function glSay(g) {
+  if (!g || g.made) return ''
+  if (g.found && g.empty) return `같은 이름의 빈 저장소가 이미 있다: ${g.found}`
+  if (g.why === 'exists') return '같은 이름의 저장소에 다른 이력이 있다: 이름을 바꾼다'
+  if (g.why === 'used') return `다른 지식(${g.by || ''})이 이미 이 저장소를 쓴다`
+  if (g.why === 'attached') return '이미 저장소가 붙어 있다'
+  return GL_WHY[g.why] || '저장소를 붙이지 못했다'
+}
+const glGroup = (f) => { const g = glOf(); return f.group || (g && g.groups ? (g.groups.some((x) => x.path === g.group) ? g.group : (g.groups[0] || {}).path) : '') || '' }
+const REPO_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/
+// 저장소를 바꾼 뒤 — 그 탭의 칸 · 상태(총괄 관리자 개요 · 지식관리자 보기 · 개인 설정) · 경고 줄을 다시 읽는다
+function repoDone(k) { S.rf = null; S.repoEdit = null; delete S.cache.admin; delete S.cache['repo:' + k]; dropSettings(); loadStops(); render() }
 // 정책(팀 · 지식관리자) — Claude 에 보내기 · 승인 받고 넣기(승인 저장 지식은 「들어간 것 하루 요약」 · P-D13) · 저장 승인(총괄 관리자 · P5) · 이슈 주소
 function kdPolicy(n) {
   const id = esc(n.id), apv = n.save === 'approve'
@@ -1341,14 +1400,16 @@ async function meRootPost(body) {
   S.meRootBusy = false
   render()
 }
-// [+ 새 지식] 창(메뉴 개편 5-2 · 8-3 · 11절 13) — 이름 · 저장소(접힘: [저장소 붙이기 ▸] → 주소) · [만들기]
-//   만든 뒤 창은 닫지 않고 다음 걸음 카드로: 「<이름> 을 만들었다」 + [기초 세우기] · [수기수집] · [닫기]
+// [+ 새 지식] 창(메뉴 개편 5-2 · 8-3 · 11절 13 · 지식관리 2) — 이름 · 저장소(접힘: [저장소 붙이기 ▸] → 팀 총괄 관리자 「GitLab 새로 | 있는 주소 | 나중에」 ·
+//   개인 「있는 주소 | 나중에」 · 가지 접기 「가지 main ▸」) · [만들기] → POST /api/knowledge/add { kind: 'new', name, empty: true, backup: false } → 고른 대로 저장소
+//   팀에서 저장소를 고르면 비밀번호를 만들기 앞에서 받는다(관리 설계 4-5 · 걸음 중간에 창이 떠 지식만 남지 않게)
+//   만든 뒤 창은 닫지 않고 다음 걸음 카드로: 「<이름> 을 만들었다」 + [기초 세우기] · [수기수집] · [닫기] (저장소를 못 붙였으면 까닭 + [저장소])
 //   개인 화면: 지식 폴더 안 새 지식 · 팀 화면: 팀 지식(총괄 관리자 · 서버도 ctx.admin) · 자리 · 받을 곳은 만든 뒤 지식 상세 › 권한 · 공유에서
 //   공유 화면에서 연 창은 그 화면 위에 띄우고, 만든 개인 지식을 곧 보내는 지식으로 고른다
 function openAdd() {
   S.menu = null
   const from = ['send', 'import'].includes(S.route.scr) ? S.route.scr : null
-  S.addPop = { name: '', url: '', repo: false, err: null, busy: false, done: null, from, where: isTeam() ? 'team' : 'local' }
+  S.addPop = { name: '', url: '', repo: false, mode: null, group: '', rname: '', br: null, brOpen: false, err: null, busy: false, done: null, from, where: isTeam() ? 'team' : 'local' }
   S._focus = 'addIn'
   render()
 }
@@ -1357,38 +1418,55 @@ function addPopHtml() {
   const x = '<button type="button" class="x" data-a="addClose" title="닫기" aria-label="닫기">×</button>'
   if (a.done) {
     const n = KN(a.done.id), w = n && (!isTeam() || lvOf(n) === 'write' || lvOf(n) === 'admin')
-    return `<div class="scrim fix" data-a="addClose" data-self="1"><div class="modal w420" role="dialog" aria-modal="true" aria-label="새 지식" data-t="addPop"><div class="mh">새 지식${x}</div><div class="mb"><div class="empty3" data-t="addNext"><b data-t="addDoneName">${esc(a.done.name)} 을 만들었다</b>${a.done.warn ? `<div class="callout warn" data-t="addRepoErr"><i></i><span>${esc(a.done.warn)}</span></div>` : ''}<div class="row u-wrap u-g3"><button type="button" class="btn pri" data-a="addSeed" data-t="addSeed">기초 세우기</button>${w ? '<button type="button" class="btn" data-a="addManual" data-t="addManual">수기수집</button>' : ''}</div></div></div><div class="mf"><span class="acts"><button type="button" class="btn ghost" data-a="addClose" data-t="addDone" id="addDoneBtn">닫기</button></span></div></div></div>`
+    return `<div class="scrim fix" data-a="addClose" data-self="1"><div class="modal w420" role="dialog" aria-modal="true" aria-label="새 지식" data-t="addPop"><div class="mh">새 지식${x}</div><div class="mb"><div class="empty3" data-t="addNext"><b data-t="addDoneName">${esc(a.done.name)} 을 만들었다</b>${a.done.warn ? `<div class="callout warn" data-t="addRepoErr"><i></i><span>${esc(a.done.warn)}</span><button type="button" class="btn sm" data-a="addRepoGo" data-t="addRepoGo">저장소</button></div>` : a.done.repo ? `<small class="muted mono" data-t="addRepoOk">${esc(a.done.repo)}</small>` : ''}<div class="row u-wrap u-g3"><button type="button" class="btn pri" data-a="addSeed" data-t="addSeed">기초 세우기</button>${w ? '<button type="button" class="btn" data-a="addManual" data-t="addManual">수기수집</button>' : ''}</div></div></div><div class="mf"><span class="acts"><button type="button" class="btn ghost" data-a="addClose" data-t="addDone" id="addDoneBtn">닫기</button></span></div></div></div>`
   }
-  const repo = a.repo
-    ? `<input class="inp mono" id="addUrl" data-in="addUrl" data-t="addUrl" aria-label="저장소 주소" value="${esc(a.url || '')}" placeholder="예: git@gitlab.team:kmd/회의.git" autocomplete="off">`
-    : `<button type="button" class="btn ghost sm" data-a="addRepo" data-t="addRepo" aria-expanded="false">저장소 붙이기 ▸</button>`
+  let repo
+  if (!a.repo) repo = `<button type="button" class="btn ghost sm" data-a="addRepo" data-t="addRepo" aria-expanded="false">저장소 붙이기 ▸</button>`
+  else {
+    const m = repoMode(a)
+    repo = repoSeg(a, 'add', true) + (m === 'later' ? '<small class="muted" data-t="addLater">지식 상세 › 저장소에서 붙인다</small>'
+      : m === 'gitlab' ? glFields(a, 'add', a.name)
+        : `<div class="row u-g3"><input class="inp mono u-f1" id="addUrl" data-in="addUrl" data-t="addUrl" aria-label="저장소 주소" value="${esc(a.url || '')}" placeholder="${isTeam() ? '예: git@gitlab.team:kmd/회의.git' : '예: E:\\kmd-저장소\\회의.git'}" autocomplete="off">${brFold(a, 'add')}</div>${brField(a, 'add')}`)
+  }
   return `<div class="scrim fix" data-a="addClose" data-self="1"${a.busy ? ' data-busy="1"' : ''}><div class="modal w420" role="dialog" aria-modal="true" aria-label="새 지식" data-t="addPop"><div class="mh">새 지식${tipb(a.where === 'team' ? 'add.team' : 'add.local', '새 지식')}${x}</div><div class="mb"><div class="field" style="margin:0"><label for="addIn">이름</label><input class="inp" id="addIn" data-in="addName" data-t="addIn"${invAttr(a.err, 'addMsg')} value="${esc(a.name)}" placeholder="예: 회의" autocomplete="off"></div><div class="field" style="margin:var(--sp-5) 0 0"><div class="lbrow"><span class="lb">저장소 <span class="muted">(선택)</span></span>${tipb('kd.repo', '저장소')}</div>${repo}</div>${a.err ? formErr(a.err, 'addMsg') : ''}</div><div class="mf"><span class="acts"><button type="button" class="btn ghost" data-a="addClose">취소</button><button type="button" class="btn pri" data-a="doAdd" data-t="addBtn"${a.busy ? ' disabled' : ''}>${a.busy ? '만드는 중…' : '만들기'}</button></span></div></div></div>`
 }
 async function doAdd() {
   const a = S.addPop
   if (!a || a.busy || a.done) return
-  const name = String(a.name || '').trim(), url = a.repo ? String(a.url || '').trim() : ''
+  const name = String(a.name || '').trim(), mode = a.repo ? repoMode(a) : 'later'
+  const url = mode === 'url' ? String(a.url || '').trim() : '', branch = brVal(a, '') || undefined
+  const group = mode === 'gitlab' ? glGroup(a) : '', rname = mode === 'gitlab' ? String(a.rname || repoSlug(name)).trim() : ''
   if (!name) { a.err = '이름을 쓴다'; render(); return }
+  if (mode === 'url' && !url) { a.err = '저장소 주소를 넣거나 나중에'; render(); return }
+  if (mode === 'gitlab' && (!glReady() || !group)) { a.err = 'GitLab 그룹을 고른다'; render(); return }
+  if (mode === 'gitlab' && !REPO_NAME_RE.test(rname)) { a.err = '저장소 이름은 영문 · 숫자 · . _ - (영문이나 숫자로 시작)'; render(); return }
   a.busy = true; a.err = null; render()
+  // 팀 저장소 — 비밀번호를 만들기 앞에서(그만두면 아무것도 만들지 않는다)
+  if (isTeam() && mode !== 'later' && !(S.me && S.me.sudo)) {
+    try { await askSudo(); S.me = { ...S.me, sudo: true } } catch (e) { a.busy = false; if (e.code !== 'E_CANCEL') a.err = e.message; render(); return }
+  }
   try {
-    const r = await postJSON('/api/knowledge/add', { kind: 'new', name })
-    // 저장소는 지식이 선 뒤에 붙인다 — 못 붙여도 지식은 섰다(지식 상세 › 저장소에서 다시)
-    let warn = ''
-    if (url) await postJSON(`/api/k/${encodeURIComponent(r.id)}/backup`, { url }).then(() => { loadStops() }, (e) => { warn = e.code === 'E_CANCEL' ? '저장소는 붙이지 않았다' : `저장소는 붙이지 못했다: ${e.message}` })
+    const r = await postJSON('/api/knowledge/add', { kind: 'new', name, empty: true, backup: false })
+    // 저장소는 지식이 선 뒤에 붙인다 — 못 붙여도 지식은 섰다(까닭 + [저장소] 로 지식 상세 › 저장소)
+    let warn = '', repo = ''
+    const kp = `/api/k/${encodeURIComponent(r.id)}`
+    if (mode === 'url') await postJSON(kp + '/backup', { url, ...(branch ? { branch } : {}) }).then((x) => { repo = `${(x.backup && x.backup.url) || url} · 가지 ${(x.backup && x.backup.branch) || branch || 'main'}` }, (e) => { warn = e.code === 'E_CANCEL' ? '저장소는 붙이지 않았다' : `저장소는 붙이지 못했다: ${e.message}` })
+    if (mode === 'gitlab') await postJSON(kp + '/backup/gitlab', { group, name: rname, ...(branch ? { branch } : {}) }).then((g) => { warn = glSay(g); if (g.made) repo = `${g.made.url} · 가지 ${g.made.branch}` }, (e) => { warn = e.code === 'E_CANCEL' ? '저장소는 붙이지 않았다' : `저장소는 붙이지 못했다: ${e.message}` })
+    if (mode !== 'later') { delete S.cache.admin; loadStops() }
     await reloadKns()
     delete S.cache.history
     dropSettings()
     if (a.from === 'send' && !isTeam()) { S.addPop = null; S.route.kn = S.lastKn = r.id; S.sendSel = {}; S.sendWhole = {}; S.sendTab = 'rec'; toast(`만들었다: ${esc(r.name)} · 보내는 지식으로 골랐다`); render(); return }
     a.busy = false
-    a.done = { id: r.id, name: r.name, warn }
+    a.done = { id: r.id, name: r.name, warn, repo }
     S._focus = 'addDoneBtn'
   } catch (e) { a.busy = false; a.err = e.message }
   render()
 }
-// [불러오기] 창(5-2 · 8-3) — 저장소 주소 · 이름(비우면 주소 끝) · 연습 · 길은 POST /api/restore(개인 · 총괄 관리자) · 가지 받기는 G1
+// [불러오기] 창(5-2 · 8-3 · 지식관리 2) — 저장소 주소 · 가지 접기(비우면 저장소의 기본 가지) · 이름(비우면 주소 끝) · 연습(팀) · 길은 POST /api/restore { url, name, branch }(개인 · 총괄 관리자)
 function rsWinHtml() {
-  const busy = S.restoring
-  return `<div class="scrim fix" data-a="rsClose" data-self="1"${busy ? ' data-busy="1"' : ''}><div class="modal w420" role="dialog" aria-modal="true" aria-label="불러오기" data-t="rsWin"><div class="mh">불러오기${tipb('set.restore', '불러오기')}<button type="button" class="x" data-a="rsClose" title="닫기" aria-label="닫기">×</button></div><div class="mb"><div class="field" style="margin:0"><label for="rsUrl">저장소 주소</label><input class="inp mono" id="rsUrl" data-t="rsUrl" placeholder="${isTeam() ? '예: git@gitlab.team:kmd/dpms.git' : '예: E:\\kmd-백업\\설계메모.git'}" autocomplete="off"></div><div class="field" style="margin:var(--sp-5) 0 0"><label for="rsName">이름 <span class="muted">(비우면 주소의 끝)</span></label><input class="inp" id="rsName" data-t="rsName" autocomplete="off"></div><label class="small u-blk" style="margin-top:var(--sp-5)"><input type="checkbox" id="rsPractice" data-t="rsPractice"> 연습(저장소에 보내지 않는다)</label></div><div class="mf"><span class="acts"><button type="button" class="btn ghost" data-a="rsClose">취소</button><button type="button" class="btn pri" data-a="restoreDo" data-t="restoreDo"${busy ? ' disabled' : ''}>${busy ? '불러오는 중…' : '불러오기'}</button></span></div></div></div>`
+  const busy = S.restoring, f = S.rs || (S.rs = { url: '', name: '', br: null, brOpen: false, practice: false })
+  return `<div class="scrim fix" data-a="rsClose" data-self="1"${busy ? ' data-busy="1"' : ''}><div class="modal w420" role="dialog" aria-modal="true" aria-label="불러오기" data-t="rsWin"><div class="mh">불러오기${tipb('set.restore', '불러오기')}<button type="button" class="x" data-a="rsClose" title="닫기" aria-label="닫기">×</button></div><div class="mb"><div class="field" style="margin:0"><label for="rsUrl">저장소 주소</label><div class="row u-g3"><input class="inp mono u-f1" id="rsUrl" data-in="rsF" data-f="url" data-t="rsUrl" value="${esc(f.url)}" placeholder="${isTeam() ? '예: git@gitlab.team:kmd/dpms.git' : '예: E:\\kmd-백업\\설계메모.git'}" autocomplete="off">${brFold(f, 'rs', '기본')}</div>${brField(f, 'rs', '기본')}</div><div class="field" style="margin:var(--sp-5) 0 0"><label for="rsName">이름 <span class="muted">(비우면 주소의 끝)</span></label><input class="inp" id="rsName" data-in="rsF" data-f="name" data-t="rsName" value="${esc(f.name)}" autocomplete="off"></div><label class="small u-blk" style="margin-top:var(--sp-5)"><input type="checkbox" id="rsPractice" data-in="rsF" data-f="practice" data-t="rsPractice"${f.practice ? ' checked' : ''}> 연습(저장소에 보내지 않는다)</label></div><div class="mf"><span class="acts"><button type="button" class="btn ghost" data-a="rsClose">취소</button><button type="button" class="btn pri" data-a="restoreDo" data-t="restoreDo"${busy ? ' disabled' : ''}>${busy ? '불러오는 중…' : '불러오기'}</button></span></div></div></div>`
 }
 async function syncKn() {
   S.syncing = true; S.syncMsg = null; render()
@@ -2208,7 +2286,7 @@ function itemsEmpty(k) {
 }
 const itemOf = (k, key) => need(`item:${k}:${key}`, `/api/k/${encodeURIComponent(k)}/item?key=${encodeURIComponent(key)}`)
 // 이슈 주소(UX T4-13) — 지식 설정의 주소 틀에 항목 값을 넣는다(갈래 이름에 「이슈」 가 든 항목만)
-const issueHref = (k, it) => { const u = KN(k) && KN(k).issueUrl; return u && it && it.val && /이슈|issue/i.test(it.kind || '') ? u.replace('{값}', encodeURIComponent(it.val)) : '' }
+const issueHref = (k, it) => { const u = KN(k) && (KN(k).issue || KN(k).issueUrl); return u && it && it.val && /이슈|issue/i.test(it.kind || '') ? u.replace('{값}', encodeURIComponent(it.val)) : '' }
 function itemPane(t, right) {
   const k = t.kn, it = itemByKey(k, t.ref)
   if (!M(k)) return { html: modelErr(k) ? errHtml(modelErr(k), 'model:' + k) : loadingHtml, title: tabTitle(t) }
@@ -4231,7 +4309,7 @@ function impTarget() {
   const k = defaultKn()
   if (k && KN(k)) return canWrite(k) ? { kn: k, label: KN(k).name } : { kn: null, none: true, label: '이 지식에 쓰기 자리가 없다' }
   if (isTeam()) return { kn: null, none: true, label: '쓰기 자리가 있는 지식이 없다' } // 팀 화면은 받은편지함을 세우지 않는다
-  return { kn: null, label: '받은편지함(처음 넣으면 생긴다)' }
+  return { kn: null, make: true, label: '넣을 지식이 없다' } // 받은편지함을 저절로 세우지 않는다(관리 설계 11-1 · [+ 새 지식] 으로)
 }
 const KIND_T = { docs: '문서 폴더', folder: '코드 폴더(예전)', git: '소스 코드 · git', db: 'DB · 읽기만', pc: '이 PC 폴더(예전)' }
 const KIND_I = { docs: 'doc', folder: 'doc', git: 'sync', db: 'server', pc: 'pair' }
@@ -4865,7 +4943,7 @@ async function takeFiles(files) {
   let t = impTarget()
   if (t.none) { toastErr(t.label + '. 넣을 곳이 없다'); return }
   try {
-    if (!t.kn) { const r = await postJSON('/api/knowledge/add', { kind: 'new', name: '받은편지함' }); await reloadKns(); t = { kn: r.id, label: '받은편지함' }; S.route.kn = S.lastKn = r.id }
+    if (!t.kn) { toast('넣을 지식이 없다: 새 지식을 먼저 만든다'); openAdd(); return }
   } catch (e) { toastErr(e); return }
   // 팀 — 한 번에 TEAM_IMPORT_MAX 개까지(넘으면 보내지 않고 대량 넣기 안내 · 서버도 막는다) · 요청 하나 64MB(넘으면 묶음으로 나눠 보낸다)
   if (isTeam()) {
@@ -6152,10 +6230,37 @@ const ACT = {
   sudoOk: () => sudoOk(),
   repoEdit: (el) => { S.menu = null; S.repoEdit = el.dataset.k || null; S._focus = 'repoUrl'; render() },
   repoSave: async (el) => {
-    const url = (($('#repoUrl') || {}).value || '').trim()
+    const k = el.dataset.k, f = S.rf && S.rf.kn === k ? S.rf : {}
+    const url = String(f.url != null ? f.url : (($('#repoUrl') || {}).value || '')).trim(), branch = brVal(f, '')
     if (!url) return toast('저장소 주소를 쓴다')
-    try { await postJSON(`/api/k/${encodeURIComponent(el.dataset.k)}/backup`, { url }); S.repoEdit = null; delete S.cache.admin; delete S.cache['repo:' + el.dataset.k]; dropSettings(); loadStops(); render(); toast('저장소를 붙였다. 지금까지의 이력을 보낸다') } catch (e) { if (e.code !== 'E_CANCEL') toastErr(e.message || '붙이지 못했다') }
+    try { await postJSON(`/api/k/${encodeURIComponent(k)}/backup`, { url, ...(branch ? { branch } : {}) }); repoDone(k); toast('저장소를 붙였다. 지금까지의 이력을 보낸다') } catch (e) { if (e.code !== 'E_CANCEL') toastErr(e.message || '붙이지 못했다') }
   },
+  // GitLab 새로(지식관리 2) — 그룹 · 이름 · 가지 → POST backup/gitlab · 같은 이름의 빈 저장소면 그 주소에 붙일지 묻는다
+  repoGitlab: async (el) => {
+    const k = el.dataset.k, n = KN(k), f = S.rf && S.rf.kn === k ? S.rf : null
+    if (!n || !f || !glReady()) return
+    const group = glGroup(f), name = String(f.rname || repoSlug(n.name)).trim(), branch = brVal(f, '')
+    if (!REPO_NAME_RE.test(name)) return toastErr('저장소 이름은 영문 · 숫자 · . _ - (영문이나 숫자로 시작)')
+    try {
+      const g = await postJSON(`/api/k/${encodeURIComponent(k)}/backup/gitlab`, { group, name, ...(branch ? { branch } : {}) })
+      if (g.made) { repoDone(k); toast(`GitLab 에 만들어 붙였다: ${esc(g.made.url)} · 가지 ${esc(g.made.branch)}`); return }
+      if (g.found && g.empty) {
+        if (!await ask1('빈 저장소에 붙이기', '붙이기', false, `${glSay(g)}. 이 저장소에 붙일까?`)) return
+        await postJSON(`/api/k/${encodeURIComponent(k)}/backup`, { url: g.found, ...(branch ? { branch } : {}) })
+        repoDone(k); toast('저장소를 붙였다. 지금까지의 이력을 보낸다'); return
+      }
+      toastErr(glSay(g))
+    } catch (e) { if (e.code !== 'E_CANCEL') toastErr(e.message || '붙이지 못했다') }
+  },
+  // 떼기(지식관리 2) — 총괄 관리자 · ask() · 저장소에 보낸 이력은 그대로
+  repoDetach: async (el) => {
+    const k = el.dataset.k, n = KN(k)
+    if (!n || !await ask1('저장소 떼기', '떼기', true, `${n.name}: 저장소를 뗀다. 저장소에 보낸 이력은 그대로 남고 이 지식은 더 보내지 않는다`)) return
+    try { await postJSON(`/api/k/${encodeURIComponent(k)}/backup/detach`, {}); repoDone(k); toast('저장소를 뗐다') } catch (e) { if (e.code !== 'E_CANCEL') toastErr(e.message || '떼지 못했다') }
+  },
+  repoMode: (el) => { const f = brState(el.dataset.k); if (!f) return; f.mode = el.dataset.v; if (el.dataset.v === 'gitlab') glOf(); render(); const b = $(`[data-t=${el.dataset.k}Mode-${el.dataset.v}]`); if (b) b.focus() },
+  brFold: (el) => { const key = el.dataset.v, f = brState(key); if (!f) return; f.brOpen = !f.brOpen; S._focus = f.brOpen ? key + 'Br' : key + 'BrFold'; render() },
+  addRepoGo: () => { const a = S.addPop; if (!a || !a.done) return; const k = a.done.id; S.addPop = null; go({ scr: 'home', kn: '*', page: 'all', mk: k, mt: 'repo' }) },
   impStop: (el) => { const x = S.imports.find((r) => r.id === el.dataset.v); if (x) { x.stop = true; x.msg = '그만두는 중: 보내던 묶음까지 넣는다'; render() } },
   impTab: (el) => { S.impTab = el.dataset.v; render() },
   genTab: (el) => { if ((S.genTab || 'manual') === el.dataset.v) return; S.genTab = el.dataset.v; S.menu = null; pushHist(); render() },
@@ -6225,16 +6330,18 @@ const ACT = {
     render()
   },
   restoreDo: async () => {
-    const url = (($('#rsUrl') || {}).value || '').trim()
-    const name = (($('#rsName') || {}).value || '').trim() || undefined, practice = !!($('#rsPractice') || {}).checked
-    if (!url || S.restoring) return
+    const f = S.rs || {}
+    const url = String(f.url || '').trim()
+    const name = String(f.name || '').trim() || undefined, practice = !!f.practice, branch = brVal(f, '')
+    if (!url) { toast('저장소 주소를 쓴다'); return }
+    if (S.restoring) return
     S.restoring = true
     render()
     try {
-      const r = await postJSON('/api/restore', { url, name, ...(practice ? { attach: false } : {}) })
+      const r = await postJSON('/api/restore', { url, name, ...(branch ? { branch } : {}), ...(practice ? { attach: false } : {}) })
       await reloadKns()
       dropSettings()
-      S.rsWin = false
+      S.rsWin = false; S.rs = null
       toast(`되살렸다: ${esc(r.id)} · 문서 ${r.docs} · 기록 ${r.records}${r.attached ? ' · 같은 백업으로 이어 보낸다' : ' · 읽기만 사본(원래 백업에 보내지 않는다)'}`, 8000)
     } catch (e) { if (e.code !== 'E_CANCEL') toastErr(e) }
     S.restoring = false
@@ -6618,7 +6725,7 @@ const ACT = {
   kdSend: (el) => kmGo('send', el.dataset.k),
   kdManual: (el) => kmGo('import', el.dataset.k, 'manual'),
   pplTab: (el) => { S.pplTab = el.dataset.v; render() },
-  rsOpen: () => { S.menu = null; S.rsWin = true; S._focus = 'rsUrl'; render() },
+  rsOpen: () => { S.menu = null; S.rsWin = true; S.rs = { url: '', name: '', br: null, brOpen: false, practice: false }; S._focus = 'rsUrl'; render() },
   rsClose: () => { if (S.restoring) return; S.rsWin = false; render() },
   addRepo: () => { if (S.addPop) { S.addPop.repo = true; S._focus = 'addUrl'; render() } },
   addSeed: () => { const a = S.addPop; if (!a || !a.done) return; S.addPop = null; S.seedKn = a.done.id; go({ scr: 'home', kn: '*', page: 'seed' }) },
@@ -6748,11 +6855,15 @@ document.addEventListener('input', (ev) => {
   if ((k === 'rfFrom' || k === 'rfTo' || k === 'rfBody') && S.recFix) S.recFix[{ rfFrom: 'from', rfTo: 'to', rfBody: 'body' }[k]] = t.value
   if (k === 'meRoot') S.meRootEdit = t.value
   if (k === 'addUrl' && S.addPop) S.addPop.url = t.value
+  if (k === 'br') { const f = brState(t.dataset.k); if (f) f.br = t.value }
+  if (k === 'glf') { const f = brState(t.dataset.k); if (f) f[t.dataset.f] = t.value }
+  if (k === 'rsF' && S.rs) S.rs[t.dataset.f] = t.type === 'checkbox' ? t.checked : t.value
+  if (k === 'rfUrl' && S.rf) S.rf.url = t.value
   if (k === 'agKn') S.agKn = t.value
   if (k === 'agKnMe') S.agKnMe = t.value
   if (k === 'admAddId' && S.admAdd) S.admAdd.id = t.value
   if (k === 'grpName' && S.grpAdd) { S.grpAdd.name = t.value; const b = $('[data-t=grpAddDo]'); if (b) b.disabled = !t.value.trim() || !!S.grpAdd.busy }
-  if (k === 'addName' && S.addPop) { S.addPop.name = t.value; if (S.addPop.err) { S.addPop.err = null; const m = $('[data-t=addMsg]'); if (m) m.remove() } }
+  if (k === 'addName' && S.addPop) { S.addPop.name = t.value; if (!S.addPop.rname) { const rn = $('#addRn'); if (rn) rn.value = repoSlug(t.value) }if (S.addPop.err) { S.addPop.err = null; const m = $('[data-t=addMsg]'); if (m) m.remove() } }
 })
 // 다시 잡기 — 창의 문서 · 놓을 차례 · 합치기 표시 · 이름 자리 고르기
 document.addEventListener('change', (ev) => {

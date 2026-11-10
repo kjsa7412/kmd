@@ -143,7 +143,9 @@ function makeRemote(K) {
     const ls = await lsRemote(dir, branch)
     if (!ls.ok) {
       if (!had) await tryGit(dir, ['remote', 'remove', K.remote])
-      throw new KmdError('E_INPUT', `${K.label}에 닿지 않는다: ${REASON[ls.reason] || ls.reason}`)
+      // 까닭을 나눠 돌려준다(관리 설계 9-2) — auth(자격 없음) · notfound(저장소를 찾지 못함) · 그 밖은 판정 이름
+      const why = ls.reason === 'auth' ? 'auth' : /not found|does not appear to be a git repository|No such file|does not exist/i.test(ls.err || ls.message || '') ? 'notfound' : ls.reason
+      throw new KmdError('E_INPUT', why === 'notfound' ? `${K.eul} 찾지 못했다` : why === 'auth' ? `이 ${K.label}에 보낼 자격이 서버에 없다` : `${K.label}에 닿지 않는다: ${REASON[ls.reason] || ls.reason}`, { details: { why } })
     }
     if (ls.sha && ls.sha !== head) {
       if (!(await hasCommit(dir, ls.sha))) await tryGit(dir, ['fetch', '-q', K.remote, branch])
@@ -163,14 +165,19 @@ function makeRemote(K) {
   async function detach(kn) {
     const e = E(kn)
     clearTimeout(e.retry.timer)
-    if (e.file) await fs.rm(e.file, { force: true }).catch((x) => console.log(`[kmd] ${K.label} 상태 파일을 지우지 못했다 ${e.id}: ${x.message}`))
+    // 도는 보내기가 끝나며 persist 로 상태 파일을 다시 쓰지 않게 — 먼저 비운다(persist 는 file · state 가 없으면 쓰지 않는다)
+    const file = e.file
+    e.state = null
+    e.file = null
+    e.verdict = null
+    if (file) await fs.rm(file, { force: true }).catch((x) => console.log(`[kmd] ${K.label} 상태 파일을 지우지 못했다 ${e.id}: ${x.message}`))
     if (await fs.stat(path.join(e.dir, '.git')).then(() => true, () => false)) await tryGit(e.dir, ['remote', 'remove', K.remote])
     entries.delete(e.dir)
   }
 
   async function lsRemote(dir, branch) {
     const r = await tryGit(dir, ['ls-remote', '--heads', K.remote, `refs/heads/${branch}`], { timeout: cfg.lsTimeout })
-    if (!r.ok) return { ok: false, reason: r.timedOut ? 'timeout' : classify(r.err), message: r.err.trim().split('\n').pop() }
+    if (!r.ok) return { ok: false, reason: r.timedOut ? 'timeout' : classify(r.err), message: r.err.trim().split('\n').pop(), err: r.err }
     const line = r.out.split('\n').find((l) => l.endsWith(`refs/heads/${branch}`))
     return { ok: true, sha: line ? line.split(/\s+/)[0] : null }
   }

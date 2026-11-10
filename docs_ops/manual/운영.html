@@ -16,7 +16,7 @@
 <h2 id="auto"><span class="m-no">1</span>늘 하는 것: 저절로</h2>
 <div class="m-cards">
 <div class="m-card"><b>백업</b><p>지식마다 붙인 git 저장소로 저장 뒤 바로. 안 되면 1 · 5 · 15 · 60분 · 매일 다시. 6시간 밀리면 노랑 · 24시간이면 빨강 한 줄.</p></div>
-<div class="m-card"><b>GitLab 봇</b><p>팀 서버 · 쓰면. 저장소가 없는 지식마다 그룹 안에 찾거나 만들어 붙인다. 봇 열쇠는 만들기 권한만. 열쇠는 <code>kmd secret set gitlab</code> 로만.</p></div>
+<div class="m-card"><b>GitLab 봇</b><p>팀 서버 · 쓰면. 저장소가 없는 지식마다 그룹 안에 찾거나 만들어 붙인다(켤 때 · 셸 · 폴더 다시 읽기). 화면의 「GitLab 새로」 는 봇이 만들 수 있는 그룹에서 고른다. 봇 열쇠는 만들기 권한만(그룹에 저장소를 만들 자리가 있어야 한다). 열쇠는 <code>kmd secret set gitlab</code> 로만.</p></div>
 <div class="m-card"><b>DB 가져올 곳</b><p>어떤 계정이든 세션을 읽기 전용으로 열고 카탈로그만 읽는다(행은 읽지 않는다). 비밀번호는 비밀에만.</p></div>
 <div class="m-card"><b>이 PC 늘 켜기</b><p><code>kmd pc task</code> 한 번. 로그온 때 <code>kmd up --no-open</code> · 멈추면 1분마다 다시 켠다(작업 이름 <code>kmd</code>).</p></div>
 </div>
@@ -32,7 +32,7 @@
 <h2 id="restore"><span class="m-no">3</span>불러오기</h2>
 <div class="m-tbl"><table><tr><th>무엇이 없어졌나</th><th>하는 것</th></tr>
 <tr><td>지식 하나(폴더가 깨짐 · 지움)</td><td><code>kmd restore &lt;저장소 주소&gt; &lt;지식&gt;</code>: 새 폴더로 받아 fsck · 검사 · <code>_members.md</code> 로 주인 · 자리 · Claude 설정을 다시 건다. 원래 이름이면 같은 저장소로 이어 보낸다. 도는 팀 서버에는 [동기화] 로 목록에 선다</td></tr>
-<tr><td>새 PC</td><td>kmd 를 깔고 개인 화면 › 지식관리 › 모든 지식 › [불러오기](팀 지식은 팀 화면의 같은 자리 · 총괄 관리자)(주소 · 이름), 또는 지식마다 <code>kmd restore &lt;저장소 주소&gt;</code></td></tr>
+<tr><td>새 PC</td><td>kmd 를 깔고 개인 화면 › 지식관리 › 모든 지식 › [불러오기](팀 지식은 팀 화면의 같은 자리 · 총괄 관리자)(주소 · 가지 · 이름), 또는 지식마다 <code>kmd restore &lt;저장소 주소&gt;</code></td></tr>
 <tr><td>백업과 갈라졌다</td><td>관리 화면에서 [이 백업 이어 쓰기](서버에만 있던 기록 · 문서를 먼저 보인다 · 지금 머리는 가지 <code>kmd-before-&lt;시각&gt;</code> 로 남는다) 또는 [서버 것으로 백업 덮기]</td></tr>
 <tr><td>백업이 앞섰다</td><td>[백업에서 받기]: 앞으로만 · 받은 글에 새 오류면 되돌린다</td></tr>
 <tr><td>살림 자리 전부</td><td>밤 묶음을 풀고 → <code>kmd auth reapply &lt;따로 둔 auth.log&gt;</code>. 끊은 기기 · 기계 열쇠는 다시 끊기고, 늦게 바꾼 비밀번호의 사람은 「다시 정하기」 링크를 새로 받는다</td></tr>

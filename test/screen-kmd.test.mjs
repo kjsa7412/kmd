@@ -17,6 +17,8 @@ import { workOnce } from '../core/worker.js'
 import { sha16 } from '../core/text.js'
 import { sectionOf } from '../core/knowledge.js'
 import { saveRecords } from '../core/save.js'
+import { setSecret } from '../core/secrets.js'
+import http from 'node:http'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const MOCK = pathToFileURL(path.join(HERE, '..', 'docs', 'kmd_목업_인터랙션.html')).href
@@ -1249,6 +1251,11 @@ test('개인 화면: 지식 보내기 · 받는 팀 지식 고르기 · 지식 �
     await page.fill('#addIn', '테스트-보내기2')
     await page.click('[data-t=addRepo]')
     await page.waitForSelector('[data-t=addPop] #addUrl')
+    // 개인은 「있는 주소 | 나중에」(GitLab 새로 없음) · 주소 없이 만들면 묻는다 · 나중에로
+    assert.deepEqual(await page.locator('[data-t=addMode] [role=radio]').allInnerTexts(), ['있는 주소', '나중에'])
+    await page.click('[data-t=addBtn]')
+    assert.match(await page.locator('[data-t=addMsg]').innerText(), /저장소 주소를 넣거나 나중에/)
+    await page.click('[data-t=addMode-later]')
     await page.click('[data-t=addBtn]')
     await page.waitForSelector('[data-t=addNext] [data-t=addManual]')
     await page.click('[data-t=addManual]')
@@ -2013,4 +2020,144 @@ test('저장 승인 PC3: 개인 화면 — 승인 저장 개인 지식의 저장
     await page.close()
     await pc3.close()
   }
+})
+
+test('지식관리 2: 새 지식 · 불러오기 · 저장소 탭 — 가지 접기 · GitLab 새로 · 같은 저장소 막기 · 떼기 · 개인 멈춤 줄 저장소 · 네 폭', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+  // 가짜 GitLab(127.0.0.1) — 그룹 kmd · platform · 만들면 이 PC 의 빈 git 저장소 · 열쇠가 맞아야 답한다
+  const TOKEN = 'glpat-screen-test', repos = path.join(tmp, 'gl-repos')
+  const groups = [{ id: 1, full_path: 'kmd', name: 'kmd' }, { id: 2, full_path: 'platform', name: 'platform' }]
+  const gl = http.createServer((q, r) => {
+    const u = new URL(q.url, 'http://x'), send = (st, j) => { r.writeHead(st, { 'content-type': 'application/json' }); r.end(JSON.stringify(j)) }
+    if (q.headers['private-token'] !== TOKEN) return send(401, {})
+    if (u.pathname === '/api/v4/groups') return send(200, groups)
+    let m = u.pathname.match(/^\/api\/v4\/groups\/([^/]+)$/)
+    if (m) return send(200, groups.find((x) => x.full_path === decodeURIComponent(m[1])) || {})
+    m = u.pathname.match(/^\/api\/v4\/projects\/([^/]+)$/)
+    if (m) { const [g, n] = decodeURIComponent(m[1]).split('/'); const b = path.join(repos, g, n + '.git'); return fs.existsSync(b) ? send(200, { ssh_url_to_repo: b, empty_repo: false }) : send(404, {}) }
+    let body = ''
+    q.on('data', (c) => { body += c })
+    q.on('end', () => { const j = JSON.parse(body); const g = groups.find((x) => x.id === j.namespace_id); const b = path.join(repos, g.full_path, j.path + '.git'); fs.mkdirSync(path.dirname(b), { recursive: true }); execFileSync('git', ['init', '-q', '--bare', '-b', 'main', b]); send(201, { ssh_url_to_repo: b }) })
+  })
+  await new Promise((ok) => gl.listen(0, '127.0.0.1', ok))
+  s.hub.config.gitlab = { api: `http://127.0.0.1:${gl.address().port}`, group: 'platform', secret: 'gitlab' }
+  const roots0 = s.hub.config.backupRoots
+  s.hub.config.backupRoots = [repos] // 있는 주소(이 PC 의 폴더)로 붙여 보는 자리
+  await setSecret(path.join(tmp, 'kn', '.kmd'), 'gitlab', TOKEN)
+  const page = await browser.newPage({ viewport: VIEW })
+  const errors = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  const widths = async (what) => {
+    for (const w of [1280, 1024, 600, 375]) {
+      await page.setViewportSize({ width: w, height: 820 })
+      await page.waitForTimeout(150)
+      const c = await cutAt(page)
+      assert.deepEqual(c.cut, [], `${what} ${w}: 잘린 요소`)
+      assert.ok(c.sw <= c.w, `${what} ${w}: 가로 넘침 ${c.sw}`)
+    }
+    await page.setViewportSize(VIEW)
+  }
+  try {
+    await page.goto(s.url)
+    await page.fill('#lgId', 'kim')
+    await page.fill('#lgPw', me.pw)
+    await page.click('[data-t=loginBtn]')
+    await page.waitForSelector('[data-t=klist]')
+    // [+ 새 지식] — 저장소 붙이기 ▸ → 고르기 셋(처음 값 GitLab 새로) · 그룹(처음 값 serve.json) · 이름(지식 이름에서) · 「가지 main ▸」 접힘
+    await page.click('[data-t=addKn]')
+    await page.fill('#addIn', 'test-gl')
+    await page.click('[data-t=addRepo]')
+    await page.waitForSelector('[data-t=addPop] #addGrp')
+    assert.deepEqual(await page.locator('[data-t=addMode] [role=radio]').allInnerTexts(), ['GitLab 새로', '있는 주소', '나중에'])
+    assert.equal(await page.locator('[data-t=addMode-gitlab]').getAttribute('aria-checked'), 'true')
+    assert.equal(await page.locator('#addGrp').inputValue(), 'platform')
+    assert.equal(await page.locator('#addRn').inputValue(), 'test-gl')
+    assert.equal((await page.locator('[data-t=addBrFold]').innerText()).trim(), '가지 main ▸')
+    assert.equal(await page.locator('[data-t=addBrFold]').getAttribute('aria-expanded'), 'false')
+    assert.equal(await page.locator('#addBr').count(), 0)
+    await page.click('[data-t=addBrFold]')
+    await page.waitForSelector('#addBr')
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'addBr', '펼치면 가지 칸에 초점')
+    await page.fill('#addBr', 'dev')
+    await page.click('[data-t=addBrFold]')
+    assert.equal((await page.locator('[data-t=addBrFold]').innerText()).trim(), '가지 dev ▸', '바꾼 가지는 접혀도 보인다')
+    await page.selectOption('#addGrp', 'kmd')
+    // 있는 주소로 바꿨다 다시 GitLab — 고른 그룹 · 가지는 그대로
+    await page.click('[data-t=addMode-url]')
+    await page.waitForSelector('#addUrl')
+    await page.click('[data-t=addMode-gitlab]')
+    assert.equal(await page.locator('#addGrp').inputValue(), 'kmd')
+    await widths('새 지식 창')
+    // 만들기 — 팀 저장소는 비밀번호를 먼저 받는다
+    await page.click('[data-t=addBtn]')
+    await page.waitForSelector('[data-t=sudoWin] #sudoPw')
+    await page.fill('#sudoPw', me.pw)
+    await page.click('[data-t=sudoOk]')
+    await page.waitForSelector('[data-t=addNext] [data-t=addRepoOk]')
+    assert.match(await page.locator('[data-t=addRepoOk]').innerText(), /test-gl\.git · 가지 dev/)
+    const made = s.hub.backupStateSync(await s.hub.meta('test-gl'))
+    assert.equal(made.branch, 'dev')
+    assert.equal(made.url, path.join(repos, 'kmd', 'test-gl.git'))
+    assert.equal(fs.existsSync(path.join(tmp, 'kn', 'test-gl', 'docs', '처음.md')), false, '화면에서 만든 지식은 빈 지식')
+    await page.click('[data-t=addDone]')
+    // 저장소 탭(붙은 지식) — 주소 · 「가지 dev ▸」 · [바꾸기] [떼기]
+    await page.goto(s.url + '/#/manage/k/test-gl/repo')
+    await page.waitForSelector('[data-t=kdBody-repo] [data-t=repoDetach]')
+    assert.equal((await page.locator('[data-t=rfBrFold]').innerText()).trim(), '가지 dev ▸')
+    assert.equal(await page.locator('#repoUrl').inputValue(), made.url)
+    assert.equal(await page.locator('[data-t=rfMode]').count(), 0, '붙은 지식은 고르기 없음(주소 바꾸기는 있는 저장소로만)')
+    await widths('저장소 탭(붙음)')
+    // 다른 지식(gdi) — 아직 없으면 「GitLab 새로 | 있는 주소」 · 같은 저장소는 막는다
+    await page.goto(s.url + '/#/manage/k/gdi/repo')
+    await page.waitForSelector('[data-t=rfMode] [data-t=rfMode-url]')
+    assert.deepEqual(await page.locator('[data-t=rfMode] [role=radio]').allInnerTexts(), ['GitLab 새로', '있는 주소'])
+    await page.waitForSelector('[data-t=repoGitlab]')
+    await widths('저장소 탭(GitLab 새로)')
+    await page.click('[data-t=rfMode-url]')
+    await page.fill('#repoUrl', made.url)
+    await page.click('[data-t=repoSave]')
+    await page.waitForFunction(() => /다른 지식\(test-gl\)이 이미 이 저장소를 쓴다/.test(document.body.innerText))
+    assert.equal(s.hub.backupStateSync(await s.hub.meta('gdi')), null)
+    // 떼기 — ask() · 뗀 뒤 [붙이기]
+    await page.goto(s.url + '/#/manage/k/test-gl/repo')
+    await page.click('[data-t=repoDetach]')
+    await page.waitForSelector('[data-t=askWin]')
+    assert.match(await page.locator('[data-t=askText]').innerText(), /저장소를 뗀다/)
+    await page.click('[data-t=askOk]')
+    await page.waitForFunction(() => !document.querySelector('[data-t=repoDetach]') && document.querySelector('[data-t=repoGitlab], [data-t=repoSave]'))
+    assert.equal(s.hub.backupStateSync(await s.hub.meta('test-gl')), null)
+    // 불러오기 — 주소 · 「가지 기본 ▸」(비우면 저장소의 기본 가지) · 접기를 눌러도 쓴 주소는 남는다
+    await page.goto(s.url + '/#/manage')
+    await page.click('[data-t=rsOpen]')
+    await page.waitForSelector('[data-t=rsWin] #rsUrl')
+    assert.equal((await page.locator('[data-t=rsBrFold]').innerText()).trim(), '가지 기본 ▸')
+    await page.fill('#rsUrl', 'git@gitlab.team:kmd/x.git')
+    await page.click('[data-t=rsBrFold]')
+    await page.waitForSelector('#rsBr')
+    assert.equal(await page.locator('#rsUrl').inputValue(), 'git@gitlab.team:kmd/x.git')
+    await widths('불러오기 창')
+    await page.keyboard.press('Escape')
+    assert.deepEqual(await bannedIn(page), [])
+    assert.deepEqual(errors, [])
+  } finally {
+    await page.close()
+    delete s.hub.config.gitlab
+    if (roots0 === undefined) delete s.hub.config.backupRoots; else s.hub.config.backupRoots = roots0
+    await new Promise((ok) => gl.close(ok))
+  }
+  // 개인 — 멈춤 줄의 저장소 갈래(repo)는 「저장소」 · 지식 상세 › 저장소로
+  const PCK = { user: pc.pcUser, admin: true, pc: true }
+  const kn = await pc.hub.addKnowledge(PCK, { kind: 'new', name: '테스트-저장소' })
+  const pp = await browser.newPage({ viewport: VIEW })
+  try {
+    await pp.route('**/api/stops', (r) => r.fulfill({ json: [{ kind: 'repo', level: 'warn', b: '테스트 저장소 멈춤', t: '', kn: kn.id, key: 'test-r' }] }))
+    await pp.goto(`${pc.url}/#once=${pc.auth.once(pc.pcUser)}`)
+    await pp.waitForSelector('[data-t=stopBtn]')
+    await pp.click('[data-t=stopBtn]')
+    const row = pp.locator('[data-t=stopWin] [data-t=stop][data-kind=repo]')
+    assert.match(await row.innerText(), /저장소 · 테스트-저장소/)
+    await row.locator('[data-t=stopGo]').click()
+    await pp.waitForSelector('[data-t=kdBody-repo] [data-t=rfBrFold]')
+    assert.match(await pp.evaluate(() => decodeURIComponent(location.hash)), /^#\/manage\/k\/테스트-저장소\/repo$/)
+    assert.equal(await pp.locator('[data-t=rfMode]').count(), 0, '개인 저장소 탭은 주소만(GitLab 새로 없음)')
+  } finally { await pp.close() }
 })

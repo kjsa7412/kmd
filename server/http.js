@@ -437,10 +437,11 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   }
 
   // 넣지 못함을 볼 자리(S10) — 팀이면 개편 전 기록도 · 지식관리자는 모두 · 그 밖은 내 것만(화면 거르기)
+  const LV_READ = ['read', 'write', 'admin'] // 읽기 자리부터(지식 단위 판정 hub.levelOf 의 값)
   const seeOf = (ctx, id) => ({ team: mode === 'team', user: ctx?.user || null, admin: hub.levelOf(ctx, id) === 'admin' })
   const GET_OK = [
     /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/audit|admin\/users|admin\/groups|claude\/state|busy|send\/teams)$/,
-    /^\/api\/agent\/parser$/, /^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
+    /^\/api\/agent\/parser$/, /^\/api\/gitlab\/groups$/,/^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
     /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|held|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|shape|past|removed|manage)$/,
   ]
   const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|stops\/ack|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|k\/[^/]+\/(?:owner|save-mode|access|delete|structure|polish|revert|unwatch|docfmt|shape(?:\/[a-z]+)?|seed\/upload|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names|approve)|rec\/[^/]+\/fix|removed\/restore))$/
@@ -722,6 +723,13 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       admin(ctx)
       return out(200, await hub.restore(ctx, await readBody(req)))
     }
+    // GitLab 그룹 목록(관리 설계 9-2 · 지식관리 2) — 팀 서버 · 총괄 관리자(읽기라 비밀번호는 묻지 않는다) · 열쇠는 싣지 않는다
+    if (p === '/api/gitlab/groups') {
+      if (mode !== 'team') throw new KmdError('E_NOTFOUND', '팀 서버의 길이다')
+      if (req.method !== 'GET') throw new KmdError('E_METHOD', 'GET 만 받는다')
+      admin(ctx, { sudo: false })
+      return out(200, await hub.gitlabGroups(ctx))
+    }
     if (p === '/api/pc/backup') {
       if (mode !== 'pc') throw new KmdError('E_NOTFOUND', '이 PC 의 길이다')
       return out(200, await hub.setBackupRoot(ctx, (await readBody(req)).root))
@@ -784,7 +792,13 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       // 지식 폴더를 뺀 개인 프로그램 — 폴더가 서기 전에는 지식을 만들지 않는다
       if (mode === 'pc' && isNoneRoot(root)) throw new KmdError('E_INPUT', '지식 폴더가 없다. 지식 목록 › 지식 폴더에 경로를 쓰고 세운다')
       if (mode === 'team') admin(ctx, { sudo: false })
-      return out(200, await hub.addKnowledge(ctx, b))
+      // 꼴(관리 설계 9-2) — empty · backup 은 참 · 거짓 · name · dir 은 글 · 그 밖 칸은 넘기지 않는다
+      if (!b || typeof b !== 'object' || Array.isArray(b)) throw new KmdError('E_INPUT', '본문은 { kind, name, … } 이다')
+      if (b.empty != null && typeof b.empty !== 'boolean') throw new KmdError('E_INPUT', 'empty 는 참 · 거짓이다')
+      if (b.backup != null && typeof b.backup !== 'boolean') throw new KmdError('E_INPUT', 'backup 은 참 · 거짓이다')
+      if (b.name != null && (typeof b.name !== 'string' || b.name.length > 200)) throw new KmdError('E_INPUT', '이름은 한 줄 글이다')
+      if (b.dir != null && (typeof b.dir !== 'string' || b.dir.length > 1000)) throw new KmdError('E_INPUT', '폴더는 경로 글이다')
+      return out(200, await hub.addKnowledge(ctx, { kind: b.kind, name: b.name, dir: b.dir, empty: b.empty === true, ...(b.backup === false ? { backup: false } : {}) }))
     }
     const sm = p.match(/^\/api\/k\/([^/]+)\/sources(?:\/(probe|run|request|every|checkdb|resync|meaning|edit|remove))?$/)
     if (sm) {
@@ -896,10 +910,11 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         // level — 이 지식에서의 내 자리(read · write · admin) · role 은 그 화면 이름(PC 는 주인)
         const lv = hub.levelOf(ctx, k.id)
         // 관리 값(issueUrl · review)은 그 지식의 지식관리자에게만 — GET /owner 와 같게(그 밖은 owner · noClaude 만)
+        //   이슈 주소만은 읽기 자리부터 issue 로(항목의 [이슈 열기] · #10 남김 · 지식관리 2) — 정책 칸(issueUrl)은 그대로 지식관리자만
         // 저장소 붙음 여부(모든 지식 표 · 6-4) — 그 지식의 지식관리자에게만 · 주소는 싣지 않는다
         const repo = lv === 'admin' && !k.gone ? !!hub.backupStateSync(k) : undefined
         // save — 저장 방식(팀 approve · held / 개인 approve · pc · 저장 승인 P5): 화면이 저장 확인 창을 띄울지 가른다
-        return { ...V.knowledgeRow(k, seeOf(ctx, k.id)), level: lv, save: k.gone ? null : hub.saveModeOf(k.id), ...(repo !== undefined ? { repo } : {}), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null, noClaude: !!row?.noClaude, ...(lv === 'admin' && row?.issueUrl ? { issueUrl: row.issueUrl } : {}), ...(lv === 'admin' && row?.review ? { review: true } : {}) } : {}), ...(chk ? { chk } : {}), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
+        return { ...V.knowledgeRow(k, seeOf(ctx, k.id)), level: lv, save: k.gone ? null : hub.saveModeOf(k.id), ...(repo !== undefined ? { repo } : {}), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null, noClaude: !!row?.noClaude, ...(lv === 'admin' && row?.issueUrl ? { issueUrl: row.issueUrl } : {}), ...(LV_READ.includes(lv) && row?.issueUrl ? { issue: row.issueUrl } : {}), ...(lv === 'admin' && row?.review ? { review: true } : {}) } : {}), ...(chk ? { chk } : {}), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
       })))
     }
     // 에이전트 일 — 목록 · 줄(터미널)
@@ -1182,11 +1197,11 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const cur = clean(await fs.readFile(path.join(k.dir, ...d.path.split('/')), 'utf8').catch(() => ''))
       return out(200, { doc: d.id, sha: v.sha, at: v.at, who: v.who, msg: v.msg, md: past, cur, html: V.render(k, d.path, past) })
     }
-    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|save-mode|propose|backup|backup\/pull|owner|learn|edit|revert|guard)$/)
+    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|save-mode|propose|backup|backup\/pull|backup\/gitlab|backup\/detach|owner|learn|edit|revert|guard)$/)
     if (!m) throw new KmdError('E_NOTFOUND', '그런 길은 없다')
     const id = dec(m[1])
     const what = m[2]
-    if (['save', 'save-mode', 'propose', 'backup', 'backup/pull', 'owner', 'learn', 'edit', 'revert'].includes(what)) {
+    if (['save', 'save-mode', 'propose', 'backup', 'backup/pull', 'backup/gitlab', 'backup/detach', 'owner', 'learn', 'edit', 'revert'].includes(what)) {
       // 저장소 보기(메뉴 개편 6-4 · 권한 모델 7절) — 그 지식의 지식관리자부터(읽기 미만 404 · 쓰기 · 읽기 403) · 주소는 가려서 · 가지 · 상태만
       if (what === 'backup' && req.method === 'GET') {
         const meta = await hub.meta(id, ctx.shell ? undefined : ctx)
@@ -1252,8 +1267,19 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         if (mode === 'team' && ctx.admin && body.owner != null && body.owner !== (cur?.owner ?? null)) admin(ctx)
         return out(200, await hub.setOwner(ctx, id, body))
       }
+      // 저장소 바꾸기는 총괄 관리자(비밀번호 한 번 더) — 붙이기 · GitLab 새로 · 떼기 · 받기(관리 설계 9-2 · 권한 모델 7절)
       admin(ctx)
       if (what === 'backup') return out(200, await hub.backupAttach(ctx, id, String(body.url || ''), { branch: body.branch ?? null }))
+      if (what === 'backup/gitlab') {
+        if (mode !== 'team') throw new KmdError('E_NOTFOUND', '팀 서버의 길이다')
+        await hub.meta(id, ctx)
+        const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {}
+        return out(200, await hub.gitlabAttachTo(ctx, id, { group: b.group, name: b.name, branch: b.branch ?? null }))
+      }
+      if (what === 'backup/detach') {
+        await hub.meta(id, ctx)
+        return out(200, await hub.backupDetach(ctx, id))
+      }
       return out(200, await hub.backupPull(ctx, id))
     }
     const k = await hub.get(id, ctx)

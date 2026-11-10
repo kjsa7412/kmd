@@ -64,7 +64,7 @@ import { restore as restoreFrom, checkUrl } from '../core/restore.js'
 import { writeJsonAtomic, writeFileAtomic } from '../core/atomic.js'
 import { watchedOf } from '../core/watchmark.js'
 import { connect as dbConnect, catalog as dbCatalog } from '../core/db.js'
-import { ensureProject } from '../core/gitlab.js'
+import { ensureProject, listGroups } from '../core/gitlab.js'
 import { getSecret, setSecret, listSecrets, delSecret } from '../core/secrets.js'
 
 // serve.json — 살림 자리의 설정(없어도 된다)
@@ -140,6 +140,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   // 옛 것으로 덮지 않고 넘어진다) 고쳐 쓴다. fn 은 장부만 고친다(git 은 밖에서 — 잠금을 짧게)
   let regQ = Promise.resolve()
   let knownQ = Promise.resolve()
+  // 저장소 붙이기 줄 — 같은 저장소 검사(repoUsedBy)와 붙이기를 한 줄로(두 요청이 함께 지나 한 저장소를 두 지식에 붙이지 않게)
+  let repoQ = Promise.resolve()
+  const repoLine = (fn) => { const p = repoQ.then(fn); repoQ = p.catch((e) => log('저장소 붙이기 줄', e.message)); return p }
   let reqQ = Promise.resolve()
   const inReq = (fn) => { const p = reqQ.then(fn); reqQ = p.catch(() => {}); return p }
   // 고치려고 읽기 — 깨졌으면 던진다(빈 목록 위에 써서 기다리는 부탁을 지우지 않게)
@@ -1414,7 +1417,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       return list
     },
     // 지식 추가 — 새 이름(PC: 지식 폴더 안 · 팀: 팀 지식 · 관리자만) · 내 폴더(PC 만 · 지식 폴더 안의 새 지식으로 들여온다 · 원본은 그대로)
-    async addKnowledge(ctx, { kind, name, dir, empty = false }) {
+    //   backup — false 면 만들 때 저장소 저절로 붙이기(GitLab 봇)를 건너뛴다(화면이 저장소를 고른 대로 따로 붙인다 · 관리 설계 9-2) · 지식백업(이 PC 사본)은 그대로
+    async addKnowledge(ctx, { kind, name, dir, empty = false, backup: autoRepo = true }) {
       if (await looksLikeKnowledge(root)) throw new KmdError('E_INPUT', '이 kmd 는 지식 하나만 연다. 여러 지식을 두려면 위 폴더에서 띄운다')
       if (kind === 'new') {
         const nm = String(name || '').normalize('NFC').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').trim()
@@ -1462,7 +1466,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         // 아는 지식에 더하기 — 한 줄로(여럿이 같은 때 만들어도 앞사람의 것을 잃어 다음 동기화가 「새로 놓인 지식」 으로 보지 않게)
         await (knownQ = knownQ.then(async () => hub.known([...new Set([...(await hub.known()), id])])).catch(() => {}))
         if (mode === 'pc' && started) watchers.push(Object.assign(collect.watch(d, () => hub.collect(id)), { dir: d })) // 편집기에서 고친 것 거두기 — 켤 때 없던 지식도
-        await hub.gitlabAttach(id).catch((e) => log('GitLab 저장소', id, e.message))
+        if (autoRepo !== false) await hub.gitlabAttach(id).catch((e) => log('GitLab 저장소', id, e.message))
         await hub.autoBackup(id).catch((e) => log('지식백업', id, e.message))
         feed.add(dataDir, ctx.user, { kind: 'kn', kn: id, dot: 'acc', text: `지식을 추가했다: ${nm}`, small: mode === 'team' ? `팀 지식 · 팀 모두 본다 · 주인 ${ctx.user}` : d }).catch(() => {})
         return { id, name: nm, dir: mode === 'pc' ? d : undefined }
@@ -1497,9 +1501,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         await walk(src, '')
         if (!files.some((f) => /\.(md|markdown|docx|pptx|xlsx)$/i.test(f.path))) throw new KmdError('E_INPUT', '이 폴더에는 문서가 될 파일(md · docx · pptx · xlsx)이 없다')
         const all = await hub.list()
-        let nm = path.basename(full).normalize('NFC')
-        for (let n = 2; all.some((k) => k.id.toLowerCase() === nm.toLowerCase()); n++) nm = `${path.basename(full).normalize('NFC')}-${n}`
-        const made = await hub.addKnowledge(ctx, { kind: 'new', name: nm, empty: true })
+        // 이름 — 정했으면 그대로(새 지식과 같은 꼴 검사 · 겹치면 E_CONFLICT · addKnowledge 가 본다) · 없으면 폴더 이름(겹치면 -2)
+        let nm = name != null && String(name).trim() !== '' ? String(name) : path.basename(full).normalize('NFC')
+        if (name == null || String(name).trim() === '') for (let n = 2; all.some((k) => k.id.toLowerCase() === nm.toLowerCase()); n++) nm = `${path.basename(full).normalize('NFC')}-${n}`
+        const made = await hub.addKnowledge(ctx, { kind: 'new', name: nm, empty: true, backup: autoRepo })
         const r = await hub.importFiles(ctx, made.id, await Promise.all(files.map(async (f) => ({ path: f.path, data: await fs.readFile(f.full) }))), { asDocs: true })
         for (const x of ['_vocab.md', '_managed.md']) {
           const t = await fs.readFile(path.join(full, x)).catch(() => null)
@@ -5660,8 +5665,39 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 지식백업 사본 자리를 저장소로 붙이지 않는다(두 원격이 한 곳에 밀면 판정이 갈라진다)
       const cp = backup.copy.stateOf(meta)
       if (isLocalPath(url) && ((mode === 'pc' && config.backupRoot && insideDir(path.resolve(url), path.resolve(config.backupRoot))) || (cp && path.resolve(url).toLowerCase() === path.resolve(cp.url).toLowerCase()))) throw new KmdError('E_INPUT', '지식백업 사본 자리는 저장소로 붙이지 않는다')
-      const r = await backup.attach(meta, url, { dataDir, branch: br })
-      return { ...r, backup: backup.stateOf(meta) }
+      // 같은 저장소를 두 지식에 붙이지 않는다(관리 설계 6 · 9-2) — 두 지식이 한 가지에 밀면 서로를 덮는다
+      return repoLine(async () => {
+        const by = await hub.repoUsedBy(id, url)
+        if (by) throw new KmdError('E_CONFLICT', `다른 지식(${by.name})이 이미 이 저장소를 쓴다`, { details: { why: 'used', by: by.name } })
+        const r = await backup.attach(meta, url, { dataDir, branch: br })
+        return { ...r, backup: backup.stateOf(meta) }
+      })
+    },
+    // 이 저장소를 쓰는 다른 지식(없으면 null) — repoKey(자격 · 틀 · 포트 · .git · 끝 / · 대소문자를 걷은 「호스트/경로」)로 견준다(이 PC 의 폴더는 절대 경로로)
+    async repoUsedBy(id, url) {
+      const keyOf = (u) => {
+        let s = String(u || '').trim()
+        if (/^file:\/\//i.test(s)) { try { s = fileURLToPath(s) } catch { return repoKey(s) } } // file:///C:/r/a.git 도 이 PC 의 폴더로
+        return repoKey(s && isLocalPath(s) ? path.resolve(s) : s)
+      }
+      const key = keyOf(url)
+      if (!key) return null
+      for (const k of await hub.list()) {
+        if (k.id === id) continue
+        const st = backup.stateOf(k)
+        if (st && keyOf(st.url) === key) return k
+      }
+      return null
+    },
+    // 저장소 떼기(지식관리 2 · 메뉴개편 8-3) — 총괄 관리자 · 원격 kmd-backup 과 상태 파일을 지운다 · 저장소 쪽 이력은 그대로 · 지식백업은 그대로
+    async backupDetach(ctx, id) {
+      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '저장소는 총괄 관리자가 뗀다')
+      const meta = await hub.meta(id, ctx.shell ? undefined : ctx)
+      await backup.repo.register(meta, { dataDir })
+      if (!backup.attached(meta)) return { ok: true, off: true }
+      await backup.repo.detach(meta)
+      log(`${meta.name}: 저장소를 뗐다`)
+      return { ok: true }
     },
     async backupPull(ctx, id) {
       if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '저장소에서 받기는 총괄 관리자가 한다')
@@ -5733,10 +5769,63 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const token = await getSecret(dataDir, g.secret || 'gitlab')
       if (!token) return null
       const p = await ensureProject({ api: g.api, group: g.group, token, name: meta.id })
-      await ensureRepo(meta.dir) // 아직 git 이 없는 지식이면 있던 글을 첫 묶음으로
-      await backup.attach(meta, p.url, { dataDir, branch: 'main' })
-      log(`${meta.name}: GitLab 저장소를 ${p.created ? '만들어' : '찾아'} 붙였다`)
-      return p
+      return repoLine(async () => {
+        if (backup.attached(meta)) return null
+        // 같은 저장소를 다른 지식이 쓰면 붙이지 않는다(저절로 붙이기도 · 관리 설계 6)
+        const by = await hub.repoUsedBy(meta.id, p.url)
+        if (by) { log(`${meta.name}: GitLab 저장소 ${maskUrl(p.url)} 를 다른 지식(${by.name})이 써서 붙이지 않았다`); return null }
+        await ensureRepo(meta.dir) // 아직 git 이 없는 지식이면 있던 글을 첫 묶음으로
+        await backup.attach(meta, p.url, { dataDir, branch: 'main' })
+        log(`${meta.name}: GitLab 저장소를 ${p.created ? '만들어' : '찾아'} 붙였다`)
+        return p
+      })
+    },
+    // GitLab 그룹 목록(관리 설계 9-2 · 지식관리 2) — 총괄 관리자 · 팀 서버 · 열쇠는 돌려주지 않는다 · 처음 값은 serve.json 의 group
+    //   연결이 없으면 { why: 'noconfig' } · 열쇠가 없으면 { why: 'nosecret' } · 닿지 않음 · 열쇠가 맞지 않음은 E_INPUT(details.why net · auth)
+    async gitlabGroups(ctx) {
+      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', 'GitLab 그룹은 총괄 관리자가 본다')
+      const g = config.gitlab
+      if (mode !== 'team' || !g || !g.api) return { why: 'noconfig' }
+      const token = await getSecret(dataDir, g.secret || 'gitlab')
+      if (!token) return { why: 'nosecret' }
+      const groups = await listGroups({ api: g.api, token })
+      return { groups, group: typeof g.group === 'string' ? g.group : null }
+    },
+    // GitLab 에 고른 그룹 · 이름으로 저장소를 만들어(또는 빈 저장소를 찾아) 붙인다(관리 설계 9-2 · 지식관리 2) — 총괄 관리자(http 가 비밀번호 한 번 더)
+    //   돌려줌: { made: { url, branch, created } } · { found, empty: true }(같은 이름의 빈 저장소가 있다 — 「있는 저장소에 붙이기」 로 바꿀지 화면이 묻는다)
+    //   · { why: 'noconfig' | 'nosecret' | 'attached' | 'exists'(이력이 있는 같은 이름) | 'used'(다른 지식이 쓴다 · by) }
+    async gitlabAttachTo(ctx, id, { group, name, branch } = {}) {
+      if (!ctx.admin && !ctx.shell) throw new KmdError('E_FORBIDDEN', '저장소는 총괄 관리자가 붙인다')
+      const meta = await hub.meta(id, ctx.shell ? undefined : ctx)
+      if (typeof group !== 'string' || !group || group.length > 200 || /[\s\u0000-\u001f]/.test(group)) throw new KmdError('E_INPUT', '그룹을 고른다')
+      if (typeof name !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(name)) throw new KmdError('E_INPUT', '저장소 이름은 영문 · 숫자 · . _ - (100자 · 영문이나 숫자로 시작)')
+      const br = backup.checkBranch(branch == null || branch === '' ? null : branch)
+      const g = config.gitlab
+      if (mode !== 'team' || !g || !g.api) return { why: 'noconfig' }
+      const token = await getSecret(dataDir, g.secret || 'gitlab')
+      if (!token) return { why: 'nosecret' }
+      await backup.repo.register(meta, { dataDir })
+      const groups = await listGroups({ api: g.api, token })
+      if (!groups.some((x) => x.path === group)) throw new KmdError('E_INPUT', `봇이 저장소를 만들 수 있는 그룹이 아니다: ${group}`)
+      // 붙음 · 같은 저장소 검사 · 만들기 · 붙이기를 한 줄로(두 요청이 함께 지나 저장소 둘을 만들거나 한 저장소를 두 지식에 붙이지 않게)
+      return repoLine(async () => {
+        if (backup.attached(meta)) return { why: 'attached' }
+        const p = await ensureProject({ api: g.api, group, token, name })
+        const by = await hub.repoUsedBy(meta.id, p.url)
+        if (by) return { why: 'used', by: by.name }
+        if (!p.created && !p.empty) return { why: 'exists', found: maskUrl(p.url) }
+        if (!p.created) return { found: maskUrl(p.url), empty: true }
+        await ensureRepo(meta.dir)
+        try {
+          await backup.attach(meta, p.url, { dataDir, branch: br })
+        } catch (e) {
+          // 만든 저장소는 GitLab 에 남는다(봇은 지우지 못한다) — 다음에 고르면 「빈 저장소가 이미 있다 · 붙일까?」 로 이어 붙인다
+          if (e instanceof KmdError) { e.message = `GitLab 에 저장소(${maskUrl(p.url)})는 만들었으나 붙이지 못했다: ${e.message}`; e.details = { ...(e.details || {}), created: maskUrl(p.url) } }
+          throw e
+        }
+        log(`${meta.name}: GitLab 저장소를 만들어 붙였다(${group} · 가지 ${br})`)
+        return { made: { url: maskUrl(p.url), branch: br, created: true }, backup: backup.stateOf(meta) }
+      })
     },
     backupStateSync: (meta) => backup.stateOf(meta),
     copyStateSync: (meta) => backup.copy.stateOf(meta),
