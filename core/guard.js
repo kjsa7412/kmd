@@ -303,7 +303,11 @@ export const RECORDS_DOC_PATH = `docs/${RECORDS_DOC}.md`
 export const RECORDS_INTRO = '이을 항목이 없던 기록을 달마다 잇는다. 기록은 각 달 항목의 이력으로 붙는다.'
 export const RECORDS_MONTH_TEXT = '이 달에 이을 항목이 없던 기록을 잇는다.'
 export const isRecordsMonth = (h) => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(h || '').trim())
-export function guardNewDoc(forms, docRel, headings = []) {
+// 들인 자료(저장 승인 설계 P-D35 · Q4 · P6) — 서버 고정 갈래 · 규칙 길이 맞는 갈래를 못 찾은 원본을 이 폴더 아래 주제 문서로 세운다(처음 쓸 때 선다) ·
+//   갈래 장부에 없어도 선다(고정 갈래) · 이름은 주제(core/pcplace.js ruleSections 가 짓는다) · 지식관리자는 원하면 나중에 옮긴다
+export const INTAKE_FORM = '들인 자료'
+//   intake — 무인 채널의 저장(P6 · 규칙 길)만 「들인 자료」 고정 갈래를 연다(사람 채널은 갈래 장부 · 꼴 검사 그대로)
+export function guardNewDoc(forms, docRel, headings = [], { intake = false } = {}) {
   const errors = []
   const p = nfc(String(docRel)).replace(/\\/g, '/').replace(/^docs\//, '').replace(/\.md$/, '')
   const parts = p.split('/')
@@ -312,6 +316,11 @@ export function guardNewDoc(forms, docRel, headings = []) {
   if (p === RECORDS_DOC) {
     const bad = headings.filter((h) => !isRecordsMonth(h))
     return { errors: bad.length ? [{ code: 'E_INPUT', form: RECORDS_DOC, message: `「${RECORDS_DOC}」 의 항목 머리는 달(YYYY-MM)이다: ${bad.slice(0, 3).join(' · ')}` }] : [], form: { name: RECORDS_DOC, kind: '사건', fixed: true } }
+  }
+  // 들인 자료(고정 갈래 · P6) — 한 단 아래 주제 문서만 · 이름 길이만 본다(갈래 고르기는 규칙 길이 먼저 했다)
+  if (folder === INTAKE_FORM && intake) {
+    const bad = !name.trim() || name.length > 40
+    return { errors: bad ? [{ code: 'E_INPUT', form: INTAKE_FORM, message: `「${INTAKE_FORM}」 문서 이름은 40자 안의 주제다` }] : [], form: { name: INTAKE_FORM, kind: '서술', fixed: true } }
   }
   if (FILEISH.some((re) => re.test(name))) errors.push({ code: 'E_INPUT', message: `새 문서 이름 「${name}」 에 파일 이름 조각(날짜 · 판 · 최종 · 확장자)이 있다. 문서 이름은 갈래 · 주제로 짓는다(예: 회의록 · 게이트웨이 설계)` })
   if (name.length > 40) errors.push({ code: 'E_INPUT', message: `새 문서 이름이 너무 길다(40자 안). 문서 이름은 갈래 · 주제다` })

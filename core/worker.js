@@ -47,7 +47,8 @@ const TICK = () => Number(envOf('KMD_WORKER_TICK_MS', 'KMD_TIDY_TICK_MS')) || 15
 
 // 들이기 일감 하나(S7 · 설계 3-5) — 재료 → claude -p → done → { fix } 이면 까닭을 붙여 다시(KMD_INGEST_FIX 번까지) → 마지막.
 //   일꾼은 쓰지 않는다: 서버가 시도를 세고(본문의 tries 를 믿지 않는다) · 검사하고 · 저장 한 번으로 넣거나 기록만 + 넣지 못함
-//   돌려주는 것 { job, summary: { put, held }, rec?, skipped? }
+//   돌려주는 것 { job, summary: { put, held, rule }, rec?, skipped?, requeued? }
+//   approve 모드 지식(저장 승인 P6)은 넣지 못함이 없다: 끝내 검사를 못 넘으면 서버가 규칙 길로 넣는다(rule · 까닭) · 그사이 항목이 바뀌면 다시 대기(requeued · 새 재료로 다시 짓는다)
 export async function intakeOnce({ server, key, job, dkey, log = () => {}, budget = BUDGET(), models = null, gate = slots(PAR) }) {
   const kn = encodeURIComponent(job.kn)
   const base = `/api/k/${kn}/worker/intake`
@@ -95,7 +96,8 @@ export async function intakeOnce({ server, key, job, dkey, log = () => {}, budge
         return { job, summary: { put: 0, held: 0 }, skipped: r.error, stop: r.error }
       }
       if (d?.retry) continue
-      return { job, summary: { put: 0, held: d?.held || 0 }, rec: d?.rec || null }
+      if (d?.rule) log(`${name}: 규칙 길로 넣었다(${String(d.rule).slice(0, 120)})`)
+      return { job, summary: { put: 0, held: d?.held || 0, rule: d?.rule ? 1 : 0 }, rec: d?.rec || null }
     }
     const d = await call(server, dkey, `${base}/done`, { draft: r.value, cost: r.cost || 0 }).catch((e) => (gone(e), { error: e.message }))
     if (lost) return { job, summary: { put: 0, held: 0 }, skipped: 'lost' }
@@ -106,8 +108,10 @@ export async function intakeOnce({ server, key, job, dkey, log = () => {}, budge
       continue
     }
     await call(server, key, '/api/worker/status', { ok: true }).catch((e) => log(`일꾼 상태를 알리지 못했다(${e.status || e.message})`))
-    log(`${name}: ${d.same ? '같은 것을 이미 들였다' : `넣음 ${d.put || 0} · 넣지 못함 ${(d.held || []).length}`}`)
-    return { job, summary: { put: d.put || 0, held: (d.held || []).length }, rec: d.rec || null }
+    if (d.requeued) { log(`${name}: 그사이 항목이 바뀌었다 · 새 글로 다시 짓게 일감을 돌려놓았다`); return { job, summary: { put: 0, held: 0, rule: 0 }, requeued: true } }
+    if (d.aborted) { log(`${name}: 아무것도 쓰지 않았다(${String(d.why || '').slice(0, 120)})`); return { job, summary: { put: 0, held: 0, rule: 0 }, skipped: 'aborted' } }
+    log(`${name}: ${d.same ? '같은 것을 이미 들였다' : `넣음 ${d.put || 0}${d.rule ? ` · 규칙 길(${String(d.rule).slice(0, 120)})` : ''}${(d.held || []).length ? ` · 넣지 못함 ${(d.held || []).length}` : ''}`}`)
+    return { job, summary: { put: d.put || 0, held: (d.held || []).length, rule: d.rule ? 1 : 0 }, rec: d.rec || null }
   }
   return { job, summary: { put: 0, held: 0 } }
 }
@@ -167,7 +171,7 @@ export function runWorker({ server, key, poll = 10_000, log = (...a) => console.
         if (before) await before()
         const r = await workOnce({ server, key, log, models, gate })
         if (r) {
-          log(`${r.job.kn}: ${r.job.type === 'polish' ? '다듬기' : '들이기'} · 넣음 ${r.summary?.put ?? 0} · 넣지 못함 ${r.summary?.held ?? 0}`)
+          log(`${r.job.kn}: ${r.job.type === 'polish' ? '다듬기' : '들이기'} · 넣음 ${r.summary?.put ?? 0}${r.summary?.rule ? ' · 규칙 길' : ''}${r.summary?.held ? ` · 넣지 못함 ${r.summary.held}` : ''}`)
           continue
         }
       } catch (e) {

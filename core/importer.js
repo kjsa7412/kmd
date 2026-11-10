@@ -324,5 +324,6 @@ const trimLines = (t) => readText(t).split('\n').map((l) => l.replace(/\s+$/, ''
 
 export function summary(rows) {
   const n = (k) => rows.filter((r) => r.kind === k).length
-  return { doc: n('doc'), record: n('record'), att: n('att'), same: n('same'), fail: n('fail'), skip: n('skip'), run: n('run'), held: n('held') }
+  // rule — approve 모드 지식의 규칙 길로 곧바로 들어간 파일(Claude 에 보내지 않는 지식 · 하루 상한 · 저장 승인 P6)
+  return { doc: n('doc'), record: n('record'), att: n('att'), same: n('same'), fail: n('fail'), skip: n('skip'), run: n('run'), held: n('held'), rule: n('rule') }
 }

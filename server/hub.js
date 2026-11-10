@@ -10,7 +10,7 @@ import os from 'node:os'
 import { listKnowledge, loadKnowledge, coordsOfSection, sectionOf, looksLikeKnowledge } from '../core/knowledge.js'
 import { KmdError, httpStatusOf } from '../core/errors.js'
 import { save as coreSave, saveRecords, serial, localStamp, recordTakenSync, SECTIONS_MAX, assetPath, ATTACH_MAX_BYTES, checkInput } from '../core/save.js'
-import { audit as guardAudit, recordBody, RECORD_PARTS, proposeInputWhy, RECORDS_DOC, RECORDS_DOC_PATH, RECORDS_INTRO, RECORDS_MONTH_TEXT } from '../core/guard.js'
+import { audit as guardAudit, recordBody, RECORD_PARTS, proposeInputWhy, INTAKE_FORM, RECORDS_DOC, RECORDS_DOC_PATH, RECORDS_INTRO, RECORDS_MONTH_TEXT } from '../core/guard.js'
 import { recover as recoverSave } from '../core/journal.js'
 import { decisionRecord, dropRecord, namesOfRecord, renderReverted, parseReverted, parsePut, dropPart, parseHeld, PUT_PART, HELD_PART, REVERTED_PART, ACCEPTED_PART, VALUES_PART, LINKED_PART, FRESH_PART, itemKey } from '../core/parts.js'
 import { revertPlan } from '../core/revert.js'
@@ -18,15 +18,15 @@ import * as collect from '../core/collect.js'
 import crypto from 'node:crypto'
 import net from 'node:net'
 // 개인 프로그램(PC)의 저장 즉시 넣기만 — 팀은 저장 문 · 들이기 일감(S13)
-import { material, planSave, promptOf as placePrompt, DRAFT_SCHEMA, TOUCH_SCHEMA, ingestRule } from '../core/pcplace.js'
+import { material, planSave, promptOf as placePrompt, DRAFT_SCHEMA, TOUCH_SCHEMA, ingestRule, ruleSections } from '../core/pcplace.js'
 import { check as checkDraft } from '../core/gate.js'
-import { INGEST_SCHEMA, ingestCandidates, formsOf, supersededIngest, draftToSave, polishToSave, POLISH_MAX, heldRecord, intakeTags, INTAKE_SCHEMA, intakePromptOf, intakeFixPromptOf, docRel, quoteSrc } from '../core/ingest.js'
+import { INGEST_SCHEMA, ingestCandidates, formsOf, supersededIngest, draftToSave, polishToSave, POLISH_MAX, heldRecord, ruleRecord, RULE_MARK, intakeTags, INTAKE_SCHEMA, intakePromptOf, intakeFixPromptOf, docRel, quoteSrc } from '../core/ingest.js'
 import { WRITE_RULES } from '../core/writerules.js'
 import { checkProposal, placeOf, PROPOSAL_PART, buildProposal } from '../core/propose.js'
 import { checkSection, checkShape } from '../core/gate.js'
 import { valuesOf, mustValues } from '../core/values.js'
 import { splitBlocks, hasBlockMarker } from '../core/baseline.js'
-import { validEdits } from '../core/edits.js'
+import { validEdits, judgeEdits } from '../core/edits.js'
 import { targetsOf, ruleFix, fixRecordOf, fixDraftToSections, FIX_VALUE_MAX } from '../core/fix.js'
 import { runClaude } from '../core/claude.js'
 import * as feed from '../core/feed.js'
@@ -333,7 +333,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     const live = (j) => j.state === 'queued' || j.state === 'running'
     const per = new Map()
     const keep = [...jobs.values()].filter((j) => live(j) || Date.now() - Date.parse(j.done || j.at) < JOB_KEEP_MS).reverse().filter((j) => live(j) || (per.set(j.kn, (per.get(j.kn) || 0) + 1).get(j.kn) <= JOB_KEEP_N)).reverse()
-    for (const j of [...jobs.values()]) if (!keep.includes(j)) jobs.delete(j.id)
+    for (const j of [...jobs.values()]) {
+      if (keep.includes(j)) continue
+      jobs.delete(j.id)
+      // 남겨 둔 원천(규칙 길까지 못 넣은 들이기 · P6)도 장부에서 빠질 때 걷는다
+      if (j.kind === 'intake') for (const p of [intakeMdOf(j.id), binOf(j.id)]) fs.rm(p, { force: true }).catch((e) => log('들이기 원천 걷기', j.id, e.message))
+    }
     jobsW = jobsW.then(() => fs.mkdir(dataDir, { recursive: true })).then(() => fs.writeFile(jobsFile + '.tmp', JSON.stringify(keep))).then(() => fs.rename(jobsFile + '.tmp', jobsFile)).catch((e) => log(`정리 일감 장부를 쓰지 못했다: ${e.message}`))
     return jobsW
   }
@@ -955,6 +960,59 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     return coreSave(meta.dir, { record: input.record, sections: [], ...(input.names?.length ? { names: input.names } : {}), ...(input.forms?.length ? { forms: input.forms } : {}), ...(input.attach ? { attach: input.attach } : {}) }, { user: ctx.user, guard: 'strict', prepare, approve: bag, onCommit: () => cache.delete(id) })
   }
 
+  // ── approve 모드 무인 저장 문(저장 승인 설계 P6 · P-D14 · P-D15 · P-D35 · P-D38 · 3-2 「무인 저장」) ──
+  //   들이기 · 가져올 곳 · 다시 들이기 · 정정(일꾼 · 규칙 치환)이 사람 채널과 같은 판정(buildProposal)을 지난다. 승인(proposal)은 없다(일을 건 것이 결정).
+  //   결정적 오류(errors)가 있으면 아무것도 쓰지 않고 { errors } 를 돌려준다 — 부른 쪽이 FIX 고리(errors 만 · 값 경고는 방아쇠가 아니다) · 다시 대기 · 규칙 길로.
+  //   값 경고(warnings)는 막지 않고 기록 끝 `## 값 대조` · savelog warned 로 측정만(P-D2 · P-D37). 결과는 늘 들어감(put) 하나 · 넣지 못함이 없다.
+  //   rule — 규칙 길(마지막 길) 저장: 본문 반영(unreflected) · 비슷한 이름(near)은 오류로 치지 않는다(원문 그대로 인용이라 값은 글에 있고 이름은 서버가 지었다)
+  // 장부 밖 이름은 무인 기록의 건드린 이름에서 뺀다(엄격 가드가 저장을 막지 않게) · 남는 이름이 없으면 까닭 한 줄(이을 곳은 조각 · 기록 모음 달 항목)
+  function unattendedTouches(k, input) {
+    const rec = input?.record && typeof input.record === 'object' ? input.record : {}
+    const all = Array.isArray(rec.touches) ? rec.touches : []
+    const known = all.filter((c) => k.vocab.coords.has(String(c).trim().normalize('NFC')))
+    if (known.length === all.length && (known.length || rec.touchesEmpty)) return input
+    const { touches: _t, touchesEmpty: _e, ...rest } = rec
+    return { ...input, record: { ...rest, ...(known.length ? { touches: known } : { touchesEmpty: String(rec.touchesEmpty || '무인 들이기: 장부에 있는 건드린 이름이 없다').slice(0, 200) }) } }
+  }
+  // 지문 어긋남 첫 걸음(P-D38) — 같은 조각이 새 글에서도 꼭 한 번 맞으면 새 지문으로 다시 댄다(Claude 없이)
+  function reaimSection(k, s) {
+    if (!Array.isArray(s?.edits) || !s.base) return s
+    const at = placeOf(k, { coord: s.coord != null ? String(s.coord).trim().normalize('NFC') : null, doc: s.doc, heading: s.heading })
+    if (!at?.sec || sha16(at.sec.body) === s.base) return s
+    return judgeEdits(at.sec.body, s.edits).errors.length ? s : { ...s, base: sha16(at.sec.body) }
+  }
+  function unattendedPlan(k, input, { rule = false, name = '' } = {}) {
+    const inp = proposeInputOf({ ...input, sections: (Array.isArray(input.sections) ? input.sections : []).map((s) => reaimSection(k, s)) })
+    const p = buildProposal(k, inp, { newDoc: true, intakeDoc: true, approve: true, curator: false, reverts: (doc) => revertsIn(k, doc), month: monthOf(input.record), head: { name: name || k.name, viewers: null, path: '무인' } })
+    const errors = p.errors.filter((e) => !(rule && (e.code === 'unreflected' || e.code === 'near')))
+    return { p, errors }
+  }
+  // 무인 저장 문의 몸(saveIn 이 부른다) — coreSave(prepare · approve + intake) 결과(r0) · 판정 오류면 { errors } (쓰지 않았다)
+  async function unattendedSave(ctx, id, meta, input, un, intake, bag) {
+    if (!files.has(id)) files.set(id, new Map())
+    const prepare = async () => {
+      const k = await loadKnowledge(meta, { cache: files.get(id), cutoverAt: config.cutoverAt || null, team: mode === 'team' })
+      const same = sameKey(k, input.record, ctx.user, { approve: true })
+      if (same) return { abort: { same: true, id: same } }
+      const { p, errors } = unattendedPlan(k, input, { rule: !!un.rule, name: meta.name })
+      if (errors.length) return { abort: { errors: errors.map(({ code, at, why, stale }) => ({ code, at, why, ...(stale ? { stale: true } : {}) })) } }
+      const strip = (t) => (hasBlockMarker(t) ? splitBlocks(t).text.replace(/\u0000block\d+\u0000/g, '').replace(/\n{3,}/g, '\n\n').trim() : t)
+      const sections = []
+      for (const x of p.items) {
+        if (x.kind === '고침') sections.push({ ...(x.coord ? { coord: x.coord } : { doc: x.doc, heading: x.heading }), content: strip(x.after), base: x.base })
+        else if (x.kind === '신설') sections.push({ doc: x.doc, heading: x.heading, content: strip(x.after) })
+      }
+      const month = p.linked.find((x) => x.records && x.missing)
+      if (month) sections.push({ doc: RECORDS_DOC_PATH, heading: month.heading, content: RECORDS_MONTH_TEXT })
+      bag.values.push(...p.warnings.map(({ id: wid, code, at, why }) => ({ id: wid, code, at, why })))
+      bag.linked = p.linked.filter((x) => !(x.records && x.missing)).map(({ doc, heading }) => ({ doc, heading }))
+      bag.fresh = p.fresh
+      bag.items = p.items.length
+      return { sections, proposals: p.items.filter((x) => x.kind !== '잇기').map((x) => ({ coord: x.at, doc: x.doc, heading: x.heading, ok: true, changed: x.changed || [] })) }
+    }
+    return coreSave(meta.dir, { record: input.record, sections: [], ...(input.names?.length ? { names: input.names } : {}), ...(input.attach ? { attach: input.attach } : {}) }, { user: ctx.user, guard: 'strict', prepare, approve: bag, ...(intake ? { intake: { tags: intake.tags || [] } } : {}), ...(input.record?.fixes?.length ? { correction: true } : {}), onCommit: () => cache.delete(id) })
+  }
+
   // hub.save 의 몸(meta · 자리 · 속도를 넘은 뒤) — 커밋 뒤는 던지지 않는다(S-D49)
   async function saveIn(ctx, id, meta, input, opt, channel, logLine, t0) {
     // form — 세션(MCP)의 기록 글은 서식 칸으로(작성기준 6절 · 템플릿/기록.md) · 칸을 kmd 가 머리를 달아 엮는다 · 메모는 바뀐 것이 없어도 된다
@@ -980,7 +1038,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     const rctx = intake ? undefined : ctx
     // approve 모드 지식의 사람 채널(저장 승인 설계 P3 · 개인 프로그램 PC1) — 승인한 제안으로만 · 넣지 못함 · 메모 · 세울 이름 대기 · 승인 받고 넣기 · 바로 넣기가 없다
     const human = humanSave(ctx, id, opt, channel)
-    const bag = human ? { accepted: [], linked: [], fresh: [], items: 0 } : null
+    // approve 모드 지식의 무인 채널(저장 승인 P6) — 들이기 일감(다듬기 빼고) · 정정의 규칙 치환(opt.unattended · hub.fixRecord 만 단다)
+    //   un — { rule(규칙 길 까닭) · values(초안 값 경고) · fix(FIX 번 수) · conflict(다시 대기 수) } · 넣지 못함 · 메모 · 세울 이름 대기가 없다
+    const un = team && !human && channel !== 'polish' && (intake || opt.unattended) && hub.saveModeOf(id) === 'approve' ? { ...(opt.unattended || {}), ...(intake || {}) } : null
+    const bag = human ? { accepted: [], linked: [], fresh: [], items: 0 } : un ? { accepted: [], values: [...(Array.isArray(un.values) ? un.values : [])], linked: [], fresh: [], items: 0 } : null
     // 바로잡기(S-D17) — fixes 가 가리키는 기록은 내가 쓴 것이거나 내가 그 지식의 지식관리자일 때만 · 좌표정정 판정을 건너뛸지(correction)는 서버가 정한다
     let correction = false
     if (team && Array.isArray(rec0?.fixes) && rec0.fixes.length) {
@@ -997,7 +1058,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     let namesHeld = 0
     //   opt.held — 서버 코드가 다는 기록 단위 넣지 못함(정정 기록이 들어갈 항목을 찾지 못함 · S9)
     const extraHeld = intake ? [...(intake.held || [])] : Array.isArray(opt.held) ? [...opt.held] : []
-    if (!human && (input?.names?.length || input?.forms?.length) && !opt.system && (intake || !hub.canDirect(ctx, id))) {
+    if (!human && !un && (input?.names?.length || input?.forms?.length) && !opt.system && (intake || !hub.canDirect(ctx, id))) {
       const lines = []
       const ns = (Array.isArray(input.names) ? input.names : []).filter((n) => n && n.coord && n.label)
       if (ns.length) lines.push(`## 세울 이름\n${ns.map((n) => `- ${n.label} (${n.coord})${n.doc ? ` → ${n.doc}${n.heading ? ' › ' + n.heading : ''}` : ''}${n.aliases?.length ? ` · 다른 이름 ${n.aliases.join(', ')}` : ''}`).join('\n')}`)
@@ -1012,7 +1073,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 보내기(S12 · S-D36) — 보낸 글은 그 순간 들어가거나 넣지 못함이다(정리를 기다리지 않는다):
     //   left — 개인 프로그램의 Claude 가 넣을 곳을 고르지 못한 조각(후보 밖 · 새 문서를 세울 자리 없음) · 넣지 못함(notfound)으로만 받는다
     //   조각이 하나도 없으면 기록 단위 넣지 못함 — 「Claude 에 보내지 않음」 지식이면 noclaude · 아니면 notfound
-    if (!human && input && typeof input === 'object' && 'left' in input) {
+    if (!human && !un && input && typeof input === 'object' && 'left' in input) {
       const { left, ...rest } = input
       if (channel === 'send' && team) {
         if (!Array.isArray(left) || left.length > SECTIONS_MAX) throw new KmdError('E_INPUT', `left 는 ${SECTIONS_MAX}개 안의 목록이다`)
@@ -1026,14 +1087,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       input = rest
     }
-    if (!human && channel === 'send' && team && rec0?.memo !== true && !(Array.isArray(input?.sections) && input.sections.length) && !extraHeld.length) {
+    if (!human && !un && channel === 'send' && team && rec0?.memo !== true && !(Array.isArray(input?.sections) && input.sections.length) && !extraHeld.length) {
       extraHeld.push(rowFor(id)?.noClaude ? { code: 'noclaude', why: '보낸 글: Claude 에 보내지 않는 지식이라 기록만 받았다' } : { code: 'notfound', why: '보낸 글: 넣을 항목이 없다(조각 없이 기록만 왔다)' })
     }
     // 저절로 메모(S-D3 · S13) — 팀에서 조각 없이 온 사람 기록은 메모(문서를 바꾸지 않는다 · 정리를 기다리는 pend 를 만들지 않는다).
     //   예외는 서버가 정한 채널로 가른다(입력 태그로 피하지 못하게): 들이기 · 다듬기는 일감이 정하고 · 대량 넣기(bulk)는 조각이 없으면 넣지 못함(notfound)
     let autoMemo = false
     //   지식관리자가 곧바로 세우는 이름 · 갈래(장부만 바꾸는 저장)는 메모가 아니다 — 저장 문이 이력(log/ · ledger)으로 남긴다
-    if (!human && team && !intake && rec0 && rec0.memo !== true && !(Array.isArray(input?.sections) && input.sections.length) && !extraHeld.length && !((input?.names?.length || input?.forms?.length) && !rec0.touches?.length)) {
+    if (!human && !un && team && !intake && rec0 && rec0.memo !== true && !(Array.isArray(input?.sections) && input.sections.length) && !extraHeld.length && !((input?.names?.length || input?.forms?.length) && !rec0.touches?.length)) {
       if (channel === 'bulk') extraHeld.push({ code: 'notfound', why: '대량 넣기: 넣을 항목이 없다(조각 없이 기록만 왔다)' })
       else if (channel !== 'send') {
         autoMemo = true
@@ -1047,6 +1108,19 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         cache.delete(id)
         try { await savelog(id, { ...logLine, rec: r0.id, n: 0, put: 0, held: [], stale: [], conflictWith: [], memo: false, same: true, ms: Date.now() - t0, err: null, mode: 'approve' }) } catch (e) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) }
         return { same: true, id: r0.id, docs: [], note: '같은 것을 이미 저장했다. 다시 쓰지 않았다', warnings: [] }
+      }
+    } else if (un) {
+      // 무인 저장 문(P6) — 조각 모양은 사람 저장과 같은 검사 · forms · kinds 는 받지 않는다(무인 채널은 새 갈래 · 종류를 세우지 않고 규칙 길로 · P-D9)
+      if (input?.forms?.length || input?.kinds?.length) throw new KmdError('E_INPUT', '무인 저장은 갈래 · 종류를 세우지 않는다')
+      if (rec0?.memo === true) throw new KmdError('E_INPUT', '무인 저장은 메모를 남기지 않는다')
+      sectionShapes(input.sections)
+      const k0 = await hub.get(id)
+      input = unattendedTouches(k0, input)
+      r0 = await unattendedSave(ctx, id, meta, input, un, intake, bag)
+      if (r0.same || r0.errors) {
+        cache.delete(id)
+        try { await savelog(id, { ...logLine, rec: r0.id || null, n: Array.isArray(input?.sections) ? input.sections.length : 0, put: 0, held: [], stale: (r0.errors || []).filter((e) => e.stale).map((e) => e.at), conflictWith: [], memo: false, same: !!r0.same, ms: Date.now() - t0, err: r0.errors ? 'unattended' : null, mode: 'approve', ...(r0.errors ? { code: r0.errors.map((e) => e.code) } : {}), ...(un.fix ? { fix: un.fix } : {}), ...(un.conflict ? { conflict: un.conflict } : {}) }) } catch (e) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) }
+        return r0.same ? { same: true, id: r0.id, docs: [], note: '같은 것을 이미 저장했다. 다시 쓰지 않았다', warnings: [] } : { errors: r0.errors, id: null, put: 0, docs: [], warnings: [] }
       }
     } else if (opt.shape) {
       // 걸음 재료(조각 · 걷을 출처 · 자리 장부 줄 · 요약)는 줄 안에서 새로 읽은 지식으로 엔진이 만든다(prepare) — 입력 sections 는 받지 않는다
@@ -1095,7 +1169,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     })
     const put = r0.put ?? r0.docs.length
     // 조각 없이 온 사람 기록은 저절로 메모(S-D3) — 응답 note 로 알린다
-    const note = human
+    const note = un
+      ? `저장했다. 기록 1 · 넣음 ${put}${bag.linked.length ? ` · 글 그대로 이음 ${bag.linked.length}` : ''}${un.rule ? ' · 규칙 길' : ''}${bag.values.length ? ` · 값 대조 ${bag.values.length}` : ''}`
+      : human
       ? `저장했다. 기록 1 · 넣음 ${put}${bag.linked.length ? ` · 글 그대로 이음 ${bag.linked.length}` : ''}${bag.accepted.length ? ` · 받아들인 경고 ${bag.accepted.length}` : ''}`
       : team
       ? r0.memo ? (autoMemo ? '문서는 바꾸지 않았다: 메모로 남겼다(조각이 없다)' : '메모로 남겼다. 문서는 바꾸지 않았다') : `${`저장했다. 기록 1 · 넣음 ${put} · 넣지 못함 ${held.length}`}${namesHeld ? ` · 이름 ${namesHeld} 은 아직 세우지 않았다. 기록에 실어 두었고 지식관리자가 세운다(그 전에는 match 로 찾지 못한다)` : ''}`
@@ -1104,13 +1180,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 측정 줄(S-D29) — conflictWith 는 E_CONFLICT 때만 · 들이기 비용은 S7
       //   ok — 넣은 자리(scripts/savelog.mjs 의 「다시 넣은 비율」 이 같은 자리를 짝짓는다) · held 의 why 는 앞 40자(까닭 상위)
       //   cost — 들이기 일감이면 일꾼이 알린 claude 비용 합 · 횟수(S-D29 · 2-5) · warn — 새 항목을 세우며 이름을 싣지 않았다(names-missing · S-D32)
-      try { await savelog(id, { ...logLine, rec: r0.id, n: Array.isArray(input?.sections) ? input.sections.length : 0, put, ok: proposals.filter((p) => p.applied).map((p) => p.coord), held: held.map((x) => ({ code: x.code, ...(x.coord ? { coord: x.coord } : x.doc ? { coord: `${x.doc}${x.heading ? ` › ${x.heading}` : ''}` } : {}), ...(x.why ? { why: String(x.why).slice(0, 40) } : {}) })), stale: [], conflictWith: [], memo: !!r0.memo, same: false, ms: Date.now() - t0, err: null, cost: intake?.cost || null, ...(intake?.warn?.length ? { warn: intake.warn } : {}), ...(human ? { mode: 'approve', accepted: bag.accepted.map((w) => w.code), linked: bag.linked.length, fresh: bag.fresh.length, rounds: roundsTake(ctx, id) } : {}) }) } catch (e) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) }
+      try { await savelog(id, { ...logLine, rec: r0.id, n: Array.isArray(input?.sections) ? input.sections.length : 0, put, ok: proposals.filter((p) => p.applied).map((p) => p.coord), held: held.map((x) => ({ code: x.code, ...(x.coord ? { coord: x.coord } : x.doc ? { coord: `${x.doc}${x.heading ? ` › ${x.heading}` : ''}` } : {}), ...(x.why ? { why: String(x.why).slice(0, 40) } : {}) })), stale: [], conflictWith: [], memo: !!r0.memo, same: false, ms: Date.now() - t0, err: null, cost: intake?.cost || null, ...(intake?.warn?.length ? { warn: intake.warn } : {}), ...(human ? { mode: 'approve', accepted: bag.accepted.map((w) => w.code), linked: bag.linked.length, fresh: bag.fresh.length, rounds: roundsTake(ctx, id) } : {}), ...(un ? { mode: 'approve', warned: bag.values.map((w) => w.code), linked: bag.linked.length, fresh: bag.fresh.length, ...(un.rule ? { rule: String(un.rule).slice(0, 40) } : {}), ...(un.fix ? { fix: un.fix } : {}), ...(un.conflict ? { conflict: un.conflict } : {}) } : {}) }) } catch (e) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) }
     }
     // 그 사람의 「오늘 바뀐 것」 한 줄 — 본인 줄만(남에게 알리지 않는다 · K-D13)
     const title = input?.record?.title || ''
     const short = title.length > 60 ? title.slice(0, 59) + '…' : title // 「무엇: 어떻게」 의 어떻게(결정 값)를 자르지 않는다(UX T2-09)
-    const line = human
-      ? { kind: 'save', rec: r0.id, kn: id, dot: 'acc', text: `저장: ${meta.name} 「${short}」`, small: `넣음 ${put}${bag.linked.length ? ` · 글 그대로 이음 ${bag.linked.length}` : ''}` }
+    const line = human || un
+      ? { kind: 'save', rec: r0.id, kn: id, dot: 'acc', text: `저장: ${meta.name} 「${short}」`, small: `넣음 ${put}${bag.linked.length ? ` · 글 그대로 이음 ${bag.linked.length}` : ''}${un?.rule ? ' · 규칙 길' : ''}` }
       : team && (put || held.length)
       ? { kind: 'save', rec: r0.id, kn: id, dot: held.length ? 'warn' : 'acc', text: `저장: ${meta.name} 「${short}」`, small: `넣음 ${put} · 넣지 못함 ${held.length}` }
       : !r0.docs.length
@@ -1321,11 +1397,195 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     if (!input.sections.length && !missed.length) missed.push({ code: 'nosec', why: '원래 기록이 들어간 항목을 찾지 못했다' })
     return finish(await hub.save(ctx, id, input, opt(missed)))
   }
+  // ── approve 모드 무인 채널(저장 승인 설계 P6 · 5절 · P-D14 · P-D15 · P-D33 · P-D35 · P-D38) ──
+  //   초안 → 결정적 검사(errors) → FIX 고리(errors 만 방아쇠) → 그래도면 규칙 길 → 늘 기록 + 문서가 한 저장으로 들어간다.
+  //   지문 어긋남은 같은 조각 다시 대기(unattendedPlan) → 다시 대기(새 재료로 한 번 더 짓기) → 규칙 길. 일을 건 사람이 자리를 잃었을 때만 아무것도 쓰지 않는다(Q5).
+  //   일꾼 실패 · 하루 상한 · 24시간 · Claude 에 보내지 않는 지식은 곧바로 규칙 길. 원천은 held/ 에 두지 않는다(원본은 규칙 길 기록에 첨부 · b11)
+  const approveOf = (id) => hub.saveModeOf(id) === 'approve'
+  const costOf = (j) => (j.calls ? { usd: Math.round((j.cost || 0) * 1e4) / 1e4, calls: j.calls } : null)
+  const errWhy = (e) => `${e?.at && !['기록', '저장'].includes(e.at) ? `${e.at}: ` : ''}${e?.why || '검사에 걸렸다'}`.replace(/\s+/g, ' ').slice(0, 300)
+  // 무인 저장 한 번 — 판정 오류 · 저장 문이 던진 입력 오류는 { errors }(아무것도 쓰지 않았다) · 그 밖(저장소 닫힘 · git · 속도)은 던진다
+  async function unattendedPut(ctx, id, input, opt) {
+    try {
+      return await hub.save(ctx, id, input, opt)
+    } catch (e) {
+      if (!(e instanceof KmdError) || !['E_INPUT', 'E_FORMAT', 'E_NOTFOUND', 'E_CONFLICT', 'E_FORBIDDEN'].includes(e.code)) throw e
+      const att = e.code === 'E_CONFLICT' && /첨부/.test(e.message || '')
+      return { errors: [{ code: e.code === 'E_FORMAT' ? 'format' : e.code === 'E_CONFLICT' ? (att ? 'attach' : 'conflict') : 'input', at: '저장', why: e.message, ...(e.code === 'E_CONFLICT' && !att ? { stale: true } : {}) }] }
+    }
+  }
+  // 규칙 길 원본 첨부 — 파일 · 다시 들이기의 원본 바이트(첨부 꼴 · 32MB 안) · 같은 이름의 다른 첨부가 있으면 두지 않는다 · 사람이 고른 첨부(src.attach)는 이미 셌다
+  async function ruleAttach(id, j, bin) {
+    if (!bin?.length || bin.length > ATTACH_MAX_BYTES || !['file', 'again'].includes(j.type)) return null
+    const meta = await hub.meta(id)
+    let rel, full
+    try {
+      rel = j.src?.attach || `docs/assets/${cleanPath(j.src?.rel || j.src?.file || '')}`
+      full = assetPath(meta.dir, rel).full
+    } catch (e) {
+      if (e instanceof KmdError) return null // 첨부로 두지 않는 꼴(md · 글) — 원문은 항목 글에 그대로 있다
+      throw e
+    }
+    const have = await fs.readFile(full).catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
+    if (have && !have.equals(bin)) return null
+    let took = 0
+    if (!j.src?.attach && !have) {
+      try { await attachTake(id, bin.length); took = bin.length } catch (e) { log(`규칙 길 원본 첨부를 하루 합에 넣지 못해 두지 않는다 ${id}: ${e.message}`); return null }
+    }
+    return { path: rel, b64: bin.toString('base64'), took }
+  }
+  // 정정의 규칙 길 조각(P-D33 · P-D35) — 규칙 치환이 된 항목은 그대로 · 남은 항목은 그 항목 글 끝에 정정을 인용으로 덧붙인다
+  function fixQuotes(k, left, src) {
+    const what = src?.from && src?.to ? `${src.from} → ${src.to}` : String(src?.title || '정정').replace(/\s+/g, ' ').slice(0, 200)
+    return left.map((x) => {
+      const sec = k.byDocPath.get(x.doc)?.sections.find((y) => y.h === x.heading)
+      return sec ? { doc: x.doc, heading: x.heading, base: sha16(sec.body), content: `${sec.body.replace(/\s+$/, '')}\n\n> 정정: ${what}` } : null
+    }).filter(Boolean)
+  }
+  function fixRuleInput(k, j, md, why) {
+    const src = j.src || {}
+    const targets = (src.targets || []).map((t) => {
+      const sec = k.byDocPath.get(t.doc)?.sections.find((x) => x.h === t.heading) || null
+      return sec ? { doc: t.doc, heading: t.heading, base: sha16(sec.body), body: sec.body, direct: t.direct !== false } : null
+    }).filter(Boolean)
+    const rule = ruleFix(targets, { from: src.from, to: src.to })
+    const record = heldRecord({ ...src, type: 'fix' }, md)
+    return { record: { ...record, body: `${RULE_MARK}로 넣었다: ${String(why || '').replace(/\s+/g, ' ').slice(0, 200)}\n\n${record.body}` }, sections: [...rule.sections, ...fixQuotes(k, rule.left, src)] }
+  }
+  // 규칙 길 저장(P-D35) — 파일 · 다시 들이기는 갈래 · 「들인 자료」 주제 문서(원본 첨부) · 커밋은 이은 항목 · 기록 모음 달 항목(코드 차이는 항목 글이 아니다) ·
+  //   정정은 fixRuleInput. 규칙 길 글도 못 넣으면(드묾) 기록만 이은 항목 · 기록 모음 달 항목에 잇는다(무인 일은 늘 들어간다) — 그것도 못 하면 { errors }
+  async function rulePut(j, ctx, id, md, bin, why) {
+    const k = await hub.get(id)
+    const src = { ...(j.src || {}), type: j.type }
+    const opt = (rule) => ({ channel: intakeChannel(j), intake: { job: j.id, tags: intakeTagsOf(j), held: [], cost: costOf(j), rule, ...(j.tries ? { fix: j.tries } : {}), ...(j.requeues ? { conflict: j.requeues } : {}) } })
+    let input
+    let took = 0
+    if (j.type === 'fix') input = fixRuleInput(k, j, md, why)
+    else {
+      const r = j.type === 'commit' || !String(md || '').trim() ? null : ruleSections(k, { file: src.rel || src.file || src.title, title: src.title, body: md, date: String(j.at || '').slice(0, 10) }, { home: INTAKE_FORM })
+      const att = r ? await ruleAttach(id, j, bin) : null
+      took = att?.took || 0
+      input = { record: ruleRecord(src, md, { why, line: r ? r.line : (src.touches || []).some((c) => k.vocab.coords.has(String(c).trim().normalize('NFC'))) ? '이은 항목에 잇는다' : `${RECORDS_DOC} 달 항목에 잇는다` }), sections: r ? r.sections : [], ...(att ? { attach: [{ path: att.path, b64: att.b64 }] } : {}) }
+    }
+    let r
+    try {
+      r = await unattendedPut(ctx, id, input, opt(why))
+    } catch (e) {
+      if (took) await giveBack(id, took)
+      throw e
+    }
+    if (r.errors && input.attach) {
+      const { attach: _a, ...rest } = input
+      input = rest
+      if (took) { await giveBack(id, took); took = 0 }
+      r = await unattendedPut(ctx, id, input, opt(why))
+    }
+    if (r.errors && input.sections?.length) {
+      const why2 = `${why} · 규칙 길 글도 넣지 못했다: ${errWhy(r.errors[0])}`.slice(0, 300)
+      log(`규칙 길 글을 넣지 못해 기록만 잇는다 ${id} ${j.id}: ${errWhy(r.errors[0])}`)
+      const record = j.type === 'fix' ? input.record : ruleRecord(src, md, { why: why2, line: `${RECORDS_DOC} 달 항목에 잇는다` })
+      r = await unattendedPut(ctx, id, { record }, opt(why2))
+    }
+    if (took && (r.errors || r.same)) await giveBack(id, took)
+    if (r.errors) log(`무인 일을 넣지 못했다(규칙 길도) ${id} ${j.id}: ${errWhy(r.errors[0])}`)
+    else if (input.attach && !r.same) r.attached = true
+    return r
+  }
+  // 무인 일 닫기 — 들어간 저장(r) · 규칙 길 까닭(rule) → 일감 결과 · 일 줄 · 일꾼 답
+  async function unattendedFinish(j, r, rule = null) {
+    if (r.errors) {
+      const why = `넣지 못했다: ${errWhy(r.errors[0])}`
+      await intakeClose(j, { why, aborted: true, keep: true })
+      return { ok: true, rec: null, put: 0, held: [], aborted: true, why }
+    }
+    const docs = (r.putRows || []).map((x) => `${String(x.doc || '').replace(/^docs\/|\.md$/g, '')} › ${x.heading}`)
+    await intakeClose(j, { rec: r.id, put: r.put ?? 0, same: !!r.same, docs, rule, why: rule ? String(rule).slice(0, 200) : null })
+    return { ok: true, rec: r.id, put: r.put ?? 0, held: [], ...(rule ? { rule: String(rule).slice(0, 200) } : {}), ...(r.same ? { same: true } : {}) }
+  }
+  // 아무것도 쓰지 않고 끝 — 일을 건 사람이 자리를 잃었다(Q5 · 원본은 건 사람 쪽에 남는다) · 진행 탭에 원천 이름과 까닭
+  async function intakeAbort(j, why) {
+    await intakeClose(j, { why, aborted: true })
+    return { ok: true, rec: null, put: 0, held: [], aborted: true, why }
+  }
+  const SEAT_LOST = '일을 건 사람이 이 지식의 쓰기 자리를 잃었다'
+  // 지문 어긋남(P-D38) — 새 재료로 한 번 더 짓게 다시 대기(그 번이 마지막 · 그래도 어긋나면 규칙 길)
+  function intakeRequeue(j, why) {
+    for (const [h, d] of drafts) if (d.job === j.id) drafts.delete(h)
+    Object.assign(j, { state: 'queued', worker: null, requeues: (j.requeues || 0) + 1, tries: INTAKE_FIX, why: '그사이 항목이 바뀌었다: 새 글로 다시 짓는다' })
+    intakeLine(j, 'err', `✗ ${why} · 새 글로 다시 짓는다`)
+    intakeRunWait(j, '그사이 항목이 바뀌었다: 새 글로 다시 짓는다')
+    saveJobs()
+    return { ok: true, requeued: true, put: 0, held: [] }
+  }
+  // 들이기 끝(file · commit · again) — approve 모드
+  async function intakeApprove(j, id, k, g, md, bin, body, last) {
+    const ctx = hub.intakeCtx(j)
+    if (!ctx) return intakeAbort(j, SEAT_LOST)
+    const cost = costOf(j) || { usd: 0, calls: j.calls || 0 }
+    const p = draftToSave(k, g, body?.draft, { measure: true })
+    const fail = async (why, stale = false) => {
+      if (stale && !j.requeues) return intakeRequeue(j, why)
+      if (!last && !stale) { intakeLine(j, 'err', `✗ 검사에 걸렸다: ${why} · 고쳐 쓴다`); saveJobs(); return { fix: why } }
+      const rule = `${stale ? '그사이 항목이 또 바뀌었다' : `${INTAKE_FIX + 1}번 지어도 검사를 넘지 못했다`}: ${why}`.slice(0, 300)
+      intakeLine(j, 'err', `✗ ${rule} · 규칙 길로 넣는다`)
+      return unattendedFinish(j, await rulePut(j, ctx, id, md, bin, rule), rule)
+    }
+    if (!p.ok) return fail(p.why)
+    if (p.held.length) return fail(`${p.held[0].doc ? `${String(p.held[0].doc).replace(/^docs\/|\.md$/g, '')}${p.held[0].heading ? ` › ${p.held[0].heading}` : ''}: ` : ''}${String(p.held[0].why).replace(/: 넣을 곳을 지식관리자가 고른다$/, '')}`)
+    const c = await hub.judgeUnattended(ctx, id, p.input)
+    if (c.same) return unattendedFinish(j, { id: c.id, same: true, put: 0 })
+    if (c.errors.length) return fail(errWhy(c.errors[0]), !!c.errors[0].stale)
+    const sopt = { channel: intakeChannel(j), intake: { job: j.id, tags: intakeTagsOf(j), held: [], cost, warn: p.warn, values: p.values, ...(j.tries > 1 ? { fix: j.tries - 1 } : {}), ...(j.requeues ? { conflict: j.requeues } : {}) } }
+    const input = j.src?.attach && bin ? { ...p.input, attach: [{ path: j.src.attach, b64: bin.toString('base64') }] } : p.input
+    let r = await unattendedPut(ctx, id, input, sopt)
+    // 그사이 같은 이름의 다른 첨부가 생겼다 — 첨부 때문에 글 · 항목까지 막지 않는다(한 번 · 첨부 없이)
+    if (r.errors?.[0]?.code === 'attach' && input !== p.input) { intakeLine(j, 'err', `✗ ${r.errors[0].why}: 원본 첨부 없이 글만 넣는다`); r = await unattendedPut(ctx, id, p.input, sopt) }
+    if (r.errors) return fail(errWhy(r.errors[0]), !!r.errors[0].stale)
+    return unattendedFinish(j, r)
+  }
+  // 정정 끝(type fix) — approve 모드: 규칙 치환 + 일꾼 조각 · 일꾼이 고치지 않은 항목은 정정 인용(규칙 길) · 들어간 항목이 없으면 이은 항목 · 기록 모음 달 항목(P-D33)
+  async function fixApprove(j, id, k, md, body, last) {
+    const ctx = hub.intakeCtx(j)
+    if (!ctx) return intakeAbort(j, SEAT_LOST)
+    const cost = costOf(j) || { usd: 0, calls: j.calls || 0 }
+    const record = heldRecord(j.src, md)
+    const targets = (j.src?.targets || []).map((t) => {
+      const sec = k.byDocPath.get(t.doc)?.sections.find((x) => x.h === t.heading) || null
+      return sec ? { doc: t.doc, heading: t.heading, base: sha16(sec.body), body: sec.body, direct: t.direct !== false } : null
+    }).filter(Boolean)
+    const rule = ruleFix(targets, { from: j.src?.from, to: j.src?.to })
+    const ruleOut = async (why) => {
+      intakeLine(j, 'err', `✗ ${why} · 규칙 길로 넣는다`)
+      return unattendedFinish(j, await rulePut(j, ctx, id, md, null, why), why)
+    }
+    const w = fixDraftToSections(rule.left, j.seen, body?.draft)
+    if (!w.ok) {
+      if (!last) { intakeLine(j, 'err', `✗ 검사에 걸렸다: ${w.why} · 고쳐 쓴다`); saveJobs(); return { fix: w.why } }
+      return ruleOut(`${INTAKE_FIX + 1}번 지어도 검사를 넘지 못했다: ${w.why}`.slice(0, 300))
+    }
+    const missed = rule.left.filter((x) => !w.sections.some((y) => y.doc === x.doc && y.heading === x.heading))
+    const sections = [...rule.sections, ...w.sections, ...fixQuotes(k, missed, j.src)]
+    const why = missed.length ? `팀 일꾼이 고치지 않은 항목은 정정을 인용으로 덧붙였다: ${missed.slice(0, 3).map((x) => x.heading).join(' · ')}` : !sections.length ? '원래 기록이 들어간 항목을 찾지 못했다: 이은 항목에 잇는다' : null
+    const input = { record: why ? { ...record, body: `${RULE_MARK}로 넣었다: ${why}\n\n${record.body}` } : record, sections }
+    const sopt = { channel: intakeChannel(j), intake: { job: j.id, tags: intakeTagsOf(j), held: [], cost, ...(why ? { rule: why } : {}), ...(j.tries > 1 ? { fix: j.tries - 1 } : {}) } }
+    if (!last && w.sections.length) {
+      const c = await hub.judgeUnattended(ctx, id, input, { rule: !!why })
+      if (c.errors[0]?.stale && !j.requeues) return intakeRequeue(j, errWhy(c.errors[0]))
+      if (c.errors.length && !c.errors[0].stale) { const e = errWhy(c.errors[0]); intakeLine(j, 'err', `✗ 검사에 걸렸다: ${e} · 고쳐 쓴다`); saveJobs(); return { fix: e } }
+    }
+    const r = await unattendedPut(ctx, id, input, sopt)
+    if (r.errors?.[0]?.stale && !j.requeues) return intakeRequeue(j, errWhy(r.errors[0]))
+    if (r.errors) return ruleOut(`${r.errors[0].stale ? '그사이 항목이 또 바뀌었다' : '검사를 넘지 못했다'}: ${errWhy(r.errors[0])}`.slice(0, 300))
+    return unattendedFinish(j, r, why)
+  }
+
   // 일감 닫기 — 원천 파일을 걷고(held 는 위에서 옮겼다) · 결과 · 가져오기 일 줄에 한 줄
-  async function intakeClose(j, { rec = null, put = 0, held = 0, same = false, why = null, docs = [] }) {
-    Object.assign(j, { state: 'done', done: new Date().toISOString(), worker: null, result: { rec, put, held, ...(same ? { same: true } : {}), ...(docs.length ? { docs: docs.slice(0, 20) } : {}) }, ...(why ? { why } : {}) })
-    for (const p of [intakeMdOf(j.id), binOf(j.id)]) await fs.rm(p, { force: true }).catch((e) => log('들이기 원천 걷기', j.id, e.message))
-    intakeLine(j, held ? 'err' : 'ok', same ? '같은 것을 이미 들였다' : `넣음 ${put}${docs.length ? `: ${docs.slice(0, 3).join(' · ')}` : ''}${held ? ` · 넣지 못함${why ? `: ${why}` : ''}` : ''}${rec ? ` · 기록 ${rec}` : ''}`)
+  //   rule — 규칙 길로 들어갔다(그 까닭 · approve 모드 · P6) · aborted — 아무것도 쓰지 않고 끝났다(일을 건 사람이 자리를 잃음 · Q5)
+  //   keep — 원천을 걷지 않는다(규칙 길까지 못 넣음 · 일감은 못함 failed · 장부에서 빠질 때 saveJobs 가 걷는다)
+  async function intakeClose(j, { rec = null, put = 0, held = 0, same = false, why = null, docs = [], rule = null, aborted = false, keep = false }) {
+    Object.assign(j, { state: keep ? 'failed' : 'done', done: new Date().toISOString(), worker: null, result: { rec, put, held, ...(same ? { same: true } : {}), ...(docs.length ? { docs: docs.slice(0, 20) } : {}), ...(rule ? { rule: String(rule).slice(0, 200) } : {}), ...(aborted ? { aborted: true } : {}) }, ...(why ? { why } : {}) })
+    if (!keep) for (const p of [intakeMdOf(j.id), binOf(j.id)]) await fs.rm(p, { force: true }).catch((e) => log('들이기 원천 걷기', j.id, e.message))
+    intakeLine(j, held || aborted ? 'err' : 'ok', aborted ? `아무것도 쓰지 않았다: ${why || '까닭을 모른다'}` : same ? '같은 것을 이미 들였다' : `${rule ? '규칙 길로 ' : ''}넣음 ${put}${docs.length ? `: ${docs.slice(0, 3).join(' · ')}` : ''}${rule ? ` · 까닭: ${rule}` : ''}${held ? ` · 넣지 못함${why ? `: ${why}` : ''}` : ''}${rec ? ` · 기록 ${rec}` : ''}`)
     intakeRunEnd(j)
     saveJobs()
     // 넣지 못함으로 끝났다(S10 · K8-2) — 일감을 만든 사람에게 알림 한 줄(가져올 곳 · 문서 폴더의 kmd 는 넣지 못함 목록이 맡는다)
@@ -1358,8 +1618,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       Object.assign(run, {
         rec: r.rec || null,
         docs: (r.docs || []).map((x) => x.split(' › ')[0]).filter((x, i, a) => a.indexOf(x) === i),
-        state: r.held ? 'fail' : 'done',
-        msg: r.same ? '같은 것을 이미 들였다' : r.held ? `넣지 못함: ${j.why || '까닭은 기록에 있다'}` : `넣음: ${(r.docs || []).slice(0, 3).join(' · ') || `항목 ${r.put || 0}`}`,
+        state: r.held || r.aborted ? 'fail' : 'done',
+        ...(r.rule ? { rule: r.rule } : {}),
+        msg: r.aborted ? `아무것도 쓰지 않았다: ${j.why || '까닭을 모른다'}` : r.same ? '같은 것을 이미 들였다' : r.held ? `넣지 못함: ${j.why || '까닭은 기록에 있다'}` : `${r.rule ? '규칙 길로 ' : ''}넣음: ${(r.docs || []).slice(0, 3).join(' · ') || `항목 ${r.put || 0}`}`,
       })
     }
     hub.runSave(run)
@@ -1773,6 +2034,21 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
     },
 
+    // 무인 판정만(저장 승인 P6) — approve 모드 무인 채널의 FIX 고리 · 다시 대기 판정. 줄 안에서 새로 읽은 지식으로 무인 저장과 같은 판정(쓰지 않는다)
+    //   → { same, id } | { errors: [{ code, at, why, stale? }], warnings }
+    async judgeUnattended(ctx, id, input, { rule = false } = {}) {
+      const meta = await hub.meta(id)
+      try { sectionShapes(input?.sections) } catch (e) { if (e instanceof KmdError) return { errors: [{ code: 'input', at: '조각', why: e.message }], warnings: [] }; throw e }
+      if (!files.has(id)) files.set(id, new Map())
+      return serial(path.resolve(meta.dir), async () => {
+        await recoverSave(meta.dir)
+        const k = await loadKnowledge(meta, { cache: files.get(id), cutoverAt: config.cutoverAt || null, team: mode === 'team' })
+        const s = sameKey(k, input?.record, ctx.user, { approve: true })
+        if (s) return { same: true, id: s, errors: [], warnings: [] }
+        const u = unattendedPlan(k, unattendedTouches(k, input || {}), { rule, name: meta.name })
+        return { errors: u.errors, warnings: u.p.warnings }
+      })
+    },
     // 판정만(S-D20 · 들이기 고쳐 쓰기) — 줄 안에서 prepare 만 돌고 쓰지 않는다 · 팀만
     async checkSave(ctx, id, input, opt = {}) {
       const asIntake = !!(opt.intake && ctx?.intake)
@@ -2780,6 +3056,22 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const record = fixRecordOf(w, { title, body, from: f || null, to: t || null })
       const targets = targetsOf(k, w.id)
       const rule = ruleFix(targets, { from: f, to: t })
+      // approve 모드(저장 승인 P6 · P-D33) — 정정은 무인 채널 규칙: 넣지 못함 · 고르기 기다림 없이 들어간다
+      //   들어간 항목이 없으면 원 기록의 건드린 이름 항목에 잇고(없으면 기록 모음 달 항목) · 규칙 치환이 저장 문에 걸리면 그 항목 끝에 정정을 인용으로(규칙 길)
+      if (approveOf(id) && !rule.left.length) {
+        const put1 = async (input, why) => {
+          const r = await unattendedPut(ctx, id, why ? { ...input, record: { ...input.record, body: `${RULE_MARK}로 넣었다: ${why}\n\n${input.record.body}` } } : input, { channel: 'fix', unattended: why ? { rule: why } : {} })
+          return r
+        }
+        let why = rule.sections.length ? null : '원래 기록이 들어간 항목을 찾지 못했다: 이은 항목에 잇는다'
+        let r = await put1({ record, sections: rule.sections }, why)
+        if (r.errors && rule.sections.length) {
+          why = `규칙 치환이 검사에 걸렸다: ${errWhy(r.errors[0])}`.slice(0, 300)
+          r = await put1({ record, sections: fixQuotes(k, rule.sections, { from: f, to: t, title: record.title }) }, why)
+        }
+        if (r.errors) throw new KmdError('E_INPUT', `정정을 넣지 못했다(아무것도 쓰지 않았다): ${errWhy(r.errors[0])}`)
+        return { id: r.id, put: r.put ?? 0, held: 0, ...(why ? { rule: why } : {}) }
+      }
       // 들어간 항목이 없다 — 정정 기록만 + 넣지 못함(지식관리자가 넣을 곳을 고른다)
       if (!rule.sections.length && !rule.left.length) {
         const why = '원래 기록이 들어간 항목을 찾지 못했다'
@@ -2799,7 +3091,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 같은 기록의 정정을 팀 일꾼이 이미 하고 있다 — 이번 입력은 받지 않았다(받은 척하지 않는다)
       if (o.again) throw new KmdError('E_CONFLICT', '이 기록의 정정을 팀 일꾼이 이미 하고 있다. 끝난 뒤 다시 고친다')
       if (o.state === 'queued') return { job: o.job, put: 0, held: 0, left: rule.left.length }
-      return { id: o.rec || null, put: 0, held: o.state === 'held' ? 1 : 0, ...(o.why ? { why: o.why } : {}) }
+      if (o.state === 'aborted') throw new KmdError('E_FORBIDDEN', o.why)
+      return { id: o.rec || null, put: o.put ?? 0, held: o.state === 'held' ? 1 : 0, ...(o.state === 'rule' ? { rule: o.why } : {}), ...(o.why ? { why: o.why } : {}) }
     },
     // 되돌리기 — 그 기록이 넣은 항목을 넣기 전 글로(설계 3-4 · S-D13 · S-D14 · S-D53)
     //   { record } 만이면 통째로(판정도 거둔다 · reopens) · { record, doc, heading? } 면 그 항목만(reopens 없이 · 원 기록은 남은 항목이 있으면 「들어감」)
@@ -3575,7 +3868,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           const r = await hub.heldAgain(ctx, id, w.id, { bulk: true })
           if (r.again) open++
           else if (r.state === 'queued') jobs++
-          else if (r.state === 'held') held++
+          else if (r.state === 'held' || r.state === 'rule' || r.state === 'aborted') held++
         } catch (e) {
           if (e.code === 'E_RATE') { stop = e.message; break }
           if (e.code === 'E_NOTFOUND') continue // 그사이 들어갔다 · 바로잡혔다
@@ -3648,7 +3941,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (open) return { state: 'queued', job: open.id, again: true }
       const base = { id: crypto.randomBytes(6).toString('hex'), kn: id, kind: 'intake', type, key, by, auto: !!auto, at: new Date().toISOString(), src: { ...src, type }, tries: 0, leases: 0, cost: 0, calls: 0, ...(qj ? { qj } : {}) }
       // Claude 에 보내지 않는 지식 — 일감을 세우지 않고 기록만 + 넣지 못함(S-D22)
-      if (rowFor(id)?.noClaude) return hub.intakeHeld(base, md, bin, 'noclaude', 'Claude 에 보내지 않는 지식: 기록만 남겼다')
+      if (rowFor(id)?.noClaude) return hub.intakeHeld(base, md, bin, 'noclaude', approveOf(id) ? 'Claude 에 보내지 않는 지식: 규칙 길로 넣었다' : 'Claude 에 보내지 않는 지식: 기록만 남겼다')
       // 사람마다 기다리는 수(가져올 곳 · 문서 폴더는 세지 않는다) · 지식마다 하루 수(S-D47 — 팀 구독 비용의 경계)
       if (by !== 'kmd' && !bulk) {
         const cap = config.intakeQueue ?? 20
@@ -3658,7 +3951,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const n0 = intakeDay[id]?.day === day ? intakeDay[id].n : 0
       const dcap = config.intakeDaily ?? 300
       if (n0 >= dcap) {
-        if (auto) return hub.intakeHeld(base, md, bin, 'worker', `오늘 들이기 수(${dcap})를 넘었다: 기록만 남겼다`)
+        if (auto || (approveOf(id) && type !== 'polish')) return hub.intakeHeld(base, md, bin, 'worker', approveOf(id) ? `오늘 들이기 수(${dcap})를 넘었다: Claude 없이 규칙 길로 넣었다` : `오늘 들이기 수(${dcap})를 넘었다: 기록만 남겼다`)
         throw new KmdError('E_RATE', `이 지식의 오늘 들이기 수(${dcap})를 넘었다. 내일 다시 보낸다`, { details: { retryAfter: 3600 } })
       }
       intakeDay = { ...Object.fromEntries(Object.entries(intakeDay).filter(([, v]) => v.day === day)), [id]: { day, n: n0 + 1 } }
@@ -3704,6 +3997,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     userOf: (u) => ({ id: u }), // 사람 명부 — http 가 auth 로 바꿔 끼운다(hub 만 쓰는 시험은 있는 사람으로)
     // 기록만 + 넣지 못함 — 원천 앞 2000자와 지문(S-D50) · 원천은 held/ 에 남긴다 · 같은 일감 기록이 이미 있으면 same(S-D48)
     async intakeHeld(j, md, bin, code, why) {
+      if (approveOf(j.kn) && j.type !== 'polish') {
+        const ctx = hub.intakeCtx(j)
+        if (!ctx) return { state: 'aborted', why: SEAT_LOST }
+        const r = await rulePut(j, ctx, j.kn, md, bin, why)
+        if (r.errors) return { state: 'aborted', why: `넣지 못했다: ${errWhy(r.errors[0])}` }
+        return r.same ? { state: 'same', rec: r.id } : { state: 'rule', rec: r.id, why, put: r.put ?? 0, ...(r.attached ? { attached: true } : {}) }
+      }
       const ctx = j.by === 'kmd' ? { user: 'kmd', intake: true } : { user: j.by, intake: true }
       const r = await hub.save(ctx, j.kn, { record: heldRecord(j.src, md, { why }) }, { channel: intakeChannel(j), intake: { job: j.id, tags: intakeTagsOf(j), held: [{ code, why }], cost: j.calls ? { usd: Math.round(j.cost * 1e4) / 1e4, calls: j.calls } : null } })
       if (r.same) return { state: 'same', rec: r.id }
@@ -3718,6 +4018,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       const md = await fs.readFile(intakeMdOf(j.id), 'utf8').catch((e) => (e.code === 'ENOENT' ? '' : Promise.reject(e)))
       const bin = await fs.readFile(binOf(j.id)).catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
+      // approve 모드(P6) — 일꾼 실패 · 24시간 · Claude 에 보내지 않음은 곧바로 규칙 길 · 일을 건 사람이 자리를 잃었으면 아무것도 쓰지 않는다
+      if (approveOf(j.kn)) {
+        const ctx = hub.intakeCtx(j)
+        const out = ctx ? await unattendedFinish(j, await rulePut(j, ctx, j.kn, md, bin, why), why) : await intakeAbort(j, SEAT_LOST)
+        return out.aborted ? { state: 'aborted', why: out.why } : out.same ? { state: 'same', rec: out.rec } : { state: 'rule', rec: out.rec, why }
+      }
       const r = await hub.intakeHeld(j, md, bin, code, why)
       await intakeClose(j, { rec: r.rec, put: 0, held: r.state === 'held' ? 1 : 0, same: r.state === 'same', why })
       return r
@@ -3729,8 +4035,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       //   기다리는 사이 켜졌으면 임대를 돌리지 않고 바로 기록만 + 넣지 못함(noclaude)
       if (rowFor(id)?.noClaude) {
         j.state = 'closing'
-        await hub.intakeGiveUp(j, 'noclaude', 'Claude 에 보내지 않는 지식: 기록만 남겼다').catch((e) => { Object.assign(j, { state: 'queued', worker: null }); log('들이기 일감 닫기', j.id, e.message) })
-        throw new KmdError('E_FORBIDDEN', '이 지식은 Claude 에 보내지 않는다: 기록만 남겼다')
+        const ap = approveOf(id)
+        await hub.intakeGiveUp(j, 'noclaude', ap ? 'Claude 에 보내지 않는 지식: 규칙 길로 넣었다' : 'Claude 에 보내지 않는 지식: 기록만 남겼다').catch((e) => { Object.assign(j, { state: 'queued', worker: null }); log('들이기 일감 닫기', j.id, e.message) })
+        throw new KmdError('E_FORBIDDEN', ap ? '이 지식은 Claude 에 보내지 않는다: 규칙 길로 넣었다' : '이 지식은 Claude 에 보내지 않는다: 기록만 남겼다')
+      }
+      // approve 모드(P6 · Q5) — 일을 건 사람이 그사이 자리를 잃었으면 Claude 에 보내지 않고 아무것도 쓰지 않고 닫는다
+      if (approveOf(id) && j.type !== 'polish' && !hub.intakeCtx(j)) {
+        await intakeAbort(j, SEAT_LOST)
+        throw new KmdError('E_FORBIDDEN', SEAT_LOST)
       }
       // 그만두기를 눌렀다 — 쓰지 않고 닫는다
       if (j.stop) {
@@ -3783,9 +4095,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const bin = await fs.readFile(binOf(j.id)).catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
       cache.delete(id)
       const k = await hub.get(id)
-      if (j.type === 'fix') return fixDone(j, id, k, md, body, last)
+      if (j.type === 'fix') return approveOf(id) ? fixApprove(j, id, k, md, body, last) : fixDone(j, id, k, md, body, last)
       if (j.type === 'polish') return polishDone(j, id, k, body, last)
       const g = intakeG(k, j, md, { seen: j.seen })
+      // approve 모드(저장 승인 P6) — 넣지 못함 없이: FIX(errors 만) → 다시 대기 → 규칙 길 · 값은 측정만
+      if (approveOf(id)) return intakeApprove(j, id, k, g, md, bin, body, last)
       const ctx = hub.intakeCtx(j)
       const cost = { usd: Math.round((j.cost || 0) * 1e4) / 1e4, calls: j.calls }
       const finish = async (r) => {
@@ -3837,9 +4151,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       j.calls = (j.calls || 0) + 1
       j.tries = (j.tries || 0) + 1
-      if (j.tries < INTAKE_FIX + 1) { saveJobs(); return { ok: true, retry: true } }
+      if (j.tries < INTAKE_FIX + 1 && !(approveOf(id) && j.type !== 'polish')) { saveJobs(); return { ok: true, retry: true } }
       const r = await hub.intakeGiveUp(j, 'claude', `팀 일꾼이 초안을 받지 못했다: ${why || code}`)
-      return { ok: true, rec: r.rec, held: r.state === 'held' ? 1 : 0 }
+      return { ok: true, rec: r.rec || null, held: r.state === 'held' ? 1 : 0, ...(r.state === 'rule' ? { rule: r.why } : {}), ...(r.state === 'aborted' ? { aborted: true } : {}) }
     },
     async workerStatus(wctx, { ok = true, reason = null, message = null } = {}) {
       const prev = await fs.readFile(path.join(dataDir, 'worker.json'), 'utf8').then(JSON.parse, () => ({}))
@@ -4050,7 +4364,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       if (j.rows.length > 2000) j.rows.splice(0, j.rows.length - 2000)
       const c = (k) => j.rows.filter((x) => x.kind === k).length
-      j.msg = `받았다 ${j.sent}/${j.total || j.sent} · ${mode === 'team' ? `팀 일꾼에게 넘김 ${c('run')}${c('held') ? ` · 넣지 못함 ${c('held')}` : ''}` : `문서 ${c('doc')} · 기록 ${c('record')} · Claude 일 ${c('run')}`} · 첨부 ${c('att')}${c('same') ? ' · 그대로 ' + c('same') : ''}${c('fail') ? ' · 못 넣음 ' + c('fail') : ''}${c('skip') ? ' · 읽지 못하는 종류 ' + c('skip') : ''}`
+      j.msg = `받았다 ${j.sent}/${j.total || j.sent} · ${mode === 'team' ? `팀 일꾼에게 넘김 ${c('run')}${c('rule') ? ` · 규칙 길로 넣음 ${c('rule')}` : ''}${c('held') ? ` · 넣지 못함 ${c('held')}` : ''}` : `문서 ${c('doc')} · 기록 ${c('record')} · Claude 일 ${c('run')}`} · 첨부 ${c('att')}${c('same') ? ' · 그대로 ' + c('same') : ''}${c('fail') ? ' · 못 넣음 ' + c('fail') : ''}${c('skip') ? ' · 읽지 못하는 종류 ' + c('skip') : ''}`
       Q.line(j, c('fail') ? 'err' : 'ok', j.msg)
       if (last || (j.total && j.sent >= j.total)) { j.uploaded = true; if (j.state !== 'pause') Q.mark(j, STAGE_PUT) }
       hub.groupCheck(j)
@@ -4095,8 +4409,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (!ks.has(t.kn) || t.kind !== 'intake' || runOfJob(t)) continue
         const state = t.state === 'running' && t.stop ? 'pausing' : { queued: 'wait', running: 'run', closing: 'run', failed: 'fail', cancelled: 'cancel' }[t.state] || 'done'
         const r = t.result || {}
-        const sum = r.same ? '같은 것을 이미 들였다' : t.result ? `넣음 ${r.put || 0}${r.held ? ` · 넣지 못함 ${r.held}` : ''}` : ''
-        items.push({ held: r.held || 0, id: 't:' + t.id, kind: 'intake', origin: t.by === 'kmd' ? 'kmd' : 'person', kn: t.kn, knName: ks.get(t.kn), title: `${INTAKE_TITLE[t.type] || '들이기'}: ${String(t.src?.title || t.src?.doc || t.src?.rel || t.src?.rec || '').slice(0, 80)}`, by: t.by || 'kmd', auto: t.auto ? 'src' : null, state, stage: STAGE_WRITE, stages: [{ state: 'skip' }, { state: 'skip' }, { state: state === 'cancel' ? 'cancel' : state }, { state: 'skip' }], order: 1e9, at: t.at, startedAt: t.at, endedAt: t.done || null, msg: t.state === 'running' && t.stop ? `그만두는 중: ${t.stop.by}` : t.state === 'queued' ? (t.why || '팀 일꾼을 기다린다') : t.state === 'running' ? '팀 일꾼이 짓는 중' : sum || t.why || '', ...(r.rec ? { rec: r.rec } : {}), n: 0, fin: !['queued', 'running', 'closing'].includes(t.state), retry: false })
+        const sum = r.aborted ? `아무것도 쓰지 않았다: ${t.why || '까닭을 모른다'}` : r.same ? '같은 것을 이미 들였다' : t.result ? `${r.rule ? '규칙 길로 ' : ''}넣음 ${r.put || 0}${(r.docs || []).length ? `: ${r.docs.slice(0, 2).join(' · ')}` : ''}${r.held ? ` · 넣지 못함 ${r.held}` : ''}` : ''
+        items.push({ held: r.held || 0, ...(r.rule ? { rule: r.rule } : {}), ...(r.aborted ? { aborted: true } : {}), ...((r.docs || []).length ? { docs: [...new Set(r.docs.map((x) => String(x).split(' › ')[0]))].slice(0, 5) } : {}), id: 't:' + t.id, kind: 'intake', origin: t.by === 'kmd' ? 'kmd' : 'person', kn: t.kn, knName: ks.get(t.kn), title: `${INTAKE_TITLE[t.type] || '들이기'}: ${String(t.src?.title || t.src?.doc || t.src?.rel || t.src?.rec || '').slice(0, 80)}`, by: t.by || 'kmd', auto: t.auto ? 'src' : null, state: r.aborted ? 'fail' : state, stage: STAGE_WRITE, stages: [{ state: 'skip' }, { state: 'skip' }, { state: state === 'cancel' ? 'cancel' : r.aborted ? 'fail' : state }, { state: 'skip' }], order: 1e9, at: t.at, startedAt: t.at, endedAt: t.done || null, msg: t.state === 'running' && t.stop ? `그만두는 중: ${t.stop.by}` : t.state === 'queued' ? (t.why || '팀 일꾼을 기다린다') : t.state === 'running' ? '팀 일꾼이 짓는 중' : sum || t.why || '', ...(r.rec ? { rec: r.rec } : {}), n: 0, fin: !['queued', 'running', 'closing'].includes(t.state), retry: false })
       }
       let worker = null
       if (mode === 'team') {
@@ -4719,9 +5033,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           continue
         }
         // 새 일감이 아니다(같은 것 · 넣지 못함 · 이미 들이는 중) — 이번 첨부는 쓰지 않는다
-        if (took && !(r.state === 'queued' && !r.again)) await giveBack(id, took)
+        if (took && !(r.state === 'queued' && !r.again) && !(r.state === 'rule' && r.attached)) await giveBack(id, took)
         if (r.state === 'same') { row('same', '같은 파일: 그대로 두었다', r.rec ? { rec: r.rec } : {}); continue }
         if (r.state === 'held') { row('held', `넣지 못함: ${r.why}`, { rec: r.rec }); continue }
+        // approve 모드(P6) — Claude 에 보내지 않는 지식 · 하루 상한은 규칙 길로 곧바로 들어갔다 · 자리를 잃었으면 쓰지 않았다
+        if (r.state === 'rule') { row('rule', `규칙 길로 넣음: ${r.why}`, { rec: r.rec }); continue }
+        if (r.state === 'aborted') { row('fail', r.why); continue }
         if (r.again) { row('same', '같은 파일을 팀 일꾼이 이미 들이는 중이다'); continue }
         // 일 줄 — 수집 · 검토는 끝났다 · 「짓기」 앞에서 팀 일꾼을 기다린다
         const run = hub.newRun(id, { title: path.posix.basename(rel), file: rel, by: ctx.user, quiet: files.length > 1, parent: gj?.id })
@@ -4760,7 +5077,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       const s = summary(rows)
       const bad = rows.filter((x) => x.kind === 'fail' || x.kind === 'held')
-      if (rows.some((x) => x.kind !== 'same')) await feed.add(dataDir, ctx.user, { kind: 'import', kn: id, dot: bad.length ? 'warn' : 'acc', text: `파일 ${rows.length}개 가운데 ${rows.filter((x) => !['fail', 'held', 'same', 'skip'].includes(x.kind)).length}개를 넣었다: ${meta.name}`, small: [s.run ? `팀 일꾼에게 넘김 ${s.run}` : '', s.att ? `첨부 ${s.att}` : '', s.held ? `넣지 못함 ${s.held}` : '', s.fail ? `못 넣음 ${s.fail}: ${rows.filter((x) => x.kind === 'fail').slice(0, 3).map((x) => `${x.name}: ${x.msg}`).join(' · ')}` : '', s.skip ? `넣지 않음 ${s.skip}` : ''].filter(Boolean).join(' · ') }).catch((e) => log('이력 줄', id, e.message))
+      if (rows.some((x) => x.kind !== 'same')) await feed.add(dataDir, ctx.user, { kind: 'import', kn: id, dot: bad.length ? 'warn' : 'acc', text: `파일 ${rows.length}개 가운데 ${rows.filter((x) => !['fail', 'held', 'same', 'skip'].includes(x.kind)).length}개를 넣었다: ${meta.name}`, small: [s.run ? `팀 일꾼에게 넘김 ${s.run}` : '', s.rule ? `규칙 길로 넣음 ${s.rule}` : '', s.att ? `첨부 ${s.att}` : '', s.held ? `넣지 못함 ${s.held}` : '', s.fail ? `못 넣음 ${s.fail}: ${rows.filter((x) => x.kind === 'fail').slice(0, 3).map((x) => `${x.name}: ${x.msg}`).join(' · ')}` : '', s.skip ? `넣지 않음 ${s.skip}` : ''].filter(Boolean).join(' · ') }).catch((e) => log('이력 줄', id, e.message))
       if (gj) hub.groupAdd(gj, rows, files.length, !!group.last)
       return { direct: hub.saveModeOf(id) === 'approve' ? hub.canSave(ctx, id) : hub.canDirect(ctx, id), summary: s, rows, ...(gj ? { group: gj.id } : {}) }
     },

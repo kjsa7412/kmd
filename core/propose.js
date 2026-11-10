@@ -145,7 +145,8 @@ export function proposalHash(x) {
 //     되돌림 잦은 문서(opt.reverts(doc) ≥ 2)의 값 바꿈은 경고(reverts) · 새 문서 갈래는 같은 제안의 forms 까지 본다(P-D9)
 //   → 더해 linked([{ doc, heading }] 글 그대로 이은 항목) · fresh([{ kind, name }] 새로 세운 것)
 //   opt.curator — 지식관리자(approve 모드에서 있는 이름 · 갈래의 장부 고침을 받는다 · 「장부 고침」 줄)
-export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [], head = {}, extraErrors = [], approve = false, reverts = null, month = null, curator = false } = {}) {
+//   opt.intakeDoc — 무인 채널(P6)만: 서버 고정 갈래 「들인 자료」 아래 새 문서를 연다(core/guard.js guardNewDoc)
+export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [], head = {}, extraErrors = [], approve = false, reverts = null, month = null, curator = false, intakeDoc = false } = {}) {
   const rec = input.record && typeof input.record === 'object' ? input.record : {}
   const record = { title: String(rec.title || ''), body: String(rec.body || '') }
   const secs = Array.isArray(input.sections) ? input.sections : []
@@ -188,7 +189,7 @@ export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [
       const heading = String(s.heading ?? '').trim().normalize('NFC')
       if (!newDoc) { err('newdoc', where, `「${rel}」 문서가 없다. 새 문서는 지식관리자가 세운다(you.ledgers) · 있는 문서 · 머리로 가리킨다`); continue }
       if (typeof s.content !== 'string') { err('newdoc', where, '새 문서 조각은 글 전체(content)로 보낸다'); continue }
-      const g = guardNewDoc(formsNow, rel, [heading])
+      const g = guardNewDoc(formsNow, rel, [heading], { intake: intakeDoc })
       for (const e of g.errors) err('format', where, e.message)
       const name = rel.split('/').pop()
       const r = nearOf(k.docs.flatMap((d) => [d.id.split('/').pop(), d.title]), name)

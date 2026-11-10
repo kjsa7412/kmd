@@ -19,7 +19,7 @@
 //   asEdit    edit 태그 하나를 받는다(사람의 화면 고치기) · structure — 항목 지우기 · 이름 바꾸기를 받는다(지식관리자 화면 고치기)
 //   correction 좌표정정(touches-fix) 판정을 건너뛴다(서버가 정한 다시 저장) · onCommit — 커밋 뒤 줄을 놓기 전에(던져도 log 만)
 //   partial · intake 저장은 넣은 항목을 기록 끝 `## 넣은 것`(태그 put) · 못 넣은 조각을 `## 넣지 못함`(태그 held) 칸으로 남긴다(core/parts.js)
-//   approve   { accepted, linked, fresh } — approve 모드 저장 문(저장 승인 설계 P3 · hub saveIn 만 단다): 넣지 못함 없이 들어감 하나(태그 put ·
+//   approve   { accepted, values?, linked, fresh } — approve 모드 저장 문(무인 채널은 intake 와 같이 · values = `## 값 대조` · P6)(저장 승인 설계 P3 · hub saveIn 만 단다): 넣지 못함 없이 들어감 하나(태그 put ·
 //             `## 넣은 것` · 글 그대로 이은 항목 `## 이은 항목` · 승인한 경고 `## 받아들인 경고` · 새로 세운 것 `## 새로 세움` · core/parts.js)
 //   record.memo — 메모(태그 memo · 항목 글을 받지 않는다) · input.attach — docs/assets/ 아래 첨부(같은 저널 · 같은 커밋)
 //   shape     { tags } — 문서 짜임의 글 걸음(바탕 세우기 설계 4-3 · hub.shapeStep 만 단다). 저장 문이 붙이는 예약 태그(shape · shape-done · shape/<work>/<n>) ·
@@ -45,7 +45,7 @@ import { watchedOf } from './watchmark.js'
 import { upsertVocab, upsertRegistry, cleanNames, upsertPatternRow, upsertForms, cleanForms, placeExact } from './namebook.js'
 import { guardRecord, guardNames, guardNewDoc, formsOf, EMPTY_MAX } from './guard.js'
 import { valuesOf, valueDiff } from './values.js'
-import { renderPut, renderHeld, renderAccepted, renderLinked, renderFresh, KMD_PART_RE } from './parts.js'
+import { renderPut, renderHeld, renderAccepted, renderValues, renderLinked, renderFresh, KMD_PART_RE } from './parts.js'
 import { RECORDS_DOC_PATH } from './guard.js'
 
 const DATE = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/
@@ -237,7 +237,8 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
   if (prepare != null && typeof prepare !== 'function') fail('E_INPUT', 'prepare 는 함수다')
   //   marks — approve 모드 지식의 화면 고치기(넣지 못함 없이 · 못 넣으면 오류)도 넣은 것 칸 · put 표지(저장 승인 P5)
   const fresh = !!(prepare || partial || intake || approve || marksIn) // 새 저장 문 — 항목 수를 센다
-  if (approve != null && (typeof approve !== 'object' || partial || intake || shape)) fail('E_INPUT', 'approve 저장은 넣지 못함 · 들이기 · 짜임과 같이 쓰지 않는다')
+  //   approve + intake — 무인 채널(저장 승인 P6 · 들이기 · 가져올 곳 · 정정)도 approve 저장 문이다(넣지 못함 없이 · 값 경고는 `## 값 대조` · 측정만)
+  if (approve != null && (typeof approve !== 'object' || partial || shape)) fail('E_INPUT', 'approve 저장은 넣지 못함 · 짜임과 같이 쓰지 않는다')
   const secs0 = check(input, { system, many: fresh && !system })
   // 예약 태그 — 입력으로는 받지 않는다(저장 문이 붙이는 것은 아래 serverTags) · asEdit 은 edit 하나만
   const bad = (input.record.tags || []).filter(isReservedTag).filter((t) => !(asEdit && String(t).trim() === 'edit'))
@@ -273,7 +274,8 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
     if (prepare) {
       prep = (await prepare()) || {}
       // 같은 저장(S-D16 · S-D48) — 아무것도 쓰지 않는다
-      if (prep.abort) return { same: !!prep.abort.same, id: prep.abort.id ?? null }
+      //   무인 채널(P6)의 판정 오류 — 아무것도 쓰지 않고 오류를 돌려준다(부른 쪽이 FIX 고리 · 규칙 길로)
+      if (prep.abort) return { same: !!prep.abort.same, id: prep.abort.id ?? null, ...(Array.isArray(prep.abort.errors) ? { errors: prep.abort.errors } : {}) }
       if (prep.sections != null) {
         const g = guardSections(sectionShape(prep.sections, { many: !system }), { system, structure, partial })
         if (input.record.memo === true && g.secs.length) fail('E_INPUT', '메모는 항목 글을 받지 않는다')
@@ -437,7 +439,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
       fresh.get(p.rel).push(nfc(String(s.heading).trim()))
     }
     for (const [rel, hs] of fresh) {
-      const g = guardNewDoc(forms, rel, hs)
+      const g = guardNewDoc(forms, rel, hs, { intake: !!intake && !!approve })
       if (g.errors.length && mode === 'strict') guardFail(g.errors)
       guardWarn.push(...g.errors.map((e) => `새 문서 ${rel.replace(/^docs\/|\.md$/g, '')}: ${e.message}`))
       if (g.registryRow) regNext = upsertPatternRow(regNext, g.registryRow.pattern, g.registryRow.doc)
@@ -628,7 +630,8 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
   {
     const lead = body.replace(/\s+$/, '')
     //   화면 문서 고치기(asEdit · approve 모드 지식 · 저장 승인 P5)의 승인한 경고도 같은 칸
-    const ap = approve ? [renderLinked(approve.linked), renderAccepted(approve.accepted), renderFresh(approve.fresh)] : Array.isArray(accepted) && accepted.length ? [renderAccepted(accepted)] : []
+    //   무인 채널(P6)의 값 경고는 `## 값 대조`(측정만 · P-D2 · P-D37)
+    const ap = approve ? [renderLinked(approve.linked), renderAccepted(approve.accepted), renderValues(approve.values), renderFresh(approve.fresh)] :Array.isArray(accepted) && accepted.length ? [renderAccepted(accepted)] : []
     const withParts = (slim) => [lead, renderPut(putRows), renderHeld(held, { slim }), ...ap].filter(Boolean).join('\n\n')
     if (putRows.length || held.length || ap.some(Boolean)) {
       body = withParts(false)

@@ -11,7 +11,8 @@
 //
 // 원천 실행기는 판정하지 않고 대기열에 세우지 않고 블록 밖 글 · 표지 · 다른 이름을 바꾸지 않는다.
 // LLM 은 스스로 부르지 않는다 — 들어온 것(문서 폴더의 파일 · 커밋 · 뜻 갱신)은 hub 가 넘긴 intake(item) 하나로 넘긴다(S7 · 설계 4-5):
-//   item = { kind: 'file', rel, data } | { kind: 'commit', info, diffs, raw } → { state: 'queued' | 'put' | 'held' | 'same' | 'fail' | 'skip' | 'record', recId?, job?, why?, note? }
+//   item = { kind: 'file', rel, data } | { kind: 'commit', info, diffs, raw } → { state: 'queued' | 'put' | 'rule' | 'held' | 'same' | 'fail' | 'skip' | 'record', recId?, job?, why?, note? }
+//   rule — approve 모드 지식에서 규칙 길로 들어감(Claude 에 보내지 않음 · 하루 상한 · 저장 승인 P6) · held 는 held 모드 지식만(P11 까지)
 //   팀은 들이기 일감(팀 일꾼의 claude -p 한 번 → 기록 + 조각 저장 한 번) · 개인 프로그램은 지금 길(파일 넣기 · 커밋 분석 → 기록 · 저장 즉시 넣기)
 //   표 블록 저장(runTables · runDb)은 save 로 그대로(이미 기록 + 표 한 번에)
 
@@ -363,9 +364,9 @@ async function gitFetch(src, { dataDir, kn }) {
 //   들이기 커밋마다 intake 하나 — 팀은 들이기 일감(Claude 에 보내지 않는 지식은 기록만 + 넣지 못함) · 개인 프로그램은 기록(저장 즉시 넣기가 넣는다)
 const DEEPEN = 50
 // 들이기 결과 말(줄 · 요약)
-const STATE_T = { queued: '들이기에 넘김', put: '넣음', held: '넣지 못함', same: '같은 것: 그대로', fail: '못 들임', skip: '읽지 않는 종류', record: '기록' }
-const tally = () => ({ queued: 0, put: 0, held: 0, same: 0, fail: 0, skip: 0, record: 0 })
-const tallyText = (c) => [c.put ? `넣음 ${c.put}` : '', c.held ? `넣지 못함 ${c.held}` : '', c.queued ? `들이기에 넘김 ${c.queued}` : '', c.record ? `기록 ${c.record}` : '', c.fail ? `못 들임 ${c.fail}` : ''].filter(Boolean).join(' · ')
+const STATE_T = { queued: '들이기에 넘김', put: '넣음', rule: '규칙 길로 넣음', held: '넣지 못함', same: '같은 것: 그대로', fail: '못 들임', skip: '읽지 않는 종류', record: '기록' }
+const tally = () => ({ queued: 0, put: 0, rule: 0, held: 0, same: 0, fail: 0, skip: 0, record: 0 })
+const tallyText = (c) => [c.put ? `넣음 ${c.put}` : '', c.rule ? `규칙 길로 넣음 ${c.rule}` : '', c.held ? `넣지 못함 ${c.held}` : '', c.queued ? `들이기에 넘김 ${c.queued}` : '', c.record ? `기록 ${c.record}` : '', c.fail ? `못 들임 ${c.fail}` : ''].filter(Boolean).join(' · ')
 // intake 를 부르고 줄을 남긴다 — 던지면 그 하나만 못 들임(그만두기는 그대로 던진다)
 async function intakeOne(intake, item, line, name) {
   let r
@@ -594,9 +595,9 @@ async function runDocs(k, src, { dataDir, first = false, force = false, full = f
     await writeLedger(dataDir, k.id, src.name, { v: 1, files: scan.files, out: {}, rules: JSON.stringify(src.rules), recs: 1 })
     const real = full ? 0 : n
     // recs · docs — 화면 「마지막으로 바뀐 것」 이 읽는 옛 칸(recs: 기록이 서거나 들이기에 넘긴 파일 · docs: 문서에 넣은 파일)
-    const recs = c.queued + c.held + c.record, docs = c.put
+    const recs = c.queued + c.held + c.record, docs = c.put + c.rule
     const got = recs + docs > 0
-    const lastChange = got ? { at: now, files: real, recs, docs, queued: c.queued, held: c.held, tables: 0, removed: gone, added: full ? 0 : scan.changes.added.length, changed: full ? 0 : scan.changes.changed.length } : s0.lastChange
+    const lastChange = got ? { at: now, files: real, recs, docs, queued: c.queued, held: c.held, rule: c.rule, tables: 0, removed: gone, added: full ? 0 : scan.changes.added.length, changed: full ? 0 : scan.changes.changed.length } : s0.lastChange
     const note = got ? `${full ? '다시 맞춤: ' : ''}${tallyText(c)}` : full ? '다시 맞춤: 그대로' : n ? `바뀐 파일 ${n} · 기록은 그대로` : '그대로'
     Object.assign(s0, { checkedAt: now, failures: 0, failingSince: null, stopped: null, lastChange, lastNote: note })
     await writeState(dataDir, k.id, st)

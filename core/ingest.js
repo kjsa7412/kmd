@@ -5,7 +5,7 @@
 
 import { sha16 } from './text.js'
 import { formFor, DEFAULT_FORMS } from './guard.js'
-import { valuesOf, groundedIn } from './values.js'
+import { valuesOf, groundedIn, judgeId } from './values.js'
 import { validEdits } from './edits.js'
 
 // 문서 경로 — 「폴더/이름」 · 「docs/폴더/이름.md」 를 「docs/폴더/이름.md」 로
@@ -194,13 +194,29 @@ export function heldRecord(src, md, { why = '' } = {}) {
   }
 }
 
+// 규칙 길로 들인 기록(저장 승인 P6 · P-D35) — approve 모드 무인 채널의 마지막 길. 기록 + 항목이 한 저장으로 들어간다(넣지 못함이 아니다).
+//   글은 원천 앞 2000자 인용 · 지문 · 규칙 길 한 줄(어디에 넣었나) · 까닭(어느 검사에 걸렸나) — 원본 파일은 같은 저장에 첨부한다(hub)
+//   「바뀐 것」 칸을 두지 않는다(값은 원문 그대로 항목에 있다 · 값 대조는 측정만)
+export const RULE_MARK = '규칙 길'
+export function ruleRecord(src, md, { why = '', line = '' } = {}) {
+  const title = String(src?.title || src?.rel || '넣을 것').replace(/\s+/g, ' ').trim().slice(0, 170)
+  const what = src?.type === 'commit' ? '커밋' : src?.type === 'again' ? '기록' : src?.type === 'fix' ? '정정' : '파일'
+  return {
+    title: `${title}: ${RULE_MARK}로 들임`.slice(0, 200),
+    body: [`${what} 하나를 ${RULE_MARK}로 들였다(Claude 없이 원문 그대로)${line ? `: ${String(line).replace(/\s+/g, ' ').slice(0, 200)}` : ''}.`, `- ${RULE_MARK} 까닭: ${String(why || '까닭을 적지 않았다').replace(/\s+/g, ' ').slice(0, 200)}`, `## 원천\n${srcLine(src, md)}\n\n${quoteSrc(md, HELD_SRC_HEAD)}`].join('\n\n'),
+    tags: intakeTags(src),
+    ...(Array.isArray(src?.touches) && src.touches.length ? { touches: src.touches } : {}),
+    ...(src?.rec ? { fixes: [src.rec] } : {}),
+  }
+}
+
 // 초안 → 저장 덩이(hub.save 의 input) — { ok: true, input, held, warn } | { ok: false, why }(고쳐 쓸 수 있는 까닭 · 모양)
 //   g — 서버 재료(후보 문서의 base 는 일꾼에게 보인 것) · k — 지금 지식(값 근거는 그 항목의 지금 글 전체) · draft — INTAKE_SCHEMA 꼴
 //   후보 밖 문서 · 없는 머리에 조각 → 그 조각만 넣지 못함(notfound) · 새 문서에 ## 항목이 없다 → 넣지 못함(nosec · S-D31)
 //   넣을 곳이 하나도 없다 → 넣지 못함(notfound) — 기록만 남은 들이기가 「개편 전 기록」 으로 정리에 집히지 않게
 // 일꾼이 머리 줄 그대로(「## 4. 개소 현황」) 보내도 항목 머리로 읽는다 — 머리는 # 없이 견준다
 export const bareHeading = (h) => String(h).normalize('NFC').trim().replace(/^#{1,6}\s+/, '').trim()
-export function draftToSave(k, g, draft) {
+export function draftToSave(k, g, draft, { measure = false } = {}) {
   if (!draft || typeof draft !== 'object' || Array.isArray(draft)) return { ok: false, why: '초안 모양이 아니다' }
   const rec = draft.record
   if (!rec || typeof rec !== 'object' || typeof rec.title !== 'string' || !rec.title.trim()) return { ok: false, why: '초안 모양이 아니다: 기록 제목이 없다' }
@@ -275,7 +291,10 @@ export function draftToSave(k, g, draft) {
   const grounded = groundedIn(srcText + ' ' + oldText, srcV, oldV)
   const said = valuesOf([rec.title, summary, ...changes, ...texts].join('\n'))
   const invented = [...said].filter((v) => !srcV.has(v) && !oldV.has(v) && !grounded(v))
-  if (invented.length) return { ok: false, why: `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` }
+  //   approve 모드 무인 채널(저장 승인 P6 · P-D2 · P-D15) — 값은 막지도 다시 짓게 하지도 않는다: 측정만(values → 기록 끝 `## 값 대조`)
+  const values = []
+  if (invented.length && !measure) return { ok: false, why: `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` }
+  if (invented.length) values.push({ id: judgeId('invented', '초안', ...invented.slice().sort()), code: 'invented', at: '초안', why: `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` })
   // 넣을 곳 — 하나도 없으면 넣지 못함(기록만)
   if (!sections.length && !held.length) held.push({ code: 'notfound', why: `넣을 곳을 고르지 않았다${draft.why ? `: ${String(draft.why).replace(/\s+/g, ' ').slice(0, 160)}` : ''}` })
   // 세울 이름(K14-2) — 이름 종류 안의 것만 · 장부에 있는 이름은 뺀다 · 새 항목을 세우는데 이름이 없으면 경고(S-D32)
@@ -290,7 +309,7 @@ export function draftToSave(k, g, draft) {
   const title = rec.title.replace(/\s+/g, ' ').trim().slice(0, 200)
   const body = [summary, changes.length ? `## 바뀐 것\n${changes.map((x) => `- ${x}`).join('\n')}` : '', `## 원천\n${srcLine(src, src.md)}\n\n${quoteSrc(src.md, INTAKE_SRC_MAX)}`].filter(Boolean).join('\n\n')
   const record = { title, body, tags: intakeTags(src), ...(Array.isArray(src.touches) && src.touches.length ? { touches: src.touches } : {}), ...(src.rec ? { fixes: [src.rec] } : {}) }
-  return { ok: true, input: { record, sections, ...(names.length ? { names } : {}) }, held, warn }
+  return { ok: true, input: { record, sections, ...(names.length ? { names } : {}) }, held, warn, values }
 }
 
 // ── 문서 다듬기(K10-4 · S-D37 · S13) — 지식관리자가 문서 하나를 골라 거는 문체 · 짜임 정돈. 값은 바꾸지 않는다 ──
