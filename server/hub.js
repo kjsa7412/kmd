@@ -57,7 +57,7 @@ import { existsSync, readFileSync, statSync, watch as fsWatch } from 'node:fs'
 import * as sendLib from '../core/send.js'
 import * as keystore from '../core/keystore.js'
 import { sha16 } from '../core/text.js'
-import { survey, isPack, openPack, readManifest, countsOf, PICKS, srcOf as srcOfMd } from '../core/survey.js'
+import { survey, isPack, openPack, readManifest, countsOf, rowsOfUpload, PICKS, srcOf as srcOfMd } from '../core/survey.js'
 import { isSystemRecord, labelOf, isLegacy, reflectedIn } from '../core/knowledge.js'
 import { isReservedTag } from '../core/names.js' // 예약 접두사(job/)까지 본다(S3)
 import { isoOfStamp, logKind, atTag } from './views.js'
@@ -654,7 +654,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   // 저장 속도(S-D28) — 지식 + 기기(없으면 사람)마다 토큰 통. 토큰은 await 앞에서 동기로 뺀다(MCP 묶음이 동시에 돈다)
   const rates = new Map()
   // shape — 문서 짜임의 글 걸음(hub.shapeWrite 만 · opt.shape · 속도 한도는 세지 않는다 · 바탕 세우기 설계 4-3)
-  // seed — 기초 세우기 짓기 결과(hub.seedAsIs 만 · 「폴더 그대로」 · 팀 검사를 지난다 · 속도 한도는 세지 않는다: 비용 경계는 짓기 일을 열 때의 하루 들이기 한도 · 메뉴개편 8-1 · 8-2)
+  // seed — 기초 세우기 짓기 결과(hub.seedAsIsHeld 만 · held 모드 지식의 옛 「폴더 그대로」 · approve 지식은 짜임 걸음(통합 I1) · 팀 검사를 지난다 · 속도 한도는 세지 않는다: 비용 경계는 짓기 일을 열 때의 하루 들이기 한도 · 메뉴개편 8-1 · 8-2)
   // 원격 둘(저장소 · 지식백업 · G1)에 걸기 — 붙은 것만 · 부르는 쪽이 기다리지 않는다
   const pushRemotes = (meta, opt) => Promise.all([backup.repo, backup.copy].filter((x) => x.attached(meta)).map((x) => x.enqueue(meta, opt)))
   const SAVE_CHANNELS = new Set(['session', 'bulk', 'http', 'send', 'edit', 'fix', 'shape', 'seed'])
@@ -881,6 +881,123 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   }
   // 글이 바뀌면 연습 판 결과(tried) · 실은 글(texts)을 걷는다 — 넣기는 다시 해 본 글만 넣는다
   const seedUntry = (w0) => { const { tried, texts, ...rest } = w0; return { ...rest, stage: 'plan' } }
+  // 문서 하나의 글을 장부에 — 넣다 선 일(걸음 실패 · stopped)은 연습 판 결과 · 넣은 걸음을 그대로 두고 실은 글(texts)의 그 문서 항목만 바꾼다(→ [이어 넣기]) ·
+  //   그 밖에는 연습 판 결과를 걷는다(넣기는 다시 해 본 글만)
+  const seedPatch = (w0, doc, t) => {
+    if (!['plan', 'tried', 'stopped'].includes(w0.stage)) return undefined
+    if (w0.stage === 'stopped') {
+      const texts = Object.fromEntries(Object.entries(w0.texts || {}).map(([n, u]) => [n, Array.isArray(u?.items) && Array.isArray(t.items) && u.items.some((x) => x.doc === doc) ? { ...u, items: u.items.map((x) => (x.doc === doc ? { ...x, content: t.items.find((y) => y.h === x.h)?.content ?? x.content } : x)) } : u]))
+      return { ...w0, texts, seed: { ...w0.seed, texts: { ...w0.seed.texts, [doc]: { ...t, ...(t.state === 'run' ? {} : { fixedAt: new Date().toISOString() }) } } } }
+    }
+    const w1 = seedUntry(w0)
+    return { ...w1, seed: { ...w1.seed, texts: { ...w1.seed.texts, [doc]: t } } }
+  }
+  // 기초 세우기 일을 열 수 있나 — 다른 짜임 일 · 남이 연 일(24시간 안) · 넣는 중이면 막는다. 남의 일이 24시간 걸음이 없으면 「멈춤」 이라 새로 연다(팀)
+  const seedIdle = (w0) => mode === 'team' && !!w0 && ['plan', 'tried'].includes(w0.stage) && !w0.before && Date.now() - Date.parse(w0.at || 0) > SEED_HOLD_MS
+  const seedOpenOk = (ctx, w0) => {
+    if (w0?.broken) throw new KmdError('E_CONFLICT', '잠깐 멈춤: 짜임 일 장부가 깨졌다. 그만두게 하면 새로 연다')
+    if (!w0 || ['done', 'stopped-final'].includes(w0.stage)) return
+    if (w0.kind !== 'seed') throw new KmdError('E_CONFLICT', '이 지식에 열린 문서 짜임 일이 있다: 그 일을 마치거나 그만둔다')
+    if (w0.by !== ctx.user && !seedIdle(w0)) throw new KmdError('E_CONFLICT', `${w0.by} 가 연 기초 세우기가 있다`)
+    if (!['plan', 'tried'].includes(w0.stage) || w0.before) throw new KmdError('E_CONFLICT', '넣는 중인 기초 세우기다: 이어 넣거나 그만둔다')
+  }
+  // ── 팀 기초 세우기 도는 일(TODO 10 · 메뉴개편 8-2) — Claude 구조안 · 짓기는 팀 일꾼 일감 shape-plan · shape-write(src.seed · 재료는 올린 묶음).
+  //   일감 id 는 장부(seed.job · 문서 글의 rid)에 — 다시 켜도 일감 장부(jobs)와 결과 파일로 잇는다
+  const seedJobOpen = (jid) => { const j = jid && jobs.get(jid); return j && ['queued', 'running', 'closing'].includes(j.state) ? j : null }
+  const seedTeamBusy = (w) => !!w?.seed && ((w.seed.job?.kind === 'plan' && seedJobOpen(w.seed.job.ids?.[0])) || Object.values(w.seed.texts || {}).some((t) => t?.state === 'run' && seedJobOpen(t.rid)))
+  async function seedTeamRun(w) {
+    const jb = w?.seed?.job
+    if (!jb) return null
+    const base = { kind: jb.kind, by: jb.by, at: jb.at }
+    if (jb.kind === 'plan') {
+      const jid = jb.ids?.[0]
+      const j = seedJobOpen(jid)
+      if (j) return { ...base, state: 'running', i: 0, n: 1, tries: j.tries || 0, ...(j.state === 'queued' ? { wait: true } : {}) }
+      const res = await fs.readFile(shapeResOf(jid), 'utf8').then(JSON.parse, (e) => (e.code === 'ENOENT' ? null : Promise.reject(e))).catch((e) => { log('기초 세우기: 일감 결과를 읽지 못했다', jid, e.message); return null })
+      const j2 = jobs.get(jid)
+      if (res?.state === 'done') return { ...base, state: 'done', i: 1, n: 1, tries: j2?.tries || 0, ...(res.why ? { why: res.why } : {}) }
+      return { ...base, state: j2?.state === 'cancelled' ? 'cancelled' : 'fail', i: 0, n: 1, why: res?.why || j2?.why || '팀 일꾼이 짓지 못했다' }
+    }
+    const docs = jb.docs || []
+    const going = docs.filter((d) => w.seed.texts?.[d]?.state === 'run' && seedJobOpen(w.seed.texts[d].rid))
+    if (going.length) return { ...base, state: 'running', i: docs.length - going.length, n: docs.length, doc: going[0], ...(going.every((d) => seedJobOpen(w.seed.texts[d].rid).state === 'queued') ? { wait: true } : {}) }
+    return { ...base, state: 'done', i: docs.length, n: docs.length }
+  }
+  // 도는 일감 그만두기 — 기다리는 일감은 닫고 · 짓는 중이면 받은 초안을 버린다(일꾼의 다음 소식에서)
+  async function seedTeamStop(w, by) {
+    const ids = [...(w?.seed?.job?.ids || []), ...Object.values(w?.seed?.texts || {}).filter((t) => t?.state === 'run').map((t) => t.rid)]
+    for (const jid of new Set(ids)) {
+      const j = seedJobOpen(jid)
+      if (!j) continue
+      try {
+        if (j.state === 'queued') await intakeCancel(j, by)
+        else if (!j.stop) { j.stop = { by, at: new Date().toISOString() }; j.leaseUntil = Math.min(j.leaseUntil || Infinity, Date.now() + 5 * 60_000) }
+      } catch (e) { log('기초 세우기: 일감을 그만두지 못했다', jid, e.message) }
+    }
+    saveJobs()
+  }
+  // 일감 재료 — 장부의 기초 세우기 일(같은 일 · 이 일감이 그 일의 것)에서 서버가 짓는다 → { g, w, rows, mats? } | { error }
+  async function seedG(id, j, input) {
+    const w = await hub.shapeWork(id)
+    const work = input?.seed?.work
+    if (!w || w.broken || w.kind !== 'seed' || w.work !== work || !['plan', 'tried', 'stopped'].includes(w.stage)) return { error: '기초 세우기 일이 바뀌었다' }
+    if (j.type === 'shape-plan' ? !(w.seed.job?.kind === 'plan' && w.seed.job.ids?.[0] === j.id) : w.seed.texts?.[input.seed.doc]?.rid !== j.id) return { error: '기초 세우기 일이 바뀌었다(새로 걸었다)' }
+    const rows = await hub.seedRowsOf(w)
+    if (j.type === 'shape-plan') {
+      const k = await hub.get(id)
+      return { g: seedPlanMaterial(rows, { picks: w.seed.picks, note: input.note || '', existing: k.docs.filter((d) => d.id !== RECORDS_DOC).map((d) => d.id) }), w, rows }
+    }
+    if (!w.plan) return { error: '구조안이 없다' }
+    const mats = await hub.seedMats(w)
+    const g = seedWriteMaterial(w.plan, input.seed.doc, mats.rows, mats.text)
+    return g.error ? { error: g.error } : { g, w, rows, mats }
+  }
+  // 일감 끝(intakeDone) — 구조안: seedPlanOfDraft → 검사(planCheck · 재료 덮임) 걸리면 고쳐 쓰게 · 마지막이면 걸린 채 장부에(사람이 고친다).
+  //   글: writeOfDraft → 판정(꼴 결정적 오류면 고쳐 쓰게 · 마지막이면 걸음 실패) · 값 대조는 재기만. 지식에 쓰지 않는다(장부의 구조안 · 글만)
+  async function seedJobDone(j, id, k, input, body, last) {
+    const ctx = hub.intakeCtx(j)
+    if (!ctx) return intakeAbort(j, SHAPE_SEAT)
+    const end = async (res) => {
+      await writeJsonAtomic(shapeResOf(j.id), res)
+      await intakeClose(j, { why: res.state === 'done' ? res.why || null : res.why })
+      return { ok: true, rec: null, put: 0, held: [], ...(res.why ? { why: res.why } : {}) }
+    }
+    try {
+      const sg = await seedG(id, j, input)
+      if (sg.error) return end({ state: 'fail', why: sg.error })
+      if (j.type === 'shape-plan') {
+        const p = seedPlanOfDraft(body?.draft)
+        if (p.error) { if (!last) { saveJobs(); return { fix: p.error } } return end({ state: 'fail', why: `구조안 꼴이 아니다: ${p.error}` }) }
+        const S = readShape(k, await readStructure(k.dir))
+        const chk = hub.seedCheckOf(k, S, seedNormalize(p.plan, S), sg.rows, sg.w.seed.picks)
+        if (!chk.ok && !last) { saveJobs(); return { fix: chk.errors.slice(0, 5).map((e) => `${e.where}: ${e.why}`).join(' · ') } }
+        await hub.seedPlanApply({ ...ctx, user: j.by }, id, input.seed.work, p.plan, { mode: 'claude', notes: p.notes, why: p.why, job: j })
+        return end({ state: 'done', ...(chk.ok ? {} : { why: `걸림 ${chk.errors.length}: 구조안에서 고친다` }) })
+      }
+      const doc = input.seed.doc
+      const x = writeOfDraft(sg.g, body?.draft)
+      if (x.error && !last) { saveJobs(); return { fix: x.error } }
+      const d = sg.w.plan.docs.find((y) => y.id === doc)
+      let row
+      if (x.error) row = { state: 'fail', why: x.error }
+      else {
+        const items = d.items.map((it) => (it.src?.length ? { h: it.h, content: x.texts.find((y) => y.h === it.h).content } : { h: it.h, content: String(it.text || '') }))
+        const jd = hub.seedJudge(k, sg.w.plan, doc, items, sg.mats)
+        if (jd.errors.length && !last) { saveJobs(); return { fix: jd.errors.slice(0, 3).map((e) => e.why).join(' · ') } }
+        row = jd.errors.length ? { state: 'fail', why: `걸음 실패: ${jd.errors.slice(0, 3).map((e) => e.why).join(' · ')}`, stepFail: jd.errors.slice(0, 20), items } : { state: 'ok', items, values: jd.values }
+      }
+      await hub.seedEdit(id, input.seed.work, (w0) => {
+        const old = w0.seed.texts?.[doc]
+        if (!old || old.state !== 'run' || old.rid !== j.id) return undefined
+        return seedPatch(w0, doc, { sig: old.sig, ...row, chars: (row.items || []).reduce((a, y) => a + y.content.length, 0), by: 'claude' })
+      })
+      return end(row.state === 'ok' ? { state: 'done' } : { state: 'fail', why: row.why, ...(row.stepFail ? { stepFail: row.stepFail } : {}) })
+    } catch (e) {
+      if (!(e instanceof KmdError)) throw e
+      log('기초 세우기 일감', j.id, e.message)
+      return end({ state: 'fail', why: e.message })
+    }
+  }
   async function pcSeedWrite(ctx, id, run, list) {
     let end = null
     try {
@@ -893,8 +1010,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         await hub.seedEdit(id, run.work, (w0) => {
           const old = w0.seed.texts?.[doc]
           if (!old || old.state !== 'run' || old.rid !== run.rid) return undefined
-          const w1 = seedUntry(w0)
-          return { ...w1, seed: { ...w1.seed, texts: { ...w1.seed.texts, [doc]: { sig: old.sig, ...row, chars: (res.items || []).reduce((a, x) => a + x.content.length, 0), by: 'claude' } } } }
+          return seedPatch(w0, doc, { sig: old.sig, ...row, chars: (res.items || []).reduce((a, x) => a + x.content.length, 0), by: 'claude' })
         })
         if (fatal) { end = { state: 'fail', why: res.why }; break }
         await hub.workerStatus({ worker: { id: null } }, { ok: true }).catch((e) => log('Claude 상태', e.message))
@@ -914,6 +1030,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   async function shapeJobDone(j, id, k, md, body, last) {
     if (!hub.intakeCtx(j)) return intakeAbort(j, SHAPE_SEAT)
     const input = shapeIn(md)
+    if (input.seed) return seedJobDone(j, id, k, input, body, last)
     const sg = await shapeG(id, k, j.type, input)
     if (sg.error) return intakeAbort(j, sg.error)
     if (j.type === 'shape-plan' && j.seen?.[0]?.fp && j.seen[0].fp !== sg.S.fp) {
@@ -2910,12 +3027,22 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     //   개인 프로그램은 이 PC 의 claude -p(메모리 안 일 · 다시 켜면 사라짐), 팀은 팀 일꾼 일감 shape-plan · shape-write(들이기 일감 줄 · 하루 수 · 24시간).
     //   구조안은 화면 나무에 덧씌우는 초안이고 저절로 넣지 않는다. 글은 결정적 오류(judgeShape errors)면 고쳐 쓰게 하고(FIX 두 번 · P-D15)
     //   그래도면 「걸음 실패」(P-D24 · 규칙 길이 아니다) · 값 대조는 재기만(values). 「Claude 에 보내지 않음」 지식은 E_FORBIDDEN
-    shapeClaudeState(id) {
+    //   seed — 기초 세우기(TODO 10): 일꾼이 shape-seed 도 알아야 한다 · 열 분 안에 물은 일꾼이 없으면 「팀 일꾼 없음」(none · 일감은 세울 수 있다 · 24시간 기다린다)
+    shapeClaudeState(id, { seed = false } = {}) {
       if (rowFor(id)?.noClaude) return { ok: false, why: 'Claude 에 보내지 않는 지식: 손으로 짠다' }
       // 팀 일꾼 판 — 열 분 안에 일감을 물은 일꾼이 있는데 아무도 짜임 type 을 모르면 옛것
       const seen = mode === 'team' ? [...teamTypes.values()].filter((x) => Date.now() - x.at < 10 * 60_000) : []
-      if (seen.length && !seen.some((x) => SHAPE_CLAUDE_TYPES.every((t) => x.types.includes(t)))) return { ok: true, team: true, old: true }
+      const need = seed ? [...SHAPE_CLAUDE_TYPES, 'shape-seed'] : SHAPE_CLAUDE_TYPES
+      if (seen.length && !seen.some((x) => need.every((t) => x.types.includes(t)))) return { ok: true, team: true, old: true }
+      if (seed && mode === 'team' && !seen.length) return { ok: true, team: true, none: true }
       return { ok: true, team: mode === 'team' }
+    },
+    // 하루 들이기 수(S-D47 · config.intakeDaily) — 짓기 일감을 열기 전에 남은 수를 본다(기초 세우기 「오늘 한도 n 남음」)
+    intakeLeft(id) {
+      const day = localDay(new Date())
+      const used = intakeDay[id]?.day === day ? intakeDay[id].n : 0
+      const cap = config.intakeDaily ?? 300
+      return { cap, used, left: Math.max(0, cap - used) }
     },
     async shapeAsk(ctx, id, { type, plan = null, note = '', sources, targets } = {}) {
       const meta = await hub.meta(id, ctx)
@@ -3029,12 +3156,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // ── 기초 세우기 재료(메뉴개편 8-2 · N7 · 권한 모델 7절) ──
     //   재료 <살림>/shape/<지식>.seed/ — 묶음 장부 <묶음>.json(연 사람 · 누계 파일 · 바이트 · 파일 줄) + <묶음>/<sha16>.md(fileToMd 로 바꾼 글).
     //   원본은 두지 않는다(글만). 묶음 누계 300 파일 · 200MB(MAX_FILES · MAX_BYTES)를 서버가 센다(다시 보낸 같은 파일은 다시 세지 않는다).
-    //   지식마다 묶음 하나 — 새 묶음을 열면 앞 묶음을 걷는다(남이 24시간 안에 이어 올리는 묶음이 있으면 E_CONFLICT).
-    //   하루 들이기 한도(intakeDaily)는 여기서 세지 않는다: 올리기는 Claude 를 부르지 않는다 · 짓기 일감(팀 일꾼 shape-plan · shape-write · TODO 10)을 열 때 센다
+    //   지식마다 묶음 하나 — 새 묶음을 열면 앞 묶음을 걷는다(남이 24시간 안에 이어 올리는 묶음이 있으면 E_CONFLICT · 이어 올리기 장부 series.json 은 둔다).
+    //   300 파일이 넘는 재료는 묶음을 나눠 차례로(앞 묶음을 다 넣은 뒤 다음 묶음 · 묶음마다 구조안 승인 · 통합 I2 · seedGate)
+    //   하루 들이기 한도(intakeDaily)는 여기서 세지 않는다: 올리기는 Claude 를 부르지 않는다 · 짓기 일감(팀 일꾼 shape-plan · shape-write)을 열 때 센다(openJob · intakeLeft)
     seedDir(id) {
       return path.join(dataDir, 'shape', `${encodeURIComponent(id)}.seed`)
     },
     // 자리 · 빈 지식 — 큰 본문을 읽기 전에(http) · 올리기 · 짓기가 다시 본다. 읽기 미만 404 · 지식관리자 아니면 403 · 문서가 있으면 409
+    //   팀은 이어 올린 묶음(통합 I2)도 — 앞 묶음들이 넣은 문서뿐이면(series.json) 다음 묶음을 받는다(앞 묶음을 다 넣은 뒤 · 묶음마다 구조안 승인)
     async seedGate(ctx, id, { empty = true } = {}) {
       const meta = await hub.meta(id, ctx)
       hub.need(ctx, id, 'admin')
@@ -3042,9 +3171,40 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const k = await hub.get(id, ctx)
         // 기록 모음(서버가 세운 고정 문서 · P-D29)은 바탕이 아니다
         const own = k.docs.filter((d) => d.id !== RECORDS_DOC)
-        if (own.length) throw new KmdError('E_CONFLICT', `빈 지식이 아니다(문서 ${own.length}): 기초 세우기는 빈 지식에만 한다`)
+        let ser = own.length && mode === 'team' ? await hub.seedSeries(id) : null
+        // 다 넣은 묶음인데 장부에 없다(적기 전에 꺼졌다) — 다시 적는다
+        if (own.length && mode === 'team') {
+          const w0 = await hub.shapeWork(id)
+          if (w0 && !w0.broken && w0.kind === 'seed' && w0.stage === 'done' && w0.seed?.group && !(ser?.groups || []).includes(w0.seed.group)) { await hub.seedSeriesAdd(id, w0.seed.group, k); ser = await hub.seedSeries(id) }
+        }
+        if (own.length && !(ser && own.every((d) => ser.docs.includes(d.id)))) throw new KmdError('E_CONFLICT', `빈 지식이 아니다(문서 ${own.length}): 기초 세우기는 빈 지식에만 한다(앞 묶음으로 세운 지식은 그 문서뿐일 때 이어 올린다)`)
       }
       return meta
+    },
+    // 이어 올리기 장부(통합 I2 · <살림>/shape/<지식>.seed/series.json { docs, groups }) — 없으면 null · 깨졌으면 덮지 않고 멈춘다
+    async seedSeries(id) {
+      const t = await fs.readFile(path.join(hub.seedDir(id), 'series.json'), 'utf8').catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
+      if (t == null) return null
+      try {
+        const x = JSON.parse(t)
+        if (!x || !Array.isArray(x.docs) || !Array.isArray(x.groups)) throw new Error('꼴')
+        return x
+      } catch (e) {
+        log(`기초 세우기 이어 올리기 장부가 깨졌다 ${id}: ${e.message}`)
+        throw new KmdError('E_CONFLICT', '잠깐 멈춤: 기초 세우기 이어 올리기 장부가 깨졌다')
+      }
+    },
+    // 묶음 하나를 다 넣었다(팀 · 넣기 끝) — 이어 올리기 장부에 지금 문서 · 묶음을 더하고 묶음 장부에 끝 표지(다른 지식관리자가 다음 묶음을 연다). 커밋 뒤라 던지지 않는다
+    async seedSeriesAdd(id, gid, k) {
+      try {
+        await serial(hub.seedDir(id), async () => {
+          const ser = (await hub.seedSeries(id)) || { v: 1, docs: [], groups: [] }
+          const docs = [...new Set([...ser.docs, ...k.docs.filter((d) => d.id !== RECORDS_DOC).map((d) => d.id)])]
+          await writeJsonAtomic(path.join(hub.seedDir(id), 'series.json'), { ...ser, at: new Date().toISOString(), docs, groups: [...new Set([...ser.groups, gid])] }, { indent: 1, nl: true })
+          const g = await hub.seedGroup(id, gid).catch((e) => { log('기초 세우기: 묶음 장부를 읽지 못했다', id, gid, e.message); return null })
+          if (g && !g.put?.finished) await writeJsonAtomic(path.join(hub.seedDir(id), `${gid}.json`), { ...g, put: { ...(g.put || {}), by: g.put?.by || g.by, finished: new Date().toISOString() } }, { indent: 1, nl: true })
+        })
+      } catch (e) { log('기초 세우기: 이어 올리기 장부를 적지 못했다', id, e.message) }
     },
     // 묶음 장부 읽기 — 없으면 null · 깨졌으면 빈 것으로 읽어 덮지 않고 멈춘다
     async seedGroup(id, gid) {
@@ -3090,6 +3250,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           if (g.by !== ctx.user) throw new KmdError('E_CONFLICT', `${g.by} 가 연 묶음이다`)
           if (g.last) throw new KmdError('E_CONFLICT', '닫힌 묶음이다: 더 올리려면 새 묶음으로')
         } else {
+          // 열린 짜임 일 — 다른 짜임 일 · 남이 연 기초 세우기 · 넣는 중 · 팀 일꾼이 짓는 중이면 새 묶음을 열지 않는다(내 앞 일은 새 묶음으로 바꾼다)
+          const w0 = await hub.shapeWork(id)
+          seedOpenOk(ctx, w0)
+          if (w0?.kind === 'seed' && seedTeamBusy(w0)) throw new KmdError('E_CONFLICT', '팀 일꾼이 짓는 중이다: 끝나거나 그만둔 뒤에 새 묶음을 올린다')
           // 지식마다 묶음 하나 — 남의 묶음이 24시간 안이면(올리는 중 · 닫고 짓기를 기다림 · 짓는 중) 막는다 · 다 지은 묶음 · 내 묶음 · 오래된 묶음은 걷는다.
           //   깨진 장부는 빈 것으로 보지 않는다: 24시간 안이면 409 로 멈추고, 그보다 오래면 log 를 남기고 걷는다
           const ents = await fs.readdir(dir).catch((e) => (e.code === 'ENOENT' ? [] : Promise.reject(e)))
@@ -3107,7 +3271,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             }
             if (o && o.by !== ctx.user && !o.put?.finished && Date.now() - Date.parse(o.at) < SEED_HOLD_MS) throw new KmdError('E_CONFLICT', `${o.by} 가 이 지식의 기초 세우기 재료를 쓰는 중이다: 끝나거나 24시간 뒤에 연다`)
           }
-          await fs.rm(dir, { recursive: true, force: true })
+          // 앞 묶음 걷기 — 이어 올리기 장부(series.json)는 둔다
+          for (const n of ents) if (n !== 'series.json') await fs.rm(path.join(dir, n), { recursive: true, force: true })
           g = { v: 1, kn: id, id: crypto.randomBytes(6).toString('hex'), by: ctx.user, opened: now, at: now, total: 0, last: false, files: 0, bytes: 0, rows: [] }
         }
         // 누계 — 다시 보낸 같은 파일(경로 · 원본 지문 같음)은 다시 세지 않는다 · 같은 경로의 다른 원본은 앞 것을 빼고 센다(앞 재료 글은 아래에서 걷는다)
@@ -3125,8 +3290,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           rows.set(x.rel, { path: x.rel, orig: x.orig, size: x.data.length })
           todo.push(x)
         }
-        if (nf > MAX_FILES) throw new KmdError('E_INPUT', `한 묶음에 ${MAX_FILES} 파일까지(지금 ${g.files} · 더 ${nf - g.files}): 많으면 kmd-seed 대량`)
-        if (nb > MAX_BYTES) throw new KmdError('E_INPUT', `한 묶음에 ${Math.round(MAX_BYTES / 1048576)}MB 까지: 많으면 kmd-seed 대량`)
+        if (nf > MAX_FILES) throw new KmdError('E_INPUT', `한 묶음에 ${MAX_FILES} 파일까지(지금 ${g.files} · 더 ${nf - g.files}): 많으면 나눠 올린다(앞 묶음을 넣은 뒤 다음 묶음) · kmd-seed 대량`)
+        if (nb > MAX_BYTES) throw new KmdError('E_INPUT', `한 묶음에 ${Math.round(MAX_BYTES / 1048576)}MB 까지: 많으면 나눠 올린다(앞 묶음을 넣은 뒤 다음 묶음) · kmd-seed 대량`)
         // 글로 바꿔 재료로 — 원본은 두지 않는다
         const out = []
         for (const x of todo) {
@@ -3156,14 +3321,36 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
       })
     },
-    // 「폴더 그대로」 짓기(메뉴개편 8-1 끝 점 · 8-2 d) — 닫힌 묶음의 재료 글마다 hub.save(기록 + sections[{ doc, heading, content }] · 채널 'seed').
+    // 「폴더 그대로」 짓기(메뉴개편 8-1 끝 점 · 8-2 d · 서버 안 함수 · 화면은 seed/plan { mode: folder } → try → shape/put 으로 같은 길) — Claude 를 부르지 않는다.
+    //   approve 지식(새 지식)은 통합 I1 꼴 — 그 묶음의 기초 세우기 일(조사) → 폴더 그대로 구조안(folderPlan) → 연습 판 → 넣기(짜임 걸음 · strict).
+    //   결정적 오류는 걸음 실패(아무것도 안 씀 · 일 멈춤 · 구조안 · 글을 고쳐 잇는다) · 값 대조는 재기만 · 넣지 못함을 만들지 않는다(N5).
+    //   held 모드 지식은 저장 승인 P11 까지 아래 옛 길(채널 seed · 팀 검사 그대로)
+    async seedAsIs(ctx, id, { group } = {}) {
+      if (hub.saveModeOf(id) !== 'approve') return hub.seedAsIsHeld(ctx, id, { group })
+      if (!ctx?.user) throw new KmdError('E_INPUT', '누가 넣는지 모른다')
+      if (!SEED_GID.test(String(group))) throw new KmdError('E_INPUT', '묶음 id 꼴이 아니다')
+      let w = await hub.shapeWork(id)
+      const mine = (x) => !!x && !x.broken && x.kind === 'seed' && x.seed?.group === String(group) && x.by === ctx.user && !['done', 'stopped-final'].includes(x.stage)
+      if (w?.kind === 'seed' && w.seed?.group === String(group) && w.stage === 'done') return { kn: id, group, work: w.work, done: true, steps: (w.done || []).length }
+      if (!mine(w)) { await hub.seedSurvey(ctx, id, { group }); w = await hub.shapeWork(id) }
+      if (['plan', 'tried'].includes(w.stage)) {
+        if (w.seed.mode !== 'folder' || !w.check?.ok) {
+          const r = await hub.seedPlan(ctx, id, { mode: 'folder' })
+          if (!r.ok) return { kn: id, group, work: w.work, stopped: { fail: r.errors.slice(0, 50).map((e) => ({ doc: e.where, heading: '', code: e.code || 'plan', why: e.why })) } }
+        }
+        const t = await hub.seedTry(ctx, id)
+        if (!t.ok) return { kn: id, group, work: w.work, diag: t.diag, ...(t.stopped ? { stopped: t.stopped } : {}) }
+      }
+      const p = await hub.shapePut(ctx, id)
+      return { ...p, kn: id, group }
+    },
+    // 옛 「폴더 그대로」(held 모드 지식 · 저장 승인 P11 까지) — 닫힌 묶음의 재료 글마다 hub.save(기록 + sections[{ doc, heading, content }] · 채널 'seed').
     //   Claude 를 부르지 않는다. 팀은 저장 문 검사(checkSection · 값 대조 · 꼴)를 지나고 못 넘은 조각은 넣지 못함(held)으로 남는다.
     //   한 저장 50 항목 · 기록 19만 자를 넘는 재료는 덩이로 나눠 여러 저장(「(1/n)」) · 덩이마다 기록 본문은 그 덩이의 글(값 대조 근거).
     //   기록 태그는 md/<sha16> 만(ingest/ 를 달면 결정 규칙이 같은 앞 53자 경로를 「새 판」 으로 걷는다).
     //   asDocs · commitPaths 를 바로 쓰는 옛 길(개인 kind: 'folder')은 쓰지 않는다. 짓는 것은 묶음을 연 사람만.
     //   이어 하기: 첫 저장 전에 장부에 put 을 적고(못 적으면 쓰지 않고 던진다) 덩이마다 done 에 「경로#n」 을 더한다 · 다시 부르면 남은 덩이만.
-    //   화면 길(짓기 단계)은 TODO 9 · 10 에서 이 함수를 부른다(지금은 서버 안 함수만 · 하루 들이기 한도는 Claude 를 부르는 짓기 일감에서)
-    async seedAsIs(ctx, id, { group } = {}) {
+    async seedAsIsHeld(ctx, id, { group } = {}) {
       if (!ctx?.user) throw new KmdError('E_INPUT', '누가 넣는지 모른다')
       if (!SEED_GID.test(String(group))) throw new KmdError('E_INPUT', '묶음 id 꼴이 아니다')
       const dir = hub.seedDir(id)
@@ -3252,22 +3439,31 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     //   approve 지식은 걸린 걸음이 걸음 입력 오류 + 일 멈춤(P-D24) · 값 대조는 재기만(P-D2) · 넣지 못함을 만들지 않는다(N5).
     //   도는 일(조사 · Claude 구조안 · 짓기)은 이 PC 의 메모리(seedRuns · 지식마다 하나) — 다시 켜면 그 일만 사라지고 장부는 남아 [이어 하기] 로 잇는다
     // 재료 글 — 구조안이 쓰는 재료만 · 지문(srcOf)이 맞는 것만(꾸러미를 손으로 고쳤으면 null → 걸음이 「재료 글이 없다」)
+    //   팀(TODO 10)은 올린 묶음(<살림>/shape/<지식>.seed/<묶음>.json 의 줄 · <묶음>/<sha16>.md 의 글)
+    async seedRowsOf(w) {
+      if (w.seed?.group) {
+        const g = await hub.seedGroup(w.kn, w.seed.group)
+        if (!g) throw new KmdError('E_NOTFOUND', '재료 묶음이 없다(걷혔다): 새 묶음으로 다시 올린다')
+        return g.rows
+      }
+      return (await readManifest(w.seed.pack)).rows
+    },
     async seedMats(w, srcs = null) {
-      const m = await readManifest(w.seed.pack)
+      const m = { rows: await hub.seedRowsOf(w) }
+      const at = (s) => (w.seed?.group ? path.join(hub.seedDir(w.kn), w.seed.group, `${s.slice(2)}.md`) : path.join(w.seed.pack, 'md', `${s.slice(2)}.md`))
       const pathOf = new Map()
       for (const r of m.rows) if (r.src && !pathOf.has(r.src)) pathOf.set(r.src, r.path)
       const want = new Set(srcs || (w.plan?.docs || []).flatMap((d) => d.items.flatMap((it) => it.src || [])))
       const text = new Map()
       for (const s of want) {
         if (!/^m:[0-9a-f]{16}$/.test(s)) continue
-        const t = await fs.readFile(path.join(w.seed.pack, 'md', `${s.slice(2)}.md`), 'utf8').catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
+        const t = await fs.readFile(at(s), 'utf8').catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
         text.set(s, t != null && srcOfMd(t) === s ? t : null)
       }
       return { text: (s) => text.get(s) ?? null, path: (s) => pathOf.get(s) || s, rows: m.rows }
     },
     // 열린 기초 세우기 일 — 연 사람만 단계를 잇는다(그만두게 하기는 shape/stop · 지식관리자 누구나)
     async seedOwn(ctx, id, { stages = ['plan', 'tried'] } = {}) {
-      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀 기초 세우기는 팀 화면에서 한다')
       const { meta, w } = await hub.shapeOwn(ctx, id)
       if (w.kind !== 'seed') throw new KmdError('E_CONFLICT', '열린 일이 기초 세우기가 아니다(문서 짜임 다시 잡기): 그 일을 마치거나 그만둔다')
       if (!stages.includes(w.stage)) throw new KmdError('E_CONFLICT', w.stage === 'done' ? '다 넣은 기초 세우기다' : '넣는 중인 기초 세우기다: 이어 넣거나 그만둔다')
@@ -3292,9 +3488,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 원본 조사(POST /api/shape/survey { kn, dir }) — 빈 지식 · 지식관리자 · 개인 프로그램만. dir 이 kmd-seed 꾸러미(manifest.json)면 그것을 연다(읽기만).
     //   아니면 원본 폴더를 core/survey.js 로 조사해 이 PC 꾸러미에 둔다(한도 300 파일 · 200MB · 넘으면 kmd-seed 로). 끝나면 장부에 기초 세우기 일을 연다
-    async seedSurvey(ctx, id, { dir } = {}) {
-      if (mode !== 'pc') throw new KmdError('E_FORBIDDEN', '팀 기초 세우기는 팀 화면에서 올린다')
+    //   팀(TODO 10)은 경로를 받지 않는다(팀 서버 폴더를 읽지 않는다) — 닫힌 올리기 묶음(group)으로 일을 연다(seedOpenGroup)
+    async seedSurvey(ctx, id, { dir, group } = {}) {
       if (!ctx?.user) throw new KmdError('E_INPUT', '누가 거는지 모른다')
+      if (mode === 'team') return hub.seedOpenGroup(ctx, id, { group })
+      if (group != null) throw new KmdError('E_INPUT', '개인은 재료 경로로 조사한다')
       await hub.seedGate(ctx, id)
       if (typeof dir !== 'string' || !dir.trim() || dir.length > 1000 || /[\r\n\0]/.test(dir)) throw new KmdError('E_INPUT', '재료 폴더 경로를 준다')
       if (!path.isAbsolute(dir.trim())) throw new KmdError('E_INPUT', '재료 폴더는 전체 경로로 준다(예: D:\\자료\\온보딩)')
@@ -3304,13 +3502,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (path.parse(full).root.toLowerCase() === full.toLowerCase() || full.toLowerCase() === os.homedir().toLowerCase()) throw new KmdError('E_INPUT', '드라이브 통째 · 사용자 집 폴더 통째는 조사하지 않는다. 그 안의 폴더를 고른다')
       if (inside(full, path.resolve(root)) || inside(path.resolve(root), full)) throw new KmdError('E_INPUT', '지식 폴더(또는 그것을 품은 폴더)는 재료로 쓰지 않는다')
       if (inside(full, path.resolve(dataDir)) || inside(path.resolve(dataDir), full)) throw new KmdError('E_INPUT', 'kmd 살림 폴더는 재료로 쓰지 않는다')
-      const openOk = (w0) => {
-        if (w0?.broken) throw new KmdError('E_CONFLICT', '잠깐 멈춤: 짜임 일 장부가 깨졌다. 그만두게 하면 새로 연다')
-        if (!w0 || ['done', 'stopped-final'].includes(w0.stage)) return
-        if (w0.kind !== 'seed') throw new KmdError('E_CONFLICT', '이 지식에 열린 문서 짜임 일이 있다: 그 일을 마치거나 그만둔다')
-        if (w0.by !== ctx.user) throw new KmdError('E_CONFLICT', `${w0.by} 가 연 기초 세우기가 있다`)
-        if (!['plan', 'tried'].includes(w0.stage) || w0.before) throw new KmdError('E_CONFLICT', '넣는 중인 기초 세우기다: 이어 넣거나 그만둔다')
-      }
+      const openOk = (w0) => seedOpenOk(ctx, w0)
       openOk(await hub.shapeWork(id))
       // 도는 일 자리 — 확인과 자리 잡기 사이에 await 를 두지 않는다(같은 때 온 두 조사가 같은 꾸러미에 쓰지 않게)
       const run0 = seedRuns.get(id)
@@ -3387,6 +3579,42 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       })()
       return { kn: id, started: true, n: run.n, packed }
     },
+    // 팀 조사(POST /api/shape/survey { kn, group }) — 닫힌 올리기 묶음(연 사람 · last)의 줄을 조사 줄로(주제 · 판 · 같은 글 · 비밀 의심 · 기본 고르기) 묶음 장부에 쓰고
+    //   기초 세우기 일을 연다(재료는 그 묶음 · 지식에는 넣기 전까지 쓰지 않는다). 빈 지식 · 이어 올린 묶음(I2)만
+    async seedOpenGroup(ctx, id, { group } = {}) {
+      await hub.seedGate(ctx, id)
+      if (!SEED_GID.test(String(group))) throw new KmdError('E_INPUT', '묶음 id 꼴이 아니다')
+      const dir = hub.seedDir(id)
+      const work = crypto.randomBytes(6).toString('hex')
+      const g = await serial(dir, async () => {
+        const w0 = await hub.shapeWork(id)
+        seedOpenOk(ctx, w0)
+        if (w0?.kind === 'seed' && seedTeamBusy(w0)) throw new KmdError('E_CONFLICT', '팀 일꾼이 짓는 중이다: 끝나거나 그만둔 뒤에 다시 조사한다')
+        const g0 = await hub.seedGroup(id, String(group))
+        if (!g0) throw new KmdError('E_NOTFOUND', '그 묶음이 없다(걷혔거나 다른 묶음이 열렸다): 다시 올린다')
+        if (g0.by !== ctx.user) throw new KmdError('E_CONFLICT', `${g0.by} 가 연 묶음이다`)
+        if (!g0.last) throw new KmdError('E_CONFLICT', '아직 올리는 중인 묶음이다: 마지막 묶음(last)을 보낸 뒤 조사한다')
+        if (g0.put?.finished) throw new KmdError('E_CONFLICT', '다 넣은 묶음이다: 다음 묶음을 올린다')
+        const text = new Map()
+        for (const r of g0.rows) {
+          if (!r.src || text.has(r.src)) continue
+          const t = await fs.readFile(path.join(dir, g0.id, `${r.src.slice(2)}.md`), 'utf8').catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
+          text.set(r.src, t != null && srcOfMd(t) === r.src ? t : null)
+        }
+        const rows = rowsOfUpload(g0.rows, (src) => text.get(src) ?? null)
+        if (!rows.some((r) => r.src)) throw new KmdError('E_INPUT', '문서가 될 파일이 없다(md · docx · pptx · xlsx · hwp · pdf)')
+        const next = { ...g0, at: new Date().toISOString(), rows, surveyed: true }
+        await writeJsonAtomic(path.join(dir, `${g0.id}.json`), next, { indent: 1, nl: true })
+        // 일 장부 — 같은 묶음 줄 안에서(그사이 새 묶음 올리기가 이 묶음을 걷지 않게)
+        const now = new Date().toISOString()
+        await hub.shapeEdit(id, (w1) => {
+          seedOpenOk(ctx, w1)
+          return { v: 1, kn: id, work, kind: 'seed', by: ctx.user, opened: now, at: now, stage: 'plan', plan: null, check: null, done: [], seed: { ui: 2, src: `올린 파일 ${next.files}`, group: next.id, team: true, pack: null, own: false, packed: false, counts: countsOf(rows), picks: {}, mode: null, texts: {}, ok: [], at: now } }
+        })
+        return next
+      })
+      return { kn: id, started: true, n: g.rows.length, packed: false, work, group: g.id }
+    },
     // 이 PC 가 만든 꾸러미 걷기 — <살림>/shape/<지식>.seed/pack-<일> 가운데 keep 밖의 것만(사람이 준 꾸러미 폴더 · 팀 올리기 묶음은 건드리지 않는다)
     async seedPackSweep(id, keep = null) {
       const base = hub.seedDir(id)
@@ -3400,7 +3628,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 구조안을 장부에(검사 · 글 이어받기) — 사람 · Claude · 폴더 그대로 · 꾸러미 모두 이 하나로
     //   texts — 꾸러미 글 초안 [{ doc, items: [{ h, text }] }] · 항목 text(폴더 그대로 · 손으로 쓴 글)는 곧바로 「지음」
-    async seedPlanApply(ctx, id, work, raw, { mode: how, notes = [], why = '', texts = [] } = {}) {
+    //   job — 팀 일꾼 일감의 결과(seedJobDone): 장부의 구조안 일감이 그것이고 그만두지 않았을 때만 쓴다
+    async seedPlanApply(ctx, id, work, raw, { mode: how, notes = [], why = '', texts = [], job = null } = {}) {
       const c = cleanPlan(raw)
       if (c.error) throw new KmdError('E_INPUT', c.error)
       if (c.plan.kind !== 'seed') throw new KmdError('E_INPUT', '바탕 세우기 구조안은 kind: seed 다')
@@ -3430,6 +3659,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       const now = new Date().toISOString()
       const next = await hub.seedEdit(id, work, (w0) => {
+        if (job && (w0.seed.job?.ids?.[0] !== job.id || job.stop || job.state === 'cancelled')) return undefined
         if (!['plan', 'tried'].includes(w0.stage)) throw new KmdError('E_CONFLICT', '넣는 중인 기초 세우기다')
         // 지은 글 이어받기 — 문서 항목(머리 · 재료)이 그대로인 문서만 · 이름만 바꾼 문서는 같은 항목의 옛 문서 글을(하나뿐일 때)
         const keep = {}
@@ -3454,7 +3684,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async seedPick(ctx, id, { picks } = {}) {
       const { meta, w } = await hub.seedOwn(ctx, id)
       if (!picks || typeof picks !== 'object' || Array.isArray(picks) || Object.keys(picks).length > 5000) throw new KmdError('E_INPUT', 'picks 는 { 경로: 고르기 } 다')
-      const rows = (await readManifest(w.seed.pack)).rows
+      const rows = await hub.seedRowsOf(w)
       const byPath = new Map(rows.map((r) => [r.path, r]))
       const next = { ...(w.seed.picks || {}) }
       for (const [p, v] of Object.entries(picks)) {
@@ -3467,7 +3697,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (v === r.pick) delete next[p]
         else next[p] = v
       }
-      if (seedRuns.get(id)?.state === 'running' && seedRuns.get(id).kind !== 'survey') throw new KmdError('E_CONFLICT', 'Claude 가 짓는 중이다: 끝나거나 그만둔 뒤에 바꾼다')
+      if ((seedRuns.get(id)?.state === 'running' && seedRuns.get(id).kind !== 'survey') || seedTeamBusy(w)) throw new KmdError('E_CONFLICT', 'Claude 가 짓는 중이다: 끝나거나 그만둔 뒤에 바꾼다')
       const k = await hub.get(id, ctx)
       const S = readShape(k, await readStructure(meta.dir))
       const chk = w.plan ? hub.seedCheckOf(k, S, w.plan, rows, next) : null
@@ -3483,21 +3713,32 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!['claude', 'folder', 'hand'].includes(how)) throw new KmdError('E_INPUT', 'mode 는 claude · folder · hand')
       const run0 = seedRuns.get(id)
       if (run0?.state === 'running') throw new KmdError('E_CONFLICT', `${{ survey: '조사하는', plan: '구조안을 짓는', write: '글을 짓는' }[run0.kind]} 중이다: 끝나거나 그만둔 뒤에 다시 건다`)
-      const rows = (await readManifest(w.seed.pack)).rows
+      if (seedTeamBusy(w)) throw new KmdError('E_CONFLICT', '팀 일꾼이 짓는 중이다: 끝나거나 그만둔 뒤에 다시 건다')
+      const rows = await hub.seedRowsOf(w)
       if (!rows.some((r) => r.src && pickOf(r, w.seed.picks) === '넣음' && r.role !== '비밀 의심')) throw new KmdError('E_INPUT', '넣음으로 고른 파일이 없다')
+      // 이미 있는 문서(이어 올린 묶음 · I2) — 폴더 그대로는 겹치지 않는 이름 · Claude 안은 그 id 를 쓰지 않게
+      const existing = (await hub.get(id, ctx)).docs.filter((d) => d.id !== RECORDS_DOC).map((d) => d.id)
       if (how === 'hand') {
         if (!plan || typeof plan !== 'object') throw new KmdError('E_INPUT', '구조안(plan)을 준다')
         return { ...(await hub.seedPlanApply(ctx, id, w.work, { ...plan, kind: 'seed', v: 1 }, { mode: 'hand' })), view: await hub.seedView(ctx, id) }
       }
       if (how === 'folder') {
         const mats = await hub.seedMats(w, rows.filter((r) => r.src).map((r) => r.src))
-        const p = folderPlan(rows, mats.text, { picks: w.seed.picks, asIs: seedAsIsDoc })
+        const p = folderPlan(rows, mats.text, { picks: w.seed.picks, asIs: seedAsIsDoc, taken: existing })
         if (!p.docs.length) throw new KmdError('E_INPUT', '폴더 그대로 지을 글이 없다')
         return { ...(await hub.seedPlanApply(ctx, id, w.work, p, { mode: 'folder' })), view: await hub.seedView(ctx, id) }
       }
-      const st = hub.shapeClaudeState(id)
+      const st = hub.shapeClaudeState(id, { seed: true })
       if (!st.ok) throw new KmdError('E_FORBIDDEN', st.why)
       if (note != null && (typeof note !== 'string' || note.length > 1000)) throw new KmdError('E_INPUT', 'note 는 1000자 안의 글이다')
+      // 팀 — 팀 일꾼 일감 shape-plan(src.seed · 재료는 서버가 장부에서 짓는다 · 하루 들이기 수를 센다 · 24시간)
+      if (mode === 'team') {
+        if (st.old) throw new KmdError('E_CONFLICT', '팀 일꾼 판이 옛것이다: 폴더 그대로 · 손으로 짜거나 일꾼을 다시 설치한다')
+        const nt = String(note || '').trim()
+        const r = await hub.openJob(id, { type: 'shape-plan', by: ctx.user, src: { title: `${meta.name || id}: 기초 세우기`.slice(0, 80), who: ctx.user, key: sha16(JSON.stringify([w.work, w.seed.picks || {}, nt])), seed: true }, md: JSON.stringify({ seed: { work: w.work }, note: nt }) })
+        await hub.seedEdit(id, w.work, (w0) => ({ ...w0, at: new Date().toISOString(), seed: { ...w0.seed, job: { kind: 'plan', ids: [r.job], at: new Date().toISOString(), by: ctx.user } } }))
+        return { started: true, job: r.job, view: await hub.seedView(ctx, id) }
+      }
       const cards = await packCards(w.seed.pack)
       // 도는 일 자리 — 다시 보고 곧바로 잡는다(await 를 사이에 두지 않는다)
       const run1 = seedRuns.get(id)
@@ -3509,11 +3750,17 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 짓기(POST seed/write { doc? · all? · items? · approve? · stop? }) — doc: 그 문서 하나 Claude · all: 남은 문서 모두(처음 3 문서 승인 뒤) ·
     //   items: 손으로 쓴 글 [{ h, content }](doc 와 같이) · approve: 그 문서 승인(처음 3 문서) · stop: 도는 짓기 그만두기(받은 글은 버린다)
+    //   넣다 선 일(걸음 실패 · stopped)에서는 그 문서 글 고치기(items · doc)만 — 연습 판 결과 · 넣은 걸음은 그대로 두고 [이어 넣기](P-D24)
     async seedWrite(ctx, id, { doc = null, all = false, items = null, approve = null, stop = false } = {}) {
-      const { w } = await hub.seedOwn(ctx, id)
+      const { w } = await hub.seedOwn(ctx, id, { stages: ['plan', 'tried', 'stopped'] })
+      if (w.stage === 'stopped' && !stop) {
+        const failed = new Set((w.last?.fail || []).map((h) => String(h.doc || '').replace(/^docs\//, '').replace(/\.md$/, '')))
+        if (all || approve != null || !failed.has(doc)) throw new KmdError('E_CONFLICT', '넣다 선 기초 세우기다: 걸음 실패 문서의 글만 고치고 이어 넣는다')
+      }
       const run0 = seedRuns.get(id)
       if (stop) {
         if (run0?.state === 'running' && run0.work === w.work && run0.kind !== 'survey') Object.assign(run0, { state: 'cancelled', why: `그만뒀다: ${ctx.user}` })
+        if (mode === 'team') await seedTeamStop(w, ctx.user)
         await hub.seedEdit(id, w.work, (w0) => ({ ...w0, seed: { ...w0.seed, texts: Object.fromEntries(Object.entries(w0.seed.texts || {}).map(([d, t]) => [d, t.state === 'run' ? { ...t, state: 'wait' } : t])) } }))
         return hub.seedView(ctx, id)
       }
@@ -3530,17 +3777,22 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (!one(doc)) throw new KmdError('E_INPUT', '구조안에 없는 문서다')
         const d = w.plan.docs.find((x) => x.id === doc)
         if (!Array.isArray(items) || items.length !== d.items.length || items.some((x) => !x || typeof x.h !== 'string' || typeof x.content !== 'string' || x.content.length > 200_000) || d.items.some((it) => !items.some((x) => x.h === it.h))) throw new KmdError('E_INPUT', 'items 는 그 문서 항목마다 { h, content } 다')
-        if (run0?.state === 'running' && run0.kind === 'write' && run0.work === w.work) throw new KmdError('E_CONFLICT', 'Claude 가 짓는 중이다: 끝나거나 그만둔 뒤에 고친다')
+        if ((run0?.state === 'running' && run0.kind === 'write' && run0.work === w.work) || seedTeamBusy(w)) throw new KmdError('E_CONFLICT', 'Claude 가 짓는 중이다: 끝나거나 그만둔 뒤에 고친다')
         const k = await hub.get(id, ctx)
         const mats = await hub.seedMats(w)
         const body = d.items.map((it) => ({ h: it.h, content: String(items.find((x) => x.h === it.h).content).replace(/\r\n/g, '\n').trim() + '\n' }))
         const j = hub.seedJudge(k, w.plan, doc, body, mats)
-        await hub.seedEdit(id, w.work, (w0) => ({ ...seedUntry(w0), seed: { ...w0.seed, texts: { ...w0.seed.texts, [doc]: { ...(w0.seed.texts?.[doc] || {}), state: j.errors.length ? 'fail' : 'ok', items: body, chars: body.reduce((a, x) => a + x.content.length, 0), values: j.values, by: 'hand', ...(j.errors.length ? { why: j.errors[0].why, stepFail: j.errors.slice(0, 20) } : { why: undefined, stepFail: undefined }) } }, ok: (w0.seed.ok || []).filter((x) => x !== doc) } }))
+        await hub.seedEdit(id, w.work, (w0) => {
+          const w1 = seedPatch(w0, doc, { ...(w0.seed.texts?.[doc] || {}), state: j.errors.length ? 'fail' : 'ok', items: body, chars: body.reduce((a, x) => a + x.content.length, 0), values: j.values, by: 'hand', ...(j.errors.length ? { why: j.errors[0].why, stepFail: j.errors.slice(0, 20) } : { why: undefined, stepFail: undefined }) })
+          return w1 && { ...w1, at: new Date().toISOString(), seed: { ...w1.seed, ok: (w0.seed.ok || []).filter((x) => x !== doc) } }
+        })
         return hub.seedView(ctx, id)
       }
-      const st = hub.shapeClaudeState(id)
+      const st = hub.shapeClaudeState(id, { seed: true })
       if (!st.ok) throw new KmdError('E_FORBIDDEN', st.why)
+      if (st.old) throw new KmdError('E_CONFLICT', '팀 일꾼 판이 옛것이다: 손으로 쓰거나 일꾼을 다시 설치한다')
       if (run0?.state === 'running') throw new KmdError('E_CONFLICT', `${{ survey: '조사하는', plan: '구조안을 짓는', write: '글을 짓는' }[run0.kind]} 중이다`)
+      if (seedTeamBusy(w)) throw new KmdError('E_CONFLICT', '팀 일꾼이 짓는 중이다: 끝나거나 그만둔 뒤에 다시 건다')
       let list
       if (all) {
         const first = docs.slice(0, 3)
@@ -3551,16 +3803,41 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         list = [doc]
       }
       if (!list.length) throw new KmdError('E_INPUT', '지을 문서가 없다')
+      if (w.stage === 'stopped' && list.length !== 1) throw new KmdError('E_CONFLICT', '넣다 선 기초 세우기다: 문서 하나씩 고친다')
+      // 팀 — 문서마다 팀 일꾼 일감 shape-write(src.seed). 하루 들이기 한도가 모자라면 하나도 세우지 않는다(「오늘 한도 n 남음」)
+      if (mode === 'team') {
+        const day = hub.intakeLeft(id)
+        if (list.length > day.left) throw new KmdError('E_RATE', `오늘 한도 ${day.left} 남음(문서 ${list.length}): 내일 잇거나 손으로 쓴다`, { details: { retryAfter: 3600, left: day.left } })
+        const opened = []
+        let err = null
+        for (const x of list) {
+          try {
+            const t0 = w.seed.texts?.[x] || {}
+            const r = await hub.openJob(id, { type: 'shape-write', by: ctx.user, src: { title: `${x}: 기초 세우기`.slice(0, 80), who: ctx.user, key: sha16(JSON.stringify([w.work, x, t0.sig || '', t0.rid || '', t0.fixedAt || ''])), seed: true }, md: JSON.stringify({ seed: { work: w.work, doc: x } }) })
+            opened.push([x, r.job])
+          } catch (e) { err = e; break }
+        }
+        const now = new Date().toISOString()
+        if (opened.length) {
+          await hub.seedEdit(id, w.work, (w0) => {
+            if (!['plan', 'tried', 'stopped'].includes(w0.stage)) return undefined
+            const base = w0.stage === 'stopped' ? w0 : seedUntry(w0)
+            return { ...base, at: now, seed: { ...w0.seed, job: { kind: 'write', ids: opened.map(([, j]) => j), docs: opened.map(([x]) => x), at: now, by: ctx.user }, texts: { ...w0.seed.texts, ...Object.fromEntries(opened.map(([x, j]) => [x, { ...(w0.seed.texts?.[x] || {}), state: 'run', rid: j }])) }, ok: (w0.seed.ok || []).filter((x) => !opened.some(([y]) => y === x)) } }
+          })
+        }
+        if (err) throw err
+        return hub.seedView(ctx, id)
+      }
       const run = { kind: 'write', state: 'running', i: 0, n: list.length, by: ctx.user, at: new Date().toISOString(), work: w.work, doc: list[0], tries: 0, rid: crypto.randomBytes(6).toString('hex') }
       seedRuns.set(id, run)
-      await hub.seedEdit(id, w.work, (w0) => ({ ...seedUntry(w0), seed: { ...w0.seed, texts: { ...w0.seed.texts, ...Object.fromEntries(list.map((x) => [x, { ...(w0.seed.texts?.[x] || {}), state: 'run', rid: run.rid }])) }, ok: (w0.seed.ok || []).filter((x) => !list.includes(x)) } }))
+      await hub.seedEdit(id, w.work, (w0) => (!['plan', 'tried', 'stopped'].includes(w0.stage) ? undefined : { ...(w0.stage === 'stopped' ? w0 : seedUntry(w0)), seed: { ...w0.seed, texts: { ...w0.seed.texts, ...Object.fromEntries(list.map((x) => [x, { ...(w0.seed.texts?.[x] || {}), state: 'run', rid: run.rid }])) }, ok: (w0.seed.ok || []).filter((x) => !list.includes(x)) } }))
       pcSeedWrite(ctx, id, run, list).catch((e) => { log('기초 세우기 짓기', id, e.message); if (run.state === 'running') Object.assign(run, { state: 'fail', why: e.message }) })
       return hub.seedView(ctx, id)
     },
     // 연습 판에 해 보기(POST seed/try) — 문서마다 지은 글을 글 걸음 번호로 싣고 shapeTry(연습 판 · 끝 진단)
     async seedTry(ctx, id) {
       const { meta, w } = await hub.seedOwn(ctx, id)
-      if (seedRuns.get(id)?.state === 'running') throw new KmdError('E_CONFLICT', '도는 일이 끝난 뒤에 해 본다')
+      if (seedRuns.get(id)?.state === 'running' || seedTeamBusy(w)) throw new KmdError('E_CONFLICT', '도는 일이 끝난 뒤에 해 본다')
       if (!w.plan || !w.check?.ok) throw new KmdError('E_INPUT', '걸림 없는 구조안을 먼저 정한다')
       const docs = w.plan.docs.filter((d) => !d.was)
       const left = docs.filter((d) => w.seed.texts?.[d.id]?.state !== 'ok')
@@ -3579,7 +3856,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const { w } = await hub.seedOwn(ctx, id, { stages: ['plan', 'tried', 'putting', 'stopped', 'rebase'] })
       if (!Number.isInteger(ui) || ui < 2 || ui > 6) throw new KmdError('E_INPUT', 'ui 는 2 ~ 6')
       const top = seedReach(w)
-      await hub.seedEdit(id, w.work, (w0) => ({ ...w0, seed: { ...w0.seed, ui: Math.min(ui, top) } }))
+      await hub.seedEdit(id, w.work, (w0) => ({ ...w0, at: new Date().toISOString(), seed: { ...w0.seed, ui: Math.min(ui, top) } }))
       return hub.seedView(ctx, id)
     },
     // 기초 세우기 보기(GET /api/k/:id/seed) — 그 지식의 지식관리자. 줄(재료) · 고르기 · 구조안 · 검사 · 문서마다 글 상태 · 연습 판 진단 · 넣기 · 도는 일
@@ -3588,17 +3865,21 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       hub.need(ctx, id, 'admin')
       const k = await hub.get(id, ctx)
       const own = k.docs.filter((d) => d.id !== RECORDS_DOC).length
-      const r0 = seedRuns.get(id)
-      const run = r0 ? { kind: r0.kind, state: r0.state, i: r0.i, n: r0.n, by: r0.by, at: r0.at, ...(r0.doc ? { doc: r0.doc } : {}), ...(r0.why ? { why: r0.why } : {}), ...(r0.big ? { big: r0.big } : {}), ...(r0.tries ? { tries: r0.tries } : {}) } : null
+      const r0 = mode === 'team' ? null : seedRuns.get(id)
+      let run = r0 ? { kind: r0.kind, state: r0.state, i: r0.i, n: r0.n, by: r0.by, at: r0.at, ...(r0.doc ? { doc: r0.doc } : {}), ...(r0.why ? { why: r0.why } : {}), ...(r0.big ? { big: r0.big } : {}), ...(r0.tries ? { tries: r0.tries } : {}) } : null
       const w = await hub.shapeWork(id)
       let work = null
       if (w?.broken) work = { broken: true }
       else if (w && w.kind === 'seed' && w.stage !== 'stopped-final') {
         let rows = null
         let rowsErr = null
-        try { rows = (await readManifest(w.seed.pack)).rows } catch (e) { rowsErr = e.message }
+        try { rows = await hub.seedRowsOf(w) } catch (e) { rowsErr = e.message }
         const picks = w.seed.picks || {}
-        const docs = (w.plan?.docs || []).filter((d) => !d.was).map((d) => { const t = w.seed.texts?.[d.id] || { state: 'wait' }; return { id: d.id, items: d.items.map((it) => ({ h: it.h, src: (it.src || []).length })), state: t.state, chars: t.chars || 0, values: t.values || [], ...(t.why ? { why: t.why } : {}), ...(t.stepFail ? { stepFail: t.stepFail } : {}), ok: (w.seed.ok || []).includes(d.id), ...(t.by ? { by: t.by } : {}) } })
+        if (mode === 'team') run = await seedTeamRun(w)
+        // 팀 — 일감이 닫혔는데 글이 오지 않은 문서(24시간 · 일꾼 실패 · 그만둠)는 걸림으로 보인다(다시 지을 수 있다)
+        const dead = (t) => mode === 'team' && t.state === 'run' && !seedJobOpen(t.rid)
+        const failed = new Set((w.stage === 'stopped' ? w.last?.fail || [] : []).map((h) => String(h.doc || '').replace(/^docs\//, '').replace(/\.md$/, '')))
+        const docs = (w.plan?.docs || []).filter((d) => !d.was).map((d) => { const t0 = w.seed.texts?.[d.id] || { state: 'wait' }; const t = dead(t0) ? { ...t0, state: 'fail', why: jobs.get(t0.rid)?.why || '팀 일꾼이 짓지 못했다' } : failed.has(d.id) && t0.state === 'ok' && !(t0.fixedAt && w.last?.at && t0.fixedAt > w.last.at) ? { ...t0, state: 'fail', why: '걸음 실패: 글을 고쳐 이어 넣는다' } : t0; return { id: d.id, items: d.items.map((it) => ({ h: it.h, src: (it.src || []).length })), state: t.state, chars: t.chars || 0, values: t.values || [], ...(t.why ? { why: t.why } : {}), ...(t.stepFail ? { stepFail: t.stepFail } : {}), ok: (w.seed.ok || []).includes(d.id), ...(t.by ? { by: t.by } : {}) } })
         work = {
           work: w.work, by: w.by, mine: w.by === ctx.user, stage: w.stage, ui: w.seed.ui, top: seedReach(w), src: w.seed.src, packed: !!w.seed.packed, at: w.at, opened: w.opened,
           counts: w.seed.counts, mode: w.seed.mode,
@@ -3613,9 +3894,31 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           // [보기] — 문서 하나의 지은 글(?doc=)
           ...(typeof doc === 'string' && Object.prototype.hasOwnProperty.call(w.seed.texts || {}, doc) && Array.isArray(w.seed.texts[doc].items) ? { text: { doc, items: w.seed.texts[doc].items } } : {}),
           ...(w.stage === 'stopped' && w.last?.fail ? { fail: w.last.fail } : {}),
+          ...(w.seed.group ? { group: w.seed.group } : {}),
+          ...(seedIdle(w) && !(run && run.state === 'running') ? { idle: true } : {}),
         }
       } else if (w && !['done', 'stopped-final'].includes(w.stage)) work = { other: true, by: w.by }
-      return { kn: id, name: meta.name, own, claude: hub.shapeClaudeState(id), run, work, limit: { files: MAX_FILES, bytes: MAX_BYTES } }
+      // 팀(TODO 10) — 하루 들이기 한도 · 비용 숫자(파일 · 글 자 · 팀 일꾼 일) · 아직 조사하지 않은 내 올리기 묶음 · 이어 올린 묶음 수
+      let team = null
+      if (mode === 'team') {
+        const day = hub.intakeLeft(id)
+        const sw = work && !work.other && !work.broken ? work : null
+        const use = (sw?.rows || []).filter((r) => r.src && r.pick === '넣음' && r.role !== '비밀 의심')
+        const cost = sw ? { files: use.length, chars: use.reduce((a, r) => a + (r.chars || 0), 0), docs: sw.plan ? sw.docs.filter((x) => x.state !== 'ok').length : null } : null
+        let upload = null
+        if (!sw || sw.stage === 'done') {
+          const ents = await fs.readdir(hub.seedDir(id)).catch((e) => (e.code === 'ENOENT' ? [] : Promise.reject(e)))
+          for (const n of ents) {
+            const m = /^([0-9a-f]{12})\.json$/.exec(n)
+            if (!m) continue
+            const g = await hub.seedGroup(id, m[1]).catch((e) => { log('기초 세우기: 묶음 장부를 읽지 못했다', id, e.message); return null })
+            if (g && g.by === ctx.user && !g.put?.finished && !g.surveyed) upload = { id: g.id, files: g.files, bytes: g.bytes, last: g.last, at: g.at }
+          }
+        }
+        const ser = await hub.seedSeries(id).catch((e) => { log('기초 세우기: 이어 올리기 장부', id, e.message); return null })
+        team = { day, cost, upload, series: ser ? ser.groups.length : 0 }
+      }
+      return { kn: id, name: meta.name, own, claude: hub.shapeClaudeState(id, { seed: true }), run, work, limit: { files: MAX_FILES, bytes: MAX_BYTES }, ...(team ? { team } : {}) }
     },
     // 만들던 것(GET /api/seed/open) — 내가 지식관리자인 지식의 열린 기초 세우기(조사 중 포함)
     async seedOpen(ctx) {
@@ -3776,6 +4079,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 넣기 본체 — shape-run 줄 안에서만(hub.shapePut) · 다시 맞춘 뒤 잇기도 같은 줄 안에서 이것을 다시 부른다
     async shapePutRun(ctx, id, { max = Infinity, again = false, rebased = false } = {}) {
       const { meta, w } = await hub.shapeOwn(ctx, id)
+      if (w.kind === 'seed' && (seedTeamBusy(w) || (seedRuns.get(id)?.state === 'running' && seedRuns.get(id).work === w.work))) throw new KmdError('E_CONFLICT', '글을 짓는 중이다: 끝나거나 그만둔 뒤에 넣는다')
       if (w.stage === 'done') return { kn: id, work: w.work, done: true, steps: w.done.length }
       if (!w.tried || !['tried', 'putting', 'rebase', 'stopped'].includes(w.stage)) throw new KmdError('E_CONFLICT', '연습 판에 해 보기를 먼저 한다')
       const shut = backup.closed(meta)
@@ -3848,7 +4152,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           // 걸음 실패(approve 모드 지식 · P-D24) — 아무것도 쓰지 않았다 · 일은 멈춘다(stopped · 까닭) · 지식관리자가 구조안을 고쳐 다시 검사한다
           const sf = stepFailOf(e)
           if (sf) {
-            await hub.shapeEdit(id, (w0) => (liveWork(w0, w.work) ? { ...w0, stage: 'stopped', at: new Date().toISOString(), last: { n: s.n, fail: sf } } : undefined))
+            await hub.shapeEdit(id, (w0) => (liveWork(w0, w.work) ? { ...w0, stage: 'stopped', at: new Date().toISOString(), last: { n: s.n, fail: sf, at: new Date().toISOString() } } : undefined))
             return { kn: id, work: w.work, stopped: { n: s.n, unit: s.unit, fail: sf } }
           }
           if (e.code === 'E_CONFLICT') {
@@ -3867,6 +4171,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       // 끝 — 넣기 뒤 진단(진짜) · 장부는 「끝남」 으로 남는다(되돌리기 구조안 재료)
       const kEnd = await hub.get(id, ctx)
+      // 팀 기초 세우기 묶음 — 이어 올리기 장부를 「끝남」 보다 먼저(멱등 · 놓쳤으면 seedGate 가 다시 적는다)
+      if (w.kind === 'seed' && w.seed?.group) await hub.seedSeriesAdd(id, w.seed.group, kEnd)
       await hub.shapeEdit(id, (w0) => (liveWork(w0, w.work) ? { ...w0, stage: 'done', at: new Date().toISOString() } : undefined))
       return { kn: id, work: w.work, done: true, steps: done.size, docs: kEnd.docs.length }
     },
@@ -3886,6 +4192,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       })
       // 기초 세우기(Z7) — 도는 일을 그만두고 이 PC 가 만든 꾸러미(재료 글)를 걷는다(사람이 준 꾸러미 폴더는 그대로)
       if (w?.kind === 'seed') {
+        if (mode === 'team') await seedTeamStop(w, ctx?.user || 'kmd')
         const r = seedRuns.get(id)
         if (r?.state === 'running') Object.assign(r, { state: 'cancelled', why: `그만뒀다: ${ctx?.user || 'kmd'}` })
         if (w.seed?.own && !w.before) await hub.seedPackSweep(id)
@@ -4916,7 +5223,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 줄 멈춤이면 들이기 일감도 주지 않는다(UX T6-05) · 이미 맡은 일감의 초안은 그대로 받는다
       if (Q.hold) return null
       sweepJobs()
-      const q = [...jobs.values()].filter((x) => x.state === 'queued' && x.kind === 'intake' && (!SHAPE_T.has(x.type) || types.includes(x.type)))
+      const q = [...jobs.values()].filter((x) => x.state === 'queued' && x.kind === 'intake' && (!SHAPE_T.has(x.type) || types.includes(x.type)) && (!x.src?.seed || types.includes('shape-seed')))
       const j = q.find((x) => !x.auto) || q[0]
       if (!j) return null
       j.state = 'running'
@@ -5093,12 +5400,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const k = await hub.get(id)
       // Claude 짜임 재료 — 지금 지식에서 서버가 짓는다 · 글 짓기는 일꾼에게 보인 출처 지문을 남긴다(끝에서 견준다)
       if (SHAPE_T.has(j.type)) {
-        const sg = await shapeG(id, k, j.type, shapeIn(md))
+        const input = shapeIn(md)
+        const sg = input.seed ? await seedG(id, j, input) : await shapeG(id, k, j.type, input)
         if (sg.error) {
           await intakeAbort(j, sg.error)
           throw new KmdError('E_CONFLICT', sg.error)
         }
-        j.seen = j.type === 'shape-write' ? sg.g.sources.map((x) => ({ doc: x.doc, h: x.h, base: x.base })) : [{ fp: sg.g.fp }]
+        j.seen = input.seed ? [{ seed: input.seed.work }] : j.type === 'shape-write' ? sg.g.sources.map((x) => ({ doc: x.doc, h: x.h, base: x.base })) : [{ fp: sg.g.fp }]
         j.beat = new Date().toISOString()
         saveJobs()
         return sg.g

@@ -1131,8 +1131,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (!b || typeof b !== 'object' || Array.isArray(b)) throw new KmdError('E_INPUT', '{ group, files } 를 보낸다')
       return out(200, await hub.seedUpload(ctx, sid, { group: b.group ?? null, files: b.files ?? [] }))
     }
-    // 개인 기초 세우기(TODO 9 · Z7 · 바탕 설계 5-3 · 권한 모델 7절) — 그 지식의 지식관리자 · 개인 프로그램만(팀은 올리기 · TODO 10)
-    //   POST /api/shape/survey { kn, dir } 원본 조사(또는 kmd-seed 꾸러미 열기) · GET /api/seed/open 만들던 것 · GET /api/k/:id/seed 보기 ·
+    // 기초 세우기(TODO 9 · 10 · Z7 · Z8 · 바탕 설계 5-3 · 메뉴개편 8-2 · 권한 모델 7절) — 그 지식의 지식관리자
+    //   POST /api/shape/survey { kn, dir } 원본 조사(또는 kmd-seed 꾸러미 열기) · 팀은 { kn, group } 닫힌 올리기 묶음으로 일을 연다(경로를 받지 않는다) · GET /api/seed/open 만들던 것 · GET /api/k/:id/seed 보기 ·
     //   POST seed/pick { picks } · seed/plan { mode, plan?, note? } · seed/write { doc?, all?, items?, approve?, stop? } · seed/try · seed/step { ui } ·
     //   넣기 · 그만두기는 짜임 길(shape/put · shape/stop) 그대로. 걸음 내용은 받지 않는다(서버가 장부의 구조안 · 글로 짓는다)
     if (p === '/api/shape/survey') {
@@ -1140,7 +1140,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (req.method !== 'POST') throw new KmdError('E_METHOD', 'POST 로 보낸다')
       const b = await readBody(req)
       if (!b || typeof b !== 'object' || Array.isArray(b) || typeof b.kn !== 'string' || !b.kn || b.kn.length > 200) throw new KmdError('E_INPUT', '{ kn, dir } 를 보낸다')
-      return out(200, await hub.seedSurvey(ctx, b.kn, { dir: b.dir }))
+      if (b.group != null && typeof b.group !== 'string') throw new KmdError('E_INPUT', 'group 은 묶음 id 다')
+      return out(200, await hub.seedSurvey(ctx, b.kn, { dir: b.dir, group: b.group ?? null }))
     }
     if (p === '/api/seed/open') { need(ctx); return out(200, await hub.seedOpen(ctx)) }
     const sdm = p.match(/^\/api\/k\/([^/]+)\/seed(?:\/(pick|plan|write|try|step))?$/)

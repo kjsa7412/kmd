@@ -1,7 +1,7 @@
 // 팀 기초 세우기 올리기(메뉴개편 8-2 · N7 · docs/kmd_권한_모델.md 7절) — POST /api/k/:id/seed/upload
 //
 // 자리부터(본문을 읽기 전에): 자리 없음 404 · 쓰기 403 · 빈 지식이 아니면 409 · 묶음 누계 300 파일을 서버가 센다(다시 보낸 같은 파일은 세지 않는다) ·
-// 받은 파일은 fileToMd 글로 재료 자리(<살림>/shape/<지식>.seed/)에 두고 원본은 두지 않는다 · 「폴더 그대로」 짓기는 hub.save 채널 seed 로.
+// 받은 파일은 fileToMd 글로 재료 자리(<살림>/shape/<지식>.seed/)에 두고 원본은 두지 않는다 · 「폴더 그대로」 짓기는 approve 지식에서 짜임 걸음(통합 I1).
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -96,7 +96,7 @@ test('묶음 누계: 300 파일 넘으면 거절 · 같은 파일 다시 보내�
   assert.equal((await req(U, P.ad, { group: { id: gid }, files: many(900, 1) })).status, 409, '닫힌 묶음')
 })
 
-test('재료: fileToMd 글만 두고 원본은 두지 않는다 · 폴더 그대로는 hub.save 채널 seed', async () => {
+test('재료: fileToMd 글만 두고 원본은 두지 않는다 · 폴더 그대로는 짜임 걸음(I1) · 다음 묶음(I2)', async () => {
   const md = '# 배포 절차\n\n머리 앞 글: 서버 10.0.0.5 에 올린다.\n\n## 순서\n1. 빌드한다\n2. 포트 8090 으로 띄운다\n\n## 되돌리기\n앞 판으로 바꾼다\n'
   const r = await req(U, P.ad, { group: { total: 3, last: true }, files: [file('운영/배포.md', md), file('표.csv', 'a,b\n1,2\n'), { path: '그림.png', b64: Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64') }] })
   assert.equal(r.status, 200, JSON.stringify(r.j))
@@ -121,20 +121,23 @@ test('재료: fileToMd 글만 두고 원본은 두지 않는다 · 폴더 그대
   const ad = { user: 'ad' }
   await assert.rejects(s.hub.seedAsIs({ user: 'boss', admin: true }, KN, { group: gid }), { code: 'E_CONFLICT' })
   await assert.rejects(s.hub.seedAsIs({ user: 'wr' }, KN, { group: gid }), { code: 'E_FORBIDDEN' })
+  // approve 지식(새 지식)은 통합 I1 꼴 — 그 묶음의 기초 세우기 일 → 폴더 그대로 구조안 → 연습 판 → 넣기(짜임 걸음 · 채널 shape)
   const out = await s.hub.seedAsIs(ad, KN, { group: gid })
-  assert.equal(out.put, 2, JSON.stringify(out.rows))
+  assert.equal(out.done, true, JSON.stringify(out))
   const k = await s.hub.get(KN, ad)
   const d = k.byDocPath.get('docs/운영/배포.md')
   assert.ok(d, '폴더 짜임 그대로 문서')
   assert.deepEqual(d.sections.map((x) => x.h), ['개요', '순서', '되돌리기'])
   assert.match(d.sections[1].body, /8090/)
   const log = fs.readFileSync(path.join(data, 'savelog', `${encodeURIComponent(KN)}.jsonl`), 'utf8').trim().split('\n').map((l) => JSON.parse(l))
-  assert.ok(log.length >= 2 && log.every((l) => l.ch === 'seed'), '채널 seed 로 저장 문을 지났다')
-  // 빈 지식이 아니게 됐다 — 새 올리기는 409 · 같은 묶음을 다시 부르면 남은 것이 없다
-  assert.equal((await req(U, P.ad, { files: [file('b.md', '# b\n')] })).status, 409)
-  const again = await s.hub.seedAsIs(ad, KN, { group: gid })
-  assert.equal(again.put, 0)
+  assert.ok(log.length >= 2 && log.every((l) => l.ch === 'shape'), '짜임 걸음(채널 shape)으로 저장 문을 지났다')
+  // 다 넣었다 — 끝 표지 · 같은 묶음을 다시 부르면 남은 것이 없다
   assert.ok(JSON.parse(fs.readFileSync(path.join(dir, `${gid}.json`), 'utf8')).put.finished, '다 지으면 끝 표지')
+  const again = await s.hub.seedAsIs(ad, KN, { group: gid })
+  assert.equal(again.done, true)
+  // 이어 올리기(통합 I2) — 앞 묶음이 세운 문서뿐이면 다음 묶음을 받는다 · 이어 올리기 장부는 걷지 않는다
+  assert.equal((await req(U, P.ad, { files: [file('b.md', '# b\n')] })).status, 200)
+  assert.ok(fs.existsSync(path.join(dir, 'series.json')))
 })
 
 test('seedAsIsDoc: 개요 · ## 항목 · 같은 머리 · 코드 울타리 · 기록 본문의 머리 내림 · 덩이 · 늦은 # 줄 · 경로', () => {

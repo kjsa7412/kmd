@@ -139,6 +139,20 @@ export function classify(rows) {
   return out
 }
 
+// 팀 올리기 묶음(hub.seedUpload) → 조사 줄 — 브라우저가 올린 파일마다 { path, size, orig, kind, src?, why? } 와 재료 글(textOf(src))로
+//   조사와 같은 줄(주제 · 갈래 · 날짜 · 비밀 의심 · digest · 판 · 같은 글 · 기본 고르기)을 짓는다. 글은 바꾸지 않는다(재료 id 그대로)
+export function rowsOfUpload(list, textOf) {
+  const rows = list.map((x) => {
+    const topic = topicOfName(x.path)
+    const form = formFor({ rows: DEFAULT_FORMS }, topic)?.name || formFor({ rows: DEFAULT_FORMS }, x.path)?.name || null
+    const row = { path: x.path, size: x.size || 0, orig: x.orig, kind: x.kind, date: dateOf(x.path), topic, form }
+    const md = x.src ? textOf(x.src) : null
+    if (typeof md === 'string' && md.trim()) return withText(row, md)
+    return { ...row, ...(/글 층이 없다|스캔/.test(x.why || '') ? { scanNeed: true } : {}), why: x.why || '재료 글이 없다' }
+  })
+  return classify(rows)
+}
+
 export function countsOf(rows) {
   const c = { files: rows.length, bytes: rows.reduce((a, r) => a + (r.size || 0), 0), big: rows.filter((r) => r.size > BIG).length, scanNeed: rows.filter((r) => r.role === '스캔' && !r.src).length }
   for (const k of ROLES) c[k] = rows.filter((r) => r.role === k).length

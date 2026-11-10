@@ -16,7 +16,7 @@ import { runClaude } from './claude.js'
 import { INTAKE_SCHEMA, intakePromptOf, intakeFixPromptOf, POLISH_SCHEMA, polishPromptOf } from './ingest.js'
 import { FIX_SCHEMA, corrPromptOf, corrRetryPromptOf } from './fix.js'
 import { WRITE_RULES } from './writerules.js'
-import { SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SHAPE_CLAUDE_TYPES } from './shape.js'
+import { SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SHAPE_CLAUDE_TYPES, SEED_PLAN_SCHEMA, seedPlanPromptOf, seedPlanFixPromptOf } from './shape.js'
 import { modelOf } from './models.js'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -24,7 +24,8 @@ import path from 'node:path'
 
 // 멈추는 까닭 — 다음 자리에서 다시 불러도 같다(로그인 · 한도 · claude 없음)
 // 이 일꾼이 아는 일감 type(일감을 물을 때 싣는다)
-export const KNOWN_TYPES = ['file', 'commit', 'fix', 'again', 'polish', ...SHAPE_CLAUDE_TYPES]
+//   shape-seed — 기초 세우기 구조안(재료 kind seed · SEED_PLAN_SCHEMA)을 안다(TODO 10 · 서버는 이것을 알린 일꾼에게만 기초 세우기 일감을 준다)
+export const KNOWN_TYPES = ['file', 'commit', 'fix', 'again', 'polish', ...SHAPE_CLAUDE_TYPES, 'shape-seed']
 const STOP = { login: '로그인이 끝났다', limit: '한도에 닿았다', missing: 'Claude Code(claude) 가 설치되어 있지 않다' }
 async function call(server, key, p, body) {
   const r = await fetch(server + p, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
@@ -80,8 +81,10 @@ export async function intakeOnce({ server, key, job, dkey, log = () => {}, budge
   // Claude 짜임(Z6) — 구조안 · 글. 고쳐 쓰기도 같은 프롬프트에 까닭과 지난 초안을 붙인다
   const spl = g.type === 'shape-plan'
   const swr = g.type === 'shape-write'
-  const schema = spl ? SHAPE_PLAN_SCHEMA : swr ? SHAPE_WRITE_SCHEMA : corr ? FIX_SCHEMA : pol ? POLISH_SCHEMA : INTAKE_SCHEMA
-  let prompt = spl ? shapePlanPromptOf(g) : swr ? shapeWritePromptOf(g, opt) : corr ? corrPromptOf(g, opt) : pol ? polishPromptOf(g, opt) : intakePromptOf(g, opt)
+  // 기초 세우기(TODO 10) — 구조안은 바탕 구조안(재료 카드 → 첫 짜임) · 글은 같은 글 프롬프트(재료가 출처)
+  const sseed = spl && g.kind === 'seed'
+  const schema = sseed ? SEED_PLAN_SCHEMA : spl ? SHAPE_PLAN_SCHEMA : swr ? SHAPE_WRITE_SCHEMA : corr ? FIX_SCHEMA : pol ? POLISH_SCHEMA : INTAKE_SCHEMA
+  let prompt = sseed ? seedPlanPromptOf(g) : spl ? shapePlanPromptOf(g) : swr ? shapeWritePromptOf(g, opt) : corr ? corrPromptOf(g, opt) : pol ? polishPromptOf(g, opt) : intakePromptOf(g, opt)
   for (let i = 0; i <= INGEST_FIX(); i++) {
     const p0 = await call(server, dkey, `${base}/progress`, {}).catch(gone)
     if (lost || p0.stop) return { job, summary: { put: 0, held: 0 }, skipped: lost ? 'lost' : 'stopped' }
@@ -112,7 +115,7 @@ export async function intakeOnce({ server, key, job, dkey, log = () => {}, budge
     if (d.error) { log(`${name}: 초안을 넣지 못했다(${d.error})`); return { job, summary: { put: 0, held: 0 }, skipped: d.error } }
     if (d.fix) {
       log(`${name}: 검사에 걸렸다 · 고쳐 쓴다(${String(d.fix).slice(0, 120)})`)
-      prompt = spl ? shapePlanFixPromptOf(g, r.value, d.fix) : swr ? shapeWriteFixPromptOf(g, r.value, d.fix, opt) : corr ? corrRetryPromptOf(g, r.value, d.fix, opt) : pol ? [polishPromptOf(g, opt), `지난 초안이 kmd 검사에 걸렸다: ${d.fix}`, '걸린 항목만 고치고 값은 옛 글 그대로 둔다.', `지난 초안:\n${JSON.stringify(r.value)}`].join('\n\n') : intakeFixPromptOf(g, r.value, d.fix, opt)
+      prompt = sseed ? seedPlanFixPromptOf(g, r.value, d.fix) : spl ? shapePlanFixPromptOf(g, r.value, d.fix) : swr ? shapeWriteFixPromptOf(g, r.value, d.fix, opt) : corr ? corrRetryPromptOf(g, r.value, d.fix, opt) : pol ? [polishPromptOf(g, opt), `지난 초안이 kmd 검사에 걸렸다: ${d.fix}`, '걸린 항목만 고치고 값은 옛 글 그대로 둔다.', `지난 초안:\n${JSON.stringify(r.value)}`].join('\n\n') : intakeFixPromptOf(g, r.value, d.fix, opt)
       continue
     }
     await call(server, key, '/api/worker/status', { ok: true }).catch((e) => log(`일꾼 상태를 알리지 못했다(${e.status || e.message})`))

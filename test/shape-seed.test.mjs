@@ -252,3 +252,170 @@ test('kmd-seed 꾸러미 경로 — 꾸러미를 열고(한도 없음 · 읽기�
     assert.ok(fs.existsSync(path.join(pack, 'manifest.json')))
   } finally { s.done() }
 })
+
+// ── 팀 기초 세우기(TODO 10 · Z8 · 메뉴개편 8-2 · 통합 I1 · I2) — 브라우저 올리기 → 조사(묶음) → 팀 일꾼 shape-plan · shape-write(가짜 Claude) →
+//   연습 판 → 넣기(빈 approve 팀 지식) · 폴더 그대로(I1 짜임 걸음) · 앞 묶음을 넣은 뒤 다음 묶음(I2) · 쓰기 403 · 문서 있는 지식 409 · 옛 일꾼
+async function teamSetup() {
+  const { startServer } = await import('../server/http.js')
+  const { signIn, seat, copyDir } = await import('./helpers.mjs')
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-tseed-'))
+  const keep = { KMD_CLAUDE: process.env.KMD_CLAUDE, FAKE_CLAUDE_MODE: process.env.FAKE_CLAUDE_MODE, FAKE_CLAUDE_LOG: process.env.FAKE_CLAUDE_LOG, KMD_NO_CLAUDE: process.env.KMD_NO_CLAUDE }
+  process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
+  process.env.FAKE_CLAUDE_LOG = path.join(tmp, 'calls.log')
+  delete process.env.FAKE_CLAUDE_MODE
+  delete process.env.KMD_NO_CLAUDE
+  const root = path.join(tmp, 'kn')
+  copyDir(path.join(HERE, 'fixture', 'kmd'), root)
+  fs.mkdirSync(path.join(root, '.kmd'), { recursive: true })
+  fs.writeFileSync(path.join(root, '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sourceTickMs: 3600000, sendTickMs: 3600000, jobTickMs: 3600000, queueResumeMs: 3600000, inboxTickMs: 3600000 }))
+  const s = await startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
+  const P = {}
+  P.boss = await signIn(s, { id: 'boss', admin: true })
+  for (const id of ['ad', 'wr']) P[id] = await signIn(s, { id, admin: false })
+  const make = async (name) => { const r = await s.hub.addKnowledge({ user: 'boss', admin: true }, { kind: 'new', name, empty: true }); await seat(s, 'ad', { [r.id]: 'admin' }); await seat(s, 'wr', { [r.id]: 'write' }); return r.id }
+  const http = async (p, who, body) => {
+    const r = await fetch(s.url + p, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${who.key}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
+    return { status: r.status, j: await r.json().catch(() => null) }
+  }
+  const files = (o) => Object.entries(o).map(([p, t]) => ({ path: p, b64: Buffer.from(t, 'utf8').toString('base64') }))
+  const wk = (await s.auth.workerAdd()).key
+  const { workOnce } = await import('../core/worker.js')
+  const work = () => workOnce({ server: s.url, key: wk })
+  const done = async () => {
+    await s.close()
+    for (const [k, v] of Object.entries(keep)) { if (v == null) delete process.env[k]; else process.env[k] = v }
+    try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
+  }
+  return { s, tmp, root, P, make, http, files, work, done, AD: { user: 'ad' } }
+}
+
+test('팀 — 올리기 → 조사 → Claude 구조안 · 짓기(팀 일꾼 일감) → 연습 판 → 넣기 · 쓰기 403 · 문서 있는 지식 409 · 옛 일꾼 · 하루 수', LONG, async () => {
+  const t = await teamSetup()
+  try {
+    const id = await t.make('테스트-팀기초')
+    assert.equal(t.s.hub.saveModeOf(id), 'approve', '새 팀 지식은 approve')
+    const U = `/api/k/${encodeURIComponent(id)}/seed`
+    // 올리기 → 닫기 → 조사(묶음)
+    const up = await t.http(`${U}/upload`, t.P.ad, { group: { total: 5, last: true }, files: t.files(SRC) })
+    assert.equal(up.status, 200, JSON.stringify(up.j))
+    assert.equal((await t.http('/api/shape/survey', t.P.wr, { kn: id, group: up.j.group })).status, 403, '쓰기 자리는 조사하지 못한다')
+    assert.equal((await t.http('/api/shape/survey', t.P.ad, { kn: id, dir: 'C:/Windows' })).status, 400, '팀은 서버 경로를 받지 않는다')
+    const sv = await t.http('/api/shape/survey', t.P.ad, { kn: id, group: up.j.group })
+    assert.equal(sv.status, 200, JSON.stringify(sv.j))
+    assert.equal((await t.http(U, t.P.wr)).status, 403, '쓰기 자리는 보지 못한다')
+    let v = (await t.http(U, t.P.ad)).j
+    assert.equal(v.work.ui, 2)
+    assert.equal(v.work.group, up.j.group)
+    const row = (p) => v.work.rows.find((r) => r.path === p)
+    assert.equal(row('반납 절차 v1.md').role, '옛 판')
+    assert.equal(row('접속정보.md').role, '비밀 의심')
+    assert.ok(!JSON.stringify(v).includes('hunter2abc'), '비밀 값은 응답에 없다')
+    assert.equal(v.team.cost.files, 3, '넣음 재료 수')
+    assert.ok(v.team.cost.chars > 0)
+    const left0 = v.team.day.left
+    // 팀 일꾼 — 없음(열 분 안에 물은 일꾼 없음) · 옛 일꾼(shape-seed 모름)뿐이면 Claude 안을 세우지 않는다
+    assert.equal(v.claude.none, true, '팀 일꾼 없음')
+    t.s.hub.workerNext({ worker: { id: 'old' } }, { types: ['file', 'shape-plan', 'shape-write'] })
+    assert.equal(t.s.hub.shapeClaudeState(id, { seed: true }).old, true)
+    assert.equal(await code(t.s.hub.seedPlan(t.AD, id, { mode: 'claude' })), 'E_CONFLICT', '옛 일꾼뿐이면 E_CONFLICT')
+    // 새 일꾼(shape-seed 를 안다)이 물으면 Claude 구조안 일감을 세운다 · 덮임 걸림이면 고쳐 쓴다
+    assert.equal(await t.work(), null, '일감이 없다')
+    process.env.FAKE_CLAUDE_MODE = 'badseed'
+    const pl = await t.s.hub.seedPlan(t.AD, id, { mode: 'claude' })
+    assert.equal(pl.started, true)
+    v = await t.s.hub.seedView(t.AD, id)
+    assert.equal(v.run.kind, 'plan')
+    assert.equal(v.run.state, 'running')
+    assert.equal(await code(t.s.hub.seedPlan(t.AD, id, { mode: 'folder' })), 'E_CONFLICT', '도는 동안 구조안을 바꾸지 않는다')
+    assert.equal((await t.http(`${U}/upload`, t.P.ad, { group: { total: 1, last: true }, files: t.files({ 'x.md': '# x\n\n## 하나\n글\n' }) })).status, 409, '팀 일꾼이 짓는 중에는 새 묶음을 열지 않는다')
+    assert.equal(t.s.hub.workerNext({ worker: { id: 'old' } }, { types: ['shape-plan', 'shape-write'] }), null, '옛 일꾼은 기초 세우기 일감을 받지 않는다')
+    const w1 = await t.work()
+    delete process.env.FAKE_CLAUDE_MODE
+    assert.equal(w1.job.type, 'shape-plan')
+    v = await t.s.hub.seedView(t.AD, id)
+    assert.equal(v.run.state, 'done', JSON.stringify(v.run))
+    assert.equal(v.work.mode, 'claude')
+    assert.equal(v.work.check.ok, true, JSON.stringify(v.work.check))
+    assert.deepEqual(v.work.plan.docs.map((d) => d.id), ['업무 안내'])
+    assert.match(fs.readFileSync(path.join(t.tmp, 'calls.log'), 'utf8'), /seed-plan\n(call \S+\n)?seed-plan fix/,'덮임 걸림 → 고쳐 썼다')
+    // 짓기 — 문서마다 일감 · 지은 글 · 승인
+    await t.s.hub.seedWrite(t.AD, id, { doc: '업무 안내' })
+    v = await t.s.hub.seedView(t.AD, id)
+    assert.equal(v.run.kind, 'write')
+    assert.equal(v.run.state, 'running')
+    assert.equal(v.team.cost.docs, 1)
+    assert.equal(await code(t.s.hub.seedTry(t.AD, id)), 'E_CONFLICT', '짓는 중에는 해 보지 않는다')
+    const w2 = await t.work()
+    assert.equal(w2.job.type, 'shape-write')
+    v = await t.s.hub.seedView(t.AD, id)
+    assert.equal(v.work.docs[0].state, 'ok', JSON.stringify(v.work.docs[0]))
+    assert.equal(v.team.day.left, left0 - 2, '하루 들이기 수를 센다(구조안 1 · 문서 1)')
+    await t.s.hub.seedWrite(t.AD, id, { approve: '업무 안내' })
+    const tr = await t.s.hub.seedTry(t.AD, id)
+    assert.equal(tr.ok, true, JSON.stringify(tr.diag))
+    const p = await t.s.hub.shapePut(t.AD, id)
+    assert.equal(p.done, true, JSON.stringify(p))
+    const k = await t.s.hub.get(id, t.AD)
+    const d = k.byDocPath.get('docs/업무 안내.md')
+    assert.ok(d, '문서를 세웠다')
+    assert.match(d.sections.map((x) => x.body).join('\n'), /내선 1234/)
+    assert.ok(!JSON.stringify(d.sections).includes('hunter2abc'))
+    // 문서 있는 지식 · 쓰기 자리
+    const full = await t.http('/api/k/gdi/seed/upload', t.P.boss, { group: { total: 1, last: true }, files: t.files({ 'a.md': '# a\n\n## 개요\n글\n' }) })
+    assert.equal(full.status, 409, '문서가 있는 지식')
+    assert.equal((await t.http(`${U}/upload`, t.P.wr, { group: { total: 1, last: true }, files: t.files({ 'a.md': '# a\n' }) })).status, 403)
+  } finally { await t.done() }
+})
+
+test('팀 — 폴더 그대로는 짜임 걸음(I1 · 채널 shape · 넣지 못함 없음) · 앞 묶음을 넣은 뒤 다음 묶음(I2) · 걸음 실패면 멈춤 → 글 고쳐 이어 넣기', LONG, async () => {
+  const t = await teamSetup()
+  try {
+    const id = await t.make('테스트-팀폴더')
+    const U = `/api/k/${encodeURIComponent(id)}/seed`
+    const up = await t.http(`${U}/upload`, t.P.ad, { group: { total: 2, last: true }, files: t.files({ '운영/배포.md': '# 배포\n\n## 순서\n포트 8090 으로 띄운다.\n\n## 되돌리기\n앞 판으로 바꾼다.\n', '운영/점검.md': '# 점검\n\n## 디스크\n80% 넘으면 알린다.\n' }) })
+    assert.equal(up.status, 200)
+    await assert.rejects(t.s.hub.seedAsIs({ user: 'wr' }, id, { group: up.j.group }), { code: 'E_FORBIDDEN' })
+    const out = await t.s.hub.seedAsIs(t.AD, id, { group: up.j.group })
+    assert.equal(out.done, true, JSON.stringify(out))
+    const k = await t.s.hub.get(id, t.AD)
+    assert.deepEqual(k.byDocPath.get('docs/운영/배포.md').sections.map((x) => x.h), ['순서', '되돌리기'])
+    const log = fs.readFileSync(path.join(t.root, '.kmd', 'savelog', `${encodeURIComponent(id)}.jsonl`), 'utf8').trim().split('\n').map((l) => JSON.parse(l))
+    assert.ok(log.every((l) => l.ch === 'shape'), '짜임 걸음(채널 shape) · 옛 채널 seed 를 쓰지 않는다')
+    assert.ok(!log.some((l) => (l.held || 0) > 0), '넣지 못함 없음')
+    // 다음 묶음(I2) — 앞 묶음이 세운 문서뿐이면 받는다 · 같은 이름은 「이름 2」
+    const up2 = await t.http(`${U}/upload`, t.P.ad, { group: { total: 2, last: true }, files: t.files({ '운영/배포.md': '# 배포\n\n## 새 순서\n포트 9090.\n', '인사/휴가.md': '# 휴가\n\n## 신청\n사흘 전에 낸다.\n' }) })
+    assert.equal(up2.status, 200, JSON.stringify(up2.j))
+    const out2 = await t.s.hub.seedAsIs(t.AD, id, { group: up2.j.group })
+    assert.equal(out2.done, true, JSON.stringify(out2))
+    const k2 = await t.s.hub.get(id, t.AD)
+    assert.ok(k2.byDocPath.get('docs/인사/휴가.md'))
+    assert.ok(k2.byDocPath.get('docs/운영/배포 2.md'), '겹치는 이름은 「이름 2」')
+    assert.deepEqual(k2.byDocPath.get('docs/운영/배포.md').sections.map((x) => x.h), ['순서', '되돌리기'], '앞 묶음 문서는 그대로')
+    // 걸음 실패 → 멈춤 → 그 문서 글 고쳐 이어 넣기(P-D24)
+    const id2 = await t.make('테스트-팀실패')
+    const up3 = await t.http(`/api/k/${encodeURIComponent(id2)}/seed/upload`, t.P.ad, { group: { total: 1, last: true }, files: t.files({ '안내.md': '# 안내\n\n## 첫날\n09:00 접수.\n' }) })
+    await t.http('/api/shape/survey', t.P.ad, { kn: id2, group: up3.j.group })
+    await t.s.hub.seedPlan(t.AD, id2, { mode: 'folder' })
+    assert.equal((await t.s.hub.seedTry(t.AD, id2)).ok, true)
+    // 연습 판 뒤 장부의 실은 글을 꼴이 깨진 글로(진짜에서 걸림)
+    const f = t.s.hub.shapeFile(id2)
+    const w0 = JSON.parse(fs.readFileSync(f, 'utf8'))
+    for (const u of Object.values(w0.texts)) for (const x of u.items) x.content = '## 머리 줄\n글'
+    fs.writeFileSync(f, JSON.stringify(w0))
+    const p1 = await t.s.hub.shapePut(t.AD, id2)
+    assert.ok(p1.stopped?.fail?.length, JSON.stringify(p1))
+    let v = await t.s.hub.seedView(t.AD, id2)
+    assert.equal(v.work.stage, 'stopped')
+    assert.equal(v.work.docs[0].state, 'fail', '걸음 실패 문서')
+    assert.equal(await code(t.s.hub.seedWrite(t.AD, id2, { all: true })), 'E_CONFLICT')
+    // Claude 로 다시 짓는 중에는 넣지 않는다(넣는 장부를 깨지 않게) · 그만두면 손으로
+    await t.s.hub.seedWrite(t.AD, id2, { doc: '안내' })
+    assert.equal(await code(t.s.hub.shapePut(t.AD, id2)), 'E_CONFLICT')
+    await t.s.hub.seedWrite(t.AD, id2, { stop: true })
+    v = await t.s.hub.seedWrite(t.AD, id2, { doc: '안내', items: [{ h: '첫날', content: '09:00 접수.' }] })
+    assert.equal(v.work.stage, 'stopped', '연습 판 · 넣은 걸음은 그대로')
+    const p2 = await t.s.hub.shapePut(t.AD, id2)
+    assert.equal(p2.done, true, JSON.stringify(p2))
+    assert.match(fs.readFileSync(path.join(t.root, id2, 'docs', '안내.md'), 'utf8'), /09:00 접수/)
+  } finally { await t.done() }
+})
