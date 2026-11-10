@@ -41,6 +41,7 @@ html,body{background:var(--bg)}
 .sg-focus{box-shadow:var(--focus-ring)}
 .inp.sg-focus{border-color:var(--accent)}
 .tabs span.sg-hover{color:var(--text);background:var(--hover)}
+.tipb.sg-hover{background:var(--surface-2);color:var(--text)}
 .pop .mi.sg-hover{background:var(--surface-2)}
 .lk.sg-hover{text-decoration:underline;text-underline-offset:2px}
 /* 옆 메뉴 견본 — 앱 틀(.app)의 높이만 줄였다 */
@@ -56,7 +57,7 @@ html,body{background:var(--bg)}
 <div class="sg">
   <div class="sg-h"><h1>kmd 디자인 견본</h1><span class="muted small">docs/kmd_디자인_컨벤션.md v0.2 · 값은 app/kmd.css 맨 위 <code>:root</code> 하나에서 온다</span></div>
   <nav class="sg-nav" aria-label="견본 차례">
-    <a href="#color">색</a><a href="#size">글 · 간격 · 모서리 · 그림자</a><a href="#btn">단추</a><a href="#inp">칸</a><a href="#chip">칩 · 표지</a><a href="#card">카드</a><a href="#modal">모달 · 팝업</a><a href="#table">표</a><a href="#tabs">탭</a><a href="#state">빈 화면 · 읽는 중 · 오류</a><a href="#link">링크</a><a href="#side">옆 메뉴</a><a href="#ref">문서 화면</a><a href="#term">터미널</a><a href="#resp">반응형</a>
+    <a href="#color">색</a><a href="#size">글 · 간격 · 모서리 · 그림자</a><a href="#btn">단추</a><a href="#inp">칸</a><a href="#chip">칩 · 표지</a><a href="#card">카드</a><a href="#modal">모달 · 팝업</a><a href="#tip">정보 단추 (!)</a><a href="#table">표</a><a href="#tabs">탭</a><a href="#state">빈 화면 · 읽는 중 · 오류</a><a href="#link">링크</a><a href="#side">옆 메뉴</a><a href="#ref">문서 화면</a><a href="#term">터미널</a><a href="#resp">반응형</a>
   </nav>
 
   <section id="color">
@@ -243,6 +244,27 @@ html,body{background:var(--bg)}
         <div class="sep"></div>
         <div class="mi dan" role="menuitem">지우기</div>
         <div class="gray">메뉴 아래 흐린 도움말 한 줄은 상자 안에서 줄을 바꾼다</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tip">
+    <h2>정보 단추 (!) · 툴팁 <small>덧말은 화면에 두지 않는다 · 누르면 연다(hover 로 열지 않는다) · 한 화면 다섯까지 · 칸 이름 · 제목의 형제로</small></h2>
+    <div class="sg-stage">
+      <div class="sg-row">
+        <span class="sg-cell">기본<button type="button" class="tipb" aria-label="기본 도움말" aria-expanded="false">!</button></span>
+        <span class="sg-cell">hover<button type="button" class="tipb sg-hover" aria-label="hover 도움말" aria-expanded="false">!</button></span>
+        <span class="sg-cell">초점<button type="button" class="tipb sg-focus" aria-label="초점 도움말" aria-expanded="false">!</button></span>
+        <span class="sg-cell">열림<button type="button" class="tipb" aria-label="열림 도움말" aria-expanded="true">!</button></span>
+      </div>
+      <h3>제목 옆(.pt) · 칸 이름 옆(.lbrow) · 묶음 머리(.shr)</h3>
+      <div class="pt"><div class="big">지식백업</div><button type="button" class="tipb" aria-label="지식백업 도움말" aria-expanded="false">!</button></div>
+      <div class="field"><div class="lbrow"><label for="sgTip1">언제</label><button type="button" class="tipb" aria-label="언제 도움말" aria-expanded="false">!</button></div><input class="inp" id="sgTip1" value="바뀔 때"></div>
+      <div class="shr"><h2>점검</h2><button type="button" class="tipb" aria-label="점검 도움말" aria-expanded="false">!</button><span class="chip c-warn">4</span></div>
+      <h3>툴팁(.pop.tipp) — 설명서가 있으면 끝에 링크 · 없으면 글만</h3>
+      <div class="sg-row">
+        <div class="pop tipp" role="tooltip"><p>지식마다 붙이는 저장소와 다르다</p></div>
+        <div class="pop tipp" role="dialog" aria-label="자동수집 도움말"><p>정한 때마다 바뀐 것만 수집 › 검토 › 짓기 › 넣기</p><a class="lk" href="/manual" target="_blank" rel="noopener">설명서</a></div>
       </div>
     </div>
   </section>

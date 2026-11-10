@@ -43,6 +43,8 @@
   --w-text:820px;--w-list:980px;--w-grid:1100px;--w-side:248px;--w-aside:300px;
   /* 접힌 옆 메뉴 · 오른쪽 칸(레일) · 너비 잡이 · 그래프 팝업 */
   --w-rail:48px;--w-grip:6px;--w-graph:400px;
+  /* 정보 단추 (!) 원 · 작은 배지 높이 · 툴팁 폭(컨벤션 4절 정보 단추) */
+  --ctl-xs:18px;--ctl-2xs:16px;--w-tip:320px;
   /* 글꼴 — 모노는 경로 · 주소 · 이름 · 시각에만 */
   --font:"Malgun Gothic","Apple SD Gothic Neo",-apple-system,"Segoe UI",system-ui,sans-serif;
   --mono:Consolas,"Cascadia Mono",D2Coding,"Malgun Gothic",monospace;
@@ -764,6 +766,22 @@ li.new{animation:flash 1.6s}
 .pop .mi small{margin-left:auto;color:var(--text-3);font-size:var(--fs-xs);padding-left:var(--sp-5)}
 .pop .mi.on{color:var(--accent);font-weight:600}
 .pop .mi.dan{color:var(--danger)}
+/* 정보 단추 (!) · 툴팁(컨벤션 4절) — 덧말은 화면에 두지 않고 누르면 연다 · 칸 이름 · 제목의 형제로(.pt · .lbrow · .shr) · 누름 자리는 --hit */
+.tipb{position:relative;width:var(--ctl-xs);height:var(--ctl-xs);border-radius:var(--r-pill);border:1px solid var(--border-input);background:var(--surface);color:var(--text-3);font:700 var(--fs-xs)/1 var(--font);display:inline-grid;place-items:center;padding:0;margin-left:var(--sp-2);cursor:pointer;flex:none;vertical-align:middle}
+.tipb::before{content:"";position:absolute;inset:calc((var(--hit) - var(--ctl-xs)) / -2)}
+.tipb:hover{background:var(--surface-2);color:var(--text)}
+.tipb[aria-expanded=true]{border-color:var(--accent);color:var(--accent);background:var(--accent-bg)}
+.tipb:focus-visible{outline:0;box-shadow:var(--focus-ring)}
+.pop.tipp{width:min(var(--w-tip),calc(100vw - var(--sp-8) * 2));min-width:0;max-width:none;padding:var(--sp-5) var(--sp-6);font-size:var(--fs-sm);font-weight:400;line-height:1.6;color:var(--text-2);text-align:left;white-space:normal}
+.pop.tipp p{margin:0}
+.pop.tipp .lk{display:inline-block;margin-top:var(--sp-3);font-size:var(--fs-sm)}
+.pt{display:flex;align-items:center;gap:var(--sp-2);min-width:0}
+.pt>.big{margin:0}
+.lbrow{display:flex;align-items:center;gap:var(--sp-2);margin-bottom:var(--sp-2)}
+.lbrow>label{margin:0}
+.shr{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap;margin:var(--sp-9) 0 var(--sp-5)}
+.shr>h2{font-size:var(--fs-md);margin:0}
+.pt>.tipb,.lbrow>.tipb,.shr>.tipb{margin-left:0}
 .pop .mi.off{color:var(--text-3);cursor:default}
 .pop .mi.off:hover{background:none}
 .pop .sep{border-top:1px solid var(--border);margin:var(--sp-2) var(--sp-1)}

@@ -516,6 +516,68 @@ const focusables = (box) => [...box.querySelectorAll('a[href],button:not([disabl
 document.addEventListener('focusin', (ev) => { if (!ev.target.closest || !ev.target.closest('.scrim,.pscrim')) S._lastFocus = focusKey(ev.target) })
 // 팝업(.pop) — 화면 맨 위 층에 띄운다. 그리는 곳은 popHtml(key, 글) 하나: S._pop 에 두고 빈 글을 돌려준다(누른 단추 [data-m=key] 에서 자리를 잰다)
 function popHtml(key, html) { S._pop = { key, html }; return '' }
+// 정보 단추 (!) · 툴팁(컨벤션 4절 · docs/품질개선/KMD_메뉴개편_설계.md 3-2) — 덧말 글은 TIPS 한곳 · 화면은 tipb(id) 하나로 그린다
+//   TIPS[id] = [글, 설명서 주소(없으면 '')] · 글은 세 줄 · 문장 둘까지 · 한 화면 (!) 는 다섯까지
+//   툴팁은 누른 단추 바로 뒤에 그린다(Tab 차례가 단추 다음 · 모달이면 모달 Tab 가둠 안) · 설명서가 있으면 dialog(열 때 링크에 초점) · 없으면 tooltip(단추 aria-describedby · 초점은 단추)
+//   누름 · Enter · Space 로 열고 닫는다(hover 로 열지 않는다) · Esc(초점은 단추로) · 바깥 누름 · 초점이 밖으로 · 단추가 화면 밖이면 닫는다 · 한 번에 하나
+const TIPS = {
+  'set.check': ['문제가 있을 때만 줄이 선다. 풀리면 저절로 사라진다', ''],
+  'set.server': ['팀 서버 자체의 것: 팀 일꾼 로그인 · 주소 · 판', ''],
+  'set.kns': ['지식마다 정하는 것: 자리 · Claude 에 보내지 않음 · 백업 저장소', ''],
+  'set.people': ['사람을 들이고 지식마다 자리를 준다. 묶음으로 여럿에 한 번에', ''],
+  'set.agent': ['작업 폴더의 Claude Code 에 팀 지식을 붙인다. 개인 지식을 쓰려면 개인 프로그램', ''],
+  'set.agentPc': ['작업 폴더의 Claude Code 에 개인 지식(연결 kmd · 이 PC · 나만)을 붙인다. 팀 지식(연결 kmd-team)은 팀 화면 › 설정 › 에이전트 설치에서', ''],
+  'set.mine': ['나에 관한 것: 내 자리 · 내 설정 · 내 기기 · 나가기', ''],
+  'set.pc': ['개인 프로그램의 것: 지식 폴더 · 백업 · 저절로 하는 일 · 내 기기. 팀 서버 · 팀원에게는 가지 않는다', ''],
+  'set.claude': ['이 프로그램이 쓰는 내 Claude 로그인 · 일마다 모델', ''],
+}
+// name = 붙은 이름(제목 · 칸 이름) — 화면 읽기 이름 「<name> 도움말」 · 표에 없는 id 는 그리지 않는다
+const tipb = (id, name) => TIPS[id] ? `<button type="button" class="tipb" data-a="tip" data-v="${esc(id)}" data-t="tip-${esc(id)}" data-n="${esc(name || '')}" aria-label="${esc(name || '')} 도움말" aria-expanded="false">!</button>` : ''
+const tipSeen = (b) => b.getClientRects().length && (typeof b.checkVisibility !== 'function' || b.checkVisibility({ visibilityProperty: true }))
+const tipBtn = () => S.tip ? [...document.querySelectorAll('[data-a=tip]')].find((b) => b.dataset.v === S.tip && tipSeen(b)) || null : null
+// 그린다 — 다시 그린 뒤(draw)에도 부른다: 단추가 그대로 있으면 툴팁도 다시 단다
+function tipPaint(say) {
+  const old = document.getElementById('tipPop')
+  if (old) old.remove()
+  const b = tipBtn()
+  if (S.tip && !b) S.tip = null
+  for (const x of document.querySelectorAll('.tipb')) {
+    const on = x === b
+    x.setAttribute('aria-expanded', String(on))
+    if (on) x.setAttribute('aria-controls', 'tipPop'); else x.removeAttribute('aria-controls')
+    x.removeAttribute('aria-describedby')
+  }
+  if (!b) return
+  const [tx, man] = TIPS[S.tip]
+  const el = document.createElement('div')
+  el.className = 'pop tipp'
+  el.id = 'tipPop'
+  el.dataset.t = 'tipPop'
+  if (man) { el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', `${b.dataset.n} 도움말`) }
+  else { el.setAttribute('role', 'tooltip'); b.setAttribute('aria-describedby', 'tipPop') }
+  el.innerHTML = `<p>${esc(tx)}</p>${man ? `<a class="lk" data-t="tipMan" href="${esc(man)}" target="_blank" rel="noopener">설명서</a>` : ''}`
+  b.insertAdjacentElement('afterend', el)
+  if (say && !man) { let h = document.getElementById('srTip'); if (!h) { h = document.createElement('div'); h.id = 'srTip'; h.className = 'sr-only'; h.setAttribute('role', 'status'); document.body.appendChild(h) } h.textContent = ''; setTimeout(() => { h.textContent = tx }, 50) }
+  placeTip()
+}
+function placeTip() {
+  const el = document.getElementById('tipPop'), b = tipBtn()
+  if (!el || !b) return
+  const r = b.getBoundingClientRect(), box = b.closest('.main,.asc,.mb,.pal,.side')
+  const v = box ? box.getBoundingClientRect() : { top: 0, bottom: innerHeight }
+  if (r.bottom < Math.max(0, v.top) || r.top > Math.min(innerHeight, v.bottom)) { tipShut(false); return } // 단추가 보이는 자리(스크롤 상자 · 화면) 밖으로 나가면 닫는다
+  const w = el.offsetWidth, h = el.offsetHeight
+  const x = Math.min(Math.max(8, r.left - 12), innerWidth - w - 8)
+  let y = r.bottom + 6
+  if (y + h > innerHeight - 8) y = Math.max(8, r.top - h - 6)
+  el.style.left = Math.max(8, x) + 'px'
+  el.style.top = y + 'px'
+}
+function tipShut(back) { const b = tipBtn(); S.tip = null; tipPaint(); if (back && b && b.isConnected) b.focus() }
+document.addEventListener('pointerdown', (ev) => { if (S.tip && ev.target.closest && !ev.target.closest('#tipPop,[data-a=tip]')) tipShut(false) }, true)
+document.addEventListener('focusin', (ev) => { if (S.tip && ev.target.closest && !ev.target.closest('#tipPop') && ev.target !== tipBtn()) tipShut(false) })
+document.addEventListener('scroll', () => { if (S.tip) placeTip() }, true)
+window.addEventListener('resize', () => { if (S.tip) placeTip() })
 // 열린 메뉴의 항목 — 맨 위 층 .pop 또는 단추 안에 그린 .menu · .kmenu
 const menuItems = () => { const b = $('#app .pop') || $(`#app [data-m="${CSS.escape(S.menu || '')}"] .menu`) || $('#app .kmenu'); return b ? [...b.querySelectorAll('[data-a]')].filter((x) => x.getClientRects().length) : [] }
 // 메뉴를 닫았다 — 초점이 메뉴 안(이제 없다)이나 body 면 연 단추로 돌려준다
@@ -636,11 +698,13 @@ function draw() {
   app.classList.toggle('aside-open', !!S.asideOpen && !!scr.aside)
   placeUi()
   placePop()
+  if (!sameView) S.tip = null
   for (const [q, top] of keep) { const el = app.querySelector(q); if (el) el.scrollTop = top }
   // 좁은 폭은 창 전체가 스크롤된다 — 같은 화면을 다시 그리는 동안 잠깐 짧아져(읽는 중) 맨 위로 밀리지 않게, 사람이 둔 자리로 되돌린다
   S._renderAt = performance.now()
   if (sameView && S._wantY && Math.abs(scrollY - S._wantY) > 2) scrollTo(0, S._wantY)
   if (!sameView) { S._wantY = 0; termUp.clear() }
+  if (S.tip) tipPaint() // 스크롤을 되돌린 뒤에 잰다(먼저 재면 맨 위 자리로 재어 닫히거나 한 번 튄다)
   if (gated()) { const g = $('[data-focus]'); if (g && document.activeElement !== g) g.focus(); return }
   const fi = $('#palIn') || $('#qoIn') || $('#cmdIn')
   if (fi && document.activeElement !== fi) { fi.focus(); fi.setSelectionRange(fi.value.length, fi.value.length) }
@@ -4352,23 +4416,11 @@ const AUTO_T = {
 }
 // 설정 — 팀 화면은 팀 서버의 것만 · 개인 화면은 개인 프로그램의 것만
 const setArea = () => (isTeam() ? 'team' : 'me')
-// 페이지마다 한 줄 안내 — 무엇을 여기서 정하나
-// 개인 화면의 에이전트 설치 — 붙이는 것은 개인 지식 연결 kmd(이 PC · 나만) · 팀 지식 연결 kmd-team 은 팀 화면에서(UX T7-14)
-const AGENT_LEAD_PC = '작업 폴더의 Claude Code 에 개인 지식(연결 kmd · 이 PC · 나만)을 붙인다 · 팀 지식(연결 kmd-team · 그 지식 팀원)은 팀 화면 › 설정 › 에이전트 설치에서'
-const SET_LEAD = {
-  check: '문제가 있을 때만 줄이 선다. 풀리면 저절로 사라진다',
-  server: '팀 서버 자체의 것: 팀 일꾼 로그인 · 주소 · 판',
-  kns: '지식마다 정하는 것: 자리 · Claude 에 보내지 않음 · 백업 저장소',
-  people: '사람을 들이고 지식마다 자리를 준다 · 묶음으로 여럿에 한 번에',
-  agent: '작업 폴더의 Claude Code 에 팀 지식을 붙인다 · 개인 지식을 쓰려면 개인 프로그램',
-  mine: '나에 관한 것: 내 자리 · 내 설정 · 내 기기 · 나가기',
-  pc: '개인 프로그램의 것: 지식 폴더 · 백업 · 저절로 하는 일 · 내 기기. 팀 서버 · 팀원에게는 가지 않는다',
-  claude: '이 프로그램이 쓰는 내 Claude 로그인 · 일마다 모델',
-}
 function viewSettings() {
   const team = isTeam(), st = settingsOf()
   const pg = setPage() || { id: 'mine', l: '나' }, tab = pg.id
-  const head = `<div class="big" data-t="setTitle">${esc(pg.l)}</div>${(tab === 'agent' && !isTeam() ? AGENT_LEAD_PC : SET_LEAD[tab]) ? `<p class="lead" data-t="setLead" style="margin-bottom:var(--sp-5)">${tab === 'agent' && !isTeam() ? AGENT_LEAD_PC : SET_LEAD[tab]}</p>` : ''}`
+  // 페이지 안내는 제목 옆 (!) — 개인 화면의 에이전트 설치는 개인 지식 연결(kmd) 안내
+  const head = `<div class="pt" style="margin-bottom:var(--sp-5)"><div class="big" data-t="setTitle">${esc(pg.l)}</div>${tipb(tab === 'agent' && !isTeam() ? 'set.agentPc' : 'set.' + tab, pg.l)}</div>`
   if (!st || st.error) return { crumb: '설정', main: `<div class="pg-list">${head}${st ? errHtml(st) : loadingHtml}</div>` }
   const one = (h) => `<div class="pg-text">${h}</div>`
   const body = !team
@@ -5789,9 +5841,18 @@ const ACT = {
     openDocAt(el.dataset.k, el.dataset.d, el.dataset.h, q)
   },
   palMore: () => { S.pal.more = true; paintPal() },
+  tip: (el) => {
+    const v = el.dataset.v
+    if (S.menu) { S.menu = null; render() } // 열린 팝업 메뉴는 닫는다(한 번에 하나)
+    S.tip = S.tip === v ? null : v
+    tipPaint(true)
+    const l = S.tip && document.querySelector('#tipPop[role=dialog] .lk')
+    if (l) l.focus()
+  },
   reopenSearch: () => { const t = activeTab(); openPal(t && t.q) },
 }
 document.addEventListener('click', (ev) => {
+  if (ev.target.closest && ev.target.closest('#tipPop') && !ev.target.closest('#tipPop [data-a]')) return // 툴팁 글을 누름 — 둘레 줄 · 카드의 일을 하지 않는다
   const el = ev.target.closest('[data-a]')
   if (!el) { if (S.menu && !ev.target.closest('.menu,.pop')) { S.menu = null; render() } return }
   if (el.dataset.self && ev.target !== el) return
@@ -5801,8 +5862,8 @@ document.addEventListener('click', (ev) => {
   // 주소가 있는 링크를 Ctrl · Shift · ⌘ 로 누르면 브라우저에 맡긴다(새 탭 · 새 창)
   if (el.tagName === 'A' && el.getAttribute('href') && (ev.ctrlKey || ev.metaKey || ev.shiftKey)) return
   if (el.tagName === 'A') ev.preventDefault()
-  if (S.menu && !['menu', 'kmenu', 'pickKn'].includes(el.dataset.a) && !ev.target.closest('.menu,.pop')) S.menu = null
-  if ((S.sideOpen || S.asideOpen) && el.closest('.side,.aside,.pop') && !['menu', 'kmenu', 'fold', 'dirFold', 'dirAll', 'tFilt', 'kindAll', 'foldKind', 'sideToggle', 'asideToggle', 'itemFilt', 'agToggle', 'agFold', 'agRail', 'gSet', 'gMode', 'gDark'].includes(el.dataset.a)) { S.sideOpen = false; S.asideOpen = false }
+  if (S.menu && !['menu', 'kmenu', 'pickKn', 'tip'].includes(el.dataset.a) && !ev.target.closest('.menu,.pop')) S.menu = null
+  if ((S.sideOpen || S.asideOpen) && el.closest('.side,.aside,.pop') && !['menu', 'kmenu', 'fold', 'dirFold', 'dirAll', 'tFilt', 'kindAll', 'foldKind', 'sideToggle', 'asideToggle', 'itemFilt', 'agToggle', 'agFold', 'agRail', 'gSet', 'gMode', 'gDark', 'tip'].includes(el.dataset.a)) { S.sideOpen = false; S.asideOpen = false }
   // 감싸지 않은 곳의 오류도 알린다(단추가 아무 말 없이 먹지 않게) — 돌려받은 Promise 까지
   try { Promise.resolve(f(el, ev)).catch(actFail) } catch (e) { actFail(e) }
 })
@@ -5908,6 +5969,7 @@ document.addEventListener('keydown', (ev) => {
 document.addEventListener('keydown', (ev) => {
   const ctrl = ev.ctrlKey || ev.metaKey, low = String(ev.key).toLowerCase(), code = ev.code
   if (ev.key === 'Enter' && !ev.isComposing && ev.target.id === 'askIn') { ev.preventDefault(); askDone(0); return }
+  if (ev.key === 'Escape' && S.tip) { ev.preventDefault(); ev.stopImmediatePropagation(); tipShut(true); return }
   if (ev.key === 'Escape' && S.ask && !S.sudo) { askDone(null); return }
   if (!S.me || anon()) return
   if (ev.key === 'Escape' && S.gPop) { ACT.gPop(); return }

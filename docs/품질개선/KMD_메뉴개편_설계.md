@@ -95,7 +95,7 @@
 | 단추 | `<button type="button" class="tipb" aria-label="<붙은 이름> 도움말" aria-expanded="false" data-a="tip" data-v="<id>">!</button>`(`aria-controls` 는 열린 동안만) · **칸 이름 · 제목의 형제**로 둔다(`<label>` · `<h1>` · `<h2>` 안에 넣지 않는다: label 이 단추를 묶거나 제목 글에 「!」 가 섞임 · `.lbrow` · `.pt` · `.shr` 줄) · 원 `var(--ctl-xs)`(새 토큰 18px · `--fs-xs` 글 · 모서리 `--r-pill` · 테두리 `--border-input` · 글 `--text-3`) · 붙는 글 바로 뒤 `--sp-2` |
 | 새 토큰 | `--ctl-xs`(18px · 정보 단추 원) · `--w-tip`(320px · 툴팁 폭). `app/kmd.css` `:root` 와 컨벤션 토큰 표에 먼저 더하고 `var()` 로만 쓴다(CLAUDE.md 화면 절: 새 px 를 부품에 바로 쓰지 않는다) |
 | 상태 | 기본(테두리 흐림) · hover(`--surface-2` 바탕 · `--text`) · 초점(`:focus-visible` 초점 고리 · 컨벤션 10절) · 열림(`aria-expanded=true` · `--accent` 테두리 · 글) · 비활성 없음(설명은 늘 열린다) |
-| 툴팁 | 누른 단추 **바로 뒤(같은 부모 · 모달이면 모달 안)** 에 그리는 `.pop.tipp`(Tab 차례가 단추 다음 · 모달 Tab 가둠 안). 설명서 링크가 있으면 `role="dialog"` + `aria-label` 「<붙은 이름> 도움말」 + 열 때 링크에 초점, 없으면 `role="tooltip"` + 단추 `aria-describedby`(초점은 단추에). 초점이 툴팁 · 단추 밖으로 가면 닫힘 · 스크롤을 따라가고 단추가 화면 밖이면 닫힘 · 폭 `min(var(--w-tip), 100% - var(--sp-5))` · 글 `--fs-sm` · 줄 높이 1.6 · 맨 끝 줄에 설명서 링크(있으면) |
+| 툴팁 | 누른 단추 **바로 뒤(같은 부모 · 모달이면 모달 안)** 에 그리는 `.pop.tipp`(Tab 차례가 단추 다음 · 모달 Tab 가둠 안). 설명서 링크가 있으면 `role="dialog"` + `aria-label` 「<붙은 이름> 도움말」 + 열 때 링크에 초점, 없으면 `role="tooltip"` + 단추 `aria-describedby`(초점은 단추에). 초점이 툴팁 · 단추 밖으로 가면 닫힘 · 스크롤을 따라가고 단추가 화면 밖이면 닫힘 · 폭 `min(var(--w-tip), 100vw - var(--sp-8) × 2)`(좁은 폭은 화면 폭 − 32) · 글 `--fs-sm` · 줄 높이 1.6 · 맨 끝 줄에 설명서 링크(있으면) |
 | 열기 · 닫기 | 누름 · Enter · Space 로 열고 닫음(hover 로 열지 않는다: 터치와 같게) · Esc · 바깥 누름 · 다른 (!) 를 열면 닫힘 · 닫히면 초점은 그 단추로 · 한 번에 하나 |
 | 자리 | 지금 `.pop` 과 같다(맨 위 층 · 누른 단추에서 잼 · 카드 · 표에 잘리지 않음 · 컨벤션 4절) |
 | 글의 출처 | 한곳 표 `TIPS = { id: [글, 설명서 절] }`(`app/main.js` · `SET_LEAD` 를 대신) · 화면은 `tipb(id)` 하나로 그림 |
