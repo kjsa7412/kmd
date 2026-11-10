@@ -1388,6 +1388,51 @@ details.ap.refs[open]>summary h4::after{content:"▾"}
 .sx-chg .fr s{color:var(--text-3)}
 .sx-kd{font-size:var(--fs-xs);font-weight:700;border-radius:var(--r-sm);padding:0 var(--sp-3);flex:none;white-space:nowrap;background:var(--surface-3);color:var(--text-2)}
 .sx-kd.new{background:var(--ok-bg);color:var(--ok)}
+/* 다시 잡기(바탕 세우기 설계 5-2 · 5-4 · 5-6 · Z5) — 단계 띠 .stepbar · 나무 + 고른 것 두 칸 .sxg · 항목 줄 .sx-it · 검사 카드 .sx-ck · 바닥 줄 「먼저:」 */
+.stepbar{display:flex;align-items:center;gap:var(--sp-2);overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;margin:var(--sp-5) 0 var(--sp-6);padding:var(--sp-1) var(--sp-1) var(--sp-2);min-width:0}
+.stepbar .sep{flex:none;color:var(--text-3);font-size:var(--fs-xs)}
+.stepbar .step{flex:none;height:var(--hit);display:inline-flex;align-items:center;gap:var(--sp-2);padding:0 var(--sp-5);border:1px solid var(--border-strong);border-radius:var(--r-pill);background:var(--surface);color:var(--text-2);font:inherit;font-size:var(--fs-sm);white-space:nowrap;cursor:pointer}
+.stepbar .step .n{font:700 var(--fs-xs) var(--mono);color:var(--text-3)}
+.stepbar .step:hover:not([aria-disabled=true]){background:var(--hover);color:var(--text)}
+.stepbar .step:focus-visible{outline:0;box-shadow:var(--focus-ring)}
+.stepbar .step.done{color:var(--text)}
+.stepbar .step.done .ck{color:var(--ok);font-weight:700}
+.stepbar .step[aria-current=step]{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);font-weight:600;cursor:default}
+.stepbar .step[aria-current=step] .n{color:var(--accent)}
+.stepbar .step[aria-disabled=true]:not([aria-current]){border-style:dashed;color:var(--text-3);cursor:not-allowed;background:none}
+.stepbar .tipb{flex:none}
+@media (max-width:600px){.stepbar .step.far,.stepbar .sep.far{display:none}}
+.sx-flow{min-width:0}
+.sx-ck{margin:0 0 var(--sp-6)}
+.sx-ul{margin:0 0 var(--sp-4);padding-left:var(--sp-8);font-size:var(--fs-sm)}
+.sx-ul li{margin:var(--sp-1) 0;overflow-wrap:anywhere}
+.sx-ul.bad b{color:var(--danger)}
+.sx-nm{display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap;margin:0 0 var(--sp-4)}
+.sx-nm .inp{width:auto;max-width:100%;min-width:0}
+.sx-cl{display:inline-flex;align-items:center;gap:var(--sp-2);flex:none}
+.sxg{display:flex;gap:var(--sp-7);align-items:flex-start;min-width:0}
+.sxg>.sxt{flex:1;min-width:0}
+.sxg>.sxc{width:min(360px,40%);flex:none;position:sticky;top:0}
+.sxc .card{margin-bottom:0}
+.sxc .ch svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.7;flex:none;color:var(--text-3)}
+.sx-cn{overflow-wrap:anywhere}
+@media (max-width:1024px){.sxg{flex-direction:column;align-items:stretch}.sxg>.sxc{width:100%;position:static}}
+.sx-itools{display:flex;gap:var(--sp-3);flex-wrap:wrap;margin:0 0 var(--sp-4)}
+.sx-itools [aria-pressed=true]{background:var(--accent-bg);border-color:var(--accent);color:var(--accent)}
+.sx-its{list-style:none;margin:0;padding:0}
+.sx-it{display:flex;align-items:center;gap:var(--sp-3);min-height:30px;padding:0 var(--sp-2);border-radius:var(--r);min-width:0}
+.sx-it:hover{background:var(--surface-2)}
+.sx-it.on{background:var(--accent-bg)}
+.sx-it .nm{flex:1;min-width:0;text-align:left;background:none;border:0;font:inherit;color:var(--text);cursor:pointer;padding:var(--sp-2) 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-radius:var(--r-xs)}
+.sx-it .nm:focus-visible{outline:0;box-shadow:var(--focus-ring)}
+.sx-it .mt{font-size:var(--fs-xs);color:var(--text-3);flex:none}
+.sx-ia{display:flex;gap:var(--sp-3);flex-wrap:wrap;padding:var(--sp-2) var(--sp-2) var(--sp-3) calc(var(--sp-2) + 13px + var(--sp-3))}
+.sx-wrow{border:1px solid var(--border);border-radius:var(--r-md);padding:var(--sp-5);margin:0 0 var(--sp-5)}
+.sx-wf{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 var(--sp-5)}
+@media (max-width:600px){.sx-wf{grid-template-columns:minmax(0,1fr)}}
+.sx-bh .l{display:flex;flex-direction:column;min-width:0;gap:var(--sp-1)}
+.sx-bh .need{color:var(--warn);font-size:var(--fs-sm);font-weight:600;min-width:0;overflow-wrap:anywhere}
+@media (max-width:600px){.sx-bh .r{margin-left:0;width:100%;justify-content:flex-end}.sx-bh .r .btn.pri{flex:1}}
 .hdy{container-type:inline-size}
 .hd-kn{max-width:min(360px,100%);margin:0 0 var(--sp-6)}
 .hd-sum{display:flex;flex-wrap:wrap;gap:var(--sp-3) var(--sp-8);align-items:baseline;font-size:var(--fs);color:var(--text-2);margin:0 0 var(--sp-7);padding:0 var(--sp-2)}

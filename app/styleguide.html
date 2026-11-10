@@ -282,6 +282,8 @@ html,body{background:var(--bg)}
   <section id="tabs">
     <h2>탭 <small>줄바꿈하지 않고 가로로 밀어 본다</small></h2>
     <div class="tabs" role="tablist"><span class="on" role="tab" tabindex="0" aria-selected="true">일반</span><span class="sg-hover" role="tab" tabindex="-1">사람</span><span role="tab" tabindex="-1">Claude 연결</span><span role="tab" tabindex="-1">에이전트 설치</span><span class="off" role="tab" aria-disabled="true">관리</span></div>
+    <h2>단계 띠 <small>.stepbar · 지난 ✓ · 지금 aria-current=step · 아직 aria-disabled · 600 이하 지금 ± 1(문서 › 구조 다시 잡기)</small></h2>
+    <nav class="stepbar" aria-label="단계"><button type="button" class="step done"><span class="n">1</span><span class="ck" aria-hidden="true">✓</span><span class="sr-only">지남</span>구조안</button><span class="sep" aria-hidden="true">›</span><button type="button" class="step" aria-current="step"><span class="n">2</span>해 보기</button><span class="sep" aria-hidden="true">›</span><button type="button" class="step" aria-disabled="true"><span class="n">3</span>넣기</button><span class="sep far" aria-hidden="true">›</span><button type="button" class="step far" aria-disabled="true"><span class="n">4</span>끝</button></nav>
   </section>
 
   <section id="state">

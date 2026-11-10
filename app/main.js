@@ -344,10 +344,11 @@ const HASH_TAB = { doc: 'd', item: 'i', rec: 'r' }
 const HASH_SCR = { import: 'gen', held: 'check', send: 'share', structure: 'shape', today: 'history', log: 'history' }
 const SCR_HASH = { gen: 'import', check: 'held', share: 'send', shape: 'structure', history: 'today' }
 // 화면 안 탭(주소 끝 조각) — 생성 수기수집(처음) · 자동수집 / 확인 넣지 못함(처음) · 점검 · 승인
-const subOf = (scr) => (scr === 'import' ? (S.genTab === 'auto' ? 'auto' : null) : scr === 'held' ? (S.ckTab && S.ckTab !== 'held' ? S.ckTab : null) : null)
+const subOf = (scr) => (scr === 'import' ? (S.genTab === 'auto' ? 'auto' : null) : scr === 'held' ? (S.ckTab && S.ckTab !== 'held' ? S.ckTab : null) : scr === 'structure' ? (S.sxTab === 'check' && !isTeam() ? 'check' : null) : null)
 function subSet(scr, sub) {
   if (scr === 'import') S.genTab = sub === 'auto' ? 'auto' : 'manual'
   if (scr === 'held') S.ckTab = ['check', 'review'].includes(sub) ? sub : 'held'
+  if (scr === 'structure') S.sxTab = sub === 'check' ? 'check' : 'shape'
 }
 function hashOf(s) {
   const e = encodeURIComponent
@@ -541,6 +542,9 @@ function popHtml(key, html) { S._pop = { key, html }; return '' }
 //   툴팁은 누른 단추 바로 뒤에 그린다(Tab 차례가 단추 다음 · 모달이면 모달 Tab 가둠 안) · 설명서가 있으면 dialog(열 때 링크에 초점) · 없으면 tooltip(단추 aria-describedby · 초점은 단추)
 //   누름 · Enter · Space 로 열고 닫는다(hover 로 열지 않는다) · Esc(초점은 단추로) · 바깥 누름 · 초점이 밖으로 · 단추가 화면 밖이면 닫는다 · 한 번에 하나
 const TIPS = {
+  'sx.flow': ['항목을 옮기거나 합치거나 나누면 단계를 지난다: 구조안 검사 · 연습 판에 해 보기 · 넣기. 넣기 전에는 지식이 바뀌지 않는다', ''],
+  'sx.claude': ['준비 중. 지금은 손으로 짜고 손으로 쓴다', ''],
+  'sx.write': ['합치거나 나눈 항목의 새 글. 출처 글의 값(숫자 · 주소 · 이름)만 쓴다. 지어낸 값은 넣지 못함이 된다', ''],
   'set.check': ['문제가 있을 때만 줄이 선다. 풀리면 저절로 사라진다 · 지식 폴더 다시 읽기 · 운영 값도 여기', ''],
   'set.server': ['팀 서버의 Claude(팀 일꾼) 로그인. 팀 지식의 들이기 · 다듬기를 이 로그인으로 한다', ''],
   'set.agent': ['작업 폴더의 Claude Code 에 팀 지식을 붙인다. 개인 지식을 쓰려면 개인 프로그램', ''],
@@ -3392,6 +3396,7 @@ function sxMoveDir(from, toParent, newName) {
 }
 // 옮기기(끌기 대신 · 키보드 · 터치 · 여럿 한꺼번에) — 고른 폴더 안의 것은 폴더와 함께 간다
 async function sxMoveKeys(keys) {
+  if (sxHold()) return
   const x = S.sx
   const dirs = keys.filter((k) => k.startsWith('f:')).map((k) => k.slice(2))
   const inSel = (f) => dirs.some((p) => f === p || f.startsWith(p + '/'))
@@ -3471,6 +3476,7 @@ function sxTreeHtml() {
   return `<button type="button" class="sx-root${!S.sx.sel ? ' on' : ''}" data-sxroot="1" data-a="sxRootSel" data-t="sxRoot" aria-pressed="${!S.sx.sel}" title="맨 위를 고른다 · [+ 폴더] 는 여기에 선다">${svg('folder')}맨 위</button>${walk('', 0) || '<div class="empty2"><b>맞는 문서가 없다</b>다른 말로 찾는다</div>'}`
 }
 function sxBarHtml() {
+  if (sxFlowOn()) return sxFlowBarHtml()
   const ch = sxDiff(), n = ch.length
   if (!n) return ''
   const cnt = (k) => ch.filter((c) => c.k === k).length
@@ -3489,10 +3495,20 @@ function viewStructure() {
   if (d.error) return { crumb: '문서 › 구조', main: `<div class="sxy">${head(n)}${errHtml(d, 'sx:' + k)}</div>` }
   if (!S.sx || S.sx.k !== k || S.sx.src !== d) { sxInit(k, d); S.sx.src = d }
   const x = S.sx
+  // 항목(다시 잡기) — 지금 짜임(GET shape)을 받으면 문서마다 항목 줄 · 받는 중 · 못 받음은 고른 것 카드에서만(나무 · 단순 길은 그대로)
+  const sh = shOf(k)
+  if (sh && !sh.error && (!x.IT || x.shFp !== sh.fp)) sxItemsInit(sh)
+  if (sh && !sh.error) x.shSrc = sh
+  const f = S.sxf && S.sxf.k === k ? S.sxf : null
+  if (f && f.step === 2 && !f.srv && f.planKey !== sxPlanKey()) { f.step = 1; f.tried = null }
+  const tabs = isTeam() ? '' : `<div class="tabs" role="tablist" aria-label="문서" data-t="sxTabs">${[['shape', '구조'], ['check', '점검']].map(([v, l]) => `<button type="button" role="tab" aria-selected="${(S.sxTab || 'shape') === v}" tabindex="${(S.sxTab || 'shape') === v ? 0 : -1}" data-a="sxTab" data-v="${v}" data-t="sxTab-${v}">${l}</button>`).join('')}</div>`
+  if (!isTeam() && S.sxTab === 'check') return { crumb: '문서 › 구조', main: `<div class="sxy">${head(n)}${tabs}${guardBodyHtml(k)}</div>` }
   const df = x.W.filter((z) => { const o = sxO(z.id); return o && o.file !== o.title && !z.sync && !z.watched }).length
-  const tools = `<div class="sx-tools"><input class="inp sx-q" id="sxQ" data-in="sxQ" data-t="sxQ" value="${esc(x.q)}" placeholder="찾기" aria-label="문서 찾기" autocomplete="off"><button type="button" class="btn" data-a="sxPick" data-t="sxPick" aria-pressed="${x.pick}" title="누르는 줄마다 고른다(Ctrl · Shift 를 누르고 눌러도 된다)">여러 개 고르기</button><button type="button" class="btn" data-a="sxNewDir" data-t="sxNewDir">+ 폴더</button><button type="button" class="btn pri" data-a="sxNewDoc" data-t="sxNewDoc">+ 새 문서</button></div>`
+  const tools = `<div class="sx-tools"><input class="inp sx-q" id="sxQ" data-in="sxQ" data-t="sxQ" value="${esc(x.q)}" placeholder="찾기" aria-label="문서 찾기" autocomplete="off"><button type="button" class="btn" data-a="sxPick" data-t="sxPick" aria-pressed="${x.pick}" title="누르는 줄마다 고른다(Ctrl · Shift 를 누르고 눌러도 된다)">여러 개 고르기</button><button type="button" class="btn" data-a="sxNewDir" data-t="sxNewDir">+ 폴더</button><button type="button" class="btn pri" data-a="sxNewDoc" data-t="sxNewDoc">+ 새 문서</button><span class="sx-cl"><button type="button" class="btn" data-t="sxClaude" disabled>Claude 구조안</button>${tipb('sx.claude', 'Claude 구조안')}</span></div>`
   const strip = df ? `<div class="callout warn sx-strip" data-t="sxStrip"><span><i class="sx-dot df" aria-hidden="true"></i> 파일 이름이 제목과 다른 문서 <b>${df}</b> <small class="muted">· 점: 파랑 바뀜 · 초록 새것 · 노랑 파일 이름 ≠ 제목</small></span><button type="button" class="btn sm" data-a="sxFix" data-t="sxFix">제목으로 맞추기</button></div>` : ''
-  return { crumb: '문서 › 구조', main: `<div class="sxy">${head(n, tools)}${strip}${x.multi.size ? `<div class="sx-sel" data-t="sxSel" role="status"><b>고른 것 ${x.multi.size}</b><button type="button" class="btn pri sm" data-a="sxMvSel" data-t="sxMvSel">옮기기…</button><button type="button" class="btn ghost sm" data-a="sxSelClear" data-t="sxSelClear">고르기 풀기</button></div>` : ''}<div class="sx-tree" id="sxTree" role="tree" aria-multiselectable="true" aria-label="문서 짜임" data-t="sxTree">${sxTreeHtml()}</div><p class="muted small sx-tip">끌거나 [옮기기](M) 로 옮긴다 · 여럿은 Ctrl · Shift 로 누르거나 [여러 개 고르기](Ctrl + Space) · 이름은 두 번 누르거나 F2 · 차례는 Alt ↑↓</p>${sxBarHtml()}</div>` }
+  const card = sxCardHtml(k, sh)
+  const tree = `<div class="sx-tree" id="sxTree" role="tree" aria-multiselectable="true" aria-label="문서 짜임" data-t="sxTree">${sxTreeHtml()}</div>`
+  return { crumb: '문서 › 구조', main: `<div class="sxy">${head(n, tools)}${tabs}${sxWorkHtml(sh, f)}${sxFlowOn() ? sxFlowHtml() : ''}${strip}${x.multi.size ? `<div class="sx-sel" data-t="sxSel" role="status"><b>고른 것 ${x.multi.size}</b><button type="button" class="btn pri sm" data-a="sxMvSel" data-t="sxMvSel">옮기기…</button><button type="button" class="btn ghost sm" data-a="sxSelClear" data-t="sxSelClear">고르기 풀기</button></div>` : ''}${card ? `<div class="sxg"><div class="sxt">${tree}</div><div class="sxc">${card}</div></div>` : tree}<p class="muted small sx-tip">끌거나 [옮기기](M) 로 옮긴다 · 여럿은 Ctrl · Shift 로 누르거나 [여러 개 고르기](Ctrl + Space) · 이름은 두 번 누르거나 F2 · 차례는 Alt ↑↓</p>${sxBarHtml()}${S.sxw && S.sxw.k === k ? sxWinHtml() : ''}</div>` }
 }
 async function sxSave() {
   const x = S.sx, k = x.k, ops = sxOps()
@@ -3506,13 +3522,311 @@ async function sxSave() {
     x.busy = true; render()
     const r = await postJSON(`/api/k/${encodeURIComponent(k)}/structure`, { ops, base: x.fp })
     toast(`<b>구조를 저장했다</b>${r.commit ? '' : ' · 바뀐 것이 없다'}`)
-    delete S.cache['sx:' + k]; forgetKn(k); S.sx = null
+    sxReload(k)
   } catch (e) {
     if (e.code === 'E_CONFLICT') {
       const again = await ask({ t: '그사이 구조가 바뀌었다', d: '다시 읽으면 이 화면에서 바꾼 것은 사라진다', ok: '다시 읽기' })
-      if (again) { delete S.cache['sx:' + k]; S.sx = null }
+      if (again) { sxReload(k) }
     } else toastErr(e)
   } finally { if (S.sx) S.sx.busy = false; render() }
+}
+
+// ── 다시 잡기(바탕 세우기 설계 5-4 · Z5) — 항목 옮기기 · 이름 · 합치기 · 나누기 · 빈 문서 걷기 → 구조안(설계 3-3 · 새 짜임 전체) →
+//   1 구조안(POST shape/check · 바뀔 것 · 걸림) › 2 해 보기(shape/try · 연습 판 · 끝 진단) › 3 넣기(shape/put · 넣지 못함 · 이어 넣기) › 4 끝(shape/undo 되돌리기 구조안).
+//   단순 길(문서 · 폴더 · 차례만)은 [저장] 그대로. 걸음은 서버가 지금 지식으로 다시 만든다(화면은 구조안만 보낸다 · 권한 모델 7-2).
+//   Claude(구조안 받기 · 글 짓기)는 Z6 까지 꺼 둔다 — 합치기 · 나누기 글은 손으로 쓴다(items[].text)
+const shOf = (k) => need('sh:' + k, `/api/k/${encodeURIComponent(k)}/shape`)
+const SX_STEPS = ['구조안', '해 보기', '넣기', '끝']
+const SX_STAGE = { plan: '구조안', tried: '해 보기', putting: '넣는 중', stopped: '넣다 섬', rebase: '다시 맞추기' }
+const shapeUrl = (k, p) => `/api/k/${encodeURIComponent(k)}/shape/${p}`
+// 항목 판 — 받은 짜임의 문서마다 항목(글이 그대로 가는 것: from = 제자리) · 새 문서는 빈 목록
+function sxItemsInit(sh) {
+  const x = S.sx
+  x.IT = new Map(); x.shFp = sh.fp
+  for (const d of x.W) { const o = sxO(d.id) && sh.docs.find((z) => z.id === d.id); x.IT.set(d.id, o ? o.items.map((it) => ({ h: it.h, from: [{ doc: d.id, h: it.h }], lines: it.lines, names: it.names })) : []) }
+  x.OIT = new Map([...x.IT].map(([id, v]) => [id, v.map((it) => it.h)]))
+  x.empty = new Set(); x.names = []; x.ipick = new Set(); x.isel = null
+}
+const sxItems = (wid) => { const x = S.sx; if (!x.IT) return []; if (!x.IT.has(wid)) x.IT.set(wid, []); return x.IT.get(wid) }
+const sxSame = (wid, it) => !!sxO(wid) && it.from.length === 1 && it.from[0].doc === wid && it.from[0].h === it.h && typeof it.text !== 'string'
+const sxIKey = (wid, h) => wid + '\n' + h
+const sxPath = (d) => (d.folder ? d.folder + '/' : '') + d.name
+// 항목 바뀐 것 — 옮김 · 이름 · 합치기 · 나누기 · 항목 차례 · 걷기
+function sxItemDiff() {
+  const x = S.sx, out = []
+  if (!x || !x.IT) return out
+  for (const d of x.W) {
+    const its = x.IT.get(d.id) || []
+    for (const it of its) {
+      if (sxSame(d.id, it)) continue
+      const k = typeof it.text === 'string' ? (it.from.length > 1 ? '합치기' : '나누기') : it.from[0].doc !== d.id ? '항목 옮김' : '항목 이름'
+      out.push({ k, d, it })
+    }
+    const kept = its.filter((it) => sxSame(d.id, it)).map((it) => it.h), orig = (x.OIT.get(d.id) || []).filter((h) => kept.includes(h))
+    if (kept.join('\n') !== orig.join('\n')) out.push({ k: '항목 차례', d })
+  }
+  for (const id of x.empty) { const d = sxW(id); if (d) out.push({ k: '걷기', d }) }
+  return out
+}
+const sxFlow = () => (S.sxf && S.sxf.k === S.sx.k ? S.sxf : (S.sxf = { k: S.sx.k, step: 1 }))
+const sxFlowOn = () => !!S.sx && (sxItemDiff().length > 0 || (!!S.sxf && S.sxf.k === S.sx.k && (S.sxf.step > 1 || !!S.sxf.check)))
+// 넣는 중 · 끝 — 나무를 고쳐도 넣기에 들지 않는다(구조안은 서버 장부의 것)
+function sxHold() {
+  if (!S.sxf || !S.sx || S.sxf.k !== S.sx.k || S.sxf.step < 3) return false
+  toast('<b>넣기 단계에서는 구조안을 고치지 않는다</b> · [마치기] 나 그만두기 뒤에', 0, true)
+  return true
+}
+// 구조안(설계 3-3) — 새 짜임 전체. 문서는 끝 id + was(지금 id) · 항목은 h + from(+ 손으로 쓴 text) · 이름 자리 · 걷을 문서 · 차례(바뀌었을 때만)
+function sxPlan() {
+  const x = S.sx, ops = sxOps(), idOf = (d) => (d.folder ? d.folder + '/' : '') + sxFile(d)
+  const live = x.W.filter((d) => !x.empty.has(d.id))
+  const docs = live.map((d) => ({ id: idOf(d), was: sxO(d.id) ? d.id : null, items: sxItems(d.id).map((it) => ({ h: it.h, from: it.from.map((z) => ({ doc: z.doc, h: z.h })), ...(typeof it.text === 'string' ? { text: it.text } : {}) })) }))
+  let order = null
+  if (['', ...sxDirs()].some(sxOrderMoved)) {
+    order = { ...ops.order }
+    for (const id of x.empty) { const d = sxW(id); if (d && order[d.folder]) order[d.folder] = order[d.folder].filter((nm) => nm !== sxFile(d)) }
+  }
+  const names = (x.names || []).filter((nm) => sxW(nm.wid) && !x.empty.has(nm.wid)).map((nm) => ({ coord: nm.coord, label: '', doc: idOf(sxW(nm.wid)), h: nm.h }))
+  return { v: 1, kind: 'reshape', kn: x.k, base: x.shFp || null, forms: null, dirs: ops.dirs, docs, names, order, empty: [...x.empty].filter((id) => sxO(id)), skip: [] }
+}
+const sxPlanKey = () => (S.sx && S.sx.IT ? JSON.stringify(sxPlan()) : '')
+// 이름 자리 — 검사가 「닿던 이름을 새 항목에 놓는다」 로 걸면 그 출처를 쓰는 항목에 놓는다(하나면 그것 · 여럿이면 첫 것 + 고르기)
+function sxPlaceNames(r) {
+  const x = S.sx
+  let ch = false
+  for (const e of (r && r.errors) || []) {
+    if (e.code !== 'names' || !/^[^:\s]+:.+$/.test(e.where)) continue
+    if (/이름 자리가 구조안에 없다/.test(e.why)) { const n0 = x.names.length; x.names = x.names.filter((nm) => nm.coord !== e.where); ch = ch || x.names.length !== n0; continue }
+    const m = /^「(.+?) › (.+)」 에 닿던 이름/.exec(e.why)
+    if (!m) continue
+    const opts = []
+    for (const d of x.W) for (const it of sxItems(d.id)) if (it.from.some((z) => z.doc === m[1] && z.h === m[2])) opts.push({ wid: d.id, h: it.h })
+    if (!opts.length || x.names.some((nm) => nm.coord === e.where && opts.some((o) => o.wid === nm.wid && o.h === nm.h))) continue
+    x.names = x.names.filter((nm) => nm.coord !== e.where)
+    x.names.push({ coord: e.where, wid: opts[0].wid, h: opts[0].h, opts })
+    ch = true
+  }
+  return ch
+}
+// 다시 읽기 — 넣은 뒤 · 그만둔 뒤(짜임 · 항목 · 나무)
+function sxReload(k) { delete S.cache['sx:' + k]; delete S.cache['sh:' + k]; forgetKn(k); S.sx = null }
+async function sxRun(kind, fn) {
+  const f = sxFlow()
+  if (f.busy) return
+  f.busy = kind; f.err = null; render()
+  try { await fn(f) } catch (e) { if (e && e.code === 'E_CANCEL') return; f.err = e; console.warn('다시 잡기', e) } finally { f.busy = null; render() }
+}
+const sxCheck = () => sxRun('check', async (f) => {
+  const k = S.sx.k
+  let plan, r
+  for (let i = 0; i < 3; i++) { plan = sxPlan(); r = await postJSON(shapeUrl(k, 'check'), { plan }); if (!sxPlaceNames(r)) break }
+  Object.assign(f, { check: r, planKey: JSON.stringify(plan), tried: null, put: null, srv: false, undo: false })
+})
+const sxTry = () => sxRun('try', async (f) => { f.tried = null; f.tried = await postJSON(shapeUrl(S.sx.k, 'try'), {}) })
+async function sxPut() {
+  const f = sxFlow(), n = (f.tried && f.tried.steps && f.tried.steps.length) || 0
+  if (!f.put && !(await ask({ t: '넣기', d: `${n ? `걸음 ${n} 을 ` : ''}지식에 넣는다. 넣은 뒤에 되돌리려면 되돌리기 구조안을 연다`, ok: '넣기' }))) return
+  const k = S.sx.k
+  await sxRun('put', async (f2) => {
+    const r = await postJSON(shapeUrl(k, 'put'), {})
+    f2.put = r
+    sxReload(k)
+    if (r.done) { f2.step = 4; toast('<b>구조를 넣었다</b>') }
+  })
+}
+async function sxStop() {
+  const k = S.sx.k
+  if (!(await ask({ t: '그만두기', d: '열린 짜임 일을 끝낸다. 이미 넣은 걸음은 그대로 남는다', ok: '그만두기', danger: true }))) return
+  try {
+    await postJSON(shapeUrl(k, 'stop'), {})
+    S.sxf = null; delete S.cache['sh:' + k]
+    toast('<b>짜임 일을 그만두었다</b>')
+  } catch (e) { toastErr(e) } finally { render() }
+}
+const sxUndoPlan = () => sxRun('undo', async (f) => {
+  const k = S.sx.k
+  const r = await postJSON(shapeUrl(k, 'undo'), {})
+  sxReload(k)
+  S.sxf = { k, step: 2, check: r, srv: true, undo: true }
+})
+// 열린 짜임 일(GET shape 의 work) — 내 것이면 이어 하기 · 남의 것이면 그만두게 하기(지식관리자 누구나)
+function sxWorkHtml(sh, f) {
+  const w = sh && !sh.error ? sh.work : null
+  if (!w || (f && (f.step > 1 || f.check)) || ['done', 'stopped-final'].includes(w.stage)) return ''
+  if (w.broken) return `<div class="callout danger" data-t="sxWork"><i></i><span><b>짜임 일 장부가 깨졌다</b></span><button type="button" class="btn sm r" data-a="sxStop" data-t="sxWorkStop">그만두게 하기</button></div>`
+  if (!w.mine) return `<div class="callout warn" data-t="sxWork"><i></i><span><b>${esc(w.by)}</b> 가 연 짜임 일 · ${esc(SX_STAGE[w.stage] || w.stage)}</span><button type="button" class="btn sm r" data-a="sxStop" data-t="sxWorkStop">그만두게 하기</button></div>`
+  return `<div class="callout warn" data-t="sxWork"><i></i><span><b>열린 짜임 일</b> · ${esc(SX_STAGE[w.stage] || w.stage)}</span><span class="r row u-g3"><button type="button" class="btn ghost sm" data-a="sxStop" data-t="sxWorkStop">버리기</button><button type="button" class="btn sm" data-a="sxResume" data-t="sxResume">${['putting', 'stopped', 'rebase'].includes(w.stage) ? '이어 넣기' : '이어 하기'}</button></span></div>`
+}
+// 단계 띠(.stepbar · 설계 5-2) — 지금 aria-current · 지난 ✓ · 아직 aria-disabled · 2 에서는 1 로 돌아가 고칠 수 있다
+function sxStepsHtml(f) {
+  return `<nav class="stepbar" aria-label="다시 잡기 단계" data-t="sxSteps">${SX_STEPS.map((l, i) => {
+    const n = i + 1, cur = f.step === n, done = f.step > n, back = n === 1 && f.step === 2 && !f.srv, far = Math.abs(n - f.step) > 1 ? ' far' : ''
+    return `${i ? `<span class="sep${far}" aria-hidden="true">›</span>` : ''}<button type="button" class="step${done ? ' done' : ''}${far}" data-a="sxStep" data-v="${n}" data-t="sxStep-${n}"${cur ? ' aria-current="step"' : ''}${!cur && !back ? ' aria-disabled="true"' : ''}><span class="n">${n}</span>${done ? '<span class="ck" aria-hidden="true">✓</span><span class="sr-only">지남</span>' : ''}${l}</button>`
+  }).join('')}${tipb('sx.flow', '다시 잡기')}</nav>`
+}
+const sxWhere = (e) => `<li><b>${esc(e.where || e.what || '')}</b> <span class="muted">${esc(e.why || '')}</span></li>`
+function sxCheckHtml(r, stale) {
+  const errs = r.errors || [], warns = r.warnings || [], x = S.sx
+  const pick = (x.names || []).map((nm, i) => (nm.opts && nm.opts.length > 1 ? `<div class="sx-nm" data-t="sxNamePick"><label class="small" for="sxNm${i}"><span class="iv">${esc(nm.coord)}</span></label><select class="inp" id="sxNm${i}" data-sxname="${i}">${nm.opts.map((o, j) => `<option value="${j}"${o.wid === nm.wid && o.h === nm.h ? ' selected' : ''}>${esc(sxPath(sxW(o.wid) || { folder: '', name: o.wid }))} › ${esc(o.h)}</option>`).join('')}</select></div>` : '')).join('')
+  return `<div class="card sx-ck" data-t="sxCheck"><div class="ch">바뀔 것 <small>${(r.changes || []).length}</small><span class="r">${stale ? chipOf('wait', '다시 검사') : errs.length ? chipOf('held', `걸림 ${errs.length}`) : chipOf('ok', '걸림 0')}</span></div><div class="cb">${r.stale ? '<div class="callout warn" data-t="sxStale"><i></i><span>그사이 짜임이 바뀌었다: 다시 검사한다</span></div>' : ''}${errs.length ? `<ul class="sx-ul bad" data-t="sxErrors">${errs.slice(0, 50).map(sxWhere).join('')}</ul>` : ''}${pick}<ul class="sx-ul" data-t="sxChanges">${(r.changes || []).slice(0, 200).map((c) => `<li>${esc(c)}</li>`).join('') || '<li class="muted">없다</li>'}</ul>${warns.length ? `<details class="small" data-t="sxWarn"><summary>경고 ${warns.length}</summary><ul class="sx-ul">${warns.slice(0, 50).map(sxWhere).join('')}</ul></details>` : ''}</div></div>`
+}
+function sxDiagHtml(t) {
+  const d = t.diag || { blockers: [], warnings: [], counts: {} }, c = d.counts || {}
+  return `<div class="card sx-ck" data-t="sxDiag"><div class="ch">연습 판 <small>걸음 ${(t.steps || []).length}</small><span class="r">${d.blockers.length ? chipOf('held', `막는 것 ${d.blockers.length}`) : chipOf('ok', '막는 것 0')}</span></div><div class="cb">${d.blockers.length ? `<ul class="sx-ul bad" data-t="sxBlockers">${d.blockers.map(sxWhere).join('')}</ul>` : ''}<p class="small muted mt0" data-t="sxCounts">문서 ${c.docs ?? '-'} · 항목 ${c.items ?? '-'} · 고칠 링크 ${c.links ?? 0} · 항목 잃은 이름 ${c.lost ?? 0}</p>${d.warnings.length ? `<details class="small" data-t="sxWarn"><summary>볼 것 ${d.warnings.length}</summary><ul class="sx-ul">${d.warnings.slice(0, 50).map(sxWhere).join('')}</ul></details>` : ''}</div></div>`
+}
+function sxPutHtml(f) {
+  const p = f.put
+  if (f.busy === 'put') return `<div class="card sx-ck" data-t="sxPutting"><div class="cb">${loadingHtml.replace('읽는 중…', '넣는 중…')}<p class="small muted mt0">다른 화면으로 가도 이어 간다</p></div></div>`
+  if (!p) return f.tried ? sxDiagHtml(f.tried) : ''
+  if (p.stopped && p.stopped.held) return `<div class="callout danger" data-t="sxHeld"><i></i><div><b>넣지 못함</b><ul class="sx-ul">${p.stopped.held.map((h) => `<li><b>${esc(h.heading || h.doc || '')}</b> <span>${esc(h.why || HELD_CODE[h.code] || '')}</span></li>`).join('')}</ul></div></div>`
+  if (p.again) return `<div class="callout warn" data-t="sxAgain"><i></i><span><b>그사이 바뀜</b>: 연습 판에 다시 해 본다</span></div>${p.diag ? sxDiagHtml({ diag: p.diag, steps: [] }) : ''}`
+  if (p.conflict) return `<div class="callout warn" data-t="sxConflict"><i></i><span><b>그사이 바뀜</b>: ${esc(p.conflict.why || '')}</span></div>`
+  if (p.halted) return '<div class="callout warn" data-t="sxHalted"><i></i><span>그만둔 일이다</span></div>'
+  if (p.resume || p.putting) return '<div class="callout warn" data-t="sxResumeNote"><i></i><span><b>잠깐 멈춤</b>: 남은 걸음부터 이어 넣는다</span></div>'
+  return ''
+}
+function sxFlowHtml() {
+  const f = sxFlow()
+  let body = f.err ? formErr(f.err.message || String(f.err), 'sxFlowErr') : ''
+  if (f.step === 1 && f.check) body += sxCheckHtml(f.check, sxPlanKey() !== f.planKey)
+  if (f.step === 2) {
+    if (f.undo) body += '<div class="callout warn" data-t="sxUndoNote"><i></i><span><b>되돌리기 구조안</b>: 넣기 앞 짜임으로 돌린다</span></div>'
+    if (f.check) body += sxCheckHtml(f.check, false)
+    if (f.busy === 'try') body += `<div class="card sx-ck"><div class="cb">${loadingHtml.replace('읽는 중…', '해 보는 중…')}</div></div>`
+    else if (f.tried) body += sxDiagHtml(f.tried)
+  }
+  if (f.step === 3) body += sxPutHtml(f)
+  if (f.step === 4) body += `<div class="card sx-ck" data-t="sxDone"><div class="ch">넣었다 <small>걸음 ${(f.put && f.put.steps) || 0}</small><span class="r">${chipOf('ok', '끝')}</span></div><div class="cb"><button type="button" class="btn" data-a="sxUndoPlan" data-t="sxUndoPlan"${f.busy ? ' disabled' : ''}>되돌리기 구조안</button></div></div>`
+  return `<div class="sx-flow" data-t="sxFlow">${sxStepsHtml(f)}${body}</div>`
+}
+// 바닥 줄(다시 잡기) — 바뀐 것 수 · 주 단추가 꺼졌으면 「먼저: 까닭」 · ⋯(모두 처음대로 · 그만두기) · 주 단추 하나
+function sxFlowMain(f) {
+  if (f.busy) return [{ check: '검사하는 중…', try: '해 보는 중…', put: '넣는 중…', undo: '여는 중…' }[f.busy] || '…', '', true, '']
+  if (f.step === 1) {
+    const n = sxItemDiff().length + sxDiff().length
+    if (!n && !f.check) return ['검사', 'sxCheck', true, '바뀐 것이 없다']
+    const fresh = f.check && sxPlanKey() === f.planKey
+    if (fresh && f.check.ok) return ['정하고 다음: 해 보기', 'sxNext', false, '']
+    return ['검사', 'sxCheck', false, fresh ? `걸림 ${(f.check.errors || []).length}` : '']
+  }
+  if (f.step === 2) {
+    if (f.check && !f.check.ok) return ['연습 판에 해 보기', '', true, `걸림 ${(f.check.errors || []).length}`]
+    if (!f.tried) return ['연습 판에 해 보기', 'sxTry', false, '']
+    if (f.tried.ok) return ['정하고 다음: 넣기', 'sxNext', false, '']
+    return ['다시 해 보기', 'sxTry', false, `막는 것 ${((f.tried.diag && f.tried.diag.blockers) || []).length}`]
+  }
+  if (f.step === 3) {
+    if (!f.put) return ['넣기', 'sxPut', false, '']
+    if (f.put.again) return ['다시 해 보기', 'sxTryAgain', false, '']
+    return ['이어 넣기', 'sxPut', false, f.put.stopped ? '넣지 못함을 고친다' : '']
+  }
+  return ['마치기', 'sxEnd', false, '']
+}
+function sxFlowBarHtml() {
+  const f = sxFlow(), x = S.sx, ich = sxItemDiff(), ch = sxDiff(), n = ch.length + ich.length
+  const [label, act, dis, need] = sxFlowMain(f)
+  const sh = x.shSrc, open = f.step > 1 || !!(sh && sh.work && sh.work.mine && !['done', 'stopped-final'].includes(sh.work.stage))
+  const more = `<button type="button" class="kebab${S.menu === 'sxMore' ? ' on' : ''}" data-a="menu" data-m="sxMore" data-t="sxMore" title="더 보기">⋯${S.menu === 'sxMore' ? popHtml('sxMore', `<div>${f.step < 3 ? '<div class="mi" data-a="sxReset" data-t="sxResetMi">모두 처음대로</div>' : ''}${open ? '<div class="mi" data-a="sxStop" data-t="sxStopMi">그만두기</div>' : ''}</div>`) : ''}</button>`
+  const rows = x.barOpen ? `<ul class="sx-chg" data-t="sxChg">${[...ch.map((c) => [c.k, c.d ? sxPath(c.d) : c.f || c.p || '맨 위']), ...ich.map((c) => [c.k, sxPath(c.d) + (c.it ? ' › ' + c.it.h : '')])].map(([k, t]) => `<li><span class="sx-kd">${esc(k)}</span><span class="fr">${esc(t)}</span></li>`).join('')}</ul>` : ''
+  return `<div class="sx-bar" data-t="sxBar" role="region" aria-label="바뀐 것"><div class="sx-bh"><span class="l"><span><b>바뀐 것 ${n}</b>${n ? ` <button type="button" class="lk" data-a="sxBarT" aria-expanded="${x.barOpen}">${x.barOpen ? '접기' : '보기'}</button>` : ''}</span>${need ? `<span class="need" data-t="sxNeed">먼저: ${esc(need)}</span>` : ''}</span><span class="r">${f.step < 3 || open ? more : ''}<button type="button" class="btn pri"${act ? ` data-a="${act}"` : ''} data-t="sxGo"${dis ? ' disabled' : ''}${f.busy ? ' aria-busy="true"' : ''}>${esc(label)}</button></span></div>${rows}</div>`
+}
+// 고른 것 카드 — 고른 문서의 항목 줄 · 항목 하나를 고르면 [옮기기…] [이름] [나누기…] · 둘 이상 표시하면 [합치기…] · 빈 문서는 [걷기]
+function sxCardHtml(k, sh) {
+  const x = S.sx, s = x.sel && x.sel.startsWith('d:') ? sxW(x.sel.slice(2)) : null
+  if (!s) return ''
+  const head = `<div class="ch">${svg('doc')}<span class="u-f1 sx-cn">${esc(s.name)}</span>${s.watched ? `<span class="sx-lock" title="원본이 주인">${svg('lock')}</span>` : ''}</div>`
+  if (!sh) return `<div class="card" data-t="sxCard">${head}<div class="cb">${loadingHtml}</div></div>`
+  if (sh.error) return `<div class="card" data-t="sxCard">${head}<div class="cb">${errHtml(sh, 'sh:' + k)}</div></div>`
+  const its = sxItems(s.id), lock = s.watched
+  const rows = its.map((it) => {
+    const key = sxIKey(s.id, it.h), on = x.isel === key
+    const dot = typeof it.text === 'string' ? '<i class="sx-dot new" title="새 글"></i>' : !sxSame(s.id, it) ? '<i class="sx-dot ch" title="바뀜"></i>' : ''
+    return `<li class="sx-it${on ? ' on' : ''}" data-t="sxItem" data-h="${esc(it.h)}"><input type="checkbox" data-sxpick="${esc(key)}" aria-label="${esc(it.h)} 합치기에 넣기"${x.ipick.has(key) ? ' checked' : ''}${lock ? ' disabled' : ''}><button type="button" class="nm" data-a="sxISel" data-k="${esc(key)}" aria-pressed="${on}">${esc(it.h)}</button><span class="mt">${it.lines ?? 0}줄${it.names ? ` · 이름 ${it.names}` : ''}</span>${dot}</li>${on && !lock ? `<li class="sx-ia" data-t="sxItemActs"><button type="button" class="btn sm" data-a="sxIMv" data-t="sxIMv">옮기기…</button><button type="button" class="btn sm" data-a="sxIRen" data-t="sxIRen">이름</button><button type="button" class="btn sm" data-a="sxISplit" data-t="sxISplit">나누기…</button></li>` : ''}`
+  }).join('')
+  const np = x.ipick.size
+  const tools = lock ? '' : `<div class="sx-itools"><button type="button" class="btn sm" data-a="sxIMerge" data-t="sxIMerge"${np >= 2 ? '' : ' disabled'}>합치기…${np ? ` ${np}` : ''}</button>${np ? '<button type="button" class="btn ghost sm" data-a="sxIPickClear" data-t="sxIPickClear">풀기</button>' : ''}${!its.length && sxO(s.id) ? `<button type="button" class="btn sm" data-a="sxDrop" data-t="sxDrop" aria-pressed="${x.empty.has(s.id)}">${x.empty.has(s.id) ? '걷기 풀기' : '걷기'}</button>` : ''}</div>`
+  return `<div class="card" data-t="sxCard">${head}<div class="cb">${tools}${its.length ? `<ul class="sx-its" data-t="sxItems">${rows}</ul>` : `<div class="empty2" data-t="sxNoItems"><b>${x.empty.has(s.id) ? '걷을 문서' : '항목 없음'}</b></div>`}</div></div>`
+}
+// 창 셋(설계 5-4) — 옮기기 · 합치기 · 나누기. 구조안에만 적는다(넣기 전에는 지식이 바뀌지 않는다)
+const sxDocOpts = () => S.sx.W.filter((d) => !d.watched && !S.sx.empty.has(d.id)).map((d) => [d.id, sxPath(d)]).sort((a, b) => sxBy(a[1], b[1]))
+const sxAtOpts = (wid, skip) => [['', '맨 끝'], ...sxItems(wid).filter((it) => !skip.includes(sxIKey(wid, it.h))).map((it) => [it.h, it.h + ' 앞'])]
+const sxSel = (id, t, opts, v, extra = '') => `<select class="inp" id="${id}" data-sxw="${t}"${extra}>${opts.map(([o, l]) => `<option value="${esc(o)}"${o === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`
+const sxItemOf = (key) => { const i = key.indexOf('\n'), wid = key.slice(0, i), h = key.slice(i + 1); return { wid, h, it: sxItems(wid).find((z) => z.h === h) } }
+function sxWinHtml() {
+  const w = S.sxw, cl = `<span class="sx-cl"><button type="button" class="btn sm" disabled data-t="sxwClaude">Claude 짓기</button>${tipb('sx.claude', 'Claude 짓기')}</span>`
+  const shell = (t, title, sub, mb, go, wide) => `<div class="scrim fix" data-a="sxwClose" data-self="1"><div class="modal ${wide ? 'w760' : 'w560'}" role="dialog" aria-modal="true" aria-labelledby="sxwH" data-t="${t}"><div class="mh" id="sxwH">${title} <small>${esc(sub)}</small><button type="button" class="x" data-a="sxwClose" title="닫기" aria-label="닫기">×</button></div><div class="mb">${mb}${w.err ? formErr(w.err, 'sxwErr') : ''}</div><div class="mf"><span class="l small muted">구조안에만 적는다</span><span class="acts"><button type="button" class="btn ghost" data-a="sxwClose">취소</button><button type="button" class="btn pri" data-a="sxwGo" data-t="sxwGo"${w.loading ? ' disabled' : ''}>${go}</button></span></div></div></div>`
+  const fld = (id, label, inner, last) => `<div class="field"${last ? ' style="margin-bottom:0"' : ''}><label for="${id}">${label}</label>${inner}</div>`
+  const place = (skip) => fld('sxwTo', '문서', sxSel('sxwTo', 'to', sxDocOpts(), w.to)) + fld('sxwAt', '놓을 차례', sxSel('sxwAt', 'at', sxAtOpts(w.to, skip), w.at)) + fld('sxwHd', '머리', `<input class="inp" id="sxwHd" data-in="sxw" data-f="h" value="${esc(w.h)}" autocomplete="off">`)
+  const txt = (id, v, i) => (w.loading ? loadingHtml : `<textarea class="inp" id="${id}" rows="6" data-in="sxw" data-f="text"${i != null ? ` data-i="${i}"` : ''}>${esc(v || '')}</textarea>`)
+  if (w.t === 'move') return shell('sxMoveWin', '항목 옮기기', w.src.h, place([sxIKey(w.src.wid, w.src.h)]), '옮기기')
+  if (w.t === 'merge') {
+    const srcs = `<ul class="sx-ul" data-t="sxwSrcs">${w.srcs.map((s, i) => `<li><b>${esc(sxPath(sxW(s.wid)))} › ${esc(s.h)}</b>${w.srcs.length > 2 ? ` <button type="button" class="btn ghost sm" data-a="sxwDrop" data-i="${i}">빼기</button>` : ''}</li>`).join('')}</ul>`
+    return shell('sxMergeWin', '합치기', `항목 ${w.srcs.length}`, srcs + place(w.srcs.map((s) => sxIKey(s.wid, s.h))) + `<div class="field" style="margin-bottom:0"><div class="lbrow"><label class="lb" for="sxwTx">글</label>${tipb('sx.write', '글')}${cl}</div>${txt('sxwTx', w.text)}</div>`, '합치기')
+  }
+  const rows = w.rows.map((r, i) => `<div class="sx-wrow" data-t="sxwRow"><div class="sx-wf">${fld(`sxwTo${i}`, '문서', sxSel(`sxwTo${i}`, 'to', sxDocOpts(), r.to, ` data-i="${i}"`))}${fld(`sxwHd${i}`, '머리', `<input class="inp" id="sxwHd${i}" data-in="sxw" data-f="h" data-i="${i}" value="${esc(r.h)}" autocomplete="off">`)}</div>${fld(`sxwTx${i}`, '이 항목에 갈 내용', txt(`sxwTx${i}`, r.text, i), true)}${w.rows.length > 2 ? `<button type="button" class="btn ghost sm" data-a="sxwDrop" data-i="${i}">이 목표 빼기</button>` : ''}</div>`).join('')
+  return shell('sxSplitWin', '나누기', w.src.h, `<div class="lbrow"><span class="lb">${esc(sxPath(sxW(w.src.wid)))} › ${esc(w.src.h)}</span>${tipb('sx.write', '글')}${cl}</div>${rows}<button type="button" class="btn sm" data-a="sxwAddRow" data-t="sxwAddRow">+ 목표 줄</button>`, '나누기', true)
+}
+// 출처 글 — 편집용 md(손으로 쓴 글이 있으면 그것)
+async function sxSrcText(k, it) {
+  if (typeof it.text === 'string') return it.text
+  const out = []
+  for (const z of it.from) {
+    const v = await getJSON(`/api/k/${encodeURIComponent(k)}/doc?d=${encodeURIComponent(z.doc)}&edit=1`)
+    const sec = (v.sections || []).find((s) => s.h === z.h)
+    if (sec) out.push(sec.md ?? '')
+  }
+  return out.join('\n\n')
+}
+async function sxwFill(w, its, put) {
+  try { const t = []; for (const it of its) t.push(await sxSrcText(w.k, it)); put(t) } catch (e) { w.err = '출처 글을 읽지 못했다: ' + e.message } finally { w.loading = false; if (S.sxw === w) render() }
+}
+function sxwOpen(t, keys) {
+  const x = S.sx, its = keys.map(sxItemOf).filter((z) => z.it)
+  if (!its.length || sxHold()) return
+  const a = its[0], base = { k: x.k, t, to: a.wid, at: '', h: a.h, err: '' }
+  if (t === 'move') S.sxw = { ...base, src: { wid: a.wid, h: a.h } }
+  if (t === 'merge') { S.sxw = { ...base, srcs: its.map((z) => ({ wid: z.wid, h: z.h })), text: '', loading: true }; sxwFill(S.sxw, its.map((z) => z.it), (ts) => { S.sxw.text = ts.filter(Boolean).join('\n\n') }) }
+  if (t === 'split') { S.sxw = { ...base, src: { wid: a.wid, h: a.h }, rows: [{ to: a.wid, h: a.h, text: '' }, { to: a.wid, h: '', text: '' }], loading: true }; sxwFill(S.sxw, [a.it], (ts) => { S.sxw.rows[0].text = ts[0] || '' }) }
+  render()
+}
+// 놓은 이름 자리를 따라 옮긴다(항목을 옮기거나 이름을 바꾸거나 합칠 때)
+function sxNameMove(keys, wid, h) { for (const nm of S.sx.names || []) if (keys.includes(sxIKey(nm.wid, nm.h))) Object.assign(nm, { wid, h, opts: null }) }
+const sxHeadBad = (h) => (!h ? '머리를 쓴다' : h.length > 120 ? '머리는 120자 안으로' : /[\r\n]/.test(h) ? '머리는 한 줄' : '')
+function sxwGo() {
+  const w = S.sxw, x = S.sx
+  if (!w || w.loading) return
+  const clash = (wid, h, skip) => sxItems(wid).some((it) => it.h === h && !skip.includes(sxIKey(wid, it.h)))
+  const take = (wid, h) => { const a = sxItems(wid), i = a.findIndex((z) => z.h === h); return i < 0 ? null : a.splice(i, 1)[0] }
+  const put = (wid, it, before) => { const a = sxItems(wid); let i = before ? a.findIndex((z) => z.h === before) : -1; if (i < 0) i = a.length; a.splice(i, 0, it) }
+  const fail = (m) => { w.err = m; render() }
+  if (w.t === 'move' || w.t === 'merge') {
+    const h = String(w.h || '').trim(), skip = w.t === 'move' ? [sxIKey(w.src.wid, w.src.h)] : w.srcs.map((s) => sxIKey(s.wid, s.h))
+    const bad = sxHeadBad(h) || (clash(w.to, h, skip) ? `같은 머리가 있다: ${sxPath(sxW(w.to))} › ${h}` : '')
+    if (bad) return fail(bad)
+    if (w.t === 'move') {
+      const it = take(w.src.wid, w.src.h); if (!it) return fail('그 항목이 이제 없다')
+      sxNameMove([sxIKey(w.src.wid, w.src.h)], w.to, h)
+      it.h = h; put(w.to, it, w.at)
+    } else {
+      if (!String(w.text || '').trim()) return fail('글을 쓴다')
+      if (w.srcs.length < 2) return fail('합칠 항목은 둘 이상')
+      const its = w.srcs.map((s) => take(s.wid, s.h)).filter(Boolean)
+      const from = []; for (const it of its) for (const z of it.from) if (!from.some((y) => y.doc === z.doc && y.h === z.h)) from.push(z)
+      put(w.to, { h, from, text: w.text, lines: its.reduce((n, it) => n + (it.lines || 0), 0), names: its.reduce((n, it) => n + (it.names || 0), 0) }, w.at)
+      sxNameMove(w.srcs.map((s) => sxIKey(s.wid, s.h)), w.to, h)
+      x.ipick = new Set()
+    }
+    x.isel = sxIKey(w.to, h)
+  } else {
+    const rows = w.rows.map((r) => ({ ...r, h: String(r.h || '').trim() }))
+    if (rows.length < 2) return fail('목표는 둘 이상')
+    for (const r of rows) { const b = sxHeadBad(r.h) || (!String(r.text || '').trim() ? `「${r.h}」 에 갈 내용을 쓴다` : '') || (clash(r.to, r.h, [sxIKey(w.src.wid, w.src.h)]) || rows.some((o) => o !== r && o.to === r.to && o.h === r.h) ? `같은 머리가 있다: ${sxPath(sxW(r.to))} › ${r.h}` : ''); if (b) return fail(b) }
+    const it = take(w.src.wid, w.src.h); if (!it) return fail('그 항목이 이제 없다')
+    for (const r of rows) put(r.to, { h: r.h, from: it.from.map((z) => ({ ...z })), text: r.text, lines: String(r.text).split('\n').length, names: 0 }, '')
+    x.isel = sxIKey(rows[0].to, rows[0].h)
+  }
+  S.sxw = null
+  render()
 }
 
 // ───────────── 주인 줄(지식관리자 · Claude 에 보내지 않음) ─────────────
@@ -5414,7 +5728,7 @@ function openDocAt(k, d, h, q, view, sub) {
   if (!h) scrollTopMain()
 }
 const sxFocus = (key) => { const el = key && document.querySelector(`#sxTree [data-sk="${CSS.escape(key)}"]`); if (el) el.focus({ preventScroll: false }) }
-const sxEditStart = (e) => { S.sx.edit = e; render(); const i = $('#sxIn'); if (i) { i.focus(); i.select() } sxEditCheck() }
+const sxEditStart = (e) => { if (sxHold()) return; S.sx.edit = e; render(); const i = $('#sxIn'); if (i) { i.focus(); i.select() } sxEditCheck() }
 function sxReorder(el, up) {
   const key = el.dataset.sk, P = key.startsWith('f:') ? sxSplit(key.slice(2))[0] : sxW(key.slice(2)).folder
   const arr = sxSibs(P), i = arr.indexOf(key), j = i + (up ? -1 : 1)
@@ -5453,7 +5767,44 @@ const ACT = {
   sxNewDir: () => { const p = sxSelFolder(); if (p) S.sx.open[p] = true; sxEditStart({ t: 'newdir', parent: p }) },
   sxUndo: (el) => { const id = el.dataset.d, o = sxO(id); if (o) Object.assign(sxW(id), o, { sync: false }); else S.sx.W = S.sx.W.filter((d) => d.id !== id); render() },
   sxUndoOrd: (el) => { const p = el.dataset.p; S.sx.ORDER[p] = [...(S.sx.OORDER[p] || [])]; render() },
-  sxReset: async () => { if (await ask1('바꾼 것을 모두 처음대로', '처음대로')) { const k = S.sx.k, d = sxOf(k); sxInit(k, d); S.sx.src = d; render() } },
+  sxReset: async () => { S.menu = null; if (await ask1('바꾼 것을 모두 처음대로', '처음대로')) { const k = S.sx.k, d = sxOf(k); sxInit(k, d); S.sx.src = d; if (S.sxf && S.sxf.k === k && S.sxf.step < 3) S.sxf = null; render() } },
+  // 다시 잡기(Z5) — 단계 · 항목 · 창
+  sxTab: (el) => { if ((S.sxTab || 'shape') === el.dataset.v) return; S.sxTab = el.dataset.v; pushHist(); render() },
+  sxStep: (el) => { if (el.getAttribute('aria-disabled') === 'true') return; const f = sxFlow(), n = Number(el.dataset.v); if (n === 1 && f.step === 2 && !f.srv) { f.step = 1; f.tried = null; render() } },
+  sxCheck: () => sxCheck(),
+  sxNext: () => { const f = sxFlow(); if (f.step < 3) { f.step++; if (f.step === 2) f.tried = null; f.err = null; render() } },
+  sxTry: () => sxTry(),
+  sxTryAgain: () => { const f = sxFlow(); f.step = 2; f.put = null; f.tried = null; sxTry() },
+  sxPut: () => sxPut(),
+  sxStop: () => { S.menu = null; sxStop() },
+  sxEnd: () => { S.sxf = null; render() },
+  sxUndoPlan: () => sxUndoPlan(),
+  sxResume: () => {
+    const x = S.sx, w = x.shSrc && x.shSrc.work; if (!w) return
+    const step = ['putting', 'stopped', 'rebase'].includes(w.stage) ? 3 : w.stage === 'tried' && !w.blockers ? 3 : 2
+    S.sxf = { k: x.k, step, srv: true, check: null, tried: step === 3 && w.stage === 'tried' ? { ok: true, steps: Array(w.steps || 0).fill(0) } : null, put: step === 3 && w.stage !== 'tried' ? { resume: true } : null }
+    render()
+  },
+  sxISel: (el) => { const x = S.sx; x.isel = x.isel === el.dataset.k ? null : el.dataset.k; render() },
+  sxIMv: () => sxwOpen('move', [S.sx.isel]),
+  sxISplit: () => sxwOpen('split', [S.sx.isel]),
+  sxIMerge: () => sxwOpen('merge', [...S.sx.ipick]),
+  sxIPickClear: () => { S.sx.ipick = new Set(); render() },
+  sxIRen: async () => {
+    const x = S.sx; if (!x.isel || sxHold()) return
+    const z = sxItemOf(x.isel); if (!z.it) return
+    const v = await ask({ t: `「${z.h}」 이름`, d: '항목 머리를 바꾼다. 구조안에만 적는다', input: { label: '머리', value: z.h }, ok: '바꾸기' })
+    if (v == null) return
+    const h = v.trim(), bad = sxHeadBad(h) || (h !== z.h && sxItems(z.wid).some((it) => it.h === h) ? '같은 머리가 있다' : '')
+    if (bad) { toast(`<b>${esc(bad)}</b>`, 0, true); return }
+    sxNameMove([sxIKey(z.wid, z.h)], z.wid, h)
+    z.it.h = h; x.isel = sxIKey(z.wid, h); render()
+  },
+  sxDrop: (el) => { const x = S.sx, id = x.sel && x.sel.slice(2); if (!id || sxHold()) return; if (x.empty.has(id)) x.empty.delete(id); else x.empty.add(id); render() },
+  sxwClose: () => { S.sxw = null; render() },
+  sxwGo: () => sxwGo(),
+  sxwDrop: (el) => { const w = S.sxw, i = Number(el.dataset.i); if (w.t === 'merge') w.srcs.splice(i, 1); else w.rows.splice(i, 1); render() },
+  sxwAddRow: () => { const w = S.sxw; w.rows.push({ to: w.src.wid, h: '', text: '' }); render() },
   sxBarT: () => { S.sx.barOpen = !S.sx.barOpen; render() },
   sxSave: () => sxSave(),
   sxFix: async () => {
@@ -6193,6 +6544,7 @@ document.addEventListener('input', (ev) => {
   if (k === 'cmd') { S.cmd.q = t.value; S.cmd.sel = 0; $('#cmdBody').innerHTML = cmdBody(); actDesc(t, 'cmdBody') }
   if (k === 'sxQ' && S.sx) { S.sx.q = t.value; const b = $('#sxTree'); if (b) b.innerHTML = sxTreeHtml() }
   if (k === 'sxIn') sxEditCheck()
+  if (k === 'sxw' && S.sxw) { const i = t.dataset.i; if (i != null && S.sxw.rows) S.sxw.rows[Number(i)][t.dataset.f] = t.value; else S.sxw[t.dataset.f] = t.value }
   if (k === 'treeQ') { S.tq = t.value; $('#treeBody').innerHTML = treeBody(S.route.kn) }
   if (k === 'itemQ') { S.iq = t.value; $('#itemListBody').innerHTML = itemListBody(S.route.kn) }
   if (k === 'gQ') { S.g.f.q = t.value; gPaint(); const q = norm(t.value || ''); document.querySelectorAll('#app .gerd .ge[data-l]').forEach((e) => e.classList.toggle('hit', !!q && e.dataset.l.includes(q))) }
@@ -6212,6 +6564,19 @@ document.addEventListener('input', (ev) => {
   if (k === 'admAddId' && S.admAdd) S.admAdd.id = t.value
   if (k === 'grpName' && S.grpAdd) { S.grpAdd.name = t.value; const b = $('[data-t=grpAddDo]'); if (b) b.disabled = !t.value.trim() || !!S.grpAdd.busy }
   if (k === 'addName' && S.addPop) { S.addPop.name = t.value; if (S.addPop.err) { S.addPop.err = null; const m = $('[data-t=addMsg]'); if (m) m.remove() } }
+})
+// 다시 잡기 — 창의 문서 · 놓을 차례 · 합치기 표시 · 이름 자리 고르기
+document.addEventListener('change', (ev) => {
+  const t = ev.target
+  if (!t.dataset || !S.sx) return
+  if (t.dataset.sxw && S.sxw) {
+    const w = S.sxw, i = t.dataset.i
+    if (i != null && w.rows) w.rows[Number(i)][t.dataset.sxw] = t.value
+    else { w[t.dataset.sxw] = t.value; if (t.dataset.sxw === 'to') w.at = '' }
+    render(); return
+  }
+  if (t.dataset.sxpick != null) { const x = S.sx; if (t.checked) x.ipick.add(t.dataset.sxpick); else x.ipick.delete(t.dataset.sxpick); render(); return }
+  if (t.dataset.sxname != null) { const nm = S.sx.names[Number(t.dataset.sxname)], o = nm && nm.opts && nm.opts[Number(t.value)]; if (o) { nm.wid = o.wid; nm.h = o.h } render() }
 })
 // 파일 · 폴더 — 고르기 · 끌어다 놓기
 document.addEventListener('toggle', (ev) => { const d = ev.target; if (d.dataset && d.dataset.keep) (S.detOpen ||= {})[d.dataset.keep] = d.open }, true)
@@ -6464,6 +6829,7 @@ function sxDropAt(ev, t) {
 document.addEventListener('dragstart', (ev) => {
   const r = ev.target.closest && ev.target.closest('#sxTree .sx-row[data-sk]')
   if (!r || r.getAttribute('draggable') !== 'true' || !S.sx) return
+  if (S.sxf && S.sxf.k === S.sx.k && S.sxf.step >= 3) { ev.preventDefault(); sxHold(); return }
   sxDrag = r.dataset.sk
   ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', sxDrag)
   r.classList.add('drag'); $('#sxTree').classList.add('dragging')
