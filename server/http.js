@@ -731,6 +731,13 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       admin(ctx, { sudo: false })
       return out(200, await hub.gitlabGroups(ctx))
     }
+    // 개인 지식 이행 다시 하기(저장 승인 PC5 · 멈춤 줄 「이행 못함」) — 이 PC 의 사람 · 그 지식
+    const pmg = p.match(/^\/api\/pc\/migrate\/([^/]+)$/)
+    if (pmg) {
+      if (mode !== 'pc') throw new KmdError('E_NOTFOUND', '이 PC 의 길이다')
+      if (req.method !== 'POST') throw new KmdError('E_METHOD', 'POST 만 받는다')
+      return out(200, await hub.pcMigrateAgain(ctx, dec(pmg[1])))
+    }
     if (p === '/api/pc/backup') {
       if (mode !== 'pc') throw new KmdError('E_NOTFOUND', '이 PC 의 길이다')
       return out(200, await hub.setBackupRoot(ctx, (await readBody(req)).root))

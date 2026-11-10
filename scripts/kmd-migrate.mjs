@@ -35,6 +35,7 @@ import { ruleText } from '../core/pcplace.js'
 import { formatCheck } from '../core/docformat.js'
 import { tryGit, headSha } from '../core/git.js'
 import { sha16 } from '../core/text.js'
+import { MIGRATE_TAG, MONTH, touchItems, laterMap, laterOf, rowState, hasAll } from '../core/migrate.js'
 
 const DERIVED = ['polish', 'curate-llm', 'curate-auto', 'rebuild', 'intake']
 const DATE_LINE = /^\s*(?:[-*+]\s+)?(?:\*\*)?(\d{4}[-.]\d{1,2}[-.]\d{1,2}|\d{1,2}\/\d{1,2}|\d{1,2}월 \d{1,2}일)/
@@ -459,14 +460,6 @@ async function put(dir, file, o) {
 //   옛 기록은 고치지 않는다: 이행 기록(예약 태그 migrate-held)이 fixes 로 가리키면 이은 항목 이력의 들어간 기록(in)으로 읽히고(core/knowledge.js k.migrated), 옮긴 자리는 이행 기록의 「## 이은 항목」(글 그대로)이다.
 //   항목 글은 바꾸지 않는다(새로 세우는 이슈 항목 · 기록 모음 달 항목만). 승인 저장으로 켜는 것은 총괄 관리자 화면 일(정책 탭 · P5)이다.
 
-const MIGRATE_TAG = 'migrate-held'
-const MONTH = (d) => String(d || '').slice(0, 7)
-const needOf = (text) => [...valuesOf(String(text || '').replace(HASH_RE, ' ').replace(REC_ID_RE, ' '))].filter((v) => v.length <= 30)
-const hasAll = (vals, body) => {
-  const have = valuesOf(body)
-  const flat = squeeze(body)
-  return vals.every((v) => have.has(v) || flat.includes(v))
-}
 // 이슈를 받는 갈래(P-D34) — 종류 대장 · 사건 가운데 이름 · 다른 이름에 「이슈」 가 든 갈래
 export const issueFormOf = (k) => (k.forms?.rows || []).find((f) => ['대장', '사건'].includes(f.kind) && [f.name, ...(f.aliases || [])].some((x) => String(x).includes('이슈'))) || null
 const formDoc = (f) => `docs/${f.folder ? `${f.folder}/` : ''}${f.name}.md`
@@ -474,62 +467,6 @@ const KIND_WORD = { held: '넣지 못함', review: '승인 기다림', memo: '�
 const STATUS_WORD = { in: '값이 글에 있음', stale: '값이 낡음', trail: '경위만', open: '값이 글에 없음' }
 const DO_WORD = { link: '이은 항목에 잇기(글 그대로)', month: '기록 모음 달 항목에 잇기', issue: '이슈 항목으로 제기', names: '이름 · 갈래 세우기', rebuild: '사람이 고를 것: 다시 그리기(put · record.fixes) · --plan issue · month' }
 
-// 항목 자리 — 넣지 못함 줄(coord 또는 doc · heading) · 기록의 건드린 이름
-function itemAt(k, { coord, doc, heading }) {
-  if (coord) {
-    const x = sectionOf(k, String(coord).trim().normalize('NFC'))
-    return x?.sec ? { doc: x.doc.path, heading: x.sec.h, sec: x.sec } : null
-  }
-  const d = doc ? k.byDocPath.get(doc) : null
-  const s = d && heading ? d.sections.find((x) => x.h === heading) || d.sections.find((x) => headingMatches(x.h, heading)) : null
-  return s ? { doc: d.path, heading: s.h, sec: s } : null
-}
-function touchItems(k, w) {
-  const out = new Map()
-  for (const c of w.touches || []) {
-    const t = itemAt(k, { coord: c })
-    if (t && !out.has(itemKey(t.doc, t.heading))) out.set(itemKey(t.doc, t.heading), t)
-  }
-  return [...out.values()]
-}
-// 값이 낡음(P-D21) — 그 기록 뒤에 같은 항목을 고친 들어간 기록(항목 표지 · 넣은 것 칸)
-function laterMap(k) {
-  const m = new Map()
-  for (const x of k.works) {
-    if (x.state !== 'in' || !(x.tags || []).includes('put')) continue
-    for (const p of parsePut(x.body)) {
-      const key = itemKey(p.doc, p.heading)
-      if (!m.has(key) || m.get(key).date < x.date) m.set(key, { id: x.id, date: x.date })
-    }
-  }
-  return m
-}
-function laterOf(k, w, t, later) {
-  const a = t.sec.applied && t.sec.applied !== w.id ? k.byWork.get(t.sec.applied) : null
-  if (a && a.date > w.date) return a.id
-  const p = later.get(itemKey(t.doc, t.heading))
-  return p && p.id !== w.id && p.date > w.date ? p.id : null
-}
-// 넣지 못함 줄 하나의 지금 상태
-function rowState(k, w, r, later) {
-  if (r.code === 'names') {
-    const { names, forms } = namesOfRecord(w.body)
-    const nn = names.filter((n) => !k.vocab.coords.has(n.coord))
-    const ff = forms.filter((f) => !(k.forms?.rows || []).some((x) => x.name === f.name))
-    return nn.length || ff.length ? { status: 'open', names: nn, forms: ff } : { status: 'in' }
-  }
-  const t = itemAt(k, r)
-  const text = typeof r.content === 'string' ? r.content : Array.isArray(r.edits) ? r.edits.map((e) => String(e?.replace ?? '')).join('\n') : ''
-  if (t && squeeze(text)) {
-    const vals = needOf(text)
-    if (vals.length ? hasAll(vals, t.sec.body) : squeeze(t.sec.body).includes(squeeze(text))) return { status: 'in', target: t }
-  } else if (t && Array.isArray(r.edits) && r.edits.length && r.edits.every((e) => squeeze(e?.find ?? ''))) {
-    // 지우기만 한 조각(replace 가 빈 글) — 지운 글이 지금 글에 없으면 들어간 것이다
-    if (r.edits.every((e) => !squeeze(t.sec.body).includes(squeeze(e.find)))) return { status: 'in', target: t }
-  }
-  const by = t ? laterOf(k, w, t, later) : null
-  return by ? { status: 'stale', target: t, by } : { status: 'open', target: t }
-}
 // 이슈 항목 머리 — 사건 갈래는 「YYYY-MM-DD 무엇」 · 이름 패턴 갈래는 「값: 설명」 · 아니면 주제
 function issueHeading(f, w, taken) {
   const what = String(w.title).replace(/ — /g, ': ').replace(/[#\r\n`|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || '옛 기록'

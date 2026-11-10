@@ -22,6 +22,7 @@
 //   approve   { accepted, values?, linked, fresh } — approve 모드 저장 문(무인 채널은 intake 와 같이 · values = `## 값 대조` · P6)(저장 승인 설계 P3 · hub saveIn 만 단다): 넣지 못함 없이 들어감 하나(태그 put ·
 //             `## 넣은 것` · 글 그대로 이은 항목 `## 이은 항목` · 승인한 경고 `## 받아들인 경고` · 새로 세운 것 `## 새로 세움` · core/parts.js)
 //   migrate   이행 기록(저장 승인 P8 · kmd-migrate held-put) — approve 와 같이 · 예약 태그 migrate-held 를 단다(그 fixes 가 가리킨 옛 기록은 들어감 · core/knowledge.js)
+//             migrate: { members: 글 | true(prepare 가 members 를 돌려준다) } — 개인 지식 이행(PC5)이 저장 방식 표지(`_members.md` 「- 저장 방식: 승인」)를 같은 저널 · 같은 커밋에 쓴다
 //   record.memo — 메모(태그 memo · 항목 글을 받지 않는다) · input.attach — docs/assets/ 아래 첨부(같은 저널 · 같은 커밋)
 //   shape     { tags } — 문서 짜임의 글 걸음(바탕 세우기 설계 4-3 · hub.shapeStep 만 단다). 저장 문이 붙이는 예약 태그(shape · shape-done · shape/<work>/<n>) ·
 //             항목 지우기(출처 걷기)를 받는다(structure) · prepare 가 돌려준 place([{ coord, doc, heading }] · 자리 장부 placeExact) ·
@@ -232,6 +233,11 @@ export function serial(key, f) {
 //         holdWhy — hold 에서 이름 없는 기록에 kmd 가 다는 까닭 · proposed — 세울 이름으로 실어 둔 이름(일반 자리의 names)
 //   shape.strict — approve 모드 지식의 짜임 걸음(저장 승인 P-D24 · P7): 조각 하나라도 걸리면 넣지 못함 대신 걸음 입력 오류(E_INPUT · details.stepFail · 아무것도 쓰지 않는다)
 export function save(dir, input, { user, now = new Date(), system = false, agent = false, guard = 'hold', holdWhy = null, proposed = [], prepare = null, onCommit = null, partial = false, asEdit = false, structure = false, correction = false, intake = null, shape = null, approve = null, accepted = null, marks: marksIn = false, migrate = false } = {}) {
+  //   사람 칸 글은 줄 안에서 읽어야 덮지 않는다 — migrate.members 가 true 면 prepare 가 돌려준 members 를 쓴다
+  const badMembers = (m) => m != null && (m.length > 20000 || !/^- 저장 방식: 승인$/m.test(m))
+  let members = migrate && typeof migrate === 'object' && typeof migrate.members === 'string' ? migrate.members : null
+  const membersInPrep = !!(migrate && typeof migrate === 'object' && migrate.members === true)
+  if (badMembers(members)) fail('E_INPUT', '이행의 사람 칸은 저장 방식 표지를 단 글이다')
   if (!user || !oneLine(user)) fail('E_INPUT', '누가 쓰는지 모른다')
   // 들이기 일감은 예약 사람 kmd 로 쓸 수 있다(가져올 곳) — kmd-auto · kmd-worker 는 아니다(S-D43)
   const kmdIntake = !!intake && nfc(user).trim().toLowerCase() === 'kmd'
@@ -290,6 +296,10 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
         held = g.held
       }
       held = [...cleanHeld(prep.held), ...held]
+      if (membersInPrep) {
+        members = typeof prep.members === 'string' ? prep.members : null
+        if (members == null || badMembers(members)) fail('E_INPUT', '이행의 사람 칸은 저장 방식 표지를 단 글이다')
+      }
     }
     // 문서 짜임 — 자리 장부 정확한 줄 · 문서 요약(prepare 가 새로 읽은 지식으로 만든다)
     const place = shape ? (Array.isArray(prep?.place) ? prep.place : []) : []
@@ -297,7 +307,7 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
     const relink = shape ? (Array.isArray(prep?.relink) ? prep.relink : []) : []
     if (relink.some((x) => !x || !oneLine(x.from?.doc) || !oneLine(x.from?.h) || !oneLine(x.to?.doc) || !oneLine(x.to?.h))) fail('E_INPUT', '짜임 링크 모양이 아니다')
     if (place.some((x) => !x || !COORD.test(String(x.coord || '')) || !oneLine(x.doc) || !oneLine(x.heading)) || intros.some((x) => !x || !oneLine(x.doc) || typeof x.text !== 'string' || x.text.length > 4000)) fail('E_INPUT', '짜임 자리 · 요약 모양이 아니다')
-    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, partial, marks: partial || !!intake || !!approve || !!marksIn, intake: !!intake, approve, serverTags, correction, attach: input.attach || [], onCommit, prep, shape: !!shape, shapeStrict: !!shape?.strict, place, intros, relink, accepted: approve ? null : accepted })
+    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, partial, marks: partial || !!intake || !!approve || !!marksIn, intake: !!intake, approve, serverTags, correction, attach: input.attach || [], members, onCommit, prep, shape: !!shape, shapeStrict: !!shape?.strict, place, intros, relink, accepted: approve ? null : accepted })
   })
 }
 
@@ -410,7 +420,7 @@ export function sectionBase(text, heading) {
   return sha16(sec ? sec.body : '')
 }
 
-async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], partial = false, marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null, shape = false, shapeStrict = false, place = [], intros = [], relink = [], approve = null, accepted = null }) {
+async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], partial = false, marks = false, intake = false, serverTags = [], correction = false, attach = [], members = null, onCommit = null, prep = null, shape = false, shapeStrict = false, place = [], intros = [], relink = [], approve = null, accepted = null }) {
   const held = [...heldIn]
   const regRaw = await fs.readFile(path.join(dir, '_managed.md'), 'utf8').then(readText, () => null)
   const vocRaw = await fs.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => null)
@@ -742,6 +752,13 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
         if (!books.includes('_managed.md')) books.push('_managed.md')
       }
     }
+    const extra = []
+    // 저장 방식 표지(개인 지식 이행 · PC5) — 같은 저널 · 같은 커밋
+    if (members != null) {
+      await j.add('_members.md')
+      await writeAtomic(path.join(dir, '_members.md'), members)
+      extra.push('_members.md')
+    }
     // 첨부 — 같은 저널 · 같은 커밋
     for (const a of atts) {
       await j.add(a.rel)
@@ -750,7 +767,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
     }
     let commit
     try {
-      commit = await commitPaths(dir, [workRel, ...docs, ...books, ...atts.map((a) => a.rel)], rec.title, user)
+      commit = await commitPaths(dir, [workRel, ...docs, ...books, ...extra, ...atts.map((a) => a.rel)], rec.title, user)
     } catch (e) {
       // 커밋이 들어간 뒤 던졌으면(HEAD 가 움직였다) 되돌리지 않는다 — 성공한 저장을 실패로 만들지 않는다(S-D49)
       const head = await headSha(dir).catch(() => null)

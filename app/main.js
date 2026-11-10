@@ -1109,7 +1109,7 @@ function bandHtml() {
 function stopsFor(k) { return S.stops.filter((x) => !k || !x.kn || x.kn === k) }
 // 경고(멈춤 줄) — 화면마다 띠로 깔지 않고 머리 띠의 「경고 n」 단추 하나 · 누르면 팝업에 모두(무엇 · 얼마나 · 풀리는 길 · 그 일로 가기)
 // 멈춤 줄의 종류 · 갈 곳(메뉴 id) — 갈 곳 글은 메뉴 표의 이름(setWhere)
-const STOP_T = { backup: ['지식백업', 'backup'], repo: ['저장소', 'repo'], source: ['자동수집', 'import'], send: ['공유', 'send'], worker: ['팀 일꾼', 'claude'], ver: ['새 판', ''] }
+const STOP_T = { backup: ['지식백업', 'backup'], repo: ['저장소', 'repo'], source: ['자동수집', 'import'], send: ['공유', 'send'], worker: ['팀 일꾼', 'claude'], ver: ['새 판', ''], migrate: ['이행', ''] }
 function stopBtnHtml(st) {
   if (!st.length) return ''
   const bad = st.some((x) => x.level === 'bad')
@@ -1130,7 +1130,7 @@ function stopRow(x) {
     const scr = to && where ? to : ''
     const attrs = ''
     const kn = x.kn && KN(x.kn) ? KN(x.kn).name : ''
-    return `<div class="callout ${x.level === 'bad' ? 'danger' : 'warn'} stop" data-t="stop" data-kind="${esc(x.kind)}"><i></i><span><b>${esc(x.b)}</b>${x.t ? ': ' + esc(x.t) : ''}<small>${esc(kind)}${kn ? ' · ' + esc(kn) : ''}${x.r ? ' · ' + esc(x.r) : ''}</small></span>${scr ? `<button class="btn sm" data-a="stopGo" data-v="${scr}" data-k="${esc(x.kn || '')}"${attrs} data-t="stopGo">${esc(where)} ›</button>` : where ? `<small class="muted">${esc(where)}</small>` : ''}${x.key ? `<button type="button" class="btn ghost sm" data-a="stopAck" data-v="${esc(x.key)}" data-t="stopAck" title="나에게서 이 경고를 걷는다 · 양이나 까닭이 바뀌면 다시 선다">알았다</button>` : ''}</div>`
+    return `<div class="callout ${x.level === 'bad' ? 'danger' : 'warn'} stop" data-t="stop" data-kind="${esc(x.kind)}"><i></i><span><b>${esc(x.b)}</b>${x.t ? ': ' + esc(x.t) : ''}<small>${esc(kind)}${kn ? ' · ' + esc(kn) : ''}${x.r ? ' · ' + esc(x.r) : ''}</small></span>${scr ? `<button class="btn sm" data-a="stopGo" data-v="${scr}" data-k="${esc(x.kn || '')}"${attrs} data-t="stopGo">${esc(where)} ›</button>` : where ? `<small class="muted">${esc(where)}</small>` : ''}${x.kind === 'migrate' && x.kn && !isTeam() ? `<button type="button" class="btn sm" data-a="migrateAgain" data-k="${esc(x.kn)}" data-t="migrateAgain">다시 하기</button>` : ''}${x.key ? `<button type="button" class="btn ghost sm" data-a="stopAck" data-v="${esc(x.key)}" data-t="stopAck" title="나에게서 이 경고를 걷는다 · 양이나 까닭이 바뀌면 다시 선다">알았다</button>` : ''}</div>`
   }
 }
 function stopWinBody(st, row) {
@@ -3556,7 +3556,7 @@ const diffOf = (k, record) => need(`diff:${k}:${record}`, `/api/k/${encodeURICom
 const historyOf = () => need('history', '/api/history')
 const HIST_CHECK = '값 바뀜'
 // 「넣지 못함」 갈래는 held 모드 지식의 줄만(approve 지식은 생기지 않는다 · 줄 수 0 이면 고르기에 없다 · P11 에서 걷음)
-const HIST_KINDS = [HIST_CHECK, '저장', '고침', '들이기', '다듬기', '되돌림', '넣지 못함', '버림', '가져오기', '짜임', '장부', '보내기', '받음', '설정', '지식']
+const HIST_KINDS = [HIST_CHECK, '저장', '고침', '들이기', '이행', '다듬기', '되돌림', '넣지 못함', '버림', '가져오기', '짜임', '장부', '보내기', '받음', '설정', '지식']
 const isCheck = (x) => x.yl && !x.reverted && !x.unlinked
 const HIST_PAGE = 200
 // 한 흐름 — 팀 화면은 팀 지식만 · 개인 화면은 개인 지식만
@@ -7030,6 +7030,19 @@ const ACT = {
   stopOpen: () => { S.stopWin = true; S.menu = null; loadStops(); render() },
   stopClose: () => { S.stopWin = false; render() },
   stopReload: () => loadStops().then((r) => { render(); if (r !== true) toastErr('경고를 읽지 못했다: ' + ((r && r.message) || '')) }),
+  // 이행 못함(PC5) — 그 지식의 이행을 한 번 더(지식백업 먼저 · 실패면 까닭이 멈춤 줄에 그대로)
+  migrateAgain: async (el) => {
+    if (el.disabled) return
+    el.disabled = true
+    try {
+      const r = await postJSON('/api/pc/migrate/' + encodeURIComponent(el.dataset.k), {})
+      if (r.ok) toast('이행했다' + (r.counts ? ': 이력으로 이음 ' + ((r.counts.linked || 0) + (r.counts.month || 0)) : ''))
+      else if (r.busy) toast(esc(r.why || ''))
+      else toastErr('이행 못함: ' + (r.why || ''))
+    } catch (e) { toastErr('이행 못함: ' + e.message) }
+    await loadStops()
+    render()
+  },
   stopGo: (el) => {
     S.stopWin = false; S.menu = null
     const id = el.dataset.v, k = el.dataset.k && KN(el.dataset.k) ? el.dataset.k : null

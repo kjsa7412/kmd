@@ -64,6 +64,7 @@ import { isReservedTag } from '../core/names.js' // 예약 접두사(job/)까지
 import { isoOfStamp, logKind, atTag } from './views.js'
 import { restore as restoreFrom, checkUrl } from '../core/restore.js'
 import { writeJsonAtomic, writeFileAtomic } from '../core/atomic.js'
+import { pcPlan, pcLine } from '../core/migrate.js'
 import { watchedOf } from '../core/watchmark.js'
 import { connect as dbConnect, catalog as dbCatalog } from '../core/db.js'
 import { ensureProject, listGroups } from '../core/gitlab.js'
@@ -643,6 +644,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const resyncs = new Map() // 전체 다시 맞추기 일감 — 진행률
   const srcWatch = new Map() // 코드 폴더 실시간 감시
   let started = false
+  // 개인 지식 이행(저장 승인 PC5 · P-D45) — <살림>/pc-migrate.json { <지식>: { at, commit, record, tag, counts } | { fail, at } | { undone, at } } · 켤 때 읽는다
+  const migrateFile = path.join(dataDir, 'pc-migrate.json')
+  let migrateSt = {}
+  let migrateRun = Promise.resolve()
+  let migrateStart = Promise.resolve()
+  let migrating = null // 지금 이행하는 지식(다시 하기가 줄에 붙잡히지 않게)
+  const migrateSave = () => serial(`json:${migrateFile}`, () => writeJsonAtomic(migrateFile, migrateSt, { indent: 1 }))
   const watchers = []
   const scheduleDecide = (id) => {
     clearTimeout(decideTimers.get(id))
@@ -5587,7 +5595,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       //   옛 줄의 갈래 tidy(정리 · 바로 넣기)는 place 로 읽는다(S13) · place 의 화면 이름은 「들이기」(저장 승인 PC3 · 옛 줄은 읽기만)
       const kindOf = (x) => (x.from != null || (x.kind === 'save' && /에서 받음$/.test(x.text || '')) ? 'recv' : x.kind === 'tidy' ? 'place' : x.kind) || (x.revert || /^kmd 가 정리/.test(x.text || '') ? 'place' : /^새 기기/.test(x.text || '') ? 'device' : /^(지식을 |되살렸다)/.test(x.text || '') ? 'kn' : /보냈다|옮겼다/.test(x.text || '') ? 'send' : /^파일 /.test(x.text || '') ? 'import' : /에서 (바뀐 표|새 묶음)/.test(x.text || '') ? 'source' : 'save')
       // 갈래 말(저장 승인 P10 · 6-4) — held 는 held 모드 지식의 줄만(approve 지식은 넣지 못함이 생기지 않는다 · P11 에서 걷음) · place 는 「들이기」
-      const FEED_KIND = { save: '저장', import: '가져오기', source: '가져오기', place: '들이기', send: '보내기', recv: '받음', kn: '지식', device: '지식', held: '넣지 못함' }
+      const FEED_KIND = { save: '저장', import: '가져오기', source: '가져오기', place: '들이기', send: '보내기', recv: '받음', kn: '지식', device: '지식', held: '넣지 못함', migrate: '이행' }
       const putFields = (kn, rec, w) => {
         const p = kn && rec ? putOf.get(`${kn}\n${rec}`) : null
         return p ? { items: p.items, canRevert: p.canRevert, ...(p.yl ? { yl: true } : {}), ...(w && (w.state === 'reverted' || kById[kn]?.reverted?.has(rec)) ? { reverted: true } : {}) } : {}
@@ -6371,6 +6379,195 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       curateRuns.set(id, run)
       return run
     },
+    // ── 개인 지식 이행(저장 승인 PC5 · P-D45 · 6-2-1) — 새 판 개인 프로그램이 켤 때 옛 길(표지 없는) 개인 지식마다 한 번 ──
+    //   (0) 지식백업을 한 번 보내고 성공해야 시작 (2) 옛 pend 는 옛 바로 넣기를 마지막으로 한 번(b22) (3 · 4) 둠 · 메모 · 남은 기록은 이은 항목 이력(글 그대로)
+    //   (5) 이을 항목이 없으면 그 기록의 달 항목(기록 모음이 없으면 세움) (6) 이행 기록 + 기록 모음 + 저장 방식 표지(_members.md)를 저장 문 한 번 = 커밋 하나 ·
+    //   되돌리기 자리는 태그 kmd-migrate/pc-<때>(이행 앞 HEAD) · pcMigrateUndo 가 그 커밋을 git revert. 실패한 지식은 옛 길 그대로 · 멈춤 줄 「이행 못함」 · 다음 켤 때 다시
+    async pcMigrate(id) {
+      if (mode !== 'pc') throw new KmdError('E_INPUT', '개인 지식 이행은 개인 프로그램의 일이다')
+      if (hub.saveModeOf(id) === 'approve') return { ok: true, same: true }
+      const meta = await hub.meta(id)
+      let tag = null
+      const fail = async (why, code) => {
+        if (tag) { const d = await tryGit(meta.dir, ['tag', '-d', tag]); if (!d.ok) log('이행: 되돌리기 태그를 지우지 못했다', id, d.err) }
+        migrateSt[id] = { fail: String(why).slice(0, 300), code, at: new Date().toISOString() }
+        await migrateSave().catch((e) => log('이행 장부를 쓰지 못했다', e.message))
+        log('이행 못함', id, why)
+        return { ok: false, why: migrateSt[id].fail, code }
+      }
+      const user = pcUser || rowFor(id)?.owner || null
+      if (!user) return fail('누가 쓰는지 모른다(이 PC 의 사람)', 'user')
+      // (0) 지식백업 — 붙지 않았으면 붙이고(backupRoot) · 지금 HEAD 까지 보낸다
+      try {
+        if (!backup.copy.attached(meta)) await hub.autoBackup(id)
+      } catch (e) { return fail(`지식백업을 붙이지 못했다: ${e.message}`, 'backup') }
+      if (!backup.copy.attached(meta)) return fail('지식백업이 없다', 'backup')
+      const b = await backup.copy.enqueue(meta, { log })
+      if (!b?.ok) return fail(`지식백업에 보내지 못했다(${b?.reason || b?.state || '모름'})`, 'backup')
+      const head = (await tryGit(meta.dir, ['rev-parse', '-q', '--verify', 'HEAD'])).out.trim()
+      if (!head) return fail('지식에 커밋이 없다', 'head')
+      const stamp = localStamp(new Date()).replace(/[- :]/g, '')
+      tag = `kmd-migrate/pc-${stamp}`
+      for (let i = 2; (await tryGit(meta.dir, ['rev-parse', '-q', '--verify', `refs/tags/${tag}`])).out.trim(); i++) tag = `kmd-migrate/pc-${stamp}-${i}`
+      const tg = await tryGit(meta.dir, ['tag', tag, head])
+      if (!tg.ok) { tag = null; return fail(`되돌리기 태그를 달지 못했다: ${String(tg.err).split('\n')[0]}`, 'tag') }
+      // (2) 옛 pend — 옛 바로 넣기를 마지막으로 한 번(Claude · 안 되면 규칙)
+      let put = 0
+      try { put = (await hub.curateSoon(id))?.n || 0 } catch (e) { log('이행: 마지막 바로 넣기', id, e.message) }
+      const mf = path.join(meta.dir, '_members.md')
+      // (3 ~ 6) 계획 → 저장 문 한 번 — 그사이 받은편지함 · 거두기 · 사람 저장이 끼어 계획이 어긋나면 다시 짠다(세 번까지)
+      for (let round = 0; round < 3; round++) {
+        cache.delete(id)
+        const p0 = pcPlan(await loadKnowledge(meta, { team: false }))
+        const newMonths = p0.months.filter((m) => !p0.recordsDoc?.sections.some((s) => s.h === m))
+        if (newMonths.length > SECTIONS_MAX) return fail(`달 항목이 너무 많다(${newMonths.length})`, 'plan')
+        const sig = (p) => JSON.stringify(p.recs.map((x) => [x.id, x.links, x.month]))
+        const ids = p0.recs.map((x) => x.id)
+        const linked = [...new Map([...p0.recs.flatMap((x) => x.links), ...p0.months.filter((m) => !newMonths.includes(m)).map((m) => ({ doc: RECORDS_DOC_PATH, heading: m }))].map((x) => [itemKey(x.doc, x.heading), x])).values()]
+        const s = p0.sum
+        const lines = []
+        let len = 0
+        for (const x of p0.recs) { const l = pcLine(x); if (len + l.length > 150_000) { lines.push(`- … 외 ${p0.recs.length - lines.length}`); break } lines.push(l); len += l.length + 1 }
+        const rec = {
+          title: ids.length ? `이행: 옛 개인 저장 길 기록 ${ids.length} 을 승인 저장 길로` : '이행: 승인 저장 길로',
+          body: [
+            ids.length ? `옛 저장 길의 기록(안 넣은 기록 ${s.pend} · 넣을 곳 없음 ${s.nowhere} · 둠 ${s.kept} · 메모 ${s.memo} · 넣지 못함 ${s.held})을 이은 항목 · 기록 모음 달 항목에 글 그대로 이었다. 있던 항목 글은 바꾸지 않았다.` : '옮길 옛 기록이 없다. 저장 방식만 승인으로 바꿨다.',
+            '',
+            '## 바뀐 것',
+            '- 저장 방식: 옛 길 → 승인',
+            ...(ids.length ? [`- 옛 저장 길 기록: 이은 항목 · 기록 모음으로 옮김(${ids.length})`] : []),
+            ...(newMonths.length ? [`- 기록 모음 달 항목: ${newMonths.join(' · ')} 새로 둠`] : []),
+            '',
+            '## 까닭',
+            '- 개인 프로그램 새 판의 이행(저장 승인 설계 P-D45 · 6-2-1)',
+            '',
+            '## 근거',
+            `- 옛 바로 넣기 마지막 한 번: 넣은 묶음 ${put}`,
+            ...(s.memoOff ? [`- 값이 본문에 없는 옛 메모 ${s.memoOff}: 본문에 넣지 않았다(세션에서 다시 제안해 넣는다)`] : []),
+            `- 되돌리기 자리: ${tag}`,
+            ...lines,
+          ].join('\n'),
+          touchesEmpty: '이행: 옛 기록을 이은 항목 · 기록 모음 달 항목으로 옮긴 기록이다',
+          ...(ids.length ? { fixes: ids } : {}),
+        }
+        const fresh = [...(p0.recordsDoc ? [] : [{ kind: '문서', name: RECORDS_DOC_PATH }]), ...newMonths.map((m) => ({ kind: '항목', name: `${RECORDS_DOC_PATH} › ${m}` }))]
+        let moved = null
+        const prepare = async () => {
+          // 줄 안 · 새로 읽은 지식으로 다시 짠다 — 그사이 바뀌었으면 아무것도 쓰지 않는다
+          const p = pcPlan(await loadKnowledge(meta, { team: false }))
+          if (sig(p) !== sig(p0) || pcSaveMode(id) === 'approve') { moved = '그사이 지식이 바뀌었다'; return { abort: { same: false, id: null } } }
+          // 사람 칸 — 줄 안에서 읽어 저장 방식 줄만 바꾼다(다른 줄은 글 그대로 · CRLF 도)
+          const cur = await fs.readFile(mf, 'utf8').catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
+          const members = cur == null ? PC_MEMBERS : `${cur.replace(/\r\n/g, '\n').split('\n').filter((l) => !/^\s*[-*]\s*저장 방식\s*[:：]/.test(l)).join('\n').replace(/\s*$/, '')}\n- 저장 방식: 승인\n`
+          return { members, sections: newMonths.map((m) => ({ doc: RECORDS_DOC_PATH, heading: m, content: RECORDS_MONTH_TEXT })) }
+        }
+        let r
+        try {
+          r = await coreSave(meta.dir, { record: rec }, { user, guard: 'strict', prepare, approve: { accepted: [], linked, fresh }, migrate: { members: true } })
+        } catch (e) {
+          cache.delete(id)
+          pcModes.delete(mf)
+          // 커밋 뒤에 던졌다(표지가 섰다) — 들어간 것으로 적는다(장부가 거짓이 되지 않게)
+          if (pcSaveMode(id) === 'approve') { r = { id: null, commit: (await tryGit(meta.dir, ['rev-parse', 'HEAD'])).out.trim() }; log('이행: 커밋 뒤 오류', id, e.message) }
+          else return fail(`이행 저장이 넘어졌다: ${e.code ? `${e.code} ` : ''}${e.message}`, 'save')
+        }
+        cache.delete(id)
+        pcModes.delete(mf)
+        if (moved) continue
+        if (!r?.commit) return fail('이행 저장이 아무것도 쓰지 않았다', 'save')
+        const counts = { put, linked: ids.length - s.month, month: s.month, memoOff: s.memoOff, kept: s.kept, memo: s.memo }
+        migrateSt[id] = { at: new Date().toISOString(), commit: r.commit, record: r.id, tag, counts }
+        await migrateSave().catch((e) => log('이행 장부를 쓰지 못했다', e.message))
+        pushRemotes(meta, { log }).catch((e) => log('이행 뒤 지식백업 밀기', id, e.message))
+        log('이행했다', id, r.commit)
+        return { ok: true, record: r.id, commit: r.commit, tag, counts }
+      }
+      return fail('그사이 지식이 바뀌었다', 'moved')
+    },
+    // 옛 길 개인 지식 모두 — 차례로(한 번에 하나) · 되돌린 지식은 건너뛴다(다시 하기로만) · 끝에 알림 한 줄
+    pcMigrateAll({ again = null } = {}) {
+      const run = migrateRun.catch(() => {}).then(async () => {
+        if (mode !== 'pc') return { done: [], failed: [] }
+        const done = []
+        const failed = []
+        for (const m of await hub.list()) {
+          if (hub.saveModeOf(m.id) === 'approve') continue
+          if (again && again !== m.id) continue
+          // 되돌린 지식 — 저절로 다시 하지 않는다(다시 하기로만) · 옛 길 그대로 켤 때의 바로 넣기
+          if (!again && migrateSt[m.id]?.undone) { if (config.curateOnStart !== false) hub.curateSoon(m.id).catch((e) => log('바로 넣기', m.id, e.message)); continue }
+          const was = migrateSt[m.id]?.fail ? migrateSt[m.id].code || migrateSt[m.id].fail : null
+          migrating = m.id
+          const r = await hub.pcMigrate(m.id).catch((e) => ({ ok: false, why: e.message, code: 'error' }))
+          migrating = null
+          if (r.same) continue
+          if (r.ok) done.push({ id: m.id, name: m.name, ...r })
+          else {
+            failed.push({ id: m.id, name: m.name, why: r.why, fresh: (r.code || r.why) !== was })
+            // 이행 못한 지식은 옛 길 그대로(켤 때의 바로 넣기도)
+            if (config.curateOnStart !== false && !again) hub.curateSoon(m.id).catch((e) => log('바로 넣기', m.id, e.message))
+          }
+        }
+        // 알림 한 줄(6-2-1) — 개인 지식 n 이행: 넣음 a · 이력으로 이음 b · 값이 본문에 없는 옛 메모 c · 이행 못함 f(새 까닭일 때만)
+        const fresh = failed.filter((x) => x.fresh)
+        if (done.length || fresh.length) {
+          const sum = (k) => done.reduce((a, x) => a + (x.counts?.[k] || 0), 0)
+          const c = sum('memoOff')
+          const text = [done.length ? `개인 지식 ${done.length} 이행: 넣음 ${sum('put')} · 이력으로 이음 ${sum('linked') + sum('month')}${c ? ` · 값이 본문에 없는 옛 메모 ${c}` : ''}` : null, fresh.length ? `이행 못함: ${fresh.map((x) => `${x.name}(${x.why})`).join(' · ')}` : null].filter(Boolean).join(' · ')
+          const one = done.length === 1 && !fresh.length ? done[0] : null
+          await feed.add(dataDir, pcUser, { kind: 'migrate', kn: one?.id || (done[0] || fresh[0]).id, text, small: fresh.length ? '이행 못한 지식은 옛 저장 길 그대로 · 경고에서 다시 하기' : '이력 › 이행', ...(c || fresh.length ? { brief: true } : {}), ...(one ? { rec: one.record } : {}) }).catch((e) => log('이행 알림', e.message))
+        }
+        return { done, failed }
+      })
+      migrateRun = run
+      return run
+    },
+    // 다시 하기(멈춤 줄) — 이 PC 의 사람 · 그 지식 하나
+    async pcMigrateAgain(ctx, id) {
+      if (mode !== 'pc') throw new KmdError('E_NOTFOUND', '이 PC 의 길이다')
+      await hub.meta(id, ctx)
+      hub.need(ctx, id, 'admin')
+      if (hub.saveModeOf(id) === 'approve') return { ok: true, same: true }
+      if (migrating) return { ok: false, busy: true, why: '이행하는 중이다. 끝나면 경고가 걷히거나 까닭이 바뀐다' }
+      if (migrateSt[id]?.undone) { delete migrateSt[id]; await migrateSave() }
+      const r = await hub.pcMigrateAll({ again: id })
+      const f = r.failed.find((x) => x.id === id)
+      return f ? { ok: false, why: f.why } : { ok: true, ...(r.done.find((x) => x.id === id) || {}) }
+    },
+    // 되돌리기 — 이행 커밋을 git revert(표지 · 이행 기록 · 기록 모음이 빠져 옛 길로) · 다음 켤 때 저절로 다시 하지 않는다(다시 하기로만)
+    async pcMigrateUndo(ctx, id) {
+      if (mode !== 'pc') throw new KmdError('E_NOTFOUND', '이 PC 의 길이다')
+      const meta = await hub.meta(id, ctx)
+      hub.need(ctx, id, 'admin')
+      const st = { ...(migrateSt[id] || {}) }
+      if (!st.commit && hub.saveModeOf(id) === 'approve') {
+        // 커밋 뒤 장부를 쓰기 전에 꺼졌다 — 마지막 이행 기록을 넣은 커밋
+        cache.delete(id)
+        const w = (await hub.get(id)).works.filter((x) => x.tags.includes('migrate-held')).sort((x, y) => y.date.localeCompare(x.date))[0]
+        if (w) st.commit = (await tryGit(meta.dir, ['log', '-n1', '--format=%H', '--', `work/${path.basename(w.path || `${w.id}.md`)}`])).out.trim() || null
+      }
+      if (!st.commit) throw new KmdError('E_INPUT', '되돌릴 이행이 없다')
+      await serial(path.resolve(meta.dir), async () => {
+        await recoverSave(meta.dir)
+        // 이행 뒤 기록이 쌓였으면 되돌리지 않는다(새 기록이 이행이 세운 기록 모음 · 승인 저장 꼴을 가리킨다)
+        const after = (await tryGit(meta.dir, ['log', '--format=%H', `${st.commit}..HEAD`, '--', 'work', 'log'])).out.trim()
+        if (after) throw new KmdError('E_CONFLICT', `이행 뒤 기록이 ${after.split('\n').length} 쌓였다. 되돌리지 않는다`)
+        const who = String(ctx.user || 'kmd').replace(/[<>\s]+/g, '') || 'kmd'
+        const r = await tryGit(meta.dir, ['-c', `user.name=${who}`, '-c', `user.email=${who}@kmd`, 'revert', '--no-edit', st.commit])
+        if (!r.ok) {
+          const a = await tryGit(meta.dir, ['revert', '--abort'])
+          if (!a.ok) log('이행 되돌리기: revert --abort 실패', id, a.err)
+          throw new KmdError('E_CONFLICT', `이행 뒤 같은 곳이 바뀌어 되돌리지 못했다: ${String(r.err).split('\n')[0]}`)
+        }
+      })
+      cache.delete(id)
+      pcModes.delete(path.join(meta.dir, '_members.md'))
+      if (st.tag) { const d = await tryGit(meta.dir, ['tag', '-d', st.tag]); if (!d.ok) log('이행 되돌리기: 태그를 지우지 못했다', id, d.err) }
+      migrateSt[id] = { undone: new Date().toISOString(), at: new Date().toISOString(), was: st.commit }
+      await migrateSave()
+      pushRemotes(meta, { log }).catch((e) => log('되돌린 뒤 지식백업 밀기', id, e.message))
+      return { ok: true, reverted: st.commit, save: hub.saveModeOf(id) }
+    },
+    pcMigrateWait: () => migrateStart.then(() => migrateRun),
     // 앞일(파일을 글로 · 기록 정리)과 바로 넣기 줄이 모두 빌 때까지(옛 이름 curateIdle · S-D41)
     async idle(id) {
       for (;;) {
@@ -7223,6 +7420,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         // 저장소 줄(개인 프로그램은 갈래 repo — 「지식백업」 줄과 따로) · 지식백업 줄(개인만)
         if (boss) out.push(...backup.lines(k, { name: k.name, kind: mode === 'pc' ? 'repo' : 'backup' }))
         if (mode === 'pc') out.push(...backup.copy.lines(k, { name: k.name }))
+        // 이행 못함(PC5 · P-D45) — 옛 길 그대로인 지식 · 까닭 · 다시 하기
+        const ms = mode === 'pc' && hub.saveModeOf(k.id) !== 'approve' ? migrateSt[k.id] : null
+        if (ms?.fail || ms?.undone) out.push(stopLine({ kind: 'migrate', kn: k.id, level: 'warn', what: `이행 못함: ${k.name}`, amount: ms.fail || '되돌렸다', fix: ms.fail ? '까닭을 풀고 다시 하기 · 아니면 다음 켤 때 다시 한다' : '다시 하기', told: '그동안 옛 저장 길 그대로', since: `${String(ms.at).slice(5, 16).replace('T', ' ')} 부터` }))
         // 보내기는 개인 프로그램이 보낸다 — 닿지 않음 · 보내지 못함은 개인 화면에(UX T7-03)
         const all = mode === 'pc' || mode === 'team' ? (await sendLib.readState(dataDir, k.id)).wait : []
         const sw = all.filter((w) => w.state === 'wait')
@@ -7723,6 +7923,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 지식백업 저절로 붙이기 — 이 PC 만 · 사본 자리(backupRoot) 아래 <지식>.git · 원격 kmd-copy(G1 · 저장소를 붙여도 꺼지지 않는다)
     //   새 지식 · 동기화 · 불러오기 · 켤 때(붙지 않은 것)
     async autoBackup(id) {
+      return serial(`autobackup:${id}`, () => hub.autoBackupNow(id))
+    },
+    async autoBackupNow(id) {
       const meta = await hub.meta(id)
       if (backup.copy.attached(meta)) return null
       const base = mode === 'pc' ? config.backupRoot : null
@@ -7757,6 +7960,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           if (await hub.autoBackup(m.id)) attached++
         } catch (e) { failed.push(`${m.name}: ${e.message}`) }
       }
+      if (Object.values(migrateSt).some((x) => x?.fail)) hub.pcMigrateAll().catch((e) => log('개인 지식 이행', e.message))
       return { root: full, attached, failed }
     },
     // 갈라졌을 때 — 이어 쓰기가 빼는 것(서버에만 있는 기록 · 문서) · 서버 것으로 저장소 덮기
@@ -7896,7 +8100,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       sourceTimer.unref?.()
       setTimeout(() => dueSources(true).catch((e) => log('가져올 곳 시계', e.message)), 3000).unref?.()
       // 이 PC — 켤 때 쌓여 있던 「아직 안 넣은 기록」 을 바로 문서에(뒤에서 · 지식마다 한 줄)
-      if (config.curateOnStart !== false) setTimeout(async () => { for (const m of await hub.list().catch(() => [])) if (mode === 'pc') hub.curateSoon(m.id).catch(() => {}) }, 2000).unref?.()
+      //   개인 지식 이행(PC5) — 옛 길 개인 지식마다 한 번(pcMigrate 가 마지막 바로 넣기를 한다 · 이행 못한 지식은 옛 길 그대로 바로 넣기) · pcMigrate: false 면 옛 그대로
+      if (mode === 'pc' && config.pcMigrate !== false) {
+        migrateSt = await readLedger(migrateFile, {}, '이행 장부')
+        if (!migrateSt || typeof migrateSt !== 'object' || Array.isArray(migrateSt)) migrateSt = {}
+        const go = () => hub.pcMigrateAll().catch((e) => log('개인 지식 이행', e.message))
+        migrateStart = new Promise((res) => { setTimeout(() => res(started ? go() : null), config.pcMigrateMs ?? 2000).unref?.() })
+      } else if (config.curateOnStart !== false) setTimeout(async () => { for (const m of await hub.list().catch(() => [])) if (mode === 'pc') hub.curateSoon(m.id).catch(() => {}) }, 2000).unref?.()
       // 받은편지함 — 분마다 같은 주인의 개인 지식으로 옮긴다(PC 만 · S-D40 · 옛 정리 시계에서 이것만 남겼다)
       if (mode === 'pc') {
         inboxTimer = setInterval(async () => {

@@ -489,6 +489,7 @@ export function logKind(w) {
   if (t.includes('ledger')) return '장부'
   if (t.includes('structure')) return '짜임'
   if (t.includes('intake')) return '들이기'
+  if (t.includes('migrate-held')) return '이행' // 옛 저장 길 기록을 옮긴 이행 기록(P8 · PC5)
   if (t.includes('put')) return '저장'
   if (t.includes('held')) return '넣지 못함'
   return '정리'
