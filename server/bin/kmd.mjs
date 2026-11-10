@@ -818,7 +818,7 @@ async function connectCmd(o) {
     try {
       root = pcRootKind(o.root).root
     } catch (e) {
-      console.error(`지식 폴더로 쓰지 못한다: ${o.root} · ${e.message}. 다른 경로로 다시 깐다: 팀 화면 › 설정 › 에이전트 설치 › 개인 프로그램 설치 카드의 한 줄을 다시 받거나 --root 로 다른 폴더를 준다`)
+      console.error(`지식 폴더로 쓰지 못한다: ${o.root} · ${e.message}. 다른 경로로 다시 깐다: 팀 화면 › 설정 › 개인 프로그램 설치의 한 줄을 다시 받거나 --root 로 다른 폴더를 준다`)
       process.exitCode = 1
       return
     }

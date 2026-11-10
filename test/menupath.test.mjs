@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { SET_TEAM, SET_PC, KN_MENU_PC, KN_MENU_TEAM, COMMON, GEN_TABS, PROGRESS, CHECK_TABS, BRIDGE, okNow, okTarget } from '../core/menupath.js'
+import { SET_TEAM, SET_PC, KN_MENU_PC, KN_MENU_TEAM, COMMON, GEN_TABS, PROGRESS, CHECK_TABS, MANAGE_PC, MANAGE_TEAM, DETAIL_PC, DETAIL_TEAM, okNow, okTarget } from '../core/menupath.js'
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 const main = fs.readFileSync(path.join(ROOT, 'app', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
@@ -33,11 +33,18 @@ test('화면의 설정 메뉴 · 옆 메뉴(지식 메뉴 · 공통 메뉴) · �
   assert.match(body('progHeadHtml'), />진행</)
   assert.deepEqual(['진행', ...[...body('progTabsHtml').matchAll(/\['(?:queue|done)', '([^']+)'/g)].map((m) => m[1])], [...PROGRESS])
   assert.deepEqual([...body('ckTabsHtml').matchAll(/\['(?:held|check|review)', '([^']+)'/g)].map((m) => m[1]), [...CHECK_TABS])
-  // BRIDGE — 화면에 남은 설정 페이지만 · 목표 길은 목표 메뉴에 있다
-  for (const [k, to] of Object.entries(BRIDGE)) {
-    assert.ok(pc.includes(k) || team.includes(k), `BRIDGE 「${k}」 가 화면 설정 메뉴에 없다: 옮겼으면 core/menupath.js 에서 걷는다`)
-    for (const p of to.split(' · ')) { const [m, r] = p.split(' › '); assert.ok(okTarget(m, r), `BRIDGE 「${k}」 의 목표 길 「${p}」`) }
-  }
+  // 지식관리(N6) — 본문 왼쪽 메뉴(mgMenu: 팀만 사람) · 지식 상세 탭(kdTabs: 개인 줄 · 팀 줄)
+  const mgm = labels(body('mgMenu'))
+  assert.deepEqual(mgm, [...MANAGE_TEAM])
+  assert.deepEqual(mgm.filter((x) => x !== '사람'), [...MANAGE_PC])
+  const tabsOf = (src) => [...src.matchAll(/\['(?:info|perm|repo|policy|del)', '([^']+)'\]/g)].map((m) => m[1])
+  const kd = body('kdTabs'), kdPc = kd.split('\n').find((l) => l.includes('!isTeam()'))
+  assert.deepEqual(tabsOf(kdPc), [...DETAIL_PC])
+  assert.deepEqual([...new Set(tabsOf(kd.replace(kdPc, '')))], [...DETAIL_TEAM])
+  // 옛 설정 페이지 이름(이 PC · 팀 지식 · 사람)은 화면 설정 메뉴에 없다 — 옛 주소는 routeFix 가 새 자리로
+  for (const old of ['이 PC', '팀 지식', '사람']) assert.ok(!pc.includes(old) && !team.includes(old), `옛 설정 페이지 「${old}」`)
+  const fix = body('routeFix')
+  for (const k of ["'kns'", "'people'", "'pc'", "'members'"]) assert.ok(fix.includes(k), `routeFix 가 옛 ${k} 를 바꾼다`)
 })
 
 // 서버 · core · 스킬 · 설명서 · 서비스 전체 · 화면 글의 메뉴 길을 모두 모은다(코드 주석은 사람에게 보이지 않아 뺀다)
@@ -65,7 +72,7 @@ test('글 속 메뉴 길이 지금 화면에 있는 메뉴로 시작한다', () 
   assert.deepEqual(bad, [], '없는 메뉴를 가리키는 길:\n' + bad.join('\n'))
 })
 
-test('목표 메뉴(N6)에만 있는 길은 아직 쓰지 않는다', () => {
+test('목표 메뉴에만 있는 길은 아직 쓰지 않는다(N6 뒤 지금 = 목표)', () => {
   const early = paths().filter((p) => !okNow(p.menu, p.rest) && okTarget(p.menu, p.rest)).map((p) => p.at)
   assert.deepEqual(early, [], '화면에 아직 없는 길(그 단계에서 쓴다):\n' + early.join('\n'))
 })

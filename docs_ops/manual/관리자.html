@@ -51,7 +51,7 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 <p><b>감사 기록</b>(운영 맨 아래): 관리 쓰기 요청(사람 · 자리 · 총괄 관리자 주기 · 지식 세우기/지우기 · 주인 · 권한 · 구조 · 되돌림 · 가져올 곳 · 넣지 못함 · 계정)을 때 · 누가 · 무엇 · 지식 · 결과로 적는다. 보낸 글(본문 · 비밀번호)은 적지 않는다. 서버의 <code>&lt;살림 자리&gt;/audit.jsonl</code>(2MB 넘으면 <code>audit.1.jsonl</code> 로 민다).</p>
 
 <h2 id="people"><span class="m-no">3</span>사람</h2>
-<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 사람</span></div><div class="m-pic"><img src="img/t-people.png" alt="사람 카드: 상태 · 기기 · 지식마다 자리" loading="lazy">
+<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>지식관리 › 사람</span></div><div class="m-pic"><img src="img/t-people.png" alt="사람 카드: 상태 · 기기 · 지식마다 자리" loading="lazy">
 </div></div><figcaption>사람 카드와 묶음 카드. 사람을 더하면 [링크만 복사] · [안내 복사](아이디 · 들어오기 링크 · 팀 주소 · 에이전트 설치 길 한 덩이)가 나온다.</figcaption></figure>
 <ol class="m-legend">
 <li><b>+ 사람 더하기</b>: 아이디 · 총괄 관리자 여부 · 지식마다 자리 표.</li>
@@ -61,15 +61,15 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 <ol class="m-steps">
 <li><b>사람 더하기</b>아이디(영문 · 숫자 · . _ -)와 지식마다 자리(없음 · 읽기 · 쓰기 · 지식관리자)를 고른다. 고르지 않은 지식은 없음이다.</li>
 <li><b>처음 들어오기 링크를 보낸다</b>24시간 · 한 번. 아이디와 함께 메신저로 그 사람에게만. 비밀번호는 그 사람이 정한다.</li>
-<li><b>뒤에도 바꾼다</b>사람 카드의 같은 표 · 또는 지식 카드 ⋯ › 권한. 묶음(개발 · 운영 …)으로 받은 자리는 따로 보인다.</li>
+<li><b>뒤에도 바꾼다</b>사람 카드의 같은 표 · 또는 지식관리 › 모든 지식 › 지식 상세 › 권한. 묶음(개발 · 운영 …)으로 받은 자리는 따로 보인다.</li>
 </ol>
 <h3>사람이 떠날 때</h3>
 <p>⋯ <b>떠남</b> 한 번이 다 한다(그 사람의 기기 열쇠로 오면 「팀을 떠났다」 로 답한다). 들어가기 · 기기 · 예전 열쇠를 끊고 아이디는 남긴다(같은 아이디로 새 사람을 더하지 못한다). 그 사람이 주인인 지식은 <b>내가 주인을 잇는다</b> 또는 <b>주인 칸을 비운다</b>(뒤에 권한 창에서 넘긴다). 셸로는 <code>kmd user off &lt;아이디&gt; [--to &lt;받을 사람&gt;]</code>.</p>
 
 <h2 id="knowledge"><span class="m-no">4</span>팀 지식 세우기 · 권한</h2>
 <ul>
-<li>팀 서버에는 <b>팀 지식만</b> 선다. 지식 목록 끝의 「+ 새 지식」(총괄 관리자만). 세운 사람이 주인이고, 처음에는 주인 · 총괄 관리자에게만 보인다.</li>
-<li>다른 곳에서 만든 지식 폴더를 <code>/srv/kmd</code> 아래 통째로 놓고 지식 목록의 [동기화] 를 누르면 목록 맨 아래로 들어온다.</li>
+<li>팀 서버에는 <b>팀 지식만</b> 선다. 지식관리 › 모든 지식 머리의 [+ 새 지식](총괄 관리자만). 세운 사람이 주인이고, 처음에는 주인 · 총괄 관리자에게만 보인다.</li>
+<li>다른 곳에서 만든 지식 폴더를 <code>/srv/kmd</code> 아래 통째로 놓고 설정 › 운영의 지식 폴더 [동기화] 를 누르면 목록 맨 아래로 들어온다.</li>
 <li>지식 삭제는 비밀번호 한 번 더 · 보관하지 않고 완전히 지운다(불러오기는 저장소에서).</li>
 </ul>
 <div class="m-tbl"><table><tr><th>일</th><th>총괄 관리자</th><th>지식관리자</th><th>쓰기</th><th>읽기</th></tr>
@@ -96,11 +96,11 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 </ul>
 <p>일꾼 손잡이는 <code>/etc/kmd/worker.env</code> 의 환경 변수다: <code>KMD_WORKER_PAR</code>(Claude 동시 호출 · 기본 3) · <code>KMD_WORKER_JOBS</code>(일감을 나란히 · 기본 2) · <code>KMD_INGEST_BUDGET</code>(들이기 한 번의 예산 달러 · 기본 1.0) · <code>KMD_INGEST_EFFORT</code> · <code>KMD_INGEST_FIX</code>(고쳐 쓰기 · 기본 2). 옛 이름 <code>KMD_TIDY_*</code> 도 읽는다. 고친 뒤 <code>systemctl restart kmd-worker</code>.</p>
 
-<h2 id="general"><span class="m-no">6</span>설정 › 팀 지식 · 저장소</h2>
-<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 팀 지식</span></div><div class="m-pic"><img src="img/t-kns.png" alt="팀 지식: 지식마다 나의 자리 · 백업 · Claude 에 보내지 않음 · ⋯" loading="lazy"></div></div><figcaption>지식 한 줄에 그 지식의 설정이 모인다: 나의 자리 · 백업 상태 · 「Claude 에 보내지 않음」 스위치(지식관리자 · <a href="지식관리자.html#polish">지식관리자 설명서 3절</a>) · ⋯(권한 · 저장소 붙이기/저장소 주소 바꾸기 · 삭제). 표 위 [+ 새 지식], 아래 「불러오기」. 지식관리자에게는 자기 지식 줄만, ⋯ 에는 권한만 보인다.</figcaption></figure>
+<h2 id="general"><span class="m-no">6</span>지식관리 › 모든 지식 · 저장소</h2>
+<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>지식관리 › 모든 지식</span></div><div class="m-pic"><img src="img/t-kns.png" alt="팀 지식: 지식마다 나의 자리 · 백업 · Claude 에 보내지 않음 · ⋯" loading="lazy"></div></div><figcaption>지식 한 줄에 그 지식의 설정이 모인다: 나의 자리 · 백업 상태 · 「Claude 에 보내지 않음」 스위치(지식관리자 · <a href="지식관리자.html#polish">지식관리자 설명서 3절</a>) · ⋯(권한 · 저장소 붙이기/저장소 주소 바꾸기 · 삭제). 표 위 [+ 새 지식], 아래 「불러오기」. 지식관리자에게는 자기 지식 줄만, ⋯ 에는 권한만 보인다.</figcaption></figure>
 <ul>
-<li>내 계정 · 내 설정(저절로 하는 일: 글로 바꾸기 · 비슷한 글 · 사람마다) · 내 기기 · 나가기는 설정 › 서버 정보.</li>
-<li>팀 지식의 저장소: 설정 › 팀 지식 › 그 줄 ⋯ › 저장소 붙이기 · GitLab 봇(<code>serve.json</code> 의 <code>gitlab</code>)이 저절로 붙이거나 <code>kmd backup add &lt;지식&gt; &lt;주소&gt;</code>(<code>backupRoots</code> 안의 폴더 · https · ssh).</li>
+<li>내 계정 · 비슷한 글(사람마다) · 나가기는 설정 › 서버 정보 · 화면 밝기 · 내 기기는 오른쪽 위 내 메뉴 · 글로 바꾸기는 생성 › 수기수집 판.</li>
+<li>팀 지식의 저장소: 지식관리 › 모든 지식 › 지식 상세 › 저장소 · GitLab 봇(<code>serve.json</code> 의 <code>gitlab</code>)이 저절로 붙이거나 <code>kmd backup add &lt;지식&gt; &lt;주소&gt;</code>(<code>backupRoots</code> 안의 폴더 · https · ssh).</li>
 <li>저장 뒤 바로 보내고, 안 되면 1 · 5 · 15 · 60분 · 매일 다시. 6시간 밀리면 노랑 · 24시간이면 빨강 한 줄.</li>
 <li>개인 지식의 백업은 그 사람의 개인 프로그램이 한다.</li>
 </ul>

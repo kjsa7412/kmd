@@ -4764,7 +4764,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (decl.length && kadm) out.push(...sourceLines(k, decl, await readSourceState(dataDir, k.id), { admin: hub.canSource(ctx, k.id) }))
         if (boss && !backup.attached(k)) {
           const u = await unbacked(k)
-          if (u) out.push(stopLine({ kind: 'backup', kn: k.id, level: 'warn', what: `${k.name}: ${mode === 'pc' ? '지식백업이 없다' : '저장소가 없다'}`, amount: `백업 안 된 저장 ${u.n}번`, fix: mode === 'pc' ? '설정 › 이 PC 의 지식백업을 정하면 저절로 붙고 그동안의 것을 모두 보낸다' : '관리자가 설정 › 팀 지식 ⋯ › 저장소 붙이기로 붙이면 그동안의 것을 모두 보낸다', since: `${u.since} 부터` }))
+          if (u) out.push(stopLine({ kind: 'backup', kn: k.id, level: 'warn', what: `${k.name}: ${mode === 'pc' ? '지식백업이 없다' : '저장소가 없다'}`, amount: `백업 안 된 저장 ${u.n}번`, fix: mode === 'pc' ? '설정 › 지식백업에서 경로를 정하면 저절로 붙고 그동안의 것을 모두 보낸다' : '관리자가 지식관리 › 모든 지식 › 지식 상세 › 저장소에서 붙이면 그동안의 것을 모두 보낸다', since: `${u.since} 부터` }))
         }
       }
       return out
@@ -4811,6 +4811,26 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const row = owners.rowOf(reg, id)
       const a = owners.accessOf(row)
       return { all: a.all, users: { ...a.users, ...Object.fromEntries(owners.curatorsOf(row).map((c) => [c, 'admin'])) }, groups: a.groups, owner: row?.owner || null, people: hub.people(), groupNames: Object.keys(reg.groups || {}).sort(), legacy: !row?.access }
+    },
+    // 지식 관리 › 기본 정보(지식관리 설계 7-2 · 9-2) — 그 지식의 지식관리자(총괄 관리자 포함)만 · 읽기 미만은 「없는 지식」(404) · 쓰기 · 읽기는 403
+    //   폴더 경로(dir)는 개인 프로그램에서만 싣는다(팀 응답에는 서버 경로를 싣지 않는다)
+    async manageInfo(ctx, id) {
+      const meta = await hub.meta(id, ctx)
+      hub.need(ctx, id, 'admin')
+      const k = await hub.get(id, ctx)
+      const row = rowFor(id) || {}
+      const first = await tryGit(meta.dir, ['log', '--max-parents=0', '--format=%cI', 'HEAD'], { timeout: 15000 })
+      const created = first.ok ? first.out.split('\n').map((x) => x.trim()).filter(Boolean).sort()[0] || null : null
+      const decl = await readDecl(meta.dir).catch((e) => { log('기본 정보: 가져올 곳 선언을 읽지 못했다', id, e.message); return [] })
+      const bk = backup.stateOf(meta)
+      return {
+        id: k.id, name: k.name, owner: row.owner || null, created,
+        docs: k.docs.length, records: k.works.length, atts: (k.atts || []).length, empty: k.docs.length === 0,
+        level: hub.levelOf(ctx, id), noClaude: !!row.noClaude, review: !!row.review, issueUrl: row.issueUrl || '',
+        sources: Array.isArray(decl) ? decl.length : 0,
+        backup: bk ? { url: bk.url || null, branch: bk.branch || null, verdict: bk.verdict || null, at: bk.at || null, last: bk.last ? { at: bk.last.at || null, ok: !!bk.last.ok, reason: bk.last.reason || null } : null } : null,
+        ...(mode === 'pc' ? { dir: meta.dir } : {}),
+      }
     },
     // 자리 표 바꾸기 — 그 지식의 관리 자리(총괄 관리자는 부르는 쪽이 비밀번호를 한 번 더) · 장부와 `_members.md` 를 같이
     async setAccess(ctx, id, { all, users, groups } = {}) {

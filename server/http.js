@@ -18,7 +18,7 @@ import { makeMcp } from './mcp.js'
 import { makeHub, defaultDataDir } from './hub.js'
 import { TEAM_IMPORT_MAX } from '../core/importer.js'
 import { VERSION, BUILD } from './version.js'
-import { tryGit } from '../core/git.js'
+import { tryGit, maskUrl } from '../core/git.js'
 import * as owners from '../core/owners.js'
 import { stopLine } from '../core/stopline.js'
 import * as V from './views.js'
@@ -349,7 +349,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       }
       teamVer.list = out
     }
-    return teamVer.list.filter((t) => newerBuild(t.build, BUILD)).map((t) => stopLine({ kind: 'ver', level: 'warn', what: '팀 서버에 새 판이 있다', amount: t.build, fix: `${t.origin} 팀 화면 › 설정 › 에이전트 설치의 설치 한 줄을 PowerShell 에 다시 붙여 넣으면 이 프로그램이 새 판으로 바뀐다(지식 · 설정은 그대로)`, told: `이 PC: ${BUILD}` }))
+    return teamVer.list.filter((t) => newerBuild(t.build, BUILD)).map((t) => stopLine({ kind: 'ver', level: 'warn', what: '팀 서버에 새 판이 있다', amount: t.build, fix: `${t.origin} 팀 화면 › 설정 › 개인 프로그램 설치의 한 줄을 PowerShell 에 다시 붙여 넣으면 이 프로그램이 새 판으로 바뀐다(지식 · 설정은 그대로)`, told: `이 PC: ${BUILD}` }))
   }
   // 다른 출처에서 온 요청 — 개인 프로그램은 살아 있나(/healthz)만 연다 · 팀 화면은 개인 프로그램을 부르지 않는다(분리)
   async function crossOrigin(req, res, p) {
@@ -441,7 +441,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const GET_OK = [
     /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/audit|admin\/users|admin\/groups|claude\/state|busy|send\/teams)$/,
     /^\/api\/agent\/parser$/, /^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
-    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|held|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|shape|past|removed)$/,
+    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|held|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|shape|past|removed|manage)$/,
   ]
   const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|stops\/ack|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|k\/[^/]+\/(?:owner|access|delete|structure|polish|revert|unwatch|docfmt|shape(?:\/[a-z]+)?|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names|approve)|rec\/[^/]+\/fix|removed\/restore))$/
   const auditFile = path.join(dataDir, 'audit.jsonl')
@@ -888,7 +888,10 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         const row = hub.owner(k.id)
         const sv = mode === 'pc' && (await sendLib.destsOf(k.dir)).length ? await hub.sendView(ctx, k.id).catch(() => null) : null
         // level — 이 지식에서의 내 자리(read · write · admin) · role 은 그 화면 이름(PC 는 주인)
-        return { ...V.knowledgeRow(k, seeOf(ctx, k.id)), level: hub.levelOf(ctx, k.id), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null, noClaude: !!row?.noClaude, ...(row?.issueUrl ? { issueUrl: row.issueUrl } : {}), ...(row?.review ? { review: true } : {}) } : {}), ...(chk ? { chk } : {}), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
+        const lv = hub.levelOf(ctx, k.id)
+        // 저장소 붙음 여부(모든 지식 표 · 6-4) — 그 지식의 지식관리자에게만 · 주소는 싣지 않는다
+        const repo = lv === 'admin' && !k.gone ? !!hub.backupStateSync(k) : undefined
+        return { ...V.knowledgeRow(k, seeOf(ctx, k.id)), level: lv, ...(repo !== undefined ? { repo } : {}), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null, noClaude: !!row?.noClaude, ...(row?.issueUrl ? { issueUrl: row.issueUrl } : {}), ...(row?.review ? { review: true } : {}) } : {}), ...(chk ? { chk } : {}), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
       })))
     }
     // 에이전트 일 — 목록 · 줄(터미널)
@@ -1132,6 +1135,13 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (!str(b.rec, 120) || !str(b.doc, 300) || !str(b.heading, 200)) throw new KmdError('E_INPUT', '되살릴 것은 { rec, doc, heading } 한 줄 글이다')
       return out(200, await hub.restoreRemoved(ctx, id, { rec: b.rec, doc: b.doc, heading: b.heading }))
     }
+    // 지식 관리 › 기본 정보(지식관리 설계 9-2) — 읽기 길(GET) · 그 지식의 지식관리자만(hub.manageInfo 가 meta + need admin) · 팀 응답에는 폴더 경로가 없다
+    const mgi = p.match(/^\/api\/k\/([^/]+)\/manage$/)
+    if (mgi) {
+      if (req.method === 'POST') throw new KmdError('E_METHOD', 'GET 으로 읽는다')
+      need(ctx)
+      return out(200, await hub.manageInfo(ctx, dec(mgi[1])))
+    }
     const pm = req.method === 'GET' && p.match(/^\/api\/k\/([^/]+)\/past$/)
     if (pm) {
       const id = dec(pm[1])
@@ -1158,7 +1168,13 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     const id = dec(m[1])
     const what = m[2]
     if (['save', 'backup', 'backup/pull', 'owner', 'learn', 'edit', 'revert'].includes(what)) {
-      if (what === 'backup' && req.method === 'GET') return out(200, (await hub.backupState(ctx, id)) || { off: true })
+      // 저장소 보기(메뉴 개편 6-4 · 권한 모델 7절) — 그 지식의 지식관리자부터(읽기 미만 404 · 쓰기 · 읽기 403) · 주소는 가려서 · 가지 · 상태만
+      if (what === 'backup' && req.method === 'GET') {
+        const meta = await hub.meta(id, ctx.shell ? undefined : ctx)
+        if (!ctx.shell) hub.need(ctx, id, 'admin')
+        const b = hub.backupStateSync(meta)
+        return out(200, b ? { url: maskUrl(b.url || ''), branch: b.branch || null, at: b.at || null, verdict: b.verdict || null, last: b.last ? { at: b.last.at || null, ok: !!b.last.ok } : null } : { off: true })
+      }
       // 주인 줄 — 그 지식을 보는 사람에게만. 자리 표(access) · 지식관리자는 관리 자리에게만(자리 표 보기와 같게) · 옛 정리 설정 칸은 걷었다(S13)
       if (what === 'owner' && req.method === 'GET') {
         await hub.meta(id, ctx)

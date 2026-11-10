@@ -42,7 +42,7 @@
   /* 화면 최대 폭(2절) · 옆 메뉴 · 오른쪽 칸 */
   --w-text:820px;--w-list:980px;--w-grid:1100px;--w-side:248px;--w-aside:300px;
   /* 접힌 옆 메뉴 · 오른쪽 칸(레일) · 너비 잡이 · 그래프 팝업 */
-  --w-rail:48px;--w-grip:6px;--w-graph:400px;
+  --w-rail:48px;--w-grip:6px;--w-graph:400px;--w-detail:360px;
   /* 정보 단추 (!) 원 · 작은 배지 높이 · 툴팁 폭(컨벤션 4절 정보 단추) */
   --ctl-xs:18px;--ctl-2xs:16px;--w-tip:320px;
   /* 글꼴 — 모노는 경로 · 주소 · 이름 · 시각에만 */
@@ -1087,6 +1087,37 @@ table.done tr.tr-term td{background:var(--surface-2)}
 .mgnav .mgi:hover{background:var(--surface-2)}
 .mgnav .mgi.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
 .mgbody{flex:1;min-width:0}
+/* 지식관리 › 모든 지식(메뉴 개편 N6) — 표 + 지식 상세(1025 이상 오른쪽 판 · 1024 이하 따로 페이지) */
+.kmsplit{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--sp-6);align-items:start}
+.kmsplit.has{grid-template-columns:minmax(0,1fr) min(var(--w-detail),100%)}
+.kmsplit.has .ktab .opt{display:none}
+.kmh{flex-wrap:wrap;align-items:center}
+.kmh .kt{flex:none}
+.ktab tr.krow,.ktab tr.hid{cursor:pointer}
+.ktab tr:hover td{background:var(--hover)}
+.ktab tr.on td{background:var(--accent-bg)}
+.ktab tr.hid td,.ktab tr.dim td{color:var(--text-3)}
+.ktab tr.drag{opacity:.4}
+.ktab tr.over td{box-shadow:inset 0 2px 0 var(--accent)}
+.ktab .kgr{width:var(--sp-7);padding-right:0}
+.ktab .kgrip{color:var(--text-3);font-size:var(--fs-xs);letter-spacing:-2px;cursor:grab;user-select:none}
+.ktab .kn3{border:0;background:none;padding:0;margin:0;font:inherit;font-weight:600;color:var(--text);text-align:left;cursor:pointer;border-radius:var(--r-xs);overflow-wrap:anywhere}
+.ktab .kn3:hover{color:var(--accent)}
+.ktab .kst{display:flex;flex-wrap:wrap;gap:var(--sp-2);align-items:center}
+.kdpane{position:sticky;top:0;min-width:0;margin:0}
+.kdpane .ch{display:flex;align-items:center;gap:var(--sp-3)}
+.kdpane .ch .acts{margin-left:auto;display:flex;gap:var(--sp-2);align-items:center}
+.kdpane .kdn{min-width:0;overflow-wrap:anywhere}
+.kdback{display:none}
+.kdsw{display:flex;flex-wrap:wrap;gap:var(--sp-5);margin-top:var(--sp-6)}
+.kdsw.col{flex-direction:column;align-items:flex-start;margin-top:0}
+.kdacts{margin-top:var(--sp-5);gap:var(--sp-3);flex-wrap:wrap;align-items:center}
+.kdissue{margin-top:var(--sp-6)}
+.tabs [role=tab]{border:0;background:none;font:inherit;padding:7px var(--sp-6);font-size:var(--fs);color:var(--text-2);border-bottom:2px solid transparent;border-radius:0}
+.tabs [role=tab][aria-selected=true]{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.pal .pft{padding:var(--sp-3) var(--sp-7);border-top:1px solid var(--border)}
+.pal .pft:empty{display:none}
+@media (max-width:1024px){.kmsplit.has{grid-template-columns:minmax(0,1fr)}.kmsplit.has .kmlist{display:none}.kdpane{position:static}.kdback{display:inline-flex}}
 /* 옛 정리 화면(td-*)은 S13 에 걷었다 — 넣지 못함 화면은 hd-* · 이력의 값 바뀜은 .vchg */
 .vchg{font:600 var(--fs-sm) var(--mono);color:var(--warn);white-space:nowrap}
 /* 로그인 흐름의 단계(번호 동그라미) · 긴 로그인 주소(두 줄까지 · 열기 · 복사로) */
