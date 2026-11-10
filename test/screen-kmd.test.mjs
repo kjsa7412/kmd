@@ -751,9 +751,10 @@ test('자료 가져오기 · 지식 추가 · 보내기(M15 · M3 · M10): 목�
   assert.deepEqual(await page.locator('[data-t=addNext] .btn').allInnerTexts(), ['기초 세우기', '수기수집'])
   assert.equal(await page.evaluate(() => document.activeElement?.id), 'addDoneBtn', '초점은 [닫기]')
   await page.click('[data-t=addSeed]')
-  await page.waitForSelector('[data-t=seedSoon]')
+  // 팀 기초 세우기(TODO 10) — 새 지식으로 재료 올리기 단계에서 연다
+  await page.waitForSelector('[data-t=sdBody-1] [data-t=sdDrop]')
   assert.match(page.url(), /#\/manage\/seed$/)
-  assert.match(await page.locator('[data-t=seedSoon]').innerText(), /준비 중[\s\S]*보안점검/)
+  assert.match(await page.locator('[data-t=sdKnChip]').innerText(), /보안점검/)
   await mg(page, 'team', 'all')
   await page.waitForSelector('[data-t=klist] [data-t=krow][data-name="보안점검"]')
   // 메뉴에서 빼기 → 줄에 「메뉴에서 뺌」 · 옆 메뉴에 없다 → 메뉴에 올리기(순서 · 뺌은 사람마다)
