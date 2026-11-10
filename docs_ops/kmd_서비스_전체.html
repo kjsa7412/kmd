@@ -434,7 +434,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <path class="ln p" d="M400 122 H429" marker-end="url(#ah-words)"/>
 <path class="ln p" d="M593 122 H622" marker-end="url(#ah-words)"/>
 <path class="ln g" d="M786 122 H815" marker-end="url(#ah-words)"/>
-<rect class="zone" x="10" y="226" width="980" height="184" rx="12"/><text class="z" x="24" y="246">일 줄 · &lt;data&gt;/queue.json · 화면 「생성 › 도는 일」</text>
+<rect class="zone" x="10" y="226" width="980" height="184" rx="12"/><text class="z" x="24" y="246">일 줄 · &lt;data&gt;/queue.json · 화면 「생성 › 진행」</text>
 <rect class="box team" x="24" y="258" width="186" height="84" rx="10"/><text class="t" x="38" y="282">무엇이 서나</text><text class="l" x="38" y="304">파일마다 한 줄 · 가져오기</text><text class="l" x="38" y="322">다시 들이기 · 정정 · 다듬기</text>
 <rect class="box" x="240" y="258" width="160" height="84" rx="10"/><text class="t" x="252" y="282">수집</text><text class="l" x="252" y="304">받기</text><text class="l" x="252" y="322">글로 바꾸기</text>
 <rect class="box" x="433" y="258" width="160" height="84" rx="10"/><text class="t" x="445" y="282">검토</text><text class="l" x="445" y="304">같은 파일 · 크기</text><text class="l" x="445" y="322">원본 첨부(고를 때만)</text>
@@ -689,7 +689,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 </table></div>
 <p>넣은 원본은 <code>docs/assets/</code> 에 첨부로 두고, 들이기 일감의 원천은 <code>&lt;data&gt;/queue/</code>, 넣지 못함으로 끝난 것은 <code>&lt;data&gt;/held/&lt;지식&gt;/</code> 에 남는다(바로잡히거나 버리면 팀 시계가 걷는다).</p>
 </div></div>
-<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>생성 › 도는 일</span></div><div class="m-pic"><img src="manual/img/t-import.png" alt="생성 › 도는 일" loading="lazy"></div></div><figcaption>생성 › 도는 일. 파일마다 한 줄이 서고 수집 › 검토 › 짓기 › 넣기 단계가 보인다. 쓰는 법은 <a href="manual/사용자.html#import">설명서 › 파일 넣기</a> · 대량 넣기는 <a href="manual/사용자.html#bulk">설명서 › 대량 넣기</a>.</figcaption></figure>
+<figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>생성 › 수기수집</span></div><div class="m-pic"><img src="manual/img/t-import.png" alt="생성 › 도는 일" loading="lazy"></div></div><figcaption>생성 › 도는 일. 파일마다 한 줄이 서고 수집 › 검토 › 짓기 › 넣기 단계가 보인다. 쓰는 법은 <a href="manual/사용자.html#import">설명서 › 파일 넣기</a> · 대량 넣기는 <a href="manual/사용자.html#bulk">설명서 › 대량 넣기</a>.</figcaption></figure>
 
 <h3 id="flows-src">④ 가져올 곳: 시계 → 바뀐 것 → 브레이크 → 들이기</h3>
 <div class="pair"><div class="pl"><div class="flowfig" role="figure" aria-label="가져올 곳이 바뀐 것을 들이기 일감으로 넘기는 그림">
@@ -941,7 +941,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <rect class="box pc" x="526" y="384" width="448" height="152" rx="8"/><text class="t" x="540" y="406">설정</text><text class="l" x="540" y="428">이 PC: 지식 폴더 · 지식백업 · 저절로 하는 일 · 보내는 길</text><text class="l" x="540" y="448">Claude 연결: 내 로그인 · 일마다 모델</text><text class="l" x="540" y="468">에이전트 설치: 작업 폴더에 개인 지식 더하기</text><text class="l" x="540" y="488">운영 · 팀 일꾼 · 사람 · 서버 정보는 없다</text>
 </svg>
 </div>
-<p class="small muted">메뉴 이름은 <code>core/menupath.js</code>(설정 <code>SET_TEAM</code> · <code>SET_PC</code> · 지식 관리 <code>WORK</code>)와 <code>app/main.js</code> 의 <code>setMenu</code> · <code>workMenu</code> · <code>mgItems</code> · <code>sideHtml</code> 그대로다(<code>test/menupath.test.mjs</code> 가 설명서 글의 「설정 › …」 길까지 맞춰 본다). 팀 화면의 생성 · 확인은 쓰기 자리가 있는 팀 지식이 하나라도 있을 때, 구조는 지식관리자에게 선다. 옛 정리 화면 주소(<code>#tidy</code>)는 넣지 못함 화면으로 간다.</p>
+<p class="small muted">메뉴 이름은 <code>core/menupath.js</code>(설정 <code>SET_TEAM</code> · <code>SET_PC</code> · 지식 메뉴 <code>KN_MENU_PC</code> · <code>KN_MENU_TEAM</code> · 화면 탭 <code>GEN_TABS</code> · <code>PROGRESS</code> · <code>CHECK_TABS</code>)와 <code>app/main.js</code> 의 <code>setMenu</code> · <code>kmItems</code> · <code>sideItems</code> 그대로다(<code>test/menupath.test.mjs</code> 가 설명서 글의 「설정 › …」 · 「생성 › …」 · 「확인 › …」 길까지 맞춰 본다). 팀 화면의 생성 · 확인은 옆 메뉴에서 고른 지식에 쓰기 자리부터, 구조는 지식관리자에게 선다. 지식 메뉴 화면 주소는 고른 지식에 딸린다(<code>#/k/&lt;지식&gt;/gen</code> · <code>check</code> · <code>share</code> · <code>history</code> · <code>shape</code>) · 옛 주소(<code>#/import</code> · <code>#/held</code> · <code>#/send</code> · <code>#/structure</code> · 옛 정리 화면 <code>#tidy</code>)는 새 화면으로 간다.</p>
 
 <h3>저장 하나가 화면에 보이는 길</h3>
 <div class="flowfig" role="figure" aria-label="저장 하나의 결과가 화면 여러 곳에 보이는 길">

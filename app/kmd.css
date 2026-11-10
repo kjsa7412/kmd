@@ -884,6 +884,23 @@ li.new{animation:flash 1.6s}
 .imp .tabs em{font-style:normal;font-size:var(--fs-xs);font-weight:700;background:var(--surface-3);color:var(--text-2);border-radius:var(--r-pill);padding:0 var(--sp-3)}
 .imp .tabs span.on em{background:var(--accent-bg);color:var(--accent)}
 .imp .tabs em.w{background:var(--warn-bg);color:var(--warn)}
+/* 생성(메뉴 개편 N5) — 한도 칩 · 끌어다 놓는 판의 [파일] [폴더] [글] · 스위치 줄 · 진행 머리 */
+.imp .gen-lim{display:flex;align-items:center;gap:var(--sp-2);margin:0 0 var(--sp-5)}
+.imp .drop .acts{display:flex;gap:var(--sp-3);justify-content:center;flex-wrap:wrap;margin-bottom:var(--sp-3)}
+.gen-opts{display:flex;flex-wrap:wrap;gap:var(--sp-3) var(--sp-7);margin:var(--sp-5) 0 0}
+.swl{display:inline-flex;align-items:center;gap:var(--sp-3);font-size:var(--fs);color:var(--text)}
+.imp .genprog{margin-top:var(--sp-9)}
+.prog-h{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:var(--sp-4)}
+.prog-h .sh{font-size:var(--fs-md);font-weight:700;margin:0 var(--sp-2) 0 0}
+/* 확인 › 점검 — 줄 묶음 머리 · 요약 줄 */
+.ck-g{display:flex;align-items:center;gap:var(--sp-2);margin:var(--sp-5) 0 var(--sp-2);font-size:var(--fs-sm);color:var(--text-2)}
+.ck-g:first-child{margin-top:var(--sp-2)}
+.hdy .tabs span{display:flex;gap:var(--sp-3);align-items:center}
+.hdy .tabs em{font-style:normal;font-size:var(--fs-xs);font-weight:700;background:var(--surface-3);color:var(--text-2);border-radius:var(--r-pill);padding:0 var(--sp-3)}
+.hdy .tabs span.on em{background:var(--accent-bg);color:var(--accent)}
+.ck-sum{display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap;margin:0 0 var(--sp-4)}
+/* 수가 0 인 탭(확인 · 점검 · 승인)은 흐리게 — 누를 수는 있다 */
+.tabs span.z,.tabs span.z em{color:var(--text-3)}
 .drop.bar{display:flex;align-items:center;gap:var(--sp-3) var(--sp-6);flex-wrap:wrap;text-align:left;padding:var(--sp-4) var(--sp-6);margin-bottom:var(--sp-6);border-radius:var(--r-md)}
 .drop.bar b{display:inline;margin:0;font-size:var(--fs)}
 .drop.bar .lks{margin:0 0 0 auto}
@@ -1002,7 +1019,9 @@ table.done tr.tr-term td{background:var(--surface-2)}
 .pager span{padding:var(--sp-1) var(--sp-4);border-radius:var(--r-sm);cursor:pointer;color:var(--text-2)}.pager span.on{background:var(--accent);color:var(--on-accent)}
 /* ── 지식 보내기(목업 kmd_지식보내기_목업.html v2) — 보내는 길(보내는 지식 → 받는 지식) · 길 안의 탭 ── */
 .snd{max-width:980px}
-.snd .route{overflow:visible}
+/* 공유 위 줄(메뉴 개편 N5) — <이 지식> → <받을 곳> · 팀 연결 칩 */
+.snd .route{display:flex;align-items:center;gap:var(--sp-3) var(--sp-4);flex-wrap:wrap;margin:0 0 var(--sp-6);font-size:var(--fs-md)}
+.snd .route .ar{color:var(--text-3)}
 .snd .rrow{display:flex;align-items:stretch;flex-wrap:wrap}
 .snd .rbox{flex:1 1 260px;min-width:0;padding:var(--sp-6) var(--sp-7)}
 .snd .rbox.todo{background:repeating-linear-gradient(135deg,var(--surface),var(--surface) 8px,var(--surface-2) 8px,var(--surface-2) 16px);border-radius:0 var(--r-lg) 0 0}
