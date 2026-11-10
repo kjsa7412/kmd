@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { prehash } from '../app/prehash.js'
 import { KEY_EXE_VER } from '../core/keyexe.js'
+import { instructionsFor } from '../server/mcp.js'
 import { teamKitParts, teamRows, legacyRows, legacyTeamOnly, teamKns, teamBlock, asciiJson, TEAM_KIT_REV, TEAM_SKILLS, claudeCheckPs } from '../core/teamkit.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -63,7 +64,8 @@ after(async () => {
 //   (판 5 는 작성기준 v1.2: 수준 표시 · 들여쓰지 않음)
 //   (판 6 은 UX 검토: 쓰기 자리 새 문서 조각 · 넣지 못함과 fixes · 머리 「값: 설명」 예 · 걷은 정리 말)
 //   (판 7 은 바탕 세우기 Z9: 대량 넣기 0단계의 빈 지식 한 줄(기초 세우기 먼저 · 넘으면 kmd-seed))
-const KIT_HASH = { 2: '10d1b294', 3: '85c4e1b0', 4: 'a91c981e', 5: '34c6e455', 6: '530dee29', 7: '4ec95b65' }
+//   (판 8 은 저장 승인 P4: 늘 저장 제안 · 정리 거리 고르기 · 대화 조절 · 메모 걷기 · 대량 넣기 규칙 표 한 번 승인)
+const KIT_HASH = { 2: '10d1b294', 3: '85c4e1b0', 4: 'a91c981e', 5: '34c6e455', 6: '530dee29', 7: '4ec95b65', 8: 'bbb4fb34' }
 test('스킬 판: 스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다 · 스킬 글의 {{KIT_REV}} 를 판으로 바꿔 싣는다', async () => {
   const parts = await teamKitParts()
   assert.equal(parts.rev, TEAM_KIT_REV)
@@ -73,12 +75,26 @@ test('스킬 판: 스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다 · 스킬 �
   assert.doesNotMatch(parts.block, /\{\{KIT_REV\}\}/)
   const save = parts.skills.find((x) => x.rel === '.claude/skills/kmd-team-save/SKILL.md').text
   assert.ok(save.includes(`kit: "${TEAM_KIT_REV}"`), '저장 스킬이 save 에 판을 싣는다')
-  assert.match(save, /record\.memo: true/, '확정이 아니면 메모')
-  assert.match(save, /record\.memo: true[^\n]*touches/, '메모도 touches(또는 touchesEmpty)를 단다: 없으면 strict 가드가 거절한다')
-  assert.match(save, /record\.fixes/, '고쳐 다시 저장하면 앞 기록을 단다')
+  // 저장 승인 P4(설계 2-2) — 늘 제안서 · 정리 거리 고르기 · 대화 조절 · 메모 · you.ledgers 조건 · 넣지 못함 말 걷기 · 작성기준 3 ~ 5절 예시
+  assert.doesNotMatch(save, /memo/, '메모를 걷었다(P-D34)')
+  assert.doesNotMatch(save, /ledgers/, 'you.ledgers 조건을 걷었다(쓰기 자리도 제안서로 세운다)')
+  assert.doesNotMatch(save, /넣지 못함/, '넣지 못함 말을 걷었다')
+  assert.match(save, /`propose /)
+  assert.match(save, /proposal/)
+  assert.match(save, /고치지 않고/, '제안서 글은 고치지 않고 보인다')
+  assert.match(save, /정리 거리/)
+  assert.match(save, /바뀐 줄만/, '다시 보일 때 바뀐 줄만')
+  assert.match(save, /경고 줄과 끝 줄[^\n]*늘/, '경고 줄 · 끝 줄은 늘')
+  assert.match(save, /E_APPROVE/)
+  assert.match(save, /E_CONFLICT/)
+  assert.match(save, /정해지지 않음 · 넣지 않음/)
+  assert.match(save, /좋은 예: [^\n]*\n[^\n]*나쁜 예: /, '작성기준 좋은 예 · 나쁜 예')
+  assert.match(save, /record\.fixes/, '저장 승인 전 지식에서 고쳐 다시 저장하면 앞 기록을 단다')
   assert.doesNotMatch(save, /정리 때|확인 대기|같은 기록을 다시 보내지 말고/, '옛 말을 걷었다')
+  assert.doesNotMatch(save.replace('줄표(—)', ''), /—/, '줄표를 쓰지 않는다')
   const work = parts.skills.find((x) => x.rel === '.claude/skills/kmd-team-work/SKILL.md').text
-  assert.match(work, /안 넣은 메모 n · 넣지 못함 n/, '일 전 brief 의 mine 을 한 줄로')
+  assert.match(work, /accepted/, '일 전 brief 의 mine 새 꼴')
+  assert.match(work, /안 넣은 메모 n · 넣지 못함 n/, '저장 승인 전 지식은 옛 수도 한 줄로')
   // 대량 넣기(K6-3) — 판 · 파서는 처음 할 때 받는다(brief parser · sha256) · 파일마다 저장 하나 · same 이어 하기 · 한 번 고쳐 fixes · 끝 줄
   const imp = parts.skills.find((x) => x.rel === '.claude/skills/kmd-team-import/SKILL.md').text
   assert.ok(imp.includes(`kit: "${TEAM_KIT_REV}"`), '대량 넣기도 save 에 판을 싣는다')
@@ -86,11 +102,34 @@ test('스킬 판: 스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다 · 스킬 �
   assert.match(imp, /sha256/)
   assert.match(imp, /same: true/)
   assert.match(imp, /record\.fixes/)
-  assert.match(imp, /넣음 n · 넣지 못함 n · 이미 넣음 n/)
+  assert.match(imp, /규칙 표/, '규칙 표 한 번 승인(P-D16)')
+  assert.match(imp, /proposal/)
+  assert.doesNotMatch(imp, /ledgers/, 'you.ledgers 조건을 걷었다')
+  assert.match(imp, /넣음 n · 이미 넣음 n · 건너뜀 n/)
+  assert.doesNotMatch(imp, /넣지 못함/, '넣지 못함 말을 걷었다')
   assert.match(imp, /어느 팀 지식에 넣을까요/)
   assert.match(imp, /빈 지식[^\n]*지식관리 › 기초 세우기[^\n]*kmd-seed/, '빈 팀 지식이면 기초 세우기 먼저 · 넘으면 kmd-seed')
   assert.doesNotMatch(imp.replace('줄표(—)', ''), /—/, '줄표를 쓰지 않는다')
   assert.match(parts.block, /kmd-team-import/, '팀 덩이가 대량 넣기 스킬을 말한다')
+  assert.match(parts.block, /propose/, '팀 덩이가 제안 · 승인 흐름을 말한다')
+  assert.doesNotMatch(parts.block, /메모로 남긴다/)
+})
+
+// MCP 안내 한 벌(저장 승인 설계 P-D44 · P4 · PC2) — 팀 · 개인이 같은 문장이고 where 줄만 다르다 · memo 를 걷고 propose → 승인 → save(proposal)
+test('MCP 안내: 팀 · 개인 한 벌(where 만 다름) · memo 없음 · 저장 제안을 보이고 승인받아 proposal 을 싣는다 · 넣지 못함 말 없음', () => {
+  const team = instructionsFor('team').split('\n')
+  const pc = instructionsFor('pc').split('\n')
+  assert.equal(team.length, pc.length)
+  assert.deepEqual(team.slice(0, -1), pc.slice(0, -1), '마지막 where 줄 말고는 같은 문장')
+  assert.match(team.at(-1), /where: team/)
+  assert.match(pc.at(-1), /where: me/)
+  for (const t of [team, pc].map((x) => x.join('\n'))) {
+    assert.doesNotMatch(t, /memo/, 'memo 를 걷었다(P-D34)')
+    assert.doesNotMatch(t, /넣지 못함/, '넣지 못함 문장을 걷었다')
+    assert.match(t, /propose/)
+    assert.match(t, /proposal/)
+    assert.match(t, /정해지지 않은 것은 저장하지 않는다/)
+  }
 })
 
 test('팀 덩이: 표 읽기 · 옛 한 덩이의 팀 줄 옮기기 · 개인 지식이 없을 때만 옛 덩이를 걷는다 · 볼 수 없는 지식은 뺀다', async () => {

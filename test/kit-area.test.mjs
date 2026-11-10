@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { install, status, folders, addKn, dropKn } from '../core/kit.js'
+import { install, status, folders, addKn, dropKn, kitParts, PC_KIT_REV } from '../core/kit.js'
 import { installPs, safeKn, safeRoot, startServer } from '../server/http.js'
 import { pcRootKind } from '../core/pcops.js'
 
@@ -147,4 +147,32 @@ test('PC /api/agent: 개인 지식 더하기 · 팀 연결은 그대로 · 하�
     Object.assign(process.env, env)
     fs.rmSync(tmp, { recursive: true, force: true })
   }
+})
+
+// 개인 스킬 판(저장 승인 설계 P-D40 · PC2) — 판마다 그 판의 스킬 글 해시(kitParts().ver). 개인 스킬 글 · 개인 덩이 · 작성가이드를 고치면
+//   core/kit.js 의 PC_KIT_REV 를 하나 올리고 이 표에 새 판 · 새 해시를 더한다(옛 판 줄은 그대로 둔다)
+//   (판 1 은 저장 승인 PC2: 늘 저장 제안 · 정리 거리 고르기 · 대화 조절 · 「바로 넣기가 곧 넣는다」 걷기 · 넣기 에이전트는 규칙 길)
+const PC_KIT_HASH = { 1: 'ea86fd6a' }
+test('개인 스킬 판: 스킬 글이 바뀌면 PC_KIT_REV 도 오른다 · {{KIT_REV}} 를 판으로 바꿔 싣는다 · 새 흐름(제안 · 승인 · 메모 없음)', async () => {
+  const parts = await kitParts()
+  assert.equal(parts.rev, PC_KIT_REV)
+  assert.equal(PC_KIT_HASH[PC_KIT_REV], parts.ver, `개인 스킬 글이 바뀌었다(해시 ${parts.ver}). core/kit.js 의 PC_KIT_REV 를 올리고 이 시험의 PC_KIT_HASH 에 { ${PC_KIT_REV + 1}: '<새 해시>' } 를 더한다`)
+  for (const s of parts.skills) assert.doesNotMatch(s.text, /\{\{KIT_REV\}\}/, `${s.rel}: 자리표가 남았다`)
+  assert.doesNotMatch(parts.block, /\{\{KIT_REV\}\}/)
+  const save = parts.skills.find((x) => x.rel === '.claude/skills/kmd-save/SKILL.md').text
+  assert.ok(save.includes(`kit: "${PC_KIT_REV}"`), '저장 스킬이 save 에 판을 싣는다')
+  assert.match(save, /`propose /)
+  assert.match(save, /proposal/)
+  assert.match(save, /정리 거리/)
+  assert.match(save, /바뀐 줄만/)
+  assert.match(save, /에이전트 설치에서 이 폴더를 다시 설치/, '개인 다시 설치 안내')
+  assert.match(save, /좋은 예: [^\n]*\n[^\n]*나쁜 예: /, '작성기준 좋은 예 · 나쁜 예')
+  assert.doesNotMatch(save, /memo|바로 넣기가 곧/, '메모 · 바로 넣기 문장을 걷었다')
+  const work = parts.skills.find((x) => x.rel === '.claude/skills/kmd-work/SKILL.md').text
+  assert.ok(work.includes(`판(${PC_KIT_REV})`), '일 스킬이 brief 의 kit 과 견준다')
+  const build = parts.skills.find((x) => x.rel === '.claude/skills/kmd-build/SKILL.md').text
+  assert.doesNotMatch(fs.readFileSync(new URL('../agent/skills/kmd-build/SKILL.md', import.meta.url), 'utf8'), /\{\{KIT_REV\}\}/, 'kmd-build 는 넣기 에이전트가 그대로 읽는다: 자리표를 두지 않는다')
+  assert.match(build, /규칙 길/, '넣기 에이전트: 넘지 못하면 kmd 가 규칙 길로')
+  assert.match(build, /propose/, '세션이 시킨 일은 제안 · 승인')
+  assert.match(parts.block, /propose/)
 })

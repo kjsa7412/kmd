@@ -64,10 +64,11 @@ test('MCP: 도구 · brief · match · section', async () => {
   assert.equal(b.kit, TEAM_KIT_REV)
   assert.deepEqual(b.knowledge.map((k) => k.mine), [{ memos: 0, held: 0, accepted: 0 }, { memos: 0, held: 0, accepted: 0 }])
   const list = (await rpc('tools/list')).result.tools
-  assert.match(list.find((t) => t.name === 'brief').description, /mine\(.*안 넣은 메모 memos · 넣지 못함 held/)
+  assert.match(list.find((t) => t.name === 'brief').description, /mine\(accepted[^)]*memos 안 넣은 메모 · held 넣지 못함/)
   assert.ok(list.find((t) => t.name === 'save').inputSchema.properties.kit, 'save 에 스킬 판 칸')
   const one = (await tool('brief', { knowledge: 'dpms' })).structuredContent
   assert.deepEqual([one.kit, one.you.memos, one.you.held, one.you.recent], [TEAM_KIT_REV, 0, 0, []])
+  assert.equal(one.saveMode, 'old', '저장 승인 전 팀 지식(held 모드)')
   const m = (await tool('match', { q: '상태 점검' })).structuredContent
   assert.equal(m.found[0].coord, 'proc:헬스 체크', '다른 이름으로도 찾는다')
   assert.equal(m.found[0].doc, '배포절차')

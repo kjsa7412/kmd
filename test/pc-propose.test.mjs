@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { startServer } from '../server/http.js'
 import { makeMcp } from '../server/mcp.js'
+import { PC_KIT_REV } from '../core/kit.js'
 import { knowledgeRow } from '../server/views.js'
 import { copyDir } from './helpers.mjs'
 import { parseLinked } from '../core/parts.js'
@@ -88,6 +89,14 @@ test('개인 approve: proposal 없음 = E_APPROVE + propose 결과(나만 · 이
   assert.equal(r.error, 'E_APPROVE', JSON.stringify(r))
   assert.match(r.details.propose.text, /^【저장 제안】 지식: 승인 지식\(보는 사람: 나만 · 이 PC\) · 길: 이 세션의 작업/)
   assert.match(r.details.propose.proposal, /^[0-9a-f]{64}$/)
+  // 개인 스킬 판(PC2 · P-D40) — 판 없이 온 세션은 nokit · 옛 판은 개인 화면의 다시 설치 안내 · 지금 판이면 안내 없음
+  assert.deepEqual([r.details.nokit?.want, r.details.reinstall], [PC_KIT_REV, undefined])
+  assert.match(r.details.nokit.how, /kmd-save/)
+  const old = await call('save', { ...input(sec.base), kit: String(PC_KIT_REV - 1) })
+  assert.deepEqual([old.error, old.details.reinstall?.have, old.details.reinstall?.want], ['E_APPROVE', PC_KIT_REV - 1, PC_KIT_REV])
+  assert.match(old.details.reinstall.how, /개인 화면 › 설정 › 에이전트 설치에서 이 폴더를 다시 설치/)
+  const cur = await call('save', { ...input(sec.base), kit: String(PC_KIT_REV) })
+  assert.deepEqual([cur.error, cur.details.reinstall, cur.details.nokit], ['E_APPROVE', undefined, undefined])
   assert.equal(snap(pdir('apv')), n0, '아무것도 쓰지 않는다')
   const last = savelogOf('apv').at(-1)
   assert.deepEqual([last.err, last.mode, last.unproposed], ['E_APPROVE', 'approve', true])

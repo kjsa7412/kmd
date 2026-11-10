@@ -1,6 +1,6 @@
 // MCP — Claude Code 세션이 kmd 를 읽고 쓰는 길(Streamable HTTP · JSON 응답 하나).
 //
-// 도구 넷(K0): brief(지금 무엇이 있나) · match(이름으로 찾기) · section(항목 글 읽기) · save(기록 남기기).
+// 도구 여섯: brief(지금 무엇이 있나) · match(이름으로 찾기) · search(말로 찾기) · section(항목 글 읽기) · propose(저장 제안 · 쓰지 않음) · save(승인한 제안을 남기기).
 // 세션 응답의 말은 사람 화면과 같은 쉬운 말로 쓴다.
 //
 // SDK 없이 JSON-RPC 몇 갈래만 받는다 — initialize · tools/list · tools/call · ping. 서버가 세션을
@@ -15,6 +15,7 @@ import { formGuide } from '../core/guard.js'
 import { splitBlocks } from '../core/baseline.js'
 import { readDecl, everyMs } from '../core/sources.js'
 import { TEAM_KIT_REV } from '../core/teamkit.js'
+import { PC_KIT_REV } from '../core/kit.js'
 
 
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05']
@@ -22,12 +23,14 @@ const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05']
 const INSTRUCTIONS = [
   'kmd 는 팀 지식과 개인 지식이다. 문서(항목 = ## 머리)와 기록(누가 무엇을 왜 바꿨나).',
   '일을 시작할 때 brief 로 무엇이 있나 본다. 이름을 알면 match 로 그 항목을 찾고 section 으로 지금 글을 읽는다.',
-  '일을 마치면 save 로 기록을 남긴다. 기록 글은 서식 칸으로: changes(바뀐 것 · 꼭) · why(까닭) · dropped(버린 안) · impact(영향) · refs(근거) · body 는 한두 문장 요약. 건드린 이름(touches)을 단다. 항목 글을 고쳤으면 sections 에 바꿀 조각(edits)이나 새 글(content)을 같이 보낸다. 이미 있는 항목이면 section 이 준 base 를 꼭 같이(없거나 그사이 바뀌었으면 E_CONFLICT 로 아무것도 쓰지 않는다 · 다시 읽고 다시 보낸다). 값이 아직 확정되지 않았으면(머지 · 배포 · 결정 전) record.memo: true 로 기록만 남긴다(항목 글은 보내지 않는다).',
+  '일을 마치면 정한 것 · 바뀐 것을 기록과 항목 글로 남긴다. 기록 글은 서식 칸으로: changes(바뀐 것) · why(까닭) · dropped(버린 안) · impact(영향) · refs(근거) · body 는 한두 문장 요약. 건드린 이름(touches)을 단다. 항목 글을 고쳤으면 sections 에 바꿀 조각(edits)이나 새 글(content)을 같이 싣는다. 이미 있는 항목이면 section 이 준 base 를 꼭 같이(그사이 바뀌었으면 E_CONFLICT 로 아무것도 쓰지 않는다 · 다시 읽고 다시 제안한다).',
+  '남기기 전에 propose 로 저장 제안을 받아 그 글(text)을 고치지 않고 사람에게 보이고, 대화로 고친 뒤(빼기 · 값 고치기 · 기록 범위 줄이기 · 다시 propose) 승인받으면 save 에 그 proposal 을 싣는다. 승인이 제안서의 경고를 받아들이는 것이다. 정해지지 않은 것은 저장하지 않는다(이슈를 받는 갈래가 있으면 이슈로 제기한다).',
 ].join('\n')
 // 이 서버가 어느 쪽인가 — 한 폴더에 팀(kmd-team) · 개인(kmd) 두 연결이 같이 붙으므로 세션이 가려 남기게
+//   안내 · 도구 설명 · 상태 말은 팀 · 개인 한 벌이다(저장 승인 설계 P-D44) — 다른 것은 where 표시 · 보는 사람 · 어느 지식에 남길지 묻는 것만
 const WHERE = {
-  pc: '이 연결은 이 PC 의 개인 지식이다(where: me). 여기 남긴 것은 나만 본다. 어느 지식에 남길지 애매하면 사람에게 묻는다.',
-  team: '이 연결은 팀 서버다(where: team). 팀 지식에 남긴 것은 그 지식을 보는 팀 사람이 본다. 남기기 전에 어느 팀 지식에 남길지 사람에게 묻는다. 쓰기 자리 이상이면 기록과 항목 조각이 한 번에 저장되고, 저장 순간 검사를 넘은 조각은 그때 문서에 들어간다. 못 넘은 조각은 기록에 「넣지 못함」 으로 남는다(답의 proposals 에 까닭 · 고쳐서 record.fixes 로 다시 저장한다).',
+  pc: '이 연결은 이 PC 의 개인 지식이다(where: me). 여기 남긴 것은 나만 본다. 개인 지식이 여럿이거나 어느 지식에 남길지 애매하면 사람에게 묻는다.',
+  team: '이 연결은 팀 서버다(where: team). 팀 지식에 남긴 것은 그 지식을 보는 팀 사람이 본다. 남기기 전에 어느 팀 지식에 남길지 사람에게 묻는다.',
 }
 export const instructionsFor = (mode) => INSTRUCTIONS + '\n' + (WHERE[mode] || WHERE.team)
 // 지식마다 갈래 · 남기면 보는 사람
@@ -37,7 +40,7 @@ const str = (description) => ({ type: 'string', description })
 const TOOLS = [
   {
     name: 'brief',
-    description: '지금 kmd 에 무엇이 있나: 지식 목록 · 지식 하나의 문서 · 최근 기록 · 아직 문서에 안 넣은 기록. 팀 지식이면 지식마다 mine(내가 남긴 것 가운데 안 넣은 메모 memos · 넣지 못함 held 의 수: 0 이 아니면 사람에게 한 줄로 · accepted: 승인으로 경고를 받아들인 내 기록 수) · 지식 하나의 you.recent(그 기록의 제목 · 까닭) · kit(팀 서버의 스킬 판) · parser(대량 넣기 파서 꾸러미: ver · url · sha256 · bytes · 없으면 null). 일을 시작할 때 한 번.',
+    description: '지금 kmd 에 무엇이 있나: 지식 목록 · 지식 하나의 문서 · 최근 기록 · 종류(kinds) · 갈래(forms) · 저장 방식(saveMode: approve 면 저장 제안을 승인받아 save · old 면 저장 승인 전 지식) · kit(스킬 판: 스킬 글의 판보다 크면 다시 설치). 팀 지식이면 지식마다 mine(accepted: 승인으로 경고를 받아들인 내 기록 수 · 저장 승인 전 지식은 memos 안 넣은 메모 · held 넣지 못함 수도: 0 이 아니면 사람에게 한 줄로) · 지식 하나의 you.recent(그 기록의 제목 · 까닭) · parser(대량 넣기 파서 꾸러미: ver · url · sha256 · bytes · 없으면 null). 일을 시작할 때 한 번.',
     inputSchema: { type: 'object', properties: { knowledge: str('지식 id(없으면 목록)') } },
   },
   {
@@ -57,7 +60,7 @@ const TOOLS = [
   },
   {
     name: 'propose',
-    description: '저장 제안(팀 지식): save 와 같은 입력을 받아 쓰지 않고 서버가 정한 꼴의 【저장 제안】 글(text)을 돌려준다. 고칠 항목의 옛 → 새 줄 · 새 항목 · 새 문서 · 새 갈래 · 종류 · 이름(비슷한 것 near) · 이을 항목(글 그대로) · 뺀다 · 검사(경고 w · 오류 e). items(고침 · 신설 · 잇기 · before/after · changed · base) · warnings[{ id, code, at, why }] · errors[{ code, at, why, near }] · proposal(64자 지문 · 오류가 있으면 null). text 는 고치지 않고 사람에게 보인다. 오류가 있으면 입력을 고쳐 다시 propose 한다. 고칠 것을 들으면 입력을 바꿔 다시 propose 한다(지문이 바뀐다). 새 이름 · 문서 · 머리 · 갈래 · 종류가 있는 것과 같은 이름(빈칸 · 부호만 다름)이면 오류: 있는 것에 잇거나 다른 것이면 distinct 에 그 이름을 넣는다. 사람이 뺀 것은 excluded 에 { name, why } 로(제안서에만 보인다). 쓰기 자리부터.',
+    description: '저장 제안: save 와 같은 입력을 받아 쓰지 않고 kmd 가 정한 꼴의 【저장 제안】 글(text)을 돌려준다. 남기기 전에 늘 부르고 text 를 사람에게 보여 승인받는다(승인한 proposal 을 save 에 싣는다). 사람이 고칠 것(빼기 · 값 · 문장 고치기 · 기록 범위 줄이기 · 넣을 곳 바꾸기)을 말하면 입력을 고쳐 다시 propose 하고 바뀐 줄만 다시 보인다(경고 줄과 끝 줄은 늘). 정해지지 않은 것은 넣지 않는다(memo 는 없다). 고칠 항목의 옛 → 새 줄 · 새 항목 · 새 문서 · 새 갈래 · 종류 · 이름(비슷한 것 near) · 이을 항목(글 그대로) · 뺀다 · 검사(경고 w · 오류 e). items(고침 · 신설 · 잇기 · before/after · changed · base) · warnings[{ id, code, at, why }] · errors[{ code, at, why, near }] · proposal(64자 지문 · 오류가 있으면 null). text 는 고치지 않고 사람에게 보인다. 오류가 있으면 입력을 고쳐 다시 propose 한다. 고칠 것을 들으면 입력을 바꿔 다시 propose 한다(지문이 바뀐다). 새 이름 · 문서 · 머리 · 갈래 · 종류가 있는 것과 같은 이름(빈칸 · 부호만 다름)이면 오류: 있는 것에 잇거나 다른 것이면 distinct 에 그 이름을 넣는다. 사람이 뺀 것은 excluded 에 { name, why } 로(제안서에만 보인다). 쓰기 자리부터.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -76,9 +79,9 @@ const TOOLS = [
   {
     name: 'save',
     description: [
-      '기록을 남긴다. 제목 · 서식 칸 · 건드린 이름(touches). 기록 글은 서식으로만 받는다(E_INPUT): changes(바뀐 것: 「무엇: 옛 값 → 새 값」 목록 · 꼭 · 메모는 없어도 된다) · why(까닭) · dropped(버린 안) · impact(영향) · refs(근거: 커밋 · 문서 판) · body 는 한두 문장 요약(300자 안 · 문단 하나). kmd 가 칸마다 머리(## 바뀐 것 …)를 달아 글로 엮는다. touches 는 match 로 찾은 이름 장부의 이름만 받는다(장부에 없는 이름 · 폐기된 이름은 거절하고 가까운 이름을 알려 준다). 건드린 이름이 정말 없으면 touches 를 비우고 touchesEmpty 에 까닭 한 줄을 적는다(둘 다 비면 거절). 새 문서는 갈래 장부의 갈래 이름으로만 선다(파일 이름 · 날짜 · 판이 든 이름은 거절 · 통화 · 미팅 메모는 회의록 문서의 「YYYY-MM-DD 무엇」 항목으로). 팀 지식: 항목 글을 고쳤으면 sections 에 바꿀 조각(edits: find → replace) 또는 새 글(content)을 base 와 같이 보낸다. 쓰기 자리 이상이면 서버가 Claude 없이 조각을 대어 검사(꼴 · 값 대조 · 지문)하고, 넘으면 값 바꿈까지 그 순간 문서에 넣는다(기록과 한 묶음 · 기록의 「넣은 것」 에 옛 값 → 새 값). 못 넘은 조각은 기록에 「넣지 못함」 으로 남는다: 응답 proposals 로 자리마다 결과(ok · applied · why · code · changed · near)가 오니 그 자리에서 조각을 고쳐 다시 save 하고 record.fixes 에 앞 기록 id 를 단다. 읽은 뒤 누가 고친 항목(지문이 다름 · base 없음)이 하나라도 있으면 E_CONFLICT 로 아무것도 쓰지 않는다(details.stale 의 항목을 section 으로 다시 읽는다). E_RATE 면 details.retryAfter 초 뒤에 다시. 팀 지식: kit 에 스킬 글이 준 판을 늘 싣는다 · 옛 판이면 저장은 그대로 하고 답에 reinstall(다시 설치 안내)이 온다: 사람에게 그대로 한 줄로 전한다 · 없으면 답에 nokit(스킬을 거치지 않은 저장 · 다시 설치할 일은 아니다): 다음 저장부터 kmd-team-save 스킬 글대로 한다. 값이 확정되지 않았으면 record.memo: true(기록만 · 항목 글 없이). 새 이름(테이블 · 화면 · API · 절차 · 용어 …)을 세웠으면 names 로 이름 장부 · 자리 장부에 같이 올린다. 그 항목이 항목으로 보기 · 찾기에 그 종류로 선다. 한 번에 한 묶음으로 남는다.',
+      '승인한 저장 제안을 남긴다: 기록 + 항목 조각 + 지문이 한 묶음으로 들어간다. 먼저 propose 로 같은 입력의 저장 제안을 받아 사람에게 보이고 승인받은 그 proposal 을 싣는다(저장 제안을 받는 지식: 없거나 그사이 입력 · 지식이 바뀌어 어긋나면 E_APPROVE 로 아무것도 쓰지 않고 details.propose 에 새 제안이 온다 · 다시 보이고 다시 승인받는다). 승인이 제안서의 경고를 받아들이는 것이다. 기록 글은 서식으로만 받는다(E_INPUT): changes(바뀐 것: 「무엇: 옛 값 → 새 값」 목록) · why(까닭) · dropped(버린 안) · impact(영향) · refs(근거: 커밋 · 문서 판) · body 는 한두 문장 요약(300자 안 · 문단 하나). kmd 가 칸마다 머리(## 바뀐 것 …)를 달아 글로 엮는다. 바뀐 것의 값은 고칠 항목 글에 들어가야 한다. 바뀐 값 없이 경위만 있는 기록은 조각 없이 touches 의 항목에 글 그대로 잇는다. touches 는 match 로 찾은 이름 장부의 이름만 받는다(장부에 없는 이름 · 폐기된 이름은 거절하고 가까운 이름을 알려 준다). 이을 항목이 정말 없으면 touches 를 비우고 touchesEmpty 에 까닭 한 줄을 적는다(기록 모음 문서의 그 달 항목에 잇는다 · 둘 다 비면 거절). 정해지지 않은 것은 저장하지 않는다(메모는 없다 · 이슈를 받는 갈래가 있으면 이슈 항목으로 제기). 새 문서는 갈래 장부의 갈래 이름으로만 선다(파일 이름 · 날짜 · 판이 든 이름은 거절 · 통화 · 미팅 메모는 회의록 문서의 「YYYY-MM-DD 무엇」 항목으로). 항목 글을 고쳤으면 sections 에 바꿀 조각(edits: find → replace) 또는 새 글(content)을 base 와 같이 보낸다. 읽은 뒤 누가 고친 항목(지문이 다름 · base 없음)이 하나라도 있으면 E_CONFLICT 로 아무것도 쓰지 않는다(details.stale 의 항목을 section 으로 다시 읽고 다시 제안한다). E_RATE 면 details.retryAfter 초 뒤에 다시. kit 에 스킬 글이 준 판을 늘 싣는다: 옛 판이면 답(또는 E_APPROVE 의 details)에 reinstall(다시 설치 안내) · 판 없이 오면 nokit(스킬을 거치지 않은 저장 · 다음 저장부터 스킬 글대로)이 온다. 사람에게 그 how 를 그대로 한 줄로 전한다. 새 이름(테이블 · 화면 · API · 절차 · 용어 …)을 세웠으면 names 로 이름 장부 · 자리 장부에 같이 올린다. 저장 승인 전 팀 지식은 proposal 없이도 받고, 검사를 못 넘은 조각은 응답 proposals 에 ok: false 와 까닭(why · code · near)이 온다: 고쳐 다시 제안하고 record.fixes 에 앞 기록 id 를 단다. 한 번에 한 묶음으로 남는다.',
       '항목 글(sections.content)은 본문만: 대상 하나의 지금을 확정된 것만 「…한다 · …이다」 로. 링크는 지식 문서 [배포 절차](배포절차.md) · 항목 [준비](배포절차.md#준비) · 바깥 https://… 만.',
-      '넣지 않는 것(팀: 그 조각만 넣지 못함으로 남고 기록은 선다 · 고쳐 다시 보낼 때 record.fixes 에 앞 기록 id · 개인 프로그램: E_FORMAT 거절): 기록 · 이력 링크(../work/… · ../log/…) · /api/… 같은 시스템 주소 · <!-- --> 주석 · 끝의 **경과** 기록 링크 목록 · 닫히지 않은 코드 울타리 · # · ## 머리 줄(소제목은 ###). 지금 글에 이미 있던 줄은 거절하지 않는다(새로 넣은 줄만). 출처 줄은 kmd 가 참고에 단다.',
+      '넣지 않는 것(E_FORMAT · 저장 승인 전 팀 지식은 그 조각만 proposals 에 ok: false): 기록 · 이력 링크(../work/… · ../log/…) · /api/… 같은 시스템 주소 · <!-- --> 주석 · 끝의 **경과** 기록 링크 목록 · 닫히지 않은 코드 울타리 · # · ## 머리 줄. 짜임은 수준 표시(1. · 1) · -)로 들여쓰지 않는다. 지금 글에 이미 있던 줄은 거절하지 않는다(새로 넣은 줄만). 출처 줄은 kmd 가 참고에 단다.',
       '좋은 예: 「배포 창은 화 · 목 14:00 ~ 17:00 이다.」 나쁜 예: 「배포 창을 바꿨다는 기록이 있다([기록](../work/2026-1021-배포-창.md))」.',
       '알림만(거절하지 않는다 · warnings 에 「문서 짜임」): 머리 단계 건너뜀(## 바로 아래 ####) · ##### 머리 · 제목 · 요약 없음(메타 표는 요약이 아니다) · 머리글의 kmd 운영 말(좌표 · 섹션 · 동기화 · touches 같은 말). 이 저장으로 새로 생긴 것만 알린다.',
     ].join(' '),
@@ -86,8 +89,8 @@ const TOOLS = [
       type: 'object',
       properties: {
         knowledge: str('지식 id'),
-        kit: str('팀 지식: 스킬 판(kmd-team-save · kmd-team-import 스킬 글이 준 값 그대로 · 예 "3")'),
-        proposal: str('승인한 저장 제안의 지문(propose 가 준 proposal 64자 그대로): 저장 제안을 받는 팀 지식은 꼭 싣는다. 없거나 어긋나면 E_APPROVE 로 아무것도 쓰지 않고 새 제안(details.propose)을 돌려준다'),
+        kit: str('스킬 판(kmd-team-save · kmd-team-import · kmd-save 스킬 글이 준 값 그대로 · 예 "8")'),
+        proposal: str('승인한 저장 제안의 지문(propose 가 준 proposal 64자 그대로): 저장 제안을 받는 지식(brief 의 saveMode: approve)은 꼭 싣는다. 없거나 어긋나면 E_APPROVE 로 아무것도 쓰지 않고 새 제안(details.propose)을 돌려준다'),
         distinct: { type: 'array', items: { type: 'string' }, description: 'propose 에 보낸 distinct 그대로' },
         excluded: { type: 'array', items: { type: 'object', properties: { name: str('뺀 이름 · 항목'), why: str('까닭 한 줄') }, required: ['name'] }, description: 'propose 에 보낸 excluded 그대로' },
         kinds: { type: 'array', items: { type: 'string' }, description: 'propose 에 보낸 kinds 그대로' },
@@ -105,15 +108,14 @@ const TOOLS = [
             touches: { type: 'array', items: { type: 'string' }, description: '글이 실제로 바뀌는 항목의 이름(coord)만: match 로 찾은 이름 장부의 이름 · 예 proc:헬스체크 · 읽기만 한 항목은 달지 않는다' },
             touchesEmpty: str('건드린 이름이 정말 없을 때만: 그 까닭 한 줄(예: 항목이 아직 없는 일정 메모). touches 와 같이 보내지 않는다'),
             tags: { type: 'array', items: { type: 'string' } },
-            fixes: { type: 'array', items: { type: 'string' }, description: '바로잡는 기록 id: 넣지 못함 · 메모로 끝난 내 앞 기록을 고쳐 다시 저장할 때(남의 기록은 지식관리자만)' },
-            memo: { type: 'boolean', description: '메모: 값이 아직 확정되지 않았다(머지 · 배포 · 결정 전). 기록만 남고 문서는 바꾸지 않는다 · sections 를 같이 보내지 않는다 · changes 없이 body 만으로 된다(touches 또는 touchesEmpty 는 그대로 단다)' },
+            fixes: { type: 'array', items: { type: 'string' }, description: '바로잡는 기록 id: 저장 승인 전 지식에서 못 넘은 조각 · 메모로 끝난 내 앞 기록을 고쳐 다시 저장할 때(남의 기록은 지식관리자만)' },
           },
-          // changes 는 메모(memo: true)가 아니면 서버가 꼭 받는다(core/guard.js recordBody · E_INPUT)
+          // changes 는 서버가 본다(core/guard.js recordBody · 바뀐 것이 없는 경위만 기록은 저장 승인 지식에서 글 그대로 잇기)
           required: ['title'],
         },
         sections: {
           type: 'array',
-          items: { type: 'object', properties: { coord: str('이름'), doc: str('문서'), heading: str('머리'), content: str('항목의 새 글 전체(머리 줄 빼고 · 본문만: 기록 링크 · 주석 · 경과 목록 없이): from · append 를 쓰면 잇는 말 · 바뀐 값만'), base: str('section 이 준 지문: 이미 있는 항목이면 꼭 · 읽은 뒤 바뀌었으면 거절'), edits: { type: 'array', items: { type: 'object', properties: { find: str('지금 글에 꼭 한 번 나오는 글(section 이 준 글에서 그대로 복사 · 줄 단위)'), replace: str('그 자리에 들어갈 글(덧붙이지 말고 그 문장을 고쳐 쓴다 · 지우면 빈 글)') }, required: ['find', 'replace'] }, description: '팀 지식: 항목 글 전체(content) 대신 바꿀 조각만. base 와 같이. 서버가 지금 글에 대어 검사(꼴 · 값 대조)하고 넘으면 그 순간 넣는다(값 바꿈도 · 권한 모델 7절). 걸리면 응답 proposals 에 까닭 · 가까운 줄이 온다: 기록은 남고 그 조각만 넣지 못함이니 조각을 고쳐 다시 save 한다(record.fixes 에 앞 기록 id)' }, from: str('넣기 에이전트만: 원문 그대로여야 하는 표 · 값 덩이 하나를 그 머리로 가리키면 서버가 그 머리 아래를 옮긴다(content 다음에 붙는다) · 파일 전체("*")는 받지 않는다. 항목 글은 정리해 content 로'), append: { type: 'boolean', description: '넣기 에이전트만: 지금 항목 글 끝에 보탠다(지금 글을 다시 보내지 않는다)' } } },
+          items: { type: 'object', properties: { coord: str('이름'), doc: str('문서'), heading: str('머리'), content: str('항목의 새 글 전체(머리 줄 빼고 · 본문만: 기록 링크 · 주석 · 경과 목록 없이): from · append 를 쓰면 잇는 말 · 바뀐 값만'), base: str('section 이 준 지문: 이미 있는 항목이면 꼭 · 읽은 뒤 바뀌었으면 거절'), edits: { type: 'array', items: { type: 'object', properties: { find: str('지금 글에 꼭 한 번 나오는 글(section 이 준 글에서 그대로 복사 · 줄 단위)'), replace: str('그 자리에 들어갈 글(덧붙이지 말고 그 문장을 고쳐 쓴다 · 지우면 빈 글)') }, required: ['find', 'replace'] }, description: '항목 글 전체(content) 대신 바꿀 조각만. base 와 같이. 서버가 지금 글에 대어 검사(꼴 · 값 대조)하고, 제안서에 옛 → 새 줄과 경고로 보인다' }, from: str('넣기 에이전트만: 원문 그대로여야 하는 표 · 값 덩이 하나를 그 머리로 가리키면 서버가 그 머리 아래를 옮긴다(content 다음에 붙는다) · 파일 전체("*")는 받지 않는다. 항목 글은 정리해 content 로'), append: { type: 'boolean', description: '넣기 에이전트만: 지금 항목 글 끝에 보탠다(지금 글을 다시 보내지 않는다)' } } },
         },
         forms: {
           type: 'array',
@@ -166,9 +168,9 @@ export function makeMcp(store) {
       if (!knowledge) {
         const ks = await store.all(ctx)
         return {
-          // mine — 내가 남긴 것 가운데 안 넣은 메모 · 넣지 못함 수(팀 · K3-3) · 스킬이 0 이 아니면 한 줄로 전한다
+          // mine — 내가 승인으로 경고를 받아들인 기록 수 · 저장 승인 전 지식의 안 넣은 메모 · 넣지 못함 수(팀 · K3-3) · 스킬이 0 이 아니면 한 줄로 전한다
           knowledge: ks.map((k) => { const mine = store.mineIn(ctx, k); return { id: k.id, name: k.name, ...whereOf(store, k.id), docs: k.docs.length, records: k.works.length, notYetInDocs: k.works.filter((w) => w.state === 'pend').length, ...(mine ? { mine } : {}) } }),
-          ...(store.mode === 'pc' ? {} : { kit: TEAM_KIT_REV, parser: await parserOf() }),
+          ...(store.mode === 'pc' ? { kit: PC_KIT_REV } : { kit: TEAM_KIT_REV, parser: await parserOf() }),
           next: ks.length ? 'brief { knowledge } 로 지식 하나를 본다' : '아직 지식이 없다',
           stops: (await store.stops(ctx)).map((l) => l.text),
           // 노란 줄 — kmd 가 값을 바꾼 것 · 새 기기(한 번 실린다 · 사용자에게 그대로 전한다)
@@ -177,11 +179,14 @@ export function makeMcp(store) {
       }
       const k = await store.get(knowledge, ctx)
       const mine = store.mineIn(ctx, k, { recent: 5 })
+      // 저장 방식(저장 승인 설계 P-D5 · P-D40) — approve: 저장 제안을 승인받아 save(proposal) · old: 저장 승인 전 지식(팀 held · 옛 개인 지식)
+      const approve = store.saveModeOf?.(k.id) === 'approve'
       return {
         id: k.id,
         name: k.name,
         ...whereOf(store, k.id),
-        ...(store.mode === 'pc' ? {} : { kit: TEAM_KIT_REV, parser: await parserOf() }),
+        saveMode: approve ? 'approve' : 'old',
+        ...(store.mode === 'pc' ? { kit: PC_KIT_REV } : { kit: TEAM_KIT_REV, parser: await parserOf() }),
         docs: k.docs.map((d) => ({ doc: d.id, title: d.title, headings: d.sections.map((s) => s.h) })),
         recent: k.works.slice(0, 10).map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title })),
         notYetInDocs: k.works.filter((w) => w.state === 'pend').map((w) => ({ id: w.id, date: w.date, title: w.title })),
@@ -195,10 +200,10 @@ export function makeMcp(store) {
         rules: [
           'touches 는 match 로 찾은 이름 장부의 이름만. 새 이름은 names 로 같이 세운다(값은 빈칸 없는 열쇠 · 설명은 label)',
           '건드린 이름이 정말 없으면 touches 를 비우고 touchesEmpty 에 까닭 한 줄',
-          k.forms.own ? '새 문서는 forms 의 갈래 이름 · 폴더로만. 갈래에 없는 문서가 필요하면 지식관리자에게(forms 로 갈래를 세운다)' : '새 문서 이름은 갈래 · 주제(회의록 · 장애 대응 · 보고서 · 주제 이름). 파일 이름 · 날짜 · 판을 쓰지 않는다. 통화 · 미팅은 회의록의 「YYYY-MM-DD 무엇」 항목',
+          k.forms.own ? (approve ? '새 문서는 forms 의 갈래 이름 · 폴더로만. 갈래에 없는 문서가 필요하면 forms 로 새 갈래를 같이 제안한다' : '새 문서는 forms 의 갈래 이름 · 폴더로만. 갈래에 없는 문서가 필요하면 지식관리자에게(forms 로 갈래를 세운다)') : '새 문서 이름은 갈래 · 주제(회의록 · 장애 대응 · 보고서 · 주제 이름). 파일 이름 · 날짜 · 판을 쓰지 않는다. 통화 · 미팅은 회의록의 「YYYY-MM-DD 무엇」 항목',
         ],
-        // 저장이 곧 반영(S13 · 정리를 걷었다) — 조각을 실은 저장은 그 순간 넣거나 넣지 못함 · 조각 없는 기록은 메모(PC 는 kmd 가 곧바로 넣는다)
-        put: store.mode === 'pc' ? 'kmd 가 곧바로 문서에 넣는다' : '항목 조각을 실은 저장은 그 순간 문서에 넣는다(못 넘은 조각은 넣지 못함) · 조각 없는 기록은 메모로 남는다',
+        // 넣는 길(팀 · 개인 한 벌 · 저장 승인 설계 P-D44) — approve: 승인한 제안이 기록 + 조각 한 번에 · 저장 승인 전 지식은 옛 길 그대로(팀 held · 옛 개인 지식의 바로 넣기)
+        put: approve ? '저장 제안(propose)을 사람에게 보이고 승인받은 proposal 을 실어 save 하면 기록과 항목 조각이 한 번에 들어간다. 정해지지 않은 것은 저장하지 않는다' : store.mode === 'pc' ? '저장 승인 전 개인 지식: 제안 없이 save 한다(사람에게 입력을 보이고 승인받은 뒤). 기록은 kmd 가 문서에 넣는다' : '저장 승인 전 팀 지식: 항목 조각을 실은 저장은 검사를 넘으면 그 순간 문서에 넣는다(못 넘은 조각은 proposals 에 ok: false)',
         ...(store.owner(k.id)?.noClaude ? { noClaude: '이 지식은 들이기에 Claude 를 쓰지 않는다(주인이 정했다). 이 대화로 옮기는 글은 꼭 필요한 것만' } : {}),
         stops: (await store.stops(ctx, k.id)).map((l) => l.text),
       }
@@ -337,33 +342,36 @@ export function makeMcp(store) {
       }
       // 채널은 서버가 정한다(S-D3 · 설계 2-1) — 넣은 파일 표지(ingest/)가 있으면 대량 넣기, 아니면 세션
       const channel = (Array.isArray(record?.tags) ? record.tags : []).some((t) => String(t).startsWith('ingest/')) ? 'bulk' : 'session'
-      // 스킬 판(S-D15) — 팀 세션만 본다(kmd 가 띄운 넣기 에이전트 · 이 PC 는 팀 스킬이 아니다). 저장은 그대로 한다
-      //   개인 세션(PC_KIT_REV · 「개인 화면 › 설정 › 에이전트 설치에서 다시 설치」 안내)은 PC2 — 그때 이 자리(teamSession · reinstall)에서 개인 판도 본다(저장 승인 설계 P-D40 · b26)
-      //   옛것이면 답에 reinstall(다시 설치) · 없음(또는 판 모양이 아님)이면 nokit — 스킬을 거치지 않은 저장이라 다시 설치해도 그대로다
+      // 스킬 판(S-D15 · 저장 승인 설계 P-D5 · P-D40 · b26) — 사람의 세션만 본다(kmd 가 띄운 넣기 에이전트는 스킬 판이 없다)
+      //   팀 서버는 팀 스킬 판(TEAM_KIT_REV) · 개인 프로그램은 개인 스킬 판(PC_KIT_REV)을 견준다. 옛것이면 reinstall(다시 설치) · 없음(또는 판 모양이 아님)이면 nokit —
+      //   스킬을 거치지 않은 저장이라 다시 설치해도 그대로다. 팀은 저장 답에도 싣고(held 모드 지식은 옛 판 저장도 받는다) · 개인은 E_APPROVE 에만 싣는다(옛 개인 지식은 판을 보지 않는다)
       const have = typeof kit === 'number' || (typeof kit === 'string' && /^\s*\d{1,6}\s*$/.test(kit)) ? Number(kit) : null
-      const teamSession = store.mode !== 'pc' && !ctx?.agent
-      const reinstall = !teamSession || (Number.isInteger(have) && have >= TEAM_KIT_REV) ? {}
+      const pc = store.mode === 'pc'
+      const want = pc ? PC_KIT_REV : TEAM_KIT_REV
+      const kitHint = ctx?.agent || (Number.isInteger(have) && have >= want) ? {}
         : Number.isInteger(have)
-          ? { reinstall: { have, want: TEAM_KIT_REV, how: '이 폴더의 kmd 팀 스킬이 옛 판이다(저장은 했다). 팀 화면 › 설정 › 에이전트 설치의 한 줄을 이 폴더에서 다시 붙여 넣고 Claude Code 를 새로 연다' } }
-          : { nokit: { want: TEAM_KIT_REV, how: `스킬 판(kit) 없이 저장했다(저장은 했다 · 다시 설치할 일은 아니다). 팀 지식 저장은 kmd-team-save 스킬 글대로 하고 save 에 kit: "${TEAM_KIT_REV}" 를 싣는다` } }
+          ? { reinstall: { have, want, how: pc ? '이 폴더의 kmd 개인 스킬이 옛 판이다. 개인 화면 › 설정 › 에이전트 설치에서 이 폴더를 다시 설치하고 Claude Code 를 새로 연다' : '이 폴더의 kmd 팀 스킬이 옛 판이다. 팀 화면 › 설정 › 에이전트 설치의 한 줄을 이 폴더에서 다시 붙여 넣고 Claude Code 를 새로 연다' } }
+          : { nokit: { want, how: `스킬 판(kit) 없이 보냈다(다시 설치할 일은 아니다). ${pc ? '개인 지식 저장은 kmd-save' : '팀 지식 저장은 kmd-team-save'} 스킬 글대로 저장 제안을 승인받고 save 에 kit: "${want}" 를 싣는다` } }
+      const reinstall = pc ? {} : kitHint
       // 승인한 저장 제안(저장 승인 설계 P-D5 · P3 · PC1) — approve 모드 지식(팀 · 개인)은 proposal 이 의무(없거나 어긋나면 E_APPROVE + 새 propose 결과 · 옛 판이면 다시 설치 안내도)
       const extra = { ...(proposal != null ? { proposal } : {}), ...(distinct != null ? { distinct } : {}), ...(excluded != null ? { excluded } : {}), ...(kinds != null ? { kinds } : {}) }
       let r
       try {
         r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}), ...(forms ? { forms } : {}), ...(attach ? { attach } : {}), ...extra }, { guard: 'strict', form: true, channel, ...(Number.isInteger(have) ? { kit: have } : {}) })
       } catch (e) {
-        if (e instanceof KmdError && e.code === 'E_APPROVE' && (reinstall.reinstall || reinstall.nokit)) e.details = { ...(e.details || {}), ...reinstall }
+        if (e instanceof KmdError && e.code === 'E_APPROVE' && (kitHint.reinstall || kitHint.nokit)) e.details = { ...(e.details || {}), ...kitHint }
         throw e
       }
       if (r.same) return { saved: r.id, same: true, docs: [], note: r.note, ...reinstall }
       const n = r.docs.length
-      const note = r.note || (n ? `저장했다. 기록 1 · 문서 ${n}` : store.mode === 'pc' ? '기록했다. 이 PC 는 kmd 가 곧바로 문서에 넣는다' : '저장했다. 기록 1')
+      const note = r.note || (n ? `저장했다. 기록 1 · 문서 ${n}` : '저장했다. 기록 1')
       return { saved: r.id, date: r.date, docs: r.docs.map((p) => p.replace(/^docs\/|\.md$/g, '')), note, ...(r.attach ? { attach: r.attach } : {}), ...(r.put != null ? { put: r.put } : {}), ...(r.held ? { held: r.held } : {}), ...(r.memo ? { memo: true } : {}), warnings: r.warnings, ...(r.proposals ? { proposals: r.proposals } : {}), ...reinstall }
     },
   }
 
   // 상태 말 — 저장 문의 새 상태(넣지 못함 · 메모 · 바로잡힘 · 되돌림)는 「문서에 들어감」 으로 보이지 않게(S4 · 나머지 말은 S10)
-  const STATE_WORD = { pend: store.mode === 'pc' ? '아직 문서에 안 넣음' : '개편 전 기록(저절로 들어가지 않는다)', held: '넣지 못함', memo: '메모', fixed: '바로잡힘', reverted: '되돌림', kept: '버림' }
+  //   팀 · 개인 한 벌(저장 승인 설계 P-D44 · P4 · PC2) — 저장 승인 전 지식의 옛 상태(pend · held · memo · kept)만 남는다
+  const STATE_WORD = { pend: '아직 문서에 안 들어감', held: '넣지 못함', memo: '메모', fixed: '바로잡힘', reverted: '되돌림', kept: '버림' }
   const recOut = (w) => ({ id: w.id, date: w.date, author: w.author, title: w.title, state: STATE_WORD[w.state] || '문서에 들어감' })
 
   async function call(msg, ctx) {
