@@ -34,6 +34,18 @@ function answer() {
   const ok = args.includes('-p') && args.includes('--tools') && val('--tools') === '' && args.includes('--strict-mcp-config') && JSON.parse(val('--mcp-config') || '{}').mcpServers && val('--json-schema') && fs.readdirSync(process.cwd()).length === 0
   if (!ok) return say({ is_error: true, subtype: 'error', result: '가짜 claude: 도구 0 · 빈 MCP · 스키마 · 빈 폴더를 지키지 않았다' })
   if (process.env.FAKE_CLAUDE_MODE === 'logout') return say({ is_error: true, subtype: 'error', result: 'Invalid API key · Please run /login' })
+  // 바탕 세우기 구조안(Z7 · core/shape.js seedPlanPromptOf) — 넣음 재료마다 항목 하나(머리 = 파일 이름) · 문서 「업무 안내」 하나 · 첫 재료에 이름 하나
+  //   FAKE_CLAUDE_MODE=badseed → 처음 답은 재료 하나를 빠뜨린다(덮임 걸림 → 고쳐 쓰기)
+  if (prompt.startsWith('바탕 세우기 구조안을 짓는다')) {
+    const fixing = prompt.includes('\n\n지난 초안이 kmd 검사에 걸렸다')
+    if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, fixing ? 'seed-plan fix\n' : 'seed-plan\n')
+    const p = prompt.split('\n\n지난 초안이')[0]
+    const mats = [...p.matchAll(/^\[material (m:[0-9a-f]{16})\] (.+?) · (넣음|근거만)/gm)].map((m) => ({ src: m[1], path: m[2], pick: m[3] }))
+    let items = mats.filter((m) => m.pick === '넣음').map((m) => ({ h: m.path.split('/').pop().replace(/\.[^.]+$/, '').replace(/[#%]/g, ''), src: [m.src], note: '파일 하나가 대상 하나' }))
+    if (process.env.FAKE_CLAUDE_MODE === 'badseed' && !fixing) items = items.slice(1)
+    const out = { docs: [{ id: '업무 안내', items }], names: items.length ? [{ coord: 'topic:' + items[0].h.replace(/\s+/g, ''), label: items[0].h, doc: '업무 안내', h: items[0].h }] : [], skip: [], why: '파일마다 항목 하나' }
+    return say({ structured_output: out })
+  }
   // Claude 짜임 구조안(Z6 · core/shape.js shapePlanPromptOf) — 지금 짜임 그대로 + 문서마다 끝 낱말이 같은 항목 둘 이상을 「<낱말> 목록」 하나로 합친다
   //   FAKE_CLAUDE_MODE=badplan → 처음 답은 항목 하나를 빠뜨린다(덮임 걸림 → 고쳐 쓰기) · badplanall → 고쳐 써도
   if (prompt.startsWith('문서 짜임 구조안을 짓는다')) {
@@ -71,6 +83,13 @@ function answer() {
     const bodies = srcs.split(/^\[source .+\]$/m).map((x) => x.trim()).filter(Boolean)
     const lines = bodies.join('\n').split('\n').filter((l) => l.trim())
     const mode = process.env.FAKE_CLAUDE_MODE || ''
+    // 바탕 세우기(Z7) — 목표마다 제 몫의 재료 글(머리 줄은 걷는다)
+    if (p.includes('- 바탕 세우기: 출처는')) {
+      const mat = new Map([...srcs.matchAll(/^\[source 재료 › (.+)\]\n([\s\S]*?)(?=^\[source |(?![\s\S]))/gm)].map((m) => [m[1], m[2].split('\n').filter((l) => !/^#{1,6}\s/.test(l)).join('\n').trim()]))
+      const part = new Map([...p.matchAll(/^\[target (.+?) › (.+?)\] 몫: 재료 (.*)$/gm)].map((m) => [m[2], m[3].split(' · ')]))
+      const items = targets.map((t) => ({ doc: t.doc, h: t.h, text: ((part.get(t.h) || []).map((x) => mat.get(x)).filter(Boolean).join('\n\n') || '글') + (mode === 'lie' ? '\n그리고 999초 기다린다.' : '') }))
+      return say({ structured_output: { items, why: '재료 글로 지었다' } })
+    }
     const items = targets.map((t, i) => {
       let text = targets.length === 1 ? bodies.join('\n\n') : lines.filter((_, j) => Math.floor((j * targets.length) / lines.length) === i).join('\n') || lines[0] || '글'
       if ((mode === 'badwrite' && !fixing) || mode === 'badwriteall') text = `## 주입\n${text}`

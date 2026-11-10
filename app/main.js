@@ -561,6 +561,18 @@ const TIPS = {
   'kd.gitlab': ['서버의 GitLab 연결로 새 저장소를 만들어 붙인다. 그룹은 봇이 만들 수 있는 곳 · 이름은 영문 · 숫자 · . _ - · 가지 처음 값 main', ''],
   'kd.repo': ['지식마다 붙이는 git 저장소다. 저장할 때마다 kmd 가 보낸다 · 비었거나 이 지식의 지난 이력이어야 붙는다 · 주소 속 열쇠는 가린다', ''],
   'mg.seed': ['빈 지식을 폴더째 재료로 한 번에 세운다. 파일 몇 개는 생성 › 수기수집', ''],
+  'sd.kn': ['문서가 없는 지식에만 세운다. 먼저 수기수집으로 넣은 지식은 고를 수 없다 · [넣기] 전에는 지식이 바뀌지 않는다', ''],
+  'sd.src': ['이 PC 의 폴더 경로. kmd-seed 스킬이 만든 짜임 꾸러미 폴더도 같은 칸에 넣는다', ''],
+  'sd.big': ['이 화면은 한 번에 300 파일 · 200MB 까지 연다. 넘으면 Claude Code 에서 kmd-seed 스킬로 짜임 꾸러미를 만든 뒤 그 폴더를 넣는다', ''],
+  'sd.claude': ['비밀 의심 파일은 보내지 않는다. 구조안 · 글을 지을 때 고른 파일의 글이 이 PC 의 Claude 로 간다', ''],
+  'sd.pick': ['넣음: 글로 쓴다 · 근거만: 값을 견줄 때만 · 빼기: 쓰지 않는다 · 보류: 이번에는 둔다. 옛 판 · 같은 글은 빼기, 비밀 의심 · 스캔은 보류가 처음 값', ''],
+  'sd.plan': ['어떤 문서 · 항목을 세울지. 문서 이름은 여기서 고친다 · 걸림이 0 이어야 다음으로', ''],
+  'sd.mode': ['Claude 안: 파일을 대상 · 주제로 다시 묶는다 · 폴더 그대로: 파일 하나가 문서 하나(Claude 를 부르지 않는다)', ''],
+  'sd.write': ['문서마다 항목 글. 재료에 없는 값은 알려 준다 · [보기] 에서 손으로 고친다', ''],
+  'sd.first': ['Claude 안이면 처음 3 문서는 하나씩 읽고 승인한 뒤 남은 문서를 모두 짓는다', ''],
+  'sd.diag': ['연습 판(지식의 사본)에 모두 넣어 본 결과. 막는 것이 0 이어야 넣는다 · 값 대조는 재기만 한다', ''],
+  'sd.values': ['재료 글에 없는 값이 든 항목. 막지 않는다 · 넣은 뒤 그 문서에서 고친다', ''],
+  'sd.put': ['걸음마다 한 번에 넣는다. 걸린 걸음은 아무것도 쓰지 않고 선다 · 꺼졌다 켜면 [이어 넣기]', ''],
   'mg.people': ['사람을 들이고 지식마다 자리를 준다. 바꾸기는 총괄 관리자만', ''],
   'set.claude': ['이 프로그램이 쓰는 내 Claude 로그인 · 일마다 모델', ''],
   'set.restore': ['저장소 주소에서 새 지식으로 불러온다. 삭제는 보관하지 않으므로 삭제한 지식은 저장소에서만 돌아온다', ''],
@@ -782,7 +794,7 @@ function draw() {
   S._view = view
   S._lpView = lpView
   S._hasAside = !!scr.aside
-  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${gated() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside"><button type="button" class="hb afold" data-a="asideRail" data-t="asideFold" aria-expanded="${!UI.asideRail}" title="${UI.asideRail ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'} (Ctrl ])" aria-label="${UI.asideRail ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'}">${svg(UI.asideRail ? 'sideL' : 'sideR')}</button><div class="asc" data-t="asideScroll">${scr.aside}</div>${gripHtml('aside')}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.rsWin ? rsWinHtml() : ''}${S.devWin ? devWinHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S.paste && S.route.scr === 'import' ? pasteWinHtml() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.recFix ? recFixHtml() : ''}${S.sv ? svHtml() : ''}${S.past ? pastHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}${S.keys ? keysHtml() : ''}`
+  app.innerHTML = sideHtml(scr.left) + `<div class="col">${hdrHtml(scr.crumb)}${gated() ? '' : bandHtml()}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside"><button type="button" class="hb afold" data-a="asideRail" data-t="asideFold" aria-expanded="${!UI.asideRail}" title="${UI.asideRail ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'} (Ctrl ])" aria-label="${UI.asideRail ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'}">${svg(UI.asideRail ? 'sideL' : 'sideR')}</button><div class="asc" data-t="asideScroll">${scr.aside}</div>${gripHtml('aside')}</div>` : ''}</div>${statusHtml()}</div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.rsWin ? rsWinHtml() : ''}${S.devWin ? devWinHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S.paste && S.route.scr === 'import' ? pasteWinHtml() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.recFix ? recFixHtml() : ''}${S.sv ? svHtml() : ''}${S.past ? pastHtml() : ''}${S.sdw && S.route.scr === 'home' ? sdwHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}${S.keys ? keysHtml() : ''}`
   app.classList.toggle('side-open', !!S.sideOpen && !gated())
   app.classList.toggle('aside-open', !!S.asideOpen && !!scr.aside)
   placeUi()
@@ -1329,10 +1341,225 @@ function kdPolicy(n) {
 function kdDel(n) {
   return `<div class="callout danger" data-t="kdDelWarn"><i></i><span><b>삭제는 되돌릴 수 없다</b> · 보관하지 않는다. 저장소에 사본이 있으면 불러오기로 돌아온다</span></div><div class="row kdacts"><button type="button" class="btn danger" data-a="delOpen" data-k="${esc(n.id)}" data-t="delOpen">삭제</button></div>`
 }
-// 기초 세우기(8-1 · 8-2) — 화면은 TODO 9 에서 · 지금은 준비 중 빈 상태(빈 지식은 생성 › 수기수집으로 채운다)
+// 기초 세우기(TODO 9 · 메뉴개편 8-1 · 바탕 설계 5-3 · 통합 I1) — 개인: 단계 띠 일곱(지식 · 재료 · 거르기 · 구조안 · 짓기 · 진단 · 넣기).
+//   서버 장부(짜임 일 kind seed)가 단계를 쥔다(GET /api/k/:id/seed · 다시 열면 그 단계에서 잇는다) · 도는 일(조사 · Claude 구조안 · 짓기 · 넣기)은 1.2초마다 다시 읽는다.
+//   팀은 TODO 10(팀 화면 안 올리기 · 팀 일꾼) — 그때까지 준비 중. 넣기 전에는 지식이 바뀌지 않는다
+const SD_STEPS = ['지식', '재료', '거르기', '구조안', '짓기', '진단', '넣기']
+const SD_TIP = ['sd.kn', 'sd.src', 'sd.pick', 'sd.plan', 'sd.write', 'sd.diag', 'sd.put']
+const SD_PICKS = ['넣음', '근거만', '빼기', '보류']
+const sdState = () => (S.sd ||= { kn: null, ui: 0, back: false, path: '', v: null, err: null, busy: '', open: null, openErr: null, t0: 0 })
+const sdUrl = (k, x) => `/api/k/${encodeURIComponent(k)}/seed${x ? '/' + x : ''}`
+const sdWork = (d) => (d.v && d.v.work && !d.v.work.other && !d.v.work.broken && d.v.work.mine ? d.v.work : null)
+const sdRunning = (d) => !!(d.v && d.v.run && d.v.run.state === 'running')
+// 지금 단계 — 장부가 있으면 장부의 단계(이전으로 재료를 다시 볼 때만 1) · 조사 중이면 1 · 없으면 화면의 단계(0 · 1)
+function sdStep(d) {
+  const w = sdWork(d)
+  if (d.pick0 || !d.kn) return 0
+  if (d.v && d.v.run && d.v.run.kind === 'survey' && d.v.run.state === 'running') return 1
+  if (w && d.back) return 1
+  if (w) return w.stage === 'done' || ['putting', 'stopped', 'rebase'].includes(w.stage) ? 6 : w.ui
+  return Math.min(d.ui, 1)
+}
+async function sdLoad(k, quiet) {
+  const d = sdState()
+  if (!k) return
+  d.loading = true
+  if (!quiet) { d.err = null; render() }
+  try {
+    const v = await getJSON(sdUrl(k))
+    if (d.kn !== k) return render()
+    d.v = v; d.err = null
+  } catch (e) { if (d.kn === k) d.err = e.message } finally { d.loading = false }
+  sdTick()
+  render()
+}
+async function sdLoadOpen() {
+  const d = sdState()
+  try { d.open = await getJSON('/api/seed/open'); d.openErr = null } catch (e) { d.openErr = e.message; d.openWait = false }
+  render()
+}
+// 도는 일 — 1.2초마다 다시 읽는다(이 화면에 있을 때만)
+function sdTick() {
+  const d = sdState()
+  clearTimeout(d.timer)
+  if (!(sdRunning(d) || d.busy === 'put')) return
+  d.timer = setTimeout(() => { if (S.route.scr === 'home' && S.route.page === 'seed' && d.kn) sdLoad(d.kn, true) }, 1200)
+}
+// 단추가 하는 일 — 오류는 화면 위 줄로 · 끝나면 다시 읽는다
+async function sdDo(busy, fn) {
+  const d = sdState()
+  if (d.busy) return
+  d.busy = busy; d.actErr = null; d.t0 = Date.now(); render()
+  try { const r = await fn(); if (r && r.kn && r.work !== undefined && r.claude) d.v = r } catch (e) { if (e.code !== 'E_CANCEL') d.actErr = e } finally { d.busy = '' }
+  await sdLoad(d.kn, true)
+}
+const sdSecs = (t) => Math.max(0, Math.round((Date.now() - Date.parse(t || 0)) / 1000))
+function sdBarHtml(st, w) {
+  const top = w ? w.top : st
+  return `<nav class="stepbar" aria-label="기초 세우기 단계" data-t="sdSteps">${SD_STEPS.map((l, i) => {
+    const cur = i === st, done = i < st, can = !cur && (i === 0 || (w ? i >= 1 && i <= top : i < st)), far = Math.abs(i - st) > 1 ? ' far' : ''
+    return `${i ? `<span class="sep${far}" aria-hidden="true">›</span>` : ''}<button type="button" class="step${done ? ' done' : ''}${far}" data-a="sdGoStep" data-v="${i}" data-t="sdStep-${i}"${cur ? ' aria-current="step"' : ''}${can ? '' : ' aria-disabled="true"'}><span class="n">${i + 1}</span>${done ? '<span class="ck" aria-hidden="true">✓</span><span class="sr-only">지남</span>' : ''}${l}</button>`
+  }).join('')}</nav>`
+}
+const sdNeed = (t) => `<span class="need" data-t="sdNeed">먼저: ${esc(t)}</span>`
+const sdRunHtml = (d, what) => { const r = d.v && d.v.run; return `<div class="callout sx-cj" role="status" data-t="sdRun"><span class="loading u-f1">${what} · ${sdSecs(r && r.at)}초</span>${r && r.kind !== 'survey' ? '<button type="button" class="btn ghost sm" data-a="sdStopRun" data-t="sdStopRun">그만두기</button>' : ''}</div>` }
+const sdRunFail = (d, kind) => { const r = d.v && d.v.run; return r && r.kind === kind && r.state === 'fail' ? `<div class="callout danger" role="alert" data-t="sdRunFail"><i></i><span>${esc(r.why || '하지 못했다')}</span></div>` : '' }
+// a 지식 — 지식관리자인 지식 · 빈 지식만 고른다(문서가 있으면 「문서 n」 · 고를 수 없음)
+function sdKnHtml(d) {
+  const list = (S.kns || []).filter((n) => !n.dim && lvOf(n) === 'admin')
+  const open = Array.isArray(d.open) ? d.open : []
+  const rows = list.map((n) => {
+    const ok = !n.docs, on = d.kn === n.id, going = open.find((x) => x.kn === n.id)
+    return `<label class="trow${on ? ' on' : ''}" data-t="sdKn"${ok ? '' : ' aria-disabled="true"'}><input type="radio" name="sdkn" data-sdkn="${esc(n.id)}"${on ? ' checked' : ''}${ok ? '' : ' disabled'}><span class="tn"><b>${esc(n.name)}</b></span>${ok ? (going ? chipOf('run', '만드는 중') : chipOf('ok', '빈 지식')) : `<span class="chip c-mute" data-t="sdKnDocs">문서 ${n.docs}</span>`}</label>`
+  }).join('')
+  const mine = open.filter((x) => x.mine)
+  const going = mine.length ? `<div class="card" data-t="sdOpen"><div class="ch">만들던 것 <small>${mine.length}</small></div><ul class="plain pl">${mine.map((x) => `<li><span class="nm"><b>${esc(x.name)}</b> <small>${esc(SD_STEPS[x.ui] || '')}</small></span><button type="button" class="btn sm" data-a="sdResume" data-k="${esc(x.kn)}" data-t="sdResume">이어 하기</button></li>`).join('')}</ul></div>` : d.openErr ? `<div class="callout danger err" data-t="sdOpenErr"><b>${esc(d.openErr)}</b><button type="button" class="btn sm retry" data-a="sdOpenRetry" data-t="retry">다시 읽기</button></div>` : ''
+  return `<div role="radiogroup" aria-label="빈 지식" data-t="sdKns">${rows || '<p class="muted" data-t="sdNoKn">지식이 없다</p>'}</div><div class="row u-g3"><button type="button" class="btn" data-a="openAdd" data-t="sdAdd">+ 새 지식</button></div>${going}`
+}
+// b 재료 — 경로 칸 · 한도 칩 · Claude 로 글이 간다
+function sdSrcHtml(d) {
+  const r = d.v && d.v.run, w = sdWork(d), lim = d.v ? d.v.limit : { files: 300, bytes: 200 << 20 }
+  if (r && r.kind === 'survey' && r.state === 'running') return sdRunHtml(d, `조사하는 중${r.n ? ` ${r.i}/${r.n}` : ''}`)
+  const big = r && r.kind === 'survey' && r.state === 'fail' && r.big
+  const fail = r && r.kind === 'survey' && r.state === 'fail' && !big ? sdRunFail(d, 'survey') : ''
+  const val = d.path || (w && w.src) || ''
+  return `<div class="field"><label for="sdPath">재료 경로</label><input class="inp mono" id="sdPath" data-in="sdPath" data-t="sdPath" value="${esc(val)}" placeholder="D:\\자료\\…" autocomplete="off"></div><div class="row u-g3 u-wrap"><span class="chip c-mute" data-t="sdLimit">${lim.files} 파일 · ${Math.round(lim.bytes / 1048576)}MB</span>${tipb('sd.big', '큰 폴더')}</div>${big ? `<div class="callout warn" data-t="sdBig"><i></i><span>파일 ${big.files}${big.files > lim.files ? '+' : ''} · 한도 넘음 <code>kmd-seed ${esc(val)}</code></span></div>` : ''}${fail}<div class="callout warn" data-t="sdClaudeNote"><i></i><span>글은 이 PC 의 Claude 로 간다</span>${tipb('sd.claude', 'Claude')}</div>`
+}
+// c 거르기 — 줄마다 고르기(넣음 · 근거만 · 빼기 · 보류) · 비밀 의심 · 글 없는 줄은 넣지 못한다
+function sdPickHtml(d, w) {
+  const rows = w.rows || []
+  if (w.rowsErr) return errHtml(w.rowsErr, null)
+  const n = (p) => rows.filter((r) => r.pick === p).length
+  const role = (r) => r.role === '정본' ? '' : r.role === '비밀 의심' ? `<span class="chip c-warn" title="${esc((r.secret || []).join(' · '))}" data-t="sdSecret">비밀 의심</span>` : r.role === '못 읽음' || r.role === '그림' || (r.role === '스캔' && !r.src) ? `<span class="chip c-mute" title="${esc(r.why || '')}">${esc(r.role)}</span>` : `<span class="chip c-mute">${esc(r.role)}</span>`
+  const body = rows.map((r, i) => {
+    const lock = !r.src || r.role === '비밀 의심'
+    return `<tr data-t="sdRow"><td><select class="inp" data-sdpick="${i}" aria-label="${esc(r.path)} 고르기" data-t="sdPick">${SD_PICKS.map((p) => `<option${r.pick === p ? ' selected' : ''}${lock && (p === '넣음' || p === '근거만') ? ' disabled' : ''}>${p}</option>`).join('')}</select></td><td class="mono sd-path" title="${esc(r.path)}">${esc(r.path)}</td><td>${role(r)}</td><td class="u-tr mono small">${r.chars ? r.chars.toLocaleString() : '-'}</td></tr>`
+  }).join('')
+  return `<div class="row u-g3 u-wrap" data-t="sdPickSum">${chipOf('ok', `넣음 ${n('넣음')}`)}<span class="chip c-mute">근거만 ${n('근거만')}</span><span class="chip c-mute">빼기 ${n('빼기')}</span><span class="chip c-mute">보류 ${n('보류')}</span><button type="button" class="btn sm" data-a="sdPickAll" data-t="sdPickAll"${d.busy ? ' disabled' : ''}>모두 넣기</button></div><div class="tblwrap"><table class="t" data-t="sdRows"><thead><tr><th>고르기</th><th>파일</th><th><span class="sr-only">판</span></th><th class="u-tr">글자</th></tr></thead><tbody>${body}</tbody></table></div>`
+}
+// d 구조안 — Claude 안 · 폴더 그대로 · 문서 이름은 손으로 고친다 · 검사(걸림 · 경고)
+function sdPlanHtml(d, w) {
+  const v = d.v, cl = v.claude || { ok: false }, r = v.run
+  const seg = `<div class="seg in" role="radiogroup" aria-label="구조안" data-t="sdMode"><button type="button" role="radio" aria-checked="${w.mode === 'claude'}" class="${w.mode === 'claude' ? 'on' : ''}" data-a="sdPlan" data-v="claude" data-t="sdModeClaude"${cl.ok && !d.busy && !sdRunning(d) ? '' : ' disabled'}${cl.ok ? '' : ` title="${esc(cl.why || '')}"`}>Claude 안</button><button type="button" role="radio" aria-checked="${w.mode === 'folder'}" class="${w.mode === 'folder' ? 'on' : ''}" data-a="sdPlan" data-v="folder" data-t="sdModeFolder"${d.busy || sdRunning(d) ? ' disabled' : ''}>폴더 그대로</button></div>${cl.ok ? '' : '<span class="chip c-mute" data-t="sdNoClaude">Claude 에 보내지 않음</span>'}`
+  const run = r && r.kind === 'plan' && r.state === 'running' ? sdRunHtml(d, `Claude 가 구조안을 짓는 중${r.tries > 1 ? ` · 고쳐 쓰기 ${r.tries - 1}` : ''}`) : sdRunFail(d, 'plan')
+  if (!w.plan) return `<div class="row u-g3 u-wrap">${seg}${tipb('sd.mode', '구조안')}</div>${run}`
+  const ck = w.check || { ok: false, errors: [], warnings: [] }
+  const docs = w.plan.docs.map((x, i) => `<li data-t="sdDoc"><span class="muted mono">${i + 1}</span><input class="inp u-f1" value="${esc(x.id)}" aria-label="문서 ${i + 1} 이름" data-sdren="${i}" data-t="sdDocName"${d.busy || sdRunning(d) ? ' disabled' : ''}><small class="muted">항목 ${x.items.length}</small></li>`).join('')
+  const errs = ck.errors.length ? `<div class="callout danger" data-t="sdPlanErr"><i></i><div><b>걸림 ${ck.errors.length}</b><ul class="sx-ul bad">${ck.errors.slice(0, 30).map(sxWhere).join('')}</ul></div></div>` : ''
+  const warns = ck.warnings.length ? `<details class="small" data-t="sdPlanWarn"><summary>경고 ${ck.warnings.length}</summary><ul class="sx-ul">${ck.warnings.slice(0, 50).map(sxWhere).join('')}</ul></details>` : ''
+  return `<div class="row u-g3 u-wrap">${seg}${tipb('sd.mode', '구조안')}${ck.ok ? chipOf('ok', '걸림 0') : ''}</div>${run}${w.why ? `<p class="small muted">${esc(w.why)}</p>` : ''}${errs}<div class="card" data-t="sdDocs"><div class="ch">문서 <small>${w.plan.docs.length}</small></div><ul class="plain sd-docs">${docs}</ul></div>${warns}`
+}
+// e 짓기 — 문서마다 글(Claude · 폴더 그대로 · 손으로) · 처음 3 문서 승인 · 모두 짓기
+const SD_ST = { wait: ['wait', '기다림'], run: ['run', '짓는 중'], ok: ['ok', '지음'], fail: ['held', '걸림'] }
+const sdNeedN = (w) => (w.mode === 'claude' ? Math.min(3, w.docs.length) : 0)
+function sdWriteHtml(d, w) {
+  const r = d.v.run, cl = d.v.claude || { ok: false }, run = sdRunning(d)
+  const need = sdNeedN(w), apN = w.docs.slice(0, need).filter((x) => x.ok).length
+  const rows = w.docs.map((x, i) => {
+    const st = SD_ST[x.state] || SD_ST.wait
+    const first = i < need
+    const acts = [
+      x.state !== 'ok' && x.state !== 'run' && cl.ok ? `<button type="button" class="btn sm" data-a="sdWriteOne" data-v="${i}" data-t="sdWriteOne"${run || d.busy ? ' disabled' : ''}>짓기</button>` : '',
+      x.state === 'ok' || x.state === 'fail' || x.state === 'wait' ? `<button type="button" class="btn sm" data-a="sdPeek" data-v="${i}" data-t="sdPeek">보기</button>` : '',
+      first && x.state === 'ok' && !x.ok ? `<button type="button" class="btn sm" data-a="sdApprove" data-v="${i}" data-t="sdApprove"${d.busy ? ' disabled' : ''}>승인</button>` : '',
+    ].join('')
+    return `<tr data-t="sdWRow"><td class="sd-path" title="${esc(x.id)}">${esc(x.id)}${first ? ` ${x.ok ? chipOf('ok', '승인') : '<span class="chip c-mute">처음</span>'}` : ''}</td><td class="u-tr">${x.items.length}</td><td>${chipOf(st[0], st[1])}${x.values.length ? ` <span class="chip c-warn" title="${esc(x.values.map((y) => y.why).join(' · '))}">값 ${x.values.length}</span>` : ''}</td><td class="u-tr mono small">${x.chars ? x.chars.toLocaleString() + ' 자' : '-'}</td><td class="u-tr"><span class="row u-g3 sd-acts">${acts}</span></td></tr>`
+  }).join('')
+  const left = w.docs.filter((x) => x.state !== 'ok').length
+  const top = w.mode !== 'folder' ? `<div class="row u-g3 u-wrap" data-t="sdWriteTop">${need ? `<span class="chip ${apN === need ? 'c-ok' : 'c-mute'}" data-t="sdApN">승인 ${apN} / ${need}</span>${tipb('sd.first', '처음 문서')}` : ''}<button type="button" class="btn" data-a="sdWriteAll" data-t="sdWriteAll"${apN < need || run || d.busy || !left || !cl.ok ? ' disabled' : ''}>모두 짓기</button></div>` : ''
+  const going = r && r.kind === 'write' && r.state === 'running' ? sdRunHtml(d, `Claude 가 글을 짓는 중 ${r.i + 1}/${r.n}${r.doc ? ' · ' + r.doc : ''}`) : sdRunFail(d, 'write')
+  return `${top}${going}<div class="tblwrap"><table class="t" data-t="sdWTable"><thead><tr><th>문서</th><th class="u-tr">항목</th><th>상태</th><th class="u-tr">쓴 글</th><th><span class="sr-only">할 일</span></th></tr></thead><tbody>${rows}</tbody></table></div>`
+}
+// f 진단 — 연습 판 끝 진단(막는 것 · 볼 것 · 값 대조는 재기만)
+function sdDiagHtml(d, w) {
+  const t = w.tried
+  if (d.busy === 'try') return `<div class="card"><div class="cb">${loadingHtml.replace('읽는 중…', '해 보는 중…')}</div></div>`
+  if (!t) return '<p class="muted" data-t="sdNoTry">연습 판에 아직 해 보지 않았다</p>'
+  const g = t.diag || { blockers: [], warnings: [], counts: {} }, c = g.counts || {}
+  const vals = g.warnings.filter((x) => x.what === '값 대조').length
+  const tile = (l, n, warn, tt) => `<div class="tile${warn ? ' w' : ''}" data-t="${tt}"><div class="l">${l}</div><div class="n">${n}</div></div>`
+  return `<div class="tiles" data-t="sdTiles">${tile('막는 것', g.blockers.length, g.blockers.length, 'sdBlockN')}${tile('볼 것', g.warnings.length, false, 'sdWarnN')}${tile('문서', c.docs ?? '-', false, 'sdDocN')}${tile('항목', c.items ?? '-', false, 'sdItemN')}</div>${g.blockers.length ? `<div class="callout danger" data-t="sdBlockers"><i></i><div><ul class="sx-ul bad">${g.blockers.map(sxWhere).join('')}</ul><button type="button" class="btn sm" data-a="sdGoStep" data-v="3" data-t="sdFixPlan">구조안 고치기</button></div></div>` : ''}${vals ? `<p class="small muted" data-t="sdVals">재료에 없는 값 ${vals}${tipb('sd.values', '값 대조')}</p>` : ''}${g.warnings.length ? `<details class="small" data-t="sdWarns"><summary>볼 것 ${g.warnings.length}</summary><ul class="sx-ul">${g.warnings.slice(0, 50).map(sxWhere).join('')}</ul></details>` : ''}`
+}
+// g 넣기 — 걸음 · 끝 카드 · 걸음 실패(P-D24)
+function sdPutHtml(d, w) {
+  if (w.stage === 'done') return `<div class="card" data-t="sdDone"><div class="empty3"><b>다 넣었다</b><span class="small muted">걸음 ${w.done}</span><button type="button" class="btn pri" data-a="knGo" data-k="${esc(d.kn)}" data-t="sdOpenKn">지식 열기</button></div></div>`
+  const fail = w.fail ? `<div class="callout danger" data-t="sdStepFail"><i></i><div><b>걸음 실패</b>${tipb('sx.stepFail', '걸음 실패')}<ul class="sx-ul">${w.fail.map((h) => `<li><b>${esc(h.heading || h.doc || '')}</b> <span>${esc(h.why || '')}</span></li>`).join('')}</ul></div></div>` : ''
+  const busy = d.busy === 'put' ? `<div class="callout sx-cj" role="status" data-t="sdPutting"><span class="loading u-f1">넣는 중 · ${Math.round((Date.now() - d.t0) / 1000)}초</span></div>` : ''
+  const steps = w.steps || 0
+  return `${busy}${fail}<div class="card" data-t="sdSteps6"><div class="cb"><div class="row u-g3 u-wrap">${chipOf(w.done >= steps && steps ? 'ok' : d.busy === 'put' ? 'run' : 'wait', `걸음 ${w.done} / ${steps}`)}${w.stage !== 'done' && !d.busy ? '<span class="small muted">잠깐 멈춤</span>' : ''}</div></div></div>`
+}
+// 바닥 줄 — 「먼저: 까닭」 · ⋯(그만두기) · [이전] · 주 단추 하나
+function sdFootHtml(d, st, w) {
+  let main = '', need = '', back = ''
+  const run = sdRunning(d), b = d.busy
+  const btn = (a, l, dis, t) => `<button type="button" class="btn pri" data-a="${a}" data-t="${t || 'sdGo'}"${dis || b || run ? ' disabled' : ''}${b ? ' aria-busy="true"' : ''}>${esc(l)}</button>`
+  if (st === 0) { main = btn('sdNext0', '다음', !d.kn); if (!d.kn) need = '빈 지식을 고른다' }
+  else if (st === 1) { const p = (d.path || (w && w.src) || '').trim(); main = btn('sdSurvey', b === 'survey' ? '조사 거는 중…' : '조사', !p); if (!p) need = '재료 폴더 경로를 쓴다'; back = w ? '' : 'sdBack0' }
+  else if (st === 2) { const on = (w.rows || []).some((r) => r.pick === '넣음'); main = btn('sdNext', '다음', !on); if (!on) need = '하나 이상 넣는다'; back = 'sdBack1' }
+  else if (st === 3) { const ok = w.plan && w.check && w.check.ok; main = btn('sdNext', '다음', !ok); if (!w.plan) need = '구조안을 고른다'; else if (!ok) need = `걸림 ${(w.check && w.check.errors.length) || 0} 을 고친다`; back = 'sdBack' }
+  else if (st === 4) {
+    const need0 = sdNeedN(w), apN = w.docs.slice(0, need0).filter((x) => x.ok).length, left = w.docs.filter((x) => x.state !== 'ok').length
+    main = btn('sdTry', b === 'try' ? '해 보는 중…' : '연습 판', left || apN < need0)
+    if (apN < need0) need = '처음 문서를 승인한다'; else if (left) need = `글 ${left} 을 짓는다`
+    back = 'sdBack'
+  } else if (st === 5) { const bl = w.tried && w.tried.diag ? w.tried.diag.blockers.length : 1; main = btn('sdPut', '넣기', bl || !w.tried); if (bl) need = `막는 것 ${bl}`; back = 'sdBack' }
+  else if (w && w.stage !== 'done') main = btn('sdPut', b === 'put' ? '넣는 중…' : '이어 넣기', false, 'sdResumePut')
+  const more = w ? `<button type="button" class="kebab${S.menu === 'sdMore' ? ' on' : ''}" data-a="menu" data-m="sdMore" data-t="sdMore" title="더 보기" aria-haspopup="menu" aria-expanded="${S.menu === 'sdMore'}" aria-label="더 보기">⋯${S.menu === 'sdMore' ? popHtml('sdMore', `<div><div class="mi" data-a="sdQuit" data-t="sdQuit">그만두기<small>${w.stage === 'done' ? '이 화면에서 닫는다' : '지식은 그대로'}</small></div></div>`) : ''}</button>` : ''
+  if (!main && !more) return ''
+  return `<div class="sx-bar" data-t="sdBar" role="region" aria-label="기초 세우기"><div class="sx-bh"><span class="l">${need ? sdNeed(need) : ''}${d.actErr ? `<span class="need" role="alert" data-t="sdActErr">${esc(d.actErr.message || String(d.actErr))}</span>` : ''}</span><span class="r">${more}${back ? `<button type="button" class="btn" data-a="${back}" data-t="sdBackBtn"${b || run ? ' disabled' : ''}>이전</button>` : ''}${main}</span></div></div>`
+}
 function mgSeedHtml() {
-  const k = S.seedKn && KN(S.seedKn) ? KN(S.seedKn) : null
-  return `<div class="pg-h"><div class="pt"><div class="big">기초 세우기</div>${tipb('mg.seed', '기초 세우기')}</div></div><div class="card" data-t="seedSoon"><div class="empty3"><b>준비 중</b>${k ? `<span class="chip c-mute">${esc(k.name)}</span><button type="button" class="btn" data-a="kdManual" data-k="${esc(k.id)}" data-t="seedManual">수기수집</button>` : ''}</div></div>`
+  const head = (x) => `<div class="pg-h"><div class="pt"><div class="big">기초 세우기</div>${tipb('mg.seed', '기초 세우기')}</div>${x || ''}</div>`
+  // 팀(TODO 10 · 팀 화면 안 올리기 · 팀 일꾼) — 그때까지 준비 중 · 빈 지식은 생성 › 수기수집으로
+  if (isTeam()) { const k = S.seedKn && KN(S.seedKn) ? KN(S.seedKn) : null; return `<div class="pg-text">${head()}<div class="card" data-t="seedSoon"><div class="empty3"><b>준비 중</b>${k ? `<span class="chip c-mute">${esc(k.name)}</span><button type="button" class="btn" data-a="kdManual" data-k="${esc(k.id)}" data-t="seedManual">수기수집</button>` : ''}</div></div></div>` }
+  const d = sdState()
+  // 새 지식 창 · 수기수집 빈 지식 줄에서 넘어온 지식
+  if (S.seedKn) { if (S.seedKn !== d.kn) { d.kn = S.seedKn; d.v = null; d.ui = 1; d.back = false; d.path = ''; d.err = null } d.pick0 = false; S.seedKn = null }
+  if (d.open == null && !d.openWait && !d.openErr) { d.openWait = true; setTimeout(sdLoadOpen) }
+  if (d.kn && !KN(d.kn)) { d.kn = null; d.v = null }
+  if (d.kn && !d.v && !d.loading && !d.err) { d.loading = true; setTimeout(() => sdLoad(d.kn, true)) }
+  const w = sdWork(d), st = sdStep(d), k = d.kn && KN(d.kn)
+  const title = `<div class="ph sd-ph"><b>${SD_STEPS[st]}</b>${tipb(SD_TIP[st], SD_STEPS[st])}${k && st ? `<span class="chip c-mute" data-t="sdKnChip">${esc(k.name)}</span>` : ''}</div>`
+  let body = ''
+  if (d.err) body = `<div class="callout danger err" data-t="err"><b>${esc(d.err)}</b><button type="button" class="btn sm retry" data-a="sdReload" data-t="retry">다시 읽기</button></div>`
+  else if (d.kn && !d.v && st > 0) body = loadingHtml
+  else if (d.v && d.v.work && d.v.work.broken) body = '<div class="callout danger" data-t="sdBroken"><i></i><span>짜임 일 장부가 깨졌다</span><button type="button" class="btn sm" data-a="sdQuit" data-t="sdBrokenStop">그만두기</button></div>'
+  else if (d.v && d.v.work && (d.v.work.other || !d.v.work.mine) && st > 0) body = `<div class="callout warn" data-t="sdOther"><i></i><span>${esc(d.v.work.by || '')} 가 연 짜임 일이 있다</span></div>`
+  else if (st === 0) body = sdKnHtml(d)
+  else if (st === 1) body = sdSrcHtml(d)
+  else if (!w) body = loadingHtml
+  else body = [null, null, sdPickHtml, sdPlanHtml, sdWriteHtml, sdDiagHtml, sdPutHtml][st](d, w)
+  return `<div class="pg-text sd" data-t="seedPage">${head()}${sdBarHtml(st, w)}${title}<div class="sd-b" data-t="sdBody-${st}">${body}</div>${d.err ? '' : sdFootHtml(d, st, w)}</div>`
+}
+// [보기] 창 — 문서 글(항목마다) · 값 알림 · 걸림 · 손으로 고치기 · 승인(처음 3 문서)
+function sdwHtml() {
+  const x = S.sdw, d = sdState(), w = sdWork(d)
+  const doc = w && w.docs.find((y) => y.id === x.doc)
+  if (!doc) return ''
+  const t = x.text
+  const first = w.docs.indexOf(doc) < sdNeedN(w)
+  let mb
+  if (x.loading) mb = loadingHtml
+  else if (x.err) mb = formErr(x.err, 'sdwErr')
+  else if (x.edit) mb = doc.items.map((it, i) => `<div class="field"><label for="sdwT${i}">${esc(it.h)}</label><textarea class="inp" id="sdwT${i}" rows="5" data-in="sdwT" data-i="${i}" data-t="sdwText"${i ? '' : ' data-focus'}>${esc(x.rows[i] || '')}</textarea></div>`).join('')
+  else mb = (t && t.items && t.items.length ? t.items.map((it) => `<h4 class="sd-h">${esc(it.h)}</h4><div class="sd-tx">${esc(it.content)}</div>`).join('') : '<p class="muted" data-t="sdwNone">글이 아직 없다</p>')
+  const vals = doc.values.length ? `<div class="callout warn" data-t="sdwVals"><i></i><span>재료에 없는 값: ${doc.values.slice(0, 3).map((v) => esc(v.why)).join(' · ')}</span></div>` : ''
+  const fail = doc.state === 'fail' ? `<div class="callout danger" data-t="sdwFail"><i></i><span>${esc(doc.why || '걸렸다')}</span></div>` : ''
+  const go = x.edit ? `<button type="button" class="btn pri" data-a="sdwSave" data-t="sdwSave"${x.busy ? ' disabled' : ''}>${x.busy ? '저장하는 중…' : '저장'}</button>` : first && doc.state === 'ok' && !doc.ok ? '<button type="button" class="btn pri" data-a="sdwApprove" data-t="sdwApprove">승인</button>' : ''
+  return `<div class="scrim fix" data-a="sdwClose" data-self="1"${x.busy ? ' data-busy="1"' : ''}><div class="modal w760" role="dialog" aria-modal="true" aria-labelledby="sdwH" data-t="sdwWin"><div class="mh" id="sdwH">${esc(doc.id)} <small>항목 ${doc.items.length}</small><button type="button" class="x" data-a="sdwClose" title="닫기" aria-label="닫기">×</button></div><div class="mb">${fail}${vals}${mb}</div><div class="mf"><span class="acts">${x.edit ? '<button type="button" class="btn ghost" data-a="sdwEditOff">취소</button>' : `<button type="button" class="btn ghost" data-a="sdwClose" data-focus>닫기</button><button type="button" class="btn" data-a="sdwEdit" data-t="sdwEdit"${x.loading || sdRunning(d) ? ' disabled' : ''}>손으로 고치기</button>`}${go}</span></div></div></div>`
+}
+async function sdPeek(i) {
+  const d = sdState(), w = sdWork(d)
+  const doc = w && w.docs[i]
+  if (!doc) return
+  S.sdw = { doc: doc.id, loading: true, edit: false, rows: [] }
+  render()
+  try {
+    const v = await getJSON(`${sdUrl(d.kn)}?doc=${encodeURIComponent(doc.id)}`)
+    if (!S.sdw || S.sdw.doc !== doc.id) return
+    S.sdw.text = v.work && v.work.text ? v.work.text : null
+    d.v = v
+  } catch (e) { if (S.sdw) S.sdw.err = e.message } finally { if (S.sdw) S.sdw.loading = false; render() }
 }
 // 사람(팀 · 6-2 · 11절 8) — 총괄 관리자: 탭 사람 · 묶음(바꿈) · 그 밖: 보기만 판(팀 사람 목록 · 자리 (!)) · 사람 목록 길(/api/people)은 들어온 사람 누구나
 function mgPeopleHtml() {
@@ -3879,6 +4106,8 @@ function sxWorkHtml(sh, f) {
   const w = sh && !sh.error ? sh.work : null
   if (!w || (f && (f.step > 1 || f.check)) || ['done', 'stopped-final'].includes(w.stage)) return ''
   if (w.broken) return `<div class="callout danger" data-t="sxWork"><i></i><span><b>짜임 일 장부가 깨졌다</b></span><button type="button" class="btn sm r" data-a="sxStop" data-t="sxWorkStop">그만두게 하기</button></div>`
+  // 열린 기초 세우기(TODO 9) — 다시 잡기가 아니라 지식관리 › 기초 세우기에서 잇는다
+  if (w.kind === 'seed') return `<div class="callout warn" data-t="sxWork"><i></i><span><b>기초 세우기 중</b> · ${esc(w.by)}</span>${w.mine && !isTeam() ? `<button type="button" class="btn sm r" data-a="sdOpenSeed" data-k="${esc(sh.kn)}" data-t="sxSeedGo">기초 세우기</button>` : ''}</div>`
   if (!w.mine) return `<div class="callout warn" data-t="sxWork"><i></i><span><b>${esc(w.by)}</b> 가 연 짜임 일 · ${esc(SX_STAGE[w.stage] || w.stage)}</span><button type="button" class="btn sm r" data-a="sxStop" data-t="sxWorkStop">그만두게 하기</button></div>`
   // 걸음 실패로 선 일(approve 모드 지식 · P-D24) — 이어 넣기가 아니라 까닭을 보고 구조안을 고친다
   return `<div class="callout warn" data-t="sxWork"><i></i><span><b>열린 짜임 일</b> · ${w.fail ? '걸음 실패' : esc(SX_STAGE[w.stage] || w.stage)}</span><span class="r row u-g3"><button type="button" class="btn ghost sm" data-a="sxStop" data-t="sxWorkStop">버리기</button><button type="button" class="btn sm" data-a="sxResume" data-t="sxResume">${['putting', 'stopped', 'rebase'].includes(w.stage) && !w.fail ? '이어 넣기' : '이어 하기'}</button></span></div>`
@@ -6460,8 +6689,89 @@ const ACT = {
   impAtt: () => { S.impAtt = !S.impAtt; render() },
   pasteOpen: () => { S.paste = { title: '', tx: '' }; S._focus = 'pasteTitle'; render() },
   pasteClose: () => { S.paste = null; render(); const b = $('[data-t=pasteOpen]'); if (b) b.focus() },
-  // 기초 세우기 — 지식관리 › 기초 세우기(화면은 TODO 9 · 지금은 준비 중)
+  // 기초 세우기(TODO 9) — 단계 띠 · 지식 · 재료 · 거르기 · 구조안 · 짓기 · 진단 · 넣기 · 그만두기
   seedGo: () => { S.seedKn = defaultKn() || null; go({ scr: 'home', kn: '*', page: 'seed' }) },
+  sdOpenSeed: (el) => { S.seedKn = el.dataset.k; go({ scr: 'home', kn: '*', page: 'seed' }) },
+  sdOpenRetry: () => { const d = sdState(); d.open = null; d.openErr = null; d.openWait = false; render() },
+  sdReload: () => { const d = sdState(); d.err = null; d.v = null; render() },
+  sdResume: (el) => { const d = sdState(); d.kn = el.dataset.k; d.v = null; d.err = null; d.pick0 = false; d.back = false; d.ui = 1; render() },
+  sdGoStep: (el) => {
+    const i = Number(el.dataset.v), d = sdState(), w = sdWork(d), st = sdStep(d)
+    if (el.getAttribute('aria-disabled') === 'true' || i === st || d.busy) return
+    if (i === 0) { d.pick0 = true; d.open = null; d.openWait = false; render(); return }
+    d.pick0 = false
+    if (!w) { d.ui = i; render(); return }
+    if (i === 1) { d.back = true; render(); return }
+    d.back = false
+    sdDo('step', () => postJSON(sdUrl(d.kn, 'step'), { ui: i }))
+  },
+  sdNext0: () => { const d = sdState(); if (!d.kn) return; d.pick0 = false; d.ui = 1; if (!d.v) d.loading = false; render() },
+  sdBack0: () => { const d = sdState(); d.pick0 = true; render() },
+  sdBack1: () => { const d = sdState(); d.back = true; render() },
+  sdBack: () => { const d = sdState(), st = sdStep(d); sdDo('step', () => postJSON(sdUrl(d.kn, 'step'), { ui: Math.max(2, st - 1) })) },
+  sdNext: () => { const d = sdState(), st = sdStep(d); sdDo('step', () => postJSON(sdUrl(d.kn, 'step'), { ui: st + 1 })) },
+  sdSurvey: () => {
+    const d = sdState(), w = sdWork(d), dir = (d.path || (w && w.src) || '').trim()
+    if (!dir) return
+    sdDo('survey', async () => { await postJSON('/api/shape/survey', { kn: d.kn, dir }); d.back = false; d.path = dir })
+  },
+  sdPickAll: () => {
+    const d = sdState(), w = sdWork(d)
+    if (!w) return
+    const picks = {}
+    for (const r of w.rows || []) if (r.src && r.role !== '비밀 의심' && r.role !== '같은 글' && r.pick !== '넣음') picks[r.path] = '넣음'
+    if (!Object.keys(picks).length) return
+    sdDo('pick', () => postJSON(sdUrl(d.kn, 'pick'), { picks }))
+  },
+  sdPlan: (el) => { const d = sdState(); if (el.getAttribute('aria-checked') === 'true' && el.dataset.v === 'folder') return; sdDo('plan', () => postJSON(sdUrl(d.kn, 'plan'), { mode: el.dataset.v })) },
+  sdWriteOne: (el) => { const d = sdState(), w = sdWork(d), x = w && w.docs[Number(el.dataset.v)]; if (x) sdDo('write', () => postJSON(sdUrl(d.kn, 'write'), { doc: x.id })) },
+  sdWriteAll: () => { const d = sdState(); sdDo('write', () => postJSON(sdUrl(d.kn, 'write'), { all: true })) },
+  sdStopRun: () => { const d = sdState(); sdDo('stop', () => postJSON(sdUrl(d.kn, 'write'), { stop: true })) },
+  sdApprove: (el) => { const d = sdState(), w = sdWork(d), x = w && w.docs[Number(el.dataset.v)]; if (x) sdDo('approve', () => postJSON(sdUrl(d.kn, 'write'), { approve: x.id })) },
+  sdPeek: (el) => sdPeek(Number(el.dataset.v)),
+  sdwClose: () => { if (S.sdw && S.sdw.busy) return; S.sdw = null; render() },
+  sdwEdit: () => { const x = S.sdw, w = sdWork(sdState()), doc = w && x && w.docs.find((y) => y.id === x.doc); if (!doc) return; x.rows = doc.items.map((it) => ((x.text && x.text.items) || []).find((y) => y.h === it.h)?.content || ''); x.edit = true; render() },
+  sdwEditOff: () => { if (S.sdw) { S.sdw.edit = false; render() } },
+  sdwSave: async () => {
+    const x = S.sdw, d = sdState(), w = sdWork(d), doc = w && x && w.docs.find((y) => y.id === x.doc)
+    if (!doc || x.busy) return
+    x.busy = true; x.err = null; render()
+    try {
+      d.v = await postJSON(sdUrl(d.kn, 'write'), { doc: doc.id, items: doc.items.map((it, i) => ({ h: it.h, content: x.rows[i] || '' })) })
+      const now = sdWork(d).docs.find((y) => y.id === doc.id)
+      if (now && now.state === 'fail') { x.err = now.why || '걸렸다'; x.busy = false; render(); return }
+      S.sdw = null
+      toast('저장했다 · 연습 판 전')
+    } catch (e) { x.err = e.message; x.busy = false }
+    render()
+  },
+  sdwApprove: () => { const x = S.sdw, d = sdState(); if (!x) return; S.sdw = null; sdDo('approve', () => postJSON(sdUrl(d.kn, 'write'), { approve: x.doc })) },
+  sdTry: () => { const d = sdState(); sdDo('try', () => postJSON(sdUrl(d.kn, 'try'), {})) },
+  sdPut: async () => {
+    const d = sdState(), w = sdWork(d), k = KN(d.kn), st = sdStep(d)
+    if (!w || d.busy) return
+    if (st === 5) {
+      const c = (w.tried && w.tried.diag && w.tried.diag.counts) || {}
+      if (!(await ask({ t: '넣기', d: `${k ? k.name : d.kn} 에 문서 ${c.docs ?? w.docs.length} · 항목 ${c.items ?? '-'} 을 넣는다`, ok: '넣기' }))) return
+      try { await postJSON(sdUrl(d.kn, 'step'), { ui: 6 }) } catch (e) { d.actErr = e; render(); return }
+    }
+    d.busy = 'put'; d.actErr = null; d.t0 = Date.now(); render(); sdTick()
+    try {
+      const r = await postJSON(`/api/k/${encodeURIComponent(d.kn)}/shape/put`, {})
+      if (r.done) toast('다 넣었다')
+      else if (r.conflict || r.again) d.actErr = new Error('그사이 바뀌었다: 이어 넣기로 다시 맞춘다')
+    } catch (e) { d.actErr = e } finally { d.busy = '' }
+    await reloadKns()
+    await sdLoad(d.kn, true)
+  },
+  sdQuit: async () => {
+    const d = sdState(), w = sdWork(d)
+    S.menu = null
+    if (w && w.stage !== 'done' && !(await ask({ t: '그만두기', d: '지은 구조안 · 글을 버린다. 지식은 그대로다', ok: '그만두기', danger: true }))) return render()
+    try { await postJSON(`/api/k/${encodeURIComponent(d.kn)}/shape/stop`, {}) } catch (e) { toastErr(e); return }
+    d.v = null; d.ui = 0; d.pick0 = true; d.back = false; d.path = ''; d.open = null; d.openWait = false
+    render()
+  },
   impFil: (el) => { S.impFil = el.dataset.v; paintJobs() },
   impSel: (el) => { S.impSel = el.dataset.id; S.impTfil = 'all'; paintJobs(); pollRuns(); if (innerWidth <= 600) setTimeout(() => { const d = $('[data-t=impDet]'); if (d) d.scrollIntoView({ block: 'start', behavior: 'smooth' }) }, 50) },
   qAct: (el) => qAct(el.dataset.id, el.dataset.v),
@@ -7047,6 +7357,8 @@ document.addEventListener('input', (ev) => {
   if (k === 'edTx' && S.edit) { S.edit.text = t.value; try { sessionStorage.setItem(edKey(S.edit), t.value) } catch {} return }
   if ((k === 'rfFrom' || k === 'rfTo' || k === 'rfBody') && S.recFix) S.recFix[{ rfFrom: 'from', rfTo: 'to', rfBody: 'body' }[k]] = t.value
   if (k === 'meRoot') S.meRootEdit = t.value
+  if (k === 'sdPath') { sdState().path = t.value; const g = $('[data-t=sdGo]'); if (g) g.disabled = !t.value.trim() }
+  if (k === 'sdwT' && S.sdw) S.sdw.rows[Number(t.dataset.i)] = t.value
   if (k === 'addUrl' && S.addPop) S.addPop.url = t.value
   if (k === 'br') { const f = brState(t.dataset.k); if (f) f.br = t.value }
   if (k === 'glf') { const f = brState(t.dataset.k); if (f) f[t.dataset.f] = t.value }
@@ -7057,6 +7369,21 @@ document.addEventListener('input', (ev) => {
   if (k === 'admAddId' && S.admAdd) S.admAdd.id = t.value
   if (k === 'grpName' && S.grpAdd) { S.grpAdd.name = t.value; const b = $('[data-t=grpAddDo]'); if (b) b.disabled = !t.value.trim() || !!S.grpAdd.busy }
   if (k === 'addName' && S.addPop) { S.addPop.name = t.value; if (!S.addPop.rname) { const rn = $('#addRn'); if (rn) rn.value = repoSlug(t.value) }if (S.addPop.err) { S.addPop.err = null; const m = $('[data-t=addMsg]'); if (m) m.remove() } }
+})
+// 기초 세우기 — 지식 고르기 · 파일 고르기 · 문서 이름(손으로)
+document.addEventListener('change', (ev) => {
+  const t = ev.target, d = S.sd
+  if (!t.dataset || !d) return
+  if (t.dataset.sdkn != null) { if (d.kn !== t.dataset.sdkn) { d.kn = t.dataset.sdkn; d.v = null; d.err = null; d.back = false; d.path = '' } d.pick0 = true; render(); return }
+  const w = sdWork(d)
+  if (!w) return
+  if (t.dataset.sdpick != null) { const r = (w.rows || [])[Number(t.dataset.sdpick)]; if (r && r.pick !== t.value) sdDo('pick', () => postJSON(sdUrl(d.kn, 'pick'), { picks: { [r.path]: t.value } })); return }
+  if (t.dataset.sdren != null && w.plan) {
+    const i = Number(t.dataset.sdren), old = w.plan.docs[i] && w.plan.docs[i].id, nu = t.value.trim().replace(/^\/+|\/+$/g, '')
+    if (!old || !nu || nu === old) { t.value = old || ''; return }
+    const plan = { docs: w.plan.docs.map((x, j) => ({ id: j === i ? nu : x.id, items: x.items.map((it) => ({ h: it.h, src: it.src })) })), names: (w.plan.names || []).map((n) => (n.doc === old ? { ...n, doc: nu } : n)), skip: w.plan.skip || [] }
+    sdDo('plan', () => postJSON(sdUrl(d.kn, 'plan'), { mode: 'hand', plan }))
+  }
 })
 // 다시 잡기 — 창의 문서 · 놓을 차례 · 합치기 표시 · 이름 자리 고르기
 document.addEventListener('change', (ev) => {

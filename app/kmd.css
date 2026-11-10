@@ -1436,6 +1436,18 @@ details.ap.refs[open]>summary h4::after{content:"▾"}
 .sx-bh .l{display:flex;flex-direction:column;min-width:0;gap:var(--sp-1)}
 .sx-bh .need{color:var(--warn);font-size:var(--fs-sm);font-weight:600;min-width:0;overflow-wrap:anywhere}
 @media (max-width:600px){.sx-bh .r{margin-left:0;width:100%;justify-content:flex-end}.sx-bh .r .btn.pri{flex:1}}
+/* 기초 세우기(TODO 9 · 메뉴개편 8-1 · 바탕 설계 5-3) — 단계 머리 · 파일 표 · 문서 목록 · 보기 창 글 */
+.sd-ph{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;margin:0 0 var(--sp-5);font-size:var(--fs-md)}
+.sd-b>*+*{margin-top:var(--sp-5)}
+.sd-b .row{align-items:center}
+.sd-path{overflow-wrap:anywhere;min-width:0}
+.sd-b td .inp{width:auto;max-width:100%;min-width:0}
+.sd-docs li{display:flex;align-items:center;gap:var(--sp-4);min-width:0}
+.sd-docs .inp{min-width:0}
+.sd-acts{justify-content:flex-end;flex-wrap:wrap}
+.sd-h{margin:var(--sp-6) 0 var(--sp-2);font-size:var(--fs);font-weight:700}
+.sd-h:first-child{margin-top:0}
+.sd-tx{white-space:pre-wrap;overflow-wrap:anywhere;font-size:var(--fs-sm);color:var(--text-2)}
 .hdy{container-type:inline-size}
 .hd-kn{max-width:min(360px,100%);margin:0 0 var(--sp-6)}
 .hd-sum{display:flex;flex-wrap:wrap;gap:var(--sp-3) var(--sp-8);align-items:baseline;font-size:var(--fs);color:var(--text-2);margin:0 0 var(--sp-7);padding:0 var(--sp-2)}

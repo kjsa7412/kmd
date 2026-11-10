@@ -353,7 +353,8 @@ export function planCheck(k, S, Pl) {
   // 바탕 세우기 — 빈 지식에서만 · 재료 덮임
   if (Pl.kind === 'seed') {
     if (S.docs.some((d) => d.id !== '처음' && d.id !== RECORDS_DOC)) err('kind', '바탕 세우기는 빈 지식에서만 한다')
-    for (const d of Pl.docs) for (const it of d.items) if (!it.src?.length && typeof it.text !== 'string') err(`${d.id} › ${it.h}`, '바탕 세우기 항목은 재료(src)나 글(text)이 있어야 한다')
+    // 있던 문서(was · 기록 모음)는 그대로 가는 항목(from)이다 — 새 문서의 항목만 재료 · 글이 있어야 한다
+    for (const d of Pl.docs) if (!d.was) for (const it of d.items) if (!it.src?.length && typeof it.text !== 'string') err(`${d.id} › ${it.h}`, '바탕 세우기 항목은 재료(src)나 글(text)이 있어야 한다')
   }
   const stale = !!Pl.base && Pl.base !== S.fp
   if (!Pl.base) warn('base', '구조안을 지을 때 본 지문(base)이 없다')
@@ -594,7 +595,7 @@ export function shapePlanPromptOf(g) {
 }
 export const shapePlanFixPromptOf = (g, prev, why) => [shapePlanPromptOf(g), `${FIXED}: ${why}`, '걸린 곳만 고친다.', `지난 초안:\n${JSON.stringify(prev)}`].join('\n\n')
 export function shapeWritePromptOf(g, { writeRules = WRITE_RULES } = {}) {
-  const what = { merge: '합치기: 출처 글을 하나로 녹여 다시 쓴다. 출처의 값은 모두 남긴다.', split: '나누기: 목표마다 그 몫(part)의 글만 쓴다. 출처의 값은 목표 가운데 어느 하나에 남는다.', rewrite: '다시 쓰기: 출처 글을 목표 머리에 맞게 다시 쓴다. 출처의 값은 모두 남긴다.' }[g.kind]
+  const what = { merge: '합치기: 출처 글을 하나로 녹여 다시 쓴다. 출처의 값은 모두 남긴다.', split: '나누기: 목표마다 그 몫(part)의 글만 쓴다. 출처의 값은 목표 가운데 어느 하나에 남는다.', rewrite: '다시 쓰기: 출처 글을 목표 머리에 맞게 다시 쓴다. 출처의 값은 모두 남긴다.', seed: '바탕 세우기: 출처는 원본 파일을 글로 바꾼 재료다. 목표 항목마다 그 몫(재료)의 확정된 사실만 「지금」 꼴로 쓴다. 같은 대상의 여러 재료는 늦은 판이 이긴다. 경위 · 논의 · 질문은 옮기지 않는다.' }[g.kind]
   return [
     '문서 짜임의 항목 글을 짓는다. 출처 항목의 지금 글만 읽고 목표 항목마다 새 글을 쓴다.',
     `- ${what}`,
@@ -639,4 +640,145 @@ export function writeOfDraft(g, draft) {
     texts.push({ doc: t.doc, h: t.h, content: x.text.replace(/\r\n/g, '\n').trim() + '\n' })
   }
   return { texts, why: typeof draft.why === 'string' ? draft.why.slice(0, 400) : '' }
+}
+
+// ── 바탕 세우기(Z7 · 설계 3-3 · 5-3 · 메뉴개편 8-1) — 빈 지식에 재료(원본 조사 · 짜임 꾸러미)로 첫 짜임 · 첫 글을 세운다.
+//   구조안은 kind seed(문서마다 was: null · 항목마다 src 재료 id). 걸음 엔진(diffPlan · planCheck · 연습 판 · 넣기)은 다시 잡기와 같고
+//   글 걸음의 근거(값 대조)는 재료 글이다(unit.ground). 기록 모음(P-D29 · 새 지식이 같이 세움)은 구조안에 그대로 가는 문서로 싣는다(덮임 검사)
+export const SEED_PLAN_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['docs', 'why'],
+  properties: {
+    docs: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['id', 'items'], properties: { id: STR, items: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['h', 'src'], properties: { h: STR, src: { type: 'array', items: STR }, note: STR } } } } } },
+    names: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['coord', 'doc', 'h'], properties: { coord: STR, label: STR, doc: STR, h: STR } } },
+    skip: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['src', 'why'], properties: { src: STR, why: STR } } },
+    why: STR,
+  },
+}
+// 고르기 — 사람이 바꾼 것(picks: { 경로: 넣음 · 근거만 · 빼기 · 보류 })이 조사의 처음 고르기를 이긴다
+export const pickOf = (row, picks = {}) => (Object.prototype.hasOwnProperty.call(picks || {}, row.path) ? picks[row.path] : row.pick)
+const usable = (row, picks) => !!row.src && row.role !== '비밀 의심' && ['넣음', '근거만'].includes(pickOf(row, picks))
+// 구조안 재료 — 넣음 · 근거만으로 고른 재료의 카드(꾸러미 cards · 없으면 digest). 비밀 의심 · 빼기 · 보류는 보내지 않는다
+export function seedPlanMaterial(rows, { picks = {}, cards = [], note = '' } = {}) {
+  const card = new Map((cards || []).filter((c) => c && typeof c.src === 'string').map((c) => [c.src, c]))
+  const seen = new Set()
+  const mats = []
+  for (const r of rows) {
+    if (!usable(r, picks) || seen.has(r.src)) continue
+    seen.add(r.src)
+    const c = card.get(r.src)
+    const d = r.digest || {}
+    mats.push({ src: r.src, path: r.path, pick: pickOf(r, picks), form: r.form || null, date: r.date || null, ...(c ? { card: { topic: c.topic, form: c.form, names: (Array.isArray(c.names) ? c.names : []).slice(0, 20), facts: (Array.isArray(c.facts) ? c.facts : []).slice(0, 30) } } : { heads: (d.heads || []).slice(0, 12), first: String(d.first || '').slice(0, 200), tables: (d.tables || []).slice(0, 3) }) })
+  }
+  return { type: 'shape-plan', kind: 'seed', mats, ...(note ? { note: String(note).slice(0, 1000) } : {}) }
+}
+export function seedPlanPromptOf(g) {
+  return [
+    '바탕 세우기 구조안을 짓는다. 빈 지식에 넣을 재료(원본 파일을 글로 바꾼 것)의 카드를 보고 첫 짜임 전체를 JSON 하나로 돌려준다. 항목 글은 쓰지 않는다.',
+    '꼴: docs[{ id(「폴더/이름」 · .md 없이), items[{ h(항목 머리), src[재료 id m:<16자>], note?(까닭 한 줄) }] }] · names[{ coord(종류:값), label?, doc, h }](둘 이상 재료에서 가리키는 고유물만) · skip[{ src, why }](쓰지 않는 넣음 재료와 까닭) · why(한두 문장)',
+    '- 「넣음」 재료는 모두 어느 항목의 src 이거나 skip 에 든다. 「근거만」 재료는 값을 견줄 때만 쓴다(src 에 넣어도 되고 빼도 된다). 아래에 없는 재료 id 를 쓰지 않는다.',
+    '- 항목 머리는 대상 이름(사건 갈래만 「YYYY-MM-DD 주제」 · 대장은 「값: 설명」). 한 문서 안에서 머리끼리 같거나 앞부분이 겹치지 않게.',
+    SEED_RULES,
+    ...(g.note ? [`지식관리자의 말: ${g.note}`] : []),
+    `재료 ${g.mats.length}:`,
+    ...g.mats.map((m) => `[material ${m.src}] ${m.path} · ${m.pick}${m.form ? ' · ' + m.form : ''}${m.date ? ' · ' + m.date : ''}\n${JSON.stringify(m.card || { heads: m.heads, first: m.first, tables: m.tables })}`),
+  ].join('\n')
+}
+export const seedPlanFixPromptOf = (g, prev, why) => [seedPlanPromptOf(g), `${FIXED}: ${why}`, '걸린 곳만 고친다.', `지난 초안:\n${JSON.stringify(prev)}`].join('\n\n')
+// 받은 바탕 구조안 초안 → 구조안(cleanPlan) · 까닭 줄 — { plan, notes, why } | { error }
+export function seedPlanOfDraft(draft) {
+  if (!draft || typeof draft !== 'object' || !Array.isArray(draft.docs)) return { error: '구조안 꼴이 아니다: docs 가 없다' }
+  const notes = []
+  const docs = draft.docs.map((d) => ({
+    id: d?.id,
+    was: null,
+    items: Array.isArray(d?.items) ? d.items.map((it) => {
+      if (it && typeof it.note === 'string' && it.note.trim() && typeof d.id === 'string') notes.push({ doc: cleanId(d.id), h: nfc(String(it.h || '').trim()), note: it.note.trim().slice(0, 200) })
+      return { h: it?.h, src: it?.src }
+    }) : d?.items,
+  }))
+  const c = cleanPlan({ v: 1, kind: 'seed', forms: null, dirs: [], docs, names: Array.isArray(draft.names) ? draft.names.map((x) => ({ coord: x?.coord, label: typeof x?.label === 'string' ? x.label : '', doc: x?.doc, h: x?.h })) : [], skip: Array.isArray(draft.skip) ? draft.skip : [] })
+  if (c.error) return { error: c.error }
+  return { plan: c.plan, notes: notes.slice(0, 500), why: typeof draft.why === 'string' ? draft.why.slice(0, 400) : '' }
+}
+// 지금 짜임에 맞춘 바탕 구조안 — 새 문서는 was: null · 문서 요약은 사람이 쓴 글만(ask 는 바탕에서 짓지 않는다) ·
+//   지금 있는 기록 모음은 그대로 가는 문서로 붙인다(planCheck 덮임 · 걸음이 건드리지 않는다)
+export function seedNormalize(plan, S) {
+  const docs = plan.docs.filter((d) => d.id !== RECORDS_DOC).map((d) => ({ ...d, was: null, intro: d.intro && typeof d.intro.text === 'string' ? d.intro : null }))
+  const rec = S.docs.find((d) => d.id === RECORDS_DOC)
+  if (rec) docs.push({ id: RECORDS_DOC, was: RECORDS_DOC, intro: null, items: rec.items.map((it) => ({ h: it.h, from: [{ doc: RECORDS_DOC, h: it.h }] })) })
+  const order = plan.order ? Object.fromEntries(Object.entries(plan.order).map(([f, xs]) => [f, xs.filter((x) => x !== RECORDS_DOC)])) : null
+  return { ...plan, kind: 'seed', base: S.fp, forms: plan.forms || null, docs, empty: [], order }
+}
+// 재료 덮임 · 고르기(6-1 7 · packCheck 와 같은 규칙) — 넣음 재료는 모두 어느 항목의 src 이거나 skip · 비밀 의심 · 빼기 · 보류 재료는 쓰지 않는다
+export function seedCover(plan, rows, picks = {}) {
+  const errors = []
+  const warnings = []
+  const bySrc = new Map()
+  for (const r of rows) if (r.src && !bySrc.has(r.src)) bySrc.set(r.src, r)
+  const used = new Set()
+  for (const d of plan.docs) for (const it of d.items) for (const s of it.src || []) {
+    used.add(s)
+    const row = bySrc.get(s)
+    if (!row) { errors.push({ where: `${d.id} › ${it.h}`, why: `재료에 없다: ${s}`, code: 'src' }); continue }
+    if (rows.some((x) => x.src === s && x.role === '비밀 의심')) errors.push({ where: `${d.id} › ${it.h}`, why: `비밀 의심 재료를 쓴다: ${row.path}`, code: 'secret' })
+    else if (!rows.some((x) => x.src === s && usable(x, picks))) errors.push({ where: `${d.id} › ${it.h}`, why: `${pickOf(row, picks)} 로 고른 재료를 쓴다: ${row.path}`, code: 'pick' })
+  }
+  const skipped = new Set(plan.skip.map((x) => x.src))
+  for (const r of rows) if (r.src && pickOf(r, picks) === '넣음' && r.role !== '같은 글' && r.role !== '비밀 의심' && !used.has(r.src) && !skipped.has(r.src)) errors.push({ where: r.path, why: '넣음 재료가 구조안에 없다(항목 재료로 쓰거나 skip 에 까닭과 함께)', code: 'coverage' })
+  for (const x of plan.skip) if (!bySrc.has(x.src)) warnings.push({ where: x.src, why: 'skip 의 재료가 없다' })
+  for (const x of [...errors, ...warnings]) x.id = judgeId(x.code || 'seed-warn', x.where, x.why)
+  return { errors, warnings }
+}
+// 폴더 그대로(메뉴개편 8-1 · 옛 「파일을 그대로 문서로」) — 넣음 재료 파일마다 문서 하나 · ## 머리마다 항목(글은 재료 글 그대로 · Claude 를 부르지 않는다)
+//   문서 이름은 파일 이름의 주제(날짜 · 판 · 최종 · 확장자를 걷은 것) · 폴더는 원본 폴더(2단까지) · 겹치면 「이름 2」
+const SAFE_SEG = (s) => nfc(String(s || '')).replace(/[\\/:*?"<>|#%\r\n\t]/g, ' ').replace(/^[._\s]+/, '').replace(/\s+/g, ' ').trim().slice(0, 40).trim()
+export function folderPlan(rows, textOf, { picks = {}, asIs }) {
+  const docs = []
+  const ids = new Set()
+  const skip = []
+  const used = new Set()
+  for (const r of rows) {
+    if (!r.src || r.role === '비밀 의심' || r.role === '같은 글' || used.has(r.src)) continue
+    const pk = pickOf(r, picks)
+    if (pk === '근거만') { skip.push({ src: r.src, why: '근거만' }); used.add(r.src); continue }
+    if (pk !== '넣음') continue
+    used.add(r.src)
+    const md = textOf(r.src)
+    if (typeof md !== 'string') continue
+    const a = asIs(r.path, md)
+    const dir = path.posix.dirname(r.path).split('/').filter((x) => x && x !== '.').map(SAFE_SEG).filter(Boolean).slice(0, 2)
+    const base = SAFE_SEG(r.topic || path.posix.basename(r.path).replace(/\.[^.]+$/, '')) || '문서'
+    let id = [...dir, base].join('/')
+    for (let n = 2; ids.has(id.toLowerCase()); n++) id = [...dir, `${base} ${n}`].join('/')
+    ids.add(id.toLowerCase())
+    const items = a.sections.filter((s) => s.content.trim()).slice(0, PLAN_LIMITS.unit).map((s) => ({ h: SAFE_SEG(s.heading).slice(0, PLAN_LIMITS.head) || '개요', from: [], src: [r.src], text: s.content.trim() + '\n' }))
+    if (!items.length) { skip.push({ src: r.src, why: '글이 없다' }); continue }
+    // 같은 머리(쓸 수 없는 글자를 걷어 겹친 것) — 「머리 2」
+    const hs = new Set()
+    for (const it of items) { let h = it.h; for (let n = 2; hs.has(h); n++) h = `${it.h} ${n}`; hs.add(h); it.h = h }
+    docs.push({ id, was: null, intro: null, items })
+  }
+  return { v: 1, kind: 'seed', kn: null, base: null, forms: null, dirs: [], docs, names: [], order: null, empty: [], skip }
+}
+// 바탕 글 재료 — 문서 하나의 항목(목표)과 그 재료 글. 재료가 길면 자른다(값 대조는 넣을 때 재료 전체로)
+export const SEED_MAT_MAX = 120000
+export function seedWriteMaterial(plan, docId, rows, textOf) {
+  const d = plan.docs.find((x) => x.id === docId && !x.was)
+  if (!d) return { error: `구조안에 없는 문서다: ${docId}` }
+  const pathOf = new Map(rows.filter((r) => r.src).map((r) => [r.src, r.path]))
+  const srcs = [...new Set(d.items.flatMap((it) => it.src || []))]
+  const sources = []
+  let left = SEED_MAT_MAX
+  for (const s of srcs) {
+    const body = textOf(s)
+    if (typeof body !== 'string') return { error: `재료 글이 없다: ${pathOf.get(s) || s}` }
+    const cut = body.slice(0, Math.max(0, Math.min(WRITE_SRC_MAX, left)))
+    left -= cut.length
+    sources.push({ doc: '재료', h: pathOf.get(s) || s, body: cut })
+  }
+  const targets = d.items.filter((it) => it.src?.length).map((it) => ({ doc: d.id, h: it.h, part: `재료 ${(it.src || []).map((s) => pathOf.get(s) || s).join(' · ')}`.slice(0, 500) }))
+  if (!targets.length) return { error: `재료로 지을 항목이 없다: ${docId}` }
+  return { type: 'shape-write', kind: 'seed', doc: d.id, sources, targets }
 }

@@ -440,12 +440,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const LV_READ = ['read', 'write', 'admin'] // 읽기 자리부터(지식 단위 판정 hub.levelOf 의 값)
   const seeOf = (ctx, id) => ({ team: mode === 'team', user: ctx?.user || null, admin: hub.levelOf(ctx, id) === 'admin' })
   const GET_OK = [
-    /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/audit|admin\/users|admin\/groups|claude\/state|busy|send\/teams)$/,
+    /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/audit|admin\/users|admin\/groups|claude\/state|busy|send\/teams|seed\/open)$/,
     /^\/api\/agent\/parser$/, /^\/api\/gitlab\/groups$/,/^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
-    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|held|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|shape|past|removed|manage)$/,
+    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|held|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|shape|seed|past|removed|manage)$/,
     /^\/api\/k\/[^/]+\/shape\/job\/[0-9a-f]{12}$/,
   ]
-  const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|stops\/ack|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|k\/[^/]+\/(?:owner|save-mode|access|delete|structure|polish|revert|unwatch|docfmt|shape(?:\/[a-z]+|\/job\/[0-9a-f]{12}\/stop)?|seed\/upload|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names|approve)|rec\/[^/]+\/fix|removed\/restore))$/
+  const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|stops\/ack|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|shape\/survey|k\/[^/]+\/(?:owner|save-mode|access|delete|structure|polish|revert|unwatch|docfmt|shape(?:\/[a-z]+|\/job\/[0-9a-f]{12}\/stop)?|seed(?:\/(?:upload|pick|plan|write|try|step))?|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names|approve)|rec\/[^/]+\/fix|removed\/restore))$/
   const auditFile = path.join(dataDir, 'audit.jsonl')
   // 걷은 경고 — <살림>/acks.json { 사람: { key: 걷은 때 } } · 깨졌으면 빈 것으로 보되 덮지 않는다(쓰기 때 다시 읽어 깨졌으면 던진다)
   const stopKey = (x) => crypto.createHash('sha256').update([x.kind, x.kn || '', x.b || ''].join('\n')).digest('hex').slice(0, 16)
@@ -1123,11 +1123,44 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     const su = p.match(/^\/api\/k\/([^/]+)\/seed\/upload$/)
     if (su) {
       if (req.method !== 'POST') throw new KmdError('E_METHOD', 'POST 로 보낸다')
+      // 개인 프로그램은 올리지 않는다(원본 폴더 · 꾸러미를 /api/shape/survey 로 · 같은 재료 폴더를 지우지 않게)
+      if (mode !== 'team') throw new KmdError('E_FORBIDDEN', '올리기는 팀 기초 세우기다: 개인은 재료 경로로 조사한다')
       const sid = dec(su[1])
       await hub.seedGate(ctx, sid)
       const b = await readBody(req, 64 << 20, 'E_TOO_BIG')
       if (!b || typeof b !== 'object' || Array.isArray(b)) throw new KmdError('E_INPUT', '{ group, files } 를 보낸다')
       return out(200, await hub.seedUpload(ctx, sid, { group: b.group ?? null, files: b.files ?? [] }))
+    }
+    // 개인 기초 세우기(TODO 9 · Z7 · 바탕 설계 5-3 · 권한 모델 7절) — 그 지식의 지식관리자 · 개인 프로그램만(팀은 올리기 · TODO 10)
+    //   POST /api/shape/survey { kn, dir } 원본 조사(또는 kmd-seed 꾸러미 열기) · GET /api/seed/open 만들던 것 · GET /api/k/:id/seed 보기 ·
+    //   POST seed/pick { picks } · seed/plan { mode, plan?, note? } · seed/write { doc?, all?, items?, approve?, stop? } · seed/try · seed/step { ui } ·
+    //   넣기 · 그만두기는 짜임 길(shape/put · shape/stop) 그대로. 걸음 내용은 받지 않는다(서버가 장부의 구조안 · 글로 짓는다)
+    if (p === '/api/shape/survey') {
+      need(ctx)
+      if (req.method !== 'POST') throw new KmdError('E_METHOD', 'POST 로 보낸다')
+      const b = await readBody(req)
+      if (!b || typeof b !== 'object' || Array.isArray(b) || typeof b.kn !== 'string' || !b.kn || b.kn.length > 200) throw new KmdError('E_INPUT', '{ kn, dir } 를 보낸다')
+      return out(200, await hub.seedSurvey(ctx, b.kn, { dir: b.dir }))
+    }
+    if (p === '/api/seed/open') { need(ctx); return out(200, await hub.seedOpen(ctx)) }
+    const sdm = p.match(/^\/api\/k\/([^/]+)\/seed(?:\/(pick|plan|write|try|step))?$/)
+    if (sdm) {
+      need(ctx)
+      const kn = dec(sdm[1])
+      if (!sdm[2]) {
+        if (req.method !== 'GET') throw new KmdError('E_METHOD', 'GET 만 받는다')
+        return out(200, await hub.seedView(ctx, kn, { doc: url.searchParams.get('doc') }))
+      }
+      if (req.method !== 'POST') throw new KmdError('E_METHOD', 'POST 만 받는다')
+      await hub.meta(kn, ctx)
+      hub.need(ctx, kn, 'admin')
+      const b = await readBody(req)
+      if (!b || typeof b !== 'object' || Array.isArray(b)) throw new KmdError('E_INPUT', '몸은 { … } 이다')
+      if (sdm[2] === 'pick') return out(200, await hub.seedPick(ctx, kn, { picks: b.picks }))
+      if (sdm[2] === 'plan') return out(200, await hub.seedPlan(ctx, kn, { mode: b.mode, plan: b.plan ?? null, note: b.note ?? '' }))
+      if (sdm[2] === 'write') return out(200, await hub.seedWrite(ctx, kn, { doc: b.doc ?? null, all: b.all === true, items: b.items ?? null, approve: b.approve ?? null, stop: b.stop === true }))
+      if (sdm[2] === 'try') return out(200, await hub.seedTry(ctx, kn))
+      return out(200, await hub.seedStep(ctx, kn, { ui: b.ui }))
     }
     // 파일 · 폴더 넣기 — { files: [{ path, b64 }] } · 한 번에 300 파일 · 200MB(글자로 바꾸면 커져 길 상한은 280MB)
     const im = p.match(/^\/api\/k\/([^/]+)\/import$/)
