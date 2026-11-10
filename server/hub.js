@@ -48,6 +48,7 @@ import { renderRecord } from '../core/frontmatter.js'
 import { stampAll, headingMatches, findHeading } from '../core/sections.js'
 import { docfmtDir, checkFormat } from '../core/docformat.js'
 import { applyRestructure, readStructure, structureFp } from '../core/restructure.js'
+import { readShape, cleanPlan, planCheck, stepsOf } from '../core/shape.js'
 import { parseOrder } from '../core/order.js'
 import { parseDoc as parseDocText } from '../core/sections.js'
 import { parseForms } from '../core/guard.js'
@@ -1611,6 +1612,89 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         try { feed.add(dataDir, user, { kind: 'save', rec: r.log, kn: id, dot: 'acc', text: `구조: ${meta.name}`, small: r.lines.slice(0, 3).map((x) => x.replace(/^- /, '')).join(' · ') }).catch((e) => log(`오늘 바뀐 것 줄을 쓰지 못했다 ${id}: ${e.message}`)) } catch (e) { log(`오늘 바뀐 것 줄을 쓰지 못했다 ${id}: ${e.message}`) }
       }
       return { kn: id, ...r }
+    },
+
+    // ── 문서 짜임 넓히기(바탕 세우기 설계 4 · 8-1 · 권한 모델 7-2) ──
+    //   짜임 일 장부 <살림>/shape/<지식>.json — 지식마다 열린 짜임 일 하나(초안 구조안 · 연 사람 · 단계 · 넣은 걸음 · 넣기 직전 짜임).
+    //   임시 파일 뒤 이름 바꾸기 · 깨진 파일은 빈 것으로 읽어 덮지 않는다(「잠깐 멈춤: 장부가 깨졌다」)
+    shapeFile(id) {
+      return path.join(dataDir, 'shape', `${encodeURIComponent(id)}.json`)
+    },
+    async shapeWork(id) {
+      const t = await fs.readFile(hub.shapeFile(id), 'utf8').catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
+      if (t == null) return null
+      try {
+        const w = JSON.parse(t)
+        if (!w || typeof w !== 'object' || !/^[0-9a-f]{12}$/.test(String(w.work))) throw new Error('꼴')
+        return w
+      } catch (e) {
+        log(`짜임 일 장부가 깨졌다 ${id}: ${e.message}`)
+        return { broken: true }
+      }
+    },
+    // 장부 고치기 — 지식마다 한 줄 · fn(지금 · 없으면 null) 이 새 값(null 이면 지움)을 돌려준다 · 깨졌으면 던진다
+    shapeEdit(id, fn) {
+      return serial(hub.shapeFile(id), async () => {
+        const w = await hub.shapeWork(id)
+        if (w?.broken) throw new KmdError('E_CONFLICT', '잠깐 멈춤: 짜임 일 장부가 깨졌다. 지식관리자가 그만두게 하면 새로 연다')
+        const next = await fn(w)
+        if (next === undefined) return w
+        if (next === null) { await fs.rm(hub.shapeFile(id), { force: true }); return null }
+        await writeJsonAtomic(hub.shapeFile(id), next, { indent: 1, nl: true })
+        return next
+      })
+    },
+    // 지금 짜임(GET /api/k/:id/shape) — 지식관리자 · 문서 · 항목 머리 · 줄 수 · 이름 수 · 갈래 · watched · shapeFp · 열린 짜임 일 요약
+    async shape(id, ctx) {
+      const meta = await hub.meta(id, ctx)
+      if (ctx) hub.need(ctx, id, 'admin')
+      const k = await hub.get(id, ctx)
+      const S = readShape(k, await readStructure(meta.dir))
+      const w = await hub.shapeWork(id)
+      const work = !w ? null : w.broken ? { broken: true } : { work: w.work, by: w.by, stage: w.stage, opened: w.opened, at: w.at, draft: !!w.plan, mine: !ctx || w.by === ctx.user }
+      return { kn: id, name: meta.name, fp: S.fp, docs: S.docs.map((d) => ({ id: d.id, title: d.title, watched: d.watched, intro: d.intro, items: d.items.map((it) => ({ h: it.h, lines: it.lines, names: it.coords.length })) })), forms: S.forms, work }
+    },
+    // 구조안 검사(POST /api/k/:id/shape/check { plan }) — planCheck · diffPlan · 짜임 마른 실행 → 걸림 · 경고 · 바뀔 것 · 걸음.
+    //   짜임 일을 열고(처음이면) 초안을 장부에 둔다. 단계를 잇는 것은 연 사람만(그만두게 하기는 지식관리자 누구나)
+    async shapeCheck(id, ctx, { plan } = {}) {
+      const meta = await hub.meta(id, ctx)
+      if (ctx) hub.need(ctx, id, 'admin')
+      const c = cleanPlan(plan)
+      if (c.error) throw new KmdError('E_INPUT', c.error)
+      if (c.plan.kind === 'seed') throw new KmdError('E_INPUT', '바탕 세우기 구조안은 바탕 세우기 길로 연다')
+      const user = ctx?.user || 'kmd'
+      const k = await hub.get(id, ctx)
+      const files = await readStructure(meta.dir)
+      const S = readShape(k, files)
+      const r = planCheck(k, S, c.plan)
+      // 짜임 걸음 마른 실행 — 겹치는 머리 · 갈래 꼴 · 자리 잃는 이름 · 섞인 자리를 실제 엔진으로
+      const f = r.diff.frame
+      if (r.ok && (f.moves.length || f.creates.length || f.items.length)) {
+        const legacy = mode === 'team' ? (kk, docObj, sec) => legacyPendOf(kk, { docObj, sec, heading: sec.h }, null) : null
+        try {
+          await applyRestructure(meta.dir, f, { user, dry: true, legacy, cutoverAt: config.cutoverAt || null, team: mode === 'team' })
+        } catch (e) {
+          if (e.code !== 'E_INPUT') throw e
+          r.errors.push(...(Array.isArray(e.details) ? e.details : [{ where: '짜임', why: e.message }]))
+          r.ok = false
+        }
+      }
+      const steps = stepsOf(r.diff)
+      const w = await hub.shapeEdit(id, (w0) => {
+        if (w0 && ctx && w0.by !== ctx.user) throw new KmdError('E_CONFLICT', `${w0.by} 가 연 짜임 일이 있다. 그 사람이 잇거나 지식관리자가 그만두게 한다`)
+        const now = new Date().toISOString()
+        return { v: 1, kn: id, work: w0?.work || crypto.randomBytes(6).toString('hex'), kind: 'reshape', by: w0?.by || user, opened: w0?.opened || now, at: now, stage: w0?.stage && w0.stage !== 'plan' ? w0.stage : 'plan', plan: c.plan, check: { ok: r.ok, stale: r.stale, fp: S.fp, summary: r.summary }, done: w0?.done || [] }
+      })
+      const d = r.diff
+      const changes = [
+        ...d.frame.moves.map((m) => `문서 옮김: ${m.from} → ${m.to}`),
+        ...d.frame.creates.map((x) => `새 문서: ${x}`),
+        ...d.frame.items.map((x) => `${x.from.doc === x.to.doc ? (x.from.h === x.to.h ? '항목 차례' : '항목 이름') : '항목 옮김'}: ${x.from.doc} › ${x.from.h} → ${x.to.doc} › ${x.to.h}`),
+        ...d.writes.map((u) => `${{ merge: '합치기', split: '나누기', mixed: '나누기 · 합치기', seed: '바탕 세움', intro: '문서 요약', rewrite: '다시 씀' }[u.kind]}: ${u.sources.map((s) => `${s.doc} › ${s.h}`).join(' · ') || u.intros.map((x) => x.doc).join(' · ')}${u.targets.length ? ` → ${u.targets.map((t) => `${t.doc} › ${t.h}`).join(' · ')}` : ''}`),
+        ...d.tidy.drops.map((x) => `문서 걷음: ${x}`),
+        ...(d.forms ? ['갈래 장부'] : []),
+      ]
+      return { kn: id, work: w.work, fp: S.fp, ok: r.ok, stale: r.stale, errors: r.errors.slice(0, 200), warnings: r.warnings.slice(0, 200), summary: r.summary, steps, changes: changes.slice(0, 1000) }
     },
 
     // 조각을 넣는 판정(S-D6) — 이 PC · 그 지식의 에이전트 · 쓰기 이상. 장부 · 되돌리기 · 받은편지함은 canDirect(지식관리자) 그대로
