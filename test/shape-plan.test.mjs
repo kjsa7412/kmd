@@ -229,6 +229,14 @@ test('서버: GET shape · POST shape/check — 쓰기 자리 403 · 지식관�
     assert.equal((await req('/api/k/dpms/shape/check', kim, { plan })).status, 409)
     assert.equal(fs.readFileSync(s.hub.shapeFile('dpms'), 'utf8'), '{깨짐')
     assert.equal((await req('/api/k/dpms/shape', kim)).j.work.broken, true)
+    // 해 보기 · 넣기 · 그만두기 · 되돌리기 구조안 — 쓰기 자리 403 · 그만두기는 지식관리자 누구나
+    for (const x of ['try', 'put', 'stop', 'undo']) assert.equal((await req(`/api/k/dpms/shape/${x}`, lee, {})).status, 403, x)
+    assert.equal((await req('/api/k/dpms/shape/try', kim, {})).status, 409, '깨진 장부')
+    const st = await req('/api/k/dpms/shape/stop', park, {})
+    assert.equal(st.status, 200, JSON.stringify(st.j))
+    assert.equal((await req('/api/k/dpms/shape', kim)).j.work, null)
+    assert.equal((await req('/api/k/dpms/shape/put', kim, {})).status, 404, '열린 짜임 일이 없다')
+    assert.equal((await req('/api/k/dpms/shape/undo', kim, {})).status, 409)
   } finally {
     await s.close()
     try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}

@@ -752,16 +752,22 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const b = await readBody(req)
       return out(200, await hub.restructure(dec(stm[1]), ctx, { ops: b.ops, base: b.base ?? null, dry: b.dry === true }))
     }
-    // 문서 짜임 넓히기(바탕 세우기 설계 8-1 · 권한 모델 7-2) — 지식관리자 · GET 지금 짜임 + shapeFp + 열린 짜임 일 · POST shape/check { plan } 구조안 검사(초안을 장부에)
-    const shm = p.match(/^\/api\/k\/([^/]+)\/shape(?:\/(check))?$/)
+    // 문서 짜임 넓히기(바탕 세우기 설계 8-1 · 권한 모델 7-2) — 지식관리자 · GET 지금 짜임 + shapeFp + 열린 짜임 일 · POST shape/check { plan } 구조안 검사(초안을 장부에) ·
+    //   shape/try 연습 판에 해 보기 · shape/put 넣기 · 이어 넣기(다시 맞추기는 그 안에서) · shape/stop 그만두기 · shape/undo 되돌리기 구조안. 걸음 내용(ops · remove)은 받지 않는다
+    const shm = p.match(/^\/api\/k\/([^/]+)\/shape(?:\/(check|try|put|stop|undo))?$/)
     if (shm) {
       need(ctx)
+      const kn = dec(shm[1])
       if (!shm[2]) {
         if (req.method !== 'GET') throw new KmdError('E_METHOD', 'GET 만 받는다')
-        return out(200, await hub.shape(dec(shm[1]), ctx))
+        return out(200, await hub.shape(kn, ctx))
       }
       const b = await readBody(req)
-      return out(200, await hub.shapeCheck(dec(shm[1]), ctx, { plan: b.plan }))
+      if (shm[2] === 'check') return out(200, await hub.shapeCheck(kn, ctx, { plan: b.plan }))
+      if (shm[2] === 'try') return out(200, await hub.shapeTry(ctx, kn))
+      if (shm[2] === 'put') return out(200, await hub.shapePut(ctx, kn))
+      if (shm[2] === 'stop') return out(200, await hub.shapeStop(ctx, kn))
+      return out(200, await hub.shapeUndo(ctx, kn))
     }
     // 지식 추가 — 새 이름 · 내 폴더(PC)
     if (p === '/api/knowledge/add') {

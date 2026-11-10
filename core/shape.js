@@ -365,18 +365,126 @@ export function planCheck(k, S, Pl) {
   return { ok: !errors.length, stale, errors, warnings, diff, summary }
 }
 
-// 단계 이름(4-2) — 걸음 목록(차례 고정 · forms → frame → stock → write → tidy → seal)
+// 걸음 번호(4-2 · 걸음 표지 shape/<work>/<번호>) — 차례 고정 · 다시 맞추기 · 이어 넣기에도 같은 번호
+//   forms 1 · frame 2 · write 10 + 단위 번호 · tidy 9998 · seal 9999
+export const STEP_NO = { forms: 1, frame: 2, write: (n) => 10 + n, tidy: 9998, seal: 9999 }
 export function stepsOf(diff) {
   const steps = []
-  if (diff.forms) steps.push({ kind: 'forms' })
+  if (diff.forms) steps.push({ n: STEP_NO.forms, kind: 'forms' })
   const f = diff.frame
-  if (f.moves.length || f.creates.length || f.items.length || (f.dirs || []).length || f.order) steps.push({ kind: 'frame' })
-  for (const u of diff.writes) steps.push({ kind: 'write', unit: u.n })
-  if (diff.tidy.drops.length) steps.push({ kind: 'tidy' })
-  steps.push({ kind: 'seal' })
-  return steps.map((s, i) => ({ n: i + 1, ...s }))
+  if (f.moves.length || f.creates.length || f.items.length || (f.dirs || []).length || f.order) steps.push({ n: STEP_NO.frame, kind: 'frame' })
+  for (const u of diff.writes) steps.push({ n: STEP_NO.write(u.n), kind: 'write', unit: u.n })
+  if (diff.tidy.drops.length) steps.push({ n: STEP_NO.tidy, kind: 'tidy' })
+  steps.push({ n: STEP_NO.seal, kind: 'seal' })
+  return steps
 }
 export { FORM_KINDS }
+
+// 짜임 걸음 뒤의 구조안(4-2 · 이어 넣기 · write · tidy 걸음) — frame 이 끝나면 문서는 끝 id 에 · 글이 그대로인 항목은 제자리에 있다.
+//   그래서 was = id · 그대로 가는 항목의 from = 자기 자리 · 글 걸음 출처의 문서는 옮긴 뒤 id 로
+export function afterFrame(plan, finalOf = {}) {
+  const uses = new Map()
+  for (const d of plan.docs) for (const it of d.items) for (const f of it.from) uses.set(key(f.doc, f.h), (uses.get(key(f.doc, f.h)) || 0) + 1)
+  const docs = plan.docs.map((d) => ({
+    ...d,
+    was: d.id,
+    items: d.items.map((it) => {
+      const frame = !it.src?.length && it.from.length === 1 && uses.get(key(it.from[0].doc, it.from[0].h)) === 1 && typeof it.text !== 'string'
+      return { ...it, from: frame ? [{ doc: d.id, h: it.h }] : it.from.map((f) => ({ doc: finalOf[f.doc] || f.doc, h: f.h })) }
+    }),
+  }))
+  return { ...plan, forms: null, docs, base: null }
+}
+
+// 끝 진단(4-7) — 연습 판(넣기 뒤에는 진짜)에서. before — 걸음 앞 지식(기록 상태 · 항목 잃은 이름 견주기) · work — 이 짜임 일
+//   → { blockers: [{ what, why }], warnings: [{ what, why }], counts }
+//   막는 것: 새로 항목 잃은 이름 · 이 일의 넣지 못함 · 기록 상태 바뀜(이 일의 기록은 빼고)
+export function diagnose(before, after, { work, sectionOf, coordsOfSection, audit }) {
+  const blockers = []
+  const warnings = []
+  const a0 = audit(before, { sectionOf, coordsOfSection })
+  const a1 = audit(after, { sectionOf, coordsOfSection })
+  const lost0 = new Set(a0.lost.map((x) => x.coord))
+  const lost = a1.lost.filter((x) => !lost0.has(x.coord))
+  if (lost.length) blockers.push({ what: '항목 잃은 이름', why: lost.slice(0, 5).map((x) => x.coord).join(' · ') + (lost.length > 5 ? ` 외 ${lost.length - 5}` : '') })
+  const mine = (w) => (w.tags || []).some((t) => t.startsWith(`shape/${work}/`))
+  const held = after.works.filter((w) => mine(w) && w.state === 'held')
+  if (held.length) blockers.push({ what: '넣지 못함', why: held.map((w) => w.title).slice(0, 5).join(' · ') })
+  const st0 = new Map(before.works.map((w) => [w.id, w.state]))
+  const moved = after.works.filter((w) => !mine(w) && st0.has(w.id) && st0.get(w.id) !== w.state)
+  if (moved.length) blockers.push({ what: '기록 상태 바뀜', why: moved.slice(0, 5).map((w) => `${w.id}(${st0.get(w.id)} → ${w.state})`).join(' · ') })
+  const un0 = new Set(a0.unnamed.map((x) => x.id))
+  const un = a1.unnamed.filter((x) => !un0.has(x.id))
+  if (un.length) warnings.push({ what: '이름 없는 기록', why: String(un.length) })
+  for (const d of after.docs) {
+    const n = d.sections.length
+    if (n && (n < 5 || n > 40)) warnings.push({ what: d.id, why: `항목 ${n}(문서당 5~40)` })
+    const long = d.sections.filter((s) => s.body.split('\n').length > 300)
+    if (long.length) warnings.push({ what: d.id, why: `300줄 넘는 항목 ${long.length}` })
+    if (!d.intro?.trim()) warnings.push({ what: d.id, why: '요약 없음' })
+  }
+  return { blockers, warnings, counts: { lost: lost.length, held: held.length, moved: moved.length, docs: after.docs.length, items: after.docs.reduce((x, d) => x + d.sections.length, 0) } }
+}
+
+// 넣기 직전 짜임(4-3 되돌리기 3) — 되돌리기 구조안의 재료. 문서 · 항목 머리 · 글이 다시 쓰일 항목의 글 · 그 항목에 닿던 이름 · 옮겨 간 자리
+export function snapshotOf(S, plan, k) {
+  const route = {}
+  for (const d of plan.docs) for (const it of d.items) for (const f of it.from) (route[key(f.doc, f.h)] ||= []).push({ doc: d.id, h: it.h })
+  const rewritten = new Set()
+  const diff = diffPlan(S, plan)
+  for (const u of diff.writes) for (const s of u.sources) rewritten.add(key(s.doc, s.h))
+  const bodies = {}
+  const names = {}
+  for (const d of S.docs) {
+    const dObj = k.byDocPath.get(`docs/${d.id}.md`)
+    for (const it of d.items) {
+      if (!rewritten.has(key(d.id, it.h))) continue
+      const sec = dObj?.sections.find((s) => s.h === it.h)
+      if (sec) bodies[key(d.id, it.h)] = sec.body
+      for (const c of it.coords) names[c] = { doc: d.id, h: it.h }
+    }
+  }
+  return { fp: S.fp, docs: S.docs.map((d) => ({ id: d.id, items: d.items.map((x) => x.h) })), route, bodies, names, finalOf: diff.finalOf }
+}
+
+// 되돌리기 구조안(4-3 되돌리기 3) — 넣기 직전 짜임(snap)을 새 짜임으로 하는 역 구조안. 글이 그대로 간 항목은 그대로 돌아가고
+//   나누기 · 합치기는 넣기 앞 글(snap.bodies)을 목표 글로 하는 write 단위가 된다(같은 값 대조). 그 뒤에 생긴 항목 · 문서는 그 자리에 둔다
+export function undoPlan(snap, S) {
+  const cur = new Map(S.docs.map((d) => [d.id, d]))
+  const has = (doc, h) => !!cur.get(doc)?.items.some((x) => x.h === h)
+  const usedBy = new Map()
+  for (const [k0, rs] of Object.entries(snap.route)) for (const r of rs) (usedBy.get(key(r.doc, r.h)) || usedBy.set(key(r.doc, r.h), []).get(key(r.doc, r.h))).push(k0)
+  const covered = new Set()
+  const docs = []
+  const names = []
+  const warnings = []
+  for (const bd of snap.docs) {
+    const fin = snap.finalOf?.[bd.id] || bd.id
+    const d = { id: bd.id, was: cur.has(fin) ? fin : null, items: [] }
+    for (const h of bd.items) {
+      const k0 = key(bd.id, h)
+      const rs = (snap.route[k0] || []).filter((r) => has(r.doc, r.h))
+      if (!rs.length) { warnings.push(`${bd.id} › ${h}: 지금 자리를 찾지 못했다`); continue }
+      for (const r of rs) covered.add(key(r.doc, r.h))
+      const shared = rs.length === 1 && (usedBy.get(key(rs[0].doc, rs[0].h)) || []).length > 1
+      const body = snap.bodies[k0]
+      if ((rs.length > 1 || shared) && typeof body !== 'string') { warnings.push(`${bd.id} › ${h}: 넣기 앞 글이 없다`); continue }
+      d.items.push({ h, from: rs, ...(rs.length > 1 || shared ? { text: body } : {}) })
+      if (rs.length > 1 || shared) for (const [c, at] of Object.entries(snap.names)) if (at.doc === bd.id && at.h === h) names.push({ coord: c, label: '', doc: bd.id, h })
+    }
+    docs.push(d)
+  }
+  // 넣은 뒤에 생긴 항목 — 지금 문서 그대로(그 문서가 되돌리기 구조안에 있으면 끝에)
+  const empty = []
+  for (const cd of S.docs) {
+    const left = cd.items.filter((x) => !covered.has(key(cd.id, x.h)))
+    const host = docs.find((x) => x.was === cd.id)
+    if (host) host.items.push(...left.map((x) => ({ h: x.h, from: [{ doc: cd.id, h: x.h }] })))
+    else if (left.length) docs.push({ id: cd.id, was: cd.id, items: left.map((x) => ({ h: x.h, from: [{ doc: cd.id, h: x.h }] })) })
+    else empty.push(cd.id)
+  }
+  return { plan: { v: 1, kind: 'reshape', base: S.fp, forms: null, dirs: [], docs, names, order: null, empty, skip: [] }, warnings }
+}
 
 // 글 걸음 지문(4-2) — 단위의 출처 항목마다 글 지문(sha16). 글을 지을 때 본 출처와 넣을 때의 출처가 같아야 한다(어긋나면 E_CONFLICT)
 export const unitFp = (u) => hash16((u.sources || []).map((s) => `${s.doc}\n${s.h}\n${s.sha}`).join('\n') + '\n--\n' + (u.targets || []).map((t) => `${t.doc}\n${t.h}`).join('\n'))
