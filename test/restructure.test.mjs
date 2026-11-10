@@ -205,3 +205,157 @@ test('옮겼다 되돌리면 같은 글 — %xx 링크 꼴 그대로 · 갈래 �
   assert.equal(read(dir, 'docs/공통/용어집.md'), t0, '옮겼다 되돌리면 글이 같다')
   fs.rmSync(dir, { recursive: true, force: true })
 })
+
+// ── 항목 옮기기 · 이름 · 걷기(바탕 세우기 설계 4-3 · 4-4 · Z1) ──
+const rec = (id, date, touches, extra = '') => `---\nid: ${id}\ntitle: "${id}"\ndate: ${date}\nauthor: 김\n${touches.length ? `touches:\n${touches.map((c) => `  - ${c}`).join('\n')}\n` : ''}${extra}---\n\n# ${id}\n\n## 바뀐 것\n- 값\n`
+const ITEM = {
+  'docs/운영/배포.md': '# 배포\n\n배포 절차를 모은다.\n\n## 배포 창\n화요일 09:00 에 연다.\n\n## 롤백\n되돌린다.\n',
+  'docs/점검.md': '# 점검\n\n## 사전 점검\n[배포 창](운영/배포.md#배포%20창) 앞에 본다.\n',
+  'docs/서버대장.md': '# 서버대장\n\n## web01\n웹 서버. [창](운영/배포.md#배포%20창)\n<!-- applied: 2026-1102-b -->\n\n## web02\n예비.\n',
+  'docs/원본.md': '<!-- watched: src="s" path="p.docx" -->\n# 원본\n\n## 가\n글\n',
+  'work/2026-1101-a.md': rec('2026-1101-a', '2026-11-01 09:00', ['proc:배포창']),
+  'work/2026-1102-b.md': rec('2026-1102-b', '2026-11-02 09:00', ['server:web01']),
+  '_managed.md': '| 이름 | 문서 | 항목 |\n|---|---|---|\n| `proc:배포창` | `docs/운영/배포.md` | `## 배포 창` |\n| `server:*` | `docs/서버대장.md` | `## {값}` |\n',
+  '_vocab.md': '# 이름 장부\n\n## proc\n\n- `proc:배포창`: 배포 창\n\n## server\n\n- `server:web01`: web01\n- `server:web02`: web02\n',
+}
+// 둘째 커밋 — 기록 a 를 배포 창에 넣는다(되돌리기가 찾을 앞 판) · 그 뒤 기록 c(아직 안 넣음)
+function makeItems() {
+  const dir = make(ITEM)
+  fs.writeFileSync(path.join(dir, 'docs/운영/배포.md'), '# 배포\n\n배포 절차를 모은다.\n\n## 배포 창\n<!-- applied: 2026-1101-a -->\n화요일 10:00 에 연다. [롤백](#롤백) · [서버](../서버대장.md)\n\n### 세부\n- 값 3\n\n## 롤백\n되돌린다.\n\n<!-- kmd:참고 · kmd 가 적고 고친다. 손으로 고치지 않는다 -->\n**참고**\n\n- 배포 창\n  - 2026-11-01 [a](../../work/2026-1101-a.md)\n<!-- /kmd:참고 -->\n')
+  fs.writeFileSync(path.join(dir, 'work/2026-1103-c.md'), rec('2026-1103-c', '2026-11-03 09:00', ['proc:배포창']))
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'a 넣음')
+  return dir
+}
+const states = (k) => Object.fromEntries(k.works.map((w) => [w.id, w.state]))
+
+test('항목 옮기기 · 이름 — 글자 그대로 · applied · 링크(글 속 · 들어오는 #머리) · 참고 줄 깊이 · 자리 장부(제자리 · 패턴 줄 위) · 기록 상태 그대로 · 한 커밋', async () => {
+  const { sectionOf } = await import('../core/knowledge.js')
+  const { parseDoc } = await import('../core/sections.js')
+  const dir = makeItems()
+  const k0 = await loadKnowledge({ id: 't', name: 't', dir })
+  const s0 = states(k0)
+  assert.equal(s0['2026-1101-a'], 'in')
+  assert.equal(s0['2026-1103-c'], 'pend')
+  const body0 = parseDoc(read(dir, 'docs/운영/배포.md'), '').sections.find((s) => s.h === '배포 창').body
+  const ops = { creates: ['운영/서버'], items: [
+    { from: { doc: '운영/배포', h: '배포 창' }, to: { doc: '점검', h: '배포 창', before: '사전 점검' } },
+    { from: { doc: '서버대장', h: 'web01' }, to: { doc: '운영/서버' } },
+    { from: { doc: '서버대장', h: 'web02' }, to: { doc: '서버대장', h: 'web03' } },
+  ] }
+  const dry = await applyRestructure(dir, ops, { user: 'kim', dry: true })
+  assert.equal(dry.summary.items, 3)
+  assert.ok(dry.lines.includes('- 항목 옮김: 운영/배포 › 배포 창 → 점검 › 배포 창'), dry.lines.join('\n'))
+  const r = await applyRestructure(dir, ops, { user: 'kim', base: dry.stepFp })
+  assert.ok(r.commit)
+  assert.equal(git(dir, 'status', '--porcelain').trim(), '', '모두 한 커밋')
+  const t = read(dir, 'docs/점검.md')
+  const secs = parseDoc(t, '').sections
+  assert.deepEqual(secs.map((s) => s.h), ['배포 창', '사전 점검'], '놓을 차례(before)')
+  const moved = secs[0]
+  assert.equal(moved.applied, '2026-1101-a', 'applied 표지가 글과 같이')
+  assert.match(moved.body, /### 세부\n- 값 3/, '### 소제목까지')
+  assert.match(moved.body, /\[롤백\]\(운영\/배포\.md#/, '원래 문서의 #머리 는 원래.md#머리')
+  assert.match(moved.body, /\[서버\]\(서버대장\.md\)/, '글 속 상대 링크는 새 자리 기준')
+  assert.equal(moved.body.replace(/\(운영\/배포\.md#[^)]*\)/, '(#롤백)').replace('(서버대장.md)', '(../서버대장.md)'), body0, '링크 말고는 글자 그대로')
+  assert.match(t, /\[배포 창\]\(#배포%20창\)/, '같은 문서가 된 들어오는 링크는 #머리')
+  assert.match(t, /- 2026-11-01 \[a\]\(\.\.\/work\/2026-1101-a\.md\)/, '참고 줄 기록 링크는 목표 깊이로')
+  assert.match(read(dir, 'docs/운영/서버.md'), /\[창\]\(\.\.\/점검\.md#배포%20창\)/, '다른 문서의 들어오는 링크(옮긴 항목 속 링크도)')
+  const src = read(dir, 'docs/운영/배포.md')
+  assert.ok(!/배포 창/.test(src) && !/kmd:참고/.test(src), '출처에서 항목 · 참고 줄이 빠진다')
+  assert.match(src, /## 롤백/)
+  assert.match(read(dir, 'docs/운영/서버.md'), /## web01\n웹 서버\./)
+  assert.match(read(dir, 'docs/서버대장.md'), /## web03\n예비\./, '항목 이름')
+  const reg = read(dir, '_managed.md')
+  assert.match(reg, /\| `proc:배포창` \| `docs\/점검\.md` \| `## 배포 창` \|/, '정확한 줄은 제자리에서')
+  const rl = reg.split('\n')
+  const iw1 = rl.findIndex((l) => l.includes('`server:web01`')), iw2 = rl.findIndex((l) => l.includes('`server:web02`')), ip = rl.findIndex((l) => l.includes('`server:*`'))
+  assert.ok(iw1 >= 0 && iw1 < ip && iw2 >= 0 && iw2 < ip, '패턴 줄로 닿던 이름은 패턴 줄 위에 정확한 줄:\n' + reg)
+  assert.match(rl[iw1], /docs\/운영\/서버\.md/)
+  assert.match(rl[iw2], /## web03/)
+  const k = await loadKnowledge({ id: 't', name: 't', dir })
+  assert.equal(sectionOf(k, 'proc:배포창').sec.h, '배포 창')
+  assert.equal(sectionOf(k, 'proc:배포창').doc.path, 'docs/점검.md')
+  assert.equal(sectionOf(k, 'server:web01').doc.path, 'docs/운영/서버.md')
+  assert.equal(sectionOf(k, 'server:web02').sec.h, 'web03')
+  assert.deepEqual(states(k), s0, '기록 상태 앞뒤 같음')
+  const log = k.logs.find((w) => w.tags.includes('structure'))
+  assert.match(log.body, /- 항목 이름: 서버대장 › web02 → 서버대장 › web03/)
+  fs.rmSync(dir, { recursive: true, force: true })
+})
+
+test('항목 막는 것 — 앞부분 겹침 · 같은 머리 · 원본이 주인 · 갈래 머리 꼴 · 섞인 자리(legacy-mix) · 없는 항목 · 아무것도 쓰지 않는다', async () => {
+  const dir = makeItems()
+  fs.writeFileSync(path.join(dir, '_forms.md'), '| 갈래 | 다른 이름 | 폴더 | 종류 | 이름 | 서식 |\n|---|---|---|---|---|---|\n| 회의록 | 회의 | — | 사건 | — | 작업기록 |\n| 점검 | — | — | 대상 | — | 지식문서 |\n| 배포 | — | 운영 | 대상 | — | 지식문서 |\n| 서버대장 | — | — | 대장 | `server:*` | 지식문서 |\n| 원본 | — | — | 대상 | — | 지식문서 |\n')
+  fs.writeFileSync(path.join(dir, 'docs/회의록.md'), '# 회의록\n\n## 2026-11-01 착수\n정했다.\n')
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', '갈래')
+  const head0 = git(dir, 'rev-parse', 'HEAD').trim()
+  const go = (items, opt = {}) => applyRestructure(dir, { items }, { user: 'kim', ...opt })
+  await assert.rejects(go([{ from: { doc: '운영/배포', h: '롤백' }, to: { doc: '운영/배포', h: '배포' } }]), /겹치는 머리/, '「배포」 와 「배포 창」')
+  await assert.rejects(go([{ from: { doc: '운영/배포', h: '롤백' }, to: { doc: '점검', h: '사전 점검' } }]), /겹치는 머리/)
+  await assert.rejects(go([{ from: { doc: '원본', h: '가' }, to: { doc: '점검' } }]), /원본이 주인/)
+  await assert.rejects(go([{ from: { doc: '점검', h: '사전 점검' }, to: { doc: '원본' } }]), /원본이 주인/)
+  await assert.rejects(go([{ from: { doc: '운영/배포', h: '롤백' }, to: { doc: '회의록' } }]), /머리 꼴/)
+  await assert.rejects(go([{ from: { doc: '운영/배포', h: '없음' }, to: { doc: '점검' } }]), /없는 항목/)
+  await assert.rejects(go([{ from: { doc: '운영/배포', h: '배포' }, to: { doc: '점검' } }]), /없는 항목/, '앞부분 맞춤으로 집지 않는다')
+  const legacy = (k, d, s) => (s.h === '배포 창' ? ['2026-1103-c'] : [])
+  await assert.rejects(go([{ from: { doc: '운영/배포', h: '배포 창' }, to: { doc: '점검' } }], { legacy }), (e) => e.code === 'E_INPUT' && e.details.some((x) => x.code === 'legacy-mix'))
+  await assert.rejects(go([{ from: { doc: '운영/배포' }, to: { doc: '점검' } }]), /items 는/)
+  assert.equal(git(dir, 'rev-parse', 'HEAD').trim(), head0)
+  assert.equal(git(dir, 'status', '--porcelain').trim(), '')
+  fs.rmSync(dir, { recursive: true, force: true })
+})
+
+test('항목 옮김 · 이름 뒤 옛 기록 되돌리기 — 항목을 지우지 않고 앞 자리의 앞 판 글로 · 짜임 이력 줄이 없으면 E_CONFLICT', async () => {
+  const { revertPlan, priorPlace } = await import('../core/revert.js')
+  const dir = makeItems()
+  await applyRestructure(dir, { items: [{ from: { doc: '운영/배포', h: '배포 창' }, to: { doc: '점검', h: '배포 시간' } }] }, { user: 'kim' })
+  await applyRestructure(dir, { moves: [{ from: '점검', to: '운영/점검' }] }, { user: 'kim' })
+  const k = await loadKnowledge({ id: 't', name: 't', dir })
+  const plan = await revertPlan(k, '2026-1101-a')
+  assert.equal(plan.sections.length, 1)
+  const s = plan.sections[0]
+  assert.equal(s.doc, 'docs/운영/점검.md')
+  assert.equal(s.heading, '배포 시간')
+  assert.ok(!s.remove, '지우지 않는다')
+  assert.match(s.content, /화요일 09:00/, '넣기 앞 글')
+  assert.deepEqual(priorPlace('- 항목 이름: a › 가 → a › 나\n- 옮김: b → c', 'a', '나'), { doc: 'a', h: '가' })
+  assert.deepEqual(priorPlace('- 옮김: b → c', 'c', '가'), { doc: 'b', h: '가' })
+  assert.equal(priorPlace('- 옮김: b → c', 'd', '가'), null)
+  fs.rmSync(dir, { recursive: true, force: true })
+})
+
+test('새 대장 문서의 패턴 줄 · 빈 문서 걷기(항목 0 · 요약 0 · 들어오는 링크 0 · 장부 줄 0) · 걸음 표지 멱등 · stepFp 는 건드리지 않는 문서 글에 안 바뀜', async () => {
+  const { stepFp } = await import('../core/restructure.js')
+  const dir = makeItems()
+  fs.writeFileSync(path.join(dir, '_forms.md'), '| 갈래 | 다른 이름 | 폴더 | 종류 | 이름 | 서식 |\n|---|---|---|---|---|---|\n| 이슈 대장 | — | — | 대장 | `이슈:*` | 지식문서 |\n')
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', '갈래')
+  await applyRestructure(dir, { creates: ['이슈 대장', '빈 문서', '링크 받는 문서'] }, { user: 'kim' })
+  assert.match(read(dir, '_managed.md'), /\| `이슈:\*` \| `docs\/이슈 대장\.md` \| `## \{값\}` \|/)
+  fs.appendFileSync(path.join(dir, 'docs/점검.md'), '\n[받는](링크%20받는%20문서.md)\n')
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', '링크')
+  await assert.rejects(applyRestructure(dir, { drops: ['점검'] }, { user: 'kim' }), /빈 문서가 아니다/)
+  await assert.rejects(applyRestructure(dir, { drops: ['링크 받는 문서'] }, { user: 'kim' }), /들어오는 링크/)
+  await assert.rejects(applyRestructure(dir, { drops: ['이슈 대장'] }, { user: 'kim' }), /자리 장부/)
+  const step = 'shape/0123456789ab/2'
+  const r = await applyRestructure(dir, { drops: ['빈 문서'] }, { user: 'kim', step })
+  assert.ok(r.commit)
+  assert.ok(!has(dir, 'docs/빈 문서.md'))
+  assert.ok(!parseOrder(read(dir, '_order.md')).order[''].includes('빈 문서'), '차례에서도')
+  const again = await applyRestructure(dir, { drops: ['빈 문서'] }, { user: 'kim', step })
+  assert.equal(again.skipped, true, '같은 걸음은 한 번만')
+  assert.equal(again.log, r.log)
+  await assert.rejects(applyRestructure(dir, {}, { user: 'kim', step: 'shape/x/1' }), /걸음 표지/)
+  // stepFp — 건드리지 않는 문서의 글이 바뀌어도 그대로 · 옮기는 항목 글이 바뀌면 바뀐다
+  const ops = { items: [{ from: { doc: '운영/배포', h: '롤백' }, to: { doc: '운영/배포', h: '되돌리기' } }] }
+  const f1 = stepFp(await readStructure(dir), ops)
+  fs.appendFileSync(path.join(dir, 'docs/서버대장.md'), '\n덧붙인 글\n')
+  assert.equal(stepFp(await readStructure(dir), ops), f1)
+  fs.writeFileSync(path.join(dir, 'docs/운영/배포.md'), read(dir, 'docs/운영/배포.md').replace('되돌린다.', '되돌린다. 바뀜'))
+  assert.notEqual(stepFp(await readStructure(dir), ops), f1)
+  await assert.rejects(applyRestructure(dir, ops, { user: 'kim', base: f1 }), (e) => e.code === 'E_CONFLICT')
+  fs.rmSync(dir, { recursive: true, force: true })
+})

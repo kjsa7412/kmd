@@ -141,3 +141,40 @@ export function cleanForms(list) {
   }
   return out
 }
+
+// 자리 장부 — 정확한 자리 줄(문서 짜임의 항목 옮기기 · 이름 · 합치기 · 나누기).
+//   names: [{ coord, doc, heading }] — 그 이름이 이제 닿을 문서 · 머리
+//   있는 정확한 줄은 제자리에서 고친다. 없으면 그 이름에 닿던 패턴 줄(`종류:*`) **위에** 끼운다(위에서 먼저 걸리는 줄을 쓴다 · core/registry.js) ·
+//   패턴 줄도 없으면 표 끝에. 그 문서의 패턴 줄로 이미 그 머리에 닿으면(값 = 머리) 더하지 않는다. upsertRegistry 는 표 끝에 붙이므로 여기서 쓰지 않는다
+export function placeExact(text, names) {
+  let t = String(text || '').replace(/\r\n/g, '\n')
+  if (!t.trim()) t = REG_HEAD
+  if (!/^\|\s*이름\s*\|/m.test(t)) t = `${t.replace(/\n*$/, '\n')}\n| 이름 | 문서 | 항목 |\n|---|---|---|\n`
+  const first = (l) => l.match(/^\|\s*`([^`]+)`/)?.[1]?.trim() ?? null
+  for (const n of names) {
+    if (!n?.coord || !n.doc || !n.heading) continue
+    const coord = nfc(n.coord)
+    const type = coord.slice(0, coord.indexOf(':'))
+    const value = coord.slice(type.length + 1)
+    const rel = docRelOf(n.doc)
+    const row = `| \`${coord}\` | \`${rel}\` | \`## ${n.heading}\` |`
+    const lines = t.split('\n')
+    const i = lines.findIndex((l) => first(l) === coord)
+    if (i >= 0) {
+      if (lines[i] !== row) { lines[i] = row; t = lines.join('\n') }
+      continue
+    }
+    const p = lines.findIndex((l) => first(l) === `${type}:*`)
+    if (p >= 0) {
+      const m = lines[p].match(/^\|\s*`[^`]+`\s*\|\s*`([^`]+)`\s*\|\s*`(#{1,6})\s+([^`]+)`/)
+      if (m && nfc(m[1].trim()) === rel && m[2].length === 2 && nfc(m[3].trim()).replace('{값}', value) === nfc(n.heading)) continue
+      lines.splice(p, 0, row)
+    } else {
+      let last = -1
+      lines.forEach((l, x) => { if (/^\|/.test(l)) last = x })
+      lines.splice(last + 1, 0, row)
+    }
+    t = lines.join('\n')
+  }
+  return t.endsWith('\n') ? t : t + '\n'
+}

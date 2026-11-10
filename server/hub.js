@@ -1593,7 +1593,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const meta = await hub.meta(id, ctx)
       if (ctx) hub.need(ctx, id, 'admin')
       if (!ops || typeof ops !== 'object' || Array.isArray(ops)) throw new KmdError('E_INPUT', 'ops 는 { moves, creates, titles, dirs, order } 다')
-      for (const k of ['moves', 'creates', 'dirs', 'titles']) if (ops[k] != null && !Array.isArray(ops[k])) throw new KmdError('E_INPUT', `${k} 는 목록이다`)
+      for (const k of ['moves', 'creates', 'dirs', 'titles', 'items', 'drops']) if (ops[k] != null && !Array.isArray(ops[k])) throw new KmdError('E_INPUT', `${k} 는 목록이다`)
       if (ops.order != null && (typeof ops.order !== 'object' || Array.isArray(ops.order))) throw new KmdError('E_INPUT', 'order 는 { 폴더: [이름] } 이다')
       if (base != null && !(typeof base === 'string' && /^[0-9a-f]{16}$/.test(base))) throw new KmdError('E_INPUT', 'base 는 읽을 때 받은 16자 지문이다')
       if (!dry) {
@@ -1601,7 +1601,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         if (shut) throw new KmdError('E_BEHIND', shut.message)
       }
       const user = ctx?.user || 'kmd'
-      const r = await applyRestructure(meta.dir, ops, { user, by: user, base, dry: !!dry })
+      // 항목 옮기기 · 이름(바탕 세우기 설계 4-3) — 팀이면 섞인 자리(개편 전 기록이 걸린 항목)를 막는다 · 기록 상태는 저장 문과 같은 판정으로 센다
+      const legacy = mode === 'team' ? (k, docObj, sec) => legacyPendOf(k, { docObj, sec, heading: sec.h }, null) : null
+      const r = await applyRestructure(meta.dir, ops, { user, by: user, base, dry: !!dry, legacy, cutoverAt: config.cutoverAt || null, team: mode === 'team' })
       // ── 커밋 뒤는 던지지 않는다 ──
       if (r.commit) {
         cache.delete(id)

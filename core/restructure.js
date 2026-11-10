@@ -10,6 +10,17 @@
 //     자리 장부(_managed.md)의 문서 경로 · 갈래 장부(_forms.md)의 갈래 이름 · 폴더 · 가져올 곳(_sources.json)의 into.doc · 차례 장부(_order.md)
 //   링크는 글 전체에서 같은 규칙으로 경로만 바꾼다(참고 블록의 짜임은 건드리지 않는다 · 코드 울타리 안은 그대로)
 //
+//   항목(바탕 세우기 설계 4-3 · 4-4 · 권한 모델 7-1) — 글은 글자 그대로 · 값 검사 없음
+//     items   [{ from: { doc, h }, to: { doc, h, before } }]   항목 옮기기 · 항목 이름 · 같은 문서 차례
+//             from.doc 는 지금 문서 id(옮기기 앞) · to.doc 는 끝 문서 id(옮긴 뒤 · 새 문서도) · to.h 가 없으면 같은 머리 · before 는 목표 문서의 머리
+//     drops   ['문서 id']                       빈 문서 걷기(끝 id · 항목 0 · 요약 0 · 들어오는 링크 0 · 자리 장부 줄 0 일 때만 · 작성기준 6-1)
+//     creates 의 갈래가 대장(이름 패턴)이면 자리 장부에 패턴 줄을 같이 세운다
+//   같이 고치는 것 — 옮긴 항목 글 속 상대 링크 · 들어오는 `x.md#머리` · `#머리` · 참고 줄(moveSection) · applied 표지(글과 같이) ·
+//     자리 장부(placeExact: 정확한 줄은 제자리 · 패턴 줄로 닿던 이름은 패턴 줄 위에 정확한 줄)
+//   막는 것 — 겹치는 머리(같은 머리 · 앞부분 겹침) · 원본이 주인 · 갈래 머리 꼴 · 저절로 채우는 표 · 자리 잃는 이름 ·
+//     섞인 자리(opt.legacy · code legacy-mix) · 쓴 뒤 기록 상태가 바뀜(저널 되돌림)
+//   지문 — base 는 structureFp(옛 화면) 또는 stepFp(이 걸음이 건드리는 것만) · step('shape/<work>/<n>')이 있으면 이력 표지 · 멱등
+//
 //   적용(applyRestructure) — 지식마다 한 줄(save.serial) · 저널(넘어지면 되돌림) · 커밋 하나 · 이력(log/) 하나 · 지문이 어긋나면 E_CONFLICT
 
 import fs from 'node:fs/promises'
@@ -23,8 +34,14 @@ import { begin, writeAtomic } from './journal.js'
 import { watchedOf } from './watchmark.js'
 import { LOG_DIR } from './names.js'
 import { serial, localStamp, recordTaken } from './save.js'
-import { parseForms, guardNewDoc, formsOf } from './guard.js'
+import { parseForms, guardNewDoc, formsOf, formFor, headingFits, formHeadRule } from './guard.js'
 import { ORDER_FILE, parseOrder, renderOrder, byName, sortSiblings } from './order.js'
+import { parseDoc, headsOf, headingMatches, findHeading, moveSection } from './sections.js'
+import { parseRegistry, locate } from './registry.js'
+import { placeExact, upsertPatternRow } from './namebook.js'
+import { hasBlockMarker } from './baseline.js'
+import { loadKnowledge, coordsOfSection, sectionOf } from './knowledge.js'
+import { parseRecord } from './frontmatter.js'
 
 export { ORDER_FILE, parseOrder, renderOrder, byName, sortSiblings }
 export const NAME_MAX = 40
@@ -97,6 +114,46 @@ function rewriteLinks(text, fromOld, fromNew, mapDoc, docSet) {
   })
   return { text: lines.join('\n'), n }
 }
+// 링크 하나씩 — fn({ href, target(지식 뿌리 기준 rel · 문서 밖 · 바깥이면 null), frag(# 뒤 · 풀어 읽은 글) , self(# 만) }) 이 새 href 를 돌려주면 바꾼다
+//   코드 울타리 안은 건드리지 않는다
+function mapLinks(text, fromRel, docSet, fn) {
+  let n = 0
+  let fence = null
+  const out = text.split('\n').map((line) => {
+    const f = line.match(/^\s*(```+|~~~+)/)
+    if (f) { if (!fence) fence = f[1][0]; else if (f[1][0] === fence) fence = null; return line }
+    if (fence) return line
+    return line.replace(LINK, (all, a, href0, z) => {
+      const angle = href0.startsWith('<')
+      const href = angle ? href0.slice(1, -1) : href0
+      if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('//')) return all
+      const at = href.indexOf('#')
+      if (at < 0) return all
+      const frag = safeDec(href.slice(at + 1))
+      if (frag == null) return all
+      const part = href.slice(0, at).split('?')[0]
+      let target = fromRel
+      if (part) {
+        const dec = safeDec(part)
+        if (dec == null) return all
+        const t0 = dec.startsWith('/') ? P.normalize(dec.replace(/^\/+/, '')) : P.normalize(P.join(P.dirname(fromRel), dec))
+        if (t0 === '..' || t0.startsWith('../')) return all
+        target = nfc(!/\.md$/i.test(t0) && docSet.has(nfc(t0) + '.md') ? t0 + '.md' : t0)
+      }
+      const got = fn({ target, frag: nfc(frag), self: !part, angle })
+      if (got == null || got === href) return all
+      n++
+      return a + (angle ? `<${got}>` : got) + z
+    })
+  })
+  return { text: out.join('\n'), n }
+}
+const anchor = (h) => encPath(String(h)).replace(/#/g, '%23')
+const relLink = (fromRel, toRel) => encPath(P.relative(P.dirname(fromRel), toRel) || P.basename(toRel))
+// 머리 한 줄 검사(항목 머리)
+const headProblem = (h) => (!h || !String(h).trim() ? '머리가 비었다' : /[\r\n]/.test(h) ? '머리는 한 줄이다' : String(h) !== String(h).trim() ? '머리 앞뒤에 빈칸을 두지 않는다' : [...String(h)].length > 120 ? '머리는 120자 안으로' : /^#/.test(h) ? '머리는 # 으로 시작하지 않는다' : '')
+const h2Of = (text) => headsOf(String(text).split('\n')).filter((x) => x.level === 2)
+
 // 문서 첫 `# 제목` 을 이름으로(없으면 맨 위에 · 표지 watched 줄 아래)
 function retitle(text, title) {
   const lines = text.split('\n')
@@ -127,13 +184,40 @@ function editFormRow(line, name, folder) {
 export function structureFp(docIds, orderText) {
   return crypto.createHash('sha256').update([...docIds].map(nfc).sort().join('\n') + '\n--\n' + readText(orderText || '')).digest('hex').slice(0, 16)
 }
+// 걸음 지문(바탕 세우기 설계 4-6) — 이 걸음이 건드리는 문서들의 머리 목록 + 옮기는 항목 글 sha16 + 장부 셋 + docs/ 문서 id 목록.
+//   건드리지 않는 문서의 글이 바뀐 것으로는 바뀌지 않는다
+export function stepFp(files, ops = {}) {
+  const ids = [...files.docs.keys()].map((r) => nfc(r.slice(5, -3))).sort()
+  const clean = (s) => nfc(String(s ?? '')).replace(/^\/+|\/+$/g, '')
+  const moves = Array.isArray(ops.moves) ? ops.moves : []
+  const pre = (id) => clean(moves.find((m) => clean(m?.to) === id)?.from ?? id)
+  const touched = new Set()
+  for (const m of moves) { touched.add(clean(m?.from)); touched.add(clean(m?.to)) }
+  for (const t of Array.isArray(ops.titles) ? ops.titles : []) touched.add(clean(t))
+  for (const d of Array.isArray(ops.drops) ? ops.drops : []) touched.add(pre(clean(d)))
+  const bodies = []
+  for (const it of Array.isArray(ops.items) ? ops.items : []) {
+    const f = clean(it?.from?.doc)
+    touched.add(f)
+    touched.add(pre(clean(it?.to?.doc)))
+    const text = files.docs.get(`docs/${f}.md`)
+    const sec = text == null ? null : parseDoc(readText(text), '').sections.find((s) => s.h === nfc(String(it?.from?.h ?? '')))
+    bodies.push(`${f}\n${it?.from?.h}\n${sec ? crypto.createHash('sha256').update(sec.body).digest('hex').slice(0, 16) : '-'}`)
+  }
+  const heads = [...touched].filter(Boolean).sort().map((id) => {
+    const text = files.docs.get(`docs/${id}.md`)
+    return `${id}:${text == null ? '-' : h2Of(readText(text)).map((h) => h.heading).join('\u0001')}`
+  })
+  const all = [ids.join('\n'), heads.join('\n'), bodies.join('\n'), readText(files.registry || ''), readText(files.forms || ''), readText(files.order || '')].join('\n--\n')
+  return crypto.createHash('sha256').update(all).digest('hex').slice(0, 16)
+}
 
 // ── 계획 ──
 //   files: { docs: Map('docs/x.md' → 글), registry, forms, sources(글 | null), order }
 //   → { errors[], moves[{ from, to, text }], writes[{ rel, text }], creates[], summary, lines[] }
 export function planRestructure(files, ops = {}) {
   const errors = []
-  const err = (where, why) => errors.push({ where, why })
+  const err = (where, why, code) => errors.push({ where, why, ...(code ? { code } : {}) })
   const docs = files.docs
   const docSet = new Set([...docs.keys()].map(nfc))
   const idOf = (rel) => rel.slice(5, -3)
@@ -143,6 +227,16 @@ export function planRestructure(files, ops = {}) {
   const titles = new Set((Array.isArray(ops.titles) ? ops.titles : []).map((t) => `docs/${nfc(String(t ?? '')).replace(/^\/+|\/+$/g, '')}.md`))
   const dirs = (Array.isArray(ops.dirs) ? ops.dirs : []).map((d) => nfc(String(d ?? '')).replace(/^\/+|\/+$/g, '')).filter(Boolean)
   if (moves.length + creates.length > 500) fail('E_INPUT', '한 번에 500 개까지 바꾼다')
+  const clean = (s) => nfc(String(s ?? '')).replace(/^\/+|\/+$/g, '')
+  const rawItems = Array.isArray(ops.items) ? ops.items : []
+  const drops = (Array.isArray(ops.drops) ? ops.drops : []).map(clean).filter(Boolean)
+  if (rawItems.length > 5000 || drops.length > 500) fail('E_INPUT', '항목은 한 번에 5000 · 걷기는 500 개까지')
+  const items = []
+  for (const x of rawItems) {
+    const ok = x && typeof x === 'object' && x.from && typeof x.from === 'object' && x.to && typeof x.to === 'object' && typeof x.from.doc === 'string' && typeof x.from.h === 'string' && typeof x.to.doc === 'string' && (x.to.h == null || typeof x.to.h === 'string') && (x.to.before == null || typeof x.to.before === 'string')
+    if (!ok) fail('E_INPUT', 'items 는 [{ from: { doc, h }, to: { doc, h, before } }] 다')
+    items.push({ from: { doc: clean(x.from.doc), h: nfc(x.from.h) }, to: { doc: clean(x.to.doc), h: x.to.h == null ? '' : nfc(x.to.h), before: x.to.before ? nfc(x.to.before) : null } })
+  }
   // 옮김표 — 옛 rel → 새 rel
   const map = new Map()
   const seenFrom = new Set()
@@ -167,6 +261,7 @@ export function planRestructure(files, ops = {}) {
   for (const rel of docSet) claim(map.get(rel) || rel, idOf(rel))
   const formsAll = formsOf(files.forms || '')
   const newForms = []
+  const patternRows = []
   for (const c of creates) {
     const w = pathProblem(c, { doc: true })
     if (w) { err(c, w); continue }
@@ -174,6 +269,7 @@ export function planRestructure(files, ops = {}) {
     // 장부가 있는 지식 — 장부 밖 이름이면 그 갈래 줄을 같이 세운다(지식관리자의 짜임 바꾸기 · G4 를 지난다)
     const bad = g.errors.filter((e) => !/갈래 장부에 없는 문서/.test(e.message))
     if (bad.length) { err(c, bad[0].message); continue }
+    if (g.registryRow) patternRows.push({ pattern: g.registryRow.pattern, doc: c })
     if (formsAll.own && !g.form) newForms.push({ name: P.basename(c), folder: P.dirname(c) === '.' ? '' : P.dirname(c) })
     claim(relOf(c), c)
   }
@@ -185,7 +281,9 @@ export function planRestructure(files, ops = {}) {
   if (errors.length) return { errors, moves: [], writes: [], creates: [], summary: null, lines: [] }
 
   // 문서 글 — 옮긴 문서는 새 자리 기준으로 · 제목은 새 이름 · 모든 문서의 링크
-  const outDocs = []
+  //   final: 끝 rel → 글 · origin: 끝 rel → 지금 rel(새 문서는 없음)
+  const final = new Map()
+  const origin = new Map()
   let links = 0
   let titled = 0
   for (const rel of [...docSet].sort()) {
@@ -200,44 +298,208 @@ export function planRestructure(files, ops = {}) {
       if (t2 !== text) titled++
       text = t2
     }
-    if (to !== rel) outDocs.push({ kind: 'move', from: rel, to, text })
-    else if (text !== readText(docs.get(rel))) outDocs.push({ kind: 'write', rel, text })
+    final.set(to, text)
+    origin.set(to, rel)
   }
-  const writes = outDocs.filter((x) => x.kind === 'write').map((x) => ({ rel: x.rel, text: x.text }))
-  const mv = outDocs.filter((x) => x.kind === 'move').map((x) => ({ from: x.from, to: x.to, text: x.text }))
-  // 자리 장부 — 표 줄의 docs/… 경로
+  for (const c of creates) final.set(relOf(c), `# ${P.basename(c)}\n`)
+  const finalSet = new Set(final.keys())
+  const lines = []
+
+  // ── 항목 옮기기 · 이름 · 차례(4-3) — 차례대로 · 앞 것이 바꾼 글 위에서 ──
+  const k = files.k || null
+  const moved = [] // { srcRel(끝), h, dstRel, to, heads(옮기기 앞 출처 머리) }
+  const coordMoves = [] // { coord, doc, heading }
+  let itemsMoved = 0
+  for (const it of items) {
+    const where = `${it.from.doc} › ${it.from.h}`
+    const src0 = relOf(it.from.doc)
+    if (!docSet.has(src0)) { err(where, '없는 문서다'); continue }
+    const srcRel = map.get(src0) || src0
+    const dstRel = relOf(it.to.doc)
+    if (!final.has(srcRel)) { err(where, '없는 문서다'); continue }
+    if (!final.has(dstRel)) { err(`${it.to.doc}`, '옮길 문서가 없다(새 문서는 creates 로 같이 세운다)'); continue }
+    const toH = it.to.h || it.from.h
+    const hp = headProblem(toH)
+    if (hp) { err(where, hp); continue }
+    const same = srcRel === dstRel
+    if (same && toH === it.from.h && !it.to.before) continue
+    if (watchedOf(readText(docs.get(src0))) || watchedOf(final.get(dstRel))) { err(where, '원본이 주인인 문서라 항목을 옮기지 않는다'); continue }
+    const srcText = final.get(srcRel)
+    const heads = h2Of(srcText)
+    const sec = heads.find((x) => x.heading === it.from.h)
+    if (!sec) { err(where, '없는 항목이다(머리가 똑같아야 한다)'); continue }
+    const raw = srcText.split('\n').slice(sec.line, sec.end).join('\n')
+    if ((!same || toH !== it.from.h) && hasBlockMarker(raw)) { err(where, '저절로 채우는 표가 든 항목은 옮기거나 이름을 바꾸지 않는다(가져올 곳이 채운다)'); continue }
+    // 겹치는 머리 — 같은 머리 · 앞부분 겹침(「배포」 와 「배포 절차」 · sectionOf 가 앞부분으로도 집는다)
+    const others = h2Of(final.get(dstRel)).filter((x) => !(same && x.heading === it.from.h)).map((x) => x.heading)
+    const clash = others.find((x) => x === toH || headingMatches(x, toH) || headingMatches(toH, x))
+    if (clash) { err(where, `「${it.to.doc}」 에 겹치는 머리가 있다: ${clash}`); continue }
+    if (it.to.before && (it.to.before === it.from.h || !others.includes(it.to.before))) { err(where, `놓을 차례의 머리가 「${it.to.doc}」 에 없다: ${it.to.before}`); continue }
+    if (toH !== it.from.h || !same) {
+      // 갈래 — 지식으로 읽은 갈래(기본 갈래가 같은 이름의 절차 문서와 부딪치면 걷는다 · loadKnowledge)
+      const f = formFor(k ? k.forms : formsAll, P.basename(it.to.doc))
+      if (f && !headingFits(f, toH)) { err(where, `「${f.name}」 의 항목 머리 꼴이 아니다: ${formHeadRule(f)}`); continue }
+    }
+    // 이름 · 섞인 자리 — 옮기기 앞 지식(k)으로
+    let coords = []
+    if (k) {
+      const dObj = k.byDocPath.get(src0)
+      const s0 = dObj?.sections.find((s) => s.h === it.from.h) || null
+      const prev = moved.find((m) => m.dstRel === srcRel && m.to === it.from.h)
+      coords = prev ? prev.coords : dObj && s0 ? coordsOfSection(k, dObj, s0.h) : []
+      const lp = dObj && s0 && typeof files.legacy === 'function' ? files.legacy(k, dObj, s0) : []
+      if (lp?.length) { err(where, `이 항목에 개편 전 기록 ${lp.length} 이 아직 안 들어갔다: 지식관리자가 [옛 기록 다시 들이기] 를 하면 풀린다`, 'legacy-mix'); continue }
+    }
+    // 옮긴 글 속 링크 — 다른 문서 · 첨부는 새 자리 기준으로 · `#머리` 는 원래 문서(자기 머리는 새 머리)
+    const mapBody = (chunk) => {
+      let t = chunk.join('\n')
+      if (!same) t = rewriteLinks(t, srcRel, dstRel, new Map(), finalSet).text
+      t = mapLinks(t, srcRel, finalSet, ({ frag, self }) => {
+        if (!self) return null
+        const hit = findHeading(heads.map((x) => x.heading), frag, (x) => x)
+        if (hit === it.from.h) return '#' + anchor(toH)
+        return same ? null : `${relLink(dstRel, srcRel)}#${anchor(frag)}`
+      }).text
+      return t.split('\n')
+    }
+    const up = '../'.repeat(dstRel.split('/').length - 1)
+    const r = moveSection(srcText, same ? null : final.get(dstRel), { heading: it.from.h, to: toH, before: it.to.before || null, up, mapBody })
+    if (!r) { err(where, '없는 항목이다'); continue }
+    // 글자 그대로 — 떼어 낸 글과 넣은 글을 견준다(엔진 잘못이면 쓰지 않는다)
+    const want = parseDoc(`## ${toH}\n${r.body.join('\n')}`, '').sections[0]
+    const got = parseDoc(same ? r.src : r.dst, '').sections.filter((s) => s.h === toH)
+    if (got.length !== 1 || got[0].body !== want.body || got[0].applied !== want.applied) { err(where, '옮긴 글이 글자 그대로가 아니다(엔진 잘못 · 쓰지 않았다)'); continue }
+    final.set(srcRel, r.src)
+    if (!same) final.set(dstRel, r.dst)
+    // 앞에서 옮긴 항목을 다시 옮기면 앞 줄의 끝 자리를 고친다
+    for (const m of moved) if (m.dstRel === srcRel && m.to === it.from.h) { m.dstRel = dstRel; m.to = toH }
+    moved.push({ srcRel, h: it.from.h, dstRel, to: toH, heads: heads.map((x) => x.heading), coords })
+    for (const c of coords) coordMoves.push({ coord: c, doc: idOf(dstRel), heading: toH })
+    itemsMoved++
+    const kind = same ? (toH === it.from.h ? '항목 차례' : '항목 이름') : '항목 옮김'
+    lines.push(`- ${kind}: ${it.from.doc} › ${it.from.h} → ${idOf(dstRel)} › ${toH}`)
+  }
+  // 들어오는 링크 — `x.md#머리` · 같은 문서의 `#머리` 가 옮긴 항목을 가리키면 새 문서 · 새 머리로
+  if (moved.length) {
+    for (const [rel, text] of final) {
+      const r = mapLinks(text, rel, finalSet, ({ target, frag, self }) => {
+        const m = moved.find((x) => x.srcRel === target && findHeading(x.heads, frag, (y) => y) === x.h)
+        if (!m) return null
+        if (self && m.srcRel === m.dstRel && m.to === m.h) return null
+        return (m.dstRel === rel ? '' : relLink(rel, m.dstRel)) + '#' + anchor(m.to)
+      })
+      if (r.n) { final.set(rel, r.text); links += r.n }
+    }
+  }
+
+  // ── 빈 문서 걷기(작성기준 6-1) — 항목 0 · 요약 0 · 들어오는 링크 0 · 자리 장부 줄 0 ──
+  const dropped = []
+  const regRowsNow = parseRegistry(files.registry || '')
+  for (const d of drops) {
+    const rel = relOf(d)
+    if (!final.has(rel)) { err(d, '없는 문서다'); continue }
+    const text = final.get(rel)
+    if (watchedOf(text)) { err(d, '원본이 주인인 문서라 걷지 않는다'); continue }
+    const pd = parseDoc(text, P.basename(d))
+    if (pd.sections.length) { err(d, `빈 문서가 아니다(항목 ${pd.sections.length})`); continue }
+    if (pd.intro.trim()) { err(d, '빈 문서가 아니다(요약이 있다)'); continue }
+    const from0 = origin.get(rel) || rel
+    if ([...regRowsNow.rows, ...regRowsNow.wholes].some((x) => x.doc === from0 || x.doc === rel)) { err(d, '자리 장부 줄이 이 문서를 가리킨다'); continue }
+    let inbound = null
+    for (const [r2, t2] of final) {
+      if (r2 === rel) continue
+      const hit = []
+      t2.replace(LINK, (all, a, href0) => {
+        const href = href0.startsWith('<') ? href0.slice(1, -1) : href0
+        if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('//') || href.startsWith('#')) return all
+        const dec = safeDec(href.split('#')[0].split('?')[0])
+        if (!dec) return all
+        const t0 = dec.startsWith('/') ? P.normalize(dec.replace(/^\/+/, '')) : P.normalize(P.join(P.dirname(r2), dec))
+        if (nfc(t0) === rel || nfc(t0) + '.md' === rel) hit.push(r2)
+        return all
+      })
+      if (hit.length) { inbound = r2; break }
+    }
+    if (inbound) { err(d, `들어오는 링크가 있다(${idOf(inbound)})`); continue }
+    final.delete(rel)
+    finalSet.delete(rel)
+    dropped.push({ rel, from: origin.get(rel) || null })
+    lines.push(`- 문서 걷음: ${d}`)
+  }
+  if (errors.length) return { errors, moves: [], writes: [], creates: [], drops: [], summary: null, lines: [] }
+
+  const writes = []
+  const mv = []
+  for (const [to, text] of final) {
+    const from = origin.get(to)
+    if (!from) continue
+    if (from !== to) mv.push({ from, to, text })
+    else if (text !== readText(docs.get(from))) writes.push({ rel: from, text })
+  }
+  // 걷은 문서가 옮긴 문서였으면 — 옛 자리만 지운다
+  const removes = dropped.map((d) => d.from).filter(Boolean)
+  // 자리 장부 — 표 줄의 docs/… 경로 · 새 대장 문서의 패턴 줄 · 옮긴 항목의 이름(placeExact)
   let regRows = 0
+  let regText = readText(files.registry || '')
   if (files.registry && map.size) {
-    const t = readText(files.registry).split('\n').map((line) => {
+    regText = regText.split('\n').map((line) => {
       if (!line.startsWith('|')) return line
       let x = line
       for (const [a, b] of map) if (x.includes(a)) x = x.split(a).join(b)
       if (x !== line) regRows++
       return x
     }).join('\n')
-    if (regRows) writes.push({ rel: '_managed.md', text: t })
   }
+  for (const p of patternRows) {
+    const t2 = upsertPatternRow(regText, p.pattern, p.doc)
+    if (t2 !== regText) { regText = t2; regRows++ }
+  }
+  if (coordMoves.length) {
+    const t2 = placeExact(regText, coordMoves)
+    if (t2 !== regText) regRows += Math.max(1, t2.split('\n').filter((l, i) => l !== regText.split('\n')[i]).length)
+    regText = t2
+  }
+  // 자리 잃는 이름 — 옮기기 앞에 항목에 닿던 이름이 끝 짜임에서도 항목에 닿나(옮긴 이름은 새 자리에 꼭)
+  if (k && moved.length) {
+    const reg = parseRegistry(regText)
+    const names = new Set([...k.vocab.coords.keys()])
+    for (const w of k.works) for (const c of w.touches) names.add(c)
+    const want = new Map(coordMoves.map((c) => [c.coord, c]))
+    const lost = []
+    const hcache = new Map()
+    const hsOf = (rel) => { if (!hcache.has(rel)) hcache.set(rel, final.has(rel) ? h2Of(final.get(rel)).map((x) => x.heading) : []); return hcache.get(rel) }
+    for (const c of names) {
+      if (!sectionOf(k, c)?.sec) continue
+      const loc = locate(reg, c)
+      const hs = loc ? hsOf(loc.doc) : []
+      const hit = loc ? findHeading(hs, loc.heading, (x) => x) : null
+      const w = want.get(c)
+      if (!hit || (w && (loc.doc !== relOf(w.doc) || hit !== w.heading))) lost.push(c)
+    }
+    if (lost.length) { err(lost.slice(0, 3).join(' · '), `옮긴 뒤 항목에 닿지 않는 이름이 생긴다(${lost.length})`); return { errors, moves: [], writes: [], creates: [], drops: [], summary: null, lines: [] } }
+  }
+  if (regText !== readText(files.registry || '')) writes.push({ rel: '_managed.md', text: regText.endsWith('\n') ? regText : regText + '\n' })
   // 갈래 장부 — 갈래 이름 = 문서 이름 · 폴더 칸
   let formRows = 0
   if (files.forms && (map.size || newForms.length)) {
     const rows = parseForms(files.forms)
-    const lines = readText(files.forms).split('\n')
+    const flines = readText(files.forms).split('\n')
     const strip = (s) => String(s || '').trim().replace(/^`|`$/g, '')
     for (const [a, b] of map) {
       const oldName = P.basename(a, '.md'), newName = P.basename(b, '.md')
       const oldDir = P.dirname(idOf(a)) === '.' ? '' : P.dirname(idOf(a)), newDir = P.dirname(idOf(b)) === '.' ? '' : P.dirname(idOf(b))
       const row = rows.find((f) => f.name === oldName && (!f.folder || f.folder === oldDir))
       if (!row || (oldName === newName && (row.folder || '') === newDir)) continue
-      const i = lines.findIndex((l) => { const c = l.match(/^\|(.+)\|\s*$/)?.[1].split('|'); return c && strip(c[0]) === oldName })
+      const i = flines.findIndex((l) => { const c = l.match(/^\|(.+)\|\s*$/)?.[1].split('|'); return c && strip(c[0]) === oldName })
       if (i < 0) continue
-      lines[i] = editFormRow(lines[i], newName, newDir)
+      flines[i] = editFormRow(flines[i], newName, newDir)
       formRows++
     }
     for (const f of newForms) {
-      lines.push(`| ${f.name} | — | ${f.folder || '—'} | 대상 | — | 지식문서 |`)
+      flines.push(`| ${f.name} | — | ${f.folder || '—'} | 대상 | — | 지식문서 |`)
       formRows++
     }
-    if (formRows) writes.push({ rel: '_forms.md', text: lines.join('\n').replace(/\n*$/, '\n') })
+    if (formRows) writes.push({ rel: '_forms.md', text: flines.join('\n').replace(/\n*$/, '\n') })
   }
   // 가져올 곳 — into.doc 가 옮긴 문서면
   let srcRows = 0
@@ -258,32 +520,32 @@ export function planRestructure(files, ops = {}) {
     }
   }
   // 차례 장부 — 끝 짜임의 폴더 · 문서로 거른다(없는 것은 뺀다 · 빠진 것은 기본 차례로 뒤에)
-  const finalIds = [...[...docSet].map((r) => idOf(map.get(r) || r)), ...creates]
+  const finalIds = [...final.keys()].map(idOf)
   const folders = new Set(dirs)
   for (const id of finalIds) { let f = P.dirname(id); while (f && f !== '.') { folders.add(f); f = P.dirname(f) } }
   const kids = new Map([['', []]])
   for (const f of folders) kids.set(f, [])
   for (const f of folders) kids.get(P.dirname(f) === '.' ? '' : P.dirname(f))?.push(P.basename(f) + '/')
   for (const id of finalIds) kids.get(P.dirname(id) === '.' ? '' : P.dirname(id))?.push(P.basename(id))
-  const want = ops.order && typeof ops.order === 'object' ? ops.order : parseOrder(files.order).order
+  const wantOrder = ops.order && typeof ops.order === 'object' ? ops.order : parseOrder(files.order).order
   const order = {}
   for (const [f, names] of kids) {
-    const listed = (Array.isArray(want[f]) ? want[f] : []).map((x) => nfc(String(x)))
+    const listed = (Array.isArray(wantOrder[f]) ? wantOrder[f] : []).map((x) => nfc(String(x)))
     order[f] = sortSiblings(names, listed)
   }
   const orderText = renderOrder(order)
   const orderChanged = readText(files.order || '') !== orderText
   if (orderChanged) writes.push({ rel: ORDER_FILE, text: orderText })
 
-  const created = creates.map((c) => ({ rel: relOf(c), text: `# ${P.basename(c)}\n` }))
-  const lines = [
+  const created = creates.filter((c) => final.has(relOf(c))).map((c) => ({ rel: relOf(c), text: final.get(relOf(c)) }))
+  const head = [
     ...mv.map((m) => `- ${P.basename(idOf(m.from)) !== P.basename(idOf(m.to)) && P.dirname(m.from) === P.dirname(m.to) ? '이름' : '옮김'}: ${idOf(m.from)} → ${idOf(m.to)}`),
     ...[...titles].filter((t) => !map.has(t)).map((t) => `- 제목: ${idOf(t)} → ${P.basename(t, '.md')}`),
     ...creates.map((c) => `- 새 문서: ${c}`),
     ...dirs.filter((d) => !finalIds.some((id) => id.startsWith(d + '/'))).map((d) => `- 빈 폴더: ${d}/`),
   ]
-  const summary = { moved: mv.length, titled, created: creates.length, links, registry: regRows, forms: formRows, sources: srcRows, order: orderChanged, docsTouched: writes.filter((w) => w.rel.startsWith('docs/')).length }
-  return { errors: [], moves: mv, writes, creates: created, summary, lines }
+  const summary = { moved: mv.length, titled, created: creates.length, links, registry: regRows, forms: formRows, sources: srcRows, order: orderChanged, docsTouched: writes.filter((w) => w.rel.startsWith('docs/')).length, items: itemsMoved, dropped: dropped.length }
+  return { errors: [], moves: mv, writes, creates: created, drops: removes, summary, lines: [...head, ...lines] }
 }
 
 // ── 지식 폴더에서 읽기 ──
@@ -315,18 +577,44 @@ async function pruneEmpty(dir, rel = 'docs') {
   return left > 0 || rel === 'docs'
 }
 
+// 이 걸음 표지(shape/<work>/<n>)를 단 짜임 이력이 이미 있나 — 있으면 그 이력 id(멱등)
+export async function stepDone(dir, step) {
+  if (!step) return null
+  const names = await fs.readdir(path.join(dir, LOG_DIR)).catch((e) => (e.code === 'ENOENT' ? [] : Promise.reject(e)))
+  for (const n of names) {
+    if (!/\.md$/i.test(n)) continue
+    const text = await fs.readFile(path.join(dir, LOG_DIR, n), 'utf8')
+    if (!text.includes(step)) continue
+    const r = parseRecord(readText(text), n)
+    if (r?.tags.includes(step) && r.tags.includes('structure')) return r.id
+  }
+  return null
+}
+export const STEP_RE = /^shape\/[0-9a-f]{12}\/\d{1,4}$/
+
 // ── 적용 ──
-//   { dry } 면 쓰지 않고 계획 요약 · base 가 지금 지문과 다르면 E_CONFLICT · 바뀔 것이 없으면 commit null
-export function applyRestructure(dir, ops, { user, by = null, base = null, dry = false, now = new Date() } = {}) {
+//   { dry } 면 쓰지 않고 계획 요약 · base 가 지금 지문(structureFp 또는 stepFp)과 다르면 E_CONFLICT · 바뀔 것이 없으면 commit null
+//   legacy(k, doc, sec) — 섞인 자리(팀 · 아직 안 들어간 개편 전 기록 id 목록) · cutoverAt · team — 기록 상태를 셀 때(loadKnowledge 와 같게)
+//   step — 'shape/<work>/<n>' · 이력 표지(같은 표지의 이력이 있으면 쓰지 않고 { skipped: true })
+export function applyRestructure(dir, ops, { user, by = null, base = null, dry = false, now = new Date(), legacy = null, cutoverAt = null, team = false, step = null } = {}) {
   if (!user) fail('E_INPUT', '누가 쓰는지 모른다')
   return serial(path.resolve(dir), async () => {
+    if (step != null && !STEP_RE.test(String(step))) fail('E_INPUT', '걸음 표지 꼴이 아니다')
+    if (step) {
+      const had = await stepDone(dir, step)
+      if (had) return { dry: !!dry, fp: null, summary: null, lines: [], commit: null, log: had, skipped: true }
+    }
     const files = await readStructure(dir)
     const fp = structureFp([...files.docs.keys()].map((r) => r.slice(5, -3)), files.order)
-    if (base && base !== fp) fail('E_CONFLICT', '그사이 문서 짜임이 바뀌었다. 다시 읽고 고친다')
-    const plan = planRestructure(files, ops)
+    const sfp = stepFp(files, ops)
+    if (base && base !== fp && base !== sfp) fail('E_CONFLICT', '그사이 문서 짜임이 바뀌었다. 다시 읽고 고친다')
+    const deep = (Array.isArray(ops?.items) && ops.items.length) || (Array.isArray(ops?.drops) && ops.drops.length)
+    const kopt = { cutoverAt, team }
+    const k = deep ? await loadKnowledge({ id: '_', name: '_', dir }, kopt) : null
+    const plan = planRestructure({ ...files, k, legacy }, ops)
     if (plan.errors.length) fail('E_INPUT', `${plan.errors[0].where}: ${plan.errors[0].why}${plan.errors.length > 1 ? ` · 그 밖 ${plan.errors.length - 1}` : ''}`, plan.errors)
-    const nothing = !plan.moves.length && !plan.writes.length && !plan.creates.length
-    if (dry || nothing) return { dry, fp, summary: plan.summary, lines: plan.lines, commit: null, log: null }
+    const nothing = !plan.moves.length && !plan.writes.length && !plan.creates.length && !plan.drops.length
+    if (dry || nothing) return { dry, fp, stepFp: sfp, summary: plan.summary, lines: plan.lines, commit: null, log: null }
     await ensureRepo(dir)
     const date = localStamp(now)
     const day = date.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2$3')
@@ -334,7 +622,7 @@ export function applyRestructure(dir, ops, { user, by = null, base = null, dry =
     for (let n = 2; await recordTaken(dir, id); n++) id = `${day}-문서-짜임-바꿈-${n}`
     const logRel = `${LOG_DIR}/${id}.md`
     const s = plan.summary
-    const title = `문서 짜임 바꿈: ${[s.moved ? `옮김 ${s.moved}` : '', s.titled ? `제목 ${s.titled}` : '', s.created ? `새 문서 ${s.created}` : '', s.links ? `링크 ${s.links}` : '', s.order ? '차례' : ''].filter(Boolean).join(' · ') || '장부'}`
+    const title = `문서 짜임 바꿈: ${[s.moved ? `옮김 ${s.moved}` : '', s.titled ? `제목 ${s.titled}` : '', s.created ? `새 문서 ${s.created}` : '', s.items ? `항목 ${s.items}` : '', s.dropped ? `걷음 ${s.dropped}` : '', s.links ? `링크 ${s.links}` : '', s.order ? '차례' : ''].filter(Boolean).join(' · ') || '장부'}`
     const body = [`구조 화면에서 바꿨다(옛 경로 → 새 경로). 이름이 바뀐 문서는 제목도 그 이름이다${by ? ` · 바꾼 사람 ${by}` : ''}`, ...plan.lines, s.links ? `- 고친 링크 ${s.links}(문서 ${s.docsTouched + s.moved})` : '', s.registry ? `- 자리 장부 줄 ${s.registry}` : '', s.forms ? `- 갈래 장부 줄 ${s.forms}` : '', s.sources ? `- 가져올 곳 ${s.sources}` : '', s.order ? '- 차례 장부' : ''].filter(Boolean).join('\n')
     const j = await begin(dir)
     const paths = []
@@ -342,6 +630,7 @@ export function applyRestructure(dir, ops, { user, by = null, base = null, dry =
       for (const m of plan.moves) { await j.add(m.from); await j.add(m.to) }
       for (const c of plan.creates) await j.add(c.rel)
       for (const w of plan.writes) await j.add(w.rel)
+      for (const d of plan.drops) await j.add(d)
       // 옮김 — 새 자리에 쓰고 옛 자리를 지운다(저널이 둘 다 안다)
       for (const m of plan.moves) {
         const to = path.join(dir, ...m.to.split('/'))
@@ -358,16 +647,25 @@ export function applyRestructure(dir, ops, { user, by = null, base = null, dry =
         await writeAtomic(full, c.text)
       }
       for (const w of plan.writes) await writeAtomic(path.join(dir, ...w.rel.split('/')), w.text)
+      // 빈 문서 걷기 — 옛 글은 git 이력에
+      for (const d of plan.drops) await fs.rm(path.join(dir, ...d.split('/')), { force: true })
       await fs.mkdir(path.join(dir, LOG_DIR), { recursive: true })
       await j.add(logRel)
-      await writeAtomic(path.join(dir, LOG_DIR, `${id}.md`), renderRecord({ id, title, date, author: user, tags: ['structure'] }, body))
-      paths.push(...new Set([...plan.moves.flatMap((m) => [m.from, m.to]), ...plan.creates.map((c) => c.rel), ...plan.writes.map((w) => w.rel), logRel]))
+      await writeAtomic(path.join(dir, LOG_DIR, `${id}.md`), renderRecord({ id, title, date, author: user, tags: ['structure', ...(step ? [step] : [])] }, body))
+      // 기록 상태 앞뒤 같음(4-7) — 항목을 옮긴 뒤 모든 기록의 상태가 그대로여야 한다(이 이력은 기록이 아니다)
+      if (k) {
+        const k2 = await loadKnowledge({ id: '_', name: '_', dir }, kopt)
+        const after = new Map(k2.works.map((w) => [w.id, w.state]))
+        const moved = k.works.filter((w) => after.get(w.id) !== w.state)
+        if (moved.length) fail('E_INPUT', `짜임을 바꾸면 기록 상태가 바뀐다: ${moved.slice(0, 3).map((w) => `${w.id}(${w.state} → ${after.get(w.id) || '없음'})`).join(' · ')}. 쓰지 않았다`)
+      }
+      paths.push(...new Set([...plan.moves.flatMap((m) => [m.from, m.to]), ...plan.creates.map((c) => c.rel), ...plan.writes.map((w) => w.rel), ...plan.drops, logRel]))
       const commit = await commitPaths(dir, paths, title, user)
       await j.done()
-      await pruneEmpty(dir).catch(() => {})
+      await pruneEmpty(dir).catch((e) => console.error(`[structure] 빈 폴더를 거두지 못했다: ${e?.message || e}`))
       return { dry: false, fp: null, summary: plan.summary, lines: plan.lines, commit, log: id }
     } catch (e) {
-      await j.undo().catch(() => {})
+      await j.undo().catch((u) => console.error(`[structure] 되돌리기 실패: ${u?.message || u}`))
       throw e
     }
   })

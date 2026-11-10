@@ -405,3 +405,36 @@ export function logLine(docRel, w, note = '') {
   return `- ${String(w.date || '').slice(0, 10)} [${title}](${up}${w.sub || 'work'}/${linkId(w.id)}.md)${note ? ` · ${note}` : ''}`
 }
 export const logHas = (log, id) => log.some((l) => l.includes(`/${linkId(id)}.md)`) || l.includes(`/${id}.md)`))
+
+// 항목 하나를 떼어 다른 문서(또는 같은 문서의 다른 차례)에 넣는다 — 머리 줄 · 글 · applied 표지 · 참고 줄을 같이(문서 짜임의 항목 옮기기 · 이름).
+//   참고 블록은 splitRef · withRef · mergeLog 로만 다룬다 · 글은 바이트 그대로(mapBody 를 주면 그 줄들로 · 옮긴 글 속 상대 링크).
+//   heading — 지금 머리(같은 머리만 · 앞부분 맞춤으로 집지 않는다) · to — 새 머리 · before — 목표 문서의 이 머리 앞에(없으면 끝)
+//   up — 목표 문서에서 지식 뿌리까지(「../」 · 참고 줄의 기록 링크를 그 깊이로)
+//   dstText 가 null 이면 같은 문서 안 → { src(같은 글), dst: null, body(옮긴 글 줄) } · 다른 문서면 { src, dst, body } · 못 찾으면 null
+export function moveSection(srcText, dstText, { heading, to = heading, before = null, level = 2, up = null, mapBody = null }) {
+  const S = splitRef(String(srcText).split('\n'))
+  const want = String(heading).normalize('NFC')
+  const h = headsOf(S.lines).find((x) => x.level === level && x.heading.normalize('NFC') === want)
+  if (!h) return null
+  let chunk = S.lines.slice(h.line + 1, h.end)
+  while (chunk.length && !chunk[chunk.length - 1].trim()) chunk.pop()
+  if (mapBody) chunk = mapBody(chunk)
+  const relog = (l) => (up == null ? l : String(l).replace(/\]\((?:\.\.\/)*(work|log)\//, `](${up}$1/`))
+  const log = (S.ref.get(h.heading) || []).map(relog)
+  const rest = [...S.lines.slice(0, h.line), ...S.lines.slice(h.end)]
+  S.ref.delete(h.heading)
+  const same = dstText == null
+  const D = same ? { lines: rest, ref: S.ref } : splitRef(String(dstText).split('\n'))
+  let lines = D.lines
+  const at = before ? headsOf(lines).find((x) => x.level === level && x.heading.normalize('NFC') === String(before).normalize('NFC')) : null
+  const piece = [`${'#'.repeat(level)} ${to}`, ...chunk]
+  if (at) lines = [...lines.slice(0, at.line), ...piece, '', ...lines.slice(at.line)]
+  else {
+    while (lines.length && !lines[lines.length - 1].trim()) lines = lines.slice(0, -1)
+    lines = [...lines, ...(lines.length ? [''] : []), ...piece]
+  }
+  if (log.length) D.ref.set(to, mergeLog(D.ref.get(to) || [], log))
+  const out = (ls, ref) => (ref.size ? withRef(ls, ref) : ls.join('\n').replace(/\n*$/, '\n'))
+  if (same) return { src: out(lines, D.ref), dst: null, body: chunk }
+  return { src: out(rest, S.ref), dst: out(lines, D.ref), body: chunk }
+}
