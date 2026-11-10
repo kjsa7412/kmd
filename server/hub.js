@@ -208,6 +208,30 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const files = new Map() // 지식 → 파일 캐시
   const indexes = new Map() // 지식 → { k, p: 색인 promise }
   let list = null
+  // 개인 지식의 저장 방식(saveModeOf · PC1) — 지식 폴더(목록이 비워져도 남는다) · _members.md 의 mtime · 크기로 한 번만 읽는다
+  const dirOf = new Map()
+  const pcModes = new Map()
+  const pcSaveMode = (id) => {
+    const dir = list?.find((k) => k.id === id)?.dir || dirOf.get(id)
+    if (!dir) return 'pc'
+    const f = path.join(dir, '_members.md')
+    //   읽지 못하면(파일 잠금 등) 닫힌 쪽 — approve(제안 의무)로 보고 담아 두지 않는다(다음에 다시 읽는다)
+    let st
+    try { st = statSync(f) } catch (e) {
+      pcModes.delete(f)
+      if (e.code === 'ENOENT') return 'pc'
+      log(`저장 방식을 읽지 못했다 ${id}: ${e.message}`)
+      return 'approve'
+    }
+    const c = pcModes.get(f)
+    if (c && c.at === st.mtimeMs && c.size === st.size) return c.save
+    let save
+    try { save = owners.parseMembers(readFileSync(f, 'utf8')).save === 'approve' ? 'approve' : 'pc' } catch (e) { log(`저장 방식을 읽지 못했다 ${id}: ${e.message}`); return 'approve' }
+    pcModes.set(f, { at: st.mtimeMs, size: st.size, save })
+    return save
+  }
+  // 사람 칸 글 — 개인 지식은 장부 줄에 저장 방식이 없다: 지금 표지(approve)를 잃지 않게 싣는다(주인 · 자리 고침이 덮어도 · PC1)
+  const membersText = (id, row) => owners.renderMembers(mode === 'pc' && pcSaveMode(id) === 'approve' ? { ...row, save: 'approve' } : row)
   const decideTimers = new Map()
   const jobs = new Map() // 들이기 일감(S7 · 옛 정리 일감은 S13 에 걷었다)
   let inboxTimer = null // 받은편지함 옮기기(PC 만 · S-D40)
@@ -825,6 +849,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   //   결과는 들어감 하나(기록 + 조각 한 덩이 · 넣지 못함 · 메모 없음) · 그 밖은 입력 오류(아무것도 쓰지 않는다): E_APPROVE(승인 없음 · 해시 어긋남 · 새 propose 결과) ·
   //   E_CONFLICT(지문 · 새 propose 결과) · E_FORMAT(꼴) · E_INPUT(memo · 본문 반영 · 비슷한 이름 · 모양)
   const HUMAN_CHANNELS = new Set(['session', 'http', 'send', 'bulk'])
+  // approve 저장 문을 탈 사람 저장인가 — 팀 · 개인 프로그램 같은 조건(저장 승인 설계 P-D43 · PC1): approve 모드 지식 · 사람 채널 ·
+  //   서버 안의 저장(system) · 화면 문서 고치기(edit · P5) · 짜임 걸음(shape) · 들이기 일감 · kmd 가 띄운 넣기 에이전트(PC4)는 아니다
+  const humanSave = (ctx, id, opt, channel) => !opt.system && !opt.edit && !opt.shape && !(opt.intake && ctx?.intake) && !ctx?.agent && HUMAN_CHANNELS.has(channel) && hub.saveModeOf(id) === 'approve'
   const PROPOSE_PATH = { session: '이 세션의 작업', http: '화면', send: '보내기', bulk: '대량 넣기' }
   // 다시 제안 수(P-D37 rounds) — 사람 · 지식마다 마지막 저장 뒤 propose 번 수(메모리 · 측정만)
   const proposeRounds = new Map()
@@ -832,7 +859,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const roundsTake = (ctx, id) => { const n = proposeRounds.get(roundsKey(ctx, id)) || 0; proposeRounds.delete(roundsKey(ctx, id)); return n }
   const monthOf = (rec) => (typeof rec?.date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(rec.date) ? rec.date.slice(0, 7) : localStamp().slice(0, 7))
   // 보는 사람 수(제안서 머리) — 명부의 사람 가운데 읽기 이상(총괄 관리자 포함)
+  //   개인 프로그램은 「나만 · 이 PC」(저장 승인 설계 2-1 · P-D40)
   function viewersOf(id) {
+    if (mode === 'pc') return 'me'
     try {
       const adm = new Set(hub.admins())
       return hub.people().filter((u) => adm.has(u) || owners.atLeast(owners.levelOf(R(), id, { user: u }), 'read')).length
@@ -904,7 +933,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (same) return { abort: { same: true, id: same } }
       const p = proposalOf(k, pin, p0)
       if (p.errors.length) throw proposeFail(p)
-      if (p.proposal !== input.proposal) throw new KmdError('E_APPROVE', '승인한 저장 제안과 지금 판정이 다르다(입력이 바뀌었거나 그사이 지식이 바뀌었다). 새 제안을 사람에게 보이고 다시 승인받는다(아무것도 쓰지 않았다)', { details: { propose: p } })
+      if (p.proposal !== input.proposal) throw new KmdError('E_APPROVE', '승인한 저장 제안과 지금 제안이 다르다(입력이 바뀌었거나 그사이 지식이 바뀌었다). 새 제안을 사람에게 보이고 다시 승인받는다(아무것도 쓰지 않았다)', { details: { propose: p } })
       const strip = (t) => (hasBlockMarker(t) ? splitBlocks(t).text.replace(/\u0000block\d+\u0000/g, '').replace(/\n{3,}/g, '\n\n').trim() : t)
       const sections = []
       for (const x of p.items) {
@@ -927,7 +956,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   async function saveIn(ctx, id, meta, input, opt, channel, logLine, t0) {
     // form — 세션(MCP)의 기록 글은 서식 칸으로(작성기준 6절 · 템플릿/기록.md) · 칸을 kmd 가 머리를 달아 엮는다 · 메모는 바뀐 것이 없어도 된다
     if (opt.form && input?.record && typeof input.record === 'object') {
-      const b = recordBody(input.record, { memo: input.record.memo === true, trail: mode === 'team' && hub.saveModeOf(id) === 'approve' && HUMAN_CHANNELS.has(channel) })
+      const b = recordBody(input.record, { memo: input.record.memo === true, trail: humanSave(ctx, id, opt, channel) })
       if (b.error) throw new KmdError('E_INPUT', b.error)
       input = { ...input, record: { ...Object.fromEntries(Object.entries(input.record).filter(([x]) => !RECORD_PARTS.some(([p]) => p === x))), body: b.body } }
     }
@@ -946,8 +975,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 들이기 일감의 저장(S-D19 · S-D43) — 자리는 intakeCtx 가 일감을 끝낼 때 정했다 · 예약 사람 kmd · 저장 문이 붙이는 태그 · 새 문서를 세운다
     const intake = opt.intake && ctx.intake ? opt.intake : null
     const rctx = intake ? undefined : ctx
-    // approve 모드 지식의 사람 채널(저장 승인 설계 P3) — 승인한 제안으로만 · 넣지 못함 · 메모 · 세울 이름 대기 · 승인 받고 넣기가 없다
-    const human = team && !intake && hub.saveModeOf(id) === 'approve' && HUMAN_CHANNELS.has(channel)
+    // approve 모드 지식의 사람 채널(저장 승인 설계 P3 · 개인 프로그램 PC1) — 승인한 제안으로만 · 넣지 못함 · 메모 · 세울 이름 대기 · 승인 받고 넣기 · 바로 넣기가 없다
+    const human = humanSave(ctx, id, opt, channel)
     const bag = human ? { accepted: [], linked: [], fresh: [], items: 0 } : null
     // 바로잡기(S-D17) — fixes 가 가리키는 기록은 내가 쓴 것이거나 내가 그 지식의 지식관리자일 때만 · 좌표정정 판정을 건너뛸지(correction)는 서버가 정한다
     let correction = false
@@ -1089,8 +1118,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // 결정 규칙은 넣은 파일(ingest/) 저장 뒤에만(사람 기록의 판정은 S13 에 걷었다)
     if ((input?.record?.tags || []).some((t) => String(t).startsWith('ingest/'))) scheduleDecide(id)
     // 이 PC — 남은 기록은 바로 문서에(뒤에서 · 저장 즉시 넣기 core/pcplace.js) · 팀은 저장 문 · 들이기 일감만(정리를 걷었다 · S13)
+    //   approve 저장 문을 지난 사람 저장은 이미 들어갔다 — 바로 넣기를 걸지 않는다(저장 승인 설계 P-D41 · b21). 무인 길(가져오기 · 받기)은 PC4 · P7 까지 옛 길
     try {
-      if (mode === 'pc' && !opt.system && !opt.noCurate) hub.curateSoon(id).catch((e) => log('바로 넣기', id, e.message))
+      if (mode === 'pc' && !human && !opt.system && !opt.noCurate) hub.curateSoon(id).catch((e) => log('바로 넣기', id, e.message))
     } catch (e) { log(`바로 넣기 걸기 실패 ${id}: ${e.message}`) }
     // 백업 — 걸어 두고 기다리지 않는다 · 여럿을 받는 길(receive)은 끝에 한 번
     let backupLines = []
@@ -1379,6 +1409,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const more = []
         for (const l of links) if (!own.some((k) => k.id === l.id) && (await looksLikeKnowledge(l.dir))) more.push({ id: l.id, name: (await listKnowledge(l.dir))[0]?.name || l.id, dir: l.dir })
         list = [...own, ...more]
+        for (const m of list) dirOf.set(m.id, m.dir)
       }
       return list
     },
@@ -1400,7 +1431,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         await fs.mkdir(d).catch((e) => { throw e.code === 'EEXIST' ? new KmdError('E_CONFLICT', `「${nm}」 지식이 이미 있다`) : e })
         let row = null
         try {
-          if (mode === 'team') {
+          if (mode !== 'team') {
+            // 새 개인 지식도 approve(저장 승인 설계 P-D43 · PC1) — 스위치가 없고 지식 안 _members.md 의 「- 저장 방식: 승인」 이 표지다
+            //   저장 방식 줄만 — 주인 · Claude 줄을 싣지 않는다(팀 서버로 옮겨 되살려도 이 PC 아이디가 주인이 되지 않고 안전한 쪽 설정으로 열린다)
+            await fs.writeFile(path.join(d, '_members.md'), PC_MEMBERS, 'utf8')
+          } else {
             // 새 팀 지식은 approve 모드(저장 승인 설계 P-D18 · P3) — 제안 · 승인으로 들어감 하나 · 넣지 못함이 생기지 않는다
             row = { owner: ctx.user, curators: [], save: 'approve' }
             await fs.writeFile(path.join(d, '_members.md'), owners.renderMembers(row), 'utf8')
@@ -1414,9 +1449,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           await fs.mkdir(path.join(d, 'work'), { recursive: true })
           await fs.writeFile(path.join(d, 'README.md'), `# ${nm}\n`, 'utf8')
           if (!empty) await fs.writeFile(path.join(d, 'docs', '처음.md'), `# 처음\n\n## 개요\n새 지식: 첫 문서를 쓴다.\n`, 'utf8')
-          // 기록 모음(P-D29 · Q12) — 팀 지식은 세울 때 같이(이을 항목이 없는 기록이 달 항목에 잇는다)
-          if (mode === 'team') await fs.writeFile(path.join(d, ...RECORDS_DOC_PATH.split('/')), recordsDocText(), 'utf8')
-          await commitPaths(d, [...(empty ? ['README.md'] : ['README.md', 'docs/처음.md']), ...(mode === 'team' ? ['_members.md', RECORDS_DOC_PATH] : [])], `지식 만듦: ${nm}`, ctx.user)
+          // 기록 모음(P-D29 · Q12) — 세울 때 같이(이을 항목이 없는 기록이 달 항목에 잇는다 · 팀 · 개인 지식 모두 · PC1)
+          await fs.writeFile(path.join(d, ...RECORDS_DOC_PATH.split('/')), recordsDocText(), 'utf8')
+          await commitPaths(d, [...(empty ? ['README.md'] : ['README.md', 'docs/처음.md']), '_members.md', RECORDS_DOC_PATH], `지식 만듦: ${nm}`, ctx.user)
         } catch (e) {
           // 내가 차지한 폴더를 지운 뒤에만 줄을 지운다(폴더가 남으면 줄도 남긴다)
           const gone = await fs.rm(d, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).then(() => true, () => false)
@@ -1760,11 +1795,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     //   서버가 정한 꼴의 【저장 제안】 글(text) · 항목(items: 고침 · 신설 · 잇기) · 새로 서는 것(near 포함) · 경고(id) · 오류 · proposal(sha256 · 쌓지 않는다).
     //   자리: hub.meta(id, ctx)(읽기 미만 404) → hub.need(ctx, id, 'write')(403). 입력 모양은 core/guard.js proposeInputWhy(P-D32 · E_INPUT).
     //   opt.form — 세션(MCP)의 서식 칸 기록 · opt.path — 제안서 머리의 길 말(서버 코드가 정한다).
-    //   개인 프로그램은 PC1 까지 막는다(P-D40). held 모드 저장은 이 판정을 쓰지 않는다(P3 부터 approve 모드 저장이 같은 판정을 줄 안에서 다시 돌린다)
+    //   개인 프로그램은 approve 모드 개인 지식(새 지식 · PC5 이행을 마친 지식)에서 같은 판정(P-D40 · PC1) — 옛 개인 지식은 이행 전까지 옛 길이라 막는다.
+    //   held 모드 저장은 이 판정을 쓰지 않는다(P3 부터 approve 모드 저장이 같은 판정을 줄 안에서 다시 돌린다)
     async propose(ctx, id, input, opt = {}) {
       const meta = await hub.meta(id, ctx)
       hub.need(ctx, id, 'write')
-      if (mode !== 'team') throw new KmdError('E_INPUT', '저장 제안은 팀 지식에서 한다(개인 프로그램은 다음 판부터)')
+      if (mode !== 'team' && hub.saveModeOf(id) !== 'approve') throw new KmdError('E_INPUT', '이 개인 지식은 아직 옛 저장 길이다(저장 제안은 새 판 이행을 마친 뒤). save 로 바로 저장한다')
       const bad = proposeInputWhy(input)
       if (bad) throw new KmdError('E_INPUT', bad)
       if (input.sections != null && !Array.isArray(input.sections)) throw new KmdError('E_INPUT', 'sections 는 목록이다')
@@ -1822,9 +1858,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (touched) await writeJsonAtomic(f, sent, { indent: 1 })
       return out
     },
-    // 저장 방식(저장 승인 설계 P-D18 · Q14) — 'approve' | 'held'. 팀 지식 줄의 save · 개인 프로그램은 PC1 까지 옛 길(held 와 같은 뜻의 'pc')
+    // 저장 방식(저장 승인 설계 P-D18 · Q14) — 'approve' | 'held'. 팀 지식 줄의 save.
+    //   개인 프로그램(P-D43 · PC1): 스위치가 없다 — 지식 안 `_members.md` 의 「- 저장 방식: 승인」 이면 'approve'(새 개인 지식 · PC5 이행을 마친 지식),
+    //   아니면 옛 길(pend · 바로 넣기)인 'pc'. 지식을 따라가는 표지라 백업 · 되살리기에도 그대로다
     saveModeOf(id) {
-      if (mode !== 'team') return 'pc'
+      if (mode !== 'team') return pcSaveMode(id)
       return rowFor(id)?.save === 'approve' ? 'approve' : 'held'
     },
     // 저장 방식 바꾸기 — 총괄 관리자(· 셸)만. approve 로 켜려면 이행이 끝나 있어야 한다(넣지 못함 · 메모 · 개편 전 기록 0 · P-D18 · P-D19)
@@ -5125,7 +5163,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (ctx.machine && ctx.machine.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
       if (!ctx.machine) hub.need(ctx, id, 'write')
       // approve 모드 지식(저장 승인 설계 P-D22 · P-D23 · 6-5) — 옛 받기는 넣지 못함(legacy-send)만 만들므로 받지 않는다 · 보낼 것은 개인 쪽에 그대로 남는다
-      if (hub.saveModeOf(id) === 'approve') throw Object.assign(new KmdError('E_APPROVE', '이 팀 지식은 보내기 창에서 저장 제안을 승인해야 받는다. 개인 프로그램을 새 판으로 올려 다시 보낸다(보낼 것은 개인 쪽에 그대로 남아 있다)'), { unproposed: true })
+      //   개인 지식(이 PC 의 받기 · 받은편지함 옮기기)은 P7 에서 받기 갈래를 걷을 때까지 옛 길(바로 넣기가 넣는다)
+      if (mode === 'team' && hub.saveModeOf(id) === 'approve') throw Object.assign(new KmdError('E_APPROVE', '이 팀 지식은 보내기 창에서 저장 제안을 승인해야 받는다. 개인 프로그램을 새 판으로 올려 다시 보낸다(보낼 것은 개인 쪽에 그대로 남아 있다)'), { unproposed: true })
       return serial(`receive:${path.resolve(meta.dir)}`, async () => {
         const shut = backup.closed(meta)
         if (shut) throw new KmdError('E_BEHIND', shut.message)
@@ -5348,7 +5387,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         // 지식 안의 사람 칸도 잠금 안에서 — 셸 · 서버가 겹쳐 고쳐도 장부와 같은 차례로 쓰고 묶는다(git 잠금을 다투지 않는다).
         // 묶지 못해도 장부는 남기고 알린다(백업에 옛 사람 칸이 남으면 되살릴 때 다르게 열린다)
         await ensureRepo(meta.dir)
-        const mf = path.join(meta.dir, '_members.md'), text = owners.renderMembers(r)
+        const mf = path.join(meta.dir, '_members.md'), text = membersText(id, r)
         if ((await fs.readFile(mf, 'utf8').catch(() => null)) !== text) {
           await fs.writeFile(mf, text, 'utf8')
           await commitPaths(meta.dir, ['_members.md'], '이 지식의 사람: 주인 · 지식관리자', 'kmd').catch((e) => { cerr = e })
@@ -5400,7 +5439,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         try { r = { ...owners.setAccess(next, id, { all, users, groups }) } } catch (e) { throw e.code ? new KmdError(e.code, e.message) : e }
         delete next.knowledge[id].check
         await ensureRepo(meta.dir)
-        const mf = path.join(meta.dir, '_members.md'), text = owners.renderMembers(r)
+        const mf = path.join(meta.dir, '_members.md'), text = membersText(id, r)
         if ((await fs.readFile(mf, 'utf8').catch(() => null)) !== text) {
           await fs.writeFile(mf, text, 'utf8')
           await commitPaths(meta.dir, ['_members.md'], '이 지식의 사람: 자리', 'kmd').catch((e) => { cerr = e })
@@ -5484,7 +5523,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const k = ks.find((x) => x.id === id)
         const row = owners.rowOf(R(), id)
         if (!k || !row) continue
-        await fs.writeFile(path.join(k.dir, '_members.md'), owners.renderMembers(row), 'utf8').catch(() => {})
+        await fs.writeFile(path.join(k.dir, '_members.md'), membersText(id, row), 'utf8').catch((e) => log('사람 칸', id, e.message))
         await commitPaths(k.dir, ['_members.md'], title, 'kmd').catch((e) => log('사람 칸', id, e.message))
       }
     },
@@ -5951,6 +5990,8 @@ const stampMs = (s) => {
 // 백업 자리가 없는 지식 — 저장이 50 을 넘거나 첫 저장이 7일 넘었으면 노랑 한 줄(v0.5 §4.2). HEAD 마다 한 번 잰다
 const unbackedCache = new Map()
 // 기록 모음 문서(저장 승인 설계 P-D29 · Q12) — 제목 · 한 줄 설명뿐(달 항목은 저장 문이 세운다)
+// 새 개인 지식의 사람 칸 — 저장 방식 표지만(owners.parseMembers 가 save 'approve' · 주인 없음 · 설정 줄 없음으로 읽는다)
+const PC_MEMBERS = ['# 사람', '', '- 저장 방식: 승인', ''].join('\n')
 const recordsDocText = () => `# ${RECORDS_DOC}\n\n${RECORDS_INTRO}\n`
 // 없으면 세운다(approve 로 켤 때) — 저장과 같은 줄에서 · 있으면 그대로
 async function recordsDoc(dir, user) {

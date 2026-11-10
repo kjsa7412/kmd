@@ -327,16 +327,18 @@ export function makeMcp(store) {
       const k = await store.get(knowledge, ctx)
       // 이미 있는 항목을 갈아 끼우는 글에는 base 가 있어야 한다 — 없으면 그사이 남이 고친 글을 덮는다
       // (kmd 가 띄운 넣기 에이전트는 그 파일의 글을 들이는 일이라 뺀다 — 사람의 세션이 남의 고침을 덮지 않게 하는 것)
-      //   팀 지식은 저장 문이 줄 안에서 같은 것을 보고 details.stale 를 싣는다(hub.save) — 여기서는 이 PC 만
+      //   팀 지식 · approve 모드 개인 지식은 저장 문이 줄 안에서 같은 것을 보고 details.stale 를 싣는다(hub.save · 지문 한 벌 · 저장 승인 설계 b26 · PC1) — 여기서는 옛 길 개인 지식만
+      const pcOld = store.mode === 'pc' && store.saveModeOf?.(k.id) !== 'approve'
       for (const x of Array.isArray(sections) && !ctx?.agent ? sections : []) {
         if (x && (x.from != null || x.append)) throw new KmdError('E_INPUT', 'from · append 는 kmd 넣기 에이전트만 쓴다. 항목의 새 글 전체를 content 로 보낸다')
-        if (!x || x.base || store.mode !== 'pc') continue
+        if (!x || x.base || !pcOld) continue
         const has = x.coord ? !!sectionOf(k, String(x.coord).trim().normalize('NFC'))?.sec : !!k.docs.find((d) => d.id === String(x.doc || '').replace(/^docs\/|\.md$/g, ''))?.sections.some((y) => headingMatches(y.h, String(x.heading || '')))
         if (has) throw new KmdError('E_CONFLICT', `「${x.coord || x.heading}」 은 이미 있는 항목이다. section 으로 다시 읽고 그 base 를 같이 보낸다(그사이 남이 고친 글을 덮지 않게)`)
       }
       // 채널은 서버가 정한다(S-D3 · 설계 2-1) — 넣은 파일 표지(ingest/)가 있으면 대량 넣기, 아니면 세션
       const channel = (Array.isArray(record?.tags) ? record.tags : []).some((t) => String(t).startsWith('ingest/')) ? 'bulk' : 'session'
       // 스킬 판(S-D15) — 팀 세션만 본다(kmd 가 띄운 넣기 에이전트 · 이 PC 는 팀 스킬이 아니다). 저장은 그대로 한다
+      //   개인 세션(PC_KIT_REV · 「개인 화면 › 설정 › 에이전트 설치에서 다시 설치」 안내)은 PC2 — 그때 이 자리(teamSession · reinstall)에서 개인 판도 본다(저장 승인 설계 P-D40 · b26)
       //   옛것이면 답에 reinstall(다시 설치) · 없음(또는 판 모양이 아님)이면 nokit — 스킬을 거치지 않은 저장이라 다시 설치해도 그대로다
       const have = typeof kit === 'number' || (typeof kit === 'string' && /^\s*\d{1,6}\s*$/.test(kit)) ? Number(kit) : null
       const teamSession = store.mode !== 'pc' && !ctx?.agent
@@ -344,7 +346,7 @@ export function makeMcp(store) {
         : Number.isInteger(have)
           ? { reinstall: { have, want: TEAM_KIT_REV, how: '이 폴더의 kmd 팀 스킬이 옛 판이다(저장은 했다). 팀 화면 › 설정 › 에이전트 설치의 한 줄을 이 폴더에서 다시 붙여 넣고 Claude Code 를 새로 연다' } }
           : { nokit: { want: TEAM_KIT_REV, how: `스킬 판(kit) 없이 저장했다(저장은 했다 · 다시 설치할 일은 아니다). 팀 지식 저장은 kmd-team-save 스킬 글대로 하고 save 에 kit: "${TEAM_KIT_REV}" 를 싣는다` } }
-      // 승인한 저장 제안(저장 승인 설계 P-D5 · P3) — approve 모드 팀 지식은 proposal 이 의무(없거나 어긋나면 E_APPROVE + 새 propose 결과 · 옛 판이면 다시 설치 안내도)
+      // 승인한 저장 제안(저장 승인 설계 P-D5 · P3 · PC1) — approve 모드 지식(팀 · 개인)은 proposal 이 의무(없거나 어긋나면 E_APPROVE + 새 propose 결과 · 옛 판이면 다시 설치 안내도)
       const extra = { ...(proposal != null ? { proposal } : {}), ...(distinct != null ? { distinct } : {}), ...(excluded != null ? { excluded } : {}), ...(kinds != null ? { kinds } : {}) }
       let r
       try {

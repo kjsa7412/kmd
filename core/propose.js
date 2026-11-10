@@ -86,7 +86,7 @@ export function parseProposals(body) {
 // ── 저장 제안(저장 승인 설계 P-D3 · P-D4 · P-D10 · 2-1 · P2) — 쓰지 않고, 서버가 정한 꼴의 【저장 제안】 글 · 항목 · 새로 서는 것 · 경고 · 오류 · 해시 ──
 //   k — 저장 줄 안에서 새로 읽은 지식 · input — save 와 같은 꼴(record 는 서식을 엮은 뒤) + distinct · excluded · kinds
 //   opt.newDoc — 새 문서를 세울 수 있나(지금은 지식관리자 · P3 부터 쓰기 자리) · opt.legacyPendOf(k, at, coord) — 섞인 자리 기록 id
-//   opt.head — { name(지식 이름), viewers(보는 사람 수 · 없으면 null), path(길: 이 세션의 작업 · 화면 …) }
+//   opt.head — { name(지식 이름), viewers(보는 사람 수 · 개인 프로그램은 'me' = 「나만 · 이 PC」 · 없으면 null), path(길: 이 세션의 작업 · 화면 …) }
 //   → { text, items, newDocs, newNames, newForms, newKinds, warnings[{ id, code, at, why }], errors[{ code, at, why, near? }], proposal }
 //   proposal — 비밀 없는 sha256(64자 hex): 정규화한 record · sections · names · forms · kinds · excluded · distinct · 조각마다의 base ·
 //   경고 id · 제안서 글(머리 줄 빼고 · 보는 사람 수 · 길이 달라도 같은 지문). 서버는 쌓지 않는다(P-D4). 오류가 있으면 null(승인할 제안이 아니다). 글에 시각을 싣지 않는다(같은 입력이면 같은 해시)
@@ -307,7 +307,7 @@ export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [
   const excluded = (Array.isArray(input.excluded) ? input.excluded : []).map((x) => ({ name: String(x.name), why: String(x.why || '') }))
   // ── 제안서 글(2-1) ──
   const L = []
-  const viewers = Number.isInteger(head.viewers) ? `(보는 사람 ${head.viewers})` : ''
+  const viewers = head.viewers === 'me' ? '(보는 사람: 나만 · 이 PC)' : Number.isInteger(head.viewers) ? `(보는 사람 ${head.viewers})` : ''
   L.push(`【저장 제안】 지식: ${head.name || k.name || k.id}${viewers} · 길: ${head.path || '이 세션의 작업'}`)
   L.push(`【기록】 「${record.title}」${rec.memo === true ? ' · 메모' : ''}`)
   const rp = recordParts(record.body)

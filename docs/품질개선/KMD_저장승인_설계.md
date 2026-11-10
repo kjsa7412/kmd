@@ -597,14 +597,14 @@ P-D45 그대로다. 서버에서 하지 않고, 새 판 개인 프로그램이 �
 
 | # | 자리(함수 · 지금 줄) | 하는 일 | 단계 · 처리 |
 |---|---|---|---|
-| b19 | hub.js `hub.checkSave` 의 `if (mode !== 'team') throw … 팀 지식에서 한다`(1610) | PC 에서 propose · 판정만 막음 | PC1: 걷고 같은 `hub.propose`(P-D40) |
-| b20 | hub.js `saveIn` 의 `const team = mode === 'team' && …`(818) · 응답 note · 오늘 줄(`pendText`, 596) | 팀만 검사 · PC 는 「곧바로 넣기」 문구 | PC1: 조건을 approve 모드 지식으로(P-D43). 문구 걷기 |
-| b21 | hub.js `saveIn` 끝 `curateSoon`(967) · 가져오기 뒤(2751) · 받기 뒤(`hub.receive` PC 갈래, 4935) | 저장 뒤 바로 넣기 | PC1: approve 개인 지식에서 부르지 않음. PC6: 걷기(P-D41) |
+| b19 | hub.js `hub.checkSave` 의 `if (mode !== 'team') throw … 팀 지식에서 한다`(1610) | PC 에서 propose · 판정만 막음 | PC1: 걷고 같은 `hub.propose`(P-D40). **PC1 에서 한 것**: `hub.propose` 의 막음을 approve 모드 개인 지식에서 걷음(옛 개인 지식은 이행 전까지 `E_INPUT`). `hub.checkSave` 는 팀 들이기 고쳐 쓰기(held 판정)만 부르므로 그대로 둠 |
+| b20 | hub.js `saveIn` 의 `const team = mode === 'team' && …`(818) · 응답 note · 오늘 줄(`pendText`, 596) | 팀만 검사 · PC 는 「곧바로 넣기」 문구 | PC1: 조건을 approve 모드 지식으로(P-D43). 문구 걷기. **PC1 에서 한 것**: `saveIn` 의 `humanSave`(approve 모드 · 사람 채널 · system · edit · shape · 들이기 일감 · 넣기 에이전트 `ctx.agent` 아님)가 팀 · 개인 한 벌. 사람 저장의 응답 note · 오늘 줄은 approve 문구(`pendText` 는 옛 길에만 남음) |
+| b21 | hub.js `saveIn` 끝 `curateSoon`(967) · 가져오기 뒤(2751) · 받기 뒤(`hub.receive` PC 갈래, 4935) | 저장 뒤 바로 넣기 | PC1: approve 개인 지식에서 부르지 않음. PC6: 걷기(P-D41). **PC1 에서 한 것**: approve 저장 문을 지난 사람 저장 뒤에만 부르지 않음. 가져오기 · 받기(이 PC 의 받기 · 받은편지함 옮기기) · 코드 바뀜 기록은 아직 기록 먼저(pend) 길이라 부르지 않으면 기록이 남으므로 PC4(들이기) · P7(받기 걷기)까지 옛 길 그대로 부른다 |
 | b22 | hub.js `curatePending`(4296) · `curateSoon`(4332) · `placeGroup`(4234) · `idle`(4338) · `curating` · `curateQ` · `curateRuns`(216 · 536-537) · 지금 하는 일 차례 수(3874) | 바로 넣기 줄 | PC5: 이행에서 마지막 한 번 씀. PC6: 걷기(`idle` 은 앞일 기다림만 남김) |
 | b23 | core/pcplace.js `material` · `promptOf` · `planSave` 의 section · touches 갈래 · `DRAFT_SCHEMA`(`left`) · `TOUCH_SCHEMA` | 바로 넣기 초안 · 둠 | PC6: 걷기. `ingestRule` · 들이기 초안 꼴만 남김(core/ingest.js 쪽으로 옮길지는 PC4 커밋에서) |
 | b24 | hub.js `ingestNow`(4200) · `ingestFileRun` · `importFiles` 의 PC `now`(4514) · `pcIntake`(1007) · `codeToDoc`(3986) | 개인 들이기(기록 먼저 → 문서) · `checkDraft` 값으로 규칙 길 | PC4: 초안 → 검사 → FIX → 규칙 길 → 기록 + 문서 한 번에, 값은 측정만(P-D42) |
-| b25 | core/save.js record.memo(22 · 93 · 98 · 268 · 600 · 749) | memo 받기 · 태그 | PC1: approve 개인 지식은 E_INPUT(팀 P3 와 같은 커밋 가능). 옛 읽기는 남김 |
-| b26 | mcp.js save 손잡이의 PC 만 base 검사(294-298) · `teamSession` · `reinstall`(305-309) · brief `you.direct` · `put`(169 · 179) | PC 갈래 · 팀 판만 봄 | PC1: base 검사는 저장 문 지문으로 한 벌. PC2: 판은 PC_KIT_REV 도 봄(P-D40) |
+| b25 | core/save.js record.memo(22 · 93 · 98 · 268 · 600 · 749) | memo 받기 · 태그 | PC1: approve 개인 지식은 E_INPUT(팀 P3 와 같은 커밋 가능). 옛 읽기는 남김. **PC1 에서 한 것**: approve 저장 문(`approveSave`)이 팀 · 개인 같이 막음(core/save.js 는 그대로) |
+| b26 | mcp.js save 손잡이의 PC 만 base 검사(294-298) · `teamSession` · `reinstall`(305-309) · brief `you.direct` · `put`(169 · 179) | PC 갈래 · 팀 판만 봄 | PC1: base 검사는 저장 문 지문으로 한 벌. PC2: 판은 PC_KIT_REV 도 봄(P-D40). **PC1 에서 한 것**: MCP 의 PC base 검사는 옛 개인 지식에만 · approve 개인 지식은 저장 문의 지문(`E_CONFLICT` + propose). 개인 save 모드 표지는 지식 안 `_members.md` 「- 저장 방식: 승인」(새 개인 지식은 이 한 줄만 · 주인 · 자리 고침이 지우지 않음 · 편집기 손 고침은 되돌림). brief `you.direct` · `put` 문구는 P4 · PC2(b2) |
 | b27 | core/kit.js `SKILLS` · `kitParts`(21-35) · agent/skills/kmd-save · kmd-work · kmd-build · agent/CLAUDE-kmd.md | 개인 키트 · 판 지문 | PC2: `PC_KIT_REV` · `{{KIT_REV}}` · 스킬 글 새 흐름 |
 | b28 | app/main.js `pendWhen`(166) · 기록 상태(1825 · 1834-1837) · `HIST_KINDS`(3063) · `band.out`(591) · 설정 Claude 연결 `autoSw('claude', '바로 넣기')`(5028) · `STG_SUB`(4350) · 저장 확인 창(P5 와 같은 부품) | 개인 화면 말 · 칩 · 스위치 | PC3: 저장 확인 창 · 점검 · 지표 · 말(P-D41) |
 | b29 | hub.js 멈춤 줄 「바로 넣기(내 Claude)가 쉬고 있다」(5052) · `FEED_KIND` place(3598) · `notices`(3631) | 개인 멈춤 줄 · 이력 갈래 | PC3: 「들이기(내 Claude)가 쉬고 있다」 · 이력 갈래 「들이기」. PC5: 「이행 못함」 멈춤 줄 |

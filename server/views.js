@@ -12,6 +12,7 @@ import { sha16 } from '../core/text.js'
 import { splitBlocks, parseTable } from '../core/baseline.js'
 import { parseRefLine } from '../core/sections.js'
 import { levelOf, eachLive } from '../core/levels.js'
+import { RECORDS_DOC } from '../core/guard.js'
 
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
@@ -288,7 +289,8 @@ export function knowledgeRow(k, see = null) {
   const all = see ? k.works.filter((w) => isHeld(k, w, see.team)) : []
   const rv = all.filter((w) => w.state === 'held' && parseHeld(w.body).some((x) => x.code === 'review'))
   const held = see ? { held: all.length, heldMine: all.filter((w) => w.author === see.user).length, legacy: all.filter((w) => w.state !== 'held').length, heldRv: rv.length, heldRvMine: rv.filter((w) => w.author === see.user).length } : {}
-  return { id: k.id, name: k.name, docs: k.docs.length, records: k.works.length, pend, ...held, when }
+  //   docs — 기록 모음(저장 문이 세우는 문서 · 저장 승인 P-D29)은 세지 않는다(새 지식의 「빈 지식」 · 바탕 세우기 안내가 그대로이게)
+  return { id: k.id, name: k.name, docs: k.docs.filter((d) => d.id !== RECORDS_DOC).length, records: k.works.length, pend, ...held, when }
 }
 
 // 기록의 날짜(YYYY-MM-DD HH:MM · 지역 시각) → ISO

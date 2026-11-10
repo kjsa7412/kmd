@@ -497,7 +497,7 @@ test('지식 추가: 지식 폴더 밖의 폴더는 지식 폴더 안의 새 지
     assert.ok(!fs.existsSync(path.join(root, '옛자료', 'docs', '처음.md')), '들여온 지식에는 빈 처음 문서가 없다')
     assert.deepEqual(fs.readdirSync(old, { recursive: true }).sort(), before, '원본 폴더는 그대로(.git · work 를 만들지 않는다)')
     assert.ok(!fs.existsSync(path.join(root, '.kmd', 'links.json')) || !JSON.parse(fs.readFileSync(path.join(root, '.kmd', 'links.json'), 'utf8')).length, '따라가는 줄 0')
-    assert.deepEqual((await pc.hub.get('옛자료')).docs.map((d) => d.id).sort(), ['배포 절차', '회의/10월'])
+    assert.deepEqual((await pc.hub.get('옛자료')).docs.map((d) => d.id).sort(), ['기록 모음', '배포 절차', '회의/10월'], '새 개인 지식은 기록 모음을 같이 세운다(저장 승인 PC1)')
     // 대원칙 — 기록 → 문서: 파일마다 기록(글 그대로)이 먼저 · 문서 항목은 그 기록을 표지로 · 기록은 「문서에 들어감」
     const k = await pc.hub.get('옛자료')
     const recs = k.works.filter((w) => /들여온 문서 · /.test(w.title))
