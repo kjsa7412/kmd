@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KMD 저장 승인 검토</title>
+<style>
+:root{
+  --bg:#f7f7f5; --card:#ffffff; --ink:#1d1f23; --sub:#5b616b; --line:#dfe1e5;
+  --pri:#2457c5; --pri-soft:#e7eefc; --ok:#1f7a4d; --ok-soft:#e3f3ea;
+  --warn:#9a5b00; --warn-soft:#fdf1dc; --bad:#b3261e; --bad-soft:#fbe5e3;
+  --code:#f0f1f3; --r:10px; --gap:16px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15171b; --card:#1e2126; --ink:#e7e9ec; --sub:#a2a8b2; --line:#33373e;
+    --pri:#8fb0ff; --pri-soft:#1f2b46; --ok:#6fd3a0; --ok-soft:#183427;
+    --warn:#f2bd63; --warn-soft:#3a2e17; --bad:#ff9a92; --bad-soft:#3d1f1d; --code:#262a30;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15171b; --card:#1e2126; --ink:#e7e9ec; --sub:#a2a8b2; --line:#33373e;
+  --pri:#8fb0ff; --pri-soft:#1f2b46; --ok:#6fd3a0; --ok-soft:#183427;
+  --warn:#f2bd63; --warn-soft:#3a2e17; --bad:#ff9a92; --bad-soft:#3d1f1d; --code:#262a30;
+}
+*{box-sizing:border-box}
+html{color-scheme:light dark}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 system-ui,-apple-system,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;word-break:keep-all;overflow-wrap:anywhere}
+main{max-width:min(980px,100%);margin:0 auto;padding:24px 16px 64px}
+h1{font-size:1.6rem;margin:0 0 4px}
+h2{font-size:1.2rem;margin:36px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+h3{font-size:1rem;margin:20px 0 8px}
+p{margin:8px 0}
+.sub{color:var(--sub);font-size:.9rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin:12px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:var(--gap)}
+.tag{display:inline-block;font-size:.78rem;padding:1px 8px;border-radius:99px;border:1px solid var(--line);white-space:nowrap}
+.t-ok{background:var(--ok-soft);color:var(--ok);border-color:transparent}
+.t-warn{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.t-bad{background:var(--bad-soft);color:var(--bad);border-color:transparent}
+.t-pri{background:var(--pri-soft);color:var(--pri);border-color:transparent}
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--card);margin:12px 0;max-width:100%}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:.9rem}
+th,td{text-align:left;vertical-align:top;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{background:var(--code);font-weight:600}
+tr:last-child td{border-bottom:0}
+code{background:var(--code);padding:1px 5px;border-radius:5px;font-size:.85em}
+pre{background:var(--code);padding:12px;border-radius:var(--r);overflow-x:auto;font-size:.82rem;line-height:1.5;margin:8px 0;max-width:100%}
+ol,ul{padding-left:22px;margin:8px 0}
+li{margin:3px 0}
+.lead{font-size:1.02rem}
+.callout{border-left:4px solid var(--pri);background:var(--pri-soft);border-radius:var(--r);padding:12px 14px;margin:12px 0}
+svg{display:block;width:100%;height:auto}
+.svgbox{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px;margin:12px 0;overflow-x:auto;max-width:100%}
+.svgbox svg{min-width:560px}
+.s-box{fill:var(--card);stroke:var(--line);stroke-width:1.5}
+.s-pri{fill:var(--pri-soft);stroke:var(--pri);stroke-width:1.5}
+.s-ok{fill:var(--ok-soft);stroke:var(--ok);stroke-width:1.5}
+.s-bad{fill:var(--bad-soft);stroke:var(--bad);stroke-width:1.5}
+.s-warn{fill:var(--warn-soft);stroke:var(--warn);stroke-width:1.5}
+.s-t{fill:var(--ink);font-size:13px;font-family:inherit}
+.s-ts{fill:var(--sub);font-size:11.5px;font-family:inherit}
+.s-ln{stroke:var(--sub);stroke-width:1.5;fill:none}
+.s-ar{fill:var(--sub)}
+.s-hd{fill:var(--ink);font-size:14px;font-weight:700;font-family:inherit}
+</style>
+</head>
+<body>
+<main>
+<h1>KMD 저장 승인 검토 <span class="tag t-ok">확정 2026-11-10</span></h1>
+<p class="sub">2026-11-10 · 기준 HEAD c53580d(코드는 함수 이름으로 가리킨다) · 읽기만 했다(코드 · 기준 문서는 고치지 않음, 188 서버 접속 없음) · 설계 문서: <code>docs/품질개선/KMD_저장승인_설계.md</code> · 2026-11-10 사람 결정(원칙 N1 ~ N5) 반영 · <b>2026-11-10 확정판</b>(Q1 ~ Q19 를 권장안대로 정하고, 개인 프로그램에도 같은 원칙을 반영)</p>
+
+<div class="callout">
+<p><b>확정(2026-11-10)</b>: 사람 결정 「열린 물음은 권장안으로 확정하고, 개인 프로그램에도 동일하게 반영하는 것으로 설계를 확정한다.」 그래서 Q1 ~ Q19 는 모두 정해졌고(7절), 개인 프로그램(PC)도 팀과 같은 원칙 · 같은 저장 문으로 간다(P-D26 · P-D40 ~ P-D46, 6절 개인 프로그램 단계).</p>
+</div>
+
+<div class="card lead">
+<p><b>한 줄</b>: 지식은 <b>초안 하나로 기록 · 문서를 한 번에</b> 넣고, 넣겠다는 재료는 <b>바로 반영</b>한다. 세션에서는 서버가 만든 【저장 제안】을 보이고 <b>대화로 조절</b>한 뒤 승인받는다(승인이 경고 받아들임을 포함). 무인 일은 사람을 기다리지 않고 FIX 고리 → <b>규칙 길</b>로 늘 들어간다. 저장 결과는 <span class="tag t-ok">들어감</span> 하나이고, 입력 오류는 아무것도 쓰지 않고 보낸 쪽이 곧 고쳐 다시 보낸다. 품질은 저장 뒤 사람 검토가 아니라 <b>측정 → 로직 개선</b>으로 올린다. 「넣지 못함」 · 「승인 받고 넣기」 · 「세울 이름」 · 메모를 걷는다. <b>개인 프로그램도 같다</b>: 메모 · 「넣는 중(pend)」 · 바로 넣기 · 「둠」 을 걷고, 기록과 문서를 한 번에 넣는다.</p>
+</div>
+
+<div class="callout">
+<p><b>원칙 셋(사람이 정함)</b>: (1) 항목(문서 안 <code>##</code> 머리)이 모든 지식을 잇는 원자다. (2) 모든 기록은 문서(의 항목)에 남는다. (3) 문서는 최신 글과 이력을 가진다. 지식관리자는 사후 조정자이지 사전 허가자가 아니다.</p>
+<p><b>원칙 다섯(사람이 정함 2026-11-10)</b></p>
+<ul>
+<li><b>N1</b> 지식을 들일 때 기록과 문서 대응은 한 번에. 초안을 만들고 기록 · 문서를 같이 한 번에 저장한다.</li>
+<li><b>N2</b> 지식으로 만들겠다는 재료는 바로 반영한다(낡음을 막는다). 반영을 미루거나 문서 밖에 세워 두는 상태를 두지 않는다.</li>
+<li><b>N3</b> 세션이 정리한 내용을 사람이 저장 뒤에 다시 검토하지 않는다. 품질은 로직을 정립하고 시스템을 꾸준히 개편해 올린다(측정 → 로직 개선).</li>
+<li><b>N4</b> 세션에서는 스킬로 초안(저장 제안)을 보이고 승인받는다. 초안은 대화로 세밀하게 조절한다(넣을 · 뺄 항목, 값 · 문장, 기록 범위, 다시 제안을 되풀이). 긴 세션은 일부만 골라 정리한다.</li>
+<li><b>N5</b> 「넣지 못함」 과 같은 개념인 기다림 상태(옛 설계 초안의 「확정 전」, 기록 없이 기다리는 일감 상태 「초안 보기」)는 두지 않는다.</li>
+</ul>
+<p>이 원칙은 팀 서버와 개인 프로그램(PC)에 똑같이 걸린다(2026-11-10 확정).</p>
+</div>
+
+<h2>1. 원인</h2>
+<div class="grid">
+  <div class="card">
+    <h3>서버가 저장 뒤에 판정한다</h3>
+    <p>팀 저장 문(<code>gatePrepare</code> · <code>saveIn</code>)이 조각마다 값 대조 · 꼴을 검사한다(<code>checkSection</code> · <code>checkProposal</code>). 걸린 조각은 기록 끝 <code>## 넣지 못함</code> 칸에 남아 <b>문서 밖</b>에 머문다.</p>
+  </div>
+  <div class="card">
+    <h3>Claude 초안용 문지기를 사람에게도 씌웠다</h3>
+    <p>지어냄을 막던 값 대조(<code>checkSectionDraft</code>)를 개편 S4 에서 사람 · 세션 저장에도 씌웠다. 그래서 사람이 승인할 자리를 서버 판정이 차지했다.</p>
+  </div>
+  <div class="card">
+    <h3>같은 뿌리에서 나온 넷</h3>
+    <ul>
+      <li>메모 = 기록만(<code>saveIn</code> 의 autoMemo)</li>
+      <li>승인 받고 넣기 = 사전 허가(<code>saveIn</code> 의 review 분기)</li>
+      <li>세울 이름 대기(<code>saveIn</code> 의 extraHeld)</li>
+      <li>새 문서는 지식관리자만(<code>hub.canDirect</code>)</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>개인 프로그램도 같은 뿌리</h3>
+    <p>세션 저장은 기록만 서도 되고(<code>pend</code>), 저장 뒤 뒤에서 「바로 넣기」(<code>curatePending</code> · <code>placeGroup</code>)가 넣는다. 기록과 문서가 두 커밋으로 갈린다. 바로 넣기의 Claude 가 둔 기록은 「둠(kept)」 으로 문서 밖에 남는다. 넣은 파일도 기록을 먼저 세운다.</p>
+  </div>
+  <div class="card">
+    <h3>사람은 저장 전에 거의 보지 못한다</h3>
+    <p>kmd-team-save 는 「어느 지식」과 「확정이냐」만 묻는다. CDP 는 【좌표 판정】(넣는다 · 뺀다)과 기록을 보이고 승인받는 것이 필수였다.</p>
+  </div>
+</div>
+
+<h2>2. 정한 것</h2>
+<p>설계안 A(승인하면 늘 반영)를 바탕으로 하고, 설계안 B(기록이 곧 항목 이력)에서 이력 모델을 가져왔다. 반박 둘 · 빈칸 검토 40건 · 2026-11-10 사람 결정 다섯 · 같은 날 확정 결정을 반영했다. 모든 줄이 팀과 개인 프로그램에 같이 걸린다(팀에만 있는 자리 · 스위치 · 188 이행은 그렇게 적었다).</p>
+<div class="tblwrap"><table>
+<tr><th>#</th><th>정한 것</th><th>P-D</th></tr>
+<tr><td>1</td><td>저장 결과는 <b>들어감 하나</b>. 입력 오류(꼴 · 지문 · 승인 없음 · 자리)는 아무것도 쓰지 않고 보낸 쪽이 곧 고쳐 다시 보낸다. 지식 상태가 아니다.</td><td>1 · 6 · 7</td></tr>
+<tr><td>2</td><td>새 도구 <code>propose</code>(쓰지 않는 미리 검사). 【저장 제안】 글을 <b>서버가</b> 만들고, 스킬은 그대로 보인다.</td><td>3</td></tr>
+<tr><td>3</td><td><b>사람 채널(session · http · send · bulk)은 proposal 의무.</b> 승인이 경고 받아들임을 포함한다(경고가 해시에 들어 있음). 옛 키트는 <code>TEAM_KIT_REV</code> 를 한 판 올려(지금 7 → 8) E_APPROVE 응답에 「다시 설치」 안내. 유예 기간은 두지 않는다.</td><td>4 · 5</td></tr>
+<tr><td>4</td><td><b>대화 조절</b>: 빼기 · 값 고치기 · 기록 범위 줄이기 → 다시 propose → 바뀐 줄만 다시 보임(경고 · 끝 줄은 늘). 긴 세션은 정리 거리 묶음을 골라 일부만.</td><td>36</td></tr>
+<tr><td>5</td><td><b>정해지지 않은 것은 저장하지 않는다</b>(메모 걷음, 팀 · 개인 <code>memo: true</code> 는 E_INPUT). 풀리지 않은 물음은 이슈 갈래가 있으면 이슈 항목으로 제기, 없으면 넣지 않음.</td><td>34</td></tr>
+<tr><td>6</td><td>「이력만」 상태 이름 없음. 경위만인 기록은 본문 바뀜 0 인 들어감. 「바뀐 것」 값이 있는데 본문이 안 바뀌면 사람은 propose 오류, 무인은 규칙 길.</td><td>12</td></tr>
+<tr><td>7</td><td><b>무인 채널</b>: 초안 → 결정적 검사 → FIX 고리 → 규칙 길(원문 인용 · 원본 첨부). 늘 기록 + 문서 한 번에. 값 대조는 막지 않고 측정만. 지문 어긋남은 다시 대기 → 다시 짓기 → 규칙 길.</td><td>14 · 15 · 35 · 38</td></tr>
+<tr><td>8</td><td>쓰기 자리가 새 항목 · 이름 · 문서를 세운다. 맞는 갈래가 없으면 제안서에 새 갈래 · 종류. 비슷한 이름은 오류, 새로 선 것에는 <code>fresh</code>(지표 표지 · 14일 뒤 저절로 떨어짐).</td><td>8 · 9 · 10</td></tr>
+<tr><td>9</td><td>이을 항목이 없는 기록은 <b>「기록 모음」 문서의 달 항목</b>(<code>## YYYY-MM</code>). 문서 단위 기록은 없다.</td><td>29</td></tr>
+<tr><td>10</td><td>「새로 생긴 것 · 받아들인 경고」 는 사람 검토 목록이 아니라 <b>점검 지표</b>. 확인 메뉴는 「점검 · 지표」, 배지 없음. 사후 조정은 선택.</td><td>27 · 28 · 30 · 37</td></tr>
+<tr><td>11</td><td>팀 지식마다 <code>save: held | approve</code> 스위치(총괄 관리자가 켬). 새 지식은 approve. 더하기 → 스위치 → 이행 → 걷기.</td><td>18</td></tr>
+<tr><td>12</td><td>권한 길(propose 는 meta → need write, 지표는 admin, 응답은 자리로 거름)과 새 입력 모양 검사.</td><td>31 · 32</td></tr>
+<tr><td>13</td><td><b>개인 프로그램 세션도 제안 · 승인</b>: propose → 대화 조절 → 승인 → save(proposal). 개인 스킬 판 <code>PC_KIT_REV</code>(1 부터), 옛 판은 E_APPROVE + 개인 다시 설치 안내. 개인 화면도 저장 확인 창.</td><td>26 · 40</td></tr>
+<tr><td>14</td><td><b>개인 프로그램의 메모 · 넣는 중(pend) · 바로 넣기 · 둠 걷기</b>. 기록 + 문서 한 번에, 정해지지 않은 것은 저장하지 않음. 설정 스위치 「바로 넣기」 → 「Claude 로 들이기」.</td><td>41</td></tr>
+<tr><td>15</td><td><b>개인 들이기(파일 · 폴더 · 가져올 곳 · 코드 바뀜)도 무인 채널 규칙</b>: 기록을 먼저 세우지 않고 초안 → 검사 → FIX → 규칙 길 → 기록(원본 첨부) + 문서 한 번에. 값은 측정만.</td><td>42</td></tr>
+<tr><td>16</td><td><b>값 대조 · 꼴 · 제안서 · 지표는 공유 core 한 벌</b>. 개인 지표는 그 PC 안에만(밖으로 보내지 않음). 개인 지식에는 스위치가 없고 이행이 approve 로 넘김.</td><td>43</td></tr>
+<tr><td>17</td><td><b>MCP 안내 · 도구 설명 · 상태 말은 한 벌</b>(memo 문장 걷기). PC · 팀 차이는 where 표시 · 보는 사람뿐.</td><td>44</td></tr>
+<tr><td>18</td><td><b>옛 개인 기록 이행</b>: 새 판이 처음 켜질 때 그 PC 에서 한 번. 지식백업 먼저 → pend 는 마지막으로 넣고 · 둠 · 메모는 이어진 항목 이력에 · 이을 곳 없으면 기록 모음 → 지식마다 한 커밋 · 되돌리기. 실패하면 옛 길 + 「이행 못함」 멈춤 줄.</td><td>45</td></tr>
+<tr><td>19</td><td><b>보내기(PC → 팀)는 팀 제안서 승인 그대로</b>. 개인 승인과 팀 승인은 따로다.</td><td>22 · 46</td></tr>
+</table></div>
+
+<h2>3. 원칙 대조</h2>
+<div class="tblwrap"><table>
+<tr><th>원칙 · 역할</th><th>지금</th><th>정한 뒤</th></tr>
+<tr><td>(1) 항목은 지식을 잇는 원자</td><td><span class="tag t-bad">어긋남</span> 새 이름이 「세울 이름」 칸에만. 새 문서는 쓰기 자리가 못 세움. legacy-mix</td><td><span class="tag t-ok">맞음</span> 모든 기록이 저장 순간 항목에 이어짐(고침 · 신설 · 잇기). 없으면 기록 모음 달 항목</td></tr>
+<tr><td>(2) 모든 기록은 문서(의 항목)에</td><td><span class="tag t-bad">어긋남</span> 넣지 못함 · 메모 · review 기다림은 문서 밖</td><td><span class="tag t-ok">맞음</span> 기록만 서는 상태가 없다. 무인 일은 규칙 길까지 가서 늘 들어감</td></tr>
+<tr><td>(3) 문서 = 최신 글 + 이력</td><td><span class="tag t-warn">흩어짐</span> 이력이 기록함과 넣지 못함 화면으로 갈림</td><td><span class="tag t-ok">맞음</span> 항목 이력 하나. 같은 항목을 고치는 새 기록이 곧 최신 글</td></tr>
+<tr><td>N1 기록 · 문서 한 번에</td><td><span class="tag t-bad">어긋남</span> 기록만 서고 조각은 나중(held · memo)</td><td><span class="tag t-ok">맞음</span> 제안서 하나 = 기록 + 조각 한 덩이. 무인도 한 덩이</td></tr>
+<tr><td>N2 바로 반영</td><td><span class="tag t-bad">어긋남</span> 메모 · 넣지 못함 · review 로 미룸</td><td><span class="tag t-ok">맞음</span> 승인하면 들어감. 무인은 값 경고여도, 꼴이 안 되면 규칙 길로 들어감</td></tr>
+<tr><td>N3 사후 검토 없음 · 측정 → 개선</td><td><span class="tag t-bad">사후 처리</span> 지식관리자가 넣지 못함을 풀어 줌</td><td><span class="tag t-ok">맞음</span> 지표(받아들인 경고 · 무인 값 경고 · 규칙 길 · FIX · 다시 제안) → 정기 점검 → 로직 고침</td></tr>
+<tr><td>N4 세션 제안 · 승인 · 대화 조절</td><td><span class="tag t-warn">없음</span> 저장 뒤 note 로 앎</td><td><span class="tag t-ok">맞음</span> propose → 대화로 여러 번 조절 → 승인 → save(proposal)</td></tr>
+<tr><td>N5 확정 전 · 초안 보기 걷음</td><td>—</td><td><span class="tag t-ok">맞음</span> 「확정 전」 · <code>resolves</code> · 「초안 보기」 · [제안서 보기] · 메모를 두지 않음</td></tr>
+<tr><td>개인 프로그램도 같은 원칙</td><td><span class="tag t-bad">어긋남</span> 기록만 서고 뒤에서 바로 넣기(pend) · 둠(kept) · 메모</td><td><span class="tag t-ok">맞음</span> 같은 저장 문 · 제안서 승인 · 들이기 규칙 길 · 한 벌 안내</td></tr>
+<tr><td>지식관리자 = 사후 조정</td><td><span class="tag t-bad">사전 허가</span> 승인 받고 넣기 · 이름 세우기 · 새 문서 · 넣지 못함 처리</td><td><span class="tag t-ok">사후 조정(선택)</span> 저장 흐름에 대기 · 승인 단계 없음. 원하면 합치기 · 옮기기 · 되돌리기</td></tr>
+</table></div>
+
+<h2>4. 바뀌는 흐름</h2>
+<div class="svgbox">
+<svg viewBox="0 0 900 700" role="img" aria-label="지금과 바뀐 뒤의 저장 흐름: 사람 채널, 무인 채널, 측정과 로직 개선 고리">
+  <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" class="s-ar"/></marker></defs>
+  <text x="20" y="26" class="s-hd">지금</text>
+  <rect x="20" y="40" width="190" height="52" rx="8" class="s-box"/>
+  <text x="115" y="62" text-anchor="middle" class="s-t">Claude 가 조각을 지음</text>
+  <text x="115" y="80" text-anchor="middle" class="s-ts">사람은 지식 · 확정만 답함</text>
+  <path d="M210 66 H252" class="s-ln" marker-end="url(#ar)"/>
+  <rect x="254" y="40" width="190" height="52" rx="8" class="s-box"/>
+  <text x="349" y="62" text-anchor="middle" class="s-t">save → 서버가 판정</text>
+  <text x="349" y="80" text-anchor="middle" class="s-ts">값 대조 · 꼴 · review</text>
+  <path d="M444 56 H486" class="s-ln" marker-end="url(#ar)"/>
+  <path d="M444 78 L470 78 L470 150 L486 150" class="s-ln" marker-end="url(#ar)"/>
+  <rect x="488" y="34" width="180" height="40" rx="8" class="s-ok"/>
+  <text x="578" y="59" text-anchor="middle" class="s-t">넘음: 문서에 들어감</text>
+  <rect x="488" y="128" width="180" height="44" rx="8" class="s-bad"/>
+  <text x="578" y="148" text-anchor="middle" class="s-t">걸림: 넣지 못함 · 메모</text>
+  <text x="578" y="164" text-anchor="middle" class="s-ts">기록이 문서 밖에 남음</text>
+  <path d="M668 150 H710" class="s-ln" marker-end="url(#ar)"/>
+  <rect x="712" y="128" width="170" height="44" rx="8" class="s-warn"/>
+  <text x="797" y="148" text-anchor="middle" class="s-t">지식관리자가 풀어 줌</text>
+  <text x="797" y="164" text-anchor="middle" class="s-ts">사전 허가</text>
+
+  <line x1="20" y1="200" x2="880" y2="200" style="stroke:var(--line)" stroke-dasharray="4 4"/>
+
+  <text x="20" y="230" class="s-hd">바뀐 뒤 · 사람 채널(세션 · 화면 · 보내기 · 대량 넣기, 팀 · 개인 같음)</text>
+  <rect x="20" y="250" width="140" height="60" rx="8" class="s-box"/>
+  <text x="90" y="276" text-anchor="middle" class="s-t">세션 · 화면이 짓고</text>
+  <text x="90" y="294" text-anchor="middle" class="s-t">propose</text>
+  <path d="M160 280 H188" class="s-ln" marker-end="url(#ar)"/>
+  <rect x="190" y="246" width="180" height="68" rx="8" class="s-pri"/>
+  <text x="280" y="266" text-anchor="middle" class="s-t">서버가 【저장 제안】</text>
+  <text x="280" y="284" text-anchor="middle" class="s-ts">옛→새 · 새 항목/문서/이름</text>
+  <text x="280" y="300" text-anchor="middle" class="s-ts">경고 id · 오류</text>
+  <path d="M370 280 H398" class="s-ln" marker-end="url(#ar)"/>
+  <rect x="400" y="250" width="150" height="60" rx="8" class="s-pri"/>
+  <text x="475" y="276" text-anchor="middle" class="s-t">사람이 승인</text>
+  <text x="475" y="294" text-anchor="middle" class="s-ts">경고 받아들임 포함</text>
+  <path d="M550 280 H578" class="s-ln" marker-end="url(#ar)"/>
+  <rect x="580" y="250" width="120" height="60" rx="8" class="s-box"/>
+  <text x="640" y="276" text-anchor="middle" class="s-t">save</text>
+  <text x="640" y="294" text-anchor="middle" class="s-ts">proposal 해시</text>
+  <path d="M700 280 H728" class="s-ln" marker-end="url(#ar)"/>
+  <rect x="730" y="250" width="150" height="60" rx="8" class="s-ok"/>
+  <text x="805" y="276" text-anchor="middle" class="s-t">들어감</text>
+  <text x="805" y="294" text-anchor="middle" class="s-ts">기록 + 문서 한 번에</text>
+  <path d="M475 310 L475 340 L280 340 L280 316" class="s-ln" marker-end="url(#ar)"/>
+  <text x="470" y="358" text-anchor="middle" class="s-ts">대화로 조절: 빼기 · 값 고치기 · 기록 범위 줄이기 → 다시 propose(바뀐 줄만 다시 보임, 여러 번)</text>
+  <path d="M640 310 L640 378 L90 378 L90 312" class="s-ln" stroke-dasharray="5 4" marker-end="url(#ar)"/>
+  <text x="400" y="396" text-anchor="middle" class="s-ts">입력 오류(꼴 · 지문 · 승인 없음 · 자리): 아무것도 안 씀, 지식 상태 아님 → 다시 읽고 다시 propose</text>
+
+  <line x1="20" y1="412" x2="880" y2="412" style="stroke:var(--line)" stroke-dasharray="4 4"/>
+
+  <text x="20" y="440" class="s-hd">바뀐 뒤 · 무인 채널(팀 · 개인 들이기 · 가져올 곳 · 받은 보내기 · 정정)</text>
+  <rect x="20" y="456" width="130" height="56" rx="8" class="s-box"/>
+  <text x="85" y="489" text-anchor="middle" class="s-t">Claude 초안</text>
+  <path d="M150 484 H172" class="s-ln" marker-end="url(#ar)"/>
+  <rect x="174" y="456" width="160" height="56" rx="8" class="s-box"/>
+  <text x="254" y="478" text-anchor="middle" class="s-t">결정적 검사</text>
+  <text x="254" y="496" text-anchor="middle" class="s-ts">꼴 · 표 · edits · 자리</text>
+  <path d="M334 484 H356" class="s-ln" marker-end="url(#ar)"/>
+  <text x="345" y="474" text-anchor="middle" class="s-ts">걸림</text>
+  <rect x="358" y="456" width="150" height="56" rx="8" class="s-warn"/>
+  <text x="433" y="478" text-anchor="middle" class="s-t">FIX 고리</text>
+  <text x="433" y="496" text-anchor="middle" class="s-ts">다시 짓기(번 수 한도)</text>
+  <path d="M508 484 H530" class="s-ln" marker-end="url(#ar)"/>
+  <rect x="532" y="456" width="160" height="56" rx="8" class="s-warn"/>
+  <text x="612" y="478" text-anchor="middle" class="s-t">규칙 길</text>
+  <text x="612" y="496" text-anchor="middle" class="s-ts">원문 인용 · 원본 첨부</text>
+  <path d="M692 484 H714" class="s-ln" marker-end="url(#ar)"/>
+  <rect x="716" y="456" width="166" height="56" rx="8" class="s-ok"/>
+  <text x="799" y="478" text-anchor="middle" class="s-t">들어감</text>
+  <text x="799" y="496" text-anchor="middle" class="s-ts">기록 + 문서 한 번에</text>
+  <path d="M254 512 L254 530 L799 530 L799 514" class="s-ln" marker-end="url(#ar)"/>
+  <path d="M433 512 L433 530" class="s-ln"/>
+  <text x="526" y="548" text-anchor="middle" class="s-ts">넘음 → 들어감 · 값 대조(빠진 · 지어낸 · 사라진 값)는 막지 않고 측정만</text>
+
+  <line x1="20" y1="562" x2="880" y2="562" style="stroke:var(--line)" stroke-dasharray="4 4"/>
+
+  <text x="20" y="590" class="s-hd">측정 → 로직 개선 고리(저장 뒤 사람 검토 없음)</text>
+  <rect x="20" y="604" width="150" height="52" rx="8" class="s-ok"/>
+  <text x="95" y="626" text-anchor="middle" class="s-t">들어감</text>
+  <text x="95" y="644" text-anchor="middle" class="s-ts">모든 채널</text>
+  <path d="M170 630 H198" class="s-ln" marker-end="url(#ar)"/>
+  <rect x="200" y="604" width="200" height="52" rx="8" class="s-pri"/>
+  <text x="300" y="626" text-anchor="middle" class="s-t">savelog · 점검 지표</text>
+  <text x="300" y="644" text-anchor="middle" class="s-ts">경고 · 값 대조 · 규칙 길 수</text>
+  <path d="M400 630 H428" class="s-ln" marker-end="url(#ar)"/>
+  <rect x="430" y="604" width="180" height="52" rx="8" class="s-box"/>
+  <text x="520" y="626" text-anchor="middle" class="s-t">정기 점검(두 주마다)</text>
+  <text x="520" y="644" text-anchor="middle" class="s-ts">지표로 약한 곳 고름</text>
+  <path d="M610 630 H638" class="s-ln" marker-end="url(#ar)"/>
+  <rect x="640" y="604" width="242" height="52" rx="8" class="s-pri"/>
+  <text x="761" y="626" text-anchor="middle" class="s-t">로직 고침(커밋)</text>
+  <text x="761" y="644" text-anchor="middle" class="s-ts">프롬프트 · FIX · 규칙 길 · 검사 기준</text>
+  <path d="M761 656 L761 676 L95 676 L95 658" class="s-ln" marker-end="url(#ar)"/>
+  <text x="428" y="692" text-anchor="middle" class="s-ts">다음 저장부터 반영</text>
+</svg>
+</div>
+<p class="sub">무인 채널에는 사람 검토 대기열 · 「초안 보기」 · 결과를 고르는 단추가 없다. 일꾼 실패 · 하루 상한 · 24시간이면 Claude 없이 곧바로 규칙 길로 넣는다. 잘못 들어간 글은 기록마다 되돌리기로 고친다.</p>
+
+<h3>세션 제안서 예시</h3>
+<pre>【저장 제안】 지식: DPMS · 길: 이 세션의 작업
+【기록】 「헬스체크: 주기 10초」 · 2026-11-10 14:20
+  바뀐 것  헬스체크 주기: 30초 → 10초 · 까닭 11-07 장애 회고에서 정함
+―― 고칠 항목 ――     배포절차 › 헬스체크   변경   주기: 30초 → 10초
+―― 새 항목 ――       회의록 › 2026-11-07 장애 회고   신설
+                    이슈 › 롤백 기준 미정   신설   제기
+―― 새 갈래 · 종류 ―― (없음)
+―― 새 이름 ――       proc:헬스체크알림   신설   비슷한 이름 없음
+―― 이을 항목(글 그대로) ―― 운영정책 › 감시 범위   잇기   결정 경위만
+―― 뺀다 ――          screen:BZD012   참조
+―― 검사 ――          경고 w1  옛 값 「재시도 3회」가 빠짐 · 오류 없음
+승인하시면 경고 w1 을 받아들이고 그대로 남깁니다. 고칠 줄이 있으면 말씀해 주세요.</pre>
+
+<h3>대화 조절 예시</h3>
+<pre>사람: BZD020 은 빼고
+세션: (조각 · 이름을 빼고 「뺀다」 로 옮겨 다시 propose)
+      바뀐 줄  고칠 항목 화면목록 › BZD020 (빠짐) · 뺀다 screen:BZD020 사람이 뺌
+      경고 w1 그대로 · 승인하시면 남깁니다.
+사람: 기록 범위를 오늘 오후 작업만
+세션: (기록 칸 · 근거를 오후 커밋만으로, 오전 조각을 빼서 다시 propose)
+      바뀐 줄  근거 커밋 9f8e7d · a1b2c3 → a1b2c3 · 배포절차 › 알림 대상 (빠짐)
+사람: 이 값은 30 이 아니라 60
+세션: (edits 의 옛 값과 「바뀐 것」 을 60 으로 고쳐 다시 propose)
+      바뀐 줄  바뀐 것 60초 → 10초 · - 주기는 60초이다.
+      경고 w1 없어짐 · 승인하시면 남깁니다.
+사람: 좋아, 넣어
+세션: save { …, proposal: &lt;마지막 제안서 해시&gt; } → 들어감</pre>
+<p class="sub">바뀐 줄만 다시 보이되 경고 줄과 끝 줄은 늘 보인다. 「전체」 라고 하면 전체를 보인다. 긴 세션은 먼저 「정리 거리 묶음」 을 한 줄씩 보이고 고른 묶음만 제안서로 짓는다(묶음 하나 = 기록 하나 = 제안서 하나). 정해지지 않은 묶음은 넣지 않는다.</p>
+
+<h2>5. 검사별 처리</h2>
+<p class="sub">approve 모드 지식의 처리다. 팀 지식과 개인 지식이 같다. 팀 held 모드 지식은 이행이 끝날 때까지 지금 그대로이고, 개인 지식은 이행 전까지만 옛 길이다.</p>
+<div class="tblwrap"><table>
+<tr><th>검사</th><th>지금</th><th>사람 채널</th><th>무인 채널</th></tr>
+<tr><td>proposal 없음 · 해시 어긋남</td><td>—</td><td><span class="tag t-bad">입력 오류</span> E_APPROVE + 제안서(옛 키트면 다시 설치)</td><td>해당 없음</td></tr>
+<tr><td>값 대조(빠진 · 지어낸 · 사라진 값)</td><td><span class="tag t-bad">넣지 못함</span></td><td><span class="tag t-warn">경고</span> 제안서 안에. 승인하면 받아들임 → 들어감</td><td><span class="tag t-ok">들어감</span> 측정만(<code>## 값 대조</code> · savelog)</td></tr>
+<tr><td>되돌림 잦음</td><td><span class="tag t-bad">넣지 못함</span></td><td><span class="tag t-warn">경고</span></td><td>들어감 · 측정</td></tr>
+<tr><td>꼴 · 저절로 채우는 표 · edits 모양 · 자리 없음</td><td><span class="tag t-bad">넣지 못함</span></td><td><span class="tag t-bad">입력 오류</span> E_FORMAT · E_INPUT</td><td>FIX 고리 → 규칙 길</td></tr>
+<tr><td>항목 없음</td><td><span class="tag t-bad">넣지 못함</span></td><td><span class="tag t-ok">새 항목 세움</span></td><td>같음</td></tr>
+<tr><td>없는 문서</td><td>E_NOTFOUND(쓰기 자리)</td><td><span class="tag t-ok">새 문서 세움</span> 갈래 장부 안 · E_FORMAT. 갈래가 없으면 제안서로 새 갈래</td><td>갈래 장부 안이면 세움, 새 갈래가 필요하면 규칙 길</td></tr>
+<tr><td>새 이름 · 갈래 · 종류(쓰기 자리)</td><td><span class="tag t-bad">넣지 못함</span></td><td><span class="tag t-ok">제안서 승인으로 세움</span> fresh · 비슷하면 오류</td><td>이름만 세움, 갈래 · 종류는 규칙 길</td></tr>
+<tr><td>원본이 주인</td><td>넣지 못함 · E_FORBIDDEN</td><td>글 조각은 입력 오류 → 「그 항목에 잇기」 로 다시 제안</td><td>그 항목에 잇기</td></tr>
+<tr><td>섞인 자리(legacy-mix)</td><td><span class="tag t-bad">넣지 못함</span></td><td>approve 모드에는 없음(이행이 끝나야 켬)</td><td>같음</td></tr>
+<tr><td>승인 받고 넣기</td><td><span class="tag t-bad">넣지 못함</span></td><td>걷음 → 하루 요약 알림</td><td>걷음</td></tr>
+<tr><td><code>memo: true</code></td><td>메모(팀 · 개인, 문서 밖)</td><td><span class="tag t-bad">입력 오류</span> 정해진 부분만 골라 다시 제안</td><td>—</td></tr>
+<tr><td>조각 없는 기록</td><td>팀 메모 · 개인 pend(문서 밖)</td><td>경위만이면 <span class="tag t-ok">들어감</span>(글 그대로). touches 가 없으면 기록 모음 달 항목</td><td>—</td></tr>
+<tr><td>「바뀐 것」 값이 있는데 본문 바뀜 없음</td><td>—</td><td><span class="tag t-bad">propose 오류</span> 조각을 더하거나 값을 빼 다시 제안</td><td>규칙 길</td></tr>
+<tr><td>지문 어긋남</td><td>E_CONFLICT</td><td>E_CONFLICT + 새 제안(입력 오류) → 다시 읽고 다시 propose, 바뀐 부분만 승인</td><td>같은 조각 다시 대기 → 새 글로 다시 짓기 → 규칙 길</td></tr>
+<tr><td>개인 들이기 값 대조</td><td>개인: 규칙 길로 떨어뜨림</td><td>—</td><td><span class="tag t-ok">들어감</span> 측정만</td></tr>
+<tr><td>개인 바로 넣기의 둠(left)</td><td>개인: 둠(문서 밖)</td><td>없음(바로 넣기 걷음)</td><td>없음</td></tr>
+<tr><td>옛 판 보내기 · 옛 받기</td><td>넣지 못함(legacy-send)</td><td>E_APPROVE · E_INPUT + 새 판 안내(보낼 것은 개인 쪽에 남음)</td><td>—</td></tr>
+</table></div>
+
+<h3>지어냄 위험을 대신 막는 것(무인)</h3>
+<div class="grid">
+  <div class="card"><span class="tag t-pri">원본 첨부</span><p>무인 기록마다 원본이 붙어 지식 안에 남는다. 들어간 글을 원본과 대 볼 수 있다.</p></div>
+  <div class="card"><span class="tag t-pri">기록마다 되돌리기</span><p>잘못 들어간 글은 그 기록 앞 글로 되돌리는 새 기록(저장 문)으로 걷는다. 기록 하나 단위가 기본이고, 묶음 되돌리기는 지식관리자(개인은 주인) 일이다.</p></div>
+  <div class="card"><span class="tag t-pri">측정 지표</span><p>무인 값 경고 · 규칙 길 떨어짐 · FIX 번 수를 채널 · 지식별로 센다.</p></div>
+  <div class="card"><span class="tag t-pri">개선 고리</span><p>총괄 관리자가 두 주마다 지표를 보고, 문턱(규칙 길 10% · 무인 값 경고 20%)을 넘는 곳부터 프롬프트 · FIX 규칙 · 규칙 길 · 검사 기준을 고치고 전후 지표를 남긴다.</p></div>
+</div>
+
+<h2>6. 단계</h2>
+<p class="sub">팀 단계 P0 ~ P12 와 개인 프로그램 단계 PC1 ~ PC6 이 짝을 지어 간다. P1 ~ P2 는 더하기만 한다. P3 부터는 approve 모드 지식(새 지식 포함)에서만 바뀐다. 걷기는 모든 지식이 approve 로 넘어간 뒤다. 화면 단계마다 screen-kmd 를 1280 · 1024 · 600 · 375 네 폭으로 돌린다.</p>
+<div class="tblwrap"><table>
+<tr><th>단계</th><th>할 일</th><th>시험</th></tr>
+<tr><td>P0</td><td>설계 · TODO · 개편 설계에 「P 로 바뀜」 표시 · 줄 번호 다시 맞춤</td><td>—</td></tr>
+<tr><td>P1</td><td>core 판정을 errors · warnings(id)로 나누는 함수 · 본문 반영 검사 더하기</td><td>propose · k0 · meaning · shape-plan</td></tr>
+<tr><td>P2</td><td>hub.propose · 제안서 글 · 해시(경고 포함) · MCP propose · 권한 길 · brief mine 새 꼴 · 입력 모양 검사</td><td>propose-tool(새) · access · guard</td></tr>
+<tr><td>P3</td><td>지식 스위치(새 지식 approve) · approve 저장 문 · proposal 의무 · 승인 = 경고 받아들임 · 본문 반영 오류 · 팀 memo E_INPUT · 쓰기 자리 세우기 · 글 그대로 들어감 · 기록 모음 · 이력 줄 · sameKey · bulk 판정 · savelog 측정 칸 · CLAUDE.md (P3 부터) 줄</td><td>특성 시험 · save · access · edit · held</td></tr>
+<tr><td>P4</td><td>팀 스킬 새 판(<code>TEAM_KIT_REV</code> 7 → 8: 늘 제안서 · 정리 거리 고르기 · 대화 조절 · 메모 걷기 · <code>you.ledgers</code> 걷기) · 대량 넣기 규칙 표 한 번 승인 · MCP 안내 · 도구 설명 팀 · 개인 한 벌 · E_APPROVE 에 다시 설치 안내</td><td>teamkit(같은 문장 · where 만 다름) · kit-area</td></tr>
+<tr><td>P5</td><td>화면 1: 저장 확인 창([넣기] 가 승인 · 경고는 창 안에) · 보내기 제안서 · 조각 [빼기] · 스위치 · 컨벤션 9절 말</td><td>screen-kmd · access-ui · 네 폭</td></tr>
+<tr><td>P6</td><td>무인 채널: FIX 방아쇠 = errors · 값 대조 측정만 · 규칙 길(<code>ingestRule</code> 나누기 · 들인 자료 갈래) · 무인 지문 어긋남 · 정정 nosec · 일꾼 실패 → 규칙 길 · 결과 줄의 held → 규칙 길</td><td>intake · fix · fixpack · worker · sources · import · rule-path(새) · 네 폭</td></tr>
+<tr><td>P7</td><td>보내기 · 옛 판 E_APPROVE · /receive 걷기 · 짜임 실패 = 걸음 입력 오류 · migrate partial 빼기</td><td>send · send-ops · shape-write · shape-put · restructure</td></tr>
+<tr><td>P8</td><td>이행 도구 held-scan · 기록 모음 세우기 · 갈래별 처리(옛 memo → 이어진 항목 이력) · kmd-migrate 스킬 절</td><td>migrate-held(새, 격리 사본)</td></tr>
+<tr><td>P9</td><td>188 배포(사람 확인) → held-scan 수를 보임 → 테스트 지식 → DPMS → GDI 지식마다 이행 → 총괄 관리자가 approve. 개인 프로그램 새 판(PC1 ~ PC5)도 실림</td><td>배포 뒤 확인 · 커밋 해시</td></tr>
+<tr><td>P10</td><td>화면 2: 확인 메뉴 「점검 · 지표」(배지 없음, held 모드 지식은 넣지 못함 탭 남김) · 지표 탭 · 사후 조정(선택) · 용어집 · savelog 지표</td><td>menupath · screen-kmd · access-ui · savelog · 네 폭</td></tr>
+<tr><td>P11</td><td>held 모드 · /held · hub held 함수 · 넣지 못함 화면 · review · partial · legacy-mix 걷기 · CLAUDE.md held 문장 걷기</td><td>held 단언 시험 고쳐 쓰기 · screen-kmd · menupath · access-ui · 네 폭</td></tr>
+<tr><td>P12</td><td>옛 칸 읽기 · 옛 &lt;data&gt;/held 지우기 · site 문구</td><td>걸린 시험</td></tr>
+</table></div>
+<h3>개인 프로그램 단계(PC1 ~ PC6)</h3>
+<p class="sub">짝인 팀 단계와 같은 core 를 고치므로 그 커밋에서 개인 쪽 시험도 같이 돌린다. 바뀐 동작은 개인 프로그램 새 판을 낼 때 사람 PC 에 닿는다.</p>
+<div class="tblwrap"><table>
+<tr><th>단계</th><th>짝</th><th>할 일</th><th>시험</th></tr>
+<tr><td>PC1</td><td>P3 뒤 · P4 앞</td><td>개인 propose 열기 · 저장 문 검사를 approve 모드 지식 조건으로 · 개인 proposal 의무 · E_APPROVE · 개인 memo E_INPUT · 경위만 기록 = 글 그대로 들어감 · 기록 모음 · 바로 넣기 부르지 않음 · 개인 savelog 칸</td><td>pc-propose(새) · save · k0 · edit · wp3 · wp9 · savelog</td></tr>
+<tr><td>PC2</td><td>P4 와 같은 판</td><td>개인 스킬 판 <code>PC_KIT_REV</code> 1: kmd-save(제안 · 대화 조절 · 정리 거리 고르기 · 메모 걷기) · kmd-work · kmd-build · CLAUDE-kmd.md · 개인 다시 설치 안내 · MCP 안내 한 벌</td><td>kit-area · teamkit · guide · agent</td></tr>
+<tr><td>PC3</td><td>P5 뒤</td><td>개인 화면: 저장 확인 창 · 「넣는 중」 · 「버림」 칩 걷기 · 이력 갈래 「바로 넣기」 → 「들이기」 · 설정 「Claude 로 들이기」 · 멈춤 줄 말</td><td>screen-kmd · edit · 네 폭</td></tr>
+<tr><td>PC4</td><td>P6 과 같은 판</td><td>개인 들이기 = 무인 채널 규칙: 기록 먼저 걷기 · FIX → 규칙 길 · 값은 측정만 · Claude 끔 · 상한 → 규칙 길 · 코드 바뀜 · <code>ingestRule</code> 공유</td><td>pc-ingest(새) · agent · fixpack · queue · wp8 · rule-path</td></tr>
+<tr><td>PC5</td><td>P8 뒤 · P9 와 같은 판</td><td>옛 개인 기록 이행(지식백업 먼저 · pend 마지막 넣기 · 둠 · 메모 → 이어진 항목 이력 · 기록 모음 · 지식마다 한 커밋 · 「이행 못함」 멈춤 줄) · PC → 팀 보내기 확인</td><td>pc-migrate(새, 격리 사본) · send · final · open</td></tr>
+<tr><td>PC6</td><td>P11 과 같은 판</td><td>바로 넣기 코드 걷기(<code>curatePending</code> · <code>placeGroup</code> 항목 갈래 · <code>material</code> · <code>planSave</code> · <code>left</code> · <code>curates keep</code> · 개인 받기). 그때까지 이행 못한 지식은 저장을 닫고 멈춤 줄로 알림</td><td>개인 쪽 고쳐 쓸 시험 · screen-kmd · 네 폭</td></tr>
+</table></div>
+<p class="sub">더하는 특성 시험(일부): 무인 값 경고여도 들어감 · 규칙 길 떨어짐(기록 + 문서 한 번에) · 대화 조절 뒤 해시 일치(앞 해시는 E_APPROVE) · 경고가 든 제안서 그대로 승인 = 들어감 · 팀 memo:true = E_INPUT · 경위만 기록 = 들어감(글 그대로) · 값 있는데 본문 바뀜 없음 = propose 오류 · 무인 지문 어긋남 → 규칙 길 · 일꾼 실패 = 규칙 길.</p>
+
+<h2>7. 정한 물음(2026-11-10 권장안대로 확정)</h2>
+<p class="sub">사람 결정으로 Q1 ~ Q19 를 모두 권장안대로 정했다. Q18 만 권장안(「이번에는 하지 않는다」) 대신 사람 결정 「개인 프로그램에도 동일하게」 를 따른다. 뒤로 미룬 권장안은 그 절차 자체를 정한 것이다.</p>
+<div class="tblwrap"><table>
+<tr><th>#</th><th>물음</th><th>정함</th><th>반영한 절</th></tr>
+<tr><td>Q1</td><td>옛 판 유예 기간</td><td>두지 않는다. 팀 지식은 approve 로 켜는 때가 유예 끝(켜기 전 savelog 로 옛 판 저장을 세고 먼저 알림). 개인 지식은 이행을 마친 때</td><td>P-D5 · P-D40</td></tr>
+<tr><td>Q2</td><td>지표를 누가 언제 보고 고치나</td><td>총괄 관리자가 두 주마다. 문턱 규칙 길 10% · 무인 값 경고 20% 를 넘는 곳부터 고침 커밋 · 전후 지표. 지식관리자는 이슈로. 개인 지표는 PC 안에만</td><td>P-D37 · P-D43</td></tr>
+<tr><td>Q3</td><td>무인 값 경고에 다시 짓기</td><td>처음엔 측정만. 두 주 점검에서 많은 채널에만 켜는 커밋. 남아도 막지 않음</td><td>P-D15</td></tr>
+<tr><td>Q4</td><td>규칙 길 꼴 · 둘 곳</td><td><code>ingestRule</code> 꼴. 사건 갈래 문서의 새 항목, 아니면 고정 갈래 「들인 자료」. 팀 · 개인 같은 함수</td><td>P-D35 · P-D42</td></tr>
+<tr><td>Q5</td><td>무인 일 도중 자리 잃음</td><td>아무것도 쓰지 않고 끝냄 · 진행 탭에 원본 이름과 까닭(팀만)</td><td>4절 · 5절</td></tr>
+<tr><td>Q6</td><td>「뺀다」 를 기록에</td><td>남기지 않음(제안서에만)</td><td>2-1</td></tr>
+<tr><td>Q7</td><td>review 스위치</td><td>「들어간 것 하루 요약」 알림(대기열 아님, 팀만)</td><td>P-D13</td></tr>
+<tr><td>Q8</td><td>비슷한 이름 기준</td><td>정규화가 같으면 오류, 그 밖은 경고. 편집 거리 안 씀. 경고 문턱 숫자는 P3 에서 실제 장부로 재어 그 커밋에 박는다(정한 절차)</td><td>P-D10</td></tr>
+<tr><td>Q9</td><td>되돌리기 범위</td><td>기록 하나 단위가 기본. 뒤에 고친 기록이 있으면 제안서로 승인. 묶음은 지식관리자(개인은 주인). 원본 첨부는 지우지 않음</td><td>3-3</td></tr>
+<tr><td>Q10</td><td>확인 메뉴 이름</td><td>「점검」. 탭은 「점검 · 지표」. 옛 주소는 그대로. 개인 화면도 같음</td><td>P-D28</td></tr>
+<tr><td>Q11</td><td>쓰기 자리가 새 갈래 · 종류</td><td>연다. G1 · G4 · E_FORMAT · near, 사후 조정은 선택</td><td>P-D9</td></tr>
+<tr><td>Q12</td><td>기록 모음 이름 · 꼴</td><td>「기록 모음」(<code>docs/기록 모음.md</code>) · 고정 갈래 · <code>## YYYY-MM</code> · 이름 바꾸기 · 지우기 막음. 개인 지식도 같음</td><td>P-D29</td></tr>
+<tr><td>Q13</td><td>/receive 받침</td><td>두지 않음. 걷기 전 한 달 세고 먼저 안내. 개인 받기 갈래도 걷음</td><td>P-D23</td></tr>
+<tr><td>Q14</td><td>save 스위치를 누가</td><td>총괄 관리자. 새 지식은 approve. 개인 지식은 스위치 없이 이행이 넘김</td><td>P-D18 · P-D43</td></tr>
+<tr><td>Q15</td><td>지표 기간 · fresh 날 수</td><td>14일(지표 탭은 기간을 고를 수 있게)</td><td>P-D10 · P-D27</td></tr>
+<tr><td>Q16</td><td>금지 머리 목록</td><td>서비스 고정 목록 + 지식관리자(개인은 주인)는 더하기만</td><td>2-1</td></tr>
+<tr><td>Q17</td><td>새 문서 · 이름 · 갈래 하루 상한</td><td>두지 않음. 한 달 뒤 「새로 생긴 것」 수로 다시 봄(정한 절차)</td><td>남은 위험</td></tr>
+<tr><td>Q18</td><td>개인 프로그램도 제안서 승인 · memo 걷기?</td><td><b>한다</b>(사람 결정으로 권장안을 바꿈). 같은 원칙 · 같은 저장 문</td><td>P-D26 · P-D40 ~ 46</td></tr>
+<tr><td>Q19</td><td>188 이행</td><td>held-scan 수를 먼저 보이고 테스트 → DPMS → GDI. 188 읽기 허락이나 사본 필요</td><td>6-2 · P9</td></tr>
+</table></div>
+<h3>사람이 먼저 정해서 닫은 물음(2026-11-10 N1 ~ N5 결정)</h3>
+<div class="tblwrap"><table>
+<tr><th>옛 #</th><th>물음</th><th>정함</th></tr>
+<tr><td>Q1</td><td>메모를 「확정 전」 으로 받을까</td><td>걷는다. 정해지지 않은 것은 저장하지 않는다</td></tr>
+<tr><td>Q2</td><td>「초안 보기」 일감을 며칠 뒤 넣을까</td><td>「초안 보기」 를 두지 않는다. 무인은 곧바로 규칙 길까지</td></tr>
+<tr><td>Q5</td><td>대량 넣기 승인 단위</td><td>규칙 표 한 번 승인 뒤 바로 반영</td></tr>
+<tr><td>Q8</td><td>「확정 전」 을 오래 두면</td><td>그 상태가 없어 물음이 없어짐</td></tr>
+<tr><td>Q12</td><td>이슈 갈래 없는 지식의 풀리지 않은 물음</td><td>넣지 않는다. 이슈 갈래가 있으면 이슈 항목으로 제기</td></tr>
+</table></div>
+
+<h2>8. 2026-11-10 사람 결정 반영</h2>
+<div class="tblwrap"><table>
+<tr><th>걷은 것</th><th>대신한 것</th><th>P-D</th></tr>
+<tr><td>「확정 전」(memo 이력 · 무인 끝 · 그만둔 초안 · 보내기에서 받아들이지 않은 조각)</td><td>정해진 것만 저장 · 무인은 규칙 길로 들어감 · 보내기는 뺀 조각을 안 보냄</td><td>11 · 14 · 22 · 34 · 35</td></tr>
+<tr><td>팀 <code>memo: true</code>(확정 때 개인도)</td><td>E_INPUT. 풀리지 않은 물음은 이슈 항목(이슈 갈래가 있을 때). 옛 memo 기록은 이어진 항목 이력으로 옮기고 태그는 옛 기록 표시로만</td><td>34 · 21</td></tr>
+<tr><td><code>resolves</code> · 「확정 전 풀기」 줄 · 풀기 칸</td><td>같은 항목을 고치는 새 기록이 곧 최신 글</td><td>20</td></tr>
+<tr><td>「초안 보기」 일감 · [제안서 보기] · 그 일감의 [넣기] · [다시 짓기] · [그만두기] · [버리기] · 날 수 뒤 넣기</td><td>무인 채널 초안 → 결정적 검사 → FIX 고리 → 규칙 길</td><td>14 · 35</td></tr>
+<tr><td>「이력만」 상태 이름 · 태그 <code>hist</code></td><td>글 그대로인 들어간 기록. 값이 있는데 본문이 안 바뀌면 사람은 propose 오류, 무인은 규칙 길</td><td>12</td></tr>
+<tr><td>저장 뒤 사람 검토 대기열(새로 생긴 것 · 받아들인 경고 목록 · [그대로 둠] · 확인 배지)</td><td>점검 지표(<code>/metrics</code> · 지표 탭 · savelog) → 정기 점검 → 로직 고침. 사후 조정은 선택</td><td>27 · 28 · 30 · 37</td></tr>
+<tr><td>경고마다 <code>accept</code></td><td>승인이 경고 받아들임을 포함</td><td>4 · 5 · 39</td></tr>
+<tr><td>무인 값 대조로 막기 · 다시 짓기 방아쇠</td><td>측정만. FIX 방아쇠는 결정적 오류만</td><td>2 · 15</td></tr>
+<tr><td>정정 「넣을 곳 고르기」 기다림</td><td>규칙 길로 넣을 곳을 정함</td><td>33</td></tr>
+<tr><td>(새로 둠)</td><td>대화 조절 · 일부만 정리하기 · 무인 지문 어긋남 처리 · 화면 쓰기 = 승인</td><td>36 · 38 · 39</td></tr>
+</table></div>
+
+<h3>2026-11-10 확정 반영</h3>
+<div class="tblwrap"><table>
+<tr><th>확정한 것</th><th>바뀐 내용</th><th>고친 곳(설계 문서)</th></tr>
+<tr><td>상태</td><td>제목 · 머리에 「확정(2026-11-10)」</td><td>머리</td></tr>
+<tr><td>정한 물음</td><td>Q1 ~ Q19 를 「물음 · 정함 · 반영한 절」 로. 본문의 「Qn 권장안」 · 「(Qn)」 을 값으로(유예 없음 · 두 주 · 규칙 길 10% · 무인 값 경고 20% · 들인 자료 · 기록 모음 · 14일 · 점검 메뉴 …)</td><td>8절 · 1절 P-D · 2 ~ 7절 · 9절</td></tr>
+<tr><td>Q18 바꿈</td><td>「이번에는 하지 않는다」 → 「개인 프로그램에도 동일하게」</td><td>8절 Q18 · P-D26</td></tr>
+<tr><td>개인 프로그램 같은 원칙</td><td>P-D26 을 「PC 는 그대로 · mode 로 가름」 에서 「같은 원칙 · 같은 저장 문」 으로. 새 P-D40 ~ P-D46</td><td>0 ~ 6절 · 6-2-1 · 6-7(b19 ~ b30) · 7-1 · 9-3</td></tr>
+<tr><td>MCP 문구</td><td>mode 로 가름 → 한 벌(where 만 다름)</td><td>P-D44 · 6-5 · P4</td></tr>
+<tr><td>P12 의 PC 일</td><td>P12 에서 빼고 PC1 ~ PC6 으로</td><td>7절 · 7-1</td></tr>
+<tr><td>팀 키트 판</td><td>Z9 가 이미 7 로 올림 → 이 설계의 새 판은 8</td><td>P-D5 · 2-2 · P4</td></tr>
+</table></div>
+
+<h2>9. 원칙과 아직 부딪칠 수 있는 곳 · 남은 위험</h2>
+<div class="grid">
+  <div class="card"><span class="tag t-warn">규칙 길의 글 품질</span><p>원문 인용이 다듬어지지 않은 채 본문에 들어간다(작성기준 「본문에는 확정된 지식만」 과 경계). 떨어진 수를 재고 FIX · 프롬프트를 고쳐 줄인다.</p></div>
+  <div class="card"><span class="tag t-warn">무인 지어냄이 본문에</span><p>값 경고여도 들어간다. 원본 첨부 · 되돌리기 · 지표 · 개선 고리로 대신한다. 개선 고리가 돌지 않으면 품질이 떨어진 채 남는다.</p></div>
+  <div class="card"><span class="tag t-warn">사후 조정과 N3</span><p>지식관리자의 조정은 선택이고 저장 흐름의 단계가 아니다. 대기 배지 · 「검토」 말을 쓰지 않는다.</p></div>
+  <div class="card"><span class="tag t-warn">개인 프로그램은 PC 마다 판이 다르다</span><p>새 판을 올리고 이행이 끝나기 전까지 그 PC 의 개인 지식은 옛 길(메모 · pend · 바로 넣기)이다. 옛 개인 스킬 세션은 E_APPROVE 로 막혀 다시 설치를 받는다. PC6 판에서 옛 길을 걷으면 그때까지 이행 못한 지식은 저장이 닫힌다.</p></div>
+  <div class="card"><span class="tag t-warn">개인 지표는 PC 밖으로 안 나감</span><p>총괄 관리자의 두 주 점검에 개인 쪽 품질이 직접 잡히지 않는다. 공유 core 로 같은 고침이 실리고, 사람이 자기 지표로 이슈를 내는 길만 있다.</p></div>
+  <div class="card"><span class="tag t-warn">옛 개인 메모의 값</span><p>이행은 메모 값을 본문에 넣지 않고 이력에만 잇는다. 이미 정해진 값이면 본문에 빠진다. 이행 알림에 수를 세어 보이고 주인이 세션에서 다시 제안한다.</p></div>
+  <div class="card"><span class="tag t-warn">이행 전 지식백업</span><p>백업 자리(예: K: 드라이브)가 빠져 백업이 실패하면 이행이 멈추고 그 PC 는 옛 길에 머문다. 멈춤 줄로 알린다.</p></div>
+  <div class="card"><span class="tag t-warn">held 모드 지식</span><p>이행 전 지식은 P11 까지 넣지 못함이 남는다. 이행을 늦추면 N5 가 늦어진다.</p></div>
+  <div class="card"><span class="tag t-warn">자리 잃은 사람의 무인 일</span><p>아무것도 쓰지 않고 끝나 N2 의 예외가 된다(권한 규칙을 앞세움, 팀만).</p></div>
+  <div class="card"><span class="tag t-warn">이슈 갈래 없는 풀리지 않은 물음</span><p>넣지 않으므로 「열려 있다」 는 지식이 남지 않는다. 쓰기 자리가 제안서로 이슈 갈래를 세울 수 있다.</p></div>
+  <div class="card"><span class="tag t-warn">입력 오류 뒤 다시 안 보냄</span><p>지식 상태는 아니지만 일이 지식에 닿지 않는다. 스킬에 「꼭 다시」 를 강제하고 다시 보낸 비율을 지표로 본다.</p></div>
+  <div class="card"><span class="tag t-warn">승인이 형식이 됨</span><p>서버는 사람이 정말 봤는지 증명하지 못한다. 경고를 늘 보이고 받아들인 경고 비율 · 다시 제안 수로 지켜본다.</p></div>
+  <div class="card"><span class="tag t-warn">두 모드 · 이행 크기</span><p>held · approve 동안 코드와 시험이 두 벌이다. 188 에 쌓인 넣지 못함 · 메모 · 개편 전 기록 수를 모른다. held-scan 이 먼저다.</p></div>
+</div>
+</main>
+</body>
+</html>
