@@ -7,7 +7,7 @@
 // 기억하지 않으므로(무상태) 다시 띄워도 세션이 끊기지 않는다.
 
 import { KmdError } from '../core/errors.js'
-import { labelOf, sectionOf, coordsOfSection, pendPick } from '../core/knowledge.js'
+import { labelOf, sectionOf, coordsOfSection, pendPick, sectionHistory } from '../core/knowledge.js'
 import { headingMatches } from '../core/sections.js'
 import { VERSION } from './version.js'
 import { sha16 } from '../core/text.js'
@@ -37,7 +37,7 @@ const str = (description) => ({ type: 'string', description })
 const TOOLS = [
   {
     name: 'brief',
-    description: '지금 kmd 에 무엇이 있나: 지식 목록 · 지식 하나의 문서 · 최근 기록 · 아직 문서에 안 넣은 기록. 팀 지식이면 지식마다 mine(내가 남긴 것 가운데 안 넣은 메모 memos · 넣지 못함 held 의 수: 0 이 아니면 사람에게 한 줄로) · 지식 하나의 you.recent(그 기록의 제목 · 까닭) · kit(팀 서버의 스킬 판) · parser(대량 넣기 파서 꾸러미: ver · url · sha256 · bytes · 없으면 null). 일을 시작할 때 한 번.',
+    description: '지금 kmd 에 무엇이 있나: 지식 목록 · 지식 하나의 문서 · 최근 기록 · 아직 문서에 안 넣은 기록. 팀 지식이면 지식마다 mine(내가 남긴 것 가운데 안 넣은 메모 memos · 넣지 못함 held 의 수: 0 이 아니면 사람에게 한 줄로 · accepted: 승인으로 경고를 받아들인 내 기록 수) · 지식 하나의 you.recent(그 기록의 제목 · 까닭) · kit(팀 서버의 스킬 판) · parser(대량 넣기 파서 꾸러미: ver · url · sha256 · bytes · 없으면 null). 일을 시작할 때 한 번.',
     inputSchema: { type: 'object', properties: { knowledge: str('지식 id(없으면 목록)') } },
   },
   {
@@ -52,8 +52,26 @@ const TOOLS = [
   },
   {
     name: 'section',
-    description: '항목 하나의 지금 글(본문만: 출처 줄은 kmd 가 문서 끝 참고에 따로 둔다) · 지문(base) · 그 항목을 건드린 기록(아직 문서에 안 넣은 것은 최신 8). 이름(coord) 또는 문서 · 머리로 가리킨다. 그 항목을 고쳐 save 할 때 base 를 같이 보내면 그사이 남이 바꿨을 때 덮지 않는다.',
+    description: '항목 하나의 지금 글(본문만: 출처 줄은 kmd 가 문서 끝 참고에 따로 둔다) · 지문(base) · 그 항목을 건드린 기록(아직 문서에 안 넣은 것은 최신 8) · 항목 이력(history: 그 항목에 이어진 기록 · 새것부터 20 · 넘친 수 historyMore). 이름(coord) 또는 문서 · 머리로 가리킨다. 그 항목을 고쳐 save 할 때 base 를 같이 보내면 그사이 남이 바꿨을 때 덮지 않는다.',
     inputSchema: { type: 'object', properties: { knowledge: str('지식 id'), coord: str('이름: 예 proc:헬스체크'), doc: str('문서: 예 배포절차'), heading: str('머리: 예 헬스 체크') }, required: ['knowledge'] },
+  },
+  {
+    name: 'propose',
+    description: '저장 제안(팀 지식): save 와 같은 입력을 받아 쓰지 않고 서버가 정한 꼴의 【저장 제안】 글(text)을 돌려준다. 고칠 항목의 옛 → 새 줄 · 새 항목 · 새 문서 · 새 갈래 · 종류 · 이름(비슷한 것 near) · 이을 항목(글 그대로) · 뺀다 · 검사(경고 w · 오류 e). items(고침 · 신설 · 잇기 · before/after · changed · base) · warnings[{ id, code, at, why }] · errors[{ code, at, why, near }] · proposal(64자 지문 · 오류가 있으면 null). text 는 고치지 않고 사람에게 보인다. 오류가 있으면 입력을 고쳐 다시 propose 한다. 고칠 것을 들으면 입력을 바꿔 다시 propose 한다(지문이 바뀐다). 새 이름 · 문서 · 머리 · 갈래 · 종류가 있는 것과 같은 이름(빈칸 · 부호만 다름)이면 오류: 있는 것에 잇거나 다른 것이면 distinct 에 그 이름을 넣는다. 사람이 뺀 것은 excluded 에 { name, why } 로(제안서에만 보인다). 쓰기 자리부터.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        knowledge: str('지식 id'),
+        record: { type: 'object', description: 'save 의 record 와 같다(서식 칸 changes · why · dropped · impact · refs · touches …)' },
+        sections: { type: 'array', items: { type: 'object' }, description: 'save 의 sections 와 같다({ coord | doc · heading, base, edits | content })' },
+        names: { type: 'array', items: { type: 'object' }, description: 'save 의 names 와 같다' },
+        forms: { type: 'array', items: { type: 'object' }, description: 'save 의 forms 와 같다' },
+        kinds: { type: 'array', items: { type: 'string' }, description: '새 종류(이름의 종류: 영문 소문자 또는 한글)' },
+        distinct: { type: 'array', items: { type: 'string' }, description: '있는 것과 이름이 같거나 비슷하지만 다른 것으로 세울 이름 · 문서 · 머리 · 갈래 · 종류' },
+        excluded: { type: 'array', items: { type: 'object', properties: { name: str('뺀 이름 · 항목'), why: str('까닭 한 줄') }, required: ['name'] }, description: '제안서 「뺀다」 줄(기록에는 남지 않는다)' },
+      },
+      required: ['knowledge', 'record'],
+    },
   },
   {
     name: 'save',
@@ -269,7 +287,22 @@ export function makeMcp(store) {
         notYetInDocs: pendPick(recs).pick.map((w) => ({ ...recOut(w), body: w.body })),
         notYetMore: pendPick(recs).more,
         records: recs.slice(0, 10).map(recOut),
+        // 항목 이력(저장 승인 설계 P-D12 · P2) — 그 항목에 이어진 기록 줄(이름 · 표지 · 넣은 것 칸) · 새것부터 20 + 넘친 수
+        ...(() => { const h = sectionHistory(k, d, sec.h); return { history: h.items.map(recOut), historyMore: h.more } })(),
       }
+    },
+
+    // 저장 제안(저장 승인 설계 P-D3 · 2-1 · P2) — 쓰지 않는다 · 자리 · 입력 모양은 hub.propose 가 본다(쓰기 자리 · E_INPUT)
+    async propose({ knowledge, record, sections, names, forms, kinds, distinct, excluded }, ctx) {
+      const listOf = (v) => {
+        if (typeof v !== 'string') return v
+        try { const x = JSON.parse(v); return Array.isArray(x) ? x : v } catch { return v }
+      }
+      if (typeof record === 'string') try { record = JSON.parse(record) } catch { /* 모양 검사가 거절한다 */ }
+      if (typeof knowledge !== 'string' || !knowledge) throw new KmdError('E_INPUT', '지식 id(knowledge)가 없다')
+      const input = { record, sections: listOf(sections), names: listOf(names), forms: listOf(forms), kinds: listOf(kinds), distinct: listOf(distinct), excluded: listOf(excluded) }
+      for (const x of Object.keys(input)) if (input[x] === undefined) delete input[x]
+      return store.propose(ctx, knowledge, input, { form: true, path: '이 세션의 작업' })
     },
 
     async save({ knowledge, record, sections, names, forms, kit, attach }, ctx) {

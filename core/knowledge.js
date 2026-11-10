@@ -311,6 +311,17 @@ export function labelOf(k, coord) {
   return v ? v.label : coord.split(':').slice(1).join(':')
 }
 
+// 항목 이력(저장 승인 설계 P-D12 · section.history · P2) — 그 항목에 이어진 기록 하나 줄: 그 항목의 이름을 건드렸거나 ·
+//   그 항목의 표지 기록이거나 · 저장 문이 그 항목에 넣었다고 적은(넣은 것 칸) 기록. 새것부터 · max 까지 + 넘친 수
+export const HISTORY_MAX = 20
+export function sectionHistory(k, doc, h, { max = HISTORY_MAX } = {}) {
+  const coords = new Set(coordsOfSection(k, doc, h))
+  const sec = doc.sections.find((s) => s.h === h) || null
+  const hit = (w) => w.touches.some((c) => coords.has(c)) || (sec?.applied && sec.applied === w.id) || ((w.tags || []).includes('put') && parsePut(w.body).some((x) => x.doc === doc.path && headingMatches(x.heading || '', h)))
+  const all = k.works.filter(hit).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+  return { items: all.slice(0, max), more: Math.max(0, all.length - max) }
+}
+
 // 안 넣은 기록 — 최신 8 을 골라 날짜 순으로 · 넘친 수를 센다(I7 · 화면과 MCP 가 같은 계산)
 export const PEND_MAX = 8
 export function pendPick(recs) {

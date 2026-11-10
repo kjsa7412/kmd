@@ -100,7 +100,7 @@ test('기록만 하는 사람의 names: 이름 장부는 그대로 · 기록에 
   const b = await call('brief', { knowledge: 'dpms' }, LEE)
   // 쓰기 자리를 받은 사람(권한 모델 4절) — 조각은 검사를 넘으면 바로(S4) · 장부는 기록으로 · 세울 이름을 실은 기록 셋은 넣지 못함(names · S10 · S-D51)
   const { held: myHeld, recent: myRecent, ...you } = b.you
-  assert.deepEqual(you, { role: '쓰기', direct: true, ledgers: false, memos: 0 })
+  assert.deepEqual(you, { role: '쓰기', direct: true, ledgers: false, memos: 0, accepted: 0 })
   assert.equal(myHeld, 3)
   assert.ok(myRecent.every((x) => x.state === '넣지 못함' && /세울 이름/.test(x.why)))
   assert.match(b.put, /그 순간 문서에 넣는다/)
@@ -108,7 +108,7 @@ test('기록만 하는 사람의 names: 이름 장부는 그대로 · 기록에 
   assert.equal(b.noClaude, undefined)
   await s.hub.setOwner(SHELL, 'dpms', { noClaude: true })
   assert.match((await call('brief', { knowledge: 'dpms' }, PARK)).noClaude, /들이기에 Claude 를 쓰지 않는다/)
-  assert.deepEqual((await call('brief', { knowledge: 'dpms' }, PARK)).you, { role: '지식관리자', direct: true, ledgers: true, memos: 0, held: 0, recent: [] }) // 총괄 관리자 = 지식관리자
+  assert.deepEqual((await call('brief', { knowledge: 'dpms' }, PARK)).you, { role: '지식관리자', direct: true, ledgers: true, memos: 0, held: 0, accepted: 0, recent: [] }) // 총괄 관리자 = 지식관리자
   await s.hub.setOwner(SHELL, 'dpms', { noClaude: false })
 })
 

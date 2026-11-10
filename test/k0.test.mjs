@@ -57,12 +57,12 @@ test('MCP: 도구 · brief · match · section', async () => {
   const init = await rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '0' } })
   assert.equal(init.result.serverInfo.name, 'kmd')
   assert.equal(init.result.protocolVersion, '2025-06-18')
-  assert.deepEqual((await rpc('tools/list')).result.tools.map((t) => t.name), ['brief', 'match', 'search', 'section', 'save'])
+  assert.deepEqual((await rpc('tools/list')).result.tools.map((t) => t.name), ['brief', 'match', 'search', 'section', 'propose', 'save'])
   const b = (await tool('brief', {})).structuredContent
   assert.equal(b.knowledge.length, 2)
   // 팀 서버의 스킬 판 · 지식마다 내 안 넣은 메모 · 넣지 못함 수(S6 · 스킬 kmd-team-work 1단계가 한 줄로 전한다)
   assert.equal(b.kit, TEAM_KIT_REV)
-  assert.deepEqual(b.knowledge.map((k) => k.mine), [{ memos: 0, held: 0 }, { memos: 0, held: 0 }])
+  assert.deepEqual(b.knowledge.map((k) => k.mine), [{ memos: 0, held: 0, accepted: 0 }, { memos: 0, held: 0, accepted: 0 }])
   const list = (await rpc('tools/list')).result.tools
   assert.match(list.find((t) => t.name === 'brief').description, /mine\(.*안 넣은 메모 memos · 넣지 못함 held/)
   assert.ok(list.find((t) => t.name === 'save').inputSchema.properties.kit, 'save 에 스킬 판 칸')

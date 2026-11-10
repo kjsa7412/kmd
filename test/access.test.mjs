@@ -103,9 +103,9 @@ test('읽기 길: 찾기 · 문서 · MCP brief/section 은 읽기 이상 · 없
   assert.equal((await req(`/api/k/dpms/doc?d=${D}`, P.own)).j.direct, true, '주인 = 지식관리자: 바로 고치기')
   assert.ok(!(await mcp('brief', {}, P.no)).knowledge.some((k) => k.id === 'dpms'))
   assert.equal((await mcp('brief', { knowledge: 'dpms' }, P.no)).error, 'E_NOTFOUND')
-  assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.rd)).you, { role: '읽기', direct: false, ledgers: false, memos: 0, held: 0, recent: [] })
-  assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.wr)).you, { role: '쓰기', direct: true, ledgers: false, memos: 0, held: 0, recent: [] }, '쓰기 자리의 조각은 검사를 넘으면 그 순간 문서에(S4) · 장부는 기록으로')
-  assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.own)).you, { role: '지식관리자', direct: true, ledgers: true, memos: 0, held: 0, recent: [] }, '지식관리자는 장부도 곧바로')
+  assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.rd)).you, { role: '읽기', direct: false, ledgers: false, memos: 0, held: 0, accepted: 0, recent: [] })
+  assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.wr)).you, { role: '쓰기', direct: true, ledgers: false, memos: 0, held: 0, accepted: 0, recent: [] }, '쓰기 자리의 조각은 검사를 넘으면 그 순간 문서에(S4) · 장부는 기록으로')
+  assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.own)).you, { role: '지식관리자', direct: true, ledgers: true, memos: 0, held: 0, accepted: 0, recent: [] }, '지식관리자는 장부도 곧바로')
   assert.equal((await mcp('section', { knowledge: 'dpms', doc: '배포절차', heading: '롤백' }, P.rd)).heading, '롤백')
   assert.equal((await mcp('section', { knowledge: 'dpms', doc: '배포절차', heading: '롤백' }, P.no)).error, 'E_NOTFOUND')
 })
@@ -119,6 +119,10 @@ test('쓰기 길: 읽기는 403 E_FORBIDDEN · 쓰기는 같은 저장 문(검�
   assert.match(r1.j.message, /이 지식에 쓰기 자리가 없다/)
   assert.equal((await req('/api/k/dpms/save', P.no, rec)).status, 404)
   assert.equal((await req('/api/k/dpms/save', P.wr, rec)).status, 200)
+  // 저장 제안(P2 · P-D31) — 쓰지 않아도 저장과 같은 자리: 없음 404 · 읽기 403 · 쓰기 200 · MCP 도 같다
+  assert.equal((await req('/api/k/dpms/propose', P.no, rec)).status, 404)
+  assert.deepEqual([(await req('/api/k/dpms/propose', P.rd, rec)).j.error, (await mcp('propose', { knowledge: 'dpms', ...rec }, P.rd)).error, (await mcp('propose', { knowledge: 'dpms', ...rec }, P.no)).error], ['E_FORBIDDEN', 'E_FORBIDDEN', 'E_NOTFOUND'])
+  assert.match((await req('/api/k/dpms/propose', P.wr, rec)).j.proposal, /^[0-9a-f]{64}$/)
   // 화면 고치기(S9) — 쓰기 자리도 바로 문서에(이미 있는 항목은 지문 필수) · 항목 지우기 · 이름 바꾸기는 지식관리자 · 읽기는 막힌다
   const dv = await req(`/api/k/dpms/doc?d=${D}&edit=1`, P.wr)
   assert.deepEqual([dv.j.direct, dv.j.structure], [true, false], '쓰기 자리: 바로 들어가고 · 항목 지우기 · 이름 바꾸기는 없다')

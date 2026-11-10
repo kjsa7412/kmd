@@ -7,6 +7,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { parseVocab } from '../core/vocab.js'
 import { newNameWhy, resolveName, guardRecord, guardNames, guardNewDoc, formsOf, parseForms, nearNames, recordBody } from '../core/guard.js'
+import * as G from '../core/guard.js'
 import { save, saveRecords } from '../core/save.js'
 import { parseRecord } from '../core/frontmatter.js'
 
@@ -84,6 +85,14 @@ test('세울 이름 — 장부에 없던 이름만 모양을 본다 · 값이 �
   assert.equal(guardNames(vocab, [{ coord: '이슈:새 이슈' }]).errors.length, 1)
   assert.equal(guardNames(vocab, [{ coord: 'proc:헬스 체크' }]).errors.length, 0)
   assert.equal(guardNames(vocab, [{ coord: '이슈:ISS-15' }]).warnings.length, 1)
+})
+
+test('저장 제안 입력 모양(P-D32) · near(P-D10): 정규화 같음 · 비슷함 · 문턱 아래', () => {
+  assert.equal(G.proposeInputWhy({ record: {}, distinct: ['a'], excluded: [{ name: 'x', why: 'y' }], kinds: ['job'], forms: [{ name: '회의록' }], names: [{ coord: 'a:b', label: 'b' }] }), null)
+  for (const bad of [[], { proposal: 'x' }, JSON.parse('{"constructor": 1}'), { excluded: [{}] }, { kinds: ['A B'] }, { names: [JSON.parse('{"coord": "a:b", "label": "b", "__proto__": 1}')] }]) assert.equal(typeof G.proposeInputWhy(bad), 'string', JSON.stringify(bad))
+  assert.deepEqual(G.nearOf(['배포 절차'], '배포절차').same, ['배포 절차'])
+  assert.deepEqual(G.nearOf(['배포절차'], '배포절차서').similar, ['배포절차'])
+  assert.deepEqual(G.nearOf(['배'], '배포'), { same: [], similar: [] })
 })
 
 test('G4 — 새 문서: 파일 이름 조각 · 갈래의 다른 이름 · 갈래 장부 밖 · 폴더 · 머리 꼴', () => {

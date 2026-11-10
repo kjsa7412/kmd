@@ -9,8 +9,8 @@ import path from 'node:path'
 import os from 'node:os'
 import { listKnowledge, loadKnowledge, coordsOfSection, sectionOf, looksLikeKnowledge } from '../core/knowledge.js'
 import { KmdError, httpStatusOf } from '../core/errors.js'
-import { save as coreSave, saveRecords, serial, localStamp, recordTakenSync, SECTIONS_MAX, assetPath, ATTACH_MAX_BYTES } from '../core/save.js'
-import { audit as guardAudit, recordBody, RECORD_PARTS } from '../core/guard.js'
+import { save as coreSave, saveRecords, serial, localStamp, recordTakenSync, SECTIONS_MAX, assetPath, ATTACH_MAX_BYTES, checkInput } from '../core/save.js'
+import { audit as guardAudit, recordBody, RECORD_PARTS, proposeInputWhy } from '../core/guard.js'
 import { recover as recoverSave } from '../core/journal.js'
 import { decisionRecord, dropRecord, namesOfRecord, renderReverted, parseReverted, parsePut, dropPart, parseHeld, PUT_PART, HELD_PART, REVERTED_PART, itemKey } from '../core/parts.js'
 import { revertPlan } from '../core/revert.js'
@@ -22,7 +22,7 @@ import { material, planSave, promptOf as placePrompt, DRAFT_SCHEMA, TOUCH_SCHEMA
 import { check as checkDraft } from '../core/gate.js'
 import { INGEST_SCHEMA, ingestCandidates, formsOf, supersededIngest, draftToSave, polishToSave, POLISH_MAX, heldRecord, intakeTags, INTAKE_SCHEMA, intakePromptOf, intakeFixPromptOf, docRel, quoteSrc } from '../core/ingest.js'
 import { WRITE_RULES } from '../core/writerules.js'
-import { checkProposal, placeOf, PROPOSAL_PART } from '../core/propose.js'
+import { checkProposal, placeOf, PROPOSAL_PART, buildProposal } from '../core/propose.js'
 import { checkSection, checkShape } from '../core/gate.js'
 import { valuesOf, mustValues } from '../core/values.js'
 import { splitBlocks, hasBlockMarker } from '../core/baseline.js'
@@ -796,6 +796,28 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     return { sections: out, held, proposals }
   }
 
+  // 승인으로 받아들인 경고 칸(저장 승인 설계 P-D5 · P3 부터 저장 문이 기록에 단다) — brief mine.accepted 가 센다
+  const ACCEPTED_RE = /^## 받아들인 경고[ \t\r]*$/m
+  // 입력 조각의 모양(팀 저장 · 저장 제안) — 어긋나면 E_INPUT(아무것도 쓰지 않는다)
+  function sectionShapes(sections) {
+    const secs = Array.isArray(sections) ? sections : []
+    if (secs.length > SECTIONS_MAX) throw new KmdError('E_INPUT', `항목은 한 번에 ${SECTIONS_MAX}개까지 보낸다`)
+    for (const s of secs) {
+      if (!s || typeof s !== 'object' || Array.isArray(s)) throw new KmdError('E_INPUT', '항목마다 { coord | doc · heading, base, edits | content } 이다')
+      if (s.coord == null && (s.doc == null || s.heading == null)) throw new KmdError('E_INPUT', '항목은 이름(coord) 또는 문서 · 머리(doc · heading)로 가리킨다')
+      if (s.coord != null && typeof s.coord !== 'string') throw new KmdError('E_INPUT', '이름(coord)은 글이다')
+      if (s.doc != null && typeof s.doc !== 'string') throw new KmdError('E_INPUT', '문서(doc)는 글이다')
+      if (s.heading != null && (typeof s.heading !== 'string' || !s.heading.trim() || /[\r\n]/.test(s.heading))) throw new KmdError('E_INPUT', '머리는 한 줄 글이다')
+      if (s.base != null && !(typeof s.base === 'string' && /^[0-9a-f]{16}$/.test(s.base))) throw new KmdError('E_INPUT', 'base 는 읽을 때 받은 16자 지문이다')
+      if (s.remove || s.rename != null) throw new KmdError('E_FORBIDDEN', '항목 지우기 · 이름 바꾸기는 화면의 고치기로 한다')
+      if (Array.isArray(s.edits)) {
+        if (s.content != null) throw new KmdError('E_INPUT', '조각(edits)과 새 글(content)은 하나만 보낸다')
+        const v = validEdits(s.edits)
+        if (!v.ok) throw new KmdError('E_INPUT', `「${s.coord || s.heading}」 조각: ${v.why}`)
+      } else if (typeof s.content !== 'string') throw new KmdError('E_INPUT', '항목마다 edits(바꿀 조각) 또는 content(새 글)가 있다')
+    }
+  }
+
   // hub.save 의 몸(meta · 자리 · 속도를 넘은 뒤) — 커밋 뒤는 던지지 않는다(S-D49)
   async function saveIn(ctx, id, meta, input, opt, channel, logLine, t0) {
     // form — 세션(MCP)의 기록 글은 서식 칸으로(작성기준 6절 · 템플릿/기록.md) · 칸을 kmd 가 머리를 달아 엮는다 · 메모는 바뀐 것이 없어도 된다
@@ -886,22 +908,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       r0 = await coreSave(meta.dir, { record: input.record, sections: [], ...(input?.forms?.length ? { forms: input.forms } : {}) }, { user: ctx.user, system: !!opt.system, guard: 'hold', partial: true, correction: true, prepare: opt.shape.prepare || null, shape: { tags: opt.shape.tags }, onCommit: () => cache.delete(id) })
     } else if (team) {
       // 조각의 모양 — core 는 edits 를 모른다(prepare 가 새 글로 바꾼다) · 그래서 입력 조각은 여기서 본다
-      const secs = Array.isArray(input.sections) ? input.sections : []
-      if (secs.length > SECTIONS_MAX) throw new KmdError('E_INPUT', `항목은 한 번에 ${SECTIONS_MAX}개까지 보낸다`)
-      for (const s of secs) {
-        if (!s || typeof s !== 'object' || Array.isArray(s)) throw new KmdError('E_INPUT', '항목마다 { coord | doc · heading, base, edits | content } 이다')
-        if (s.coord == null && (s.doc == null || s.heading == null)) throw new KmdError('E_INPUT', '항목은 이름(coord) 또는 문서 · 머리(doc · heading)로 가리킨다')
-        if (s.coord != null && typeof s.coord !== 'string') throw new KmdError('E_INPUT', '이름(coord)은 글이다')
-        if (s.doc != null && typeof s.doc !== 'string') throw new KmdError('E_INPUT', '문서(doc)는 글이다')
-        if (s.heading != null && (typeof s.heading !== 'string' || !s.heading.trim() || /[\r\n]/.test(s.heading))) throw new KmdError('E_INPUT', '머리는 한 줄 글이다')
-        if (s.base != null && !(typeof s.base === 'string' && /^[0-9a-f]{16}$/.test(s.base))) throw new KmdError('E_INPUT', 'base 는 읽을 때 받은 16자 지문이다')
-        if (s.remove || s.rename != null) throw new KmdError('E_FORBIDDEN', '항목 지우기 · 이름 바꾸기는 화면의 고치기로 한다')
-        if (Array.isArray(s.edits)) {
-          if (s.content != null) throw new KmdError('E_INPUT', '조각(edits)과 새 글(content)은 하나만 보낸다')
-          const v = validEdits(s.edits)
-          if (!v.ok) throw new KmdError('E_INPUT', `「${s.coord || s.heading}」 조각: ${v.why}`)
-        } else if (typeof s.content !== 'string') throw new KmdError('E_INPUT', '항목마다 edits(바꿀 조각) 또는 content(새 글)가 있다')
-      }
+      sectionShapes(input.sections)
       const prepare = async () => {
         // 줄 안 · 남은 저널을 되돌린 뒤 — hub.get 캐시가 아니라 새로 읽는다(S-D7 · 파일마다 mtime 캐시라 싸다)
         const k = await loadKnowledge(meta, { cache: files.get(id), cutoverAt: config.cutoverAt || null, team: mode === 'team' })
@@ -1533,10 +1540,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     },
     // 내 것 가운데 아직 끝나지 않은 것(K3-3 · K2-6 · brief 의 mine · you) — 안 넣은 메모 · 넣지 못함 수와 최근 것(제목 · 까닭).
     //   상태는 recordState 그대로: 나중 기록이 fixes 로 바로잡은 것은 fixed 라 세지 않는다. 팀 지식에서만(이 PC 는 곧바로 넣는다)
+    //   새 꼴(저장 승인 설계 b1 · P2): accepted — 내 기록 가운데 승인으로 받아들인 경고 칸(「## 받아들인 경고」 · P3 부터 저장 문이 단다)이 있는 수.
+    //   memos · held · recent 는 held 모드 지식 · 옛 스킬(kmd-team-work)이 읽으므로 P11 까지 그대로 싣는다(스킬 글은 P4)
     mineIn(ctx, k, { recent = 0 } = {}) {
       if (mode !== 'team' || !ctx?.user) return null
       const ws = k.works.filter((w) => w.author === ctx.user && (w.state === 'memo' || w.state === 'held'))
-      const out = { memos: ws.filter((w) => w.state === 'memo').length, held: ws.filter((w) => w.state === 'held').length }
+      const out = { memos: ws.filter((w) => w.state === 'memo').length, held: ws.filter((w) => w.state === 'held').length, accepted: k.works.filter((w) => w.author === ctx.user && ACCEPTED_RE.test(w.body || '')).length }
       if (recent) {
         out.recent = ws.slice(0, recent).map((w) => {
           const why = w.state === 'held' ? [...new Set(parseHeld(w.body).map((x) => String(x.why || x.code || '')).filter(Boolean))].join(' · ').slice(0, 160) || '넣지 못함' : '메모: 값이 확정되면 조각과 함께 다시 저장한다'
@@ -1621,6 +1630,47 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           if (e instanceof KmdError && e.code === 'E_CONFLICT') return { ok: false, stale: e.details?.stale || [], proposals: e.details?.proposals || [] }
           throw e
         }
+      })
+    },
+
+    // 저장 제안(저장 승인 설계 P-D3 · P-D4 · P-D31 · 7절 P2) — save 와 같은 입력을 받아 쓰지 않고 판정만:
+    //   서버가 정한 꼴의 【저장 제안】 글(text) · 항목(items: 고침 · 신설 · 잇기) · 새로 서는 것(near 포함) · 경고(id) · 오류 · proposal(sha256 · 쌓지 않는다).
+    //   자리: hub.meta(id, ctx)(읽기 미만 404) → hub.need(ctx, id, 'write')(403). 입력 모양은 core/guard.js proposeInputWhy(P-D32 · E_INPUT).
+    //   opt.form — 세션(MCP)의 서식 칸 기록 · opt.path — 제안서 머리의 길 말(서버 코드가 정한다).
+    //   개인 프로그램은 PC1 까지 막는다(P-D40). held 모드 저장은 이 판정을 쓰지 않는다(P3 부터 approve 모드 저장이 같은 판정을 줄 안에서 다시 돌린다)
+    async propose(ctx, id, input, opt = {}) {
+      const meta = await hub.meta(id, ctx)
+      hub.need(ctx, id, 'write')
+      if (mode !== 'team') throw new KmdError('E_INPUT', '저장 제안은 팀 지식에서 한다(개인 프로그램은 다음 판부터)')
+      const bad = proposeInputWhy(input)
+      if (bad) throw new KmdError('E_INPUT', bad)
+      if (input.sections != null && !Array.isArray(input.sections)) throw new KmdError('E_INPUT', 'sections 는 목록이다')
+      sectionShapes(input.sections)
+      if (input.sections?.some((s) => s?.doc && owners.isReservedFile(String(s.doc).replace(/\.md$/, '') + '.md'))) throw new KmdError('E_FORBIDDEN', 'kmd 가 쓰는 파일이다')
+      if (input.record == null || typeof input.record !== 'object' || Array.isArray(input.record)) throw new KmdError('E_INPUT', 'record 는 { title, … } 이다')
+      let rec = input.record
+      if (opt.form) {
+        const b = recordBody(rec, { memo: rec.memo === true })
+        if (b.error) throw new KmdError('E_INPUT', b.error)
+        rec = { ...Object.fromEntries(Object.entries(rec).filter(([x]) => !RECORD_PARTS.some(([p]) => p === x))), body: b.body }
+      }
+      if ((Array.isArray(rec.tags) ? rec.tags : []).some((t) => String(t).trim().startsWith('sent/'))) throw new KmdError('E_INPUT', 'sent/ 표지는 보내기만 단다')
+      // save 가 거절할 기록 · 항목 글(제목 한 줄 · 길이 · kmd 칸 머리 · touches 모양 …)은 제안서를 내지 않고 같은 E_INPUT(줄 밖에서 먼저)
+      checkInput({ record: rec, sections: (input.sections || []).filter((s) => typeof s.content === 'string').map(({ coord, doc, heading, base, content }) => ({ coord, doc, heading, base, content })) })
+      // 제안 속도 — 저장과 다른 통(대화 조절로 여러 번 부르므로 저장의 두 배) · 줄 잠금을 오래 잡지 않게
+      rateTake(ctx, `${id}\npropose`, 0.5)
+      const shut = backup.closed(meta)
+      // 보는 사람 수(제안서 머리) — 명부의 사람 가운데 읽기 이상(총괄 관리자 포함)
+      let viewers = null
+      try {
+        const adm = new Set(hub.admins())
+        viewers = hub.people().filter((u) => adm.has(u) || owners.atLeast(owners.levelOf(R(), id, { user: u }), 'read')).length
+      } catch (e) { log(`보는 사람 수를 세지 못했다 ${id}: ${e.message}`) }
+      if (!files.has(id)) files.set(id, new Map())
+      return serial(path.resolve(meta.dir), async () => {
+        await recoverSave(meta.dir)
+        const k = await loadKnowledge(meta, { cache: files.get(id), cutoverAt: config.cutoverAt || null, team: mode === 'team' })
+        return buildProposal(k, { ...input, record: rec }, { newDoc: hub.canDirect(ctx, id), legacyPendOf, extraErrors: shut ? [{ code: 'behind', at: '지식', why: shut.message }] : [], head: { name: meta.name, viewers, path: opt.path || '이 세션의 작업' } })
       })
     },
 

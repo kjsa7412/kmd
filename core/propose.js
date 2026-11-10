@@ -12,6 +12,9 @@ import { oldValues, valuesOf, judgeId } from './values.js'
 import { judgeSection, foldJudge } from './gate.js'
 import { judgeEdits, validEdits } from './edits.js'
 import { headingMatches } from './sections.js'
+import { createHash } from 'node:crypto'
+import { guardRecord, guardNames, guardNewDoc, nearOf, nameNear, nearKey } from './guard.js'
+import { mustValues } from './values.js'
 
 // 조각 대는 법은 core/edits.js 로 옮겼다(S2 · propose ↔ 옛 정리 모듈 순환 끊기) — 부르는 곳을 바꾸지 않게 다시 내보낸다
 export { EDIT_MAX, EDIT_CHARS, validEdits, applyEdits } from './edits.js'
@@ -78,4 +81,232 @@ export function parseProposals(body) {
     const v = JSON.parse(m[1])
     return Array.isArray(v) ? v.filter((p) => p && typeof p === 'object' && !Array.isArray(p) && typeof p.coord === 'string' && typeof p.base === 'string' && validEdits(p.edits).ok) : []
   } catch { return [] }
+}
+
+// ── 저장 제안(저장 승인 설계 P-D3 · P-D4 · P-D10 · 2-1 · P2) — 쓰지 않고, 서버가 정한 꼴의 【저장 제안】 글 · 항목 · 새로 서는 것 · 경고 · 오류 · 해시 ──
+//   k — 저장 줄 안에서 새로 읽은 지식 · input — save 와 같은 꼴(record 는 서식을 엮은 뒤) + distinct · excluded · kinds
+//   opt.newDoc — 새 문서를 세울 수 있나(지금은 지식관리자 · P3 부터 쓰기 자리) · opt.legacyPendOf(k, at, coord) — 섞인 자리 기록 id
+//   opt.head — { name(지식 이름), viewers(보는 사람 수 · 없으면 null), path(길: 이 세션의 작업 · 화면 …) }
+//   → { text, items, newDocs, newNames, newForms, newKinds, warnings[{ id, code, at, why }], errors[{ code, at, why, near? }], proposal }
+//   proposal — 비밀 없는 sha256(64자 hex): 정규화한 record · sections · names · forms · kinds · excluded · distinct · 조각마다의 base ·
+//   경고 id · 제안서 글(머리 줄 빼고 · 보는 사람 수 · 길이 달라도 같은 지문). 서버는 쌓지 않는다(P-D4). 오류가 있으면 null(승인할 제안이 아니다). 글에 시각을 싣지 않는다(같은 입력이면 같은 해시)
+const DIFF_MAX = 30
+const docName = (p) => String(p ?? '').replace(/^docs\//, '').replace(/\.md$/, '')
+const atOf = (doc, heading) => `${docName(doc)} › ${heading ?? ''}`
+const nf = (v) => (typeof v === 'string' ? v.normalize('NFC') : Array.isArray(v) ? v.map(nf) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().filter((x) => v[x] !== undefined).map((x) => [x, nf(v[x])])) : v)
+
+// 줄 차이 — 바뀐 줄만(- 옛 줄 · + 새 줄) · 차례는 LCS · 크면 집합으로
+export function lineDiff(a, b) {
+  const A = String(a ?? '').split('\n')
+  const B = String(b ?? '').split('\n')
+  const out = []
+  if (A.length * B.length > 250_000) {
+    const sa = new Set(A)
+    const sb = new Set(B)
+    for (const x of A) if (!sb.has(x)) out.push(['-', x])
+    for (const x of B) if (!sa.has(x)) out.push(['+', x])
+    return out
+  }
+  const T = Array.from({ length: A.length + 1 }, () => new Uint32Array(B.length + 1))
+  for (let i = A.length - 1; i >= 0; i--) for (let j = B.length - 1; j >= 0; j--) T[i][j] = A[i] === B[j] ? T[i + 1][j + 1] + 1 : Math.max(T[i + 1][j], T[i][j + 1])
+  let i = 0
+  let j = 0
+  while (i < A.length && j < B.length) {
+    if (A[i] === B[j]) { i++; j++ } else if (T[i + 1][j] >= T[i][j + 1]) out.push(['-', A[i++]])
+    else out.push(['+', B[j++]])
+  }
+  while (i < A.length) out.push(['-', A[i++]])
+  while (j < B.length) out.push(['+', B[j++]])
+  return out
+}
+
+// 기록 글 → 칸(요약 · ## 칸) — 제안서 【기록】 줄
+const SHOWN_PARTS = ['바뀐 것', '까닭', '버린 안', '영향', '근거']
+function recordParts(body) {
+  const b = String(body ?? '')
+  const i = b.search(/^## /m)
+  const summary = (i < 0 ? b : b.slice(0, i)).trim()
+  const parts = []
+  for (const blk of (i < 0 ? '' : b.slice(i)).split(/^(?=## )/m)) {
+    const m = blk.match(/^## (.+)\n?([\s\S]*)$/)
+    if (!m || !SHOWN_PARTS.includes(m[1].trim())) continue
+    parts.push([m[1].trim(), m[2].split('\n').map((x) => x.replace(/^\s*[-*]\s+/, '').trim()).filter(Boolean)])
+  }
+  return { summary, parts }
+}
+
+export function proposalHash(x) {
+  return createHash('sha256').update(JSON.stringify(nf(x)), 'utf8').digest('hex')
+}
+
+export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [], head = {}, extraErrors = [] } = {}) {
+  const rec = input.record && typeof input.record === 'object' ? input.record : {}
+  const record = { title: String(rec.title || ''), body: String(rec.body || '') }
+  const secs = Array.isArray(input.sections) ? input.sections : []
+  const distinct = new Set((input.distinct || []).map((x) => nearKey(x)))
+  const passes = (name) => distinct.has(nearKey(name))
+  const errors = []
+  const warnings = []
+  const items = []
+  const newDocs = []
+  const newNames = []
+  const newForms = []
+  const newKinds = []
+  const err = (code, at, why, extra = {}) => errors.push({ code, at, why, ...extra })
+  const warnOf = (w) => ({ id: w.id, code: w.code, at: w.doc != null || w.heading != null ? atOf(w.doc, w.heading) : w.at || '기록', why: w.why, ...(w.values ? { values: w.values } : {}) })
+  // 새것이 있는 것과 너무 비슷한가(P-D10) — 같음 = 오류(distinct 로 넘음) · 비슷함 = 경고
+  const near = (what, at, name, r) => {
+    if (passes(name)) return
+    if (r.same.length) err('near', at, `${what} 「${name}」 는 있는 「${r.same.slice(0, 3).join(' · ')}」 와 같은 이름이다(빈칸 · 부호만 다름). 있는 것에 잇거나, 다른 것이면 distinct 에 「${name}」 를 넣는다`, { near: r.same.slice(0, 5) })
+    else if (r.similar.length) warnings.push({ id: judgeId('near', what, name, ...[...r.similar].sort()), code: 'near', at, why: `${what} 「${name}」 와 비슷한 것이 있다: ${r.similar.slice(0, 3).join(' · ')}. 같은 것이면 있는 것에 잇는다` })
+  }
+  for (const e of extraErrors) err(e.code, e.at, e.why)
+  if (!record.title.trim()) err('record', '기록', '제목(title)이 없다')
+  if (rec.memo === true && secs.length) err('record', '기록', '메모는 항목 글을 받지 않는다')
+  const spread = secs.length > 1
+  const done = new Set()
+  const texts = []
+  for (const s of secs) {
+    const coord = s.coord != null ? String(s.coord).trim().normalize('NFC') : null
+    const at = placeOf(k, { coord, doc: s.doc, heading: s.heading })
+    if (!at) {
+      const where = coord || atOf(s.doc, s.heading)
+      if (coord) { err('notfound', where, `「${coord}」 이 들어갈 문서가 정해져 있지 않다. 기록만 보내거나 문서 · 머리로 가리킨다`); continue }
+      const rel = String(s.doc ?? '').replace(/\\/g, '/').replace(/^\/+/, '').replace(/^docs\//, '').replace(/\.md$/, '').normalize('NFC')
+      const heading = String(s.heading ?? '').trim().normalize('NFC')
+      if (!newDoc) { err('newdoc', where, `「${rel}」 문서가 없다. 새 문서는 지식관리자가 세운다(you.ledgers) · 있는 문서 · 머리로 가리킨다`); continue }
+      if (typeof s.content !== 'string') { err('newdoc', where, '새 문서 조각은 글 전체(content)로 보낸다'); continue }
+      const g = guardNewDoc(k.forms, rel, [heading])
+      for (const e of g.errors) err('format', where, e.message)
+      const name = rel.split('/').pop()
+      const r = nearOf(k.docs.flatMap((d) => [d.id.split('/').pop(), d.title]), name)
+      near('새 문서', where, name, r)
+      if (!newDocs.some((d) => d.doc === `docs/${rel}.md`)) newDocs.push({ doc: `docs/${rel}.md`, form: g.form?.name || null, near: [...r.same, ...r.similar].slice(0, 5) })
+      const j = judgeSection(k, { doc: `docs/${rel}.md`, heading, base: s.base, content: s.content, record, spread, legacyPend: [] })
+      for (const e of j.errors) err(e.code, where, e.why)
+      for (const w of j.warnings) warnings.push(warnOf(w))
+      items.push({ kind: '신설', ...(coord ? { coord } : {}), doc: `docs/${rel}.md`, heading, at: where, base: null, before: '', after: s.content, changed: [], newDoc: true })
+      texts.push({ heading, content: s.content, coord })
+      continue
+    }
+    const where = atOf(at.doc, at.heading)
+    done.add(`${at.doc}\n${at.heading}`)
+    const legacyPend = legacyPendOf(k, at, coord)
+    if (!at.sec) {
+      // 있는 문서에 새 머리 — 글 전체(content)로 · 같은 문서의 머리와 너무 비슷한가
+      if (typeof s.content !== 'string') { err('notfound', where, '그 항목이 아직 없다. 새 항목이면 doc · heading 과 content(새 글 전체)로 보낸다'); continue }
+      near('새 머리', where, at.heading, nearOf(at.docObj.sections.map((x) => x.h), at.heading))
+      const j = judgeSection(k, { doc: at.doc, heading: at.heading, base: s.base, content: s.content, record, spread, legacyPend })
+      for (const e of j.errors) err(e.code, where, e.why, e.stale ? { stale: true } : {})
+      for (const w of j.warnings) warnings.push(warnOf(w))
+      items.push({ kind: '신설', ...(coord ? { coord } : {}), doc: at.doc, heading: at.heading, at: where, base: null, before: '', after: s.content, changed: [] })
+      texts.push({ heading: at.heading, content: s.content, coord })
+      continue
+    }
+    const before = at.sec.body
+    const j = Array.isArray(s.edits)
+      ? judgeProposal(k, { coord, doc: at.doc, heading: at.heading, base: s.base, edits: s.edits, record, spread, legacyPend })
+      : { ...judgeSection(k, { doc: at.doc, heading: at.heading, base: s.base, content: s.content, record, spread, legacyPend }), text: s.content }
+    for (const e of j.errors) err(e.code, where, e.why, { ...(e.near ? { near: [e.near] } : {}), ...(e.stale ? { stale: true } : {}) })
+    for (const w of j.warnings) warnings.push(warnOf(w))
+    const after = typeof j.text === 'string' ? j.text : before
+    items.push({ kind: '고침', ...(coord ? { coord } : {}), doc: at.doc, heading: at.heading, at: where, base: sha16(before), before, after, changed: j.changed || [] })
+    texts.push({ heading: at.heading, content: after, coord })
+  }
+  // 빠진 값(조각이 여럿) — 기록이 적은 새 값을 넣는 모든 글을 합친 데서 한 번(gatePrepare 와 같은 셈)
+  if (spread && texts.length) {
+    const all = valuesOf(texts.map((x) => `${x.heading || ''}\n${x.content}`).join('\n') + ' ' + texts.map((x) => x.coord || '').join(' '))
+    const missing = mustValues(record.body).filter((v) => !all.has(v))
+    if (missing.length) warnings.push({ id: judgeId('missing', '', '', ...[...missing].sort()), code: 'missing', at: '기록', why: `기록의 값이 글에 없다: ${missing.slice(0, 3).join(' · ')}`, values: missing })
+  }
+  // 새 이름 · 새 종류(P-D10) — 장부에 없던 이름만 · 모양(G1)은 guardNames
+  const kinds = new Set([...k.vocab.coords.keys()].map((c) => c.slice(0, c.indexOf(':'))))
+  const names = (Array.isArray(input.names) ? input.names : []).filter((n) => n && typeof n.coord === 'string')
+  for (const e of guardNames(k.vocab, names).errors) err('name', e.name || '이름', e.message)
+  const kindsWanted = new Map()
+  for (const n of names) {
+    const c = n.coord.trim().normalize('NFC')
+    if (k.vocab.coords.has(c)) continue
+    const r = nameNear(k.vocab, c, n.label)
+    near('새 이름', c, c, r)
+    newNames.push({ coord: c, label: String(n.label || ''), ...(n.doc ? { doc: String(n.doc) } : {}), ...(n.heading ? { heading: String(n.heading) } : {}), near: [...r.same, ...r.similar].slice(0, 5) })
+    const t = c.slice(0, Math.max(0, c.indexOf(':')))
+    if (t && !kinds.has(t)) kindsWanted.set(t, null)
+  }
+  for (const x of Array.isArray(input.kinds) ? input.kinds : []) {
+    const t = String(typeof x === 'string' ? x : x?.name || '').trim().normalize('NFC')
+    if (t && !kinds.has(t)) kindsWanted.set(t, typeof x === 'object' && x?.label ? String(x.label) : kindsWanted.get(t) ?? null)
+  }
+  for (const [t, label] of kindsWanted) {
+    const r = nearOf([...kinds], t)
+    near('새 종류', t, t, r)
+    newKinds.push({ name: t, ...(label ? { label } : {}), near: [...r.same, ...r.similar].slice(0, 5) })
+  }
+  // 새 갈래(P-D9) — 갈래 장부에 같은 이름이 있으면 새것이 아니다
+  const formNames = k.forms.rows.flatMap((f) => [f.name, ...(f.aliases || [])])
+  for (const f of Array.isArray(input.forms) ? input.forms : []) {
+    const name = String(f?.name || '').trim().normalize('NFC')
+    if (!name || k.forms.rows.some((x) => x.name === name)) continue
+    const r = nearOf(formNames, name)
+    near('새 갈래', name, name, r)
+    newForms.push({ name, ...(f.kind ? { kind: String(f.kind) } : {}), ...(f.folder ? { folder: String(f.folder) } : {}), near: [...r.same, ...r.similar].slice(0, 5) })
+  }
+  // 건드린 이름(G2 · G3 · 거절형) — 같은 제안에서 세우는 이름은 장부 밖이어도 받는다
+  const g = guardRecord(k.vocab, rec, { mode: 'strict', proposed: new Set(names.map((n) => n.coord.trim().normalize('NFC'))) })
+  for (const e of g.errors) err('touches', e.name || '기록', e.message, e.near?.length ? { near: e.near } : {})
+  // 이을 항목(글 그대로) — 조각이 없는 건드린 이름의 항목
+  for (const c of g.touches) {
+    const x = sectionOf(k, c)
+    if (!x?.loc) continue
+    const h = x.sec?.h ?? x.loc.heading
+    if (done.has(`${x.loc.doc}\n${h}`)) continue
+    done.add(`${x.loc.doc}\n${h}`)
+    const body = x.sec ? x.sec.body : null
+    items.push({ kind: '잇기', coord: c, doc: x.loc.doc, heading: h, at: atOf(x.loc.doc, h), base: body == null ? null : sha16(body), before: body, after: body, changed: [] })
+  }
+  const excluded = (Array.isArray(input.excluded) ? input.excluded : []).map((x) => ({ name: String(x.name), why: String(x.why || '') }))
+  // ── 제안서 글(2-1) ──
+  const L = []
+  const viewers = Number.isInteger(head.viewers) ? `(보는 사람 ${head.viewers})` : ''
+  L.push(`【저장 제안】 지식: ${head.name || k.name || k.id}${viewers} · 길: ${head.path || '이 세션의 작업'}`)
+  L.push(`【기록】 「${record.title}」${rec.memo === true ? ' · 메모' : ''}`)
+  const rp = recordParts(record.body)
+  // 사람이 보낸 글은 늘 들여 싣는다(머리 줄 · 검사 줄을 흉내 내지 못하게)
+  rp.summary.split('\n').map((x) => x.trim()).filter(Boolean).forEach((x, i) => L.push(`  ${(i ? '' : '요약').padEnd(8, ' ')}  ${x}`))
+  for (const [h, xs] of rp.parts) xs.forEach((x, i) => L.push(`  ${(i ? '' : h).padEnd(8, ' ')}  ${x}`))
+  const sect = (title, rows) => { L.push(`―― ${title} ――`); if (rows.length) L.push(...rows); else L.push('  (없음)') }
+  const rowsFix = []
+  for (const x of items.filter((y) => y.kind === '고침')) {
+    rowsFix.push(`  ${x.at}   변경${x.changed.length ? `   ${x.changed.map((c) => `${c.from} → ${c.to}`).join(' · ')}` : ''}`)
+    const d = lineDiff(x.before, x.after)
+    for (const [m, t] of d.slice(0, DIFF_MAX)) rowsFix.push(`     ${m} ${t}`)
+    if (d.length > DIFF_MAX) rowsFix.push(`     … 바뀐 줄 ${d.length - DIFF_MAX} 더`)
+    if (!d.length) rowsFix.push('     (글 그대로)')
+  }
+  sect('고칠 항목', rowsFix)
+  const first = (t) => { const l = String(t || '').split('\n').map((y) => y.trim()).find(Boolean) || ''; return l.length > 60 ? l.slice(0, 59) + '…' : l }
+  sect('새 항목', items.filter((x) => x.kind === '신설').map((x) => `  ${x.at}   신설   ${first(x.after)}`))
+  sect('새 문서', newDocs.map((d) => `  ${docName(d.doc)}   신설${d.form ? `   갈래: ${d.form}` : ''}${d.near.length ? ` · 비슷한 문서 ${d.near.join(' · ')}` : ''}`))
+  sect('새 갈래 · 새 종류', [...newForms.map((f) => `  갈래 ${f.name}   신설${f.near.length ? ` · 비슷한 갈래 ${f.near.join(' · ')}` : ''}`), ...newKinds.map((t) => `  종류 ${t.name}   신설${t.near.length ? ` · 비슷한 종류 ${t.near.join(' · ')}` : ''}`)])
+  sect('새 이름', newNames.map((n) => `  ${n.coord}   신설   자리: ${n.doc ? `${docName(n.doc)}${n.heading ? ` › ${n.heading}` : ''}` : '없음'} · ${n.near.length ? `비슷한 이름 ${n.near.join(' · ')}` : '비슷한 이름 없음'}`))
+  sect('이을 항목(글 그대로)', items.filter((x) => x.kind === '잇기').map((x) => `  ${x.at}   잇기${x.before == null ? '   (항목이 아직 없음)' : ''}`))
+  sect('뺀다', excluded.map((x) => `  ${x.name}   ${x.why || '뺌'}`))
+  L.push('―― 검사 ――')
+  const wl = warnings.map((w, i) => `w${i + 1}`)
+  warnings.forEach((w, i) => L.push(`  경고 ${wl[i]}  ${w.at}: ${w.why}`))
+  if (!warnings.length) L.push('  경고 없음')
+  errors.forEach((e, i) => L.push(`  오류 e${i + 1}  ${e.at}: ${e.why}`))
+  if (!errors.length) L.push('  오류 없음')
+  if (errors.length) L.push('오류가 있어 이대로는 남지 않습니다. 입력을 고쳐 다시 제안합니다.')
+  else if (warnings.length) L.push(`승인하시면 경고 ${wl.join(' · ')} 을 받아들이고 그대로 남깁니다. 고칠 줄이 있으면 말씀해 주세요(빼기 · 값 고치기 · 기록 범위).`)
+  else L.push('승인하시면 그대로 남깁니다. 고칠 줄이 있으면 말씀해 주세요(빼기 · 값 고치기 · 기록 범위).')
+  const text = L.join('\n')
+  // 해시 — 머리 줄(지식 이름 · 보는 사람 수 · 길)은 빼고 싣는다: 명부가 바뀌거나 길이 달라도 같은 입력이면 같은 지문 · 집합 칸은 차례를 고른다
+  const setOf = (xs, key) => [...(Array.isArray(xs) ? xs : [])].sort((a, b) => key(a).localeCompare(key(b)))
+  const proposal = errors.length ? null : proposalHash({
+    record: rec, sections: secs, names: input.names || [], forms: input.forms || [],
+    kinds: setOf(input.kinds, (x) => String(typeof x === 'string' ? x : x?.name || '')), excluded: setOf(excluded, (x) => x.name), distinct: [...new Set((input.distinct || []).map((x) => nearKey(x)))].sort(),
+    bases: items.map((x) => [x.at, x.base]), warnings: warnings.map((w) => w.id), text: L.slice(1).join('\n'),
+  })
+  return { text, items, newDocs, newNames, newForms, newKinds, warnings, errors, proposal }
 }

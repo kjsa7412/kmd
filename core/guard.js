@@ -92,6 +92,78 @@ export function nearNames(vocab, text, n = 3) {
   return [...score].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, n).map(([c]) => c)
 }
 
+// ── 저장 제안(저장 승인 설계 P-D10 · Q8) — 새 이름 · 문서 · 머리 · 갈래 · 종류가 있는 것과 너무 비슷한가 ──
+//   정규화(빈칸 · 문장 부호 · 대소문자 뺌 · NFC)가 같으면 same(propose 오류 · distinct 로 넘음), 그 밖에 한쪽이 다른 쪽을 품고
+//   짧은 쪽이 2자 이상 · 긴 쪽의 NEAR_RATIO 이상이면 similar(경고). 편집 거리는 쓰지 않는다(한글 두세 글자 이름에서 거의 다 걸린다).
+//   NEAR_RATIO 는 자리 값이다 — P3 에서 실제 이름 장부(테스트 지식 · DPMS · GDI 사본)로 재어 그 커밋에 박는다
+export const NEAR_RATIO = 0.5
+export const nearKey = norm
+export function nearOf(cands, name) {
+  const n = norm(name)
+  const same = []
+  const similar = []
+  if (!n) return { same, similar }
+  for (const c of new Set((cands || []).map((x) => String(x ?? '')).filter(Boolean))) {
+    const m = norm(c)
+    if (!m) continue
+    if (m === n) { same.push(c); continue }
+    const [a, b] = m.length < n.length ? [m, n] : [n, m]
+    if (a.length >= 2 && b.includes(a) && a.length / b.length >= NEAR_RATIO) similar.push(c)
+  }
+  return { same, similar }
+}
+// 새 이름의 가까운 이름 — 값 · 보이는 이름을 장부의 살아 있는 이름 키(값 · 보이는 이름 · 다른 이름)에 대어 이름(coord)으로
+export function nameNear(vocab, coord, label = '') {
+  const c = nfc(String(coord ?? '').trim())
+  const same = new Set()
+  const similar = new Set()
+  for (const probe of [valueOf(c), label].filter((x) => norm(x))) {
+    for (const [key, cs] of keysOf(vocab)) {
+      const r = nearOf([key], probe)
+      for (const x of cs) if (x !== c) (r.same.length ? same : r.similar.length ? similar : null)?.add(x)
+    }
+  }
+  for (const x of same) similar.delete(x)
+  return { same: [...same].sort(), similar: [...similar].sort().slice(0, 5) }
+}
+
+// 저장 제안 입력의 새 칸 모양(P-D32) — proposal(64자 hex) · distinct[] · excluded[{ name, why }] · forms · kinds · names 줄.
+//   길이 · 개수 · 모양 · prototype 이름(__proto__ · constructor · prototype)을 본다. 맞으면 null · 아니면 까닭(부르는 쪽이 E_INPUT)
+export const PROPOSE_LIST_MAX = 50
+const ONE_LINE = (v, n) => typeof v === 'string' && v.trim().length > 0 && v.length <= n && !/[\r\n\u0000]/.test(v)
+const badKeys = (o) => Object.keys(o).some((x) => BAD_NAMES.has(x))
+const plainObj = (o) => o && typeof o === 'object' && !Array.isArray(o) && Object.getPrototypeOf(o) === Object.prototype
+export function proposeInputWhy(input) {
+  if (!plainObj(input) || badKeys(input)) return '제안은 { record, sections, names, forms, kinds, distinct, excluded } 이다'
+  if (input.proposal != null && !(typeof input.proposal === 'string' && /^[0-9a-f]{64}$/.test(input.proposal))) return 'proposal 은 propose 가 준 64자 지문이다'
+  const list = (k, n = PROPOSE_LIST_MAX) => input[k] == null || (Array.isArray(input[k]) && input[k].length <= n)
+  for (const k of ['distinct', 'excluded', 'forms', 'kinds', 'names']) if (!list(k)) return `${k} 는 ${PROPOSE_LIST_MAX}개 안의 목록이다`
+  for (const x of input.distinct || []) if (!ONE_LINE(x, 200) || BAD_NAMES.has(x.trim())) return 'distinct 는 받아들일 이름(한 줄 200자 안)의 목록이다'
+  for (const x of input.excluded || []) {
+    if (!plainObj(x) || badKeys(x) || Object.keys(x).some((y) => !['name', 'why'].includes(y))) return 'excluded 는 { name, why } 의 목록이다'
+    if (!ONE_LINE(x.name, 200) || BAD_NAMES.has(x.name.trim()) || (x.why != null && !(typeof x.why === 'string' && x.why.length <= 200 && !/[\r\n]/.test(x.why)))) return 'excluded 의 name 은 한 줄 200자 · why 는 한 줄 200자 안이다'
+  }
+  const strs = (v, n) => v == null || (Array.isArray(v) && v.length <= 20 && v.every((s) => ONE_LINE(s, n) && !BAD_NAMES.has(s.trim())))
+  for (const f of input.forms || []) {
+    if (!plainObj(f) || badKeys(f) || Object.keys(f).some((y) => !['name', 'aliases', 'folder', 'kind', 'pattern', 'form'].includes(y))) return 'forms 는 { name, aliases, folder, kind, pattern, form } 의 목록이다'
+    if (!ONE_LINE(f.name, 60) || BAD_NAMES.has(f.name.trim())) return '갈래 이름(name)은 한 줄 60자 안이다'
+    if (!strs(f.aliases, 60)) return '갈래의 다른 이름(aliases)은 20개 안 · 한 줄 60자 안이다'
+    for (const y of ['folder', 'kind', 'pattern', 'form']) if (f[y] != null && !(typeof f[y] === 'string' && f[y].length <= 120 && !/[\r\n\u0000]/.test(f[y]))) return `갈래의 ${y} 는 한 줄 120자 안이다`
+  }
+  for (const x of input.kinds || []) {
+    const name = typeof x === 'string' ? x : plainObj(x) && !badKeys(x) && Object.keys(x).every((y) => ['name', 'label'].includes(y)) ? x.name : null
+    if (typeof name !== 'string' || !TYPE_RE.test(name.trim()) || BAD_NAMES.has(name.trim())) return 'kinds 는 종류 이름(영문 소문자 또는 한글로 시작하는 24자 안) 또는 { name, label } 의 목록이다'
+    if (plainObj(x) && x.label != null && !ONE_LINE(x.label, 60)) return '종류의 label 은 한 줄 60자 안이다'
+  }
+  for (const n of input.names || []) {
+    if (!plainObj(n) || badKeys(n) || Object.keys(n).some((y) => !['coord', 'label', 'aliases', 'doc', 'heading'].includes(y))) return 'names 는 { coord, label, aliases, doc, heading } 의 목록이다'
+    if (!ONE_LINE(n.coord, 200) || !ONE_LINE(n.label, 200)) return '이름(coord) · 보이는 이름(label)은 한 줄 200자 안이다'
+    if (!strs(n.aliases, 200)) return '이름의 다른 이름(aliases)은 20개 안 · 한 줄 200자 안이다'
+    for (const y of ['doc', 'heading']) if (n[y] != null && !ONE_LINE(n[y], 300)) return `이름의 ${y} 는 한 줄 300자 안이다`
+  }
+  return null
+}
+
 // 자리가 있는 기록 — 이름이 없어도 들어갈 곳이 정해진 것(화면의 항목 고침 at/ · 넣은 파일 ingest/) · kmd 의 일(이력 · 정리)
 export const hasPlace = (rec) => (rec.tags || []).some((t) => /^(at|ingest)\//.test(t)) || isLogRecord(rec.tags) || (rec.reflects || []).length > 0 || (rec.curates || []).length > 0 || (rec.reopens || []).length > 0
 

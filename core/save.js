@@ -100,6 +100,10 @@ function check(input, { system = false, many = false } = {}) {
   return secs
 }
 
+// 저장 입력 검사만(저장 승인 P2 · hub.propose) — save 가 E_INPUT 으로 거절할 기록 · 항목 글(content 조각)을 쓰기 전에 같은 말로 거절한다
+//   (조각 edits 는 hub 의 조각 모양 검사가 본다 · 이 함수는 save 를 바꾸지 않는다)
+export const checkInput = (input) => check(input)
+
 // 항목 모양 — 입력과 prepare 결과가 같이 거친다(S-D44)
 function sectionShape(secs, { many = false } = {}) {
   if (!Array.isArray(secs)) fail('E_INPUT', 'sections 는 목록이다')

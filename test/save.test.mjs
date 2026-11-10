@@ -425,7 +425,7 @@ test('MCP save: 스킬 판(kit)이 옛것이면 저장은 하고 reinstall · �
   // brief — 지식마다 내 안 넣은 메모 · 넣지 못함 수 · 지식 하나는 최근 것(제목 · 까닭) · 팀 서버의 판
   const k = await s.hub.get('dpms')
   const mine = k.works.filter((w) => w.author === 'lee')
-  const want = { memos: mine.filter((w) => w.state === 'memo').length, held: mine.filter((w) => w.state === 'held').length }
+  const want = { memos: mine.filter((w) => w.state === 'memo').length, held: mine.filter((w) => w.state === 'held').length, accepted: 0 }
   assert.ok(want.memos >= 5 && want.held >= 1, JSON.stringify(want))
   const b = (await call('brief', {})).structuredContent
   assert.equal(b.kit, TEAM_KIT_REV)

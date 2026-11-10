@@ -1181,11 +1181,11 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const cur = clean(await fs.readFile(path.join(k.dir, ...d.path.split('/')), 'utf8').catch(() => ''))
       return out(200, { doc: d.id, sha: v.sha, at: v.at, who: v.who, msg: v.msg, md: past, cur, html: V.render(k, d.path, past) })
     }
-    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|backup|backup\/pull|owner|learn|edit|revert|guard)$/)
+    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|propose|backup|backup\/pull|owner|learn|edit|revert|guard)$/)
     if (!m) throw new KmdError('E_NOTFOUND', '그런 길은 없다')
     const id = dec(m[1])
     const what = m[2]
-    if (['save', 'backup', 'backup/pull', 'owner', 'learn', 'edit', 'revert'].includes(what)) {
+    if (['save', 'propose', 'backup', 'backup/pull', 'owner', 'learn', 'edit', 'revert'].includes(what)) {
       // 저장소 보기(메뉴 개편 6-4 · 권한 모델 7절) — 그 지식의 지식관리자부터(읽기 미만 404 · 쓰기 · 읽기 403) · 주소는 가려서 · 가지 · 상태만
       if (what === 'backup' && req.method === 'GET') {
         const meta = await hub.meta(id, ctx.shell ? undefined : ctx)
@@ -1214,6 +1214,12 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         const send = channel === 'send' && !!(ctx.device || ctx.legacy) && tags.some((t) => /^sent\/[0-9a-f]{16}$/.test(String(t).trim()))
         if (!send) delete input.left
         return out(200, await hub.save(ctx, id, input, { guard: 'strict', channel: send ? 'send' : 'http' }))
+      }
+      // 저장 제안(저장 승인 설계 P-D3 · P-D31 · P2) — 쓰지 않는다 · 자리(읽기 미만 404 · 쓰기 미만 403) · 입력 모양은 hub.propose 가 본다 ·
+      //   본문의 channel 등 opt 칸은 받지 않는다(제안서 머리의 길은 서버가 정한다)
+      if (what === 'propose') {
+        const { channel: _c, ...input } = body && typeof body === 'object' && !Array.isArray(body) ? body : {}
+        return out(200, await hub.propose(ctx, id, input, { path: '화면' }))
       }
       if (what === 'learn') return out(200, await hub.learn(ctx, id, body))
       // 문서 고치기(S9) — 화면 길은 이미 있는 항목의 지문(base)을 꼭 받는다
