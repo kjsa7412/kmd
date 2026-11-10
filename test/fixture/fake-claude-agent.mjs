@@ -46,12 +46,15 @@ process.stdin.on('end', async () => {
   if (process.env.FAKE_AGENT_WAIT_MS) await new Promise((ok) => setTimeout(ok, Number(process.env.FAKE_AGENT_WAIT_MS)))
   if (process.env.FAKE_AGENT_MODE === 'idle') return end({ result: '넣을 곳을 못 찾았다' })
   if (process.env.FAKE_AGENT_MODE === 'other') await mcp('save', { knowledge: 'dpms', record: { title: '엉뚱한 곳', body: 'x' } })
+  // kmd-build 7 — 이미 있는 항목이면 section 으로 읽은 base 를 같이 보내고 · 이미 있는 이름은 다시 세우지 않는다(approve 개인 지식의 무인 문이 막는다 · PC4)
+  const cur = await mcp('section', { knowledge: kn, doc: '회의록', heading: '2026-10-21 HNC 통화' })
+  const base = cur && !cur.error && cur.base ? { base: cur.base } : {}
   await mcp('save', {
     knowledge: kn,
     record: { title: 'HNC 통화 — 회의록에 새 항목', body: '회의록 갈래 · 펄스 명령 이름을 세웠다', touches: ['term:펄스명령'] },
     // =from → 표 · 값 덩이 하나는 kmd 가 그 머리 아래를 옮긴다(잇는 말만 쓴다) · =append → 있는 항목 끝에 「원격 명령」 아래만 보탠다
-    sections: [process.env.FAKE_AGENT_MODE === 'from' ? { doc: '회의록', heading: '2026-10-21 HNC 통화', content: 'HNC 와 통화했다.', from: '원격 명령' } : process.env.FAKE_AGENT_MODE === 'append' ? { doc: '회의록', heading: '2026-10-21 HNC 통화', append: true, from: '원격 명령' } : { doc: '회의록', heading: '2026-10-21 HNC 통화', content: body.replace(/^#{1,2} .*$/gm, '').trim() }],
-    names: [{ coord: 'term:펄스명령', label: '펄스 명령', aliases: ['펄스 방식'], doc: '회의록', heading: '2026-10-21 HNC 통화' }],
+    sections: [process.env.FAKE_AGENT_MODE === 'from' ? { doc: '회의록', heading: '2026-10-21 HNC 통화', content: 'HNC 와 통화했다.', from: '원격 명령', ...base } : process.env.FAKE_AGENT_MODE === 'append' ? { doc: '회의록', heading: '2026-10-21 HNC 통화', append: true, from: '원격 명령' } : { doc: '회의록', heading: '2026-10-21 HNC 통화', content: body.replace(/^#{1,2} .*$/gm, '').trim(), ...base }],
+    ...(base.base ? {} : { names: [{ coord: 'term:펄스명령', label: '펄스 명령', aliases: ['펄스 방식'], doc: '회의록', heading: '2026-10-21 HNC 통화' }] }),
   })
   end({ result: '회의록 › 2026-10-21 HNC 통화 · 이름 1' })
 })

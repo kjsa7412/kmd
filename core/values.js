@@ -108,8 +108,12 @@ export function groundedIn(text, ...sets) {
 //   경위만 있는 기록(값 없음)은 넘는다. 원본이 주인인 문서(watched)에 잇는 기록은 글 조각을 못 쓰므로 보지 않는다(skipped).
 //   record — { title, body } · items — [{ doc, heading, text, watched }] → { errors: [{ id, code: 'unreflected', values, why }], values, skipped? }
 //   쓰지 않고 판정만 — 사람 채널은 propose 오류 · 무인 채널은 규칙 길 방아쇠(P3 · P6 에서 부른다)
+//   기록 끝 `## 원천`(들인 원천 인용 · core/ingest.js intakeSrcPart)은 기록이 말한 값이 아니라 받은 글이다 — 바뀐 것 칸이 없는 들이기 기록도 원천 값으로 걸리지 않게 뺀다(PC4)
+//   서버가 단 꼴(머리 다음 줄 「- 파일 … · 지문 <16자>」)일 때만 뺀다 — 사람 글이 「## 원천」 머리로 값을 숨겨 반영 검사를 피하지 않게
+const SRC_PART_RE = /^## 원천[ \t]*\r?\n- (?:파일|커밋|다시 들이기|보낸 글) .* · 지문 [0-9a-f]{16}[ \t]*(?:\r?\n|$)/
 export function judgeReflect(record, items = []) {
-  const values = mustValues(String(record?.body || ''))
+  const body0 = String(record?.body || '')
+  const values = mustValues(body0.split(/^(?=## )/m).filter((p) => !SRC_PART_RE.test(p)).join(''))
   if (!values.length) return { errors: [], values }
   if (items.some((x) => x?.watched)) return { errors: [], values, skipped: true }
   const seen = new Set()

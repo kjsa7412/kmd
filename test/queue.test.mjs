@@ -170,11 +170,13 @@ test('파일 넣기: 네 단계(수집 › 검토 › 짓기 › 넣기 · S-D33
   assert.equal(one.state, 'done', one.msg)
   assert.deepEqual(one.stages.map((x) => x.state), ['done', 'done', 'done', 'done'])
   assert.ok(one.lines.some((l) => l.s === 3 && l.x.startsWith('지식 둘러보기')), '둘러보기는 넣기 단계의 줄')
-  assert.ok(one.lines.some((l) => l.s === 2), '기록 정리는 짓기 단계의 줄')
+  // 새 개인 지식(approve · 저장 승인 PC4) — 기록을 먼저 세우지 않는다: 짓기 단계에 기록 정리가 없고 넣기 단계에서 기록 + 문서가 한 번에
+  assert.ok(one.lines.some((l) => l.s === 3 && l.x.includes('기록과 문서를 한 번에')), '넣기 단계에서 기록 + 문서 한 번')
+  assert.ok(!one.lines.some((l) => l.s === 2), '기록 정리(짓기 단계 줄)가 없다')
   delete process.env.FAKE_AGENT_WAIT_MS
 })
 
-test('그만두기: 도는 Claude Code 를 끈다 · 기록은 남는다 · 멈춘 기다림은 시작하지 않고 이어서로 돈다', async () => {
+test('그만두기: 도는 Claude Code 를 끈다 · 아무것도 쓰지 않는다(approve) · 멈춘 기다림은 시작하지 않고 이어서로 돈다', async () => {
   process.env.FAKE_AGENT_WAIT_MS = '4000'
   const r = await s.hub.importFiles(ME, '회의', [{ path: '라.md', data: MD('라 통화') }, { path: '마.md', data: MD('마 통화') }])
   const [a, b] = r.rows.map((x) => x.run)
@@ -188,8 +190,10 @@ test('그만두기: 도는 Claude Code 를 끈다 · 기록은 남는다 · 멈�
   assert.equal(ja.state, 'cancel')
   assert.ok(Date.now() - t0 < 3000, '쉬던 Claude Code 를 기다리지 않고 끊었다')
   assert.ok(ja.lines.some((l) => /그만두기: Claude Code 를 끈다/.test(l.x)))
+  // approve 개인 지식(PC4) — 기록이 먼저 서지 않았다: 그만두면 아무것도 쓰지 않는다(파일은 넣은 사람 쪽에 그대로 · [다시] 로 다시)
   const k = await s.hub.get('회의')
-  assert.equal(k.byWork.get(r.rows[0].rec).state, 'pend', '기록은 남았다(정리 때 넣는다)')
+  assert.ok(!k.works.some((w) => w.tags.includes('ingest/라.md')), '기록 없음(아무것도 쓰지 않았다)')
+  assert.match(ja.msg, /아무것도 쓰지 않았다/)
   await new Promise((ok) => setTimeout(ok, 400))
   const jb = await s.hub.queueGet(ME, b)
   assert.equal(jb.state, 'pause', '멈춘 일은 길이 비어도 시작하지 않는다')

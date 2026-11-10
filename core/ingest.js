@@ -173,6 +173,8 @@ export const intakeTags = (src) => (src?.type === 'file' && src.rel ? [`ingest/$
 // 원천 글을 기록에 싣는 칸 — 줄마다 「> 」(원천 속 「## 넣은 것」 같은 머리가 kmd 칸으로 읽히지 않게)
 export const quoteSrc = (md, max) => String(md || '').slice(0, max).replace(/\r/g, '').split('\n').map((l) => `> ${l}`).join('\n')
 const srcLine = (src, md) => `- ${src?.type === 'commit' ? `커밋 ${src.commit || ''}${src.src ? ` · ${src.src}` : ''}` : src?.type === 'again' ? `다시 들이기 · 기록 ${src.rec || ''}` : src?.type === 'send' ? `보낸 글 · ${src.from || '개인 지식'} 에서` : `파일 ${src?.rel || src?.file || src?.title || ''}`} · 지문 ${sha16(String(md || ''))}`
+// 들인 기록 끝 원천 칸 — 지문 · 원천 글 인용(INTAKE_SRC_MAX 까지) · 개인 들이기의 넣기 에이전트 저장도 같은 칸(저장 승인 PC4)
+export const intakeSrcPart = (src, md) => `## 원천\n${srcLine(src, md)}\n\n${quoteSrc(md, INTAKE_SRC_MAX)}`
 // 넣지 못함으로 끝난 들이기의 기록 — 원천 앞 2000자와 지문만(S-D50)
 export function heldRecord(src, md, { why = '' } = {}) {
   // 정정(S9) — 들고 있던 정정 기록 초안 그대로(원천 글이 아니다) · 까닭은 넣지 못함 칸에
@@ -307,7 +309,7 @@ export function draftToSave(k, g, draft, { measure = false } = {}) {
     .slice(0, 20)
   if (sections.some((s) => s.base == null) && !names.length) warn.push('names-missing')
   const title = rec.title.replace(/\s+/g, ' ').trim().slice(0, 200)
-  const body = [summary, changes.length ? `## 바뀐 것\n${changes.map((x) => `- ${x}`).join('\n')}` : '', `## 원천\n${srcLine(src, src.md)}\n\n${quoteSrc(src.md, INTAKE_SRC_MAX)}`].filter(Boolean).join('\n\n')
+  const body = [summary, changes.length ? `## 바뀐 것\n${changes.map((x) => `- ${x}`).join('\n')}` : '', intakeSrcPart(src, src.md)].filter(Boolean).join('\n\n')
   const record = { title, body, tags: intakeTags(src), ...(Array.isArray(src.touches) && src.touches.length ? { touches: src.touches } : {}), ...(src.rec ? { fixes: [src.rec] } : {}) }
   return { ok: true, input: { record, sections, ...(names.length ? { names } : {}) }, held, warn, values }
 }

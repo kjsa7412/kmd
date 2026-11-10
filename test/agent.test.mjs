@@ -8,6 +8,7 @@
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -76,8 +77,15 @@ test('파일 넣기 → 에이전트가 회의록 항목 · 이름을 세운다 
   assert.match(doc, /3초 동안 1을 쓰고/)
   assert.match(fs.readFileSync(path.join(dir, '_vocab.md'), 'utf8'), /`term:펄스명령`: 펄스 명령\n  aliases: 펄스 방식/)
   assert.match(fs.readFileSync(path.join(dir, '_managed.md'), 'utf8'), /\| `term:펄스명령` \| `docs\/회의록.md` \| `## 2026-10-21 HNC 통화` \|/)
+  // 새 개인 지식(approve · 저장 승인 PC4) — 기록을 먼저 세우지 않는다: 에이전트의 save 가 기록(원천 인용) + 항목 + 이름을 한 커밋으로
   const k = await s.hub.get('회의')
-  assert.notEqual(k.byWork.get(r.rows[0].rec).state, 'pend')
+  const w = k.works.find((x) => x.tags.includes('ingest/DPMS_회의록_261021_HNC_통화.md'))
+  assert.equal(w?.state, 'in')
+  assert.equal(run.rec, w.id)
+  assert.match(w.body, /^## 원천$/m)
+  assert.deepEqual(w.touches, ['term:펄스명령'])
+  const files = execFileSync('git', ['-c', 'core.quotepath=false', '-C', dir, 'show', '--name-only', '--format=', 'HEAD'], { encoding: 'utf8' }).trim().split(/\r?\n/)
+  assert.ok(files.includes(`work/${w.id}.md`) && files.includes('docs/회의록.md') && files.includes('_vocab.md'), files.join(' · '))
   assert.ok(!fs.existsSync(path.join(dir, 'docs', 'DPMS_회의록_261021_HNC_통화.md')), '파일 이름 문서가 서지 않는다')
 })
 
@@ -103,7 +111,7 @@ test('넣지 않고 끝나면 규칙으로: 까닭이 터미널 · 갈래 문서
     await s.hub.idle('회의')
     const run = s.hub.runGet(ME, r.rows[0].run)
     assert.equal(run.state, 'rule', run.msg)
-    assert.ok(run.lines.some((l) => l.x.includes('규칙으로 넣는다')))
+    assert.ok(run.lines.some((l) => l.x.includes('규칙 길로 넣는다')))
     assert.match(fs.readFileSync(path.join(tmp, 'kn', '회의', 'docs', '회의록.md'), 'utf8'), /^## 2026-10-22 /m)
   } finally {
     delete process.env.FAKE_AGENT_MODE
@@ -152,6 +160,7 @@ test('가져오는 곳: 고치기(언제 · 넣을 문서) · 지우기(기록�
   const e = await s.hub.sourceEdit(ME, '회의', { name: '운영 문서', every: 'daily 07:30', doc: '운영2' })
   assert.equal(e.source.every, 'daily 07:30')
   assert.equal(e.source.rules[0].into.doc, '운영2')
+  await s.hub.idle('회의') // approve 개인 지식은 들이기가 끝나야 기록이 선다(기록 먼저가 없다 · PC4)
   assert.ok(await ingestedIn('회의', 'ingest/운영2/운영.md'), '출처 이름을 바꾸면 처음부터 다시')
   await s.hub.sourceRemove(ME, '회의', { name: '운영 문서' })
   assert.deepEqual((await s.hub.sources(ME, '회의')).map((x) => x.name), [])
@@ -164,12 +173,14 @@ test('가져오는 곳: 넣을 지식 · 출처 이름을 함께 바꾸면 옮�
   fs.mkdirSync(src, { recursive: true })
   fs.writeFileSync(path.join(src, '설계.md'), '# 설계\n\n## 구조\n셋\n')
   await s.hub.sourceAdd(ME, '회의', { name: '설계 문서', kind: 'docs', at: src, every: 'hourly', rules: [{ rule: 'docs', into: { doc: '설계' } }] })
+  await s.hub.idle('회의')
   assert.ok(await ingestedIn('회의', 'ingest/설계/설계.md'))
   const e = await s.hub.sourceEdit(ME, '회의', { name: '설계 문서', kn: '다른', doc: '설계2', copies: 'drop' })
   assert.equal(e.moved, '다른')
   assert.equal(e.copies || 0, 0, '사본 문서가 없다')
   assert.deepEqual((await s.hub.sources(ME, '회의')).map((x) => x.name).filter((n) => n === '설계 문서'), [])
   assert.equal((await s.hub.sources(ME, '다른')).find((x) => x.name === '설계 문서').rules[0].into.doc, '설계2')
+  await s.hub.idle('다른')
   assert.ok(await ingestedIn('다른', 'ingest/설계2/설계.md'), '새 지식에 처음부터')
   await assert.rejects(s.hub.sourceEdit(ME, '다른', { name: '설계 문서', kn: '없는지식' }))
   await s.hub.sourceRemove(ME, '다른', { name: '설계 문서' })
@@ -260,6 +271,8 @@ test('표 · 값 덩이는 kmd 가 옮긴다. 에이전트는 from(머리 · 전
 
 test('앞일은 함께 · 들이기는 한 줄: 파일 넷의 기록 정리가 셋까지 겹치고 넷 모두 들어간다 · idle 은 앞일까지 기다린다', async () => {
   await s.hub.addKnowledge(ME, { kind: 'new', name: '넣기넷' })
+  // 옛 개인 지식(이행 전 · 저장 방식 표지 없음) — 기록 정리(polishRecord)는 기록 먼저 길에만 있다(approve 개인 지식은 PC4 부터 기록 + 문서 한 번)
+  fs.rmSync(path.join(tmp, 'kn', '넣기넷', '_members.md'))
   const spans = path.join(tmp, 'spans.log')
   process.env.FAKE_CLAUDE_READ = '20000' // 둘이 함께 돌 때까지 기다린다(차례로 돌면 20초 뒤 혼자 답한다)
   process.env.FAKE_CLAUDE_SPANS = spans
