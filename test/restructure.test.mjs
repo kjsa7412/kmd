@@ -326,6 +326,34 @@ test('항목 옮김 · 이름 뒤 옛 기록 되돌리기 — 항목을 지우�
   fs.rmSync(dir, { recursive: true, force: true })
 })
 
+test('같은 문서 안 이름 바꾸기 · 그 기록의 표지가 있던 문서로 옮김 뒤 되돌리기 — 항목을 지우지 않고 앞 판 글로 · 짜임 이력이 없으면 E_CONFLICT', async () => {
+  const { revertPlan } = await import('../core/revert.js')
+  // 같은 문서 안 이름 바꾸기 — 표지 수가 그대로라 -S 가 짜임 커밋을 못 본다
+  const d1 = makeItems()
+  await applyRestructure(d1, { items: [{ from: { doc: '운영/배포', h: '배포 창' }, to: { doc: '운영/배포', h: '배포 시간' } }] }, { user: 'kim' })
+  const p1 = await revertPlan(await loadKnowledge({ id: 't', name: 't', dir: d1 }), '2026-1101-a')
+  assert.equal(p1.sections.length, 1)
+  assert.equal(p1.sections[0].heading, '배포 시간')
+  assert.ok(!p1.sections[0].remove, '지우지 않는다')
+  assert.match(p1.sections[0].content, /화요일 09:00/, '넣기 앞 글')
+  // 짜임 이력 없이 손으로 이름을 바꾼 것 — 지우지 않고 E_CONFLICT
+  const f = path.join(d1, 'docs/운영/배포.md')
+  fs.writeFileSync(f, read(d1, 'docs/운영/배포.md').replace('## 배포 시간', '## 배포 때'))
+  git(d1, 'commit', '-qam', '손으로 이름')
+  await assert.rejects(revertPlan(await loadKnowledge({ id: 't', name: 't', dir: d1 }), '2026-1101-a'), (e) => e.code === 'E_CONFLICT')
+  fs.rmSync(d1, { recursive: true, force: true })
+  // 그 기록의 표지가 이미 있던 문서로 옮김 — -S 의 가장 옛 묶음은 그 문서에 처음 단 묶음(옮긴 항목은 거기 없다)
+  const d2 = makeItems()
+  fs.writeFileSync(path.join(d2, 'docs/점검.md'), '# 점검\n\n## 사전 점검\n<!-- applied: 2026-1101-a -->\n[배포 창](운영/배포.md#배포%20창) 앞에 본다.\n')
+  git(d2, 'commit', '-qam', '점검에도 a')
+  await applyRestructure(d2, { items: [{ from: { doc: '운영/배포', h: '배포 창' }, to: { doc: '점검' } }] }, { user: 'kim' })
+  const p2 = await revertPlan(await loadKnowledge({ id: 't', name: 't', dir: d2 }), '2026-1101-a', { doc: 'docs/점검.md', heading: '배포 창' })
+  assert.equal(p2.sections.length, 1)
+  assert.ok(!p2.sections[0].remove, '지우지 않는다')
+  assert.match(p2.sections[0].content, /화요일 09:00/)
+  fs.rmSync(d2, { recursive: true, force: true })
+})
+
 test('새 대장 문서의 패턴 줄 · 빈 문서 걷기(항목 0 · 요약 0 · 들어오는 링크 0 · 장부 줄 0) · 걸음 표지 멱등 · stepFp 는 건드리지 않는 문서 글에 안 바뀜', async () => {
   const { stepFp } = await import('../core/restructure.js')
   const dir = makeItems()

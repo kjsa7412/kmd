@@ -30,7 +30,7 @@ import path from 'node:path'
 import { fail, KmdError } from './errors.js'
 import { nfc, oneLine, readText, sha16 } from './text.js'
 import { renderRecord, parseRecord } from './frontmatter.js'
-import { replaceSection, removeSection, renameSection, replaceIntro, parseDoc, findHeading, splitLog, splitRef, mergeLog, logLine, logHas, ROUGH } from './sections.js'
+import { replaceSection, removeSection, renameSection, replaceIntro, parseDoc, headsOf, findHeading, splitLog, splitRef, mergeLog, logLine, logHas, ROUGH } from './sections.js'
 import { formatCheck, formatMessage, keptMessage, lintNew, lintMessage } from './docformat.js'
 import { isReservedUser, isReservedTag, isLogRecord, LOG_DIR } from './names.js'
 import { isReservedFile } from './owners.js'
@@ -274,8 +274,10 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
     // 문서 짜임 — 자리 장부 정확한 줄 · 문서 요약(prepare 가 새로 읽은 지식으로 만든다)
     const place = shape ? (Array.isArray(prep?.place) ? prep.place : []) : []
     const intros = shape ? (Array.isArray(prep?.intros) ? prep.intros : []) : []
+    const relink = shape ? (Array.isArray(prep?.relink) ? prep.relink : []) : []
+    if (relink.some((x) => !x || !oneLine(x.from?.doc) || !oneLine(x.from?.h) || !oneLine(x.to?.doc) || !oneLine(x.to?.h))) fail('E_INPUT', '짜임 링크 모양이 아니다')
     if (place.some((x) => !x || !COORD.test(String(x.coord || '')) || !oneLine(x.doc) || !oneLine(x.heading)) || intros.some((x) => !x || !oneLine(x.doc) || typeof x.text !== 'string' || x.text.length > 4000)) fail('E_INPUT', '짜임 자리 · 요약 모양이 아니다')
-    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, partial, marks: partial || !!intake, intake: !!intake, serverTags, correction, attach: input.attach || [], onCommit, prep, shape: !!shape, place, intros })
+    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, partial, marks: partial || !!intake, intake: !!intake, serverTags, correction, attach: input.attach || [], onCommit, prep, shape: !!shape, place, intros, relink })
   })
 }
 
@@ -388,7 +390,7 @@ export function sectionBase(text, heading) {
   return sha16(sec ? sec.body : '')
 }
 
-async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], partial = false, marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null, shape = false, place = [], intros = [] }) {
+async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], partial = false, marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null, shape = false, place = [], intros = [], relink = [] }) {
   const held = [...heldIn]
   const regRaw = await fs.readFile(path.join(dir, '_managed.md'), 'utf8').then(readText, () => null)
   const vocRaw = await fs.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => null)
@@ -431,6 +433,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
     }
   }
   // 문서 짜임 — 이름이 새 항목에 닿게(정확한 줄은 제자리 · 패턴 줄로 닿던 이름은 패턴 줄 위에)
+  const regBeforePlace = regNext
   if (place.length) regNext = placeExact(regNext, place)
   const registry = parseRegistry(regNext)
 
@@ -567,6 +570,26 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
     if (/^#{1,6}\s/m.test(x.text)) { row('format', '요약에 머리 줄을 넣지 않는다'); continue }
     introsOk.push({ ...p, text: nfc(x.text) })
   }
+  // 문서 짜임 글 걸음은 한 덩이 — 조각 하나라도 넣지 못함이면 모두 넣지 못함(기록만 남긴다 · 출처 걷기 · 자리 장부 줄 · 요약도 쓰지 않는다).
+  //   합친 목표 하나만 들어가고 출처가 남거나 · 출처만 걷히고 목표가 빠지는 반쪽 짜임을 남기지 않는다
+  if (shape && held.length && (plan.length || introsOk.length || regNext !== regBeforePlace)) {
+    const why = '같은 걸음의 다른 조각이 넣지 못함이라 이 조각도 넣지 않았다'
+    for (const p of plan) if (!p.remove && p.rename == null) held.push(heldOf(p, 'shape', why))
+    for (const p of introsOk) held.push(heldRow({ doc: p.rel, heading: '(요약)', content: p.text }, 'shape', why))
+    plan = []
+    introsOk.length = 0
+    putRows.length = 0
+    regNext = regBeforePlace
+  }
+  // 걷힌 출처로 들어오던 링크(짜임 글 걸음) — 걷는 출처만 · 걷기 앞 그 문서의 머리로 앞부분 맞춤까지 가린다
+  const relinkMoves = []
+  for (const x of relink) {
+    const src = docPath(dir, x.from.doc)
+    const dst = docPath(dir, x.to.doc)
+    if (!plan.some((p) => p.remove && p.rel === src.rel && p.heading === nfc(x.from.h))) continue
+    const cur = await fs.readFile(src.full, 'utf8').then(readText, (e) => (e.code === 'ENOENT' ? '' : Promise.reject(e)))
+    relinkMoves.push({ srcRel: src.rel, h: nfc(x.from.h), heads: headsOf(cur.split('\n')).map((y) => y.heading), dstRel: dst.rel, to: nfc(x.to.h) })
+  }
 
   await ensureRepo(dir)
   const day = date.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2$3')
@@ -658,6 +681,17 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
       if (after === cur) continue
       if (!docs.includes(p.rel)) { await j.add(p.rel); docs.push(p.rel) }
       await writeAtomic(p.full, after)
+    }
+    // 걷힌 출처로 들어오던 링크 — 같은 묶음에서 새 항목으로(원본이 주인인 문서는 원본 글 그대로)
+    if (relinkMoves.length) {
+      const { readStructure, relinkItems } = await import('./restructure.js')
+      const all = (await readStructure(dir)).docs
+      const r = relinkItems(all, relinkMoves)
+      for (const [rel, text] of r.texts) {
+        if (watchedOf(all.get(rel))) continue
+        if (!docs.includes(rel)) { await j.add(rel); docs.push(rel) }
+        await writeAtomic(path.join(dir, ...rel.split('/')), text)
+      }
     }
     // 이름 장부 · 자리 장부 — 바뀐 것만
     const books = []

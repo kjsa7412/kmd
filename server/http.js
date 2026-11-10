@@ -762,6 +762,10 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         if (req.method !== 'GET') throw new KmdError('E_METHOD', 'GET 만 받는다')
         return out(200, await hub.shape(kn, ctx))
       }
+      if (req.method !== 'POST') throw new KmdError('E_METHOD', 'POST 만 받는다')
+      // 자리 먼저 — 읽기 미만은 404 · 지식관리자가 아니면 403(본문을 읽기 전에)
+      await hub.meta(kn, ctx)
+      hub.need(ctx, kn, 'admin')
       const b = await readBody(req)
       if (shm[2] === 'check') return out(200, await hub.shapeCheck(kn, ctx, { plan: b.plan }))
       if (shm[2] === 'try') return out(200, await hub.shapeTry(ctx, kn))

@@ -150,6 +150,36 @@ function mapLinks(text, fromRel, docSet, fn) {
 }
 const anchor = (h) => encPath(String(h)).replace(/#/g, '%23')
 const relLink = (fromRel, toRel) => encPath(P.relative(P.dirname(fromRel), toRel) || P.basename(toRel))
+// 걷힌 항목으로 들어오는 링크 — `x.md#옛머리` · 같은 문서의 `#옛머리` 를 새 항목으로(문서 짜임 글 걸음 · 합치기 · 나누기 · core/save.js)
+//   texts — Map(rel → 글) · moves — [{ srcRel, h, heads(걷기 앞 그 문서의 머리), dstRel, to }] → { texts: 바뀐 것만, n }
+export function relinkItems(texts, moves) {
+  const docSet = new Set(texts.keys())
+  const out = new Map()
+  let n = 0
+  for (const [rel, text] of texts) {
+    const r = mapLinks(text, rel, docSet, ({ target, frag }) => {
+      const m = moves.find((x) => x.srcRel === target && findHeading(x.heads, frag, (y) => y) === x.h)
+      if (!m) return null
+      return (m.dstRel === rel ? '' : relLink(rel, m.dstRel)) + '#' + anchor(m.to)
+    })
+    if (r.n) { out.set(rel, r.text); n += r.n }
+  }
+  return { texts: out, n }
+}
+// 끊긴 `#머리` 링크 — 있는 문서를 가리키는데 그 머리(모든 단계)가 없다 · [「문서\n목표#머리」] (끝 진단 「고칠 링크」 · core/shape.js diagnose)
+export function brokenLinks(docs) {
+  const docSet = new Set(docs.map((d) => d.rel))
+  const heads = new Map(docs.map((d) => [d.rel, headsOf(String(d.text).split('\n')).map((x) => x.heading)]))
+  const out = []
+  for (const d of docs) {
+    mapLinks(String(d.text), d.rel, docSet, ({ target, frag }) => {
+      const hs = heads.get(target)
+      if (hs && frag && !findHeading(hs, frag, (y) => y)) out.push(`${d.rel}\n${target}#${frag}`)
+      return null
+    })
+  }
+  return out
+}
 // 머리 한 줄 검사(항목 머리)
 const headProblem = (h) => (!h || !String(h).trim() ? '머리가 비었다' : /[\r\n]/.test(h) ? '머리는 한 줄이다' : String(h) !== String(h).trim() ? '머리 앞뒤에 빈칸을 두지 않는다' : [...String(h)].length > 120 ? '머리는 120자 안으로' : /^#/.test(h) ? '머리는 # 으로 시작하지 않는다' : '')
 const h2Of = (text) => headsOf(String(text).split('\n')).filter((x) => x.level === 2)

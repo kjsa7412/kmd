@@ -18,9 +18,10 @@ import { nfc, readText, sha16 } from './text.js'
 import { parseDoc, headingMatches } from './sections.js'
 import { parseForms, formsOf, formFor, headingFits, formHeadRule, FORM_KINDS } from './guard.js'
 import { cleanForms } from './namebook.js'
-import { nameProblem, stepFp } from './restructure.js'
+import { nameProblem, stepFp, brokenLinks } from './restructure.js'
 import { coordsOfSection, reflectedIn } from './knowledge.js'
 import { watchedOf } from './watchmark.js'
+import { hasBlockMarker } from './baseline.js'
 
 export { stepFp }
 const P = path.posix
@@ -334,6 +335,8 @@ export function planCheck(k, S, Pl) {
       const sec = dObj?.sections.find((x) => x.h === s.h)
       const pend = k && sec ? k.works.filter((w) => w.state === 'pend' && w.touches.some((c) => s.coords.includes(c)) && !reflectedIn(k, w, sec)) : []
       if (pend.length) err(`${s.doc} › ${s.h}`, `아직 안 넣은 기록 ${pend.length} 이 걸린 항목은 나누거나 합치지 않는다(먼저 넣거나 두기로 정한다)`, 'pend')
+      // 저절로 채우는 표 — 걷히는 출처(keep 이 아닌)면 표와 원천 규칙(_sources.json into)의 고리가 끊긴다. 항목째 옮기기(frame)나 제자리 고쳐 쓰기만
+      if (!s.keep && sec && hasBlockMarker(sec.body)) err(`${s.doc} › ${s.h}`, '저절로 채우는 표가 든 항목은 나누거나 합쳐 걷지 않는다(항목째 옮기거나 같은 머리로 남긴다)', 'machine')
       for (const c of s.coords) {
         const at = nameAt.get(c)
         if (!at || !u.targets.some((t) => t.doc === at.doc && t.h === at.h)) err(c, `「${s.doc} › ${s.h}」 에 닿던 이름을 새 항목(${u.targets.map((t) => t.h).join(' · ')}) 가운데 하나에 놓는다(names)`, 'names')
@@ -367,13 +370,14 @@ export function planCheck(k, S, Pl) {
 
 // 걸음 번호(4-2 · 걸음 표지 shape/<work>/<번호>) — 차례 고정 · 다시 맞추기 · 이어 넣기에도 같은 번호
 //   forms 1 · frame 2 · write 10 + 단위 번호 · tidy 9998 · seal 9999
+//   off — 넣는 중 다시 검사한 구조안(글 걸음만 다시 맞춤)의 글 걸음 번호를 앞서 넣은 글 걸음 뒤로 민다(같은 표지가 「넣음」 으로 건너뛰지 않게)
 export const STEP_NO = { forms: 1, frame: 2, write: (n) => 10 + n, tidy: 9998, seal: 9999 }
-export function stepsOf(diff) {
+export function stepsOf(diff, off = 0) {
   const steps = []
   if (diff.forms) steps.push({ n: STEP_NO.forms, kind: 'forms' })
   const f = diff.frame
   if (f.moves.length || f.creates.length || f.items.length || (f.dirs || []).length || f.order) steps.push({ n: STEP_NO.frame, kind: 'frame' })
-  for (const u of diff.writes) steps.push({ n: STEP_NO.write(u.n), kind: 'write', unit: u.n })
+  for (const u of diff.writes) steps.push({ n: STEP_NO.write(off + u.n), kind: 'write', unit: u.n })
   if (diff.tidy.drops.length) steps.push({ n: STEP_NO.tidy, kind: 'tidy' })
   steps.push({ n: STEP_NO.seal, kind: 'seal' })
   return steps
@@ -408,7 +412,8 @@ export function diagnose(before, after, { work, sectionOf, coordsOfSection, audi
   const lost = a1.lost.filter((x) => !lost0.has(x.coord))
   if (lost.length) blockers.push({ what: '항목 잃은 이름', why: lost.slice(0, 5).map((x) => x.coord).join(' · ') + (lost.length > 5 ? ` 외 ${lost.length - 5}` : '') })
   const mine = (w) => (w.tags || []).some((t) => t.startsWith(`shape/${work}/`))
-  const held = after.works.filter((w) => mine(w) && w.state === 'held')
+  const held0 = new Set(before.works.filter((w) => w.state === 'held').map((w) => w.id))
+  const held = after.works.filter((w) => mine(w) && w.state === 'held' && !held0.has(w.id))
   if (held.length) blockers.push({ what: '넣지 못함', why: held.map((w) => w.title).slice(0, 5).join(' · ') })
   const st0 = new Map(before.works.map((w) => [w.id, w.state]))
   const moved = after.works.filter((w) => !mine(w) && st0.has(w.id) && st0.get(w.id) !== w.state)
@@ -416,6 +421,11 @@ export function diagnose(before, after, { work, sectionOf, coordsOfSection, audi
   const un0 = new Set(a0.unnamed.map((x) => x.id))
   const un = a1.unnamed.filter((x) => !un0.has(x.id))
   if (un.length) warnings.push({ what: '이름 없는 기록', why: String(un.length) })
+  // 고칠 링크 — 걸음 뒤 새로 끊긴 `#머리` 링크(걷힌 항목으로 들어오던 링크는 글 걸음이 새 항목으로 고친다 · 남은 것은 손으로)
+  const textsOf = (k) => k.docs.map((d) => ({ rel: d.path, text: [d.intro || '', ...d.sections.map((s) => `## ${s.h}\n${s.body}`)].join('\n') }))
+  const br0 = new Set(brokenLinks(textsOf(before)))
+  const broken = brokenLinks(textsOf(after)).filter((x) => !br0.has(x))
+  if (broken.length) warnings.push({ what: '고칠 링크', why: `${broken.length}: ${broken.slice(0, 3).map((x) => x.split('\n').map((y) => y.replace(/^docs\//, '').replace(/\.md(?=#|$)/, '')).join(' → ')).join(' · ')}` })
   for (const d of after.docs) {
     const n = d.sections.length
     if (n && (n < 5 || n > 40)) warnings.push({ what: d.id, why: `항목 ${n}(문서당 5~40)` })
@@ -423,7 +433,7 @@ export function diagnose(before, after, { work, sectionOf, coordsOfSection, audi
     if (long.length) warnings.push({ what: d.id, why: `300줄 넘는 항목 ${long.length}` })
     if (!d.intro?.trim()) warnings.push({ what: d.id, why: '요약 없음' })
   }
-  return { blockers, warnings, counts: { lost: lost.length, held: held.length, moved: moved.length, docs: after.docs.length, items: after.docs.reduce((x, d) => x + d.sections.length, 0) } }
+  return { blockers, warnings, counts: { lost: lost.length, held: held.length, moved: moved.length, links: broken.length, docs: after.docs.length, items: after.docs.reduce((x, d) => x + d.sections.length, 0) } }
 }
 
 // 넣기 직전 짜임(4-3 되돌리기 3) — 되돌리기 구조안의 재료. 문서 · 항목 머리 · 글이 다시 쓰일 항목의 글 · 그 항목에 닿던 이름 · 옮겨 간 자리

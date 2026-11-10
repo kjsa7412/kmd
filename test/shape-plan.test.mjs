@@ -178,6 +178,42 @@ test('걸림 — 덮임 빠짐 · 구조안에 없는 문서 · G4 · 별칭 겹
   fs.rmSync(dir, { recursive: true, force: true })
 })
 
+test('끝 진단 — 걸음 뒤 새로 끊긴 #머리 링크는 「고칠 링크」 경고 · 앞에서 끊겼던 것 · ### 머리 링크는 세지 않는다', async () => {
+  const { diagnose } = await import('../core/shape.js')
+  const kOf = (h) => ({ works: [], docs: [
+    { path: 'docs/a.md', intro: '[옛](b.md#없음)', sections: [{ h: '가', body: `[나](b.md#${encodeURIComponent(h)}) · [소](b.md#%EC%84%B8%EB%B6%80)` }] },
+    { path: 'docs/b.md', intro: '', sections: [{ h: '옛', body: '### 세부\n값' }] },
+  ] })
+  const after = kOf('옛')
+  after.docs[1].sections[0].h = '새'
+  const audit = () => ({ lost: [], unnamed: [] })
+  const d = diagnose(kOf('옛'), after, { work: '0123456789ab', sectionOf: null, coordsOfSection: null, audit })
+  assert.equal(d.counts.links, 1, JSON.stringify(d))
+  assert.ok(d.warnings.some((x) => x.what === '고칠 링크' && /a → b#옛/.test(x.why)), JSON.stringify(d.warnings))
+  assert.equal(diagnose(kOf('옛'), kOf('옛'), { work: '0123456789ab', audit }).counts.links, 0)
+})
+
+test('걸림 — 저절로 채우는 표가 든 항목은 걷히는 출처(합치기 · 나누기)가 되지 않는다 · 같은 머리 고쳐 쓰기 · 항목째 옮기기는 된다', async () => {
+  const tbl = '<!-- baseline: src="db" rule=tables asof="2026-11-01 09:00" -->\n| 표 | 뜻 |\n|---|---|\n| T1 | 가 |\n<!-- /baseline -->'
+  const dir = make({ ...BASE, 'docs/배포 절차.md': BASE['docs/배포 절차.md'].replace('디스크 80%.', `디스크 80%.\n\n${tbl}`) })
+  const { k, S } = await load(dir)
+  const m = same(S)
+  m.docs[0].items = [{ h: '배포 창', from: [{ doc: '배포 절차', h: '배포 창' }] }, { h: '점검 목록', from: [{ doc: '배포 절차', h: '사전 점검' }, { doc: '배포 절차', h: '사후 점검' }] }]
+  m.names = [{ coord: 'proc:사전점검', doc: '배포 절차', h: '점검 목록' }]
+  const rm = planCheck(k, S, P(m))
+  assert.ok(rm.errors.some((e) => e.code === 'machine' && /사전 점검/.test(e.where)), JSON.stringify(rm.errors))
+  assert.ok(!rm.errors.some((e) => e.code === 'machine' && /사후 점검/.test(e.where)), '표가 없는 출처는 걸리지 않는다')
+  // 같은 머리로 남기는 합치기(고쳐 쓰기) — 표가 든 항목이 keep 이면 걸리지 않는다
+  const kp = same(S)
+  kp.docs[0].items = [{ h: '배포 창', from: [{ doc: '배포 절차', h: '배포 창' }] }, { h: '사전 점검', from: [{ doc: '배포 절차', h: '사전 점검' }, { doc: '배포 절차', h: '사후 점검' }] }]
+  assert.ok(!planCheck(k, S, P(kp)).errors.some((e) => e.code === 'machine'))
+  // 항목째 옮기기(frame)
+  const mv = same(S)
+  mv.docs[1].items.push(mv.docs[0].items.splice(1, 1)[0])
+  assert.ok(!planCheck(k, S, P(mv)).errors.some((e) => e.code === 'machine'))
+  fs.rmSync(dir, { recursive: true, force: true })
+})
+
 test('서버: GET shape · POST shape/check — 쓰기 자리 403 · 지식관리자 · 초안을 장부에 · 다른 사람이 연 짜임 일은 409 · 걸림은 200 + errors', async () => {
   const { startServer } = await import('../server/http.js')
   const { copyDir, signIn, seat } = await import('./helpers.mjs')

@@ -47,7 +47,7 @@ import { FILE_SCHEMA, filePrompt, fileRecord, COMMIT_SCHEMA, commitPrompt, commi
 import { renderRecord } from '../core/frontmatter.js'
 import { stampAll, headingMatches, findHeading } from '../core/sections.js'
 import { docfmtDir, checkFormat } from '../core/docformat.js'
-import { applyRestructure, readStructure, structureFp } from '../core/restructure.js'
+import { applyRestructure, readStructure, structureFp, stepFp } from '../core/restructure.js'
 import { readShape, cleanPlan, planCheck, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO } from '../core/shape.js'
 import { parseOrder } from '../core/order.js'
 import { parseDoc as parseDocText } from '../core/sections.js'
@@ -590,6 +590,19 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   // 글 걸음 하나의 재료(바탕 세우기 설계 4-3 · 4-5) — 기록(제목 · 본문 · touches · fixes) · prepare(줄 안에서 새로 읽은 지식으로 조각 · 걷을 출처 · 자리 장부 줄 · 요약).
   //   진짜(hub.shapeWrite → hub.save opt.shape)와 연습 판(core save 를 연습 판 폴더에 바로)이 같이 쓴다 — 같은 core 검사(checkShape · 저장 문)를 지난다(4-6)
   //   → { skipped: 기록 id } | { record, prepare, tags }
+  // 짜임 일의 넣은 걸음 — 이력 · 기록의 걸음 표지(shape/<work>/<n>)로(장부 쓰기를 잃었어도 이어 넣기가 다시 하지 않게) · 넣지 못함 · 바로잡힘 기록은 빼고
+  function shapeMarks(k, work) {
+    const out = new Set()
+    for (const x of [...k.works, ...k.logs]) {
+      if (x.state === 'held' || x.state === 'fixed') continue
+      for (const g of x.tags || []) {
+        const m = /^shape\/([0-9a-f]{12})\/(\d{1,4})$/.exec(g)
+        if (m && m[1] === work) out.add(Number(m[2]))
+      }
+    }
+    return out
+  }
+  const liveWork = (w0, work) => !!w0 && w0.work === work && w0.stage !== 'stopped-final'
   async function shapeJob({ dir, k0, loadK, plan, n, fp = null, texts = [], intros = {}, work, step }) {
     const unitOf = async (k) => {
       const S = readShape(k, await readStructure(dir))
@@ -674,7 +687,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       // 출처 걷기 — 목표를 먼저 쓰고 · 고쳐 쓰는 출처(keep)는 걷지 않는다
       for (const s of u.sources) if (!s.keep) sections.push({ doc: rel(s.doc), heading: s.h, remove: true, base: s.sha })
-      return { sections, held: [], place, intros: introRows.map((x) => ({ doc: x.doc, text: x.text })), warnings: r.warnings }
+      // 걷는 출처로 들어오던 링크(`x.md#옛머리` · `#옛머리`) — 같은 묶음에서 그 출처를 쓴 첫 목표로(저장 문이 문서 글을 고친다)
+      const relink = u.sources.filter((s) => !s.keep).map((s) => {
+        const t = targets.find((x) => x.plan.from.some((f) => f.doc === s.doc && f.h === s.h)) || targets[0]
+        return t ? { from: { doc: rel(s.doc), h: s.h }, to: { doc: t.doc, h: t.h } } : null
+      }).filter(Boolean)
+      return { sections, held: [], place, relink, intros: introRows.map((x) => ({ doc: x.doc, text: x.text })), warnings: r.warnings }
     }
     return { record, prepare, tags: ['shape', step] }
   }
@@ -1778,14 +1796,26 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           r.ok = false
         }
       }
-      const steps = stepsOf(r.diff)
       const w = await hub.shapeEdit(id, (w0) => {
-        if (w0 && w0.stage === 'done') w0 = null // 끝난 짜임 일 — 새 일로(되돌리기 구조안은 hub.shapeUndo)
+        // 끝난 · 그만둔 짜임 일 — 새 일로. 넣기 직전 짜임은 되돌리기 재료(undoable)로 넘긴다(검사가 넘어져도 잃지 않게 · hub.shapeUndo)
+        let carry = w0?.undoable || null
+        if (w0 && ['done', 'stopped-final'].includes(w0.stage)) { carry = w0.before ? { work: w0.work, before: w0.before } : carry; w0 = null }
         if (w0 && ctx && w0.by !== ctx.user) throw new KmdError('E_CONFLICT', `${w0.by} 가 연 짜임 일이 있다. 그 사람이 잇거나 지식관리자가 그만두게 한다`)
-        if (w0 && ['putting', 'rebase', 'stopped'].includes(w0.stage)) throw new KmdError('E_CONFLICT', '넣는 중인 짜임 일이다: 이어 넣거나 지식관리자가 그만두게 한다')
+        if (w0 && w0.stage === 'putting') throw new KmdError('E_CONFLICT', '넣는 중인 짜임 일이다: 이어 넣거나 지식관리자가 그만두게 한다')
+        // 넣다 선 짜임 일(stopped · rebase) — 지금 짜임에 맞춘 구조안으로 다시 검사한다. 일 · 넣은 걸음 · 넣기 직전 짜임은 그대로 ·
+        //   이미 넣은 갈래 장부 · 짜임 걸음은 다시 하지 않는다(그 걸음이 다시 나오면 걸림) · 글 걸음 번호는 넣은 글 걸음 뒤로(off)
+        const resumed = !!w0 && (['stopped', 'rebase'].includes(w0.stage) || !!w0.before || !!w0.done?.length)
+        let off = 0
+        if (resumed) {
+          const done = new Set([...(w0.done || []), ...shapeMarks(k, w0.work)])
+          for (const s of stepsOf(r.diff)) if (s.kind !== 'write' && s.kind !== 'seal' && done.has(s.n)) { r.errors.push({ where: s.kind, why: '넣는 중인 짜임 일은 이미 넣은 갈래 장부 · 짜임 걸음을 다시 하지 않는다: 글 걸음만 다시 맞추거나 그만두고 새로 연다' }); r.ok = false }
+          off = Math.max(0, ...[...done].filter((n) => n > STEP_NO.write(0) && n < STEP_NO.tidy).map((n) => n - STEP_NO.write(0)))
+          if (STEP_NO.write(off + r.diff.writes.length) >= STEP_NO.tidy) { r.errors.push({ where: '걸음', why: '글 걸음이 너무 많다: 그만두고 새로 연다' }); r.ok = false }
+        }
         const now = new Date().toISOString()
-        return { v: 1, kn: id, work: w0?.work || crypto.randomBytes(6).toString('hex'), kind: 'reshape', by: w0?.by || user, opened: w0?.opened || now, at: now, stage: 'plan', plan: c.plan, check: { ok: r.ok, stale: r.stale, fp: S.fp, summary: r.summary }, done: [], ...(w0?.undoOf ? { undoOf: w0.undoOf } : {}) }
+        return { v: 1, kn: id, work: w0?.work || crypto.randomBytes(6).toString('hex'), kind: 'reshape', by: w0?.by || user, opened: w0?.opened || now, at: now, stage: 'plan', plan: c.plan, check: { ok: r.ok, stale: r.stale, fp: S.fp, summary: r.summary }, done: resumed ? w0.done || [] : [], ...(resumed ? { off, ...(w0.before ? { before: w0.before, putAt: w0.putAt } : {}) } : {}), ...(w0?.undoOf ? { undoOf: w0.undoOf } : {}), ...(carry ? { undoable: carry } : {}) }
       })
+      const steps = stepsOf(r.diff, w.off || 0)
       const d = r.diff
       const changes = [
         ...d.frame.moves.map((m) => `문서 옮김: ${m.from} → ${m.to}`),
@@ -1833,11 +1863,32 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const w = await hub.shapeWork(id)
       if (!w) throw new KmdError('E_NOTFOUND', '열린 짜임 일이 없다: 구조안을 먼저 검사한다')
       if (w.broken) throw new KmdError('E_CONFLICT', '잠깐 멈춤: 짜임 일 장부가 깨졌다. 지식관리자가 그만두게 하면 새로 연다')
+      if (w.stage === 'stopped-final') throw new KmdError('E_CONFLICT', '그만둔 짜임 일이다: 구조안을 새로 검사하거나 되돌리기 구조안을 연다')
       if (w.by !== ctx.user) throw new KmdError('E_CONFLICT', `${w.by} 가 연 짜임 일이다. 그 사람이 잇거나 지식관리자가 그만두게 한다`)
       return { meta, w }
     },
+    // 짜임 일이 아직 그 일인가 — 그만두기(장부 지움 · stopped-final) · 새 일이면 도는 해 보기 · 넣기가 다음 걸음 앞에서 선다
+    async shapeAlive(id, work) {
+      const cur = await hub.shapeWork(id)
+      return !!cur && !cur.broken && cur.work === work && cur.stage !== 'stopped-final'
+    },
+    // 남은 연습 판 걷기 — 켤 때(모두) · 깨진 장부를 그만두게 할 때(그 지식). 장부(.json)는 건드리지 않는다
+    async shapeSweep(id = null) {
+      const base = path.join(dataDir, 'shape')
+      const ents = await fs.readdir(base, { withFileTypes: true }).catch((e) => (e.code === 'ENOENT' ? [] : Promise.reject(e)))
+      const gone = []
+      for (const e of ents) {
+        const m = /^(.+)\.([0-9a-f]{12})$/.exec(e.name)
+        if (!e.isDirectory() || !m || (id != null && m[1] !== encodeURIComponent(id))) continue
+        try {
+          await fs.rm(path.join(base, e.name), { recursive: true, force: true })
+          gone.push(e.name)
+        } catch (x) { log(`연습 판을 지우지 못했다 ${e.name}: ${x.message}`) }
+      }
+      return gone
+    },
     // 연습 판에 걸음 모두(4-6 해 보기) → { fp, steps, post, fps, diag, stopped? } · 진짜는 건드리지 않는다
-    //   이어 넣기 중(frame 이 진짜에 들어간 뒤)이면 남은 걸음만 · 구조안은 짜임 뒤 구조안(post)으로
+    //   이어 넣기 중(frame 이 진짜에 들어간 뒤 · 장부의 done 이나 이력의 걸음 표지)이면 남은 걸음만 · 구조안은 짜임 뒤 구조안(post)으로
     async shapeRehearse(ctx, id, meta, w) {
       const prac = hub.shapePractice(id, w.work)
       const kopt = { cutoverAt: config.cutoverAt || null, team: mode === 'team' }
@@ -1851,7 +1902,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const legacy = mode === 'team' ? (k, docObj, sec) => legacyPendOf(k, { docObj, sec, heading: sec.h }, null) : null
         const k0 = await pk()
         const S0 = readShape(k0, await readStructure(prac))
-        const done = new Set(w.done || [])
+        const done = new Set([...(w.done || []), ...shapeMarks(k0, w.work)])
         const frameDone = done.has(STEP_NO.frame)
         let steps, post, plan0
         if (frameDone && w.tried?.post) {
@@ -1862,12 +1913,17 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           plan0 = w.plan
           const chk = planCheck(k0, S0, plan0)
           if (!chk.ok) throw new KmdError('E_INPUT', `구조안이 지금 지식에 맞지 않는다: ${chk.errors[0].where}: ${chk.errors[0].why}`, { details: chk.errors.slice(0, 50) })
-          steps = stepsOf(chk.diff)
+          steps = stepsOf(chk.diff, w.off || 0)
+          const again = steps.find((s) => s.kind !== 'write' && s.kind !== 'seal' && done.has(s.n))
+          if (again) throw new KmdError('E_INPUT', `이미 넣은 걸음(${again.kind})을 다시 한다: 글 걸음만 다시 맞추거나 그만두고 새로 연다`)
+          steps = steps.filter((s) => !done.has(s.n))
           post = afterFrame(plan0, chk.diff.finalOf)
         }
         const fps = {}
         let stopped = null
         for (const s of steps) {
+          // 그만두었으면 다음 걸음 앞에서 선다
+          if (!(await hub.shapeAlive(id, w.work))) { stopped = { n: s.n, why: '그만두었다' }; break }
           const step = `shape/${w.work}/${s.n}`
           const k = await pk()
           const S = readShape(k, await readStructure(prac))
@@ -1903,19 +1959,25 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         await fs.rm(prac, { recursive: true, force: true }).catch((e) => log(`연습 판을 지우지 못했다 ${prac}: ${e.message}`))
       }
     },
-    // 해 보기(POST /api/k/:id/shape/try) — 연습 판에 걸음 모두 → 끝 진단(승인 3 의 재료)
-    async shapeTry(ctx, id) {
-      const { meta, w } = await hub.shapeOwn(ctx, id)
-      if (!['plan', 'tried'].includes(w.stage)) throw new KmdError('E_CONFLICT', '넣는 중인 짜임 일이다: 이어 넣는다')
-      const t = await hub.shapeRehearse(ctx, id, meta, w)
-      const now = new Date().toISOString()
-      await hub.shapeEdit(id, (w0) => (w0 && w0.work === w.work ? { ...w0, stage: 'tried', at: now, tried: { ...t, at: now } } : undefined))
-      return { kn: id, work: w.work, steps: t.steps, diag: t.diag, ...(t.stopped ? { stopped: t.stopped } : {}), ok: !t.diag.blockers.length }
+    // 해 보기(POST /api/k/:id/shape/try) — 연습 판에 걸음 모두 → 끝 진단(승인 3 의 재료) · 해 보기 · 넣기 · 그만두기 · 되돌리기는 지식마다 한 줄(shape-run)
+    shapeTry(ctx, id) {
+      return serial(`shape-run:${id}`, async () => {
+        const { meta, w } = await hub.shapeOwn(ctx, id)
+        if (!['plan', 'tried'].includes(w.stage)) throw new KmdError('E_CONFLICT', '넣는 중인 짜임 일이다: 이어 넣는다')
+        const t = await hub.shapeRehearse(ctx, id, meta, w)
+        const now = new Date().toISOString()
+        await hub.shapeEdit(id, (w0) => (liveWork(w0, w.work) ? { ...w0, stage: 'tried', at: now, tried: { ...t, at: now } } : undefined))
+        return { kn: id, work: w.work, steps: t.steps, diag: t.diag, ...(t.stopped ? { stopped: t.stopped } : {}), ok: !t.diag.blockers.length }
+      })
     },
     // 넣기 · 이어 넣기(POST /api/k/:id/shape/put) — 승인 3 뒤 진짜에. 걸음은 진짜에서 새로 읽은 지식과 같은 구조안으로 다시 만든다 · 걸음마다 멱등 · 지문.
     //   진짜 짜임이 해 보기 때와 다르면 다시 맞추기(연습 판을 다시 떠서 견줌): 걸음 목록 · 글 지문이 같고 막는 것이 0 이면 다시 묻지 않고 잇는다 · 다르면 다시 승인(again)
     //   max — 이번에 넣을 걸음 수(서버 안 · 시험)
-    async shapePut(ctx, id, { max = Infinity, again = false, rebased = false } = {}) {
+    shapePut(ctx, id, opt = {}) {
+      return serial(`shape-run:${id}`, () => hub.shapePutRun(ctx, id, opt))
+    },
+    // 넣기 본체 — shape-run 줄 안에서만(hub.shapePut) · 다시 맞춘 뒤 잇기도 같은 줄 안에서 이것을 다시 부른다
+    async shapePutRun(ctx, id, { max = Infinity, again = false, rebased = false } = {}) {
       const { meta, w } = await hub.shapeOwn(ctx, id)
       if (w.stage === 'done') return { kn: id, work: w.work, done: true, steps: w.done.length }
       if (!w.tried || !['tried', 'putting', 'rebase', 'stopped'].includes(w.stage)) throw new KmdError('E_CONFLICT', '연습 판에 해 보기를 먼저 한다')
@@ -1924,61 +1986,71 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 다시 맞추기 — 진짜 지문이 바뀌었거나 앞 넣기가 E_CONFLICT 로 섰으면
       const k1 = await hub.get(id, ctx)
       const S1 = readShape(k1, await readStructure(meta.dir))
-      const frameDone = (w.done || []).includes(STEP_NO.frame)
+      // 넣은 걸음 — 장부의 done 과 이력의 걸음 표지(커밋 뒤 장부 쓰기를 잃었어도 다시 하지 않는다)
+      const done = new Set([...(w.done || []), ...shapeMarks(k1, w.work)])
+      const frameDone = done.has(STEP_NO.frame)
       if (!again && (w.stage === 'rebase' || S1.fp !== (w.tried.nowFp || w.tried.fp))) {
         const t = await hub.shapeRehearse(ctx, id, meta, w)
-        const same = JSON.stringify(t.steps.map((s) => s.n)) === JSON.stringify((w.tried.steps || []).filter((s) => !(w.done || []).includes(s.n)).map((s) => s.n)) && Object.entries(t.fps).every(([n, fp]) => w.tried.fps?.[n] === fp)
+        if (t.stopped?.why === '그만두었다') return { kn: id, work: w.work, halted: true, done: [...done] }
+        const same = JSON.stringify(t.steps.map((s) => s.n)) === JSON.stringify((w.tried.steps || []).filter((s) => !done.has(s.n)).map((s) => s.n)) && Object.entries(t.fps).every(([n, fp]) => w.tried.fps?.[n] === fp)
         const now = new Date().toISOString()
         if (!same || t.diag.blockers.length) {
-          await hub.shapeEdit(id, (w0) => (w0 && w0.work === w.work ? { ...w0, stage: frameDone ? 'rebase' : 'tried', at: now, tried: { ...w0.tried, ...t, steps: frameDone ? w0.tried.steps : t.steps, at: now } } : undefined))
+          await hub.shapeEdit(id, (w0) => (liveWork(w0, w.work) ? { ...w0, stage: frameDone ? 'rebase' : 'tried', at: now, tried: { ...w0.tried, ...t, steps: frameDone ? w0.tried.steps : t.steps, at: now } } : undefined))
           return { kn: id, work: w.work, rebased: true, again: true, diag: t.diag, ...(t.stopped ? { stopped: t.stopped } : {}) }
         }
-        await hub.shapeEdit(id, (w0) => (w0 && w0.work === w.work ? { ...w0, stage: w0.stage === 'rebase' ? 'putting' : w0.stage, at: now, tried: { ...w0.tried, nowFp: t.fp, fps: { ...w0.tried.fps, ...t.fps } } } : undefined))
-        return hub.shapePut(ctx, id, { max, again: true, rebased })
+        await hub.shapeEdit(id, (w0) => (liveWork(w0, w.work) ? { ...w0, stage: w0.stage === 'rebase' ? 'putting' : w0.stage, at: now, tried: { ...w0.tried, nowFp: t.fp, fps: { ...w0.tried.fps, ...t.fps } } } : undefined))
+        return hub.shapePutRun(ctx, id, { max, again: true, rebased })
       }
       if (w.tried.diag?.blockers?.length) throw new KmdError('E_CONFLICT', `끝 진단에 막는 것이 있다: ${w.tried.diag.blockers[0].what}`)
-      // 넣기 직전 짜임 — 되돌리기 구조안의 재료(처음 한 번)
+      // 넣기 직전 짜임 — 되돌리기 구조안의 재료(처음 한 번 · 넣다 서서 다시 맞춘 일은 처음 것을 그대로)
       if (w.stage === 'tried') {
-        const snap = snapshotOf(S1, w.plan, k1)
-        await hub.shapeEdit(id, (w0) => (w0 && w0.work === w.work ? { ...w0, stage: 'putting', before: snap, putAt: new Date().toISOString() } : undefined))
+        const snap = w.before ? null : snapshotOf(S1, w.plan, k1)
+        const at = new Date().toISOString()
+        await hub.shapeEdit(id, (w0) => (liveWork(w0, w.work) ? { ...w0, stage: 'putting', before: w0.before || snap, putAt: w0.putAt || at } : undefined))
       }
-      const done = new Set(w.done || [])
       let count = 0
       for (const s of w.tried.steps) {
         if (done.has(s.n)) continue
         if (count >= max) return { kn: id, work: w.work, putting: true, done: [...done], left: w.tried.steps.filter((x) => !done.has(x.n)).length }
+        // 그만두었으면(장부를 지웠거나 · stopped-final · 새 일) 다음 걸음 앞에서 선다 — 넣은 걸음은 그대로
+        if (!(await hub.shapeAlive(id, w.work))) return { kn: id, work: w.work, halted: true, done: [...done] }
         const step = `shape/${w.work}/${s.n}`
         try {
           const k = await hub.get(id, ctx)
-          const S = readShape(k, await readStructure(meta.dir))
-          const has = [...k.works, ...k.logs].some((x) => x.tags.includes(step))
-          if (s.kind === 'forms' && !has) {
+          const files = await readStructure(meta.dir)
+          const S = readShape(k, files)
+          // 이력에 이미 그 걸음 표지가 있다(커밋 뒤 장부 쓰기를 잃었다) — 다시 하지 않는다 · 글 걸음은 shapeJob 이 같은 표지로 가린다
+          const has = [...k.works, ...k.logs].some((x) => x.tags.includes(step) && x.state !== 'held' && x.state !== 'fixed')
+          if (has && s.kind !== 'write') {
+            // 넣었다
+          } else if (s.kind === 'forms') {
             const d = diffPlan(S, w.plan)
             if (d.forms) await hub.save(ctx, id, { record: { title: '갈래 장부: 문서 짜임', body: `문서 짜임 일 ${w.work} 의 갈래 장부`, tags: [] }, forms: d.forms }, { channel: 'shape', noCurate: true, shape: { tags: ['shape', step] } })
           } else if (s.kind === 'frame') {
             const chk = planCheck(k, S, w.plan)
             if (!chk.ok) throw new KmdError('E_CONFLICT', `구조안이 지금 지식에 맞지 않는다: ${chk.errors[0].where}: ${chk.errors[0].why}`)
-            await hub.restructure(id, ctx, { ops: chk.diff.frame, step })
+            // 걸음 지문 — 읽은 짜임과 넣는 짜임 사이 누가 이 걸음이 건드리는 것을 바꿨으면 E_CONFLICT
+            await hub.restructure(id, ctx, { ops: chk.diff.frame, base: stepFp(files, chk.diff.frame), step })
           } else if (s.kind === 'write') {
             const tx = w.texts?.[s.unit] || {}
             const r = await hub.shapeWrite(ctx, id, { plan: w.tried.post, n: s.unit, fp: w.tried.fps?.[s.unit] || null, texts: tx.items || [], intros: tx.intros || {}, work: w.work, step })
             if (r.held?.length) {
-              await hub.shapeEdit(id, (w0) => (w0 && w0.work === w.work ? { ...w0, stage: 'stopped', at: new Date().toISOString(), last: { n: s.n, held: r.held.map((x) => ({ doc: x.doc, heading: x.heading, code: x.code, why: x.why })) } } : undefined))
+              await hub.shapeEdit(id, (w0) => (liveWork(w0, w.work) ? { ...w0, stage: 'stopped', at: new Date().toISOString(), last: { n: s.n, held: r.held.map((x) => ({ doc: x.doc, heading: x.heading, code: x.code, why: x.why })) } } : undefined))
               return { kn: id, work: w.work, stopped: { n: s.n, unit: s.unit, rec: r.id, held: r.held } }
             }
           } else if (s.kind === 'tidy') {
             const d = diffPlan(S, w.tried.post)
             if (d.tidy.drops.length) await hub.restructure(id, ctx, { ops: { drops: d.tidy.drops }, step })
-          } else if (s.kind === 'seal' && !has) {
+          } else if (s.kind === 'seal') {
             const recs = [...k.works, ...k.logs].filter((x) => x.tags.some((g) => g.startsWith(`shape/${w.work}/`)))
             const body = [`문서 짜임 일 ${w.work} 을 마쳤다(연 사람 ${w.by}).`, '', ...recs.map((x) => `- ${x.title}`)].join('\n').slice(0, 100_000)
             await hub.save(ctx, id, { record: { title: `문서 짜임 마침: 걸음 ${w.tried.steps.length}`, body, tags: [] } }, { channel: 'shape', system: true, noCurate: true, shape: { tags: ['shape-done', step] } })
           }
         } catch (e) {
           if (e.code === 'E_CONFLICT') {
-            await hub.shapeEdit(id, (w0) => (w0 && w0.work === w.work ? { ...w0, stage: 'rebase', at: new Date().toISOString(), last: { n: s.n, why: e.message } } : undefined))
+            await hub.shapeEdit(id, (w0) => (liveWork(w0, w.work) ? { ...w0, stage: 'rebase', at: new Date().toISOString(), last: { n: s.n, why: e.message } } : undefined))
             // 다시 맞추기 — 한 번은 곧바로(연습 판을 다시 떠서 견준다 · 같으면 잇고 다르면 다시 승인)
-            if (!rebased) return hub.shapePut(ctx, id, { max: max - count, rebased: true })
+            if (!rebased) return hub.shapePutRun(ctx, id, { max: max - count, rebased: true })
             return { kn: id, work: w.work, conflict: { n: s.n, why: e.message }, rebase: true }
           }
           throw e
@@ -1987,36 +2059,53 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         count++
         // 지금 지문 — 이 걸음이 바꾼 짜임(머리 · 장부)까지. 다음 이어 넣기가 이것과 견준다
         const nowFp = readShape(await hub.get(id, ctx), await readStructure(meta.dir)).fp
-        await hub.shapeEdit(id, (w0) => (w0 && w0.work === w.work ? { ...w0, stage: 'putting', done: [...done], at: new Date().toISOString(), tried: { ...w0.tried, nowFp } } : undefined))
+        await hub.shapeEdit(id, (w0) => (liveWork(w0, w.work) ? { ...w0, stage: 'putting', done: [...done], at: new Date().toISOString(), tried: { ...w0.tried, nowFp } } : undefined))
       }
       // 끝 — 넣기 뒤 진단(진짜) · 장부는 「끝남」 으로 남는다(되돌리기 구조안 재료)
       const kEnd = await hub.get(id, ctx)
-      await hub.shapeEdit(id, (w0) => (w0 && w0.work === w.work ? { ...w0, stage: 'done', at: new Date().toISOString() } : undefined))
+      await hub.shapeEdit(id, (w0) => (liveWork(w0, w.work) ? { ...w0, stage: 'done', at: new Date().toISOString() } : undefined))
       return { kn: id, work: w.work, done: true, steps: done.size, docs: kEnd.docs.length }
     },
-    // 그만두기(POST /api/k/:id/shape/stop) — 그 지식의 지식관리자 누구나 · 장부 · 연습 판을 걷는다(넣은 걸음은 그대로 · 되돌리기는 되돌리기 구조안으로)
+    // 그만두기(POST /api/k/:id/shape/stop) — 그 지식의 지식관리자 누구나. 넣은 걸음은 그대로(되돌리기는 되돌리기 구조안으로).
+    //   장부부터 바꾼다(도는 해 보기 · 넣기가 다음 걸음 앞에서 선다) — 넣기를 시작한 일은 넣기 직전 짜임을 남기고 「그만둠」(stopped-final) · 아니면 장부를 지운다 ·
+    //   깨진 장부는 지우고 그 지식의 연습 판을 모두 걷는다 · 연습 판은 도는 일이 선 뒤(shape-run 줄)에 걷는다
     async shapeStop(ctx, id) {
       await hub.meta(id, ctx)
       if (ctx) hub.need(ctx, id, 'admin')
-      const w = await hub.shapeWork(id)
-      if (w && !w.broken) await fs.rm(hub.shapePractice(id, w.work), { recursive: true, force: true }).catch((e) => log(`연습 판을 지우지 못했다 ${id}: ${e.message}`))
-      await serial(hub.shapeFile(id), () => fs.rm(hub.shapeFile(id), { force: true }))
-      return { kn: id, stopped: true, work: w && !w.broken ? w.work : null, done: w && !w.broken ? (w.done || []).length : 0 }
+      let w = null
+      let broken = false
+      await serial(hub.shapeFile(id), async () => {
+        w = await hub.shapeWork(id)
+        if (w?.broken) { broken = true; w = null }
+        if (w?.before) await writeJsonAtomic(hub.shapeFile(id), { ...w, stage: 'stopped-final', at: new Date().toISOString(), stoppedBy: ctx?.user || 'kmd' }, { indent: 1, nl: true })
+        else await fs.rm(hub.shapeFile(id), { force: true })
+      })
+      await serial(`shape-run:${id}`, async () => {
+        if (broken) await hub.shapeSweep(id)
+        else if (w) await fs.rm(hub.shapePractice(id, w.work), { recursive: true, force: true }).catch((e) => log(`연습 판을 지우지 못했다 ${id}: ${e.message}`))
+      })
+      return { kn: id, stopped: true, work: w ? w.work : null, done: w ? (w.done || []).length : 0, ...(w?.before ? { undoable: true } : {}) }
     },
-    // 되돌리기 구조안(POST /api/k/:id/shape/undo) — 끝난 짜임 일의 넣기 직전 짜임을 새 짜임으로 하는 역 구조안을 새 짜임 일로 연다(검사까지)
-    async shapeUndo(ctx, id) {
-      if (!ctx?.user) throw new KmdError('E_INPUT', '누가 여는지 모른다')
-      const meta = await hub.meta(id, ctx)
-      hub.need(ctx, id, 'admin')
-      const w = await hub.shapeWork(id)
-      if (!w || w.broken || w.stage !== 'done' || !w.before) throw new KmdError('E_CONFLICT', '되돌릴 끝난 짜임 일이 없다')
-      const k = await hub.get(id, ctx)
-      const S = readShape(k, await readStructure(meta.dir))
-      const u = undoPlan(w.before, S)
-      // 끝난 짜임 일 장부는 shapeCheck 가 새 일로 바꾼다(검사가 넘어져도 넣기 직전 짜임을 잃지 않게)
-      const r = await hub.shapeCheck(id, ctx, { plan: u.plan })
-      await hub.shapeEdit(id, (w0) => (w0 ? { ...w0, undoOf: w.work } : undefined))
-      return { ...r, undoOf: w.work, warnings: [...u.warnings.map((x) => ({ where: '되돌리기', why: x })), ...r.warnings] }
+    // 되돌리기 구조안(POST /api/k/:id/shape/undo) — 끝난(그만둔) 짜임 일의 넣기 직전 짜임을 새 짜임으로 하는 역 구조안을 새 짜임 일로 연다(검사까지).
+    //   넣기 직전 짜임은 끝남 · 그만둠 장부의 before · 그 뒤 새로 연 일이 넘겨받은 undoable 에서
+    shapeUndo(ctx, id) {
+      return serial(`shape-run:${id}`, async () => {
+        if (!ctx?.user) throw new KmdError('E_INPUT', '누가 여는지 모른다')
+        const meta = await hub.meta(id, ctx)
+        hub.need(ctx, id, 'admin')
+        const w = await hub.shapeWork(id)
+        if (!w || w.broken) throw new KmdError('E_CONFLICT', '되돌릴 끝난 짜임 일이 없다')
+        if (['putting', 'stopped', 'rebase'].includes(w.stage)) throw new KmdError('E_CONFLICT', '넣는 중인 짜임 일이다: 이어 넣거나 그만두게 한 뒤 되돌린다')
+        const src = ['done', 'stopped-final'].includes(w.stage) && w.before ? { work: w.work, before: w.before } : w.undoable
+        if (!src?.before) throw new KmdError('E_CONFLICT', '되돌릴 끝난 짜임 일이 없다')
+        const k = await hub.get(id, ctx)
+        const S = readShape(k, await readStructure(meta.dir))
+        const u = undoPlan(src.before, S)
+        // 끝난 짜임 일 장부는 shapeCheck 가 새 일로 바꾼다 — 넣기 직전 짜임은 undoable 로 넘어간다(검사가 넘어져도 다시 되돌릴 수 있게)
+        const r = await hub.shapeCheck(id, ctx, { plan: u.plan })
+        await hub.shapeEdit(id, (w0) => (w0 ? { ...w0, undoOf: src.work } : undefined))
+        return { ...r, undoOf: src.work, warnings: [...u.warnings.map((x) => ({ where: '되돌리기', why: x })), ...r.warnings] }
+      })
     },
 
     // 조각을 넣는 판정(S-D6) — 이 PC · 그 지식의 에이전트 · 쓰기 이상. 장부 · 되돌리기 · 받은편지함은 canDirect(지식관리자) 그대로
@@ -5168,6 +5257,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           cache.clear()
         } catch (e) { log('개편 때(cutover.json)를 읽거나 적지 못했다: 모든 pend 를 개편 전 기록으로 본다', e.message) }
       }
+      // 문서 짜임 연습 판 — 꺼지며 남은 것(해 보기 중에 꺼졌다)을 걷는다 · 짜임 일 장부는 그대로(이어 넣기 재료)
+      try {
+        const gone = await hub.shapeSweep()
+        if (gone.length) log('남은 연습 판을 걷었다', gone.join(' · '))
+      } catch (e) { log('남은 연습 판 걷기', e.message) }
       intakeDay = await readLedger(intakeDayFile, {}, '하루 들이기 수 장부')
       attachDay = await readLedger(attachDayFile, {}, '하루 첨부 합 장부')
       // 다시 켤 때 — 같은 일감의 기록(job/<id>)이 이미 있으면 그 일감은 넣었다(커밋 뒤 · 장부를 쓰기 전에 꺼졌다 · S-D48)

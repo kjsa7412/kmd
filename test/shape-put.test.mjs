@@ -170,3 +170,154 @@ test('장부 깨짐 · 그만두기 · 되돌리기 구조안으로 넣기 앞 �
     assert.ok(!fs.existsSync(path.join(s.dir, 'docs/운영/배포.md')), '되돌린 뒤 빈 문서는 걷었다')
   } finally { s.done() }
 })
+
+const ledger = (s) => JSON.parse(fs.readFileSync(s.hub.shapeFile('ops'), 'utf8'))
+const putLedger = (s, w) => fs.writeFileSync(s.hub.shapeFile('ops'), JSON.stringify(w))
+const tagged = (k, tag) => [...k.works, ...k.logs].filter((w) => w.tags.includes(tag)).length
+
+test('이어 넣기 — 짜임 걸음이 커밋된 뒤 장부 쓰기를 잃어도 이력의 걸음 표지로 다시 하지 않고 잇는다', async () => {
+  const s = await setup()
+  try {
+    const c = await s.hub.shapeCheck('ops', s.ctx, { plan: PLAN() })
+    await s.hub.shapeTry(s.ctx, 'ops')
+    await s.hub.shapePut(s.ctx, 'ops', { max: 1 })
+    // 커밋 뒤 장부 쓰기를 잃었다 — done 비고 지문도 짜임 앞
+    const w = ledger(s)
+    assert.deepEqual(w.done, [2])
+    putLedger(s, { ...w, done: [], tried: { ...w.tried, nowFp: w.tried.fp } })
+    const p = await s.hub.shapePut(s.ctx, 'ops')
+    assert.equal(p.done, true, JSON.stringify(p))
+    const k = await loadKnowledge({ id: 'ops', name: 'ops', dir: s.dir })
+    assert.equal(tagged(k, `shape/${c.work}/2`), 1, '짜임 걸음은 한 번')
+    assert.deepEqual(heads(s.dir, '운영/배포'), ['배포 창', '점검 목록', '되돌리기'])
+  } finally { s.done() }
+})
+
+test('한 지식에 한 줄 — 넣기 둘이 같이 와도 걸음마다 한 번', async () => {
+  const s = await setup()
+  try {
+    const c = await s.hub.shapeCheck('ops', s.ctx, { plan: PLAN() })
+    await s.hub.shapeTry(s.ctx, 'ops')
+    const [a, b] = await Promise.all([s.hub.shapePut(s.ctx, 'ops'), s.hub.shapePut(s.ctx, 'ops')])
+    assert.ok(a.done && b.done, JSON.stringify([a, b]))
+    const k = await loadKnowledge({ id: 'ops', name: 'ops', dir: s.dir })
+    for (const n of [2, 11, 9999]) assert.equal(tagged(k, `shape/${c.work}/${n}`), 1, `걸음 ${n} 은 한 번`)
+  } finally { s.done() }
+})
+
+test('넣는 중 그만두기 — 다음 걸음 앞에서 서고(넣은 걸음은 그대로) · 넣기 직전 짜임을 남겨(stopped-final) 되돌리기 구조안으로 넣기 앞 짜임에', async () => {
+  const s = await setup()
+  try {
+    const before = { a: heads(s.dir, '배포 절차'), b: heads(s.dir, '장애 대응') }
+    const c = await s.hub.shapeCheck('ops', s.ctx, { plan: PLAN() })
+    await s.hub.shapeTry(s.ctx, 'ops')
+    // 글 걸음 사이에 다른 지식관리자가 그만두게 한다
+    const orig = s.hub.shapeWrite
+    let stopP = null
+    s.hub.shapeWrite = async (...a) => {
+      stopP = s.hub.shapeStop({ user: '박', admin: true }, 'ops')
+      for (let i = 0; i < 200 && ledger(s).stage !== 'stopped-final'; i++) await new Promise((r) => setTimeout(r, 10))
+      return orig(...a)
+    }
+    const p = await s.hub.shapePut(s.ctx, 'ops')
+    s.hub.shapeWrite = orig
+    assert.equal(p.halted, true, JSON.stringify(p))
+    const st = await stopP
+    assert.equal(st.stopped, true)
+    assert.equal(st.undoable, true)
+    const k = await loadKnowledge({ id: 'ops', name: 'ops', dir: s.dir })
+    assert.equal(tagged(k, `shape/${c.work}/9999`), 0, '마감은 하지 않았다')
+    const w = ledger(s)
+    assert.equal(w.stage, 'stopped-final')
+    assert.ok(w.before, '넣기 직전 짜임을 남겼다')
+    assert.equal(await code(s.hub.shapePut(s.ctx, 'ops')), 'E_CONFLICT', '그만둔 일은 잇지 않는다')
+    // 되돌리기 구조안 → 해 보기 → 넣기
+    const u = await s.hub.shapeUndo(s.ctx, 'ops')
+    assert.equal(u.ok, true, JSON.stringify(u.errors))
+    assert.equal(u.undoOf, c.work)
+    assert.equal((await s.hub.shapeTry(s.ctx, 'ops')).ok, true)
+    assert.equal((await s.hub.shapePut(s.ctx, 'ops')).done, true)
+    assert.deepEqual(heads(s.dir, '배포 절차'), before.a)
+    assert.deepEqual(heads(s.dir, '장애 대응'), before.b)
+  } finally { s.done() }
+})
+
+test('진짜 넣기에서 넣지 못함 — 막다른 길이 아니다: 지금 짜임에 맞춘 구조안으로 다시 검사(일 · 넣은 걸음 · 넣기 직전 짜임 그대로) → 해 보기 → 넣기', async () => {
+  const s = await setup()
+  try {
+    const c = await s.hub.shapeCheck('ops', s.ctx, { plan: PLAN() })
+    await s.hub.shapeTry(s.ctx, 'ops')
+    // 해 보기 뒤 짜임 뒤 구조안의 글이 틀어졌다(진짜에서만 걸리는 글)
+    const w0 = ledger(s)
+    const post = JSON.parse(JSON.stringify(w0.tried.post))
+    post.docs[0].items[1].text = '디스크 90% 확인.\n\n헬스 체크 3회.'
+    putLedger(s, { ...w0, tried: { ...w0.tried, post } })
+    const p = await s.hub.shapePut(s.ctx, 'ops')
+    assert.ok(p.stopped?.held?.length, JSON.stringify(p))
+    const w1 = ledger(s)
+    assert.equal(w1.stage, 'stopped')
+    // 지금 짜임(짜임 걸음 뒤)에 맞춘 구조안 — 글 걸음만
+    const S = await s.hub.shape('ops', s.ctx)
+    const plan = {
+      v: 1, kind: 'reshape', base: S.fp,
+      docs: [
+        { id: '운영/배포', was: '운영/배포', items: [
+          { h: '배포 창', from: [{ doc: '운영/배포', h: '배포 창' }] },
+          { h: '점검 목록', from: [{ doc: '운영/배포', h: '사전 점검' }, { doc: '운영/배포', h: '사후 점검' }], text: '디스크 80% 확인.\n\n헬스 체크 3회.' },
+          { h: '되돌리기', from: [{ doc: '운영/배포', h: '되돌리기' }] },
+        ] },
+        { id: '장애 대응', was: '장애 대응', items: [{ h: '연락', from: [{ doc: '장애 대응', h: '연락' }] }] },
+        { id: '회의 규칙', was: '회의 규칙', items: [{ h: '시간', from: [{ doc: '회의 규칙', h: '시간' }] }] },
+      ],
+      names: [{ coord: 'check:사전 점검', doc: '운영/배포', h: '점검 목록' }, { coord: 'check:사후 점검', doc: '운영/배포', h: '점검 목록' }],
+    }
+    // 이미 넣은 짜임 걸음을 다시 하는 구조안은 걸림
+    const back = { ...plan, docs: [{ ...plan.docs[0], id: '운영/배포2' }, ...plan.docs.slice(1)] }
+    assert.ok((await s.hub.shapeCheck('ops', s.ctx, { plan: back })).errors.some((e) => e.where === 'frame'))
+    const r = await s.hub.shapeCheck('ops', s.ctx, { plan })
+    assert.equal(r.ok, true, JSON.stringify(r.errors))
+    assert.equal(r.work, c.work, '같은 일')
+    const w2 = ledger(s)
+    assert.deepEqual(w2.done, w1.done, '넣은 걸음 그대로')
+    assert.deepEqual(w2.before, w1.before, '넣기 직전 짜임 그대로')
+    const t = await s.hub.shapeTry(s.ctx, 'ops')
+    assert.equal(t.ok, true, JSON.stringify(t))
+    assert.equal((await s.hub.shapePut(s.ctx, 'ops')).done, true)
+    assert.deepEqual(heads(s.dir, '운영/배포'), ['배포 창', '점검 목록', '되돌리기'])
+    assert.deepEqual(ledger(s).before, w1.before, '끝나도 처음 넣기 직전 짜임')
+    const k = await loadKnowledge({ id: 'ops', name: 'ops', dir: s.dir })
+    assert.equal(k.works.find((x) => x.id === p.stopped.rec).state, 'fixed', '앞 넣지 못함은 바로잡힘')
+  } finally { s.done() }
+})
+
+test('끝난 일 뒤 새 검사가 걸려도 넣기 직전 짜임을 잃지 않는다 — 되돌리기 구조안을 그대로 연다', async () => {
+  const s = await setup()
+  try {
+    const c = await s.hub.shapeCheck('ops', s.ctx, { plan: PLAN() })
+    await s.hub.shapeTry(s.ctx, 'ops')
+    assert.equal((await s.hub.shapePut(s.ctx, 'ops')).done, true)
+    const bad = await s.hub.shapeCheck('ops', s.ctx, { plan: { v: 1, kind: 'reshape', docs: [] } })
+    assert.equal(bad.ok, false)
+    assert.equal(ledger(s).undoable?.work, c.work)
+    const u = await s.hub.shapeUndo(s.ctx, 'ops')
+    assert.equal(u.ok, true, JSON.stringify(u.errors))
+    assert.equal(u.undoOf, c.work)
+  } finally { s.done() }
+})
+
+test('남은 연습 판 — 켤 때 걷기(shapeSweep) · 깨진 장부를 그만두게 하면 그 지식의 연습 판도 걷는다 · http 는 자리를 본문보다 먼저', async () => {
+  const s = await setup()
+  try {
+    const base = path.join(s.dataDir, 'shape')
+    fs.mkdirSync(path.join(base, 'ops.0123456789ab', 'docs'), { recursive: true })
+    fs.mkdirSync(path.join(base, 'other.aaaaaaaaaaaa'), { recursive: true })
+    assert.deepEqual((await s.hub.shapeSweep('ops')).sort(), ['ops.0123456789ab'])
+    assert.ok(fs.existsSync(path.join(base, 'other.aaaaaaaaaaaa')), '다른 지식의 연습 판은 그대로')
+    assert.deepEqual(await s.hub.shapeSweep(), ['other.aaaaaaaaaaaa'])
+    fs.mkdirSync(path.join(base, 'ops.bbbbbbbbbbbb'), { recursive: true })
+    fs.writeFileSync(s.hub.shapeFile('ops'), '{깨짐')
+    assert.equal((await s.hub.shapeStop(s.ctx, 'ops')).stopped, true)
+    assert.ok(!fs.existsSync(path.join(base, 'ops.bbbbbbbbbbbb')), '깨진 장부의 연습 판도 걷었다')
+    assert.ok(!fs.existsSync(s.hub.shapeFile('ops')))
+  } finally { s.done() }
+})

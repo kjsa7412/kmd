@@ -7,6 +7,8 @@
 //   표지를 단 묶음이 문서 짜임 커밋(태그 structure 이력이 같이 든 커밋)이면 지우지 않는다 — 짜임 이력의
 //   「옛 문서 › 옛 머리 → 새 문서 › 새 머리」 · 「옮김 · 이름: 옛 문서 → 새 문서」 줄로 앞 자리를 찾아 거기서 다시 찾고,
 //   못 찾으면 E_CONFLICT(바탕 세우기 설계 4-3 되돌리기 2)
+//   표지를 단 묶음 판에 그 머리가 없으면(뒤에 같은 문서 안에서 이름이 바뀌었거나 · 그 기록의 표지가 있던 문서로 옮겨 왔다) 그 뒤 짜임 이력으로
+//   앞 자리를 찾는다 — 못 찾으면 지우지 않고 E_CONFLICT
 
 import { git, tryGit } from './git.js'
 import { readText, sha16 } from './text.js'
@@ -54,6 +56,23 @@ async function beforeOf(dir, rel, h, recordId, until = null, depth = 0) {
   const first = shas[shas.length - 1]
   // 표지를 단 묶음이 없다(손으로 달고 아직 커밋하지 않은 표지) — 앞 판을 모르니 지우지도 비우지도 않는다
   if (!first) throw new KmdError('E_CONFLICT', `「${rel}」 에서 그 기록을 넣은 묶음을 찾지 못했다. 문서를 열어 손으로 고친다`)
+  // 그 묶음 판에 그 머리가 없다 — 뒤에 항목 이름이 바뀌었거나(같은 문서 안 이름 바꾸기는 표지 수가 그대로라 -S 가 못 본다)
+  //   그 기록의 표지가 이미 있던 문서로 옮겨 왔다. 그 뒤의 짜임 이력으로 앞 자리를 찾고 · 못 찾으면 지우지 않고 E_CONFLICT
+  const atFirst = await tryGit(dir, ['show', `${first}:${rel}`])
+  if (!atFirst.ok) {
+    console.error(`[revert] ${rel} 그 묶음 판을 읽지 못했다: ${atFirst.err}`)
+    throw new KmdError('E_GIT', `「${rel}」 의 이력을 읽지 못해 되돌리지 않았다`)
+  }
+  if (!parseDoc(readText(atFirst.out), '').sections.some((x) => same(x.h, h))) {
+    const later = await git(dir, ['log', '--format=%H', `${first}..${until || 'HEAD'}`, '--', rel]).catch(gitFail(rel, '이력을 읽지 못했다'))
+    for (const sha of later.trim().split('\n').filter(Boolean)) {
+      const sb = await structureBody(dir, sha)
+      if (sb == null) continue
+      const p = priorPlace(sb, docIdOf(rel), h)
+      if (p) return beforeOf(dir, `docs/${p.doc}.md`, p.h, recordId, `${sha}^`, depth + 1)
+    }
+    throw new KmdError('E_CONFLICT', `짜임이 바뀐 항목이다(「${docIdOf(rel)} › ${h}」 을 그 기록을 넣은 판에서 찾지 못했다): 문서 고치기로 고친다`)
+  }
   // 문서 짜임 커밋 — 항목이 옮겨 왔다. 앞 자리에서 다시 찾는다(지우지 않는다)
   const sb = await structureBody(dir, first)
   if (sb != null) {

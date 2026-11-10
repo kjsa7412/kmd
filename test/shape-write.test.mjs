@@ -121,6 +121,44 @@ test('값 대조 — 지어낸 값 · 잃은 값은 넣지 못함(work/ · held)
   } finally { s.done() }
 })
 
+test('조각 하나가 넣지 못함이면 모두 넣지 못함 — 원본이 주인인 문서로 합치면 출처를 걷지 않고 · 자리 장부도 그대로 · 기록만', async () => {
+  const s = await setup({ extra: { 'docs/원본.md': '<!-- watched: src="s" path="p.docx" -->\n# 원본\n\n## 가\n글\n' } })
+  try {
+    const plan = {
+      v: 1, kind: 'reshape',
+      docs: [
+        { id: '배포 절차', was: '배포 절차', items: [{ h: '배포 창', from: [{ doc: '배포 절차', h: '배포 창' }] }] },
+        { id: '원본', was: '원본', items: [{ h: '가', from: [{ doc: '원본', h: '가' }] }, { h: '점검 목록', from: [{ doc: '배포 절차', h: '사전 점검' }, { doc: '배포 절차', h: '사후 점검' }] }] },
+      ],
+      names: [{ coord: 'check:사전 점검', doc: '원본', h: '점검 목록' }, { coord: 'check:사후 점검', doc: '원본', h: '점검 목록' }],
+    }
+    const doc0 = fs.readFileSync(path.join(s.dir, 'docs/배포 절차.md'), 'utf8')
+    const reg0 = fs.readFileSync(path.join(s.dir, '_managed.md'), 'utf8')
+    const r = await s.hub.shapeWrite(s.ctx, 'ops', { plan, n: 1, texts: [{ doc: '원본', h: '점검 목록', content: GOOD }], work: WORK, step: `shape/${WORK}/1` })
+    assert.equal(r.put, 0, JSON.stringify(r))
+    assert.ok(r.held.some((x) => x.code === 'watched'), JSON.stringify(r.held))
+    assert.equal(fs.readFileSync(path.join(s.dir, 'docs/배포 절차.md'), 'utf8'), doc0, '출처를 걷지 않았다')
+    assert.equal(fs.readFileSync(path.join(s.dir, '_managed.md'), 'utf8'), reg0, '자리 장부 그대로')
+    const k = await loadKnowledge({ id: 'ops', name: 'ops', dir: s.dir })
+    assert.equal(k.works.find((w) => w.id === r.id).state, 'held')
+  } finally { s.done() }
+})
+
+test('걷힌 출처로 들어오던 링크 — 같은 묶음에서 첫 목표 항목으로(`x.md#옛머리` · 앞부분 맞춤) · 다른 머리 링크는 그대로', async () => {
+  const s = await setup({ extra: { 'docs/안내.md': '# 안내\n\n## 순서\n[앞](배포%20절차.md#사전%20점검) · [뒤](배포%20절차.md#사후) · [창](배포%20절차.md#배포%20창)\n' } })
+  try {
+    const { u } = await unitOf(s.dir)
+    const r = await write(s, GOOD, { fp: unitFp(u) })
+    assert.equal(r.put, 1, JSON.stringify(r))
+    const t = fs.readFileSync(path.join(s.dir, 'docs/안내.md'), 'utf8')
+    assert.match(t, /\[앞\]\(배포%20절차\.md#점검%20목록\)/, t)
+    assert.match(t, /\[뒤\]\(배포%20절차\.md#점검%20목록\)/, '앞부분 맞춤 링크도')
+    assert.match(t, /\[창\]\(배포%20절차\.md#배포%20창\)/, '다른 머리는 그대로')
+    assert.equal(git(s.dir, 'status', '--porcelain').trim(), '', '같은 묶음')
+    assert.match(git(s.dir, '-c', 'core.quotepath=false', 'show', '--name-only', '--format=', 'HEAD'), /안내\.md/)
+  } finally { s.done() }
+})
+
 test('출처가 바뀌면 E_CONFLICT · 아무것도 쓰지 않는다 · 입력 태그 shape · shape/… 거절', async () => {
   const s = await setup()
   try {
