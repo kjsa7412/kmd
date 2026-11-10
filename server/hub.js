@@ -23,7 +23,7 @@ import { check as checkDraft } from '../core/gate.js'
 import { INGEST_SCHEMA, ingestCandidates, formsOf, supersededIngest, draftToSave, polishToSave, POLISH_MAX, heldRecord, ruleRecord, RULE_MARK, intakeTags, intakeSrcPart, INTAKE_SCHEMA, intakePromptOf, intakeFixPromptOf, docRel, quoteSrc } from '../core/ingest.js'
 import { WRITE_RULES } from '../core/writerules.js'
 import { checkProposal, placeOf, PROPOSAL_PART, buildProposal } from '../core/propose.js'
-import { checkSection, checkShape } from '../core/gate.js'
+import { checkSection, checkShape, judgeShape } from '../core/gate.js'
 import { valuesOf, mustValues } from '../core/values.js'
 import { splitBlocks, hasBlockMarker } from '../core/baseline.js'
 import { validEdits, judgeEdits } from '../core/edits.js'
@@ -452,29 +452,91 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       k: { byDocPath, vocab: { coords: new Set() } },
     }
   }
+  // 내 Claude 초안 하나(받는 팀의 들이기 프롬프트 · 고쳐 쓰기 한 번) → { draft } | { why }
+  async function sendDraft(srcId, m) {
+    if (m.brief.noClaude) return { why: '받는 팀 지식이 Claude 에 보내지 않는 지식이다' }
+    const opt = { writeRules: WRITE_RULES }
+    const ask = (prompt) => hub.askClaude(srcId, prompt, INTAKE_SCHEMA, { budget: Number(process.env.KMD_INGEST_BUDGET) > 0 ? Number(process.env.KMD_INGEST_BUDGET) : 1.0, role: 'ingest', timeoutMs: 600_000 })
+    let a = await ask(intakePromptOf(m.g, opt))
+    let p = a.value ? draftToSave(m.k, m.g, a.value) : null
+    // 고쳐 쓰기 한 번(들이기와 같이 · 검사의 까닭을 붙인다)
+    if (p && !p.ok) {
+      a = await ask(intakeFixPromptOf(m.g, a.value, p.why, opt))
+      p = a.value ? draftToSave(m.k, m.g, a.value) : null
+    }
+    if (!a.value) return { why: `Claude 로 짓지 못했다: ${a.why || '답이 없다'}` }
+    if (!p.ok) return { why: `Claude 가 지은 글이 검사를 넘지 못했다: ${p.why}` }
+    return { draft: p }
+  }
+  // ── 보내기 제안(저장 승인 P-D22 · P-D46 · 7절 P7) — 받는 팀 지식이 approve 모드면 보내기 확인 창(미리 보기)이 글마다 내 Claude 초안을 짓고
+  //   팀 propose 를 미리 돌린다: 창이 곧 받는 팀의 제안서이고 [보내기] 가 팀 쪽 승인(경고 받아들임)이다. 개인 쪽 승인과 따로다(P-D46).
+  //   지은 초안은 이 PC 메모리에 한 시간(보내는 지식 · 받는 곳 · 글 지문마다) — 창을 다시 열면 Claude 없이 propose 만 다시 돈다.
+  //   보낼 때 창에서 본 지문(proposal)을 그대로 싣는다(그사이 팀 지식이 바뀌면 E_APPROVE → fail 줄 · 창을 다시 연다) ·
+  //   창에서 뺀 넣을 곳(excluded)은 보내지 않는다(남은 조각으로 다시 propose · 제안서 「뺀다」 줄) · 모두 뺀 글은 보내지 않고 개인 쪽에 남는다
+  const SEND_PROP_TTL = 60 * 60_000
+  const SEND_PREVIEW_MAX = 10 // 창 하나에서 지어 볼 글 수(글마다 Claude 한 번 · 창이 기다린다)
+  const sendProps = new Map()
+  const propKey = (src, d, sha) => `${src}\n${d.url || ''}\n${d.kn}\n${sha}`
+  function propOf(src, d, sha) {
+    const c = sendProps.get(propKey(src, d, sha))
+    if (c && Date.now() - c.at > SEND_PROP_TTL) { sendProps.delete(propKey(src, d, sha)); return null }
+    return c || null
+  }
+  function propPut(src, d, sha, c) {
+    const now = Date.now()
+    for (const [x, v] of sendProps) if (now - v.at > SEND_PROP_TTL) sendProps.delete(x)
+    sendProps.set(propKey(src, d, sha), { ...c, at: now })
+  }
+  // 초안 → 팀 propose 입력 — 넣을 곳을 고르지 못한 조각(draft.held)은 보내지 않는다(개인 지식에는 그대로) · 초안이 없으면 기록만(이을 항목 · 기록 모음 달 항목)
+  function sendInputOf(m, it, from, { draft, why }) {
+    const record = draft
+      ? { title: draft.input.record.title, body: draft.input.record.body }
+      : { title: String(it.title || '보낸 글').slice(0, 200), body: [`${from || '개인 지식'} 에서 보낸 글이다. 항목 글은 고치지 않았다: ${why}.`, `## 원천\n- 보낸 글 · ${from || '개인 지식'} 에서\n\n${quoteSrc(it.body, 150_000)}`].join('\n\n') }
+    return { record: { ...record, ...(m.touches.length ? { touches: m.touches } : { touchesEmpty: '개인 지식에서 보낸 글: 받는 지식의 이름 장부에서 맞는 이름을 찾지 못했다' }) }, sections: draft ? draft.input.sections : [] }
+  }
+  // 받는 팀의 propose(기기 열쇠 · 쓰지 않는다) — 보낸 지문(sent/)은 save 때만 단다(propose 는 받지 않는다)
+  const sendPropose = (d, key, input) => sendLib.post(d.url, d.kn, input, key, { path: 'propose', timeoutMs: 60_000 })
+  // 창에서 뺀 넣을 곳 — { 글 지문(16자): [넣을 곳 at(한 줄 400자 안)] } · 200 글 · 글마다 100 까지
+  function sendExcludedIn(x) {
+    if (x == null) return {}
+    if (typeof x !== 'object' || Array.isArray(x)) throw new KmdError('E_INPUT', 'excluded 는 { 글 지문: [넣을 곳] } 이다')
+    const keys = Object.keys(x)
+    if (keys.length > 200 || keys.some((k) => !/^[0-9a-f]{16}$/.test(k))) throw new KmdError('E_INPUT', 'excluded 의 열쇠는 글 지문(16자)이다')
+    const out = {}
+    for (const k of keys) {
+      const v = x[k]
+      if (!Array.isArray(v) || v.length > 100 || v.some((a) => typeof a !== 'string' || !a || a.length > 400 || /[\r\n]/.test(a))) throw new KmdError('E_INPUT', 'excluded 의 넣을 곳은 한 줄 글의 목록이다')
+      out[k] = [...new Set(v)]
+    }
+    return out
+  }
+  // 창에 싣는 제안 한 줄(rec = 글 지문 · 창의 [빼기] 열쇠)
+  const propRow = (it, p) => ({ rec: it.sha, title: it.title, propose: { text: String(p.text || ''), items: (Array.isArray(p.items) ? p.items : []).map(({ at, kind }) => ({ at, kind })), warnings: Array.isArray(p.warnings) ? p.warnings : [], errors: Array.isArray(p.errors) ? p.errors : [] } })
+  // 조각의 넣을 곳(제안서 at) — propose 결과 items 와 조각을 coord 또는 문서 · 머리로 맞춘다
+  const atOfSection = (items, s) => (items.find((x) => (s.coord && x.coord === s.coord) || (x.doc && x.doc === s.doc && x.heading === s.heading)) || {}).at || null
   // 글 하나 보내기 — 결과 { id, put, held, same, why } · 닿지 않음 · 거절(4xx)은 throw(부르는 쪽이 wait · fail 줄로)
   //   srcId — 보내는 개인 지식(Claude 를 부를지: 「Claude 에 보내지 않음」 이면 부르지 않는다) ·
   //   prevs — [다시] 의 앞 결과들(넣지 못함으로 남은 기록 id · record.fixes — 다시도 넣지 못하면 다음 [다시] 가 모두 바로잡는다)
-  async function sendOne(srcId, d, it, { from = '', prevs = [] } = {}) {
+  //   approved — 창에서 승인한 제안(approve 모드 팀 지식 · { record, sections, excluded?, proposal }): 그대로 싣는다(Claude · 재료 읽기 없음)
+  async function sendOne(srcId, d, it, { from = '', prevs = [], approved = null } = {}) {
     const key = await sendKeyOf(d.url)
-    const m = await sendMaterial(d, key, it, from)
-    let draft = null
-    let why = null
-    if (m.brief.noClaude) why = '받는 팀 지식이 Claude 에 보내지 않는 지식이다'
-    else {
-      const opt = { writeRules: WRITE_RULES }
-      const ask = (prompt) => hub.askClaude(srcId, prompt, INTAKE_SCHEMA, { budget: Number(process.env.KMD_INGEST_BUDGET) > 0 ? Number(process.env.KMD_INGEST_BUDGET) : 1.0, role: 'ingest', timeoutMs: 600_000 })
-      let a = await ask(intakePromptOf(m.g, opt))
-      let p = a.value ? draftToSave(m.k, m.g, a.value) : null
-      // 고쳐 쓰기 한 번(들이기와 같이 · 검사의 까닭을 붙인다)
-      if (p && !p.ok) {
-        a = await ask(intakeFixPromptOf(m.g, a.value, p.why, opt))
-        p = a.value ? draftToSave(m.k, m.g, a.value) : null
+    if (approved) {
+      // 뺀 것이 있는 보내기는 다른 보낸 지문(tag) — 뒤에 남은 조각을 보내도 「이미 넣음」 이 되지 않게
+      const input = { record: { ...approved.record, tags: [`sent/${approved.tag || it.sha}`] }, sections: approved.sections, ...(approved.excluded?.length ? { excluded: approved.excluded } : {}), proposal: approved.proposal, kit: sendLib.SEND_REV, channel: 'send' }
+      let r
+      try {
+        r = await sendLib.post(d.url, d.kn, input, key, { path: 'save', timeoutMs: 120_000 })
+      } catch (e) {
+        // 승인한 제안의 지문 어긋남(E_CONFLICT)도 제안이 낡은 것 — 창에서 새 제안을 본다(428 안내 · 백업 멈춤 409 와 가른다)
+        if (e.status === 409 && e.code === 'E_CONFLICT') e.status = 428
+        throw e
       }
-      if (!a.value) why = `Claude 로 짓지 못했다: ${a.why || '답이 없다'}`
-      else if (!p.ok) why = `Claude 가 지은 글이 검사를 넘지 못했다: ${p.why}`
-      else draft = p
+      return { id: r?.id || r?.saved || null, put: Number(r?.put) || 0, held: 0, same: !!r?.same, why: '' }
     }
+    const m = await sendMaterial(d, key, it, from)
+    // approve 모드 팀 지식인데 창에서 승인한 제안이 없다(창을 거치지 않음 · 한 시간 넘음 · 프로그램을 다시 켬) — 보내지 않는다(fail 줄 · 개인 쪽에 남는다)
+    if (m.brief.saveMode === 'approve') throw Object.assign(new Error('받는 팀 지식은 저장 제안을 승인받아 받는다: 보내기 확인 창에서 제안을 보고 다시 보낸다'), { status: 428, reach: true })
+    const { draft, why } = await sendDraft(srcId, m)
     const left = []
     let sections = []
     let record
@@ -496,6 +558,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       record: { ...record, tags: [`sent/${it.sha}`], ...(m.touches.length ? { touches: m.touches } : { touchesEmpty: '개인 지식에서 보낸 글: 받는 지식의 이름 장부에서 맞는 이름을 찾지 못했다' }), ...(prevs.length ? { fixes: prevs } : {}) },
       sections,
       ...(left.length ? { left } : {}),
+      kit: sendLib.SEND_REV,
       channel: 'send',
     }
     const r = await sendLib.post(d.url, d.kn, input, key, { path: 'save', timeoutMs: 120_000 })
@@ -506,7 +569,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   async function sendSave(ctx, d, payload) {
     const out = { put: 0, held: 0, same: 0, bad: [] }
     for (const [i, it] of payload.items.entries()) {
-      const r = await sendOne(payload.src, d, it, { from: payload.from, prevs: Array.isArray(payload.prevs) ? payload.prevs : [] })
+      const r = await sendOne(payload.src, d, it, { from: payload.from, prevs: Array.isArray(payload.prevs) ? payload.prevs : [], approved: payload.approved?.[it.sha] || null })
       if (r.same) out.same++
       else if (r.held) {
         out.held++
@@ -642,7 +705,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     return out
   }
   const liveWork = (w0, work) => !!w0 && w0.work === work && w0.stage !== 'stopped-final'
-  async function shapeJob({ dir, k0, loadK, plan, n, fp = null, texts = [], intros = {}, work, step }) {
+  // 짜임 걸음 실패(저장 승인 P-D24 · P7) — approve 모드 지식은 걸린 걸음이 넣지 못함이 아니라 걸음 입력 오류다(아무것도 쓰지 않는다 · 일은 멈춘다 ·
+  //   지식관리자가 구조안을 고쳐 다시 건다). 까닭 줄은 details.stepFail[{ doc, heading, code, why }]
+  const stepFailErr = (rows) => new KmdError('E_INPUT', `걸음 실패: ${rows.slice(0, 3).map((h) => `${h.heading ? h.heading + ': ' : ''}${h.why}`).join(' · ')}`, { details: { stepFail: rows.slice(0, 50) } })
+  const stepFailOf = (e) => (e instanceof KmdError && e.code === 'E_INPUT' && Array.isArray(e.details?.stepFail) ? e.details.stepFail : null)
+  const failWhy = (rows) => rows.slice(0, 5).map((x) => `${x.heading ? x.heading + ': ' : ''}${x.why}`).join(' · ')
+  //   strict — approve 모드 지식(P-D24): 걸리면 넣지 못함(holdAll) 대신 걸음 입력 오류 · 앞 넣지 못함 바로잡기(fixes)도 없다
+  async function shapeJob({ dir, k0, loadK, plan, n, fp = null, texts = [], intros = {}, work, step, strict = false }) {
     const unitOf = async (k) => {
       const S = readShape(k, await readStructure(dir))
       const d = diffPlan(S, plan)
@@ -654,7 +723,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     const prev = k0.works.filter((w) => w.tags.includes(step))
     const done = prev.find((w) => w.state !== 'held' && w.state !== 'fixed')
     if (done) return { skipped: done.id }
-    const fixes = prev.filter((w) => w.state === 'held').map((w) => w.id)
+    const fixes = strict ? [] : prev.filter((w) => w.state === 'held').map((w) => w.id)
     const u0 = await unitOf(k0)
     const rel = (doc) => `docs/${doc}.md`
     const nm = (x) => `${x.doc} › ${x.h}`
@@ -691,12 +760,23 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const missing = targets.find((t) => typeof t.content !== 'string')
       // 요약 근거 — 그 문서의 지금 항목 글 + 이 단위의 목표 글
       const introRows = u.intros.map((x) => ({ doc: rel(x.doc), text: typeof intros[x.doc] === 'string' ? intros[x.doc] : x.text ?? null, ground: [...(k.byDocPath.get(rel(x.doc))?.sections || []).map((s) => s.body), ...targets.filter((t) => t.doc === rel(x.doc)).map((t) => t.content || '')].join('\n') }))
-      const holdAll = (code, why) => ({ sections: [], held: [...targets.map((t) => ({ doc: t.doc, heading: t.h, code, why, ...(typeof t.content === 'string' ? { content: t.content } : {}) })), ...introRows.map((x) => ({ doc: x.doc, heading: '(요약)', code, why, ...(typeof x.text === 'string' ? { content: x.text } : {}) }))].slice(0, 50) })
+      const holdAll = (code, why) => strict ? (() => { throw stepFailErr([{ ...(targets[0] ? { doc: targets[0].doc, heading: targets[0].h } : {}), code, why }]) })() : ({ sections: [], held: [...targets.map((t) => ({ doc: t.doc, heading: t.h, code, why, ...(typeof t.content === 'string' ? { content: t.content } : {}) })), ...introRows.map((x) => ({ doc: x.doc, heading: '(요약)', code, why, ...(typeof x.text === 'string' ? { content: x.text } : {}) }))].slice(0, 50) })
       if (missing) return holdAll('format', `「${missing.h}」 글이 없다`)
       if (introRows.some((x) => typeof x.text !== 'string')) return holdAll('format', '요약 글이 없다')
-      const r = checkShape(k, { targets, sources: u.sources.map((s) => ({ doc: rel(s.doc), h: s.h, base: s.sha })), intros: introRows }, { legacy: legacyOf(k) })
-      if (!r.ok && r.code === 'conflict') throw new KmdError('E_CONFLICT', r.why)
-      if (!r.ok) return holdAll(r.code, r.why)
+      const unit = { targets, sources: u.sources.map((s) => ({ doc: rel(s.doc), h: s.h, base: s.sha })), intros: introRows }
+      let r
+      if (strict) {
+        // approve 모드 지식(통합 I1 · P-D24 · P-D2) — 결정적 오류(꼴 · 섞인 자리 · 저절로 채우는 표)만 걸음 실패 · 값 대조(지어낸 · 잃은 값)는 막지 않고 잰다(「값 대조(code): 까닭」 · savelog warned)
+        const j = judgeShape(k, unit, { legacy: legacyOf(k) })
+        const e = j.errors[0]
+        if (e && e.code === 'conflict') throw new KmdError('E_CONFLICT', e.why)
+        if (e) return holdAll(e.code, e.why)
+        r = { ok: true, warnings: j.warnings.map((w) => `값 대조(${w.code}): ${w.why}`) }
+      } else {
+        r = checkShape(k, unit, { legacy: legacyOf(k) })
+        if (!r.ok && r.code === 'conflict') throw new KmdError('E_CONFLICT', r.why)
+        if (!r.ok) return holdAll(r.code, r.why)
+      }
       // 이름 다시 놓기 — 출처에 닿던 이름은 구조안 names 의 목표 항목으로(placeExact)
       const place = []
       for (const s of u.sources) {
@@ -915,8 +995,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     if (rec0?.memo === true) throw new KmdError('E_INPUT', '메모(기록만)는 남기지 않는다. 정해진 부분만 골라 다시 제안한다(정해지지 않은 것은 저장하지 않는다)')
     const bad = proposeInputWhy(Object.fromEntries(['proposal', 'distinct', 'excluded', 'forms', 'kinds', 'names'].filter((x) => input[x] !== undefined).map((x) => [x, input[x]])))
     if (bad) throw new KmdError('E_INPUT', bad)
-    // 옛 개인 프로그램 판의 보내기(넣을 곳을 고르지 못한 조각 left) — 받지 않는다(P-D22: 새 판은 보내기 창이 곧 제안서)
-    if (Array.isArray(input.left) && input.left.length) throw Object.assign(new KmdError('E_APPROVE', '이 팀 지식은 보내기 창에서 저장 제안을 승인해야 받는다. 개인 프로그램을 새 판으로 올려 다시 보낸다(보낼 것은 개인 쪽에 그대로 남아 있다)'), { unproposed: true })
+    // 옛 개인 프로그램 판의 보내기(proposal 없음 · 넣을 곳을 고르지 못한 조각 left) — 받지 않는다(P-D22: 새 판은 보내기 창이 곧 제안서) ·
+    //   판(kit · 보내기 판 SEND_REV)을 싣고 온 판과 함께 「새 판으로 올린다」 안내 · 판 없는 보내기는 savelog kit null 로 센다
+    if ((Array.isArray(input.left) && input.left.length) || (channel === 'send' && !input.proposal)) throw Object.assign(new KmdError('E_APPROVE', '이 팀 지식은 보내기 창에서 저장 제안을 승인해야 받는다. 개인 프로그램을 새 판으로 올려 다시 보낸다(보낼 것은 개인 쪽에 그대로 남아 있다)', { details: { update: { have: Number.isInteger(opt.kit) ? opt.kit : null, want: sendLib.SEND_REV, how: '개인 프로그램을 새 판으로 올린다. 보낼 것은 개인 쪽 보내기에 그대로 남아 있다' } } }), { unproposed: true })
     // 넣은 파일 표지(ingest/)는 대량 넣기 채널에서만 · 첨부 원본으로 증명(P-D16) — 화면 · 보내기로 남의 파일 표지를 달지 못한다
     if ((Array.isArray(rec0?.tags) ? rec0.tags : []).some((t) => String(t).trim().startsWith('ingest/'))) {
       if (channel !== 'bulk') throw new KmdError('E_INPUT', 'ingest/ 표지는 대량 넣기(세션의 kmd-team-import)만 단다')
@@ -1130,7 +1211,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 걸음 재료(조각 · 걷을 출처 · 자리 장부 줄 · 요약)는 줄 안에서 새로 읽은 지식으로 엔진이 만든다(prepare) — 입력 sections 는 받지 않는다
       if (input?.sections?.length || input?.names?.length) throw new KmdError('E_INPUT', '짜임 걸음은 조각 · 이름을 입력으로 받지 않는다')
       if (!files.has(id)) files.set(id, new Map())
-      r0 = await coreSave(meta.dir, { record: input.record, sections: [], ...(input?.forms?.length ? { forms: input.forms } : {}) }, { user: ctx.user, system: !!opt.system, guard: 'hold', partial: true, correction: true, prepare: opt.shape.prepare || null, shape: { tags: opt.shape.tags }, onCommit: () => cache.delete(id) })
+      r0 = await coreSave(meta.dir, { record: input.record, sections: [], ...(input?.forms?.length ? { forms: input.forms } : {}) }, { user: ctx.user, system: !!opt.system, guard: 'hold', partial: true, correction: true, prepare: opt.shape.prepare || null, shape: { tags: opt.shape.tags, ...(opt.shape.strict ? { strict: true } : {}) }, onCommit: () => cache.delete(id) })
     } else if (team) {
       // 조각의 모양 — core 는 edits 를 모른다(prepare 가 새 글로 바꾼다) · 그래서 입력 조각은 여기서 본다
       sectionShapes(input.sections)
@@ -1184,7 +1265,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 측정 줄(S-D29) — conflictWith 는 E_CONFLICT 때만 · 들이기 비용은 S7
       //   ok — 넣은 자리(scripts/savelog.mjs 의 「다시 넣은 비율」 이 같은 자리를 짝짓는다) · held 의 why 는 앞 40자(까닭 상위)
       //   cost — 들이기 일감이면 일꾼이 알린 claude 비용 합 · 횟수(S-D29 · 2-5) · warn — 새 항목을 세우며 이름을 싣지 않았다(names-missing · S-D32)
-      try { await savelog(id, { ...logLine, rec: r0.id, n: Array.isArray(input?.sections) ? input.sections.length : 0, put, ok: proposals.filter((p) => p.applied).map((p) => p.coord), held: held.map((x) => ({ code: x.code, ...(x.coord ? { coord: x.coord } : x.doc ? { coord: `${x.doc}${x.heading ? ` › ${x.heading}` : ''}` } : {}), ...(x.why ? { why: String(x.why).slice(0, 40) } : {}) })), stale: [], conflictWith: [], memo: !!r0.memo, same: false, ms: Date.now() - t0, err: null, cost: intake?.cost || null, ...(intake?.warn?.length ? { warn: intake.warn } : {}), ...(human ? { mode: 'approve', accepted: bag.accepted.map((w) => w.code), linked: bag.linked.length, fresh: bag.fresh.length, rounds: roundsTake(ctx, id) } : {}), ...(un ? { mode: 'approve', warned: bag.values.map((w) => w.code), linked: bag.linked.length, fresh: bag.fresh.length, ...(un.rule ? { rule: String(un.rule).slice(0, 40) } : {}), ...(un.fix ? { fix: un.fix } : {}), ...(un.conflict ? { conflict: un.conflict } : {}) } : {}) }) } catch (e) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) }
+      try { await savelog(id, { ...logLine, rec: r0.id, n: Array.isArray(input?.sections) ? input.sections.length : 0, put, ok: proposals.filter((p) => p.applied).map((p) => p.coord), held: held.map((x) => ({ code: x.code, ...(x.coord ? { coord: x.coord } : x.doc ? { coord: `${x.doc}${x.heading ? ` › ${x.heading}` : ''}` } : {}), ...(x.why ? { why: String(x.why).slice(0, 40) } : {}) })), stale: [], conflictWith: [], memo: !!r0.memo, same: false, ms: Date.now() - t0, err: null, cost: intake?.cost || null, ...(intake?.warn?.length ? { warn: intake.warn } : {}), ...(human ? { mode: 'approve', accepted: bag.accepted.map((w) => w.code), linked: bag.linked.length, fresh: bag.fresh.length, rounds: roundsTake(ctx, id) } : {}), ...(un ? { mode: 'approve', warned: bag.values.map((w) => w.code), linked: bag.linked.length, fresh: bag.fresh.length, ...(un.rule ? { rule: String(un.rule).slice(0, 40) } : {}), ...(un.fix ? { fix: un.fix } : {}), ...(un.conflict ? { conflict: un.conflict } : {}) } : {}), ...(opt.shape?.strict ? { mode: 'approve', warned: (r0.warnings || []).map((w) => /^값 대조\(([a-z-]+)\)/.exec(String(w))?.[1]).filter(Boolean) } : {}) }) } catch (e) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) }
     }
     // 그 사람의 「오늘 바뀐 것」 한 줄 — 본인 줄만(남에게 알리지 않는다 · K-D13)
     const title = input?.record?.title || ''
@@ -2531,7 +2612,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const k = await hub.get(id, ctx)
       const S = readShape(k, await readStructure(meta.dir))
       const w = await hub.shapeWork(id)
-      const work = !w ? null : w.broken ? { broken: true } : { work: w.work, by: w.by, stage: w.stage, opened: w.opened, at: w.at, draft: !!w.plan, mine: !ctx || w.by === ctx.user, steps: w.tried?.steps?.length || 0, done: (w.done || []).length, blockers: w.tried?.diag?.blockers?.length || 0, ...(w.undoOf ? { undoOf: w.undoOf } : {}) }
+      const work = !w ? null : w.broken ? { broken: true } : { work: w.work, by: w.by, stage: w.stage, opened: w.opened, at: w.at, draft: !!w.plan, mine: !ctx || w.by === ctx.user, steps: w.tried?.steps?.length || 0, done: (w.done || []).length, blockers: w.tried?.diag?.blockers?.length || 0, ...(w.stage === 'stopped' && w.last?.fail ? { fail: w.last.fail } : {}), ...(w.undoOf ? { undoOf: w.undoOf } : {}) }
       return { kn: id, name: meta.name, fp: S.fp, docs: S.docs.map((d) => ({ id: d.id, title: d.title, watched: d.watched, intro: d.intro, items: d.items.map((it) => ({ h: it.h, lines: it.lines, names: it.coords.length })) })), forms: S.forms, work }
     },
     // 구조안 검사(POST /api/k/:id/shape/check { plan }) — planCheck · diffPlan · 짜임 마른 실행 → 걸림 · 경고 · 바뀔 것 · 걸음.
@@ -2595,6 +2676,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     //   걷을 출처 · 조각 · 자리 장부 줄 · 참고 줄은 저장 줄 안에서 새로 읽은 지식과 구조안으로 엔진이 만든다.
     //   멱등: 같은 걸음 표지(shape/<work>/<n>) 기록이 들어갔으면 건너뛴다 · 넣지 못함이면 다시 넣되 새 기록에 fixes
     //   걸리면(값 · 꼴 · 섞인 자리) 기록(work/ · 태그 shape) + 넣지 못함 · 출처 지문이 어긋나면 E_CONFLICT(아무것도 쓰지 않는다)
+    //   approve 모드 지식(저장 승인 P-D24 · P7)은 걸리면 걸음 입력 오류(E_INPUT · details.stepFail · 아무것도 쓰지 않는다) — 넣기가 일을 멈춘다(stopped)
     async shapeWrite(ctx, id, { plan, n, fp = null, texts = [], intros = {}, work, step } = {}) {
       if (!ctx?.user) throw new KmdError('E_INPUT', '누가 넣는지 모른다')
       const meta = await hub.meta(id, ctx)
@@ -2605,9 +2687,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (fp != null && !/^[0-9a-f]{16}$/.test(String(fp))) throw new KmdError('E_INPUT', 'fp 는 16자 지문이다')
       if (!Array.isArray(texts) || texts.length > SECTIONS_MAX || texts.some((x) => !x || typeof x.doc !== 'string' || typeof x.h !== 'string' || typeof x.content !== 'string' || x.content.length > 200_000)) throw new KmdError('E_INPUT', 'texts 는 [{ doc, h, content }] 다')
       if (!intros || typeof intros !== 'object' || Array.isArray(intros) || Object.keys(intros).some((x) => ['__proto__', 'prototype', 'constructor'].includes(x)) || Object.values(intros).some((x) => typeof x !== 'string' || x.length > 4000)) throw new KmdError('E_INPUT', 'intros 는 { 문서: 글 } 이다')
-      const job = await shapeJob({ dir: meta.dir, k0: await hub.get(id, ctx), loadK: () => loadKnowledge(meta, { cache: files.get(id), cutoverAt: config.cutoverAt || null, team: mode === 'team' }), plan: c.plan, n, fp, texts, intros, work, step })
+      // approve 모드 지식(P-D24) — 걸리면 걸음 입력 오류(아무것도 쓰지 않는다)
+      const strict = hub.saveModeOf(id) === 'approve'
+      const job = await shapeJob({ dir: meta.dir, k0: await hub.get(id, ctx), loadK: () => loadKnowledge(meta, { cache: files.get(id), cutoverAt: config.cutoverAt || null, team: mode === 'team' }), plan: c.plan, n, fp, texts, intros, work, step, strict })
       if (job.skipped) return { kn: id, skipped: true, id: job.skipped }
-      const r = await hub.save(ctx, id, { record: job.record }, { channel: 'shape', noCurate: true, shape: { tags: job.tags, prepare: job.prepare } })
+      const r = await hub.save(ctx, id, { record: job.record }, { channel: 'shape', noCurate: true, shape: { tags: job.tags, prepare: job.prepare, ...(strict ? { strict: true } : {}) } })
       return { kn: id, ...r }
     },
 
@@ -2884,6 +2968,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const k0 = await pk()
         const S0 = readShape(k0, await readStructure(prac))
         const done = new Set([...(w.done || []), ...shapeMarks(k0, w.work)])
+        // approve 모드 지식(P-D24) — 걸린 글 걸음은 걸음 실패(연습 판에도 넣지 못함을 남기지 않는다)
+        const strict = hub.saveModeOf(id) === 'approve'
         const frameDone = done.has(STEP_NO.frame)
         let steps, post, plan0
         if (frameDone && w.tried?.post) {
@@ -2902,6 +2988,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }
         const fps = {}
         let stopped = null
+        const valueWarn = [] // approve 모드 — 잰 값 대조(막지 않는다 · 끝 진단 「볼 것」)
         for (const s of steps) {
           // 그만두었으면 다음 걸음 앞에서 선다
           if (!(await hub.shapeAlive(id, w.work))) { stopped = { n: s.n, why: '그만두었다' }; break }
@@ -2918,10 +3005,18 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             if (!u) { stopped = { n: s.n, why: '그 글 걸음이 짜임 뒤 구조안에 없다' }; break }
             fps[s.unit] = unitFp(u)
             const tx = w.texts?.[s.unit] || {}
-            const job = await shapeJob({ dir: prac, k0: k, loadK: pk, plan: post, n: s.unit, fp: fps[s.unit], texts: tx.items || [], intros: tx.intros || {}, work: w.work, step })
-            if (!job.skipped) {
-              const r = await coreSave(prac, { record: job.record, sections: [] }, { user, partial: true, correction: true, prepare: job.prepare, shape: { tags: job.tags } })
-              if (r.held?.length) { stopped = { n: s.n, unit: s.unit, held: r.held.map((x) => ({ doc: x.doc, heading: x.heading, code: x.code, why: x.why })) }; break }
+            try {
+              const job = await shapeJob({ dir: prac, k0: k, loadK: pk, plan: post, n: s.unit, fp: fps[s.unit], texts: tx.items || [], intros: tx.intros || {}, work: w.work, step, strict })
+              if (!job.skipped) {
+                const r = await coreSave(prac, { record: job.record, sections: [] }, { user, partial: true, correction: true, prepare: job.prepare, shape: { tags: job.tags, ...(strict ? { strict: true } : {}) } })
+                if (r.held?.length) { stopped = { n: s.n, unit: s.unit, held: r.held.map((x) => ({ doc: x.doc, heading: x.heading, code: x.code, why: x.why })) }; break }
+                if (strict) valueWarn.push(...(r.warnings || []).filter((x) => String(x).startsWith('값 대조(')))
+              }
+            } catch (e) {
+              const sf = stepFailOf(e)
+              if (!sf) throw e
+              stopped = { n: s.n, unit: s.unit, fail: sf }
+              break
             }
           } else if (s.kind === 'tidy') {
             const d = diffPlan(S, post)
@@ -2929,7 +3024,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           }
         }
         const diag = diagnose(k0, await pk(), { work: w.work, sectionOf, coordsOfSection, audit: guardAudit })
-        if (stopped) diag.blockers.unshift({ what: '걸린 걸음', why: stopped.held ? stopped.held.map((x) => `${x.heading}: ${x.why}`).join(' · ') : stopped.why })
+        for (const x of valueWarn.slice(0, 20)) diag.warnings.push({ what: '값 대조', why: String(x).replace(/^값 대조\([^)]*\): /, '') })
+        if (stopped) diag.blockers.unshift(stopped.fail ? { what: '걸음 실패', why: failWhy(stopped.fail) } : { what: '걸린 걸음', why: stopped.held ? stopped.held.map((x) => `${x.heading}: ${x.why}`).join(' · ') : stopped.why })
         // 진짜의 지금 지문 — 넣을 때 견준다(연습 판은 진짜를 그대로 떴다)
         return { fp: S0.fp, steps, post, fps, diag, ...(stopped ? { stopped } : {}) }
       } catch (e) {
@@ -3028,6 +3124,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             await hub.save(ctx, id, { record: { title: `문서 짜임 마침: 걸음 ${w.tried.steps.length}`, body, tags: [] } }, { channel: 'shape', system: true, noCurate: true, shape: { tags: ['shape-done', step] } })
           }
         } catch (e) {
+          // 걸음 실패(approve 모드 지식 · P-D24) — 아무것도 쓰지 않았다 · 일은 멈춘다(stopped · 까닭) · 지식관리자가 구조안을 고쳐 다시 검사한다
+          const sf = stepFailOf(e)
+          if (sf) {
+            await hub.shapeEdit(id, (w0) => (liveWork(w0, w.work) ? { ...w0, stage: 'stopped', at: new Date().toISOString(), last: { n: s.n, fail: sf } } : undefined))
+            return { kn: id, work: w.work, stopped: { n: s.n, unit: s.unit, fail: sf } }
+          }
           if (e.code === 'E_CONFLICT') {
             await hub.shapeEdit(id, (w0) => (liveWork(w0, w.work) ? { ...w0, stage: 'rebase', at: new Date().toISOString(), last: { n: s.n, why: e.message } } : undefined))
             // 다시 맞추기 — 한 번은 곧바로(연습 판을 다시 떠서 견준다 · 같으면 잇고 다르면 다시 승인)
@@ -5625,7 +5727,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       return hub.sendView(ctx, id)
     },
     // 보내기 — to(화면이 본 받는 지식 · 그새 바뀌었으면 보내지 않는다) · docs([{ path }] 문서는 통째로) · recs(기록 id)
-    async sendPicked(ctx, id, { to, docs = [], recs = [] } = {}) {
+    //   excluded — 보내기 확인 창에서 뺀 넣을 곳({ 글 지문: [넣을 곳 at] } · 저장 승인 P-D22): 그 조각은 보내지 않는다 · 뺀 것이 있는 문서 · 기록은 「보냄」 으로 치지 않는다
+    async sendPicked(ctx, id, { to, docs = [], recs = [], excluded = null } = {}) {
+      const ex = sendExcludedIn(excluded)
       const meta = await hub.routeMeta(ctx, id)
       const route = await hub.routeOf(meta)
       if (!route) throw new KmdError('E_INPUT', '받는 지식을 먼저 정한다')
@@ -5636,31 +5740,83 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const pickDocs = (Array.isArray(docs) ? docs : []).map((x) => ({ d: k.byDocPath.get(String(x?.path || '')) })).filter((x) => x.d)
       const recIds = [...new Set((Array.isArray(recs) ? recs : []).map(String))].filter((x) => { const w = k.byWork.get(x); return w && !isSystemRecord(w) && !w.tags.some((t) => t.startsWith('sent/')) })
       const pathOf = new WeakMap() // 조각 → 보낸 문서 경로(받는 팀에는 싣지 않는다)
+      const recOf = new WeakMap() // 조각 → 보낸 기록 id
       const items = [
         ...pickDocs.flatMap(({ d }) => sendLib.split(sendLib.docItem(k, d)).map((it) => (pathOf.set(it, d.path), it))),
-        ...recIds.flatMap((x) => sendLib.split(sendLib.recItem(k, k.byWork.get(x)))),
+        ...recIds.flatMap((x) => sendLib.split(sendLib.recItem(k, k.byWork.get(x))).map((it) => (recOf.set(it, x), it))),
       ]
       if (!items.length) throw new KmdError('E_INPUT', '보낼 것을 고른다')
       const dest = { kn: route.kn, ...(route.url ? { url: route.url } : {}) }
       // 받는 팀(주소가 있는 길)은 글마다 저장 문으로(S12) — 넣음 · 넣지 못함 · 이미 넣음 · 닿지 않음(wait) · 거절(fail) ·
       //   넣지 못함이 남은 글은 fail 줄([지금 다시] 는 앞 기록 id 를 fixes 로) · 닿지 않은 글은 wait 줄(저절로 다시) · 같은 PC 의 옛 길은 받기 그대로
       let res
+      // 「보냄」 으로 치지 않을 문서 · 기록 — 넣지 못함 · 창에서 뺀 조각이 있음 · 승인한 제안이 넣지 못하고 선 것(개인 쪽에 남아 다시 고른다)
+      const keepRecs = new Set()
       if (dest.url) {
-        res = { sent: 0, wait: 0, fail: 0, put: 0, held: 0, same: 0, why: [], waits: [], heldPaths: new Set() }
+        res = { sent: 0, wait: 0, fail: 0, put: 0, held: 0, same: 0, skipped: 0, why: [], waits: [], heldPaths: new Set() }
+        const keep = (it) => { if (pathOf.has(it)) res.heldPaths.add(pathOf.get(it)); if (recOf.has(it)) keepRecs.add(recOf.get(it)) }
+        const key = await sendKeyOf(dest.url)
+        // approve 모드 팀 지식(P-D22) — 창에서 승인한 제안이 없는 글이 있으면 아무것도 보내지 않는다(닿지 않으면 아래 wait 줄로)
+        if (items.some((it) => !propOf(id, dest, it.sha))) {
+          let b = null
+          try { [b] = await sendLib.mcpCalls(dest.url, key, [{ tool: 'brief', args: { knowledge: dest.kn } }]) } catch (e) { log(`보내기 전 받는 지식 읽기 실패 ${id}: ${e.message}`) }
+          if (b?.saveMode === 'approve') throw new KmdError('E_APPROVE', '받는 팀 지식은 저장 제안을 승인받아 받는다: 보내기 확인 창에서 제안을 보고 보낸다(아무것도 보내지 않았다)')
+        }
         for (const it of items) {
           const payload = { engine: 'save', src: id, from: meta.name, items: [it] }
+          const c = propOf(id, dest, it.sha)
+          const failRow = (why) => { const w = waitOf(dest, payload, Object.assign(new Error(why), { status: 428, reach: true })); res.waits.push(w); res.fail++; res.why.push(`${dest.kn}: ${w.why}`); keep(it) }
+          if (c) {
+            // 승인한 제안 — 창에서 본 그대로(뺀 조각이 있으면 남은 조각으로 다시 제안 · 「뺀다」 줄)
+            if (c.errors.length) { failRow(`저장 제안에 오류가 있다: ${c.errors[0].why}`); continue }
+            const out = new Set(ex[it.sha] || [])
+            const ats = c.items.map((x) => x.at)
+            let approved = { record: c.input.record, sections: c.input.sections, proposal: c.proposal }
+            if ([...out].some((a) => ats.includes(a))) {
+              keep(it)
+              if (ats.every((a) => out.has(a))) { res.skipped++; continue }
+              const sections = c.input.sections.filter((s) => !out.has(atOfSection(c.items, s)))
+              // 뺀 「잇기」 — 그 이름을 기록의 건드린 이름에서 뺀다(이을 항목이 남지 않으면 기록 모음 달 항목)
+              const drop = new Set(c.items.filter((x) => x.kind === '잇기' && x.coord && out.has(x.at)).map((x) => x.coord))
+              const { touches: t0, touchesEmpty: _e, ...r0 } = c.input.record
+              const touches = (Array.isArray(t0) ? t0 : []).filter((x) => !drop.has(x))
+              // 원천 인용(보낸 글 전체)은 싣지 않는다 — 뺀 조각의 글이 기록으로 팀에 가지 않게(남긴 조각의 글은 조각에 있다)
+              const body = String(r0.body || '').replace(/\n## 원천\n[\s\S]*?(?=\n## (?!원천)|$)/, '').trim() || '보낸 글의 일부다.'
+              const record = { ...r0, body, ...(touches.length ? { touches } : { touchesEmpty: c.input.record.touchesEmpty || '보내기 창에서 이을 항목을 뺐다' }) }
+              const excl = [...out].filter((a) => ats.includes(a)).map((a) => ({ name: a.slice(0, 200), why: '보내기 창에서 뺌' }))
+              let p
+              try {
+                p = await sendPropose(dest, key, { record, sections, excluded: excl })
+              } catch (e) {
+                const w = waitOf(dest, payload, e)
+                res.waits.push(w)
+                if (w.state === 'wait') res.wait++
+                else { res.fail++; res.why.push(`${dest.kn}: ${w.why}`) }
+                continue
+              }
+              if (p.errors?.length || !p.proposal) { failRow(`뺀 뒤 저장 제안에 오류가 있다: ${p.errors?.[0]?.why || '제안이 없다'}`); continue }
+              // 뺀 뒤 제안은 창에서 본 것 안이어야 한다 — 넣을 곳은 남긴 것만 · 경고는 본 경고만(아니면 보내지 않고 창에서 다시 본다)
+              const left = new Set(ats.filter((a) => !out.has(a)))
+              const seen = new Set(c.warnIds || [])
+              if ((p.items || []).some((x) => !left.has(x.at)) || (p.warnings || []).some((w) => !seen.has(w.id))) { failRow('뺀 뒤 저장 제안이 창에서 본 것과 다르다: 보내기 확인 창에서 다시 본다'); continue }
+              approved = { record, sections, excluded: excl, proposal: p.proposal, tag: sha16(`${it.sha}\n${[...left].sort().join('\n')}`) }
+            }
+            payload.approved = { [it.sha]: approved }
+          }
           try {
             const r = await sendSave(ctx, dest, payload)
             res.put += r.put
             res.same += r.same
             res.sent += r.put + r.held
             const b = badOf(dest, payload, r)
+            // 넣지 못함(저장 승인 전 팀 지식) — 문서는 「보냄」 으로 치지 않는다 · 기록은 fail 줄의 [지금 다시] 가 앞 기록을 바로잡는다(옛 길 그대로)
             if (b) { res.held++; res.waits.push(b); res.why.push(b.why); if (pathOf.has(it)) res.heldPaths.add(pathOf.get(it)) }
+            if (c && !b) sendProps.delete(propKey(id, dest, it.sha))
           } catch (e) {
             const w = waitOf(dest, payload, e)
             res.waits.push(w)
             if (w.state === 'wait') res.wait++
-            else { res.fail++; res.why.push(`${dest.kn}: ${w.why}`) }
+            else { res.fail++; res.why.push(`${dest.kn}: ${w.why}`); if (c) { keep(it); sendProps.delete(propKey(id, dest, it.sha)) } }
           }
         }
       } else res = await deliverAll(ctx, meta, [dest], items)
@@ -5675,12 +5831,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
             st.sent[d.path] = { ...sendLib.marks(d), at }
             delete st.dropped[d.path]
           }
-          for (const x of recIds) st.sentRecs[x] = at
+          for (const x of recIds) if (!keepRecs.has(x)) st.sentRecs[x] = at
         }
-        st.log.unshift({ at: new Date().toISOString(), n: items.length, to: [route.kn], recs: recIds.length, docs: pickDocs.length, wait: !!wait, ...(dest.url ? { put: res.put, held: res.held, same: res.same } : {}), ...(fail ? { fail } : {}), ...(unnamed ? { unnamed } : {}), titles: items.slice(0, 5).map((x) => x.title) })
+        st.log.unshift({ at: new Date().toISOString(), n: items.length, to: [route.kn], recs: recIds.length, docs: pickDocs.length, wait: !!wait, ...(dest.url ? { put: res.put, held: res.held, same: res.same, ...(res.skipped ? { skipped: res.skipped } : {}) } : {}), ...(fail ? { fail } : {}), ...(unnamed ? { unnamed } : {}), titles: items.slice(0, 5).map((x) => x.title) })
       })
       if (sent || res.same) feed.add(dataDir, ctx.user, { kind: 'send', kn: id, to: route.name, dot: res.held ? 'warn' : 'acc', text: `${sent}개를 보냈다: ${meta.name} → ${route.name}`, small: dest.url ? [`넣음 ${res.put}`, `넣지 못함 ${res.held}`, res.same ? `이미 넣음 ${res.same}` : ''].filter(Boolean).join(' · ') : '받는 지식에 기록으로 섰다' }).catch((e) => log(`보내기 알림 실패 ${id}: ${e.message}`))
-      return { sent, wait, to: route.kn, ...(dest.url ? { put: res.put, held: res.held, same: res.same } : {}), ...(unnamed ? { unnamed } : {}), ...(fail || res.held ? { fail: fail + (res.held || 0), why } : {}) }
+      return { sent, wait, to: route.kn, ...(dest.url ? { put: res.put, held: res.held, same: res.same, ...(res.skipped ? { skipped: res.skipped } : {}) } : {}), ...(unnamed ? { unnamed } : {}), ...(fail || res.held ? { fail: fail + (res.held || 0), why } : {}) }
     },
     // 보내기 — changes(변경사항의 key) · docs(문서 경로 — 전체) · recs(기록 id — 전체) · 셋 다 없으면 변경사항 모두(예전 길)
     async send(ctx, id, { extra = [], changes = null, docs = [], recs = [] } = {}) {
@@ -5789,16 +5945,17 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     //   같은 지식의 받기는 한 줄로 — 시간 넘김 뒤 같은 묶음이 겹쳐 와도 지문 검사와 저장 사이에 끼어들지 않는다
     //   묶음 하나 = 지식 읽기 1번 · git 커밋 1번(글마다 커밋하면 150개에 2분이 넘는다)
     //   글 하나가 거절되면(너무 긴 글 등) 그것만 bad 로 두고 나머지는 받는다 · 지식 전체의 거절(멈춤 · 권한)은 그대로 던진다
-    //   옛 판의 보내기(S12 · S-D36) — 팀 지식에 받은 기록은 넣지 못함(legacy-send)으로 둔다(정리를 기다리지 않는다 · 새 판은 저장 문 /save 로 보낸다) ·
-    //   바깥(HTTP)에서 온 받기는 저장 속도 통에서 남길 기록 수만큼 뺀다(opt.rate · 한 번에 통 크기까지)
+    //   옛 판의 보내기(S12 · S-D36) — 팀 지식에 받은 기록은 넣지 못함(legacy-send)으로 둔다(정리를 기다리지 않는다 · 새 판은 저장 문 /save 로 보낸다)
+    //   HTTP 받기(/receive)는 걷었다(저장 승인 P-D23 · P7 · 받침 없음). 남은 것은 같은 팀 서버 안의 옛 개인 지식 → held 모드 팀 지식 길뿐(P11 · PC6 에서 걷는다) ·
+    //   개인 프로그램의 받기 갈래(받은 기록을 pend 로 세우고 바로 넣기)는 걷었다
     async receive(ctx, id, { from = '', items = [] } = {}, opt = {}) {
+      if (mode !== 'team') throw new KmdError('E_INPUT', '받기는 걷었다. 개인 지식에는 세션 · 파일 넣기로 남긴다')
       const meta = await hub.meta(id, ctx)
       if (!Array.isArray(items) || !items.length || items.length > 200) throw new KmdError('E_INPUT', '받을 것은 1 ~ 200 개')
       if (ctx.machine && ctx.machine.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
       if (!ctx.machine) hub.need(ctx, id, 'write')
       // approve 모드 지식(저장 승인 설계 P-D22 · P-D23 · 6-5) — 옛 받기는 넣지 못함(legacy-send)만 만들므로 받지 않는다 · 보낼 것은 개인 쪽에 그대로 남는다
-      //   개인 지식(이 PC 의 받기 · 받은편지함 옮기기)은 P7 에서 받기 갈래를 걷을 때까지 옛 길(바로 넣기가 넣는다)
-      if (mode === 'team' && hub.saveModeOf(id) === 'approve') throw Object.assign(new KmdError('E_APPROVE', '이 팀 지식은 보내기 창에서 저장 제안을 승인해야 받는다. 개인 프로그램을 새 판으로 올려 다시 보낸다(보낼 것은 개인 쪽에 그대로 남아 있다)'), { unproposed: true })
+      if (hub.saveModeOf(id) === 'approve') throw Object.assign(new KmdError('E_APPROVE', '이 팀 지식은 보내기 창에서 저장 제안을 승인해야 받는다. 개인 프로그램을 새 판으로 올려 다시 보낸다(보낼 것은 개인 쪽에 그대로 남아 있다)'), { unproposed: true })
       return serial(`receive:${path.resolve(meta.dir)}`, async () => {
         const shut = backup.closed(meta)
         if (shut) throw new KmdError('E_BEHIND', shut.message)
@@ -5828,7 +5985,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         let saved = 0
         let unnamed = 0
         if (recs.length && opt.rate) rateTake(ctx, id, recs.length)
-        const legacy = mode === 'team'
+        const legacy = true
         if (recs.length) {
           const r = await saveRecords(meta.dir, recs, { user: ctx.user, holdWhy: `받음: ${String(from).slice(0, 60) || '보낸 곳'}에서 · 이 지식의 이름 장부에서 맞는 이름을 찾지 못했다`, ...(legacy ? { serverTags: ['held'], heldPart: [{ code: 'legacy-send', why: '옛 보내기: 조각 없이 기록만 왔다. 개인 프로그램을 새 판으로 올리고 다시 보내거나 지식관리자가 다시 들인다' }] } : {}) })
           for (const x of r.records) {
@@ -5841,11 +5998,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           cache.delete(id)
           if (saved) {
             feed.add(dataDir, ctx.user, { kind: 'save', rec: r.records.find((x) => x.id)?.id, kn: id, from: String(from).slice(0, 80), dot: legacy ? 'warn' : 'pend', text: `${meta.name}에 기록 ${saved}개: ${String(from).slice(0, 80)}에서 받음`, small: legacy ? '넣지 못함: 옛 보내기라 조각이 없다' : pendText() }).catch((e) => log(`받기 알림 실패 ${id}: ${e.message}`))
-            // 개인 지식은 바로 문서에(뒤에서) · 팀 지식은 넣지 못함이라 정리 · 판정을 걸지 않는다
-            if (mode === 'pc') {
-              scheduleDecide(id)
-              hub.curateSoon(id).catch((e) => log('바로 넣기', id, e.message))
-            }
+            // 팀 지식은 넣지 못함이라 정리 · 판정을 걸지 않는다
             pushRemotes(meta, { log }).catch((e) => log(`저장소 · 지식백업 걸기 실패 ${id}: ${e.message}`))
           }
         }
@@ -5870,26 +6023,55 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         }),
       }
     },
-    // 보내기 미리 보기 — 고른 것을 받는 지식의 장부로 맞춰 본다(쓰지 않는다) · 받는 팀 서버가 옛 판이면 unavailable
+    // 보내기 미리 보기(쓰지 않는다) — 받는 팀 지식이 approve 모드면 글마다 저장 제안(proposals[{ rec, title, propose }] · P-D22 · 창이 곧 제안서) ·
+    //   저장 승인 전 팀 지식이면 이름 미리 보기(글의 머리 · 제목 조각을 팀 match 로) · 같은 프로그램 안이면 받기 미리 보기 · 받는 팀 서버가 옛 판이면 unavailable
     async sendPreview(ctx, id, { to, docs = [], recs = [] } = {}) {
       const meta = await hub.routeMeta(ctx, id)
       const route = await hub.routeOf(meta)
       if (!route || route.gone || String(to || '') !== route.kn) return { unavailable: '받는 지식을 다시 정한다' }
       const items = pickedItems(await hub.get(id), docs, recs)
       if (!items.length) return { n: 0, named: 0, unnamed: [], same: 0 }
-      let r
       try {
-        if (!route.url) r = await hub.receivePreview(ctx, route.kn, { items })
-        else {
-          const key = process.env.KMD_SEND_KEY || (await keystore.get(keystore.keyName(route.url)).catch(() => null))
-          r = await sendLib.post(route.url, route.kn, { items }, key, { path: 'receive/preview', timeoutMs: 15_000 })
+        if (!route.url) {
+          const r = await hub.receivePreview(ctx, route.kn, { items })
+          const got = Array.isArray(r?.items) ? r.items : []
+          const unnamed = got.filter((x) => !x.same && !x.bad && !(x.names || []).length).map((x) => items[x.i]?.title || '')
+          return { n: items.length, named: got.filter((x) => (x.names || []).length).length, unnamed, same: got.filter((x) => x.same).length }
         }
+        const d = { kn: route.kn, url: route.url }
+        const key = await sendKeyOf(route.url)
+        const [b] = await sendLib.mcpCalls(route.url, key, [{ tool: 'brief', args: { knowledge: route.kn } }])
+        if (!b || b.error) return { unavailable: String(b?.message || '받는 팀 지식을 읽지 못했다').slice(0, 120) }
+        if (b.saveMode !== 'approve') {
+          const qsOf = (it) => [...new Set([...[...String(it.body || '').matchAll(/^## (.+)$/gm)].map((m) => m[1].trim()), ...String(it.title || '').split(/\s+—\s+|:\s+/)].map((x) => x.trim()).filter((x) => x && x.length <= 80))].slice(0, SEND_QS)
+          const calls = items.map((it) => qsOf(it).map((q) => ({ tool: 'match', args: { q, knowledge: route.kn } })))
+          const flat = calls.flat()
+          const rs = flat.length ? await sendLib.mcpCalls(route.url, key, flat) : []
+          let j = 0
+          const hit = calls.map((cs) => { const xs = rs.slice(j, j + cs.length); j += cs.length; return xs.some((m) => (m?.found || []).some((f) => f.coord)) })
+          return { n: items.length, named: hit.filter(Boolean).length, unnamed: items.filter((_, i) => !hit[i]).map((x) => x.title), same: 0 }
+        }
+        if (items.length > SEND_PREVIEW_MAX) return { approve: true, unavailable: `저장 제안은 한 번에 글 ${SEND_PREVIEW_MAX}개까지 본다: 나눠 골라 보낸다` }
+        const proposals = []
+        for (const it of items) {
+          try {
+            let c = propOf(id, d, it.sha)
+            const fresh = async () => { const m = await sendMaterial(d, key, it, meta.name); return { input: sendInputOf(m, it, meta.name, await sendDraft(id, m)) } }
+            if (!c) c = await fresh()
+            let p = await sendPropose(d, key, c.input)
+            // 지은 뒤 팀 항목이 바뀌었다(지문 어긋남) — 지어 둔 초안을 버리고 새 재료로 한 번 다시 짓는다
+            if (c.at && (p.errors || []).some((e) => e.stale)) { c = await fresh(); p = await sendPropose(d, key, c.input) }
+            propPut(id, d, it.sha, { input: c.input, items: (Array.isArray(p.items) ? p.items : []).map(({ at, kind, coord, doc, heading }) => ({ at, kind, ...(coord ? { coord } : {}), doc, heading })), proposal: p.proposal || null, errors: Array.isArray(p.errors) ? p.errors : [], warnIds: (Array.isArray(p.warnings) ? p.warnings : []).map((w) => w.id) })
+            proposals.push(propRow(it, p))
+          } catch (e) {
+            if (e.reach === false) throw e
+            proposals.push(propRow(it, { errors: [{ code: 'send', at: '보내기', why: String(e.message || '저장 제안을 받지 못했다').slice(0, 200) }] }))
+          }
+        }
+        return { n: items.length, approve: true, proposals }
       } catch (e) {
         return { unavailable: e.status === 404 ? '받는 팀 서버가 미리 보기를 모른다(옛 판)' : String(e.message || '미리 보지 못했다').slice(0, 120) }
       }
-      const got = Array.isArray(r?.items) ? r.items : []
-      const unnamed = got.filter((x) => !x.same && !x.bad && !(x.names || []).length).map((x) => items[x.i]?.title || '')
-      return { n: items.length, named: got.filter((x) => (x.names || []).length).length, unnamed, same: got.filter((x) => x.same).length }
     },
     // 받은편지함 정리 — 이 PC 의 다른 지식으로만 옮긴다 · 팀 지식에 이름이 걸리면 보내기 후보 · private 표지 기록은 그대로
     async inboxMove(ctx, id, { dry = false } = {}) {

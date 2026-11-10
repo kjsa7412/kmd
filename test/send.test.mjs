@@ -94,6 +94,9 @@ before(async () => {
   // 보내기(S12) 받는 팀 지식 — 점검 › 순서 하나
   mkKnowledge(path.join(tmp, 'kn', 'rcv'), '## proc\n\n- `proc:순서`: 순서')
   fs.writeFileSync(path.join(tmp, 'kn', 'rcv', 'docs', '점검.md'), '# 점검\n\n## 순서\n전원부터 본다.\n')
+  // 저장 승인 P7 — approve 모드로 켤 받는 팀 지식(같은 점검 › 순서)
+  mkKnowledge(path.join(tmp, 'kn', 'apvs'), '## proc\n\n- `proc:순서`: 순서')
+  fs.writeFileSync(path.join(tmp, 'kn', 'apvs', 'docs', '점검.md'), '# 점검\n\n## 순서\n전원부터 본다.\n\n## 기록\n날마다 남긴다.\n')
   fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })
   fs.writeFileSync(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sendTickMs: 3600000, inboxTickMs: 3600000 }))
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
@@ -224,10 +227,9 @@ test('보내기: 고친 문서 → 보낼 것 1 → 받는 지식에 기록 1 ·
   assert.match(got[0].body, /20%/)
   assert.equal((await s.hub.sendQueue(KIM, 'note')).items.length, 0)
 
-  // 같은 것을 다시 받으면 0 — 기기 열쇠 HTTP 길로
-  const kim = await signIn(s, { id: 'kim2', admin: true })
+  // 같은 것을 다시 받으면 0 — 같은 서버 안의 옛 길(HTTP 받기는 걷었다 · 저장 승인 P7)
   const sha = got[0].tags.find((t) => t.startsWith('sent/')).slice(5)
-  const again = await post(s.url, 'dpms', { from: 'note', items: [{ title: got[0].title, body: '다시', sha }] }, kim.key)
+  const again = await s.hub.receive(KIM, 'dpms', { from: 'note', items: [{ title: got[0].title, body: '다시', sha }] })
   assert.deepEqual(again, { saved: 0, same: 1 })
 
   // 닿지 않는 kmd — 두었다가 멈춤 줄
@@ -399,6 +401,86 @@ test('보내기(S12 · 저장 문): 쓰기 자리 · 받는 쪽 문서가 그 �
   } finally {
     delete process.env.FAKE_CLAUDE_LOG
     await s.hub.setOwner(SHELL, 'rcv', { noClaude: false })
+    await pc.close()
+    if (was === undefined) delete process.env.KMD_SEND_KEY
+    else process.env.KMD_SEND_KEY = was
+  }
+})
+
+// 저장 승인 P7(P-D22 · P-D23 · P-D46) — approve 모드 팀 지식으로 보내기: 창(미리 보기)이 글마다 팀 propose 를 미리 돌린 제안서 ·
+//   창 없이 보내면 E_APPROVE(아무것도 안 보냄) · 창에서 모두 뺀 글은 보내지 않고 남는다 · [보내기] 는 그 proposal 로 기록 + 조각 한 번 ·
+//   옛 판(proposal 없음)은 E_APPROVE + 새 판 안내(아무것도 안 씀) · 판(kit)은 savelog 에 · 개인 프로그램의 받기 갈래는 걷었다
+test('보내기(P7 · approve 팀 지식): 미리 보기 = 저장 제안 · 창 없이 E_APPROVE · 모두 빼면 안 보냄 · 승인한 제안으로 들어감 · 옛 판 E_APPROVE · 개인 받기 없음', async () => {
+  await s.hub.setOwner(SHELL, 'apvs', { owner: 'kim' })
+  await s.hub.setSaveMode(SHELL, 'apvs', 'approve')
+  const proot = path.join(tmp, 'pcapv')
+  mkKnowledge(path.join(proot, 'mine'), '')
+  fs.writeFileSync(path.join(proot, 'mine', 'docs', '점검.md'), '# 점검\n\n## 순서\n전원 다음 통신을 본다.\n\n## 기록\n주마다 남긴다.\n')
+  const me = await signIn(s, { id: 'kim7', admin: true })
+  const was = process.env.KMD_SEND_KEY
+  process.env.KMD_SEND_KEY = me.key
+  const pc = await startServer({ root: proot, mode: 'pc', user: 'kim7', port: 0, log: () => {}, scryptN: 1 << 15 })
+  fs.writeFileSync(path.join(proot, '.kmd', 'teams.json'), JSON.stringify([s.url]))
+  const ME = { user: pc.pcUser, admin: true, pc: true }
+  const code = (p) => p.then(() => null, (e) => e.code)
+  const recsOf = async () => (s.hub.forget?.('apvs'), (await s.hub.get('apvs')).works.filter((w) => w.tags.some((x) => x.startsWith('sent/'))))
+  const secOf = async (h = '순서') => (s.hub.forget?.('apvs'), (await s.hub.get('apvs')).byDocPath.get('docs/점검.md').sections.find((x) => x.h === h).body)
+  try {
+    await pc.hub.sendRoute(ME, 'mine', { to: 'apvs', url: s.url })
+    const pick = { to: 'apvs', docs: [{ path: 'docs/점검.md' }] }
+    // ① 창(미리 보기) 없이 보내면 — 아무것도 보내지 않는다
+    assert.equal(await code(pc.hub.sendPicked(ME, 'mine', pick)), 'E_APPROVE')
+    assert.equal((await recsOf()).length, 0)
+    assert.equal((await pc.hub.sendView(ME, 'mine')).wait.length, 0, 'fail 줄도 없다')
+    // ② 미리 보기 — 글마다 받는 팀의 저장 제안(propose) · 쓰지 않는다
+    const pv = await pc.hub.sendPreview(ME, 'mine', pick)
+    assert.equal(pv.approve, true, JSON.stringify(pv))
+    assert.equal(pv.proposals.length, 1)
+    const pr = pv.proposals[0]
+    assert.match(pr.rec, /^[0-9a-f]{16}$/)
+    assert.ok(pr.propose.items.some((x) => x.at.includes('순서') && x.kind === '고침'), JSON.stringify(pr.propose))
+    assert.match(pr.propose.text, /【저장 제안】.*길: 보내기/)
+    assert.deepEqual(pr.propose.errors, [])
+    assert.equal((await recsOf()).length, 0, '미리 보기는 쓰지 않는다')
+    // ③ 창에서 넣을 곳을 모두 뺐다 — 보내지 않고 개인 쪽에 남는다
+    assert.equal(await code(pc.hub.sendPicked(ME, 'mine', { ...pick, excluded: { zz: ['x'] } })), 'E_INPUT')
+    let r = await pc.hub.sendPicked(ME, 'mine', { ...pick, excluded: { [pr.rec]: pr.propose.items.map((x) => x.at) } })
+    assert.deepEqual({ put: r.put, skipped: r.skipped }, { put: 0, skipped: 1 }, JSON.stringify(r))
+    assert.equal((await recsOf()).length, 0)
+    assert.equal((await pc.hub.sendView(ME, 'mine')).docs.find((d) => d.path === 'docs/점검.md').st, 'new', '뺀 문서는 「보냄」 이 아니다')
+    // ③-2 순서만 뺐다 — 남은 조각(기록)으로 다시 제안해 들어간다 · 「뺀다」 줄 · 순서는 그대로 · 문서는 「보냄」 이 아니다
+    const atOrder = pr.propose.items.find((x) => x.at.includes('순서')).at
+    assert.ok(pr.propose.items.some((x) => x.at.includes('기록') && x.kind === '고침'), JSON.stringify(pr.propose.items))
+    r = await pc.hub.sendPicked(ME, 'mine', { ...pick, excluded: { [pr.rec]: [atOrder] } })
+    assert.deepEqual({ put: r.put, fail: r.fail }, { put: 1, fail: undefined }, JSON.stringify(r))
+    assert.match(await secOf('기록'), /주마다/)
+    assert.match(await secOf(), /전원부터/, '뺀 조각은 들어가지 않았다')
+    assert.notEqual((await pc.hub.sendView(ME, 'mine')).docs.find((d) => d.path === 'docs/점검.md').st, 'same')
+    const part = (await recsOf())[0]
+    assert.doesNotMatch(part.body, /통신/, '뺀 조각의 글은 기록(원천 인용)으로도 가지 않는다')
+    // ④ 다시 창을 열고(새 제안) 모두 보낸다 — 앞의 일부 보내기와 다른 보낸 지문이라 「이미 넣음」 이 아니다 · 판(kit)은 측정 줄에
+    assert.equal(await code(pc.hub.sendPicked(ME, 'mine', pick)), 'E_APPROVE', '보낸 제안은 걷혔다: 창을 다시 연다')
+    const pv2 = await pc.hub.sendPreview(ME, 'mine', pick)
+    assert.ok(pv2.proposals[0].propose.items.some((x) => x.at === atOrder), JSON.stringify(pv2.proposals[0].propose))
+    r = await pc.hub.sendPicked(ME, 'mine', pick)
+    assert.deepEqual({ put: r.put, held: r.held, fail: r.fail, same: r.same }, { put: 1, held: 0, fail: undefined, same: 0 }, JSON.stringify(r))
+    assert.match(await secOf(), /통신/)
+    const got = await recsOf()
+    assert.equal(got.length, 2)
+    assert.ok(got.every((w) => !['held', 'memo', 'pend'].includes(w.state)), got.map((w) => w.state).join())
+    assert.equal((await pc.hub.sendView(ME, 'mine')).docs.find((d) => d.path === 'docs/점검.md').st, 'same')
+    const lines = fs.readFileSync(path.join(tmp, 'kn', '.kmd', 'savelog', 'apvs.jsonl'), 'utf8').trim().split('\n').map((x) => JSON.parse(x))
+    assert.ok(lines.some((x) => x.ch === 'send' && x.kit === 2 && x.mode === 'approve'), JSON.stringify(lines.slice(-2)))
+    // ⑤ 옛 판 개인 프로그램(proposal 없음 · 판 없음) — E_APPROVE + 새 판 안내 · 아무것도 쓰지 않는다 · 판 없는 보내기를 센다
+    const old = await fetch(`${s.url}/api/k/apvs/save`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${me.key}` }, body: JSON.stringify({ channel: 'send', record: { title: '옛 판 보내기', body: '글', tags: ['sent/00000000000000ef'], touchesEmpty: '시험' }, sections: [] }) })
+    const oj = await old.json()
+    assert.deepEqual([old.status, oj.error], [428, 'E_APPROVE'])
+    assert.match(oj.message, /새 판/)
+    assert.deepEqual([oj.details?.update?.have, oj.details?.update?.want], [null, 2], JSON.stringify(oj))
+    assert.equal((await recsOf()).length, 2)
+    // ⑥ 개인 프로그램의 받기 갈래는 걷었다(저장 승인 P-D23)
+    assert.equal(await code(pc.hub.receive(ME, 'mine', { from: 'x', items: [{ title: 't', body: 'b' }] })), 'E_INPUT')
+  } finally {
     await pc.close()
     if (was === undefined) delete process.env.KMD_SEND_KEY
     else process.env.KMD_SEND_KEY = was

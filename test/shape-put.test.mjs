@@ -6,7 +6,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { makeHub } from '../server/hub.js'
+import { makeHub, SHELL } from '../server/hub.js'
 import { loadKnowledge } from '../core/knowledge.js'
 import { parseDoc } from '../core/sections.js'
 
@@ -319,5 +319,83 @@ test('남은 연습 판 — 켤 때 걷기(shapeSweep) · 깨진 장부를 그�
     assert.equal((await s.hub.shapeStop(s.ctx, 'ops')).stopped, true)
     assert.ok(!fs.existsSync(path.join(base, 'ops.bbbbbbbbbbbb')), '깨진 장부의 연습 판도 걷었다')
     assert.ok(!fs.existsSync(s.hub.shapeFile('ops')))
+  } finally { s.done() }
+})
+
+// 저장 승인 P7(P-D24) — approve 모드 지식의 짜임: 걸린 걸음은 넣지 못함이 아니라 걸음 입력 오류(아무것도 쓰지 않는다) + 일 멈춤 ·
+//   끝 진단 막는 것 「걸음 실패」 · 지식관리자가 구조안을 고쳐 다시 검사 → 해 보기 → 넣기(넣은 걸음 · 넣기 직전 짜임 그대로) ·
+//   걸음 실패는 결정적 오류(꼴 · 섞인 자리)만 · 값 대조(지어낸 · 잃은 값)는 막지 않고 잰다(통합 I1 · P-D2)
+test('approve 모드 짜임 — 걸음 실패: 연습 판 · 진짜 모두 아무것도 쓰지 않고 멈춤 · 넣지 못함 0 · 구조안을 고쳐 다시 넣는다 · 값 대조는 재기만', async () => {
+  const s = await setup()
+  try {
+    await s.hub.setOwner(SHELL, 'ops', { owner: '이' })
+    await s.hub.setSaveMode(SHELL, 'ops', 'approve')
+    const RECS = { id: '기록 모음', was: '기록 모음', items: [] }
+    const plan0 = (text) => { const p = PLAN(text); return { ...p, docs: [...p.docs, RECS] } }
+    const withRecs = (p) => s.hub.shapeCheck('ops', s.ctx, { plan: p })
+    // 글에 머리 줄(꼴) — 연습 판에서 걸음 실패(넣지 못함 없음) · 진짜는 그대로
+    const BADT = '디스크 80% 확인.\n\n## 끼운 머리\n헬스 체크 3회.'
+    const bentPlan = (p) => { const x = JSON.parse(JSON.stringify(p)); x.docs[0].items[1].text = BADT; return x }
+    const h0 = head(s.dir)
+    const c0 = await withRecs(plan0())
+    assert.equal(c0.ok, true, JSON.stringify(c0.errors))
+    putLedger(s, { ...ledger(s), plan: bentPlan(ledger(s).plan) })
+    const bad = await s.hub.shapeTry(s.ctx, 'ops')
+    assert.equal(bad.ok, false)
+    assert.ok(bad.stopped?.fail?.some((x) => x.code === 'format'), JSON.stringify(bad))
+    assert.ok(!bad.stopped.held)
+    assert.equal(bad.diag.blockers[0].what, '걸음 실패', JSON.stringify(bad.diag))
+    assert.equal(head(s.dir), h0, '진짜는 그대로')
+    // 맞는 글로 해 보기 · 그 뒤 짜임 뒤 구조안의 글이 틀어짐(진짜에서만 걸리는 글) → 넣기가 그 걸음에서 멈춤(아무것도 안 씀)
+    const c = await withRecs(plan0())
+    assert.equal(c.ok, true, JSON.stringify(c.errors))
+    assert.equal((await s.hub.shapeTry(s.ctx, 'ops')).ok, true)
+    const w0 = ledger(s)
+    putLedger(s, { ...w0, tried: { ...w0.tried, post: bentPlan(w0.tried.post) } })
+    const p = await s.hub.shapePut(s.ctx, 'ops')
+    assert.ok(p.stopped?.fail?.length && !p.stopped.held && !p.stopped.rec, JSON.stringify(p))
+    const w1 = ledger(s)
+    assert.equal(w1.stage, 'stopped')
+    assert.ok(w1.last.fail.some((x) => x.code === 'format'))
+    assert.equal((await s.hub.shape('ops', s.ctx)).work.fail.length, w1.last.fail.length, '화면이 까닭을 본다')
+    const k1 = await loadKnowledge({ id: 'ops', name: 'ops', dir: s.dir })
+    assert.equal(k1.works.filter((x) => x.tags.some((t) => t.startsWith(`shape/${c.work}/`))).length, 0, '글 걸음 기록 없음')
+    assert.equal(k1.works.filter((x) => x.state === 'held').length, 0, '넣지 못함 없음')
+    assert.ok(fs.existsSync(path.join(s.dir, 'docs/운영/배포.md')), '앞 짜임 걸음은 넣었다')
+    assert.equal(git(s.dir, 'status', '--porcelain').trim(), '')
+    // 다시 넣어도 같은 자리에서 멈춘다(쓰지 않는다)
+    const hx = head(s.dir)
+    assert.ok((await s.hub.shapePut(s.ctx, 'ops')).stopped?.fail)
+    assert.equal(head(s.dir), hx)
+    // 지금 짜임에 맞춘 구조안으로 다시 검사 → 해 보기 → 넣기
+    const S = await s.hub.shape('ops', s.ctx)
+    const fixed = {
+      v: 1, kind: 'reshape', base: S.fp,
+      docs: [
+        { id: '운영/배포', was: '운영/배포', items: [
+          { h: '배포 창', from: [{ doc: '운영/배포', h: '배포 창' }] },
+          { h: '점검 목록', from: [{ doc: '운영/배포', h: '사전 점검' }, { doc: '운영/배포', h: '사후 점검' }], text: '디스크 80% 확인.\n\n헬스 체크 3회. 다음은 7분 뒤.' },
+          { h: '되돌리기', from: [{ doc: '운영/배포', h: '되돌리기' }] },
+        ] },
+        { id: '장애 대응', was: '장애 대응', items: [{ h: '연락', from: [{ doc: '장애 대응', h: '연락' }] }] },
+        { id: '회의 규칙', was: '회의 규칙', items: [{ h: '시간', from: [{ doc: '회의 규칙', h: '시간' }] }] },
+        RECS,
+      ],
+      names: [{ coord: 'check:사전 점검', doc: '운영/배포', h: '점검 목록' }, { coord: 'check:사후 점검', doc: '운영/배포', h: '점검 목록' }],
+    }
+    const r = await withRecs(fixed)
+    assert.equal(r.ok, true, JSON.stringify(r.errors))
+    assert.equal(r.work, c.work, '같은 일')
+    assert.deepEqual(ledger(s).before, w1.before, '넣기 직전 짜임 그대로')
+    // 지어낸 값(7분)은 막지 않는다 — 끝 진단 「볼 것」 · 측정 줄 warned
+    const t2 = await s.hub.shapeTry(s.ctx, 'ops')
+    assert.equal(t2.ok, true, JSON.stringify(t2))
+    assert.ok(t2.diag.warnings.some((x) => x.what === '값 대조' && /7분/.test(x.why)), JSON.stringify(t2.diag.warnings))
+    assert.equal((await s.hub.shapePut(s.ctx, 'ops')).done, true)
+    const sl = fs.readFileSync(path.join(s.dataDir, 'savelog', 'ops.jsonl'), 'utf8').trim().split('\n').map((x) => JSON.parse(x))
+    assert.ok(sl.some((x) => x.ch === 'shape' && x.mode === 'approve' && (x.warned || []).includes('invented')), JSON.stringify(sl.filter((x) => x.ch === 'shape')))
+    assert.deepEqual(heads(s.dir, '운영/배포'), ['배포 창', '점검 목록', '되돌리기'])
+    const k2 = await loadKnowledge({ id: 'ops', name: 'ops', dir: s.dir })
+    assert.equal(k2.works.filter((x) => x.state === 'held').length, 0)
   } finally { s.done() }
 })

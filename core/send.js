@@ -1,13 +1,16 @@
 // 보내기 — 내 지식에서 고친 것을 보낼 곳(팀 지식)으로(v0.3 V5 · M10).
 //
 // 보낼 곳은 지식 폴더의 `.kmd.json` { send: [{ kn, url? }] } — url 이 없으면 같은 kmd(save 하나), 있으면 그 kmd 로
-// 기기 열쇠 HTTP(`POST <url>/api/k/<kn>/receive`). 닿지 않으면 `<data>/send/<지식>.json` 의 wait 에 두고 닿을 때 저절로.
+// 기기 열쇠 HTTP(팀 저장 문 `POST <url>/api/k/<kn>/save` · channel send). 닿지 않으면 `<data>/send/<지식>.json` 의 wait 에 두고 닿을 때 저절로.
 // 보낼 것 = ① 변경사항 — 보낸 뒤(또는 보낼 곳을 정한 뒤) 바뀐 문서(새 문서는 전체 · 아니면 바뀐 항목만) · 그 뒤 새로 남은 기록(전체)
 //          ② 지식 — 사람이 고른 문서(전체) · 기록(전체). 화면이 고른 것만 보낸다(고르지 않은 변경사항은 다음에 그대로 남는다).
 // 받는 쪽은 기록 하나(태그 `sent/<지문>` — 같은 것을 두 번 받으면 0) · 이름은 받는 지식의 이름 장부로 정확히 맞는 것만.
 // 받는 쪽이 글 몇 개만 거절하면(너무 긴 글 등) 나머지는 받고 { bad: [{ i, why }] } 로 돌려준다 — 보내는 쪽은 그것만 fail 줄로.
 // S12(설계 4-7 · S-D36) — 받는 팀으로는 글마다 팀 MCP(mcpCalls: brief · match · section) → 내 Claude → 팀 저장 문(post path 'save' · channel send).
-//   위의 받기(/receive)는 옛 판을 위해 남는다(팀 지식에는 넣지 못함 legacy-send). 저장 속도 한도(429)는 post 가 쉬고 다시 보낸다.
+//   P7(저장 승인 P-D22 · P-D23) — 받는 팀 지식이 approve 모드면 보내기 확인 창이 팀 propose(post path 'propose')를 미리 돌리고 [보내기] 가 그 proposal 을 싣는다.
+//   옛 받기(/receive)는 걷었다(받침 없음: 옛 판은 E_INPUT 「새 판으로」 · 보낼 것은 개인 쪽에 남는다). 저장 속도 한도(429)는 post 가 쉬고 다시 보낸다.
+// 보내기 판(SEND_REV) — 보내기 저장 요청에 kit 으로 싣는다(팀 savelog 의 kit · 판 없는 보내기 수를 센다). 2 = 저장 제안 승인(P7)
+export const SEND_REV = 2
 
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -207,6 +210,7 @@ export function fixOf(e) {
   if (e.status === 403) return '그 팀 지식에 보낼 수 없다. 팀 지식의 주인 · 관리자에게'
   if (e.status === 404) return '팀에 그 지식이 없다. 보낼 곳을 다시 고른다'
   if (e.status === 409) return '팀 지식이 백업 뒤에 멈춰 있다. 관리자가 맞춘 뒤 [다시]'
+  if (e.status === 428) return '받는 지식의 저장 제안이 그사이 바뀌었거나 창을 거치지 않았다. [버리기] 하고 다시 골라 보내기 확인 창에서 새 제안을 보고 보낸다'
   return '보낼 곳 · 글을 확인하고 [다시]'
 }
 // 나눠 보내기 — 받는 쪽 한 번에 200 개 · 8MB 까지 → 150 개 · 6MB 로 자른다

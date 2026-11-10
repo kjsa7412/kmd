@@ -229,6 +229,7 @@ export function serial(key, f) {
 //         원본이 주인인 문서 · 저절로 채우는 표 · kmd 파일은 사람 · 세션과 같이 막힌다(system 이 아니다)
 // guard — 지식 생성 가드(core/guard.js)의 길. 'strict'(거절형 — 세션 · 화면) · 'hold'(붙잡아 두기 — 그 밖의 길 · 기본)
 //         holdWhy — hold 에서 이름 없는 기록에 kmd 가 다는 까닭 · proposed — 세울 이름으로 실어 둔 이름(일반 자리의 names)
+//   shape.strict — approve 모드 지식의 짜임 걸음(저장 승인 P-D24 · P7): 조각 하나라도 걸리면 넣지 못함 대신 걸음 입력 오류(E_INPUT · details.stepFail · 아무것도 쓰지 않는다)
 export function save(dir, input, { user, now = new Date(), system = false, agent = false, guard = 'hold', holdWhy = null, proposed = [], prepare = null, onCommit = null, partial = false, asEdit = false, structure = false, correction = false, intake = null, shape = null, approve = null, accepted = null, marks: marksIn = false } = {}) {
   if (!user || !oneLine(user)) fail('E_INPUT', '누가 쓰는지 모른다')
   // 들이기 일감은 예약 사람 kmd 로 쓸 수 있다(가져올 곳) — kmd-auto · kmd-worker 는 아니다(S-D43)
@@ -290,7 +291,7 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
     const relink = shape ? (Array.isArray(prep?.relink) ? prep.relink : []) : []
     if (relink.some((x) => !x || !oneLine(x.from?.doc) || !oneLine(x.from?.h) || !oneLine(x.to?.doc) || !oneLine(x.to?.h))) fail('E_INPUT', '짜임 링크 모양이 아니다')
     if (place.some((x) => !x || !COORD.test(String(x.coord || '')) || !oneLine(x.doc) || !oneLine(x.heading)) || intros.some((x) => !x || !oneLine(x.doc) || typeof x.text !== 'string' || x.text.length > 4000)) fail('E_INPUT', '짜임 자리 · 요약 모양이 아니다')
-    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, partial, marks: partial || !!intake || !!approve || !!marksIn, intake: !!intake, approve, serverTags, correction, attach: input.attach || [], onCommit, prep, shape: !!shape, place, intros, relink, accepted: approve ? null : accepted })
+    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, partial, marks: partial || !!intake || !!approve || !!marksIn, intake: !!intake, approve, serverTags, correction, attach: input.attach || [], onCommit, prep, shape: !!shape, shapeStrict: !!shape?.strict, place, intros, relink, accepted: approve ? null : accepted })
   })
 }
 
@@ -403,7 +404,7 @@ export function sectionBase(text, heading) {
   return sha16(sec ? sec.body : '')
 }
 
-async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], partial = false, marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null, shape = false, place = [], intros = [], relink = [], approve = null, accepted = null }) {
+async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], partial = false, marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null, shape = false, shapeStrict = false, place = [], intros = [], relink = [], approve = null, accepted = null }) {
   const held = [...heldIn]
   const regRaw = await fs.readFile(path.join(dir, '_managed.md'), 'utf8').then(readText, () => null)
   const vocRaw = await fs.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => null)
@@ -582,6 +583,11 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
     if (fc.problems.length) { row('format', formatMessage('요약', fc.problems)); continue }
     if (/^#{1,6}\s/m.test(x.text)) { row('format', '요약에 머리 줄을 넣지 않는다'); continue }
     introsOk.push({ ...p, text: nfc(x.text) })
+  }
+  // approve 모드 지식의 짜임 걸음(P-D24) — 걸리면 걸음 입력 오류 · 아직 아무것도 쓰지 않았다(넣지 못함 · 기록을 남기지 않는다)
+  if (shapeStrict && held.length) {
+    const rows = held.slice(0, 50).map((h) => ({ ...(h.doc ? { doc: h.doc } : {}), ...(h.heading ? { heading: h.heading } : {}), code: h.code, why: h.why }))
+    fail('E_INPUT', `걸음 실패: ${rows.slice(0, 3).map((h) => `${h.heading ? h.heading + ': ' : ''}${h.why}`).join(' · ')}`, { details: { stepFail: rows } })
   }
   // 문서 짜임 글 걸음은 한 덩이 — 조각 하나라도 넣지 못함이면 모두 넣지 못함(기록만 남긴다 · 출처 걷기 · 자리 장부 줄 · 요약도 쓰지 않는다).
   //   합친 목표 하나만 들어가고 출처가 남거나 · 출처만 걷히고 목표가 빠지는 반쪽 짜임을 남기지 않는다

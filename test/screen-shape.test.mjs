@@ -218,6 +218,43 @@ test('구조 다시 잡기: 단순 [저장] 그대로 · 합치기 · 항목 옮
   } finally { await page.close() }
 })
 
+// 저장 승인 P7(P-D24) — 걸음 실패로 선 짜임 일: 열린 일 줄 「걸음 실패」 → [이어 하기] → 3 넣기의 「걸음 실패: 까닭」 + [구조안 고치기] → 1 구조안 · 네 폭
+test('구조 다시 잡기: 걸음 실패 — 까닭 · [구조안 고치기] · 네 폭', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+  const page = await browser.newPage({ viewport: VIEW })
+  const errors = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  const now = new Date().toISOString()
+  const fail = [{ doc: 'docs/배포 절차.md', heading: '점검 목록', code: 'format', why: '「점검 목록」 글에 머리 · 표지가 들었다: 머리 줄' }]
+  fs.mkdirSync(path.dirname(s.hub.shapeFile('ops')), { recursive: true })
+  fs.writeFileSync(s.hub.shapeFile('ops'), JSON.stringify({ v: 1, kn: 'ops', work: 'abcdefabcdef', kind: 'reshape', by: 'kim', opened: now, at: now, stage: 'stopped', plan: { v: 1, kind: 'reshape', docs: [], names: [] }, done: [2], tried: { steps: [{ n: 2, kind: 'frame' }, { n: 11, kind: 'write', unit: 1 }], diag: { blockers: [], warnings: [] } }, last: { n: 11, fail } }))
+  try {
+    await login(page)
+    await page.goto(s.url + '/#/k/ops/shape')
+    await page.waitForSelector('[data-t=sxWork]')
+    assert.match(await page.locator('[data-t=sxWork]').innerText(), /걸음 실패/)
+    await page.click('[data-t=sxResume]')
+    await page.waitForSelector('[data-t=sxStepFail]')
+    assert.match(await page.locator('[data-t=sxStepFail]').innerText(), /걸음 실패[\s\S]*점검 목록[\s\S]*머리 줄/)
+    assert.equal(await go(page).innerText(), '구조안 고치기')
+    for (const w of [1280, 1024, 600, 375]) {
+      await page.setViewportSize({ width: w, height: 820 })
+      const c = await cutAt(page)
+      assert.deepEqual(c.cut, [], `걸음 실패 ${w}: 잘린 요소`)
+      assert.ok(c.sw <= w, `걸음 실패 ${w}: 가로 넘침 ${c.sw}`)
+    }
+    await page.setViewportSize(VIEW)
+    const text = await page.evaluate(() => document.body.innerText)
+    assert.deepEqual(BANNED.filter((x) => text.includes(x)), [])
+    await page.click('[data-t=sxStepFail] [data-t=sxFixPlan]')
+    await page.waitForSelector('[data-t=sxStepFail]', { state: 'detached' })
+    await page.waitForSelector('[data-t=sxTree] [data-t=sxDoc]')
+    assert.deepEqual(errors, [])
+  } finally {
+    await page.close()
+    fs.rmSync(s.hub.shapeFile('ops'), { force: true })
+  }
+})
+
 test('개인 문서 › 구조: 탭 구조 · 점검(점검 줄) · 주소 끝 /check', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   const root = path.join(tmp, 'pc-shape')
   fs.mkdirSync(path.join(root, '메모', 'docs'), { recursive: true })

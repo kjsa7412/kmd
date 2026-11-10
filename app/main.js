@@ -546,7 +546,8 @@ function popHtml(key, html) { S._pop = { key, html }; return '' }
 const TIPS = {
   'sx.flow': ['항목을 옮기거나 합치거나 나누면 단계를 지난다: 구조안 검사 · 연습 판에 해 보기 · 넣기. 넣기 전에는 지식이 바뀌지 않는다', ''],
   'sx.claude': ['준비 중. 지금은 손으로 짜고 손으로 쓴다', ''],
-  'sx.write': ['합치거나 나눈 항목의 새 글. 출처 글의 값(숫자 · 주소 · 이름)만 쓴다. 지어낸 값은 넣지 못함이 된다', ''],
+  'sx.write': ['합치거나 나눈 항목의 새 글. 출처 글의 값(숫자 · 주소 · 이름)만 쓴다. 지어낸 값이 있으면 그 걸음은 넣지 않는다', ''],
+  'sx.stepFail': ['걸린 걸음은 아무것도 쓰지 않고 멈췄다. 앞에서 넣은 걸음은 그대로다. 구조안을 고쳐 검사 · 해 보기 · 넣기를 다시 한다', ''],
   'set.check': ['문제가 있을 때만 줄이 선다. 풀리면 저절로 사라진다 · 지식 폴더 다시 읽기 · 운영 값도 여기', ''],
   'set.server': ['팀 서버의 Claude(팀 일꾼) 로그인. 팀 지식의 들이기 · 다듬기를 이 로그인으로 한다', ''],
   'set.agent': ['작업 폴더의 Claude Code 에 팀 지식을 붙인다. 개인 지식을 쓰려면 개인 프로그램', ''],
@@ -3878,7 +3879,8 @@ function sxWorkHtml(sh, f) {
   if (!w || (f && (f.step > 1 || f.check)) || ['done', 'stopped-final'].includes(w.stage)) return ''
   if (w.broken) return `<div class="callout danger" data-t="sxWork"><i></i><span><b>짜임 일 장부가 깨졌다</b></span><button type="button" class="btn sm r" data-a="sxStop" data-t="sxWorkStop">그만두게 하기</button></div>`
   if (!w.mine) return `<div class="callout warn" data-t="sxWork"><i></i><span><b>${esc(w.by)}</b> 가 연 짜임 일 · ${esc(SX_STAGE[w.stage] || w.stage)}</span><button type="button" class="btn sm r" data-a="sxStop" data-t="sxWorkStop">그만두게 하기</button></div>`
-  return `<div class="callout warn" data-t="sxWork"><i></i><span><b>열린 짜임 일</b> · ${esc(SX_STAGE[w.stage] || w.stage)}</span><span class="r row u-g3"><button type="button" class="btn ghost sm" data-a="sxStop" data-t="sxWorkStop">버리기</button><button type="button" class="btn sm" data-a="sxResume" data-t="sxResume">${['putting', 'stopped', 'rebase'].includes(w.stage) ? '이어 넣기' : '이어 하기'}</button></span></div>`
+  // 걸음 실패로 선 일(approve 모드 지식 · P-D24) — 이어 넣기가 아니라 까닭을 보고 구조안을 고친다
+  return `<div class="callout warn" data-t="sxWork"><i></i><span><b>열린 짜임 일</b> · ${w.fail ? '걸음 실패' : esc(SX_STAGE[w.stage] || w.stage)}</span><span class="r row u-g3"><button type="button" class="btn ghost sm" data-a="sxStop" data-t="sxWorkStop">버리기</button><button type="button" class="btn sm" data-a="sxResume" data-t="sxResume">${['putting', 'stopped', 'rebase'].includes(w.stage) && !w.fail ? '이어 넣기' : '이어 하기'}</button></span></div>`
 }
 // 단계 띠(.stepbar · 설계 5-2) — 지금 aria-current · 지난 ✓ · 아직 aria-disabled · 2 에서는 1 로 돌아가 고칠 수 있다
 function sxStepsHtml(f) {
@@ -3901,6 +3903,8 @@ function sxPutHtml(f) {
   const p = f.put
   if (f.busy === 'put') return `<div class="card sx-ck" data-t="sxPutting"><div class="cb">${loadingHtml.replace('읽는 중…', '넣는 중…')}<p class="small muted mt0">다른 화면으로 가도 이어 간다</p></div></div>`
   if (!p) return f.tried ? sxDiagHtml(f.tried) : ''
+  // 걸음 실패(approve 모드 지식 · 저장 승인 P-D24) — 아무것도 쓰지 않고 멈췄다 · 구조안을 고쳐 다시 검사한다
+  if (p.stopped && p.stopped.fail) return `<div class="callout danger" data-t="sxStepFail"><i></i><div><b>걸음 실패</b>${tipb('sx.stepFail', '걸음 실패')}<ul class="sx-ul">${p.stopped.fail.map((h) => `<li><b>${esc(h.heading || h.doc || '')}</b> <span>${esc(h.why || HELD_CODE[h.code] || '')}</span></li>`).join('')}</ul><button type="button" class="btn sm" data-a="sxFixPlan" data-t="sxFixPlan">구조안 고치기</button></div></div>`
   if (p.stopped && p.stopped.held) return `<div class="callout danger" data-t="sxHeld"><i></i><div><b>넣지 못함</b><ul class="sx-ul">${p.stopped.held.map((h) => `<li><b>${esc(h.heading || h.doc || '')}</b> <span>${esc(h.why || HELD_CODE[h.code] || '')}</span></li>`).join('')}</ul></div></div>`
   if (p.again) return `<div class="callout warn" data-t="sxAgain"><i></i><span><b>그사이 바뀜</b>: 연습 판에 다시 해 본다</span></div>${p.diag ? sxDiagHtml({ diag: p.diag, steps: [] }) : ''}`
   if (p.conflict) return `<div class="callout warn" data-t="sxConflict"><i></i><span><b>그사이 바뀜</b>: ${esc(p.conflict.why || '')}</span></div>`
@@ -3941,6 +3945,7 @@ function sxFlowMain(f) {
   if (f.step === 3) {
     if (!f.put) return ['넣기', 'sxPut', false, '']
     if (f.put.again) return ['다시 해 보기', 'sxTryAgain', false, '']
+    if (f.put.stopped && f.put.stopped.fail) return ['구조안 고치기', 'sxFixPlan', false, '']
     return ['이어 넣기', 'sxPut', false, f.put.stopped ? '넣지 못함을 고친다' : '']
   }
   return ['마치기', 'sxEnd', false, '']
@@ -5145,7 +5150,10 @@ function sendWinHtml() {
       const how = d.st === 'new' ? '문서 통째로 · 처음' : '문서 통째로'
       return `<li><b>${esc(d.title)}</b> <small class="muted">: ${esc(how)}</small></li>`
     }).join('')
-    return `<div class="scrim fix" data-a="sendWinClose" data-self="1"><div class="modal w560" data-t="sendConfirm"><div class="mh">보내기 확인<button class="x" data-a="sendWinClose" title="닫기">×</button></div><div class="mb"><div class="bigroute"><span class="e"><small>보내는 지식 · 개인 · 나만</small><b>${esc(src.name)}</b></span>${svg('arrow')}<span class="e"><small>받는 지식 · 팀 · ${esc(teamWho(r).split(' · ')[1])}</small><b data-t="sendConfirmTo">${esc(r.name)}</b></span></div><ul class="plain sum">${rows}</ul>${sendPrevHtml(src, v, sel)}<p class="small muted" style="margin:var(--sp-5) 0 0">고른 것마다 이 PC 의 Claude 가 ${esc(r.name)} 의 작성기준에 맞춰 기록과 항목 글로 짓는다 · 받는 지식이 검사해 넘은 것은 그 순간 문서에, 못 넘은 것은 넣지 못함으로 남는다 · ${esc(S.me.user)} 이름으로 간다 · 내 개인 지식의 글은 그대로다</p></div><div class="mf"><span class="l">이 프로그램이 이 PC 의 기기 열쇠로 보낸다</span><span class="acts"><button class="btn ghost" data-a="sendWinClose">취소</button><button class="btn pri" data-a="doSend" data-t="sendGo"${S.sending ? ' disabled' : ''}>${S.sending ? '보내는 중…' : esc(ro(r.name)) + ' 보내기'}</button></span></div></div></div>`
+    // 받는 팀 지식이 저장 제안을 받으면(P-D22 · P7) 창이 곧 제안서 — 제안을 짓는 동안은 [보내기] 를 누르지 않는다
+    const prev = sendPrevHtml(src, v, sel), pk = 'sendPrev:' + src.id + ':' + r.kn + ':' + sel.join('|'), pv = S.cache[pk], wait = !pv && !!S.wait[pk]
+    const note = pv && pv.approve ? `고른 것마다 이 PC 의 Claude 가 지은 글을 ${esc(r.name)} 가 저장 제안으로 보였다 · [보내기] 가 그 제안의 승인이다(경고 받아들임) · 뺀 것은 보내지 않고 남는다 · ${esc(S.me.user)} 이름으로 간다 · 내 개인 지식의 글은 그대로다` : `고른 것마다 이 PC 의 Claude 가 ${esc(r.name)} 의 작성기준에 맞춰 기록과 항목 글로 짓는다 · 받는 지식이 검사해 넘은 것은 그 순간 문서에, 못 넘은 것은 넣지 못함으로 남는다 · ${esc(S.me.user)} 이름으로 간다 · 내 개인 지식의 글은 그대로다`
+    return `<div class="scrim fix" data-a="sendWinClose" data-self="1"><div class="modal w560" role="dialog" aria-modal="true" aria-labelledby="sendCfH" data-t="sendConfirm"><div class="mh" id="sendCfH">보내기 확인<button class="x" data-a="sendWinClose" title="닫기" aria-label="닫기">×</button></div><div class="mb"><div class="bigroute"><span class="e"><small>보내는 지식 · 개인 · 나만</small><b>${esc(src.name)}</b></span>${svg('arrow')}<span class="e"><small>받는 지식 · 팀 · ${esc(teamWho(r).split(' · ')[1])}</small><b data-t="sendConfirmTo">${esc(r.name)}</b></span></div><ul class="plain sum">${rows}</ul>${prev}<p class="small muted" style="margin:var(--sp-5) 0 0">${note}</p></div><div class="mf"><span class="l">이 프로그램이 이 PC 의 기기 열쇠로 보낸다</span><span class="acts"><button class="btn ghost" data-a="sendWinClose">취소</button><button class="btn pri" data-a="doSend" data-t="sendGo"${S.sending || wait || (pv && pv.approve && (pv.unavailable || !(pv.proposals || []).some((x) => !(x.propose.errors || []).length))) ? ' disabled' : ''}>${S.sending ? '보내는 중…' : esc(ro(r.name)) + ' 보내기'}</button></span></div></div></div>`
   }
   // 받을 곳 정하기 · 바꾸기 — 목록은 이 PC 의 팀 사람이 쓰기 자리 이상인 팀 지식만(팀 서버가 자리로 거른다 · /api/send/teams)
   const set = w.kind === 'set' || !r || r.gone
@@ -5191,6 +5199,7 @@ function sendPrevHtml(src, v, sel) {
   const p = S.cache[key]
   if (!p) return `<div class="small muted" data-t="sendPrev" style="margin:var(--sp-5) 0 0">${esc(sendNm(v.route.kn) || v.route.name)} 의 이름 장부와 맞춰 보는 중…</div>`
   if (!p.unavailable && Array.isArray(p.proposals) && p.proposals.length) return sendPropHtml(p)
+  if (p.unavailable && p.approve) return `<div class="callout warn" data-t="sendPrev" style="margin:var(--sp-5) 0 0"><span>저장 제안을 보지 못했다: ${esc(p.unavailable)}</span></div>`
   if (p.unavailable) return `<div class="small muted" data-t="sendPrev" style="margin:var(--sp-5) 0 0">이름 미리 보기를 하지 못했다: ${esc(p.unavailable)} · 보내기에는 지장이 없다</div>`
   if (!p.unnamed.length) return `<div class="small" data-t="sendPrev" style="margin:var(--sp-5) 0 0">${chipOf('ok', '이름 맞음')} 고른 것이 모두 ${esc(sendNm(v.route.kn) || v.route.name)} 의 이름에 닿는다${p.same ? ` · 이미 보낸 것 ${p.same}` : ''}</div>`
   return `<div class="callout warn" data-t="sendPrev" style="margin:var(--sp-5) 0 0"><span><b>${p.unnamed.length}개는 ${esc(sendNm(v.route.kn) || v.route.name)} 의 이름 장부에서 이름을 못 찾았다.</b> 그대로 보내면 Claude 가 받는 지식의 문서에서 넣을 곳을 찾는다. 못 찾으면 넣지 못함으로 남고 [지금 다시] 로 다시 지을 수 있다<small>${p.unnamed.slice(0, 5).map(esc).join(' · ')}${p.unnamed.length > 5 ? ` 외 ${p.unnamed.length - 5}` : ''}</small></span></div>`
@@ -5223,7 +5232,7 @@ async function doSend() {
     S.sendSel = {}
     S.sendWhole = {}
     // 넣음 · 넣지 못함 · 이미 넣음(S12) — 넣지 못함은 위 줄에서 [지금 다시] · [버리기]
-    const sum = r.put != null ? `넣음 ${r.put} · 넣지 못함 ${r.held || 0}${r.same ? ` · 이미 넣음 ${r.same}` : ''}` : `${r.sent}개`
+    const sum = r.put != null ? `넣음 ${r.put}${r.held ? ` · 넣지 못함 ${r.held}` : ''}${r.same ? ` · 이미 넣음 ${r.same}` : ''}${r.skipped ? ` · 뺌 ${r.skipped}` : ''}` : `${r.sent}개`
     if (r.fail && !(r.put || r.same)) toastErr(`보내지 못했다: ${(r.why || [])[0] || ''}`)
     else toast(r.wait ? `닿지 않았다: ${r.wait}개는 저절로 다시 보낸다` : `${esc(ro(v.route.name))} 보냈다: ${esc(sum)}${r.held ? ' · 넣지 못한 것은 위 줄에서 [지금 다시]' : ''}`)
   } catch (e) { toastErr(e) }
@@ -6019,11 +6028,13 @@ const ACT = {
   sxPut: () => sxPut(),
   sxStop: () => { S.menu = null; sxStop() },
   sxEnd: () => { S.sxf = null; render() },
+  // 걸음 실패 뒤 — 지금 짜임으로 다시 읽고 1 구조안부터(넣은 걸음은 그대로 · 서버가 넣다 선 일로 다시 검사한다)
+  sxFixPlan: () => { const k = S.sx.k; sxReload(k); S.sxf = { k, step: 1 }; render() },
   sxUndoPlan: () => sxUndoPlan(),
   sxResume: () => {
     const x = S.sx, w = x.shSrc && x.shSrc.work; if (!w) return
     const step = ['putting', 'stopped', 'rebase'].includes(w.stage) ? 3 : w.stage === 'tried' && !w.blockers ? 3 : 2
-    S.sxf = { k: x.k, step, srv: true, check: null, tried: step === 3 && w.stage === 'tried' ? { ok: true, steps: Array(w.steps || 0).fill(0) } : null, put: step === 3 && w.stage !== 'tried' ? { resume: true } : null }
+    S.sxf = { k: x.k, step, srv: true, check: null, tried: step === 3 && w.stage === 'tried' ? { ok: true, steps: Array(w.steps || 0).fill(0) } : null, put: step === 3 && w.stage !== 'tried' ? (w.fail ? { stopped: { fail: w.fail } } : { resume: true }) : null }
     render()
   },
   sxISel: (el) => { const x = S.sx; x.isel = x.isel === el.dataset.k ? null : el.dataset.k; render() },
@@ -6443,7 +6454,8 @@ const ACT = {
   sendAll: (el) => { const src = sendSrc(), v = src && S.cache['send:' + src.id]; if (v && !v.error) for (const x of v.recs) if (!x.sent) (S.sendSel ||= {})['r|' + x.id] = !!el.dataset.v; render() },
   sendPickTo: (el) => { S.sendPickTo = el.dataset.v; render() },
   sendSetRoute: () => { const src = sendSrc(), w = S.sendWin; if (src && w && w.to) sendRoute(src.id, w.to) },
-  sendWin: (el) => { S.sendWin = { kind: el.dataset.v, to: null, type: '', err: null }; if (el.dataset.v === 'change') S._focus = null; render() },
+  // 보내기 확인 창을 열 때마다 미리 보기(저장 제안)를 새로 받는다 — 지난 제안 · 오류를 다시 보이지 않게
+  sendWin: (el) => { S.sendWin = { kind: el.dataset.v, to: null, type: '', err: null }; if (el.dataset.v === 'confirm') for (const k of Object.keys(S.cache)) if (k.startsWith('sendPrev:')) delete S.cache[k]; if (el.dataset.v === 'change') S._focus = null; render() },
   sendWinTo: (el) => { S.sendWin.to = el.dataset.v; S.sendWin.type = ''; S.sendWin.err = null; if (S.sendWin.kind === 'change') S._focus = 'sendType'; render() },
   sendWinClose: () => { if (!S.sending) { S.sendWin = null; render() } },
   sendChangeGo: () => { const src = sendSrc(), w = S.sendWin; if (src && w && w.to) sendRoute(src.id, w.to, w.type) },

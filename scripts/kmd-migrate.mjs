@@ -14,6 +14,7 @@
 //   공통: --cutover "YYYY-MM-DD HH:MM"(개편 때 · 없으면 <지식 폴더>/../.kmd/cutover.json)
 //
 //   put 은 사라지는 표 행 · 문장이 있으면 넣지 않는다. 사람이 본 뒤 --allow-drop 으로만 넘는다. 값(gate)이 걸리면 늘 넣지 않는다(held 를 남기지 않는다).
+//   저장은 넣지 못함 없이(partial 없음 · 저장승인 P-D25 · P7): 저장 검사(꼴 · 원본이 주인 · 지문 …)에 걸리면 입력 오류로 아무것도 쓰지 않고 종료 코드 2.
 //   팀 서버가 돌고 있는 폴더에 바로 쓰면 서버 캐시가 낡는다 — 사본에서 쓰고 백업 자리로 올린 뒤 「백업에서 받기」 를 쓴다(스킬 3절).
 
 import fs from 'node:fs/promises'
@@ -418,13 +419,19 @@ async function put(dir, file, o) {
     }
     return { sections: input.sections.map((s) => ({ doc: s.doc, heading: s.heading, content: s.content, base: s.base, ...(s.new && s.before ? { before: s.before } : {}) })) }
   }
-  const r = await save(abs, { ...input, record: rec }, { user: o.user, prepare, partial: true })
+  let r
+  try {
+    r = await save(abs, { ...input, record: rec }, { user: o.user, prepare, marks: true })
+  } catch (e) {
+    // 저장 검사에 걸림 — 입력 오류(아무것도 쓰지 않았다 · 넣지 못함을 남기지 않는다 · 종료 코드 2)
+    if (['E_INPUT', 'E_FORMAT', 'E_FORBIDDEN', 'E_NOTFOUND', 'E_CONFLICT'].includes(e.code)) e.exit = 2
+    throw e
+  }
   if (fail) {
     show(fail.rs)
-    throw new Error(`넣지 않았다: ${fail.why}. 아무것도 쓰지 않았다`)
+    throw Object.assign(new Error(`넣지 않았다: ${fail.why}. 아무것도 쓰지 않았다`), { exit: 2 })
   }
-  console.log(JSON.stringify({ ok: true, record: r.id || r.record || null, commit: r.commit || null, held: r.held || [] }, null, 1))
-  if (r.held?.length) process.exitCode = 3
+  console.log(JSON.stringify({ ok: true, record: r.id || r.record || null, commit: r.commit || null }, null, 1))
 }
 
 export async function main(argv) {
@@ -442,6 +449,6 @@ export async function main(argv) {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main(process.argv.slice(2)).catch((e) => {
     console.error(`오류: ${e.code ? `${e.code} ` : ''}${e.message}`)
-    process.exitCode = 1
+    process.exitCode = e.exit || 1
   })
 }

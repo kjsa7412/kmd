@@ -154,8 +154,12 @@ test('쓰기 길: 읽기는 403 E_FORBIDDEN · 쓰기는 같은 저장 문(검�
   assert.equal((await req('/api/k/dpms/tidy', P.wr, {})).status, 404, '정리 길은 걷었다')
   // 파일 넣기 · 받기
   assert.equal((await req('/api/k/dpms/import', P.rd, { files: [{ path: 'a.md', b64: Buffer.from('# a\n').toString('base64') }] })).status, 403)
-  assert.equal((await req('/api/k/dpms/receive', P.rd, { from: 'x', items: [{ title: 't', body: 'b' }] })).status, 403)
-  assert.equal((await req('/api/k/dpms/receive', P.wr, { from: 'x', items: [{ title: '받은 것', body: '본문' }] })).j.saved, 1)
+  // 옛 받기(/receive)는 걷었다(저장 승인 P-D23 · P7) — 자리와 상관없이 입력 오류(지식이 있는지 드러내지 않는다 · 아무것도 쓰지 않는다)
+  for (const who of [P.rd, P.wr]) {
+    const r = await req('/api/k/dpms/receive', who, { from: 'x', items: [{ title: '받은 것', body: '본문' }] })
+    assert.deepEqual([r.status, r.j.error], [400, 'E_INPUT'])
+  }
+  assert.equal((await req('/api/k/dpms/receive/preview', P.wr, { items: [{ title: 't', body: 'b' }] })).status, 400)
   // 모두=쓰기(gdi) — 들어온 사람 모두 기록한다
   assert.equal((await req('/api/k/gdi/save', P.no, { record: { title: '공통코드: 메모', body: '모두 쓰기', touchesEmpty: '시험 메모' } })).status, 200)
 })

@@ -1135,17 +1135,17 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       need(ctx)
       return out(200, { teams: (await hub.sendTargets(ctx)).teams })
     }
-    const sd = p.match(/^\/api\/k\/([^/]+)\/(send|send\/route|send\/wait|send\/preview|receive|receive\/preview|inbox\/move|inbox\/send)$/)
+    // 옛 받기(/receive · /receive/preview)는 걷었다(저장 승인 P-D23 · P7 · 받침 없음) — 옛 판 개인 프로그램은 입력 오류(보낼 것은 개인 쪽 fail 줄로 남는다)
+    if (/^\/api\/k\/[^/]+\/receive(\/preview)?$/.test(p)) throw new KmdError('E_INPUT', '옛 받기는 걷었다. 개인 프로그램을 새 판으로 올려 다시 보낸다(보낼 것은 개인 쪽에 그대로 남아 있다)')
+    const sd = p.match(/^\/api\/k\/([^/]+)\/(send|send\/route|send\/wait|send\/preview|inbox\/move|inbox\/send)$/)
     if (sd) {
       const id = dec(sd[1])
       if (sd[2] === 'send' && req.method === 'GET') return out(200, await hub.sendView(ctx, id))
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
-      const b = await readBody(req, sd[2] === 'receive' || sd[2] === 'receive/preview' ? 8 << 20 : MAX_BODY)
+      const b = await readBody(req)
       if (sd[2] === 'send') return out(200, await hub.sendPicked(ctx, id, b))
       if (sd[2] === 'send/route') return out(200, await hub.sendRoute(ctx, id, b))
       if (sd[2] === 'send/wait') return out(200, await hub.sendWaitAct(ctx, id, { wid: b.id, act: b.act }))
-      if (sd[2] === 'receive') return out(200, await hub.receive(ctx, id, b, { rate: true }))
-      if (sd[2] === 'receive/preview') return out(200, await hub.receivePreview(ctx, id, b))
       if (sd[2] === 'send/preview') return out(200, await hub.sendPreview(ctx, id, b))
       if (sd[2] === 'inbox/send') return out(200, await hub.inboxSend(ctx, id, b))
       return out(200, await hub.inboxMove(ctx, id, { dry: !!b.dry }))
@@ -1225,17 +1225,19 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       // 저장 문(S4) — 채널은 서버가 정한다: 본문에서는 channel: 'send'(보내기) 하나만 읽고 나머지 opt 칸은 받지 않는다(S-D54) ·
       //   보내기는 기기 열쇠(예전 열쇠 포함 · 화면 쿠키 아님)로 오고 기록에 sent/<16자 지문> 표지가 있을 때만 · 아니면 http 로 받고 left 는 버린다(끝 검토 3)
       if (what === 'save') {
-        const { channel, ...input } = body && typeof body === 'object' && !Array.isArray(body) ? body : {}
+        const { channel, kit, ...input } = body && typeof body === 'object' && !Array.isArray(body) ? body : {}
         const tags = Array.isArray(input.record?.tags) ? input.record.tags : []
         const send = channel === 'send' && !!(ctx.device || ctx.legacy) && tags.some((t) => /^sent\/[0-9a-f]{16}$/.test(String(t).trim()))
         if (!send) delete input.left
-        return out(200, await hub.save(ctx, id, input, { guard: 'strict', channel: send ? 'send' : 'http' }))
+        // 보내기 판(kit · 저장 승인 P7) — 측정 줄에 싣는다(없으면 null 로 센다 · 옛 판 안내)
+        return out(200, await hub.save(ctx, id, input, { guard: 'strict', channel: send ? 'send' : 'http', ...(send && Number.isInteger(kit) && kit >= 0 && kit < 1000 ? { kit } : {}) }))
       }
       // 저장 제안(저장 승인 설계 P-D3 · P-D31 · P2) — 쓰지 않는다 · 자리(읽기 미만 404 · 쓰기 미만 403) · 입력 모양은 hub.propose 가 본다 ·
       //   본문의 channel 등 opt 칸은 받지 않는다(제안서 머리의 길은 서버가 정한다)
       if (what === 'propose') {
         const { channel: _c, ...input } = body && typeof body === 'object' && !Array.isArray(body) ? body : {}
-        return out(200, await hub.propose(ctx, id, input, { path: '화면' }))
+        // 기기 열쇠로 온 제안은 개인 프로그램의 보내기 확인 창(P-D22 · P7)
+        return out(200, await hub.propose(ctx, id, input, { path: ctx.device || ctx.legacy ? '보내기' : '화면' }))
       }
       // 저장 방식(저장 승인 설계 P-D18 · Q14 · P3) — 총괄 관리자(비밀번호 한 번 더) · { save: 'approve' | 'held' } · approve 는 이행이 끝난 지식만
       if (what === 'save-mode') {
