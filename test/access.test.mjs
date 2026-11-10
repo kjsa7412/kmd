@@ -380,3 +380,26 @@ test('지식 상세 길: GET backup 은 자격이 든 저장소 주소를 가린
   assert.equal(r.j.url, 'https://git.example.com/team/dpms.git')
   assert.doesNotMatch(JSON.stringify(r.j), /s3cret|test-user/)
 })
+
+// 지식 목록의 관리 값(종합검토 #10) — issueUrl · review 는 그 지식의 지식관리자에게만 · 그 밖은 GET /owner 와 같게 owner · noClaude 만
+test('지식 목록: issueUrl · review 는 지식관리자만 · 쓰기 · 읽기는 owner · noClaude 만(GET /owner 와 같다)', async () => {
+  const rd = await signIn(s, { id: 'test-rd3', admin: false })
+  await s.hub.setAccess(SHELL, 'dpms', { all: 'none', users: { 'test-rd3': 'read' }, groups: { 개발: 'write' } })
+  await s.hub.setOwner(SHELL, 'dpms', { issueUrl: 'https://jira.example/browse/{값}', review: true })
+  const row = (who) => req('/api/knowledge', who).then((r) => r.j.find((k) => k.id === 'dpms'))
+  for (const who of [P.own, P.boss]) {
+    const r = await row(who)
+    assert.equal(r.issueUrl, 'https://jira.example/browse/{값}', who.id)
+    assert.equal(r.review, true, who.id)
+  }
+  for (const who of [rd, P.wr]) {
+    const r = await row(who)
+    assert.equal('issueUrl' in r, false, who.id + ': issueUrl 없음')
+    assert.equal('review' in r, false, who.id + ': review 없음')
+    assert.equal(r.owner, 'own')
+    assert.equal(typeof r.noClaude, 'boolean')
+    const o = (await req('/api/k/dpms/owner', who)).j
+    assert.ok(Object.keys(o).every((x) => ['owner', 'noClaude'].includes(x)), 'GET /owner 도 owner · noClaude 만')
+  }
+  await s.hub.setOwner(SHELL, 'dpms', { issueUrl: '', review: false })
+})
