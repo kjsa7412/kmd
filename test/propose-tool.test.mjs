@@ -136,7 +136,7 @@ test('near(P-D10): 정규화가 같으면 오류 · distinct 로 넘음 · 비�
   assert.deepEqual(fm.errors.map((e) => e.code), ['near'], '갈래 「회의 록」 은 회의록과 같은 이름')
 })
 
-test('자리(P-D31): 없음 404 · 읽기 403 · 쓰기 200(HTTP · MCP) · 화면 길은 「길: 화면」', async () => {
+test('자리(P-D31): 없음 404 · 읽기 403 · 쓰기 200(HTTP · MCP) · 기기 열쇠 길은 「길: 보내기」', async () => {
   const sec = await canary()
   const { knowledge: _k, ...body } = input(sec.base)
   body.record = { title: '카나리: 첫 30분 비율 20%', body: '## 바뀐 것\n- 첫 30분 비율: 10% → 20%', touches: ['proc:카나리'] }
@@ -145,7 +145,8 @@ test('자리(P-D31): 없음 404 · 읽기 403 · 쓰기 200(HTTP · MCP) · 화�
   assert.deepEqual([rd.status, rd.j.error], [403, 'E_FORBIDDEN'])
   const wr = await req('/api/k/dpms/propose', P.wr, body)
   assert.equal(wr.status, 200, JSON.stringify(wr.j))
-  assert.match(wr.j.text, /· 길: 화면\n/)
+  // 기기 열쇠로 온 제안은 개인 프로그램의 보내기 확인 창(P7 · P-D22) — 화면(쿠키) 길의 「길: 화면」 은 screen-kmd 저장 확인 창이 본다
+  assert.match(wr.j.text, /· 길: 보내기\n/)
   assert.match(wr.j.proposal, /^[0-9a-f]{64}$/)
   assert.equal((await req('/api/k/dpms/propose', P.wr)).status, 405, 'POST 만')
   assert.equal((await mcp('propose', input(sec.base), P.rd)).error, 'E_FORBIDDEN')
