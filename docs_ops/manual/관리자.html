@@ -73,7 +73,7 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 </ul>
 <div class="m-tbl"><table><tr><th>일</th><th>총괄 관리자</th><th>지식관리자</th><th>쓰기</th><th>읽기</th></tr>
 <tr><td>보기 · 찾기 · Claude 로 읽기</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
-<tr><td>저장(저장 제안을 승인해) · 새 문서 · 이름 · 갈래(제안으로) · 문서 고치기 · 파일 넣기 · 가져올 곳 부탁 · 자기 저장 되돌리기</td><td>✓</td><td>✓</td><td>✓</td><td></td></tr>
+<tr><td>저장(저장 제안을 승인해) · 새 문서 · 항목 · 갈래(제안으로) · 문서 고치기 · 파일 넣기 · 가져올 곳 부탁 · 자기 저장 되돌리기</td><td>✓</td><td>✓</td><td>✓</td><td></td></tr>
 <tr><td>항목 지우기 · 이름 바꾸기 · 다듬기 · 점검 · 지표 · 구조 · 기초 세우기 · 남의 저장 되돌리기 · 지식 설정 · 권한 주기</td><td>✓</td><td>✓</td><td></td><td></td></tr>
 <tr><td>가져올 곳(허락된 호스트의 https git · DB)</td><td>✓</td><td>✓</td><td></td><td></td></tr>
 <tr><td>사람 · 묶음 · 지식 세우기/지우기/불러오기 · 주인 넘기기</td><td>✓</td><td></td><td></td><td></td></tr>
@@ -129,7 +129,7 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 <tr><td><code>kmd backup [add &lt;지식&gt; &lt;주소&gt; | pull &lt;지식&gt;]</code></td><td>백업 상태 · 저장소 붙이기 · 백업에서 받기(앞으로만)</td></tr>
 <tr><td><code>kmd secret set &lt;이름&gt;</code></td><td>비밀 넣기(gitlab · 원천 git 자격 · claude-token): 숨김 입력</td></tr>
 <tr><td><code>kmd machine add &lt;지식&gt; &lt;원천&gt;</code></td><td>바깥 생성기용 기계 열쇠(그 지식 · 그 표만 · 1년)</td></tr>
-<tr><td><code>kmd guard &lt;지식&gt; | --all</code></td><td>점검: 이름 없음 · 장부 밖 · 깨진 머리 수</td></tr>
+<tr><td><code>kmd guard &lt;지식&gt; | --all</code></td><td>점검: 항목 없음 · 장부 밖 · 깨진 머리 수</td></tr>
 <tr><td><code>kmd search-check &lt;지식&gt;</code></td><td>찾기 점검: 얼린 시험지 위에서 나빠진 문항</td></tr>
 <tr><td><code>kmd restore &lt;저장소 주소&gt; [이름] [--practice | --attach]</code></td><td>지식 불러오기(<a href="운영.html#restore">운영</a>)</td></tr>
 <tr><td><code>kmd auth reapply &lt;auth.log&gt;</code></td><td>옛 명부로 되살린 뒤 늦은 일 다시 적용</td></tr>

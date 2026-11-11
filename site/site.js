@@ -102,7 +102,7 @@
   // ── 이야기: 시간 줄 + 흐름 그림 + 걸음 ──
   const CHANNELS = [['session', '세션', 'Claude Code'], ['edit', '화면 고치기', '팀 화면'], ['file', '파일 넣기', '팀 일꾼'], ['bulk', '대량 넣기', 'Claude Code'], ['commit', '가져올 곳', 'git · 폴더 · DB'], ['send', '보내기', '개인 → 팀']]
   const chOf = (key) => (key === 'held' ? 'session' : key)
-  const SHOT_OF = { session: ['rec', '세션이 남긴 기록: 바뀐 것 · 까닭 · 넣은 것'], commit: ['history', '이력: 들이기 · 저장 · 고침 · 넣지 못함이 한 줄에'], file: ['import', '가져오기: 파일을 끌어다 놓으면 팀 일꾼이 기록과 조각을 짓는다'], edit: ['edit', '문서 고치기: 쓰기 자리부터 · 이력에 옛 값 → 새 값'], send: ['item', '노트북 받기 항목: 오른쪽 칸에 이 항목을 바꾼 기록 둘'], held: ['held', '넣지 못함: 까닭 · 들어온 길 · [고치기] · [다시 들이기]'] }
+  const SHOT_OF = { session: ['rec', '세션이 남긴 기록: 바뀐 것 · 까닭 · 넣은 것'], commit: ['history', '이력: 들이기 · 저장 · 고침 · 넣지 못함이 한 줄에'], file: ['import', '가져오기: 파일을 끌어다 놓으면 팀 일꾼이 기록과 항목 글을 짓는다'], edit: ['edit', '문서 고치기: 쓰기 자리부터 · 이력에 옛 값 → 새 값'], send: ['item', '노트북 받기 항목: 오른쪽 칸에 이 항목을 바꾼 기록 둘'], held: ['held', '넣지 못함: 까닭 · 들어온 길 · [고치기] · [다시 들이기]'] }
   let flow = null
   function flowDraw() {
     const svg = $('#flowSvg'); svg.innerHTML = ''
@@ -125,7 +125,7 @@
     const tt = el('text', { x: gx + gw / 2, y: gy + 28, 'text-anchor': 'middle' }, gate); tt.textContent = '저장 문: 한 덩이로 검사'
     const checks = N ? ['자리 · 저장 속도 · 같은 저장', '꼴(E_FORMAT) · 값 대조', '지문(base) · 섞인 자리', '→ 기록 · 문서 · git 한 묶음'] : ['자리(쓰기 이상)', '저장 속도 · 같은 저장', '항목 꼴(E_FORMAT)', '값 대조: 근거에 있는 값만', '지문(base): 읽은 뒤 바뀌었나', '→ 기록 · 문서 · git 한 묶음']
     checks.forEach((c, i) => { const t = el('text', { x: gx + 18, y: gy + 54 + i * (N ? 20 : 26), class: 'chk' }, gate); t.textContent = c })
-    const OUT = [['rec', '기록', 'work/<id>.md · 늘 남는다'], ['doc', '문서 · 항목', '조각이 그 자리에 들어간다'], ['held', '넣지 못함', '기록만 · 까닭과 함께']]
+    const OUT = [['rec', '기록', 'work/<id>.md · 늘 남는다'], ['doc', '문서 · 항목', '항목 글이 그 자리에 들어간다'], ['held', '넣지 못함', '기록만 · 까닭과 함께']]
     OUT.forEach(([k, l, s], i) => {
       const x = N ? 6 + i * 118 : 680, y = N ? 360 : 30 + i * 90, w = N ? 112 : 200, h = N ? 64 : 62
       const gg = el('g', { class: 'out ' + k }, svg)
@@ -266,7 +266,7 @@
     const byId = new Map(N.map((n) => [n.id, n]))
     const recOf = (k) => N.find((n) => n.step === k)
     const heldRec = N.find((n) => n.held)
-    // 넣지 못한 기록은 들어가려던 항목에 점선으로(줄거리의 조각에서)
+    // 넣지 못한 기록은 들어가려던 항목에 점선으로(줄거리의 sections 에서)
     if (heldRec) for (const x of step('held').sections) if (byId.has('i:' + x.coord)) E.push({ a: heldRec.id, b: 'i:' + x.coord, t: 'held' })
     const nbr = new Map(N.map((n) => [n.id, new Set()]))
     E.forEach((e) => { nbr.get(e.a).add(e.b); nbr.get(e.b).add(e.a) })
@@ -400,7 +400,7 @@
       ['', '  회의에서 정한 결정이라 확정으로 저장합니다.', 3],
       ['t', '● kmd-team · save', 4],
       ['d', `  record    ${st.title}`],
-      ['d', '  sections  proc:노트북 받기 · proc:입사 전날  (조각 2 · 지문 2)'],
+      ['d', '  sections  proc:노트북 받기 · proc:입사 전날  (항목 2 · 지문 2)'],
       ['o', '  ✓ 넣음 2 · 기록 work/…노트북은-입사-전날-집으로-보낸다.md'],
       ['', ''],
       ['', '「첫 주 안내」 의 노트북 받기 · 입사 전날을 바꿨습니다.'],

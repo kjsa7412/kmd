@@ -7,7 +7,7 @@
 ```
 index.html · site.css · site.js   사이트 본체 · 빌드 없음 · 바닐라 JS · 색은 제품 토큰(app/kmd.css :root · 다크) 값
 favicon.svg        제품 것 사본
-demo/content.mjs   시험 지식(문서 4 · 이름 12)과 줄거리 6걸음 · 사람 김(지식관리자) · test-lee(인사팀) · test-park(IT 지원)
+demo/content.mjs   시험 지식(문서 4 · 항목 12)과 줄거리 6걸음 · 사람 김(지식관리자) · test-lee(인사팀) · test-park(IT 지원)
 demo/run.mjs       세우기 → 저장 → 화면 찍기(라이트 · 다크 · 1280×800) → data/story.js(그래프 · 문서 · 기록 자료)
 shots/             찍은 화면 <이름>-<light|dark>.png(home · kn · doc · item · rec · recs · search · edit · graph · history · held · import)
 data/story.js      run.mjs 가 만든다 · 손으로 고치지 않는다
