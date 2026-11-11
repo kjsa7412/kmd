@@ -17,7 +17,9 @@ import { parseDoc } from '../core/sections.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const CHROME = [process.env.KMD_CHROME, 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe', '/usr/bin/google-chrome', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find((p) => p && fs.existsSync(p))
-const BANNED = ['좌표', '섹션', '원천', '기준선', '큐레이션', '대기열', '판정', '토큰', '커밋', '레포', '미러', '동기화', 'LLM', 'RAG', '노드', '엣지', '백링크', 'coord', 'commit']
+const BANNED = ['좌표', '섹션', '원천', '기준선', '큐레이션', '대기열', '판정', '토큰', '커밋', '레포', '미러', '동기화', 'LLM', 'RAG', '노드', '엣지', '백링크', 'coord', 'commit',
+  // 걷은 말(컨벤션 9절 용어집) — 항목 장부 · 문서 장부 · 건드린 항목 · 라벨 · 고칠 항목 · 바꿀 곳으로 쓴다
+  '이름 장부', '자리 장부', '건드린 이름', '보이는 이름', '항목 조각', '바꿀 조각']
 const VIEW = { width: 1300, height: 820 }
 // 연습 판 · 넣기는 git 을 여러 번 부른다(Windows 에서 느리다)
 const LONG = { timeout: 180000 }
@@ -29,7 +31,7 @@ const FILES = {
   'docs/회의 규칙.md': '# 회의 규칙\n\n## 시간\n30분.\n',
   'work/2026-1101-a.md': rec('2026-1101-a', '2026-11-01 09:00', ['proc:배포창']),
   '_managed.md': '| 이름 | 문서 | 항목 |\n|---|---|---|\n| `proc:배포창` | `docs/배포 절차.md` | `## 배포 창` |\n| `check:*` | `docs/배포 절차.md` | `## {값}` |\n',
-  '_vocab.md': '# 이름 장부\n\n## proc\n\n- `proc:배포창`: 배포 창\n\n## check\n\n- `check:사전 점검`: 사전 점검\n- `check:사후 점검`: 사후 점검\n',
+  '_vocab.md': '# 항목 장부\n\n## proc\n\n- `proc:배포창`: 배포 창\n\n## check\n\n- `check:사전 점검`: 사전 점검\n- `check:사후 점검`: 사후 점검\n',
 }
 let tmp, s, browser, me, wk
 // 팀 일꾼 한 번(가짜 Claude) — 화면이 일감을 세울 때까지 기다렸다가
@@ -146,7 +148,7 @@ test('구조 다시 잡기: 단순 [저장] 그대로 · 합치기 · 항목 옮
     await page.waitForSelector('[data-t=sxMoveWin]', { state: 'detached' })
     assert.equal(await page.locator('[data-t=sxItem][data-h="롤백"]').count(), 0)
 
-    // 1 구조안 — 검사: 바뀔 것 · 걸림 0(닿던 이름은 합친 항목에 저절로 놓는다)
+    // 1 구조안 — 검사: 바뀔 것 · 걸림 0(닿던 장부 항목은 합친 항목에 저절로 놓는다)
     await go(page).click()
     await page.waitForSelector('[data-t=sxCheck]')
     const ck = await page.locator('[data-t=sxCheck]').innerText()

@@ -26,7 +26,9 @@ const SHOTS = process.env.KMD_SHOTS || path.join(os.tmpdir(), 'kmd-shots')
 const CHROME = [process.env.KMD_CHROME, 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe', '/usr/bin/google-chrome', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find((p) => p && fs.existsSync(p))
 
 // 사람 화면에 쓰지 않는 말(절차서 §0 「화면 말」)
-const BANNED = ['좌표', '섹션', '원천', '기준선', '큐레이션', '대기열', '판정', '토큰', '커밋', '레포', '미러', '동기화', 'LLM', 'RAG', '노드', '엣지', '백링크', 'coord', 'commit']
+const BANNED = ['좌표', '섹션', '원천', '기준선', '큐레이션', '대기열', '판정', '토큰', '커밋', '레포', '미러', '동기화', 'LLM', 'RAG', '노드', '엣지', '백링크', 'coord', 'commit',
+  // 걷은 말(컨벤션 9절 용어집) — 항목 장부 · 문서 장부 · 건드린 항목 · 라벨 · 고칠 항목 · 바꿀 곳으로 쓴다
+  '이름 장부', '자리 장부', '건드린 이름', '보이는 이름', '항목 조각', '바꿀 조각']
 
 let tmp, s, pc, browser, me, dkey = null
 const VIEW = { width: 1300, height: 820 }
@@ -225,7 +227,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.equal(await page.locator('[data-t=knMenu] .bd').count(), 0, '점검 배지 없음')
   await page.click('[data-t=ckTab-check]')
   await page.waitForSelector('[data-t=guardCard] [data-t=guard-unnamed]')
-  assert.match(await page.locator('[data-t=guardCard]').innerText(), /이름 없음[\s\S]*장부 밖[\s\S]*이름 없는 항목/)
+  assert.match(await page.locator('[data-t=guardCard]').innerText(), /항목 없음[\s\S]*장부 밖[\s\S]*장부에 없는 항목/)
   assert.equal(await page.locator('[data-t=ckGroup] .tipb').count(), 4, '줄 묶음마다 (!)')
   assert.ok((await page.locator('.main .tipb').count()) <= 5, '(!) 는 화면에 다섯까지')
   assert.match(page.url(), /#\/k\/[^/]+\/check$/, '점검 › 점검 주소(처음 탭)')
@@ -350,7 +352,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.equal(await page.locator('[data-t=itemList] [data-t^=kind-][aria-expanded=false]').count(), 0)
   await page.click('[data-t=itemRow][data-name="헬스 체크"]')
   await page.waitForSelector('[data-t=itemPage]')
-  // 가운데는 항목 글만 · 지난 기록 · 쓰는 곳 · 다른 이름은 오른쪽 다섯 묶음으로
+  // 가운데는 항목 글만 · 지난 기록 · 쓰는 곳 · 별칭은 오른쪽 다섯 묶음으로
   assert.deepEqual(await page.locator('[data-t=itemPage] .isec').evaluateAll((els) => els.map((e) => e.dataset.t)), ['itemNow'])
   await page.click('.aside [data-a=agToggle][data-g=recs]')
   assert.ok((await page.locator('[data-t=itemHistRow]').count()) >= 5)
@@ -492,7 +494,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   await page.close()
 })
 
-test('정리를 걷었다(S13): 조각 없는 기록은 메모 · 옛 정리 화면은 넣지 못함으로 · 설정 › 일반의 팀 지식 표 · 문서 다듬기 단추 · 오늘 바뀐 것 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('정리를 걷었다(S13): 항목 글 없는 기록은 메모 · 옛 정리 화면은 넣지 못함으로 · 설정 › 일반의 팀 지식 표 · 문서 다듬기 단추 · 오늘 바뀐 것 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
   // lee — dpms 에 쓰기 자리를 받은 팀원(받지 않은 지식은 없음이 기본 · 권한 모델 v1.1)
   if (!s.auth.people().includes('lee')) { await s.auth.addUser({ id: 'lee', admin: false }); await seat(s, 'lee', { dpms: 'write' }) }

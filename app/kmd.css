@@ -45,7 +45,7 @@
   --w-rail:48px;--w-grip:6px;--w-graph:400px;--w-detail:360px;
   /* 정보 단추 (!) 원 · 작은 배지 높이 · 툴팁 폭(컨벤션 4절 정보 단추) */
   --ctl-xs:18px;--ctl-2xs:16px;--w-tip:320px;
-  /* 글꼴 — 모노는 경로 · 주소 · 이름 · 시각에만 */
+  /* 글꼴 — 모노는 경로 · 주소 · 항목 값 · 시각에만 */
   --font:"Malgun Gothic","Apple SD Gothic Neo",-apple-system,"Segoe UI",system-ui,sans-serif;
   --mono:Consolas,"Cascadia Mono",D2Coding,"Malgun Gothic",monospace;
 }
@@ -1175,7 +1175,7 @@ a.dlink:hover{text-decoration:underline;text-underline-offset:2px}
 .deadlink{color:var(--text-3);cursor:default;text-decoration:none;font-weight:inherit}
 .dlink.missing{color:var(--text-3);font-weight:500;text-decoration:underline dashed;text-underline-offset:3px}
 .dlink.missing::before{opacity:.6}
-/* 이름 열쇠(`kind:id`) — 서버가 항목 이름으로 감싼다(.ilink.coord · 열쇠는 title) · 앞에 작은 항목 아이콘 */
+/* 글 속 항목 값(`kind:id`) — 서버가 항목 이름으로 감싼다(.ilink.coord · 열쇠는 title) · 앞에 작은 항목 아이콘 */
 .ilink.coord{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 9h16M4 15h16M10 3 8 21M16 3l-2 18'/%3E%3C/svg%3E");display:inline-flex;align-items:baseline;gap:3px}
 .ilink.coord::before{content:"";width:11px;height:11px;flex:none;align-self:center;background:currentColor;opacity:.75;-webkit-mask:var(--ic) center/contain no-repeat;mask:var(--ic) center/contain no-repeat}
 /* 참고 정보 — 항목 옆 작은 칩(「출처 n」 · 「넣지 못함 n」 · 누르면 참고 칸) · 접는 참고 칸(본문과 다른 꼴) */

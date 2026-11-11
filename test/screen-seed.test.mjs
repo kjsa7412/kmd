@@ -15,7 +15,9 @@ import { parseDoc } from '../core/sections.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const CHROME = [process.env.KMD_CHROME, 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe', '/usr/bin/google-chrome', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find((p) => p && fs.existsSync(p))
-const BANNED = ['좌표', '섹션', '원천', '기준선', '큐레이션', '대기열', '판정', '토큰', '커밋', '레포', '미러', '동기화', 'LLM', 'RAG', '노드', '엣지', '백링크', 'coord', 'commit']
+const BANNED = ['좌표', '섹션', '원천', '기준선', '큐레이션', '대기열', '판정', '토큰', '커밋', '레포', '미러', '동기화', 'LLM', 'RAG', '노드', '엣지', '백링크', 'coord', 'commit',
+  // 걷은 말(컨벤션 9절 용어집) — 항목 장부 · 문서 장부 · 건드린 항목 · 라벨 · 고칠 항목 · 바꿀 곳으로 쓴다
+  '이름 장부', '자리 장부', '건드린 이름', '보이는 이름', '항목 조각', '바꿀 조각']
 const SRC = {
   '입사 안내.md': '# 입사 안내\n\n## 첫날\n09:00 까지 3층 접수에 온다.\n',
   '장비 지급.md': '# 장비 지급\n\n## 노트북\nThinkPad X1 을 지급한다.\n',
