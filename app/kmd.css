@@ -88,7 +88,7 @@ a{color:var(--accent);cursor:pointer}
 .sb-ic .bd.warn{background:var(--warn-bg);color:var(--warn)}
 /* 층 2 지식 메뉴(메뉴 개편 N4 · 컨벤션 5절) — 아이콘 위 + 이름 아래 · 넷(개인 다섯 · 팀 읽기 자리는 둘) · 지금 화면은 aria-current · 배지는 이력 값 바뀜만(점검 배지 없음 · 저장 승인 P10) */
 .kmn{flex:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sp-1);padding:var(--sp-2) 0 var(--sp-4);border-bottom:1px solid var(--border)}
-.kmn.n2{grid-template-columns:repeat(2,minmax(0,1fr))}.kmn.n3{grid-template-columns:repeat(3,minmax(0,1fr))}.kmn.n5{grid-template-columns:repeat(5,minmax(0,1fr))}
+.kmn.n1{grid-template-columns:minmax(0,1fr)}.kmn.n2{grid-template-columns:repeat(2,minmax(0,1fr))}.kmn.n3{grid-template-columns:repeat(3,minmax(0,1fr))}.kmn.n5{grid-template-columns:repeat(5,minmax(0,1fr))}
 .kmi{position:relative;display:flex;flex-direction:column;align-items:center;gap:var(--sp-1);border:0;background:none;border-radius:var(--r);padding:var(--sp-3) 0 var(--sp-2);color:var(--text-2);font:inherit;font-size:var(--fs-sm);cursor:pointer;min-width:0}
 .app .kmi svg{width:var(--ctl-xs);height:var(--ctl-xs);stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .kmi:hover{background:var(--hover);color:var(--text)}

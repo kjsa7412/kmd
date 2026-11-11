@@ -904,14 +904,14 @@ function workMenu() {
   return [imp && { id: 'import', scr: 'import', l: '생성' }, ck && { id: 'held', scr: 'held', l: '점검' }, kadm && { id: 'structure', scr: 'structure', l: '문서 › 구조' }].filter(Boolean)
 }
 // 지식 메뉴(옆 메뉴 층 2 · 메뉴 개편 5 · 6 · 7절 · 저장 승인 P10) — 고른 지식에 딸린 일 · 위에서 고른 지식으로 연다
-//   개인: 점검 · 생성 · 공유 · 문서 · 이력 / 팀: 점검 · 생성 · 문서 · 이력 — 점검은 ckOk · 생성은 고른 지식에 쓰기 자리부터(6-4 · 판정은 서버 · 화면은 숨기기만) · 배지 없음(P-D28)
+//   개인: 점검 · 생성 · 공유 · 이력 / 팀: 점검 · 생성 · 이력(문서는 버튼 없이 아래 나무가 늘 보인다) — 점검은 ckOk · 생성은 고른 지식에 쓰기 자리부터(6-4 · 판정은 서버 · 화면은 숨기기만) · 배지 없음(P-D28)
 const DOCSCR = ['docs', 'items', 'graph', 'structure']
 function kmItems() {
-  if (!isTeam()) return [{ id: 'held', scr: 'held', l: '점검', ic: 'check' }, { id: 'import', scr: 'import', l: '생성', ic: 'gen' }, { id: 'send', scr: 'send', l: '공유', ic: 'share' }, { id: 'docs', scr: 'docs', l: '문서', ic: 'doc' }, { id: 'history', scr: 'today', l: '이력', ic: 'hour' }]
+  if (!isTeam()) return [{ id: 'held', scr: 'held', l: '점검', ic: 'check' }, { id: 'import', scr: 'import', l: '생성', ic: 'gen' }, { id: 'send', scr: 'send', l: '공유', ic: 'share' }, { id: 'history', scr: 'today', l: '이력', ic: 'hour' }]
   const n = KN(defaultKn())
   const w = n ? lvOf(n) === 'write' || lvOf(n) === 'admin' : !!(S.me && S.me.admin)
   const ck = n ? ckOk(n) : !!(S.me && S.me.admin)
-  return [ck && { id: 'held', scr: 'held', l: '점검', ic: 'check' }, w && { id: 'import', scr: 'import', l: '생성', ic: 'gen' }, { id: 'docs', scr: 'docs', l: '문서', ic: 'doc' }, { id: 'history', scr: 'today', l: '이력', ic: 'hour' }].filter(Boolean)
+  return [ck && { id: 'held', scr: 'held', l: '점검', ic: 'check' }, w && { id: 'import', scr: 'import', l: '생성', ic: 'gen' }, { id: 'history', scr: 'today', l: '이력', ic: 'hour' }].filter(Boolean)
 }
 // 점검 메뉴를 여나(저장 승인 P10 · P11 · P-D28) — 개인은 주인(내 개인 지식) · 팀은 그 지식의 지식관리자(점검 · 지표)
 const ckOk = (x) => !!x && (isTeam() ? !isPersonal(x) && lvOf(x) === 'admin' : isPersonal(x))
@@ -949,8 +949,8 @@ function mgWrap(scr, v) {
 }
 // 옆 메뉴(메뉴 개편 N4 · docs/품질개선/KMD_메뉴개편_설계.md 7절 · 컨벤션 5절) — 위에서 아래로 네 층
 //   1 지식 고르기(.sb-top) · 지금 하는 일 점 · 접기 — 고르기 끝 줄 「모든 지식」 은 지식관리로 가는 지름길(고른 지식은 그대로)
-//   2 지식 메뉴(.kmn > button.kmi) — 개인 점검 · 생성 · 공유 · 문서 · 이력 / 팀 점검 · 생성 · 문서 · 이력(kmItems) · 배지는 이력 값 바뀜만(점검 배지 없음 · P-D28)
-//   3 「문서」 일 때만: 보기 탭 한 줄(.ktabs 목차 · 항목 · 기록 · 그래프) · 찾기 + 도구(나무 머리 [구조]) · 목록
+//   2 지식 메뉴(.kmn > button.kmi) — 개인 점검 · 생성 · 공유 · 이력 / 팀 점검 · 생성 · 이력(kmItems) · 배지는 이력 값 바뀜만(점검 배지 없음 · P-D28)
+//   3 고른 지식이 있으면 늘(어느 화면이든): 보기 탭 한 줄(.ktabs 목차 · 항목 · 기록 · 그래프) · 찾기 + 도구(나무 머리 [구조]) · 목록
 //   4 공통 메뉴(.sb-mg.nm2): 지식관리 · 설정(아이콘 + 이름)
 //   접힌 레일은 같은 차례(지식 약자 · 층 2 · 선 · 층 4) · 들어온 사람은 머리 줄 오른쪽 동그라미(meHtml)
 const VIEWS3 = ['docs', 'items', 'graph']
@@ -1015,10 +1015,12 @@ function sideHtml(left) {
   h += `<div class="sb-top">${top}${busyDot()}${fold}</div>`
   // 2 지식 메뉴
   h += `<nav class="kmn n${km.length}" data-t="knMenu" aria-label="지식 메뉴">${km.map((x) => `<button type="button" class="kmi" ${x.a} data-t="nav-${x.id}" title="${esc(sideLab(x))}" aria-label="${esc(sideLab(x))}"${cur4(x)}${dis(x)}>${svg(x.ic)}<span aria-hidden="true">${esc(x.l)}</span>${sideBadge(x)}</button>`).join('')}</nav>`
-  // 3 문서일 때만: 보기 탭 · 찾기 · 목록(목록 쪽이 찾기 칸 · 나무 머리 [구조] 를 그린다)
-  if (cur && DOCSCR.includes(r.scr)) {
-    const vt = VIEWS3.includes(r.scr) ? r.scr : S.ktab || 'docs'
-    const lt = r.scr === 'structure' ? '' : ltabOf(vt, k)
+  // 3 고른 지식이 있으면 늘: 보기 탭 · 찾기 · 목록(목록 쪽이 찾기 칸 · 나무 머리 [구조] 를 그린다) · 탭 선택은 문서 화면일 때만
+  if (cur) {
+    const ds = DOCSCR.includes(r.scr)
+    const vt = VIEWS3.includes(r.scr) ? r.scr : VIEWS3.includes(S.ktab) ? S.ktab : 'docs'
+    const lt = !ds || r.scr === 'structure' ? '' : ltabOf(vt, k)
+    if (!ds) left = ''
     h += `<div class="sb-know" data-t="knowArea"><div class="ktabs" role="tablist" aria-label="보기" data-t="ktabs">${LTABS.map(([v, l, ic]) => { const n = ltabN(v, k), g = v === 'graph'; return `<button type="button" role="tab" aria-selected="${lt === v}" class="${g ? 'ic' : ''}" data-a="ltab" data-v="${v}" data-t="rb-${v}" title="${VIEW_LABEL[v] || l + ' 보기'}"${g ? ` aria-label="${l}"` : ''}>${g ? svg(ic) : `${l}${n !== '' ? ` <em>${n}</em>` : ''}`}</button>` }).join('')}</div>`
     h += `<div class="lp" data-t="leftPane">${left || sideList(vt, k)}</div></div>`
   } else h += '<div class="sb-sp"></div>'
@@ -7087,7 +7089,7 @@ const ACT = {
   //   「모든 지식」(*) 은 지식관리로 가는 지름길 — 고른 지식은 그대로(메뉴 개편 7절)
   pickKn: (el, ev) => { ev.stopPropagation(); S.menu = null; const k = el.dataset.k; if (k === '*') return go({ scr: 'home', kn: '*' }); const s = S.route.scr; if (KM_SCR.includes(s)) return kmGo(s, k); go({ scr: KNSCR.includes(s) ? s : 'docs', kn: k }) },
   // 지식 메뉴 · 레일 · 나무 머리 [구조] — 위에서 고른 지식으로 연다 · 「문서」 는 600 이하 서랍을 닫지 않는다(층 3 나무를 보인다)
-  km: (el) => { if (el.getAttribute('aria-disabled') === 'true') return; const id = el.dataset.v, open = S.sideOpen; const x = [...kmItems(), { id: 'structure', scr: 'structure' }].find((y) => y.id === id); if (!x) return; kmGo(x.scr, defaultKn()); if (id === 'docs' && open) { S.sideOpen = true; render() } },
+  km: (el) => { if (el.getAttribute('aria-disabled') === 'true') return; const id = el.dataset.v, open = S.sideOpen; const x = [...kmItems(), { id: 'structure', scr: 'structure' }].find((y) => y.id === id); if (!x) return; kmGo(x.scr, defaultKn()) },
   mgAll: () => go({ scr: 'home', kn: '*' }),
   // 지식관리(N6) — 본문 왼쪽 메뉴 · 지식 상세(줄 누름 · 탭 · 닫기 · 열기) · 사람 탭 · 불러오기 창 · 새 지식 다음 걸음 · 내 기기 창
   mgGo: (el) => go({ scr: 'home', kn: '*', page: el.dataset.v }),

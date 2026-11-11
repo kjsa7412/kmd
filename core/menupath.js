@@ -14,8 +14,8 @@ export const MANAGE_TEAM = Object.freeze(['모든 지식', '기초 세우기', '
 export const DETAIL_PC = Object.freeze(['정보', '저장소', '삭제'])
 export const DETAIL_TEAM = Object.freeze(['정보', '권한', '저장소', '정책', '삭제'])
 // 옆 메뉴(N4 · 저장 승인 P10) — 지식 메뉴(고른 지식에 딸림 · 팀 점검은 지식관리자 · 생성은 쓰기 자리부터 · 개인 점검은 주인) · 공통 메뉴 둘 · 「문서 › 구조」 는 나무 머리 [구조]
-export const KN_MENU_PC = Object.freeze(['점검', '생성', '공유', '문서', '이력'])
-export const KN_MENU_TEAM = Object.freeze(['점검', '생성', '문서', '이력'])
+export const KN_MENU_PC = Object.freeze(['점검', '생성', '공유', '이력'])
+export const KN_MENU_TEAM = Object.freeze(['점검', '생성', '이력'])
 export const COMMON = Object.freeze(['지식관리', '설정'])
 // 지식 메뉴 화면의 본문 머리 탭(N5 · P10) — 생성 수기수집 · 자동수집 + 아래 「진행」(탭 도는 일 · 끝난 일) · 점검 점검 · 지표(P-D28 · 배지 없음 · 승인 탭 걷음)
 export const GEN_TABS = Object.freeze(['수기수집', '자동수집'])
@@ -23,7 +23,7 @@ export const PROGRESS = Object.freeze(['진행', '도는 일', '끝난 일'])
 export const CHECK_TABS = Object.freeze(['점검', '지표'])
 export const MENU_NAMES = Object.freeze([...new Set([...SET_TEAM, ...SET_PC])])
 // ── 목표 메뉴(N6 에서 모두 지금이 되었다 · 남은 목표는 화면 안 단계 이름: 기초 세우기 단계 띠는 TODO 9) ──
-//   지식 메뉴(고른 지식에 딸림): 개인 점검 · 생성 · 공유 · 문서 · 이력 / 팀 점검 · 생성 · 문서 · 이력
+//   지식 메뉴(고른 지식에 딸림): 개인 점검 · 생성 · 공유 · 이력 / 팀 점검 · 생성 · 이력 · 「문서」 는 버튼이 아니라 늘 보이는 아래 나무(「문서 › 구조」 는 나무 머리 [구조])
 export const KN_PC = Object.freeze({ 점검: CHECK_TABS, 생성: GEN_TABS, 공유: Object.freeze([]), 문서: Object.freeze(['구조']), 이력: Object.freeze([]) })
 export const KN_TEAM = Object.freeze({ 점검: CHECK_TABS, 생성: GEN_TABS, 문서: Object.freeze(['구조']), 이력: Object.freeze([]) })
 //   공통 메뉴: 지식관리 · 설정(지금 목록과 같다)
