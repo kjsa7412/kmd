@@ -48,7 +48,7 @@ import { renderRecord } from '../core/frontmatter.js'
 import { stampAll, headingMatches, findHeading } from '../core/sections.js'
 import { docfmtDir, checkFormat } from '../core/docformat.js'
 import { applyRestructure, readStructure, structureFp, stepFp } from '../core/restructure.js'
-import { readShape, cleanPlan, planCheck, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO, SHAPE_CLAUDE_TYPES, SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, planMaterial, writeMaterial, planOfDraft, writeOfDraft, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SEED_PLAN_SCHEMA, seedPlanMaterial, seedSessionFixOf, seedSessionTsv, SEED_FRAME_SCHEMA, seedFramePromptOf, frameOfDraft, seedBatches, seedBatchPromptOf, batchOfDraft, mergeSeedPlan, seedWriteSessionPromptOf, seedWriteFixOf, seedPlanOfDraft, seedNormalize, seedCover, folderPlan, seedWriteMaterial, pickOf } from '../core/shape.js'
+import { readShape, cleanPlan, planCheck, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO, SHAPE_CLAUDE_TYPES, SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, planMaterial, writeMaterial, planOfDraft, writeOfDraft, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SEED_PLAN_SCHEMA, seedPlanMaterial, seedSessionFixOf, seedSessionTsv, SEED_FRAME_SCHEMA, seedFramePromptOf, frameOfDraft, formClashOf, formHintOf, seedFormsOf, seedBatches, seedBatchPromptOf, batchOfDraft, mergeSeedPlan, seedWriteSessionPromptOf, seedWriteFixOf, seedPlanOfDraft, seedNormalize, seedCover, folderPlan, seedWriteMaterial, pickOf } from '../core/shape.js'
 import { parseOrder } from '../core/order.js'
 import { parseDoc as parseDocText } from '../core/sections.js'
 import { parseForms } from '../core/guard.js'
@@ -828,6 +828,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     await Promise.all(Array.from({ length: Math.min(n, list.length) }, async () => { while (next < list.length) { const i = next++; out[i] = await fn(list[i], i) } }))
     return out
   }
+  const SEED_JSON_AGAIN = '답은 글이 아니라 구조안 JSON 하나다. 묻지 말고 지금 아는 것으로 StructuredOutput 도구로 낸다(고칠 수 없는 걸림은 그대로 두고 사람이 고친다).'
   async function pcSeedPlan(ctx, id, run, { rows, picks, cards, note, pack }) {
     const g = seedPlanMaterial(rows, { picks, note })
     const f = feedNew(id, '구조안')
@@ -844,12 +845,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     run.kill = (why) => { for (const s of sessions) s.kill(why) }
     const fail = async (r, tag) => { const why = await seedClaudeWhy(r); say(why, 'bad', tag); Object.assign(run, { state: 'fail', why }); return null }
     // 세션 하나에 묻고 꼴 검사(check) — 걸리면 같은 세션에 고쳐 받기 · { value } | { error } | null(Claude 가 답하지 않음 · 그만둠)
-    const askFix = async (s, msg, check, tag) => {
+    const askFix = async (s, msg, check, tag, soft = false) => {
       for (let n = 0; n <= INTAKE_FIX; n++) {
         const r = await s.ask(msg)
         run.tries = (run.tries || 0) + 1
         if (run.state !== 'running') return null
-        if (r.error) return fail(r, tag)
+        // 글로만 답했다(StructuredOutput 을 부르지 않음) — 같은 세션에 JSON 으로 내게 한다
+        if (r.error === 'shape' && n < INTAKE_FIX) { say('답이 JSON 이 아니다 · 같은 세션에 JSON 으로 내게 한다', 'warn', tag); msg = SEED_JSON_AGAIN; continue }
+        if (r.error) return soft && r.error === 'shape' ? { error: '답이 JSON 이 아니다' } : fail(r, tag)
         const x = check(r.value)
         if (!x.error) return { value: x }
         if (n === INTAKE_FIX) return { error: x.error }
@@ -863,7 +866,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const fr0 = await open(g.mats, SEED_FRAME_SCHEMA, '뼈대')
       say(`뼈대: 재료 ${g.mats.length}${fr0.sd.cards ? ` · 카드 ${fr0.sd.cards}` : ''}${fr0.sd.miss ? ` · 글 없는 재료 ${fr0.sd.miss}` : ''} · 문서 목록과 문서마다 재료를 정한다`, '', '뼈대')
       if (run.state !== 'running') return
-      const fr = await askFix(fr0.s, seedFramePromptOf(g, { cards: fr0.sd.cards > 0 }), (v) => frameOfDraft(v, g), '뼈대')
+      const meta0 = await hub.meta(id, ctx)
+      const k0 = await hub.get(id, ctx)
+      const fset = seedFormsOf(k0, readShape(k0, await readStructure(meta0.dir)))
+      const fr = await askFix(fr0.s, seedFramePromptOf(g, { cards: fr0.sd.cards > 0, forms: formHintOf(fset) }), (v) => frameOfDraft(v, g, { clash: (x) => formClashOf(fset, x) }), '뼈대')
       sessions.delete(fr0.s)
       await fr0.s.end().catch((e) => log('기초 세우기 세션 닫기', id, e.message))
       if (!fr) return
@@ -893,6 +899,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 3 합치기 · 검사 — 걸림은 그 문서(또는 그 재료)의 묶음 세션에
       const meta = await hub.meta(id, ctx)
       const docOf = new Map(frame.docs.flatMap((d) => d.src.map((s) => [rows.find((r) => r.src === s)?.path, d.id])))
+      const stuck = new Set() // 고쳐 받기에 실패한 묶음(앞 답을 쓴다)
       for (let n = 0; ; n++) {
         const draft = mergeSeedPlan(frame, parts)
         const p = seedPlanOfDraft(draft)
@@ -901,7 +908,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const k = await hub.get(id, ctx)
         const S = readShape(k, await readStructure(meta.dir))
         const chk = hub.seedCheckOf(k, S, seedNormalize(p.plan, S), rows, picks)
-        const owner = (e) => { const w = String(e.where || ''); const d = frame.docs.find((x) => w === x.id || w.startsWith(x.id + ' ›')) || frame.docs.find((x) => x.id === docOf.get(w)); return d ? live.findIndex((o) => o && o.b.docs.some((y) => y.id === d.id)) : -1 }
+        const owner = (e) => { const w = String(e.where || ''); const d = frame.docs.find((x) => w.startsWith(x.id + ' ›')) || frame.docs.find((x) => x.id === docOf.get(w)); const i = d ? live.findIndex((o) => o && o.b.docs.some((y) => y.id === d.id)) : -1; return i >= 0 && !stuck.has(i) ? i : -1 }
         const fix = new Map()
         for (const e of chk.errors) { const i = owner(e); if (i >= 0) fix.set(i, [...(fix.get(i) || []), e]) }
         if (chk.ok || n >= INTAKE_FIX || !fix.size) {
@@ -915,8 +922,9 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           const o = live[i]
           const why = es.slice(0, 5).map((e) => `${e.where}: ${e.why}`).join(' · ')
           say(`고쳐 받는다: ${why}`, 'warn', o.tag)
-          const x = await askFix(o.s, seedSessionFixOf(why), (v) => batchOfDraft(v, o.b, { mats: o.mats }), o.tag)
+          const x = await askFix(o.s, seedSessionFixOf(why), (v) => batchOfDraft(v, o.b, { mats: o.mats }), o.tag, true)
           if (x && !x.error) parts[i] = x.value
+          else if (x) { stuck.add(i); say(`고쳐 받지 못했다 · 앞 답을 쓴다: ${x.error}`, 'warn', o.tag) }
           return x
         }))
         if (run.state !== 'running' || again.some((x) => !x)) return

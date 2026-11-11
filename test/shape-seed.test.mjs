@@ -48,6 +48,33 @@ async function settle(hub, ctx, id) {
 const code = (p) => p.then(() => 'ok', (e) => e.code)
 const LONG = { timeout: 180000 }
 
+test('나눠 받기 — 뼈대 검사(덮임 · 없는 재료 · 같은 id · 갈래 이름 걸림) · 묶음 나누기 · 묶음 검사 · 합치기', async () => {
+  const S = await import('../core/shape.js')
+  const g = { mats: [{ src: 'm:' + 'a'.repeat(16), path: 'a.md', pick: '넣음', chars: 10 }, { src: 'm:' + 'b'.repeat(16), path: 'b.md', pick: '넣음', chars: 10 }, { src: 'm:' + 'c'.repeat(16), path: 'c.md', pick: '근거만', chars: 10 }], existing: [] }
+  const [A, B, C] = g.mats.map((m) => m.src)
+  assert.match(S.frameOfDraft({ docs: [{ id: '안내', src: [A] }] }, g).error, /넣음 재료 1/)
+  assert.match(S.frameOfDraft({ docs: [{ id: '안내', src: [A, 'm:' + 'f'.repeat(16)] }] }, g).error, /없는 재료/)
+  assert.match(S.frameOfDraft({ docs: [{ id: '안내', src: [A] }, { id: '안내', src: [B] }] }, g).error, /같은 문서 id/)
+  const fset = { rows: [{ name: '보고서', aliases: ['주간보고'] }] }
+  assert.match(S.frameOfDraft({ docs: [{ id: '사업관리/주간보고', src: [A, B] }] }, g, { clash: (x) => S.formClashOf(fset, x) }).error, /보고서」 갈래/)
+  assert.equal(S.formClashOf(fset, '사업관리/보고서'), null, '갈래 이름 그대로는 된다')
+  assert.match(S.seedFramePromptOf(g, { forms: S.formHintOf(fset) }), /보고서\(주간보고\)/)
+  const fr = S.frameOfDraft({ docs: [{ id: '가', src: [A] }, { id: '나', src: [B, C] }], skip: [], why: 'w' }, g)
+  assert.equal(fr.docs.length, 2)
+  const bs = S.seedBatches(fr, g, { maxMats: 1 })
+  assert.deepEqual(bs.map((b) => b.docs.map((d) => d.id)), [['가'], ['나']], '재료 한도를 넘으면 새 묶음 · 문서는 쪼개지 않는다')
+  assert.match(S.batchOfDraft({ docs: [{ id: '다', items: [{ h: 'x', src: [A] }] }] }, bs[0], g).error, /이 묶음의 문서가 아니다/)
+  assert.match(S.batchOfDraft({ docs: [{ id: '가', items: [{ h: 'x', src: [B] }] }] }, bs[0], g).error, /정해진 재료가 아니다/)
+  assert.match(S.batchOfDraft({ docs: [{ id: '나', items: [{ h: 'x', src: [C] }] }] }, bs[1], g).error, /넣음 재료 1/, '묶음 안 덮임')
+  const p1 = S.batchOfDraft({ docs: [{ id: '가', items: [{ h: '하나', src: [A] }] }], names: [{ coord: 'topic:x', doc: '가', h: '하나' }] }, bs[0], g)
+  const p2 = S.batchOfDraft({ docs: [{ id: '나', items: [{ h: '둘', src: [B] }] }], names: [{ coord: 'topic:x', doc: '가', h: '하나' }] }, bs[1], g)
+  assert.equal(p2.names.length, 0, '다른 묶음 문서의 이름은 버린다')
+  const m = S.mergeSeedPlan(fr, [p2, p1])
+  assert.deepEqual(m.docs.map((d) => d.id), ['가', '나'], '뼈대 차례')
+  assert.equal(m.names.length, 1)
+  assert.equal(S.seedPlanOfDraft(m).error, undefined)
+})
+
 test('Claude 안 세션 — 답하지 않는 세션은 그만두기로 끊는다(동작 내역에 그만뒀다)', LONG, async () => {
   const s = await setup()
   try {
