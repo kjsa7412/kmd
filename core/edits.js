@@ -1,29 +1,29 @@
-// 조각(find → replace) — 지금 글에 꼭 한 번 나오는 글을 찾아 바꾼다(docs/kmd_권한_모델.md 7절 · docs/kmd_문서_작성기준.md 7절).
+// 바꿀 곳(edits 한 칸 · find → replace) — 지금 글에 꼭 한 번 나오는 글을 찾아 바꾼다(docs/kmd_권한_모델.md 7절 · docs/kmd_문서_작성기준.md 7절).
 //
 //   제안(core/propose.js) · 검사(core/gate.js) · 저장이 같은 대는 법을 쓴다. 이 모듈은 다른 kmd 모듈을 부르지 않는다
 //   (propose ↔ 옛 정리 모듈 순환을 끊으려고 따로 뺐다 · docs/품질개선/KMD_개편_설계.md 3-1 · S-D27).
-//   두 번 나오거나 없으면 그 조각은 못 댄다 · 느슨한 맞춤은 두지 않는다. 맞춰 볼 때는 줄 끝 빈칸 · NFC 만 고르고, 바꾸는 자리는 원문 위치 그대로.
+//   두 번 나오거나 없으면 그 바꿀 곳은 못 댄다 · 느슨한 맞춤은 두지 않는다. 맞춰 볼 때는 줄 끝 빈칸 · NFC 만 고르고, 바꾸는 자리는 원문 위치 그대로.
 
-export const EDIT_MAX = 50 // 제안 하나의 조각 수 상한
-export const EDIT_CHARS = 20_000 // 조각 글 합의 상한
+export const EDIT_MAX = 50 // 항목 하나의 바꿀 곳 수 상한
+export const EDIT_CHARS = 20_000 // 바꿀 곳 글 합의 상한
 
 const nfc = (s) => String(s ?? '').normalize('NFC')
 // 맞춰 볼 꼴 — 줄 끝 빈칸을 걷고 줄 바꿈을 \n 으로(원문 자리는 바꾸지 않는다: 아래 locate 가 원문에서 다시 찾는다)
 export const norm = (s) => nfc(s).replace(/\r\n?/g, '\n').split('\n').map((l) => l.replace(/[ \t]+$/, '')).join('\n')
 
-// 조각 모양 검사 — { ok, why }
+// 바꿀 곳 모양 검사 — { ok, why }
 export function validEdits(edits) {
-  if (!Array.isArray(edits) || !edits.length) return { ok: false, why: '조각이 없다' }
-  if (edits.length > EDIT_MAX) return { ok: false, why: `조각이 ${EDIT_MAX} 개를 넘는다` }
+  if (!Array.isArray(edits) || !edits.length) return { ok: false, why: '바꿀 곳이 없다' }
+  if (edits.length > EDIT_MAX) return { ok: false, why: `바꿀 곳이 ${EDIT_MAX} 개를 넘는다` }
   let chars = 0
   for (const [i, e] of edits.entries()) {
-    if (!e || typeof e !== 'object' || Array.isArray(e)) return { ok: false, why: `${i + 1}째 조각이 모양이 아니다` }
-    if (typeof e.find !== 'string' || !e.find.trim()) return { ok: false, why: `${i + 1}째 조각의 find 가 비었다` }
-    if (typeof e.replace !== 'string') return { ok: false, why: `${i + 1}째 조각의 replace 가 글이 아니다` }
-    if (Object.keys(e).some((k) => !['find', 'replace'].includes(k))) return { ok: false, why: `${i + 1}째 조각에 모르는 칸이 있다(find · replace 만)` }
+    if (!e || typeof e !== 'object' || Array.isArray(e)) return { ok: false, why: `${i + 1}째 바꿀 곳이 모양이 아니다` }
+    if (typeof e.find !== 'string' || !e.find.trim()) return { ok: false, why: `${i + 1}째 바꿀 곳의 find 가 비었다` }
+    if (typeof e.replace !== 'string') return { ok: false, why: `${i + 1}째 바꿀 곳의 replace 가 글이 아니다` }
+    if (Object.keys(e).some((k) => !['find', 'replace'].includes(k))) return { ok: false, why: `${i + 1}째 바꿀 곳에 모르는 칸이 있다(find · replace 만)` }
     chars += e.find.length + e.replace.length
   }
-  if (chars > EDIT_CHARS) return { ok: false, why: `조각 글이 ${EDIT_CHARS} 자를 넘는다` }
+  if (chars > EDIT_CHARS) return { ok: false, why: `바꿀 곳 글이 ${EDIT_CHARS} 자를 넘는다` }
   return { ok: true }
 }
 
@@ -31,7 +31,7 @@ export function validEdits(edits) {
 //   norm 은 줄마다 끝 빈칸만 걷으므로(줄 수 · 줄 안 자리는 같다) 줄 · 칸으로 되짚는다
 export function locate(text, find) {
   const t = norm(text), f = norm(find).replace(/^\n+|\n+$/g, '')
-  if (!f) return { why: '빈 조각' }
+  if (!f) return { why: '찾을 글이 비었다' }
   const first = t.indexOf(f)
   if (first < 0) return { why: '지금 글에 없다', near: nearest(t, f) }
   if (t.indexOf(f, first + 1) >= 0) return { why: '지금 글에 두 번 넘게 나온다' }
@@ -47,7 +47,7 @@ export function locate(text, find) {
   const at = (p) => { let r = rows[0]; for (const x of rows) { if (x[1] <= p) r = x; else break } return r[0] + (p - r[1]) }
   return { start: at(first), end: at(first + f.length) }
 }
-// 가장 가까운 줄 — 세션이 조각을 다시 맞출 수 있게(첫 줄의 앞 20자가 겹치는 줄)
+// 가장 가까운 줄 — 세션이 바꿀 곳을 다시 맞출 수 있게(첫 줄의 앞 20자가 겹치는 줄)
 export function nearest(t, f) {
   const head = f.split('\n')[0].trim()
   const lines = t.split('\n')
@@ -58,8 +58,8 @@ export function nearest(t, f) {
   return null
 }
 
-// 조각 판정(저장 승인 설계 P1) — 못 대는 조각을 첫 하나에서 멈추지 않고 모두 오류로 낸다(제안서가 한 번에 보이게).
-//   → { text?(모두 댔을 때), errors: [{ code: 'edits', why, at?(몇째 조각 · 0 부터), near? }] } · 모양이 틀리면 그 하나만(대어 보지 않는다)
+// 바꿀 곳 판정(저장 승인 설계 P1) — 못 대는 바꿀 곳을 첫 하나에서 멈추지 않고 모두 오류로 낸다(제안서가 한 번에 보이게).
+//   → { text?(모두 댔을 때), errors: [{ code: 'edits', why, at?(몇째 바꿀 곳 · 0 부터), near? }] } · 모양이 틀리면 그 하나만(대어 보지 않는다)
 export function judgeEdits(text, edits) {
   const v = validEdits(edits)
   if (!v.ok) return { errors: [{ code: 'edits', why: v.why }] }
@@ -68,12 +68,12 @@ export function judgeEdits(text, edits) {
   const spots = []
   for (const [i, e] of edits.entries()) {
     const at = locate(src, e.find)
-    if (at.why) { errors.push({ code: 'edits', why: `${i + 1}째 조각을 댈 수 없다: ${at.why}`, at: i, ...(at.near ? { near: at.near } : {}) }); continue }
+    if (at.why) { errors.push({ code: 'edits', why: `${i + 1}째 바꿀 곳을 댈 수 없다: ${at.why}`, at: i, ...(at.near ? { near: at.near } : {}) }); continue }
     spots.push({ ...at, i, replace: nfc(e.replace) })
   }
   if (errors.length) return { errors }
   spots.sort((a, b) => a.start - b.start)
-  for (let n = 1; n < spots.length; n++) if (spots[n].start < spots[n - 1].end) errors.push({ code: 'edits', why: `${spots[n].i + 1}째 조각이 ${spots[n - 1].i + 1}째 조각과 겹친다`, at: spots[n].i })
+  for (let n = 1; n < spots.length; n++) if (spots[n].start < spots[n - 1].end) errors.push({ code: 'edits', why: `${spots[n].i + 1}째 바꿀 곳이 ${spots[n - 1].i + 1}째 바꿀 곳과 겹친다`, at: spots[n].i })
   if (errors.length) return { errors }
   let out = '', pos = 0
   for (const s of spots) { out += src.slice(pos, s.start) + s.replace; pos = s.end }
@@ -81,7 +81,7 @@ export function judgeEdits(text, edits) {
   return { text: out, errors }
 }
 
-// 조각을 댄다 — { ok, text, why, at(몇째 조각) , near }. 겹치는 조각은 거절. 차례는 원문 위치 순으로 댄다
+// 바꿀 곳을 댄다 — { ok, text, why, at(몇째 바꿀 곳) , near }. 겹치는 바꿀 곳은 거절. 차례는 원문 위치 순으로 댄다
 //   P1 부터 judgeEdits 위의 얇은 덮개(첫 오류만)
 export function applyEdits(text, edits) {
   const j = judgeEdits(text, edits)

@@ -1,5 +1,5 @@
 // 화면 링크(Q80): 항목 앵커를 대상 문서의 ## 이름 · GitHub 꼴 slug(## · ###)로 맞추고 못 찾으면 「없는 항목」 ·
-// 이름 열쇠(Q78): `kind:id` 가 이름 장부에 있으면 이름 링크(openItem) · 없으면 그대로 · 코드 울타리 안은 그대로
+// 글 속 항목 값(Q78): `kind:id` 가 항목 장부에 있으면 항목 링크(openItem) · 없으면 그대로 · 코드 울타리 안은 그대로
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -33,7 +33,7 @@ test('항목 앵커: ## 이름 · slug ## · slug ### · 없는 항목', () => {
   assert.match(h, /class="dlink item missing" data-a="openDoc" data-k="K" data-d="배포" title="없는 항목"/)
 })
 
-test('이름 열쇠: 장부에 있으면 이름 링크 · 없거나 버린 이름 · 울타리 · 링크 글 안은 그대로', () => {
+test('글 속 항목 값: 장부에 있으면 항목 링크 · 없거나 폐기된 항목 · 울타리 · 링크 글 안은 그대로', () => {
   const h = render(k, 'docs/화면.md', '흐름 `screen:ACA011` · `screen:NONE` · `ops:OLD` · [`screen:ACA011`](배포.md)\n\n```\n`screen:ACA011`\n```')
   assert.match(h, /<span class="ilink coord" data-a="openItem" data-k="K" data-n="screen:ACA011" data-pv="item\|K\|screen:ACA011" title="screen:ACA011">지출처리<\/span>/)
   assert.match(h, /<code>screen:NONE<\/code>/)

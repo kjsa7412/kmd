@@ -199,8 +199,8 @@ md.renderer.rules.link_open = (tokens, i, opts, env, self) => {
   }
   return self.renderToken(tokens, i, opts)
 }
-// 글 속 이름 열쇠 — `screen:ACA011` 처럼 백틱 안에 열쇠 하나만 있고 그 지식 이름 장부(_vocab)에 있는 이름이면 이름으로 그리고 누르면 그 항목으로
-//   (화면 linkify 의 항목 링크와 같은 꼴 · 열쇠는 title 로) · 장부에 없거나 버린 이름 · 코드 울타리(pre)는 그대로
+// 글 속 항목 값 — `screen:ACA011` 처럼 백틱 안에 `종류:값` 하나만 있고 그 지식 항목 장부(_vocab)에 있는 항목이면 그 이름으로 그리고 누르면 그 항목으로
+//   (화면 linkify 의 항목 링크와 같은 꼴 · 열쇠는 title 로) · 장부에 없거나 폐기된 항목 · 코드 울타리(pre)는 그대로
 const COORD = /^[A-Za-z_][\w.-]*:[^\s`]+$/
 md.renderer.rules.code_inline = (tokens, i, opts, env, self) => {
   const c = tokens[i].content.trim()
@@ -323,7 +323,7 @@ function backlinks(k, d) {
   return { recs: recs.map(recRow), linkers: linkers.map((o) => ({ id: o.id, title: o.title })), ments }
 }
 
-// 기록 ↔ 문서 — 항목 표지(applied)와 정리 기록의 reflects 로 잇는다. 이름(touches)이 없는 넣은 파일 기록도
+// 기록 ↔ 문서 — 항목 표지(applied)와 정리 기록의 reflects 로 잇는다. 건드린 항목(touches)이 없는 넣은 파일 기록도
 // 어느 문서 · 항목으로 갔는지, 문서가 어느 기록에서 왔는지 보인다(touches 만 보면 둘 다 0 이었다)
 const placedBy = (k, w) => [...k.works, ...k.logs].filter((o) => o !== w && o.reflects?.includes(w.id))
 function landedIn(k, ids) {
@@ -373,7 +373,7 @@ export function docView(k, docId, { src = {}, edit = false } = {}) {
   const last = [...d.sections.map((s) => s.applied && k.byWork.get(s.applied)), d.rec && k.byWork.get(d.rec)].filter(Boolean).sort((a, b) => b.date.localeCompare(a.date))[0]
   const sections = d.sections.map((s) => {
     const coords = coordsOfSection(k, d, s.h)
-    // 이름 장부에 없는 항목을 화면에서 고친 기록 — 「at/<문서 · 머리 지문>」 으로 이 항목에 선다(넣을 곳은 관리자가 고른다)
+    // 항목 장부에 없는 항목을 화면에서 고친 기록 — 「at/<문서 · 머리 지문>」 으로 이 항목에 선다(넣을 곳은 관리자가 고른다)
     const at = atTag(d.id, s.h)
     const recs = k.works.filter((w) => w.touches.some((c) => coords.includes(c)) || w.tags.includes(at))
     const by = s.applied && k.byWork.get(s.applied)
@@ -488,15 +488,15 @@ export function findView(pairs) {
 
 // ── 지식 한 벌의 모양 — 항목으로 보기 · 그래프 · 글 속 항목 이름 · 미리보기 카드가 같이 쓴다 ──
 //
-// 항목 = 이름 장부의 이름(그 이름이 드는 문서 항목이 있으면 거기) + 장부에 없는 문서 항목 머리.
-// 항목 열쇠(key)는 이름(coord)이 있으면 그것, 없으면 `#문서#머리`.
+// 항목 = 항목 장부의 항목(문서 장부로 닿는 `##` 머리가 있으면 거기) + 장부에 없는 문서의 `##` 머리.
+// 항목 열쇠(key)는 coord(종류:값)가 있으면 그것, 없으면 `#문서#머리`.
 const KIND = { table: '테이블', screen: '화면', api: 'API', term: '용어', proc: '절차', code: '코드', module: '모듈', issue: '이슈', ops: '운영', prog: '프로그램', batch: '배치', req: '요구사항', func: '기능', arch: '구조', test: '시험', scenario: '시나리오', domain: '업무 영역' }
-export const kindOf = (coord) => (coord ? KIND[coord.split(':')[0]] || coord.split(':')[0] : '이름 없는 항목')
+export const kindOf = (coord) => (coord ? KIND[coord.split(':')[0]] || coord.split(':')[0] : '장부에 없는 항목')
 const firstOf = (body) => String(body || '').slice(0, 1500).split('\n').map((l) => l.replace(/[`*#>|]/g, '').trim()).find((l) => l && !/^[-:| ]+$/.test(l)) || ''
 const keyOf = (coord, doc, h) => coord || `#${doc}#${h}`
 
 // 글 속 이름 찾기(그래프 「가리킨다」 · 항목의 「이 항목을 쓰는 곳」) — 흔한 말 · 짧은 이름이 가짜 허브가 되지 않게
-//   이름 = 장부 이름의 값(`화면:PSA010` 의 PSA010) · 보이는 이름 · 다른 이름. USES_MIN 글자 이상만
+//   이름 = 항목 값(`화면:PSA010` 의 PSA010) · 라벨 · 별칭. USES_MIN 글자 이상만
 //   낱말 경계: 앞 글자가 글자 · 숫자면 안 된다. 영문 · 숫자로 끝나는 이름은 뒤도(PSA 가 PSA010 · OPS-PSA-1 에 걸리지 않게)
 //   한 이름이 항목 글의 USES_SHARE 넘게(적어도 USES_SHARE_MIN) 나오면 흔한 말로 보고 세지 않는다
 export const USES_MIN = 3, USES_SHARE = 0.1, USES_SHARE_MIN = 20
@@ -528,23 +528,23 @@ export function model(k) {
   for (const [coord, v] of k.vocab.coords) {
     if (v.deprecated) continue
     const s = sectionOf(k, coord)
-    // 문서 한 벌을 가리키는 이름(장부의 머리 없는 줄) — 항목 자리는 없고 그 문서에 든다(그래프의 「들어 있다」)
+    // 문서 한 벌을 가리키는 항목(문서 장부의 머리 없는 줄) — 항목 자리는 없고 그 문서에 든다(그래프의 「들어 있다」)
     const whole = s?.sec ? null : k.byDocPath.get(locateDoc(k.registry, coord))?.id || null
     add({ key: coord, coord, name: v.label, kind: kindOf(coord), doc: s?.sec ? s.doc.id : null, sec: s?.sec?.h || null, whole, aliases: v.aliases, table: coord.startsWith('table:'), first: firstOf(s?.sec?.body) })
   }
   for (const d of k.docs)
     for (const s of d.sections) {
       if (coordsOfSection(k, d, s.h).length) continue
-      add({ key: keyOf(null, d.id, s.h), coord: null, name: s.h, kind: '이름 없는 항목', doc: d.id, sec: s.h, aliases: [], table: false, first: firstOf(s.body) })
+      add({ key: keyOf(null, d.id, s.h), coord: null, name: s.h, kind: '장부에 없는 항목', doc: d.id, sec: s.h, aliases: [], table: false, first: firstOf(s.body) })
     }
-  // 기록이 건드렸지만 장부에도 문서에도 없는 이름 — 「문서가 없는 항목」
+  // 기록이 건드렸지만 장부에도 문서에도 없는 항목 — 「문서가 없는 항목」
   for (const w of k.works)
     for (const c of w.touches) if (!byKey.has(c) && !c.startsWith('domain:')) add({ key: c, coord: c, name: labelOf(k, c), kind: kindOf(c), doc: null, sec: null, aliases: [], table: c.startsWith('table:'), first: '' })
   const itemOfSec = new Map(items.filter((i) => i.doc).map((i) => [`${i.doc}\n${i.sec}`, i.key]))
   const recs = k.works.map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title, body: w.body.replace(/\s+/g, ' ').slice(0, 200), state: w.state, fixes: w.fixes, items: w.touches.filter((c) => byKey.has(c)) }))
   // cites — 글 속 기록 링크(../work/…md · 그 글의 근거) · 그래프의 「근거」 선
   const docs = k.docs.map((d) => ({ id: d.id, title: d.title, when: d.mtime, first: firstOf(d.intro || d.sections[0]?.body), links: linksOf(d, k).filter((x) => k.docs.some((o) => o.id === x)), cites: citesOf(d, k).filter((x) => k.byWork.has(x)), items: d.sections.map((s) => itemOfSec.get(`${d.id}\n${s.h}`)).filter(Boolean) }))
-  // 이 항목을 쓰는 곳 — 다른 항목의 글에 이 항목 이름 · 다른 이름이 나온다(테이블 빼고)
+  // 이 항목을 쓰는 곳 — 다른 항목의 글에 이 항목 이름 · 별칭이 나온다(테이블 빼고)
   const uses = {}
   const bodies = items.filter((i) => i.doc && !i.table).map((i) => {
     const d = k.docs.find((x) => x.id === i.doc)

@@ -87,7 +87,7 @@ export function valueDiff(oldText, newText) {
   return { from: from.join(', '), to: to.join(', ') }
 }
 
-// 지식에 있는 이름 — 그 문서의 항목 머리(「값: 설명」 이면 값도) · 이름 장부의 이름 · 보이는 이름 · 다른 이름(값과 같이 빈칸을 뺀다)
+// 지식에 있는 말 — 그 문서의 항목 머리(「값: 설명」 이면 값도) · 항목 장부의 항목(종류:값) · 라벨 · 별칭(값과 같이 빈칸을 뺀다)
 export const squeeze = (s) => String(s).replace(/\s+/g, '')
 export function namesIn(k, doc) {
   const out = new Set()
@@ -104,8 +104,8 @@ export function groundedIn(text, ...sets) {
 }
 
 // 본문 반영 검사(저장 승인 설계 P-D12 · 3-1 「바뀐 것 값이 있는데 본문 바뀜 없음」 · 3-2) — 기록 「바뀐 것」 의 값(mustValues)이
-//   이 기록이 잇는 항목들의 글(이번 저장으로 바뀐 새 글 · 조각이 없으면 지금 글)이나 머리 가운데 어디에도 없으면 오류다.
-//   경위만 있는 기록(값 없음)은 넘는다. 원본이 주인인 문서(watched)에 잇는 기록은 글 조각을 못 쓰므로 보지 않는다(skipped).
+//   이 기록이 잇는 항목들의 글(이번 저장으로 바뀐 새 글 · 항목 글이 없으면 지금 글)이나 머리 가운데 어디에도 없으면 오류다.
+//   경위만 있는 기록(값 없음)은 넘는다. 원본이 주인인 문서(watched)에 잇는 기록은 항목 글을 못 쓰므로 보지 않는다(skipped).
 //   record — { title, body } · items — [{ doc, heading, text, watched }] → { errors: [{ id, code: 'unreflected', values, why }], values, skipped? }
 //   쓰지 않고 판정만 — 사람 채널은 propose 오류 · 무인 채널은 규칙 길 방아쇠(P3 · P6 에서 부른다)
 //   기록 끝 `## 원천`(들인 원천 인용 · core/ingest.js intakeSrcPart)은 기록이 말한 값이 아니라 받은 글이다 — 바뀐 것 칸이 없는 들이기 기록도 원천 값으로 걸리지 않게 뺀다(PC4)
@@ -122,7 +122,7 @@ export function judgeReflect(record, items = []) {
   if (!missing.length) return { errors: [], values }
   const where = items.length ? '이은 항목 글에' : '이은 항목이 없어 어느 글에도'
   return {
-    errors: [{ id: judgeId('unreflected', ...items.map((x) => `${x?.doc || ''}#${x?.heading || ''}`).sort(), ...[...missing].sort()), code: 'unreflected', values: missing, why: `기록의 바뀐 것 값이 ${where} 없다: ${missing.slice(0, 3).join(' · ')}. 그 항목 글을 고치는 조각을 더하거나, 값이 아니면 바뀐 것에서 뺀다` }],
+    errors: [{ id: judgeId('unreflected', ...items.map((x) => `${x?.doc || ''}#${x?.heading || ''}`).sort(), ...[...missing].sort()), code: 'unreflected', values: missing, why: `기록의 바뀐 것 값이 ${where} 없다: ${missing.slice(0, 3).join(' · ')}. 그 값을 넣는 고칠 항목(sections)을 더하거나, 값이 아니면 바뀐 것에서 뺀다` }],
     values,
   }
 }

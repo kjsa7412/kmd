@@ -142,7 +142,7 @@ test('FIX 가 끝내 못 넘으면 규칙 길: 「들인 자료」 주제 문서
   } finally { delete process.env.FAKE_CLAUDE_LOG }
 }))
 
-test('커밋 규칙 길(일꾼 실패): 코드 차이는 항목 글이 아니다 · 건드린 이름 항목에 글 그대로 잇는다 · 기록 모음 달 항목', async () => {
+test('커밋 규칙 길(일꾼 실패): 코드 차이는 항목 글이 아니다 · 건드린 항목 항목에 글 그대로 잇는다 · 기록 모음 달 항목', async () => {
   const o = await s.hub.openJob(KN, { type: 'commit', by: 'kmd', auto: true, src: { src: 'api 코드', commit: 'r001', title: '헬스 체크: api 코드 r001', touches: ['proc:헬스 체크'] }, md: '바뀐 값: 3초 → 5초' })
   const r = await s.hub.intakeGiveUp(s.hub.job(o.job), 'claude', '팀 일꾼이 초안을 받지 못했다: budget')
   assert.equal(r.state, 'rule', JSON.stringify(r))
@@ -155,7 +155,7 @@ test('커밋 규칙 길(일꾼 실패): 코드 차이는 항목 글이 아니다
   const r2 = await s.hub.intakeGiveUp(s.hub.job(o2.job), 'worker', '팀 일꾼이 24시간 넘게 일감을 받지 않았다')
   assert.equal(r2.state, 'rule')
   const w2 = (await fresh()).byWork.get(r2.rec)
-  assert.match(w2.body, /## (이은 항목|넣은 것)\n- docs\/기록 모음\.md › \d{4}-\d{2}/, '이을 이름이 없으면 기록 모음 달 항목')
+  assert.match(w2.body, /## (이은 항목|넣은 것)\n- docs\/기록 모음\.md › \d{4}-\d{2}/, '이을 항목이 없으면 기록 모음 달 항목')
   assert.match(w2.body, /기록 모음 달 항목에 잇는다/)
   noHeld(await fresh())
 })
@@ -190,7 +190,7 @@ test('일꾼 실패(예산 · 시간)는 다시 짓지 않고 곧바로 규칙 �
   } finally { s.hub.config.intakeDaily = old }
 })
 
-test('지문 어긋남: 같은 조각을 새 글에 다시 대고 · 안 되면 다시 대기(새 재료로 한 번 더) · 또 어긋나면 규칙 길', async () => {
+test('지문 어긋남: 같은 바꿀 곳을 새 글에 다시 대고 · 안 되면 다시 대기(새 재료로 한 번 더) · 또 어긋나면 규칙 길', async () => {
   const o = await s.hub.openJob(KN, { type: 'commit', by: 'kmd', auto: true, src: { src: 'api 코드', commit: 's001', title: '카나리 비율: api 코드 s001', touches: ['proc:카나리'] }, md: '바뀐 값: 10% → 15%' })
   const file = path.join(kdir(), 'docs', '배포절차.md')
   let last = null
@@ -199,7 +199,7 @@ test('지문 어긋남: 같은 조각을 새 글에 다시 대고 · 안 되면 
     assert.equal(n.job.id, o.job)
     const g = (await raw(n.key, '')).j
     const c = g.docs.find((d) => d.doc === 'docs/배포절차.md').sections.find((x) => x.h === '카나리')
-    // 재료 뒤 누가 그 항목의 찾을 글을 바꾼다(조각을 새 글에 댈 수 없다)
+    // 재료 뒤 누가 그 항목의 찾을 글을 바꾼다(바꿀 곳을 새 글에 댈 수 없다)
     fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(find, find === '요청의 10% 만' ? '요청의 일부(10%) 만' : '요청의 일부(10% 정도) 만'))
     s.hub.forget?.(KN)
     last = n.key
@@ -240,7 +240,7 @@ test('일을 건 사람이 자리를 잃으면 아무것도 쓰지 않는다: �
   } finally { await seat(s, 'lee', { [KN]: 'write' }) }
 })
 
-test('정정 nosec(P-D33): 들어간 항목이 없으면 원 기록의 이름 항목에 잇는다(넣지 못함 없음 · P11)', async () => {
+test('정정 nosec(P-D33): 들어간 항목이 없으면 원 기록이 건드린 항목에 잇는다(넣지 못함 없음 · P11)', async () => {
   const k = await fresh()
   const base = k.works.find((w) => w.tags.includes('intake') && w.touches.includes('proc:헬스 체크'))
   assert.ok(base, '앞 시험의 커밋 기록')

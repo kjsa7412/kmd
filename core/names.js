@@ -20,7 +20,7 @@ export const isReservedTag = (t) => {
 
 // 이력 — kmd 가 지식을 다룬 일(가져옴 · 가져올 곳 바꿈 · 화면 · 편집기에서 바로 고침 · 정리 · 다듬기 · 되돌림 · 버림)은 기록이 아니다.
 // 기록(`work/`)은 그 자체로 지식이 될 글만 · 이런 일은 이력(`log/`)에 · 화면은 「이력」 한 곳에서 본다
-//   ledger — 이름 · 갈래 장부만 바꾼 저장(문서 · 항목 · 첨부 없이 · 건드린 이름 없음) · 저장 문이 붙인다(core/save.js) · 넣지 못함의 [이름 세우기](hub)
+//   ledger — 항목 · 갈래 장부만 바꾼 저장(문서 · 항목 · 첨부 없이 · 건드린 항목 없음) · 저장 문이 붙인다(core/save.js) · 넣지 못함의 [항목 세우기](hub)
 //   intake 는 넣지 않는다 — 들이기 기록은 work/ 에 남아 상태(in …)를 갖는다
 export const LOG_TAGS = ['edit', 'curate-auto', 'curate-llm', 'alias-auto', 'sources', 'polish', 'revert', 'drop', 'ledger', 'shape-done']
 export const LOG_DIR = 'log'

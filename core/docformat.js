@@ -426,7 +426,7 @@ export function liftH3(text0) {
   }
   return { text: withRef(out, ref), lifted: heads.length, heads }
 }
-// 올린 문서의 자리 장부 줄 — 그 문서의 `### 머리` → `## 머리`(한 단씩) · 바뀐 줄 수와 새 장부 글
+// 올린 문서의 문서 장부 줄 — 그 문서의 `### 머리` → `## 머리`(한 단씩) · 바뀐 줄 수와 새 장부 글
 export function liftRegistry(regText, docRel) {
   let n = 0
   const text = String(regText || '').split('\n').map((raw) => {
@@ -437,7 +437,7 @@ export function liftRegistry(regText, docRel) {
   }).join('\n')
   return { text, n }
 }
-// 올린 뒤 검사 — 머리 줄만 바뀌었고(단 하나씩) · 장부의 정확한 이름이 그 문서의 ## 항목에 모두 닿는다(안 그러면 그 이름의 저장이 모두 넣지 못함 · S-D31)
+// 올린 뒤 검사 — 머리 줄만 바뀌었고(단 하나씩) · 문서 장부의 정확한 줄이 그 문서의 ## 머리에 모두 닿는다(안 그러면 그 항목의 저장이 모두 넣지 못함 · S-D31)
 export function verifyLift(before, after, regAfter, docRel) {
   const A = readText(before).split('\n'), B = readText(after).split('\n')
   if (A.length !== B.length) return { ok: false, why: '올리면 줄 수가 달라진다' }
@@ -632,7 +632,7 @@ async function docFiles(dir, rel = 'docs', out = []) {
 
 // 지식 하나 — { docs: [{ doc, changed, moved, ok, why, skipped?, lifted? }], moved, files, commit, log, lifted }
 //   dry 면 쓰지 않는다 · ok 인 것만 쓴다 · 원본이 주인인 문서는 건너뛴다
-//   lift — ### 올리기(liftH3)도 · 문서와 자리 장부(_managed.md)의 그 문서 줄을 같은 커밋으로(사람이 --dry 로 본 뒤 · S-D31)
+//   lift — ### 올리기(liftH3)도 · 문서와 문서 장부(_managed.md)의 그 문서 줄을 같은 커밋으로(사람이 --dry 로 본 뒤 · S-D31)
 //   levels — 수준 표시로 옮기기(작성기준 5-1 · core/levels.js toLevels · verifyLevels) · 한 번 옮긴 문서(앞선 「수준 표시 옮김」 이력에 있는 것)는 다시 옮기지 않는다
 export function docfmtDir(dir, { dry = false, lift = false, levels = false, user = 'kmd', by = null, now = new Date() } = {}) {
   return serial(path.resolve(dir), async () => {
@@ -700,7 +700,7 @@ export function docfmtDir(dir, { dry = false, lift = false, levels = false, user
     const lvSum = put.reduce((a, x) => (x.levels ? [a[0] + x.levels.heads, a[1] + x.levels.lists] : a), [0, 0])
     const title = lvDocs ? `수준 표시 옮김: 문서 ${lvDocs} · 소제목 ${lvSum[0]} · 목록 줄 ${lvSum[1]}${moved ? ` · 참고로 옮긴 줄 ${moved}` : ''}` : `문서 꼴 옮김: 문서 ${put.length} · 줄 ${moved}${lifted ? ` · ### 올림 ${lifted}` : ''}`
     const lvBody = lvDocs ? [`항목 안의 옛 짜임(### · #### 소제목 · 들여쓴 목록 · 맨 왼쪽 번호 목록)을 수준 표시(1. · 1.1. · 1) · 1.1) · - · *)로 옮겼다(작성기준 5-1절). 표시 · 빈칸 · 머리 기호 말고 글은 그대로다 · 소제목의 옛 번호(3.1)는 표시로 그대로 쓴다${by ? ` · 부른 사람 ${by}` : ''}`, ...put.filter((x) => x.levels).map((x) => `- ${x.doc}: 수준 표시 · 소제목 ${x.levels.heads} · 목록 줄 ${x.levels.lists} · 왼쪽으로 ${x.levels.lifted}`), ...rows.filter((x) => /^수준 표시로 옮기지 않음/.test(x.why || '')).map((x) => `- 옮기지 않음 ${x.doc}: ${x.why}`)] : []
-    const body = lvDocs ? lvBody.join('\n') : [`옛 꼴(항목 끝 **경과** 목록 · 「기록 그대로」 줄 · 옛 CDP 경과 · 표 · 생성 주석)을 문서 끝 참고 블록으로 옮겼다. 본문 글은 그대로다${lifted ? ' · ## 항목이 없던 문서는 머리를 한 단씩 올리고(### → ##) 자리 장부의 그 문서 줄도 같이 고쳤다' : ''}${by ? ` · 부른 사람 ${by}` : ''}`, ...put.map((x) => `- ${x.doc}: 줄 ${x.moved}${x.lifted ? ` · ### 올림 ${x.lifted}` : ''}`), ...rows.filter((x) => !x.ok).map((x) => `- 옮기지 않음 ${x.doc}: ${x.why}`)].join('\n')
+    const body = lvDocs ? lvBody.join('\n') : [`옛 꼴(항목 끝 **경과** 목록 · 「기록 그대로」 줄 · 옛 CDP 경과 · 표 · 생성 주석)을 문서 끝 참고 블록으로 옮겼다. 본문 글은 그대로다${lifted ? ' · ## 항목이 없던 문서는 머리를 한 단씩 올리고(### → ##) 문서 장부의 그 문서 줄도 같이 고쳤다' : ''}${by ? ` · 부른 사람 ${by}` : ''}`, ...put.map((x) => `- ${x.doc}: 줄 ${x.moved}${x.lifted ? ` · ### 올림 ${x.lifted}` : ''}`), ...rows.filter((x) => !x.ok).map((x) => `- 옮기지 않음 ${x.doc}: ${x.why}`)].join('\n')
     const j = await begin(dir)
     try {
       for (const x of put) {

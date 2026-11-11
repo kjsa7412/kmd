@@ -1,8 +1,8 @@
-// 제안 — 기록할 때 쓴 항목 조각(core/propose.js · 권한 모델 7절 · 작성기준 7절)
+// 제안 — 기록할 때 쓴 항목 글(core/propose.js · 권한 모델 7절 · 작성기준 7절)
 //
-// 조각 대기: 꼭 한 번 · 없음(가까운 줄) · 두 번 · 겹침 · 줄 끝 빈칸은 맞춰 보되 원문은 그대로 ·
+// 바꿀 곳 대기: 꼭 한 번 · 없음(가까운 줄) · 두 번 · 겹침 · 줄 끝 빈칸은 맞춰 보되 원문은 그대로 ·
 // 검사(S4 · 저장 문): 지문(base) → E_CONFLICT · 값 더하기 · 옛 값 바꿈 · 문장 지움 모두 그 순간 넣는다(확인 대기 없음) ·
-// 지어낸 값 · 빠진 값 → 그 조각만 넣지 못함(기록은 남는다) · 이름 없는 항목은 문서 · 머리로
+// 지어낸 값 · 빠진 값 → 그 항목만 넣지 못함(기록은 남는다) · 장부에 없는 항목은 문서 · 머리로
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -41,20 +41,20 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('조각 대기: 꼭 한 번 · 없으면 가까운 줄 · 두 번은 거절 · 겹침 거절 · 줄 끝 빈칸은 맞춰 보되 원문은 그대로', () => {
+test('바꿀 곳 대기: 꼭 한 번 · 없으면 가까운 줄 · 두 번은 거절 · 겹침 거절 · 줄 끝 빈칸은 맞춰 보되 원문은 그대로', () => {
   const t = '첫 줄은 10% 다.  \n둘째 줄은 그대로.\n셋째 줄은 1% 다.'
   const a = applyEdits(t, [{ find: '첫 줄은 10% 다.', replace: '첫 줄은 20% 다.' }])
   assert.equal(a.ok, true)
-  assert.equal(a.text, '첫 줄은 20% 다.  \n둘째 줄은 그대로.\n셋째 줄은 1% 다.', '조각 밖(둘째 줄 · 첫 줄의 끝 빈칸까지)은 원문 그대로')
+  assert.equal(a.text, '첫 줄은 20% 다.  \n둘째 줄은 그대로.\n셋째 줄은 1% 다.', '바꿀 곳 밖(둘째 줄 · 첫 줄의 끝 빈칸까지)은 원문 그대로')
   const b = applyEdits(t, [{ find: '셋째 줄은 1% 다.', replace: '셋째 줄은 2% 다.' }, { find: '첫 줄은 10% 다.', replace: '첫 줄은 20% 다.' }])
-  assert.equal(b.text, '첫 줄은 20% 다.  \n둘째 줄은 그대로.\n셋째 줄은 2% 다.', '조각 차례와 상관없이 원문 자리로')
+  assert.equal(b.text, '첫 줄은 20% 다.  \n둘째 줄은 그대로.\n셋째 줄은 2% 다.', '바꿀 곳 차례와 상관없이 원문 자리로')
   const none = applyEdits(t, [{ find: '첫 줄은 15% 다.', replace: 'x' }])
   assert.equal(none.ok, false)
-  assert.match(none.why, /1째 조각을 댈 수 없다: 지금 글에 없다/)
+  assert.match(none.why, /1째 바꿀 곳을 댈 수 없다: 지금 글에 없다/)
   assert.equal(none.near, '첫 줄은 10% 다.', '세션이 다시 맞출 가까운 줄')
   assert.match(applyEdits(t, [{ find: '줄은', replace: 'x' }]).why, /두 번 넘게/)
   assert.match(applyEdits(t, [{ find: '첫 줄은 10%', replace: 'a' }, { find: '10% 다.', replace: 'b' }]).why, /겹친다/)
-  assert.match(validEdits([]).why, /조각이 없다/)
+  assert.match(validEdits([]).why, /바꿀 곳이 없다/)
   assert.match(validEdits([{ find: 'a', replace: 'b', extra: 1 }]).why, /모르는 칸/)
   assert.match(validEdits([{ find: ' ', replace: 'b' }]).why, /find 가 비었다/)
 })
@@ -91,14 +91,14 @@ test('검사: 지문이 다르면 stale(conflict) · 값 더하기 · 옛 값 �
   const inv = checkProposal(k, { coord, base, edits: [{ find: '롤백으로 간다.', replace: '롤백으로 간다. 알림은 `pager-9` 로.' }], record: rec('## 바뀐 것\n- 알림 추가') })
   assert.deepEqual([inv.ok, inv.code], [false, 'values'])
   assert.match(inv.why, /근거에 없는 값/)
-  // 기록의 값이 조각에 없다 · 여러 항목에 나뉘면(spread) 항목 하나에서는 묻지 않는다(저장 문이 합쳐서 본다)
+  // 기록의 값이 항목 글에 없다 · 여러 항목에 나뉘면(spread) 항목 하나에서는 묻지 않는다(저장 문이 합쳐서 본다)
   const miss = { coord, base, edits: [{ find: '롤백으로 간다.', replace: '롤백으로 간다. 알림을 보낸다.' }], record: rec('## 바뀐 것\n- 알림 간격: 5분') }
   assert.match(checkProposal(k, miss).why, /기록의 값이 글에 없다: 5분/)
   assert.equal(checkProposal(k, { ...miss, spread: true }).ok, true)
-  // 조각이 맞지 않으면 edits · 없는 항목이면 notfound
+  // 바꿀 곳이 맞지 않으면 edits · 없는 항목이면 notfound
   assert.deepEqual([checkProposal(k, { coord, base, edits: [{ find: '없는 글', replace: 'x' }], record: rec('x') }).code], ['edits'])
   assert.equal(checkProposal(k, { coord: 'proc:없는것', base, edits: [{ find: 'a', replace: 'b' }], record: rec('x') }).code, 'notfound')
-  // 이름이 없는 항목도 문서 · 머리로(S-D55)
+  // 장부에 없는 항목도 문서 · 머리로(S-D55)
   const byDoc = checkProposal(k, { doc: '배포절차', heading: '카나리', base, edits: [{ find: '요청의 10% 만', replace: '요청의 20% 만' }], record: rec('## 바뀐 것\n- 첫 30분 비율: 10% → 20%') })
   assert.equal(byDoc.ok, true, byDoc.why)
 })
@@ -111,13 +111,13 @@ test('옛 「고친 조각」 칸: 옛 기록 읽기는 그대로 · 값 검사�
   assert.deepEqual(parseProposals(body), ps)
   assert.deepEqual(parseProposals('## 고친 조각\n```json\n[{"coord":1}]\n```'), [])
   assert.deepEqual(parseProposals('글만'), [])
-  assert.deepEqual(mustValues(body).sort(), ['20%'], '조각 속 값(ab12 · 10%)은 요구하지 않는다')
+  assert.deepEqual(mustValues(body).sort(), ['20%'], '옛 칸 속 값(ab12 · 10%)은 요구하지 않는다')
   const e = await s.hub.save(LEE, 'dpms', { record: { title: '카나리: 칸 흉내', body, touches: ['proc:카나리'] } }).then(() => null, (x) => x)
   assert.equal(e?.code, 'E_INPUT')
   assert.match(e.message, /「## 고친 조각」 머리는 kmd 가 쓴다/)
 })
 
-test('이름 없는 항목에 문서 · 머리 조각 · 새 항목은 content 로', async () => {
+test('장부에 없는 항목에 문서 · 머리로 바꿀 곳 · 새 항목은 content 로', async () => {
   const k = await s.hub.get('dpms')
   const d = k.docs.find((x) => x.id === '배포절차')
   const sec = d.sections.find((x) => x.h === '헬스 체크')

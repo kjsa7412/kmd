@@ -278,7 +278,7 @@ export function parseDoc(text, fallbackTitle) {
   }
 }
 
-// 머리 이름 맞추기 — 「rp_mst: 연구과제마스터」(옛 꼴 「rp_mst — 연구과제마스터」) 는 값 rp_mst 의 항목이다
+// 머리 항목 맞추기 — 「rp_mst: 연구과제마스터」(옛 꼴 「rp_mst — 연구과제마스터」) 는 값 rp_mst 의 항목이다
 export function headingMatches(heading, want) {
   const a = heading.normalize('NFC')
   const b = want.normalize('NFC')

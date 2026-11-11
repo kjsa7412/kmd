@@ -78,7 +78,7 @@ const b64 = (b) => Buffer.from(b).toString('base64')
 function mkKnowledge(dir, vocab) {
   fs.mkdirSync(path.join(dir, 'docs'), { recursive: true })
   fs.mkdirSync(path.join(dir, 'work'), { recursive: true })
-  fs.writeFileSync(path.join(dir, '_vocab.md'), `# 이름 장부\n\n${vocab}\n`)
+  fs.writeFileSync(path.join(dir, '_vocab.md'), `# 항목 장부\n\n${vocab}\n`)
 }
 
 before(async () => {
@@ -108,7 +108,7 @@ after(async () => {
 })
 
 // 저장 승인 P7(P-D22 · P-D23 · P-D46) — approve 모드 팀 지식으로 보내기: 창(미리 보기)이 글마다 팀 propose 를 미리 돌린 제안서 ·
-//   창 없이 보내면 E_APPROVE(아무것도 안 보냄) · 창에서 모두 뺀 글은 보내지 않고 남는다 · [보내기] 는 그 proposal 로 기록 + 조각 한 번 ·
+//   창 없이 보내면 E_APPROVE(아무것도 안 보냄) · 창에서 모두 뺀 글은 보내지 않고 남는다 · [보내기] 는 그 proposal 로 기록 + 항목 글 한 번 ·
 //   옛 판(proposal 없음)은 E_APPROVE + 새 판 안내(아무것도 안 씀) · 판(kit)은 savelog 에 · 개인 프로그램의 받기 갈래는 걷었다
 test('보내기(P7 · approve 팀 지식): 미리 보기 = 저장 제안 · 창 없이 E_APPROVE · 모두 빼면 안 보냄 · 승인한 제안으로 들어감 · 옛 판 E_APPROVE · 개인 받기 없음', async () => {
   await s.hub.setOwner(SHELL, 'apvs', { owner: 'kim' })
@@ -148,16 +148,16 @@ test('보내기(P7 · approve 팀 지식): 미리 보기 = 저장 제안 · 창 
     assert.deepEqual({ put: r.put, skipped: r.skipped }, { put: 0, skipped: 1 }, JSON.stringify(r))
     assert.equal((await recsOf()).length, 0)
     assert.equal((await pc.hub.sendView(ME, 'mine')).docs.find((d) => d.path === 'docs/점검.md').st, 'new', '뺀 문서는 「보냄」 이 아니다')
-    // ③-2 순서만 뺐다 — 남은 조각(기록)으로 다시 제안해 들어간다 · 「뺀다」 줄 · 순서는 그대로 · 문서는 「보냄」 이 아니다
+    // ③-2 순서만 뺐다 — 남은 항목(기록)으로 다시 제안해 들어간다 · 「뺀다」 줄 · 순서는 그대로 · 문서는 「보냄」 이 아니다
     const atOrder = pr.propose.items.find((x) => x.at.includes('순서')).at
     assert.ok(pr.propose.items.some((x) => x.at.includes('기록') && x.kind === '고침'), JSON.stringify(pr.propose.items))
     r = await pc.hub.sendPicked(ME, 'mine', { ...pick, excluded: { [pr.rec]: [atOrder] } })
     assert.deepEqual({ put: r.put, fail: r.fail }, { put: 1, fail: undefined }, JSON.stringify(r))
     assert.match(await secOf('기록'), /주마다/)
-    assert.match(await secOf(), /전원부터/, '뺀 조각은 들어가지 않았다')
+    assert.match(await secOf(), /전원부터/, '뺀 항목은 들어가지 않았다')
     assert.notEqual((await pc.hub.sendView(ME, 'mine')).docs.find((d) => d.path === 'docs/점검.md').st, 'same')
     const part = (await recsOf())[0]
-    assert.doesNotMatch(part.body, /통신/, '뺀 조각의 글은 기록(원천 인용)으로도 가지 않는다')
+    assert.doesNotMatch(part.body, /통신/, '뺀 항목의 글은 기록(원천 인용)으로도 가지 않는다')
     // ④ 다시 창을 열고(새 제안) 모두 보낸다 — 앞의 일부 보내기와 다른 보낸 지문이라 「이미 넣음」 이 아니다 · 판(kit)은 측정 줄에
     assert.equal(await code(pc.hub.sendPicked(ME, 'mine', pick)), 'E_APPROVE', '보낸 제안은 걷혔다: 창을 다시 연다')
     const pv2 = await pc.hub.sendPreview(ME, 'mine', pick)

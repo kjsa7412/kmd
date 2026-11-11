@@ -3,7 +3,7 @@
 //   docs/**.md    문서(항목 = ## 머리)
 //   work/<id>.md  기록(머리에 id · title · date · author · touches) — 그 자체로 지식이 될 글
 //   log/<id>.md   이력 — kmd 가 지식을 다룬 일(가져옴 · 가져올 곳 · 바로 고침 · 정리) · 기록과 같은 모양
-//   _vocab.md     이름 장부 · _managed.md 자리 장부
+//   _vocab.md     항목 장부 · _managed.md 문서 장부
 //   그 밖          첨부(docs/assets · work/assets 의 파일) · 나머지는 보지 않는다
 //
 // 루트 폴더(`D:\kmd`) 안의 폴더 하나하나가 지식이다. 루트 자체가 지식 모양이면 그 하나만.
@@ -130,7 +130,7 @@ export async function loadKnowledge({ id, name, dir }, { cache = null } = {}) {
   // 통째로 되돌린 기록(reopens)
   k.reverted = new Set()
   for (const w of all) for (const id of w.reopens) k.reverted.add(id)
-  // 좌표정정 — 이름만 바로잡은 기록(touches-fix)이 있으면 원 기록의 이름을 그것으로 읽는다(늦은 것이 이긴다 · ownTouches 에 원래 이름)
+  // 건드린 항목 바로잡기 — 건드린 항목만 바로잡은 기록(touches-fix)이 있으면 원 기록의 건드린 항목을 그것으로 읽는다(늦은 것이 이긴다 · ownTouches 에 원래 것)
   for (const w of all) {
     if (!w.tags.includes('touches-fix') || w.fixes.length !== 1) continue
     const o = k.byWork.get(w.fixes[0])
@@ -139,9 +139,9 @@ export async function loadKnowledge({ id, name, dir }, { cache = null } = {}) {
       o.touches = w.touches
     }
   }
-  // 정리가 넣었다고 적은 기록(reflects) — 이름 없이 들어간 넣은 파일의 기록도 「넣음」 이 된다
+  // 정리가 넣었다고 적은 기록(reflects) — 건드린 항목 없이 들어간 넣은 파일의 기록도 「넣음」 이 된다
   k.reflected = new Set([...works, ...logs].flatMap((w) => w.reflects || []))
-  // 바로잡힘(S-D46) — 나중 기록이 fixes 로 가리킨 기록. 이름만 바로잡은 것(touches-fix)은 바로잡힘이 아니다(누가 fixes 를 실을 수 있는지는 쓸 때 막는다 · S-D17)
+  // 바로잡힘(S-D46) — 나중 기록이 fixes 로 가리킨 기록. 건드린 항목만 바로잡은 것(touches-fix)은 바로잡힘이 아니다(누가 fixes 를 실을 수 있는지는 쓸 때 막는다 · S-D17)
   //   저장 승인 전 기록의 fixes(옛 넣지 못함 다시 하기 · 이행 기록 migrate-held)도 바로잡힘으로 읽지 않는다 — 그 기록들은 「기록」 으로만 보인다(P12)
   k.superseded = new Set()
   for (const w of all) {
@@ -161,7 +161,7 @@ export async function loadKnowledge({ id, name, dir }, { cache = null } = {}) {
   return k
 }
 
-// 이름 → 문서 · 항목(있으면)
+// 항목(coord) → 문서 · 머리(있으면)
 const secCache = new WeakMap()
 export function sectionOf(k, coord) {
   let m = secCache.get(k)
@@ -183,8 +183,8 @@ export function sectionOf(k, coord) {
 }
 const headIndex = new WeakMap()
 
-// 항목 하나에 드는 이름들(장부로 거꾸로)
-// 지식마다 한 번 — 「문서 경로 \n 항목 머리」 → 그 항목에 드는 이름들
+// 머리 하나에 닿는 장부 항목들(장부로 거꾸로)
+// 지식마다 한 번 — 「문서 경로 \n 항목 머리」 → 그 머리에 닿는 장부 항목들
 const sectionMaps = new WeakMap()
 function sectionMap(k) {
   let m = sectionMaps.get(k)
@@ -266,13 +266,13 @@ function reflectedState(k, w) {
   return any ? 'in' : 'none'
 }
 
-// 보이는 이름 — 장부의 이름이 있으면 그것
+// 라벨 — 장부에 있으면 그것
 export function labelOf(k, coord) {
   const v = k.vocab.coords.get(coord)
   return v ? v.label : coord.split(':').slice(1).join(':')
 }
 
-// 항목 이력(저장 승인 설계 P-D12 · section.history · P2) — 그 항목에 이어진 기록 하나 줄: 그 항목의 이름을 건드렸거나 ·
+// 항목 이력(저장 승인 설계 P-D12 · section.history · P2) — 그 항목에 이어진 기록 하나 줄: 그 항목을 건드렸거나(touches) ·
 //   그 항목의 표지 기록이거나 · 저장 문이 그 항목에 넣었다고 적은(넣은 것 칸) 기록. 새것부터 · max 까지 + 넘친 수
 export const HISTORY_MAX = 20
 export function sectionHistory(k, doc, h, { max = HISTORY_MAX } = {}) {

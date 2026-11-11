@@ -2,7 +2,7 @@
 //
 //   { record: { title, body, touches?, tags?, date?, fixes? },
 //     sections?: [{ coord, content }  또는  { doc, heading, content }],
-//     names?: [{ coord, label, aliases?, doc?, heading? }] }   ← 이름 장부 · 자리 장부에 이름을 세운다(같은 묶음)
+//     names?: [{ coord, label, aliases?, doc?, heading? }] }   ← 항목 장부 · 문서 장부에 항목을 세운다(같은 묶음)
 //
 // 기록은 늘 남는다(누가 왜 바꿨나의 유일한 자리). 항목을 같이 보내면 그 항목 글을
 // 갈아 끼우고 「이 기록을 넣었다」 표지를 단다. 같은 지식의 저장은 한 줄로 선다.
@@ -23,7 +23,7 @@
 //             `## 넣은 것` · 글 그대로 이은 항목 `## 이은 항목` · 승인한 경고 `## 받아들인 경고` · 새로 세운 것 `## 새로 세움` · core/parts.js)
 //   record.memo 는 받지 않는다(메모는 걷었다 · P11 · P12) · input.attach — docs/assets/ 아래 첨부(같은 저널 · 같은 커밋)
 //   shape     { tags } — 문서 짜임의 글 걸음(바탕 세우기 설계 4-3 · hub.shapeStep 만 단다). 저장 문이 붙이는 예약 태그(shape · shape-done · shape/<work>/<n>) ·
-//             항목 지우기(출처 걷기)를 받는다(structure) · prepare 가 돌려준 place([{ coord, doc, heading }] · 자리 장부 placeExact) ·
+//             항목 지우기(출처 걷기)를 받는다(structure) · prepare 가 돌려준 place([{ coord, doc, heading }] · 문서 장부 placeExact) ·
 //             intros([{ doc, text }] · 문서 요약) · sections[].log(출처 항목의 참고 줄 · 목표 항목 줄에 합친다)를 쓴다
 
 import fs from 'node:fs/promises'
@@ -92,7 +92,7 @@ function check(input, { system = false, many = false } = {}) {
     if (r[k] == null) continue
     if (!Array.isArray(r[k]) || r[k].some((x) => typeof x !== 'string' || !re.test(x.trim()))) fail('E_INPUT', `${k} 는 한 줄 글의 목록이다`)
   }
-  if (r.touchesEmpty != null && !(typeof r.touchesEmpty === 'string' && oneLine(r.touchesEmpty) && r.touchesEmpty.trim() && r.touchesEmpty.length <= EMPTY_MAX)) fail('E_INPUT', `touchesEmpty 는 이름이 없는 까닭 한 줄이다(${EMPTY_MAX}자 안)`)
+  if (r.touchesEmpty != null && !(typeof r.touchesEmpty === 'string' && oneLine(r.touchesEmpty) && r.touchesEmpty.trim() && r.touchesEmpty.length <= EMPTY_MAX)) fail('E_INPUT', `touchesEmpty 는 건드린 항목이 없는 까닭 한 줄이다(${EMPTY_MAX}자 안)`)
   if (r.memo != null && r.memo !== false) fail('E_INPUT', '메모(기록만)는 남기지 않는다. 정해진 부분만 저장한다')
   // kmd 가 쓰는 칸(S-D45) — 사람 · 세션 · 받은 기록의 본문에 같은 머리가 있으면 거짓 이력 · 엉뚱한 다시 들이기가 된다
   const part = !system && String(r.body).match(KMD_PART_RE)
@@ -102,8 +102,8 @@ function check(input, { system = false, many = false } = {}) {
   return secs
 }
 
-// 저장 입력 검사만(저장 승인 P2 · hub.propose) — save 가 E_INPUT 으로 거절할 기록 · 항목 글(content 조각)을 쓰기 전에 같은 말로 거절한다
-//   (조각 edits 는 hub 의 조각 모양 검사가 본다 · 이 함수는 save 를 바꾸지 않는다)
+// 저장 입력 검사만(저장 승인 P2 · hub.propose) — save 가 E_INPUT 으로 거절할 기록 · 항목 글(content)을 쓰기 전에 같은 말로 거절한다
+//   (바꿀 곳 edits 는 hub 의 모양 검사가 본다 · 이 함수는 save 를 바꾸지 않는다)
 export const checkInput = (input) => check(input)
 
 // 항목 모양 — 입력과 prepare 결과가 같이 거친다(S-D44)
@@ -113,8 +113,8 @@ function sectionShape(secs, { many = false } = {}) {
   for (const s of secs) {
     if (!s || (typeof s.content !== 'string' && !s.remove && s.rename == null)) fail('E_INPUT', '항목마다 content(새 글)가 있다')
     if (s.rename != null && !(oneLine(s.rename) && String(s.rename).trim())) fail('E_INPUT', '새 머리는 한 줄 글이다')
-    if (s.coord == null && (s.doc == null || s.heading == null)) fail('E_INPUT', '항목은 이름(coord) 또는 문서 · 머리(doc · heading)로 가리킨다')
-    if (s.coord != null && !(typeof s.coord === 'string' && COORD.test(s.coord.trim()))) fail('E_INPUT', `이름 모양이 아니다: ${s.coord}`)
+    if (s.coord == null && (s.doc == null || s.heading == null)) fail('E_INPUT', '항목은 coord(종류:값) 또는 문서 · 머리(doc · heading)로 가리킨다')
+    if (s.coord != null && !(typeof s.coord === 'string' && COORD.test(s.coord.trim()))) fail('E_INPUT', `항목(종류:값) 모양이 아니다: ${s.coord}`)
     if (s.heading != null && !(oneLine(s.heading) && s.heading.trim())) fail('E_INPUT', '머리는 한 줄 글이다')
     if (s.before != null && !(typeof s.before === 'string' && oneLine(s.before) && s.before.trim())) fail('E_INPUT', 'before 는 한 줄 머리다(새 항목을 그 머리 앞에)')
     if (String(s.content ?? '').length > MAX_BODY) fail('E_INPUT', `항목 글이 너무 길다(${Math.round(String(s.content ?? '').length / 1000)}천 자 · 한도 ${Math.round(MAX_BODY / 1000)}천 자). ## 항목으로 나눠 넣거나, 많으면 Claude Code 에서 대량 넣기`)
@@ -146,13 +146,13 @@ export function assetPath(dir, p) {
   return { rel, full: path.join(dir, ...parts) }
 }
 
-// 문서 자리(글) — 던지지 않는다(걸린 조각 줄에 싣는 값)
+// 문서 자리(글) — 던지지 않는다(걸린 항목 줄에 싣는 값)
 const relOf = (doc) => {
   let p = nfc(String(doc ?? '')).replace(/\\/g, '/').replace(/^\/+/, '')
   if (!p.startsWith('docs/')) p = `docs/${p}`
   return p.endsWith('.md') ? p : `${p}.md`
 }
-// 걸린 조각 줄 하나 — 입력 오류의 details(걸음 실패 · 까닭)에 싣는다(기록에 쓰지 않는다 · P11)
+// 걸린 항목 줄 하나 — 입력 오류의 details(걸음 실패 · 까닭)에 싣는다(기록에 쓰지 않는다 · P11)
 function heldRow(s, code, why, extra = {}) {
   return {
     ...(s.coord != null ? { coord: nfc(String(s.coord).trim()) } : {}),
@@ -184,7 +184,7 @@ function guardSections(secs, { system = false, structure = false } = {}) {
   return { secs: keep }
 }
 
-// prepare 가 실은 걸린 조각 줄 — 하나라도 있으면 저장하지 않는다(입력 오류 · P11) · 까닭은 한 줄
+// prepare 가 실은 걸린 항목 줄 — 하나라도 있으면 저장하지 않는다(입력 오류 · P11) · 까닭은 한 줄
 function cleanHeld(rows) {
   if (rows == null) return []
   if (!Array.isArray(rows)) fail('E_INPUT', 'held 는 목록이다')
@@ -224,8 +224,8 @@ export function serial(key, f) {
 // agent — kmd 가 띄운 에이전트(요구 v0.2 R8): 작성자 kmd-auto · 태그 curate-llm · 들인 기록의 reflects 는 쓰되,
 //         원본이 주인인 문서 · 저절로 채우는 표 · kmd 파일은 사람 · 세션과 같이 막힌다(system 이 아니다)
 // guard — 지식 생성 가드(core/guard.js)의 길. 'strict'(거절형 — 세션 · 화면) · 'hold'(붙잡아 두기 — 그 밖의 길 · 기본)
-//         holdWhy — hold 에서 이름 없는 기록에 kmd 가 다는 까닭 · proposed — 세울 이름으로 실어 둔 이름(일반 자리의 names)
-//   shape.strict — approve 모드 지식의 짜임 걸음(저장 승인 P-D24 · P7): 조각 하나라도 걸리면 넣지 못함 대신 걸음 입력 오류(E_INPUT · details.stepFail · 아무것도 쓰지 않는다)
+//         holdWhy — hold 에서 항목 없는 기록에 kmd 가 다는 까닭 · proposed — 세울 항목으로 실어 둔 것(일반 자리의 names)
+//   shape.strict — approve 모드 지식의 짜임 걸음(저장 승인 P-D24 · P7): 항목 하나라도 걸리면 넣지 못함 대신 걸음 입력 오류(E_INPUT · details.stepFail · 아무것도 쓰지 않는다)
 export function save(dir, input, { user, now = new Date(), system = false, agent = false, guard = 'hold', holdWhy = null, proposed = [], prepare = null, onCommit = null, asEdit = false, structure = false, correction = false, intake = null, shape = null, approve = null, accepted = null, marks: marksIn = false } = {}) {
   if (!user || !oneLine(user)) fail('E_INPUT', '누가 쓰는지 모른다')
   // 들이기 일감은 예약 사람 kmd 로 쓸 수 있다(가져올 곳) — kmd-auto · kmd-worker 는 아니다(S-D43)
@@ -279,7 +279,7 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
       }
       held = cleanHeld(prep.held)
     }
-    // 문서 짜임 — 자리 장부 정확한 줄 · 문서 요약(prepare 가 새로 읽은 지식으로 만든다)
+    // 문서 짜임 — 문서 장부 정확한 줄 · 문서 요약(prepare 가 새로 읽은 지식으로 만든다)
     const place = shape ? (Array.isArray(prep?.place) ? prep.place : []) : []
     const intros = shape ? (Array.isArray(prep?.intros) ? prep.intros : []) : []
     const relink = shape ? (Array.isArray(prep?.relink) ? prep.relink : []) : []
@@ -298,8 +298,8 @@ function guardFail(errors) {
 // 기록 여럿 — 문서 항목 없이 기록만 · git 한 묶음(받기 — 보낸 것 150개가 커밋 150번이 되지 않게)
 //   글마다 검사하고 거절된 것은 { i, error } 로 돌려준다(나머지는 남긴다) · 커밋이 넘어지면 쓴 기록을 모두 지운다
 //   { records: [{ i, id } | { i, error }], commit } — 남긴 것이 없으면 commit null
-//   가드는 붙잡아 두기(hold) — 받은 것은 잃지 않는다: 폐기 · 같은 말 이름은 바꿔 달고, 장부 밖 이름 · 이름 없는 기록은 그 상태로(까닭 holdWhy)
-export function saveRecords(dir, records, { user, now = new Date(), holdWhy = '받음: 이 지식의 이름 장부에서 맞는 이름을 찾지 못했다' } = {}) {
+//   가드는 붙잡아 두기(hold) — 받은 것은 잃지 않는다: 폐기 · 같은 말 항목은 바꿔 달고, 장부 밖 항목 · 항목 없는 기록은 그 상태로(까닭 holdWhy)
+export function saveRecords(dir, records, { user, now = new Date(), holdWhy = '받음: 이 지식의 항목 장부에서 맞는 항목을 찾지 못했다' } = {}) {
   if (!user || !oneLine(user)) fail('E_INPUT', '누가 쓰는지 모른다')
   if (isReservedUser(user)) fail('E_FORBIDDEN', `「${user}」 는 kmd 가 쓰는 이름이다`)
   return serial(path.resolve(dir), async () => {
@@ -357,7 +357,7 @@ async function writeRecord(dir, r, { user, now, taken, j }) {
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
   if (!back || back.id !== id || back.title !== rec.title || back.date !== date || back.author !== user || !same(back.touches, touches) || !same(back.tags, rec.tags)) {
     await fs.rm(full, { force: true })
-    fail('E_INPUT', '기록 머리가 보낸 값과 다르게 읽힌다. 제목 · 이름 · 태그의 글자를 확인한다')
+    fail('E_INPUT', '기록 머리가 보낸 값과 다르게 읽힌다. 제목 · 건드린 항목 · 태그의 글자를 확인한다')
   }
   return { id, rel: `${sub}/${id}.md`, full, title: rec.title }
 }
@@ -365,14 +365,14 @@ async function writeRecord(dir, r, { user, now, taken, j }) {
 // 값 장부는 core/values.js 로 옮겼다(S2 · docs/품질개선/KMD_개편_설계.md 3-1) — 부르는 곳을 바꾸지 않게 다시 내보낸다
 export { valuesOf }
 
-// 좌표정정(R-A2)인가 — 서버가 구조로 판정한다: 바로잡는 기록 하나 · 이름 ⊆ 원 기록의 이름 · 원문을 다시 싣지 않는
+// 좌표정정(R-A2)인가 — 서버가 구조로 판정한다: 바로잡는 기록 하나 · 건드린 항목 ⊆ 원 기록의 건드린 항목 · 원문을 다시 싣지 않는
 // 짧은 글(값이 원 기록 안의 값뿐). 참이면 서버가 예약 태그 touches-fix 를 붙인다(세션이 붙이면 E_FORBIDDEN)
 async function isTouchesFix(dir, r, touches, registry) {
   if (!r.fixes || r.fixes.length !== 1) return false
   const orig = await readRecordFile(dir, r.fixes[0], null)
   const o = orig && parseRecord(orig, `${r.fixes[0]}.md`)
   if (!o || !touches.length) return false
-  // 원 기록이 반영된 이름 — 원 기록의 이름이거나, 그 항목의 표지가 원 기록인 이름
+  // 원 기록이 반영된 항목 — 원 기록이 건드린 항목이거나, 그 항목의 표지가 원 기록인 것
   for (const c of touches) {
     if (o.touches.includes(c)) continue
     const loc = locate(registry, c)
@@ -398,18 +398,18 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
   const vocRaw = await fs.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => null)
   const formRaw = await fs.readFile(path.join(dir, '_forms.md'), 'utf8').then(readText, () => null)
   const guardWarn = []
-  // 가드 G1 — 세울 이름의 모양(장부에 없던 이름만). 거절형은 거절 · 붙잡아 두기는 그 이름만 세우지 않는다
+  // 가드 G1 — 세울 항목의 모양(장부에 없던 것만). 거절형은 거절 · 붙잡아 두기는 그 항목만 세우지 않는다
   {
     const g = guardNames(parseVocab(vocRaw || ''), names)
     if (g.errors.length && mode === 'strict') guardFail(g.errors)
     if (g.errors.length) {
       const bad = new Set(g.errors.map((e) => e.name))
       names = names.filter((n) => !bad.has(n.coord))
-      guardWarn.push(...g.errors.map((e) => `이름을 세우지 않았다: ${e.message}`))
+      guardWarn.push(...g.errors.map((e) => `항목을 세우지 않았다: ${e.message}`))
     }
     guardWarn.push(...g.warnings)
   }
-  // 이번에 세우는 이름은 이 저장의 항목 자리(coord)로도 쓴다
+  // 이번에 세우는 항목은 이 저장의 항목 자리(coord)로도 쓴다
   let regNext = names.length ? upsertRegistry(regRaw || '', names) : regRaw || ''
   const vocNext = names.length ? upsertVocab(vocRaw || '', names) : vocRaw || ''
   const formNext = formsIn.length ? upsertForms(formRaw || '', formsIn) : formRaw || ''
@@ -417,7 +417,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
   const forms = formsOf(formNext)
   const date = r.date || localStamp(now)
   let touches = [...new Set((r.touches || []).map((x) => nfc(x.trim())))]
-  // 새 문서(G4) — 지금 없는 문서를 세우는 항목 글. 갈래 · 폴더 · 머리 꼴을 보고, 갈래에 이름 패턴이 있으면 자리 장부 행을 같이 세운다
+  // 새 문서(G4) — 지금 없는 문서를 세우는 항목 글. 갈래 · 폴더 · 머리 꼴을 보고, 갈래에 항목 패턴이 있으면 문서 장부 행을 같이 세운다
   {
     const fresh = new Map()
     for (const s of secs) {
@@ -434,7 +434,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
       if (g.registryRow) regNext = upsertPatternRow(regNext, g.registryRow.pattern, g.registryRow.doc)
     }
   }
-  // 문서 짜임 — 이름이 새 항목에 닿게(정확한 줄은 제자리 · 패턴 줄로 닿던 이름은 패턴 줄 위에)
+  // 문서 짜임 — 장부 항목이 새 머리에 닿게(정확한 줄은 제자리 · 패턴 줄로 닿던 장부 항목은 패턴 줄 위에)
   const regBeforePlace = regNext
   if (place.length) regNext = placeExact(regNext, place)
   const registry = parseRegistry(regNext)
@@ -459,16 +459,16 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
     p.src = s
     plan.push(p)
   }
-  // 가드 G2 · G3 — 건드린 이름은 장부에 있는 것 · 이름 없는 기록은 까닭과 함께
-  //   (항목 글로 가리킨 이름은 위에서 touches 에 들었다 · 문서 · 머리로 가리킨 항목은 이 기록의 자리다 — 넣지 못한 항목도 이 기록이 가리킨 자리다)
-  //   저절로 채우는 표(guardSections) · prepare 가 넣지 못함으로 돌린 항목도 같다 — 모두 넣지 못함이어도 「이름 없는 기록」 이 아니다(S-D8 · S3 검토)
+  // 가드 G2 · G3 — 건드린 항목은 장부에 있는 것 · 항목 없는 기록은 까닭과 함께
+  //   (항목 글로 가리킨 항목은 위에서 touches 에 들었다 · 문서 · 머리로 가리킨 항목은 이 기록의 자리다 — 넣지 못한 항목도 이 기록이 가리킨 자리다)
+  //   저절로 채우는 표(guardSections) · prepare 가 넣지 못함으로 돌린 항목도 같다 — 모두 넣지 못함이어도 「항목 없는 기록」 이 아니다(S-D8 · S3 검토)
   const placed = secs.some((p) => !p.remove && p.rename == null) || held.some((x) => x.doc || x.coord)
   const g = guardRecord(vocab, { ...r, touches, ...(placed ? { tags: [...(r.tags || []), 'at/'] } : {}) }, { mode, proposed, why: holdWhy })
   if (g.errors.length) guardFail(g.errors)
   touches = g.touches
   const touchesEmpty = g.touchesEmpty
-  guardWarn.push(...g.fixes.map((f) => `이름을 바꿔 달았다: ${f.from} → ${f.to}${f.how === 'deprecated' ? '(폐기된 이름)' : '(같은 말)'}`))
-  if (g.outside.length) guardWarn.push(`이름 장부에 없는 이름: ${g.outside.join(' · ')}. 지식관리자가 이름을 세우거나 고를 때까지 「장부 밖 이름」 으로 보인다`)
+  guardWarn.push(...g.fixes.map((f) => `건드린 항목을 바꿔 달았다: ${f.from} → ${f.to}${f.how === 'deprecated' ? '(폐기된 항목)' : '(같은 말)'}`))
+  if (g.outside.length) guardWarn.push(`항목 장부에 없는 항목: ${g.outside.join(' · ')}. 지식관리자가 장부에 올리거나 고를 때까지 「장부 밖 항목」 으로 보인다`)
   // 고친 기록(edit)은 표지를 뒤로 돌리지 않는다 — 그 항목에 이미 든 기록보다 옛 날짜면 거절
   if ((r.tags || []).includes('edit') && r.date) {
     for (const p of plan) {
@@ -564,12 +564,12 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
     if (/^#{1,6}\s/m.test(x.text)) { row('format', '요약에 머리 줄을 넣지 않는다'); continue }
     introsOk.push({ ...p, text: nfc(x.text) })
   }
-  // 걸린 조각(prepare 의 held · 짜임 요약) — 아직 아무것도 쓰지 않았다: 입력 오류(넣지 못함 · 기록을 남기지 않는다 · 저장 승인 P11 · 짜임은 걸음 실패 P-D24)
+  // 걸린 항목(prepare 의 held · 짜임 요약) — 아직 아무것도 쓰지 않았다: 입력 오류(넣지 못함 · 기록을 남기지 않는다 · 저장 승인 P11 · 짜임은 걸음 실패 P-D24)
   if (held.length) {
     const rows = held.slice(0, 50).map((h) => ({ ...(h.doc ? { doc: h.doc } : {}), ...(h.heading ? { heading: h.heading } : {}), code: h.code, why: h.why }))
     const say = rows.slice(0, 3).map((h) => `${h.heading ? h.heading + ': ' : ''}${h.why}`).join(' · ')
     if (shape || shapeStrict) fail('E_INPUT', `걸음 실패: ${say}`, { details: { stepFail: rows } })
-    fail('E_INPUT', `넣지 못하는 조각이 있다(아무것도 쓰지 않았다): ${say}`, { details: { fail: rows } })
+    fail('E_INPUT', `넣지 못하는 항목이 있다(아무것도 쓰지 않았다): ${say}`, { details: { fail: rows } })
   }
   // 걷힌 출처로 들어오던 링크(짜임 글 걸음) — 걷는 출처만 · 걷기 앞 그 문서의 머리로 앞부분 맞춤까지 가린다
   const relinkMoves = []
@@ -587,10 +587,10 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
   // 이력(kmd 가 지식을 다룬 일)은 log/ · 그 밖은 기록(work/) — id 는 둘을 합쳐 겹치지 않게
   //   저장 문이 붙이는 표지(입력으로는 받지 않는다) — 들이기 태그 · put
   const tags = [...(r.tags || []).map((t) => nfc(t.trim())), ...serverTags]
-  // approve 모드 — 들어감 하나(조각이 없어도 · 글 그대로 이은 기록도 put · recordState 가 「들어감」 으로 읽는다)
+  // approve 모드 — 들어감 하나(항목 글이 없어도 · 글 그대로 이은 기록도 put · recordState 가 「들어감」 으로 읽는다)
   if (putRows.length || approve) tags.push('put')
-  // 장부만 바꾼 저장은 지식 이야기가 아니다 — 이력(log/ · 태그 ledger). 문서 · 항목 · 첨부 · 넣지 못함이 없고 메모가 아니고 건드린 이름이 없을 때
-  //   (이름을 세우며 그 이름을 건드린 기록 「새 이슈: 인원 부족」 은 지식 이야기다 — 기록에 남는다 · 넣지 못함의 [이름 세우기]는 hub 가 ledger 를 단다)
+  // 장부만 바꾼 저장은 지식 이야기가 아니다 — 이력(log/ · 태그 ledger). 문서 · 항목 · 첨부 · 넣지 못함이 없고 메모가 아니고 건드린 항목이 없을 때
+  //   (항목을 세우며 그 항목을 건드린 기록 「새 이슈: 인원 부족」 은 지식 이야기다 — 기록에 남는다 · 넣지 못함의 [항목 세우기]는 hub 가 ledger 를 단다)
   if ((names.length || formsIn.length) && !plan.length && !atts.length && !attSame.length && !touches.length) tags.push('ledger')
   const allTags = [...new Set(tags)]
   const sub = isLogRecord(allTags) ? LOG_DIR : 'work'
@@ -619,7 +619,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
     // 다시 읽어 대조(F1) — 쓴 머리가 보낸 값 그대로 읽혀야 한다
     const back = parseRecord(readText(await fs.readFile(workFull, 'utf8')), `${id}.md`)
     const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
-    if (!back || back.id !== id || back.title !== rec.title || back.date !== date || back.author !== user || !same(back.touches, touches) || !same(back.tags, rec.tags)) fail('E_INPUT', '기록 머리가 보낸 값과 다르게 읽힌다. 제목 · 이름 · 태그의 글자를 확인한다')
+    if (!back || back.id !== id || back.title !== rec.title || back.date !== date || back.author !== user || !same(back.touches, touches) || !same(back.tags, rec.tags)) fail('E_INPUT', '기록 머리가 보낸 값과 다르게 읽힌다. 제목 · 건드린 항목 · 태그의 글자를 확인한다')
     const docs = []
     // 경과에 달 기록 — 정리 · 넣기는 넣은 기록들(reflects) · 사람의 기록은 그 자신. 원천이 쓰는 저장(kmd)은 달지 않는다
     const logged = []
@@ -681,7 +681,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
         await writeAtomic(path.join(dir, ...rel.split('/')), text)
       }
     }
-    // 이름 장부 · 자리 장부 — 바뀐 것만
+    // 항목 장부 · 문서 장부 — 바뀐 것만
     const books = []
     for (const [rel, raw, next] of [['_vocab.md', vocRaw, vocNext], ['_managed.md', regRaw, regNext], ['_forms.md', formRaw, formNext]]) {
       if ((raw || '') === next) continue
@@ -689,7 +689,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
       await writeAtomic(path.join(dir, rel), next)
       books.push(rel)
     }
-    // 항목 이름을 바꿨으면 자리 장부의 그 항목 줄도 새 머리로(이름은 그대로 · 항목이 문서에서 떨어지지 않게)
+    // 항목 이름을 바꿨으면 문서 장부의 그 항목 줄도 새 머리로(값은 그대로 · 항목이 문서에서 떨어지지 않게)
     const renames = plan.filter((p) => p.rename)
     const regNow = books.includes('_managed.md') ? regNext : regRaw
     if (renames.length && regNow) {

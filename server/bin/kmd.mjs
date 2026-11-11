@@ -64,8 +64,8 @@ const HELP = `kmd ${VERSION}
   kmd machine add <지식> <원천> [--types 가,나] · kmd machine revoke <machine-…>
       바깥 생성기용 기계 열쇠(그 지식 · 그 표만 · 1년)
   kmd search-check <지식> [--freeze]           찾기 점검: 얼린 시험지 위에서 나빠진 문항
-  kmd guard <지식> | --all [--list]           점검: 이름 없는 기록 · 장부 밖 이름 · 이름 없는 항목 · 자리 잃은 이름 · 다른 이름 겹침 · 깨진 머리 수 · --list 는 목록까지
-  kmd docfmt <지식> | --all [--dry] [--lift] [--levels]   옛 문서 옮기기: 항목 끝 출처 목록을 문서 끝 참고로(본문은 그대로) · --dry 는 보기만 · --lift 는 ## 없는 문서의 ### 을 ## 로(자리 장부도 같이) · --levels 는 ### 소제목 · 들여쓴 목록을 수준 표시(1. · 1.1. · 1) · - · *)로
+  kmd guard <지식> | --all [--list]           점검: 항목 없는 기록 · 장부 밖 항목 · 장부에 없는 항목 · 머리 잃은 항목 · 별칭 겹침 · 깨진 머리 수 · --list 는 목록까지
+  kmd docfmt <지식> | --all [--dry] [--lift] [--levels]   옛 문서 옮기기: 항목 끝 출처 목록을 문서 끝 참고로(본문은 그대로) · --dry 는 보기만 · --lift 는 ## 없는 문서의 ### 을 ## 로(문서 장부도 같이) · --levels 는 ### 소제목 · 들여쓴 목록을 수준 표시(1. · 1.1. · 1) · - · *)로
   kmd auth reapply <auth.log>                  옛 명부로 되살린 뒤 늦은 일을 다시 적용
 
   둘 다
@@ -676,7 +676,7 @@ async function secretCmd(o) {
   }
 }
 
-// 찾기 점검 — 기록 제목으로 그 기록이 건드린 이름을 찾는다. 처음 한 번 얼리고, 그 뒤는 같은 시험지 위에서 나빠진 문항을 센다
+// 찾기 점검 — 기록 제목으로 그 기록이 건드린 항목을 찾는다. 처음 한 번 얼리고, 그 뒤는 같은 시험지 위에서 나빠진 문항을 센다
 async function searchCheckCmd(o) {
   const [id] = o._
   try {
@@ -700,15 +700,15 @@ async function guardCmd(o) {
     if (!id && !all) throw new Error('kmd guard <지식> | --all [--list]')
     const hub = await makeHub({ root: rootOf(o), dataDir: dataOf(o), log: () => {} })
     const ids = all ? (await hub.list()).map((k) => k.id) : [id]
-    const L = { unnamed: '이름 없는 기록', outside: '장부 밖 이름을 단 기록', deprecatedUse: '폐기된 이름을 단 반영 대기 기록', lost: '자리 잃은 이름', noName: '이름 없는 항목', aliasClash: '다른 이름 겹침', sameLabel: '같은 보이는 이름(알림)', brokenHead: '깨진 머리', spaced: '값에 빈칸이 든 이름(옛 모양)' }
+    const L = { unnamed: '항목 없는 기록', outside: '장부 밖 항목을 단 기록', deprecatedUse: '폐기된 항목을 단 반영 대기 기록', lost: '머리 잃은 항목', noName: '장부에 없는 항목', aliasClash: '별칭 겹침', sameLabel: '같은 라벨(알림)', brokenHead: '깨진 머리', spaced: '값에 빈칸이 든 항목(옛 모양)' }
     for (const x of ids) {
       const r = await hub.guardAudit(SHELL, x)
       const c = r.counts
-      console.log(`${r.name}: 이름 ${c.names}(살아 있음 ${c.live}) · 기록 ${c.records} · 항목 ${c.sections} · 갈래 장부 ${r.forms.own ? r.forms.rows.length + '줄' : '없음(기본 갈래)'}`)
+      console.log(`${r.name}: 장부 항목 ${c.names}(살아 있음 ${c.live}) · 기록 ${c.records} · 문서 항목 ${c.sections} · 갈래 장부 ${r.forms.own ? r.forms.rows.length + '줄' : '없음(기본 갈래)'}`)
       for (const [key, label] of Object.entries(L)) {
         console.log(`  ${label}: ${c[key]}`)
         if (!list || !c[key]) continue
-        for (const it of r[key].slice(0, 50)) console.log(`    - ${typeof it === 'string' ? it : it.coord || it.id || (it.word ? it.word + ' → ' + it.names.join(' · ') + (it.aliasOf ? ' (다른 이름: ' + it.aliasOf.join(' · ') + ')' : '') : it.doc + ' › ' + it.heading)}${it.names && !it.word ? ' : ' + it.names.join(' · ') : ''}${it.title ? ' 「' + it.title.slice(0, 50) + '」' : ''}${it.doc && it.coord ? ' → ' + it.doc + ' ' + it.heading : ''}`)
+        for (const it of r[key].slice(0, 50)) console.log(`    - ${typeof it === 'string' ? it : it.coord || it.id || (it.word ? it.word + ' → ' + it.names.join(' · ') + (it.aliasOf ? ' (별칭: ' + it.aliasOf.join(' · ') + ')' : '') : it.doc + ' › ' + it.heading)}${it.names && !it.word ? ' : ' + it.names.join(' · ') : ''}${it.title ? ' 「' + it.title.slice(0, 50) + '」' : ''}${it.doc && it.coord ? ' → ' + it.doc + ' ' + it.heading : ''}`)
       }
     }
   } catch (e) {
@@ -929,7 +929,7 @@ async function restoreCmd(o) {
     if (!url) throw new Error('kmd restore <저장소 주소> [이름] [--branch 가지] [--root 폴더] [--practice | --attach]')
     const r = await hub.restore(SHELL, { url, name, branch: o.branch === 'true' ? (() => { throw new Error('--branch 다음에 가지 이름을 쓴다') })() : typeof o.branch === 'string' ? o.branch : null, attach: o.practice !== undefined ? false : o.attach !== undefined ? true : null })
     console.log(r.attached ? `· 같은 저장소(가지 ${r.branch})로 이어 보낸다` : `· 읽기만 사본: 원래 저장소에는 보내지 않는다(연습 · 다른 이름 · 같은 자리를 다른 지식이 쓴다 · 붙이려면 --attach)`)
-    console.log(`불러왔다: ${r.id} · 문서 ${r.docs} · 기록 ${r.records} · 첨부 ${r.atts} · 이름 장부 ${r.vocab ? '있음' : '없음'} · ${r.owner ? `주인 ${r.owner}` : '주인 없음(_members.md 없음)'}: 도는 서버에는 관리자의 [동기화] 로 목록에 선다(개인 지식은 그 전에도 가려져 있다)`)
+    console.log(`불러왔다: ${r.id} · 문서 ${r.docs} · 기록 ${r.records} · 첨부 ${r.atts} · 항목 장부 ${r.vocab ? '있음' : '없음'} · ${r.owner ? `주인 ${r.owner}` : '주인 없음(_members.md 없음)'}: 도는 서버에는 관리자의 [동기화] 로 목록에 선다(개인 지식은 그 전에도 가려져 있다)`)
     if (r.check) console.log('· 옛 저장소라 설정 줄이 없어 「Claude 에 보내지 않음」 으로 두었다. 이 지식의 사람에서 다시 정한다')
     if (r.errors.length) console.log(`검사 줄 ${r.errors.length}: ${r.errors.slice(0, 3).join(' · ')}`)
   } catch (e) {

@@ -2,7 +2,7 @@
 //
 // 지키는 것을 본다 — `-p` · stream-json · 내장 도구는 Read,Glob,Grep 만 · dontAsk · strict MCP · 설정 파일 둘.
 // MCP 가 있으면(들이기) 일 폴더의 md 를 읽어 kmd MCP 를 진짜 HTTP 로 부른다:
-//   brief → save(회의록 › 「2026-10-21 HNC 통화」 + 이름 term:펄스명령) — 줄마다 stream-json 을 낸다
+//   brief → save(회의록 › 「2026-10-21 HNC 통화」 + 장부 항목 term:펄스명령) — 줄마다 stream-json 을 낸다
 //   FAKE_AGENT_MODE=other → 다른 지식에 save 를 해 본다(거절돼야 한다) · =idle → 아무것도 넣지 않고 끝낸다
 // MCP 가 없으면(바꾸기) 「원본/…」 을 읽은 것처럼 md 글 하나를 답한다.
 
@@ -46,7 +46,7 @@ process.stdin.on('end', async () => {
   if (process.env.FAKE_AGENT_WAIT_MS) await new Promise((ok) => setTimeout(ok, Number(process.env.FAKE_AGENT_WAIT_MS)))
   if (process.env.FAKE_AGENT_MODE === 'idle') return end({ result: '넣을 곳을 못 찾았다' })
   if (process.env.FAKE_AGENT_MODE === 'other') await mcp('save', { knowledge: 'dpms', record: { title: '엉뚱한 곳', body: 'x' } })
-  // kmd-build 7 — 이미 있는 항목이면 section 으로 읽은 base 를 같이 보내고 · 이미 있는 이름은 다시 세우지 않는다(approve 개인 지식의 무인 문이 막는다 · PC4)
+  // kmd-build 7 — 이미 있는 항목이면 section 으로 읽은 base 를 같이 보내고 · 이미 장부에 있는 항목은 다시 세우지 않는다(approve 개인 지식의 무인 문이 막는다 · PC4)
   const cur = await mcp('section', { knowledge: kn, doc: '회의록', heading: '2026-10-21 HNC 통화' })
   const base = cur && !cur.error && cur.base ? { base: cur.base } : {}
   await mcp('save', {

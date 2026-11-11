@@ -68,10 +68,10 @@ export function topicOfName(file) {
 }
 
 // ── 들이기 엔진(S7 · docs/품질개선/KMD_개편_설계.md 3-5 · S-D18 ~ S-D22 · S-D31 · S-D32) ──
-//   팀 일꾼이 일감 하나(원천 하나 · 파일 하나 · 커밋 하나)를 claude -p 한 번으로 「기록 + 조각」 초안을 짓고, 서버가 저장 문 한 번으로 넣는다.
+//   팀 일꾼이 일감 하나(원천 하나 · 파일 하나 · 커밋 하나)를 claude -p 한 번으로 「기록 + 항목 글」 초안을 짓고, 서버가 저장 문 한 번으로 넣는다.
 //   프롬프트 첫 줄은 시험의 가짜 claude 갈래와 맞춘다(「넣을 것을 지식에 들인다」).
 
-// 초안 꼴 — 기록(무엇: 어떻게 · 바뀐 것) · 있는 항목은 조각(edits) 먼저(절반 넘게 바뀌면 content) · 새 문서는 ## 항목으로만 · 세울 이름
+// 초안 꼴 — 기록(무엇: 어떻게 · 바뀐 것) · 있는 항목은 바꿀 곳(edits) 먼저(절반 넘게 바뀌면 content) · 새 문서는 ## 항목으로만 · 세울 항목
 export const INTAKE_SCHEMA = {
   type: 'object',
   properties: {
@@ -86,7 +86,7 @@ export const INTAKE_SCHEMA = {
     },
     updates: {
       type: 'array',
-      description: '있는 문서(후보)의 항목: 있는 항목은 edits(찾아 바꿀 조각 · find 는 지금 글에 꼭 한 번) · 절반 넘게 바뀌면 content(새 글 전체) · 후보 문서에 없는 머리면 content 로 새 항목',
+      description: '있는 문서(후보)의 항목: 있는 항목은 edits(찾아 바꿀 곳 · find 는 지금 글에 꼭 한 번) · 절반 넘게 바뀌면 content(새 글 전체) · 후보 문서에 없는 머리면 content 로 새 항목',
       items: {
         type: 'object',
         properties: {
@@ -100,7 +100,7 @@ export const INTAKE_SCHEMA = {
       },
     },
     newDoc: { type: ['object', 'null'], properties: { path: { type: 'string' }, sections: { type: 'array', items: { type: 'object', properties: { heading: { type: 'string' }, content: { type: 'string' } }, required: ['heading', 'content'] } } }, description: '이어지는 문서가 없을 때만: 경로(폴더/이름 · .md 없이)와 ## 항목들' },
-    names: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, kind: { type: 'string' } }, required: ['name'] }, description: '새로 세운 항목의 이름(대상 이름 · 종류는 이 지식의 이름 종류 중 하나)' },
+    names: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, kind: { type: 'string' } }, required: ['name'] }, description: '새로 세운 항목의 이름(대상 이름 · 종류는 이 지식의 항목 종류 중 하나)' },
     why: { type: 'string' },
   },
   required: ['record', 'updates'],
@@ -111,7 +111,7 @@ export const INTAKE_SRC_MAX = 60_000
 // 넣지 못함으로 끝난 들이기의 기록에 싣는 원천 앞부분(S-D50 · 기록만 저장이 200k 상한에 걸리지 않게)
 export const HELD_SRC_HEAD = 2000
 
-const formLine = (g) => `- 이 지식의 갈래(갈래 장부): ${(g.forms || []).map((f) => `${f.folder ? f.folder + '/' : ''}${f.name}(${f.kind}${f.aliases?.length ? ' · ' + f.aliases.join(', ') : ''})`).join(' · ') || '없음'}. 다른 이름에 걸리는 글은 그 갈래 문서로 간다(newDoc.path 는 폴더/갈래 이름).${g.formsOwn ? ' 갈래 장부에 없는 새 문서는 세우지 않는다: 이어지는 후보 문서에 넣는다.' : ''}`
+const formLine = (g) => `- 이 지식의 갈래(갈래 장부): ${(g.forms || []).map((f) => `${f.folder ? f.folder + '/' : ''}${f.name}(${f.kind}${f.aliases?.length ? ' · ' + f.aliases.join(', ') : ''})`).join(' · ') || '없음'}. 별칭에 걸리는 글은 그 갈래 문서로 간다(newDoc.path 는 폴더/갈래 이름).${g.formsOwn ? ' 갈래 장부에 없는 새 문서는 세우지 않는다: 이어지는 후보 문서에 넣는다.' : ''}`
 // 다시 들이기(S10 · type again) — 넣지 못한 기록의 원천(남겨 둔 파일 글 · 없으면 그 기록 글)을 「기록」 으로
 // 보내기(S12 · type send) — 개인 지식에서 보낸 글(기록 하나 · 문서 통째)
 const srcHead = (g) => (g.type === 'commit' ? `넣을 것(커밋 · ${g.src?.title || ''}):` : g.type === 'again' ? `넣을 것(기록 · ${g.src?.title || ''}):` : g.type === 'send' ? `넣을 것(보낸 글 · ${g.src?.title || ''}):` : `넣을 것(파일 · ${g.src?.file || g.src?.title || ''}):`)
@@ -121,7 +121,7 @@ const srcHead = (g) => (g.type === 'commit' ? `넣을 것(커밋 · ${g.src?.tit
 export function intakePromptOf(g, { writeRules = '' } = {}) {
   const commit = g.type === 'commit'
   return [
-    '넣을 것을 지식에 들인다. 기록 하나(record)와 항목 글(updates · newDoc)을 한 번에 짓는다. kmd 가 검사해 넘은 조각은 그 순간 문서에 들어가고, 못 넘은 조각은 「넣지 못함」 으로 남는다.',
+    '넣을 것을 지식에 들인다. 기록 하나(record)와 항목 글(updates · newDoc)을 한 번에 짓는다. kmd 가 검사해 넘은 항목 글은 그 순간 문서에 들어가고, 못 넘은 것은 「넣지 못함」 으로 남는다.',
     [
       '기록(record):',
       '- title 은 「무엇: 어떻게」 한 줄(예: 「헬스 체크 시간 초과: 3초 → 5초」). 파일 이름 · 커밋 해시를 제목으로 쓰지 않는다.',
@@ -129,19 +129,19 @@ export function intakePromptOf(g, { writeRules = '' } = {}) {
     ].join('\n'),
     [
       '자리 고르기:',
-      '- 이어지는 후보 문서의 항목이 있으면 그 항목을 고친다(updates). 있는 항목은 조각(edits: find 는 지금 글에 꼭 한 번 나오는 글 · replace 는 바꿀 글)으로 보내고 base 는 후보에 적힌 그 항목의 base 를 그대로 싣는다. 항목 글이 절반 넘게 바뀌면 content(새 글 전체).',
+      '- 이어지는 후보 문서의 항목이 있으면 그 항목을 고친다(updates). 있는 항목은 바꿀 곳(edits: find 는 지금 글에 꼭 한 번 나오는 글 · replace 는 바꿀 글)으로 보내고 base 는 후보에 적힌 그 항목의 base 를 그대로 싣는다. 항목 글이 절반 넘게 바뀌면 content(새 글 전체).',
       '- 후보 문서에 없는 머리면 그 문서에 새 항목(content). 이어지는 문서가 없으면 새 문서(newDoc: 경로와 ## 항목들)를 세운다. 새 문서는 ## 항목 하나 이상으로만 세운다.',
       '- 문서 이름은 파일 이름이 아니라 그 글의 갈래 · 주제로 짓는다. 날짜 · 번호 · 판 · 회사 약어 같은 파일 이름 조각은 문서 이름에 쓰지 않는다.',
       '- 같은 갈래의 문서가 후보에 있으면 새 문서를 세우지 않고 그 문서에 새 항목으로 넣는다. 항목 머리는 「언제 · 무엇」(예: 2026-10-21 HNC 통화).',
       formLine(g),
-      '- 새로 세운 항목은 names 에 대상 이름과 종류를 싣는다(종류는 아래 이름 종류 중 하나). 이미 이름 장부에 있는 이름은 싣지 않는다.',
+      '- 새로 세운 항목은 names 에 대상 이름과 종류를 싣는다(종류는 아래 항목 종류 중 하나). 이미 항목 장부에 있는 것은 싣지 않는다.',
       ...(g.type === 'send' ? ['- 넣을 것은 개인 지식에서 보낸 글이다. 개인 문서의 꼴 · 말 · 머리를 그대로 옮기지 않고 이 지식의 작성기준과 후보 문서의 꼴에 맞춘다. 문서를 통째로 보냈으면 후보 항목과 견주어 달라진 것만 고친다(같은 내용이면 updates 를 비우고 why 에 까닭).'] : []),
       ...(commit ? ['- 커밋은 「바뀐 값」 줄과 차이를 본다. 글에 옛 값이 있으면 새 값으로 고치고, 코드에 없는 설명은 지어내지 않는다. 문서와 상관없는 커밋이면 updates 를 비우고 why 에 까닭을 쓴다.'] : []),
       '- 파일을 통째로 옮기지 않는다. 대상의 지금으로 요약 · 정리해 쓴다. 인사말 · 말할 거리 · 빈 칸 양식 · 준비 체크 상태는 옮기지 않는다(기록에 남는다). 값을 담은 표 · 목록은 그 사실을 그대로 살린다.',
     ].join('\n'),
     writeRules,
     '옮기는 값(수 · 이름 · 코드)은 넣을 것 그대로 정확히 쓰고, 넣을 것에 없는 값을 지어내지 않는다. 옛 글의 값은 넣을 것이 바꾼 것만 바꾼다. JSON 으로만 답한다.',
-    `이름 종류: ${(g.kinds || []).join(' · ') || '없음'}${g.names?.length ? `\n이름 장부(앞 ${g.names.length}): ${g.names.join(' · ')}` : ''}`,
+    `항목 종류: ${(g.kinds || []).join(' · ') || '없음'}${g.names?.length ? `\n항목 장부(앞 ${g.names.length}): ${g.names.join(' · ')}` : ''}`,
     `문서 후보:\n${(g.docs || []).map((d) => `[doc ${d.doc}] ${d.title}\n${d.sections.map((s) => `## ${s.h}\n(base ${s.base})\n${s.body}`).join('\n')}`).join('\n\n') || '(없음)'}`,
     `${srcHead(g)}\n${String(g.src?.md || '').slice(0, INTAKE_SRC_MAX)}`,
   ].filter(Boolean).join('\n\n')
@@ -165,7 +165,7 @@ export function heldRecord(src, md, { why = '' } = {}) {
     return {
       title: String(src.title || '정정').replace(/\s+/g, ' ').trim().slice(0, 200),
       body: String(md || '').slice(0, 20_000) || '정정',
-      ...(Array.isArray(src.touches) && src.touches.length ? { touches: src.touches } : { touchesEmpty: '정정: 원래 기록에 걸린 이름이 없다' }),
+      ...(Array.isArray(src.touches) && src.touches.length ? { touches: src.touches } : { touchesEmpty: '정정: 원래 기록이 건드린 항목이 없다' }),
       ...(src.rec ? { fixes: [src.rec] } : {}),
     }
   }
@@ -197,7 +197,7 @@ export function ruleRecord(src, md, { why = '', line = '' } = {}) {
 
 // 초안 → 저장 덩이(hub.save 의 input) — { ok: true, input, held, warn } | { ok: false, why }(고쳐 쓸 수 있는 까닭 · 모양)
 //   g — 서버 재료(후보 문서의 base 는 일꾼에게 보인 것) · k — 지금 지식(값 근거는 그 항목의 지금 글 전체) · draft — INTAKE_SCHEMA 꼴
-//   후보 밖 문서 · 없는 머리에 조각 → 그 조각만 넣지 못함(notfound) · 새 문서에 ## 항목이 없다 → 넣지 못함(nosec · S-D31)
+//   후보 밖 문서 · 없는 머리에 바꿀 곳 → 그 항목만 넣지 못함(notfound) · 새 문서에 ## 항목이 없다 → 넣지 못함(nosec · S-D31)
 //   넣을 곳이 하나도 없다 → 넣지 못함(notfound) — 기록만 남은 들이기가 「개편 전 기록」 으로 정리에 집히지 않게
 // 일꾼이 머리 줄 그대로(「## 4. 개소 현황」) 보내도 항목 머리로 읽는다 — 머리는 # 없이 견준다
 export const bareHeading = (h) => String(h).normalize('NFC').trim().replace(/^#{1,6}\s+/, '').trim()
@@ -212,7 +212,7 @@ export function draftToSave(k, g, draft, { measure = false } = {}) {
   const held = []
   const warn = []
   const sections = []
-  const texts = [] // 값 근거를 볼 새 글(조각은 replace · 새 글은 content)
+  const texts = [] // 값 근거를 볼 새 글(바꿀 곳은 replace · 새 글은 content)
   const olds = [] // 그 항목의 지금 글
   const one = (h) => typeof h === 'string' && h.trim() && !/[\r\n]/.test(h) && h.length <= 120
   const cand = (doc) => (g.docs || []).find((d) => d.doc === docRel(doc))
@@ -230,9 +230,9 @@ export function draftToSave(k, g, draft, { measure = false } = {}) {
     const cur = nowSec(c.doc, heading)
     if (edits) {
       const v = validEdits(edits)
-      if (!v.ok) return { ok: false, why: `조각이 지금 글에 맞지 않는다: ${v.why}` }
+      if (!v.ok) return { ok: false, why: `바꿀 곳이 지금 글에 맞지 않는다: ${v.why}` }
       if (!s) {
-        held.push({ doc: c.doc, heading, code: 'notfound', why: '없는 항목에 조각을 댔다: 새 항목이면 content 로', edits })
+        held.push({ doc: c.doc, heading, code: 'notfound', why: '없는 항목에 바꿀 곳을 댔다: 새 항목이면 content 로', edits })
         continue
       }
       sections.push({ doc: c.doc, heading, base: s.base, edits: edits.map((e) => ({ find: String(e.find), replace: String(e.replace) })) })
@@ -282,7 +282,7 @@ export function draftToSave(k, g, draft, { measure = false } = {}) {
   if (invented.length) values.push({ id: judgeId('invented', '초안', ...invented.slice().sort()), code: 'invented', at: '초안', why: `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` })
   // 넣을 곳 — 하나도 없으면 넣지 못함(기록만)
   if (!sections.length && !held.length) held.push({ code: 'notfound', why: `넣을 곳을 고르지 않았다${draft.why ? `: ${String(draft.why).replace(/\s+/g, ' ').slice(0, 160)}` : ''}` })
-  // 세울 이름(K14-2) — 이름 종류 안의 것만 · 장부에 있는 이름은 뺀다 · 새 항목을 세우는데 이름이 없으면 경고(S-D32)
+  // 세울 항목(K14-2) — 항목 종류 안의 것만 · 장부에 있는 것은 뺀다 · 새 항목을 세우는데 names 가 없으면 경고(S-D32)
   const kinds = new Set(g.kinds || [])
   const kindOf = (x) => (kinds.has(String(x || '')) ? String(x) : kinds.has('term') ? 'term' : [...kinds][0] || 'term')
   const names = (Array.isArray(draft.names) ? draft.names : [])

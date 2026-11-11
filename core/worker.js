@@ -2,9 +2,9 @@
 //
 //   1  일꾼 열쇠(kmdw_)로 다음 일감을 받는다 — 그 일감 · 그 지식에만 쓰는 단기 열쇠(kmdd_)가 같이 온다
 //   2  단기 열쇠로 재료를 받는다(「Claude 에 보내지 않음」 지식은 서버가 재료를 내주지 않는다)
-//   3  들이기 일감(kind intake · S7)은 원천 하나를 claude -p 한 번(도구 0)으로 기록 + 조각 초안 하나 → 서버가 저장 문 한 번으로 넣는다.
+//   3  들이기 일감(kind intake · S7)은 원천 하나를 claude -p 한 번(도구 0)으로 기록 + 항목 글 초안 하나 → 서버가 저장 문 한 번으로 넣는다.
 //      고칠 수 있는 까닭으로 돌려보내면 그 까닭을 붙여 KMD_INGEST_FIX 번(1 ~ 2 · 기본 2)까지 다시 쓴다(intakeOnce)
-//      정정(type fix)은 남은 항목의 조각만(FIX_SCHEMA) · 다듬기(type polish · S13)는 문서 하나의 항목 글(POLISH_SCHEMA · 값은 그대로)
+//      정정(type fix)은 남은 항목의 바꿀 곳만(FIX_SCHEMA) · 다듬기(type polish · S13)는 문서 하나의 항목 글(POLISH_SCHEMA · 값은 그대로)
 //      Claude 짜임(type shape-plan · shape-write · 바탕 세우기 Z6)은 구조안(SHAPE_PLAN_SCHEMA) · 합치기 · 나누기 글(SHAPE_WRITE_SCHEMA) — 서버가 cleanPlan · judgeShape 로 다시 본다
 //      일감을 물을 때 아는 type 을 싣는다(KNOWN_TYPES) — 서버는 아는 일꾼에게만 shape-* 일감을 준다(옛 일꾼이 들이기 프롬프트로 짓지 않게)
 //   4  옛 정리 일감 · 팀 쪽 에이전트 길은 개편 S13 에 걷었다(서버가 들이기 일감만 낸다 · S-D21)
@@ -75,7 +75,7 @@ export async function intakeOnce({ server, key, job, dkey, log = () => {}, budge
   const name = `${job.kn}: ${g.src?.file || g.src?.title || job.id}`
   const model = modelOf('ingest', models)
   const opt = { writeRules: WRITE_RULES }
-  // 정정 일감(S9 · type fix) — 남은 항목마다 조각만(FIX_SCHEMA) · 다듬기(S13 · type polish) — 문서 하나의 항목 글(POLISH_SCHEMA) · 그 밖은 기록 + 조각(INTAKE_SCHEMA)
+  // 정정 일감(S9 · type fix) — 남은 항목마다 바꿀 곳만(FIX_SCHEMA) · 다듬기(S13 · type polish) — 문서 하나의 항목 글(POLISH_SCHEMA) · 그 밖은 기록 + 항목 글(INTAKE_SCHEMA)
   const corr = g.type === 'fix'
   const pol = g.type === 'polish'
   // Claude 짜임(Z6) — 구조안 · 글. 고쳐 쓰기도 같은 프롬프트에 까닭과 지난 초안을 붙인다

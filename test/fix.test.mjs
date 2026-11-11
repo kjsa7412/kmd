@@ -1,7 +1,7 @@
 // 기록 고치기(S9 · K4-2 ~ K4-4 · docs/품질개선/KMD_개편_설계.md 3-6 · 4-3 · S-D23)
 //
-// 옛 값이 그 항목에 한 곳 → 규칙으로 정정 기록 + 조각 한 저장(커밋 하나 · Claude 0번) · 원 기록은 그대로 · recView.fixedBy ·
-// 두 곳 → 들이기 일감 fix → 팀 일꾼(가짜 claude) → 정정 기록 + 조각 한 저장 · 남의 기록 정정은 쓰기 자리 403 · 내 기록은 쓰기 자리도 ·
+// 옛 값이 그 항목에 한 곳 → 규칙으로 정정 기록 + 항목 글 한 저장(커밋 하나 · Claude 0번) · 원 기록은 그대로 · recView.fixedBy ·
+// 두 곳 → 들이기 일감 fix → 팀 일꾼(가짜 claude) → 정정 기록 + 항목 글 한 저장 · 남의 기록 정정은 쓰기 자리 403 · 내 기록은 쓰기 자리도 ·
 // 들어간 항목이 없으면 정정 기록만 + 넣지 못함(nosec) · GET 이면 405 · 옛 값 = 새 값이면 400
 
 import { test, before, after } from 'node:test'
@@ -52,7 +52,7 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('규칙: 옛 값이 그 항목에 한 곳 → 정정 기록 + 조각 한 저장(커밋 하나 · Claude 0번) · 원 기록은 그대로 · fixedBy', async () => {
+test('규칙: 옛 값이 그 항목에 한 곳 → 정정 기록 + 항목 글 한 저장(커밋 하나 · Claude 0번) · 원 기록은 그대로 · fixedBy', async () => {
   const log = path.join(tmp, 'calls-rule.log')
   process.env.FAKE_CLAUDE_LOG = log
   try {
@@ -80,7 +80,7 @@ test('규칙: 옛 값이 그 항목에 한 곳 → 정정 기록 + 조각 한 �
   } finally { delete process.env.FAKE_CLAUDE_LOG }
 })
 
-test('규칙이 못 하면(두 곳): 저장하지 않고 일감 fix → 팀 일꾼 → 정정 기록 + 조각 한 저장', async () => {
+test('규칙이 못 하면(두 곳): 저장하지 않고 일감 fix → 팀 일꾼 → 정정 기록 + 항목 글 한 저장', async () => {
   const log = path.join(tmp, 'calls-job.log')
   process.env.FAKE_CLAUDE_LOG = log
   try {

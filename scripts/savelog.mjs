@@ -2,9 +2,9 @@
 //
 //   node scripts/savelog.mjs <data 폴더> [--kn dpms] [--since 2026-11-10] [--until 2026-11-24] [--ch session,bulk] [--json]
 //
-//   채널마다  저장 수 · 조각 수 · 조각 통과율(넣음 / 조각) · 걸린 까닭 상위 10 · E_CONFLICT 수 ·
+//   채널마다  저장 수 · 항목 수 · 항목 통과율(넣음 / 항목) · 걸린 까닭 상위 10 · E_CONFLICT 수 ·
 //             다시 넣은 비율(같은 사람 · 같은 자리가 넣지 못함 또는 E_CONFLICT 뒤 30분 안에 넣음이 된 비율) ·
-//             자리당 시간(ms / 조각의 중앙값) · 비용(cost.usd 합 · 자리당) · 스킬 판(kit)
+//             자리당 시간(ms / 항목의 중앙값) · 비용(cost.usd 합 · 자리당) · 스킬 판(kit)
 //   동시 쓰기  conflictWith 가 있는 줄을 「채널 ↔ 그 항목에 먼저 넣은 쪽」 짝으로 센다(K12-4)
 //   비교 기준  같은 data 폴더의 정리 장부 tidy/*.json 이 있으면 정리의 넣음 비율 · 자리당 시간을 옆에 낸다
 //   목표       통과 70% 이상 · 자리당 1분대(2분 안)
@@ -228,9 +228,9 @@ export function render(sum, { tidy = null, broken = 0, opt = {} } = {}) {
   const out = []
   const range = [opt.kn ? `지식 ${opt.kn}` : '모든 지식', opt.since || opt.until ? `${opt.since || '…'} ~ ${opt.until || '…'}` : '모든 날', opt.ch ? `채널 ${opt.ch.join(',')}` : null].filter(Boolean).join(' · ')
   out.push(`저장 측정(savelog) — ${range} · 줄 ${sum.lines}${broken ? ` · 깨진 줄 ${broken}` : ''}`)
-  out.push(`목표: 조각 통과 ${pct(GOAL.pass)} 이상 · 자리당 ${sec(GOAL.msPerSpot)} 안`)
+  out.push(`목표: 항목 통과 ${pct(GOAL.pass)} 이상 · 자리당 ${sec(GOAL.msPerSpot)} 안`)
   out.push('')
-  const head = ['채널', '저장', '같은것', '메모', '조각', '넣음', '통과율', '넣지못함', 'E_CONFLICT', '다시넣음', '자리당', '비용']
+  const head = ['채널', '저장', '같은것', '메모', '항목', '넣음', '통과율', '넣지못함', 'E_CONFLICT', '다시넣음', '자리당', '비용']
   const W = [10, 6, 6, 5, 6, 6, 9, 8, 10, 12, 10, 14]
   out.push(head.map((h, i) => pad(h, W[i])).join(' '))
   for (const c of sum.channels) {

@@ -76,7 +76,7 @@ export async function collectNow(dir, { user, save }) {
     //   사람 칸(_members.md · 개인 지식의 저장 방식 표지)도 kmd 가 쓴다 — 손 고침으로 제안 의무가 풀리지 않게(저장 승인 PC1)
     if (/^(work|log)\//.test(f.path) || f.path === '_vocab.md' || f.path === '_managed.md' || f.path === '_forms.md' || f.path === '_members.md') {
       if (f.code.includes('?')) continue // 새로 만든 기록 파일은 건드리지 않는다
-      await rescue(f.path, /^(work|log)\//.test(f.path) ? '기록 · 이력은 고치지 않는다. 바로잡으려면 바로잡는 기록을 남긴다' : f.path === '_members.md' ? '사람 칸 · 저장 방식은 kmd 가 쓴다' : '이름 · 자리 · 갈래 장부는 kmd 가 쓴다. 이름 세우기 · 갈래 세우기(save 의 names · forms)로')
+      await rescue(f.path, /^(work|log)\//.test(f.path) ? '기록 · 이력은 고치지 않는다. 바로잡으려면 바로잡는 기록을 남긴다' : f.path === '_members.md' ? '사람 칸 · 저장 방식은 kmd 가 쓴다' : '항목 · 문서 · 갈래 장부는 kmd 가 쓴다. 항목 세우기 · 갈래 세우기(save 의 names · forms)로')
       await tryGit(dir, ['checkout', '--', f.path])
       reverted.push(f.path)
     }

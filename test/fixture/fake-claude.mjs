@@ -6,9 +6,9 @@
 //   기록에 「지어낸」 → 근거에 없는 값(999초)을 더한다 · 「누락」 → 그 기록 글을 빼고도 used 에 넣는다
 //   「옛값빼기 X」 → 지금 글의 X 를 drop 없이 지운다(고쳐쓰기 기록이면 고쳐 쓸 때 되살린다)
 //   「주입」 → 글에 머리 줄을 넣는다 · 「A → B」 꼴(값) → 지금 글의 A 를 B 로 바꾸고 drop 에 A
-//   이름 바로잡기 → 후보의 첫 이름
+//   건드린 항목 바로잡기 → 후보의 첫 항목
 //   고쳐 쓰기(fixPromptOf · 「지난 초안이 kmd 검사에 걸렸다」) → 「고쳐쓰기」 가 든 기록만 고친다(누락 · 지어낸 것을 하지 않는다)
-// 들이기(「넣을 것을 지식에 들인다」 · S7 · 보낸 글 S12) → 기록 + 조각 초안(아래 갈래 · FAKE_CLAUDE_MODE=bad · badall · content · nosec · names · outside)
+// 들이기(「넣을 것을 지식에 들인다」 · S7 · 보낸 글 S12) → 기록 + 항목 글 초안(아래 갈래 · FAKE_CLAUDE_MODE=bad · badall · content · nosec · names · outside)
 // FAKE_CLAUDE_MODE=logout → 로그인 끝 · FAKE_CLAUDE_LOG=<파일> → 부를 때마다 한 줄
 
 import fs from 'node:fs'
@@ -103,7 +103,7 @@ function answer() {
   const ok = args.includes('-p') && args.includes('--tools') && val('--tools') === '' && args.includes('--strict-mcp-config') && JSON.parse(val('--mcp-config') || '{}').mcpServers && val('--json-schema') && fs.readdirSync(process.cwd()).length === 0
   if (!ok) return say({ is_error: true, subtype: 'error', result: '가짜 claude: 도구 0 · 빈 MCP · 스키마 · 빈 폴더를 지키지 않았다' })
   if (process.env.FAKE_CLAUDE_MODE === 'logout') return say({ is_error: true, subtype: 'error', result: 'Invalid API key · Please run /login' })
-  // 바탕 세우기 구조안(Z7 · core/shape.js seedPlanPromptOf) — 넣음 재료마다 항목 하나(머리 = 파일 이름) · 문서 「업무 안내」 하나 · 첫 재료에 이름 하나
+  // 바탕 세우기 구조안(Z7 · core/shape.js seedPlanPromptOf) — 넣음 재료마다 항목 하나(머리 = 파일 이름) · 문서 「업무 안내」 하나 · 첫 재료에 장부 항목 하나
   //   FAKE_CLAUDE_MODE=badseed → 처음 답은 재료 하나를 빠뜨린다(덮임 걸림 → 고쳐 쓰기)
   if (prompt.startsWith('바탕 세우기 구조안을 짓는다')) {
     const fixing = prompt.includes('\n\n지난 초안이 kmd 검사에 걸렸다')
@@ -193,11 +193,11 @@ function answer() {
     }
     return say({ structured_output: { updates, why: updates.length ? '옛 값을 고쳤다' : '고칠 곳이 없다' } })
   }
-  // 들이기(S7 · core/ingest.js intakePromptOf) — 기록 + 조각 초안 하나
-  //   커밋: 「바뀐 값: A → B」 의 A 가 든 후보 항목을 B 로(꼭 한 번이면 조각 · 아니면 새 글) · 없으면 updates 비움
+  // 들이기(S7 · core/ingest.js intakePromptOf) — 기록 + 항목 글 초안 하나
+  //   커밋: 「바뀐 값: A → B」 의 A 가 든 후보 항목을 B 로(꼭 한 번이면 바꿀 곳 · 아니면 새 글) · 없으면 updates 비움
   //   파일: 파일의 ## 머리가 후보 항목과 같으면 그 항목을 파일 글로(새 글) · 나머지는 새 문서(경로 = 파일 이름)
-  //   FAKE_CLAUDE_MODE=bad → 처음 답에 지어낸 값(999초) · badall → 고쳐 써도 · content → 커밋도 조각 대신 새 글 · nosec → 새 문서에 항목 없음 ·
-  //   names → 새 항목의 이름(term:<머리>)을 싣는다 · outside → 후보 밖 문서를 고친다
+  //   FAKE_CLAUDE_MODE=bad → 처음 답에 지어낸 값(999초) · badall → 고쳐 써도 · content → 커밋도 바꿀 곳 대신 새 글 · nosec → 새 문서에 항목 없음 ·
+  //   names → 새 항목을 장부에 올린다(term:<머리>) · outside → 후보 밖 문서를 고친다
   if (prompt.startsWith('넣을 것을 지식에 들인다')) {
     if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'intake\n')
     const FIXI = '\n\n지난 초안이 kmd 검사에 걸렸다'
@@ -272,7 +272,7 @@ function answer() {
     }
     const rest = secs.filter((s) => !updates.some((u) => u.heading === s.heading))
     const name = (head ? head[1] : '넣은 파일').split('/').pop().replace(/\.[^.]+$/, '')
-    // 갈래(프롬프트의 「이 지식의 갈래」 줄) — 파일 이름이 갈래 이름 · 다른 이름을 품으면 그 갈래 문서의 항목 하나(「YYYY-MM-DD 무엇」)로
+    // 갈래(프롬프트의 「이 지식의 갈래」 줄) — 파일 이름이 갈래 이름 · 별칭을 품으면 그 갈래 문서의 항목 하나(「YYYY-MM-DD 무엇」)로
     const forms = [...((/- 이 지식의 갈래\(갈래 장부\): (.+)/.exec(prompt) || [])[1] || '').matchAll(/([^\s·(]+)\((사건|대상|서술|대장)(?: · ([^)]*))?\)/g)].map((m) => ({ path: m[1], kind: m[2], keys: [m[1].split('/').pop(), ...String(m[3] || '').split(',').map((x) => x.trim())].filter(Boolean) }))
     const form = rest.length && forms.find((f) => f.kind === '사건' && f.keys.some((k) => k.length >= 2 && name.includes(k)))
     if (form) {
@@ -298,11 +298,11 @@ function answer() {
     return tick()
   }
   if (prompt.startsWith('아래 기록이 바꾼 항목을')) {
-    // 후보 줄은 「- 이름: 보이는 이름」(이름에 빈칸이 들 수 있다 · 첫 「: 」 앞까지가 이름)
+    // 후보 줄은 「- 종류:값: 라벨」(값에 빈칸이 들 수 있다 · 첫 「: 」 앞까지가 항목)
     const first = /^- (.+?): .+$/m.exec(prompt.split('후보:')[1] || '')
     return say({ structured_output: { touches: first ? [first[1].trim()] : [], why: '제목이 그 항목을 말한다' } })
   }
-  // 조각 꼴(PATCH_RULE 이 끝에 붙는다) — 같은 초안을 지금 글 전체를 찾아 바꾸는 조각 하나로(빈 글이면 rewrite) · 기록에 「조각어긋남」 이면 지금 글에 없는 find
+  // 바꿀 곳 꼴(옛 PATCH_RULE 「답 꼴(조각)」 이 끝에 붙을 때) — 같은 초안을 지금 글 전체를 찾아 바꾸는 바꿀 곳 하나로(빈 글이면 rewrite) · 기록에 「조각어긋남」 이면 지금 글에 없는 find
   const patch = prompt.includes('\n\n답 꼴(조각)')
   if (patch) prompt = prompt.slice(0, prompt.indexOf('\n\n답 꼴(조각)'))
   const FIX = '\n\n지난 초안이 kmd 검사에 걸렸다'
@@ -322,7 +322,7 @@ function answer() {
       const cur = (x.split('지금 글:\n')[1] || '').split('\n\n---\n\n')[0].trim()
       return { key: x.slice(0, x.indexOf(']')), recs: all.filter((r) => ids.includes(r.id)), cur }
     })
-    // 조각 묶음(A9) — 항목마다 지금 글 전체를 찾아 바꾸는 조각 하나(빈 글이면 rewrite)
+    // 바꿀 곳 묶음(A9) — 항목마다 지금 글 전체를 찾아 바꾸는 바꿀 곳 하나(빈 글이면 rewrite)
     const asPatch = (cur, d) => { const { content, ...rest } = d; const now = cur === '(아직 없음)' ? '' : cur; return now.trim() ? { ...rest, edits: [{ find: now, replace: content }] } : { ...rest, edits: [], rewrite: content } }
     if (patch && process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'bpatch\n')
     return say({ structured_output: { items: items.filter((x) => !x.recs.some((r) => r.body.includes('묶음빠짐'))).map((x) => ({ key: x.key, ...(patch ? asPatch(x.cur, draft(x.cur, x.recs)) : draft(x.cur, x.recs)) })) } })

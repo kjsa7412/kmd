@@ -1,21 +1,25 @@
-// 이름 세우기 — 이름 장부(`_vocab.md`) · 자리 장부(`_managed.md`)에 이름을 더한다(요구 v0.2 R7 · R8).
+// 항목 세우기 — 항목 장부(`_vocab.md`) · 문서 장부(`_managed.md`)에 항목을 더한다(요구 v0.2 R7 · R8).
 //
-//   names: [{ coord: '종류:값', label: '보이는 이름', aliases?: ['다른 이름'], doc?: '문서', heading?: '머리' }]
+//   names: [{ coord: '종류:값', label: '라벨', aliases?: ['별칭'], doc?: '문서', heading?: '머리' }]
 //
 // 글을 다시 짓지 않고 줄만 더하거나 바꾼다 — 사람이 적은 설명 · 순서는 그대로 남는다.
-//   이름 장부 — `## 종류` 아래 `- \`종류:값\` — 보이는 이름` · 이미 있으면 다른 이름만 보탠다(보이는 이름은 사람이 정한 것을 지킨다)
-//   자리 장부 — doc · heading 이 있으면 `| \`종류:값\` | \`docs/문서.md\` | \`## 머리\` |` · 같은 이름 줄이 있으면 바꾼다
+//   항목 장부 — `## 종류` 아래 `- \`종류:값\` — 라벨` · 이미 있으면 별칭만 보탠다(라벨은 사람이 정한 것을 지킨다)
+//   문서 장부 — doc · heading 이 있으면 `| \`종류:값\` | \`docs/문서.md\` | \`## 머리\` |` · 같은 항목 줄이 있으면 바꾼다
 
 import { nfc } from './text.js'
 import { parseVocab } from './vocab.js'
 import { TYPE_RE, parseForms, FORM_KINDS } from './guard.js'
 
-const VOCAB_HEAD = '# 이름 장부\n\n같은 것을 가리키는 이름 중 하나를 정하고 나머지를 다른 이름으로 잇는다.\n'
-const REG_HEAD = '# 자리 장부\n\n이름 하나가 어느 문서의 어느 항목에 드는지 여기에만 적는다.\n\n| 이름 | 문서 | 항목 |\n|---|---|---|\n'
+// 새로 서는 장부의 머리 글 — 이미 선 장부(옛 제목 「이름 장부」 · 「자리 장부」 · 표 머리 「| 이름 | 문서 | 항목 |」)는 고쳐 쓰지 않고 그대로 읽는다
+const VOCAB_HEAD = '# 항목 장부\n\n항목마다 `종류:값` 하나를 정하고 같은 것을 가리키는 다른 말은 별칭으로 잇는다.\n'
+const REG_TABLE = '| 항목 | 문서 | 머리 |\n|---|---|---|\n'
+const REG_HEAD = `# 문서 장부\n\n항목 하나가 어느 문서의 어느 머리(\`##\`)인지 여기에만 적는다.\n\n${REG_TABLE}`
+// 표 머리가 있나 — 새 꼴 「| 항목 |」 · 옛 꼴 「| 이름 |」 둘 다
+const hasRegTable = (t) => /^\|\s*(?:항목|이름)\s*\|/m.test(t)
 
 export const docRelOf = (doc) => `docs/${nfc(String(doc)).replace(/\\/g, '/').replace(/^docs\/|\.md$/g, '')}.md`
 
-// 이름 장부 — 새 글(바뀐 것이 없으면 같은 글)
+// 항목 장부 — 새 글(바뀐 것이 없으면 같은 글)
 export function upsertVocab(text, names) {
   let t = String(text || '').replace(/\r\n/g, '\n')
   if (!t.trim()) t = VOCAB_HEAD
@@ -51,11 +55,11 @@ export function upsertVocab(text, names) {
   return t.endsWith('\n') ? t : t + '\n'
 }
 
-// 자리 장부 — 새 글
+// 문서 장부 — 새 글
 export function upsertRegistry(text, names) {
   let t = String(text || '').replace(/\r\n/g, '\n')
   if (!t.trim()) t = REG_HEAD
-  if (!/^\|\s*이름\s*\|/m.test(t)) t = `${t.replace(/\n*$/, '\n')}\n| 이름 | 문서 | 항목 |\n|---|---|---|\n`
+  if (!hasRegTable(t)) t = `${t.replace(/\n*$/, '\n')}\n${REG_TABLE}`
   for (const n of names) {
     if (!n.doc || !n.heading) continue
     const row = `| \`${n.coord}\` | \`${docRelOf(n.doc)}\` | \`## ${n.heading}\` |`
@@ -74,7 +78,7 @@ export function upsertRegistry(text, names) {
   return t.endsWith('\n') ? t : t + '\n'
 }
 
-// 들어온 이름 — 모양 검사 · 다듬기
+// 들어온 항목(names) — 모양 검사 · 다듬기
 export function cleanNames(list) {
   if (list == null) return []
   if (!Array.isArray(list) || list.length > 3000) return null
@@ -90,7 +94,7 @@ export function cleanNames(list) {
   return out
 }
 
-// 자리 장부 — 패턴 줄 하나(`종류:*` → 문서의 `## {값}`) · 같은 패턴 줄이 있으면 그대로
+// 문서 장부 — 패턴 줄 하나(`종류:*` → 문서의 `## {값}`) · 같은 패턴 줄이 있으면 그대로
 export function upsertPatternRow(text, pattern, doc) {
   let t = String(text || '').replace(/\r\n/g, '\n')
   if (!t.trim()) t = REG_HEAD
@@ -99,14 +103,14 @@ export function upsertPatternRow(text, pattern, doc) {
   const row = `| \`${pattern}\` | \`${docRelOf(doc)}\` | \`## {값}\` |`
   let last = -1
   lines.forEach((l, x) => { if (/^\|/.test(l)) last = x })
-  if (last < 0) lines.push('| 이름 | 문서 | 항목 |', '|---|---|---|', row)
+  if (last < 0) lines.push('| 항목 | 문서 | 머리 |', '|---|---|---|', row)
   else lines.splice(last + 1, 0, row)
   t = lines.join('\n')
   return t.endsWith('\n') ? t : t + '\n'
 }
 
 // 갈래 장부(`_forms.md`) — 갈래 줄을 더하거나 바꾼다(core/guard.js parseForms 와 같은 꼴)
-const FORMS_HEAD = '# 갈래 장부\n\n새 문서는 여기 있는 갈래로만 선다. 문서 이름은 파일 이름이 아니라 갈래다(전화 통화 메모 → 회의록).\n\n| 갈래 | 다른 이름 | 폴더 | 종류 | 이름 | 서식 |\n|---|---|---|---|---|---|\n'
+const FORMS_HEAD = '# 갈래 장부\n\n새 문서는 여기 있는 갈래로만 선다. 문서 이름은 파일 이름이 아니라 갈래다(전화 통화 메모 → 회의록).\n\n| 갈래 | 별칭 | 폴더 | 종류 | 항목 | 서식 |\n|---|---|---|---|---|---|\n'
 export function upsertForms(text, forms) {
   let t = String(text || '').replace(/\r\n/g, '\n')
   if (!t.trim()) t = FORMS_HEAD
@@ -142,14 +146,14 @@ export function cleanForms(list) {
   return out
 }
 
-// 자리 장부 — 정확한 자리 줄(문서 짜임의 항목 옮기기 · 이름 · 합치기 · 나누기).
-//   names: [{ coord, doc, heading }] — 그 이름이 이제 닿을 문서 · 머리
-//   있는 정확한 줄은 제자리에서 고친다. 없으면 그 이름에 닿던 패턴 줄(`종류:*`) **위에** 끼운다(위에서 먼저 걸리는 줄을 쓴다 · core/registry.js) ·
+// 문서 장부 — 정확한 자리 줄(문서 짜임의 항목 옮기기 · 이름 · 합치기 · 나누기).
+//   names: [{ coord, doc, heading }] — 그 항목이 이제 닿을 문서 · 머리
+//   있는 정확한 줄은 제자리에서 고친다. 없으면 그 항목에 닿던 패턴 줄(`종류:*`) **위에** 끼운다(위에서 먼저 걸리는 줄을 쓴다 · core/registry.js) ·
 //   패턴 줄도 없으면 표 끝에. 그 문서의 패턴 줄로 이미 그 머리에 닿으면(값 = 머리) 더하지 않는다. upsertRegistry 는 표 끝에 붙이므로 여기서 쓰지 않는다
 export function placeExact(text, names) {
   let t = String(text || '').replace(/\r\n/g, '\n')
   if (!t.trim()) t = REG_HEAD
-  if (!/^\|\s*이름\s*\|/m.test(t)) t = `${t.replace(/\n*$/, '\n')}\n| 이름 | 문서 | 항목 |\n|---|---|---|\n`
+  if (!hasRegTable(t)) t = `${t.replace(/\n*$/, '\n')}\n${REG_TABLE}`
   const first = (l) => l.match(/^\|\s*`([^`]+)`/)?.[1]?.trim() ?? null
   for (const n of names) {
     if (!n?.coord || !n.doc || !n.heading) continue

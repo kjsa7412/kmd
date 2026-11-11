@@ -56,7 +56,7 @@ test('1단 확정 · 2단 약함 · 빈손은 「없다」 가 아니다', async
   assert.equal(typeof q.results[0].more.coords.n, 'number')
 })
 
-test('정정 동봉 · 토막이 말하는 이름', async () => {
+test('정정 동봉 · 토막이 말하는 항목', async () => {
   const r = await tool('search', { q: '/healthz 새 주소로 바꾼다고', knowledge: 'dpms' })
   const p = r.results[0].passages.find((x) => x.record === '2026-1020-헬스-체크-주소')
   assert.ok(p, JSON.stringify(r.results[0].passages.map((x) => x.path)))

@@ -34,7 +34,7 @@ before(async () => {
   const note = path.join(tmp, 'kn', 'note')
   fs.mkdirSync(path.join(note, 'docs'), { recursive: true })
   fs.mkdirSync(path.join(note, 'work'), { recursive: true })
-  fs.writeFileSync(path.join(note, '_vocab.md'), '# 이름 장부\n\n')
+  fs.writeFileSync(path.join(note, '_vocab.md'), '# 항목 장부\n\n')
   fs.writeFileSync(path.join(note, 'docs', '배포메모.md'), '# 배포메모\n\n## 카나리\n첫 30분은 요청의 10%.\n')
   fs.writeFileSync(path.join(note, 'docs', '큰문서.md'), `# 큰문서\n\n${['하나', '둘', '셋', '넷', '다섯'].map((h) => sec(h, 60_000)).join('\n\n')}\n`)
   fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })

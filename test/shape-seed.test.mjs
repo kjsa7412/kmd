@@ -69,7 +69,7 @@ test('나눠 받기 — 뼈대 검사(덮임 · 없는 재료 · 같은 id · �
   assert.match(S.batchOfDraft({ docs: [{ id: '나', items: [{ h: 'x', src: [C] }] }] }, bs[1], g).error, /넣음 재료 1/, '묶음 안 덮임')
   const p1 = S.batchOfDraft({ docs: [{ id: '가', items: [{ h: '하나', src: [A] }] }], names: [{ coord: 'topic:x', doc: '가', h: '하나' }] }, bs[0], g)
   const p2 = S.batchOfDraft({ docs: [{ id: '나', items: [{ h: '둘', src: [B] }] }], names: [{ coord: 'topic:x', doc: '가', h: '하나' }] }, bs[1], g)
-  assert.equal(p2.names.length, 0, '다른 묶음 문서의 이름은 버린다')
+  assert.equal(p2.names.length, 0, '다른 묶음 문서의 장부 항목은 버린다')
   const m = S.mergeSeedPlan(fr, [p2, p1])
   assert.deepEqual(m.docs.map((d) => d.id), ['가', '나'], '뼈대 차례')
   assert.equal(m.names.length, 1)
@@ -111,7 +111,7 @@ test('Claude 안 세션 — 답하지 않는 세션은 그만두기로 끊는다
   }
 })
 
-test('Claude 안 — 조사(옛 판 · 비밀 의심 보류) → 거르기 → 구조안 → 짓기 · 승인 → 연습 판 → 넣기(빈 approve 지식에 문서 · 이름 · 기록)', LONG, async () => {
+test('Claude 안 — 조사(옛 판 · 비밀 의심 보류) → 거르기 → 구조안 → 짓기 · 승인 → 연습 판 → 넣기(빈 approve 지식에 문서 · 장부 항목 · 기록)', LONG, async () => {
   const s = await setup()
   try {
     const id = await s.make('온보딩')
@@ -219,7 +219,7 @@ test('Claude 안 — 조사(옛 판 · 비밀 의심 보류) → 거르기 → �
     assert.match(text, /09:00/)
     assert.match(text, /내선 1234/)
     assert.ok(!text.includes('hunter2abc'))
-    assert.match(fs.readFileSync(path.join(s.root, id, '_vocab.md'), 'utf8'), /topic:반납절차v2/, '구조안 이름이 이름 장부에')
+    assert.match(fs.readFileSync(path.join(s.root, id, '_vocab.md'), 'utf8'), /topic:반납절차v2/, '구조안 names 가 항목 장부에')
     assert.match(fs.readFileSync(path.join(s.root, id, '_managed.md'), 'utf8'), /topic:반납절차v2.*업무 안내\.md.*## 반납 절차 v2/)
     const recs = fs.readdirSync(path.join(s.root, id, 'work')).map((f) => fs.readFileSync(path.join(s.root, id, 'work', f), 'utf8')).join('\n')
     assert.match(recs, /기초 세우기로 세웠다/)

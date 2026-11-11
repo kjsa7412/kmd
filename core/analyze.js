@@ -124,7 +124,7 @@ export function commitPrompt({ src, c, diffs, names = [] }) {
     '',
     `저장소: ${src} · 묶음 ${c.sha} · ${c.author} · ${c.date}`,
     `커밋 메시지: ${c.subject}`,
-    ...(names.length ? [`이 지식에서 걸리는 이름: ${names.join(' · ')}`] : []),
+    ...(names.length ? [`이 지식에서 걸리는 항목: ${names.join(' · ')}`] : []),
     '',
     '── 차이 ──',
     clip(patch, 60_000),

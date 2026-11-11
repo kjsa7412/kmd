@@ -1,8 +1,8 @@
 // 가져온 것 → 기록 · 출처(2026-10-26).
 //
-// DB 의 두 번째 확인이 항목을 모두 「사라짐」 으로 세어 멈추지 않는다(첫 확인의 키는 「문서」, 이름 장부가 선 뒤는 「docs/문서.md」) ·
+// DB 의 두 번째 확인이 항목을 모두 「사라짐」 으로 세어 멈추지 않는다(첫 확인의 키는 「문서」, 항목 장부가 선 뒤는 「docs/문서.md」) ·
 // html 은 머리 · 표 · 목록을 살린 md 로 · Claude 분석은 「무엇 · 핵심 · 정한 것 · 남은 것 + 본문」 기록으로(커밋은 첫 줄 · 차이를 지킨다) ·
-// 기록 → 간 문서 · 문서 → 온 기록이 항목 표지(applied)와 reflects 로 이어진다(넣은 파일 기록은 이름이 없어도).
+// 기록 → 간 문서 · 문서 → 온 기록이 항목 표지(applied)와 reflects 로 이어진다(넣은 파일 기록은 건드린 항목이 없어도).
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -16,13 +16,13 @@ import { commitRecord } from '../core/codechange.js'
 import { loadKnowledge } from '../core/knowledge.js'
 import { docView, recView } from '../server/views.js'
 
-test('DB 두 번째 확인: 이름 장부가 선 뒤에도 같은 항목이다(멈추지 않는다)', async () => {
+test('DB 두 번째 확인: 항목 장부가 선 뒤에도 같은 항목이다(멈추지 않는다)', async () => {
   const tables = Array.from({ length: 30 }, (_, i) => `t${i}`)
   const sec = (h) => ({ h, body: '', applied: null })
   const doc = { path: 'docs/테이블 정의.md', sections: tables.map((t) => sec(t)) }
   const k = { byDocPath: new Map([[doc.path, doc]]) }
   const src = { name: 'db', rules: [{ rule: 'dbtables', into: { doc: '테이블 정의' } }] }
-  // 첫 확인이 남긴 키(「테이블 정의」) · 이번 확인은 이름 장부 자리(「docs/테이블 정의.md」) — 한 테이블만 칼럼이 늘었다
+  // 첫 확인이 남긴 키(「테이블 정의」) · 이번 확인은 항목 장부 자리(「docs/테이블 정의.md」) — 한 테이블만 칼럼이 늘었다
   const prev = tables.map((t) => `테이블 정의\n${t}`)
   const items = { dbtables: tables.map((t) => ({ key: t, doc: 'docs/테이블 정의.md', cols: ['칼럼'], rows: [[t === 't3' ? 'testcol' : 'id']] })) }
   const plan = await planRun(k, src, items, { asof: '2026-10-26 14:00', prev })
@@ -79,7 +79,7 @@ test('커밋 기록: Claude 분석을 앞에 · 첫 줄(바뀐 값)과 차이는
   assert.equal(commitAnalyzed(rec, { title: 't', summary: 's', changes: [] }, { src: 'gw', c }), rec)
 })
 
-test('코드 바뀜 기록: 장부 밖 이름만 걸리면 「기록」(none 에 갇히지 않는다) · 정리가 넣었다고 적으면 「넣음」', async () => {
+test('코드 바뀜 기록: 장부 밖 항목만 걸리면 「기록」(none 에 갇히지 않는다) · 정리가 넣었다고 적으면 「넣음」', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-code-'))
   try {
     fs.mkdirSync(path.join(dir, 'work'), { recursive: true })

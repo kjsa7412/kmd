@@ -66,7 +66,7 @@ const approved = async (inp, who = P.wr) => {
   return { p, r: await mcp('save', { ...inp, proposal: p.proposal, kit: KIT }, who) }
 }
 
-test('모든 팀 지식 = approve(P11): 옛 지식도 proposal 없이 저장하면 E_APPROVE · 메모 = E_INPUT · 걸린 조각은 넣지 못함이 아니라 제안 오류(아무것도 쓰지 않음)', async () => {
+test('모든 팀 지식 = approve(P11): 옛 지식도 proposal 없이 저장하면 E_APPROVE · 메모 = E_INPUT · 걸린 항목은 넣지 못함이 아니라 제안 오류(아무것도 쓰지 않음)', async () => {
   assert.equal(s.hub.saveModeOf('dpms'), 'approve')
   assert.equal(s.hub.saveModeOf('apv'), 'approve')
   const n0 = snap(kdir('dpms'))
@@ -94,7 +94,7 @@ test('approve: proposal 없음 = E_APPROVE + propose 결과 · 아무것도 쓰�
   assert.equal(h.j.error, 'E_APPROVE')
 })
 
-test('approve: 승인한 해시로 save = 들어감(기록 + 조각 한 덩이 · put) · 대화 조절 뒤 마지막 해시만 · 앞 해시 = E_APPROVE', async () => {
+test('approve: 승인한 해시로 save = 들어감(기록 + 항목 글 한 덩이 · put) · 대화 조절 뒤 마지막 해시만 · 앞 해시 = E_APPROVE', async () => {
   const sec = await canary()
   const first = await mcp('propose', input(sec.base))
   const changed = input(sec.base, { record: { ...input().record, why: ['테스트 — 비율을 올림 · 김 과장이 정함'] } })
@@ -162,7 +162,7 @@ test('approve: 경위만 기록 = 들어감(글 그대로 · 이은 항목 · �
   assert.ok(sec.history.some((x) => x.id === r.saved && x.state === '문서에 들어감'), JSON.stringify(sec.history))
   const t = await req('/api/k/apv/tree', P.wr)
   assert.equal(t.j.records.find((x) => x.id === r.saved)?.state, 'in', '들어감')
-  // 값이 있는데 조각이 없다 — 오류(사람 채널)
+  // 값이 있는데 고칠 항목이 없다 — 오류(사람 채널)
   const val = { knowledge: 'apv', record: { title: '카나리: 비율 50%', changes: ['첫 30분 비율: 30% → 50%'], touches: ['proc:카나리'] } }
   const pv = await mcp('propose', val)
   assert.deepEqual(pv.errors.map((e) => e.code), ['unreflected'])
@@ -192,7 +192,7 @@ test('approve: touchesEmpty = 기록 모음 달 항목(없으면 저장 문이 �
   assert.deepEqual(h.history.map((x) => x.id).sort(), [r.saved, r2.saved].sort())
 })
 
-test('approve: 쓰기 자리 새 문서 · 새 이름(P-D8) · 「## 새로 세움」 · fresh 는 14일 뒤 떨어짐', async () => {
+test('approve: 쓰기 자리 새 문서 · 새 항목(장부 · P-D8) · 「## 새로 세움」 · fresh 는 14일 뒤 떨어짐', async () => {
   const inp = { knowledge: 'apv', record: { title: '점검표: 배포 전 점검', changes: ['배포 전 점검: 세 가지'], touches: ['proc:배포전점검'] }, names: [{ coord: 'proc:배포전점검', label: '배포 전 점검', doc: 'docs/점검표.md', heading: '배포 전 점검' }], sections: [{ doc: '점검표', heading: '배포 전 점검', content: '배포 전 점검은 세 가지다: 디스크 · 인증서 · 백업.' }] }
   const { p, r } = await approved(inp)
   assert.deepEqual(p.newDocs.map((d) => d.doc), ['docs/점검표.md'])
@@ -207,7 +207,7 @@ test('approve: 쓰기 자리 새 문서 · 새 이름(P-D8) · 「## 새로 세�
 
 test('approve: ingest/ 위조 = E_INPUT(P-D16) · 사람 글의 kmd 칸 머리 = E_INPUT · 지문 어긋남 = E_CONFLICT + 새 propose', async () => {
   const sec = await canary()
-  // 지금 글에 대는 조각(앞 시험이 비율을 바꿨다) — 문장 끝에 한 줄 보탬
+  // 지금 글에 대는 바꿀 곳(앞 시험이 비율을 바꿨다) — 문장 끝에 한 줄 보탬
   const tail = (base) => [{ coord: 'proc:카나리', base, edits: [{ find: '롤백으로 간다.', replace: '롤백으로 간다. 롤백 뒤 헬스 체크를 다시 한다.' }] }]
   const ok = (base, over = {}) => input(base, { record: { title: '카나리: 롤백 뒤 헬스 체크', changes: ['롤백 뒤: 헬스 체크를 다시 한다'], touches: ['proc:카나리'] }, sections: tail(base), ...over })
   const forged = ok(sec.base, { record: { ...ok(sec.base).record, tags: ['ingest/가짜.md', 'md/0123456789abcdef'] } })
@@ -267,14 +267,14 @@ test('측정 읽기(scripts/savelog.mjs · P-D37): approve 줄의 승인 없음 
   assert.equal(sum.channels.find((c) => c.ch === 'session').saves, 3, '옛 줄도 같이 센다')
 })
 
-test('반박 검토: 있는 이름 덮기(쓰기 자리) · 종류만 · 기록 모음 조각 = 제안 오류 · 화면 ingest/ = E_INPUT · 보내기는 sent/ 를 뺀 제안으로 · 옛 받기 = E_APPROVE', async () => {
+test('반박 검토: 있는 장부 항목 덮기(쓰기 자리) · 종류만 · 기록 모음에 보낸 글 = 제안 오류 · 화면 ingest/ = E_INPUT · 보내기는 sent/ 를 뺀 제안으로 · 옛 받기 = E_APPROVE', async () => {
   const sec = await canary()
   const base = { knowledge: 'apv', record: { title: '카나리: 경위', why: ['경위'], body: '경위만.', touches: ['proc:카나리'] } }
   const over = await mcp('propose', { ...base, names: [{ coord: 'proc:카나리', label: '카나리', doc: 'docs/엉뚱.md', heading: 'x' }] })
-  assert.deepEqual(over.errors.map((e) => e.code), ['name'], '쓰기 자리는 있는 이름의 자리를 바꾸지 못한다')
+  assert.deepEqual(over.errors.map((e) => e.code), ['name'], '쓰기 자리는 있는 장부 항목의 자리를 바꾸지 못한다')
   const boss = await mcp('propose', { ...base, names: [{ coord: 'proc:카나리', label: '카나리', aliases: ['canary'] }] }, P.boss)
   assert.deepEqual(boss.errors, [], JSON.stringify(boss.errors))
-  assert.match(boss.text, /proc:카나리 {3}장부 고침 · 다른 이름 canary/, '지식관리자의 장부 고침은 제안서에 보인다')
+  assert.match(boss.text, /proc:카나리 {3}장부 고침 · 별칭 canary/, '지식관리자의 장부 고침은 제안서에 보인다')
   const kind = await mcp('propose', { ...base, kinds: ['job'] })
   assert.deepEqual(kind.errors.map((e) => e.code), ['kind'])
   const rec = await mcp('propose', { ...base, sections: [{ doc: '기록 모음', heading: '아무거나', content: '글.' }] })

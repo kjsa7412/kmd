@@ -27,12 +27,12 @@ export function toolLine(name, input = {}) {
   if (n === 'Read') return `읽기 ${path.basename(String(input.file_path || ''))}${input.offset ? ` (${input.offset}줄부터)` : ''}`
   if (n === 'Glob' || n === 'Grep') return `${n === 'Glob' ? '파일 찾기' : '글 찾기'} ${short(input.pattern, 60)}`
   if (n === 'brief') return `지식 둘러보기${input.knowledge ? ' ' + input.knowledge : ''}`
-  if (n === 'match') return `이름 맞추기 「${short(input.q, 50)}」`
+  if (n === 'match') return `항목 맞추기 「${short(input.q, 50)}」`
   if (n === 'search') return `찾기 「${short(input.q || (input.words || []).join(' '), 50)}」`
   if (n === 'section') return `항목 읽기 ${input.coord || [input.doc, input.heading].filter(Boolean).join(' › ')}`
   if (n === 'save') {
     const secs = (input.sections || []).map((s) => s.coord || `${s.doc} › ${s.heading}`)
-    return `저장 「${short(input.record?.title, 60)}」${secs.length ? ` · 항목 ${secs.length}(${short(secs.join(', '), 70)})` : ''}${input.names?.length ? ` · 이름 ${input.names.length}` : ''}`
+    return `저장 「${short(input.record?.title, 60)}」${secs.length ? ` · 항목 ${secs.length}(${short(secs.join(', '), 70)})` : ''}${input.names?.length ? ` · 새 항목(장부) ${input.names.length}` : ''}`
   }
   return `${n} ${short(JSON.stringify(input), 60)}`
 }
@@ -41,7 +41,7 @@ function resultLine(c) {
   let t = text
   try {
     const j = JSON.parse(text)
-    t = j.note || j.saved ? `${j.note || '저장했다'}${j.saved ? ' · ' + j.saved : ''}` : j.docs ? `문서 ${j.docs.length}` : j.found ? `맞는 이름 ${j.found.length}` : j.content != null ? `항목 글 ${String(j.content).length}자` : j.message || text
+    t = j.note || j.saved ? `${j.note || '저장했다'}${j.saved ? ' · ' + j.saved : ''}` : j.docs ? `문서 ${j.docs.length}` : j.found ? `맞는 항목 ${j.found.length}` : j.content != null ? `항목 글 ${String(j.content).length}자` : j.message || text
   } catch {}
   return short(t, 140)
 }

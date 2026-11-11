@@ -1,13 +1,13 @@
 // 찾기 사다리 — 말 → 정리된 항목 후보와 자리 없는 글의 토막(v0.6 §4).
 //
 //   0 다듬기        normKey(소문자 · 빈칸 · 문장부호 뺌) · 그래도 없으면 끝 조사 떼기(뗀 뒤 2자 이상)
-//   1 정확한 이름    다듬지 않은 normKey 가 이름 · 값 · 다른 이름 · 항목 머리와 같다 → 확정. 「없다」 는 여기서만 말한다
+//   1 정확한 이름    다듬지 않은 normKey 가 항목(종류:값) · 값 · 라벨 · 별칭 · 항목 머리와 같다 → 확정. 「없다」 는 여기서만 말한다
 //   2 이름 품기      말이 이름을 품음 · 이름이 말을 품음(80% 이상) · 조사를 떼고서야 맞음 · 배운 이름 → 약함(weak)
-//   3 낱말 — 정리된 자리   이름 하나 = 카드 하나 · BM25 · 조건 「질문 낱말의 절반」 또는 「말 하나가 통째로 든 항목」
+//   3 낱말 — 정리된 자리   항목 하나 = 카드 하나 · BM25 · 조건 「질문 낱말의 절반」 또는 「말 하나가 통째로 든 항목」
 //   4 낱말 — 글 토막       모든 md 를 머리 단위 1,200자 토막으로(표는 행 경계 · 머리 행을 붙인다) · 조건 「질문 낱말의 절반」
 //
 // 약속 넷 — ① 범위는 참/거짓 조건, 점수는 순서에만(RRF) ② 「조건에 든 n개 중 k개 · 나머지 · 규칙」 을 늘 말한다
-// ③ 이름이 있는 토막은 그 이름(정본 항목)으로 바꿔 낸다 ④ 2 ~ 4단이 빈손이면 「없다」 가 아니라 exhaustive:false.
+// ③ 항목에 닿는 토막은 그 항목(정본)으로 바꿔 낸다 ④ 2 ~ 4단이 빈손이면 「없다」 가 아니라 exhaustive:false.
 // 정렬은 (점수 반올림 → 경로 → 줄)로 고정한다 — 팀(리눅스)과 PC(윈도)가 같은 순서를 낸다.
 
 import crypto from 'node:crypto'
@@ -217,7 +217,7 @@ function names(k) {
     const all = [coord, coord.split(':').slice(1).join(':'), v.label, ...v.aliases]
     out.push({ coord, name: v.label, keys: [...new Set(all.map(normKey).filter(Boolean))], deprecated: v.deprecated })
   }
-  // 이름 장부에 없는 항목 머리도 이름이다(개인 지식은 장부가 없다)
+  // 항목 장부에 없는 항목 머리도 이름이다(개인 지식은 장부가 없다)
   for (const d of k.docs)
     for (const s of d.sections) {
       const c = coordsOfSection(k, d, s.h)[0]
@@ -283,7 +283,7 @@ export async function ladder(k, index, { q = '', words = null, learned = {}, max
   const weak = []
   for (const t of [q, ...(words || [])].filter(Boolean)) for (const x of nameContain(k, t, learned)) if (!ex.some((y) => y.coord && y.coord === x.coord) && !weak.some((y) => (y.coord || y.heading) === (x.coord || x.heading))) weak.push(x)
 
-  // 3단 — 이름 하나 = 카드 하나
+  // 3단 — 항목 하나 = 카드 하나
   const cards = cardsOf(k)
   const cardHits = cards.map((c) => ({ c, hits: ws.filter((w) => hitIn(c.norm, w)) })).filter((x) => x.hits.length && (x.hits.length >= need || x.hits.some((w) => w.length >= 2)))
   const cs = bm25(qtoks, cardHits.map((x) => x.c))
@@ -382,7 +382,7 @@ function passage(k, p) {
       out.label += ' · 정정 앞'
     }
   }
-  // 이 토막이 말하는 이름 → 그 항목(지금 글은 section 으로)
+  // 이 토막이 말하는 항목 → 그 항목(지금 글은 section 으로)
   const nt = normKey(p.text)
   out.mentions = [...k.vocab.coords.entries()].filter(([, v]) => [v.label, ...v.aliases].some((a) => normKey(a).length >= 2 && nt.includes(normKey(a)))).slice(0, 8).map(([c]) => ({ coord: c, name: labelOf(k, c), pending: k.works.filter((w) => w.touches.includes(c) && w.state === 'pend').length }))
   return out
@@ -484,7 +484,7 @@ export function learn(dataDir, id, { q, coord, who, log = null }) {
   })
 }
 
-// ── 찾기 점검 — 기록 제목(코드 뺌)으로 그 기록이 건드린 이름을 찾는다 · 그 기록 자신의 토막은 뺀다 ──
+// ── 찾기 점검 — 기록 제목(코드 뺌)으로 그 기록이 건드린 항목을 찾는다 · 그 기록 자신의 토막은 뺀다 ──
 // 얼린 시험지(`<data>/searchcheck/<지식>.json`)가 있으면 같은 시험지 위에서 짝으로 견준다(나빠진 문항 수)
 export async function searchCheck(k, index, { dataDir = null, freeze = false, max = 6 } = {}) {
   const f = dataDir ? path.join(dataDir, 'searchcheck', `${encodeURIComponent(k.id)}.json`) : null

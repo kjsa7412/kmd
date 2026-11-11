@@ -20,7 +20,7 @@ before(() => {
   fs.mkdirSync(path.join(data, 'savelog'), { recursive: true })
   fs.mkdirSync(path.join(data, 'tidy'), { recursive: true })
   const dpms = [
-    // 김: 조각 둘 중 하나 넣지 못함 → 10분 뒤 그 자리를 넣음(다시 넣음 1/1)
+    // 김: 항목 둘 중 하나 넣지 못함 → 10분 뒤 그 자리를 넣음(다시 넣음 1/1)
     L({ at: '2026-11-10 09:00', user: 'kim', ch: 'session', rec: 'r1', n: 2, put: 1, ok: ['proc:카나리'], held: [{ code: 'values', coord: 'proc:롤백', why: '기록의 값이 글에 없다: 30분' }], ms: 800 }),
     L({ at: '2026-11-10 09:10', user: 'kim', ch: 'session', rec: 'r2', n: 1, put: 1, ok: ['proc:롤백'], held: [], ms: 400 }),
     // 이: E_CONFLICT(가져올 곳이 먼저 넣은 항목) → 한 시간 뒤에야 넣음(30분 넘음 · 다시 넣음 아님)
@@ -78,7 +78,7 @@ test('채널마다 통과율 · 까닭 · E_CONFLICT · 다시 넣은 비율(30�
   assert.deepEqual(se.reasons, [{ why: 'values · 기록의 값이 글에 없다: 30분', n: 1 }])
   assert.deepEqual(se.retry, { events: 2, done: 1, ratio: 0.5 }, '넣지 못함 뒤 10분은 다시 넣음 · E_CONFLICT 뒤 65분은 아님')
   assert.deepEqual(se.kits, { 2: 4, 1: 1, '없음': 1 })
-  // 자리당 시간 — ms / 조각의 중앙값(800/2 · 400/1 · 600/1 → 400)
+  // 자리당 시간 — ms / 항목의 중앙값(800/2 · 400/1 · 600/1 → 400)
   assert.equal(se.msPerSpot, 400)
   assert.equal(se.goal.time, true)
   const bu = s.channels.find((c) => c.ch === 'bulk')

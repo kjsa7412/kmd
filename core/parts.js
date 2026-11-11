@@ -8,6 +8,7 @@
 //   `## 값 대조`     무인 채널의 값 경고(같은 꼴 · 측정만 · P-D2 · P-D37 · P6 부터 쓴다)
 //   `## 이은 항목`   글을 바꾸지 않고 이 기록을 이은 항목 한 줄씩(「docs/x.md › 머리」 · 글 그대로 · P-D12 · 기록 모음 달 항목 P-D29)
 //   `## 새로 세움`   이 저장이 새로 세운 것 한 줄씩(「문서 docs/x.md」 · 「항목 docs/x.md › 머리」 · 「이름 종류:값」 · 「갈래 이름」 · 「종류 이름」) —
+//                    (「이름」 줄은 장부에 오른 새 항목이다 · 저장 꼴이라 줄 머리는 옛 말 그대로 쓰고 읽는다 · 화면은 「새 항목(장부)」 로 보인다)
 //                    점검 지표 「새로 생긴 것」(P-D27) · fresh 표지는 기록 날짜에서 FRESH_DAYS 가 지나면 저절로 떨어진다(P-D10 · Q15)
 //
 //   칸은 본문 끝에 붙는다. 읽을 때는 그 칸의 **마지막** 것만 본다(사람 글에 같은 머리가 있어도 위조가 되지 않게 ·
@@ -129,8 +130,8 @@ export function dropRecord(w, reason) {
   }
 }
 
-// 세울 이름 · 세울 갈래(S-D51 · 저장 문이 기록 본문 끝에 싣는 칸 · hub saveIn 의 꼴) → { names:[{ coord, label, doc?, heading?, aliases? }], forms:[…] }
-//   [이름 세우기] 가 읽는다 — 부르는 쪽이 넣지 못함 칸(code names)이 있는 기록에만 쓴다(사람 글의 같은 머리로 장부가 늘지 않게)
+// 세울 이름 · 세울 갈래(옛 기록의 칸 머리 그대로 · S-D51 · 저장 문이 기록 본문 끝에 싣던 칸 · hub saveIn 의 꼴) → { names:[{ coord, label, doc?, heading?, aliases? }], forms:[…] }
+//   옛 [이름 세우기] 가 읽었다(지금 말로는 항목 세우기) — 부르는 쪽이 넣지 못함 칸(code names)이 있는 기록에만 쓴다(사람 글의 같은 머리로 장부가 늘지 않게)
 export function namesOfRecord(body) {
   const names = []
   for (const l of (lineBlock(body, '세울 이름') || '').split('\n')) {
@@ -195,8 +196,11 @@ export function parseLinked(body) {
 }
 
 // 새로 세움 — 「- 문서 docs/x.md」 · 「- 항목 docs/x.md › 머리」 · 「- 이름 종류:값」 · 「- 갈래 이름」 · 「- 종류 이름」
+//   kind 「항목」 = 문서에 새로 선 `##` 머리 · kind 「이름」 = 장부에 새로 오른 `종류:값`(둘 다 새 항목이다 · 저장 꼴은 바꾸지 않는다)
 export const FRESH_DAYS = 14
 const FRESH_KINDS = ['문서', '항목', '이름', '갈래', '종류']
+// 보이는 말 — 줄 머리(저장 꼴)는 그대로 두고 화면 · 지표에는 새 말로
+export const FRESH_LABEL = Object.freeze({ 문서: '문서', 항목: '항목(문서)', 이름: '항목(장부)', 갈래: '갈래', 종류: '종류' })
 export function renderFresh(rows) {
   const xs = (rows || []).filter((r) => FRESH_KINDS.includes(r?.kind) && r.name && !/[\r\n]/.test(String(r.name)))
   return xs.length ? `## ${FRESH_PART}\n${xs.map((r) => `- ${r.kind} ${r.name}`).join('\n')}` : ''

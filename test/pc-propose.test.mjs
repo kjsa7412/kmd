@@ -121,7 +121,7 @@ test('개인 propose = 팀 propose: 같은 입력이면 같은 글(머리 줄 �
   assert.equal(w1.proposal, w2.proposal)
 })
 
-test('개인 approve: 승인한 해시로 save = 들어감(기록 + 조각 한 덩이 · put) · 측정 줄 칸 · 바로 넣기 안 부름', async () => {
+test('개인 approve: 승인한 해시로 save = 들어감(기록 + 항목 글 한 덩이 · put) · 측정 줄 칸 · 바로 넣기 안 부름', async () => {
   const sec = await canary()
   const p = await call('propose', input(sec.base))
   assert.deepEqual(p.errors, [], JSON.stringify(p.errors))

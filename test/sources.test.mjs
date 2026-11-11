@@ -107,11 +107,11 @@ test('대상 제한 · 자격 든 주소는 비밀로', async () => {
 })
 
 test('표는 kmd 만: 세션은 표를 못 고치고, 글을 고쳐도 표는 그대로 · MCP section 에 원천 · 확인 시각', async () => {
-  // 팀 저장 문(S4 · P11) — 표를 고친 조각은 입력 오류(아무것도 쓰지 않는다) · 이미 있는 항목은 base 를 같이
+  // 팀 저장 문(S4 · P11) — 표를 고친 항목 글은 입력 오류(아무것도 쓰지 않는다) · 이미 있는 항목은 base 를 같이
   const before = doc('배포절차')
   const base = sha16(sectionOf(await s.hub.get('dpms'), 'term:꾸러미 판').sec.body)
   const fake = await s.hub.save(ADMIN, 'dpms', { record: { title: 'x', body: 'y' }, sections: [{ coord: 'term:꾸러미 판', base, content: '<!-- baseline: src="가짜" rule=deps asof="2026-01-01" -->\n| a |\n|---|\n<!-- /baseline -->' }] }).then(() => null, (e) => e)
-  assert.equal(fake?.code, 'E_INPUT', '표를 고친 조각은 아무것도 쓰지 않는 입력 오류(넣지 못함은 없다 · P11)')
+  assert.equal(fake?.code, 'E_INPUT', '표를 고친 항목 글은 아무것도 쓰지 않는 입력 오류(넣지 못함은 없다 · P11)')
   assert.equal(doc('배포절차'), before, '문서는 그대로')
   const ok = await s.hub.save(ADMIN, 'dpms', { record: { title: '꾸러미 판: 설명 고침', body: '설명만' }, sections: [{ coord: 'term:꾸러미 판', base, content: '배포 전에 운영 서버의 판이 아래 표와 같은지 본다.' }] })
   assert.deepEqual(ok.docs, ['docs/배포절차.md'], JSON.stringify(ok.held))

@@ -9,11 +9,11 @@
 //   대상   git 은 bare · protocol https · ssh 만(ext:: · file:// 거절 · 이 PC 폴더는 허락된 원천 루트 안만) · 서브모듈 끔
 //          폴더는 허락된 원천 루트 안만(팀) · <data> · 지식 폴더 · 백업 주소 거절 · 숨김 · .git · node_modules 는 읽지 않음 · 1MB
 //
-// 원천 실행기는 판정하지 않고 대기열에 세우지 않고 블록 밖 글 · 표지 · 다른 이름을 바꾸지 않는다.
+// 원천 실행기는 판정하지 않고 대기열에 세우지 않고 블록 밖 글 · 표지 · 별칭을 바꾸지 않는다.
 // LLM 은 스스로 부르지 않는다 — 들어온 것(문서 폴더의 파일 · 커밋 · 뜻 갱신)은 hub 가 넘긴 intake(item) 하나로 넘긴다(S7 · 설계 4-5):
 //   item = { kind: 'file', rel, data } | { kind: 'commit', info, diffs, raw } → { state: 'queued' | 'put' | 'rule' | 'held' | 'same' | 'fail' | 'skip' | 'record', recId?, job?, why?, note? }
 //   rule — approve 모드 지식에서 규칙 길로 들어감(Claude 에 보내지 않음 · 하루 상한 · 저장 승인 P6) · held 는 held 모드 지식만(P11 까지)
-//   팀은 들이기 일감(팀 일꾼의 claude -p 한 번 → 기록 + 조각 저장 한 번) · 개인 프로그램은 지금 길(파일 넣기 · 커밋 분석 → 기록 · 저장 즉시 넣기)
+//   팀은 들이기 일감(팀 일꾼의 claude -p 한 번 → 기록 + 항목 글 저장 한 번) · 개인 프로그램은 지금 길(파일 넣기 · 커밋 분석 → 기록 · 저장 즉시 넣기)
 //   표 블록 저장(runTables · runDb)은 save 로 그대로(이미 기록 + 표 한 번에)
 
 import fs from 'node:fs/promises'
@@ -257,7 +257,7 @@ const docPath = (doc) => `docs/${String(doc).replace(/^docs\/|\.md$/g, '')}.md`
 export async function planRun(k, src, items, { asof, first = false, prev = [] }) {
   const targets = targetsOf(src, items)
   const changed = []
-  // 항목 키는 늘 `docs/문서.md` 꼴 — 자리 장부가 선 뒤에는 doc 이 `docs/….md` 로 와서, 꼴이 다르면 모든 항목이 「사라짐」 으로 셌다
+  // 항목 키는 늘 `docs/문서.md` 꼴 — 문서 장부가 선 뒤에는 doc 이 `docs/….md` 로 와서, 꼴이 다르면 모든 항목이 「사라짐」 으로 셌다
   const keyOf = (doc, heading) => `${docPath(doc)}\n${heading}`
   const now = new Set(targets.map((t) => keyOf(t.doc, t.heading)))
   prev = prev.map((key) => { const i = key.indexOf('\n'); return i < 0 ? key : keyOf(key.slice(0, i), key.slice(i + 1)) })
@@ -477,7 +477,7 @@ export async function runSource(k, src, opt) {
 }
 
 // DB — 카탈로그를 읽어 테이블마다 지문 · 바뀐 테이블만 「바뀐 것」 으로 센다 · 표는 테이블마다 하나(테이블 정의)
-//   자리 — 이름 장부에 `table:*` 자리가 있으면 그 문서 · 머리 · 없으면 넣을 문서 아래 「테이블 — 설명」 머리
+//   자리 — 항목 장부에 `table:*` 자리가 있으면 그 문서 · 머리 · 없으면 넣을 문서 아래 「테이블 — 설명」 머리
 //   계정 — 가리지 않는다(세션이 읽기 전용) · 비밀번호는 비밀에서
 async function runDb(k, src, { dataDir, save, first = false, force = false, full = false, onStage = async () => {}, line = () => {} }) {
   const st = await readState(dataDir, k.id)
@@ -498,7 +498,7 @@ async function runDb(k, src, { dataDir, save, first = false, force = false, full
     line('ok', `테이블 ${tables.size} · 바뀐 테이블 ${n}`)
     await onStage(1)
     const ruleSig = JSON.stringify(src.rules)
-    // 테이블 이름 — 이름 장부에 없는 `table:<테이블>` 은 이번에 세운다(요구 v0.2 R7 · 예전에 들어와 이름이 빠진 지식도 다음 확인 때 채운다)
+    // 테이블 항목 — 항목 장부에 없는 `table:<테이블>` 은 이번에 세운다(요구 v0.2 R7 · 예전에 들어와 장부에 빠진 지식도 다음 확인 때 채운다)
     const into = src.rules[0]?.into?.doc || '테이블 정의'
     const headOf = (t) => { const loc = locate(k.registry, `table:${t.name}`); return loc ? { doc: loc.doc, heading: loc.heading } : { doc: into, heading: t.comment ? `${t.name}: ${t.comment}` : t.name } }
     const newNames = [...tables.values()].filter((t) => !k.vocab.coords.has(`table:${t.name}`) || !locate(k.registry, `table:${t.name}`)).map((t) => ({ coord: `table:${t.name}`, label: t.comment ? `${t.name}: ${t.comment}` : t.name, aliases: t.comment ? [t.comment] : [], ...headOf(t) }))
@@ -523,10 +523,10 @@ async function runDb(k, src, { dataDir, save, first = false, force = false, full
       const part = plan.changed.slice(i, i + 200)
       await save({ record: { title: `가져옴: ${src.name} · 바뀐 테이블 ${part.length}`, body: [`바뀐 테이블 ${n}: ${[...changes.added.map((x) => x + '(새로)'), ...changes.changed, ...changes.removed.map((x) => x + '(없어짐)')].slice(0, 30).join(' · ')}${n > 30 ? ' …' : ''}`, '', ...part.map((c) => `- ${c.doc.replace(/^docs\/|\.md$/g, '')} › ${c.heading}`)].join('\n'), tags: ['sources'] }, sections: part.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) })
     }
-    // 이름은 표가 들어간 뒤 — 자리 장부가 그 항목을 가리킨다(항목으로 보기에서 「테이블」 로 선다)
+    // 장부에는 표가 들어간 뒤 올린다 — 문서 장부가 그 머리를 가리킨다(항목으로 보기에서 「테이블」 로 선다)
     for (let i = 0; i < newNames.length; i += 500) {
       const part = newNames.slice(i, i + 500)
-      await save({ record: { title: `이름 세움: ${src.name} · 테이블 ${part.length}`, body: `테이블 이름을 이름 장부 · 자리 장부에 세웠다: ${part.slice(0, 20).map((x) => x.coord.slice(6)).join(' · ')}${part.length > 20 ? ' …' : ''}`, tags: ['sources'] }, names: part })
+      await save({ record: { title: `항목 세움: ${src.name} · 테이블 ${part.length}`, body: `테이블을 항목 장부 · 문서 장부에 세웠다: ${part.slice(0, 20).map((x) => x.coord.slice(6)).join(' · ')}${part.length > 20 ? ' …' : ''}`, tags: ['sources'] }, names: part })
     }
     await onStage(3)
     await writeLedger(dataDir, k.id, src.name, { v: 1, files, out: {}, rules: ruleSig })
@@ -575,7 +575,7 @@ async function runDocs(k, src, { dataDir, first = false, force = false, full = f
       return { state: 'stopped', n: 0, files: n, ...s0.stopped }
     }
     await onStage(2)
-    // 파일마다 intake 하나(S7) — 팀은 들이기 일감(팀 일꾼이 기록 + 조각을 저장 한 번에) · 이 PC 는 파일 넣기 길(Claude Code · 저장 즉시 넣기).
+    // 파일마다 intake 하나(S7) — 팀은 들이기 일감(팀 일꾼이 기록 + 항목 글을 저장 한 번에) · 이 PC 는 파일 넣기 길(Claude Code · 저장 즉시 넣기).
     //   장부는 파일마다(끊겨도 남은 파일은 다음 확인이 다시 본다) · 원본에서 지운 파일은 지식을 바꾸지 않는다(사본 문서를 만들지 않으니 「원본에 없다」 를 달 문서도 없다)
     //   크게 바뀜 브레이크는 사라짐 10% 만 그대로(K7-2) — 새 파일이 많으면 일감이 그만큼 선다(하루 상한은 hub openJob)
     const pre = docPrefix(src)

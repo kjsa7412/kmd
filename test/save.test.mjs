@@ -1,4 +1,4 @@
-// 저장 문 core — 기록 + 조각 + 표지가 한 저장 · 한 커밋(docs/품질개선/KMD_개편_설계.md S3 · core/save.js · core/parts.js · core/knowledge.js)
+// 저장 문 core — 기록 + 항목 글 + 표지가 한 저장 · 한 커밋(docs/품질개선/KMD_개편_설계.md S3 · core/save.js · core/parts.js · core/knowledge.js)
 //   서버(hub.save · S4): 속도 한도 · 같은 저장(md/) · 메모 · 넣지 못함(값 · 표 · 되돌림 잦은 문서) · 바로잡기 자리 · sent/ · 측정 줄 · 이 PC 는 그대로
 
 import { test, before, after } from 'node:test'
@@ -128,13 +128,13 @@ test('prepare: 줄 안에서 부르고 결과도 같은 검사 · rename 은 str
   assert.deepEqual(r, { same: true, id: '2026-1103-같은' })
   assert.equal(await head(), h0)
   assert.equal(await status(), '')
-  // prepare 가 걸린 조각(held)을 실으면 아무것도 쓰지 않는 입력 오류(넣지 못함은 없다 · P11)
+  // prepare 가 걸린 항목(held)을 실으면 아무것도 쓰지 않는 입력 오류(넣지 못함은 없다 · P11)
   const sec = { doc: DOC, heading: '준비', content: '배포 창은 화 · 목 14:00 ~ 17:00 이다. DB 커넥션 풀은 50 으로 둔다.' }
   const bad = await save(dir, { record: { title: '준비 DB 풀 50', body: 'DB 커넥션 풀을 50 으로.' } }, { ...LEE, prepare: async () => ({ sections: [sec], held: [{ doc: DOC, heading: '롤백', code: 'values', why: '기록의 값이 글에 없다: 50' }] }) }).then(() => null, (e) => e)
   assert.equal(bad?.code, 'E_INPUT')
   assert.deepEqual(bad.details.fail.map((x) => x.code), ['values'])
   assert.equal(await head(), h0)
-  // prepare 가 고른 조각이 그대로 저장된다
+  // prepare 가 고른 항목 글이 그대로 저장된다
   const p = await save(dir, { record: { title: '준비 DB 풀 50', body: 'DB 커넥션 풀을 50 으로.' } }, { ...LEE, marks: true, prepare: async () => ({ sections: [sec], proposals: [{ coord: 'x', ok: true }] }) })
   assert.equal(p.put, 1)
   assert.equal(p.held, undefined)

@@ -1,9 +1,9 @@
 // 지식 생성 가드 — 지식이 들어오는 모든 길(세션 · 화면 · 받기 · 가져오기 · 가져올 곳 · 감시 · 정리 …)이 이 하나를 부른다.
 // 팀 서버와 개인 프로그램이 같은 판정을 쓴다. 판정만 하고 파일은 쓰지 않는다(docs/kmd_문서_작성기준.md 9절).
 //
-//   G1 모양  — 이름은 `종류:값`. 새 이름은 종류가 영문 소문자 또는 한글 · 값에 빈칸 · 제어 글자가 없고 60자 안
-//   G2 등재  — 기록이 건드린 이름은 이름 장부에 있거나 같은 묶음에서 세운 것. 폐기된 이름은 이어 둔 새 이름으로
-//   G3 자리  — 이름도 자리(at/ · ingest/)도 없는 기록은 까닭(touchesEmpty)이 있어야 한다
+//   G1 모양  — 항목은 장부에 `종류:값` 으로 적는다. 새 항목은 종류가 영문 소문자 또는 한글 · 값에 빈칸 · 제어 글자가 없고 60자 안
+//   G2 등재  — 기록이 건드린 항목은 항목 장부에 있거나 같은 묶음에서 세운 것. 폐기된 항목은 이어 둔 새 항목으로
+//   G3 자리  — 건드린 항목도 자리(at/ · ingest/)도 없는 기록은 까닭(touchesEmpty)이 있어야 한다
 //   G4 새 문서 — 갈래 장부(`_forms.md`)의 갈래 · 폴더 · 머리 꼴로만. 장부가 없으면 기본 갈래(회의록 · 장애 대응 · 보고서)와 파일 이름 조각 검사
 //
 // 길은 둘이다.
@@ -21,25 +21,25 @@ export const EMPTY_MAX = 200
 const norm = (s) => nfc(String(s ?? '')).toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, '')
 const valueOf = (c) => c.slice(c.indexOf(':') + 1)
 
-// 새 이름 모양 — 맞으면 null · 아니면 까닭
+// 새 항목 모양(`종류:값`) — 맞으면 null · 아니면 까닭
 export function newNameWhy(coord) {
   const c = nfc(String(coord ?? '').trim())
   const i = c.indexOf(':')
-  if (i < 1) return '이름은 「종류:값」 이다'
+  if (i < 1) return '항목은 「종류:값」 으로 적는다'
   const type = c.slice(0, i)
   const value = c.slice(i + 1)
   if (!TYPE_RE.test(type)) return `종류 「${type}」 는 영문 소문자 또는 한글로 시작하는 24자 안의 낱말이다`
-  if (BAD_NAMES.has(type) || BAD_NAMES.has(value)) return `「${c}」 는 쓸 수 없는 이름이다`
-  if (/\s/.test(value)) return `값 「${value}」 에 빈칸이 있다. 이름은 문장이 아니라 열쇠다: 붙여 쓰거나(헬스체크) _ 로 잇는다. 설명은 보이는 이름(label)에 쓴다`
+  if (BAD_NAMES.has(type) || BAD_NAMES.has(value)) return `「${c}」 는 항목 값으로 쓸 수 없는 말이다`
+  if (/\s/.test(value)) return `값 「${value}」 에 빈칸이 있다. 항목 값은 문장이 아니라 열쇠다: 붙여 쓰거나(헬스체크) _ 로 잇는다. 설명은 라벨(label)에 쓴다`
   if (!NEW_VALUE_RE.test(value)) return `값 「${value.slice(0, 80)}」 은 60자 안 · 빈칸 · \` · | 없는 글이다`
   if (value.includes('..')) return `값에 .. 을 쓰지 않는다`
   return null
 }
 
-// 폐기 줄의 새 이름 — 「2026-10-19 → 종류:값: 까닭」(옛 꼴 「→ 종류:값 — 까닭」) · 값 끝의 쌍점은 까닭 앞 쌍점이다
+// 폐기 줄의 새 항목 — 「2026-10-19 → 종류:값: 까닭」(옛 꼴 「→ 종류:값 — 까닭」) · 값 끝의 쌍점은 까닭 앞 쌍점이다
 const nextOf = (dep) => String(dep || '').match(/→\s*([^\s`]+:[^\s`]+)/)?.[1]?.replace(/:+$/, '') || null
 
-// 이름 키 — 값 · 보이는 이름 · 다른 이름(살아 있는 이름만) → 이름들
+// 찾는 키 — 값 · 라벨 · 별칭(살아 있는 항목만) → 항목들
 const keyCache = new WeakMap()
 function keysOf(vocab) {
   let m = keyCache.get(vocab)
@@ -58,7 +58,7 @@ function keysOf(vocab) {
   return m
 }
 
-// 이름 하나 풀기 — { coord, how: same | deprecated | alias | null }
+// 항목 하나 풀기 — { coord, how: same | deprecated | alias | null }
 export function resolveName(vocab, coord) {
   let c = nfc(String(coord ?? '').trim())
   let v = vocab.coords.get(c)
@@ -78,7 +78,7 @@ export function resolveName(vocab, coord) {
   return { coord: null, how: null }
 }
 
-// 가까운 이름 — 글 속 낱말이 키에 들거나 키가 낱말에 드는 것 · 많이 겹친 순
+// 가까운 항목 — 글 속 낱말이 키에 들거나 키가 낱말에 드는 것 · 많이 겹친 순
 export function nearNames(vocab, text, n = 3) {
   const words = nfc(String(text ?? '')).split(/[\s:_\-·,./()]+/).map(norm).filter((w) => w.length >= 2)
   if (!words.length) return []
@@ -92,10 +92,10 @@ export function nearNames(vocab, text, n = 3) {
   return [...score].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, n).map(([c]) => c)
 }
 
-// ── 저장 제안(저장 승인 설계 P-D10 · Q8) — 새 이름 · 문서 · 머리 · 갈래 · 종류가 있는 것과 너무 비슷한가 ──
+// ── 저장 제안(저장 승인 설계 P-D10 · Q8) — 새 항목 · 문서 · 머리 · 갈래 · 종류가 있는 것과 너무 비슷한가 ──
 //   정규화(빈칸 · 문장 부호 · 대소문자 뺌 · NFC)가 같으면 same(propose 오류 · distinct 로 넘음), 그 밖에 한쪽이 다른 쪽을 품고
 //   짧은 쪽이 2자 이상 · 긴 쪽의 NEAR_RATIO 이상이면 similar(경고). 편집 거리는 쓰지 않는다(한글 두세 글자 이름에서 거의 다 걸린다).
-//   NEAR_RATIO 0.75 — P3 에서 실제 이름 장부(DPMS 사본 392 · GDI 사본 1423 · 시험 지식 25)로 한 이름씩 빼고 다시 세운다고 쳐서 잼:
+//   NEAR_RATIO 0.75 — P3 에서 실제 항목 장부(DPMS 사본 392 · GDI 사본 1423 · 시험 지식 25)로 한 항목씩 빼고 다시 세운다고 쳐서 잼:
 //   0.5 면 DPMS 49% · GDI 39% 가 경고(승인 피로) · 0.75 면 9.2% · 15.8%(dp_alrm ~ dp_alrm_cd · 표시설정 ~ dp_disp_setu 같은 쌍).
 //   근거 · 문턱별 표는 docs/품질개선/KMD_저장승인_설계.md 8절 Q8 줄 뒤 「NEAR_RATIO 잼」
 export const NEAR_RATIO = 0.75
@@ -114,7 +114,7 @@ export function nearOf(cands, name) {
   }
   return { same, similar }
 }
-// 새 이름의 가까운 이름 — 값 · 보이는 이름을 장부의 살아 있는 이름 키(값 · 보이는 이름 · 다른 이름)에 대어 이름(coord)으로
+// 새 항목의 가까운 항목 — 값 · 라벨을 장부의 살아 있는 항목의 키(값 · 라벨 · 별칭)에 대어 항목(coord)으로
 export function nameNear(vocab, coord, label = '') {
   const c = nfc(String(coord ?? '').trim())
   const same = new Set()
@@ -149,7 +149,7 @@ export function proposeInputWhy(input) {
   for (const f of input.forms || []) {
     if (!plainObj(f) || badKeys(f) || Object.keys(f).some((y) => !['name', 'aliases', 'folder', 'kind', 'pattern', 'form'].includes(y))) return 'forms 는 { name, aliases, folder, kind, pattern, form } 의 목록이다'
     if (!ONE_LINE(f.name, 60) || BAD_NAMES.has(f.name.trim())) return '갈래 이름(name)은 한 줄 60자 안이다'
-    if (!strs(f.aliases, 60)) return '갈래의 다른 이름(aliases)은 20개 안 · 한 줄 60자 안이다'
+    if (!strs(f.aliases, 60)) return '갈래의 별칭(aliases)은 20개 안 · 한 줄 60자 안이다'
     for (const y of ['folder', 'kind', 'pattern', 'form']) if (f[y] != null && !(typeof f[y] === 'string' && f[y].length <= 120 && !/[\r\n\u0000]/.test(f[y]))) return `갈래의 ${y} 는 한 줄 120자 안이다`
   }
   for (const x of input.kinds || []) {
@@ -159,19 +159,19 @@ export function proposeInputWhy(input) {
   }
   for (const n of input.names || []) {
     if (!plainObj(n) || badKeys(n) || Object.keys(n).some((y) => !['coord', 'label', 'aliases', 'doc', 'heading'].includes(y))) return 'names 는 { coord, label, aliases, doc, heading } 의 목록이다'
-    if (!ONE_LINE(n.coord, 200) || !ONE_LINE(n.label, 200)) return '이름(coord) · 보이는 이름(label)은 한 줄 200자 안이다'
-    if (!strs(n.aliases, 200)) return '이름의 다른 이름(aliases)은 20개 안 · 한 줄 200자 안이다'
-    for (const y of ['doc', 'heading']) if (n[y] != null && !ONE_LINE(n[y], 300)) return `이름의 ${y} 는 한 줄 300자 안이다`
+    if (!ONE_LINE(n.coord, 200) || !ONE_LINE(n.label, 200)) return '항목(coord) · 라벨(label)은 한 줄 200자 안이다'
+    if (!strs(n.aliases, 200)) return '항목의 별칭(aliases)은 20개 안 · 한 줄 200자 안이다'
+    for (const y of ['doc', 'heading']) if (n[y] != null && !ONE_LINE(n[y], 300)) return `항목의 ${y} 는 한 줄 300자 안이다`
   }
   return null
 }
 
-// 자리가 있는 기록 — 이름이 없어도 들어갈 곳이 정해진 것(화면의 항목 고침 at/ · 넣은 파일 ingest/) · kmd 의 일(이력 · 정리)
+// 자리가 있는 기록 — 건드린 항목이 없어도 들어갈 곳이 정해진 것(화면의 항목 고침 at/ · 넣은 파일 ingest/) · kmd 의 일(이력 · 정리)
 export const hasPlace = (rec) => (rec.tags || []).some((t) => /^(at|ingest)\//.test(t)) || isLogRecord(rec.tags) || (rec.reflects || []).length > 0 || (rec.curates || []).length > 0 || (rec.reopens || []).length > 0
 
 // 기록 하나 — touches · touchesEmpty 를 판정한다
-//   vocab    — 이 저장 뒤의 이름 장부(같은 묶음에서 세운 이름이 들어 있다)
-//   proposed — 세울 이름으로 실어 둔 것(일반 자리의 names · 정리 때 관리자가 세운다) — 장부 밖이지만 거절하지 않는다
+//   vocab    — 이 저장 뒤의 항목 장부(같은 묶음에서 세운 항목이 들어 있다)
+//   proposed — 세울 항목으로 실어 둔 것(일반 자리의 names · 정리 때 관리자가 세운다) — 장부 밖이지만 거절하지 않는다
 //   why      — hold 에서 까닭이 없을 때 kmd 가 다는 까닭
 export function guardRecord(vocab, rec, { mode = 'strict', proposed = new Set(), why = null } = {}) {
   const errors = []
@@ -194,7 +194,7 @@ export function guardRecord(vocab, rec, { mode = 'strict', proposed = new Set(),
     }
     if (r.how === 'deprecated' || r.how === 'alias') {
       if (mode === 'strict') {
-        errors.push({ code: 'E_INPUT', name: t, to: r.coord, message: r.how === 'deprecated' ? `「${t}」 는 폐기된 이름이다. 이어 둔 「${r.coord}」 를 쓴다` : `「${t}」 는 이름 장부에 없다. 같은 말의 이름 「${r.coord}」 를 쓴다` })
+        errors.push({ code: 'E_INPUT', name: t, to: r.coord, message: r.how === 'deprecated' ? `「${t}」 는 폐기된 항목이다. 이어 둔 「${r.coord}」 를 쓴다` : `「${t}」 는 항목 장부에 없다. 같은 말의 항목 「${r.coord}」 를 쓴다` })
         touches.push(t)
       } else {
         fixes.push({ from: t, to: r.coord, how: r.how })
@@ -202,11 +202,11 @@ export function guardRecord(vocab, rec, { mode = 'strict', proposed = new Set(),
       }
       continue
     }
-    // 장부에 없는 이름
+    // 장부에 없는 항목
     if (mode === 'strict') {
       const near = nearNames(vocab, valueOf(t))
       const bad = newNameWhy(t)
-      errors.push({ code: 'E_INPUT', name: t, near, message: `「${t}」 는 이름 장부에 없다.${near.length ? ` 가까운 이름: ${near.join(' · ')}.` : ''} match 로 찾은 이름을 쓰거나, 새 이름이면 names 로 같이 세운다${bad ? ` (${bad})` : ''}` })
+      errors.push({ code: 'E_INPUT', name: t, near, message: `「${t}」 는 항목 장부에 없다.${near.length ? ` 가까운 항목: ${near.join(' · ')}.` : ''} match 로 찾은 항목을 쓰거나, 새 항목이면 names 로 같이 세운다${bad ? ` (${bad})` : ''}` })
       touches.push(t)
     } else {
       touches.push(t)
@@ -220,13 +220,13 @@ export function guardRecord(vocab, rec, { mode = 'strict', proposed = new Set(),
     empty = null
   }
   if (!uniq.length && !empty && !hasPlace(rec)) {
-    if (mode === 'strict') errors.push({ code: 'E_INPUT', message: '건드린 이름(touches)이 없다. match 로 그 항목의 이름을 찾아 단다 · 새 이름이면 names 로 같이 세운다 · 정말 이름이 없으면 touchesEmpty 에 까닭 한 줄을 적는다(이름 없는 기록은 어디로도 닿지 않는다)' })
+    if (mode === 'strict') errors.push({ code: 'E_INPUT', message: '건드린 항목(touches)이 없다. match 로 그 항목을 찾아 단다 · 새 항목이면 names 로 같이 세운다 · 정말 이을 항목이 없으면 touchesEmpty 에 까닭 한 줄을 적는다(항목 없는 기록은 어디로도 닿지 않는다)' })
     else empty = why || '까닭을 적지 않았다'
   }
   return { touches: uniq, touchesEmpty: uniq.length ? null : empty, errors, fixes, outside }
 }
 
-// 세울 이름 — 장부에 없던 이름만 모양을 본다(있던 이름은 옛 모양 그대로 둔다)
+// 세울 항목 — 장부에 없던 항목만 모양을 본다(있던 항목은 옛 모양 그대로 둔다)
 export function guardNames(vocab, names) {
   const errors = []
   const warnings = []
@@ -238,19 +238,19 @@ export function guardNames(vocab, names) {
       continue
     }
     const r = resolveName(vocab, n.coord)
-    if (r.how === 'alias') warnings.push(`「${n.coord}」 의 값은 이미 「${r.coord}」 의 이름 · 다른 이름이다. 같은 것이면 그 이름을 쓴다`)
+    if (r.how === 'alias') warnings.push(`「${n.coord}」 의 값은 이미 「${r.coord}」 를 가리키는 말(값 · 라벨 · 별칭)이다. 같은 것이면 그 항목을 쓴다`)
   }
   return { errors, warnings }
 }
 
 // ── 갈래 장부(`_forms.md`) — 새 문서가 설 수 있는 갈래 ──
 //
-//   | 갈래 | 다른 이름 | 폴더 | 종류 | 이름 | 서식 |
+//   | 갈래 | 별칭 | 폴더 | 종류 | 항목 | 서식 |   (옛 표 머리 「다른 이름」 · 「이름」 도 읽는다: 칸 차례로 읽는다)
 //   |---|---|---|---|---|---|
 //   | 회의록 | 회의, 미팅, 통화, 면담, 전화 | 1.2_사업관리 | 사건 | — | 작업기록 |
 //
-//   종류: 대상(「지금」 을 적는 문서) · 서술 · 사건(머리가 「YYYY-MM-DD 무엇」) · 대장(항목 하나가 이름 하나)
-//   이름: 그 문서의 항목 이름 패턴(`이슈:*`) — 있으면 새 문서를 세울 때 자리 장부 행을 같이 세운다
+//   종류: 대상(「지금」 을 적는 문서) · 서술 · 사건(머리가 「YYYY-MM-DD 무엇」) · 대장(`##` 하나가 장부 항목 하나)
+//   항목: 그 문서의 항목 패턴(`이슈:*`) — 있으면 새 문서를 세울 때 문서 장부 행을 같이 세운다
 export const FORM_KINDS = ['대상', '서술', '사건', '대장']
 export const DEFAULT_FORMS = [
   { name: '회의록', aliases: ['회의', '미팅', '통화', '전화', '면담', 'minutes', 'meeting'], folder: '', kind: '사건', pattern: null, form: '작업기록' },
@@ -287,7 +287,7 @@ export const formsOf = (text) => {
 // 파일 이름 조각 — 날짜 · 판 · 최종 · 사본 · 번호 꼬리
 const FILEISH = [/(20\d\d)[-._ ]?(0[1-9]|1[0-2])[-._ ]?(0[1-9]|[12]\d|3[01])/, /(^|[\s_-])[vV]\d+(\.\d+)*($|[\s_-])/, /최종|사본|final|copy|\(\d+\)/i, /\.(docx?|hwpx?|pdf|xlsx?|pptx?|txt)$/i]
 
-// 갈래 고르기 — 문서 이름(경로의 마지막)이 갈래 이름이거나 다른 이름을 품으면 그 갈래
+// 갈래 고르기 — 문서 이름(경로의 마지막)이 갈래 이름이거나 별칭을 품으면 그 갈래
 export function formFor(forms, docName) {
   const n = norm(docName)
   if (!n) return null
@@ -335,7 +335,7 @@ export function guardNewDoc(forms, docRel, headings = [], { intake = false } = {
   return { errors, form: f || null, ...(f?.pattern ? { registryRow: { pattern: f.pattern, doc: `docs/${p}.md` } } : {}) }
 }
 
-// 갈래의 항목 머리 꼴 — 사건은 「YYYY-MM-DD 무엇」 · 이름 패턴이 있는 대장 · 대상은 「값: 설명」 또는 「값」
+// 갈래의 항목 머리 꼴 — 사건은 「YYYY-MM-DD 무엇」 · 항목 패턴이 있는 대장 · 대상은 「값: 설명」 또는 「값」
 export function formHeadRule(f) {
   if (f.kind === '사건') return '머리는 「YYYY-MM-DD 무엇」 이다'
   if (f.pattern) return `머리는 「값: 설명」 이다(값 = ${f.pattern} 의 값 · 빈칸 없이 · 줄표 「—」 를 쓰지 않는다)`
@@ -396,7 +396,7 @@ export function audit(k, { sectionOf, coordsOfSection }) {
     const xs = w.touches.filter((c) => !k.vocab.coords.has(c))
     if (xs.length) outside.push({ id: w.id, title: w.title, date: w.date, names: xs })
   }
-  // 폐기된 이름을 단 기록 — 아직 안 넣은 기록(옛 pend)만 셌다 · 저장 승인 뒤에는 저장 문이 폐기된 이름을 받지 않는다(P12)
+  // 폐기된 항목을 단 기록 — 아직 안 넣은 기록(옛 pend)만 셌다 · 저장 승인 뒤에는 저장 문이 폐기된 항목을 받지 않는다(P12)
   const deprecatedUse = []
   const lost = []
   for (const [c] of live) {
@@ -406,8 +406,8 @@ export function audit(k, { sectionOf, coordsOfSection }) {
   const noName = []
   for (const d of k.docs) for (const s of d.sections) if (s.h && !coordsOfSection(k, d, s.h).length) noName.push({ doc: d.id, heading: s.h })
   // 같은 말 — 둘로 가른다
-  //   aliasClash(고칠 것): 다른 이름(aliases)이 다른 이름의 값 · 보이는 이름 · 다른 이름과 같다 — 그 말로 찾으면 정본이 갈린다
-  //   sameLabel(알림): 값 · 보이는 이름만 같다 — 문서마다 있는 「변경 이력」 · 층이 다른 「경보 코드」 처럼 서로 다른 항목이다(화면은 종류:값으로 가른다)
+  //   aliasClash(고칠 것): 별칭(aliases)이 다른 항목의 값 · 라벨 · 별칭과 같다 — 그 말로 찾으면 정본이 갈린다
+  //   sameLabel(알림): 값 · 라벨만 같다 — 문서마다 있는 「변경 이력」 · 층이 다른 「경보 코드」 처럼 서로 다른 항목이다(화면은 종류:값으로 가른다)
   const own = new Map()
   const addKey = (m, n, c) => { if (n.length < 2) return; if (!m.has(n)) m.set(n, new Set()); m.get(n).add(c) }
   for (const [c, v] of live) for (const a of [valueOf(c), v.label]) addKey(own, norm(a), c)

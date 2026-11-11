@@ -2,7 +2,7 @@
 //
 // 개인 프로그램의 옛 「저장 즉시 넣기」(재료 material · 초안 · 넣기 planSave · DRAFT_SCHEMA · TOUCH_SCHEMA)는 PC6 에서 걷었다(저장 승인 설계 b22 · b23) —
 // 기록과 문서는 저장 문 한 번에 들어간다(사람 채널은 승인한 제안 · 무인 채널은 FIX 고리 → 규칙 길). 남은 것은 규칙 길 하나:
-//   ruleSections(갈래 · 주제 문서의 항목 조각) · ruleText(문서 꼴을 지나는 원문) · ingestRule(규칙 길 save 입력)
+//   ruleSections(갈래 · 주제 문서의 항목 글) · ruleText(문서 꼴을 지나는 원문) · ingestRule(규칙 길 save 입력)
 // 부르는 곳: server/hub.js(rulePut · 정정 · 개인 들이기).
 
 import { formFor, DEFAULT_FORMS } from './guard.js'

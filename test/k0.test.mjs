@@ -71,14 +71,14 @@ test('MCP: 도구 · brief · match · section', async () => {
   assert.deepEqual([one.kit, one.you.memos, one.you.held, one.you.recent], [TEAM_KIT_REV, undefined, undefined, []])
   assert.equal(one.saveMode, 'approve', '모든 팀 지식은 승인 저장(P11)')
   const m = (await tool('match', { q: '상태 점검' })).structuredContent
-  assert.equal(m.found[0].coord, 'proc:헬스 체크', '다른 이름으로도 찾는다')
+  assert.equal(m.found[0].coord, 'proc:헬스 체크', '별칭으로도 찾는다')
   assert.equal(m.found[0].doc, '배포절차')
   const sec = (await tool('section', { knowledge: 'dpms', coord: 'proc:롤백' })).structuredContent
   assert.match(sec.content, /DB 를 먼저 되돌리고/)
   assert.equal(sec.notYetInDocs, undefined, '안 넣은 기록 칸은 걷었다(P12)')
 })
 
-test('MCP save: 기록 글은 서식 칸으로 · 팀 지식은 검사를 넘은 항목 조각이 기록과 한 묶음으로 문서에(지식관리자도 같은 저장 문) · 섞인 자리는 넣지 못함 · 나쁜 입력은 아무것도 안 쓴다', async () => {
+test('MCP save: 기록 글은 서식 칸으로 · 팀 지식은 검사를 넘은 항목 글이 기록과 한 묶음으로 문서에(지식관리자도 같은 저장 문) · 섞인 자리는 넣지 못함 · 나쁜 입력은 아무것도 안 쓴다', async () => {
   // 이미 있는 항목을 고치려면 section 이 준 base 를 같이(그사이 남이 고친 글을 덮지 않게)
   const base = (await tool('section', { knowledge: 'dpms', coord: 'proc:카나리' })).structuredContent.base
   const inp = {
@@ -93,7 +93,7 @@ test('MCP save: 기록 글은 서식 칸으로 · 팀 지식은 검사를 넘은
   assert.ok(!r.isError, JSON.stringify(r.structuredContent))
   const out = r.structuredContent
   const id = out.saved
-  assert.deepEqual(out.docs, ['배포절차'], '검사를 넘은 조각은 그 순간 문서에')
+  assert.deepEqual(out.docs, ['배포절차'], '검사를 넘은 항목 글은 그 순간 문서에')
   assert.match(out.note, /저장했다\. 기록 1 · 넣음 1/)
   assert.equal(out.nokit, undefined)
   const dir = path.join(tmp, 'kn', 'dpms')

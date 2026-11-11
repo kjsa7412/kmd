@@ -1,6 +1,6 @@
 // E9 필수 — 되살리기 · PC 운영.
 //
-// 재난 시험(지식 폴더 · 살림 자리를 지우고 백업에서 되살려 첨부 · 이름 장부 · `_members.md` · 한글 경로 · fsck · 트리 해시 · 다시 백업) ·
+// 재난 시험(지식 폴더 · 살림 자리를 지우고 백업에서 되살려 첨부 · 항목 장부 · `_members.md` · 한글 경로 · fsck · 트리 해시 · 다시 백업) ·
 // 갈라진 백업 이어 쓰기(지금 머리는 가지로) · auth.log 다시 적용 · GitLab 봇으로 백업 자리 저절로 · 깨진 판으로 올림 → 앞 판 그대로.
 
 import { test, before, after } from 'node:test'
@@ -43,7 +43,7 @@ function serve(root, extra = {}) {
   return startServer({ root, port: 0, log: process.env.KMD_TEST_LOG ? (...a) => console.error('[srv]', ...a) : () => {}, scryptN: 1 << 15 })
 }
 
-test('재난 시험: 지우고 백업에서 되살린다(첨부 · 이름 장부 · 사람 · 한글 경로 · fsck · 트리 해시) · 다시 백업된다', async () => {
+test('재난 시험: 지우고 백업에서 되살린다(첨부 · 항목 장부 · 사람 · 한글 경로 · fsck · 트리 해시) · 다시 백업된다', async () => {
   const root = path.join(tmp, 'home1')
   copyDir(path.join(HERE, 'fixture', 'kmd'), root)
   const kd = path.join(root, 'dpms')

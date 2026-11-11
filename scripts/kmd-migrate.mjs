@@ -3,7 +3,7 @@
 //   기능(화면 · 길)이 아니다. 서버를 거치지 않고 core 의 저장(core/save.js)과 검사(core/gate.js)를 지식 폴더에 바로 건다.
 //
 //   node scripts/kmd-migrate.mjs scan  <지식 폴더> [--doc docs/x.md] [--json]          진단: 문서마다 항목 · 기록 없는 항목 · 큰 항목 · 날짜 줄 · 같은 글 · 다시 그릴 만한 항목 · 사건 갈래 문서에 빠진 기록
-//   node scripts/kmd-migrate.mjs rec   <지식 폴더> <기록 id> [--json]                         기록 하나: 머리 · 상태 · 이름 · 넣은 곳 · 본문
+//   node scripts/kmd-migrate.mjs rec   <지식 폴더> <기록 id> [--json]                         기록 하나: 머리 · 상태 · 건드린 항목 · 넣은 곳 · 본문
 //   node scripts/kmd-migrate.mjs trail <지식 폴더> <docs/x.md> <머리> [--json] [--full]  항목 하나: 지금 글 · base · 이어진 기록(오래된 순 · 표시) · 넣은 줄
 //   node scripts/kmd-migrate.mjs check <지식 폴더> <input.json>                          마른 검사: 쓰지 않는다 · 값 대조 · 꼴 · 사라지는 표 행 · 문장
 //   node scripts/kmd-migrate.mjs put   <지식 폴더> <input.json> --user <사람> [--allow-drop]  넣기: 줄 안에서 다시 검사 → 기록 + 항목 + git 커밋 한 묶음
@@ -69,7 +69,7 @@ const idOfHref = (href) => {
   }
 }
 
-// 항목 하나에 이어진 기록 — 이름(touches → 장부) · 넣은 것 줄 · 항목 표지 · 참고 줄 · 문서 단위 참고 줄
+// 항목 하나에 이어진 기록 — 건드린 항목(touches → 장부) · 넣은 것 줄 · 항목 표지 · 참고 줄 · 문서 단위 참고 줄
 export function linksOf(k, doc, sec) {
   const ids = new Map()
   const add = (id, how) => {
@@ -193,7 +193,7 @@ async function scan(dir, o) {
 }
 
 // 사건 갈래(회의록 · 장애 대응 · 주간보고 …) 문서에 항목이 없는 사건 기록 — 후보다(이름 · 태그로 고른다 · 사람이 가른다)
-//   후보: 제목 · id · 태그에 갈래 이름이나 다른 이름이 든 기록(옛 표지 · 바로잡힘 · kmd 의 일 뺌)
+//   후보: 제목 · id · 태그에 갈래 이름이나 별칭이 든 기록(옛 표지 · 바로잡힘 · kmd 의 일 뺌)
 //   빠짐: 그 문서 어느 항목에도 이어지지 않았고, 그 문서 항목에 이어진 기록 본문(채우기 기록의 「## 근거」)에 id 가 없다
 export function eventGaps(k) {
   const out = []
@@ -226,7 +226,7 @@ async function rec(dir, id, o) {
   if (!w) throw new Error(`없는 기록: ${id}`)
   const put = parsePut(w.body)
   if (o.json) return console.log(JSON.stringify({ id: w.id, date: w.date, author: w.author, title: w.title, state: w.state || null, tags: w.tags, touches: w.touches, put, body: w.body }, null, 1))
-  console.log(`# ${w.id}\n제목: ${w.title}\n때: ${w.date} · 쓴 사람: ${w.author || '-'} · 상태: ${w.state || 'log'}\n태그: ${w.tags.join(' · ') || '-'}\n이름: ${w.touches.join(' · ') || '-'}${put.length ? `\n넣은 곳: ${put.map((p) => `${p.doc} › ${p.heading}`).join(' / ')}` : ''}\n\n${w.body}`)
+  console.log(`# ${w.id}\n제목: ${w.title}\n때: ${w.date} · 쓴 사람: ${w.author || '-'} · 상태: ${w.state || 'log'}\n태그: ${w.tags.join(' · ') || '-'}\n건드린 항목: ${w.touches.join(' · ') || '-'}${put.length ? `\n넣은 곳: ${put.map((p) => `${p.doc} › ${p.heading}`).join(' / ')}` : ''}\n\n${w.body}`)
 }
 
 async function trail(dir, docPath, heading, o) {
@@ -239,7 +239,7 @@ async function trail(dir, docPath, heading, o) {
   const cut = (b) => (o.full ? b : b.length > 2000 ? `${b.slice(0, 2000)}\n…(${b.length - 2000}자 접음 · --full)` : b)
   const out = { doc: d.path, heading: s.h, base: sha16(s.body), coords: coordsOfSection(k, d, s.h), current: s.body, records: links.map((x) => ({ ...x, body: cut(x.body) })) }
   if (o.json) return console.log(JSON.stringify(out, null, 1))
-  console.log(`# ${d.path} › ${s.h}\nbase: ${out.base}\n이름: ${out.coords.join(' · ') || '(없음)'}\n이어진 기록: ${links.length}(재료 ${sourceOf(links).length})\n\n## 지금 글\n${s.body}\n`)
+  console.log(`# ${d.path} › ${s.h}\nbase: ${out.base}\n장부 항목: ${out.coords.join(' · ') || '(없음)'}\n이어진 기록: ${links.length}(재료 ${sourceOf(links).length})\n\n## 지금 글\n${s.body}\n`)
   for (const x of links) {
     console.log(`\n---\n## ${x.date} · ${x.id} (${x.kind}${x.author ? ` · ${x.author}` : ''})${x.mark.length ? ` [${x.mark.join(' · ')}]` : ''}${x.scope === 'doc' ? ' [문서 단위]' : ''}\n제목: ${x.title}\n이음: ${x.how.join(' · ')}${x.put.length ? `\n넣은 줄: ${x.put.map((p) => (p.isNew ? '새 항목' : `${p.from || '(빈)'} → ${p.to || '(빈)'}`)).join(' / ')}` : ''}\n\n${cut(x.body)}`)
   }
@@ -290,7 +290,7 @@ async function readInput(file) {
   return j
 }
 
-// 조각마다 검사 — gate(꼴 · base · 값 대조) + 사라지는 표 행 · 문장
+// 항목마다 검사 — gate(꼴 · base · 값 대조) + 사라지는 표 행 · 문장
 function inspect(k, input) {
   const spread = input.sections.length > 1
   return input.sections.map((s) => {
@@ -392,7 +392,7 @@ async function put(dir, file, o) {
   if (!o.user) throw new Error('--user <사람> 이 있어야 한다(기록을 쓴 사람 · 그 지식의 지식관리자)')
   const abs = path.resolve(dir)
   const input = await readInput(file)
-  // save 에 넘기는 기록 그 자체 — prepare 가 이름(touches)을 채운다
+  // save 에 넘기는 기록 그 자체 — prepare 가 건드린 항목(touches)을 채운다
   const rec = { ...input.record, tags: [...new Set([...(Array.isArray(input.record.tags) ? input.record.tags : []), 'rebuild'])] }
   let fail = null
   const prepare = async () => {
@@ -404,11 +404,11 @@ async function put(dir, file, o) {
     if (bad.length) fail = { why: '검사에 걸렸다', rs: bad }
     else if (drops.length && !o['allow-drop']) fail = { why: '사라지는 표 행 · 문장이 있다(사람이 본 뒤 --allow-drop)', rs: drops }
     if (fail) return { abort: { same: false, id: null } }
-    // 이름 — 넣는 항목들의 장부 이름(기록이 이 항목들에 이어지게)
+    // 건드린 항목 — 넣는 항목들의 장부 항목(기록이 이 항목들에 이어지게)
     if (!rec.touches?.length) {
       const coords = [...new Set(input.sections.flatMap((s) => { const d = k.byDocPath.get(s.doc); return d ? coordsOfSection(k, d, s.heading) : [] }))]
       if (coords.length) rec.touches = coords
-      else rec.touchesEmpty = rec.touchesEmpty || '다시 그리기: 이 항목에 걸린 이름이 없다'
+      else rec.touchesEmpty = rec.touchesEmpty || '다시 그리기: 이 항목이 장부에 없다'
     }
     return { sections: input.sections.map((s) => ({ doc: s.doc, heading: s.heading, content: s.content, base: s.base, ...(s.new && s.before ? { before: s.before } : {}) })) }
   }

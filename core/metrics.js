@@ -3,7 +3,7 @@
 //   할 일 목록이 아니다 — 「봤음」 장부 · 배지 없음. 로직(프롬프트 · FIX · 규칙 길 · 검사 기준) 개선의 근거다.
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { freshItems } from './parts.js'
+import { freshItems, FRESH_LABEL } from './parts.js'
 
 export const METRIC_DAYS = Object.freeze([7, 14, 30, 90])
 export const METRIC_DEFAULT = 14 // Q15
@@ -78,7 +78,7 @@ export function metricsOf(lines, { works = null, days = METRIC_DEFAULT, now = ne
     R.fresh.n = fr.length
     for (const f of fr) R.fresh.codes[f.kind] = (R.fresh.codes[f.kind] || 0) + 1
     const by = new Map()
-    for (const f of fr) { const e = by.get(f.rec) || { rec: f.rec, at: f.date, ch: '', n: 0, names: [] }; e.n++; if (e.names.length < 5) e.names.push(`${f.kind} ${f.name}`); by.set(f.rec, e) }
+    for (const f of fr) { const e = by.get(f.rec) || { rec: f.rec, at: f.date, ch: '', n: 0, names: [] }; e.n++; if (e.names.length < 5) e.names.push(`${FRESH_LABEL[f.kind] || f.kind} ${f.name}`); by.set(f.rec, e) }
     R.fresh.recs = [...by.values()]
   } else {
     for (const x of lines) if (x.mode === 'approve' && !x.err && !x.same && Number(x.fresh) > 0) { R.fresh.n += Number(x.fresh); addRec(R.fresh, x, Number(x.fresh)) }

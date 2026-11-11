@@ -1,6 +1,6 @@
 // 감시 단계 2 필수 — 문서 폴더 감시 · 원본이 주인 · 내 PC 폴더 → 팀은 걷었다.
 //
-// 문서 폴더: 파일마다 들이기 일감(S7) — 처음 → 파일마다 일감(정리 일감 0 · 「새 10」 브레이크 없음) → 팀 일꾼이 기록 + 조각 · 사본 문서 없음 / 한 파일 고침 → 그 파일만 새 일감 / 지움 → 지식은 그대로 /
+// 문서 폴더: 파일마다 들이기 일감(S7) — 처음 → 파일마다 일감(정리 일감 0 · 「새 10」 브레이크 없음) → 팀 일꾼이 기록 + 항목 글 · 사본 문서 없음 / 한 파일 고침 → 그 파일만 새 일감 / 지움 → 지식은 그대로 /
 // 한꺼번에 많이 사라지면 멈춤 · 예전 사본 문서(표지 watched)는 원본이 주인으로 남는다 · 내 PC 폴더(파일을 팀으로 나르기)는 없다 — 지식은 「보내기」 로(send.test)
 
 import { test, before, after } from 'node:test'
@@ -52,7 +52,7 @@ test('문서 폴더: 바뀐 파일만 들이기 일감으로(정리 일감 0 · 
   assert.equal(r0.run[0].state, 'changed', JSON.stringify(r0.run[0]).slice(0, 600))
   assert.equal(r0.run[0].queued, 13, 'md 13 → 들이기 일감 13(잠금 파일 ~$ 는 뺀다 · 새 파일 10 을 넘어도 멈추지 않는다)')
   assert.equal(team.hub.intakesOf('dpms').length, 13)
-  assert.equal((await ingested()).length, 0, '기록은 일꾼이 기록 + 조각을 한 번에 지을 때')
+  assert.equal((await ingested()).length, 0, '기록은 일꾼이 기록 + 항목 글을 한 번에 지을 때')
   // 팀 일꾼 — 파일마다 기록(태그 ingest/…) · 원천 글을 기록에 싣는다
   await drain()
   const w0 = (await ingested()).find((w) => w.tags.includes('ingest/운영문서/회의/10월.md'))

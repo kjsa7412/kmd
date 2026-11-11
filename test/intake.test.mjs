@@ -1,9 +1,9 @@
 // 들이기 엔진(S7 · docs/품질개선/KMD_개편_설계.md 3-5 · S-D18 ~ S-D22 · S-D43 · S-D47 · S-D48 · S-D50 · S-D51)
 //
-// 문서 폴더 · git 가져오기 → 정리 일감이 아니라 들이기 일감(원천마다 하나) → 팀 일꾼(가짜 claude) workOnce 한 번 = 기록 + 조각 저장 한 번 = 커밋 하나 ·
+// 문서 폴더 · git 가져오기 → 정리 일감이 아니라 들이기 일감(원천마다 하나) → 팀 일꾼(가짜 claude) workOnce 한 번 = 기록 + 항목 글 저장 한 번 = 커밋 하나 ·
 // 기록 author(kmd · 만든 사람) · 태그 intake · job/<id> · work/ · 상태 in · 항목 참고 줄 · 지어낸 값 → 고쳐 쓰기 두 번까지(서버가 센다) → 그래도면 기록만 + 넣지 못함 ·
-// 재료 뒤 사람이 고침 → 조각은 새 글에 다시 대 넣음 / 새 글은 넣지 못함(conflict) · 커밋 뒤 일감을 다시 집음 · 다시 켬 → same · 같은 원천 → 일감 하나 ·
-// 기다림 상한 → E_RATE · 자리를 잃음 → seat · Claude 에 보내지 않음 → noclaude · ## 없는 새 문서 → nosec · 장부 밖 이름 → names · 24시간 → worker
+// 재료 뒤 사람이 고침 → 바꿀 곳은 새 글에 다시 대 넣음 / 새 글은 넣지 못함(conflict) · 커밋 뒤 일감을 다시 집음 · 다시 켬 → same · 같은 원천 → 일감 하나 ·
+// 기다림 상한 → E_RATE · 자리를 잃음 → seat · Claude 에 보내지 않음 → noclaude · ## 없는 새 문서 → nosec · 장부 밖 항목 → names · 24시간 → worker
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -59,7 +59,7 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('문서 폴더: 파일마다 들이기 일감(정리 일감 0) · 일꾼 한 번 = 기록 + 조각 = 커밋 하나 · kmd · intake · job/ · 상태 in · 참고 줄', async () => {
+test('문서 폴더: 파일마다 들이기 일감(정리 일감 0) · 일꾼 한 번 = 기록 + 항목 글 = 커밋 하나 · kmd · intake · job/ · 상태 in · 참고 줄', async () => {
   const r0 = await s.hub.sourceAdd(ADMIN, 'dpms', { name: '운영문서', kind: 'docs', at: docsDir, rules: [{ rule: 'docs', into: { doc: '운영문서' } }] })
   const run = r0.run[0]
   assert.equal(run.state, 'changed', JSON.stringify(run).slice(0, 400))

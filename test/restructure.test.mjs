@@ -32,7 +32,7 @@ const BASE = {
   'docs/assets/x.png': 'png',
   'work/2026-1101-a.md': '---\nid: 2026-1101-a\ntitle: "a"\ndate: 2026-11-01 09:00\nauthor: 김\n---\n\n# a\n',
   '_managed.md': '| 이름 | 문서 | 머리 |\n|---|---|---|\n| `table:*` | `docs/설계/게이트웨이테이블정의서.md` | `## {값}` |\n| `proc:매일` | `docs/운영/백업 절차.md` | `## 매일` |\n',
-  '_forms.md': '| 갈래 | 다른 이름 | 폴더 | 종류 | 이름 | 서식 |\n|---|---|---|---|---|---|\n| 회의록 | 회의, 미팅 | — | 사건 | — | 작업기록 |\n| 게이트웨이테이블정의서 | — | 설계 | 대장 | `table:*` | 지식문서 |\n| 게이트웨이설계서 | — | 설계 | 대상 | — | 지식문서 |\n| 백업 절차 | — | 운영 | 대상 | — | 지식문서 |\n',
+  '_forms.md': '| 갈래 | 별칭 | 폴더 | 종류 | 이름 | 서식 |\n|---|---|---|---|---|---|\n| 회의록 | 회의, 미팅 | — | 사건 | — | 작업기록 |\n| 게이트웨이테이블정의서 | — | 설계 | 대장 | `table:*` | 지식문서 |\n| 게이트웨이설계서 | — | 설계 | 대상 | — | 지식문서 |\n| 백업 절차 | — | 운영 | 대상 | — | 지식문서 |\n',
   '_sources.json': JSON.stringify({ sources: [{ name: 'db', rules: [{ rule: 'tables', into: { doc: '설계/게이트웨이테이블정의서' } }] }] }),
 }
 
@@ -94,7 +94,7 @@ test('옮기기 + 이름 바꾸기 — 링크(가리키는 쪽 · 옮긴 문서 
   fs.rmSync(dir, { recursive: true, force: true })
 })
 
-test('막는 것 — 원본이 주인 · 같은 이름 · 지문 어긋남 · 갈래 다른 이름(G4) · 아무것도 쓰지 않는다', async () => {
+test('막는 것 — 원본이 주인 · 같은 이름 · 지문 어긋남 · 갈래 별칭(G4) · 아무것도 쓰지 않는다', async () => {
   const dir = make(BASE)
   const head0 = git(dir, 'rev-parse', 'HEAD').trim()
   await assert.rejects(applyRestructure(dir, { moves: [{ from: '원본', to: '보관/원본' }] }, { user: 'kim' }), /원본이 주인/)
@@ -216,7 +216,7 @@ const ITEM = {
   'work/2026-1101-a.md': rec('2026-1101-a', '2026-11-01 09:00', ['proc:배포창']),
   'work/2026-1102-b.md': rec('2026-1102-b', '2026-11-02 09:00', ['server:web01']),
   '_managed.md': '| 이름 | 문서 | 항목 |\n|---|---|---|\n| `proc:배포창` | `docs/운영/배포.md` | `## 배포 창` |\n| `server:*` | `docs/서버대장.md` | `## {값}` |\n',
-  '_vocab.md': '# 이름 장부\n\n## proc\n\n- `proc:배포창`: 배포 창\n\n## server\n\n- `server:web01`: web01\n- `server:web02`: web02\n',
+  '_vocab.md': '# 항목 장부\n\n## proc\n\n- `proc:배포창`: 배포 창\n\n## server\n\n- `server:web01`: web01\n- `server:web02`: web02\n',
 }
 // 둘째 커밋 — 기록 a 를 배포 창에 넣는다(되돌리기가 찾을 앞 판) · 그 뒤 기록 c(아직 안 넣음)
 function makeItems() {
@@ -229,7 +229,7 @@ function makeItems() {
 }
 const states = (k) => Object.fromEntries(k.works.map((w) => [w.id, w.state]))
 
-test('항목 옮기기 · 이름 — 글자 그대로 · applied · 링크(글 속 · 들어오는 #머리) · 참고 줄 깊이 · 자리 장부(제자리 · 패턴 줄 위) · 기록 상태 그대로 · 한 커밋', async () => {
+test('항목 옮기기 · 이름 — 글자 그대로 · applied · 링크(글 속 · 들어오는 #머리) · 참고 줄 깊이 · 문서 장부(제자리 · 패턴 줄 위) · 기록 상태 그대로 · 한 커밋', async () => {
   const { sectionOf } = await import('../core/knowledge.js')
   const { parseDoc } = await import('../core/sections.js')
   const dir = makeItems()
@@ -270,7 +270,7 @@ test('항목 옮기기 · 이름 — 글자 그대로 · applied · 링크(글 �
   assert.match(reg, /\| `proc:배포창` \| `docs\/점검\.md` \| `## 배포 창` \|/, '정확한 줄은 제자리에서')
   const rl = reg.split('\n')
   const iw1 = rl.findIndex((l) => l.includes('`server:web01`')), iw2 = rl.findIndex((l) => l.includes('`server:web02`')), ip = rl.findIndex((l) => l.includes('`server:*`'))
-  assert.ok(iw1 >= 0 && iw1 < ip && iw2 >= 0 && iw2 < ip, '패턴 줄로 닿던 이름은 패턴 줄 위에 정확한 줄:\n' + reg)
+  assert.ok(iw1 >= 0 && iw1 < ip && iw2 >= 0 && iw2 < ip, '패턴 줄로 닿던 장부 항목은 패턴 줄 위에 정확한 줄:\n' + reg)
   assert.match(rl[iw1], /docs\/운영\/서버\.md/)
   assert.match(rl[iw2], /## web03/)
   const k = await loadKnowledge({ id: 't', name: 't', dir })
@@ -286,7 +286,7 @@ test('항목 옮기기 · 이름 — 글자 그대로 · applied · 링크(글 �
 
 test('항목 막는 것 — 앞부분 겹침 · 같은 머리 · 원본이 주인 · 갈래 머리 꼴 · 없는 항목 · 아무것도 쓰지 않는다', async () => {
   const dir = makeItems()
-  fs.writeFileSync(path.join(dir, '_forms.md'), '| 갈래 | 다른 이름 | 폴더 | 종류 | 이름 | 서식 |\n|---|---|---|---|---|---|\n| 회의록 | 회의 | — | 사건 | — | 작업기록 |\n| 점검 | — | — | 대상 | — | 지식문서 |\n| 배포 | — | 운영 | 대상 | — | 지식문서 |\n| 서버대장 | — | — | 대장 | `server:*` | 지식문서 |\n| 원본 | — | — | 대상 | — | 지식문서 |\n')
+  fs.writeFileSync(path.join(dir, '_forms.md'), '| 갈래 | 별칭 | 폴더 | 종류 | 이름 | 서식 |\n|---|---|---|---|---|---|\n| 회의록 | 회의 | — | 사건 | — | 작업기록 |\n| 점검 | — | — | 대상 | — | 지식문서 |\n| 배포 | — | 운영 | 대상 | — | 지식문서 |\n| 서버대장 | — | — | 대장 | `server:*` | 지식문서 |\n| 원본 | — | — | 대상 | — | 지식문서 |\n')
   fs.writeFileSync(path.join(dir, 'docs/회의록.md'), '# 회의록\n\n## 2026-11-01 착수\n정했다.\n')
   git(dir, 'add', '-A')
   git(dir, 'commit', '-q', '-m', '갈래')
@@ -355,7 +355,7 @@ test('같은 문서 안 이름 바꾸기 · 그 기록의 표지가 있던 문�
 test('새 대장 문서의 패턴 줄 · 빈 문서 걷기(항목 0 · 요약 0 · 들어오는 링크 0 · 장부 줄 0) · 걸음 표지 멱등 · stepFp 는 건드리지 않는 문서 글에 안 바뀜', async () => {
   const { stepFp } = await import('../core/restructure.js')
   const dir = makeItems()
-  fs.writeFileSync(path.join(dir, '_forms.md'), '| 갈래 | 다른 이름 | 폴더 | 종류 | 이름 | 서식 |\n|---|---|---|---|---|---|\n| 이슈 대장 | — | — | 대장 | `이슈:*` | 지식문서 |\n')
+  fs.writeFileSync(path.join(dir, '_forms.md'), '| 갈래 | 별칭 | 폴더 | 종류 | 이름 | 서식 |\n|---|---|---|---|---|---|\n| 이슈 대장 | — | — | 대장 | `이슈:*` | 지식문서 |\n')
   git(dir, 'add', '-A')
   git(dir, 'commit', '-q', '-m', '갈래')
   await applyRestructure(dir, { creates: ['이슈 대장', '빈 문서', '링크 받는 문서'] }, { user: 'kim' })
@@ -365,7 +365,7 @@ test('새 대장 문서의 패턴 줄 · 빈 문서 걷기(항목 0 · 요약 0 
   git(dir, 'commit', '-q', '-m', '링크')
   await assert.rejects(applyRestructure(dir, { drops: ['점검'] }, { user: 'kim' }), /빈 문서가 아니다/)
   await assert.rejects(applyRestructure(dir, { drops: ['링크 받는 문서'] }, { user: 'kim' }), /들어오는 링크/)
-  await assert.rejects(applyRestructure(dir, { drops: ['이슈 대장'] }, { user: 'kim' }), /자리 장부/)
+  await assert.rejects(applyRestructure(dir, { drops: ['이슈 대장'] }, { user: 'kim' }), /문서 장부/)
   const step = 'shape/0123456789ab/2'
   const r = await applyRestructure(dir, { drops: ['빈 문서'] }, { user: 'kim', step })
   assert.ok(r.commit)

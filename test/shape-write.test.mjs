@@ -1,4 +1,4 @@
-// 글 걸음(바탕 세우기 설계 4-3 · 4-5 · Z3) — checkShape · hub.save opt.shape(hub.shapeWrite) · 예약 태그 · touches · 이름 다시 놓기 · 참고 줄 · 넣지 못함 · fixes · 되돌리기 끔
+// 글 걸음(바탕 세우기 설계 4-3 · 4-5 · Z3) — checkShape · hub.save opt.shape(hub.shapeWrite) · 예약 태그 · touches · 장부 항목 다시 놓기 · 참고 줄 · 넣지 못함 · fixes · 되돌리기 끔
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -19,7 +19,7 @@ const FILES = {
   'work/2026-1101-a.md': rec('2026-1101-a', '2026-11-01 09:00', ['proc:배포창']),
   'work/2026-1102-b.md': rec('2026-1102-b', '2026-11-02 09:00', ['check:사전 점검']),
   '_managed.md': '| 이름 | 문서 | 항목 |\n|---|---|---|\n| `proc:배포창` | `docs/배포 절차.md` | `## 배포 창` |\n| `check:*` | `docs/배포 절차.md` | `## {값}` |\n',
-  '_vocab.md': '# 이름 장부\n\n## proc\n\n- `proc:배포창`: 배포 창\n\n## check\n\n- `check:사전 점검`: 사전 점검\n- `check:사후 점검`: 사후 점검\n',
+  '_vocab.md': '# 항목 장부\n\n## proc\n\n- `proc:배포창`: 배포 창\n\n## check\n\n- `check:사전 점검`: 사전 점검\n- `check:사후 점검`: 사후 점검\n',
 }
 async function setup({ mode = 'team', extra = {}, serve = null } = {}) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-shapew-'))
@@ -56,7 +56,7 @@ async function unitOf(dir, plan = MERGE, n = 1) {
 const write = (s, content, extra = {}) => s.hub.shapeWrite(s.ctx, 'ops', { plan: MERGE, n: 1, texts: [{ doc: '배포 절차', h: '점검 목록', content }], work: WORK, step: `shape/${WORK}/1`, ...extra })
 const code = (p) => p.then(() => 'ok', (e) => e.code)
 
-test('합치기 — 목표를 쓰고 출처를 걷는다 · 참고 줄이 목표로 · 패턴 줄로 닿던 이름이 목표 항목에(정확한 줄 위에) · 기록은 work/(shape · 걸음 표지 · touches) · 기록 상태 그대로 · 멱등 · 되돌리기 끔', async () => {
+test('합치기 — 목표를 쓰고 출처를 걷는다 · 참고 줄이 목표로 · 패턴 줄로 닿던 장부 항목이 목표 항목에(정확한 줄 위에) · 기록은 work/(shape · 걸음 표지 · touches) · 기록 상태 그대로 · 멱등 · 되돌리기 끔', async () => {
   const s = await setup()
   try {
     const { u } = await unitOf(s.dir)

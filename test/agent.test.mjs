@@ -1,9 +1,9 @@
-// 요구 v0.2 필수 — 에이전트로 지식 세우기 · 터미널 · 이름 세우기 · 메뉴 순서 · 동기화 · 가져오는 곳 고치기 · 지우기.
+// 요구 v0.2 필수 — 에이전트로 지식 세우기 · 터미널 · 항목 세우기 · 메뉴 순서 · 동기화 · 가져오는 곳 고치기 · 지우기.
 //
 // 가짜 Claude Code(test/fixture/fake-claude-agent.mjs)가 kmd MCP 를 진짜 HTTP 로 부른다:
-//   「DPMS_회의록_261021_HNC_통화.md」 → 회의록 › 「2026-10-21 HNC 통화」 + 이름 term:펄스명령 · 들인 기록은 「넣음」 · 터미널 줄
+//   「DPMS_회의록_261021_HNC_통화.md」 → 회의록 › 「2026-10-21 HNC 통화」 + 장부 항목 term:펄스명령 · 들인 기록은 「넣음」 · 터미널 줄
 //   단기 열쇠(kmda_)는 /api 를 못 쓰고 다른 지식에 쓰지 못한다 · 넣지 않고 끝나면 규칙으로
-//   pdf → 글로 바꾼 뒤 기록 → 들이기 · hwpx 는 kmd 안에서 · names(save) → 이름 장부 · 자리 장부
+//   pdf → 글로 바꾼 뒤 기록 → 들이기 · hwpx 는 kmd 안에서 · names(save) → 항목 장부 · 문서 장부
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -40,7 +40,7 @@ after(async () => {
   fs.rmSync(tmp, { recursive: true, force: true })
 })
 
-test('이름 장부 · 자리 장부: 더하고 · 다른 이름만 보태고 · 자리는 바꾼다', () => {
+test('항목 장부 · 문서 장부: 더하고 · 별칭만 보태고 · 자리는 바꾼다', () => {
   let v = upsertVocab('', [{ coord: 'table:tb_user', label: '사용자', aliases: [] }])
   v = upsertVocab(v, [{ coord: 'table:tb_user', label: '다른 이름표', aliases: ['회원'] }, { coord: 'proc:배포', label: '배포', aliases: [] }])
   const c = parseVocab(v).coords
@@ -60,7 +60,7 @@ test('이름 장부 · 자리 장부: 더하고 · 다른 이름만 보태고 ·
   assert.equal(locateDoc(whole, 'table:tb_user'), null)
 })
 
-test('파일 넣기 → 에이전트가 회의록 항목 · 이름을 세운다 · 터미널 줄 · 기록은 넣음', async () => {
+test('파일 넣기 → 에이전트가 회의록 항목 · 장부 항목을 세운다 · 터미널 줄 · 기록은 넣음', async () => {
   const r = await s.hub.importFiles(ME, '회의', [{ path: 'DPMS_회의록_261021_HNC_통화.md', data: Buffer.from(HNC) }])
   assert.equal(r.rows[0].kind, 'run')
   const id = r.rows[0].run
@@ -77,7 +77,7 @@ test('파일 넣기 → 에이전트가 회의록 항목 · 이름을 세운다 
   assert.match(doc, /3초 동안 1을 쓰고/)
   assert.match(fs.readFileSync(path.join(dir, '_vocab.md'), 'utf8'), /`term:펄스명령`: 펄스 명령\n  aliases: 펄스 방식/)
   assert.match(fs.readFileSync(path.join(dir, '_managed.md'), 'utf8'), /\| `term:펄스명령` \| `docs\/회의록.md` \| `## 2026-10-21 HNC 통화` \|/)
-  // 새 개인 지식(approve · 저장 승인 PC4) — 기록을 먼저 세우지 않는다: 에이전트의 save 가 기록(원천 인용) + 항목 + 이름을 한 커밋으로
+  // 새 개인 지식(approve · 저장 승인 PC4) — 기록을 먼저 세우지 않는다: 에이전트의 save 가 기록(원천 인용) + 항목 글 + 장부 항목을 한 커밋으로
   const k = await s.hub.get('회의')
   const w = k.works.find((x) => x.tags.includes('ingest/DPMS_회의록_261021_HNC_통화.md'))
   assert.equal(w?.state, 'in')

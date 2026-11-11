@@ -1,6 +1,6 @@
-// 자리 장부(`_managed.md`) — 이름 하나가 어느 문서의 어느 항목에 드는지 여기에만 적는다.
+// 문서 장부(`_managed.md`) — 항목 하나가 어느 문서의 어느 머리(`##`)인지 여기에만 적는다.
 //
-//   | `종류:*`        | `docs/문서.md` | `## {값}`   |   ← 그 종류의 이름은 모두 이 문서의 ## 항목
+//   | `종류:*`        | `docs/문서.md` | `## {값}`   |   ← 그 종류의 항목은 모두 이 문서의 ## 머리
 //   | `종류:정확한값` | `docs/문서.md` | `## 머리`   |   ← 하나만
 //   | `종류:정확한값` | `docs/문서.md` | —           |   ← 문서 한 벌(CDP 에서 온 장부) · 항목 자리는 아니다(그래프만 쓴다)
 //
@@ -23,14 +23,14 @@ export function parseRegistry(text) {
   return { rows, wholes }
 }
 
-// 이름 → 그 이름이 가리키는 문서 한 벌의 경로(머리 없는 줄) · 없으면 null
+// 항목(coord) → 그 항목이 가리키는 문서 한 벌의 경로(머리 없는 줄) · 없으면 null
 export function locateDoc(registry, coord) {
   const c = nfc(coord)
   const type = c.slice(0, c.indexOf(':'))
   return (registry.wholes || []).find((r) => r.pattern === c || r.pattern === `${type}:*`)?.doc || null
 }
 
-// 이름 → { doc, level, heading } · 걸리는 줄이 없으면 null(장부 밖 이름은 정상이다)
+// 항목(coord) → { doc, level, heading } · 걸리는 줄이 없으면 null(장부 밖 항목은 정상이다)
 export function locate(registry, coord) {
   const c = nfc(coord)
   const i = c.indexOf(':')

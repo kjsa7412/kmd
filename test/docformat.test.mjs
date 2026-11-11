@@ -225,19 +225,19 @@ test('지식 옮기기: dry 는 쓰지 않는다 · 옮기면 git 한 묶음과 
   assert.equal(again.commit, null)
 })
 
-test('### 올리기(liftH3 · S-D31 · S13): --lift 일 때만 · ## 없는 문서의 머리를 한 단씩 · 자리 장부 줄도 같은 커밋 · 장부 이름이 항목에 닿지 않으면 올리지 않는다', async () => {
+test('### 올리기(liftH3 · S-D31 · S13): --lift 일 때만 · ## 없는 문서의 머리를 한 단씩 · 문서 장부 줄도 같은 커밋 · 문서 장부 줄이 머리에 닿지 않으면 올리지 않는다', async () => {
   const d3 = path.join(tmp, 'lift')
   fs.mkdirSync(path.join(d3, 'docs'), { recursive: true })
   const plc = '# PLC연계규격서\n\n소개.\n\n### 1. 개요\n개요 글.\n\n#### 1.1 범위\n범위 글.\n\n```\n### 코드 안\n```\n\n### 2. 통신\n주기 500ms.\n'
   fs.writeFileSync(path.join(d3, 'docs', 'plc.md'), plc)
   fs.writeFileSync(path.join(d3, 'docs', 'bad.md'), '# bad\n\n### 가\n글\n')
   fs.writeFileSync(path.join(d3, 'docs', 'ok.md'), '# ok\n\n## 가\n글\n\n### 나\n글\n')
-  fs.writeFileSync(path.join(d3, '_managed.md'), '# 자리 장부\n\n| 이름 | 문서 | 항목 |\n|---|---|---|\n| `spec:개요` | `docs/plc.md` | `### 1. 개요` |\n| `spec:통신` | `docs/plc.md` | `### 2. 통신` |\n| `spec:없음` | `docs/bad.md` | `### 없는 머리` |\n')
+  fs.writeFileSync(path.join(d3, '_managed.md'), '# 문서 장부\n\n| 이름 | 문서 | 항목 |\n|---|---|---|\n| `spec:개요` | `docs/plc.md` | `### 1. 개요` |\n| `spec:통신` | `docs/plc.md` | `### 2. 통신` |\n| `spec:없음` | `docs/bad.md` | `### 없는 머리` |\n')
   // lift 없이는 그대로
   const plain = await docfmtDir(d3, { dry: true })
   assert.equal(plain.lifted, 0)
   const dry = await docfmtDir(d3, { dry: true, lift: true })
-  assert.equal(dry.lifted, 2, 'plc 의 ### 둘(bad 는 장부 이름이 닿지 않아 올리지 않는다 · ok 는 ## 가 있다)')
+  assert.equal(dry.lifted, 2, 'plc 의 ### 둘(bad 는 문서 장부 줄이 닿지 않아 올리지 않는다 · ok 는 ## 가 있다)')
   assert.match(dry.docs.find((x) => x.doc === 'bad').why, /### 올리지 않음: 장부 「spec:없음」/)
   assert.equal(fs.readFileSync(path.join(d3, 'docs', 'plc.md'), 'utf8'), plc, 'dry 는 쓰지 않는다')
   const r = await docfmtDir(d3, { lift: true, user: 'kmd', by: 'kim' })

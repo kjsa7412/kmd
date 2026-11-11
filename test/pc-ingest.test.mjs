@@ -151,7 +151,7 @@ test('코드 바뀜도 같은 규칙: 초안이면 기능 항목 + 기록 한 �
   assert.ok(w.tags.includes('intake'))
   assert.ok(headFiles('apv').includes(`work/${w.id}.md`))
   assert.ok(!k.works.some((x) => x.state === 'pend'))
-  // Claude 끔 — 코드 차이는 항목 글이 아니다: 이은 항목(건드린 이름) · 기록 모음 달 항목에 잇기만
+  // Claude 끔 — 코드 차이는 항목 글이 아니다: 이은 항목(건드린 항목) · 기록 모음 달 항목에 잇기만
   await pc.hub.setAuto(ME, 'claude', false)
   try {
     fs.writeFileSync(path.join(repo, 'HealthCheck.java'), '// 헬스 체크 — 시간 초과는 7초\nclass HealthCheck {\n  int timeoutSec = 7;\n}\n')

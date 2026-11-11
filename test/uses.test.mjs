@@ -20,7 +20,7 @@ test('한글 이름은 뒤에 붙는 조사를 허락하고 앞은 끊겨야 한
   assert.equal(mentions('- 인터록이 걸리면', '인터록'), true)
 })
 
-test('이름 후보: 장부 값 · 보이는 이름 · 다른 이름 가운데 USES_MIN 글자 이상', () => {
+test('이름 후보: 장부 값 · 라벨 · 별칭 가운데 USES_MIN 글자 이상', () => {
   assert.equal(USES_MIN, 3)
   assert.deepEqual(usesNames({ coord: '화면설계서:DPA010', name: '상황 지도', aliases: ['상황판', 'PS'] }), ['DPA010', '상황 지도', '상황판'])
   assert.deepEqual(usesNames({ coord: '연계API:명령', name: '명령', aliases: [] }), [], '두 글자 흔한 말은 이름으로 쓰지 않는다')

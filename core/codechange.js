@@ -2,8 +2,8 @@
 //   아래 codeRecord(파일마다) · 폴더 사본은 예전에 더한 코드 폴더 · 뜻 갱신 켬 가져올 곳만 쓴다
 //
 //   바뀐 코드 파일마다 기록 하나 — 「코드가 바뀌었다 — RetryPolicy.java (+12 −3)」 · 글에 바뀐 값(「3초 → 5초」) · 차이(4,000자까지)
-//   이름   바뀐 줄 · 파일 이름에 나오는 이 지식의 항목 이름(이름 장부 · 다른 이름)을 단다 — 이름이 걸리면 그 항목 정리로(pend),
-//          안 걸리면 정리 일꾼이 후보 중에서 고른다(nowhere → 이름 바로잡기)
+//   건드린 항목   바뀐 줄 · 파일 이름에 나오는 이 지식의 항목(항목 장부 · 별칭)을 단다 — 항목이 걸리면 그 항목 정리로(pend),
+//          안 걸리면 정리 일꾼이 후보 중에서 고른다(nowhere → 건드린 항목 바로잡기)
 //   차이   git — 지난 커밋과 새 커밋 · 폴더 — kmd 만 보는 사본(`<data>/watch/…/<지문>.snap/`)과 지금 파일(`git diff --no-index`)
 //   정리   기록은 작성자 kmd · 예약 태그 code-change(사람 · 세션은 못 단다) — 정해진 정리 검사(숫자 · 이름 대조 · 값 바뀜 노랑 ·
 //          줄마다 되돌리기)를 그대로 탄다. 기록을 남긴 뒤 그 지식의 정리를 저절로 건다
@@ -77,7 +77,7 @@ export function newValuesOf(body) {
   return m ? m[1].split(/ — |: /)[0].split(' · ').map((p) => p.split(' → ')[1]).filter(Boolean).map((x) => x.trim()) : []
 }
 
-// 이름 — 바뀐 줄 · 파일 이름에 나오는 항목(이름 장부 · 다른 이름 · 3글자 넘는 것만 · 다섯까지)
+// 건드린 항목 — 바뀐 줄 · 파일 이름에 나오는 항목(항목 장부 · 별칭 · 3글자 넘는 것만 · 다섯까지)
 export function namesOf(k, rel, d) {
   const out = []
   const add = (xs) => { for (const x of xs) if (x.coord && !out.includes(x.coord) && out.length < 5) out.push(x.coord) }

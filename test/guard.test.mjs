@@ -11,7 +11,7 @@ import * as G from '../core/guard.js'
 import { save, saveRecords } from '../core/save.js'
 import { parseRecord } from '../core/frontmatter.js'
 
-const VOCAB = `# 이름 장부
+const VOCAB = `# 항목 장부
 
 ## 이슈
 
@@ -25,7 +25,7 @@ const VOCAB = `# 이름 장부
 - \`term:PLC\` — 현장 설비를 실제로 제어하는 장치
 - \`proc:헬스 체크\` — 옛 모양(빈칸) 이름
 `
-const MANAGED = `# 자리 장부
+const MANAGED = `# 문서 장부
 
 | 이름 | 문서 | 항목 |
 |---|---|---|
@@ -34,7 +34,7 @@ const MANAGED = `# 자리 장부
 `
 const vocab = parseVocab(VOCAB)
 
-test('G1 — 새 이름 모양: 한글 종류는 되고 값의 빈칸 · 문장 · 긴 글은 안 된다', () => {
+test('G1 — 새 항목 모양: 한글 종류는 되고 값의 빈칸 · 문장 · 긴 글은 안 된다', () => {
   assert.equal(newNameWhy('이슈:DPMS-ISS-20'), null)
   assert.equal(newNameWhy('게이트웨이DB:gt_link'), null)
   assert.equal(newNameWhy('table:rp_mst'), null)
@@ -45,7 +45,7 @@ test('G1 — 새 이름 모양: 한글 종류는 되고 값의 빈칸 · 문장 
   assert.match(newNameWhy('PLC'), /종류:값/)
 })
 
-test('G2 — 이름 풀기: 같음 · 폐기 → 새 이름 · 같은 말(다른 이름) · 모름', () => {
+test('G2 — 항목 풀기: 같음 · 폐기 → 새 항목 · 같은 말(별칭) · 모름', () => {
   assert.deepEqual(resolveName(vocab, '이슈:DPMS-ISS-15'), { coord: '이슈:DPMS-ISS-15', how: 'same' })
   assert.deepEqual(resolveName(vocab, '이슈:DPMS-ISS-02'), { coord: '이슈:DPMS-ISS-15', how: 'deprecated' })
   assert.deepEqual(resolveName(vocab, '이슈:ISS-15'), { coord: '이슈:DPMS-ISS-15', how: 'alias' })
@@ -53,25 +53,25 @@ test('G2 — 이름 풀기: 같음 · 폐기 → 새 이름 · 같은 말(다른
   assert.ok(nearNames(vocab, '공수').includes('이슈:DPMS-ISS-15'))
 })
 
-test('거절형(strict) — 장부 밖 · 폐기 · 이름 없는 기록 · 둘 다 보냄을 거절하고 후보를 말한다', () => {
+test('거절형(strict) — 장부 밖 · 폐기 · 항목 없는 기록 · 둘 다 보냄을 거절하고 후보를 말한다', () => {
   const g1 = guardRecord(vocab, { touches: ['이슈:공수부족'] }, { mode: 'strict' })
   assert.equal(g1.errors.length, 1)
   assert.match(g1.errors[0].message, /장부에 없다/)
-  assert.match(guardRecord(vocab, { touches: ['이슈:DPMS-ISS-02'] }).errors[0].message, /폐기된 이름.*DPMS-ISS-15/)
+  assert.match(guardRecord(vocab, { touches: ['이슈:DPMS-ISS-02'] }).errors[0].message, /폐기된 항목.*DPMS-ISS-15/)
   assert.match(guardRecord(vocab, { touches: [] }).errors[0].message, /touchesEmpty/)
   assert.equal(guardRecord(vocab, { touches: [], touchesEmpty: '사업 전체 일정 메모 — 항목이 없다' }).errors.length, 0)
   assert.match(guardRecord(vocab, { touches: ['term:PLC'], touchesEmpty: 'x' }).errors[0].message, /둘 중 하나/)
-  // 옛 모양 이름(장부에 있다)은 그대로 받는다
+  // 옛 모양 항목(장부에 있다)은 그대로 받는다
   assert.equal(guardRecord(vocab, { touches: ['proc:헬스 체크'] }).errors.length, 0)
-  // 자리가 있는 기록(화면의 항목 고침 at/ · 이력 · 정리)은 이름이 없어도 된다
+  // 자리가 있는 기록(화면의 항목 고침 at/ · 이력 · 정리)은 건드린 항목이 없어도 된다
   assert.equal(guardRecord(vocab, { touches: [], tags: ['at/대장#개요'] }).errors.length, 0)
   assert.equal(guardRecord(vocab, { touches: [], tags: ['edit'] }).errors.length, 0)
-  // 세울 이름으로 실어 둔 것은 장부 밖이어도 받는다(모양은 본다)
+  // 세울 항목으로 실어 둔 것은 장부 밖이어도 받는다(모양은 본다)
   assert.equal(guardRecord(vocab, { touches: ['이슈:DPMS-ISS-20'] }, { proposed: new Set(['이슈:DPMS-ISS-20']) }).errors.length, 0)
   assert.equal(guardRecord(vocab, { touches: ['이슈:새 이슈'] }, { proposed: new Set(['이슈:새 이슈']) }).errors.length, 1)
 })
 
-test('붙잡아 두기(hold) — 폐기 · 같은 말은 바꿔 달고, 장부 밖은 남기고, 이름 없으면 까닭을 단다', () => {
+test('붙잡아 두기(hold) — 폐기 · 같은 말은 바꿔 달고, 장부 밖은 남기고, 건드린 항목이 없으면 까닭을 단다', () => {
   const g = guardRecord(vocab, { touches: ['이슈:DPMS-ISS-02', '이슈:ISS-15', '이슈:모름'] }, { mode: 'hold' })
   assert.deepEqual(g.errors, [])
   assert.deepEqual(g.touches, ['이슈:DPMS-ISS-15', '이슈:모름'])
@@ -81,7 +81,7 @@ test('붙잡아 두기(hold) — 폐기 · 같은 말은 바꿔 달고, 장부 �
   assert.equal(e.touchesEmpty, '가져옴')
 })
 
-test('세울 이름 — 장부에 없던 이름만 모양을 본다 · 값이 다른 이름의 것이면 알린다', () => {
+test('세울 항목 — 장부에 없던 것만 모양을 본다 · 값이 다른 항목의 것이면 알린다', () => {
   assert.equal(guardNames(vocab, [{ coord: '이슈:새 이슈' }]).errors.length, 1)
   assert.equal(guardNames(vocab, [{ coord: 'proc:헬스 체크' }]).errors.length, 0)
   assert.equal(guardNames(vocab, [{ coord: '이슈:ISS-15' }]).warnings.length, 1)
@@ -95,7 +95,7 @@ test('저장 제안 입력 모양(P-D32) · near(P-D10): 정규화 같음 · 비
   assert.deepEqual(G.nearOf(['배'], '배포'), { same: [], similar: [] })
 })
 
-test('G4 — 새 문서: 파일 이름 조각 · 갈래의 다른 이름 · 갈래 장부 밖 · 폴더 · 머리 꼴', () => {
+test('G4 — 새 문서: 파일 이름 조각 · 갈래의 별칭 · 갈래 장부 밖 · 폴더 · 머리 꼴', () => {
   const def = formsOf('')
   assert.equal(def.own, false)
   assert.match(guardNewDoc(def, 'docs/전화통화기록.md').errors[0].message, /회의록/)
@@ -103,7 +103,7 @@ test('G4 — 새 문서: 파일 이름 조각 · 갈래의 다른 이름 · 갈�
   assert.equal(guardNewDoc(def, 'docs/회의록.md', ['2026-10-21 HNC 통화']).errors.length, 0)
   assert.match(guardNewDoc(def, 'docs/회의록.md', ['HNC 통화']).errors[0].message, /YYYY-MM-DD/)
   assert.equal(guardNewDoc(def, 'docs/게이트웨이 설계.md').errors.length, 0) // 장부가 없으면 갈래 밖 주제 문서는 된다
-  const own = formsOf(`| 갈래 | 다른 이름 | 폴더 | 종류 | 이름 | 서식 |
+  const own = formsOf(`| 갈래 | 별칭 | 폴더 | 종류 | 이름 | 서식 |
 |---|---|---|---|---|---|
 | 회의록 | 회의, 미팅, 통화 | 1.2_사업관리 | 사건 | — | 작업기록 |
 | 위험및이슈관리대장 | 이슈, 위험 | 1.2_사업관리 | 대장 | \`이슈:*\` | 결정기록 |
@@ -133,17 +133,17 @@ before(() => {
 })
 after(() => fs.rmSync(tmp, { recursive: true, force: true }))
 
-test('core save — 거절형: 이름 없는 기록 · 장부 밖 이름 · 갈래 밖 새 문서를 쓰지 않는다', async () => {
+test('core save — 거절형: 항목 없는 기록 · 장부 밖 항목 · 갈래 밖 새 문서를 쓰지 않는다', async () => {
   const d = mk('strict')
   await assert.rejects(save(d, { record: { title: '메모', body: '무언가' } }, { user: 'kim', guard: 'strict' }), /touchesEmpty/)
-  await assert.rejects(save(d, { record: { title: '메모', body: 'x', touches: ['이슈:공수'] } }, { user: 'kim', guard: 'strict' }), (e) => e.code === 'E_INPUT' && /가까운 이름/.test(e.message) && Array.isArray(e.guard))
+  await assert.rejects(save(d, { record: { title: '메모', body: 'x', touches: ['이슈:공수'] } }, { user: 'kim', guard: 'strict' }), (e) => e.code === 'E_INPUT' && /가까운 항목/.test(e.message) && Array.isArray(e.guard))
   await assert.rejects(save(d, { record: { title: '통화', body: 'x', touchesEmpty: '통화 메모' }, sections: [{ doc: '전화통화기록', heading: '2026-10-21 통화', content: '정한 것: 없음.' }] }, { user: 'kim', guard: 'strict' }), /회의록/)
   assert.equal(fs.readdirSync(path.join(d)).includes('work'), false)
   // 한글 종류 이름을 같은 묶음에서 세우면 받는다
   const r = await save(d, { record: { title: '새 이슈: 인원', body: '인원이 모자란다', touches: ['이슈:DPMS-ISS-20'] }, names: [{ coord: '이슈:DPMS-ISS-20', label: '인원 부족' }] }, { user: 'kim', guard: 'strict' })
   assert.ok(r.id)
   assert.match(fs.readFileSync(path.join(d, '_vocab.md'), 'utf8'), /이슈:DPMS-ISS-20/)
-  // 까닭을 적은 이름 없는 기록은 받고 머리말에 남는다
+  // 까닭을 적은 항목 없는 기록은 받고 머리말에 남는다
   const r2 = await save(d, { record: { title: '일정 메모', body: '다음 주 회의', touchesEmpty: '항목이 아직 없는 일정 메모' } }, { user: 'kim', guard: 'strict' })
   const w = parseRecord(fs.readFileSync(path.join(d, 'work', `${r2.id}.md`), 'utf8'), `${r2.id}.md`)
   assert.equal(w.touchesEmpty, '항목이 아직 없는 일정 메모')
@@ -152,7 +152,7 @@ test('core save — 거절형: 이름 없는 기록 · 장부 밖 이름 · 갈�
   assert.deepEqual(r3.docs, ['docs/회의록.md'])
 })
 
-test('core save — 붙잡아 두기: 폐기 이름은 바꿔 달고 이름 없는 기록에 kmd 까닭', async () => {
+test('core save — 붙잡아 두기: 폐기 항목은 바꿔 달고 항목 없는 기록에 kmd 까닭', async () => {
   const d = mk('hold')
   const r = await save(d, { record: { title: '가져옴', body: 'x', touches: ['이슈:DPMS-ISS-02'] } }, { user: 'kim' })
   const w = parseRecord(fs.readFileSync(path.join(d, 'work', `${r.id}.md`), 'utf8'), `${r.id}.md`)
@@ -162,13 +162,13 @@ test('core save — 붙잡아 두기: 폐기 이름은 바꿔 달고 이름 없�
   assert.equal(r2.touchesEmpty, '가져옴: 파일')
 })
 
-test('core save — 장부만 바꾼 저장은 이력(log/ · ledger) · 이름을 세우며 건드린 기록은 기록(work/)', async () => {
+test('core save — 장부만 바꾼 저장은 이력(log/ · ledger) · 항목을 세우며 건드린 기록은 기록(work/)', async () => {
   const d = mk('ledger')
   const r = await save(d, { record: { title: '갈래 장부: 회의록 폴더', body: 'x', touchesEmpty: '갈래 장부만 고쳤다' }, forms: [{ name: '회의록', folder: '1.2_사업관리', kind: '사건' }] }, { user: 'kim' })
   assert.equal(r.record, `log/${r.id}.md`)
   const w = parseRecord(fs.readFileSync(path.join(d, 'log', `${r.id}.md`), 'utf8'), `${r.id}.md`)
   assert.ok(w.tags.includes('ledger'))
-  const r2 = await save(d, { record: { title: '이름만', body: 'x', touchesEmpty: '이름 장부만' }, names: [{ coord: '이슈:DPMS-ISS-15', label: '공수 부족', doc: 'docs/대장.md', heading: 'DPMS-ISS-15 — 공수 부족' }] }, { user: 'kim' })
+  const r2 = await save(d, { record: { title: '이름만', body: 'x', touchesEmpty: '항목 장부만' }, names: [{ coord: '이슈:DPMS-ISS-15', label: '공수 부족', doc: 'docs/대장.md', heading: 'DPMS-ISS-15 — 공수 부족' }] }, { user: 'kim' })
   assert.match(r2.record, /^log[/]/)
   const r3 = await save(d, { record: { title: '새 이슈: 인원', body: '인원이 모자란다', touches: ['이슈:DPMS-ISS-21'] }, names: [{ coord: '이슈:DPMS-ISS-21', label: '인원 부족' }] }, { user: 'kim' })
   assert.match(r3.record, /^work[/]/)
@@ -178,7 +178,7 @@ test('core save — 장부만 바꾼 저장은 이력(log/ · ledger) · 이름�
   assert.equal(logKind({ tags: ['structure'], title: '문서 짜임 바꿈' }), '짜임')
 })
 
-test('saveRecords(받기) — 같은 말 이름을 바꿔 달고 이름 없는 기록은 「받음」 까닭', async () => {
+test('saveRecords(받기) — 같은 말 항목을 바꿔 달고 항목 없는 기록은 「받음」 까닭', async () => {
   const d = mk('recv')
   const r = await saveRecords(d, [{ title: '받은 것', body: 'x', touches: ['이슈:ISS-15'] }, { title: '받은 메모', body: 'y' }], { user: 'kim' })
   assert.equal(r.records.length, 2)
@@ -189,7 +189,7 @@ test('saveRecords(받기) — 같은 말 이름을 바꿔 달고 이름 없는 �
   assert.match(w2.touchesEmpty, /받음/)
 })
 
-test('지식 점검 — 이름 없는 기록 · 까닭을 적은 기록은 까닭과 함께 센다', async () => {
+test('지식 점검 — 항목 없는 기록 · 까닭을 적은 기록은 까닭과 함께 센다', async () => {
   const { audit } = await import('../core/guard.js')
   const w = (id, state, extra = {}) => ({ id, title: id, date: '2026-10-30', author: 'kim', touches: [], tags: [], reflects: [], curates: [], reopens: [], state, ...extra })
   const k = { vocab, docs: [], works: [w('까닭', 'old', { touchesEmpty: '갈래 장부만' }), w('빈것', 'old')] }
@@ -207,7 +207,7 @@ test('갈래 서식 안내 — 머리 꼴과 짜임 한 줄(brief · 정리 프�
   assert.match(g2.body, /항목 하나가 대상 하나/)
 })
 
-test('지식 점검 — 같은 말을 둘로: 다른 이름 겹침(고칠 것) · 같은 보이는 이름(알림)', async () => {
+test('지식 점검 — 같은 말을 둘로: 별칭 겹침(고칠 것) · 같은 라벨(알림)', async () => {
   const { audit } = await import('../core/guard.js')
   const v = parseVocab(`## 테이블정의서
 
@@ -243,7 +243,7 @@ test('기록 서식: 칸을 머리 달아 엮는다 · 바뀐 것이 없거나 �
   assert.equal(recordBody({ body: '요약.\n\n## 바뀐 것\n- a' }).body, '요약.\n\n## 바뀐 것\n- a')
 })
 
-test('머리 꼴 「값: 설명」 — 값으로 항목을 찾고 · 폐기 줄의 새 이름 · 깨진 머리(옛 줄표 꼴도)', async () => {
+test('머리 꼴 「값: 설명」 — 값으로 항목을 찾고 · 폐기 줄의 새 항목 · 깨진 머리(옛 줄표 꼴도)', async () => {
   const { headingMatches } = await import('../core/sections.js')
   const { audit } = await import('../core/guard.js')
   assert.equal(headingMatches('OPS-001: 결재 알림 오류', 'OPS-001'), true)

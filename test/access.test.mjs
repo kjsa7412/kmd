@@ -106,16 +106,16 @@ test('읽기 길: 찾기 · 문서 · MCP brief/section 은 읽기 이상 · 없
   assert.ok(!(await mcp('brief', {}, P.no)).knowledge.some((k) => k.id === 'dpms'))
   assert.equal((await mcp('brief', { knowledge: 'dpms' }, P.no)).error, 'E_NOTFOUND')
   assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.rd)).you, { role: '읽기', direct: false, ledgers: false, accepted: 0, recent: [] })
-  assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.wr)).you, { role: '쓰기', direct: true, ledgers: false, accepted: 0, recent: [] }, '쓰기 자리의 조각은 검사를 넘으면 그 순간 문서에(S4) · 장부는 기록으로')
+  assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.wr)).you, { role: '쓰기', direct: true, ledgers: false, accepted: 0, recent: [] }, '쓰기 자리의 항목 글은 검사를 넘으면 그 순간 문서에(S4) · 장부는 기록으로')
   assert.deepEqual((await mcp('brief', { knowledge: 'dpms' }, P.own)).you, { role: '지식관리자', direct: true, ledgers: true, accepted: 0, recent: [] }, '지식관리자는 장부도 곧바로')
   assert.equal((await mcp('section', { knowledge: 'dpms', doc: '배포절차', heading: '롤백' }, P.rd)).heading, '롤백')
   assert.equal((await mcp('section', { knowledge: 'dpms', doc: '배포절차', heading: '롤백' }, P.no)).error, 'E_NOTFOUND')
 })
 
-test('쓰기 길: 읽기는 403 E_FORBIDDEN · 쓰기는 같은 저장 문(검사를 넘은 조각은 그 순간 문서에) · 읽은 뒤 바뀌면 E_CONFLICT', async () => {
-  // 지식 생성 가드 — 화면 · 세션의 save 는 건드린 이름(touches)이나 이름 없는 까닭(touchesEmpty)이 있어야 한다
+test('쓰기 길: 읽기는 403 E_FORBIDDEN · 쓰기는 같은 저장 문(검사를 넘은 항목 글은 그 순간 문서에) · 읽은 뒤 바뀌면 E_CONFLICT', async () => {
+  // 지식 생성 가드 — 화면 · 세션의 save 는 건드린 항목(touches)이나 항목이 없는 까닭(touchesEmpty)이 있어야 한다
   const rec = { record: { title: '롤백: 앱 먼저', body: '앱을 먼저 내린다', touchesEmpty: '시험 — 롤백 순서 메모' } }
-  assert.equal((await req('/api/k/dpms/propose', P.wr, { record: { title: '이름 없음', body: 'x' } })).j.errors?.length > 0, true, '이름도 까닭도 없는 기록은 받지 않는다')
+  assert.equal((await req('/api/k/dpms/propose', P.wr, { record: { title: '항목 없음', body: 'x' } })).j.errors?.length > 0, true, '건드린 항목도 까닭도 없는 기록은 받지 않는다')
   const r1 = await req('/api/k/dpms/save', P.rd, rec)
   assert.deepEqual([r1.status, r1.j.error], [403, 'E_FORBIDDEN'])
   assert.match(r1.j.message, /이 지식에 쓰기 자리가 없다/)
@@ -140,9 +140,9 @@ test('쓰기 길: 읽기는 403 E_FORBIDDEN · 쓰기는 같은 저장 문(검�
   const e2 = await req('/api/k/dpms/edit', P.wr, { ...ed, proposal: e1.j.details.propose.proposal })
   assert.deepEqual([e2.status, e2.j.direct, e2.j.put], [200, true, 1], JSON.stringify(e2.j))
   assert.match(fs.readFileSync(path.join(root, 'dpms', 'docs', '배포절차.md'), 'utf8'), /앱을 먼저 내리고 DB 를 되돌린다\./, '쓰기 자리의 고치기도 바로 문서에')
-  // MCP save — 읽기는 막히고 · 쓰기도 지식관리자(주인)도 같은 저장 문: 검사를 넘은 조각은 그 순간 문서에(이름 없는 항목은 문서 · 머리로)
+  // MCP save — 읽기는 막히고 · 쓰기도 지식관리자(주인)도 같은 저장 문: 검사를 넘은 항목 글은 그 순간 문서에(장부에 없는 항목은 문서 · 머리로)
   const sec = await mcp('section', { knowledge: 'dpms', doc: '배포절차', heading: '헬스 체크' }, P.own)
-  const args = (base, n) => ({ knowledge: 'dpms', record: { title: `헬스 체크: 결과 남기기 ${n}`, body: '헬스 체크 결과를 남긴다.', changes: [`헬스 체크 결과: 운영 채널에 남긴다 ${n}`], touchesEmpty: '시험 — 이름 없는 항목' }, sections: [{ doc: '배포절차', heading: '헬스 체크', base, edits: [{ find: '배포 뒤 서버 상태는 이것으로 본다.', replace: `배포 뒤 서버 상태는 이것으로 본다. 결과는 운영 채널에 남긴다 ${n}.` }] }] })
+  const args = (base, n) => ({ knowledge: 'dpms', record: { title: `헬스 체크: 결과 남기기 ${n}`, body: '헬스 체크 결과를 남긴다.', changes: [`헬스 체크 결과: 운영 채널에 남긴다 ${n}`], touchesEmpty: '시험 — 장부에 없는 항목' }, sections: [{ doc: '배포절차', heading: '헬스 체크', base, edits: [{ find: '배포 뒤 서버 상태는 이것으로 본다.', replace: `배포 뒤 서버 상태는 이것으로 본다. 결과는 운영 채널에 남긴다 ${n}.` }] }] })
   assert.equal((await mcp('save', args(sec.base, 'A'), P.rd)).error, 'E_FORBIDDEN')
   const wr = await msave(args(sec.base, 'A'), P.wr)
   assert.deepEqual([wr.docs, wr.put], [['배포절차'], 1], JSON.stringify(wr))

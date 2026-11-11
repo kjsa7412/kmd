@@ -60,7 +60,7 @@ test('글 · 항목 · 해시: 서버가 정한 꼴 · 같은 입력이면 같�
   assert.match(r.text, /^【저장 제안】 지식: DPMS 지식\(보는 사람 \d+\) · 길: 이 세션의 작업\n【기록】 「카나리: 첫 30분 비율 20%」/)
   assert.match(r.text, /바뀐 것 {2,}첫 30분 비율: 10% → 20%/)
   assert.match(r.text, /―― 고칠 항목 ――\n {2}배포절차 › 카나리 {3}변경 {3}10% → 20%\n {5}- .*요청의 10% 만.*\n {5}\+ .*요청의 20% 만/)
-  for (const h of ['새 항목', '새 문서', '새 갈래 · 새 종류', '새 이름', '이을 항목(글 그대로)', '뺀다', '검사']) assert.match(r.text, new RegExp(`―― ${h.replace(/[()]/g, '\\$&')} ――`))
+  for (const h of ['새 항목(문서)', '새 문서', '새 갈래 · 새 종류', '새 항목(장부)', '이을 항목(글 그대로)', '뺀다', '검사']) assert.match(r.text, new RegExp(`―― ${h.replace(/[()]/g, '\\$&')} ――`))
   assert.match(r.text, /오류 없음\n승인하시면/)
   assert.equal(r.items.length, 1)
   assert.deepEqual([r.items[0].kind, r.items[0].doc, r.items[0].heading, r.items[0].base], ['고침', 'docs/배포절차.md', '카나리', sec.base])
@@ -73,14 +73,14 @@ test('글 · 항목 · 해시: 서버가 정한 꼴 · 같은 입력이면 같�
   assert.notEqual(ex.proposal, r.proposal, '뺀 것도 해시에 든다')
   assert.match(ex.text, /―― 뺀다 ――\n {2}screen:BZD020 {3}사람이 뺌/)
   assert.equal(snap(), n0, 'propose 는 쓰지 않는다(지식 폴더 그대로)')
-  // 이을 항목(글 그대로) — 조각 없는 건드린 이름
+  // 이을 항목(글 그대로) — 항목 글 없는 건드린 항목
   const link = await mcp('propose', input(sec.base, { record: { ...input().record, touches: ['proc:카나리', 'proc:준비'] } }))
   assert.deepEqual(link.items.map((x) => x.kind), ['고침', '잇기'])
   assert.match(link.text, /―― 이을 항목\(글 그대로\) ――\n {2}배포절차 › 준비 {3}잇기/)
   assert.equal(link.items[1].before, link.items[1].after)
 })
 
-test('오류: 지문 어긋남 · 장부 밖 이름 · 없는 문서(쓰기 자리) → errors · 해시 없음 · 제안서 끝 줄', async () => {
+test('오류: 지문 어긋남 · 장부 밖 항목 · 없는 문서(쓰기 자리) → errors · 해시 없음 · 제안서 끝 줄', async () => {
   const sec = await canary()
   const st = await mcp('propose', input('deadbeefdeadbeef'))
   assert.equal(st.proposal, null)
@@ -107,7 +107,7 @@ test('near(P-D10): 정규화가 같으면 오류 · distinct 로 넘음 · 비�
   assert.deepEqual(sim.errors, [])
   assert.deepEqual(sim.warnings.filter((w) => w.code === 'near').map((w) => w.at), ['proc:카나리2'])
   assert.deepEqual(sim.newNames[0].near, ['proc:카나리'])
-  assert.match(sim.text, /―― 새 이름 ――\n {2}proc:카나리2 {3}신설 {3}자리: 없음 · 비슷한 이름 proc:카나리/)
+  assert.match(sim.text, /―― 새 항목\(장부\) ――\n {2}proc:카나리2 {3}신설 {3}자리: 없음 · 비슷한 항목 proc:카나리/)
   const fm = await mcp('propose', { ...base, forms: [{ name: '회의 록' }] })
   assert.deepEqual(fm.errors.map((e) => e.code), ['near'], '갈래 「회의 록」 은 회의록과 같은 이름')
 })
@@ -148,7 +148,7 @@ test('입력 모양(P-D32): proposal · distinct · excluded · forms · kinds �
   const r = await req('/api/k/dpms/propose', P.wr, { record: { title: 't', body: 'b', touches: ['proc:카나리'] }, excluded: 'x' })
   assert.deepEqual([r.status, r.j.error], [400, 'E_INPUT'])
   assert.equal((await mcp('propose', { ...input(sec.base), distinct: ['__proto__'] })).error, 'E_INPUT')
-  assert.equal((await mcp('propose', { ...input(sec.base), sections: [{ coord: 'proc:카나리', base: 'xx', edits: [] }] })).error, 'E_INPUT', '조각 모양은 save 와 같은 검사')
+  assert.equal((await mcp('propose', { ...input(sec.base), sections: [{ coord: 'proc:카나리', base: 'xx', edits: [] }] })).error, 'E_INPUT', '바꿀 곳 모양은 save 와 같은 검사')
 })
 
 test('save 가 거절할 입력은 제안서 없이 E_INPUT · 사람 글은 들여 실림 · 명부가 바뀌어도 같은 지문 · 집합 칸 차례', async () => {
@@ -181,7 +181,7 @@ test('near 셈 · 줄 차이(core)', () => {
   assert.deepEqual(nearOf(['카'], '카나리'), { same: [], similar: [] }, '한 글자는 비슷함으로 치지 않는다')
   assert.deepEqual(nearOf(['배포'], '배포절차체크리스트'), { same: [], similar: [] }, '길이 비가 문턱 아래면 비슷하지 않다')
   const vocab = { coords: new Map([['proc:헬스 체크', { label: '헬스 체크', aliases: ['상태 점검'], deprecated: null }]]) }
-  assert.deepEqual(nameNear(vocab, 'proc:상태점검', '상태 점검').same, ['proc:헬스 체크'], '다른 이름과 같아도 같음')
+  assert.deepEqual(nameNear(vocab, 'proc:상태점검', '상태 점검').same, ['proc:헬스 체크'], '별칭과 같아도 같음')
   assert.deepEqual(lineDiff('a\nb\nc', 'a\nB\nc'), [['-', 'b'], ['+', 'B']])
   assert.deepEqual(lineDiff('same', 'same'), [])
 })

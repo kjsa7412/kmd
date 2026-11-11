@@ -27,7 +27,7 @@ const BASE = {
   'docs/장애 대응.md': '# 장애 대응\n\n## 롤백\n이전 판으로.\n\n## 서버 목록\nweb01 은 10.0.0.1 · web02 는 10.0.0.2\n',
   'work/2026-1101-a.md': rec('2026-1101-a', '2026-11-01 09:00', ['proc:배포창']),
   '_managed.md': '| 이름 | 문서 | 항목 |\n|---|---|---|\n| `proc:배포창` | `docs/배포 절차.md` | `## 배포 창` |\n| `proc:사전점검` | `docs/배포 절차.md` | `## 사전 점검` |\n',
-  '_vocab.md': '# 이름 장부\n\n## proc\n\n- `proc:배포창`: 배포 창\n- `proc:사전점검`: 사전 점검\n',
+  '_vocab.md': '# 항목 장부\n\n## proc\n\n- `proc:배포창`: 배포 창\n- `proc:사전점검`: 사전 점검\n',
 }
 async function load(dir) {
   const files = await readStructure(dir)
@@ -95,7 +95,7 @@ test('옮기기 · 이름 · 차례 · 문서 옮기기 판정 — frame 걸음(
   fs.rmSync(dir, { recursive: true, force: true })
 })
 
-test('합치기 · 나누기 · 엮임 판정 — write 단위 · 고쳐 쓰기 base · 50 조각 넘는 엮임 걸림', async () => {
+test('합치기 · 나누기 · 엮임 판정 — write 단위 · 고쳐 쓰기 base · 50 항목 넘는 엮임 걸림', async () => {
   const dir = make(BASE)
   const { k, S } = await load(dir)
   const base = same(S)
@@ -119,7 +119,7 @@ test('합치기 · 나누기 · 엮임 판정 — write 단위 · 고쳐 쓰기 
   assert.match(split.targets[0].base, /^[0-9a-f]{16}$/, '출처와 같은 머리 = 고쳐 쓰기(base)')
   assert.equal(r.summary.merges, 1)
   assert.equal(r.summary.splits, 1)
-  // 이름을 다시 놓지 않으면 걸림
+  // 장부 항목을 다시 놓지 않으면 걸림
   const noName = P({ ...base, names: [] })
   assert.ok(planCheck(k, S, noName).errors.some((e) => e.code === 'names' && /proc:사전점검/.test(e.where)))
   // 판정 id(저장 승인 P1) — 걸림 · 경고마다 · 같은 구조안이면 같은 id
@@ -134,12 +134,12 @@ test('합치기 · 나누기 · 엮임 판정 — write 단위 · 고쳐 쓰기 
   big.docs[0].items = Array.from({ length: 30 }, (_, i) => ({ h: `새 ${i}`, from: [{ doc: '큰 문서', h: `칸 ${i}` }, { doc: '큰 문서', h: `칸 ${(i + 1) % 30}` }] }))
   const rb = planCheck(L.k, L.S, P(big))
   assert.equal(rb.diff.writes.length, 1, '엮인 덩이는 한 단위')
-  assert.ok(rb.errors.some((e) => e.code === 'unit'), '50 조각 넘음')
+  assert.ok(rb.errors.some((e) => e.code === 'unit'), '50 항목 넘음')
   fs.rmSync(dir, { recursive: true, force: true })
   fs.rmSync(dir2, { recursive: true, force: true })
 })
 
-test('걸림 — 덮임 빠짐 · 구조안에 없는 문서 · G4 · 별칭 겹침 · 이름 자리 밖 · 머리 겹침 · 원본이 주인', async () => {
+test('걸림 — 덮임 빠짐 · 구조안에 없는 문서 · G4 · 별칭 겹침 · 장부 항목 자리 밖 · 머리 겹침 · 원본이 주인', async () => {
   const files = { ...BASE, 'docs/원본.md': '<!-- watched: src="s" path="p.docx" -->\n# 원본\n\n## 가\n글\n', 'work/2026-1103-c.md': rec('2026-1103-c', '2026-11-03 09:00', ['proc:배포창']) }
   const dir = make(files)
   const { k, S } = await load(dir)
@@ -153,15 +153,15 @@ test('걸림 — 덮임 빠짐 · 구조안에 없는 문서 · G4 · 별칭 겹
   const b = same(S)
   b.docs = b.docs.filter((d) => d.id !== '원본')
   assert.ok(codes(b).errors.some((e) => /구조안에 없다/.test(e.why)))
-  // G4 — 문서 이름이 다른 갈래의 다른 이름에 걸림(기본 갈래 회의록: 회의)
+  // G4 — 문서 이름이 다른 갈래의 별칭에 걸림(기본 갈래 회의록: 회의)
   const c = same(S)
   c.docs.push({ id: '주간 회의', items: [] })
   assert.ok(codes(c).errors.some((e) => e.code === 'g4' && e.where === '주간 회의'))
-  // 별칭 겹침 — 갈래 다른 이름이 다른 갈래 이름 안에
+  // 별칭 겹침 — 갈래 별칭이 다른 갈래 이름 안에
   const d = same(S)
   d.forms = [{ name: '배포 절차', kind: '대상' }, { name: '장애 대응', kind: '대상' }, { name: '원본', kind: '대상' }, { name: '점검', aliases: ['배포'], kind: '대상' }]
   assert.ok(codes(d).errors.some((e) => e.code === 'g4' && /배포/.test(e.why)))
-  // 이름 자리 밖
+  // 장부 항목 자리 밖
   const e = same(S)
   e.names = [{ coord: 'proc:배포창', doc: '배포 절차', h: '없는 머리' }]
   assert.ok(codes(e).errors.some((x) => x.code === 'names' && /없는 머리/.test(x.why)))

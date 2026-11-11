@@ -57,21 +57,21 @@ test('judgeSection: 오류와 값 경고를 따로 · 경고 id 는 같은 입�
   assert.equal(foldJudge({ errors: [], warnings: [{ code: 'dropped', why: 'x' }] }, { pass: (w) => w.code === 'dropped' }), null)
 })
 
-test('judgeEdits: 못 대는 조각을 모두 오류로 · applyEdits 는 첫 오류 그대로', () => {
+test('judgeEdits: 못 대는 바꿀 곳을 모두 오류로 · applyEdits 는 첫 오류 그대로', () => {
   const t = '첫 줄 10%.\n둘째 줄.\n셋째 줄 1%.'
   const j = judgeEdits(t, [{ find: '없는 글', replace: 'x' }, { find: '줄', replace: 'y' }, { find: '셋째 줄 1%.', replace: '셋째 줄 2%.' }])
   assert.equal(j.text, undefined)
-  assert.deepEqual(j.errors.map((e) => e.at), [0, 1], '1째 · 2째 조각 둘 다')
+  assert.deepEqual(j.errors.map((e) => e.at), [0, 1], '1째 · 2째 바꿀 곳 둘 다')
   assert.match(j.errors[1].why, /두 번 넘게/)
   const a = applyEdits(t, [{ find: '없는 글', replace: 'x' }, { find: '줄', replace: 'y' }])
   assert.deepEqual(a, { ok: false, why: j.errors[0].why, at: 0 })
-  assert.deepEqual(judgeEdits(t, []).errors, [{ code: 'edits', why: '조각이 없다' }])
-  assert.deepEqual(applyEdits(t, []), { ok: false, why: '조각이 없다' })
+  assert.deepEqual(judgeEdits(t, []).errors, [{ code: 'edits', why: '바꿀 곳이 없다' }])
+  assert.deepEqual(applyEdits(t, []), { ok: false, why: '바꿀 곳이 없다' })
   const ok = judgeEdits(t, [{ find: '둘째 줄.', replace: '둘째 줄!' }])
   assert.deepEqual(ok, { text: '첫 줄 10%.\n둘째 줄!\n셋째 줄 1%.', errors: [] })
 })
 
-test('judgeProposal: 조각 · 지문 · 항목 없음은 오류 · 옛 값 남음(remain)은 막지 않는 경고 · checkProposal 은 옛 꼴 그대로', () => {
+test('judgeProposal: 바꿀 곳 · 지문 · 항목 없음은 오류 · 옛 값 남음(remain)은 막지 않는 경고 · checkProposal 은 옛 꼴 그대로', () => {
   const base = sha16(CUR)
   const r = rec('- 재시도: `3` → `5`')
   // `3` 을 `5` 로 바꾸면서 다른 곳에 `3` 을 남긴다 — remain(막지 않음)
@@ -83,7 +83,7 @@ test('judgeProposal: 조각 · 지문 · 항목 없음은 오류 · 옛 값 남�
   const c = checkProposal(k, p)
   assert.equal(c.ok, true)
   assert.deepEqual(c.warnings, [j.warnings[0].why])
-  // 지문 없음 · 어긋남 · 항목 없음 · 조각 못 댐
+  // 지문 없음 · 어긋남 · 항목 없음 · 바꿀 곳 못 댐
   assert.deepEqual(checkProposal(k, { ...p, base: null }), { ok: false, code: 'conflict', stale: true, why: '항목 지문(base)이 없다. section 이 준 base 를 같이 보낸다' })
   assert.equal(judgeProposal(k, { ...p, base: 'x' }).errors[0].code, 'conflict')
   assert.equal(checkProposal(k, { ...p, heading: '없는 머리' }).code, 'notfound')
@@ -92,7 +92,7 @@ test('judgeProposal: 조각 · 지문 · 항목 없음은 오류 · 옛 값 남�
   assert.ok(bad.errors.every((e) => /^edits:/.test(e.id)))
   const cb = checkProposal(k, { ...p, edits: [{ find: '헬스체크 주기는 10', replace: 'x' }, { find: '없음2', replace: 'y' }] })
   assert.equal(cb.code, 'edits')
-  assert.match(cb.why, /2째 조각/)
+  assert.match(cb.why, /2째 바꿀 곳/)
   // 지어낸 값 — 경고(judge) · 옛 판정은 못 넘음(values)
   const inv = { ...p, edits: [{ find: '10초', replace: '10초, 최대 99초' }], record: rec('- 최대를 정했다') }
   assert.deepEqual(judgeProposal(k, inv).warnings.map((w) => w.code), ['invented'])
@@ -131,7 +131,7 @@ test('judgeShape: 출처 지문은 오류(값은 보지 않음) · 지어낸 값
 test('judgeReflect(본문 반영): 「바뀐 것」 값이 이은 항목 글 · 머리 어디에도 없으면 오류 · 경위만 · watched 는 넘는다', () => {
   const r = rec('- 주기: 10초 → 20초')
   const item = (text, extra = {}) => ({ doc: 'docs/배포절차.md', heading: '헬스체크', text, ...extra })
-  // 조각 없이 기록만(글은 아직 10초) — 오류
+  // 항목 글 없이 기록만(글은 아직 10초) — 오류
   const no = judgeReflect(r, [item(CUR)])
   assert.deepEqual(no.values, ['20초'])
   assert.deepEqual(no.errors.map((e) => [e.code, e.values]), [['unreflected', ['20초']]])

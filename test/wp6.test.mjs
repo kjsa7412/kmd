@@ -1,7 +1,7 @@
 // WP6 필수 — 쓴 글 지키기(제품화 검토 v0.1 F-004 · G4-5 · F-035 · F-036 · F-025 · F-034 · F-045 · G2-2 · F-089 · F-048 · F-067).
 //
 // 고치는 중 쓴 글은 다시 그려도 · 찾기를 열고 닫아도 그대로 · Ctrl S 저장 · 들어온 것이 끝나면 그 자리에서 다시 들어가 이어서 저장 ·
-// 항목 지우기 · 이름 바꾸기가 문서에 들어간다(이름 장부도 따라간다) · 이름 장부에 없는 항목을 고친 기록도 그 항목에 선다 ·
+// 항목 지우기 · 이름 바꾸기가 문서에 들어간다(항목 장부도 따라간다) · 항목 장부에 없는 항목을 고친 기록도 그 항목에 선다 ·
 // 같은 글 두 번 누름은 하나 · MCP 는 이미 있는 항목을 base 없이 덮지 않는다 · 이미 되돌린 정리는 다시 되돌리지 않고 쓴 사람의 줄도 거둔다 ·
 // 편집기로 고친 기록 · 장부는 사본을 두고 되돌리며 이력에 알린다 · 꺼져 있던 동안의 편집기 고침을 켤 때 거둔다.
 
@@ -59,7 +59,7 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('항목 지우기 · 이름 바꾸기: 지식관리자는 문서에 바로(이름 장부도 따라간다) · 쓰기 자리는 E_FORBIDDEN(S9)', async () => {
+test('항목 지우기 · 이름 바꾸기: 지식관리자는 문서에 바로(항목 장부도 따라간다) · 쓰기 자리는 E_FORBIDDEN(S9)', async () => {
   const before = doc('dpms', '배포절차')
   assert.match(before, /## 헬스 체크/)
   await s.hub.edit(KIM, 'dpms', { doc: '배포절차', remove: ['준비'], rename: [{ from: '헬스 체크', to: '상태 확인' }] })
@@ -76,7 +76,7 @@ test('항목 지우기 · 이름 바꾸기: 지식관리자는 문서에 바로(
   assert.equal(doc('dpms', '배포절차'), c0, '문서는 그대로')
 })
 
-test('이름 장부에 없는 항목도 쓰기 자리의 고치기가 바로 들어간다(이력 「고침」 · S9) · 같은 글 두 번 누름은 하나', async () => {
+test('항목 장부에 없는 항목도 쓰기 자리의 고치기가 바로 들어간다(이력 「고침」 · S9) · 같은 글 두 번 누름은 하나', async () => {
   const k = await s.hub.get('gdi')
   const d = k.docs.find((x) => x.sections.some((sc) => !coordsOfSection(k, x, sc.h).length))
   const h = d.sections.find((sc) => !coordsOfSection(k, d, sc.h).length).h

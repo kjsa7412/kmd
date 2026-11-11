@@ -7,17 +7,17 @@
 //     dirs    ['c/빈 폴더']                   문서가 없는 폴더(차례 장부에만 남는다 · git 은 빈 폴더를 남기지 않는다)
 //     order   { '': ['0_공통/', '용어집'], '0_공통': [...] }   폴더마다 형제 차례(폴더는 끝에 /) · 없으면 폴더 먼저 · 이름 차례
 //   같이 고치는 것 — 옮긴 문서를 가리키는 링크 · 옮긴 문서 안의 상대 링크(다른 문서 · 첨부 · 참고 블록의 기록) ·
-//     자리 장부(_managed.md)의 문서 경로 · 갈래 장부(_forms.md)의 갈래 이름 · 폴더 · 가져올 곳(_sources.json)의 into.doc · 차례 장부(_order.md)
+//     문서 장부(_managed.md)의 문서 경로 · 갈래 장부(_forms.md)의 갈래 이름 · 폴더 · 가져올 곳(_sources.json)의 into.doc · 차례 장부(_order.md)
 //   링크는 글 전체에서 같은 규칙으로 경로만 바꾼다(참고 블록의 짜임은 건드리지 않는다 · 코드 울타리 안은 그대로)
 //
 //   항목(바탕 세우기 설계 4-3 · 4-4 · 권한 모델 7-1) — 글은 글자 그대로 · 값 검사 없음
 //     items   [{ from: { doc, h }, to: { doc, h, before } }]   항목 옮기기 · 항목 이름 · 같은 문서 차례
 //             from.doc 는 지금 문서 id(옮기기 앞) · to.doc 는 끝 문서 id(옮긴 뒤 · 새 문서도) · to.h 가 없으면 같은 머리 · before 는 목표 문서의 머리
-//     drops   ['문서 id']                       빈 문서 걷기(끝 id · 항목 0 · 요약 0 · 들어오는 링크 0 · 자리 장부 줄 0 일 때만 · 작성기준 6-1)
-//     creates 의 갈래가 대장(이름 패턴)이면 자리 장부에 패턴 줄을 같이 세운다
+//     drops   ['문서 id']                       빈 문서 걷기(끝 id · 항목 0 · 요약 0 · 들어오는 링크 0 · 문서 장부 줄 0 일 때만 · 작성기준 6-1)
+//     creates 의 갈래가 대장(항목 패턴)이면 문서 장부에 패턴 줄을 같이 세운다
 //   같이 고치는 것 — 옮긴 항목 글 속 상대 링크 · 들어오는 `x.md#머리` · `#머리` · 참고 줄(moveSection) · applied 표지(글과 같이) ·
-//     자리 장부(placeExact: 정확한 줄은 제자리 · 패턴 줄로 닿던 이름은 패턴 줄 위에 정확한 줄)
-//   막는 것 — 겹치는 머리(같은 머리 · 앞부분 겹침) · 원본이 주인 · 갈래 머리 꼴 · 저절로 채우는 표 · 자리 잃는 이름 ·
+//     문서 장부(placeExact: 정확한 줄은 제자리 · 패턴 줄로 닿던 장부 항목은 패턴 줄 위에 정확한 줄)
+//   막는 것 — 겹치는 머리(같은 머리 · 앞부분 겹침) · 원본이 주인 · 갈래 머리 꼴 · 저절로 채우는 표 · 머리 잃는 항목 ·
 //     쓴 뒤 기록 상태가 바뀜(저널 되돌림)
 //   지문 — base 는 structureFp(옛 화면) 또는 stepFp(이 걸음이 건드리는 것만) · step('shape/<work>/<n>')이 있으면 이력 표지 · 멱등
 //
@@ -296,7 +296,7 @@ export function planRestructure(files, ops = {}) {
     const w = pathProblem(c, { doc: true })
     if (w) { err(c, w); continue }
     const g = guardNewDoc(formsAll, c, [])
-    // 장부가 있는 지식 — 장부 밖 이름이면 그 갈래 줄을 같이 세운다(지식관리자의 짜임 바꾸기 · G4 를 지난다)
+    // 장부가 있는 지식 — 장부 밖 항목이면 그 갈래 줄을 같이 세운다(지식관리자의 짜임 바꾸기 · G4 를 지난다)
     const bad = g.errors.filter((e) => !/갈래 장부에 없는 문서/.test(e.message))
     if (bad.length) { err(c, bad[0].message); continue }
     if (g.registryRow) patternRows.push({ pattern: g.registryRow.pattern, doc: c })
@@ -370,7 +370,7 @@ export function planRestructure(files, ops = {}) {
       const f = formFor(k ? k.forms : formsAll, P.basename(it.to.doc))
       if (f && !headingFits(f, toH)) { err(where, `「${f.name}」 의 항목 머리 꼴이 아니다: ${formHeadRule(f)}`); continue }
     }
-    // 이름 — 옮기기 앞 지식(k)으로
+    // 장부 항목 — 옮기기 앞 지식(k)으로
     let coords = []
     if (k) {
       const dObj = k.byDocPath.get(src0)
@@ -420,7 +420,7 @@ export function planRestructure(files, ops = {}) {
     }
   }
 
-  // ── 빈 문서 걷기(작성기준 6-1) — 항목 0 · 요약 0 · 들어오는 링크 0 · 자리 장부 줄 0 ──
+  // ── 빈 문서 걷기(작성기준 6-1) — 항목 0 · 요약 0 · 들어오는 링크 0 · 문서 장부 줄 0 ──
   const dropped = []
   const regRowsNow = parseRegistry(files.registry || '')
   for (const d of drops) {
@@ -432,7 +432,7 @@ export function planRestructure(files, ops = {}) {
     if (pd.sections.length) { err(d, `빈 문서가 아니다(항목 ${pd.sections.length})`); continue }
     if (pd.intro.trim()) { err(d, '빈 문서가 아니다(요약이 있다)'); continue }
     const from0 = origin.get(rel) || rel
-    if ([...regRowsNow.rows, ...regRowsNow.wholes].some((x) => x.doc === from0 || x.doc === rel)) { err(d, '자리 장부 줄이 이 문서를 가리킨다'); continue }
+    if ([...regRowsNow.rows, ...regRowsNow.wholes].some((x) => x.doc === from0 || x.doc === rel)) { err(d, '문서 장부 줄이 이 문서를 가리킨다'); continue }
     let inbound = null
     for (const [r2, t2] of final) {
       if (r2 === rel) continue
@@ -466,7 +466,7 @@ export function planRestructure(files, ops = {}) {
   }
   // 걷은 문서가 옮긴 문서였으면 — 옛 자리만 지운다
   const removes = dropped.map((d) => d.from).filter(Boolean)
-  // 자리 장부 — 표 줄의 docs/… 경로 · 새 대장 문서의 패턴 줄 · 옮긴 항목의 이름(placeExact)
+  // 문서 장부 — 표 줄의 docs/… 경로 · 새 대장 문서의 패턴 줄 · 옮긴 항목의 장부 줄(placeExact)
   let regRows = 0
   let regText = readText(files.registry || '')
   if (files.registry && map.size) {
@@ -487,7 +487,7 @@ export function planRestructure(files, ops = {}) {
     if (t2 !== regText) regRows += Math.max(1, t2.split('\n').filter((l, i) => l !== regText.split('\n')[i]).length)
     regText = t2
   }
-  // 자리 잃는 이름 — 옮기기 앞에 항목에 닿던 이름이 끝 짜임에서도 항목에 닿나(옮긴 이름은 새 자리에 꼭)
+  // 머리 잃는 항목 — 옮기기 앞에 항목에 닿던 장부 항목이 끝 짜임에서도 머리에 닿나(옮긴 것은 새 자리에 꼭)
   if (k && moved.length) {
     const reg = parseRegistry(regText)
     const names = new Set([...k.vocab.coords.keys()])
@@ -504,7 +504,7 @@ export function planRestructure(files, ops = {}) {
       const w = want.get(c)
       if (!hit || (w && (loc.doc !== relOf(w.doc) || hit !== w.heading))) lost.push(c)
     }
-    if (lost.length) { err(lost.slice(0, 3).join(' · '), `옮긴 뒤 항목에 닿지 않는 이름이 생긴다(${lost.length})`); return { errors, moves: [], writes: [], creates: [], drops: [], summary: null, lines: [] } }
+    if (lost.length) { err(lost.slice(0, 3).join(' · '), `옮긴 뒤 머리에 닿지 않는 장부 항목이 생긴다(${lost.length})`); return { errors, moves: [], writes: [], creates: [], drops: [], summary: null, lines: [] } }
   }
   if (regText !== readText(files.registry || '')) writes.push({ rel: '_managed.md', text: regText.endsWith('\n') ? regText : regText + '\n' })
   // 갈래 장부 — 갈래 이름 = 문서 이름 · 폴더 칸
@@ -650,7 +650,7 @@ export function applyRestructure(dir, ops, { user, by = null, base = null, dry =
     const logRel = `${LOG_DIR}/${id}.md`
     const s = plan.summary
     const title = `문서 짜임 바꿈: ${[s.moved ? `옮김 ${s.moved}` : '', s.titled ? `제목 ${s.titled}` : '', s.created ? `새 문서 ${s.created}` : '', s.items ? `항목 ${s.items}` : '', s.dropped ? `걷음 ${s.dropped}` : '', s.links ? `링크 ${s.links}` : '', s.order ? '차례' : ''].filter(Boolean).join(' · ') || '장부'}`
-    const body = [`구조 화면에서 바꿨다(옛 경로 → 새 경로). 이름이 바뀐 문서는 제목도 그 이름이다${by ? ` · 바꾼 사람 ${by}` : ''}`, ...plan.lines, s.links ? `- 고친 링크 ${s.links}(문서 ${s.docsTouched + s.moved})` : '', s.registry ? `- 자리 장부 줄 ${s.registry}` : '', s.forms ? `- 갈래 장부 줄 ${s.forms}` : '', s.sources ? `- 가져올 곳 ${s.sources}` : '', s.order ? '- 차례 장부' : ''].filter(Boolean).join('\n')
+    const body = [`구조 화면에서 바꿨다(옛 경로 → 새 경로). 이름이 바뀐 문서는 제목도 그 이름이다${by ? ` · 바꾼 사람 ${by}` : ''}`, ...plan.lines, s.links ? `- 고친 링크 ${s.links}(문서 ${s.docsTouched + s.moved})` : '', s.registry ? `- 문서 장부 줄 ${s.registry}` : '', s.forms ? `- 갈래 장부 줄 ${s.forms}` : '', s.sources ? `- 가져올 곳 ${s.sources}` : '', s.order ? '- 차례 장부' : ''].filter(Boolean).join('\n')
     const j = await begin(dir)
     const paths = []
     try {

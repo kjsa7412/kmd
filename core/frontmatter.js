@@ -44,7 +44,7 @@ export function parseRecord(text, file) {
     date: normDate(data.date) || '',
     author: data.author != null ? nfc(String(data.author).trim()) : '',
     touches: list(data.touches),
-    // 이름 없는 까닭(지식 생성 가드 G3) — touches 가 비었을 때만
+    // 건드린 항목이 없는 까닭(지식 생성 가드 G3) — touches 가 비었을 때만
     touchesEmpty: data.touchesEmpty != null && String(data.touchesEmpty).trim() ? nfc(String(data.touchesEmpty).trim()) : null,
     tags: list(data.tags),
     fixes: data.supersedes != null ? list(typeof data.supersedes === 'object' && !Array.isArray(data.supersedes) ? data.supersedes.id : data.supersedes) : [],

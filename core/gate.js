@@ -1,4 +1,4 @@
-// 검사 — 새 글(초안 · 조각으로 만든 글)이 지식에 들어가도 되나(docs/kmd_권한_모델.md 7절 · docs/kmd_문서_작성기준.md 3 ~ 5절).
+// 검사 — 새 글(초안 · 바꿀 곳을 대어 만든 글)이 지식에 들어가도 되나(docs/kmd_권한_모델.md 7절 · docs/kmd_문서_작성기준.md 3 ~ 5절).
 //
 //   G1 모양 · 기록마다 넣음(used) 또는 둠(left) · G2 base · G4 값 대조(빠진 값 · 지어낸 값 · 옛 값 빠짐) ·
 //   G5 크기 · G6 표지(항목 머리 # · ## · applied · 프런트매터 · script — 소제목 ### 아래는 된다). 못 넘으면 { ok:false, why }.
@@ -39,15 +39,15 @@ export function draftBad(t, cur = '', { doc = null, old = null } = {}) {
   return null
 }
 
-// 조각 초안을 지금 글에 댄다(옛 정리의 applyEdits(cur, d)) — find 는 꼭 한 번 맞아야 한다(두 곳 · 없음은 거절: 엉뚱한 곳을 고치지 않게) ·
-//   rewrite 면 그 글 · 빈 조각이면 지금 글 그대로
+// 바꿀 곳 초안을 지금 글에 댄다(옛 정리의 applyEdits(cur, d)) — find 는 꼭 한 번 맞아야 한다(두 곳 · 없음은 거절: 엉뚱한 곳을 고치지 않게) ·
+//   rewrite 면 그 글 · 바꿀 곳이 비면 지금 글 그대로
 export function applyDraft(cur, d) {
   if (typeof d.rewrite === 'string' && d.rewrite.trim()) return { content: d.rewrite }
   if (!Array.isArray(d.edits)) return { why: '초안 모양이 아니다' }
   if (!d.edits.length) return { content: String(cur || '') }
   // 대는 법은 제안(core/propose.js)과 하나 — 꼭 한 번 · 겹치지 않음 · 원문 그대로(core/edits.js)
   const r = applyPatch(String(cur || ''), d.edits)
-  return r.ok ? { content: r.text } : { why: `조각이 지금 글에 맞지 않는다: ${r.why}` }
+  return r.ok ? { content: r.text } : { why: `바꿀 곳이 지금 글에 맞지 않는다: ${r.why}` }
 }
 
 // 검사 — { ok, why, changed: [{from, to}] } · 정리 묶음의 갈래(ingest · touches · section)로 나눈다
@@ -57,7 +57,7 @@ export function check(k, g, d) {
   if (g.kind === 'touches') {
     if (!Array.isArray(d.touches)) return { ok: false, why: '초안 모양이 아니다' }
     const allowed = new Set(g.candidates.map((c) => c.coord))
-    if (d.touches.some((c) => !allowed.has(c))) return { ok: false, why: '후보 밖의 이름을 골랐다' }
+    if (d.touches.some((c) => !allowed.has(c))) return { ok: false, why: '후보 밖의 항목을 골랐다' }
     return { ok: true, changed: [] }
   }
   return checkSectionDraft(k, g, d)
@@ -100,11 +100,11 @@ export function checkSectionDraft(k, g, d) {
   // 코드 바뀜 기록은 「바뀐 값」 의 새 값만 글에 있어야 한다(차이 속의 다른 수 · 옛 값까지 요구하면 늘 남는다) ·
   //   옛 기록(지금 글에 더 늦게 쓴 기록이 이미 들어갔다)의 값은 글에 없어도 된다 — 더 새 값이 이겼을 수 있다
   //   여러 항목에 걸린 기록(spread)의 값은 그 항목들에 나뉜다 — 항목 하나에 다 요구하면 늘 남는다(받은 것 「다시 · N번째」)
-  //   항목 머리에 있는 값(이슈 번호 같은 그 항목의 이름)은 글에 다시 쓰지 않아도 된다
+  //   항목 머리에 있는 값(이슈 번호 같은 그 항목의 값)은 글에 다시 쓰지 않아도 된다
   const headV = valuesOf(g.heading)
   const missing = [...new Set(used.filter((r) => !r.old && !r.spread).flatMap((r) => (r.code ? newValuesOf(r.body) : mustValues(r.body))))].filter((v) => !now.has(v) && !drop.has(v) && !headV.has(v))
   if (missing.length) return { ok: false, why: `기록의 값이 글에 없다: ${missing.slice(0, 3).join(' · ')}` }
-  // 지식에 있는 이름(같은 문서의 항목 머리 · 이름 장부의 이름)을 가리키는 것은 지어낸 값이 아니다(`DPMS-ISS-18` 같은 관련 항목)
+  // 지식에 있는 항목(같은 문서의 항목 머리 · 항목 장부의 항목)을 가리키는 것은 지어낸 값이 아니다(`DPMS-ISS-18` 같은 관련 항목)
   const named = namesIn(k, x?.doc)
   const grounded = groundedIn(cur + ' ' + used.map((r) => r.body + ' ' + r.title).join(' '), oldV, recV)
   const invented = [...now].filter((v) => !oldV.has(v) && !recV.has(v) && !named.has(v) && !grounded(v))
@@ -157,7 +157,7 @@ export function judgeSection(k, { doc, heading, base, content, record, spread = 
     const missing = mustValues(body).filter((v) => !now.has(v) && !headV.has(v))
     if (missing.length) warn('missing', missing, `기록의 값이 글에 없다: ${missing.slice(0, 3).join(' · ')}`)
   }
-  // 지어낸 값 — 글의 값은 옛 글이나 기록에 있어야 한다(같은 문서의 항목 머리 · 이름 장부의 이름은 된다)
+  // 지어낸 값 — 글의 값은 옛 글이나 기록에 있어야 한다(같은 문서의 항목 머리 · 항목 장부의 항목은 된다)
   const named = namesIn(k, d)
   const grounded = groundedIn(plain(cur) + ' ' + body + ' ' + title, oldV, recV)
   const invented = [...now].filter((v) => !oldV.has(v) && !recV.has(v) && !named.has(v) && !grounded(v))
@@ -181,9 +181,9 @@ export function foldJudge(j, { pass = () => false } = {}) {
   return null
 }
 
-// 저장 문의 항목 검사(S4 · docs/품질개선/KMD_개편_설계.md 3-3) — 사람 · 세션이 보낸 새 글(content · 조각을 댄 글) 하나를 지금 지식에 대어 본다.
+// 저장 문의 항목 검사(S4 · docs/품질개선/KMD_개편_설계.md 3-3) — 사람 · 세션이 보낸 새 글(content · 바꿀 곳을 댄 글) 하나를 지금 지식에 대어 본다.
 //   { doc, heading } — 항목 자리(문서 경로 docs/x.md · 머리) · base — 보낸 쪽이 읽은 지문(이미 있는 항목이면 꼭) ·
-//   record — 함께 보낸 기록({ title, body }) · spread — 조각이 여럿이라 기록의 값이 항목들에 나뉜다(빠진 값은 부르는 쪽이 합쳐서 본다) ·
+//   record — 함께 보낸 기록({ title, body }) · spread — 고칠 항목이 여럿이라 기록의 값이 항목들에 나뉜다(빠진 값은 부르는 쪽이 합쳐서 본다) ·
 //   → { ok, why, code, stale, changed: [{ from, to }], lint } · code: conflict · format · values
 //   크기(G5 근거보다 크게)는 보지 않는다 — 사람 · 세션이 항목 전체를 다시 쓰는 일은 정리 초안과 다르다
 //   P1 부터 judgeSection 위의 얇은 덮개다(held 모드 판정 그대로).
@@ -299,7 +299,7 @@ export function judgeShape(k, unit) {
     if (bad || /^#{1,6}\s/m.test(x.text)) err('format', `요약에 머리 · 표지가 들었다: ${bad || '머리 줄'}`, x)
   }
   if (noText) return { errors, warnings }
-  // 값 대조 — 지어낸 값(목표 ⊂ 출처 ∪ 이름) · 잃은 값(출처 ⊂ 목표 합 · 바탕 · 요약은 묻지 않는다)
+  // 값 대조 — 지어낸 값(목표 ⊂ 출처 ∪ 장부 항목) · 잃은 값(출처 ⊂ 목표 합 · 바탕 · 요약은 묻지 않는다)
   const groundText = [...srcText, unit.ground || ''].map(plain).join('\n')
   const srcV = valuesOf(groundText)
   const heads = valuesOf([...(unit.sources || []).map((s) => s.h), ...(unit.targets || []).map((t) => t.h)].join(' '))
