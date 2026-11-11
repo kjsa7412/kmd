@@ -78,18 +78,6 @@ test('F12: 캐시는 요청 밖 · 둘째 요청은 다시 읽지 않는다 · �
   assert.ok(readStats.files - b <= 3, `저장 뒤 파일 읽기 ${readStats.files - b}`)
 })
 
-test('I7: 안 넣은 기록(개편 전 기록)은 최신 8 · 날짜 순 · 넘친 수', async () => {
-  // 정리를 걷은 뒤(S13) 사람 저장은 pend 를 만들지 않는다(조각이 없으면 메모) — 개편 때보다 앞서 받은 옛 기록을 core 로 둔다
-  await saveRecords(path.join(tmp, 'kn', 'dpms'), Array.from({ length: 12 }, (_, j) => ({ title: `준비 메모 ${j + 1}`, body: `${j + 1}`, touches: ['proc:준비'], date: `2026-10-22 10:${String(j + 1).padStart(2, '0')}` })), { user: 'kim', now: new Date(Date.now() - 2 * 864e5) })
-  s.hub.forget('dpms')
-  const sec = (await tool('section', { knowledge: 'dpms', coord: 'proc:준비' })).structuredContent
-  assert.equal(sec.notYetInDocs.length, 8)
-  assert.equal(sec.notYetMore, 4)
-  assert.deepEqual(sec.notYetInDocs.map((x) => x.title), [5, 6, 7, 8, 9, 10, 11, 12].map((i) => `준비 메모 ${i}`))
-  const doc = await (await fetch(s.url + '/api/k/dpms/doc?d=' + encodeURIComponent('배포절차'), { headers: { cookie: me.cookie } })).json()
-  assert.deepEqual(doc.sections.find((x) => x.h === '준비').held.map((x) => x.title), sec.notYetInDocs.map((x) => x.title), '화면과 같은 고름')
-})
-
 test('주인: _members.md 가 따라간다 · 팀 서버의 지식은 자리 표대로 본다(개인 지식은 개인 프로그램에만)', async () => {
   const row = await s.hub.setOwner(SHELL, 'gdi', { owner: '박', private: true, curators: ['박'] })
   assert.equal('private' in row, false, '「개인」 은 받지 않는다')

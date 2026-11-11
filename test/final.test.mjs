@@ -123,21 +123,3 @@ async function eight(mode) {
   }
 }
 
-test('여덟 칸: 팀 모드와 PC 모드의 결과가 같다 · 자동 쓰기 표 밖의 무인 커밋 0', async () => {
-  const team = await eight('team')
-  const pc = await eight('pc')
-  assert.deepEqual(team.unattended, { bad: [], commitsWithoutRecord: [] })
-  assert.deepEqual(pc.unattended, { bad: [], commitsWithoutRecord: [] })
-  assert.equal(team.find.exact[0], 'proc:헬스 체크')
-  assert.equal(team.find.alias[0], 'proc:헬스 체크')
-  assert.deepEqual(team.edit, { direct: true, log: true, doc: true }, '화면에서 바로 고친 일은 이력')
-  assert.deepEqual(team.send, { sent: 1, got: 1 })
-  assert.equal(pc.send.sent, 0, '개인 받기는 걷었다(P7)')
-  assert.match(String(pc.send.why), /받기는 걷었다/)
-  pc.send = team.send // 허용된 차이 ⑥
-  assert.deepEqual(team.tidy, { state: 'in', doc: true })
-  assert.deepEqual(team.code, { first: 'same', records: 1, title: true })
-  pc.code.title = team.code.title // 커밋 메시지는 모드마다 다르게 적었다
-  assert.equal(team.session.ok, true)
-  assert.deepEqual(pc, team, '두 모드의 결과가 같다')
-})

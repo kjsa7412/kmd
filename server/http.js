@@ -442,7 +442,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const GET_OK = [
     /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/audit|admin\/users|admin\/groups|claude\/state|busy|send\/teams|seed\/open)$/,
     /^\/api\/agent\/parser$/, /^\/api\/gitlab\/groups$/,/^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
-    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|held|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|shape|seed|past|removed|manage|metrics)$/,
+    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|shape|seed|past|removed|manage|metrics)$/,
     /^\/api\/k\/[^/]+\/shape\/job\/[0-9a-f]{12}$/,
   ]
   const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|stops\/ack|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|shape\/survey|k\/[^/]+\/(?:owner|save-mode|access|delete|structure|polish|revert|unwatch|docfmt|shape(?:\/[a-z]+|\/job\/[0-9a-f]{12}\/stop)?|seed(?:\/(?:upload|pick|plan|write|try|step))?|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names|approve)|rec\/[^/]+\/fix|removed\/restore))$/
@@ -575,7 +575,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const ws = await fs.readFile(path.join(dataDir, 'worker.json'), 'utf8').then(JSON.parse, () => null)
       const keys = mode === 'pc' ? ['save', 'file', 'src', 'claude', 'find'] : ['file', 'find']
       const month = new Date().toISOString().slice(0, 7)
-      // 이달 들이기 수(Q64 · S13) — 들이기 일감의 기록(태그 intake · 다듬기 포함) · PC 는 바로 넣기 기록(curate-llm) ·
+      // 이달 들이기 수(Q64 · S13) — 들이기 일감의 기록(태그 intake · 다듬기 포함) · PC 는 옛 바로 넣기 기록(curate-llm · 읽기만)도 ·
       //   지식마다 읽은 지식(같은 것이면 다시 세지 않는다)에 기대어 동시에 센다
       const intakeN = (await Promise.all(ks.map(async (k) => {
         const kn = await hub.get(k.id)
@@ -893,22 +893,6 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (body != null && typeof body !== 'string') throw new KmdError('E_INPUT', 'body 는 글이다')
       return out(200, await hub.fixRecord(ctx, dec(rf[1]), rec, { ...(title != null ? { title } : {}), body: body ?? '', ...(from != null ? { from } : {}), ...(to != null ? { to } : {}) }))
     }
-    // 넣지 못함(S10 · 설계 4-8) — 목록은 GET(읽기 자리 · hub.meta) · 손잡이는 POST 만(그 밖은 위에서 405) · :rec 는 기록 id 꼴(\d{4}-\d{4}- · 80자)
-    const hl = p.match(/^\/api\/k\/([^/]+)\/held(?:\/(again-all)|\/([^/]+)\/(again|drop|names|approve))?$/)
-    if (hl) {
-      const id = dec(hl[1])
-      if (!hl[2] && !hl[3]) return out(200, await hub.heldList(ctx, id))
-      if (hl[2]) return out(200, await hub.heldAgainAll(ctx, id))
-      const rec = dec(hl[3])
-      if (rec.length > 80 || !/^\d{4}-\d{4}-[^\\/\s\u0000-\u001f]+$/.test(rec)) throw new KmdError('E_INPUT', '기록 id 가 아니다')
-      if (hl[4] === 'again') return out(200, await hub.heldAgain(ctx, id, rec))
-      if (hl[4] === 'names') return out(200, await hub.heldNames(ctx, id, rec))
-      if (hl[4] === 'approve') return out(200, await hub.heldApprove(ctx, id, rec))
-      const b = await readBody(req)
-      const why = b && typeof b === 'object' && !Array.isArray(b) ? b.why : null
-      if (why != null && (typeof why !== 'string' || /[\r\n]/.test(why) || why.length > 200)) throw new KmdError('E_INPUT', 'why 는 한 줄 200자 안이다')
-      return out(200, await hub.heldDrop(ctx, id, rec, why || ''))
-    }
     // 넣을 곳 고르기(S-D42) — POST 만 · :rec 는 기록 id 꼴
     const rt = p.match(/^\/api\/k\/([^/]+)\/rec\/([^/]+)\/touches$/)
     if (rt) {
@@ -946,7 +930,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         //   이슈 주소만은 읽기 자리부터 issue 로(항목의 [이슈 열기] · #10 남김 · 지식관리 2) — 정책 칸(issueUrl)은 그대로 지식관리자만
         // 저장소 붙음 여부(모든 지식 표 · 6-4) — 그 지식의 지식관리자에게만 · 주소는 싣지 않는다
         const repo = lv === 'admin' && !k.gone ? !!hub.backupStateSync(k) : undefined
-        // save — 저장 방식(팀 approve · held / 개인 approve · pc · 저장 승인 P5): 화면이 저장 확인 창을 띄울지 가른다
+        // save — 저장 방식(팀은 늘 approve · 개인 approve · pc(이행 못함 · 저장 닫힘) · 저장 승인 P5 · P11 · PC6)
         return { ...V.knowledgeRow(k, seeOf(ctx, k.id)), level: lv, save: k.gone ? null : hub.saveModeOf(k.id), ...(repo !== undefined ? { repo } : {}), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null, noClaude: !!row?.noClaude, ...(lv === 'admin' && row?.issueUrl ? { issueUrl: row.issueUrl } : {}), ...(LV_READ.includes(lv) && row?.issueUrl ? { issue: row.issueUrl } : {}), ...(lv === 'admin' && row?.review ? { review: true } : {}) } : {}), ...(chk ? { chk } : {}), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
       })))
     }
@@ -1271,11 +1255,11 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const cur = clean(await fs.readFile(path.join(k.dir, ...d.path.split('/')), 'utf8').catch(() => ''))
       return out(200, { doc: d.id, sha: v.sha, at: v.at, who: v.who, msg: v.msg, md: past, cur, html: V.render(k, d.path, past) })
     }
-    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|save-mode|propose|backup|backup\/pull|backup\/gitlab|backup\/detach|owner|learn|edit|revert|guard)$/)
+    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|propose|backup|backup\/pull|backup\/gitlab|backup\/detach|owner|learn|edit|revert|guard)$/)
     if (!m) throw new KmdError('E_NOTFOUND', '그런 길은 없다')
     const id = dec(m[1])
     const what = m[2]
-    if (['save', 'save-mode', 'propose', 'backup', 'backup/pull', 'backup/gitlab', 'backup/detach', 'owner', 'learn', 'edit', 'revert'].includes(what)) {
+    if (['save', 'propose', 'backup', 'backup/pull', 'backup/gitlab', 'backup/detach', 'owner', 'learn', 'edit', 'revert'].includes(what)) {
       // 저장소 보기(메뉴 개편 6-4 · 권한 모델 7절) — 그 지식의 지식관리자부터(읽기 미만 404 · 쓰기 · 읽기 403) · 주소는 가려서 · 가지 · 상태만
       if (what === 'backup' && req.method === 'GET') {
         const meta = await hub.meta(id, ctx.shell ? undefined : ctx)
@@ -1312,13 +1296,6 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         const { channel: _c, ...input } = body && typeof body === 'object' && !Array.isArray(body) ? body : {}
         // 기기 열쇠로 온 제안은 개인 프로그램의 보내기 확인 창(P-D22 · P7)
         return out(200, await hub.propose(ctx, id, input, { path: ctx.device || ctx.legacy ? '보내기' : '화면' }))
-      }
-      // 저장 방식(저장 승인 설계 P-D18 · Q14 · P3) — 총괄 관리자(비밀번호 한 번 더) · { save: 'approve' | 'held' } · approve 는 이행이 끝난 지식만
-      if (what === 'save-mode') {
-        admin(ctx)
-        const save = body && typeof body === 'object' && !Array.isArray(body) ? body.save : null
-        if (save !== 'approve' && save !== 'held') throw new KmdError('E_INPUT', "save 는 'approve' 또는 'held' 이다")
-        return out(200, await hub.setSaveMode(ctx, id, save))
       }
       if (what === 'learn') return out(200, await hub.learn(ctx, id, body))
       // 문서 고치기(S9) — 화면 길은 이미 있는 항목의 지문(base)을 꼭 받는다
@@ -1369,10 +1346,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const older = olderThan(url.searchParams.get('before'), byId)
       const all = older ? t.records.filter(older) : t.records
       const head = all.slice(0, limit)
-      const open = older ? [] : all.slice(limit).filter((r) => r.state === 'pend' || r.state === 'nowhere' || r.state === 'held')
       const more = all.length - head.length
-      // held — 넣지 못함 수(볼 수 있는 것 · 넣지 못함 화면과 같은 값 · S10)
-      return out(200, { ...t, records: open.length ? [...head, ...open] : head, total: t.records.length, more, next: more > 0 && head.length ? cursorOf(head[head.length - 1]) : null, held: k.works.filter(V.heldSee(k, seeOf(ctx, id))).length })
+      return out(200, { ...t, records: head, total: t.records.length, more, next: more > 0 && head.length ? cursorOf(head[head.length - 1]) : null })
     }
     if (what === 'model') return out(200, V.model(k))
     if (what === 'guard') return out(200, await hub.guardAudit(ctx, id))

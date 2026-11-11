@@ -5,7 +5,7 @@
 
 export const RESERVED_USERS = ['kmd', 'kmd-auto', 'kmd-worker']
 // watched — 문서 폴더 감시가 들인 파일의 기록(원본이 주인인 문서의 앞 기록)
-// 저장 문이 붙이는 표지(docs/품질개선/KMD_개편_설계.md 2-2) — held(넣지 못함) · memo(메모) · put(넣은 것) · intake(들이기 일감) ·
+// 저장 문이 붙이는 표지(docs/품질개선/KMD_개편_설계.md 2-2) — held · memo(옛 기록 표지 · P11 · PC6 부터 새로 붙이지 않지만 입력으로도 받지 않는다) · put(넣은 것) · intake(들이기 일감) ·
 //   polish(문서 다듬기) · revert(되돌림) · drop(버림) · 접두사 job/<일감 id>(들이기 일감)
 export const RESERVED_TAGS = ['edit', 'curate-auto', 'curate-llm', 'alias-auto', 'sources', 'touches-fix', 'code-change', 'watched', 'held', 'memo', 'intake', 'polish', 'revert', 'put', 'drop', 'ledger', 'shape', 'shape-done', 'migrate-held']
 //   migrate-held — 이행 기록(저장 승인 P8 · kmd-migrate held-put 만 단다 · 그 기록의 fixes 가 가리킨 옛 기록은 「들어감」 으로 읽는다: core/knowledge.js)

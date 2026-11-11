@@ -49,7 +49,7 @@ before(async () => {
   W(path.join(tmp, 'kn', '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sourceTickMs: 3600000, inboxTickMs: 3600000, jobTickMs: 3600000, watchQuietMs: 600000 }))
   s = await startServer({ root: path.join(tmp, 'kn'), port: 0, log: () => {}, scryptN: 1 << 15 })
   wk = (await s.auth.workerAdd()).key
-  await s.hub.setSaveMode({ shell: true }, KN, 'approve')
+  await s.hub.ensureRecordsDoc(KN)
   await signIn(s, { id: 'lee', admin: false })
   await seat(s, 'lee', { [KN]: 'write' })
 })
@@ -240,7 +240,7 @@ test('일을 건 사람이 자리를 잃으면 아무것도 쓰지 않는다: �
   } finally { await seat(s, 'lee', { [KN]: 'write' }) }
 })
 
-test('정정 nosec(P-D33): 들어간 항목이 없으면 원 기록의 이름 항목에 잇는다(넣지 못함 없음) · held 모드 지식은 그대로', async () => {
+test('정정 nosec(P-D33): 들어간 항목이 없으면 원 기록의 이름 항목에 잇는다(넣지 못함 없음 · P11)', async () => {
   const k = await fresh()
   const base = k.works.find((w) => w.tags.includes('intake') && w.touches.includes('proc:헬스 체크'))
   assert.ok(base, '앞 시험의 커밋 기록')
@@ -249,10 +249,5 @@ test('정정 nosec(P-D33): 들어간 항목이 없으면 원 기록의 이름 �
   const w = (await fresh()).byWork.get(r.id)
   assert.ok(w && w.state === 'in', JSON.stringify(w?.tags))
   noHeld(await fresh())
-  // held 모드(dpms)는 지금 그대로 — 같은 일이 넣지 못함으로 남는다(P11 까지)
-  assert.equal(s.hub.saveModeOf('dpms'), 'held')
-  const o = await s.hub.openJob('dpms', { type: 'commit', by: 'kmd', auto: true, src: { src: 'api 코드', commit: 'h001', title: '빌드: api 코드 h001', touches: [] }, md: '빌드 정리' })
-  const h = await s.hub.intakeGiveUp(s.hub.job(o.job), 'claude', '팀 일꾼이 초안을 받지 못했다: budget')
-  assert.equal(h.state, 'held')
   void sha16
 })

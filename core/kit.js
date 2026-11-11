@@ -21,9 +21,9 @@ const KIT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'agent
 export const SKILLS = ['kmd-work', 'kmd-save', 'kmd-build']
 // 개인 스킬 판(저장 승인 설계 P-D40 · PC2) — 개인 스킬 글 · 개인 덩이를 고치면 하나 올린다(test/kit-area.test.mjs 의 판 표가 잊으면 실패한다).
 //   스킬 글의 자리표 {{KIT_REV}} 를 이 값으로 바꿔 싣는다 → 세션이 MCP save 에 kit 으로 싣는다 →
-//   approve 모드 개인 지식의 E_APPROVE 에 옛 판 · 판 없음이면 「개인 화면 › 설정 › 에이전트 설치에서 다시 설치」 안내를 싣는다(server/mcp.js)
+//   저장 측정 줄(savelog)에 싣는다(옛 판 안내 reinstall · nokit 은 P11 · PC6 에서 걷었다)
 //   kmd-build 는 kmd 가 띄운 넣기 에이전트도 읽으므로(hub.agentTask · 그대로 읽는다) 자리표를 두지 않는다
-export const PC_KIT_REV = 1
+export const PC_KIT_REV = 2
 const withRev = (t) => t.replace(/\{\{KIT_REV\}\}/g, String(PC_KIT_REV))
 const BEGIN = /<!--\s*kmd:begin(?:\s+v=(\S+))?\s*-->/
 const END = /<!--\s*kmd:end\s*-->/

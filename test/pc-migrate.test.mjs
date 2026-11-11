@@ -67,12 +67,12 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('이행: 켤 때 지식마다 · pend 마지막 넣기 · 둠 · 메모는 이은 항목 이력 · 이름 없는 메모는 달 항목 · 커밋 하나에 표지', async () => {
+test('이행: 켤 때 지식마다 · pend · 둠 · 메모는 이은 항목 이력 · 이름 없는 메모는 달 항목 · 커밋 하나에 표지', async () => {
   assert.equal(pc.hub.saveModeOf('ok1'), 'approve')
   const k = await load('ok1')
   const st = (id) => k.byWork.get(id).state
-  assert.equal(st(R.P), 'in', 'pend 는 옛 바로 넣기로 들어감')
-  assert.match(k.byDocPath.get(DOC).sections.find((s) => s.h === '롤백').body, /5분 안에/)
+  assert.equal(st(R.P), 'in', 'pend 도 이은 항목 이력(글 그대로 · 바로 넣기는 PC6 에서 걷었다)')
+  assert.doesNotMatch(k.byDocPath.get(DOC).sections.find((s) => s.h === '롤백').body, /5분 안에/, 'pend 값은 본문에 넣지 않는다')
   assert.equal(st(R.K), 'in', '둠 = 이은 항목 이력')
   assert.equal(st(R.M), 'in', '메모 = 이은 항목 이력')
   assert.equal(st(R.M2), 'in')
@@ -80,7 +80,7 @@ test('이행: 켤 때 지식마다 · pend 마지막 넣기 · 둠 · 메모는 
   // 이행 기록 — 태그 migrate-held · fixes · 이은 항목 · 둔 까닭 · 값이 본문에 없는 메모
   const w = k.works.find((x) => x.tags.includes('migrate-held'))
   assert.ok(w, '이행 기록')
-  assert.deepEqual([...w.fixes].sort(), [R.K, R.M, R.M2].sort())
+  assert.deepEqual([...w.fixes].sort(), [R.P, R.K, R.M, R.M2].sort())
   const linked = parseLinked(w.body).map((x) => `${x.doc} › ${x.heading}`)
   assert.ok(linked.includes(`${DOC} › 준비`) && linked.includes(`${DOC} › 카나리`), linked.join(' / '))
   assert.match(w.body, /둔 까닭: 이미 글에 있다/)
@@ -102,7 +102,7 @@ test('이행: 켤 때 지식마다 · pend 마지막 넣기 · 둠 · 메모는 
   // 이력 갈래 「이행」 · 알림 한 줄
   const h = await pc.hub.history(KIM)
   assert.ok(h.some((x) => x.kind === '이행' && x.kn === 'ok1'), '이력 갈래 이행')
-  assert.ok(h.some((x) => /개인 지식 1 이행: 넣음 \d+ · 이력으로 이음 3 · 값이 본문에 없는 옛 메모 1/.test(x.title || '')), h.map((x) => x.title).join(' / '))
+  assert.ok(h.some((x) => /개인 지식 1 이행: 넣음 \d+ · 이력으로 이음 4 · 값이 본문에 없는 옛 메모 1/.test(x.title || '')), h.map((x) => x.title).join(' / '))
 })
 
 test('지식백업 실패 = 시작 안 함(옛 길 · 커밋 · 태그 없음) + 멈춤 줄 「이행 못함」', async () => {
@@ -145,7 +145,7 @@ test('되돌리기: 이행 커밋을 되돌려 옛 길 · 둠 · 메모가 돌�
   assert.equal(k.byWork.get(R.K).state, 'kept')
   assert.equal(k.byWork.get(R.M).state, 'memo')
   assert.ok(!fs.existsSync(path.join(kd('ok1'), ...RECORDS_DOC_PATH.split('/'))), '이행이 세운 기록 모음도 빠짐')
-  assert.equal(k.byWork.get(R.P).state, 'in', '옛 바로 넣기로 들어간 것은 그대로')
+  assert.equal(k.byWork.get(R.P).state, 'pend', 'pend 도 옛 상태로 돌아온다(그동안 저장은 닫힌다 · PC6)')
   const h0 = await git('ok1', 'rev-parse', 'HEAD')
   await pc.hub.pcMigrateAll()
   assert.equal(await git('ok1', 'rev-parse', 'HEAD'), h0, '되돌린 지식은 저절로 다시 하지 않는다')

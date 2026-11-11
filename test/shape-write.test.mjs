@@ -91,59 +91,6 @@ test('합치기 — 목표를 쓰고 출처를 걷는다 · 참고 줄이 목표
   } finally { s.done() }
 })
 
-test('값 대조 — 지어낸 값 · 잃은 값은 넣지 못함(work/ · held) · 다시 넣기에 fixes · 출처 지문 어긋남 E_CONFLICT · 기록 본문은 근거가 아님', async () => {
-  const s = await setup()
-  try {
-    const head0 = git(s.dir, 'rev-parse', 'HEAD').trim()
-    const { k, u } = await unitOf(s.dir)
-    const fp = unitFp(u)
-    const bad = await write(s, '디스크 90% 확인.\n\n헬스 체크 3회.', { fp })
-    assert.equal(bad.put, 0)
-    assert.ok(bad.held.some((x) => x.code === 'values' && /90%/.test(x.why)), JSON.stringify(bad.held))
-    const lost = await write(s, '디스크 80% 확인.', { fp })
-    assert.ok(lost.held.some((x) => x.code === 'values' && /3/.test(x.why)), JSON.stringify(lost.held))
-    const k1 = await loadKnowledge({ id: 'ops', name: 'ops', dir: s.dir })
-    const helds = k1.works.filter((w) => w.tags.includes('shape'))
-    assert.equal(helds.length, 2)
-    assert.ok(helds.every((w) => w.state === 'held' && w.tags.includes('held')))
-    assert.ok(parseDoc(fs.readFileSync(path.join(s.dir, 'docs/배포 절차.md'), 'utf8'), '').sections.some((x) => x.h === '사전 점검'), '문서는 그대로')
-    // 기록 본문 · 제목은 근거가 아니다 — 근거는 출처 글뿐
-    const units = { targets: [{ doc: 'docs/배포 절차.md', h: '점검 목록', content: '디스크 80% 확인. 헬스 체크 3회. 7일 보관.' }], sources: u.sources.map((x) => ({ doc: `docs/${x.doc}.md`, h: x.h, base: x.sha })), record: { title: '7일', body: '7일 보관' } }
-    assert.equal(checkShape(k, units).code, 'values')
-    // 다시 넣기 — 넣지 못함 기록을 fixes 로
-    const ok = await write(s, GOOD, { fp })
-    assert.equal(ok.put, 1, JSON.stringify(ok))
-    const k2 = await loadKnowledge({ id: 'ops', name: 'ops', dir: s.dir })
-    const last = k2.works.find((w) => w.id === ok.id)
-    assert.deepEqual([...last.fixes].sort(), helds.map((w) => w.id).sort())
-    assert.ok(helds.every((h) => k2.works.find((w) => w.id === h.id).state === 'fixed'))
-    assert.notEqual(git(s.dir, 'rev-parse', 'HEAD').trim(), head0)
-  } finally { s.done() }
-})
-
-test('조각 하나가 넣지 못함이면 모두 넣지 못함 — 원본이 주인인 문서로 합치면 출처를 걷지 않고 · 자리 장부도 그대로 · 기록만', async () => {
-  const s = await setup({ extra: { 'docs/원본.md': '<!-- watched: src="s" path="p.docx" -->\n# 원본\n\n## 가\n글\n' } })
-  try {
-    const plan = {
-      v: 1, kind: 'reshape',
-      docs: [
-        { id: '배포 절차', was: '배포 절차', items: [{ h: '배포 창', from: [{ doc: '배포 절차', h: '배포 창' }] }] },
-        { id: '원본', was: '원본', items: [{ h: '가', from: [{ doc: '원본', h: '가' }] }, { h: '점검 목록', from: [{ doc: '배포 절차', h: '사전 점검' }, { doc: '배포 절차', h: '사후 점검' }] }] },
-      ],
-      names: [{ coord: 'check:사전 점검', doc: '원본', h: '점검 목록' }, { coord: 'check:사후 점검', doc: '원본', h: '점검 목록' }],
-    }
-    const doc0 = fs.readFileSync(path.join(s.dir, 'docs/배포 절차.md'), 'utf8')
-    const reg0 = fs.readFileSync(path.join(s.dir, '_managed.md'), 'utf8')
-    const r = await s.hub.shapeWrite(s.ctx, 'ops', { plan, n: 1, texts: [{ doc: '원본', h: '점검 목록', content: GOOD }], work: WORK, step: `shape/${WORK}/1` })
-    assert.equal(r.put, 0, JSON.stringify(r))
-    assert.ok(r.held.some((x) => x.code === 'watched'), JSON.stringify(r.held))
-    assert.equal(fs.readFileSync(path.join(s.dir, 'docs/배포 절차.md'), 'utf8'), doc0, '출처를 걷지 않았다')
-    assert.equal(fs.readFileSync(path.join(s.dir, '_managed.md'), 'utf8'), reg0, '자리 장부 그대로')
-    const k = await loadKnowledge({ id: 'ops', name: 'ops', dir: s.dir })
-    assert.equal(k.works.find((w) => w.id === r.id).state, 'held')
-  } finally { s.done() }
-})
-
 test('걷힌 출처로 들어오던 링크 — 같은 묶음에서 첫 목표 항목으로(`x.md#옛머리` · 앞부분 맞춤) · 다른 머리 링크는 그대로', async () => {
   const s = await setup({ extra: { 'docs/안내.md': '# 안내\n\n## 순서\n[앞](배포%20절차.md#사전%20점검) · [뒤](배포%20절차.md#사후) · [창](배포%20절차.md#배포%20창)\n' } })
   try {
@@ -172,54 +119,10 @@ test('출처가 바뀌면 E_CONFLICT · 아무것도 쓰지 않는다 · 입력 
     assert.equal(await code(write(s, GOOD, { fp })), 'E_CONFLICT')
     assert.equal(git(s.dir, 'rev-parse', 'HEAD').trim(), head)
     for (const tag of ['shape', 'shape-done', `shape/${WORK}/1`]) {
-      assert.equal(await code(s.hub.save(s.ctx, 'ops', { record: { title: '흉내', body: '흉내', tags: [tag], touchesEmpty: '시험' } }, { channel: 'http' })), 'E_FORBIDDEN', tag)
+      assert.equal(await code(s.hub.save(s.ctx, 'ops', { record: { title: '흉내', body: '흉내', tags: [tag], touchesEmpty: '시험' } })), 'E_FORBIDDEN', tag)
     }
     assert.equal(await code(s.hub.shapeWrite(s.ctx, 'ops', { plan: MERGE, n: 1, texts: [], work: WORK, step: 'shape/zz/1' })), 'E_INPUT')
     assert.equal(await code(s.hub.shapeWrite({ user: '박' }, 'ops', { plan: MERGE, n: 1, texts: [], work: WORK, step: `shape/${WORK}/1` })), 'E_NOTFOUND', '자리 없는 사람')
   } finally { s.done() }
 })
 
-test('섞인 자리 — 출처에 개편 전 기록(pend)이 걸린 합치기는 legacy-mix 넣지 못함(팀)', async () => {
-  const s = await setup({ serve: { cutoverAt: '2026-11-05 00:00' }, extra: { 'work/2026-1103-l.md': rec('2026-1103-l', '2026-11-03 09:00', ['check:사후 점검']) } })
-  try {
-    const k = await loadKnowledge({ id: 'ops', name: 'ops', dir: s.dir }, { cutoverAt: '2026-11-05 00:00', team: true })
-    assert.equal(k.works.find((w) => w.id === '2026-1103-l').state, 'pend')
-    const r = await write(s, GOOD)
-    assert.equal(r.put, 0)
-    assert.ok(r.held.some((x) => x.code === 'legacy-mix'), JSON.stringify(r.held))
-  } finally { s.done() }
-})
-
-test('개인 프로그램에서도 checkShape — 지어낸 값은 넣지 못함 · 맞으면 넣는다 · 나누기(같은 머리 고쳐 쓰기)', async () => {
-  const s = await setup({ mode: 'pc' })
-  try {
-    const bad = await write(s, '디스크 70% 확인.\n\n헬스 체크 3회.')
-    assert.equal(bad.put, 0)
-    assert.ok(bad.held.some((x) => x.code === 'values'))
-    const SPLIT = { v: 1, kind: 'reshape', docs: [{ id: '배포 절차', was: '배포 절차', items: [
-      { h: '배포 창', from: [{ doc: '배포 절차', h: '배포 창' }] },
-      { h: '사전 점검', from: [{ doc: '배포 절차', h: '사전 점검' }], part: '디스크' },
-      { h: '사전 점검 기록', from: [{ doc: '배포 절차', h: '사전 점검' }], part: '없음' },
-      { h: '사후 점검', from: [{ doc: '배포 절차', h: '사후 점검' }] },
-    ] }], names: [{ coord: 'check:사전 점검', doc: '배포 절차', h: '사전 점검' }] }
-    const r = await s.hub.shapeWrite(s.ctx, 'ops', { plan: SPLIT, n: 1, texts: [{ doc: '배포 절차', h: '사전 점검', content: '디스크 80% 확인.' }, { doc: '배포 절차', h: '사전 점검 기록', content: '점검한 사람이 남긴다.' }], work: WORK, step: `shape/${WORK}/1` })
-    assert.equal(r.put, 2, JSON.stringify(r))
-    const pd = parseDoc(fs.readFileSync(path.join(s.dir, 'docs/배포 절차.md'), 'utf8'), '')
-    assert.deepEqual(pd.sections.map((x) => x.h), ['배포 창', '사전 점검', '사전 점검 기록', '사후 점검'], '계획한 차례로')
-  } finally { s.done() }
-})
-
-test('문서 요약(intros) — 문서 글에 있는 값만 · # 제목 아래에 · 항목은 그대로', async () => {
-  const s = await setup()
-  try {
-    const INTRO = { v: 1, kind: 'reshape', docs: [{ id: '배포 절차', was: '배포 절차', intro: { ask: '요약' }, items: ['배포 창', '사전 점검', '사후 점검'].map((h) => ({ h, from: [{ doc: '배포 절차', h }] })) }] }
-    const go = (text, w = WORK) => s.hub.shapeWrite(s.ctx, 'ops', { plan: INTRO, n: 1, intros: { '배포 절차': text }, work: w, step: `shape/${w}/1` })
-    const bad = await go('배포는 수요일 11:00 에 연다.')
-    assert.ok(bad.held.some((x) => x.code === 'values'), JSON.stringify(bad))
-    const ok = await go('배포는 화요일 10:00 에 열고 디스크 80% 를 먼저 본다.', '0123456789ac')
-    assert.equal(ok.held, undefined, JSON.stringify(ok))
-    const t = fs.readFileSync(path.join(s.dir, 'docs/배포 절차.md'), 'utf8')
-    assert.match(t, /^# 배포 절차\n\n배포는 화요일 10:00 에 열고 디스크 80% 를 먼저 본다\.\n\n## 배포 창\n<!-- applied: 2026-1101-a -->/)
-    assert.match(t, /- 사전 점검\n  - 2026-11-02 \[b\]/, '참고 블록 그대로')
-  } finally { s.done() }
-})

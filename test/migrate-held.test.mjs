@@ -230,11 +230,11 @@ test('held-put: 지식마다 커밋 하나 · 옛 기록은 이은 항목의 들
   assert.equal(s2.sum.ready, true)
 })
 
-test('held-put: 이슈 갈래가 없으면 사람이 고른 month 로 기록 모음 · 이행 앞에는 승인 저장 켜기가 E_CONFLICT · 뒤에는 된다', async () => {
+test('held-put: 이슈 갈래가 없으면 사람이 고른 month 로 기록 모음 · 서버는 늘 승인 저장(P11 · 스위치 없음)', async () => {
   const { startServer } = await import('../server/http.js')
   const s = await startServer({ root, data, port: 0, log: () => {}, scryptN: 1 << 15 })
   try {
-    await assert.rejects(s.hub.setSaveMode({ user: 'boss', admin: true }, 'kn2', 'approve'), (e) => e.code === 'E_CONFLICT')
+    assert.equal(s.hub.saveModeOf('kn2'), 'approve')
     const b = await put('kn2')
     assert.match(b.thrown?.message || '', new RegExp(`사람이 고를 기록 1: ${H.H4}`), '이슈 갈래가 없으면 값이 저절로 기록 모음으로 가지 않는다')
     assert.equal(await git('kn2', 'status', '--porcelain'), '', '서버가 돌아도 지식은 깨끗하다')
@@ -247,10 +247,6 @@ test('held-put: 이슈 갈래가 없으면 사람이 고른 month 로 기록 모
     assert.equal(k.byWork.get(H.H4).state, 'in')
     assert.ok(!k.byDocPath.has('docs/이슈 대장.md'))
     assert.ok(k.byDocPath.get('docs/기록 모음.md').sections.some((x) => x.h === '2026-10'))
-    for (const id of ['kn1', 'kn2']) {
-      assert.equal(s.hub.saveModeOf(id), 'held')
-      assert.deepEqual(await s.hub.setSaveMode({ user: 'boss', admin: true }, id, 'approve'), { id, save: 'approve' })
-    }
   } finally {
     await s.close()
   }

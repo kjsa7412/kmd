@@ -13,7 +13,6 @@ import { save } from '../core/save.js'
 import { loadKnowledge } from '../core/knowledge.js'
 import { splitLog, joinLog, logLine, parseDoc } from '../core/sections.js'
 import { check } from '../core/gate.js'
-import { material } from '../core/pcplace.js'
 import { expandSections } from '../core/excerpt.js'
 import { copyDir } from './helpers.mjs'
 
@@ -71,16 +70,6 @@ test('저장이 경과를 단다. 사람의 기록은 그 자신 · 옛 줄은 �
   await save(dir, { record: { title: '가져옴: 표', body: '표', tags: ['sources'] }, sections: [{ doc: 'docs/운영.md', heading: '알람', content: '원천의 글' }] }, { user: 'kmd', system: true })
   assert.equal(sec('운영', '알람').body.trim(), '원천의 글')
   assert.deepEqual(sec('운영', '알람').log, [])
-})
-
-test('정리 검사: 소제목 ### 은 받고 항목 머리 ## 는 거절 · Claude 는 경과 없는 본문을 받는다', async () => {
-  await save(dir, { record: { title: '되돌리기: 순서', body: '이전 판으로 되돌린다 3단계', touches: ['proc:되돌리기'] } }, { user: 'lee' })
-  const k = await load()
-  const g = material(k).find((x) => x.coord === 'proc:되돌리기')
-  assert.ok(g && !/\*\*경과\*\*/.test(g.content))
-  const draft = (content) => ({ content, used: g.records.map((r) => r.id), left: [] })
-  assert.equal(check(k, g, draft(`${g.content}\n\n### 순서\n이전 판으로 되돌린다 3단계`)).ok, true)
-  assert.match(check(k, g, draft(`${g.content}\n\n## 순서\n이전 판으로 되돌린다 3단계`)).why, /머리 · 표지/)
 })
 
 test('코드 바뀜 기록은 from · append 로 넣지 못한다. 지금 동작으로 고친 글 전체만', async () => {

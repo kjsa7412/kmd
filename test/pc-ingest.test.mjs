@@ -171,14 +171,6 @@ test('코드 바뀜도 같은 규칙: 초안이면 기능 항목 + 기록 한 �
   await pc.hub.sourceRemove(ME, 'apv', { name: 'api 코드' })
 })
 
-test('옛 개인 지식(이행 전)은 지금 그대로: 기록 먼저(기록 커밋 뒤 문서 커밋)', async () => {
-  assert.equal(pc.hub.saveModeOf('dpms'), 'pc')
-  const n0 = commits('dpms')
-  const r = await pc.hub.importFiles(ME, 'dpms', [{ path: '옛 길.md', data: Buffer.from('# 옛 길\n\n## 메모\n옛 개인 지식은 기록부터.\n') }])
-  assert.ok(['doc', 'record'].includes(r.rows[0].kind), JSON.stringify(r.rows[0]))
-  assert.ok(commits('dpms') >= n0 + 2, '기록 커밋 · 문서 커밋이 따로')
-})
-
 test('들인 기록은 저장 문 밖에서 고쳐 쓰지 않는다([기록 정리] 막음) · 반영 검사는 서버가 단 원천 칸만 뺀다', async () => {
   const w = (await fresh('apv')).works.find((x) => x.tags.includes('ingest/운영/백업 바꿈.docx'))
   await assert.rejects(pc.hub.readRecord(ME, 'apv', w.id), (e) => e.code === 'E_FORBIDDEN')

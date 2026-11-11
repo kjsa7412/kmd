@@ -88,26 +88,8 @@ test('이름 장부에 없는 항목도 쓰기 자리의 고치기가 바로 들
   assert.equal(r1.direct, true)
   assert.match(sec.html, /팀원이 고친 글: 하나/, '문서에 바로 들어갔다')
   assert.equal(sec.by?.id, r1.id, '그 항목의 표지가 고친 기록')
-  assert.ok(!sec.held.some((p) => p.id === r1.id), '넣지 못함으로 서지 않는다')
   const w = (await s.hub.get('gdi')).byWork.get(r1.id)
   assert.ok(w.path.startsWith('log/') && w.tags.includes('edit') && w.tags.includes('put'), w.tags.join(' '))
-})
-
-test('MCP: 이미 있는 항목을 base 없이 갈아 끼우지 않는다 · base 가 있으면 · 새 항목은 받는다', async () => {
-  const mcp = makeMcp(s.hub)
-  const call = async (name, args) => {
-    const out = await mcp.call({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }, KIM)
-    return out.result.isError ? { error: out.result.content[0].text } : JSON.parse(out.result.content[0].text)
-  }
-  const bad = await call('save', { knowledge: 'dpms', record: { title: '롤백: 바꿈', changes: ['롤백 글'] }, sections: [{ coord: 'proc:롤백', content: '덮는 글' }] })
-  // 팀은 저장 문이 줄 안에서 본다(S4 ⑨) — E_CONFLICT 이고 아무것도 쓰지 않는다
-  assert.match(bad.error, /E_CONFLICT/)
-  assert.match(bad.error, /이미 있는 항목이다. section 이 준 base/)
-  const sec = await call('section', { knowledge: 'dpms', coord: 'proc:롤백' })
-  const ok = await call('save', { knowledge: 'dpms', record: { title: '롤백: 바꿈', changes: ['롤백 글'] }, sections: [{ coord: 'proc:롤백', content: '고친 롤백 글', base: sec.base }] })
-  assert.ok(ok.saved)
-  const neu = await call('save', { knowledge: 'dpms', record: { title: '새 항목: 하나', changes: ['새 항목'] }, sections: [{ doc: '배포절차', heading: '새 머리', content: '새 항목 글' }] })
-  assert.ok(neu.saved)
 })
 
 test('이미 되돌린 정리는 다시 되돌리지 않는다 · 쓴 사람의 「되돌릴 수 있다」 줄도 거둔다', async () => {
@@ -165,6 +147,9 @@ test('편집기: 다시 그려도 · 찾기를 열고 닫아도 쓴 글이 남�
   assert.equal(await page.locator('[data-t=edAddSec]').count(), 1)
   await page.focus('[data-t=edTx]')
   await page.keyboard.press('Control+s')
+  // 승인 저장(P5 · P11) — 저장 확인 창의 [넣기] 가 승인
+  await page.waitForSelector('[data-t=saveWin] [data-t=svGo]')
+  await page.click('[data-t=svGo]')
   await page.waitForSelector('[data-t=editBtn]')
   assert.match(fs.readFileSync(path.join(root, 'dpms', 'docs', '배포절차.md'), 'utf8'), /## 새로 쓴 항목\n(<!--.*-->\n)?찾기를 열었다 닫아도 남는 글/)
   // 없는 문서 — 「이제 없다」 · 그 밖의 오류 — 「다시 시도」

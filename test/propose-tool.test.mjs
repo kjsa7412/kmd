@@ -80,25 +80,6 @@ test('글 · 항목 · 해시: 서버가 정한 꼴 · 같은 입력이면 같�
   assert.equal(link.items[1].before, link.items[1].after)
 })
 
-test('경고: 값 대조는 경고(id · code · at · why) · 제안서 검사 줄 · 끝 줄 · 경고 id 가 해시에 든다', async () => {
-  const sec = await canary()
-  // 기록은 20% 라고 하고 글에는 15% — 빠진 값(20%) · 지어낸 값(15%)
-  const bad = input(sec.base, { sections: [{ coord: 'proc:카나리', base: sec.base, edits: [{ find: '요청의 10% 만', replace: '요청의 15% 만' }] }] })
-  const r = await mcp('propose', bad)
-  assert.deepEqual(r.errors, [])
-  assert.ok(r.warnings.length >= 2, JSON.stringify(r.warnings))
-  for (const w of r.warnings) {
-    assert.match(w.id, /^[a-z-]+:[0-9a-f]{10}$/)
-    assert.equal(typeof w.why, 'string')
-    assert.equal(w.at, '배포절차 › 카나리')
-  }
-  assert.deepEqual(r.warnings.map((w) => w.code).sort(), ['invented', 'missing'])
-  assert.match(r.text, /경고 w1 {2}배포절차 › 카나리: /)
-  assert.match(r.text, /승인하시면 경고 w1 · w2 을 받아들이고 그대로 남깁니다/)
-  assert.match(r.proposal, /^[0-9a-f]{64}$/, '경고만이면 승인할 수 있다')
-  assert.deepEqual((await mcp('propose', bad)).warnings.map((w) => w.id), r.warnings.map((w) => w.id), '같은 입력이면 같은 경고 id')
-})
-
 test('오류: 지문 어긋남 · 장부 밖 이름 · 없는 문서(쓰기 자리) → errors · 해시 없음 · 제안서 끝 줄', async () => {
   const sec = await canary()
   const st = await mcp('propose', input('deadbeefdeadbeef'))
@@ -109,8 +90,6 @@ test('오류: 지문 어긋남 · 장부 밖 이름 · 없는 문서(쓰기 자�
   const out = await mcp('propose', input(sec.base, { record: { ...input().record, touches: ['proc:카나리배포'] } }))
   assert.equal(out.errors[0].code, 'touches')
   assert.deepEqual(out.errors[0].near, ['proc:카나리'])
-  const nd = await mcp('propose', input(sec.base, { sections: [{ doc: '새문서', heading: '처음', content: '첫 글이다.' }] }))
-  assert.deepEqual(nd.errors.map((e) => e.code), ['newdoc'], '쓰기 자리는 새 문서를 세우지 못한다(이 단계 · P3 에서 열림)')
   // 개인 프로그램은 PC1 까지 막는다 — 팀 서버에서는 걸리지 않는다
 })
 
@@ -129,9 +108,6 @@ test('near(P-D10): 정규화가 같으면 오류 · distinct 로 넘음 · 비�
   assert.deepEqual(sim.warnings.filter((w) => w.code === 'near').map((w) => w.at), ['proc:카나리2'])
   assert.deepEqual(sim.newNames[0].near, ['proc:카나리'])
   assert.match(sim.text, /―― 새 이름 ――\n {2}proc:카나리2 {3}신설 {3}자리: 없음 · 비슷한 이름 proc:카나리/)
-  const kd = await mcp('propose', { ...base, names: [{ coord: 'job:야간배치', label: '야간 배치' }], kinds: ['Proc'.toLowerCase() + 's'], record: { ...base.record, touches: ['proc:카나리', 'job:야간배치'] } })
-  assert.deepEqual(kd.newKinds.map((x) => x.name).sort(), ['job', 'procs'])
-  assert.ok(kd.warnings.some((w) => w.code === 'near' && w.at === 'procs'), '새 종류 procs 는 proc 과 비슷하다')
   const fm = await mcp('propose', { ...base, forms: [{ name: '회의 록' }] })
   assert.deepEqual(fm.errors.map((e) => e.code), ['near'], '갈래 「회의 록」 은 회의록과 같은 이름')
 })
@@ -217,7 +193,7 @@ test('section history · brief mine.accepted(b1)', async () => {
   assert.ok(sec.history.some((x) => x.id === sec.lastPut), '표지 기록이 이력에 든다')
   for (const x of sec.history) assert.deepEqual(Object.keys(x).sort(), ['author', 'date', 'id', 'state', 'title'])
   const b = await mcp('brief', {})
-  assert.deepEqual(b.knowledge.find((x) => x.id === 'dpms').mine, { memos: 0, held: 0, accepted: 0 })
+  assert.deepEqual(b.knowledge.find((x) => x.id === 'dpms').mine, { accepted: 0 })
   const one = await mcp('brief', { knowledge: 'dpms' })
   assert.equal(one.you.accepted, 0)
 })

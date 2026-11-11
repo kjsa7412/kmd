@@ -108,7 +108,7 @@ test('규칙이 못 하면(두 곳): 저장하지 않고 일감 fix → 팀 일�
   } finally { delete process.env.FAKE_CLAUDE_LOG }
 })
 
-test('자리: 남의 기록 정정은 쓰기 자리 403 · 내 기록은 쓰기 자리도 · 들어간 항목이 없으면 정정 기록만 + 넣지 못함(nosec)', async () => {
+test('자리: 남의 기록 정정은 쓰기 자리 403 · 내 기록은 쓰기 자리도 · 들어간 항목이 없으면 정정은 규칙 길로 잇는다(넣지 못함 없음 · P11)', async () => {
   assert.equal(await code(s.hub.fixRecord(LEE, 'dpms', '2026-1017-카나리', { body: '남의 기록', from: '20%', to: '25%' })), 'E_FORBIDDEN')
   // lee 가 쓴 기록(항목에 들어감) → lee 가 고친다
   const base = sha16(sectionOf(await fresh(), 'term:알람').sec.body)
@@ -120,35 +120,12 @@ test('자리: 남의 기록 정정은 쓰기 자리 403 · 내 기록은 쓰기 
   // 들어간 항목이 없는 기록(메모) — 정정 기록만 + 넣지 못함
   const memo = await s.hub.save(LEE, 'dpms', { record: { title: '알람 메모', body: '경고 소리 10초', touchesEmpty: '시험 메모' } })
   const n = await s.hub.fixRecord(LEE, 'dpms', memo.id, { body: '소리는 20초', from: '10초', to: '20초' })
-  assert.deepEqual([n.put, n.held], [0, 1], JSON.stringify(n))
+  assert.deepEqual([n.held, !!n.rule], [0, true], JSON.stringify(n)) // 넣지 못함은 없다(P11) — 이은 항목 · 기록 모음 달 항목에 잇는다(규칙 길)
   const w = (await fresh()).byWork.get(n.id)
-  assert.ok(w.tags.includes('held'), w.tags.join(' '))
-  assert.equal(w.state, 'held')
+  assert.ok(!w.tags.includes('held'), w.tags.join(' '))
+  assert.equal(w.state, 'in')
   // 이력(log/) 기록은 고치지 않는다 · 없는 기록
   assert.equal(await code(s.hub.fixRecord(KIM, 'dpms', '없는-기록', { body: 'x', from: 'a', to: 'b' })), 'E_NOTFOUND')
-})
-
-test('간접 항목(더 늦은 기록이 든 항목 · 옛 값 없음)은 일감에 싣지 않는다 · 넣지 못함 줄도 없다(끝 검토 3)', async () => {
-  const { targetsOf } = await import('../core/fix.js')
-  // 앞 시험에서 lee 의 기록이 알람에 들어갔다 — CPU 경고 기록에게 알람은 간접 항목 · 서버 상태는 직접 항목
-  const ts = targetsOf(await fresh(), '2026-1016-CPU-경고-80')
-  assert.ok(ts.some((t) => t.heading === '알람' && !t.direct), JSON.stringify(ts.map((t) => [t.heading, t.direct])))
-  assert.ok(ts.some((t) => t.heading === '서버 상태' && t.direct))
-  const log = path.join(tmp, 'calls-indirect.log')
-  process.env.FAKE_CLAUDE_LOG = log
-  try {
-    // 옛 값 · 새 값 없이 고친 내용만 — 규칙이 못 하니 일감 · 간접 항목은 규칙이 건너뛴 그대로
-    const r = await s.hub.fixRecord(KIM, 'dpms', '2026-1016-CPU-경고-80', { body: '서버 상태 화면 설명을 바로잡는다.' })
-    assert.ok(r.job, JSON.stringify(r))
-    const j = s.hub.job(r.job)
-    assert.deepEqual(j.src.targets.map((t) => t.heading), ['서버 상태'])
-    await workOnce({ server: s.url, key: wk })
-    const done = s.hub.job(r.job)
-    assert.equal(done.state, 'done', JSON.stringify(done))
-    assert.equal(done.result.held, 1, '일꾼이 고치지 않은 서버 상태 하나만 넣지 못함')
-    const w = (await fresh()).byWork.get(done.result.rec)
-    assert.doesNotMatch(w.body, /알람/, w.body)
-  } finally { delete process.env.FAKE_CLAUDE_LOG }
 })
 
 test('길: POST 만(GET 405) · 옛 값 = 새 값이면 400 · 읽기 자리 403', async () => {

@@ -152,7 +152,8 @@ test('PC /api/agent: 개인 지식 더하기 · 팀 연결은 그대로 · 하�
 // 개인 스킬 판(저장 승인 설계 P-D40 · PC2) — 판마다 그 판의 스킬 글 해시(kitParts().ver). 개인 스킬 글 · 개인 덩이 · 작성가이드를 고치면
 //   core/kit.js 의 PC_KIT_REV 를 하나 올리고 이 표에 새 판 · 새 해시를 더한다(옛 판 줄은 그대로 둔다)
 //   (판 1 은 저장 승인 PC2: 늘 저장 제안 · 정리 거리 고르기 · 대화 조절 · 「바로 넣기가 곧 넣는다」 걷기 · 넣기 에이전트는 규칙 길)
-const PC_KIT_HASH = { 1: 'ea86fd6a' }
+//   (판 2 는 저장 승인 PC6: 옛 개인 지식 길 · 옛 판 안내(reinstall · nokit) 걷기 · 이행 못한 지식은 저장 닫힘)
+const PC_KIT_HASH = { 1: 'ea86fd6a', 2: '74d9f2fb' }
 test('개인 스킬 판: 스킬 글이 바뀌면 PC_KIT_REV 도 오른다 · {{KIT_REV}} 를 판으로 바꿔 싣는다 · 새 흐름(제안 · 승인 · 메모 없음)', async () => {
   const parts = await kitParts()
   assert.equal(parts.rev, PC_KIT_REV)
@@ -165,7 +166,7 @@ test('개인 스킬 판: 스킬 글이 바뀌면 PC_KIT_REV 도 오른다 · {{K
   assert.match(save, /proposal/)
   assert.match(save, /정리 거리/)
   assert.match(save, /바뀐 줄만/)
-  assert.match(save, /에이전트 설치에서 이 폴더를 다시 설치/, '개인 다시 설치 안내')
+  assert.doesNotMatch(save, /reinstall|nokit/, '옛 판 안내는 걷었다(PC6)')
   assert.match(save, /좋은 예: [^\n]*\n[^\n]*나쁜 예: /, '작성기준 좋은 예 · 나쁜 예')
   assert.doesNotMatch(save, /memo|바로 넣기가 곧/, '메모 · 바로 넣기 문장을 걷었다')
   const work = parts.skills.find((x) => x.rel === '.claude/skills/kmd-work/SKILL.md').text

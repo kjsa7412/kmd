@@ -111,9 +111,3 @@ test('가져오는 곳을 지우면: 예전 사본은 내 문서로(기본) 또�
   assert.doesNotMatch(fs.readFileSync(orphan, 'utf8'), /watched/)
 })
 
-test('코드 바뀜 기록은 규칙으로 넣을 때 문서로 세우지 않는다(묶음마다 새 문서가 나무를 덮지 않게)', async () => {
-  const r = await s.hub.save(KIM, 'gdi', { record: { title: '세션 만료 30분 → 60분', body: 'diff', tags: ['code-change'] } }, { system: true })
-  const got = await s.hub.ingestNow('gdi', r.id)
-  assert.match(got.why, /코드 바뀜은 기록으로 둔다/)
-  assert.ok(!fs.existsSync(path.join(root, 'gdi', 'docs', '세션 만료 30분 → 60분.md')))
-})

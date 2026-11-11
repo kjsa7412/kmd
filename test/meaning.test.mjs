@@ -93,11 +93,10 @@ test('소스 코드(git): 지금 커밋이 기준 · 새 커밋마다 들이기 
   assert.equal(r2.codeRecords, 2, '설명 글 커밋은 코드가 안 바뀌었다')
   while (s.hub.intakesOf('dpms').some((j) => j.state === 'queued')) await workOnce({ server: s.url, key: wk })
   const recs = await codeRecs('dpms')
-  // 넣을 항목이 없는 커밋 — 기록만 + 넣지 못함(넣을 곳을 고르지 않았다 · 정리가 집지 않는다)
+  // 넣을 항목이 없는 커밋 — 규칙 길로 들어간다(넣지 못함은 없다 · P11)
   const util = recs.find((w) => w.title.startsWith('Util 빈 값 처리'))
   assert.deepEqual(util.touches, [])
-  assert.equal(util.state, 'held')
-  assert.match(util.body, /"code": ?"notfound"/)
+  assert.equal(util.state, 'in')
   const can = recs.find((w) => w.title.startsWith('카나리 비율 올림'))
   assert.deepEqual(can.touches, ['proc:카나리'])
   assert.match(can.body, /> 바뀐 값: 10% → 20%/)
@@ -107,7 +106,7 @@ test('소스 코드(git): 지금 커밋이 기준 · 새 커밋마다 들이기 
   assert.equal((await s.hub.sourceRun('dpms', 'api 코드'))[0].state, 'same')
 })
 
-test('「Claude 에 보내지 않음」 지식은 일감 없이 기록만 + 넣지 못함 · 코드 폴더 · 다시 맞추기는 없다 · 예약 태그는 사람이 못 단다', async () => {
+test('「Claude 에 보내지 않음」 지식은 일감 없이 규칙 길 · 코드 폴더 · 다시 맞추기는 없다 · 예약 태그는 사람이 못 단다', async () => {
   await s.hub.setOwner(SHELL, 'dpms', { noClaude: true })
   const queued = () => s.hub.intakesOf('dpms').filter((j) => j.state === 'queued').length
   const q0 = queued()
@@ -115,10 +114,10 @@ test('「Claude 에 보내지 않음」 지식은 일감 없이 기록만 + 넣�
   commit('헬스 체크 7초')
   const r = (await s.hub.sourceRun('dpms', 'api 코드'))[0]
   assert.equal(r.codeRecords, 1, '기록은 남는다. 무엇이 바뀌었나는 지식')
-  assert.equal(r.held, 1)
+  assert.ok(!r.held, '넣지 못함은 없다(규칙 길 · P11)')
   assert.equal(queued(), q0, '들이기(Claude) 일감은 세우지 않는다')
   const w7 = (await codeRecs('dpms')).find((w) => w.body.includes('> 바뀐 값: 5초 → 7초'))
-  assert.match(w7.body, /"code": ?"noclaude"/)
+  assert.equal(w7.state, 'in', '규칙 길로 들어간다')
   assert.equal((await s.hub.sources(ADMIN, 'dpms')).find((x) => x.name === 'api 코드').meaningBlocked, true)
   await s.hub.setOwner(SHELL, 'dpms', { noClaude: false })
 

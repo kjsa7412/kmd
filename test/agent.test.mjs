@@ -186,34 +186,6 @@ test('가져오는 곳: 넣을 지식 · 출처 이름을 함께 바꾸면 옮�
   await s.hub.sourceRemove(ME, '다른', { name: '설계 문서' })
 })
 
-test('팀: 넣은 파일은 에이전트가 아니라 팀 일꾼의 들이기(claude -p 초안 하나 · S8) · 일 줄 하나 = 저장 하나 · 단계 짓기 › 넣기', async () => {
-  const { workOnce } = await import('../core/worker.js')
-  const root = path.join(tmp, 'team')
-  fs.mkdirSync(path.join(root, 'ops', 'docs'), { recursive: true })
-  fs.writeFileSync(path.join(root, 'ops', 'docs', '처음.md'), '# 처음\n\n## 개요\n팀 지식\n')
-  const t = await startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
-  try {
-    await t.auth.addUser({ id: 'kim', admin: true })
-    const KIM = { user: 'kim', admin: true }
-    const r = await t.hub.importFiles(KIM, 'ops', [{ path: '배포통화.md', data: Buffer.from('# 배포통화\n\n## 원격 명령\n펄스 방식: 게이트웨이가 3초 동안 1을 쓰고 0으로 되돌린다.\n') }])
-    assert.equal(r.rows[0].kind, 'run', '기록이 아니라 들이기 일감')
-    const key = (await t.auth.workerAdd()).key
-    const done = await wait(async () => (await workOnce({ server: t.url, key, log: () => {} })) || null)
-    assert.equal(done.job.kind, 'intake')
-    const run = t.hub.runGet(KIM, r.rows[0].run)
-    assert.equal(run.state, 'done', run.msg)
-    assert.ok(run.lines.some((l) => l.s === 2), '짓기 단계의 줄')
-    assert.match(fs.readFileSync(path.join(root, 'ops', 'docs', '배포통화.md'), 'utf8'), /3초 동안 1을 쓰고/)
-    const k = await t.hub.get('ops')
-    const w = k.byWork.get(run.rec)
-    assert.ok(w.tags.includes('intake'))
-    assert.equal(w.state, 'in')
-    assert.ok(!fs.existsSync(path.join(root, 'ops', 'docs', '회의록.md')), '팀은 에이전트(Claude Code)를 띄우지 않는다')
-  } finally {
-    await t.close()
-  }
-})
-
 // PC 화면 들어가기 — 한 번용 번호
 async function pcCookie() {
   const r = await fetch(s.url + '/once', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: s.auth.once(s.pcUser) }) })
@@ -267,31 +239,6 @@ test('표 · 값 덩이는 kmd 가 옮긴다. 에이전트는 from(머리 · 전
   const out = await makeMcp(s.hub).call({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'save', arguments: { knowledge: '회의셋', record: { title: 'x', body: 'y' }, sections: [{ doc: '회의록', heading: '새 항목', from: '*' }] } } }, { user: 'kim', admin: true, pc: true })
   assert.ok(out.result.isError)
   assert.match(out.result.content[0].text, /넣기 에이전트만/)
-})
-
-test('앞일은 함께 · 들이기는 한 줄: 파일 넷의 기록 정리가 셋까지 겹치고 넷 모두 들어간다 · idle 은 앞일까지 기다린다', async () => {
-  await s.hub.addKnowledge(ME, { kind: 'new', name: '넣기넷' })
-  // 옛 개인 지식(이행 전 · 저장 방식 표지 없음) — 기록 정리(polishRecord)는 기록 먼저 길에만 있다(approve 개인 지식은 PC4 부터 기록 + 문서 한 번)
-  fs.rmSync(path.join(tmp, 'kn', '넣기넷', '_members.md'))
-  const spans = path.join(tmp, 'spans.log')
-  process.env.FAKE_CLAUDE_READ = '20000' // 둘이 함께 돌 때까지 기다린다(차례로 돌면 20초 뒤 혼자 답한다)
-  process.env.FAKE_CLAUDE_SPANS = spans
-  try {
-    const files = [1, 2, 3, 4].map((n) => ({ path: `통화-${n}.md`, data: Buffer.from(HNC.replace('3초', `${n + 10}초`)) }))
-    const r = await s.hub.importFiles(ME, '넣기넷', files)
-    await s.hub.idle('넣기넷')
-    const runs = r.rows.map((x) => s.hub.runGet(ME, x.run))
-    assert.deepEqual(runs.map((x) => x.state), ['done', 'done', 'done', 'done'], runs.map((x) => x.msg).join(' / '))
-    const ls = fs.readFileSync(spans, 'utf8').trim().split('\n')
-    assert.equal(ls.filter((l) => l === 's').length, 4)
-    const most = Math.max(...ls.filter((l) => l.startsWith('e ')).map((l) => Number(l.slice(2))))
-    assert.ok(most >= 2 && most <= 3, `함께 돈 기록 정리 ${most}`)
-    const k = await s.hub.get('넣기넷')
-    assert.ok(r.rows.every((x) => k.byWork.get(x.rec).state !== 'pend'), '넷 모두 들어갔다')
-  } finally {
-    delete process.env.FAKE_CLAUDE_READ
-    delete process.env.FAKE_CLAUDE_SPANS
-  }
 })
 
 test('문서 폴더 가져오기도 파일 넣기와 같은 길: 파일마다 기록 → Claude Code 가 갈래 문서 항목으로 · 파일 이름 문서 · 사본 문서가 서지 않는다', async () => {

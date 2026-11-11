@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { SET_TEAM, SET_PC, KN_MENU_PC, KN_MENU_TEAM, COMMON, GEN_TABS, PROGRESS, CHECK_TABS, CHECK_HELD, MANAGE_PC, MANAGE_TEAM, DETAIL_PC, DETAIL_TEAM, okNow, okTarget } from '../core/menupath.js'
+import { SET_TEAM, SET_PC, KN_MENU_PC, KN_MENU_TEAM, COMMON, GEN_TABS, PROGRESS, CHECK_TABS, MANAGE_PC, MANAGE_TEAM, DETAIL_PC, DETAIL_TEAM, okNow, okTarget } from '../core/menupath.js'
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 const main = fs.readFileSync(path.join(ROOT, 'app', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
@@ -32,11 +32,11 @@ test('화면의 설정 메뉴 · 옆 메뉴(지식 메뉴 · 공통 메뉴) · �
   assert.deepEqual([...gen[1].matchAll(/\['(?:manual|auto)', '([^']+)'\]/g)].map((m) => m[1]), [...GEN_TABS])
   assert.match(body('progHeadHtml'), />진행</)
   assert.deepEqual(['진행', ...[...body('progTabsHtml').matchAll(/\['(?:queue|done)', '([^']+)'/g)].map((m) => m[1])], [...PROGRESS])
-  // 점검(저장 승인 P10) — 탭 점검 · 지표 · held 모드 지식은 P11 까지 넣지 못함 탭이 앞 · 승인 탭은 걷었다
-  const ck = main.match(/const CK_NAME = \{ held: '([^']+)', check: '([^']+)', metrics: '([^']+)' \}/)
+  // 점검(저장 승인 P10 · P11) — 탭 점검 · 지표 · 넣지 못함 · 승인 탭은 걷었다
+  const ck = main.match(/const CK_NAME = { check: '([^']+)', metrics: '([^']+)' }/)
   assert.ok(ck, 'CK_NAME')
-  assert.deepEqual([ck[2], ck[3]], [...CHECK_TABS])
-  assert.equal(ck[1], CHECK_HELD)
+  assert.deepEqual([ck[1], ck[2]], [...CHECK_TABS])
+  assert.ok(!/'held'/.test(body('ckTabsHtml')), '넣지 못함 탭은 걷었다')
   assert.ok(!/'review'/.test(body('ckTabsHtml')), '승인 탭은 걷었다')
   // 지식관리(N6) — 본문 왼쪽 메뉴(mgMenu: 팀만 사람) · 지식 상세 탭(kdTabs: 개인 줄 · 팀 줄)
   const mgm = labels(body('mgMenu'))

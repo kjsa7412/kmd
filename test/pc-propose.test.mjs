@@ -49,16 +49,15 @@ before(async () => {
   fs.mkdirSync(path.join(tmp, 'pcdata'), { recursive: true })
   fs.writeFileSync(path.join(tmp, 'pcdata', 'serve.json'), JSON.stringify({ curateOnStart: false, decideMs: 3600000, inboxTickMs: 3600000 }))
   pc = await startServer({ root: path.join(tmp, 'pc'), data: path.join(tmp, 'pcdata'), mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
-  // 바로 넣기를 거는지 본다(저장 뒤 curateSoon)
-  const soon = pc.hub.curateSoon
-  pc.hub.curateSoon = (id) => { curates.push(id); return soon(id) }
+  // 바로 넣기(curateSoon)는 걷었다(PC6) — 그 손잡이가 없다
+  if (pc.hub.curateSoon || pc.hub.curatePending) throw new Error('바로 넣기가 남았다')
   const mcp = makeMcp(pc.hub)
   call = async (name, args) => (await mcp.call({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }, KIM)).result.structuredContent
   // 팀 — 같은 apv(총괄 관리자가 approve 로 켬 · 기록 모음을 세움)
   fs.mkdirSync(path.join(tmp, 'team'), { recursive: true })
   seedApv(path.join(tmp, 'team', 'apv'))
   team = await startServer({ root: path.join(tmp, 'team'), data: path.join(tmp, 'tdata'), port: 0, log: () => {}, scryptN: 1 << 15 })
-  await team.hub.setSaveMode({ shell: true }, 'apv', 'approve')
+  await team.hub.ensureRecordsDoc('apv')
 })
 after(async () => {
   await pc?.close()
@@ -74,7 +73,7 @@ const input = (base, over = {}) => ({
   ...over,
 })
 
-test('저장 방식: 이행을 마친 개인 지식 = approve · 옛 개인 지식 = 지금 그대로(pc) · 옛 지식은 propose 를 막는다', async () => {
+test('저장 방식: 이행을 마친 개인 지식 = approve · 옛 개인 지식 = pc(저장 닫힘) · 옛 지식은 propose 를 막는다', async () => {
   assert.equal(pc.hub.saveModeOf('apv'), 'approve')
   assert.equal(pc.hub.saveModeOf('dpms'), 'pc')
   const r = await call('propose', { knowledge: 'dpms', record: { title: '헬스 체크: 주기', why: ['시험'], touches: ['proc:헬스 체크'] } })
@@ -89,14 +88,10 @@ test('개인 approve: proposal 없음 = E_APPROVE + propose 결과(나만 · 이
   assert.equal(r.error, 'E_APPROVE', JSON.stringify(r))
   assert.match(r.details.propose.text, /^【저장 제안】 지식: 승인 지식\(보는 사람: 나만 · 이 PC\) · 길: 이 세션의 작업/)
   assert.match(r.details.propose.proposal, /^[0-9a-f]{64}$/)
-  // 개인 스킬 판(PC2 · P-D40) — 판 없이 온 세션은 nokit · 옛 판은 개인 화면의 다시 설치 안내 · 지금 판이면 안내 없음
-  assert.deepEqual([r.details.nokit?.want, r.details.reinstall], [PC_KIT_REV, undefined])
-  assert.match(r.details.nokit.how, /kmd-save/)
+  // 옛 판 · 판 없음 안내(reinstall · nokit)는 걷었다(P11 · PC6)
   const old = await call('save', { ...input(sec.base), kit: String(PC_KIT_REV - 1) })
-  assert.deepEqual([old.error, old.details.reinstall?.have, old.details.reinstall?.want], ['E_APPROVE', PC_KIT_REV - 1, PC_KIT_REV])
-  assert.match(old.details.reinstall.how, /개인 화면 › 설정 › 에이전트 설치에서 이 폴더를 다시 설치/)
-  const cur = await call('save', { ...input(sec.base), kit: String(PC_KIT_REV) })
-  assert.deepEqual([cur.error, cur.details.reinstall, cur.details.nokit], ['E_APPROVE', undefined, undefined])
+  assert.deepEqual([old.error, old.details.reinstall, old.details.nokit], ['E_APPROVE', undefined, undefined])
+  assert.equal(r.details.nokit, undefined)
   assert.equal(snap(pdir('apv')), n0, '아무것도 쓰지 않는다')
   const last = savelogOf('apv').at(-1)
   assert.deepEqual([last.err, last.mode, last.unproposed], ['E_APPROVE', 'approve', true])
@@ -191,15 +186,17 @@ test('지문은 저장 문 한 벌: approve 개인 지식에 base 없는 고침 
   assert.match(old.message, /이미 있는 항목이다/)
 })
 
-test('옛 개인 지식 = 지금 그대로: proposal 없이 저장 · 메모 받음 · 바로 넣기를 건다', async () => {
+test('이행 못한 옛 개인 지식은 저장이 닫힌다(PC6): save · 메모 모두 E_BEHIND · 아무것도 쓰지 않음 · 바로 넣기를 걸지 않는다 · 읽기는 된다', async () => {
   const n = curates.length
-  const r = await call('save', { knowledge: 'dpms', record: { title: '헬스 체크: 주기 다시 볼 것', body: '아직 정하지 않았다.', touches: ['proc:헬스 체크'], memo: true } })
-  assert.ok(r.saved, JSON.stringify(r))
-  assert.equal(r.memo, true)
-  const s2 = await call('save', { knowledge: 'dpms', record: { title: '헬스 체크: 주기 15초', changes: ['헬스 체크 주기: 10초 → 15초'], touches: ['proc:헬스 체크'] } })
-  assert.ok(s2.saved, JSON.stringify(s2))
-  assert.ok(curates.length > n, '옛 길은 바로 넣기를 건다')
-  await pc.hub.idle('dpms')
+  const n0 = snap(pdir('dpms'))
+  const r = await call('save', { knowledge: 'dpms', record: { title: '헬스 체크: 주기 15초', changes: ['헬스 체크 주기: 10초 → 15초'], touches: ['proc:헬스 체크'] } })
+  assert.equal(r.error, 'E_BEHIND', JSON.stringify(r))
+  assert.match(r.message, /이행 못함/)
+  const m = await call('save', { knowledge: 'dpms', record: { title: '헬스 체크: 주기 다시 볼 것', body: '아직 정하지 않았다.', touches: ['proc:헬스 체크'], memo: true } })
+  assert.equal(m.error, 'E_BEHIND')
+  assert.equal(snap(pdir('dpms')), n0, '아무것도 쓰지 않는다')
+  assert.equal(curates.length, n, '바로 넣기는 걷었다')
+  assert.ok((await call('section', { knowledge: 'dpms', coord: 'proc:헬스 체크' })).content, '읽기는 된다')
 })
 
 test('새 개인 지식 = approve: _members.md 「저장 방식: 승인」 · 기록 모음을 같이 세워 한 커밋 · proposal 없음 = E_APPROVE', async () => {

@@ -141,14 +141,14 @@ test('권한 창: 주인이 「모두」 를 없음으로 · rd 를 읽기로 �
   await p2.waitForSelector('[data-t=whoVal]')
   assert.match(await p2.locator('[data-t=whoVal]').innerText(), /나: 읽기/)
   assert.equal(await p2.locator('[data-t=accOpenSide]').count(), 0)
-  // 옆 메뉴 자리별(6-4) — 읽기 자리 지식: 지식 메뉴는 문서 · 이력만 · [구조] 없음 / 쓰기 자리 지식(gdi): 확인 · 생성 · 문서 · 이력 · [구조] 없음
+  // 옆 메뉴 자리별(6-4) — 읽기 자리 지식: 지식 메뉴는 문서 · 이력만 · [구조] 없음 / 쓰기 자리 지식(gdi): 생성 · 문서 · 이력 · [구조] 없음
   await p2.waitForSelector('[data-t=tree] [data-t=doc]')
   assert.deepEqual(await p2.locator('[data-t=knMenu] .kmi').evaluateAll((els) => els.map((e) => e.dataset.t)), ['nav-docs', 'nav-history'])
   assert.equal(await p2.locator('[data-t=knMenu]').getAttribute('class'), 'kmn n2')
   assert.equal(await p2.locator('[data-t=treeStruct], [data-t=rl-held], [data-t=rl-import]').count(), 0, '읽기 자리: [구조] · 확인 · 생성 없음')
   await p2.click('[data-t=kpick]')
   await p2.locator('[data-t=kmenuKn]').filter({ hasText: 'GDI 지식' }).click()
-  await p2.waitForFunction(() => document.querySelectorAll('[data-t=knMenu] .kmi').length === 4)
+  await p2.waitForFunction(() => document.querySelectorAll('[data-t=knMenu] .kmi').length === 3) // 쓰기 자리: 생성 · 문서 · 이력(점검은 지식관리자만 · P11)
   await p2.waitForSelector('[data-t=tree] [data-t=doc]')
   assert.equal(await p2.locator('[data-t=treeStruct]').count(), 0, '쓰기 자리: [구조] 없음')
   await p2.click('[data-t=nav-manage]')
@@ -276,7 +276,8 @@ test('지식관리 › 모든 지식 자리별(메뉴 개편 N6 · 6-4): 지식�
   await b.keyboard.press('Escape')
   assert.deepEqual(await detail(b, 'GDI 지식'), ['정보', '권한', '저장소', '정책', '삭제'])
   await b.click('[data-t=kdTab-policy]')
-  await b.waitForSelector('[data-t=kdPolicy] [data-t=knSaveMode][aria-checked=false]')
+  await b.waitForSelector('[data-t=kdPolicy]')
+  assert.equal(await b.locator('[data-t=knSaveMode]').count(), 0, '저장 승인 스위치는 걷었다(P11)')
   await b.click('[data-t=kdTab-repo]')
   await b.waitForSelector('[data-t=kdBody-repo] #repoUrl')
   assert.equal(await b.locator('[data-t=kdBody-repo] [data-t=repoSave]').innerText(), '붙이기')
@@ -312,16 +313,13 @@ test('가져올 곳 부탁: 그 지식의 지식관리자가 가져오기 화면
   await page.close()
 })
 
-test('지식 메뉴 화면 자리별(메뉴 개편 6-4 · N5): 쓰기는 확인 넣지 못함(내 것)만 · 자동수집 [+ 부탁] · 읽기는 확인 · 생성 없음 · 옛 주소는 새 주소로', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
-  // 쓰기 자리(rd · gdi 쓰기) — 확인은 넣지 못함 탭만 · 「내 것만」 · 생성 › 자동수집은 [+ 부탁] · 부탁 카드 · [모두 수집] 없음
+test('지식 메뉴 화면 자리별(메뉴 개편 6-4 · N5): 쓰기는 점검 없음 · 자동수집 [+ 부탁] · 읽기는 확인 · 생성 없음 · 옛 주소는 새 주소로', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+  // 쓰기 자리(rd · gdi 쓰기) — 점검 메뉴 없음 · 생성 › 자동수집은 [+ 부탁] · 부탁 카드 · [모두 수집] 없음
   const w = await login(P.rd)
   await w.click('[data-t=kpick]')
   await w.locator('[data-t=kmenuKn]').filter({ hasText: 'GDI 지식' }).click()
-  await w.click('[data-t=knMenu] [data-t=nav-held]')
-  await w.waitForSelector('[data-t=ckTabs]')
-  assert.deepEqual((await w.locator('[data-t=ckTabs] > span').allInnerTexts()).map((x) => x.replace(/\s*\d.*$/s, '')), ['넣지 못함'], '쓰기: 점검 · 승인 없음')
-  await w.waitForSelector('[data-t=hdSum]')
-  assert.match(await w.locator('[data-t=hdSum]').innerText(), /내 것만 보인다/)
+  await w.waitForSelector('[data-t=knMenu] [data-t=nav-import]')
+  assert.equal(await w.locator('[data-t=knMenu] [data-t=nav-held]').count(), 0, '쓰기: 점검 메뉴 없음(넣지 못함 탭은 P11 에서 걷었다)')
   await w.click('[data-t=knMenu] [data-t=nav-import]')
   await w.click('[data-t=genTab-auto]')
   await w.waitForSelector('[data-t=srcTable]')
@@ -330,7 +328,7 @@ test('지식 메뉴 화면 자리별(메뉴 개편 6-4 · N5): 쓰기는 확인 
   assert.deepEqual(await bannedIn(w), [])
   assert.deepEqual(w._errs, [])
   await w.close()
-  // 읽기 자리 — 옆 메뉴에 확인 · 생성이 없고, 옛 주소 #/held 로 와도 넣지 못함을 보이지 않는다 · 주소는 새 꼴로
+  // 읽기 자리 — 옆 메뉴에 점검 · 생성이 없고, 옛 주소 #/held 로 와도 점검을 보이지 않는다 · 주소는 새 꼴로
   await s.hub.setAccess(SHELL, 'dpms', { all: 'read' })
   const r = await login(P.rd)
   await r.click('[data-t=kpick]')
@@ -338,7 +336,7 @@ test('지식 메뉴 화면 자리별(메뉴 개편 6-4 · N5): 쓰기는 확인 
   await r.waitForFunction(() => document.querySelectorAll('[data-t=knMenu] .kmi').length === 2)
   await r.goto(s.url + '/#/held')
   await r.waitForSelector('[data-t=ckNone]')
-  assert.equal(await r.locator('[data-t=heldList], [data-t=ckTabs]').count(), 0)
+  assert.equal(await r.locator('[data-t=ckTabs]').count(), 0)
   await r.waitForFunction(() => /#\/k\/dpms\/check$/.test(location.hash))
   // 옛 주소 #/import → 생성(읽기 자리는 쓰기 자리가 없다는 한 줄)
   await r.goto(s.url + '/#/import')
@@ -355,7 +353,7 @@ test('점검 자리별(저장 승인 P10 · P-D28): 승인 저장 지식은 지�
   fs.rmSync(path.join(dir, 'work'), { recursive: true, force: true })
   fs.writeFileSync(path.join(dir, 'README.md'), '# 테스트 점검 지식\n')
   await s.hub.sync({ user: 'boss', admin: true })
-  await s.hub.setSaveMode(SHELL, 'apv10', 'approve')
+  await s.hub.ensureRecordsDoc('apv10')
   await s.hub.setOwner(SHELL, 'apv10', { owner: 'own' })
   await s.hub.setAccess(SHELL, 'apv10', { all: 'none', users: { rd: 'write' } })
   // 지식관리자(주인) — 점검 · 지표 탭 · 넣지 못함 탭 없음 · 배지 없음

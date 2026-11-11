@@ -1,7 +1,7 @@
 // 저장 승인 P3 — approve 모드 특성 시험(저장 승인 설계 6-5 「먼저 더하는 특성 시험」 · 3절 · P-D5 · P-D12 · P-D16 · P-D17 · P-D29 · P-D34)
 //
 // held 모드 = 지금과 같음(dpms) · approve 모드(apv) 결과 = 들어감 하나 + 입력 오류(아무것도 안 씀) · proposal 없음 = E_APPROVE + propose 결과 ·
-// 해시 어긋남 = E_APPROVE · 대화 조절 뒤 마지막 해시만 · 경고를 그대로 승인 = 들어감 + 「## 받아들인 경고」 · 옛 키트 = reinstall · 키트 없음 = nokit ·
+// 해시 어긋남 = E_APPROVE · 대화 조절 뒤 마지막 해시만 · 경고를 그대로 승인 = 들어감 + 「## 받아들인 경고」 · 옛 키트 · 키트 없음 = E_APPROVE(안내 없음) ·
 // memo = E_INPUT · 경위만 = 들어감(글 그대로 · 이력) · 바뀐 것 값이 본문에 없음 = 오류 · touchesEmpty = 기록 모음 달 항목 · ingest/ 위조 = E_INPUT ·
 // 쓰기 자리 새 문서 · fresh 는 14일 뒤 떨어짐 · 새 지식 = approve · 저장 방식 스위치(총괄 관리자 · 이행 먼저) · 측정 줄 · 하루 요약
 
@@ -46,7 +46,6 @@ before(async () => {
   for (const id of ['wr', 'rd']) P[id] = await signIn(s, { id, admin: false })
   await seat(s, 'wr', { dpms: 'write', apv: 'write' })
   await seat(s, 'rd', { dpms: 'read', apv: 'read' })
-  await s.hub.setSaveMode({ shell: true }, 'apv', 'approve')
 })
 after(async () => {
   await s?.close()
@@ -67,19 +66,16 @@ const approved = async (inp, who = P.wr) => {
   return { p, r: await mcp('save', { ...inp, proposal: p.proposal, kit: KIT }, who) }
 }
 
-test('held 모드 = 지금과 같음: proposal 없이 저장 · 메모 · 값 대조는 넣지 못함 · 새 지식이 아닌 옛 지식은 held', async () => {
-  assert.equal(s.hub.saveModeOf('dpms'), 'held')
+test('모든 팀 지식 = approve(P11): 옛 지식도 proposal 없이 저장하면 E_APPROVE · 메모 = E_INPUT · 걸린 조각은 넣지 못함이 아니라 제안 오류(아무것도 쓰지 않음)', async () => {
+  assert.equal(s.hub.saveModeOf('dpms'), 'approve')
   assert.equal(s.hub.saveModeOf('apv'), 'approve')
+  const n0 = snap(kdir('dpms'))
   const sec = await canary('dpms')
-  const ok = await mcp('save', { ...input(sec.base), knowledge: 'dpms', kit: KIT })
-  assert.ok(ok.saved, JSON.stringify(ok))
-  assert.equal(ok.put, 1)
-  assert.match(ok.note, /넣지 못함 0/)
+  const no = await mcp('save', { ...input(sec.base), knowledge: 'dpms', kit: KIT })
+  assert.equal(no.error, 'E_APPROVE', JSON.stringify(no))
   const memo = await mcp('save', { knowledge: 'dpms', kit: KIT, record: { title: '카나리: 비율 다시 볼 것', body: '아직 정하지 않았다.', touches: ['proc:카나리'], memo: true } })
-  assert.equal(memo.memo, true, '옛 지식은 메모를 받는다(P11 까지)')
-  const sec2 = await canary('dpms')
-  const held = await mcp('save', { ...input(sec2.base, { sections: [{ coord: 'proc:카나리', base: sec2.base, edits: [{ find: '요청의 20% 만', replace: '요청의 35% 만' }] }] }), knowledge: 'dpms', kit: KIT })
-  assert.equal(held.held?.length, 1, '값 대조는 넣지 못함(held 모드 그대로)')
+  assert.equal(memo.error, 'E_INPUT', JSON.stringify(memo))
+  assert.equal(snap(kdir('dpms')), n0, '아무것도 쓰지 않는다')
 })
 
 test('approve: proposal 없음 = E_APPROVE + propose 결과 · 아무것도 쓰지 않음 · 측정 줄 unproposed', async () => {
@@ -138,14 +134,12 @@ test('approve: 경고가 든 제안서를 그대로 승인 = 들어감 + 「## �
   assert.deepEqual(savelogOf('apv').at(-1).accepted.sort(), p.warnings.map((w) => w.code).sort())
 })
 
-test('approve: 옛 키트 = E_APPROVE + reinstall · 키트 없음 = E_APPROVE + nokit · memo = E_INPUT', async () => {
+test('approve: 옛 키트 · 키트 없음 = E_APPROVE(옛 판 안내 reinstall · nokit 은 걷었다 · P11) · memo = E_INPUT', async () => {
   const sec = await canary()
   const old = await mcp('save', { ...input(sec.base), kit: String(TEAM_KIT_REV - 1) })
-  assert.equal(old.error, 'E_APPROVE')
-  assert.equal(old.details.reinstall.want, TEAM_KIT_REV)
+  assert.deepEqual([old.error, old.details.reinstall, old.details.nokit], ['E_APPROVE', undefined, undefined])
   const none = await mcp('save', input(sec.base))
-  assert.equal(none.error, 'E_APPROVE')
-  assert.equal(none.details.nokit.want, TEAM_KIT_REV)
+  assert.deepEqual([none.error, none.details.nokit], ['E_APPROVE', undefined])
   const memo = await mcp('save', { knowledge: 'apv', kit: KIT, record: { title: '카나리: 비율 다시 볼 것', body: '아직 정하지 않았다.', touches: ['proc:카나리'], memo: true } })
   assert.equal(memo.error, 'E_INPUT')
   assert.match(memo.message, /메모/)
@@ -232,19 +226,20 @@ test('approve: ingest/ 위조 = E_INPUT(P-D16) · 사람 글의 kmd 칸 머리 =
   assert.equal(c.details.propose.errors[0].code, 'conflict')
 })
 
-test('새 지식 = approve(기록 모음 같이) · 빈 지식 판정은 기록 모음을 세지 않음 · 저장 방식 스위치는 총괄 관리자 · 이행 먼저', async () => {
+test('새 지식 = approve(기록 모음 같이) · 빈 지식 판정은 기록 모음을 세지 않음 · 저장 방식 스위치 · /held 길은 걷음(P11)', async () => {
   const made = await s.hub.addKnowledge({ user: 'boss', admin: true }, { kind: 'new', name: '새승인', empty: true })
   assert.equal(s.hub.saveModeOf(made.id), 'approve')
   assert.ok(fs.existsSync(path.join(kdir(made.id), 'docs', '기록 모음.md')))
   assert.match(fs.readFileSync(path.join(kdir(made.id), '_members.md'), 'utf8'), /- 저장 방식: 승인/)
   await s.hub.seedGate({ user: 'boss', admin: true }, made.id)
-  // 스위치 — 쓰기 자리 403 · 총괄 관리자도 이행 전(개편 전 기록 · 메모)이면 E_CONFLICT
+  // 저장 방식 스위치는 걷었다(P11) — 길이 없다 · 옛 지식도 approve
   const no = await req('/api/k/apv/save-mode', P.wr, { save: 'held' })
-  assert.equal(no.status, 403)
-  await assert.rejects(s.hub.setSaveMode({ user: 'boss', admin: true }, 'dpms', 'approve'), (e) => e.code === 'E_CONFLICT')
-  assert.deepEqual(await s.hub.setSaveMode({ user: 'boss', admin: true }, made.id, 'held'), { id: made.id, save: 'held' })
-  assert.equal(s.hub.saveModeOf(made.id), 'held')
-  assert.ok(!/저장 방식/.test(fs.readFileSync(path.join(kdir(made.id), '_members.md'), 'utf8')))
+  assert.ok([404, 405].includes(no.status), String(no.status))
+  assert.equal(s.hub.setSaveMode, undefined)
+  assert.equal(s.hub.saveModeOf('dpms'), 'approve')
+  // 넣지 못함 길(/held)도 걷었다
+  const h = await fetch(`${s.url}/api/k/dpms/held`, { headers: { cookie: P.wr.cookie } })
+  assert.ok([404, 405].includes(h.status), String(h.status))
 })
 
 test('하루 요약(P-D13): approve 지식의 review 스위치는 지난날 들어간 기록 수를 지식관리자에게 알림', async () => {

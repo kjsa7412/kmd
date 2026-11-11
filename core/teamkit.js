@@ -28,8 +28,8 @@ const GUIDE_SKILLS = ['kmd-team-save', 'kmd-team-import']
 export const OLD_SKILLS = ['kmd-work', 'kmd-save', 'kmd-build']
 // 스킬 판(S-D15) — 팀 스킬 글 · 팀 덩이 · 작성가이드를 고치면 하나 올린다(test/teamkit.test.mjs 의 판 표가 잊으면 실패한다).
 //   스킬 글의 자리표 {{KIT_REV}} 를 이 값으로 바꿔 싣는다 → 세션이 MCP save 에 kit 으로 싣는다 →
-//   팀 서버가 이 값보다 옛것이면 저장은 그대로 하고 답에 reinstall(다시 설치) · 없으면 nokit(스킬을 거치지 않은 저장)을 싣는다(server/mcp.js)
-export const TEAM_KIT_REV = 8
+//   저장 측정 줄(savelog)에 싣는다(옛 판 안내 reinstall · nokit 은 P11 에서 걷었다)
+export const TEAM_KIT_REV = 9
 const withRev = (t) => t.replace(/\{\{KIT_REV\}\}/g, String(TEAM_KIT_REV))
 
 export async function teamKitParts() {

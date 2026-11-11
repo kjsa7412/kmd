@@ -16,7 +16,6 @@ import { formatProblems, convertDoc, verifyConvert, docfmtDir, lintDoc, lintNew 
 import { save, sectionBase } from '../core/save.js'
 import { loadKnowledge } from '../core/knowledge.js'
 import { check as checkDraft } from '../core/gate.js'
-import { material } from '../core/pcplace.js'
 import { render, linkTarget, linksOf, citesOf, docView } from '../server/views.js'
 import { copyDir } from './helpers.mjs'
 
@@ -147,7 +146,6 @@ test('저장: 새 꼴로 쓰고 옛 경과를 잃지 않는다 · base 는 본�
   assert.ok(!v.sections[0].html.includes('kmd:참고'))
   assert.ok(!v.sections[0].html.includes('옛 기록'))
   assert.ok(!v.sections[0].html.includes('srcrefs'))
-  assert.equal(typeof v.sections[0].heldN, 'number')
   assert.equal(v.refs.n, 2)
 })
 
@@ -175,16 +173,6 @@ test('저장 검사(E_FORMAT): 사람 · 세션의 항목 글에 본문이 아�
   assert.equal(s.body, '배포 창은 화 · 목이다.')
   assert.ok(s.log.some((l) => l.includes('2026-1021-배포-창')))
   assert.ok(k)
-})
-
-test('정리 초안 검사도 같은 검사를 쓴다(기록 링크 · 경과는 거절 · 까닭이 남는다)', async () => {
-  await save(dir, { record: { title: '헬스 체크: 5초', body: '시간 초과는 5초', touches: ['proc:헬스 체크'] } }, { user: 'lee' })
-  const k = await loadKnowledge({ id: 'dpms', name: 'dpms', dir })
-  const g = material(k).find((x) => x.coord === 'proc:헬스 체크')
-  const draft = (content) => ({ content, used: g.records.map((r) => r.id), left: [] })
-  const c = checkDraft(k, g, draft(`${g.content.replace('3초', '5초')}\n\n[기록](../work/${g.records[0].id}.md)`))
-  assert.equal(c.ok, false)
-  assert.match(c.why, /머리 · 표지.*기록 · 이력 링크/)
 })
 
 test('옛 문서 옮기기: 본문은 그대로 · 줄은 참고 블록으로 · 다르면 옮기지 않는다', () => {

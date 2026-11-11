@@ -28,7 +28,7 @@ before(async () => {
   process.env.KMD_CLAUDE_AGENT = path.join(HERE, 'fixture', 'fake-claude-agent.mjs')
   root = path.join(tmp, 'kn')
   fs.mkdirSync(root, { recursive: true })
-  s = await startServer({ root, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
+  s = await startServer({ root, mode: 'pc', user: 'kim', port: 0, log: (...a) => { if (process.env.KLOG) console.error(...a) }, scryptN: 1 << 15 })
   await s.hub.addKnowledge(ME, { kind: 'new', name: '회의' })
 })
 after(async () => {
@@ -287,7 +287,7 @@ test('다시 켜면: 멈춘 일 · 줄 멈춤은 그대로 · 돌던 일은 그 
   await wait(async () => (await s.hub.queueGet(ME, id)).parked === 'hold')
   await s.hub.queue.flush()
   await s.close()
-  s = await startServer({ root, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
+  s = await startServer({ root, mode: 'pc', user: 'kim', port: 0, log: (...a) => { if (process.env.KLOG) console.error(...a) }, scryptN: 1 << 15 })
   const j = await s.hub.queueGet(ME, id)
   assert.equal(j.state, 'pause')
   assert.equal(j.parked, 'hold')

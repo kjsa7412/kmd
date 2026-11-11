@@ -65,7 +65,8 @@ after(async () => {
 //   (판 6 은 UX 검토: 쓰기 자리 새 문서 조각 · 넣지 못함과 fixes · 머리 「값: 설명」 예 · 걷은 정리 말)
 //   (판 7 은 바탕 세우기 Z9: 대량 넣기 0단계의 빈 지식 한 줄(기초 세우기 먼저 · 넘으면 kmd-seed))
 //   (판 8 은 저장 승인 P4: 늘 저장 제안 · 정리 거리 고르기 · 대화 조절 · 메모 걷기 · 대량 넣기 규칙 표 한 번 승인)
-const KIT_HASH = { 2: '10d1b294', 3: '85c4e1b0', 4: 'a91c981e', 5: '34c6e455', 6: '530dee29', 7: '4ec95b65', 8: 'bbb4fb34' }
+//   (판 9 는 저장 승인 P11: 저장 승인 전 팀 지식 갈래 · 옛 판 안내(reinstall · nokit) 걷기)
+const KIT_HASH = { 2: '10d1b294', 3: '85c4e1b0', 4: 'a91c981e', 5: '34c6e455', 6: '530dee29', 7: '4ec95b65', 8: 'bbb4fb34', 9: '836af2f3' }
 test('스킬 판: 스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다 · 스킬 글의 {{KIT_REV}} 를 판으로 바꿔 싣는다', async () => {
   const parts = await teamKitParts()
   assert.equal(parts.rev, TEAM_KIT_REV)
@@ -89,19 +90,18 @@ test('스킬 판: 스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다 · 스킬 �
   assert.match(save, /E_CONFLICT/)
   assert.match(save, /정해지지 않음 · 넣지 않음/)
   assert.match(save, /좋은 예: [^\n]*\n[^\n]*나쁜 예: /, '작성기준 좋은 예 · 나쁜 예')
-  assert.match(save, /record\.fixes/, '저장 승인 전 지식에서 고쳐 다시 저장하면 앞 기록을 단다')
+  assert.doesNotMatch(save, /저장 승인 전/, '저장 승인 전 팀 지식 갈래는 걷었다(P11)')
   assert.doesNotMatch(save, /정리 때|확인 대기|같은 기록을 다시 보내지 말고/, '옛 말을 걷었다')
   assert.doesNotMatch(save.replace('줄표(—)', ''), /—/, '줄표를 쓰지 않는다')
   const work = parts.skills.find((x) => x.rel === '.claude/skills/kmd-team-work/SKILL.md').text
   assert.match(work, /accepted/, '일 전 brief 의 mine 새 꼴')
-  assert.match(work, /안 넣은 메모 n · 넣지 못함 n/, '저장 승인 전 지식은 옛 수도 한 줄로')
+  assert.doesNotMatch(work, /넣지 못함/, '넣지 못함 · 메모 수는 걷었다(P11)')
   // 대량 넣기(K6-3) — 판 · 파서는 처음 할 때 받는다(brief parser · sha256) · 파일마다 저장 하나 · same 이어 하기 · 한 번 고쳐 fixes · 끝 줄
   const imp = parts.skills.find((x) => x.rel === '.claude/skills/kmd-team-import/SKILL.md').text
   assert.ok(imp.includes(`kit: "${TEAM_KIT_REV}"`), '대량 넣기도 save 에 판을 싣는다')
   assert.match(imp, /parser/)
   assert.match(imp, /sha256/)
   assert.match(imp, /same: true/)
-  assert.match(imp, /record\.fixes/)
   assert.match(imp, /규칙 표/, '규칙 표 한 번 승인(P-D16)')
   assert.match(imp, /proposal/)
   assert.doesNotMatch(imp, /ledgers/, 'you.ledgers 조건을 걷었다')

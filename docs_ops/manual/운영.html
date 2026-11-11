@@ -55,7 +55,7 @@
 <li><b>확인한다</b><code>curl &lt;팀 주소&gt;/healthz</code> 의 build 가 새 판인지 · 화면 오른쪽 아래 판 · 관리 화면 문제 줄.</li>
 </ol>
 <p>꾸러미 안의 새 PC zip 이 받기 자리에 놓인다. 설치 한 줄은 서버와 같은 판의 PC zip 을 먼저, 없으면 가장 높은 판을 준다.</p>
-<p>저장 승인 판으로 처음 올린 뒤에는 옛 팀 지식이 그대로 옛 저장 길이다. 지식마다 이행을 마치고 저장 승인을 켠다(<a href="관리자.html#savemode">총괄 관리자 설명서 4-1</a>).</p>
+<p>저장 승인 판으로 올리면 팀 지식은 모두 저장 승인이다. 옛 기록(넣지 못함 · 메모 · 개편 전 기록)은 읽기만 남고, 옮기려면 이행 도구를 쓴다(<a href="관리자.html#savemode">총괄 관리자 설명서 4-1</a>).</p>
 <h3>이 PC</h3>
 <p>보통은 팀 화면 › 설정 › 개인 프로그램 설치의 <b>한 줄을 다시 붙인다</b>. 이 PC 의 판(<code>~/.kmd-app/current.json</code>)과 팀 서버의 PC 꾸러미 판을 견주어 옛 판일 때만 올린다. 이미 깐 PC 는 저절로 바뀌지 않는다. 저장 승인 판을 처음 켜면 옛 개인 지식마다 이행이 한 번 돈다(지식백업에 먼저 보낸다 · <a href="개인.html#migrate">개인 프로그램 설명서</a>).</p>
 <div class="m-flow"><div class="m-st"><b>versions/&lt;판&gt;</b><small>새 판을 옆에 둔다</small></div><span class="m-ar">›</span><div class="m-st m-hi"><b>켜 보기</b><small>빈 폴더에서 healthz</small></div><span class="m-ar">›</span><div class="m-st"><b>실행기 바꾸기</b><small>current.json · bin\kmd.cmd</small></div><span class="m-ar">›</span><div class="m-st m-ok"><b>다시 켜기</b><small>안 되면 앞 판으로</small></div></div>
@@ -67,8 +67,8 @@
 <tr><td>들이기가 오래 「팀 일꾼을 기다린다」</td><td><code>systemctl status kmd-worker</code> · 서버의 Claude 로그인(설정 › 팀 일꾼)</td></tr>
 <tr><td>백업 빨강 한 줄</td><td><code>kmd backup</code> 으로 지식마다 상태 · 저장소의 열쇠 · 디스크</td></tr>
 <tr><td>Claude Code 에서 팀 지식이 안 보인다</td><td>그 지식에 내 자리가 있나 · 내 기기가 끊기지 않았나(오른쪽 위 내 메뉴 › 내 기기) · 그 폴더에서 Claude Code 를 새로 열었나</td></tr>
-<tr><td>개인 화면 「이행 못함: 지식 · 까닭」</td><td>대개 지식백업(설정 › 지식백업의 경로 · 저장소)이다. 풀고 [다시 하기], 또는 다음에 켤 때 다시 한다. 그동안 그 지식은 옛 저장 길이다</td></tr>
-<tr><td>승인 저장을 켜려는데 「이행이 끝나지 않았다」</td><td>그 지식에 넣지 못함 · 메모 · 개편 전 기록이 남았다. <code>kmd-migrate</code> 이행을 먼저(<a href="관리자.html#migrate">총괄 관리자 설명서</a>)</td></tr>
+<tr><td>개인 화면 「이행 못함: 지식 · 까닭」</td><td>대개 지식백업(설정 › 지식백업의 경로 · 저장소)이다. 풀고 [다시 하기], 또는 다음에 켤 때 다시 한다. 그동안 그 지식은 저장이 닫힌다(읽기 · 찾기는 된다)</td></tr>
+<tr><td>옛 개인 지식이 「이행 못함」 으로 저장이 닫혔다(<code>E_BEHIND</code>)</td><td>멈춤 줄의 [다시 하기] 로 이행한다. 읽기 · 찾기는 된다(<a href="관리자.html#migrate">총괄 관리자 설명서</a>)</td></tr>
 <tr><td>자동수집이 「크게 바뀜」 에서 멈췄다</td><td>한꺼번에 크게 바뀌었다. 원본이 맞으면 [그대로 맞추기], 아니면 [이번은 건너뛰기]</td></tr>
 </table></div>
 

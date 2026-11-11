@@ -490,7 +490,7 @@ td.go2{text-align:right;white-space:nowrap}
 .hmore{display:flex;justify-content:center;padding:var(--sp-4) var(--sp-5);border-top:1px solid var(--border)}
 .tn.nc{cursor:default;font-size:var(--fs-sm)}
 .pd{width:7px;height:7px;border-radius:50%;background:var(--pending);flex:none;display:inline-block}
-.pd.hd{background:var(--warn)} /* 넣지 못함(S10) — 노랑 점 */
+.pd.hd{background:var(--warn)} /* 볼 것 — 노랑 점 */
 .nw{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none;display:inline-block}
 .lp .inp{min-height:28px;font-size:var(--fs-mono)}
 .ig{font-size:var(--fs-sm);color:var(--text-2);font-weight:700;margin:var(--sp-3) var(--sp-3) var(--sp-2)}
@@ -899,7 +899,7 @@ li.new{animation:flash 1.6s}
 .hdy .tabs em{font-style:normal;font-size:var(--fs-xs);font-weight:700;background:var(--surface-3);color:var(--text-2);border-radius:var(--r-pill);padding:0 var(--sp-3)}
 .hdy .tabs span.on em{background:var(--accent-bg);color:var(--accent)}
 .ck-sum{display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap;margin:0 0 var(--sp-4)}
-/* 수가 0 인 탭(넣지 못함 · 점검)은 흐리게 — 누를 수는 있다 */
+/* 수가 0 인 탭(점검)은 흐리게 — 누를 수는 있다 */
 .tabs span.z,.tabs span.z em{color:var(--text-3)}
 .drop.bar{display:flex;align-items:center;gap:var(--sp-3) var(--sp-6);flex-wrap:wrap;text-align:left;padding:var(--sp-4) var(--sp-6);margin-bottom:var(--sp-6);border-radius:var(--r-md)}
 .drop.bar b{display:inline;margin:0;font-size:var(--fs)}

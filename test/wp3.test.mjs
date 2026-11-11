@@ -73,45 +73,6 @@ test('글 속 그림은 이 지식의 첨부만: /api/… · 밖의 주소는 �
   assert.match(html, /\[그림\]/)
 })
 
-test('기록만 하는 사람의 names: 이름 장부는 그대로 · 기록에 「세울 이름」 · 응답이 말한다 · 없는 이름 · 문서는 주인과 같은 검사', async () => {
-  const before = fs.readFileSync(path.join(root, 'dpms', '_managed.md'), 'utf8')
-  const r = await s.hub.save(LEE, 'dpms', { record: { title: '카나리: 이름 옮기기' }, names: [{ coord: 'proc:카나리', label: '카나리', doc: '장애대응', heading: '없는 머리' }] })
-  assert.equal(r.namesHeld, 1)
-  assert.match(r.note, /이름 1 은 아직 세우지 않았다/)
-  assert.equal(fs.readFileSync(path.join(root, 'dpms', '_managed.md'), 'utf8'), before, '자리 장부를 바꾸지 않는다')
-  assert.match(fs.readFileSync(path.join(root, 'dpms', r.record), 'utf8'), /## 세울 이름\n- 카나리 \(proc:카나리\) → 장애대응 › 없는 머리/)
-  assert.equal(await code(s.hub.save(LEE, 'dpms', { record: { title: '없는 것: 하나', body: 'a' }, sections: [{ coord: 'proc:없는것', content: 'a' }] })), 'E_NOTFOUND')
-  assert.equal(await code(s.hub.save(PARK, 'dpms', { record: { title: '없는 것: 하나', body: 'a' }, sections: [{ coord: 'proc:없는것', content: 'a' }] })), 'E_NOTFOUND')
-  assert.equal(await code(s.hub.save(LEE, 'dpms', { record: { title: '없는 것: 하나', body: 'a' }, sections: [{ doc: '없는문서', heading: '머리', content: 'a' }] })), 'E_NOTFOUND')
-  // MCP — note 가 세우지 않았다고 말한다 · brief 에 내 자리
-  const mcp = makeMcp(s.hub)
-  const call = async (name, args, ctx) => {
-    const out = await mcp.call({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }, ctx)
-    return JSON.parse(out.result.content[0].text)
-  }
-  // 새 이름의 값은 빈칸 없는 열쇠(지식 생성 가드 G1) · 세울 이름으로 실은 이름은 touches 에 달 수 있다
-  const bad = await call('save', { knowledge: 'dpms', record: { title: '용어: 하나', changes: ['카나리 비율: 새 용어'], touches: ['term:카나리 비율'] }, names: [{ coord: 'term:카나리 비율', label: '카나리 비율' }] }, LEE)
-  assert.match(bad.message || bad.error || '', /빈칸|E_INPUT/)
-  const sv = await call('save', { knowledge: 'dpms', record: { title: '용어: 하나', changes: ['카나리 비율: 새 용어'], touches: ['term:카나리비율'] }, names: [{ coord: 'term:카나리비율', label: '카나리 비율' }] }, LEE)
-  assert.match(sv.note, /이름 1 은 아직 세우지 않았다/)
-  // 도구 모양을 배포 전에 받아 둔 세션 — 목록을 글(JSON)로 보내도 받는다
-  const sv2 = await call('save', { knowledge: 'dpms', record: { title: '용어: 둘', changes: ['카나리 단계: 새 용어'], touches: ['term:카나리단계'] }, names: JSON.stringify([{ coord: 'term:카나리단계', label: '카나리 단계' }]) }, LEE)
-  assert.match(sv2.note, /이름 1 은 아직 세우지 않았다/)
-  const b = await call('brief', { knowledge: 'dpms' }, LEE)
-  // 쓰기 자리를 받은 사람(권한 모델 4절) — 조각은 검사를 넘으면 바로(S4) · 장부는 기록으로 · 세울 이름을 실은 기록 셋은 넣지 못함(names · S10 · S-D51)
-  const { held: myHeld, recent: myRecent, ...you } = b.you
-  assert.deepEqual(you, { role: '쓰기', direct: true, ledgers: false, memos: 0, accepted: 0 })
-  assert.equal(myHeld, 3)
-  assert.ok(myRecent.every((x) => x.state === '넣지 못함' && /세울 이름/.test(x.why)))
-  assert.match(b.put, /그 순간 문서에 넣는다/)
-  assert.equal(b.tidy, undefined, '정리 칸은 걷었다(S13)')
-  assert.equal(b.noClaude, undefined)
-  await s.hub.setOwner(SHELL, 'dpms', { noClaude: true })
-  assert.match((await call('brief', { knowledge: 'dpms' }, PARK)).noClaude, /들이기에 Claude 를 쓰지 않는다/)
-  assert.deepEqual((await call('brief', { knowledge: 'dpms' }, PARK)).you, { role: '지식관리자', direct: true, ledgers: true, memos: 0, held: 0, accepted: 0, recent: [] }) // 총괄 관리자 = 지식관리자
-  await s.hub.setOwner(SHELL, 'dpms', { noClaude: false })
-})
-
 test('남의 기록이 섞인 정리: 기록만 하는 사람은 되돌리지 못한다 · 되돌려도 알리지 않는다(S-D14)', async () => {
   const a = await s.hub.save(LEE, 'dpms', { record: { title: '헬스 체크: lee', touches: ['proc:헬스 체크'], body: '주기 20초' } })
   const c = await s.hub.save({ user: 'choi' }, 'dpms', { record: { title: '헬스 체크: choi', touches: ['proc:헬스 체크'], body: '시간 초과 2초' } })

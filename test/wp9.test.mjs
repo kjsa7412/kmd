@@ -47,26 +47,6 @@ test('오류 글 · 화면 글에 금지어 0: 사람에게 가는 KmdError 글�
   assert.deepEqual(bad, [])
 })
 
-test('기록이 언제 문서에: 저장이 곧 반영(S13) — 조각 없는 기록은 메모 · 이력의 저장 줄은 그 기록의 지금 상태', async () => {
-  await s.hub.setOwner(SHELL, 'dpms', { owner: 'park' })
-  // 받지 않은 지식은 없음이 기본(권한 모델 v1.1) — 기록을 남기는 팀원 lee 에게 dpms 쓰기 자리를 준다
-  await s.auth.addUser({ id: 'lee', admin: false })
-  await seat(s, 'lee', { dpms: 'write' })
-  assert.equal(s.hub.pendText, undefined, '정리 때 말은 걷었다')
-  const r = await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '헬스 체크: 주기', touches: ['proc:헬스 체크'], body: '15초' } })
-  assert.equal(r.memo, true)
-  assert.match(r.note, /메모로 남겼다/)
-  let h
-  for (let i = 0; i < 100 && !(h = await s.hub.history({ user: 'lee' })).some((x) => x.rec === r.id); i++) await new Promise((ok) => setTimeout(ok, 50))
-  assert.match(h.find((x) => x.rec === r.id).sub, /메모: 문서는 바꾸지 않았다/)
-  // 조각을 실은 저장은 그 순간 문서에 — 이력 줄도 저장 문의 줄
-  const k = await s.hub.get('dpms')
-  const cur = sectionOf(k, 'proc:헬스 체크').sec.body
-  const r2 = await s.hub.save({ user: 'lee' }, 'dpms', { record: { title: '헬스 체크: 주기 15초', touches: ['proc:헬스 체크'], body: '주기는 15초.' }, sections: [{ coord: 'proc:헬스 체크', base: sha16(cur), content: `${cur.trim()}\n\n주기는 15초.` }] })
-  assert.equal(r2.put, 1, JSON.stringify(r2.held || r2.proposals))
-  assert.equal((await s.hub.get('dpms')).byWork.get(r2.id).state, 'in')
-})
-
 test('이 PC 의 멈춤 줄은 팀 서비스의 말을 쓰지 않는다. 「설정 › Claude 연결」 · 「백업 안 된 저장 n번」', async () => {
   const pcRoot = path.join(tmp, 'pc')
   copyDir(path.join(HERE, 'fixture', 'kmd', 'dpms'), path.join(pcRoot, '메모'))

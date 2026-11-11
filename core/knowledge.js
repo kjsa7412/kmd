@@ -236,14 +236,14 @@ export const SYSTEM_TAGS = LOG_TAGS
 export const isSystemRecord = (w) => isLogRecord(w.tags)
 const INGEST = (w) => w.tags.some((t) => /^(ingest|touches\??)\//.test(t))
 
-// 상태 — in(문서에 들어감) · pend(아직 안 넣음) · kept(넣지 않기로 둠) · nowhere(넣을 곳이 없는 메모 — 이름이 없다) · none
+// 상태 — in(문서에 들어감) · 옛 기록 읽기만(저장 승인 P11 · PC6 — 새로 생기지 않는다): pend(아직 안 넣음) · kept(넣지 않기로 둠) · nowhere(넣을 곳이 없는 메모) · held · memo · none
 // 이 지식에 들어온 때 — 받은 기록은 recv/YYYYMMDDHHMM 태그(hub.receive) · 아니면 쓴 때
 export function arrivedOf(w) {
   const t = w.tags.find((x) => /^recv\/\d{12}$/.test(x))
   return t ? t.slice(5).replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$/, '$1-$2-$3 $4:$5') : w.date
 }
 // 이 항목에 그 기록이 들었나 — 항목 표지가 그 기록이거나 · 표지의 정리 기록이 넣었다고 적었거나 · 더 늦은 기록이 들었다.
-//   개인 프로그램의 바로 넣기 재료(core/pcplace.js material)도 같은 판정으로 이미 든 항목을 건너뛴다(여러 항목에 걸린 기록이 한 항목 때문에 다 다시 정리되지 않게)
+//   이행(core/migrate.js) · 섞인 자리 판정도 같은 판정을 쓴다(옛 바로 넣기 재료는 PC6 에서 걷었다)
 export function reflectedIn(k, w, sec) {
   if (!sec?.applied) return false
   if (sec.applied === w.id) return true
