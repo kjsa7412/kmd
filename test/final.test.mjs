@@ -2,7 +2,8 @@
 // 팀 모드와 PC 모드로 돌려 결과가 같다 · 자동 쓰기 표 밖의 무인 커밋 0.
 //
 // 허용된 차이 다섯(결과 비교에서 뺀다) — ① 들어가기(팀은 비밀번호 · PC 는 없음) ② 기록 작성자 이름(팀 아이디 · PC 사용자)
-// ③ 백업 자리(팀은 관리자가 · PC 는 설치가) ④ 이 PC 폴더 원천(팀은 sourceRoots 안만) ⑤ 팀 화면의 「내 PC」 줄.
+// ③ 백업 자리(팀은 관리자가 · PC 는 설치가) ④ 이 PC 폴더 원천(팀은 sourceRoots 안만) ⑤ 팀 화면의 「내 PC」 줄
+// ⑥ 같은 PC 안 개인 지식끼리 보내기(저장 승인 P7 이 개인 받기를 걷었다 · PC 는 「받기는 걷었다」 로 보내지 않는다).
 // 설정 차이(뜻 꾸러미 · Claude 자격)는 목록으로 — 둘 다 가짜 claude · 같은 뜻 꾸러미.
 
 import { test, before, after } from 'node:test'
@@ -66,6 +67,7 @@ async function eight(mode) {
     await s.hub.edit(KIM, 'gdi', { doc: gdoc.id, sections: [{ h: gdoc.sections[0].h, body: '보내기 시험: 고친 글.' }] })
     const sent = await s.hub.send(KIM, 'gdi')
     out.send = { sent: sent.sent, got: (await s.hub.get('dpms')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/'))).length }
+    if (mode === 'pc') out.send.why = sent.why
     // ⑧ 기록이 문서로 — 팀: 저장이 곧 반영(S13 · 정리를 걷었다) — 조각을 실은 저장은 그 순간 넣고, 조각 없는 기록은 메모 ·
     //   이 PC: 정리가 따로 없다 — 남는 즉시 kmd 가 넣는다(저장 즉시 넣기 · core/pcplace.js)
     // 팀: lee 는 dpms 에 쓰기 자리를 받은 팀원이다(받지 않은 지식은 없음이 기본 · 권한 모델 v1.1)
@@ -130,6 +132,9 @@ test('여덟 칸: 팀 모드와 PC 모드의 결과가 같다 · 자동 쓰기 �
   assert.equal(team.find.alias[0], 'proc:헬스 체크')
   assert.deepEqual(team.edit, { direct: true, log: true, doc: true }, '화면에서 바로 고친 일은 이력')
   assert.deepEqual(team.send, { sent: 1, got: 1 })
+  assert.equal(pc.send.sent, 0, '개인 받기는 걷었다(P7)')
+  assert.match(String(pc.send.why), /받기는 걷었다/)
+  pc.send = team.send // 허용된 차이 ⑥
   assert.deepEqual(team.tidy, { state: 'in', doc: true })
   assert.deepEqual(team.code, { first: 'same', records: 1, title: true })
   pc.code.title = team.code.title // 커밋 메시지는 모드마다 다르게 적었다

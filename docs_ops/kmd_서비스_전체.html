@@ -199,15 +199,16 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 
 <div class="m-hero">
 <h1>kmd 서비스 전체</h1>
-<p>팀과 내 PC 의 지식(md 문서 · 기록)을 사람은 화면으로, Claude Code 세션은 MCP 로 같이 읽고 쓴다. 어느 길로 들어오든 기록과 항목 조각이 <b>한 번의 저장</b>으로 같이 바뀌고, 저장 검사를 넘지 못한 것은 기록만 남아 「넣지 못함」 으로 보인다. 지식 하나 = 폴더 하나 = git 저장소 하나.</p>
-<p class="small muted">기준일 2026-11-09 · HEAD 24b4b72 · 188 빌드 0.1.0-20261109-0047 · 글로 보는 판 <a href="kmd_서비스_전체.md">kmd_서비스_전체.md</a> · 화면별 쓰는 법 <a href="manual/">설명서</a></p>
-<p class="small muted">「저장이 곧 반영」 개편(2026-11 · <a href="../docs/품질개선/KMD_개편_설계.md">KMD_개편_설계.md</a>): 예전에는 기록을 모아 두었다가 정리 때 문서에 넣었다. 개편으로 정리를 걷었고, 지금은 모든 채널이 기록과 항목 조각을 한 번에 저장하고 그 자리에서 넣거나 「넣지 못함」 으로 남긴다.</p>
+<p>팀과 내 PC 의 지식(md 문서 · 기록)을 사람은 화면으로, Claude Code 세션은 MCP 로 같이 읽고 쓴다. 어느 길로 들어오든 기록과 항목 조각이 <b>한 번의 저장</b>으로 같이 바뀐다. 승인 저장 지식에서 사람은 <b>저장 제안</b>을 보고 승인한 것만 넣고, 사람이 없는 일은 늘 들어간다(Claude 가 꼴을 못 맞추면 <b>규칙 길</b>). 지식 하나 = 폴더 하나 = git 저장소 하나.</p>
+<p class="small muted">기준일 2026-11-11 · HEAD b914b17 · 188 빌드 0.1.0-20261109-0047(저장 승인 · 메뉴 개편 · 기초 세우기 판은 P9 에서 배포) · 글로 보는 판 <a href="kmd_서비스_전체.md">kmd_서비스_전체.md</a> · 화면별 쓰는 법 <a href="manual/">설명서</a></p>
+<p class="small muted">「저장이 곧 반영」 개편(2026-11 · <a href="../docs/품질개선/KMD_개편_설계.md">KMD_개편_설계.md</a>): 예전에는 기록을 모아 두었다가 정리 때 문서에 넣었다. 개편으로 정리를 걷었고, 모든 채널이 기록과 항목 조각을 한 번에 저장한다.</p>
+<p class="small muted"><b>저장 승인</b>(2026-11-10 확정 · <a href="../docs/품질개선/KMD_저장승인_설계.md">KMD_저장승인_설계.md</a>): 지식마다 저장 방식이 둘이다. <b>승인 저장</b>(새 지식 · 이행을 마친 지식): 사람 채널은 서버가 지은 저장 제안(쓰지 않음)을 승인해야 들어가고(경고는 승인이 받아들임), 무인 채널은 FIX 고리 → 규칙 길로 늘 들어가며 값 대조는 재기만 한다. 결과는 「들어감」 하나 · 넣지 못함 · 메모 없음. <b>승인 저장 전</b>(옛 지식 · P11 에서 걷음): 못 넘은 것은 「넣지 못함」, 확정이 아닌 것은 메모. 저장이 어떻게 들어갔는지는 지식 메뉴 <b>점검 › 지표</b>. 옛 지식은 이행(팀 <code>kmd-migrate</code> · 개인은 새 판이 켤 때)을 마친 뒤 총괄 관리자가 승인 저장을 켠다. 아래 그림의 넣지 못함 · 메모 칸은 승인 저장 전 지식의 것이다.</p>
 <div class="kpis">
 <div class="kpi"><b>2</b><small>프로그램: 팀 프로그램(팀 서버) · 개인 프로그램</small></div>
 <div class="kpi"><b>4</b><small>자리: 총괄 관리자 › 지식관리자 › 쓰기 › 읽기</small></div>
 <div class="kpi"><b>7</b><small>채널: 세션 · 고치기(문서 · 기록) · 파일 넣기 · 대량 넣기 · 가져올 곳 · 보내기</small></div>
 <div class="kpi"><b>1</b><small>저장 문: <code>hub.save</code> → <code>core/save.js</code> · 기록 + 조각 + 지문 한 덩이</small></div>
-<div class="kpi"><b>3</b><small>저장의 끝: 넣음 · 넣지 못함 · 메모</small></div>
+<div class="kpi"><b>1</b><small>저장의 끝(승인 저장): 들어감 · 승인 저장 전 지식은 넣음 · 넣지 못함 · 메모</small></div>
 <div class="kpi"><b>6</b><small>MCP 도구: brief · match · search · section · propose · save</small></div>
 <div class="kpi"><b>5</b><small>들이기 일감: 파일 · 가져올 곳 · 다시 들이기 · 정정 · 다듬기(팀 일꾼)</small></div>
 <div class="kpi"><b>3</b><small>가져올 곳: 문서 폴더 · git · DB</small></div>
@@ -255,10 +256,10 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <rect class="zone" x="660" y="102" width="310" height="72" rx="6"/><text class="l" x="668" y="120">docs/배포절차.md › ## 카나리</text><text class="l" x="668" y="138">표지 applied: 2026-1104-카나리-비율</text><text class="l" x="668" y="156">기록 끝 「## 넣은 것」 10% → 20%</text>
 </g></a>
 <a href="#core-held"><g>
-<rect class="box bk" x="650" y="196" width="330" height="76" rx="10"/><text class="t" x="664" y="220">넣지 못함 · 기록만</text><text class="s" x="664" y="242">까닭 · 조각을 기록에(held)</text><text class="l" x="664" y="262">[고치기] · [다시 들이기] · [이름 세우기] · [버리기]</text>
+<rect class="box bk" x="650" y="196" width="330" height="76" rx="10"/><text class="t" x="664" y="220">넣지 못함 · 기록만(승인 저장 전)</text><text class="s" x="664" y="242">까닭 · 조각을 기록에(held)</text><text class="l" x="664" y="262">[고치기] · [다시 들이기] · [이름 세우기] · [버리기]</text>
 </g></a>
 <a href="#core-memo"><g>
-<rect class="box" x="650" y="284" width="330" height="76" rx="10"/><text class="t" x="664" y="308">메모 · 기록만</text><text class="s" x="664" y="330">확정 전 · 조각 없이 온 사람 기록</text><text class="l" x="664" y="350">문서를 바꾸지 않는다 · brief 「안 넣은 메모 n」</text>
+<rect class="box" x="650" y="284" width="330" height="76" rx="10"/><text class="t" x="664" y="308">메모 · 기록만(승인 저장 전)</text><text class="s" x="664" y="330">확정 전 · 조각 없이 온 사람 기록</text><text class="l" x="664" y="350">문서를 바꾸지 않는다 · brief 「안 넣은 메모 n」</text>
 </g></a>
 <path class="ln w" d="M815 184 V190 M815 272 V278 M815 360 V386" marker-end="url(#ah-one)"/>
 <a href="#ops"><g>
@@ -268,7 +269,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <a href="#claude"><g><text class="l" x="200" y="470">다음 세션이 다시 읽는다: brief → match → section 「카나리」(지금 글 · 새 지문 · 건드린 기록)</text></g></a>
 </svg>
 </div>
-<p class="small muted">파란 선이 예가 지난 길. 채널이 어느 것이든 저장 문 하나를 지난다. 넘은 조각은 그 순간 문서에 들어가고, 못 넘은 조각은 기록에 「넣지 못함」 으로 남고, 조각 없이 온 사람 기록은 메모가 된다. 개인 프로그램은 저장 뒤 바로 넣기(<code>core/pcplace.js</code>)가 곧바로 문서에 넣는다.</p>
+<p class="small muted">파란 선이 예가 지난 길. 채널이 어느 것이든 저장 문 하나를 지난다. 승인 저장 지식은 사람 채널이 저장 제안(<code>propose</code>)을 승인한 <code>proposal</code> 을 실어야 들어가고(경고는 기록 끝 「받아들인 경고」), 무인 채널은 늘 들어간다(걸리면 규칙 길 · 값 대조는 기록 끝 「값 대조」 로 잰다). 넣지 못함 · 메모 칸이 없다. 승인 저장 전 지식은 못 넘은 조각이 기록에 「넣지 못함」 으로 남고 조각 없이 온 사람 기록은 메모가 된다. 개인 프로그램도 승인 저장 지식부터 같은 문이고, 이행 전 개인 지식은 저장 뒤 바로 넣기(<code>core/pcplace.js</code>)가 넣는다.</p>
 </article>
 
 <article class="man">
@@ -407,15 +408,21 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <tr><td><b>저장</b></td><td>기록 + 항목 조각 + 지문(base) 한 덩이. 서버 저장 검사 한 곳이 정한다 · 넘으면 그 순간 문서에 · git 한 묶음</td><td><a href="#core">6 핵심 로직</a></td></tr>
 <tr><td><b>조각</b></td><td>항목 글을 바꾸는 단위: 지금 글에 꼭 한 번 나오는 글 → 바꿀 글. 새 항목은 글 전체</td><td><code>sections[{ coord | doc · heading, base, edits | content }]</code></td></tr>
 <tr><td><b>들이기</b></td><td>쓴 사람이 없는 것(파일 · 가져올 곳 · 규칙 밖 정정)을 Claude 가 기록 + 조각으로 지어 한 번에 저장(보내기는 내 PC 의 Claude 가 짓는다)</td><td>팀 일꾼 · 도는 일</td></tr>
-<tr><td><b>넣지 못함 n</b></td><td>저장 검사를 넘지 못해 기록만 남은 수. 까닭 · 들어온 길 · [고치기] · [다시 들이기] · [이름 세우기] · [버리기]</td><td>점검 › 넣지 못함 · 지식 카드 · 항목 머리 칩</td></tr>
-<tr><td><b>메모</b></td><td>확정이 아니라 문서를 바꾸지 않고 기록만 남긴 것. 팀에서 조각 없이 온 사람 기록도 메모</td><td>brief 「안 넣은 메모 n」</td></tr>
+<tr><td><b>저장 제안</b></td><td>저장 전에 서버가 짓는 「무엇이 어디에 어떻게 들어갈지」 글(쓰지 않음 · 경고 id · 오류 · <code>proposal</code> 지문). 승인 저장 지식의 사람 채널은 이것을 승인해야 들어간다</td><td>MCP <code>propose</code> · 화면 「저장 확인」 창 · 세션 【저장 제안】 · 보내기 확인 창</td></tr>
+<tr><td><b>받아들인 경고 · 글 그대로</b></td><td>승인한 제안의 경고(빠진 값 · 바뀐 문장 …)는 기록 끝 「받아들인 경고」. 바뀐 글 없이 항목에 이은 기록은 「글 그대로」(이을 곳이 없으면 「기록 모음」 달 항목)</td><td>기록 끝 칸 · 이력 작은 글</td></tr>
+<tr><td><b>규칙 길</b></td><td>무인 채널이 Claude 로 꼴을 못 맞췄을 때 Claude 없이 원문 그대로 넣는 길(사건 갈래 문서의 새 항목 · 아니면 「들인 자료」 주제 문서 · 원본 첨부)</td><td>진행 「규칙 길」 칩 · 작성기준 7-2</td></tr>
+<tr><td><b>지표</b></td><td>점검 › 지표: 기간마다 새로 생긴 것 · 받아들인 경고 · 무인 값 경고 · 규칙 길 · FIX 번 수 · 다시 제안 수. 할 일이 아니다(배지 없음)</td><td><code>GET /api/k/:id/metrics</code> · <code>core/metrics.js</code></td></tr>
+<tr><td><b>이행</b></td><td>승인 저장 전 지식의 남은 기록을 승인 저장으로 옮기는 일. 팀은 세션 스킬 <code>kmd-migrate</code>(held-scan · held-put), 개인은 새 판이 켤 때 한 번</td><td>지식 상세 › 정책 「저장 승인」(총괄 관리자)</td></tr>
+<tr><td><b>넣지 못함 n</b></td><td>(승인 저장 전 지식만) 저장 검사를 넘지 못해 기록만 남은 수. 까닭 · 들어온 길 · [고치기] · [다시 들이기] · [이름 세우기] · [버리기]</td><td>점검 › 넣지 못함 · 모든 지식 상태 칸 · 항목 머리 칩</td></tr>
+<tr><td><b>메모</b></td><td>(승인 저장 전 지식만) 확정이 아니라 문서를 바꾸지 않고 기록만 남긴 것. 팀에서 조각 없이 온 사람 기록도 메모</td><td>brief 「안 넣은 메모 n」</td></tr>
 <tr><td><b>정정 기록</b></td><td>기록을 고칠 때 원래 기록은 두고 새로 남기는 기록(옛 값 → 새 값)</td><td>규칙 · 안 되면 팀 일꾼</td></tr>
-<tr><td><b>바로 넣기</b></td><td>개인 프로그램이 저장 뒤 곧바로 남은 기록을 문서 항목에 넣는 일(<code>core/pcplace.js</code>). 팀에는 없다</td><td>개인 지식만</td></tr>
+<tr><td><b>들이기(개인)</b></td><td>승인 저장 개인 지식의 파일 넣기 · 자동수집: 기록 + 문서를 한 커밋으로(걸리면 규칙 길). 옛 「바로 넣기」(<code>core/pcplace.js</code>)는 이행 전 개인 지식에만 남는다</td><td>설정 › Claude 연결 「Claude 로 들이기」 · 이력 갈래 「들이기」</td></tr>
+<tr><td><b>기초 세우기</b></td><td>빈 지식에 폴더째 첫 문서 짜임을 세운다(지식 · 재료 · 거르기 · 구조안 · 짓기 · 진단 · 넣기). 큰 원본은 세션 스킬 <code>kmd-seed</code> 가 짜임 꾸러미를 만든다</td><td>지식관리 › 기초 세우기 · <a href="../docs/품질개선/KMD_바탕세우기_설계.md">바탕세우기 설계</a></td></tr>
 <tr><td><b>문서 다듬기</b></td><td>지식관리자가 문서 하나를 골라 거는 문체 · 짜임 정돈. 항목마다 값이 같을 때만 넣는다</td><td>문서 머리 [다듬기] · 일감 polish</td></tr>
 <tr><td><b>다시 그리기 · 빠진 항목 채우기</b></td><td>있는 항목을 그 항목의 기록 전부로 지금 상태로 다시 쓰거나, 사건 문서(회의록 …)에 빠진 회의를 그 기록으로 날짜 자리에 채운다. 저장 검사는 화면 저장과 같고 항목마다 사람이 승인한다. 화면 기능이 아니다</td><td>Claude Code 스킬 <code>kmd-migrate</code>(지식관리자) · 지식관리자 설명서 6절</td></tr>
-<tr><td><b>승인 받고 넣기</b></td><td>지식관리자가 켜는 지식 설정. 쓰기 자리의 저장은 검사를 넘어도 넣지 못함 「승인 기다림」 으로 두고, 지식관리자가 [승인해 넣기] 로 넣으려던 글 그대로 넣는다(지식관리자 자신의 저장 · 들이기는 그대로)</td><td>지식 카드 ⋯ · <code>_members.md</code></td></tr>
+<tr><td><b>승인 받고 넣기 · 하루 요약</b></td><td>승인 저장 지식에서는 「들어간 것 하루 요약」(지난날 들어간 기록 수를 지식관리자에게 하루 한 번 알림). 승인 저장 전 지식에서는 지식관리자가 켜는 「승인 받고 넣기」: 쓰기 자리의 저장은 검사를 넘어도 넣지 못함 「승인 기다림」 으로 두고, 지식관리자가 [승인해 넣기] 로 넣으려던 글 그대로 넣는다(지식관리자 자신의 저장 · 들이기는 그대로)</td><td>지식 상세 › 정책 · <code>_members.md</code></td></tr>
 <tr><td><b>옛 판 · 지운 항목</b></td><td>문서 머리 [옛 판] 은 그 문서를 바꾼 판(git)과 그때의 글 · [지금과 견주기]. 지식 홈 「최근에 지운 항목」 은 지운 때의 글로 다시 세운다(쓰기 자리부터)</td><td>이력에 남는다</td></tr>
-<tr><td><b>점검</b></td><td>지식 홈 카드(지식관리자): 이름 없음 · 장부 밖 · 잃은 이름 · 이름 없는 항목 · 이름 겹침 · 깨진 머리 · 깨진 링크</td><td><code>core/guard.js</code> · <code>kmd guard</code></td></tr>
+<tr><td><b>점검</b></td><td>지식 메뉴 점검 › 점검 탭(지식관리자 · 개인은 주인 · 개인 지식 홈 카드도): 이름 없음 · 장부 밖 · 잃은 이름 · 이름 없는 항목 · 이름 겹침 · 깨진 머리 · 깨진 링크</td><td><code>core/guard.js</code> · <code>kmd guard</code></td></tr>
 <tr><td><b>감사 기록 · 찾기 점검</b></td><td>관리 쓰기 요청을 누가 · 때 · 길 · 지식 · 결과로(본문 없음). 찾기 점검은 「제목 문제」 와 이름을 걷어 낸 「바꾼 문제」 를 함께 잰다</td><td>설정 › 운영 · <code>audit.jsonl</code> · <code>kmd search-check</code></td></tr>
 <tr><td><b>표지 · 출처</b></td><td>눈에 안 보이는 주석 셋(<code>applied</code> · <code>watched</code> · <code>baseline</code>)과 문서 끝 <code>&lt;!-- kmd:참고 --&gt;</code> 블록</td><td>화면의 「출처 n」 칩</td></tr>
 <tr><td><b>자리 · 기기 열쇠</b></td><td>지식 하나에 갖는 권한(없음 · 읽기 · 쓰기 · 지식관리자) · PC 마다 사람 이름으로 만든 열쇠 <code>kmdk_</code></td><td><a href="#roles">4 사람과 자리</a></td></tr>
@@ -426,10 +433,10 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <svg class="arch" viewBox="0 0 1000 420" role="img" aria-label="위 줄: 들이기 일감은 파일 넣기 · 가져올 곳 · 다시 들이기 · 정정 · 다듬기에서 생기고 팀 일꾼이 받아 짓고 저장 문이 넣는다. 아래 줄: 일 줄은 그 일을 수집 · 검토 · 짓기 · 넣기 네 단계로 화면에 보인다">
 <rect class="zone" x="10" y="20" width="980" height="190" rx="12"/><text class="z" x="24" y="40">들이기 일감 · &lt;data&gt;/jobs.json · 원천은 &lt;data&gt;/queue/&lt;일감&gt;.md · .bin · 팀 일꾼이 받는다</text>
 <rect class="box ai" x="24" y="52" width="186" height="140" rx="10"/><text class="t" x="38" y="76">생기는 때</text><text class="l" x="38" y="98">팀 화면 파일 넣기(파일마다)</text><text class="l" x="38" y="116">가져올 곳(파일 · 커밋마다)</text><text class="l" x="38" y="134">[다시 들이기] · 정정</text><text class="l" x="38" y="152">[다듬기](지식관리자)</text><text class="l" x="38" y="170">[옛 기록 다시 들이기]</text>
-<rect class="box" x="240" y="52" width="160" height="140" rx="10"/><text class="t" x="252" y="76">기다림</text><text class="l" x="252" y="98">사람 × 지식마다 20</text><text class="l" x="252" y="116">지식마다 하루 300</text><text class="l" x="252" y="134">24시간 넘으면</text><text class="l" x="252" y="152">기록만 + 넣지 못함</text>
+<rect class="box" x="240" y="52" width="160" height="140" rx="10"/><text class="t" x="252" y="76">기다림</text><text class="l" x="252" y="98">사람 × 지식마다 20</text><text class="l" x="252" y="116">지식마다 하루 300</text><text class="l" x="252" y="134">24시간 넘으면</text><text class="l" x="252" y="152">규칙 길(옛: 넣지 못함)</text>
 <rect class="box" x="433" y="52" width="160" height="140" rx="10"/><text class="t" x="445" y="76">짓기</text><text class="l" x="445" y="98">팀 일꾼 · claude -p</text><text class="l" x="445" y="116">기록 + 조각 초안</text><text class="l" x="445" y="134">걸리면 고쳐 쓰기</text><text class="l" x="445" y="152">(기본 2번까지)</text>
 <rect class="box team" x="626" y="52" width="160" height="140" rx="10"/><text class="t" x="638" y="76">저장 문</text><text class="l" x="638" y="98">사람과 같은 검사</text><text class="l" x="638" y="116">지문이 어긋나면</text><text class="l" x="638" y="134">한 번 다시 대기</text><text class="l" x="638" y="152">원천 하나 = 저장 하나</text>
-<rect class="box pc" x="819" y="52" width="160" height="140" rx="10"/><text class="t" x="831" y="76">끝</text><text class="l" x="831" y="98">넣음 n · 넣지 못함 n</text><text class="l" x="831" y="116">같은 원천이면 「그대로」</text><text class="l" x="831" y="134">넣지 못함 원천은</text><text class="l" x="831" y="152">&lt;data&gt;/held/ 에</text>
+<rect class="box pc" x="819" y="52" width="160" height="140" rx="10"/><text class="t" x="831" y="76">끝</text><text class="l" x="831" y="98">들어감 · 규칙 길 n</text><text class="l" x="831" y="116">같은 원천이면 「그대로」</text><text class="l" x="831" y="134">옛 지식 넣지 못함 원천</text><text class="l" x="831" y="152">&lt;data&gt;/held/ 에</text>
 <path class="ln p" d="M210 122 H236" marker-end="url(#ah-words)"/>
 <path class="ln p" d="M400 122 H429" marker-end="url(#ah-words)"/>
 <path class="ln p" d="M593 122 H622" marker-end="url(#ah-words)"/>
@@ -459,13 +466,15 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
   README.md          <i># 지식 이름</i>
   <b>docs/</b>**.md        <i>문서 · 항목 = ## 머리</i>
     …                <i>끝에 &lt;!-- kmd:참고 --&gt; 블록</i>
+  docs/기록 모음.md   <i>이을 항목이 없는 기록의 달 항목(승인 저장)</i>
+  docs/들인 자료/     <i>규칙 길이 세운 주제 문서</i>
   docs/assets/       <i>첨부 · 넣은 원본 · 그림</i>
   <u>work/</u>&lt;id&gt;.md      <i>기록(사람 · 세션 · 들이기)</i>
   <u>log/</u>&lt;id&gt;.md       <i>kmd 의 일(되돌림 · 다듬기 …)</i>
   _vocab.md          <i>이름 장부</i>
   _managed.md        <i>자리 장부</i>
   _forms.md          <i>갈래 장부</i>
-  _members.md        <i>주인 · 자리 · Claude 에 보내지 않음</i>
+  _members.md        <i>주인 · 자리 · Claude 에 보내지 않음 · 저장 방식(승인) · 이슈 주소</i>
   _sources.json      <i>가져올 곳</i>
   .git/              <i>저장마다 한 묶음</i>
 <b>&lt;지식 폴더&gt;/.kmd/</b>   <i>살림 자리</i>
@@ -534,7 +543,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 
 <article class="man">
 <h2 id="roles"><span class="m-no">4</span>사람과 자리</h2>
-<div class="m-flow"><div class="m-st"><b>없음</b><small>보이지 않는다 · 기본</small></div><span class="m-ar">›</span><div class="m-st"><b>읽기</b><small>보기 · 찾기 · Claude 로 읽기</small></div><span class="m-ar">›</span><div class="m-st m-hi"><b>쓰기</b><small>저장 · 고치기 · 파일 넣기</small></div><span class="m-ar">›</span><div class="m-st m-pd"><b>지식관리자</b><small>항목 지우기 · 장부 · 넣지 못함 모두 · 권한</small></div><span class="m-ar">›</span><div class="m-st m-ok"><b>총괄 관리자</b><small>모든 지식 + 서버 일</small></div></div>
+<div class="m-flow"><div class="m-st"><b>없음</b><small>보이지 않는다 · 기본</small></div><span class="m-ar">›</span><div class="m-st"><b>읽기</b><small>보기 · 찾기 · Claude 로 읽기</small></div><span class="m-ar">›</span><div class="m-st m-hi"><b>쓰기</b><small>저장 · 고치기 · 파일 넣기</small></div><span class="m-ar">›</span><div class="m-st m-pd"><b>지식관리자</b><small>항목 지우기 · 장부 · 점검 · 지표 · 권한</small></div><span class="m-ar">›</span><div class="m-st m-ok"><b>총괄 관리자</b><small>모든 지식 + 서버 일</small></div></div>
 
 <h3>판정은 서버에서 한 번</h3>
 <div class="flowfig" role="figure" aria-label="요청이 자리 판정을 지나는 흐름">
@@ -565,60 +574,60 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <path class="ln" d="M200 190 H230 V55 H256" marker-end="url(#ah-roles-2)"/><path class="ln a" d="M230 146 H256" marker-end="url(#ah-roles-2)"/><path class="ln g" d="M230 190 V244 H256" marker-end="url(#ah-roles-2)"/><path class="ln" d="M230 244 V332 H256" marker-end="url(#ah-roles-2)"/>
 </svg>
 </div>
-<p class="small muted">자리가 넣을지 말지를 바꾸지 않는다: 쓰기 이상의 저장은 모두 같은 저장 문 검사를 지나고, 넘은 조각은 그 순간 들어간다(<a href="../docs/kmd_권한_모델.md">권한 모델</a> 7절). 자리가 가르는 것은 장부(이름 · 갈래) · 새 문서 · 항목 지우기 · 이름 바꾸기 · 남의 기록이다.</p>
+<p class="small muted">자리가 넣을지 말지를 바꾸지 않는다: 쓰기 이상의 저장은 모두 같은 저장 문 검사를 지나고, 승인한 저장 제안(승인 저장 지식 · 쓰기 자리도 새 문서 · 이름 · 갈래를 제안으로 세운다)이나 넘은 조각(승인 저장 전 지식)은 그 순간 들어간다(<a href="../docs/kmd_권한_모델.md">권한 모델</a> 7절). 자리가 가르는 것은 장부(이름 · 갈래) · 새 문서 · 항목 지우기 · 이름 바꾸기 · 남의 기록이다.</p>
 
 <h3>자리 표</h3>
 <div class="m-tbl"><table class="matrix">
 <tr><th>일</th><th>총괄 관리자</th><th>지식관리자</th><th>쓰기</th><th>읽기</th></tr>
 <tr><td>그 지식이 보인다 · 찾기 · Claude 로 읽기</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td></tr>
-<tr><td>기록 남기기 · 문서 고치기 · 자기 기록 고치기 · 파일 넣기 · 가져올 곳 부탁 · 자기 기록 되돌리기 · 자기 넣지 못함 [고치기] / [다시 들이기]</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td></tr>
-<tr><td>항목 지우기 · 이름 바꾸기 · 저절로 채우는 표 고치기 · 남의 기록 고치기 · 문서 다듬기 · 넣지 못함(남의 기록) · 되돌리기 · 지식 설정 · 권한 주기 · 가져올 곳(허락된 호스트)</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
-<tr><td>사람 · 묶음 · 지식 세우기/지우기/불러오기 · 주인 넘기기 · 백업 · Claude 연결 · 줄 멈춤 · 동시에 도는 수 · 서버 폴더 · ssh</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+<tr><td>저장 제안 · 기록 남기기(승인 저장 지식은 제안을 승인해) · 새 문서 · 이름 · 갈래(제안으로) · 문서 고치기 · 자기 기록 고치기 · 파일 넣기 · 가져올 곳 부탁 · 자기 기록 되돌리기 · 자기 넣지 못함 [고치기] / [다시 들이기](승인 저장 전 지식)</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td></tr>
+<tr><td>항목 지우기 · 이름 바꾸기 · 저절로 채우는 표 고치기 · 남의 기록 고치기 · 문서 다듬기 · 넣지 못함(승인 저장 전 지식 · 남의 기록) · 되돌리기 · 지식 설정(하루 요약 · 이슈 주소) · 권한 주기 · 구조 · 점검 · 지표 · 기초 세우기 · 가져올 곳(허락된 호스트)</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
+<tr><td>사람 · 묶음 · 지식 세우기/지우기/불러오기 · 주인 넘기기 · 저장 승인(save 모드) · 백업 · Claude 연결 · 줄 멈춤 · 동시에 도는 수 · 서버 폴더 · ssh</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
 </table></div>
 <p class="small muted">받지 않은 지식은 <b>없음</b>이 기본이다. 개인 프로그램은 그 PC 사람 하나만 쓰므로 이 모델 밖이다(늘 관리). 기준: <a href="../docs/kmd_권한_모델.md">권한 모델</a> · 판정 <code>server/hub.js</code>(levelOf · meta · need · canSave · canDirect) · 자리 셈 <code>core/owners.js</code>.</p>
 </article>
 
 <article class="man wide">
 <h2 id="flows"><span class="m-no">5</span>흐름 한눈에</h2>
-<p>길마다 한 장씩 그리고, 오른쪽에 그 길의 차례를 둔다. 모든 길은 <b>기록 + 조각을 한 번에 저장</b>하고, 저장 문이 그 자리에서 넣거나 「넣지 못함」 으로 남긴다(DB 테이블 정의 표는 저절로 채우는 표 그대로). 검사 칸마다의 로직은 <a href="#core">6 핵심 로직</a>에서 다룬다.</p>
+<p>길마다 한 장씩 그리고, 오른쪽에 그 길의 차례를 둔다. 모든 길은 <b>기록 + 조각을 한 번에 저장</b>한다(DB 테이블 정의 표는 저절로 채우는 표 그대로). 승인 저장 지식은 사람 길(① ② ③ 대량 넣기 ⑤)이 저장 제안을 승인해 들어가고 무인 길(③ 파일 넣기 ④)은 늘 들어간다(걸리면 규칙 길). 그림의 「넣지 못함」 칸은 승인 저장 전 지식의 것이다. 검사 칸마다의 로직은 <a href="#core">6 핵심 로직</a>에서 다룬다.</p>
 <nav class="jump" aria-label="5 흐름 안의 길">
 <a href="#flows-session">① 세션 저장</a><a href="#flows-edit">② 화면 고치기 · 정정</a><a href="#flows-import">③ 파일 넣기 · 대량 넣기</a><a href="#flows-src">④ 가져올 곳</a><a href="#flows-send">⑤ 공유</a><a href="#flows-backup">⑥ 백업 · 불러오기</a>
 </nav>
 
-<h3 id="flows-session">① 세션 저장 → 그 순간 문서</h3>
-<div class="pair"><div class="pl"><div class="flowfig" role="figure" aria-label="세션이 읽고 조각을 지어 저장 한 번으로 문서에 넣는 그림">
-<svg class="arch" viewBox="0 0 1000 420" role="img" aria-label="세션이 brief · match · section 으로 지금 글과 지문을 읽고, 확정인지 사람에게 묻고, 확정이면 조각과 지문을 실어 save 한다. 저장 문이 넘기면 문서에, 걸리면 그 자리에서 고쳐 fixes 로 다시, 확정이 아니면 메모">
+<h3 id="flows-session">① 세션 저장: 저장 제안 → 대화 조절 → 승인</h3>
+<div class="pair"><div class="pl"><div class="flowfig" role="figure" aria-label="세션이 읽고 저장 제안을 받아 사람에게 보이고 대화로 고친 뒤 승인받아 저장 한 번으로 넣는 그림">
+<svg class="arch" viewBox="0 0 1000 420" role="img" aria-label="세션이 brief · match · section 으로 지금 글과 지문을 읽고, 긴 작업은 정리 거리 묶음을 고르게 하고, propose 로 저장 제안을 받아 그대로 보이고, 사람이 말로 고치면 다시 propose 해 바뀐 줄만 보이고, 승인되면 proposal 을 실어 save 한다. 들어가거나, 그사이 바뀌었으면 아무것도 쓰지 않고 다시 묻는다">
 <defs><marker id="ah-flows-1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0,0 L10,5 L0,10 z"/></marker></defs>
-<rect class="box ai" x="14" y="30" width="220" height="100" rx="10"/><text class="t" x="28" y="56">1 일 전에 읽기</text><text class="s" x="28" y="78">kmd-team-work</text><text class="l" x="28" y="98">brief → match → section</text><text class="l" x="28" y="116">「안 넣은 메모 n · 넣지 못함 n」</text>
+<rect class="box ai" x="14" y="30" width="220" height="100" rx="10"/><text class="t" x="28" y="56">1 일 전에 읽기</text><text class="s" x="28" y="78">kmd-team-work</text><text class="l" x="28" y="98">brief → match → section</text><text class="l" x="28" y="116">지금 글 · 지문(base)</text>
 <rect class="box" x="264" y="30" width="220" height="100" rx="10"/><text class="t" x="278" y="56">2 일을 한다</text><text class="s" x="278" y="78">코드 · 설정 · 결정</text><text class="l" x="278" y="98">지식에 없는 것은</text><text class="l" x="278" y="116">지어내지 않는다</text>
-<polygon class="box bk" points="514,80 614,30 714,80 614,130"/><text class="t" x="614" y="78" text-anchor="middle">확정인가?</text><text class="l" x="614" y="98" text-anchor="middle">머지 · 배포 · 결정</text>
-<rect class="box" x="760" y="30" width="226" height="100" rx="10"/><text class="t" x="774" y="56">메모</text><text class="s" x="774" y="78">record.memo: true</text><text class="l" x="774" y="98">기록만 · 문서는 그대로</text><text class="l" x="774" y="116">조각을 같이 보내지 않는다</text>
-<rect class="box team" x="14" y="180" width="300" height="120" rx="10"/><text class="t" x="28" y="206">3 save 한 번(kmd-team-save)</text><text class="s" x="28" y="228">record(서식 칸) + sections</text><text class="l" x="28" y="248">{ coord, base, edits[{ find, replace }] }</text><text class="l" x="28" y="268">+ 스킬 판 kit</text><text class="l" x="28" y="286">어느 지식에 남길지 사람에게 묻는다</text>
-<rect class="box team" x="344" y="180" width="300" height="120" rx="10"/><text class="t" x="358" y="206">4 저장 문 검사</text><text class="s" x="358" y="228">조각마다 · 줄 안에서 새로 읽고</text><text class="l" x="358" y="248">지문 · 꼭 한 번 · 꼴 · 값 대조</text><text class="l" x="358" y="268">원본이 주인 · 섞인 자리</text><text class="l" x="358" y="286">→ proposals[] 조각마다 결과</text>
-<rect class="box pc" x="674" y="180" width="312" height="56" rx="10"/><text class="t" x="688" y="204">넘음 → 그 순간 문서</text><text class="l" x="688" y="224">기록 · 항목 · 참고 · git 한 묶음</text>
-<rect class="box bk" x="674" y="244" width="312" height="56" rx="10"/><text class="t" x="688" y="268">걸림 → 넣지 못함</text><text class="l" x="688" y="288">why · code · near · changed</text>
-<rect class="box" x="14" y="340" width="630" height="64" rx="10"/><text class="t" x="28" y="364">5 그 자리에서 고친다</text><text class="l" x="28" y="386">까닭을 읽고 조각을 고쳐 다시 save · record.fixes 에 앞 기록 id(내 것만 · 남의 기록은 지식관리자)</text>
-<rect class="box bk" x="674" y="340" width="312" height="64" rx="10"/><text class="t" x="688" y="364">지문 어긋남 → E_CONFLICT</text><text class="l" x="688" y="386">아무것도 쓰지 않는다 · 다시 읽는다</text>
+<rect class="box bk" x="514" y="30" width="472" height="100" rx="10"/><text class="t" x="528" y="56">3 정리 거리 고르기(kmd-team-save)</text><text class="s" x="528" y="78">어느 지식에 · 정한 것 · 바뀐 것을 묶음마다 한 줄</text><text class="l" x="528" y="98">묶음 하나 = 기록 하나 = 제안서 하나</text><text class="l" x="528" y="116">정해지지 않은 것은 넣지 않는다(이슈 갈래가 있으면 이슈 제기)</text>
+<rect class="box team" x="14" y="180" width="300" height="120" rx="10"/><text class="t" x="28" y="206">4 propose(쓰지 않음)</text><text class="s" x="28" y="228">record(서식 칸) + sections · names</text><text class="l" x="28" y="248">{ coord, base, edits[{ find, replace }] }</text><text class="l" x="28" y="268">오류(본문 반영 · 꼴 · 지문)면</text><text class="l" x="28" y="286">보이기 전에 입력을 고쳐 다시</text>
+<rect class="box" x="344" y="180" width="300" height="120" rx="10"/><text class="t" x="358" y="206">5 【저장 제안】 그대로 보이기</text><text class="s" x="358" y="228">고칠 항목 · 새 항목 · 이을 항목 · 뺀다</text><text class="l" x="358" y="248">경고 w1 「옛 값 빠짐」 …</text><text class="l" x="358" y="268">「승인하시면 경고 w1 을</text><text class="l" x="358" y="286">받아들이고 그대로 남깁니다」</text>
+<rect class="box ai" x="674" y="180" width="312" height="120" rx="10"/><text class="t" x="688" y="206">6 대화 조절</text><text class="s" x="688" y="228">「BZD020 은 빼고」 · 「값은 60」</text><text class="l" x="688" y="248">「기록 범위를 오후 작업만」</text><text class="l" x="688" y="268">입력을 고쳐 다시 propose</text><text class="l" x="688" y="286">바뀐 줄만 다시 보인다</text>
+<rect class="box team" x="14" y="340" width="300" height="64" rx="10"/><text class="t" x="28" y="364">7 「넣어」 → save(proposal · kit)</text><text class="l" x="28" y="386">마지막으로 보인 제안과 같은 입력</text>
+<rect class="box pc" x="344" y="340" width="300" height="64" rx="10"/><text class="t" x="358" y="364">들어감 · 그 순간 문서</text><text class="l" x="358" y="386">기록 · 항목 · 받아들인 경고 · git 한 묶음</text>
+<rect class="box bk" x="674" y="340" width="312" height="64" rx="10"/><text class="t" x="688" y="364">E_APPROVE · E_CONFLICT</text><text class="l" x="688" y="386">아무것도 쓰지 않음 · 다시 제안 · 다시 승인</text>
 <path class="ln a" d="M234 80 H260" marker-end="url(#ah-flows-1)"/><path class="ln a" d="M484 80 H510" marker-end="url(#ah-flows-1)"/>
-<path class="ln" d="M714 80 H756" marker-end="url(#ah-flows-1)"/><text class="l" x="720" y="72">아니다</text>
-<path class="ln a" d="M614 130 V150 H164 V176" marker-end="url(#ah-flows-1)"/><text class="l" x="624" y="146">맞다</text>
+<path class="ln a" d="M750 130 V150 H164 V176" marker-end="url(#ah-flows-1)"/>
 <path class="ln a" d="M314 240 H340" marker-end="url(#ah-flows-1)"/>
-<path class="ln g" d="M644 208 H670" marker-end="url(#ah-flows-1)"/><path class="ln w" d="M644 272 H670" marker-end="url(#ah-flows-1)"/>
-<path class="ln w" d="M830 300 V336" marker-end="url(#ah-flows-1)"/>
-<path class="ln p" d="M674 300 C640 330 650 340 644 372" marker-end="url(#ah-flows-1)"/>
-<path class="ln p" d="M164 340 V304" marker-end="url(#ah-flows-1)"/>
+<path class="ln p" d="M644 228 H670" marker-end="url(#ah-flows-1)"/><path class="ln p" d="M674 272 H648" marker-end="url(#ah-flows-1)"/>
+<path class="ln a" d="M494 300 V320 H164 V336" marker-end="url(#ah-flows-1)"/>
+<path class="ln g" d="M314 372 H340" marker-end="url(#ah-flows-1)"/>
+<path class="ln w" d="M644 372 H670" marker-end="url(#ah-flows-1)"/>
+<path class="ln p" d="M830 340 V304" marker-end="url(#ah-flows-1)"/>
 </svg>
 </div>
-<p class="small muted">팀 세션은 쓰기 자리 이상이면 검사를 넘은 조각이 그 순간 들어간다(지식관리자도 같은 저장 문). 조각 없이 확정 기록만 보내도 팀에서는 메모가 된다(저절로 메모). 개인 지식의 세션 저장은 바로 넣기가 곧바로 넣는다.</p></div>
+<p class="small muted">승인 저장 팀 지식(새 지식 · 이행을 마친 지식)의 세션 저장이다. 승인이 제안서의 경고를 받아들이는 것까지 포함하고, <code>proposal</code> 없이 보내거나 그사이 지식이 바뀌면 <code>E_APPROVE</code>(새 제안 · 옛 판 스킬이면 「다시 설치」)로 아무것도 쓰지 않는다. 메모는 없다(<code>memo: true</code> 는 <code>E_INPUT</code>). 경위만 있는 기록은 글 그대로 그 항목에 잇고, 이을 곳이 없으면 「기록 모음」 달 항목. 승인 저장 전 지식은 같은 차례로 묻되 저장 문이 조각마다 검사해 못 넘은 조각은 「넣지 못함」 으로 남고 세션이 그 자리에서 고쳐 <code>fixes</code> 로 다시 보낸다. 개인 지식(<code>kmd-save</code>)도 같은 흐름이다(제안서 머리 「보는 사람: 나만」).</p></div>
 <div class="ex"><div class="ex-h"><span class="tag p">예</span><b>시험 지식 · 카나리 비율 10% → 20%</b></div>
 <ol class="tl">
 <li><time>section</time><b>읽기</b><code>section { knowledge: "dpms", coord: "proc:카나리" }</code> → 지금 글 · <code>base</code>(16자 지문)</li>
-<li><time>save</time><b>저장</b>record: 제목 「카나리 비율: 10% → 20%」 · changes 「카나리 첫 30분 비율: 10% → 20%」 · touches <code>proc:카나리</code> / sections: <code>{ coord: "proc:카나리", base, edits: [{ find: "요청의 10% 만", replace: "요청의 20% 만" }] }</code></li>
+<li><time>propose</time><b>저장 제안</b>record: 제목 「카나리 비율: 10% → 20%」 · changes 「카나리 첫 30분 비율: 10% → 20%」 · touches <code>proc:카나리</code> / sections: <code>{ coord: "proc:카나리", base, edits: [{ find: "요청의 10% 만", replace: "요청의 20% 만" }] }</code> → 【저장 제안】 글 · 경고 0 · <code>proposal</code></li>
+<li><time>승인</time><b>「넣어」</b>사람이 제안서를 보고 승인 → 같은 입력에 <code>proposal</code> · <code>kit</code> 을 실어 <code>save</code></li>
 <li><time>검사</time><b>넘음</b>find 가 지금 글에 꼭 한 번 · 지문이 같다 · 새 값 20% 는 기록에 있다 · 빠진 옛 값 10% 는 기록이 「옛 → 새」 로 말했다 · <code>changed [{ from: "10%", to: "20%" }]</code></li>
 <li><time>쓰기</time><b>한 묶음</b><code>work/2026-1104-카나리-비율.md</code>(끝에 「## 넣은 것」) · <code>docs/배포절차.md</code>(## 카나리 글 · 표지 · 참고 줄) · git 커밋 하나 → 백업</li>
 <li><time>답</time><b>proposals</b><code>{ saved, docs: ["배포절차"], put, proposals: [{ coord, ok: true, changed }] }</code></li>
 </ol>
-<p>같은 저장에서 find 가 지금 글에 없으면 그 조각만 넣지 못함(<code>why</code> · 가까운 줄 <code>near</code>), 그사이 남이 고쳐 지문이 다르면 E_CONFLICT 로 아무것도 쓰지 않는다. 값 바꿈도 바로 들어가고 따로 알리지 않는다(이력에 「옛 값 → 새 값」 · 항목마다 되돌리기).</p>
+<p>find 가 지금 글에 없으면 제안의 오류(<code>why</code> · 가까운 줄 <code>near</code>)라 사람에게 보이기 전에 고친다(승인 저장 전 지식은 그 조각만 넣지 못함). 그사이 남이 고쳐 지문이 다르면 E_CONFLICT 로 아무것도 쓰지 않는다. 값 바꿈도 바로 들어가고 따로 알리지 않는다(이력에 「옛 값 → 새 값」 · 항목마다 되돌리기).</p>
 </div></div>
 
 <h3 id="flows-edit">② 화면 고치기 · 기록 정정</h3>
@@ -675,7 +684,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <rect class="box" x="24" y="400" width="952" height="44" rx="8"/><text class="l" x="38" y="426">조각 없이 온 대량 넣기 기록은 메모가 아니라 넣지 못함(notfound) · 받는 지식이 「Claude 에 보내지 않음」 이면 스킬이 멈춘다</text>
 </svg>
 </div>
-<p class="small muted">개인 프로그램의 파일 넣기는 따로 돈다: 한 번에 300 파일 · 200MB, 20 파일까지 Claude · 나머지는 규칙. 손잡이는 멈춤 · 이어서 · 그만두기 · 다시 · 맨 앞으로 · 빼기.</p></div>
+<p class="small muted">개인 프로그램의 파일 넣기는 따로 돈다: 한 번에 300 파일 · 200MB, 20 파일까지 Claude · 나머지는 규칙 길(승인 저장 지식은 기록 + 문서 한 커밋 · 원본 첨부). 손잡이는 멈춤 · 이어서 · 그만두기 · 다시 · 맨 앞으로 · 빼기.</p></div>
 <div class="ex"><div class="ex-h"><span class="tag p">한도</span><b>파일 넣기 · 들이기</b></div>
 <div class="m-tbl"><table>
 <tr><th>무엇</th><th>값</th><th>어디</th></tr>
@@ -683,11 +692,11 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <tr><td>파일 하나 · 요청 하나</td><td>32MB · 64MB(넘으면 413)</td><td><code>core/save.js</code> · <code>server/http.js</code></td></tr>
 <tr><td>기다리는 일감</td><td>사람 × 지식마다 20</td><td><code>serve.json</code> intakeQueue</td></tr>
 <tr><td>지식마다 하루 들이기</td><td>300</td><td>intakeDaily</td></tr>
-<tr><td>기다림 한도</td><td>24시간 → 기록만 + 넣지 못함</td><td>intakeStaleMs</td></tr>
+<tr><td>기다림 한도</td><td>24시간 → 규칙 길(승인 저장 전 지식은 기록만 + 넣지 못함)</td><td>intakeStaleMs</td></tr>
 <tr><td>원본 첨부 하루 합</td><td>200MB</td><td>attachDaily</td></tr>
 <tr><td>고쳐 쓰기</td><td>1 ~ 2 · 기본 2</td><td>KMD_INGEST_FIX · ingestFix</td></tr>
 </table></div>
-<p>넣은 원본은 <code>docs/assets/</code> 에 첨부로 두고, 들이기 일감의 원천은 <code>&lt;data&gt;/queue/</code>, 넣지 못함으로 끝난 것은 <code>&lt;data&gt;/held/&lt;지식&gt;/</code> 에 남는다(바로잡히거나 버리면 팀 시계가 걷는다).</p>
+<p>넣은 원본은 <code>docs/assets/</code> 에 첨부로 두고, 들이기 일감의 원천은 <code>&lt;data&gt;/queue/</code>. 승인 저장 지식은 늘 들어가고(Claude 가 꼴을 두 번 고쳐도 못 맞추면 규칙 길 · 끝난 일에 「규칙 길」 칩), 승인 저장 전 지식에서 넣지 못함으로 끝난 것은 <code>&lt;data&gt;/held/&lt;지식&gt;/</code> 에 남는다(바로잡히거나 버리면 팀 시계가 걷는다).</p>
 </div></div>
 <figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>생성 › 수기수집</span></div><div class="m-pic"><img src="manual/img/t-import.png" alt="생성 › 도는 일" loading="lazy"></div></div><figcaption>생성 › 도는 일. 파일마다 한 줄이 서고 수집 › 검토 › 짓기 › 넣기 단계가 보인다. 쓰는 법은 <a href="manual/사용자.html#import">설명서 › 파일 넣기</a> · 대량 넣기는 <a href="manual/사용자.html#bulk">설명서 › 대량 넣기</a>.</figcaption></figure>
 
@@ -716,7 +725,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <div class="m-tbl"><table>
 <tr><th>유형</th><th>들어오는 것</th><th>브레이크</th></tr>
 <tr><td>문서 폴더</td><td>바뀐 파일만 · 팀은 파일마다 들이기 일감 하나</td><td>10% 넘게 사라지면 멈추고 「크게 바뀜」</td></tr>
-<tr><td>소스 코드(git)</td><td>더한 때의 묶음이 기준 · 새 묶음마다 일감 하나 · 넣을 항목이 없으면 기록만 + 넣지 못함</td><td>없음(한 번에 20 묶음까지)</td></tr>
+<tr><td>소스 코드(git)</td><td>더한 때의 묶음이 기준 · 새 묶음마다 일감 하나 · 넣을 항목이 없으면 이름 항목 · 기록 모음 달 항목에 글 그대로(승인 저장 전 지식은 기록만 + 넣지 못함)</td><td>없음(한 번에 20 묶음까지)</td></tr>
 <tr><td>DB</td><td>테이블마다 정의 표 · <code>table:</code> 이름 · 읽기 전용 세션 · 카탈로그만</td><td>10% 넘게 사라지거나 새 항목이 10 개를 넘으면 멈추고 「크게 바뀜」(처음 잇기는 예외)</td></tr>
 </table></div>
 </div></div>
@@ -747,8 +756,9 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <li><time>고르기</time><b>보낼 것</b>개인 지식의 기록 · 문서 · 받는 팀 지식은 쓰기 자리 이상인 것만 고를 수 있다</li>
 <li><time>읽기</time><b>팀 지식</b>이 PC 의 기기 열쇠로 MCP brief · match · section(이름 · 후보 문서의 항목 글 · 지문)</li>
 <li><time>짓기</time><b>내 Claude</b>들이기와 같은 프롬프트로 기록 + 조각 · 넣을 곳을 고르지 못한 조각은 <code>left</code>(넣지 못함 notfound)</li>
-<li><time>저장</time><b>팀 저장 문</b><code>channel: send</code> · 조각마다 검사 · 넘은 것은 그 순간 문서, 못 넘은 것은 기록에 넣지 못함</li>
-<li><time>다시</time><b>바로잡기</b>[지금 다시] 는 다시 지어 보내고 앞의 넣지 못함 기록을 <code>fixes</code> 로 바로잡는다 · 받는 지식의 지식관리자는 팀 화면 › 점검 › 넣지 못함에서 같은 기록을 고친다</li>
+<li><time>제안</time><b>보내기 확인 창</b>승인 저장 팀 지식은 글마다 팀 <code>POST /api/k/:id/propose</code>(쓰지 않음) → 창에 넣을 곳 · 고침 · 경고 · [빼기] · [보내기] 가 팀 쪽 승인(개인 지식의 승인과 따로)</li>
+<li><time>저장</time><b>팀 저장 문</b><code>channel: send</code> · <code>proposal</code> · 들어감(그사이 바뀌면 <code>E_APPROVE</code> · fail 줄 · 다시 골라 새 제안). 승인 저장 전 팀 지식은 조각마다 검사 · 넘은 것은 그 순간 문서, 못 넘은 것은 기록에 넣지 못함</li>
+<li><time>다시</time><b>바로잡기</b>(승인 저장 전 팀 지식) [지금 다시] 는 다시 지어 보내고 앞의 넣지 못함 기록을 <code>fixes</code> 로 바로잡는다 · 받는 지식의 지식관리자는 팀 화면 › 점검 › 넣지 못함에서 같은 기록을 고친다</li>
 </ol>
 </div></div>
 <figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>개인 화면 · 공유</span></div><div class="m-pic"><img src="manual/img/p-send.png" alt="공유 화면" loading="lazy"></div></div><figcaption>공유 화면. 쓰는 법은 <a href="manual/개인.html#send">설명서 › 공유</a>.</figcaption></figure>
@@ -790,7 +800,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 
 <article class="man wide">
 <h2 id="core"><span class="m-no">6</span>들어오는 길 → 기록 → 문서: kmd 의 핵심 로직</h2>
-<p>kmd 의 일은 한 줄이다. <b>어느 채널로 왔든 기록과 항목 조각을 한 번에 저장하고, 저장 문이 그 자리에서 넣거나 「넣지 못함」 으로 남긴다.</b> 문서를 쓰는 길은 <code>hub.save</code> → <code>core/save.js</code> 하나, 기록 · 문서 · 참고 블록 · 장부는 늘 git 한 묶음. 칸을 누르면 오른쪽에 자세히가 뜬다(무엇을 보나 · 규칙 · 통과하는 예 · 걸리는 예 · 코드).</p>
+<p>kmd 의 일은 한 줄이다. <b>어느 채널로 왔든 기록과 항목 조각을 한 번에 저장한다.</b> 승인 저장 지식은 사람 채널이 저장 제안을 승인해 들어가고 무인 채널은 늘 들어간다(아래 「승인 저장」). 그림의 넣지 못함 · 메모 칸은 승인 저장 전 지식의 것이다. 문서를 쓰는 길은 <code>hub.save</code> → <code>core/save.js</code> 하나, 기록 · 문서 · 참고 블록 · 장부는 늘 git 한 묶음. 칸을 누르면 오른쪽에 자세히가 뜬다(무엇을 보나 · 규칙 · 통과하는 예 · 걸리는 예 · 코드).</p>
 
 <div class="pair big"><div class="pl"><div class="flowfig" role="figure" aria-label="채널에서 저장 문 검사를 거쳐 넣음 · 넣지 못함 · 메모로 끝나는 한 장 흐름">
 <svg class="arch" viewBox="0 0 1000 860" role="img" aria-label="채널 일곱이 저장 문 하나로 기록과 조각을 보내고, 저장 문이 열 칸의 검사를 지나 넣음 · 넣지 못함 · 메모 · 같은 저장 가운데 하나로 끝내고, 그 뒤 넣지 못함 다루기 · 되돌리기 · 이력 · 백업이 이어진다">
@@ -830,7 +840,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <g class="hit" data-k="a2" role="button" tabindex="0" aria-label="메모 다루기: 자세히"><rect class="box" x="594" y="544" width="384" height="92" rx="10"/><text class="t" x="608" y="568">메모 다루기</text><text class="l" x="608" y="590">확정되면 조각을 실어 다시 저장(fixes)</text><text class="l" x="608" y="610">brief 의 「안 넣은 메모 n」 으로 본다</text></g>
 <g class="hit" data-k="a3" role="button" tabindex="0" aria-label="되돌리기: 자세히"><rect class="box" x="22" y="660" width="300" height="80" rx="10"/><text class="t" x="36" y="684">되돌리기</text><text class="l" x="36" y="706">항목마다 · 쓴 사람 · 지식관리자</text><text class="l" x="36" y="724">7일 두 번이면 값 바꿈은 넣지 못함</text></g>
 <g class="hit" data-k="a4" role="button" tabindex="0" aria-label="이력 · 측정 줄: 자세히"><rect class="box" x="338" y="660" width="300" height="80" rx="10"/><text class="t" x="352" y="684">이력 · 측정 줄</text><text class="l" x="352" y="706">「옛 값 → 새 값」 · 알림 없음</text><text class="l" x="352" y="724">savelog/&lt;지식&gt;.jsonl</text></g>
-<g class="hit" data-k="a5" role="button" tabindex="0" aria-label="개인 프로그램 바로 넣기: 자세히"><rect class="box pc" x="654" y="660" width="324" height="80" rx="10"/><text class="t" x="668" y="684">개인 프로그램 · 바로 넣기</text><text class="l" x="668" y="706">조각 검사 없이 저장 뒤 곧바로</text><text class="l" x="668" y="724">core/pcplace.js · 내 Claude · 규칙</text></g>
+<g class="hit" data-k="a5" role="button" tabindex="0" aria-label="개인 프로그램 들이기: 자세히"><rect class="box pc" x="654" y="660" width="324" height="80" rx="10"/><text class="t" x="668" y="684">개인 프로그램 · 들이기</text><text class="l" x="668" y="706">승인 저장부터 팀과 같은 문</text><text class="l" x="668" y="724">들이기 = 기록 + 문서 한 커밋 · 규칙 길</text></g>
 <path class="ln" d="M137 646 V656"/>
 <rect class="box" x="22" y="764" width="956" height="78" rx="10"/><text class="t" x="36" y="788">채널마다 다른 것은 짓는 쪽뿐이다</text><text class="l" x="36" y="810">세션 · 대량 넣기 · 보내기는 내 PC 의 Claude, 파일 넣기 · 가져올 곳 · 정정 · 다듬기는 팀 일꾼, 고치기는 사람이 짓는다.</text><text class="l" x="36" y="828">짓고 난 뒤의 검사 · 쓰기 · git 은 모두 같은 저장 문이다. 채널(opt.channel)은 서버 코드가 정하고, 사람이 보낸 값으로 만들지 않는다.</text>
 </svg>
@@ -845,31 +855,46 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 </ol>
 <p class="small muted">예의 지식은 저장소의 <code>test/fixture/kmd/dpms</code> 다. 실제 응답 꼴은 <a href="#claude">8 Claude Code</a> 의 save 칸에 있다.</p></div><div id="coreBody" hidden></div></aside></div>
 
+<h3 id="core-approve">승인 저장: 저장 제안 · 규칙 길 · 지표</h3>
+<p>새 지식과 이행을 마친 지식(<code>_members.md</code> 「- 저장 방식: 승인」 · 팀 · 개인 프로그램 같은 문)의 저장 결과는 <b>들어감</b> 하나다. 넣지 못함 · 메모 · 승인 받고 넣기가 없다(<a href="../docs/품질개선/KMD_저장승인_설계.md">KMD_저장승인_설계.md</a>).</p>
+<div class="m-tbl"><table>
+<tr><th>채널</th><th>들어가는 길</th><th>걸리면</th></tr>
+<tr><td>사람(세션 · 화면 고치기 · 기록 쓰기 · 다른 이름 더하기 · 보내기 · 대량 넣기)</td><td>서버가 저장 제안을 짓는다(<code>propose</code> · 쓰지 않음 · 경고 id · 오류 · <code>proposal</code>). 화면은 저장 확인 창, 세션은 【저장 제안】 → 대화 조절, 보내기는 보내기 확인 창, 대량 넣기는 규칙 표 한 번. 승인하면 <code>proposal</code> 을 실어 저장 · 경고는 기록 끝 「받아들인 경고」</td><td>오류(꼴 · 지문 · 본문 반영 · 비슷한 이름)는 입력 오류로 아무것도 쓰지 않는다 · 제안이 달라지면 <code>E_APPROVE</code> + 새 제안 · 메모 <code>E_INPUT</code></td></tr>
+<tr><td>무인(파일 넣기 · 가져올 곳 · 정정 · 다시 들이기 · 개인 들이기)</td><td>팀 일꾼(개인은 넣기 에이전트 · 들이기 초안)이 기록 + 조각을 짓고 늘 들어간다 · 값 대조는 막지 않고 기록 끝 「값 대조」 로 잰다</td><td>FIX 고리(두 번 다시 짓기) → <b>규칙 길</b>(Claude 없이 원문 그대로 · 사건 갈래 문서의 새 항목 · 아니면 「들인 자료」 주제 문서 · 원본 첨부). 일꾼 실패 · 24시간 · 하루 상한 · Claude 에 보내지 않음은 곧바로 규칙 길</td></tr>
+<tr><td>지식관리자가 승인한 일(다듬기 · 구조 · 기초 세우기)</td><td>승인한 구조안 · 문서 그대로 걸음마다 들어간다</td><td>결정적 오류면 그 걸음의 입력 오류 + 멈춤(「걸음 실패」 · 고쳐 [이어 넣기]) · 값 대조는 재기만</td></tr>
+</table></div>
+<ul>
+<li>쓰기 자리도 새 문서(갈래 안) · 새 이름 · 갈래 · 종류를 제안으로 세운다(기록 끝 「새로 세움」 · 14일 남는 표지 → 지표 「새로 생긴 것」).</li>
+<li>바뀐 값 없이 경위만 있는 기록은 글 그대로 그 항목에 잇고(「## 이은 항목」 · 이력 「글 그대로」), 이을 곳이 없으면 「기록 모음」(<code>docs/기록 모음.md</code>) 달 항목.</li>
+<li>저장마다 측정 줄(<code>&lt;data&gt;/savelog/&lt;지식&gt;.jsonl</code>)에 받아들인 경고 · 무인 값 경고 · 규칙 길 · FIX 번 수 · 다시 제안 수가 남고, 지식 메뉴 <b>점검 › 지표</b>(<code>GET /api/k/:id/metrics</code> · 지식관리자 · 개인 주인 · 기간 7 · 14 · 30 · 90일 · 무인 값 경고 20% · 규칙 길 10% 를 넘으면 노란 칩)로 본다. 할 일 목록이 아니다.</li>
+<li>옛 지식은 이행(팀 <code>kmd-migrate</code> held-scan · held-put · 개인은 새 판이 켤 때)을 마치고 총괄 관리자가 지식 상세 › 정책의 「저장 승인」 을 켠다(넣지 못함 · 메모 · 개편 전 기록 0 일 때만). 같은 정책 탭의 「들어간 것 하루 요약」 은 하루 한 번 알림이다.</li>
+</ul>
+
 <h3 id="core-a">채널마다 기록 + 문서 한 번에</h3>
 <div class="m-tbl"><table>
 <tr><th>채널</th><th>시작 자리</th><th>원천</th><th>도는 곳 · Claude</th><th>기록 + 문서(한 번의 저장)</th></tr>
-<tr><td>세션</td><td>Claude Code</td><td>세션 작업</td><td>내 PC · 내 구독</td><td>스킬 <code>kmd-team-save</code>(확정인지 묻고 조각 + 지문 + 스킬 판 <code>kit</code> · 확정이 아니면 메모 · 걸리면 그 자리에서 고쳐 <code>fixes</code> 로 다시) · 일 전 <code>kmd-team-work</code> 가 brief 의 「안 넣은 메모 n · 넣지 못함 n」 을 전한다</td></tr>
-<tr><td>고치기(문서)</td><td>팀 화면</td><td>사람이 고친 글(쓰기 이상 · 항목 지우기 · 이름 바꾸기는 지식관리자)</td><td>팀 서버 · Claude 없음</td><td>글 그대로 + 이력 「고침」(옛 값 → 새 값) · 읽은 뒤 누가 고쳤으면 새 글을 다시 읽는다</td></tr>
-<tr><td>고치기(기록)</td><td>팀 화면 기록 [고치기]</td><td>고친 기록 → 정정 기록(옛 값 → 새 값)</td><td>팀 서버 · 규칙(옛 값이 한 곳), 안 되면 팀 일꾼(팀 구독)</td><td>정정 기록 + 조각 · 들어간 항목이 없으면 정정 기록만 + 넣지 못함</td></tr>
+<tr><td>세션</td><td>Claude Code</td><td>세션 작업</td><td>내 PC · 내 구독</td><td>스킬 <code>kmd-team-save</code>(정리 거리 고르기 → <code>propose</code> → 【저장 제안】 그대로 → 대화 조절 → 승인 → <code>save(proposal)</code> · 스킬 판 <code>kit</code> · 승인 저장 전 지식은 걸린 조각을 고쳐 <code>fixes</code> 로 다시) · 일 전 <code>kmd-team-work</code> 가 brief 의 「안 넣은 메모 n · 넣지 못함 n」 을 전한다</td></tr>
+<tr><td>고치기(문서)</td><td>팀 화면</td><td>사람이 고친 글(쓰기 이상 · 항목 지우기 · 이름 바꾸기는 지식관리자)</td><td>팀 서버 · Claude 없음</td><td>승인 저장 지식은 저장 확인 창(저장 제안 · [넣기] = 승인) → 글 그대로 + 이력 「고침」(옛 값 → 새 값) · 읽은 뒤 누가 고쳤으면 새 글을 다시 읽는다</td></tr>
+<tr><td>고치기(기록)</td><td>팀 화면 기록 [고치기]</td><td>고친 기록 → 정정 기록(옛 값 → 새 값)</td><td>팀 서버 · 규칙(옛 값이 한 곳), 안 되면 팀 일꾼(팀 구독)</td><td>정정 기록 + 조각 · 들어간 항목이 없으면 이름 항목 · 기록 모음 달 항목에 잇기(승인 저장 전 지식은 정정 기록만 + 넣지 못함)</td></tr>
 <tr><td>파일 넣기(20개까지)</td><td>팀 화면</td><td>여러 꼴 파일</td><td>팀 서버 파서 · 팀 일꾼(팀 구독)</td><td>들이기 일감(파일마다 · 팀 일꾼이 기록 + 조각을 지어 저장 한 번)</td></tr>
-<tr><td>대량 넣기</td><td>Claude Code</td><td>여러 꼴 파일</td><td>내 PC 파서 <code>kmd-parse</code> · 내 구독</td><td>스킬 <code>kmd-team-import</code> → 팀 저장(파일마다 git 한 묶음)</td></tr>
+<tr><td>대량 넣기</td><td>Claude Code</td><td>여러 꼴 파일</td><td>내 PC 파서 <code>kmd-parse</code> · 내 구독</td><td>스킬 <code>kmd-team-import</code> → 파일마다 <code>propose</code> → 규칙 표 한 번 승인 → 팀 저장(파일마다 <code>proposal</code> · git 한 묶음)</td></tr>
 <tr><td>가져올 곳</td><td>시계(팀 서버)</td><td>문서 폴더 · git · DB</td><td>팀 서버 · 팀 일꾼</td><td>들이기 일감(파일 · 커밋 하나씩 · DB 표는 저절로 채우는 표 그대로)</td></tr>
-<tr><td>보내기</td><td>개인 프로그램</td><td>개인 md</td><td>내 PC · 내 구독</td><td><code>claude -p</code> 가 팀 <code>section</code> · 지문을 읽고 조각으로 → 팀 저장(<code>channel: send</code> · 글마다 한 번) · 못 넘으면 넣지 못함 · 공유 화면에 「넣음 n · 넣지 못함 n」</td></tr>
+<tr><td>보내기</td><td>개인 프로그램</td><td>개인 md</td><td>내 PC · 내 구독</td><td><code>claude -p</code> 가 팀 <code>section</code> · 지문을 읽고 조각으로 → 승인 저장 팀 지식은 보내기 확인 창(팀 저장 제안 · [보내기] = 팀 쪽 승인) → 팀 저장(<code>channel: send</code> · 글마다 한 번) · 승인 저장 전 팀 지식은 못 넘으면 넣지 못함 · 공유 화면에 「넣음 n · 넣지 못함 n」</td></tr>
 </table></div>
 <p class="small muted">서버가 아는 채널 이름: 저장 <code>session · bulk · http · send · edit · fix</code> · 들이기 <code>intake-file · intake-commit · intake-src · intake-fix · intake-again · polish</code>(<code>server/hub.js</code>). 저장 속도 한도는 저장 채널만 센다.</p>
 
 <h3 id="core-steps">저장 한 번의 단계</h3>
 <ol>
 <li>원천을 지은 쪽(세션 스킬 · 들이기 · 사람 글)이 <b>기록 + 조각 + 지문(base)</b> 을 한 번에 보낸다(세션은 스킬 판 <code>kit</code> 도: 옛 판이면 저장은 하고 답에 「다시 설치」 <code>reinstall</code> · 없으면 <code>nokit</code>(스킬을 거치지 않은 저장 · 다시 설치 아님)).</li>
-<li>서버 저장 검사 한 곳: 자리(쓰기 이상) · 저장 속도(<code>E_RATE</code>) · 같은 저장(<code>same</code>) · 조각마다 꼴(<code>E_FORMAT</code>) · 값 대조 · 지문 · 원본이 주인 · 저절로 채우는 표 · 섞인 자리(같은 항목에 아직 안 들어간 개편 전 기록). 조각 검사는 팀만 한다(개인 프로그램은 바로 넣기가 넣는다).</li>
+<li>서버 저장 검사 한 곳: 자리(쓰기 이상) · 저장 속도(<code>E_RATE</code>) · 같은 저장(<code>same</code>) · 조각마다 꼴(<code>E_FORMAT</code>) · 값 대조 · 지문 · 원본이 주인 · 저절로 채우는 표 · 섞인 자리(같은 항목에 아직 안 들어간 개편 전 기록). 개인 프로그램은 승인 저장 지식부터 같은 검사(이행 전 개인 지식은 바로 넣기가 넣는다). 승인 저장 지식의 사람 채널은 승인한 <code>proposal</code> 이 있어야 하고(없거나 어긋나면 <code>E_APPROVE</code>), 오류는 입력 오류(아무것도 쓰지 않음) · 경고는 받아들인 것으로 기록 끝 「받아들인 경고」.</li>
 <li>넘으면 문서 · 참고 블록 · 기록 · git <b>한 묶음</b>(하나가 실패하면 모두 되돌린다) · 기록 본문 끝에 <code>## 넣은 것</code>(값이 바뀌면 「옛 값 → 새 값」) · 이력에 항목마다 「옛 값 → 새 값」 · [되돌리기](그 기록을 쓴 사람 · 지식관리자). 값 바꿈도 바로 들어가고 따로 알리지 않는다.</li>
 <li>지문이 어긋나면 사람 · 세션 · 보내기는 <code>E_CONFLICT</code> 로 아무것도 쓰지 않는다(다시 읽고 다시 댄다). 들이기는 서버가 새 글에 조각을 한 번 다시 대고, 그래도 안 되면 그 조각만 넣지 못함(<code>content</code> 조각은 다시 대지 않고 넣지 못함).</li>
-<li>못 넘은 조각은 기록만 남고 「넣지 못함」 표지(<code>held</code> · 까닭)가 붙는다. 응답의 <code>proposals[]</code> 가 조각마다 <code>{ ok, why, code, stale, changed }</code> 를 돌려주고, 세션은 그 자리에서 고쳐 다시 저장한다.</li>
+<li>(5 ~ 7 은 승인 저장 전 지식) 못 넘은 조각은 기록만 남고 「넣지 못함」 표지(<code>held</code> · 까닭)가 붙는다. 응답의 <code>proposals[]</code> 가 조각마다 <code>{ ok, why, code, stale, changed }</code> 를 돌려주고, 세션은 그 자리에서 고쳐 다시 저장한다.</li>
 <li>확정(머지 · 배포 · 결정)이 아니면 메모: 기록만 남고 문서는 바꾸지 않는다.</li>
 <li>7일 안에 두 번 되돌린 문서는 값을 바꾸는 조각만 넣지 못함.</li>
 </ol>
 
-<h3 id="core-held">넣지 못함 · 까닭</h3>
+<h3 id="core-held">넣지 못함 · 까닭(승인 저장 전 지식)</h3>
 <div class="pair"><div class="pl"><div class="m-tbl"><table>
 <tr><th>code</th><th>화면 말</th><th>언제</th></tr>
 <tr><td><code>values</code></td><td>값이 맞지 않음</td><td>기록의 새 값이 글에 없다 · 근거에 없는 값 · 말 없이 빠진 옛 값</td></tr>
@@ -893,19 +918,19 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <p>개편 앞에 들어와 아직 문서에 안 넣은 기록은 「개편 전 기록」 으로 이 화면에 보이고, 지식관리자가 [옛 기록 다시 들이기] 로 팀 일꾼에게 한 번에 넘긴다. 개편을 켠 때는 팀 서버가 처음 켤 때 <code>&lt;data&gt;/cutover.json</code> 에 적는다(<code>serve.json</code> 의 <code>cutoverAt</code> 이 있으면 그것이 먼저).</p>
 </div></div>
 
-<h3 id="core-memo">메모</h3>
+<h3 id="core-memo">메모(승인 저장 전 지식)</h3>
 <p>메모는 확정이 아니라 문서를 바꾸지 않고 기록만 남긴 것이다(태그 <code>memo</code> · 조각을 같이 받지 않는다). 세션 스킬은 저장 전에 「확정인가(머지 · 배포 · 결정)」 를 사람에게 묻고, 아니면 <code>record.memo: true</code> 로 보낸다. 팀에서 조각 없이 온 사람 기록도 저절로 메모가 된다(예외는 서버가 정한 채널로 가른다: 들이기 · 다듬기는 일감이 정하고, 대량 넣기는 조각이 없으면 넣지 못함, 보내기는 넣지 못함). 메모는 그 사람의 brief 에 「안 넣은 메모 n」 으로 실리고, 확정되면 조각을 실어 다시 저장하면서 <code>fixes</code> 로 메모를 바로잡는다.</p>
 
 <h3 id="core-state">기록의 상태</h3>
 <div class="m-tbl"><table>
 <tr><th>상태</th><th>칩 · 말</th><th>뜻</th></tr>
-<tr><td><code>in</code></td><td>문서에 들어감</td><td>저장 문이 넣은 항목을 「## 넣은 것」 에 적은 기록(태그 put) · 모두 항목마다 되돌려졌으면 되돌림</td></tr>
+<tr><td><code>in</code></td><td>문서에 들어감</td><td>저장 문이 넣은 항목을 「## 넣은 것」 에 적은 기록(태그 put) · 글 그대로 이은 기록(「## 이은 항목」) · 모두 항목마다 되돌려졌으면 되돌림</td></tr>
 <tr><td><code>held</code></td><td>넣지 못함</td><td>기록만 남았다 · 까닭과 조각은 「## 넣지 못함」 칸에</td></tr>
 <tr><td><code>memo</code></td><td>메모</td><td>문서는 바꾸지 않았다</td></tr>
 <tr><td><code>fixed</code></td><td>바로잡힘</td><td>나중 기록이 <code>fixes</code> 로 고쳤다(넣지 못함 · 메모였던 것)</td></tr>
 <tr><td><code>kept</code></td><td>버림</td><td>[버리기] · 문서에 넣지 않기로 했다</td></tr>
 <tr><td><code>reverted</code></td><td>되돌림</td><td>그 기록이 넣은 항목을 되돌렸다</td></tr>
-<tr><td><code>pend</code> · <code>nowhere</code></td><td>개편 전 기록(팀) · 넣는 중(개인)</td><td>팀에서는 개편 앞에 남은 옛 기록뿐이다 · 개인 프로그램은 바로 넣기가 곧 넣는다</td></tr>
+<tr><td><code>pend</code> · <code>nowhere</code></td><td>개편 전 기록(팀) · 넣는 중(이행 전 개인 지식)</td><td>팀에서는 개편 앞에 남은 옛 기록뿐이다 · 이행 전 개인 지식은 바로 넣기가 곧 넣는다 · 이행을 마친 개인 지식의 옛 넣는 중 · 버림 · 메모는 「옛 기록」</td></tr>
 <tr><td><code>none</code></td><td>kmd 가 한 일</td><td>되돌림 · 넣을 곳 고르기 같은 kmd 의 기록</td></tr>
 </table></div>
 <p class="small muted">상태는 저장하지 않고 읽을 때 정한다(<code>core/knowledge.js</code> <code>recordState</code>). 칩 말은 <code>app/main.js</code> <code>recStateChip</code> · MCP 말은 <code>server/mcp.js</code> <code>STATE_WORD</code>.</p>
@@ -916,7 +941,8 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <tr><td><a href="../docs/kmd_권한_모델.md">권한 모델</a> 7절</td><td>저장 문 하나 · 채널은 서버 코드가 정한다 · 조각마다 검사 · 넣지 못함 · E_CONFLICT · 커밋 뒤는 던지지 않는다</td></tr>
 <tr><td><a href="../docs/kmd_문서_작성기준.md">문서 작성기준</a> 3 ~ 5 · 8 · 9절</td><td>본문은 확정된 지식만 · 값 대조(옛 값 → 새 값) · 문서 꼴 · 이름 · 갈래</td></tr>
 <tr><td><a href="../docs/품질개선/KMD_개편_설계.md">KMD_개편_설계.md</a></td><td>「저장이 곧 반영」 개편의 정한 것(S-D) · 단계 S1 ~ S13 · 정리 걷기</td></tr>
-<tr><td><a href="../docs/kmd_디자인_컨벤션.md">디자인 컨벤션</a> 9절</td><td>화면 말: 넣지 못함 n · 팀 일꾼 · 출처 · 메모</td></tr>
+<tr><td><a href="../docs/품질개선/KMD_저장승인_설계.md">KMD_저장승인_설계.md</a></td><td>저장 제안 · 승인 · 규칙 길 · 지표 · 이행(정한 것 P-D · 단계 P0 ~ P12 · PC1 ~ PC6) · 넣지 못함 · 메모 걷기</td></tr>
+<tr><td><a href="../docs/kmd_디자인_컨벤션.md">디자인 컨벤션</a> 9절</td><td>화면 말: 저장 제안 · 받아들인 경고 · 글 그대로 · 규칙 길 · 지표 · 팀 일꾼 · 출처(넣지 못함 n · 메모는 승인 저장 전 지식)</td></tr>
 </table></div>
 </article>
 
@@ -933,15 +959,15 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <rect class="box" x="26" y="106" width="448" height="70" rx="8"/><text class="t" x="40" y="128">머리 줄 · 위 띠</text><text class="l" x="40" y="148">빨리 열기 Ctrl O · 찾기 Ctrl K · Claude 상태 · 설명서 · 나(동그라미)</text><text class="l" x="40" y="166">위 띠: 나의 자리 · 「⚠ 경고 n」 [알았다] · [다시 들어가기]</text>
 <rect class="box" x="26" y="186" width="448" height="108" rx="8"/><text class="t" x="40" y="208">옆 메뉴(위에서부터)</text><text class="l" x="40" y="228">① 지식 고르기 ▾ ② 지식 메뉴: 점검 · 생성 · 문서 · 이력</text><text class="l" x="40" y="246">③ 문서일 때: 보기 탭 「목차 · 항목 · 기록 · 그래프」</text><text class="l" x="40" y="264">   찾기 칸 + 도구([구조]) → 목록(첨부는 나무 끝)</text><text class="l" x="40" y="282">④ 공통 메뉴: 지식관리 · 설정</text>
 <rect class="box" x="26" y="304" width="448" height="70" rx="8"/><text class="t" x="40" y="326">보기</text><text class="l" x="40" y="346">지식 홈 · 문서 탭 여럿 · [옛 판] · [지켜보기] · 그래프 3D · 2D 표</text><text class="l" x="40" y="364">오른쪽 칸 개요 · 문서 · 기록 · 항목 · 속성 · 칸 접기 · 너비</text>
-<rect class="box team" x="26" y="384" width="448" height="152" rx="8"/><text class="t" x="40" y="406">설정(본문 안 왼쪽 메뉴 · 자리마다 보이는 것만)</text><text class="l" x="40" y="428">운영(감사 기록) · 팀 일꾼(Claude 연결 · 운영 값): 총괄 관리자</text><text class="l" x="40" y="448">팀 지식: 지식관리자부터 · 사람(묶음): 총괄 관리자</text><text class="l" x="40" y="468">에이전트 설치: 누구나 · 둘째 카드 「개인 프로그램 설치」</text><text class="l" x="40" y="488">서버 정보: 내 자리 · 내 설정 · 화면 밝기 · 비밀번호 바꾸기</text><text class="l" x="40" y="508">· 내 기기 · 나가기</text>
+<rect class="box team" x="26" y="384" width="448" height="152" rx="8"/><text class="t" x="40" y="406">설정(본문 안 왼쪽 메뉴 · 자리마다 보이는 것만)</text><text class="l" x="40" y="428">운영(감사 기록) · 팀 일꾼(Claude 연결 · 운영 값): 총괄 관리자</text><text class="l" x="40" y="448">지식관리(공통 메뉴): 모든 지식 · 기초 세우기 · 사람</text><text class="l" x="40" y="468">에이전트 설치 · 개인 프로그램 설치: 누구나</text><text class="l" x="40" y="488">서버 정보: 내 자리 · 내 설정 · 화면 밝기 · 비밀번호 바꾸기</text><text class="l" x="40" y="508">· 내 기기 · 나가기</text>
 <rect class="box pc" x="526" y="44" width="448" height="52" rx="8"/><text class="t" x="540" y="66">들어가기</text><text class="l" x="540" y="86">한 번용 주소(시작 메뉴 › kmd · kmd open) · 개인 지식만</text>
 <rect class="box" x="526" y="106" width="448" height="70" rx="8"/><text class="t" x="540" y="128">머리 줄 · 위 띠(같음)</text><text class="l" x="540" y="148">Claude 상태는 내 로그인</text><text class="l" x="540" y="166">위 띠: 밖으로 나가는 것 · 「⚠ 경고 n」</text>
-<rect class="box" x="526" y="186" width="448" height="108" rx="8"/><text class="t" x="540" y="208">옆 메뉴(같은 차례)</text><text class="l" x="540" y="228">①②③ 같음 · 지식 목록에 지식 폴더 띠</text><text class="l" x="540" y="246">([경로 복사] · [동기화] · [바꾸기] · [떼기])</text><text class="l" x="540" y="264">② 지식 메뉴: 생성 · 공유 · 문서 · 이력</text><text class="l" x="540" y="282">넣지 못함은 없다(바로 넣기)</text>
-<rect class="box" x="526" y="304" width="448" height="70" rx="8"/><text class="t" x="540" y="326">보기(같음)</text><text class="l" x="540" y="346">기록은 남는 즉시 바로 넣기가 문서에 넣는다</text><text class="l" x="540" y="364">편집기로 직접 고친 문서도 감시해 기록을 남긴다</text>
-<rect class="box pc" x="526" y="384" width="448" height="152" rx="8"/><text class="t" x="540" y="406">설정</text><text class="l" x="540" y="428">이 PC: 지식 폴더 · 지식백업 · 저절로 하는 일 · 보내는 길</text><text class="l" x="540" y="448">Claude 연결: 내 로그인 · 일마다 모델</text><text class="l" x="540" y="468">에이전트 설치: 작업 폴더에 개인 지식 더하기</text><text class="l" x="540" y="488">운영 · 팀 일꾼 · 사람 · 서버 정보는 없다</text>
+<rect class="box" x="526" y="186" width="448" height="108" rx="8"/><text class="t" x="540" y="208">옆 메뉴(같은 차례)</text><text class="l" x="540" y="228">①②③ 같음 · 지식 목록에 지식 폴더 띠</text><text class="l" x="540" y="246">([경로 복사] · [동기화] · [바꾸기] · [떼기])</text><text class="l" x="540" y="264">② 지식 메뉴: 점검 · 생성 · 공유 · 문서 · 이력</text><text class="l" x="540" y="282">넣지 못함 · 메모 없음(승인 저장)</text>
+<rect class="box" x="526" y="304" width="448" height="70" rx="8"/><text class="t" x="540" y="326">보기(같음)</text><text class="l" x="540" y="346">저장 확인 창 · 들이기는 기록 + 문서 한 커밋</text><text class="l" x="540" y="364">편집기로 직접 고친 문서도 감시해 기록을 남긴다</text>
+<rect class="box pc" x="526" y="384" width="448" height="152" rx="8"/><text class="t" x="540" y="406">설정</text><text class="l" x="540" y="428">지식백업 · 팀 연결(지식 폴더는 모든 지식 띠)</text><text class="l" x="540" y="448">Claude 연결: 내 로그인 · Claude 로 들이기 · 모델</text><text class="l" x="540" y="468">에이전트 설치: 작업 폴더에 개인 지식 더하기</text><text class="l" x="540" y="488">운영 · 팀 일꾼 · 사람 · 서버 정보는 없다</text>
 </svg>
 </div>
-<p class="small muted">메뉴 이름은 <code>core/menupath.js</code>(설정 <code>SET_TEAM</code> · <code>SET_PC</code> · 지식 메뉴 <code>KN_MENU_PC</code> · <code>KN_MENU_TEAM</code> · 화면 탭 <code>GEN_TABS</code> · <code>PROGRESS</code> · <code>CHECK_TABS</code>)와 <code>app/main.js</code> 의 <code>setMenu</code> · <code>kmItems</code> · <code>sideItems</code> 그대로다(<code>test/menupath.test.mjs</code> 가 설명서 글의 「설정 › …」 · 「생성 › …」 · 「점검 › …」 길까지 맞춰 본다). 팀 화면의 생성 · 확인은 옆 메뉴에서 고른 지식에 쓰기 자리부터, 구조는 지식관리자에게 선다. 지식 메뉴 화면 주소는 고른 지식에 딸린다(<code>#/k/&lt;지식&gt;/gen</code> · <code>check</code> · <code>share</code> · <code>history</code> · <code>shape</code>) · 옛 주소(<code>#/import</code> · <code>#/held</code> · <code>#/send</code> · <code>#/structure</code> · 옛 정리 화면 <code>#tidy</code>)는 새 화면으로 간다.</p>
+<p class="small muted">메뉴 이름은 <code>core/menupath.js</code>(설정 <code>SET_TEAM</code> · <code>SET_PC</code> · 지식 메뉴 <code>KN_MENU_PC</code> · <code>KN_MENU_TEAM</code> · 화면 탭 <code>GEN_TABS</code> · <code>PROGRESS</code> · <code>CHECK_TABS</code>)와 <code>app/main.js</code> 의 <code>setMenu</code> · <code>kmItems</code> · <code>sideItems</code> 그대로다(<code>test/menupath.test.mjs</code> 가 설명서 글의 「설정 › …」 · 「생성 › …」 · 「점검 › …」 길까지 맞춰 본다). 팀 화면의 생성은 옆 메뉴에서 고른 지식에 쓰기 자리부터, 점검(탭 점검 · 지표 · 배지 없음)과 구조는 지식관리자에게 선다(승인 저장 전 지식은 쓰기 자리도 점검 › 넣지 못함). 지식 메뉴 화면 주소는 고른 지식에 딸린다(<code>#/k/&lt;지식&gt;/gen</code> · <code>check</code> · <code>share</code> · <code>history</code> · <code>shape</code>) · 옛 주소(<code>#/import</code> · <code>#/held</code> · <code>#/send</code> · <code>#/structure</code> · 옛 정리 화면 <code>#tidy</code>)는 새 화면으로 간다.</p>
 
 <h3>저장 하나가 화면에 보이는 길</h3>
 <div class="flowfig" role="figure" aria-label="저장 하나의 결과가 화면 여러 곳에 보이는 길">
@@ -988,25 +1014,27 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 
 
 <div class="m-cards sc7">
-<a class="m-card" href="manual/지식관리자.html#held"><img src="manual/img/t-held.png" alt="" loading="lazy"><b>넣지 못함</b><p>요약 줄 · 개편 전 기록 · 까닭 · [고치기] · [다시 들이기]</p></a>
-<a class="m-card" href="manual/사용자.html#screen"><img src="manual/img/t-doc.png" alt="" loading="lazy"><b>팀 화면 · 문서</b><p>넣지 못함 칩 · [다듬기] · 오른쪽 칸</p></a>
+<a class="m-card" href="manual/사용자.html#propose"><img src="manual/img/t-propose.png" alt="" loading="lazy"><b>저장 확인</b><p>저장 제안 · 바뀐 줄 · 경고는 창 안 · [넣기] = 승인</p></a>
+<a class="m-card" href="manual/지식관리자.html#metrics"><img src="manual/img/t-metrics.png" alt="" loading="lazy"><b>점검 › 지표</b><p>기간 · 줄 여섯 · 문턱 칩 · [보기] → 기록</p></a>
+<a class="m-card" href="manual/지식관리자.html#held"><img src="manual/img/t-held.png" alt="" loading="lazy"><b>넣지 못함(승인 저장 전)</b><p>요약 줄 · 개편 전 기록 · 까닭 · [고치기] · [다시 들이기]</p></a>
+<a class="m-card" href="manual/사용자.html#screen"><img src="manual/img/t-doc.png" alt="" loading="lazy"><b>팀 화면 · 문서</b><p>지식 메뉴 · [다듬기] · 오른쪽 칸</p></a>
 <a class="m-card" href="manual/사용자.html#import"><img src="manual/img/t-import.png" alt="" loading="lazy"><b>생성 · 도는 일</b><p>수집 › 검토 › 짓기 › 넣기 · 넣은 문서 › 항목</p></a>
-<a class="m-card" href="manual/사용자.html#history"><img src="manual/img/t-history.png" alt="" loading="lazy"><b>이력</b><p>저장마다 「옛 값 → 새 값」 · 넣지 못함 줄</p></a>
+<a class="m-card" href="manual/사용자.html#history"><img src="manual/img/t-history.png" alt="" loading="lazy"><b>이력</b><p>저장마다 「옛 값 → 새 값」 · 글 그대로</p></a>
 <a class="m-card" href="manual/개인.html#screen"><img src="manual/img/p-home.png" alt="" loading="lazy"><b>개인 화면</b><p>지식 폴더 띠 · 개인 지식 카드</p></a>
-<a class="m-card" href="manual/개인.html#send"><img src="manual/img/p-send.png" alt="" loading="lazy"><b>공유</b><p>받는 팀 지식 하나 · 받을 때 곧바로 문서에</p></a>
+<a class="m-card" href="manual/개인.html#send"><img src="manual/img/p-send.png" alt="" loading="lazy"><b>공유</b><p>받는 팀 지식 하나 · 보내기 확인 창 = 팀 저장 제안</p></a>
 </div>
-<p class="small muted">그림은 개편 뒤 로컬 시험 환경(시험 데이터)에서 1280 폭으로 찍었다(2026-11-05 · 넣지 못함은 2026-11-04). 다시 찍는 법은 <a href="kmd_서비스_전체.md">글 판</a> 13절 끝.</p>
+<p class="small muted">그림은 개편 뒤 로컬 시험 환경(시험 데이터)에서 1280 폭으로 찍었다(2026-11-05 · 넣지 못함은 2026-11-04 · 저장 확인 · 지표 · 기초 세우기는 2026-11-11). 다시 찍는 법은 <a href="kmd_서비스_전체.md">글 판</a> 13절 끝.</p>
 </article>
 
 <article class="man">
 <h2 id="claude"><span class="m-no">8</span>Claude Code 와 MCP</h2>
-<p>작업 폴더의 Claude Code 세션은 연결(MCP) 하나로 지식을 읽고 남긴다. 일 전에는 <b>kmd-team-work</b> 로 찾아 읽고, 일 뒤에는 <b>kmd-team-save</b> 로 기록 + 조각을 한 번에 저장한다. 폴더째 많은 파일은 <b>kmd-team-import</b>(대량 넣기)다. 아래는 시험 지식의 「카나리」 를 고치는 세션 한 번의 차례다.</p>
+<p>작업 폴더의 Claude Code 세션은 연결(MCP) 하나로 지식을 읽고 남긴다. 일 전에는 <b>kmd-team-work</b> 로 찾아 읽고, 일 뒤에는 <b>kmd-team-save</b> 로 저장 제안을 보이고 대화로 고쳐 승인받은 뒤 기록 + 조각을 한 번에 저장한다. 폴더째 많은 파일은 <b>kmd-team-import</b>(대량 넣기)다. 아래는 시험 지식의 「카나리」 를 고치는 세션 한 번의 차례다.</p>
 
 <div class="flowfig" role="figure" aria-label="세션 한 번의 순서 그림: 사람 · 세션 · 연결 kmd-team · 팀 서버 사이의 호출">
-<svg class="arch" viewBox="0 0 1000 900" role="img" aria-label="사람이 일을 맡기면 세션이 연결 kmd-team 의 헤더 도우미로 팀 서버에 붙어 brief · match · section 으로 읽고, 일 뒤 확정인지와 어느 지식에 남길지 묻고, save 한 번으로 기록과 조각을 보내 조각마다 결과를 받는다">
+<svg class="arch" viewBox="0 0 1000 900" role="img" aria-label="사람이 일을 맡기면 세션이 연결 kmd-team 의 헤더 도우미로 팀 서버에 붙어 brief · match · section 으로 읽고, 일 뒤 어느 지식에 남길지 묻고 저장 제안을 보여 승인받고, save 한 번으로 기록과 조각을 보내 조각마다 결과를 받는다">
 <defs><marker id="ah-claude" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0,0 L10,5 L0,10 z"/></marker></defs>
 <rect class="zone" x="6" y="84" width="988" height="400" rx="10"/><text class="z" x="18" y="102">일 전 · 스킬 kmd-team-work(사실을 찾아 읽는다 · 지식에 없으면 「지식에 없다」)</text>
-<rect class="zone" x="6" y="550" width="988" height="340" rx="10"/><text class="z" x="18" y="568">일 뒤 · 스킬 kmd-team-save(확정인지 · 어느 지식인지 묻고 · save 한 번)</text>
+<rect class="zone" x="6" y="550" width="988" height="340" rx="10"/><text class="z" x="18" y="568">일 뒤 · 스킬 kmd-team-save(어느 지식 · propose → 저장 제안 · 대화 조절 · 승인 → save 한 번)</text>
 <rect class="box pc" x="20" y="14" width="200" height="60" rx="10"/><text class="t" x="34" y="40">사람</text><text class="l" x="34" y="60">이 PC · 기기 열쇠</text>
 <rect class="box ai" x="280" y="14" width="200" height="60" rx="10"/><text class="t" x="294" y="40">Claude Code 세션</text><text class="l" x="294" y="60">스킬 kmd-team-*</text>
 <rect class="box bk" x="530" y="14" width="200" height="60" rx="10"/><text class="t" x="544" y="40">연결 kmd-team</text><text class="l" x="544" y="60">.mcp.json · 헤더 도우미</text>
@@ -1025,9 +1053,9 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <path class="ln a" d="M380 448 H871" marker-end="url(#ah-claude)"/><text class="l" x="392" y="440">④ section { knowledge: "dpms", coord: "proc:카나리" }</text>
 <path class="ln ret" d="M875 474 H384" marker-end="url(#ah-claude)"/><text class="l" x="392" y="467">content(지금 글) · base(16자) · records · notYetInDocs</text>
 <rect class="box ai" x="240" y="494" width="280" height="44" rx="8"/><text class="s" x="252" y="513">일을 한다(설정 · 코드)</text><text class="l" x="252" y="530">카나리 비율 20% 로 배포</text>
-<path class="ln p" d="M380 600 H124" marker-end="url(#ah-claude)"/><text class="l" x="132" y="593">「확정인가요? DPMS 지식에 남길까요?」</text>
-<path class="ln" d="M120 628 H376" marker-end="url(#ah-claude)"/><text class="l" x="132" y="621">확정 · DPMS 지식</text>
-<path class="ln a" d="M380 664 H871" marker-end="url(#ah-claude)"/><text class="l" x="392" y="656">⑤ save { knowledge, kit: "4", record, sections }</text>
+<path class="ln p" d="M380 600 H124" marker-end="url(#ah-claude)"/><text class="l" x="132" y="593">【저장 제안】(propose · DPMS 지식) 「승인하시면 넣습니다」</text>
+<path class="ln" d="M120 628 H376" marker-end="url(#ah-claude)"/><text class="l" x="132" y="621">「넣어」(고칠 것은 말로 · 다시 propose)</text>
+<path class="ln a" d="M380 664 H871" marker-end="url(#ah-claude)"/><text class="l" x="392" y="656">⑤ save { knowledge, kit: "8", proposal, record, sections }</text>
 <rect class="box ai" x="392" y="676" width="360" height="124" rx="8"/>
 <text class="s" x="404" y="696">record(서식 칸)</text>
 <text class="l" x="404" y="714">title: 카나리 비율: 10% → 20%</text>
@@ -1035,14 +1063,14 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <text class="l" x="404" y="750">why · refs · touches: proc:카나리</text>
 <text class="s" x="404" y="772">sections: [{ coord: "proc:카나리", base,</text>
 <text class="l" x="404" y="790">  edits: [{ find: "요청의 10% 만", replace: "요청의 20% 만" }] }]</text>
-<rect class="box team" x="767" y="676" width="216" height="92" rx="8"/><text class="s" x="779" y="696">저장 문</text><text class="l" x="779" y="716">자리 · 지문 · 꼴 · 값 대조</text><text class="l" x="779" y="734">넘음 → 기록 · 항목 · git</text><text class="l" x="779" y="752">걸림 → 넣지 못함</text>
+<rect class="box team" x="767" y="676" width="216" height="92" rx="8"/><text class="s" x="779" y="696">저장 문</text><text class="l" x="779" y="716">proposal · 자리 · 지문 · 꼴</text><text class="l" x="779" y="734">넘음 → 기록 · 항목 · git</text><text class="l" x="779" y="752">어긋남 → E_APPROVE</text>
 <path class="ln ret" d="M875 826 H384" marker-end="url(#ah-claude)"/><text class="l" x="392" y="819">{ saved, docs: ["배포절차"], put: 1, proposals: [{ coord, ok: true, changed }] }</text>
 <path class="ln g" d="M380 866 H124" marker-end="url(#ah-claude)"/><text class="l" x="132" y="859">「DPMS 지식 › 배포절차 › 카나리 에 넣었다」</text>
 </svg>
 </div>
-<p class="small muted">조각이 걸리면 답의 <code>proposals[]</code> 에 그 조각의 <code>why</code> · <code>code</code> · <code>near</code>(find 와 가장 가까운 줄)가 오고, 세션은 고쳐 다시 save 하면서 <code>record.fixes</code> 에 앞 기록 id 를 단다. 지문이 어긋나면 <code>E_CONFLICT</code> 로 아무것도 쓰지 않았으니 section 으로 다시 읽는다. 스킬 판이 옛것이면 답에 <code>reinstall</code> 이 와서 「에이전트 설치의 한 줄을 이 폴더에서 다시 붙여 넣는다」 고 알린다.</p>
+<p class="small muted">승인 저장 지식: <code>save</code> 앞에 늘 <code>propose</code> 로 제안을 받아 그대로 보이고, 사람이 말로 고치면(「이건 빼고」 · 「값은 60」 · 「오후 작업만」) 입력을 고쳐 다시 propose 해 바뀐 줄만 보인다. 제안의 오류(본문 반영 · 꼴 · 지문 · <code>near</code>)는 보이기 전에 고친다. 승인한 <code>proposal</code> 과 지금 제안이 다르면 <code>E_APPROVE</code>(새 제안 · 아무것도 쓰지 않음), 지문이 어긋나면 <code>E_CONFLICT</code> 로 section 부터 다시 읽는다. 스킬 판이 옛것이면 <code>E_APPROVE</code> 에 <code>reinstall</code> 이 와서 「에이전트 설치의 한 줄을 이 폴더에서 다시 붙여 넣는다」 고 알린다. 승인 저장 전 지식은 조각이 걸리면 답의 <code>proposals[]</code> 에 <code>why</code> · <code>code</code> · <code>near</code> 가 오고, 세션은 고쳐 다시 save 하면서 <code>record.fixes</code> 에 앞 기록 id 를 단다.</p>
 
-<div class="m-flow"><div class="m-st"><b>조각</b><small>sections[{ coord, base, edits }]</small></div><span class="m-ar">›</span><div class="m-st m-hi"><b>checkProposal</b><small>지문 · 꼭 한 번 · checkSection</small></div><span class="m-ar">›</span><div class="m-st m-ok"><b>넣음</b><small>ok: true · changed</small></div><div class="m-st m-pd"><b>넣지 못함</b><small>ok: false · why · code · near</small></div><div class="m-st"><b>E_CONFLICT</b><small>stale · 다시 읽는다</small></div></div>
+<div class="m-flow"><div class="m-st"><b>propose</b><small>text · warnings · errors · proposal</small></div><span class="m-ar">›</span><div class="m-st m-hi"><b>대화 조절 · 승인</b><small>다시 propose · 바뀐 줄만</small></div><span class="m-ar">›</span><div class="m-st m-ok"><b>들어감</b><small>save(proposal) · 받아들인 경고</small></div><div class="m-st m-pd"><b>E_APPROVE</b><small>새 제안 · 다시 승인</small></div><div class="m-st"><b>E_CONFLICT</b><small>stale · 다시 읽는다</small></div></div>
 
 <h3>팀 · 개인: 같은 폴더에 연결 둘</h3>
 <div class="flowfig" role="figure" aria-label="팀 지식과 개인 지식을 작업 폴더에 붙이는 법 비교">
@@ -1583,7 +1611,7 @@ curl -s localhost:8090/healthz                 # build 가 새 판인지</code><
 <a class="m-card" href="manual/운영.html"><b>운영 · 불러오기</b><p>밤 묶음 · 불러오기 · 새 판 · 막힐 때</p></a>
 <a class="m-card" href="kmd_서비스_전체.md"><b>이 장의 글 판</b><p>kmd_서비스_전체.md</p></a>
 </div>
-<p class="m-foot">기준일 2026-11-09 · HEAD 24b4b72 · 188 빌드 0.1.0-20261109-0047. 남은 개선 거리는 <a href="../docs/품질개선/종합검토.md">종합검토</a> 「따로 할 것」 · 개편은 <a href="../docs/품질개선/KMD_개편_설계.md">KMD_개편_설계.md</a> · <a href="../docs/품질개선/KMD_개편_TODO.md">KMD_개편_TODO.md</a> · 판마다 바뀐 것은 <a href="../CHANGELOG.md">CHANGELOG</a>.</p>
+<p class="m-foot">기준일 2026-11-11 · HEAD b914b17 · 188 빌드 0.1.0-20261109-0047(저장 승인 판은 P9 에서 배포). 남은 개선 거리는 <a href="../docs/품질개선/종합검토.md">종합검토</a> 「따로 할 것」 · 개편은 <a href="../docs/품질개선/KMD_개편_설계.md">KMD_개편_설계.md</a> · <a href="../docs/품질개선/KMD_개편_TODO.md">KMD_개편_TODO.md</a> · 판마다 바뀐 것은 <a href="../CHANGELOG.md">CHANGELOG</a>.</p>
 </article>
 
 </div>
@@ -1682,11 +1710,11 @@ a3: { g: '4 그 뒤', t: '되돌리기', what: '기록 하나가 넣은 항목�
   rules: ['누가: 그 기록을 쓴 사람 · 지식관리자.', '모든 항목이 되돌려지면 그 기록 상태는 되돌림.', '7일 안에 두 번 되돌린 문서는 값을 바꾸는 조각만 넣지 못함(reverts).'],
   src: 'core/revert.js · server/hub.js revertsOfDoc', std: '권한 모델 4절' },
 a4: { g: '4 그 뒤', t: '이력 · 측정 줄', what: '저장마다 이력에 항목마다 「옛 값 → 새 값」 이 남고, 측정 줄에 한 줄을 덧붙인다(개편 뒤 2주 측정에 쓴다).',
-  rules: ['측정 줄 <code>&lt;data&gt;/savelog/&lt;지식&gt;.jsonl</code>: 채널 · 기록 · 넣음 · 넣지 못함 · 어긋난 항목 · 걸린 시간 · 5MB 넘으면 .1 로.', '커밋 뒤의 일이라 실패해도 log 만 남긴다.'],
+  rules: ['측정 줄 <code>&lt;data&gt;/savelog/&lt;지식&gt;.jsonl</code>: 채널 · 기록 · 넣음 · 넣지 못함 · 어긋난 항목 · 걸린 시간 · 승인 저장 지식은 받아들인 경고 · 무인 값 경고 · 규칙 길 · FIX 번 수 · 다시 제안 수 · 새로 세움 · 5MB 넘으면 .1 로. 지식 메뉴 점검 › 지표(<code>GET /api/k/:id/metrics</code> · <code>core/metrics.js</code>)가 같은 칸을 기간으로 센다.', '커밋 뒤의 일이라 실패해도 log 만 남긴다.'],
   src: 'server/hub.js savelog · core/feed.js', std: '개편 설계 S-D29' },
-a5: { g: '4 그 뒤', t: '개인 프로그램 · 바로 넣기', what: '개인 지식은 사람 하나의 것이라 조각 검사를 하지 않는다. 기록이 남는 즉시 <b>바로 넣기</b>가 문서 항목에 넣는다(내 Claude · 안 되면 규칙).',
-  rules: ['켤 때 쌓여 있던 기록도 바로 넣는다.', 'Claude 로그인이 끝나면 「바로 넣기(내 Claude)가 쉬고 있다」 · 그동안은 규칙으로 넣는다.', '팀에는 없다(팀은 저장 문이 그 순간 넣는다).'],
-  src: 'core/pcplace.js · server/hub.js curateSoon', std: '개편 설계 3-1' },
+a5: { g: '4 그 뒤', t: '개인 프로그램 · 들이기', what: '개인 지식도 승인 저장(새 판 · 이행을 마친 지식)부터 팀과 같은 저장 문을 지난다(PC1). 사람이 남기는 것은 저장 제안을 승인해(저장 확인 창 · kmd-save), 파일 넣기 · 자동수집은 <b>들이기</b>가 기록 + 문서를 한 커밋으로 넣는다(PC4 · 원본 첨부 · 걸리면 규칙 길).',
+  rules: ['「Claude 로 들이기」 를 껐거나 로그인이 끊겼거나 한 번에 20 파일을 넘으면 곧바로 규칙 길(멈춤 줄 「들이기(내 Claude)가 쉬고 있다」).', '이행 전 옛 개인 지식은 옛 길: 기록이 남는 즉시 바로 넣기(<code>core/pcplace.js</code>)가 넣는다(PC6 에서 걷음).', '새 판이 켤 때 옛 지식마다 이행이 한 번 돈다(지식백업 먼저 · 실패면 멈춤 줄 「이행 못함」 + [다시 하기]).'],
+  src: 'server/hub.js ingestNow · pcIntake · core/pcplace.js ruleSections · core/migrate.js', std: '저장 승인 설계 7-1(PC1 · PC4 · PC5)' },
 }
 
 ;(function () {

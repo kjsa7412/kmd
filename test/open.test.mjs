@@ -449,7 +449,7 @@ test('화면: PC 전용 안내 · 같은 탭의 새 번호 · 처음 들어오�
     assert.match(await page.locator('[data-t=onceErr]').innerText(), /지났거나 이미 썼다/)
     // 같은 탭에 새 번호(시작 메뉴 kmd 가 이미 열린 탭을 다시 쓸 때) — 새로 고침 없이 들어온다
     await page.evaluate((c) => { location.hash = 'once=' + c }, pc.auth.once(pc.pcUser))
-    await page.waitForSelector('[data-t=klist]')
+    await page.waitForSelector('[data-t=knEmptyAll]') // 지식이 없는 PC — 모든 지식의 빈 상태(N6 뒤 · 목록 줄 klist 는 지식이 있을 때만)
     assert.equal(await page.locator('[data-t=pcGate]').count(), 0)
     assert.equal(await page.locator('[data-t=manual]').getAttribute('href'), '/manual', '설명서 입구')
     // 팀 — 처음 들어오기를 마치면 머리 · 옆 메뉴가 들어온 사람이다 · 같은 링크를 다시 열면 「쓸 수 없다 — 들어와 있다」

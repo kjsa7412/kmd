@@ -14,6 +14,8 @@
 | 권한 · API · MCP | [docs/kmd_권한_모델.md](docs/kmd_권한_모델.md) |
 | 남은 개선 거리 | [docs/품질개선/종합검토.md](docs/품질개선/종합검토.md) 「따로 할 것」 |
 | 「저장이 곧 반영」 개편(정리 걷기 · 저장 문 · 들이기 · 넣지 못함) | [docs/품질개선/KMD_개편_설계.md](docs/품질개선/KMD_개편_설계.md)(정한 것 S-D · 단계 S1 ~ S13) · [KMD_개편_TODO.md](docs/품질개선/KMD_개편_TODO.md) — 기준 문서의 「(Sx 부터)」 줄은 그 단계 커밋에서 코드와 맞춘다 |
+| 저장 승인(제안 · 승인 · 규칙 길 · 지표 · 이행) | [docs/품질개선/KMD_저장승인_설계.md](docs/품질개선/KMD_저장승인_설계.md)(정한 것 P-D · 단계 P0 ~ P12 · PC1 ~ PC6) · [KMD_지식관리_TODO.md](docs/품질개선/KMD_지식관리_TODO.md) |
+| 문서 짜임(바탕 세우기 · 짜임 다시 잡기) | [docs/품질개선/KMD_바탕세우기_설계.md](docs/품질개선/KMD_바탕세우기_설계.md) · 세션 스킬 [.claude/skills/kmd-seed](.claude/skills/kmd-seed/SKILL.md) + `scripts/kmd-seed.mjs`(화면 기능이 아니다 · 넣기는 기초 세우기 화면) |
 | 다시 그리기(리빌드 · 기록으로 항목 다시 쓰기 · 진단) | 세션 스킬 [.claude/skills/kmd-migrate](.claude/skills/kmd-migrate/SKILL.md) + `scripts/kmd-migrate.mjs`(화면 기능으로 두지 않는다) · 안전 규칙의 근거는 [KMD_리빌드_설계.md](docs/품질개선/KMD_리빌드_설계.md)(기능 설계는 걷음) |
 | 서비스 전체 · 설명서(`/manual`) | [docs_ops/kmd_서비스_전체.md](docs_ops/kmd_서비스_전체.md) · [docs_ops/manual/](docs_ops/manual/) — 쓰는 법이 바뀌면 같이 고친다 |
 
