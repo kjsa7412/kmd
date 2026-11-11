@@ -1369,7 +1369,7 @@ function sdBarHtml(st, w) {
   }).join('')}</nav>`
 }
 const sdNeed = (t) => `<span class="need" data-t="sdNeed">먼저: ${esc(t)}</span>`
-const sdRunHtml = (d, what) => { const r = d.v && d.v.run; return `<div class="callout sx-cj" role="status" data-t="sdRun"><span class="loading u-f1">${what} · ${sdSecs(r && r.at)}초</span>${r && r.kind !== 'survey' ? '<button type="button" class="btn ghost sm" data-a="sdStopRun" data-t="sdStopRun">그만두기</button>' : ''}</div>` }
+const sdRunHtml = (d, what) => { const r = d.v && d.v.run; if (r && r.hold) what = `Claude 사용 한도 · ${hhmmOf(r.hold.next)} 에 다시 본다 · 풀리면 잇는다`; return `<div class="callout sx-cj${r && r.hold ? ' warn' : ''}" role="status" data-t="sdRun"${r && r.hold ? ' data-hold="1"' : ''}><span class="loading u-f1">${what} · ${sdSecs(r && r.at)}초</span>${r && r.kind !== 'survey' ? '<button type="button" class="btn ghost sm" data-a="sdStopRun" data-t="sdStopRun">그만두기</button>' : ''}</div>` }
 const sdRunFail = (d, kind) => { const r = d.v && d.v.run; return r && r.kind === kind && r.state === 'fail' ? `<div class="callout danger" role="alert" data-t="sdRunFail"><i></i><span>${esc(r.why || '하지 못했다')}</span></div>` : '' }
 // a 지식 — 지식관리자인 지식 · 빈 지식만 고른다(문서가 있으면 「문서 n」 · 고를 수 없음)
 function sdKnHtml(d) {

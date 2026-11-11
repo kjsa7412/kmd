@@ -173,14 +173,23 @@ test('Claude 안 — 조사(옛 판 · 비밀 의심 보류) → 거르기 → �
     // 짓기 — 처음 3 문서 승인 전에는 모두 짓기 안 됨 · 하나 짓고 승인
     assert.equal(await code(s.hub.seedWrite(s.ctx, id, { all: true })), 'E_INPUT')
     assert.equal(await code(s.hub.seedTry(s.ctx, id)), 'E_INPUT', '글이 없으면 해 보지 않는다')
+    const limFile = path.join(s.tmp, 'limit-once')
+    fs.writeFileSync(limFile, '1')
+    process.env.FAKE_CLAUDE_LIMIT_FILE = limFile
+    process.env.KMD_LIMIT_POLL_MS = '300'
     await s.hub.seedWrite(s.ctx, id, { doc: '업무 안내' })
     v = await settle(s.hub, s.ctx, id)
+    delete process.env.FAKE_CLAUDE_LIMIT_FILE
+    delete process.env.KMD_LIMIT_POLL_MS
+    assert.ok(!fs.existsSync(limFile), '한도에 한 번 걸렸다')
     const d0 = v.work.docs[0]
     assert.equal(d0.state, 'ok', JSON.stringify(d0))
-    // 짓기도 세션(Z9) — 재료 글은 프롬프트에 없고 세션 폴더 md/ 에서 읽는다
+    // 짓기도 세션(Z9) — 재료 글은 프롬프트에 없고 세션 폴더 md/ 에서 읽는다 · 한 번 한도에 걸려도 풀리면 잇는다(앞 짓기에서)
     const fw = await s.hub.seedFeed(s.ctx, id)
     assert.match(fw.title, /^글 짓기/)
     assert.ok(fw.rows.some((r) => r.k === 'start'), '짓기 세션')
+    assert.ok(fw.rows.some((r) => r.k === 'kmd' && /사용 한도/.test(r.text)), '한도 기다림이 동작 내역에')
+    assert.ok(fw.rows.some((r) => r.k === 'kmd' && /한도가 풀렸다/.test(r.text)), '풀려서 이었다')
     assert.ok(fw.rows.some((r) => r.k === 'kmd' && r.tone === 'ok' && /지었다/.test(r.text)), JSON.stringify(fw.rows.slice(-3)))
     assert.ok(!fw.rows.find((r) => r.k === 'me').text.includes('09:00'), '재료 글을 프롬프트에 싣지 않는다')
     assert.ok(d0.chars > 0)

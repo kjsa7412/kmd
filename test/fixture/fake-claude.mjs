@@ -48,6 +48,8 @@ function session() {
     if (!ok) return say({ is_error: true, subtype: 'error', result: '가짜 claude 세션: 읽기 도구 셋 · 빈 MCP · 스키마 · 세션 폴더를 지키지 않았다' })
     if (process.env.FAKE_CLAUDE_MODE === 'logout') return say({ is_error: true, subtype: 'error', result: 'Invalid API key · Please run /login' })
     if (process.env.FAKE_CLAUDE_MODE === 'hang') return
+    const lim = process.env.FAKE_CLAUDE_LIMIT_FILE
+    if (lim && fs.existsSync(lim)) { fs.rmSync(lim); return say({ is_error: true, subtype: 'error', result: 'Claude usage limit reached · resets 3pm' }) }
     const fixing = text.startsWith('지난 초안이 kmd 검사에 걸렸다')
     if (!fixing) kind = text.startsWith('바탕 세우기 뼈대를') ? 'frame' : text.startsWith('바탕 세우기 구조안의 한 묶음') ? 'batch' : text.startsWith('바탕 세우기 항목 글을') ? 'write' : 'other'
     if (!fixing) m.first = text
@@ -103,6 +105,7 @@ function answer() {
   const ok = args.includes('-p') && args.includes('--tools') && val('--tools') === '' && args.includes('--strict-mcp-config') && JSON.parse(val('--mcp-config') || '{}').mcpServers && val('--json-schema') && fs.readdirSync(process.cwd()).length === 0
   if (!ok) return say({ is_error: true, subtype: 'error', result: '가짜 claude: 도구 0 · 빈 MCP · 스키마 · 빈 폴더를 지키지 않았다' })
   if (process.env.FAKE_CLAUDE_MODE === 'logout') return say({ is_error: true, subtype: 'error', result: 'Invalid API key · Please run /login' })
+  if (prompt.startsWith('이 물음에는 {"ok": true}')) return say({ structured_output: { ok: true } }) // checkClaude
   // 바탕 세우기 구조안(Z7 · core/shape.js seedPlanPromptOf) — 넣음 재료마다 항목 하나(머리 = 파일 이름) · 문서 「업무 안내」 하나 · 첫 재료에 장부 항목 하나
   //   FAKE_CLAUDE_MODE=badseed → 처음 답은 재료 하나를 빠뜨린다(덮임 걸림 → 고쳐 쓰기)
   if (prompt.startsWith('바탕 세우기 구조안을 짓는다')) {
