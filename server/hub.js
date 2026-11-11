@@ -28,7 +28,7 @@ import { valuesOf, mustValues } from '../core/values.js'
 import { splitBlocks, hasBlockMarker } from '../core/baseline.js'
 import { validEdits, judgeEdits } from '../core/edits.js'
 import { targetsOf, ruleFix, fixRecordOf, fixDraftToSections, FIX_VALUE_MAX } from '../core/fix.js'
-import { runClaude, claudeSession } from '../core/claude.js'
+import { runClaude, claudeSession, checkClaude } from '../core/claude.js'
 import * as feed from '../core/feed.js'
 import { inside as insideDir, checkTarget, readSource, probe, readDecl, editDecl, DECL_BROKEN, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit } from '../core/sources.js'
 import { check } from '../core/check.js'
@@ -797,6 +797,56 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     f.rows.push(row)
     if (f.rows.length > FEED_MAX) f.rows.splice(0, f.rows.length - FEED_MAX)
   }
+  // Claude 사용 한도(Z9) — 실패로 끝내지 않고 풀릴 때까지 기다린다: LIMIT_POLL 마다 아주 작은 부르기(checkClaude)로 보고 풀리면 true ·
+  //   그만두면 · LIMIT_MAX 를 넘으면 · 한도가 아닌 까닭이면 false. 기다리는 동안 run.hold(화면 「한도 · 풀리면 잇는다」) · 동작 내역에 다시 볼 때
+  const LIMIT_POLL = () => (Number(process.env.KMD_LIMIT_POLL_MS) > 0 ? Number(process.env.KMD_LIMIT_POLL_MS) : 10 * 60_000)
+  const LIMIT_MAX = () => (Number(process.env.KMD_LIMIT_MAX_MS) > 0 ? Number(process.env.KMD_LIMIT_MAX_MS) : 12 * 3600_000)
+  async function limitWait(id, run, tag, r) {
+    const t0 = Date.now()
+    await hub.workerStatus({ worker: { id: null } }, { ok: false, reason: 'limit', message: r?.message }).catch((e) => log('Claude 상태', e.message))
+    try {
+      for (;;) {
+        const next = Date.now() + LIMIT_POLL()
+        run.hold = { why: 'Claude 사용 한도', next: new Date(next).toISOString(), since: new Date(t0).toISOString() }
+        feedPush(id, { k: 'kmd', text: `Claude 사용 한도 · ${String(new Date(next).getHours()).padStart(2, '0')}:${String(new Date(next).getMinutes()).padStart(2, '0')} 에 다시 본다(풀리면 이어서 한다)`, tone: 'warn' }, tag)
+        while (Date.now() < next) {
+          if (run.state !== 'running') return false
+          await new Promise((ok) => setTimeout(ok, Math.min(2000, LIMIT_POLL())))
+        }
+        if (run.state !== 'running') return false
+        if (Date.now() - t0 > LIMIT_MAX()) { feedPush(id, { k: 'kmd', text: `한도가 ${Math.round(LIMIT_MAX() / 3600_000)}시간 넘게 풀리지 않았다`, tone: 'bad' }, tag); return false }
+        const c = await checkClaude().catch((e) => ({ ok: false, reason: 'fail', message: e.message }))
+        if (c.ok) {
+          feedPush(id, { k: 'kmd', text: '한도가 풀렸다 · 이어서 한다', tone: 'ok' }, tag)
+          await hub.workerStatus({ worker: { id: null } }, { ok: true }).catch((e) => log('Claude 상태', e.message))
+          return true
+        }
+        if (c.reason !== 'limit') { feedPush(id, { k: 'kmd', text: `Claude 를 다시 부르지 못했다: ${c.message || c.reason}`, tone: 'bad' }, tag); return false }
+      }
+    } finally { run.hold = null }
+  }
+  // 한도에 걸려도 이어 가는 세션 — 한도면 세션을 닫고 풀릴 때까지 기다렸다가 새 세션에 처음 말부터 다시 보낸다(그 세션의 문맥은 잃는다 · 결과 꼴은 같다)
+  function steadySession(id, run, make, tag) {
+    let s = null
+    let first = null
+    return {
+      async ask(msg) {
+        if (first == null) first = msg
+        for (;;) {
+          if (!s) s = await make()
+          const r = await s.ask(msg)
+          if (r.error !== 'limit' || run.state !== 'running') return r
+          const dead = s
+          s = null
+          await dead.end().catch((e) => log('기초 세우기 세션 닫기', id, e.message))
+          if (!(await limitWait(id, run, tag, r))) return run.state === 'running' ? r : { error: 'fail', message: '그만뒀다' }
+          msg = first
+        }
+      },
+      end() { return s ? s.end() : Promise.resolve() },
+      kill(why) { if (s) s.kill(why) },
+    }
+  }
   const SEED_SESSION_BUDGET = () => (Number(process.env.KMD_SEED_BUDGET) > 0 ? Number(process.env.KMD_SEED_BUDGET) : 5)
   // 세션 폴더 — 재료.tsv · md/<16자>.md(쓰는 재료의 사본) · cards/<16자>.json(카드가 있으면). 꾸러미 · 장부 · 지식 폴더는 넣지 않는다
   async function seedSessionDir(pack, g, cards, f) {
@@ -838,7 +888,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     const open = async (mats, schema, tag) => {
       const sd = await seedSessionDir(pack, { mats }, cards, f)
       dirs.push(sd.dir)
-      const s = claudeSession({ cwd: sd.dir, schema, budget: SEED_SESSION_BUDGET(), model: hub.modelOf('ingest'), effort: 'low', onEvent: (e) => feedPush(id, e, tag) })
+      const s = steadySession(id, run, async () => claudeSession({ cwd: sd.dir, schema, budget: SEED_SESSION_BUDGET(), model: hub.modelOf('ingest'), effort: 'low', onEvent: (e) => feedPush(id, e, tag) }), tag)
       sessions.add(s)
       return { s, sd }
     }
@@ -962,7 +1012,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         await fs.writeFile(path.join(dir, 'md', `${x.slice(2)}.md`), body)
         files.push({ file: `${x.slice(2)}.md`, path: pathOf.get(x) || x, chars: body.length })
       }
-      s = claudeSession({ cwd: dir, schema: SHAPE_WRITE_SCHEMA, budget: SEED_SESSION_BUDGET(), model: hub.modelOf('ingest'), effort: 'low', onEvent: (e) => feedPush(id, e, tag) })
+      s = steadySession(id, run, async () => claudeSession({ cwd: dir, schema: SHAPE_WRITE_SCHEMA, budget: SEED_SESSION_BUDGET(), model: hub.modelOf('ingest'), effort: 'low', onEvent: (e) => feedPush(id, e, tag) }), tag)
       run.sessions?.add(s)
       feedPush(id, { k: 'kmd', text: `글 짓기: ${doc} · 항목 ${g.targets.length} · 재료 ${files.length}` }, tag)
       let msg = seedWriteSessionPromptOf(g, files, { writeRules: WRITE_RULES })
@@ -3694,7 +3744,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const k = await hub.get(id, ctx)
       const own = k.docs.filter((d) => d.id !== RECORDS_DOC).length
       const r0 = mode === 'team' ? null : seedRuns.get(id)
-      let run = r0 ? { kind: r0.kind, state: r0.state, i: r0.i, n: r0.n, by: r0.by, at: r0.at, ...(r0.doc ? { doc: r0.doc } : {}), ...(r0.why ? { why: r0.why } : {}), ...(r0.big ? { big: r0.big } : {}), ...(r0.tries ? { tries: r0.tries } : {}) } : null
+      let run = r0 ? { kind: r0.kind, state: r0.state, i: r0.i, n: r0.n, by: r0.by, at: r0.at, ...(r0.doc ? { doc: r0.doc } : {}), ...(r0.why ? { why: r0.why } : {}), ...(r0.big ? { big: r0.big } : {}), ...(r0.tries ? { tries: r0.tries } : {}), ...(r0.hold ? { hold: r0.hold } : {}) } : null
       const w = await hub.shapeWork(id)
       let work = null
       if (w?.broken) work = { broken: true }
