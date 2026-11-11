@@ -533,6 +533,7 @@ const TIPS = {
   'sd.worker': ['열 분 안에 일감을 물은 팀 일꾼이 없거나 옛 판이다. 폴더 그대로 · 손으로 짜거나 설정 › 팀 일꾼', ''],
   'sd.idle': ['24시간 걸음이 없던 기초 세우기. 지은 것은 그대로다 · 다른 지식관리자가 새로 열 수 있다', ''],
   'sd.pick': ['넣음: 글로 쓴다 · 근거만: 값을 견줄 때만 · 빼기: 쓰지 않는다 · 보류: 이번에는 둔다. 옛 판 · 같은 글은 빼기, 비밀 의심 · 스캔은 보류가 처음 값', ''],
+  'sd.feed': ['Claude 가 지금 하는 일: 읽는 재료 · 생각 · 답 · kmd 의 검사. 이 PC 의 메모리에만 있다(다시 켜면 사라진다)', ''],
   'sd.plan': ['어떤 문서 · 항목을 세울지. 문서 이름은 여기서 고친다 · 걸림이 0 이어야 다음으로', ''],
   'sd.mode': ['Claude 안: 파일을 대상 · 주제로 다시 묶는다 · 폴더 그대로: 파일 하나가 문서 하나(Claude 를 부르지 않는다)', ''],
   'sd.write': ['문서마다 항목 글. 재료에 없는 값은 알려 준다 · [보기] 에서 손으로 고친다', ''],
@@ -1334,6 +1335,7 @@ async function sdLoad(k, quiet) {
     const v = await getJSON(sdUrl(k))
     if (d.kn !== k) return render()
     d.v = v; d.err = null
+    await sdFeedLoad(k)
   } catch (e) { if (d.kn === k) d.err = e.message } finally { d.loading = false }
   sdTick()
   render()
@@ -1503,6 +1505,47 @@ function sdFootHtml(d, st, w) {
   if (!main && !more) return ''
   return `<div class="sx-bar" data-t="sdBar" role="region" aria-label="기초 세우기"><div class="sx-bh"><span class="l">${need ? sdNeed(need) : ''}${d.actErr ? `<span class="need" role="alert" data-t="sdActErr">${esc(d.actErr.message || String(d.actErr))}</span>` : ''}</span><span class="r">${more}${back ? `<button type="button" class="btn" data-a="${back}" data-t="sdBackBtn"${b || run ? ' disabled' : ''}>이전</button>` : ''}${main}</span></div></div>`
 }
+// 동작 내역(Z9 · 바탕 설계 5-3) — 오른쪽 칸 · 개인 프로그램 · 기초 세우기 일의 Claude 흐름(세션 · 짓기)을 터미널(.term · 컨벤션 7절)로.
+//   GET seed/feed?after=&sid= 로 이어 읽는다(sdLoad 와 같이 · 도는 동안 1.2초마다) · sid 가 바뀌면 처음부터 · 줄 400
+async function sdFeedLoad(k) {
+  const d = sdState()
+  if (isTeam() || !k || !sdWork(d)) return
+  const f = d.feed && d.feed.kn === k ? d.feed : (d.feed = { kn: k, sid: null, seq: 0, rows: [], live: null, loaded: false })
+  try {
+    const r = await getJSON(`${sdUrl(k, 'feed')}?after=${f.seq}${f.sid ? `&sid=${f.sid}` : ''}`)
+    if (d.feed !== f) return
+    if (r.sid !== f.sid) { f.rows = []; f.sid = r.sid }
+    Object.assign(f, { rows: f.rows.concat(r.rows || []).slice(-400), seq: r.seq || 0, live: r.live || null, title: r.title || '', at: r.at || null, running: !!r.running, err: null, loaded: true })
+  } catch (e) { if (d.feed === f) Object.assign(f, { err: e.message, loaded: true }) }
+}
+const SDF_MARK = { start: '● ', me: '› ', think: '∴ ', tool: '▸ ', answer: '✓ ', result: '■ ' }
+function sdFeedLine(f, r) {
+  const ms = Math.max(0, Date.parse(r.at) - Date.parse(f.at || r.at))
+  const s = Math.floor(ms / 1000)
+  const tm = `<span class="tm">${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}</span>`
+  const cut = (t, n) => { const x = String(t || ''); return x.length > n ? x.slice(0, n) + ' …' : x }
+  let k = 'sys', x = ''
+  if (r.k === 'start') x = `세션 · ${r.text}`
+  else if (r.k === 'me') x = `kmd: ${cut(String(r.text).split('\n')[0], 160)}`
+  else if (r.k === 'think') x = cut(r.text, 400)
+  else if (r.k === 'say' || r.k === 'note') { k = 'say'; x = r.text }
+  else if (r.k === 'tool') { k = 'tool'; x = `${r.name} ${r.text}` }
+  else if (r.k === 'toolres') { k = r.err ? 'err' : 'sys'; x = `  ⎿ ${r.err ? cut(r.text, 200) : `${r.lines}줄`}` }
+  else if (r.k === 'answer') { k = 'ok'; x = r.text }
+  else if (r.k === 'result') { k = r.ok ? 'cost' : 'err'; x = `${r.text}${r.turns ? ` · ${r.turns}턴` : ''}${r.ms ? ` · ${Math.round(r.ms / 1000)}초` : ''}${r.cost ? ` · $${r.cost.toFixed(2)}` : ''}` }
+  else if (r.k === 'kmd') { k = r.tone === 'ok' ? 'ok' : r.tone === 'bad' ? 'err' : 'sys'; x = `${r.tone === 'ok' ? '✓ ' : r.tone === 'bad' ? '✗ ' : r.tone === 'warn' ? '! ' : '· '}${r.text}` }
+  return `<div class="${k}" data-t="sdfRow" data-k="${esc(r.k)}">${tm}${SDF_MARK[r.k] || ''}${esc(x)}</div>`
+}
+function sdFeedHtml(d) {
+  const f = d.feed
+  const state = !f || !f.sid ? '' : f.running ? chipOf('run', '도는 중') : chipOf('same', '끝')
+  const head = `<div class="term-h" data-t="sdFeedH"><b>동작 내역</b>${state}${f && f.title ? `<small>${esc(f.title)}</small>` : ''}${f && f.at ? `<small class="mono">${hhmmOf(f.at)}</small>` : ''}${tipb('sd.feed', '동작 내역')}</div>`
+  if (!f || !f.loaded) return `${head}<div class="term sdf" data-t="sdFeed"><span class="sys">불러오는 중…</span></div>`
+  if (f.err) return `${head}<div class="callout danger err" role="alert" data-t="sdFeedErr"><b>${esc(f.err)}</b><button type="button" class="btn sm retry" data-a="sdFeedRetry" data-t="retry">다시 읽기</button></div>`
+  if (!f.sid) return `${head}<div class="term sdf" data-t="sdFeed"><span class="sys">아직 줄이 없다 · Claude 안 · 짓기를 걸면 흐름이 여기에 보인다</span></div>`
+  const lv = f.live && f.running ? `<div class="${f.live.kind === 'think' ? 'sys' : f.live.kind === 'json' ? 'tool' : 'say'}" data-t="sdfLive">${f.live.kind === 'think' ? '∴ ' : f.live.kind === 'json' ? '▸ 답 쓰는 중 ' : ''}${esc(f.live.text.slice(-300))}▍</div>` : ''
+  return `${head}<div class="term sdf" data-t="sdFeed" role="log" aria-label="동작 내역">${f.rows.map((r) => sdFeedLine(f, r)).join('')}${lv}</div>`
+}
 function mgSeedHtml() {
   const head = (x) => `<div class="pg-h"><div class="pt"><div class="big">기초 세우기</div>${tipb('mg.seed', '기초 세우기')}</div>${x || ''}</div>`
   const d = sdState()
@@ -1572,7 +1615,8 @@ function viewHome() {
   const pg = mgPage(), p = pg.id
   const main = p === 'seed' ? mgSeedHtml() : p === 'people' ? mgPeopleHtml() : mgAllHtml()
   const kd = p === 'all' && S.route.mk && KN(S.route.mk) ? ' › ' + KN(S.route.mk).name : ''
-  return { crumb: pg.l + kd, main: `<div class="pg-grid">${main}</div>` }
+  const sd = p === 'seed' && !isTeam() && sdWork(sdState()) ? sdFeedHtml(sdState()) : null
+  return { crumb: pg.l + kd, main: `<div class="pg-grid">${main}</div>`, ...(sd ? { aside: sd } : {}) }
 }
 // 개인 화면의 지식 폴더 띠 — 경로 · [경로 복사] · [동기화] · [바꾸기] · [빼기](빼면 경로 칸이 늘 열린다)
 //   바꾸면 그 폴더에 .kmd 가 있으면 그대로 잇고 · 없거나 빈 폴더면 새로 세운다 · 개인 프로그램이 그 폴더로 다시 켜진다
@@ -6650,6 +6694,7 @@ const ACT = {
   seedGo: () => { S.seedKn = defaultKn() || null; go({ scr: 'home', kn: '*', page: 'seed' }) },
   sdOpenSeed: (el) => { S.seedKn = el.dataset.k; go({ scr: 'home', kn: '*', page: 'seed' }) },
   sdOpenRetry: () => { const d = sdState(); d.open = null; d.openErr = null; d.openWait = false; render() },
+  sdFeedRetry: () => { const d = sdState(); if (d.feed) d.feed.err = null; sdFeedLoad(d.kn).then(render) },
   sdReload: () => { const d = sdState(); d.err = null; d.v = null; render() },
   sdResume: (el) => { const d = sdState(); d.kn = el.dataset.k; d.v = null; d.err = null; d.pick0 = false; d.back = false; d.ui = 1; render() },
   sdGoStep: (el) => {

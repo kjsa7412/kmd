@@ -17,7 +17,8 @@ export const ENV_ALLOW = ['PATH', 'Path', 'PATHEXT', 'HOME', 'USERPROFILE', 'APP
 // model — 별칭(haiku · sonnet · opus) · 비면 그 PC 의 기본 모델(core/models.js)
 // onTick({ out, think, ms }) — 흘려 받기(stream-json): 쓴 글(답 · 스키마 답) · 생각 글자 수와 지난 시간을 tickMs 마다 한 번(끝날 때만 답하던 json 은 몇 분씩 소식이 없었다)
 // effort — 생각 정도(low · medium · high · max · 비면 넘기지 않는다)
-export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_000, model = '', onTick = null, tickMs = 10_000, effort = '' }) {
+// onEvent(e) — 흐름 줄마다 풀어 준 것(streamEvents · 동작 내역)
+export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_000, model = '', onTick = null, tickMs = 10_000, effort = '', onEvent = null }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-worker-'))
   const env = Object.fromEntries(ENV_ALLOW.filter((k) => process.env[k] != null).map((k) => [k, process.env[k]]))
   const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--tools', '', '--strict-mcp-config', '--mcp-config', JSON.stringify({ mcpServers: {} }), '--no-session-persistence', '--max-budget-usd', String(budget), '--json-schema', JSON.stringify(schema), ...modelArgs(model)]
@@ -41,6 +42,7 @@ export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_
         if (!l.trim().startsWith('{')) return
         let j
         try { j = JSON.parse(l) } catch { return }
+        if (onEvent) for (const e of streamEvents(j)) { try { onEvent(e) } catch {} }
         if (j.type === 'result') { so = l; return }
         const d = j.type === 'stream_event' ? j.event?.delta : null
         if (d?.type === 'thinking_delta') n.think += String(d.thinking || '').length
@@ -70,6 +72,126 @@ export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_
     return r
   } finally {
     try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {} // Windows 의 EBUSY — 남겨도 답은 버리지 않는다
+  }
+}
+
+// 흐름 줄(stream-json) 하나 → 동작 내역 줄 0 ~ n. 모양:
+//   start { model, tools } · open { kind } · delta { kind: think | say | json, text } · think { text } · say { text } ·
+//   tool { name, input } · toolres { text, err } · note { text } · result { ok, cost, ms, turns, why? }
+export function streamEvents(j) {
+  if (!j || typeof j !== 'object') return []
+  if (j.type === 'system' && j.subtype === 'init') return [{ k: 'start', model: j.model || '', tools: Array.isArray(j.tools) ? j.tools : [] }]
+  if (j.type === 'stream_event') {
+    const ev = j.event || {}
+    if (ev.type === 'content_block_start') { const b = ev.content_block || {}; return [{ k: 'open', kind: b.type === 'thinking' ? 'think' : b.type === 'tool_use' ? 'json' : 'say', name: b.name || '' }] }
+    if (ev.type === 'content_block_delta') {
+      const d = ev.delta || {}
+      if (d.type === 'thinking_delta') return [{ k: 'delta', kind: 'think', text: String(d.thinking || '') }]
+      if (d.type === 'text_delta') return [{ k: 'delta', kind: 'say', text: String(d.text || '') }]
+      if (d.type === 'input_json_delta') return [{ k: 'delta', kind: 'json', text: String(d.partial_json || '') }]
+    }
+    return []
+  }
+  const content = Array.isArray(j.message?.content) ? j.message.content : []
+  if (j.type === 'assistant') {
+    return content.flatMap((c) => c.type === 'thinking' ? (c.thinking ? [{ k: 'think', text: String(c.thinking) }] : [])
+      : c.type === 'text' ? (String(c.text || '').trim() ? [{ k: 'say', text: String(c.text) }] : [])
+      : c.type === 'tool_use' ? [{ k: 'tool', name: String(c.name || ''), input: c.input && typeof c.input === 'object' ? c.input : {} }] : [])
+  }
+  if (j.type === 'user') {
+    const flat = (x) => (typeof x === 'string' ? x : Array.isArray(x) ? x.map((y) => (y && y.type === 'text' ? y.text : '')).join('\n') : '')
+    return content.flatMap((c) => c.type === 'tool_result' ? [{ k: 'toolres', text: flat(c.content), err: !!c.is_error }] : c.type === 'text' && c.text ? [{ k: 'note', text: String(c.text) }] : [])
+  }
+  if (j.type === 'result') {
+    const bad = !!j.is_error || (!!j.subtype && j.subtype !== 'success')
+    return [{ k: 'result', ok: !bad, cost: j.total_cost_usd || 0, ms: j.duration_ms || 0, turns: j.num_turns || 0, ...(bad ? { why: String(j.subtype && j.subtype !== 'success' ? j.subtype : j.result || '').slice(0, 200) } : {}) }]
+  }
+  return []
+}
+
+// claude 세션 하나(바탕 세우기 Z9) — 띄워 둔 `claude -p --input-format stream-json` 에 말을 이어 보낸다(같은 세션에서 고쳐 받기).
+//   cwd 는 부르는 쪽이 만든 세션 폴더(재료 사본만) · 도구는 tools(읽기만) · 빈 MCP · 세션 남기지 않음 · 스키마 · 예산 상한 · 환경변수 허용 목록.
+//   ask(글) → 그 턴의 답 { value } | { error, message }(parse 와 같은 꼴) · end() 입력을 닫고 끝을 기다린다 · kill(까닭) 끊는다.
+//   소식 없음 idleMs(흐름 줄이 하나도 오지 않음) · 전체 maxMs 면 끊는다 · onEvent 는 streamEvents 줄 + me { text }(보낸 말)
+export function claudeSession({ cwd, schema, tools = ['Read', 'Glob', 'Grep'], budget = 5, model = '', effort = '', onEvent = null, idleMs = 300_000, maxMs = 2_400_000 }) {
+  const env = Object.fromEntries(ENV_ALLOW.filter((k) => process.env[k] != null).map((k) => [k, process.env[k]]))
+  const tl = tools.join(',')
+  const args = ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--tools', tl, '--allowedTools', tl, '--strict-mcp-config', '--mcp-config', JSON.stringify({ mcpServers: {} }), '--no-session-persistence', '--max-budget-usd', String(budget), '--json-schema', JSON.stringify(schema), ...modelArgs(model)]
+  if (/^(low|medium|high|max)$/.test(effort)) args.push('--effort', effort)
+  if (process.env.ANTHROPIC_API_KEY) args.push('--bare')
+  const fake = process.env.KMD_CLAUDE
+  const win = process.platform === 'win32'
+  const [cmd, argv, opt] = fake ? [process.execPath, [fake, ...args], {}] : [win ? 'claude.cmd' : 'claude', args, win ? { shell: true } : {}]
+  const quoted = opt.shell ? argv.map((a) => (a === '' ? '""' : /[\s"{}]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a)) : argv
+  const emit = (e) => { if (onEvent) { try { onEvent(e) } catch {} } }
+  let p = null
+  let wait = null // 지금 턴의 { ok }
+  let ended = null // 끝난 까닭(끊음 · 닫힘)
+  let se = ''
+  let buf = ''
+  let idle = null
+  let all = null
+  let closed = Promise.resolve()
+  const t0 = Date.now()
+  const finish = (r) => { const w = wait; wait = null; if (w) w.ok(r) }
+  const stop = (why) => { if (ended) return; ended = why; try { p.kill() } catch {} }
+  const poke = () => { clearTimeout(idle); idle = setTimeout(() => stop(`소식이 ${Math.round(idleMs / 60_000)}분 없다: 끊었다`), idleMs) }
+  const line = (l) => {
+    if (!l.trim().startsWith('{')) return
+    let j
+    try { j = JSON.parse(l) } catch { return }
+    for (const e of streamEvents(j)) emit(e)
+    if (j.type === 'result') finish(parse({ code: 0, so: l, se: '' }))
+  }
+  const start = () => {
+    p = spawn(cmd, quoted, { cwd, env, windowsHide: true, ...opt })
+    all = setTimeout(() => stop(`${Math.round(maxMs / 60_000)}분이 넘었다: 끊었다`), maxMs)
+    poke()
+    p.stdout.on('data', (c) => {
+      poke()
+      buf += c
+      const ls = buf.split('\n')
+      buf = ls.pop()
+      for (const l of ls) line(l)
+    })
+    p.stderr.on('data', (c) => { se += c; if (se.length > 8000) se = se.slice(-8000) })
+    p.stdin.on('error', () => {}) // 먼저 닫힌 세션에 쓰기(EPIPE) — 닫힘에서 까닭을 낸다
+    closed = new Promise((ok) => {
+      p.on('error', (e) => { se += String(e.message); clearTimeout(idle); clearTimeout(all); ended ||= 'error'; finish(parse({ code: -1, so: '', se })); ok() })
+      p.on('close', (code) => {
+        clearTimeout(idle)
+        clearTimeout(all)
+        if (buf) line(buf)
+        if (wait) finish(ended && ended !== 'end' && ended !== 'error' ? { error: 'fail', message: ended } : parse({ code: code || 1, so: '', se: se || `닫혔다(종료 ${code})` }))
+        ended ||= 'closed'
+        ok()
+      })
+    })
+  }
+  return {
+    get ms() { return Date.now() - t0 },
+    ask(text) {
+      if (ended) return Promise.resolve({ error: 'fail', message: ended })
+      if (!p) start()
+      emit({ k: 'me', text })
+      return new Promise((ok) => {
+        wait = { ok }
+        p.stdin.write(JSON.stringify({ type: 'user', message: { role: 'user', content: text } }) + '\n')
+      })
+    },
+    async end() {
+      if (!p) return
+      ended ||= 'end'
+      try { p.stdin.end() } catch {}
+      const t = setTimeout(() => { try { p.kill() } catch {} }, 10_000)
+      await closed
+      clearTimeout(t)
+    },
+    kill(why = '그만뒀다') {
+      if (!p) { ended ||= why; return }
+      stop(why)
+      finish({ error: 'fail', message: why })
+    },
   }
 }
 

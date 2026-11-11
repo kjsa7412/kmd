@@ -28,7 +28,7 @@ import { valuesOf, mustValues } from '../core/values.js'
 import { splitBlocks, hasBlockMarker } from '../core/baseline.js'
 import { validEdits, judgeEdits } from '../core/edits.js'
 import { targetsOf, ruleFix, fixRecordOf, fixDraftToSections, FIX_VALUE_MAX } from '../core/fix.js'
-import { runClaude } from '../core/claude.js'
+import { runClaude, claudeSession } from '../core/claude.js'
 import * as feed from '../core/feed.js'
 import { inside as insideDir, checkTarget, readSource, probe, readDecl, editDecl, DECL_BROKEN, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit } from '../core/sources.js'
 import { check } from '../core/check.js'
@@ -48,7 +48,7 @@ import { renderRecord } from '../core/frontmatter.js'
 import { stampAll, headingMatches, findHeading } from '../core/sections.js'
 import { docfmtDir, checkFormat } from '../core/docformat.js'
 import { applyRestructure, readStructure, structureFp, stepFp } from '../core/restructure.js'
-import { readShape, cleanPlan, planCheck, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO, SHAPE_CLAUDE_TYPES, SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, planMaterial, writeMaterial, planOfDraft, writeOfDraft, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SEED_PLAN_SCHEMA, seedPlanMaterial, seedPlanPromptOf, seedPlanFixPromptOf, seedPlanOfDraft, seedNormalize, seedCover, folderPlan, seedWriteMaterial, pickOf } from '../core/shape.js'
+import { readShape, cleanPlan, planCheck, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO, SHAPE_CLAUDE_TYPES, SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, planMaterial, writeMaterial, planOfDraft, writeOfDraft, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SEED_PLAN_SCHEMA, seedPlanMaterial, seedSessionPromptOf, seedSessionFixOf, seedSessionTsv, seedPlanOfDraft, seedNormalize, seedCover, folderPlan, seedWriteMaterial, pickOf } from '../core/shape.js'
 import { parseOrder } from '../core/order.js'
 import { parseDoc as parseDocText } from '../core/sections.js'
 import { parseForms } from '../core/guard.js'
@@ -746,39 +746,131 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     if (r.error === 'login' || r.error === 'limit') await hub.workerStatus({ worker: { id: null } }, { ok: false, reason: r.error, message: r.message }).catch((e) => log('Claude 상태', e.message))
     return r.error === 'login' ? 'Claude 로그인이 없다. 머리의 「Claude」 에서 로그인' : r.error === 'limit' ? 'Claude 사용 한도' : `Claude 가 답하지 않았다${r.message ? ': ' + String(r.message).slice(0, 120) : ''}`
   }
-  // 구조안 — claude -p → seedPlanOfDraft → 검사(planCheck · 재료 덮임) 걸리면 고쳐 쓰게(INTAKE_FIX 번) → 마지막이면 걸린 채 장부에(사람이 고친다)
-  async function pcSeedPlan(ctx, id, run, { rows, picks, cards, note }) {
-    const g = seedPlanMaterial(rows, { picks, cards, note })
-    let prev = null
-    let fixWhy = null
-    for (let n = 0; n <= INTAKE_FIX; n++) {
-      const prompt = prev ? seedPlanFixPromptOf(g, prev, fixWhy) : seedPlanPromptOf(g)
-      const r = await runClaude({ prompt, schema: SEED_PLAN_SCHEMA, budget: SEED_BUDGET(), model: hub.modelOf('ingest'), timeoutMs: 600_000 })
-      run.tries = n + 1
+  // ── 동작 내역(Z9 · 바탕 설계 5-3) — 지식마다 기초 세우기의 Claude 흐름(구조안 세션 · 짓기). 이 PC 의 메모리(줄 FEED_MAX · 다시 켜면 사라짐).
+  //   sid 는 일마다 새로(화면이 sid 가 바뀌면 처음부터 읽는다) · live 는 쓰는 중인 글(끝 2000자) · names 는 세션 폴더 md/<16자>.md → 원본 경로
+  const feeds = new Map()
+  const FEED_MAX = 400
+  const clip = (t, n) => { const s = String(t ?? ''); return s.length > n ? s.slice(0, n) + ' …' : s }
+  function feedNew(id, title) {
+    const f = { sid: crypto.randomBytes(4).toString('hex'), seq: 0, rows: [], live: null, names: new Map(), dirs: [], title, at: new Date().toISOString() }
+    feeds.set(id, f)
+    return f
+  }
+  const feedOf = (id) => feeds.get(id) || feedNew(id, '')
+  function feedPath(f, p) {
+    let s = String(p ?? '')
+    for (const d of f.dirs) if (d) s = s.split(d).join('').split(d.replace(/\\/g, '/')).join('')
+    s = s.replace(/(^|[\s"'(])[\\/]+(?=md[\\/]|cards[\\/]|재료\.tsv)/g, '$1')
+    s = s.replace(/[A-Za-z]:[\\/][^\s"'<>]*?[\\/]\.claude[\\/]projects[\\/][^\s"'<>]*/g, '(큰 결과 파일)') // claude 가 큰 도구 결과를 따로 둔 곳
+    return s.replace(/md[\\/]([0-9a-f]{16})\.md/g, (m, h) => (f.names.has(h) ? `「${f.names.get(h)}」` : m))
+  }
+  function feedTool(f, e) {
+    const x = e.input || {}
+    const at = (v) => feedPath(f, v)
+    if (e.name === 'StructuredOutput') return { k: 'answer', text: `답 JSON ${JSON.stringify(x).length.toLocaleString()} 자${Array.isArray(x.docs) ? ` · 문서 ${x.docs.length} · 항목 ${x.docs.reduce((a, d) => a + (Array.isArray(d.items) ? d.items.length : 0), 0)}` : ''}` }
+    if (e.name === 'Read') return { k: 'tool', name: 'Read', text: `${at(x.file_path)}${x.offset ? ` · ${x.offset}줄부터` : ''}${x.limit ? ` · ${x.limit}줄` : ''}` }
+    if (e.name === 'Grep') return { k: 'tool', name: 'Grep', text: `${x.pattern || ''}${x.path ? ` · ${at(x.path)}` : ''}${x.glob ? ` · ${x.glob}` : ''}${x.output_mode ? ` · ${x.output_mode}` : ''}` }
+    if (e.name === 'Glob') return { k: 'tool', name: 'Glob', text: `${x.pattern || ''}${x.path ? ` · ${at(x.path)}` : ''}` }
+    return { k: 'tool', name: clip(e.name, 40), text: clip(JSON.stringify(x), 200) }
+  }
+  function feedPush(id, e) {
+    const f = feedOf(id)
+    if (e.k === 'open') { f.live = { kind: e.kind, text: '', name: e.name || '' }; return }
+    if (e.k === 'delta') {
+      if (!f.live || f.live.kind !== e.kind) f.live = { kind: e.kind, text: '', name: '' }
+      f.live.text = (f.live.text + e.text).slice(-2000)
+      return
+    }
+    let row
+    if (e.k === 'start') row = { k: 'start', text: `${e.model || 'claude'} · 도구 ${(e.tools || []).filter((t) => t !== 'StructuredOutput').join(' · ') || '없음'}` }
+    else if (e.k === 'think' || e.k === 'say' || e.k === 'note') row = { k: e.k, text: clip(feedPath(f, e.text), 4000) }
+    else if (e.k === 'me') row = { k: 'me', text: clip(e.text, 1500) }
+    else if (e.k === 'tool') row = feedTool(f, e)
+    else if (e.k === 'toolres') { const t = String(e.text || ''); row = { k: 'toolres', text: clip(feedPath(f, t), 600), lines: t ? t.split('\n').length : 0, err: !!e.err } }
+    else if (e.k === 'result') row = { k: 'result', ok: !!e.ok, text: e.ok ? '턴 끝' : `턴 실패${e.why ? ': ' + e.why : ''}`, cost: e.cost || 0, ms: e.ms || 0, turns: e.turns || 0 }
+    else if (e.k === 'kmd') row = { k: 'kmd', text: clip(e.text, 1500), tone: e.tone || '' }
+    else return
+    if (e.k !== 'kmd' && e.k !== 'me') f.live = null
+    row.i = ++f.seq
+    row.at = new Date().toISOString()
+    f.rows.push(row)
+    if (f.rows.length > FEED_MAX) f.rows.splice(0, f.rows.length - FEED_MAX)
+  }
+  const SEED_SESSION_BUDGET = () => (Number(process.env.KMD_SEED_BUDGET) > 0 ? Number(process.env.KMD_SEED_BUDGET) : 5)
+  // 세션 폴더 — 재료.tsv · md/<16자>.md(쓰는 재료의 사본) · cards/<16자>.json(카드가 있으면). 꾸러미 · 장부 · 지식 폴더는 넣지 않는다
+  async function seedSessionDir(pack, g, cards, f) {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'kmd-seed-'))
+    f.dirs = [...new Set([dir, await fs.realpath(dir).catch(() => dir)])].sort((a, b) => b.length - a.length)
+    await fs.mkdir(path.join(dir, 'md'))
+    let miss = 0
+    for (const m of g.mats) {
+      const h = m.src.slice(2)
+      f.names.set(h, m.path)
+      try { await fs.copyFile(path.join(pack, 'md', `${h}.md`), path.join(dir, 'md', `${h}.md`)) } catch (e) { if (e.code !== 'ENOENT') throw e; miss++ }
+    }
+    const used = new Set(g.mats.map((m) => m.src))
+    const cs = cards.filter((c) => used.has(c.src))
+    if (cs.length) {
+      await fs.mkdir(path.join(dir, 'cards'))
+      for (const c of cs) await fs.writeFile(path.join(dir, 'cards', `${c.src.slice(2)}.json`), JSON.stringify(c, null, 1))
+    }
+    await fs.writeFile(path.join(dir, '재료.tsv'), seedSessionTsv(g))
+    return { dir, cards: cs.length, miss }
+  }
+  // 구조안(Z9) — 세션 폴더에서 띄운 claude 세션 하나 → seedPlanOfDraft → 검사(planCheck · 재료 덮임) 걸리면 같은 세션에 걸린 곳만 보내 고쳐 받기(INTAKE_FIX 번)
+  //   → 마지막이면 걸린 채 장부에(사람이 고친다). 흐름은 동작 내역(feeds)으로
+  async function pcSeedPlan(ctx, id, run, { rows, picks, cards, note, pack }) {
+    const g = seedPlanMaterial(rows, { picks, note })
+    const f = feedNew(id, '구조안')
+    const say = (text, tone = '') => feedPush(id, { k: 'kmd', text, tone })
+    let sess = null
+    let sd = null
+    try {
+      sd = await seedSessionDir(pack, g, cards, f)
+      say(`세션 폴더를 지었다 · 재료 ${g.mats.length}${sd.cards ? ` · 카드 ${sd.cards}` : ''}${sd.miss ? ` · 글 없는 재료 ${sd.miss}` : ''}`)
       if (run.state !== 'running') return
-      if (r.error) return Object.assign(run, { state: 'fail', why: await seedClaudeWhy(r) })
-      await hub.workerStatus({ worker: { id: null } }, { ok: true }).catch((e) => log('Claude 상태', e.message))
-      const last = n === INTAKE_FIX
-      const p = seedPlanOfDraft(r.value)
-      if (p.error) {
-        if (last) return Object.assign(run, { state: 'fail', why: `구조안 꼴이 아니다: ${p.error}` })
-        prev = r.value
-        fixWhy = p.error
-        continue
+      sess = claudeSession({ cwd: sd.dir, schema: SEED_PLAN_SCHEMA, budget: SEED_SESSION_BUDGET(), model: hub.modelOf('ingest'), onEvent: (e) => feedPush(id, e) })
+      run.kill = (why) => sess.kill(why)
+      let msg = seedSessionPromptOf(g, { cards: sd.cards > 0 })
+      for (let n = 0; n <= INTAKE_FIX; n++) {
+        const r = await sess.ask(msg)
+        run.tries = n + 1
+        if (run.state !== 'running') return
+        if (r.error) {
+          const why = await seedClaudeWhy(r)
+          say(why, 'bad')
+          return Object.assign(run, { state: 'fail', why })
+        }
+        await hub.workerStatus({ worker: { id: null } }, { ok: true }).catch((e) => log('Claude 상태', e.message))
+        const last = n === INTAKE_FIX
+        const p = seedPlanOfDraft(r.value)
+        if (p.error) {
+          if (last) { say(`구조안 꼴이 아니다: ${p.error}`, 'bad'); return Object.assign(run, { state: 'fail', why: `구조안 꼴이 아니다: ${p.error}` }) }
+          say(`꼴에 걸렸다 · 같은 세션에서 고쳐 받는다: ${p.error}`, 'warn')
+          msg = seedSessionFixOf(p.error)
+          continue
+        }
+        const meta = await hub.meta(id, ctx)
+        cache.delete(id)
+        const k = await hub.get(id, ctx)
+        const S = readShape(k, await readStructure(meta.dir))
+        const chk = hub.seedCheckOf(k, S, seedNormalize(p.plan, S), rows, picks)
+        if (!chk.ok && !last) {
+          const why = chk.errors.slice(0, 5).map((e) => `${e.where}: ${e.why}`).join(' · ')
+          say(`검사에 걸렸다 ${chk.errors.length} · 같은 세션에서 고쳐 받는다: ${why}`, 'warn')
+          msg = seedSessionFixOf(why)
+          continue
+        }
+        if (run.state !== 'running') return
+        await hub.seedPlanApply(ctx, id, run.work, p.plan, { mode: 'claude', notes: p.notes, why: p.why })
+        say(`구조안을 나무에 놓았다 · 문서 ${p.plan.docs.length} · 항목 ${p.plan.docs.reduce((a, d) => a + d.items.length, 0)}${chk.ok ? '' : ` · 걸림 ${chk.errors.length}: 구조안에서 고친다`}`, chk.ok ? 'ok' : 'warn')
+        return Object.assign(run, { state: 'done', i: 1, ...(chk.ok ? {} : { why: `걸림 ${chk.errors.length}: 구조안에서 고친다` }) })
       }
-      const meta = await hub.meta(id, ctx)
-      cache.delete(id)
-      const k = await hub.get(id, ctx)
-      const S = readShape(k, await readStructure(meta.dir))
-      const chk = hub.seedCheckOf(k, S, seedNormalize(p.plan, S), rows, picks)
-      if (!chk.ok && !last) {
-        prev = r.value
-        fixWhy = chk.errors.slice(0, 5).map((e) => `${e.where}: ${e.why}`).join(' · ')
-        continue
-      }
-      if (run.state !== 'running') return
-      await hub.seedPlanApply(ctx, id, run.work, p.plan, { mode: 'claude', notes: p.notes, why: p.why })
-      return Object.assign(run, { state: 'done', i: 1, ...(chk.ok ? {} : { why: `걸림 ${chk.errors.length}: 구조안에서 고친다` }) })
+    } finally {
+      run.kill = null
+      if (sess) await sess.end().catch((e) => log('기초 세우기 세션 닫기', id, e.message))
+      if (run.state === 'cancelled') say('그만뒀다', 'warn')
+      if (sd) await fs.rm(sd.dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch((e) => log('기초 세우기 세션 폴더 지우기', sd.dir, e.message))
     }
   }
   // 글 하나(문서) — claude -p → writeOfDraft → 판정(꼴 결정적 오류면 고쳐 쓰게 · 마지막이면 걸음 실패) · 값 대조는 재기만
@@ -794,7 +886,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     let fixWhy = null
     for (let n = 0; n <= INTAKE_FIX; n++) {
       const prompt = prev ? shapeWriteFixPromptOf(g, prev, fixWhy, { writeRules: WRITE_RULES }) : shapeWritePromptOf(g, { writeRules: WRITE_RULES })
-      const r = await runClaude({ prompt, schema: SHAPE_WRITE_SCHEMA, budget: SEED_BUDGET(), model: hub.modelOf('ingest'), timeoutMs: 600_000 })
+      feedPush(id, { k: 'kmd', text: `${prev ? '고쳐 쓰기' : '글 짓기'}: ${doc}${prev ? ` · ${fixWhy}` : ''}`, tone: prev ? 'warn' : '' })
+      const r = await runClaude({ prompt, schema: SHAPE_WRITE_SCHEMA, budget: SEED_BUDGET(), model: hub.modelOf('ingest'), timeoutMs: 600_000, onEvent: (e) => feedPush(id, e) })
       run.tries = (run.tries || 0) + 1
       if (run.state !== 'running') return null
       if (r.error) return { state: 'fail', why: await seedClaudeWhy(r), fatal: true }
@@ -3091,6 +3184,15 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!stages.includes(w.stage)) throw new KmdError('E_CONFLICT', w.stage === 'done' ? '다 넣은 기초 세우기다' : '넣는 중인 기초 세우기다: 이어 넣거나 그만둔다')
       return { meta, w }
     },
+    // 동작 내역(GET /api/k/:id/seed/feed?after=&sid=) — 기초 세우기 일을 연 지식관리자 · 개인 프로그램(팀은 빈 것)
+    async seedFeed(ctx, id, { after = 0, sid = '' } = {}) {
+      await hub.seedOwn(ctx, id, { stages: ['plan', 'tried', 'putting', 'stopped', 'rebase', 'done'] })
+      const f = feeds.get(id)
+      if (!f) return { sid: null, seq: 0, rows: [], live: null }
+      const from = sid && sid === f.sid ? Math.max(0, Number(after) || 0) : 0
+      const r0 = seedRuns.get(id)
+      return { sid: f.sid, title: f.title, at: f.at, seq: f.seq, rows: f.rows.filter((r) => r.i > from), live: f.live && f.live.text ? { kind: f.live.kind, text: f.live.text.slice(-1200), name: f.live.name || '' } : null, running: !!(r0 && r0.state === 'running' && r0.kind !== 'survey') }
+    },
     seedEdit(id, work, fn) {
       return hub.shapeEdit(id, (w0) => (w0 && !w0.broken && w0.work === work && w0.kind === 'seed' && !['done', 'stopped-final'].includes(w0.stage) ? fn(w0) : undefined))
     },
@@ -3367,7 +3469,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (run1?.state === 'running') throw new KmdError('E_CONFLICT', '도는 일이 있다: 끝나거나 그만둔 뒤에 다시 건다')
       const run = { kind: 'plan', state: 'running', i: 0, n: 1, by: ctx.user, at: new Date().toISOString(), work: w.work, tries: 0 }
       seedRuns.set(id, run)
-      pcSeedPlan(ctx, id, run, { rows, picks: w.seed.picks, cards, note: String(note || '').trim() }).catch((e) => { log('기초 세우기 구조안', id, e.message); if (run.state === 'running') Object.assign(run, { state: 'fail', why: e.message }) })
+      pcSeedPlan(ctx, id, run, { rows, picks: w.seed.picks, cards, note: String(note || '').trim(), pack: w.seed.pack }).catch((e) => { log('기초 세우기 구조안', id, e.message); if (run.state === 'running') Object.assign(run, { state: 'fail', why: e.message }) })
       return { started: true, view: await hub.seedView(ctx, id) }
     },
     // 짓기(POST seed/write { doc? · all? · items? · approve? · stop? }) — doc: 그 문서 하나 Claude · all: 남은 문서 모두(처음 3 문서 승인 뒤) ·
@@ -3381,7 +3483,10 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       const run0 = seedRuns.get(id)
       if (stop) {
-        if (run0?.state === 'running' && run0.work === w.work && run0.kind !== 'survey') Object.assign(run0, { state: 'cancelled', why: `그만뒀다: ${ctx.user}` })
+        if (run0?.state === 'running' && run0.work === w.work && run0.kind !== 'survey') {
+          Object.assign(run0, { state: 'cancelled', why: `그만뒀다: ${ctx.user}` })
+          if (run0.kill) run0.kill('그만뒀다')
+        }
         if (mode === 'team') await seedTeamStop(w, ctx.user)
         await hub.seedEdit(id, w.work, (w0) => ({ ...w0, seed: { ...w0.seed, texts: Object.fromEntries(Object.entries(w0.seed.texts || {}).map(([d, t]) => [d, t.state === 'run' ? { ...t, state: 'wait' } : t])) } }))
         return hub.seedView(ctx, id)
@@ -3452,6 +3557,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       }
       const run = { kind: 'write', state: 'running', i: 0, n: list.length, by: ctx.user, at: new Date().toISOString(), work: w.work, doc: list[0], tries: 0, rid: crypto.randomBytes(6).toString('hex') }
       seedRuns.set(id, run)
+      feedNew(id, `글 짓기 ${list.length}`)
       await hub.seedEdit(id, w.work, (w0) => (!['plan', 'tried', 'stopped'].includes(w0.stage) ? undefined : { ...(w0.stage === 'stopped' ? w0 : seedUntry(w0)), seed: { ...w0.seed, texts: { ...w0.seed.texts, ...Object.fromEntries(list.map((x) => [x, { ...(w0.seed.texts?.[x] || {}), state: 'run', rid: run.rid }])) }, ok: (w0.seed.ok || []).filter((x) => !list.includes(x)) } }))
       pcSeedWrite(ctx, id, run, list).catch((e) => { log('기초 세우기 짓기', id, e.message); if (run.state === 'running') Object.assign(run, { state: 'fail', why: e.message }) })
       return hub.seedView(ctx, id)

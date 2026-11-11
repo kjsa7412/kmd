@@ -444,6 +444,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     /^\/api\/agent\/parser$/, /^\/api\/gitlab\/groups$/,/^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
     /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|shape|seed|past|removed|manage|metrics)$/,
     /^\/api\/k\/[^/]+\/shape\/job\/[0-9a-f]{12}$/,
+    /^\/api\/k\/[^/]+\/seed\/feed$/,
   ]
   const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|stops\/ack|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|shape\/survey|k\/[^/]+\/(?:owner|save-mode|access|delete|structure|polish|revert|unwatch|docfmt|shape(?:\/[a-z]+|\/job\/[0-9a-f]{12}\/stop)?|seed(?:\/(?:upload|pick|plan|write|try|step))?|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names|approve)|rec\/[^/]+\/fix|removed\/restore))$/
   const auditFile = path.join(dataDir, 'audit.jsonl')
@@ -1109,6 +1110,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     // 기초 세우기(TODO 9 · 10 · Z7 · Z8 · 바탕 설계 5-3 · 메뉴개편 8-2 · 권한 모델 7절) — 그 지식의 지식관리자
     //   POST /api/shape/survey { kn, dir } 원본 조사(또는 kmd-seed 꾸러미 열기) · 팀은 { kn, group } 닫힌 올리기 묶음으로 일을 연다(경로를 받지 않는다) · GET /api/seed/open 만들던 것 · GET /api/k/:id/seed 보기 ·
     //   POST seed/pick { picks } · seed/plan { mode, plan?, note? } · seed/write { doc?, all?, items?, approve?, stop? } · seed/try · seed/step { ui } ·
+    //   GET seed/feed?after=<번호>&sid=<일> 동작 내역(Z9 · Claude 세션 흐름 · 개인 프로그램) ·
     //   넣기 · 그만두기는 짜임 길(shape/put · shape/stop) 그대로. 걸음 내용은 받지 않는다(서버가 장부의 구조안 · 글로 짓는다)
     if (p === '/api/shape/survey') {
       need(ctx)
@@ -1119,10 +1121,18 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, await hub.seedSurvey(ctx, b.kn, { dir: b.dir, group: b.group ?? null }))
     }
     if (p === '/api/seed/open') { need(ctx); return out(200, await hub.seedOpen(ctx)) }
-    const sdm = p.match(/^\/api\/k\/([^/]+)\/seed(?:\/(pick|plan|write|try|step))?$/)
+    const sdm = p.match(/^\/api\/k\/([^/]+)\/seed(?:\/(pick|plan|write|try|step|feed))?$/)
     if (sdm) {
       need(ctx)
       const kn = dec(sdm[1])
+      if (sdm[2] === 'feed') {
+        if (req.method !== 'GET') throw new KmdError('E_METHOD', 'GET 만 받는다')
+        await hub.meta(kn, ctx)
+        hub.need(ctx, kn, 'admin')
+        const sid = String(url.searchParams.get('sid') || '')
+        if (sid && !/^[0-9a-f]{8}$/.test(sid)) throw new KmdError('E_INPUT', 'sid 꼴이 아니다')
+        return out(200, await hub.seedFeed(ctx, kn, { after: Number(url.searchParams.get('after')) || 0, sid }))
+      }
       if (!sdm[2]) {
         if (req.method !== 'GET') throw new KmdError('E_METHOD', 'GET 만 받는다')
         return out(200, await hub.seedView(ctx, kn, { doc: url.searchParams.get('doc') }))

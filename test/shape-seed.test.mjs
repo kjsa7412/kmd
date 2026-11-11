@@ -48,6 +48,41 @@ async function settle(hub, ctx, id) {
 const code = (p) => p.then(() => 'ok', (e) => e.code)
 const LONG = { timeout: 180000 }
 
+test('Claude 안 세션 — 답하지 않는 세션은 그만두기로 끊는다(동작 내역에 그만뒀다)', LONG, async () => {
+  const s = await setup()
+  try {
+    const id = await s.make('세션 끊기')
+    await s.hub.seedSurvey(s.ctx, id, { dir: s.src })
+    await settle(s.hub, s.ctx, id)
+    process.env.FAKE_CLAUDE_MODE = 'hang'
+    await s.hub.seedPlan(s.ctx, id, { mode: 'claude' })
+    let fd
+    for (let i = 0; i < 100; i++) {
+      fd = await s.hub.seedFeed(s.ctx, id)
+      if (fd.rows.some((r) => r.k === 'start')) break
+      await new Promise((ok) => setTimeout(ok, 100))
+    }
+    assert.equal(fd.running, true)
+    assert.ok(fd.rows.some((r) => r.k === 'start'), JSON.stringify(fd.rows))
+    await s.hub.seedWrite(s.ctx, id, { stop: true })
+    const v = await settle(s.hub, s.ctx, id)
+    delete process.env.FAKE_CLAUDE_MODE
+    assert.equal(v.run.state, 'cancelled')
+    for (let i = 0; i < 100; i++) {
+      fd = await s.hub.seedFeed(s.ctx, id)
+      if (fd.rows.some((r) => r.k === 'kmd' && r.text === '그만뒀다')) break
+      await new Promise((ok) => setTimeout(ok, 100))
+    }
+    assert.ok(fd.rows.some((r) => r.k === 'kmd' && r.text === '그만뒀다'), JSON.stringify(fd.rows.slice(-3)))
+    // 다시 걸 수 있다(세션이 닫혔다)
+    await s.hub.seedPlan(s.ctx, id, { mode: 'claude' })
+    assert.equal((await settle(s.hub, s.ctx, id)).run.state, 'done')
+  } finally {
+    delete process.env.FAKE_CLAUDE_MODE
+    s.done()
+  }
+})
+
 test('Claude 안 — 조사(옛 판 · 비밀 의심 보류) → 거르기 → 구조안 → 짓기 · 승인 → 연습 판 → 넣기(빈 approve 지식에 문서 · 이름 · 기록)', LONG, async () => {
   const s = await setup()
   try {
@@ -84,6 +119,27 @@ test('Claude 안 — 조사(옛 판 · 비밀 의심 보류) → 거르기 → �
     assert.deepEqual(v.work.plan.docs.map((d) => d.id), ['업무 안내'])
     assert.equal(v.work.mode, 'claude')
     assert.equal(v.work.top, 4)
+    // 동작 내역(Z9) — 세션 하나에서 시작 · 보낸 말 · 생각 · 도구(원본 이름으로) · 검사 걸림 → 같은 세션에 고쳐 받기 · 나무에 놓음
+    const fd = await s.hub.seedFeed(s.ctx, id)
+    const ks = fd.rows.map((r) => r.k)
+    assert.match(fd.sid, /^[0-9a-f]{8}$/)
+    assert.equal(fd.title, '구조안')
+    assert.equal(ks.filter((k) => k === 'start').length, 1, '세션은 하나: ' + ks.join(' '))
+    assert.equal(ks.filter((k) => k === 'me').length, 2, '처음 말 + 고쳐 받기 말')
+    assert.ok(fd.rows[0].k === 'kmd' && /세션 폴더/.test(fd.rows[0].text), JSON.stringify(fd.rows[0]))
+    assert.ok(!/\[material /.test(fd.rows.find((r) => r.k === 'me').text), '재료 글 · 카드를 프롬프트에 싣지 않는다')
+    const res = fd.rows.find((r) => r.k === 'toolres')
+    assert.match(res.text, /「반납 절차 v2\.md」/, '세션 폴더 md/<16자>.md 는 원본 이름으로: ' + res.text)
+    assert.ok(!res.text.includes(os.tmpdir()), '세션 폴더 경로를 싣지 않는다')
+    assert.ok(fd.rows.some((r) => r.k === 'tool' && r.name === 'Grep'))
+    assert.ok(fd.rows.some((r) => r.k === 'answer'))
+    assert.ok(fd.rows.some((r) => r.k === 'kmd' && r.tone === 'warn' && /같은 세션/.test(r.text)))
+    assert.ok(fd.rows.some((r) => r.k === 'kmd' && r.tone === 'ok' && /나무에 놓았다/.test(r.text)))
+    assert.equal(fd.running, false)
+    const fd2 = await s.hub.seedFeed(s.ctx, id, { after: fd.seq, sid: fd.sid })
+    assert.equal(fd2.rows.length, 0, '이어 읽기는 새 줄만')
+    assert.equal((await s.hub.seedFeed(s.ctx, id, { after: fd.seq, sid: 'ffffffff' })).rows.length, fd.rows.length, '다른 일이면 처음부터')
+    assert.notEqual(await code(s.hub.seedFeed({ user: 'other' }, id)), 'ok', '일을 연 사람이 아니면 못 본다')
     // 짓기 — 처음 3 문서 승인 전에는 모두 짓기 안 됨 · 하나 짓고 승인
     assert.equal(await code(s.hub.seedWrite(s.ctx, id, { all: true })), 'E_INPUT')
     assert.equal(await code(s.hub.seedTry(s.ctx, id)), 'E_INPUT', '글이 없으면 해 보지 않는다')

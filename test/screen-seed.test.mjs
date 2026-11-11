@@ -69,7 +69,7 @@ async function cutAt(page) {
 async function widths(page, what) {
   for (const w of [1280, 1024, 600, 375]) {
     await page.setViewportSize({ width: w, height: 820 })
-    await page.waitForTimeout(80)
+    await page.waitForTimeout(260) // 오른쪽 칸 서랍 전환(.2s)이 끝난 뒤에 잰다
     const c = await cutAt(page)
     assert.deepEqual(c.cut, [], `${what} ${w} 잘림`)
     assert.ok(c.sw <= c.w + 1, `${what} ${w} 가로 넘침 ${c.sw}`)
@@ -120,6 +120,14 @@ test('기초 세우기(개인) — 지식 · 재료 · 거르기 · 구조안 ·
     await page.click('[data-t=sdModeClaude]')
     await page.waitForSelector('[data-t=sdDocs] [data-t=sdDocName]', { timeout: 60000 })
     assert.equal(await page.locator('[data-t=sdDocName]').first().inputValue(), '업무 안내')
+    // 동작 내역(Z9) — 오른쪽 칸 터미널: 세션 시작 · 도구(원본 이름) · 답 · 나무에 놓음 · 끝
+    await page.waitForSelector('[data-t=aside] [data-t=sdFeed] [data-k=answer]', { timeout: 60000 })
+    const fd = await page.locator('[data-t=sdFeed]').innerText()
+    assert.match(fd, /세션 · fake-claude/)
+    assert.match(fd, /Grep/)
+    assert.match(fd, /나무에 놓았다/)
+    assert.equal(await page.locator('[data-t=sdFeed]').getAttribute('role'), 'log')
+    assert.match(await page.locator('[data-t=sdFeedH]').innerText(), /동작 내역[\s\S]*끝/)
     await page.fill('[data-t=sdDocName]', '첫 주 안내')
     await page.locator('[data-t=sdDocName]').press('Tab')
     await page.waitForFunction(() => { const i = document.querySelector('[data-t=sdDocName]'); return i && i.value === '첫 주 안내' && !document.querySelector('[data-t=sdGo][disabled]') }, null, { timeout: 60000 })

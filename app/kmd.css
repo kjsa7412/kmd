@@ -960,6 +960,9 @@ li.new{animation:flash 1.6s}
 .det .meta dt{color:var(--text-3)}.det .meta dd{margin:0;min-width:0;overflow-wrap:anywhere}
 .det .callout{margin:0 0 var(--sp-5)}
 .det .term{max-height:280px;min-height:120px}
+/* 기초 세우기 동작 내역(바탕 설계 Z9) — 오른쪽 칸 높이를 채운다 · 서랍(1024 이하)도 같다 */
+.aside .term.sdf{max-height:calc(100vh - 150px);min-height:200px}
+.aside .term-h{flex-wrap:wrap;margin-top:0}
 .stflow{display:flex;align-items:stretch} /* 단계 흐름 그림(일 줄 · 정리 일 줄) — 로그인 · 확인 상자 .flow 와 다른 것 */
 .st{flex:1;min-width:0;border:1.5px solid var(--border);border-radius:var(--r-md);padding:var(--sp-4) 9px;background:var(--surface);cursor:pointer}
 .st:hover{border-color:var(--border-strong)}

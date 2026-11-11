@@ -17,9 +17,57 @@ const args = process.argv.slice(2)
 const val = (k) => args[args.indexOf(k) + 1]
 const say = (o) => process.stdout.write(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, total_cost_usd: 0.001, model: 'fake-claude', ...o }) + '\n')
 
+// 세션(바탕 세우기 Z9 · core/claude.js claudeSession) — `--input-format stream-json` 으로 줄마다 말을 받고 턴마다 result 하나.
+//   지키는 것: 도구는 Read · Glob · Grep 만(--tools · --allowedTools) · 빈 MCP · 스키마 · 세션 폴더는 재료.tsv · md/ · cards/ 만. 어기면 is_error.
+//   구조안: 재료.tsv 의 넣음 재료마다 항목 하나(문서 「업무 안내」) · 흐름 줄(생각 · Grep · 결과 · 쓰는 중 · StructuredOutput)을 낸다.
+//   FAKE_CLAUDE_MODE=badseed → 첫 턴은 재료 하나를 빠뜨린다(같은 세션에 고쳐 받기) · logout → 로그인 끝 · hang → 답하지 않는다
+const SESSION = args.includes('--input-format') && val('--input-format') === 'stream-json'
+const out = (o) => process.stdout.write(JSON.stringify(o) + '\n')
+function session() {
+  if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, `call${args.includes('--model') ? ' ' + val('--model') : ''}\n`)
+  const tools = 'Read,Glob,Grep'
+  const files = fs.readdirSync(process.cwd())
+  const ok = args.includes('-p') && val('--tools') === tools && val('--allowedTools') === tools && args.includes('--strict-mcp-config') && JSON.parse(val('--mcp-config') || '{}').mcpServers && val('--json-schema') && files.includes('재료.tsv') && files.every((x) => ['재료.tsv', 'md', 'cards'].includes(x))
+  out({ type: 'system', subtype: 'init', model: 'fake-claude', tools: ['Glob', 'Grep', 'Read', 'StructuredOutput'], cwd: process.cwd() })
+  let buf = ''
+  let turn = 0
+  process.stdin.on('data', (c) => {
+    buf += c
+    const ls = buf.split('\n')
+    buf = ls.pop()
+    for (const l of ls) if (l.trim()) one(JSON.parse(l))
+  })
+  process.stdin.on('end', () => process.exit(0))
+  function one(m) {
+    const text = String(m?.message?.content || '')
+    turn++
+    if (!ok) return say({ is_error: true, subtype: 'error', result: '가짜 claude 세션: 읽기 도구 셋 · 빈 MCP · 스키마 · 세션 폴더를 지키지 않았다' })
+    if (process.env.FAKE_CLAUDE_MODE === 'logout') return say({ is_error: true, subtype: 'error', result: 'Invalid API key · Please run /login' })
+    if (process.env.FAKE_CLAUDE_MODE === 'hang') return
+    const fixing = text.startsWith('지난 초안이 kmd 검사에 걸렸다')
+    if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, fixing ? 'seed-plan fix\n' : 'seed-plan\n')
+    const rows = fs.readFileSync('재료.tsv', 'utf8').split('\n').slice(1).filter(Boolean).map((l) => l.split('\t')).map(([src, p, pick]) => ({ src, path: p, pick }))
+    out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'thinking', thinking: fixing ? '걸린 곳을 고친다' : `재료 ${rows.length} 를 훑는다` }] } })
+    out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 't' + turn, name: 'Grep', input: { pattern: '^#{1,3} ', path: 'md', output_mode: 'content' } }] } })
+    out({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't' + turn, content: rows.map((r) => `md\\${r.src.slice(2)}.md:1:# ${r.path}`).join('\n') }] } })
+    out({ type: 'stream_event', event: { type: 'content_block_start', content_block: { type: 'tool_use', name: 'StructuredOutput' } } })
+    out({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'input_json_delta', partial_json: '{"docs": [' } } })
+    let items = rows.filter((r) => r.pick === '넣음').map((r) => ({ h: r.path.split('/').pop().replace(/\.[^.]+$/, '').replace(/[#%]/g, ''), src: [r.src], note: '파일 하나가 대상 하나' }))
+    if (process.env.FAKE_CLAUDE_MODE === 'badseed' && !fixing) items = items.slice(1)
+    const o = { docs: [{ id: '업무 안내', items }], names: items.length ? [{ coord: 'topic:' + items[0].h.replace(/\s+/g, ''), label: items[0].h, doc: '업무 안내', h: items[0].h }] : [], skip: [], why: '파일마다 항목 하나' }
+    const wait = Number(process.env.FAKE_CLAUDE_STREAM_MS) || 0
+    setTimeout(() => {
+      out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 's' + turn, name: 'StructuredOutput', input: o }] } })
+      out({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 's' + turn, content: 'Structured output provided successfully' }] } })
+      say({ structured_output: o, num_turns: 3, duration_ms: 1200 })
+    }, wait)
+  }
+}
+
 let prompt = ''
 let fixing = false
-process.stdin.on('data', (c) => (prompt += c))
+if (SESSION) session()
+else process.stdin.on('data', (c) => (prompt += c))
 // FAKE_CLAUDE_STREAM_MS=<ms> → 답 전에 그 시간 동안 흘려 받기 줄(생각 · 스키마 답 조각)을 50ms 마다 낸다(일꾼의 쓰는 중 소식)
 const streamFor = (ms) => new Promise((ok) => {
   const until = Date.now() + ms
@@ -28,7 +76,7 @@ const streamFor = (ms) => new Promise((ok) => {
     if (Date.now() >= until) { clearInterval(t); ok() }
   }, 50)
 })
-process.stdin.on('end', () => (Number(process.env.FAKE_CLAUDE_STREAM_MS) ? streamFor(Number(process.env.FAKE_CLAUDE_STREAM_MS)).then(answer) : answer()))
+if (!SESSION) process.stdin.on('end', () => (Number(process.env.FAKE_CLAUDE_STREAM_MS) ? streamFor(Number(process.env.FAKE_CLAUDE_STREAM_MS)).then(answer) : answer()))
 function answer() {
   if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, `call${args.includes('--model') ? ' ' + val('--model') : ''}\n`)
   const ok = args.includes('-p') && args.includes('--tools') && val('--tools') === '' && args.includes('--strict-mcp-config') && JSON.parse(val('--mcp-config') || '{}').mcpServers && val('--json-schema') && fs.readdirSync(process.cwd()).length === 0
