@@ -34,7 +34,7 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 <div class="m-tbl"><table><tr><th>자리</th><th>설정 메뉴</th></tr>
 <tr><td>총괄 관리자</td><td>서버 정보 · 에이전트 설치 · 개인 프로그램 설치 · 팀 일꾼 · 운영</td></tr>
 <tr><td>지식관리자 · 쓰기 · 읽기</td><td>서버 정보 · 에이전트 설치 · 개인 프로그램 설치</td></tr></table></div>
-<p>날마다 쓰는 <b>점검 · 생성</b>은 옆 메뉴 지식 고르기 바로 아래 지식 메뉴에 있다(점검은 지식관리자 · 생성은 쓰기 자리부터 보인다). <b>구조</b>는 「문서」 를 누르면 나오는 나무 머리의 연필 아이콘이다(지식관리자). 맨 아래 공통 메뉴는 <b>지식관리 · 설정</b>.</p>
+<p>날마다 쓰는 <b>점검 · 생성</b>은 옆 메뉴 지식 고르기 바로 아래 지식 메뉴에 있다(점검은 지식관리자 · 생성은 쓰기 자리부터 보인다). 지식을 고르면 어느 화면이든 그 아래에 보기 탭 · 찾기 칸 · 문서 나무가 늘 보인다(「문서」 버튼은 없다). <b>구조</b>는 문서 나무 머리의 연필 아이콘이다(지식관리자). 맨 아래 공통 메뉴는 <b>지식관리 · 설정</b>.</p>
 <figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 운영</span></div><div class="m-pic"><img src="img/t-admin.png" alt="운영: 요약 칩과 오늘의 문제 줄" loading="lazy"></div></div>
 <figcaption>위 칩 줄: 멈춤 · 백업 문제 · 팀 일꾼. 잘 될 때는 「오늘은 문제가 없다」 만 보인다. 손볼 것만 줄로 서고, 줄마다 고치는 자리로 가는 단추가 있다(백업 어긋남은 이 자리에서 이어 쓰기 · 덮기).</figcaption></figure>
 <div class="m-tbl"><table><tr><th>문제 줄</th><th>하는 것</th></tr>
@@ -81,12 +81,12 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 </table></div>
 
 <h2 id="savemode"><span class="m-no">4-1</span>저장 승인</h2>
-<p>팀 · 개인 지식의 저장은 늘 <b>저장 승인</b>이다: 사람의 저장은 저장 제안을 승인해야 들어가고, 무인 저장은 늘 들어간다(규칙 길). 저장 방식 스위치는 없다. 못 넘으면 아무것도 쓰지 않는 입력 오류다. 자세한 것은 <a href="지식관리자.html#save">지식관리자 설명서 1절</a>.</p>
+<p>팀 · 개인 지식의 저장은 늘 <b>저장 승인</b>이다: 사람의 저장은 저장 제안을 승인해야 들어가고, 무인 저장은 늘 들어간다(규칙 길). 못 넘으면 아무것도 쓰지 않는 입력 오류다. 자세한 것은 <a href="지식관리자.html#save">지식관리자 설명서 1절</a>.</p>
 <ul>
 <li><b>하루 요약</b>: 같은 정책 탭의 「들어간 것 하루 요약」 을 켜면 하루에 한 번 지난날 들어간 기록 수가 그 지식의 지식관리자에게 알림으로 간다(알림만).</li>
 </ul>
 <h3 id="migrate">저장 승인 전 기록</h3>
-<p>저장 승인 전 기록은 「기록」 으로만 보인다(읽기만 · 칩 없음). 옮기는 일(이행)은 없다. 개인 지식도 처음부터 저장 승인이다(<a href="개인.html#migrate">개인 프로그램 설명서</a>).</p>
+<p>저장 승인 전 기록은 「기록」 으로만 보인다(읽기만 · 칩 없음). 개인 지식도 처음부터 저장 승인이다(<a href="개인.html#migrate">개인 프로그램 설명서</a>).</p>
 
 <h2 id="claude"><span class="m-no">5</span>설정 › 팀 일꾼: 로그인</h2>
 <figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 팀 일꾼</span></div><div class="m-pic"><img src="img/t-claude.png" alt="팀 일꾼: 로그인 상태 · 이 서버" loading="lazy"></div></div><figcaption>「Claude 연결」 카드(팀 일꾼 로그인: 아직이면 [로그인 시작] · 됐으면 「로그인됨」 · [다시 로그인]) · 어떻게 하나 · 운영 값(읽기만). 쓰는 곳은 들이기(파일 넣기 · 가져올 곳 · 정정 · 다시 들이기)와 문서 다듬기다.</figcaption></figure>
