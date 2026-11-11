@@ -16,7 +16,7 @@ import crypto from 'node:crypto'
 import path from 'node:path'
 import { nfc, readText, sha16 } from './text.js'
 import { parseDoc, headingMatches } from './sections.js'
-import { parseForms, formsOf, formFor, headingFits, formHeadRule, FORM_KINDS, RECORDS_DOC } from './guard.js'
+import { parseForms, formsOf, formFor, headingFits, formHeadRule, FORM_KINDS, RECORDS_DOC, TYPE_RE } from './guard.js'
 import { cleanForms } from './namebook.js'
 import { nameProblem, stepFp, brokenLinks } from './restructure.js'
 import { coordsOfSection } from './knowledge.js'
@@ -27,6 +27,14 @@ import { WRITE_RULES } from './writerules.js'
 
 export { stepFp }
 const P = path.posix
+// 장부 항목 coord 꼴 — 저장 검사(core/namebook.js cleanNames)와 같은 규칙: 종류는 영문 소문자 또는 한글로 시작(24자 안) · 값은 한 줄 160자 안(` | 없이)
+export function coordProblem(coord) {
+  const c = String(coord ?? '').trim()
+  const i = c.indexOf(':')
+  if (i < 1 || !TYPE_RE.test(c.slice(0, i))) return `장부 항목 종류 꼴이 아니다: 「${c.slice(0, Math.max(i, 0)) || c}」(영문 소문자 또는 한글로 시작 · 24자 안 · 예: system:나라119 · 시스템:나라119)`
+  if (!/^[^\n`|]{1,160}$/.test(c.slice(i + 1))) return `장부 항목 값 꼴이 아니다: ${c.slice(0, 80)}(한 줄 160자 안 · \` | 없이)`
+  return null
+}
 export const PLAN_LIMITS = { docs: 500, items: 5000, names: 2000, head: 120, unit: 50, text: 200000 }
 const BAD_KEYS = new Set(['__proto__', 'prototype', 'constructor'])
 const hash16 = (s) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16)
@@ -347,6 +355,8 @@ export function planCheck(k, S, Pl) {
   for (const x of Pl.names) {
     const d = planned.get(x.doc)
     if (!d || !d.items.some((it) => it.h === x.h)) err(x.coord, `장부 항목 자리가 구조안에 없다: ${x.doc} › ${x.h}`, 'names')
+    const cw = coordProblem(x.coord)
+    if (cw) err(x.coord, cw, 'names')
   }
   // 바탕 세우기 — 있던 문서는 그대로 가는 문서로만(빈 지식 · 앞 묶음이 세운 문서 · 통합 I2 · 바꾸지 않는다) · 재료 덮임
   if (Pl.kind === 'seed') {
@@ -789,6 +799,7 @@ export function seedBatchPromptOf(b, g, { cards = false, of = 1 } = {}) {
     '꼴: docs[{ id(아래 그대로), items[{ h(항목 머리), src[재료 id], note?(까닭 한 줄) }] }] · names[{ coord(종류:값), label?, doc, h }](둘 이상 재료에서 가리키는 고유물만) · skip[{ src, why }](이 묶음의 쓰지 않는 넣음 재료) · why(한 문장)',
     '- 이 묶음의 「넣음」 재료는 모두 어느 항목의 src 이거나 skip 에 든다. 항목 src 는 그 문서에 정해진 재료만 쓴다.',
     '- 항목 머리는 대상 이름(사건 갈래만 「YYYY-MM-DD 주제」 · 대장은 「값: 설명」). 한 문서 안에서 머리끼리 같거나 앞부분이 겹치지 않게.',
+    '- names 의 coord 종류는 영문 소문자 또는 한글로 시작한다(24자 안 · 대문자 약어는 소문자로: dbms:PostgreSQL · was:Apache Tomcat · 시스템:나라119).',
     SEED_RULES,
     '문서:',
     ...b.docs.map((d) => `[doc ${d.id}]${d.note ? ` (${d.note})` : ''} 재료: ${d.src.map((s) => `${s} ${m.get(s)?.path || ''} · ${m.get(s)?.pick || ''}`).join(' | ')}`),
@@ -825,6 +836,8 @@ export function batchOfDraft(draft, b, g) {
   const left = b.srcs.filter((s) => pick.get(s)?.pick === '넣음' && !used.has(s) && !skipped.has(s))
   if (left.length) return { error: `넣음 재료 ${left.length} 가 항목에도 skip 에도 없다: ${left.slice(0, 5).map((s) => `${s}(${pick.get(s)?.path || ''})`).join(' · ')}` }
   const names = (Array.isArray(draft.names) ? draft.names : []).filter((x) => x && want.has(cleanId(x.doc)))
+  const nb = names.map((x) => coordProblem(x.coord)).find(Boolean)
+  if (nb) return { error: nb }
   return { docs, names, skip }
 }
 // 뼈대 + 묶음들 → 구조안 초안(seedPlanOfDraft 가 받는 꼴) · 문서는 뼈대 차례 · 장부 항목은 coord + 자리로 한 번만
