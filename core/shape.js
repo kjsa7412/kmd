@@ -728,7 +728,7 @@ export function seedFramePromptOf(g, { cards = false, forms = '' } = {}) {
     SEED_SAFE,
     '꼴: docs[{ id(「폴더/이름」 · .md 없이), src[이 문서로 갈 재료 id m:<16자>], note?(한 줄) }] · skip[{ src, why }](쓰지 않는 넣음 재료와 까닭) · why(한두 문장)',
     '- 「넣음」 재료는 모두 어느 문서의 src 이거나 skip 에 든다. 「근거만」 재료는 값을 견줄 때만 쓴다(src 에 넣어도 되고 빼도 된다). 재료.tsv 에 없는 재료 id 를 쓰지 않는다.',
-    '- 문서는 대상 · 갈래 하나(같은 갈래의 사건 · 회차 재료는 한 문서로 모은다 · 재료 하나에 문서 하나로 잘게 쪼개지 않는다). 문서 id 는 서로 다르다.',
+    '- 문서는 대상 · 갈래 하나(같은 갈래의 사건 · 회차 재료는 한 문서로 모은다 · 재료 하나에 문서 하나로 잘게 쪼개지 않는다). 문서 id 는 서로 다르다. 문서 이름에는 날짜 · 판 · 최종 · 확장자 같은 파일 이름 조각을 쓰지 않는다(날짜는 다음 단계의 항목 머리에).',
     ...(forms ? [`- 이 지식의 갈래(이름(다른 이름)): ${forms}. 문서 이름(마지막 조각)에 어느 갈래의 이름 · 다른 이름이 들어가면 그 갈래 문서로 본다 — 그 갈래 이름 그대로가 아니면 그 낱말을 문서 이름에 쓰지 않는다.`] : []),
     SEED_RULES,
     ...(g.note ? [`지식관리자의 말: ${g.note}`] : []),
@@ -748,6 +748,8 @@ export function frameOfDraft(draft, g, { clash = null } = {}) {
     if (!id || /\.md$/i.test(id) || id.length > 200) return { error: `문서 id 꼴이 아니다: ${String(d?.id).slice(0, 80)}` }
     if (ids.has(id)) return { error: `같은 문서 id 가 둘이다: ${id}` }
     if (g.existing?.includes(id)) return { error: `이미 있는 문서 id 다: ${id}` }
+    const segs = id.split('/')
+    for (const [i, seg] of segs.entries()) { const w = nameProblem(seg, { doc: i === segs.length - 1 }); if (w) return { error: `${id}: ${w}(사건 · 회차는 한 문서에 모으고 날짜는 항목 머리에 쓴다)` } }
     const cw = clash && clash(id)
     if (cw) return { error: `${id}: ${cw}` }
     ids.add(id)

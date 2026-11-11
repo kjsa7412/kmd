@@ -58,6 +58,7 @@ test('나눠 받기 — 뼈대 검사(덮임 · 없는 재료 · 같은 id · �
   const fset = { rows: [{ name: '보고서', aliases: ['주간보고'] }] }
   assert.match(S.frameOfDraft({ docs: [{ id: '사업관리/주간보고', src: [A, B] }] }, g, { clash: (x) => S.formClashOf(fset, x) }).error, /보고서」 갈래/)
   assert.equal(S.formClashOf(fset, '사업관리/보고서'), null, '갈래 이름 그대로는 된다')
+  assert.match(S.frameOfDraft({ docs: [{ id: '회의록/2022-08-03 착수', src: [A, B] }] }, g).error, /파일 이름 조각/, '문서 이름 규칙(날짜)도 뼈대에서')
   assert.match(S.seedFramePromptOf(g, { forms: S.formHintOf(fset) }), /보고서\(주간보고\)/)
   const fr = S.frameOfDraft({ docs: [{ id: '가', src: [A] }, { id: '나', src: [B, C] }], skip: [], why: 'w' }, g)
   assert.equal(fr.docs.length, 2)
