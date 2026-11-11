@@ -35,10 +35,10 @@ export function placeOf(k, { coord, doc, heading }) {
 }
 
 // 제안 하나의 판정(저장 승인 설계 P1) — 쓰지 않고 오류 · 경고를 나눠 낸다
-//   → { text?(조각을 다 댄 새 글), at?(항목 자리), errors: [{ id, code(notfound · conflict · edits · legacy-mix · format · machine), why, stale?, near?, at? }],
+//   → { text?(조각을 다 댄 새 글), at?(항목 자리), errors: [{ id, code(notfound · conflict · edits · format · machine), why, stale?, near?, at? }],
 //       warnings: [{ id, code(missing · invented · lost · remain), doc, heading, values, why }], changed, lint }
 //   remain(기록이 바꿨다는 옛 값이 글에 아직 남음)은 held 모드에서도 막지 않는 알림이다. 다른 값 경고는 held 모드에서 「못 넘음」(checkProposal)
-export function judgeProposal(k, { coord, doc, heading, base, edits, record, spread = false, legacyPend = [] }) {
+export function judgeProposal(k, { coord, doc, heading, base, edits, record, spread = false }) {
   const at = placeOf(k, { coord, doc, heading })
   const where = at ? [at.doc, at.heading] : [doc ?? coord ?? '', heading ?? '']
   const fail = (code, why, extra = {}) => ({ errors: [{ id: judgeId(code, ...where, why), code, why, ...extra }], warnings: [], changed: [] })
@@ -48,7 +48,7 @@ export function judgeProposal(k, { coord, doc, heading, base, edits, record, spr
   if (String(base) !== sha16(cur)) return { ...fail('conflict', '그사이 항목이 바뀌었다. section 으로 다시 읽고 그 위에서 조각을 만든다', { stale: true }), at }
   const e = judgeEdits(cur, edits)
   if (e.errors.length) return { errors: e.errors.map((x) => ({ id: judgeId('edits', ...where, x.why), ...x })), warnings: [], changed: [], at }
-  const j = judgeSection(k, { doc: at.doc, heading: at.heading, base, content: e.text, record, spread, legacyPend })
+  const j = judgeSection(k, { doc: at.doc, heading: at.heading, base, content: e.text, record, spread })
   // 기록이 바꿨다는 옛 값이 글에 아직 남아 있다 — 고친 범위가 모자란 것일 수 있어 알린다(같은 값이 다른 뜻일 수 있다)
   const nowV = valuesOf(e.text)
   const remain = oldValues(String(record?.body || '')).filter((x) => nowV.has(x))
@@ -59,7 +59,7 @@ export function judgeProposal(k, { coord, doc, heading, base, edits, record, spr
 
 // 제안 하나를 지금 지식에 대어 검사한다 — { ok, text, why, code, changed, stale, near, warnings, lint }
 //   k — 지식 · coord 또는 doc + heading — 항목 · base — 세션이 읽은 지문 · edits — 조각 · record — 함께 보낸 기록({ title, body }) ·
-//   spread — 조각이 여럿(기록의 값이 항목들에 나뉜다) · legacyPend — 이 항목에 아직 안 들어간 개편 전 기록 id(섞인 자리 · legacy-mix)
+//   spread — 조각이 여럿(기록의 값이 항목들에 나뉜다)
 //   P1 부터 judgeProposal 위의 얇은 덮개(held 모드 판정 그대로: 첫 오류 · 없으면 remain 아닌 첫 값 경고가 「못 넘음」)
 export function checkProposal(k, input) {
   const j = judgeProposal(k, input)
@@ -85,7 +85,7 @@ export function parseProposals(body) {
 
 // ── 저장 제안(저장 승인 설계 P-D3 · P-D4 · P-D10 · 2-1 · P2) — 쓰지 않고, 서버가 정한 꼴의 【저장 제안】 글 · 항목 · 새로 서는 것 · 경고 · 오류 · 해시 ──
 //   k — 저장 줄 안에서 새로 읽은 지식 · input — save 와 같은 꼴(record 는 서식을 엮은 뒤) + distinct · excluded · kinds
-//   opt.newDoc — 새 문서를 세울 수 있나(지금은 지식관리자 · P3 부터 쓰기 자리) · opt.legacyPendOf(k, at, coord) — 섞인 자리 기록 id
+//   opt.newDoc — 새 문서를 세울 수 있나(지금은 지식관리자 · P3 부터 쓰기 자리)
 //   opt.head — { name(지식 이름), viewers(보는 사람 수 · 개인 프로그램은 'me' = 「나만 · 이 PC」 · 없으면 null), path(길: 이 세션의 작업 · 화면 …) }
 //   → { text, items, newDocs, newNames, newForms, newKinds, warnings[{ id, code, at, why }], errors[{ code, at, why, near? }], proposal }
 //   proposal — 비밀 없는 sha256(64자 hex): 정규화한 record · sections · names · forms · kinds · excluded · distinct · 조각마다의 base ·
@@ -140,13 +140,13 @@ export function proposalHash(x) {
 }
 
 //   approve 모드(P3 · opt.approve) — 저장 문이 줄 안에서 같은 판정을 다시 돌려 해시를 대 본다(hub saveIn):
-//     memo 는 오류(P-D34) · 「바뀐 것」 값이 이은 항목 글에 없으면 오류(본문 반영 judgeReflect · P-D12 · watched 는 넘음) ·
+//     memo 는 입력 오류(core/save.js check · P-D34) · 「바뀐 것」 값이 이은 항목 글에 없으면 오류(본문 반영 judgeReflect · P-D12 · watched 는 넘음) ·
 //     조각도 건드린 이름도 없고 touchesEmpty 까닭이 있으면 기록 모음 달 항목(opt.month 'YYYY-MM')에 잇는다(P-D29) ·
 //     되돌림 잦은 문서(opt.reverts(doc) ≥ 2)의 값 바꿈은 경고(reverts) · 새 문서 갈래는 같은 제안의 forms 까지 본다(P-D9)
 //   → 더해 linked([{ doc, heading }] 글 그대로 이은 항목) · fresh([{ kind, name }] 새로 세운 것)
 //   opt.curator — 지식관리자(approve 모드에서 있는 이름 · 갈래의 장부 고침을 받는다 · 「장부 고침」 줄)
 //   opt.intakeDoc — 무인 채널(P6)만: 서버 고정 갈래 「들인 자료」 아래 새 문서를 연다(core/guard.js guardNewDoc)
-export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [], head = {}, extraErrors = [], approve = false, reverts = null, month = null, curator = false, intakeDoc = false } = {}) {
+export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors = [], approve = false, reverts = null, month = null, curator = false, intakeDoc = false } = {}) {
   const rec = input.record && typeof input.record === 'object' ? input.record : {}
   const record = { title: String(rec.title || ''), body: String(rec.body || '') }
   const secs = Array.isArray(input.sections) ? input.sections : []
@@ -172,8 +172,6 @@ export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [
   }
   for (const e of extraErrors) err(e.code, e.at, e.why)
   if (!record.title.trim()) err('record', '기록', '제목(title)이 없다')
-  if (approve && rec.memo === true) err('memo', '기록', '메모(기록만)는 남기지 않는다. 정해진 부분만 골라 다시 제안한다(정해지지 않은 것은 저장하지 않는다 · 풀리지 않은 물음은 이슈 갈래가 있으면 이슈 항목으로)')
-  else if (rec.memo === true && secs.length) err('record', '기록', '메모는 항목 글을 받지 않는다')
   const spread = secs.length > 1
   const done = new Set()
   const texts = []
@@ -195,7 +193,7 @@ export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [
       const r = nearOf(k.docs.flatMap((d) => [d.id.split('/').pop(), d.title]), name)
       near('새 문서', where, name, r)
       if (!newDocs.some((d) => d.doc === `docs/${rel}.md`)) newDocs.push({ doc: `docs/${rel}.md`, form: g.form?.name || null, near: [...r.same, ...r.similar].slice(0, 5) })
-      const j = judgeSection(k, { doc: `docs/${rel}.md`, heading, base: s.base, content: s.content, record, spread, legacyPend: [] })
+      const j = judgeSection(k, { doc: `docs/${rel}.md`, heading, base: s.base, content: s.content, record, spread })
       for (const e of j.errors) err(e.code, where, e.why)
       for (const w of j.warnings) warnings.push(warnOf(w))
       items.push({ kind: '신설', ...(coord ? { coord } : {}), doc: `docs/${rel}.md`, heading, at: where, base: null, before: '', after: s.content, changed: [], newDoc: true })
@@ -204,12 +202,11 @@ export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [
     }
     const where = atOf(at.doc, at.heading)
     done.add(`${at.doc}\n${at.heading}`)
-    const legacyPend = legacyPendOf(k, at, coord)
     if (!at.sec) {
       // 있는 문서에 새 머리 — 글 전체(content)로 · 같은 문서의 머리와 너무 비슷한가
       if (typeof s.content !== 'string') { err('notfound', where, '그 항목이 아직 없다. 새 항목이면 doc · heading 과 content(새 글 전체)로 보낸다'); continue }
       near('새 머리', where, at.heading, nearOf(at.docObj.sections.map((x) => x.h), at.heading))
-      const j = judgeSection(k, { doc: at.doc, heading: at.heading, base: s.base, content: s.content, record, spread, legacyPend })
+      const j = judgeSection(k, { doc: at.doc, heading: at.heading, base: s.base, content: s.content, record, spread })
       for (const e of j.errors) err(e.code, where, e.why, e.stale ? { stale: true } : {})
       for (const w of j.warnings) warnings.push(warnOf(w))
       items.push({ kind: '신설', ...(coord ? { coord } : {}), doc: at.doc, heading: at.heading, at: where, base: null, before: '', after: s.content, changed: [] })
@@ -218,8 +215,8 @@ export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [
     }
     const before = at.sec.body
     const j = Array.isArray(s.edits)
-      ? judgeProposal(k, { coord, doc: at.doc, heading: at.heading, base: s.base, edits: s.edits, record, spread, legacyPend })
-      : { ...judgeSection(k, { doc: at.doc, heading: at.heading, base: s.base, content: s.content, record, spread, legacyPend }), text: s.content }
+      ? judgeProposal(k, { coord, doc: at.doc, heading: at.heading, base: s.base, edits: s.edits, record, spread })
+      : { ...judgeSection(k, { doc: at.doc, heading: at.heading, base: s.base, content: s.content, record, spread }), text: s.content }
     for (const e of j.errors) err(e.code, where, e.why, { ...(e.near ? { near: [e.near] } : {}), ...(e.stale ? { stale: true } : {}) })
     for (const w of j.warnings) warnings.push(warnOf(w))
     // 되돌림 잦은 문서(S-D11) — held 모드는 그 조각을 넣지 못함으로 · approve 모드는 경고(승인하면 받아들임)
@@ -310,7 +307,7 @@ export function buildProposal(k, input, { newDoc = false, legacyPendOf = () => [
   const L = []
   const viewers = head.viewers === 'me' ? '(보는 사람: 나만 · 이 PC)' : Number.isInteger(head.viewers) ? `(보는 사람 ${head.viewers})` : ''
   L.push(`【저장 제안】 지식: ${head.name || k.name || k.id}${viewers} · 길: ${head.path || '이 세션의 작업'}`)
-  L.push(`【기록】 「${record.title}」${rec.memo === true ? ' · 메모' : ''}`)
+  L.push(`【기록】 「${record.title}」`)
   const rp = recordParts(record.body)
   // 사람이 보낸 글은 늘 들여 싣는다(머리 줄 · 검사 줄을 흉내 내지 못하게)
   rp.summary.split('\n').map((x) => x.trim()).filter(Boolean).forEach((x, i) => L.push(`  ${(i ? '' : '요약').padEnd(8, ' ')}  ${x}`))

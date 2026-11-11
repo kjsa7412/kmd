@@ -47,7 +47,7 @@ description: 일하며 정한 것 · 바뀐 값 · 제기한 물음을 이 PC �
    사람: 좋아, 넣어
    세션: save { …, proposal: <마지막으로 보인 제안서의 proposal> } → 들어감
    ```
-9. **save**: 승인되면 마지막으로 보인 제안서와 **같은 입력**에 `proposal` 과 `kit` 을 실어 `save` 한다. `proposal` 없이 부르지 않는다. `saveMode` 가 `approve` 가 아니면(이행 못한 개인 지식) 저장이 닫혀 있다: 사람에게 개인 화면 멈춤 줄 「이행 못함」 의 [다시 하기] 를 전한다.
+9. **save**: 승인되면 마지막으로 보인 제안서와 **같은 입력**에 `proposal` 과 `kit` 을 실어 `save` 한다. `proposal` 없이 부르지 않는다.
    - `E_APPROVE`: 승인한 제안과 지금 제안이 다르다. 아무것도 쓰지 않았다. `details.propose.text` 의 바뀐 줄을 보이고 7로 돌아가 다시 승인받는다.
    - `E_CONFLICT`: 읽은 뒤 바뀐 항목이 있다(편집기에서 고쳤을 수 있다). 아무것도 쓰지 않았다. `details.stale` 항목을 `section` 으로 다시 읽고 다시 propose 해서 바뀐 부분만 보이고, 다시 승인받아 꼭 다시 보낸다.
    - `E_INPUT` · `E_FORMAT`: 까닭대로 입력을 고쳐 다시 propose 한다(아무것도 쓰지 않았다).

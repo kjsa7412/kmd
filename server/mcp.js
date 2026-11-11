@@ -7,7 +7,7 @@
 // 기억하지 않으므로(무상태) 다시 띄워도 세션이 끊기지 않는다.
 
 import { KmdError } from '../core/errors.js'
-import { labelOf, sectionOf, coordsOfSection, pendPick, sectionHistory } from '../core/knowledge.js'
+import { labelOf, sectionOf, coordsOfSection, sectionHistory } from '../core/knowledge.js'
 import { headingMatches } from '../core/sections.js'
 import { VERSION } from './version.js'
 import { sha16 } from '../core/text.js'
@@ -40,7 +40,7 @@ const str = (description) => ({ type: 'string', description })
 const TOOLS = [
   {
     name: 'brief',
-    description: '지금 kmd 에 무엇이 있나: 지식 목록 · 지식 하나의 문서 · 최근 기록 · 종류(kinds) · 갈래(forms) · 저장 방식(saveMode: approve 면 저장 제안을 승인받아 save · old 면 저장 승인 전 지식) · kit(스킬 판: 스킬 글의 판보다 크면 다시 설치). 팀 지식이면 지식마다 mine(accepted: 승인으로 경고를 받아들인 내 기록 수) · 지식 하나의 you.recent(그 기록의 제목 · 까닭) · parser(대량 넣기 파서 꾸러미: ver · url · sha256 · bytes · 없으면 null). 일을 시작할 때 한 번.',
+    description: '지금 kmd 에 무엇이 있나: 지식 목록 · 지식 하나의 문서 · 최근 기록 · 종류(kinds) · 갈래(forms) · 저장 방식(saveMode: approve — 저장 제안을 승인받아 save) · kit(스킬 판: 스킬 글의 판보다 크면 다시 설치). 팀 지식이면 지식마다 mine(accepted: 승인으로 경고를 받아들인 내 기록 수) · 지식 하나의 you.recent(그 기록의 제목 · 까닭) · parser(대량 넣기 파서 꾸러미: ver · url · sha256 · bytes · 없으면 null). 일을 시작할 때 한 번.',
     inputSchema: { type: 'object', properties: { knowledge: str('지식 id(없으면 목록)') } },
   },
   {
@@ -169,7 +169,7 @@ export function makeMcp(store) {
         const ks = await store.all(ctx)
         return {
           // mine — 내가 승인으로 경고를 받아들인 기록 수(팀)
-          knowledge: ks.map((k) => { const mine = store.mineIn(ctx, k); return { id: k.id, name: k.name, ...whereOf(store, k.id), docs: k.docs.length, records: k.works.length, notYetInDocs: k.works.filter((w) => w.state === 'pend').length, ...(mine ? { mine } : {}) } }),
+          knowledge: ks.map((k) => { const mine = store.mineIn(ctx, k); return { id: k.id, name: k.name, ...whereOf(store, k.id), docs: k.docs.length, records: k.works.length, ...(mine ? { mine } : {}) } }),
           ...(store.mode === 'pc' ? { kit: PC_KIT_REV } : { kit: TEAM_KIT_REV, parser: await parserOf() }),
           next: ks.length ? 'brief { knowledge } 로 지식 하나를 본다' : '아직 지식이 없다',
           stops: (await store.stops(ctx)).map((l) => l.text),
@@ -179,17 +179,15 @@ export function makeMcp(store) {
       }
       const k = await store.get(knowledge, ctx)
       const mine = store.mineIn(ctx, k, { recent: 5 })
-      // 저장 방식(저장 승인 설계 P-D5 · P-D40 · P11) — approve: 저장 제안을 승인받아 save(proposal) · old: 이행하지 못한 옛 개인 지식(저장이 닫혀 있다 · PC6)
-      const approve = store.saveModeOf?.(k.id) === 'approve'
+      // 저장 방식(저장 승인 설계 P-D5 · P-D40 · P11 · P12) — 늘 approve: 저장 제안을 승인받아 save(proposal)
       return {
         id: k.id,
         name: k.name,
         ...whereOf(store, k.id),
-        saveMode: approve ? 'approve' : 'old',
+        saveMode: 'approve',
         ...(store.mode === 'pc' ? { kit: PC_KIT_REV } : { kit: TEAM_KIT_REV, parser: await parserOf() }),
         docs: k.docs.map((d) => ({ doc: d.id, title: d.title, headings: d.sections.map((s) => s.h) })),
         recent: k.works.slice(0, 10).map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title })),
-        notYetInDocs: k.works.filter((w) => w.state === 'pend').map((w) => ({ id: w.id, date: w.date, title: w.title })),
         // 이 지식에서의 내 자리 — direct 면 sections 가 검사를 넘으면 그 순간 문서에(쓰기 이상 · hub.canSave) ·
         // ledgers 면 names · forms 가 곧바로 이름 · 갈래 장부에(지식관리자 · hub.canDirect), 아니면 기록의 「세울 이름」 칸으로 ·
         // accepted · recent — 승인으로 받아들인 경고 수 · 내가 넣은 최근 기록 5(고쳐 다시 저장할 때 record.fixes 에 그 id)
@@ -200,10 +198,10 @@ export function makeMcp(store) {
         rules: [
           'touches 는 match 로 찾은 이름 장부의 이름만. 새 이름은 names 로 같이 세운다(값은 빈칸 없는 열쇠 · 설명은 label)',
           '건드린 이름이 정말 없으면 touches 를 비우고 touchesEmpty 에 까닭 한 줄',
-          k.forms.own ? (approve ? '새 문서는 forms 의 갈래 이름 · 폴더로만. 갈래에 없는 문서가 필요하면 forms 로 새 갈래를 같이 제안한다' : '새 문서는 forms 의 갈래 이름 · 폴더로만. 갈래에 없는 문서가 필요하면 지식관리자에게(forms 로 갈래를 세운다)') : '새 문서 이름은 갈래 · 주제(회의록 · 장애 대응 · 보고서 · 주제 이름). 파일 이름 · 날짜 · 판을 쓰지 않는다. 통화 · 미팅은 회의록의 「YYYY-MM-DD 무엇」 항목',
+          k.forms.own ? '새 문서는 forms 의 갈래 이름 · 폴더로만. 갈래에 없는 문서가 필요하면 forms 로 새 갈래를 같이 제안한다' : '새 문서 이름은 갈래 · 주제(회의록 · 장애 대응 · 보고서 · 주제 이름). 파일 이름 · 날짜 · 판을 쓰지 않는다. 통화 · 미팅은 회의록의 「YYYY-MM-DD 무엇」 항목',
         ],
-        // 넣는 길(팀 · 개인 한 벌 · 저장 승인 설계 P-D44 · P11 · PC6) — 승인한 제안이 기록 + 조각 한 번에 · 이행 못한 옛 개인 지식은 저장이 닫혀 있다
-        put: approve ? '저장 제안(propose)을 사람에게 보이고 승인받은 proposal 을 실어 save 하면 기록과 항목 조각이 한 번에 들어간다. 정해지지 않은 것은 저장하지 않는다' : '이 개인 지식은 아직 새 저장 길로 이행하지 못해 저장이 닫혀 있다(읽기 · 찾기는 된다). 개인 화면 멈춤 줄 「이행 못함」 의 [다시 하기] 로 이행한다',
+        // 넣는 길(팀 · 개인 한 벌 · 저장 승인 설계 P-D44 · P11 · PC6) — 승인한 제안이 기록 + 조각 한 번에
+        put: '저장 제안(propose)을 사람에게 보이고 승인받은 proposal 을 실어 save 하면 기록과 항목 조각이 한 번에 들어간다. 정해지지 않은 것은 저장하지 않는다',
         ...(store.owner(k.id)?.noClaude ? { noClaude: '이 지식은 들이기에 Claude 를 쓰지 않는다(주인이 정했다). 이 대화로 옮기는 글은 꼭 필요한 것만' } : {}),
         stops: (await store.stops(ctx, k.id)).map((l) => l.text),
       }
@@ -293,8 +291,6 @@ export function makeMcp(store) {
         // 저절로 채우는 표 — 원천 · 원천 기준 시각 · 확인 시각 · 낡음(낡았으면 답에 그 사실을 옮긴다)
         ...(await baselineInfo(k, sec.body, store)),
         lastPut: sec.applied || null,
-        notYetInDocs: pendPick(recs).pick.map((w) => ({ ...recOut(w), body: w.body })),
-        notYetMore: pendPick(recs).more,
         records: recs.slice(0, 10).map(recOut),
         // 항목 이력(저장 승인 설계 P-D12 · P2) — 그 항목에 이어진 기록 줄(이름 · 표지 · 넣은 것 칸) · 새것부터 20 + 넘친 수
         ...(() => { const h = sectionHistory(k, d, sec.h); return { history: h.items.map(recOut), historyMore: h.more } })(),
@@ -332,13 +328,9 @@ export function makeMcp(store) {
       const k = await store.get(knowledge, ctx)
       // 이미 있는 항목을 갈아 끼우는 글에는 base 가 있어야 한다 — 없으면 그사이 남이 고친 글을 덮는다
       // (kmd 가 띄운 넣기 에이전트는 그 파일의 글을 들이는 일이라 뺀다 — 사람의 세션이 남의 고침을 덮지 않게 하는 것)
-      //   팀 지식 · approve 모드 개인 지식은 저장 문이 줄 안에서 같은 것을 보고 details.stale 를 싣는다(hub.save · 지문 한 벌 · 저장 승인 설계 b26 · PC1) — 여기서는 옛 길 개인 지식만
-      const pcOld = store.mode === 'pc' && store.saveModeOf?.(k.id) !== 'approve'
+      //   팀 · 개인 지식 모두 저장 문이 줄 안에서 같은 것을 보고 details.stale 를 싣는다(hub.save · 지문 한 벌 · 저장 승인 설계 b26 · PC1)
       for (const x of Array.isArray(sections) && !ctx?.agent ? sections : []) {
         if (x && (x.from != null || x.append)) throw new KmdError('E_INPUT', 'from · append 는 kmd 넣기 에이전트만 쓴다. 항목의 새 글 전체를 content 로 보낸다')
-        if (!x || x.base || !pcOld) continue
-        const has = x.coord ? !!sectionOf(k, String(x.coord).trim().normalize('NFC'))?.sec : !!k.docs.find((d) => d.id === String(x.doc || '').replace(/^docs\/|\.md$/g, ''))?.sections.some((y) => headingMatches(y.h, String(x.heading || '')))
-        if (has) throw new KmdError('E_CONFLICT', `「${x.coord || x.heading}」 은 이미 있는 항목이다. section 으로 다시 읽고 그 base 를 같이 보낸다(그사이 남이 고친 글을 덮지 않게)`)
       }
       // 채널은 서버가 정한다(S-D3 · 설계 2-1) — 넣은 파일 표지(ingest/)가 있으면 대량 넣기, 아니면 세션
       const channel = (Array.isArray(record?.tags) ? record.tags : []).some((t) => String(t).startsWith('ingest/')) ? 'bulk' : 'session'
@@ -355,8 +347,8 @@ export function makeMcp(store) {
   }
 
   // 상태 말 — 저장 문의 새 상태(넣지 못함 · 메모 · 바로잡힘 · 되돌림)는 「문서에 들어감」 으로 보이지 않게(S4 · 나머지 말은 S10)
-  //   팀 · 개인 한 벌(저장 승인 설계 P-D44 · P4 · PC2) — 옛 기록의 상태(pend · held · memo · kept)는 읽기만 남는다(P11 · PC6)
-  const STATE_WORD = { pend: '아직 문서에 안 들어감', held: '넣지 못함', memo: '메모', fixed: '바로잡힘', reverted: '되돌림', kept: '버림' }
+  //   팀 · 개인 한 벌(저장 승인 설계 P-D44 · P4 · PC2) — 저장 승인 전 기록은 「기록」 하나(옛 상태를 가르지 않는다 · P12)
+  const STATE_WORD = { old: '기록', fixed: '바로잡힘', reverted: '되돌림', none: 'kmd 가 한 일' }
   const recOut = (w) => ({ id: w.id, date: w.date, author: w.author, title: w.title, state: STATE_WORD[w.state] || '문서에 들어감' })
 
   async function call(msg, ctx) {

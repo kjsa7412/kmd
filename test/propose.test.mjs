@@ -1,7 +1,7 @@
 // 제안 — 기록할 때 쓴 항목 조각(core/propose.js · 권한 모델 7절 · 작성기준 7절)
 //
 // 조각 대기: 꼭 한 번 · 없음(가까운 줄) · 두 번 · 겹침 · 줄 끝 빈칸은 맞춰 보되 원문은 그대로 ·
-// 검사(S4 · 저장 문): 지문(base) → E_CONFLICT · 섞인 자리 → legacy-mix · 값 더하기 · 옛 값 바꿈 · 문장 지움 모두 그 순간 넣는다(확인 대기 없음) ·
+// 검사(S4 · 저장 문): 지문(base) → E_CONFLICT · 값 더하기 · 옛 값 바꿈 · 문장 지움 모두 그 순간 넣는다(확인 대기 없음) ·
 // 지어낸 값 · 빠진 값 → 그 조각만 넣지 못함(기록은 남는다) · 이름 없는 항목은 문서 · 머리로
 
 import { test, before, after } from 'node:test'
@@ -95,9 +95,8 @@ test('검사: 지문이 다르면 stale(conflict) · 값 더하기 · 옛 값 �
   const miss = { coord, base, edits: [{ find: '롤백으로 간다.', replace: '롤백으로 간다. 알림을 보낸다.' }], record: rec('## 바뀐 것\n- 알림 간격: 5분') }
   assert.match(checkProposal(k, miss).why, /기록의 값이 글에 없다: 5분/)
   assert.equal(checkProposal(k, { ...miss, spread: true }).ok, true)
-  // 조각이 맞지 않으면 edits · 섞인 자리면 legacy-mix · 없는 항목이면 notfound
+  // 조각이 맞지 않으면 edits · 없는 항목이면 notfound
   assert.deepEqual([checkProposal(k, { coord, base, edits: [{ find: '없는 글', replace: 'x' }], record: rec('x') }).code], ['edits'])
-  assert.equal(checkProposal(k, { ...miss, spread: true, legacyPend: ['2026-0101-옛-기록'] }).code, 'legacy-mix')
   assert.equal(checkProposal(k, { coord: 'proc:없는것', base, edits: [{ find: 'a', replace: 'b' }], record: rec('x') }).code, 'notfound')
   // 이름이 없는 항목도 문서 · 머리로(S-D55)
   const byDoc = checkProposal(k, { doc: '배포절차', heading: '카나리', base, edits: [{ find: '요청의 10% 만', replace: '요청의 20% 만' }], record: rec('## 바뀐 것\n- 첫 30분 비율: 10% → 20%') })

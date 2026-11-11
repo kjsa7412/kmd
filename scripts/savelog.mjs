@@ -1,6 +1,6 @@
 // 저장 측정 읽기(K12-2 · K12-4 · 설계 9절) — 팀 서버가 저장마다 덧붙인 <data>/savelog/<지식>.jsonl 을 읽어 표를 낸다.
 //
-//   node scripts/savelog.mjs <data 폴더> [--kn dpms] [--since 2026-11-10] [--until 2026-11-24] [--ch session,bulk] [--json] [--trend] [--root <지식 폴더>]
+//   node scripts/savelog.mjs <data 폴더> [--kn dpms] [--since 2026-11-10] [--until 2026-11-24] [--ch session,bulk] [--json]
 //
 //   채널마다  저장 수 · 조각 수 · 조각 통과율(넣음 / 조각) · 걸린 까닭 상위 10 · E_CONFLICT 수 ·
 //             다시 넣은 비율(같은 사람 · 같은 자리가 넣지 못함 또는 E_CONFLICT 뒤 30분 안에 넣음이 된 비율) ·
@@ -9,14 +9,12 @@
 //   비교 기준  같은 data 폴더의 정리 장부 tidy/*.json 이 있으면 정리의 넣음 비율 · 자리당 시간을 옆에 낸다
 //   목표       통과 70% 이상 · 자리당 1분대(2분 안)
 //   approve    받아들인 경고 · 다시 제안 · 무인 값 경고(code 별) · 규칙 길(까닭) · FIX 번 수 · 다시 대기 · 입력 오류(code) — 같은 측정 줄(P-D37)을 지표 탭(GET /api/k/:id/metrics · core/metrics.js)도 읽는다(탭은 그 가운데 줄 여섯 · 입력 오류 · 다시 대기는 이 표에만)
-//   --trend    지식 폴더를 읽어 날마다 열린 넣지 못함 · 메모 수(K12-3 「쌓이나 줄어드나」) · 지식 폴더는 --root, 없으면 data 폴더의 위
 //
 // 읽기만 한다(188 에서도 사람이 돌린다: node /opt/kmd/scripts/savelog.mjs /srv/kmd/.kmd). 아무것도 쓰지 않는다.
 
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { listKnowledge, loadKnowledge } from '../core/knowledge.js'
 import { isReservedUser } from '../core/names.js'
 
 // 문턱(P-D37 · Q2): 규칙 길 10% · 무인 값 경고 20% 를 넘는 채널부터 고친다
@@ -34,7 +32,7 @@ const median = (xs) => {
 }
 
 export function parseArgs(argv) {
-  const o = { data: null, kn: null, since: null, until: null, ch: null, json: false, trend: false, root: null }
+  const o = { data: null, kn: null, since: null, until: null, ch: null, json: false }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     const val = () => {
@@ -49,13 +47,11 @@ export function parseArgs(argv) {
       o[a.slice(2)] = v
     } else if (a === '--ch') o.ch = val().split(',').map((x) => x.trim()).filter(Boolean)
     else if (a === '--json') o.json = true
-    else if (a === '--trend') o.trend = true
-    else if (a === '--root') o.root = val()
     else if (a.startsWith('--')) throw new Error(`모르는 칸: ${a}`)
     else if (!o.data) o.data = a
     else throw new Error(`data 폴더는 하나다: ${a}`)
   }
-  if (!o.data) throw new Error('쓰는 법: node scripts/savelog.mjs <data 폴더> [--kn id] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--ch session,bulk] [--json] [--trend] [--root 지식 폴더]')
+  if (!o.data) throw new Error('쓰는 법: node scripts/savelog.mjs <data 폴더> [--kn id] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--ch session,bulk] [--json]')
   return o
 }
 
@@ -223,45 +219,12 @@ export function summarize(lines) {
   return { lines: lines.length, channels, pairs: [...pairs.entries()].sort((a, b) => b[1] - a[1]).map(([pair, n]) => ({ pair, n })) }
 }
 
-// 날마다 열린 넣지 못함 · 메모(K12-3) — 지식 폴더의 기록에서. 바로잡힘(나중 기록이 fixes 로 가리킴 · 그 기록이 held · touches-fix 가 아님) · 정리 판정 「두기」(kept)는 그날 닫힌다
-export async function trend(root, opt = {}) {
-  const items = []
-  for (const meta of await listKnowledge(root)) {
-    if (opt.kn && meta.id !== opt.kn) continue
-    const k = await loadKnowledge(meta)
-    const all = [...k.works, ...(k.logs || [])]
-    const closed = new Map()
-    const close = (x, d) => { if (!closed.has(x) || d < closed.get(x)) closed.set(x, d) }
-    for (const w of all) {
-      if (!w.fixes?.length || w.tags.includes('held') || w.tags.includes('touches-fix')) continue
-      for (const x of w.fixes) close(x, dayOf(w.date))
-    }
-    // 정리 판정 「두기」(kept · 거두기로 걷히지 않은 것)도 그날 닫힌다 — 화면 · brief 의 넣지 못함 셈(recordState)과 같게
-    for (const [x, v] of k.kept || []) { const by = k.byWork?.get(v.by); if (by) close(x, dayOf(by.date)) }
-    for (const w of k.works) {
-      const kind = w.tags.includes('held') ? 'held' : w.tags.includes('memo') ? 'memo' : null
-      if (kind) items.push({ kind, open: dayOf(w.date), close: closed.get(w.id) || null })
-    }
-  }
-  if (!items.length) return []
-  const first = opt.since || items.map((x) => x.open).sort()[0]
-  const last = opt.until || new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
-  const out = []
-  for (let d = new Date(first + 'T00:00:00Z'); d.toISOString().slice(0, 10) <= last; d.setUTCDate(d.getUTCDate() + 1)) {
-    const day = d.toISOString().slice(0, 10)
-    const open = (kind) => items.filter((x) => x.kind === kind && x.open <= day && !(x.close && x.close <= day)).length
-    out.push({ day, held: open('held'), memo: open('memo') })
-    if (out.length > 3660) break
-  }
-  return out
-}
-
 const pct = (x) => (x == null ? '-' : `${Math.round(x * 100)}%`)
 const sec = (ms) => (ms == null ? '-' : ms >= 60_000 ? `${(ms / 60_000).toFixed(1)}분` : `${(ms / 1000).toFixed(1)}초`)
 const mark = (b) => (b == null ? '' : b ? ' ✓' : ' ✗')
 const pad = (s, n) => { s = String(s); const w = [...s].reduce((a, ch) => a + (/[ᄀ-ￜ]/.test(ch) ? 2 : 1), 0); return s + ' '.repeat(Math.max(0, n - w)) }
 
-export function render(sum, { tidy = null, broken = 0, trendRows = null, opt = {} } = {}) {
+export function render(sum, { tidy = null, broken = 0, opt = {} } = {}) {
   const out = []
   const range = [opt.kn ? `지식 ${opt.kn}` : '모든 지식', opt.since || opt.until ? `${opt.since || '…'} ~ ${opt.until || '…'}` : '모든 날', opt.ch ? `채널 ${opt.ch.join(',')}` : null].filter(Boolean).join(' · ')
   out.push(`저장 측정(savelog) — ${range} · 줄 ${sum.lines}${broken ? ` · 깨진 줄 ${broken}` : ''}`)
@@ -295,12 +258,6 @@ export function render(sum, { tidy = null, broken = 0, trendRows = null, opt = {
   }
   out.push('')
   out.push(`동시 쓰기(K12-4): ${sum.pairs.length ? sum.pairs.map((p) => `${p.pair} ${p.n}`).join(' · ') : '겹친 줄 없음'}`)
-  if (trendRows) {
-    out.push('')
-    out.push('날마다 열린 넣지 못함 · 메모(K12-3)')
-    for (const r of trendRows) out.push(`  ${r.day}  넣지 못함 ${String(r.held).padStart(3)}  메모 ${String(r.memo).padStart(3)}`)
-    if (!trendRows.length) out.push('  (넣지 못함 · 메모 기록이 없다)')
-  }
   return out.map((l) => l.trimEnd()).join('\n')
 }
 
@@ -309,11 +266,8 @@ export async function main(argv) {
   const { lines, broken } = await readLines(opt.data, opt)
   const sum = summarize(lines)
   const tidy = await readTidy(opt.data, opt)
-  const root = opt.root || (path.basename(path.resolve(opt.data)) === '.kmd' ? path.dirname(path.resolve(opt.data)) : null)
-  if (opt.trend && !root) throw new Error('--trend 는 지식 폴더가 있어야 한다: --root <지식 폴더>')
-  const trendRows = opt.trend ? await trend(root, opt) : null
-  if (opt.json) return JSON.stringify({ ...sum, broken, tidy, ...(trendRows ? { trend: trendRows } : {}) }, null, 1)
-  return render(sum, { tidy, broken, trendRows, opt })
+  if (opt.json) return JSON.stringify({ ...sum, broken, tidy }, null, 1)
+  return render(sum, { tidy, broken, opt })
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

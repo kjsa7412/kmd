@@ -236,7 +236,7 @@ test('항목 옮기기 · 이름 — 글자 그대로 · applied · 링크(글 �
   const k0 = await loadKnowledge({ id: 't', name: 't', dir })
   const s0 = states(k0)
   assert.equal(s0['2026-1101-a'], 'in')
-  assert.equal(s0['2026-1103-c'], 'pend')
+  assert.equal(s0['2026-1103-c'], 'old')
   const body0 = parseDoc(read(dir, 'docs/운영/배포.md'), '').sections.find((s) => s.h === '배포 창').body
   const ops = { creates: ['운영/서버'], items: [
     { from: { doc: '운영/배포', h: '배포 창' }, to: { doc: '점검', h: '배포 창', before: '사전 점검' } },
@@ -284,7 +284,7 @@ test('항목 옮기기 · 이름 — 글자 그대로 · applied · 링크(글 �
   fs.rmSync(dir, { recursive: true, force: true })
 })
 
-test('항목 막는 것 — 앞부분 겹침 · 같은 머리 · 원본이 주인 · 갈래 머리 꼴 · 섞인 자리(legacy-mix) · 없는 항목 · 아무것도 쓰지 않는다', async () => {
+test('항목 막는 것 — 앞부분 겹침 · 같은 머리 · 원본이 주인 · 갈래 머리 꼴 · 없는 항목 · 아무것도 쓰지 않는다', async () => {
   const dir = makeItems()
   fs.writeFileSync(path.join(dir, '_forms.md'), '| 갈래 | 다른 이름 | 폴더 | 종류 | 이름 | 서식 |\n|---|---|---|---|---|---|\n| 회의록 | 회의 | — | 사건 | — | 작업기록 |\n| 점검 | — | — | 대상 | — | 지식문서 |\n| 배포 | — | 운영 | 대상 | — | 지식문서 |\n| 서버대장 | — | — | 대장 | `server:*` | 지식문서 |\n| 원본 | — | — | 대상 | — | 지식문서 |\n')
   fs.writeFileSync(path.join(dir, 'docs/회의록.md'), '# 회의록\n\n## 2026-11-01 착수\n정했다.\n')
@@ -299,8 +299,6 @@ test('항목 막는 것 — 앞부분 겹침 · 같은 머리 · 원본이 주�
   await assert.rejects(go([{ from: { doc: '운영/배포', h: '롤백' }, to: { doc: '회의록' } }]), /머리 꼴/)
   await assert.rejects(go([{ from: { doc: '운영/배포', h: '없음' }, to: { doc: '점검' } }]), /없는 항목/)
   await assert.rejects(go([{ from: { doc: '운영/배포', h: '배포' }, to: { doc: '점검' } }]), /없는 항목/, '앞부분 맞춤으로 집지 않는다')
-  const legacy = (k, d, s) => (s.h === '배포 창' ? ['2026-1103-c'] : [])
-  await assert.rejects(go([{ from: { doc: '운영/배포', h: '배포 창' }, to: { doc: '점검' } }], { legacy }), (e) => e.code === 'E_INPUT' && e.details.some((x) => x.code === 'legacy-mix'))
   await assert.rejects(go([{ from: { doc: '운영/배포' }, to: { doc: '점검' } }]), /items 는/)
   assert.equal(git(dir, 'rev-parse', 'HEAD').trim(), head0)
   assert.equal(git(dir, 'status', '--porcelain').trim(), '')

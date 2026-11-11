@@ -19,7 +19,7 @@ import { parseDoc, headingMatches } from './sections.js'
 import { parseForms, formsOf, formFor, headingFits, formHeadRule, FORM_KINDS, RECORDS_DOC } from './guard.js'
 import { cleanForms } from './namebook.js'
 import { nameProblem, stepFp, brokenLinks } from './restructure.js'
-import { coordsOfSection, reflectedIn } from './knowledge.js'
+import { coordsOfSection } from './knowledge.js'
 import { watchedOf } from './watchmark.js'
 import { hasBlockMarker } from './baseline.js'
 import { judgeId } from './values.js'
@@ -328,15 +328,13 @@ export function planCheck(k, S, Pl) {
     if (d?.intro) err(e, '요약이 있는 문서는 걷지 않는다')
     if (d?.watched) err(e, '원본이 주인인 문서는 걷지 않는다')
   }
-  // write 단위 — 50 조각 · 출처 대기 기록(4-3 「planCheck 가 그런 출처의 나누기 · 합치기를 걸림으로」) · 이름 다시 놓기
+  // write 단위 — 50 조각 · 이름 다시 놓기
   const nameAt = new Map(Pl.names.map((x) => [x.coord, x]))
   for (const u of diff.writes) {
     if (u.size > PLAN_LIMITS.unit) err(`단위 ${u.n}`, `나누기 · 합치기가 엮여 한 저장이 ${u.size} 조각이다(${PLAN_LIMITS.unit} 안으로 나눈다)`, 'unit')
     for (const s of u.sources) {
       const dObj = k?.byDocPath.get(`docs/${s.doc}.md`)
       const sec = dObj?.sections.find((x) => x.h === s.h)
-      const pend = k && sec ? k.works.filter((w) => w.state === 'pend' && w.touches.some((c) => s.coords.includes(c)) && !reflectedIn(k, w, sec)) : []
-      if (pend.length) err(`${s.doc} › ${s.h}`, `아직 안 넣은 기록 ${pend.length} 이 걸린 항목은 나누거나 합치지 않는다(먼저 넣거나 두기로 정한다)`, 'pend')
       // 저절로 채우는 표 — 걷히는 출처(keep 이 아닌)면 표와 원천 규칙(_sources.json into)의 고리가 끊긴다. 항목째 옮기기(frame)나 제자리 고쳐 쓰기만
       if (!s.keep && sec && hasBlockMarker(sec.body)) err(`${s.doc} › ${s.h}`, '저절로 채우는 표가 든 항목은 나누거나 합쳐 걷지 않는다(항목째 옮기거나 같은 머리로 남긴다)', 'machine')
       for (const c of s.coords) {
@@ -422,9 +420,6 @@ export function diagnose(before, after, { work, sectionOf, coordsOfSection, audi
   const lost = a1.lost.filter((x) => !lost0.has(x.coord))
   if (lost.length) blockers.push({ what: '항목 잃은 이름', why: lost.slice(0, 5).map((x) => x.coord).join(' · ') + (lost.length > 5 ? ` 외 ${lost.length - 5}` : '') })
   const mine = (w) => (w.tags || []).some((t) => t.startsWith(`shape/${work}/`))
-  const held0 = new Set(before.works.filter((w) => w.state === 'held').map((w) => w.id))
-  const held = after.works.filter((w) => mine(w) && w.state === 'held' && !held0.has(w.id))
-  if (held.length) blockers.push({ what: '넣지 못함', why: held.map((w) => w.title).slice(0, 5).join(' · ') })
   const st0 = new Map(before.works.map((w) => [w.id, w.state]))
   const moved = after.works.filter((w) => !mine(w) && st0.has(w.id) && st0.get(w.id) !== w.state)
   if (moved.length) blockers.push({ what: '기록 상태 바뀜', why: moved.slice(0, 5).map((w) => `${w.id}(${st0.get(w.id)} → ${w.state})`).join(' · ') })
@@ -443,7 +438,7 @@ export function diagnose(before, after, { work, sectionOf, coordsOfSection, audi
     if (long.length) warnings.push({ what: d.id, why: `300줄 넘는 항목 ${long.length}` })
     if (!d.intro?.trim()) warnings.push({ what: d.id, why: '요약 없음' })
   }
-  return { blockers, warnings, counts: { lost: lost.length, held: held.length, moved: moved.length, links: broken.length, docs: after.docs.length, items: after.docs.reduce((x, d) => x + d.sections.length, 0) } }
+  return { blockers, warnings, counts: { lost: lost.length, moved: moved.length, links: broken.length, docs: after.docs.length, items: after.docs.reduce((x, d) => x + d.sections.length, 0) } }
 }
 
 // 넣기 직전 짜임(4-3 되돌리기 3) — 되돌리기 구조안의 재료. 문서 · 항목 머리 · 글이 다시 쓰일 항목의 글 · 그 항목에 닿던 이름 · 옮겨 간 자리

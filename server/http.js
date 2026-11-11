@@ -731,13 +731,6 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       admin(ctx, { sudo: false })
       return out(200, await hub.gitlabGroups(ctx))
     }
-    // 개인 지식 이행 다시 하기(저장 승인 PC5 · 멈춤 줄 「이행 못함」) — 이 PC 의 사람 · 그 지식
-    const pmg = p.match(/^\/api\/pc\/migrate\/([^/]+)$/)
-    if (pmg) {
-      if (mode !== 'pc') throw new KmdError('E_NOTFOUND', '이 PC 의 길이다')
-      if (req.method !== 'POST') throw new KmdError('E_METHOD', 'POST 만 받는다')
-      return out(200, await hub.pcMigrateAgain(ctx, dec(pmg[1])))
-    }
     if (p === '/api/pc/backup') {
       if (mode !== 'pc') throw new KmdError('E_NOTFOUND', '이 PC 의 길이다')
       return out(200, await hub.setBackupRoot(ctx, (await readBody(req)).root))
@@ -893,15 +886,6 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (body != null && typeof body !== 'string') throw new KmdError('E_INPUT', 'body 는 글이다')
       return out(200, await hub.fixRecord(ctx, dec(rf[1]), rec, { ...(title != null ? { title } : {}), body: body ?? '', ...(from != null ? { from } : {}), ...(to != null ? { to } : {}) }))
     }
-    // 넣을 곳 고르기(S-D42) — POST 만 · :rec 는 기록 id 꼴
-    const rt = p.match(/^\/api\/k\/([^/]+)\/rec\/([^/]+)\/touches$/)
-    if (rt) {
-      const rec = dec(rt[2])
-      if (rec.length > 80 || /[\\/\s\u0000-\u001f]/.test(rec) || rec.startsWith('.')) throw new KmdError('E_INPUT', '기록 id 가 아니다')
-      const b = await readBody(req)
-      if (typeof b?.coord !== 'string' || b.coord.length > 200) throw new KmdError('E_INPUT', 'coord 는 이름 글이다')
-      return out(200, await hub.setTouches(ctx, dec(rt[1]), rec, b.coord))
-    }
     // 메뉴 — 사람마다 순서 · 뺀 지식 · 동기화(지식 폴더 다시 읽기)
     if (p === '/api/knowledge/menu') {
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
@@ -930,7 +914,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         //   이슈 주소만은 읽기 자리부터 issue 로(항목의 [이슈 열기] · #10 남김 · 지식관리 2) — 정책 칸(issueUrl)은 그대로 지식관리자만
         // 저장소 붙음 여부(모든 지식 표 · 6-4) — 그 지식의 지식관리자에게만 · 주소는 싣지 않는다
         const repo = lv === 'admin' && !k.gone ? !!hub.backupStateSync(k) : undefined
-        // save — 저장 방식(팀은 늘 approve · 개인 approve · pc(이행 못함 · 저장 닫힘) · 저장 승인 P5 · P11 · PC6)
+        // save — 저장 방식(팀 · 개인 모두 늘 approve · 저장 승인 P11 · P12)
         return { ...V.knowledgeRow(k, seeOf(ctx, k.id)), level: lv, save: k.gone ? null : hub.saveModeOf(k.id), ...(repo !== undefined ? { repo } : {}), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null, noClaude: !!row?.noClaude, ...(lv === 'admin' && row?.issueUrl ? { issueUrl: row.issueUrl } : {}), ...(LV_READ.includes(lv) && row?.issueUrl ? { issue: row.issueUrl } : {}), ...(lv === 'admin' && row?.review ? { review: true } : {}) } : {}), ...(chk ? { chk } : {}), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
       })))
     }

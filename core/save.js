@@ -21,9 +21,7 @@
 //             항목 하나라도 못 넣으면(넣을 곳 없음 · 원본이 주인 · 문서 꼴 · 저절로 채우는 표 · prepare 의 held) 아무것도 쓰지 않고 입력 오류다
 //   approve   { accepted, values?, linked, fresh } — approve 모드 저장 문(무인 채널은 intake 와 같이 · values = `## 값 대조` · P6)(저장 승인 설계 P3 · hub saveIn 만 단다): 넣지 못함 없이 들어감 하나(태그 put ·
 //             `## 넣은 것` · 글 그대로 이은 항목 `## 이은 항목` · 승인한 경고 `## 받아들인 경고` · 새로 세운 것 `## 새로 세움` · core/parts.js)
-//   migrate   이행 기록(저장 승인 P8 · kmd-migrate held-put) — approve 와 같이 · 예약 태그 migrate-held 를 단다(그 fixes 가 가리킨 옛 기록은 들어감 · core/knowledge.js)
-//             migrate: { members: 글 | true(prepare 가 members 를 돌려준다) } — 개인 지식 이행(PC5)이 저장 방식 표지(`_members.md` 「- 저장 방식: 승인」)를 같은 저널 · 같은 커밋에 쓴다
-//   record.memo — 메모(태그 memo · 항목 글을 받지 않는다) · input.attach — docs/assets/ 아래 첨부(같은 저널 · 같은 커밋)
+//   record.memo 는 받지 않는다(메모는 걷었다 · P11 · P12) · input.attach — docs/assets/ 아래 첨부(같은 저널 · 같은 커밋)
 //   shape     { tags } — 문서 짜임의 글 걸음(바탕 세우기 설계 4-3 · hub.shapeStep 만 단다). 저장 문이 붙이는 예약 태그(shape · shape-done · shape/<work>/<n>) ·
 //             항목 지우기(출처 걷기)를 받는다(structure) · prepare 가 돌려준 place([{ coord, doc, heading }] · 자리 장부 placeExact) ·
 //             intros([{ doc, text }] · 문서 요약) · sections[].log(출처 항목의 참고 줄 · 목표 항목 줄에 합친다)를 쓴다
@@ -95,12 +93,11 @@ function check(input, { system = false, many = false } = {}) {
     if (!Array.isArray(r[k]) || r[k].some((x) => typeof x !== 'string' || !re.test(x.trim()))) fail('E_INPUT', `${k} 는 한 줄 글의 목록이다`)
   }
   if (r.touchesEmpty != null && !(typeof r.touchesEmpty === 'string' && oneLine(r.touchesEmpty) && r.touchesEmpty.trim() && r.touchesEmpty.length <= EMPTY_MAX)) fail('E_INPUT', `touchesEmpty 는 이름이 없는 까닭 한 줄이다(${EMPTY_MAX}자 안)`)
-  if (r.memo != null && typeof r.memo !== 'boolean') fail('E_INPUT', 'memo 는 참 · 거짓이다')
+  if (r.memo != null && r.memo !== false) fail('E_INPUT', '메모(기록만)는 남기지 않는다. 정해진 부분만 저장한다')
   // kmd 가 쓰는 칸(S-D45) — 사람 · 세션 · 받은 기록의 본문에 같은 머리가 있으면 거짓 이력 · 엉뚱한 다시 들이기가 된다
   const part = !system && String(r.body).match(KMD_PART_RE)
   if (part) fail('E_INPUT', `「## ${part[1]}」 머리는 kmd 가 쓴다. 기록 글에 쓰지 않는다`)
   const secs = sectionShape(input.sections ?? [], { many })
-  if (r.memo === true && secs.length) fail('E_INPUT', '메모는 항목 글을 받지 않는다')
   checkAttach(input.attach)
   return secs
 }
@@ -229,12 +226,7 @@ export function serial(key, f) {
 // guard — 지식 생성 가드(core/guard.js)의 길. 'strict'(거절형 — 세션 · 화면) · 'hold'(붙잡아 두기 — 그 밖의 길 · 기본)
 //         holdWhy — hold 에서 이름 없는 기록에 kmd 가 다는 까닭 · proposed — 세울 이름으로 실어 둔 이름(일반 자리의 names)
 //   shape.strict — approve 모드 지식의 짜임 걸음(저장 승인 P-D24 · P7): 조각 하나라도 걸리면 넣지 못함 대신 걸음 입력 오류(E_INPUT · details.stepFail · 아무것도 쓰지 않는다)
-export function save(dir, input, { user, now = new Date(), system = false, agent = false, guard = 'hold', holdWhy = null, proposed = [], prepare = null, onCommit = null, asEdit = false, structure = false, correction = false, intake = null, shape = null, approve = null, accepted = null, marks: marksIn = false, migrate = false } = {}) {
-  //   사람 칸 글은 줄 안에서 읽어야 덮지 않는다 — migrate.members 가 true 면 prepare 가 돌려준 members 를 쓴다
-  const badMembers = (m) => m != null && (m.length > 20000 || !/^- 저장 방식: 승인$/m.test(m))
-  let members = migrate && typeof migrate === 'object' && typeof migrate.members === 'string' ? migrate.members : null
-  const membersInPrep = !!(migrate && typeof migrate === 'object' && migrate.members === true)
-  if (badMembers(members)) fail('E_INPUT', '이행의 사람 칸은 저장 방식 표지를 단 글이다')
+export function save(dir, input, { user, now = new Date(), system = false, agent = false, guard = 'hold', holdWhy = null, proposed = [], prepare = null, onCommit = null, asEdit = false, structure = false, correction = false, intake = null, shape = null, approve = null, accepted = null, marks: marksIn = false } = {}) {
   if (!user || !oneLine(user)) fail('E_INPUT', '누가 쓰는지 모른다')
   // 들이기 일감은 예약 사람 kmd 로 쓸 수 있다(가져올 곳) — kmd-auto · kmd-worker 는 아니다(S-D43)
   const kmdIntake = !!intake && nfc(user).trim().toLowerCase() === 'kmd'
@@ -254,11 +246,6 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
     const t = intake.tags ?? []
     if (!Array.isArray(t) || t.some((x) => typeof x !== 'string' || !INTAKE_TAG(x))) fail('E_INPUT', '들이기 태그는 intake · job/<일감 id> · code-change · polish 만 붙인다')
     serverTags = [...new Set(['intake', ...t])]
-  }
-  //   migrate — 이행 기록(저장 승인 P8 · scripts/kmd-migrate.mjs held-put 만) · approve 저장 문 위에서만 · 예약 태그 migrate-held
-  if (migrate) {
-    if (!approve || intake || shape) fail('E_INPUT', '이행 저장은 approve 저장 문으로만 쓴다')
-    serverTags = [...new Set([...serverTags, 'migrate-held'])]
   }
   if (shape) {
     const t = shape.tags ?? []
@@ -288,14 +275,9 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
       if (prep.abort) return { same: !!prep.abort.same, id: prep.abort.id ?? null, ...(Array.isArray(prep.abort.errors) ? { errors: prep.abort.errors } : {}) }
       if (prep.sections != null) {
         const g = guardSections(sectionShape(prep.sections, { many: !system }), { system, structure })
-        if (input.record.memo === true && g.secs.length) fail('E_INPUT', '메모는 항목 글을 받지 않는다')
         secs = g.secs
       }
       held = cleanHeld(prep.held)
-      if (membersInPrep) {
-        members = typeof prep.members === 'string' ? prep.members : null
-        if (members == null || badMembers(members)) fail('E_INPUT', '이행의 사람 칸은 저장 방식 표지를 단 글이다')
-      }
     }
     // 문서 짜임 — 자리 장부 정확한 줄 · 문서 요약(prepare 가 새로 읽은 지식으로 만든다)
     const place = shape ? (Array.isArray(prep?.place) ? prep.place : []) : []
@@ -303,7 +285,7 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
     const relink = shape ? (Array.isArray(prep?.relink) ? prep.relink : []) : []
     if (relink.some((x) => !x || !oneLine(x.from?.doc) || !oneLine(x.from?.h) || !oneLine(x.to?.doc) || !oneLine(x.to?.h))) fail('E_INPUT', '짜임 링크 모양이 아니다')
     if (place.some((x) => !x || !COORD.test(String(x.coord || '')) || !oneLine(x.doc) || !oneLine(x.heading)) || intros.some((x) => !x || !oneLine(x.doc) || typeof x.text !== 'string' || x.text.length > 4000)) fail('E_INPUT', '짜임 자리 · 요약 모양이 아니다')
-    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, marks: !!intake || !!approve || !!marksIn, intake: !!intake, approve, serverTags, correction, attach: input.attach || [], members, onCommit, prep, shape: !!shape, shapeStrict: !!shape?.strict, place, intros, relink, accepted: approve ? null : accepted })
+    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, marks: !!intake || !!approve || !!marksIn, intake: !!intake, approve, serverTags, correction, attach: input.attach || [], onCommit, prep, shape: !!shape, shapeStrict: !!shape?.strict, place, intros, relink, accepted: approve ? null : accepted })
   })
 }
 
@@ -410,7 +392,7 @@ export function sectionBase(text, heading) {
   return sha16(sec ? sec.body : '')
 }
 
-async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], marks = false, intake = false, serverTags = [], correction = false, attach = [], members = null, onCommit = null, prep = null, shape = false, shapeStrict = false, place = [], intros = [], relink = [], approve = null, accepted = null }) {
+async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null, shape = false, shapeStrict = false, place = [], intros = [], relink = [], approve = null, accepted = null }) {
   const held = [...heldIn]
   const regRaw = await fs.readFile(path.join(dir, '_managed.md'), 'utf8').then(readText, () => null)
   const vocRaw = await fs.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => null)
@@ -603,14 +585,13 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
   const day = date.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2$3')
   const base = `${day}-${slugOf(r.title)}`
   // 이력(kmd 가 지식을 다룬 일)은 log/ · 그 밖은 기록(work/) — id 는 둘을 합쳐 겹치지 않게
-  //   저장 문이 붙이는 표지(입력으로는 받지 않는다) — 들이기 태그 · memo · put
+  //   저장 문이 붙이는 표지(입력으로는 받지 않는다) — 들이기 태그 · put
   const tags = [...(r.tags || []).map((t) => nfc(t.trim())), ...serverTags]
-  if (r.memo === true) tags.push('memo')
   // approve 모드 — 들어감 하나(조각이 없어도 · 글 그대로 이은 기록도 put · recordState 가 「들어감」 으로 읽는다)
   if (putRows.length || approve) tags.push('put')
   // 장부만 바꾼 저장은 지식 이야기가 아니다 — 이력(log/ · 태그 ledger). 문서 · 항목 · 첨부 · 넣지 못함이 없고 메모가 아니고 건드린 이름이 없을 때
   //   (이름을 세우며 그 이름을 건드린 기록 「새 이슈: 인원 부족」 은 지식 이야기다 — 기록에 남는다 · 넣지 못함의 [이름 세우기]는 hub 가 ledger 를 단다)
-  if ((names.length || formsIn.length) && !plan.length && !atts.length && !attSame.length && r.memo !== true && !touches.length) tags.push('ledger')
+  if ((names.length || formsIn.length) && !plan.length && !atts.length && !attSame.length && !touches.length) tags.push('ledger')
   const allTags = [...new Set(tags)]
   const sub = isLogRecord(allTags) ? LOG_DIR : 'work'
   await fs.mkdir(path.join(dir, sub), { recursive: true })
@@ -721,12 +702,6 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
       }
     }
     const extra = []
-    // 저장 방식 표지(개인 지식 이행 · PC5) — 같은 저널 · 같은 커밋
-    if (members != null) {
-      await j.add('_members.md')
-      await writeAtomic(path.join(dir, '_members.md'), members)
-      extra.push('_members.md')
-    }
     // 첨부 — 같은 저널 · 같은 커밋
     for (const a of atts) {
       await j.add(a.rel)
@@ -759,7 +734,6 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
     }
     const marked = {
       ...(marks ? { put: putRows.length, putRows } : {}),
-      ...(r.memo === true ? { memo: true } : {}),
       ...(atts.length || attSame.length ? { attach: { put: atts.map((a) => a.rel), same: attSame } } : {}),
       ...(prep?.proposals ? { proposals: prep.proposals } : {}),
       ...(prep?.warnings?.length ? { warnings: prep.warnings } : {}),

@@ -40,9 +40,11 @@ after(async () => {
 
 test('화면 자료: 지식 목록 · 나무 · 문서 한 장', async () => {
   const ks = (await j('/api/knowledge')).body
-  assert.deepEqual(ks.map((k) => [k.id, k.name, k.docs, k.records, k.pend]), [['dpms', 'DPMS 지식', 17, 15, 1], ['gdi', 'GDI 지식', 5, 0, 0]])
+  assert.deepEqual(ks.map((k) => [k.id, k.name, k.docs, k.records, k.pend]), [['dpms', 'DPMS 지식', 17, 15, undefined], ['gdi', 'GDI 지식', 5, 0, undefined]])
   const tr = (await j('/api/k/dpms/tree')).body
-  assert.equal(tr.records.filter((r) => r.state === 'pend').length, 1)
+  // 저장 승인 전 기록은 상태를 가르지 않는다(P12) — 옛 pend 는 「기록」(old)
+  assert.equal(tr.records.filter((r) => r.state === 'pend').length, 0)
+  assert.ok(tr.records.some((r) => r.state === 'old'))
   assert.deepEqual(tr.atts.sort(), ['배포 흐름.png', '운영 대시보드.png'])
   const d = (await j('/api/k/dpms/doc?d=' + encodeURIComponent('배포절차'))).body
   assert.deepEqual(d.sections.map((x) => x.h), ['준비', '카나리', '헬스 체크', '롤백', '꾸러미 판'])
@@ -73,7 +75,7 @@ test('MCP: 도구 · brief · match · section', async () => {
   assert.equal(m.found[0].doc, '배포절차')
   const sec = (await tool('section', { knowledge: 'dpms', coord: 'proc:롤백' })).structuredContent
   assert.match(sec.content, /DB 를 먼저 되돌리고/)
-  assert.equal(sec.notYetInDocs.length, 1)
+  assert.equal(sec.notYetInDocs, undefined, '안 넣은 기록 칸은 걷었다(P12)')
 })
 
 test('MCP save: 기록 글은 서식 칸으로 · 팀 지식은 검사를 넘은 항목 조각이 기록과 한 묶음으로 문서에(지식관리자도 같은 저장 문) · 섞인 자리는 넣지 못함 · 나쁜 입력은 아무것도 안 쓴다', async () => {

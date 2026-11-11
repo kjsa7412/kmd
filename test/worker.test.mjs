@@ -39,7 +39,7 @@ test('지난 일꾼 폴더: 하루 지난 「kmd-worker-」 · 「kmd-agent-」 
   fs.rmSync(home, { recursive: true, force: true })
 })
 
-test('켤 때: 옛 정리 일감 줄은 그만둠(「개편으로 걷은 정리 일감」) · 일꾼에게는 들이기 일감만 · 개편 때(cutover.json)를 한 번 적는다', async () => {
+test('켤 때: 옛 정리 일감 줄은 그만둠(「개편으로 걷은 정리 일감」) · 일꾼에게는 들이기 일감만 · 개편 때(cutover.json)는 적지 않는다(P12)', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-wk-'))
   try {
     copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'kn'))
@@ -57,19 +57,8 @@ test('켤 때: 옛 정리 일감 줄은 그만둠(「개편으로 걷은 정리 
         assert.equal(j.why, '개편으로 걷은 정리 일감')
       }
       assert.equal(hub.workerNext({ worker: { id: 'w-test' } }), null, '들이기 일감이 없으면 일감이 없다')
-      const cut = JSON.parse(fs.readFileSync(path.join(data, 'cutover.json'), 'utf8'))
-      assert.match(cut.at, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/)
-      assert.equal(hub.config.cutoverAt, cut.at)
-      // 장부의 옛 pend 사람 기록은 개편 때보다 앞서 들어왔다 — 개편 전 기록(넣지 못함 화면)
-      const k = await hub.get('dpms')
-      assert.equal(k.cutoverAt, cut.at)
+      assert.ok(!fs.existsSync(path.join(data, 'cutover.json')), '개편 때는 걷었다(P12)')
     } finally { hub.stop() }
-    // 다시 켜도 같은 때(덮지 않는다)
-    const before = fs.readFileSync(path.join(data, 'cutover.json'), 'utf8')
-    const hub2 = await makeHub({ root: path.join(tmp, 'kn'), dataDir: data, mode: 'team', log: () => {} })
-    await hub2.start()
-    hub2.stop()
-    assert.equal(fs.readFileSync(path.join(data, 'cutover.json'), 'utf8'), before)
   } finally {
     try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
   }

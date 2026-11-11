@@ -153,7 +153,8 @@ test('PC /api/agent: 개인 지식 더하기 · 팀 연결은 그대로 · 하�
 //   core/kit.js 의 PC_KIT_REV 를 하나 올리고 이 표에 새 판 · 새 해시를 더한다(옛 판 줄은 그대로 둔다)
 //   (판 1 은 저장 승인 PC2: 늘 저장 제안 · 정리 거리 고르기 · 대화 조절 · 「바로 넣기가 곧 넣는다」 걷기 · 넣기 에이전트는 규칙 길)
 //   (판 2 는 저장 승인 PC6: 옛 개인 지식 길 · 옛 판 안내(reinstall · nokit) 걷기 · 이행 못한 지식은 저장 닫힘)
-const PC_KIT_HASH = { 1: 'ea86fd6a', 2: '74d9f2fb' }
+//   (판 3 은 저장 승인 P12: 이행 못한 지식 안내 걷기 · 개인 지식은 처음부터 승인)
+const PC_KIT_HASH = { 1: 'ea86fd6a', 2: '74d9f2fb', 3: 'a6f440ea' }
 test('개인 스킬 판: 스킬 글이 바뀌면 PC_KIT_REV 도 오른다 · {{KIT_REV}} 를 판으로 바꿔 싣는다 · 새 흐름(제안 · 승인 · 메모 없음)', async () => {
   const parts = await kitParts()
   assert.equal(parts.rev, PC_KIT_REV)

@@ -15,7 +15,7 @@ import { SHELL } from '../server/hub.js'
 import * as collect from '../core/collect.js'
 import { copyDir, seat } from './helpers.mjs'
 import { sha16 } from '../core/text.js'
-import { sectionOf, isLegacy } from '../core/knowledge.js'
+import { sectionOf } from '../core/knowledge.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s
@@ -163,14 +163,13 @@ test('되돌리기 항목마다(S5): 이력 줄 · 자리 · 하나 되돌린 �
   assert.match(fs.readFileSync(doc, 'utf8'), /수요일 복구/)
   assert.equal((await rowOf(LEE)).canRevert, false, '지금 그 기록이 표지인 항목이 없으면 되돌리기 없음')
   assert.equal(G(dir, 'status', '--porcelain'), '', '트리 깨끗')
-  // 항목 하나뿐인 기록을 그 항목으로 되돌리면 원 기록은 되돌림 — 「개편 전 기록」 으로 보이지 않는다
+  // 항목 하나뿐인 기록을 그 항목으로 되돌리면 원 기록은 되돌림
   const b4 = sha16(sectionOf(await s.hub.get('dpms'), 'term:디스크 점검').sec.body)
   const one = await s.hub.save(LEE, 'dpms', { record: { title: '디스크 점검: 70%', body: '## 바뀐 것\n- 디스크 기준: 80% → 70%' }, sections: [{ coord: 'term:디스크 점검', base: b4, content: '로그 디스크가 70% 를 넘는지 매일 본다.' }] })
   assert.equal(one.put, 1, JSON.stringify(one))
   await s.hub.revert(LEE, 'dpms', { record: one.id, doc: 'docs/로그보관.md', heading: '디스크 점검' })
   k = await s.hub.get('dpms')
   assert.equal(k.byWork.get(one.id).state, 'reverted')
-  assert.equal(isLegacy(k, k.byWork.get(one.id)), false)
   // 원본이 주인인 문서(watched)의 항목은 쓰기 자리가 되돌리지 못한다 — 지식관리자는 된다
   const b5 = sha16(sectionOf(k, 'term:보관 기간').sec.body)
   const wr = await s.hub.save(LEE, 'dpms', { record: { title: '보관 기간: 앱 60일', body: '## 바뀐 것\n- 앱 로그: 30일 → 60일' }, sections: [{ coord: 'term:보관 기간', base: b5, content: '앱 로그는 60일, 감사 로그는 1년 둔다.' }] })

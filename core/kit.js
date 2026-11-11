@@ -23,7 +23,7 @@ export const SKILLS = ['kmd-work', 'kmd-save', 'kmd-build']
 //   스킬 글의 자리표 {{KIT_REV}} 를 이 값으로 바꿔 싣는다 → 세션이 MCP save 에 kit 으로 싣는다 →
 //   저장 측정 줄(savelog)에 싣는다(옛 판 안내 reinstall · nokit 은 P11 · PC6 에서 걷었다)
 //   kmd-build 는 kmd 가 띄운 넣기 에이전트도 읽으므로(hub.agentTask · 그대로 읽는다) 자리표를 두지 않는다
-export const PC_KIT_REV = 2
+export const PC_KIT_REV = 3
 const withRev = (t) => t.replace(/\{\{KIT_REV\}\}/g, String(PC_KIT_REV))
 const BEGIN = /<!--\s*kmd:begin(?:\s+v=(\S+))?\s*-->/
 const END = /<!--\s*kmd:end\s*-->/

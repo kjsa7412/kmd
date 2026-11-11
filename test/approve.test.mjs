@@ -144,7 +144,7 @@ test('approve: 옛 키트 · 키트 없음 = E_APPROVE(옛 판 안내 reinstall 
   assert.equal(memo.error, 'E_INPUT')
   assert.match(memo.message, /메모/)
   const pm = await mcp('propose', { knowledge: 'apv', record: { title: '카나리: 비율 다시 볼 것', body: '아직 정하지 않았다.', touches: ['proc:카나리'], memo: true } })
-  assert.equal(pm.errors[0].code, 'memo')
+  assert.equal(pm.error, 'E_INPUT', '제안도 memo 를 입력 오류로(P12)')
 })
 
 test('approve: 경위만 기록 = 들어감(글 그대로 · 이은 항목 · 이력) · 바뀐 것 값이 본문에 없으면 오류', async () => {

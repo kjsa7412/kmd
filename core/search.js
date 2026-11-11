@@ -358,8 +358,7 @@ function card(k, e) {
     via: e.via,
     hits: [...(e.hits || [])],
     ...(e.at ? { at: e.at } : {}),
-    works: works.slice(0, 5).map((w) => ({ id: w.id, state: w.state === 'pend' ? '아직 문서에 안 넣음' : '문서에 들어감' })),
-    pending: works.filter((w) => w.state === 'pend').length,
+    works: works.slice(0, 5).map((w) => ({ id: w.id, state: w.state === 'in' ? '문서에 들어감' : '기록' })),
     registered: !!v,
     ...(v?.deprecated ? { deprecated: v.deprecated } : {}),
   }

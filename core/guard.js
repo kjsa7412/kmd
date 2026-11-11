@@ -361,9 +361,8 @@ export function headingFits(f, h) {
 export const RECORD_PARTS = [['changes', '바뀐 것'], ['why', '까닭'], ['dropped', '버린 안'], ['impact', '영향'], ['refs', '근거']]
 export const SUMMARY_MAX = 300
 const PART_MAX = 40
-//   memo — 메모(record.memo · S-D2)는 바뀐 것(changes)이 없어도 된다(값이 아직 확정되지 않았다) · 요약(body)이나 다른 칸이 있어야 한다
 //   trail — 경위만인 기록(저장 승인 P-D12 · approve 모드): 바뀐 것이 없어도 된다(값이 있으면 저장 문의 본문 반영 검사가 본다)
-export function recordBody(rec, { memo = false, trail = false } = {}) {
+export function recordBody(rec, { trail = false } = {}) {
   const items = (v) => {
     if (typeof v === 'string') try { const x = JSON.parse(v); if (Array.isArray(x)) v = x } catch { /* 글 한 덩이 */ }
     const xs = Array.isArray(v) ? v : typeof v === 'string' ? v.split('\n') : []
@@ -371,8 +370,8 @@ export function recordBody(rec, { memo = false, trail = false } = {}) {
   }
   const summary = String(rec?.body ?? '').trim()
   const parts = RECORD_PARTS.map(([k, h]) => [h, items(rec?.[k])])
-  if (!parts[0][1].length && (memo || trail)) {
-    if (!summary && !parts.some(([, xs]) => xs.length)) return { error: `${memo ? '메모' : '기록'} 글이 없다. body(한두 문장)나 칸(why · refs …)을 쓴다` }
+  if (!parts[0][1].length && trail) {
+    if (!summary && !parts.some(([, xs]) => xs.length)) return { error: `기록 글이 없다. body(한두 문장)나 칸(why · refs …)을 쓴다` }
   } else if (!parts[0][1].length) {
     if (/^## 바뀐 것\s*$/m.test(summary)) return { body: summary }
     return { error:`기록 글은 서식으로 쓴다: changes(바뀐 것: 「무엇: 옛 값 → 새 값」 의 목록)가 있어야 한다. why(까닭) · dropped(버린 안) · impact(영향) · refs(근거: 커밋 · 문서 판)는 있으면. body 는 한두 문장 요약(${SUMMARY_MAX}자 안)` }
@@ -391,19 +390,14 @@ const BROKEN_HEAD = /(?::| —) (?:·|\([^)]*\)\s*$)|(?::| —)\s*$/
 //   sectionOf · coordsOfSection 은 core/knowledge.js 의 것을 받는다(이 모듈이 지식 읽기를 끌어오지 않게)
 export function audit(k, { sectionOf, coordsOfSection }) {
   const live = [...k.vocab.coords].filter(([, v]) => !v.deprecated)
-  // 넣지 않기로 둔 기록(정리 판정 「두기」)은 셈하지 않는다 — 까닭이 판정에 있다
-  const unnamed = k.works.filter((w) => w.state !== 'kept' && (w.state === 'nowhere' || (!w.touches.length && !hasPlace(w) && !w.author.startsWith('kmd')))).map((w) => ({ id: w.id, title: w.title, date: w.date, why: w.touchesEmpty || null }))
+  const unnamed = k.works.filter((w) => !w.touches.length && !hasPlace(w) && !w.author.startsWith('kmd')).map((w) => ({ id: w.id, title: w.title, date: w.date, why: w.touchesEmpty || null }))
   const outside = []
   for (const w of k.works) {
     const xs = w.touches.filter((c) => !k.vocab.coords.has(c))
     if (xs.length) outside.push({ id: w.id, title: w.title, date: w.date, names: xs })
   }
+  // 폐기된 이름을 단 기록 — 아직 안 넣은 기록(옛 pend)만 셌다 · 저장 승인 뒤에는 저장 문이 폐기된 이름을 받지 않는다(P12)
   const deprecatedUse = []
-  for (const w of k.works) {
-    if (w.state !== 'pend') continue
-    const xs = w.touches.filter((c) => k.vocab.coords.get(c)?.deprecated)
-    if (xs.length) deprecatedUse.push({ id: w.id, title: w.title, names: xs })
-  }
   const lost = []
   for (const [c] of live) {
     const s = sectionOf(k, c)

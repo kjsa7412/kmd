@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { parseArgs, readLines, summarize, readTidy, trend, main } from '../scripts/savelog.mjs'
+import { parseArgs, readLines, summarize, readTidy, main } from '../scripts/savelog.mjs'
 import { renderRecord } from '../core/frontmatter.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -87,21 +87,13 @@ test('채널마다 통과율 · 까닭 · E_CONFLICT · 다시 넣은 비율(30�
   assert.deepEqual(s.pairs, [{ pair: 'session ↔ kmd(가져올 곳 · 정리)', n: 1 }, { pair: 'bulk ↔ 다른 사람', n: 1 }].sort((a, b) => b.n - a.n))
 })
 
-test('정리 장부 비교 · 날마다 열린 넣지 못함 · 메모(바로잡힌 날 · 두기 판정 날 닫힘)', async () => {
+test('정리 장부 비교', async () => {
   const t = await readTidy(data, { kn: 'dpms' })
   assert.deepEqual(t, { runs: 1, spots: 4, put: 1, pass: 0.25, msPerSpot: 240_000 })
   assert.equal(await readTidy(data, { kn: 'gdi' }), null)
-  const rows = await trend(tmp, { kn: 'dpms', since: '2026-11-09', until: '2026-11-12' })
-  assert.deepEqual(rows, [
-    { day: '2026-11-09', held: 0, memo: 0 },
-    { day: '2026-11-10', held: 2, memo: 1 },
-    { day: '2026-11-11', held: 1, memo: 1 },
-    { day: '2026-11-12', held: 0, memo: 1 },
-  ])
-  const j = JSON.parse(await main([data, '--kn', 'dpms', '--json', '--trend', '--since', '2026-11-10', '--until', '2026-11-10']))
+  const j = JSON.parse(await main([data, '--kn', 'dpms', '--json', '--since', '2026-11-10', '--until', '2026-11-10']))
   assert.equal(j.channels[0].ch, 'session')
   assert.equal(j.tidy.pass, 0.25)
-  assert.deepEqual(j.trend, [{ day: '2026-11-10', held: 2, memo: 1 }], 'data 폴더가 .kmd 면 그 위가 지식 폴더')
 })
 
 test('명령: node scripts/savelog.mjs <data> 가 표를 낸다', async () => {

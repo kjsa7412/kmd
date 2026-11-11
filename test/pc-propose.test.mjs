@@ -2,7 +2,7 @@
 //
 // 개인 approve 지식 save 에 proposal 없음 = E_APPROVE + propose 결과(아무것도 안 씀) · 개인 propose 가 팀과 같은 글 · 경고 · 해시(같은 입력 · 머리 줄만 「나만 · 이 PC」) ·
 // 개인 memo:true = E_INPUT · 경위만 = 들어감(글 그대로) · curateSoon 안 부름 · 「기록을 문서에 넣기」 일 줄 안 생김 · 승인한 해시 = 들어감 + 측정 줄 칸 ·
-// 지문은 저장 문 한 벌(base 없음 = 저장 문의 E_CONFLICT) · 새 개인 지식 = approve(_members.md · 기록 모음) · 옛 개인 지식 = 지금 그대로(이행 PC5 전)
+// 지문은 저장 문 한 벌(base 없음 = 저장 문의 E_CONFLICT) · 새 개인 지식 = approve(_members.md · 기록 모음) · 개인 지식은 모두 approve(P12 · 옛 길 · 이행 걷음)
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -40,7 +40,7 @@ before(async () => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-pc-propose-'))
   process.env.HOME = process.env.USERPROFILE = process.env.APPDATA = tmp
   process.env.KMD_NO_CLAUDE = '1'
-  // 개인 프로그램 — dpms(옛 개인 지식 · 이행 전) · apv(이행을 마친 개인 지식 = _members.md 「저장 방식: 승인」)
+  // 개인 프로그램 — dpms(표지 없는 개인 지식도 approve · P12) · apv(_members.md 「저장 방식: 승인」)
   copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'pc'))
   seedApv(pdir('apv'), '# 사람\n\n- 주인: kim\n- 저장 방식: 승인\n')
   fs.mkdirSync(path.dirname(path.join(pdir('apv'), ...RECORDS_DOC_PATH.split('/'))), { recursive: true })
@@ -73,12 +73,12 @@ const input = (base, over = {}) => ({
   ...over,
 })
 
-test('저장 방식: 이행을 마친 개인 지식 = approve · 옛 개인 지식 = pc(저장 닫힘) · 옛 지식은 propose 를 막는다', async () => {
+test('저장 방식: 개인 지식은 모두 approve(표지 없는 지식도 · P12) · 옛 지식도 propose 를 받는다', async () => {
   assert.equal(pc.hub.saveModeOf('apv'), 'approve')
-  assert.equal(pc.hub.saveModeOf('dpms'), 'pc')
+  assert.equal(pc.hub.saveModeOf('dpms'), 'approve')
   const r = await call('propose', { knowledge: 'dpms', record: { title: '헬스 체크: 주기', why: ['시험'], touches: ['proc:헬스 체크'] } })
-  assert.equal(r.error, 'E_INPUT')
-  assert.match(r.message, /옛 저장 길/)
+  assert.ok(!r.error, JSON.stringify(r))
+  assert.match(r.proposal, /^[0-9a-f]{64}$/)
 })
 
 test('개인 approve: proposal 없음 = E_APPROVE + propose 결과(나만 · 이 PC) · 아무것도 쓰지 않음 · 측정 줄 unproposed', async () => {
@@ -150,7 +150,7 @@ test('개인 approve: memo:true = E_INPUT(propose 는 memo 오류) · 아무것�
   assert.equal(r.error, 'E_INPUT')
   assert.match(r.message, /메모/)
   const pm = await call('propose', memo)
-  assert.equal(pm.errors[0].code, 'memo')
+  assert.equal(pm.error, 'E_INPUT', '제안도 memo 를 입력 오류로(P12)')
   assert.equal(snap(pdir('apv')), n0)
 })
 
@@ -175,28 +175,12 @@ test('개인 approve: 경위만 = 들어감(글 그대로 · 이은 항목) · c
   assert.ok(sec.history.some((x) => x.id === r.saved && x.state === '문서에 들어감'), JSON.stringify(sec.history))
 })
 
-test('지문은 저장 문 한 벌: approve 개인 지식에 base 없는 고침 = 저장 문의 E_CONFLICT(+ propose) · 옛 개인 지식은 MCP 의 옛 검사', async () => {
+test('지문은 저장 문 한 벌: approve 개인 지식에 base 없는 고침 = 저장 문의 E_CONFLICT(+ propose)', async () => {
   const sec = await canary()
   const r = await call('save', { knowledge: 'apv', record: { title: '카나리: 비율 30%', changes: ['첫 30분 비율: 20% → 30%'], touches: ['proc:카나리'] }, sections: [{ coord: 'proc:카나리', content: sec.content.replace('요청의 20% 만', '요청의 30% 만') }], proposal: 'a'.repeat(64) })
   assert.equal(r.error, 'E_CONFLICT', JSON.stringify(r))
   assert.ok(r.details?.propose, '저장 문이 새 propose 결과를 싣는다')
   assert.doesNotMatch(r.message, /이미 있는 항목이다/)
-  const old = await call('save', { knowledge: 'dpms', record: { title: '롤백: 앱 먼저', body: '앱을 먼저 내린다.' }, sections: [{ coord: 'proc:롤백', content: '앱을 먼저 내린다.' }] })
-  assert.equal(old.error, 'E_CONFLICT')
-  assert.match(old.message, /이미 있는 항목이다/)
-})
-
-test('이행 못한 옛 개인 지식은 저장이 닫힌다(PC6): save · 메모 모두 E_BEHIND · 아무것도 쓰지 않음 · 바로 넣기를 걸지 않는다 · 읽기는 된다', async () => {
-  const n = curates.length
-  const n0 = snap(pdir('dpms'))
-  const r = await call('save', { knowledge: 'dpms', record: { title: '헬스 체크: 주기 15초', changes: ['헬스 체크 주기: 10초 → 15초'], touches: ['proc:헬스 체크'] } })
-  assert.equal(r.error, 'E_BEHIND', JSON.stringify(r))
-  assert.match(r.message, /이행 못함/)
-  const m = await call('save', { knowledge: 'dpms', record: { title: '헬스 체크: 주기 다시 볼 것', body: '아직 정하지 않았다.', touches: ['proc:헬스 체크'], memo: true } })
-  assert.equal(m.error, 'E_BEHIND')
-  assert.equal(snap(pdir('dpms')), n0, '아무것도 쓰지 않는다')
-  assert.equal(curates.length, n, '바로 넣기는 걷었다')
-  assert.ok((await call('section', { knowledge: 'dpms', coord: 'proc:헬스 체크' })).content, '읽기는 된다')
 })
 
 test('새 개인 지식 = approve: _members.md 「저장 방식: 승인」 · 기록 모음을 같이 세워 한 커밋 · proposal 없음 = E_APPROVE', async () => {
@@ -221,7 +205,7 @@ test('새 개인 지식 = approve: _members.md 「저장 방식: 승인」 · �
   assert.ok(!curates.includes(made.id), '새 개인 지식은 바로 넣기를 걸지 않는다')
 })
 
-test('개인 화면 길(http 채널)도 승인한 제안이면 들어감 · 표지를 손으로 고치면 곧 옛 길(담아 둔 값을 다시 읽음)', async () => {
+test('개인 화면 길(http 채널)도 승인한 제안이면 들어감 · 표지를 손으로 지워도 approve(P12)', async () => {
   const sec = await canary()
   const body = { record: { title: '카나리: 첫 30분 비율 25%', body: ['## 바뀐 것', '- 첫 30분 비율: 20% → 25%'].join('\n'), touches: ['proc:카나리'] }, sections: [{ coord: 'proc:카나리', base: sec.base, edits: [{ find: '요청의 20% 만', replace: '요청의 25% 만' }] }] }
   const p = await pc.hub.propose(KIM, 'apv', body, { path: '화면' })
@@ -230,14 +214,13 @@ test('개인 화면 길(http 채널)도 승인한 제안이면 들어감 · 표�
   const r = await pc.hub.save(KIM, 'apv', { ...body, proposal: p.proposal }, { guard: 'strict', channel: 'http' })
   assert.equal(r.put, 1, JSON.stringify(r))
   assert.ok(!curates.includes('apv'))
-  // 표지 — _members.md 를 바꾸면 다음 판정이 바로 따른다(mtime · 크기)
+  // 표지 — _members.md 의 줄과 상관없이 늘 approve(옛 길은 걷었다)
   const mf = path.join(pdir('apv'), '_members.md')
   const keep = fs.readFileSync(mf, 'utf8')
   try {
     fs.writeFileSync(mf, ['# 사람', '', '- 주인: kim', ''].join('\n'))
-    assert.equal(pc.hub.saveModeOf('apv'), 'pc')
+    assert.equal(pc.hub.saveModeOf('apv'), 'approve')
   } finally { fs.writeFileSync(mf, keep) }
-  assert.equal(pc.hub.saveModeOf('apv'), 'approve')
 })
 
 test('새 개인 지식: 사람 칸에 주인 · Claude 줄이 없다 · 주인 · 자리 고침이 저장 방식 표지를 지우지 않는다 · 빈 지식은 기록 모음을 세지 않는다', async () => {

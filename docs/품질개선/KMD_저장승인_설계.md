@@ -631,7 +631,7 @@ CLAUDE.md 에 따라 단계마다 기준 문서의 「(Px 부터)」 줄을 그 
 | P9 | 188 배포(사람이 하라고 할 때) → held-scan 수를 사람에게 보임 → 테스트 지식 → DPMS → GDI 차례로 지식마다 이행(사람 확인) → 총괄 관리자가 approve 켜기 · docs_ops · manual 갱신. 이 배포에 개인 프로그램 새 판(PC1 ~ PC5)도 실린다 | docs_ops/* | 배포 뒤 바뀐 코드 확인 · 커밋 해시 | docs_ops/kmd_서비스_전체.md |
 | P10 | 화면 2: 확인 메뉴(점검 · 지표, 배지 없음, **held 모드 지식은 「넣지 못함」 탭을 남김**) · 지표 탭 · 사후 조정 손잡이(선택, 저장 문) · 이력 갈래 · 칩 · 하루 요약 알림 · `FEED_KIND` 말 · savelog 지표 읽기 · 용어집 · 루트 CLAUDE.md 「화면」 말 | main.js · menupath.js · views.js · http.js(`/metrics`) · hub.js(`saveIn` 알림 933-988 · `intakeClose` 1166-1178 · `history`) · scripts/savelog.mjs | menupath · screen-kmd · access-ui · savelog · 1280/1024/600/375 잘린 요소 0 | 컨벤션 9절 · CLAUDE.md |
 | P11 | 모든 지식이 approve 가 된 뒤: held 모드 · `/held` 길 · hub held 함수(b12) · held 손잡이 · 넣지 못함 탭 · partial · review · legacy-mix · 넣지 못함 화면 걷기(b14 grep 0), held 단언 시험 고쳐 쓰기, 루트 CLAUDE.md held 문장 걷기 | hub.js · save.js · parts.js · names.js · knowledge.js · gate.js · views.js · main.js · http.js · test/* | 6-5 「고쳐 쓸 것」 · screen-kmd · menupath · access-ui · 1280/1024/600/375 잘린 요소 0 | 권한 모델 · 작성기준 · 컨벤션 · 개편 설계 · CLAUDE.md |
-| P12 | 옛 칸 읽기 · isLegacy · 옛 `<data>/held/` 지우기(사람 확인) · site 문구 | parts.js · values.js · knowledge.js · site/* | 걸린 시험 | docs_ops/kmd_서비스_전체.md |
+| P12 | 옛 칸 읽기 · isLegacy · 옛 `<data>/held/` 지우기(사람 확인) · site 문구. **(P12 한 것)** 옛 상태 읽기 · isLegacy · cutover · 섞인 자리 · 결정 규칙 · 넣을 곳 고르기 · held/ 쓸기 · memo 쓰기 · 이행 도구(held-scan · held-put · core/migrate.js · 개인 이행 · 이행 못함 · E_BEHIND 저장 닫기)를 걷었다. 개인 지식도 처음부터 승인 · 저장 승인 전 기록은 상태 old 하나(화면 「기록」) · 188 held/ 는 사람이 지웠다 | parts.js · values.js · knowledge.js · site/* | 걸린 시험 | docs_ops/kmd_서비스_전체.md |
 
 ### 7-1. 개인 프로그램 단계(PC1 ~ PC6)
 

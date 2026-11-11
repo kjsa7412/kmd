@@ -14,7 +14,7 @@
 | 권한 · API · MCP | [docs/kmd_권한_모델.md](docs/kmd_권한_모델.md) |
 | 남은 개선 거리 | [docs/품질개선/종합검토.md](docs/품질개선/종합검토.md) 「따로 할 것」 |
 | 「저장이 곧 반영」 개편(정리 걷기 · 저장 문 · 들이기 · 넣지 못함) | [docs/품질개선/KMD_개편_설계.md](docs/품질개선/KMD_개편_설계.md)(정한 것 S-D · 단계 S1 ~ S13) · [KMD_개편_TODO.md](docs/품질개선/KMD_개편_TODO.md) — 기준 문서의 「(Sx 부터)」 줄은 그 단계 커밋에서 코드와 맞춘다 |
-| 저장 승인(제안 · 승인 · 규칙 길 · 지표 · 이행) | [docs/품질개선/KMD_저장승인_설계.md](docs/품질개선/KMD_저장승인_설계.md)(정한 것 P-D · 단계 P0 ~ P12 · PC1 ~ PC6) · [KMD_지식관리_TODO.md](docs/품질개선/KMD_지식관리_TODO.md) |
+| 저장 승인(제안 · 승인 · 규칙 길 · 지표) | [docs/품질개선/KMD_저장승인_설계.md](docs/품질개선/KMD_저장승인_설계.md)(정한 것 P-D · 단계 P0 ~ P12 · PC1 ~ PC6) · [KMD_지식관리_TODO.md](docs/품질개선/KMD_지식관리_TODO.md) |
 | 문서 짜임(바탕 세우기 · 짜임 다시 잡기) | [docs/품질개선/KMD_바탕세우기_설계.md](docs/품질개선/KMD_바탕세우기_설계.md) · 세션 스킬 [.claude/skills/kmd-seed](.claude/skills/kmd-seed/SKILL.md) + `scripts/kmd-seed.mjs`(화면 기능이 아니다 · 넣기는 기초 세우기 화면) |
 | 다시 그리기(리빌드 · 기록으로 항목 다시 쓰기 · 진단) | 세션 스킬 [.claude/skills/kmd-migrate](.claude/skills/kmd-migrate/SKILL.md) + `scripts/kmd-migrate.mjs`(화면 기능으로 두지 않는다) · 안전 규칙의 근거는 [KMD_리빌드_설계.md](docs/품질개선/KMD_리빌드_설계.md)(기능 설계는 걷음) |
 | 서비스 전체 · 설명서(`/manual`) | [docs_ops/kmd_서비스_전체.md](docs_ops/kmd_서비스_전체.md) · [docs_ops/manual/](docs_ops/manual/) — 쓰는 법이 바뀌면 같이 고친다 |
@@ -51,8 +51,8 @@
 - 장부 · 설정 파일은 임시 파일 뒤 이름 바꾸기(원자 쓰기). 깨진 파일을 빈 것으로 읽어 덮지 않는다.
 - 경로 조각의 `decodeURIComponent` 는 감싸서 400 으로. 입력은 길이 · 모양을 검사한다(prototype 이름 막기).
 - 오류를 `.catch(() => {})` 로 삼키지 않는다 — 적어도 log.
-- 저장 문 하나: 모든 채널은 기록 + 조각(`sections[{ coord | doc · heading, base, edits | content }]`) + 지문을 `hub.save` 한 덩이로 보낸다. 채널(`opt.channel`)은 서버 코드가 정하고 사람이 보낸 값으로 만들지 않는다. 저장 줄 안에서 새로 읽은 지식으로 판정한다(`core/propose.js` `buildProposal` · 꼴 · 섞인 자리). 「넣지 못함」(`held`)은 없다 — 못 넘으면 아무것도 쓰지 않는 입력 오류다(P11). 지문이 어긋나면 `E_CONFLICT` 로 아무것도 쓰지 않는다. 커밋 뒤(측정 줄 · 알림 · 백업)는 던지지 않는다(try/catch + log). 새 저장 길은 이 문을 지나게 한다(권한 모델 7절).
-- 저장 승인(팀 · 개인 프로그램 모두 · P11 · PC6 부터 모든 지식 · 이행 못한 옛 개인 지식은 저장이 닫힌다): 결과는 들어감 하나(입력 오류는 아무것도 쓰지 않음), 사람 채널은 `proposal` 의무이고 승인이 경고 받아들임(`E_APPROVE` · 줄 안에서 `buildProposal` 을 다시 돌려 해시를 대 봄), 무인 채널은 FIX 고리 → 규칙 길로 늘 들어감(P6 부터), 값 대조는 측정만. 저장 문이 다는 칸(`## 받아들인 경고` · `## 값 대조` · `## 이은 항목` · `## 새로 세움`)은 `core/parts.js` 로만 쓰고 사람 입력에서는 거절한다([KMD_저장승인_설계](docs/품질개선/KMD_저장승인_설계.md) 3절).
+- 저장 문 하나: 모든 채널은 기록 + 조각(`sections[{ coord | doc · heading, base, edits | content }]`) + 지문을 `hub.save` 한 덩이로 보낸다. 채널(`opt.channel`)은 서버 코드가 정하고 사람이 보낸 값으로 만들지 않는다. 저장 줄 안에서 새로 읽은 지식으로 판정한다(`core/propose.js` `buildProposal` · 꼴). 「넣지 못함」 · 메모는 없다 — 못 넘으면 아무것도 쓰지 않는 입력 오류다. 저장 승인 전 옛 기록(옛 표지 `held` · `memo` · `migrate-held`)은 지식에 그대로 두고 「기록」 으로만 읽는다(옛 상태를 가르지 않는다 · P12). 지문이 어긋나면 `E_CONFLICT` 로 아무것도 쓰지 않는다. 커밋 뒤(측정 줄 · 알림 · 백업)는 던지지 않는다(try/catch + log). 새 저장 길은 이 문을 지나게 한다(권한 모델 7절).
+- 저장 승인(팀 · 개인 프로그램의 모든 지식 · 처음부터): 결과는 들어감 하나(입력 오류는 아무것도 쓰지 않음), 사람 채널은 `proposal` 의무이고 승인이 경고 받아들임(`E_APPROVE` · 줄 안에서 `buildProposal` 을 다시 돌려 해시를 대 봄), 무인 채널은 FIX 고리 → 규칙 길로 늘 들어감(P6 부터), 값 대조는 측정만. 저장 문이 다는 칸(`## 받아들인 경고` · `## 값 대조` · `## 이은 항목` · `## 새로 세움`)은 `core/parts.js` 로만 쓰고 사람 입력에서는 거절한다([KMD_저장승인_설계](docs/품질개선/KMD_저장승인_설계.md) 3절).
 
 ## 테스트 · 배포
 

@@ -323,10 +323,10 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   await page.waitForSelector('[data-t=rightPane] [data-t=docPane]')
   await page.click('[data-t=closeSplit]')
   await page.click('[data-t=rb-recs]')
-  await page.click('[data-t=rec][data-state=pend]')
+  await page.click('[data-t=rec][data-state=old]')
   await page.waitForSelector('[data-t=recPane]')
   await page.click('[data-t=rb-docs]')
-  assert.equal(await page.locator('[data-t=recState]').innerText(), '옛 기록') // 옛 저장 길 상태는 칩 하나(P11)
+  assert.equal(await page.locator('[data-t=recState]').count(), 0) // 저장 승인 전 기록은 칩 없이 「기록」(P12)
   await page.click('.aside [data-a=agToggle][data-g=items]')
   assert.equal(await page.locator('[data-t=recItem]').count(), 1)
   assert.equal(await page.locator('[data-t=recPane] .paper p.muted').count(), 0, '쓴 사람 · 때는 오른쪽 속성으로')
@@ -1791,7 +1791,7 @@ test('저장 승인 P5: 저장 확인 창 — 문서 고치기 · 바뀐 것 채
   } finally { await boss.close() }
 })
 
-test('저장 승인 PC3: 개인 화면 — 승인 저장 개인 지식의 저장 확인 창(나만 · 이 PC) · 옛 기록 칩 · 이력 갈래 들이기 · Claude 로 들이기 · 네 폭 잘림 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('저장 승인 PC3: 개인 화면 — 승인 저장 개인 지식의 저장 확인 창(나만 · 이 PC) · 저장 승인 전 기록 · 이력 갈래 들이기 · Claude 로 들이기 · 네 폭 잘림 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   const root = path.join(tmp, 'pc-pc3')
   const dir = path.join(root, 'apv')
   copyDir(path.join(HERE, 'fixture', 'kmd', 'dpms'), dir)
@@ -1802,7 +1802,7 @@ test('저장 승인 PC3: 개인 화면 — 승인 저장 개인 지식의 저장
   fs.writeFileSync(path.join(data, 'serve.json'), JSON.stringify({ curateOnStart: false, decideMs: 3600000, inboxTickMs: 3600000 }))
   const pc3 = await startServer({ root, data, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
   assert.equal(pc3.hub.saveModeOf('apv'), 'approve')
-  const old = (await pc3.hub.get('apv')).works.find((w) => ['pend', 'nowhere', 'kept', 'memo'].includes(w.state))
+  const old = (await pc3.hub.get('apv')).works.find((w) => w.state === 'old')
   assert.ok(old, '옛 상태 기록이 있다')
   const page = await browser.newPage({ viewport: VIEW })
   const errors = []
@@ -1812,13 +1812,13 @@ test('저장 승인 PC3: 개인 화면 — 승인 저장 개인 지식의 저장
     await page.goto(`${pc3.url}/#once=${pc3.auth.once(pc3.pcUser)}`)
     await page.waitForSelector('[data-t=klist] [data-t=krow]')
     await openKnRow(page, '테스트승인')
-    // 옛 기록 — 넣는 중 · 버림 칩 없이 「옛 기록」
+    // 저장 승인 전 기록 — 칩 없이 「기록」(P12)
     await page.waitForSelector('[data-t=rb-recs]')
     if ((await page.locator('[data-t=rb-recs]').getAttribute('aria-selected')) !== 'true') await page.click('[data-t=rb-recs]')
     await page.waitForSelector(`[data-t=rec][data-r="${old.id}"]`)
     await page.click(`[data-t=rec][data-r="${old.id}"]`)
-    await page.waitForSelector('[data-t=recState]')
-    assert.equal(await page.locator('[data-t=recState]').first().innerText(), '옛 기록')
+    await page.waitForSelector('[data-t=recPane]')
+    assert.equal(await page.locator('[data-t=recState]').count(), 0)
     assert.equal(await page.locator('[data-t=recPend]').count(), 0, '넣는 때 줄 없음')
     // 문서 고치기 — 같은 저장 확인 창(머리 「나만 · 이 PC」)
     await page.click('[data-t=rb-docs]')
@@ -2132,9 +2132,8 @@ test('저장 승인 P10: 점검 · 지표 — 탭 점검 · 지표(배지 없음
     await page.waitForSelector('[data-t=ckTab-check].on')
     // 옛 지식(dpms)도 승인 저장(P11) — 넣지 못함 탭 없음 · 지표를 잰다
     await page.goto(s.url + '/#/k/dpms/check/metrics')
-    await page.waitForSelector('[data-t=mtOff], [data-t=mtCard], [data-t=mtEmpty]')
+    await page.waitForSelector('[data-t=mtCard], [data-t=mtEmpty]')
     assert.deepEqual(await tabs(), ['점검', '지표'])
-    assert.equal(await page.locator('[data-t=mtOff]').count(), 0)
     assert.deepEqual(await bannedIn(page), [])
     assert.deepEqual(errors, [])
   } finally { await page.close() }

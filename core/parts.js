@@ -1,7 +1,7 @@
 // kmd 가 쓰는 기록 칸 · 판정 기록(docs/kmd_문서_작성기준.md 2-3 · docs/품질개선/KMD_개편_설계.md 2-2 · 3-1).
 //
 //   `## 넣은 것`     저장 문이 넣은 항목 한 줄씩(「docs/x.md › 머리: 옛 값 → 새 값」 · 「(새 항목)」) — 태그 put 이 있는 기록만 읽는다
-//   `## 넣지 못함`   저장 문이 넣지 못한 조각(```json``` 목록 { doc, heading, coord, code, why, base?, edits?, content? }) — 태그 held
+//   `## 넣지 못함`   저장 승인 전 기록의 옛 칸(쓰지 않는다 · 보일 때 떼기만 · 사람 입력에서는 거절)
 //   `## 되돌린 항목` 되돌림 기록이 되돌린 항목 한 줄씩(「<기록 id>: docs/x.md › 머리」) — 태그 revert
 //   (저장 승인 P3 · approve 모드 저장 문이 단다 · 사람 입력에는 쓰지 못한다)
 //   `## 받아들인 경고` 사람이 승인한 제안서의 경고(```json``` 목록 { id, code, at, why }) — 승인 = 경고 받아들임(P-D5 · P-D27)
@@ -25,8 +25,6 @@ export const FRESH_PART = '새로 세움'
 export const KMD_PART_RE = /^## (넣은 것|넣지 못함|되돌린 항목|고친 조각|받아들인 경고|값 대조|이은 항목|새로 세움)[ \t\r]*$/m
 // 울타리(json) 칸 — 떼기(dropPart)가 울타리 끝까지 본다
 const JSON_PARTS = new Set([HELD_PART, ACCEPTED_PART, VALUES_PART])
-// 넣지 못함 칸이 이보다 길면 content · edits 를 떼고 까닭만 남긴다(S-D1)
-export const HELD_JSON_MAX = 40_000
 const NEW_MARK = ' (새 항목)'
 const EMPTY = '—'
 
@@ -85,31 +83,6 @@ export function parsePut(body) {
     out.push({ doc: m[1], heading, from, to, isNew })
   }
   return out
-}
-
-// 넣지 못함 줄 — 정해진 칸만 · 길면(또는 slim) content · edits 를 뗀다
-const HELD_KEYS = ['doc', 'heading', 'coord', 'code', 'why', 'base']
-const slimRow = (r) => Object.fromEntries(HELD_KEYS.filter((x) => r[x] != null).map((x) => [x, r[x]]))
-const fullRow = (r) => ({ ...slimRow(r), ...(Array.isArray(r.edits) ? { edits: r.edits } : {}), ...(typeof r.content === 'string' ? { content: r.content } : {}) })
-export function renderHeld(rows, { slim = false } = {}) {
-  if (!rows?.length) return ''
-  let json = JSON.stringify(rows.map(slim ? slimRow : fullRow), null, 1)
-  if (!slim && json.length > HELD_JSON_MAX) json = JSON.stringify(rows.map(slimRow), null, 1)
-  const fence = fenceFor(json)
-  return `## ${HELD_PART}\n${fence}json\n${json}\n${fence}`
-}
-export function parseHeld(body) {
-  const s = String(body || '')
-  const at = lastHead(s, HELD_PART)
-  if (at < 0) return []
-  const m = s.slice(at).match(/^## [^\n]*\n(`{3,})json\n([\s\S]*?)\n\1[ \t]*$/m)
-  if (!m) return []
-  try {
-    const v = JSON.parse(m[2])
-    return Array.isArray(v) ? v.filter((x) => x && typeof x === 'object') : []
-  } catch {
-    return [] // 손으로 깨진 칸 — 넣지 못함 줄이 없는 것으로(까닭은 기록 본문에 그대로 보인다)
-  }
 }
 
 export function renderReverted(rows) {
@@ -179,15 +152,6 @@ export function namesOfRecord(body) {
     forms.push(f)
   }
   return { names, forms }
-}
-
-export function decisionRecord(curates) {
-  return {
-    title: `정리: 알아서 한 것 ${curates.length}`,
-    body: curates.map((c) => `- ${c.id}: ${c.reason}`).join('\n'),
-    tags: ['curate-auto'],
-    curates,
-  }
 }
 
 // ── 저장 승인 P3 칸 ──

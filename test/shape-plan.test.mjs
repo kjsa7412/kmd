@@ -139,11 +139,11 @@ test('합치기 · 나누기 · 엮임 판정 — write 단위 · 고쳐 쓰기 
   fs.rmSync(dir2, { recursive: true, force: true })
 })
 
-test('걸림 — 덮임 빠짐 · 구조안에 없는 문서 · G4 · 별칭 겹침 · 이름 자리 밖 · 머리 겹침 · 출처 대기 기록 · 원본이 주인', async () => {
+test('걸림 — 덮임 빠짐 · 구조안에 없는 문서 · G4 · 별칭 겹침 · 이름 자리 밖 · 머리 겹침 · 원본이 주인', async () => {
   const files = { ...BASE, 'docs/원본.md': '<!-- watched: src="s" path="p.docx" -->\n# 원본\n\n## 가\n글\n', 'work/2026-1103-c.md': rec('2026-1103-c', '2026-11-03 09:00', ['proc:배포창']) }
   const dir = make(files)
   const { k, S } = await load(dir)
-  assert.equal(k.works.find((w) => w.id === '2026-1103-c').state, 'pend')
+  assert.equal(k.works.find((w) => w.id === '2026-1103-c').state, 'old', '저장 승인 전 기록은 상태를 가르지 않는다(P12)')
   const codes = (plan) => planCheck(k, S, P(plan))
   // 덮임 빠짐
   const a = same(S)
@@ -169,12 +169,12 @@ test('걸림 — 덮임 빠짐 · 구조안에 없는 문서 · G4 · 별칭 겹
   const f = same(S)
   f.docs[0].items[1].h = '배포'
   assert.ok(codes(f).errors.some((x) => /머리가 겹친다/.test(x.why)))
-  // 출처에 아직 안 넣은 기록(c · 배포 창)이 걸린 합치기
+  // 옛 기록(c · 배포 창)이 걸린 합치기 — 막지 않는다(P12)
   const g = same(S)
   g.docs[0].items = [{ h: '배포 창 · 사전 점검', from: [{ doc: '배포 절차', h: '배포 창' }, { doc: '배포 절차', h: '사전 점검' }] }, { h: '사후 점검', from: [{ doc: '배포 절차', h: '사후 점검' }] }]
   g.names = [{ coord: 'proc:배포창', doc: '배포 절차', h: '배포 창 · 사전 점검' }, { coord: 'proc:사전점검', doc: '배포 절차', h: '배포 창 · 사전 점검' }]
   const rg = codes(g)
-  assert.ok(rg.errors.some((x) => x.code === 'pend' && /배포 창/.test(x.where)), JSON.stringify(rg.errors))
+  assert.ok(!rg.errors.some((x) => x.code === 'pend'), '출처 대기 기록 걸림은 걷었다(P12)')
   // 원본이 주인 — 항목 이름을 바꾸면 걸림
   const h = same(S)
   h.docs.find((x) => x.id === '원본').items[0].h = '나'

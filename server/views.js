@@ -274,12 +274,9 @@ export function refOf(docPath, line, k = null) {
 }
 
 export function knowledgeRow(k) {
-  // pend — 아직 문서에 안 넣은 옛 기록 수(비공개는 뺀다 · 옛 기록 읽기만 · 목록 응답 꼴은 그대로)
-  const priv = (w) => w.tags.some((t) => /^private$/i.test(t))
-  const pend = k.works.filter((w) => (w.state === 'pend' || w.state === 'nowhere') && !priv(w)).length
   const when = [k.docs[0]?.mtime, k.works[0] ? isoOfStamp(k.works[0].date) : null].filter(Boolean).sort().pop() || null
   //   docs — 기록 모음(저장 문이 세우는 문서 · 저장 승인 P-D29)은 세지 않는다(새 지식의 「빈 지식」 · 바탕 세우기 안내가 그대로이게)
-  return { id: k.id, name: k.name, docs: k.docs.filter((d) => d.id !== RECORDS_DOC).length, records: k.works.length, pend, when }
+  return { id: k.id, name: k.name, docs: k.docs.filter((d) => d.id !== RECORDS_DOC).length, records: k.works.length, when }
 }
 
 // 기록의 날짜(YYYY-MM-DD HH:MM · 지역 시각) → ISO
@@ -441,7 +438,6 @@ export function logKind(w) {
   if (t.includes('ledger')) return '장부'
   if (t.includes('structure')) return '짜임'
   if (t.includes('intake')) return '들이기'
-  if (t.includes('migrate-held')) return '이행' // 옛 저장 길 기록을 옮긴 이행 기록(P8 · PC5)
   if (t.includes('put')) return '저장'
   return '정리'
 }
@@ -485,7 +481,7 @@ export function findView(pairs) {
     for (let i = k0; i < hits.length; i++) hits[i]._rrf = 1 / (60 + (i - k0))
   }
   // 바로잡힌 · 버린 · 되돌린 기록은 맨 뒤로(옛 값이 첫 줄에 오지 않게 · UX G3-01)
-  const late = (h) => (h.state === 'fixed' || h.state === 'kept' || h.state === 'reverted' ? 1 : 0)
+  const late = (h) => (h.state === 'fixed' || h.state === 'reverted' ? 1 : 0)
   const sorted = hits.map((h, i) => [h, i]).sort((a, b) => late(a[0]) - late(b[0]) || (b[0]._rrf || 0) - (a[0]._rrf || 0) || a[1] - b[1]).map((x) => { delete x[0]._rrf; return x[0] })
   return { hits: exact ? sorted.filter((h) => h.exact) : sorted.slice(0, 30), toks: words, exact, more }
 }

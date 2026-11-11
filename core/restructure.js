@@ -18,7 +18,7 @@
 //   같이 고치는 것 — 옮긴 항목 글 속 상대 링크 · 들어오는 `x.md#머리` · `#머리` · 참고 줄(moveSection) · applied 표지(글과 같이) ·
 //     자리 장부(placeExact: 정확한 줄은 제자리 · 패턴 줄로 닿던 이름은 패턴 줄 위에 정확한 줄)
 //   막는 것 — 겹치는 머리(같은 머리 · 앞부분 겹침) · 원본이 주인 · 갈래 머리 꼴 · 저절로 채우는 표 · 자리 잃는 이름 ·
-//     섞인 자리(opt.legacy · code legacy-mix) · 쓴 뒤 기록 상태가 바뀜(저널 되돌림)
+//     쓴 뒤 기록 상태가 바뀜(저널 되돌림)
 //   지문 — base 는 structureFp(옛 화면) 또는 stepFp(이 걸음이 건드리는 것만) · step('shape/<work>/<n>')이 있으면 이력 표지 · 멱등
 //
 //   적용(applyRestructure) — 지식마다 한 줄(save.serial) · 저널(넘어지면 되돌림) · 커밋 하나 · 이력(log/) 하나 · 지문이 어긋나면 E_CONFLICT
@@ -370,15 +370,13 @@ export function planRestructure(files, ops = {}) {
       const f = formFor(k ? k.forms : formsAll, P.basename(it.to.doc))
       if (f && !headingFits(f, toH)) { err(where, `「${f.name}」 의 항목 머리 꼴이 아니다: ${formHeadRule(f)}`); continue }
     }
-    // 이름 · 섞인 자리 — 옮기기 앞 지식(k)으로
+    // 이름 — 옮기기 앞 지식(k)으로
     let coords = []
     if (k) {
       const dObj = k.byDocPath.get(src0)
       const s0 = dObj?.sections.find((s) => s.h === it.from.h) || null
       const prev = moved.find((m) => m.dstRel === srcRel && m.to === it.from.h)
       coords = prev ? prev.coords : dObj && s0 ? coordsOfSection(k, dObj, s0.h) : []
-      const lp = dObj && s0 && typeof files.legacy === 'function' ? files.legacy(k, dObj, s0) : []
-      if (lp?.length) { err(where, `이 항목에 개편 전 기록 ${lp.length} 이 아직 안 들어갔다: 지식관리자가 [옛 기록 다시 들이기] 를 하면 풀린다`, 'legacy-mix'); continue }
     }
     // 옮긴 글 속 링크 — 다른 문서 · 첨부는 새 자리 기준으로 · `#머리` 는 원래 문서(자기 머리는 새 머리)
     const mapBody = (chunk) => {
@@ -624,9 +622,8 @@ export const STEP_RE = /^shape\/[0-9a-f]{12}\/\d{1,4}$/
 
 // ── 적용 ──
 //   { dry } 면 쓰지 않고 계획 요약 · base 가 지금 지문(structureFp 또는 stepFp)과 다르면 E_CONFLICT · 바뀔 것이 없으면 commit null
-//   legacy(k, doc, sec) — 섞인 자리(팀 · 아직 안 들어간 개편 전 기록 id 목록) · cutoverAt · team — 기록 상태를 셀 때(loadKnowledge 와 같게)
 //   step — 'shape/<work>/<n>' · 이력 표지(같은 표지의 이력이 있으면 쓰지 않고 { skipped: true })
-export function applyRestructure(dir, ops, { user, by = null, base = null, dry = false, now = new Date(), legacy = null, cutoverAt = null, team = false, step = null } = {}) {
+export function applyRestructure(dir, ops, { user, by = null, base = null, dry = false, now = new Date(), step = null } = {}) {
   if (!user) fail('E_INPUT', '누가 쓰는지 모른다')
   return serial(path.resolve(dir), async () => {
     if (step != null && !STEP_RE.test(String(step))) fail('E_INPUT', '걸음 표지 꼴이 아니다')
@@ -639,9 +636,9 @@ export function applyRestructure(dir, ops, { user, by = null, base = null, dry =
     const sfp = stepFp(files, ops)
     if (base && base !== fp && base !== sfp) fail('E_CONFLICT', '그사이 문서 짜임이 바뀌었다. 다시 읽고 고친다')
     const deep = (Array.isArray(ops?.items) && ops.items.length) || (Array.isArray(ops?.drops) && ops.drops.length)
-    const kopt = { cutoverAt, team }
+    const kopt = {}
     const k = deep ? await loadKnowledge({ id: '_', name: '_', dir }, kopt) : null
-    const plan = planRestructure({ ...files, k, legacy }, ops)
+    const plan = planRestructure({ ...files, k }, ops)
     if (plan.errors.length) fail('E_INPUT', `${plan.errors[0].where}: ${plan.errors[0].why}${plan.errors.length > 1 ? ` · 그 밖 ${plan.errors.length - 1}` : ''}`, plan.errors)
     const nothing = !plan.moves.length && !plan.writes.length && !plan.creates.length && !plan.drops.length
     if (dry || nothing) return { dry, fp, stepFp: sfp, summary: plan.summary, lines: plan.lines, commit: null, log: null }

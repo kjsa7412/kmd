@@ -67,23 +67,6 @@ export function topicOfName(file) {
   return t || base
 }
 
-// 들인 기록의 옛 판(옛 curate R-A3) — 같은 출처(태그 ingest/…)에 새 판이 있으면 옛 판은 keep.
-//   돌려주는 줄마다 by = 새 판의 기록 id(core/curate.js decide 가 새 판을 만나는 차례에 싣는다)
-//   옛 판이 넣지 못함(held)이거나 새 판이 fixes 로 옛 판을 가리키면 건너뛴다 — 바로잡힘(fixed)을 「둠」 으로 바꾸지 않는다(설계 3-1 · S-D4 ①)
-export function supersededIngest(k) {
-  const out = []
-  const ingest = new Map()
-  for (const w of [...k.works].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))) {
-    const src = w.tags.find((t) => t.startsWith('ingest/'))
-    if (!src) continue
-    const prev = ingest.get(src)
-    const skip = prev && (prev.tags.includes('held') || (w.fixes || []).includes(prev.id))
-    if (prev && !skip && !k.kept.has(prev.id) && !k.reverted.has(prev.id)) out.push({ id: prev.id, verdict: 'keep', rule: 'R-A3', reason: `새 판이 있다: ${w.id}`, by: w.id })
-    ingest.set(src, w)
-  }
-  return out
-}
-
 // ── 들이기 엔진(S7 · docs/품질개선/KMD_개편_설계.md 3-5 · S-D18 ~ S-D22 · S-D31 · S-D32) ──
 //   팀 일꾼이 일감 하나(원천 하나 · 파일 하나 · 커밋 하나)를 claude -p 한 번으로 「기록 + 조각」 초안을 짓고, 서버가 저장 문 한 번으로 넣는다.
 //   프롬프트 첫 줄은 시험의 가짜 claude 갈래와 맞춘다(「넣을 것을 지식에 들인다」).

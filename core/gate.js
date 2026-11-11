@@ -5,13 +5,13 @@
 //   초안 글 검사는 저장과 같은 문서 꼴 검사(core/docformat.js formatProblems)를 쓴다.
 //
 //   S2 에서 옛 정리 모듈에서 옮겼다(옛 파일은 S13 에 걷었다 · 개인 프로그램 갈래는 core/pcplace.js · docs/품질개선/KMD_개편_설계.md 3-1).
-//   check 는 옛 정리 묶음(g)의 갈래 나누기다 — 정리가 걷히는 S13 까지만. 저장 문(hub.save · S4)은 checkSection(k, { doc, heading, base, content, record, spread, legacyPend }) 을 쓴다.
+//   check 는 옛 정리 묶음(g)의 갈래 나누기다 — 정리가 걷히는 S13 까지만. 저장 문(hub.save · S4)은 checkSection(k, { doc, heading, base, content, record, spread }) 을 쓴다.
 //   P1(저장 승인 설계): 판정은 judgeSection · judgeShape 가 오류(errors) · 경고(warnings · id)로 나눠 내고, checkSection · checkShape 는
 //   그 위의 얇은 덮개로 held 모드의 「못 넘음」 하나를 그대로 낸다(foldJudge). 본문 반영 검사는 core/values.js judgeReflect.
 
 import { sha16 } from './text.js'
 import { guardNewDoc } from './guard.js'
-import { sectionOf, reflectedIn } from './knowledge.js'
+import { sectionOf } from './knowledge.js'
 import { formatProblems, lintSection } from './docformat.js'
 import { splitBlocks, hasBlockMarker } from './baseline.js'
 // 코드 바뀜 기록(code-change)은 차이 속의 수를 다 볼 수 없다 — 「바뀐 값」 의 새 값만 글에 있어야 한다
@@ -81,9 +81,6 @@ export function checkSectionDraft(k, g, d) {
   const x = sectionOf(k, g.coord)
   const whole = x?.sec ? x.sec.body : ''
   if (sha16(whole) !== g.base) return { ok: false, why: '그사이 항목이 바뀌었다. 다음 정리 때 다시 만든다', stale: true }
-  // 그사이 같은 항목에 새 기록이 왔으면 같이 넣어야 한다(표지가 그 기록까지 「넣음」 으로 보이게 되므로)
-  const pendNow = k.works.filter((w) => w.state === 'pend' && w.touches.includes(g.coord) && !reflectedIn(k, w, x?.sec)).map((w) => w.id)
-  if (pendNow.some((x) => !ids.includes(x))) return { ok: false, why: '그사이 새 기록이 왔다. 다음 정리 때 같이 넣는다', stale: true }
   // 값 · 크기는 본문끼리 견준다(항목 글은 본문만 · 참고 줄은 저장이 지킨다)
   const cur = whole
   // G6 — 문서 꼴(기록 링크 · 시스템 주소 · 주석 · 경과 · 항목 머리) · 프런트매터 · script(소제목 ### 아래는 된다)
@@ -130,11 +127,11 @@ export function checkSectionDraft(k, g, d) {
 }
 
 // 판정 나누기(저장 승인 설계 P1 · 3-1 · 3-2) — 오류(errors)와 경고(warnings)를 따로 낸다. 쓰지 않고 판정만.
-//   오류: { id, code(conflict · legacy-mix · format · machine), why, stale? } — 고쳐 다시 보내야 하는 것(지문 · 꼴 · 표지 · 섞인 자리)
+//   오류: { id, code(conflict · format · machine), why, stale? } — 고쳐 다시 보내야 하는 것(지문 · 꼴 · 표지 · 섞인 자리)
 //   경고: { id, code(missing · invented · lost), doc, heading, values, why } — 값 대조(빠진 값 · 지어낸 값 · 옛 값 빠짐).
 //   id 는 같은 입력이면 같다(judgeId: 갈래 · 문서 · 머리 · 값) — 제안서 해시 · 받아들인 경고가 이 id 를 쓴다(P2 · P3).
 //   지금(held 모드)은 checkSection 이 이 판정을 그대로 「못 넘음」 하나로 접는다(오류가 먼저 · 경고는 빠진 → 지어낸 → 빠진 옛 값 차례).
-export function judgeSection(k, { doc, heading, base, content, record, spread = false, legacyPend = [] }) {
+export function judgeSection(k, { doc, heading, base, content, record, spread = false }) {
   const errors = []
   const warnings = []
   const err = (code, why, extra = {}) => errors.push({ id: judgeId(code, doc, heading), code, why, ...extra })
@@ -144,7 +141,6 @@ export function judgeSection(k, { doc, heading, base, content, record, spread = 
   const sec = d ? d.sections.find((s) => s.h === heading) || null : null
   const cur = sec ? sec.body : ''
   if (sec && (!base || String(base) !== sha16(cur))) err('conflict', base ? '그사이 항목이 바뀌었다. section 으로 다시 읽고 그 위에서 다시 짓는다' : '이미 있는 항목이다. section 이 준 base 를 같이 보낸다(그사이 남이 고친 글을 덮지 않게)', { stale: true })
-  if (legacyPend.length) err('legacy-mix', `이 항목에 개편 전 기록 ${legacyPend.length} 이 아직 안 들어갔다: 지식관리자가 [옛 기록 다시 들이기] 를 하면 풀린다`)
   const bad = draftBad(content, cur, { doc, old: sec ? cur : null })
   if (bad) err(bad === '저절로 채우는 표를 고쳤다' ? 'machine' : 'format', `글에 머리 · 표지가 들었다: ${bad}`)
   if (!content.trim() && cur.trim()) err('format', '글을 비웠다. 항목을 지우는 일은 지식관리자가 화면에서 한다')
@@ -188,8 +184,7 @@ export function foldJudge(j, { pass = () => false } = {}) {
 // 저장 문의 항목 검사(S4 · docs/품질개선/KMD_개편_설계.md 3-3) — 사람 · 세션이 보낸 새 글(content · 조각을 댄 글) 하나를 지금 지식에 대어 본다.
 //   { doc, heading } — 항목 자리(문서 경로 docs/x.md · 머리) · base — 보낸 쪽이 읽은 지문(이미 있는 항목이면 꼭) ·
 //   record — 함께 보낸 기록({ title, body }) · spread — 조각이 여럿이라 기록의 값이 항목들에 나뉜다(빠진 값은 부르는 쪽이 합쳐서 본다) ·
-//   legacyPend — 이 항목에 아직 안 들어간 개편 전 기록 id(있으면 넣지 않는다: 들어가면 그 기록까지 「넣음」 으로 보이므로)
-//   → { ok, why, code, stale, changed: [{ from, to }], lint } · code: conflict · legacy-mix · format · values
+//   → { ok, why, code, stale, changed: [{ from, to }], lint } · code: conflict · format · values
 //   크기(G5 근거보다 크게)는 보지 않는다 — 사람 · 세션이 항목 전체를 다시 쓰는 일은 정리 초안과 다르다
 //   P1 부터 judgeSection 위의 얇은 덮개다(held 모드 판정 그대로).
 export function checkSection(k, input) {
@@ -270,10 +265,9 @@ export function checkIngest(k, g, d) {
 // 문서 짜임의 글 걸음 검사(바탕 세우기 설계 4-5 · 권한 모델 7-2) — 나누기 · 합치기 · 엮임 · 문서 요약 · 바탕 새 항목. 팀 · 개인 모두 돈다.
 //   unit — { targets: [{ doc(docs/x.md), h, content }], sources: [{ doc, h, base }], intros: [{ doc, text, ground }], ground?(바탕: 재료 글) }
 //   근거는 출처 항목의 지금 글(바탕은 재료 글)뿐이다 — 기록 본문 · 제목은 근거가 아니다(「기록에도 같이 지어 넣으면 넘는」 구멍)
-//   legacy(doc, h) → 그 항목에 아직 안 들어간 개편 전 기록 id(섞인 자리)
-//   judgeShape → { errors: [{ id, code(conflict · legacy-mix · format · machine), why, stale? }], warnings: [{ id, code(invented · lost · dropped), doc, heading, values, why }], lint }
+//   judgeShape → { errors: [{ id, code(conflict · format · machine), why, stale? }], warnings: [{ id, code(invented · lost · dropped), doc, heading, values, why }], lint }
 //     (저장 승인 설계 P1 · P-D24: 오류는 P7 부터 걸음 입력 오류 · 값 경고는 측정만). 출처가 없거나 바뀌었으면(conflict) 값은 보지 않는다.
-export function judgeShape(k, unit, { legacy = null } = {}) {
+export function judgeShape(k, unit) {
   const errors = []
   const warnings = []
   const err = (code, why, at = {}, extra = {}) => errors.push({ id: judgeId(code, at.doc, at.h, why), code, why, ...extra })
@@ -287,13 +281,6 @@ export function judgeShape(k, unit, { legacy = null } = {}) {
     if (!sec) { err('conflict', `출처 항목이 없다: ${s.doc.replace(/^docs\/|\.md$/g, '')} › ${s.h}`, s, { stale: true }); return { errors, warnings } }
     if (s.base && sha16(sec.body) !== s.base) { err('conflict', `그사이 출처 항목이 바뀌었다: ${s.h}`, s, { stale: true }); return { errors, warnings } }
     srcText.push(sec.body)
-  }
-  // 섞인 자리 — 출처 · 목표에 아직 안 들어간 개편 전 기록
-  if (legacy) {
-    for (const x of [...(unit.sources || []), ...(unit.targets || [])]) {
-      const ids = legacy(x.doc, x.h) || []
-      if (ids.length) err('legacy-mix', `「${x.h}」 에 개편 전 기록 ${ids.length} 이 아직 안 들어갔다: 지식관리자가 [옛 기록 다시 들이기] 를 하면 풀린다`, x)
-    }
   }
   // 꼴 — 머리 · 표지 · 표 · 문서 꼴 · 빈 글 · 목표 문서 갈래의 머리 꼴
   let noText = false
@@ -345,7 +332,7 @@ export function judgeShape(k, unit, { legacy = null } = {}) {
   return { errors, warnings, ...(errors.length ? {} : draftLint((unit.targets || []).map((t) => t.content))) }
 }
 
-//   checkShape → { ok, code(conflict · legacy-mix · format · values), why, warnings } — P1 부터 judgeShape 위의 얇은 덮개(held 모드 판정 그대로:
+//   checkShape → { ok, code(conflict · format · values), why, warnings } — P1 부터 judgeShape 위의 얇은 덮개(held 모드 판정 그대로:
 //   첫 오류 · 없으면 첫 값 경고가 「못 넘음」 · 바뀐 문장은 넘은 결과의 warnings 글로)
 export function checkShape(k, unit, opt = {}) {
   const j = judgeShape(k, unit, opt)

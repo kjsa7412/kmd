@@ -151,9 +151,6 @@ const recOf = (k, r) => need(`rec:${k}:${r}`, `/api/k/${encodeURIComponent(k)}/r
 // 읽는 중 — 빙빙이 + 글(컨벤션 10절)
 const loadingHtml = '<p class="loading" data-t="loading">읽는 중…</p>'
 const teamKn = (k) => isTeam() && KN(k) && !isPersonal(KN(k))
-// 옛 기록(저장 승인 P11 · PC6) — 옛 저장 길의 상태(held · 개편 전 · pend · nowhere · kept · memo)는 칩 「옛 기록」 하나 · 새로 생기지 않는다(읽기만)
-const OLD_ST = ['held', 'pend', 'nowhere', 'kept', 'memo']
-const pcOld = (k, r) => OLD_ST.includes(r.state)
 // 오류 — 무엇이 · 왜 + 「다시 읽기」(그 받은 값을 지우고 다시 받는다). key 를 모르면(v.key 도 없으면) 단추 없이
 const keyOf = (v) => (v && typeof v === 'object' ? Object.keys(S.cache).find((x) => S.cache[x] === v) : null)
 // 화면 읽기 프로그램에 오류를 알린다 — 그린 칸에는 role=alert 를 달지 않는다(3초마다 다시 그리면 같은 오류를 되풀이해 읽는다).
@@ -1064,7 +1061,7 @@ function bandHtml() {
 function stopsFor(k) { return S.stops.filter((x) => !k || !x.kn || x.kn === k) }
 // 경고(멈춤 줄) — 화면마다 띠로 깔지 않고 머리 띠의 「경고 n」 단추 하나 · 누르면 팝업에 모두(무엇 · 얼마나 · 풀리는 길 · 그 일로 가기)
 // 멈춤 줄의 종류 · 갈 곳(메뉴 id) — 갈 곳 글은 메뉴 표의 이름(setWhere)
-const STOP_T = { backup: ['지식백업', 'backup'], repo: ['저장소', 'repo'], source: ['자동수집', 'import'], send: ['공유', 'send'], worker: ['팀 일꾼', 'claude'], ver: ['새 판', ''], migrate: ['이행', ''] }
+const STOP_T = { backup: ['지식백업', 'backup'], repo: ['저장소', 'repo'], source: ['자동수집', 'import'], send: ['공유', 'send'], worker: ['팀 일꾼', 'claude'], ver: ['새 판', ''] }
 function stopBtnHtml(st) {
   if (!st.length) return ''
   const bad = st.some((x) => x.level === 'bad')
@@ -2112,7 +2109,7 @@ function recPane(t, right) {
   const nRecs = 1 + (fx ? 1 : 0) + fb.length + via.length + from.length
   const aside = agWrap('rec', [
     { id: 'ol', t: '개요', n: heads.length, body: () => heads.map((x) => agRow({ a: 'scrollTx', attrs: ` data-v="${esc(x.tx)}"`, nm: esc(x.tx), t: 'olRec', sub: '' })).join('') || agNone },
-    { id: 'docs', t: '문서', n: went.length, body: () => agSub(r.log ? '이 일이 넣은 문서' : '이 기록이 들어간 문서') + (went.map((d) => docRow(k, d.id, d.title, { h: d.hs[0] || '', sub: `항목 ${d.hs.length}: ${d.hs.slice(0, 3).join(' · ')}${d.hs.length > 3 ? ' …' : ''}`, t: 'wentDoc' })).join('') || `<div class="muted small alr">${pcOld(k, r) ? '옛 기록: 문서에 들어가지 않았다' : '없다'}</div>`) },
+    { id: 'docs', t: '문서', n: went.length, body: () => agSub(r.log ? '이 일이 넣은 문서' : '이 기록이 들어간 문서') + (went.map((d) => docRow(k, d.id, d.title, { h: d.hs[0] || '', sub: `항목 ${d.hs.length}: ${d.hs.slice(0, 3).join(' · ')}${d.hs.length > 3 ? ' …' : ''}`, t: 'wentDoc' })).join('') || `<div class="muted small alr">없다</div>`) },
     { id: 'recs', t: '기록', n: nRecs, body: () => agSub('이 기록') + recRow(k, r, { cur: true, sub: who(r.author), t: 'recMe' })
       + agSub('바로잡은 · 바로잡힌 기록', (fx ? 1 : 0) + fb.length) + ((fx ? recRow(k, fx, { sub: '이 기록이 바로잡음', t: 'fixRow' }) : '') + fb.map((x) => recRow(k, x, { sub: '이 기록을 바로잡음', t: 'fixRow' })).join('') || agNone)
       + (via.length ? agSub('이 기록을 넣은 kmd 기록', via.length) + via.map((x) => recRow(k, x, { sub: `${x.author} 가 넣었다`, t: 'viaRec' })).join('') : '')
@@ -2128,13 +2125,11 @@ function recPane(t, right) {
   ])
   return { html, aside: right ? null : aside, title: r.title.split(/ — |: /)[0] }
 }
-// 기록 상태(설계 4-8 · 저장 승인 P11) — 칩 · 속성 말: 들어감(c-ok) · 바로잡힘(c-ok) · 되돌림 · 옛 기록(옛 저장 길의 상태 모두 · 읽기만)
+// 기록 상태(설계 4-8 · 저장 승인 P11 · P12) — 칩 · 속성 말: 들어감(c-ok) · 바로잡힘(c-ok) · 되돌림 · 저장 승인 전 기록(old)은 칩 없이 「기록」
 function recStateTx(k, r) {
-  if (pcOld(k, r)) return '옛 기록: 저장 승인 전에 남았다'
-  return { fixed: '바로잡힘: 나중 기록이 고쳤다', reverted: '되돌림', in: '문서에 들어감', none: 'kmd 가 한 일' }[r.state] || '문서에 들어감'
+  return { fixed: '바로잡힘: 나중 기록이 고쳤다', reverted: '되돌림', in: '문서에 들어감', none: 'kmd 가 한 일', old: '기록' }[r.state] || '기록'
 }
 function recStateChip(k, r) {
-  if (pcOld(k, r)) return chipOf('same', '옛 기록', ` data-t="recState" title="${esc(recStateTx(k, r))}"`)
   const c = { fixed: ['ok', '바로잡힘'], reverted: ['rest', '되돌림'], in: ['ok', '문서에 들어감'] }[r.state]
   return c ? chipOf(c[0], c[1], ` data-t="recState" title="${esc(recStateTx(k, r))}"`) : ''
 }
@@ -2455,7 +2450,7 @@ function itemListHtml(k) {
 }
 function itemRecent(k, i) {
   const cut = Date.now() - 3 * 864e5
-  return recsOfItem(k, i).some((r) => r.state === 'pend' || (stampDate(r.date) || 0) >= cut)
+  return recsOfItem(k, i).some((r) => (stampDate(r.date) || 0) >= cut)
 }
 const itemMine = (k, i) => recsOfItem(k, i).some((r) => r.author === S.me.user)
 // 항목 종류 묶음 — 처음은 모두 접힘(컨벤션 5절 묶음 줄) · 지금 연 항목의 종류는 펼침
@@ -3494,7 +3489,7 @@ const diffOf = (k, record) => need(`diff:${k}:${record}`, `/api/k/${encodeURICom
 const historyOf = () => need('history', '/api/history')
 const HIST_CHECK = '값 바뀜'
 // 갈래 — 옛 held 갈래는 P11 에서 걷었다(옛 기록은 「정리」 · 줄 수 0 이면 고르기에 없다)
-const HIST_KINDS = [HIST_CHECK, '저장', '고침', '들이기', '이행', '다듬기', '되돌림', '버림', '가져오기', '짜임', '장부', '보내기', '받음', '설정', '지식']
+const HIST_KINDS = [HIST_CHECK, '저장', '고침', '들이기', '다듬기', '되돌림', '버림', '가져오기', '짜임', '장부', '보내기', '받음', '설정', '지식']
 const isCheck = (x) => x.yl && !x.reverted && !x.unlinked
 const HIST_PAGE = 200
 // 한 흐름 — 팀 화면은 팀 지식만 · 개인 화면은 개인 지식만
@@ -3538,7 +3533,7 @@ function traceHtml(x, all) {
   const L = [s ? li('ok', s.at, `${s.knName || '개인 지식'} 에서 보냈다`, s.title) : li('n', '', `${r.from || '개인 지식'} 에서 보냈다`, '보낸 쪽 줄은 이력에 없다: 다른 사람이 보냈거나 오래됐다')]
   if (r) {
     L.push(li('ok', r.at, `${r.knName} · 받은 것에 섰다`, r.title))
-    L.push(r.st === 'in' ? li('ok', '', '문서에 들어갔다', '받을 때 넣었다') : li('w', '', '옛 기록', r.sub || ''))
+    L.push(r.st === 'in' ? li('ok', '', '문서에 들어갔다', '받을 때 넣었다') : li('w', '', '기록', r.sub || ''))
   } else L.push(li('n', '', `${s.to || '팀 지식'} 의 받은 것`, '팀 쪽 줄을 찾지 못했다: 보낸 지 오래됐거나 아직 닿지 않았다'))
   return `<div class="small muted" style="margin:var(--sp-1) 0">보낸 기록이 지나간 길</div><ul class="trace" data-t="histTrace">${L.join('')}</ul>`
 }
@@ -3569,7 +3564,7 @@ function histRow(x, all) {
     ex += '</div>'
   }
   const kind = isCheck(x) ? HIST_CHECK : x.kind
-  const sent = team && x.kind === '보내기' && x.to && !open ? (sentDone(x, all) ? ' ' + chipOf('ok', '문서에 들어감', ' data-t="sentState"') : histPair(x, all) ? ' <span class="chip c-mute" data-t="sentState">옛 기록</span>' : '') : ''
+  const sent = team && x.kind === '보내기' && x.to && !open ? (sentDone(x, all) ? ' ' + chipOf('ok', '문서에 들어감', ' data-t="sentState"') : histPair(x, all) ? ' <span class="chip c-mute" data-t="sentState">기록</span>' : '') : ''
   return `<div class="hrow${team ? ' ' + x.a : ''}${isCheck(x) ? ' yl' : ''}${x.reverted ? ' done' : ''}" data-t="histRow" data-kind="${esc(x.kind)}" data-area="${x.a}" data-id="${esc(x.id)}"><div class="hl" data-a="toggleToday" data-id="${esc(x.id)}"><span class="tm">${tmOf(x.at)}</span><span class="chip ${isCheck(x) ? 'c-warn' : 'c-mute'} u-fnone">${esc(kind)}</span><span class="tx"><b>${esc(x.title)}</b>${sent}${x.reverted ? ' <span class="chip c-mute" data-t="reverted">되돌렸다</span>' : ''}${x.asIs ? ' <small class="muted" data-t="histAsIs">글 그대로</small>' : ''}${x.sub && !open ? `<small>${esc(x.sub)}</small>` : ''}</span><span class="kn2">${esc(x.knName || '')}</span><span class="who">${esc(x.who || '')}</span><span class="act" data-t="viewBtn">${open ? '접기' : '보기'}</span></div>${ex}</div>`
 }
 // 이력 새 줄 수(UX T4-03 · 정함 ① ) — 마지막으로 이력을 본 때(이 브라우저) 뒤에 생긴 줄
@@ -3670,7 +3665,6 @@ function metricsHtml(k) {
   if (!m) return tools + loadingHtml
   if (m.error) return tools + errHtml(m, mtKey(k))
   const fresh = m.rows.find((r) => r.key === 'fresh')
-  if (m.mode !== 'approve') return tools + '<div class="empty2" data-t="mtOff"><b>저장 승인 전 지식은 재지 않는다</b></div>'
   if (!m.saves && !(fresh && fresh.n)) return tools + '<div class="empty2" data-t="mtEmpty"><b>이 기간에 들어간 저장이 없다</b></div>'
   const open = S.mtOpen || ''
   const codes = (r) => {
@@ -5643,7 +5637,7 @@ function viewSettings() {
   return { crumb: pg.l, main: `<div class="pg-list">${head}${body}</div>` }
 }
 // 운영 값(읽기만 · UX T6-26) — 흩어진 손잡이를 한 곳에서 본다. 바꾸는 곳은 줄마다 적은 곳
-const OPS_NAME = { helpContact: ['잊었을 때 부탁할 곳', '들어가기 화면'], backupRoot: ['저장소 폴더', '지식관리 › 모든 지식'], backupRoots: ['백업으로 허락한 폴더', ''], sourceRoots: ['가져올 곳으로 허락한 폴더', ''], sourceHosts: ['가져올 곳으로 허락한 주소', ''], collect: ['편집기로 고친 문서 거두기', ''], trustProxy: ['앞단 프록시 믿기', ''], attachDaily: ['하루 첨부 한도', ''], intakeDaily: ['하루 들이기 한도', ''], intakeQueue: ['들이기 줄 길이', ''], saveRate: ['저장 빠르기 한도', ''], savelogMax: ['저장 측정 줄 길이', ''], cutoverAt: ['개편을 켠 때', ''], dl: ['꾸러미 자리', ''], prepMax: ['미리 읽기 한도', ''], scryptN: ['비밀번호 굳히기 세기', ''], gitlab: ['GitLab 연결', ''] }
+const OPS_NAME = { helpContact: ['잊었을 때 부탁할 곳', '들어가기 화면'], backupRoot: ['저장소 폴더', '지식관리 › 모든 지식'], backupRoots: ['백업으로 허락한 폴더', ''], sourceRoots: ['가져올 곳으로 허락한 폴더', ''], sourceHosts: ['가져올 곳으로 허락한 주소', ''], collect: ['편집기로 고친 문서 거두기', ''], trustProxy: ['앞단 프록시 믿기', ''], attachDaily: ['하루 첨부 한도', ''], intakeDaily: ['하루 들이기 한도', ''], intakeQueue: ['들이기 줄 길이', ''], saveRate: ['저장 빠르기 한도', ''], savelogMax: ['저장 측정 줄 길이', ''], dl: ['꾸러미 자리', ''], prepMax: ['미리 읽기 한도', ''], scryptN: ['비밀번호 굳히기 세기', ''], gitlab: ['GitLab 연결', ''] }
 function opsCard(a) {
   const o = a.ops; if (!o) return ''
   const v = (x) => Array.isArray(x) ? (x.length ? x.join(' · ') : '없음') : typeof x === 'object' ? JSON.stringify(x) : String(x)
@@ -6870,19 +6864,6 @@ const ACT = {
   stopOpen: () => { S.stopWin = true; S.menu = null; loadStops(); render() },
   stopClose: () => { S.stopWin = false; render() },
   stopReload: () => loadStops().then((r) => { render(); if (r !== true) toastErr('경고를 읽지 못했다: ' + ((r && r.message) || '')) }),
-  // 이행 못함(PC5) — 그 지식의 이행을 한 번 더(지식백업 먼저 · 실패면 까닭이 멈춤 줄에 그대로)
-  migrateAgain: async (el) => {
-    if (el.disabled) return
-    el.disabled = true
-    try {
-      const r = await postJSON('/api/pc/migrate/' + encodeURIComponent(el.dataset.k), {})
-      if (r.ok) toast('이행했다' + (r.counts ? ': 이력으로 이음 ' + ((r.counts.linked || 0) + (r.counts.month || 0)) : ''))
-      else if (r.busy) toast(esc(r.why || ''))
-      else toastErr('이행 못함: ' + (r.why || ''))
-    } catch (e) { toastErr('이행 못함: ' + e.message) }
-    await loadStops()
-    render()
-  },
   stopGo: (el) => {
     S.stopWin = false; S.menu = null
     const id = el.dataset.v, k = el.dataset.k && KN(el.dataset.k) ? el.dataset.k : null

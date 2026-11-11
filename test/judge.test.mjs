@@ -50,7 +50,6 @@ test('judgeSection: 오류와 값 경고를 따로 · 경고 id 는 같은 입�
   assert.equal(cb.code, 'conflict')
   assert.equal(cb.stale, true)
   // 섞인 자리 · 꼴(머리 줄) · 빈 글 · 글 없음
-  assert.deepEqual(judgeSection(k, { ...inv, legacyPend: ['x'] }).errors.map((e) => e.code), ['legacy-mix'])
   assert.deepEqual(judgeSection(k, { ...at, base: sha16(CUR), content: '## 새 머리\n글', record: rec('- 없음') }).errors.map((e) => e.code), ['format'])
   assert.deepEqual(judgeSection(k, { ...at, base: sha16(CUR), content: '  ', record: rec('- 없음') }).errors.map((e) => e.code), ['format'])
   assert.deepEqual(checkSection(k, { ...at, content: null }), { ok: false, code: 'format', why: '항목 글이 없다' })

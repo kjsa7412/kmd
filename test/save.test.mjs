@@ -10,9 +10,8 @@ import { fileURLToPath } from 'node:url'
 import { save, saveRecords, assetPath } from '../core/save.js'
 import { begin } from '../core/journal.js'
 import { ensureRepo, tryGit } from '../core/git.js'
-import { loadKnowledge, isLegacy } from '../core/knowledge.js'
-import { supersededIngest } from '../core/ingest.js'
-import { parseHeld, parsePut, renderPut, parseReverted, renderReverted, renderHeld, dropPart } from '../core/parts.js'
+import { loadKnowledge } from '../core/knowledge.js'
+import { parsePut, renderPut, parseReverted, renderReverted, dropPart } from '../core/parts.js'
 import { isReservedTag } from '../core/names.js'
 import { valueDiff } from '../core/values.js'
 import { httpStatusOf } from '../core/errors.js'
@@ -46,7 +45,7 @@ after(() => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('칸 쓰고 읽기: 넣은 것 · 넣지 못함(울타리 · 마지막 칸만) · 되돌린 항목 · 떼기', () => {
+test('칸 쓰고 읽기: 넣은 것 · 되돌린 항목 · 떼기(옛 넣지 못함 칸도 울타리째)', () => {
   const put = renderPut([{ doc: DOC, heading: '롤백', from: '5분', to: '10분' }, { doc: DOC, heading: '값: 설명', from: '', to: '3' }, { doc: 'docs/회의록.md', heading: '2026-10-21 HNC 통화', isNew: true }])
   assert.match(put, /^## 넣은 것\n- docs\/배포절차\.md › 롤백: 5분 → 10분\n/)
   assert.deepEqual(parsePut(`사람 글\n\n## 넣은 것\n- docs/x.md › 가짜\n\n${put}`), [
@@ -54,11 +53,8 @@ test('칸 쓰고 읽기: 넣은 것 · 넣지 못함(울타리 · 마지막 칸�
     { doc: DOC, heading: '값: 설명', from: '', to: '3', isNew: false },
     { doc: 'docs/회의록.md', heading: '2026-10-21 HNC 통화', from: '', to: '', isNew: true },
   ])
-  const held = renderHeld([{ doc: DOC, heading: '롤백', code: 'values', why: '기록의 값이 글에 없다: 5분', content: '```\n코드\n```' }])
-  assert.match(held, /^## 넣지 못함\n````json\n/, '울타리는 글 안 가장 긴 백틱 줄보다 하나 길게')
-  assert.equal(parseHeld(`앞\n\n${held}`)[0].content, '```\n코드\n```')
-  const big = renderHeld([{ doc: DOC, heading: '롤백', code: 'format', why: '꼴', content: 'x'.repeat(50_000) }])
-  assert.equal(parseHeld(big)[0].content, undefined, '4만 자를 넘으면 content 를 떼고 까닭만')
+  // 저장 승인 전 기록의 옛 넣지 못함 칸(쓰지 않는다 · 보일 때 떼기만 · P12)
+  const held = '## 넣지 못함\n```json\n[{ "doc": "x", "why": "가짜" }]\n```'
   const rv = renderReverted([{ rec: '2026-1103-롤백', doc: DOC, heading: '롤백' }])
   assert.deepEqual(parseReverted(rv), [{ rec: '2026-1103-롤백', doc: DOC, heading: '롤백' }])
   assert.equal(dropPart(`글\n\n${put}\n\n${held}`, '넣지 못함'), `글\n\n${put}`)
@@ -110,13 +106,10 @@ test('put 기록은 그 항목에 다음 저장이 들어가도 「들어감」'
   assert.equal((await load()).byWork.get(a.id).state, 'reverted')
 })
 
-test('메모는 문서를 바꾸지 않는다 · 메모에 항목 글은 E_INPUT', async () => {
+test('메모(기록만)는 남기지 않는다 — memo 는 늘 E_INPUT(P11 · P12)', async () => {
   const h0 = await head()
-  const m = await save(dir, { record: { title: '배포 창 늘릴까', body: '금요일도 배포 창으로 둘지 이야기했다.', memo: true } }, LEE)
-  assert.deepEqual(m.docs, [])
-  assert.equal(m.memo, true)
-  assert.equal(await G('rev-list', '--count', `${h0}..HEAD`), '1')
-  assert.equal((await load()).byWork.get(m.id).state, 'memo')
+  assert.equal(await code(() => save(dir, { record: { title: '배포 창 늘릴까', body: '금요일도 배포 창으로 둘지 이야기했다.', memo: true } }, LEE)), 'E_INPUT')
+  assert.equal(await head(), h0, '아무것도 쓰지 않았다')
   assert.equal(await code(() => save(dir, { record: { title: '메모', body: '글', memo: true }, sections: [{ doc: DOC, heading: '준비', content: '준비 글.' }] }, LEE)), 'E_INPUT')
   assert.equal(await code(() => save(dir, { record: { title: '메모', body: '글', memo: 'yes' } }, LEE)), 'E_INPUT')
 })
