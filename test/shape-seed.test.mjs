@@ -119,14 +119,16 @@ test('Claude 안 — 조사(옛 판 · 비밀 의심 보류) → 거르기 → �
     assert.deepEqual(v.work.plan.docs.map((d) => d.id), ['업무 안내'])
     assert.equal(v.work.mode, 'claude')
     assert.equal(v.work.top, 4)
-    // 동작 내역(Z9) — 세션 하나에서 시작 · 보낸 말 · 생각 · 도구(원본 이름으로) · 검사 걸림 → 같은 세션에 고쳐 받기 · 나무에 놓음
+    // 동작 내역(Z9) — 뼈대 세션(걸림 → 같은 세션에 고쳐 받기) → 묶음 세션 · 보낸 말 · 생각 · 도구(원본 이름으로) · 나무에 놓음
     const fd = await s.hub.seedFeed(s.ctx, id)
     const ks = fd.rows.map((r) => r.k)
     assert.match(fd.sid, /^[0-9a-f]{8}$/)
     assert.equal(fd.title, '구조안')
-    assert.equal(ks.filter((k) => k === 'start').length, 1, '세션은 하나: ' + ks.join(' '))
-    assert.equal(ks.filter((k) => k === 'me').length, 2, '처음 말 + 고쳐 받기 말')
-    assert.ok(fd.rows[0].k === 'kmd' && /세션 폴더/.test(fd.rows[0].text), JSON.stringify(fd.rows[0]))
+    assert.equal(ks.filter((k) => k === 'start').length, 2, '뼈대 + 묶음 1: ' + ks.join(' '))
+    assert.equal(ks.filter((k) => k === 'me').length, 3, '뼈대 · 뼈대 고쳐 받기 · 묶음')
+    assert.ok(fd.rows[0].k === 'kmd' && /뼈대/.test(fd.rows[0].text) && fd.rows[0].tag === '뼈대', JSON.stringify(fd.rows[0]))
+    assert.ok(fd.rows.some((r) => r.tag === '묶음 1/1' && r.k === 'start'), '묶음 세션 줄에 tag')
+    assert.equal(fd.rows.filter((r) => r.k === 'start' && r.tag === '뼈대').length, 1, '고쳐 받기는 같은 세션(새 세션 없음)')
     assert.ok(!/\[material /.test(fd.rows.find((r) => r.k === 'me').text), '재료 글 · 카드를 프롬프트에 싣지 않는다')
     const res = fd.rows.find((r) => r.k === 'toolres')
     assert.match(res.text, /「반납 절차 v2\.md」/, '세션 폴더 md/<16자>.md 는 원본 이름으로: ' + res.text)
@@ -147,6 +149,12 @@ test('Claude 안 — 조사(옛 판 · 비밀 의심 보류) → 거르기 → �
     v = await settle(s.hub, s.ctx, id)
     const d0 = v.work.docs[0]
     assert.equal(d0.state, 'ok', JSON.stringify(d0))
+    // 짓기도 세션(Z9) — 재료 글은 프롬프트에 없고 세션 폴더 md/ 에서 읽는다
+    const fw = await s.hub.seedFeed(s.ctx, id)
+    assert.match(fw.title, /^글 짓기/)
+    assert.ok(fw.rows.some((r) => r.k === 'start'), '짓기 세션')
+    assert.ok(fw.rows.some((r) => r.k === 'kmd' && r.tone === 'ok' && /지었다/.test(r.text)), JSON.stringify(fw.rows.slice(-3)))
+    assert.ok(!fw.rows.find((r) => r.k === 'me').text.includes('09:00'), '재료 글을 프롬프트에 싣지 않는다')
     assert.ok(d0.chars > 0)
     assert.equal(await code(s.hub.seedTry(s.ctx, id)), 'E_INPUT', '처음 문서 승인 전')
     v = await s.hub.seedWrite(s.ctx, id, { approve: '업무 안내' })

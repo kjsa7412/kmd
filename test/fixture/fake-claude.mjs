@@ -19,18 +19,20 @@ const say = (o) => process.stdout.write(JSON.stringify({ type: 'result', subtype
 
 // 세션(바탕 세우기 Z9 · core/claude.js claudeSession) — `--input-format stream-json` 으로 줄마다 말을 받고 턴마다 result 하나.
 //   지키는 것: 도구는 Read · Glob · Grep 만(--tools · --allowedTools) · 빈 MCP · 스키마 · 세션 폴더는 재료.tsv · md/ · cards/ 만. 어기면 is_error.
-//   구조안: 재료.tsv 의 넣음 재료마다 항목 하나(문서 「업무 안내」) · 흐름 줄(생각 · Grep · 결과 · 쓰는 중 · StructuredOutput)을 낸다.
-//   FAKE_CLAUDE_MODE=badseed → 첫 턴은 재료 하나를 빠뜨린다(같은 세션에 고쳐 받기) · logout → 로그인 끝 · hang → 답하지 않는다
+//   뼈대(「바탕 세우기 뼈대를 짓는다(세션)」): 넣음 재료를 모두 문서 「업무 안내」 하나로 · 묶음(「…한 묶음을 짓는다(세션)」): 재료마다 항목 하나 ·
+//   글(「바탕 세우기 항목 글을 짓는다(세션)」): 목표마다 제 몫 재료 글(md/ · 머리 줄은 걷는다). 흐름 줄(생각 · Grep · 결과 · 쓰는 중 · StructuredOutput)을 낸다.
+//   FAKE_CLAUDE_MODE=badseed → 뼈대 첫 턴은 재료 하나를 빠뜨린다(같은 세션에 고쳐 받기) · lie → 글에 지어낸 값 · logout → 로그인 끝 · hang → 답하지 않는다
 const SESSION = args.includes('--input-format') && val('--input-format') === 'stream-json'
 const out = (o) => process.stdout.write(JSON.stringify(o) + '\n')
 function session() {
   if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, `call${args.includes('--model') ? ' ' + val('--model') : ''}\n`)
   const tools = 'Read,Glob,Grep'
   const files = fs.readdirSync(process.cwd())
-  const ok = args.includes('-p') && val('--tools') === tools && val('--allowedTools') === tools && args.includes('--strict-mcp-config') && JSON.parse(val('--mcp-config') || '{}').mcpServers && val('--json-schema') && files.includes('재료.tsv') && files.every((x) => ['재료.tsv', 'md', 'cards'].includes(x))
+  const ok = args.includes('-p') && val('--tools') === tools && val('--allowedTools') === tools && args.includes('--strict-mcp-config') && JSON.parse(val('--mcp-config') || '{}').mcpServers && val('--json-schema') && files.includes('md') && files.every((x) => ['재료.tsv', 'md', 'cards'].includes(x))
   out({ type: 'system', subtype: 'init', model: 'fake-claude', tools: ['Glob', 'Grep', 'Read', 'StructuredOutput'], cwd: process.cwd() })
   let buf = ''
   let turn = 0
+  let kind = ''
   process.stdin.on('data', (c) => {
     buf += c
     const ls = buf.split('\n')
@@ -38,6 +40,8 @@ function session() {
     for (const l of ls) if (l.trim()) one(JSON.parse(l))
   })
   process.stdin.on('end', () => process.exit(0))
+  const tsv = () => fs.readFileSync('재료.tsv', 'utf8').split('\n').slice(1).filter(Boolean).map((l) => l.split('\t')).map(([src, p, pick]) => ({ src, path: p, pick }))
+  const headOf = (p) => p.split('/').pop().replace(/\.[^.]+$/, '').replace(/[#%]/g, '')
   function one(m) {
     const text = String(m?.message?.content || '')
     turn++
@@ -45,16 +49,33 @@ function session() {
     if (process.env.FAKE_CLAUDE_MODE === 'logout') return say({ is_error: true, subtype: 'error', result: 'Invalid API key · Please run /login' })
     if (process.env.FAKE_CLAUDE_MODE === 'hang') return
     const fixing = text.startsWith('지난 초안이 kmd 검사에 걸렸다')
-    if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, fixing ? 'seed-plan fix\n' : 'seed-plan\n')
-    const rows = fs.readFileSync('재료.tsv', 'utf8').split('\n').slice(1).filter(Boolean).map((l) => l.split('\t')).map(([src, p, pick]) => ({ src, path: p, pick }))
-    out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'thinking', thinking: fixing ? '걸린 곳을 고친다' : `재료 ${rows.length} 를 훑는다` }] } })
+    if (!fixing) kind = text.startsWith('바탕 세우기 뼈대를') ? 'frame' : text.startsWith('바탕 세우기 구조안의 한 묶음') ? 'batch' : text.startsWith('바탕 세우기 항목 글을') ? 'write' : 'other'
+    if (!fixing) m.first = text
+    if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, `seed-${kind}${fixing ? ' fix' : ''}\n`)
+    out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'thinking', thinking: fixing ? '걸린 곳을 고친다' : '재료를 훑는다' }] } })
     out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 't' + turn, name: 'Grep', input: { pattern: '^#{1,3} ', path: 'md', output_mode: 'content' } }] } })
-    out({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't' + turn, content: rows.map((r) => `md\\${r.src.slice(2)}.md:1:# ${r.path}`).join('\n') }] } })
+    const mds = fs.readdirSync('md')
+    out({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't' + turn, content: mds.map((x) => `${process.cwd()}\\md\\${x}:1:# 머리`).join('\n') }] } })
     out({ type: 'stream_event', event: { type: 'content_block_start', content_block: { type: 'tool_use', name: 'StructuredOutput' } } })
     out({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'input_json_delta', partial_json: '{"docs": [' } } })
-    let items = rows.filter((r) => r.pick === '넣음').map((r) => ({ h: r.path.split('/').pop().replace(/\.[^.]+$/, '').replace(/[#%]/g, ''), src: [r.src], note: '파일 하나가 대상 하나' }))
-    if (process.env.FAKE_CLAUDE_MODE === 'badseed' && !fixing) items = items.slice(1)
-    const o = { docs: [{ id: '업무 안내', items }], names: items.length ? [{ coord: 'topic:' + items[0].h.replace(/\s+/g, ''), label: items[0].h, doc: '업무 안내', h: items[0].h }] : [], skip: [], why: '파일마다 항목 하나' }
+    let o
+    if (kind === 'frame') {
+      let src = tsv().filter((r) => r.pick === '넣음').map((r) => r.src)
+      if (process.env.FAKE_CLAUDE_MODE === 'badseed' && !fixing) src = src.slice(1)
+      o = { docs: [{ id: '업무 안내', src }], skip: [], why: '파일마다 항목 하나' }
+    } else if (kind === 'batch') {
+      const rows = tsv()
+      const docs = [...(session.batch ||= text).matchAll(/^\[doc (.+?)\](?: \(.*?\))? 재료: (.*)$/gm)].map((x) => ({ id: x[1], src: [...x[2].matchAll(/m:[0-9a-f]{16}/g)].map((y) => y[0]) }))
+      const out2 = docs.map((d) => ({ id: d.id, items: d.src.filter((s) => rows.find((r) => r.src === s)?.pick === '넣음').map((s) => ({ h: headOf(rows.find((r) => r.src === s).path), src: [s], note: '파일 하나가 대상 하나' })) }))
+      const first = out2.find((d) => d.items.length)?.items[0]
+      o = { docs: out2, names: first ? [{ coord: 'topic:' + first.h.replace(/\s+/g, ''), label: first.h, doc: out2.find((d) => d.items.length).id, h: first.h }] : [], skip: [], why: '재료마다 항목' }
+    } else if (kind === 'write') {
+      const src = session.write ||= text
+      const fileOf = new Map([...src.matchAll(/^- md\/(\S+) · (.+?)(?: · [\d,]+ 자)?$/gm)].map((x) => [x[2], x[1]]))
+      const body = (p) => { const f = fileOf.get(p); return f ? fs.readFileSync(`md/${f}`, 'utf8').split('\n').filter((l) => !/^#{1,6}\s/.test(l)).join('\n').trim() : '' }
+      const items = [...src.matchAll(/^\[target (.+?) › (.+?)\](?: 몫: 재료 (.*))?$/gm)].map((x) => ({ doc: x[1], h: x[2], text: ((x[3] || '').split(' · ').map(body).filter(Boolean).join('\n\n') || '글') + (process.env.FAKE_CLAUDE_MODE === 'lie' ? '\n그리고 999초 기다린다.' : '') }))
+      o = { items, why: '재료 글로 지었다' }
+    } else return say({ is_error: true, subtype: 'error', result: '가짜 claude 세션: 모르는 말' })
     const wait = Number(process.env.FAKE_CLAUDE_STREAM_MS) || 0
     setTimeout(() => {
       out({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 's' + turn, name: 'StructuredOutput', input: o }] } })

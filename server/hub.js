@@ -48,7 +48,7 @@ import { renderRecord } from '../core/frontmatter.js'
 import { stampAll, headingMatches, findHeading } from '../core/sections.js'
 import { docfmtDir, checkFormat } from '../core/docformat.js'
 import { applyRestructure, readStructure, structureFp, stepFp } from '../core/restructure.js'
-import { readShape, cleanPlan, planCheck, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO, SHAPE_CLAUDE_TYPES, SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, planMaterial, writeMaterial, planOfDraft, writeOfDraft, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SEED_PLAN_SCHEMA, seedPlanMaterial, seedSessionPromptOf, seedSessionFixOf, seedSessionTsv, seedPlanOfDraft, seedNormalize, seedCover, folderPlan, seedWriteMaterial, pickOf } from '../core/shape.js'
+import { readShape, cleanPlan, planCheck, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO, SHAPE_CLAUDE_TYPES, SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, planMaterial, writeMaterial, planOfDraft, writeOfDraft, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SEED_PLAN_SCHEMA, seedPlanMaterial, seedSessionFixOf, seedSessionTsv, SEED_FRAME_SCHEMA, seedFramePromptOf, frameOfDraft, seedBatches, seedBatchPromptOf, batchOfDraft, mergeSeedPlan, seedWriteSessionPromptOf, seedWriteFixOf, seedPlanOfDraft, seedNormalize, seedCover, folderPlan, seedWriteMaterial, pickOf } from '../core/shape.js'
 import { parseOrder } from '../core/order.js'
 import { parseDoc as parseDocText } from '../core/sections.js'
 import { parseForms } from '../core/guard.js'
@@ -773,11 +773,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     if (e.name === 'Glob') return { k: 'tool', name: 'Glob', text: `${x.pattern || ''}${x.path ? ` · ${at(x.path)}` : ''}` }
     return { k: 'tool', name: clip(e.name, 40), text: clip(JSON.stringify(x), 200) }
   }
-  function feedPush(id, e) {
+  function feedPush(id, e, tag = '') {
     const f = feedOf(id)
-    if (e.k === 'open') { f.live = { kind: e.kind, text: '', name: e.name || '' }; return }
+    if (e.k === 'open') { f.live = { kind: e.kind, text: '', name: e.name || '', tag }; return }
     if (e.k === 'delta') {
-      if (!f.live || f.live.kind !== e.kind) f.live = { kind: e.kind, text: '', name: '' }
+      if (!f.live || f.live.kind !== e.kind || f.live.tag !== tag) f.live = { kind: e.kind, text: '', name: '', tag }
       f.live.text = (f.live.text + e.text).slice(-2000)
       return
     }
@@ -791,6 +791,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     else if (e.k === 'kmd') row = { k: 'kmd', text: clip(e.text, 1500), tone: e.tone || '' }
     else return
     if (e.k !== 'kmd' && e.k !== 'me') f.live = null
+    if (tag) row.tag = String(tag).slice(0, 30)
     row.i = ++f.seq
     row.at = new Date().toISOString()
     f.rows.push(row)
@@ -817,63 +818,117 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     await fs.writeFile(path.join(dir, '재료.tsv'), seedSessionTsv(g))
     return { dir, cards: cs.length, miss }
   }
-  // 구조안(Z9) — 세션 폴더에서 띄운 claude 세션 하나 → seedPlanOfDraft → 검사(planCheck · 재료 덮임) 걸리면 같은 세션에 걸린 곳만 보내 고쳐 받기(INTAKE_FIX 번)
-  //   → 마지막이면 걸린 채 장부에(사람이 고친다). 흐름은 동작 내역(feeds)으로
+  // 구조안(Z9) — 나눠 받기: 뼈대 세션(문서 목록 + 문서마다 재료 · 경로로) → 문서 묶음마다 세션(그 묶음 재료 사본만 · 동시에 SEED_POOL) → 합치기 →
+  //   검사(seedPlanOfDraft · seedCheckOf). 뼈대 · 묶음 꼴이 걸리면 그 세션에 걸린 곳만 보내 고쳐 받기(INTAKE_FIX 번) · 합친 구조안 걸림은 그 문서의 묶음 세션에
+  //   보낸다(INTAKE_FIX 번) · 마지막이면 걸린 채 장부에(사람이 고친다). 흐름은 동작 내역(feeds · 묶음은 tag)으로
+  const SEED_POOL = 3
+  async function pool(list, n, fn) {
+    const out = new Array(list.length)
+    let next = 0
+    await Promise.all(Array.from({ length: Math.min(n, list.length) }, async () => { while (next < list.length) { const i = next++; out[i] = await fn(list[i], i) } }))
+    return out
+  }
   async function pcSeedPlan(ctx, id, run, { rows, picks, cards, note, pack }) {
     const g = seedPlanMaterial(rows, { picks, note })
     const f = feedNew(id, '구조안')
-    const say = (text, tone = '') => feedPush(id, { k: 'kmd', text, tone })
-    let sess = null
-    let sd = null
-    try {
-      sd = await seedSessionDir(pack, g, cards, f)
-      say(`세션 폴더를 지었다 · 재료 ${g.mats.length}${sd.cards ? ` · 카드 ${sd.cards}` : ''}${sd.miss ? ` · 글 없는 재료 ${sd.miss}` : ''}`)
-      if (run.state !== 'running') return
-      sess = claudeSession({ cwd: sd.dir, schema: SEED_PLAN_SCHEMA, budget: SEED_SESSION_BUDGET(), model: hub.modelOf('ingest'), onEvent: (e) => feedPush(id, e) })
-      run.kill = (why) => sess.kill(why)
-      let msg = seedSessionPromptOf(g, { cards: sd.cards > 0 })
+    const say = (text, tone = '', tag = '') => feedPush(id, { k: 'kmd', text, tone }, tag)
+    const sessions = new Set()
+    const dirs = []
+    const open = async (mats, schema, tag) => {
+      const sd = await seedSessionDir(pack, { mats }, cards, f)
+      dirs.push(sd.dir)
+      const s = claudeSession({ cwd: sd.dir, schema, budget: SEED_SESSION_BUDGET(), model: hub.modelOf('ingest'), effort: 'low', onEvent: (e) => feedPush(id, e, tag) })
+      sessions.add(s)
+      return { s, sd }
+    }
+    run.kill = (why) => { for (const s of sessions) s.kill(why) }
+    const fail = async (r, tag) => { const why = await seedClaudeWhy(r); say(why, 'bad', tag); Object.assign(run, { state: 'fail', why }); return null }
+    // 세션 하나에 묻고 꼴 검사(check) — 걸리면 같은 세션에 고쳐 받기 · { value } | { error } | null(Claude 가 답하지 않음 · 그만둠)
+    const askFix = async (s, msg, check, tag) => {
       for (let n = 0; n <= INTAKE_FIX; n++) {
-        const r = await sess.ask(msg)
-        run.tries = n + 1
-        if (run.state !== 'running') return
-        if (r.error) {
-          const why = await seedClaudeWhy(r)
-          say(why, 'bad')
-          return Object.assign(run, { state: 'fail', why })
-        }
-        await hub.workerStatus({ worker: { id: null } }, { ok: true }).catch((e) => log('Claude 상태', e.message))
-        const last = n === INTAKE_FIX
-        const p = seedPlanOfDraft(r.value)
-        if (p.error) {
-          if (last) { say(`구조안 꼴이 아니다: ${p.error}`, 'bad'); return Object.assign(run, { state: 'fail', why: `구조안 꼴이 아니다: ${p.error}` }) }
-          say(`꼴에 걸렸다 · 같은 세션에서 고쳐 받는다: ${p.error}`, 'warn')
-          msg = seedSessionFixOf(p.error)
-          continue
-        }
-        const meta = await hub.meta(id, ctx)
+        const r = await s.ask(msg)
+        run.tries = (run.tries || 0) + 1
+        if (run.state !== 'running') return null
+        if (r.error) return fail(r, tag)
+        const x = check(r.value)
+        if (!x.error) return { value: x }
+        if (n === INTAKE_FIX) return { error: x.error }
+        say(`꼴에 걸렸다 · 같은 세션에서 고쳐 받는다: ${x.error}`, 'warn', tag)
+        msg = seedSessionFixOf(x.error)
+      }
+      return null
+    }
+    try {
+      // 1 뼈대
+      const fr0 = await open(g.mats, SEED_FRAME_SCHEMA, '뼈대')
+      say(`뼈대: 재료 ${g.mats.length}${fr0.sd.cards ? ` · 카드 ${fr0.sd.cards}` : ''}${fr0.sd.miss ? ` · 글 없는 재료 ${fr0.sd.miss}` : ''} · 문서 목록과 문서마다 재료를 정한다`, '', '뼈대')
+      if (run.state !== 'running') return
+      const fr = await askFix(fr0.s, seedFramePromptOf(g, { cards: fr0.sd.cards > 0 }), (v) => frameOfDraft(v, g), '뼈대')
+      sessions.delete(fr0.s)
+      await fr0.s.end().catch((e) => log('기초 세우기 세션 닫기', id, e.message))
+      if (!fr) return
+      if (fr.error) { say(`뼈대를 받지 못했다: ${fr.error}`, 'bad', '뼈대'); return Object.assign(run, { state: 'fail', why: `뼈대를 받지 못했다: ${fr.error}` }) }
+      const frame = fr.value
+      const bs = seedBatches(frame, g)
+      say(`뼈대: 문서 ${frame.docs.length} · 묶음 ${bs.length}(동시에 ${Math.min(SEED_POOL, bs.length)})`, 'ok', '뼈대')
+      Object.assign(run, { i: 0, n: bs.length })
+      // 2 묶음마다 항목(동시에) — 세션은 합친 검사가 끝날 때까지 열어 둔다(걸림을 그 묶음에 돌려보낸다)
+      const live = []
+      let done = 0
+      const parts = await pool(bs, SEED_POOL, async (b) => {
+        if (run.state !== 'running') return null
+        const tag = `묶음 ${b.i + 1}/${bs.length}`
+        const mats = g.mats.filter((m) => b.srcs.includes(m.src))
+        const o = await open(mats, SEED_PLAN_SCHEMA, tag)
+        live[b.i] = { ...o, b, mats, tag }
+        say(`문서 ${b.docs.length} · 재료 ${mats.length}: ${b.docs.map((d) => d.id).join(' · ')}`, '', tag)
+        const x = await askFix(o.s, seedBatchPromptOf(b, { mats }, { cards: o.sd.cards > 0, of: bs.length }), (v) => batchOfDraft(v, b, { mats }), tag)
+        if (!x) return null
+        if (x.error) { say(`묶음을 받지 못했다: ${x.error}`, 'bad', tag); Object.assign(run, { state: 'fail', why: `${tag}: ${x.error}` }); return null }
+        run.i = ++done
+        say(`항목 ${x.value.docs.reduce((a, d) => a + d.items.length, 0)}`, 'ok', tag)
+        return x.value
+      })
+      if (run.state !== 'running' || parts.some((p) => !p)) return
+      // 3 합치기 · 검사 — 걸림은 그 문서(또는 그 재료)의 묶음 세션에
+      const meta = await hub.meta(id, ctx)
+      const docOf = new Map(frame.docs.flatMap((d) => d.src.map((s) => [rows.find((r) => r.src === s)?.path, d.id])))
+      for (let n = 0; ; n++) {
+        const draft = mergeSeedPlan(frame, parts)
+        const p = seedPlanOfDraft(draft)
+        if (p.error) { say(`구조안 꼴이 아니다: ${p.error}`, 'bad'); return Object.assign(run, { state: 'fail', why: `구조안 꼴이 아니다: ${p.error}` }) }
         cache.delete(id)
         const k = await hub.get(id, ctx)
         const S = readShape(k, await readStructure(meta.dir))
         const chk = hub.seedCheckOf(k, S, seedNormalize(p.plan, S), rows, picks)
-        if (!chk.ok && !last) {
-          const why = chk.errors.slice(0, 5).map((e) => `${e.where}: ${e.why}`).join(' · ')
-          say(`검사에 걸렸다 ${chk.errors.length} · 같은 세션에서 고쳐 받는다: ${why}`, 'warn')
-          msg = seedSessionFixOf(why)
-          continue
+        const owner = (e) => { const w = String(e.where || ''); const d = frame.docs.find((x) => w === x.id || w.startsWith(x.id + ' ›')) || frame.docs.find((x) => x.id === docOf.get(w)); return d ? live.findIndex((o) => o && o.b.docs.some((y) => y.id === d.id)) : -1 }
+        const fix = new Map()
+        for (const e of chk.errors) { const i = owner(e); if (i >= 0) fix.set(i, [...(fix.get(i) || []), e]) }
+        if (chk.ok || n >= INTAKE_FIX || !fix.size) {
+          if (run.state !== 'running') return
+          await hub.seedPlanApply(ctx, id, run.work, p.plan, { mode: 'claude', notes: p.notes, why: p.why })
+          say(`구조안을 나무에 놓았다 · 문서 ${p.plan.docs.length} · 항목 ${p.plan.docs.reduce((a, d) => a + d.items.length, 0)}${chk.ok ? '' : ` · 걸림 ${chk.errors.length}: 구조안에서 고친다`}`, chk.ok ? 'ok' : 'warn')
+          return Object.assign(run, { state: 'done', i: bs.length, ...(chk.ok ? {} : { why: `걸림 ${chk.errors.length}: 구조안에서 고친다` }) })
         }
-        if (run.state !== 'running') return
-        await hub.seedPlanApply(ctx, id, run.work, p.plan, { mode: 'claude', notes: p.notes, why: p.why })
-        say(`구조안을 나무에 놓았다 · 문서 ${p.plan.docs.length} · 항목 ${p.plan.docs.reduce((a, d) => a + d.items.length, 0)}${chk.ok ? '' : ` · 걸림 ${chk.errors.length}: 구조안에서 고친다`}`, chk.ok ? 'ok' : 'warn')
-        return Object.assign(run, { state: 'done', i: 1, ...(chk.ok ? {} : { why: `걸림 ${chk.errors.length}: 구조안에서 고친다` }) })
+        say(`검사에 걸렸다 ${chk.errors.length} · 묶음 ${fix.size} 에 돌려보낸다`, 'warn')
+        const again = await Promise.all([...fix.entries()].map(async ([i, es]) => {
+          const o = live[i]
+          const why = es.slice(0, 5).map((e) => `${e.where}: ${e.why}`).join(' · ')
+          say(`고쳐 받는다: ${why}`, 'warn', o.tag)
+          const x = await askFix(o.s, seedSessionFixOf(why), (v) => batchOfDraft(v, o.b, { mats: o.mats }), o.tag)
+          if (x && !x.error) parts[i] = x.value
+          return x
+        }))
+        if (run.state !== 'running' || again.some((x) => !x)) return
       }
     } finally {
       run.kill = null
-      if (sess) await sess.end().catch((e) => log('기초 세우기 세션 닫기', id, e.message))
+      await Promise.all([...sessions].map((s) => s.end().catch((e) => log('기초 세우기 세션 닫기', id, e.message))))
       if (run.state === 'cancelled') say('그만뒀다', 'warn')
-      if (sd) await fs.rm(sd.dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch((e) => log('기초 세우기 세션 폴더 지우기', sd.dir, e.message))
+      for (const d of dirs) await fs.rm(d, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch((e) => log('기초 세우기 세션 폴더 지우기', d, e.message))
     }
   }
-  // 글 하나(문서) — claude -p → writeOfDraft → 판정(꼴 결정적 오류면 고쳐 쓰게 · 마지막이면 걸음 실패) · 값 대조는 재기만
+  // 글 하나(문서 · Z9) — 세션 폴더(그 문서 재료 사본) 세션 → writeOfDraft → 판정(꼴 결정적 오류면 같은 세션에 고쳐 받기 · 마지막이면 걸음 실패) · 값 대조는 재기만
   //   → { state: ok | fail, items?, values?, why?, stepFail?, fatal? } | null(그만뒀다 · 일이 바뀌었다)
   async function seedWriteOne(ctx, id, run, doc) {
     const w = await hub.shapeWork(id)
@@ -882,32 +937,55 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     const g = seedWriteMaterial(w.plan, doc, mats.rows, mats.text)
     if (g.error) return { state: 'fail', why: g.error }
     const d = w.plan.docs.find((x) => x.id === doc)
-    let prev = null
-    let fixWhy = null
-    for (let n = 0; n <= INTAKE_FIX; n++) {
-      const prompt = prev ? shapeWriteFixPromptOf(g, prev, fixWhy, { writeRules: WRITE_RULES }) : shapeWritePromptOf(g, { writeRules: WRITE_RULES })
-      feedPush(id, { k: 'kmd', text: `${prev ? '고쳐 쓰기' : '글 짓기'}: ${doc}${prev ? ` · ${fixWhy}` : ''}`, tone: prev ? 'warn' : '' })
-      const r = await runClaude({ prompt, schema: SHAPE_WRITE_SCHEMA, budget: SEED_BUDGET(), model: hub.modelOf('ingest'), timeoutMs: 600_000, onEvent: (e) => feedPush(id, e) })
-      run.tries = (run.tries || 0) + 1
-      if (run.state !== 'running') return null
-      if (r.error) return { state: 'fail', why: await seedClaudeWhy(r), fatal: true }
-      const last = n === INTAKE_FIX
-      const x = writeOfDraft(g, r.value)
-      if (x.error) {
-        if (last) return { state: 'fail', why: x.error }
-        prev = r.value
-        fixWhy = x.error
-        continue
+    const f = feedOf(id)
+    const tag = doc.split('/').pop().slice(0, 24)
+    const pathOf = new Map(mats.rows.filter((r) => r.src).map((r) => [r.src, r.path]))
+    const srcs = [...new Set(d.items.flatMap((it) => it.src || []))]
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'kmd-seed-'))
+    f.dirs = [...new Set([...f.dirs, dir, await fs.realpath(dir).catch(() => dir)])].sort((a, b) => b.length - a.length)
+    let s = null
+    try {
+      await fs.mkdir(path.join(dir, 'md'))
+      const files = []
+      for (const x of srcs) {
+        const body = mats.text(x)
+        if (typeof body !== 'string') return { state: 'fail', why: `재료 글이 없다: ${pathOf.get(x) || x}` }
+        f.names.set(x.slice(2), pathOf.get(x) || x)
+        await fs.writeFile(path.join(dir, 'md', `${x.slice(2)}.md`), body)
+        files.push({ file: `${x.slice(2)}.md`, path: pathOf.get(x) || x, chars: body.length })
       }
-      const items = d.items.map((it) => (it.src?.length ? { h: it.h, content: x.texts.find((y) => y.h === it.h).content } : { h: it.h, content: String(it.text || '') }))
-      const j = hub.seedJudge(await hub.get(id, ctx), w.plan, doc, items, mats)
-      if (j.errors.length) {
-        if (!last) { prev = r.value; fixWhy = j.errors.slice(0, 3).map((e) => e.why).join(' · '); continue }
-        return { state: 'fail', why: `걸음 실패: ${j.errors.slice(0, 3).map((e) => e.why).join(' · ')}`, stepFail: j.errors.slice(0, 20), items }
+      s = claudeSession({ cwd: dir, schema: SHAPE_WRITE_SCHEMA, budget: SEED_SESSION_BUDGET(), model: hub.modelOf('ingest'), effort: 'low', onEvent: (e) => feedPush(id, e, tag) })
+      run.sessions?.add(s)
+      feedPush(id, { k: 'kmd', text: `글 짓기: ${doc} · 항목 ${g.targets.length} · 재료 ${files.length}` }, tag)
+      let msg = seedWriteSessionPromptOf(g, files, { writeRules: WRITE_RULES })
+      for (let n = 0; n <= INTAKE_FIX; n++) {
+        const r = await s.ask(msg)
+        run.tries = (run.tries || 0) + 1
+        if (run.state !== 'running') return null
+        if (r.error) { const why = await seedClaudeWhy(r); feedPush(id, { k: 'kmd', text: why, tone: 'bad' }, tag); return { state: 'fail', why, fatal: true } }
+        const last = n === INTAKE_FIX
+        const x = writeOfDraft(g, r.value)
+        let why = x.error || null
+        let items = null
+        let j = null
+        if (!why) {
+          items = d.items.map((it) => (it.src?.length ? { h: it.h, content: x.texts.find((y) => y.h === it.h).content } : { h: it.h, content: String(it.text || '') }))
+          j = hub.seedJudge(await hub.get(id, ctx), w.plan, doc, items, mats)
+          if (j.errors.length) why = j.errors.slice(0, 3).map((e) => e.why).join(' · ')
+        }
+        if (!why) { feedPush(id, { k: 'kmd', text: `지었다: ${doc} · ${items.reduce((a, y) => a + y.content.length, 0).toLocaleString()} 자`, tone: 'ok' }, tag); return { state: 'ok', items, values: j.values } }
+        if (last) {
+          feedPush(id, { k: 'kmd', text: `짓지 못했다: ${why}`, tone: 'bad' }, tag)
+          return j?.errors.length ? { state: 'fail', why: `걸음 실패: ${why}`, stepFail: j.errors.slice(0, 20), items } : { state: 'fail', why }
+        }
+        feedPush(id, { k: 'kmd', text: `걸렸다 · 같은 세션에서 고쳐 받는다: ${why}`, tone: 'warn' }, tag)
+        msg = seedWriteFixOf(why)
       }
-      return { state: 'ok', items, values: j.values }
+      return { state: 'fail', why: '짓지 못했다' }
+    } finally {
+      if (s) { run.sessions?.delete(s); await s.end().catch((e) => log('기초 세우기 세션 닫기', id, e.message)) }
+      await fs.rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch((e) => log('기초 세우기 세션 폴더 지우기', dir, e.message))
     }
-    return { state: 'fail', why: '짓지 못했다' }
   }
   // 글이 바뀌면 연습 판 결과(tried) · 실은 글(texts)을 걷는다 — 넣기는 다시 해 본 글만 넣는다
   const seedUntry = (w0) => { const { tried, texts, ...rest } = w0; return { ...rest, stage: 'plan' } }
@@ -1028,28 +1106,42 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       return end({ state: 'fail', why: e.message })
     }
   }
+  // 짓기 일(Z9) — 문서마다 세션 · 동시에 SEED_POOL · 하나라도 Claude 가 답하지 않으면(fatal) 남은 문서는 걸지 않는다
   async function pcSeedWrite(ctx, id, run, list) {
     let end = null
+    run.sessions = new Set()
+    run.kill = (why) => { for (const s of run.sessions) s.kill(why) }
+    const going = new Set()
+    let done = 0
     try {
-      for (const [i, doc] of list.entries()) {
-        if (run.state !== 'running') break
-        Object.assign(run, { i, doc })
-        const res = await seedWriteOne(ctx, id, run, doc)
-        if (!res) break
-        const { fatal, ...row } = res
-        await hub.seedEdit(id, run.work, (w0) => {
-          const old = w0.seed.texts?.[doc]
-          if (!old || old.state !== 'run' || old.rid !== run.rid) return undefined
-          return seedPatch(w0, doc, { sig: old.sig, ...row, chars: (res.items || []).reduce((a, x) => a + x.content.length, 0), by: 'claude' })
-        })
-        if (fatal) { end = { state: 'fail', why: res.why }; break }
-        await hub.workerStatus({ worker: { id: null } }, { ok: true }).catch((e) => log('Claude 상태', e.message))
-      }
+      await pool(list, SEED_POOL, async (doc) => {
+        if (run.state !== 'running' || end) return
+        going.add(doc)
+        Object.assign(run, { i: done, doc: [...going].join(' · ') })
+        try {
+          const res = await seedWriteOne(ctx, id, run, doc)
+          if (!res) return
+          const { fatal, ...row } = res
+          await hub.seedEdit(id, run.work, (w0) => {
+            const old = w0.seed.texts?.[doc]
+            if (!old || old.state !== 'run' || old.rid !== run.rid) return undefined
+            return seedPatch(w0, doc, { sig: old.sig, ...row, chars: (res.items || []).reduce((a, x) => a + x.content.length, 0), by: 'claude' })
+          })
+          if (fatal) { end ||= { state: 'fail', why: res.why }; return }
+          await hub.workerStatus({ worker: { id: null } }, { ok: true }).catch((e) => log('Claude 상태', e.message))
+        } finally {
+          going.delete(doc)
+          done++
+          Object.assign(run, { i: done, doc: [...going].join(' · ') })
+        }
+      })
       if (!end) end = { state: 'done', i: list.length }
     } catch (e) {
       log('기초 세우기 짓기', id, e.message)
       end = { state: 'fail', why: e.message }
     } finally {
+      run.kill = null
+      if (run.state === 'cancelled') feedPush(id, { k: 'kmd', text: '그만뒀다', tone: 'warn' })
       // 짓지 못한 채 남은 「짓는 중」 은 기다림으로(그만둠 · 넘어짐 · 일이 바뀜) — 이 일(rid)이 단 표시만(그만둔 뒤 새로 건 짓기의 표시를 걷지 않게)
       const mine = (t) => t.state === 'run' && t.rid === run.rid
       await hub.seedEdit(id, run.work, (w0) => (Object.values(w0.seed.texts || {}).some(mine) ? { ...w0, seed: { ...w0.seed, texts: Object.fromEntries(Object.entries(w0.seed.texts).map(([d, t]) => [d, mine(t) ? { ...t, state: 'wait' } : t])) } } : undefined)).catch((e) => log('기초 세우기: 짓는 중 표시를 걷지 못했다', id, e.message))
@@ -3191,7 +3283,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!f) return { sid: null, seq: 0, rows: [], live: null }
       const from = sid && sid === f.sid ? Math.max(0, Number(after) || 0) : 0
       const r0 = seedRuns.get(id)
-      return { sid: f.sid, title: f.title, at: f.at, seq: f.seq, rows: f.rows.filter((r) => r.i > from), live: f.live && f.live.text ? { kind: f.live.kind, text: f.live.text.slice(-1200), name: f.live.name || '' } : null, running: !!(r0 && r0.state === 'running' && r0.kind !== 'survey') }
+      return { sid: f.sid, title: f.title, at: f.at, seq: f.seq, rows: f.rows.filter((r) => r.i > from), live: f.live && f.live.text ? { kind: f.live.kind, text: f.live.text.slice(-1200), name: f.live.name || '', tag: f.live.tag || '' } : null, running: !!(r0 && r0.state === 'running' && r0.kind !== 'survey') }
     },
     seedEdit(id, work, fn) {
       return hub.shapeEdit(id, (w0) => (w0 && !w0.broken && w0.work === work && w0.kind === 'seed' && !['done', 'stopped-final'].includes(w0.stage) ? fn(w0) : undefined))

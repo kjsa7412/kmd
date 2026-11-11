@@ -113,8 +113,10 @@ export function streamEvents(j) {
 //   cwd 는 부르는 쪽이 만든 세션 폴더(재료 사본만) · 도구는 tools(읽기만) · 빈 MCP · 세션 남기지 않음 · 스키마 · 예산 상한 · 환경변수 허용 목록.
 //   ask(글) → 그 턴의 답 { value } | { error, message }(parse 와 같은 꼴) · end() 입력을 닫고 끝을 기다린다 · kill(까닭) 끊는다.
 //   소식 없음 idleMs(흐름 줄이 하나도 오지 않음) · 전체 maxMs 면 끊는다 · onEvent 는 streamEvents 줄 + me { text }(보낸 말)
-export function claudeSession({ cwd, schema, tools = ['Read', 'Glob', 'Grep'], budget = 5, model = '', effort = '', onEvent = null, idleMs = 300_000, maxMs = 2_400_000 }) {
+//   thinking — 생각 상한(토큰 · MAX_THINKING_TOKENS) · 0 이면 claude 기본(구조안 한 덩이 생각이 9분을 넘던 일)
+export function claudeSession({ cwd, schema, tools = ['Read', 'Glob', 'Grep'], budget = 5, model = '', effort = '', thinking = 0, onEvent = null, idleMs = 300_000, maxMs = 2_400_000 }) {
   const env = Object.fromEntries(ENV_ALLOW.filter((k) => process.env[k] != null).map((k) => [k, process.env[k]]))
+  if (Number(thinking) > 0) env.MAX_THINKING_TOKENS = String(Math.round(Number(thinking)))
   const tl = tools.join(',')
   const args = ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--tools', tl, '--allowedTools', tl, '--strict-mcp-config', '--mcp-config', JSON.stringify({ mcpServers: {} }), '--no-session-persistence', '--max-budget-usd', String(budget), '--json-schema', JSON.stringify(schema), ...modelArgs(model)]
   if (/^(low|medium|high|max)$/.test(effort)) args.push('--effort', effort)

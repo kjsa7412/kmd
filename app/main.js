@@ -1430,7 +1430,7 @@ function sdPickHtml(d, w) {
 function sdPlanHtml(d, w) {
   const v = d.v, cl = v.claude || { ok: false }, r = v.run, cok = sdClaudeOk(cl) && !(v.team && v.team.day.left < 1)
   const seg = `<div class="seg in" role="radiogroup" aria-label="구조안" data-t="sdMode"><button type="button" role="radio" aria-checked="${w.mode === 'claude'}" class="${w.mode === 'claude' ? 'on' : ''}" data-a="sdPlan" data-v="claude" data-t="sdModeClaude"${cok && !d.busy && !sdRunning(d) ? '' : ' disabled'}${cl.ok ? '' : ` title="${esc(cl.why || '')}"`}>Claude 안</button><button type="button" role="radio" aria-checked="${w.mode === 'folder'}" class="${w.mode === 'folder' ? 'on' : ''}" data-a="sdPlan" data-v="folder" data-t="sdModeFolder"${d.busy || sdRunning(d) ? ' disabled' : ''}>폴더 그대로</button></div>${cl.ok ? '' : '<span class="chip c-mute" data-t="sdNoClaude">Claude 에 보내지 않음</span>'}${sdWorkerChip(cl)}`
-  const run = r && r.kind === 'plan' && r.state === 'running' ? sdRunHtml(d, r.wait ? '팀 일꾼을 기다리는 중' : `Claude 가 구조안을 짓는 중${r.tries > 1 ? ` · 고쳐 쓰기 ${r.tries - 1}` : ''}`) : sdRunFail(d, 'plan')
+  const run = r && r.kind === 'plan' && r.state === 'running' ? sdRunHtml(d, r.wait ? '팀 일꾼을 기다리는 중' : isTeam() ? `Claude 가 구조안을 짓는 중${r.tries > 1 ? ` · 고쳐 쓰기 ${r.tries - 1}` : ''}` : `Claude 가 구조안을 짓는 중 · ${r.n > 1 ? `묶음 ${r.i}/${r.n}` : '뼈대'}`) : sdRunFail(d, 'plan')
   const cost = sdCostHtml(d, w)
   if (!w.plan) return `<div class="row u-g3 u-wrap">${seg}${tipb('sd.mode', '구조안')}</div>${cost}${run}`
   const ck = w.check || { ok: false, errors: [], warnings: [] }
@@ -1460,7 +1460,7 @@ function sdWriteHtml(d, w) {
   const left = w.docs.filter((x) => x.state !== 'ok').length
   const over = team && left > dayLeft
   const top = w.mode !== 'folder' ? `<div class="row u-g3 u-wrap" data-t="sdWriteTop">${need ? `<span class="chip ${apN === need ? 'c-ok' : 'c-mute'}" data-t="sdApN">승인 ${apN} / ${need}</span>${tipb('sd.first', '처음 문서')}` : ''}<button type="button" class="btn" data-a="sdWriteAll" data-t="sdWriteAll"${apN < need || run || d.busy || !left || !cl.ok || over ? ' disabled' : ''}>모두 짓기</button>${team ? `<span class="chip ${over ? 'c-warn' : 'c-mute'}" data-t="sdDayLeft">오늘 한도 ${dayLeft} 남음</span>${over ? tipb('sd.cost', '하루 한도') : ''}` : ''}${sdWorkerChip(cl0)}</div>` : ''
-  const going = r && r.kind === 'write' && r.state === 'running' ? sdRunHtml(d, r.wait ? `팀 일꾼을 기다리는 중 ${r.i}/${r.n}` : `Claude 가 글을 짓는 중 ${r.i + 1}/${r.n}${r.doc ? ' · ' + r.doc : ''}`) : sdRunFail(d, 'write')
+  const going = r && r.kind === 'write' && r.state === 'running' ? sdRunHtml(d, r.wait ? `팀 일꾼을 기다리는 중 ${r.i}/${r.n}` : (isTeam() ? `Claude 가 글을 짓는 중 ${r.i + 1}/${r.n}${r.doc ? ' · ' + r.doc : ''}` : `Claude 가 글을 짓는 중 · 끝 ${r.i}/${r.n}${r.doc ? ' · ' + r.doc : ''}`)) : sdRunFail(d, 'write')
   return `${top}${going}<div class="tblwrap"><table class="t" data-t="sdWTable"><thead><tr><th>문서</th><th class="u-tr">항목</th><th>상태</th><th class="u-tr">쓴 글</th><th><span class="sr-only">할 일</span></th></tr></thead><tbody>${rows}</tbody></table></div>`
 }
 // f 진단 — 연습 판 끝 진단(막는 것 · 볼 것 · 값 대조는 재기만)
@@ -1534,7 +1534,7 @@ function sdFeedLine(f, r) {
   else if (r.k === 'answer') { k = 'ok'; x = r.text }
   else if (r.k === 'result') { k = r.ok ? 'cost' : 'err'; x = `${r.text}${r.turns ? ` · ${r.turns}턴` : ''}${r.ms ? ` · ${Math.round(r.ms / 1000)}초` : ''}${r.cost ? ` · $${r.cost.toFixed(2)}` : ''}` }
   else if (r.k === 'kmd') { k = r.tone === 'ok' ? 'ok' : r.tone === 'bad' ? 'err' : 'sys'; x = `${r.tone === 'ok' ? '✓ ' : r.tone === 'bad' ? '✗ ' : r.tone === 'warn' ? '! ' : '· '}${r.text}` }
-  return `<div class="${k}" data-t="sdfRow" data-k="${esc(r.k)}">${tm}${SDF_MARK[r.k] || ''}${esc(x)}</div>`
+  return `<div class="${k}" data-t="sdfRow" data-k="${esc(r.k)}">${tm}${r.tag ? `<span class="sg">[${esc(r.tag)}]</span>` : ''}${SDF_MARK[r.k] || ''}${esc(x)}</div>`
 }
 function sdFeedHtml(d) {
   const f = d.feed
@@ -1543,7 +1543,7 @@ function sdFeedHtml(d) {
   if (!f || !f.loaded) return `${head}<div class="term sdf" data-t="sdFeed"><span class="sys">불러오는 중…</span></div>`
   if (f.err) return `${head}<div class="callout danger err" role="alert" data-t="sdFeedErr"><b>${esc(f.err)}</b><button type="button" class="btn sm retry" data-a="sdFeedRetry" data-t="retry">다시 읽기</button></div>`
   if (!f.sid) return `${head}<div class="term sdf" data-t="sdFeed"><span class="sys">아직 줄이 없다 · Claude 안 · 짓기를 걸면 흐름이 여기에 보인다</span></div>`
-  const lv = f.live && f.running ? `<div class="${f.live.kind === 'think' ? 'sys' : f.live.kind === 'json' ? 'tool' : 'say'}" data-t="sdfLive">${f.live.kind === 'think' ? '∴ ' : f.live.kind === 'json' ? '▸ 답 쓰는 중 ' : ''}${esc(f.live.text.slice(-300))}▍</div>` : ''
+  const lv = f.live && f.running ? `<div class="${f.live.kind === 'think' ? 'sys' : f.live.kind === 'json' ? 'tool' : 'say'}" data-t="sdfLive">${f.live.tag ? `<span class="sg">[${esc(f.live.tag)}]</span>` : ''}${f.live.kind === 'think' ? '∴ ' : f.live.kind === 'json' ? '▸ 답 쓰는 중 ' : ''}${esc(f.live.text.slice(-300))}▍</div>` : ''
   return `${head}<div class="term sdf" data-t="sdFeed" role="log" aria-label="동작 내역">${f.rows.map((r) => sdFeedLine(f, r)).join('')}${lv}</div>`
 }
 function mgSeedHtml() {
