@@ -18,6 +18,9 @@ const HEAD_NUM = /^(?:[^:]{1,40}:\s*)?\d+(?:\.\d+)*\.?\s+\S/
 const DATE = /\d{4}-\d{2}-\d{2}/
 const cellsOf = (ln) => ln.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map((x) => x.trim())
 const isSep = (ln) => /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(ln) && /-/.test(ln)
+// cell-list 거름 — 설명 칸 머리 · 값 꼴 조각(수 · 영문 코드가 든 조각)
+const DESC_COL = /설명|내용|기능|비고|역할|하는 일|담당|조치|결과|범위|확인|목적|용도|정의|뜻|무엇|절차|방법|근거|요약|변경|관련|메모|기대|언제|주의|구성|대응|원인|영향|조건|기준/
+const VALUE_SEG = (x) => /\d|[A-Za-z_]{2,}/.test(x)
 
 // 문서 → 본문 줄(참고 블록 · 울타리 · 표지 줄은 빈 줄로 · 줄 번호는 그대로) · 머리 · 항목
 function parse(text0) {
@@ -156,7 +159,8 @@ export function lintForm(text0, { kind = '대상', props = null, form = null } =
         if (/\d{4}\.\s?\d{1,2}\.\s?\d{1,2}/.test(ln)) add('raw-date', i, s.h, '날짜 꼴 「YYYY. MM. DD」: YYYY-MM-DD 로')
         continue
       }
-      if (header == null && rows[k + 1] && isSep(rows[k + 1][1])) {
+      // 구분 줄이 뒤따르면 새 표의 머리다(빈 줄로만 나뉜 두 표가 앞 표 머리로 이어 읽히지 않게)
+      if (rows[k + 1] && isSep(rows[k + 1][1])) {
         header = cellsOf(ln)
         if (header.length >= 8) add('wide-table', i, s.h, `열이 ${header.length}개: 일곱까지 · 넘으면 첫 열을 같이 두고 나눈다`)
         k++
@@ -171,7 +175,8 @@ export function lintForm(text0, { kind = '대상', props = null, form = null } =
         if (/^(〃|"|위와 같음|상동)$/.test(c)) add('ditto', i, s.h, '「〃 · 위와 같음」: 값을 되풀이한다')
         const bare = c.replace(/`[^`]*`/g, '').replace(/\([^)]*\)/g, '').replace(/\[[^\]]*\]\([^)]*\)/g, '')
         const segs = bare.split(/\s·\s|,\s/).map((x) => x.trim()).filter(Boolean)
-        if (j > 0 && segs.length >= 5 && segs.every((x) => x.length <= 25 && !/다[.)]?$/.test(x))) add('cell-list', i, s.h, `표 한 칸에 값 ${segs.length}개: 대상마다 행 · 항목으로`)
+        //   값 나열만 — 설명 칸(머리가 설명 · 내용 · 기능 …)의 나열과 말 조각 나열(「확인 창 열기 · 취소 · 확인」)은 글이다 · 조각 절반 이상이 값 꼴(수 · 영문 코드)일 때
+        if (j > 0 && segs.length >= 5 && !DESC_COL.test(header[j] || '') && segs.filter(VALUE_SEG).length * 2 >= segs.length && segs.every((x) => x.length <= 25 && !/다[.)]?$/.test(x))) add('cell-list', i, s.h, `표 한 칸에 값 ${segs.length}개: 대상마다 행 · 항목으로`)
       })
     }
     numIssues(rows, add, s.h)
