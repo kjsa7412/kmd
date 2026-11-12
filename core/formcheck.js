@@ -62,7 +62,7 @@ function numIssues(rows, add, where) {
       const b = ns[lv]
       if (b === a) add('num-repeat', i, where, `번호 되풀이(${(d || p)[1]}${d ? '.' : ')'}): 같은 수준은 1 → 2 → 3 으로 이어 센다`)
       else if (b < a) add('num-repeat', i, where, `번호가 뒤로 간다(${a} 다음 ${b})`)
-      else if (b > a + 1) add('num-repeat', i, where, `번호 건너뜀(${a} 다음 ${b})`)
+      else if (b > a + 1) add('num-skip', i, where, `번호 건너뜀(${a} 다음 ${b})`)
     }
     st[lv] = ns
     st.length = lv + 1
@@ -106,7 +106,7 @@ export function lintForm(text0, { kind = '대상', props = null, form = null } =
     const first = rows[0][1].trim()
     if (/^\|/.test(first) || LIST.test(first) || LABEL.test(first) || /^>/.test(first)) add('no-lead', rows[0][0], s.h, '첫 문장 없음: 머리 다음은 대상 · 결론 한 문장(표 · 목록 · 라벨은 그 아래)')
     // 라벨(사건 · 대장 · 결정)
-    if (F.labels?.length) {
+    if (F.labels?.length && !(F.labelsWhen === 'props' && !props?.length)) {
       const names = F.labels.map((l) => l.name)
       const got = rows.map(([i, ln]) => [i, (ln.match(LABEL) || [])[1]]).filter(([, n]) => n && names.includes(n.trim()))
       const have = got.map(([, n]) => n.trim())
@@ -170,7 +170,8 @@ export function lintForm(text0, { kind = '대상', props = null, form = null } =
         if (/\d{4}\.\s?\d{1,2}\.\s?\d{1,2}/.test(c)) add('raw-date', i, s.h, `날짜 꼴 「${c.slice(0, 16)}」: YYYY-MM-DD 로`)
         if (/^(〃|"|위와 같음|상동)$/.test(c)) add('ditto', i, s.h, '「〃 · 위와 같음」: 값을 되풀이한다')
         const bare = c.replace(/`[^`]*`/g, '').replace(/\([^)]*\)/g, '').replace(/\[[^\]]*\]\([^)]*\)/g, '')
-        if (j > 0 && bare.split(/\s·\s|,\s/).length >= 5) add('cell-list', i, s.h, `표 한 칸에 값 ${bare.split(/\s·\s|,\s/).length}개: 대상마다 행 · 항목으로`)
+        const segs = bare.split(/\s·\s|,\s/).map((x) => x.trim()).filter(Boolean)
+        if (j > 0 && segs.length >= 5 && segs.every((x) => x.length <= 25 && !/다[.)]?$/.test(x))) add('cell-list', i, s.h, `표 한 칸에 값 ${segs.length}개: 대상마다 행 · 항목으로`)
       })
     }
     numIssues(rows, add, s.h)
