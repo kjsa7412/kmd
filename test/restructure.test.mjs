@@ -326,9 +326,11 @@ test('항목 옮김 · 이름 뒤 옛 기록 되돌리기 — 항목을 지우�
 
 test('같은 문서 안 이름 바꾸기 · 그 기록의 표지가 있던 문서로 옮김 뒤 되돌리기 — 항목을 지우지 않고 앞 판 글로 · 짜임 이력이 없으면 E_CONFLICT', async () => {
   const { revertPlan } = await import('../core/revert.js')
+  const { parseDoc } = await import('../core/sections.js')
   // 같은 문서 안 이름 바꾸기 — 표지 수가 그대로라 -S 가 짜임 커밋을 못 본다
   const d1 = makeItems()
   await applyRestructure(d1, { items: [{ from: { doc: '운영/배포', h: '배포 창' }, to: { doc: '운영/배포', h: '배포 시간' } }] }, { user: 'kim' })
+  assert.deepEqual(parseDoc(read(d1, 'docs/운영/배포.md'), '').sections.map((s) => s.h), ['배포 시간', '롤백'], '이름만 바꾸면 제자리(끝으로 밀리지 않는다)')
   const p1 = await revertPlan(await loadKnowledge({ id: 't', name: 't', dir: d1 }), '2026-1101-a')
   assert.equal(p1.sections.length, 1)
   assert.equal(p1.sections[0].heading, '배포 시간')

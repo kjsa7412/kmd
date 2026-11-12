@@ -391,7 +391,9 @@ export function planRestructure(files, ops = {}) {
       return t.split('\n')
     }
     const up = '../'.repeat(dstRel.split('/').length - 1)
-    const r = moveSection(srcText, same ? null : final.get(dstRel), { heading: it.from.h, to: toH, before: it.to.before || null, up, mapBody })
+    // 같은 문서에서 이름만 바꾸면(차례를 주지 않으면) 제자리 — 바로 뒤 항목 앞에 둔다(없으면 끝 · 원래도 끝)
+    const stay = same && !it.to.before ? heads[heads.indexOf(sec) + 1]?.heading || null : null
+    const r = moveSection(srcText, same ? null : final.get(dstRel), { heading: it.from.h, to: toH, before: it.to.before || stay, up, mapBody })
     if (!r) { err(where, '없는 항목이다'); continue }
     // 글자 그대로 — 떼어 낸 글과 넣은 글을 견준다(엔진 잘못이면 쓰지 않는다)
     const want = parseDoc(`## ${toH}\n${r.body.join('\n')}`, '').sections[0]
