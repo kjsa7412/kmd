@@ -229,6 +229,7 @@ test('Claude 안 — 조사(옛 판 · 비밀 의심 보류) → 거르기 → �
     const text = fs.readFileSync(path.join(s.root, id, 'docs', '업무 안내.md'), 'utf8')
     const pd = parseDoc(text, '')
     assert.deepEqual(pd.sections.map((x) => x.h), ['반납 절차 v2', '입사 안내', '장비 지급'], '넣음 재료마다 항목(구조안 차례)')
+    assert.match(text.split('\n## ')[0], /# 업무 안내\n+업무 안내 의 항목을 재료 글로 적는다\./, '짓기가 받은 문서 요약이 제목 아래에(서식 F5 · intro 걸음)')
     assert.match(text, /09:00/)
     assert.match(text, /내선 1234/)
     assert.ok(!text.includes('hunter2abc'))

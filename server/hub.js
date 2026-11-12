@@ -29,6 +29,8 @@ import { splitBlocks, hasBlockMarker } from '../core/baseline.js'
 import { validEdits, judgeEdits } from '../core/edits.js'
 import { targetsOf, ruleFix, fixRecordOf, fixDraftToSections, FIX_VALUE_MAX } from '../core/fix.js'
 import { runClaude, claudeSession, checkClaude } from '../core/claude.js'
+import { kindOf, formBlock, formFixOf } from '../core/forms.js'
+import { lintForm, headProblem, missingIds } from '../core/formcheck.js'
 import * as feed from '../core/feed.js'
 import { inside as insideDir, checkTarget, readSource, probe, readDecl, editDecl, DECL_BROKEN, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit } from '../core/sources.js'
 import { check } from '../core/check.js'
@@ -926,6 +928,24 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (fr.error) { say(`뼈대를 받지 못했다: ${fr.error}`, 'bad', '뼈대'); return Object.assign(run, { state: 'fail', why: `뼈대를 받지 못했다: ${fr.error}` }) }
       const frame = fr.value
       const bs = seedBatches(frame, g)
+      const kinds = new Map(frame.docs.map((d) => [d.id, kindOf(fset, d.id)]))
+      // 묶음 덧검사 — 항목 머리(양식 항목 · 장 번호 · 종류 꼴) · 대장은 원본 표의 ID 행이 머리에 다 있나
+      const srcText = new Map()
+      for (const d of frame.docs.filter((x) => kinds.get(x.id)?.kind === '대장')) {
+        srcText.set(d.id, await Promise.all(d.src.map((x) => fs.readFile(path.join(pack, 'md', `${x.slice(2)}.md`), 'utf8').catch(() => ''))))
+      }
+      const formCheck = (docs) => {
+        const errs = []
+        for (const d of docs) {
+          const kd = kinds.get(d.id) || { kind: '대상' }
+          for (const it of d.items) { const p = headProblem(kd.kind, String(it?.h || '')); if (p) errs.push(`${d.id} › ${p}`) }
+          if (srcText.has(d.id)) {
+            const miss = missingIds(srcText.get(d.id), d.items.map((it) => String(it?.h || '')))
+            if (miss.length) errs.push(`${d.id}: 원본 ID 행이 항목 머리에 없다: ${miss.slice(0, 12).join(' · ')}(ID 행마다 항목 하나 · 값이 빈 행도)`)
+          }
+        }
+        return errs.length ? errs.slice(0, 8).join(' / ') : null
+      }
       say(`뼈대: 문서 ${frame.docs.length} · 묶음 ${bs.length}(동시에 ${Math.min(SEED_POOL, bs.length)})`, 'ok', '뼈대')
       Object.assign(run, { i: 0, n: bs.length })
       // 2 묶음마다 항목(동시에) — 세션은 합친 검사가 끝날 때까지 열어 둔다(걸림을 그 묶음에 돌려보낸다)
@@ -938,7 +958,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const o = await open(mats, SEED_PLAN_SCHEMA, tag)
         live[b.i] = { ...o, b, mats, tag }
         say(`문서 ${b.docs.length} · 재료 ${mats.length}: ${b.docs.map((d) => d.id).join(' · ')}`, '', tag)
-        const x = await askFix(o.s, seedBatchPromptOf(b, { mats }, { cards: o.sd.cards > 0, of: bs.length }), (v) => batchOfDraft(v, b, { mats }), tag)
+        const x = await askFix(o.s, seedBatchPromptOf(b, { mats }, { cards: o.sd.cards > 0, of: bs.length, kinds }), (v) => batchOfDraft(v, b, { mats }, { check: formCheck }), tag)
         if (!x) return null
         if (x.error) { say(`묶음을 받지 못했다: ${x.error}`, 'bad', tag); Object.assign(run, { state: 'fail', why: `${tag}: ${x.error}` }); return null }
         run.i = ++done
@@ -972,7 +992,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           const o = live[i]
           const why = es.slice(0, 5).map((e) => `${e.where}: ${e.why}`).join(' · ')
           say(`고쳐 받는다: ${why}`, 'warn', o.tag)
-          const x = await askFix(o.s, seedSessionFixOf(why), (v) => batchOfDraft(v, o.b, { mats: o.mats }), o.tag, true)
+          const x = await askFix(o.s, seedSessionFixOf(why), (v) => batchOfDraft(v, o.b, { mats: o.mats }, { check: formCheck }), o.tag, true)
           if (x && !x.error) parts[i] = x.value
           else if (x) { stuck.add(i); say(`고쳐 받지 못했다 · 앞 답을 쓴다: ${x.error}`, 'warn', o.tag) }
           return x
@@ -1015,7 +1035,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       s = steadySession(id, run, async () => claudeSession({ cwd: dir, schema: SHAPE_WRITE_SCHEMA, budget: SEED_SESSION_BUDGET(), model: hub.modelOf('ingest'), effort: 'low', onEvent: (e) => feedPush(id, e, tag) }), tag)
       run.sessions?.add(s)
       feedPush(id, { k: 'kmd', text: `글 짓기: ${doc} · 항목 ${g.targets.length} · 재료 ${files.length}` }, tag)
-      let msg = seedWriteSessionPromptOf(g, files, { writeRules: WRITE_RULES })
+      const meta = await hub.meta(id, ctx)
+      const k0 = await hub.get(id, ctx)
+      const kd = kindOf(seedFormsOf(k0, readShape(k0, await readStructure(meta.dir))), doc)
+      let msg = seedWriteSessionPromptOf(g, files, { writeRules: WRITE_RULES, form: formBlock(kd.kind, { name: kd.form || doc.split('/').pop(), props: kd.props }) })
+      let summary = ''
       for (let n = 0; n <= INTAKE_FIX; n++) {
         const r = await s.ask(msg)
         run.tries = (run.tries || 0) + 1
@@ -1031,7 +1055,21 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
           j = hub.seedJudge(await hub.get(id, ctx), w.plan, doc, items, mats)
           if (j.errors.length) why = j.errors.slice(0, 3).map((e) => e.why).join(' · ')
         }
-        if (!why) { feedPush(id, { k: 'kmd', text: `지었다: ${doc} · ${items.reduce((a, y) => a + y.content.length, 0).toLocaleString()} 자`, tone: 'ok' }, tag); return { state: 'ok', items, values: j.values } }
+        // 서식(서식 설계 4-7 · F4) — 확정 검사에 걸리면 같은 세션에 걸린 곳만 · 마지막이면 알림만 남기고 받는다
+        let formFix = null
+        if (!why) {
+          summary = typeof r.value?.summary === 'string' ? r.value.summary.trim().slice(0, 1200) : ''
+          const text = [`# ${doc.split('/').pop()}`, '', summary, '', ...items.flatMap((y) => [`## ${y.h}`, '', y.content, ''])].join('\n')
+          const fx = lintForm(text, { kind: kd.kind, props: kd.props, form: kd.form }).filter((y) => y.level === 'fix' && y.code !== 'ref-key')
+          if (fx.length && !last) formFix = fx
+          else if (fx.length) feedPush(id, { k: 'kmd', text: `서식 알림 ${fx.length}(받았다): ${fx.slice(0, 3).map((y) => `${y.code} ${y.where}`).join(' · ')}`, tone: 'warn' }, tag)
+        }
+        if (formFix) {
+          feedPush(id, { k: 'kmd', text: `서식에 걸렸다 ${formFix.length} · 같은 세션에서 고쳐 받는다: ${formFix.slice(0, 3).map((y) => `${y.code} ${y.where}`).join(' · ')}`, tone: 'warn' }, tag)
+          msg = formFixOf(formFix) + '\nitems 전체와 summary 를 다시 낸다.'
+          continue
+        }
+        if (!why) { feedPush(id, { k: 'kmd', text: `지었다: ${doc} · ${items.reduce((a, y) => a + y.content.length, 0).toLocaleString()} 자${summary ? ' · 요약' : ''}`, tone: 'ok' }, tag); return { state: 'ok', items, values: j.values, ...(summary ? { intro: summary } : {}) } }
         if (last) {
           feedPush(id, { k: 'kmd', text: `짓지 못했다: ${why}`, tone: 'bad' }, tag)
           return j?.errors.length ? { state: 'fail', why: `걸음 실패: ${why}`, stepFail: j.errors.slice(0, 20), items } : { state: 'fail', why }
@@ -1748,7 +1786,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       ...rest,
       ...(proposals.length ? { proposals } : {}),
       ...(note ? { note } : {}),
-      warnings: [...(r0.formatKept || []), ...(r0.docLint || []), ...(r0.guardWarn || []), ...(w0 || []), ...backupLines],
+      warnings: [...(r0.formatKept || []), ...(r0.docLint || []), ...(r0.formLint || []).map((x) => x.msg), ...(r0.guardWarn || []), ...(w0 || []), ...backupLines],
     }
   }
 
@@ -3723,10 +3761,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (w.seed.mode === 'claude' && docs.slice(0, 3).some((d) => !(w.seed.ok || []).includes(d.id))) throw new KmdError('E_INPUT', '처음 3 문서를 승인한다')
       const k = await hub.get(id, ctx)
       const S = readShape(k, await readStructure(meta.dir))
-      const diff = diffPlan(S, w.plan)
+      const plan = { ...w.plan, docs: w.plan.docs.map((d) => (!d.was && typeof w.seed.texts?.[d.id]?.intro === 'string' && w.seed.texts[d.id].intro.trim() ? { ...d, intro: { text: w.seed.texts[d.id].intro.trim().slice(0, 4000) } } : d)) }
+      const diff = diffPlan(S, plan)
       const texts = {}
       for (const u of diff.writes) texts[u.n] = { items: u.targets.map((t) => ({ doc: t.doc, h: t.h, content: w.seed.texts[t.doc].items.find((x) => x.h === t.h)?.content ?? '' })), intros: {} }
-      await hub.seedEdit(id, w.work, (w0) => ({ ...w0, texts, seed: { ...w0.seed, ui: 5 } }))
+      await hub.seedEdit(id, w.work, (w0) => ({ ...w0, plan, texts, seed: { ...w0.seed, ui: 5 } }))
       return hub.shapeTry(ctx, id, { seed: true })
     },
     // 단계 띠 자리(POST seed/step { ui }) — 다다를 수 있는 단계까지만

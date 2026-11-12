@@ -67,7 +67,7 @@ function session() {
       o = { docs: [{ id: '업무 안내', src }], skip: [], why: '파일마다 항목 하나' }
     } else if (kind === 'batch') {
       const rows = tsv()
-      const docs = [...(session.batch ||= text).matchAll(/^\[doc (.+?)\](?: \(.*?\))? 재료: (.*)$/gm)].map((x) => ({ id: x[1], src: [...x[2].matchAll(/m:[0-9a-f]{16}/g)].map((y) => y[0]) }))
+      const docs = [...(session.batch ||= text).matchAll(/^\[doc (.+?)\](?: 종류: \S+)?(?: \(.*?\))? 재료: (.*)$/gm)].map((x) => ({ id: x[1], src: [...x[2].matchAll(/m:[0-9a-f]{16}/g)].map((y) => y[0]) }))
       const out2 = docs.map((d) => ({ id: d.id, items: d.src.filter((s) => rows.find((r) => r.src === s)?.pick === '넣음').map((s) => ({ h: headOf(rows.find((r) => r.src === s).path), src: [s], note: '파일 하나가 대상 하나' })) }))
       const first = out2.find((d) => d.items.length)?.items[0]
       o = { docs: out2, names: first ? [{ coord: 'topic:' + first.h.replace(/\s+/g, ''), label: first.h, doc: out2.find((d) => d.items.length).id, h: first.h }] : [], skip: [], why: '재료마다 항목' }
@@ -76,7 +76,7 @@ function session() {
       const fileOf = new Map([...src.matchAll(/^- md\/(\S+) · (.+?)(?: · [\d,]+ 자)?$/gm)].map((x) => [x[2], x[1]]))
       const body = (p) => { const f = fileOf.get(p); return f ? fs.readFileSync(`md/${f}`, 'utf8').split('\n').filter((l) => !/^#{1,6}\s/.test(l)).join('\n').trim() : '' }
       const items = [...src.matchAll(/^\[target (.+?) › (.+?)\](?: 몫: 재료 (.*))?$/gm)].map((x) => ({ doc: x[1], h: x[2], text: ((x[3] || '').split(' · ').map(body).filter(Boolean).join('\n\n') || '글') + (process.env.FAKE_CLAUDE_MODE === 'lie' ? '\n그리고 999초 기다린다.' : '') }))
-      o = { items, why: '재료 글로 지었다' }
+      o = { items, summary: `${(src.match(/문서 「([^」]+)」/) || [])[1] || '문서'} 의 항목을 재료 글로 적는다.`, why: '재료 글로 지었다' }
     } else return say({ is_error: true, subtype: 'error', result: '가짜 claude 세션: 모르는 말' })
     const wait = Number(process.env.FAKE_CLAUDE_STREAM_MS) || 0
     setTimeout(() => {

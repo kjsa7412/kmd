@@ -553,7 +553,7 @@ export const SHAPE_WRITE_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   required: ['items', 'why'],
-  properties: { items: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['doc', 'h', 'text'], properties: { doc: STR, h: STR, text: STR } } }, why: STR },
+  properties: { items: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['doc', 'h', 'text'], properties: { doc: STR, h: STR, text: STR } } }, summary: STR, why: STR },
 }
 export const SHAPE_CLAUDE_TYPES = ['shape-plan', 'shape-write']
 
@@ -790,7 +790,7 @@ export function seedBatches(frame, g, { maxMats = 12, maxChars = 400_000, maxDoc
   }
   return out.map((b, i) => ({ i, docs: b.docs, srcs: [...new Set(b.docs.flatMap((d) => d.src))] }))
 }
-export function seedBatchPromptOf(b, g, { cards = false, of = 1 } = {}) {
+export function seedBatchPromptOf(b, g, { cards = false, of = 1, kinds = null } = {}) {
   const m = new Map(g.mats.map((x) => [x.src, x]))
   return [
     `${SEED_BATCH_HEAD} 묶음 ${b.i + 1}/${of}. 아래 문서들의 항목을 이 폴더의 재료를 읽고 정한다. 문서 id 와 문서마다 재료는 정해져 있다(바꾸지 않는다 · 다른 문서를 더하지 않는다). 항목 글은 쓰지 않는다.`,
@@ -802,12 +802,13 @@ export function seedBatchPromptOf(b, g, { cards = false, of = 1 } = {}) {
     '- names 의 coord 종류는 영문 소문자 또는 한글로 시작한다(24자 안 · 대문자 약어는 소문자로: dbms:PostgreSQL · was:Apache Tomcat · 시스템:나라119).',
     SEED_RULES,
     '문서:',
-    ...b.docs.map((d) => `[doc ${d.id}]${d.note ? ` (${d.note})` : ''} 재료: ${d.src.map((s) => `${s} ${m.get(s)?.path || ''} · ${m.get(s)?.pick || ''}`).join(' | ')}`),
+    '- 문서마다 종류가 있다(아래 [doc] 줄). 대장은 원본 표의 ID 행마다 항목 하나(머리 「ID: 이름」 · 이름이 없으면 ID · 빈 행도). 사건은 「YYYY-MM-DD 주제」(정례 보고는 「YYYY-MM-DD N주차」). 대상 · 서술은 대상 이름(장 번호 없이). 표지 · 개정 이력 · 작성지침 · 필드 구조 같은 양식은 항목으로 세우지 않는다.',
+    ...b.docs.map((d) => `[doc ${d.id}]${kinds?.get(d.id) ? ` 종류: ${kinds.get(d.id).kind}` : ''}${d.note ? ` (${d.note})` : ''} 재료: ${d.src.map((s) => `${s} ${m.get(s)?.path || ''} · ${m.get(s)?.pick || ''}`).join(' | ')}`),
     '정했으면 구조안 JSON 을 낸다.',
   ].join('\n')
 }
 // 받은 묶음 초안 → { docs, names, skip } | { error }(꼴 · 문서 id · 재료 배정 · 덮임은 이 묶음 안에서)
-export function batchOfDraft(draft, b, g) {
+export function batchOfDraft(draft, b, g, { check = null } = {}) {
   if (!draft || typeof draft !== 'object' || !Array.isArray(draft.docs)) return { error: '구조안 꼴이 아니다: docs 가 없다' }
   const want = new Map(b.docs.map((d) => [d.id, new Set(d.src)]))
   const seen = new Set()
@@ -838,6 +839,8 @@ export function batchOfDraft(draft, b, g) {
   const names = (Array.isArray(draft.names) ? draft.names : []).filter((x) => x && want.has(cleanId(x.doc)))
   const nb = names.map((x) => coordProblem(x.coord)).find(Boolean)
   if (nb) return { error: nb }
+  const ce = check ? check(docs) : null
+  if (ce) return { error: ce }
   return { docs, names, skip }
 }
 // 뼈대 + 묶음들 → 구조안 초안(seedPlanOfDraft 가 받는 꼴) · 문서는 뼈대 차례 · 장부 항목은 coord + 자리로 한 번만
@@ -852,7 +855,7 @@ export function mergeSeedPlan(frame, parts) {
 }
 // 글 짓기 세션(Z9) — 재료 글을 프롬프트에 싣지 않는다. 세션 폴더 md/<16자>.md 를 읽어 목표 항목마다 쓴다
 export const SEED_WRITE_HEAD = '바탕 세우기 항목 글을 짓는다(세션).'
-export function seedWriteSessionPromptOf(g, files, { writeRules = WRITE_RULES } = {}) {
+export function seedWriteSessionPromptOf(g, files, { writeRules = WRITE_RULES, form = '' } = {}) {
   return [
     `${SEED_WRITE_HEAD} 문서 「${g.doc}」 의 목표 항목마다 그 몫(재료)의 확정된 사실만 「지금」 꼴로 쓴다. 같은 대상의 여러 재료는 늦은 판이 이긴다. 경위 · 논의 · 질문은 옮기지 않는다.`,
     '재료 글은 이 폴더의 md/<16자>.md 다(아래 표). 목표마다 그 재료를 Read 로 읽는다(긴 글은 Grep 으로 자리를 찾고 offset · limit 로 나눠 읽는다).',
@@ -860,6 +863,8 @@ export function seedWriteSessionPromptOf(g, files, { writeRules = WRITE_RULES } 
     '- 재료의 값(숫자 · 날짜 · 주소 · 이름 · 코드)은 글자 그대로 옮긴다. 재료에 없는 값을 지어내지 않는다.',
     '- items 는 목표마다 하나 · doc 와 h 는 아래 목표 그대로 · text 는 항목 본문만(## 머리 없이).',
     writeRules,
+    ...(form ? [form] : []),
+    `- summary 에는 문서 「${g.doc}」 의 요약 1~3문장을 쓴다(이 문서가 무엇을 어떤 단위로 적나 · 문서 전체에 같은 값). 바뀌는 상태 · 수는 쓰지 않는다.`,
     '재료:',
     ...files.map((f) => `- md/${f.file} · ${f.path}${f.chars ? ` · ${f.chars.toLocaleString()} 자` : ''}`),
     '목표:',

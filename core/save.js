@@ -34,6 +34,8 @@ import { nfc, oneLine, readText, sha16 } from './text.js'
 import { renderRecord, parseRecord } from './frontmatter.js'
 import { replaceSection, removeSection, renameSection, replaceIntro, parseDoc, headsOf, findHeading, splitLog, splitRef, mergeLog, logLine, logHas, ROUGH } from './sections.js'
 import { formatCheck, formatMessage, keptMessage, lintNew, lintMessage } from './docformat.js'
+import { lintFormNew, formMessage } from './formcheck.js'
+import { kindOf } from './forms.js'
 import { isReservedUser, isReservedTag, isLogRecord, LOG_DIR } from './names.js'
 import { isReservedFile } from './owners.js'
 import { keepBlocks, hasBlockMarker } from './baseline.js'
@@ -727,10 +729,21 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
       }
     }
     const docLint = []
+    // 서식 알림(서식 설계 4-7 · F6) — 이 저장이 새로 만든 서식 문제만 · 저장을 막지 않는다 · 옛 기록 · 기록 모음은 보지 않는다
+    const formLint = []
     for (const [rel, x] of shape) {
       if (x.after == null) continue
+      const doc = rel.replace(/^docs\/|\.md$/g, '')
       const xs = lintNew(x.before, x.after)
-      if (xs.length) docLint.push(lintMessage(rel.replace(/^docs\/|\.md$/g, ''), xs))
+      if (xs.length) docLint.push(lintMessage(doc, xs))
+      if (doc === '기록 모음') continue
+      try {
+        const k = kindOf(forms, doc)
+        const fx = lintFormNew(x.before, x.after, { kind: k.kind, props: k.props, form: k.form })
+        if (fx.length) formLint.push({ doc, kind: k.kind, msg: formMessage(doc, fx), items: fx.slice(0, 20) })
+      } catch (e) {
+        console.error(`[save] ${dir} 서식 검사 실패(저장은 했다): ${e?.message || e}`)
+      }
     }
     const marked = {
       ...(marks ? { put: putRows.length, putRows } : {}),
@@ -738,7 +751,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
       ...(prep?.proposals ? { proposals: prep.proposals } : {}),
       ...(prep?.warnings?.length ? { warnings: prep.warnings } : {}),
     }
-    return { id, record: workRel, docs, commit, date, ...(books.length ? { names: names.length } : {}), ...(formsIn.length ? { forms: formsIn.length } : {}), ...(formatKept.length ? { formatKept } : {}), ...(docLint.length ? { docLint } : {}), ...(guardWarn.length ? { guardWarn } : {}), ...(touchesEmpty ? { touchesEmpty } : {}), ...marked }
+    return { id, record: workRel, docs, commit, date, ...(books.length ? { names: names.length } : {}), ...(formsIn.length ? { forms: formsIn.length } : {}), ...(formatKept.length ? { formatKept } : {}), ...(docLint.length ? { docLint } : {}), ...(formLint.length ? { formLint } : {}), ...(guardWarn.length ? { guardWarn } : {}), ...(touchesEmpty ? { touchesEmpty } : {}), ...marked }
   } catch (e) {
     await j.undo().catch((u) => console.error(`[save] ${dir} 되돌리기 실패(다음 저장 · 켤 때 저널로 다시): ${u?.message || u}`))
     throw e

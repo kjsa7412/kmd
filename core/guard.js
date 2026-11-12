@@ -260,7 +260,10 @@ export const DEFAULT_FORMS = [
 
 export function parseForms(text) {
   const rows = []
+  let inProps = false // 「## 속성: <갈래>」 블록 안의 표는 갈래 행이 아니다(parseProps)
   for (const raw of String(text || '').split('\n')) {
+    if (/^##\s/.test(raw)) { inProps = PROPS_HEAD.test(raw); continue }
+    if (inProps) continue
     const cells = raw.match(/^\|(.+)\|\s*$/)?.[1].split('|').map((x) => nfc(x.trim()))
     if (!cells || cells.length < 4) continue
     if (/^[-: ]+$/.test(cells.join('')) || cells[0] === '갈래') continue
@@ -280,8 +283,27 @@ export function parseForms(text) {
   return rows
 }
 export const formsOf = (text) => {
-  const rows = parseForms(text)
+  const props = parseProps(text)
+  const rows = parseForms(text).map((r) => (props.has(r.name) ? { ...r, props: props.get(r.name) } : r))
   return { rows: rows.length ? rows : DEFAULT_FORMS, own: rows.length > 0 }
+}
+// 속성 정의(서식 설계 4-6 대장 · F7) — 갈래 장부의 「## 속성: <갈래>」 아래 표 | 속성 | 원본 칸 | 쓰는 법 | 필수 | (필수 칸 「!」 · 「?」)
+//   → Map(갈래 → [{ name, src, how, must }]) · 행 하나에 속성 하나 · 칸 문자열로 몰지 않는다
+const PROPS_HEAD = /^##\s+속성\s*[:：]\s*\S/
+export function parseProps(text) {
+  const out = new Map()
+  let cur = null
+  for (const raw of String(text || '').split('\n')) {
+    if (/^##\s/.test(raw)) { cur = PROPS_HEAD.test(raw) ? nfc(raw.replace(PROPS_HEAD, (m) => m.slice(-1)).replace(/^##\s+속성\s*[:：]\s*/, '').trim()) : null; if (cur && !out.has(cur)) out.set(cur, []); continue }
+    if (!cur) continue
+    const cells = raw.match(/^\|(.+)\|\s*$/)?.[1].split('|').map((x) => nfc(x.trim()))
+    if (!cells || cells.length < 2 || /^[-: ]+$/.test(cells.join('')) || cells[0] === '속성') continue
+    const name = cells[0].replace(/^`|`$/g, '').trim()
+    if (!name || ['__proto__', 'prototype', 'constructor'].includes(name)) continue
+    out.get(cur).push({ name, src: cells[1] && cells[1] !== '-' ? cells[1] : null, how: cells[2] && cells[2] !== '-' ? cells[2] : null, must: /!|필수/.test(cells[3] || '') })
+  }
+  for (const [k, v] of out) if (!v.length) out.delete(k)
+  return out
 }
 
 // 파일 이름 조각 — 날짜 · 판 · 최종 · 사본 · 번호 꼬리

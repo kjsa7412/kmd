@@ -67,7 +67,7 @@ after(async () => {
 //   (판 8 은 저장 승인 P4: 늘 저장 제안 · 정리 거리 고르기 · 대화 조절 · 메모 걷기 · 대량 넣기 규칙 표 한 번 승인)
 //   (판 9 는 저장 승인 P11: 저장 승인 전 팀 지식 갈래 · 옛 판 안내(reinstall · nokit) 걷기)
 //   (판 10 은 말 맞추기: 이름 → 항목 · 조각 → 고칠 항목 · 바꿀 곳 · 보이는 이름 → 라벨 · 다른 이름 → 별칭 · 이름 장부 → 항목 장부)
-const KIT_HASH = { 2: '10d1b294', 3: '85c4e1b0', 4: 'a91c981e', 5: '34c6e455', 6: '530dee29', 7: '4ec95b65', 8: 'bbb4fb34', 9: '836af2f3', 10: '5bb1bb7f' }
+const KIT_HASH = { 2: '10d1b294', 3: '85c4e1b0', 4: 'a91c981e', 5: '34c6e455', 6: '530dee29', 7: '4ec95b65', 8: 'bbb4fb34', 9: '836af2f3', 10: '5bb1bb7f', 11: '3a1a02b5' }
 test('스킬 판: 스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다 · 스킬 글의 {{KIT_REV}} 를 판으로 바꿔 싣는다', async () => {
   const parts = await teamKitParts()
   assert.equal(parts.rev, TEAM_KIT_REV)

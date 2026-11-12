@@ -117,8 +117,32 @@ export function pptxToMd(buf) {
 }
 
 // ── xlsx ──
+// 날짜 서식(서식 설계 4-4 · F3) — 셀 스타일(styles.xml cellXfs → numFmtId)이 날짜면 일련번호를 YYYY-MM-DD(시각이 있으면 「YYYY-MM-DD HH:MM」)로.
+//   기본 날짜 서식 id(14 ~ 22 · 27 ~ 36 · 45 ~ 47 · 50 ~ 58) + 사용자 서식 글에 y · d(또는 m 만 있고 h 없음)가 있으면 날짜
+const DATE_IDS = new Set([14, 15, 16, 17, 18, 19, 20, 21, 22, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 45, 46, 47, 50, 51, 52, 53, 54, 55, 56, 57, 58])
+function dateStyles(xml) {
+  if (!xml) return []
+  const fmts = new Map([...xml.matchAll(/<numFmt\s[^>]*numFmtId="(\d+)"[^>]*formatCode="([^"]*)"/g)].map((m) => [Number(m[1]), ent(m[2])]))
+  const xfs = (xml.match(/<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/) || [])[1] || ''
+  return [...xfs.matchAll(/<xf\s[^>]*?(?:\/>|>)/g)].map((m) => {
+    const id = Number((m[0].match(/numFmtId="(\d+)"/) || [])[1] || 0)
+    const code = (fmts.get(id) || '').replace(/\[[^\]]*\]|"[^"]*"|\\./g, '').toLowerCase()
+    const isDate = DATE_IDS.has(id) || (/[yd]/.test(code) || (/m/.test(code) && !/[hs]/.test(code)))
+    return isDate ? { time: /h/.test(code) || [18, 19, 20, 21, 22, 45, 46, 47].includes(id) } : null
+  })
+}
+export function excelDate(serial, time = false) {
+  const n = Number(serial)
+  if (!Number.isFinite(n) || n < 1 || n > 2958465) return null
+  const d = new Date(Date.UTC(1899, 11, 30) + Math.round(n * 86400) * 1000)
+  const p = (x) => String(x).padStart(2, '0')
+  const day = `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`
+  return time && n % 1 ? `${day} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}` : day
+}
+// 부동소수 꼬리(0.30000000000000004 · 2.9999999999999996) — 유효 숫자 12자리로
+export const tidyNumber = (v) => (/^-?\d+\.\d{10,}$/.test(v) ? String(parseFloat(Number(v).toPrecision(12))) : v)
 export function xlsxToMd(buf) {
-  const z = unzip(buf, (n) => n === 'xl/sharedStrings.xml' || n === 'xl/workbook.xml' || n === 'xl/_rels/workbook.xml.rels' || /^xl\/worksheets\/sheet\d+\.xml$/.test(n))
+  const z = unzip(buf, (n) => n === 'xl/styles.xml' || n === 'xl/sharedStrings.xml' || n === 'xl/workbook.xml' || n === 'xl/_rels/workbook.xml.rels' || /^xl\/worksheets\/sheet\d+\.xml$/.test(n))
   const wb = z.get('xl/workbook.xml')?.toString('utf8')
   if (!wb) throw new KmdError('E_INPUT', 'xlsx 모양이 아니다')
   const shared = [...(z.get('xl/sharedStrings.xml')?.toString('utf8') || '').matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => ent((m[1].match(/<t(?:\s[^>]*)?>[^<]*<\/t>/g) || []).map((t) => t.replace(/<[^>]+>/g, '')).join('')))
@@ -126,6 +150,7 @@ export function xlsxToMd(buf) {
   const attr = (tag, n) => (new RegExp(`\\s${n}="([^"]*)"`).exec(tag) || [])[1]
   const rels = Object.fromEntries([...(z.get('xl/_rels/workbook.xml.rels')?.toString('utf8') || '').matchAll(/<Relationship\s[^>]*>/g)].map((m) => [attr(m[0], 'Id'), attr(m[0], 'Target')]).filter(([k, v]) => k && v))
   const sheets = [...wb.matchAll(/<sheet [^>]*name="([^"]+)"[^>]*r:id="([^"]+)"/g)].map((m) => ({ name: ent(m[1]), file: 'xl/' + String(rels[m[2]] || '').replace(/^\/?xl\//, '') }))
+  const styles = dateStyles(z.get('xl/styles.xml')?.toString('utf8'))
   const col = (ref) => [...ref.replace(/\d+/g, '')].reduce((a, c) => a * 26 + c.charCodeAt(0) - 64, 0) - 1
   const out = []
   for (const s of sheets) {
@@ -139,7 +164,9 @@ export function xlsxToMd(buf) {
         const t = (c[1].match(/t="([^"]+)"/) || [])[1]
         const v = ((c[2] || '').match(/<v>([^<]*)<\/v>/) || [])[1]
         const inl = ((c[2] || '').match(/<t(?:\s[^>]*)?>([^<]*)<\/t>/) || [])[1]
-        row[col(ref)] = t === 's' ? shared[Number(v)] ?? '' : t === 'inlineStr' ? ent(inl || '') : ent(v ?? '')
+        const st = styles[Number((c[1].match(/(?:^|\s)s="(\d+)"/) || [])[1] ?? -1)]
+        const num = !t || t === 'n'
+        row[col(ref)] = t === 's' ? shared[Number(v)] ?? '' : t === 'inlineStr' ? ent(inl || '') : num && st && v != null && v !== '' ? excelDate(v, st.time) ?? v : num && v != null ? tidyNumber(v) : ent(v ?? '')
       }
       if (row.some((x) => String(x ?? '').trim())) rows.push(Array.from(row, (x) => x ?? ''))
       if (rows.length >= 501) break
