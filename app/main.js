@@ -2455,13 +2455,17 @@ function coItems(k, it) {
   return Object.entries(c).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([key, n]) => ({ it: itemByKey(k, key), n })).filter((x) => x.it)
 }
 const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')
-// 글 속 항목 이름 → 항목 링크(이름 · 별칭 · 2자 이상 · 테이블과 자기 자신은 빼고) — 링크(<a>) 안은 건드리지 않는다
+// 글 속 항목 이름 → 항목 링크(이름 · 별칭 · 테이블과 자기 자신은 빼고) — 링크(<a>) 안은 건드리지 않는다
+//   문서 표시(컨벤션 7절): 흔한 낱말은 잇지 않는다 — 여러 항목이 같은 이름 · 별칭을 쓰면(「구성」 · 「시험」) 어느 항목인지 모르고,
+//   두 글자 이하 한글 낱말은 본문 어디에나 나와 점선이 글을 덮는다 · 폐기 항목도 잇지 않는다
 function linkify(h, k, self) {
   const m = M(k)
   if (!m) return h
   if (!m._lmap) {
     m._lmap = {}
-    m.items.forEach((i) => { if (i.table) return; [i.name, ...i.aliases].forEach((a) => { if (a && a.length >= 2 && !m._lmap[a]) m._lmap[a] = i.key }) })
+    const owners = {}
+    m.items.forEach((i) => { if (i.table || i.deprecated) return; [i.name, ...i.aliases].forEach((a) => { if (a && a.length >= 2) (owners[a] ||= new Set()).add(i.key) }) })
+    for (const [a, ks] of Object.entries(owners)) if (ks.size === 1 && !/^[가-힣]{1,2}$/.test(a)) m._lmap[a] = [...ks][0]
     const keys = Object.keys(m._lmap).sort((a, b) => b.length - a.length)
     m._lre = keys.length ? new RegExp(keys.map((x) => reEsc(esc(x))).join('|'), 'g') : null
     m._lrev = Object.fromEntries(Object.entries(m._lmap).map(([a, key]) => [esc(a), key]))

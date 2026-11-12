@@ -137,32 +137,74 @@ export function autoHtml(b, { checked = null, lock = false } = {}) {
   const t = parseTable(b.table)
   return `<div class="auto${lock ? ' lock' : ''}" data-t="${lock ? 'autoLock' : 'auto'}"><div class="ah">${SYNC} <b>저절로 채우는 표</b> · ${esc(b.src)} · ${esc(String(b.asof).slice(5, 16))} 부터 · ${esc(hm(checked))} 확인</div><table class="t"><tr>${t.cols.map((c) => `<th>${esc(c)}</th>`).join('')}</tr>${t.rows.map((r) => `<tr>${t.cols.map((_, i) => `<td>${esc(r[i] ?? '')}</td>`).join('')}</tr>`).join('')}</table>${lock ? `<div class="lkl">${LOCK} ${esc(b.src)}에서 저절로: 여기서는 고치지 않는다</div>` : ''}${b.missing ? `<div class="lkl">원천에 없다: ${esc(b.missing.slice(5))} 확인</div>` : ''}</div>`
 }
-// 수준 표시 줄(작성기준 5-1절) — md 목록으로 넘기지 않고 먼저 떼어 그린다(번호를 다시 매기지 않는다 · 들이지 않는다)
-//   md 그대로면 「1.」 · 「1)」 은 번호 목록이 되어 번호가 다시 매겨지고 「1.1.」 은 문단이 되며 붙은 줄은 한 문단으로 합쳐진다
+// 수준 표시 줄(작성기준 5-1절 · 컨벤션 「문서 표시」) — md 목록으로 넘기지 않고 먼저 떼어 그린다(번호를 다시 매기지 않는다)
+//   글은 들여쓰지 않고 줄 머리 표시로 쓰고(쓰는 규칙), 화면은 그 표시를 읽어 짜임대로 그린다(그리는 규칙):
+//   - 라벨 줄(「- **이름**: …」)은 라벨 칸 + 내용 칸 · 바로 아래 「*」 줄과 표 · 울타리는 그 내용 칸 안(다음 라벨 · 수준 줄 · 문단 · 머리에서 닫는다)
+//   - 그 밖의 줄은 앞 줄 맥락만큼 들인다: 「1.」 0 · 「1.1.」 1 · 「1.1.1.」 2 · 「1)」 은 위 점 번호 한 단 아래 · 「-」 은 위 번호 한 단 아래 · 「*」 은 위 「-」 한 단 아래(넷까지)
+//   - 표시는 번호는 그대로, 「-」 · 「*」 은 점(lvm 의 data-m)으로 · 남은 것 줄(「할 일: 맡은 이 · 기한 X」)은 할 일과 덧붙임을 나눈다
+const LABEL_LINE = /^\*\*([^*\n]{1,24})\*\*\s*[:：]\s?(.*)$/
 function levelLines(text) {
   const lines = text.split('\n')
   const lv = []
+  const lbs = []
+  let open = null // 열린 라벨 { name }
+  let dot = -1 // 마지막 점 번호 단(0 ~ 2)
+  let base = 0 // 「-」 의 단
+  let star = 0 // 「*」 의 단
+  // 이 줄 앞에서 라벨 칸을 닫는다 — 줄 글은 아래에서 자리표시로 바뀔 수 있어 다 돈 뒤에 붙인다
+  const shut = new Set()
+  const close = (i) => { if (open == null) return; shut.add(i); open = null }
+  const reset = () => { dot = -1; base = 0; star = 0 }
   eachLive(lines, (ln, i, head) => {
-    if (head) return
+    if (head) { close(i); reset(); return }
     const x = levelOf(ln)
-    if (!x) return
+    if (!x) { if (ln.trim()) close(i); return }
+    const lb = x.n === 7 ? x.text.match(LABEL_LINE) : null
+    if (lb) {
+      close(i)
+      lines[i] = `\n\nKMDLBO${lbs.length}\n\n`
+      lbs.push({ name: lb[1].trim(), rest: lb[2] })
+      open = lbs.length - 1
+      star = 0
+      return
+    }
+    let d
+    if (x.n === 8 && open != null) d = 0
+    else {
+      if (x.n !== 8) close(i)
+      if (x.n <= 3) { d = x.n - 1; dot = d; base = d + 1; star = base + 1 }
+      else if (x.n <= 6) { d = (dot >= 0 ? dot + 1 : 0) + (x.n - 4); base = d + 1; star = base + 1 }
+      else if (x.n === 7) { d = base; star = d + 1 }
+      else d = star
+    }
+    const todo = x.n === 8 && open != null && /^남은 것$/.test(lbs[open].name) ? x.text.match(/^(.+?):\s+(.+?)\s+·\s+기한\s+(\d{4}-\d{2}-\d{2}|-)\s*$/) : null
     lines[i] = `\n\nKMDLV${lv.length}\n\n`
-    lv.push(x)
+    lv.push({ ...x, d: Math.min(d, 4), inLabel: open != null && x.n === 8, ...(todo ? { todo: { what: todo[1], who: todo[2], due: todo[3] } } : {}) })
   })
-  return { text: lines.join('\n'), lv }
+  for (const i of shut) lines[i] = `\n\nKMDLBC\n\n${lines[i]}`
+  if (open != null) lines.push('\n\nKMDLBC\n\n')
+  return { text: lines.join('\n'), lv, lbs }
 }
 const plainOf = (h) => h.replace(/<[^>]+>/g, '').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim()
 export function render(k, fromPath, text, { src = {} } = {}) {
   const env = { k, fromPath }
   const { text: t0, blocks } = splitBlocks(String(text || ''))
-  const { text: t, lv } = levelLines(t0)
+  const { text: t, lv, lbs } = levelLines(t0)
   const html = md.render(t.replace(/\u0000block(\d+)\u0000/g, '\n\nKMDBLOCK$1\n\n'), env).replace(/<p>([\s\S]*?)<\/p>/g, (all, inner) => inner.split('<br>\n').map((x) => `<p>${x}</p>`).join('\n'))
   return html
     .replace(/<p>KMDBLOCK(\d+)<\/p>/g, (_, n) => autoHtml(blocks[Number(n)], { checked: src[blocks[Number(n)].src]?.checkedAt }))
+    .replace(/<p>KMDLBO(\d+)<\/p>/g, (_, n) => {
+      const b = lbs[Number(n)]
+      return `<div class="lbr" data-t="lbRow"><div class="lbn">${esc(b.name)}</div><div class="lbv">${b.rest.trim() ? `<p>${md.renderInline(b.rest, env)}</p>` : ''}`
+    })
+    .replace(/<p>KMDLBC<\/p>/g, '</div></div>')
     .replace(/<p>KMDLV(\d+)<\/p>/g, (_, n) => {
       const x = lv[Number(n)]
-      const inner = md.renderInline(x.text, env)
-      return `<div class="lv l${x.n}"${x.n <= 3 ? ` data-lv="${esc(plainOf(inner))}"` : ''}><span class="lvm">${esc(x.mark)}</span><span class="lvx">${inner}</span></div>`
+      const mark = x.n >= 7 ? `<span class="lvm" data-m="${x.inLabel || x.n === 7 ? 'dot' : 'ring'}" aria-hidden="true"></span>` : `<span class="lvm">${esc(x.mark)}</span>`
+      const inner = x.todo
+        ? `${md.renderInline(x.todo.what, env)}<span class="lvt"> · ${x.todo.who === '-' ? '' : `${md.renderInline(x.todo.who, env)} · `}${x.todo.due === '-' ? '기한 없음' : `기한 ${esc(x.todo.due)}`}</span>`
+        : md.renderInline(x.text, env)
+      return `<div class="lv l${x.n}${x.d ? ` d${x.d}` : ''}"${x.n <= 3 ? ` data-lv="${esc(plainOf(inner))}"` : ''}>${mark}<span class="lvx">${inner}</span></div>`
     })
 }
 // 편집기용 — 블록 뺀 글 · 잠긴 표
