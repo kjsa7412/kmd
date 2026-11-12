@@ -18,10 +18,13 @@ const VALUE_RE = new RegExp(`\`([^\`\\n]+)\`|「([^」]+)」|"([^"]+)"|(\\d{4}-\
 const inName = (s, i, n) => /[A-Za-z_]/.test(s[i - 1] || '') || (s[i - 1] === '-' && /[A-Za-z]/.test(s[i - 2] || '')) || /[A-Za-z_]/.test(s[i + n] || '')
 // 서식 맞춤(이력 · 작성기준 「기록과 이력」)의 값 견주기 — 옛 글과 새 글의 값 장부가 같아야 한다 · 날짜 표기만 YYYY-MM-DD 로 맞춰 견준다
 //   { same, lost: [옛 글에만], added: [새 글에만] }
+//   줄 머리 수준 표시(「1.」 · 「1.1.」 · 「2)」 · 작성기준 5-1)는 짜임이지 값이 아니다 — 옛 「###」 소제목을 수준 줄로 옮기면 번호가 새로 붙는다
 const dayOf = (v) => { const m = /^(\d{4})[./](\d{1,2})[./](\d{1,2})\.?$/.exec(v); return m ? `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` : v }
+//   옛 머리 줄의 장 번호(「### 4.1 설치」)도 같은 짜임이다(머리 줄에서만 점 없는 번호를 뗀다 · 일반 줄의 「3 개소」 는 값)
+const noMarks = (s) => String(s || '').replace(/^(#{1,6}[ \t]+|\*\*)(\d+(?:\.\d+){0,3})\.?[ \t]+(?=\S)/gm, '$1').replace(/^([ \t]*)(\d+(?:\.\d+){0,3})[.)][ \t]+(?=\S)/gm, '$1')
 export function sameValues(oldText, newText) {
-  const a = new Set([...valuesOf(oldText)].map(dayOf))
-  const b = new Set([...valuesOf(newText)].map(dayOf))
+  const a = new Set([...valuesOf(noMarks(oldText))].map(dayOf))
+  const b = new Set([...valuesOf(noMarks(newText))].map(dayOf))
   const lost = [...a].filter((v) => !b.has(v))
   const added = [...b].filter((v) => !a.has(v))
   return { same: !lost.length && !added.length, lost, added }

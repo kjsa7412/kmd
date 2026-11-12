@@ -154,3 +154,11 @@ test('절차 · 시험 · 보고 · 용어 계약 — 단계 표 결과 칸 · �
   assert.match(formBlock('절차'), /단계 하나에 동작 하나/)
   assert.match(templateOf('보고'), /- \*\*진도\*\*:/)
 })
+
+test('값 견주기(서식 맞춤) — 줄 머리 수준 번호 · 옛 머리 장 번호 · 들여쓴 번호는 값이 아니다 · 일반 줄의 수는 값', async () => {
+  const { sameValues } = await import('../core/values.js')
+  assert.ok(sameValues('### 4.1 설치\n\n  1. 하나\n  2. 둘\n**3. 셋**\n', '1. 설치\n1.1. 하나\n1.2. 둘\n2. 셋\n').same)
+  assert.ok(sameValues('기준: 2026.01.01.', '기준일: 2026-01-01.').same, '날짜 표기')
+  assert.equal(sameValues('3 개소', '개소').same, false, '줄 머리라도 점 없는 수는 값')
+  assert.equal(sameValues('포트 8080', '포트 9090').same, false)
+})
