@@ -251,7 +251,7 @@ export function guardNames(vocab, names) {
 //
 //   종류: 대상(「지금」 을 적는 문서) · 서술 · 사건(머리가 「YYYY-MM-DD 무엇」) · 대장(`##` 하나가 장부 항목 하나)
 //   항목: 그 문서의 항목 패턴(`이슈:*`) — 있으면 새 문서를 세울 때 문서 장부 행을 같이 세운다
-export const FORM_KINDS = ['대상', '서술', '사건', '대장']
+export const FORM_KINDS = ['대상', '서술', '절차', '시험', '용어', '사건', '대장']
 export const DEFAULT_FORMS = [
   { name: '회의록', aliases: ['회의', '미팅', '통화', '전화', '면담', 'minutes', 'meeting'], folder: '', kind: '사건', pattern: null, form: '작업기록' },
   { name: '장애 대응', aliases: ['장애', '사고', 'incident', 'postmortem'], folder: '', kind: '사건', pattern: null, form: '작업기록' },

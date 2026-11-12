@@ -19,6 +19,14 @@ const DATE = /\d{4}-\d{2}-\d{2}/
 const cellsOf = (ln) => ln.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map((x) => x.trim())
 const isSep = (ln) => /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(ln) && /-/.test(ln)
 // cell-list 거름 — 설명 칸 머리 · 값 꼴 조각(수 · 영문 코드가 든 조각)
+// 날짜 머리 종류(사건 · 정례 보고) — 장 번호 검사 밖 · 주차 머리 알림
+const DATED = new Set(['사건', '보고'])
+// 단계 표(절차 · 시험) — 첫 칸 번호 · 결과 칸 · 동작 칸 · 시험 케이스 덩이 머리(「1. T1 …」 · 「2. IT-03 …」)
+const STEP_COL = /^(단계|순서)$/
+const NUM_COL = /^(번호|#|No\.?)$/i
+const RESULT_COL = /결과|확인|기대|예상|나오는 것|판정/
+const ACT_COL = /^(할 일|절차|동작|수행( 절차)?|명령|하는 일)$/
+const CASE_HEAD = /^\d+\.\s+[A-Z]{1,4}-?\d+[A-Za-z]?\b/
 const DESC_COL = /설명|내용|기능|비고|역할|하는 일|담당|조치|결과|범위|확인|목적|용도|정의|뜻|무엇|절차|방법|근거|요약|변경|관련|메모|기대|언제|주의|구성|대응|원인|영향|조건|기준/
 const VALUE_SEG = (x) => /\d|[A-Za-z_]{2,}/.test(x)
 
@@ -97,9 +105,9 @@ export function lintForm(text0, { kind = '대상', props = null, form = null } =
     for (let i = s.i + 1; i < s.end; i++) if (body[i].trim()) rows.push([i, body[i]])
     // 머리
     if (META_HEAD.test(s.h)) add('form-meta', s.i, s.h, `양식 항목(「${s.h.slice(0, 20)}」): 표지 · 개정 이력 · 작성지침 · 필드 구조는 항목이 아니다`)
-    else if (HEAD_NUM.test(s.h) && kind !== '사건') add('head-form', s.i, s.h, `머리에 장 번호(「${s.h.slice(0, 20)}」): 번호를 떼고 대상 이름만`)
+    else if (HEAD_NUM.test(s.h) && !DATED.has(kind)) add('head-form', s.i, s.h, `머리에 장 번호(「${s.h.slice(0, 20)}」): 번호를 떼고 대상 이름만`)
     else if (F.headRe && !F.headRe.test(s.h)) {
-      if (kind === '사건' && /주차/.test(s.h)) add('week-head', s.i, s.h, '날짜 없는 주차 머리: 원본에 날짜가 있으면 「YYYY-MM-DD N주차」')
+      if (DATED.has(kind) && /주차/.test(s.h)) add('week-head', s.i, s.h, '날짜 없는 주차 머리: 원본에 날짜가 있으면 「YYYY-MM-DD N주차」')
       else add('head-form', s.i, s.h, `머리 꼴(${kind}): ${F.head}`)
     }
     const id = kind === '대장' ? (s.h.match(/^([^:\s]+)/) || [])[1] : null
@@ -132,6 +140,62 @@ export function lintForm(text0, { kind = '대상', props = null, form = null } =
         const ad = at && (at[1].match(DATE) || [])[0]
         if (hd && ad && hd !== ad) add('date-mismatch', at[0], s.h, `머리 날짜 ${hd} 와 때 · 곳 날짜 ${ad} 가 다르다`)
       }
+    }
+    // 라벨 아래 「*」 줄 수 — 사건 무엇을(여섯 줄까지) · 보고 한 일(여덟 줄까지)
+    const starsUnder = (name) => {
+      const at = rows.findIndex(([, ln]) => (ln.match(LABEL) || [])[1]?.trim() === name)
+      if (at < 0) return null
+      let n = 0
+      for (let k = at + 1; k < rows.length && !LABEL.test(rows[k][1]); k++) if (/^\*\s/.test(rows[k][1])) n++
+      return { at: rows[at][0], n, rows: rows.slice(at + 1, (rows.findIndex(([, ln], k) => k > at && LABEL.test(ln)) + 1 || rows.length + 1) - 1) }
+    }
+    if (kind === '사건') { const w = starsUnder('무엇을'); if (w && w.n > 6) add('what-long', w.at, s.h, `무엇을 아래 ${w.n}줄: 여섯 줄까지(정한 것 · 남은 것 · 따로 항목으로)`) }
+    if (kind === '보고') {
+      const w = starsUnder('한 일')
+      if (w && w.n > 8) add('what-long', w.at, s.h, `한 일 아래 ${w.n}줄: 분야마다 한 줄 · 여덟 줄까지`)
+      const p = starsUnder('진도')
+      if (p && !p.rows.some(([, ln]) => /^\|/.test(ln))) add('prog-table', p.at, s.h, '진도는 「| 구분 | 계획 | 실적 |」 표로(문장에 섞지 않는다)')
+      if (rows.some(([, ln]) => /^\*\s/.test(ln) && /진도율|\d+(\.\d+)?\s*%\s*\//.test(ln))) add('prog-table', s.i, s.h, '진도율이 줄 글에 있다: 진도 표로')
+    }
+    // 단계(절차 · 시험) — 단계 표 · 「1)」 줄: 열 단계까지 · 결과 칸 · 한 단계에 동작 하나
+    if (kind === '절차' || kind === '시험') {
+      let run = 0
+      for (const [i, ln] of rows) {
+        if (/^\d+\)\s/.test(ln)) { if (++run === 11) add('steps-long', i, s.h, '「1)」 단계가 열을 넘는다: 덩이로 나눈다') }
+        else if (!/^\*\s/.test(ln)) run = 0
+      }
+      for (let k = 0; k < rows.length; k++) {
+        if (!/^\|/.test(rows[k][1]) || !rows[k + 1] || !isSep(rows[k + 1][1])) continue
+        const hd = cellsOf(rows[k][1])
+        const body = []
+        for (let j = k + 2; j < rows.length && /^\|/.test(rows[j][1]); j++) body.push(rows[j])
+        // 단계 표 — 첫 칸 「단계 · 순서」, 또는 「# · 번호」 에 동작 칸이 있고 행 첫 칸이 번호(목록 · 시나리오 표는 아니다)
+        const numbered = body.every(([, ln]) => /^(\d+(-\d+)?|끝|-)?$/.test(cellsOf(ln)[0] || ''))
+        if (!(STEP_COL.test(hd[0] || '') || (NUM_COL.test(hd[0] || '') && hd.some((h) => ACT_COL.test(h)))) || !numbered) { k += body.length + 1; continue }
+        if (body.length < 2) continue
+        if (!hd.some((h) => RESULT_COL.test(h))) add('step-result', rows[k][0], s.h, `단계 표에 결과 칸이 없다(${hd.join(' · ')}): 결과 · 기대 결과 칸`)
+        if (body.length > 10) add('steps-long', rows[k][0], s.h, `단계 표가 ${body.length}행: 열까지 · 넘으면 덩이로 나눈다`)
+        const act = hd.findIndex((h) => ACT_COL.test(h))
+        for (const [i, ln] of body) { const c = cellsOf(ln)[act >= 0 ? act : 1] || ''; if ((c.replace(/`[^`]*`/g, '').match(/→/g) || []).length >= 2) add('step-multi', i, s.h, '한 단계에 동작 여럿(「→」): 단계를 나눈다') }
+        k += body.length + 1
+      }
+    }
+    // 시험 케이스 덩이(「1. ID 이름」) — 단계 표(기대 결과) · 판정 줄
+    if (kind === '시험') {
+      const starts = rows.map(([i, ln], k) => [k, ln]).filter(([, ln]) => CASE_HEAD.test(ln)).map(([k]) => k)
+      starts.forEach((a, n) => {
+        const b = n + 1 < starts.length ? starts[n + 1] : rows.length
+        const part = rows.slice(a, b)
+        const tbl = part.some(([, ln], q) => /^\|/.test(ln) && part[q + 1] && isSep(part[q + 1][1]) && cellsOf(ln).some((h) => /기대|예상/.test(h)))
+        if (!tbl) add('case-steps', rows[a][0], s.h, `시험 덩이(${rows[a][1].slice(0, 24)})에 「| 순서 | 절차 | 기대 결과 |」 표가 없다`)
+        if (!part.some(([, ln]) => /^(\*\*)?판정(\*\*)?\s*[:：]|^- \*\*판정\*\*/.test(ln))) add('case-verdict', rows[a][0], s.h, `시험 덩이(${rows[a][1].slice(0, 24)})에 「판정: …」 줄이 없다`)
+      })
+    }
+    // 용어 — 옛 꼴 줄 · 길이
+    if (kind === '용어') {
+      const bad = rows.find(([, ln]) => /^\*\*별칭\*\*|^관련\s*:|^\*\*[^*]+\.\*\*/.test(ln.trim()))
+      if (bad) add('term-form', bad[0], s.h, '「**별칭** · …」 · 「관련: …」 · 굵은 정의: 첫 문장(정의) 뒤 라벨 줄(별칭 · 설명 · 관련)로')
+      if (rows.length > 14) add('term-long', s.i, s.h, `용어 항목이 ${rows.length}줄: 정의 1~2문장 · 긴 설계 · 표는 대상 · 절차 항목으로 잇는다`)
     }
     // 대장 속성 표
     if (kind === '대장' && props?.length) {
@@ -188,8 +252,8 @@ export function lintForm(text0, { kind = '대상', props = null, form = null } =
 export function headProblem(kind, h) {
   const F = FORMS[kind] || FORMS.대상
   if (META_HEAD.test(h)) return `양식 항목 「${h}」: 표지 · 개정 이력 · 작성지침 · 필드 구조는 항목이 아니다(빼거나 문서 요약에)`
-  if (HEAD_NUM.test(h) && kind !== '사건') return `머리 「${h}」 에 장 번호: 떼고 대상 이름만`
-  if (F.headRe && !F.headRe.test(h) && !(kind === '사건' && /주차/.test(h))) return `머리 「${h}」 꼴(${kind}): ${F.head}`
+  if (HEAD_NUM.test(h) && !DATED.has(kind)) return `머리 「${h}」 에 장 번호: 떼고 대상 이름만`
+  if (F.headRe && !F.headRe.test(h) && !(DATED.has(kind) && /주차/.test(h))) return `머리 「${h}」 꼴(${kind}): ${F.head}`
   return null
 }
 // 저장 알림 — 앞에 없던 것만(같은 code · where · msg) + 옛 머리의 「값:」 앞부분이 사라짐

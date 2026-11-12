@@ -12,8 +12,8 @@ import { WRITE_RULES } from '../core/writerules.js'
 
 const codes = (xs) => xs.map((x) => x.code)
 
-test('계약 — 종류 여섯 · 종류 정하기(갈래 장부 · 서식 결정기록 · 이름 짐작) · 속성 정의가 기본 속성을 이긴다', () => {
-  assert.deepEqual(KINDS, ['대상', '서술', '사건', '대장', '결정', '기록'])
+test('계약 — 종류 열 · 종류 정하기(갈래 장부 · 서식 결정기록 · 이름 짐작) · 속성 정의가 기본 속성을 이긴다', () => {
+  assert.deepEqual(KINDS, ['대상', '서술', '절차', '시험', '용어', '사건', '보고', '대장', '결정', '기록'])
   for (const k of KINDS) assert.ok(FORMS[k].ask && FORMS[k].head && FORMS[k].order, k)
   const forms = formsOf(['| 갈래 | 별칭 | 폴더 | 종류 | 항목 | 서식 |', '|---|---|---|---|---|---|', '| 위험및이슈관리대장 | 이슈, 위험 | 1.2 | 대장 | `이슈:*` | 결정기록 |', '| 설계 결정 | 결정 | 3 | 대상 | - | 결정기록 |', '| 회의록 | 회의 | 1.2 | 사건 | - | 작업기록 |', '', '## 속성: 위험및이슈관리대장', '', '| 속성 | 원본 칸 | 쓰는 법 | 필수 |', '|---|---|---|---|', '| 유형 | 이슈 유형 | 범위 · 일정 | ! |', '| 제기 | 이슈 제기자 | 이름 | ? |'].join('\n'))
   assert.equal(forms.rows.length, 3, '속성 표는 갈래 행이 아니다')
@@ -22,7 +22,12 @@ test('계약 — 종류 여섯 · 종류 정하기(갈래 장부 · 서식 결�
   assert.equal(kindOf(forms, '1.2/위험및이슈관리대장').kind, '대장', '대장은 서식이 결정기록이어도 대장')
   const none = formsOf('')
   assert.equal(kindOf(none, '사업관리/위험및이슈관리대장').props, ISSUE_PROPS, '장부가 없으면 이슈 대장 기본 속성')
-  assert.equal(kindOf(none, '사업관리/주간보고').kind, '사건')
+  assert.equal(kindOf(none, '사업관리/주간보고').kind, '보고', '정례 보고')
+  assert.equal(kindOf(none, '사업관리/회의록').kind, '사건')
+  assert.equal(kindOf(forms, '1.2/회의록').kind, '사건')
+  assert.equal(kindOf(none, '설치/설치절차서').kind, '절차')
+  assert.equal(kindOf(none, '시험/통합테스트시나리오').kind, '시험')
+  assert.equal(kindOf(none, '공통/용어집').kind, '용어')
   assert.equal(kindOf(none, '설계/코드정의서').kind, '대상')
   assert.equal(parseProps('## 속성: x\n\n| 속성 | 원본 칸 |\n|---|---|\n| __proto__ | y |').size, 0, 'prototype 이름 막기')
   assert.equal(parseForms('## 속성: a\n| 유형 | 이슈 유형 | 범위 | ! |').length, 0)
@@ -122,4 +127,30 @@ test('저장 문 — 새 항목의 서식 문제는 formLint 알림(저장은 �
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
   }
+})
+
+test('절차 · 시험 · 보고 · 용어 계약 — 단계 표 결과 칸 · 열 단계 · 한 단계 동작 하나 · 시험 덩이 판정 · 진도 표 · 용어 옛 꼴 · 목록 표는 단계 표가 아니다', () => {
+  const codes = (t, kind) => lintForm(t, { kind }).map((x) => x.code)
+  const steps = (n, res = true) => [`| 단계 | 할 일 |${res ? ' 결과 |' : ''}`, `|--:|---|${res ? '---|' : ''}`, ...Array.from({ length: n }, (_, i) => `| ${i + 1} | 한다 |${res ? ' 된다 |' : ''}`)].join('\n')
+  const proc = (body) => `# 설치절차서\n\n설치 절차를 모은다.\n\n## 게이트웨이 설치\n\n설치하면 서비스가 뜬다.\n\n${body}\n`
+  assert.deepEqual(codes(proc(steps(3)), '절차'), [])
+  assert.ok(codes(proc(steps(3, false)), '절차').includes('step-result'))
+  assert.ok(codes(proc(steps(11)), '절차').includes('steps-long'))
+  assert.ok(codes(proc('| 순서 | 할 일 | 결과 |\n|--:|---|---|\n| 1 | 받기 → 풀기 → 켜기 | 뜬다 |\n| 2 | 본다 | 된다 |'), '절차').includes('step-multi'))
+  assert.deepEqual(codes(proc('| # | 전제 | 근거 |\n|---|---|---|\n| 1 | a | b |\n| 2 | c | d |\n| 3 | e | f |'), '절차'), [], '목록 표는 단계 표가 아니다')
+  const test1 = '# 현장시험\n\n시험을 모은다.\n\n## 시험 항목\n\n항목마다 확인한다.\n\n1. T1 대조\n\n| 순서 | 절차 | 기대 결과 |\n|--:|---|---|\n| 1 | 본다 | 맞다 |\n| 2 | 바꾼다 | 바뀐다 |\n\n판정: 모두 맞으면 적합.\n\n2. T2 명령\n\n명령을 낸다.\n'
+  const c = codes(test1, '시험')
+  assert.ok(c.includes('case-steps') && c.includes('case-verdict'), JSON.stringify(c))
+  assert.equal(lintForm(test1, { kind: '시험' }).filter((x) => x.code.startsWith('case')).every((x) => /T2/.test(x.msg)), true, '갖춘 T1 은 넘는다')
+  assert.deepEqual(codes('# 시나리오\n\n통합시험이다.\n\n## 시나리오\n\n시나리오 목록이다.\n\n| # | 시나리오 | 기대 결과 |\n|---|---|---|\n' + Array.from({ length: 12 }, (_, i) => `| I${String(i + 1).padStart(2, '0')} | a | b |`).join('\n') + '\n', '시험'), [], '시나리오 목록 표는 단계 표가 아니다')
+  const rep = '# 주간보고서\n\n주마다 하나.\n\n## 2026-11-06 5주차\n\n5주차는 계획을 앞섰다.\n\n- **누가**: 사경진 과장\n- **무엇을**: 보고했다.\n* 진도율(11.06 기준): 계획 24.2% / 실적 39.7%\n- **남은 것**:\n* 준비: - · 기한 -\n'
+  const r = codes(rep, '보고')
+  assert.ok(r.includes('missing-label') && r.includes('prog-table'), JSON.stringify(r))
+  const repOk = '# 주간보고서\n\n주마다 하나.\n\n## 2026-11-06 5주차\n\n5주차는 계획을 앞섰다.\n\n- **진도**:\n\n| 구분 | 계획 | 실적 |\n|---|---|---|\n| 11.06 기준 | 24.2% | 39.7% |\n\n- **한 일**:\n* 설계: 화면설계서 갱신\n- **남은 것**:\n* 준비: - · 기한 -\n'
+  assert.deepEqual(codes(repOk, '보고'), [])
+  assert.ok(codes('# 용어집\n\n용어를 모은다.\n\n## PLC: 제어 장치\n\n**별칭** · PLC 프로그램\n\n**현장 설비를 제어하는 장치.**\n', '용어').includes('term-form'))
+  assert.deepEqual(codes('# 용어집\n\n용어를 모은다.\n\n## PLC: 제어 장치\n\nPLC 는 현장 설비를 제어하는 장치다.\n\n- **별칭**: PLC 프로그램\n- **관련**: `SCADA`\n', '용어'), [])
+  assert.ok(codes('# 용어집\n\n용어를 모은다.\n\n## 경합\n\n경합은 두 명령이 겹친 것이다.\n', '용어').includes('head-form'))
+  assert.match(formBlock('절차'), /단계 하나에 동작 하나/)
+  assert.match(templateOf('보고'), /- \*\*진도\*\*:/)
 })
