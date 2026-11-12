@@ -120,7 +120,7 @@ const TOOLS = [
         forms: {
           type: 'array',
           description: '세울 갈래(지식관리자): 새 문서가 설 수 있는 갈래를 갈래 장부에 더한다. 일반 자리는 저장 제안의 새 갈래로 보이고 승인하면 선다',
-          items: { type: 'object', properties: { name: str('갈래 = 문서 이름: 예 회의록'), aliases: { type: 'array', items: { type: 'string' }, description: '이 갈래로 모을 별칭: 예 통화 · 미팅' }, folder: str('문서 폴더: 예 1.2_사업관리'), kind: str('대상 · 서술 · 사건 · 대장'), pattern: str('그 문서의 항목 패턴: 예 이슈:*'), form: str('서식: 지식문서 · 결정기록 · 작업기록') }, required: ['name'] },
+          items: { type: 'object', properties: { name: str('갈래 = 문서 이름: 예 회의록'), aliases: { type: 'array', items: { type: 'string' }, description: '이 갈래로 모을 별칭: 예 통화 · 미팅' }, folder: str('문서 폴더: 예 1.2_사업관리'), kind: str('대상 · 서술 · 사건 · 대장'), pattern: str('그 문서의 항목 패턴: 예 이슈:*'), form: str('서식: 지식문서 · 결정기록 · 작업기록 · 대장'), props: { type: 'array', items: { type: 'object', properties: { name: str('속성 이름: 예 진행상태'), src: str('원본 칸'), how: str('쓰는 법 · 닫힌 값'), must: { type: 'boolean' } } }, description: '대장의 속성 정의(작성기준 6-3): 항목 속성 표의 행 · 차례 · 필수. 주면 갈래 장부의 「## 속성: <갈래>」 를 바꾼다(빈 목록이면 걷는다)' } }, required: ['name'] },
         },
         names: {
           type: 'array',

@@ -28,6 +28,23 @@ test('계약 — 종류 여섯 · 종류 정하기(갈래 장부 · 서식 결�
   assert.equal(parseForms('## 속성: a\n| 유형 | 이슈 유형 | 범위 | ! |').length, 0)
 })
 
+test('속성 정의 쓰기 — 저장 forms[].props 가 「## 속성: <갈래>」 블록을 쓰고 바꾸고 걷는다 · 새 갈래 줄은 갈래 표에만', async () => {
+  const { upsertForms, cleanForms } = await import('../core/namebook.js')
+  const f = cleanForms([{ name: '위험및이슈관리대장', aliases: ['이슈'], folder: '1.2', kind: '대장', pattern: '이슈:*', form: '지식문서', props: [{ name: '유형', src: '이슈 유형', how: '기술 · 일정', must: true }, { name: '처리 담당' }] }])
+  let t = upsertForms('', f)
+  assert.deepEqual(formsOf(t).rows[0].props.map((p) => [p.name, p.must]), [['유형', true], ['처리 담당', false]])
+  t = upsertForms(t, cleanForms([{ name: '회의록', kind: '사건' }]))
+  assert.deepEqual(parseForms(t).map((r) => r.name), ['위험및이슈관리대장', '회의록'], '새 갈래 줄은 속성 표가 아니라 갈래 표에')
+  assert.equal(parseProps(t).get('위험및이슈관리대장').length, 2)
+  t = upsertForms(t, cleanForms([{ name: '위험및이슈관리대장', kind: '대장', pattern: '이슈:*', props: [{ name: '진행상태', must: true }] }]))
+  assert.deepEqual(parseProps(t).get('위험및이슈관리대장').map((p) => p.name), ['진행상태'], '바꾼다')
+  assert.equal((t.match(/## 속성:/g) || []).length, 1)
+  t = upsertForms(t, cleanForms([{ name: '위험및이슈관리대장', kind: '대장', props: [] }]))
+  assert.equal(parseProps(t).size, 0, '빈 목록이면 걷는다')
+  assert.equal(cleanForms([{ name: 'x', props: [{ name: '__proto__' }] }]), null)
+  assert.equal(cleanForms([{ name: 'x', props: [{ name: 'a' }, { name: 'a' }] }]), null)
+})
+
 test('프롬프트 블록 · 고쳐 받기 꼴 · 템플릿 · WRITE_RULES 에 서식 공통 줄', () => {
   const b = formBlock('대장', { name: '위험및이슈관리대장', props: ISSUE_PROPS })
   assert.match(b, /이 문서의 서식\(위험및이슈관리대장 · 대장\)/)

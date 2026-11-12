@@ -117,14 +117,31 @@ export function upsertForms(text, forms) {
   for (const f of forms) {
     const row = `| ${f.name} | ${(f.aliases || []).join(', ') || '-'} | ${f.folder || '-'} | ${f.kind || '대상'} | ${f.pattern ? '`' + f.pattern + '`' : '-'} | ${f.form || '-'} |`
     const lines = t.split('\n')
-    const i = lines.findIndex((l) => parseForms(l)[0]?.name === f.name)
+    // 갈래 표는 첫 「## 속성:」 머리 앞까지(속성 정의 표에 갈래 줄을 넣지 않는다)
+    const propsAt = lines.findIndex((l) => /^##\s+속성\s*[:：]/.test(l))
+    const end = propsAt < 0 ? lines.length : propsAt
+    const i = lines.findIndex((l, x) => x < end && parseForms(l)[0]?.name === f.name)
     if (i >= 0) lines[i] = row
     else {
       let last = -1
-      lines.forEach((l, x) => { if (/^\|/.test(l)) last = x })
+      lines.forEach((l, x) => { if (x < end && /^\|/.test(l)) last = x })
       lines.splice(last + 1, 0, row)
     }
     t = lines.join('\n')
+    // 속성 정의(서식 설계 F7) — props 가 오면 그 갈래의 「## 속성: <갈래>」 블록을 바꾼다(빈 목록이면 걷는다)
+    if (Array.isArray(f.props)) {
+      const ls = t.replace(/\n+$/, '').split('\n')
+      const a = ls.findIndex((l) => new RegExp('^##\\s+속성\\s*[:：]\\s*' + f.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*$').test(l))
+      if (a >= 0) {
+        let b = ls.findIndex((l, x) => x > a && /^##\s/.test(l))
+        if (b < 0) b = ls.length
+        let s0 = a
+        while (s0 > 0 && !ls[s0 - 1].trim()) s0--
+        ls.splice(s0, b - s0)
+      }
+      t = ls.join('\n') + '\n'
+      if (f.props.length) t += `\n## 속성: ${f.name}\n\n| 속성 | 원본 칸 | 쓰는 법 | 필수 |\n|---|---|---|---|\n${f.props.map((p) => `| ${p.name} | ${p.src || '-'} | ${p.how || '-'} | ${p.must ? '!' : '?'} |`).join('\n')}\n`
+    }
   }
   return t.endsWith('\n') ? t : t + '\n'
 }
@@ -141,7 +158,17 @@ export function cleanForms(list) {
     if (!name || /[/\\]/.test(name) || ['__proto__', 'prototype', 'constructor'].includes(name)) return null
     const pattern = x.pattern ? one(x.pattern, 60) : ''
     if (pattern && !/^[^:\s]+:\*$/.test(pattern)) return null
-    out.push({ name, aliases: Array.isArray(x.aliases) ? x.aliases.map((a) => one(a, 40).replace(/,/g, ' ')).filter(Boolean).slice(0, 20) : [], folder: one(x.folder, 120).replace(/^docs\//, '').replace(/\/+$/, ''), kind: FORM_KINDS.includes(x.kind) ? x.kind : '대상', pattern: pattern || null, form: one(x.form, 40) || null })
+    let props
+    if (x.props != null) {
+      if (!Array.isArray(x.props) || x.props.length > 40) return null
+      props = []
+      for (const p of x.props) {
+        const pn = one(p?.name, 40)
+        if (!pn || ['__proto__', 'prototype', 'constructor', '속성'].includes(pn) || props.some((q) => q.name === pn)) return null
+        props.push({ name: pn, src: one(p.src, 60) || null, how: one(p.how, 160) || null, must: p.must === true })
+      }
+    }
+    out.push({ name, aliases: Array.isArray(x.aliases) ? x.aliases.map((a) => one(a, 40).replace(/,/g, ' ')).filter(Boolean).slice(0, 20) : [], folder: one(x.folder, 120).replace(/^docs\//, '').replace(/\/+$/, ''), kind: FORM_KINDS.includes(x.kind) ? x.kind : '대상', pattern: pattern || null, form: one(x.form, 40) || null, ...(props ? { props } : {}) })
   }
   return out
 }
