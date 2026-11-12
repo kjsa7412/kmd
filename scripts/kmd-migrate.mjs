@@ -7,6 +7,8 @@
 //   node scripts/kmd-migrate.mjs trail <지식 폴더> <docs/x.md> <머리> [--json] [--full]  항목 하나: 지금 글 · base · 이어진 기록(오래된 순 · 표시) · 넣은 줄
 //   node scripts/kmd-migrate.mjs check <지식 폴더> <input.json>                          마른 검사: 쓰지 않는다 · 값 대조 · 꼴 · 사라지는 표 행 · 문장
 //   node scripts/kmd-migrate.mjs put   <지식 폴더> <input.json> --user <사람> [--allow-drop]  넣기: 줄 안에서 다시 검사 → 기록 + 항목 + git 커밋 한 묶음
+//   node scripts/kmd-migrate.mjs put   <지식 폴더> <input.json> --user <사람> --format       서식 맞춤: 값은 그대로 · 양식 · 서식만 → 기록이 아니라 이력(log/ · 태그 format)
+//   node scripts/kmd-migrate.mjs relog <지식 폴더> --user <사람> (--title <제목 앞> | <기록 id>…) [--dry]  기록으로 남긴 서식 맞춤을 이력으로: log/ 로 옮기고 태그 format · 참고 블록의 그 줄을 걷는다 · 커밋 하나
 //
 //   input.json = { record: { title, body, touches?, tags? }, sections: [{ doc, heading, base, content | contentFile }] }
 //     빠진 항목 채우기: sections[] 에 base 대신 new: true · sources: [재료 기록 id](있는 문서의 없는 머리 · 사건 갈래면 「YYYY-MM-DD 무엇」)
@@ -24,7 +26,11 @@ import { loadKnowledge, coordsOfSection } from '../core/knowledge.js'
 import { checkSection } from '../core/gate.js'
 import { save } from '../core/save.js'
 import { parsePut, parseLinked, itemKey } from '../core/parts.js'
-import { parseRefLine } from '../core/sections.js'
+import { parseRefLine, splitRef, withRef, logHas } from '../core/sections.js'
+import { parseRecord, renderRecord } from '../core/frontmatter.js'
+import { commitPaths } from '../core/git.js'
+import { writeAtomic } from '../core/journal.js'
+import { LOG_DIR } from '../core/names.js'
 import { sha16 } from '../core/text.js'
 // 저장 승인 전 옛 표지(이행 도구는 P12 에서 걷었다 · 옛 기록은 지식에 그대로 있다)
 const OLD_TAGS = ['held', 'memo', 'migrate-held']
@@ -41,7 +47,7 @@ function args(argv) {
     const a = argv[i]
     if (a.startsWith('--')) {
       const key = a.slice(2)
-      if (['json', 'full', 'allow-drop'].includes(key)) o[key] = true
+      if (['json', 'full', 'allow-drop', 'format', 'dry'].includes(key)) o[key] = true
       else o[key] = argv[++i]
     } else pos.push(a)
   }
@@ -393,7 +399,8 @@ async function put(dir, file, o) {
   const abs = path.resolve(dir)
   const input = await readInput(file)
   // save 에 넘기는 기록 그 자체 — prepare 가 건드린 항목(touches)을 채운다
-  const rec = { ...input.record, tags: [...new Set([...(Array.isArray(input.record.tags) ? input.record.tags : []), 'rebuild'])] }
+  //   서식 맞춤(--format)은 다시 그리기가 아니다 — rebuild 를 달지 않고 저장 문이 format(이력)을 단다
+  const rec = { ...input.record, tags: [...new Set([...(Array.isArray(input.record.tags) ? input.record.tags : []), ...(o.format ? [] : ['rebuild'])])] }
   let fail = null
   const prepare = async () => {
     // 줄 안 · 새로 읽은 지식으로 다시 본다(그사이 바뀐 글을 덮지 않는다)
@@ -408,13 +415,13 @@ async function put(dir, file, o) {
     if (!rec.touches?.length) {
       const coords = [...new Set(input.sections.flatMap((s) => { const d = k.byDocPath.get(s.doc); return d ? coordsOfSection(k, d, s.heading) : [] }))]
       if (coords.length) rec.touches = coords
-      else rec.touchesEmpty = rec.touchesEmpty || '다시 그리기: 이 항목이 장부에 없다'
+      else rec.touchesEmpty = rec.touchesEmpty || (o.format ? '서식 맞춤: 이 항목이 장부에 없다' : '다시 그리기: 이 항목이 장부에 없다')
     }
     return { sections: input.sections.map((s) => ({ doc: s.doc, heading: s.heading, content: s.content, base: s.base, ...(s.new && s.before ? { before: s.before } : {}) })) }
   }
   let r
   try {
-    r = await save(abs, { ...input, record: rec }, { user: o.user, prepare, marks: true })
+    r = await save(abs, { ...input, record: rec }, { user: o.user, prepare, marks: true, format: !!o.format })
   } catch (e) {
     // 저장 검사에 걸림 — 입력 오류(아무것도 쓰지 않았다 · 넣지 못함을 남기지 않는다 · 종료 코드 2)
     if (['E_INPUT', 'E_FORMAT', 'E_FORBIDDEN', 'E_NOTFOUND', 'E_CONFLICT'].includes(e.code)) e.exit = 2
@@ -427,6 +434,60 @@ async function put(dir, file, o) {
   console.log(JSON.stringify({ ok: true, record: r.id || r.record || null, commit: r.commit || null }, null, 1))
 }
 
+// 기록 → 이력(작성기준 「기록과 이력」) — 지식은 그대로 두고 양식 · 서식만 바꾼 일을 기록(work/)으로 남겼을 때.
+//   기록 파일을 log/ 로(머리 · 본문 그대로 · 태그 format 더함) · 문서마다 참고 블록에서 그 기록 줄을 걷는다(splitRef · withRef) · 커밋 하나.
+//   applied 표지는 그대로 둔다(이력 id 를 가리켜도 기록 파일을 work/ · log/ 둘 다에서 찾는다 · 다듬기와 같다). 사본에서 쓰고 서버는 앞으로만 받는다(스킬 3절)
+async function relog(dir, ids, o) {
+  if (!o.user) throw new Error('--user <사람> 이 있어야 한다')
+  const abs = path.resolve(dir)
+  const k = await load(abs, o)
+  const pick = k.works.filter((w) => (ids.length ? ids.includes(w.id) : o.title && w.title.startsWith(o.title)))
+  if (ids.length && pick.length !== ids.length) throw new Error(`기록에 없는 id: ${ids.filter((x) => !pick.some((w) => w.id === x)).join(' · ')}`)
+  if (!pick.length) throw new Error('옮길 기록이 없다(--title <제목 앞> 또는 기록 id)')
+  // 다른 기록이 근거로 가리키는 기록은 옮기지 않는다(그 기록의 지식 이야기가 끊긴다)
+  const cited = pick.filter((w) => k.works.some((x) => !pick.includes(x) && (x.body.includes(`/${w.id}.md`) || (x.reflects || []).includes(w.id) || (x.fixes || []).includes(w.id))))
+  if (cited.length) throw new Error(`다른 기록이 가리키는 기록이다: ${cited.map((w) => w.id).join(' · ')}`)
+  const paths = []
+  const docsChanged = []
+  const idSet = pick.map((w) => w.id)
+  for (const d of k.docs) {
+    const full = path.join(abs, ...d.path.split('/'))
+    const text = await fs.readFile(full, 'utf8')
+    const { lines, ref, found } = splitRef(text.split('\n'))
+    if (!found) continue
+    let n = 0
+    for (const [key, ls] of ref) {
+      const keep = ls.filter((l) => !idSet.some((id) => logHas([l], id)))
+      n += ls.length - keep.length
+      if (keep.length !== ls.length) keep.length ? ref.set(key, keep) : ref.delete(key)
+    }
+    if (!n) continue
+    // 지운 기록 줄 뒤에 남은 「- 머리」 줄(아래 줄 없음)은 withRef 가 쓰지 않는다
+    docsChanged.push({ rel: d.path, n, next: withRef(lines, ref) })
+  }
+  console.log(`옮길 기록 ${pick.length} · 참고 줄을 걷을 문서 ${docsChanged.length}(줄 ${docsChanged.reduce((a, x) => a + x.n, 0)})`)
+  for (const x of docsChanged) console.log(`  ${x.rel}: ${x.n}`)
+  if (o.dry) return
+  await fs.mkdir(path.join(abs, LOG_DIR), { recursive: true })
+  for (const w of pick) {
+    const from = path.join(abs, 'work', `${w.id}.md`)
+    const to = path.join(abs, LOG_DIR, `${w.id}.md`)
+    const r = parseRecord(await fs.readFile(from, 'utf8'), `${w.id}.md`)
+    if (!r) throw new Error(`기록을 읽지 못했다: ${w.id}`)
+    try { await fs.access(to); throw new Error(`이력에 같은 id 가 있다: ${w.id}`) } catch (e) { if (e.code !== 'ENOENT') throw e }
+    const rec = { ...r, tags: [...new Set([...(r.tags || []).filter((x) => x !== 'rebuild'), 'format'])] }
+    await writeAtomic(to, renderRecord(rec, r.body))
+    await fs.unlink(from)
+    paths.push(`work/${w.id}.md`, `${LOG_DIR}/${w.id}.md`)
+  }
+  for (const x of docsChanged) {
+    await writeAtomic(path.join(abs, ...x.rel.split('/')), x.next)
+    paths.push(x.rel)
+  }
+  const commit = await commitPaths(abs, paths, `이력으로 옮김: 서식 맞춤 ${pick.length}(기록이 아니라 이력 · 참고 줄 ${docsChanged.reduce((a, x) => a + x.n, 0)} 걷음)`, o.user)
+  console.log(JSON.stringify({ ok: true, moved: pick.length, docs: docsChanged.length, commit }, null, 1))
+}
+
 export async function main(argv) {
   const { pos, o } = args(argv)
   const [cmd, dir, a, b] = pos
@@ -435,7 +496,8 @@ export async function main(argv) {
   if (cmd === 'rec' && dir && a) return rec(dir, a, o)
   if (cmd === 'check' && dir && a) return check(dir, a, o)
   if (cmd === 'put' && dir && a) return put(dir, a, o)
-  console.error('쓰기: kmd-migrate.mjs scan <지식 폴더> | rec <지식 폴더> <기록 id> | trail <지식 폴더> <docs/x.md> <머리> | check <지식 폴더> <input.json> | put <지식 폴더> <input.json> --user <사람> [--allow-drop]')
+  if (cmd === 'relog' && dir) return relog(dir, pos.slice(2), o)
+  console.error('쓰기: kmd-migrate.mjs scan <지식 폴더> | rec <지식 폴더> <기록 id> | trail <지식 폴더> <docs/x.md> <머리> | check <지식 폴더> <input.json> | put <지식 폴더> <input.json> --user <사람> [--allow-drop] [--format] | relog <지식 폴더> --user <사람> (--title <제목 앞> | <기록 id>…) [--dry]')
   process.exitCode = 1
 }
 

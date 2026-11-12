@@ -16,6 +16,16 @@ const VALUE_RE = new RegExp(`\`([^\`\\n]+)\`|「([^」]+)」|"([^"]+)"|(\\d{4}-\
 //   식별자 속 수는 값이 아니다 — 「LS-201 · T920 · 03_계측기 · deploy-gw.ps1」 의 201 · 920 · 03 · 1 을 따로 요구하면 늘 「기록의 값이 글에 없다」 가 된다
 //   (앞이 영문 · _ · 「영문-」 이거나 뒤가 영문 · _ 이면 이름의 한 조각)
 const inName = (s, i, n) => /[A-Za-z_]/.test(s[i - 1] || '') || (s[i - 1] === '-' && /[A-Za-z]/.test(s[i - 2] || '')) || /[A-Za-z_]/.test(s[i + n] || '')
+// 서식 맞춤(이력 · 작성기준 「기록과 이력」)의 값 견주기 — 옛 글과 새 글의 값 장부가 같아야 한다 · 날짜 표기만 YYYY-MM-DD 로 맞춰 견준다
+//   { same, lost: [옛 글에만], added: [새 글에만] }
+const dayOf = (v) => { const m = /^(\d{4})[./](\d{1,2})[./](\d{1,2})\.?$/.exec(v); return m ? `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` : v }
+export function sameValues(oldText, newText) {
+  const a = new Set([...valuesOf(oldText)].map(dayOf))
+  const b = new Set([...valuesOf(newText)].map(dayOf))
+  const lost = [...a].filter((v) => !b.has(v))
+  const added = [...b].filter((v) => !a.has(v))
+  return { same: !lost.length && !added.length, lost, added }
+}
 export function valuesOf(text) {
   const out = new Set()
   const s = String(text || '').replace(/^[ \t]*(?:`{3,}|~{3,}).*$/gm, '')

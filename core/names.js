@@ -8,7 +8,7 @@ export const RESERVED_USERS = ['kmd', 'kmd-auto', 'kmd-worker']
 // 저장 문이 붙이는 표지(docs/품질개선/KMD_개편_설계.md 2-2) — put(넣은 것) · intake(들이기 일감) ·
 //   polish(문서 다듬기) · revert(되돌림) · drop(버림) · 접두사 job/<일감 id>(들이기 일감)
 //   held · memo · migrate-held — 저장 승인 전 기록에만 있는 옛 표지(새로 붙이지 않는다 · 입력으로는 받지 않는다 · 읽을 때는 「기록」 · P12)
-export const RESERVED_TAGS = ['edit', 'curate-auto', 'curate-llm', 'alias-auto', 'sources', 'touches-fix', 'code-change', 'watched', 'held', 'memo', 'intake', 'polish', 'revert', 'put', 'drop', 'ledger', 'shape', 'shape-done', 'migrate-held']
+export const RESERVED_TAGS = ['edit', 'curate-auto', 'curate-llm', 'alias-auto', 'sources', 'touches-fix', 'code-change', 'watched', 'held', 'memo', 'intake', 'polish', 'revert', 'put', 'drop', 'ledger', 'shape', 'shape-done', 'migrate-held', 'format']
 //   shape — 문서 짜임의 글 걸음(나누기 · 합치기 · 문서 요약 · 바탕 새 항목 · work/) · shape-done — 짜임 일 마감(log/) · shape/<work>/<n> — 걸음 표지(바탕 세우기 설계 4-3)
 export const RESERVED_TAG_PREFIXES = ['job/', 'shape/']
 
@@ -22,6 +22,6 @@ export const isReservedTag = (t) => {
 // 기록(`work/`)은 그 자체로 지식이 될 글만 · 이런 일은 이력(`log/`)에 · 화면은 「이력」 한 곳에서 본다
 //   ledger — 항목 · 갈래 장부만 바꾼 저장(문서 · 항목 · 첨부 없이 · 건드린 항목 없음) · 저장 문이 붙인다(core/save.js) · 넣지 못함의 [항목 세우기](hub)
 //   intake 는 넣지 않는다 — 들이기 기록은 work/ 에 남아 상태(in …)를 갖는다
-export const LOG_TAGS = ['edit', 'curate-auto', 'curate-llm', 'alias-auto', 'sources', 'polish', 'revert', 'drop', 'ledger', 'shape-done']
+export const LOG_TAGS = ['edit', 'curate-auto', 'curate-llm', 'alias-auto', 'sources', 'polish', 'revert', 'drop', 'ledger', 'shape-done', 'format']
 export const LOG_DIR = 'log'
 export const isLogRecord = (tags) => (tags || []).some((t) => LOG_TAGS.includes(t))

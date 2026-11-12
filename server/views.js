@@ -427,13 +427,14 @@ export function recView(k, id) {
   return { ...recRow(w), html: render(k, w.path, w.body), tags: w.tags, items, fixes, fixedBy, went, via: via.map(recRow), from, ...(ingest ? { ingest: { read: w.tags.includes('ingest-read') } } : {}), ...(k.logs.includes(w) ? { log: logKind(w) } : {}) }
 }
 
-// 이력의 갈래(설계 3-4) — 가져오기 · 가져올 곳(설정) · 되돌림 · 고침 · 다듬기 · 버림 · 들이기 · 저장(저장 문이 넣은 기록) · 정리(옛 기록 · 옛 넣지 못함도)
+// 이력의 갈래(설계 3-4) — 가져오기 · 가져올 곳(설정) · 되돌림 · 고침 · 다듬기 · 서식(서식 맞춤) · 버림 · 들이기 · 저장(저장 문이 넣은 기록) · 정리(옛 기록 · 옛 넣지 못함도)
 export function logKind(w) {
   const t = w.tags || []
   if (t.includes('sources')) return /^가져(오는|올) 곳/.test(w.title) ? '설정' : '가져오기' // 옛 기록 제목은 「가져오는 곳」(Q7 앞)
   if (t.includes('revert') || ((w.reopens || []).length && /^되돌림/.test(w.title))) return '되돌림' // 옛 되돌림은 curate-auto · 제목 「되돌림:」
   if (t.includes('edit')) return '고침'
   if (t.includes('polish')) return '다듬기'
+  if (t.includes('format')) return '서식'
   if (t.includes('drop')) return '버림'
   if (t.includes('ledger')) return '장부'
   if (t.includes('structure')) return '짜임'
@@ -537,9 +538,9 @@ export function model(k) {
       if (coordsOfSection(k, d, s.h).length) continue
       add({ key: keyOf(null, d.id, s.h), coord: null, name: s.h, kind: '장부에 없는 항목', doc: d.id, sec: s.h, aliases: [], table: false, first: firstOf(s.body) })
     }
-  // 기록이 건드렸지만 장부에도 문서에도 없는 항목 — 「문서가 없는 항목」
+  // 기록이 건드렸지만 장부에도 문서에도 없는 항목 — 「문서가 없는 항목」 · 장부에서 폐기된 항목은 deprecated(항목 나무 · 찾기에 서지 않고 그 기록 · 링크로만 연다)
   for (const w of k.works)
-    for (const c of w.touches) if (!byKey.has(c) && !c.startsWith('domain:')) add({ key: c, coord: c, name: labelOf(k, c), kind: kindOf(c), doc: null, sec: null, aliases: [], table: c.startsWith('table:'), first: '' })
+    for (const c of w.touches) if (!byKey.has(c) && !c.startsWith('domain:')) add({ key: c, coord: c, name: labelOf(k, c), kind: kindOf(c), doc: null, sec: null, aliases: [], table: c.startsWith('table:'), first: '', ...(k.vocab.coords.get(c)?.deprecated ? { deprecated: true } : {}) })
   const itemOfSec = new Map(items.filter((i) => i.doc).map((i) => [`${i.doc}\n${i.sec}`, i.key]))
   const recs = k.works.map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title, body: w.body.replace(/\s+/g, ' ').slice(0, 200), state: w.state, fixes: w.fixes, items: w.touches.filter((c) => byKey.has(c)) }))
   // cites — 글 속 기록 링크(../work/…md · 그 글의 근거) · 그래프의 「근거」 선

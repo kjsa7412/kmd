@@ -46,7 +46,7 @@ import { begin, recover, writeAtomic } from './journal.js'
 import { watchedOf } from './watchmark.js'
 import { upsertVocab, upsertRegistry, cleanNames, upsertPatternRow, upsertForms, cleanForms, placeExact } from './namebook.js'
 import { guardRecord, guardNames, guardNewDoc, formsOf, EMPTY_MAX } from './guard.js'
-import { valuesOf, valueDiff } from './values.js'
+import { valuesOf, valueDiff, sameValues } from './values.js'
 import { renderPut, renderAccepted, renderValues, renderLinked, renderFresh, KMD_PART_RE } from './parts.js'
 import { RECORDS_DOC_PATH } from './guard.js'
 
@@ -227,8 +227,10 @@ export function serial(key, f) {
 //         원본이 주인인 문서 · 저절로 채우는 표 · kmd 파일은 사람 · 세션과 같이 막힌다(system 이 아니다)
 // guard — 지식 생성 가드(core/guard.js)의 길. 'strict'(거절형 — 세션 · 화면) · 'hold'(붙잡아 두기 — 그 밖의 길 · 기본)
 //         holdWhy — hold 에서 항목 없는 기록에 kmd 가 다는 까닭 · proposed — 세울 항목으로 실어 둔 것(일반 자리의 names)
+// format — 서식 맞춤(작성기준 「기록과 이력」 · 6-3 서식 계약): 지식은 그대로 두고 양식 · 서식만 바꾼 저장. 부르는 코드가 정한다(사람이 보낸 태그로 가르지 않는다)
+//         있는 항목만(지문 필수 · 새 항목 · 지우기 · 이름 바꾸기 · 장부 · 첨부 없음) · 옛 글과 새 글의 값 장부가 같아야 한다(날짜 표기만 맞춤) · 이력(log/ · 태그 format · 이력 갈래 「서식」)
 //   shape.strict — approve 모드 지식의 짜임 걸음(저장 승인 P-D24 · P7): 항목 하나라도 걸리면 넣지 못함 대신 걸음 입력 오류(E_INPUT · details.stepFail · 아무것도 쓰지 않는다)
-export function save(dir, input, { user, now = new Date(), system = false, agent = false, guard = 'hold', holdWhy = null, proposed = [], prepare = null, onCommit = null, asEdit = false, structure = false, correction = false, intake = null, shape = null, approve = null, accepted = null, marks: marksIn = false } = {}) {
+export function save(dir, input, { user, now = new Date(), system = false, agent = false, guard = 'hold', holdWhy = null, proposed = [], prepare = null, onCommit = null, asEdit = false, structure = false, correction = false, intake = null, shape = null, approve = null, accepted = null, marks: marksIn = false, format = false } = {}) {
   if (!user || !oneLine(user)) fail('E_INPUT', '누가 쓰는지 모른다')
   // 들이기 일감은 예약 사람 kmd 로 쓸 수 있다(가져올 곳) — kmd-auto · kmd-worker 는 아니다(S-D43)
   const kmdIntake = !!intake && nfc(user).trim().toLowerCase() === 'kmd'
@@ -254,6 +256,12 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
     if (intake || !Array.isArray(t) || !t.length || t.some((x) => typeof x !== 'string' || !SHAPE_TAG(x))) fail('E_INPUT', '짜임 태그는 shape · shape-done · shape/<일 id>/<걸음> 만 붙인다')
     serverTags = [...new Set(t)]
     structure = true
+  }
+  if (format) {
+    if (intake || shape || approve) fail('E_INPUT', '서식 맞춤은 들이기 · 짜임 · 승인 저장과 같이 쓰지 않는다')
+    if (input.names?.length || input.forms?.length || input.attach?.length) fail('E_INPUT', '서식 맞춤은 장부 · 첨부를 바꾸지 않는다')
+    if (!secs0.length || secs0.some((s) => s.base == null || s.remove || s.rename != null || s.new || s.before != null)) fail('E_INPUT', '서식 맞춤은 있는 항목의 글만 바꾼다(지문 필수 · 새 항목 · 지우기 · 이름 바꾸기 없음)')
+    serverTags = ['format']
   }
   // 항목 지우기 · 이름 바꾸기 — 화면의 고치기(지식관리자)만 · 저절로 채우는 표는 고치지 않는다
   const g0 = guardSections(secs0, { system, structure })
@@ -287,7 +295,7 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
     const relink = shape ? (Array.isArray(prep?.relink) ? prep.relink : []) : []
     if (relink.some((x) => !x || !oneLine(x.from?.doc) || !oneLine(x.from?.h) || !oneLine(x.to?.doc) || !oneLine(x.to?.h))) fail('E_INPUT', '짜임 링크 모양이 아니다')
     if (place.some((x) => !x || !COORD.test(String(x.coord || '')) || !oneLine(x.doc) || !oneLine(x.heading)) || intros.some((x) => !x || !oneLine(x.doc) || typeof x.text !== 'string' || x.text.length > 4000)) fail('E_INPUT', '짜임 자리 · 요약 모양이 아니다')
-    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, marks: !!intake || !!approve || !!marksIn, intake: !!intake, approve, serverTags, correction, attach: input.attach || [], onCommit, prep, shape: !!shape, shapeStrict: !!shape?.strict, place, intros, relink, accepted: approve ? null : accepted })
+    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, marks: !!intake || !!approve || !!marksIn, intake: !!intake, approve, serverTags, correction, attach: input.attach || [], onCommit, prep, shape: !!shape, shapeStrict: !!shape?.strict, place, intros, relink, accepted: approve ? null : accepted, format: !!format })
   })
 }
 
@@ -394,7 +402,7 @@ export function sectionBase(text, heading) {
   return sha16(sec ? sec.body : '')
 }
 
-async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null, shape = false, shapeStrict = false, place = [], intros = [], relink = [], approve = null, accepted = null }) {
+async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null, shape = false, shapeStrict = false, place = [], intros = [], relink = [], approve = null, accepted = null, format = false }) {
   const held = [...heldIn]
   const regRaw = await fs.readFile(path.join(dir, '_managed.md'), 'utf8').then(readText, () => null)
   const vocRaw = await fs.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => null)
@@ -498,6 +506,16 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
     if (p.base == null) continue
     const cur = await fs.readFile(p.full, 'utf8').then(readText, () => null)
     if (sectionBase(cur, p.heading) !== p.base) fail('E_CONFLICT', `「${p.heading}」 이 읽은 뒤 바뀌었다. 다시 읽고 고친다`)
+  }
+  // 서식 맞춤 — 지식(값)이 바뀌면 이력이 아니라 기록이다: 값 장부가 다르면 아무것도 쓰지 않는다(날짜 표기만 맞춰 견준다)
+  if (format) {
+    for (const p of plan) {
+      const cur = await fs.readFile(p.full, 'utf8').then(readText, () => null)
+      const sec = cur && findHeading(parseDoc(cur, '').sections, p.heading)
+      if (!sec) fail('E_NOTFOUND', `「${p.heading}」 항목이 없다(서식 맞춤은 있는 항목만)`)
+      const v = sameValues(sec.body, p.content)
+      if (!v.same) fail('E_INPUT', `서식 맞춤은 값을 바꾸지 않는다: 「${p.heading}」 ${[v.lost.length ? `빠진 값 ${v.lost.slice(0, 5).join(' · ')}` : '', v.added.length ? `새 값 ${v.added.slice(0, 5).join(' · ')}` : ''].filter(Boolean).join(' · ')}. 값이 바뀌면 기록으로 남긴다`)
+    }
   }
   // 문서 꼴(작성기준 8절) — 사람 · 세션 · 에이전트가 넣은 줄만 거절한다. 지금 글에 이미 있던 줄(옛 들이기 · 손으로 쓴 줄)은
   //   거절하지 않고 알린다(formatKept) — append 처럼 서버가 지금 글에 덧붙인 것을 보낸 쪽이 고칠 수 없으므로

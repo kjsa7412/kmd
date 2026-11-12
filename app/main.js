@@ -2252,7 +2252,7 @@ function qoList() {
     tr.docs.forEach((d) => out.push({ kind: 'doc', label: d.title, sub: kn + ' · 문서', k, ref: d.id }))
     // 「문서 + 항목」 꼴(배포 절차 롤백) — 문서 제목과 항목 이름을 이은 이름으로도 찾는다
     if (q) itemsOf(k).forEach((i) => { const d = i.doc && tr.docs.find((x) => x.id === i.doc); if (d) out.push({ kind: 'item', label: d.title + ' ' + i.name, sub: kn + ' · 항목', k, ref: i.key, joined: true }) })
-    itemsOf(k).forEach((i) => { if (i.table && !q) return; out.push({ kind: 'item', label: i.val && !sameTxt(i.val, i.name) ? `${i.short} ${i.name}` : i.name, sub: kn + ' · 항목 · ' + i.kind, k, ref: i.key, alias: [...i.aliases, ...(i.val ? [i.val] : [])] }) })
+    liveItemsOf(k).forEach((i) => { if (i.table && !q) return; out.push({ kind: 'item', label: i.val && !sameTxt(i.val, i.name) ? `${i.short} ${i.name}` : i.name, sub: kn + ' · 항목 · ' + i.kind, k, ref: i.key, alias: [...i.aliases, ...(i.val ? [i.val] : [])] }) })
     tr.records.forEach((r) => out.push({ kind: 'rec', label: r.title, sub: kn + ' · 기록 · ' + whenTxt(r.date), k, ref: r.id }))
   })
   if (!q) { const rec = recentGet().map((r) => out.find((x) => x.kind === r.kind && x.k === r.k && x.ref === r.ref)).filter(Boolean).map((x) => ({ ...x, sub: '최근 본 것 · ' + x.sub })); const seen = new Set(rec.map((x) => x.kind + x.k + x.ref)); return [...rec, ...out.filter((x) => x.kind !== 'rec' && !seen.has(x.kind + x.k + x.ref))].slice(0, 14) }
@@ -2389,7 +2389,7 @@ function nameHits(q) {
     const tr = treeOf(k)
     if (!tr || tr.error) continue
     for (const d of tr.docs) { const l = norm(d.title), l2 = norm(d.id); if (l === nq || l2 === nq || l.startsWith(nq) || l2.startsWith(nq)) out.push({ kind: 'doc', k, ref: d.id, label: d.title, s: l === nq || l2 === nq ? 0 : 1 }) }
-    for (const i of itemsOf(k)) { const l = norm(i.name), v = norm(i.val || ''); if (l === nq || l.startsWith(nq) || (v && (v === nq || v.startsWith(nq)))) out.push({ kind: 'item', k, ref: i.key, label: i.val && !sameTxt(i.val, i.name) ? `${i.short} ${i.name}` : i.name, s: l === nq || v === nq ? 0 : 1 }) }
+    for (const i of liveItemsOf(k)) { const l = norm(i.name), v = norm(i.val || ''); if (l === nq || l.startsWith(nq) || (v && (v === nq || v.startsWith(nq)))) out.push({ kind: 'item', k, ref: i.key, label: i.val && !sameTxt(i.val, i.name) ? `${i.short} ${i.name}` : i.name, s: l === nq || v === nq ? 0 : 1 }) }
   }
   return out.sort((a, b) => a.s - b.s).slice(0, 5)
 }
@@ -2436,6 +2436,8 @@ function M(k) {
   return m
 }
 const itemsOf = (k) => (M(k) ? M(k).items : [])
+// 항목 나무 · 찾기에 서는 항목 — 폐기된 항목(옛 기록이 건드린 것)은 빼고 그 기록 · 링크로만 연다
+const liveItemsOf = (k) => itemsOf(k).filter((i) => !i.deprecated)
 const sameTxt = (a, b) => norm(a || '') === norm(b || '')
 function inmHtml(i) {
   if (!i.val) return `<span class="id1">${esc(i.name)}</span>`
@@ -2491,7 +2493,7 @@ function viewItems() {
 }
 function itemListHtml(k) {
   if (!M(k)) return `<div class="ilist" data-t="itemList">${modelErr(k) ? errHtml(modelErr(k), 'model:' + k) : loadingHtml}</div>`
-  const kinds = [...new Set(itemsOf(k).map((i) => i.kind))], allOpen = kinds.length && kinds.every((kd) => S.kfold[kd] === false)
+  const kinds = [...new Set(liveItemsOf(k).map((i) => i.kind))], allOpen = kinds.length && kinds.every((kd) => S.kfold[kd] === false)
   return `<div class="ilist" data-t="itemList"><div class="lhead"><div class="lfind"><input class="inp" id="itemQ" aria-label="항목 찾기" data-in="itemQ" data-t="itemQ" value="${esc(S.iq)}" placeholder="항목 찾기: 이름 · 별칭" autocomplete="off">${kinds.length ? ltool(' data-a="kindAll" data-t="kindAll"', allOpen ? 'fold' : 'unfold', allOpen ? '종류 모두 접기' : '종류 모두 펴기') : ''}</div><div class="tools">${IFL.map(([v, l]) => fbtn(S.ifilt[v], ` data-a="itemFilt" data-v="${v}" data-t="if-${v}"`, l)).join('')}</div></div><div id="itemListBody">${itemListBody(k)}</div></div>`
 }
 function itemRecent(k, i) {
@@ -2503,7 +2505,7 @@ const itemMine = (k, i) => recsOfItem(k, i).some((r) => r.author === S.me.user)
 function kindFolded(k, kd) { if (S.kfold[kd] !== undefined) return S.kfold[kd]; const t = activeTab(); return !(t && t.kind === 'item' && t.kn === k && (itemByKey(k, t.ref) || {}).kind === kd) }
 function itemListBody(k) {
   const q = S.iq.trim(), nq = norm(q), f = S.ifilt
-  const its = itemsOf(k).filter((i) => (!f.recent || itemRecent(k, i)) && (!f.mine || itemMine(k, i)))
+  const its = liveItemsOf(k).filter((i) => (!f.recent || itemRecent(k, i)) && (!f.mine || itemMine(k, i)))
   const hits = q ? its.filter((i) => itemHit(i, nq)) : its
   if (q && !hits.length) {
     const toks = q.split(/\s+/).filter(Boolean)
@@ -2526,11 +2528,11 @@ function itemListBody(k) {
 }
 function itemRowHtml(k, i, dt, dep) {
   const rs = recsOfItem(k, i)
-  return `<div class="tn${isAct('item', k, i.key) ? ' on' : ''}" data-a="openItem" data-k="${esc(k)}" data-n="${esc(i.key)}" data-t="${dt || 'itemRow'}" data-name="${esc(i.name)}" data-pv="item|${esc(k)}|${esc(i.key)}"${dep ? ` style="--dep:${dep}"` : ''}><span class="nm">${inmHtml(i)}</span>${!i.doc ? '<small class="nd">문서 없음</small>' : ''}${rs.length ? `<span class="rc" title="기록">${rs.length}</span>` : ''}</div>`
+  return `<div class="tn${isAct('item', k, i.key) ? ' on' : ''}" data-a="openItem" data-k="${esc(k)}" data-n="${esc(i.key)}" data-t="${dt || 'itemRow'}" data-name="${esc(i.name)}" data-pv="item|${esc(k)}|${esc(i.key)}"${dep ? ` style="--dep:${dep}"` : ''}><span class="nm">${inmHtml(i)}</span>${!i.doc && !i.whole ? '<small class="nd">문서 없음</small>' : ''}${rs.length ? `<span class="rc" title="기록">${rs.length}</span>` : ''}</div>`
 }
 function itemsEmpty(k) {
   if (!M(k)) return `<div class="pg-text"><div class="big">${esc(KN(k).name)}: 항목</div>${modelErr(k) ? errHtml(modelErr(k), 'model:' + k) : loadingHtml}</div>`
-  const its = itemsOf(k)
+  const its = liveItemsOf(k)
   const kinds = [...KINDS, ...new Set(its.map((i) => i.kind).filter((x) => !KINDS.includes(x)))]
   const by = kinds.map((kd) => [kd, its.filter((i) => i.kind === kd).length]).filter((x) => x[1])
   return `<div class="pg-text"><div class="pt" style="margin-bottom:var(--sp-5)"><div class="big">${esc(KN(k).name)}: 항목</div>${tipb('items', '항목')}</div><div class="row u-wrap u-g3" style="margin-bottom:var(--sp-6)">${by.map(([kd, n]) => `<span class="kn">${esc(kd)} ${n}</span>`).join('')}</div></div>`
@@ -3537,7 +3539,7 @@ const diffOf = (k, record) => need(`diff:${k}:${record}`, `/api/k/${encodeURICom
 const historyOf = () => need('history', '/api/history')
 const HIST_CHECK = '값 바뀜'
 // 갈래 — 옛 held 갈래는 P11 에서 걷었다(옛 기록은 「정리」 · 줄 수 0 이면 고르기에 없다)
-const HIST_KINDS = [HIST_CHECK, '저장', '고침', '들이기', '다듬기', '되돌림', '버림', '가져오기', '짜임', '장부', '보내기', '받음', '설정', '지식']
+const HIST_KINDS = [HIST_CHECK, '저장', '고침', '들이기', '다듬기', '서식', '되돌림', '버림', '가져오기', '짜임', '장부', '보내기', '받음', '설정', '지식']
 const isCheck = (x) => x.yl && !x.reverted && !x.unlinked
 const HIST_PAGE = 200
 // 한 흐름 — 팀 화면은 팀 지식만 · 개인 화면은 개인 지식만
@@ -7166,7 +7168,7 @@ const ACT = {
   ltab: (el) => { const v = el.dataset.v; if (v !== 'docs' && v !== 'recs') return setView(v); const k = defaultKn(), st = v === 'recs' ? 'rec' : 'doc'; if (k && stabOf(k) !== st) { UI.stab[k] = st; saveUi(); S.tq = '' } setView('docs') },
   tFilt: (el) => { S.tfilt[el.dataset.v] = !S.tfilt[el.dataset.v]; render() },
   dirAll: () => { const k = S.route.kn, tr = treeOf(k), ds = dirsOf(tr.docs), all = ds.every((p) => UI.dirs[k + ':' + p]); ds.forEach((p) => { UI.dirs[k + ':' + p] = !all }); saveUi(); render() },
-  kindAll: () => { const k = S.route.kn, ks = [...new Set(itemsOf(k).map((i) => i.kind))], all = ks.every((kd) => S.kfold[kd] === false); ks.forEach((kd) => { S.kfold[kd] = all }); render() },
+  kindAll: () => { const k = S.route.kn, ks = [...new Set(liveItemsOf(k).map((i) => i.kind))], all = ks.every((kd) => S.kfold[kd] === false); ks.forEach((kd) => { S.kfold[kd] = all }); render() },
   dirFold: (el) => { const key = S.route.kn + ':' + el.dataset.p; UI.dirs[key] = el.getAttribute('aria-expanded') !== 'true'; saveUi(); render() },
   openDoc: (el) => openDocAt(el.dataset.k, el.dataset.d, el.dataset.h, null, undefined, el.dataset.sub),
   // 위 요약 칸 — 값 바뀜 · 오늘 팀 · 오늘 개인 · 보낸 것으로 거른다
