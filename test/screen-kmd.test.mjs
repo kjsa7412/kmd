@@ -159,7 +159,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   await page.fill('#lgPw', me.pw)
   await page.click('[data-t=loginBtn]')
   await page.waitForSelector('[data-t=klist] [data-t=krow]')
-  // 셸 — 리본 없음 · 옆 메뉴 두 영역(지식 고르기: 고르기 · 문서 · 항목 · 그래프 탭 · 목록 / 지식 관리: 공통 메뉴) · 머리(찾기 가운데 · 설명서 · 나 오른쪽) · 띠 · 아래 줄
+  // 셸(세 칸 책상 · 개편 3단계) — 리본 없음 · 잉크 기둥(지식 고르기 · 자리 줄 · 지식 메뉴 · 보기 · 공통 메뉴 · 바닥 나 · Claude · 설명서) · 목록 칸(찾기 · 빨리 열기 · 목록) · 머리 줄 56 · 띠 · 아래 줄 없음
   assert.equal(await page.locator('.ribbon').count(), 0)
   // 옆 메뉴(메뉴 개편 N4 · 7절) — 지식 고르기 · 지식 메뉴(팀: 점검 · 생성 · 문서 · 이력 · 아이콘 + 이름 · 저장 승인 P10) · 층 3(보기 탭 · 나무)은 문서에서만 · 공통 메뉴(지식관리 · 설정)
   assert.deepEqual(await page.locator('[data-t=knMenu] .kmi').evaluateAll((els) => els.map((e) => e.dataset.t + ':' + e.querySelector('span').textContent + ':' + e.tagName)), ['nav-held:점검:BUTTON', 'nav-import:생성:BUTTON', 'nav-history:이력:BUTTON'])
@@ -244,6 +244,9 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.deepEqual(await page.locator('[data-t=stage] .stn > span').allInnerTexts(), ['목차', '항목', '기록'])
   assert.equal(await page.locator('[data-t=stage] [data-t=knProps] [data-t=whoVal]').count(), 1, '속성은 무대 안')
   assert.equal(await page.locator('[data-t=aside]').count(), 0, '첫 화면은 오른쪽 칸이 없다')
+  // 목록 칸은 목록 화면(첫 화면 · 문서 · 기록)에만 — 점검 · 이력 · 지식관리 · 설정 · 그래프는 no-list(확정안 7-7)
+  assert.equal(await page.locator('#app.has-list').count(), 1, '첫 화면은 목록 칸')
+  assert.equal(await page.locator('.cx-list').isVisible(), true)
   await page.waitForFunction(() => document.querySelector('[data-t=recentDoc] .fl')?.textContent.trim())
   assert.match(await page.locator('[data-t=recentDoc] .when').first().innerText(), /^(\d\d-\d\d|\d\d:\d\d)$/)
   // 지식 점검(지식관리자) — 팀은 지식 홈 카드가 아니라 점검 › 점검(메뉴 개편 N5 · 저장 승인 P10) · 줄 묶음마다 (!) · 줄마다 수 · [보기] 로 목록
@@ -254,6 +257,9 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.equal(await page.locator('[data-t=knMenu] .bd').count(), 0, '점검 배지 없음')
   await page.click('[data-t=ckTab-check]')
   await page.waitForSelector('[data-t=guardCard] [data-t=guard-unnamed]')
+  assert.equal(await page.locator('#app.no-list').count(), 1, '점검은 목록 칸 없음')
+  assert.equal(await page.locator('.cx-list').isVisible(), false)
+  assert.equal(await page.locator('.band, .status').count(), 0, '점검에도 띠 · 아래 줄 없음')
   // 걸린 검사만 판(경고 · 알림 칩 + 묶음 + (!) · 큰 수 · 이름 · 보기) · 0 인 검사는 「문제 없음 n」 아래 이름 + 0(개편 5단계 · 확정안 7-5)
   for (const t of ['항목 없음', '장부 밖', '장부에 없는 항목']) assert.ok((await page.locator('[data-t=guardCard]').innerText()).includes(t), t)
   assert.equal(await page.locator('[data-t=guardCard] .cktile').count() + await page.locator('[data-t=guardOk] .ck-z').count(), 10, '검사 열은 판이거나 문제 없음 줄')
@@ -618,7 +624,9 @@ test('정리를 걷었다(S13): 항목 글 없는 기록은 메모 · 옛 정리
   assert.ok(s.hub.intakesOf('dpms').some((j) => j.type === 'polish' && j.src?.doc === 'docs/배포절차.md'), '다듬기 일감')
   // 다듬기 일감은 그만두어 뒤 시험(가져오기 일 줄)에 남기지 않는다
   for (const j of s.hub.intakesOf('dpms').filter((x) => x.type === 'polish' && x.state === 'queued')) await s.hub.queueAct({ user: 'kim', admin: true }, 't:' + j.id, 'cancel')
-  for (const w of [1280, 1024, 600, 375]) {
+  assert.equal(await page.locator('#app.has-list').count(), 1, '문서는 목록 칸')
+  // 네 폭 + 끊는 점 860 · 861 경계(확정안 7-7)
+  for (const w of [1280, 1024, 861, 860, 600, 375]) {
     await page.setViewportSize({ width: w, height: 900 })
     await page.waitForTimeout(500) // 오른쪽 칸 서랍이 닫히는 동안(.2s) 기다린다
     const c = await cutAt(page)
@@ -636,6 +644,8 @@ test('정리를 걷었다(S13): 항목 글 없는 기록은 메모 · 옛 정리
   await hist(page)
   await page.waitForSelector('[data-t=feed] [data-t=histDay]')
   assert.equal(await page.locator('.main .big').innerText(), '이력')
+  assert.equal(await page.locator('#app.no-list').count(), 1, '이력은 목록 칸 없음')
+  assert.equal(await page.locator('.cx-list').isVisible(), false)
   // 팀 지식만 한 흐름 — 갈래 · 지식 · 사람으로 거른다(개인 영역 거르기 · 개인 줄 없음) · 설정 안 메뉴에는 이력이 없다
   assert.equal(await page.locator('[data-t=mgNav]').count(), 0)
   assert.ok(await page.locator('[data-t=histRow][data-area=team]').count() >= 1)

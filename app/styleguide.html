@@ -52,7 +52,7 @@ html,body{background:var(--bg)}
 .sg-sidebox{align-items:flex-start}
 .app.sg-plain{display:block;height:auto;overflow:visible;background:transparent}
 .gwrap.sg-graph{height:420px;min-height:0}
-.app.sg-app{height:min(560px,80vh);border:1px solid var(--border);border-radius:var(--r-md);flex:none;grid-template-columns:auto auto}
+.app.sg-app{height:min(560px,80vh);border:1px solid var(--border);border-radius:var(--r-md);flex:none;grid-template-columns:auto auto;max-width:100%;overflow-x:auto}
 .app.sg-app .side.sg-rail{width:var(--cx-fold)}
 .app.sg-app .sg-rail>:not(.srail,.sb-sp,.sb-foot){display:none}
 .app.sg-app .sg-rail .srail{display:flex}
@@ -61,6 +61,20 @@ html,body{background:var(--bg)}
 .app.sg-app .sg-rail .sb-foot .cchip{margin-left:0}
 .app.sg-app .kmi.sg-hover{background:var(--nav-sel);color:var(--nav-text)}
 .app.sg-app .kmi.sg-focus{box-shadow:var(--nav-focus)}
+.app.sg-app .cx-list .tn.sg-hover{background:var(--cx-row-hover)}
+.app.sg-app .cx-list .tn.sg-focus{box-shadow:var(--focus-ring)}
+/* 아래 동작 띠(860 이하) 견본 — 앱은 .col>.dacts 가 sticky 띠가 된다 · 여기는 펼친 채로 */
+.dacts.sg-dbar{padding:var(--sp-3);border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow-2)}
+.dacts.sg-dbar .dbl{display:flex;align-items:center;gap:var(--sp-3);flex:1 1 auto;min-width:0;padding:0 var(--sp-3) 0 var(--sp-4);font-size:var(--fs-sm);line-height:var(--lh-sm);font-weight:var(--fw-md)}
+.dacts.sg-dbar .dbl em{font-style:normal;font-weight:var(--fw);color:var(--text-3)}
+.dacts.sg-dbar .btn{height:40px}
+.dacts.sg-dbar .more{width:40px}
+.dacts.sg-dbar .btn.pri{margin-left:0}
+.dacts.sg-dtop{justify-content:flex-end}
+/* 고치기 저장 줄 — 1025 이상 평평한 줄(앱은 종이 아래 sticky · 600 이하 띄운 판) */
+.edsave.sg-flat{position:static;margin:0;padding:var(--sp-5) 0;border-radius:0}
+.sg-pad{padding:var(--sp-3)}
+.sg-mgside{width:min(212px,100%)}
 </style>
 </head>
 <body>
@@ -244,8 +258,8 @@ html,body{background:var(--bg)}
     <div class="sg-row"><span class="chip c-ok">문서에 들어감</span><span class="chip c-ok">바로잡힘</span><span class="chip c-acc">보낸 뒤 고침</span><span class="chip c-mute">메모</span><span class="chip c-warn">크게 바뀜</span><span class="chip c-pend">도는 중</span></div>
     <h3>거르기 단추 .fbtn(하나뿐 · aria-pressed) · 경고 단추 .btn.sm.stopbtn(위 줄 · 칩이 아니다)</h3>
     <div class="sg-row"><button type="button" class="fbtn" aria-pressed="false">모두 <b>12</b></button><button type="button" class="fbtn" aria-pressed="true"><svg class="ck" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="2"/></svg>점검 <b>3</b></button><button type="button" class="fbtn" disabled>기록만</button><button type="button" class="btn sm stopbtn">⚠ 경고 2<span>줄이 멈췄다</span></button><button type="button" class="btn sm stopbtn bad">⚠ 경고 1<span>백업이 갈라졌다</span></button></div>
-    <h3>지식 자리 — 읽기 · 쓰기 · 관리</h3>
-    <div class="sg-row"><span class="kt lv-read">읽기</span><span class="kt lv-write">쓰기</span><span class="kt lv-admin">관리</span></div>
+    <h3>지식 자리 — 조용한 글 칩(surface-2 · 모서리 --r-2xs) · 읽기 · 쓰기 · 지식관리자 · 총괄 관리자</h3>
+    <div class="sg-row"><span class="kt lv-read">읽기</span><span class="kt lv-write">쓰기</span><span class="kt lv-admin">지식관리자</span><span class="kt role">총괄 관리자</span></div>
     <h3>항목 이름 — 값(.iv) + 설명(.id) · 값과 설명이 같으면 값만 · 600 이하는 값만</h3>
     <div style="width:min(320px, 100%)">
       <div class="tn"><span class="nm"><span class="iv">DPMS-ISS-15</span><span class="id" title="공수 부족 (필요 공수가 1명 가용 공수의 4.3배)">공수 부족 (필요 공수가 1명 가용 공수의 4.3배)</span></span><span class="rc">8</span></div>
@@ -370,12 +384,13 @@ html,body{background:var(--bg)}
   </section>
 
   <section id="side">
-    <h2>앱 틀 <small>잉크 기둥(지식 고르기 · 자리 줄 · 지식 메뉴 · 보기 · 공통 메뉴 · 바닥 나 · Claude · 설명서) + 목록 칸(찾기 · 빨리 열기 · 목록) · 접으면 잉크 레일 64(컨벤션 2절 · 5절 · 11-2절)</small></h2>
+    <h2>앱 틀 <small>잉크 기둥(지식 고르기 · 자리 줄 · 지식 메뉴 · 보기 · 공통 메뉴 · 바닥 나 · Claude · 설명서) + 목록 칸(찾기 · 빨리 열기 · 목록) · 접으면 잉크 레일 64 · 띠 · 아래 줄은 없다(컨벤션 2절 · 5절 · 11-2절)</small></h2>
+    <p class="small muted">잉크 기둥 줄: 고른 것(점검) · hover(생성) · 초점(이력) · 배지 셋(값 바뀜 warn · 새 줄 중성 · 위험 bad). 목록 칸 줄: hover(권한 신청) · 고른 것(배포 체크리스트) · 연 문서 아래 ## 줄 · 초점(배포절차) · 기록 두 줄.</p>
     <div class="sg-row sg-sidebox">
       <div class="app sg-app">
         <aside class="side" aria-label="잉크 기둥 견본">
           <div class="sb-top"><div class="sb-kn"><button type="button" class="sb-repo" title="DPMS 지식 · 팀"><span class="rk">DP</span><span class="rn">DPMS 지식</span><span class="rc">▾</span></button></div><button type="button" class="busy" title="지금 하는 일 없음"><i></i></button><button type="button" class="hb sfold" title="옆 메뉴 접기 (Ctrl [)" aria-label="옆 메뉴 접기"><svg viewBox="0 0 24 24"><path d="M3 4h18v16H3z M9 4v16 M15 10l-2 2 2 2"/></svg></button><div class="cx-who"><i aria-hidden="true"></i><span>팀 지식 · 팀 서버</span><span class="kt lv-admin">지식관리자</span></div><div class="sb-warn"><button type="button" class="btn sm stopbtn" aria-label="경고 1: 백업이 멈췄다"><i aria-hidden="true">⚠</i><b>경고 1</b><span>백업이 멈췄다</span></button></div></div>
-          <nav class="kmn n3" aria-label="지식 메뉴"><button type="button" class="kmi" aria-label="점검" aria-current="page"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg><span aria-hidden="true">점검</span></button><button type="button" class="kmi sg-hover" aria-label="생성"><svg viewBox="0 0 24 24"><path d="M12 5v14 M5 12h14"/></svg><span aria-hidden="true">생성</span></button><button type="button" class="kmi sg-focus" aria-label="이력 · 값 바뀜 2"><svg viewBox="0 0 24 24"><path d="M7 3h10 M7 21h10 M8 3c0 5 8 5 8 9s-8 4-8 9 M16 3c0 5-8 5-8 9s8 4 8 9"/></svg><span aria-hidden="true">이력</span><span class="bd warn" aria-hidden="true">2</span></button></nav>
+          <nav class="kmn n3" aria-label="지식 메뉴"><button type="button" class="kmi" aria-label="점검" aria-current="page"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg><span aria-hidden="true">점검</span></button><button type="button" class="kmi sg-hover" aria-label="생성"><svg viewBox="0 0 24 24"><path d="M12 5v14 M5 12h14"/></svg><span aria-hidden="true">생성</span></button><button type="button" class="kmi sg-focus" aria-label="이력 · 값 바뀜 2"><svg viewBox="0 0 24 24"><path d="M7 3h10 M7 21h10 M8 3c0 5 8 5 8 9s-8 4-8 9 M16 3c0 5-8 5-8 9s8 4 8 9"/></svg><span aria-hidden="true">이력</span><span class="bd warn" aria-hidden="true">2</span></button><button type="button" class="kmi" aria-label="배지 견본: 새 줄 4"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg><span aria-hidden="true">새 줄</span><span class="bd" aria-hidden="true">4</span></button><button type="button" class="kmi" aria-label="배지 견본: 위험 1"><svg viewBox="0 0 24 24"><path d="M12 4l9 16H3z M12 10v4"/></svg><span aria-hidden="true">위험</span><span class="bd bad" aria-hidden="true">1</span></button></nav>
           <div class="sb-view"><div class="ngh" aria-hidden="true">보기</div><div class="ktabs" role="tablist" aria-label="보기"><button type="button" role="tab" aria-selected="true"><span class="kl">목차</span> <em>17</em></button><button type="button" role="tab" aria-selected="false" data-v="items"><span class="kl">항목</span> <em>33</em></button><button type="button" role="tab" aria-selected="false" data-v="recs"><span class="kl">기록</span> <em>17</em></button><button type="button" role="tab" aria-selected="false" class="ic" aria-label="그래프"><svg viewBox="0 0 24 24"><path d="M3.8 6a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0M15.8 7a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0M6.8 18a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0M16.2 17a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0 -3.6 0 M8.2 6.2l7.6.6 M6.6 8.1l1.8 7.8 M11.2 17.8l5-.6 M17.9 9.2l.1 6"/></svg><span aria-hidden="true">그래프</span></button></div></div>
           <div class="sb-sp"></div>
           <nav class="sb-mg nm2" aria-label="공통 메뉴"><button type="button" class="sb-ic"><svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4-8 4z M4 12l8 4 8-4 M4 17l8 4 8-4"/></svg><span>지식관리</span></button><button type="button" class="sb-ic"><svg viewBox="0 0 24 24"><path d="M9 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0 M12 3v3 M12 18v3 M3 12h3 M18 12h3 M5.6 5.6l2.1 2.1 M16.3 16.3l2.1 2.1 M5.6 18.4l2.1-2.1 M16.3 7.7l2.1-2.1"/></svg><span>설정</span></button></nav>
@@ -384,10 +399,10 @@ html,body{background:var(--bg)}
         <section class="cx-list" aria-label="목록 칸 견본">
           <div class="lhd"><div class="hmid"><button type="button" class="search"><svg viewBox="0 0 24 24"><path d="M5 11a6 6 0 1 0 12 0a6 6 0 1 0 -12 0 M15.5 15.5L20 20"/></svg><span class="sl">찾기</span><kbd class="sk">Ctrl K</kbd></button><button type="button" class="qbtn">빨리 열기<kbd>Ctrl O</kbd></button></div></div>
           <div class="lp"><div class="tree"><div class="lhead"><div class="lfind"><input class="inp" aria-label="문서 찾기" placeholder="문서 찾기: 제목 · 폴더 · 첨부"></div></div>
-            <div class="tn"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">권한 신청</span><span class="dt">10-23</span></div>
+            <div class="tn sg-hover"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">권한 신청</span><span class="dt">10-23</span></div>
             <div class="tn on"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">배포 체크리스트</span><span class="dt">10-23</span></div>
             <div class="tn sec" style="--dep:1"><span class="hh" aria-hidden="true">##</span><span class="nm">개요</span></div>
-            <div class="tn"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">배포절차</span><span class="dt">10-22</span></div>
+            <div class="tn sg-focus"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">배포절차</span><span class="dt">10-22</span></div>
             <div class="tn rec2"><span class="nm">롤백 순서</span><span class="dt">10-23</span><span class="rs"><b>lee</b>앱 먼저 · DB 나중으로</span></div>
             <div class="tn rec2 on"><span class="nm">헬스 체크 주소</span><span class="dt">09:12</span><span class="rs"><b>kmd</b>회의록에서 들였다</span></div>
           </div></div>
@@ -402,8 +417,8 @@ html,body{background:var(--bg)}
     <h2>문서 화면 <small>가운데는 내용만 · 머리 줄 도구(폭 · ⋯ · 고치기) · 860 이하 아래 동작 띠 · 날짜 줄 「기록 n」 · 종이 끝 「이 문서」 · 기록 꼬리표 · 고치기 저장 줄 · 오른쪽 다섯 묶음(컨벤션 5절 · 11-2절)</small></h2>
     <div class="g2">
       <div>
-        <div class="dacts" role="toolbar" aria-label="문서의 일 견본" style="justify-content:flex-end;margin-bottom:var(--sp-5)"><span class="wseg" role="group" aria-label="문서 폭"><button type="button" aria-pressed="true">기본 폭</button><button type="button" aria-pressed="false">넓게</button></span><button type="button" class="btn ghost more" aria-haspopup="menu" aria-expanded="false" aria-label="더 보기">⋯</button><button type="button" class="btn pri">고치기</button></div>
-        <div class="dacts sg-bar" role="toolbar" aria-label="아래 동작 띠 견본(860 이하)" style="margin-bottom:var(--sp-5);padding:var(--sp-3);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-2)"><span class="dbl" style="display:flex;align-items:center;gap:var(--sp-3);flex:1;min-width:0;font-size:var(--fs-sm);font-weight:var(--fw-md)"><i class="kd k-d"></i><em style="font-style:normal;color:var(--text-3);font-weight:var(--fw)">문서</em><span>게이트웨이운영설계서</span></span><button type="button" class="btn ghost more" aria-label="더 보기">⋯</button><button type="button" class="btn pri">고치기</button></div>
+        <div class="dacts sg-dtop" role="toolbar" aria-label="문서의 일 견본" style="margin-bottom:var(--sp-5)"><span class="wseg" role="group" aria-label="문서 폭"><button type="button" aria-pressed="true" title="글 읽기 좋은 폭"><svg viewBox="0 0 24 24"><path d="M8 4v16 M16 4v16"/></svg>기본 폭</button><button type="button" aria-pressed="false" title="가운데 칸을 다 쓴다"><svg viewBox="0 0 24 24"><path d="M3 12h18 M7 8l-4 4 4 4 M17 8l4 4-4 4"/></svg>넓게</button></span><button type="button" class="btn ghost more" aria-haspopup="menu" aria-expanded="false" aria-label="더 보기">⋯</button><button type="button" class="btn pri">고치기</button></div>
+        <div class="dacts sg-dbar" role="toolbar" aria-label="아래 동작 띠 견본(860 이하)" style="margin-bottom:var(--sp-5)"><span class="dbl"><i class="kd k-d"></i><em>문서</em><span>게이트웨이운영설계서</span></span><button type="button" class="btn ghost more" aria-label="더 보기">⋯</button><button type="button" class="btn pri">고치기</button></div>
         <div class="paper">
           <div class="docmeta"><span>10-23 바뀜 · park</span><button type="button" class="recn hot">기록 3</button></div>
           <div class="hrow"><h2>설치</h2></div>
@@ -415,10 +430,10 @@ html,body{background:var(--bg)}
           <div class="lv l2"><span class="lvm">1.1.</span><span class="lvx">단계</span></div>
           <section class="dlinks" aria-label="이 문서 견본"><div class="dlc"><div class="dlh">이 문서가 가리키는 문서<em>1</em></div><button type="button" class="dl1"><i class="kd k-d"></i><span>배포절차</span></button></div><div class="dlc"><div class="dlh">이 문서를 가리키는 문서</div><span class="dlx">없다</span></div><div class="dlc"><div class="dlh">기록<em>1</em></div><button type="button" class="dl1"><i class="kd k-r"></i><span>롤백 순서</span></button></div><div class="dlc"><div class="dlh">이 문서의 항목<em>1</em></div><button type="button" class="dl1"><i class="kd k-i"></i><span>설치</span></button></div></section>
           <div class="docmeta recmeta" style="margin-top:var(--sp-7)"><i class="kd k-r" aria-hidden="true"></i><span>김 · 10-23 · 기록</span></div>
-          <div class="ed"><div class="edbar"><span class="lbl"><b>고치는 중</b><button type="button" class="tipb" aria-label="고치기 도움말">!</button></span><span class="toolbar"><button class="btn sm">항목 더하기</button><button class="btn sm">바뀐 것 보기</button></span></div><div class="edsave" style="position:static;margin:0;padding:var(--sp-5) 0;border-radius:0"><input class="inp edwhy" aria-label="바꾼 까닭 견본" placeholder="바꾼 까닭(선택)"><div class="edgo"><button class="btn pri">저장</button><button class="btn ghost">취소</button><span class="ednote">저장하면 확인 창 뒤 문서에 들어간다</span></div></div></div>
+          <div class="ed"><div class="edbar"><span class="lbl"><b>고치는 중</b><button type="button" class="tipb" aria-label="고치기 도움말">!</button></span><span class="toolbar"><button class="btn sm">항목 더하기</button><button class="btn sm">바뀐 것 보기</button></span></div><div class="edsave sg-flat"><input class="inp edwhy" aria-label="바꾼 까닭 견본" placeholder="바꾼 까닭(선택)"><div class="edgo"><button class="btn pri">저장</button><button class="btn ghost">취소</button><span class="ednote">저장하면 확인 창 뒤 문서에 들어간다</span></div></div></div>
         </div>
       </div>
-      <div class="card" style="padding:var(--sp-3)">
+      <div class="card sg-pad">
         <section class="ag"><button type="button" class="agh" aria-expanded="false"><span class="ar">▸</span><span class="agn">개요</span><span class="agc">4</span></button></section>
         <section class="ag open"><button type="button" class="agh" aria-expanded="true"><span class="ar">▸</span><span class="agn">문서</span><span class="agc">3</span></button><div class="agb"><div class="bg">이 문서</div><div class="alr cur" aria-current="true"><span class="nm">게이트웨이운영설계서</span><span class="chip c-acc now">지금</span></div><div class="bg">이 문서가 가리키는 문서 <b>2</b></div><div class="alr" role="button" tabindex="0"><span class="nm">PLC연계규격서</span></div></div></section>
         <section class="ag"><button type="button" class="agh" aria-expanded="false"><span class="ar">▸</span><span class="agn">기록</span><span class="agc">5</span></button></section>
@@ -450,8 +465,8 @@ html,body{background:var(--bg)}
   <section id="mg">
     <h2>명령 창 · 지식관리 · 설정 · 들어가기 <small>명령 창 세 칸(머리 · 몸 · 바닥 키캡) · 잉크 기둥 하위 메뉴 · 지식 카드 · 얼굴 카드 · 묶음 이름 + 오른쪽 줄 · 두 쪽 들어가기(컨벤션 2절 「화면별(개편 6단계)」)</small></h2>
     <div class="pal" role="dialog" aria-label="빨리 열기 견본" style="width:min(720px,100%)"><div class="pin"><svg viewBox="0 0 24 24"><path d="M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13 M15.5 15.5L20 20"/></svg><span class="kt">DPMS 지식</span><input aria-label="빨리 열기: 이름" placeholder="빨리 열기: 문서 · 항목 · 기록 이름"><button type="button" class="btn ghost pcx">취소</button></div><div id="qoBody"><div role="listbox" id="qoList" aria-label="찾은 이름"><div class="qr sel" role="option" aria-selected="true"><span class="qk"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z M9 4v16"/></svg></span><span class="nm">롤백 순서</span><span class="r small muted">최근 본 것 · 기록 · 10-23</span></div><div class="qr" role="option" aria-selected="false"><span class="qk"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg></span><span class="nm">배포 체크리스트</span><span class="r small muted">문서</span></div><div class="qr" role="option" aria-selected="false"><span class="qk"><svg viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z M7.5 8h.01"/></svg></span><span class="nm">헬스 체크 주소</span><span class="r small muted">항목 · 설정</span></div></div></div><div class="ft"><kbd>↑</kbd><kbd>↓</kbd> 고르기 · <kbd>Enter</kbd> 열기 · 글 속 낱말은 <kbd>Ctrl</kbd><kbd>K</kbd></div></div>
-    <div class="row u-wrap" style="margin-top:var(--sp-9);gap:var(--sp-9);align-items:flex-start">
-      <aside class="side" aria-label="하위 메뉴 견본" style="width:212px"><div class="sb-sub"><nav class="mgnav" aria-label="지식관리"><div class="mgt">지식관리</div><button type="button" class="mgi on" aria-current="page">모든 지식</button><button type="button" class="mgi sg-hover">기초 세우기</button><button type="button" class="mgi">사람</button></nav></div></aside>
+    <div class="sg-row sg-sidebox" style="margin-top:var(--sp-9)">
+      <aside class="side sg-mgside" aria-label="하위 메뉴 견본"><div class="sb-sub"><nav class="mgnav" aria-label="지식관리"><div class="mgt">지식관리</div><button type="button" class="mgi on" aria-current="page">모든 지식</button><button type="button" class="mgi sg-hover">기초 세우기</button><button type="button" class="mgi">사람</button></nav></div></aside>
       <div style="width:min(340px,100%)"><table class="t ktab" data-t="knTable"><thead><tr><th>순서</th><th>이름</th><th>나의 자리</th><th>문서</th><th>저장소</th><th>Claude</th><th>상태</th><th>메뉴</th></tr></thead><tbody><tr class="krow"><td class="kgr"><span class="kgrip" aria-hidden="true">⋮⋮</span></td><td class="knm"><button type="button" class="kn3" data-ini="DP">DPMS 지식</button></td><td class="krl"><span class="kt lv-admin">지식관리자</span></td><td class="kv1" data-l="문서">17</td><td class="kv1" data-l="저장소"><span class="chip c-ok">붙음</span></td><td class="kv1" data-l="Claude">보냄</td><td class="kst"><button type="button" class="lk">점검 8</button></td><td class="kmn3"><button type="button" class="kebab" aria-label="DPMS 지식: 순서 · 메뉴에서 빼기">⋯</button></td></tr></tbody></table></div>
       <div class="card pcards" style="width:min(340px,100%)"><div class="cb"><ul class="plain pl"><li data-t="admPerson"><span class="av2">p</span><span class="nm">park <span class="kt role">총괄 관리자</span><small>들어온다 · 기기 0 · 지식 2개에 자리</small></span><button type="button" class="kebab" aria-label="park: 자리 · 링크">⋯</button></li></ul></div></div>
     </div>
@@ -492,7 +507,7 @@ html,body{background:var(--bg)}
 </div>
 <script>
 // 견본의 값 칸 — kmd.css 의 :root 에서 바로 읽는다(값을 두 곳에 적지 않게)
-const readV = () => { const cs = getComputedStyle(document.documentElement); for (const e of document.querySelectorAll('[data-v]')) e.textContent = cs.getPropertyValue(e.dataset.v).trim() }
+const readV = () => { const cs = getComputedStyle(document.documentElement); for (const e of document.querySelectorAll('[data-v^="--"]')) e.textContent = cs.getPropertyValue(e.dataset.v).trim() }
 readV()
 // 두 테마를 같이 본다(이 페이지에만 · 앱의 「화면 밝기」 와 따로)
 const tb = document.getElementById('sgTheme')

@@ -30,11 +30,11 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 </ul>
 
 <h2 id="admin"><span class="m-no">2</span>설정 › 운영: 문제 줄만</h2>
-<p>옆 메뉴 맨 아래 공통 메뉴 <b>설정</b>을 열면 본문 왼쪽에 설정 메뉴가 선다(처음은 서버 정보). 팀 지식 · 사람은 설정이 아니라 공통 메뉴 <b>지식관리</b>(모든 지식 · 기초 세우기 · 사람)에 있다.</p>
+<p>잉크 기둥 아래쪽 공통 메뉴 <b>설정</b>을 열면 설정 메뉴가 선다(1025 이상은 기둥의 「보기」 자리 · 1024 이하는 본문 위 알약 줄 · 처음은 서버 정보). 팀 지식 · 사람은 설정이 아니라 공통 메뉴 <b>지식관리</b>(모든 지식 · 기초 세우기 · 사람)에 있다.</p>
 <div class="m-tbl"><table><tr><th>자리</th><th>설정 메뉴</th></tr>
 <tr><td>총괄 관리자</td><td>서버 정보 · 에이전트 설치 · 개인 프로그램 설치 · 팀 일꾼 · 운영</td></tr>
 <tr><td>지식관리자 · 쓰기 · 읽기</td><td>서버 정보 · 에이전트 설치 · 개인 프로그램 설치</td></tr></table></div>
-<p>날마다 쓰는 <b>점검 · 생성</b>은 옆 메뉴 지식 고르기 바로 아래 지식 메뉴에 있다(점검은 지식관리자 · 생성은 쓰기 자리부터 보인다). 지식을 고르면 어느 화면이든 그 아래에 보기 탭 · 찾기 칸 · 문서 나무가 늘 보인다(「문서」 버튼은 없다). <b>구조</b>는 문서 나무 머리의 연필 아이콘이다(지식관리자). 맨 아래 공통 메뉴는 <b>지식관리 · 설정</b>.</p>
+<p>날마다 쓰는 <b>점검 · 생성</b>은 잉크 기둥 지식 고르기 바로 아래 지식 메뉴에 있다(점검은 지식관리자 · 생성은 쓰기 자리부터 보인다). 그 아래 「보기」(목차 · 항목 · 기록 · 그래프)를 누르면 기둥 옆 목록 칸에 찾기 칸 · 목록이 선다(목록 칸은 첫 화면 · 문서 · 기록 · 항목에서만 · 「문서」 버튼은 없다). <b>구조</b>는 목록 칸 문서 나무 머리의 연필 아이콘이다(지식관리자). 아래쪽 공통 메뉴는 <b>지식관리 · 설정</b>, 바닥은 나 · Claude · 설명서.</p>
 <figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>설정 › 운영</span></div><div class="m-pic"><img src="img/t-admin.png" alt="운영: 요약 칩과 오늘의 문제 줄" loading="lazy"></div></div>
 <figcaption>위 칩 줄: 멈춤 · 백업 문제 · 팀 일꾼. 잘 될 때는 「오늘은 문제가 없다」 만 보인다. 손볼 것만 줄로 서고, 줄마다 고치는 자리로 가는 단추가 있다(백업 어긋남은 이 자리에서 이어 쓰기 · 덮기).</figcaption></figure>
 <div class="m-tbl"><table><tr><th>문제 줄</th><th>하는 것</th></tr>
@@ -51,7 +51,7 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 
 <h2 id="people"><span class="m-no">3</span>사람</h2>
 <figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>지식관리 › 사람</span></div><div class="m-pic"><img src="img/t-people.png" alt="사람 카드: 상태 · 기기 · 지식마다 자리" loading="lazy">
-</div></div><figcaption>사람 카드와 묶음 카드. 사람을 더하면 [링크만 복사] · [안내 복사](아이디 · 들어오기 링크 · 팀 주소 · 에이전트 설치 길 한 덩이)가 나온다.</figcaption></figure>
+</div></div><figcaption>사람 카드(얼굴 카드)와 묶음 카드. 사람 수는 탭 「사람 n」 에, 자리마다 할 수 있는 것은 접힌 「자리 규칙」 에 있다. 사람을 더하면 [링크만 복사] · [안내 복사](아이디 · 들어오기 링크 · 팀 주소 · 에이전트 설치 길 한 덩이)가 나온다.</figcaption></figure>
 <ol class="m-legend">
 <li><b>+ 사람 더하기</b>: 아이디 · 총괄 관리자 여부 · 지식마다 자리 표.</li>
 <li><b>사람 카드</b>: 상태(들어온다 · 링크 보냄 · 비밀번호를 안 정함) · 기기 · 「지식 n개에 자리」.</li>
@@ -107,7 +107,7 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 <h2 id="general"><span class="m-no">6</span>지식관리 › 모든 지식 · 저장소</h2>
 <figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>지식관리 › 모든 지식</span></div><div class="m-pic"><img src="img/t-kns.png" alt="팀 지식: 지식마다 나의 자리 · 백업 · Claude 에 보내지 않음 · ⋯" loading="lazy"></div></div><figcaption>표 한 줄: 이름 · 나의 자리 · 문서 · 저장소 · Claude · 상태(빈 지식 · 점검 · 부탁 · 가져오기 문제) · ⋯(앞으로 · 뒤로 · 메뉴에서 빼기). 줄을 누르면 지식 상세: 정보 · 권한 · 저장소 · 정책(Claude 에 보내기 · 들어간 것 하루 요약 · 이슈 주소 · <a href="지식관리자.html#polish">지식관리자 설명서 2절</a>) · 삭제. 머리에 [불러오기] · [+ 새 지식]. 지식관리자에게는 자기 자리 지식 줄만 보인다.</figcaption></figure>
 <ul>
-<li>내 계정 · 비슷한 글(사람마다) · 나가기는 설정 › 서버 정보 · 화면 밝기 · 내 기기는 오른쪽 위 내 메뉴 · 글로 바꾸기는 생성 › 수기수집 판.</li>
+<li>내 계정 · 비슷한 글(사람마다) · 나가기는 설정 › 서버 정보 · 화면 밝기 · 내 기기는 잉크 기둥 바닥 동그라미(나) · 글로 바꾸기는 생성 › 수기수집 판.</li>
 <li>팀 지식의 저장소: 지식관리 › 모든 지식 › 지식 상세 › 저장소(총괄 관리자 · 비밀번호 한 번 더). 아직 없는 지식은 <b>GitLab 새로</b>(그룹 · 저장소 이름 · 가지를 골라 만들어 붙인다 · 서버에 GitLab 연결이 있을 때) 또는 <b>있는 주소</b>(주소 + 가지). 가지는 주소 칸 옆 「가지 main ▸」 를 눌러 바꾼다. 붙은 지식은 [바꾸기](있는 저장소로만) · [떼기](저장소 쪽 이력은 남는다). 한 저장소는 한 지식만 쓴다(다른 지식이 쓰면 막는다). 셸은 <code>kmd backup add &lt;지식&gt; &lt;주소&gt;</code>(<code>backupRoots</code> 안의 폴더 · https · ssh).</li>
 <li>[+ 새 지식] 의 저장소 붙이기 ▸ 에서도 같은 셋(GitLab 새로 · 있는 주소 · 나중에)을 고른다. 화면에서 만든 지식은 GitLab 봇이 저절로 붙이지 않고 고른 대로만 붙인다.</li>
 <li>저장 뒤 바로 보내고, 안 되면 1 · 5 · 15 · 60분 · 매일 다시. 6시간 밀리면 노랑 · 24시간이면 빨강 한 줄.</li>
