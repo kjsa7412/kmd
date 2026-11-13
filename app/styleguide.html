@@ -48,20 +48,24 @@ html,body{background:var(--bg)}
 .tipb.sg-hover{background:var(--surface-2);color:var(--text)}
 .pop .mi.sg-hover{background:var(--surface-2)}
 .lk.sg-hover{text-decoration:underline;text-underline-offset:2px}
-/* 옆 메뉴 견본 — 앱 틀(.app)의 높이만 줄였다 */
+/* 앱 틀 견본 — 잉크 기둥 + 목록 칸(.app 의 높이만 줄였다) · 접힌 레일 64 */
 .sg-sidebox{align-items:flex-start}
-.app.sg-app{height:min(520px,80vh);border:1px solid var(--border);border-radius:var(--r-md);flex:none}
-.app.sg-app:first-child{width:min(var(--w-side),100%)}
-.app.sg-app .side{width:100%}
-.app.sg-app .side.sg-rail{width:var(--w-rail);padding:var(--sp-6) 0}
+.app.sg-app{height:min(560px,80vh);border:1px solid var(--border);border-radius:var(--r-md);flex:none;grid-template-columns:auto auto}
+.app.sg-app .side.sg-rail{width:var(--cx-fold)}
+.app.sg-app .sg-rail>:not(.srail,.sb-sp,.sb-foot){display:none}
 .app.sg-app .sg-rail .srail{display:flex}
+.app.sg-app .sg-rail .sb-foot{flex-direction:column;justify-content:flex-end;gap:var(--sp-2);min-height:0;padding:var(--sp-5) 0}
+.app.sg-app .sg-rail .sb-foot .hlink{flex-direction:column;gap:var(--sp-1);font-size:var(--fs-xs)}
+.app.sg-app .sg-rail .sb-foot .cchip{margin-left:0}
+.app.sg-app .kmi.sg-hover{background:var(--nav-sel);color:var(--nav-text)}
+.app.sg-app .kmi.sg-focus{box-shadow:var(--nav-focus)}
 </style>
 </head>
 <body>
 <div class="sg">
   <div class="sg-h"><h1>kmd 디자인 견본</h1><span class="muted small">docs/kmd_디자인_컨벤션.md v0.3 · 값은 app/kmd.css 맨 위 <code>:root</code> 하나에서 온다</span><button type="button" class="btn sm" id="sgTheme" aria-pressed="false">어둡게 보기</button></div>
   <nav class="sg-nav" aria-label="견본 차례">
-    <a href="#color">색 · 잉크</a><a href="#size">글 · 간격 · 모서리 · 그림자</a><a href="#btn">단추</a><a href="#inp">칸</a><a href="#chip">칩 · 표지</a><a href="#card">카드</a><a href="#modal">모달 · 팝업</a><a href="#tip">정보 단추 (!)</a><a href="#table">표</a><a href="#tabs">탭</a><a href="#state">빈 화면 · 읽는 중 · 오류</a><a href="#link">링크</a><a href="#side">옆 메뉴</a><a href="#ref">문서 화면</a><a href="#term">터미널</a><a href="#resp">반응형</a>
+    <a href="#color">색 · 잉크</a><a href="#size">글 · 간격 · 모서리 · 그림자</a><a href="#btn">단추</a><a href="#inp">칸</a><a href="#chip">칩 · 표지</a><a href="#card">카드</a><a href="#modal">모달 · 팝업</a><a href="#tip">정보 단추 (!)</a><a href="#table">표</a><a href="#tabs">탭</a><a href="#state">빈 화면 · 읽는 중 · 오류</a><a href="#link">링크</a><a href="#side">앱 틀</a><a href="#ref">문서 화면</a><a href="#term">터미널</a><a href="#resp">반응형</a>
   </nav>
 
   <section id="color">
@@ -189,7 +193,7 @@ html,body{background:var(--bg)}
       <div class="sg-cell"><span class="sg-box" style="box-shadow:var(--focus-ring);border-radius:var(--r)"></span>--focus-ring 키보드 초점(입력도)</div>
       <div class="sg-cell sg-nav-sw"><span class="sg-box" style="background:var(--nav-sel);border-color:var(--nav-line);box-shadow:var(--nav-focus);border-radius:var(--r)"></span><span style="color:var(--nav-dim)">--nav-focus 잉크 위 초점</span></div>
     </div>
-    <p class="hint">층(z): --z-menu 20 · --z-scrim 70(모달 · 찾기 창 · 서랍 바로 아래) · --z-pop 80 · --z-toast 90(모달 위). 폭: --w-text 820 · --w-list 980 · --w-grid 1100 · --w-side 248 · --w-aside 300(세 칸 틀에서 --cx-nav 212 · --cx-list 300 · --cx-head 56 · --cx-rail 52 · --cx-paper 760 · --cx-fold 64 로). 움직임: --ease 곡선 하나 · --t-fast 140 · --t-pop 180 · --t-sheet 320(줄이기를 고르면 0). 아이콘: --ic 16 · 획 1.5.</p>
+    <p class="hint">층(z): --z-menu 20 · --z-scrim 70(모달 · 찾기 창 · 서랍 바로 아래) · --z-pop 80 · --z-toast 90(모달 위). 폭: --w-text 820 · --w-list 980 · --w-grid 1100 · 세 칸 틀 --cx-nav 212(1024 이하 64) · --cx-list 300(1024 이하 min(260, 30vw)) · --cx-head 56 · --cx-rail 52 · --cx-paper 760 · --cx-fold 64. 움직임: --ease 곡선 하나 · --t-fast 140 · --t-pop 180 · --t-sheet 320(줄이기를 고르면 0). 아이콘: --ic 16 · 획 1.5.</p>
     <h3>갈래 점 · 고른 막대</h3>
     <div class="sg-row">
       <div class="sg-cell"><span><span class="sg-dot" style="background:var(--k-doc)"></span>문서 <span class="sg-dot" style="background:var(--k-item)"></span>항목 <span class="sg-dot" style="background:var(--k-rec)"></span>기록</span>--k-dot 6</div>
@@ -364,21 +368,31 @@ html,body{background:var(--bg)}
   </section>
 
   <section id="side">
-    <h2>옆 메뉴 <small>지식 고르기 줄 → 지식 메뉴(.kmn) → 늘 보기 탭 · 찾기 + 도구(나무 머리 [구조]) · 목록 → 아래 공통 메뉴(지식관리 · 설정) · 접으면 같은 차례의 레일(컨벤션 2절 · 5절 · 11-2절)</small></h2>
+    <h2>앱 틀 <small>잉크 기둥(지식 고르기 · 자리 줄 · 지식 메뉴 · 보기 · 공통 메뉴 · 바닥 나 · Claude · 설명서) + 목록 칸(찾기 · 빨리 열기 · 목록) · 접으면 잉크 레일 64(컨벤션 2절 · 5절 · 11-2절)</small></h2>
     <div class="sg-row sg-sidebox">
       <div class="app sg-app">
-        <aside class="side" aria-label="옆 메뉴 견본">
-          <div class="sb-top"><div class="sb-kn"><button type="button" class="sb-repo" title="DPMS 지식 · 팀"><span class="rk">DP</span><span class="rn">DPMS 지식</span><span class="rc">▾</span></button></div><button type="button" class="busy" title="지금 하는 일 없음"><i></i></button><button type="button" class="hb sfold" title="옆 메뉴 접기 (Ctrl [)" aria-label="옆 메뉴 접기"><svg viewBox="0 0 24 24"><path d="M3 4h18v16H3z M9 4v16 M15 10l-2 2 2 2"/></svg></button></div>
-          <nav class="kmn n4" aria-label="지식 메뉴"><button type="button" class="kmi" aria-label="점검"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg><span aria-hidden="true">확인</span><span class="bd" aria-hidden="true">3</span></button><button type="button" class="kmi" aria-label="생성"><svg viewBox="0 0 24 24"><path d="M12 5v14 M5 12h14"/></svg><span aria-hidden="true">생성</span></button><button type="button" class="kmi" aria-label="문서" aria-current="page"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span aria-hidden="true">문서</span></button><button type="button" class="kmi" aria-label="이력 · 값 바뀜 2"><svg viewBox="0 0 24 24"><path d="M7 3h10 M7 21h10 M8 3c0 5 8 5 8 9s-8 4-8 9 M16 3c0 5-8 5-8 9s8 4 8 9"/></svg><span aria-hidden="true">이력</span><span class="bd warn" aria-hidden="true">2</span></button></nav>
-          <div class="sb-know"><div class="ktabs" role="tablist" aria-label="보기"><button type="button" role="tab" aria-selected="true">목차 <em>17</em></button><button type="button" role="tab" aria-selected="false">항목 <em>33</em></button><button type="button" role="tab" aria-selected="false">기록 <em>17</em></button><button type="button" role="tab" aria-selected="false" class="ic" title="그래프로 보기" aria-label="그래프"><svg viewBox="0 0 24 24"><path d="M3.8 6a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0M15.8 7a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0M6.8 18a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0M16.2 17a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0 -3.6 0 M8.2 6.2l7.6.6 M6.6 8.1l1.8 7.8 M11.2 17.8l5-.6 M17.9 9.2l.1 6"/></svg></button></div>
-          <div class="lp"><div class="tree"><div class="lhead"><div class="lfind"><input class="inp" aria-label="문서 찾기" placeholder="문서 찾기: 제목 · 폴더 · 첨부"><button type="button" class="hb ltool" title="폴더 모두 펴기" aria-label="폴더 모두 펴기"><svg viewBox="0 0 24 24"><path d="M8 9l4-4 4 4 M8 15l4 4 4-4"/></svg></button><button type="button" class="hb ltool" title="구조" aria-label="구조"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></button></div></div>
-            <div class="tn dir" aria-expanded="true"><span class="ar">▾</span><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg><span class="nm">3.4_웹설계</span><span class="rc">2</span></div><div class="tn" style="--dep:1"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">테이블정의서</span></div><div class="tn" style="--dep:1"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">화면정의서</span></div><div class="tn on"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">배포절차</span><i class="pd hd" title="볼 것이 있다"></i></div><div class="tn"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">롤백 절차</span></div><div class="tn"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">장애 대응</span></div>
-            <div class="tn dir" aria-expanded="false"><span class="ar">▸</span><svg viewBox="0 0 24 24"><path d="M8 12l6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l7-7"/></svg><span class="nm">첨부</span><span class="rc">2</span></div></div></div></div>
+        <aside class="side" aria-label="잉크 기둥 견본">
+          <div class="sb-top"><div class="sb-kn"><button type="button" class="sb-repo" title="DPMS 지식 · 팀"><span class="rk">DP</span><span class="rn">DPMS 지식</span><span class="rc">▾</span></button></div><button type="button" class="busy" title="지금 하는 일 없음"><i></i></button><button type="button" class="hb sfold" title="옆 메뉴 접기 (Ctrl [)" aria-label="옆 메뉴 접기"><svg viewBox="0 0 24 24"><path d="M3 4h18v16H3z M9 4v16 M15 10l-2 2 2 2"/></svg></button><div class="cx-who"><i aria-hidden="true"></i><span>팀 지식 · 팀 서버</span><span class="kt lv-admin">지식관리자</span></div><div class="sb-warn"><button type="button" class="btn sm stopbtn" aria-label="경고 1: 백업이 멈췄다"><i aria-hidden="true">⚠</i><b>경고 1</b><span>백업이 멈췄다</span></button></div></div>
+          <nav class="kmn n3" aria-label="지식 메뉴"><button type="button" class="kmi" aria-label="점검" aria-current="page"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg><span aria-hidden="true">점검</span></button><button type="button" class="kmi sg-hover" aria-label="생성"><svg viewBox="0 0 24 24"><path d="M12 5v14 M5 12h14"/></svg><span aria-hidden="true">생성</span></button><button type="button" class="kmi sg-focus" aria-label="이력 · 값 바뀜 2"><svg viewBox="0 0 24 24"><path d="M7 3h10 M7 21h10 M8 3c0 5 8 5 8 9s-8 4-8 9 M16 3c0 5-8 5-8 9s8 4 8 9"/></svg><span aria-hidden="true">이력</span><span class="bd warn" aria-hidden="true">2</span></button></nav>
+          <div class="sb-view"><div class="ngh" aria-hidden="true">보기</div><div class="ktabs" role="tablist" aria-label="보기"><button type="button" role="tab" aria-selected="true"><span class="kl">목차</span> <em>17</em></button><button type="button" role="tab" aria-selected="false" data-v="items"><span class="kl">항목</span> <em>33</em></button><button type="button" role="tab" aria-selected="false" data-v="recs"><span class="kl">기록</span> <em>17</em></button><button type="button" role="tab" aria-selected="false" class="ic" aria-label="그래프"><svg viewBox="0 0 24 24"><path d="M3.8 6a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0M15.8 7a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0M6.8 18a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0M16.2 17a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0 -3.6 0 M8.2 6.2l7.6.6 M6.6 8.1l1.8 7.8 M11.2 17.8l5-.6 M17.9 9.2l.1 6"/></svg><span aria-hidden="true">그래프</span></button></div></div>
+          <div class="sb-sp"></div>
           <nav class="sb-mg nm2" aria-label="공통 메뉴"><button type="button" class="sb-ic"><svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4-8 4z M4 12l8 4 8-4 M4 17l8 4 8-4"/></svg><span>지식관리</span></button><button type="button" class="sb-ic"><svg viewBox="0 0 24 24"><path d="M9 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0 M12 3v3 M12 18v3 M3 12h3 M18 12h3 M5.6 5.6l2.1 2.1 M16.3 16.3l2.1 2.1 M5.6 18.4l2.1-2.1 M16.3 7.7l2.1-2.1"/></svg><span>설정</span></button></nav>
+          <div class="sb-foot"><button type="button" class="hav" aria-haspopup="menu" aria-expanded="false" aria-label="park · 팀 서버: 설정 · 단축키 · 나가기">p</button><button type="button" class="hlink cchip ok" title="Claude 연결됨"><i class="cdot"></i><span>Claude</span></button><a class="hlink" href="#side" title="설명서: 새 탭"><svg viewBox="0 0 24 24"><path d="M4 5h6a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H4z M20 5h-6a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h6z"/></svg><span>설명서</span></a></div>
         </aside>
+        <section class="cx-list" aria-label="목록 칸 견본">
+          <div class="lhd"><div class="hmid"><button type="button" class="search"><svg viewBox="0 0 24 24"><path d="M5 11a6 6 0 1 0 12 0a6 6 0 1 0 -12 0 M15.5 15.5L20 20"/></svg><span class="sl">찾기</span><kbd class="sk">Ctrl K</kbd></button><button type="button" class="qbtn">빨리 열기<kbd>Ctrl O</kbd></button></div></div>
+          <div class="lp"><div class="tree"><div class="lhead"><div class="lfind"><input class="inp" aria-label="문서 찾기" placeholder="문서 찾기: 제목 · 폴더 · 첨부"></div></div>
+            <div class="tn"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">권한 신청</span><span class="dt">10-23</span></div>
+            <div class="tn on"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">배포 체크리스트</span><span class="dt">10-23</span></div>
+            <div class="tn sec" style="--dep:1"><span class="hh" aria-hidden="true">##</span><span class="nm">개요</span></div>
+            <div class="tn"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg><span class="nm">배포절차</span><span class="dt">10-22</span></div>
+            <div class="tn rec2"><span class="nm">롤백 순서</span><span class="dt">10-23</span><span class="rs"><b>lee</b>앱 먼저 · DB 나중으로</span></div>
+            <div class="tn rec2 on"><span class="nm">헬스 체크 주소</span><span class="dt">09:12</span><span class="rs"><b>kmd</b>회의록에서 들였다</span></div>
+          </div></div>
+        </section>
       </div>
-      <div class="app sg-app"><aside class="side sg-rail" aria-label="접힌 옆 메뉴 견본"><nav class="srail" aria-label="옆 메뉴(접힘)"><button type="button" class="hb sfold" aria-label="옆 메뉴 펴기"><svg viewBox="0 0 24 24"><path d="M3 4h18v16H3z M15 4v16 M9 10l2 2-2 2"/></svg></button><button type="button" class="hb kab" title="DPMS 지식" aria-label="지식 고르기: DPMS 지식">D</button><button type="button" class="hb" title="점검" aria-label="점검"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg><i class="rdot dan"></i></button><button type="button" class="hb" title="생성" aria-label="생성"><svg viewBox="0 0 24 24"><path d="M12 5v14 M5 12h14"/></svg></button><button type="button" class="hb on" title="문서" aria-label="문서" aria-current="page"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z M14 3v4h4"/></svg></button><button type="button" class="hb" title="이력 · 값 바뀜 2" aria-label="이력 · 값 바뀜 2"><svg viewBox="0 0 24 24"><path d="M7 3h10 M7 21h10 M8 3c0 5 8 5 8 9s-8 4-8 9 M16 3c0 5-8 5-8 9s8 4 8 9"/></svg><i class="rdot"></i></button><span class="rsep" aria-hidden="true"></span><button type="button" class="hb" title="지식관리" aria-label="지식관리"><svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4-8 4z M4 12l8 4 8-4 M4 17l8 4 8-4"/></svg></button><button type="button" class="hb" title="설정" aria-label="설정"><svg viewBox="0 0 24 24"><path d="M9 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0 M12 3v3 M12 18v3 M3 12h3 M18 12h3 M5.6 5.6l2.1 2.1 M16.3 16.3l2.1 2.1 M5.6 18.4l2.1-2.1 M16.3 7.7l2.1-2.1"/></svg></button></nav></aside></div>
-      <div class="sg-cell"><span>머리 줄 오른쪽 — 들어온 사람</span><button type="button" class="hav" aria-haspopup="menu" aria-expanded="false" title="lee · 팀 서버: 설정 · 단축키 · 나가기" aria-label="lee · 팀 서버: 설정 · 단축키 · 나가기">l</button><button type="button" class="hav" aria-haspopup="menu" aria-expanded="true" aria-label="열림">l</button></div>
+      <div class="app sg-app"><aside class="side sg-rail" aria-label="접힌 잉크 레일 견본"><nav class="srail" aria-label="옆 메뉴(접힘)"><button type="button" class="hb sfold" aria-label="옆 메뉴 펴기"><svg viewBox="0 0 24 24"><path d="M3 4h18v16H3z M15 4v16 M9 10l2 2-2 2"/></svg></button><button type="button" class="hb kab" title="DPMS 지식" aria-label="지식 고르기: DPMS 지식">D</button><button type="button" class="hb on" title="점검" aria-label="점검" aria-current="page"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></button><button type="button" class="hb" title="생성" aria-label="생성"><svg viewBox="0 0 24 24"><path d="M12 5v14 M5 12h14"/></svg></button><button type="button" class="hb" title="이력 · 값 바뀜 2" aria-label="이력 · 값 바뀜 2"><svg viewBox="0 0 24 24"><path d="M7 3h10 M7 21h10 M8 3c0 5 8 5 8 9s-8 4-8 9 M16 3c0 5-8 5-8 9s8 4 8 9"/></svg><i class="rdot"></i></button><span class="rsep" aria-hidden="true"></span><button type="button" class="hb" title="지식관리" aria-label="지식관리"><svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4-8 4z M4 12l8 4 8-4 M4 17l8 4 8-4"/></svg></button><button type="button" class="hb" title="설정" aria-label="설정"><svg viewBox="0 0 24 24"><path d="M9 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0 M12 3v3 M12 18v3 M3 12h3 M18 12h3 M5.6 5.6l2.1 2.1 M16.3 16.3l2.1 2.1 M5.6 18.4l2.1-2.1 M16.3 7.7l2.1-2.1"/></svg></button></nav><div class="sb-sp"></div><div class="sb-foot"><button type="button" class="hav" aria-haspopup="menu" aria-expanded="false" aria-label="park · 팀 서버: 설정 · 단축키 · 나가기">p</button><button type="button" class="hlink cchip ok" title="Claude 연결됨"><i class="cdot"></i><span>Claude</span></button><a class="hlink" href="#side" title="설명서: 새 탭"><svg viewBox="0 0 24 24"><path d="M4 5h6a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H4z M20 5h-6a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h6z"/></svg><span>설명서</span></a></div></aside></div>
+      <div class="sg-cell"><span>머리 줄 56 — ‹ › · 경로 「지식 › 화면」 · 화면의 일</span><header class="hdr" style="width:min(520px,100%)"><span class="hist"><button type="button" class="hb" title="이전">‹</button><button type="button" class="hb" disabled title="다음">›</button></span><span class="crumb"><span class="cp"><button type="button" class="lk crumbk">DPMS 지식</button></span><span class="cs" aria-hidden="true"> › </span><span class="cp"><b>배포 체크리스트</b></span></span><span class="hsp"></span><button type="button" class="btn pri">고치기</button></header></div>
     </div>
   </section>
 
@@ -417,12 +431,13 @@ html,body{background:var(--bg)}
   </section>
 
   <section id="resp">
-    <h2>반응형 <small>끊는 점 1024 · 600</small></h2>
+    <h2>반응형 <small>끊는 점 1024 · 860 · 600</small></h2>
     <div class="tblwrap"><table class="t">
       <tr><th>폭</th><th>짜임</th><th>여는 단추 · 클래스</th></tr>
-      <tr><td>1025px 이상</td><td>옆 메뉴(248) + 본문 + 오른쪽 칸(300)</td><td class="muted">—</td></tr>
-      <tr><td>601 ~ 1024px</td><td>옆 메뉴 + 본문 · 오른쪽 칸은 오른쪽 서랍</td><td>머리 줄 <code>.hb.aside-btn</code> → <code>.app.aside-open</code> · 덮개 <code>.drawer-scrim</code></td></tr>
-      <tr><td>600px 이하</td><td>본문만 · 옆 메뉴는 왼쪽 서랍 · 창 전체가 스크롤</td><td>머리 줄 ☰ <code>.hb.menu-btn</code> → <code>.app.side-open</code></td></tr>
+      <tr><td>1025px 이상</td><td>잉크 기둥 212 + 목록 칸 300(목록 화면만) + 내용 + 오른쪽 52 기둥(펴면 300)</td><td>접기 Ctrl [ → <code>.app.side-rail</code>(잉크 레일 64) · Ctrl ] → <code>.app.aside-rail</code></td></tr>
+      <tr><td>861 ~ 1024px</td><td>기둥 64(그림 아래 이름) + 목록 칸 min(260, 30vw) + 내용 · 오른쪽 칸은 오른쪽 서랍 · 자리 칩은 경로 옆</td><td>머리 줄 <code>.hb.aside-btn</code> → <code>.app.aside-open</code> · 덮개 <code>.drawer-scrim</code></td></tr>
+      <tr><td>601 ~ 860px</td><td>기둥 64 + 내용 · 목록 칸은 기둥 옆에 겹쳐 뜬다 · 찾기는 머리 줄</td><td>기둥 · 판에 마우스나 초점</td></tr>
+      <tr><td>600px 이하</td><td>내용만 · 잉크 64 + 목록이 한 왼쪽 서랍 · 창 전체가 스크롤 · 머리 줄 52(☰ · 지금 것 · 자리 칩 · 찾기 · 옆 칸 · 경고 점)</td><td>머리 줄 ☰ <code>.hb.menu-btn</code> → <code>.app.side-open</code>(서랍 상자 <code>.cxnav</code>)</td></tr>
     </table></div>
     <div class="tblwrap" style="margin-top:var(--sp-6)"><table class="t">
       <tr><th>부품</th><th>좁아질 때</th></tr>
