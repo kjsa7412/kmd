@@ -33,9 +33,8 @@
   --nav-text:#ededed;--nav-dim:#a1a1a6;--nav-muted:#8e8e94;--nav-on:#ffffff;
   --nav-accent:#6ee7d4;--nav-warn:#f0bd55;--nav-danger:#f87171;
   --nav-k-doc:#a1a1aa;--nav-k-item:#74abe3;--nav-k-rec:#f2925a;
-  /* 고른 막대: 곧은 2px · 위아래 8 띄움 */
-  --bar-nav:linear-gradient(var(--nav-accent),var(--nav-accent)) 0 50%/2px calc(100% - 16px) no-repeat;
-  --bar-acc:linear-gradient(var(--accent),var(--accent)) 0 50%/2px calc(100% - 16px) no-repeat;
+  /* 고른 막대 색: 가상 막대(::after · 2px · 위아래 8 띄움 · 끝 둥근 --r-2xs)가 칠한다 */
+  --bar-nav:var(--nav-accent);--bar-acc:var(--accent);
   --scrim:rgba(20,20,22,.48);
   /* 터미널(7절) */
   --term-bg:#0f141c;--term-text:#d7dde8;--term-dim:#7d8696;--term-tool:#8fb0ff;--term-ok:#7fd69a;--term-err:#ff8f86;
@@ -143,7 +142,10 @@ a{color:var(--accent);cursor:pointer}
 .sb-mg{border-top:1px solid var(--nav-line)}
 .kmi,.ktabs button,.sb-mg .sb-ic{position:relative;display:flex;align-items:center;gap:var(--sp-5);height:36px;min-width:0;padding:0 var(--sp-5);border:0;border-radius:var(--r);background:none;color:var(--nav-dim);font:inherit;font-size:var(--fs);font-weight:var(--fw-md);text-align:left;white-space:nowrap;cursor:pointer;user-select:none;transition:color var(--t-fast) var(--ease),background-color var(--t-fast) var(--ease)}
 .kmi:hover,.ktabs button:hover,.sb-mg .sb-ic:hover{background:var(--nav-sel);color:var(--nav-text)}
-.kmi[aria-current=page],.ktabs button[aria-selected=true],.sb-mg .sb-ic[aria-current=page]{background:var(--bar-nav),var(--nav-sel);color:var(--nav-on)}
+.kmi[aria-current=page],.ktabs button[aria-selected=true],.sb-mg .sb-ic[aria-current=page]{background:var(--nav-sel);color:var(--nav-on)}
+/* 고른 막대 — 배경 한 겹이면 끝이 각지다 · 가상 막대 하나(::after · .ktabs 의 ::before 는 갈래 점)로 끝을 둥글게 */
+.kmi[aria-current=page]::after,.ktabs button[aria-selected=true]::after,.sb-mg .sb-ic[aria-current=page]::after,.srail .hb.on::after,.side .mgnav .mgi.on::after,.cx-list .tn.on::after{content:"";position:absolute;left:0;top:var(--sp-3);bottom:var(--sp-3);width:2px;border-radius:var(--r-2xs);background:var(--bar-nav);pointer-events:none}
+.cx-list .tn.on::after{background:var(--bar-acc)}
 .kmi[aria-disabled=true],.kmi[aria-disabled=true]:hover{color:var(--nav-muted);background:none;cursor:not-allowed;opacity:.6}
 .kmi>span,.sb-mg .sb-ic>span,.ktabs .kl{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .side :is(.kmi,.ktabs button,.sb-ic,.sb-repo,.sfold,.busy,.hav,.hlink,.stopbtn,.srail .hb,.tipb):focus-visible{outline:0;box-shadow:var(--nav-focus)}
@@ -205,7 +207,7 @@ a{color:var(--accent);cursor:pointer}
 .srail{display:none;flex-direction:column;align-items:center;gap:var(--sp-2);padding:var(--sp-7) 0 var(--sp-3)}
 .srail .hb{position:relative;width:40px;height:40px;display:inline-grid;place-items:center;border:0;background:none;color:var(--nav-dim);border-radius:var(--r)}
 .srail .hb:hover:where(:not([disabled])){background:var(--nav-sel);color:var(--nav-text)}
-.srail .hb.on{background:var(--bar-nav),var(--nav-sel);color:var(--nav-on)}
+.srail .hb.on{background:var(--nav-sel);color:var(--nav-on)}
 .srail .kab{font:var(--fw-md) var(--fs-sm)/1 var(--font);color:var(--nav-text)}
 .srail .rsep{width:32px;border-top:1px solid var(--nav-line);margin:var(--sp-3) 0}
 .srail .hb[aria-disabled=true]{opacity:.6;cursor:not-allowed}
@@ -227,7 +229,7 @@ a{color:var(--accent);cursor:pointer}
 .cx-list .lp .inp{background:var(--surface);border-color:var(--border-input);min-height:32px;font-size:var(--fs-sm)}
 .cx-list .tn{min-height:32px;transition:background-color var(--t-fast) var(--ease)}
 .cx-list .tn:hover{background:var(--cx-row-hover)}
-.cx-list .tn.on{background:var(--bar-acc),var(--surface);color:var(--text);box-shadow:0 0 0 1px var(--border)}
+.cx-list .tn.on{position:relative;background:var(--surface);color:var(--text);box-shadow:0 0 0 1px var(--border)}
 .cx-list .tn.on .nm{font-weight:var(--fw-md)}
 .cx-list .tn .dt{margin-left:auto;font:var(--fs-xs)/var(--lh-xs) var(--font);color:var(--text-3)}
 .tn.sec{min-height:28px;color:var(--text-2);font-size:var(--fs-sm)}
@@ -1420,6 +1422,10 @@ button.hlink{border:0;background:none;font:inherit;padding:0}
 @media (max-width:600px){
   .hbusy,.hstop{display:flex}
   .hdr .hist{display:none}
+  /* 경로 대신 지금 화면 이름 하나(확정안 2절 · 6절) — 앞 마디 · › 는 걷는다 */
+  .hdr .crumb .cp:not(:last-child),.hdr .crumb .cs{display:none}
+  /* 경고 점까지 서면 자리 칩은 걷는다(자리는 서랍 머리에도 있다) — 화면 이름이 줄임표로 줄지 않게 */
+  .hdr:has(.hstop .stopdot) .hlv{display:none}
   .hdr .menu-btn,.hdr .aside-btn{min-width:40px;height:40px}
   .hdr .hfind{order:0;flex:none}
   .hdr .hfind .qbtn{display:none}
@@ -2160,7 +2166,7 @@ button.sx-root{display:flex;align-items:center;gap:var(--sp-3);width:100%;backgr
 .side .mgnav .mgg{color:var(--nav-muted)}
 .side .mgnav .mgi{display:flex;align-items:center;height:36px;padding:0 var(--sp-5);color:var(--nav-dim);font-weight:var(--fw-md);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color var(--t-fast) var(--ease),background-color var(--t-fast) var(--ease)}
 .side .mgnav .mgi:hover{background:var(--nav-sel);color:var(--nav-text)}
-.side .mgnav .mgi.on{background:var(--bar-nav),var(--nav-sel);color:var(--nav-on)}
+.side .mgnav .mgi.on{position:relative;background:var(--nav-sel);color:var(--nav-on)}
 .side .mgnav .mgi:focus-visible{outline:0;box-shadow:var(--nav-focus)}
 .mgwrap.snav{display:block}
 @media (min-width:861px){.app.pg-mg .main:not(.rp){padding:calc(var(--sp-9) + var(--sp-3)) calc(var(--sp-9) + var(--sp-7))}}

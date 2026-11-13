@@ -254,6 +254,12 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.deepEqual(await page.locator('[data-t=stage] .stn > span').allInnerTexts(), ['목차', '항목', '기록'])
   assert.equal(await page.locator('[data-t=stage] [data-t=knProps] [data-t=whoVal]').count(), 1, '속성은 무대 안')
   assert.equal(await page.locator('[data-t=aside]').count(), 0, '첫 화면은 오른쪽 칸이 없다')
+  // 600 이하 머리 줄 — 경로 대신 지금 화면 이름 하나(경로 › 없음) · 오른쪽 칸 없는 첫 화면은 「옆 칸」 없음(확정안 6절)
+  await page.setViewportSize({ width: 375, height: 800 })
+  await page.waitForTimeout(150)
+  { const h = await page.locator('.hdr').evaluate((e) => ({ t: e.innerText, cut: (() => { const c = e.querySelector('.crumb'); return c.scrollWidth > c.clientWidth + 1 })() })); assert.doesNotMatch(h.t, /›/, '375 첫 화면 머리 줄에 경로 › 없음'); assert.match(h.t, /문서로 보기/); assert.equal(h.cut, false, '375 첫 화면 이름이 줄지 않는다') }
+  assert.equal(await page.locator('[data-t=asideBtn]').count(), 0, '첫 화면은 「옆 칸」 없음')
+  await page.setViewportSize(VIEW)
   // 목록 칸은 목록 화면(첫 화면 · 문서 · 기록)에만 — 점검 · 이력 · 지식관리 · 설정 · 그래프는 no-list(확정안 7-7)
   assert.equal(await page.locator('#app.has-list').count(), 1, '첫 화면은 목록 칸')
   assert.equal(await page.locator('.cx-list').isVisible(), true)
@@ -649,6 +655,14 @@ test('정리를 걷었다(S13): 항목 글 없는 기록은 메모 · 옛 정리
     const bar = await page.locator('[data-t=docActs]').evaluate((e) => { const a = e.getBoundingClientRect(), h = document.querySelector('.hdr').getBoundingClientRect(); return { inHdr: a.top === h.top, bottom: a.bottom <= innerHeight && a.bottom > innerHeight - 80, lab: getComputedStyle(e.querySelector('.dbl')).display !== 'none' } })
     assert.deepEqual(bar, w > 860 ? { inHdr: true, bottom: false, lab: false } : { inHdr: false, bottom: true, lab: true }, `문서 일 자리 ${w}`)
     assert.ok(await page.locator('[data-t=editBtn]').isVisible(), `고치기 ${w}`)
+    // 600 이하 머리 줄 — 지금 화면 이름 하나(경로 › 없음 · 이름이 줄지 않음) + 「옆 칸」 단추
+    if (w <= 600) {
+      const h = await page.locator('.hdr').evaluate((e) => { const c = e.querySelector('.crumb'); return { t: e.innerText, cut: c.scrollWidth > c.clientWidth + 1 } })
+      assert.doesNotMatch(h.t, /›/, `문서 머리 줄 ${w}: 경로 › 없음`)
+      assert.match(h.t, /배포절차/, `문서 머리 줄 ${w}: 문서 이름`)
+      assert.equal(h.cut, false, `문서 머리 줄 ${w}: 이름이 줄지 않는다`)
+      assert.ok(await page.locator('[data-t=asideBtn]').isVisible(), `문서 머리 줄 ${w}: 옆 칸 단추`)
+    }
     // 오른쪽 칸 서랍 — 목록 칸 폭을 따르지 않는다(좁은 폭에서도 280 이상) · 서랍에는 접기 단추 없음
     if (w <= 1024) {
       await page.click('[data-t=asideBtn]')

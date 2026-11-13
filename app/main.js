@@ -2708,10 +2708,12 @@ function itemPane(t, right) {
 const KLAB = { item: '항목', bundle: '항목 묶음', doc: '문서', rec: '기록' }
 let CURG = null, GTOK = null
 // 캔버스 색 — CSS 토큰을 한 번 읽어 둔다(매 프레임 getComputedStyle 를 부르지 않게)
+// 캔버스 색은 그려진 토큰을 읽는다(--accent · --k-* · 어두운 테마 값 포함) — 시스템 밝기(prefers-color-scheme)가 바뀌어도 다시 읽는다
+const gSysDark = () => !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
 function gTok() {
-  if (GTOK && GTOK.dark === !!UI.gdark && GTOK.theme === (document.documentElement.dataset.theme || '')) return GTOK
+  if (GTOK && GTOK.dark === !!UI.gdark && GTOK.theme === (document.documentElement.dataset.theme || '') && GTOK.sys === gSysDark()) return GTOK
   const cs = getComputedStyle($('#app .gwrap') || document.documentElement), v = (n, d) => cs.getPropertyValue(n).trim() || d
-  return (GTOK = { doc: v('--k-doc', '#334155'), item: v('--k-item', '#3358e6'), rec: v('--k-rec', '#c2410c'), line: v('--text-3', '#646d7b'), text: v('--text', '#11151c'), text2: v('--text-2', '#515a68'), bg: v('--hover', '#f5f7fa'), ring: v('--g-ring', '#fff'), acc: v('--accent', '#0d7a6f'), hit: v('--warn-line', '#e0b453'), dark: !!UI.gdark, theme: document.documentElement.dataset.theme || '' })
+  return (GTOK = { doc: v('--k-doc', '#334155'), item: v('--k-item', '#3358e6'), rec: v('--k-rec', '#c2410c'), line: v('--text-3', '#646d7b'), text: v('--text', '#11151c'), text2: v('--text-2', '#515a68'), bg: v('--hover', '#f5f7fa'), ring: v('--g-ring', '#fff'), acc: v('--accent', '#0d7a6f'), hit: v('--warn-line', '#e0b453'), dark: !!UI.gdark, theme: document.documentElement.dataset.theme || '', sys: gSysDark() })
 }
 // 모양 — 같은 모양을 SVG(2D 표 · 범례 · 목록 · 팝업)와 canvas(3D)에 그린다
 function glyphSvg(kind, x, y, r = 6) {
@@ -3052,7 +3054,9 @@ function gPaint() {
   // 점 제목 — 늘 보기를 켜면 모두(자리가 없으면 건너뛴다) · 끄면 올린 점 · 고른 점 · 찾기에 맞은 점 · 고른 뒤 보이는 점
   //   전체 그래프에서는 「제목」 을 꺼도 허브(중요도 상위) 이름을 쓴다 — 어디가 중심인지 읽히게
   const big = shown.length > 90, ff = getComputedStyle(cv).fontFamily, placed = []
-  const clash = (b) => placed.some((o) => b.x < o.x2 && b.x2 > o.x && b.y < o.y2 && b.y2 > o.y)
+  // 폰 폭(칸 600 이하) — 이름끼리 띄움을 넓혀 잰다 · 붙거나 겹칠 이름은 숨긴다(고른 점 · 이웃 이름은 늘 쓴다)
+  const gap = W <= 600 ? 4 : 0
+  const clash = (b) => placed.some((o) => b.x < o.x2 + gap && b.x2 + gap > o.x && b.y < o.y2 + gap && b.y2 + gap > o.y)
   let lab = 0
   ctx.lineJoin = 'round'
   const hubL = (id) => !vis && !Hd && !nq && G.hubs.has(id)
