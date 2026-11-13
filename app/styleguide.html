@@ -15,18 +15,22 @@ html,body{background:var(--bg)}
 .sg-nav{display:flex;flex-wrap:wrap;gap:var(--sp-2) var(--sp-6);font-size:var(--fs-mono);margin:0 0 var(--sp-9)}
 .sg section{margin:0 0 var(--sp-9)}
 .sg h2{font-size:var(--fs-md);margin:0 0 var(--sp-4);display:flex;align-items:baseline;gap:var(--sp-4);flex-wrap:wrap}
-.sg h2 small{font-weight:400;color:var(--text-3);font-size:var(--fs-mono)}
+.sg h2 small{font-weight:var(--fw);color:var(--text-3);font-size:var(--fs-mono)}
 .sg h3{font-size:var(--fs);margin:var(--sp-8) 0 var(--sp-3);color:var(--text-2)}
 .sg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--sp-5)}
 .sg-sw{border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;background:var(--surface);font-size:var(--fs-sm)}
 .sg-sw i{display:block;height:44px;border-bottom:1px solid var(--border)}
 .sg-sw b,.sg-sw code{display:block;padding:var(--sp-1) var(--sp-4);background:none}
-.sg-sw b{padding-top:var(--sp-3);font:600 var(--fs-sm) var(--mono)}
+.sg-sw b{padding-top:var(--sp-3);font:var(--fw-md) var(--fs-sm) var(--mono)}
 .sg-sw code{color:var(--text-3);padding-bottom:var(--sp-3)}
 .sg-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-4) var(--sp-6)}
 .sg-cell{display:flex;flex-direction:column;align-items:flex-start;gap:var(--sp-2);font-size:var(--fs-xs);color:var(--text-3)}
 .sg-bar{height:12px;background:var(--accent-line);border-radius:var(--r-xs)}
 .sg-box{width:72px;height:44px;background:var(--surface);border:1px solid var(--border)}
+.sg-nav-sw{background:var(--nav-bg);border-radius:var(--r-md);padding:var(--sp-5)}
+.sg-nav-sw .sg-sw{background:var(--nav-bg-2);border-color:var(--nav-line);color:var(--nav-text)}
+.sg-nav-sw .sg-sw code{color:var(--nav-dim)}
+.sg-dot{display:inline-block;width:var(--k-dot);height:var(--k-dot);border-radius:50%;vertical-align:middle;margin-right:var(--sp-2)}
 .sg-stage{background:var(--surface-3);border-radius:var(--r-lg);padding:var(--sp-8);position:relative}
 .sg-stage .scrim{position:relative;inset:auto;z-index:auto;min-height:280px;border-radius:var(--r-md);padding:var(--sp-8) 0}
 .sg-stage .pop{position:relative;z-index:auto;display:inline-block;vertical-align:top}
@@ -55,9 +59,9 @@ html,body{background:var(--bg)}
 </head>
 <body>
 <div class="sg">
-  <div class="sg-h"><h1>kmd 디자인 견본</h1><span class="muted small">docs/kmd_디자인_컨벤션.md v0.2 · 값은 app/kmd.css 맨 위 <code>:root</code> 하나에서 온다</span></div>
+  <div class="sg-h"><h1>kmd 디자인 견본</h1><span class="muted small">docs/kmd_디자인_컨벤션.md v0.3 · 값은 app/kmd.css 맨 위 <code>:root</code> 하나에서 온다</span><button type="button" class="btn sm" id="sgTheme" aria-pressed="false">어둡게 보기</button></div>
   <nav class="sg-nav" aria-label="견본 차례">
-    <a href="#color">색</a><a href="#size">글 · 간격 · 모서리 · 그림자</a><a href="#btn">단추</a><a href="#inp">칸</a><a href="#chip">칩 · 표지</a><a href="#card">카드</a><a href="#modal">모달 · 팝업</a><a href="#tip">정보 단추 (!)</a><a href="#table">표</a><a href="#tabs">탭</a><a href="#state">빈 화면 · 읽는 중 · 오류</a><a href="#link">링크</a><a href="#side">옆 메뉴</a><a href="#ref">문서 화면</a><a href="#term">터미널</a><a href="#resp">반응형</a>
+    <a href="#color">색 · 잉크</a><a href="#size">글 · 간격 · 모서리 · 그림자</a><a href="#btn">단추</a><a href="#inp">칸</a><a href="#chip">칩 · 표지</a><a href="#card">카드</a><a href="#modal">모달 · 팝업</a><a href="#tip">정보 단추 (!)</a><a href="#table">표</a><a href="#tabs">탭</a><a href="#state">빈 화면 · 읽는 중 · 오류</a><a href="#link">링크</a><a href="#side">옆 메뉴</a><a href="#ref">문서 화면</a><a href="#term">터미널</a><a href="#resp">반응형</a>
   </nav>
 
   <section id="color">
@@ -69,19 +73,26 @@ html,body{background:var(--bg)}
       <div class="sg-sw"><i style="background:var(--surface-2)"></i><b>--surface-2</b><code data-v="--surface-2"></code></div>
       <div class="sg-sw"><i style="background:var(--surface-3)"></i><b>--surface-3</b><code data-v="--surface-3"></code></div>
       <div class="sg-sw"><i style="background:var(--hover)"></i><b>--hover</b><code data-v="--hover"></code></div>
+      <div class="sg-sw"><i style="background:var(--cx-desk)"></i><b>--cx-desk</b><code data-v="--cx-desk"></code></div>
+      <div class="sg-sw"><i style="background:var(--cx-list-bg)"></i><b>--cx-list-bg</b><code data-v="--cx-list-bg"></code></div>
+      <div class="sg-sw"><i style="background:var(--cx-row-hover)"></i><b>--cx-row-hover</b><code data-v="--cx-row-hover"></code></div>
       <div class="sg-sw"><i style="background:var(--border)"></i><b>--border</b><code data-v="--border"></code></div>
       <div class="sg-sw"><i style="background:var(--border-strong)"></i><b>--border-strong</b><code data-v="--border-strong"></code></div>
+      <div class="sg-sw"><i style="background:var(--border-input)"></i><b>--border-input</b><code data-v="--border-input"></code></div>
       <div class="sg-sw"><i style="background:var(--text)"></i><b>--text</b><code data-v="--text"></code></div>
       <div class="sg-sw"><i style="background:var(--text-2)"></i><b>--text-2</b><code data-v="--text-2"></code></div>
       <div class="sg-sw"><i style="background:var(--text-3)"></i><b>--text-3</b><code data-v="--text-3"></code></div>
       <div class="sg-sw"><i style="background:var(--on-accent)"></i><b>--on-accent</b><code data-v="--on-accent"></code></div>
     </div>
-    <h3>뜻 색 — 파랑 주 일 · 초록 됨 · 노랑 멈춤 · 빨강 못 함 · 보라 기다림</h3>
+    <h3>강조 하나(청록) · 주 단추 · 뜻 색: 초록 됨 · 노랑 멈춤 · 빨강 못 함 · 보라 기다림(상태 칩에만)</h3>
     <div class="sg-grid">
       <div class="sg-sw"><i style="background:var(--accent)"></i><b>--accent</b><code data-v="--accent"></code></div>
       <div class="sg-sw"><i style="background:var(--accent-hover)"></i><b>--accent-hover</b><code data-v="--accent-hover"></code></div>
       <div class="sg-sw"><i style="background:var(--accent-bg)"></i><b>--accent-bg</b><code data-v="--accent-bg"></code></div>
       <div class="sg-sw"><i style="background:var(--accent-line)"></i><b>--accent-line</b><code data-v="--accent-line"></code></div>
+      <div class="sg-sw"><i style="background:var(--pri-bg)"></i><b>--pri-bg</b><code data-v="--pri-bg"></code></div>
+      <div class="sg-sw"><i style="background:var(--pri-hover)"></i><b>--pri-hover</b><code data-v="--pri-hover"></code></div>
+      <div class="sg-sw"><i style="background:var(--pri-fg)"></i><b>--pri-fg</b><code data-v="--pri-fg"></code></div>
       <div class="sg-sw"><i style="background:var(--ok)"></i><b>--ok</b><code data-v="--ok"></code></div>
       <div class="sg-sw"><i style="background:var(--ok-bg)"></i><b>--ok-bg</b><code data-v="--ok-bg"></code></div>
       <div class="sg-sw"><i style="background:var(--ok-line)"></i><b>--ok-line</b><code data-v="--ok-line"></code></div>
@@ -95,11 +106,31 @@ html,body{background:var(--bg)}
       <div class="sg-sw"><i style="background:var(--pending-bg)"></i><b>--pending-bg</b><code data-v="--pending-bg"></code></div>
       <div class="sg-sw"><i style="background:var(--pending-line)"></i><b>--pending-line</b><code data-v="--pending-line"></code></div>
     </div>
-    <h3>진한 띠 · 터미널</h3>
+    <h3>갈래 색 셋: 그래프 점(모양과 함께) · 갈래 점 · 순간에만</h3>
     <div class="sg-grid">
-      <div class="sg-sw"><i style="background:var(--ink)"></i><b>--ink</b><code data-v="--ink"></code></div>
-      <div class="sg-sw"><i style="background:var(--ink-2)"></i><b>--ink-2</b><code data-v="--ink-2"></code></div>
-      <div class="sg-sw"><i style="background:var(--ink-text)"></i><b>--ink-text</b><code data-v="--ink-text"></code></div>
+      <div class="sg-sw"><i style="background:var(--k-doc)"></i><b>--k-doc</b><code data-v="--k-doc"></code></div>
+      <div class="sg-sw"><i style="background:var(--k-item)"></i><b>--k-item</b><code data-v="--k-item"></code></div>
+      <div class="sg-sw"><i style="background:var(--k-rec)"></i><b>--k-rec</b><code data-v="--k-rec"></code></div>
+      <div class="sg-sw"><i style="background:var(--k-rec-bg)"></i><b>--k-rec-bg</b><code data-v="--k-rec-bg"></code></div>
+    </div>
+    <h3>잉크 기둥: 토스트 · 툴팁 · 「나」 표지도 이 면 · 민트는 고른 막대 · 자리 점 · 잉크 위 초점에만</h3>
+    <div class="sg-grid sg-nav-sw">
+      <div class="sg-sw"><i style="background:var(--nav-bg)"></i><b>--nav-bg</b><code data-v="--nav-bg"></code></div>
+      <div class="sg-sw"><i style="background:var(--nav-bg-2)"></i><b>--nav-bg-2</b><code data-v="--nav-bg-2"></code></div>
+      <div class="sg-sw"><i style="background:var(--nav-sel)"></i><b>--nav-sel</b><code data-v="--nav-sel"></code></div>
+      <div class="sg-sw"><i style="background:var(--nav-text)"></i><b>--nav-text</b><code data-v="--nav-text"></code></div>
+      <div class="sg-sw"><i style="background:var(--nav-dim)"></i><b>--nav-dim</b><code data-v="--nav-dim"></code></div>
+      <div class="sg-sw"><i style="background:var(--nav-muted)"></i><b>--nav-muted</b><code data-v="--nav-muted"></code></div>
+      <div class="sg-sw"><i style="background:var(--nav-on)"></i><b>--nav-on</b><code data-v="--nav-on"></code></div>
+      <div class="sg-sw"><i style="background:var(--nav-accent)"></i><b>--nav-accent</b><code data-v="--nav-accent"></code></div>
+      <div class="sg-sw"><i style="background:var(--nav-warn)"></i><b>--nav-warn</b><code data-v="--nav-warn"></code></div>
+      <div class="sg-sw"><i style="background:var(--nav-danger)"></i><b>--nav-danger</b><code data-v="--nav-danger"></code></div>
+      <div class="sg-sw"><i style="background:var(--nav-k-doc)"></i><b>--nav-k-doc</b><code data-v="--nav-k-doc"></code></div>
+      <div class="sg-sw"><i style="background:var(--nav-k-item)"></i><b>--nav-k-item</b><code data-v="--nav-k-item"></code></div>
+      <div class="sg-sw"><i style="background:var(--nav-k-rec)"></i><b>--nav-k-rec</b><code data-v="--nav-k-rec"></code></div>
+    </div>
+    <h3>터미널</h3>
+    <div class="sg-grid">
       <div class="sg-sw"><i style="background:var(--term-bg)"></i><b>--term-bg</b><code data-v="--term-bg"></code></div>
       <div class="sg-sw"><i style="background:var(--term-text)"></i><b>--term-text</b><code data-v="--term-text"></code></div>
       <div class="sg-sw"><i style="background:var(--term-dim)"></i><b>--term-dim</b><code data-v="--term-dim"></code></div>
@@ -113,43 +144,58 @@ html,body{background:var(--bg)}
     <h2>글 크기 · 간격 · 모서리 · 그림자</h2>
     <div class="tblwrap"><table class="t">
       <tr><th>이름</th><th>값</th><th>쓰는 곳</th><th>보기</th></tr>
-      <tr><td class="mono">--fs-xs</td><td data-v="--fs-xs"></td><td>작은 표지</td><td style="font-size:var(--fs-xs)">지식 이름</td></tr>
-      <tr><td class="mono">--fs-sm</td><td data-v="--fs-sm"></td><td>작은 글 · 도움말</td><td style="font-size:var(--fs-sm)">지식 이름</td></tr>
-      <tr><td class="mono">--fs-mono</td><td data-v="--fs-mono"></td><td>모노(경로 · 시각) · 단추</td><td class="mono" style="font-size:var(--fs-mono)">docs/배포절차.md</td></tr>
-      <tr><td class="mono">--fs</td><td data-v="--fs"></td><td>본문</td><td style="font-size:var(--fs)">지식 이름</td></tr>
-      <tr><td class="mono">--fs-md</td><td data-v="--fs-md"></td><td>영역 제목</td><td style="font-size:var(--fs-md)"><b>지식 이름</b></td></tr>
-      <tr><td class="mono">--fs-lg</td><td data-v="--fs-lg"></td><td>큰 수</td><td style="font-size:var(--fs-lg)"><b>128</b></td></tr>
-      <tr><td class="mono">--fs-xl</td><td data-v="--fs-xl"></td><td>화면 제목</td><td style="font-size:var(--fs-xl)"><b>지식 목록</b></td></tr>
+      <tr><td class="mono">--fs-xs / --lh-xs</td><td><span data-v="--fs-xs"></span> / <span data-v="--lh-xs"></span></td><td>작은 표지 · 수</td><td style="font-size:var(--fs-xs);line-height:var(--lh-xs)">지식 이름</td></tr>
+      <tr><td class="mono">--fs-sm / --lh-sm</td><td><span data-v="--fs-sm"></span> / <span data-v="--lh-sm"></span></td><td>작은 글 · 목록 둘째 줄</td><td style="font-size:var(--fs-sm);line-height:var(--lh-sm)">지식 이름</td></tr>
+      <tr><td class="mono">--fs-mono</td><td><span data-v="--fs-mono"></span></td><td>모노(경로 · 시각)</td><td style="font-size:var(--fs-mono)"><span class="mono">docs/배포절차.md</span></td></tr>
+      <tr><td class="mono">--fs / --lh</td><td><span data-v="--fs"></span> / <span data-v="--lh"></span></td><td>화면 글 · 메뉴 · 단추</td><td style="font-size:var(--fs);line-height:var(--lh)">지식 이름</td></tr>
+      <tr><td class="mono">--fs-md / --lh-md</td><td><span data-v="--fs-md"></span> / <span data-v="--lh-md"></span></td><td>영역 제목</td><td style="font-size:var(--fs-md);line-height:var(--lh-md)"><b>지식 이름</b></td></tr>
+      <tr><td class="mono">--fs-body / --lh-body</td><td><span data-v="--fs-body"></span> / <span data-v="--lh-body"></span></td><td>종이 본문</td><td style="font-size:var(--fs-body);line-height:var(--lh-body)">배포 창은 매주 목요일 22시다</td></tr>
+      <tr><td class="mono">--fs-lg / --lh-lg</td><td><span data-v="--fs-lg"></span> / <span data-v="--lh-lg"></span></td><td>큰 수 · 작은 화면 제목</td><td style="font-size:var(--fs-lg);line-height:var(--lh-lg)"><b>128</b></td></tr>
+      <tr><td class="mono">--fs-xl / --lh-xl</td><td><span data-v="--fs-xl"></span> / <span data-v="--lh-xl"></span></td><td>화면 제목 · 종이 「##」 항목 머리</td><td style="font-size:var(--fs-xl);line-height:var(--lh-xl)"><b>지식 목록</b></td></tr>
+      <tr><td class="mono">--fs-2xl / --lh-2xl</td><td><span data-v="--fs-2xl"></span> / <span data-v="--lh-2xl"></span></td><td>기록 제목</td><td style="font-size:var(--fs-2xl);line-height:var(--lh-2xl)"><b>배포 창 바꿈</b></td></tr>
+      <tr><td class="mono">--fs-3xl / --lh-3xl</td><td><span data-v="--fs-3xl"></span> / <span data-v="--lh-3xl"></span></td><td>종이 제목 · 지식 이름</td><td style="font-size:var(--fs-3xl);line-height:var(--lh-3xl)"><b>배포 절차</b></td></tr>
+      <tr><td class="mono">--fs-num / --lh-num</td><td><span data-v="--fs-num"></span> / <span data-v="--lh-num"></span></td><td>점검 큰 수</td><td style="font-size:var(--fs-num);line-height:var(--lh-num)"><b>40</b></td></tr>
+      <tr><td class="mono">--fw · --fw-md · --fw-strong</td><td><span data-v="--fw"></span> · <span data-v="--fw-md"></span> · <span data-v="--fw-strong"></span></td><td>본문 · 메뉴 · 단추 · 제목 · 종이 「##」 항목 머리만</td><td><span style="font-weight:var(--fw)">본문</span> · <span style="font-weight:var(--fw-md)">제목</span> · <span style="font-weight:var(--fw-strong)">## 항목</span></td></tr>
     </table></div>
     <h3>간격</h3>
     <div class="sg-row">
-      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-1)"></span>--sp-1 · 2</div>
-      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-2)"></span>--sp-2 · 4</div>
-      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-3)"></span>--sp-3 · 6</div>
-      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-4)"></span>--sp-4 · 8</div>
-      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-5)"></span>--sp-5 · 10</div>
-      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-6)"></span>--sp-6 · 12</div>
-      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-7)"></span>--sp-7 · 14 카드 사이</div>
-      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-8)"></span>--sp-8 · 16</div>
-      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-9)"></span>--sp-9 · 22 영역 사이</div>
+      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-1)"></span>--sp-1 · <span data-v="--sp-1"></span></div>
+      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-2)"></span>--sp-2 · <span data-v="--sp-2"></span></div>
+      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-3)"></span>--sp-3 · <span data-v="--sp-3"></span></div>
+      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-4)"></span>--sp-4 · <span data-v="--sp-4"></span></div>
+      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-5)"></span>--sp-5 · <span data-v="--sp-5"></span></div>
+      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-6)"></span>--sp-6 · <span data-v="--sp-6"></span></div>
+      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-7)"></span>--sp-7 · <span data-v="--sp-7"></span> 카드 사이</div>
+      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-8)"></span>--sp-8 · <span data-v="--sp-8"></span></div>
+      <div class="sg-cell"><span class="sg-bar" style="width:var(--sp-9)"></span>--sp-9 · <span data-v="--sp-9"></span> 영역 사이</div>
     </div>
     <h3>모서리</h3>
     <div class="sg-row">
-      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r-xs)"></span>--r-xs 표지</div>
-      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r-sm)"></span>--r-sm 작은 칩</div>
-      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r)"></span>--r 단추</div>
-      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r-md)"></span>--r-md 칸 · 팝업</div>
-      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r-lg)"></span>--r-lg 카드 · 모달</div>
-      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r-pill)"></span>--r-pill 알약</div>
+      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r-2xs)"></span>--r-2xs 4 자리 칩 · 고른 막대</div>
+      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r-xs)"></span>--r-xs 6 표지</div>
+      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r-sm)"></span>--r-sm 6 작은 칩</div>
+      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r)"></span>--r 8 단추 · 목록 줄</div>
+      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r-md)"></span>--r-md 12 칸 · 팝업</div>
+      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r-lg)"></span>--r-lg 16 종이 · 카드 · 모달</div>
+      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r-xl)"></span>--r-xl 20 첫 화면 무대</div>
+      <div class="sg-cell"><span class="sg-box" style="border-radius:var(--r-pill)"></span>--r-pill 상태 칩 · 탭 알약만</div>
     </div>
     <h3>그림자 · 초점 고리</h3>
     <div class="sg-row">
       <div class="sg-cell"><span class="sg-box" style="box-shadow:var(--shadow-1);border-radius:var(--r-md)"></span>--shadow-1 카드</div>
       <div class="sg-cell"><span class="sg-box" style="box-shadow:var(--shadow-2);border-radius:var(--r-md)"></span>--shadow-2 팝업 · 모달</div>
       <div class="sg-cell"><span class="sg-box" style="box-shadow:var(--shadow-3);border-radius:var(--r-md)"></span>--shadow-3 찾기 창 · 서랍</div>
-      <div class="sg-cell"><span class="sg-box" style="box-shadow:var(--focus-ring);border-radius:var(--r)"></span>--focus-ring 키보드 초점</div>
+      <div class="sg-cell"><span class="sg-box" style="box-shadow:var(--shadow-paper);border-radius:var(--r-lg)"></span>--shadow-paper 종이(어두움은 없음)</div>
+      <div class="sg-cell"><span class="sg-box" style="box-shadow:var(--focus-ring);border-radius:var(--r)"></span>--focus-ring 키보드 초점(입력도)</div>
+      <div class="sg-cell sg-nav-sw"><span class="sg-box" style="background:var(--nav-sel);border-color:var(--nav-line);box-shadow:var(--nav-focus);border-radius:var(--r)"></span><span style="color:var(--nav-dim)">--nav-focus 잉크 위 초점</span></div>
     </div>
-    <p class="hint">층(z): --z-menu 20 · --z-scrim 70(모달 · 찾기 창 · 서랍 바로 아래) · --z-pop 80 · --z-toast 90(모달 위). 폭: --w-text 820 · --w-list 980 · --w-grid 1100 · --w-side 248 · --w-aside 300.</p>
+    <p class="hint">층(z): --z-menu 20 · --z-scrim 70(모달 · 찾기 창 · 서랍 바로 아래) · --z-pop 80 · --z-toast 90(모달 위). 폭: --w-text 820 · --w-list 980 · --w-grid 1100 · --w-side 248 · --w-aside 300(세 칸 틀에서 --cx-nav 212 · --cx-list 300 · --cx-head 56 · --cx-rail 52 · --cx-paper 760 · --cx-fold 64 로). 움직임: --ease 곡선 하나 · --t-fast 140 · --t-pop 180 · --t-sheet 320(줄이기를 고르면 0). 아이콘: --ic 16 · 획 1.5.</p>
+    <h3>갈래 점 · 고른 막대</h3>
+    <div class="sg-row">
+      <div class="sg-cell"><span><span class="sg-dot" style="background:var(--k-doc)"></span>문서 <span class="sg-dot" style="background:var(--k-item)"></span>항목 <span class="sg-dot" style="background:var(--k-rec)"></span>기록</span>--k-dot 6</div>
+      <div class="sg-cell"><span class="sg-box" style="background:var(--surface) var(--bar-acc)"></span>--bar-acc 목록 칸 고른 줄</div>
+      <div class="sg-cell sg-nav-sw"><span class="sg-box" style="background:var(--nav-sel) var(--bar-nav);border-color:var(--nav-line)"></span><span style="color:var(--nav-dim)">--bar-nav 잉크 위 고른 줄</span></div>
+    </div>
   </section>
 
   <section id="btn">
@@ -393,8 +439,16 @@ html,body{background:var(--bg)}
 </div>
 <script>
 // 견본의 값 칸 — kmd.css 의 :root 에서 바로 읽는다(값을 두 곳에 적지 않게)
-const cs = getComputedStyle(document.documentElement)
-for (const e of document.querySelectorAll('[data-v]')) e.textContent = cs.getPropertyValue(e.dataset.v).trim()
+const readV = () => { const cs = getComputedStyle(document.documentElement); for (const e of document.querySelectorAll('[data-v]')) e.textContent = cs.getPropertyValue(e.dataset.v).trim() }
+readV()
+// 두 테마를 같이 본다(이 페이지에만 · 앱의 「화면 밝기」 와 따로)
+const tb = document.getElementById('sgTheme')
+tb.addEventListener('click', () => {
+  const dark = document.documentElement.dataset.theme !== 'dark'
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+  tb.setAttribute('aria-pressed', String(dark)); tb.textContent = dark ? '밝게 보기' : '어둡게 보기'
+  readV()
+})
 </script>
 </body>
 </html>

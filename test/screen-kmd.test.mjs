@@ -268,7 +268,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   await page.click('[data-t=dir][data-p="3.4_웹설계"]')
   assert.equal(await page.locator('[data-t=dir][data-p="3.4_웹설계"]').getAttribute('aria-expanded'), 'true')
   assert.equal(await page.locator('[data-t=doc][data-d="3.4_웹설계/테이블정의서"]').innerText(), '테이블정의서', '다른 폴더의 같은 제목은 꼬리표 없이')
-  assert.equal(await page.locator('[data-t=doc][data-d="3.4_웹설계/테이블정의서"]').evaluate((e) => getComputedStyle(e).paddingLeft), '31px', '한 겹 들임')
+  assert.equal(await page.locator('[data-t=doc][data-d="3.4_웹설계/테이블정의서"]').evaluate((e) => getComputedStyle(e).paddingLeft), '33px', '한 겹 들임(21 + --sp-5 12 · 컨벤션 v0.3 4px 격자)')
   await page.click('[data-t=dir][data-p="3.4_웹설계"]')
   assert.equal(await page.locator('[data-t=doc][data-d="3.4_웹설계/테이블정의서"]').count(), 0, '다시 접힘')
   // 문서 찾기 — 맞는 폴더를 펼쳐 보인다 · 모두 펴기 / 모두 접기

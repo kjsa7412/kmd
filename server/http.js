@@ -39,7 +39,7 @@ import { writeJsonAtomic } from '../core/atomic.js'
 
 const APP = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'app')
 const GZ = new Map() // 정적 파일 지문 → 눌러 둔 몸(UX G2-05)
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.json': 'application/json' }
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.json': 'application/json', '.woff2': 'font/woff2' }
 const MAX_BODY = 2 << 20
 // MCP 본문 — 들어온 사람만(save 의 첨부 attach 한 번 8MB · base64 4/3 · S-D30)
 const MCP_BODY = 12 << 20
