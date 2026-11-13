@@ -79,7 +79,7 @@ const WORK = ['import', 'held', 'send']
 async function mg(page, area, item) {
   if (WORK.includes(item)) return page.click(`[data-t=knMenu] [data-t=nav-${item}]`)
   // 구조는 문서 나무 머리 [구조] — 목록 칸은 목록 화면에만 보인다(개편 3단계): 목록 없는 화면이면 「목차」 부터
-  if (item === 'structure') { await page.waitForSelector('[data-t=tree] [data-t=treeStruct]', { state: 'attached' }); if (!(await page.locator('[data-t=tree] [data-t=treeStruct]').isVisible())) await page.click('[data-t=ktabs] [data-t=rb-docs]'); await page.waitForSelector('[data-t=tree] [data-t=treeStruct]'); return page.click('[data-t=tree] [data-t=treeStruct]') }
+  if (item === 'structure') { await page.waitForSelector('[data-t=tree] [data-t=treeStruct]', { state: 'attached' }); if (!(await page.locator('[data-t=tree] [data-t=treeStruct]').isVisible())) { if (await page.locator('[data-t=ktabs]').count()) await page.click('[data-t=ktabs] [data-t=rb-docs]'); else { await page.click('[data-t=kpick]'); await page.click('[data-t=kmenuKn][aria-current=true]') } } await page.waitForSelector('[data-t=tree] [data-t=treeStruct]'); return page.click('[data-t=tree] [data-t=treeStruct]') }
   // 지식관리(N6) — 모든 지식(옛 팀 지식) · 사람 · 기초 세우기는 공통 메뉴 「지식관리」 의 본문 왼쪽 메뉴
   const MG = { kns: 'all', all: 'all', people: 'people', seed: 'seed' }
   if (MG[item]) { await page.click('[data-t=nav-manage]'); return page.click(`[data-t=mgNav] [data-t=mgp-${MG[item]}]`) }
@@ -140,12 +140,14 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
   page.on('pageerror', (e) => errors.push(e.message))
 
-  // 들어가기 — 두 칸 + [들어가기] · 옆 메뉴는 흐리게 · 틀리면 한 줄
+  // 들어가기 — 앱 틀 없이 두 쪽(왼쪽 잉크 판 그림 · 오른쪽 위 설명서 · 가운데 칸) · 틀리면 한 줄
   await page.goto(s.url)
   await page.waitForSelector('[data-t=loginBtn]')
   assert.match(await page.locator('.gate').innerText(), /팀 kmd 에 들어간다/)
   await page.click('[data-t="tip-gate.login"]'); assert.match(await page.locator('#tipPop').innerText(), /한 번 들어오면 쓰는 동안 이어진다/); await page.keyboard.press('Escape')
-  assert.equal(await page.locator('.side.dim').count(), 1)
+  assert.equal(await page.locator('.side, .hdr').count(), 0, '들어가기는 앱 틀 없이 두 쪽(개편 6단계)')
+  assert.equal(await page.locator('[data-t=gatePage] .gart svg[aria-hidden=true], [data-t=gatePage] .gart[aria-hidden=true] svg').count(), 1)
+  assert.equal(await page.locator('[data-t=gatePage] [data-t=manual]').getAttribute('href'), '/manual')
   assert.equal(await page.getAttribute('#lgPw', 'autocomplete'), 'current-password')
   await page.fill('#lgId', 'kim')
   await page.fill('#lgPw', 'wrong-password')
@@ -164,7 +166,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.deepEqual(await page.locator('[data-t=manageArea] .sb-ic').evaluateAll((els) => els.map((e) => e.dataset.t + ':' + e.textContent.trim())), ['nav-manage:지식관리', 'nav-settings-team:설정'])
   assert.equal(await page.locator('[data-t=nav-manage]').getAttribute('aria-current'), 'page', '지식 목록은 공통 메뉴 「지식관리」')
   assert.equal(await page.locator('[data-t=knMenu] [aria-current]').count(), 0)
-  assert.equal(await page.locator('[data-t=ktabs], [data-t=leftPane]').count(), 2, '보기 탭 · 나무는 어느 화면이든 늘(「문서」 버튼 없음)')
+  assert.equal(await page.locator('[data-t=ktabs], [data-t=leftPane]').count(), 1, '나무는 어느 화면이든 늘(「문서」 버튼 없음) · 지식관리(1025 이상)는 「보기」 자리에 하위 메뉴(개편 6단계)')
   assert.match(await page.locator('[data-t=kpick] .rn').innerText(), /지식/, '지식 고르기는 지식 목록에서도 고른 지식 이름')
   // 레일(접힘)도 같은 차례 — 지식 약자 · 지식 메뉴 · 선 · 공통 메뉴
   assert.deepEqual(await page.locator('[data-t=sideRailNav] button').evaluateAll((els) => els.map((e) => e.dataset.t)), ['sideFold', 'rl-kn', 'rl-held', 'rl-import', 'rl-history', 'rl-manage', 'rl-settings-team'])
@@ -185,6 +187,11 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   // 지식관리 › 모든 지식(메뉴 개편 N6 · 6-2 · 6-4) — 머리 「모든 지식 n」 · [불러오기] [+ 새 지식](총괄 관리자) · 표 칸(나의 자리 · 문서 · 저장소 · Claude · 상태) · 지식 폴더는 설정 › 운영
   assert.match(await page.locator('[data-t=allTitle]').innerText(), /^모든 지식\s*2$/)
   assert.deepEqual(await page.locator('[data-t=mgNav] .mgi').allInnerTexts(), ['모든 지식', '기초 세우기', '사람'])
+  // 1025 이상은 잉크 기둥이 하위 메뉴(「보기」 자리) · 모든 지식은 카드 격자(머리글자 · 값 이름) · 개편 6단계
+  assert.equal(await page.locator('.side [data-t=mgNav]').count(), 1)
+  assert.equal(await page.locator('.side [data-t=ktabs]').count(), 0)
+  assert.equal(await page.locator('[data-t=krow][data-name="DPMS 지식"] [data-t=knOpen]').getAttribute('data-ini'), 'DP')
+  assert.equal(await page.locator('[data-t=krow]').first().evaluate((e) => getComputedStyle(e).display), 'grid')
   assert.match(await page.locator('.crumb').innerText(), /지식관리 › 모든 지식/)
   assert.deepEqual(await page.locator('[data-t=allHead] .acts .btn').allInnerTexts(), ['불러오기', '+ 새 지식'])
   assert.deepEqual((await page.locator('[data-t=knTable] thead th').allInnerTexts()).map((x) => x.trim()).filter((x) => x && !['순서', '메뉴'].includes(x)), ['이름', '나의 자리', '문서', '저장소', 'Claude', '상태'])
@@ -527,6 +534,11 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   await page.keyboard.press('Control+o')
   await page.fill('#qoIn', '서버')
   await page.waitForSelector('[data-t=qoRow][data-name="서버목록"]')
+  // 명령 창(개편 6단계) — 범위가 한 지식이면 꼬리글에 지식 이름을 되풀이하지 않는다 · 바닥 키캡 안내 · 「취소」 는 600 이하에서만 보인다
+  assert.equal(await page.locator('[data-t=qoRow][data-name="서버목록"] .r').innerText(), '문서')
+  assert.match(await page.locator('[data-t=qoKeys]').innerText(), /고르기[\s\S]*열기[\s\S]*Ctrl/)
+  assert.equal(await page.locator('.pal[data-t=qo]').getAttribute('role'), 'dialog')
+  assert.equal(await page.locator('[data-t=qoClose]').isVisible(), false)
   await page.keyboard.press('Enter')
   await page.waitForSelector('[data-t=docPane][data-name="서버목록"]')
   await page.keyboard.press('Control+k')
@@ -989,10 +1001,11 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 팀 일�
   assert.equal(await page.locator('text=내 PC 프로그램').count(), 0)
   await mg(page, 'team', 'people')
   // 사람 규칙 — 전역 관리자 + 지식마다 자리(읽기 · 쓰기 · 관리) · 옛 「지식마다 따로 주는 권한은 없다」 는 걷었다 · 관리자에게는 묶음 카드
-  assert.match(await page.locator('[data-t=roleRule]').innerText(), /관리자[\s\S]*지식마다 자리[\s\S]*읽기[\s\S]*쓰기[\s\S]*관리[\s\S]*권한/)
-  assert.doesNotMatch(await page.locator('[data-t=roleRule]').innerText(), /따로 주는 권한은 없다/)
+  assert.match(await page.locator('[data-t=roleRule]').textContent(), /관리자[\s\S]*지식마다 자리[\s\S]*읽기[\s\S]*쓰기[\s\S]*관리[\s\S]*권한/)
+  assert.doesNotMatch(await page.locator('[data-t=roleRule]').textContent(), /따로 주는 권한은 없다/)
   // 지식관리 › 사람(N6) — 탭 사람 · 묶음
-  assert.deepEqual(await page.locator('[data-t=pplTabs] [role=tab]').allInnerTexts(), ['사람', '묶음'])
+  assert.deepEqual((await page.locator('[data-t=pplTabs] [role=tab]').allInnerTexts()).map((x) => x.replace(/\s*\d+$/, '')), ['사람', '묶음'])
+  assert.match(await page.locator('[data-t=pplTab-p] [data-t=pplN]').innerText(), /^\d+$/,'사람 수는 탭에(개편 6단계)')
   await page.click('[data-t=pplTab-g]')
   await page.waitForSelector('[data-t=admGroups] [data-t=grpAddOpen]')
   await page.click('[data-t=pplTab-p]')
