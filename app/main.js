@@ -572,6 +572,8 @@ const TIPS = {
   'chk.word': ['별칭 겹침: 별칭이 둘 이상의 항목에 겹친다 · 같은 라벨: 라벨이 같은 항목이 둘 이상(알림)', ''],
   'job.ctl': ['잠깐 멈춤은 지금 단계를 마치고 서고, [이어서] 로 잇는다. 그만두기는 바로 끝내며 이어 할 수 없다', ''],
   // 저장 확인 창(저장 승인 P5)
+  'ed': ['「## 」 으로 시작하는 줄이 항목 머리다 · md 로 쓴다. **굵게** · - 목록 · [링크](주소) · Ctrl S 저장 · Esc 취소 · 항목을 지우려면 그 「## 」 줄과 글을 지운다 · 머리를 바꾸려면 「## 」 줄만 고친다', ''],
+  'edRo': ['「## 」 으로 시작하는 줄이 항목 머리다 · md 로 쓴다. **굵게** · - 목록 · [링크](주소) · Ctrl S 저장 · Esc 취소 · 항목을 지우거나 머리를 바꾸는 일은 지식관리자가 한다', ''],
   'sv': ['저장 제안이다. 아직 쓰지 않았다. [넣기] 를 누르면 이대로 기록과 문서에 한 번에 들어간다', ''],
   'sv.warn': ['[넣기] 를 누르면 경고를 받아들이고 그대로 남긴다(기록의 받아들인 경고). 고치려면 취소하고 글을 고친다', ''],
   'send.to': ['정하면 이 개인 지식에서 보내는 것은 모두 그곳으로만 간다. 바꾸려면 새 이름을 그대로 친다', ''],
@@ -650,7 +652,7 @@ document.addEventListener('focusin', (ev) => { if (S.tip && ev.target.closest &&
 document.addEventListener('scroll', () => { if (S.tip) placeTip() }, true)
 window.addEventListener('resize', () => { if (S.tip) placeTip() })
 // 열린 메뉴의 항목 — 맨 위 층 .pop 또는 단추 안에 그린 .menu · .kmenu
-const menuItems = () => { const b = $('#app .pop') || $(`#app [data-m="${CSS.escape(S.menu || '')}"] .menu`) || $('#app .kmenu'); return b ? [...b.querySelectorAll('[data-a]')].filter((x) => x.getClientRects().length) : [] }
+const menuItems = () => { const b = $('#app .pop') || $(`#app [data-m="${CSS.escape(S.menu || '')}"] .menu`) || $('#app .kmenu'); return b ? [...b.querySelectorAll('[data-a]')].filter((x) => x.getClientRects().length && !x.disabled) : [] }
 // 메뉴를 닫았다 — 초점이 메뉴 안(이제 없다)이나 body 면 연 단추로 돌려준다
 function menuBack(k) {
   const a = document.activeElement
@@ -708,7 +710,7 @@ function pgOf(editing) {
   if (gated()) return 'login'
   const s = S.route.scr
   if (editing) return 'edit'
-  if (s === 'docs' || s === 'items') { const t = activeTab(); return !t ? 'home' : t.kind === 'rec' ? 'rec' : 'doc' }
+  if (s === 'docs' || s === 'items') { const t = activeTab(); return !t ? 'home' : t.kind === 'rec' ? 'rec' : t.kind === 'item' ? 'item' : 'doc' }
   return PG[s] || 'work'
 }
 function draw() {
@@ -746,7 +748,7 @@ function draw() {
   const list = listHtml(scr)
   const hasList = !!list && !editing && DOCSCR.includes(S.route.scr)
   const ar = aRail()
-  app.innerHTML = `<div class="cxnav" data-t="nav">${sideHtml()}${list}</div><div class="col">${hdrHtml(scr)}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside"><button type="button" class="hb afold" data-a="asideRail" data-t="asideFold" aria-expanded="${!ar}" title="${ar ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'} (Ctrl ])" aria-label="${ar ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'}">${svg(ar ? 'sideL' : 'sideR')}</button><div class="asc" data-t="asideScroll">${scr.aside}</div></div>` : ''}</div></div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.rsWin ? rsWinHtml() : ''}${S.devWin ? devWinHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S.paste && S.route.scr === 'import' ? pasteWinHtml() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.recFix ? recFixHtml() : ''}${S.sv ? svHtml() : ''}${S.past ? pastHtml() : ''}${S.sdw && S.route.scr === 'home' ? sdwHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}${S.keys ? keysHtml() : ''}`
+  app.innerHTML = `<div class="cxnav" data-t="nav">${sideHtml()}${list}</div><div class="col">${hdrHtml(scr)}${gated() ? '' : scr.acts || ''}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside"><button type="button" class="hb afold" data-a="asideRail" data-t="asideFold" aria-expanded="${!ar}" title="${ar ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'} (Ctrl ])" aria-label="${ar ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'}">${svg(ar ? 'sideL' : 'sideR')}</button><div class="asc" data-t="asideScroll">${scr.aside}</div></div>` : ''}</div></div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.rsWin ? rsWinHtml() : ''}${S.devWin ? devWinHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S.paste && S.route.scr === 'import' ? pasteWinHtml() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.recFix ? recFixHtml() : ''}${S.sv ? svHtml() : ''}${S.past ? pastHtml() : ''}${S.sdw && S.route.scr === 'home' ? sdwHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}${S.keys ? keysHtml() : ''}`
   for (const c of [...app.classList]) if (c.startsWith('pg-')) app.classList.remove(c)
   app.classList.add('pg-' + pgOf(editing))
   app.classList.toggle('has-list', hasList)
@@ -1070,7 +1072,7 @@ function hdrHtml(scr) {
   const stop = S.loginLost
     ? '<button type="button" class="hb stopdot bad" data-a="reLogin" data-t="loginLostHdr" title="들어간 것이 끝났다 · 다시 들어가기" aria-label="들어간 것이 끝났다 · 다시 들어가기">!</button>'
     : st.length ? `<button type="button" class="hb stopdot${st.some((x) => x.level === 'bad') ? ' bad' : ''}" data-a="stopOpen" data-t="stopDot" title="경고 ${st.length}: 누르면 모두 본다" aria-label="경고 ${st.length}">⚠<span>${st.length}</span></button>` : ''
-  return `<header class="hdr">${menuBtn}${hb}<span class="crumb">${c}</span>${lv ? `<span class="hlv">${lv}</span>` : ''}<span class="hsp"></span>${findHtml(true)}${scr.acts || ''}${asideBtn}${stop ? `<span class="hstop">${stop}</span>` : ''}<span class="hbusy">${busyDot(true)}</span></header>`
+  return `<header class="hdr">${menuBtn}${hb}<span class="crumb">${c}</span>${lv ? `<span class="hlv">${lv}</span>` : ''}<span class="hsp"></span>${findHtml(true)}${asideBtn}${stop ? `<span class="hstop">${stop}</span>` : ''}<span class="hbusy">${busyDot(true)}</span></header>`
 }
 // ── 멈춤 한 줄(서버가 준 줄 그대로) ──
 function stopsFor(k) { return S.stops.filter((x) => !k || !x.kn || x.kn === k) }
@@ -1810,7 +1812,7 @@ function centerOf(emptyFn) {
   const t = activeTab()
   if (!t) { const e = emptyFn(); return { main: e.main, aside: e.aside, title: null } }
   const r = paneOf(t, false), st = S.split && tabOf(S.split)
-  return { main: r.html, aside: r.aside, right: st ? paneOf(st, true).html : null, title: r.title }
+  return { main: r.html, aside: r.aside, right: st ? paneOf(st, true).html : null, title: r.title, acts: r.acts }
 }
 function paneOf(t, right) {
   if (t.kind === 'doc') return docPane(t, right)
@@ -1822,7 +1824,7 @@ function viewDocsV() {
   const k = pickKn()
   if (!k) return { crumb: '문서로 보기', tabs: true, main: viewHome().main }
   const c = centerOf(() => ({ main: docsEmpty(k), aside: knAside(k) }))
-  return { crumb: '문서로 보기' + (c.title ? ' › ' + c.title : ''), main: c.main, aside: c.aside, right: c.right, tabs: true, left: treeHtml(k) }
+  return { crumb: '문서로 보기' + (c.title ? ' › ' + c.title : ''), main: c.main, aside: c.aside, right: c.right, tabs: true, left: treeHtml(k), acts: c.acts }
 }
 // 그 지식의 가져올 곳 수 — 받지 못했으면(읽는 중 · 오류) 링크만 둔다
 function knSrcN(k) {
@@ -2117,6 +2119,27 @@ function itemAt(k, doc, sec) {
   if (!x) { x = new Map(); for (const i of m.items) { const key = i.doc + '|' + i.sec; if (!x.has(key)) x.set(key, i) } itemIdx.set(m, x) }
   return x.get(doc + '|' + sec) || null
 }
+// 문서 · 기록의 일(확정안 7-5) — 1025 이상은 머리 줄 오른쪽(폭 · ⋯ · 고치기) · 860 이하는 아래 동작 띠(갈래 점 + 제목 · ⋯ · 고치기)
+//   한 벌만 그린다(같은 data-t 가 둘 생기지 않게) — .col 안 자리만 CSS 가 폭마다 옮긴다 · 고치는 중은 폭 고르기만(아래 띠 없음)
+function actsHtml(kind, title, editing, inner) {
+  const lab = `<span class="dbl" aria-hidden="true"><i class="kd k-${{ rec: 'r', item: 'i' }[kind] || 'd'}"></i><em>${KLAB[kind]}</em><span>${esc(title)}</span></span>`
+  return `<div class="dacts${editing ? ' ing' : ''}" role="toolbar" aria-label="${KLAB[kind]}의 일" data-t="docActs">${lab}${wideSeg()}${editing ? '' : inner}</div>`
+}
+// ⋯(더 보기) — 드문 일은 한 메뉴로 · 컨벤션 .pop(↑ ↓ · Home End · Esc 는 단추로 돌아감)
+const moreBtn = (m, items) => `<button type="button" class="btn ghost more" data-a="menu" data-m="${m}" data-t="${m}" title="더 보기" aria-label="더 보기">⋯${S.menu === m ? popHtml(m, `<div data-t="${m}Menu">${items}</div>`) : ''}</button>`
+// 종이 끝 「이 문서」 — 가리키는 문서 · 가리켜지는 문서 · 기록 · 항목이 펼친 채(빈 칸은 「없다」)
+function docLinksHtml(k, d) {
+  const bl = d.backlinks || { linkers: [], recs: [] }, m = M(k)
+  const its = m ? m.items.filter((i) => i.doc === d.id) : []
+  const recs = (bl.recs || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)))
+  const lk = (a, attrs, kd, nm, t) => `<button type="button" class="dl1" data-a="${a}"${attrs} data-t="${t}"><i class="kd k-${kd}"></i><span>${nm}</span></button>`
+  const col = (t, n, rows, cap) => `<div class="dlc"><div class="dlh">${t}${n ? `<em>${n}</em>` : ''}</div>${rows.length ? rows.slice(0, cap).join('') + (rows.length > cap ? `<span class="dlx">그 밖에 ${rows.length - cap}</span>` : '') : '<span class="dlx">없다</span>'}</div>`
+  return `<section class="dlinks" aria-label="이 문서" data-t="docLinks">${
+    col('이 문서가 가리키는 문서', (d.links || []).length, (d.links || []).map((x) => lk('openDoc', ` data-k="${esc(k)}" data-d="${esc(x.id)}"`, 'd', esc(x.title), 'dlOut')), 8)
+  }${col('이 문서를 가리키는 문서', (bl.linkers || []).length, (bl.linkers || []).map((x) => lk('openDoc', ` data-k="${esc(k)}" data-d="${esc(x.id)}"`, 'd', esc(x.title), 'dlIn')), 8)
+  }${col('기록', recs.length, recs.map((r) => lk('openRec', ` data-k="${esc(k)}" data-r="${esc(r.id)}"`, 'r', esc(String(r.title).split(/ — |: /)[0]), 'dlRec')), 6)
+  }${col('이 문서의 항목', its.length, its.map((i) => lk('openItem', ` data-k="${esc(k)}" data-n="${esc(i.key)}"`, 'i', esc(i.name), 'dlItem')), 8)}</section>`
+}
 function docPane(t, right) {
   const k = t.kn, n = KN(k), d = docOf(k, t.ref)
   if (!d) return { html: loadingHtml, title: tabTitle(t) }
@@ -2124,7 +2147,6 @@ function docPane(t, right) {
   const hl = right ? null : t.hl, q = right ? null : t.q
   const flashH = right ? null : t.flashH
   if (flashH) t.flashH = null
-  const loc = isTeam() ? n.name + ' › ' + d.title : n.name + ' › ' + d.path.replace(/^docs\//, '')
   const editing = !right && S.edit && S.edit.tab === t.id
   const de = editing ? docEdOf(k, t.ref) : null
   const body = editing && !de
@@ -2132,9 +2154,9 @@ function docPane(t, right) {
     : editing && de.error
     ? errHtml(de, `doc:${k}:${t.ref}:ed`)
     : editing
-    ? `<div class="ed" data-t="editor"><div class="lbl"><b>고치는 중</b> · 「## 」 으로 시작하는 줄이 항목 이름이다 · md 로 쓴다. **굵게** · - 목록 · [링크](주소) · Ctrl S 저장 · Esc 취소</div><div class="toolbar"><button class="btn sm" data-a="edAddSec" data-t="edAddSec">항목 더하기</button><button class="btn sm${S.edit.preview ? ' on' : ''}" data-a="edPreview" data-t="edPreview" aria-pressed="${!!S.edit.preview}">바뀐 것 보기</button><span class="muted small">${de.structure ? '항목을 지우려면 그 「## 」 줄과 글을 지운다 · 이름을 바꾸려면 「## 」 줄만 고친다' : '항목을 지우거나 이름을 바꾸는 일은 지식관리자가 한다'}</span></div><textarea id="edTx" aria-label="문서 글(md)" data-in="edTx" data-t="edTx" spellcheck="false"${S.edit.busy ? ' readonly aria-busy="true"' : ''}>${esc(edText(de))}</textarea>
+    ? `<div class="ed" data-t="editor"><div class="edbar"><span class="lbl"><b>고치는 중</b>${tipb(de.structure ? 'ed' : 'edRo', '고치기')}</span><span class="toolbar"><button class="btn sm" data-a="edAddSec" data-t="edAddSec">항목 더하기</button><button class="btn sm${S.edit.preview ? ' on' : ''}" data-a="edPreview" data-t="edPreview" aria-pressed="${!!S.edit.preview}">바뀐 것 보기</button></span></div><textarea id="edTx" aria-label="문서 글(md)" data-in="edTx" data-t="edTx" spellcheck="false"${S.edit.busy ? ' readonly aria-busy="true"' : ''}>${esc(edText(de))}</textarea>
    ${de.sections.filter((s) => s.locks).map((s) => `<div class="lockh">항목 「${esc(s.h)}」 의 표: 회색은 잠겨 있다</div>${s.locks}`).join('')}
-   <div class="row" style="margin-top:var(--sp-5)"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><input id="edWhy" data-in="edWhy" data-t="edWhy" maxlength="200" class="inp edwhy" placeholder="바꾼 까닭(선택) · 예: 10-21 주간회의에서 배포 창 변경" aria-label="바꾼 까닭" value="${esc(S.edit.why || '')}"><span class="r small muted" data-t="edNote">${svApprove(k) ? '저장하면 확인 창 뒤 문서에 들어간다' : '저장하면 바로 문서에 들어간다 · 이력에 남는다'}</span></div>${S.edit.preview ? `<div class="edprev" data-t="edPrev"><div class="small muted">저장하면 바뀌는 것(저장 전 · 막지 않는다)</div>${edPreviewHtml(k, de)}</div>` : ''}${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.errSecs || []).length ? `<div class="row" data-t="edErrSecs">${S.edit.errSecs.map((h) => `<button type="button" class="btn sm" data-a="edGoSec" data-v="${esc(h)}">「${esc(h)}」 로</button>`).join('')}</div>` : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}</div>`
+   ${S.edit.preview ? `<div class="edprev" data-t="edPrev"><div class="small muted">저장하면 바뀌는 것(저장 전 · 막지 않는다)</div>${edPreviewHtml(k, de)}</div>` : ''}${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.errSecs || []).length ? `<div class="row" data-t="edErrSecs">${S.edit.errSecs.map((h) => `<button type="button" class="btn sm" data-a="edGoSec" data-v="${esc(h)}">「${esc(h)}」 로</button>`).join('')}</div>` : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}<div class="edsave" data-t="edSave"><input id="edWhy" data-in="edWhy" data-t="edWhy" maxlength="200" class="inp edwhy" placeholder="바꾼 까닭(선택) · 예: 10-21 주간회의에서 배포 창 변경" aria-label="바꾼 까닭" value="${esc(S.edit.why || '')}"><div class="edgo"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><span class="ednote" data-t="edNote">${svApprove(k) ? '저장하면 확인 창 뒤 문서에 들어간다' : '저장하면 바로 문서에 들어간다 · 이력에 남는다'}</span></div></div></div>`
     : d.sections.map((s) => {
     // 찾기로 연 것만 「찾은 곳」 · 링크 · 개요로 연 항목은 머리를 잠깐 빛낸다
     const lit = q && hl && s.h === hl
@@ -2147,20 +2169,31 @@ function docPane(t, right) {
   // ## 항목이 없는 문서(맨 위가 ###) — 글이 모두 머리글이라 편집기가 빈 칸으로 열린다 · 고치기 · 다듬기를 막고 까닭을 보인다
   const noSec = !d.sections.length
   const oldShape = noSec && /<h[3-6][\s>]/.test(d.intro || '') // ## 없이 ### 로 시작하는 옛 문서 — 화면에서 고치면 글이 섞인다
+  const kn0 = KN(k), wk = k + '|' + d.id
+  const more = editing || right ? [] : [
+    d.watched || noSec || !isTeam() || isPersonal(kn0) || lvOf(kn0) !== 'admin' ? '' : `<button type="button" class="mi" data-a="polishDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="polishBtn"${kn0.noClaude ? ' disabled aria-disabled="true" title="Claude 에 보내지 않는 지식: 다듬기는 팀 일꾼(Claude)이 한다 · 지식관리 › 모든 지식 › 지식 상세 › 정책에서 바꾼다"' : ' title="팀 일꾼이 문체 · 짜임만 정돈한다 · 값은 그대로"'}>다듬기</button>`,
+    !isTeam() ? '' : `<button type="button" class="mi" data-a="watchDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-v="${esc(d.title)}" data-t="watchDoc" aria-pressed="${!!watchList()[wk]}" title="남이 이 문서를 바꾸면 알린다(이 브라우저)">${watchList()[wk] ? '지켜보는 중' : '지켜보기'}</button>`,
+    `<button type="button" class="mi" data-a="pastOpen" data-k="${esc(k)}" data-d="${esc(d.id)}" data-v="${esc(d.title)}" data-t="pastOpen" title="이 문서의 옛 판 · 지금과 견주기">옛 판</button>`,
+    isTeam() || !kn0 || !kn0.dir ? '' : `<button type="button" class="mi" data-a="copyDocPath" data-v="${esc(kn0.dir + '\\' + String(d.path).split('/').join('\\'))}" data-t="copyDocPath" title="편집기로 고쳐도 된다: 저장하면 곧 들어간다">파일 경로 복사</button>`,
+  ].filter(Boolean)
+  const acts = right ? '' : actsHtml('doc', d.title, editing, (more.length ? moreBtn('docMore', more.join('')) : '') + (editing || d.watched ? '' : `<button class="btn pri" data-a="editDoc" data-t="editBtn"${oldShape ? ' disabled title="## 항목이 없는 옛 문서: 화면에서 고칠 수 없다"' : roAttr(k)}>고치기</button>`))
+  const nRec = (d.backlinks.recs || []).length
+  const recN = right ? '' : `<button type="button" class="recn${nRec ? ' hot' : ''}" data-a="agRail" data-k="doc" data-g="recs" data-t="docRecN" title="이 문서의 기록: 오른쪽 칸에서 본다">기록 ${nRec}</button>`
   const main = `<div class="docw" data-t="docPane" data-name="${esc(d.title)}">${right ? rpHead() : ''}
   ${q ? `<div class="found" data-t="found"><span>찾기 <b>‘${esc(q)}’</b> 로 열었다</span><button type="button" class="lk" data-a="reopenSearch">찾은 것으로 돌아가기</button></div>` : ''}
-  <div class="ttl"><div class="path"><span>${esc(loc)}</span></div>${right ? '' : wideSeg()}${!right && !isTeam() && KN(k) && KN(k).dir ? `<button type="button" class="btn ghost sm" data-a="copyDocPath" data-v="${esc(KN(k).dir + '\\' + String(d.path).split('/').join('\\'))}" data-t="copyDocPath" title="편집기로 고쳐도 된다: 저장하면 곧 들어간다">파일 경로 복사</button>` : ''}${editing || right || d.watched || noSec || !isTeam() || isPersonal(KN(k)) || lvOf(KN(k)) !== 'admin' ? '' : `<button class="btn" data-a="polishDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="polishBtn"${KN(k).noClaude ? ' disabled title="Claude 에 보내지 않는 지식: 다듬기는 팀 일꾼(Claude)이 한다 · 지식관리 › 모든 지식 › 지식 상세 › 정책에서 바꾼다"' : ' title="팀 일꾼이 문체 · 짜임만 정돈한다 · 값은 그대로"'}>다듬기</button>`}${editing || right || !isTeam() ? '' : `<button type="button" class="btn ghost sm" data-a="watchDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-v="${esc(d.title)}" data-t="watchDoc" aria-pressed="${!!watchList()[k + '|' + d.id]}" title="남이 이 문서를 바꾸면 알린다(이 브라우저)">${watchList()[k + '|' + d.id] ? '지켜보는 중' : '지켜보기'}</button>`}${editing || right ? '' : `<button type="button" class="btn ghost sm" data-a="pastOpen" data-k="${esc(k)}" data-d="${esc(d.id)}" data-v="${esc(d.title)}" data-t="pastOpen" title="이 문서의 옛 판 · 지금과 견주기">옛 판</button>`}${editing || right || d.watched ? '' : `<button class="btn pri" data-a="editDoc" data-t="editBtn"${oldShape ? ' disabled title="## 항목이 없는 옛 문서: 화면에서 고칠 수 없다"' : roAttr(k)}>고치기</button>`}</div>
   ${d.watched && d.watched.orphan ? `<div class="callout warn stop" data-t="watchedOrphan"><i></i><span><b>원본이 없어졌다</b>: 가져오던 곳 「${esc(d.watched.src)}」 이 지워졌다 · 내 문서로 하면 고칠 수 있다</span><button class="btn sm r" data-a="unwatchDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="unwatchBtn">내 문서로</button></div>` : ''}${d.watched && !d.watched.orphan ? `<div class="callout ${d.watched.missing ? 'warn' : 'gray'} stop" data-t="watched"><i></i><span><b>${d.watched.missing ? `원본에 없다: ${esc(d.watched.missing)} 부터` : '원본이 주인이다'}</b>: ${esc(d.watched.src)} 의 <span class="mono">${esc(d.watched.path)}</span> 에서 온다 · 고치려면 원본 파일을 고친다 · 덧붙일 말은 기록으로 남긴다</span></div>` : ''}
-  ${right || editing ? '' : gdockHtml(k, 'd:' + d.id)}<div class="paper"><h1>${esc(d.title)}</h1><div class="docmeta muted small" data-t="docMeta">${d.last ? `${esc(whenTxt(d.last.date))} 바뀜 · ${esc(d.last.author)}` : d.when ? `${esc(whenTxt(d.when))} 바뀜(파일 날짜)` : ''}</div>${noSec && !oldShape && !editing && !right ? '<div class="callout gray" data-t="newDocEdit">빈 문서다. [고치기] 로 첫 항목(## 머리 + 글)을 쓴다</div>' : ''}${oldShape && !editing && !right ? '<div class="callout gray" data-t="noSecEdit">이 문서는 ## 항목이 없어 화면에서 고칠 수 없다. 맨 위 ### 머리를 ## 로 올리면 항목으로 나뉜다</div>' : ''}${d.intro ? `<div class="dlead" data-t="docLead">${pvLinks(linkify(d.intro, k, null), k)}</div>` : ''}${body}</div></div>`
-  return { html: main, aside: right ? null : docAside(k, d, t), title: d.title }
+  ${right || editing ? '' : gdockHtml(k, 'd:' + d.id)}<div class="paper"><h1>${esc(d.title)}</h1><div class="docmeta" data-t="docMeta"><span>${d.last ? `${esc(whenTxt(d.last.date))} 바뀜 · ${esc(d.last.author)}` : d.when ? `${esc(whenTxt(d.when))} 바뀜(파일 날짜)` : ''}</span>${recN}</div>${noSec && !oldShape && !editing && !right ? '<div class="callout gray" data-t="newDocEdit">빈 문서다. [고치기] 로 첫 항목(## 머리 + 글)을 쓴다</div>' : ''}${oldShape && !editing && !right ? '<div class="callout gray" data-t="noSecEdit">이 문서는 ## 항목이 없어 화면에서 고칠 수 없다. 맨 위 ### 머리를 ## 로 올리면 항목으로 나뉜다</div>' : ''}${d.intro ? `<div class="dlead" data-t="docLead">${pvLinks(linkify(d.intro, k, null), k)}</div>` : ''}${body}${editing || right ? '' : docLinksHtml(k, d)}</div></div>`
+  return { html: main, aside: right ? null : docAside(k, d, t), title: d.title, acts }
 }
 function recPane(t, right) {
   const k = t.kn, r = recOf(k, t.ref)
   if (!r) return { html: loadingHtml, title: tabTitle(t) }
   if (r.error) return { html: r.code === 'E_NOTFOUND' ? '<p class="muted" data-t="recGone">이 기록은 이제 없다. 다른 이름으로 남았을 수 있다</p>' : errHtml(r, `rec:${k}:${t.ref}`), title: '기록' }
   const fx = r.fixes[0], fb = r.fixedBy, who = (w) => (w === S.me.user ? '나' : w)
-  const html = `<div class="docw" data-t="recPane" data-name="${esc(r.title)}">${right ? rpHead() : ''}<div class="ttl"><div class="path"><span>${esc(KN(k).name)} › ${r.log ? '이력' : '기록'} › ${esc(r.date)}</span><span class="r">${r.ingest && !r.ingest.read && !isTeam() && !right && !svApprove(k) ? `<button class="btn sm" data-a="readRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="readRec"${S.reading && S.reading[r.id] ? ' disabled' : ''} title="넣은 파일을 Claude 가 읽고 무엇 · 핵심 · 정한 것 · 남은 것 + 본문으로 기록을 다시 쓴다">${S.reading && S.reading[r.id] ? 'Claude 가 읽는 중…' : 'Claude 로 기록 정리'}</button> ` : ''}${recFixOk(k, r) && !right ? `<button type="button" class="btn sm" data-a="recFix" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="recFixBtn" title="원래 기록은 두고 정정 기록을 새로 남긴다">고치기</button> ` : ''}${r.log ? `<span class="chip c-mute" data-t="recLog">이력 · ${esc(r.log)}: kmd 가 한 일</span>` : ''}${recStateChip(k, r)}</span></div>${right ? '' : wideSeg()}</div>
-  ${right ? '' : gdockHtml(k, 'r:' + r.id)}<div class="paper"><h1>${esc(r.title)}</h1><div class="docmeta muted small" data-t="recMeta">${esc(who(r.author))} · ${esc(recDt(r.date))}${r.state ? ' · ' + esc(recStateTx(k, r)) : ''}</div>${linkify(r.html, k, null)}</div></div>`
+  const tools = `${r.ingest && !r.ingest.read && !isTeam() && !right && !svApprove(k) ? `<button class="btn sm" data-a="readRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="readRec"${S.reading && S.reading[r.id] ? ' disabled' : ''} title="넣은 파일을 Claude 가 읽고 무엇 · 핵심 · 정한 것 · 남은 것 + 본문으로 기록을 다시 쓴다">${S.reading && S.reading[r.id] ? 'Claude 가 읽는 중…' : 'Claude 로 기록 정리'}</button>` : ''}${recFixOk(k, r) && !right ? `<button type="button" class="btn pri" data-a="recFix" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="recFixBtn" title="원래 기록은 두고 정정 기록을 새로 남긴다">고치기</button>` : ''}`
+  const acts = right ? '' : actsHtml('rec', r.title, false, tools)
+  const html = `<div class="docw" data-t="recPane" data-name="${esc(r.title)}">${right ? rpHead() : ''}
+  ${right ? '' : gdockHtml(k, 'r:' + r.id)}<div class="paper"><div class="docmeta recmeta" data-t="recMeta"><i class="kd k-r" aria-hidden="true"></i><span>${esc(who(r.author))} · ${esc(recDt(r.date))} · ${r.log ? '이력' : '기록'}</span>${r.log ? `<span class="chip c-mute" data-t="recLog">이력 · ${esc(r.log)}: kmd 가 한 일</span>` : ''}${recStateChip(k, r)}</div><h1>${esc(r.title)}</h1>${linkify(r.html, k, null)}</div></div>`
   // 가운데는 기록 글만(2026-11-05) — 쓴 사람 · 때 · 상태 · 정정은 오른쪽 칸으로
   const went = r.went || [], via = r.via || [], from = r.from || []
   // 개요 — 기록 본문의 머리(## · ###)와 수준 표시 1 ~ 3 줄
@@ -2182,7 +2215,7 @@ function recPane(t, right) {
       (r.tags || []).length ? ['태그', esc(r.tags.join(' · '))] : null,
     ]) },
   ])
-  return { html, aside: right ? null : aside, title: r.title.split(/ — |: /)[0] }
+  return { html, aside: right ? null : aside, title: r.title.split(/ — |: /)[0], acts }
 }
 // 기록 상태(설계 4-8 · 저장 승인 P11 · P12) — 칩 · 속성 말: 들어감(c-ok) · 바로잡힘(c-ok) · 되돌림 · 저장 승인 전 기록(old)은 칩 없이 「기록」
 function recStateTx(k, r) {
@@ -2241,7 +2274,7 @@ const extOf = (n) => { const m = String(n).toLowerCase().match(/\.([a-z0-9]+)$/)
 function attPane(t, right) {
   const ext = extOf(t.ref), img = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)
   return {
-    html: `<div class="docw" data-t="attPane">${right ? rpHead() : ''}<div class="ttl"><div class="path"><span>${esc(KN(t.kn).name)} › 첨부 › ${esc(t.ref)}</span></div></div><div class="paper"><h1>${esc(t.ref)}</h1>${img ? `<img class="attimg" data-att="${esc(t.ref)}" data-ak="${esc(t.kn)}" alt="${esc(t.ref)}">` : `<div class="attph">${esc(ext)} 첨부: 원본 그대로 둔다</div>`}</div></div>`,
+    html: `<div class="docw" data-t="attPane">${right ? rpHead() : ''}<div class="paper"><h1>${esc(t.ref)}</h1>${img ? `<img class="attimg" data-att="${esc(t.ref)}" data-ak="${esc(t.kn)}" alt="${esc(t.ref)}">` : `<div class="attph">${esc(ext)} 첨부: 원본 그대로 둔다</div>`}</div></div>`,
     aside: right ? null : `<div class="ap"><h4>속성</h4><div class="kv"><span>종류</span><span>${esc(ext)}</span><span>자리</span><span>첨부</span></div></div>`,
     title: t.ref,
   }
@@ -2506,7 +2539,7 @@ function viewItems() {
   const k = pickKn()
   if (!k) return { crumb: '항목으로 보기', tabs: true, main: viewHome().main }
   const c = centerOf(() => ({ main: itemsEmpty(k), aside: knAside(k) }))
-  return { crumb: '항목으로 보기' + (c.title ? ' › ' + c.title : ''), main: c.main, aside: c.aside, right: c.right, tabs: true, left: itemListHtml(k) }
+  return { crumb: '항목으로 보기' + (c.title ? ' › ' + c.title : ''), main: c.main, aside: c.aside, right: c.right, tabs: true, left: itemListHtml(k), acts: c.acts }
 }
 function itemListHtml(k) {
   if (!M(k)) return `<div class="ilist" data-t="itemList">${modelErr(k) ? errHtml(modelErr(k), 'model:' + k) : loadingHtml}</div>`
@@ -2574,8 +2607,7 @@ function itemPane(t, right) {
   else now = `<div class="callout gray" data-t="noDoc">아직 문서에 없다. 오른쪽 「기록」 에서 이 항목을 건드린 기록 ${rs.length} 을 본다</div>`
   // 가운데는 항목 글만(2026-11-05) — 지난 기록 · 쓰는 곳 · 별칭은 오른쪽 칸 다섯 묶음으로
   const html = `<div class="docw" data-t="itemPage" data-name="${esc(it.name)}">${right ? rpHead() : ''}
-  <div class="ttl"><div class="path"><span>${d ? `${esc(d.title)} › ${esc(it.sec)}` : '문서 없음'}</span></div>${right ? '' : wideSeg()}${d && !right ? `<button class="btn pri" data-a="itemToDoc" data-k="${esc(k)}" data-n="${esc(it.key)}" data-t="itemToDoc">문서로 보기에서 열기</button>` : ''}</div>
-  ${right ? '' : gdockHtml(k, 'i:' + it.key)}<div class="ih"><span class="kt src">${esc(it.kind)}</span>${it.val && !sameTxt(it.val, it.name) ? `<span class="iv" data-t="itemVal" title="${esc(it.coord)}">${esc(it.val)}</span>` : ''}${issueHref(k, it) ? `<a class="lk small" href="${esc(issueHref(k, it))}" target="_blank" rel="noopener" data-t="issueLink">이슈 열기 ↗</a>` : ''}<h1>${esc(it.name)}</h1></div>
+  ${right ? '' : gdockHtml(k, 'i:' + it.key)}<div class="ih"><span class="kt src">${esc(it.kind)}</span>${it.val && !sameTxt(it.val, it.name) ? `<span class="iv" data-t="itemVal" title="${esc(it.coord)}">${esc(it.val)}</span>` : ''}${issueHref(k, it) ? `<a class="lk small" href="${esc(issueHref(k, it))}" target="_blank" rel="noopener" data-t="issueLink">이슈 열기 ↗</a>` : ''}<h1>${esc(it.name)}</h1></div><div class="docmeta" data-t="itemWhere"><span>${d ? `${esc(d.title)} › ${esc(it.sec)}` : '문서 없음'}</span></div>
   <section class="isec" data-t="itemNow">${now}</section></div>`
   // 오른쪽 칸 — 개요(들어 있는 문서의 차례 · 이 항목에 「지금」) · 문서 · 기록(이 항목의 이력) · 항목 · 속성
   const sibs = d ? M(k).items.filter((i) => i.doc === d.id) : []
@@ -2595,7 +2627,8 @@ function itemPane(t, right) {
       ['기록', String(rs.length)],
     ]) },
   ])
-  return { html, aside: right ? null : aside, title: it.short || it.name }
+  const acts = right ? '' : actsHtml('item', it.name, false, d ? `<button class="btn pri" data-a="itemToDoc" data-k="${esc(k)}" data-n="${esc(it.key)}" data-t="itemToDoc">문서로 보기에서 열기</button>` : '')
+  return { html, aside: right ? null : aside, title: it.short || it.name, acts }
 }
 
 // ───────────── 보기 셋 — 그래프(문서 · 항목 · 기록의 이어짐 · 3D 와 2D 표 두 방식 · 바깥 라이브러리 없음) ─────────────
@@ -6506,7 +6539,7 @@ const ACT = {
   sideRail: () => { UI.sideRail = !UI.sideRail; saveUi(); render(); const b = [...document.querySelectorAll('#app [data-t=sideFold]')].find((x) => x.getClientRects().length); if (b) b.focus() },
   asideRail: () => { UI.ar = !aRail(); saveUi(); render(); const b = $('#app [data-t=asideFold]'); if (b) b.focus() },
   agToggle: (el) => { const k = el.dataset.k, g = el.dataset.g; UI.ag[k] = { ...(UI.ag[k] || {}), [g]: !agOpen(k, g) }; saveUi(); render(); const b = $(`#app .aside [data-a=agToggle][data-g="${g}"]`); if (b) b.focus() },
-  agRail: (el) => { const k = el.dataset.k, g = el.dataset.g; UI.ar = false; UI.ag[k] = { ...(UI.ag[k] || {}), [g]: true }; saveUi(); render(); const b = $(`#app .aside [data-a=agToggle][data-g="${g}"]`); if (b) { b.scrollIntoView({ block: 'nearest' }); b.focus() } },
+  agRail: (el) => { const k = el.dataset.k, g = el.dataset.g; UI.ar = false; if (!el.closest('.aside') && matchMedia('(max-width:1024px)').matches) S.asideOpen = true; UI.ag[k] = { ...(UI.ag[k] || {}), [g]: true }; saveUi(); render(); const b = $(`#app .aside [data-a=agToggle][data-g="${g}"]`); if (b) { b.scrollIntoView({ block: 'nearest' }); b.focus() } },
   agFold: (el) => { UI.ag[el.dataset.k] = {}; saveUi(); render() },
   docWide: (el) => { UI.wide = el.dataset.v === '1'; saveUi(); render() },
   gPop: () => { S.gPop = !S.gPop; render(); const f = S.gPop ? $('#app [data-t=gNode]') : $('#app [data-t=gPopBtn]'); if (f) f.focus() },
@@ -7249,6 +7282,8 @@ document.addEventListener('click', (ev) => {
   if (el.tagName === 'A' && el.getAttribute('href') && (ev.ctrlKey || ev.metaKey || ev.shiftKey)) return
   if (el.tagName === 'A') ev.preventDefault()
   if (S.menu && !['menu', 'kmenu', 'pickKn', 'tip'].includes(el.dataset.a) && !ev.target.closest('.menu,.pop')) S.menu = null
+  // ⋯(문서 더 보기)의 줄을 누르면 메뉴를 닫고 그 일을 한다(초점은 ⋯ 단추로)
+  if (S.menu === 'docMore' && el.classList.contains('mi') && el.closest('.pop')) { S.menu = null; render(); menuBack('docMore') }
   if ((S.sideOpen || S.asideOpen) && el.closest('.cxnav,.aside,.pop') && !(el.dataset.a === 'km' && el.dataset.v === 'docs') && !['menu', 'kmenu', 'fold', 'dirFold', 'dirAll', 'tFilt', 'kindAll', 'foldKind', 'sideToggle', 'asideToggle', 'itemFilt', 'agToggle', 'agFold', 'agRail', 'gSet', 'gMode', 'gDark', 'tip'].includes(el.dataset.a)) { S.sideOpen = false; S.asideOpen = false }
   // 감싸지 않은 곳의 오류도 알린다(단추가 아무 말 없이 먹지 않게) — 돌려받은 Promise 까지
   try { Promise.resolve(f(el, ev)).catch(actFail) } catch (e) { actFail(e) }

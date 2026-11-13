@@ -397,11 +397,13 @@ html,body{background:var(--bg)}
   </section>
 
   <section id="ref">
-    <h2>문서 화면 <small>가운데는 내용만 · 수준 표시 줄 · 문서 폭 · 오른쪽 다섯 묶음(컨벤션 5절 · 11-2절)</small></h2>
+    <h2>문서 화면 <small>가운데는 내용만 · 머리 줄 도구(폭 · ⋯ · 고치기) · 860 이하 아래 동작 띠 · 날짜 줄 「기록 n」 · 종이 끝 「이 문서」 · 기록 꼬리표 · 고치기 저장 줄 · 오른쪽 다섯 묶음(컨벤션 5절 · 11-2절)</small></h2>
     <div class="g2">
       <div>
-        <div class="ttl"><div class="path"><span>DPMS 지식 › 게이트웨이운영설계서</span></div><span class="wseg" role="group" aria-label="문서 폭"><button type="button" aria-pressed="true">기본 폭</button><button type="button" aria-pressed="false">넓게</button></span><button class="btn">다듬기</button><button class="btn pri">고치기</button></div>
+        <div class="dacts" role="toolbar" aria-label="문서의 일 견본" style="justify-content:flex-end;margin-bottom:var(--sp-5)"><span class="wseg" role="group" aria-label="문서 폭"><button type="button" aria-pressed="true">기본 폭</button><button type="button" aria-pressed="false">넓게</button></span><button type="button" class="btn ghost more" aria-haspopup="menu" aria-expanded="false" aria-label="더 보기">⋯</button><button type="button" class="btn pri">고치기</button></div>
+        <div class="dacts sg-bar" role="toolbar" aria-label="아래 동작 띠 견본(860 이하)" style="margin-bottom:var(--sp-5);padding:var(--sp-3);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-2)"><span class="dbl" style="display:flex;align-items:center;gap:var(--sp-3);flex:1;min-width:0;font-size:var(--fs-sm);font-weight:var(--fw-md)"><i class="kd k-d"></i><em style="font-style:normal;color:var(--text-3);font-weight:var(--fw)">문서</em><span>게이트웨이운영설계서</span></span><button type="button" class="btn ghost more" aria-label="더 보기">⋯</button><button type="button" class="btn pri">고치기</button></div>
         <div class="paper">
+          <div class="docmeta"><span>10-23 바뀜 · park</span><button type="button" class="recn hot">기록 3</button></div>
           <div class="hrow"><h2>설치</h2></div>
           <div class="lv l1"><span class="lvm">1.</span><span class="lvx">준비</span></div>
           <div class="lv l4"><span class="lvm">1)</span><span class="lvx">설치 PC 에 PostgreSQL 이 기동돼 있다.</span></div>
@@ -409,6 +411,9 @@ html,body{background:var(--bg)}
           <div class="lv l7"><span class="lvm">-</span><span class="lvx">서비스가 돌고 있으면 멈춘다.</span></div>
           <div class="lv l8"><span class="lvm">*</span><span class="lvx">이미 jar 가 있으면 prev 로 남긴다.</span></div>
           <div class="lv l2"><span class="lvm">1.1.</span><span class="lvx">단계</span></div>
+          <section class="dlinks" aria-label="이 문서 견본"><div class="dlc"><div class="dlh">이 문서가 가리키는 문서<em>1</em></div><button type="button" class="dl1"><i class="kd k-d"></i><span>배포절차</span></button></div><div class="dlc"><div class="dlh">이 문서를 가리키는 문서</div><span class="dlx">없다</span></div><div class="dlc"><div class="dlh">기록<em>1</em></div><button type="button" class="dl1"><i class="kd k-r"></i><span>롤백 순서</span></button></div><div class="dlc"><div class="dlh">이 문서의 항목<em>1</em></div><button type="button" class="dl1"><i class="kd k-i"></i><span>설치</span></button></div></section>
+          <div class="docmeta recmeta" style="margin-top:var(--sp-7)"><i class="kd k-r" aria-hidden="true"></i><span>김 · 10-23 · 기록</span></div>
+          <div class="ed"><div class="edbar"><span class="lbl"><b>고치는 중</b><button type="button" class="tipb" aria-label="고치기 도움말">!</button></span><span class="toolbar"><button class="btn sm">항목 더하기</button><button class="btn sm">바뀐 것 보기</button></span></div><div class="edsave" style="position:static;margin:0;padding:var(--sp-5) 0;border-radius:0"><input class="inp edwhy" aria-label="바꾼 까닭 견본" placeholder="바꾼 까닭(선택)"><div class="edgo"><button class="btn pri">저장</button><button class="btn ghost">취소</button><span class="ednote">저장하면 확인 창 뒤 문서에 들어간다</span></div></div></div>
         </div>
       </div>
       <div class="card" style="padding:var(--sp-3)">

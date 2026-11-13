@@ -301,6 +301,13 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   // 목록 칸 — 연 문서 줄 아래 그 문서의 ## 항목 줄 · 문서 줄 오른쪽 날짜
   assert.deepEqual(await page.locator('[data-t=tree] [data-t=docSec] .nm').allInnerTexts(), ['준비', '카나리', '헬스 체크', '롤백', '꾸러미 판'])
   assert.match(await page.locator('[data-t=doc][data-name="배포절차"] .dt').innerText(), /^(\d\d-\d\d|\d\d:\d\d)$/)
+  // 문서(개편 4단계 · 확정안 7-5) — 종이 위 경로 줄(.path · .ttl) 없음 · 도구는 머리 줄 한 벌(폭 · ⋯ · 고치기) · 날짜 줄에 「기록 n」 · 종이 끝 「이 문서」 네 칸
+  assert.equal(await page.locator('#app .path, #app .ttl').count(), 0)
+  assert.equal(await page.locator('[data-t=docActs]').count(), 1)
+  assert.equal(await page.locator('.col > [data-t=docActs] [data-t=editBtn]').count(), 1)
+  assert.ok(await page.locator('[data-t=docActs]').evaluate((e) => { const a = e.getBoundingClientRect(), h = document.querySelector('.hdr').getBoundingClientRect(); return a.top === h.top && a.height === h.height }), '1025 이상은 머리 줄 오른쪽')
+  assert.match(await page.locator('[data-t=docRecN]').innerText(), /^기록 \d+$/)
+  assert.deepEqual(await page.locator('[data-t=docLinks] .dlh').evaluateAll((els) => els.map((e) => e.firstChild.textContent)), ['이 문서가 가리키는 문서', '이 문서를 가리키는 문서', '기록', '이 문서의 항목'])
   // 오른쪽 칸은 처음 52 기둥(그림 아래 이름 + 수) · 사람이 펴면 그 값을 남긴다
   assert.equal(await page.locator('.aside').evaluate((e) => e.offsetWidth), 52)
   assert.match(await page.locator('[data-t=rlg-ol]').innerText(), /개요\s*5/)
@@ -569,7 +576,11 @@ test('정리를 걷었다(S13): 항목 글 없는 기록은 메모 · 옛 정리
   await openKnRow(page, 'DPMS 지식')
   await page.waitForSelector('[data-t=tree] [data-t=doc]')
   await page.click('[data-t=doc][data-name="배포절차"]')
-  await page.waitForSelector('[data-t=docPane] [data-t=polishBtn]')
+  // 드문 일(다듬기 · 지켜보기 · 옛 판)은 머리 줄 ⋯ 메뉴(.pop · 확정안 7-5)
+  await page.waitForSelector('[data-t=docActs] [data-t=docMore]')
+  await page.click('[data-t=docMore]')
+  await page.waitForSelector('.pop[role=menu] [data-t=polishBtn]')
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.t), 'polishBtn', '⋯ 을 열면 첫 줄에 초점')
   await page.click('[data-t=polishBtn]')
   await page.waitForSelector('[role=dialog]')
   assert.match(await page.locator('[role=dialog]').innerText(), /문체 · 짜임만 정돈한다[\s\S]*값은 바꾸지 않는다/)
@@ -584,6 +595,10 @@ test('정리를 걷었다(S13): 항목 글 없는 기록은 메모 · 옛 정리
     const c = await cutAt(page)
     assert.deepEqual(c.cut, [], `문서 다듬기 단추 ${w}: 잘린 요소 없음`)
     assert.ok(c.sw <= c.w, `문서 다듬기 단추 ${w}: 가로 넘침 없음 ${c.sw}`)
+    // 860 이하는 아래 동작 띠(갈래 점 + 제목 · ⋯ · 고치기) · 861 이상은 머리 줄 오른쪽 — 「고치기」 는 폭마다 하나 보인다
+    const bar = await page.locator('[data-t=docActs]').evaluate((e) => { const a = e.getBoundingClientRect(), h = document.querySelector('.hdr').getBoundingClientRect(); return { inHdr: a.top === h.top, bottom: a.bottom > innerHeight - 80, lab: getComputedStyle(e.querySelector('.dbl')).display !== 'none' } })
+    assert.deepEqual(bar, w > 860 ? { inHdr: true, bottom: false, lab: false } : { inHdr: false, bottom: true, lab: true }, `문서 일 자리 ${w}`)
+    assert.ok(await page.locator('[data-t=editBtn]').isVisible(), `고치기 ${w}`)
   }
   await page.setViewportSize(VIEW)
   assert.deepEqual(await bannedIn(page), [])
