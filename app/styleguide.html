@@ -50,6 +50,8 @@ html,body{background:var(--bg)}
 .lk.sg-hover{text-decoration:underline;text-underline-offset:2px}
 /* 앱 틀 견본 — 잉크 기둥 + 목록 칸(.app 의 높이만 줄였다) · 접힌 레일 64 */
 .sg-sidebox{align-items:flex-start}
+.app.sg-plain{display:block;height:auto;overflow:visible;background:transparent}
+.gwrap.sg-graph{height:420px;min-height:0}
 .app.sg-app{height:min(560px,80vh);border:1px solid var(--border);border-radius:var(--r-md);flex:none;grid-template-columns:auto auto}
 .app.sg-app .side.sg-rail{width:var(--cx-fold)}
 .app.sg-app .sg-rail>:not(.srail,.sb-sp,.sb-foot){display:none}
@@ -65,7 +67,7 @@ html,body{background:var(--bg)}
 <div class="sg">
   <div class="sg-h"><h1>kmd 디자인 견본</h1><span class="muted small">docs/kmd_디자인_컨벤션.md v0.3 · 값은 app/kmd.css 맨 위 <code>:root</code> 하나에서 온다</span><button type="button" class="btn sm" id="sgTheme" aria-pressed="false">어둡게 보기</button></div>
   <nav class="sg-nav" aria-label="견본 차례">
-    <a href="#color">색 · 잉크</a><a href="#size">글 · 간격 · 모서리 · 그림자</a><a href="#btn">단추</a><a href="#inp">칸</a><a href="#chip">칩 · 표지</a><a href="#card">카드</a><a href="#modal">모달 · 팝업</a><a href="#tip">정보 단추 (!)</a><a href="#table">표</a><a href="#tabs">탭</a><a href="#state">빈 화면 · 읽는 중 · 오류</a><a href="#link">링크</a><a href="#side">앱 틀</a><a href="#ref">문서 화면</a><a href="#term">터미널</a><a href="#resp">반응형</a>
+    <a href="#color">색 · 잉크</a><a href="#size">글 · 간격 · 모서리 · 그림자</a><a href="#btn">단추</a><a href="#inp">칸</a><a href="#chip">칩 · 표지</a><a href="#card">카드</a><a href="#modal">모달 · 팝업</a><a href="#tip">정보 단추 (!)</a><a href="#table">표</a><a href="#tabs">탭</a><a href="#state">빈 화면 · 읽는 중 · 오류</a><a href="#link">링크</a><a href="#side">앱 틀</a><a href="#ref">문서 화면</a><a href="#home">첫 화면 · 점검 · 이력 · 그래프</a><a href="#term">터미널</a><a href="#resp">반응형</a>
   </nav>
 
   <section id="color">
@@ -423,6 +425,26 @@ html,body{background:var(--bg)}
         <section class="ag"><button type="button" class="agh" aria-expanded="false"><span class="ar">▸</span><span class="agn">항목</span><span class="agc">4</span></button></section>
         <section class="ag"><button type="button" class="agh" aria-expanded="false"><span class="ar">▸</span><span class="agn">속성</span></button></section>
       </div>
+    </div>
+  </section>
+
+  <section id="home">
+    <h2>첫 화면 · 점검 · 이력 · 그래프 <small>잉크 무대 · 키캡 실마리 · 최근 바뀐 문서 · 걸린 검사 판 + 문제 없음 · 시간 줄 · 캔버스 위 조작판(컨벤션 2절 「화면별」)</small></h2>
+    <div class="pg-text home">
+      <section class="stage" aria-label="DPMS 지식 견본"><div class="st-who"><i aria-hidden="true"></i><span>팀 지식 · 팀 서버</span></div><div class="big">DPMS 지식</div><div class="st-rd"><div class="st-h">먼저 읽을 것 <small>README</small></div><div class="st-p"><p>DPMS 운영 · 배포 지식. 팀이 같이 쓴다.</p></div><button type="button" class="lk" aria-expanded="false">모두 읽기</button></div><div class="st-n"><button type="button" class="stn"><span>목차</span><b>17</b></button><button type="button" class="stn"><span>항목</span><b>33</b></button><button type="button" class="stn"><span>기록</span><b>17</b></button></div><div class="st-pr"><span class="kvp"><span>쓰는 사람</span><span>모두 없음 · 사람 1 <button type="button" class="lk">권한</button></span></span><span class="kvp"><span>자동수집</span><span>없음 · <button type="button" class="lk">생성</button></span></span></div></section>
+      <div class="hkeys"><span class="hk"><span>나란히 보기</span><kbd>Ctrl</kbd><kbd>\</kbd></span><span class="hk"><span>빨리 열기</span><kbd>Ctrl</kbd><kbd>O</kbd></span></div>
+      <div class="card recent"><div class="ch">최근 바뀐 문서 <small>문서 17</small></div><div class="cb u-p0"><ul class="plain dl rdl"><li><span class="when">10-23</span><span class="nm">회의 규칙</span><span class="fl">주간 회의는 월요일 10:00.</span></li><li><span class="when td">14:20</span><span class="nm">릴리스 노트</span><span class="fl">판마다 바뀐 것을 한 줄씩 적는다.</span></li></ul></div></div>
+    </div>
+    <div style="margin-top:var(--sp-9)">
+      <div class="ck-sum small muted">장부 항목 25 · 기록 17 · 문서 항목 28<button type="button" class="btn">다시 읽기</button></div>
+      <div class="cktiles"><div class="cktile warn"><div class="ckt-h"><span class="chip c-warn">경고</span><span class="ckt-g">· 문서<button type="button" class="tipb" aria-label="문서 도움말" aria-expanded="false">!</button></span><button type="button" class="btn" aria-expanded="false">보기</button></div><div class="ckt-n">8</div><div class="nm">장부에 없는 항목</div></div><div class="cktile soft"><div class="ckt-h"><span class="chip c-mute">알림</span><span class="ckt-g">· 장부<button type="button" class="tipb" aria-label="장부 도움말" aria-expanded="false">!</button></span><button type="button" class="btn" aria-expanded="false">보기</button></div><div class="ckt-n">16</div><div class="nm">빈칸 값</div></div><div class="ck-ok"><div class="ck-okh"><b>문제 없음</b><span>3</span></div><div class="ck-okl"><span class="ck-z">항목 없음<em>0</em></span><span class="ck-z">장부 밖<em>0</em></span><span class="ck-z">깨진 링크<em>0</em></span></div></div></div>
+    </div>
+    <div class="app sg-plain" style="margin-top:var(--sp-9)">
+      <div class="card" data-t="feed"><div class="cb"><div class="hday">오늘<small>2</small></div><div class="hrow team"><div class="hl"><span class="tm">20:55</span><span class="hdot" aria-hidden="true"></span><span class="chip c-mute">저장</span><span class="tx"><b>배포 체크리스트 · 개요</b><small>배포 전 확인을 한 줄 더했다</small></span><span class="kn2">DPMS 지식</span><span class="who"><i class="av" aria-hidden="true">P</i><span>park</span></span><span class="act">보기</span></div></div><div class="hrow team yl"><div class="hl"><span class="tm">18:13</span><span class="hdot" aria-hidden="true"></span><span class="chip c-warn">값 바뀜</span><span class="tx"><b>테스트 값 바뀜 · 서버 상태</b><small>점검 주기 5분 → 3분</small></span><span class="kn2">DPMS 지식</span><span class="who"><i class="av" aria-hidden="true">L</i><span>lee</span></span><span class="act">보기</span></div></div></div></div>
+    </div>
+    <div class="gwrap sg-graph" style="margin-top:var(--sp-9)">
+      <div class="gpanel"><button type="button" class="gsheet" aria-expanded="false"><span>펴기</span></button><div class="gf"><div class="gfs"><div class="gh">찾기</div><div class="lhead"><input class="inp" aria-label="찾기" placeholder="이름 · 맞는 점을 밝힌다"></div></div><div class="gfs"><div class="gh">보는 방법</div><div class="vgrp gfr" role="group" aria-label="보는 방법"><button type="button" class="fbtn" aria-pressed="true">3D</button><button type="button" class="fbtn" aria-pressed="false">2D 표</button></div></div><div class="gfs"><div class="gh">바탕</div><div class="vgrp gfr" role="group" aria-label="바탕"><button type="button" class="fbtn" aria-pressed="true">밝게</button><button type="button" class="fbtn" aria-pressed="false">어둡게</button></div></div></div></div>
+      <div class="gkey" title="끌기: 돌리기 · 휠: 크게 · 작게"><div class="gtl small"><span>점 66 · 선 75</span></div><div class="glg small"><span class="lgr">문서</span><span class="lgr">항목</span><span class="lgr">기록</span></div></div>
     </div>
   </section>
 

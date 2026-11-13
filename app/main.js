@@ -746,7 +746,7 @@ function draw() {
   if (editing) scr.aside = null
   S._hasAside = !!scr.aside
   const list = listHtml(scr)
-  const hasList = !!list && !editing && DOCSCR.includes(S.route.scr)
+  const hasList = !!list && !editing && DOCSCR.includes(S.route.scr) && S.route.scr !== 'graph'
   const ar = aRail()
   app.innerHTML = `<div class="cxnav" data-t="nav">${sideHtml()}${list}</div><div class="col">${hdrHtml(scr)}${gated() ? '' : scr.acts || ''}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside"><button type="button" class="hb afold" data-a="asideRail" data-t="asideFold" aria-expanded="${!ar}" title="${ar ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'} (Ctrl ])" aria-label="${ar ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'}">${svg(ar ? 'sideL' : 'sideR')}</button><div class="asc" data-t="asideScroll">${scr.aside}</div></div>` : ''}</div></div>${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.rsWin ? rsWinHtml() : ''}${S.devWin ? devWinHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S.paste && S.route.scr === 'import' ? pasteWinHtml() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.recFix ? recFixHtml() : ''}${S.sv ? svHtml() : ''}${S.past ? pastHtml() : ''}${S.sdw && S.route.scr === 'home' ? sdwHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}${S.keys ? keysHtml() : ''}`
   for (const c of [...app.classList]) if (c.startsWith('pg-')) app.classList.remove(c)
@@ -1823,7 +1823,7 @@ function paneOf(t, right) {
 function viewDocsV() {
   const k = pickKn()
   if (!k) return { crumb: '문서로 보기', tabs: true, main: viewHome().main }
-  const c = centerOf(() => ({ main: docsEmpty(k), aside: knAside(k) }))
+  const c = centerOf(() => ({ main: docsEmpty(k), aside: null }))
   return { crumb: '문서로 보기' + (c.title ? ' › ' + c.title : ''), main: c.main, aside: c.aside, right: c.right, tabs: true, left: treeHtml(k), acts: c.acts }
 }
 // 그 지식의 가져올 곳 수 — 받지 못했으면(읽는 중 · 오류) 링크만 둔다
@@ -1838,15 +1838,40 @@ function knAside(k) {
   return `<h4>속성</h4><div class="kv" data-t="knProps">${team ? `<span>쓰는 사람</span>${whoHtml(k)}` : '<span>주인</span><span>나: 저장하면 바로 문서에 들어간다</span>'}
   <span>자동수집</span><span data-t="knSrcN">${knSrcN(k)}<small><button type="button" class="lk" data-a="nav" data-s="import">생성 ›</button></small></span></div>`
 }
+// 지식 첫 화면(확정안 7-5 · 4절 3) — 잉크 무대(자리 줄 · 지식 이름 · 먼저 읽을 것 첫 문단 · 갈래 수 · 속성 쌍) · 키캡 실마리 둘 · 최근 바뀐 문서(날짜 · 이름 · 첫 줄)
+//   속성은 무대 안 한 줄(이름 · 값 한 쌍이 한 덩이 · data-t knProps · whoVal · knSrcN 그대로) · 그래서 첫 화면에는 오른쪽 칸이 없다
+function readmeFirst(html) {
+  const t = document.createElement('template')
+  t.innerHTML = html
+  const els = [...t.content.children]
+  const i = els.findIndex((e) => e.tagName === 'P' && e.textContent.trim())
+  if (i < 0) return { first: html, more: false }
+  return { first: els[i].outerHTML, more: els.length > 1 }
+}
+function stageHtml(k, n, tr) {
+  const team = isTeam() && !isPersonal(n)
+  const who = isPersonal(n) ? '내 지식' + (n.dir ? ' · ' + esc(n.dir) : '') + ' · 나만' : isTeam() ? '팀 지식 · 팀 서버' : '팀 지식'
+  const rd = tr && tr.readme ? readmeFirst(tr.readme) : null
+  const nums = [['docs', '목차'], ['items', '항목'], ['recs', '기록']].map(([v, l]) => { const c = ltabN(v, k); return c === '' ? '' : `<button type="button" class="stn" data-a="ltab" data-v="${v}" data-t="stageN-${v}" title="${VIEW_LABEL[v] || l + ' 보기'}"><span>${l}</span><b>${c}</b></button>` }).join('')
+  const kvp = (a, b) => `<span class="kvp">${a}${b}</span>`
+  const props = team
+    ? kvp('<span>쓰는 사람</span>', whoHtml(k)) + kvp('<span>자동수집</span>', `<span data-t="knSrcN">${knSrcN(k)}<button type="button" class="lk" data-a="nav" data-s="import">생성</button></span>`)
+    : kvp('<span>주인</span>', '<span>나: 저장하면 바로 문서에 들어간다</span>') + kvp('<span>자동수집</span>', `<span data-t="knSrcN">${knSrcN(k)}<button type="button" class="lk" data-a="nav" data-s="import">생성</button></span>`)
+  return `<section class="stage" data-t="stage" aria-label="${esc(n.name)}"><div class="st-who"><i aria-hidden="true"></i><span>${who}</span></div><div class="big">${esc(n.name)}</div>${rd ? `<div class="st-rd" data-t="readmeCard"><div class="st-h">먼저 읽을 것 <small>README</small></div><div class="st-p">${rd.first}</div>${rd.more ? `<button type="button" class="lk" data-a="readmeAll" data-t="readmeAll" aria-expanded="${!!S.readmeAll}">${S.readmeAll ? '접기' : '모두 읽기'}</button>` : ''}</div>` : ''}${nums ? `<div class="st-n">${nums}</div>` : ''}<div class="st-pr" data-t="knProps">${props}</div></section>`
+}
 function docsEmpty(k) {
   const n = KN(k), tr = treeOf(k)
   const ds = tr && tr.docs ? tr.docs : []
   if (tr && tr.error) return `<div class="pg-text"><div class="big">${esc(n.name)}</div>${errHtml(tr)}</div>`
-  return `<div class="pg-text"><div class="big">${esc(n.name)}</div><p class="lead">${isPersonal(n) ? '내 지식' + (n.dir ? ' · ' + esc(n.dir) : '') + ' · 나만' : `팀 지식 · 나: ${lvChip(n)}`}</p>
-  <div class="callout gray" data-t="docsEmpty">왼쪽 나무에서 문서나 기록을 연다. 여러 개를 탭으로 띄우고, <b>Ctrl \\</b> 로 둘을 나란히 본다. 이름으로 바로 열려면 <b>Ctrl O</b>.</div>
-  ${tr && tr.readme ? `<div class="card" data-t="readmeCard"><div class="ch">먼저 읽을 것 <small>README</small></div><div class="cb paper">${tr.readme}</div></div>` : ''}
+  const m = M(k)
+  const first = (d) => { const x = m && m.docById.get(d.id); return x && x.first ? plainMd(x.first) : '' }
+  const recent = tr ? [...ds].sort((a, b) => String(b.when || '').localeCompare(String(a.when || ''))).slice(0, 5) : []
+  const key = (l, ks) => `<span class="hk"><span>${l}</span>${ks.map((x) => `<kbd>${esc(x)}</kbd>`).join('')}</span>`
+  return `<div class="pg-text home">${stageHtml(k, n, tr)}
+  ${tr && tr.readme && S.readmeAll ? `<div class="card" data-t="readmeFull"><div class="ch">README</div><div class="cb paper">${tr.readme}</div></div>` : ''}
+  <div class="hkeys" data-t="docsEmpty">${key('나란히 보기', ['Ctrl', '\\'])}${key('빨리 열기', ['Ctrl', 'O'])}</div>
   ${staleCard(k)}
-  <div class="card"><div class="ch">최근 바뀐 문서 <small>문서 ${tr ? ds.length : "…"}</small></div><div class="cb u-p1-7-2"><ul class="plain dl">${tr ? ds.slice(0, 5).map((d) => `<li data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="recentDoc" data-pv="doc|${esc(k)}|${esc(d.id)}">${svg('doc', 'di')}<span class="nm">${esc(d.title)}</span><span class="when${isToday(d.when) ? ' td' : ''}">${esc(whenTxt(d.when))}</span></li>`).join('') : `<li>${loadingHtml}</li>`}</ul></div></div>${removedCard(k)}${guardCard(k)}</div>`
+  <div class="card recent" data-t="recentCard"><div class="ch">최근 바뀐 문서 <small>문서 ${tr ? ds.length : '…'}</small></div><div class="cb u-p0"><ul class="plain dl rdl">${tr ? recent.map((d) => `<li data-a="openDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="recentDoc" data-pv="doc|${esc(k)}|${esc(d.id)}"><span class="when${isToday(d.when) ? ' td' : ''}">${esc(mdOf(d.when))}</span><span class="nm">${esc(d.title)}</span><span class="fl">${esc(first(d))}</span></li>`).join('') || '<li class="muted nc">없다</li>' : `<li>${loadingHtml}</li>`}</ul></div></div>${removedCard(k)}${guardCard(k)}</div>`
 }
 // 지식 점검(지식관리자) — 지식 생성 가드가 보는 것의 지금 상태(문서 작성기준 9절 · core/guard.js audit)
 const guardOf = (k) => need('guard:' + k, `/api/k/${encodeURIComponent(k)}/guard`)
@@ -1868,8 +1893,8 @@ function removedCard(k) {
   return `<div class="card" data-t="removedCard"><div class="ch">최근에 지운 항목${tipb('home.removed', '최근에 지운 항목')}</div><div class="cb u-p1-7-3"><ul class="plain">${r.slice(0, 8).map((x) => `<li data-t="removedRow"><span class="u-f1"><b>${esc(x.docTitle)} › ${esc(x.heading)}</b><small class="muted u-blk">${esc(x.who)} · ${esc(whenTxt(x.at))}</small></span><button type="button" class="btn sm" data-a="restoreRemoved" data-k="${esc(k)}" data-r="${esc(x.rec)}" data-d="${esc(x.doc)}" data-v="${esc(x.heading)}" data-t="restoreRemoved">되살리기</button></li>`).join('')}</ul></div></div>`
 }
 // 점검 줄 — 지식 홈 카드(개인)와 점검 › 점검(팀)이 같이 쓴다 · [보기] 로 목록
-function guardRowsHtml(k, g, keys) {
-  const c = g.counts, open = S.guardOpen || ''
+function guardListHtml(k, g, key, kind) {
+  const c = g.counts
   const li = (kind, x) => {
     if (kind === 'rec') return `<li data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}" data-t="guardRec"><span class="nm">${esc(x.title)}</span><small class="muted">${esc(x.why || (x.names || []).join(' · '))}</small></li>`
     if (kind === 'item') return `<li data-a="openItem" data-k="${esc(k)}" data-n="${esc(x.coord)}" data-t="guardItem"><span class="nm"><span class="iv">${esc(x.coord)}</span></span><small class="muted">${esc(x.doc.replace(/^docs\/|\.md$/g, ''))} 에 「${esc(x.heading)}」 머리가 없다</small></li>`
@@ -1877,7 +1902,11 @@ function guardRowsHtml(k, g, keys) {
     if (kind === 'word') return `<li data-t="guardWord"><span class="nm">${esc(x.word)}</span><small class="muted">${x.names.map(esc).join(' · ')}</small></li>`
     return `<li data-t="guardName"><span class="nm"><span class="iv">${esc(x)}</span></span></li>`
   }
-  return GUARD_ROWS.filter(([key]) => !keys || keys.includes(key)).map(([key, label, kind, why]) => `<div class="srow${c[key] ? '' : ' dim'}" data-t="guard-${key}"><span class="nm"${why ? ` title="${why}"` : ''}>${label}</span><span class="chip ${c[key] ? (GUARD_SOFT.includes(key) ? 'c-mute' : 'c-warn') : 'c-ok'}">${c[key]}</span>${c[key] ? `<button type="button" class="btn ghost sm" data-a="guardOpen" data-v="${key}" aria-expanded="${open === key}">${open === key ? '접기' : '보기'}</button>` : ''}</div>${open === key ? `<ul class="plain dl" data-t="guardList">${(g[key] || []).slice(0, 100).map((x) => li(kind, x)).join('')}${c[key] > 100 ? `<li class="muted small">그 밖에 ${c[key] - 100}: kmd guard ${esc(k)} --list</li>` : ''}</ul>` : ''}`).join('')
+  return `<ul class="plain dl" data-t="guardList">${(g[key] || []).slice(0, 100).map((x) => li(kind, x)).join('')}${c[key] > 100 ? `<li class="muted small">그 밖에 ${c[key] - 100}: kmd guard ${esc(k)} --list</li>` : ''}</ul>`
+}
+function guardRowsHtml(k, g, keys) {
+  const c = g.counts, open = S.guardOpen || ''
+  return GUARD_ROWS.filter(([key]) => !keys || keys.includes(key)).map(([key, label, kind, why]) => `<div class="srow${c[key] ? '' : ' dim'}" data-t="guard-${key}"><span class="nm"${why ? ` title="${why}"` : ''}>${label}</span><span class="chip ${c[key] ? (GUARD_SOFT.includes(key) ? 'c-mute' : 'c-warn') : 'c-ok'}">${c[key]}</span>${c[key] ? `<button type="button" class="btn ghost sm" data-a="guardOpen" data-v="${key}" aria-expanded="${open === key}">${open === key ? '접기' : '보기'}</button>` : ''}</div>${open === key ? guardListHtml(k, g, key, kind) : ''}`).join('')
 }
 function guardCard(k) {
   const n = KN(k)
@@ -1895,8 +1924,18 @@ function guardBodyHtml(k) {
   const g = guardOf(k)
   if (!g) return loadingHtml
   if (g.error) return errHtml(g, 'guard:' + k)
-  const c = g.counts
-  return `<div class="ck-sum small muted" data-t="guardSum">장부 항목 ${c.live} · 기록 ${c.records} · 문서 항목 ${c.sections}<button type="button" class="btn ghost sm" data-a="guardRe" data-t="guardRe">다시 읽기</button></div><div class="card" data-t="guardCard"><div class="cb u-p1-7-3">${GUARD_G.map(([l, tip, keys]) => `<div class="ck-g" data-t="ckGroup"><b>${l}</b>${tipb(tip, l)}</div>${guardRowsHtml(k, g, keys)}`).join('')}</div></div>`
+  const c = g.counts, open = S.guardOpen || ''
+  const rows = GUARD_G.flatMap(([gl, tip, keys]) => GUARD_ROWS.filter(([key]) => keys.includes(key)).map(([key, label, kind, why]) => ({ gl, tip, key, label, kind, why })))
+  const hit = rows.filter((r) => c[r.key]).sort((a, b) => GUARD_SOFT.includes(a.key) - GUARD_SOFT.includes(b.key))
+  const zero = rows.filter((r) => !c[r.key])
+  const tipped = new Set()
+  const tile = (r) => {
+    const soft = GUARD_SOFT.includes(r.key), first = !tipped.has(r.gl)
+    tipped.add(r.gl)
+    return `<div class="cktile ${soft ? 'soft' : 'warn'}" data-t="guard-${r.key}"><div class="ckt-h"><span class="chip ${soft ? 'c-mute' : 'c-warn'}">${soft ? '알림' : '경고'}</span><span class="ckt-g"${first ? ' data-t="ckGroup"' : ''}>· ${r.gl}${first ? tipb(r.tip, r.gl) : ''}</span><button type="button" class="btn" data-a="guardOpen" data-v="${r.key}" aria-expanded="${open === r.key}">${open === r.key ? '접기' : '보기'}</button></div><div class="ckt-n">${c[r.key]}</div><div class="nm"${r.why ? ` title="${r.why}"` : ''}>${r.label}</div></div>${open === r.key ? guardListHtml(k, g, r.key, r.kind) : ''}`
+  }
+  const ok = zero.length ? `<div class="ck-ok" data-t="guardOk"><div class="ck-okh"><b>문제 없음</b><span>${zero.length}</span></div><div class="ck-okl">${zero.map((r) => `<span class="ck-z" data-t="guard-${r.key}" title="${r.why}">${r.label}<em>0</em></span>`).join('')}</div></div>` : ''
+  return `<div class="ck-sum small muted" data-t="guardSum">장부 항목 ${c.live} · 기록 ${c.records} · 문서 항목 ${c.sections}<button type="button" class="btn" data-a="guardRe" data-t="guardRe">다시 읽기</button></div><div class="cktiles" data-t="guardCard">${hit.map(tile).join('')}${ok}</div>`
 }
 // 문서 나무(컨벤션 5절) — docs/ 폴더 짜임 그대로. 폴더 먼저 · 이름 차례(숫자는 수로) · 처음은 접힘 · 지금 연 문서가 든 폴더는 펼침
 //   펼침은 UI.dirs[지식:폴더] — 없으면 기본(지금 문서의 폴더면 펼침), true/false 는 사람이 고른 것
@@ -2641,9 +2680,9 @@ const KLAB = { item: '항목', bundle: '항목 묶음', doc: '문서', rec: '기
 let CURG = null, GTOK = null
 // 캔버스 색 — CSS 토큰을 한 번 읽어 둔다(매 프레임 getComputedStyle 를 부르지 않게)
 function gTok() {
-  if (GTOK && GTOK.dark === !!UI.gdark) return GTOK
+  if (GTOK && GTOK.dark === !!UI.gdark && GTOK.theme === (document.documentElement.dataset.theme || '')) return GTOK
   const cs = getComputedStyle($('#app .gwrap') || document.documentElement), v = (n, d) => cs.getPropertyValue(n).trim() || d
-  return (GTOK = { doc: v('--k-doc', '#334155'), item: v('--k-item', '#3358e6'), rec: v('--k-rec', '#c2410c'), line: v('--text-3', '#646d7b'), text: v('--text', '#11151c'), text2: v('--text-2', '#515a68'), bg: v('--hover', '#f5f7fa'), ring: v('--g-ring', '#fff'), hit: '#f0b400', dark: !!UI.gdark })
+  return (GTOK = { doc: v('--k-doc', '#334155'), item: v('--k-item', '#3358e6'), rec: v('--k-rec', '#c2410c'), line: v('--text-3', '#646d7b'), text: v('--text', '#11151c'), text2: v('--text-2', '#515a68'), bg: v('--hover', '#f5f7fa'), ring: v('--g-ring', '#fff'), acc: v('--accent', '#0d7a6f'), hit: v('--warn-line', '#e0b453'), dark: !!UI.gdark, theme: document.documentElement.dataset.theme || '' })
 }
 // 모양 — 같은 모양을 SVG(2D 표 · 범례 · 목록 · 팝업)와 canvas(3D)에 그린다
 function glyphSvg(kind, x, y, r = 6) {
@@ -2912,8 +2951,10 @@ function gPaint() {
     const qs = shown.map((n) => raw(P[n.id]))
     qs.forEach((q) => { mx = Math.max(mx, Math.abs(q[0] - ax)); my = Math.max(my, Math.abs(q[1] - ay)) })
     const cw = vis ? Math.min(W * 0.45, (($('#app .gov') || {}).offsetWidth || 0) + 16) : 0
-    C.base = Math.max(0.02, Math.min(vis ? 3 : 6, Math.min((W / 2 - 60 - cw) / mx, (H0 / 2 - 50) / my)))
-    C.zoom = 1; C.px = -ax * C.base; C.py = -ay * C.base; C.needFit = false; S.g.outHint = false
+    // 전체 그래프는 왼쪽 위 조작판(601 이상) 옆 남은 칸 가운데에 · 고른 점은 늘 칸 가운데
+    const gp = $('#app .gpanel'), pw = !vis && gp && innerWidth > 600 ? Math.min(W * 0.4, gp.offsetWidth + 16) : 0
+    C.base = Math.max(0.02, Math.min(vis ? 3 : 6, Math.min(((W - pw) / 2 - 60 - cw) / mx, (H0 / 2 - 50) / my)))
+    C.zoom = 1; C.px = -ax * C.base + pw / 2; C.py = -ay * C.base; C.needFit = false; S.g.outHint = false
   }
   const Z = C.base * C.zoom, rk = Math.max(0.7, Math.min(2.6, Math.sqrt(C.zoom)))
   const by = {}
@@ -2975,7 +3016,7 @@ function gPaint() {
     } else {
       ctx.fillStyle = T[n.kind] || T.item
       glyphPath(ctx, n.kind, t.X, t.Y, t.r); ctx.fill()
-      ctx.strokeStyle = id === sel || id === cur || focus ? T.text : T.ring; ctx.lineWidth = id === cur ? 2.5 : id === sel || focus ? 2 : 1.2
+      ctx.strokeStyle = id === sel || id === cur ? T.acc : focus ? T.text : T.ring; ctx.lineWidth = id === cur ? 2.5 : id === sel || focus ? 2 : 1.2
       glyphPath(ctx, n.kind, t.X, t.Y, t.r + ctx.lineWidth / 2 - 0.5); ctx.stroke()
     }
   })
@@ -3054,7 +3095,7 @@ const gAvail = (max) => { const m = $('#app .main'), w = m ? m.clientWidth - 40 
 function gErdSvg(k, G) {
   const m = M(k), vis = G.vis, cur = S.g.cur, sel = S.g.sel, f = S.g.f, nq = norm(f.q || '')
   const nodes = vis ? G.nodes.filter((n) => vis.has(n.id)) : G.nodes
-  if (!nodes.length) return '<div class="empty2" data-t="gEmpty"><b>보일 점이 없다</b>왼쪽 「문서 · 항목 · 기록」 을 켠다.</div>'
+  if (!nodes.length) return '<div class="empty2" data-t="gEmpty"><b>보일 점이 없다</b>「종류」 의 문서 · 항목 · 기록을 켠다.</div>'
   const byId = new Map(nodes.map((n) => [n.id, n]))
   const dOrder = new Map(m.docs.map((d, i) => [d.id, i]))
   const recs = nodes.filter((n) => n.kind === 'rec').sort((a, b) => (stampDate((m.recById.get(b.id.slice(2)) || {}).date) || 0) - (stampDate((m.recById.get(a.id.slice(2)) || {}).date) || 0))
@@ -3201,7 +3242,7 @@ function viewGraph() {
   const k = pickKn()
   if (!k) return { crumb: '그래프', main: viewHome().main }
   if (S.g.kn !== k) Object.assign(S.g, { kn: k, pos: {}, sub: null, sel: null, open: [], cur: null, visKey: '', layoutKey: '', bundle: false, cam: { rx: -0.35, ry: 0.6, zoom: 1, base: 1, px: 0, py: 0, needFit: true } })
-  if (!M(k)) { const me = modelErr(k); return { crumb: '그래프', main: me ? errHtml(me, 'model:' + k) : loadingHtml, tabs: true, left: `<div class="gf">${me ? '' : loadingHtml}</div>` } }
+  if (!M(k)) { const me = modelErr(k); return { crumb: '그래프', main: me ? errHtml(me, 'model:' + k) : loadingHtml, tabs: true } }
   const G = graphData(k)
   G.deg = {}; G.nbr = {}
   G.nodes.forEach((n) => { G.deg[n.id] = 0; G.nbr[n.id] = new Set() })
@@ -3224,14 +3265,16 @@ function viewGraph() {
     G.R3 = G.vis && S.g.sub && S.g.sub.R3 ? S.g.sub.R3 : Math.max(100, ...G.nodes.filter((n) => G.P[n.id]).map((n) => { const p = G.P[n.id]; return Math.hypot(p.x, p.y, p.z) }))
   }
   CURG = G
-  const count = `<div class="gtl small"><span data-t="gCount">${gCountText(G, d3)}</span> <b class="t-warn" data-t="gHits"></b></div>`
-  const legend = `<div class="glg small" data-t="gLegend">${['doc', 'item', 'rec'].map((v) => `<span class="lgr">${glyphIcon(v)}${KLAB[v]}</span>`).join('')}<span class="lgr"><svg class="gki" viewBox="0 0 16 16" aria-hidden="true"><line class="gln" x1="1" y1="8" x2="15" y2="8"/></svg>이어져 있다</span></div>`
+  const hint = S.g.mode !== '2d' ? '끌기: 돌리기 · 스페이스 · Shift · 오른쪽 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 이웃 한 겹 · 이웃을 누르면 더 뻗는다' : '끌기 · 스페이스 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 그 점이 가운데'
+  const count = `<div class="gkey" data-t="gKey" title="${esc(hint)}"><div class="gtl small"><span data-t="gCount">${gCountText(G, d3)}</span> <b class="t-warn" data-t="gHits"></b></div>`
+  const legend = `<div class="glg small" data-t="gLegend">${['doc', 'item', 'rec'].map((v) => `<span class="lgr">${glyphIcon(v)}${KLAB[v]}</span>`).join('')}<span class="lgr"><svg class="gki" viewBox="0 0 16 16" aria-hidden="true"><line class="gln" x1="1" y1="8" x2="15" y2="8"/></svg>이어져 있다</span></div></div>`
+  const panel = graphPanel()
   const card = gCardHtml(k, G)
   const main = d3
-    ? `<div class="gwrap${UI.gdark ? ' dark' : ''}" data-t="graph" data-mode="3d"><canvas id="gcv" data-t="gcanvas" role="img" aria-label="${esc(gAria(G))}"></canvas><div class="gerd-tip" data-t="gLayBusy" role="status"${S.g.layBusy ? '' : ' hidden'}>점이 많아 그래프를 나눠 펴는 중이다 · 그사이 돌리거나 골라도 된다</div><div class="gerd-tip" data-t="gOutHint" role="status"${S.g.outHint && G.vis ? '' : ' hidden'}>뻗은 점 가운데 칸 밖 · 카드 밑에 있는 것이 있다 <button type="button" class="lk small" data-a="gRefit" data-t="gRefit">다 보이게</button></div>${(G.vis ? G.vis.size : G.nodes.length) ? '' : '<div class="empty2 gempty3" data-t="gEmpty3"><b>보일 점이 없다</b>왼쪽 「문서 · 항목 · 기록」 을 켠다.</div>'}${count}${legend}${card}<div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit" title="보이는 점이 다 들어오게 · 처음 각도로">처음 크기</button></div><div class="ghint small">끌기: 돌리기 · 스페이스 · Shift · 오른쪽 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 이웃 한 겹 · 이웃을 누르면 더 뻗는다</div></div>`
-    : `<div class="gwrap erd${UI.gdark ? ' dark' : ''}" data-t="graph" data-mode="2d"><div class="gerdw" data-t="gErdWrap">${gErdSvg(k, G)}</div><div class="gerd-tip" data-t="gErdTip" role="status"${gC2().small ? '' : ' hidden'}>전체가 커서 읽히는 크기로 일부만 보인다 · 끌어 옮기거나 점을 고른다 <button type="button" class="lk small" data-a="gErdAll" data-t="gErdAll">다 넣기</button>${S.g.f.rec ? '<button type="button" class="lk small" data-a="gSet" data-v="rec" data-t="gErdNoRec">기록 열 끄기</button>' : ''}</div>${count}${legend}${card}<div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit" title="처음 크기">처음 크기</button></div><div class="ghint small">끌기 · 스페이스 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 그 점이 가운데</div></div>`
+    ? `<div class="gwrap${UI.gdark ? ' dark' : ''}" data-t="graph" data-mode="3d"><canvas id="gcv" data-t="gcanvas" role="img" aria-label="${esc(gAria(G))}"></canvas><div class="gerd-tip" data-t="gLayBusy" role="status"${S.g.layBusy ? '' : ' hidden'}>점이 많아 그래프를 나눠 펴는 중이다 · 그사이 돌리거나 골라도 된다</div><div class="gerd-tip" data-t="gOutHint" role="status"${S.g.outHint && G.vis ? '' : ' hidden'}>뻗은 점 가운데 칸 밖 · 카드 밑에 있는 것이 있다 <button type="button" class="lk small" data-a="gRefit" data-t="gRefit">다 보이게</button></div>${(G.vis ? G.vis.size : G.nodes.length) ? '' : '<div class="empty2 gempty3" data-t="gEmpty3"><b>보일 점이 없다</b>왼쪽 「문서 · 항목 · 기록」 을 켠다.</div>'}${panel}${count}${legend}${card}<div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit" title="보이는 점이 다 들어오게 · 처음 각도로">처음 크기</button></div></div>`
+    : `<div class="gwrap erd${UI.gdark ? ' dark' : ''}" data-t="graph" data-mode="2d"><div class="gerdw" data-t="gErdWrap">${gErdSvg(k, G)}</div><div class="gerd-tip" data-t="gErdTip" role="status"${gC2().small ? '' : ' hidden'}>전체가 커서 읽히는 크기로 일부만 보인다 · 끌어 옮기거나 점을 고른다 <button type="button" class="lk small" data-a="gErdAll" data-t="gErdAll">다 넣기</button>${S.g.f.rec ? '<button type="button" class="lk small" data-a="gSet" data-v="rec" data-t="gErdNoRec">기록 열 끄기</button>' : ''}</div>${panel}${count}${legend}${card}<div class="gz"><button class="btn sm" data-a="gZoom" data-v="1.25" data-t="gZoomIn" title="크게">+</button><button class="btn sm" data-a="gZoom" data-v="0.8" data-t="gZoomOut" title="작게">−</button><button class="btn sm" data-a="gFit" data-t="gFit" title="처음 크기">처음 크기</button></div></div>`
   if (!d3) requestAnimationFrame(gErdFit)
-  return { crumb: '그래프', main, tabs: true, left: graphFilter(), full: true }
+  return { crumb: '그래프', main, tabs: true, full: true }
 }
 // 고른 점 카드 — 그래프 칸 안 오른쪽 위 · × 는 고르기를 닫고 전체 그래프로
 function gCardHtml(k, G) {
@@ -3242,6 +3285,11 @@ function gCardHtml(k, G) {
 }
 // 왼쪽 칸 — 그래프를 어떻게 보일지 정하는 판 다섯(묶음마다 이름표): 찾기 · 보는 방법(3D | 2D 표) · 보기(선 · 제목 · 회전) · 종류(문서 · 항목 · 기록) · 바탕(밝게 | 어둡게)
 //   찾기는 맞는 점을 밝히고 Enter 면 맞는 첫 점(선 많은 차례)을 고른다 · 제목 · 회전은 3D 에서만 쓴다
+// 조작판 — 601 이상은 캔버스 왼쪽 위 판 · 600 이하는 아래 시트(「펴기 · 접기」 · 접히면 찾기 줄만)
+function graphPanel() {
+  const open = !!S.gSheet
+  return `<div class="gpanel${open ? ' open' : ''}" data-t="gPanel"><button type="button" class="gsheet" data-a="gSheet" data-t="gSheet" aria-expanded="${open}" aria-controls="gPanelBody" aria-label="보는 방법 · 보기 · 종류 · 바탕 ${open ? '접기' : '펴기'}"><span>${open ? '접기' : '펴기'}</span></button><div id="gPanelBody">${graphFilter()}</div></div>`
+}
 function graphFilter() {
   const f = S.g.f, d3 = S.g.mode !== '2d'
   const vb = (v, ic, l, title, off) => `<button type="button" class="fbtn" aria-pressed="${!!f[v] && !off}" data-a="gSet" data-v="${v}" data-t="g-${v}" title="${esc(off ? title + ' (3D 에서 쓴다)' : title)}"${off ? ' disabled' : ''}>${svg(ic)}${l}</button>`
@@ -3644,7 +3692,8 @@ function histItem(x, it, i) {
   const st = it.reverted ? '<span class="chip c-mute" data-t="itemReverted">되돌림</span>' : x.kind === '되돌림' ? '' : !it.live ?'<span class="small muted">그 뒤 다시 바뀜</span>' : x.canRevert ? `<button type="button" class="btn sm" data-a="revertItem" data-id="${esc(x.id)}" data-i="${i}" data-t="revertItem">되돌리기</button>` : ''
   return `<li class="${it.reverted ? 'done' : ''}" data-t="histItem"><span class="nm">${esc(it.name)} › <b>${esc(it.heading)}</b></span>${chg}${st}</li>`
 }
-function histRow(x, all) {
+// 이력 줄(확정안 4절 6 · 7-5) — 시간 줄 grid(시각 · 점 · 갈래 칩 · 제목 + 한 줄 · 지식 96 · 사람 80 · 보기) · day 가 있으면 날은 묶음 머리가 말하므로 줄에는 시각 HH:MM 하나
+function histRow(x, all, day) {
   const open = S.openToday === x.id
   const team = isTeam()
   let ex = ''
@@ -3665,7 +3714,7 @@ function histRow(x, all) {
   }
   const kind = isCheck(x) ? HIST_CHECK : x.kind
   const sent = team && x.kind === '보내기' && x.to && !open ? (sentDone(x, all) ? ' ' + chipOf('ok', '문서에 들어감', ' data-t="sentState"') : histPair(x, all) ? ' <span class="chip c-mute" data-t="sentState">기록</span>' : '') : ''
-  return `<div class="hrow${team ? ' ' + x.a : ''}${isCheck(x) ? ' yl' : ''}${x.reverted ? ' done' : ''}" data-t="histRow" data-kind="${esc(x.kind)}" data-area="${x.a}" data-id="${esc(x.id)}"><div class="hl" data-a="toggleToday" data-id="${esc(x.id)}"><span class="tm">${tmOf(x.at)}</span><span class="chip ${isCheck(x) ? 'c-warn' : 'c-mute'} u-fnone">${esc(kind)}</span><span class="tx"><b>${esc(x.title)}</b>${sent}${x.reverted ? ' <span class="chip c-mute" data-t="reverted">되돌렸다</span>' : ''}${x.asIs ? ' <small class="muted" data-t="histAsIs">글 그대로</small>' : ''}${x.sub && !open ? `<small>${esc(x.sub)}</small>` : ''}</span><span class="kn2">${esc(x.knName || '')}</span><span class="who">${esc(x.who || '')}</span><span class="act" data-t="viewBtn">${open ? '접기' : '보기'}</span></div>${ex}</div>`
+  return `<div class="hrow${team ? ' ' + x.a : ''}${isCheck(x) ? ' yl' : ''}${x.reverted ? ' done' : ''}" data-t="histRow" data-kind="${esc(x.kind)}" data-area="${x.a}" data-id="${esc(x.id)}"><div class="hl" data-a="toggleToday" data-id="${esc(x.id)}"><span class="tm"${day ? ` title="${esc(atTxt(x.at))}"` : ''}>${day ? hhmmOf(x.at) : tmOf(x.at)}</span><span class="hdot" aria-hidden="true"></span><span class="chip ${isCheck(x) ? 'c-warn' : 'c-mute'} u-fnone">${esc(kind)}</span><span class="tx"><b>${esc(x.title)}</b>${sent}${x.reverted ? ' <span class="chip c-mute" data-t="reverted">되돌렸다</span>' : ''}${x.asIs ? ' <small class="muted" data-t="histAsIs">글 그대로</small>' : ''}${x.sub && !open ? `<small>${esc(x.sub)}</small>` : ''}</span><span class="kn2">${esc(x.knName || '')}</span><span class="who">${x.who ? `<i class="av" aria-hidden="true">${esc(String(x.who).slice(0, 1).toUpperCase())}</i><span>${esc(x.who)}</span>` : ''}</span><span class="act" data-t="viewBtn">${open ? '접기' : '보기'}</span></div>${ex}</div>`
 }
 // 이력 새 줄 수(UX T4-03 · 정함 ① ) — 마지막으로 이력을 본 때(이 브라우저) 뒤에 생긴 줄
 const histSeenAt = () => { try { return Number(localStorage.getItem('kmd.histSeen')) || 0 } catch { return 0 } }
@@ -3688,27 +3737,28 @@ function viewToday() {
     const v = S.logKn || ''
     return `<option value=""${!v ? ' selected' : ''}>${esc(cur && KN(cur) ? KN(cur).name : '이 지식')}</option><option value="*"${v === '*' ? ' selected' : ''}>모든 지식</option>${ks.map(([id, n]) => `<option value="${esc(id)}"${v === id ? ' selected' : ''}>${esc(n)}</option>`).join('')}`
   }
-  const knSel = `<select class="inp" id="logKn" aria-label="지식" data-t="logKn" style="width:auto">${knOpts()}</select>`
-  const head = `<div class="pg-h"><div class="pt"><div class="big">이력</div>${tipb('hist', '이력')}</div><span class="acts">${knSel}</span></div>`
-  if (!all) return { crumb, main: `<div class="pg-list">${head}${loadingHtml}</div>` }
-  if (all.error) return { crumb, main: `<div class="pg-list">${head}${errHtml(all)}</div>` }
+  // 지식 고르기는 거르기 띠 첫 칸(확정안 7-5) · 읽는 중 · 오류에도 머리 아래에 둔다
+  const knSel = `<select class="inp" id="logKn" aria-label="지식" data-t="logKn">${knOpts()}</select>`
+  const head = `<div class="pg-h"><div class="pt"><div class="big">이력</div>${tipb('hist', '이력')}</div></div>`
+  if (!all) return { crumb, main: `<div class="pg-list">${head}<div class="hfl" data-t="logKinds">${knSel}</div>${loadingHtml}</div>` }
+  if (all.error) return { crumb, main: `<div class="pg-list">${head}<div class="hfl" data-t="logKinds">${knSel}</div>${errHtml(all)}</div>` }
   const rows = all.filter((x) => pass(x))
   const cnt = (g) => all.filter(g).length
   const kindN = (k) => cnt((x) => pass(x, 'kind') && (k === HIST_CHECK ? isCheck(x) : kindOf(x) === k && !isCheck(x)))
   const kinds = HIST_KINDS.filter((k) => k !== '받음' && (k === HIST_CHECK || kindN(k)))
-  const kindSel = `<select class="inp" id="logKind" aria-label="갈래" data-t="logKind" style="width:auto"><option value="">모든 갈래 ${cnt((x) => pass(x, 'kind'))}</option>${kinds.map((k) => `<option value="${esc(k)}"${f === k ? ' selected' : ''}>${esc(k)} ${kindN(k)}</option>`).join('')}</select>`
-  const whoSel = `<select class="inp" id="logWho" aria-label="사람" data-t="logWho" style="width:auto">${[['', '사람 모두'], ['me', `나(${S.me.user})`], ['kmd', 'kmd 가 한 일']].map(([v, l]) => `<option value="${v}"${pp === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`
+  const kindSel = `<select class="inp" id="logKind" aria-label="갈래" data-t="logKind"><option value="">모든 갈래 ${cnt((x) => pass(x, 'kind'))}</option>${kinds.map((k) => `<option value="${esc(k)}"${f === k ? ' selected' : ''}>${esc(k)} ${kindN(k)}</option>`).join('')}</select>`
+  const whoSel = `<select class="inp" id="logWho" aria-label="사람" data-t="logWho">${[['', '사람 모두'], ['me', `나(${S.me.user})`], ['kmd', 'kmd 가 한 일']].map(([v, l]) => `<option value="${v}"${pp === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`
   // 맨 위 「값 바뀜 n」 — 옆 메뉴 배지와 같은 수(모든 지식 · 지식 거르기와 상관없이)
   const checks = f && f !== HIST_CHECK ? [] : all.filter((x) => isCheck(x) && pass(x, 'kn'))
   const flowAll = f !== HIST_CHECK ? rows.filter((x) => !isCheck(x)) : []
   const flow = flowAll.slice(0, S.histMax || HIST_PAGE), flowLeft = flowAll.length - flow.length
   const days = []
   for (const x of flow) { const d = dayOf(x.at); const g = days[days.length - 1]; if (g && g.d === d) g.rows.push(x); else days.push({ d, rows: [x] }) }
-  const row = (x) => histRow(x, all)
-  const checkCard = checks.length ? `<div class="card" data-t="histCheck"><div class="ch">값 바뀜 <span class="chip c-warn">${checks.length}</span></div><div class="cb u-p0">${checks.map(row).join('')}</div></div>` : ''
-  const flowCard = f === HIST_CHECK ? '' : `<div class="card" data-t="feed"><div class="cb u-p0">${days.map((g) => `<div class="hday" data-t="histDay">${esc(g.d)}<small>${g.rows.length}</small></div>${g.rows.map(row).join('')}`).join('') || '<div class="empty2" data-t="logEmpty"><b>이력 없음</b></div>'}${flowLeft > 0 ? `<div class="hmore"><button type="button" class="btn sm" data-a="histMore" data-t="histMore">더 보기(남은 ${flowLeft})</button></div>` : ''}</div></div>`
+  const row = (x) => histRow(x, all, false), dayRow = (x) => histRow(x, all, true)
+  const checkCard = checks.length ? `<div class="card" data-t="histCheck"><div class="ch">값 바뀜 <small>${checks.length}</small></div><div class="cb u-p0">${checks.map(row).join('')}</div></div>` : ''
+  const flowCard = f === HIST_CHECK ? '' : `<div class="card" data-t="feed"><div class="cb u-p0">${days.map((g) => `<div class="hday" data-t="histDay">${esc(g.d)}<small>${g.rows.length}</small></div>${g.rows.map(dayRow).join('')}`).join('') || '<div class="empty2" data-t="logEmpty"><b>이력 없음</b></div>'}${flowLeft > 0 ? `<div class="hmore"><button type="button" class="btn sm" data-a="histMore" data-t="histMore">더 보기(남은 ${flowLeft})</button></div>` : ''}</div></div>`
   const main = `<div class="pg-list">${head}
-  <div class="hfl" data-t="logKinds">${kindSel}<span class="r">${whoSel}</span></div>
+  <div class="hfl" data-t="logKinds">${knSel}${kindSel}<span class="r">${whoSel}</span></div>
   ${checkCard}${flowCard}</div>`
   return { crumb, main }
 }
@@ -6606,6 +6656,8 @@ const ACT = {
     render()
   },
   openSet: (el) => openSet(el.dataset.v),
+  gSheet: () => { S.gSheet = !S.gSheet; render() },
+  readmeAll: () => { S.readmeAll = !S.readmeAll; render() },
   guardOpen: (el) => { S.guardOpen = S.guardOpen === el.dataset.v ? '' : el.dataset.v; render() },
   guardRe: () => { delete S.cache['guard:' + S.route.kn]; render() },
   // 옆 메뉴 「설정」 은 보이는 첫 칸으로 연다(Q11 의 예측 가능: 총괄 관리자 점검 · 지식관리자 팀 지식 · 그 밖 에이전트 설치)
