@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kmd 디자인 개편 보고</title>
+<style>
+@font-face{font-family:"Pretendard Variable";src:url(../../../app/fonts/KMDSans-core.woff2) format("woff2");font-weight:45 920;font-display:swap}
+:root{--bg:#f3f3f4;--paper:#fff;--ink:#141416;--t:#171717;--t2:#525252;--t3:#6b6b70;--line:rgba(23,23,23,.1);--acc:#0d7a6f;--mint:#6ee7d4;--doc:#171717;--item:#2f6fb0;--rec:#c2410c;--bad:#b8321f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--t);font:400 15px/24px "Pretendard Variable",system-ui,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px 96px}
+.hero{background:var(--ink);color:#fff;border-radius:0 0 20px 20px;padding:56px 40px 48px;margin:0 -16px 48px}
+.hero .k{color:var(--mint);font-size:13px;font-weight:500;letter-spacing:.02em}
+.hero h1{font-size:40px;line-height:44px;font-weight:600;margin:12px 0 20px}
+.hero .stats{display:flex;flex-wrap:wrap;gap:32px;margin-top:28px}
+.hero .stats b{display:block;font-size:28px;line-height:36px;font-weight:600}
+.hero .stats span{color:#a1a1aa;font-size:13px}
+h2{font-size:22px;line-height:32px;font-weight:600;margin:56px 0 16px;display:flex;align-items:center;gap:10px}
+h2 i{width:8px;height:8px;border-radius:50%;background:var(--acc);display:inline-block}
+.flow{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.box{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:20px}
+.box .h{font-size:13px;color:var(--t3);font-weight:500;margin-bottom:8px}
+.box ul{margin:0;padding-left:18px}
+.box li{margin:2px 0}
+.shell{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.frame{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px}
+.frame .h{font-size:13px;color:var(--t3);margin-bottom:10px}
+.m{display:grid;height:220px;gap:4px;font-size:12px;line-height:16px}
+.m div{border-radius:6px;display:flex;align-items:center;justify-content:center;text-align:center;padding:4px}
+.old{grid-template-columns:150px 1fr 120px;grid-template-rows:36px 26px 1fr 24px}
+.old .s{grid-row:1/5;background:#e7e5e4}.old .hd{background:#ececec}.old .bd{background:#f6efe2}.old .c{background:#fafaf9;border:1px dashed #ccc}.old .a{background:#ececec}.old .st{background:#ececec}
+.new{grid-template-columns:72px 96px 1fr 26px;grid-template-rows:36px 1fr}
+.new .n{grid-row:1/3;background:var(--ink);color:#fff}.new .l{grid-row:1/3;background:#fafafa;border:1px solid var(--line)}.new .hd{background:#fff;border:1px solid var(--line)}.new .r{grid-row:1/3;grid-column:4;background:#fff;border:1px solid var(--line)}
+.new .dk{background:var(--bg);position:relative}.new .dk span{background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.12);border-radius:6px;width:70%;height:80%;display:flex;align-items:center;justify-content:center}
+table{width:100%;border-collapse:collapse;background:var(--paper);border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);font-size:14px;line-height:20px;vertical-align:middle}
+th{font-weight:500;color:var(--t3);font-size:13px;background:#fafafa}
+.sw{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:6px;border:1px solid var(--line)}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:2px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0 28px}
+.pair figure{margin:0}
+.pair img{width:100%;display:block;border-radius:10px;border:1px solid var(--line);background:#fff}
+.pair figcaption{font-size:13px;color:var(--t3);margin-top:6px}
+.pair figure:last-child figcaption{color:var(--acc);font-weight:500}
+.sc{font-size:15px;font-weight:600;margin:28px 0 0}
+.phone{grid-template-columns:repeat(4,1fr)}
+.commits td:first-child{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:var(--acc);white-space:nowrap}
+.chip{display:inline-block;font-size:12px;padding:0 8px;border-radius:999px;background:#e6f2f0;color:var(--acc);font-weight:500}
+.chip.w{background:#fdecea;color:var(--bad)}
+.foot{margin-top:56px;font-size:13px;color:var(--t3)}
+@media (max-width:860px){.flow,.shell{grid-template-columns:1fr}.pair{grid-template-columns:1fr}.phone{grid-template-columns:1fr 1fr}.hero{padding:40px 20px}.hero h1{font-size:28px;line-height:36px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="k">kmd 팀 화면 · 디자인 개편 · 2026-11-14</div>
+  <h1>세 칸 책상</h1>
+  <div>장부처럼 정확하게 · 차분하게 · 꼼꼼하게</div>
+  <div class="stats">
+    <div><b>10</b><span>커밋 · main</span></div>
+    <div><b>13</b><span>화면</span></div>
+    <div><b>4</b><span>폭 · 1280 1024 600 375</span></div>
+    <div><b>0</b><span>잘린 요소</span></div>
+    <div><b>18/18</b><span>화면 시험</span></div>
+  </div>
+</header>
+
+<h2><i></i>원인</h2>
+<div class="flow">
+  <div class="box"><div class="h">사람 지적</div><ul><li>지난 테마 시도는 차이가 작다</li><li>시각 품질 · 서비스 전체 · 과감하게</li></ul></div>
+  <div class="box"><div class="h">지금 화면</div><ul><li>따뜻한 회색 여러 벌 · 강조색 여럿</li><li>위 띠 · 아래 줄 · 너비 잡이로 빽빽한 틀</li><li>굵기 400 ~ 700 · 크기 14단</li></ul></div>
+  <div class="box"><div class="h">거친 길</div><ul><li>페르소나 7 검토 → 안 4 → 심사</li><li>unslop 감사 100 · 반박 28 → 확정안</li><li>단계 6 개발 → 검토 3 → 고침</li></ul></div>
+</div>
+
+<h2><i></i>고친 것 · 앱 틀</h2>
+<div class="shell">
+  <div class="frame"><div class="h">전</div>
+    <div class="m old"><div class="s">옆 메뉴</div><div class="hd">머리</div><div class="a" style="grid-row:2/4;grid-column:3">오른쪽 칸</div><div class="bd">띠</div><div class="c">본문</div><div class="st" style="grid-column:2/4">아래 줄</div></div>
+  </div>
+  <div class="frame"><div class="h">후</div>
+    <div class="m new"><div class="n">잉크 기둥 212</div><div class="l">목록 칸 300</div><div class="hd">머리 56</div><div class="dk"><span>종이 760</span></div><div class="r">52</div></div>
+  </div>
+</div>
+
+<h2><i></i>고친 것 · 토큰</h2>
+<table>
+<tr><th>무엇</th><th>전</th><th>후</th></tr>
+<tr><td>바탕</td><td>따뜻한 회색</td><td><span class="sw" style="background:#f3f3f4"></span>책상 #f3f3f4 · <span class="sw" style="background:#141416"></span>잉크 #141416</td></tr>
+<tr><td>강조</td><td>여러 색</td><td><span class="sw" style="background:#0d7a6f"></span>청록 하나 · 어둡게 <span class="sw" style="background:#45c8b5"></span></td></tr>
+<tr><td>갈래</td><td>글 · 칩</td><td><span class="dot" style="background:var(--doc)"></span>문서 <span class="dot" style="background:var(--item)"></span>항목 <span class="dot" style="background:var(--rec)"></span>기록</td></tr>
+<tr><td>글꼴</td><td>맑은 고딕</td><td>Pretendard Variable · 같은 출처</td></tr>
+<tr><td>굵기 · 크기</td><td>400 ~ 700 · 14단</td><td>400 · 500 · 600 · 11단(크기/줄 짝)</td></tr>
+<tr><td>간격 · 모서리</td><td>제각각</td><td>4px 격자 · 6 8 12 16 20</td></tr>
+<tr><td>움직임</td><td>없음</td><td>140 · 180 · 320ms · 줄이기 설정이면 0</td></tr>
+<tr><td>끊는 점</td><td>600 · 1024</td><td>600 · 860 · 1024</td></tr>
+</table>
+
+<h2><i></i>고친 것 · 화면</h2>
+
+<div class="sc">문서 보기</div>
+<div class="pair"><figure><img src="shots/4doc-1280.png" alt="전 문서 보기"><figcaption>전</figcaption></figure><figure><img src="dev/shots/4doc-1280.png" alt="후 문서 보기"><figcaption>후 · 책상 위 종이 · 도구는 머리 줄</figcaption></figure></div>
+
+<div class="sc">지식 첫 화면</div>
+<div class="pair"><figure><img src="shots/3home-1280.png" alt="전 첫 화면"><figcaption>전</figcaption></figure><figure><img src="dev/shots/3home-1280.png" alt="후 첫 화면"><figcaption>후 · 잉크 무대</figcaption></figure></div>
+
+<div class="sc">점검</div>
+<div class="pair"><figure><img src="shots/7check-1280.png" alt="전 점검"><figcaption>전</figcaption></figure><figure><img src="dev/shots/7check-1280.png" alt="후 점검"><figcaption>후 · 걸린 것만 큰 판</figcaption></figure></div>
+
+<div class="sc">문서 고치기</div>
+<div class="pair"><figure><img src="shots/13edit-1280.png" alt="전 고치기"><figcaption>전</figcaption></figure><figure><img src="dev/shots/13edit-1280.png" alt="후 고치기"><figcaption>후 · 집중 · 저장 줄</figcaption></figure></div>
+
+<div class="sc">이력</div>
+<div class="pair"><figure><img src="shots/6hist-1280.png" alt="전 이력"><figcaption>전</figcaption></figure><figure><img src="dev/shots/6hist-1280.png" alt="후 이력"><figcaption>후 · 시간 줄</figcaption></figure></div>
+
+<div class="sc">그래프</div>
+<div class="pair"><figure><img src="shots/10graph-1280.png" alt="전 그래프"><figcaption>전</figcaption></figure><figure><img src="dev/shots/10graph-1280.png" alt="후 그래프"><figcaption>후 · 캔버스 위 조작판</figcaption></figure></div>
+
+<div class="sc">찾기</div>
+<div class="pair"><figure><img src="shots/12search-1280.png" alt="전 찾기"><figcaption>전</figcaption></figure><figure><img src="dev/shots/12search-1280.png" alt="후 찾기"><figcaption>후 · 명령 창</figcaption></figure></div>
+
+<div class="sc">모든 지식 · 사람</div>
+<div class="pair"><figure><img src="dev/shots/2list-1280.png" alt="후 모든 지식"><figcaption>후 · 지식 카드</figcaption></figure><figure><img src="dev/shots/9people-1280.png" alt="후 사람"><figcaption>후 · 얼굴 카드</figcaption></figure></div>
+
+<div class="sc">들어가기</div>
+<div class="pair"><figure><img src="shots/1login-1280.png" alt="전 들어가기"><figcaption>전</figcaption></figure><figure><img src="dev/shots/1login-1280.png" alt="후 들어가기"><figcaption>후 · 두 쪽</figcaption></figure></div>
+
+<div class="sc">어두운 테마</div>
+<div class="pair"><figure><img src="dev/shots/4doc-1280-dark.png" alt="어두운 문서"><figcaption>문서</figcaption></figure><figure><img src="dev/shots/3home-1280-dark.png" alt="어두운 첫 화면"><figcaption>첫 화면</figcaption></figure></div>
+
+<div class="sc">375 폭</div>
+<div class="pair phone">
+<figure><img src="dev/shots/4doc-375.png" alt="375 문서"><figcaption>문서</figcaption></figure>
+<figure><img src="dev/shots/14drawer-375.png" alt="375 서랍"><figcaption>서랍</figcaption></figure>
+<figure><img src="dev/shots/3home-375.png" alt="375 첫 화면"><figcaption>첫 화면</figcaption></figure>
+<figure><img src="dev/shots/13edit-375.png" alt="375 고치기"><figcaption>고치기</figcaption></figure>
+</div>
+
+<h2><i></i>커밋</h2>
+<table class="commits">
+<tr><td>f1a245c</td><td>컨벤션 v0.3 · 글꼴 · 토큰 두 테마</td></tr>
+<tr><td>1ab0459</td><td>앱 틀 세 칸 · 띠 · 아래 줄 걷기 · 끊는 점 860</td></tr>
+<tr><td>36564b9</td><td>문서 · 기록 · 고치기</td></tr>
+<tr><td>ebdcb1e</td><td>첫 화면 · 점검 · 이력 · 그래프</td></tr>
+<tr><td>5a26cc5</td><td>빨리 열기 · 찾기 · 지식관리 · 사람 · 들어가기</td></tr>
+<tr><td>33830c0</td><td>styleguide · 시험 단언 · 설명서 · 서비스 전체</td></tr>
+<tr><td>7a5617b</td><td>검토 셋 지적 24건 고침</td></tr>
+<tr><td>286d26b</td><td>600 이하 머리 줄은 화면 이름 하나 · 고른 막대 둥근 끝 · 그래프 색 다시 읽기</td></tr>
+<tr><td>264cbb1</td><td>글꼴 둘로 나눠 싣기(512KB 늘 · 1.6MB 필요할 때) · 설명서 글꼴</td></tr>
+<tr><td>b64fede</td><td>검토 둘 지적 고침 · 폰 그래프 이름이 점을 피함 · aria</td></tr>
+</table>
+
+<h2><i></i>고친 것 · 글꼴 싣기</h2>
+<div class="flow">
+  <div class="box"><div class="h">전</div><ul><li>한 파일 2.0MB</li><li>화면마다 통째로 받음</li><li>설명서는 맑은 고딕</li></ul></div>
+  <div class="box"><div class="h">앞 파일 · 늘</div><ul><li>KMDSans-core 512KB</li><li>라틴 · 기호 · 한글 2,350자</li></ul></div>
+  <div class="box"><div class="h">뒤 파일 · 필요할 때</div><ul><li>KMDSans-rest 1.6MB</li><li>나머지 글자가 화면에 있을 때만</li></ul></div>
+</div>
+
+<h2><i></i>남은 것</h2>
+<table>
+<tr><th>무엇</th><th>상태</th></tr>
+<tr><td>188 배포</td><td><span class="chip">했음</span></td></tr>
+<tr><td>375 머리 줄 · 고른 막대 끝 · 그래프 고리 색 · 경로 줄임</td><td><span class="chip">했음</span></td></tr>
+<tr><td>글꼴 나눠 싣기 · 설명서 글꼴</td><td><span class="chip">했음</span></td></tr>
+<tr><td>첫 화면 · 고치기 375 「옆 칸」 없음(오른쪽 칸 없는 화면)</td><td><span class="chip">정한 대로</span></td></tr>
+<tr><td>어두운 --danger #f87171(대비 4.5 맞춤)</td><td><span class="chip">정한 대로</span></td></tr>
+<tr><td>글꼴 이름 KMD Sans(OFL 예약 이름 · Pretendard 파생)</td><td><span class="chip">정한 대로</span></td></tr>
+<tr><td>원본 글꼴에 없는 기호(⚠ 등)는 시스템 글꼴로 그려짐</td><td><span class="chip w">뒤에</span></td></tr>
+<tr><td>push</td><td><span class="chip w">안 함</span></td></tr>
+</table>
+
+<div class="foot">다듬기 방법: unslop by Damir Sokolovsky (@heydamir) · CC BY 4.0 · 글꼴 Pretendard · OFL 1.1</div>
+</div>
+</body>
+</html>
