@@ -1,6 +1,6 @@
 /* kmd 화면 — 처음은 docs/kmd_목업_인터랙션.html 의 CSS 를 옮겼다(목업 조종판 규칙만 뺌).
    기준은 docs/kmd_디자인_컨벤션.md v0.3 — 색 · 글 크기 · 간격 · 모서리 · 그림자 · 층 · 폭은 아래 :root 토큰만 쓴다(1절).
-   v0.3 「세 칸 책상」(docs/품질개선/디자인개편/확정안.md 3절): graphite 중성 램프 하나 · 청록 강조 하나 · 4px 격자 · Pretendard · 굵기 400/500/600.
+   v0.3 「세 칸 책상」(docs/품질개선/디자인개편/확정안.md 3절): graphite 중성 램프 하나 · 청록 강조 하나 · 4px 격자 · KMD Sans(Pretendard 파생) · 굵기 400/500/600.
    부품 견본: app/styleguide.html */
 /* 글꼴 KMD Sans — 같은 출처에서만 받는다(CSP default-src 'self' · 사내 망). Pretendard Variable(SIL OFL 1.1 · app/fonts/LICENSE.txt)을 둘로 나눈 파생이라 예약 이름 Pretendard 를 쓰지 않는다.
    core: 기본 라틴 · 문장 부호 · 화살표 · 수학 · 기호 · 자모 · KS X 1001 한글 2,350자 · rest: 나머지 글자. 브라우저는 unicode-range 에 걸린 글자가 화면에 있을 때만 그 파일을 받는다 */
@@ -234,6 +234,10 @@ a{color:var(--accent);cursor:pointer}
 .cx-list .tn.on{position:relative;background:var(--surface);color:var(--text);box-shadow:0 0 0 1px var(--border)}
 .cx-list .tn.on .nm{font-weight:var(--fw-md)}
 .cx-list .tn .dt{margin-left:auto;font:var(--fs-xs)/var(--lh-xs) var(--font);color:var(--text-3)}
+/* 연 문서 아래 항목 줄은 옅은 면 한 단 · 고른 줄의 날짜는 이름과 같은 굵기 500(600 은 종이 항목 머리만 · 확정안 목표 그림) */
+.cx-list .tn.on .dt{font-weight:var(--fw-md);color:var(--text-2)}
+.cx-list .tn.sec{background:var(--hover)}
+.cx-list .tn.sec:hover{background:var(--surface-3)}
 .tn.sec{min-height:28px;color:var(--text-2);font-size:var(--fs-sm)}
 .tn.sec .hh{font:var(--fs-xs)/1 var(--mono);color:var(--text-3);flex:none}
 .tn.rec2{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"n d" "s s";align-items:center;column-gap:var(--sp-4);row-gap:var(--sp-1);min-height:52px;padding:var(--sp-3) var(--sp-5)}

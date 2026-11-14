@@ -140,7 +140,7 @@ const MANUALS = [
 const MANUAL_IMG = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', svg: 'image/svg+xml' }
 // 서버가 그리는 페이지(설명서 · 확인 · 받기)도 화면과 같은 토큰을 쓴다. 이 페이지들의 CSP 는 바깥 CSS 를 막으니(style-src 'unsafe-inline')
 // kmd.css 맨 위 :root(토큰의 유일한 자리)만 떼어 <style> 에 넣는다 — 값은 kmd.css 하나만 고친다
-// 설명서는 글꼴 @font-face 두 줄(KMD Sans core · rest)도 떼어 싣는다. 주소는 /fonts/ 로 고쳐 쓴다(설명서 CSP 의 font-src 'self')
+// 설명서 · 받기(/dl)는 글꼴 @font-face 두 줄(KMD Sans core · rest)도 떼어 싣는다(화면과 같은 글꼴). 주소는 /fonts/ 로 고쳐 쓴다(설명서 CSP 의 font-src 'self')
 let pageRoot = ''
 let pageFonts = ''
 const pageRootP = fs.readFile(path.join(APP, 'kmd.css'), 'utf8').then((s) => {
@@ -1456,7 +1456,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (mode === 'team' && req.method === 'GET' && (p === '/dl' || p.startsWith('/dl/'))) {
         const dl = dlDir()
         const files = (await fs.readdir(dl).catch(() => [])).filter((n) => /\.(zip|tgz|exe|msi)$/i.test(n))
-        if (p === '/dl') { await pageRootP; return send(res, 200, `<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>kmd 받기</title><style>${pageRoot}${PAGE_CSS}main{padding-top:40px}</style><body><main><h1>kmd 받기</h1>${files.length ? `<ul>${files.map((n) => `<li><a href="/dl/${encodeURIComponent(n)}">${n.replace(/[<>&"]/g, '')}</a></li>`).join('')}</ul><p>보통은 받을 일이 없다. 팀 화면 › 설정 › 에이전트 설치의 <b>설치 한 줄</b>을 PowerShell 에 붙여 넣으면 이 꾸러미를 저절로 받아 깔고 팀에 잇는다.</p><p>손으로 깔려면: zip 을 풀고 그 폴더에서 <code>kmd.cmd up</code> 으로 켠다.</p>` : '<p>아직 PC 꾸러미가 없다. 관리자가 팀 꾸러미로 설치하면 함께 놓인다. 관리자에게 묻는다.</p>'}<p><a href="/manual">설명서</a></p></main></body></html>`, 'text/html; charset=utf-8') }
+        if (p === '/dl') { await pageRootP; return send(res, 200, `<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>kmd 받기</title><style>${pageFonts}${pageRoot}${PAGE_CSS}main{padding-top:40px}</style><body><main><h1>kmd 받기</h1>${files.length ? `<ul>${files.map((n) => `<li><a href="/dl/${encodeURIComponent(n)}">${n.replace(/[<>&"]/g, '')}</a></li>`).join('')}</ul><p>보통은 받을 일이 없다. 팀 화면 › 설정 › 에이전트 설치의 <b>설치 한 줄</b>을 PowerShell 에 붙여 넣으면 이 꾸러미를 저절로 받아 깔고 팀에 잇는다.</p><p>손으로 깔려면: zip 을 풀고 그 폴더에서 <code>kmd.cmd up</code> 으로 켠다.</p>` : '<p>아직 PC 꾸러미가 없다. 관리자가 팀 꾸러미로 설치하면 함께 놓인다. 관리자에게 묻는다.</p>'}<p><a href="/manual">설명서</a></p></main></body></html>`, 'text/html; charset=utf-8') }
         const n = dec(p.slice(4))
         if (!files.includes(n)) return send(res, 404, '없다', 'text/plain; charset=utf-8')
         // 꾸러미는 수십 MB — 메모리에 다 읽지 않고 흘려 보낸다(여럿이 함께 깔아도 서버 메모리가 받는 사람 수만큼 늘지 않게)

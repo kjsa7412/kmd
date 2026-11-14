@@ -751,7 +751,7 @@ function draw() {
   const ar = aRail()
   const shell = gated()
     ? gatePage(scr, center)
-    : `<div class="cxnav" data-t="nav">${sideHtml()}${list}</div><div class="col">${hdrHtml(scr)}${scr.acts || ''}<div class="body">${center}${scr.aside ? `<div class="aside" data-t="aside"><button type="button" class="hb afold" data-a="asideRail" data-t="asideFold" aria-expanded="${!ar}" title="${ar ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'} (Ctrl ])" aria-label="${ar ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'}">${svg(ar ? 'sideL' : 'sideR')}</button><div class="asc" data-t="asideScroll">${scr.aside}</div></div>` : ''}</div></div>`
+    : `<div class="cxnav" id="kmdNav" data-t="nav">${sideHtml()}${list}</div><div class="col">${hdrHtml(scr)}${scr.acts || ''}<div class="body">${center}${scr.aside ? `<div class="aside" id="kmdAside" data-t="aside"><button type="button" class="hb afold" data-a="asideRail" data-t="asideFold" aria-expanded="${!ar}" title="${ar ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'} (Ctrl ])" aria-label="${ar ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'}">${svg(ar ? 'sideL' : 'sideR')}</button><div class="asc" data-t="asideScroll">${scr.aside}</div></div>` : ''}</div></div>`
   app.innerHTML = `${shell}${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.rsWin ? rsWinHtml() : ''}${S.devWin ? devWinHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S.paste && S.route.scr === 'import' ? pasteWinHtml() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.recFix ? recFixHtml() : ''}${S.sv ? svHtml() : ''}${S.past ? pastHtml() : ''}${S.sdw && S.route.scr === 'home' ? sdwHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}${S.keys ? keysHtml() : ''}`
   for (const c of [...app.classList]) if (c.startsWith('pg-')) app.classList.remove(c)
   app.classList.add('pg-' + pgOf(editing))
@@ -1079,10 +1079,10 @@ function hdrHtml(scr) {
   parts = parts.filter((x, i) => x !== parts[i - 1]) // 「점검 › 점검」 은 하나로
   const cps = [...(kn ? [`<button type="button" class="lk crumbk" data-a="openKn" data-k="${esc(kk)}" data-t="crumbKn">${esc(kn)}</button>`] : []), ...parts.map((x, i) => (i === parts.length - 1 ? '<b>' + esc(x) + '</b>' : esc(x)))]
   const c = cps.map((x) => `<span class="cp">${x}</span>`).join('<span class="cs" aria-hidden="true"> › </span>')
-  const menuBtn = g ? '' : `<button type="button" class="hb menu-btn" data-a="sideToggle" data-t="menuBtn" aria-label="옆 메뉴" aria-expanded="${S.sideOpen ? 'true' : 'false'}" title="옆 메뉴">☰</button>`
-  const hb = `<span class="hist"><button type="button" class="hb" data-a="histGo" data-v="-1" data-t="histBack" title="이전 (Alt ←)"${S.hpos > 0 ? '' : ' disabled'}>‹</button><button type="button" class="hb" data-a="histGo" data-v="1" data-t="histFwd" title="다음 (Alt →)"${S.hpos < S.hist.length - 1 ? '' : ' disabled'}>›</button></span>`
+  const menuBtn = g ? '' : `<button type="button" class="hb menu-btn" data-a="sideToggle" data-t="menuBtn" aria-label="옆 메뉴" aria-controls="kmdNav" aria-expanded="${S.sideOpen ? 'true' : 'false'}" title="옆 메뉴">☰</button>`
+  const hb = `<span class="hist"><button type="button" class="hb" data-a="histGo" data-v="-1" data-t="histBack" aria-label="이전" title="이전 (Alt ←)"${S.hpos > 0 ? '' : ' disabled'}>‹</button><button type="button" class="hb" data-a="histGo" data-v="1" data-t="histFwd" aria-label="다음" title="다음 (Alt →)"${S.hpos < S.hist.length - 1 ? '' : ' disabled'}>›</button></span>`
   const lv = kk && isTeam() ? lvChip(KN(kk)).replace('data-t="lvChip"', 'data-t="hdrLv"') : ''
-  const asideBtn = S._hasAside ? `<button type="button" class="hb aside-btn${S.asideOpen ? ' on' : ''}" data-a="asideToggle" data-t="asideBtn" aria-expanded="${S.asideOpen ? 'true' : 'false'}" title="오른쪽 칸: 개요 · 문서 · 기록 · 항목 · 속성">옆 칸</button>` : ''
+  const asideBtn = S._hasAside ? `<button type="button" class="hb aside-btn${S.asideOpen ? ' on' : ''}" data-a="asideToggle" data-t="asideBtn" aria-controls="kmdAside" aria-expanded="${S.asideOpen ? 'true' : 'false'}" title="오른쪽 칸: 개요 · 문서 · 기록 · 항목 · 속성">옆 칸</button>` : ''
   const st = stopsFor(stopKn())
   const stop = S.loginLost
     ? '<button type="button" class="hb stopdot bad" data-a="reLogin" data-t="loginLostHdr" title="들어간 것이 끝났다 · 다시 들어가기" aria-label="들어간 것이 끝났다 · 다시 들어가기">!</button>'
@@ -3057,6 +3057,8 @@ function gPaint() {
   // 폰 폭(칸 600 이하) — 이름끼리 띄움을 넓혀 잰다 · 붙거나 겹칠 이름은 숨긴다(고른 점 · 이웃 이름은 늘 쓴다)
   const gap = W <= 600 ? 4 : 0
   const clash = (b) => placed.some((o) => b.x < o.x2 + gap && b.x2 + gap > o.x && b.y < o.y2 + gap && b.y2 + gap > o.y)
+  // 폰 폭은 이름이 다른 점의 원을 덮지 않게도 잰다(점 수가 적은 칸이라 값이 싸다)
+  const onDot = (b, me) => gap > 0 && pts.some((o) => { if (o === me) return false; const nx = Math.max(b.x, Math.min(o.X, b.x2)), ny = Math.max(b.y, Math.min(o.Y, b.y2)); return Math.hypot(nx - o.X, ny - o.Y) < o.r + 1 })
   let lab = 0
   ctx.lineJoin = 'round'
   const hubL = (id) => !vis && !Hd && !nq && G.hubs.has(id)
@@ -3070,10 +3072,12 @@ function gPaint() {
     const txt = hub ? gFit(n.label, 170, 11) : n.label, w = ctx.measureText(txt).width, h = 13
     const cands = [[t.X + t.r + 4, t.Y + 4], [t.X - t.r - 4 - w, t.Y + 4], [t.X + t.r + 4, t.Y - 9], [t.X + t.r + 4, t.Y + 17]]
     let at = null
-    for (const c of cands) { const b = { x: c[0] - 1, y: c[1] - h + 2, x2: c[0] + w + 1, y2: c[1] + 3 }; if (!clash(b)) { at = c; placed.push(b); break } }
+    // 점을 덮지 않는 자리를 먼저 · 없으면 이름끼리만 겹치지 않는 자리(빽빽한 무리의 허브 이름이 다 사라지지 않게)
+    const box = (c) => ({ x: c[0] - 1, y: c[1] - h + 2, x2: c[0] + w + 1, y2: c[1] + 3 })
+    for (const free of [true, false]) { for (const c of cands) { const b = box(c); if (!clash(b) && (!free || !onDot(b, t))) { at = c; placed.push(b); break } } if (at || !gap) break }
     if (!at) { if (!pri) return; at = cands[0] }
     ctx.globalAlpha = pri || hub ? 1 : Math.max(0.6, t.dep)
-    ctx.strokeStyle = T.bg; ctx.lineWidth = 3; ctx.strokeText(txt, at[0], at[1])
+    ctx.strokeStyle = T.ring; ctx.lineWidth = 3; ctx.strokeText(txt, at[0], at[1])
     ctx.fillStyle = pri || hub ? T.text : T.text2; ctx.fillText(txt, at[0], at[1])
     lab++; if (hub) hubN++
   })
@@ -3086,7 +3090,9 @@ function gPaint() {
 // 천천히 돈다 — 끌거나 점에 올려 둔 동안은 멈춘다(누르려는 점이 달아나지 않게)
 const gCalm = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 function gLoop() { GRAF = 0; if (!$('#gcv') || !S.g.f.spin || GD || GH != null || gCalm()) return; S.g.cam.ry += 0.0016; gPaint(); GRAF = requestAnimationFrame(gLoop) }
-function gStart() { if (!S.g.spinSet && GCV && GCV.pts && GCV.pts.length > 400) { S.g.f.spin = false; S.g.spinSet = true } gPaint(); if (!GRAF && S.g.f.spin && !gCalm()) GRAF = requestAnimationFrame(gLoop) }
+// 캔버스 이름 글자는 DOM 에 없어 글꼴 뒤 파일을 부르지 않는다 · 그래프마다 한 번 그 글자로 불러 둔다(받으면 loadingdone 이 다시 그린다)
+function gFonts() { const G = CURG; if (!G || G._fl || !document.fonts || !document.fonts.load) return; G._fl = true; const t = [...new Set(G.nodes.map((n) => n.label || '').join(''))].join(''); if (t) document.fonts.load('11px "KMD Sans"', t).catch((e) => console.warn('그래프 글꼴을 받지 못했다', e)) }
+function gStart() { if (!S.g.spinSet && GCV && GCV.pts && GCV.pts.length > 400) { S.g.f.spin = false; S.g.spinSet = true } gFonts(); gPaint(); if (!GRAF && S.g.f.spin && !gCalm()) GRAF = requestAnimationFrame(gLoop) }
 function gHit(x, y) {
   if (!GCV) return null
   const lx = x - GCV.rc.left, ly = y - GCV.rc.top
@@ -7667,6 +7673,8 @@ async function boot() {
 }
 try { applyTheme() } catch (e) { console.warn('화면 밝기를 맞추지 못했다', e) }
 if (window.matchMedia) matchMedia('(min-width:1025px)').addEventListener('change', () => { if (S.me && MGSCR.includes(S.route.scr)) render() })
+// 글꼴 뒤 파일(KS X 1001 밖 글자)은 DOM 글이 부를 때 온다 · 받은 뒤 그래프 이름을 그 글꼴로 다시 잰다
+if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', () => { if ($('#gcv')) gPaint() })
 if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { GTOK = null; if (S.me) render() })
 boot()
 // 문서 짜임 — 줄 안 이름 칸(Enter 넣기 · Esc 취소 · 벗어나면 맞으면 넣기) · 줄(F2 이름 · Alt ↑↓ 차례 · Enter 고르기)

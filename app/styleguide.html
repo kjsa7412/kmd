@@ -31,6 +31,7 @@ html,body{background:var(--bg)}
 .sg-nav-sw{background:var(--nav-bg);border-radius:var(--r-md);padding:var(--sp-5)}
 .sg-nav-sw .sg-sw{background:var(--nav-bg-2);border-color:var(--nav-line);color:var(--nav-text)}
 .sg-nav-sw .sg-sw code{color:var(--nav-dim)}
+.sg-nav-sw .sg-box{background:var(--nav-sel);border-color:var(--nav-line)}.sg-nav-sw .sg-dim{color:var(--nav-dim)}.sg-nav-sw .sg-nfocus{box-shadow:var(--nav-focus);border-radius:var(--r)}
 .sg-dot{display:inline-block;width:var(--k-dot);height:var(--k-dot);border-radius:50%;vertical-align:middle;margin-right:var(--sp-2)}
 .sg-stage{background:var(--surface-3);border-radius:var(--r-lg);padding:var(--sp-8);position:relative}
 .sg-stage .scrim{position:relative;inset:auto;z-index:auto;min-height:280px;border-radius:var(--r-md);padding:var(--sp-8) 0}
@@ -208,14 +209,14 @@ html,body{background:var(--bg)}
       <div class="sg-cell"><span class="sg-box" style="box-shadow:var(--shadow-3);border-radius:var(--r-md)"></span>--shadow-3 찾기 창 · 서랍</div>
       <div class="sg-cell"><span class="sg-box" style="box-shadow:var(--shadow-paper);border-radius:var(--r-lg)"></span>--shadow-paper 종이(어두움은 없음)</div>
       <div class="sg-cell"><span class="sg-box" style="box-shadow:var(--focus-ring);border-radius:var(--r)"></span>--focus-ring 키보드 초점(입력도)</div>
-      <div class="sg-cell sg-nav-sw"><span class="sg-box" style="background:var(--nav-sel);border-color:var(--nav-line);box-shadow:var(--nav-focus);border-radius:var(--r)"></span><span style="color:var(--nav-dim)">--nav-focus 잉크 위 초점</span></div>
+      <div class="sg-cell sg-nav-sw"><span class="sg-box sg-nfocus"></span><span class="sg-dim">--nav-focus 잉크 위 초점</span></div>
     </div>
     <p class="hint">층(z): --z-menu 20 · --z-scrim 70(모달 · 찾기 창 · 서랍 바로 아래) · --z-pop 80 · --z-toast 90(모달 위). 폭: --w-text 820 · --w-list 980 · --w-grid 1100 · 세 칸 틀 --cx-nav 212(1024 이하 64) · --cx-list 300(1024 이하 min(260, 30vw)) · --cx-head 56 · --cx-rail 52 · --cx-paper 760 · --cx-fold 64. 움직임: --ease 곡선 하나 · --t-fast 140 · --t-pop 180 · --t-sheet 320(줄이기를 고르면 0). 아이콘: --ic 16 · 획 1.5.</p>
     <h3>갈래 점 · 고른 막대</h3>
     <div class="sg-row">
       <div class="sg-cell"><span><span class="sg-dot" style="background:var(--k-doc)"></span>문서 <span class="sg-dot" style="background:var(--k-item)"></span>항목 <span class="sg-dot" style="background:var(--k-rec)"></span>기록</span>--k-dot 6</div>
       <div class="sg-cell"><span class="sg-box sg-bar"></span>--bar-acc 목록 칸 고른 줄(가상 막대 · 끝 --r-2xs)</div>
-      <div class="sg-cell sg-nav-sw"><span class="sg-box sg-bar nav" style="background:var(--nav-sel);border-color:var(--nav-line)"></span><span style="color:var(--nav-dim)">--bar-nav 잉크 위 고른 줄</span></div>
+      <div class="sg-cell sg-nav-sw"><span class="sg-box sg-bar nav"></span><span class="sg-dim">--bar-nav 잉크 위 고른 줄</span></div>
     </div>
   </section>
 
