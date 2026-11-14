@@ -140,8 +140,13 @@ const MANUALS = [
 const MANUAL_IMG = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', svg: 'image/svg+xml' }
 // 서버가 그리는 페이지(설명서 · 확인 · 받기)도 화면과 같은 토큰을 쓴다. 이 페이지들의 CSP 는 바깥 CSS 를 막으니(style-src 'unsafe-inline')
 // kmd.css 맨 위 :root(토큰의 유일한 자리)만 떼어 <style> 에 넣는다 — 값은 kmd.css 하나만 고친다
+// 설명서는 글꼴 @font-face 두 줄(KMD Sans core · rest)도 떼어 싣는다. 주소는 /fonts/ 로 고쳐 쓴다(설명서 CSP 의 font-src 'self')
 let pageRoot = ''
-const pageRootP = fs.readFile(path.join(APP, 'kmd.css'), 'utf8').then((s) => { pageRoot = s.match(/:root\{[\s\S]*?\n\}/)?.[0] || '' }).catch((e) => console.error('kmd.css 를 읽지 못했다:', e.message))
+let pageFonts = ''
+const pageRootP = fs.readFile(path.join(APP, 'kmd.css'), 'utf8').then((s) => {
+  pageRoot = s.match(/:root\{[\s\S]*?\n\}/)?.[0] || ''
+  pageFonts = (s.match(/^@font-face\{[^\n]*\}$/gm) || []).join('').replace(/url\(fonts\//g, 'url(/fonts/')
+}).catch((e) => console.error('kmd.css 를 읽지 못했다:', e.message))
 const PAGE_CSS = `*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:var(--fs-md)/1.65 var(--font)}a{color:var(--accent)}h1{font-size:var(--fs-xl);line-height:1.35}h2{font-size:var(--fs-lg);margin-top:26px}main{max-width:var(--w-text);margin:0 auto;padding:var(--sp-9) var(--sp-8) 60px;background:var(--surface);min-height:100vh;min-height:100dvh;overflow-wrap:anywhere}nav{font-size:var(--fs);color:var(--text-2);margin-bottom:18px;padding-bottom:var(--sp-5);border-bottom:1px solid var(--border)}table{border-collapse:collapse;width:100%;max-width:100%;font-size:var(--fs);display:block;overflow-x:auto}th,td{border:1px solid var(--border);padding:5px var(--sp-4);text-align:left;vertical-align:top;overflow-wrap:normal;min-width:4em}th{background:var(--surface-2)}code{font:var(--fs-mono) var(--mono);background:var(--surface-2);padding:1px 5px;border-radius:var(--r-xs)}pre{background:var(--surface-2);border:1px solid var(--border);padding:var(--sp-5) var(--sp-6);border-radius:var(--r);overflow-x:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:var(--fs-mono)/1.55 var(--mono)}pre code{background:none;padding:0}img{max-width:100%;height:auto}.m{color:var(--text-3);font-size:var(--fs)}button{font:inherit;height:34px;padding:0 var(--sp-8);border-radius:var(--r);border:1px solid var(--border-strong);background:var(--surface);color:var(--text);cursor:pointer}button:hover{background:var(--hover)}button.ok{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}button.ok:hover{background:var(--accent-hover)}a:focus-visible,button:focus-visible{outline:0;box-shadow:var(--focus-ring)}@media (max-width:600px){main{padding:var(--sp-7) var(--sp-6) 40px}}`
 let manualCss = null
 const manualCssOf = async () => (manualCss ??= await fs.readFile(path.join(MANUAL_DIR, 'manual.css'), 'utf8').catch((e) => { console.error('설명서 모양(manual.css)을 읽지 못했다:', e.message); return '' }))
@@ -155,7 +160,7 @@ async function manualPage(mode, slug) {
   const m = name ? list.find((x) => x.slug === name) : null
   if (name && !m) return null
   const page = (title, crumb, nav, body) => `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title>
-<style>${pageRoot}${css}</style></head><body>
+<style>${pageFonts}${pageRoot}${css}</style></head><body>
 <header class="mtop"><a class="m-brand" href="/manual"><span class="m-logo">K</span>kmd 설명서</a>${crumb ? `<span class="m-crumb">› ${esc(crumb)}</span>` : ''}<span class="m-sp"></span><a class="m-back" href="/">kmd 화면으로</a></header>
 <div class="mwrap"><nav class="mnav" aria-label="설명서">${nav}</nav><main class="mmain">${body}</main></div></body></html>`
   const css = await manualCssOf()
@@ -1426,7 +1431,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (mm) {
         const page = await manualPage(mode, mm[1] ? dec(mm[1]) : null)
         if (!page) return send(res, 404, '없다', 'text/plain; charset=utf-8')
-        return send(res, 200, page, 'text/html; charset=utf-8', { 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'" })
+        return send(res, 200, page, 'text/html; charset=utf-8', { 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'" })
       }
       // 설치 한 줄이 받는 작은 스크립트 — `irm <팀>/i/<표> | iex`(PowerShell) · `curl -fsSL <팀>/i/<표>.sh | sh`. 표는 여기서 쓰지 않는다(설치가 /device/keys 로 한 번)
       // kmd 가 없는 Windows PC 면 받기 자리의 PC 꾸러미를 받아 <집>/versions/<판> 에 풀고 실행기(<집>/bin)를 사용자 PATH 에 더한 뒤 잇는다

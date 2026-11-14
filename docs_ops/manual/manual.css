@@ -1,8 +1,10 @@
 /* kmd 설명서 — /manual 이 그리는 설명서 한 벌의 모양.
-   값은 app/kmd.css 의 :root 토큰만 쓴다(새 hex · rgba · px 글 크기 없음). 서버는 :root 를 떼어 이 파일과 함께 <style> 로 싣는다.
+   값은 app/kmd.css 의 :root 토큰만 쓴다(새 hex · rgba · px 글 크기 없음). 서버는 :root 와 글꼴 @font-face 두 줄(KMD Sans · /fonts/ · CSP font-src 'self')을 떼어 이 파일과 함께 <style> 로 싣는다.
+   굵기는 컨벤션의 400 / 500 / 600 만(제목 · <b> 도 600).
    파일을 바로 열 때는 각 설명서가 ../../app/kmd.css 를 먼저 읽는다 — 화면 부품 이름과 겹치지 않게 설명서 부품은 m- 로 시작한다. */
 
 /* ── 바탕 ── */
+h1,h2,h3,h4,b,strong,th{font-weight:600}
 body{margin:0;background:var(--bg);color:var(--text);font:var(--fs-md)/1.7 var(--font)}
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
@@ -14,16 +16,16 @@ a:focus-visible,summary:focus-visible{outline:0;box-shadow:var(--focus-ring);bor
 
 /* ── 머리 띠 ── */
 .mtop{position:sticky;top:0;z-index:var(--z-menu);display:flex;align-items:center;gap:var(--sp-6);height:52px;padding:0 var(--sp-9);background:var(--surface);border-bottom:1px solid var(--border)}
-.m-brand{display:flex;align-items:center;gap:var(--sp-4);color:var(--text);font-weight:700;font-size:var(--fs-lg);white-space:nowrap}
+.m-brand{display:flex;align-items:center;gap:var(--sp-4);color:var(--text);font-weight:600;font-size:var(--fs-lg);white-space:nowrap}
 .m-brand:hover{text-decoration:none}
-.m-logo{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:var(--r);background:var(--accent);color:var(--on-accent);font-size:var(--fs);font-weight:800}
+.m-logo{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:var(--r);background:var(--accent);color:var(--on-accent);font-size:var(--fs);font-weight:600}
 .m-sp{flex:1}
 .m-crumb{color:var(--text-2);font-size:var(--fs);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .m-back{font-size:var(--fs);border:1px solid var(--border-strong);border-radius:var(--r);padding:var(--sp-2) var(--sp-6);color:var(--text);white-space:nowrap}
 .m-back:hover{background:var(--hover);text-decoration:none}
 
 /* ── 틀: 왼쪽 길잡이 · 본문 ── */
-.mwrap{display:grid;grid-template-columns:var(--w-side) minmax(0,1fr);max-width:calc(var(--w-side) + var(--w-grid));margin:0 auto}
+.mwrap{display:grid;grid-template-columns:var(--cx-list) minmax(0,1fr);max-width:calc(var(--cx-list) + var(--w-grid));margin:0 auto}
 .mnav{position:sticky;top:52px;align-self:start;max-height:calc(100vh - 52px);overflow-y:auto;padding:var(--sp-9) var(--sp-6) var(--sp-9) var(--sp-9)}
 .mnav h4{margin:0 0 var(--sp-3);font-size:var(--fs-xs);letter-spacing:.04em;color:var(--text-3);font-weight:600}
 .mnav ul{list-style:none;margin:0 0 var(--sp-9);padding:0}
@@ -80,10 +82,10 @@ figure.m-shot{margin:var(--sp-8) 0 var(--sp-9)}
 .m-pic img{display:block;width:100%;height:auto}
 figure.m-narrow{max-width:min(390px,100%)}
 figure.m-shot figcaption{margin-top:var(--sp-4);color:var(--text-2);font-size:var(--fs)}
-.m-pin{position:absolute;display:grid;place-items:center;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:var(--r-pill);background:var(--accent);color:var(--on-accent);font-size:var(--fs);font-weight:800;box-shadow:var(--focus-ring)}
+.m-pin{position:absolute;display:grid;place-items:center;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:var(--r-pill);background:var(--accent);color:var(--on-accent);font-size:var(--fs);font-weight:600;box-shadow:var(--focus-ring)}
 ol.m-legend{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));gap:var(--sp-3) var(--sp-8);counter-reset:lg}
 ol.m-legend li{counter-increment:lg;display:flex;gap:var(--sp-4);align-items:flex-start;font-size:var(--fs);margin:0}
-ol.m-legend li::before{content:counter(lg);flex:none;display:grid;place-items:center;width:20px;height:20px;margin-top:2px;border-radius:var(--r-pill);background:var(--accent);color:var(--on-accent);font-size:var(--fs-xs);font-weight:800}
+ol.m-legend li::before{content:counter(lg);flex:none;display:grid;place-items:center;width:20px;height:20px;margin-top:2px;border-radius:var(--r-pill);background:var(--accent);color:var(--on-accent);font-size:var(--fs-xs);font-weight:600}
 
 /* 흐름(단계 상자) */
 .m-flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:var(--sp-3);margin:var(--sp-7) 0}
@@ -93,7 +95,7 @@ ol.m-legend li::before{content:counter(lg);flex:none;display:grid;place-items:ce
 .m-st.m-hi{background:var(--accent-bg);border-color:var(--accent-line)}
 .m-st.m-ok{background:var(--ok-bg);border-color:var(--ok-line)}
 .m-st.m-pd{background:var(--pending-bg);border-color:var(--pending-line)}
-.m-ar{flex:none;align-self:center;color:var(--text-3);font-weight:700}
+.m-ar{flex:none;align-self:center;color:var(--text-3);font-weight:600}
 
 /* 카드 묶음 */
 .m-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));gap:var(--sp-7);margin:var(--sp-7) 0}
@@ -106,7 +108,7 @@ a.m-card:hover{border-color:var(--accent-line);box-shadow:var(--shadow-2);text-d
 /* 단계 목록(1 · 2 · 3) */
 ol.m-steps{list-style:none;padding:0;counter-reset:st;margin:var(--sp-7) 0}
 ol.m-steps>li{counter-increment:st;position:relative;padding:0 0 var(--sp-8) 44px;margin:0}
-ol.m-steps>li::before{content:counter(st);position:absolute;left:0;top:0;display:grid;place-items:center;width:30px;height:30px;border-radius:var(--r-pill);background:var(--accent);color:var(--on-accent);font-weight:800}
+ol.m-steps>li::before{content:counter(st);position:absolute;left:0;top:0;display:grid;place-items:center;width:30px;height:30px;border-radius:var(--r-pill);background:var(--accent);color:var(--on-accent);font-weight:600}
 ol.m-steps>li::after{content:"";position:absolute;left:14px;top:34px;bottom:4px;border-left:2px solid var(--border)}
 ol.m-steps>li:last-child::after{display:none}
 ol.m-steps>li>b:first-child{display:block;font-size:var(--fs-md)}

@@ -23,7 +23,12 @@ CSS 에 색 · 크기를 바로 쓰지 않는다. 아래 토큰만 쓴다(`var(-
 
 - **어두운 테마** — 색 토큰만 갈아 끼운다(`:root[data-theme=dark]` · 고르지 않았으면 `prefers-color-scheme` 따라). 「화면 밝기: 시스템 · 밝게 · 어둡게」 는 머리 줄 사람 동그라미 메뉴(개인 · 팀 같은 자리 · 메뉴 개편 N6) · 이 브라우저에만(`UI.theme`). 어두운 값도 바탕(`--surface`) 위 글 4.5:1 이상. 새 색은 두 테마 값을 같이 둔다.
 - **v0.3 바탕 규칙**: 면 · 선 · 글은 중성 램프 하나(graphite)에서만 · 글 역할은 셋(`--text` · `--text-2` · `--text-3`) · 강조는 청록 하나(`--accent` · 주 단추는 `--pri-*` 한 벌) · 갈래 색 셋(`--k-*`)은 뜻이 있는 자리(그래프 점 · 갈래 점 · 「##」 항목 머리 · 기록 꼬리표 · 첫 화면 무대)에만 · 간격 · 크기는 4px 격자 · 굵기 셋(`--fw` 400 본문 · `--fw-md` 500 메뉴 · 단추 · 제목 · `--fw-strong` 600 은 종이 「##」 항목 머리 하나) · 그림자는 중성(검정 알파)만 · 그라데이션 · 빛 · 색 그림자 금지(고른 막대 `--bar-*` 는 곧은 2px 한 겹이라 예외) · 움직임 곡선 하나(`--ease` · 줄이기를 고르면 0) · 아이콘 16 한 벌(`--ic` · 획 1.5 · 글 역할 색) · 수는 `tabular-nums`.
-- **글꼴**: `app/fonts/PretendardVariable.woff2`(SIL OFL 1.1 · `app/fonts/LICENSE.txt`)를 같은 출처에서 받는다(CSP `default-src 'self'` · 바깥 CDN 쓰지 않음 · 서버 `TYPES` 의 `font/woff2` · `index.html` 의 preload). 받지 못하면 맑은 고딕.
+- **글꼴**: `KMD Sans` 는 Pretendard Variable(SIL OFL 1.1 · `app/fonts/LICENSE.txt`)을 둘로 나눈 파생이다. 부분 집합은 고친 판이라 예약 이름 「Pretendard」 를 쓰지 않는다(OFL 3항). 굵기 축(45 ~ 930)은 그대로 둔다.
+  - `app/fonts/KMDSans-core.woff2`(약 512KB · 3,043자): 기본 라틴 · 라틴-1 · 일반 문장 부호 · 글자 꼴 기호 · 수 꼴 · 화살표 · 수학 · 기술 기호 · 동그라미 수 · 도형 · 기타 기호 · 딩뱃 · CJK 문장 부호 · 전각 영숫자 · 한글 자모 · KS X 1001 한글 2,350자. `index.html` 은 이것만 preload 한다.
+  - `app/fonts/KMDSans-rest.woff2`(약 1.6MB · 11,293자): 원본의 나머지 글자(나머지 한글 음절 · 라틴 확장 · 그리스 · 키릴 등).
+  - `app/kmd.css` 맨 위 `@font-face` 두 줄(같은 family)에 각자 `unicode-range` 를 글리프가 있는 글자만으로 정확히 단다. 브라우저는 그 범위 글자가 화면에 있을 때만 뒤 파일을 받는다. 화면에 늘 나오는 기호(`⋯` · `✓` · `⚠` · `−` 등)는 앞 파일에 두어 보통 화면은 앞 파일 하나로 끝난다.
+  - 같은 출처에서만 받는다(CSP `default-src 'self'` · 바깥 CDN 쓰지 않음 · 서버 `TYPES` 의 `font/woff2` · ETag + `no-cache`). 설명서(`/manual`)는 서버가 `kmd.css` 의 `@font-face` 두 줄을 떼어 주소를 `/fonts/` 로 고쳐 싣고, 그 응답 CSP 에 `font-src 'self'` 를 둔다. 받지 못하면 맑은 고딕.
+  - 원본을 새 판으로 바꿀 때는 같은 범위로 다시 나누고(fonttools `pyftsubset` · `--flavor woff2 --layout-features='*'`) 이름 표의 Pretendard 를 KMD Sans 로 바꾼다. 저작권 · 라이선스 이름 줄은 그대로 둔다.
 - **누름 칸** `--hit`(24px · WCAG 2.5.8) — 창 닫기 · 탭 닫기 · 줄 안 아이콘 · 표 안 글 단추 · 작은 글 단추 · 메뉴 줄은 보이는 크기와 따로 누름 자리를 24×24 밑으로 두지 않는다.
 
 | 갈래 | 토큰 | 값 · 쓰는 곳 |
@@ -52,7 +57,7 @@ CSS 에 색 · 크기를 바로 쓰지 않는다. 아래 토큰만 쓴다(`var(-
 | 폭 | `--w-text` 820 · `--w-list` 980 · `--w-grid` 1100 · `--w-graph` 400 · `--w-tip` 320 · `--w-detail` 360 | 화면 최대 폭(2절) · 그래프 팝업(11-2절) · 툴팁(4절) · 지식 상세 판(5절). 옛 `--w-side` · `--w-aside` · `--w-rail` · `--w-grip` 은 개편 3단계에서 걷었다(세 칸 폭으로) |
 | 세 칸 폭 | `--cx-nav` 212 · `--cx-list` 300 · `--cx-head` 56 · `--cx-rail` 52 · `--cx-paper` 760 · `--cx-fold` 64 · `--cx-aside` 300 · `--tl-t` 56 · `--tl-gap` 12 | 잉크 기둥 · 목록 칸(오른쪽 칸을 펴도 같은 폭) · 내용 머리 · 오른쪽 기둥 · 종이 · 접힌 잉크 레일 · 이력 시간 줄(폰 40 · 8). 1024 이하는 `--cx-nav` 64 · `--cx-list` min(260, 30vw). 1024 이하 오른쪽 칸 서랍은 `--cx-aside`(목록 칸 폭을 따르지 않는다 · 서랍에는 접기 단추 없음) |
 | 작은 원 | `--ctl-xs` 18 · `--ctl-2xs` 16px | 정보 단추 (!) 원 · 아이콘 · 메뉴 배지 높이(4절) |
-| 글꼴 | `--font`("Pretendard Variable" → 맑은 고딕) · `--mono`(D2Coding → Consolas) | 모노는 경로 · 주소 · 항목 값(coord) · 시각에만 |
+| 글꼴 | `--font`("KMD Sans" → 설치된 Pretendard → 맑은 고딕) · `--mono`(D2Coding → Consolas) | 모노는 경로 · 주소 · 항목 값(coord) · 시각에만 |
 
 ## 2. 화면 짜임
 
