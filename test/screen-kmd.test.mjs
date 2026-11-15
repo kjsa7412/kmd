@@ -155,7 +155,10 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.match(await page.locator('.gate').innerText(), /팀 kmd 에 들어간다/)
   await page.click('[data-t="tip-gate.login"]'); assert.match(await page.locator('#tipPop').innerText(), /한 번 들어오면 쓰는 동안 이어진다/); await page.keyboard.press('Escape')
   assert.equal(await page.locator('.side, .hdr').count(), 0, '들어가기는 앱 틀 없이 두 쪽(개편 6단계)')
-  assert.equal(await page.locator('[data-t=gatePage] .gart svg[aria-hidden=true], [data-t=gatePage] .gart[aria-hidden=true] svg').count(), 1)
+  assert.equal(await page.locator('[data-t=gatePage] .gart[aria-hidden=true] svg.gprev').count(), 1)
+  // 로고(컨벤션 1-1) — 잉크 판 아래는 글 「kmd」 가 아니라 로고 SVG 하나(마크 칸 · k · 갈래 점 · 글자표) · 높이 64
+  { const lg = await page.locator('[data-t=gatePage] .gart svg.lg').evaluate((e) => ({ n: e.querySelectorAll('.lg-t,.lg-k,.lg-d,.lg-w').length, h: Math.round(e.getBoundingClientRect().height), txt: e.textContent.trim(), spans: e.parentElement.querySelectorAll(':scope > span').length })); assert.deepEqual(lg, { n: 4, h: 64, txt: '', spans: 0 }, '들어가기 로고는 SVG(글로 때우지 않음)') }
+  assert.equal(await page.locator('head link[rel=icon]').getAttribute('href'), '/favicon.svg')
   assert.equal(await page.locator('[data-t=gatePage] [data-t=manual]').getAttribute('href'), '/manual')
   assert.equal(await page.getAttribute('#lgPw', 'autocomplete'), 'current-password')
   await page.fill('#lgId', 'kim')
@@ -988,6 +991,9 @@ test('설정 · 관리(M13 · M14): 탭 셋 · 저절로 하는 일 · 팀 일�
   await page.click('[data-t=me]')
   await page.waitForSelector('[data-t=pop] [data-t=meDevices]')
   assert.deepEqual(await page.locator('[data-t=pop] [data-a=setTheme]').allInnerTexts(), ['✓ 시스템', '밝게', '어둡게'])
+  // 나 메뉴 머리 줄(컨벤션 4절 팝업 머리 줄) — 이름 한 줄 / 자리 줄 / 덧줄을 위아래로 쌓는다(이름이 한 글자씩 꺾이지 않는다)
+  { const w = await page.locator('[data-t=pop] [data-t=meWhere]').evaluate((e) => { const b = e.querySelector('b').getBoundingClientRect(), a = e.querySelector('.mw-at').getBoundingClientRect(), m = e.querySelector('[data-t=meStat]').getBoundingClientRect(); return { dir: getComputedStyle(e).flexDirection, nameLines: Math.round(b.height / parseFloat(getComputedStyle(e.querySelector('b')).lineHeight)), stacked: b.bottom <= a.top + 1 && a.bottom <= m.top + 1, at: e.querySelector('.mw-at').textContent } })
+    assert.equal(w.dir, 'column'); assert.equal(w.nameLines, 1, '이름은 한 줄'); assert.ok(w.stacked, '이름 · 자리 · 덧줄이 위아래로'); assert.match(w.at, /^팀 서버 · .+ · 총괄 관리자$/) }
   await page.click('[data-t=pop] [data-t=meDevices]')
   await page.waitForSelector('[data-t=devWin] [data-t=devList]')
   assert.equal(await page.locator('[data-t=devWin]').getAttribute('role'), 'dialog')

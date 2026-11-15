@@ -23,6 +23,7 @@ import * as owners from '../core/owners.js'
 import { stopLine } from '../core/stopline.js'
 import * as V from './views.js'
 import * as kit from '../core/kit.js'
+import { logoSvg } from '../app/logo.js'
 import * as teamkit from '../core/teamkit.js'
 import { KEY_EXE_CS, KEY_EXE_VER } from '../core/keyexe.js'
 import * as sendLib from '../core/send.js'
@@ -143,11 +144,13 @@ const MANUAL_IMG = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', sv
 // 설명서 · 받기(/dl)는 글꼴 @font-face 두 줄(KMD Sans core · rest)도 떼어 싣는다(화면과 같은 글꼴). 주소는 /fonts/ 로 고쳐 쓴다(설명서 CSP 의 font-src 'self')
 let pageRoot = ''
 let pageFonts = ''
+let pageLogo = '' // kmd.css 의 로고 한 줄(.lg) — 설명서 · 받기 머리의 로고(app/logo.js)를 같은 토큰으로 칠한다
 const pageRootP = fs.readFile(path.join(APP, 'kmd.css'), 'utf8').then((s) => {
   pageRoot = s.match(/:root\{[\s\S]*?\n\}/)?.[0] || ''
   pageFonts = (s.match(/^@font-face\{[^\n]*\}$/gm) || []).join('').replace(/url\(fonts\//g, 'url(/fonts/')
+  pageLogo = s.match(/^\.lg\{[^\n]*$/m)?.[0] || ''
 }).catch((e) => console.error('kmd.css 를 읽지 못했다:', e.message))
-const PAGE_CSS = `*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:var(--fs-md)/1.65 var(--font)}a{color:var(--accent)}h1{font-size:var(--fs-xl);line-height:1.35}h2{font-size:var(--fs-lg);margin-top:26px}main{max-width:var(--w-text);margin:0 auto;padding:var(--sp-9) var(--sp-8) 60px;background:var(--surface);min-height:100vh;min-height:100dvh;overflow-wrap:anywhere}nav{font-size:var(--fs);color:var(--text-2);margin-bottom:18px;padding-bottom:var(--sp-5);border-bottom:1px solid var(--border)}table{border-collapse:collapse;width:100%;max-width:100%;font-size:var(--fs);display:block;overflow-x:auto}th,td{border:1px solid var(--border);padding:5px var(--sp-4);text-align:left;vertical-align:top;overflow-wrap:normal;min-width:4em}th{background:var(--surface-2)}code{font:var(--fs-mono) var(--mono);background:var(--surface-2);padding:1px 5px;border-radius:var(--r-xs)}pre{background:var(--surface-2);border:1px solid var(--border);padding:var(--sp-5) var(--sp-6);border-radius:var(--r);overflow-x:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:var(--fs-mono)/1.55 var(--mono)}pre code{background:none;padding:0}img{max-width:100%;height:auto}.m{color:var(--text-3);font-size:var(--fs)}button{font:inherit;height:34px;padding:0 var(--sp-8);border-radius:var(--r);border:1px solid var(--border-strong);background:var(--surface);color:var(--text);cursor:pointer}button:hover{background:var(--hover)}button.ok{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}button.ok:hover{background:var(--accent-hover)}a:focus-visible,button:focus-visible{outline:0;box-shadow:var(--focus-ring)}@media (max-width:600px){main{padding:var(--sp-7) var(--sp-6) 40px}}`
+const PAGE_CSS = `*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:var(--fs-md)/1.65 var(--font);word-break:keep-all;overflow-wrap:break-word}a{color:var(--accent)}h1{font-size:var(--fs-xl);line-height:1.35}h2{font-size:var(--fs-lg);margin-top:26px}main{max-width:var(--w-text);margin:0 auto;padding:var(--sp-9) var(--sp-8) 60px;background:var(--surface);min-height:100vh;min-height:100dvh}nav{font-size:var(--fs);color:var(--text-2);margin-bottom:18px;padding-bottom:var(--sp-5);border-bottom:1px solid var(--border)}table{border-collapse:collapse;width:100%;max-width:100%;font-size:var(--fs);display:block;overflow-x:auto}th,td{border:1px solid var(--border);padding:5px var(--sp-4);text-align:left;vertical-align:top;overflow-wrap:normal;min-width:4em}th{background:var(--surface-2)}code{font:var(--fs-mono) var(--mono);background:var(--surface-2);padding:1px 5px;border-radius:var(--r-xs);overflow-wrap:anywhere}pre{background:var(--surface-2);border:1px solid var(--border);padding:var(--sp-5) var(--sp-6);border-radius:var(--r);overflow-x:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:var(--fs-mono)/1.55 var(--mono)}pre code{background:none;padding:0}img{max-width:100%;height:auto}.m{color:var(--text-3);font-size:var(--fs)}button{font:inherit;height:34px;padding:0 var(--sp-8);border-radius:var(--r);border:1px solid var(--border-strong);background:var(--surface);color:var(--text);cursor:pointer}button:hover{background:var(--hover)}button.ok{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}button.ok:hover{background:var(--accent-hover)}a:focus-visible,button:focus-visible{outline:0;box-shadow:var(--focus-ring)}@media (max-width:600px){main{padding:var(--sp-7) var(--sp-6) 40px}}`
 let manualCss = null
 const manualCssOf = async () => (manualCss ??= await fs.readFile(path.join(MANUAL_DIR, 'manual.css'), 'utf8').catch((e) => { console.error('설명서 모양(manual.css)을 읽지 못했다:', e.message); return '' }))
 const manualHref = (x) => `/manual/${encodeURIComponent(x.slug)}`
@@ -159,9 +162,9 @@ async function manualPage(mode, slug) {
   const name = slug ? String(slug).replace(/\.html$/i, '') : null
   const m = name ? list.find((x) => x.slug === name) : null
   if (name && !m) return null
-  const page = (title, crumb, nav, body) => `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title>
-<style>${pageFonts}${pageRoot}${css}</style></head><body>
-<header class="mtop"><a class="m-brand" href="/manual"><span class="m-logo">K</span>kmd 설명서</a>${crumb ? `<span class="m-crumb">› ${esc(crumb)}</span>` : ''}<span class="m-sp"></span><a class="m-back" href="/">kmd 화면으로</a></header>
+  const page = (title, crumb, nav, body) => `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>${pageFonts}${pageRoot}${pageLogo}${css}</style></head><body>
+<header class="mtop"><a class="m-brand" href="/manual" aria-label="kmd 설명서">${logoSvg({ hidden: true })}<span>설명서</span></a>${crumb ? `<span class="m-crumb">› ${esc(crumb)}</span>` : ''}<span class="m-sp"></span><a class="m-back" href="/">kmd 화면으로</a></header>
 <div class="mwrap"><nav class="mnav" aria-label="설명서">${nav}</nav><main class="mmain">${body}</main></div></body></html>`
   const css = await manualCssOf()
   const mans = (cur) => `<h4 class="h-mans">설명서</h4><ul class="mans">${list.map((x) => `<li><a href="${manualHref(x)}"${x === cur ? ' aria-current="page"' : ''}>${esc(x.title)}<small>${esc(x.sub)}</small></a></li>`).join('')}</ul>`
@@ -1456,7 +1459,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (mode === 'team' && req.method === 'GET' && (p === '/dl' || p.startsWith('/dl/'))) {
         const dl = dlDir()
         const files = (await fs.readdir(dl).catch(() => [])).filter((n) => /\.(zip|tgz|exe|msi)$/i.test(n))
-        if (p === '/dl') { await pageRootP; return send(res, 200, `<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>kmd 받기</title><style>${pageFonts}${pageRoot}${PAGE_CSS}main{padding-top:40px}</style><body><main><h1>kmd 받기</h1>${files.length ? `<ul>${files.map((n) => `<li><a href="/dl/${encodeURIComponent(n)}">${n.replace(/[<>&"]/g, '')}</a></li>`).join('')}</ul><p>보통은 받을 일이 없다. 팀 화면 › 설정 › 에이전트 설치의 <b>설치 한 줄</b>을 PowerShell 에 붙여 넣으면 이 꾸러미를 저절로 받아 깔고 팀에 잇는다.</p><p>손으로 깔려면: zip 을 풀고 그 폴더에서 <code>kmd.cmd up</code> 으로 켠다.</p>` : '<p>아직 PC 꾸러미가 없다. 관리자가 팀 꾸러미로 설치하면 함께 놓인다. 관리자에게 묻는다.</p>'}<p><a href="/manual">설명서</a></p></main></body></html>`, 'text/html; charset=utf-8') }
+        if (p === '/dl') { await pageRootP; return send(res, 200, `<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>kmd 받기</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><style>${pageFonts}${pageRoot}${pageLogo}${PAGE_CSS}main{padding-top:40px}.pbrand{display:inline-block;color:var(--text)}.pbrand .lg{height:28px}</style><body><main><a class="pbrand" href="/manual" aria-label="kmd 설명서">${logoSvg({ hidden: true })}</a><h1>kmd 받기</h1>${files.length ? `<ul>${files.map((n) => `<li><a href="/dl/${encodeURIComponent(n)}">${n.replace(/[<>&"]/g, '')}</a></li>`).join('')}</ul><p>보통은 받을 일이 없다. 팀 화면 › 설정 › 에이전트 설치의 <b>설치 한 줄</b>을 PowerShell 에 붙여 넣으면 이 꾸러미를 저절로 받아 깔고 팀에 잇는다.</p><p>손으로 깔려면: zip 을 풀고 그 폴더에서 <code>kmd.cmd up</code> 으로 켠다.</p>` : '<p>아직 PC 꾸러미가 없다. 관리자가 팀 꾸러미로 설치하면 함께 놓인다. 관리자에게 묻는다.</p>'}<p><a href="/manual">설명서</a></p></main></body></html>`, 'text/html; charset=utf-8') }
         const n = dec(p.slice(4))
         if (!files.includes(n)) return send(res, 404, '없다', 'text/plain; charset=utf-8')
         // 꾸러미는 수십 MB — 메모리에 다 읽지 않고 흘려 보낸다(여럿이 함께 깔아도 서버 메모리가 받는 사람 수만큼 늘지 않게)

@@ -76,7 +76,7 @@
   --stage-bg:var(--nav-bg);--stage-edge:var(--nav-line);
   --tl-t:56px;--tl-gap:12px;
   /* 정보 단추 (!) 원 · 작은 배지 높이 · 툴팁 폭(컨벤션 4절 정보 단추) */
-  --ctl-xs:18px;--ctl-2xs:16px;--w-tip:320px;
+  --ctl-xs:18px;--ctl-2xs:16px;--w-tip:320px;--w-pop:320px;
   /* 글꼴 — 모노는 경로 · 주소 · 항목 값 · 시각에만 */
   --font:"KMD Sans","Pretendard Variable",Pretendard,"Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;
   --mono:"D2Coding",Consolas,"Cascadia Mono","Malgun Gothic",monospace;
@@ -241,8 +241,8 @@ a{color:var(--accent);cursor:pointer}
 .tn.sec{min-height:28px;color:var(--text-2);font-size:var(--fs-sm)}
 .tn.sec .hh{font:var(--fs-xs)/1 var(--mono);color:var(--text-3);flex:none}
 .tn.rec2{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"n d" "s s";align-items:center;column-gap:var(--sp-4);row-gap:var(--sp-1);min-height:52px;padding:var(--sp-3) var(--sp-5)}
-.tn.rec2 .nm{grid-area:n;font-weight:var(--fw-md)}
-.tn.rec2 .dt{grid-area:d}
+.tn.rec2 .nm{grid-area:n;font-weight:var(--fw-md);white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2} /* 이름은 두 줄까지(값이 든 이름이 잘리지 않게) · 덧글(.rs)만 한 줄 줄임표 */
+.tn.rec2 .dt{grid-area:d;align-self:start}
 .tn.rec2 .rs{grid-area:s;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-sm);line-height:var(--lh-xs);color:var(--text-3)}
 .tn.rec2 .rs b{font-weight:var(--fw-md);color:var(--text-2);margin-right:var(--sp-2)}
 /* 머리 줄 56 — ‹ › · 경로 「지식 › 화면」 · 화면의 일 · (1024 이하) 자리 칩 · 옆 칸 · (600 이하) ☰ · 찾기 · 경고 점 · 지금 하는 일 점 */
@@ -281,7 +281,7 @@ a{color:var(--accent);cursor:pointer}
 .c-mute{background:var(--surface-3);color:var(--text-2)}
 .c-acc{background:var(--accent-bg);color:var(--accent)}
 .c-danger{background:var(--danger-bg);color:var(--danger)}
-.btn{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 11px;border-radius:var(--r);border:1px solid var(--border-input);background:var(--surface);font-size:var(--fs-mono);cursor:pointer;color:var(--text);white-space:nowrap}
+.btn{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 11px;border-radius:var(--r);border:1px solid var(--border-input);background:var(--surface);font-size:var(--fs-mono);cursor:pointer;color:var(--text);white-space:nowrap;min-width:max-content}
 .btn:hover:where(:not([disabled])){background:var(--hover)}
 .btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:var(--fw-md)}
 .btn.pri:hover:where(:not([disabled])){background:var(--accent-hover);border-color:var(--accent-hover)}
@@ -576,7 +576,7 @@ td.go2{text-align:right;white-space:nowrap}
 .app .tn svg{width:13px;height:13px;color:var(--text-3)}
 .tn .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
 /* 항목 이름 = 값 + 설명(컨벤션 5절) — 값은 고정폭 · 굵게 · 설명은 흐림 · 한 줄 말줄임 */
-.iv{font:var(--fw-md) var(--fs-mono) var(--mono);color:var(--text);white-space:nowrap}
+.iv{font:var(--fw-md) var(--fs-mono) var(--mono);color:var(--text);white-space:nowrap;min-width:max-content}
 .nm:has(> .iv){display:flex;align-items:baseline;gap:var(--sp-3)}
 .nm > .iv{flex:none;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .nm > .id{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-3);font-size:var(--fs-sm)}
@@ -879,8 +879,20 @@ li.new{animation:flash 1.6s}
 .fgrid .field{margin:0}
 /* 팝업 메뉴 — 화면 맨 위 층 · 누른 단추 자리에서 잰다(카드 · 스크롤 상자에 잘리지 않는다) */
 .pop{position:fixed;z-index:var(--z-pop);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--shadow-2);padding:var(--sp-3);min-width:200px;max-width:min(340px,calc(100vw - 16px));max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px);overflow-y:auto;font-size:var(--fs);color:var(--text);line-height:1.5}
-.pop .mi{padding:7px var(--sp-5);border-radius:var(--r);display:flex;gap:var(--sp-4);align-items:center;cursor:pointer;white-space:normal;overflow-wrap:anywhere} /* 넓은 글은 상자 안에서 줄을 바꾼다 */
+/* 메뉴 줄: 이름 + 오른쪽 덧말(small) · 좁으면 덧말이 아래 줄로 · 줄 바꿈은 낱말 단위(keep-all · 한 글자씩 꺾이지 않게 overflow-wrap:break-word · anywhere 는 주소 .u-addr 에만) */
+.pop .mi{padding:7px var(--sp-5);border-radius:var(--r);display:flex;flex-wrap:wrap;gap:var(--sp-1) var(--sp-4);align-items:center;cursor:pointer;white-space:normal;word-break:keep-all;overflow-wrap:break-word}
 .pop .mi small{white-space:nowrap}
+.pop .u-addr{overflow-wrap:anywhere}
+/* 팝업 머리 줄(.mi-who · 나 메뉴 맨 위) — 위아래로 쌓는다: 이름(크게 · 한 줄) / 자리 줄 / 덧줄(small) · 칸으로 가르지 않는다 */
+.pop .mi.mi-who{flex-direction:column;flex-wrap:nowrap;align-items:stretch;gap:var(--sp-1);cursor:default;padding-top:var(--sp-4);padding-bottom:var(--sp-4)}
+.pop .mi.mi-who:hover{background:none}
+.pop .mi.mi-who b{font-size:var(--fs-md);line-height:var(--lh-md);font-weight:var(--fw-md);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pop .mi.mi-who .mw-at{font-size:var(--fs-sm);line-height:var(--lh-sm);color:var(--text-2)}
+.pop .mi.mi-who small{margin:0;padding:0;white-space:normal;flex-basis:auto}
+/* 나 메뉴 폭 — min(--w-pop, 화면 - 양옆 여백) · 머리 줄 이름 · 주소가 좁은 칸에 갇히지 않게 */
+.pop[data-pop=me]{width:min(var(--w-pop),calc(100vw - var(--sp-8) * 2));max-width:none}
+/* 덧말을 아래 줄로 두는 꼴(small.u-blk)은 늘 한 줄을 다 쓴다 */
+.pop .mi>small.u-blk{flex-basis:100%;margin-left:0;padding-left:0;white-space:normal}
 .pop .mi:hover{background:var(--surface-2)}
 .pop .mi small{margin-left:auto;color:var(--text-3);font-size:var(--fs-xs);padding-left:var(--sp-5)}
 .pop .mi.on{color:var(--accent);font-weight:var(--fw-md)}
@@ -1306,6 +1318,12 @@ a.dlink:hover{text-decoration:underline;text-underline-offset:2px}
   .sb-repo{justify-content:center;padding:var(--sp-3)}
   .sb-repo .rn,.sb-repo .rc,.side .sb-top .busy,.side .sfold,.cx-who{display:none}
   .kmenu{right:auto;width:min(240px,calc(100vw - 24px))}
+}
+/* 601 ~ 1024 잉크 기둥은 64 폭(overflow-x:hidden) — 지식 고르기 메뉴는 기둥 밖 화면 층으로 꺼내 단추 오른쪽에 붙인다(기둥에 잘리지 않게) */
+@media (min-width:601px) and (max-width:1024px){
+  .kmenu{position:fixed;left:calc(var(--cx-nav) + var(--sp-2));top:var(--sp-5);width:min(240px,calc(100vw - var(--cx-nav) - var(--sp-8)));z-index:var(--z-pop)}
+}
+@media (max-width:1024px){
   .sb-warn{padding:0 0 var(--sp-3)}
   .side .stopbtn{justify-content:center;padding:var(--sp-2)}
   .side .stopbtn b,.side .stopbtn span{display:none}
@@ -1908,7 +1926,8 @@ button.sx-root{display:flex;align-items:center;gap:var(--sp-3);width:100%;backgr
 .ed textarea:hover:not(:focus){border-color:var(--text-3)}
 .ed textarea:focus{outline:2px solid transparent;outline-offset:2px;border-color:var(--accent);background:var(--surface);box-shadow:var(--focus-ring)}
 .edsave{position:sticky;bottom:0;z-index:2;display:flex;flex-direction:column;gap:var(--sp-5);margin:var(--sp-9) calc(var(--sp-9) * -2) 0;padding:var(--sp-7) calc(var(--sp-9) * 2);border-top:1px solid var(--border);border-radius:0 0 var(--r-lg) var(--r-lg);background:var(--surface)}
-.edsave .edwhy{min-height:40px;background:var(--surface-2)}
+.edsave .edwhyrow{display:flex;align-items:center;gap:var(--sp-3)}
+.edsave .edwhy{flex:1;min-width:0;min-height:40px;background:var(--surface-2)}
 .edsave .edwhy:focus{background:var(--surface)}
 .edgo{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-3)}
 .edgo .btn{height:36px;padding:0 var(--sp-7);font-size:var(--fs);font-weight:var(--fw-md)}
@@ -2200,8 +2219,8 @@ button.sx-root{display:flex;align-items:center;gap:var(--sp-3);width:100%;backgr
 .ktab tr.krow td.knm{grid-column:2/6;grid-row:1;display:flex;align-items:center;height:32px;min-width:0;overflow:hidden}
 .ktab tr.krow td.kmn3{grid-column:6;grid-row:1;display:flex;align-items:center;height:32px}
 .ktab tr.krow td.krl{grid-column:2/-1;grid-row:2;display:flex;align-items:center;height:24px;margin-top:var(--sp-3)}
-.ktab tr.krow td.kv1{grid-row:3;height:44px;margin:var(--sp-3) var(--sp-9) 0 0;font-weight:var(--fw-md);color:var(--text)}
-.ktab tr.krow td.kv1::before{content:attr(data-l);display:block;color:var(--text-3);font-size:var(--fs-xs);line-height:var(--lh-xs);font-weight:var(--fw);margin-bottom:var(--sp-2)}
+.ktab tr.krow td.kv1{grid-row:3;height:44px;margin:var(--sp-3) var(--sp-7) 0 0;font-weight:var(--fw-md);color:var(--text);white-space:nowrap;min-width:max-content}
+.ktab tr.krow td.kv1::before{content:attr(data-l);display:block;white-space:nowrap;color:var(--text-3);font-size:var(--fs-xs);line-height:var(--lh-xs);font-weight:var(--fw);margin-bottom:var(--sp-2)}
 .ktab tr.krow td.kv1 .chip{margin-block:calc(var(--sp-1) * -1)}
 .ktab tr.krow td.kst{grid-column:2/-1;grid-row:4;display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2);min-height:36px;margin-top:var(--sp-5);padding-top:var(--sp-5);border-top:1px solid var(--border)}
 .kmsplit.has .ktab tr.krow td.opt{display:block}
@@ -2215,6 +2234,9 @@ button.sx-root{display:flex;align-items:center;gap:var(--sp-3);width:100%;backgr
 .tabs [role=tab] em{font-style:normal;font-weight:var(--fw);color:var(--text-3);margin-left:var(--sp-2)}
 .pcards{border:0;background:none;box-shadow:none}
 .pcards>.cb{padding:0}
+/* 일 줄 「동시에 도는 수」 — 이름 + 고르기 한 쌍씩 · 쌍 사이 띄움 · 좁으면 다음 쌍은 아래 줄 */
+.qcaps{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-3) var(--sp-9)}
+.qcap{display:inline-flex;align-items:center;gap:var(--sp-3);white-space:nowrap;margin:0;font-size:inherit;font-weight:var(--fw);color:inherit}
 .pcards ul.pl{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:var(--sp-7)}
 .pcards li[data-t=admPerson]{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:var(--sp-2) var(--sp-7);align-items:start;padding:var(--sp-9);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);transition:border-color var(--t-fast) var(--ease)}
 .pcards li[data-t=admPerson]:hover{border-color:var(--border-strong)}
@@ -2256,11 +2278,13 @@ details.rolemore .cf{border:0;background:none;padding:var(--sp-3) 0 0}
   .setg .kv>span:nth-child(odd):not(:first-child),.kv>span:nth-child(odd):not(:first-child){margin-top:var(--sp-5)}
 }
 
-/* 들어가기 — 앱 틀 없이 두 쪽: 왼쪽 잉크 판(종이 실물 그림 · 워드마크 64) | 오른쪽(위 설명서 · 가운데 칸) · 600 이하는 잉크 띠 160 위 · 칸 아래 */
+/* 로고(컨벤션 1-1 로고) — app/logo.js 의 logoSvg() 하나 · 잉크 칸 · 글 색 k · 민트 갈래 점 · 글자표는 둘레 글 색(currentColor) · 서버 페이지(설명서 · 받기)는 이 한 줄을 떼어 싣는다 */
+.lg{display:block;flex:none;height:32px;width:auto}.lg .lg-t{fill:var(--nav-bg);stroke:var(--nav-line);stroke-width:1}.lg .lg-k,.lg .lg-w{fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.lg .lg-k{stroke:var(--nav-text)}.lg .lg-d{fill:var(--nav-accent)}.lg .lg-w{stroke:currentColor}
+/* 들어가기 — 앱 틀 없이 두 쪽: 왼쪽 잉크 판(종이 실물 그림 · 로고 64) | 오른쪽(위 설명서 · 가운데 칸) · 600 이하는 잉크 띠 160 위 · 칸 아래 */
 .gpage{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);min-height:0;overflow:auto;background:var(--surface)}
 .gart{grid-column:1;grid-row:1/3;display:flex;flex-direction:column;justify-content:space-between;gap:var(--sp-9);min-width:0;padding:calc(var(--sp-9) * 5) calc(var(--sp-9) * 2 + var(--sp-3)) calc(var(--sp-9) * 2 + var(--sp-3));background:var(--nav-bg);color:var(--nav-text)}
 .gart .gprev{width:min(440px,100%);height:auto}
-.gart .gwm{font-size:var(--fs-hero);line-height:1;font-weight:var(--fw-md);letter-spacing:var(--ls-num)}
+.gart .lg{height:64px;align-self:flex-start;color:var(--nav-text)} /* 로고(마크 + 글자표 · app/logo.js) 높이 64 · 600 이하 40 */
 .gart svg.gprev,.gart svg.gprev *{stroke:none}
 .gprev .gp-paper{fill:var(--surface)}
 .gprev .gp-on{fill:var(--accent-bg)}
@@ -2291,7 +2315,7 @@ details.rolemore .cf{border:0;background:none;padding:var(--sp-3) 0 0}
   .gpage{grid-template-columns:minmax(0,1fr);grid-template-rows:160px auto}
   .gart{grid-column:1;grid-row:1;justify-content:flex-end;padding:var(--sp-9)}
   .gart .gprev{display:none}
-  .gart .gwm{font-size:var(--fs-hero-sm)}
+  .gart .lg{height:40px}
   .gtop{grid-column:1;grid-row:1;align-self:start;z-index:1;padding:var(--sp-7)}
   .gtop .hlink{color:var(--nav-dim)}
   .gtop .hlink:hover{color:var(--nav-text)}

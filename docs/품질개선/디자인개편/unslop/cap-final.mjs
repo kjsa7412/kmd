@@ -1,3 +1,4 @@
+// 18me · 19kpick: 나 메뉴 · 지식 고르기 메뉴를 연 그림(넘침 검사 포함)
 // 개편 안 캡처: node cap.mjs <안 폴더(절대)> <자리 이름(영문 소문자)> [폭들 1280,1024,375]
 // 안 폴더의 concept.css(덧입힐 CSS) · concept.js(화면이 그려질 때마다 도는 DOM 손질 · 선택)를 실제 화면에 입혀 <안 폴더>/shots/<화면>-<폭>.png 로 찍는다.
 // 글꼴: CSS 에서 url(/__mock/pv.woff2) 로 Pretendard Variable 을 쓸 수 있다.
@@ -61,13 +62,23 @@ for (const W of WS.split(',').map(Number)) {
   }
   { const p = await teamPage(env, null, { width: W, height: H }); await dress(p); await p.reload(); await snap(p, '1login'); await p.context().close() }
   const doc = '#/k/dpms/d/' + encodeURIComponent('배포 체크리스트')
-  for (const [user, list] of [['park', [['2list', null], ['3home', 'home'], ['14drawer', 'drawer'], ['4doc', doc], ['16rail', 'rail'], ['5rec', '#/k/dpms/r/' + encodeURIComponent('2026-1023-롤백-순서')], ['6hist', '#/k/dpms/history'], ['7check', '#/k/dpms/check'], ['10graph', '#/k/dpms/graph'], ['10graph-sel', 'gsel'], ['17font', 'font'], ['11qo', 'key:Control+o'], ['12search', 'key:Control+k'], ['13edit', 'edit'], ['15focus-nav', 'focus:.app .side .kmi'], ['15focus-btn', 'focus:.app [data-t=editBtn]'], ['15focus-inp', 'focus:.app .cx-list [data-t=treeQ]']]], ['kim', [['8set', '#/settings'], ['9people', '#/manage/people']]]]) {
+  for (const [user, list] of [['park', [['2list', null], ['3home', 'home'], ['14drawer', 'drawer'], ['4doc', doc], ['16rail', 'rail'], ['5rec', '#/k/dpms/r/' + encodeURIComponent('2026-1023-롤백-순서')], ['6hist', '#/k/dpms/history'], ['7check', '#/k/dpms/check'], ['10graph', '#/k/dpms/graph'], ['10graph-sel', 'gsel'], ['17font', 'font'], ['11qo', 'key:Control+o'], ['12search', 'key:Control+k'], ['13edit', 'edit'], ['15focus-nav', 'focus:.app .side .kmi'], ['15focus-btn', 'focus:.app [data-t=editBtn]'], ['15focus-inp', 'focus:.app .cx-list [data-t=treeQ]'], ['18me', 'me'], ['19kpick', 'kpick']]], ['kim', [['8set', '#/settings'], ['9people', '#/manage/people']]]]) {
     const p = await teamPage(env, user, { width: W, height: H }); await dress(p); await p.reload(); await p.waitForTimeout(1200)
     for (const [name, go] of list) {
       try {
         if (go === 'rail') { if (W <= 1024 || (ONLY && !ONLY.includes(name))) continue; await p.click('.sb-top [data-t=sideFold]', { timeout: 5000 }); await p.waitForTimeout(800); await snap(p, name); await p.click('.srail [data-t=sideFold]', { timeout: 5000 }); await p.waitForTimeout(600); continue }
         if (go === 'drawer') { if (W > 600 || (ONLY && !ONLY.includes(name))) continue; await p.click('[data-t=menuBtn]', { timeout: 5000 }); await p.waitForTimeout(700); await snap(p, name); await p.evaluate(() => document.querySelector('[data-t=menuBtn]').click()); await p.waitForTimeout(500); continue }
         if (go && go.startsWith('focus:')) { if (W <= 600 || (ONLY && !ONLY.includes(name))) continue; await p.keyboard.press('Escape'); await p.evaluate((h) => { location.hash = h }, doc); await p.waitForTimeout(1200); await p.keyboard.press('Shift'); await p.focus(go.slice(6), { timeout: 5000 }); await p.waitForTimeout(300); await snapNoMove(p, name); continue }
+        // 나 메뉴 · 지식 고르기 메뉴를 연 그림(600 이하는 서랍을 먼저 연다) · 찍은 뒤 Esc
+        if (go === 'me' || go === 'kpick') {
+          if (ONLY && !ONLY.includes(name)) continue
+          await p.keyboard.press('Escape'); await p.evaluate((h) => { location.hash = h }, doc); await p.waitForTimeout(1200)
+          if (W <= 600) { await p.click('[data-t=menuBtn]', { timeout: 5000 }); await p.waitForTimeout(700) }
+          await p.click(go === 'me' ? '[data-t=me]' : '[data-t=kpick]', { timeout: 5000 }); await p.waitForTimeout(700)
+          await snap(p, name); await p.keyboard.press('Escape'); await p.waitForTimeout(300)
+          if (W <= 600) { await p.evaluate(() => document.querySelector('[data-t=menuBtn]')?.click()); await p.waitForTimeout(500) }
+          continue
+        }
         if (go === 'gsel') {
           if (ONLY && !ONLY.includes(name)) continue
           await p.keyboard.press('Escape'); await p.evaluate(() => { location.hash = '#/k/dpms/graph' }); await p.waitForTimeout(1500)

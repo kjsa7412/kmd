@@ -77,13 +77,23 @@ html,body{background:var(--bg)}
 .edsave.sg-flat{position:static;margin:0;padding:var(--sp-5) 0;border-radius:0}
 .sg-pad{padding:var(--sp-3)}
 .sg-mgside{width:min(212px,100%)}
+/* 로고 견본 */
+.sg-logos{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(220px,100%),1fr));gap:var(--sp-7)}
+.sg-lgcell{margin:0;display:flex;flex-direction:column;align-items:flex-start;gap:var(--sp-5);padding:var(--sp-9);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text)}
+.sg-lgcell figcaption{font-size:var(--fs-xs);color:var(--text-3)}
+.sg-lgcell.sg-lgink{background:var(--nav-bg);color:var(--nav-text);border-color:var(--nav-bg)}
+.sg-lgcell.sg-lgink figcaption{color:var(--nav-dim)}
+.sg-lgcell.sg-lgdark{background:var(--bg)}
+.sg-lgmin .lg{height:16px}.sg-lgmin+.sg-lgmin .lg{height:20px}
+.sg-lgclear{padding:var(--sp-3);outline:1px dashed var(--border-strong)}
+.sg-logo .lg{height:64px;color:var(--nav-text)}
 </style>
 </head>
 <body>
 <div class="sg">
   <div class="sg-h"><h1>kmd 디자인 견본</h1><span class="muted small">docs/kmd_디자인_컨벤션.md v0.3 · 값은 app/kmd.css 맨 위 <code>:root</code> 하나에서 온다</span><button type="button" class="btn sm" id="sgTheme" aria-pressed="false">어둡게 보기</button></div>
   <nav class="sg-nav" aria-label="견본 차례">
-    <a href="#color">색 · 잉크</a><a href="#size">글 · 간격 · 모서리 · 그림자</a><a href="#btn">단추</a><a href="#inp">칸</a><a href="#chip">칩 · 표지</a><a href="#card">카드</a><a href="#modal">모달 · 팝업</a><a href="#tip">정보 단추 (!)</a><a href="#table">표</a><a href="#tabs">탭</a><a href="#state">빈 화면 · 읽는 중 · 오류</a><a href="#link">링크</a><a href="#side">앱 틀</a><a href="#ref">문서 화면</a><a href="#home">첫 화면 · 점검 · 이력 · 그래프</a><a href="#mg">명령 창 · 지식관리 · 들어가기</a><a href="#term">터미널</a><a href="#resp">반응형</a>
+    <a href="#color">색 · 잉크</a><a href="#logo">로고</a><a href="#size">글 · 간격 · 모서리 · 그림자</a><a href="#btn">단추</a><a href="#inp">칸</a><a href="#chip">칩 · 표지</a><a href="#card">카드</a><a href="#modal">모달 · 팝업</a><a href="#tip">정보 단추 (!)</a><a href="#table">표</a><a href="#tabs">탭</a><a href="#state">빈 화면 · 읽는 중 · 오류</a><a href="#link">링크</a><a href="#side">앱 틀</a><a href="#ref">문서 화면</a><a href="#home">첫 화면 · 점검 · 이력 · 그래프</a><a href="#mg">명령 창 · 지식관리 · 들어가기</a><a href="#term">터미널</a><a href="#resp">반응형</a>
   </nav>
 
   <section id="color">
@@ -159,6 +169,17 @@ html,body{background:var(--bg)}
       <div class="sg-sw"><i style="background:var(--term-tool)"></i><b>--term-tool</b><code data-v="--term-tool"></code></div>
       <div class="sg-sw"><i style="background:var(--term-ok)"></i><b>--term-ok</b><code data-v="--term-ok"></code></div>
       <div class="sg-sw"><i style="background:var(--term-err)"></i><b>--term-err</b><code data-v="--term-err"></code></div>
+    </div>
+  </section>
+
+  <section id="logo">
+    <h2>로고 <small>app/logo.js 의 logoSvg() 하나 · 마크(잉크 칸 · k · 민트 갈래 점) + 글자표 「kmd」 · 글로 쓰지 않는다</small></h2>
+    <div class="sg-logos">
+      <figure class="sg-lgcell"><span data-logo=""></span><figcaption>밝은 바탕 · 32(기본)</figcaption></figure>
+      <figure class="sg-lgcell sg-lgink"><span data-logo=""></span><figcaption>잉크 바탕 · 글자표는 둘레 글 색</figcaption></figure>
+      <figure class="sg-lgcell sg-lgdark"><span data-logo=""></span><figcaption>책상 바탕 · 어두운 테마는 위 「어둡게 보기」 로(칸 테가 마크를 가른다)</figcaption></figure>
+      <figure class="sg-lgcell"><span class="sg-lgmin" data-logo="mark"></span><span class="sg-lgmin" data-logo=""></span><figcaption>가장 작게: 마크 16 · 글자표와 함께 20</figcaption></figure>
+      <figure class="sg-lgcell"><span class="sg-lgclear" data-logo=""></span><figcaption>둘레 여백: 마크 높이의 1/4(점선) 안에 다른 것을 두지 않는다</figcaption></figure>
     </div>
   </section>
 
@@ -314,7 +335,9 @@ html,body{background:var(--bg)}
     </div>
     <h3>팝업 메뉴(.pop)</h3>
     <div class="sg-stage">
-      <div class="pop" role="menu">
+      <div class="pop" role="menu" data-pop="me">
+        <div class="mi mi-who" aria-disabled="true"><b>park</b><span class="mw-at">팀 서버 · <span class="u-addr">kmd-team.example.local:8090</span> · <span class="u-nw">총괄 관리자</span></span><small>들어옴 · kmd v0.1.0 · 11-15(일) 16:59</small></div>
+        <div class="sep"></div>
         <div class="mi" role="menuitem">이름 바꾸기 <small>F2</small></div>
         <div class="mi sg-hover" role="menuitem">메뉴에 올리기</div>
         <div class="mi on" role="menuitem">✓ 고른 것</div>
@@ -473,7 +496,7 @@ html,body{background:var(--bg)}
       <div class="card pcards" style="width:min(340px,100%)"><div class="cb"><ul class="plain pl"><li data-t="admPerson"><span class="av2">p</span><span class="nm">park <span class="kt role">총괄 관리자</span><small>들어온다 · 기기 0 · 지식 2개에 자리</small></span><button type="button" class="kebab" aria-label="park: 자리 · 링크">⋯</button></li></ul></div></div>
     </div>
     <div class="setg" style="margin-top:var(--sp-9)"><div class="card"><div class="ch">정보</div><div class="cb"><div class="kv"><span>주소</span><span class="mono">localhost:7597</span><span>판</span><span>kmd v0.1.0</span></div></div></div><div class="card"><div class="ch">로그인 <small>아이디 kim</small></div><div class="cb"><p class="small mboss"><span class="kt role">총괄 관리자</span> 모든 팀 지식이 보이고 모두 지식관리자다</p></div></div></div>
-    <div class="gpage" aria-label="들어가기 견본" style="margin-top:var(--sp-9)"><div class="gart" aria-hidden="true"><span class="gwm">kmd</span></div><div class="gtop"><a class="hlink" href="#mg">설명서</a></div><div class="col gcol"><div class="main"><div class="gatewrap"><div class="gate"><div class="card"><div class="cb"><div class="pt"><div class="big">팀 kmd 에 들어간다</div></div><div class="field"><label for="sgId">아이디</label><input class="inp" id="sgId"></div><button type="button" class="btn pri">들어가기</button></div></div></div></div></div></div></div>
+    <div class="gpage" aria-label="들어가기 견본" style="margin-top:var(--sp-9)"><div class="gart" aria-hidden="true"><span class="sg-logo" data-logo="hidden"></span></div><div class="gtop"><a class="hlink" href="#mg">설명서</a></div><div class="col gcol"><div class="main"><div class="gatewrap"><div class="gate"><div class="card"><div class="cb"><div class="pt"><div class="big">팀 kmd 에 들어간다</div></div><div class="field"><label for="sgId">아이디</label><input class="inp" id="sgId"></div><button type="button" class="btn pri">들어가기</button></div></div></div></div></div></div></div>
   </section>
 
   <section id="term">
@@ -507,6 +530,11 @@ html,body{background:var(--bg)}
     </table></div>
   </section>
 </div>
+<script type="module">
+// 로고 견본 — 화면과 같은 logoSvg() 로 그린다(모양을 두 곳에 적지 않게)
+import { logoSvg } from './logo.js'
+for (const e of document.querySelectorAll('[data-logo]')) e.innerHTML = logoSvg({ word: e.dataset.logo !== 'mark', hidden: e.dataset.logo === 'hidden' })
+</script>
 <script>
 // 견본의 값 칸 — kmd.css 의 :root 에서 바로 읽는다(값을 두 곳에 적지 않게)
 const readV = () => { const cs = getComputedStyle(document.documentElement); for (const e of document.querySelectorAll('[data-v^="--"]')) e.textContent = cs.getPropertyValue(e.dataset.v).trim() }

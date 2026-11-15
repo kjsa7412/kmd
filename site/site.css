@@ -75,7 +75,7 @@ h1,h2,h3{line-height:var(--lh-tight);margin:0}
 .top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
 .top-in{display:flex;align-items:center;gap:var(--sp-9);height:56px}
 .logo{display:flex;align-items:center;gap:var(--sp-4);color:var(--text);text-decoration:none;font-size:var(--fs-lg)}
-.mark{display:grid;place-items:center;width:28px;height:28px;border-radius:var(--r);background:var(--accent);color:var(--on-accent);font:700 var(--fs-md) var(--mono)}
+.logo .lg{display:block;height:28px;width:auto} /* 로고 — app/logo.js 와 같은 모양(scripts/logo.mjs 의 색) · 글자표는 글 색 */
 .menu{display:flex;gap:var(--sp-2);flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
 .menu::-webkit-scrollbar{display:none}
 .menu a{color:var(--text-2);text-decoration:none;padding:var(--sp-3) var(--sp-5);border-radius:var(--r);white-space:nowrap}
