@@ -84,8 +84,8 @@ figure.m-narrow{max-width:min(390px,100%)}
 figure.m-shot figcaption{margin-top:var(--sp-4);color:var(--text-2);font-size:var(--fs)}
 .m-pin{position:absolute;display:grid;place-items:center;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:var(--r-pill);background:var(--accent);color:var(--on-accent);font-size:var(--fs);font-weight:600;box-shadow:var(--focus-ring)}
 ol.m-legend{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));gap:var(--sp-3) var(--sp-8);counter-reset:lg}
-ol.m-legend li{counter-increment:lg;display:flex;gap:var(--sp-4);align-items:flex-start;font-size:var(--fs);margin:0}
-ol.m-legend li::before{content:counter(lg);flex:none;display:grid;place-items:center;width:20px;height:20px;margin-top:2px;border-radius:var(--r-pill);background:var(--accent);color:var(--on-accent);font-size:var(--fs-xs);font-weight:600}
+ol.m-legend li{counter-increment:lg;position:relative;padding-left:calc(20px + var(--sp-4));font-size:var(--fs);margin:0}
+ol.m-legend li::before{content:counter(lg);position:absolute;left:0;top:0;display:grid;place-items:center;width:20px;height:20px;margin-top:2px;border-radius:var(--r-pill);background:var(--accent);color:var(--on-accent);font-size:var(--fs-xs);font-weight:600}
 
 /* 흐름(단계 상자) */
 .m-flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:var(--sp-3);margin:var(--sp-7) 0}

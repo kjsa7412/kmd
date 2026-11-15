@@ -200,7 +200,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <div class="m-hero">
 <h1>kmd 서비스 전체</h1>
 <p>팀과 내 PC 의 지식(md 문서 · 기록)을 사람은 화면으로, Claude Code 세션은 MCP 로 같이 읽고 쓴다. 어느 길로 들어오든 기록과 항목 글이 <b>한 번의 저장</b>으로 같이 바뀐다. 사람은 <b>저장 제안</b>을 보고 승인한 것만 넣고, 사람이 없는 일은 늘 들어간다(Claude 가 꼴을 못 맞추면 <b>규칙 길</b>). 지식 하나 = 폴더 하나 = git 저장소 하나.</p>
-<p class="small muted">기준일 2026-11-11 · HEAD 0a61f24 · 188 빌드 0.1.0-20261111-1428(저장 승인 P12 · 지식 메뉴 「문서」 버튼 걷음까지) · 글로 보는 판 <a href="kmd_서비스_전체.md">kmd_서비스_전체.md</a> · 화면별 쓰는 법 <a href="manual/">설명서</a></p>
+<p class="small muted">기준일 2026-11-15 · HEAD 386de23 · 188 빌드 0.1.0-20261114-0951(디자인 개편(세 칸 책상 · 두 테마 · KMD Sans) · 서식 F1~F9 · 문서 표시까지 · 넘침 · 로고 · 그래프 성능은 아직 188 에 없다) · 글로 보는 판 <a href="kmd_서비스_전체.md">kmd_서비스_전체.md</a> · 화면별 쓰는 법 <a href="manual/">설명서</a></p>
 <p class="small muted">「저장이 곧 반영」 개편(2026-11 · <a href="../docs/품질개선/KMD_개편_설계.md">KMD_개편_설계.md</a>): 예전에는 기록을 모아 두었다가 정리 때 문서에 넣었다. 개편으로 정리를 걷었고, 모든 채널이 기록과 항목 글을 한 번에 저장한다.</p>
 <p class="small muted"><b>저장 승인</b>(2026-11-10 확정 · <a href="../docs/품질개선/KMD_저장승인_설계.md">KMD_저장승인_설계.md</a>): 저장 방식은 승인 저장 하나다(팀 · 개인 지식 모두 늘). 사람 채널은 서버가 지은 저장 제안(쓰지 않음)을 승인해야 들어가고(경고는 승인이 받아들임), 무인 채널은 FIX 고리 → 규칙 길로 늘 들어가며 값 대조는 재기만 한다. 결과는 「들어감」 하나다(못 넘으면 아무것도 쓰지 않는 입력 오류). 저장이 어떻게 들어갔는지는 지식 메뉴 <b>점검 › 지표</b>. 저장 승인 전 기록은 「기록」 으로만 보인다(읽기만).</p>
 <div class="kpis">
@@ -325,7 +325,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <path class="ln g" d="M635 570 H79" marker-end="url(#ah-arch-2)"/><text class="l" x="82" y="564">결과: saved · docs · put · note · warnings(못 넘으면 아무것도 쓰지 않음)</text>
 </svg>
 </div>
-<p class="small muted">스킬 판 <code>kit</code> 은 측정 줄에만 싣고 판으로 저장을 막지 않는다(지금 판 팀 <code>TEAM_KIT_REV</code> 10 · <code>core/teamkit.js</code> · 개인 <code>PC_KIT_REV</code> 4 · <code>core/kit.js</code>). 커밋 뒤의 일(측정 줄 <code>&lt;data&gt;/savelog/&lt;지식&gt;.jsonl</code> · 알림 · 백업)은 실패해도 저장을 되돌리지 않고 log 만 남긴다.</p>
+<p class="small muted">스킬 판 <code>kit</code> 은 측정 줄에만 싣고 판으로 저장을 막지 않는다(지금 판은 brief 의 <code>kit</code> · 팀 <code>TEAM_KIT_REV</code> <code>core/teamkit.js</code> · 개인 <code>PC_KIT_REV</code> <code>core/kit.js</code> · 이 기준일에 11 · 5). 커밋 뒤의 일(측정 줄 <code>&lt;data&gt;/savelog/&lt;지식&gt;.jsonl</code> · 알림 · 백업)은 실패해도 저장을 되돌리지 않고 log 만 남긴다.</p>
 
 <h3 id="arch-wk">팀 일꾼이 들이기 일감을 받는 길</h3>
 <p class="small muted">팀 일꾼은 서버 밖 클라이언트라 지식을 직접 쓰지 않는다. 원천 하나를 <code>claude -p</code> 한 번(도구 0)으로 기록 + 항목 글 초안으로 짓고, 서버가 같은 저장 문으로 넣는다. 걸리면 까닭을 받아 고쳐 쓴다(<code>KMD_INGEST_FIX</code> · 기본 2번까지).</p>
@@ -409,6 +409,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <tr><td><b>받아들인 경고 · 글 그대로</b></td><td>승인한 제안의 경고(빠진 값 · 바뀐 문장 …)는 기록 끝 「받아들인 경고」. 바뀐 글 없이 항목에 이은 기록은 「글 그대로」(이을 곳이 없으면 「기록 모음」 달 항목)</td><td>기록 끝 칸 · 이력 작은 글</td></tr>
 <tr><td><b>규칙 길</b></td><td>무인 채널이 Claude 로 꼴을 못 맞췄을 때 Claude 없이 원문 그대로 넣는 길(사건 갈래 문서의 새 항목 · 아니면 「들인 자료」 주제 문서 · 원본 첨부)</td><td>진행 「규칙 길」 칩 · 작성기준 7-2</td></tr>
 <tr><td><b>지표</b></td><td>점검 › 지표: 기간마다 새로 생긴 것 · 받아들인 경고 · 무인 값 경고 · 규칙 길 · FIX 번 수 · 다시 제안 수. 할 일이 아니다(배지 없음)</td><td><code>GET /api/k/:id/metrics</code> · <code>core/metrics.js</code></td></tr>
+<tr><td><b>서식 · 문서 표시</b></td><td>서식은 지식 글을 쓰는 꼴(서식 계약 · 수준 표시 <code>1.</code> › <code>1)</code> › <code>-</code> › <code>*</code> · 들여쓰지 않음). 문서 표시는 화면이 그 표시를 읽어 그리는 모양(수준만큼 단 · 점 · 빈 점 · 라벨 칸 + 내용 칸). 파일은 쓴 그대로다</td><td>작성기준 5-1 · 6-3 · 컨벤션 7절</td></tr>
 <tr><td><b>기록 상태</b></td><td>들어감 · 바로잡힘 · 되돌림 · kmd 가 한 일. 저장 승인 전 기록은 「기록」 으로만 보인다(읽기만)</td><td>기록 칩(저장 승인 전 기록은 칩 없음) · MCP 상태 말</td></tr>
 <tr><td><b>메모</b></td><td>받지 않는다: 저장에서 <code>memo: true</code> 는 늘 <code>E_INPUT</code>(정해지지 않은 것은 남기지 않는다)</td><td>저장 응답의 까닭</td></tr>
 <tr><td><b>정정 기록</b></td><td>기록을 고칠 때 원래 기록은 두고 새로 남기는 기록(옛 값 → 새 값)</td><td>규칙 · 안 되면 팀 일꾼</td></tr>
@@ -470,14 +471,14 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
   _vocab.md          <i>항목 장부</i>
   _managed.md        <i>문서 장부</i>
   _forms.md          <i>갈래 장부</i>
-  _members.md        <i>주인 · 자리 · Claude 에 보내지 않음 · 저장 방식 표지(승인) · 들어간 것 하루 요약 · 이슈 주소</i>
+  _members.md        <i>주인 · 자리 · Claude 에 보내지 않음 · 들어간 것 하루 요약 · 이슈 주소</i>
   _sources.json      <i>가져올 곳</i>
   .git/              <i>저장마다 한 묶음</i>
 <b>&lt;지식 폴더&gt;/.kmd/</b>   <i>살림 자리</i>
   auth.json · auth.log · owners.json
   secrets.json · jobs.json · queue.json · 색인</div>
 <div>
-<div class="m-note m-tip"><b>본문에는 확정된 지식만</b><p>경위 · 초안 · 아직 넣지 않은 기록은 본문에 두지 않는다. 시스템 참고 정보는 아래 두 자리에만. 항목 안의 짜임은 들여쓰지 않고 수준 표시(<code>1.</code> › <code>1.1.</code> › <code>1.1.1.</code> › <code>1)</code> › <code>1.1)</code> › <code>1.1.1)</code> › <code>-</code> › <code>*</code>)로 쓴다.</p></div>
+<div class="m-note m-tip"><b>본문에는 확정된 지식만</b><p>경위 · 초안 · 아직 넣지 않은 기록은 본문에 두지 않는다. 시스템 참고 정보는 아래 두 자리에만. 항목 안의 짜임은 들여쓰지 않고 수준 표시(<code>1.</code> › <code>1.1.</code> › <code>1.1.1.</code> › <code>1)</code> › <code>1.1)</code> › <code>1.1.1)</code> › <code>-</code> › <code>*</code>)로 쓴다. 파일은 쓴 그대로 두고 화면이 문서 표시로 짜임대로 그린다(단 · 점 · 라벨 칸).</p></div>
 <div class="m-tbl"><table>
 <tr><th>자리</th><th>무엇</th><th>누가 쓰나</th></tr>
 <tr><td>표지 <code>applied</code></td><td>항목 머리 바로 아래 · 이 항목에 마지막으로 넣은 기록</td><td>kmd(저장 문)</td></tr>
@@ -578,7 +579,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <tr><td>그 지식이 보인다 · 찾기 · Claude 로 읽기</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td></tr>
 <tr><td>저장 제안 · 기록 남기기(제안을 승인해) · 새 문서 · 항목 · 갈래(제안으로) · 문서 고치기 · 자기 기록 고치기 · 파일 넣기 · 가져올 곳 부탁 · 자기 기록 되돌리기</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td></tr>
 <tr><td>항목 지우기 · 이름 바꾸기 · 저절로 채우는 표 고치기 · 남의 기록 고치기 · 문서 다듬기 · 되돌리기 · 지식 설정(하루 요약 · 이슈 주소) · 권한 주기 · 구조 · 점검 · 지표 · 기초 세우기 · 가져올 곳(허락된 호스트)</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
-<tr><td>사람 · 묶음 · 지식 세우기/지우기/불러오기 · 주인 넘기기 · 저장 승인(save 모드) · 백업 · Claude 연결 · 줄 멈춤 · 동시에 도는 수 · 서버 폴더 · ssh</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+<tr><td>사람 · 묶음 · 지식 세우기/지우기/불러오기 · 주인 넘기기 · 백업 · Claude 연결 · 줄 멈춤 · 동시에 도는 수 · 서버 폴더 · ssh</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
 </table></div>
 <p class="small muted">받지 않은 지식은 <b>없음</b>이 기본이다. 개인 프로그램은 그 PC 사람 하나만 쓰므로 이 모델 밖이다(늘 관리). 기준: <a href="../docs/kmd_권한_모델.md">권한 모델</a> · 판정 <code>server/hub.js</code>(levelOf · meta · need · canSave · canDirect) · 자리 셈 <code>core/owners.js</code>.</p>
 </article>
@@ -852,7 +853,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <p class="small muted">예의 지식은 저장소의 <code>test/fixture/kmd/dpms</code> 다. 실제 응답 꼴은 <a href="#claude">8 Claude Code</a> 의 save 칸에 있다.</p></div><div id="coreBody" hidden></div></aside></div>
 
 <h3 id="core-approve">승인 저장: 저장 제안 · 규칙 길 · 지표</h3>
-<p>팀 · 개인 지식 모두(<code>_members.md</code> 「- 저장 방식: 승인」 · 팀 · 개인 프로그램 같은 문) 저장 결과는 <b>들어감</b> 하나다. 승인 받고 넣기가 없다(<a href="../docs/품질개선/KMD_저장승인_설계.md">KMD_저장승인_설계.md</a>).</p>
+<p>팀 · 개인 지식 모두(팀 · 개인 프로그램 같은 문 · <code>_members.md</code> 의 「- 저장 방식: 승인」 은 읽지 않는 옛 표지) 저장 결과는 <b>들어감</b> 하나다. 승인 받고 넣기가 없다(<a href="../docs/품질개선/KMD_저장승인_설계.md">KMD_저장승인_설계.md</a>).</p>
 <div class="m-tbl"><table>
 <tr><th>채널</th><th>들어가는 길</th><th>걸리면</th></tr>
 <tr><td>사람(세션 · 화면 고치기 · 기록 쓰기 · 별칭 더하기 · 보내기 · 대량 넣기)</td><td>서버가 저장 제안을 짓는다(<code>propose</code> · 쓰지 않음 · 경고 id · 오류 · <code>proposal</code>). 화면은 저장 확인 창, 세션은 【저장 제안】 → 대화 조절, 보내기는 보내기 확인 창, 대량 넣기는 규칙 표 한 번. 승인하면 <code>proposal</code> 을 실어 저장 · 경고는 기록 끝 「받아들인 경고」</td><td>오류(꼴 · 지문 · 본문 반영 · 비슷한 이름)는 입력 오류로 아무것도 쓰지 않는다 · 제안이 달라지면 <code>E_APPROVE</code> + 새 제안 · 메모 <code>E_INPUT</code></td></tr>
@@ -993,10 +994,10 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <div class="m-cards sc7">
 <a class="m-card" href="manual/사용자.html#propose"><img src="manual/img/t-propose.png" alt="" loading="lazy"><b>저장 확인</b><p>저장 제안 · 바뀐 줄 · 경고는 창 안 · [넣기] = 승인</p></a>
 <a class="m-card" href="manual/지식관리자.html#metrics"><img src="manual/img/t-metrics.png" alt="" loading="lazy"><b>점검 › 지표</b><p>기간 · 줄 여섯 · 문턱 칩 · [보기] → 기록</p></a>
-<a class="m-card" href="manual/사용자.html#screen"><img src="manual/img/t-doc.png" alt="" loading="lazy"><b>팀 화면 · 문서</b><p>지식 메뉴 · [다듬기] · 오른쪽 칸</p></a>
+<a class="m-card" href="manual/사용자.html#screen"><img src="manual/img/t-doc.png" alt="" loading="lazy"><b>팀 화면 · 문서</b><p>잉크 기둥 · 목록 칸 · 종이 · ⋯(다듬기 · 지켜보기 · 옛 판)</p></a>
 <a class="m-card" href="manual/사용자.html#import"><img src="manual/img/t-import.png" alt="" loading="lazy"><b>생성 · 도는 일</b><p>수집 › 검토 › 짓기 › 넣기 · 넣은 문서 › 항목</p></a>
 <a class="m-card" href="manual/사용자.html#history"><img src="manual/img/t-history.png" alt="" loading="lazy"><b>이력</b><p>저장마다 「옛 값 → 새 값」 · 글 그대로</p></a>
-<a class="m-card" href="manual/개인.html#screen"><img src="manual/img/p-home.png" alt="" loading="lazy"><b>개인 화면</b><p>지식 폴더 띠 · 개인 지식 카드</p></a>
+<a class="m-card" href="manual/개인.html#screen"><img src="manual/img/p-home.png" alt="" loading="lazy"><b>개인 화면</b><p>지식 폴더 줄 · 개인 지식 카드</p></a>
 <a class="m-card" href="manual/개인.html#send"><img src="manual/img/p-send.png" alt="" loading="lazy"><b>공유</b><p>받는 팀 지식 하나 · 보내기 확인 창 = 팀 저장 제안</p></a>
 </div>
 <p class="small muted">그림은 개편 뒤 로컬 시험 환경(시험 데이터)에서 1280 폭으로 찍었다(2026-11-05 · 저장 확인 · 지표 · 기초 세우기는 2026-11-11). 다시 찍는 법은 <a href="kmd_서비스_전체.md">글 판</a> 13절 끝.</p>
@@ -1587,7 +1588,7 @@ curl -s localhost:8090/healthz                 # build 가 새 판인지</code><
 <a class="m-card" href="manual/운영.html"><b>운영 · 불러오기</b><p>밤 묶음 · 불러오기 · 새 판 · 막힐 때</p></a>
 <a class="m-card" href="kmd_서비스_전체.md"><b>이 장의 글 판</b><p>kmd_서비스_전체.md</p></a>
 </div>
-<p class="m-foot">기준일 2026-11-11 · HEAD 0a61f24 · 188 빌드 0.1.0-20261111-1428. 남은 개선 거리는 <a href="../docs/품질개선/종합검토.md">종합검토</a> 「따로 할 것」 · 개편은 <a href="../docs/품질개선/KMD_개편_설계.md">KMD_개편_설계.md</a> · <a href="../docs/품질개선/KMD_개편_TODO.md">KMD_개편_TODO.md</a> · 판마다 바뀐 것은 <a href="../CHANGELOG.md">CHANGELOG</a>.</p>
+<p class="m-foot">기준일 2026-11-15 · HEAD 386de23 · 188 빌드 0.1.0-20261114-0951. 남은 개선 거리는 <a href="../docs/품질개선/종합검토.md">종합검토</a> 「따로 할 것」 · 개편은 <a href="../docs/품질개선/KMD_개편_설계.md">KMD_개편_설계.md</a> · <a href="../docs/품질개선/KMD_개편_TODO.md">KMD_개편_TODO.md</a> · 판마다 바뀐 것은 <a href="../CHANGELOG.md">CHANGELOG</a>.</p>
 </article>
 
 </div>
