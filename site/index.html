@@ -36,7 +36,7 @@
     </div>
     <figure class="frame hero-shot">
       <div class="bar"><i></i><i></i><i></i><span>팀 화면 · 문서 보기</span></div>
-      <button type="button" class="zoom" data-zoom="doc"><img data-shot="doc" alt="kmd 팀 화면: 「첫 주 안내」 문서. 왼쪽에 문서 나무, 가운데에 항목 넷, 오른쪽에 이 문서의 차례 · 문서 · 기록 · 항목" width="1280" height="800"></button>
+      <button type="button" class="zoom" data-zoom="doc"><img data-shot="doc" alt="kmd 팀 화면: 「첫 주 안내」 문서. 왼쪽에 잉크 기둥과 목록 칸의 문서 나무, 가운데 책상 위 종이에 항목 넷, 오른쪽 기둥에 개요 · 문서 · 기록 · 항목 · 속성" width="1280" height="800"></button>
     </figure>
   </div>
 </section>
@@ -45,7 +45,7 @@
 <section id="overview" class="sec ov-sec">
   <div class="wrap">
     <p class="kicker">한눈에</p>
-    <h2>들어오고, 검사하고, 같이 바뀌고, 찾는다</h2>
+    <h2>들어오고, 승인하고, 같이 바뀌고, 찾는다</h2>
     <ol class="ov" aria-label="kmd 의 흐름 네 단계">
       <li class="ov-st"><a href="#story">
         <span class="ov-n">1</span><span class="ov-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M4 12h13M4 17h8"/><path d="M16 14l4 3-4 3"/></svg></span>
@@ -54,8 +54,8 @@
       </a></li>
       <li class="ov-st gate"><a href="#story">
         <span class="ov-n">2</span><span class="ov-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 12l2 2 4-4"/></svg></span>
-        <b>한 문에서 검사한다</b>
-        <span class="ov-chips"><i>자리</i><i>꼴</i><i>값 대조</i><i>지문</i></span>
+        <b>저장 제안 → 승인</b>
+        <span class="ov-chips"><i>사람: 승인</i><i>무인: 규칙 길</i><i>값 대조</i><i>지문</i></span>
       </a></li>
       <li class="ov-st"><a href="#concept">
         <span class="ov-n">3</span><span class="ov-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l3 3-3 3-3-3z"/><circle cx="7" cy="17" r="3"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg></span>
@@ -68,7 +68,7 @@
         <span class="ov-chips"><i>찾기</i><i>항목</i><i>그래프</i><i>Claude</i></span>
       </a></li>
     </ol>
-    <div class="ov-fail"><span class="ov-fail-line" aria-hidden="true"></span><span class="chip warn">고쳐 다시</span> 검사를 못 넘으면 아무것도 쓰지 않는다. 까닭을 보고 고쳐 다시 제안한다</div>
+    <div class="ov-fail"><span class="ov-fail-line" aria-hidden="true"></span><span class="chip warn">고쳐 다시</span> 입력 오류면 아무것도 쓰지 않는다. 까닭을 보고 고쳐 다시 제안한다. 경고는 막지 않고 승인하면 「받아들인 경고」 로 남는다</div>
   </div>
 </section>
 
@@ -111,7 +111,7 @@
     <p class="sub">월요일 회의 결정 하나가 계정 · VPN · 첫날 일정 · 받는 법 · 돌려주는 법으로 번진다. 날마다 다른 길로 들어오지만 모두 같은 저장 문을 지난다.</p>
     <div class="tl" role="tablist" aria-label="요일별 걸음" id="stepTabs"></div>
     <div class="flow card">
-      <svg id="flowSvg" viewBox="0 0 900 300" role="img" aria-label="채널 여섯이 저장 문 하나를 지나 기록과 문서로, 못 넘은 것은 넣지 못함으로 가는 그림"></svg>
+      <svg id="flowSvg" viewBox="0 0 900 300" role="img" aria-label="채널 여섯이 저장 문 하나를 지나 기록과 문서로 함께 들어가는 그림. 사람 채널은 저장 제안을 승인하고, 무인 채널은 규칙 길까지 늘 들어가며, 입력 오류면 아무것도 쓰지 않는다"></svg>
     </div>
     <div class="step" id="stepPanel" role="tabpanel"></div>
   </div>
@@ -143,7 +143,7 @@
     <div class="gbox">
       <div class="gstage">
         <svg id="gSvg" role="img" aria-label="온보딩 지식의 그래프: 문서 네모, 항목 동그라미, 기록 마름모"></svg>
-        <div class="glegend" aria-hidden="true"><span class="lg doc">문서</span><span class="lg item">항목</span><span class="lg rec">기록</span><span class="lg held">넣지 못함</span></div>
+        <div class="glegend" aria-hidden="true"><span class="lg doc">문서</span><span class="lg item">항목</span><span class="lg rec">기록</span><span class="lg warn">받아들인 경고</span></div>
       </div>
       <aside class="gside">
         <ol class="gtour" id="gTour"></ol>
@@ -169,7 +169,9 @@
       <li><code>match</code><span>말 → 항목</span></li>
       <li><code>section</code><span>항목 글 + 지문</span></li>
       <li class="w"><b>일한다</b><span>회의 · 코드 · 문서</span></li>
-      <li><code>save</code><span>기록 + 항목 글 + 지문</span></li>
+      <li><code>propose</code><span>【저장 제안】 그대로</span></li>
+      <li class="w"><b>승인</b><span>「좋아, 넣어」</span></li>
+      <li><code>save</code><span>proposal + 기록 + 항목 글</span></li>
     </ol>
     <div class="term" id="term" aria-label="Claude Code 세션 재생"><div class="term-bar"><i></i><i></i><i></i><span>claude · onboarding</span><button type="button" class="term-re" id="termRe">다시</button></div><pre id="termOut" aria-live="off"></pre></div>
   </div>
@@ -180,7 +182,7 @@
   <div class="wrap">
     <p class="kicker">화면</p>
     <h2>실제 화면, 가상의 내용</h2>
-    <p class="sub">모두 kmd 팀 화면을 그대로 찍었다. 내용은 시험 지식이다. 누르면 크게 본다.</p>
+    <p class="sub">모두 kmd 팀 화면을 그대로 찍었다(세 칸 책상 · KMD Sans). 내용은 시험 지식이다. 위 밝기 단추로 어두운 테마 그림을 본다. 누르면 크게 본다.</p>
     <div class="gallery" id="gallery"></div>
   </div>
 </section>
@@ -191,9 +193,9 @@
     <p class="kicker">시작하기</p>
     <h2>두 프로그램, 네 자리</h2>
     <div class="progs">
-      <article class="card prog"><h3>개인 프로그램 <small>내 PC · Windows</small></h3><p>개인 지식 · 개인 화면 · 파일 넣기 · MCP <code>kmd</code>. 팀으로는 고른 글만 보낸다.</p><pre class="cmd">&lt;팀 서버&gt;/dl 에서 PC 꾸러미 받기 → kmd up</pre></article>
-      <div class="prog-link" aria-hidden="true"><span>지식 보내기 →</span><span>Claude Code 연결 둘</span></div>
-      <article class="card prog"><h3>팀 프로그램 <small>팀 서버 · Linux</small></h3><p>팀 지식 · 팀 화면 · 사람과 자리 · 팀 일꾼 · 가져올 곳 · 백업 · MCP <code>kmd-team</code>. 저장마다 git 한 묶음.</p><pre class="cmd">kmd-install.sh --team --url http://&lt;서버&gt;:8090 --root /srv/kmd</pre></article>
+      <article class="card prog"><h3>개인 프로그램 <small>내 PC · Windows</small></h3><p>개인 지식 · 개인 화면 · 생성 · 점검 · MCP <code>kmd</code>. 팀으로는 공유에서 고른 글만 보낸다(보내기 확인 창 = 팀 저장 제안).</p><pre class="cmd">설정 › 개인 프로그램 설치 · irm '&lt;팀&gt;/i/&lt;표&gt;' | iex</pre></article>
+      <div class="prog-link" aria-hidden="true"><span>공유(보내기) →</span><span>Claude Code 연결 둘</span></div>
+      <article class="card prog"><h3>팀 프로그램 <small>팀 서버 · Linux</small></h3><p>팀 지식 · 팀 화면 · 사람과 자리 · 팀 일꾼 · 자동수집 · 백업 · MCP <code>kmd-team</code>. 빈 지식은 지식관리 › 기초 세우기로 폴더째 세운다. 저장마다 git 한 묶음.</p><pre class="cmd">kmd-install.sh --team --url http://&lt;서버&gt;:8090 --root /srv/kmd</pre></article>
     </div>
     <div class="tblwrap card">
       <table class="seats">
@@ -202,7 +204,7 @@
         <tbody>
           <tr><th scope="row">보기 · 찾기 · Claude 로 읽기</th><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
           <tr><th scope="row">기록 남기기 · 문서 고치기 · 파일 넣기</th><td></td><td>✓</td><td>✓</td><td>✓</td></tr>
-          <tr><th scope="row">점검 · 되돌리기 · 문서 짜임 · 권한 주기</th><td></td><td></td><td>✓</td><td>✓</td></tr>
+          <tr><th scope="row">점검 · 지표 · 되돌리기 · 문서 › 구조 · 권한 주기</th><td></td><td></td><td>✓</td><td>✓</td></tr>
           <tr><th scope="row">사람 · 지식 세우기 · 백업 · Claude 연결</th><td></td><td></td><td></td><td>✓</td></tr>
         </tbody>
       </table>

@@ -39,7 +39,8 @@
   const step = (key) => S.steps.find((x) => x.key === key)
   const piecesOf = (st) => (st.key === 'edit' ? [{ coord: `proc:${st.heading}`, from: st.from, to: st.to }] : st.sections || [])
   const namesOf = (st) => piecesOf(st).map((x) => x.coord.split(':')[1])
-  const isHeld = (st) => !!(st.result && st.result.held && st.result.held.length)
+  const isWarn = (st) => !!(st.result && st.result.accepted && st.result.accepted.length)
+  const UNATTENDED = new Set(['commit', 'file'])
 
   // ── 지식 지도: 문서 넷 · 항목 · 링크(크게) / 걸음마다 바뀐 곳(작게) ──
   const DOC_AREA = { '첫 주 안내': 'a', '계정 발급': 'b', '장비': 'c', '연락처': 'd' }
@@ -100,9 +101,9 @@
   }
 
   // ── 이야기: 시간 줄 + 흐름 그림 + 걸음 ──
-  const CHANNELS = [['session', '세션', 'Claude Code'], ['edit', '화면 고치기', '팀 화면'], ['file', '파일 넣기', '팀 일꾼'], ['bulk', '대량 넣기', 'Claude Code'], ['commit', '가져올 곳', 'git · 폴더 · DB'], ['send', '보내기', '개인 → 팀']]
-  const chOf = (key) => (key === 'held' ? 'session' : key)
-  const SHOT_OF = { session: ['rec', '세션이 남긴 기록: 바뀐 것 · 까닭 · 넣은 것'], commit: ['history', '이력: 들이기 · 저장 · 고침 · 넣지 못함이 한 줄에'], file: ['import', '가져오기: 파일을 끌어다 놓으면 팀 일꾼이 기록과 항목 글을 짓는다'], edit: ['edit', '문서 고치기: 쓰기 자리부터 · 이력에 옛 값 → 새 값'], send: ['item', '노트북 받기 항목: 오른쪽 칸에 이 항목을 바꾼 기록 둘'], held: ['held', '넣지 못함: 까닭 · 들어온 길 · [고치기] · [다시 들이기]'] }
+  const CHANNELS = [['session', '세션', 'Claude Code'], ['edit', '화면 고치기', '팀 화면'], ['send', '공유', '개인 → 팀'], ['bulk', '대량 넣기', 'Claude Code'], ['file', '수기수집', '팀 일꾼'], ['commit', '자동수집', 'git · 폴더 · DB']]
+  const chOf = (key) => (key === 'warn' ? 'session' : key)
+  const SHOT_OF = { session: ['rec', '세션이 남긴 기록: 요약 · 바뀐 것 · 까닭'], commit: ['history', '이력: 시간 줄에 저장 · 들이기 · 고침'], file: ['import', '생성 › 수기수집: 파일을 놓으면 팀 일꾼이 기록과 항목 글을 짓는다'], edit: ['propose', '저장 확인 창: 바뀐 줄 · 경고 · [넣기] 가 승인'], send: ['item', '노트북 받기 항목: 오른쪽 기둥에 이 항목을 바꾼 기록'], warn: ['check', '점검 › 지표: 받아들인 경고 · 규칙 길을 기간으로 센다'] }
   let flow = null
   function flowDraw() {
     const svg = $('#flowSvg'); svg.innerHTML = ''
@@ -122,10 +123,10 @@
     const gx = N ? 60 : 330, gy = N ? 170 : 40, gw = N ? 240 : 230, gh = N ? 132 : 220
     const gate = el('g', { class: 'gate' }, svg)
     el('rect', { x: gx, y: gy, width: gw, height: gh, rx: 12 }, gate)
-    const tt = el('text', { x: gx + gw / 2, y: gy + 28, 'text-anchor': 'middle' }, gate); tt.textContent = '저장 문: 한 덩이로 검사'
-    const checks = N ? ['자리 · 저장 속도 · 같은 저장', '꼴(E_FORMAT) · 값 대조', '지문(base) · 섞인 자리', '→ 기록 · 문서 · git 한 묶음'] : ['자리(쓰기 이상)', '저장 속도 · 같은 저장', '항목 꼴(E_FORMAT)', '값 대조: 근거에 있는 값만', '지문(base): 읽은 뒤 바뀌었나', '→ 기록 · 문서 · git 한 묶음']
+    const tt = el('text', { x: gx + gw / 2, y: gy + 28, 'text-anchor': 'middle' }, gate); tt.textContent = '저장 문: 한 덩이로 판정'
+    const checks = N ? ['사람: 저장 제안 → 승인', '무인: 규칙 길까지 늘 들어감', '자리 · 꼴 · 지문(base)', '→ 기록 + 항목 글 · git 한 묶음'] : ['사람: 저장 제안 → 승인', '무인: FIX 고리 → 규칙 길', '자리 · 꼴(E_FORMAT) · 지문(base)', '값 대조: 근거 없는 값은 경고', '경고는 승인하면 「받아들인 경고」', '→ 기록 + 항목 글 · git 한 묶음']
     checks.forEach((c, i) => { const t = el('text', { x: gx + 18, y: gy + 54 + i * (N ? 20 : 26), class: 'chk' }, gate); t.textContent = c })
-    const OUT = [['rec', '기록', 'work/<id>.md · 늘 남는다'], ['doc', '문서 · 항목', '항목 글이 그 자리에 들어간다'], ['held', '넣지 못함', '기록만 · 까닭과 함께']]
+    const OUT = [['rec', '기록', 'work/<id>.md · 바뀐 것 · 까닭'], ['doc', '문서 · 항목', '항목 글이 그 자리에 들어간다'], ['err', '입력 오류', '아무것도 쓰지 않음 · 고쳐 다시']]
     OUT.forEach(([k, l, s], i) => {
       const x = N ? 6 + i * 118 : 680, y = N ? 360 : 30 + i * 90, w = N ? 112 : 200, h = N ? 64 : 62
       const gg = el('g', { class: 'out ' + k }, svg)
@@ -143,7 +144,7 @@
     for (const k in g.out) {
       const o = g.out[k]
       const d = N ? `M${outX},${outY} C${outX},${outY + 30} ${o.bx},${o.by - 30} ${o.bx},${o.by}` : `M${outX},${outY} C${outX + 60},${outY} ${o.bx - 60},${o.by} ${o.bx},${o.by}`
-      o.wire = el('path', { d, class: 'wire' + (k === 'held' ? ' held' : '') }, wires)
+      o.wire = el('path', { d, class: 'wire' + (k === 'err' ? ' err' : '') }, wires)
     }
     g.dots = el('g', {}, svg)
     flow = g
@@ -152,14 +153,14 @@
   function flowShow(key) {
     if (!flow) return
     cancelAnimationFrame(dotRaf)
-    const c = chOf(key), outs = key === 'held' ? ['rec', 'held'] : ['rec', 'doc']
+    const c = chOf(key), outs = ['rec', 'doc']
     for (const k in flow.ch) { const on = k === c; flow.ch[k].gg.classList.toggle('on', on); flow.ch[k].wire.classList.toggle('on', on) }
     for (const k in flow.out) { const on = outs.includes(k); flow.out[k].gg.classList.toggle('on', on); flow.out[k].wire.classList.toggle('on', on) }
     flow.dots.innerHTML = ''
     if (reduce) return
     const a = flow.ch[c].wire, la = a.getTotalLength()
-    const legs = outs.map((k) => ({ p: flow.out[k].wire, l: flow.out[k].wire.getTotalLength(), held: k === 'held' }))
-    const dots = legs.map((x) => el('circle', { r: 5, class: 'dot' + (x.held ? ' held' : '') }, flow.dots))
+    const legs = outs.map((k) => ({ p: flow.out[k].wire, l: flow.out[k].wire.getTotalLength() }))
+    const dots = legs.map(() => el('circle', { r: 5, class: 'dot' }, flow.dots))
     const T = 2600, t0 = performance.now()
     const tick = (now) => {
       const t = ((now - t0) % (T + 600)) / T
@@ -179,12 +180,12 @@
     let b = 0; while (b < from.length - a && b < to.length - a && from[from.length - 1 - b] === to[to.length - 1 - b]) b++
     return `${esc(from.slice(0, a))}${from.length - a - b > 0 ? `<del>${esc(from.slice(a, from.length - b))}</del>` : ''}${to.length - a - b > 0 ? `<ins>${esc(to.slice(a, to.length - b))}</ins>` : ''}${esc(from.slice(from.length - b))}`
   }
-  // 걸음 i 까지 바뀐 곳: 이번 걸음(now · held) · 앞 걸음(done · 요일)
+  // 걸음 i 까지 바뀐 곳: 이번 걸음(now · warn) · 앞 걸음(done · 요일)
   function weekState(i) {
     const m = new Map()
-    S.steps.slice(0, i).forEach((st) => { if (!isHeld(st)) namesOf(st).forEach((n) => m.set(n, { cls: 'done', em: st.day + ' ✓' })) })
+    S.steps.slice(0, i).forEach((st) => namesOf(st).forEach((n) => m.set(n, { cls: 'done', em: st.day + ' ✓' })))
     const st = S.steps[i]
-    namesOf(st).forEach((n) => m.set(n, isHeld(st) ? { cls: 'held', em: '넣지 못함' } : { cls: 'now', em: '지금' }))
+    namesOf(st).forEach((n) => m.set(n, isWarn(st) ? { cls: 'warn', em: '받아들인 경고' } : { cls: 'now', em: '지금' }))
     return m
   }
   let cur = 0, auto = null
@@ -192,23 +193,24 @@
   const stop = () => { clearInterval(auto); auto = null; document.querySelectorAll('#stepTabs .pbar').forEach((p) => p.classList.remove('run')) }
   function stepShow(i, user) {
     cur = i
-    const st = S.steps[i], held = isHeld(st)
+    const st = S.steps[i], warn = isWarn(st)
     document.querySelectorAll('#stepTabs button').forEach((b, j) => {
       b.setAttribute('aria-selected', j === i); b.tabIndex = j === i ? 0 : -1
-      b.classList.toggle('done', j < i && !isHeld(S.steps[j]))
+      b.classList.toggle('done', j < i)
       const p = b.querySelector('.pbar'); p.classList.remove('run'); if (j === i && auto && !user) { void p.offsetWidth; p.classList.add('run') }
     })
     flowShow(st.key)
     const pieces = piecesOf(st)
-    const diffs = pieces.map((x) => { const name = x.coord.split(':')[1], where = secOf(name); return `<div class="card diff${held ? ' held' : ''}"><div class="h">${esc(name)} <code>${esc(x.coord)}</code><span class="chip">${esc(where ? where.d.title : '')}</span></div><div>${diffHtml(x.from, x.to)}</div></div>` }).join('')
+    const diffs = pieces.map((x) => { const name = x.coord.split(':')[1], where = secOf(name); return `<div class="card diff${warn ? ' warn' : ''}"><div class="h">${esc(name)} <code>${esc(x.coord)}</code><span class="chip">${esc(where ? where.d.title : '')}</span></div><div>${diffHtml(x.from, x.to)}</div></div>` }).join('')
     const src = st.file ? `<div class="src">📄 ${esc(st.file)}</div>` : st.commit ? `<div class="src">⎇ ${esc(st.commit)}</div>` : ''
-    const rec = st.key === 'edit' ? `<div class="card recbox"><div class="t">화면에서 고침: ${esc(st.doc)} 「${esc(st.heading)}」</div><p>쓰기 자리부터 문서를 바로 고친다. 고친 글 그대로 들어가고 이력에 「고침」, 옛 값 → 새 값이 남는다.</p></div>` : `<div class="card recbox"><div class="t">${esc(st.title)}</div>${md(st.body)}</div>`
-    const result = held ? `<span class="chip warn">넣지 못함</span> ${esc(st.result.held.join(' · '))}. 문서는 그대로, 기록만 남았다.` : `<span class="chip ok">문서에 들어감</span> 항목 ${pieces.length} · 기록 · git 한 묶음`
+    const rec = st.key === 'edit' ? `<div class="card recbox"><div class="t">화면에서 고침: ${esc(st.doc)} 「${esc(st.heading)}」</div><p>쓰기 자리부터 고친다. [저장] 을 누르면 저장 확인 창(저장 제안: 바뀐 줄 · 경고)이 뜨고 [넣기] 가 승인이다. 이력에 「고침」, 옛 값 → 새 값이 남는다.</p></div>` : `<div class="card recbox"><div class="t">${esc(st.title)}</div>${md(st.body)}</div>`
+    const how = UNATTENDED.has(st.key) ? (st.result && st.result.rule ? '무인 · 규칙 길' : '무인 · 승인 없이') : st.key === 'send' ? '보내기 확인 창 = 팀 저장 제안 → [보내기] 승인' : st.key === 'edit' ? '저장 확인 창 → [넣기] 승인' : '저장 제안 → 「좋아, 넣어」 승인'
+    const result = warn ? `<span class="chip warn">받아들인 경고</span> ${esc(st.result.accepted.join(' · '))}. 승인해 들어갔고, 기록 끝 「받아들인 경고」 에 남아 점검 › 지표가 센다.` : `<span class="chip ok">들어감</span> 항목 ${pieces.length} · 기록 · git 한 묶음 · ${esc(how)}`
     const [shot, cap] = SHOT_OF[st.key]
     const [capT, capD] = cap.split(': ')
     const panel = $('#stepPanel')
     panel.setAttribute('aria-labelledby', 'tab-' + st.key)
-    panel.innerHTML = `<p class="why${held ? ' held' : ''}"><span class="dy">${esc(st.day)}요일 · ${esc(st.ch)}</span><span>${esc(st.why || '')}</span></p>
+    panel.innerHTML = `<p class="why${warn ? ' warn' : ''}"><span class="dy">${esc(st.day)}요일 · ${esc(st.ch)}</span><span>${esc(st.why || '')}</span></p>
       <div class="st-left"><p class="st-h">어디가 바뀌었나</p><div class="kmap mini">${mapHtml(weekState(i), true)}</div>
         <p class="st-h">무엇이 바뀌었나</p><div class="diffs">${diffs}</div><p class="result">${result}</p></div>
       <div class="st-right"><p class="st-h">누가 · 어느 길로</p><p class="who"><span class="av">${esc(st.who.replace('test-', '').slice(0, 2))}</span><b>${esc(st.who)}</b><span class="chip">${esc(st.role)}</span><span class="chip acc">${esc(st.via)}</span></p>${src}${rec}
@@ -217,7 +219,7 @@
   }
   function story() {
     const tabs = $('#stepTabs')
-    tabs.innerHTML = S.steps.map((st, i) => `<button type="button" role="tab" id="tab-${st.key}" aria-controls="stepPanel" data-i="${i}" class="${isHeld(st) ? 'held-k' : ''}"><span class="dot">${esc(st.day)}</span><span class="c">${esc(st.ch)}</span><span class="i">${esc(isHeld(st) ? '넣지 못함' : namesOf(st)[0])}</span><i class="pbar" style="--dur:${DUR}ms"></i></button>`).join('')
+    tabs.innerHTML = S.steps.map((st, i) => `<button type="button" role="tab" id="tab-${st.key}" aria-controls="stepPanel" data-i="${i}" class="${isWarn(st) ? 'warn-k' : ''}"><span class="dot">${esc(st.day)}</span><span class="c">${esc(st.ch)}</span><span class="i">${esc(namesOf(st)[0])}</span><i class="pbar" style="--dur:${DUR}ms"></i></button>`).join('')
     tabs.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; stop(); stepShow(+b.dataset.i, true) })
     tabs.addEventListener('keydown', (e) => {
       if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
@@ -237,11 +239,11 @@
 
   // ── 찾아가기 ──
   const FIND = [
-    ['home', 'list', '지식 목록', '지식 목록', '자리를 받은 지식만 보인다. 카드에 내 자리 · 점검 경고가 붙는다.'],
+    ['home', 'list', '모든 지식', '지식관리 › 모든 지식', '자리를 받은 지식만 카드로 선다. 카드에 내 자리 · 문서 수 · 점검이 붙는다.'],
     ['search', 'find', '찾기 「노트북」', '찾기 <kbd>Ctrl</kbd> <kbd>K</kbd> 「노트북」', '이름이 맞는 항목(노트북 받기 · 반납 · 사양)이 먼저, 그다음 비슷한 글이 항목 단위로 나온다.'],
-    ['item', 'item', '항목', '항목 「노트북 받기」', '글은 지금 값만. 오른쪽 칸에 이 항목이 든 문서와, 이 항목을 바꾼 기록 둘(월요일 세션 · 금요일 보내기)이 보인다.'],
-    ['rec', 'rec', '기록', '기록: 왜 바뀌었나', '바뀐 것 · 까닭 · 넣은 것(어느 문서의 어느 항목). 「월요일 온보딩 회의에서 정했다」 가 출처다.'],
-    ['doc', 'doc', '문서', '문서 「첫 주 안내」', '확정된 지식만 읽힌다. 경위는 본문에 섞지 않고 문서 끝 참고 블록에 출처로 남는다.'],
+    ['item', 'item', '항목', '항목 「노트북 받기」', '글은 지금 값만. 오른쪽 기둥을 펴면 이 항목이 든 문서와, 이 항목을 바꾼 기록(월요일 세션 · 금요일 공유)이 보인다.'],
+    ['rec', 'rec', '기록', '기록: 왜 바뀌었나', '요약 · 바뀐 것 · 까닭과 넣은 항목. 「월요일 온보딩 회의에서 정했다」 가 출처다.'],
+    ['doc', 'doc', '문서', '문서 「첫 주 안내」', '책상 위 종이에 확정된 지식만 읽힌다. 경위는 본문에 섞지 않고 문서 끝 참고 블록에 출처로 남는다.'],
   ]
   function finder() {
     const ol = $('#findSteps'), path = $('#findPath')
@@ -265,9 +267,7 @@
     const N = S.graph.nodes.map((n) => ({ ...n })), E = S.graph.edges.map((e) => ({ ...e }))
     const byId = new Map(N.map((n) => [n.id, n]))
     const recOf = (k) => N.find((n) => n.step === k)
-    const heldRec = N.find((n) => n.held)
-    // 넣지 못한 기록은 들어가려던 항목에 점선으로(줄거리의 sections 에서)
-    if (heldRec) for (const x of step('held').sections) if (byId.has('i:' + x.coord)) E.push({ a: heldRec.id, b: 'i:' + x.coord, t: 'held' })
+    const warnRec = N.find((n) => n.warn)
     const nbr = new Map(N.map((n) => [n.id, new Set()]))
     E.forEach((e) => { nbr.get(e.a).add(e.b); nbr.get(e.b).add(e.a) })
     const svg = $('#gSvg')
@@ -278,7 +278,7 @@
       svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.style.aspectRatio = `${W}/${H}`
       const hash = (s) => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619) } return (h >>> 0) / 4294967296 }
       N.forEach((n, i) => { const a = (i / N.length) * Math.PI * 2 + hash(n.id), r = 60 + hash(n.id + 'r') * 120; n.x = W / 2 + Math.cos(a) * r; n.y = H / 2 + Math.sin(a) * r; n.vx = 0; n.vy = 0 })
-      const L = { in: 72, touch: 96, link: 170, held: 96 }
+      const L = { in: 72, touch: 96, link: 170 }
       for (let it = 0; it < 500; it++) {
         const cool = 1 - it / 500
         for (let i = 0; i < N.length; i++) for (let j = i + 1; j < N.length; j++) {
@@ -312,7 +312,7 @@
         eEls.push({ e, l })
       }
       for (const n of N) {
-        const g = el('g', { class: `gn ${n.kind}${n.held ? ' held' : ''} off`, tabindex: 0, role: 'button', 'aria-label': `${KIND[n.kind]} ${n.label}` }, gn)
+        const g = el('g', { class: `gn ${n.kind}${n.warn ? ' warn' : ''} off`, tabindex: 0, role: 'button', 'aria-label': `${KIND[n.kind]} ${n.label}` }, gn)
         el('circle', { class: 'gring', cx: n.x, cy: n.y, r: 10 }, g)
         const sh = n.kind === 'doc' ? el('rect', { class: 'shape', x: n.x - 8, y: n.y - 8, width: 16, height: 16, rx: 3 }, g)
           : n.kind === 'item' ? el('circle', { class: 'shape', cx: n.x, cy: n.y, r: 7 }, g)
@@ -336,7 +336,7 @@
         const on = vis.has(e.a) && vis.has(e.b)
         if (on && l.classList.contains('off') && anim && !reduce) { l.classList.remove('draw'); void l.getBoundingClientRect(); l.classList.add('draw') }
         l.classList.toggle('off', !on)
-        l.classList.toggle('hot', on && !!focus && (e.a === focus || e.b === focus) && e.t !== 'held')
+        l.classList.toggle('hot', on && !!focus && (e.a === focus || e.b === focus))
       }
       card(focus)
     }
@@ -346,7 +346,7 @@
       let k = KIND[n.kind], p = ''
       if (n.kind === 'item') { const w = secOf(n.label); k += ` · ${n.coord || ''}`; p = w ? `${w.d.title} › ${strip(w.s.body)}` : '' }
       else if (n.kind === 'doc') { const d = docOf(n.label); p = d ? strip(d.intro.split('\n').pop()) : '' }
-      else { const st = n.step && step(n.step); k += st ? ` · ${st.day}요일 · ${st.ch}${n.held ? ' · 넣지 못함' : ''}` : ''; p = st ? st.why || '' : '' }
+      else { const st = n.step && step(n.step); k += st ? ` · ${st.day}요일 · ${st.ch}${n.warn ? ' · 받아들인 경고' : ''}` : ''; p = st ? st.why || '' : '' }
       box.innerHTML = `<span class="k">${esc(k)}</span><b>${esc(n.label)}</b><p>${esc(p.slice(0, 160))}</p>`
     }
     function expand(id) { vis.add(id); nbr.get(id).forEach((x) => vis.add(x)); focus = id; paint() }
@@ -358,7 +358,7 @@
       ['월요일 기록을 누르면: 같이 바뀐 「입사 전날」', () => expandQ(sess && sess.id)],
       ['문서 링크를 따라 계정 발급으로: 화요일 커밋', () => { expandQ('d:첫 주 안내'); expandQ('d:계정 발급'); expandQ('i:proc:메일 계정'); if (mail) focus = mail.id }],
       ['VPN 신청: 수요일 파일이 연락처까지 잇는다', () => { expandQ('i:proc:VPN 신청'); expandQ(vpn && vpn.id) }],
-      ['장비 › 노트북 반납: 넣지 못한 기록', () => { expandQ('d:장비'); expandQ('i:proc:노트북 반납'); if (heldRec) focus = heldRec.id }],
+      ['장비 › 노트북 반납: 경고를 받아들인 기록', () => { expandQ('d:장비'); expandQ('i:proc:노트북 반납'); if (warnRec) focus = warnRec.id }],
       ['지식 전체', () => { N.forEach((n) => vis.add(n.id)); focus = sent ? sent.id : null }],
     ]
     const tourOl = $('#gTour')
@@ -385,7 +385,7 @@
   // ── Claude Code 재생: 위 차례 띠가 같이 켜진다 ──
   function terminal() {
     const st = step('session')
-    // [모양, 글, 켤 차례(0 brief · 1 match · 2 section · 3 일 · 4 save)]
+    // [모양, 글, 켤 차례(0 brief · 1 match · 2 section · 3 일 · 4 propose · 5 승인 · 6 save)]
     const L = [
       ['u', '> 오늘 온보딩 회의에서 노트북을 입사 전날 택배로 보내기로 했어. 팀 지식에 남겨 줘.'],
       ['', ''],
@@ -397,11 +397,16 @@
       ['d', '  term:노트북 사양   장비 › 노트북 사양'],
       ['t', '● kmd-team · section  proc:노트북 받기 · proc:입사 전날', 2],
       ['d', `  「${st.sections[0].from}」 · base 지문 16자`],
-      ['', '  회의에서 정한 결정이라 확정으로 저장합니다.', 3],
-      ['t', '● kmd-team · save', 4],
-      ['d', `  record    ${st.title}`],
-      ['d', '  sections  proc:노트북 받기 · proc:입사 전날  (항목 2 · 지문 2)'],
-      ['o', '  ✓ 넣음 2 · 기록 work/…노트북은-입사-전날-집으로-보낸다.md'],
+      ['', '  회의에서 정한 결정이라 남길 거리로 묶었습니다.', 3],
+      ['t', '● kmd-team · propose', 4],
+      ['d', '  【저장 제안】 신규 입사 온보딩(테스트) · 보는 사람 3 · 길: 이 세션의 작업'],
+      ['d', `  기록   ${st.title}`],
+      ['d', '  고침   첫 주 안내 › 노트북 받기 · 입사 전날  (바뀐 줄 2)'],
+      ['d', '  경고   없음 · 오류 없음'],
+      ['', '  승인하시면 기록과 항목 글이 한 번에 들어갑니다. 경고가 있으면 받아들인 것으로 남습니다.', 4],
+      ['u', '> 좋아, 넣어', 5],
+      ['t', '● kmd-team · save  (proposal 승인)', 6],
+      ['o', '  ✓ 들어감 · 항목 2 · 기록 work/…노트북은-입사-전날-집으로-보낸다(테스트).md'],
       ['', ''],
       ['', '「첫 주 안내」 의 노트북 받기 · 입사 전날을 바꿨습니다.'],
       ['', '이력에서 옛 값 → 새 값을 보고, 항목마다 되돌릴 수 있습니다.'],
@@ -431,17 +436,22 @@
 
   // ── 화면 모음 · 크게 보기 ──
   const GALLERY = [
-    ['home', '지식 목록', '받은 지식 카드 · 자리'],
-    ['doc', '문서 보기', '확정된 지식만 · 오른쪽 칸에 차례'],
-    ['item', '항목 보기', '이 항목이 든 문서 · 이 항목의 이력'],
-    ['rec', '기록 보기', '바뀐 것 · 까닭 · 넣은 것'],
-    ['recs', '기록 목록', '옆 메뉴 「기록」, 새것 위'],
-    ['search', '찾기', '이름이 맞는 것 · 비슷한 글'],
-    ['edit', '문서 고치기', '항목마다 고치고 한 번에 저장'],
+    ['doc', '문서 보기', '세 칸 책상: 잉크 기둥 · 목록 칸 · 종이'],
+    ['kn', '지식 홈', '무대 · 최근 바뀐 문서'],
+    ['home', '모든 지식', '지식관리 › 모든 지식 · 지식 카드'],
+    ['item', '항목 보기', '오른쪽 기둥: 문서 · 기록 · 속성'],
+    ['rec', '기록 보기', '요약 · 바뀐 것 · 까닭'],
+    ['recs', '기록 목록', '잉크 기둥 보기 「기록」 · 두 줄'],
+    ['search', '찾기', 'Ctrl K · 이름이 맞는 것 · 비슷한 글'],
+    ['cmd', '명령 창', 'Ctrl P · 화면 · 일을 이름으로'],
+    ['edit', '문서 고치기', '항목마다 고치고 [저장]'],
+    ['propose', '저장 확인', '저장 제안 · 바뀐 줄 · [넣기] = 승인'],
     ['graph', '그래프', '문서 · 항목 · 기록의 3D 그래프'],
-    ['history', '이력', '저장 · 들이기 · 고침'],
-    ['import', '가져오기', '파일 넣기 · 가져올 곳 · 일 줄'],
-    ['kn', '지식 홈', '지식 하나의 첫 화면'],
+    ['history', '이력', '시간 줄 · 저장 · 들이기 · 고침'],
+    ['check', '점검 › 지표', '받아들인 경고 · 규칙 길 · FIX'],
+    ['import', '생성', '수기수집 · 자동수집 · 진행'],
+    ['shape', '문서 › 구조', '폴더 · 이름 · 옮기기 · 합치기'],
+    ['seed', '기초 세우기', '빈 지식에 폴더째 첫 짜임'],
   ]
   function gallery() {
     $('#gallery').innerHTML = GALLERY.map(([s, t, d]) => `<figure><button type="button" class="zoom" data-zoom="${s}"><img data-shot="${s}" alt="${esc(t)}: ${esc(d)}" width="1280" height="800" loading="lazy"></button><figcaption><b>${esc(t)}</b><span>${esc(d)}</span></figcaption></figure>`).join('')
