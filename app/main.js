@@ -2824,6 +2824,7 @@ function layoutGraph(G) {
     px[i] = dir[i][0] * r0 + jit(n.id, 'x') * 0.2; py[i] = dir[i][1] * r0 + jit(n.id, 'y') * 0.2; pz[i] = dir[i][2] * r0 + jit(n.id, 'z') * 0.2
   })
   const T = !whole ? 60 : N <= 120 ? 260 : N <= 400 ? 140 : 80, amp = whole ? 1 : 0.4
+  //   나눠 펴기는 한 걸음 8 ms(24 ms 였을 때 DPMS 를 열면 긴 프레임 200 ~ 400 ms) · 걸음 사이는 다음 프레임 뒤로(setTimeout 만이면 그리기가 끼어들지 못한다)
   // 멀리 떨어진 몇 점(외톨이 · 작은 덩어리)이 전체 맞춤을 작게 만들지 않게 — 90% 반지름의 1.2배 밖은 넘은 거리를 1/10 로(방향은 그대로)
   const fin = () => {
     const rs = [...Array(N).keys()].map((i) => Math.hypot(px[i], py[i], pz[i])), r9 = [...rs].sort((a, b) => a - b)[Math.floor((N - 1) * 0.9)] || 1, lim = r9 * 1.2
@@ -2836,15 +2837,15 @@ function layoutGraph(G) {
   const step = () => {
     if (S.g.layoutKey !== key) return
     const t0 = performance.now()
-    while (t < T && performance.now() - t0 < 24) { gRelax(px, py, pz, mass, ea, eb, ew, T, amp, -1, null, t, t + 1); t++ }
+    while (t < T && performance.now() - t0 < 8) { gRelax(px, py, pz, mass, ea, eb, ew, T, amp, -1, null, t, t + 1); t++ }
     fin()
     if (t >= T) { S.g.layBusy = false; S.g.cam.needFit = true; const h = $('#app [data-t=gLayBusy]'); if (h) h.hidden = true }
     if ($('#gcv') && CURG) { if (CURG.vis) render(); else gPaint() }
-    if (t < T) setTimeout(step, 0)
+    if (t < T) requestAnimationFrame(() => setTimeout(step, 0))
   }
   setTimeout(step, 0)
 }
-// 힘 풀기 — 질량 밀어내기 · LinLog 당김 · 중력(원점으로). pin 번 점은 원점에 묶는다(고른 점 기준 배치) · fixed[i] 가 참인 점은 그 자리에 둔다(뻗기)
+// 힘 풀기 — 질량 밀어내기 · LinLog 당김 · 중력(원점으로). pin 번 점은 원점에 묶는다(고른 점 기준 배치) · fixed[i] 가 참인 점은 그 자리에 둔다(뻗기 · 묶인 점끼리의 쌍은 건너뛴다)
 function gRelax(px, py, pz, mass, ea, eb, ew, TICKS, amp, pin, fixed, from = 0, to = TICKS) {
   const N = px.length, E = ea.length
   const fx = new Float64Array(N), fy = new Float64Array(N), fz = new Float64Array(N)
@@ -2852,8 +2853,9 @@ function gRelax(px, py, pz, mass, ea, eb, ew, TICKS, amp, pin, fixed, from = 0, 
     const al = amp * (1 - s / TICKS)
     fx.fill(0); fy.fill(0); fz.fill(0)
     for (let i = 0; i < N; i++) {
-      const xi = px[i], yi = py[i], zi = pz[i], mi = mass[i] * G3.KR
+      const xi = px[i], yi = py[i], zi = pz[i], mi = mass[i] * G3.KR, fi = !!fixed && fixed[i]
       for (let j = i + 1; j < N; j++) {
+        if (fi && fixed[j]) continue
         let dx = xi - px[j], dy = yi - py[j], dz = zi - pz[j], d2 = dx * dx + dy * dy + dz * dz
         if (d2 < 1) { dx = hashf(i + '/' + j) - 0.5; dy = hashf(j + '/' + i) - 0.5; dz = hashf(i + '|' + j) - 0.5; d2 = 1 }
         const d = Math.sqrt(d2), f = Math.min(400, (mi * mass[j]) / d) / d
@@ -2862,6 +2864,7 @@ function gRelax(px, py, pz, mass, ea, eb, ew, TICKS, amp, pin, fixed, from = 0, 
       }
     }
     for (let k = 0; k < E; k++) {
+      if (fixed && fixed[ea[k]] && fixed[eb[k]]) continue
       const i = ea[k], j = eb[k], dx = px[j] - px[i], dy = py[j] - py[i], dz = pz[j] - pz[i]
       const d = Math.max(1, Math.hypot(dx, dy, dz)), f = (ew[k] * Math.log(1 + d)) / d
       fx[i] += dx * f; fy[i] += dy * f; fz[i] += dz * f
@@ -2963,6 +2966,57 @@ function gAria(G) {
 // 점 크기 — 종류 바탕 + 중요도(√, 위 8) · 중요도가 큰 점이 커서 어디가 중심인지 보인다
 function nodeR(n, w) { if (n.kind === 'bundle') return 13; if (n.table) return 3; return (n.kind === 'doc' ? 5 : n.kind === 'rec' ? 3.5 : 3) + Math.min(8, Math.sqrt(w) * 0.9) }
 let GCV = null, GH = null, GRAF = 0
+// 그래프 성능(컨벤션 5절 「그래프 성능」 · 2026-11-15 잰 값) — DPR 1.5 이상에서 GPU 쪽이 막혔다
+//   선은 장치 1px 머리카락 선(굵기 1/dpr) · 보통 점과 이름은 그림 조각(장치 배율로 한 번 그려 둔 작은 캔버스)을 drawImage 만
+//   움직이는 동안(끌기 · 옮기기 · 휠 · 집기)은 덜 그린다(선 1500 넘으면 올린 점 선만 · 이름은 앞 40) · 멈추면(0.16초) 온전히 다시 그린다
+let GMV = 0, GMVT = 0
+function gMove() { GMV = 1; clearTimeout(GMVT); GMVT = setTimeout(gSettle, 160) }
+function gSettle() { clearTimeout(GMVT); if (!GMV) return; GMV = 0; if ($('#gcv')) gPaint() }
+// 그림 조각 — 토큰이 바뀌면 gTok 이 새 GTOK 을 만들어 조각도 새로 · 글꼴을 받으면 이름 조각 · 너비를 비운다 · 픽셀 합이 넘치면 비운다
+const GSPR_PX = 16e6
+const gCanvas = (w, h) => (typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h }))
+// 다 그린 조각은 ImageBitmap 으로 굳힌다(캔버스를 그대로 drawImage 하면 부를 때마다 스냅숏을 떠 DPR 3 에서 점 하나 9 µs)
+const gBake = (c) => (c.transferToImageBitmap ? c.transferToImageBitmap() : c)
+function gSprMap(T, k) { let m = T[k]; if (!m || m.px > GSPR_PX) { if (m) for (const s of m.values()) if (s.c.close) s.c.close(); m = T[k] = new Map(); m.px = 0 } return m }
+// 점 조각 — 종류 × 반지름(0.5px 단위 · r2 = 반지름 × 2 를 칸 번호로) · 채우기 + 테두리(--g-ring 1.2) 한 장 · 반지름은 몇십 가지라 비우지 않는다
+function gDotSpr(T, kind, r2, dpr) {
+  let D = T._dot
+  if (!D || D.dpr !== dpr) D = T._dot = { dpr }
+  const A = D[kind] || (D[kind] = [])
+  let s = A[r2]
+  if (s) return s
+  const r = r2 / 2, h = Math.ceil(r * 1.15 + 2.5), n = Math.ceil(2 * h * dpr), c = gCanvas(n, n), x = c.getContext('2d')
+  x.setTransform(dpr, 0, 0, dpr, 0, 0)
+  x.fillStyle = T[kind] || T.item; glyphPath(x, kind, h, h, r); x.fill()
+  x.strokeStyle = T.ring; x.lineWidth = 1.2; glyphPath(x, kind, h, h, r + 0.1); x.stroke()
+  s = A[r2] = { c: gBake(c), h, d: n / dpr }
+  return s
+}
+// 이름 조각 — 테(--g-ring 3px) + 글 한 장 · 글자 기준선은 조각 위에서 13
+//   굵은 이름(올린 점 · 고른 점 · 이웃 · 찾기)은 올릴 때마다 바뀌어 조각을 만들지 않고 바로 쓴다(ImageBitmap 굳히기가 한 장 1 ms 남짓)
+//   한 번 그리기에 새로 만드는 조각은 16 까지 · 넘는 것은 이번만 바로 쓴다
+function gLabSpr(T, m, key, font, txt, col, w, dpr) {
+  const cw = Math.ceil((w + 6) * dpr), ch = Math.ceil(18 * dpr), c = gCanvas(cw, ch), x = c.getContext('2d')
+  x.setTransform(dpr, 0, 0, dpr, 0, 0); x.font = font; x.lineJoin = 'round'
+  x.strokeStyle = T.ring; x.lineWidth = 3; x.strokeText(txt, 3, 13)
+  x.fillStyle = col; x.fillText(txt, 3, 13)
+  const s = { c: gBake(c), w: cw / dpr, h: ch / dpr }; m.set(key, s); m.px += cw * ch
+  return s
+}
+// 이름 너비 — 돌려도 바뀌지 않는다(점마다 글꼴별로 둔다 · 글꼴을 받으면 판 GLG 를 올려 비운다)
+const GLW = new Map()
+let GLG = 0
+function gNodeW(ctx, n, font, txt) { if (n._lg !== GLG) { n._lg = GLG; n._lw = {} } const w = n._lw[font]; return w != null ? w : (n._lw[font] = gTextW(ctx, font, txt)) }
+function gTextW(ctx, font, txt) { const k = font + '\n' + txt; let w = GLW.get(k); if (w == null) { if (GLW.size > 8000) GLW.clear(); ctx.font = font; w = ctx.measureText(txt).width; GLW.set(k, w) } return w }
+const GNOHIT = new Set()
+// 찾기에 맞는 점 — 찾는 말 · 보이는 점이 바뀔 때만 다시 센다(정규화한 이름은 점에 한 번 넣어 둔다)
+function gHitsOf(G, shown, nq) {
+  if (G._hq === nq && G._hv === G.vis) return G._hits
+  const s = new Set()
+  for (const n of shown) if ((n._nl != null ? n._nl : (n._nl = norm(n.label || ''))).includes(nq)) s.add(n.id)
+  G._hq = nq; G._hv = G.vis; G._hits = s
+  return s
+}
 // 그리기(3D) — canvas 하나 · 원근 투영 · 먼 것부터
 //   선은 한 가지 색 · 한 가지 굵기 · 화살표 없음. 「선」 을 끄면 고른 점 · 올린 점의 선만(고른 뒤 보이는 이웃 그림은 늘 선을 그린다)
 //   선이 많을수록 · 멀수록 조금 옅게(투명도 0.12 ~ 0.6) · 끝까지 다 그린다(토막으로 자르면 수염처럼 보였다)
@@ -2978,7 +3032,7 @@ function gPaint() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, W, H0)
   const C = S.g.cam, P = G.P || S.g.pos, f = S.g.f, cx = W / 2, cy = H0 / 2, vis = G.vis
-  const shown = vis ? G.nodes.filter((n) => vis.has(n.id)) : G.nodes
+  const shown = vis ? (G._shV === vis ? G._sh : ((G._shV = vis), (G._sh = G.nodes.filter((n) => vis.has(n.id))))) : G.nodes
   const sy = Math.sin(C.ry), cy2 = Math.cos(C.ry), sx = Math.sin(C.rx), cx2 = Math.cos(C.rx), D = G.R3 * 2.6
   const raw = (p) => { const x1 = p.x * cy2 - p.z * sy, z1 = p.x * sy + p.z * cy2, y1 = p.y * cx2 - z1 * sx, z2 = p.y * sx + z1 * cx2, sc = D / Math.max(D * 0.35, D + z2); return [x1 * sc, y1 * sc, z2, sc] }
   if (C.needFit) {
@@ -3009,38 +3063,43 @@ function gPaint() {
   const Hd = GH != null && by[GH] ? GH : null
   const nb = Hd ? G.nbr[Hd] : null
   // 점을 고른 동안은 찾기로 흐리지 않는다 — 막 보려는 이웃이 흐려지지 않게(UX G1-04)
-  const nq = S.g.sel ? '' : norm(f.q || ''), hits = new Set()
-  if (nq) shown.forEach((n) => { if (norm(n.label).includes(nq)) hits.add(n.id) })
+  const nq = S.g.sel ? '' : norm(f.q || ''), hits = nq ? gHitsOf(G, shown, nq) : GNOHIT
   // 선 — 한 가지. 투명도 통(0.05 간격)마다 Path2D 하나에 모아 한 번 그린다(선마다 stroke 하면 수천 번 · 실측 70 ms 넘게)
-  //   굵기는 1px(굵은 선을 모으면 오히려 느려진다) · 올린 점의 선만 따로 굵게 · 끄는 동안 선이 많으면(1500 넘게) 올린 점 선만
-  const es = G.edges.filter((e) => by[e.a] && by[e.b])
+  //   굵기는 장치 1px(1/dpr · 굵기 1 CSS px 은 DPR 2 에서 프레임 130 ms) · 올린 점의 선만 따로 굵게 · 움직이는 동안 선이 많으면(1500 넘게) 올린 점 선만
+  //   「선」 을 끈 전체 그래프는 모든 선을 돌지 않고 올린 점의 이웃만 본다
+  const es = vis ? (G._esV === vis ? G._es : ((G._esV = vis), (G._es = G.edges.filter((e) => vis.has(e.a) && vis.has(e.b))))) : G.edges
   const fade = Math.max(0.35, Math.min(1, Math.sqrt(400 / Math.max(1, es.length))))
-  const moving = !!(GD && GD.moved) && es.length > 1500
+  const mv = !!GMV || !!(GD && GD.moved), moving = mv && es.length > 1500
   const bins = new Map()
   let litP = null, drawn = 0
-  es.forEach((e) => {
-    const p = by[e.a], q = by[e.b]
-    const lit = !!Hd && (e.a === Hd || e.b === Hd)
-    if (!f.line && !lit && !vis) return
-    if (!lit && (moving || !gBranch(G, e))) return
-    const off = (!!Hd && !lit) || (!!nq && !(hits.has(e.a) || hits.has(e.b)))
-    let path
-    if (lit) path = litP || (litP = new Path2D())
-    else {
-      const al = off ? 0.05 : Math.round((vis ? 0.7 : Math.max(0.12, 0.6 * fade * (p.dep + q.dep) / 2)) * 20) / 20
-      path = bins.get(al) || bins.set(al, new Path2D()).get(al)
+  if (f.line || vis) {
+    for (const e of es) {
+      const p = by[e.a], q = by[e.b]
+      const lit = !!Hd && (e.a === Hd || e.b === Hd)
+      if (!lit && (moving || !gBranch(G, e))) continue
+      const off = (!!Hd && !lit) || (!!nq && !(hits.has(e.a) || hits.has(e.b)))
+      let path
+      if (lit) path = litP || (litP = new Path2D())
+      else {
+        const al = off ? 0.05 : Math.round((vis ? 0.7 : Math.max(0.12, 0.6 * fade * (p.dep + q.dep) / 2)) * 20) / 20
+        path = bins.get(al) || bins.set(al, new Path2D()).get(al)
+      }
+      drawn++
+      path.moveTo(p.X, p.Y); path.lineTo(q.X, q.Y)
     }
-    drawn++
-    path.moveTo(p.X, p.Y); path.lineTo(q.X, q.Y)
-  })
-  ctx.strokeStyle = T.line; ctx.setLineDash([]); ctx.lineWidth = 1
+  } else if (Hd) {
+    const p = by[Hd]
+    for (const o of nb) { const q = by[o]; if (!q) continue; litP = litP || new Path2D(); litP.moveTo(p.X, p.Y); litP.lineTo(q.X, q.Y); drawn++ }
+  }
+  ctx.strokeStyle = T.line; ctx.setLineDash([]); ctx.lineWidth = 1 / dpr
   bins.forEach((path, al) => { ctx.globalAlpha = al; ctx.stroke(path) })
   if (litP) { ctx.globalAlpha = 0.95; ctx.lineWidth = 1.6; ctx.stroke(litP) }
-  // 점 — 먼 것부터 · 고른 점과 이웃은 맨 나중
+  // 점 — 먼 것부터 · 고른 점과 이웃은 맨 나중 · 보통 점은 그림 조각 · 고른 점 · 올린 점 · 묶음은 경로로(강조 테두리)
   const sel = S.g.sel, cur = S.g.cur
-  const rank = (t) => (t.n.id === Hd || t.n.id === cur ? 3 : hits.has(t.n.id) ? 2 : nb && nb.has(t.n.id) ? 1 : 0)
-  const order = [...pts].sort((a, b) => rank(a) - rank(b) || b.z - a.z)
-  order.forEach((t) => {
+  for (const t of pts) { const id = t.n.id; t.k = id === Hd || id === cur ? 3 : hits.has(id) ? 2 : nb && nb.has(id) ? 1 : 0 }
+  const order = pts.slice().sort((a, b) => a.k - b.k || b.z - a.z)
+  const snap = (v) => Math.round(v * dpr) / dpr
+  for (const t of order) {
     const n = t.n, id = n.id, focus = id === Hd, isN = !!nb && nb.has(id), hit = hits.has(id)
     const dim = (!!Hd && !focus && !isN && !hit) || (!!nq && !hit && !focus)
     const a0 = dim ? 0.15 : focus || isN || hit || vis ? 1 : t.dep
@@ -3049,55 +3108,70 @@ function gPaint() {
     if (n.kind === 'bundle') {
       ctx.strokeStyle = T.item; ctx.lineWidth = 2
       ctx.beginPath(); ctx.arc(t.X, t.Y, t.r, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.arc(t.X, t.Y, t.r * 0.6, 0, 7); ctx.stroke()
-    } else {
+    } else if (id === sel || id === cur || focus) {
       ctx.fillStyle = T[n.kind] || T.item
       glyphPath(ctx, n.kind, t.X, t.Y, t.r); ctx.fill()
-      ctx.strokeStyle = id === sel || id === cur ? T.acc : focus ? T.text : T.ring; ctx.lineWidth = id === cur ? 2.5 : id === sel || focus ? 2 : 1.2
+      ctx.strokeStyle = id === sel || id === cur ? T.acc : T.text; ctx.lineWidth = id === cur ? 2.5 : 2
       glyphPath(ctx, n.kind, t.X, t.Y, t.r + ctx.lineWidth / 2 - 0.5); ctx.stroke()
+    } else {
+      const s = gDotSpr(T, n.kind, Math.round(t.r * 2), dpr)
+      ctx.drawImage(s.c, snap(t.X - s.h), snap(t.Y - s.h), s.d, s.d)
     }
-  })
+  }
   // 점 제목 — 늘 보기를 켜면 모두(자리가 없으면 건너뛴다) · 끄면 올린 점 · 고른 점 · 찾기에 맞은 점 · 고른 뒤 보이는 점
   //   전체 그래프에서는 「제목」 을 꺼도 허브(중요도 상위) 이름을 쓴다 — 어디가 중심인지 읽히게
-  const big = shown.length > 90, ff = getComputedStyle(cv).fontFamily, placed = []
+  const big = shown.length > 90, ff = T.ff || (T.ff = getComputedStyle(cv).fontFamily)
   // 폰 폭(칸 600 이하) — 이름끼리 띄움을 넓혀 잰다 · 붙거나 겹칠 이름은 숨긴다(고른 점 · 이웃 이름은 늘 쓴다)
   const gap = W <= 600 ? 4 : 0
-  const clash = (b) => placed.some((o) => b.x < o.x2 + gap && b.x2 + gap > o.x && b.y < o.y2 + gap && b.y2 + gap > o.y)
-  // 폰 폭은 이름이 다른 점의 원을 덮지 않게도 잰다(점 수가 적은 칸이라 값이 싸다)
-  const onDot = (b, me) => gap > 0 && pts.some((o) => { if (o === me) return false; const nx = Math.max(b.x, Math.min(o.X, b.x2)), ny = Math.max(b.y, Math.min(o.Y, b.y2)); return Math.hypot(nx - o.X, ny - o.Y) < o.r + 1 })
-  let lab = 0
-  ctx.lineJoin = 'round'
-  const hubL = (id) => !vis && !Hd && !nq && G.hubs.has(id)
-  let hubN = 0
-  ;[...pts].sort((a, b) => rank(b) - rank(a) || hubL(b.n.id) - hubL(a.n.id) || (hubL(a.n.id) ? G.w[b.n.id] - G.w[a.n.id] : 0) || b.sc - a.sc).forEach((t) => {
-    const n = t.n, pri = rank(t) > 0 || t.n.id === sel, hub = !pri && hubL(n.id)
-    if (!pri && !hub && !(f.label || vis)) return
-    if (!pri && big && n.table) return
-    if (!pri && !!Hd) return
-    ctx.font = `${pri ? '700 ' : hub ? '600 ' : ''}11px ${ff}`
-    const txt = hub ? gFit(n.label, 170, 11) : n.label, w = ctx.measureText(txt).width, h = 13
+  // 자리 겨루기는 32px 칸에 나눠 둔 이름 · 점만 본다(이름마다 모든 이름 · 모든 점을 돌지 않는다)
+  const GC = 32, lgrid = new Map()
+  const cells = (x1, y1, x2, y2, fn) => { const a = Math.floor(x1 / GC), b = Math.floor(x2 / GC), c = Math.floor(y1 / GC), d = Math.floor(y2 / GC); for (let i = a; i <= b; i++) for (let j = c; j <= d; j++) if (fn(i * 1e5 + j)) return true; return false }
+  const clash = (b) => cells(b.x - gap, b.y - gap, b.x2 + gap, b.y2 + gap, (key) => { const L = lgrid.get(key); return !!L && L.some((o) => b.x < o.x2 + gap && b.x2 + gap > o.x && b.y < o.y2 + gap && b.y2 + gap > o.y) })
+  const place = (b) => cells(b.x, b.y, b.x2, b.y2, (key) => { const L = lgrid.get(key); if (L) L.push(b); else lgrid.set(key, [b]); return false })
+  // 폰 폭은 이름이 다른 점의 원을 덮지 않게도 잰다
+  //   점은 덮는 칸(가운데 ± 반지름 + 1) 모두에 넣는다 · 이름 상자가 걸친 칸만 본다
+  let pgrid = null
+  if (gap) { pgrid = new Map(); for (const o of pts) cells(o.X - o.r - 1, o.Y - o.r - 1, o.X + o.r + 1, o.Y + o.r + 1, (key) => { const L = pgrid.get(key); if (L) L.push(o); else pgrid.set(key, [o]); return false }) }
+  const onDot = (b, me) => gap > 0 && cells(b.x, b.y, b.x2, b.y2, (key) => { const L = pgrid.get(key); return !!L && L.some((o) => { if (o === me) return false; const nx = Math.max(b.x, Math.min(o.X, b.x2)), ny = Math.max(b.y, Math.min(o.Y, b.y2)); return Math.hypot(nx - o.X, ny - o.Y) < o.r + 1 }) })
+  let lab = 0, hubN = 0, extra = 0, made = 0
+  const LM = gSprMap(T, '_lab'), hubL = (id) => !vis && !Hd && !nq && G.hubs.has(id)
+  // 쓸 이름만 먼저 거른 뒤 정렬한다(「제목」 을 끄면 허브 · 올린 점 이웃만)
+  const cand = []
+  for (const t of pts) { const id = t.n.id; t.pri = t.k > 0 || id === sel; t.hl = hubL(id); if (!t.pri && !t.hl && !(f.label || vis)) continue; if (!t.pri && big && t.n.table) continue; if (!t.pri && !!Hd) continue; cand.push(t) }
+  cand.sort((a, b) => b.k - a.k || b.hl - a.hl || (a.hl ? G.w[b.n.id] - G.w[a.n.id] : 0) || b.sc - a.sc)
+  for (const t of cand) {
+    const n = t.n, pri = t.pri, hub = !pri && t.hl
+    if (!pri && mv && extra >= 40) continue
+    const font = `${pri ? '700 ' : hub ? '600 ' : ''}11px ${ff}`
+    const txt = hub ? n._fit || (n._fit = gFit(n.label, 170, 11)) : n.label, w = gNodeW(ctx, n, font, txt), h = 13
     const cands = [[t.X + t.r + 4, t.Y + 4], [t.X - t.r - 4 - w, t.Y + 4], [t.X + t.r + 4, t.Y - 9], [t.X + t.r + 4, t.Y + 17]]
     let at = null
     // 점을 덮지 않는 자리를 먼저 · 없으면 이름끼리만 겹치지 않는 자리(빽빽한 무리의 허브 이름이 다 사라지지 않게)
     const box = (c) => ({ x: c[0] - 1, y: c[1] - h + 2, x2: c[0] + w + 1, y2: c[1] + 3 })
-    for (const free of [true, false]) { for (const c of cands) { const b = box(c); if (!clash(b) && (!free || !onDot(b, t))) { at = c; placed.push(b); break } } if (at || !gap) break }
-    if (!at) { if (!pri) return; at = cands[0] }
+    for (const free of [true, false]) { for (const c of cands) { const b = box(c); if (!clash(b) && (!free || !onDot(b, t))) { at = c; place(b); break } } if (at || !gap) break }
+    if (!at) { if (!pri) continue; at = cands[0] }
     ctx.globalAlpha = pri || hub ? 1 : Math.max(0.6, t.dep)
-    ctx.strokeStyle = T.ring; ctx.lineWidth = 3; ctx.strokeText(txt, at[0], at[1])
-    ctx.fillStyle = pri || hub ? T.text : T.text2; ctx.fillText(txt, at[0], at[1])
-    lab++; if (hub) hubN++
-  })
+    const col = pri || hub ? T.text : T.text2, key = font + '|' + col + '|' + dpr + '|' + txt
+    let s = LM.get(key)
+    if (!s && !pri && made < 16) { s = gLabSpr(T, LM, key, font, txt, col, w, dpr); made++ }
+    if (s) ctx.drawImage(s.c, snap(at[0] - 3), snap(at[1] - 13), s.w, s.h)
+    else { ctx.font = font; ctx.lineJoin = 'round'; ctx.strokeStyle = T.ring; ctx.lineWidth = 3; ctx.strokeText(txt, at[0], at[1]); ctx.fillStyle = col; ctx.fillText(txt, at[0], at[1]) }
+    lab++; if (hub) hubN++; if (!pri) extra++
+  }
   ctx.globalAlpha = 1
   GCV = { pts, rc }
   cv.dataset.n = pts.length; cv.dataset.shown = lab; cv.dataset.hubs = hubN; cv.dataset.lines = drawn
-  const c = $('[data-t=gHits]')
-  if (c) c.textContent = nq ? '맞는 점 ' + hits.size : ''
+  const c = $('[data-t=gHits]'), ht = nq ? '맞는 점 ' + hits.size : ''
+  if (c && c.textContent !== ht) c.textContent = ht
 }
 // 천천히 돈다 — 끌거나 점에 올려 둔 동안은 멈춘다(누르려는 점이 달아나지 않게)
 const gCalm = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 function gLoop() { GRAF = 0; if (!$('#gcv') || !S.g.f.spin || GD || GH != null || gCalm()) return; S.g.cam.ry += 0.0016; gPaint(); GRAF = requestAnimationFrame(gLoop) }
 // 캔버스 이름 글자는 DOM 에 없어 글꼴 뒤 파일을 부르지 않는다 · 그래프마다 한 번 그 글자로 불러 둔다(받으면 loadingdone 이 다시 그린다)
 function gFonts() { const G = CURG; if (!G || G._fl || !document.fonts || !document.fonts.load) return; G._fl = true; const t = [...new Set(G.nodes.map((n) => n.label || '').join(''))].join(''); if (t) document.fonts.load('11px "KMD Sans"', t).catch((e) => console.warn('그래프 글꼴을 받지 못했다', e)) }
-function gStart() { if (!S.g.spinSet && GCV && GCV.pts && GCV.pts.length > 400) { S.g.f.spin = false; S.g.spinSet = true } gFonts(); gPaint(); if (!GRAF && S.g.f.spin && !gCalm()) GRAF = requestAnimationFrame(gLoop) }
+// 회전 기본값 — 점 수 × DPR 이 400 을 넘으면 처음부터 끈다(viewGraph 가 조작판을 그리기 전에 정해 단추도 맞게 그린다 · 사람이 단추를 누르면 그 값을 따른다)
+const gSpinOk = (G) => G.nodes.length * Math.max(1, Math.min(3, window.devicePixelRatio || 1)) <= 400
+function gStart() { gFonts(); gPaint(); if (!GRAF && S.g.f.spin && !gCalm()) GRAF = requestAnimationFrame(gLoop) }
 function gHit(x, y) {
   if (!GCV) return null
   const lx = x - GCV.rc.left, ly = y - GCV.rc.top
@@ -3108,7 +3182,8 @@ function gHit(x, y) {
 // 시험이 점 자리를 묻는다(canvas 라 DOM 에 점이 없다)
 window.kmdGraphIds = () => (GCV ? GCV.pts.map((t) => t.n.id) : [])
 window.kmdGraphPt = (id) => { const t = GCV && GCV.pts.find((t) => t.n.id === id); return t ? { x: GCV.rc.left + t.X, y: GCV.rc.top + t.Y } : null }
-function zoomAt(lx, ly, k) { const C = S.g.cam, cv = $('#gcv'); if (!cv) return; const r = cv.getBoundingClientRect(), z2 = Math.max(0.2, Math.min(8, C.zoom * k)), q = z2 / C.zoom, ox = lx - r.width / 2, oy = ly - r.height / 2; C.px = ox - (ox - C.px) * q; C.py = oy - (oy - C.py) * q; C.zoom = z2; gPaint() }
+// mv — 휠 · 집기처럼 이어지는 움직임이면 움직이는 동안 덜 그린다(단추 「+ −」 는 한 번이라 온전히)
+function zoomAt(lx, ly, k, mv) { const C = S.g.cam, cv = $('#gcv'); if (!cv) return; const r = cv.getBoundingClientRect(), z2 = Math.max(0.2, Math.min(8, C.zoom * k)), q = z2 / C.zoom, ox = lx - r.width / 2, oy = ly - r.height / 2; C.px = ox - (ox - C.px) * q; C.py = oy - (oy - C.py) * q; C.zoom = z2; if (mv) gMove(); gPaint() }
 // 점을 누르면
 //   3D — 고른 점이 없거나 안 보이는 점이면 그 점을 고른다(한 겹 이웃만) · 보이는 이웃이면 그 점에서 한 겹 더 뻗는다
 //   2D 표 — 누른 점이 새 가운데(그 점 + 한 겹 이웃) · 앞의 가운데는 「지나온 점」 으로 남아 카드에서 되돌아간다
@@ -3282,11 +3357,13 @@ document.addEventListener('keydown', (ev) => {
 }, true)
 document.addEventListener('keyup', (ev) => { if (ev.code === 'Space' && GSPACE) { GSPACE = false; const w = $('#app .gwrap'); if (w) w.classList.remove('grab') } })
 window.addEventListener('blur', () => { GSPACE = false })
-function viewGraph() {
-  const k = pickKn()
-  if (!k) return { crumb: '그래프', main: viewHome().main }
-  if (S.g.kn !== k) Object.assign(S.g, { kn: k, pos: {}, sub: null, sel: null, open: [], cur: null, visKey: '', layoutKey: '', bundle: false, cam: { rx: -0.35, ry: 0.6, zoom: 1, base: 1, px: 0, py: 0, needFit: true } })
-  if (!M(k)) { const me = modelErr(k); return { crumb: '그래프', main: me ? errHtml(me, 'model:' + k) : loadingHtml, tabs: true } }
+// 그래프 자료(점 · 선 · 이웃 · 중요도 · 허브) — 지식 모형 · 종류 거르기 · 테이블 묶음이 같으면 다시 만들지 않는다
+//   고르기 · 닫기 · 뻗기 · 선/제목 바꾸기마다 graphData 를 새로 만들면 DPMS 에서 7 ~ 12 ms 씩 들었다(2026-11-15 잰 값)
+const GDATA = new WeakMap()
+function gData(k) {
+  const m = M(k), f = S.g.f, key = [f.item, f.doc, f.rec, f.recent, f.orph, S.g.bundle, new Date().toDateString()].join('|')
+  const hit = GDATA.get(m)
+  if (hit && hit.key === key) return hit.G
   const G = graphData(k)
   G.deg = {}; G.nbr = {}
   G.nodes.forEach((n) => { G.deg[n.id] = 0; G.nbr[n.id] = new Set() })
@@ -3297,6 +3374,15 @@ function viewGraph() {
   G.nodes.forEach((n) => { G.w[n.id] = 0 })
   G.edges.forEach((e) => { const x = e.t === 'in' ? 0.25 : 1; G.w[e.a] += x; G.w[e.b] += x })
   G.hubs = new Set(G.nodes.filter((n) => !n.table && n.kind !== 'bundle' && G.w[n.id] >= 2).sort((a, b) => G.w[b.id] - G.w[a.id] || (a.id < b.id ? -1 : 1)).slice(0, Math.min(20, Math.max(5, Math.round(G.nodes.length * 0.03)))).map((n) => n.id))
+  if (m) GDATA.set(m, { key, G })
+  return G
+}
+function viewGraph() {
+  const k = pickKn()
+  if (!k) return { crumb: '그래프', main: viewHome().main }
+  if (S.g.kn !== k) Object.assign(S.g, { kn: k, pos: {}, sub: null, sel: null, open: [], cur: null, visKey: '', layoutKey: '', bundle: false, cam: { rx: -0.35, ry: 0.6, zoom: 1, base: 1, px: 0, py: 0, needFit: true } })
+  if (!M(k)) { const me = modelErr(k); return { crumb: '그래프', main: me ? errHtml(me, 'model:' + k) : loadingHtml, tabs: true } }
+  const G = gData(k)
   if (S.g.sel && !G.nbr[S.g.sel]) Object.assign(S.g, { sel: null, open: [], cur: null })
   if (S.g.cur && !G.nbr[S.g.cur]) S.g.cur = S.g.sel
   G.vis = gVisible(G)
@@ -3309,6 +3395,7 @@ function viewGraph() {
     G.R3 = G.vis && S.g.sub && S.g.sub.R3 ? S.g.sub.R3 : Math.max(100, ...G.nodes.filter((n) => G.P[n.id]).map((n) => { const p = G.P[n.id]; return Math.hypot(p.x, p.y, p.z) }))
   }
   CURG = G
+  if (d3 && !S.g.spinSet) S.g.f.spin = gSpinOk(G)
   const hint = S.g.mode !== '2d' ? '끌기: 돌리기 · 스페이스 · Shift · 오른쪽 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 이웃 한 겹 · 이웃을 누르면 더 뻗는다' : '끌기 · 스페이스 끌기: 옮기기 · 휠: 크게 · 작게 · 점을 누르면 그 점이 가운데'
   const count = `<div class="gkey" data-t="gKey" title="${esc(hint)}"><div class="gtl small"><span data-t="gCount">${gCountText(G, d3)}</span> <b class="t-warn" data-t="gHits"></b></div>`
   const legend = `<div class="glg small" data-t="gLegend">${['doc', 'item', 'rec'].map((v) => `<span class="lgr">${glyphIcon(v)}${KLAB[v]}</span>`).join('')}<span class="lgr"><svg class="gki" viewBox="0 0 16 16" aria-hidden="true"><line class="gln" x1="1" y1="8" x2="15" y2="8"/></svg>이어져 있다</span></div></div>`
@@ -3421,7 +3508,7 @@ document.addEventListener('pointermove', (ev) => {
 })
 document.addEventListener('pointerup', () => { if (!GD) return; const g = GD; GD = null; g.cv.style.cursor = ''; if (!g.moved && g.node) { gClick(g.node); return } gStart() })
 document.addEventListener('contextmenu', (ev) => { if (ev.target.closest && ev.target.closest('#gcv')) ev.preventDefault() })
-document.addEventListener('wheel', (ev) => { const cv = ev.target.closest && ev.target.closest('#gcv'); if (!cv) return; ev.preventDefault(); const r = cv.getBoundingClientRect(); zoomAt(ev.clientX - r.left, ev.clientY - r.top, Math.exp(-ev.deltaY * 0.0015)) }, { passive: false })
+document.addEventListener('wheel', (ev) => { const cv = ev.target.closest && ev.target.closest('#gcv'); if (!cv) return; ev.preventDefault(); const r = cv.getBoundingClientRect(); zoomAt(ev.clientX - r.left, ev.clientY - r.top, Math.exp(-ev.deltaY * 0.0015), true) }, { passive: false })
 window.addEventListener('resize', () => { if ($('#gcv')) gPaint() })
 
 // ───────────── 고치기 저장 — 글을 항목으로 다시 갈라 바뀐 항목만 보낸다 ─────────────
@@ -7255,7 +7342,12 @@ const ACT = {
   moreTables: () => { S.tablesAll = true; render() },
   itemToDoc: (el) => { const it = itemByKey(el.dataset.k, el.dataset.n); if (it && it.doc) openDocAt(el.dataset.k, it.doc, it.sec, null, 'docs') },
   openGraph: (el) => { S.gPop = false; Object.assign(S.g, { kn: S.route.kn, sel: el.dataset.n, open: [], cur: el.dataset.n }); setView('graph') },
-  gSet: (el) => { const v = el.dataset.v; S.g.f[v] = !S.g.f[v]; if (v === 'spin') S.g.spinSet = true; render() },
+  gSet: (el) => {
+    const v = el.dataset.v; S.g.f[v] = !S.g.f[v]; if (v === 'spin') S.g.spinSet = true
+    // 3D 의 선 · 제목 · 회전은 그림만 바꾼다(화면 전체를 다시 그리지 않는다 · 점 자료도 다시 만들지 않는다)
+    if (S.g.mode !== '2d' && CURG && $('#gcv') && (v === 'line' || v === 'label' || v === 'spin')) { el.setAttribute('aria-pressed', String(!!S.g.f[v])); const c = $('[data-t=gCount]'); if (c) c.textContent = gCountText(CURG, true); gStart(); return }
+    render()
+  },
   // 그래프 칸만 어두운 바탕 — 화면 자리(UI)에 남긴다 · 캔버스 색은 다시 읽는다
   setTheme: (el) => { UI.theme = el.dataset.v || ''; saveUi(); applyTheme(); render() },
   gDark: (el) => { UI.gdark = el.dataset.v === '1'; saveUi(); GTOK = null; render() },
@@ -7679,7 +7771,7 @@ async function boot() {
 try { applyTheme() } catch (e) { console.warn('화면 밝기를 맞추지 못했다', e) }
 if (window.matchMedia) matchMedia('(min-width:1025px)').addEventListener('change', () => { if (S.me && MGSCR.includes(S.route.scr)) render() })
 // 글꼴 뒤 파일(KS X 1001 밖 글자)은 DOM 글이 부를 때 온다 · 받은 뒤 그래프 이름을 그 글꼴로 다시 잰다
-if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', () => { if ($('#gcv')) gPaint() })
+if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', () => { GLW.clear(); GLG++; if (GTOK) GTOK._lab = null; if ($('#gcv')) gPaint() })
 if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { GTOK = null; if (S.me) render() })
 boot()
 // 문서 짜임 — 줄 안 이름 칸(Enter 넣기 · Esc 취소 · 벗어나면 맞으면 넣기) · 줄(F2 이름 · Alt ↑↓ 차례 · Enter 고르기)
@@ -7760,7 +7852,7 @@ document.addEventListener('pointermove', (ev) => {
   if (!cv || !d0 || !d1) return
   const r = cv.getBoundingClientRect()
   GD = null // 두 손가락이면 돌리기를 멈춘다
-  zoomAt((a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top, d1 / d0)
+  zoomAt((a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top, d1 / d0, true)
 }, true)
 for (const t of ['pointerup', 'pointercancel']) document.addEventListener(t, (ev) => GP.delete(ev.pointerId), true)
 // 편집기 붙여넣기 — 엑셀 · 표 글(탭으로 나뉜 줄)은 md 표로 · 그림은 넣을 수 없다고 알린다(UX G4-04)
