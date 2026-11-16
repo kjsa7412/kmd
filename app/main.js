@@ -3009,6 +3009,8 @@ function gDotSpr(T, kind, r2, dpr) {
 // 이름 조각 — 테(--g-ring 3px) + 글 한 장 · 글자 기준선은 조각 위에서 13
 //   굵은 이름(올린 점 · 고른 점 · 이웃 · 찾기)도 조각으로 둔다(같은 점에 다시 올리면 drawImage 만)
 //   한 번 그리기에 새로 만드는 조각은 16 까지 · 넘는 것은 이번만 바로 쓴다
+//   처음 본 이름은 바로 그리고 다음 판에서도 쓰일 때 조각으로 만든다(점에 한 번 올린 굵은 이름처럼 한 판만 쓰는 것에 조각을 짓지 않는다)
+const GSEEN = new Map()
 function gLabSpr(T, m, key, font, txt, col, w, dpr) {
   const cw = Math.ceil((w + 6) * dpr), ch = Math.ceil(18 * dpr), c = gCanvas(cw, ch), x = c.getContext('2d')
   x.setTransform(dpr, 0, 0, dpr, 0, 0); x.font = font; x.lineJoin = 'round'
@@ -3177,7 +3179,7 @@ function gPaint() {
     const col = pri || hub ? T.text : T.text2, key = font + '|' + col + '|' + dpr + '|' + txt
     let s = LM.get(key)
     if (s) s.u = GFR
-    else if (made < 16) { s = gLabSpr(T, LM, key, font, txt, col, w, dpr); made++ }
+    else { const f0 = GSEEN.get(key); if (f0 != null && f0 < GFR && made < 16) { s = gLabSpr(T, LM, key, font, txt, col, w, dpr); made++; GSEEN.delete(key) } else if (f0 == null) { if (GSEEN.size > 4000) GSEEN.clear(); GSEEN.set(key, GFR) } }
     if (s) ctx.drawImage(s.c, snap(at[0] - 3), snap(at[1] - 13), s.w, s.h)
     else { ctx.font = font; ctx.lineJoin = 'round'; ctx.strokeStyle = T.ring; ctx.lineWidth = 3; ctx.strokeText(txt, at[0], at[1]); ctx.fillStyle = col; ctx.fillText(txt, at[0], at[1]) }
     lab++; if (hub) hubN++; if (!pri) extra++
