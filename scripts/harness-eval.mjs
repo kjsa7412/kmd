@@ -8,6 +8,8 @@
 //   node scripts/harness-eval.mjs run   --order 설계서먼저|회의록먼저 [--tag 바탕] [--mode oneshot] [--only 1,2,…] [--budget 1]
 //   node scripts/harness-eval.mjs score <지식 폴더> [--log <run.json>]     이미 선 지식만 채점한다(Claude 없이)
 //   node scripts/harness-eval.mjs plan                                      원천 수 · 차례만 보인다(Claude 없이)
+//   node scripts/harness-eval.mjs recall <지식 폴더> [--n 300]              과거 결정 카드의 recall(Claude 없이 · 읽기만): 기록의 글로 카드를 지어
+//                                                                           그 기록이 건드린 항목이 카드에 실리나(설계 9-3 판례 recall · 문턱 0.9)
 //
 //   --mode oneshot  지금 프롬프트(단발 claude -p · 도구 0 · INTAKE_SCHEMA): server/hub.js 의 무인 들이기와 같은 걸음을 core 함수로 밟는다
 //                   (재료 → 초안 → draftToSave → 무인 판정 → 고쳐 받기 두 번 → 규칙 길). H4 뒤에는 세션 방식을 더한다.
@@ -120,6 +122,30 @@ export function scoreKnowledge(k, gold) {
     detail: { docs, kinds, missing, dup, extra, nonItems, nature: natureRows.filter((x) => x.got !== x.want), facts: facts.filter((f) => !f.placed), values, inject: inj },
   }
 }
+// 과거 결정 카드의 recall(모델 없이 · 설계 9-3) — 기록마다 그 글(제목 + 본문 · kmd 가 단 칸은 뗀다)로 카드를 짓고, 그 기록이 건드린 항목이 정체 카드에 실리나.
+//   건드린 항목 가운데 지금 문서에 자리가 있는 것만 센다(폐기 줄은 정본으로). 걸린 길마다 따로 센다.
+const KMD_PARTS = /^## (넣은 것|넣지 못함|되돌린 항목|고친 조각|받아들인 경고|값 대조|이은 항목|새로 세움|지은 근거)[ \t\r]*$/
+export async function recallOf(k, { n = 300 } = {}) {
+  const { precedentsFor } = await import('../core/precedent.js')
+  const { resolveName } = await import('../core/guard.js')
+  const strip = (body) => { const out = []; let skip = false; for (const l of String(body || '').split('\n')) { if (/^## /.test(l)) skip = KMD_PARTS.test(l); if (!skip) out.push(l) } return out.join('\n') }
+  const works = k.works.filter((w) => (w.touches || []).length).slice(0, n)
+  let total = 0, hit = 0
+  const via = {}
+  const miss = []
+  for (const w of works) {
+    const want = [...new Set(w.touches.map((c) => resolveName(k.vocab, c).coord).filter((c) => c && sectionOf(k, c)?.sec))]
+    if (!want.length) continue
+    const p = precedentsFor(k, { q: w.title, text: strip(w.body) })
+    const cards = new Map(p.cards.filter((c) => c.type === '정체').map((c) => [c.key, c.via]))
+    for (const c of want) {
+      total++
+      if (cards.has(c)) { hit++; via[cards.get(c)] = (via[cards.get(c)] || 0) + 1 } else if (miss.length < 20) miss.push({ record: w.id, title: String(w.title).slice(0, 60), coord: c, cut: p.coverage.cut || 0 })
+    }
+  }
+  return { records: works.length, total, hit, recall: total ? Math.round((hit / total) * 10000) / 10000 : null, via, miss }
+}
+
 // 문턱(설계 9-3)
 export const GATES = { f1: ['>=', 0.85], nature: ['>=', 0.9], dupRate: ['<=', 0.05], missRate: ['<=', 0.1], valueRate: ['>=', 1], injected: ['<=', 0] }
 export const gateOf = (s) => Object.fromEntries(Object.entries(GATES).map(([k, [op, v]]) => [k, op === '>=' ? s[k] >= v : s[k] <= v]))
@@ -257,7 +283,19 @@ async function main() {
     console.log(JSON.stringify({ ...s, gates: gateOf(s) }, null, 2))
     return
   }
-  if (cmd !== 'run') { console.error('쓰는 법: harness-eval.mjs run --order <차례> | score <지식 폴더> | plan'); process.exit(2) }
+  if (cmd === 'recall') {
+    const dir = path.resolve(process.argv[3])
+    const k = await loadKnowledge({ id: path.basename(dir), name: path.basename(dir), dir })
+    const r = await recallOf(k, { n: Number(arg('n', '300')) || 300 })
+    await fs.mkdir(OUT_DIR, { recursive: true })
+    const out = path.join(OUT_DIR, `${new Date().toISOString().slice(0, 10)}-recall-${path.basename(dir)}.json`)
+    await fs.writeFile(out, JSON.stringify({ dir, head: execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT }).toString().trim(), items: k.vocab.coords.size, ...r }, null, 2) + '\n')
+    console.log(`${path.basename(dir)}: 기록 ${r.records} · 건드린 항목 ${r.total} · 카드에 실림 ${r.hit} · recall ${r.recall} · 길 ${JSON.stringify(r.via)}`)
+    for (const m of r.miss.slice(0, 8)) console.log(`  빠짐: ${m.coord} ← ${m.title}${m.cut ? ` (잘림 ${m.cut})` : ''}`)
+    console.log(`결과: ${path.relative(ROOT, out)}`)
+    return
+  }
+  if (cmd !== 'run') { console.error('쓰는 법: harness-eval.mjs run --order <차례> | score <지식 폴더> | recall <지식 폴더> | plan'); process.exit(2) }
   const order = arg('order')
   if (!gold.orders[order]) { console.error(`차례를 고른다: ${Object.keys(gold.orders).join(' · ')}`); process.exit(2) }
   const mode = arg('mode', 'oneshot')

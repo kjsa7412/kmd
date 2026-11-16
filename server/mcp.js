@@ -16,6 +16,8 @@ import { splitBlocks } from '../core/baseline.js'
 import { readDecl, everyMs } from '../core/sources.js'
 import { TEAM_KIT_REV } from '../core/teamkit.js'
 import { PC_KIT_REV } from '../core/kit.js'
+import { precedentsFor, seedKindCards } from '../core/precedent.js'
+import { GEN_RULES_REV, rulesHash, ruleTitles } from '../core/genrules.js'
 
 
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05']
@@ -40,13 +42,13 @@ const str = (description) => ({ type: 'string', description })
 const TOOLS = [
   {
     name: 'brief',
-    description: '지금 kmd 에 무엇이 있나: 지식 목록 · 지식 하나의 문서 · 최근 기록 · 종류(kinds) · 갈래(forms) · 저장 방식(saveMode: approve — 저장 제안을 승인받아 save) · kit(스킬 판: save 의 kit 에 그대로 싣는다 · 측정에만 쓴다). 팀 지식이면 지식마다 mine(accepted: 승인으로 경고를 받아들인 내 기록 수) · 지식 하나의 you.recent(그 기록의 제목 · 까닭) · parser(대량 넣기 파서 꾸러미: ver · url · sha256 · bytes · 없으면 null). 일을 시작할 때 한 번.',
+    description: '지금 kmd 에 무엇이 있나: 지식 목록 · 지식 하나의 문서 · 최근 기록 · 종류(kinds) · 갈래(forms) · 생성 룰의 판과 조문 제목(rulesRev · ruleTitles) · 종류의 뜻(kindCards) · 문서의 성격(natures) · 저장 방식(saveMode: approve — 저장 제안을 승인받아 save) · kit(스킬 판: save 의 kit 에 그대로 싣는다 · 측정에만 쓴다). 팀 지식이면 지식마다 mine(accepted: 승인으로 경고를 받아들인 내 기록 수) · 지식 하나의 you.recent(그 기록의 제목 · 까닭) · parser(대량 넣기 파서 꾸러미: ver · url · sha256 · bytes · 없으면 null). 일을 시작할 때 한 번.',
     inputSchema: { type: 'object', properties: { knowledge: str('지식 id(없으면 목록)') } },
   },
   {
     name: 'match',
-    description: '이름으로 항목을 찾는다. 항목 값 · 라벨 · 별칭 · 항목 머리가 정확히 같으면 found(확정). weak 는 약한 대조다. 확정하지 말고 같이 실린 후보(ladder)를 보거나 search 로 넓힌다. found 가 비면 「값 · 라벨 · 별칭 · 머리에는 없다」 는 뜻이고, ladder 는 비슷한 글이다.',
-    inputSchema: { type: 'object', properties: { q: str('찾을 이름'), knowledge: str('지식 id(없으면 지식마다 따로)') }, required: ['q'] },
+    description: '이름으로 항목을 찾는다. knowledge 를 주면 과거 결정 카드(cards: 정체 · 놓임 · 꼴 · 열쇠 key 로 가리킨다) · 앞선 값(prior) · 덮임 줄(coverage) · 목차(toc)를 같이 준다: 넣을 글(source)을 같이 주면 그 글에 나오는 있는 항목도 카드로 실린다. 카드는 과거 결정(판례)이지 답이 아니다(생성 룰 R8). 항목 값 · 라벨 · 별칭 · 항목 머리가 정확히 같으면 found(확정). weak 는 약한 대조다. 확정하지 말고 같이 실린 후보(ladder)를 보거나 search 로 넓힌다. found 가 비면 「값 · 라벨 · 별칭 · 머리에는 없다」 는 뜻이고, ladder 는 비슷한 글이다.',
+    inputSchema: { type: 'object', properties: { q: str('찾을 이름'), knowledge: str('지식 id(없으면 지식마다 따로)'), source: str('넣을 글(원천 본문 · 6만 자까지): 그 글에 나오는 있는 항목을 과거 결정 카드로 싣는다') }, required: ['q'] },
   },
   {
     name: 'search',
@@ -194,6 +196,13 @@ export function makeMcp(store) {
         you: { role: store.mode === 'pc' ? '주인' : store.roleIn(k.id, ctx), direct: store.mode === 'pc' || store.canSave(ctx, k.id), ...(store.mode === 'pc' ? {} : { ledgers: store.canDirect(ctx, k.id) }), ...(mine || {}) },
         // 지식 생성 가드(작성기준 9절) — 항목의 종류 · 새 문서의 갈래 · 지키는 법. save 가 같은 규칙으로 거절한다
         kinds: [...new Set([...k.vocab.coords.keys()].map((c) => c.slice(0, c.indexOf(':'))))],
+        // 생성 룰(지식 생성 하네스 H3 · 새 칸 — 옛 칸은 그대로 둔다): 판 · 지문 · 조문 제목 · 씨앗 종류와 이 지식의 종류 뜻 · 문서 성격 줄 · 새 문서가 닫음인가
+        rulesRev: GEN_RULES_REV,
+        rulesHash: rulesHash(),
+        ruleTitles: ruleTitles(),
+        kindCards: { seed: seedKindCards(), own: [...(k.vocab.kinds || new Map()).entries()].map(([kind, gist]) => ({ kind, gist })) },
+        natures: [...(k.forms.natures || new Map()).entries()].map(([doc, v]) => ({ doc, nature: v.nature, ...(v.summary ? { summary: v.summary } : {}) })),
+        formsOwn: !!k.forms.closed,
         forms: k.forms.rows.map((f) => ({ name: f.name, aliases: f.aliases, ...(f.folder ? { folder: f.folder } : {}), kind: f.kind, ...(f.pattern ? { pattern: f.pattern } : {}), ...formGuide(f) })),
         rules: [
           'touches 는 match 로 찾은 항목 장부의 항목만. 새 항목은 names 로 같이 세운다(값은 빈칸 없는 열쇠 · 설명은 label)',
@@ -207,8 +216,9 @@ export function makeMcp(store) {
       }
     },
 
-    async match({ q, knowledge }, ctx) {
+    async match({ q, knowledge, source }, ctx) {
       if (!q || typeof q !== 'string') throw new KmdError('E_INPUT', '찾을 이름(q)이 없다')
+      if (source != null && (typeof source !== 'string' || source.length > 60_000)) throw new KmdError('E_INPUT', '넣을 글(source)은 6만 자까지의 글이다')
       // 1단(정확한 이름)만 확정이다. 없거나 · 약하거나 · 항목이 비었으면 같은 응답에 2 ~ 4단을 싣는다
       const rs = await store.search(ctx, knowledge || null, { q })
       const found = []
@@ -231,6 +241,12 @@ export function makeMcp(store) {
       if (weak.length) out.weak = { items: weak, note: '말이 이름을 품거나 이름이 말을 품어 걸렸다. 확정하지 말 것' }
       if (ladders.some((l) => l.coords.length || l.passages.length)) out.ladder = ladders
       if (!found.length) out.note = '항목 값 · 라벨 · 별칭 · 항목 머리에는 없다. 아래는 비슷한 글이다(정리된 문서가 아니다). 사용자 질문은 search 의 q 로'
+      // 과거 결정 카드(지식 생성 하네스 H3 · H-D5) — 지식 하나를 가리켰을 때만 · 그 지식을 읽을 자리로 거른 것(store.get 이 404 로 막는다) · 옛 칸은 그대로 둔다
+      if (knowledge) {
+        const k = await store.get(knowledge, ctx)
+        const p = precedentsFor(k, { q, text: source || '' })
+        Object.assign(out, { cards: p.cards, prior: p.prior, coverage: p.coverage, toc: p.toc, ...(p.none ? { none: p.none } : {}), ...(p.tocCut ? { tocCut: true } : {}), rulesRev: GEN_RULES_REV })
+      }
       return out
     },
 

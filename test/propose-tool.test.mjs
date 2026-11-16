@@ -198,3 +198,38 @@ test('section history · brief mine.accepted(b1)', async () => {
   const one = await mcp('brief', { knowledge: 'dpms' })
   assert.equal(one.you.accepted, 0)
 })
+
+test('과거 결정 카드(지식 생성 하네스 H3): match 가 카드 · 앞선 값 · 덮임 줄을 준다 · brief 가 생성 룰의 판과 조문 제목을 준다 · 옛 칸은 그대로 · 자리로 거른다', async () => {
+  const m = await mcp('match', { q: '카나리', knowledge: 'dpms', source: '# 배포 메모\n\n카나리 비율을 30% 로 올리고 헬스 체크 시간 초과를 5초로 한다.' }, P.rd)
+  // 옛 칸
+  assert.equal(m.found[0].coord, 'proc:카나리')
+  // 새 칸 — 카드는 번호가 아니라 열쇠로 가리킨다
+  const id = m.cards.filter((c) => c.type === '정체')
+  const hit = id.find((c) => c.key === 'proc:카나리')
+  assert.deepEqual([hit.via, hit.doc, hit.heading, hit.kind, typeof hit.base, typeof hit.body], ['이름 맞음', '배포절차', '카나리', 'proc', 'string', 'string'])
+  assert.ok(hit.gist && hit.gistFrom === '첫 문장') // 뜻 한 줄이 없는 옛 줄은 항목 글의 첫 문장으로
+  assert.ok(id.some((c) => c.key === 'proc:헬스 체크' && c.via === '원천에 나옴'), JSON.stringify(id.map((c) => [c.key, c.via]))) // 넣을 글에 나오는 있는 항목(거꾸로 대기)
+  assert.ok(m.cards.some((c) => c.type === '놓임' && c.key === '배포절차'))
+  assert.ok(m.cards.some((c) => c.type === '꼴' && c.key === 'proc' && c.items >= 1))
+  assert.ok(m.cards.every((c) => !('n' in c) && !('no' in c)))
+  assert.match(m.coverage.line, /^이름으로는 전수 \d+ · 뜻으로는 상위 \d+ \/ \d+/)
+  assert.ok(Array.isArray(m.prior) && Array.isArray(m.toc) && m.toc.some((t) => t.doc === '배포절차'))
+  assert.equal(m.rulesRev, 1)
+  // 걸리는 이름이 없으면 「판례 없음」 한 줄
+  const none = await mcp('match', { q: '없는이름xyz', knowledge: 'dpms' }, P.rd)
+  assert.equal(none.cards.filter((c) => c.type === '정체').length, 0)
+  assert.match(none.none, /^판례 없음\(항목 \d+ 을 이름으로 다 댔다 · 맞은 것 0\)/)
+  // 지식을 가리키지 않으면 카드는 없다(옛 응답 그대로)
+  assert.equal((await mcp('match', { q: '카나리' }, P.rd)).cards, undefined)
+  // 자리 — 받지 않은 지식의 카드는 404 로 막힌다
+  const no = await req('/mcp', P.no, { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'match', arguments: { q: '카나리', knowledge: 'dpms' } } })
+  assert.equal(no.j.result.structuredContent.error, 'E_NOTFOUND')
+  assert.equal(no.j.result.structuredContent.cards, undefined)
+  // 넣을 글 길이
+  assert.equal((await mcp('match', { q: '카나리', knowledge: 'dpms', source: 'x'.repeat(60_001) }, P.rd)).error, 'E_INPUT')
+  // brief — 새 칸(옛 칸 rules · forms · kinds 는 그대로)
+  const b = await mcp('brief', { knowledge: 'dpms' }, P.rd)
+  assert.deepEqual([b.rulesRev, b.ruleTitles.length, b.ruleTitles[1], typeof b.rulesHash, b.formsOwn], [1, 10, 'R1 무엇이 항목 하나인가', 'string', false])
+  assert.ok(b.kindCards.seed.some((x) => x.kind === '회의' && x.nature === '사건' && x.gist))
+  assert.ok(Array.isArray(b.natures) && Array.isArray(b.rules) && Array.isArray(b.kinds) && Array.isArray(b.forms))
+})
