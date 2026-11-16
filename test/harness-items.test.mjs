@@ -95,6 +95,8 @@ test('사람 채널: 제안서에 지은 근거 · 승인한 저장이 기록 �
   assert.match(rec, /## 지은 근거\n- 새 항목 회의록 › 2026-11-10 주간 회의: R4-1 · R5-1 · proc:카나리 해당 없음/)
   assert.match(rec, /근거 날짜: 2026-11-10/)
   assert.match(rec, /touches:.*회의:2026-11-10_주간_회의/s)
+  // 새 문서 글 — `# 제목` 아래에 요약(R3-4)
+  assert.ok(fs.readFileSync(path.join(KD(), 'docs', '회의록.md'), 'utf8').replace(/\r/g, '').startsWith('# 회의록\n\n회의마다 정한 것과 남은 것을 적는다.\n\n## 2026-11-10 주간 회의\n'))
   const forms = fs.readFileSync(path.join(KD(), '_forms.md'), 'utf8')
   assert.match(forms, /- 새 문서: 열림/)
   assert.match(forms, /\| 회의록 \| 회의, 주간 회의 \| - \| 사건 \|/)

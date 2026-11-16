@@ -664,7 +664,9 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
     const shape = new Map()
     for (const p of plan) {
       const raw = await fs.readFile(p.full, 'utf8').catch(() => null)
-      const start = raw == null ? `# ${path.basename(p.rel, '.md')}\n` : readText(raw)
+      // 새 문서 — `# 제목` 아래에 요약 1 ~ 3문장(생성 룰 R3-4 · 문서 성격 줄의 요약이 있을 때)
+      const sum0 = raw == null ? naturesIn.find((x) => `docs/${x.doc}.md` === p.rel)?.summary || '' : ''
+      const start = raw == null ? `# ${path.basename(p.rel, '.md')}\n${sum0 ? `\n${sum0}\n` : ''}` : readText(raw)
       // 새 문서는 kmd 가 세운 「# 이름」 과 견준다(요약이 없는 것은 이 저장 탓이 아니다)
       if (!shape.has(p.rel)) shape.set(p.rel, { before: start, after: null })
       // 사람 · 세션의 저장은 그 항목의 저절로 채우는 표를 그대로 둔다(블록 안은 원천 실행기 · 기계 열쇠만)

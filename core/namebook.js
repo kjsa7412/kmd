@@ -167,7 +167,7 @@ export function upsertNatures(text, rows) {
   for (const r of rows) {
     const doc = nfc(String(r?.doc || '')).replace(/\\/g, '/').replace(/^docs\//, '').replace(/\.md$/, '').replace(/[\r\n`|]/g, ' ').trim()
     if (!doc || have.has(doc) || add.some((x) => x.doc === doc) || !FORM_KINDS.includes(r.nature)) continue
-    add.push({ doc, nature: r.nature, summary: nfc(String(r.summary || '')).replace(/[\r\n`|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) })
+    add.push({ doc, nature: r.nature, summary: nfc(String(r.summary || '')).replace(/[\r\n`|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300) })
   }
   if (!add.length) return t.endsWith('\n') ? t : t + '\n'
   const lines = t.replace(/\n+$/, '').split('\n')
@@ -190,7 +190,7 @@ export function cleanNatures(list) {
     if (!x || typeof x !== 'object' || typeof x.doc !== 'string' || !FORM_KINDS.includes(x.nature)) return null
     const doc = nfc(x.doc).replace(/\\/g, '/').replace(/^docs\//, '').replace(/\.md$/, '').trim()
     if (!doc || doc.length > 200 || /[\r\n`|]/.test(doc) || doc.split('/').some((p) => !p.trim() || p === '.' || p === '..' || ['__proto__', 'prototype', 'constructor'].includes(p))) return null
-    out.push({ doc, nature: x.nature, summary: nfc(String(x.summary || '')).replace(/[\r\n`|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) })
+    out.push({ doc, nature: x.nature, summary: nfc(String(x.summary || '')).replace(/[\r\n`|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300) })
   }
   return out
 }

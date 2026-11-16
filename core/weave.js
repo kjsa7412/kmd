@@ -29,6 +29,10 @@ const stemOf = (p) => docId(p).split('/').pop()
 export const GIST_MAX = 80
 export const cleanGist = (s) => nfc(String(s ?? '')).replace(/[\r\n`|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, GIST_MAX)
 
+// 문서 요약 — 「이 문서는 무엇을 어떤 단위로 적나」 1 ~ 3문장(R3-4) · 한 줄 · 300자 · 문서 성격 표의 요약 칸과 새 문서 글의 `# 제목` 아래에 선다
+export const SUMMARY_MAX = 300
+export const cleanSummary = (s) => nfc(String(s ?? '')).replace(/[\r\n`|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, SUMMARY_MAX)
+
 // 값(열쇠) — 식별자가 있으면 그대로 · 없으면 머리에서: 「값: 설명」 꼴이면 「값」 · 빈칸은 「_」 · 열쇠에 못 쓰는 글자는 뺀다(R5-2 · 가드 G1 안내와 같다)
 export function valueOf({ id = null, heading = '' } = {}) {
   let v = nfc(String(id ?? '').trim())
@@ -101,7 +105,7 @@ export function weave(k0, { lines = [], docs = [] } = {}) {
       fold.push({ what: 'doc', from: docId(path), to: docId(to), why: `「${f.name}」 갈래(${f.kind})가 이미 모은다` })
       continue
     }
-    if (nature) natures.push({ doc: docId(path), nature, summary: cleanGist(d.summary).slice(0, GIST_MAX) })
+    if (nature) natures.push({ doc: docId(path), nature, summary: cleanSummary(d.summary) })
     if (nature && GATHER_KINDS.includes(nature) && !k.forms.rows.some((x) => nfc(x.name) === nfc(stem))) {
       const folder = docId(path).includes('/') ? docId(path).slice(0, docId(path).lastIndexOf('/')) : ''
       const aliases = (Array.isArray(d.gather?.aliases) ? d.gather.aliases : []).map((a) => cleanGist(a).replace(/,/g, ' ')).filter((a) => a && sq(a) !== sq(stem)).slice(0, 8)
