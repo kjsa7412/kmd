@@ -383,9 +383,10 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       // 들이기 일감 전용 단기 열쇠(kmdd_) — 그 일감 · 그 지식의 재료 · 초안 길만
       // 에이전트 단기 열쇠(kmda_) — 개인 프로그램의 넣은 파일 에이전트만 · 그 지식 · 그 일의 MCP 길만(요구 v0.2 R8 · 팀 서버는 S13 에 껐다 · S-D21)
       if (m[1].startsWith('kmda_')) {
-        if (mode === 'team') throw new KmdError('E_AUTH', '팀 서버는 에이전트 열쇠를 받지 않는다')
         const actx = hub.agentCtx(m[1])
         if (!actx) throw new KmdError('E_AUTH', '이 일의 열쇠가 끝났다')
+        // 팀 서버는 세션 일감(팀 일꾼이 띄운 세션 · 지식 생성 하네스 H-D34)의 열쇠만 받는다: 그 지식 · 그 일감 · MCP 길 · 무인 저장 문만
+        if (mode === 'team' && !actx.agent?.intake?.team) throw new KmdError('E_AUTH', '팀 서버는 세션 일감의 열쇠만 받는다')
         return { ctx: actx }
       }
       if (m[1].startsWith('kmdd_')) {
@@ -529,7 +530,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return out(200, await hub.workerStatus(ctx, await readBody(req)))
     }
     // 들이기 일감(S7 · 설계 3-5) — 재료(GET) · 소식 · 끝 · 못 받음(POST · S-D54) · 열쇠의 지식 · 일감 꼴은 hub 가 본다
-    const wi = p.match(/^\/api\/k\/([^/]+)\/worker\/intake(?:\/(progress|done|fail))?$/)
+    const wi = p.match(/^\/api\/k\/([^/]+)\/worker\/intake(?:\/(progress|done|fail|session))?$/)
     if (wi) {
       if (!ctx?.draft) throw new KmdError('E_FORBIDDEN', '이 일감의 열쇠로 부른다')
       const kn = dec(wi[1])
@@ -538,6 +539,9 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const b = await readBody(req, wi[2] === 'done' ? 8 << 20 : undefined)
       if (!b || typeof b !== 'object' || Array.isArray(b)) throw new KmdError('E_INPUT', '몸은 { … } 이다')
       if (wi[2] === 'progress') return out(200, await hub.intakeProgress(ctx, kn, b))
+      // 세션 일감(H-D34) — 표 받기 · 세션 끝({ session: { ok, error, message, cost } })
+      if (wi[2] === 'session') return out(200, await hub.intakeSession(ctx, kn))
+      if (wi[2] === 'done' && b.session && typeof b.session === 'object') return out(200, await hub.intakeSessionDone(ctx, kn, { ok: b.session.ok === true, error: b.session.error, message: b.session.message, cost: b.session.cost }))
       if (wi[2] === 'done') return out(200, await hub.intakeDone(ctx, kn, { draft: b.draft, cost: b.cost }))
       return out(200, await hub.intakeFail(ctx, kn, { why: b.why, code: b.code }))
     }

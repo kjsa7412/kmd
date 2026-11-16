@@ -18,6 +18,7 @@ import { FIX_SCHEMA, corrPromptOf, corrRetryPromptOf } from './fix.js'
 import { WRITE_RULES } from './writerules.js'
 import { SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SHAPE_CLAUDE_TYPES, SEED_PLAN_SCHEMA, seedPlanPromptOf, seedPlanFixPromptOf } from './shape.js'
 import { modelOf } from './models.js'
+import { runAgent, agentAvailable } from './agent.js'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -25,7 +26,10 @@ import path from 'node:path'
 // 멈추는 까닭 — 다음 자리에서 다시 불러도 같다(로그인 · 한도 · claude 없음)
 // 이 일꾼이 아는 일감 type(일감을 물을 때 싣는다)
 //   shape-seed — 기초 세우기 구조안(재료 kind seed · SEED_PLAN_SCHEMA)을 안다(TODO 10 · 서버는 이것을 알린 일꾼에게만 기초 세우기 일감을 준다)
+//   session — 파일 · 커밋 들이기를 세션으로 돈다(지식 생성 하네스 H-D34): Claude Code 세션을 띄워 팀 서버의 MCP 에 붙는다.
+//     Claude Code 를 세션으로 띄울 수 있을 때만 알린다(시험의 한 번 부르기 가짜만 있으면 옛 단발 길 · 단발 길은 H4a 의 남은 걸음에서 걷는다)
 export const KNOWN_TYPES = ['file', 'commit', 'fix', 'polish', ...SHAPE_CLAUDE_TYPES, 'shape-seed']
+export const knownTypes = () => (agentAvailable() ? [...KNOWN_TYPES, 'session'] : KNOWN_TYPES)
 const STOP = { login: '로그인이 끝났다', limit: '한도에 닿았다', missing: 'Claude Code(claude) 가 설치되어 있지 않다' }
 async function call(server, key, p, body) {
   const r = await fetch(server + p, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
@@ -55,7 +59,56 @@ const TICK = () => Number(envOf('KMD_WORKER_TICK_MS', 'KMD_TIDY_TICK_MS')) || 15
 //   일꾼은 쓰지 않는다: 서버가 시도를 세고(본문의 tries 를 믿지 않는다) · 검사하고 · 저장 한 번으로 넣거나 기록만 + 넣지 못함
 //   돌려주는 것 { job, summary: { put, held, rule }, rec?, skipped?, requeued? }
 //   approve 모드 지식(저장 승인 P6)은 넣지 못함이 없다: 끝내 검사를 못 넘으면 서버가 규칙 길로 넣는다(rule · 까닭) · 그사이 항목이 바뀌면 다시 대기(requeued · 새 재료로 다시 짓는다)
+// 세션 일감 하나(지식 생성 하네스 H4a · H-D34) — 표(단기 열쇠 · 일 설명 · system 글 · 파일)를 받아 Claude Code 세션을 띄운다.
+//   세션은 읽기 도구(일 폴더 안)와 kmd MCP 만 쥔다(core/agent.js): 스스로 brief → match → section 으로 찾고 save 로 낸다. 검사 · 저장 · 일감 닫기는 서버가 한다.
+export async function sessionOnce({ server, key, job, dkey, log = () => {}, models = null, gate = slots(PAR) }) {
+  const base = `/api/k/${encodeURIComponent(job.kn)}/worker/intake`
+  let t
+  try {
+    t = await call(server, dkey, `${base}/session`, {})
+  } catch (e) {
+    log(`세션 일감을 받지 못했다: ${job.kn}: ${e.message}`)
+    return { job, summary: { put: 0, held: 0 }, skipped: e.message }
+  }
+  const name = `${job.kn}: ${job.id}`
+  let lost = false
+  let stop = false
+  let last = 0
+  const tick = () => {
+    if (Date.now() - last < TICK()) return
+    last = Date.now()
+    call(server, dkey, `${base}/progress`, { tick: true }).then((p) => { if (p?.stop) stop = true }, (e) => { if (e.status === 401 || e.status === 403) lost = true })
+  }
+  const ac = new AbortController()
+  const watch = setInterval(() => { tick(); if (stop || lost) ac.abort() }, 2000)
+  await gate.take()
+  let r
+  const t0 = Date.now()
+  try {
+    r = await runAgent({ prompt: t.prompt, system: t.system, files: (t.files || []).map((f) => ({ name: f.name, data: Buffer.from(String(f.b64 || ''), 'base64') })), mcp: { url: `${String(server).replace(/\/+$/, '')}/mcp`, token: t.token }, budget: Number(t.budget) > 0 ? Number(t.budget) : 3, timeoutMs: (Number(t.minutes) > 0 ? Number(t.minutes) : 20) * 60_000, model: modelOf('agent', models), onLine: () => tick(), signal: ac.signal })
+  } finally {
+    gate.give()
+    clearInterval(watch)
+  }
+  log(`${name}: 세션 ${r.ok ? '끝' : `못 끝냄(${r.error})`} · ${Math.round((Date.now() - t0) / 1000)}초${r.cost ? ` · $${Number(r.cost).toFixed(3)}` : ''}`)
+  if (lost) return { job, summary: { put: 0, held: 0 }, skipped: 'lost' }
+  const code = r.ok ? null : ['login', 'limit'].includes(r.error) ? r.error : /ENOENT|not recognized|찾을 수 없/i.test(String(r.message || '')) ? 'missing' : r.error || 'fail'
+  const d = await call(server, dkey, `${base}/done`, { session: { ok: !!r.ok, error: code, message: String(r.message || '').replace(/\s+/g, ' ').slice(0, 200), cost: r.cost || 0 } }).catch((e) => ({ error: e.message }))
+  if (d.error) { log(`${name}: 세션 끝을 알리지 못했다(${d.error})`); return { job, summary: { put: 0, held: 0 }, skipped: d.error } }
+  if (code && STOP[code]) {
+    log(`팀 일꾼이 쉰다: ${STOP[code]}`)
+    await call(server, key, '/api/worker/status', { ok: false, reason: code, message: STOP[code] }).catch((e) => log(`일꾼 상태를 알리지 못했다(${e.status || e.message})`))
+    return { job, summary: { put: 0, held: 0 }, skipped: code, stop: code }
+  }
+  await call(server, key, '/api/worker/status', { ok: true }).catch((e) => log(`일꾼 상태를 알리지 못했다(${e.status || e.message})`))
+  if (d.requeued) return { job, summary: { put: 0, held: 0, rule: 0 }, requeued: true }
+  if (d.stopped || d.aborted) return { job, summary: { put: 0, held: 0, rule: 0 }, skipped: d.stopped ? 'stopped' : 'aborted' }
+  log(`${name}: ${d.same ? '같은 것을 이미 들였다' : `넣음 ${d.put || 0}${d.rule ? ` · 규칙 길(${String(d.rule).slice(0, 120)})` : ''}`}`)
+  return { job, summary: { put: d.put || 0, held: 0, rule: d.rule ? 1 : 0 }, rec: d.rec || null }
+}
+
 export async function intakeOnce({ server, key, job, dkey, log = () => {}, budget = BUDGET(), models = null, gate = slots(PAR) }) {
+  if (job.session) return sessionOnce({ server, key, job, dkey, log, models, gate })
   const kn = encodeURIComponent(job.kn)
   const base = `/api/k/${kn}/worker/intake`
   let lost = false
@@ -129,7 +182,7 @@ export async function intakeOnce({ server, key, job, dkey, log = () => {}, budge
 
 // 일감 하나 — 없으면 null · models — 일마다 모델(core/models.js · 없으면 기본 배분) · 서버는 들이기 일감만 낸다(S13)
 export async function workOnce({ server, key, log = () => {}, budget = BUDGET(), models = null, gate = slots(PAR) }) {
-  const n = await call(server, key, '/api/worker/next', { types: KNOWN_TYPES })
+  const n = await call(server, key, '/api/worker/next', { types: knownTypes() })
   if (!n.job) return null
   if (n.job.kind !== 'intake') {
     log(`모르는 일감이다(${n.job.kind}): 건너뛴다`)

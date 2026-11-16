@@ -80,7 +80,7 @@
 - [x] 자리 없는 옛 항목장부 줄에 자리 채움(H-O3 · 빈 자리일 때만 · `names[].fill` · 쓰기 자리도 한다 · 제안서 「자리 채움」 줄 · `## 새로 세움` 의 「자리」).
 - 같이 고친 기준: 작성기준 6절(갈래 장부) · 9절 G4 · 저장승인 설계 P-D9 · 설계 H-D35. 화면: 점검 카드의 「갈래 장부 없음(기본 갈래)」 → 「없음」 · 닫음이면 「새 문서 닫음」.
 
-### H3 과거 결정 카드
+### H3 과거 결정 카드 · `3d05585`
 
 - [x] `core/precedent.js` `precedentsFor(k, { q, text })`: 정체 카드(이름 맞음 · 비슷함 · 원천에 나옴(거꾸로 대기 · 항목 안의 표 첫 열 · 굵은 라벨 · 정의 이름 포함) · 낱말(뜻 한 줄 · 없으면 첫 문장)) · 놓임 카드(문서 · 모으는 갈래) · 꼴 카드(종류마다 한 줄) · 앞선 값(기록의 「바뀐 것」 줄 · 사건 항목 글 · 근거 날짜) · 덮임 줄 · 목차 · 「판례 없음」 한 줄. 기록 모음과 `들인 자료/` 는 뺀다. 카드는 열쇠로 가리킨다(번호 없음). 글과 base 는 이름 맞음 · 비슷함 위 다섯만(1500자), 정체 카드 상한 60.
 - [x] MCP `match`(지식을 가리켰을 때 `cards` · `prior` · `coverage` · `toc` · `none` · 새 입력 `source` = 넣을 글) · `brief`(`rulesRev` · `rulesHash` · `ruleTitles` · `kindCards` · `natures` · `formsOwn`)가 그 카드를 준다. 옛 칸은 남기고 더하기만. 응답은 자리로 거른다(`store.get(knowledge, ctx)` · 받지 않은 지식은 404). 시험 `test/propose-tool.test.mjs`.
@@ -88,7 +88,10 @@
 
 ### H4 세션 통일 · 규칙 길 걷기 · 다시 시도
 
-- [ ] **H4a LLM 을 일반 세션으로(H-D34).** 들이기(팀 일꾼 `intakeOnce` · 개인 `pcDraft`)를 넣기 에이전트(`runAgent`) 방식으로 합친다. 팀 일꾼이 세션을 띄우고 일감마다 단기 열쇠로 팀 서버의 MCP 에 붙는다. system 글에 생성 룰 긴 판. 도구는 일 폴더 읽기와 kmd MCP 뿐 · 열쇠는 그 지식 · 그 일감 · 무인 저장 문만(8-4 의 주입 방어 표). 정정 · 다듬기 · 보내기 초안 · 짜임 구조안과 글 · 팀 기초 세우기 구조안 · 커밋 분석도 세션으로. 죽은 길 `filePrompt` 는 걷는다.
+- [~] **H4a LLM 을 일반 세션으로(H-D34).** 들이기(팀 일꾼 `intakeOnce` · 개인 `pcDraft`)를 넣기 에이전트(`runAgent`) 방식으로 합친다. 팀 일꾼이 세션을 띄우고 일감마다 단기 열쇠로 팀 서버의 MCP 에 붙는다. system 글에 생성 룰 긴 판. 도구는 일 폴더 읽기와 kmd MCP 뿐 · 열쇠는 그 지식 · 그 일감 · 무인 저장 문만(8-4 의 주입 방어 표). 정정 · 다듬기 · 보내기 초안 · 짜임 구조안과 글 · 팀 기초 세우기 구조안 · 커밋 분석도 세션으로. 죽은 길 `filePrompt` 는 걷는다. 걸음을 나눠 한다(걸음마다 시험이 지나가게):
+  - [x] **H4a-1 팀 세션 일감 길.** 세션을 아는 일꾼(`knownTypes()` 의 `session`)에게 파일 · 커밋 들이기를 세션 일감으로 준다(`workerNext`). 일꾼은 `worker/intake/session` 에서 표(단기 열쇠 `kmda_` · 일 설명 · system 글 · 일 폴더 파일)를 받아 `runAgent` 로 세션을 띄우고(`core/worker.js` `sessionOnce`) 세션은 팀 서버의 MCP(`brief` · `match` · `section` · `save`)에 붙는다. 세션의 `save` 는 무인 저장 문(`agentIntakeSave`)을 지난다. 끝은 `worker/intake/done` 의 `session`(`intakeSessionDone`): 저장했으면 일감을 닫고, 로그인 · 한도 · claude 없음은 세지 않고 다시 대기, 그 밖에 못 넣었으면 지금은 규칙 길(H4b 에서 다시 시도로). system 글 앞에 생성 룰 긴 판(`genRulesBlock({ profile: 'agent' })` · 개인 넣기 에이전트도 같다 · `hub.agentTask`). 팀 서버는 세션 일감의 `kmda_` 만 받는다. 시험 `test/harness-session.test.mjs`.
+  - [ ] **H4a-2 단발 들이기를 걷는다.** 지금은 세션을 띄울 수 없는 일꾼(시험의 한 번 부르기 가짜 `KMD_CLAUDE` 만 있는 때)과 개인 프로그램의 일 줄 없는 들이기 · 커밋(`pcDraft`)이 옛 단발 길(`intakePromptOf` · `INTAKE_SCHEMA` · `draftToSave` · `intakeDone` 의 초안 갈래)로 돈다. 걷으려면 단발 가짜에 기대는 시험(`intake` · `worker` · `meaning` · `pc-ingest` · `rule-path` · `final` · `watch2` · `settings` · 화면 시험)을 대본을 받는 가짜 에이전트로 옮겨야 한다(`test/fixture/fake-claude-agent.mjs` 는 지금 통화 메모 하나만 안다). 개인 `pcIntakeOne` 은 일 줄이 없어도 · 커밋도 `pcAgent` 로.
+  - [ ] **H4a-3 나머지 단발 자리.** 정정(`corrPromptOf`) · 다듬기(`polishPromptOf`) · 보내기 초안(`sendDraft`) · 짜임 구조안과 글 · 팀 기초 세우기 구조안(`core/shape.js`) · 커밋 분석(`commitPrompt` → 들이기와 합침)을 세션으로(읽기 도구 + kmd MCP · 스키마 답은 `claudeSession` 꼴). 죽은 길 `filePrompt` 걷기.
 - [ ] **H4b 규칙 길 걷기와 다시 시도(H-D29 ~ H-D31).** `ruleRecord` · `RULE_MARK` · `ruleSections` · hub 의 규칙 길 갈래를 걷는다. 일감 상태 · 시도 수 · 간격(10분 · 1시간 · 6시간) · 실패 일감 · 진행 탭의 「다시 시도」 · 「그만두기」(`ask()`) · 하루 요약 알림. Claude 를 못 써서 멈춘 것은 세지 않고 기다린다. 「Claude 에 보내지 않음」 지식은 무인 일감을 열지 않고 알린다. 옛 `들인 자료` 문서는 그대로 읽는다(과거 결정이 아니라 원문 재료).
 - [ ] **H4c 저장 입력 2판과 판단 칸(측정만).** `save` 입력의 `items[{ act, target, kind, gist, judge }]` · `docs[]` · `skip[]` · 기록 일곱 칸 + 근거 날짜 · 기록 끝 `## 지은 근거`(`core/parts.js`) · 같은 것 가림(지문 · 같은 줄기 새 판) · 얇은 지식은 지식마다 한 줄 · 큰 원천은 일감 하나 안에서 묶음마다 · 모두 뺌은 아무것도 쓰지 않고 측정만(H-O8) · savelog 칸. 과거 결정에 태도 없음은 이 단계에서 측정만 한다(막지 않는다).
 - [ ] **H4d 가져올 곳을 공식 절차로(H-D32).** `core/sources.js` 의 결정적 길(names 500 · `coreSave`)을 걷고 가져온 것을 원천(`intake-src`)으로.
