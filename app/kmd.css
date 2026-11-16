@@ -1759,8 +1759,8 @@ details.ap.refs[open]>summary h4::after{content:"▾"}
 @media (max-width:600px){
   /* T1-14 머리 줄은 위에 붙는다 */
   .hdr{position:sticky;top:0;z-index:var(--z-menu)}
-  /* T1-21 팝업 메뉴 설명은 다음 줄로 */
-  .pop .mi{flex-wrap:wrap}.pop .mi small{flex-basis:100%;white-space:normal}
+  /* T1-21 팝업 메뉴 덧말은 들어가면 한 줄 · 넘치면 다음 줄(들여쓰기 없이 · 사이는 줄 gap) */
+  .pop .mi small{padding-left:0;white-space:normal}
   /* T1-22 설정 메뉴는 한 줄 가로 밀기 */
   .mgwrap>.mgnav{display:flex;flex-wrap:nowrap;overflow-x:auto;width:auto;border-right:0;padding-right:0}.mgwrap>.mgnav .mgt,.mgwrap>.mgnav .mgg{display:none}.mgwrap>.mgnav .mgi{width:auto;white-space:nowrap}.mgwrap{flex-direction:column;gap:var(--sp-4)}
   /* T1-20 좁으면 문서 폭 고르기는 뜻이 없다 */

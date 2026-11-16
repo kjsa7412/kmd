@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="../app/kmd.css">
 <link rel="stylesheet" href="manual/manual.css">
 <style>
-/* 이 장만의 그림 부품 — 값은 app/kmd.css 의 토큰만 */
+/* 이 장만의 그림 부품: 값은 app/kmd.css 의 토큰만 */
 .ov{max-width:calc(var(--w-grid) + 80px);margin:0 auto;padding:var(--sp-9) var(--sp-8) 80px}
 .ov>article.man{max-width:none;margin-bottom:var(--sp-9)}
 .ov>article.man>h2:first-child{margin-top:0;border-top:0;padding-top:0}
@@ -52,7 +52,7 @@ svg.arch .hd{fill:var(--text-3)}
 .tag.g{background:var(--ok-bg);color:var(--ok)}
 .tag.p{background:var(--pending-bg);color:var(--pending)}
 .tag.w{background:var(--warn-bg);color:var(--warn)}
-/* 6 원천 → 기록 → 문서 — 넓은 화면은 화면 폭을 쓰고(1840 까지) 왼쪽 로직 · 오른쪽 실제 예 */
+/* 6 원천 → 기록 → 문서: 넓은 화면은 화면 폭을 쓰고(1840 까지) 왼쪽 로직 · 오른쪽 실제 예 */
 .ov>article.man.wide{max-width:none;width:min(1840px,calc(100vw - 32px));margin-left:calc((100% - min(1840px,calc(100vw - 32px))) / 2)}
 .pairs{display:flex;flex-direction:column;gap:var(--sp-8);margin:var(--sp-6) 0}
 .pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--sp-8);align-items:start}
@@ -493,7 +493,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <svg class="arch" viewBox="0 0 1000 640" role="img" aria-label="문서 배포절차.md 의 제목 · 항목 · applied 표지 · 본문 · 참고 블록이 항목 장부 · 문서 장부 · 기록 · git 과 이어진다">
 <defs><marker id="ah-shape" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0,0 L10,5 L0,10 z"/></marker></defs>
 <rect class="zone" x="20" y="12" width="630" height="616" rx="12"/><text class="z" x="36" y="34">문서 · docs/배포절차.md(저장 뒤)</text>
-<rect class="box" x="36" y="46" width="598" height="60" rx="8"/><text class="t" x="52" y="70"># 배포절차</text><text class="l" x="52" y="92">DPMS 를 운영에 올리는 차례 — 팀이 같이 본다.</text>
+<rect class="box" x="36" y="46" width="598" height="60" rx="8"/><text class="t" x="52" y="70"># 배포절차</text><text class="l" x="52" y="92">DPMS 를 운영에 올리는 차례: 팀이 같이 본다.</text>
 <rect class="box" x="36" y="116" width="598" height="34" rx="8"/><text class="s" x="52" y="138">## 준비</text><text class="l" x="420" y="138">항목 proc:준비</text>
 <rect class="box team" x="36" y="160" width="598" height="140" rx="8"/><text class="t" x="52" y="184">## 카나리</text><text class="l" x="420" y="184">항목 proc:카나리</text>
 <rect class="box ai" x="52" y="196" width="566" height="26" rx="6"/><text class="l" x="64" y="214">&lt;!-- applied: 2026-1104-카나리-비율 --&gt;   표지 · 마지막으로 넣은 기록</text>
@@ -557,7 +557,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <path class="ln" d="M510 130 V186" marker-end="url(#ah-roles)"/>
 </svg>
 </div>
-<p class="small muted">읽기도 없는 사람에게는 쓰기 길도 404 — 그 지식이 있는지조차 드러내지 않는다. 읽기는 있는데 쓰기가 없으면 403. 사람 요청이 닿는 길에서 ctx 없이 <code>hub.meta</code> · <code>hub.get</code> 을 부르지 않는다. 화면에서 숨기는 것으로 끝내지 않는다.</p>
+<p class="small muted">읽기도 없는 사람에게는 쓰기 길도 404: 그 지식이 있는지조차 드러내지 않는다. 읽기는 있는데 쓰기가 없으면 403. 사람 요청이 닿는 길에서 ctx 없이 <code>hub.meta</code> · <code>hub.get</code> 을 부르지 않는다. 화면에서 숨기는 것으로 끝내지 않는다.</p>
 
 <h3>같은 일 · 자리마다 가는 곳</h3>
 <div class="flowfig" role="figure" aria-label="항목 하나를 고칠 때 자리마다 가는 곳">
@@ -577,9 +577,9 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <div class="m-tbl"><table class="matrix">
 <tr><th>일</th><th>총괄 관리자</th><th>지식관리자</th><th>쓰기</th><th>읽기</th></tr>
 <tr><td>그 지식이 보인다 · 찾기 · Claude 로 읽기</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td></tr>
-<tr><td>저장 제안 · 기록 남기기(제안을 승인해) · 새 문서 · 항목 · 갈래(제안으로) · 문서 고치기 · 자기 기록 고치기 · 파일 넣기 · 가져올 곳 부탁 · 자기 기록 되돌리기</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td></tr>
-<tr><td>항목 지우기 · 이름 바꾸기 · 저절로 채우는 표 고치기 · 남의 기록 고치기 · 문서 다듬기 · 되돌리기 · 지식 설정(하루 요약 · 이슈 주소) · 권한 주기 · 구조 · 점검 · 지표 · 기초 세우기 · 가져올 곳(허락된 호스트)</td><td class="y">✓</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td></tr>
-<tr><td>사람 · 묶음 · 지식 세우기/지우기/불러오기 · 주인 넘기기 · 백업 · Claude 연결 · 줄 멈춤 · 동시에 도는 수 · 서버 폴더 · ssh</td><td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>
+<tr><td>저장 제안 · 기록 남기기(제안을 승인해) · 새 문서 · 항목 · 갈래(제안으로) · 문서 고치기 · 자기 기록 고치기 · 파일 넣기 · 가져올 곳 부탁 · 자기 기록 되돌리기</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n"></td></tr>
+<tr><td>항목 지우기 · 이름 바꾸기 · 저절로 채우는 표 고치기 · 남의 기록 고치기 · 문서 다듬기 · 되돌리기 · 지식 설정(하루 요약 · 이슈 주소) · 권한 주기 · 구조 · 점검 · 지표 · 기초 세우기 · 가져올 곳(허락된 호스트)</td><td class="y">✓</td><td class="y">✓</td><td class="n"></td><td class="n"></td></tr>
+<tr><td>사람 · 묶음 · 지식 세우기/지우기/불러오기 · 주인 넘기기 · 백업 · Claude 연결 · 줄 멈춤 · 동시에 도는 수 · 서버 폴더 · ssh</td><td class="y">✓</td><td class="n"></td><td class="n"></td><td class="n"></td></tr>
 </table></div>
 <p class="small muted">받지 않은 지식은 <b>없음</b>이 기본이다. 개인 프로그램은 그 PC 사람 하나만 쓰므로 이 모델 밖이다(늘 관리). 기준: <a href="../docs/kmd_권한_모델.md">권한 모델</a> · 판정 <code>server/hub.js</code>(levelOf · meta · need · canSave · canDirect) · 자리 셈 <code>core/owners.js</code>.</p>
 </article>
@@ -1156,11 +1156,11 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 </svg>
 </div>
 <p class="small muted">노랑은 사람이 보고 넘어가는 자리, 초록 선은 확인으로 모이는 길이다. 배포 때 옛 정리 일감 줄이 남아 있으면 「개편으로 걷은 정리 일감」 으로 닫힌다. 서버 밖에서 지식 파일을 고쳤으면 <code>systemctl restart kmd</code>(팀 서버는 지식을 캐시한다).</p>
-<div class="flowfig" role="figure" aria-label="올리기 명령"><pre><code># 내 PC(Git Bash) — 깨끗한 폴더에서 · node_modules 는 junction
+<div class="flowfig" role="figure" aria-label="올리기 명령"><pre><code># 내 PC(Git Bash): 깨끗한 폴더에서 · node_modules 는 junction
 git archive HEAD | tar -x -C &lt;폴더&gt;
 node scripts/pack.mjs
 scp dist/kmd-&lt;판&gt;-team.tgz root@10.10.20.188:/tmp/
-# 팀 서버 — jobs.json 의 도는 일을 먼저 본다
+# 팀 서버: jobs.json 의 도는 일을 먼저 본다
 tar -xzf kmd-&lt;판&gt;-team.tgz &amp;&amp; cd kmd-&lt;판&gt;-team
 sh kmd-install.sh --team --url http://10.10.20.188:8090 --root /srv/kmd --port 8090
 curl -s localhost:8090/healthz                 # build 가 새 판인지</code></pre></div>
@@ -1335,7 +1335,7 @@ curl -s localhost:8090/healthz                 # build 가 새 판인지</code><
 <div class="flowfig" role="figure" aria-label="브라우저 요청 하나가 지나가는 여덟 막">
 <svg class="arch" viewBox="0 0 1000 816" role="img" aria-label="kjsa 의 고치기 요청이 온 곳 검사 · 미리 해시 · scrypt 와 잠금 · 한 번 더 · 자리 판정 · 입력 검사 · 원자 쓰기 · 응답의 여덟 막을 차례로 지나고, 막마다 걸리면 돌려받는 상태 번호와 오류 코드가 오른쪽에 있다">
 <defs><marker id="ah-safe" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0,0 L10,5 L0,10 z"/></marker></defs>
-<text class="z" x="20" y="22">막 — 위에서 아래로 차례</text><text class="z" x="370" y="22">이 요청은</text><text class="z" x="640" y="22">걸리면 — 실제 답(상태 · 코드 · 글)</text>
+<text class="z" x="20" y="22">막: 위에서 아래로 차례</text><text class="z" x="370" y="22">이 요청은</text><text class="z" x="640" y="22">걸리면: 실제 답(상태 · 코드 · 글)</text>
 <rect class="box team" x="20" y="32" width="960" height="58" rx="10"/><text class="t" x="34" y="56">요청 하나: kjsa 가 팀 화면에서 DPMS 지식의 문서를 고쳐 [저장]</text><text class="l" x="34" y="78">POST http://10.10.20.188:8090/api/k/dpms/edit · 쿠키 kmd_s · Origin http://10.10.20.188:8090</text>
 <path class="ln g" d="M495 90 V108" marker-end="url(#ah-safe)"/>
 <rect class="box" x="20" y="112" width="330" height="74" rx="8"/><text class="t" x="32" y="134">① 어디서 왔나</text><text class="l" x="32" y="155">쓰는 요청(POST)은 Origin = Host 일 때만</text><text class="l" x="32" y="173">Origin 없는 길도 Sec-Fetch-Site 로 한 번 더</text>
@@ -1362,7 +1362,7 @@ curl -s localhost:8090/healthz                 # build 가 새 판인지</code><
 <path class="ln w" d="M620 413 H636" marker-end="url(#ah-safe)"/>
 <rect class="box bk" x="640" y="376" width="340" height="74" rx="8"/><text class="s" x="652" y="398">403 E_SUDO</text><text class="l" x="652" y="419">「비밀번호를 한 번 더 넣는다(15분)」</text><text class="l" x="652" y="437">화면은 창을 띄워 묻고 이어 한다</text>
 <path class="ln g" d="M495 450 V461" marker-end="url(#ah-safe)"/>
-<rect class="box" x="20" y="464" width="330" height="74" rx="8"/><text class="t" x="32" y="486">⑤ 자리 판정 hub.levelOf</text><text class="l" x="32" y="507">읽기 길 hub.meta — 읽기 미만은 404</text><text class="l" x="32" y="525">쓰기 · 관리 길 hub.need — 모자라면 403</text>
+<rect class="box" x="20" y="464" width="330" height="74" rx="8"/><text class="t" x="32" y="486">⑤ 자리 판정 hub.levelOf</text><text class="l" x="32" y="507">읽기 길 hub.meta: 읽기 미만은 404</text><text class="l" x="32" y="525">쓰기 · 관리 길 hub.need: 모자라면 403</text>
 <path class="ln" d="M350 501 H370"/>
 <rect class="box pc" x="370" y="464" width="250" height="74" rx="8"/><text class="s" x="382" y="492">kjsa · dpms → 지식관리자</text><text class="l" x="382" y="516">총괄 관리자라 모든 지식에서</text>
 <path class="ln w" d="M620 501 H636" marker-end="url(#ah-safe)"/>
@@ -1378,13 +1378,13 @@ curl -s localhost:8090/healthz                 # build 가 새 판인지</code><
 <path class="ln" d="M350 677 H370"/>
 <rect class="box pc" x="370" y="640" width="250" height="74" rx="8"/><text class="s" x="382" y="668">꺼져도 앞 것 아니면 새 것</text><text class="l" x="382" y="692">EPERM · EBUSY 면 쉬고 다시</text>
 <path class="ln w" d="M620 677 H636" marker-end="url(#ah-safe)"/>
-<rect class="box bk" x="640" y="640" width="340" height="74" rx="8"/><text class="s" x="652" y="662">서버가 뜨지 않는다</text><text class="l" x="652" y="683">「owners.json 이 깨졌다: … 고치거나</text><text class="l" x="652" y="701">지운 뒤 다시 띄운다」 — 가림이 안 풀리게</text>
+<rect class="box bk" x="640" y="640" width="340" height="74" rx="8"/><text class="s" x="652" y="662">서버가 뜨지 않는다</text><text class="l" x="652" y="683">「owners.json 이 깨졌다: … 고치거나</text><text class="l" x="652" y="701">지운 뒤 다시 띄운다」: 가림이 안 풀리게</text>
 <path class="ln g" d="M495 714 V725" marker-end="url(#ah-safe)"/>
 <rect class="box" x="20" y="728" width="330" height="74" rx="8"/><text class="t" x="32" y="750">⑧ 응답</text><text class="l" x="32" y="771">no-store · nosniff · no-referrer</text><text class="l" x="32" y="789">서버가 그리는 페이지 CSP default-src 'none'</text>
 <path class="ln" d="M350 765 H370"/>
 <rect class="box pc" x="370" y="728" width="250" height="74" rx="8"/><text class="s" x="382" y="756">200 · 비밀 0</text><text class="l" x="382" y="780">자격은 이름 · 있음/없음만</text>
 <path class="ln w" d="M620 765 H636" marker-end="url(#ah-safe)"/>
-<rect class="box bk" x="640" y="728" width="340" height="74" rx="8"/><text class="s" x="652" y="750">500 E_INTERNAL</text><text class="l" x="652" y="771">「서버 안에서 넘어졌다」 — 속은 서버 log 만</text><text class="l" x="652" y="789">화면 index.html 은 default-src 'self'</text>
+<rect class="box bk" x="640" y="728" width="340" height="74" rx="8"/><text class="s" x="652" y="750">500 E_INTERNAL</text><text class="l" x="652" y="771">「서버 안에서 넘어졌다」: 속은 서버 log 만</text><text class="l" x="652" y="789">화면 index.html 은 default-src 'self'</text>
 </svg>
 </div>
 <p class="small muted">① · ④ · ⑥ · ⑧ server/http.js · ⑤ server/hub.js · ② app/prehash.js · ③ core/passwd.js · core/auth.js · ⑦ core/atomic.js · core/owners.js. 오류 답은 모두 <code>{ error, message }</code> 꼴 · 상태 번호는 core/errors.js(E_INPUT 400 · E_AUTH 401 · E_FORBIDDEN · E_SUDO 403 · E_NOTFOUND 404).</p>
@@ -1405,7 +1405,7 @@ curl -s localhost:8090/healthz                 # build 가 새 판인지</code><
 <rect class="box ai" x="526" y="150" width="448" height="76" rx="10"/><text class="t" x="540" y="174">팀 일꾼 kmdw_ → 단기 kmdd_</text><text class="s" x="540" y="196">그 일감 · 그 지식 · 초안만 · 30분(쓰는 동안 늘어남)</text><text class="l" x="540" y="216">다른 길 → 403 「팀 일꾼은 들이기 초안만 올린다」</text>
 <rect class="box bk" x="526" y="252" width="448" height="68" rx="10"/><text class="t" x="540" y="276">서버 비밀 secrets.json(0600)</text><text class="l" x="540" y="298">셸 숨김 입력 kmd secret set &lt;이름&gt; 로만</text><text class="l" x="540" y="314">화면 · 로그 · 응답엔 이름 · 있음/없음만 · 화면으로 넣으면 403</text>
 <path class="ln a" d="M474 286 C498 286 498 84 522 84" marker-end="url(#ah-safe-2)"/>
-<rect class="zone" x="10" y="352" width="980" height="198" rx="12"/><text class="z" x="26" y="374">바깥 — 서버 비밀 · 일꾼으로 닿는 곳 · 닿아도 좁게</text>
+<rect class="zone" x="10" y="352" width="980" height="198" rx="12"/><text class="z" x="26" y="374">바깥: 서버 비밀 · 일꾼으로 닿는 곳 · 닿아도 좁게</text>
 <rect class="box bk" x="26" y="388" width="306" height="148" rx="10"/><text class="t" x="40" y="412">GitLab 백업 봇</text><text class="s" x="40" y="434">platform/dpms_wiki</text><text class="l" x="40" y="456">열쇠는 만들기 권한만</text><text class="l" x="40" y="476">지우기 · 보호 해제 권한 없음</text><text class="l" x="40" y="496">밀기는 서버의 git 자격(ssh 키)</text>
 <rect class="box bk" x="348" y="388" width="306" height="148" rx="10"/><text class="t" x="362" y="412">DB(PostgreSQL)</text><text class="s" x="362" y="434">읽기 전용 세션만</text><text class="l" x="362" y="456">SET SESSION … READ ONLY</text><text class="l" x="362" y="476">pg_catalog 의 카탈로그 SELECT 만</text><text class="l" x="362" y="496">테이블의 행은 읽지 않음 · 질의 15초</text>
 <rect class="box ai" x="670" y="388" width="304" height="148" rx="10"/><text class="t" x="684" y="412">Claude</text><text class="s" x="684" y="434">「Claude 에 보내지 않음」 지식은 안 감</text><text class="l" x="684" y="456">들이기 · 다듬기를 하지 않고</text><text class="l" x="684" y="476">규칙 길로 넣는다(noclaude)</text><text class="l" x="684" y="496">재료도 내주지 않는다</text>
@@ -1433,7 +1433,7 @@ curl -s localhost:8090/healthz                 # build 가 새 판인지</code><
 <rect class="box" x="680" y="20" width="300" height="100" rx="10"/><text class="t" x="694" y="46">명령 · 꾸러미 · 일꾼</text><text class="s" x="694" y="68">bin/kmd.mjs · kmd-parse.mjs</text><text class="l" x="694" y="88">scripts/ pack.mjs · local.mjs</text><text class="l" x="694" y="106">kmd-install.sh · kmd worker</text>
 <rect class="box team" x="20" y="150" width="460" height="86" rx="10"/><text class="t" x="34" y="176">server/http.js</text><text class="s" x="34" y="198">한 포트: /api · /mcp · /login · /manual · /dl · /healthz</text><text class="l" x="34" y="220">views.js · 일꾼 길 /api/worker · …/worker/intake</text>
 <rect class="box team on" x="520" y="150" width="460" height="86" rx="10"/><text class="t" x="534" y="176">server/mcp.js</text><text class="s" x="534" y="198">JSON-RPC · tools/call · SDK 없이</text><text class="l" x="534" y="220">도구 다섯: brief · match · search · section · save</text>
-<rect class="box team on" x="20" y="266" width="960" height="84" rx="10"/><text class="t" x="34" y="292">server/hub.js — 가운데: 화면(/api)과 MCP 가 같은 길</text><text class="s" x="34" y="314">levelOf · meta(읽기 미만 404) · need(403) · save(저장 문) · gatePrepare · edit · 들이기 일감 · 시계</text><text class="l" x="34" y="334">사람 요청이 닿는 길은 ctx 를 들고 온다 · 채널(opt.channel)은 서버 코드가 정한다</text>
+<rect class="box team on" x="20" y="266" width="960" height="84" rx="10"/><text class="t" x="34" y="292">server/hub.js · 가운데: 화면(/api)과 MCP 가 같은 길</text><text class="s" x="34" y="314">levelOf · meta(읽기 미만 404) · need(403) · save(저장 문) · gatePrepare · edit · 들이기 일감 · 시계</text><text class="l" x="34" y="334">사람 요청이 닿는 길은 ctx 를 들고 온다 · 채널(opt.channel)은 서버 코드가 정한다</text>
 <rect class="zone" x="10" y="384" width="980" height="368" rx="12"/><text class="z" x="440" y="404">core/ · 묶음(글 판 12절)</text>
 <rect class="box" x="24" y="416" width="220" height="100" rx="8"/><text class="t" x="36" y="438">지식 읽기</text><text class="l" x="36" y="458">knowledge · sections</text><text class="l" x="36" y="474">vocab · registry · names</text><text class="l" x="36" y="490">namebook · frontmatter</text><text class="l" x="36" y="506">parts(넣은 것 칸 · 옛 칸 읽기)</text>
 <rect class="box team on" x="268" y="416" width="220" height="100" rx="8"/><text class="t" x="280" y="438">저장</text><text class="l" x="280" y="458">save · guard · docformat</text><text class="l" x="280" y="474">journal · atomic · revert</text><text class="l" x="280" y="490">errors · text · values</text><text class="l" x="280" y="506">writerules</text>
@@ -1593,7 +1593,7 @@ curl -s localhost:8090/healthz                 # build 가 새 판인지</code><
 
 </div>
 <script>
-// 「6」 그림의 칸마다 자세히 — 무엇을 보나 · 이렇게 본다 · 통과하는 예 · 걸리는 예(kmd 가 돌려주는 글) · 출처
+// 「6」 그림의 칸마다 자세히: 무엇을 보나 · 이렇게 본다 · 통과하는 예 · 걸리는 예(kmd 가 돌려주는 글) · 출처
 // 예의 지식은 저장소의 시험 지식 test/fixture/kmd/dpms(배포절차 › 카나리). 오류 글은 코드의 글 그대로다(괄호 속 값만 예로 채웠다).
 const KMD_DETAIL = {
 s1: { g: '1 채널', t: '세션', what: 'Claude Code 세션이 일 뒤에 배운 것을 <b>기록 + 항목 글</b>으로 한 번에 남긴다. 짓는 쪽은 사람의 PC 에서 도는 세션의 Claude(내 구독)이고, 서버는 받은 덩이를 저장 문으로 검사한다.',

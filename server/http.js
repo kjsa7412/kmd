@@ -134,7 +134,7 @@ const MANUAL_DIR = path.join(APP, '..', 'docs_ops', 'manual')
 const MANUALS = [
   { slug: '사용자', title: '쓰는 사람', sub: '팀 화면에서 보기 · 찾기 · 고치기 · 가져오기', img: 't-doc.png', modes: ['team'] },
   { slug: '개인', title: '개인 프로그램', sub: '내 PC 의 kmd · 파일 넣기 · 공유', img: 'p-home.png', modes: ['team', 'pc'] },
-  { slug: '지식관리자', title: '지식관리자', sub: '점검 · 지표 · 권한 · 가져올 곳 · 다듬기', img: 't-held.png', modes: ['team'] },
+  { slug: '지식관리자', title: '지식관리자', sub: '점검 · 지표 · 권한 · 가져올 곳 · 다듬기', img: 't-metrics.png', modes: ['team'] },
   { slug: '관리자', title: '총괄 관리자', sub: '설치 · 사람 · Claude 연결 · 저장소 · 셸 명령', img: 't-people.png', modes: ['team'] },
   { slug: '운영', title: '운영 · 되살리기', sub: '밤 묶음 · 되살리기 · 새 판', img: 't-admin.png', modes: ['team', 'pc'] },
 ]

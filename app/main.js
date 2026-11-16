@@ -419,6 +419,8 @@ function render() {
   a11yPass()
   modalPass()
   sayFlush()
+  // 그래프 화면을 떠나면 그래프 그림 조각을 비운다(폰에서 수십 MB)
+  if (GTOK && (GTOK._lab || GTOK._dot) && !document.getElementById('gcv')) gSprFree(GTOK)
   if (fk && (!document.activeElement || document.activeElement === document.body)) { const el = app.querySelector(fk); if (el) el.focus({ preventScroll: true }) }
 }
 // 누르는 것을 키보드로 — div · span · li 의 data-a 에 role=button · tabindex=0(이미 단추 · 링크 · 칸이면 건너뛴다) · 탭 줄은 role=tab
@@ -694,7 +696,7 @@ const UI = (() => {
   try { return { ...d, ...JSON.parse(localStorage.getItem(UI_KEY) || '{}') } } catch (e) { console.warn('화면 자리 읽기 못 함', e); return d }
 })()
 // 화면 밝기(UX T1-32) — UI.theme: '' 시스템 따라 · 'light' · 'dark'(이 브라우저에만)
-function applyTheme() { const t = UI.theme === 'light' || UI.theme === 'dark' ? UI.theme : ''; if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; GTOK = null }
+function applyTheme() { const t = UI.theme === 'light' || UI.theme === 'dark' ? UI.theme : ''; if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; gSprFree(GTOK); GTOK = null }
 
 function saveUi() { try { localStorage.setItem(UI_KEY, JSON.stringify(UI)) } catch (e) { console.warn('화면 자리 남기기 못 함', e) } }
 // 오른쪽 칸 접힘(52 기둥) — 사람이 고르지 않았으면 접힌 채(UI.ar null · 확정안 7-4)
@@ -1064,7 +1066,7 @@ function listHtml(scr) {
 }
 // 들어온 사람 — 머리 줄 오른쪽 동그라미 · 누르면 설정 · 단축키 · 내 기기 · 화면 밝기(메뉴 개편 11절 2) · 나가기
 function meHtml() {
-  const menu = S.menu === 'me' ? popHtml('me', `<div data-t="meMenu"><div class="mi mi-who" data-t="meWhere" aria-disabled="true"><b data-t="meName">${esc(S.me.user)}</b><span class="mw-at">${isTeam() ? '팀 서버 · <span class="u-addr">' + esc(S.me.host || '') + '</span>' + (S.me.admin ? ' · <span class="u-nw">총괄 관리자</span>' : '') : '이 PC 에서 돈다'}</span><small data-t="meStat">${isTeam() ? '들어옴 · ' : ''}<span data-t="clock">kmd v${esc(S.me.version)} · ${clock()}</span></small></div><div class="sep"></div><div class="mi" data-a="setArea" data-t="meSettings">설정</div><div class="mi" data-a="keysOpen" data-t="meKeys">단축키<small>? · Ctrl /</small></div><div class="mi" data-a="devOpen" data-t="meDevices">내 기기</div><div class="sep"></div><div class="mi muted small" aria-disabled="true" data-t="meTheme">화면 밝기</div>${[['', '시스템'], ['light', '밝게'], ['dark', '어둡게']].map(([v, l]) => `<div class="mi${(UI.theme || '') === v ? ' on' : ''}" role="menuitemradio" aria-checked="${(UI.theme || '') === v}" data-a="setTheme" data-v="${v}" data-t="theme-${v || 'auto'}">${(UI.theme || '') === v ? '✓ ' : ''}${l}</div>`).join('')}${isTeam() ? '<div class="sep"></div><div class="mi" data-a="logout" data-t="meLogout">나가기<small>이 브라우저에서</small></div><div class="mi" data-a="logoutAll" data-t="meLogoutAll">모두 나가기<small>다른 기기 · 브라우저도</small></div>' : '<div class="sep"></div><div class="mi" data-a="logout" data-t="meLogout">나가기<small>이 브라우저에서</small></div>'}</div>`) : ''
+  const menu = S.menu === 'me' ? popHtml('me', `<div data-t="meMenu"><div class="mi mi-who" data-t="meWhere" aria-disabled="true"><b data-t="meName" title="${esc(S.me.user)}">${esc(S.me.user)}</b><span class="mw-at">${isTeam() ? '팀 서버 · <span class="u-addr">' + esc(S.me.host || '') + '</span>' + (S.me.admin ? ' · <span class="u-nw">총괄 관리자</span>' : '') : '이 PC 에서 돈다'}</span><small data-t="meStat">${isTeam() ? '들어옴 · ' : ''}<span data-t="clock">kmd v${esc(S.me.version)} · ${clock()}</span></small></div><div class="sep"></div><div class="mi" data-a="setArea" data-t="meSettings">설정</div><div class="mi" data-a="keysOpen" data-t="meKeys">단축키<small>? · Ctrl /</small></div><div class="mi" data-a="devOpen" data-t="meDevices">내 기기</div><div class="sep"></div><div class="mi muted small" aria-disabled="true" data-t="meTheme">화면 밝기</div>${[['', '시스템'], ['light', '밝게'], ['dark', '어둡게']].map(([v, l]) => `<div class="mi${(UI.theme || '') === v ? ' on' : ''}" role="menuitemradio" aria-checked="${(UI.theme || '') === v}" data-a="setTheme" data-v="${v}" data-t="theme-${v || 'auto'}">${(UI.theme || '') === v ? '✓ ' : ''}${l}</div>`).join('')}${isTeam() ? '<div class="sep"></div><div class="mi" data-a="logout" data-t="meLogout">나가기<small>이 브라우저에서</small></div><div class="mi" data-a="logoutAll" data-t="meLogoutAll">모두 나가기<small>다른 기기 · 브라우저도</small></div>' : '<div class="sep"></div><div class="mi" data-a="logout" data-t="meLogout">나가기<small>이 브라우저에서</small></div>'}</div>`) : ''
   const who = `${S.me.user} · ${isTeam() ? '팀 서버' : '이 PC'}${S.me.admin && isTeam() ? ' · 총괄 관리자' : ''}`
   return `<button type="button" class="hav" data-a="menu" data-m="me" data-t="me" aria-haspopup="menu" aria-expanded="${S.menu === 'me'}" title="${esc(who)}: 설정 · 단축키 · 나가기" aria-label="${esc(who)}: 설정 · 단축키 · 나가기">${menu}${esc(String(S.me.user).slice(0, 1))}</button>`
 }
@@ -2717,6 +2719,7 @@ let CURG = null, GTOK = null
 const gSysDark = () => !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
 function gTok() {
   if (GTOK && GTOK.dark === !!UI.gdark && GTOK.theme === (document.documentElement.dataset.theme || '') && GTOK.sys === gSysDark()) return GTOK
+  gSprFree(GTOK)
   const cs = getComputedStyle($('#app .gwrap') || document.documentElement), v = (n, d) => cs.getPropertyValue(n).trim() || d
   return (GTOK = { doc: v('--k-doc', '#334155'), item: v('--k-item', '#3358e6'), rec: v('--k-rec', '#c2410c'), line: v('--text-3', '#646d7b'), text: v('--text', '#11151c'), text2: v('--text-2', '#515a68'), bg: v('--hover', '#f5f7fa'), ring: v('--g-ring', '#fff'), acc: v('--accent', '#0d7a6f'), hit: v('--warn-line', '#e0b453'), dark: !!UI.gdark, theme: document.documentElement.dataset.theme || '', sys: gSysDark() })
 }
@@ -2972,13 +2975,24 @@ let GCV = null, GH = null, GRAF = 0
 let GMV = 0, GMVT = 0
 function gMove() { GMV = 1; clearTimeout(GMVT); GMVT = setTimeout(gSettle, 160) }
 function gSettle() { clearTimeout(GMVT); if (!GMV) return; GMV = 0; if ($('#gcv')) gPaint() }
-// 그림 조각 — 토큰이 바뀌면 gTok 이 새 GTOK 을 만들어 조각도 새로 · 글꼴을 받으면 이름 조각 · 너비를 비운다 · 픽셀 합이 넘치면 비운다
-const GSPR_PX = 16e6
+// 그림 조각 — 토큰이 바뀌면 gTok 이 새 GTOK 을 만들어 조각도 새로(옛 조각은 close) · 글꼴을 받으면 이름 조각 · 너비를 비운다
+//   이름 조각은 장치 픽셀 합 4e6(16 MB) 한도 · 넘으면 오래 안 쓴 것부터 지워 3/4 로 · 그래프 화면을 떠나거나 지식을 바꾸면 모두 비운다(gSprFree)
+const GSPR_PX = 4e6
+let GFR = 0
 const gCanvas = (w, h) => (typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h }))
 // 다 그린 조각은 ImageBitmap 으로 굳힌다(캔버스를 그대로 drawImage 하면 부를 때마다 스냅숏을 떠 DPR 3 에서 점 하나 9 µs)
 const gBake = (c) => (c.transferToImageBitmap ? c.transferToImageBitmap() : c)
-function gSprMap(T, k) { let m = T[k]; if (!m || m.px > GSPR_PX) { if (m) for (const s of m.values()) if (s.c.close) s.c.close(); m = T[k] = new Map(); m.px = 0 } return m }
-// 점 조각 — 종류 × 반지름(0.5px 단위 · r2 = 반지름 × 2 를 칸 번호로) · 채우기 + 테두리(--g-ring 1.2) 한 장 · 반지름은 몇십 가지라 비우지 않는다
+function gSprMap(T, k) { let m = T[k]; if (!m) { m = T[k] = new Map(); m.px = 0 } if (m.px > GSPR_PX) gSprTrim(m); return m }
+function gSprTrim(m) { const a = [...m.entries()].sort((x, y) => x[1].u - y[1].u); for (const [k, s] of a) { if (m.px <= GSPR_PX * 0.75) break; if (s.c.close) s.c.close(); m.px -= s.px; m.delete(k) } }
+function gSprFree(T) {
+  if (!T) return
+  if (T._lab) for (const s of T._lab.values()) if (s.c.close) s.c.close()
+  if (T._dot) for (const k of Object.keys(T._dot)) if (Array.isArray(T._dot[k])) for (const s of T._dot[k]) if (s && s.c.close) s.c.close()
+  T._lab = null; T._dot = null
+}
+// 점 조각 — 종류 × 반지름(0.5px 단위 · r2 = 반지름 × 2 를 칸 번호로) · 채우기 + 테두리(--g-ring 1.2) 한 장
+//   반지름 16 까지만(GDOT_R2 · 종류 넷 × 32 장 · DPR 3 에서 다 해도 2 MB 남짓) · 더 큰 점(크게 본 때)은 경로로 그린다
+const GDOT_R2 = 32
 function gDotSpr(T, kind, r2, dpr) {
   let D = T._dot
   if (!D || D.dpr !== dpr) D = T._dot = { dpr }
@@ -2993,14 +3007,14 @@ function gDotSpr(T, kind, r2, dpr) {
   return s
 }
 // 이름 조각 — 테(--g-ring 3px) + 글 한 장 · 글자 기준선은 조각 위에서 13
-//   굵은 이름(올린 점 · 고른 점 · 이웃 · 찾기)은 올릴 때마다 바뀌어 조각을 만들지 않고 바로 쓴다(ImageBitmap 굳히기가 한 장 1 ms 남짓)
+//   굵은 이름(올린 점 · 고른 점 · 이웃 · 찾기)도 조각으로 둔다(같은 점에 다시 올리면 drawImage 만)
 //   한 번 그리기에 새로 만드는 조각은 16 까지 · 넘는 것은 이번만 바로 쓴다
 function gLabSpr(T, m, key, font, txt, col, w, dpr) {
   const cw = Math.ceil((w + 6) * dpr), ch = Math.ceil(18 * dpr), c = gCanvas(cw, ch), x = c.getContext('2d')
   x.setTransform(dpr, 0, 0, dpr, 0, 0); x.font = font; x.lineJoin = 'round'
   x.strokeStyle = T.ring; x.lineWidth = 3; x.strokeText(txt, 3, 13)
   x.fillStyle = col; x.fillText(txt, 3, 13)
-  const s = { c: gBake(c), w: cw / dpr, h: ch / dpr }; m.set(key, s); m.px += cw * ch
+  const s = { c: gBake(c), w: cw / dpr, h: ch / dpr, px: cw * ch, u: GFR }; m.set(key, s); m.px += cw * ch
   return s
 }
 // 이름 너비 — 돌려도 바뀌지 않는다(점마다 글꼴별로 둔다 · 글꼴을 받으면 판 GLG 를 올려 비운다)
@@ -3029,6 +3043,7 @@ function gPaint() {
   const dpr = window.devicePixelRatio || 1
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H0 * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H0 * dpr) }
   const ctx = cv.getContext('2d'), T = gTok()
+  GFR++
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, W, H0)
   const C = S.g.cam, P = G.P || S.g.pos, f = S.g.f, cx = W / 2, cy = H0 / 2, vis = G.vis
@@ -3091,8 +3106,10 @@ function gPaint() {
     const p = by[Hd]
     for (const o of nb) { const q = by[o]; if (!q) continue; litP = litP || new Path2D(); litP.moveTo(p.X, p.Y); litP.lineTo(q.X, q.Y); drawn++ }
   }
+  // 머리카락 선은 DPR 이 크면 옅어 보인다 · 투명도를 √min(dpr, 2) 배로 올린다(위 1 · 1 CSS px 선과 밝기를 맞춤)
+  const lk = Math.sqrt(Math.min(dpr, 2))
   ctx.strokeStyle = T.line; ctx.setLineDash([]); ctx.lineWidth = 1 / dpr
-  bins.forEach((path, al) => { ctx.globalAlpha = al; ctx.stroke(path) })
+  bins.forEach((path, al) => { ctx.globalAlpha = Math.min(1, al * lk); ctx.stroke(path) })
   if (litP) { ctx.globalAlpha = 0.95; ctx.lineWidth = 1.6; ctx.stroke(litP) }
   // 점 — 먼 것부터 · 고른 점과 이웃은 맨 나중 · 보통 점은 그림 조각 · 고른 점 · 올린 점 · 묶음은 경로로(강조 테두리)
   const sel = S.g.sel, cur = S.g.cur
@@ -3113,6 +3130,9 @@ function gPaint() {
       glyphPath(ctx, n.kind, t.X, t.Y, t.r); ctx.fill()
       ctx.strokeStyle = id === sel || id === cur ? T.acc : T.text; ctx.lineWidth = id === cur ? 2.5 : 2
       glyphPath(ctx, n.kind, t.X, t.Y, t.r + ctx.lineWidth / 2 - 0.5); ctx.stroke()
+    } else if (Math.round(t.r * 2) > GDOT_R2) {
+      ctx.fillStyle = T[n.kind] || T.item; glyphPath(ctx, n.kind, t.X, t.Y, t.r); ctx.fill()
+      ctx.strokeStyle = T.ring; ctx.lineWidth = 1.2; glyphPath(ctx, n.kind, t.X, t.Y, t.r + 0.1); ctx.stroke()
     } else {
       const s = gDotSpr(T, n.kind, Math.round(t.r * 2), dpr)
       ctx.drawImage(s.c, snap(t.X - s.h), snap(t.Y - s.h), s.d, s.d)
@@ -3133,6 +3153,9 @@ function gPaint() {
   let pgrid = null
   if (gap) { pgrid = new Map(); for (const o of pts) cells(o.X - o.r - 1, o.Y - o.r - 1, o.X + o.r + 1, o.Y + o.r + 1, (key) => { const L = pgrid.get(key); if (L) L.push(o); else pgrid.set(key, [o]); return false }) }
   const onDot = (b, me) => gap > 0 && cells(b.x, b.y, b.x2, b.y2, (key) => { const L = pgrid.get(key); return !!L && L.some((o) => { if (o === me) return false; const nx = Math.max(b.x, Math.min(o.X, b.x2)), ny = Math.max(b.y, Math.min(o.Y, b.y2)); return Math.hypot(nx - o.X, ny - o.Y) < o.r + 1 }) })
+  // 이름 자리는 칸 안 · 왼쪽 위 조작판(.gpanel) 밖만(둘 다 안 되면 굵은 이름만 첫 자리에)
+  const gpEl = $('#app .gpanel'), gpR = gpEl && gpEl.offsetParent ? (() => { const a = gpEl.getBoundingClientRect(); return { x: a.left - rc.left, y: a.top - rc.top, x2: a.right - rc.left, y2: a.bottom - rc.top } })() : null
+  const offC = (b) => b.x < 0 || b.y < 0 || b.x2 > W || b.y2 > H0 || (!!gpR && b.x < gpR.x2 && b.x2 > gpR.x && b.y < gpR.y2 && b.y2 > gpR.y)
   let lab = 0, hubN = 0, extra = 0, made = 0
   const LM = gSprMap(T, '_lab'), hubL = (id) => !vis && !Hd && !nq && G.hubs.has(id)
   // 쓸 이름만 먼저 거른 뒤 정렬한다(「제목」 을 끄면 허브 · 올린 점 이웃만)
@@ -3148,12 +3171,13 @@ function gPaint() {
     let at = null
     // 점을 덮지 않는 자리를 먼저 · 없으면 이름끼리만 겹치지 않는 자리(빽빽한 무리의 허브 이름이 다 사라지지 않게)
     const box = (c) => ({ x: c[0] - 1, y: c[1] - h + 2, x2: c[0] + w + 1, y2: c[1] + 3 })
-    for (const free of [true, false]) { for (const c of cands) { const b = box(c); if (!clash(b) && (!free || !onDot(b, t))) { at = c; place(b); break } } if (at || !gap) break }
+    for (const free of [true, false]) { for (const c of cands) { const b = box(c); if (!offC(b) && !clash(b) && (!free || !onDot(b, t))) { at = c; place(b); break } } if (at || !gap) break }
     if (!at) { if (!pri) continue; at = cands[0] }
     ctx.globalAlpha = pri || hub ? 1 : Math.max(0.6, t.dep)
     const col = pri || hub ? T.text : T.text2, key = font + '|' + col + '|' + dpr + '|' + txt
     let s = LM.get(key)
-    if (!s && !pri && made < 16) { s = gLabSpr(T, LM, key, font, txt, col, w, dpr); made++ }
+    if (s) s.u = GFR
+    else if (made < 16) { s = gLabSpr(T, LM, key, font, txt, col, w, dpr); made++ }
     if (s) ctx.drawImage(s.c, snap(at[0] - 3), snap(at[1] - 13), s.w, s.h)
     else { ctx.font = font; ctx.lineJoin = 'round'; ctx.strokeStyle = T.ring; ctx.lineWidth = 3; ctx.strokeText(txt, at[0], at[1]); ctx.fillStyle = col; ctx.fillText(txt, at[0], at[1]) }
     lab++; if (hub) hubN++; if (!pri) extra++
@@ -3169,8 +3193,8 @@ const gCalm = () => window.matchMedia && window.matchMedia('(prefers-reduced-mot
 function gLoop() { GRAF = 0; if (!$('#gcv') || !S.g.f.spin || GD || GH != null || gCalm()) return; S.g.cam.ry += 0.0016; gPaint(); GRAF = requestAnimationFrame(gLoop) }
 // 캔버스 이름 글자는 DOM 에 없어 글꼴 뒤 파일을 부르지 않는다 · 그래프마다 한 번 그 글자로 불러 둔다(받으면 loadingdone 이 다시 그린다)
 function gFonts() { const G = CURG; if (!G || G._fl || !document.fonts || !document.fonts.load) return; G._fl = true; const t = [...new Set(G.nodes.map((n) => n.label || '').join(''))].join(''); if (t) document.fonts.load('11px "KMD Sans"', t).catch((e) => console.warn('그래프 글꼴을 받지 못했다', e)) }
-// 회전 기본값 — 점 수 × DPR 이 400 을 넘으면 처음부터 끈다(viewGraph 가 조작판을 그리기 전에 정해 단추도 맞게 그린다 · 사람이 단추를 누르면 그 값을 따른다)
-const gSpinOk = (G) => G.nodes.length * Math.max(1, Math.min(3, window.devicePixelRatio || 1)) <= 400
+// 회전 기본값 — 보이는 점 수(고른 뒤면 고른 점 + 이웃) × DPR 이 400 을 넘으면 끈다(viewGraph 가 조작판을 그리기 전에 정해 단추도 맞게 그린다 · 사람이 단추를 누르면 그 값을 따른다)
+const gSpinOk = (G) => (G.vis ? G.vis.size : G.nodes.length) * Math.max(1, Math.min(3, window.devicePixelRatio || 1)) <= 400
 function gStart() { gFonts(); gPaint(); if (!GRAF && S.g.f.spin && !gCalm()) GRAF = requestAnimationFrame(gLoop) }
 function gHit(x, y) {
   if (!GCV) return null
@@ -3380,6 +3404,7 @@ function gData(k) {
 function viewGraph() {
   const k = pickKn()
   if (!k) return { crumb: '그래프', main: viewHome().main }
+  if (S.g.kn !== k) gSprFree(GTOK)
   if (S.g.kn !== k) Object.assign(S.g, { kn: k, pos: {}, sub: null, sel: null, open: [], cur: null, visKey: '', layoutKey: '', bundle: false, cam: { rx: -0.35, ry: 0.6, zoom: 1, base: 1, px: 0, py: 0, needFit: true } })
   if (!M(k)) { const me = modelErr(k); return { crumb: '그래프', main: me ? errHtml(me, 'model:' + k) : loadingHtml, tabs: true } }
   const G = gData(k)
@@ -3431,7 +3456,7 @@ function graphFilter() {
   <div class="gfs"><div class="gh" id="gh-mode">보는 방법</div><div class="vgrp gfr" role="group" aria-labelledby="gh-mode" data-t="gMode">${md('3d', '3D', '힘 배치 · 끌어 돌린다')}${md('2d', '2D 표', '문서 상자 안에 항목 줄 · 기록은 왼쪽 열')}</div></div>
   <div class="gfs"><div class="gh" id="gh-view">보기</div><div class="vgrp gfr" role="group" aria-labelledby="gh-view" data-t="gView">${vb('line', 'line', '선', '모든 선을 그린다. 끄면 고른 점의 이웃 선만')}${vb('label', 'title', '제목', '모든 점의 제목을 쓴다. 끄면 올리거나 고른 점만', !d3)}${vb('spin', 'sync', '회전', '천천히 돈다. 끌거나 점에 올리면 멈춘다', !d3)}</div></div>
   <div class="gfs"><div class="gh" id="gh-kind">종류</div><div class="vgrp gfr" role="group" aria-labelledby="gh-kind" data-t="gKind">${kd('doc', '문서')}${kd('item', '항목')}${kd('rec', '기록')}</div></div>
-  <div class="gfs"><div class="gh" id="gh-bg">바탕</div><div class="vgrp gfr" role="group" aria-labelledby="gh-bg" data-t="gBg">${fbtn(!UI.gdark, ' data-a="gDark" data-v="0" data-t="gb-light"', '밝게', '그래프 칸을 밝은 바탕으로')}${fbtn(!!UI.gdark, ' data-a="gDark" data-v="1" data-t="gb-dark"', '어둡게', '그래프 칸만 어두운 바탕으로(이 브라우저에 남긴다)')}</div></div></div>`
+  <div class="gfs"><div class="gh" id="gh-bg">바탕</div><div class="vgrp gfr" role="group" aria-labelledby="gh-bg" data-t="gBg">${fbtn(!UI.gdark, ' data-a="gDark" data-v="0" data-t="gb-light"', '화면 따라', '그래프 칸을 화면 밝기(시스템 · 밝게 · 어둡게)대로')}${fbtn(!!UI.gdark, ' data-a="gDark" data-v="1" data-t="gb-dark"', '어둡게', '그래프 칸만 어두운 바탕으로(이 브라우저에 남긴다)')}</div></div></div>`
 }
 // 찾기 칸 Enter — 맞는 첫 점(선 많은 차례)을 고른다
 document.addEventListener('keydown', (ev) => {
@@ -7350,7 +7375,7 @@ const ACT = {
   },
   // 그래프 칸만 어두운 바탕 — 화면 자리(UI)에 남긴다 · 캔버스 색은 다시 읽는다
   setTheme: (el) => { UI.theme = el.dataset.v || ''; saveUi(); applyTheme(); render() },
-  gDark: (el) => { UI.gdark = el.dataset.v === '1'; saveUi(); GTOK = null; render() },
+  gDark: (el) => { UI.gdark = el.dataset.v === '1'; saveUi(); gSprFree(GTOK); GTOK = null; render() },
   gMode: (el) => { S.g.mode = el.dataset.v; if (S.g.mode === '2d' && S.g.sel) Object.assign(S.g, { sel: S.g.cur || S.g.sel, open: [] }); S.g.cam.needFit = true; gC2().needFit = true; render() },
   gZoom: (el) => { const cv = $('#gcv'), w = $('#app .gerdw'); if (cv) zoomAt(cv.clientWidth / 2, cv.clientHeight / 2, Number(el.dataset.v)); else if (w) gErdZoom(w.clientWidth / 2, w.clientHeight / 2, Number(el.dataset.v)) },
   gRecs: () => { S.g.recsOf = S.g.recsOf === S.g.sel ? null : S.g.sel; S.g.f.rec = true; render() },
@@ -7771,8 +7796,8 @@ async function boot() {
 try { applyTheme() } catch (e) { console.warn('화면 밝기를 맞추지 못했다', e) }
 if (window.matchMedia) matchMedia('(min-width:1025px)').addEventListener('change', () => { if (S.me && MGSCR.includes(S.route.scr)) render() })
 // 글꼴 뒤 파일(KS X 1001 밖 글자)은 DOM 글이 부를 때 온다 · 받은 뒤 그래프 이름을 그 글꼴로 다시 잰다
-if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', () => { GLW.clear(); GLG++; if (GTOK) GTOK._lab = null; if ($('#gcv')) gPaint() })
-if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { GTOK = null; if (S.me) render() })
+if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', () => { GLW.clear(); GLG++; if (GTOK && GTOK._lab) { for (const s of GTOK._lab.values()) if (s.c.close) s.c.close(); GTOK._lab = null } if ($('#gcv')) gPaint() })
+if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { gSprFree(GTOK); GTOK = null; if (S.me) render() })
 boot()
 // 문서 짜임 — 줄 안 이름 칸(Enter 넣기 · Esc 취소 · 벗어나면 맞으면 넣기) · 줄(F2 이름 · Alt ↑↓ 차례 · Enter 고르기)
 document.addEventListener('keydown', (ev) => {

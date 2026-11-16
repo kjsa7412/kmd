@@ -103,7 +103,7 @@
   // ── 이야기: 시간 줄 + 흐름 그림 + 걸음 ──
   const CHANNELS = [['session', '세션', 'Claude Code'], ['edit', '화면 고치기', '팀 화면'], ['send', '공유', '개인 → 팀'], ['bulk', '대량 넣기', 'Claude Code'], ['file', '수기수집', '팀 일꾼'], ['commit', '자동수집', 'git · 폴더 · DB']]
   const chOf = (key) => (key === 'warn' ? 'session' : key)
-  const SHOT_OF = { session: ['rec', '세션이 남긴 기록: 요약 · 바뀐 것 · 까닭'], commit: ['history', '이력: 시간 줄에 저장 · 들이기 · 고침'], file: ['import', '생성 › 수기수집: 파일을 놓으면 팀 일꾼이 기록과 항목 글을 짓는다'], edit: ['propose', '저장 확인 창: 바뀐 줄 · 경고 · [넣기] 가 승인'], send: ['item', '노트북 받기 항목: 오른쪽 기둥에 이 항목을 바꾼 기록'], warn: ['check', '점검 › 지표: 받아들인 경고 · 규칙 길을 기간으로 센다'] }
+  const SHOT_OF = { session: ['rec', '세션이 남긴 기록: 요약 · 바뀐 것 · 까닭'], commit: ['history', '이력: 시간 줄에 저장 · 들이기 · 고침'], file: ['import', '생성 › 수기수집: 파일을 놓으면 팀 일꾼이 기록과 항목 글을 짓는다'], edit: ['propose', '저장 확인 창: 바뀐 줄을 보고 [넣기] 가 승인(그림은 같은 지식의 다른 고침)'], send: ['item', '노트북 받기 항목: 오른쪽 기둥에 이 항목을 바꾼 기록'], warn: ['check', '점검 › 지표: 받아들인 경고 · 규칙 길을 기간으로 센다'] }
   let flow = null
   function flowDraw() {
     const svg = $('#flowSvg'); svg.innerHTML = ''
@@ -126,7 +126,7 @@
     const tt = el('text', { x: gx + gw / 2, y: gy + 28, 'text-anchor': 'middle' }, gate); tt.textContent = '저장 문: 한 덩이로 판정'
     const checks = N ? ['사람: 저장 제안 → 승인', '무인: 규칙 길까지 늘 들어감', '자리 · 꼴 · 지문(base)', '→ 기록 + 항목 글 · git 한 묶음'] : ['사람: 저장 제안 → 승인', '무인: FIX 고리 → 규칙 길', '자리 · 꼴(E_FORMAT) · 지문(base)', '값 대조: 근거 없는 값은 경고', '경고는 승인하면 「받아들인 경고」', '→ 기록 + 항목 글 · git 한 묶음']
     checks.forEach((c, i) => { const t = el('text', { x: gx + 18, y: gy + 54 + i * (N ? 20 : 26), class: 'chk' }, gate); t.textContent = c })
-    const OUT = [['rec', '기록', 'work/<id>.md · 바뀐 것 · 까닭'], ['doc', '문서 · 항목', '항목 글이 그 자리에 들어간다'], ['err', '입력 오류', '아무것도 쓰지 않음 · 고쳐 다시']]
+    const OUT = [['rec', '기록', 'work/<id>.md · 화면 고침은 이력 log/'], ['doc', '문서 · 항목', '항목 글이 그 자리에 들어간다'], ['err', '입력 오류', '아무것도 쓰지 않음 · 고쳐 다시']]
     OUT.forEach(([k, l, s], i) => {
       const x = N ? 6 + i * 118 : 680, y = N ? 360 : 30 + i * 90, w = N ? 112 : 200, h = N ? 64 : 62
       const gg = el('g', { class: 'out ' + k }, svg)
@@ -205,7 +205,7 @@
     const src = st.file ? `<div class="src">📄 ${esc(st.file)}</div>` : st.commit ? `<div class="src">⎇ ${esc(st.commit)}</div>` : ''
     const rec = st.key === 'edit' ? `<div class="card recbox"><div class="t">화면에서 고침: ${esc(st.doc)} 「${esc(st.heading)}」</div><p>쓰기 자리부터 고친다. [저장] 을 누르면 저장 확인 창(저장 제안: 바뀐 줄 · 경고)이 뜨고 [넣기] 가 승인이다. 이력에 「고침」, 옛 값 → 새 값이 남는다.</p></div>` : `<div class="card recbox"><div class="t">${esc(st.title)}</div>${md(st.body)}</div>`
     const how = UNATTENDED.has(st.key) ? (st.result && st.result.rule ? '무인 · 규칙 길' : '무인 · 승인 없이') : st.key === 'send' ? '보내기 확인 창 = 팀 저장 제안 → [보내기] 승인' : st.key === 'edit' ? '저장 확인 창 → [넣기] 승인' : '저장 제안 → 「좋아, 넣어」 승인'
-    const result = warn ? `<span class="chip warn">받아들인 경고</span> ${esc(st.result.accepted.join(' · '))}. 승인해 들어갔고, 기록 끝 「받아들인 경고」 에 남아 점검 › 지표가 센다.` : `<span class="chip ok">들어감</span> 항목 ${pieces.length} · 기록 · git 한 묶음 · ${esc(how)}`
+    const result = warn ? `<span class="chip warn">받아들인 경고</span> ${esc(st.result.accepted.join(' · '))}. 승인해 들어갔고, 기록 끝 「받아들인 경고」 에 남아 점검 › 지표가 센다.` : `<span class="chip ok">들어감</span> 항목 ${pieces.length} · ${st.key === 'edit' ? '이력 「고침」' : '기록'} · git 한 묶음 · ${esc(how)}`
     const [shot, cap] = SHOT_OF[st.key]
     const [capT, capD] = cap.split(': ')
     const panel = $('#stepPanel')
