@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>지식 생성 하네스 결정</title>
+<style>
+:root{
+  --bg:#f6f5f1;--card:#fff;--ink:#1c1b18;--sub:#6b6860;--line:#e3e0d8;--soft:#efede6;
+  --pri:#2f5d50;--pri-soft:#e2efe9;--warn:#a85d1a;--warn-soft:#fbeedd;--bad:#a23b32;--bad-soft:#f9e4e1;--info:#3a5a8c;--info-soft:#e4ecf7;
+  --r:12px;--f:"Pretendard","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;--mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 var(--f);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px 72px}
+header.top{padding:56px 0 28px}
+.eyebrow{font-size:13px;color:var(--pri);font-weight:700;letter-spacing:.04em}
+h1{font-size:clamp(26px,4vw,40px);line-height:1.25;margin:10px 0 18px;letter-spacing:-.02em;text-wrap:balance}
+.lead{font-size:17px;color:var(--sub);max-width:820px;text-wrap:pretty}
+nav.toc{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);margin:0 -20px 8px;padding:10px 20px;display:flex;gap:6px;overflow-x:auto;white-space:nowrap}
+nav.toc a{font-size:13px;color:var(--sub);text-decoration:none;padding:6px 12px;border-radius:999px;border:1px solid transparent}
+nav.toc a:hover{background:var(--soft);color:var(--ink)}
+section{padding:44px 0 8px}
+h2{font-size:24px;margin:0 0 6px;letter-spacing:-.01em}
+.h2sub{color:var(--sub);margin:0 0 22px}
+.grid{display:grid;gap:14px}
+.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:repeat(2,1fr)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;background:var(--soft);color:var(--sub)}
+.tag.pri{background:var(--pri-soft);color:var(--pri)}.tag.warn{background:var(--warn-soft);color:var(--warn)}.tag.bad{background:var(--bad-soft);color:var(--bad)}.tag.info{background:var(--info-soft);color:var(--info)}
+.ask{display:grid;grid-template-columns:1fr 40px 1fr;align-items:stretch;gap:0;margin-bottom:12px}
+.ask .l,.ask .r{padding:16px 18px;border-radius:var(--r)}
+.ask .l{background:var(--soft)}.ask .r{background:var(--pri-soft)}
+.ask .l b,.ask .r b{display:block;font-size:12px;color:var(--sub);margin-bottom:4px;font-weight:700}
+.ask .r b{color:var(--pri)}
+.ask .ar{display:grid;place-items:center;color:var(--sub);font-size:20px}
+.flow{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.col h3{font-size:14px;margin:0 0 10px;color:var(--sub);font-weight:700}
+.step{display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);position:relative;margin-bottom:18px}
+.step:not(:last-child)::after{content:"";position:absolute;left:28px;bottom:-19px;height:18px;border-left:2px solid var(--line)}
+.step .n{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--soft);color:var(--sub)}
+.step.llm{border-color:#b9d3c8;background:#f4faf7}.step.llm .n{background:var(--pri);color:#fff}
+.step.old{background:var(--soft);border-style:dashed}
+.step .t{font-weight:700}.step .d{font-size:13px;color:var(--sub)}
+.who{font-size:11px;font-weight:700;color:var(--sub);margin-left:6px}
+.layers{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.layer{border-radius:var(--r);padding:16px;border:1px solid var(--line)}
+.layer.a{background:#fbfaf6}.layer.b{background:#f4f8fb}
+.layer>h3{margin:0 0 4px;font-size:16px}.layer>p{margin:0 0 14px;font-size:13px;color:var(--sub)}
+.rule{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.rule .hd{display:flex;gap:8px;align-items:center;margin-bottom:4px}
+.rule .id{font:700 12px var(--mono);color:var(--pri)}
+.rule .q{font-weight:700}.rule .a{font-size:13px;color:var(--sub);margin-top:4px}
+.prec{display:grid;grid-template-columns:1fr 1.15fr;gap:18px;align-items:start}
+.stance{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+.stance div{border-radius:10px;padding:12px;text-align:center;font-weight:700}
+.stance small{display:block;font-weight:400;font-size:12px;color:var(--sub);margin-top:2px}
+pre.mock{margin:0;background:#1f2421;color:#dfe6e1;border-radius:var(--r);padding:16px;font:12.5px/1.65 var(--mono);overflow-x:auto;white-space:pre}
+pre.mock i{color:#8fd0b4;font-style:normal}pre.mock u{color:#e7c27d;text-decoration:none}
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--card)}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:14px}
+th,td{padding:10px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+th{font-size:12px;color:var(--sub);background:var(--soft);font-weight:700}
+tr:last-child td{border-bottom:0}
+td.now{color:var(--sub)}
+.walk{display:grid;gap:10px}
+.wk{display:grid;grid-template-columns:220px 1fr 1fr;gap:0;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--card)}
+.wk>div{padding:14px 16px}
+.wk .src{background:var(--soft);font-weight:700}
+.wk .now{color:var(--sub);border-left:1px solid var(--line)}
+.wk .nx{border-left:1px solid var(--line);background:#f4faf7}
+.wk b.lab{display:block;font-size:11px;color:var(--sub);margin-bottom:3px}
+.dec{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px;margin-bottom:14px}
+.dec.changed{border-color:var(--warn);box-shadow:0 0 0 3px var(--warn-soft)}
+.dec .hd{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:4px}
+.dec .id{font:700 12px var(--mono);color:var(--pri)}
+.dec h3{margin:0;font-size:17px}
+.dec .q{color:var(--sub);margin:2px 0 12px}
+.opts{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.opt{box-sizing:border-box;display:block;border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--card);transition:border-color .12s,background .12s}
+.opt:hover{border-color:#b7b3a8}
+.opt:focus-visible{outline:2px solid var(--info);outline-offset:2px}
+.opt.on{border-color:var(--pri);background:var(--pri-soft)}
+.opt .nm{font-weight:700;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.opt .wh{font-size:13px;margin:4px 0 8px}
+.opt .pc{font-size:12.5px;color:var(--sub);display:grid;gap:2px}
+.opt .pc span::before{display:inline-block;width:16px;font-weight:700}
+.opt .pc .g::before{content:"+";color:var(--pri)}.opt .pc .b::before{content:"−";color:var(--bad)}
+.dec .ft{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:12px;font-size:13px;color:var(--sub)}
+.dec .ft b{color:var(--ink);font-weight:700}
+.fixed .opt{cursor:default}
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.st{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.st .id{font:700 12px var(--mono);color:var(--pri)}.st .t{font-weight:700;margin:2px 0}.st .w{font-size:12.5px;color:var(--sub)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--sub);margin:-8px 0 16px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}.dot.code{background:#b9b5aa}.dot.llm{background:var(--pri)}
+.sw{width:14px;height:10px;border-radius:3px;display:inline-block}.sw.add{background:#bfe3d3}.sw.chg{background:#f3d3a6}.sw.keep{background:var(--soft);border:1px solid var(--line)}
+.scene{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:18px}
+.scenehd{display:flex;gap:14px;align-items:center;margin-bottom:16px}
+.scenehd .no{font:700 13px var(--mono);background:var(--ink);color:#fff;border-radius:8px;padding:6px 10px;white-space:nowrap}
+.scenehd b{display:block;font-size:18px}.scenehd span:not(.no){font-size:13px;color:var(--sub)}
+.rail{display:flex;gap:22px;overflow-x:auto;padding:2px 2px 10px;margin-bottom:14px}
+.fn{flex:1 0 118px;position:relative;border:1px solid var(--line);border-radius:10px;padding:10px 10px 9px;background:#faf9f5;text-align:center}
+.fn:not(:last-child)::after{content:"";position:absolute;right:-17px;top:50%;width:12px;height:2px;background:#c9c5ba}
+.fn:not(:last-child)::before{content:"";position:absolute;right:-19px;top:calc(50% - 4px);border:5px solid transparent;border-left-color:#c9c5ba;border-right:0}
+.fn em{display:block;font-style:normal;font-size:11px;font-weight:700;color:var(--sub)}
+.fn b{display:block;font-size:14px;margin:1px 0 6px}
+.fn .bd{display:inline-block;font-size:11.5px;background:var(--soft);border-radius:999px;padding:1px 8px;color:var(--sub)}
+.fn.llm{background:var(--pri);border-color:var(--pri);color:#fff}.fn.llm em{color:#cfe6dc}.fn.llm .bd{background:#fff;color:var(--pri);font-weight:700}
+.board{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:14px;align-items:start}
+.pane{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fcfbf8;min-width:0}
+.pane.wide{grid-column:1/-1}
+.pane h4{margin:0 0 10px;font-size:13px;color:var(--sub);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.pane h4 .state{font-weight:700;color:var(--pri)}
+.file{background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px;box-shadow:3px 3px 0 var(--soft);font-size:13.5px}
+.file .fname{font-weight:700;margin-bottom:6px;padding-bottom:6px;border-bottom:1px dashed var(--line)}
+.file .ln{margin:5px 0}.file .ln.sub{margin:-2px 0 5px 16px;font-size:12.5px;color:var(--sub)}
+mark{border-radius:4px;padding:1px 5px;color:inherit}
+.m1{background:#d6eee3}.m2{background:#dbe6f6}.m3{background:#f6e6c9}.m4{background:#eadff3}.m5{background:#f6d9dc}.mc{background:#f3d3a6;font-weight:700}.mx{background:var(--soft);color:var(--sub);text-decoration:line-through}
+.jd{display:grid;grid-template-columns:minmax(64px,auto) 14px auto 1fr auto;gap:6px;align-items:center;padding:6px 0;border-bottom:1px dashed var(--line);font-size:13px}
+.jd .src{border-radius:6px;padding:2px 7px;background:var(--soft);font-weight:700;white-space:nowrap;justify-self:start}
+.jd .src.m1{background:#d6eee3}.jd .src.m2{background:#dbe6f6}.jd .src.m3{background:#f6e6c9}.jd .src.m4{background:#eadff3}
+.jd .src.all{background:#fff;border:1px solid var(--line)}
+.jd .src.mx{text-decoration:line-through;color:var(--sub)}
+.jd .ar{color:var(--sub)}
+.act{border-radius:999px;padding:2px 10px;font-weight:700;font-size:12px;white-space:nowrap}
+.act.add{background:#bfe3d3;color:#1f4d3f}.act.chg{background:#f3d3a6;color:#7a4410}.act.keep{background:var(--soft);color:var(--sub)}.act.skip{background:#eee;color:#999;text-decoration:line-through}
+.jd .val{color:var(--sub);min-width:0}
+.jd .r{font:700 11px var(--mono);color:var(--pri);white-space:nowrap}
+.note{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.link{display:grid;gap:4px;justify-items:center;margin-top:12px;font-size:12.5px}
+.link .src{border-radius:6px;padding:2px 8px;font-weight:700}
+.link .eq{color:var(--sub);font-size:11.5px}.link .eq::before,.link .eq::after{content:"↓";margin:0 6px;color:#c9c5ba}
+.link .led{border:1.5px solid var(--pri);border-radius:8px;padding:4px 10px;background:#fff}
+.pcrow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin-bottom:8px}
+.pc{border:1.5px solid var(--pri);border-radius:10px;padding:8px 10px;background:#fff;font-size:13px}
+.pc b{display:block;margin-top:3px;font-family:var(--mono);font-size:12.5px}.pc small{display:block;color:var(--sub);font-size:12px}
+.stn{border-radius:10px;padding:10px 14px;font-weight:700;text-align:center;white-space:nowrap}
+.stn.follow,.sq.follow{background:var(--pri-soft);color:var(--pri)}.stn.distinct,.sq.distinct{background:var(--info-soft);color:var(--info)}.stn.depart,.sq.depart{background:var(--warn-soft);color:var(--warn)}
+table.mx3{min-width:560px;font-size:12.5px}
+table.mx3 th{padding:7px 10px}table.mx3 td{padding:8px 10px;border-bottom:1px solid #fff}
+table.mx3 td:first-child{font-family:var(--mono);font-size:12px;white-space:nowrap}
+table.mx3 small{display:block;color:var(--sub);font-size:11.5px}
+table.mx3 tr.add td{background:#e3f3ec}table.mx3 tr.chg td{background:#fbeedd}table.mx3 tr.keep td{background:#f6f5f1;color:#9a968c}
+table.mx3 tr.chg td.k,table.mx3 tr.chg .k{color:#9a968c}
+table.mx3 tfoot td{font-family:var(--f)!important;font-size:12.5px!important;border-top:2px solid #fff}
+table.mx3 i.d{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.cap{font-size:12.5px;color:var(--sub);margin-top:8px;text-align:center}
+.chk{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+.ck{border:1px solid #b9d3c8;background:#f4faf7;border-radius:10px;padding:10px 12px;font-size:13px;position:relative}
+.ck span{display:block;color:var(--sub);font-size:12px}.ck b{display:block;margin-top:2px}
+.ck i{position:absolute;right:10px;top:8px;font-style:normal;font-weight:700;color:var(--pri)}
+.ck.off{border-style:dashed;border-color:var(--line);background:var(--soft)}.ck.off i{color:var(--sub)}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.cmp .c{border-radius:10px;padding:12px 14px;font-size:13.5px}
+.cmp .c>b{display:block;font-size:12px;margin-bottom:6px}
+.cmp .old{background:var(--soft);color:var(--sub)}.cmp .new{background:var(--pri-soft)}.cmp .new>b{color:var(--pri)}
+.mini{display:flex;flex-wrap:wrap;gap:6px}
+.cell{border-radius:6px;padding:3px 9px;font-size:12.5px;background:#fff;border:1px solid var(--line);color:var(--ink)}
+.cell.ok{border-color:#9fcdb9}.cell.ok::before{content:"✓ ";color:var(--pri);font-weight:700}
+.cell.bad{border-color:#e0b4ae}.cell.bad::before{content:"✕ ";color:var(--bad);font-weight:700}
+.cell.none{border-style:dashed;color:var(--sub)}
+.tri{display:grid;gap:12px}
+.tr{display:grid;grid-template-columns:1fr 1fr auto 1fr;gap:26px;align-items:stretch}
+.tn{position:relative;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13.5px;background:#fcfbf8}
+.tn small{display:block;font-size:11.5px;color:var(--sub);font-weight:700}.tn b{display:block;font-size:13px;color:var(--sub);font-weight:400}
+.tn.pv{border:1.5px solid var(--pri);background:#fff}.tn.out{background:var(--pri-soft);border-color:#b9d3c8}
+.tr>*:not(:last-child)::after{content:"→";position:absolute;right:-20px;top:50%;transform:translateY(-50%);color:#b7b3a8;font-weight:400}
+.tr .stn{position:relative;display:grid;place-items:center;min-width:84px}
+.why3{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:14px;font-size:13px;color:var(--sub)}
+.why3 span{display:inline-flex;gap:6px;align-items:center}.sq{width:12px;height:12px;border-radius:3px;display:inline-block}
+i.d.m1{background:#6fbf9d}i.d.m2{background:#7fa3d6}i.d.m3{background:#d9a94e}i.d.m5{background:#d9808a}
+.chan{display:grid;grid-template-columns:minmax(0,1.2fr) 28px minmax(0,1.1fr) 28px minmax(0,.8fr);gap:8px;align-items:center}
+.cin{display:grid;gap:8px}
+.ch{border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:#fcfbf8}
+.ch b{display:block;font-size:14px}.ch span{font-size:12.5px;color:var(--sub)}
+.cmid{display:grid;place-items:center;color:#b7b3a8;font-size:20px}
+.cproc{display:grid;gap:8px}
+.cp{border-radius:10px;padding:10px 12px;font-weight:700;text-align:center;border:1px solid var(--line);background:#faf9f5}
+.cp small{display:block;font-weight:400;font-size:12px;color:var(--sub)}
+.cp.llm{background:var(--pri);border-color:var(--pri);color:#fff}.cp.llm small{color:#cfe6dc}
+.cp.ok{background:var(--pri-soft);border-color:#b9d3c8;color:var(--pri)}
+.cout{border:2px solid var(--pri);border-radius:12px;padding:14px;text-align:center;background:#fff}
+.cout b{display:block;font-size:18px}.cout span{font-size:12.5px;color:var(--sub)}
+.gone{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin-top:14px;padding:10px 12px;border-radius:10px;background:var(--soft)}
+.gone b{font-size:12px;color:var(--sub);margin-right:6px}
+.gone span{font-size:12.5px;color:#9a968c;text-decoration:line-through;border:1px dashed #cfcbc0;border-radius:6px;padding:2px 8px;background:#fff}
+.retry{display:grid;grid-template-columns:repeat(5,1fr);gap:26px}
+.rt{position:relative;border:1px solid var(--line);border-radius:10px;padding:10px 12px;text-align:center;background:#fcfbf8}
+.rt small{display:block;font-size:11.5px;color:var(--sub);font-weight:700}.rt b{display:block;font-size:14px}.rt span{display:block;font-size:12px;color:var(--sub);margin-top:2px}
+.rt.bad{background:var(--bad-soft);border-color:#e0b4ae}.rt.bad b{color:var(--bad)}
+.rt.llm{background:var(--pri);border-color:var(--pri);color:#fff}.rt.llm small,.rt.llm span{color:#cfe6dc}
+.rt.wait{background:var(--info-soft);border-color:#b9c9e3}.rt.wait b{color:var(--info)}
+.rt:not(:last-child)::after{content:"→";position:absolute;right:-20px;top:50%;transform:translateY(-50%);color:#b7b3a8}
+.loop{margin:8px 0 0;border:1.5px dashed #b9c9e3;border-top:0;border-radius:0 0 12px 12px;height:26px;width:calc(80% - 20px);margin-left:10%;position:relative}
+.loop span{position:absolute;left:50%;bottom:-9px;transform:translateX(-50%);background:var(--card);padding:0 10px;font-size:12px;color:var(--info);white-space:nowrap}
+.sq.wait{background:var(--info-soft)}
+@media (max-width:1024px){.chk{grid-template-columns:1fr 1fr}}
+@media (max-width:600px){.chan{grid-template-columns:1fr}.cmid span{display:inline-block;transform:rotate(90deg)}.retry{grid-template-columns:1fr;gap:20px}.rt:not(:last-child)::after{content:"↓";right:50%;top:auto;bottom:-20px;transform:translateX(50%)}.loop{display:none}.board,.cmp,.chk{grid-template-columns:1fr}.scene{padding:14px}.tr{grid-template-columns:1fr;gap:20px}.tr>*:not(:last-child)::after{content:"↓";right:50%;top:auto;bottom:-20px;transform:translateX(50%)}.jd{grid-template-columns:auto 14px auto 1fr}.jd .r{grid-column:1/-1;justify-self:end}}
+
+ul.plain{margin:0;padding-left:18px}ul.plain li{margin:4px 0}
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--ink);color:#fff}
+.bar .in{max-width:1180px;margin:0 auto;padding:12px 20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.bar .sum{flex:1;min-width:200px;font-size:14px}
+.bar .sum b{color:#9fe0c4}
+.btn{all:unset;box-sizing:border-box;cursor:pointer;font-weight:700;font-size:14px;padding:9px 16px;border-radius:8px;background:#fff;color:var(--ink)}
+.btn.ghost{background:transparent;color:#fff;border:1px solid #57544c}
+.btn:hover{opacity:.9}.btn:focus-visible{outline:2px solid #9fe0c4;outline-offset:2px}
+textarea{width:100%;min-height:90px;border:1px solid var(--line);border-radius:10px;padding:12px;font:14px/1.5 var(--f);background:var(--card);color:var(--ink);resize:vertical}
+@media (max-width:1024px){.g3{grid-template-columns:1fr 1fr}.prec{grid-template-columns:1fr}.wk{grid-template-columns:1fr}.wk .now,.wk .nx{border-left:0;border-top:1px solid var(--line)}}
+@media (max-width:600px){.g3,.g2,.flow,.layers{grid-template-columns:1fr}.ask{grid-template-columns:1fr}.ask .ar{transform:rotate(90deg);height:28px}.stance{grid-template-columns:1fr}header.top{padding-top:36px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <div class="eyebrow">KMD · 지식 생성 하네스 · 권장안 확정 · 2026-11-16</div>
+  <h1>룰이 성격을 정하고, 장부는 판례가 되고, 따를지는 LLM 이 맡는다</h1>
+  <p class="lead" id="oneLine"></p>
+</header>
+<nav class="toc" aria-label="차례">
+  <a href="#ask">요구와 답</a><a href="#proc">절차</a><a href="#flow">흐름</a><a href="#rules">생성 룰</a><a href="#prec">판례</a><a href="#bound">판정 경계</a><a href="#walk">빈 지식 걷기</a><a href="#owner">확정한 것</a><a href="#steps">단계</a><a href="#risk">위험</a>
+</nav>
+
+<section id="ask">
+  <h2>요구와 답</h2><p class="h2sub">말씀하신 세 가지에 설계가 내놓은 답</p>
+  <div class="ask"><div class="l"><b>요구</b>빈 지식에서도 항목 · 기록 · 문서가 성격대로 정의된다</div><div class="ar">→</div><div class="r"><b>답</b>성격 정의를 장부가 아니라 지식 밖의 고정 생성 룰에 둔다. 빈 지식은 「판례 0 건」 일 뿐 따로 길이 없다</div></div>
+  <div class="ask"><div class="l"><b>요구</b>장부는 과거 결정이고 따를지는 LLM 이 맡는다</div><div class="ar">→</div><div class="r"><b>답</b>장부를 판례로 보여 주고 LLM 이 따름 · 가름 · 벗어남과 까닭을 칸에 적는다. 코드는 「판단이 있었나 · 판단과 행동이 맞나」 만 본다</div></div>
+  <div class="ask"><div class="l"><b>요구</b>고정된 생성 룰로 짓게 하는 하네스</div><div class="ar">→</div><div class="r"><b>답</b>룰 한 벌을 데이터 한 곳에 두고 모든 채널에 같은 글을 싣는다. 판단은 출력 칸이라 잴 수 있다</div></div>
+  <div class="grid g3" id="principles" style="margin-top:22px"></div>
+</section>
+
+<section id="proc">
+  <h2>절차</h2>
+  <p class="h2sub">빈 지식에 파일 둘을 차례로 넣는 예 · 설계를 따라 그린 것</p>
+
+  <div class="legend">
+    <span><i class="dot code"></i>코드</span><span><i class="dot llm"></i>LLM 세션</span>
+    <span><i class="sw add"></i>새로 섬</span><span><i class="sw chg"></i>고쳐짐</span><span><i class="sw keep"></i>그대로</span>
+  </div>
+
+  <!-- ───────── 예 1 ───────── -->
+  <div class="scene">
+    <div class="scenehd"><span class="no">예 1</span><div><b>빈 지식 + 첫 파일</b><span>게이트웨이 설계서_v0.3.docx</span></div></div>
+
+    <div class="rail">
+      <div class="fn"><em>코드</em><b>같은 것 가림</b><span class="bd">새 원천</span></div>
+      <div class="fn llm"><em>LLM 세션</em><b>찾기</b><span class="bd">과거 결정 0</span></div>
+      <div class="fn llm"><em>같은 세션</em><b>판단 + 글</b><span class="bd">문서 1 · 항목 3</span></div>
+      <div class="fn"><em>코드</em><b>짝 짓기</b><span class="bd">3 쌍</span></div>
+      <div class="fn"><em>코드</em><b>검사</b><span class="bd">오류 0</span></div>
+      <div class="fn"><em>코드</em><b>저장</b><span class="bd">커밋 1</span></div>
+      <div class="fn"><em>코드</em><b>측정</b><span class="bd">수로 남김</span></div>
+    </div>
+
+    <div class="board">
+      <div class="pane">
+        <h4>원천</h4>
+        <div class="file">
+          <div class="fname">게이트웨이 설계서 v0.3</div>
+          <div class="ln"><mark class="mx">개정 이력 v0.1 · v0.2 · v0.3</mark></div>
+          <div class="ln">1. <mark class="m1">수집기</mark> PLC 값을 모아 넘긴다</div>
+          <div class="ln sub">전송 주기 5초</div>
+          <div class="ln">2. <mark class="m2">전송기</mark> 묶음을 서버로 보낸다</div>
+          <div class="ln">3. <mark class="m3">테이블 gw_log</mark></div>
+          <div class="ln sub">id · ts · level · msg</div>
+        </div>
+      </div>
+
+      <div class="pane">
+        <h4>LLM 의 판단</h4>
+        <div class="jd"><span class="src all">파일 전체</span><span class="ar">→</span><span class="act add">새 문서</span><span class="val">게이트웨이 설계 · 대상</span><span class="r">R3</span></div>
+        <div class="jd"><span class="src m1">수집기</span><span class="ar">→</span><span class="act add">새 항목</span><span class="val">종류 모듈</span><span class="r">R1</span></div>
+        <div class="jd"><span class="src m2">전송기</span><span class="ar">→</span><span class="act add">새 항목</span><span class="val">종류 모듈</span><span class="r">R1</span></div>
+        <div class="jd"><span class="src m3">gw_log</span><span class="ar">→</span><span class="act add">새 항목</span><span class="val">종류 테이블</span><span class="r">R1</span></div>
+        <div class="jd"><span class="src">5초 · 컬럼</span><span class="ar">→</span><span class="act keep">섹션 안의 표</span><span class="val">항목 아님</span><span class="r">R1</span></div>
+        <div class="jd"><span class="src mx">개정 이력</span><span class="ar">→</span><span class="act skip">뺌</span><span class="val"></span><span class="r">R6</span></div>
+        <div class="note"><span class="tag">과거 결정 없음</span><span class="tag">룰만으로 정함 · R9</span></div>
+      </div>
+
+      <div class="pane wide">
+        <h4>지식 <span class="state">비어 있음 → 항목 3</span></h4>
+        <div class="tblwrap"><table class="mx3">
+          <thead><tr><th>항목장부</th><th>문서장부</th><th>문서 › 섹션</th><th>기록</th></tr></thead>
+          <tbody>
+            <tr class="add"><td><i class="d m1"></i>모듈:수집기</td><td>게이트웨이 설계 › 수집기</td><td>## 수집기<small>전송 주기 5초</small></td><td>기록 1</td></tr>
+            <tr class="add"><td><i class="d m2"></i>모듈:전송기</td><td>게이트웨이 설계 › 전송기</td><td>## 전송기</td><td>기록 1</td></tr>
+            <tr class="add"><td><i class="d m3"></i>테이블:gw_log</td><td>게이트웨이 설계 › gw_log</td><td>## gw_log<small>컬럼 4</small></td><td>기록 1</td></tr>
+          </tbody>
+          <tfoot><tr class="add"><td colspan="4"><b>갈래장부</b> 게이트웨이 설계 · 성격 대상</td></tr></tfoot>
+        </table></div>
+        <div class="cap">한 줄 = 항목 하나. 네 칸이 한 커밋에 같이 선다</div>
+      </div>
+    </div>
+
+    <div class="cmp">
+      <div class="c old"><b>지금 코드라면</b>
+        <div class="mini"><span class="cell bad">항목장부 term: 셋</span><span class="cell none">문서장부 0</span><span class="cell ok">섹션 3</span><span class="cell none">기록이 항목에 안 닿음</span></div></div>
+      <div class="c new"><b>설계 뒤</b>
+        <div class="mini"><span class="cell ok">항목장부 3</span><span class="cell ok">문서장부 3</span><span class="cell ok">섹션 3</span><span class="cell ok">기록 → 항목 3</span></div></div>
+    </div>
+  </div>
+
+  <!-- ───────── 예 2 ───────── -->
+  <div class="scene">
+    <div class="scenehd"><span class="no">예 2</span><div><b>둘째 파일</b><span>2026-11-10 주간 회의.md</span></div></div>
+
+    <div class="rail">
+      <div class="fn"><em>코드</em><b>같은 것 가림</b><span class="bd">새 원천</span></div>
+      <div class="fn llm"><em>LLM 세션</em><b>찾기</b><span class="bd">과거 결정 1</span></div>
+      <div class="fn llm"><em>같은 세션</em><b>판단 + 글</b><span class="bd">따름 1 · 새 항목 1</span></div>
+      <div class="fn"><em>코드</em><b>짝 짓기</b><span class="bd">1 쌍</span></div>
+      <div class="fn"><em>코드</em><b>검사</b><span class="bd">판단 = 행동</span></div>
+      <div class="fn"><em>코드</em><b>저장</b><span class="bd">커밋 1</span></div>
+      <div class="fn"><em>코드</em><b>측정</b><span class="bd">수로 남김</span></div>
+    </div>
+
+    <div class="board">
+      <div class="pane">
+        <h4>원천</h4>
+        <div class="file">
+          <div class="fname">2026-11-10 주간 회의</div>
+          <div class="ln"><mark class="m1">수집기</mark> 전송 주기</div>
+          <div class="ln sub">5초 → <mark class="mc">10초</mark> · 부하 때문</div>
+          <div class="ln"><mark class="m4">버퍼 크기</mark>는 다음 회의에서</div>
+        </div>
+        <div class="link"><span class="src m1">수집기</span><span class="eq">본문에서 찾음</span><span class="led">항목장부 <b>모듈:수집기</b></span></div>
+      </div>
+
+      <div class="pane">
+        <h4>LLM 의 판단</h4>
+        <div class="pcrow">
+          <div class="pc"><span class="tag">과거 결정</span><b>모듈:수집기</b><small>게이트웨이 설계 › 수집기 · 전송 주기 5초 · 날짜 모름</small></div>
+          <div class="stn follow">따름</div>
+        </div>
+        <div class="jd"><span class="src m1">수집기 10초</span><span class="ar">→</span><span class="act chg">섹션 고침</span><span class="val">5초 → 10초</span><span class="r">R2</span></div>
+        <div class="jd"><span class="src all">회의 전체</span><span class="ar">→</span><span class="act add">새 문서</span><span class="val">회의록 · 사건</span><span class="r">R3 · R4</span></div>
+        <div class="jd"><span class="src all">이번 회의</span><span class="ar">→</span><span class="act add">새 항목</span><span class="val">종류 회의</span><span class="r">R4</span></div>
+        <div class="jd"><span class="src m4">버퍼 크기</span><span class="ar">→</span><span class="act keep">회의 섹션의 줄</span><span class="val">남은 것</span><span class="r">R6</span></div>
+        <div class="note"><span class="tag pri">근거 날짜 2026-11-10</span><span class="tag">날짜 있는 값이 이긴다 · R2</span></div>
+      </div>
+
+      <div class="pane wide">
+        <h4>지식 <span class="state">항목 3 → 항목 4</span></h4>
+        <div class="tblwrap"><table class="mx3">
+          <thead><tr><th>항목장부</th><th>문서장부</th><th>문서 › 섹션</th><th>기록</th></tr></thead>
+          <tbody>
+            <tr class="add"><td><i class="d m5"></i>회의:2026-11-10_주간_회의</td><td>회의록 › 2026-11-10 주간 회의</td><td>## 2026-11-10 주간 회의<small>정한 것 · 남은 것</small></td><td>기록 2</td></tr>
+            <tr class="chg"><td class="k"><i class="d m1"></i>모듈:수집기</td><td class="k">게이트웨이 설계 › 수집기</td><td>## 수집기<small><s>5초</s> → <b>10초</b></small></td><td><span class="k">기록 1</span> · 기록 2</td></tr>
+            <tr class="keep"><td><i class="d m2"></i>모듈:전송기</td><td>게이트웨이 설계 › 전송기</td><td>## 전송기</td><td>기록 1</td></tr>
+            <tr class="keep"><td><i class="d m3"></i>테이블:gw_log</td><td>게이트웨이 설계 › gw_log</td><td>## gw_log</td><td>기록 1</td></tr>
+          </tbody>
+          <tfoot><tr class="add"><td colspan="4"><b>갈래장부</b> 회의록 · 성격 사건 · 별칭 회의, 주간 회의</td></tr></tfoot>
+        </table></div>
+        <div class="cap">기록 2 하나가 두 항목의 히스토리에 남는다</div>
+      </div>
+    </div>
+
+    <div class="chk">
+      <div class="ck"><span>과거 결정에 태도가 있나</span><b>따름</b><i>✓</i></div>
+      <div class="ck"><span>판단과 행동이 맞나</span><b>따름 = 그 섹션을 고침</b><i>✓</i></div>
+      <div class="ck"><span>그사이 섹션이 바뀌었나</span><b>지문 같음</b><i>✓</i></div>
+      <div class="ck off"><span>까닭이 옳은가</span><b>코드는 보지 않고 잰다</b><i>·</i></div>
+    </div>
+
+    <div class="cmp">
+      <div class="c old"><b>지금 코드라면</b>
+        <div class="mini"><span class="cell none">후보 문서 0</span><span class="cell bad">새 문서 + term:</span><span class="cell bad">수집기 5초 그대로</span></div></div>
+      <div class="c new"><b>설계 뒤</b>
+        <div class="mini"><span class="cell ok">수집기 찾음</span><span class="cell ok">회의록 › 회의 섹션</span><span class="cell ok">수집기 10초</span></div></div>
+    </div>
+  </div>
+
+  <!-- ───────── 태도 셋 ───────── -->
+  <div class="scene">
+    <div class="scenehd"><span class="no">그 뒤</span><div><b>과거 결정을 만났을 때의 세 갈래</b><span>따를지는 LLM 이 정한다</span></div></div>
+    <div class="tri">
+      <div class="tr">
+        <div class="tn in"><small>원천</small>설계서 v0.4<b>전송 주기 5초</b></div>
+        <div class="tn pv"><small>과거 결정</small>모듈:수집기<b>10초 · 2026-11-10</b></div>
+        <div class="stn follow">따름</div>
+        <div class="tn out"><small>결과</small>수집기 섹션 그대로<b>날짜 없는 5초는 뺌</b></div>
+      </div>
+      <div class="tr">
+        <div class="tn in"><small>원천</small>게이트웨이 쪽<b>dp_user 테이블</b></div>
+        <div class="tn pv"><small>과거 결정</small>테이블:dp_user<b>다른 시스템의 것</b></div>
+        <div class="stn distinct">가름</div>
+        <div class="tn out"><small>결과</small>새 항목<b>게이트웨이 설계 › dp_user</b></div>
+      </div>
+      <div class="tr">
+        <div class="tn in"><small>원천</small>장애 대응 절차<b>여섯 단계</b></div>
+        <div class="tn pv"><small>과거 결정</small>갈래장부 「장애 대응」<b>사건을 모음</b></div>
+        <div class="stn depart">벗어남</div>
+        <div class="tn out"><small>결과</small>새 문서<b>장애 대응 절차 · 성격 절차</b></div>
+      </div>
+    </div>
+    <div class="why3">
+      <span><i class="sq follow"></i>같은 대상이다</span><span><i class="sq distinct"></i>다른 대상이다</span><span><i class="sq depart"></i>룰에 어긋난다 (R4)</span>
+    </div>
+  </div>
+  <!-- ───────── 채널 ───────── -->
+  <div class="scene">
+    <div class="scenehd"><span class="no">채널</span><div><b>채널: 길은 하나</b><span>지식 내용을 쓰는 길은 모두 같은 절차를 지난다</span></div></div>
+    <div class="chan">
+      <div class="cin">
+        <div class="ch"><b>무인 들이기</b><span>파일 · 커밋 · 정정 · 가져올 곳</span></div>
+        <div class="ch"><b>화면의 「넣을 것」</b><span>파일 · 글 · 고칠 말</span></div>
+        <div class="ch"><b>세션</b><span>MCP · 대량 넣기 · 보내기</span></div>
+        <div class="ch"><b>짜임</b><span>기초 세우기 · 다시 잡기 · 다시 그리기</span></div>
+      </div>
+      <div class="cmid"><span>→</span></div>
+      <div class="cproc">
+        <div class="cp llm">LLM 세션<small>찾기 → 판단 + 글</small></div>
+        <div class="cp">코드<small>짝 짓기 → 검사 → 저장 → 측정</small></div>
+        <div class="cp ok">사람 승인<small>사람이 넣은 것만</small></div>
+      </div>
+      <div class="cmid"><span>→</span></div>
+      <div class="cout"><b>지식</b><span>문서 · 항목 · 기록<br>항목장부 · 문서장부 · 갈래장부</span></div>
+    </div>
+    <div class="gone">
+      <b>없앤 길</b>
+      <span>화면 저장</span><span>문서 고치기의 글 고침</span><span>거두기</span><span>가져올 곳의 정해진 규칙</span><span>규칙 길</span><span>단발 claude -p</span>
+    </div>
+  </div>
+
+  <!-- ───────── 실패하면 ───────── -->
+  <div class="scene">
+    <div class="scenehd"><span class="no">실패</span><div><b>무인에서 못 넘으면: 다시 시도</b><span>규칙 길은 없다 · 지식에는 아무것도 쓰지 않는다</span></div></div>
+    <div class="retry">
+      <div class="rt bad"><small>검사</small><b>오류</b></div>
+      <div class="rt llm"><small>LLM</small><b>걸린 자리만 고침</b><span>두 번까지</span></div>
+      <div class="rt bad"><small>그래도</small><b>오류</b></div>
+      <div class="rt wait"><small>일감</small><b>다시 대기</b><span>10분 · 1시간 · 6시간</span></div>
+      <div class="rt wait"><small>세 번 뒤</small><b>실패 일감</b><span>다시 시도 · 그만두기</span></div>
+    </div>
+    <div class="loop"><span>새 재료로 처음부터 다시</span></div>
+    <div class="cmp">
+      <div class="c old"><b>지금 (규칙 길)</b>
+        <div class="mini"><span class="cell bad">원문이 들인 자료에 그대로</span><span class="cell none">항목장부 0</span><span class="cell bad">수집기 값 안 고쳐짐</span></div></div>
+      <div class="c new"><b>설계 뒤</b>
+        <div class="mini"><span class="cell ok">지식에 아무것도 안 씀</span><span class="cell ok">원천은 일감이 쥠</span><span class="cell ok">들어가면 공식 절차로만</span></div></div>
+    </div>
+    <div class="why3"><span><i class="sq wait"></i>Claude 를 못 써서 멈춘 것(로그인 · 한도 · 하루 상한)은 시도 수에 세지 않고 풀릴 때까지 기다린다</span></div>
+  </div>
+</section>
+
+<section id="flow">
+  <h2>흐름</h2><p class="h2sub">원천 하나가 커밋 하나가 되기까지</p>
+  <div class="flow">
+    <div class="col"><h3>지금</h3>
+      <div class="step old"><div class="n">1</div><div><div class="t">코드가 좁힘</div><div class="d">제목 · 섹션의 낱말 겹침 · 후보 문서 다섯 · 장부 이름 200</div></div></div>
+      <div class="step old"><div class="n">2</div><div><div class="t">LLM 한 번<span class="who">자리 + 글</span></div><div class="d">규칙은 「이어지는」 한마디 · 새 항목은 이름과 종류만</div></div></div>
+      <div class="step old"><div class="n">3</div><div><div class="t">코드가 종류를 term 으로 접음</div><div class="d">LLM 이 적은 종류는 버려진다</div></div></div>
+      <div class="step old"><div class="n">4</div><div><div class="t">저장 문: 장부와 다르면 오류</div><div class="d">무인은 고쳐 받기 두 번 뒤 규칙 길(원문 그대로)</div></div></div>
+    </div>
+    <div class="col"><h3>설계 뒤</h3><div id="stages"></div></div>
+  </div>
+</section>
+
+<section id="rules">
+  <h2>고정 생성 룰</h2><p class="h2sub">물음 꼴 조문 R1 ~ R9 · 두 겹</p>
+  <div class="layers">
+    <div class="layer a"><h3>첫 겹: 내용만으로 답한다</h3><p>지식이 비어 있어도 답이 나온다</p><div id="rulesA"></div></div>
+    <div class="layer b"><h3>둘째 겹: 지식을 보고 답한다</h3><p>판례가 없으면 「판례 없음」 이라 적고 조문만으로 정한다</p><div id="rulesB"></div></div>
+  </div>
+</section>
+
+<section id="prec">
+  <h2>판례</h2><p class="h2sub">장부를 LLM 에게 보이는 꼴과 LLM 이 내는 태도</p>
+  <div class="prec">
+    <div>
+      <div class="tblwrap"><table style="min-width:0">
+        <tr><th>판례</th><th>무엇을 말하나</th><th>재료</th></tr>
+        <tr><td><b>정체</b></td><td>이 이름은 이 대상이다</td><td>항목장부 줄 · 장부 밖 섹션</td></tr>
+        <tr><td><b>놓임</b></td><td>이런 항목은 이 문서에 산다</td><td>문서 요약 · 모으는 갈래 줄</td></tr>
+        <tr><td><b>꼴</b></td><td>종류 낱말 · 문서 이름 짓는 법</td><td>종류마다 한 줄</td></tr>
+      </table></div>
+      <div class="stance">
+        <div style="background:var(--pri-soft);color:var(--pri)">따름<small>그 항목을 고친다</small></div>
+        <div style="background:var(--info-soft);color:var(--info)">가름<small>다른 대상이다</small></div>
+        <div style="background:var(--warn-soft);color:var(--warn)">벗어남<small>조문에 어긋난다</small></div>
+      </div>
+      <p style="font-size:13px;color:var(--sub);margin:12px 2px 0">벗어나는 까닭은 둘뿐: 다른 대상 · 조문에 어긋남. 누가 언제 세웠나는 까닭이 아니다.</p>
+    </div>
+    <pre class="mock"><u>판례 묶음</u> (이름으로는 전수 412 · 뜻으로는 상위 12)
+
+<i>[1 · 정체 · 이름 맞음]</i> 모듈:수집기 「수집기」
+  뜻: PLC 값을 모아 묶음으로 넘기는 프로세스
+  자리: 게이트웨이 설계 › 수집기 · 별칭: collector
+  출처: 무인 · 근거 날짜: 전송 주기 2026-11-10
+<i>[4 · 놓임]</i> 문서 「게이트웨이 설계」 으뜸 성격 대상 · 항목 3
+<i>[5 · 놓임 · 모으는 갈래]</i> 회의록 · 섹션 꼴 「YYYY-MM-DD 주제」
+<i>[6 · 꼴]</i> 종류 모듈 · 뜻: 따로 도는 실행 단위 · 항목 2
+
+<u>LLM 이 내는 판단 칸</u>
+judge: {
+  rule: ["R2-1"],
+  prec: [{ of: "모듈:수집기", stance: <i>"follow"</i> }],
+}
+judge: {
+  rule: ["R4-1"],
+  prec: [{ of: "갈래:장애 대응", stance: <i>"depart"</i>,
+           against: "R4-1", why: "물음이 어떻게 하나 이다" }],
+}</pre>
+  </div>
+</section>
+
+<section id="bound">
+  <h2>판정 경계</h2><p class="h2sub">지금의 코드 거절 하나하나가 어떻게 바뀌나</p>
+  <div class="tblwrap"><table><thead><tr><th style="width:26%">판정</th><th style="width:24%">지금</th><th>설계 뒤</th><th style="width:120px">바뀜</th></tr></thead><tbody id="boundary"></tbody></table></div>
+</section>
+
+<section id="walk">
+  <h2>빈 지식 걷기</h2><p class="h2sub">빈 지식에 원천을 차례로 넣으면</p>
+  <div class="walk" id="walkList"></div>
+</section>
+
+<section id="owner">
+  <h2>확정한 것</h2><p class="h2sub">2026-11-16 권장안으로 확정 · 옛 결정을 고치는 열둘(H-O2 · H-O7 은 뒤의 결정으로 닫힘)</p>
+  <div id="ownerList"></div>
+  <h2 style="margin-top:36px">설계가 정한 것</h2><p class="h2sub">옛 결정을 고치지 않는 뼈대</p>
+  <div id="fixedList" class="fixed"></div>
+</section>
+
+<section id="steps">
+  <h2>단계</h2><p class="h2sub">H0 ~ H10 · 재고 나서 막는다</p>
+  <div class="strip" id="stepList"></div>
+  <div class="grid g2" style="margin-top:18px">
+    <div class="card"><span class="tag pri">측정</span><ul class="plain" id="metrics" style="margin-top:10px;font-size:13.5px"></ul></div>
+    <div class="card" id="risk"><span class="tag bad">위험</span><ul class="plain" id="risks" style="margin-top:10px;font-size:13.5px"></ul></div>
+  </div>
+</section>
+</div>
+
+<script>
+const D = {"oneLine":"무엇이 항목 · 문서 · 기록인지와 그 성격은 지식 밖의 고정 생성 룰 한 벌(R0 ~ R9)이 정하고, 장부는 그 룰을 적용해 온 판례로 낮추어 LLM 이 걸린 판례마다 따름 · 가름 · 벗어남과 까닭을 칸에 적으며, 코드는 「판단이 있었는가 · 판단과 행동이 맞는가」 만 결정적으로 본다.","principles":["발판은 지식 밖에 있다: 성격 정의는 장부가 아니라 고정 생성 룰이 준다. 빈 지식은 「판례 0 건」 일 뿐 전용 길이 없다","장부는 판례다: 따를지는 LLM 이 맡는다. 벗어나는 까닭은 둘뿐(다른 대상 · 조문에 어긋남). 누가 언제 세웠나는 참고다","판단은 칸에, 판정은 코드에: LLM 은 걸린 판례마다 태도와 까닭을 적고 코드는 판단이 있었나 · 행동과 맞나만 본다","짝은 코드가 짓는다: 판정 한 줄에서 섹션 · 항목장부 줄 · 문서장부 줄 · 건드린 항목이 같이 선다","재고 나서 막는다: 바탕 값과 골든 셋이 먼저, 판단 칸은 두 주 측정만 돌린 뒤 막음을 켠다"],"rules":[{"id":"R1","about":"항목","q":"무엇이 항목 하나인가 [첫 겹: 내용만으로]","a":"이름 · 홀로 서기 · 다시 찾기 · 따로 바뀜 넷에 모두 예면 항목. 아니면 그것을 가진 대상 항목의 줄 · 표 행. 값 하나(설정 값 · 컬럼)는 표 행이고 짜임 섹션(개요 · 변경 이력)는 새 항목이 아니다."},{"id":"R2","about":"항목","q":"있는 항목을 고칠까 새 항목을 세울까 [둘째 겹: 지식을 보고]","a":"식별자나 뜻이 같으면 같은 대상이고 성격과 상관없이 그 항목을 고친다. 식별자 · 종류 · 주인 대상 가운데 하나가 다르면 다른 대상(새 항목). 처리는 고침 · 새 항목 · 그대로 · 뺌 넷이고 대상마다 따로 정한다."},{"id":"R2-3 · R2-4","about":"항목","q":"모으는 문서의 항목(회의 한 번 · 용어 하나)은 언제 고치나","a":"그 문서의 물음에 답하는 글만 넣는다. 사건 항목은 그때의 사실이라 바로잡거나 채울 때만 고치고, 뒤에 새로 정해진 것은 대상 항목을 고친 뒤 사건 항목은 「남은 것」 줄만 고친다."},{"id":"R2-5","about":"항목","q":"어느 쪽 값이 지금인가","a":"값의 근거 날짜(넣을 것이 말하는 때 · 들인 날이 아니다)를 대상 단위로 견준다. 앞이면 덮지 않고, 날짜 모름은 날짜 있는 값을 못 이기고, 둘 다 모르면 뒤에 온 것이 지금이다."},{"id":"R3","about":"문서","q":"무엇이 문서 하나인가 [둘째 겹]","a":"요약 문장을 고치지 않고 넣을 수 있는 문서가 있으면 거기에. 모으는 문서는 종류 낱말마다 하나이고 한 건으로도 선다. 주제 문서는 으뜸 성격 하나에 항목 성격은 달라도 된다. 없으면 요약과 으뜸 성격을 적어 새로 세운다."},{"id":"R3-5","about":"문서","q":"넣을 것이 다른 대상의 값을 말하는데 그 항목이 없으면","a":"넣을 것이 통째로 그 대상에 관한 글이면 얇아도 세운다. 지나가며 말했으면 세우지 않고 값은 넣을 것 자신의 항목(사건 · 이슈) 글에 남긴다. 그것도 없으면 뺀다."},{"id":"R4","about":"갈래","q":"성격을 무엇으로 정하나 [첫 겹]","a":"「찾으러 오는 사람이 무엇을 묻나」 에 가장 잘 맞는 물음 하나(아홉 가운데). 이름 낱말이나 먼저 걸리는 차례로 정하지 않는다. 커밋은 사건이 아니다. 모임에서 정한 것은 대상의 값이면 대상 항목이 정본이다."},{"id":"R5","about":"종류","q":"항목의 종류 · 값 · 뜻 한 줄 · 별칭을 어떻게 적나","a":"종류는 「무엇의 하나인가」: 같은 문서의 같은 것이 쓰는 종류 → 같은 뜻의 있는 종류 → 씨앗 낱말 → 원천의 갈래말(뜻 한 줄과 같이). 값은 kmd 가 짓고, 새 항목에는 뜻 한 줄(15 ~ 60자)을 꼭 적는다."},{"id":"R6","about":"기록","q":"무엇을 넣고 기록에 무엇을 남기나 [첫 겹]","a":"여섯 달 뒤 찾아야 할 것만 넣는다(새로 생김 · 바뀜 · 결정 · 문제 제기). 미정은 값으로 쓰지 않는다. 뺀 것은 까닭을 적고 모두 뺐으면 아무것도 쓰지 않는다. 기록은 일곱 칸 + 근거 날짜, 지어내지 않는다."},{"id":"R7","about":"장부","q":"장부에 무엇을 올리나","a":"항목을 세우면 종류와 뜻 한 줄을 같이 적고 섹션 · 종류:값 · 자리는 kmd 가 짝으로 세운다. 장부 밖 섹션은 고치면서 올린다. 지우지 않는다(거두는 것은 지식관리자)."},{"id":"R8","about":"판례","q":"판례를 따를까 벗어날까","a":"첫 겹을 먼저 답한 뒤 본다. 정체 판례는 따름(그 항목을 고침) 또는 가름(다른 것: 식별자 · 종류 · 주인 대상). 놓임 · 꼴 판례는 조문에 어긋나면 조문 번호를 적고 벗어난다. 누가 세웠나 · 몇 건인가는 까닭이 아니다."},{"id":"R9","about":"판례","q":"판례가 없거나 덜 섰으면","a":"「판례 없음」 이라 적고 조문만으로 정한다(미루거나 미분류로 보내지 않는다). 섹션만 있는 항목은 고치며 올리고, 자리 없는 장부 줄은 그 종류:값을 쓰고, 옛 「들인 자료」 문서는 판례가 아니라 원문 재료다."}],"stages":[{"id":"0","title":"같은 것 가림","who":"코드","in":"원천 글 · 기록 근거 칸의 지문","out":"같은 글(끝) · 지문이 같은 사본(끝 · 측정) · 같은 줄기 새 판(앞 기록을 재료에) · 새 원천"},{"id":"1","title":"찾기","who":"LLM(세션)","in":"생성 룰(판) · 장부 · 문서 · 기록","out":"세션이 스스로 찾는다: 생성 룰 · 과거 결정 카드 · 섹션 글"},{"id":"2","title":"판정 + 글","who":"LLM(같은 세션)","in":"걸음 1 의 재료","out":"항목마다 내용만으로 답 → 과거 결정에 태도와 까닭 → 처리 → 글 → 저장 입력"},{"id":"4","title":"엮기","who":"코드","in":"초안","out":"저장 입력: 섹션 · 항목장부 줄 · 문서장부 줄 · 건드린 항목 · 문서 성격 줄 · 사건 열쇠를 짝으로. 모두 뺌이면 여기서 끝"},{"id":"5","title":"판정","who":"코드(buildProposal · 결정적)","in":"저장 입력 · 줄 안에서 새로 읽은 지식","out":"오류 · 경고 · 새로 세움. 사람 채널은 제안서 승인"},{"id":"6","title":"고쳐 받기","who":"LLM(같은 세션)","in":"걸린 자리 표 · 걸린 판례의 글과 base","out":"저장이 돌려준 오류를 보고 걸린 자리만 고쳐 다시 낸다(두 번까지)"},{"id":"7","title":"저장","who":"코드(saveNow)","in":"판정을 넘은 입력","out":"한 커밋: 기록 + 항목 글 + 장부 + 「지은 근거」 · 「새로 세움」"},{"id":"8","title":"측정","who":"코드","in":"저장 결과","out":"savelog 한 줄(판 · 행위 수 · 태도 수 · 덮임 · 뒤집힘 · 짝)"}],"boundary":[{"what":"무인이 검사를 끝내 못 넘음 · 초안을 못 받음","now":"규칙 길: 원문 그대로 들어간다","next":"걷는다. 아무것도 쓰지 않고 일감이 다시 시도한다(세 번 · 그 뒤 실패 일감)"},{"what":"글자까지 같은 종류:값","now":"오류","next":"여전히 오류. 가름이면 엮기가 문서 줄기를 앞에 붙여 비켜 간다"},{"what":"새 항목 이름이 있는 것 · 별칭과 정규화 같음","now":"오류(사람만 distinct)","next":"걸린 판례: 따름이면 고침, 가름 + 다른 것이면 통과. 태도가 없으면 오류. 식별자 · 주인 대상 증거만 코드가 대고 「종류가 다르다」 는 잰다"},{"what":"같은 문서 안 같은 섹션","now":"오류","next":"여전히 오류(같은 섹션은 고침이다)"},{"what":"새 문서 이름이 있는 문서와 정규화 같음","now":"오류(사람만 distinct)","next":"사람: 가름 · 벗어남이면 통과. 무인: 엮기가 있는 문서로 접는다"},{"what":"새 문서 이름이 갈래 별칭을 품음","now":"오류(무인은 넘는 길 없음)","next":"품기는 모으는 갈래에만. 종류 낱말이 같으면 그 문서의 새 항목으로 접고, LLM 이 벗어남을 적었으면 통과시키고 잰다"},{"what":"갈래장부에 없는 새 문서(닫힌 갈래)","now":"오류 · 무인은 규칙 길","next":"기본은 열림(성격과 요약이 있으면 선다). 「닫음」 지식은 주인 결정: 권하는 안은 사람 채널에만 걸고 무인은 벗어남 + 까닭"},{"what":"모으는 갈래의 폴더 · 섹션 꼴","now":"오류","next":"여전히 오류(계약이라 벗어남의 거리가 아니다)"},{"what":"기본 갈래 셋","now":"빈 지식에서 낱말 별칭 오류","next":"판정에서 걷는다. 옛 문서 읽기 발판에만 상수로 남는다"},{"what":"종류를 term 으로 접음","now":"말없이 바꿈","next":"걷는다. 새 종류는 세움이고 측정한다"},{"what":"무인이 새 갈래 · 새 종류를 보냄","now":"E_INPUT","next":"엮기가 지은 것만 받는다(문서 성격 줄 · 모으는 갈래 줄 · 새 항목에 딸린 종류)"},{"what":"있는 항목을 names 로 다시 보냄","now":"오류(지식관리자만)","next":"여전히 오류. 자리 없는 옛 줄에 자리 채움 · 별칭 보탬 · 뜻 한 줄 다시 적기는 주인 결정"},{"what":"새 섹션에 장부 줄 없음","now":"측정만","next":"엮기가 지으므로 사라진다(짝 비율로 잰다)"},{"what":"걸린 판례에 태도 없음 · 판단과 행동 어긋남(새)","now":"없음","next":"오류(무인은 두 주 측정 뒤 켠다). 조문 번호 틀림 · 까닭 빔은 코드가 채우고 잰다"},{"what":"초안이 모두 뺌(새)","now":"고쳐 받기 → 규칙 길(원문이 들인 자료에)","next":"오류가 아니다. 실패로 치지 않는다"},{"what":"무인 한 저장의 고침 수가 상한을 넘음(새)","now":"없음","next":"오류가 아니다. 코드가 묶음을 더 잘게 가른다"},{"what":"값 대조 · E_FORMAT 다섯 · 지문","now":"경고 · 오류","next":"그대로"}],"emptyWalk":[{"step":"1 설계서 v0.3(수집기 · 전송기 · gw_log)","now":"새 문서(갈래 없음) · 장부 term: 셋(자리 없음) · 문서장부 줄 0 · 기록이 장부 항목에 닿지 않음","next":"판례 없음 한 줄. 항목 셋 · 컬럼과 전송 주기 5초는 표 행. 문서 「게이트웨이 설계」(으뜸 성격 대상). 종류는 씨앗에서 모듈 · 테이블. 엮기가 장부 짝 · 문서장부 줄 · 건드린 항목을 짓는다"},{"step":"2 2026-11-10 주간 회의(전송 주기 10초로)","now":"제목 낱말이 겹치지 않아 후보 0. 수집기 항목이 고쳐지지 않을 수 있다","next":"본문의 「수집기」 로 판례가 실린다. 모으는 문서 「회의록」 + 회의 항목. 전송 주기는 대상 항목이 정본: 수집기를 5초 → 10초로 고친다(근거 날짜가 날짜 없는 값을 이긴다)"},{"step":"3 장애 대응 절차","now":"기본 갈래 별칭 「장애」 에 걸려 오류 → 사건 문서로 밀리거나 규칙 길","next":"물음이 「어떻게 하나」 → 절차. 새 문서 「장애 대응 절차」 + 항목"},{"step":"4 설계서 v0.4(여전히 5초 · 버퍼 새로)","now":"새 원천으로 본다. 10초가 5초로 되돌아갈 수 있다","next":"같은 줄기 새 판으로 알아본다. 날짜 없는 5초는 덮지 않고 「앞선 값」 으로 뺀다. 전송기 · gw_log 는 그대로. 버퍼는 새 항목"},{"step":"5 이슈 목록 60행","now":"한 번 출력에 담기지 않으면(추정) 규칙 길: 들인 자료에 원문 · 장부 0","next":"일감 하나 안에서 묶음 셋을 차례로. 모으는 문서 「이슈 대장」 + 항목 예순(열쇠는 ID). 수집기를 지나가며 말한 이슈는 링크만"},{"step":"회의록이 먼저 올 때","now":"(앞 판 조문) 10초가 회의 항목에만 남고 뒤에 온 설명서의 5초가 수집기 값으로 선다","next":"회의 항목에 줄로 남기고, 설명서가 올 때 「앞선 값」 카드(10초 · 2026-11-10)가 실려 수집기는 10초로 선다"},{"step":"같은 회의의 후속 메모","now":"(앞 판 조문) 회의 항목 고침 · 새 사건 · 대상 고침으로 갈린다","next":"새 사건이 아니다. 수집기를 고치고(버퍼 크기 2000) 회의 항목은 「남은 것」 줄만 고친다"},{"step":"커밋 collector: 5 → 10","now":"(앞 판 조문) 닿을 항목이 없을 때 답 없음","next":"사건이 아니다. 수집기 항목을 고친다. 항목이 없으면 통째로 그 대상에 관한 글이라 얇아도 세운다. 손질 커밋은 넣을 것 없음"},{"step":"무인에서 실패하면","now":"규칙 길: 원문이 들인 자료에 그대로 선다","next":"지식에는 아무것도 서지 않는다. 일감이 새 재료로 다시 시도한다"}],"steps":[{"id":"H0","title":"바탕 값과 어긋남 맞춤","what":"골든 셋(원천 열다섯 · 두 차례)과 평가 스크립트로 지금 프롬프트의 바탕 값. 저장 길 표 맞춤 · 제안과 저장의 갈래 목록 한 함수 · 낡은 글과 죽은 채널 걷기"},{"id":"H1","title":"조문 데이터","what":"core/genrules.js(조문 · 씨앗 종류 · 판 · 지문) · 작성기준 6-4 뽑기와 대조 · FORMS 의 pick 칸 · 계약 글 두 줄을 룰에 맞춤(H-O10)"},{"id":"H2","title":"짝 엮기와 발판 옮기기","what":"core/weave.js · 종류 접기 걷기 · 기본 갈래를 판정에서 걷고 읽기 발판으로 · formFor 가르기 · 자리 채움 · 문서 성격과 뜻 한 줄의 자리(H-O3 · 4 · 5 · 6 · 13)"},{"id":"H3","title":"판례 묶음과 재료","what":"core/precedent.js · 덮임 줄 · 거꾸로 단 · 앞선 값 단 · 서버가 조문과 스키마를 재료에 · match 와 brief 가 같은 카드(옛 칸은 남긴다)"},{"id":"H4","title":"초안 2판과 판단 칸(측정만)","what":"LLM 을 일반 세션으로 · 가져올 곳을 공식 절차로 · 규칙 길 걷기 · 무인 실패 다시 시도 · 새 스키마 · 「지은 근거」 · 근거 날짜 · 걸음 0 · 지식마다 한 줄 · 큰 원천 묶음 · 재료 더 받기 · 고쳐 받기 표 · 모두 뺌의 끝(H-O7 · 8 · 9 · 11)"},{"id":"H5","title":"모든 채널이 같은 글","what":"스킬 자리표 · agentTask 가 넣기 에이전트에 조문을 붙임 · MCP 설명 · 짜임 기준 · kmd-migrate 와 kmd-seed 의 rules 명령(H-O14)"},{"id":"H6","title":"되돌림이 장부 줄을 걷는다","what":"사람이 직접 쓰는 채널 폐기 · 화면 「넣을 것」 올리기 · 모든 저장 길이 「새로 세움」 을 쓰고 엮기를 지난다(짜임 걸음 · 화면 고치기 · 가져올 곳 · 거두기 · kmd-migrate put) · 되돌림이 장부 줄을 폐기 표시"},{"id":"H7","title":"지식관리자의 장부 고침 길","what":"폐기 · 합치기 · 별칭 빼기를 저장 문 걸음으로(H-O12)"},{"id":"H8","title":"판정 경계 켜기","what":"두 주 측정으로 문턱을 잡고 태도 의무 · 가름과 벗어남 통과 · 증거 대조 · 닫힌 갈래 설정 · 무인 문 · 별칭 보탬 · 세션 의무(H-O1 · 3 · 4 · 9)"},{"id":"H9","title":"(걷음)","what":"규칙 길 제거와 다시 시도는 H4 에서 한다"},{"id":"H10","title":"점검 지표와 조문 고침 고리","what":"지표 줄 · 평가 결과로 조문 판 올림 · 설명서 · 188 배포(사람이 하라고 할 때)"}],"metrics":["무인 실패 비율: 첫 시도 10% · 세 번 뒤에도 실패 2% · 무인 값 경고 비율 20%","태도 뒤집힘(고쳐 받기 앞뒤) 10%","가름 · 벗어남 뒤 조정(되돌림 · 합침) 10%(H7 뒤에야 잰다)","틀린 가름 · 중복의 대리: 뜻 겹침 의심 5%","틀린 따름의 대리: 한 항목에 이름 둘 · 값 대조에서 사라진 값 5%","잘린 덮임에서 세움 10%","짝 비율 100%(엮기를 지나는 채널 · 어긋나면 버그)","판단 칸 흠 5%","첫 겹의 답과 최종 답의 차이: 재기만(두 호출 표본과 먼저 견준다)","짜임 신호: 한 항목짜리 문서 30% · 항목 하나뿐인 종류 3","골든 셋: 묶음 F1 0.85 · 성격 일치 0.9 · 중복률 5% 이하 · 빠짐 10% 이하 · 지금 값 일치 두 차례 모두 1.0","골든 셋: 같은 차례 세 번 일치 0.8 · 차례 섞기 0.75 · 채널 일치 0.8 · 같은 원천 두 번이면 새 항목 0 · 주입 통과 0 · 판례 recall 0.9","벗어남 비율은 문턱으로 두지 않는다"],"risks":["Claude 를 쓸 수 없으면 지식 내용은 무인으로도 사람 손으로도 바뀌지 않는다. 오타 하나도 LLM 을 거친다","세션은 단발보다 비싸고 느리다(일감마다 2 ~ 3 달러 · 20분 · 재지 않았다). 팀 일꾼이 도구 0 에서 읽기 + MCP 로 바뀐다","까닭 꾸밈: 코드는 판단이 있었나와 증거 둘(식별자 · 주인 대상)만 본다. 무인 판단의 옳음은 사후에만 드러난다","틀린 따름은 부딪힘이 없어 검사에 걸리지 않는다(대리 지표와 골든 셋뿐)","판례 찾기와 앞선 값 카드는 여전히 글자 맞춤이다. 처음에는 중복이 생긴다","무인 규칙 글이 짧은 판 7,822자로 지금(6,500자쯤)보다 길고 한 호출이 내는 칸도 는다. 토큰 값을 재지 않았다","근거 날짜는 LLM 이 읽는다. 옛 기록은 모두 「모름」 이다","일감 프로토콜이 넓어진다(더 받기 · 한 줄 · 묶음 호출 · 번호 표). 판이 다른 일꾼과 개인 프로그램이 섞이는 동안 유예가 필요하다","장부 꼴 넓힘: 닫음 표시와 종류 뜻 줄의 자리는 아직 코드로 대 보지 않았다","Claude 를 쓰지 않는 지식은 무인으로 들일 수 없다. 실패 일감은 보지 않으면 쌓인다","코드가 LLM 의 답을 뒤집는 곳이 넷 남는다(모으는 문서 접기 · 같은 이름 문서 접기 · 같은 종류 바꿔 달기 · 모으는 갈래의 섹션 꼴)","이 문서의 숫자는 모두 처음 값이고 걷기는 손으로 읽은 것이다. 실제 LLM 초안 표본은 H0 이 처음 만든다"],"owner":[{"id":"H-O1","title":"무인 벗어남을 무엇으로 묶나","q":"무인의 가름 · 벗어남 · 세움에 수 상한을 두나","options":[{"name":"상한 없이 측정 + 알림","what":"얇은 지식은 한 줄. 고침 넓이만 묶는다. 문턱을 넘으면 그 지식의 무인 들이기 멈춤","good":"빈 지식 첫날을 막지 않는다","bad":"주입 · 난립은 사후에 잡는다"},{"name":"수 상한","what":"저장마다 · 하루마다 상한, 넘으면 실패","good":"수가 묶인다","bad":"틀린 따름을 시키고 첫날에 걸린다"},{"name":"원천 크기에 견준 비율","what":"비율 상한","good":"큰 원천에 맞다","bad":"문턱 근거가 없다"}],"pick":"상한 없이 측정 + 알림","why":"수 상한은 수는 못 묶고 질만 낮춘다. 한꺼번에 많이 올 때의 권함은 H-O11","owner":true,"changes":"P-D9 의 무인 문장 · P-D14"},{"id":"H-O3","title":"무인 문의 앞 조건과 보탬","q":"무인 문을 언제 열고 있는 장부 줄에 무엇을 보탤 수 있나","options":[{"name":"되돌림 · 장부 고침 길 뒤에 연다","what":"자리 채움은 먼저(H2), 별칭 · 뜻 한 줄은 H8. 장부 줄을 걷는 되돌림은 지식관리자만","good":"되돌릴 손잡이가 먼저 선다","bad":"무인 쪽이 두 단계 늦다"},{"name":"앞 조건 없이","what":"측정 뒤 바로 연다","good":"빠르다","bad":"세운 장부 줄을 걷을 길이 없다"},{"name":"보탬은 지식관리자 전속","what":"별칭 · 자리 채움 모두 닫는다","good":"바닥 그대로","bad":"조문이 시키는 것을 코드가 막는다"}],"pick":"되돌림 · 장부 고침 길 뒤에 연다","why":"지금 되돌림은 항목 글만 걷는다. 폐기 · 합치기 · 별칭 빼기를 이 일에 넣는다(H-O12)","owner":true,"changes":"권한 모델 7절 · propose.js 의 거절"},{"id":"H-O4","title":"닫힌 갈래 계단","q":"기본 갈래 셋과 「갈래장부가 서면 닫힘」 을 어떻게 하나","options":[{"name":"열림 · 닫음은 사람 채널에만","what":"기본 갈래를 판정에서 걷는다. 선 지식은 닫음으로 옮기되 무인은 벗어남 + 까닭","good":"DPMS 에서도 LLM 이 맡는다","bad":"닫아 둔 지식에 무인이 문서를 세운다"},{"name":"닫음 지식은 무인도 오류","what":"지금처럼 규칙 길","good":"지식관리자 결정 그대로","bad":"가장 큰 지식에서 요구가 꺼진다"},{"name":"모두 열림","what":"닫음을 없앤다","good":"단순하다","bad":"사람에게 건 약속도 덮는다"},{"name":"지금 그대로","what":"계단 유지","good":"바꿀 것 없음","bad":"첫 몇 건이 울타리가 된다"}],"pick":"열림 · 닫음은 사람 채널에만","why":"낱말 때문에 절차가 사건으로 밀리지 않고, 따를지는 LLM 이 맡는다","owner":true,"changes":"P-D9 · guard.js 350 · 351 · DEFAULT_FORMS"},{"id":"H-O5","title":"항목 종류의 정의","q":"종류:값 의 종류를 누가 무엇으로 정하나","options":[{"name":"네 단 차례","what":"같은 문서의 종류 → 있는 종류 → 닫힌 씨앗 → 원천의 갈래말. 칸은 LLM","good":"옛 관행과 빈 지식을 같이 받는다","bad":"옛 꼴과 씨앗 꼴이 섞인다"},{"name":"LLM 이 항목마다","what":"열린 목록 · 씨앗 없음","good":"자유롭다","bad":"같은 뜻 다른 낱말이 선다"},{"name":"문서가 정한다","what":"문서마다 하나 · 종류 칸 없음","good":"난립이 없다","bad":"LLM 의 판단 칸이 사라진다"}],"pick":"네 단 차례","why":"첫 원천의 우연한 낱말이 굳지 않는다","owner":true,"changes":"ingest.js 의 종류 접기 · 컨벤션 9절"},{"id":"H-O6","title":"문서 성격의 자리","q":"문서의 성격을 어디에 적고 한 문서 한 성격을 어디까지","options":[{"name":"갈래장부 밖 세 칸 표","what":"갈래장부는 모으는 갈래만. 주제 문서는 으뜸 성격 + 측정","good":"품기 맞춤과 안 부딪힌다","bad":"세 칸 · 속성 블록 뒤라야 옛 판이 안 깨진다"},{"name":"문서 표지","what":"표지에 성격을 적는다","good":"장부 꼴 그대로","bad":"표지 셋이 넷이 된다"},{"name":"갈래장부에 문서마다 한 줄","what":"formFor 를 고친다","good":"한 곳에 모인다","bad":"갈래장부가 문서 목록이 된다"},{"name":"한 문서 한 성격을 막는다","what":"입력 오류","good":"꼴이 고르다","bad":"서식 계약과 어긋나고 잘게 쪼갠다"}],"pick":"갈래장부 밖 세 칸 표","why":"갈래장부가 판례 구실을 지킨다","owner":true,"changes":"작성기준의 표지 셋 · P-D9"},{"id":"H-O8","title":"쓸 것이 없는 원천의 끝","q":"지문이 같은 사본 · 뺄 것만 남은 원천을 어떻게 끝내나","options":[{"name":"아무것도 쓰지 않고 측정만","what":"들어감으로 친다. 진행 탭에 까닭","good":"값 없는 기록이 안 선다","bad":"뺀 까닭이 지식 안에 안 남는다"},{"name":"기록 모음에 기록 하나","what":"달 항목에 잇는다","good":"흔적이 지식에 남는다","bad":"내용이 안 바뀐 일이 기록이 된다"}],"pick":"아무것도 쓰지 않고 측정만","why":"같은 글의 「쓰지 않음」 은 이미 있는 동작이다","owner":true,"changes":"P-D14 · P-D29 · P-D34 · P-D35"},{"id":"H-O9","title":"판단 칸에서 무엇을 막나","q":"판단 칸의 흠이 무인 고쳐 받기 방아쇠가 되나","options":[{"name":"둘만 막는다","what":"걸린 판례에 태도 없음 · 판단과 행동 어긋남. 나머지는 코드가 채우고 잰다","good":"부기 칸의 흠이 좋은 글을 버리지 않는다","bad":"까닭 꾸밈은 사후 지표로만"},{"name":"꼴 전부 오류","what":"조문 번호 · 까닭 빔도 입력 오류","good":"칸이 늘 찬다","bad":"실패 비율이 오른다"}],"pick":"둘만 막는다","why":"값 대조도 막지 않는데 부기 칸이 막으면 앞뒤가 뒤집힌다. 세션은 한 판 경고 뒤 오류","owner":true,"changes":"P-D6 · S-D20"},{"id":"H-O10","title":"규칙 원본의 자리","q":"조문의 원본을 데이터에 두나 작성기준에 두나","options":[{"name":"데이터가 원본","what":"core/genrules.js 에서 작성기준 6-4 를 뽑고 대조 시험","good":"사본이 어긋나지 않는다","bad":"「기준 문서 먼저」 차례가 바뀐다"},{"name":"작성기준이 원본","what":"코드가 문서 글을 읽어 싣는다","good":"바닥 그대로","bad":"글 파싱에 기댄다"}],"pick":"데이터가 원본","why":"사본 다섯 벌이 이미 어긋났다. FORMS 가 같은 꼴의 본보기다","owner":true,"changes":"작성기준 7-1 · CLAUDE.md 기준 문서 절"},{"id":"H-O11","title":"빈 지식에 한꺼번에 많이 올 때","q":"파일 수십 개가 빈 지식에 한 번에 들어오면","owner":true,"pick":"기다리지 않고 한 줄 + 권함","why":"바탕 세우기로 넘기면 기다림 상태가 생긴다","changes":"바탕세우기 설계 · S-D38","options":[{"name":"기다리지 않고 한 줄 + 권함","what":"얇은 지식은 한 번에 하나씩 들인다. 사람 채널은 10 개를 넘으면 기초 세우기를 한 번 권한다","good":"앞 것이 뒤 것의 판례가 된다","bad":"파일 40 개가 오래 걸린다"},{"name":"권함도 두지 않는다","what":"지금처럼 나란히 들인다","good":"빠르다","bad":"같은 대상이 여러 번 선다"},{"name":"바탕 세우기로 넘긴다","what":"문턱을 넘으면 낱개 들이기를 멈춘다","good":"짜임이 고르다","bad":"기다림 상태가 생긴다"}]},{"id":"H-O12","title":"장부 고침 길","q":"폐기 · 합치기 · 별칭 빼기를 이 일에 넣나","owner":true,"pick":"셋만 넣는다","why":"이 셋이 없으면 무인에 문을 열 앞 조건이 서지 않는다","changes":"권한 모델 7절","options":[{"name":"셋만 넣는다","what":"폐기 · 합치기 · 별칭 빼기를 지식관리자의 저장 문 걸음으로","good":"틀린 결정을 거둘 손잡이가 선다","bad":"화면 손잡이가 는다"},{"name":"모두 넣는다","what":"종류 바꾸기 · 짜임 다시 보기 알림까지","good":"한 번에 끝난다","bad":"사후 검토 줄이 되기 쉽다"},{"name":"모두 따로 설계","what":"이 일에서 뺀다","good":"범위가 작다","bad":"장부는 늘기만 한다"}]},{"id":"H-O13","title":"이미 항목으로 선 짜임 섹션","q":"옛 지식의 「개요」 · 「변경 이력」 항목을 어떻게 하나","owner":true,"pick":"그대로 읽는다","why":"옛 것을 다시 쓰지 않는다","changes":"없음","options":[{"name":"그대로 읽는다","what":"새로는 세우지 않고 이미 선 것은 있는 항목으로 고친다","good":"DPMS 의 개요 29 줄이 그대로 읽힌다","bad":"새 지식과 옛 지식의 꼴이 다르다"},{"name":"문서의 칸으로 내린다","what":"옛 것도 항목에서 뺀다","good":"꼴이 하나다","bad":"옛 장부와 기록을 다시 써야 한다"}]},{"id":"H-O14","title":"바탕 세우기 기준 3 · 4","q":"바탕 세우기의 갈래 · 장부 올림 기준을 룰에 맞추나","options":[{"name":"룰로 갈음","what":"한 건으로도 모으는 문서 · 항목마다 장부 짝. 구조안 한도를 다시 잡는다","good":"낱개와 바탕이 같은 룰","bad":"큰 바탕에서 장부가 커진다"},{"name":"덧붙임으로 남긴다","what":"셋 이상 되풀이 · 둘 이상에서 가리키는 것만","good":"지금 그대로","bad":"바탕 지식은 장부 밖 섹션이 많다"}],"pick":"룰로 갈음","why":"섹션과 장부 줄은 한 항목의 표기다","owner":true,"changes":"바탕세우기 설계 6-1 기준 3 · 4 · core/shape.js"}],"fixed":[{"id":"H-D34","title":"LLM 은 일반 세션으로","q":"LLM 을 어떤 방식으로 부르나","owner":false,"pick":"일반 세션","changes":"H-O7 · H-D19 · S-D38 · S-D47","why":"단발은 코드가 준 재료만 보고 스스로 찾지 못한다(2026-11-16 주인 결정)","options":[{"name":"일반 세션","what":"읽기 도구와 kmd MCP 를 쥐고 스스로 찾고 저장한다. 무인 · 사람 세션이 같은 방식","good":"모든 채널이 같은 방식으로 판단한다","bad":"단발보다 비싸고 느리다 · 주입 방어를 다시 세운다"},{"name":"단발 claude -p(지금)","what":"도구 없이 한 번 부르고 코드가 재료를 싣는다","good":"싸고 빠르다","bad":"후보 밖은 못 본다"}]},{"id":"H-D33","title":"사람이 직접 쓰는 채널 폐기","q":"사람이 손으로 쓴 글을 그대로 저장하는 길을 두나","owner":false,"pick":"폐기","changes":"권한 모델 · 작성기준 7절 · 설명서","why":"지식 내용을 쓰는 길은 모두 공식 절차를 지나야 한다(2026-11-16 주인 결정)","options":[{"name":"폐기","what":"화면 저장 · 문서 고치기의 글 고침 · 거두기를 없앤다. 화면의 「넣을 것」 은 원천이 되어 공식 절차를 탄다","good":"룰을 거치지 않고 서는 글이 없다","bad":"오타 하나도 LLM 을 거친다 · Claude 가 없으면 못 고친다"},{"name":"남긴다(앞 판)","what":"사람이 쓴 그대로 저장하고 코드가 장부 짝만 채운다","good":"빠르다","bad":"룰에 맞는지 보지 않는다"}]},{"id":"H-D32","title":"가져올 곳도 공식 절차","q":"바깥 목록을 가져와 항목을 세우는 길","owner":false,"pick":"공식 절차","changes":"없음","why":"LLM 없이 규칙으로 세우는 길은 규칙 길과 같은 뒷길이다(2026-11-16 주인 결정)","options":[{"name":"공식 절차","what":"가져온 표 · 목록은 원천이 되어 세션이 판단한다. 큰 목록은 묶음으로","good":"같은 대상을 두 번 세우지 않는다","bad":"목록이 크면 오래 걸린다"},{"name":"정해진 규칙(지금)","what":"코드가 한 번에 항목 500 개까지 세운다","good":"빠르다","bad":"있는 항목과 같은 대상인지 보지 않는다"}]},{"id":"H-D29 ~ 31","title":"규칙 길을 걷는다","q":"무인 채널이 공식 절차를 끝내지 못하면","owner":false,"pick":"다시 시도","changes":"저장승인 P-D14 · P-D15 · P-D35 · 권한 모델 7절","why":"규칙 길은 공식 절차가 아니다. 필요 없는 원문을 지식에 남길 까닭이 없다(2026-11-16 주인 결정)","options":[{"name":"다시 시도","what":"지식에 아무것도 쓰지 않는다. 일감이 새 재료로 세 번 다시 시도하고 그 뒤에는 실패 일감으로 남는다","good":"지식에는 공식 절차로 선 것만 있다","bad":"Claude 를 쓰지 않는 지식은 무인으로 못 들인다 · 실패 일감이 쌓일 수 있다"},{"name":"규칙 길(지금)","what":"Claude 없이 원문을 그대로 넣는다","good":"늘 들어간다","bad":"원문 문서가 쌓이고 항목이 되지 않는다"}]},{"id":"H-D1 · H-D28","title":"발판은 고정 생성 룰 · 두 겹","q":"성격 정의의 발판을 어디에 두나","options":[{"name":"룰 한 벌(두 겹)","what":"R0 ~ R9. 첫 겹은 내용만으로, 둘째 겹은 지식을 보고 답한다","good":"빈 지식도 「판례 0」 한 줄로 같은 길","bad":"무인 규칙 글이 7,800자로 지금보다 길다"},{"name":"장부가 발판(지금)","what":"종류 · 갈래를 장부에서 뽑고 빈 곳은 코드 상수","good":"바꿀 것이 없다","bad":"장부가 없으면 정의도 없다"}],"pick":"룰 한 벌(두 겹)","why":"발판이 장부면 장부가 없을 때 발판도 없다. 글은 한 벌이고 짧은 판은 「헷갈릴 때」 를 뺀 것이다","owner":false,"changes":"없음"},{"id":"H-D11","title":"짝은 코드가 짓는다(엮기)","q":"섹션과 장부 줄을 누가 짝으로 세우나","options":[{"name":"엮기(코드)","what":"판정 한 줄에서 섹션 · 장부 줄 · 문서장부 줄 · 건드린 항목을 같이","good":"첫 저장부터 판례 재료가 선다","bad":"접기 넷은 코드가 LLM 답을 뒤집는다"},{"name":"LLM 이 names 를 낸다(지금)","what":"초안에 name · kind 만","good":"지금 그대로","bad":"자리 없는 줄 · 기록이 장부 항목에 안 닿음"}],"pick":"엮기(코드)","why":"검사가 아니라 꼴로 없앤다. 종류 칸은 LLM 에 남는다. 짜임 섹션은 새로 세우지 않는다(옛 것은 H-O13)","owner":false,"changes":"S-D32 의 names-missing 경고가 필요 없어진다"},{"id":"H-D27","title":"값은 근거 날짜로 견준다","q":"어느 값이 지금인가를 무엇으로 정하나","options":[{"name":"값의 근거 날짜 + 앞선 값 카드","what":"넣을 것이 말하는 때를 대상 단위로 견준다","good":"들이는 차례가 바뀌어도 값이 같다","bad":"날짜를 LLM 이 읽는다 · 옛 기록은 모름"},{"name":"그 항목의 마지막 기록","what":"기록 날짜(들인 날)로 견준다","good":"코드가 안다","bad":"옛 원천을 넣으면 날짜 있는 값이 모두 진다"}],"pick":"값의 근거 날짜 + 앞선 값 카드","why":"회의록이 먼저 와도 정한 값이 대상 항목에 선다","owner":false,"changes":"없음"}]};
+const $ = (id) => document.getElementById(id);
+const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+$('oneLine').textContent = D.oneLine;
+$('principles').innerHTML = D.principles.map((p) => { const i = p.indexOf(':'); return '<div class="card"><b>' + esc(p.slice(0, i)) + '</b><div style="font-size:13.5px;color:var(--sub);margin-top:4px">' + esc(p.slice(i + 1).trim()) + '</div></div>' }).join('');
+$('stages').innerHTML = D.stages.map((s) => { const llm = /LLM/.test(s.who); return '<div class="step' + (llm ? ' llm' : '') + '"><div class="n">' + esc(s.id) + '</div><div><div class="t">' + esc(s.title) + '<span class="who">' + esc(s.who.replace(/\(.*$/, '')) + '</span></div><div class="d">' + esc(s.out) + '</div></div></div>' }).join('');
+const first = new Set(['R1', 'R4', 'R6']);
+const rule = (r) => '<div class="rule"><div class="hd"><span class="id">' + esc(r.id) + '</span><span class="tag">' + esc(r.about) + '</span></div><div class="q">' + esc(r.q.replace(/\s*\[[^\]]*\]\s*$/, '')) + '</div><div class="a">' + esc(r.a) + '</div></div>';
+$('rulesA').innerHTML = D.rules.filter((r) => first.has(r.id)).map(rule).join('');
+$('rulesB').innerHTML = D.rules.filter((r) => !first.has(r.id)).map(rule).join('');
+const kind = (b) => /^여전히 오류/.test(b.next) ? ['그대로 막음', ''] : /^그대로/.test(b.next) ? ['그대로', ''] : /걷는다|사라진다/.test(b.next) ? ['걷음', 'pri'] : /오류가 아니다/.test(b.next) ? ['막지 않음', 'pri'] : /^오류/.test(b.next) ? ['새 검사', 'warn'] : ['LLM 이 맡음', 'info'];
+$('boundary').innerHTML = D.boundary.map((b) => { const [t, c] = kind(b); return '<tr><td><b>' + esc(b.what) + '</b></td><td class="now">' + esc(b.now) + '</td><td>' + esc(b.next) + '</td><td><span class="tag ' + c + '">' + t + '</span></td></tr>' }).join('');
+$('walkList').innerHTML = D.emptyWalk.map((w) => '<div class="wk"><div class="src">' + esc(w.step) + '</div><div class="now"><b class="lab">지금</b>' + esc(w.now) + '</div><div class="nx"><b class="lab">설계 뒤</b>' + esc(w.next) + '</div></div>').join('');
+$('stepList').innerHTML = D.steps.map((s) => '<div class="st"><div class="id">' + esc(s.id) + '</div><div class="t">' + esc(s.title) + '</div><div class="w">' + esc(s.what) + '</div></div>').join('');
+$('metrics').innerHTML = D.metrics.map((m) => '<li>' + esc(m) + '</li>').join('');
+$('risks').innerHTML = D.risks.map((m) => '<li>' + esc(m) + '</li>').join('');
+
+const decHtml = (d, done) => '<div class="dec"><div class="hd"><span class="id">' + esc(d.id) + '</span><h3>' + esc(d.title) + '</h3></div><div class="q">' + esc(d.q) + '</div><div class="opts">' +
+  d.options.map((o) => '<div class="opt' + (o.name === d.pick ? ' on' : '') + '"><div class="nm">' + esc(o.name) + (o.name === d.pick ? ' <span class="tag pri">' + (done ? '확정' : '정함') + '</span>' : '') + '</div><div class="wh">' + esc(o.what) + '</div><div class="pc"><span class="g">' + esc(o.good) + '</span><span class="b">' + esc(o.bad) + '</span></div></div>').join('') +
+  '</div><div class="ft"><span><b>까닭</b> ' + esc(d.why) + '</span>' + (d.changes && d.changes !== '없음' ? '<span><b>고치게 되는 옛 결정</b> ' + esc(d.changes) + '</span>' : '') + '</div></div>';
+$('ownerList').innerHTML = D.owner.map((d) => decHtml(d, true)).join('');
+$('fixedList').innerHTML = D.fixed.map((d) => decHtml(d, false)).join('');
+</script>
+</body>
+</html>
