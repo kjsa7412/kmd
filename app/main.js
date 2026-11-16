@@ -569,7 +569,7 @@ const TIPS = {
   'imp.ahead': ['일 줄은 이 서버 하나라 다른 지식의 일이 앞에 있으면 기다린다. 줄 멈춤 · 동시에 도는 수도 모든 지식에 걸린다', ''],
   // 점검(메뉴 개편 6-2 · 저장 승인 P10) — 탭 머리 · 점검 줄 묶음 · 지표
   'chk': ['점검: 기록 · 장부 · 문서가 어긋난 곳 · 지표: 저장이 어떻게 들어갔는지 잰 값', '/manual/지식관리자.html#check'],
-  'mt': ['할 일 목록이 아니다. 새로 생긴 것 · 받아들인 경고 · 무인 값 경고 · 규칙 길 · FIX · 다시 제안을 기간으로 센다. 줄의 [보기] 로 그 기록을 연다', '/manual/지식관리자.html#metrics'],
+  'mt': ['할 일 목록이 아니다. 새로 생긴 것 · 받아들인 경고 · 무인 값 경고 · 무인 실패 · FIX · 다시 제안을 기간으로 센다. 줄의 [보기] 로 그 기록을 연다', '/manual/지식관리자.html#metrics'],
   'chk.rec': ['항목 없음: 건드린 항목이 없는 기록 · 장부 밖: 항목 장부에 없는 항목을 단 기록 · 폐기 항목: 폐기된 항목을 단 안 넣은 기록', ''],
   'chk.name': ['잃은 항목: 문서에 머리가 없는 항목 · 빈칸 값: 값에 빈칸이 든 옛 항목', ''],
   'chk.sec': ['장부에 없는 항목: 항목 장부에 오르지 않은 머리 · 깨진 머리: 머리 꼴이 깨진 항목 · 깨진 링크: 없는 문서 · 항목을 가리키는 링크', ''],
@@ -2413,7 +2413,7 @@ function cmdDefs() {
     { n: '찾기', s: 'Ctrl K', f: () => openPal() },
     { n: '이력', s: '고른 지식에서 바뀐 것 · 값 바뀜', f: () => go({ scr: 'today' }) },
     ckKn() && { n: '점검', s: KN(ckKn()).name + ' · 점검 · 지표', f: () => kmGo('held', ckKn(), 'check') },
-    ckKn() && admKn(ckKn()) && { n: '지표', s: KN(ckKn()).name + ' · 새로 생긴 것 · 받아들인 경고 · 규칙 길 …', f: () => kmGo('held', ckKn(), 'metrics') },
+    ckKn() && admKn(ckKn()) && { n: '지표', s: KN(ckKn()).name + ' · 새로 생긴 것 · 받아들인 경고 · 무인 실패 …', f: () => kmGo('held', ckKn(), 'metrics') },
     !isTeam() && { n: '공유', s: '내 개인 지식 → 팀 지식', f: () => go({ scr: 'send' }) },
     { n: '설정', s: '', f: () => openSettings() },
     { n: '모든 지식', s: '지식관리', f: () => go({ scr: 'home', kn: '*' }) },
@@ -3970,12 +3970,12 @@ const MT_ROWS = [
   ['fresh', '새로 생긴 것', '이 기간에 저장이 새로 세운 문서 · 항목(문서 · 장부) · 갈래 · 종류', null],
   ['accepted', '받아들인 경고', '사람이 저장 제안의 경고를 보고 승인해 넣은 저장 / 사람 채널 저장', null],
   ['warned', '무인 값 경고', '들이기 · 가져올 곳 · 정정 같은 무인 저장에서 값 대조가 걸린 저장 / 무인 저장', 0.2],
-  ['rule', '규칙 길', 'Claude 글 대신 규칙 길로 들어간 무인 저장 / 무인 저장', 0.1],
+  ['fail', '무인 실패', '첫 시도에 못 넘어 다시 시도로 간 무인 일감 / 무인 일감 · 「끝내 실패」 는 실패 일감으로 남은 수', 0.1],
   ['fix', 'FIX 번 수', '무인 저장이 결정적 오류를 고치려 다시 지은 번 수', null],
   ['rounds', '다시 제안 수', '사람 채널에서 저장 제안을 다시 받은 번 수', null],
 ]
 const MT_CODE = { 이름: '항목(장부)', 항목: '항목(문서)', missing: '빠진 값', invented: '지어낸 값', gone: '사라진 값', lost: '사라진 값', split: '나뉜 글', near: '비슷한 이름', reverts: '되돌림 잦음', remain: '남은 값', unreflected: '본문 반영 안 됨' }
-// 규칙 길 까닭 묶음 이름 — 「일꾼 실패: …」 · 「오늘 들이기 수(30)를 넘었다: …」 처럼 첫 「:」 앞 · 괄호 수를 걷고 · 짧게(지표 줄이 길게 붙지 않게 · 12 화면 말)
+// 까닭 묶음 이름(옛 규칙 길 까닭 · 무인 실패 코드) — 「일꾼 실패: …」 · 「오늘 들이기 수(30)를 넘었다: …」 처럼 첫 「:」 앞 · 괄호 수를 걷고 · 짧게(지표 줄이 길게 붙지 않게 · 12 화면 말)
 const mtWhy = (c) => { const s = String(c).split(/[:：]/)[0].replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ').trim(); return s.length > 16 ? s.slice(0, 15) + '…' : s || '까닭 모름' }
 const mtDays = () => (MT_DAYS.includes(S.mtDays) ? S.mtDays : 14)
 const mtKey = (k) => `metrics:${k}:${mtDays()}`
@@ -5195,6 +5195,8 @@ function impActs(j, small = true) {
   const b = (act, t, cls = '') => `<button class="btn${sm}${cls}" data-a="qAct" data-v="${act}" data-id="${esc(j.id)}" data-t="q-${act}" title="${t}">${t}</button>`
   const o = []
   if (j.kind === 'local') { if (j.imp && j.imp.many && !j.fin && !j.imp.stop) o.push(`<button class="btn${sm}" data-a="impStop" data-v="${esc(j.imp.id)}" data-t="impStop">그만두기</button>`) }
+  // 실패 일감(무인 들이기가 끝내 못 넘었다 · 지식에는 아무것도 쓰지 않았다) — 지식관리자: 「다시 시도」 · 「그만두기」(원천을 버린다)
+  else if ((j.kind === 'intake' || j.intake) && j.failed) { if (admKn(j.kn)) o.push(b('retry', '다시 시도'), b('drop', '그만두기', ' dz')) }
   else if (j.kind === 'intake') { if (j.state === 'wait') o.push(b('cancel', '빼기', ' dz')) }
   else if (j.intake) { if (j.state === 'wait') o.push(b('cancel', '빼기', ' dz')); else if (j.state === 'run') o.push(b('cancel', '그만두기', ' dz')); else if (j.state === 'fail') o.push(b('cancel', '줄에서 빼기(기록은 남는다)', ' dz')) }
   else if (!j.fin) {
@@ -5242,10 +5244,12 @@ function impDetHtml(j) {
     return `${i ? `<span class="arr${stCls(j, i - 1) === 'done' ? ' done' : ''}">→</span>` : ''}<div class="st ${c}${fil === String(i) ? ' focus' : ''}" data-a="impStg" data-v="${i}" data-t="impStg" title="이 단계의 줄만 터미널에"><div class="n"><span>${i + 1}</span><span>${st === 'run' && j.state === 'pausing' ? '멈추는 중' : ST_T[st] || ''}</span></div><div class="nm">${nm}</div><ul>${items}</ul>${j.known && j.stages[i] && j.stages[i].at && j.stages[i].end ? `<div class="tt">${durTxt(Date.parse(j.stages[i].end) - Date.parse(j.stages[i].at))}</div>` : ''}</div>`
   }).join('')
   const why = j.state === 'check' ? `<div class="callout warn" data-t="whyCheck"><span><b>크게 바뀜</b>: ${esc(j.msg)} · [그대로 맞추기] 는 크게 바뀜 문턱을 넘어 쓴다 · [이번은 건너뛰기] 는 다음 정한 때에 다시 본다</span></div>`
+    : j.failed ? `<div class="callout danger" data-t="whyFailed"><span><b>못 들임</b>(시도 ${j.fails || 0}): ${esc(j.msg || '')} · 지식에는 아무것도 쓰지 않았다 · 지식관리자가 [다시 시도] 또는 [그만두기]</span></div>`
     : j.state === 'fail' ? `<div class="callout danger"><span><b>못함: ${STG[Math.min(j.stage, STG_LAST)]}</b> · ${esc(j.msg)}${j.retry ? ' · [다시] 는 이 단계부터' : ''}</span></div>`
     : j.state === 'pause' ? `<div class="callout warn"><span><b>멈춤</b>: ${esc(j.msg)}</span></div>`
     : j.state === 'pausing' ? `<div class="callout warn"><span><b>멈추는 중</b>: 지금 단계(「${STG[Math.min(j.stage, STG_LAST)]}」)를 마치면 선다 · 바로 끝내려면 [바로 그만두기]</span></div>`
-    : j.rule ? `<div class="callout gray" data-t="whyRule"><span><b>규칙 길</b>: ${esc(j.rule)}</span></div>`
+    : j.retryAt ? `<div class="callout warn" data-t="whyRetry"><span><b>다시 시도를 기다린다</b>(${j.fails || 0}번째 실패): ${esc(whenTxt(j.retryAt))} 뒤에 팀 일꾼이 다시 짓는다</span></div>`
+    : j.rule ? `<div class="callout gray" data-t="whyRule"><span><b>옛 규칙 길</b>: ${esc(j.rule)}</span></div>`
     : !j.known ? '<div class="callout gray"><span>단계를 알 수 없다. 화면이 보내는 중이거나 줄이 남지 않은 일이다</span></div>' : ''
   const rows = j.kind === 'group' ? j.rows || [] : j.imp && j.imp.many ? j.imp.rows : null
   const kids = rows ? `<div class="sec"><div class="sh">안의 파일 ${j.total || (j.imp && j.imp.total) || rows.length}<span class="r">${j.kind === 'group' ? `보냄 ${j.sent}/${j.total}` : `${j.imp.done}/${j.imp.total}`}</span></div><div class="kids" data-t="impFiles">${[...rows].sort((a, b) => (a.kind === 'fail' || a.kind === 'skip' ? 0 : 1) - (b.kind === 'fail' || b.kind === 'skip' ? 0 : 1)).map((r) => `<div${r.run ? ` data-a="impSel" data-id="${esc(r.run)}"` : ''}><span class="chip ${r.kind === 'fail' || r.kind === 'skip' ? 'c-warn' : 'c-mute'}">${IMP_K[r.kind] || r.kind}</span><span class="mono">${esc(r.name)}</span><small>${esc(r.msg || '')}</small></div>`).join('') || '<div class="muted">아직 보낸 파일이 없다</div>'}</div></div>` : ''
@@ -5417,10 +5421,11 @@ async function qAct(id, act) {
   const j = impJobs().find((x) => x.id === id)
   if (!j) return
   if (act === 'cancel' && isRun(j) && !await ask1('이 일 그만두기', '그만두기', true, j.intake ? `「${j.title}」 을 그만둘까?\n\n팀 일꾼이 짓던 것은 넣지 않고 닫는다. 기록도 남기지 않는다 · 다시 넣으려면 파일을 다시 넣는다` : `「${j.title}」 을 그만둘까?\n\n지금 「${STG[Math.min(j.stage, STG_LAST)]}」 단계를 바로 끊고 일을 끝낸다. 이어서는 할 수 없다(잠깐 멈추려면 [잠깐 멈춤]) · 끝난 단계의 결과(남긴 기록)는 그대로 남는다`)) return
+  if (act === 'drop' && !await ask1('실패 일감 그만두기', '그만두기', true, `「${j.title}」 을 그만둘까?\n\n넣으려던 원천을 버린다. 지식에는 아무것도 쓰지 않았다 · 다시 넣으려면 원본을 다시 넣는다`)) return
   if (act === 'force' && !await ask1('그대로 맞추기', '그대로 맞추기', true, `「${j.title}」 을 그대로 맞출까?\n\n${j.msg}\n\n크게 바뀜 문턱을 넘어 원본대로 쓴다. 쓴 것은 「이력」 에서 되돌릴 수 있다`)) return
   try {
     const r = await postJSON(`/api/queue/${encodeURIComponent(id)}/${act}`, {})
-    toast({ pause: '지금 단계를 마치면 멈춘다', resume: '이어 간다', cancel: j.state === 'check' ? '건너뛰었다. 다음 정한 때에 다시 본다' : j.state === 'wait' ? '줄에서 뺐다' : r && r.state === 'pausing' ? '그만두는 중: 팀 일꾼이 지금 초안을 마치면 넣지 않고 닫는다' : '그만뒀다', retry: '다시: 그 단계부터 줄 뒤에 섰다', force: '그대로 맞춘다. 새 일로 섰다', top: '기다림 맨 앞으로' }[act] || '했다')
+    toast({ drop: '그만뒀다: 원천을 버렸다', pause: '지금 단계를 마치면 멈춘다', resume: '이어 간다', cancel: j.state === 'check' ? '건너뛰었다. 다음 정한 때에 다시 본다' : j.state === 'wait' ? '줄에서 뺐다' : r && r.state === 'pausing' ? '그만두는 중: 팀 일꾼이 지금 초안을 마치면 넣지 않고 닫는다' : '그만뒀다', retry: j.failed ? '다시 시도한다: 팀 일꾼이 처음부터 다시 짓는다' : '다시: 그 단계부터 줄 뒤에 섰다', force: '그대로 맞춘다. 새 일로 섰다', top: '기다림 맨 앞으로' }[act] || '했다')
     if (r && r.again) S.impSel = `src:${j.kn}|${j.src || ''}`
   } catch (e) { toastErr(e) }
   pollRuns()

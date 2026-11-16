@@ -263,7 +263,7 @@ export const GATHER_KINDS = ['사건', '보고', '대장', '용어', '결정']
 // 이름이 별칭을 품으면 그 갈래로 보는 것(품기 맞춤)은 이 성격의 갈래에만 한다(H-D15) — 그 밖의 갈래는 이름이 같을 때만
 const CONTAIN_KINDS = ['사건', '보고', '대장']
 // 기본 갈래 — 판정에는 쓰지 않는다(H-O4 · 빈 지식의 발판은 생성 룰이다). 남은 쓰임은 읽기 발판뿐이다:
-//   옛 문서의 성격 짐작(core/forms.js kindOf) · 원본 조사(core/survey.js) · 규칙 길의 사건 고르기(core/pcplace.js · H4b 에서 걷는다)
+//   옛 문서의 성격 짐작(core/forms.js kindOf) · 원본 조사(core/survey.js). 규칙 길의 사건 고르기는 규칙 길과 함께 걷었다(H4b)
 export const DEFAULT_FORMS = [
   { name: '회의록', aliases: ['회의', '미팅', '통화', '전화', '면담', 'minutes', 'meeting'], folder: '', kind: '사건', pattern: null, form: '작업기록' },
   { name: '장애 대응', aliases: ['장애', '사고', 'incident', 'postmortem'], folder: '', kind: '사건', pattern: null, form: '작업기록' },
@@ -358,7 +358,7 @@ export const RECORDS_INTRO = '이을 항목이 없던 기록을 달마다 잇는
 export const RECORDS_MONTH_TEXT = '이 달에 이을 항목이 없던 기록을 잇는다.'
 export const isRecordsMonth = (h) => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(h || '').trim())
 // 들인 자료(저장 승인 설계 P-D35 · Q4 · P6) — 서버 고정 갈래 · 규칙 길이 맞는 갈래를 못 찾은 원본을 이 폴더 아래 주제 문서로 세운다(처음 쓸 때 선다) ·
-//   갈래 장부에 없어도 선다(고정 갈래) · 이름은 주제(core/pcplace.js ruleSections 가 짓는다) · 지식관리자는 원하면 나중에 옮긴다
+//   갈래 장부에 없어도 선다(고정 갈래) · 이름은 주제(규칙 길이 지었다 · 규칙 길은 걷었고 옛 문서는 그대로 읽는다) · 지식관리자는 원하면 나중에 옮긴다
 export const INTAKE_FORM = '들인 자료'
 //   intake — 무인 채널의 저장(P6 · 규칙 길)만 「들인 자료」 고정 갈래를 연다(사람 채널은 갈래 장부 · 꼴 검사 그대로)
 //   depart — 벗어남을 적은 새 문서(H-D17 다 · H4c 부터 건다): 별칭 품기와 닫힌 갈래를 넘는다(머리 꼴 · 폴더 · 이름 모양은 그대로 본다)

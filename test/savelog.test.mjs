@@ -121,6 +121,10 @@ test('지표 칸(P-D37 · P10): 무인 값 경고 · 규칙 길 · FIX · 다시
     { at: '2026-11-10 10:02', kn: 'apv', user: 'kmd', ch: 'intake', rec: 'u1', n: 1, put: 1, held: [], mode: 'approve', warned: ['invented', 'missing'], fix: 2, conflict: 1, linked: 0, fresh: 0 },
     { at: '2026-11-10 10:03', kn: 'apv', user: 'kmd', ch: 'intake', rec: 'u2', n: 1, put: 1, held: [], mode: 'approve', warned: [], rule: '꼴 오류가 남음', linked: 0, fresh: 0 },
     { at: '2026-11-10 10:04', kn: 'apv', user: 'wr', ch: 'session', rec: 'old', n: 1, put: 1, held: [] },
+    // 무인 실패 줄(지식 생성 하네스 H4b) — 첫 시도 실패 둘 · 그 가운데 하나는 끝내 실패
+    { at: '2026-11-10 10:05', kn: 'apv', by: 'kmd', ch: 'intake-file', job: 'j1', rec: null, mode: 'approve', err: 'unattended', fail: { n: 1, code: 'check', final: false } },
+    { at: '2026-11-10 10:06', kn: 'apv', by: 'kmd', ch: 'intake-file', job: 'j2', rec: null, mode: 'approve', err: 'unattended', fail: { n: 1, code: 'nosave', final: false } },
+    { at: '2026-11-10 10:07', kn: 'apv', by: 'kmd', ch: 'intake-file', job: 'j2', rec: null, mode: 'approve', err: 'unattended', fail: { n: 4, code: 'nosave', final: true, same: true } },
   ]
   const s = summarize(lines)
   const a = s.channels.find((c) => c.ch === 'intake').approve
@@ -134,12 +138,12 @@ test('지표 칸(P-D37 · P10): 무인 값 경고 · 규칙 길 · FIX · 다시
   ]
   const m = metricsOf(lines, { works, days: 14, now: new Date('2026-11-11T12:00:00') })
   const by = Object.fromEntries(m.rows.map((r) => [r.key, r]))
-  assert.deepEqual(m.rows.map((r) => r.key), ['fresh', 'accepted', 'warned', 'rule', 'fix', 'rounds'])
+  assert.deepEqual(m.rows.map((r) => r.key), ['fresh', 'accepted', 'warned', 'fail', 'fix', 'rounds'])
   assert.deepEqual([by.fresh.n, by.fresh.recs.map((x) => x.rec), by.fresh.codes], [2, ['a1'], { 문서: 1, 이름: 1 }])
   assert.deepEqual([by.accepted.n, by.accepted.base, by.accepted.recs[0].title], [1, 1, '사람 저장'])
   assert.deepEqual([by.warned.n, by.warned.base, by.warned.codes], [1, 2, { invented: 1, missing: 1 }])
-  assert.deepEqual([by.rule.n, by.rule.recs[0].rec, by.fix.n, by.rounds.n], [1, 'u2', 2, 2])
-  assert.equal(by.rule.recs[0].title, null, '없는 기록은 이름 없음')
+  // 무인 실패(옛 「규칙 길」 줄을 갈음) — 첫 시도 실패 2 / 무인 일감 3(들어간 무인 저장 2 + 끝내 실패 1) · 측정 줄의 옛 rule 칸은 세지 않는다
+  assert.deepEqual([by.fail.n, by.fail.base, by.fail.codes, by.fix.n, by.rounds.n], [2, 3, { check: 1, nosave: 1, '끝내 실패': 1 }, 2, 2])
   assert.deepEqual([daysOf('30'), daysOf('5'), daysOf(null), sinceOf(14, new Date('2026-11-14T09:00:00'))], [30, 14, 14, '2026-11-01'])
   // 기록 목록은 새 것 위 · 50 까지(줄이 많아도 최근 것이 빠지지 않는다)
   const many = Array.from({ length: 300 }, (_, i) => ({ at: '2026-11-10 ' + String(Math.floor(i / 60)).padStart(2, '0') + ':' + String(i % 60).padStart(2, '0'), ch: 'intake', rec: 'r' + i, mode: 'approve', warned: ['missing'] }))

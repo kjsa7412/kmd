@@ -257,6 +257,8 @@ function answer() {
       const t = out.newDoc?.sections?.[0] || out.updates[0]
       if (t) t.content += ' 그리고 999초 기다린다.'
     }
+    // 바뀐 것 — 넣은 항목의 머리를 한 줄씩(파일 이름의 숫자가 요약에 들어 「본문 반영」 에 걸리지 않게: 바뀐 것 칸이 있으면 그 칸의 값만 본다)
+    out.record.changes = [...out.updates.map((u) => `고침: ${u.heading}`), ...(out.newDoc?.sections || []).map((s) => `새로: ${s.heading}`)]
     if (mode === 'names') out.names = rest.map((s) => ({ name: s.heading, kind: 'term' }))
     out.why = out.updates.length ? '같은 항목이 있다' : '이어지는 문서가 없다'
     return say({ structured_output: out })

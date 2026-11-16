@@ -7,8 +7,11 @@ import { freshItems, FRESH_LABEL } from './parts.js'
 
 export const METRIC_DAYS = Object.freeze([7, 14, 30, 90])
 export const METRIC_DEFAULT = 14 // Q15
-// 지표 줄 차례 — fresh 새로 생긴 것 · accepted 받아들인 경고 · warned 무인 값 경고 · rule 규칙 길 · fix FIX 번 수 · rounds 다시 제안 수
-export const METRIC_KEYS = Object.freeze(['fresh', 'accepted', 'warned', 'rule', 'fix', 'rounds'])
+// 지표 줄 차례 — fresh 새로 생긴 것 · accepted 받아들인 경고 · warned 무인 값 경고 · fail 무인 실패 · fix FIX 번 수 · rounds 다시 제안 수
+//   fail(지식 생성 하네스 H4b · 옛 「규칙 길」 줄을 갈음한다): 첫 시도에 못 넘어 다시 시도로 간 무인 일감 / 무인 일감 · 끝내 실패로 남은 수는 codes 의 「끝내 실패」.
+//   측정 줄의 옛 rule 칸(규칙 길로 들어간 저장)은 읽지 않는다(옛 줄은 그대로 둔다)
+export const METRIC_KEYS = Object.freeze(['fresh', 'accepted', 'warned', 'fail', 'fix', 'rounds'])
+export const FAIL_FINAL = '끝내 실패'
 const RECS_MAX = 50
 
 const pad = (n) => String(n).padStart(2, '0')
@@ -49,8 +52,14 @@ export function metricsOf(lines, { works = null, days = METRIC_DEFAULT, now = ne
   // 기록 목록은 다 담고 끝에서 새 것 위로 정렬해 자른다(줄은 옛 것부터 온다 · 검토 1)
   const addRec = (r, x, n, codes) => { if (x.rec) r.recs.push({ rec: String(x.rec), at: String(x.at || ''), ch: String(x.ch || ''), n, ...(codes ? { codes } : {}) }) }
   const count = (r, codes) => { for (const c of codes) r.codes[c] = (r.codes[c] || 0) + 1 }
-  let human = 0, un = 0, saves = 0
+  let human = 0, un = 0, saves = 0, finals = 0
   for (const x of lines) {
+    // 무인 실패 줄(다시 시도 · 실패 일감 · H-D30) — 첫 시도의 실패와 끝내 실패를 센다
+    if (x.mode === 'approve' && x.fail && typeof x.fail === 'object') {
+      if (Number(x.fail.n) === 1) { R.fail.n++; count(R.fail, [String(x.fail.code || 'fail').slice(0, 40)]) }
+      if (x.fail.final) { finals++; count(R.fail, [FAIL_FINAL]) }
+      continue
+    }
     if (x.mode !== 'approve' || x.err || x.same) continue
     saves++
     const acc = Array.isArray(x.accepted) ? x.accepted.map(String) : null
@@ -60,7 +69,6 @@ export function metricsOf(lines, { works = null, days = METRIC_DEFAULT, now = ne
     if (warned) un++
     if (acc && acc.length) { R.accepted.n++; count(R.accepted, acc); addRec(R.accepted, x, acc.length, acc) }
     if (warned && warned.length) { R.warned.n++; count(R.warned, warned); addRec(R.warned, x, warned.length, warned) }
-    if (x.rule) { R.rule.n++; count(R.rule, [String(x.rule).slice(0, 40)]); addRec(R.rule, x, 1, [String(x.rule).slice(0, 40)]) }
     const fix = Number(x.fix) || 0
     if (fix > 0) { R.fix.n += fix; addRec(R.fix, x, fix) }
     const rounds = Number(x.rounds) || 0
@@ -68,7 +76,7 @@ export function metricsOf(lines, { works = null, days = METRIC_DEFAULT, now = ne
   }
   R.accepted.base = human
   R.warned.base = un
-  R.rule.base = un
+  R.fail.base = un + finals // 무인 일감 = 들어간 무인 저장 + 끝내 실패
   R.fix.base = un
   R.rounds.base = human
   // 새로 생긴 것 — 기간 안 기록 끝 「새로 세움」(fresh 표지 · 14일 뒤 저절로 떨어지는 것과 같은 읽기)

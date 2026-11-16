@@ -172,21 +172,7 @@ export function heldRecord(src, md, { why = '' } = {}) {
   }
 }
 
-// 규칙 길로 들인 기록(저장 승인 P6 · P-D35) — approve 모드 무인 채널의 마지막 길. 기록 + 항목이 한 저장으로 들어간다(넣지 못함이 아니다).
-//   글은 원천 앞 2000자 인용 · 지문 · 규칙 길 한 줄(어디에 넣었나) · 까닭(어느 검사에 걸렸나) — 원본 파일은 같은 저장에 첨부한다(hub)
-//   「바뀐 것」 칸을 두지 않는다(값은 원문 그대로 항목에 있다 · 값 대조는 측정만)
-export const RULE_MARK = '규칙 길'
-export function ruleRecord(src, md, { why = '', line = '' } = {}) {
-  const title = String(src?.title || src?.rel || '넣을 것').replace(/\s+/g, ' ').trim().slice(0, 170)
-  const what = src?.type === 'commit' ? '커밋' : src?.type === 'fix' ? '정정' : '파일'
-  return {
-    title: `${title}: ${RULE_MARK}로 들임`.slice(0, 200),
-    body: [`${what} 하나를 ${RULE_MARK}로 들였다(Claude 없이 원문 그대로)${line ? `: ${String(line).replace(/\s+/g, ' ').slice(0, 200)}` : ''}.`, `- ${RULE_MARK} 까닭: ${String(why || '까닭을 적지 않았다').replace(/\s+/g, ' ').slice(0, 200)}`, `## 원천\n${srcLine(src, md)}\n\n${quoteSrc(md, HELD_SRC_HEAD)}`].join('\n\n'),
-    tags: intakeTags(src),
-    ...(Array.isArray(src?.touches) && src.touches.length ? { touches: src.touches } : {}),
-    ...(src?.rec ? { fixes: [src.rec] } : {}),
-  }
-}
+// 규칙 길(Claude 없이 원문을 그대로 넣는 길)과 그 기록(ruleRecord)은 걷었다(지식 생성 하네스 H-D29): 무인 실패는 일감이 다시 시도한다.
 
 // 초안 → 저장 덩이(hub.save 의 input) — { ok: true, input, held, warn } | { ok: false, why }(고쳐 쓸 수 있는 까닭 · 모양)
 //   g — 서버 재료(후보 문서의 base 는 일꾼에게 보인 것) · k — 지금 지식(값 근거는 그 항목의 지금 글 전체) · draft — INTAKE_SCHEMA 꼴
@@ -273,8 +259,8 @@ export function draftToSave(k, g, draft, { measure = false } = {}) {
   const values = []
   if (invented.length && !measure) return { ok: false, why: `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` }
   if (invented.length) values.push({ id: judgeId('invented', '초안', ...invented.slice().sort()), code: 'invented', at: '초안', why: `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}` })
-  // 넣을 곳 — 하나도 없으면 넣지 못함(기록만)
-  if (!sections.length && !held.length) held.push({ code: 'notfound', why: `넣을 곳을 고르지 않았다${draft.why ? `: ${String(draft.why).replace(/\s+/g, ' ').slice(0, 160)}` : ''}` })
+  // 넣을 곳이 하나도 없다 — 넣을 것 없음(H-D26 · 생성 룰 R6-3): 실패가 아니다. 아무것도 쓰지 않고 까닭만 남긴다(고쳐 받기도 다시 시도도 타지 않는다)
+  if (!sections.length && !held.length) return { ok: true, empty: String(draft.why || '넣을 곳이 없다').replace(/\s+/g, ' ').slice(0, 200), input: null, held: [], warn, values: [] }
   // 짝 짓기(지식 생성 하네스 H2 · core/weave.js) — 새 머리마다 항목 장부 줄 · 문서 장부 줄 · 건드린 항목을 코드가 짓는다(H-D11).
   //   종류는 초안이 적은 낱말 그대로(term 으로 접지 않는다 · H-O5) · 비우면 그 문서에서 같은 것의 하나가 쓰는 종류 · 문서 성격의 씨앗 낱말.
   //   있는 머리는 그 머리에 닿는 장부 항목을 건드린 항목으로 단다. 짜임 머리(개요 · 변경 이력 …)는 짝을 세우지 않는다(H-O13)

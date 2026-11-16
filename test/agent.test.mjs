@@ -104,15 +104,15 @@ test('단기 열쇠: 화면 길 거절 · 다른 지식 거절 · 일이 끝나�
   assert.equal(bad.status, 401)
 })
 
-test('넣지 않고 끝나면 규칙으로: 까닭이 터미널 · 갈래 문서', async () => {
+test('넣지 않고 끝나면 들이지 못함: 까닭이 터미널 · 지식에는 아무것도 쓰지 않는다(규칙 길은 걷었다 · H-D29)', async () => {
   process.env.FAKE_AGENT_MODE = 'idle'
   try {
     const r = await s.hub.importFiles(ME, '회의', [{ path: '회의_20261022_v2(최종).md', data: Buffer.from('# 회의\n\n## 안건\n카나리 20%\n') }])
     await s.hub.idle('회의')
     const run = s.hub.runGet(ME, r.rows[0].run)
-    assert.equal(run.state, 'rule', run.msg)
-    assert.ok(run.lines.some((l) => l.x.includes('규칙 길로 넣는다')))
-    assert.match(fs.readFileSync(path.join(tmp, 'kn', '회의', 'docs', '회의록.md'), 'utf8'), /^## 2026-10-22 /m)
+    assert.equal(run.state, 'fail', run.msg)
+    assert.ok(run.lines.some((l) => l.x.includes('들이지 못했다(아무것도 쓰지 않았다)')))
+    assert.ok(!/^## 2026-10-22 /m.test(fs.readFileSync(path.join(tmp, 'kn', '회의', 'docs', '회의록.md'), 'utf8')))
   } finally {
     delete process.env.FAKE_AGENT_MODE
   }

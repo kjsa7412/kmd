@@ -12,7 +12,8 @@
 //                                                                           그 기록이 건드린 항목이 카드에 실리나(설계 9-3 판례 recall · 문턱 0.9)
 //
 //   --mode oneshot  지금 프롬프트(단발 claude -p · 도구 0 · INTAKE_SCHEMA): server/hub.js 의 무인 들이기와 같은 걸음을 core 함수로 밟는다
-//                   (재료 → 초안 → draftToSave → 무인 판정 → 고쳐 받기 두 번 → 규칙 길).
+//                   (재료 → 초안 → draftToSave → 무인 판정 → 고쳐 받기 두 번). 바탕 값(H0)을 잴 때는 그 뒤에 규칙 길이 있었다:
+//                   규칙 길을 걷은 뒤(H4b)에는 끝내 못 넘으면 아무것도 쓰지 않는다(못 넣음).
 //   --mode session  세션 방식(H4a · H-D34): 임시 팀 서버를 띄우고 원천마다 들이기 일감을 열어 팀 일꾼(workOnce)이 Claude Code 세션을 띄운다.
 //                   세션은 그 서버의 MCP 에 단기 열쇠로 붙어 스스로 찾고 저장한다(system 글에 생성 룰 긴 판).
 //   결과: .kmd-data/harness-eval/<날짜>-<판>.json · 지식은 .kmd-data/harness-eval/kn/<판>/
@@ -173,10 +174,9 @@ async function freshKn(dir, name) {
 
 // 단발(지금 프롬프트) — server/hub.js 의 intakeG · unattendedTouches · unattendedPlan · rulePut 과 같은 걸음을 core 함수로
 async function oneshotRunner({ budget }) {
-  const { ingestCandidates, formsOf, intakePromptOf, intakeFixPromptOf, draftToSave, INTAKE_SCHEMA, ruleRecord } = await import('../core/ingest.js')
+  const { ingestCandidates, formsOf, intakePromptOf, intakeFixPromptOf, draftToSave, INTAKE_SCHEMA } = await import('../core/ingest.js')
   const { buildProposal } = await import('../core/propose.js')
   const { WRITE_RULES } = await import('../core/writerules.js')
-  const { ruleSections } = await import('../core/pcplace.js')
   const { save: coreSave } = await import('../core/save.js')
   const { runClaude } = await import('../core/claude.js')
   const month = () => new Date().toISOString().slice(0, 7)
@@ -245,6 +245,7 @@ async function oneshotRunner({ budget }) {
       k = await loadKnowledge({ id: name, name, dir })
       const d = draftToSave(k, g, draft, { measure: true })
       let why = null
+      if (d.ok && d.empty) { row.empty = d.empty; return row }
       if (!d.ok) why = d.why
       else if (d.held.length) why = d.held.map((h) => `${h.code}: ${h.why}`).join(' / ')
       else {
@@ -258,15 +259,8 @@ async function oneshotRunner({ budget }) {
       row.fix++
       prompt = intakeFixPromptOf(g, draft, why, { writeRules: WRITE_RULES })
     }
-    // 규칙 길(지금 코드의 마지막 길) — 파일은 들인 자료/<주제> 또는 사건 갈래의 날짜 항목 · 커밋은 기록만
-    k = await loadKnowledge({ id: name, name, dir })
-    const rs = s.type === 'commit' ? null : ruleSections(k, { file: s.file, title: s.title, body: md, date: new Date().toISOString().slice(0, 10) }, { home: INTAKE_FORM })
-    const input = { record: ruleRecord({ ...g.src, type: s.type }, md, { why: last, line: rs ? rs.line : '기록 모음 달 항목에 잇는다' }), sections: rs ? rs.sections : [] }
-    let res = await put(dir, name, input, { rule: true })
-    if (!res.ok && input.sections.length) res = await put(dir, name, { record: input.record }, { rule: true })
-    row.rule = rs ? rs.line : '기록만'
-    row.put = res.ok
-    if (!res.ok) row.why.push(`규칙 길도 못 넣음: ${res.why}`)
+    // 끝내 못 넘었다 — 아무것도 쓰지 않는다(규칙 길은 걷었다 · H-D29)
+    row.why.push(`못 넣음: ${String(last).slice(0, 200)}`)
     return row
   }
 }

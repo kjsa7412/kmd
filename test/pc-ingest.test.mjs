@@ -107,35 +107,31 @@ test('개인 들이기 값 경고 = 들어감 + `## 값 대조`(규칙 길로 �
   assert.equal(sl.rule, undefined)
 }))
 
-test('Claude 끔 = 규칙 길(원문 인용 · 기록 + 항목 한 커밋 · 원본 첨부)', async () => {
+test('Claude 끔 = 들이지 못함: 지식에 아무것도 쓰지 않는다(규칙 길은 걷었다 · 지식 생성 하네스 H-D29 · H-D30)', async () => {
   await pc.hub.setAuto(ME, 'claude', false)
   try {
     const n0 = commits('apv')
     const file = docx([['Heading1', '점검 결과'], ['', '펌프 3대 정상. 다음 점검은 11월.']])
     const r = await pc.hub.importFiles(ME, 'apv', [{ path: '점검 결과.docx', data: file }])
-    assert.equal(r.rows[0].kind, 'rule', JSON.stringify(r.rows[0]))
-    assert.match(r.rows[0].msg, /Claude 로 들이기를 껐다/)
-    assert.equal(commits('apv'), n0 + 1)
-    const w = (await fresh('apv')).byWork.get(r.rows[0].rec)
-    assert.equal(w.state, 'in')
-    assert.match(w.title, /규칙 길로 들임/)
-    assert.match(w.body, /규칙 길 까닭: Claude 로 들이기를 껐다/)
+    assert.equal(r.rows[0].kind, 'fail', JSON.stringify(r.rows[0]))
+    assert.match(r.rows[0].msg, /Claude 로 들이기를 껐다.*무인으로 들일 수 없다/)
+    assert.equal(commits('apv'), n0, '아무것도 쓰지 않았다')
     const files = headFiles('apv')
-    assert.ok(files.includes(`work/${w.id}.md`) && files.includes('docs/assets/점검 결과.docx') && files.some((x) => x.startsWith('docs/들인 자료/')), files.join(' · '))
-    assert.ok(savelogOf('apv').pop().rule)
+    assert.ok(!files.includes('docs/assets/점검 결과.docx') && !files.some((x) => x.startsWith('docs/들인 자료/')), files.join(' · '))
   } finally {
     await pc.hub.setAuto(ME, 'claude', true)
   }
 })
 
-test('한 번 넣기 상한(INGEST_CLAUDE_MAX) = 규칙 길', async () => {
+test('한 번 넣기 상한(INGEST_CLAUDE_MAX)을 넘은 파일은 원문을 넣지 않는다: 다음에 이어서 든다', async () => {
+  const n0 = commits('apv')
   const r = await pc.hub.importFiles(ME, 'apv', [{ path: '상한 넘음.md', data: Buffer.from('# 상한 넘음\n\n## 메모\n스무 번째 넘는 파일.\n') }], { offset: 20 })
-  assert.equal(r.rows[0].kind, 'rule', JSON.stringify(r.rows[0]))
-  assert.match(r.rows[0].msg, /Claude 로 들이는 수\(20\)를 넘었다/)
-  assert.equal((await fresh('apv')).byWork.get(r.rows[0].rec).state, 'in')
+  assert.equal(r.rows[0].kind, 'fail', JSON.stringify(r.rows[0]))
+  assert.match(r.rows[0].msg, /Claude 로 들이는 수\(20\)를 넘었다: 다음에 이어서 든다/)
+  assert.equal(commits('apv'), n0)
 })
 
-test('코드 바뀜도 같은 규칙: 초안이면 기능 항목 + 기록 한 커밋 · Claude 끔이면 이은 항목에 잇기만(규칙 길)', async () => {
+test('코드 바뀜도 같은 규칙: 초안이면 기능 항목 + 기록 한 커밋 · Claude 끔이면 아무것도 쓰지 않는다(못 들임)', async () => {
   const r0 = await pc.hub.sourceAdd(ME, 'apv', { name: 'api 코드', kind: 'git', at: repo, every: 'manual' })
   assert.equal(r0.run[0].codeRecords, 0)
   fs.writeFileSync(path.join(repo, 'HealthCheck.java'), '// 헬스 체크 — 시간 초과는 5초\nclass HealthCheck {\n  int timeoutSec = 5;\n}\n')
@@ -157,12 +153,12 @@ test('코드 바뀜도 같은 규칙: 초안이면 기능 항목 + 기록 한 �
     fs.writeFileSync(path.join(repo, 'HealthCheck.java'), '// 헬스 체크 — 시간 초과는 7초\nclass HealthCheck {\n  int timeoutSec = 7;\n}\n')
     G(repo, 'commit', '-q', '-am', '헬스 체크 시간 초과를 더 늘림')
     const before = fs.readFileSync(path.join(pdir('apv'), 'docs', '배포절차.md'), 'utf8')
+    const n1 = commits('apv')
     const r2 = (await pc.hub.sourceRun('apv', 'api 코드'))[0]
-    assert.equal(r2.rule, 1, JSON.stringify(r2).slice(0, 400))
+    assert.deepEqual([r2.rule, r2.fail], [0, 1], JSON.stringify(r2).slice(0, 400))
     k = await fresh('apv')
-    const w2 = k.works.filter((x) => x.tags.includes('code-change')).find((x) => x.id !== w.id)
-    assert.equal(w2.state, 'in')
-    assert.match(w2.body, /규칙 길 까닭/)
+    assert.equal(k.works.filter((x) => x.tags.includes('code-change')).find((x) => x.id !== w.id), undefined, '원문 기록을 넣지 않는다')
+    assert.equal(commits('apv'), n1)
     assert.equal(fs.readFileSync(path.join(pdir('apv'), 'docs', '배포절차.md'), 'utf8').split('<!-- kmd:참고')[0].replace(/<!--[^>]*-->\n?/g, ''), before.split('<!-- kmd:참고')[0].replace(/<!--[^>]*-->\n?/g, ''), '항목 글은 그대로(잇기만)')
   } finally {
     await pc.hub.setAuto(ME, 'claude', true)

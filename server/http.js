@@ -451,11 +451,11 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const GET_OK = [
     /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/audit|admin\/users|admin\/groups|claude\/state|busy|send\/teams|seed\/open)$/,
     /^\/api\/agent\/parser$/, /^\/api\/gitlab\/groups$/,/^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
-    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|shape|seed|past|removed|manage|metrics)$/,
+    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|shape|seed|past|removed|manage|metrics|intake\/failed)$/,
     /^\/api\/k\/[^/]+\/shape\/job\/[0-9a-f]{12}$/,
     /^\/api\/k\/[^/]+\/seed\/feed$/,
   ]
-  const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|stops\/ack|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|shape\/survey|k\/[^/]+\/(?:owner|save-mode|access|delete|structure|polish|revert|unwatch|docfmt|shape(?:\/[a-z]+|\/job\/[0-9a-f]{12}\/stop)?|seed(?:\/(?:upload|pick|plan|write|try|step))?|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names|approve)|rec\/[^/]+\/fix|removed\/restore))$/
+  const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|stops\/ack|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|shape\/survey|k\/[^/]+\/(?:owner|save-mode|access|delete|structure|polish|revert|unwatch|docfmt|shape(?:\/[a-z]+|\/job\/[0-9a-f]{12}\/stop)?|seed(?:\/(?:upload|pick|plan|write|try|step))?|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names|approve)|intake\/[0-9a-f]{12}\/(?:again|drop)|rec\/[^/]+\/fix|removed\/restore))$/
   const auditFile = path.join(dataDir, 'audit.jsonl')
   // 걷은 경고 — <살림>/acks.json { 사람: { key: 걷은 때 } } · 깨졌으면 빈 것으로 보되 덮지 않는다(쓰기 때 다시 읽어 깨졌으면 던진다)
   const stopKey = (x) => crypto.createHash('sha256').update([x.kind, x.kn || '', x.b || ''].join('\n')).digest('hex').slice(0, 16)
@@ -880,6 +880,15 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const b = await readBody(req)
       return out(200, await hub.requestClose(ctx, rq[1], { state: String(b.state || ''), why: b.why || '' }))
     }
+    // 실패 일감(지식 생성 하네스 H4b · H-D30) — 목록(GET) · 「다시 시도」 · 「그만두기」(POST) · 자리는 hub 가 본다(지식관리자)
+    const fi = p.match(/^\/api\/k\/([^/]+)\/intake\/failed$/)
+    if (fi) {
+      const id = dec(fi[1])
+      await hub.meta(id, ctx)
+      return out(200, { jobs: hub.failedIntakes(ctx, id) })
+    }
+    const fa = p.match(/^\/api\/k\/([^/]+)\/intake\/([0-9a-f]{12})\/(again|drop)$/)
+    if (fa) return out(200, fa[3] === 'again' ? await hub.intakeAgain(ctx, dec(fa[1]), fa[2]) : await hub.intakeDrop(ctx, dec(fa[1]), fa[2]))
     // 문서 다듬기(S13 · K10-4 · 설계 4-9) — POST 만 · 몸 { doc } · 자리는 hub.polish(지식관리자)
     const pl = p.match(/^\/api\/k\/([^/]+)\/polish$/)
     if (pl) {

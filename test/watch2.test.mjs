@@ -27,7 +27,7 @@ before(async () => {
   copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'kn'))
   docsDir = path.join(tmp, 'src', '운영문서')
   for (let i = 1; i <= 12; i++) W(path.join(docsDir, `절차${String(i).padStart(2, '0')}.md`), `# 절차${i}\n\n## 순서\n${i} 번째.\n`)
-  W(path.join(docsDir, '회의', '10월.md'), '# 10월\n\n## 정한 것\n화 · 목 배포.\n')
+  W(path.join(docsDir, '회의', '시월.md'), '# 시월\n\n## 정한 것\n화 · 목 배포.\n')
   W(path.join(docsDir, '구성도.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]))
   W(path.join(docsDir, '~$열린문서.docx'), 'lock')
   fs.mkdirSync(path.join(tmp, 'kn', '.kmd'), { recursive: true })
@@ -47,7 +47,7 @@ test('문서 폴더: 바뀐 파일만 들이기 일감으로(정리 일감 0 · 
   const kd = path.join(tmp, 'kn', 'dpms')
   const ingested = async () => (await team.hub.get('dpms')).works.filter((w) => w.tags.some((x) => x.startsWith('ingest/운영문서/')))
   const wk = (await team.auth.workerAdd()).key
-  const drain = async () => { while (team.hub.intakesOf('dpms').some((j) => j.state === 'queued')) await workOnce({ server: team.url, key: wk }) }
+  const drain = async () => { while (team.hub.intakesOf('dpms').some((j) => j.state === 'queued' && !(j.retryAt > Date.now()))) await workOnce({ server: team.url, key: wk }) }
   const r0 = await team.hub.sourceAdd(ADMIN, 'dpms', { name: '운영문서', kind: 'docs', at: docsDir, rules: [{ rule: 'docs', into: { doc: '운영문서' } }] })
   assert.equal(r0.run[0].state, 'changed', JSON.stringify(r0.run[0]).slice(0, 600))
   assert.equal(r0.run[0].queued, 13, 'md 13 → 들이기 일감 13(잠금 파일 ~$ 는 뺀다 · 새 파일 10 을 넘어도 멈추지 않는다)')
@@ -55,7 +55,7 @@ test('문서 폴더: 바뀐 파일만 들이기 일감으로(정리 일감 0 · 
   assert.equal((await ingested()).length, 0, '기록은 일꾼이 기록 + 항목 글을 한 번에 지을 때')
   // 팀 일꾼 — 파일마다 기록(태그 ingest/…) · 원천 글을 기록에 싣는다
   await drain()
-  const w0 = (await ingested()).find((w) => w.tags.includes('ingest/운영문서/회의/10월.md'))
+  const w0 = (await ingested()).find((w) => w.tags.includes('ingest/운영문서/회의/시월.md'))
   assert.ok(w0 && /화 · 목 배포/.test(w0.body), '기록에 파일 글')
   assert.equal((await ingested()).length, 13)
   assert.ok(!(await ingested()).some((w) => w.tags.some((x) => x.includes('~$'))))

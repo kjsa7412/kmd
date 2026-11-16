@@ -2143,17 +2143,18 @@ test('지식관리 2: 새 지식 · 불러오기 · 저장소 탭 — 가지 접
   } finally { await pp.close() }
 })
 
-test('저장 승인 P6: 진행 탭 무인 일 결과 줄 — 「규칙 길」 칩(까닭 툴팁) · 들어간 곳 [보기] · 자리를 잃은 일은 원천 이름과 까닭 · 네 폭 잘림 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('무인 실패(지식 생성 하네스 H4b): 진행 탭의 실패 일감 줄 — 못 들임 · 지식관리자의 [다시 시도] · [그만두기](ask) · 자리를 잃은 일은 원천 이름과 까닭 · 네 폭 잘림 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   const dir = path.join(tmp, 'kn', 'apv6')
   copyDir(path.join(HERE, 'fixture', 'kmd', 'dpms'), dir)
   fs.rmSync(path.join(dir, 'work'), { recursive: true, force: true })
   fs.writeFileSync(path.join(dir, 'README.md'), '# 테스트 무인 지식\n')
   await s.hub.sync({ user: 'kim', admin: true })
   await s.hub.ensureRecordsDoc('apv6')
-  // 규칙 길로 끝난 들이기(팀 일꾼 실패) · 일을 건 사람이 자리를 잃어 아무것도 쓰지 않은 들이기
+  // 끝내 못 넘은 들이기(팀 일꾼이 24시간 받지 않음 → 곧바로 실패 일감 · 지식에는 아무것도 쓰지 않는다) · 일을 건 사람이 자리를 잃어 닫힌 들이기
   const o1 = await s.hub.openJob('apv6', { type: 'file', by: 'kmd', auto: true, src: { rel: '자료/테스트 창고 점검.md', sha: 'e'.repeat(16), title: '테스트 창고 점검.md' }, md: '## 점검표\n문은 22시에 잠근다.\n' })
-  const r1 = await s.hub.intakeGiveUp(s.hub.job(o1.job), 'claude', '팀 일꾼이 초안을 받지 못했다: budget')
-  assert.equal(r1.state, 'rule', JSON.stringify(r1))
+  const r1 = await s.hub.intakeGiveUp(s.hub.job(o1.job), 'worker', '팀 일꾼이 24시간 넘게 일감을 받지 않았다')
+  assert.equal(r1.state, 'failed', JSON.stringify(r1))
+  assert.ok(!fs.existsSync(path.join(dir, 'docs', '들인 자료')), '원문을 그대로 옮긴 문서는 생기지 않는다(규칙 길은 걷었다)')
   await signIn(s, { id: 'test-p6', admin: false })
   await seat(s, 'test-p6', { apv6: 'write' })
   const o2 = await s.hub.openJob('apv6', { type: 'file', by: 'test-p6', src: { rel: '자료/테스트 떠난 글.md', sha: 'f'.repeat(16), title: '테스트 떠난 글.md' }, md: '## 무엇\n글.\n' })
@@ -2171,29 +2172,44 @@ test('저장 승인 P6: 진행 탭 무인 일 결과 줄 — 「규칙 길」 �
     await page.waitForSelector('[data-t=klist] [data-t=krow]')
     await page.goto(`${s.url}/#/k/apv6/gen`)
     await page.waitForSelector('[data-t=impTabs]')
-    await page.click('[data-t=impTab-done]')
-    await page.waitForSelector('[data-t=doneRow] [data-t=qRule]')
-    const rule = page.locator('[data-t=doneRow]', { has: page.locator('[data-t=qRule]') })
-    assert.match(await rule.innerText(), /테스트 창고 점검\.md[\s\S]*규칙 길로 넣음 1: 들인 자료\/테스트 창고 점검/)
-    assert.match(await rule.locator('[data-t=qRule]').getAttribute('title'), /팀 일꾼이 초안을 받지 못했다/)
-    assert.equal(await rule.locator('[data-t=runGo]').count(), 1, '들어간 곳 [보기]')
-    const gone = page.locator('[data-t=doneRow]', { hasText: '테스트 떠난 글.md' })
-    assert.match(await gone.innerText(), /아무것도 쓰지 않았다: 일을 건 사람이 이 지식의 쓰기 자리를 잃었다/)
-    assert.match(await gone.innerText(), /못함/)
+    // 실패 일감 — 살펴볼 일로 도는 일 탭에 남는다: 까닭 · 시도 수 · 손잡이 둘(지식관리자)
+    await page.waitForSelector('[data-t=qrow][data-state=fail]')
+    const failed = page.locator('[data-t=qrow]', { hasText: '테스트 창고 점검.md' })
+    assert.match(await failed.innerText(), /못 들였다\(시도 1\): 팀 일꾼이 24시간 넘게 일감을 받지 않았다/)
+    await failed.click()
+    await page.waitForSelector('[data-t=whyFailed]')
+    assert.match(await page.locator('[data-t=whyFailed]').innerText(), /못 들임[\s\S]*지식에는 아무것도 쓰지 않았다[\s\S]*\[다시 시도\] 또는 \[그만두기\]/)
+    assert.equal(await page.locator('[data-t=q-retry]').count() > 0 && await page.locator('[data-t=q-drop]').count() > 0, true, '손잡이: 다시 시도 · 그만두기')
     assert.deepEqual(await bannedIn(page), [])
     for (const w of [1280, 1024, 600, 375]) {
       await page.setViewportSize({ width: w, height: 820 })
       await page.waitForTimeout(400)
       const c = await cutAt(page)
-      assert.deepEqual(c.cut, [], `진행 끝난 일 ${w}: 잘린 요소 없음`)
-      assert.ok(c.sw <= c.w, `진행 끝난 일 ${w}: 가로 넘침 없음 ${c.sw}`)
-      await page.screenshot({ path: path.join(SHOTS, `app-team-p6-done-${w}.png`) })
+      assert.deepEqual(c.cut, [], `진행 실패 일감 ${w}: 잘린 요소 없음`)
+      assert.ok(c.sw <= c.w, `진행 실패 일감 ${w}: 가로 넘침 없음 ${c.sw}`)
+      await page.screenshot({ path: path.join(SHOTS, `app-team-p6-failed-${w}.png`) })
     }
     await page.setViewportSize(VIEW)
-    // [보기] — 들어간 곳(들인 자료 주제 문서)
-    await rule.locator('[data-t=runGo]').click()
-    await page.waitForSelector('[data-t=docPane]')
-    assert.match(await page.locator('[data-t=docPane]').innerText(), /문은 22시에 잠근다/)
+    // [다시 시도] — 대기로 돌아간다(처음부터 · 시도 수를 다시 센다)
+    await page.locator('[data-t=q-retry]').first().click()
+    await page.waitForFunction(() => !document.querySelector('[data-t=qrow][data-state=fail]'))
+    assert.deepEqual([s.hub.job(o1.job).state, s.hub.job(o1.job).fails], ['queued', 0])
+    // 다시 실패 → [그만두기] 는 확인 창을 거쳐 원천을 버린다
+    await s.hub.intakeGiveUp(s.hub.job(o1.job), 'worker', '팀 일꾼이 24시간 넘게 일감을 받지 않았다')
+    await page.waitForSelector('[data-t=qrow][data-state=fail]')
+    await page.locator('[data-t=qrow]', { hasText: '테스트 창고 점검.md' }).click()
+    await page.locator('[data-t=q-drop]').first().click()
+    await page.waitForSelector('[data-t=askWin]')
+    assert.match(await page.locator('[data-t=askWin]').innerText(), /실패 일감 그만두기[\s\S]*넣으려던 원천을 버린다/)
+    await page.click('[data-t=askOk]')
+    await page.waitForFunction(() => !document.querySelector('[data-t=qrow][data-state=fail]'))
+    assert.equal(s.hub.job(o1.job).state, 'cancelled')
+    // 끝난 일 — 자리를 잃어 닫힌 일은 원천 이름과 까닭
+    await page.click('[data-t=impTab-done]')
+    const gone = page.locator('[data-t=doneRow]', { hasText: '테스트 떠난 글.md' })
+    await gone.waitFor()
+    assert.match(await gone.innerText(), /아무것도 쓰지 않았다: 일을 건 사람이 이 지식의 쓰기 자리를 잃었다/)
+    assert.match(await gone.innerText(), /못함/)
     assert.deepEqual(errors, [])
   } finally { await page.close() }
 })
@@ -2215,6 +2231,8 @@ test('저장 승인 P10: 점검 · 지표 — 탭 점검 · 지표(배지 없음
   fs.writeFileSync(path.join(sl, 'apv10.jsonl'), [
     { at, kn: 'apv10', user: 'kim', ch: 'session', rec: 'test-p10a', n: 1, put: 1, held: [], mode: 'approve', accepted: ['missing'], rounds: 3, linked: 0, fresh: 1 },
     { at, kn: 'apv10', user: 'kmd', ch: 'intake', rec: 'test-p10a', n: 1, put: 1, held: [], mode: 'approve', warned: ['invented'], rule: '꼴 오류가 남음', fix: 1, linked: 0, fresh: 0 },
+    // 무인 실패 줄(지식 생성 하네스 H4b) — 첫 시도에 못 넘어 다시 시도로 간 일감 하나
+    { at, kn: 'apv10', by: 'kmd', ch: 'intake-file', job: 'test-j1', rec: null, mode: 'approve', err: 'unattended', fail: { n: 1, code: 'check', final: false } },
   ].map((x) => JSON.stringify(x)).join('\n') + '\n')
   const page = await browser.newPage({ viewport: VIEW })
   const errors = []
@@ -2232,11 +2250,14 @@ test('저장 승인 P10: 점검 · 지표 — 탭 점검 · 지표(배지 없음
     assert.equal(await page.locator('.hdy .big').innerText(), '점검')
     assert.deepEqual(await tabs(), ['점검', '지표'], '승인 저장 지식: 넣지 못함 탭 없음')
     assert.equal(await page.locator('[data-t=knMenu] .bd').count(), 0, '점검 배지 없음')
-    assert.deepEqual(await page.locator('[data-t=mtCard] .srow').evaluateAll((els) => els.map((e) => e.dataset.t)), ['mt-fresh', 'mt-accepted', 'mt-warned', 'mt-rule', 'mt-fix', 'mt-rounds'])
+    assert.deepEqual(await page.locator('[data-t=mtCard] .srow').evaluateAll((els) => els.map((e) => e.dataset.t)), ['mt-fresh', 'mt-accepted', 'mt-warned', 'mt-fail', 'mt-fix', 'mt-rounds'])
     assert.match(await page.locator('[data-t=mtSum]').innerText(), /저장 2 · 사람 1 · 무인 1/)
     assert.match(await page.locator('[data-t=mt-warned]').innerText(), /무인 값 경고[\s\S]*지어낸 값 1[\s\S]*1 \/ 1/)
     assert.equal(await page.locator('[data-t=mt-warned] [data-t=mtVal].c-warn').count(), 1, '무인 값 경고 20% 넘음')
     assert.match(await page.locator('[data-t=mt-rounds] [data-t=mtVal]').innerText(), /^2$/)
+    // 무인 실패(옛 「규칙 길」 줄을 갈음) — 첫 시도 실패 1 / 무인 일감 1 · 10% 넘음
+    assert.match(await page.locator('[data-t=mt-fail]').innerText(), /무인 실패[\s\S]*1 \/ 1/)
+    assert.equal(await page.locator('[data-t=mt-fail] [data-t=mtVal].c-warn').count(), 1, '무인 실패 10% 넘음')
     assert.match(page.url(), /#\/k\/apv10\/check\/metrics$/)
     for (const w of [1280, 1024, 600, 375]) {
       await page.setViewportSize({ width: w, height: 820 })

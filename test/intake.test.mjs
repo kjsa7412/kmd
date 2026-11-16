@@ -42,7 +42,7 @@ before(async () => {
   process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
   copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'kn'))
   docsDir = path.join(tmp, 'src', '운영문서')
-  W(path.join(docsDir, '회의', '10월.md'), '# 10월\n\n## 정한 것\n화 · 목 배포. 창은 14:00 부터.\n')
+  W(path.join(docsDir, '회의', '시월.md'), '# 시월\n\n## 정한 것\n화 · 목 배포. 창은 14:00 부터.\n')
   W(path.join(docsDir, '야간점검.md'), '# 야간점검\n\n## 점검 순서\n밤 11시에 디스크를 본다.\n')
   repo = path.join(tmp, 'src', 'repo')
   W(path.join(repo, 'HealthCheck.java'), '// 헬스 체크 — 시간 초과는 3초\nclass HealthCheck {\n  int timeoutSec = 3;\n}\n')

@@ -120,7 +120,7 @@ test('자리: 남의 기록 정정은 쓰기 자리 403 · 내 기록은 쓰기 
   // 들어간 항목이 없는 기록(메모) — 정정 기록만 + 넣지 못함
   const memo = await s.hub.save(LEE, 'dpms', { record: { title: '알람 메모', body: '경고 소리 10초', touchesEmpty: '시험 메모' } })
   const n = await s.hub.fixRecord(LEE, 'dpms', memo.id, { body: '소리는 20초', from: '10초', to: '20초' })
-  assert.deepEqual([n.held, !!n.rule], [0, true], JSON.stringify(n)) // 넣지 못함은 없다(P11) — 이은 항목 · 기록 모음 달 항목에 잇는다(규칙 길)
+  assert.deepEqual([n.held, n.rule, /이은 항목에 잇는다/.test(n.why)], [0, undefined, true], JSON.stringify(n)) // 정정 기록만 이은 항목 · 기록 모음 달 항목에 잇는다(규칙 길이라는 이름은 걷었다 · H4b)
   const w = (await fresh()).byWork.get(n.id)
   assert.ok(!w.tags.includes('held'), w.tags.join(' '))
   assert.equal(w.state, 'in')
