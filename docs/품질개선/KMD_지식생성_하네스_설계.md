@@ -450,6 +450,8 @@ judge: {
 - 지금 꼴과의 차이: `updates · newDoc · names[{ name, kind }]` 가 `items` 한 칸으로 합쳐진다. 값(열쇠) · `names` · `touches` · 문서 장부 줄은 LLM 이 내지 않고 엮기가 짓는다. 새 문서는 여럿 설 수 있고 성격을 적는 칸이 있다. 기록은 세션과 같은 일곱 칸에 근거 날짜가 붙는다.
 - `items` 가 비고 `skip` 만 있으면 「넣을 것 없음」 이다(H-D26 · H-O8).
 - 고침(`edit`)에서 `gist` · `aliases` 를 다시 적는 것은 H-O3 이 열 때만 받는다. 그때까지 고침의 두 칸은 버리고 잰다.
+- 엮기가 짓는 칸(`natures` · `depart` · `judge`)은 바깥에서 받지 않는다: 저장 문이 걷고(`weaveIn`) 서버 코드만 `opt.woven` 으로 넘긴다. `items` 와 옛 꼴(`sections` · `names` · `forms`)을 섞어 보내면 입력 오류다(H4c-1).
+- 무인 세션은 저장 제안(`propose`)을 쓰지 않는다: 승인할 사람이 없으므로 `save` 가 바로 무인 저장 문을 지난다(MCP `propose` 는 무인 세션에 입력 오류로 그렇게 알린다 · H4a-1 에서 실제 세션이 제안서만 내고 끝난 것을 보고 넣었다).
 - 옛 꼴 입력(`sections · names · distinct · forms`)은 계속 받는다. `distinct` 는 가름으로 읽고(까닭 없음 · 옛 입력) 측정 줄에 `legacy` 로 센다. 세션의 의무 시점은 H-O9.
 - 올려 세우기(`act: "raise"`)는 두지 않는다(H-D31).
 

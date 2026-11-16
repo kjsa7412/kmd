@@ -47,7 +47,7 @@ export function valuesOf(text) {
 export const HASH_RE = /\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b/g
 export const REC_ID_RE = /\b\d{4}-\d{4}-[^\s`」"'),]+/g
 //   「고친 조각」 은 제안(core/propose.js)이라 값이 아니다 · 「넣은 것」 · 「넣지 못함」 · 「되돌린 항목」 · 「받아들인 경고」 · 「값 대조」 · 「이은 항목」 · 「새로 세움」 은 kmd 가 쓰는 칸(작성기준 2-3)이라 기록의 값이 아니다
-export const NOT_KNOWLEDGE = new Set(['까닭', '버린 안', '근거', '고친 조각', '넣은 것', '넣지 못함', '되돌린 항목', '받아들인 경고', '값 대조', '이은 항목', '새로 세움'])
+export const NOT_KNOWLEDGE = new Set(['지은 근거', '까닭', '버린 안', '근거', '고친 조각', '넣은 것', '넣지 못함', '되돌린 항목', '받아들인 경고', '값 대조', '이은 항목', '새로 세움'])
 export const knowledgeParts = (body) => {
   const s = String(body)
   if (!/^## 바뀐 것\s*$/m.test(s)) return s

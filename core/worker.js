@@ -103,6 +103,7 @@ export async function sessionOnce({ server, key, job, dkey, log = () => {}, mode
   await call(server, key, '/api/worker/status', { ok: true }).catch((e) => log(`일꾼 상태를 알리지 못했다(${e.status || e.message})`))
   if (d.requeued) return { job, summary: { put: 0, held: 0, rule: 0 }, requeued: true }
   if (d.stopped || d.aborted) return { job, summary: { put: 0, held: 0, rule: 0 }, skipped: d.stopped ? 'stopped' : 'aborted' }
+  if (d.empty) { log(`${name}: ${String(d.why || '넣을 것 없음').slice(0, 160)}`); return { job, summary: { put: 0, held: 0, rule: 0 }, empty: true } }
   log(`${name}: ${d.same ? '같은 것을 이미 들였다' : `넣음 ${d.put || 0}${d.rule ? ` · 규칙 길(${String(d.rule).slice(0, 120)})` : ''}`}`)
   return { job, summary: { put: d.put || 0, held: 0, rule: d.rule ? 1 : 0 }, rec: d.rec || null }
 }

@@ -155,6 +155,9 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
   // 새 문서 갈래 — 같은 제안이 세우는 갈래까지(장부가 없던 지식도 이 제안으로 장부가 선다)
   const formsIn = (Array.isArray(input.forms) ? input.forms : []).filter((f) => f && typeof f.name === 'string' && f.name.trim())
   //   저장과 같은 함수로 본다(formsAfter · H-D14): 갈래 장부가 없던 지식은 이 제안의 갈래 줄이 서면 기본 갈래가 사라진다
+  // 엮기가 지은 칸(지식 생성 하네스 H4c · core/weave.js inputFromItems) — 벗어남을 적은 새 문서 · 지은 근거 줄
+  const departIn = (Array.isArray(input.depart) ? input.depart : []).filter((x) => typeof x === 'string').map((x) => x.normalize('NFC').replace(/^docs\/|\.md$/g, ''))
+  const judgeIn = (Array.isArray(input.judge) ? input.judge : []).filter((x) => typeof x === 'string' && x.trim()).map((x) => x.replace(/[\r\n]+/g, ' ').trim().slice(0, 600)).slice(0, 120)
   const naturesIn = (Array.isArray(input.natures) ? input.natures : []).filter((x) => x && typeof x.doc === 'string' && x.doc.trim())
   const formsNow = approve && (formsIn.length || naturesIn.length) ? formsAfter(k.formsRaw != null ? k.formsRaw : k.forms.own ? upsertForms('', k.forms.rows) : '', formsIn.map((f) => ({ ...f, name: f.name.trim().normalize('NFC') })), naturesIn) : k.forms
   const distinct = new Set((input.distinct || []).map((x) => nearKey(x)))
@@ -196,7 +199,7 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
       const heading = String(s.heading ?? '').trim().normalize('NFC')
       if (!newDoc) { err('newdoc', where, `「${rel}」 문서가 없다. 새 문서는 지식관리자가 세운다(you.ledgers) · 있는 문서 · 머리로 가리킨다`); continue }
       if (typeof s.content !== 'string') { err('newdoc', where, '새 문서의 항목은 글 전체(content)로 보낸다'); continue }
-      const g = guardNewDoc(formsNow, rel, [heading], { intake: intakeDoc })
+      const g = guardNewDoc(formsNow, rel, [heading], { intake: intakeDoc, depart: departIn.includes(rel) })
       for (const e of g.errors) err('format', where, e.message)
       const name = rel.split('/').pop()
       const r = nearOf(k.docs.flatMap((d) => [d.id.split('/').pop(), d.title]), name)
@@ -340,6 +343,7 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
   sect('새 문서', newDocs.map((d) => `  ${docName(d.doc)}   신설${d.form ? `   갈래: ${d.form}` : ''}${natureOf(d.doc) ? `   성격: ${natureOf(d.doc)}` : ''}${d.near.length ? ` · 비슷한 문서 ${d.near.join(' · ')}` : ''}`))
   sect('새 갈래 · 새 종류', [...newForms.map((f) => `  갈래 ${f.name}   신설${f.near.length ? ` · 비슷한 갈래 ${f.near.join(' · ')}` : ''}`), ...newKinds.map((t) => `  종류 ${t.name}   신설${t.near.length ? ` · 비슷한 종류 ${t.near.join(' · ')}` : ''}`)])
   sect('새 항목(장부)', [...ledgerFix, ...fills.map((x) => `  ${x.coord}   자리 채움   자리: ${docName(x.doc)} › ${x.heading}`), ...newNames.map((n) => `  ${n.coord}   신설   자리: ${n.doc ? `${docName(n.doc)}${n.heading ? ` › ${n.heading}` : ''}` : '없음'} · ${n.near.length ? `비슷한 항목 ${n.near.join(' · ')}` : '비슷한 항목 없음'}`)])
+  if (judgeIn.length) sect('지은 근거', judgeIn.map((x) => `  ${x}`))
   sect('이을 항목(글 그대로)', items.filter((x) => x.kind === '잇기').map((x) => `  ${x.at}   잇기${x.before == null ? '   (항목이 아직 없음)' : ''}`))
   sect('뺀다', excluded.map((x) => `  ${x.name}   ${x.why || '뺌'}`))
   L.push('―― 검사 ――')
@@ -355,7 +359,7 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
   // 해시 — 머리 줄(지식 이름 · 보는 사람 수 · 길)은 빼고 싣는다: 명부가 바뀌거나 길이 달라도 같은 입력이면 같은 지문 · 집합 칸은 차례를 고른다
   const setOf = (xs, key) => [...(Array.isArray(xs) ? xs : [])].sort((a, b) => key(a).localeCompare(key(b)))
   const proposal = errors.length ? null : proposalHash({
-    record: rec, sections: secs, names: input.names || [], forms: input.forms || [], ...(naturesIn.length ? { natures: naturesIn } : {}),
+    record: rec, sections: secs, names: input.names || [], forms: input.forms || [], ...(naturesIn.length ? { natures: naturesIn } : {}), ...(departIn.length ? { depart: departIn } : {}), ...(judgeIn.length ? { judge: judgeIn } : {}),
     kinds: setOf(input.kinds, (x) => String(typeof x === 'string' ? x : x?.name || '')), excluded: setOf(excluded, (x) => x.name), distinct: [...new Set((input.distinct || []).map((x) => nearKey(x)))].sort(),
     bases: items.map((x) => [x.at, x.base]), warnings: warnings.map((w) => w.id), text: L.slice(1).join('\n'),
   })

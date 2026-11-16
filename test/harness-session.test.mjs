@@ -92,9 +92,25 @@ test('세션 일감의 열쇠: 그 지식에만 · 팀 서버는 세션 일감�
   assert.match(pr.message, /save 를 바로 부른다/)
   // 갈래 · 종류를 따로 세우는 입력은 거절(무인 저장 문)
   assert.equal((await mcp(t.token, 'save', { knowledge: 'dpms', record: { title: '갈래를 세운다', body: 'x' }, forms: [{ name: '새갈래' }] })).j.result.structuredContent.error, 'E_INPUT')
-  // 세션이 아무것도 넣지 않고 끝났다 — 일감이 닫힌다(지금은 규칙 길로 · H4b 에서 다시 시도로 바꾼다)
+  assert.match(t.system, /저장 입력은 새 꼴이다/)
+  // 세션의 save 입력 2판 — 새 모으는 문서의 갈래 줄 · 문서 성격 줄 · 장부 줄을 엮기가 짓고 무인 저장 문이 받는다(갈래를 따로 세우는 입력이 아니다)
+  const v2 = (await mcp(t.token, 'save', {
+    knowledge: 'dpms',
+    record: { title: '둘째 통화: 펄스 길이 400ms', summary: '둘째 통화에서 펄스 길이를 바꿨다.', changes: ['펄스 길이: 400ms'], asOf: '2026-10-22' },
+    docs: [{ path: '통화 기록', nature: '사건', summary: '통화마다 정한 것을 적는다.', gather: { aliases: ['통화'] }, judge: { rule: ['R3-2', 'R4-1'], none: 'all' } }],
+    items: [{ doc: '통화 기록', heading: '2026-10-22 둘째 통화', act: 'new', nature: '사건', kind: '통화', kindGist: '날짜가 있는 전화 통화 한 번', gist: '펄스 길이를 400ms 로 바꾼 통화', content: '펄스 길이를 400ms 로 바꾼다.', judge: { rule: ['R1-1', 'R4-1', 'R5-1'], none: 'all' } }],
+    skip: [{ what: '인사말', rule: 'R6-1', why: '인사말이다' }],
+  })).j.result.structuredContent
+  assert.ok(v2.saved, JSON.stringify(v2))
+  const kd = path.join(tmp, 'kn', 'dpms')
+  assert.match(fs.readFileSync(path.join(kd, '_forms.md'), 'utf8'), /\| 통화 기록 \| 통화 \| - \| 사건 \|[\s\S]*## 문서 성격[\s\S]*\| 통화 기록 \| 사건 \|/)
+  assert.match(fs.readFileSync(path.join(kd, '_vocab.md'), 'utf8'), /## 통화\n\n뜻: 날짜가 있는 전화 통화 한 번\n\n- `통화:2026-10-22_둘째_통화`: 2026-10-22 둘째 통화\n {2}gist: 펄스 길이를 400ms 로 바꾼 통화/)
+  const rec = fs.readFileSync(path.join(kd, 'work', `${v2.saved}.md`), 'utf8')
+  assert.match(rec, /## 지은 근거\n- 새 항목 통화 기록 › 2026-10-22 둘째 통화: R1-1 · R4-1 · R5-1 · 판례 없음\n- 새 문서 통화 기록: R3-2 · R4-1 · 판례 없음\n- 뺌 인사말: R6-1 · 인사말이다/)
+  assert.match(rec, /## 원천/)
+  // 세션 끝 — 세션이 저장했으므로 일감이 그 저장으로 닫힌다
   const d = await call('/done', { session: { ok: true, error: null, message: '', cost: 0.02 } })
-  assert.ok(d.rule, JSON.stringify(d))
+  assert.deepEqual([d.put, d.rule, d.rec], [1, undefined, v2.saved], JSON.stringify(d))
   // 끝난 일감의 열쇠는 끊긴다
   assert.equal((await mcp(t.token, 'brief', {})).status, 401)
   // 일감 열쇠가 아닌 손으로 지은 kmda_ 는 받지 않는다

@@ -158,10 +158,13 @@ export function proposeInputWhy(input) {
     if (plainObj(x) && x.label != null && !ONE_LINE(x.label, 60)) return '종류의 label 은 한 줄 60자 안이다'
   }
   for (const n of input.names || []) {
-    if (!plainObj(n) || badKeys(n) || Object.keys(n).some((y) => !['coord', 'label', 'aliases', 'doc', 'heading'].includes(y))) return 'names 는 { coord, label, aliases, doc, heading } 의 목록이다'
+    if (!plainObj(n) || badKeys(n) || Object.keys(n).some((y) => !['coord', 'label', 'aliases', 'doc', 'heading', 'gist', 'kindGist', 'fill'].includes(y))) return 'names 는 { coord, label, aliases, doc, heading, gist } 의 목록이다'
     if (!ONE_LINE(n.coord, 200) || !ONE_LINE(n.label, 200)) return '항목(coord) · 라벨(label)은 한 줄 200자 안이다'
     if (!strs(n.aliases, 200)) return '항목의 별칭(aliases)은 20개 안 · 한 줄 200자 안이다'
     for (const y of ['doc', 'heading']) if (n[y] != null && !ONE_LINE(n[y], 300)) return `항목의 ${y} 는 한 줄 300자 안이다`
+    // 뜻 한 줄(gist) · 새 종류의 뜻(kindGist) · 자리 채움(fill · 자리 없는 옛 줄에만) — 지식 생성 하네스 H2
+    for (const y of ['gist', 'kindGist']) if (n[y] != null && !ONE_LINE(n[y], 80)) return `항목의 ${y} 는 한 줄 80자 안이다`
+    if (n.fill != null && typeof n.fill !== 'boolean') return '항목의 fill 은 true 또는 false 다'
   }
   return null
 }

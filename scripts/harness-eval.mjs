@@ -294,6 +294,7 @@ async function sessionRunner({ root, kn }) {
     row.calls = j?.calls || 0
     row.rule = j?.result?.rule || null
     row.put = j?.state === 'done' && !j?.result?.aborted
+    if (j?.result?.empty) row.empty = String(j.why || '넣을 것 없음').slice(0, 200)
     if (j?.why) row.why.push(String(j.why).slice(0, 300))
     row.log = logs.slice(-40)
     if (r?.stop) row.stop = r.stop

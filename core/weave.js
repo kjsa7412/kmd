@@ -13,7 +13,8 @@ import { nfc } from './text.js'
 import { TYPE_RE, NEW_VALUE_RE, formFor, GATHER_KINDS } from './guard.js'
 import { locate } from './registry.js'
 import { headingMatches } from './sections.js'
-import { NATURES, SEED_KINDS, seedKind } from './genrules.js'
+import { NATURES, SEED_KINDS, seedKind, isRuleId } from './genrules.js'
+import { sectionOf } from './knowledge.js'
 
 // 짜임 머리(R1-4 · H-O13) — 새로 세울 때 장부 짝을 짓지 않는다. 이미 항목으로 선 것(옛 지식의 「개요」)은 있는 항목이다
 export const FRAME_HEADS = ['개요', '목적', '범위', '변경 이력', '변경이력', '개정 이력', '개정이력', '참고', '기타', '메모', '목차', '표지']
@@ -173,4 +174,119 @@ export function weave(k0, { lines = [], docs = [] } = {}) {
     }
   }
   return { names, touches, natures, forms, kinds: [...newKinds.values()], lines: outLines, fold, skipped, errors }
+}
+
+// ── save 입력 2판(지식 생성 하네스 5-2 · H4c) → 저장 입력(record · sections · names · forms · natures · depart · judge) ──
+//   LLM 은 알갱이마다 한 줄(items)과 새 문서(docs) · 뺀 것(skip)을 낸다. 값(열쇠) · names · touches · 문서 장부 줄 · 갈래 줄 · 문서 성격 줄은 엮기가 짓는다.
+//   items: [{ doc, heading, act: 'edit' | 'new' | 'same', target?, kind?, kindGist?, id?, gist?, aliases?, nature?, base?, edits? | content?, judge?, first? }]
+//   docs:  [{ path, nature, summary?, gather?: { aliases?, pattern? }, judge? }] · skip: [{ what, rule?, why }]
+//   judge: { rule: ['R2-1'], prec: [{ of(열쇠), stance: follow | distinct | depart | na, differs?: id | kind | owner, owner?, against?, why? }], none?: 'all' | 'part' }
+//   → { input, errors, skip, acts, fold, skipped, miss, empty, stances }
+//   판단 칸의 꼴 흠(조문 번호 틀림 · 까닭 빔)은 막지 않고 센다(miss · H-D13). 이 함수는 판단이 옳은지 보지 않는다.
+export const ITEMS_MAX = 50
+const STANCE = { follow: '따름', distinct: '가름', depart: '벗어남', na: '해당 없음' }
+const DIFFERS = { id: '식별자', kind: '종류', owner: '주인 대상' }
+const one = (s, n) => nfc(String(s ?? '')).replace(/[\r\n`|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n)
+const ruleOf = (x) => { const r = String(x || '').trim().replace(/^r/, 'R'); return isRuleId(r) ? r : null }
+export function inputFromItems(k, input = {}) {
+  const errors = []
+  const err = (code, at, why) => errors.push({ code, at, why })
+  const items = Array.isArray(input.items) ? input.items.filter((x) => x && typeof x === 'object') : []
+  const docsIn = Array.isArray(input.docs) ? input.docs.filter((x) => x && typeof x === 'object' && typeof x.path === 'string') : []
+  if (items.length > ITEMS_MAX) err('items', 'items', `한 저장에 항목은 ${ITEMS_MAX}개까지다: 묶음을 나눠 저장한다`)
+  let miss = 0
+  const stances = { shown: 0, follow: 0, distinct: 0, depart: 0, na: 0, none: { all: 0, part: 0 } }
+  const judgeText = (j) => {
+    const rules = (Array.isArray(j?.rule) ? j.rule : j?.rule ? [j.rule] : []).map((x) => { const r = ruleOf(x); if (!r) miss++; return r }).filter(Boolean).slice(0, 6)
+    const prec = (Array.isArray(j?.prec) ? j.prec : []).filter((p) => p && typeof p === 'object' && p.of).slice(0, 8).map((p) => {
+      const st = STANCE[p.stance] ? p.stance : null
+      if (!st) { miss++; return null }
+      stances.shown++
+      stances[st]++
+      const against = st === 'depart' ? ruleOf(p.against) : null
+      const why = one(p.why, 120)
+      if ((st === 'distinct' || st === 'depart') && !why) miss++
+      if (st === 'depart' && !against) miss++
+      if (st === 'distinct' && !DIFFERS[p.differs]) miss++
+      const paren = [st === 'distinct' ? DIFFERS[p.differs] || '' : '', against || '', why].filter(Boolean).join(' · ')
+      return `${one(p.of, 120)} ${STANCE[st]}${paren ? `(${paren})` : ''}`
+    }).filter(Boolean)
+    const none = j?.none === 'all' || j?.none === 'part' ? j.none : null
+    if (none) stances.none[none]++
+    if (!rules.length) miss++
+    return { rules, prec, none, text: `${rules.join(' · ') || '조문 적지 않음'} · ${prec.join(' · ') || (none === 'all' ? '판례 없음' : none === 'part' ? '판례 없음(덮임이 잘렸다)' : '판례 적지 않음')}` }
+  }
+  const stanceIn = (j, st) => (Array.isArray(j?.prec) ? j.prec : []).some((p) => p?.stance === st)
+  const lines = []
+  const bodies = []
+  const judges = []
+  for (const it of items.slice(0, ITEMS_MAX)) {
+    const act = ['edit', 'new', 'same'].includes(it.act) ? it.act : null
+    let doc = typeof it.doc === 'string' ? it.doc : ''
+    let heading = typeof it.heading === 'string' ? it.heading : ''
+    // 자리 — doc · heading 또는 target(열쇠: 「종류:값」 · 「문서 › 머리」)
+    if ((!doc || !heading) && typeof it.target === 'string' && it.target.trim()) {
+      const t = nfc(it.target.trim())
+      if (t.includes(' › ')) { doc = t.slice(0, t.indexOf(' › ')); heading = t.slice(t.indexOf(' › ') + 3) }
+      else {
+        const s = sectionOf(k, t)
+        if (!s?.loc) { err('target', t, `「${t}」 는 문서에 자리가 없는 열쇠다: doc · heading 으로 가리킨다`); continue }
+        doc = s.loc.doc
+        heading = s.sec?.h || s.loc.heading
+      }
+    }
+    const at = `${docId(doc)} › ${heading}`
+    if (!act) { err('act', at, 'act 는 edit(고침) · new(새 항목) · same(그대로) 가운데 하나다') ; continue }
+    if (!doc || !heading) { err('place', at, '문서(doc)와 머리(heading)가 있어야 한다') ; continue }
+    if (act === 'new' && typeof it.content !== 'string') { err('content', at, '새 항목은 글 전체(content)로 보낸다') ; continue }
+    if (act === 'edit' && !(Array.isArray(it.edits) && it.edits.length) && typeof it.content !== 'string') { err('content', at, '고침은 바꿀 곳(edits)이나 새 글 전체(content)로 보낸다') ; continue }
+    lines.push({ doc, heading: nfc(heading.trim()).replace(/^#{1,6}\s+/, ''), act, kind: it.kind, kindGist: it.kindGist, id: it.id, gist: it.gist, aliases: it.aliases, nature: it.nature })
+    bodies.push(act === 'same' ? null : { ...(it.base ? { base: String(it.base) } : {}), ...(Array.isArray(it.edits) && it.edits.length ? { edits: it.edits } : { content: it.content }) })
+    judges.push(it.judge || null)
+  }
+  const w = weave(k, { lines, docs: docsIn.map((d) => ({ path: d.path, nature: d.nature, summary: d.summary, gather: d.gather, depart: stanceIn(d.judge, 'depart') })) })
+  errors.push(...w.errors)
+  const sections = []
+  const judge = []
+  const distinct = [...(Array.isArray(input.distinct) ? input.distinct : [])]
+  const acts = { edit: 0, new: 0, same: 0, skip: 0, doc: 0 }
+  w.lines.forEach((l, i) => {
+    acts[l.act]++
+    if (bodies[i]) sections.push({ doc: l.doc, heading: l.heading, ...bodies[i] })
+    const jt = judgeText(judges[i])
+    judge.push(`${l.act === 'new' ? '새 항목' : l.act === 'edit' ? '고침' : '그대로'} ${docId(l.doc)} › ${l.heading}: ${jt.text}`)
+    // 가름 — 이름은 닿지만 다른 대상이다: 비슷한 이름 검사를 넘는다(옛 입력의 distinct 와 같다)
+    if (stanceIn(judges[i], 'distinct')) distinct.push(l.heading, ...(l.coords || []))
+  })
+  const depart = []
+  for (const d of docsIn) {
+    const id = docId(d.path)
+    if (w.fold.some((f) => f.what === 'doc' && f.from === id)) continue
+    if (k.byDocPath?.get(docPath(d.path))) continue
+    acts.doc++
+    const jt = judgeText(d.judge)
+    judge.push(`새 문서 ${id}: ${jt.text}`)
+    if (stanceIn(d.judge, 'depart') || stanceIn(d.judge, 'distinct')) { depart.push(id); distinct.push(stemOf(d.path)) }
+  }
+  const skip = (Array.isArray(input.skip) ? input.skip : []).filter((x) => x && typeof x === 'object' && x.what).slice(0, 50).map((x) => ({ what: one(x.what, 120), rule: ruleOf(x.rule), why: one(x.why, 200) }))
+  acts.skip = skip.length
+  for (const s of skip) judge.push(`뺌 ${s.what}: ${s.rule || '조문 적지 않음'}${s.why ? ` · ${s.why}` : ''}`)
+  // 기록 — 건드린 항목은 엮기가 지은 것과 합친다 · 근거 날짜(asOf · 넣을 것이 말하는 때)는 근거 칸의 한 줄로
+  const rec = input.record && typeof input.record === 'object' && !Array.isArray(input.record) ? { ...input.record } : input.record
+  if (rec && typeof rec === 'object') {
+    const touches = [...new Set([...(Array.isArray(rec.touches) ? rec.touches : []), ...w.touches])]
+    if (touches.length) { rec.touches = touches; delete rec.touchesEmpty }
+    if (rec.body == null && typeof rec.summary === 'string') rec.body = rec.summary
+    delete rec.summary
+    if (rec.asOf != null) {
+      const d = /^\d{4}-\d{2}-\d{2}$/.test(String(rec.asOf).trim()) ? String(rec.asOf).trim() : null
+      if (d) rec.refs = [...(Array.isArray(rec.refs) ? rec.refs : []), `근거 날짜: ${d}`]
+      delete rec.asOf
+    }
+  }
+  const { items: _i, docs: _d, skip: _s, ...rest } = input
+  const out = { ...rest, record: rec, sections, ...(w.names.length ? { names: w.names } : {}), ...(w.forms.length ? { forms: w.forms } : {}), ...(w.natures.length ? { natures: w.natures } : {}), ...(depart.length ? { depart } : {}), ...(distinct.length ? { distinct: [...new Set(distinct.map(String))] } : {}), ...(judge.length ? { judge } : {}) }
+  // 쓸 것이 없다 — 모두 뺌이거나 모두 그대로(R6-3 · H-D26): 아무것도 쓰지 않고 잰다
+  const empty = !sections.length && !w.names.length && !w.forms.length && !w.natures.length && (skip.length > 0 || acts.same > 0)
+  return { input: out, errors, skip, acts, fold: w.fold, skipped: w.skipped, miss, empty, stances }
 }

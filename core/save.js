@@ -47,7 +47,7 @@ import { watchedOf } from './watchmark.js'
 import { upsertVocab, upsertRegistry, cleanNames, upsertPatternRow, upsertForms, formsAfter, formsText, cleanForms, cleanNatures, placeExact } from './namebook.js'
 import { guardRecord, guardNames, guardNewDoc, formsOf, EMPTY_MAX } from './guard.js'
 import { valuesOf, valueDiff, sameValues } from './values.js'
-import { renderPut, renderAccepted, renderValues, renderLinked, renderFresh, KMD_PART_RE } from './parts.js'
+import { renderPut, renderAccepted, renderValues, renderLinked, renderFresh, renderJudge, KMD_PART_RE } from './parts.js'
 import { RECORDS_DOC_PATH } from './guard.js'
 
 const DATE = /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/
@@ -298,7 +298,7 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
     const relink = shape ? (Array.isArray(prep?.relink) ? prep.relink : []) : []
     if (relink.some((x) => !x || !oneLine(x.from?.doc) || !oneLine(x.from?.h) || !oneLine(x.to?.doc) || !oneLine(x.to?.h))) fail('E_INPUT', '짜임 링크 모양이 아니다')
     if (place.some((x) => !x || !COORD.test(String(x.coord || '')) || !oneLine(x.doc) || !oneLine(x.heading)) || intros.some((x) => !x || !oneLine(x.doc) || typeof x.text !== 'string' || x.text.length > 4000)) fail('E_INPUT', '짜임 자리 · 요약 모양이 아니다')
-    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, natures, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, marks: !!intake || !!approve || !!marksIn, intake: !!intake, approve, serverTags, correction, attach: input.attach || [], onCommit, prep, shape: !!shape, shapeStrict: !!shape?.strict, place, intros, relink, accepted: approve ? null : accepted, format: !!format })
+    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, natures, depart: (Array.isArray(input.depart) ? input.depart : []).filter((x) => typeof x === 'string').map((x) => nfc(x).replace(/^docs\/|\.md$/g, '')).slice(0, 50), mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, marks: !!intake || !!approve || !!marksIn, intake: !!intake, approve, serverTags, correction, attach: input.attach || [], onCommit, prep, shape: !!shape, shapeStrict: !!shape?.strict, place, intros, relink, accepted: approve ? null : accepted, format: !!format })
   })
 }
 
@@ -405,7 +405,7 @@ export function sectionBase(text, heading) {
   return sha16(sec ? sec.body : '')
 }
 
-async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], natures: naturesIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null, shape = false, shapeStrict = false, place = [], intros = [], relink = [], approve = null, accepted = null, format = false }) {
+async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], natures: naturesIn = [], depart: departIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null, shape = false, shapeStrict = false, place = [], intros = [], relink = [], approve = null, accepted = null, format = false }) {
   const held = [...heldIn]
   const regRaw = await fs.readFile(path.join(dir, '_managed.md'), 'utf8').then(readText, () => null)
   const vocRaw = await fs.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => null)
@@ -447,7 +447,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
       fresh.get(p.rel).push(nfc(String(s.heading).trim()))
     }
     for (const [rel, hs] of fresh) {
-      const g = guardNewDoc(forms, rel, hs, { intake: !!intake && !!approve })
+      const g = guardNewDoc(forms, rel, hs, { intake: !!intake && !!approve, depart: departIn.includes(rel.replace(/^docs\/|\.md$/g, '')) })
       if (g.errors.length && mode === 'strict') guardFail(g.errors)
       guardWarn.push(...g.errors.map((e) => `새 문서 ${rel.replace(/^docs\/|\.md$/g, '')}: ${e.message}`))
       if (g.registryRow) regNext = upsertPatternRow(regNext, g.registryRow.pattern, g.registryRow.doc)
@@ -635,7 +635,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
     const lead = body.replace(/\s+$/, '')
     //   화면 문서 고치기(asEdit · approve 모드 지식 · 저장 승인 P5)의 승인한 경고도 같은 칸
     //   무인 채널(P6)의 값 경고는 `## 값 대조`(측정만 · P-D2 · P-D37)
-    const ap = approve ? [renderLinked(approve.linked), renderAccepted(approve.accepted), renderValues(approve.values), renderFresh(approve.fresh)] :Array.isArray(accepted) && accepted.length ? [renderAccepted(accepted)] : []
+    const ap = approve ? [renderLinked(approve.linked), renderAccepted(approve.accepted), renderValues(approve.values), renderJudge(approve.judge), renderFresh(approve.fresh)] : Array.isArray(accepted) && accepted.length ? [renderAccepted(accepted)] : []
     if (putRows.length || ap.some(Boolean)) body = [lead, renderPut(putRows), ...ap].filter(Boolean).join('\n\n')
   }
   const workRel = `${sub}/${id}.md`

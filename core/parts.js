@@ -7,6 +7,7 @@
 //   `## 받아들인 경고` 사람이 승인한 제안서의 경고(```json``` 목록 { id, code, at, why }) — 승인 = 경고 받아들임(P-D5 · P-D27)
 //   `## 값 대조`     무인 채널의 값 경고(같은 꼴 · 측정만 · P-D2 · P-D37 · P6 부터 쓴다)
 //   `## 이은 항목`   글을 바꾸지 않고 이 기록을 이은 항목 한 줄씩(「docs/x.md › 머리」 · 글 그대로 · P-D12 · 기록 모음 달 항목 P-D29)
+//   `## 지은 근거`   이 저장의 판단 칸(조문 번호 · 과거 결정에 대한 태도 · 까닭) 한 줄씩 — 지식 생성 하네스 H-D18 · 값 대조에 걸리지 않는다
 //   `## 새로 세움`   이 저장이 새로 세운 것 한 줄씩(「문서 docs/x.md」 · 「항목 docs/x.md › 머리」 · 「이름 종류:값」 · 「갈래 이름」 · 「종류 이름」 · 「자리 종류:값」 · 「성격 문서: 성격」) —
 //                    (「이름」 줄은 장부에 오른 새 항목이다 · 저장 꼴이라 줄 머리는 옛 말 그대로 쓰고 읽는다 · 화면은 「새 항목(장부)」 로 보인다)
 //                    점검 지표 「새로 생긴 것」(P-D27) · fresh 표지는 기록 날짜에서 FRESH_DAYS 가 지나면 저절로 떨어진다(P-D10 · Q15)
@@ -23,7 +24,8 @@ export const ACCEPTED_PART = '받아들인 경고'
 export const VALUES_PART = '값 대조'
 export const LINKED_PART = '이은 항목'
 export const FRESH_PART = '새로 세움'
-export const KMD_PART_RE = /^## (넣은 것|넣지 못함|되돌린 항목|고친 조각|받아들인 경고|값 대조|이은 항목|새로 세움)[ \t\r]*$/m
+export const JUDGE_PART = '지은 근거'
+export const KMD_PART_RE = /^## (넣은 것|넣지 못함|되돌린 항목|고친 조각|받아들인 경고|값 대조|이은 항목|새로 세움|지은 근거)[ \t\r]*$/m
 // 울타리(json) 칸 — 떼기(dropPart)가 울타리 끝까지 본다
 const JSON_PARTS = new Set([HELD_PART, ACCEPTED_PART, VALUES_PART])
 const NEW_MARK = ' (새 항목)'
@@ -202,6 +204,12 @@ const FRESH_KINDS = ['문서', '항목', '이름', '갈래', '종류', '자리',
 // 보이는 말 — 줄 머리(저장 꼴)는 그대로 두고 화면 · 지표에는 새 말로
 //   「자리」 = 자리 없는 옛 장부 줄에 채운 문서 장부 줄 · 「성격」 = 문서 성격 줄(「문서: 성격」) — 지식 생성 하네스 H2(엮기가 짓는다)
 export const FRESH_LABEL = Object.freeze({ 문서: '문서', 항목: '항목(문서)', 이름: '항목(장부)', 갈래: '갈래', 종류: '종류', 자리: '자리 채움', 성격: '문서 성격' })
+// 지은 근거(지식 생성 하네스 H-D18) — 판단 칸을 한 줄씩: 「<한 일> <자리>: <조문 번호> · <판례 열쇠> <태도>(<다른 것이나 어긋난 조문> · <까닭>)」 · 판례가 없으면 「판례 없음」.
+//   엮기(core/weave.js inputFromItems)가 지은 줄만 싣는다 · 사람 입력의 같은 머리는 거절한다(KMD_PART_RE)
+export function renderJudge(lines) {
+  const xs = (Array.isArray(lines) ? lines : []).map((x) => String(x || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 600)).filter(Boolean).slice(0, 120)
+  return xs.length ? `## ${JUDGE_PART}\n${xs.map((x) => `- ${x}`).join('\n')}` : ''
+}
 export function renderFresh(rows) {
   const xs = (rows || []).filter((r) => FRESH_KINDS.includes(r?.kind) && r.name && !/[\r\n]/.test(String(r.name)))
   return xs.length ? `## ${FRESH_PART}\n${xs.map((r) => `- ${r.kind} ${r.name}`).join('\n')}` : ''
