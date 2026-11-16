@@ -3006,6 +3006,19 @@ function gDotSpr(T, kind, r2, dpr) {
   s = A[r2] = { c: gBake(c), h, d: n / dpr }
   return s
 }
+// 찾기 빛 조각 — 반지름(r + 5)마다 옅은 원 한 장(점마다 경로를 채우지 않는다 · 반지름 16 까지 · 더 크면 경로)
+function gHitSpr(T, r2, dpr) {
+  let D = T._dot
+  if (!D || D.dpr !== dpr) D = T._dot = { dpr }
+  const A = D.hit || (D.hit = [])
+  let s = A[r2]
+  if (s) return s
+  const R = r2 / 2 + 5, h = Math.ceil(R + 1), n = Math.ceil(2 * h * dpr), c = gCanvas(n, n), x = c.getContext('2d')
+  x.setTransform(dpr, 0, 0, dpr, 0, 0)
+  x.fillStyle = T.hit; x.beginPath(); x.arc(h, h, R, 0, 7); x.fill()
+  s = A[r2] = { c: gBake(c), h, d: n / dpr }
+  return s
+}
 // 이름 조각 — 테(--g-ring 3px) + 글 한 장 · 글자 기준선은 조각 위에서 13
 //   굵은 이름(올린 점 · 고른 점 · 이웃 · 찾기)도 조각으로 둔다(같은 점에 다시 올리면 drawImage 만)
 //   한 번 그리기에 새로 만드는 조각은 16 까지 · 넘는 것은 이번만 바로 쓴다
@@ -3122,7 +3135,7 @@ function gPaint() {
     const n = t.n, id = n.id, focus = id === Hd, isN = !!nb && nb.has(id), hit = hits.has(id)
     const dim = (!!Hd && !focus && !isN && !hit) || (!!nq && !hit && !focus)
     const a0 = dim ? 0.15 : focus || isN || hit || vis ? 1 : t.dep
-    if (hit) { ctx.globalAlpha = 0.55; ctx.fillStyle = T.hit; ctx.beginPath(); ctx.arc(t.X, t.Y, t.r + 5, 0, 7); ctx.fill() }
+    if (hit) { ctx.globalAlpha = 0.55; const r2 = Math.round(t.r * 2); if (r2 > GDOT_R2) { ctx.fillStyle = T.hit; ctx.beginPath(); ctx.arc(t.X, t.Y, t.r + 5, 0, 7); ctx.fill() } else { const g = gHitSpr(T, r2, dpr); ctx.drawImage(g.c, snap(t.X - g.h), snap(t.Y - g.h), g.d, g.d) } }
     ctx.globalAlpha = a0
     if (n.kind === 'bundle') {
       ctx.strokeStyle = T.item; ctx.lineWidth = 2
@@ -3192,12 +3205,14 @@ function gPaint() {
 }
 // 천천히 돈다 — 끌거나 점에 올려 둔 동안은 멈춘다(누르려는 점이 달아나지 않게)
 const gCalm = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-function gLoop() { GRAF = 0; if (!$('#gcv') || !S.g.f.spin || GD || GH != null || gCalm()) return; S.g.cam.ry += 0.0016; gPaint(); GRAF = requestAnimationFrame(gLoop) }
+//   도는 각은 지난 프레임과의 시간에 맞춘다(60 Hz 한 번에 0.0016 · 프레임이 밀려도 도는 빠르기는 같다 · 멈췄다 다시 돌 때는 한 번 몫 · 한 번에 4 몫까지)
+let GLT = 0
+function gLoop(now) { GRAF = 0; if (!$('#gcv') || !S.g.f.spin || GD || GH != null || gCalm()) { GLT = 0; return } const k = GLT && now ? Math.max(0.25, Math.min(4, (now - GLT) / 16.67)) : 1; GLT = now || 0; S.g.cam.ry += 0.0016 * k; gPaint(); GRAF = requestAnimationFrame(gLoop) }
 // 캔버스 이름 글자는 DOM 에 없어 글꼴 뒤 파일을 부르지 않는다 · 그래프마다 한 번 그 글자로 불러 둔다(받으면 loadingdone 이 다시 그린다)
 function gFonts() { const G = CURG; if (!G || G._fl || !document.fonts || !document.fonts.load) return; G._fl = true; const t = [...new Set(G.nodes.map((n) => n.label || '').join(''))].join(''); if (t) document.fonts.load('11px "KMD Sans"', t).catch((e) => console.warn('그래프 글꼴을 받지 못했다', e)) }
 // 회전 기본값 — 보이는 점 수(고른 뒤면 고른 점 + 이웃) × DPR 이 400 을 넘으면 끈다(viewGraph 가 조작판을 그리기 전에 정해 단추도 맞게 그린다 · 사람이 단추를 누르면 그 값을 따른다)
 const gSpinOk = (G) => (G.vis ? G.vis.size : G.nodes.length) * Math.max(1, Math.min(3, window.devicePixelRatio || 1)) <= 400
-function gStart() { gFonts(); gPaint(); if (!GRAF && S.g.f.spin && !gCalm()) GRAF = requestAnimationFrame(gLoop) }
+function gStart() { gFonts(); gPaint(); GLT = 0; if (!GRAF && S.g.f.spin && !gCalm()) GRAF = requestAnimationFrame(gLoop) }
 function gHit(x, y) {
   if (!GCV) return null
   const lx = x - GCV.rc.left, ly = y - GCV.rc.top
