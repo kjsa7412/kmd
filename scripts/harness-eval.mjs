@@ -12,7 +12,9 @@
 //                                                                           그 기록이 건드린 항목이 카드에 실리나(설계 9-3 판례 recall · 문턱 0.9)
 //
 //   --mode oneshot  지금 프롬프트(단발 claude -p · 도구 0 · INTAKE_SCHEMA): server/hub.js 의 무인 들이기와 같은 걸음을 core 함수로 밟는다
-//                   (재료 → 초안 → draftToSave → 무인 판정 → 고쳐 받기 두 번 → 규칙 길). H4 뒤에는 세션 방식을 더한다.
+//                   (재료 → 초안 → draftToSave → 무인 판정 → 고쳐 받기 두 번 → 규칙 길).
+//   --mode session  세션 방식(H4a · H-D34): 임시 팀 서버를 띄우고 원천마다 들이기 일감을 열어 팀 일꾼(workOnce)이 Claude Code 세션을 띄운다.
+//                   세션은 그 서버의 MCP 에 단기 열쇠로 붙어 스스로 찾고 저장한다(system 글에 생성 룰 긴 판).
 //   결과: .kmd-data/harness-eval/<날짜>-<판>.json · 지식은 .kmd-data/harness-eval/kn/<판>/
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -269,6 +271,38 @@ async function oneshotRunner({ budget }) {
   }
 }
 
+// 세션 방식 — 임시 팀 서버 + 팀 일꾼. 서버는 127.0.0.1 의 빈 포트에 뜨고 쓰는 곳은 root(.kmd-data/harness-eval/kn/<판>-root) 뿐이다
+async function sessionRunner({ root, kn }) {
+  const { startServer } = await import('../server/http.js')
+  const { workOnce } = await import('../core/worker.js')
+  const { sha16 } = await import('../core/text.js')
+  await fs.mkdir(path.join(root, '.kmd'), { recursive: true })
+  await fs.writeFile(path.join(root, '.kmd', 'serve.json'), JSON.stringify({ decideMs: 3600000, sourceTickMs: 3600000, inboxTickMs: 3600000, jobTickMs: 3600000, watchQuietMs: 600000 }))
+  const s = await startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
+  const wk = (await s.auth.workerAdd()).key
+  const one = async (dir, name, src, md) => {
+    const row = { n: src.n, file: src.file, calls: 0, fix: 0, cost: 0, ms: 0, rule: null, put: false, why: [] }
+    const o = await s.hub.openJob(kn, { type: src.type, by: 'kmd', auto: true, src: src.type === 'commit' ? { src: '게이트웨이', commit: 'a1b2c3d4e5f60718', title: src.title, touches: [] } : { rel: src.file, file: src.file, title: src.title, sha: sha16(md) }, md })
+    if (o.state !== 'queued') { row.why.push(`일감을 열지 못했다: ${JSON.stringify(o).slice(0, 200)}`); row.put = o.state === 'rule'; row.rule = o.state === 'rule' ? (o.why || '규칙 길') : null; return row }
+    const logs = []
+    const t0 = Date.now()
+    const r = await workOnce({ server: s.url, key: wk, log: (x) => logs.push(String(x)) })
+    row.ms = Date.now() - t0
+    const j = s.hub.intakesOf(kn).find((x) => x.id === o.job)
+    row.session = !!r?.job?.session
+    row.cost = j?.cost || 0
+    row.calls = j?.calls || 0
+    row.rule = j?.result?.rule || null
+    row.put = j?.state === 'done' && !j?.result?.aborted
+    if (j?.why) row.why.push(String(j.why).slice(0, 300))
+    row.log = logs.slice(-40)
+    if (r?.stop) row.stop = r.stop
+    if (!r) row.why.push('일감을 받지 못했다')
+    return row
+  }
+  return { one, close: () => s.close() }
+}
+
 async function main() {
   const cmd = process.argv[2]
   const gold = await readGold()
@@ -303,11 +337,15 @@ async function main() {
   const budget = Number(arg('budget', '1')) || 1
   const only = arg('only') ? new Set(arg('only').split(',').map(Number)) : null
   const ver = `${tag}-${mode}-${order}`
-  const dir = path.join(OUT_DIR, 'kn', ver)
+  if (!['oneshot', 'session'].includes(mode)) { console.error(`모르는 방식: ${mode}`); process.exit(2) }
+  const KN_ID = 'empty-test' // 세션 방식의 지식 id(임시 팀 서버의 폴더 이름)
+  const root = path.join(OUT_DIR, 'kn', `${ver}-root`)
+  const dir = mode === 'session' ? path.join(root, KN_ID) : path.join(OUT_DIR, 'kn', ver)
   await fs.mkdir(OUT_DIR, { recursive: true })
+  if (mode === 'session') await fs.rm(root, { recursive: true, force: true })
   await freshKn(dir, gold.kn)
-  if (mode !== 'oneshot') { console.error(`모르는 방식: ${mode}`); process.exit(2) }
-  const one = await oneshotRunner({ budget })
+  const runner = mode === 'session' ? await sessionRunner({ root, kn: KN_ID }) : null
+  const one = runner ? runner.one : await oneshotRunner({ budget })
   const rows = []
   const day = new Date().toISOString().slice(0, 10)
   const outFile = path.join(OUT_DIR, `${day}-${ver}.json`)
@@ -329,6 +367,7 @@ async function main() {
     await fs.writeFile(outFile, JSON.stringify({ ver, mode, order, day, head: execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT }).toString().trim(), partial: only ? [...only] : null, ms: Date.now() - t0, cost: rows.reduce((a, r) => a + r.cost, 0), tally: { sources: rows.length, put: rows.filter((r) => r.put && !r.rule).length, rule: rows.filter((r) => r.rule).length, fail: rows.filter((r) => !r.put).length, fix: rows.reduce((a, r) => a + r.fix, 0), calls: rows.reduce((a, r) => a + r.calls, 0) }, score, gates: gateOf(score), rows }, null, 2) + '\n')
     if (row.stop) { console.error(`Claude 를 쓸 수 없어 멈춘다(${row.stop})`); break }
   }
+  if (runner) await runner.close()
   const fin = JSON.parse(await fs.readFile(outFile, 'utf8'))
   console.log(`\n${ver}: 값 $${fin.cost.toFixed(2)} · ${Math.round(fin.ms / 60000)}분 · 넣음 ${fin.tally.put} · 규칙 길 ${fin.tally.rule} · 못 넣음 ${fin.tally.fail} · 고쳐 받기 ${fin.tally.fix}`)
   const s = fin.score

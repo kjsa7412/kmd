@@ -74,6 +74,7 @@ test('세션 일감의 열쇠: 그 지식에만 · 팀 서버는 세션 일감�
   assert.match(t.token, /^kmda_/)
   assert.match(t.system, /^아래 「생성 룰」 이 이 일의 규칙이다/)
   assert.match(t.system, /생성 룰 1판/)
+  assert.match(t.system, /이 일은 무인 일감이다. 사람에게 묻거나 승인을 기다리지 않는다/)
   assert.match(t.system, /R8 판례를 따름 · 가름 · 벗어남/)
   assert.match(t.prompt, /knowledge id: dpms\)/)
   assert.ok(t.files.some((f) => f.name === '둘째 통화.md' && Buffer.from(f.b64, 'base64').toString('utf8').includes('400ms')))
@@ -85,6 +86,10 @@ test('세션 일감의 열쇠: 그 지식에만 · 팀 서버는 세션 일감�
   // 과거 결정 카드를 세션이 받는다(match)
   const m = (await mcp(t.token, 'match', { q: '카나리', knowledge: 'dpms' })).j.result.structuredContent
   assert.ok(m.cards.some((c) => c.key === 'proc:카나리'))
+  // 무인 세션에는 승인할 사람이 없다 — 저장 제안은 거절하고 save 를 바로 부르게 한다
+  const pr = (await mcp(t.token, 'propose', { knowledge: 'dpms', record: { title: '제안', body: 'x', touchesEmpty: '없음' } })).j.result.structuredContent
+  assert.equal(pr.error, 'E_INPUT')
+  assert.match(pr.message, /save 를 바로 부른다/)
   // 갈래 · 종류를 따로 세우는 입력은 거절(무인 저장 문)
   assert.equal((await mcp(t.token, 'save', { knowledge: 'dpms', record: { title: '갈래를 세운다', body: 'x' }, forms: [{ name: '새갈래' }] })).j.result.structuredContent.error, 'E_INPUT')
   // 세션이 아무것도 넣지 않고 끝났다 — 일감이 닫힌다(지금은 규칙 길로 · H4b 에서 다시 시도로 바꾼다)
