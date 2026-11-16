@@ -60,7 +60,7 @@ th{font-weight:500;color:var(--t3);font-size:13px;background:#fafafa}
   <h1>세 칸 책상</h1>
   <div>장부처럼 정확하게 · 차분하게 · 꼼꼼하게</div>
   <div class="stats">
-    <div><b>10</b><span>커밋 · main</span></div>
+    <div><b>17</b><span>커밋 · main</span></div>
     <div><b>13</b><span>화면</span></div>
     <div><b>4</b><span>폭 · 1280 1024 600 375</span></div>
     <div><b>0</b><span>잘린 요소</span></div>
@@ -150,6 +150,27 @@ th{font-weight:500;color:var(--t3);font-size:13px;background:#fafafa}
 <tr><td>286d26b</td><td>600 이하 머리 줄은 화면 이름 하나 · 고른 막대 둥근 끝 · 그래프 색 다시 읽기</td></tr>
 <tr><td>264cbb1</td><td>글꼴 둘로 나눠 싣기(512KB 늘 · 1.6MB 필요할 때) · 설명서 글꼴</td></tr>
 <tr><td>b64fede</td><td>검토 둘 지적 고침 · 폰 그래프 이름이 점을 피함 · aria</td></tr>
+<tr><td>e206877</td><td>넘침 · 줄바꿈 디테일 · 나 메뉴 머리 줄 쌓기 · kmd 로고 SVG 한 벌</td></tr>
+<tr><td>386de23</td><td>그래프 성능(머리카락 선 · 그림 조각 · 움직이는 동안 덜 그리기)</td></tr>
+<tr><td>fa10c9f</td><td>모든 지식 카드 두 줄 이름</td></tr>
+<tr><td>da001af</td><td>공식 문서 · 설명서 · 설명서 그림 31장</td></tr>
+<tr><td>512272c</td><td>소개 사이트를 지금 기능 · 화면으로 · 그림 32장</td></tr>
+<tr><td>b753041</td><td>검토 셋 지적 고침(설명서 그림 · 선 밝기 · 조각 한도)</td></tr>
+<tr><td>a365a4f</td><td>점에 올리기 조각은 두 번째 판부터</td></tr>
+</table>
+
+<h2><i></i>고친 것 · 디테일과 로고</h2>
+<div class="pair"><figure><img src="dev/shots/18me-1280.png" alt="나 메뉴"><figcaption>나 메뉴 · 이름 / 팀 서버 · 주소 · 자리 / 들어옴 · 판 · 시각</figcaption></figure><figure><img src="dev/shots/1login-1280.png" alt="들어가기"><figcaption>들어가기 · 글자 대신 로고 SVG</figcaption></figure></div>
+
+<h2><i></i>고친 것 · 그래프 성능(DPMS 점 639 · 선 3,692)</h2>
+<table>
+<tr><th>동작</th><th>화면</th><th>전 p95</th><th>후 p95</th></tr>
+<tr><td>회전 + 선</td><td>1280 · DPR 2</td><td>66.8 ms</td><td>16.8 ms</td></tr>
+<tr><td>회전 + 선</td><td>375 · DPR 3</td><td>133.3 ms</td><td>16.8 ms</td></tr>
+<tr><td>끌기</td><td>375 · DPR 3</td><td>50 ms</td><td>16.8 ms</td></tr>
+<tr><td>찾기 + 회전</td><td>375 · DPR 3</td><td>116.7 ms</td><td>33.3 ms</td></tr>
+<tr><td>점에 올리기</td><td>375 · DPR 3</td><td>16.8 ms</td><td>16.8 ms</td></tr>
+<tr><td>회전 + 제목</td><td>1280 · DPR 2</td><td>33.4 ms</td><td>33.4 ms</td></tr>
 </table>
 
 <h2><i></i>고친 것 · 글꼴 싣기</h2>
@@ -169,6 +190,8 @@ th{font-weight:500;color:var(--t3);font-size:13px;background:#fafafa}
 <tr><td>어두운 --danger #f87171(대비 4.5 맞춤)</td><td><span class="chip">정한 대로</span></td></tr>
 <tr><td>글꼴 이름 KMD Sans(OFL 예약 이름 · Pretendard 파생)</td><td><span class="chip">정한 대로</span></td></tr>
 <tr><td>원본 글꼴에 없는 기호(⚠ 등)는 시스템 글꼴로 그려짐</td><td><span class="chip w">뒤에</span></td></tr>
+<tr><td>그래프 · 회전 + 제목(1280 DPR 2) · 찾기 + 회전(375) p95 33</td><td><span class="chip w">뒤에</span></td></tr>
+<tr><td>디테일 · 로고 · 그래프 · 문서 · site 188 배포(0.1.0-20261116-1122)</td><td><span class="chip">했음</span></td></tr>
 <tr><td>push</td><td><span class="chip w">안 함</span></td></tr>
 </table>
 
