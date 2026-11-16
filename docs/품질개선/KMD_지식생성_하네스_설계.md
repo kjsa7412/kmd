@@ -452,7 +452,7 @@ judge: {
 
 ### 5-3. 채널별 차이표(저장이 일어나는 길 전부)
 
-채널 값은 끝 검토 1 이 `hub.save` 를 부르는 곳에서 읽은 것이다: `session · bulk`(`mcp.js:336`) · `http · send`(`http.js:1293`) · `edit`(`hub.js:4234`) · `fix`(4304) · `shape`(3144 · 4045 · 4060) · `polish`(1929) · `intake-file · intake-commit · intake-fix · intake-src`(`intakeChannel` 1849). 사람 채널은 `HUMAN_CHANNELS = session · http · send · bulk`(1491)다. `intake-again`(type `again` 으로 일감을 여는 곳이 없다)과 `seed`(`channel: 'seed'` 로 부르는 곳이 없다)는 죽은 채널이라 표에 싣지 않고 H0 에서 걷는다.
+채널 값은 끝 검토 1 이 `hub.save` 를 부르는 곳에서 읽은 것이다: `session · bulk`(`mcp.js:336`) · `http · send`(`http.js:1293`) · `edit`(`hub.js:4234`) · `fix`(4304) · `shape`(3144 · 4045 · 4060) · `polish`(1929) · `intake-file · intake-commit · intake-fix · intake-src`(`intakeChannel` 1849). 사람 채널은 `HUMAN_CHANNELS = session · http · send · bulk`(1491)다. `intake-again`(type `again` 으로 일감을 여는 곳이 없었다)과 `seed`(`channel: 'seed'` 로 부르는 곳이 없었다)는 죽은 채널이라 H0 에서 걷었다. H0 에서 `hub.save` · `coreSave` 를 부르는 곳을 다시 읽어 이 표와 맞음을 확인했다(줄 번호는 `ca6c909` 기준이라 어긋난다).
 
 | 길(채널) | 조문 | 판례를 얻는 법 | 판단 칸을 누가 | 짝을 누가 | `## 새로 세움` |
 |---|---|---|---|---|---|
@@ -699,7 +699,7 @@ savelog 한 줄에 더한다(커밋 뒤 · 던지지 않는다 · 개인 지표�
 | 판례 recall | 모델 없이: DPMS · GDI 읽기 사본에서 항목 하나를 빼고 그 항목의 원천 글로 `precedentsFor` 를 돌려 정답이 묶음에 실리나. 「앞선 값」 카드가 사건 항목 글 속의 대상 이름을 찾나 | 판례 찾기를 고칠 때 |
 | 평가 시험(골든 셋) | 실제 LLM. `test/fixture/harness/빈지식/` 원천 열다섯(이름에 「테스트」): 설계서 · 주간 회의 · 장애 대응 절차 · 용어 목록 · 이슈 목록 · 같은 설계서의 다음 판 · 값만 바꾼 커밋 · 말을 바꿔 쓴 같은 대상(「송신 간격」) · 한 파일에 설계 + 회의 · 미정만 든 메모(정답: 넣을 것 없음) · 이름이 같은 다른 대상(화면 ID 와 프로그램 ID) · 벗어남이 정답인 판례를 심은 거리 · 주입 글 · 같은 회의의 후속 메모 · 설정 값이 든 설명서. 차례는 두 벌로 돈다: 설계서 먼저(7-1) · 회의록 먼저(7-2) | 조문 판 · 모델 · 카드 꼴을 바꿀 때(사람이 돌린다) |
 
-평가 시험의 채점은 글자 일치가 아니라 묶음 동치다(같은 대상이 같은 항목에 모였나 · 쌍 단위).
+평가 시험의 채점은 글자 일치가 아니라 묶음 동치다(같은 대상이 같은 항목에 모였나 · 쌍 단위). 채점은 `scripts/harness-eval.mjs` 가 한다: 정답 묶음은 `test/fixture/harness/빈지식/gold.json`(대상 · 알갱이 · 지금 값 · 항목이 되면 안 되는 머리 · 주입)이고, 알갱이 쌍마다 「정답에서 같은 대상인가」 와 「지식에서 같은 항목에 들었나」 를 견준다. 값을 아끼려 이슈 목록은 60행이 아니라 12행으로 두었다(큰 원천의 묶음 가르기는 결정적 시험이 본다). 채점 함수는 Claude 없이 `test/harness-eval.test.mjs` 가 건다.
 
 | 채점 | 문턱 |
 |---|---|

@@ -15,6 +15,7 @@ import { headingMatches } from './sections.js'
 import { createHash } from 'node:crypto'
 import { guardRecord, guardNames, guardNewDoc, nearOf, nameNear, nearKey, RECORDS_DOC, RECORDS_DOC_PATH } from './guard.js'
 import { mustValues } from './values.js'
+import { formsAfter, upsertForms } from './namebook.js'
 
 // 바꿀 곳 대는 법은 core/edits.js 로 옮겼다(S2 · propose ↔ 옛 정리 모듈 순환 끊기) — 부르는 곳을 바꾸지 않게 다시 내보낸다
 export { EDIT_MAX, EDIT_CHARS, validEdits, applyEdits } from './edits.js'
@@ -152,7 +153,8 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
   const secs = Array.isArray(input.sections) ? input.sections : []
   // 새 문서 갈래 — 같은 제안이 세우는 갈래까지(장부가 없던 지식도 이 제안으로 장부가 선다)
   const formsIn = (Array.isArray(input.forms) ? input.forms : []).filter((f) => f && typeof f.name === 'string' && f.name.trim())
-  const formsNow = approve && formsIn.length ? { own: true, rows: [...k.forms.rows, ...formsIn.filter((f) => !k.forms.rows.some((x) => x.name === f.name.trim().normalize('NFC'))).map((f) => ({ name: f.name.trim().normalize('NFC'), aliases: Array.isArray(f.aliases) ? f.aliases : [], ...(f.folder ? { folder: String(f.folder) } : {}), ...(f.kind ? { kind: String(f.kind) } : {}), ...(f.pattern ? { pattern: String(f.pattern) } : {}), ...(f.form ? { form: String(f.form) } : {}) }))] } : k.forms
+  //   저장과 같은 함수로 본다(formsAfter · H-D14): 갈래 장부가 없던 지식은 이 제안의 갈래 줄이 서면 기본 갈래가 사라진다
+  const formsNow = approve && formsIn.length ? formsAfter(k.formsRaw != null ? k.formsRaw : k.forms.own ? upsertForms('', k.forms.rows) : '', formsIn.map((f) => ({ ...f, name: f.name.trim().normalize('NFC') }))) : k.forms
   const distinct = new Set((input.distinct || []).map((x) => nearKey(x)))
   const passes = (name) => distinct.has(nearKey(name))
   const errors = []
@@ -175,14 +177,19 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
   const spread = secs.length > 1
   const done = new Set()
   const texts = []
-  for (const s of secs) {
-    const coord = s.coord != null ? String(s.coord).trim().normalize('NFC') : null
-    const at = placeOf(k, { coord, doc: s.doc, heading: s.heading })
+  // 같은 제안이 세우는 항목의 자리(names 의 doc · heading) — 그 항목을 coord 로 가리킨 글은 그 자리로 읽는다(저장 문도 같다 · 조사 Z V2)
+  const nameAt = new Map((Array.isArray(input.names) ? input.names : []).filter((n) => n && typeof n.coord === 'string' && n.doc && n.heading).map((n) => [n.coord.trim().normalize('NFC'), { doc: String(n.doc), heading: String(n.heading) }]))
+  for (const s0 of secs) {
+    const coord = s0.coord != null ? String(s0.coord).trim().normalize('NFC') : null
+    let at = placeOf(k, { coord, doc: s0.doc, heading: s0.heading })
+    const viaName = !at && coord != null && nameAt.has(coord)
+    const s = viaName ? { ...s0, ...nameAt.get(coord) } : s0
+    if (viaName) at = placeOf(k, { doc: s.doc, heading: s.heading })
     // 기록 모음(P-D29) — 달 항목은 저장 문만 세우고 본문은 서버가 쓴 한 줄뿐이다(사람이 보낸 글을 받지 않는다)
     if (approve && (at ? at.doc : `docs/${String(s.doc ?? '').replace(/\\/g, '/').replace(/^\/+/, '').replace(/^docs\//, '').replace(/\.md$/, '').normalize('NFC')}.md`) === RECORDS_DOC_PATH) { err('records', atOf(RECORDS_DOC_PATH, s.heading ?? ''), `「${RECORDS_DOC}」 은 저장 문이 달 항목을 세우는 문서다. 글을 보내지 않는다(이을 항목이 없는 기록은 touchesEmpty 까닭으로 그 달 항목에 이어진다)`); continue }
     if (!at) {
       const where = coord || atOf(s.doc, s.heading)
-      if (coord) { err('notfound', where, `「${coord}」 이 들어갈 문서가 정해져 있지 않다. 기록만 보내거나 문서 · 머리로 가리킨다`); continue }
+      if (coord && !viaName) { err('notfound', where, `「${coord}」 이 들어갈 문서가 정해져 있지 않다. 기록만 보내거나 문서 · 머리로 가리킨다`); continue }
       const rel = String(s.doc ?? '').replace(/\\/g, '/').replace(/^\/+/, '').replace(/^docs\//, '').replace(/\.md$/, '').normalize('NFC')
       const heading = String(s.heading ?? '').trim().normalize('NFC')
       if (!newDoc) { err('newdoc', where, `「${rel}」 문서가 없다. 새 문서는 지식관리자가 세운다(you.ledgers) · 있는 문서 · 머리로 가리킨다`); continue }

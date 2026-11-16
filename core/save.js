@@ -44,7 +44,7 @@ import { parseVocab } from './vocab.js'
 import { ensureRepo, commitPaths, headSha } from './git.js'
 import { begin, recover, writeAtomic } from './journal.js'
 import { watchedOf } from './watchmark.js'
-import { upsertVocab, upsertRegistry, cleanNames, upsertPatternRow, upsertForms, cleanForms, placeExact } from './namebook.js'
+import { upsertVocab, upsertRegistry, cleanNames, upsertPatternRow, upsertForms, formsAfter, cleanForms, placeExact } from './namebook.js'
 import { guardRecord, guardNames, guardNewDoc, formsOf, EMPTY_MAX } from './guard.js'
 import { valuesOf, valueDiff, sameValues } from './values.js'
 import { renderPut, renderAccepted, renderValues, renderLinked, renderFresh, KMD_PART_RE } from './parts.js'
@@ -424,7 +424,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
   const vocNext = names.length ? upsertVocab(vocRaw || '', names) : vocRaw || ''
   const formNext = formsIn.length ? upsertForms(formRaw || '', formsIn) : formRaw || ''
   const vocab = parseVocab(vocNext)
-  const forms = formsOf(formNext)
+  const forms = formsAfter(formRaw, formsIn) // 제안과 같은 함수(H-D14)
   const date = r.date || localStamp(now)
   let touches = [...new Set((r.touches || []).map((x) => nfc(x.trim())))]
   // 새 문서(G4) — 지금 없는 문서를 세우는 항목 글. 갈래 · 폴더 · 머리 꼴을 보고, 갈래에 항목 패턴이 있으면 문서 장부 행을 같이 세운다

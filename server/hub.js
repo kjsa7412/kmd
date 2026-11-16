@@ -19,7 +19,7 @@ import crypto from 'node:crypto'
 import net from 'node:net'
 // 개인 프로그램(PC)의 저장 즉시 넣기만 — 팀은 저장 문 · 들이기 일감(S13)
 import { ruleSections } from '../core/pcplace.js'
-import { INGEST_SCHEMA, ingestCandidates, formsOf, draftToSave, polishToSave, POLISH_MAX, heldRecord, ruleRecord, RULE_MARK, intakeTags, intakeSrcPart, INTAKE_SCHEMA, intakePromptOf, intakeFixPromptOf, docRel, quoteSrc } from '../core/ingest.js'
+import { ingestCandidates, formsOf, draftToSave, polishToSave, POLISH_MAX, heldRecord, ruleRecord, RULE_MARK, intakeTags, intakeSrcPart, INTAKE_SCHEMA, intakePromptOf, intakeFixPromptOf, docRel, quoteSrc } from '../core/ingest.js'
 import { WRITE_RULES } from '../core/writerules.js'
 import { checkProposal, placeOf, PROPOSAL_PART, buildProposal } from '../core/propose.js'
 import { metricsOf, readKnLines, daysOf, sinceOf } from '../core/metrics.js'
@@ -595,12 +595,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   // 저장 속도(S-D28) — 지식 + 기기(없으면 사람)마다 토큰 통. 토큰은 await 앞에서 동기로 뺀다(MCP 묶음이 동시에 돈다)
   const rates = new Map()
   // shape — 문서 짜임의 글 걸음(hub.shapeWrite 만 · opt.shape · 속도 한도는 세지 않는다 · 바탕 세우기 설계 4-3)
-  // seed — 옛 기초 세우기 짓기 채널(옛 「폴더 그대로」 는 P11 에서 걷었다 · 지금은 짜임 걸음(통합 I1)) · 팀 검사를 지난다 · 속도 한도는 세지 않는다: 비용 경계는 짓기 일을 열 때의 하루 들이기 한도 · 메뉴개편 8-1 · 8-2)
   // 원격 둘(저장소 · 지식백업 · G1)에 걸기 — 붙은 것만 · 부르는 쪽이 기다리지 않는다
   const pushRemotes = (meta, opt) => Promise.all([backup.repo, backup.copy].filter((x) => x.attached(meta)).map((x) => x.enqueue(meta, opt)))
-  const SAVE_CHANNELS = new Set(['session', 'bulk', 'http', 'send', 'edit', 'fix', 'shape', 'seed'])
+  const SAVE_CHANNELS = new Set(['session', 'bulk', 'http', 'send', 'edit', 'fix', 'shape'])
   // 들이기 일감의 채널(측정 줄 · 속도 한도는 세지 않는다 · 비용 한도는 openJob)
-  const INTAKE_CHANNELS = new Set(['intake-file', 'intake-commit', 'intake-src', 'intake-fix', 'intake-again', 'polish'])
+  const INTAKE_CHANNELS = new Set(['intake-file', 'intake-commit', 'intake-src', 'intake-fix', 'polish'])
   function rateTake(ctx, id, n = 1) {
     const per = Number((config.saveRate ?? { perMin: 30 }).perMin ?? 30)
     if (!(per > 0)) return
@@ -1845,7 +1844,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   // 일꾼이 알리는 실패 까닭(S-D54) — login · limit · missing 은 일꾼이 쉰다(일감은 다시 기다림)
   const INTAKE_FAIL = new Set(['login', 'limit', 'missing', 'budget', 'timeout', 'fail', 'shape'])
   // 들이기 일감의 보이는 이름(일 줄 · 지금 하는 일)
-  const INTAKE_TITLE = { file: '들이기', commit: '들이기', fix: '정정', again: '다시 들이기', polish: '다듬기', 'shape-plan': 'Claude 구조안', 'shape-write': 'Claude 짓기' }
+  const INTAKE_TITLE = { file: '들이기', commit: '들이기', fix: '정정', polish: '다듬기', 'shape-plan': 'Claude 구조안', 'shape-write': 'Claude 짓기' }
   const intakeChannel = (j) => (j.type === 'polish' ? 'polish' : j.auto ? 'intake-src' : `intake-${j.type}`)
   // 저장 문이 붙이는 예약 태그(S-D43) — intake 는 core 가 늘 붙인다
   const intakeTagsOf = (j) => [`job/${j.id}`, ...(j.type === 'commit' ? ['code-change'] : []), ...(j.type === 'polish' ? ['polish'] : [])]
@@ -1950,7 +1949,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   }
   // 규칙 길 원본 첨부 — 파일 · 다시 들이기의 원본 바이트(첨부 꼴 · 32MB 안) · 같은 이름의 다른 첨부가 있으면 두지 않는다 · 사람이 고른 첨부(src.attach)는 이미 셌다
   async function ruleAttach(id, j, bin) {
-    if (!bin?.length || bin.length > ATTACH_MAX_BYTES || !['file', 'again'].includes(j.type)) return null
+    if (!bin?.length || bin.length > ATTACH_MAX_BYTES || j.type !== 'file') return null
     const meta = await hub.meta(id)
     let rel, full
     try {
@@ -2682,7 +2681,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!ctx.machine && !asIntake) hub.need(ctx, id, 'write')
       const channel = SAVE_CHANNELS.has(opt.channel) || (asIntake && INTAKE_CHANNELS.has(opt.channel)) ? opt.channel : null
       // 저장 속도(S-D28) — 바깥에서 온 저장(세션 · HTTP · 보내기)만 · 서버 안의 저장(가져오기 · 받은편지함 · 되돌리기)은 세지 않는다
-      if (channel && channel !== 'seed' && !opt.system && !asIntake && !opt.shape) rateTake(ctx, id)
+      if (channel && !opt.system && !asIntake && !opt.shape) rateTake(ctx, id)
       // 첨부(S-D30) — 쓰기 이상 · 지식마다 하루 합(들이기 저장의 첨부는 파일 넣기가 받은 그때 셌다)
       let took = 0
       if (input?.attach != null && !asIntake) {
@@ -5017,7 +5016,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     //   bulk — 지식관리자의 [옛 기록 다시 들이기](S10 · S-D26) — 사람마다 기다림 상한(20)을 세지 않는다(하루 상한은 센다)
     async openJob(id, { type, by, auto = false, bulk = false, src = {}, md = '', bin = null, qj = null }) {
       if (mode !== 'team') throw new KmdError('E_INPUT', '들이기 일감은 팀 서버만 세운다')
-      if (!['file', 'commit', 'fix', 'again', 'polish', ...SHAPE_T].includes(type)) throw new KmdError('E_INPUT', '모르는 들이기 일감이다')
+      if (!['file', 'commit', 'fix', 'polish', ...SHAPE_T].includes(type)) throw new KmdError('E_INPUT', '모르는 들이기 일감이다')
       if (!by || typeof by !== 'string') throw new KmdError('E_INPUT', '일감을 만든 사람이 없다')
       await hub.meta(id)
       sweepJobs()
@@ -5078,8 +5077,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const lv = levelFor(j.kn, { user: j.by, admin: !!u.admin })
       if (!owners.atLeast(lv, 'write') || ((j.type === 'polish' || SHAPE_T.has(j.type)) && lv !== 'admin')) return null
       // 정정(S9) — 원래 기록을 쓴 사람이 아니면 지식관리자 자리가 그대로 있어야 한다
-      //   다시 들이기(S10)도 같다 — 남의 넣지 못함은 지식관리자가 다시 들인다
-      if ((j.type === 'fix' || j.type === 'again') && j.src?.owner && j.src.owner !== j.by && lv !== 'admin') return null
+      if (j.type === 'fix' && j.src?.owner && j.src.owner !== j.by && lv !== 'admin') return null
       return { user: j.by, intake: true }
     },
     userOf: (u) => ({ id: u }), // 사람 명부 — http 가 auth 로 바꿔 끼운다(hub 만 쓰는 시험은 있는 사람으로)

@@ -34,15 +34,6 @@ export function ingestCandidates(k, w, max = 5) {
     .slice(0, max)
     .map(({ d }) => ({ doc: d.path, title: d.title, sections: d.sections.filter((s) => s.h).map((s) => ({ h: s.h, body: s.body.slice(0, 1500), base: sha16(s.body) })) }))
 }
-export const INGEST_SCHEMA = {
-  type: 'object',
-  properties: {
-    updates: { type: 'array', items: { type: 'object', properties: { doc: { type: 'string' }, heading: { type: 'string' }, content: { type: 'string' } }, required: ['doc', 'heading', 'content'] }, description: '기존 문서(후보)의 항목에 넣을 것: 항목의 새 글 전체 · 없는 머리면 그 문서에 새 항목' },
-    newDoc: { type: ['object', 'null'], properties: { path: { type: 'string' }, sections: { type: 'array', items: { type: 'object', properties: { heading: { type: 'string' }, content: { type: 'string' } }, required: ['heading', 'content'] } } }, description: '새 문서가 맞으면: 경로(폴더/이름 · .md 없이)와 항목들' },
-    why: { type: 'string' },
-  },
-  required: ['updates'],
-}
 
 // 갈래 — 파일 이름 · 제목에 든 말로 고른다(Claude 없이). 문서 이름은 파일 이름이 아니라 갈래 · 주제(요구 15)
 //   갈래는 지식의 갈래 장부(`_forms.md` · core/guard.js) — 없으면 기본 갈래(회의록 · 장애 대응 · 보고서)
@@ -112,16 +103,15 @@ export const INTAKE_SRC_MAX = 60_000
 export const HELD_SRC_HEAD = 2000
 
 const formLine = (g) => `- 이 지식의 갈래(갈래 장부): ${(g.forms || []).map((f) => `${f.folder ? f.folder + '/' : ''}${f.name}(${f.kind}${f.aliases?.length ? ' · ' + f.aliases.join(', ') : ''})`).join(' · ') || '없음'}. 별칭에 걸리는 글은 그 갈래 문서로 간다(newDoc.path 는 폴더/갈래 이름).${g.formsOwn ? ' 갈래 장부에 없는 새 문서는 세우지 않는다: 이어지는 후보 문서에 넣는다.' : ''}`
-// 다시 들이기(S10 · type again) — 넣지 못한 기록의 원천(남겨 둔 파일 글 · 없으면 그 기록 글)을 「기록」 으로
 // 보내기(S12 · type send) — 개인 지식에서 보낸 글(기록 하나 · 문서 통째)
-const srcHead = (g) => (g.type === 'commit' ? `넣을 것(커밋 · ${g.src?.title || ''}):` : g.type === 'again' ? `넣을 것(기록 · ${g.src?.title || ''}):` : g.type === 'send' ? `넣을 것(보낸 글 · ${g.src?.title || ''}):` : `넣을 것(파일 · ${g.src?.file || g.src?.title || ''}):`)
+const srcHead = (g) => (g.type === 'commit' ? `넣을 것(커밋 · ${g.src?.title || ''}):` : g.type === 'send' ? `넣을 것(보낸 글 · ${g.src?.title || ''}):` : `넣을 것(파일 · ${g.src?.file || g.src?.title || ''}):`)
 
 // 들이기 프롬프트 — g: 서버 재료(/api/k/:kn/worker/intake) { type, src: { title, author, date, file?, md, commit? }, docs, forms, formsOwn, names, kinds } ·
 //   writeRules — 작성기준 3 ~ 5절 줄임(core/writerules.js · 일꾼이 싣는다)
 export function intakePromptOf(g, { writeRules = '' } = {}) {
   const commit = g.type === 'commit'
   return [
-    '넣을 것을 지식에 들인다. 기록 하나(record)와 항목 글(updates · newDoc)을 한 번에 짓는다. kmd 가 검사해 넘은 항목 글은 그 순간 문서에 들어가고, 못 넘은 것은 「넣지 못함」 으로 남는다.',
+    '넣을 것을 지식에 들인다. 기록 하나(record)와 항목 글(updates · newDoc)을 한 번에 짓는다. kmd 가 검사해 넘으면 기록과 항목 글이 한 번에 문서에 들어간다. 못 넘으면 걸린 까닭을 받아 고쳐 다시 짓는다.',
     [
       '기록(record):',
       '- title 은 「무엇: 어떻게」 한 줄(예: 「헬스 체크 시간 초과: 3초 → 5초」). 파일 이름 · 커밋 해시를 제목으로 쓰지 않는다.',
@@ -155,7 +145,7 @@ export function intakeFixPromptOf(g, draft, why, opt = {}) {
 export const intakeTags = (src) => (src?.type === 'file' && src.rel ? [`ingest/${src.rel}`.slice(0, 60), ...(/^[0-9a-f]{16}$/.test(src.sha || '') ? [`md/${src.sha}`] : [])] : [])
 // 원천 글을 기록에 싣는 칸 — 줄마다 「> 」(원천 속 「## 넣은 것」 같은 머리가 kmd 칸으로 읽히지 않게)
 export const quoteSrc = (md, max) => String(md || '').slice(0, max).replace(/\r/g, '').split('\n').map((l) => `> ${l}`).join('\n')
-const srcLine = (src, md) => `- ${src?.type === 'commit' ? `커밋 ${src.commit || ''}${src.src ? ` · ${src.src}` : ''}` : src?.type === 'again' ? `다시 들이기 · 기록 ${src.rec || ''}` : src?.type === 'send' ? `보낸 글 · ${src.from || '개인 지식'} 에서` : `파일 ${src?.rel || src?.file || src?.title || ''}`} · 지문 ${sha16(String(md || ''))}`
+const srcLine = (src, md) => `- ${src?.type === 'commit' ? `커밋 ${src.commit || ''}${src.src ? ` · ${src.src}` : ''}` : src?.type === 'send' ? `보낸 글 · ${src.from || '개인 지식'} 에서` : `파일 ${src?.rel || src?.file || src?.title || ''}`} · 지문 ${sha16(String(md || ''))}`
 // 들인 기록 끝 원천 칸 — 지문 · 원천 글 인용(INTAKE_SRC_MAX 까지) · 개인 들이기의 넣기 에이전트 저장도 같은 칸(저장 승인 PC4)
 export const intakeSrcPart = (src, md) => `## 원천\n${srcLine(src, md)}\n\n${quoteSrc(md, INTAKE_SRC_MAX)}`
 // 넣지 못함으로 끝난 들이기의 기록 — 원천 앞 2000자와 지문만(S-D50)
@@ -172,7 +162,7 @@ export function heldRecord(src, md, { why = '' } = {}) {
   const title = String(src?.title || '넣을 것').replace(/\s+/g, ' ').trim().slice(0, 180)
   return {
     title: `${title}: 들이지 못함`.slice(0, 200),
-    body: [`${src?.type === 'commit' ? '커밋' : src?.type === 'again' ? '기록' : '파일'} 하나를 문서에 들이지 못했다${why ? `: ${String(why).replace(/\s+/g, ' ').slice(0, 200)}` : ''}.`, `## 원천\n${srcLine(src, md)}\n\n${quoteSrc(md, HELD_SRC_HEAD)}`].join('\n\n'),
+    body: [`${src?.type === 'commit' ? '커밋' : '파일'} 하나를 문서에 들이지 못했다${why ? `: ${String(why).replace(/\s+/g, ' ').slice(0, 200)}` : ''}.`, `## 원천\n${srcLine(src, md)}\n\n${quoteSrc(md, HELD_SRC_HEAD)}`].join('\n\n'),
     tags: intakeTags(src),
     ...(Array.isArray(src?.touches) && src.touches.length ? { touches: src.touches } : {}),
     ...(src?.rec ? { fixes: [src.rec] } : {}),
@@ -185,7 +175,7 @@ export function heldRecord(src, md, { why = '' } = {}) {
 export const RULE_MARK = '규칙 길'
 export function ruleRecord(src, md, { why = '', line = '' } = {}) {
   const title = String(src?.title || src?.rel || '넣을 것').replace(/\s+/g, ' ').trim().slice(0, 170)
-  const what = src?.type === 'commit' ? '커밋' : src?.type === 'again' ? '기록' : src?.type === 'fix' ? '정정' : '파일'
+  const what = src?.type === 'commit' ? '커밋' : src?.type === 'fix' ? '정정' : '파일'
   return {
     title: `${title}: ${RULE_MARK}로 들임`.slice(0, 200),
     body: [`${what} 하나를 ${RULE_MARK}로 들였다(Claude 없이 원문 그대로)${line ? `: ${String(line).replace(/\s+/g, ' ').slice(0, 200)}` : ''}.`, `- ${RULE_MARK} 까닭: ${String(why || '까닭을 적지 않았다').replace(/\s+/g, ' ').slice(0, 200)}`, `## 원천\n${srcLine(src, md)}\n\n${quoteSrc(md, HELD_SRC_HEAD)}`].join('\n\n'),

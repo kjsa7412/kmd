@@ -124,7 +124,7 @@ const TOOLS = [
         },
         names: {
           type: 'array',
-          description: '세울 항목(장부에 올린다): 종류는 그 지식의 종류(brief 의 kinds · 영문 소문자 또는 한글). 값은 빈칸 없는 열쇠(60자 안 · 문장 금지 · 설명은 label 에). 이미 있는 항목이면 별칭만 보탠다. doc · heading 을 주면 문서 장부에 그 문서의 그 머리가 이 항목의 자리로 오른다',
+          description: '세울 항목(장부에 올린다): 종류는 그 지식의 종류(brief 의 kinds · 영문 소문자 또는 한글). 값은 빈칸 없는 열쇠(60자 안 · 문장 금지 · 설명은 label 에). 이미 장부에 있는 항목은 싣지 않는다(있는 항목의 자리 · 별칭 고침은 지식관리자만 · 그 항목을 건드리려면 touches 에 단다). doc · heading 을 주면 문서 장부에 그 문서의 그 머리가 이 항목의 자리로 오른다',
           items: { type: 'object', properties: { coord: str('종류:값: 예 table:tb_user · proc:배포승인 · 이슈:DPMS-ISS-20'), label: str('라벨: 예 사용자 테이블'), aliases: { type: 'array', items: { type: 'string' }, description: '별칭' }, doc: str('그 항목의 머리가 든 문서'), heading: str('그 항목 머리') }, required: ['coord', 'label'] },
         },
       },

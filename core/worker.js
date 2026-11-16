@@ -25,7 +25,7 @@ import path from 'node:path'
 // 멈추는 까닭 — 다음 자리에서 다시 불러도 같다(로그인 · 한도 · claude 없음)
 // 이 일꾼이 아는 일감 type(일감을 물을 때 싣는다)
 //   shape-seed — 기초 세우기 구조안(재료 kind seed · SEED_PLAN_SCHEMA)을 안다(TODO 10 · 서버는 이것을 알린 일꾼에게만 기초 세우기 일감을 준다)
-export const KNOWN_TYPES = ['file', 'commit', 'fix', 'again', 'polish', ...SHAPE_CLAUDE_TYPES, 'shape-seed']
+export const KNOWN_TYPES = ['file', 'commit', 'fix', 'polish', ...SHAPE_CLAUDE_TYPES, 'shape-seed']
 const STOP = { login: '로그인이 끝났다', limit: '한도에 닿았다', missing: 'Claude Code(claude) 가 설치되어 있지 않다' }
 async function call(server, key, p, body) {
   const r = await fetch(server + p, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })

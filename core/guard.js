@@ -348,7 +348,7 @@ export function guardNewDoc(forms, docRel, headings = [], { intake = false } = {
   if (name.length > 40) errors.push({ code: 'E_INPUT', message: `새 문서 이름이 너무 길다(40자 안). 문서 이름은 갈래 · 주제다` })
   const f = formFor(forms, name)
   if (f && norm(f.name) !== norm(name)) errors.push({ code: 'E_INPUT', form: f.name, message: `「${name}」 은 「${f.name}」 갈래다. 새 문서를 세우지 않고 「${f.name}」 문서에 항목(「언제 · 무엇」)으로 넣는다` })
-  if (!f && forms.own) errors.push({ code: 'E_INPUT', message: `「${name}」 은 갈래 장부에 없는 문서다. 있는 갈래(${forms.rows.map((x) => x.name).slice(0, 8).join(' · ')}${forms.rows.length > 8 ? ' …' : ''}) 문서에 넣거나, 지식관리자가 갈래 장부에 갈래를 더한 뒤 세운다` })
+  if (!f && forms.own) errors.push({ code: 'E_INPUT', message: `「${name}」 은 갈래 장부에 없는 문서다. 있는 갈래(${forms.rows.map((x) => x.name).slice(0, 8).join(' · ')}${forms.rows.length > 8 ? ' …' : ''}) 문서에 넣거나, 같은 저장 제안에 새 갈래 줄(forms)을 실어 세운다` })
   if (f && f.folder && folder !== f.folder) errors.push({ code: 'E_INPUT', form: f.name, message: `「${f.name}」 갈래 문서는 「${f.folder}/」 폴더에 둔다` })
   if (f) {
     const bad = headings.filter((h) => !headingFits(f, h))

@@ -8,7 +8,7 @@
 
 import { nfc } from './text.js'
 import { parseVocab } from './vocab.js'
-import { TYPE_RE, parseForms, FORM_KINDS } from './guard.js'
+import { TYPE_RE, parseForms, FORM_KINDS, formsOf } from './guard.js'
 
 // 새로 서는 장부의 머리 글 — 이미 선 장부(옛 제목 「이름 장부」 · 「자리 장부」 · 표 머리 「| 이름 | 문서 | 항목 |」)는 고쳐 쓰지 않고 그대로 읽는다
 const VOCAB_HEAD = '# 항목 장부\n\n항목마다 `종류:값` 하나를 정하고 같은 것을 가리키는 다른 말은 별칭으로 잇는다.\n'
@@ -108,6 +108,11 @@ export function upsertPatternRow(text, pattern, doc) {
   t = lines.join('\n')
   return t.endsWith('\n') ? t : t + '\n'
 }
+
+// 이 저장 뒤의 갈래 목록 — 제안(core/propose.js)과 저장(core/save.js)이 같은 함수로 본다(지식 생성 하네스 H-D14 · 조사 Z V1).
+//   갈래 장부가 없던 지식은 첫 갈래 줄이 서는 순간 기본 갈래가 사라진다: 제안도 그 뒤의 목록으로 판정한다(제안이 지나가면 저장도 지나간다).
+//   raw — 지금 `_forms.md` 글(없으면 '') · formsIn — 이번에 세우는 갈래 줄
+export const formsAfter = (raw, formsIn = []) => formsOf(formsIn.length ? upsertForms(raw || '', formsIn) : raw || '')
 
 // 갈래 장부(`_forms.md`) — 갈래 줄을 더하거나 바꾼다(core/guard.js parseForms 와 같은 꼴)
 const FORMS_HEAD = '# 갈래 장부\n\n새 문서는 여기 있는 갈래로만 선다. 문서 이름은 파일 이름이 아니라 갈래다(전화 통화 메모 → 회의록).\n\n| 갈래 | 별칭 | 폴더 | 종류 | 항목 | 서식 |\n|---|---|---|---|---|---|\n'
