@@ -98,17 +98,31 @@ test('저장 제안 입력 모양(P-D32) · near(P-D10): 정규화 같음 · 비
 test('G4 — 새 문서: 파일 이름 조각 · 갈래의 별칭 · 갈래 장부 밖 · 폴더 · 머리 꼴', () => {
   const def = formsOf('')
   assert.equal(def.own, false)
-  assert.match(guardNewDoc(def, 'docs/전화통화기록.md').errors[0].message, /회의록/)
+  // 기본 갈래는 판정에 쓰지 않는다(지식 생성 하네스 H-O4): 갈래 장부가 없으면 갈래 줄도 없고 새 문서는 열림이다
+  assert.deepEqual([def.rows.length, def.closed, def.natures.size], [0, false, 0])
+  assert.equal(guardNewDoc(def, 'docs/전화통화기록.md').errors.length, 0)
+  assert.equal(guardNewDoc(def, 'docs/장애 대응 절차.md', ['1차 대응']).errors.length, 0) // 이름의 낱말(장애)로 사건 갈래에 끌지 않는다
   assert.match(guardNewDoc(def, 'docs/2026-10-21_미팅메모.md').errors[0].message, /파일 이름 조각/)
   assert.equal(guardNewDoc(def, 'docs/회의록.md', ['2026-10-21 HNC 통화']).errors.length, 0)
-  assert.match(guardNewDoc(def, 'docs/회의록.md', ['HNC 통화']).errors[0].message, /YYYY-MM-DD/)
-  assert.equal(guardNewDoc(def, 'docs/게이트웨이 설계.md').errors.length, 0) // 장부가 없으면 갈래 밖 주제 문서는 된다
+  assert.equal(guardNewDoc(def, 'docs/게이트웨이 설계.md').errors.length, 0)
   const own = formsOf(`| 갈래 | 별칭 | 폴더 | 종류 | 이름 | 서식 |
 |---|---|---|---|---|---|
 | 회의록 | 회의, 미팅, 통화 | 1.2_사업관리 | 사건 | — | 작업기록 |
 | 위험및이슈관리대장 | 이슈, 위험 | 1.2_사업관리 | 대장 | \`이슈:*\` | 결정기록 |
 `)
   assert.equal(own.own, true)
+  assert.equal(own.closed, true) // 「새 문서:」 줄이 없는 옛 갈래 장부는 닫힘으로 읽는다
+  assert.match(guardNewDoc(own, 'docs/전화통화기록.md').errors[0].message, /회의록/) // 품기 맞춤은 모으는 갈래(사건 · 보고 · 대장)에만
+  assert.match(guardNewDoc(own, 'docs/1.2_사업관리/회의록.md', ['HNC 통화']).errors[0].message, /YYYY-MM-DD/)
+  // 벗어남을 적은 새 문서는 별칭 품기와 닫힌 갈래를 넘는다(이름 모양은 그대로 본다)
+  assert.equal(guardNewDoc(own, 'docs/회의 운영 규칙.md', ['주간 회의'], { depart: true }).errors.length, 0)
+  assert.match(guardNewDoc(own, 'docs/회의 운영 규칙_v2.md', [], { depart: true }).errors[0].message, /파일 이름 조각/)
+  // 「새 문서: 열림」 줄이 있으면 갈래 밖 문서도 선다 · 문서 성격 표는 갈래 줄이 아니다(세 칸)
+  const open = formsOf('# 갈래 장부\n\n- 새 문서: 열림\n\n| 갈래 | 별칭 | 폴더 | 종류 | 항목 | 서식 |\n|---|---|---|---|---|---|\n| 회의록 | 회의, 미팅 | - | 사건 | - | - |\n| 설계서 | 설계 | - | 대상 | - | - |\n\n## 문서 성격\n\n| 문서 | 성격 | 요약 |\n|---|---|---|\n| 게이트웨이 설계 | 대상 | 게이트웨이의 구성 요소를 적는다 |\n')
+  assert.deepEqual([open.own, open.closed, open.rows.map((f) => f.name), [...open.natures.keys()]], [true, false, ['회의록', '설계서'], ['게이트웨이 설계']])
+  assert.equal(guardNewDoc(open, 'docs/화면 설계.md').errors.length, 0) // 「설계」 별칭을 품지만 성격 대상 갈래는 이름이 같을 때만 맞는다
+  assert.match(guardNewDoc(open, 'docs/고객 미팅 메모.md').errors[0].message, /회의록/)
+  assert.equal(formsOf('- 새 문서: 닫음\n').closed, true)
   assert.equal(parseForms(`| 회의록 | 회의 | — | 사건 | — | — |`)[0].name, '회의록')
   assert.match(guardNewDoc(own, 'docs/게이트웨이 설계.md').errors[0].message, /갈래 장부에 없는/)
   assert.match(guardNewDoc(own, 'docs/회의록.md', ['2026-10-21 x']).errors[0].message, /1\.2_사업관리/)
@@ -137,6 +151,7 @@ test('core save — 거절형: 항목 없는 기록 · 장부 밖 항목 · 갈�
   const d = mk('strict')
   await assert.rejects(save(d, { record: { title: '메모', body: '무언가' } }, { user: 'kim', guard: 'strict' }), /touchesEmpty/)
   await assert.rejects(save(d, { record: { title: '메모', body: 'x', touches: ['이슈:공수'] } }, { user: 'kim', guard: 'strict' }), (e) => e.code === 'E_INPUT' && /가까운 항목/.test(e.message) && Array.isArray(e.guard))
+  fs.writeFileSync(path.join(d, '_forms.md'), '# 갈래 장부\n\n- 새 문서: 열림\n\n| 갈래 | 별칭 | 폴더 | 종류 | 항목 | 서식 |\n|---|---|---|---|---|---|\n| 회의록 | 회의, 미팅, 통화 | - | 사건 | - | 작업기록 |\n')
   await assert.rejects(save(d, { record: { title: '통화', body: 'x', touchesEmpty: '통화 메모' }, sections: [{ doc: '전화통화기록', heading: '2026-10-21 통화', content: '정한 것: 없음.' }] }, { user: 'kim', guard: 'strict' }), /회의록/)
   assert.equal(fs.readdirSync(path.join(d)).includes('work'), false)
   // 한글 종류 이름을 같은 묶음에서 세우면 받는다

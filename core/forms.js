@@ -178,16 +178,21 @@ export const COMMON_RULES = [
 
 // 문서의 종류 — 갈래 장부의 종류 · 서식 칸 · 없으면 이름으로 짐작(대장 · 회의 · 보고 · 결정)
 //   → { kind, form(갈래 이름 · 없으면 null), props(대장 속성 · 없으면 null) }
+//   차례: 문서 성격 줄(갈래 장부의 「## 문서 성격」 · 세울 때 적은 으뜸 성격) → 갈래 줄 → 이름 짐작(옛 문서의 읽기 발판 · guess: true).
+//   이름 짐작은 판정에 쓰지 않는다(H-D15): 기본 갈래의 별칭 낱말(장애 · 사고 · 통화 · 전화 · incident · minutes 따위)도 여기로 옮겼다
 export function kindOf(forms, docId) {
-  const base = String(docId || '').split('/').pop()
+  const id = String(docId || '').replace(/\\/g, '/').replace(/^docs\//, '').replace(/\.md$/, '').normalize('NFC')
+  const base = id.split('/').pop()
+  const own = forms?.natures?.get?.(id) || null
   const f = forms ? formFor(forms, base) : null
+  if (own && !f) return { kind: own.nature, form: null, props: null }
   let kind
   if (f) kind = f.form === '결정기록' && f.kind !== '대장' ? '결정' : f.kind
-  else kind = /대장$/.test(base) ? '대장' : /회의|미팅|면담|주간|월간|보고$|일지/.test(base) ? '사건' : /결정/.test(base) ? '결정' : /용어/.test(base) ? '용어' : /시나리오|시험(절차|계획)|테스트(시나리오|계획)/.test(base) ? '시험' : /절차|매뉴얼/.test(base) ? '절차' : '대상'
+  else kind = /대장$/.test(base) ? '대장' : /회의|미팅|면담|통화|전화|주간|월간|보고$|일지|장애|사고|minutes|meeting|incident|postmortem|report/i.test(base) ? '사건' : /결정/.test(base) ? '결정' : /용어/.test(base) ? '용어' : /시나리오|시험(절차|계획)|테스트(시나리오|계획)/.test(base) ? '시험' : /절차|매뉴얼/.test(base) ? '절차' : '대상'
   // 정례 보고 — 사건 갈래 안의 주간 · 월간 보고(갈래 이름 · 문서 이름)
   if (kind === '사건' && /주간|월간|정례|보고/.test(`${f?.name || ''} ${base}`)) kind = '보고'
   const props = f?.props?.length ? f.props : kind === '대장' && /이슈|위험/.test(base) ? ISSUE_PROPS : null
-  return { kind, form: f ? f.name : null, props }
+  return { kind, form: f ? f.name : null, props, ...(f ? {} : { guess: true }) }
 }
 
 // 프롬프트 블록 — WRITE_RULES 뒤에 짓는 문서의 계약 하나(4-8)

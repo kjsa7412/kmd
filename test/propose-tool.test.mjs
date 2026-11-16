@@ -109,7 +109,8 @@ test('near(P-D10): 정규화가 같으면 오류 · distinct 로 넘음 · 비�
   assert.deepEqual(sim.newNames[0].near, ['proc:카나리'])
   assert.match(sim.text, /―― 새 항목\(장부\) ――\n {2}proc:카나리2 {3}신설 {3}자리: 없음 · 비슷한 항목 proc:카나리/)
   const fm = await mcp('propose', { ...base, forms: [{ name: '회의 록' }] })
-  assert.deepEqual(fm.errors.map((e) => e.code), ['near'], '갈래 「회의 록」 은 회의록과 같은 이름')
+  // 기본 갈래는 판정에 없다(지식 생성 하네스 H-O4): 갈래 장부가 없는 지식에서는 견줄 갈래가 없다(있는 갈래와의 near 는 test/harness-gate.test.mjs)
+  assert.deepEqual([fm.errors.map((e) => e.code), fm.newForms.map((f) => f.name)], [[], ['회의 록']])
 })
 
 test('자리(P-D31): 없음 404 · 읽기 403 · 쓰기 200(HTTP · MCP) · 기기 열쇠 길은 「길: 보내기」', async () => {

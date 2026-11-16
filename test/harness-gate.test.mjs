@@ -26,26 +26,33 @@ const human = (k, input) => buildProposal(k, input, { newDoc: true, approve: tru
 const R = { title: '게이트웨이 설계: 수집기 주기', body: '수집기 주기를 정했다.\n\n## 바뀐 것\n- 수집 주기: 5초', touchesEmpty: '첫 문서라 장부 항목이 아직 없다' }
 const sec = (doc, heading) => ({ doc, heading, content: '수집기는 PLC 에서 5초마다 값을 읽는다. 수집 주기: 5초' })
 
-test('V1: 새 갈래와 기본 갈래 문서를 한 제안에 실으면 제안에서 걸린다(저장과 같은 갈래 목록 · formsAfter)', async () => {
+test('V1: 제안과 저장이 같은 갈래 목록으로 판정한다(formsAfter) · 새로 서는 갈래 장부는 열림이라 갈래 밖 문서도 같이 선다', async () => {
   const dir = emptyKn()
   const k = await load(dir)
   assert.equal(k.forms.own, false)
   assert.equal(k.formsRaw, '')
-  // 저장 뒤의 갈래 목록에는 기본 갈래가 없다
+  assert.deepEqual([k.forms.rows.length, k.forms.closed], [0, false]) // 기본 갈래는 판정에 없다(H-O4)
+  // 저장 뒤의 갈래 목록 — 새로 서는 갈래 장부는 열림이다
   const after = formsAfter(k.formsRaw, [{ name: '설계서', kind: '대상' }])
-  assert.deepEqual([after.own, after.rows.map((f) => f.name)], [true, ['설계서']])
+  assert.deepEqual([after.own, after.closed, after.rows.map((f) => f.name)], [true, false, ['설계서']])
   const both = { record: R, sections: [sec('설계서', '수집기'), sec('회의록', '2026-11-10 주간 회의')], forms: [{ name: '설계서', kind: '대상' }] }
   const p = human(k, both)
-  assert.ok(p.errors.some((e) => e.code === 'format' && /갈래 장부에 없는 문서/.test(e.why)), JSON.stringify(p.errors))
-  // 새 갈래 문서만 실으면 제안도 저장도 지나간다
-  const one = { record: R, sections: [sec('설계서', '수집기')], forms: [{ name: '설계서', kind: '대상' }] }
-  const p1 = human(k, one)
-  assert.deepEqual(p1.errors, [])
-  const r = await coreSave(dir, one, { user: 't', guard: 'strict' })
+  assert.deepEqual(p.errors, [], JSON.stringify(p.errors))
+  // 제안이 지나가면 저장도 지나간다
+  const r = await coreSave(dir, both, { user: 't', guard: 'strict' })
   assert.ok(r.id)
   const k2 = await load(dir)
-  assert.deepEqual([k2.forms.own, k2.forms.rows.map((f) => f.name)], [true, ['설계서']])
-  assert.ok(k2.formsRaw.includes('설계서'))
+  assert.deepEqual([k2.forms.own, k2.forms.closed, k2.forms.rows.map((f) => f.name)], [true, false, ['설계서']])
+  assert.ok(k2.formsRaw.includes('- 새 문서: 열림'))
+  assert.ok(k2.byDocPath.get('docs/회의록.md'))
+  // 닫음으로 바꾼 지식(옛 갈래 장부도 같다)은 제안도 저장도 갈래 밖 새 문서를 거절한다
+  fs.writeFileSync(path.join(dir, '_forms.md'), k2.formsRaw.replace('- 새 문서: 열림', '- 새 문서: 닫음'))
+  const k3 = await load(dir)
+  const out = { record: R, sections: [sec('화면 설계', '로그인')] }
+  assert.ok(human(k3, out).errors.some((e) => e.code === 'format' && /갈래 장부에 없는 문서/.test(e.why)))
+  await assert.rejects(coreSave(dir, out, { user: 't', guard: 'strict' }), /갈래 장부에 없는 문서/)
+  // 있는 갈래와 정규화가 같은 새 갈래는 near 오류다(기본 갈래가 아니라 이 지식의 갈래 줄과 견준다)
+  assert.deepEqual(human(k3, { record: R, forms: [{ name: '설계 서' }] }).errors.map((e) => e.code), ['near'])
 })
 
 test('V2: 같은 제안의 names(doc · heading)로 세우는 항목을 sections[].coord 로 가리킨다', async () => {

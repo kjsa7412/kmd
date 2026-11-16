@@ -153,10 +153,10 @@ test('걸림 — 덮임 빠짐 · 구조안에 없는 문서 · G4 · 별칭 겹
   const b = same(S)
   b.docs = b.docs.filter((d) => d.id !== '원본')
   assert.ok(codes(b).errors.some((e) => /구조안에 없다/.test(e.why)))
-  // G4 — 문서 이름이 다른 갈래의 별칭에 걸림(기본 갈래 회의록: 회의)
+  // G4 — 기본 갈래는 판정에 없다(지식 생성 하네스 H-O4): 갈래 장부가 없는 지식에서 「주간 회의」 는 이름의 낱말로 걸리지 않는다(갈래 줄이 있을 때의 걸림은 아래 별칭 겹침)
   const c = same(S)
   c.docs.push({ id: '주간 회의', items: [] })
-  assert.ok(codes(c).errors.some((e) => e.code === 'g4' && e.where === '주간 회의'))
+  assert.ok(!codes(c).errors.some((e) => e.code === 'g4' && e.where === '주간 회의'))
   // 별칭 겹침 — 갈래 별칭이 다른 갈래 이름 안에
   const d = same(S)
   d.forms = [{ name: '배포 절차', kind: '대상' }, { name: '장애 대응', kind: '대상' }, { name: '원본', kind: '대상' }, { name: '점검', aliases: ['배포'], kind: '대상' }]

@@ -8,6 +8,7 @@
 
 import { sha16 } from './text.js'
 import { sectionOf } from './knowledge.js'
+import { locate } from './registry.js'
 import { oldValues, valuesOf, judgeId, judgeReflect } from './values.js'
 import { judgeSection, foldJudge } from './gate.js'
 import { judgeEdits, validEdits } from './edits.js'
@@ -154,7 +155,8 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
   // 새 문서 갈래 — 같은 제안이 세우는 갈래까지(장부가 없던 지식도 이 제안으로 장부가 선다)
   const formsIn = (Array.isArray(input.forms) ? input.forms : []).filter((f) => f && typeof f.name === 'string' && f.name.trim())
   //   저장과 같은 함수로 본다(formsAfter · H-D14): 갈래 장부가 없던 지식은 이 제안의 갈래 줄이 서면 기본 갈래가 사라진다
-  const formsNow = approve && formsIn.length ? formsAfter(k.formsRaw != null ? k.formsRaw : k.forms.own ? upsertForms('', k.forms.rows) : '', formsIn.map((f) => ({ ...f, name: f.name.trim().normalize('NFC') }))) : k.forms
+  const naturesIn = (Array.isArray(input.natures) ? input.natures : []).filter((x) => x && typeof x.doc === 'string' && x.doc.trim())
+  const formsNow = approve && (formsIn.length || naturesIn.length) ? formsAfter(k.formsRaw != null ? k.formsRaw : k.forms.own ? upsertForms('', k.forms.rows) : '', formsIn.map((f) => ({ ...f, name: f.name.trim().normalize('NFC') })), naturesIn) : k.forms
   const distinct = new Set((input.distinct || []).map((x) => nearKey(x)))
   const passes = (name) => distinct.has(nearKey(name))
   const errors = []
@@ -246,9 +248,12 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
   // 장부에 이미 있는 항목 · 갈래를 다시 보내면 자리 · 별칭 · 갈래 줄이 바뀐다(core/namebook.js upsert) — approve 모드에서는
   //   지식관리자만 · 제안서 「장부 고침」 줄로 보인다(쓰기 자리는 새로 세우기만 · 보이지 않는 장부 고침을 막는다)
   const ledgerFix = []
+  const fills = []
   for (const n of names) {
     const c = n.coord.trim().normalize('NFC')
     if (k.vocab.coords.has(c)) {
+      // 자리 채움(H-O3 · R9-3) — 자리 없는 옛 장부 줄에 자리만 채운다(더하기만 · 어느 자리든 한다). 이미 자리가 있으면 여느 장부 고침이다
+      if (n.fill === true && n.doc && n.heading && !locate(k.registry, c)) { fills.push({ coord: c, doc: String(n.doc), heading: String(n.heading) }); continue }
       if (approve && !curator) err('name', c, `「${c}」 는 이미 장부에 있는 항목이다. 항목의 자리 · 별칭을 바꾸는 것은 지식관리자가 한다(새 항목만 세운다 · 그 항목을 건드리려면 touches 에 단다)`)
       else if (approve) ledgerFix.push(`  ${c}   장부 고침${n.doc ? `   자리: ${docName(n.doc)}${n.heading ? ` › ${n.heading}` : ''}` : ''}${Array.isArray(n.aliases) && n.aliases.length ? ` · 별칭 ${n.aliases.join(', ')}` : ''}`)
       continue
@@ -331,9 +336,10 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
   sect('고칠 항목', rowsFix)
   const first = (t) => { const l = String(t || '').split('\n').map((y) => y.trim()).find(Boolean) || ''; return l.length > 60 ? l.slice(0, 59) + '…' : l }
   sect('새 항목(문서)', items.filter((x) => x.kind === '신설').map((x) => `  ${x.at}   신설   ${first(x.after)}`))
-  sect('새 문서', newDocs.map((d) => `  ${docName(d.doc)}   신설${d.form ? `   갈래: ${d.form}` : ''}${d.near.length ? ` · 비슷한 문서 ${d.near.join(' · ')}` : ''}`))
+  const natureOf = (doc) => naturesIn.find((x) => `docs/${String(x.doc).replace(/^docs\//, '').replace(/\.md$/, '').normalize('NFC')}.md` === doc)?.nature || ''
+  sect('새 문서', newDocs.map((d) => `  ${docName(d.doc)}   신설${d.form ? `   갈래: ${d.form}` : ''}${natureOf(d.doc) ? `   성격: ${natureOf(d.doc)}` : ''}${d.near.length ? ` · 비슷한 문서 ${d.near.join(' · ')}` : ''}`))
   sect('새 갈래 · 새 종류', [...newForms.map((f) => `  갈래 ${f.name}   신설${f.near.length ? ` · 비슷한 갈래 ${f.near.join(' · ')}` : ''}`), ...newKinds.map((t) => `  종류 ${t.name}   신설${t.near.length ? ` · 비슷한 종류 ${t.near.join(' · ')}` : ''}`)])
-  sect('새 항목(장부)', [...ledgerFix, ...newNames.map((n) => `  ${n.coord}   신설   자리: ${n.doc ? `${docName(n.doc)}${n.heading ? ` › ${n.heading}` : ''}` : '없음'} · ${n.near.length ? `비슷한 항목 ${n.near.join(' · ')}` : '비슷한 항목 없음'}`)])
+  sect('새 항목(장부)', [...ledgerFix, ...fills.map((x) => `  ${x.coord}   자리 채움   자리: ${docName(x.doc)} › ${x.heading}`), ...newNames.map((n) => `  ${n.coord}   신설   자리: ${n.doc ? `${docName(n.doc)}${n.heading ? ` › ${n.heading}` : ''}` : '없음'} · ${n.near.length ? `비슷한 항목 ${n.near.join(' · ')}` : '비슷한 항목 없음'}`)])
   sect('이을 항목(글 그대로)', items.filter((x) => x.kind === '잇기').map((x) => `  ${x.at}   잇기${x.before == null ? '   (항목이 아직 없음)' : ''}`))
   sect('뺀다', excluded.map((x) => `  ${x.name}   ${x.why || '뺌'}`))
   L.push('―― 검사 ――')
@@ -349,7 +355,7 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
   // 해시 — 머리 줄(지식 이름 · 보는 사람 수 · 길)은 빼고 싣는다: 명부가 바뀌거나 길이 달라도 같은 입력이면 같은 지문 · 집합 칸은 차례를 고른다
   const setOf = (xs, key) => [...(Array.isArray(xs) ? xs : [])].sort((a, b) => key(a).localeCompare(key(b)))
   const proposal = errors.length ? null : proposalHash({
-    record: rec, sections: secs, names: input.names || [], forms: input.forms || [],
+    record: rec, sections: secs, names: input.names || [], forms: input.forms || [], ...(naturesIn.length ? { natures: naturesIn } : {}),
     kinds: setOf(input.kinds, (x) => String(typeof x === 'string' ? x : x?.name || '')), excluded: setOf(excluded, (x) => x.name), distinct: [...new Set((input.distinct || []).map((x) => nearKey(x)))].sort(),
     bases: items.map((x) => [x.at, x.base]), warnings: warnings.map((w) => w.id), text: L.slice(1).join('\n'),
   })
@@ -360,6 +366,8 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
     ...newNames.map((n) => ({ kind: '이름', name: n.coord })), // 장부에 오른 새 항목 — 저장 꼴(기록 칸 줄 머리)은 「이름」 그대로(core/parts.js)
     ...newForms.map((x) => ({ kind: '갈래', name: x.name })),
     ...newKinds.map((x) => ({ kind: '종류', name: x.name })),
+    ...fills.map((x) => ({ kind: '자리', name: x.coord })),
+    ...naturesIn.filter((x) => !k.forms.natures?.has(String(x.doc).replace(/^docs\//, '').replace(/\.md$/, '').normalize('NFC'))).map((x) => ({ kind: '성격', name: `${String(x.doc).replace(/^docs\//, '').replace(/\.md$/, '')}: ${x.nature}` })),
   ]
   return { text, items, newDocs, newNames, newForms, newKinds, warnings, errors, proposal, linked, fresh }
 }

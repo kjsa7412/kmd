@@ -249,9 +249,18 @@ export function guardNames(vocab, names) {
 //   |---|---|---|---|---|---|
 //   | 회의록 | 회의, 미팅, 통화, 면담, 전화 | 1.2_사업관리 | 사건 | — | 작업기록 |
 //
-//   종류: 대상(「지금」 을 적는 문서) · 서술 · 사건(머리가 「YYYY-MM-DD 무엇」) · 대장(`##` 하나가 장부 항목 하나)
+//   종류(성격 · 생성 룰 R4-1 의 아홉): 대상 · 서술 · 절차 · 시험 · 용어 · 사건(머리가 「YYYY-MM-DD 무엇」) · 보고 · 대장(`##` 하나가 장부 항목 하나) · 결정
+//   갈래 장부는 모으는 갈래(같은 꼴의 항목이 쌓이는 문서)의 계약이다. 문서의 으뜸 성격은 같은 파일 끝의 「## 문서 성격」 표(문서 · 성격 · 요약 세 칸)에 따로 적는다(지식 생성 하네스 H-O6).
+//   새 문서: 기본은 열림이다(갈래에 없는 문서도 성격과 요약이 있으면 선다). 파일에 「- 새 문서: 닫음」 줄이 있으면 닫힘이다(H-O4).
+//     그 줄이 없는 옛 갈래 장부(갈래 줄이 하나라도 있다)는 닫힘으로 읽는다 — 옛 것을 다시 쓰지 않는다.
 //   항목: 그 문서의 항목 패턴(`이슈:*`) — 있으면 새 문서를 세울 때 문서 장부 행을 같이 세운다
-export const FORM_KINDS = ['대상', '서술', '절차', '시험', '용어', '사건', '대장']
+export const FORM_KINDS = ['대상', '서술', '절차', '시험', '용어', '사건', '보고', '대장', '결정']
+// 모으는 문서의 성격(R0 · R3-2) — 같은 꼴의 항목이 줄줄이 쌓인다
+export const GATHER_KINDS = ['사건', '보고', '대장', '용어', '결정']
+// 이름이 별칭을 품으면 그 갈래로 보는 것(품기 맞춤)은 이 성격의 갈래에만 한다(H-D15) — 그 밖의 갈래는 이름이 같을 때만
+const CONTAIN_KINDS = ['사건', '보고', '대장']
+// 기본 갈래 — 판정에는 쓰지 않는다(H-O4 · 빈 지식의 발판은 생성 룰이다). 남은 쓰임은 읽기 발판뿐이다:
+//   옛 문서의 성격 짐작(core/forms.js kindOf) · 원본 조사(core/survey.js) · 규칙 길의 사건 고르기(core/pcplace.js · H4b 에서 걷는다)
 export const DEFAULT_FORMS = [
   { name: '회의록', aliases: ['회의', '미팅', '통화', '전화', '면담', 'minutes', 'meeting'], folder: '', kind: '사건', pattern: null, form: '작업기록' },
   { name: '장애 대응', aliases: ['장애', '사고', 'incident', 'postmortem'], folder: '', kind: '사건', pattern: null, form: '작업기록' },
@@ -282,10 +291,29 @@ export function parseForms(text) {
   }
   return rows
 }
+// → { rows(이 지식의 갈래 줄 · 없으면 빈 목록), own(갈래 줄이 있나), closed(새 문서가 갈래로만 서나), natures(Map 문서 → { nature, summary }) }
+const CLOSED_RE = /^\s*[-*]\s*새 문서\s*[:：]\s*(닫음|열림)/m
 export const formsOf = (text) => {
   const props = parseProps(text)
   const rows = parseForms(text).map((r) => (props.has(r.name) ? { ...r, props: props.get(r.name) } : r))
-  return { rows: rows.length ? rows : DEFAULT_FORMS, own: rows.length > 0 }
+  const mark = CLOSED_RE.exec(String(text || ''))
+  return { rows, own: rows.length > 0, closed: mark ? mark[1] === '닫음' : rows.length > 0, natures: parseNatures(text) }
+}
+// 문서 성격 표(「## 문서 성격」 아래 | 문서 | 성격 | 요약 |) — 세 칸이라 옛 판은 갈래 줄로 읽지 않는다(parseForms 는 네 칸 이상만)
+export const NATURES_HEAD = '## 문서 성격'
+export function parseNatures(text) {
+  const out = new Map()
+  let on = false
+  for (const raw of String(text || '').split('\n')) {
+    if (/^##\s/.test(raw)) { on = raw.trim() === NATURES_HEAD; continue }
+    if (!on) continue
+    const cells = raw.match(/^\|(.+)\|\s*$/)?.[1].split('|').map((x) => nfc(x.trim()))
+    if (!cells || cells.length < 2 || /^[-: ]+$/.test(cells.join('')) || cells[0] === '문서') continue
+    const doc = cells[0].replace(/^`|`$/g, '').replace(/^docs\//, '').replace(/\.md$/, '').trim()
+    if (!doc || ['__proto__', 'prototype', 'constructor'].includes(doc) || !FORM_KINDS.includes(cells[1])) continue
+    if (!out.has(doc)) out.set(doc, { nature: cells[1], summary: cells[2] && cells[2] !== '-' ? cells[2] : '' })
+  }
+  return out
 }
 // 속성 정의(서식 설계 4-6 대장 · F7) — 갈래 장부의 「## 속성: <갈래>」 아래 표 | 속성 | 원본 칸 | 쓰는 법 | 필수 | (필수 칸 「!」 · 「?」)
 //   → Map(갈래 → [{ name, src, how, must }]) · 행 하나에 속성 하나 · 칸 문자열로 몰지 않는다
@@ -309,11 +337,12 @@ export function parseProps(text) {
 // 파일 이름 조각 — 날짜 · 판 · 최종 · 사본 · 번호 꼬리
 const FILEISH = [/(20\d\d)[-._ ]?(0[1-9]|1[0-2])[-._ ]?(0[1-9]|[12]\d|3[01])/, /(^|[\s_-])[vV]\d+(\.\d+)*($|[\s_-])/, /최종|사본|final|copy|\(\d+\)/i, /\.(docx?|hwpx?|pdf|xlsx?|pptx?|txt)$/i]
 
-// 갈래 고르기 — 문서 이름(경로의 마지막)이 갈래 이름이거나 별칭을 품으면 그 갈래
+// 갈래 고르기 — 문서 이름(경로의 마지막)이 갈래 이름과 같으면 그 갈래(먼저 본다) · 이름이나 별칭을 품는 것은 모으는 갈래(사건 · 보고 · 대장)만(H-D15)
 export function formFor(forms, docName) {
   const n = norm(docName)
   if (!n) return null
-  return forms.rows.find((f) => norm(f.name) === n) || forms.rows.find((f) => [f.name, ...f.aliases].some((a) => norm(a).length >= 2 && n.includes(norm(a)))) || null
+  const rows = forms?.rows || []
+  return rows.find((f) => norm(f.name) === n) || rows.find((f) => CONTAIN_KINDS.includes(f.kind) && [f.name, ...f.aliases].some((a) => norm(a).length >= 2 && n.includes(norm(a)))) || null
 }
 
 // 새 문서 하나 — 경로(docs/ 아래 · .md 없이)와 처음 머리들
@@ -329,7 +358,8 @@ export const isRecordsMonth = (h) => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(h || 
 //   갈래 장부에 없어도 선다(고정 갈래) · 이름은 주제(core/pcplace.js ruleSections 가 짓는다) · 지식관리자는 원하면 나중에 옮긴다
 export const INTAKE_FORM = '들인 자료'
 //   intake — 무인 채널의 저장(P6 · 규칙 길)만 「들인 자료」 고정 갈래를 연다(사람 채널은 갈래 장부 · 꼴 검사 그대로)
-export function guardNewDoc(forms, docRel, headings = [], { intake = false } = {}) {
+//   depart — 벗어남을 적은 새 문서(H-D17 다 · H4c 부터 건다): 별칭 품기와 닫힌 갈래를 넘는다(머리 꼴 · 폴더 · 이름 모양은 그대로 본다)
+export function guardNewDoc(forms, docRel, headings = [], { intake = false, depart = false } = {}) {
   const errors = []
   const p = nfc(String(docRel)).replace(/\\/g, '/').replace(/^docs\//, '').replace(/\.md$/, '')
   const parts = p.split('/')
@@ -346,9 +376,10 @@ export function guardNewDoc(forms, docRel, headings = [], { intake = false } = {
   }
   if (FILEISH.some((re) => re.test(name))) errors.push({ code: 'E_INPUT', message: `새 문서 이름 「${name}」 에 파일 이름 조각(날짜 · 판 · 최종 · 확장자)이 있다. 문서 이름은 갈래 · 주제로 짓는다(예: 회의록 · 게이트웨이 설계)` })
   if (name.length > 40) errors.push({ code: 'E_INPUT', message: `새 문서 이름이 너무 길다(40자 안). 문서 이름은 갈래 · 주제다` })
-  const f = formFor(forms, name)
+  const f0 = formFor(forms, name)
+  const f = f0 && depart && norm(f0.name) !== norm(name) ? null : f0
   if (f && norm(f.name) !== norm(name)) errors.push({ code: 'E_INPUT', form: f.name, message: `「${name}」 은 「${f.name}」 갈래다. 새 문서를 세우지 않고 「${f.name}」 문서에 항목(「언제 · 무엇」)으로 넣는다` })
-  if (!f && forms.own) errors.push({ code: 'E_INPUT', message: `「${name}」 은 갈래 장부에 없는 문서다. 있는 갈래(${forms.rows.map((x) => x.name).slice(0, 8).join(' · ')}${forms.rows.length > 8 ? ' …' : ''}) 문서에 넣거나, 같은 저장 제안에 새 갈래 줄(forms)을 실어 세운다` })
+  if (!f && forms.closed && !depart) errors.push({ code: 'E_INPUT', message: `「${name}」 은 갈래 장부에 없는 문서다(이 지식은 새 문서가 닫음이다). 있는 갈래(${forms.rows.map((x) => x.name).slice(0, 8).join(' · ')}${forms.rows.length > 8 ? ' …' : ''}) 문서에 넣거나, 같은 저장 제안에 새 갈래 줄(forms)을 실어 세운다` })
   if (f && f.folder && folder !== f.folder) errors.push({ code: 'E_INPUT', form: f.name, message: `「${f.name}」 갈래 문서는 「${f.folder}/」 폴더에 둔다` })
   if (f) {
     const bad = headings.filter((h) => !headingFits(f, h))
@@ -360,6 +391,7 @@ export function guardNewDoc(forms, docRel, headings = [], { intake = false } = {
 // 갈래의 항목 머리 꼴 — 사건은 「YYYY-MM-DD 무엇」 · 항목 패턴이 있는 대장 · 대상은 「값: 설명」 또는 「값」
 export function formHeadRule(f) {
   if (f.kind === '사건') return '머리는 「YYYY-MM-DD 무엇」 이다'
+  if (f.kind === '보고') return '머리는 「YYYY-MM-DD N주차」 이다(날짜가 원본에 없으면 「N주차」)'
   if (f.pattern) return `머리는 「값: 설명」 이다(값 = ${f.pattern} 의 값 · 빈칸 없이 · 줄표 「—」 를 쓰지 않는다)`
   return '머리는 주제 이름이다'
 }
@@ -373,6 +405,7 @@ export const formGuide = (f) => ({ head: formHeadRule(f), body: FORM_GUIDE[f.for
 export function headingFits(f, h) {
   const s = nfc(String(h || '').trim())
   if (f.kind === '사건') return /^20\d\d-\d\d-\d\d\b/.test(s) || s === '개요'
+  if (f.kind === '보고') return /^20\d\d-\d\d-\d\d\b/.test(s) || /\d+\s*(주차|월|분기)/.test(s) || s === '개요'
   if (f.pattern) return /^[^\s`|]{1,60}(?:: .+)?$/.test(s) || s === '개요'
   return true
 }

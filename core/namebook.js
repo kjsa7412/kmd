@@ -4,11 +4,13 @@
 //
 // 글을 다시 짓지 않고 줄만 더하거나 바꾼다 — 사람이 적은 설명 · 순서는 그대로 남는다.
 //   항목 장부 — `## 종류` 아래 `- \`종류:값\` — 라벨` · 이미 있으면 별칭만 보탠다(라벨은 사람이 정한 것을 지킨다)
+//     새 항목의 뜻 한 줄은 `  gist: …`(aliases 뒤) · 새 종류의 뜻은 `## 종류` 아래 `뜻: …` 한 줄(names 의 kindGist · 씨앗 종류는 적지 않는다)
+//     fill(자리 채움 · H-O3) — 자리 없는 옛 줄에 문서 장부 줄만 더한다(항목 장부 줄은 그대로)
 //   문서 장부 — doc · heading 이 있으면 `| \`종류:값\` | \`docs/문서.md\` | \`## 머리\` |` · 같은 항목 줄이 있으면 바꾼다
 
 import { nfc } from './text.js'
 import { parseVocab } from './vocab.js'
-import { TYPE_RE, parseForms, FORM_KINDS, formsOf } from './guard.js'
+import { TYPE_RE, parseForms, FORM_KINDS, formsOf, NATURES_HEAD, parseNatures } from './guard.js'
 
 // 새로 서는 장부의 머리 글 — 이미 선 장부(옛 제목 「이름 장부」 · 「자리 장부」 · 표 머리 「| 이름 | 문서 | 항목 |」)는 고쳐 쓰지 않고 그대로 읽는다
 const VOCAB_HEAD = '# 항목 장부\n\n항목마다 `종류:값` 하나를 정하고 같은 것을 가리키는 다른 말은 별칭으로 잇는다.\n'
@@ -27,6 +29,7 @@ export function upsertVocab(text, names) {
     const have = parseVocab(t).coords.get(n.coord)
     const lines = t.split('\n')
     if (have) {
+      if (n.fill) continue
       const add = (n.aliases || []).filter((a) => a && a !== have.label && !have.aliases.includes(a))
       if (!add.length) continue
       const i = lines.findIndex((l) => l.match(/^\s*-\s+`([^`]+)`/)?.[1]?.trim() === n.coord)
@@ -37,10 +40,10 @@ export function upsertVocab(text, names) {
       continue
     }
     const type = n.coord.slice(0, n.coord.indexOf(':'))
-    const entry = [`- \`${n.coord}\`: ${n.label || n.coord.slice(type.length + 1)}`, ...((n.aliases || []).length ? [`  aliases: ${n.aliases.join(', ')}`] : [])]
+    const entry = [`- \`${n.coord}\`: ${n.label || n.coord.slice(type.length + 1)}`, ...((n.aliases || []).length ? [`  aliases: ${n.aliases.join(', ')}`] : []), ...(n.gist ? [`  gist: ${n.gist}`] : [])]
     const h = lines.findIndex((l) => l.trim() === `## ${type}`)
     if (h < 0) {
-      t = `${t.replace(/\n*$/, '\n')}\n## ${type}\n\n${entry.join('\n')}\n`
+      t = `${t.replace(/\n*$/, '\n')}\n## ${type}\n\n${n.kindGist ? `뜻: ${n.kindGist}\n\n` : ''}${entry.join('\n')}\n`
       continue
     }
     // 그 갈래의 끝(다음 ## 앞) — 빈 줄은 건너 마지막 항목 바로 뒤에
@@ -89,7 +92,9 @@ export function cleanNames(list) {
     const i = coord.indexOf(':')
     if (i < 1 || !TYPE_RE.test(coord.slice(0, i)) || !/^[^\n`|]{1,160}$/.test(coord.slice(i + 1))) return null
     const one = (v, max) => (v == null ? null : nfc(String(v)).replace(/[\r\n`|]/g, ' ').trim().slice(0, max))
-    out.push({ coord, label: one(x.label, 160) || '', aliases: Array.isArray(x.aliases) ? x.aliases.map((a) => one(a, 120).replace(/,/g, ' ')).filter(Boolean).slice(0, 20) : [], doc: one(x.doc, 200), heading: one(x.heading, 160) })
+    const gist = one(x.gist, 80)
+    const kindGist = one(x.kindGist, 80)
+    out.push({ coord, label: one(x.label, 160) || '', aliases: Array.isArray(x.aliases) ? x.aliases.map((a) => one(a, 120).replace(/,/g, ' ')).filter(Boolean).slice(0, 20) : [], doc: one(x.doc, 200), heading: one(x.heading, 160), ...(gist ? { gist } : {}), ...(kindGist ? { kindGist } : {}), ...(x.fill === true ? { fill: true } : {}) })
   }
   return out
 }
@@ -112,18 +117,20 @@ export function upsertPatternRow(text, pattern, doc) {
 // 이 저장 뒤의 갈래 목록 — 제안(core/propose.js)과 저장(core/save.js)이 같은 함수로 본다(지식 생성 하네스 H-D14 · 조사 Z V1).
 //   갈래 장부가 없던 지식은 첫 갈래 줄이 서는 순간 기본 갈래가 사라진다: 제안도 그 뒤의 목록으로 판정한다(제안이 지나가면 저장도 지나간다).
 //   raw — 지금 `_forms.md` 글(없으면 '') · formsIn — 이번에 세우는 갈래 줄
-export const formsAfter = (raw, formsIn = []) => formsOf(formsIn.length ? upsertForms(raw || '', formsIn) : raw || '')
+//   naturesIn — 이번에 세우는 문서 성격 줄(엮기가 짓는다 · H-O6)
+export const formsText = (raw, formsIn = [], naturesIn = []) => { const t = formsIn.length ? upsertForms(raw || '', formsIn) : raw || ''; return naturesIn.length ? upsertNatures(t, naturesIn) : t }
+export const formsAfter = (raw, formsIn = [], naturesIn = []) => formsOf(formsText(raw, formsIn, naturesIn))
 
 // 갈래 장부(`_forms.md`) — 갈래 줄을 더하거나 바꾼다(core/guard.js parseForms 와 같은 꼴)
-const FORMS_HEAD = '# 갈래 장부\n\n새 문서는 여기 있는 갈래로만 선다. 문서 이름은 파일 이름이 아니라 갈래다(전화 통화 메모 → 회의록).\n\n| 갈래 | 별칭 | 폴더 | 종류 | 항목 | 서식 |\n|---|---|---|---|---|---|\n'
+const FORMS_HEAD = '# 갈래 장부\n\n모으는 갈래(같은 꼴의 항목이 쌓이는 문서)의 계약과 문서의 성격을 적는다. 문서 이름은 파일 이름이 아니라 갈래 · 주제다(전화 통화 메모 → 회의록).\n\n- 새 문서: 열림\n\n| 갈래 | 별칭 | 폴더 | 종류 | 항목 | 서식 |\n|---|---|---|---|---|---|\n'
 export function upsertForms(text, forms) {
   let t = String(text || '').replace(/\r\n/g, '\n')
   if (!t.trim()) t = FORMS_HEAD
   for (const f of forms) {
     const row = `| ${f.name} | ${(f.aliases || []).join(', ') || '-'} | ${f.folder || '-'} | ${f.kind || '대상'} | ${f.pattern ? '`' + f.pattern + '`' : '-'} | ${f.form || '-'} |`
     const lines = t.split('\n')
-    // 갈래 표는 첫 「## 속성:」 머리 앞까지(속성 정의 표에 갈래 줄을 넣지 않는다)
-    const propsAt = lines.findIndex((l) => /^##\s+속성\s*[:：]/.test(l))
+    // 갈래 표는 첫 「## 」 머리 앞까지(속성 정의 표 · 문서 성격 표에 갈래 줄을 넣지 않는다)
+    const propsAt = lines.findIndex((l) => /^##\s/.test(l))
     const end = propsAt < 0 ? lines.length : propsAt
     const i = lines.findIndex((l, x) => x < end && parseForms(l)[0]?.name === f.name)
     if (i >= 0) lines[i] = row
@@ -149,6 +156,43 @@ export function upsertForms(text, forms) {
     }
   }
   return t.endsWith('\n') ? t : t + '\n'
+}
+
+// 문서 성격 표(「## 문서 성격」 · 파일 끝) — 문서마다 한 줄 · 이미 있는 문서의 줄은 고치지 않는다(으뜸 성격은 세울 때 한 번 정한다 · R3-4)
+export function upsertNatures(text, rows) {
+  let t = String(text || '').replace(/\r\n/g, '\n')
+  if (!t.trim()) t = FORMS_HEAD
+  const have = parseNatures(t)
+  const add = []
+  for (const r of rows) {
+    const doc = nfc(String(r?.doc || '')).replace(/\\/g, '/').replace(/^docs\//, '').replace(/\.md$/, '').replace(/[\r\n`|]/g, ' ').trim()
+    if (!doc || have.has(doc) || add.some((x) => x.doc === doc) || !FORM_KINDS.includes(r.nature)) continue
+    add.push({ doc, nature: r.nature, summary: nfc(String(r.summary || '')).replace(/[\r\n`|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) })
+  }
+  if (!add.length) return t.endsWith('\n') ? t : t + '\n'
+  const lines = t.replace(/\n+$/, '').split('\n')
+  let a = lines.findIndex((l) => l.trim() === NATURES_HEAD)
+  if (a < 0) { lines.push('', NATURES_HEAD, '', '| 문서 | 성격 | 요약 |', '|---|---|---|'); a = lines.length - 3 }
+  let b = lines.findIndex((l, x) => x > a && /^##\s/.test(l))
+  if (b < 0) b = lines.length
+  let last = -1
+  lines.forEach((l, x) => { if (x > a && x < b && /^\|/.test(l)) last = x })
+  const out = add.map((r) => `| ${r.doc} | ${r.nature} | ${r.summary || '-'} |`)
+  if (last < 0) lines.splice(a + 1, 0, '', '| 문서 | 성격 | 요약 |', '|---|---|---|', ...out)
+  else lines.splice(last + 1, 0, ...out)
+  return lines.join('\n') + '\n'
+}
+export function cleanNatures(list) {
+  if (list == null) return []
+  if (!Array.isArray(list) || list.length > 200) return null
+  const out = []
+  for (const x of list) {
+    if (!x || typeof x !== 'object' || typeof x.doc !== 'string' || !FORM_KINDS.includes(x.nature)) return null
+    const doc = nfc(x.doc).replace(/\\/g, '/').replace(/^docs\//, '').replace(/\.md$/, '').trim()
+    if (!doc || doc.length > 200 || /[\r\n`|]/.test(doc) || doc.split('/').some((p) => !p.trim() || p === '.' || p === '..' || ['__proto__', 'prototype', 'constructor'].includes(p))) return null
+    out.push({ doc, nature: x.nature, summary: nfc(String(x.summary || '')).replace(/[\r\n`|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) })
+  }
+  return out
 }
 
 // 들어온 갈래 — 모양 검사 · 다듬기

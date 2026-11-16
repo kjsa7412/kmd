@@ -23,7 +23,8 @@ export function ruleSections(k, src, { home = null, max = RULE_MAX } = {}) {
   const file = String(src?.file || src?.title || '들인 것').replace(/\\/g, '/')
   const name = file.split('/').pop()
   const topic = topicOfName(file)
-  const forms = k.forms || { rows: DEFAULT_FORMS }
+  // 사건 고르기는 이 지식의 갈래 줄로 · 없으면 기본 갈래(판정에서는 걷었고 규칙 길에만 남았다 · 규칙 길은 H4b 에서 걷는다)
+  const forms = k.forms?.rows?.length ? k.forms : { rows: DEFAULT_FORMS }
   const fm = formFor(forms, topicOfName(name)) || formFor(forms, String(src?.title || ''))
   const form = fm && fm.kind === '사건' ? fm : null
   const kind = form ? form.name : null

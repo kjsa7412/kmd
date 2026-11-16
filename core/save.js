@@ -44,7 +44,7 @@ import { parseVocab } from './vocab.js'
 import { ensureRepo, commitPaths, headSha } from './git.js'
 import { begin, recover, writeAtomic } from './journal.js'
 import { watchedOf } from './watchmark.js'
-import { upsertVocab, upsertRegistry, cleanNames, upsertPatternRow, upsertForms, formsAfter, cleanForms, placeExact } from './namebook.js'
+import { upsertVocab, upsertRegistry, cleanNames, upsertPatternRow, upsertForms, formsAfter, formsText, cleanForms, cleanNatures, placeExact } from './namebook.js'
 import { guardRecord, guardNames, guardNewDoc, formsOf, EMPTY_MAX } from './guard.js'
 import { valuesOf, valueDiff, sameValues } from './values.js'
 import { renderPut, renderAccepted, renderValues, renderLinked, renderFresh, KMD_PART_RE } from './parts.js'
@@ -270,7 +270,10 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
   const names = cleanNames(input.names)
   if (!names) fail('E_INPUT', 'names 는 { coord: "종류:값", label, aliases?, doc?, heading? } 의 목록이다(종류는 영문 소문자 또는 한글)')
   const forms = cleanForms(input.forms)
-  if (!forms) fail('E_INPUT', 'forms 는 { name: 갈래, aliases?, folder?, kind?: 대상 · 서술 · 사건 · 대장, pattern?: "종류:*", form? } 의 목록이다')
+  if (!forms) fail('E_INPUT', 'forms 는 { name: 갈래, aliases?, folder?, kind?: 성격 아홉 가운데 하나, pattern?: "종류:*", form? } 의 목록이다')
+  // 문서 성격 줄(H-O6) — 새 문서의 으뜸 성격과 요약 · 갈래 장부의 「## 문서 성격」 표에 선다
+  const natures = cleanNatures(input.natures)
+  if (!natures) fail('E_INPUT', 'natures 는 { doc: 문서, nature: 성격, summary? } 의 목록이다')
   const mode = guard === 'strict' && !system ? 'strict' : 'hold'
   return serial(path.resolve(dir), async () => {
     // 줄 첫머리 — 남은 저널(꺼진 저장)부터 되돌린다. 판정(prepare)이 반쯤 쓴 글을 읽지 않게(S-D7 · 검토 R-18)
@@ -295,7 +298,7 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
     const relink = shape ? (Array.isArray(prep?.relink) ? prep.relink : []) : []
     if (relink.some((x) => !x || !oneLine(x.from?.doc) || !oneLine(x.from?.h) || !oneLine(x.to?.doc) || !oneLine(x.to?.h))) fail('E_INPUT', '짜임 링크 모양이 아니다')
     if (place.some((x) => !x || !COORD.test(String(x.coord || '')) || !oneLine(x.doc) || !oneLine(x.heading)) || intros.some((x) => !x || !oneLine(x.doc) || typeof x.text !== 'string' || x.text.length > 4000)) fail('E_INPUT', '짜임 자리 · 요약 모양이 아니다')
-    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, marks: !!intake || !!approve || !!marksIn, intake: !!intake, approve, serverTags, correction, attach: input.attach || [], onCommit, prep, shape: !!shape, shapeStrict: !!shape?.strict, place, intros, relink, accepted: approve ? null : accepted, format: !!format })
+    return saveNow(dir, input.record, secs, { user: nfc(user), now, system, names, forms, natures, mode, holdWhy, proposed: new Set((proposed || []).map((x) => nfc(String(x).trim()))), held, marks: !!intake || !!approve || !!marksIn, intake: !!intake, approve, serverTags, correction, attach: input.attach || [], onCommit, prep, shape: !!shape, shapeStrict: !!shape?.strict, place, intros, relink, accepted: approve ? null : accepted, format: !!format })
   })
 }
 
@@ -402,12 +405,18 @@ export function sectionBase(text, heading) {
   return sha16(sec ? sec.body : '')
 }
 
-async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null, shape = false, shapeStrict = false, place = [], intros = [], relink = [], approve = null, accepted = null, format = false }) {
+async function saveNow(dir, r, secs, { user, now, system = false, names = [], forms: formsIn = [], natures: naturesIn = [], mode = 'hold', holdWhy = null, proposed = new Set(), held: heldIn = [], marks = false, intake = false, serverTags = [], correction = false, attach = [], onCommit = null, prep = null, shape = false, shapeStrict = false, place = [], intros = [], relink = [], approve = null, accepted = null, format = false }) {
   const held = [...heldIn]
   const regRaw = await fs.readFile(path.join(dir, '_managed.md'), 'utf8').then(readText, () => null)
   const vocRaw = await fs.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => null)
   const formRaw = await fs.readFile(path.join(dir, '_forms.md'), 'utf8').then(readText, () => null)
   const guardWarn = []
+  // 자리 채움(H-O3) — 자리 없는 옛 장부 줄에만. 이미 자리가 있는 항목의 fill 은 버린다(있는 줄을 고치지 않는다)
+  {
+    const reg0 = parseRegistry(regRaw || '')
+    const voc0 = parseVocab(vocRaw || '')
+    names = names.filter((n) => !(n.fill && (!voc0.coords.has(n.coord) || locate(reg0, n.coord))))
+  }
   // 가드 G1 — 세울 항목의 모양(장부에 없던 것만). 거절형은 거절 · 붙잡아 두기는 그 항목만 세우지 않는다
   {
     const g = guardNames(parseVocab(vocRaw || ''), names)
@@ -422,9 +431,9 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
   // 이번에 세우는 항목은 이 저장의 항목 자리(coord)로도 쓴다
   let regNext = names.length ? upsertRegistry(regRaw || '', names) : regRaw || ''
   const vocNext = names.length ? upsertVocab(vocRaw || '', names) : vocRaw || ''
-  const formNext = formsIn.length ? upsertForms(formRaw || '', formsIn) : formRaw || ''
+  const formNext = formsText(formRaw, formsIn, naturesIn)
   const vocab = parseVocab(vocNext)
-  const forms = formsAfter(formRaw, formsIn) // 제안과 같은 함수(H-D14)
+  const forms = formsAfter(formRaw, formsIn, naturesIn) // 제안과 같은 함수(H-D14)
   const date = r.date || localStamp(now)
   let touches = [...new Set((r.touches || []).map((x) => nfc(x.trim())))]
   // 새 문서(G4) — 지금 없는 문서를 세우는 항목 글. 갈래 · 폴더 · 머리 꼴을 보고, 갈래에 항목 패턴이 있으면 문서 장부 행을 같이 세운다
@@ -611,7 +620,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, names = [], fo
   if (putRows.length || approve) tags.push('put')
   // 장부만 바꾼 저장은 지식 이야기가 아니다 — 이력(log/ · 태그 ledger). 문서 · 항목 · 첨부 · 넣지 못함이 없고 메모가 아니고 건드린 항목이 없을 때
   //   (항목을 세우며 그 항목을 건드린 기록 「새 이슈: 인원 부족」 은 지식 이야기다 — 기록에 남는다 · 넣지 못함의 [항목 세우기]는 hub 가 ledger 를 단다)
-  if ((names.length || formsIn.length) && !plan.length && !atts.length && !attSame.length && !touches.length) tags.push('ledger')
+  if ((names.length || formsIn.length || naturesIn.length) && !plan.length && !atts.length && !attSame.length && !touches.length) tags.push('ledger')
   const allTags = [...new Set(tags)]
   const sub = isLogRecord(allTags) ? LOG_DIR : 'work'
   await fs.mkdir(path.join(dir, sub), { recursive: true })

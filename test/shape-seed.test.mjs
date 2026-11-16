@@ -55,7 +55,7 @@ test('나눠 받기 — 뼈대 검사(덮임 · 없는 재료 · 같은 id · �
   assert.match(S.frameOfDraft({ docs: [{ id: '안내', src: [A] }] }, g).error, /넣음 재료 1/)
   assert.match(S.frameOfDraft({ docs: [{ id: '안내', src: [A, 'm:' + 'f'.repeat(16)] }] }, g).error, /없는 재료/)
   assert.match(S.frameOfDraft({ docs: [{ id: '안내', src: [A] }, { id: '안내', src: [B] }] }, g).error, /같은 문서 id/)
-  const fset = { rows: [{ name: '보고서', aliases: ['주간보고'] }] }
+  const fset = { rows: [{ name: '보고서', aliases: ['주간보고'], kind: '사건' }] } // 품기 맞춤은 모으는 갈래(사건 · 보고 · 대장)에만(H-D15)
   assert.match(S.frameOfDraft({ docs: [{ id: '사업관리/주간보고', src: [A, B] }] }, g, { clash: (x) => S.formClashOf(fset, x) }).error, /보고서」 갈래/)
   assert.equal(S.formClashOf(fset, '사업관리/보고서'), null, '갈래 이름 그대로는 된다')
   assert.match(S.frameOfDraft({ docs: [{ id: '회의록/2022-08-03 착수', src: [A, B] }] }, g).error, /파일 이름 조각/, '문서 이름 규칙(날짜)도 뼈대에서')

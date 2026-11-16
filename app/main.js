@@ -1941,7 +1941,7 @@ function guardCard(k) {
   if (!g) return `<div class="card" data-t="guardCard"><div class="ch">점검</div><div class="cb">${loadingHtml}</div></div>`
   if (g.error) return `<div class="card" data-t="guardCard"><div class="ch">점검</div><div class="cb">${errHtml(g, 'guard:' + k)}</div></div>`
   const c = g.counts
-  return `<div class="card" data-t="guardCard"><div class="ch">점검 <small>장부 항목 ${c.live} · 기록 ${c.records} · 문서 항목 ${c.sections} · 갈래 장부 ${g.forms.own ? g.forms.rows.length : '없음(기본 갈래)'}</small><button type="button" class="btn ghost sm r" data-a="guardRe" data-t="guardRe">다시 읽기</button></div><div class="cb u-p1-7-3">${guardRowsHtml(k, g)}</div></div>`
+  return `<div class="card" data-t="guardCard"><div class="ch">점검 <small>장부 항목 ${c.live} · 기록 ${c.records} · 문서 항목 ${c.sections} · 갈래 장부 ${g.forms.own ? g.forms.rows.length + (g.forms.closed ? ' · 새 문서 닫음' : '') : '없음'}</small><button type="button" class="btn ghost sm r" data-a="guardRe" data-t="guardRe">다시 읽기</button></div><div class="cb u-p1-7-3">${guardRowsHtml(k, g)}</div></div>`
 }
 // 점검 › 점검 — 줄 묶음 넷(기록 · 장부 · 문서 · 낱말)마다 (!) 하나(화면에 다섯까지)
 const GUARD_G = [['기록', 'chk.rec', ['unnamed', 'outside', 'deprecatedUse']], ['장부', 'chk.name', ['lost', 'spaced']], ['문서', 'chk.sec', ['noName', 'brokenHead', 'brokenLink']], ['낱말', 'chk.word', ['aliasClash', 'sameLabel']]]

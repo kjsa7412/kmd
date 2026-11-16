@@ -110,19 +110,13 @@ export async function loadKnowledge({ id, name, dir }, { cache = null } = {}) {
   logs.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
   const vocab = parseVocab(await readOr(path.join(dir, '_vocab.md')))
   const registry = parseRegistry(await readOr(path.join(dir, '_managed.md')))
-  // 갈래 장부 — 새 문서가 설 수 있는 갈래(없으면 기본 갈래 · core/guard.js)
+  // 갈래 장부 — 모으는 갈래 · 닫음 표시 · 문서 성격 줄(core/guard.js formsOf · 갈래 줄이 없으면 빈 목록: 기본 갈래는 판정에 쓰지 않는다)
   const formsRaw = await readOr(path.join(dir, '_forms.md'))
   const forms = formsOf(formsRaw)
   // 차례 장부 — 옆 메뉴 나무 · 문서 짜임의 차례 · 문서가 없는 폴더(core/order.js)
   const order = parseOrder(await readOr(path.join(dir, ORDER_FILE)))
   // README 본문(첫 # 제목 줄 뒤) — 지식 홈 「먼저 읽을 것」 카드(UX T5-09)
   const readme = String((await readOr(path.join(dir, 'README.md'))) || '').replace(/^\s*#\s+.*\n?/, '').trim().slice(0, 6000)
-  // 기본 갈래(갈래 장부가 없는 지식)가 같은 이름의 문서와 부딪치면 — 그 문서 머리가 사건 꼴(날짜 머리)이 아닐 때 그 기본 갈래는 쓰지 않는다
-  //   (「장애 대응」 갈래가 절차 문서 「장애대응」 에 사건 기록을 넣으라고 하지 않게 · UX T2-14)
-  if (!forms.own) {
-    const sq = (x) => String(x).replace(/\s+/g, '')
-    forms.rows = forms.rows.filter((f) => { const d = docs.find((x) => sq(x.title) === sq(f.name)); return !d || !(d.sections || []).length || (d.sections || []).some((x) => /^\d{4}-\d{2}-\d{2}/.test(x.h)) })
-  }
   const k = { id, name, dir, docs, works, logs, atts, vocab, registry, forms, formsRaw: formsRaw || '', order, readme }
   k.byDocPath = new Map(docs.map((d) => [d.path, d]))
   // byWork — 기록 · 이력 모두(항목 표지 · 판정 · 바로잡기가 이력의 id 를 가리킨다)
