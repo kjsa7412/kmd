@@ -51,7 +51,7 @@ const V2_PROPS = {
   docs: { type: 'array', items: { type: 'object' }, description: '이번에 세우는 새 문서(R3-4 · R7-2): { path(폴더/이름 · .md 없이), nature(으뜸 성격), summary(이 문서가 무엇을 어떤 단위로 적나 1~3문장), gather?: { aliases: [넣을 글에서 실제로 본 낱말], pattern?: "종류:*" }(모으는 문서일 때만), judge }' },
   skip: { type: 'array', items: { type: 'object' }, description: '뺀 것(R6-1 · R6-3): { what(무엇을), rule(조문 번호), why(왜 뺐나) }. 모두 뺐으면 items 를 비우고 skip 만 보낸다: 아무것도 쓰지 않는다(「넣을 것 없음」)' },
 }
-const TOOLS = [
+export const TOOLS = [
   {
     name: 'brief',
     description: '지금 kmd 에 무엇이 있나: 지식 목록 · 지식 하나의 문서 · 최근 기록 · 종류(kinds) · 갈래(forms) · 생성 룰의 판과 조문 제목(rulesRev · ruleTitles) · 종류의 뜻(kindCards) · 문서의 성격(natures) · 저장 방식(saveMode: approve — 저장 제안을 승인받아 save) · kit(스킬 판: save 의 kit 에 그대로 싣는다 · 측정에만 쓴다). 팀 지식이면 지식마다 mine(accepted: 승인으로 경고를 받아들인 내 기록 수) · 지식 하나의 you.recent(그 기록의 제목 · 까닭) · parser(대량 넣기 파서 꾸러미: ver · url · sha256 · bytes · 없으면 null). 일을 시작할 때 한 번.',

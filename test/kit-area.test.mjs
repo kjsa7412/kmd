@@ -155,7 +155,7 @@ test('PC /api/agent: 개인 지식 더하기 · 팀 연결은 그대로 · 하�
 //   (판 2 는 저장 승인 PC6: 옛 개인 지식 길 · 옛 판 안내(reinstall · nokit) 걷기 · 이행 못한 지식은 저장 닫힘)
 //   (판 3 은 저장 승인 P12: 이행 못한 지식 안내 걷기 · 개인 지식은 처음부터 승인)
 //   (판 4 는 말 맞추기: 이름 → 항목 · 조각 → 고칠 항목 · 바꿀 곳 · 보이는 이름 → 라벨 · 다른 이름 → 별칭 · 이름 장부 → 항목 장부)
-const PC_KIT_HASH = { 1: 'ea86fd6a', 2: '74d9f2fb', 3: 'a6f440ea', 4: '395b776c', 5: 'e8f86f1c', 6: '5dce762c' }
+const PC_KIT_HASH = { 1: 'ea86fd6a', 2: '74d9f2fb', 3: 'a6f440ea', 4: '395b776c', 5: 'e8f86f1c', 6: '1def142f' }
 test('개인 스킬 판: 스킬 글이 바뀌면 PC_KIT_REV 도 오른다 · {{KIT_REV}} 를 판으로 바꿔 싣는다 · 새 흐름(제안 · 승인 · 메모 없음)', async () => {
   const parts = await kitParts()
   assert.equal(parts.rev, PC_KIT_REV)
@@ -175,7 +175,8 @@ test('개인 스킬 판: 스킬 글이 바뀌면 PC_KIT_REV 도 오른다 · {{K
   assert.ok(work.includes(`판(${PC_KIT_REV})`), '일 스킬이 brief 의 kit 과 견준다')
   const build = parts.skills.find((x) => x.rel === '.claude/skills/kmd-build/SKILL.md').text
   assert.doesNotMatch(fs.readFileSync(new URL('../agent/skills/kmd-build/SKILL.md', import.meta.url), 'utf8'), /\{\{KIT_REV\}\}/, 'kmd-build 는 넣기 에이전트가 그대로 읽는다: 자리표를 두지 않는다')
-  assert.match(build, /규칙 길/, '넣기 에이전트: 넘지 못하면 kmd 가 규칙 길로')
+  assert.match(build, /나중에 다시 시도한다/, '넣기 에이전트: 넘지 못하면 아무것도 쓰이지 않고 kmd 가 다시 시도한다(규칙 길은 걷었다)')
+  assert.doesNotMatch(build, /규칙 길/)
   assert.match(build, /propose/, '세션이 시킨 일은 제안 · 승인')
   assert.match(parts.block, /propose/)
 })
