@@ -115,7 +115,9 @@ test('편집기로 고친 기록 · 장부: 사본을 두고 되돌리며 이력
   await s.close()
   fs.appendFileSync(path.join(root, 'dpms', 'docs', '운영.md'), '\n꺼진 동안 편집기로 더한 줄\n')
   s = await startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
-  assert.ok(await until(async () => (await s.hub.get('dpms')).logs.some((x) => /편집기에서 고침: 운영/.test(x.title))), '켤 때 거뒀다')
+  // 켤 때 본다 — 들이지 않고 되돌린 뒤 「손으로 고친 파일」 로 세운다(거두기는 걷었다 · H6)
+  assert.ok(await until(async () => (await s.hub.handEdits({ user: 'kim', admin: true }, 'dpms')).some((x) => x.doc === '운영')), '켤 때 손으로 고친 파일로 섰다')
+  assert.doesNotMatch(fs.readFileSync(path.join(root, 'dpms', 'docs', '운영.md'), 'utf8'), /꺼진 동안 편집기로 더한 줄/, '문서는 되돌렸다')
   me = await signIn(s, { id: 'kim2' })
 })
 
@@ -147,11 +149,11 @@ test('편집기: 다시 그려도 · 찾기를 열고 닫아도 쓴 글이 남�
   assert.equal(await page.locator('[data-t=edAddSec]').count(), 1)
   await page.focus('[data-t=edTx]')
   await page.keyboard.press('Control+s')
-  // 승인 저장(P5 · P11) — 저장 확인 창의 [넣기] 가 승인
-  await page.waitForSelector('[data-t=saveWin] [data-t=svGo]')
-  await page.click('[data-t=svGo]')
+  // 글 고침은 그대로 넣지 않는다(H6 · H-D33) — 고친 글이 넣을 것으로 올라가고 편집기는 닫힌다 · 문서는 그대로 · 들이기 일감(승인 대기를 거친다)이 선다
   await page.waitForSelector('[data-t=editBtn]')
-  assert.match(fs.readFileSync(path.join(root, 'dpms', 'docs', '배포절차.md'), 'utf8'), /## 새로 쓴 항목\n(<!--.*-->\n)?찾기를 열었다 닫아도 남는 글/)
+  assert.doesNotMatch(fs.readFileSync(path.join(root, 'dpms', 'docs', '배포절차.md'), 'utf8'), /## 새로 쓴 항목/)
+  const up = s.hub.intakesOf('dpms').find((j) => /^문서 고치기 /.test(String(j.src?.title || '')))
+  assert.ok(up && up.ask === true, '넣을 것으로 올라갔다')
   // 없는 문서 — 「이제 없다」 · 그 밖의 오류 — 「다시 시도」
   const gone = await page.evaluate(async () => (await fetch('/api/k/dpms/doc?d=' + encodeURIComponent('없는문서'))).status)
   assert.equal(gone, 404)

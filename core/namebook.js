@@ -323,3 +323,28 @@ export function ledgerOps(text, ops, { today = new Date().toISOString().slice(0,
   const out = lines.join('\n')
   return { text: out.endsWith('\n') ? out : out + '\n', done, errors }
 }
+
+// ── 되돌림이 걷는 줄(H6 · H-D24) — 그 기록이 세운 문서 장부 줄 · 갈래 줄 · 문서 성격 줄. 없는 줄은 그대로 지나간다 ──
+const cellOf = (l) => l.split('|').map((x) => x.trim())
+export function dropRegistryRows(text, coords) {
+  const set = new Set((coords || []).map((c) => nfc(String(c))))
+  if (!set.size || !text) return text || ''
+  return String(text).split('\n').filter((l) => !set.has(nfc(l.match(/^\|\s*`([^`]+)`/)?.[1]?.trim() || '\u0000'))).join('\n')
+}
+export function dropFormRows(text, names) {
+  const set = new Set((names || []).map((c) => nfc(String(c)).trim()))
+  if (!set.size || !text) return text || ''
+  const lines = String(text).split('\n')
+  const end = lines.findIndex((l) => /^##\s/.test(l))
+  return lines.filter((l, i) => !((end < 0 || i < end) && /^\|/.test(l) && set.has(nfc(cellOf(l)[1] || '')))).join('\n')
+}
+export function dropNatureRows(text, docs) {
+  const set = new Set((docs || []).map((c) => nfc(String(c)).replace(/^docs\//, '').replace(/\.md$/, '').trim()))
+  if (!set.size || !text) return text || ''
+  const lines = String(text).split('\n')
+  const a = lines.findIndex((l) => l.trim() === NATURES_HEAD)
+  if (a < 0) return text
+  let b = lines.findIndex((l, x) => x > a && /^##\s/.test(l))
+  if (b < 0) b = lines.length
+  return lines.filter((l, i) => !(i > a && i < b && /^\|/.test(l) && set.has(nfc(cellOf(l)[1] || '')))).join('\n')
+}

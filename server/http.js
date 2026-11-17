@@ -451,7 +451,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   const GET_OK = [
     /^\/api\/(me|today|history|people|logs|sources|settings|agent|knowledge|runs|stops|find|requests|me\/devices|admin\/overview|admin\/audit|admin\/users|admin\/groups|claude\/state|busy|send\/teams|seed\/open)$/,
     /^\/api\/agent\/parser$/, /^\/api\/gitlab\/groups$/,/^\/api\/admin\/users\/[^/]+\/seats$/, /^\/api\/job\/[0-9a-f]+$/, /^\/api\/runs\/[0-9a-f]{12}$/, /^\/api\/queue$/, /^\/api\/queue\/[0-9a-f]{12}$/, /^\/api\/confirm\/[A-Za-z0-9_-]{6,40}$/, /^\/api\/pc\/root$/,
-    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|shape|seed|past|removed|manage|metrics|intake\/failed)$/,
+    /^\/api\/k\/[^/]+\/(tree|doc|rec|att|model|item|diff|sources|send|backup|backup\/lost|owner|access|worker\/intake|guard|structure|shape|seed|past|removed|manage|metrics|hand|intake\/failed)$/, /^\/api\/k\/[^/]+\/intake\/[0-9a-f]{12}\/ask$/,
     /^\/api\/k\/[^/]+\/shape\/job\/[0-9a-f]{12}$/,
     /^\/api\/k\/[^/]+\/seed\/feed$/,
   ]
@@ -887,6 +887,13 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       await hub.meta(id, ctx)
       return out(200, { jobs: hub.failedIntakes(ctx, id) })
     }
+    // 화면의 「넣을 것」 저장 제안(H6) — GET 보기 · POST 넣기(승인) · POST 버리기
+    const fq = p.match(/^\/api\/k\/([^/]+)\/intake\/([0-9a-f]{12})\/(ask|approve|discard)$/)
+    if (fq) {
+      if (fq[3] === 'ask') { if (req.method !== 'GET') throw new KmdError('E_METHOD', 'GET 만 받는다'); return out(200, await hub.intakeAskView(ctx, dec(fq[1]), fq[2])) }
+      if (req.method !== 'POST') throw new KmdError('E_METHOD', 'POST 만 받는다')
+      return out(200, fq[3] === 'approve' ? await hub.intakeAskApprove(ctx, dec(fq[1]), fq[2]) : await hub.intakeAskDrop(ctx, dec(fq[1]), fq[2]))
+    }
     const fa = p.match(/^\/api\/k\/([^/]+)\/intake\/([0-9a-f]{12})\/(again|drop)$/)
     if (fa) return out(200, fa[3] === 'again' ? await hub.intakeAgain(ctx, dec(fa[1]), fa[2]) : await hub.intakeDrop(ctx, dec(fa[1]), fa[2]))
     // 문서 다듬기(S13 · K10-4 · 설계 4-9) — POST 만 · 몸 { doc } · 자리는 hub.polish(지식관리자)
@@ -1270,11 +1277,11 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const cur = clean(await fs.readFile(path.join(k.dir, ...d.path.split('/')), 'utf8').catch(() => ''))
       return out(200, { doc: d.id, sha: v.sha, at: v.at, who: v.who, msg: v.msg, md: past, cur, html: V.render(k, d.path, past) })
     }
-    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|propose|backup|backup\/pull|backup\/gitlab|backup\/detach|owner|learn|edit|revert|guard|ledger)$/)
+    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|propose|backup|backup\/pull|backup\/gitlab|backup\/detach|owner|learn|edit|revert|guard|ledger|hand|edit-source)$/)
     if (!m) throw new KmdError('E_NOTFOUND', '그런 길은 없다')
     const id = dec(m[1])
     const what = m[2]
-    if (['save', 'propose', 'backup', 'backup/pull', 'backup/gitlab', 'backup/detach', 'owner', 'learn', 'edit', 'revert', 'ledger'].includes(what)) {
+    if (['save', 'propose', 'backup', 'backup/pull', 'backup/gitlab', 'backup/detach', 'owner', 'learn', 'edit', 'revert', 'ledger', 'hand', 'edit-source'].includes(what)) {
       // 저장소 보기(메뉴 개편 6-4 · 권한 모델 7절) — 그 지식의 지식관리자부터(읽기 미만 404 · 쓰기 · 읽기 403) · 주소는 가려서 · 가지 · 상태만
       if (what === 'backup' && req.method === 'GET') {
         const meta = await hub.meta(id, ctx.shell ? undefined : ctx)
@@ -1293,6 +1300,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         const { owner = null, noClaude } = row
         return out(200, { owner, noClaude })
       }
+      // 손으로 고친 파일 목록(H6) — 지식관리자만(hub.handEdits 가 본다)
+      if (what === 'hand' && req.method === 'GET') return out(200, { items: await hub.handEdits(ctx, id) })
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       const body = await readBody(req)
       // 저장 문(S4) — 채널은 서버가 정한다: 본문에서는 channel: 'send'(보내기) 하나만 읽고 나머지 opt 칸은 받지 않는다(S-D54) ·
@@ -1314,6 +1323,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       }
       if (what === 'learn') return out(200, await hub.learn(ctx, id, body))
       // 문서 고치기(S9) — 화면 길은 이미 있는 항목의 지문(base)을 꼭 받는다
+      if (what === 'hand') return out(200, req.method === 'GET' ? { items: await hub.handEdits(ctx, id) } : await hub.handEditAct(ctx, id, body && typeof body === 'object' && !Array.isArray(body) ? body : {}))
+      if (what === 'edit-source') return out(200, await hub.editAsSource(ctx, id, body && typeof body === 'object' && !Array.isArray(body) ? body : {}))
       if (what === 'ledger') return out(200, await hub.ledgerEdit(ctx, id, body && typeof body === 'object' && !Array.isArray(body) ? body : {}))
       if (what === 'edit') return out(200, await hub.edit(ctx, id, body && typeof body === 'object' && !Array.isArray(body) ? body : {}, { needBase: true }))
       if (what === 'revert') {

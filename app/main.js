@@ -756,7 +756,7 @@ function draw() {
   const shell = gated()
     ? gatePage(scr, center)
     : `<div class="cxnav" id="kmdNav" data-t="nav">${sideHtml()}${list}</div><div class="col">${hdrHtml(scr)}${scr.acts || ''}<div class="body">${center}${scr.aside ? `<div class="aside" id="kmdAside" data-t="aside"><button type="button" class="hb afold" data-a="asideRail" data-t="asideFold" aria-expanded="${!ar}" title="${ar ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'} (Ctrl ])" aria-label="${ar ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'}">${svg(ar ? 'sideL' : 'sideR')}</button><div class="asc" data-t="asideScroll">${scr.aside}</div></div>` : ''}</div></div>`
-  app.innerHTML = `${shell}${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.rsWin ? rsWinHtml() : ''}${S.devWin ? devWinHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S.paste && S.route.scr === 'import' ? pasteWinHtml() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.recFix ? recFixHtml() : ''}${S.sv ? svHtml() : ''}${S.past ? pastHtml() : ''}${S.sdw && S.route.scr === 'home' ? sdwHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}${S.keys ? keysHtml() : ''}`
+  app.innerHTML = `${shell}${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.rsWin ? rsWinHtml() : ''}${S.devWin ? devWinHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S.paste && S.route.scr === 'import' ? pasteWinHtml() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.recFix ? recFixHtml() : ''}${S.sv ? svHtml() : ''}${S.ak ? akHtml() : ''}${S.past ? pastHtml() : ''}${S.sdw && S.route.scr === 'home' ? sdwHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}${S.keys ? keysHtml() : ''}`
   for (const c of [...app.classList]) if (c.startsWith('pg-')) app.classList.remove(c)
   app.classList.add('pg-' + pgOf(editing))
   app.classList.toggle('has-list', hasList)
@@ -1945,6 +1945,24 @@ function guardCard(k) {
 }
 // 점검 › 점검 — 줄 묶음 넷(기록 · 장부 · 문서 · 낱말)마다 (!) 하나(화면에 다섯까지)
 const GUARD_G = [['기록', 'chk.rec', ['unnamed', 'outside', 'deprecatedUse']], ['장부', 'chk.name', ['lost', 'spaced']], ['문서', 'chk.sec', ['noName', 'brokenHead', 'brokenLink']], ['낱말', 'chk.word', ['aliasClash', 'sameLabel']]]
+// 손으로 고친 파일(지식 생성 하네스 H6 · H-D33) — 편집기로 직접 고친 문서는 지식에 들이지 않는다(문서는 되돌리고 고친 글은 사본으로 둔다).
+//   지식관리자가 [넣을 것으로 올리기](Claude 가 지어 저장 제안으로 선다) 또는 [버리기] 를 고른다. 없으면 아무것도 그리지 않는다
+const handOf = (k) => (admKn(k) ? need('hand:' + k, `/api/k/${encodeURIComponent(k)}/hand`) : null)
+function handHtml(k) {
+  const h = handOf(k)
+  if (!h || h.error || !(h.items || []).length) return ''
+  const row = (x) => `<div class="qrow" data-t="handRow"><span class="tx"><b>${esc(x.doc)}</b> <small class="muted">${x.kind === 'new' ? '새 파일' : x.kind === 'del' ? '지운 파일' : '고침'} · ${esc(whenTxt(x.at))}${x.heads.length ? ` · ${esc(x.heads.slice(0, 4).join(' · '))}${x.heads.length > 4 ? ` 외 ${x.heads.length - 4}` : ''}` : ''}</small></span><span class="acts">${x.heads.length ? `<button type="button" class="btn sm pri" data-a="handAct" data-k="${esc(k)}" data-id="${esc(x.id)}" data-v="intake" data-t="handIntake" title="고친 글을 넣을 것으로 올린다: Claude 가 지어 저장 제안으로 선다">넣을 것으로 올리기</button>` : ''}<button type="button" class="btn sm danger" data-a="handAct" data-k="${esc(k)}" data-id="${esc(x.id)}" data-v="drop" data-t="handDrop" title="고친 글을 버린다(문서는 이미 되돌려 두었다)">버리기</button></span></div>`
+  return `<div class="card" data-t="handCard"><div class="callout warn"><div><b>손으로 고친 파일 ${h.items.length}</b> · 편집기로 직접 고친 글은 지식에 들이지 않고 문서를 되돌려 두었다. 넣으려면 [넣을 것으로 올리기]</div></div>${h.items.map(row).join('')}</div>`
+}
+async function handAct(k, id, act) {
+  if (act === 'drop' && !(await ask({ t: '손으로 고친 글 버리기', d: '고친 글을 버린다. 문서는 이미 되돌려 두었다', ok: '버리기', danger: true }))) return
+  try {
+    const r = await postJSON(`/api/k/${encodeURIComponent(k)}/hand`, { hand: id, act })
+    delete S.cache['hand:' + k]
+    toast(r.queued ? '<b>넣을 것으로 올렸다</b> · Claude 가 지으면 생성 › 진행에서 [저장 제안] 을 보고 넣는다' : r.note ? esc(r.note) : '버렸다', r.queued ? 9000 : 0)
+  } catch (e) { toastErr(e) }
+  render()
+}
 function guardBodyHtml(k) {
   const g = guardOf(k)
   if (!g) return loadingHtml
@@ -1960,7 +1978,7 @@ function guardBodyHtml(k) {
     return `<div class="cktile ${soft ? 'soft' : 'warn'}" data-t="guard-${r.key}"><div class="ckt-h"><span class="chip ${soft ? 'c-mute' : 'c-warn'}">${soft ? '알림' : '경고'}</span><span class="ckt-g"${first ? ' data-t="ckGroup"' : ''}>· ${r.gl}${first ? tipb(r.tip, r.gl) : ''}</span><button type="button" class="btn" data-a="guardOpen" data-v="${r.key}" aria-expanded="${open === r.key}">${open === r.key ? '접기' : '보기'}</button></div><div class="ckt-n">${c[r.key]}</div><div class="nm"${r.why ? ` title="${r.why}"` : ''}>${r.label}</div></div>${open === r.key ? guardListHtml(k, g, r.key, r.kind) : ''}`
   }
   const ok = zero.length ? `<div class="ck-ok" data-t="guardOk"><div class="ck-okh"><b>문제 없음</b><span>${zero.length}</span></div><div class="ck-okl">${zero.map((r) => `<span class="ck-z" data-t="guard-${r.key}" title="${r.why}">${r.label}<em>0</em></span>`).join('')}</div></div>` : ''
-  return `<div class="ck-sum small muted" data-t="guardSum">장부 항목 ${c.live} · 기록 ${c.records} · 문서 항목 ${c.sections}<button type="button" class="btn" data-a="guardRe" data-t="guardRe">다시 읽기</button></div><div class="cktiles" data-t="guardCard">${hit.map(tile).join('')}${ok}</div>`
+  return handHtml(k) + `<div class="ck-sum small muted" data-t="guardSum">장부 항목 ${c.live} · 기록 ${c.records} · 문서 항목 ${c.sections}<button type="button" class="btn" data-a="guardRe" data-t="guardRe">다시 읽기</button></div><div class="cktiles" data-t="guardCard">${hit.map(tile).join('')}${ok}</div>`
 }
 // 문서 나무(컨벤션 5절) — docs/ 폴더 짜임 그대로. 폴더 먼저 · 이름 차례(숫자는 수로) · 처음은 접힘 · 지금 연 문서가 든 폴더는 펼침
 //   펼침은 UI.dirs[지식:폴더] — 없으면 기본(지금 문서의 폴더면 펼침), true/false 는 사람이 고른 것
@@ -2223,7 +2241,7 @@ function docPane(t, right) {
     : editing
     ? `<div class="ed" data-t="editor"><div class="edbar"><span class="lbl"><b>고치는 중</b>${tipb(de.structure ? 'ed' : 'edRo', '고치기')}</span><span class="toolbar"><button class="btn sm" data-a="edAddSec" data-t="edAddSec">항목 더하기</button><button class="btn sm${S.edit.preview ? ' on' : ''}" data-a="edPreview" data-t="edPreview" aria-pressed="${!!S.edit.preview}">바뀐 것 보기</button></span></div><textarea id="edTx" aria-label="문서 글(md)" data-in="edTx" data-t="edTx" spellcheck="false"${S.edit.busy ? ' readonly aria-busy="true"' : ''}>${esc(edText(de))}</textarea>
    ${de.sections.filter((s) => s.locks).map((s) => `<div class="lockh">항목 「${esc(s.h)}」 의 표: 회색은 잠겨 있다</div>${s.locks}`).join('')}
-   ${S.edit.preview ? `<div class="edprev" data-t="edPrev"><div class="small muted">저장하면 바뀌는 것(저장 전 · 막지 않는다)</div>${edPreviewHtml(k, de)}</div>` : ''}${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.errSecs || []).length ? `<div class="row" data-t="edErrSecs">${S.edit.errSecs.map((h) => `<button type="button" class="btn sm" data-a="edGoSec" data-v="${esc(h)}">「${esc(h)}」 로</button>`).join('')}</div>` : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}<div class="edsave" data-t="edSave"><div class="edwhyrow"><input id="edWhy" data-in="edWhy" data-t="edWhy" maxlength="200" class="inp edwhy" placeholder="바꾼 까닭(선택)" aria-label="바꾼 까닭" value="${esc(S.edit.why || '')}">${tipb('ed.why', '바꾼 까닭')}</div><div class="edgo"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><span class="ednote" data-t="edNote">${svApprove(k) ? '저장하면 확인 창 뒤 문서에 들어간다' : '저장하면 바로 문서에 들어간다 · 이력에 남는다'}</span></div></div></div>`
+   ${S.edit.preview ? `<div class="edprev" data-t="edPrev"><div class="small muted">저장하면 바뀌는 것(저장 전 · 막지 않는다)</div>${edPreviewHtml(k, de)}</div>` : ''}${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.errSecs || []).length ? `<div class="row" data-t="edErrSecs">${S.edit.errSecs.map((h) => `<button type="button" class="btn sm" data-a="edGoSec" data-v="${esc(h)}">「${esc(h)}」 로</button>`).join('')}</div>` : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}<div class="edsave" data-t="edSave"><div class="edwhyrow"><input id="edWhy" data-in="edWhy" data-t="edWhy" maxlength="200" class="inp edwhy" placeholder="바꾼 까닭(선택)" aria-label="바꾼 까닭" value="${esc(S.edit.why || '')}">${tipb('ed.why', '바꾼 까닭')}</div><div class="edgo"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><span class="ednote" data-t="edNote">${svApprove(k) ? '고친 글은 넣을 것으로 올라간다: Claude 가 지어 저장 제안으로 세운다' : '저장하면 바로 문서에 들어간다 · 이력에 남는다'}</span></div></div></div>`
     : d.sections.map((s) => {
     // 찾기로 연 것만 「찾은 곳」 · 링크 · 개요로 연 항목은 머리를 잠깐 빛낸다
     const lit = q && hl && s.h === hl
@@ -2533,6 +2551,30 @@ function palBody() {
   return `${names}${fbar}<div class="g" data-t="gSim">딱 맞는 항목이 없어 비슷한 글에서 찾았다</div>${sh.map(hit).join('')}<div class="ft" data-t="simCount">비슷한 글 ${N}개${N > 5 ? (more ? ': 모두 보인다' : `: 5개 · <button type="button" class="lk" data-a="palMore" data-t="palMore">${N - 5}개 더 보기</button>`) : ''}</div>`
 }
 
+// 장부 고침(지식 생성 하네스 H7) — 폐기 · 합치기 · 별칭 빼기. 지식관리자가 항목 화면의 속성에서 누른다
+async function ledgerDo(k, coord, op, alias) {
+  const m = M(k)
+  const it = m && m.items.find((i) => i.coord === coord)
+  const name = it ? it.name : coord
+  let into = null
+  if (op === 'merge') {
+    const others = liveItemsOf(k).filter((i) => i.coord && i.coord !== coord).slice(0, 2000)
+    if (!others.length) { toast('<b>합칠 다른 항목이 없다</b>', 0, true); return }
+    into = await ask({ t: '항목 합치기', d: `${name}(${coord}) 를 폐기하고 고른 항목으로 잇는다. 라벨과 별칭은 고른 항목의 별칭으로 옮긴다. 항목 글은 옮기지 않는다`, select: { label: '합칠 곳', options: others.map((i) => [i.coord, `${i.name} · ${i.coord}`]), value: others[0].coord }, ok: '다음' })
+    if (!into) return
+  }
+  const T = { retire: ['항목 폐기', `${name}(${coord}) 에 폐기 표시를 단다. 항목 장부의 줄은 지우지 않고, 기록과 문서의 옛 이음은 그대로 읽힌다`, '폐기'], merge: ['합치는 까닭', `${name} → ${into}`, '합치기'], unalias: ['별칭 빼기', `${name} 의 별칭 「${alias}」 을 항목 장부에서 뺀다`, '빼기'] }[op]
+  const why = await ask({ t: T[0], d: T[1], input: { label: '까닭(이력에 남는다)', value: '' }, ok: T[2], danger: op !== 'unalias' })
+  if (why == null) return
+  if (!String(why).trim()) { toast('<b>까닭 한 줄을 적는다</b>', 0, true); return }
+  try {
+    const r = await postJSON(`/api/k/${encodeURIComponent(k)}/ledger`, { ops: [{ op, coord, ...(into ? { into } : {}), ...(alias ? { alias } : {}) }], why: String(why).trim() })
+    forgetKn(k)
+    toast(`<b>항목 장부를 고쳤다</b> · ${esc((r.done || []).join(' · '))}`)
+    render()
+  } catch (e) { toast(`<b>항목 장부를 고치지 못했다</b> · ${esc(e.message || '')}`, 0, true) }
+}
+
 // ───────────── 지식 한 벌의 모양 — 항목 · 기록 · 쓰는 곳(서버 /model) ─────────────
 const modelOf = (k) => need('model:' + k, `/api/k/${encodeURIComponent(k)}/model`)
 // 모델을 받지 못했으면 그 오류(M(k) 는 null 이라 「읽는 중」 과 가르지 못한다) — 그리는 곳이 errHtml(modelErr(k), 'model:' + k)
@@ -2674,6 +2716,8 @@ function itemPane(t, right) {
   const rs = recsOfItem(k, it)
   const past = rs.slice().sort((a, b) => b.date.localeCompare(a.date))
   const uses = usesOf(k, it), al = it.aliases
+  // 장부 고침(H7) — 그 지식의 지식관리자만 · 장부에 오른 살아 있는 항목만
+  const lgCan = !!it.coord && !it.deprecated && (lvOf(KN(k)) === 'admin' || !isTeam())
   const who = (w) => (w === S.me.user ? '나' : w)
   let now
   if (it.doc && !v) now = loadingHtml
@@ -2696,7 +2740,8 @@ function itemPane(t, right) {
     { id: 'props', t: '속성', n: '', body: () => agKv([
       ['종류', esc(it.kind)],
       it.val ? ['값', `<b class="mono">${esc(it.val)}</b>`] : null,
-      ['별칭', al.length ? al.map(esc).join(' · ') : '<span class="muted">없다. 같은 말로 이틀 찾으면 저절로 붙는다</span>'],
+      ['별칭', al.length ? al.map((a) => esc(a) + (lgCan ? ` <button type="button" class="lk small" data-a="lgUnalias" data-k="${esc(k)}" data-c="${esc(it.coord)}" data-al="${esc(a)}" data-t="lgUnalias" title="이 별칭을 항목 장부에서 뺀다">빼기</button>` : '')).join(' · ') : '<span class="muted">없다. 같은 말로 이틀 찾으면 저절로 붙는다</span>'],
+      lgCan ? ['항목 장부', `<button type="button" class="btn sm" data-a="lgMerge" data-k="${esc(k)}" data-c="${esc(it.coord)}" data-t="lgMerge" title="다른 항목과 같은 대상이면 그 항목으로 잇고 라벨 · 별칭을 옮긴다">합치기</button> <button type="button" class="btn sm danger" data-a="lgRetire" data-k="${esc(k)}" data-c="${esc(it.coord)}" data-t="lgRetire" title="더 쓰지 않는 항목에 폐기 표시를 단다(줄은 지우지 않는다)">폐기</button>`] : null,
       ['문서', d ? `${esc(d.title)} › ${esc(it.sec)}` : '없음'],
       ['마지막으로 바뀜', v && v.by ? `${esc(whenTxt(v.by.date))}: ${esc(who(v.by.author))}의 기록에서` : d ? esc(whenTxt(d.when)) : '-'],
       ['기록', String(rs.length)],
@@ -3621,6 +3666,19 @@ async function saveDoc() {
   e.err = null; e.errSecs = null
   if ((remove.length || rename.length) && !d.structure) { e.err = `항목을 지우거나 이름을 바꾸는 일은 지식관리자가 한다: ${[...remove, ...rename.map((x) => x.from)].join(' · ')} 의 「## 」 줄을 되살린다`; render(); return }
   // 승인 저장 지식(저장 승인 P5 · P-D39) — [저장] 은 저장 확인 창(저장 제안을 보고 [넣기] 가 승인 · 지움 · 이름 바뀜 줄도 그 창에)
+  // 글 고침(H6 · H-D33) — 손으로 쓴 글을 그대로 넣지 않는다: 고친 항목의 새 글을 「넣을 것」 으로 올리면 Claude 가 지어 저장 제안으로 선다
+  if (changed.length) {
+    if (remove.length || rename.length) { e.err = `글 고침과 항목 지우기 · 이름 바꾸기는 따로 저장한다: ${[...remove, ...rename.map((x) => x.from)].join(' · ')} 의 「## 」 줄을 되살리고 글만 먼저 올린다`; render(); return }
+    e.busy = true
+    render()
+    try {
+      await postJSON(`/api/k/${encodeURIComponent(e.kn)}/edit-source`, { doc: e.doc, sections: changed.map((p) => ({ h: p.h, body: p.body })), ...(edWhy(e) ? { why: edWhy(e) } : {}) })
+      edDrop()
+      toast(isTeam() ? '<b>넣을 것으로 올렸다</b> · Claude 가 지으면 생성 › 진행에서 [저장 제안] 을 보고 넣는다(그때까지 문서는 그대로다)' : '<b>넣을 것으로 올렸다</b> · Claude 가 지어 넣는다(생성 › 진행)', 9000)
+    } catch (err) { e.busy = false; e.err = err.message || '올리지 못했다' }
+    render()
+    return
+  }
   if (svApprove(e.kn)) return saveDocSv(e, txt, old, changed, remove, rename)
   if ((remove.length || rename.length) && !await ask1('항목 지우기 · 이름 바꾸기', '이대로 저장', false, [remove.length ? `지울 항목 ${remove.length}: ${remove.join(' · ')}` : '', rename.length ? `이름 바꿀 항목 ${rename.length}: ${rename.map((x) => x.from + ' → ' + x.to).join(' · ')}` : '', changed.length ? `고친 항목 ${changed.length}` : ''].filter(Boolean).join('\n') + '\n\n이대로 저장한다')) return
   e.busy = true
@@ -3763,6 +3821,42 @@ async function svGo() {
   render()
 }
 function svClose() { if (S.sv && !S.sv.busy) { S.sv = null; render() } }
+// ───────────── 넣을 것의 저장 제안 창(지식 생성 하네스 H6 · 설계 8-4) ─────────────
+//   화면으로 올린 파일 · 글은 Claude 가 지은 뒤 바로 들어가지 않는다. 이 창에서 저장 제안을 보고 [넣기] 가 승인이다(경고를 받아들인다) · [버리기] 는 올린 것을 버린다
+async function akOpen(k, job) {
+  S.ak = { k, job, d: null, busy: true, err: null }
+  render()
+  try { S.ak.d = await getJSON(`/api/k/${encodeURIComponent(k)}/intake/${encodeURIComponent(job)}/ask`) } catch (e) { if (S.ak) S.ak.err = e }
+  if (S.ak) S.ak.busy = false
+  render()
+}
+function akClose() { if (S.ak && !S.ak.busy) { S.ak = null; render() } }
+async function akGo() {
+  const w = S.ak
+  if (!w || w.busy || !w.d) return
+  w.busy = true; w.err = null; render()
+  try {
+    const r = await postJSON(`/api/k/${encodeURIComponent(w.k)}/intake/${encodeURIComponent(w.job)}/approve`, {})
+    S.ak = null
+    forgetKn(w.k)
+    toast(r.again ? `<b>다시 짓는다</b> · ${esc(r.why || '그사이 지식이 바뀌었다')}` : '<b>넣었다</b> · 기록과 항목 글이 한 번에 들어갔다', r.again ? 9000 : 0)
+    pollRuns()
+  } catch (e) { w.busy = false; w.err = e }
+  render()
+}
+async function akDrop() {
+  const w = S.ak
+  if (!w || w.busy) return
+  if (!(await ask({ t: '저장 제안 버리기', d: '올린 것을 넣지 않고 버린다. 지식에는 아무것도 쓰지 않는다', ok: '버리기', danger: true }))) return
+  w.busy = true; render()
+  try { await postJSON(`/api/k/${encodeURIComponent(w.k)}/intake/${encodeURIComponent(w.job)}/discard`, {}); S.ak = null; toast('버렸다. 지식에는 아무것도 쓰지 않았다'); pollRuns() } catch (e) { w.busy = false; w.err = e }
+  render()
+}
+function akHtml() {
+  const w = S.ak, d = w.d, n = KN(w.k)
+  const body = !d ? (w.err ? '' : loadingHtml) : d.items.map((x, i) => `${d.items.length > 1 ? `<div class="small muted" data-t="akNo">묶음 ${i + 1} / ${d.items.length}</div>` : ''}${x.warnings.length ? `<div class="callout warn" data-t="akWarn"><div><b>경고 ${x.warnings.length}</b>${x.warnings.map((y) => `<div class="small">${esc(y.at)}: ${esc(y.why)}</div>`).join('')}</div></div>` : ''}<pre class="cfpre" data-t="akText">${esc(x.text)}</pre>`).join('')
+  return `<div class="scrim fix" data-a="akClose" data-self="1"${w.busy ? ' data-busy="1"' : ''}><div class="modal w560" role="dialog" aria-modal="true" aria-label="저장 제안" data-t="akWin"><div class="mh">저장 제안 <small>${esc(n ? n.name : w.k)}${d ? ` · ${esc(d.title)}` : ''}</small><button type="button" class="x" data-a="akClose" title="닫기" aria-label="닫기">×</button></div><div class="mb" aria-busy="${!!w.busy}">${body}${w.err ? formErr(w.err, 'akErr') : ''}</div><div class="mf"><span class="acts"><button type="button" class="btn" data-a="akClose" data-t="akCancel"${w.busy ? ' disabled' : ''}>취소</button><button type="button" class="btn danger" data-a="akDrop" data-t="akDrop"${w.busy || !d ? ' disabled' : ''}>버리기</button><button type="button" class="btn pri" data-a="akGo" data-t="akGo"${w.busy || !d ? ' disabled' : ''}>${w.busy && d ? '넣는 중…' : '넣기'}</button></span></div></div></div>`
+}
 const SV_KIND = { 고침: '고침', 신설: '새 항목', 잇기: '글 그대로' }
 // 새로 세운 것의 갈래 말 — 기록 칸(저장 꼴)의 「이름」 은 장부에 오른 새 항목 · 「항목」 은 문서에 선 새 머리
 const FRESH_KIND = { 이름: '항목(장부)', 항목: '항목(문서)' }
@@ -5196,6 +5290,8 @@ function impActs(j, small = true) {
   const o = []
   if (j.kind === 'local') { if (j.imp && j.imp.many && !j.fin && !j.imp.stop) o.push(`<button class="btn${sm}" data-a="impStop" data-v="${esc(j.imp.id)}" data-t="impStop">그만두기</button>`) }
   // 실패 일감(무인 들이기가 끝내 못 넘었다 · 지식에는 아무것도 쓰지 않았다) — 지식관리자: 「다시 시도」 · 「그만두기」(원천을 버린다)
+  // 승인 대기(H6) — 올린 것을 Claude 가 지어 저장 제안으로 세웠다: 올린 사람 · 지식관리자가 보고 [넣기]
+  else if ((j.kind === 'intake' || j.intake) && j.ask) { if (admKn(j.kn) || j.by === S.me.user) o.push(`<button class="btn${sm} pri" data-a="akOpen" data-k="${esc(j.kn)}" data-j="${esc(j.askJob)}" data-t="akOpen" title="Claude 가 지은 저장 제안을 보고 넣는다">저장 제안</button>`) }
   else if ((j.kind === 'intake' || j.intake) && j.failed) { if (admKn(j.kn)) o.push(b('retry', '다시 시도'), b('drop', '그만두기', ' dz')) }
   else if (j.kind === 'intake') { if (j.state === 'wait') o.push(b('cancel', '빼기', ' dz')) }
   else if (j.intake) { if (j.state === 'wait') o.push(b('cancel', '빼기', ' dz')); else if (j.state === 'run') o.push(b('cancel', '그만두기', ' dz')); else if (j.state === 'fail') o.push(b('cancel', '줄에서 빼기(기록은 남는다)', ' dz')) }
@@ -5421,11 +5517,11 @@ async function qAct(id, act) {
   const j = impJobs().find((x) => x.id === id)
   if (!j) return
   if (act === 'cancel' && isRun(j) && !await ask1('이 일 그만두기', '그만두기', true, j.intake ? `「${j.title}」 을 그만둘까?\n\n팀 일꾼이 짓던 것은 넣지 않고 닫는다. 기록도 남기지 않는다 · 다시 넣으려면 파일을 다시 넣는다` : `「${j.title}」 을 그만둘까?\n\n지금 「${STG[Math.min(j.stage, STG_LAST)]}」 단계를 바로 끊고 일을 끝낸다. 이어서는 할 수 없다(잠깐 멈추려면 [잠깐 멈춤]) · 끝난 단계의 결과(남긴 기록)는 그대로 남는다`)) return
-  if (act === 'drop' && !await ask1('실패 일감 그만두기', '그만두기', true, `「${j.title}」 을 그만둘까?\n\n넣으려던 원천을 버린다. 지식에는 아무것도 쓰지 않았다 · 다시 넣으려면 원본을 다시 넣는다`)) return
+  if (act === 'drop' && !await ask1('실패 일감 그만두기', '그만두기', true, `「${j.title}」 을 그만둘까?\n\n넣으려던 것을 버린다. 지식에는 아무것도 쓰지 않았다 · 다시 넣으려면 원본을 다시 넣는다`)) return
   if (act === 'force' && !await ask1('그대로 맞추기', '그대로 맞추기', true, `「${j.title}」 을 그대로 맞출까?\n\n${j.msg}\n\n크게 바뀜 문턱을 넘어 원본대로 쓴다. 쓴 것은 「이력」 에서 되돌릴 수 있다`)) return
   try {
     const r = await postJSON(`/api/queue/${encodeURIComponent(id)}/${act}`, {})
-    toast({ drop: '그만뒀다: 원천을 버렸다', pause: '지금 단계를 마치면 멈춘다', resume: '이어 간다', cancel: j.state === 'check' ? '건너뛰었다. 다음 정한 때에 다시 본다' : j.state === 'wait' ? '줄에서 뺐다' : r && r.state === 'pausing' ? '그만두는 중: 팀 일꾼이 지금 초안을 마치면 넣지 않고 닫는다' : '그만뒀다', retry: j.failed ? '다시 시도한다: 팀 일꾼이 처음부터 다시 짓는다' : '다시: 그 단계부터 줄 뒤에 섰다', force: '그대로 맞춘다. 새 일로 섰다', top: '기다림 맨 앞으로' }[act] || '했다')
+    toast({ drop: '그만뒀다: 넣으려던 것을 버렸다', pause: '지금 단계를 마치면 멈춘다', resume: '이어 간다', cancel: j.state === 'check' ? '건너뛰었다. 다음 정한 때에 다시 본다' : j.state === 'wait' ? '줄에서 뺐다' : r && r.state === 'pausing' ? '그만두는 중: 팀 일꾼이 지금 초안을 마치면 넣지 않고 닫는다' : '그만뒀다', retry: j.failed ? '다시 시도한다: 팀 일꾼이 처음부터 다시 짓는다' : '다시: 그 단계부터 줄 뒤에 섰다', force: '그대로 맞춘다. 새 일로 섰다', top: '기다림 맨 앞으로' }[act] || '했다')
     if (r && r.again) S.impSel = `src:${j.kn}|${j.src || ''}`
   } catch (e) { toastErr(e) }
   pollRuns()
@@ -7380,6 +7476,11 @@ const ACT = {
   svGo: () => svGo(),
   sendEx: (el) => { const r = el.dataset.r, at = el.dataset.v; S.sendEx = S.sendEx || {}; const xs = S.sendEx[r] || []; S.sendEx[r] = xs.includes(at) ? xs.filter((x) => x !== at) : [...xs, at]; render() },
   svClose: () => svClose(),
+  handAct: (el) => handAct(el.dataset.k, el.dataset.id, el.dataset.v),
+  akOpen: (el) => akOpen(el.dataset.k, el.dataset.j),
+  akClose: () => akClose(),
+  akGo: () => akGo(),
+  akDrop: () => akDrop(),
   svRaw: () => { if (S.sv) { S.sv.raw = !S.sv.raw; render() } },
   recFixClose: () => { if (S.recFix && !S.recFix.busy) { S.recFix = null; render() } },
   recFixSave: () => recFixSave(),
@@ -7387,6 +7488,10 @@ const ACT = {
   itemFilt: (el) => { S.ifilt[el.dataset.v] = !S.ifilt[el.dataset.v]; render() },
   foldKind: (el) => { const kd = el.dataset.v; S.kfold[kd] = !kindFolded(S.route.kn, kd); render() },
   moreTables: () => { S.tablesAll = true; render() },
+  // 장부 고침(H7 · H-O12) — 까닭 한 줄을 받고 저장 문의 system 걸음으로(이력에 남는다 · 줄은 지우지 않는다)
+  lgRetire: (el) => ledgerDo(el.dataset.k, el.dataset.c, 'retire'),
+  lgMerge: (el) => ledgerDo(el.dataset.k, el.dataset.c, 'merge'),
+  lgUnalias: (el) => ledgerDo(el.dataset.k, el.dataset.c, 'unalias', el.dataset.al),
   itemToDoc: (el) => { const it = itemByKey(el.dataset.k, el.dataset.n); if (it && it.doc) openDocAt(el.dataset.k, it.doc, it.sec, null, 'docs') },
   openGraph: (el) => { S.gPop = false; Object.assign(S.g, { kn: S.route.kn, sel: el.dataset.n, open: [], cur: el.dataset.n }); setView('graph') },
   gSet: (el) => {

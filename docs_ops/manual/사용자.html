@@ -86,7 +86,7 @@
 <tr><td><span class="m-role r-admin">총괄 관리자</span></td><td>모든 지식의 지식관리자 + 사람 · 팀 지식 세우기 · 백업 · Claude 연결</td><td>같다</td></tr>
 </table></div>
 <figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>문서 · 고치기</span></div><div class="m-pic"><img src="img/t-edit.png" alt="고치는 창: 항목 글을 고치고 저장" loading="lazy"></div></div>
-<figcaption>[고치기] 를 누르면 문서가 고치는 창이 된다. [저장] 하면 저장 확인 창이 뜬다. [항목 더하기] · 지식관리자는 「## 」 줄을 지우면 항목 지우기 · 「## 」 줄만 고치면 이름 바꾸기(저장 전에 한 번 묻는다).</figcaption></figure>
+<figcaption>[고치기] 를 누르면 문서가 고치는 창이 된다. 글을 고치고 [저장] 하면 고친 글이 그대로 들어가지 않고 <b>넣을 것</b>으로 올라간다: Claude 가 지식의 규칙에 맞게 지어 저장 제안으로 세우고, 생성 › 진행에서 [저장 제안] 을 보고 [넣기] 해야 들어간다(그때까지 문서는 그대로다). 지식관리자는 「## 」 줄을 지우면 항목 지우기 · 「## 」 줄만 고치면 이름 바꾸기(글 고침과 따로 저장한다 · 저장 전에 한 번 묻는다).</figcaption></figure>
 <h3 id="propose">저장 확인: 저장 제안을 보고 넣기</h3>
 <p>지식은 늘 <b>승인 저장</b>이라 고친 글을 바로 쓰지 않는다. [저장] 을 누르면 kmd 가 무엇이 어떻게 들어갈지 <b>저장 제안</b>을 짓고(아직 아무것도 쓰지 않는다) 「저장 확인」 창에 보인다.</p>
 <figure class="m-shot"><div class="m-frame"><div class="m-bar"><i></i><i></i><i></i><span>문서 · 고치기 › 저장 › 저장 확인</span></div><div class="m-pic"><img src="img/t-propose.png" alt="저장 확인 창: 항목마다 바뀐 줄 · 바뀐 것 · 까닭 · 경고 · 넣기" loading="lazy"></div></div></figure>
@@ -118,6 +118,8 @@
 <figcaption>쓰기 자리 사람의 화면. 잉크 기둥 자리 줄에 「쓰기」 칩이 보이고, 고친 것은 저장 확인 창에서 [넣기] 하면 들어간다.</figcaption></figure>
 <div class="m-note m-tip"><b>문서에 넣는 글의 기준</b><p>본문에는 확정된 지식만 쓴다. 회의 경위 · 초안 · 「언제 누가 바꿨나」 는 기록과 이력에 남고, 출처 줄은 kmd 가 문서 끝 「참고」 에 단다. 링크는 문서(<code>x.md</code>) · 항목(<code>x.md#머리</code>) · 바깥(<code>https://…</code>) 셋만.</p></div>
 
+<h3 id="ask">넣을 것은 승인 대기를 거친다</h3>
+<p>화면으로 올린 파일 · 글 · 고친 글은 <b>넣을 것</b>(원천)이다. 팀 일꾼의 Claude Code 가 읽고 지식에 맞게 지은 뒤 바로 넣지 않고 <b>승인 대기</b>로 세운다. 생성 › 진행의 그 줄에서 [저장 제안] 을 누르면 무엇이 어디에 어떻게 들어갈지(경고 포함)가 보이고, [넣기] 가 승인이다(경고를 받아들인다). [버리기] 는 올린 것을 버린다(지식에는 아무것도 쓰지 않는다). 올린 사람과 그 지식의 지식관리자만 보고 누를 수 있다. 세운 뒤 지식이 바뀌어 제안이 맞지 않으면 [넣기] 때 다시 짓는다. 가져올 곳(자동수집)이 들이는 것은 사람이 올린 것이 아니라 승인 없이 들어간다.</p>
 <h2 id="import"><span class="m-no">6</span>생성: 수기수집(파일 · 폴더 넣기)</h2>
 <p>잉크 기둥 지식 메뉴의 <b>생성</b>(고른 지식에 쓰기 자리가 있을 때). 탭 둘: <b>수기수집</b>(끌어다 놓기 판 · [파일] [폴더] [글]) · <b>자동수집</b>(가져올 곳 · 더하기는 지식관리자). 아래 <b>진행</b>에 도는 일 · 끝난 일. 넣는 곳은 잉크 기둥에서 고른 지식이다. 빈 지식이면 판 위에 「빈 지식이다 · 폴더째라면 [기초 세우기]」(지식관리자)가 선다.</p>
 <div class="m-flow"><div class="m-st m-hi"><b>1 수집</b><small>받기 · 글로 바꾸기</small></div><span class="m-ar">›</span><div class="m-st"><b>2 검토</b><small>같은 파일 · 크기 확인</small></div><span class="m-ar">›</span><div class="m-st m-pd"><b>3 짓기</b><small>팀 일꾼이 기록 + 문서를 짓는다</small></div><span class="m-ar">›</span><div class="m-st m-ok"><b>4 넣기</b><small>저장 한 번 · 이력에 남는다</small></div></div>

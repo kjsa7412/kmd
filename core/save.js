@@ -44,7 +44,7 @@ import { parseVocab } from './vocab.js'
 import { ensureRepo, commitPaths, headSha } from './git.js'
 import { begin, recover, writeAtomic } from './journal.js'
 import { watchedOf } from './watchmark.js'
-import { upsertVocab, upsertRegistry, cleanNames, upsertPatternRow, upsertForms, formsAfter, formsText, cleanForms, cleanNatures, placeExact, ledgerOps } from './namebook.js'
+import { upsertVocab, upsertRegistry, cleanNames, upsertPatternRow, upsertForms, formsAfter, formsText, cleanForms, cleanNatures, placeExact, ledgerOps, dropRegistryRows, dropFormRows, dropNatureRows } from './namebook.js'
 import { guardRecord, guardNames, guardNewDoc, formsOf, EMPTY_MAX } from './guard.js'
 import { valuesOf, valueDiff, sameValues } from './values.js'
 import { renderPut, renderAccepted, renderValues, renderLinked, renderFresh, renderJudge, KMD_PART_RE } from './parts.js'
@@ -285,7 +285,7 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
       prep = (await prepare()) || {}
       // 같은 저장(S-D16 · S-D48) — 아무것도 쓰지 않는다
       //   무인 채널(P6)의 판정 오류 — 아무것도 쓰지 않고 오류를 돌려준다(부른 쪽이 FIX 고리 · 규칙 길로)
-      if (prep.abort) return { same: !!prep.abort.same, id: prep.abort.id ?? null, ...(Array.isArray(prep.abort.errors) ? { errors: prep.abort.errors } : {}) }
+      if (prep.abort) return { same: !!prep.abort.same, id: prep.abort.id ?? null, ...(Array.isArray(prep.abort.errors) ? { errors: prep.abort.errors } : {}), ...(prep.abort.ask ? { ask: prep.abort.ask } : {}) }
       if (prep.sections != null) {
         const g = guardSections(sectionShape(prep.sections, { many: !system }), { system, structure })
         secs = g.secs
@@ -432,12 +432,20 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
   let regNext = names.length ? upsertRegistry(regRaw || '', names) : regRaw || ''
   let vocNext = names.length ? upsertVocab(vocRaw || '', names) : vocRaw || ''
   // 장부 고침(H7) — system 저장만: 폐기 · 합치기 · 별칭 빼기. 걸음 하나라도 틀리면 아무것도 쓰지 않는다
-  if (system && ledger.length) {
-    const lo = ledgerOps(vocNext, ledger)
+  // 장부 줄 걷기(되돌림 · H-D24) — 문서 장부 줄(unplace) · 갈래 줄(unform) · 문서 성격 줄(unnature)은 아래 regNext · formNext 에서 걷는다
+  const LEDGER_DROP = ['unplace', 'unform', 'unnature']
+  const ledgerV = system ? ledger.filter((o) => !LEDGER_DROP.includes(o?.op)) : []
+  const ledgerD = system ? ledger.filter((o) => LEDGER_DROP.includes(o?.op)) : []
+  if (system && ledgerV.length) {
+    const lo = ledgerOps(vocNext, ledgerV)
     if (lo.errors.length) throw new KmdError('E_INPUT', lo.errors.slice(0, 3).join(' · '))
     vocNext = lo.text
   }
-  const formNext = formsText(formRaw, formsIn, naturesIn)
+  let formNext = formsText(formRaw, formsIn, naturesIn)
+  if (ledgerD.length) {
+    regNext = dropRegistryRows(regNext, ledgerD.filter((o) => o.op === 'unplace').map((o) => o.coord))
+    formNext = dropNatureRows(dropFormRows(formNext, ledgerD.filter((o) => o.op === 'unform').map((o) => o.name)), ledgerD.filter((o) => o.op === 'unnature').map((o) => o.doc))
+  }
   const vocab = parseVocab(vocNext)
   const forms = formsAfter(formRaw, formsIn, naturesIn) // 제안과 같은 함수(H-D14)
   const date = r.date || localStamp(now)
