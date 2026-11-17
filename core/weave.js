@@ -224,6 +224,7 @@ export function inputFromItems(k, input = {}) {
   const lines = []
   const bodies = []
   const judges = []
+  let firstDiff = 0 // 첫 겹의 답(성격 · 씨앗 종류)과 최종 답이 다른 수(측정만 · 설계 9-1)
   for (const it of items.slice(0, ITEMS_MAX)) {
     const act = ['edit', 'new', 'same'].includes(it.act) ? it.act : null
     let doc = typeof it.doc === 'string' ? it.doc : ''
@@ -247,6 +248,7 @@ export function inputFromItems(k, input = {}) {
     lines.push({ doc, heading: nfc(heading.trim()).replace(/^#{1,6}\s+/, ''), act, kind: it.kind, kindGist: it.kindGist, id: it.id, gist: it.gist, aliases: it.aliases, nature: it.nature })
     bodies.push(act === 'same' ? null : { ...(it.base ? { base: String(it.base) } : {}), ...(Array.isArray(it.edits) && it.edits.length ? { edits: it.edits } : { content: it.content }) })
     judges.push(it.judge || null)
+    if (it.first && typeof it.first === 'object' && ((it.first.nature && it.nature && it.first.nature !== it.nature) || (it.first.kind && it.kind && it.first.kind !== it.kind))) firstDiff++
   }
   const w = weave(k, { lines, docs: docsIn.map((d) => ({ path: d.path, nature: d.nature, summary: d.summary, gather: d.gather, depart: stanceIn(d.judge, 'depart') })) })
   errors.push(...w.errors)
@@ -277,6 +279,7 @@ export function inputFromItems(k, input = {}) {
   for (const s of skip) judge.push(`뺌 ${s.what}: ${s.rule || '조문 적지 않음'}${s.why ? ` · ${s.why}` : ''}`)
   // 기록 — 건드린 항목은 엮기가 지은 것과 합친다 · 근거 날짜(asOf · 넣을 것이 말하는 때)는 근거 칸의 한 줄로
   const rec = input.record && typeof input.record === 'object' && !Array.isArray(input.record) ? { ...input.record } : input.record
+  const asof = rec && typeof rec === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(String(rec.asOf || '').trim()) ? 'yes' : 'unknown'
   if (rec && typeof rec === 'object') {
     const touches = [...new Set([...(Array.isArray(rec.touches) ? rec.touches : []), ...w.touches])]
     if (touches.length) { rec.touches = touches; delete rec.touchesEmpty }
@@ -292,5 +295,5 @@ export function inputFromItems(k, input = {}) {
   const out = { ...rest, record: rec, sections, ...(w.names.length ? { names: w.names } : {}), ...(w.forms.length ? { forms: w.forms } : {}), ...(w.natures.length ? { natures: w.natures } : {}), ...(depart.length ? { depart } : {}), ...(distinct.length ? { distinct: [...new Set(distinct.map(String))] } : {}), ...(judge.length ? { judge } : {}) }
   // 쓸 것이 없다 — 모두 뺌이거나 모두 그대로(R6-3 · H-D26): 아무것도 쓰지 않고 잰다
   const empty = !sections.length && !w.names.length && !w.forms.length && !w.natures.length && (skip.length > 0 || acts.same > 0)
-  return { input: out, errors, skip, acts, fold: w.fold, skipped: w.skipped, miss, empty, stances }
+  return { input: out, errors, skip, acts, fold: w.fold, skipped: w.skipped, miss, empty, stances, asof, first: firstDiff, kinds: w.kinds.map((x) => x.name) }
 }

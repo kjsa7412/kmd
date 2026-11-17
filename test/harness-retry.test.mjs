@@ -8,6 +8,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
@@ -21,7 +22,7 @@ const KD = () => path.join(tmp, 'kn', 'dpms')
 // 지식에 쓴 것을 본다 — 커밋 수(저장소가 아직 없으면 0) + 기록 수
 const commits = () => (fs.existsSync(path.join(KD(), '.git')) ? Number(execFileSync('git', ['rev-list', '--count', 'HEAD'], { cwd: KD(), encoding: 'utf8' }).trim()) : 0) * 1000 + fs.readdirSync(path.join(KD(), 'work')).length
 const jobs = () => s.hub.intakesOf('dpms')
-const open = (name, md = '# 메모\n\n## 원격 명령\n\n펄스 길이는 300ms 다.\n') => s.hub.openJob('dpms', { type: 'file', by: 'kim', src: { rel: name, file: name, title: name, sha: 'a'.repeat(16) }, md })
+const open = (name, md = '# 메모\n\n## 원격 명령\n\n펄스 길이는 300ms 다.\n') => s.hub.openJob('dpms', { type: 'file', by: 'kim', src: { rel: name, file: name, title: name, sha: createHash('sha256').update(name).digest('hex').slice(0, 16) }, md }) // 지문은 원천마다 다르게(같은 지문의 다른 경로는 「같은 것」 으로 가려진다 · H4c-2)
 const withEnv = async (k, v, f) => { const old = process.env[k]; if (v == null) delete process.env[k]; else process.env[k] = v; try { return await f() } finally { if (old == null) delete process.env[k]; else process.env[k] = old } }
 const idle = (f) => withEnv('FAKE_AGENT_MODE', 'idle', f) // 가짜 세션이 아무것도 넣지 않고 끝낸다
 const work = () => workOnce({ server: s.url, key: wk, log: () => {} })
