@@ -93,6 +93,7 @@ async function cmdStatus(pack, o) {
 export async function main(argv) {
   const { pos, o } = args(argv)
   const [cmd, a, b, c] = pos
+  if (cmd === 'rules') { const { genRulesBlock } = await import('../core/genrules.js'); console.log(genRulesBlock({ profile: 'shape' })); return }
   if (cmd === 'survey' && a) return cmdSurvey(a, o)
   if (cmd === 'text' && a && b && c) return cmdText(a, b, c)
   if (cmd === 'prompt' && a && b) return cmdPrompt(a, b, c, o)

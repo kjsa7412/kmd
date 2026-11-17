@@ -377,12 +377,12 @@ export function guardNewDoc(forms, docRel, headings = [], { intake = false, depa
     const bad = !name.trim() || name.length > 40
     return { errors: bad ? [{ code: 'E_INPUT', form: INTAKE_FORM, message: `「${INTAKE_FORM}」 문서 이름은 40자 안의 주제다` }] : [], form: { name: INTAKE_FORM, kind: '서술', fixed: true } }
   }
-  if (FILEISH.some((re) => re.test(name))) errors.push({ code: 'E_INPUT', message: `새 문서 이름 「${name}」 에 파일 이름 조각(날짜 · 판 · 최종 · 확장자)이 있다. 문서 이름은 갈래 · 주제로 짓는다(예: 회의록 · 게이트웨이 설계)` })
-  if (name.length > 40) errors.push({ code: 'E_INPUT', message: `새 문서 이름이 너무 길다(40자 안). 문서 이름은 갈래 · 주제다` })
+  if (FILEISH.some((re) => re.test(name))) errors.push({ code: 'E_INPUT', message: `새 문서 이름 「${name}」 에 파일 이름 조각(날짜 · 판 · 최종 · 확장자)이 있다. 문서 이름은 갈래 · 주제로 짓는다(예: 회의록 · 게이트웨이 설계 · 생성 룰 R3-6)` })
+  if (name.length > 40) errors.push({ code: 'E_INPUT', message: `새 문서 이름이 너무 길다(40자 안). 문서 이름은 갈래 · 주제다(생성 룰 R3-6)` })
   const f0 = formFor(forms, name)
   const f = f0 && depart && norm(f0.name) !== norm(name) ? null : f0
-  if (f && norm(f.name) !== norm(name)) errors.push({ code: 'E_INPUT', form: f.name, message: `「${name}」 은 「${f.name}」 갈래다. 새 문서를 세우지 않고 「${f.name}」 문서에 항목(「언제 · 무엇」)으로 넣는다` })
-  if (!f && forms.closed && !depart) errors.push({ code: 'E_INPUT', message: `「${name}」 은 갈래 장부에 없는 문서다(이 지식은 새 문서가 닫음이다). 있는 갈래(${forms.rows.map((x) => x.name).slice(0, 8).join(' · ')}${forms.rows.length > 8 ? ' …' : ''}) 문서에 넣거나, 같은 저장 제안에 새 갈래 줄(forms)을 실어 세운다` })
+  if (f && norm(f.name) !== norm(name)) errors.push({ code: 'E_INPUT', form: f.name, message: `「${name}」 은 「${f.name}」 갈래다. 새 문서를 세우지 않고 「${f.name}」 문서에 항목(「언제 · 무엇」)으로 넣는다(생성 룰 R3-2: 같은 성격을 모으는 문서는 하나로 둔다)` })
+  if (!f && forms.closed && !depart) errors.push({ code: 'E_INPUT', message: `「${name}」 은 갈래 장부에 없는 문서다(이 지식은 새 문서가 닫음이다 · 생성 룰 R3-4). 있는 갈래(${forms.rows.map((x) => x.name).slice(0, 8).join(' · ')}${forms.rows.length > 8 ? ' …' : ''}) 문서에 넣거나, 같은 저장 제안에 새 갈래 줄(forms)을 실어 세운다` })
   if (f && f.folder && folder !== f.folder) errors.push({ code: 'E_INPUT', form: f.name, message: `「${f.name}」 갈래 문서는 「${f.folder}/」 폴더에 둔다` })
   if (f) {
     const bad = headings.filter((h) => !headingFits(f, h))

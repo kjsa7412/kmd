@@ -9,6 +9,7 @@
 //   판     덩이 표지의 v · 스킬 파일의 지문 — 지금 판과 다르면 「옛 판」 · 없으면 「없음」
 //   목록   이 PC 의 붙인 폴더는 <data>/agent.json
 
+import { genRulesBlock } from './genrules.js'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import crypto from 'node:crypto'
@@ -23,8 +24,9 @@ export const SKILLS = ['kmd-work', 'kmd-save', 'kmd-build']
 //   스킬 글의 자리표 {{KIT_REV}} 를 이 값으로 바꿔 싣는다 → 세션이 MCP save 에 kit 으로 싣는다 →
 //   저장 측정 줄(savelog)에 싣는다(옛 판 안내 reinstall · nokit 은 P11 · PC6 에서 걷었다)
 //   kmd-build 는 kmd 가 띄운 넣기 에이전트도 읽으므로(hub.agentTask · 그대로 읽는다) 자리표를 두지 않는다
-export const PC_KIT_REV = 5
-const withRev = (t) => t.replace(/\{\{KIT_REV\}\}/g, String(PC_KIT_REV))
+export const PC_KIT_REV = 6
+//   자리표 {{GEN_RULES}} — 사람 세션용 생성 룰 덩이(core/genrules.js · H5): 스킬 글이 자리 · 종류 규칙을 따로 적지 않는다
+const withRev = (t) => t.replace(/\{\{KIT_REV\}\}/g, String(PC_KIT_REV)).replace(/\{\{GEN_RULES\}\}/g, () => genRulesBlock({ profile: 'session' }))
 const BEGIN = /<!--\s*kmd:begin(?:\s+v=(\S+))?\s*-->/
 const END = /<!--\s*kmd:end\s*-->/
 

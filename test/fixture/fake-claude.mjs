@@ -101,6 +101,9 @@ const streamFor = (ms) => new Promise((ok) => {
 })
 if (!SESSION) process.stdin.on('end', () => (Number(process.env.FAKE_CLAUDE_STREAM_MS) ? streamFor(Number(process.env.FAKE_CLAUDE_STREAM_MS)).then(answer) : answer()))
 function answer() {
+  // 일 설명 끝의 생성 룰 덩이(H5)는 재료가 아니다 — 있는지만 보고 떼고 읽는다
+  const RULES_TAIL = prompt.indexOf('아래는 이 일에 같이 따르는 고정 생성 룰이다')
+  if (RULES_TAIL > 0) prompt = prompt.slice(0, RULES_TAIL).trimEnd()
   if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, `call${args.includes('--model') ? ' ' + val('--model') : ''}\n`)
   const ok = args.includes('-p') && val('--tools') === 'Read,Glob,Grep' && val('--permission-mode') === 'dontAsk' && args.includes('--strict-mcp-config') && JSON.parse(fs.readFileSync(val('--mcp-config'), 'utf8')).mcpServers && val('--json-schema') && fs.readdirSync(process.cwd()).length === 0
   if (!ok) return say({ is_error: true, subtype: 'error', result: '가짜 claude: 도구 0 · 빈 MCP · 스키마 · 빈 폴더를 지키지 않았다' })

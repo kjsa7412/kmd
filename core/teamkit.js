@@ -16,6 +16,7 @@
 //
 // 판단(표 읽기 · 덩이 만들기 · 옛 덩이 보기)은 여기(서버) · PC 의 스크립트는 파일을 읽고 쓰기만 한다.
 
+import { genRulesBlock } from './genrules.js'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import crypto from 'node:crypto'
@@ -29,8 +30,8 @@ export const OLD_SKILLS = ['kmd-work', 'kmd-save', 'kmd-build']
 // 스킬 판(S-D15) — 팀 스킬 글 · 팀 덩이 · 작성가이드를 고치면 하나 올린다(test/teamkit.test.mjs 의 판 표가 잊으면 실패한다).
 //   스킬 글의 자리표 {{KIT_REV}} 를 이 값으로 바꿔 싣는다 → 세션이 MCP save 에 kit 으로 싣는다 →
 //   저장 측정 줄(savelog)에 싣는다(옛 판 안내 reinstall · nokit 은 P11 에서 걷었다)
-export const TEAM_KIT_REV = 11
-const withRev = (t) => t.replace(/\{\{KIT_REV\}\}/g, String(TEAM_KIT_REV))
+export const TEAM_KIT_REV = 12
+const withRev = (t) => t.replace(/\{\{KIT_REV\}\}/g, String(TEAM_KIT_REV)).replace(/\{\{GEN_RULES\}\}/g, () => genRulesBlock({ profile: 'session' }))
 
 export async function teamKitParts() {
   const skills = []

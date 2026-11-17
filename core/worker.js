@@ -13,6 +13,7 @@
 //   옛 이름 KMD_TIDY_PAR · _JOBS · _TICK_MS · _BUDGET · _EFFORT 도 뒤 순서로 읽는다(188 의 worker.env · S-D38)
 
 import { runClaude } from './claude.js'
+import { genRulesBlock } from './genrules.js'
 import { INTAKE_SCHEMA, intakePromptOf, intakeFixPromptOf, POLISH_SCHEMA, polishPromptOf } from './ingest.js'
 import { FIX_SCHEMA, corrPromptOf, corrRetryPromptOf } from './fix.js'
 import { WRITE_RULES } from './writerules.js'
@@ -146,7 +147,7 @@ export async function intakeOnce({ server, key, job, dkey, log = () => {}, budge
     let r
     const t0 = Date.now()
     try {
-      r = await runClaude({ prompt, schema, budget, model, timeoutMs: timeoutOf(prompt), effort: EFFORT(), tickMs: TICK(), onTick: () => call(server, dkey, `${base}/progress`, { tick: true }).catch(gone) })
+      r = await runClaude({ prompt: `${prompt}\n\n아래는 이 일에 같이 따르는 고정 생성 룰이다(무엇이 항목인가 · 어디에 두나 · 성격 · 종류):\n${genRulesBlock({ profile: sseed || spl || swr ? 'shape' : 'send' })}`, schema, budget, model, timeoutMs: timeoutOf(prompt), effort: EFFORT(), tickMs: TICK(), onTick: () => call(server, dkey, `${base}/progress`, { tick: true }).catch(gone) })
     } finally { gate.give() }
     log(`${name}: ${r.error ? `초안을 받지 못했다(${r.error}${r.message ? ' · ' + String(r.message).slice(0, 80) : ''})` : '초안'} · ${Math.round((Date.now() - t0) / 1000)}초 · 보낸 글 ${prompt.length}자${r.model ? ` · ${r.model}` : ''}`)
     await call(server, dkey, `${base}/progress`, { end: true, ok: !r.error, why: r.error ? String(r.message || r.error).slice(0, 200) : null }).catch(gone)

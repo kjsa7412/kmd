@@ -712,7 +712,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const seen = n === 0 ? null : a.seen
       if (n === 0 && !plan) a.seen = sg.g.sources.map((x) => ({ doc: x.doc, h: x.h, base: x.base }))
       const prompt = plan ? (prev ? shapePlanFixPromptOf(sg.g, prev, fixWhy) : shapePlanPromptOf(sg.g)) : prev ? shapeWriteFixPromptOf(sg.g, prev, fixWhy, { writeRules: WRITE_RULES }) : shapeWritePromptOf(sg.g, { writeRules: WRITE_RULES })
-      const r = await runClaude({ prompt, schema: plan ? SHAPE_PLAN_SCHEMA : SHAPE_WRITE_SCHEMA, budget: Number(process.env.KMD_INGEST_BUDGET) > 0 ? Number(process.env.KMD_INGEST_BUDGET) : 1.0, model: hub.modelOf('ingest'), timeoutMs: 600_000 })
+      const r = await runClaude({ prompt: `${prompt}\n\n아래는 이 일에 같이 따르는 고정 생성 룰이다(무엇이 항목인가 · 어디에 두나 · 성격 · 종류):\n${genRulesBlock({ profile: 'shape' })}`, schema: plan ? SHAPE_PLAN_SCHEMA : SHAPE_WRITE_SCHEMA, budget: Number(process.env.KMD_INGEST_BUDGET) > 0 ? Number(process.env.KMD_INGEST_BUDGET) : 1.0, model: hub.modelOf('ingest'), timeoutMs: 600_000 })
       a.tries = n + 1
       if (!r.error) await hub.workerStatus({ worker: { id: null } }, { ok: true }).catch((e) => log('Claude 상태', e.message))
       if (a.state !== 'running') return a // 그만뒀다 — 받은 초안은 버린다
@@ -5511,7 +5511,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const token = hub.selfUrl ? hub.agentToken(id, null, null) : null
       let r
       try {
-        r = await runClaude({ prompt: token ? `${prompt}\n\n(kmd MCP 의 match · section · brief 로 이 지식의 지금 글 · 항목 장부 · 과거 결정을 직접 찾아 읽을 수 있다. 재료에 없는 것은 읽어 확인하고 답한다. 저장은 하지 않는다: 답은 스키마 한 덩이다.)` : prompt, schema, budget, model: hub.modelOf(role), ...(timeoutMs ? { timeoutMs } : {}), ...(token ? { mcp: { url: `${hub.selfUrl}/mcp`, token } } : {}) })
+        const tail = role === 'read' ? '' : `\n\n아래는 이 일에 같이 따르는 고정 생성 룰이다(무엇이 항목인가 · 어디에 두나 · 성격 · 종류):\n${genRulesBlock({ profile: 'send' })}`
+        r = await runClaude({ prompt: token ? `${prompt}\n\n(kmd MCP 의 match · section · brief 로 이 지식의 지금 글 · 항목 장부 · 과거 결정을 직접 찾아 읽을 수 있다. 재료에 없는 것은 읽어 확인하고 답한다. 저장은 하지 않는다: 답은 스키마 한 덩이다.)${tail}` : `${prompt}${tail}`, schema, budget, model: hub.modelOf(role), ...(timeoutMs ? { timeoutMs } : {}), ...(token ? { mcp: { url: `${hub.selfUrl}/mcp`, token } } : {}) })
       } finally {
         if (token) agentKeys.delete(token)
       }

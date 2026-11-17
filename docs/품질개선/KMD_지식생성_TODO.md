@@ -122,10 +122,8 @@
 
 ### H5 모든 채널이 같은 글
 
-- [ ] 세션 스킬(kmd-save · kmd-team-save · 대량 넣기)의 자리 정하기 규칙을 걷고 룰 자리표(`{{GEN_RULES}}`)와 조문 번호로. 스킬 판 올림.
-- [ ] MCP 설명 글 · `brief.rules` · 가드 오류 글을 조문 번호로. 낡은 말 시험.
-- [ ] 기초 세우기 · 짜임 다시 잡기의 판단 기준을 룰로 갈음(H-O14) · kmd-migrate 와 kmd-seed 에 `rules` 하위 명령.
-- [ ] 골든 셋의 채널 일치(무인과 세션 · 0.8).
+- [x] **H5 모든 채널이 같은 글**(이 커밋)**.** 세션 스킬(`kmd-save` · `kmd-team-save` · `kmd-team-import`)의 새 문서 · 자리 규칙 줄을 걷고 글 끝에 자리표 `{{GEN_RULES}}`(꾸러미가 사람 세션용 생성 룰 덩이로 바꿔 싣는다) · 스킬 판 올림(개인 6 · 팀 12) · `kmd-build` 의 「자리 정하기」 를 생성 룰 가리킴 한 줄로 · 가드 오류 글에 조문 번호(R3-2 · R3-4 · R3-6) · 스키마 답 세션(정정 · 다듬기 · 보내기 초안 · 짜임 구조안과 글 · 커밋 분석)의 일 설명 머리에 생성 룰 · `kmd-migrate` · `kmd-seed` 에 `rules` 하위 명령과 스킬 글의 한 절. 시험: `kit-area · teamkit · guard · genrules · worker · send · fix`. **남긴 것**: 기초 세우기의 세션 프롬프트(`seedFramePromptOf` · `seedBatchPromptOf` · `seedWriteSessionPromptOf`)에는 아직 싣지 않았다 · 낡은 말 시험은 넣지 않았다 · `brief.rules` 는 H3 의 `rulesRev` · `ruleTitles` 그대로다.
+- [ ] 골든 셋의 채널 일치(무인과 세션 · 0.8): 실제 Claude 평가는 H7 뒤 한 번에(빨리 가기).
 
 ### H6 사람이 직접 쓰는 채널 폐기 · 되돌림
 

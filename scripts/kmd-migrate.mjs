@@ -491,6 +491,7 @@ async function relog(dir, ids, o) {
 export async function main(argv) {
   const { pos, o } = args(argv)
   const [cmd, dir, a, b] = pos
+  if (cmd === 'rules') { const { genRulesBlock } = await import('../core/genrules.js'); console.log(genRulesBlock({ profile: 'migrate' })); return }
   if (cmd === 'scan' && dir) return scan(dir, o)
   if (cmd === 'trail' && dir && a && b) return trail(dir, a, b, o)
   if (cmd === 'rec' && dir && a) return rec(dir, a, o)
