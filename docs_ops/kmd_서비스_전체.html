@@ -875,7 +875,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <tr><td>고치기(기록)</td><td>팀 화면 기록 [고치기]</td><td>고친 기록 → 정정 기록(옛 값 → 새 값)</td><td>팀 서버 · 규칙(옛 값이 한 곳), 안 되면 팀 일꾼(팀 구독)</td><td>정정 기록 + 항목 글 · 들어간 항목이 없으면 건드린 항목 · 기록 모음 달 항목에 잇기</td></tr>
 <tr><td>파일 넣기(20개까지)</td><td>팀 화면</td><td>여러 꼴 파일</td><td>팀 서버 파서 · 팀 일꾼(팀 구독)</td><td>들이기 일감(파일마다 · 팀 일꾼이 기록 + 항목 글을 지어 저장 한 번)</td></tr>
 <tr><td>대량 넣기</td><td>Claude Code</td><td>여러 꼴 파일</td><td>내 PC 파서 <code>kmd-parse</code> · 내 구독</td><td>스킬 <code>kmd-team-import</code> → 파일마다 <code>propose</code> → 규칙 표 한 번 승인 → 팀 저장(파일마다 <code>proposal</code> · git 한 묶음)</td></tr>
-<tr><td>가져올 곳</td><td>시계(팀 서버)</td><td>문서 폴더 · git · DB</td><td>팀 서버 · 팀 일꾼</td><td>들이기 일감(파일 · 커밋 하나씩 · DB 표는 저절로 채우는 표 그대로)</td></tr>
+<tr><td>가져올 곳</td><td>시계(팀 서버)</td><td>문서 폴더 · git · DB</td><td>팀 서버 · 팀 일꾼</td><td>들이기 일감(파일 · 커밋 하나씩 · 바뀐 표는 원천 글로 지어 넘긴다 · 옛 설명: DB 표는 저절로 채우는 표 그대로)</td></tr>
 <tr><td>보내기</td><td>개인 프로그램</td><td>개인 md</td><td>내 PC · 내 구독</td><td><code>claude -p</code> 가 팀 <code>section</code> · 지문을 읽고 항목 글로 → 팀 지식은 보내기 확인 창(팀 저장 제안 · [보내기] = 팀 쪽 승인) → 팀 저장(<code>channel: send</code> · 글마다 한 번) · 공유 화면에 「넣음 n · 이미 넣음 n」</td></tr>
 </table></div>
 <p class="small muted">서버가 아는 채널 이름: 저장 <code>session · bulk · http · send · edit · fix</code> · 들이기 <code>intake-file · intake-commit · intake-src · intake-fix · polish</code>(<code>server/hub.js</code>). 저장 속도 한도는 저장 채널만 센다.</p>
