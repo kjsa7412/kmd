@@ -20,7 +20,7 @@ import { SEED_KINDS, NATURES, seedKind } from './genrules.js'
 export const CARD_BODY = 1500 // 글과 base 를 싣는 카드의 글 길이
 export const BODY_CARDS = 5 // 글을 싣는 카드 수(이름 맞음 · 비슷함 위에서부터)
 export const GIST_CARDS = 3 // 뜻(낱말)으로 싣는 카드 수
-export const ID_CARDS = 60 // 정체 카드 상한(넘으면 잘림으로 적는다 · 글을 싣는 것은 BODY_CARDS 뿐이라 카드 하나는 한두 줄이다)
+export const ID_CARDS = 120 // (2026-11-17 60 → 120: DPMS 의 recall 0.72 → 0.81 · 카드 글의 가운데 크기는 그대로 2만 7천 자 · 가장 큰 응답 4만 5천 자) · 정체 카드 상한(넘으면 잘림으로 적는다 · 글을 싣는 것은 BODY_CARDS 뿐이라 카드 하나는 한두 줄이다)
 export const DOC_CARDS = 8
 export const PRIOR_CARDS = 5
 export const TOC_MAX = 300 // 목차를 전부 싣는 지식의 머리 수
@@ -89,7 +89,7 @@ const recParts = (body, head) => {
 // 기록의 근거 날짜(H-D27 · `## 근거` 칸의 「근거 날짜: YYYY-MM-DD」 줄 · H4c 부터 선다) — 없으면 모름
 export const asOfOf = (w) => /근거 날짜\s*[:：]\s*(\d{4}-\d{2}-\d{2})/.exec(recParts(w?.body, '근거').join('\n'))?.[1] || null
 
-export function precedentsFor(k, { q = null, text = '' } = {}) {
+export function precedentsFor(k, { q = null, text = '', cap = null } = {}) {
   const T = tableOf(k)
   const terms = [...new Set([].concat(q || []).map((x) => String(x || '').trim()).filter(Boolean))]
   const src = nfc(String(text || ''))
@@ -144,8 +144,9 @@ export function precedentsFor(k, { q = null, text = '' } = {}) {
     for (const s of scored.slice(0, GIST_CARDS)) put(s.x, '낱말', 3)
   }
   const ranked = [...hits.values()].sort((a, b) => a.rank - b.rank || a.x.key.localeCompare(b.x.key))
-  const cut = ranked.length > ID_CARDS
-  const shown = ranked.slice(0, ID_CARDS)
+  const CAP = Number.isFinite(cap) || cap === Infinity ? cap : ID_CARDS // cap — 재기에서만 쓴다(상한 없이 「이름이 글에 있는 것」 을 센다)
+  const cut = ranked.length > CAP
+  const shown = ranked.slice(0, CAP)
   let bodies = 0
   const cards = shown.map(({ x, via: how, rank }) => {
     via[rank === 0 ? 'name' : rank === 1 ? 'near' : rank < 3 ? 'reverse' : 'gist']++ // 2.x 는 거꾸로 대기(뚜렷함으로 매긴 차례)
@@ -224,7 +225,7 @@ export function precedentsFor(k, { q = null, text = '' } = {}) {
   const coverage = {
     names: namesN, // 이름으로는 전수: 장부 값 · 라벨 · 별칭 · 장부 밖 머리 · 문서 제목을 다 댔다
     items: T.ids.length, outside: T.outside.length, docs: T.docs.length,
-    shown: idn, ...(cut ? { cut: ranked.length - ID_CARDS } : {}),
+    shown: idn, ...(cut ? { cut: ranked.length - CAP } : {}),
     gist: { shown: Math.min(GIST_CARDS, gistTotal), of: gistTotal, cut: gistTotal > GIST_CARDS },
     via,
     line: `이름으로는 전수 ${namesN} · 뜻으로는 상위 ${Math.min(GIST_CARDS, gistTotal)} / ${gistTotal}${gistTotal > GIST_CARDS || cut ? ' 잘림' : ''} · 맞춘 길: 이름 ${via.name} · 비슷함 ${via.near} · 원천에 나옴 ${via.reverse} · 낱말 ${via.gist}`,

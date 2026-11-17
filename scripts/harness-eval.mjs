@@ -133,7 +133,7 @@ export async function recallOf(k, { n = 300 } = {}) {
   const { resolveName } = await import('../core/guard.js')
   const strip = (body) => { const out = []; let skip = false; for (const l of String(body || '').split('\n')) { if (/^## /.test(l)) skip = KMD_PARTS.test(l); if (!skip) out.push(l) } return out.join('\n') }
   const works = k.works.filter((w) => (w.touches || []).length).slice(0, n)
-  let total = 0, hit = 0
+  let total = 0, hit = 0, named = 0
   const via = {}
   const miss = []
   for (const w of works) {
@@ -141,12 +141,16 @@ export async function recallOf(k, { n = 300 } = {}) {
     if (!want.length) continue
     const p = precedentsFor(k, { q: w.title, text: strip(w.body) })
     const cards = new Map(p.cards.filter((c) => c.type === '정체').map((c) => [c.key, c.via]))
+    // 이름이 글에 있는 것 — 상한 없이도 카드에 서는 항목(기록 글에 그 항목의 값 · 라벨 · 별칭이 없으면 사람이 손으로 이은 것이라 글로는 찾을 수 없다)
+    const all = new Set(precedentsFor(k, { q: w.title, text: strip(w.body), cap: Infinity }).cards.filter((c) => c.type === '정체').map((c) => c.key))
     for (const c of want) {
       total++
+      if (all.has(c)) named++
       if (cards.has(c)) { hit++; via[cards.get(c)] = (via[cards.get(c)] || 0) + 1 } else if (miss.length < 20) miss.push({ record: w.id, title: String(w.title).slice(0, 60), coord: c, cut: p.coverage.cut || 0 })
     }
   }
-  return { records: works.length, total, hit, recall: total ? Math.round((hit / total) * 10000) / 10000 : null, via, miss }
+  // recall — 건드린 항목 전체 가운데 · recallNamed — 이름이 글에 있는 항목 가운데(문턱 0.9 는 이 값으로 본다: 손으로 이은 항목은 어떤 상한으로도 못 찾는다)
+  return { records: works.length, total, hit, named, recall: total ? Math.round((hit / total) * 10000) / 10000 : null, recallNamed: named ? Math.round((hit / named) * 10000) / 10000 : null, via, miss }
 }
 
 // 문턱(설계 9-3)
@@ -319,7 +323,7 @@ async function main() {
     await fs.mkdir(OUT_DIR, { recursive: true })
     const out = path.join(OUT_DIR, `${new Date().toISOString().slice(0, 10)}-recall-${path.basename(dir)}.json`)
     await fs.writeFile(out, JSON.stringify({ dir, head: execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT }).toString().trim(), items: k.vocab.coords.size, ...r }, null, 2) + '\n')
-    console.log(`${path.basename(dir)}: 기록 ${r.records} · 건드린 항목 ${r.total} · 카드에 실림 ${r.hit} · recall ${r.recall} · 길 ${JSON.stringify(r.via)}`)
+    console.log(`${path.basename(dir)}: 기록 ${r.records} · 건드린 항목 ${r.total} · 이름이 글에 있음 ${r.named} · 카드에 실림 ${r.hit} · recall ${r.recall} · 이름 있는 것 가운데 ${r.recallNamed} · 길 ${JSON.stringify(r.via)}`)
     for (const m of r.miss.slice(0, 8)) console.log(`  빠짐: ${m.coord} ← ${m.title}${m.cut ? ` (잘림 ${m.cut})` : ''}`)
     console.log(`결과: ${path.relative(ROOT, out)}`)
     return
