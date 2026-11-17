@@ -116,3 +116,10 @@ test('세션 일감의 열쇠: 그 지식에만 · 팀 서버는 세션 일감�
   // 일감 열쇠가 아닌 손으로 지은 kmda_ 는 받지 않는다
   assert.equal((await mcp('kmda_' + 'x'.repeat(32), 'brief', {})).status, 401)
 })
+
+test('스키마 답 세션의 읽기 열쇠: 팀 MCP 로 읽기는 되고 저장은 막힌다(E_FORBIDDEN)', async () => {
+  const token = s.hub.agentToken('dpms', null, null, { team: true, ro: true })
+  assert.ok((await mcp(token, 'brief', { knowledge: 'dpms' })).j.result.structuredContent.docs?.length >= 0)
+  assert.ok(Array.isArray((await mcp(token, 'match', { q: '카나리', knowledge: 'dpms' })).j.result.structuredContent.cards))
+  assert.equal((await mcp(token, 'save', { knowledge: 'dpms', record: { title: '읽기 열쇠로 저장', body: 'x', touchesEmpty: '없음' } })).j.result.structuredContent.error, 'E_FORBIDDEN')
+})

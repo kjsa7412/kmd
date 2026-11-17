@@ -231,7 +231,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const binOf = (jid) => path.join(dataDir, 'queue', `${jid}.bin`) // 기록이 서기 전에 멈춘 파일의 원본(다시 하기 · 다시 켠 뒤 이어서)
   const agentKeys = new Map() // kmda_ 단기 열쇠 → { kn, rec, run, exp }
   const itemCount = new Map() // 지식 → 항목 장부 줄 수(읽을 때마다 · 얇은 지식은 무인 들이기를 한 줄로 · H-D17 나)
-  const jobSessions = new Map() // 세션 일감(팀 · H-D34) 일감 id → { token, it } — 일감 하나에 세션 하나
+  const jobSessions = new Map()
+  const jobReadKeys = new Map() // 일감 → 스키마 답 세션의 읽기 열쇠(kmda_ · 저장 못 함) // 세션 일감(팀 · H-D34) 일감 id → { token, it } — 일감 하나에 세션 하나
   const queuedRecs = new Set() // 일(run)이 맡은 기록
   // 넣은 파일의 앞일(글로 바꾸기 · 기록 정리) — 파일끼리 따로라 몇 개씩 함께(Claude 를 기다리는 동안 다음 파일도) · 들이기는 문서를 고치므로 지식마다 한 줄
   const PREP_MAX = config.prepMax ?? 3
@@ -2745,6 +2746,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const asIntake = !!(opt.intake && ctx?.intake)
       const meta = await hub.meta(id, asIntake ? undefined : ctx)
       // approve 개인 지식의 넣기 에이전트(저장 승인 PC4) — 기록을 먼저 세우지 않았다: 에이전트의 저장이 무인 문을 지난다(오류는 에이전트에게 · 고쳐 다시)
+      if (ctx.agent?.intake?.ro) throw new KmdError('E_FORBIDDEN', '읽기만 하는 세션 열쇠다: 저장하지 않고 답(스키마)으로 돌려준다')
       if (ctx.agent?.intake) return agentIntakeSave(ctx, id, input, opt)
       if (ctx.agent) throw new KmdError('E_FORBIDDEN', '옛 넣기 에이전트 열쇠다(기록 먼저 들이기는 걷었다 · 저장 승인 PC6)')
       if (ctx.machine && ctx.machine.kn !== id) throw new KmdError('E_FORBIDDEN', '이 열쇠는 다른 지식의 것이다')
@@ -5381,8 +5383,21 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         await intakeCancel(j, j.stop.by)
         return { ok: true, stop: true }
       }
+      // 스키마 답 세션(정정 · 다듬기 · 짜임)의 읽기 열쇠(H4a-3 의 남은 것) — 일꾼의 세션이 팀 서버의 MCP 로 지금 글 · 과거 결정을 읽는다.
+      //   그 지식에만 · 저장은 못 한다(ro) · 일감마다 하나 · 40분 뒤 끊긴다(끊겼으면 다시 준다)
+      let mcp = null
+      if (!tick && !end && !SESSION_T.has(j.type)) {
+        const old = jobReadKeys.get(j.id)
+        if (old && agentKeys.get(old)?.exp > Date.now() + 5 * 60_000) mcp = old
+        else {
+          if (old) agentKeys.delete(old)
+          mcp = hub.agentToken(id, null, null, { team: true, ro: true, j })
+          jobReadKeys.set(j.id, mcp)
+          if (jobReadKeys.size > 200) for (const [jid, tk] of [...jobReadKeys].slice(0, jobReadKeys.size - 200)) { agentKeys.delete(tk); jobReadKeys.delete(jid) }
+        }
+      }
       if (!tick) intakeLine(j, end ? (ok ? 'ok' : 'err') : 'tool', end ? (ok ? '✓ 초안을 받았다' : `✗ 초안을 받지 못했다${why ? `: ${String(why).slice(0, 120)}` : ''}`) : `▸ Claude 에 보냄 · ${j.tries ? `${j.tries + 1}번째` : '처음'}`)
-      return { ok: true, stop: !!j.stop }
+      return { ok: true, stop: !!j.stop, ...(mcp ? { mcp } : {}) }
     },
     // 초안 끝 — 서버가 시도를 센다(본문의 tries · last 는 믿지 않는다 · S-D20) · 마지막 전에는 마른 검사만(고칠 수 있는 까닭이면 { fix })
     async intakeDone(dctx, id, body = {}) {
