@@ -862,6 +862,23 @@ ol,ul{padding:0;list-style:none}
 .pvb{margin-top:clamp(18px,2.4vw,28px);text-align:center;font-size:clamp(17px,2vw,22px);letter-spacing:-.02em;color:var(--sub)}
 .pvb b{color:var(--ink)}
 @media (max-width:760px){.pv{grid-template-columns:1fr}.pvj{margin-left:0}}
+/* ── 채널: 들어오는 길 → 같은 절차(LLM 세션 · 코드 · 사람 승인) → 지식 ── */
+.ch3{min-width:720px;display:grid;grid-template-columns:minmax(0,1.05fr) auto minmax(0,1.1fr) auto minmax(0,.8fr);gap:clamp(12px,1.8vw,22px);align-items:center;padding:clamp(18px,2.4vw,28px);border-radius:20px;background:var(--sunk)}
+.ch-in,.ch-mid{display:flex;flex-direction:column;gap:12px}
+.ch-g{display:flex;flex-direction:column;gap:7px;padding:14px;border-radius:16px;background:var(--surface);border:1px solid var(--line)}
+.ch-g small{font-size:12.5px;font-weight:700;color:var(--mute)}
+.ch-g.hu small{color:var(--doc)}
+.ch-g span{font-size:14.5px;font-weight:600;padding:8px 14px;border-radius:999px;background:var(--sunk2);color:var(--ink)}
+.ch-g.hu span{background:var(--surface);border:1.2px solid var(--doc)}
+.ch-a{font-style:normal;font-size:20px;color:var(--mute)}
+.ch-s{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:16px 14px;border-radius:14px;background:var(--surface);border:1px solid var(--line)}
+.ch-s b{font-size:17px;letter-spacing:-.02em}.ch-s span{font-size:13.5px;color:var(--sub)}
+.ch-s.llm{background:var(--ink);border-color:var(--ink);color:var(--bg)}.ch-s.llm span{color:var(--bg);opacity:.75}
+.ch-s.ok{background:var(--item-t);border-color:transparent}.ch-s.ok b{color:var(--item)}
+.ch-out{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;padding:26px 16px;border-radius:18px;background:var(--surface);border:2px solid var(--ink)}
+.ch-out b{font-size:22px;letter-spacing:-.03em}
+.ch-k{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.ch-out small{font-size:13px;color:var(--sub)}
 @media (max-width:900px){.pos{grid-template-columns:1fr}}
 
 /* ── 맺음 ── */
@@ -1285,52 +1302,21 @@ ol,ul{padding:0;list-style:none}
 
     <div class="bx s12">
       <span class="bl"><b>##</b>채널</span>
-      <h3>들어오는 길은 여럿, 저장 문은 하나</h3>
-      <div class="scrollx chan">
-        <svg viewBox="0 0 1100 372" role="img" aria-label="사람 채널 다섯과 무인 채널 셋이 저장 제안과 승인, Claude 초안과 검사를 거쳐 저장 문 하나를 지나 기록, 항목, 출처, 이력이 된다">
-          <g fill="none" stroke-width="1.6" class="s-d" opacity=".7">
-            <path d="M232 27 C310 27 312 104 392 104"/><path d="M232 65 C310 65 312 104 392 104"/><path d="M232 103 C300 103 320 104 392 104"/><path d="M232 141 C310 141 312 104 392 104"/><path d="M232 179 C310 179 312 104 392 104"/>
-          </g>
-          <g fill="none" stroke-width="1.6" class="s-m" opacity=".7">
-            <path d="M232 255 C310 255 312 293 392 293"/><path d="M232 293 L392 293"/><path d="M232 331 C310 331 312 293 392 293"/>
-          </g>
-          <path d="M648 104 C720 104 706 186 772 186" fill="none" stroke-width="2.2" class="s-d"/>
-          <path d="M648 293 C720 293 706 198 772 198" fill="none" stroke-width="2.2" class="s-m"/>
-          <path d="M902 192 L940 192" fill="none" stroke-width="2.2" class="s-m"/><path d="M934 186 L942 192 L934 198" fill="none" stroke-width="2.2" class="s-m"/>
-          <g font-size="13.5" font-weight="600">
-            <rect x="2" y="11" width="230" height="32" rx="16" class="f-sf s-d" stroke-width="1.2"/><text x="20" y="32">세션 · Claude Code MCP</text>
-            <rect x="2" y="49" width="230" height="32" rx="16" class="f-sf s-d" stroke-width="1.2"/><text x="20" y="70">화면 고치기</text>
-            <rect x="2" y="87" width="230" height="32" rx="16" class="f-sf s-d" stroke-width="1.2"/><text x="20" y="108">대량 넣기</text>
-            <rect x="2" y="125" width="230" height="32" rx="16" class="f-sf s-d" stroke-width="1.2"/><text x="20" y="146">공유 · 개인 → 팀</text>
-            <rect x="2" y="163" width="230" height="32" rx="16" class="f-sf s-d" stroke-width="1.2"/><text x="20" y="184">기초 세우기</text>
-            <rect x="2" y="239" width="230" height="32" rx="16" class="f-s2"/><text x="20" y="260">파일 넣기</text>
-            <rect x="2" y="277" width="230" height="32" rx="16" class="f-s2"/><text x="20" y="298">가져올 곳 · 폴더 · git · DB</text>
-            <rect x="2" y="315" width="230" height="32" rx="16" class="f-s2"/><text x="20" y="336">정정 · 다시 들이기</text>
-          </g>
-          <rect x="392" y="62" width="256" height="84" rx="16" class="f-dt"/>
-          <text x="412" y="92" font-size="12.5" font-weight="700" class="t-d">사람</text>
-          <text x="412" y="122" font-size="18" font-weight="700">저장 제안 → 승인</text>
-          <rect x="392" y="251" width="256" height="84" rx="16" class="f-s2"/>
-          <text x="412" y="281" font-size="12.5" font-weight="700" class="t-sub">무인</text>
-          <text x="412" y="311" font-size="17" font-weight="700">Claude 초안 → 검사</text>
-          <text x="412" y="362" font-size="12.5" class="t-mu">고쳐 쓰기 2번 → 규칙 길 · 늘 들어간다</text>
-          <rect x="772" y="34" width="130" height="316" rx="18" class="f-ink"/>
-          <text x="837" y="76" font-size="19" font-weight="700" text-anchor="middle" class="t-bg">저장 문</text>
-          <text x="837" y="98" font-size="12" text-anchor="middle" class="t-mu">하나</text>
-          <g font-size="13" text-anchor="middle">
-            <rect x="790" y="124" width="94" height="36" rx="9" class="f-sf" opacity=".14"/><text x="837" y="147" class="t-bg">자리</text>
-            <rect x="790" y="168" width="94" height="36" rx="9" class="f-sf" opacity=".14"/><text x="837" y="191" class="t-bg">꼴</text>
-            <rect x="790" y="212" width="94" height="36" rx="9" class="f-sf" opacity=".14"/><text x="837" y="235" class="t-bg">지문</text>
-            <rect x="790" y="256" width="94" height="36" rx="9" class="f-sf" opacity=".14"/><text x="837" y="279" class="t-bg">본문 반영</text>
-          </g>
-          <g font-size="14.5" font-weight="700">
-            <rect x="950" y="52" width="148" height="56" rx="14" class="f-rt"/><rect x="968" y="74" width="12" height="12" rx="3.5" style="fill:var(--rec)"/><text x="992" y="85" class="t-r">기록</text>
-            <rect x="950" y="120" width="148" height="56" rx="14" class="f-it"/><rect x="968" y="142" width="12" height="12" rx="3.5" style="fill:var(--item)"/><text x="992" y="153" class="t-i">항목</text>
-            <rect x="950" y="188" width="148" height="56" rx="14" class="f-dt"/><rect x="968" y="210" width="12" height="12" rx="3.5" style="fill:var(--doc)"/><text x="992" y="221" class="t-d">출처</text>
-            <rect x="950" y="256" width="148" height="56" rx="14" class="f-s2"/><rect x="968" y="278" width="12" height="12" rx="3.5" style="fill:var(--sub)"/><text x="992" y="289" class="t-sub">이력 · git</text>
-          </g>
-        </svg>
-      </div>
+      <h3>들어오는 길은 여럿, 지나는 절차는 하나</h3>
+      <div class="scrollx"><div class="ch3" role="img" aria-label="지식에 쓰는 길은 모두 같은 절차를 지난다. 들어오는 길은 사람 줄기 셋(세션, 공유, 파일 넣기)과 무인 줄기 셋(git, 폴더, DB). 절차는 LLM 세션이 찾고 판단해 글을 짓고, 코드가 짝 짓고 검사하고 저장하고 측정하며, 사람이 넣은 것은 사람이 승인한다. 그 끝이 지식, 곧 항목과 기록과 문서, 항목 장부와 문서 장부다">
+          <div class="ch-in">
+            <div class="ch-g hu"><small>사람 줄기</small><span>세션</span><span>공유 · 개인 → 팀</span><span>파일 넣기</span></div>
+            <div class="ch-g"><small>무인 줄기</small><span>git</span><span>폴더</span><span>DB</span></div>
+          </div>
+          <i class="ch-a" aria-hidden="true">→</i>
+          <div class="ch-mid">
+            <div class="ch-s llm"><b>LLM 세션</b><span>찾기 → 판단 + 글</span></div>
+            <div class="ch-s"><b>코드</b><span>짝 짓기 → 검사 → 저장 → 측정</span></div>
+            <div class="ch-s ok"><b>사람 승인</b><span>사람이 넣은 것만</span></div>
+          </div>
+          <i class="ch-a" aria-hidden="true">→</i>
+          <div class="ch-out"><b>지식</b><div class="ch-k"><span class="chip c-i">항목</span><span class="chip c-r">기록</span><span class="chip c-d">문서</span></div><small>항목 장부 · 문서 장부</small></div>
+        </div></div>
     </div>
 
     <div class="bx s12 conv">
