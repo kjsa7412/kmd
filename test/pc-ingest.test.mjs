@@ -52,6 +52,7 @@ before(async () => {
   // 들이기는 세션이다(H4a-2) — 세션 가짜가 대본(agent-intake.mjs)대로 kmd MCP 로 찾고 저장한다
   process.env.KMD_CLAUDE_AGENT = path.join(HERE, 'fixture', 'fake-claude-agent.mjs')
   process.env.FAKE_AGENT_SCRIPT = path.join(HERE, 'fixture', 'agent-intake.mjs')
+  process.env.KMD_UPLOAD_ASK = '0' // 승인 대기(H6)는 끄고 들이기 자체를 본다(승인 대기는 agent 시험 끝)
   // dpms(옛 개인 지식 · 이행 전) · apv(이행을 마친 개인 지식 = 「저장 방식: 승인」 · 기록 없는 dpms 문서 · 기록 모음)
   copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'pc'))
   copyDir(path.join(HERE, 'fixture', 'kmd', 'dpms'), pdir('apv'))

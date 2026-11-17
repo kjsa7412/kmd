@@ -231,6 +231,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const binOf = (jid) => path.join(dataDir, 'queue', `${jid}.bin`) // 기록이 서기 전에 멈춘 파일의 원본(다시 하기 · 다시 켠 뒤 이어서)
   const agentKeys = new Map() // kmda_ 단기 열쇠 → { kn, rec, run, exp }
   const itemCount = new Map() // 지식 → 항목 장부 줄 수(읽을 때마다 · 얇은 지식은 무인 들이기를 한 줄로 · H-D17 나)
+  // 사람이 올린 것을 저장 제안으로 세울지 — serve.json uploadAsk: false · 환경변수 KMD_UPLOAD_ASK=0 으로 끈다(끄면 올린 것이 승인 없이 들어간다)
+  const uploadAsk = () => config.uploadAsk !== false && process.env.KMD_UPLOAD_ASK !== '0'
   const askFileOf = (jid) => path.join(dataDir, 'queue', `${jid}.ask.json`) // 승인 대기 저장 제안(H6) — 세션이 지은 저장 입력 그대로
   const readAsk = async (jid) => { try { return JSON.parse(await fs.readFile(askFileOf(jid), 'utf8')) } catch { return null } }
   // 기초 세우기 세션의 일 설명 끝에도 같은 생성 룰을 싣는다(H5 의 남은 것 · 모든 채널이 같은 글) — 뼈대 · 묶음(무엇이 문서이고 항목인가를 정하는 걸음)
@@ -2150,6 +2152,8 @@ ${genRulesBlock({ profile: 'shape' })}`
     else if (r.ok) await hub.workerStatus({ worker: { id: null } }, { ok: true })
     if (it.r) return { r: it.r, attached: it.attached }
     if (r.error === 'cancel') throw new Cancelled()
+    // 저장 제안이 섰다(사람이 올린 것 · H6) — 지식에는 아직 아무것도 쓰지 않았다
+    if (it.pending?.length) return { pending: it.pending }
     // 넣을 것 없음(모두 뺌 · 모두 그대로) — 규칙 길로 넣지 않는다(H-D26)
     if (it.empty) return { empty: it.empty }
     return { why: r.ok ? (it.why ? `Claude Code 가 검사를 넘지 못했다: ${it.why}` : 'Claude Code 가 이 파일을 문서에 넣지 않았다') : r.error === 'login' ? 'Claude 로그인이 없다. 머리의 「Claude」 에서 로그인' : r.error === 'limit' ? 'Claude 한도 · 예산' : 'Claude Code 가 끝을 내지 못했다' }
@@ -2270,8 +2274,10 @@ ${genRulesBlock({ profile: 'shape' })}`
   // 개인 들이기 하나 — { rec, put, same, docs, rule?, attached? } | { why }(아무것도 쓰지 않았다 · 규칙 길도 넣지 못함)
   //   type file(src { rel, sha, title, file }) · commit(src { src, commit, title, touches }) · by — 저장한 사람(파일 넣기는 그 사람 · 가져올 곳은 kmd)
   //   run — 일 줄(있고 넣기 에이전트를 쓸 수 있으면 에이전트 · 없으면 claude -p 초안) · claude false — 한 번 넣기 상한을 넘었다(곧바로 규칙 길)
-  async function pcIntakeOne(id, { type = 'file', by, src, md, bin = null, claude = true, run = null, original = null }) {
+  async function pcIntakeOne(id, { type = 'file', by, src, md, bin = null, claude = true, run = null, original = null, ask = false }) {
     const j = pcIntakeJob(id, type, by, src)
+    // 사람이 화면으로 올린 파일(일 줄이 있다)은 저장 제안으로 세운다(H6 · 팀과 같다 · serve.json uploadAsk: false 로 끈다)
+    if (ask && run && type === 'file' && by !== 'kmd' && uploadAsk()) j.ask = true
     const ctx = { user: by, intake: true }
     const line = (k, x) => { if (run) hub.runLine(run, k, x) }
     const binOk = type === 'file' && bin && pcAttachable(j.src.rel) ? bin : null
@@ -2287,6 +2293,15 @@ ${genRulesBlock({ profile: 'shape' })}`
         // 들이기는 늘 세션이다(H4a-2 · H-D34 · 한 번 부르기 초안 길은 걷었다)
         const d = hub.agentOk(id) ? await pcAgent(j, ctx, id, md, attach, run, original) : { why: 'Claude Code 세션을 띄울 수 없다(이 PC 의 kmd 주소를 모르거나 Claude Code 가 없다): 개인 프로그램을 다시 켠다' }
         if (d.empty) { line('sys', d.empty); return { rec: null, put: 0, same: true, docs: [], empty: d.empty } }
+        // 승인 대기(H6) — 세워 둔 저장 입력을 일감과 함께 남긴다(원본 첨부는 제안에 같이 싣는다) · [넣기] 가 그대로 저장 문에 넣는다
+        if (d.pending) {
+          const why = `저장 제안 ${d.pending.length}건: [저장 제안] 을 보고 [넣기]`
+          await fs.mkdir(path.dirname(askFileOf(j.id)), { recursive: true })
+          await writeJsonAtomic(askFileOf(j.id), { v: 1, at: new Date().toISOString(), items: d.pending.map((x, i) => ({ ...x, ...(i === 0 && attach ? { attach } : {}) })) })
+          jobs.set(j.id, { ...j, state: 'ask', askN: d.pending.length, run: run.id, why, pc: true })
+          saveJobs()
+          return { ask: true, job: j.id, why }
+        }
         if (d.r) out = d
         else why = d.why
       }
@@ -5140,10 +5155,10 @@ ${genRulesBlock({ profile: 'shape' })}`
       const j = hub.askJobOf(ctx, id, jobId)
       const f = await readAsk(j.id)
       if (!f?.items?.length) throw new KmdError('E_NOTFOUND', '그 저장 제안은 이제 없다')
-      const ictx = hub.intakeCtx(j)
+      const ictx = j.pc ? { user: j.by, intake: true } : hub.intakeCtx(j)
       if (!ictx) throw new KmdError('E_FORBIDDEN', SEAT_LOST)
-      const bin = await fs.readFile(binOf(j.id)).catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
-      const attach = j.src?.attach && bin ? { path: j.src.attach, b64: bin.toString('base64') } : null
+      const bin = j.pc ? null : await fs.readFile(binOf(j.id)).catch((e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
+      const attach = j.pc ? f.items[0]?.attach || null : j.src?.attach && bin ? { path: j.src.attach, b64: bin.toString('base64') } : null
       let first = null
       for (const [i, x] of f.items.entries()) {
         const sopt = { ...x.sopt, intake: { ...(x.sopt?.intake || {}), approvedBy: ctx.user } }
@@ -5153,6 +5168,15 @@ ${genRulesBlock({ profile: 'shape' })}`
           // 그사이 지식이 바뀌어 제안이 맞지 않는다 — 아무것도 쓰지 않은 묶음은 다시 짓는다(첫 묶음이 이미 들어갔으면 들어간 만큼으로 닫는다)
           if (first) break
           await fs.rm(askFileOf(j.id), { force: true })
+          // 개인 프로그램 — 다시 지을 일꾼 줄이 없다: 일 줄을 못함으로 닫고 다시 넣게 알린다(아무것도 쓰지 않았다)
+          if (j.pc) {
+            const why = `제안을 세운 뒤 지식이 바뀌었다: 다시 넣는다(${errWhy(r.errors?.[0] || { why: '제안이 맞지 않는다' })})`
+            const run = runOfJob(j)
+            if (run) { runs.set(run.id, run); Object.assign(run, { state: 'fail', msg: why }); hub.runLine(run, 'err', `✗ ${why}`); hub.runSave(run) }
+            jobs.delete(j.id)
+            saveJobs()
+            return { ok: true, again: true, why }
+          }
           Object.assign(j, { state: 'queued', worker: null, askN: 0, why: `제안을 세운 뒤 지식이 바뀌었다: 다시 짓는다(${errWhy(r.errors?.[0] || { why: '제안이 맞지 않는다' })})` })
           const run = runOfJob(j)
           if (run) { runs.set(run.id, run); Object.assign(run, { state: 'wait', msg: j.why }); hub.runSave(run) }
@@ -5163,6 +5187,23 @@ ${genRulesBlock({ profile: 'shape' })}`
       }
       await fs.rm(askFileOf(j.id), { force: true })
       j.approved = ctx.user
+      if (j.pc) {
+        // 개인 프로그램 — 일 줄을 넣은 것으로 닫는다(파일 넣기의 끝과 같은 말)
+        const run = runOfJob(j)
+        const docs = (first.putRows || []).map((x) => String(x.doc || '').replace(/^docs\/|\.md$/g, ''))
+        if (run) {
+          runs.set(run.id, run)
+          for (const d of docs) if (d && !run.docs.includes(d)) run.docs.push(d)
+          Object.assign(run, { state: 'done', rec: first.id, msg: first.same ? '같은 파일: 그대로 두었다' : `기록 · 문서가 됐다: ${run.docs.join(' · ') || j.kn}` })
+          hub.runLine(run, 'ok', run.msg)
+          hub.runSave(run)
+          fs.rm(binOf(run.id), { force: true }).catch((e) => log('들이기 원본 걷기', run.id, e.message))
+        }
+        jobs.delete(j.id)
+        saveJobs()
+        cache.delete(id)
+        return { ok: true, rec: first.id, put: first.put ?? 0, job: j.id }
+      }
       const run = runOfJob(j)
       if (run && run.state === 'check') { runs.set(run.id, run); run.state = 'run' }
       const out = await unattendedFinish(j, first)
@@ -5742,7 +5783,8 @@ ${genRulesBlock({ profile: 'shape' })}`
     queueItem(j, knName = null) {
       const { lines, spec, rows, children, ...x } = j
       // 팀 일꾼이 짓는 파일(들이기 일감) — 실패 일감이면 지식관리자의 손잡이(다시 시도 · 그만두기)를 낸다(지식 생성 하네스 H4b)
-      const tj = spec?.type === 'intake' ? [...jobs.values()].find((t) => t.kind === 'intake' && t.run === j.id) : null
+      //   개인 프로그램의 승인 대기(H6) — 일 줄의 종류와 상관없이 그 일 줄에 매인 승인 대기 일감을 찾는다
+      const tj = spec?.type === 'intake' ? [...jobs.values()].find((t) => t.kind === 'intake' && t.run === j.id) : [...jobs.values()].find((t) => t.kind === 'intake' && t.state === 'ask' && t.run === j.id) || null
       return { ...x, knName, ...(tj?.state === 'ask' ? { ask: true, askJob: tj.id, askN: tj.askN || 1 } : {}), ...(tj?.state === 'failed' ? { failed: true, fails: tj.fails || 0 } : tj?.retryAt > Date.now() ? { retryAt: new Date(tj.retryAt).toISOString(), fails: tj.fails || 0 } : {}), n: (lines || []).length, fin: isFinal(j) || !!j.legacy, retry: ['ingest', 'source'].includes(spec?.type), ...(spec?.type === 'intake' ? { intake: true } : {}), ...(spec?.name ? { src: spec.name } : {}), ...(spec?.recId ? { rec: spec.recId } : j.rec ? { rec: j.rec } : {}), ...(j.kind === 'group' ? { rows: (rows || []).slice(-300), children: (children || []).length } : {}) }
     },
     async queueList(ctx) {
@@ -6063,7 +6105,9 @@ ${genRulesBlock({ profile: 'shape' })}`
         await Q.step(run, STAGE_PUT)
         if (approve) {
           const ext = rel.split('.').pop().toLowerCase()
-          const got = await pcIntakeOne(id, { type: 'file', by: ctx.user, src: { rel, sha, title: path.posix.basename(rel), file: rel }, md, bin: data, run, original: data && PCONLY.includes(ext) ? data : null })
+          const got = await pcIntakeOne(id, { type: 'file', by: ctx.user, src: { rel, sha, title: path.posix.basename(rel), file: rel }, md, bin: data, run, original: data && PCONLY.includes(ext) ? data : null, ask: true })
+          // 승인 대기(H6) — 일 줄은 「확인」 으로 서고 [저장 제안] 에서 [넣기] 해야 들어간다
+          if (got.ask) { Object.assign(run, { state: 'check', msg: got.why }); hub.runLine(run, 'ok', `✓ ${got.why}`); return }
           if (got.rec && !got.same) {
             for (const d of got.docs) { const x = d.split(' › ')[0]; if (x && !run.docs.includes(x)) run.docs.push(x) }
             Object.assign(run, { state: got.rule ? 'rule' : 'done', rec: got.rec, msg: got.rule ? `규칙 길로 넣었다: ${run.docs.join(' · ') || meta.name} · ${got.rule}` : `기록 · 문서가 됐다: ${run.docs.join(' · ') || meta.name}` })
@@ -6150,7 +6194,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         let took = 0
         try {
           if (useAtt) { await attachTake(id, data.length); took = data.length }
-          r = await hub.openJob(id, { type: 'file', by: ctx.user, src: { rel, sha, title: path.posix.basename(rel), file: rel, ...(useAtt ? { attach: attRel } : {}) }, md: fm.md, bin: data, ask: config.uploadAsk !== false })
+          r = await hub.openJob(id, { type: 'file', by: ctx.user, src: { rel, sha, title: path.posix.basename(rel), file: rel, ...(useAtt ? { attach: attRel } : {}) }, md: fm.md, bin: data, ask: uploadAsk() })
         } catch (e) {
           if (took) await giveBack(id, took)
           if (!(e instanceof KmdError)) throw e

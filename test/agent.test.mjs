@@ -30,12 +30,14 @@ before(async () => {
   process.env.KMD_NO_CLAUDE = '1'
   process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
   process.env.KMD_CLAUDE_AGENT = path.join(HERE, 'fixture', 'fake-claude-agent.mjs')
+  process.env.KMD_UPLOAD_ASK = '0' // 승인 대기(H6)는 끄고 세션의 찾기 · 저장을 본다 · 승인 대기는 끝 시험이 켜고 본다
   const root = path.join(tmp, 'kn')
   fs.mkdirSync(root, { recursive: true })
   s = await startServer({ root, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
   await s.hub.addKnowledge(ME, { kind: 'new', name: '회의' })
 })
 after(async () => {
+  delete process.env.KMD_UPLOAD_ASK
   await s?.close()
   fs.rmSync(tmp, { recursive: true, force: true })
 })
@@ -260,4 +262,34 @@ test('문서 폴더 가져오기도 파일 넣기와 같은 길: 파일마다 �
   const k = await s.hub.get('폴더넣기')
   const w = k.works.find((x) => x.tags.includes('ingest/테스트/HNC_통화_스크립트.md'))
   assert.ok(w && w.state !== 'pend', '기록은 문서에 들어갔다')
+})
+
+// 개인 프로그램의 「넣을 것」 승인 대기(H6 · H-D37) — 화면으로 올린 파일은 세션이 지은 뒤 저장 제안으로 서고 [넣기] 해야 들어간다
+test('개인 프로그램의 넣을 것: 올린 파일은 승인 대기로 선다(아무것도 쓰지 않는다) · 넣기 = 기록 + 문서 · 버리기', async () => {
+  delete process.env.KMD_UPLOAD_ASK
+  try {
+    const dir = path.join(tmp, 'kn', '회의')
+    const count = () => fs.readdirSync(path.join(dir, 'work')).length
+    const n0 = count()
+    const up = async (name, v) => {
+      const r = await s.hub.importFiles(ME, '회의', [{ path: name, data: Buffer.from(HNC.replace('3초', v)) }])
+      assert.equal(r.rows[0].kind, 'run', JSON.stringify(r.rows[0]))
+      return wait(() => s.hub.intakesOf('회의').find((j) => j.state === 'ask' && j.src?.rel === name), 30000)
+    }
+    const j = await up('승인 대기 통화 메모.md', '41초')
+    assert.equal(count(), n0, '승인 전에는 아무것도 쓰지 않는다')
+    const q = (await s.hub.queueList(ME)).items.find((x) => x.askJob === j.id)
+    assert.ok(q && q.ask === true && q.state === 'check', JSON.stringify(q))
+    const v = await s.hub.intakeAskView(ME, '회의', j.id)
+    assert.match(v.items[0].text, /저장 제안/)
+    const a = await s.hub.intakeAskApprove(ME, '회의', j.id)
+    assert.ok(a.rec, JSON.stringify(a))
+    assert.equal(count(), n0 + 1)
+    assert.equal(s.hub.intakesOf('회의').some((x) => x.id === j.id), false, '넣은 뒤 일감은 걷힌다')
+    // 버리기
+    const j2 = await up('승인 대기 버릴 메모.md', '43초')
+    const c1 = count()
+    assert.equal((await s.hub.intakeAskDrop(ME, '회의', j2.id)).state, 'cancelled')
+    assert.equal(count(), c1)
+  } finally { process.env.KMD_UPLOAD_ASK = '0' }
 })

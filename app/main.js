@@ -5288,10 +5288,10 @@ function impActs(j, small = true) {
   const sm = small ? ' sm' : ''
   const b = (act, t, cls = '') => `<button class="btn${sm}${cls}" data-a="qAct" data-v="${act}" data-id="${esc(j.id)}" data-t="q-${act}" title="${t}">${t}</button>`
   const o = []
-  if (j.kind === 'local') { if (j.imp && j.imp.many && !j.fin && !j.imp.stop) o.push(`<button class="btn${sm}" data-a="impStop" data-v="${esc(j.imp.id)}" data-t="impStop">그만두기</button>`) }
-  // 실패 일감(무인 들이기가 끝내 못 넘었다 · 지식에는 아무것도 쓰지 않았다) — 지식관리자: 「다시 시도」 · 「그만두기」(원천을 버린다)
   // 승인 대기(H6) — 올린 것을 Claude 가 지어 저장 제안으로 세웠다: 올린 사람 · 지식관리자가 보고 [넣기]
-  else if ((j.kind === 'intake' || j.intake) && j.ask) { if (admKn(j.kn) || j.by === S.me.user) o.push(`<button class="btn${sm} pri" data-a="akOpen" data-k="${esc(j.kn)}" data-j="${esc(j.askJob)}" data-t="akOpen" title="Claude 가 지은 저장 제안을 보고 넣는다">저장 제안</button>`) }
+  if (j.ask) { if (admKn(j.kn) || j.by === S.me.user) o.push(`<button class="btn${sm} pri" data-a="akOpen" data-k="${esc(j.kn)}" data-j="${esc(j.askJob)}" data-t="akOpen" title="Claude 가 지은 저장 제안을 보고 넣는다">저장 제안</button>`) }
+  else if (j.kind === 'local') { if (j.imp && j.imp.many && !j.fin && !j.imp.stop) o.push(`<button class="btn${sm}" data-a="impStop" data-v="${esc(j.imp.id)}" data-t="impStop">그만두기</button>`) }
+  // 실패 일감(무인 들이기가 끝내 못 넘었다 · 지식에는 아무것도 쓰지 않았다) — 지식관리자: 「다시 시도」 · 「그만두기」(원천을 버린다)
   else if ((j.kind === 'intake' || j.intake) && j.failed) { if (admKn(j.kn)) o.push(b('retry', '다시 시도'), b('drop', '그만두기', ' dz')) }
   else if (j.kind === 'intake') { if (j.state === 'wait') o.push(b('cancel', '빼기', ' dz')) }
   else if (j.intake) { if (j.state === 'wait') o.push(b('cancel', '빼기', ' dz')); else if (j.state === 'run') o.push(b('cancel', '그만두기', ' dz')); else if (j.state === 'fail') o.push(b('cancel', '줄에서 빼기(기록은 남는다)', ' dz')) }
