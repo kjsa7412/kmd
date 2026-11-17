@@ -948,7 +948,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (p === '/api/queue/hold' && req.method === 'POST') { need(ctx); return out(200, hub.queueHold(ctx, !!(await readBody(req)).on)) }
     if (p === '/api/queue/caps' && req.method === 'POST') { need(ctx); return out(200, hub.queueCaps(ctx, await readBody(req))) }
     // 화면은 들이기 일감 id 의 「t:」 를 %3A 로 보낸다
-    const qa = p.replace(/^(\/api\/queue\/t)%3A/i, '$1:').match(/^\/api\/queue\/([0-9a-f]{12}|t:[0-9a-f]+)(?:\/(pause|resume|cancel|retry|force|top|move))?$/)
+    const qa = p.replace(/^(\/api\/queue\/t)%3A/i, '$1:').match(/^\/api\/queue\/([0-9a-f]{12}|t:[0-9a-f]+)(?:\/(pause|resume|cancel|retry|force|top|move|drop))?$/)
     if (qa) {
       need(ctx)
       if (!qa[2]) return out(200, await hub.queueGet(ctx, qa[1], Number(url.searchParams.get('from')) || 0))

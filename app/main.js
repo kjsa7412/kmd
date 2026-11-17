@@ -3974,7 +3974,7 @@ const MT_ROWS = [
   ['fix', 'FIX 번 수', '무인 저장이 결정적 오류를 고치려 다시 지은 번 수', null],
   ['rounds', '다시 제안 수', '사람 채널에서 저장 제안을 다시 받은 번 수', null],
 ]
-const MT_CODE = { 이름: '항목(장부)', 항목: '항목(문서)', missing: '빠진 값', invented: '지어낸 값', gone: '사라진 값', lost: '사라진 값', split: '나뉜 글', near: '비슷한 이름', reverts: '되돌림 잦음', remain: '남은 값', unreflected: '본문 반영 안 됨' }
+const MT_CODE = { check: '검사에 걸림', nosave: '넣지 않고 끝남', session: '세션이 끝을 못 냄', claude: '초안을 못 받음', worker: '일꾼이 받지 않음', noclaude: 'Claude 에 보내지 않음', fail: '까닭 모름', 이름: '항목(장부)', 항목: '항목(문서)', missing: '빠진 값', invented: '지어낸 값', gone: '사라진 값', lost: '사라진 값', split: '나뉜 글', near: '비슷한 이름', reverts: '되돌림 잦음', remain: '남은 값', unreflected: '본문 반영 안 됨' }
 // 까닭 묶음 이름(옛 규칙 길 까닭 · 무인 실패 코드) — 「일꾼 실패: …」 · 「오늘 들이기 수(30)를 넘었다: …」 처럼 첫 「:」 앞 · 괄호 수를 걷고 · 짧게(지표 줄이 길게 붙지 않게 · 12 화면 말)
 const mtWhy = (c) => { const s = String(c).split(/[:：]/)[0].replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ').trim(); return s.length > 16 ? s.slice(0, 15) + '…' : s || '까닭 모름' }
 const mtDays = () => (MT_DAYS.includes(S.mtDays) ? S.mtDays : 14)
@@ -4000,7 +4000,7 @@ function metricsHtml(k) {
     const r = m.rows.find((x) => x.key === key) || { n: 0, base: null, recs: [], codes: {} }
     const ratio = r.base ? r.n / r.base : null
     const over = limit != null && ratio != null && ratio > limit
-    const val = r.base != null && ['accepted', 'warned', 'rule'].includes(key) ? `${r.n} / ${r.base}` : String(r.n)
+    const val = r.base != null && ['accepted', 'warned', 'fail'].includes(key) ? `${r.n} / ${r.base}` : String(r.n)
     const cs = r.n ? codes(r) : ''
     return `<div class="srow${r.n ? '' : ' dim'}" data-t="mt-${key}"><span class="nm" title="${esc(why)}">${label}${cs ? ` <small class="muted">${esc(cs)}</small>` : ''}</span><span class="chip ${over ? 'c-warn' : r.n ? 'c-mute' : 'c-ok'}" data-t="mtVal">${esc(val)}</span>${r.recs.length ? `<button type="button" class="btn ghost sm" data-a="mtOpen" data-v="${key}" aria-expanded="${open === key}" data-t="mtOpen">${open === key ? '접기' : '보기'}</button>` : ''}</div>${open === key && r.recs.length ? `<ul class="plain dl" data-t="mtList">${r.recs.map(li).join('')}</ul>` : ''}`
   }).join('')
@@ -5230,7 +5230,7 @@ function termHtml(id, fil = 'all') {
   const ls = stageLines(L.lines).filter((l) => fil === 'all' || String(l.s) === fil)
   return `<div class="term" data-t="term" data-run="${esc(id)}">${ls.map((l) => `<div class="${esc(l.k)}"><span class="tm">${t(l.t)}</span><span class="sg">[${STG_S[l.s] || '-'}]</span>${mark[l.k] || ''}${esc(l.x)}</div>`).join('') || `<span class="sys">${L.lines.length ? '이 단계의 줄이 없다' : '아직 줄이 없다. 차례를 기다린다'}</span>`}</div>`
 }
-const IMP_K = { doc: '문서', record: '기록', run: 'Claude 일', rule: '규칙 길', att: '첨부', same: '그대로', fail: '못 넣음', skip: '읽지 못하는 종류' }
+const IMP_K = { doc: '문서', record: '기록', run: 'Claude 일', rule: '옛 규칙 길', att: '첨부', same: '그대로', fail: '못 넣음', skip: '읽지 못하는 종류' }
 const ST_T = { done: '끝남', run: '도는 중', pause: '멈춤', check: '크게 바뀜', fail: '못함', cancel: '그만둠', skip: '건너뜀', wait: '기다림' }
 // 자세히 — 흐름 그림(네 단계 · 안의 걸음) · 안의 파일 · 터미널(단계로 거른다) · 만든 것
 function impDetHtml(j) {
@@ -5278,7 +5278,7 @@ function impDetHtml(j) {
 function impChip(j) {
   if (j.state === 'rule') return chipOf('ok', '규칙으로 넣음')
   // 승인 저장 지식의 무인 일(저장 승인 P6) — 규칙 길로 들어갔다(까닭은 툴팁)
-  if (j.rule && j.state === 'done') return chipOf('ok', '규칙 길', ` data-t="qRule" title="${esc(j.rule)}"`)
+  if (j.rule && j.state === 'done') return chipOf('ok', '옛 규칙 길', ` data-t="qRule" title="${esc(j.rule)}"`)
   const m = { run: ['run', '도는 중'], pausing: ['stop', '멈추는 중'], wait: ['wait', '기다림'], pause: ['stop', '멈춤'], check: ['stop', '크게 바뀜'], fail: ['fail', '못함'], done: ['ok', '끝남'], cancel: ['rest', '그만둠'] }[j.state]
   return m ? chipOf(m[0], m[1]) : ''
 }

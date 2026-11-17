@@ -350,6 +350,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   }
   // 팀 일꾼 — 쉬는 중(로그인 끝 · 한도)이면 들이기 일감은 기다린다 · 마지막으로 물은 때
   let wsNow = null
+  let failDay = null // 실패 일감 하루 요약을 보낸 날
   let teamSeenAt = 0
   const teamTypes = new Map() // 일꾼 → { types, at } — 일감을 물을 때 알린 type(바탕 세우기 설계 7-3)
   const sha = (t) => crypto.createHash('sha256').update(String(t)).digest('hex')
@@ -452,6 +453,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     }
     if (!a.value) return { why: `Claude 로 짓지 못했다: ${a.why || '답이 없다'}` }
     if (!p.ok) return { why: `Claude 가 지은 글이 검사를 넘지 못했다: ${p.why}` }
+    // 넣을 곳이 없다(초안이 항목 글을 고르지 않았다) — 초안 없이 기록만 보낸다(이을 항목 · 기록 모음 달 항목)
+    if (p.empty) return { why: `넣을 곳을 고르지 않았다: ${p.empty}` }
     return { draft: p }
   }
   // ── 보내기 제안(저장 승인 P-D22 · P-D46 · 7절 P7) — 받는 팀 지식이 approve 모드면 보내기 확인 창(미리 보기)이 글마다 내 Claude 초안을 짓고
@@ -2392,6 +2395,19 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (j.kind !== 'intake' || j.state !== 'queued' || j.retryAt || now - Date.parse(j.at) < INTAKE_STALE_MS) continue
       j.state = 'closing'
       await hub.intakeGiveUp(j, 'worker', '팀 일꾼이 24시간 넘게 일감을 받지 않았다').catch((e) => { j.state = 'queued'; log('들이기 일감 닫기', j.id, e.message) })
+    }
+    // 실패 일감 하루 요약(H-D30 · 설계 8-1) — 하루 한 번 그 지식의 지식관리자에게(쌓인 실패 일감을 누가 보게 · 던지지 않는다)
+    const day = localDay(new Date())
+    if (failDay !== day) {
+      failDay = day
+      const by = new Map()
+      for (const j of jobs.values()) if (j.kind === 'intake' && j.state === 'failed' && j.type !== 'polish' && !SHAPE_T.has(j.type)) by.set(j.kn, (by.get(j.kn) || 0) + 1)
+      for (const [kn, n] of by) {
+        try {
+          const name = (await hub.meta(kn)).name
+          for (const u of await hub.curatorsOf(kn)) await feed.add(dataDir, u, { kind: 'intake-failed', kn, dot: 'warn', text: `실패 일감 ${n}건: ${name}`, small: '무인 들이기가 끝내 못 넘었다 · 진행에서 [다시 시도] 또는 [그만두기]' })
+        } catch (e) { log('실패 일감 요약 알림', kn, e.message) }
+      }
     }
   }
 
@@ -5592,7 +5608,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const state = t.state === 'running' && t.stop ? 'pausing' : { queued: 'wait', running: 'run', closing: 'run', failed: 'fail', cancelled: 'cancel' }[t.state] || 'done'
         const r = t.result || {}
         const sum = t.state === 'failed' ? `못 들였다(시도 ${t.fails || 0}): ${t.why || '까닭을 모른다'}` : r.empty ? String(t.why || '넣을 것 없음') : t.state === 'queued' && t.retryAt > Date.now() ? `다시 시도를 기다린다(${t.fails || 0}번째 실패): ${t.why || ''}` : r.aborted ? `아무것도 쓰지 않았다: ${t.why || '까닭을 모른다'}` : r.same ? '같은 것을 이미 들였다' : t.result ? `${r.rule ? '규칙 길로 ' : ''}넣음 ${r.put || 0}${(r.docs || []).length ? `: ${r.docs.slice(0, 2).join(' · ')}` : ''}${r.held ? ` · 넣지 못함 ${r.held}` : ''}` : ''
-        items.push({ held: r.held || 0, ...(r.rule ? { rule: r.rule } : {}), ...(r.aborted ? { aborted: true } : {}), ...(t.state === 'failed' ? { failed: true, fails: t.fails || 0 } : {}), ...(r.empty ? { empty: true } : {}), ...(t.state === 'queued' && t.retryAt > Date.now() ? { retryAt: new Date(t.retryAt).toISOString(), fails: t.fails || 0 } : {}), ...((r.docs || []).length ? { docs: [...new Set(r.docs.map((x) => String(x).split(' › ')[0]))].slice(0, 5) } : {}), id: 't:' + t.id, kind: 'intake', origin: t.by === 'kmd' ? 'kmd' : 'person', kn: t.kn, knName: ks.get(t.kn), title: `${INTAKE_TITLE[t.type] || '들이기'}: ${String(t.src?.title || t.src?.doc || t.src?.rel || t.src?.rec || '').slice(0, 80)}`, by: t.by || 'kmd', auto: t.auto ? 'src' : null, state: r.aborted ? 'fail' : state, stage: STAGE_WRITE, stages: [{ state: 'skip' }, { state: 'skip' }, { state: state === 'cancel' ? 'cancel' : r.aborted ? 'fail' : state }, { state: 'skip' }], order: 1e9, at: t.at, startedAt: t.at, endedAt: t.done || null, msg: t.state === 'running' && t.stop ? `그만두는 중: ${t.stop.by}` : t.state === 'queued' ? (t.why || '팀 일꾼을 기다린다') : t.state === 'running' ? '팀 일꾼이 짓는 중' : sum || t.why || '', ...(r.rec ? { rec: r.rec } : {}), n: 0, fin: !['queued', 'running', 'closing'].includes(t.state), retry: false })
+        items.push({ held: r.held || 0, ...(r.rule ? { rule: r.rule } : {}), ...(r.aborted ? { aborted: true } : {}), ...(t.state === 'failed' ? { failed: true, fails: t.fails || 0 } : {}), ...(r.empty ? { empty: true } : {}), ...(t.state === 'queued' && t.retryAt > Date.now() ? { retryAt: new Date(t.retryAt).toISOString(), fails: t.fails || 0 } : {}), ...((r.docs || []).length ? { docs: [...new Set(r.docs.map((x) => String(x).split(' › ')[0]))].slice(0, 5) } : {}), id: 't:' + t.id, kind: 'intake', origin: t.by === 'kmd' ? 'kmd' : 'person', kn: t.kn, knName: ks.get(t.kn), title: `${INTAKE_TITLE[t.type] || '들이기'}: ${String(t.src?.title || t.src?.doc || t.src?.rel || t.src?.rec || '').slice(0, 80)}`, by: t.by || 'kmd', auto: t.auto ? 'src' : null, state: r.aborted ? 'fail' : state, stage: STAGE_WRITE, stages: [{ state: 'skip' }, { state: 'skip' }, { state: state === 'cancel' ? 'cancel' : r.aborted ? 'fail' : state }, { state: 'skip' }], order: 1e9, at: t.at, startedAt: t.at, endedAt: t.done || null, msg: t.state === 'running' && t.stop ? `그만두는 중: ${t.stop.by}` : t.state === 'queued' ? (t.why || '팀 일꾼을 기다린다') : t.state === 'running' ? '팀 일꾼이 짓는 중' : sum || t.why || '', ...(r.rec ? { rec: r.rec } : {}), n: 0, fin: !['queued', 'running', 'closing', 'failed'].includes(t.state), retry: false })
       }
       let worker = null
       if (mode === 'team') {
