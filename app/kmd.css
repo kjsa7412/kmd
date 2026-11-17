@@ -1748,7 +1748,21 @@ details.ap.refs[open]>summary h4::after{content:"▾"}
 
 /* 문서 머리 흐린 한 줄 — 바뀐 때 · 사람(UX T2-10 · 정함) */
 .dsec .secnew{margin:calc(var(--sp-2) * -1) 0 var(--sp-3);color:var(--warn)}
-.ed .edprev{margin-top:var(--sp-6)}
+/* 바뀐 것 — 1025 이상은 글 상자 오른쪽 판(글 상자 높이에 맞추고 안에서 굴린다) · 그 아래는 글 상자 밑 */
+@media (min-width:1025px){.app.pg-edit .main .docw:has(.edcols.on){max-width:none}} /* 두 칸일 때 종이를 넓힌다 */
+.edcols.on{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--sp-5);align-items:stretch}
+.edcols.on textarea{margin:var(--sp-2) 0 0}
+.ed .edprev{position:relative;min-width:0;margin-top:var(--sp-2)}
+.ed .edprevin{position:absolute;inset:0;overflow:auto;padding:var(--sp-5);border:1px solid var(--border);border-radius:var(--r);background:var(--surface)}
+.ed .edprevh{display:flex;align-items:baseline;gap:var(--sp-3);margin-bottom:var(--sp-3);font-size:var(--fs-sm);font-weight:var(--fw-md);color:var(--text-2)}
+.ed .edprevh .muted{font-weight:var(--fw);font-size:var(--fs-xs)}
+.ed .edprev .diff:first-child{margin-top:0}
+.diff .gap{color:var(--text-3);text-align:center}
+.diff .gap::before{content:none}
+@media (max-width:1024px){
+  .edcols.on{display:flex;flex-direction:column}
+  .ed .edprevin{position:static;max-height:min(480px, 60vh)}
+}
 .btn[aria-disabled=true]{opacity:.5;cursor:not-allowed}
 
 /* ── UX 검토 화면 기본기(2026-11-08) ── */
@@ -1925,7 +1939,8 @@ button.sx-root{display:flex;align-items:center;gap:var(--sp-3);width:100%;backgr
 .ed textarea{width:100%;min-height:240px;margin:var(--sp-2) 0 0;padding:var(--sp-7);border:1px solid var(--border-input);border-radius:var(--r);background:var(--surface-2);color:var(--text);font:var(--fs-body)/var(--lh-body) var(--font);resize:vertical;transition:border-color var(--t-fast) var(--ease),background-color var(--t-fast) var(--ease)}
 .ed textarea:hover:not(:focus){border-color:var(--text-3)}
 .ed textarea:focus{outline:2px solid transparent;outline-offset:2px;border-color:var(--accent);background:var(--surface);box-shadow:var(--focus-ring)}
-.edsave{position:sticky;bottom:0;z-index:2;display:flex;flex-direction:column;gap:var(--sp-5);margin:var(--sp-9) calc(var(--sp-9) * -2) 0;padding:var(--sp-7) calc(var(--sp-9) * 2);border-top:1px solid var(--border);border-radius:0 0 var(--r-lg) var(--r-lg);background:var(--surface)}
+/* 붙는 자리는 .main 의 안쪽 여백 끝이다 — 아래 여백만큼 내려 화면 바닥에 붙인다(글 상자가 아래로 비치지 않게) */
+.edsave{position:sticky;bottom:calc((var(--sp-9) * 2 + var(--sp-7)) * -1);z-index:2;display:flex;flex-direction:column;gap:var(--sp-5);margin:var(--sp-9) calc(var(--sp-9) * -2) 0;padding:var(--sp-7) calc(var(--sp-9) * 2);border-top:1px solid var(--border);border-radius:0 0 var(--r-lg) var(--r-lg);background:var(--surface)}
 .edsave .edwhyrow{display:flex;align-items:center;gap:var(--sp-3)}
 .edsave .edwhy{flex:1;min-width:0;min-height:40px;background:var(--surface-2)}
 .edsave .edwhy:focus{background:var(--surface)}
@@ -1944,7 +1959,7 @@ button.sx-root{display:flex;align-items:center;gap:var(--sp-3);width:100%;backgr
   .app:is(.pg-doc,.pg-rec,.pg-edit) .main:not(.rp) .paper h1{font-size:var(--fs-2xl);line-height:var(--lh-2xl)}
   .app:is(.pg-doc,.pg-rec,.pg-edit) .main:not(.rp) .docw>.gdock .gbtn{top:calc(var(--sp-9) + var(--sp-7) + var(--sp-2));right:calc(var(--sp-9) + var(--sp-7))}
   .app:is(.pg-doc,.pg-rec,.pg-edit) .main:not(.rp) .docw>.gdock .gpop{top:calc(var(--sp-9) * 3 + var(--sp-7));right:calc(var(--sp-9) + var(--sp-7))}
-  .edsave{margin:var(--sp-9) calc((var(--sp-9) + var(--sp-7)) * -1) 0;padding:var(--sp-7) calc(var(--sp-9) + var(--sp-7))}
+  .edsave{bottom:calc(var(--sp-9) * -2);margin:var(--sp-9) calc((var(--sp-9) + var(--sp-7)) * -1) 0;padding:var(--sp-7) calc(var(--sp-9) + var(--sp-7))}
 }
 @media (max-width:600px){
   .app:is(.pg-doc,.pg-rec,.pg-edit) .main:not(.rp){padding:var(--sp-5) var(--sp-5) var(--sp-9)}

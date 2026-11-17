@@ -2239,9 +2239,9 @@ function docPane(t, right) {
     : editing && de.error
     ? errHtml(de, `doc:${k}:${t.ref}:ed`)
     : editing
-    ? `<div class="ed" data-t="editor"><div class="edbar"><span class="lbl"><b>고치는 중</b>${tipb(de.structure ? 'ed' : 'edRo', '고치기')}</span><span class="toolbar"><button class="btn sm" data-a="edAddSec" data-t="edAddSec">항목 더하기</button><button class="btn sm${S.edit.preview ? ' on' : ''}" data-a="edPreview" data-t="edPreview" aria-pressed="${!!S.edit.preview}">바뀐 것 보기</button></span></div><textarea id="edTx" aria-label="문서 글(md)" data-in="edTx" data-t="edTx" spellcheck="false"${S.edit.busy ? ' readonly aria-busy="true"' : ''}>${esc(edText(de))}</textarea>
+    ? `<div class="ed" data-t="editor"><div class="edbar"><span class="lbl"><b>고치는 중</b>${tipb(de.structure ? 'ed' : 'edRo', '고치기')}</span><span class="toolbar"><button class="btn sm" data-a="edAddSec" data-t="edAddSec">항목 더하기</button><button class="btn sm${S.edit.preview ? ' on' : ''}" data-a="edPreview" data-t="edPreview" aria-pressed="${!!S.edit.preview}">바뀐 것 보기</button></span></div><div class="edcols${S.edit.preview ? ' on' : ''}"><textarea id="edTx" aria-label="문서 글(md)" data-in="edTx" data-t="edTx" spellcheck="false"${S.edit.busy ? ' readonly aria-busy="true"' : ''}>${esc(edText(de))}</textarea>${S.edit.preview ? `<aside class="edprev" data-t="edPrev" aria-label="바뀐 것"><div class="edprevin"><div class="edprevh">바뀐 것<span class="muted">저장 전</span></div><div id="edDiffs">${edPreviewHtml(k, de)}</div></div></aside>` : ''}</div>
    ${de.sections.filter((s) => s.locks).map((s) => `<div class="lockh">항목 「${esc(s.h)}」 의 표: 회색은 잠겨 있다</div>${s.locks}`).join('')}
-   ${S.edit.preview ? `<div class="edprev" data-t="edPrev"><div class="small muted">저장하면 바뀌는 것(저장 전 · 막지 않는다)</div>${edPreviewHtml(k, de)}</div>` : ''}${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.errSecs || []).length ? `<div class="row" data-t="edErrSecs">${S.edit.errSecs.map((h) => `<button type="button" class="btn sm" data-a="edGoSec" data-v="${esc(h)}">「${esc(h)}」 로</button>`).join('')}</div>` : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}<div class="edsave" data-t="edSave"><div class="edwhyrow"><input id="edWhy" data-in="edWhy" data-t="edWhy" maxlength="200" class="inp edwhy" placeholder="바꾼 까닭(선택)" aria-label="바꾼 까닭" value="${esc(S.edit.why || '')}">${tipb('ed.why', '바꾼 까닭')}</div><div class="edgo"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><span class="ednote" data-t="edNote">${svApprove(k) ? (S.edit && S.edit.fixes ? '이 기록이 넣은 항목만 보인다 · 저장하면 바로잡는 기록이 남는다' : '저장하면 확인 창 뒤 문서에 들어간다') : '저장하면 바로 문서에 들어간다 · 이력에 남는다'}</span></div></div></div>`
+   ${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.errSecs || []).length ? `<div class="row" data-t="edErrSecs">${S.edit.errSecs.map((h) => `<button type="button" class="btn sm" data-a="edGoSec" data-v="${esc(h)}">「${esc(h)}」 로</button>`).join('')}</div>` : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}<div class="edsave" data-t="edSave"><div class="edwhyrow"><input id="edWhy" data-in="edWhy" data-t="edWhy" maxlength="200" class="inp edwhy" placeholder="바꾼 까닭(선택)" aria-label="바꾼 까닭" value="${esc(S.edit.why || '')}">${tipb('ed.why', '바꾼 까닭')}</div><div class="edgo"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><span class="ednote" data-t="edNote">${svApprove(k) ? (S.edit && S.edit.fixes ? '이 기록이 넣은 항목만 보인다 · 저장하면 바로잡는 기록이 남는다' : '저장하면 확인 창 뒤 문서에 들어간다') : '저장하면 바로 문서에 들어간다 · 이력에 남는다'}</span></div></div></div>`
     : d.sections.map((s) => {
     // 찾기로 연 것만 「찾은 곳」 · 링크 · 개요로 연 항목은 머리를 잠깐 빛낸다
     const lit = q && hl && s.h === hl
@@ -3596,6 +3596,11 @@ function edDrop() { if (S.edit) { try { sessionStorage.removeItem(edKey(S.edit))
 // 고치는 중인 글을 버리는 길(그만두기 · 탭 닫기 · 지식 지우기 …) — 바뀐 글이 있으면 묻는다
 async function edLeave(what) { return !edDirty() || (await ask1('고치던 글 버리기', '버리기', true, `저장하지 않은 글이 있다: ${what}면 버린다`)) }
 window.addEventListener('beforeunload', (ev) => { if (edDirty() || (S.imports || []).some((x) => x.cls === 'run' || x.busy || x.sending)) { ev.preventDefault(); ev.returnValue = '' } })
+let edDiffT = 0
+function edDiffSoon() {
+  clearTimeout(edDiffT)
+  edDiffT = setTimeout(() => { const box = $('#edDiffs'), e = S.edit; const d = e && S.cache[`doc:${e.kn}:${e.doc}:ed`]; if (box && d && !d.error) box.innerHTML = edPreviewHtml(e.kn, d) }, 250)
+}
 function edFit(ta) { if (!ta) return; ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight + 4, Math.max(320, innerHeight - 220)) + 'px' }
 function edChanges(d, txt) {
   const parts = []
@@ -3607,16 +3612,38 @@ function edChanges(d, txt) {
     const now = p.b.join('\n').trim(), was = (old.get(p.h) || '').trim()
     if (old.has(p.h) && now === was) continue
     const a = was.split('\n').filter((l) => l.trim()), b = now.split('\n').filter((l) => l.trim())
-    out.push({ h: p.h, isNew: !old.has(p.h), del: a.filter((l) => !b.includes(l)), add: b.filter((l) => !a.includes(l)) })
+    out.push({ h: p.h, isNew: !old.has(p.h), ops: lineDiff(a, b) })
   }
-  for (const h of old.keys()) if (!parts.some((p) => p.h === h)) out.push({ h, gone: true, del: [], add: [] })
+  for (const h of old.keys()) if (!parts.some((p) => p.h === h)) out.push({ h, gone: true, ops: [] })
   return out
+}
+// 줄 diff — 같은 줄(=) · 지운 줄(-) · 더한 줄(+) 차례(LCS)
+function lineDiff(a, b) {
+  const n = a.length, m = b.length
+  if (n * m > 400000) return [...a.map((t) => ({ o: '-', t })), ...b.map((t) => ({ o: '+', t }))]
+  const L = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1))
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = a[i] === b[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1])
+  const out = []
+  let i = 0, j = 0
+  while (i < n && j < m) { if (a[i] === b[j]) { out.push({ o: '=', t: a[i] }); i++; j++ } else if (L[i + 1][j] >= L[i][j + 1]) out.push({ o: '-', t: a[i++] }); else out.push({ o: '+', t: b[j++] }) }
+  while (i < n) out.push({ o: '-', t: a[i++] })
+  while (j < m) out.push({ o: '+', t: b[j++] })
+  return out
+}
+function edDiffLines(ops) {
+  const near = (i) => ops.slice(Math.max(0, i - 2), i + 3).some((x) => x.o !== '=')
+  let gap = false
+  return ops.map((x, i) => {
+    if (x.o === '=' && !near(i)) { if (gap) return ''; gap = true; return '<div class="ln2 gap">⋯</div>' }
+    gap = false
+    return `<div class="ln2${x.o === '+' ? ' add' : x.o === '-' ? ' del' : ''}">${esc(x.t)}</div>`
+  }).join('')
 }
 function edPreviewHtml(k, d) {
   const ch = edChanges(d, edText(d))
   if (!ch.length) return '<div class="diff" data-t="edDiff"><div class="ln2">아직 바뀐 글이 없다</div></div>'
   return ch.map((c) => {
-    return `<div class="diff" data-t="edDiff"><div class="fh">${esc(c.h)}${c.isNew ? ' · 새 항목' : c.gone ? ' · 지움' : ''}</div>${c.del.map((l) => `<div class="ln2 del">${esc(l)}</div>`).join('')}${c.add.map((l) => `<div class="ln2 add">${esc(l)}</div>`).join('')}</div>` }).join('')
+    return `<div class="diff" data-t="edDiff"><div class="fh">${esc(c.h)}${c.isNew ? ' · 새 항목' : c.gone ? ' · 지움' : ''}</div>${edDiffLines(c.ops)}</div>` }).join('')
 }
 async function saveDoc() {
   const e = S.edit
@@ -7670,7 +7697,7 @@ document.addEventListener('input', (ev) => {
   if (k === 'se' && S.se) S.se[t.dataset.f] = t.value
   if (k === 'sendQ') { S.sendQ = t.value; const q = t.value.trim().toLowerCase(); for (const r of document.querySelectorAll('[data-t=sendRec]')) r.style.display = !q || r.textContent.toLowerCase().includes(q) ? '' : 'none' }
   if (k === 'sendType' && S.sendWin) { S.sendWin.type = t.value; const b = $('[data-t=sendChangeGo]'), pt = S.sendWin.to && sendTeamOf(S.sendWin.to); if (b) b.disabled = !pt || t.value.trim() !== pt.name || S.sending }
-  if (k === 'edTx' && S.edit) { S.edit.text = t.value; try { sessionStorage.setItem(edKey(S.edit), t.value) } catch {} return }
+  if (k === 'edTx' && S.edit) { S.edit.text = t.value; try { sessionStorage.setItem(edKey(S.edit), t.value) } catch {} if (S.edit.preview) edDiffSoon(); return }
   if (k === 'meRoot') S.meRootEdit = t.value
   if (k === 'sdPath') { sdState().path = t.value; const g = $('[data-t=sdGo]'); if (g) g.disabled = !t.value.trim() }
   if (k === 'sdwT' && S.sdw) S.sdw.rows[Number(t.dataset.i)] = t.value
