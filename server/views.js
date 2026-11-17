@@ -5,11 +5,12 @@
 
 import MarkdownIt from 'markdown-it'
 import path from 'node:path'
-import { coordsOfSection, labelOf, sectionOf } from '../core/knowledge.js'
+import { coordsOfSection, labelOf, sectionOf, reflectedIn } from '../core/knowledge.js'
+import { parsePut, itemKey } from '../core/parts.js'
 import { locateDoc } from '../core/registry.js'
 import { sha16 } from '../core/text.js'
 import { splitBlocks, parseTable } from '../core/baseline.js'
-import { parseRefLine } from '../core/sections.js'
+import { parseRefLine, headingMatches } from '../core/sections.js'
 import { levelOf, eachLive } from '../core/levels.js'
 import { RECORDS_DOC } from '../core/guard.js'
 
@@ -368,19 +369,37 @@ function backlinks(k, d) {
 // 기록 ↔ 문서 — 항목 표지(applied)와 정리 기록의 reflects 로 잇는다. 건드린 항목(touches)이 없는 넣은 파일 기록도
 // 어느 문서 · 항목으로 갔는지, 문서가 어느 기록에서 왔는지 보인다(touches 만 보면 둘 다 0 이었다)
 const placedBy = (k, w) => [...k.works, ...k.logs].filter((o) => o !== w && o.reflects?.includes(w.id))
-function landedIn(k, ids) {
+// 상태 「문서에 들어감」(recordState) 과 같은 판정 — 항목 표지가 이 기록(또는 넣은 정리)인 곳만이 아니라
+//   저장 문이 넣었다고 적은 항목(넣은 것 칸 · 되돌린 항목 빼고) · 건드린 항목에 더 늦은 기록이 들어 이 기록도 든 곳(reflectedIn)까지.
+//   표지만 보면 나중 기록이 같은 항목을 고친 순간 「들어감」 기록의 문서가 「없다」 로 보인다
+function landedIn(k, w, ids) {
   const out = new Map()
+  const add = (d, h) => {
+    if (!out.has(d.id)) out.set(d.id, { id: d.id, title: d.title, hs: [] })
+    const x = out.get(d.id)
+    if (!x.hs.includes(h)) x.hs.push(h)
+  }
   for (const d of k.docs) {
     // 문서 감시의 사본 — 문서 전체가 표지의 기록(rec)에서 왔다
     if (d.rec && ids.has(d.rec)) {
-      out.set(d.id, { id: d.id, title: d.title, hs: d.sections.map((s) => s.h) })
+      for (const s of d.sections) add(d, s.h)
       continue
     }
-    for (const s of d.sections) {
-      if (!s.applied || !ids.has(s.applied)) continue
-      if (!out.has(d.id)) out.set(d.id, { id: d.id, title: d.title, hs: [] })
-      out.get(d.id).hs.push(s.h)
+    for (const s of d.sections) if (s.applied && ids.has(s.applied)) add(d, s.h)
+  }
+  if (w.state !== 'in') return [...out.values()]
+  if ((w.tags || []).includes('put')) {
+    const back = k.revertedItems?.get(w.id)
+    for (const x of parsePut(w.body)) {
+      if (back?.has(itemKey(x.doc, x.heading))) continue
+      const d = k.byDocPath.get(x.doc)
+      const s = d?.sections.find((o) => headingMatches(o.h, x.heading || ''))
+      if (s) add(d, s.h)
     }
+  }
+  for (const c of w.touches) {
+    const x = sectionOf(k, c)
+    if (x?.doc && x.sec && reflectedIn(k, w, x.sec)) add(x.doc, x.sec.h)
   }
   return [...out.values()]
 }
@@ -463,7 +482,7 @@ export function recView(k, id) {
   const fixedBy = [...k.works, ...k.logs].filter((o) => o.fixes.includes(w.id)).map(recRow)
   // 이 기록이 간 곳 — 이 기록(또는 이 기록을 넣은 정리)이 표지로 남은 항목 · 정리 기록이면 그 정리가 넣은 기록
   const via = placedBy(k, w)
-  const went = landedIn(k, new Set([w.id, ...via.map((o) => o.id)]))
+  const went = landedIn(k, w, new Set([w.id, ...via.map((o) => o.id)]))
   const from = (w.reflects || []).map((x) => k.byWork.get(x)).filter(Boolean).map(recRow)
   const ingest = w.tags.some((t) => t.startsWith('ingest/')) && !k.logs.includes(w)
   return { ...recRow(w), html: render(k, w.path, w.body), tags: w.tags, items, fixes, fixedBy, went, via: via.map(recRow), from, ...(ingest ? { ingest: { read: w.tags.includes('ingest-read') } } : {}), ...(k.logs.includes(w) ? { log: logKind(w) } : {}) }

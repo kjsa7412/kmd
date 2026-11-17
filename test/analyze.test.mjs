@@ -120,3 +120,23 @@ test('출처: 넣은 파일 기록 → 간 문서 · 문서 → 온 기록(정�
     fs.rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test('기록 → 간 문서: 나중 기록이 같은 항목을 고쳐 표지가 옮겨 가도 「문서에 들어감」 기록의 문서는 남는다', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-went-'))
+  try {
+    fs.mkdirSync(path.join(dir, 'docs'))
+    fs.mkdirSync(path.join(dir, 'work'))
+    fs.writeFileSync(path.join(dir, '_vocab.md'), '# 좌표 어휘\n\n## 화면\n- `화면:A`: 상황 지도\n- `화면:B`: 공정 도식\n')
+    fs.writeFileSync(path.join(dir, '_managed.md'), '# 관리\n\n| 항목 | 문서 | 머리 |\n| --- | --- | --- |\n| `화면:A` | `docs/화면.md` | `## A: 상황 지도` |\n| `화면:B` | `docs/화면.md` | `## B: 공정 도식` |\n')
+    fs.writeFileSync(path.join(dir, 'docs', '화면.md'), '# 화면\n\n## A: 상황 지도\n<!-- applied: 2026-1102-뒤 -->\n글\n\n## B: 공정 도식\n<!-- applied: 2026-1102-뒤 -->\n글\n')
+    const rec = (id, date) => `---\nid: ${id}\ntitle: ${id}\ndate: ${date}\nauthor: kim\ntouches:\n  - 화면:A\n  - 화면:B\n---\n\n# ${id}\n\n글\n`
+    fs.writeFileSync(path.join(dir, 'work', '2026-1031-앞.md'), rec('2026-1031-앞', '2026-10-31 08:42'))
+    fs.writeFileSync(path.join(dir, 'work', '2026-1102-뒤.md'), rec('2026-1102-뒤', '2026-11-02 13:51'))
+    const k = await loadKnowledge({ id: 't', name: 't', dir })
+    const r = recView(k, '2026-1031-앞')
+    assert.equal(r.state, 'in')
+    assert.deepEqual(r.went, [{ id: '화면', title: '화면', hs: ['A: 상황 지도', 'B: 공정 도식'] }])
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
