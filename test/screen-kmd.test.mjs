@@ -2180,13 +2180,13 @@ test('무인 실패(지식 생성 하네스 H4b): 진행 탭의 실패 일감 �
     await page.locator('[data-t=q-retry]').first().click()
     await page.waitForFunction(() => !document.querySelector('[data-t=qrow][data-state=fail]'))
     assert.deepEqual([s.hub.job(o1.job).state, s.hub.job(o1.job).fails], ['queued', 0])
-    // 다시 실패 → [그만두기] 는 확인 창을 거쳐 원천을 버린다
+    // 다시 실패 → [그만두기] 는 확인 창을 거쳐 넣으려던 것을 버린다
     await s.hub.intakeGiveUp(s.hub.job(o1.job), 'worker', '팀 일꾼이 24시간 넘게 일감을 받지 않았다')
     await page.waitForSelector('[data-t=qrow][data-state=fail]')
     await page.locator('[data-t=qrow]', { hasText: '테스트 창고 점검.md' }).click()
     await page.locator('[data-t=q-drop]').first().click()
     await page.waitForSelector('[data-t=askWin]')
-    assert.match(await page.locator('[data-t=askWin]').innerText(), /실패 일감 그만두기[\s\S]*넣으려던 원천을 버린다/)
+    assert.match(await page.locator('[data-t=askWin]').innerText(), /실패 일감 그만두기[\s\S]*넣으려던 것을 버린다/)
     await page.click('[data-t=askOk]')
     await page.waitForFunction(() => !document.querySelector('[data-t=qrow][data-state=fail]'))
     assert.equal(s.hub.job(o1.job).state, 'cancelled')
