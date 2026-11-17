@@ -4209,8 +4209,17 @@ ${genRulesBlock({ profile: 'shape' })}`
       remove = (Array.isArray(remove) ? remove : []).map((h) => String(h || '').trim()).filter(Boolean)
       rename = (Array.isArray(rename) ? rename : []).map((x) => ({ from: String(x?.from || '').trim(), to: String(x?.to || '').trim() })).filter((x) => x.from && x.to && x.from !== x.to)
       if (!sections.length && !remove.length && !rename.length) throw new KmdError('E_INPUT', '바뀐 항목이 없다')
-      // 화면에서 글을 그대로 고쳐 넣는 길은 걷었다(H6 · H-D33): 고친 글은 「넣을 것」 으로 올려 공식 절차(세션 · 저장 제안)를 탄다. 항목 지움 · 이름 바꿈은 그대로다
-      if (needBase && sections.length) throw new KmdError('E_INPUT', '화면에서 글을 그대로 고쳐 넣는 길은 걷었다: 고친 글을 「넣을 것」 으로 올리면 Claude 가 지어 저장 제안으로 세운다')
+      // 화면 고치기(H-D38 · 2026-11-17 주인 결정) — 있는 항목의 글 고침은 사람이 고친 그대로 들어간다(무엇을 어떻게 바꿀지 사람이 정했다 · 기록의 바뀐 것은 앞뒤 글에서 나온다).
+      //   새 항목은 이 길로 받지 않는다: 무엇이 항목인가 · 종류 · 장부 줄은 공식 절차가 정한다(「넣을 것」 · edit-source). 항목 지움 · 이름 바꿈은 지식관리자가 그대로 한다
+      if (needBase) { const fresh = sections.filter((x) => x && typeof x === 'object' && !d.sections.some((y) => y.h === String(x.h || '').trim())).map((x) => String(x.h || '').trim()); if (fresh.length) throw new KmdError('E_INPUT', `새 항목(${fresh.slice(0, 3).join(' · ')})은 「넣을 것」 으로 올린다: Claude 가 지어 저장 제안으로 세운다`) }
+      // 기록 고치기(fixes) — 그 기록이 넣은 항목을 같은 편집기로 고친다. 내 기록이거나 그 지식의 지식관리자여야 한다 · 새 기록은 원래 기록의 정정으로 이어진다
+      fixes = (Array.isArray(fixes) ? fixes : []).map((x) => String(x || '').trim()).filter(Boolean).slice(0, 1)
+      let fixOf = null
+      if (fixes.length) {
+        fixOf = k.byWork.get(fixes[0])
+        if (!fixOf || k.logs.includes(fixOf)) throw new KmdError('E_NOTFOUND', '고칠 기록이 없다')
+        if (fixOf.author !== ctx.user && !hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '남의 기록은 그 지식의 지식관리자가 고친다')
+      }
       if (sections.some((x) => !x || typeof x !== 'object' || Array.isArray(x) || (x.base != null && !(typeof x.base === 'string' && /^[0-9a-f]{16}$/.test(x.base))))) throw new KmdError('E_INPUT', '항목마다 { h, body, base? } 이다(base 는 읽을 때 받은 16자 지문)')
       if (changes != null && (!Array.isArray(changes) || changes.length > 20 || changes.some((x) => typeof x !== 'string' || x.length > 200 || /[\r\n]/.test(x)))) throw new KmdError('E_INPUT', '바뀐 것(changes)은 한 줄 200자 안의 글 20개까지다')
       if (proposal != null && (typeof proposal !== 'string' || !/^[0-9a-f]{64}$/.test(proposal))) throw new KmdError('E_INPUT', 'proposal 은 저장 제안이 준 64자 지문이다')
@@ -4236,7 +4245,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       const w = watchedOf(await fs.readFile(path.join(k.dir, ...d.path.split('/')), 'utf8').catch((e) => (e.code === 'ENOENT' ? '' : Promise.reject(e))))
       if (w) throw new KmdError('E_FORBIDDEN', `이 문서는 원본이 주인이다: ${w.src} 의 ${w.path} 를 고친다 · 덧붙일 말은 기록으로 남긴다`)
       const what = [...hs, ...remove.map((h) => `${h} 지움`), ...rename.map((x) => `${x.from} → ${x.to}`)]
-      const title = `화면에서 고침: ${d.title} 「${what.join(' · ')}」`.slice(0, 200)
+      const title = (fixOf ? `바로잡음: ${fixOf.title}` : `화면에서 고침: ${d.title} 「${what.join(' · ')}」`).slice(0, 200)
       // 요약은 한두 문장(approve 모드 기록 칸 · SUMMARY_MAX 300) — 고친 항목이 많으면 앞 것만 + 「외 n」
       const leadOf = (n) => `화면에서 고쳤다: ${what.slice(0, n).map((h) => `${d.title} › ${h}`).join(' · ')}${what.length > n ? ` 외 ${what.length - n}` : ''}`
       let lead = leadOf(what.length)
@@ -4261,7 +4270,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       }
       // approve 모드 — 고친 항목의 저장 제안(쓰지 않는다 · 줄 안에서 새로 읽은 지식) · 지움 · 이름 바꿈만이면 제안 없음
       if (approve && sections.length) {
-        const pin = { record: { title, body: abody, ...tch }, sections: sections.map((s) => ({ doc: d.path, heading: String(s.h).trim(), content: String(s.body ?? ''), ...(s.base ? { base: s.base } : {}) })) }
+        const pin = { record: { title, body: abody, ...tch, ...(fixes.length ? { fixes } : {}) }, sections: sections.map((s) => ({ doc: d.path, heading: String(s.h).trim(), content: String(s.body ?? ''), ...(s.base ? { base: s.base } : {}) })) }
         const p = await hub.propose(ctx, id, pin, { path: '화면', count: false })
         if (p.errors.some((x) => x.stale)) throw proposeFail(p)
         if (dry) return { dry: true, propose: p }
@@ -4273,14 +4282,35 @@ ${genRulesBlock({ profile: 'shape' })}`
       // 기록(이력 log/ · 태그 edit) + 항목 글 한 저장 — 이 PC 와 지식관리자는 kmd 자신의 쓰기(system)로 표까지 ·
       //   쓰기 자리는 사람의 쓰기(문서 꼴 · 원본이 주인 · 표를 core 가 본다)
       const r = await hub.save(ctx, id, {
-        record: { title, body: abody ?? `${lead}${why1 ? `\n\n## 까닭\n${why1}` : ''}`, ...tch, tags: ['edit'], ...(Array.isArray(fixes) && fixes.length ? { fixes: fixes.slice(0, 10).map((x) => String(x).slice(0, 120)) } : {}) },
+        record: { title, body: abody ?? `${lead}${why1 ? `\n\n## 까닭\n${why1}` : ''}`, ...tch, tags: ['edit'], ...(fixes.length ? { fixes } : {}) },
         sections: [
           ...sections.map((s) => ({ doc: d.path, heading: String(s.h).trim(), content: String(s.body ?? ''), ...(s.base ? { base: s.base } : {}) })),
           ...remove.map((h) => ({ doc: d.path, heading: h, remove: true, base: sha16(d.sections.find((s) => s.h === h).body) })),
           ...rename.map((x) => ({ doc: d.path, heading: x.from, rename: x.to, base: sha16(d.sections.find((s) => s.h === x.from).body) })),
         ],
       }, { channel: 'edit', system: structure, edit: { structure, ...(approve ? { approve: true } : {}), ...(accepted ? { accepted } : {}) } })
-      const out = { direct: true, ...r }
+      // 바뀐 옛 값이 다른 항목에도 남아 있나 — 고친 항목의 앞뒤 글에서 사라진 값(수 · 코드 · 식별자)을 다른 항목에서 찾아 알린다(쓰지 않는다 · 사람이 보고 고친다)
+      let also = []
+      try {
+        const gone = new Set()
+        for (const sx of sections) {
+          const h = String(sx.h).trim()
+          const was = d.sections.find((y) => y.h === h)?.body || ''
+          const now = String(sx.body ?? '')
+          for (const v of valuesOf(was)) if (v.length >= 2 && !now.includes(v)) gone.add(v)
+        }
+        if (gone.size) {
+          cache.delete(id)
+          const k2 = await hub.get(id, ctx)
+          const mine = new Set(sections.map((sx) => `${d.id}\n${String(sx.h).trim()}`))
+          for (const d2 of k2.docs) for (const s2 of d2.sections) {
+            if (!s2.h || mine.has(`${d2.id}\n${s2.h}`)) continue
+            const hit = [...gone].filter((v) => s2.body.includes(v))
+            if (hit.length && also.length < 20) also.push({ doc: d2.id, title: d2.title, heading: s2.h, values: hit.slice(0, 5) })
+          }
+        }
+      } catch (e) { log(`남은 옛 값 찾기 ${id}: ${e.message}`); also = [] }
+      const out = { direct: true, ...r, ...(also.length ? { also } : {}) }
       editDup.set(dupKey, { at: Date.now(), r: out })
       for (const [key, v] of editDup) if (Date.now() - v.at > 60_000) editDup.delete(key)
       return out
@@ -4325,46 +4355,11 @@ ${genRulesBlock({ profile: 'shape' })}`
     //   못 한 항목이 하나라도 있으면 저장하지 않고 팀 일꾼 들이기 일감(type fix · 정정 기록 초안을 일감이 들고 있다) ·
     //   원래 기록이 들어간 항목이 없으면 정정 기록만 + 넣지 못함(nosec) → { id?, put, held, job?, why? }
     async fixRecord(ctx, id, rec, input = {}) {
-      if (mode !== 'team') throw new KmdError('E_INPUT', '기록 고치기는 팀 지식에서 한다')
-      const k = await hub.get(id, ctx)
+      // 옛 값 · 새 값을 적으면 코드가 글자를 바꿔 넣던 길과 팀 일꾼의 정정 일감은 걷었다(H-D38 · 2026-11-17 주인 결정):
+      //   어디를 바꿨는지 사람이 보지 못해 정확함을 지키기 어렵다. 기록 고치기는 그 기록이 넣은 항목을 문서 고치기와 같은 편집기로 고친다(hub.edit 의 fixes)
+      await hub.meta(id, ctx)
       hub.need(ctx, id, 'write')
-      const w = k.byWork.get(String(rec || ''))
-      if (!w || k.logs.includes(w)) throw new KmdError('E_NOTFOUND', '그 기록이 없다')
-      const { title = null, body = '', from = null, to = null } = input && typeof input === 'object' && !Array.isArray(input) ? input : {}
-      const one = (v) => v == null || (typeof v === 'string' && v.length <= FIX_VALUE_MAX && !/[\r\n]/.test(v))
-      if (!one(from) || !one(to)) throw new KmdError('E_INPUT', `옛 값 · 새 값은 한 줄 ${FIX_VALUE_MAX}자 안이다`)
-      if (title != null && (typeof title !== 'string' || title.length > 200 || /[\r\n]/.test(title))) throw new KmdError('E_INPUT', '제목은 한 줄 200자 안이다')
-      if (typeof body !== 'string' || body.length > 20_000) throw new KmdError('E_INPUT', '고친 내용은 2만 자 안의 글이다')
-      const f = typeof from === 'string' ? from.trim() : ''
-      const t = typeof to === 'string' ? to.trim() : ''
-      if (!!f !== !!t) throw new KmdError('E_INPUT', '옛 값과 새 값은 같이 적는다')
-      if (f && f === t) throw new KmdError('E_INPUT', '옛 값과 새 값이 같다')
-      if (!f && !body.trim()) throw new KmdError('E_INPUT', '고친 내용이나 옛 값 → 새 값을 적는다')
-      // 남의 기록은 지식관리자가 바로잡는다(입력 모양을 본 뒤)
-      if (w.author !== ctx.user) hub.need(ctx, id, 'admin')
-      const record = fixRecordOf(w, { title, body, from: f || null, to: t || null })
-      const targets = targetsOf(k, w.id)
-      const rule = ruleFix(targets, { from: f, to: t })
-      // approve 모드(저장 승인 P6 · P-D33) — 정정은 무인 채널 규칙: 넣지 못함 · 고르기 기다림 없이 들어간다
-      //   들어간 항목이 없으면 원 기록의 건드린 항목 항목에 잇고(없으면 기록 모음 달 항목) · 규칙 치환이 저장 문에 걸리면 그 항목 끝에 정정을 인용으로(규칙 길)
-      if (!rule.left.length) {
-        const why = rule.sections.length ? null : '원래 기록이 들어간 항목을 찾지 못했다: 이은 항목에 잇는다'
-        const r = await unattendedPut(ctx, id, why ? { record: { ...record, body: `${why}\n\n${record.body}` }, sections: [] } : { record, sections: rule.sections }, { channel: 'fix', unattended: why ? { recordOnly: why } : {} })
-        if (r.errors) throw new KmdError('E_INPUT', `정정을 넣지 못했다(아무것도 쓰지 않았다): ${errWhy(r.errors[0])}`)
-        return { id: r.id, put: r.put ?? 0, held: 0, ...(why ? { why } : {}) }
-      }
-      // 규칙이 못 한 항목 — 팀 일꾼에게(정정 기록 초안 · 항목 자리 · 원래 기록을 쓴 사람을 일감에 싣는다)
-      //   일감에 싣는 항목은 규칙이 본 것(넣을 바꿀 곳 · 남은 항목)만 · 간접 항목은 direct:false 로(일꾼 끝에서 다시 가를 때 옛 값이 없으면 건너뛴다 · 끝 검토 3)
-      const kept = new Set([...rule.sections, ...rule.left].map((x) => `${x.doc}\n${x.heading}`))
-      const jobTargets = targets.filter((x) => kept.has(`${x.doc}\n${x.heading}`)).map((x) => ({ doc: x.doc, heading: x.heading, direct: !!x.direct }))
-      const o = await hub.openJob(id, { type: 'fix', by: ctx.user, src: { rec: w.id, owner: w.author, title: record.title, from: f || null, to: t || null, touches: record.touches || [], targets: jobTargets }, md: record.body })
-      // 같은 기록의 정정을 팀 일꾼이 이미 하고 있다 — 이번 입력은 받지 않았다(받은 척하지 않는다)
-      if (o.again) throw new KmdError('E_CONFLICT', '이 기록의 정정을 팀 일꾼이 이미 하고 있다. 끝난 뒤 다시 고친다')
-      if (o.state === 'queued') return { job: o.job, put: 0, held: 0, left: rule.left.length }
-      if (o.state === 'aborted') throw new KmdError('E_FORBIDDEN', o.why)
-      // 「Claude 에 보내지 않음」 지식 — 무인 일감을 열지 않는다(H-D30): 정정은 옛 값 → 새 값 치환이 되는 항목까지만 된다
-      if (o.state === 'noclaude') throw new KmdError('E_CONFLICT', `${o.why}: 옛 값 → 새 값으로 바로 바뀌지 않는 항목이 남았다`)
-      return { id: o.rec || null, put: o.put ?? 0, held: 0, ...(o.why ? { why: o.why } : {}) }
+      throw new KmdError('E_INPUT', '기록 고치기는 그 기록이 넣은 항목을 화면의 [고치기] 로 고친다(옛 값 · 새 값으로 고치는 길은 걷었다)')
     },
     // 되돌리기 — 그 기록이 넣은 항목을 넣기 전 글로(설계 3-4 · S-D13 · S-D14 · S-D53)
     //   { record } 만이면 통째로(판정도 거둔다 · reopens) · { record, doc, heading? } 면 그 항목만(reopens 없이 · 원 기록은 남은 항목이 있으면 「들어감」)

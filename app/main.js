@@ -756,7 +756,7 @@ function draw() {
   const shell = gated()
     ? gatePage(scr, center)
     : `<div class="cxnav" id="kmdNav" data-t="nav">${sideHtml()}${list}</div><div class="col">${hdrHtml(scr)}${scr.acts || ''}<div class="body">${center}${scr.aside ? `<div class="aside" id="kmdAside" data-t="aside"><button type="button" class="hb afold" data-a="asideRail" data-t="asideFold" aria-expanded="${!ar}" title="${ar ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'} (Ctrl ])" aria-label="${ar ? '오른쪽 칸 펴기' : '오른쪽 칸 접기'}">${svg(ar ? 'sideL' : 'sideR')}</button><div class="asc" data-t="asideScroll">${scr.aside}</div></div>` : ''}</div></div>`
-  app.innerHTML = `${shell}${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.rsWin ? rsWinHtml() : ''}${S.devWin ? devWinHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S.paste && S.route.scr === 'import' ? pasteWinHtml() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.recFix ? recFixHtml() : ''}${S.sv ? svHtml() : ''}${S.ak ? akHtml() : ''}${S.past ? pastHtml() : ''}${S.sdw && S.route.scr === 'home' ? sdwHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}${S.keys ? keysHtml() : ''}`
+  app.innerHTML = `${shell}${S.pal ? palHtml() : ''}${S.qo ? qoHtml() : ''}${S.cmd ? cmdHtml() : ''}${S.del ? delHtml() : ''}${S.addPop ? addPopHtml() : ''}${S.rsWin ? rsWinHtml() : ''}${S.devWin ? devWinHtml() : ''}${S.se && S.route.scr === 'import' ? srcModalHtml() : ''}${S.sfOpen && S.route.scr === 'import' ? sfModal() : ''}${S.paste && S.route.scr === 'import' ? pasteWinHtml() : ''}${S._pop ? `<div class="pop" data-t="pop" data-pop="${esc(S._pop.key)}">${S._pop.html}</div>` : ''}${S.off ? offHtml() : ''}${S.seatWin ? seatWinHtml() : ''}${S.claudeWin ? claudeWinHtml() : ''}${S.stopWin ? stopWinHtml() : ''}${S.sendWin && S.route.scr === 'send' ? sendWinHtml() : ''}${S.acc ? accHtml() : ''}${S.sv ? svHtml() : ''}${S.ak ? akHtml() : ''}${S.also ? alsoHtml() : ''}${S.past ? pastHtml() : ''}${S.sdw && S.route.scr === 'home' ? sdwHtml() : ''}${S.ask ? askHtml() : ''}${S.sudo ? sudoHtml() : ''}${S.keys ? keysHtml() : ''}`
   for (const c of [...app.classList]) if (c.startsWith('pg-')) app.classList.remove(c)
   app.classList.add('pg-' + pgOf(editing))
   app.classList.toggle('has-list', hasList)
@@ -2241,7 +2241,7 @@ function docPane(t, right) {
     : editing
     ? `<div class="ed" data-t="editor"><div class="edbar"><span class="lbl"><b>고치는 중</b>${tipb(de.structure ? 'ed' : 'edRo', '고치기')}</span><span class="toolbar"><button class="btn sm" data-a="edAddSec" data-t="edAddSec">항목 더하기</button><button class="btn sm${S.edit.preview ? ' on' : ''}" data-a="edPreview" data-t="edPreview" aria-pressed="${!!S.edit.preview}">바뀐 것 보기</button></span></div><textarea id="edTx" aria-label="문서 글(md)" data-in="edTx" data-t="edTx" spellcheck="false"${S.edit.busy ? ' readonly aria-busy="true"' : ''}>${esc(edText(de))}</textarea>
    ${de.sections.filter((s) => s.locks).map((s) => `<div class="lockh">항목 「${esc(s.h)}」 의 표: 회색은 잠겨 있다</div>${s.locks}`).join('')}
-   ${S.edit.preview ? `<div class="edprev" data-t="edPrev"><div class="small muted">저장하면 바뀌는 것(저장 전 · 막지 않는다)</div>${edPreviewHtml(k, de)}</div>` : ''}${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.errSecs || []).length ? `<div class="row" data-t="edErrSecs">${S.edit.errSecs.map((h) => `<button type="button" class="btn sm" data-a="edGoSec" data-v="${esc(h)}">「${esc(h)}」 로</button>`).join('')}</div>` : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}<div class="edsave" data-t="edSave"><div class="edwhyrow"><input id="edWhy" data-in="edWhy" data-t="edWhy" maxlength="200" class="inp edwhy" placeholder="바꾼 까닭(선택)" aria-label="바꾼 까닭" value="${esc(S.edit.why || '')}">${tipb('ed.why', '바꾼 까닭')}</div><div class="edgo"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><span class="ednote" data-t="edNote">${svApprove(k) ? '고친 글은 넣을 것으로 올라간다: Claude 가 지어 저장 제안으로 세운다' : '저장하면 바로 문서에 들어간다 · 이력에 남는다'}</span></div></div></div>`
+   ${S.edit.preview ? `<div class="edprev" data-t="edPrev"><div class="small muted">저장하면 바뀌는 것(저장 전 · 막지 않는다)</div>${edPreviewHtml(k, de)}</div>` : ''}${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.errSecs || []).length ? `<div class="row" data-t="edErrSecs">${S.edit.errSecs.map((h) => `<button type="button" class="btn sm" data-a="edGoSec" data-v="${esc(h)}">「${esc(h)}」 로</button>`).join('')}</div>` : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}<div class="edsave" data-t="edSave"><div class="edwhyrow"><input id="edWhy" data-in="edWhy" data-t="edWhy" maxlength="200" class="inp edwhy" placeholder="바꾼 까닭(선택)" aria-label="바꾼 까닭" value="${esc(S.edit.why || '')}">${tipb('ed.why', '바꾼 까닭')}</div><div class="edgo"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><span class="ednote" data-t="edNote">${svApprove(k) ? (S.edit && S.edit.fixes ? '이 기록이 넣은 항목만 보인다 · 저장하면 바로잡는 기록이 남는다' : '저장하면 확인 창 뒤 문서에 들어간다') : '저장하면 바로 문서에 들어간다 · 이력에 남는다'}</span></div></div></div>`
     : d.sections.map((s) => {
     // 찾기로 연 것만 「찾은 곳」 · 링크 · 개요로 연 항목은 머리를 잠깐 빛낸다
     const lit = q && hl && s.h === hl
@@ -2330,41 +2330,23 @@ function pastHtml() {
   const tools = w.at && V0 && !V0.error ? `<div class="seg in" data-t="pastSeg"><button type="button" class="${w.cmp ? '' : 'on'}" data-a="pastCmp" data-v="">그때의 글</button><button type="button" class="${w.cmp ? 'on' : ''}" data-a="pastCmp" data-v="1" data-t="pastCmp">지금과 견주기</button></div>` : ''
   return `<div class="scrim fix" data-a="pastClose" data-self="1"><div class="modal w760" role="dialog" aria-modal="true" data-t="pastWin"><div class="mh">옛 판 <small>${esc(w.title || w.d)}</small><button type="button" class="x" data-a="pastClose" title="닫기" aria-label="닫기">×</button></div><div class="mb past-b"><div class="past-side">${list}</div><div class="past-main">${tools}${view}</div></div><div class="mf"><span class="small muted">읽기만 · 되돌리려면 이력의 [되돌리기]</span><span class="acts"><button type="button" class="btn ghost" data-a="pastClose">닫기</button></span></div></div></div>`
 }
-function recFixHtml() {
-  const w = S.recFix
-  const busy = w.busy ? ' data-busy="1"' : ''
-  return `<div class="scrim fix" data-a="recFixClose" data-self="1"${busy}><div class="modal w560" role="dialog" aria-modal="true" data-t="recFixWin"><div class="mh">기록 고치기 <small>${esc(w.title)}</small><button type="button" class="x" data-a="recFixClose" title="닫기" aria-label="닫기">×</button></div><div class="mb"><p class="small muted mt0">원래 기록은 그대로 두고 정정 기록을 새로 남긴다 · 옛 값이 그 항목에 한 곳이면 바로 문서에 넣고, 아니면 팀 일꾼이 넣는다</p><div class="field"><label for="rfFrom">옛 값</label><input class="inp" id="rfFrom" data-in="rfFrom" data-t="rfFrom" value="${esc(w.from)}" placeholder="예: 3초" autocomplete="off"></div><div class="field"><label for="rfTo">새 값</label><input class="inp" id="rfTo" data-in="rfTo" data-t="rfTo" value="${esc(w.to)}" placeholder="예: 5초" autocomplete="off"></div><div class="field" style="margin-bottom:0"><label for="rfBody">고친 내용</label><textarea class="inp" id="rfBody" rows="4" data-in="rfBody" data-t="rfBody" placeholder="무엇을 왜 바로잡나(md)">${esc(w.body)}</textarea></div>${w.err ? formErr(w.err, 'recFixErr') : ''}</div><div class="mf"><span class="acts"><button type="button" class="btn ghost" data-a="recFixClose" data-t="recFixCancel">취소</button><button type="button" class="btn pri" data-a="recFixSave" data-t="recFixSave"${w.busy ? ' disabled' : ''}>${w.busy ? '저장하는 중…' : '저장'}</button></span></div></div></div>`
-}
-async function recFixSave() {
-  const w = S.recFix
-  if (!w || w.busy) return
-  const from = w.from.trim(), to = w.to.trim()
-  if (!!from !== !!to) { w.err = '옛 값과 새 값은 같이 적는다'; render(); return }
-  if (from && from === to) { w.err = '옛 값과 새 값이 같다'; render(); return }
-  if (!from && !w.body.trim()) { w.err = '고친 내용이나 옛 값 → 새 값을 적는다'; render(); return }
-  w.busy = true
-  w.err = null
-  render()
-  try {
-    const r = await postJSON(`/api/k/${encodeURIComponent(w.k)}/rec/${encodeURIComponent(w.rec)}/fix`, { body: w.body, ...(from ? { from, to } : {}) })
-    S.recFix = null
-    forgetKn(w.k)
-    toast(esc(r.job ? '팀 일꾼에게 넘겼다: 넣으면 이력에 남는다' : r.rule ? `정정 기록을 남겼다 · 규칙 길: ${r.rule}` : `정정 기록을 남겼다 · 문서 ${r.put || 0}곳에 넣었다`), 7000)
-  } catch (e) {
-    if (S.recFix) { S.recFix.busy = false; if (e.code !== 'E_CANCEL') S.recFix.err = e.message }
-  }
+// 기록 고치기(H-D38) — 문서 고치기와 같은 편집기 · 같은 규칙. 그 기록이 넣은 항목의 지금 글을 띄우고, 고쳐 저장하면 바로잡는 기록이 원래 기록에 이어진다
+async function recFixOpen(k, rid) {
+  const r = recOf(k, rid)
+  if (!r || r.error) return
+  const went = (r.went || []).filter((x) => x.hs && x.hs.length)
+  if (!went.length) { toast('<b>이 기록이 넣은 항목이 없다</b> · 바로잡을 내용은 문서의 [고치기] 로 고치거나 넣을 것으로 올린다', 9000, true); return }
+  const doc = went.length === 1 ? went[0].id : await ask({ t: '어느 문서의 항목을 고치나', d: '이 기록은 여러 문서에 들어갔다. 문서 하나씩 고친다', select: { label: '문서', options: went.map((x) => [x.id, `${x.title} · ${x.hs.length}항목`]), value: went[0].id }, ok: '고치기' })
+  if (!doc) return
+  if (S.edit && (S.edit.kn !== k || S.edit.doc !== doc || S.edit.fixes?.[0] !== rid)) { if (!(await edLeave(`「${S.edit.doc}」 를 고치던 중이다. 다른 것을 고치`))) return; edDrop() }
+  openDocAt(k, doc, went.find((x) => x.id === doc).hs[0], null, 'docs')
+  const t = activeTab()
+  if (!t) return
+  S.edit = { tab: t.id, kn: k, doc, fixes: [rid], only: went.find((x) => x.id === doc).hs.slice(), fixTitle: r.title }
+  delete S.cache[`doc:${k}:${doc}:ed`]
+  S._focus = 'edTx'
   render()
 }
-const extOf = (n) => { const m = String(n).toLowerCase().match(/\.([a-z0-9]+)$/); return m ? m[1] : '' }
-function attPane(t, right) {
-  const ext = extOf(t.ref), img = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)
-  return {
-    html: `<div class="docw" data-t="attPane">${right ? rpHead() : ''}<div class="paper"><h1>${esc(t.ref)}</h1>${img ? `<img class="attimg" data-att="${esc(t.ref)}" data-ak="${esc(t.kn)}" alt="${esc(t.ref)}">` : `<div class="attph">${esc(ext)} 첨부: 원본 그대로 둔다</div>`}</div></div>`,
-    aside: right ? null : `<div class="ap"><h4>속성</h4><div class="kv"><span>종류</span><span>${esc(ext)}</span><span>자리</span><span>첨부</span></div></div>`,
-    title: t.ref,
-  }
-}
-
 // ── 빨리 열기(Ctrl O) ──
 function openQo() { leaveGate(); S.pal = null; S.cmd = null; S.menu = null; S.qo = { q: '', sel: 0 }; render() }
 function qoList() {
@@ -3601,13 +3583,14 @@ window.addEventListener('resize', () => { if ($('#gcv')) gPaint() })
 // ───────────── 고치기 저장 — 글을 항목으로 다시 갈라 바뀐 항목만 보낸다 ─────────────
 function forgetKn(k) { for (const key of Object.keys(S.cache)) if (key.startsWith(`tree:${k}`) || key.startsWith(`doc:${k}:`) || key.startsWith(`rec:${k}:`) || key.startsWith(`model:${k}`) || key.startsWith(`item:${k}:`)) delete S.cache[key] }
 // 편집기 글 — 쓰던 글(S.edit.text)이 있으면 그것 · 없으면 서버의 글. 다시 그려도 · 찾기 · 다른 화면에 갔다 와도 그대로
-const edOrig = (d) => d.sections.map((s) => '## ' + s.h + '\n' + s.md).join('\n\n')
+const edSecs = (d) => (S.edit && S.edit.only ? d.sections.filter((s) => S.edit.only.includes(s.h)) : d.sections) // 기록 고치기 — 그 기록이 넣은 항목만
+const edOrig = (d) => edSecs(d).map((s) => '## ' + s.h + '\n' + s.md).join('\n\n')
 function edText(d) {
   if (S.edit.orig == null) S.edit.orig = edOrig(d)
   if (S.edit.text == null && !d.sections.length && !S.edit.orig) S.edit.text = '## 개요\n\n'
   return S.edit.text != null ? S.edit.text : S.edit.orig
 }
-const edKey = (e) => `kmdDraft:${e.kn}|${e.doc}`
+const edKey = (e) => `kmdDraft:${e.kn}|${e.doc}${e.fixes ? "|fix:" + e.fixes[0] : ""}`
 const edDirty = () => !!S.edit && S.edit.text != null && S.edit.text !== S.edit.orig
 function edDrop() { if (S.edit) { try { sessionStorage.removeItem(edKey(S.edit)) } catch {} } S.edit = null }
 // 고치는 중인 글을 버리는 길(그만두기 · 탭 닫기 · 지식 지우기 …) — 바뀐 글이 있으면 묻는다
@@ -3618,7 +3601,7 @@ function edChanges(d, txt) {
   const parts = []
   let cur = null
   for (const line of String(txt).split('\n')) { const m = line.match(/^##\s+(.+)$/); if (m) { cur = { h: m[1].trim(), b: [] }; parts.push(cur) } else if (cur) cur.b.push(line) }
-  const old = new Map(d.sections.map((x) => [x.h, x.md]))
+  const old = new Map(edSecs(d).map((x) => [x.h, x.md]))
   const out = []
   for (const p of parts) {
     const now = p.b.join('\n').trim(), was = (old.get(p.h) || '').trim()
@@ -3649,11 +3632,12 @@ async function saveDoc() {
     if (m) { cur = { h: m[1].trim(), b: [] }; parts.push(cur) } else { if (!cur) { if (line.trim()) pre.push(line); return } cur.b.push(line) }
   })
   if (pre.length) { e.err = `첫 「## 」 줄 위에 글이 있다: 「${pre[0].trim().slice(0, 30)}」. 항목 글은 「## 머리」 아래에 쓴다(문서 요약은 문서 다듬기 · 세션이 쓴다)`; render(); return }
-  const old = new Map(d.sections.map((s) => [s.h, s]))
+  const shown = edSecs(d)
+  const old = new Map(shown.map((s) => [s.h, s]))
   const now = parts.map((p) => ({ h: p.h, body: p.b.join('\n').replace(/^\n+|\n+$/g, '') }))
   const trim = (x) => String(x).replace(/\s+$/, '')
   // 빠진 항목 — 글이 같은 새 이름이 있으면 이름 바꾸기, 아니면 지우기
-  const gone = d.sections.filter((s) => !now.some((p) => p.h === s.h))
+  const gone = shown.filter((s) => !now.some((p) => p.h === s.h))
   const rename = []
   const remove = []
   for (const s of gone) {
@@ -3661,24 +3645,28 @@ async function saveDoc() {
     if (to) rename.push({ from: s.h, to: to.h })
     else remove.push(s.h)
   }
-  const changed = now.filter((p) => !rename.some((x) => x.to === p.h)).filter((p) => !old.has(p.h) || trim(old.get(p.h).md) !== trim(p.body))
+  let changed = now.filter((p) => !rename.some((x) => x.to === p.h)).filter((p) => !old.has(p.h) || trim(old.get(p.h).md) !== trim(p.body))
   if (!changed.length && !remove.length && !rename.length) { edDrop(); toast('바뀐 글이 없다. 그대로 두었다'); render(); return }
   e.err = null; e.errSecs = null
   if ((remove.length || rename.length) && !d.structure) { e.err = `항목을 지우거나 이름을 바꾸는 일은 지식관리자가 한다: ${[...remove, ...rename.map((x) => x.from)].join(' · ')} 의 「## 」 줄을 되살린다`; render(); return }
   // 승인 저장 지식(저장 승인 P5 · P-D39) — [저장] 은 저장 확인 창(저장 제안을 보고 [넣기] 가 승인 · 지움 · 이름 바뀜 줄도 그 창에)
-  // 글 고침(H6 · H-D33) — 손으로 쓴 글을 그대로 넣지 않는다: 고친 항목의 새 글을 「넣을 것」 으로 올리면 Claude 가 지어 저장 제안으로 선다
-  if (changed.length) {
-    if (remove.length || rename.length) { e.err = `글 고침과 항목 지우기 · 이름 바꾸기는 따로 저장한다: ${[...remove, ...rename.map((x) => x.from)].join(' · ')} 의 「## 」 줄을 되살리고 글만 먼저 올린다`; render(); return }
+  // 새 항목(H-D38) — 무엇이 항목인가 · 종류 · 장부 줄은 공식 절차가 정한다: 새 「## 」 항목만 「넣을 것」 으로 올려 Claude 가 짓고 승인 대기를 거친다.
+  //   있는 항목의 글 고침은 사람이 고친 그대로 들어간다(아래 · 저장 확인 창)
+  const fresh = changed.filter((p) => !old.has(p.h) && !(e.sentFresh || []).includes(p.h))
+  const mod = changed.filter((p) => old.has(p.h))
+  if (fresh.length && edSecs(d) !== d.sections && d.sections.some((x) => fresh.some((p) => p.h === x.h))) { e.err = `「${fresh.find((p) => d.sections.some((x) => x.h === p.h)).h}」 는 이 문서에 이미 있는 항목이다: 문서의 [고치기] 에서 고친다`; render(); return }
+  if (fresh.length) {
     e.busy = true
     render()
     try {
-      await postJSON(`/api/k/${encodeURIComponent(e.kn)}/edit-source`, { doc: e.doc, sections: changed.map((p) => ({ h: p.h, body: p.body })), ...(edWhy(e) ? { why: edWhy(e) } : {}) })
-      edDrop()
-      toast(isTeam() ? '<b>넣을 것으로 올렸다</b> · Claude 가 지으면 생성 › 진행에서 [저장 제안] 을 보고 넣는다(그때까지 문서는 그대로다)' : '<b>넣을 것으로 올렸다</b> · Claude 가 지어 넣는다(생성 › 진행)', 9000)
-    } catch (err) { e.busy = false; e.err = err.message || '올리지 못했다' }
-    render()
-    return
+      await postJSON(`/api/k/${encodeURIComponent(e.kn)}/edit-source`, { doc: e.doc, sections: fresh.map((p) => ({ h: p.h, body: p.body })), ...(edWhy(e) ? { why: edWhy(e) } : {}) })
+      e.sentFresh = [...(e.sentFresh || []), ...fresh.map((p) => p.h)]
+      e.busy = false
+      toast(`<b>새 항목 ${fresh.length}개는 넣을 것으로 올렸다</b> · Claude 가 지으면 생성 › 진행에서 [저장 제안] 을 보고 넣는다${mod.length || remove.length || rename.length ? ' · 고친 글은 이어서 저장한다' : ''}`, 9000)
+    } catch (err) { e.busy = false; e.err = err.message || '새 항목을 올리지 못했다'; render(); return }
+    if (!mod.length && !remove.length && !rename.length) { edDrop(); render(); return }
   }
+  changed = mod
   if (svApprove(e.kn)) return saveDocSv(e, txt, old, changed, remove, rename)
   if ((remove.length || rename.length) && !await ask1('항목 지우기 · 이름 바꾸기', '이대로 저장', false, [remove.length ? `지울 항목 ${remove.length}: ${remove.join(' · ')}` : '', rename.length ? `이름 바꿀 항목 ${rename.length}: ${rename.map((x) => x.from + ' → ' + x.to).join(' · ')}` : '', changed.length ? `고친 항목 ${changed.length}` : ''].filter(Boolean).join('\n') + '\n\n이대로 저장한다')) return
   e.busy = true
@@ -3719,6 +3707,8 @@ function saveDocDone(e, txt, r) {
   forgetKn(e.kn)
   // 저장은 했다 — 서버 알림(문서 짜임 · 그대로 둔 줄 · 백업)은 오류가 아닌 알림으로 같은 토스트에(role=status)
   const msg = '저장했다. 문서에도 넣었다'
+  // 방금 바꾼 옛 값이 다른 항목에도 남아 있다 — 그 항목들을 알린다(고치지는 않는다 · 사람이 보고 고친다)
+  if (Array.isArray(r.also) && r.also.length) S.also = { k: e.kn, items: r.also }
   const warns = (Array.isArray(r.warnings) ? r.warnings : []).filter(Boolean)
   toast(warns.length ? `<span class="tw">${esc(msg)}<small data-t="saveWarn">${warns.slice(0, 3).map((w) => esc(w)).join('<br>')}${warns.length > 3 ? `<br>그 밖 ${warns.length - 3}` : ''}</small></span>` : esc(msg), warns.length ? 10000 : 7000)
 }
@@ -3829,6 +3819,12 @@ async function akOpen(k, job) {
   try { S.ak.d = await getJSON(`/api/k/${encodeURIComponent(k)}/intake/${encodeURIComponent(job)}/ask`) } catch (e) { if (S.ak) S.ak.err = e }
   if (S.ak) S.ak.busy = false
   render()
+}
+// 남은 옛 값(H-D38) — 고친 항목에서 사라진 값이 다른 항목에도 남아 있을 때 저장 뒤에 한 번 보인다. 줄을 누르면 그 항목을 연다
+function alsoHtml() {
+  const w = S.also
+  const rows = w.items.map((x) => `<button type="button" class="qrow" data-a="alsoOpen" data-k="${esc(w.k)}" data-d="${esc(x.doc)}" data-h="${esc(x.heading)}" data-t="alsoRow"><span class="tx"><b>${esc(x.title || x.doc)} › ${esc(x.heading)}</b> <small class="muted">${x.values.map(esc).join(' · ')}</small></span></button>`).join('')
+  return `<div class="scrim fix" data-a="alsoClose" data-self="1"><div class="modal w560" role="dialog" aria-modal="true" aria-label="남은 옛 값" data-t="alsoWin"><div class="mh">같은 옛 값이 남은 항목 ${w.items.length}<button type="button" class="x" data-a="alsoClose" title="닫기" aria-label="닫기">×</button></div><div class="mb"><p class="small muted">방금 바꾼 옛 값이 아래 항목에도 적혀 있다. 같은 것을 가리키면 그 항목도 고친다</p>${rows}</div><div class="mf"><span class="acts"><button type="button" class="btn pri" data-a="alsoClose" data-t="alsoOk">확인</button></span></div></div></div>`
 }
 function akClose() { if (S.ak && !S.ak.busy) { S.ak = null; render() } }
 async function akGo() {
@@ -7472,18 +7468,18 @@ const ACT = {
   },
   retryDoc: (el) => { delete S.cache[el.dataset.k]; render() },
   saveDoc: () => saveDoc(),
-  recFix: (el) => { const r = recOf(el.dataset.k, el.dataset.r); if (!r || r.error) return; S.recFix = { k: el.dataset.k, rec: el.dataset.r, title: r.title, from: '', to: '', body: '', busy: false, err: null }; render() },
+  recFix: (el) => recFixOpen(el.dataset.k, el.dataset.r),
   svGo: () => svGo(),
   sendEx: (el) => { const r = el.dataset.r, at = el.dataset.v; S.sendEx = S.sendEx || {}; const xs = S.sendEx[r] || []; S.sendEx[r] = xs.includes(at) ? xs.filter((x) => x !== at) : [...xs, at]; render() },
   svClose: () => svClose(),
   handAct: (el) => handAct(el.dataset.k, el.dataset.id, el.dataset.v),
+  alsoClose: () => { S.also = null; render() },
+  alsoOpen: (el) => { S.also = null; openDocAt(el.dataset.k, el.dataset.d, el.dataset.h, null, 'docs') },
   akOpen: (el) => akOpen(el.dataset.k, el.dataset.j),
   akClose: () => akClose(),
   akGo: () => akGo(),
   akDrop: () => akDrop(),
   svRaw: () => { if (S.sv) { S.sv.raw = !S.sv.raw; render() } },
-  recFixClose: () => { if (S.recFix && !S.recFix.busy) { S.recFix = null; render() } },
-  recFixSave: () => recFixSave(),
   openItem: (el) => { openTab({ kind: 'item', kn: el.dataset.k, ref: el.dataset.n }); render(); scrollTopMain() },
   itemFilt: (el) => { S.ifilt[el.dataset.v] = !S.ifilt[el.dataset.v]; render() },
   foldKind: (el) => { const kd = el.dataset.v; S.kfold[kd] = !kindFolded(S.route.kn, kd); render() },
@@ -7675,7 +7671,6 @@ document.addEventListener('input', (ev) => {
   if (k === 'sendQ') { S.sendQ = t.value; const q = t.value.trim().toLowerCase(); for (const r of document.querySelectorAll('[data-t=sendRec]')) r.style.display = !q || r.textContent.toLowerCase().includes(q) ? '' : 'none' }
   if (k === 'sendType' && S.sendWin) { S.sendWin.type = t.value; const b = $('[data-t=sendChangeGo]'), pt = S.sendWin.to && sendTeamOf(S.sendWin.to); if (b) b.disabled = !pt || t.value.trim() !== pt.name || S.sending }
   if (k === 'edTx' && S.edit) { S.edit.text = t.value; try { sessionStorage.setItem(edKey(S.edit), t.value) } catch {} return }
-  if ((k === 'rfFrom' || k === 'rfTo' || k === 'rfBody') && S.recFix) S.recFix[{ rfFrom: 'from', rfTo: 'to', rfBody: 'body' }[k]] = t.value
   if (k === 'meRoot') S.meRootEdit = t.value
   if (k === 'sdPath') { sdState().path = t.value; const g = $('[data-t=sdGo]'); if (g) g.disabled = !t.value.trim() }
   if (k === 'sdwT' && S.sdw) S.sdw.rows[Number(t.dataset.i)] = t.value

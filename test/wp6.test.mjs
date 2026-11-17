@@ -149,7 +149,7 @@ test('편집기: 다시 그려도 · 찾기를 열고 닫아도 쓴 글이 남�
   assert.equal(await page.locator('[data-t=edAddSec]').count(), 1)
   await page.focus('[data-t=edTx]')
   await page.keyboard.press('Control+s')
-  // 글 고침은 그대로 넣지 않는다(H6 · H-D33) — 고친 글이 넣을 것으로 올라가고 편집기는 닫힌다 · 문서는 그대로 · 들이기 일감(승인 대기를 거친다)이 선다
+  // 새 항목은 넣을 것으로(H-D38) — 편집기에서 새 「## 」 항목을 쓰면 그 항목이 넣을 것으로 올라가고(바뀐 글이 더 없으면) 편집기는 닫힌다 · 문서는 그대로 · 들이기 일감이 선다
   await page.waitForSelector('[data-t=editBtn]')
   assert.doesNotMatch(fs.readFileSync(path.join(root, 'dpms', 'docs', '배포절차.md'), 'utf8'), /## 새로 쓴 항목/)
   const up = s.hub.intakesOf('dpms').find((j) => /^문서 고치기 /.test(String(j.src?.title || '')))

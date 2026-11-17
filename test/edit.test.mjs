@@ -235,7 +235,7 @@ test('손으로 고친 파일: 편집기로 고친 문서는 들이지 않고 �
 })
 
 // 화면 문서 고치기의 글 고침은 걷었다(H6 · H-D33) — 화면 길(지문 필수)은 글이 든 입력을 받지 않는다 · 고친 글은 「넣을 것」 으로(edit-source) · 지움 · 이름 바꿈은 그대로
-test('화면 문서 고치기: 글 고침은 받지 않는다(E_INPUT · 아무것도 쓰지 않는다) · 고친 글은 넣을 것으로 올라간다 · 지식관리자의 항목 지우기는 그대로', async () => {
+test('저장 승인 P5: approve 지식의 화면 고치기는 저장 제안 — dry 는 쓰지 않음 · proposal 없음 · 어긋남 = E_APPROVE · 넣기 = 받아들인 경고 · 지움만은 제안 없음 · held 지식은 그대로', async () => {
   const dir = path.join(tmp, 'kn', 'apv5')
   copyDir(path.join(HERE, 'fixture', 'kmd', 'dpms'), dir)
   fs.rmSync(path.join(dir, 'work'), { recursive: true, force: true })
@@ -245,28 +245,60 @@ test('화면 문서 고치기: 글 고침은 받지 않는다(E_INPUT · 아무�
   await s.auth.addUser({ id: 'test-p5', admin: false }).catch(() => {})
   await seat(s, 'test-p5', { apv5: 'write' })
   const P5 = { user: 'test-p5' }
+  const ed = (b) => s.hub.edit(P5, 'apv5', { doc: '배포절차', ...b }, { needBase: true })
   const sec = (h) => (s.hub.get('apv5').then((k) => k.docs.find((x) => x.id === '배포절차').sections.find((x) => x.h === h)))
   const c0 = await sec('카나리')
   const secs = [{ h: '카나리', base: sha16(c0.body), body: c0.body.replace('10%', '20%') }]
   const logs = () => (fs.existsSync(path.join(dir, 'log')) ? fs.readdirSync(path.join(dir, 'log')) : [])
-  // 글이 든 입력 — 미리 보기(dry)도 저장도 받지 않는다
-  for (const b of [{ sections: secs, dry: true }, { sections: secs }]) {
-    const e = await s.hub.edit(P5, 'apv5', { doc: '배포절차', ...b }, { needBase: true }).catch((x) => x)
-    assert.equal(e.code, 'E_INPUT')
-    assert.match(e.message, /넣을 것/)
-  }
-  assert.deepEqual(logs(), [], '아무것도 쓰지 않는다')
-  assert.equal((await sec('카나리')).body, c0.body)
-  // 고친 글은 넣을 것으로 — 들이기 일감(승인 대기를 거친다)이 선다 · 문서는 그대로
-  const q = await s.hub.editAsSource(P5, 'apv5', { doc: '배포절차', sections: [{ h: '카나리', body: c0.body.replace('10%', '20%') }], why: '테스트' })
-  assert.equal(q.queued, true)
-  const j = s.hub.intakesOf('apv5').find((x) => x.state === 'queued')
-  assert.ok(j && j.ask === true && j.by === 'test-p5', JSON.stringify(j))
-  assert.equal((await sec('카나리')).body, c0.body)
-  assert.equal(await code(s.hub.editAsSource({ user: 'nobody-x' }, 'apv5', { doc: '배포절차', sections: [{ h: '카나리', body: 'x' }] })), 'E_NOTFOUND')
-  // 지식관리자의 항목 지우기만 — 그대로(제안 없음)
+  // dry — 쓰지 않고 저장 제안(경고: 바뀐 값이 기록에 없다)
+  const d1 = await ed({ sections: secs, dry: true })
+  assert.equal(d1.dry, true)
+  assert.ok(d1.propose.proposal && d1.propose.items[0].changed[0].to === '20%', JSON.stringify(d1.propose.items))
+  assert.ok(d1.propose.warnings.length >= 1)
+  assert.deepEqual(logs(), [], 'dry 는 쓰지 않는다')
+  // proposal 없음 · 어긋남 = E_APPROVE + 새 제안(아무것도 쓰지 않는다)
+  const e1 = await s.hub.edit(P5, 'apv5', { doc: '배포절차', sections: secs }, { needBase: true }).catch((e) => e)
+  assert.equal(e1.code, 'E_APPROVE')
+  assert.ok(e1.details.propose.proposal)
+  const e2 = await ed({ sections: secs, why: '다른 까닭', proposal: d1.propose.proposal }).catch((e) => e)
+  assert.equal(e2.code, 'E_APPROVE')
+  assert.deepEqual(logs(), [])
+  assert.equal(await code(ed({ sections: secs, changes: ['줄\n바꿈'], dry: true })), 'E_INPUT')
+  assert.equal(await code(ed({ sections: secs, proposal: 'x' })), 'E_INPUT')
+  // 넣기 = 승인(경고 받아들임) — 기록 「## 받아들인 경고」 · 문서에 들어감
+  const r = await ed({ sections: secs, proposal: d1.propose.proposal })
+  assert.equal(r.direct, true)
+  const w = fs.readFileSync(path.join(dir, r.record), 'utf8')
+  assert.match(w, /## 받아들인 경고/)
+  assert.match(fs.readFileSync(path.join(dir, 'docs', '배포절차.md'), 'utf8'), /요청의 20% 만/)
+  // 바뀐 것 · 까닭 칸 — 경고 없이 · 기록 칸으로
+  const c1 = await sec('카나리')
+  const secs2 = [{ h: '카나리', base: sha16(c1.body), body: c1.body.replace('20%', '30%') }]
+  const d2 = await ed({ sections: secs2, changes: ['카나리 첫 30분 비율: 20% → 30%'], why: '테스트', dry: true })
+  assert.deepEqual(d2.propose.warnings, [])
+  const r2 = await ed({ sections: secs2, changes: ['카나리 첫 30분 비율: 20% → 30%'], why: '테스트', proposal: d2.propose.proposal })
+  const w2 = fs.readFileSync(path.join(dir, r2.record), 'utf8')
+  assert.match(w2, /## 바뀐 것\n- 카나리 첫 30분 비율: 20% → 30%\n\n## 까닭\n- 테스트/)
+  assert.doesNotMatch(w2, /받아들인 경고/)
+  // 읽은 뒤 바뀜 — dry 도 E_CONFLICT
+  assert.equal(await code(ed({ sections: secs2, dry: true })), 'E_CONFLICT')
+  // 지식관리자의 항목 지우기만 — 제안 없음(dry 는 propose: null)
   const d3 = await s.hub.edit(KIM, 'apv5', { doc: '배포절차', remove: ['헬스 체크'], dry: true }, { needBase: true })
   assert.deepEqual(d3, { dry: true, propose: null })
   const r3 = await s.hub.edit(KIM, 'apv5', { doc: '배포절차', remove: ['헬스 체크'] }, { needBase: true })
   assert.equal(r3.direct, true)
+  // 새 항목은 화면 길로 받지 않는다(H-D38) — 넣을 것으로 올라가 Claude 가 짓고 승인 대기를 거친다 · 있는 항목의 글 고침만 바로 들어간다
+  const eNew = await ed({ sections: [{ h: '테스트 새로 쓴 항목', body: '새 글이다.' }], dry: true }).catch((e) => e)
+  assert.equal(eNew.code, 'E_INPUT')
+  assert.match(eNew.message, /넣을 것/)
+  const q = await s.hub.editAsSource(P5, 'apv5', { doc: '배포절차', sections: [{ h: '테스트 새로 쓴 항목', body: '새 글이다.' }], why: '테스트' })
+  assert.equal(q.queued, true)
+  const j = s.hub.intakesOf('apv5').find((x) => x.state === 'queued')
+  assert.ok(j && j.ask === true && j.by === 'test-p5', JSON.stringify(j))
+  // 방금 바꾼 옛 값이 다른 항목에도 남아 있으면 알린다(also) — 고치지는 않는다
+  const c9 = await sec('카나리')
+  const m9 = c9.body.match(/\d+%/)
+  const other = (await s.hub.get('apv5')).docs.flatMap((d) => d.sections.map((x) => ({ d: d.id, h: x.h, body: x.body }))).find((x) => !(x.d === '배포절차' && x.h === '카나리') && m9 && x.body.includes(m9[0]))
+  const r9 = await s.hub.edit(KIM, 'apv5', { doc: '배포절차', sections: [{ h: '카나리', base: sha16(c9.body), body: c9.body.replace(m9[0], '77%') }], changes: [`카나리 비율: ${m9[0]} → 77%`], why: '테스트' }, { needBase: false })
+  if (other) assert.ok((r9.also || []).some((x) => x.doc === other.d && x.heading === other.h), JSON.stringify(r9.also))
 })
