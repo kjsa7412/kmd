@@ -258,3 +258,68 @@ export function placeExact(text, names) {
   }
   return t.endsWith('\n') ? t : t + '\n'
 }
+
+// ── 장부 고침(지식 생성 하네스 H7 · H-O12 · H-D24) — 지식관리자가 항목 장부의 과거 결정을 거둔다 ──
+//   ops: [{ op: 'retire', coord, to?, why? }      폐기 — 그 줄에 「deprecated: <날짜>[ → 새 항목]: 까닭」(줄은 지우지 않는다)
+//         { op: 'merge', coord, into }             합치기 — coord 를 폐기하고 into 로 잇는다 · coord 의 라벨 · 별칭을 into 의 별칭으로 옮긴다
+//         { op: 'unalias', coord, alias }]         별칭 빼기 — 그 항목의 별칭 하나를 걷는다
+//   → { text, done: [한 줄 말], errors: [까닭] } · 오류가 하나라도 있으면 text 는 처음 글 그대로다(아무것도 고치지 않는다)
+export function ledgerOps(text, ops, { today = new Date().toISOString().slice(0, 10) } = {}) {
+  const t0 = String(text || '').replace(/\r\n/g, '\n')
+  let lines = t0.split('\n')
+  const done = []
+  const errors = []
+  const one = (v, max) => nfc(String(v ?? '')).replace(/[\r\n`|]/g, ' ').trim().slice(0, max)
+  const at = (coord) => lines.findIndex((l) => l.match(/^\s*-\s+`([^`]+)`/)?.[1]?.trim() === coord)
+  const endOf = (i) => { let j = i + 1; while (j < lines.length && /^\s+\S/.test(lines[j])) j++; return j }
+  const retire = (coord, to, why) => {
+    const i = at(coord)
+    if (i < 0) { errors.push(`「${coord}」 는 항목 장부에 없다`); return false }
+    const j = endOf(i)
+    if (lines.slice(i + 1, j).some((l) => /^\s+deprecated:/.test(l))) { errors.push(`「${coord}」 는 이미 폐기된 항목이다`); return false }
+    if (to && at(to) < 0) { errors.push(`이을 항목 「${to}」 가 항목 장부에 없다`); return false }
+    lines.splice(j, 0, `  deprecated: ${today}${to ? ` → ${to}` : ''}: ${why || '지식관리자가 폐기'}`)
+    return true
+  }
+  const addAliases = (coord, add) => {
+    const i = at(coord)
+    const have = parseVocab(lines.join('\n')).coords.get(coord)
+    const xs = add.filter((a) => a && a !== have.label && !have.aliases.includes(a))
+    if (!xs.length) return
+    if (lines[i + 1] && /^\s+aliases:/.test(lines[i + 1])) lines[i + 1] = `${lines[i + 1].replace(/\s+$/, '')}, ${xs.join(', ')}`
+    else lines.splice(i + 1, 0, `  aliases: ${xs.join(', ')}`)
+  }
+  for (const o of Array.isArray(ops) ? ops : []) {
+    const coord = one(o?.coord, 200)
+    if (!coord) { errors.push('항목(coord)이 없다'); continue }
+    if (o.op === 'retire') {
+      const to = o.to ? one(o.to, 200) : ''
+      if (to === coord) { errors.push(`「${coord}」 를 자기 자신으로 이을 수 없다`); continue }
+      if (retire(coord, to, one(o.why, 120))) done.push(`폐기: ${coord}${to ? ` → ${to}` : ''}`)
+    } else if (o.op === 'merge') {
+      const into = one(o.into, 200)
+      if (!into || into === coord) { errors.push(`합칠 곳(into)이 없거나 같은 항목이다: ${coord}`); continue }
+      const v = parseVocab(lines.join('\n')).coords
+      const from = v.get(coord)
+      if (!from) { errors.push(`「${coord}」 는 항목 장부에 없다`); continue }
+      if (v.get(into)?.deprecated) { errors.push(`합칠 곳 「${into}」 는 폐기된 항목이다`); continue }
+      if (!retire(coord, into, one(o.why, 120) || '합침')) continue
+      addAliases(into, [from.label, ...from.aliases].map((a) => one(a, 120).replace(/,/g, ' ')))
+      done.push(`합침: ${coord} → ${into}`)
+    } else if (o.op === 'unalias') {
+      const alias = one(o.alias, 120)
+      const i = at(coord)
+      if (i < 0) { errors.push(`「${coord}」 는 항목 장부에 없다`); continue }
+      const j = lines[i + 1] && /^\s+aliases:/.test(lines[i + 1]) ? i + 1 : -1
+      const xs = j < 0 ? [] : lines[j].replace(/^\s+aliases:\s*/, '').split(',').map((x) => nfc(x.trim())).filter(Boolean)
+      if (!alias || !xs.includes(alias)) { errors.push(`「${coord}」 에 별칭 「${alias}」 이 없다`); continue }
+      const left = xs.filter((x) => x !== alias)
+      if (left.length) lines[j] = `  aliases: ${left.join(', ')}`
+      else lines.splice(j, 1)
+      done.push(`별칭 뺌: ${coord} 의 「${alias}」`)
+    } else errors.push(`모르는 걸음: ${String(o?.op).slice(0, 20)}`)
+  }
+  if (errors.length) return { text: t0, done: [], errors }
+  const out = lines.join('\n')
+  return { text: out.endsWith('\n') ? out : out + '\n', done, errors }
+}

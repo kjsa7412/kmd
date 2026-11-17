@@ -12,9 +12,10 @@ import { KmdError, httpStatusOf } from '../core/errors.js'
 import { save as coreSave, serial, localStamp, recordTakenSync, SECTIONS_MAX, assetPath, ATTACH_MAX_BYTES, checkInput } from '../core/save.js'
 import { audit as guardAudit, recordBody, RECORD_PARTS, proposeInputWhy, INTAKE_FORM, RECORDS_DOC, RECORDS_DOC_PATH, RECORDS_INTRO, RECORDS_MONTH_TEXT } from '../core/guard.js'
 import { recover as recoverSave } from '../core/journal.js'
-import { dropRecord, namesOfRecord, renderReverted, parseReverted, parsePut, dropPart, PUT_PART, HELD_PART, REVERTED_PART, ACCEPTED_PART, VALUES_PART, LINKED_PART, FRESH_PART, itemKey } from '../core/parts.js'
+import { dropRecord, namesOfRecord, renderReverted, parseReverted, parsePut, dropPart, PUT_PART, HELD_PART, REVERTED_PART, ACCEPTED_PART, VALUES_PART, LINKED_PART, FRESH_PART, itemKey, parseFresh } from '../core/parts.js'
 import { revertPlan } from '../core/revert.js'
 import * as collect from '../core/collect.js'
+import { ledgerOps } from '../core/namebook.js'
 import crypto from 'node:crypto'
 import net from 'node:net'
 // 개인 프로그램(PC)의 저장 즉시 넣기만 — 팀은 저장 문 · 들이기 일감(S13)
@@ -4422,12 +4423,17 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const name = (p) => p.doc.replace(/^docs\/|\.md$/g, '')
       const title = whole || !plan.sections.length ? `되돌림: ${w.title}` : `되돌림: ${name(plan.sections[0])} › ${plan.sections.map((p) => p.heading).join(' · ')}`
       const lines = plan.sections.map((p) => `- ${name(p)} › ${p.heading}: ${p.remove ? '그 기록이 세운 항목이라 지웠다' : '넣기 전 글로'}`)
+      // 그 기록이 세운 장부 줄(`## 새로 세움` 의 「이름」)도 거둔다 — 지식관리자가 통째로 되돌릴 때만(H-D24 · H-O3). 줄을 지우지 않고 폐기 표시를 단다
+      //   그 뒤 다른 기록이 그 항목을 건드렸으면 두고(남이 쓰는 항목이다) · 이미 폐기된 줄은 건너뛴다
+      const gone = whole && curator ? parseFresh(w.body).filter((x) => x.kind === '이름').map((x) => x.name).filter((c) => k.vocab.coords.has(c) && !k.vocab.coords.get(c).deprecated && !k.works.some((x) => x.id !== w.id && x.touches.includes(c))) : []
+      if (gone.length) lines.push(...gone.map((c) => `- 항목 장부 ${c}: 그 기록이 세운 항목이라 폐기 표시를 달았다`))
       const body = plan.sections.length
         ? `${lines.join('\n')}\n\n${renderReverted(plan.sections.map((p) => ({ rec: record, doc: p.doc, heading: p.heading })))}`
-        : '넣은 항목이 없다. 판정만 거둔다'
+        : gone.length ? lines.join('\n') : '넣은 항목이 없다. 판정만 거둔다'
       const r = await hub.save(ctx, id, {
         record: { title: title.length > 200 ? title.slice(0, 199) + '…' : title, body, tags: ['revert'], ...(whole ? { reopens: [w.id, ...used] } : {}) },
         sections: plan.sections.map((p) => ({ doc: p.doc, heading: p.heading, content: p.content, applied: p.applied, base: p.base, ...(p.remove ? { remove: true } : {}) })),
+        ...(gone.length ? { ledger: gone.map((coord) => ({ op: 'retire', coord, why: '세운 기록을 되돌림' })) } : {}),
       }, { system: true })
       // 통째로 되돌렸으면 「오늘 바뀐 것」 의 정리 줄에 「되돌렸다」(남은 [되돌리기] 가 빈 되돌림을 만들지 않게) — 커밋 뒤라 던지지 않는다
       if (whole) {
@@ -4437,6 +4443,22 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         } catch (e) { log(`되돌린 줄 표시를 쓰지 못했다 ${id}: ${e.message}`) }
       }
       return r
+    },
+    // 장부 고침(지식 생성 하네스 H7 · H-O12) — 지식관리자가 항목 장부의 과거 결정을 거둔다: 폐기 · 합치기 · 별칭 빼기.
+    //   저장 문의 system 걸음 하나(이력에 남는다 · 줄은 지우지 않고 폐기 표시) · 까닭 한 줄이 꼭 있다
+    async ledgerEdit(ctx, id, input) {
+      await hub.meta(id, ctx)
+      hub.need(ctx, id, 'admin')
+      const ops0 = Array.isArray(input?.ops) ? input.ops.slice(0, 50) : []
+      const why = String(input?.why || '').replace(/\s+/g, ' ').trim().slice(0, 200)
+      if (!ops0.length) throw new KmdError('E_INPUT', '고칠 걸음(ops)이 없다')
+      if (!why) throw new KmdError('E_INPUT', '까닭 한 줄(why)이 없다')
+      const ops = ops0.map((o) => (o && typeof o === 'object' ? { ...o, why: o.why || why } : o))
+      const k = await hub.get(id, ctx)
+      const lo = ledgerOps(k.vocabRaw ?? await fs.readFile(path.join(k.dir, '_vocab.md'), 'utf8').catch((e) => (e.code === 'ENOENT' ? '' : Promise.reject(e))), ops)
+      if (lo.errors.length) throw new KmdError('E_INPUT', lo.errors.slice(0, 3).join(' · '))
+      const r = await hub.save(ctx, id, { record: { title: `장부 고침: ${lo.done[0]}${lo.done.length > 1 ? ` 밖에 ${lo.done.length - 1}` : ''}`.slice(0, 200), body: `${lo.done.map((x) => `- ${x}`).join('\n')}\n\n까닭: ${why}`, tags: ['ledger'] }, sections: [], ledger: ops }, { system: true })
+      return { ...r, done: lo.done }
     },
     // 비교 — 그 기록이 넣은 항목의 넣기 전 · 지금
     async diff(ctx, id, record) {

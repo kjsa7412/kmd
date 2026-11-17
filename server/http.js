@@ -1270,11 +1270,11 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const cur = clean(await fs.readFile(path.join(k.dir, ...d.path.split('/')), 'utf8').catch(() => ''))
       return out(200, { doc: d.id, sha: v.sha, at: v.at, who: v.who, msg: v.msg, md: past, cur, html: V.render(k, d.path, past) })
     }
-    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|propose|backup|backup\/pull|backup\/gitlab|backup\/detach|owner|learn|edit|revert|guard)$/)
+    const m = p.match(/^\/api\/k\/([^/]+)\/(tree|doc|rec|att|model|item|save|propose|backup|backup\/pull|backup\/gitlab|backup\/detach|owner|learn|edit|revert|guard|ledger)$/)
     if (!m) throw new KmdError('E_NOTFOUND', '그런 길은 없다')
     const id = dec(m[1])
     const what = m[2]
-    if (['save', 'propose', 'backup', 'backup/pull', 'backup/gitlab', 'backup/detach', 'owner', 'learn', 'edit', 'revert'].includes(what)) {
+    if (['save', 'propose', 'backup', 'backup/pull', 'backup/gitlab', 'backup/detach', 'owner', 'learn', 'edit', 'revert', 'ledger'].includes(what)) {
       // 저장소 보기(메뉴 개편 6-4 · 권한 모델 7절) — 그 지식의 지식관리자부터(읽기 미만 404 · 쓰기 · 읽기 403) · 주소는 가려서 · 가지 · 상태만
       if (what === 'backup' && req.method === 'GET') {
         const meta = await hub.meta(id, ctx.shell ? undefined : ctx)
@@ -1314,6 +1314,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       }
       if (what === 'learn') return out(200, await hub.learn(ctx, id, body))
       // 문서 고치기(S9) — 화면 길은 이미 있는 항목의 지문(base)을 꼭 받는다
+      if (what === 'ledger') return out(200, await hub.ledgerEdit(ctx, id, body && typeof body === 'object' && !Array.isArray(body) ? body : {}))
       if (what === 'edit') return out(200, await hub.edit(ctx, id, body && typeof body === 'object' && !Array.isArray(body) ? body : {}, { needBase: true }))
       if (what === 'revert') {
         // 몸 모양(설계 3-4) — { record(기록 id ≤80), doc?(docs/ 아래 md ≤300), heading?(한 줄 ≤200 · doc 과 같이) }
