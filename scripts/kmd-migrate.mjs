@@ -19,6 +19,7 @@
 //   저장은 넣지 못함 없이(partial 없음 · 저장승인 P-D25 · P7): 저장 검사(꼴 · 원본이 주인 · 지문 …)에 걸리면 입력 오류로 아무것도 쓰지 않고 종료 코드 2.
 //   팀 서버가 돌고 있는 폴더에 바로 쓰면 서버 캐시가 낡는다 — 사본에서 쓰고 백업 자리로 올린 뒤 「백업에서 받기」 를 쓴다(스킬 3절).
 
+import { weave } from '../core/weave.js'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -419,9 +420,24 @@ async function put(dir, file, o) {
     }
     return { sections: input.sections.map((s) => ({ doc: s.doc, heading: s.heading, content: s.content, base: s.base, ...(s.new && s.before ? { before: s.before } : {}) })) }
   }
+  // 짝 짓기(지식 생성 하네스 H6 · H2 의 엮기) — 새 항목(new)에 종류(kind) · 뜻 한 줄(gist)을 적었으면 화면 · 세션의 저장과 같은 엮기가
+  //   항목 장부 줄(뜻 한 줄) · 문서 장부 줄을 같이 짓는다. 새 문서(docs[{ path, nature, summary }])의 문서 성격 줄 · 모으는 갈래 줄도 같다.
+  //   적지 않은 항목은 예전대로다(머리와 글만 · 장부는 건드리지 않는다). 엮기 오류가 있으면 아무것도 쓰지 않는다
+  let woven = {}
+  const lines = input.sections.filter((s) => s.new && (s.kind || s.gist)).map((s) => ({ doc: s.doc, heading: s.heading, act: 'new', kind: s.kind, kindGist: s.kindGist, id: s.id, gist: s.gist, aliases: s.aliases, nature: s.nature }))
+  if (lines.length || (Array.isArray(input.docs) && input.docs.length)) {
+    const w = weave(await load(abs, o), { lines, docs: Array.isArray(input.docs) ? input.docs : [] })
+    if (w.errors.length) {
+      for (const e of w.errors.slice(0, 10)) console.error(`✗ 엮기 ${e.at}: ${e.why}`)
+      throw Object.assign(new Error('넣지 않았다: 엮기에 걸렸다. 아무것도 쓰지 않았다'), { exit: 2 })
+    }
+    woven = { ...(w.names.length ? { names: [...(Array.isArray(input.names) ? input.names : []), ...w.names] } : {}), ...(w.natures.length ? { natures: w.natures } : {}), ...(w.forms.length ? { forms: [...(Array.isArray(input.forms) ? input.forms : []), ...w.forms] } : {}) }
+    if (w.names.length && !rec.touches?.length) rec.touches = w.touches
+  }
   let r
   try {
-    r = await save(abs, { ...input, record: rec }, { user: o.user, prepare, marks: true, format: !!o.format })
+    const { docs: _docs, ...rest } = input
+    r = await save(abs, { ...rest, ...woven, record: rec }, { user: o.user, prepare, marks: true, format: !!o.format })
   } catch (e) {
     // 저장 검사에 걸림 — 입력 오류(아무것도 쓰지 않았다 · 넣지 못함을 남기지 않는다 · 종료 코드 2)
     if (['E_INPUT', 'E_FORMAT', 'E_FORBIDDEN', 'E_NOTFOUND', 'E_CONFLICT'].includes(e.code)) e.exit = 2

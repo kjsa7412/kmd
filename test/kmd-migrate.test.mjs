@@ -96,6 +96,17 @@ test('빠진 사건 채우기: 진단이 찾고 · 재료에 없는 값 · 머�
   assert.ok(heads.indexOf('2026-10-10 처음 10분') === heads.indexOf('2026-10-17 카나리') - 1, '날짜 자리')
   const after = fs.readFileSync(path.join(dir, ...EV.split('/')), 'utf8')
   for (const l of before.split('\n').filter((x) => x.trim() && !/kmd:참고|^\*\*참고|^- |^  - /.test(x))) assert.ok(after.includes(l), `옛 줄 그대로: ${l}`)
+  // 짝 짓기(H6 · 엮기) — 새 항목에 종류 · 뜻 한 줄을 적으면 put 이 항목 장부 줄(뜻 한 줄) · 문서 장부 줄을 같이 짓는다. 적지 않으면 장부는 그대로다
+  const vocabOf = async () => (await load()).vocab.coords
+  const n0 = (await vocabOf()).size
+  const woven = input('ev4.json', { record: { title: '회의록 채우기: 2026-10-12 엮기 시험', body: '시험으로 채웠다.\n\n## 바뀐 것\n- 장애대응 항목: 엮기 시험 새로 둠' }, sections: [{ doc: EV, heading: '2026-10-12 엮기 시험', new: true, sources: ['2026-1017-카나리'], kind: '사건', gist: '카나리에서 오류율이 넘어 멈춘 일', content: '- **정한 것**: 오류율 1% 를 넘으면 멈춘다' }] })
+  const pw = await run('put', dir, woven, '--user', 'kim')
+  assert.equal(pw.thrown, null, pw.text)
+  const made = [...(await vocabOf()).entries()].filter(([, v]) => v.gist === '카나리에서 오류율이 넘어 멈춘 일')
+  assert.equal(made.length, 1, '항목 장부에 뜻 한 줄과 함께 섰다')
+  assert.equal((await vocabOf()).size, n0 + 1)
+  assert.ok(made[0][0].startsWith('사건:'), made[0][0])
+  assert.ok(fs.readFileSync(path.join(dir, '_managed.md'), 'utf8').includes('`' + made[0][0] + '`'), '문서 장부 줄도 섰다')
   const { outOfOrder } = await import('../scripts/kmd-migrate.mjs')
   assert.equal(outOfOrder({ sections: [{ h: '2026-11-04 a' }, { h: '2026-09-30 b' }, { h: '머리' }, { h: '2026-12-01 c' }] }), 1)
 })
