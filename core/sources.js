@@ -326,7 +326,7 @@ export async function planOut(k, src, items, { asof, first = false, s0 = {} }) {
 }
 // 바뀐 표를 원천 글로 지어 들이기에 넘긴다 — 표 15개씩 한 원천(한 저장이 고치는 항목 수 상한 20 안). 못 넘긴 묶음의 표는 보낸 것으로 적지 않는다(다음 확인에 다시)
 const OUT_CHUNK = 15
-async function sendTables(intake, src, plan, { asof, line, what }) {
+export async function sendTables(intake, src, plan, { asof, line = () => {}, what }) {
   const c = tally()
   const parts = []
   for (let i = 0; i < plan.changed.length; i += OUT_CHUNK) parts.push(plan.changed.slice(i, i + OUT_CHUNK))

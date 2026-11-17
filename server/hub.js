@@ -32,7 +32,7 @@ import { runClaude, claudeSession, checkClaude } from '../core/claude.js'
 import { kindOf, formBlock, formFixOf } from '../core/forms.js'
 import { lintForm, headProblem, missingIds } from '../core/formcheck.js'
 import * as feed from '../core/feed.js'
-import { inside as insideDir, checkTarget, readSource, probe, readDecl, editDecl, DECL_BROKEN, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit } from '../core/sources.js'
+import { inside as insideDir, checkTarget, readSource, probe, readDecl, editDecl, DECL_BROKEN, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit, planOut, sendTables } from '../core/sources.js'
 import { check } from '../core/check.js'
 import { commitPaths, ensureRepo, tryGit, maskUrl, remoteUrl } from '../core/git.js'
 import { stopLine, ageText } from '../core/stopline.js'
@@ -1541,7 +1541,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     return { input: { ...v.input, woven: true }, weave: v }
   }
   // 측정 줄에 싣는 칸(설계 9-1) — 판(rev) · 한 일 수(acts) · 과거 결정에 대한 태도(prec) · 판례 없음(none) · 판단 칸 흠(miss) · 엮기가 접은 수(fold)
-  const weaveLog = (v) => ({ rev: GEN_RULES_REV, acts: v.acts, prec: { shown: v.stances.shown, follow: v.stances.follow, distinct: v.stances.distinct, depart: v.stances.depart, na: v.stances.na }, none: v.stances.none, ...(v.miss ? { miss: v.miss } : {}), ...(v.fold.length ? { fold: v.fold.length } : {}), asof: v.asof, ...(v.first ? { first: v.first } : {}), ...(v.kinds?.length ? { kinds: v.kinds } : {}) })
+  const weaveLog = (v) => ({ rev: GEN_RULES_REV, acts: v.acts, prec: { shown: v.stances.shown, follow: v.stances.follow, distinct: v.stances.distinct, depart: v.stances.depart, na: v.stances.na }, none: v.stances.none, ...(v.miss ? { miss: v.miss } : {}), ...(v.fold.length ? { fold: v.fold.length } : {}), pair: { new: v.acts?.new || 0, named: v.named || 0 }, ...(v.flip ? { flip: v.flip } : {}), ...(v.prior ? { prior: v.prior } : {}), asof: v.asof, ...(v.first ? { first: v.first } : {}), ...(v.kinds?.length ? { kinds: v.kinds } : {}) })
   const emptyNote = (v) => `넣을 것 없음: ${v.skip.length ? v.skip.slice(0, 3).map((s) => `${s.what}(${[s.rule, s.why].filter(Boolean).join(' · ') || '뺌'})`).join(' / ') : '모두 그대로다'}`
   // 제안 오류 → 입력 오류(아무것도 쓰지 않는다 · 새 propose 결과를 싣는다)
   function proposeFail(p) {
@@ -2244,6 +2244,13 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     // save 입력 2판(items · docs · skip) → 저장 입력(엮기 · H4c)
     const wv = await weaveIn(id, input)
     input = wv.input
+    // 측정(설계 9-1) — 고쳐 받기 앞뒤로 태도가 뒤집힌 수(flip) · 이 세션의 match 가 실은 「앞선 값」 카드 수(prior)
+    if (wv.weave) {
+      const prev = it.prevStances
+      if (prev) wv.weave.flip = Object.entries(wv.weave.stanceMap || {}).filter(([of, st]) => prev[of] && prev[of] !== st).length
+      it.prevStances = wv.weave.stanceMap || {}
+      if (it.prior) wv.weave.prior = it.prior
+    }
     if (wv.weave?.empty) { it.empty = emptyNote(wv.weave); it.weave = wv.weave; return { empty: true, id: null, put: 0, docs: [], warnings: [], note: it.empty } }
     const rec = input?.record && typeof input.record === 'object' && !Array.isArray(input.record) ? input.record : null
     if (!rec || typeof rec.title !== 'string' || !rec.title.trim()) throw new KmdError('E_INPUT', '기록 제목(record.title)이 없다')
@@ -2825,7 +2832,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       return serial(path.resolve(meta.dir), async () => {
         await recoverSave(meta.dir)
         const k = await loadKnowledge(meta, { cache: files.get(id) })
-        return proposalOf(k, proposeInputOf({ ...input, record: rec }), { id, meta, approve, curator: hub.canDirect(ctx, id), path: opt.path || '이 세션의 작업', viewers, newDoc: hub.canDirect(ctx, id), extraErrors: shut ? [{ code: 'behind', at: '지식', why: shut.message }] : [] })
+        const blockLog = async (p) => {
+          // 제안 단계에서 막힌 오류 코드(측정만 · 설계 9-1 block) — 던지지 않는다
+          if (p?.errors?.length && opt.count !== false) { try { await savelog(id, { at: new Date().toISOString(), ch: opt.channel || 'session', by: ctx.user, rec: null, n: 0, put: 0, held: [], stale: [], conflictWith: [], memo: false, same: false, ms: 0, err: 'propose', mode: 'approve', stage: 'propose', block: [...new Set(p.errors.map((e) => String(e.code || 'input')))].slice(0, 12) }) } catch (e) { log(`저장 측정 줄을 쓰지 못했다 ${id}: ${e.message}`) } }
+          return p
+        }
+        return blockLog(await proposalOf(k, proposeInputOf({ ...input, record: rec }), { id, meta, approve, curator: hub.canDirect(ctx, id), path: opt.path || '이 세션의 작업', viewers, newDoc: hub.canDirect(ctx, id), extraErrors: shut ? [{ code: 'behind', at: '지식', why: shut.message }] : [] }))
       })
     },
     // 들어간 것 하루 요약(저장 승인 설계 P-D13 · Q7) — approve 모드 지식의 「승인 받고 넣기」 스위치(row.review)는 이 알림으로 바뀐다.
@@ -5018,20 +5030,24 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         targets.push({ doc: String(doc).replace(/^docs\/|\.md$/g, ''), heading, cols: it.cols.map(String), rows: it.rows.map((r) => r.map((c) => String(c ?? ''))) })
       }
       const srcDecl = { name: source, rules: [{ rule: 'outside', into: { doc: targets[0]?.doc || '' } }] }
-      const plan = await planRun(k, srcDecl, { outside: targets.map((t) => ({ key: t.heading, cols: t.cols, rows: t.rows, doc: t.doc })) }, { asof: asof || new Date().toISOString().slice(0, 16).replace('T', ' ') })
-      // 줄의 상태(옛 PC 폴더 · 바깥 생성기) — 받은 때 · 마지막 변화
-      const mark = async (n) => {
+      // 가져온 표는 원천이다(H4d · H-D32 · H-D36) — 바깥 생성기의 표도 문서에 바로 쓰지 않고 바뀐 표만 원천 글로 지어 들이기에 넘긴다
+      if (rowFor(id)?.noClaude) throw new KmdError('E_CONFLICT', NOCLAUDE_WHY)
+      const at = asof || new Date().toISOString().slice(0, 16).replace('T', ' ')
+      const st0 = await readSourceState(dataDir, id)
+      const plan = await planOut(k, srcDecl, { outside: targets.map((t) => ({ key: t.heading, cols: t.cols, rows: t.rows, doc: t.doc })) }, { asof: at, first: true, s0: st0[source] || {} })
+      plan.gone = [] // 바깥 생성기는 보낸 것만 말한다: 이번에 보내지 않은 표를 「없어짐」 으로 치지 않는다
+      // 줄의 상태(옛 PC 폴더 · 바깥 생성기) — 받은 때 · 마지막 변화 · 보낸 표의 지문
+      const mark = async (n, sent) => {
         const st = await readSourceState(dataDir, id)
         const s0 = (st[source] ||= {})
         const now = new Date().toISOString()
-        Object.assign(s0, { checkedAt: now, host: String(host || '').slice(0, 60), failures: 0, lastNote: n ? `바뀐 표 ${n}` : '그대로', ...(n ? { lastChange: { at: now, files: files || 0, tables: n } } : {}) })
+        Object.assign(s0, { checkedAt: now, host: String(host || '').slice(0, 60), failures: 0, lastNote: n ? `바뀐 표 ${n}` : '그대로', sent: { ...(s0.sent || {}), ...sent }, ...(n ? { lastChange: { at: now, files: files || 0, tables: n } } : {}) })
         await writeSourceState(dataDir, id, st)
       }
-      if (!plan.changed.length) { await mark(0); return { changed: 0 } }
-      await mark(plan.changed.length)
-      await coreSave(meta.dir, { record: { title: `가져옴: ${source} · 바뀐 표 ${plan.changed.length}`, body: plan.changed.map((c) => `- ${c.doc} › ${c.heading}`).join('\n'), tags: ['sources'] }, sections: plan.changed.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) }, { user: 'kmd-auto', system: true })
-      cache.delete(id)
-      return { changed: plan.changed.length }
+      if (!plan.changed.length) { await mark(0, plan.sent); return { changed: 0 } }
+      const out = await sendTables(mode === 'pc' ? pcIntake(id, meta, srcDecl) : teamIntake(id, srcDecl, { id: null }), srcDecl, plan, { asof: at, what: '표(바깥 생성기가 보낸 것)' })
+      await mark(plan.changed.length, out.sent)
+      return { changed: plan.changed.length, ...out.tally }
     },
 
     // ── 들이기 일감 보기 ──

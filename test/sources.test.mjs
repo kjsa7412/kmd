@@ -121,7 +121,11 @@ test('바깥 생성기: 기계 열쇠로 그 원천 · 그 종류만 · 같으�
   const body = { source: 'gen', items: [{ coord: 'term:VPN', cols: ['망', '주소'], rows: [['사내', '10.0.0.0/8']] }] }
   const r1 = await (await put(body)).json()
   assert.equal(r1.changed, 1)
-  assert.match(doc('접속안내'), /<!-- baseline: src="gen" rule=outside/)
+  // 표를 문서에 바로 쓰지 않는다 — 원천 글이 들이기 일감이 된다(H4d)
+  assert.doesNotMatch(doc('접속안내'), /<!-- baseline: src="gen"/)
+  const gj = s.hub.intakesOf('dpms').filter((j) => String(j.src?.rel || '').startsWith('가져올 곳/gen/'))
+  assert.equal(gj.length, 1)
+  assert.match(fs.readFileSync(path.join(tmp, 'kn', '.kmd', 'queue', `${gj[0].id}.md`), 'utf8'), /\| 사내 \| 10\.0\.0\.0\/8 \|/)
   const n0 = commits()
   assert.equal((await (await put(body)).json()).changed, 0)
   assert.equal(commits(), n0)

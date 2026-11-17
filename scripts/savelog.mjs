@@ -158,6 +158,11 @@ export function summarize(lines) {
       if (x.fail.final) ap.failFinal++
     }
     if (ap && x.dup) ap.dup++
+    // 지식 생성 측정(설계 9-1) — 새 머리의 장부 짝 · 태도 뒤집힘 · 앞선 값 카드 · 제안 단계에서 막힌 코드
+    if (ap && x.weave?.pair) { ap.pairNew = (ap.pairNew || 0) + (x.weave.pair.new || 0); ap.pairNamed = (ap.pairNamed || 0) + (x.weave.pair.named || 0) }
+    if (ap && x.weave?.flip) ap.flip = (ap.flip || 0) + x.weave.flip
+    if (ap && x.weave?.prior) ap.prior = (ap.prior || 0) + x.weave.prior
+    if (ap && x.stage === 'propose') for (const code of Array.isArray(x.block) ? x.block : []) { ap.block ||= {}; ap.block[code] = (ap.block[code] || 0) + 1 }
     if (x.err) {
       c.errors[x.err] = (c.errors[x.err] || 0) + 1
       return

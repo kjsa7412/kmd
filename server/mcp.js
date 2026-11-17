@@ -259,6 +259,7 @@ export function makeMcp(store) {
       if (knowledge) {
         const k = await store.get(knowledge, ctx)
         const p = precedentsFor(k, { q, text: source || '' })
+        if (ctx?.agent?.intake && Array.isArray(p.prior)) ctx.agent.intake.prior = (ctx.agent.intake.prior || 0) + p.prior.length // 측정만(설계 9-1 prior)
         Object.assign(out, { cards: p.cards, prior: p.prior, coverage: p.coverage, toc: p.toc, ...(p.none ? { none: p.none } : {}), ...(p.tocCut ? { tocCut: true } : {}), rulesRev: GEN_RULES_REV })
       }
       return out

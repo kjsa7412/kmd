@@ -200,6 +200,7 @@ export function inputFromItems(k, input = {}) {
   if (items.length > ITEMS_MAX) err('items', 'items', `한 저장에 항목은 ${ITEMS_MAX}개까지다: 묶음을 나눠 저장한다`)
   let miss = 0
   const stances = { shown: 0, follow: 0, distinct: 0, depart: 0, na: 0, none: { all: 0, part: 0 } }
+  const stanceMap = {} // 과거 결정(of) → 태도 — 고쳐 받기 앞뒤로 뒤집혔나(flip · 측정만)
   const judgeText = (j) => {
     const rules = (Array.isArray(j?.rule) ? j.rule : j?.rule ? [j.rule] : []).map((x) => { const r = ruleOf(x); if (!r) miss++; return r }).filter(Boolean).slice(0, 6)
     const prec = (Array.isArray(j?.prec) ? j.prec : []).filter((p) => p && typeof p === 'object' && p.of).slice(0, 8).map((p) => {
@@ -207,6 +208,7 @@ export function inputFromItems(k, input = {}) {
       if (!st) { miss++; return null }
       stances.shown++
       stances[st]++
+      stanceMap[String(p.of).slice(0, 120)] = st
       const against = st === 'depart' ? ruleOf(p.against) : null
       const why = one(p.why, 120)
       if ((st === 'distinct' || st === 'depart') && !why) miss++
@@ -295,5 +297,5 @@ export function inputFromItems(k, input = {}) {
   const out = { ...rest, record: rec, sections, ...(w.names.length ? { names: w.names } : {}), ...(w.forms.length ? { forms: w.forms } : {}), ...(w.natures.length ? { natures: w.natures } : {}), ...(depart.length ? { depart } : {}), ...(distinct.length ? { distinct: [...new Set(distinct.map(String))] } : {}), ...(judge.length ? { judge } : {}) }
   // 쓸 것이 없다 — 모두 뺌이거나 모두 그대로(R6-3 · H-D26): 아무것도 쓰지 않고 잰다
   const empty = !sections.length && !w.names.length && !w.forms.length && !w.natures.length && (skip.length > 0 || acts.same > 0)
-  return { input: out, errors, skip, acts, fold: w.fold, skipped: w.skipped, miss, empty, stances, asof, first: firstDiff, kinds: w.kinds.map((x) => x.name) }
+  return { input: out, errors, skip, acts, fold: w.fold, skipped: w.skipped, miss, empty, stances, stanceMap, named: w.names.length, asof, first: firstDiff, kinds: w.kinds.map((x) => x.name) }
 }
