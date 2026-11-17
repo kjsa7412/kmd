@@ -136,6 +136,12 @@ test('기록 → 간 문서: 나중 기록이 같은 항목을 고쳐 표지가 
     const r = recView(k, '2026-1031-앞')
     assert.equal(r.state, 'in')
     assert.deepEqual(r.went, [{ id: '화면', title: '화면', hs: ['A: 상황 지도', 'B: 공정 도식'] }])
+    // 글 그대로(P-D12 · 정정 기록처럼 글을 바꾸지 않고 이은 항목만) — 들어감이고 그 문서가 「글 그대로」 로 보인다
+    fs.writeFileSync(path.join(dir, 'work', '2026-1103-이음.md'), '---\nid: 2026-1103-이음\ntitle: 이음\ndate: 2026-11-03 09:00\nauthor: kim\ntouches:\n  - 화면:A\ntags:\n  - put\n---\n\n# 이음\n\n경위\n\n## 이은 항목\n- docs/화면.md › A: 상황 지도\n')
+    const k2 = await loadKnowledge({ id: 't', name: 't', dir })
+    const s = recView(k2, '2026-1103-이음')
+    assert.equal(s.state, 'in')
+    assert.deepEqual(s.went, [{ id: '화면', title: '화면', hs: ['A: 상황 지도'], same: ['A: 상황 지도'] }])
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
   }

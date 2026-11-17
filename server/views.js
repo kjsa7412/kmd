@@ -6,7 +6,7 @@
 import MarkdownIt from 'markdown-it'
 import path from 'node:path'
 import { coordsOfSection, labelOf, sectionOf, reflectedIn } from '../core/knowledge.js'
-import { parsePut, itemKey } from '../core/parts.js'
+import { parsePut, parseLinked, itemKey } from '../core/parts.js'
 import { locateDoc } from '../core/registry.js'
 import { sha16 } from '../core/text.js'
 import { splitBlocks, parseTable } from '../core/baseline.js'
@@ -370,15 +370,21 @@ function backlinks(k, d) {
 // 어느 문서 · 항목으로 갔는지, 문서가 어느 기록에서 왔는지 보인다(touches 만 보면 둘 다 0 이었다)
 const placedBy = (k, w) => [...k.works, ...k.logs].filter((o) => o !== w && o.reflects?.includes(w.id))
 // 상태 「문서에 들어감」(recordState) 과 같은 판정 — 항목 표지가 이 기록(또는 넣은 정리)인 곳만이 아니라
-//   저장 문이 넣었다고 적은 항목(넣은 것 칸 · 되돌린 항목 빼고) · 건드린 항목에 더 늦은 기록이 들어 이 기록도 든 곳(reflectedIn)까지.
+//   저장 문이 넣었다고 적은 항목(넣은 것 칸 · 되돌린 항목 빼고) · 글 그대로 이은 항목(이은 항목 칸 · same 에도 적는다) · 건드린 항목에 더 늦은 기록이 들어 이 기록도 든 곳(reflectedIn)까지.
 //   표지만 보면 나중 기록이 같은 항목을 고친 순간 「들어감」 기록의 문서가 「없다」 로 보인다
 function landedIn(k, w, ids) {
   const out = new Map()
-  const add = (d, h) => {
+  const put = new Set() // 글이 든 항목(문서 id · 머리) — 이은 항목에만 있으면 글 그대로
+  const add = (d, h, same = false) => {
     if (!out.has(d.id)) out.set(d.id, { id: d.id, title: d.title, hs: [] })
     const x = out.get(d.id)
     if (!x.hs.includes(h)) x.hs.push(h)
+    if (!same) put.add(d.id + '\n' + h)
   }
+  const done = () => [...out.values()].map((x) => {
+    const same = x.hs.filter((h) => !put.has(x.id + '\n' + h))
+    return same.length ? { ...x, same } : x
+  })
   for (const d of k.docs) {
     // 문서 감시의 사본 — 문서 전체가 표지의 기록(rec)에서 왔다
     if (d.rec && ids.has(d.rec)) {
@@ -387,7 +393,7 @@ function landedIn(k, w, ids) {
     }
     for (const s of d.sections) if (s.applied && ids.has(s.applied)) add(d, s.h)
   }
-  if (w.state !== 'in') return [...out.values()]
+  if (w.state !== 'in') return done()
   if ((w.tags || []).includes('put')) {
     const back = k.revertedItems?.get(w.id)
     for (const x of parsePut(w.body)) {
@@ -396,12 +402,18 @@ function landedIn(k, w, ids) {
       const s = d?.sections.find((o) => headingMatches(o.h, x.heading || ''))
       if (s) add(d, s.h)
     }
+    // 글 그대로(P-D12) — 본문은 그대로 두고 항목에 이은 기록도 「들어감」 이다
+    for (const x of parseLinked(w.body)) {
+      const d = k.byDocPath.get(x.doc)
+      const s = d?.sections.find((o) => headingMatches(o.h, x.heading || ''))
+      if (s) add(d, s.h, true)
+    }
   }
   for (const c of w.touches) {
     const x = sectionOf(k, c)
     if (x?.doc && x.sec && reflectedIn(k, w, x.sec)) add(x.doc, x.sec.h)
   }
-  return [...out.values()]
+  return done()
 }
 // 이 문서가 온 곳 — 항목마다 넣은 기록(how: rec) 과 그 기록을 넣은 kmd 이력 기록(how: kmd · 옛 정리 · 바로 넣기 · 고침 · 다듬기) · 넣은 항목 머리
 function originsOf(k, d) {
