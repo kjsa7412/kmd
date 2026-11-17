@@ -30,6 +30,9 @@ before(async () => {
   process.env.HOME = process.env.USERPROFILE = process.env.APPDATA = tmp
   process.env.KMD_NO_CLAUDE = '1'
   process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
+  // 들이기는 세션이다(H4a-2) — 세션 가짜가 대본(agent-intake.mjs)대로 kmd MCP 로 찾고 저장한다
+  process.env.KMD_CLAUDE_AGENT = path.join(HERE, 'fixture', 'fake-claude-agent.mjs')
+  process.env.FAKE_AGENT_SCRIPT = path.join(HERE, 'fixture', 'agent-intake.mjs')
   copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'kn'))
   repo = path.join(tmp, 'src', 'repo')
   W(path.join(repo, 'HealthCheck.java'), '// 헬스 체크 — 시간 초과는 3초\nclass HealthCheck {\n  int timeoutSec = 3;\n}\n')

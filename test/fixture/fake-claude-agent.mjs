@@ -3,6 +3,7 @@
 // 지키는 것을 본다 — `-p` · stream-json · 내장 도구는 Read,Glob,Grep 만 · dontAsk · strict MCP · 설정 파일 둘.
 // MCP 가 있으면(들이기) 일 폴더의 md 를 읽어 kmd MCP 를 진짜 HTTP 로 부른다:
 //   brief → save(회의록 › 「2026-10-21 HNC 통화」 + 장부 항목 term:펄스명령) — 줄마다 stream-json 을 낸다
+//   FAKE_AGENT_SCRIPT=<mjs> → 시험이 준 대본대로 한다(아래 본문 참고)
 //   FAKE_AGENT_MODE=other → 다른 지식에 save 를 해 본다(거절돼야 한다) · =idle → 아무것도 넣지 않고 끝낸다
 // MCP 가 없으면(바꾸기) 「원본/…」 을 읽은 것처럼 md 글 하나를 답한다.
 
@@ -34,10 +35,21 @@ process.stdin.on('end', async () => {
     const r = await fetch(cfg.url, { method: 'POST', headers: { ...cfg.headers, 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: n, method: 'tools/call', params: { name, arguments: a } }) })
     const j = await r.json().catch(() => ({}))
     const text = j.result?.content?.[0]?.text || JSON.stringify(j.error || { status: r.status })
+    if (process.env.FAKE_AGENT_LOG) fs.appendFileSync(process.env.FAKE_AGENT_LOG, `${name} ${JSON.stringify(a).slice(0, 300)} → ${String(text).slice(0, 500)}
+`)
     out({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content: text, is_error: !!j.result?.isError || !r.ok }] } })
     return j.result?.structuredContent || null
   }
   const kn = /knowledge id: ([^)]+)\)/.exec(prompt)[1]
+  // 대본(FAKE_AGENT_SCRIPT=<mjs 파일>) — 시험이 이 세션이 할 일을 정한다: export default async ({ prompt, kn, cwd, files, read, mcp, env }) => 끝 말.
+  //   read(이름) 은 일 폴더의 파일 글 · mcp(이름, 인자) 는 kmd MCP 를 진짜로 부른다 · undefined 를 돌려주면 아래 기본 동작으로 넘어간다
+  if (process.env.FAKE_AGENT_SCRIPT) {
+    const { pathToFileURL } = await import('node:url')
+    const mod = await import(pathToFileURL(process.env.FAKE_AGENT_SCRIPT).href)
+    const files = fs.readdirSync(process.cwd()).filter((f) => fs.statSync(path.join(process.cwd(), f)).isFile())
+    const said = await mod.default({ prompt, kn, cwd: process.cwd(), files, read: (f) => fs.readFileSync(path.join(process.cwd(), f), 'utf8'), mcp, env: process.env })
+    if (said !== undefined) return end({ result: String(said) })
+  }
   const md = /바꾼 글: 「([^」]+)」/.exec(prompt)[1]
   const body = fs.readFileSync(path.join(process.cwd(), md), 'utf8')
   out({ type: 'assistant', message: { content: [{ type: 'text', text: '파일을 읽고 지식을 둘러본다.' }] } })

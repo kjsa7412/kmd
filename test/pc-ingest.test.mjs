@@ -30,6 +30,18 @@ const fresh = async (id) => { pc.hub.forget?.(id); return pc.hub.get(id) }
 const section = (id, doc, h) => fs.readFileSync(path.join(pdir(id), 'docs', `${doc}.md`), 'utf8').split(`## ${h}`)[1].split('\n## ')[0]
 const savelogOf = (id) => fs.readFileSync(path.join(tmp, 'pcdata', 'savelog', `${encodeURIComponent(id)}.jsonl`), 'utf8').trim().split('\n').map((l) => JSON.parse(l))
 const env = (k, v, f) => async () => { const old = process.env[k]; if (v == null) delete process.env[k]; else process.env[k] = v; try { return await f() } finally { if (old == null) delete process.env[k]; else process.env[k] = old } }
+// 들이기는 세션이라 일 줄로 돈다(kind run) — 그 파일의 기록이 설 때까지 기다려 그 기록 id 를 돌려준다
+const settle = async (id, r, rel, ms = 30000) => {
+  if (r.rows[0].kind !== 'run') return r.rows[0].rec
+  const t = Date.now()
+  for (;;) {
+    const w = (await fresh(id)).works.find((x) => x.tags.includes(`ingest/${rel}`.slice(0, 60)))
+    // 측정 줄은 커밋 뒤에 적힌다 — 그 기록의 줄이 설 때까지
+    if (w && fs.existsSync(path.join(tmp, 'pcdata', 'savelog', `${encodeURIComponent(id)}.jsonl`)) && savelogOf(id).some((l) => l.rec === w.id)) return w.id
+    if (Date.now() - t > ms) throw new Error('들이기 기다림 초과')
+    await new Promise((ok) => setTimeout(ok, 150))
+  }
+}
 const docx = (paras) => storedZip([['word/document.xml', `<?xml version="1.0"?><w:document><w:body>${paras.map(([st, t]) => `<w:p>${st ? `<w:pPr><w:pStyle w:val="${st}"/></w:pPr>` : ''}<w:r><w:t>${t}</w:t></w:r></w:p>`).join('')}</w:body></w:document>`]])
 
 before(async () => {
@@ -37,7 +49,9 @@ before(async () => {
   process.env.HOME = process.env.USERPROFILE = process.env.APPDATA = tmp
   process.env.KMD_NO_CLAUDE = '1'
   process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
-  delete process.env.KMD_CLAUDE_AGENT // 넣기 에이전트 없이 — claude -p 들이기 초안 길(에이전트 길은 agent 시험)
+  // 들이기는 세션이다(H4a-2) — 세션 가짜가 대본(agent-intake.mjs)대로 kmd MCP 로 찾고 저장한다
+  process.env.KMD_CLAUDE_AGENT = path.join(HERE, 'fixture', 'fake-claude-agent.mjs')
+  process.env.FAKE_AGENT_SCRIPT = path.join(HERE, 'fixture', 'agent-intake.mjs')
   // dpms(옛 개인 지식 · 이행 전) · apv(이행을 마친 개인 지식 = 「저장 방식: 승인」 · 기록 없는 dpms 문서 · 기록 모음)
   copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'pc'))
   copyDir(path.join(HERE, 'fixture', 'kmd', 'dpms'), pdir('apv'))
@@ -71,7 +85,8 @@ test('개인 들이기 = 기록 + 문서 한 커밋 · pend 를 거치지 않음
   const n0 = commits('apv')
   const file = docx([['Heading1', '매일 백업'], ['', 'DB 는 매일 02:00 에 백업한다. 14일치를 둔다.']])
   const r = await pc.hub.importFiles(ME, 'apv', [{ path: '운영/백업 바꿈.docx', data: file }])
-  assert.equal(r.rows[0].kind, 'doc', JSON.stringify(r.rows[0]))
+  assert.equal(r.rows[0].kind, 'run', JSON.stringify(r.rows[0]))
+  r.rows[0].rec = await settle('apv', r, '운영/백업 바꿈.docx')
   assert.equal(commits('apv'), n0 + 1, '기록 + 문서 + 첨부가 한 커밋')
   const k = await fresh('apv')
   const w = k.byWork.get(r.rows[0].rec)
@@ -94,9 +109,9 @@ test('개인 들이기 = 기록 + 문서 한 커밋 · pend 를 거치지 않음
   assert.equal(commits('apv'), n0 + 1)
 })
 
-test('개인 들이기 값 경고 = 들어감 + `## 값 대조`(규칙 길로 떨어지지 않음 · savelog warned)', env('FAKE_CLAUDE_MODE', 'badall', async () => {
+test('개인 들이기 값 경고 = 들어감 + `## 값 대조`(규칙 길로 떨어지지 않음 · savelog warned)', env('FAKE_AGENT_MODE', 'lie', async () => {
   const r = await pc.hub.importFiles(ME, 'apv', [{ path: '카나리 바꿈.md', data: Buffer.from('# 카나리 바꿈\n\n## 카나리\n`canary-1` 에 먼저 올리고, 첫 30분은 요청의 20% 만 보낸다.\n') }])
-  assert.equal(r.rows[0].kind, 'doc', JSON.stringify(r.rows[0]))
+  r.rows[0].rec = await settle('apv', r, '카나리 바꿈.md')
   const w = (await fresh('apv')).byWork.get(r.rows[0].rec)
   assert.equal(w.state, 'in')
   assert.match(w.body, /^## 값 대조$/m)

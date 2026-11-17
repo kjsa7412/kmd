@@ -40,6 +40,9 @@ before(async () => {
   process.env.HOME = process.env.USERPROFILE = process.env.APPDATA = tmp
   process.env.KMD_NO_CLAUDE = '1'
   process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
+  // 들이기는 세션이다(H4a-2) — 세션 가짜가 대본(agent-intake.mjs)대로 kmd MCP 로 찾고 저장한다
+  process.env.KMD_CLAUDE_AGENT = path.join(HERE, 'fixture', 'fake-claude-agent.mjs')
+  process.env.FAKE_AGENT_SCRIPT = path.join(HERE, 'fixture', 'agent-intake.mjs')
   copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'kn'))
   docsDir = path.join(tmp, 'src', '운영문서')
   W(path.join(docsDir, '회의', '시월.md'), '# 시월\n\n## 정한 것\n화 · 목 배포. 창은 14:00 부터.\n')
@@ -93,7 +96,7 @@ test('문서 폴더: 파일마다 들이기 일감(정리 일감 0) · 일꾼 �
   // 측정 줄 — 채널 intake-src · 비용
   const sl = fs.readFileSync(path.join(tmp, 'kn', '.kmd', 'savelog', 'dpms.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)).pop()
   assert.equal(sl.ch, 'intake-src')
-  assert.equal(sl.cost.calls, 1)
+  assert.equal(job.calls, 1, '세션 한 번(비용은 세션이 끝날 때 일감에 적힌다)')
   // 둘째 일감도
   await work()
   assert.equal(queued().length, 0)

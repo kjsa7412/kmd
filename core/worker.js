@@ -111,6 +111,8 @@ export async function sessionOnce({ server, key, job, dkey, log = () => {}, mode
 
 export async function intakeOnce({ server, key, job, dkey, log = () => {}, budget = BUDGET(), models = null, gate = slots(PAR) }) {
   if (job.session) return sessionOnce({ server, key, job, dkey, log, models, gate })
+  // 파일 · 커밋 들이기는 세션으로만 짓는다(H4a-2 · 한 번 부르기 초안 길은 걷었다) — 세션을 띄울 수 없는 일꾼에게는 서버가 주지 않는다
+  if (job.type === 'file' || job.type === 'commit') throw new Error('세션으로 짓는 일감이다: 이 일꾼은 Claude Code 세션을 띄울 수 없다')
   const kn = encodeURIComponent(job.kn)
   const base = `/api/k/${kn}/worker/intake`
   let lost = false
