@@ -78,7 +78,9 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
     const [cmd, argv, opt] = fake ? [process.execPath, [fake, ...args], {}] : [win ? 'claude.cmd' : 'claude', args, win ? { shell: true } : {}]
     const quoted = opt.shell ? argv.map((a) => (a === '' ? '""' : /[\s"{}&|<>^]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a)) : argv
     line('sys', `Claude Code 를 띄운다. 도구 ${tools.join(' · ')}${mcp ? ' · kmd' : ''}${model ? ` · 모델 ${model}` : ''} · 예산 $${budget}`)
-    // kmd 연결이 아직 서지 않은 채 시작하면(init 에 kmd 가 connected 가 아니다) 도구 없이 헤매므로 곧바로 끊고 다시 띄운다(세 번까지)
+    // kmd 연결(MCP) 판정 — init 의 상태가 failed 같은 끝난 실패면 곧바로 끊고 다시 띄운다(세 번까지).
+    //   「pending」(붙는 중)은 끊지 않는다: 새 판 Claude Code(2.1.19x)는 MCP 를 뒤에서 붙이며 init 에 늘 pending 으로 알린다(2026-11-17 · 188 에서 세션이 모두 여기서 끊겼다).
+    //   pending 으로 시작한 세션은 끝까지 두고, kmd 도구를 한 번도 못 쓴 채 끝났을 때만 못 붙은 것으로 보고 다시 띄운다
     for (let attempt = 1; ; attempt++) {
       if (signal?.aborted) return { ok: false, error: 'cancel', message: '그만뒀다' }
       const r = await once()
@@ -92,6 +94,8 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
       // 끊기 — Windows 는 cmd 를 거쳐 띄우므로 p.kill() 은 cmd 만 죽고 Claude Code 는 남는다 · 나무째(taskkill /T)
       const stop = () => { if (win && !fake && p.pid) spawn('taskkill', ['/pid', String(p.pid), '/T', '/F'], { windowsHide: true }).on('error', () => p.kill()); else p.kill() }
       let mcpDown = false
+      let mcpPending = false // init 에 kmd 가 pending 이었다
+      let mcpUsed = false // kmd 도구를 한 번이라도 불렀다
       let buf = ''
       let se = ''
       let last = null
@@ -104,11 +108,12 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
         if (j.type === 'system' && j.subtype === 'init') {
           line('sys', `시작: ${j.model || 'Claude'}${j.mcp_servers?.length ? ' · ' + j.mcp_servers.map((s) => `${s.name} ${s.status === 'connected' ? '이어짐' : s.status}`).join(' · ') : ''}`)
           const k = (j.mcp_servers || []).find((s) => s.name === 'kmd')
-          if (mcp && k && k.status !== 'connected') { mcpDown = true; stop() }
+          if (mcp && k && k.status === 'pending') mcpPending = true
+          else if (mcp && k && k.status !== 'connected') { mcpDown = true; stop() }
         }
         if (j.type === 'assistant') for (const c of j.message?.content || []) {
           if (c.type === 'text' && c.text.trim()) line('say', c.text.trim())
-          if (c.type === 'tool_use') line('tool', toolLine(c.name, c.input))
+          if (c.type === 'tool_use') { line('tool', toolLine(c.name, c.input)); if (String(c.name || '').startsWith('mcp__kmd')) mcpUsed = true }
         }
         if (j.type === 'user') for (const c of j.message?.content || []) if (c.type === 'tool_result') line(c.is_error ? 'err' : 'ok', resultLine(c))
         if (j.type === 'result') last = j
@@ -126,6 +131,8 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
         if (signal?.aborted) { resolve({ ok: false, error: 'cancel', message: '그만뒀다', cost: last?.total_cost_usd || 0 }); return }
         if (mcpDown) { resolve({ mcpDown: true }); return }
         if (buf.trim()) eat(buf)
+        // 붙는 중으로 시작해 kmd 도구를 한 번도 못 쓰고 끝났다 — 연결이 서지 않은 것으로 보고 다시 띄운다(로그인 · 한도 오류는 아래에서 그대로 가른다)
+        if (mcp && mcpPending && !mcpUsed && last && !last.is_error && !code) { line('err', 'kmd 연결이 붙지 않은 채 끝났다'); resolve({ mcpDown: true }); return }
         const text = `${last?.result || ''} ${se}`
         if (!last || last.is_error || code) {
           const error = /login|log in|api key|auth|unauthori|credential|401/i.test(text) ? 'login' : /limit|quota|rate|usage|budget|429/i.test(text) ? 'limit' : 'fail'

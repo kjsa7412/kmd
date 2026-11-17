@@ -123,3 +123,13 @@ test('스키마 답 세션의 읽기 열쇠: 팀 MCP 로 읽기는 되고 저장
   assert.ok(Array.isArray((await mcp(token, 'match', { q: '카나리', knowledge: 'dpms' })).j.result.structuredContent.cards))
   assert.equal((await mcp(token, 'save', { knowledge: 'dpms', record: { title: '읽기 열쇠로 저장', body: 'x', touchesEmpty: '없음' } })).j.result.structuredContent.error, 'E_FORBIDDEN')
 })
+
+test('새 판 Claude Code 는 시작할 때 kmd 를 「pending」 으로 알린다: 끊지 않고 끝까지 둔다(들어간다)', async () => {
+  const old = process.env.FAKE_AGENT_MODE
+  process.env.FAKE_AGENT_MODE = 'pending'
+  try {
+    const o = await s.hub.openJob('dpms', { type: 'file', by: 'kim', src: { rel: 'pending 메모.md', file: 'pending 메모.md', title: 'pending 메모.md', sha: 'd'.repeat(16) }, md: '# 메모\n\n## 원격 명령\n\n펄스 길이는 910ms 다.\n' })
+    const r = await workOnce({ server: s.url, key: wk, log: () => {} })
+    assert.equal(s.hub.intakesOf('dpms').find((x) => x.id === o.job).state, 'done', JSON.stringify(r?.summary))
+  } finally { if (old == null) delete process.env.FAKE_AGENT_MODE; else process.env.FAKE_AGENT_MODE = old }
+})
