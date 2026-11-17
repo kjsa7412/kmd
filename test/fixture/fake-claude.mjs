@@ -1,6 +1,6 @@
 // 시험용 가짜 `claude -p` — KMD_CLAUDE 로 주면 core/claude.js 가 node 로 돌린다.
 //
-// 지키는 것을 본다 — `-p` · `--tools ""` · 빈 MCP · `--json-schema` · 빈 폴더. 어기면 is_error.
+// 지키는 것을 본다 — `-p` · 읽기 도구만(`--tools Read,Glob,Grep` · dontAsk) · MCP 설정 파일(비었거나 kmd 하나) · `--json-schema` · 빈 폴더. 어기면 is_error.
 // 표준 입력의 프롬프트(core/tidy.js promptOf)를 읽어 초안을 낸다:
 //   보통   지금 글 + 기록 글을 잇는다(기록의 값이 모두 든다) · used = 모든 기록
 //   기록에 「지어낸」 → 근거에 없는 값(999초)을 더한다 · 「누락」 → 그 기록 글을 빼고도 used 에 넣는다
@@ -102,7 +102,7 @@ const streamFor = (ms) => new Promise((ok) => {
 if (!SESSION) process.stdin.on('end', () => (Number(process.env.FAKE_CLAUDE_STREAM_MS) ? streamFor(Number(process.env.FAKE_CLAUDE_STREAM_MS)).then(answer) : answer()))
 function answer() {
   if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, `call${args.includes('--model') ? ' ' + val('--model') : ''}\n`)
-  const ok = args.includes('-p') && args.includes('--tools') && val('--tools') === '' && args.includes('--strict-mcp-config') && JSON.parse(val('--mcp-config') || '{}').mcpServers && val('--json-schema') && fs.readdirSync(process.cwd()).length === 0
+  const ok = args.includes('-p') && val('--tools') === 'Read,Glob,Grep' && val('--permission-mode') === 'dontAsk' && args.includes('--strict-mcp-config') && JSON.parse(fs.readFileSync(val('--mcp-config'), 'utf8')).mcpServers && val('--json-schema') && fs.readdirSync(process.cwd()).length === 0
   if (!ok) return say({ is_error: true, subtype: 'error', result: '가짜 claude: 도구 0 · 빈 MCP · 스키마 · 빈 폴더를 지키지 않았다' })
   if (process.env.FAKE_CLAUDE_MODE === 'logout') return say({ is_error: true, subtype: 'error', result: 'Invalid API key · Please run /login' })
   if (prompt.startsWith('이 물음에는 {"ok": true}')) return say({ structured_output: { ok: true } }) // checkClaude

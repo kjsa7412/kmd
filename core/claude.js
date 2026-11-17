@@ -1,8 +1,9 @@
-// claude -p 한 번 — 정리 일꾼이 초안 하나를 받는 길.
+// 스키마 답 하나를 받는 Claude Code 세션(지식 생성 하네스 H4a-3 · H-D34) — 정정 · 다듬기 · 보내기 초안 · 짜임 · 커밋 분석.
 //
-// 도구 0(`--tools ""`) · 빈 MCP(`--strict-mcp-config`) · JSON 스키마(`--json-schema`) · 세션 남기지 않음 · 예산 상한 ·
-// 빈 임시 폴더에서 · 환경변수는 허용 목록만(이 PC 의 다른 세션 변수 · 열쇠를 넘기지 않는다).
-// 들인 문서 속 주입 문장이 움직일 수 있는 것은 JSON 초안 하나뿐이다 — 그 초안도 서버가 검사한다.
+// 일반 세션이다: 읽기 도구(Read · Glob · Grep)를 쥐고, mcp 를 주면 kmd MCP 에 붙어 지금 글 · 과거 결정을 스스로 찾아 읽는다
+// (도구 0 의 단발 `claude -p` 는 걷었다). 답은 JSON 스키마(`--json-schema`) 한 덩이 · 세션 남기지 않음 · 예산 상한 ·
+// 빈 임시 폴더에서 · 환경변수는 허용 목록만(이 PC 의 다른 세션 변수 · 열쇠를 넘기지 않는다) · 사용자 폴더의 숨은 파일은 읽지 못한다.
+// 들인 문서 속 주입 문장이 움직일 수 있는 것은 JSON 초안 하나뿐이다 — 그 초안도 서버가 검사한다(이 세션의 열쇠로는 저장하지 못한다).
 //
 // 시험은 KMD_CLAUDE 에 가짜(node 스크립트)를 준다.
 
@@ -18,10 +19,16 @@ export const ENV_ALLOW = ['PATH', 'Path', 'PATHEXT', 'HOME', 'USERPROFILE', 'APP
 // onTick({ out, think, ms }) — 흘려 받기(stream-json): 쓴 글(답 · 스키마 답) · 생각 글자 수와 지난 시간을 tickMs 마다 한 번(끝날 때만 답하던 json 은 몇 분씩 소식이 없었다)
 // effort — 생각 정도(low · medium · high · max · 비면 넘기지 않는다)
 // onEvent(e) — 흐름 줄마다 풀어 준 것(streamEvents · 동작 내역)
-export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_000, model = '', onTick = null, tickMs = 10_000, effort = '', onEvent = null }) {
+export const SESSION_TOOLS = ['Read', 'Glob', 'Grep']
+const SESSION_DENY = ['Read(~/.*)', 'Read(~/.*/**)', 'Read(~/AppData/Roaming/**)', 'Read(~/AppData/Local/Packages/**)']
+export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_000, model = '', onTick = null, tickMs = 10_000, effort = '', onEvent = null, tools = SESSION_TOOLS, mcp = null }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-worker-'))
+  // MCP 설정은 일 폴더 밖의 파일로(따옴표가 깨지지 않게 · 세션이 제 열쇠를 일 폴더에서 읽지 않게)
+  const cfgDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-worker-cfg-'))
+  const cfgFile = path.join(cfgDir, 'mcp.json')
+  fs.writeFileSync(cfgFile, JSON.stringify({ mcpServers: mcp ? { kmd: { type: 'http', url: mcp.url, headers: { Authorization: `Bearer ${mcp.token}` } } } : {} }))
   const env = Object.fromEntries(ENV_ALLOW.filter((k) => process.env[k] != null).map((k) => [k, process.env[k]]))
-  const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--tools', '', '--strict-mcp-config', '--mcp-config', JSON.stringify({ mcpServers: {} }), '--no-session-persistence', '--max-budget-usd', String(budget), '--json-schema', JSON.stringify(schema), ...modelArgs(model)]
+  const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--tools', tools.join(','), ...(mcp ? ['--allowedTools', 'mcp__kmd'] : []), '--disallowedTools', SESSION_DENY.join(','), '--permission-mode', 'dontAsk', '--strict-mcp-config', '--mcp-config', cfgFile, '--no-session-persistence', '--max-budget-usd', String(budget), '--json-schema', JSON.stringify(schema), ...modelArgs(model)]
   if (/^(low|medium|high|max)$/.test(effort)) args.push('--effort', effort)
   if (process.env.ANTHROPIC_API_KEY) args.push('--bare')
   const fake = process.env.KMD_CLAUDE
@@ -72,6 +79,7 @@ export async function runClaude({ prompt, schema, budget = 0.5, timeoutMs = 180_
     return r
   } finally {
     try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {} // Windows 의 EBUSY — 남겨도 답은 버리지 않는다
+    try { fs.rmSync(cfgDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
   }
 }
 

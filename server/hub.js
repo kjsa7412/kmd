@@ -2196,13 +2196,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   // 넣기 에이전트(Claude Code · kmd-build) — 기록 없이 원천을 든 단기 열쇠 · 에이전트의 save 가 무인 문을 지난다(agentIntakeSave) → { r, attached } | { why }
   async function pcAgent(j, ctx, id, md, attach, run, original) {
     const meta = await hub.meta(id)
-    const it = { j, ctx, md, attach, run: run.id, saves: 0, r: null, attached: false, why: null, fix: 0, done: false, chain: Promise.resolve() }
-    const w = { id: null, tags: [`ingest/${j.src.rel}`], title: j.src.title || j.src.rel, author: j.by, date: localStamp(), body: md }
-    hub.runLine(run, 'sys', `${meta.name} 에 들인다. 기록과 문서를 한 번에 넣는다`)
-    const token = hub.agentToken(id, null, run.id, it)
+    // 일 줄(run)이 없는 들이기(가져올 곳 · 커밋)도 같은 세션으로 짓는다(H4a-2 · H-D34): 줄만 적지 않는다
+    const it = { j, ctx, md, attach, run: run?.id || null, saves: 0, r: null, attached: false, why: null, fix: 0, done: false, chain: Promise.resolve() }
+    const w = { id: null, tags: j.type === 'commit' ? ['code-change'] : [`ingest/${j.src.rel || j.src.file || j.src.title || '넣은 것.md'}`], title: j.type === 'commit' ? `${j.src.title || '커밋'}: ${j.src.src || '저장소'} ${String(j.src.commit || '').slice(0, 7) || '0000000'}` : j.src.title || j.src.rel || '넣은 것', author: j.by, date: localStamp(), body: md }
+    if (run) hub.runLine(run, 'sys', `${meta.name} 에 들인다. 기록과 문서를 한 번에 넣는다`)
+    const token = hub.agentToken(id, null, run?.id || null, it)
     let r
     try {
-      r = await runAgent({ ...(await hub.agentTask(meta, w, original)), mcp: { url: `${hub.selfUrl}/mcp`, token }, budget: 3, model: hub.modelOf('agent'), onLine: (l) => hub.runLine(run, l.k, l.x), signal: Q.signal(run) })
+      r = await runAgent({ ...(await hub.agentTask(meta, w, original)), mcp: { url: `${hub.selfUrl}/mcp`, token }, budget: 3, model: hub.modelOf('agent'), ...(run ? { onLine: (l) => hub.runLine(run, l.k, l.x), signal: Q.signal(run) } : {}) })
     } finally {
       agentKeys.delete(token)
       it.done = true
@@ -2323,7 +2324,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       if (!claude) why = `한 번에 Claude 로 들이는 수(${INGEST_CLAUDE_MAX})를 넘었다: 다음에 이어서 든다`
       else if (!hub.meaningOk(id)) why = 'Claude 로 들이기를 껐다(또는 Claude 에 보내지 않는 지식): 무인으로 들일 수 없다'
       else {
-        const d = run && type === 'file' && hub.agentOk(id) ? await pcAgent(j, ctx, id, md, attach, run, original) : await pcDraft(j, ctx, id, md, attach, line)
+        // 들이기는 늘 세션(H4a-2 · H-D34). 한 번 부르기(pcDraft)는 시험의 한 번 부르기 가짜(KMD_CLAUDE)만 있는 때에만 남아 있다(운영에서는 닿지 않는다)
+        const d = hub.agentOk(id) ? await pcAgent(j, ctx, id, md, attach, run, original) : !agentAvailable() ? await pcDraft(j, ctx, id, md, attach, line) : { why: '이 PC 의 kmd 주소를 몰라 Claude Code 세션을 붙일 수 없다: 개인 프로그램을 다시 켠다' }
         if (d.empty) { line('sys', d.empty); return { rec: null, put: 0, same: true, docs: [], empty: d.empty } }
         if (d.r) out = d
         else why = d.why
@@ -5028,11 +5030,12 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       // 줄 멈춤이면 들이기 일감도 주지 않는다(UX T6-05) · 이미 맡은 일감의 초안은 그대로 받는다
       if (Q.hold) return null
       sweepJobs()
+      // 파일 · 커밋 들이기는 세션을 띄울 수 있는 일꾼(types 에 session)에게만 내준다(H4a-2 · H-D34): 옛 판 일꾼은 받지 못한다. 한 번 부르기 길은 시험의 가짜(KMD_CLAUDE)만 있는 때에만 남아 있다
       // 얇은 지식(항목 20 아래 · config.thinItems)의 파일 · 커밋 들이기는 지식마다 한 줄로 내준다: 나란히 돌면 서로 못 보고 같은 문서를 따로 세운다(H-D17 나 · H-O11)
       const THIN = Number.isInteger(config.thinItems) ? config.thinItems : 20
       const busyKn = new Set([...jobs.values()].filter((x) => x.kind === 'intake' && ['running', 'closing'].includes(x.state) && SESSION_T.has(x.type)).map((x) => x.kn))
       const oneLine = (x) => SESSION_T.has(x.type) && busyKn.has(x.kn) && (itemCount.get(x.kn) ?? 0) < THIN
-      const q = [...jobs.values()].filter((x) => x.state === 'queued' && x.kind === 'intake' && !(x.retryAt > Date.now()) && !oneLine(x) && (!SHAPE_T.has(x.type) || types.includes(x.type)) && (!x.src?.seed || types.includes('shape-seed')))
+      const q = [...jobs.values()].filter((x) => x.state === 'queued' && x.kind === 'intake' && !(x.retryAt > Date.now()) && !oneLine(x) && (!SESSION_T.has(x.type) || types.includes('session') || !agentAvailable()) && (!SHAPE_T.has(x.type) || types.includes(x.type)) && (!x.src?.seed || types.includes('shape-seed')))
       const j = q.find((x) => !x.auto) || q[0]
       if (!j) return null
       j.state = 'running'
@@ -5502,7 +5505,14 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async askClaude(id, prompt, schema, { budget = 0.5, timeoutMs, role = 'ingest' } = {}) {
       if (mode !== 'pc') return { why: '팀 서버는 이 길로 Claude 를 부르지 않는다(팀 일꾼이 한다)' }
       if (!hub.meaningOk(id)) return { why: 'Claude 를 쓰지 않는다' }
-      const r = await runClaude({ prompt, schema, budget, model: hub.modelOf(role), ...(timeoutMs ? { timeoutMs } : {}) })
+      // 세션으로 부른다(H4a-3 · H-D34): 읽기 도구 + 이 PC 의 kmd MCP(그 지식에만 · 저장은 못 하는 단기 열쇠). 답은 스키마 한 덩이다
+      const token = hub.selfUrl ? hub.agentToken(id, null, null) : null
+      let r
+      try {
+        r = await runClaude({ prompt: token ? `${prompt}\n\n(kmd MCP 의 match · section · brief 로 이 지식의 지금 글 · 항목 장부 · 과거 결정을 직접 찾아 읽을 수 있다. 재료에 없는 것은 읽어 확인하고 답한다. 저장은 하지 않는다: 답은 스키마 한 덩이다.)` : prompt, schema, budget, model: hub.modelOf(role), ...(timeoutMs ? { timeoutMs } : {}), ...(token ? { mcp: { url: `${hub.selfUrl}/mcp`, token } } : {}) })
+      } finally {
+        if (token) agentKeys.delete(token)
+      }
       if (r.error) {
         if (r.error === 'login' || r.error === 'limit') await hub.workerStatus({ worker: { id: null } }, { ok: false, reason: r.error, message: r.message })
         return { why: r.error === 'login' ? 'Claude 로그인이 없다. 머리의 「Claude」 에서 로그인' : r.error === 'limit' ? 'Claude 사용 한도' : 'Claude 가 답하지 않았다' }
