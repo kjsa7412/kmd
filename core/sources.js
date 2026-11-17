@@ -292,6 +292,65 @@ export async function planRun(k, src, items, { asof, first = false, prev = [] })
   return { changed, added, vanished: vanished.length, items: [...now], brake, total: targets.length }
 }
 
+// ── 가져온 표는 원천이다(지식 생성 하네스 H4d · H-D32 · H-D36) ──
+//   코드는 표를 문서에 바로 쓰지 않고 항목을 장부에 세우지도 않는다. 바뀐 표만 원천 글 하나로 지어 들이기 일감(intake-src)으로 넘기고,
+//   세션이 생성 룰과 과거 결정으로 자리 · 항목 · 종류를 정한다. 무엇이 바뀌었나는 문서의 표 블록이 아니라 「보낸 표의 지문」(상태의 sent)으로 본다.
+//   옛 상태(표 블록으로 맞추던 때 · sent 없음)는 지금 문서의 표 블록과 같은 표를 이미 보낸 것으로 친다(판을 올린 첫 확인에 모든 표를 다시 들이지 않게).
+//   옛 표 블록은 그대로 읽는다(세션이 그 항목을 고칠 때 갈음한다). 브레이크(한꺼번에 많이 더함 · 사라짐)는 그대로다.
+const sha16 = (t) => crypto.createHash('sha256').update(String(t)).digest('hex').slice(0, 16)
+export async function planOut(k, src, items, { asof, first = false, s0 = {} }) {
+  const targets = targetsOf(src, items)
+  const keyOf = (doc, heading) => `${docPath(doc)}\n${heading}`
+  const norm = (key) => { const i = key.indexOf('\n'); return i < 0 ? key : keyOf(key.slice(0, i), key.slice(i + 1)) }
+  let sent = s0.sent && typeof s0.sent === 'object' ? Object.fromEntries(Object.entries(s0.sent).map(([key, h]) => [norm(key), h])) : null
+  if (!sent) {
+    const old = await planRun(k, src, items, { asof, first: false, prev: [] })
+    const ch = new Set(old.changed.map((c) => `${c.doc}\n${c.heading}`))
+    sent = {}
+    for (const t of targets) if (!ch.has(keyOf(t.doc, t.heading))) sent[keyOf(t.doc, t.heading)] = sha16(t.table)
+  }
+  const prev = [...new Set([...(s0.items || []).map(norm), ...Object.keys(sent)])]
+  const now = {}
+  const changed = []
+  let added = 0
+  for (const t of targets) {
+    const key = keyOf(t.doc, t.heading)
+    now[key] = sha16(t.table)
+    if (sent[key] === now[key]) continue
+    changed.push({ ...t, key })
+    if (!(key in sent) && !prev.includes(key)) added++
+  }
+  const gone = prev.filter((key) => !(key in now))
+  const brake = !first && (added > 10 || (prev.length && gone.length / prev.length > 0.1))
+  return { changed, added, vanished: gone.length, gone, items: Object.keys(now), sent: now, was: sent, brake, total: targets.length }
+}
+// 바뀐 표를 원천 글로 지어 들이기에 넘긴다 — 표 15개씩 한 원천(한 저장이 고치는 항목 수 상한 20 안). 못 넘긴 묶음의 표는 보낸 것으로 적지 않는다(다음 확인에 다시)
+const OUT_CHUNK = 15
+async function sendTables(intake, src, plan, { asof, line, what }) {
+  const c = tally()
+  const parts = []
+  for (let i = 0; i < plan.changed.length; i += OUT_CHUNK) parts.push(plan.changed.slice(i, i + OUT_CHUNK))
+  if (!parts.length && plan.gone.length) parts.push([])
+  const sent = { ...plan.sent }
+  const stamp = String(asof).replace(/[^0-9]/g, '').slice(0, 12)
+  for (const [i, part] of parts.entries()) {
+    const gone = i === parts.length - 1 ? plan.gone : []
+    const md = [
+      `# 가져옴: ${src.name}(${asof})`,
+      '',
+      `가져올 곳 「${src.name}」 에서 ${asof} 에 가져온 ${what}다. 아래 \`##\` 마다 대상 하나이고 그 아래 표가 원천의 지금 값이다(값은 글자 그대로 옮긴다). 「자리」 줄은 가져올 곳 설정이 고른 문서다: 이미 있는 항목이면 그 항목을 고친다.`,
+      '',
+      ...part.flatMap((t) => [`## ${t.heading}`, '', `자리: ${String(t.doc).replace(/^docs\/|\.md$/g, '')} › ${t.heading}`, '', t.table, '']),
+      ...(gone.length ? ['## 원천에서 없어진 것', '', ...gone.map((key) => { const [doc, heading] = key.split('\n'); return `- ${doc.replace(/^docs\/|\.md$/g, '')} › ${heading}: ${String(asof).slice(0, 10)} 확인에 원천에 없다(항목을 지우지 않고 「원천에 없다」 고 적는다)` }), ''] : []),
+    ].join('\n')
+    const rel = `가져올 곳/${src.name}/${stamp}${parts.length > 1 ? `-${i + 1}` : ''}.md`
+    const r = await intakeOne(intake, { kind: 'file', rel, data: Buffer.from(md, 'utf8') }, line, rel)
+    c[r.state]++
+    if (r.state === 'fail' || r.state === 'held') for (const t of part) { if (t.key in plan.was) sent[t.key] = plan.was[t.key]; else delete sent[t.key] }
+  }
+  return { tally: c, sent }
+}
+
 // ── 바뀐 것만 — 규칙마다 파일 단위 캐시(지문 장부의 out) ──
 //   deps    — 꾸러미 파일(package.json · go.mod · pom.xml · build.gradle · pyproject.toml)마다 줄 · 모아서 한 표
 //   tables  — 사람이 고른 파일 · 폴더(rule.paths) 안의 csv · tsv · json 마다 표 하나
@@ -479,7 +538,8 @@ export async function runSource(k, src, opt) {
 // DB — 카탈로그를 읽어 테이블마다 지문 · 바뀐 테이블만 「바뀐 것」 으로 센다 · 표는 테이블마다 하나(테이블 정의)
 //   자리 — 항목 장부에 `table:*` 자리가 있으면 그 문서 · 머리 · 없으면 넣을 문서 아래 「테이블 — 설명」 머리
 //   계정 — 가리지 않는다(세션이 읽기 전용) · 비밀번호는 비밀에서
-async function runDb(k, src, { dataDir, save, first = false, force = false, full = false, onStage = async () => {}, line = () => {} }) {
+async function runDb(k, src, { dataDir, intake = null, first = false, force = false, full = false, onStage = async () => {}, line = () => {} }) {
+  if (!intake) throw new KmdError('E_INPUT', 'DB 표는 들이기 길(intake)로만 들인다')
   const st = await readState(dataDir, k.id)
   const s0 = (st[src.name] ||= {})
   const now = new Date().toISOString()
@@ -498,11 +558,9 @@ async function runDb(k, src, { dataDir, save, first = false, force = false, full
     line('ok', `테이블 ${tables.size} · 바뀐 테이블 ${n}`)
     await onStage(1)
     const ruleSig = JSON.stringify(src.rules)
-    // 테이블 항목 — 항목 장부에 없는 `table:<테이블>` 은 이번에 세운다(요구 v0.2 R7 · 예전에 들어와 장부에 빠진 지식도 다음 확인 때 채운다)
     const into = src.rules[0]?.into?.doc || '테이블 정의'
     const headOf = (t) => { const loc = locate(k.registry, `table:${t.name}`); return loc ? { doc: loc.doc, heading: loc.heading } : { doc: into, heading: t.comment ? `${t.name}: ${t.comment}` : t.name } }
-    const newNames = [...tables.values()].filter((t) => !k.vocab.coords.has(`table:${t.name}`) || !locate(k.registry, `table:${t.name}`)).map((t) => ({ coord: `table:${t.name}`, label: t.comment ? `${t.name}: ${t.comment}` : t.name, aliases: t.comment ? [t.comment] : [], ...headOf(t) }))
-    if (!force && !first && !full && n === 0 && !s0.stopped && L.rules === ruleSig && !newNames.length) {
+    if (!force && !first && !full && n === 0 && !s0.stopped && L.rules === ruleSig && s0.sent) {
       Object.assign(s0, { checkedAt: now, failures: 0, failingSince: null, lastNote: '그대로' })
       await writeState(dataDir, k.id, st)
       return { state: 'same', n: 0, files: 0 }
@@ -511,7 +569,8 @@ async function runDb(k, src, { dataDir, save, first = false, force = false, full
       const h = headOf(t)
       return { key: h.heading, doc: h.doc, cols: t.cols, rows: t.rows }
     }) }
-    const plan = await planRun(k, src, items, { asof: now.slice(0, 16).replace('T', ' '), first, prev: s0.items || [] })
+    const asofDb = now.slice(0, 16).replace('T', ' ')
+    const plan = await planOut(k, src, items, { asof: asofDb, first, s0 })
     if (plan.brake && !force) {
       s0.stopped = { at: now, added: plan.added, vanished: plan.vanished, of: (s0.items || []).length }
       s0.lastNote = '멈춤'
@@ -519,15 +578,8 @@ async function runDb(k, src, { dataDir, save, first = false, force = false, full
       return { state: 'stopped', n: 0, files: n, ...s0.stopped }
     }
     await onStage(2)
-    for (let i = 0; i < plan.changed.length; i += 200) {
-      const part = plan.changed.slice(i, i + 200)
-      await save({ record: { title: `가져옴: ${src.name} · 바뀐 테이블 ${part.length}`, body: [`바뀐 테이블 ${n}: ${[...changes.added.map((x) => x + '(새로)'), ...changes.changed, ...changes.removed.map((x) => x + '(없어짐)')].slice(0, 30).join(' · ')}${n > 30 ? ' …' : ''}`, '', ...part.map((c) => `- ${c.doc.replace(/^docs\/|\.md$/g, '')} › ${c.heading}`)].join('\n'), tags: ['sources'] }, sections: part.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) })
-    }
-    // 장부에는 표가 들어간 뒤 올린다 — 문서 장부가 그 머리를 가리킨다(항목으로 보기에서 「테이블」 로 선다)
-    for (let i = 0; i < newNames.length; i += 500) {
-      const part = newNames.slice(i, i + 500)
-      await save({ record: { title: `항목 세움: ${src.name} · 테이블 ${part.length}`, body: `테이블을 항목 장부 · 문서 장부에 세웠다: ${part.slice(0, 20).map((x) => x.coord.slice(6)).join(' · ')}${part.length > 20 ? ' …' : ''}`, tags: ['sources'] }, names: part })
-    }
+    const sentDb = await sendTables(intake, src, plan, { asof: asofDb, line, what: 'DB 테이블 정의(테이블마다 칼럼 표 · 테이블 이름이 식별자다)' })
+    s0.sent = sentDb.sent
     await onStage(3)
     await writeLedger(dataDir, k.id, src.name, { v: 1, files, out: {}, rules: ruleSig })
     const lastChange = plan.changed.length ? { at: now, files: full ? 0 : n, tables: plan.changed.length, added: changes.added.length, changed: changes.changed.length, removed: changes.removed.length } : s0.lastChange
@@ -650,7 +702,7 @@ async function runTables(k, src, { dataDir, save, intake = null, first = false, 
       return { state: 'same', n: 0, files: 0 }
     }
     const out = await rulesOut(src, scan, L.out || {}, { all })
-    const plan = await planRun(k, src, out.items, { asof, first, prev: s0.items || [] })
+    const plan = await planOut(k, src, out.items, { asof, first, s0 })
     if (plan.brake && !force) {
       // 장부는 그대로 둔다 — 다음 확인이 같은 바뀐 것을 다시 본다
       s0.stopped = { at: now, added: plan.added, vanished: plan.vanished, of: (s0.items || []).length }
@@ -659,10 +711,10 @@ async function runTables(k, src, { dataDir, save, intake = null, first = false, 
       return { state: 'stopped', n: 0, files: n, ...s0.stopped }
     }
     await onStage(2)
-    for (let i = 0; i < plan.changed.length; i += 200) {
-      const part = plan.changed.slice(i, i + 200)
-      await save({ record: { title: `가져옴: ${src.name} · 바뀐 표 ${part.length}`, body: [`바뀐 파일 ${n}: ${[...scan.changes.added, ...scan.changes.changed, ...scan.changes.removed].slice(0, 20).join(' · ')}${n > 20 ? ' …' : ''}`, '', ...part.map((c) => `- ${c.doc.replace(/^docs\/|\.md$/g, '')} › ${c.heading}`)].join('\n'), tags: ['sources'] }, sections: part.map((c) => ({ doc: c.doc, heading: c.heading, content: c.content, applied: c.applied })) })
-    }
+    if (plan.changed.length || plan.gone.length) {
+      if (!intake) throw new KmdError('E_INPUT', '가져온 표는 들이기 길(intake)로만 들인다')
+      s0.sent = (await sendTables(intake, src, plan, { asof, line, what: '표(파일 · 꾸러미마다 표 하나)' })).sent
+    } else s0.sent = plan.sent
     // 뜻 갱신 — 바뀐 코드 파일마다 intake 하나(팀은 들이기 일감 · 이 PC 는 기록) · 처음 · 전체 다시 맞추기는 사본만 맞춘다
     let codeRecords = 0
     const ct = tally()
@@ -695,7 +747,7 @@ async function runTables(k, src, { dataDir, save, intake = null, first = false, 
     Object.assign(s0, { sig: commit || null, asof, checkedAt: now, items: plan.items, failures: 0, failingSince: null, stopped: null, lastChange, lastNote: note })
     if (codeRecords) s0.lastCode = { at: now, n: codeRecords }
     await writeState(dataDir, k.id, st)
-    return { state: plan.changed.length || codeRecords ? 'changed' : 'same', n: plan.changed.length, files: n, codeRecords, ...(codeRecords ? ct : {}) }
+    return { state: plan.changed.length || plan.gone.length || codeRecords ? 'changed' : 'same', n: plan.changed.length, files: n, codeRecords, ...(codeRecords ? ct : {}) }
   } catch (e) {
     if (e?.cancelled) throw e // 그만두기(일 줄) — 못 가져옴으로 세지 않는다
     s0.failures = (s0.failures || 0) + 1

@@ -44,45 +44,54 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('잇기: 첫 배치 · 옛 표가 같으면 블록으로 · 같은 원천 두 번 → 묶음 0 · 바뀐 판 → 묶음 1', async () => {
+// 가져온 표는 원천이다(지식 생성 하네스 H4d · H-D32) — 코드는 표를 문서에 바로 쓰지 않고, 바뀐 표만 원천 글로 지어 들이기 일감으로 넘긴다
+const srcJobs = () => s.hub.intakesOf('dpms').filter((j) => String(j.src?.rel || '').startsWith('가져올 곳/dpms-api 코드/'))
+const mdOf = (j) => fs.readFileSync(path.join(tmp, 'kn', '.kmd', 'queue', `${j.id}.md`), 'utf8')
+test('잇기: 바뀐 표만 원천 글로 들이기에 넘긴다(문서에 바로 쓰지 않는다) · 같은 원천 두 번 → 일감 0 · 바뀐 판 → 그 표만', async () => {
   // 코드 폴더는 새로 더하지 못한다 — 예전 선언은 그대로 돈다
   assert.equal(await code(s.hub.sourceAdd(ADMIN, 'dpms', { name: 'x', kind: 'folder', at: src, rules: [] })), 'E_INPUT')
   await writeDecl(kdir, [...(await readDecl(kdir)), { name: 'dpms-api 코드', kind: 'folder', at: src, every: 'hourly', rules: [{ rule: 'deps', into: { doc: '배포절차', heading: '꾸러미 판' } }, { rule: 'tables', paths: ['data'], into: { doc: '코드표' } }], by: 'kim', since: '2026-10-23' }], { user: 'kim', title: '가져오는 곳 더함. dpms-api 코드' })
   s.hub.forget('dpms')
-  const r = { run: await s.hub.sourceRun('dpms', 'dpms-api 코드', { first: true }) }
-  assert.equal(r.run[0].state, 'changed')
-  const d = doc('배포절차')
-  assert.match(d, /<!-- baseline: src="dpms-api 코드" rule=deps/)
-  assert.equal((d.match(/\| spring-boot \| 3\.3\.4 \|/g) || []).length, 1, '블록 밖 옛 표는 걷혔다(같았으므로)')
-  assert.equal((doc('코드표').match(/^## 코드\d\d$/gm) || []).length, 12)
-  const decl = JSON.parse(fs.readFileSync(path.join(kdir, '_sources.json'), 'utf8'))
-  assert.equal(decl[0].name, 'dpms-api 코드')
   const n0 = commits()
+  const before = doc('배포절차')
+  const r = await s.hub.sourceRun('dpms', 'dpms-api 코드', { first: true })
+  assert.equal(r[0].state, 'changed')
+  assert.deepEqual([commits(), doc('배포절차')], [n0, before], '코드는 지식에 아무것도 쓰지 않는다')
+  const j1 = srcJobs()
+  assert.equal(j1.length, 1, '표 13 은 한 원천(15 까지)')
+  const md = mdOf(j1[0])
+  assert.match(md, /^# 가져옴: dpms-api 코드\(/)
+  assert.match(md, /## 꾸러미 판\n\n자리: 배포절차 › 꾸러미 판/)
+  assert.match(md, /\| spring-boot \| 3\.3\.4 \|/)
+  assert.equal((md.match(/^## 코드\d\d$/gm) || []).length, 12)
   const again = await s.hub.sourceRun('dpms', 'dpms-api 코드')
   assert.equal(again[0].state, 'same')
-  assert.equal(commits(), n0, '같은 원천 두 번 → 묶음 0')
+  assert.equal(srcJobs().length, 1, '같은 원천 두 번 → 일감 0')
   pkg({ 'spring-boot': '3.3.5', 'mybatis-spring': '3.0.3', postgresql: '42.7.4', 'jackson-databind': '2.17.2' })
   const ch = await s.hub.sourceRun('dpms', 'dpms-api 코드')
   assert.equal(ch[0].n, 1)
-  assert.equal(commits(), n0 + 1)
-  assert.match(doc('배포절차'), /\| spring-boot \| 3\.3\.5 \|/)
-  const k = await s.hub.get('dpms')
-  assert.equal(k.works.filter((w) => w.tags.includes('sources')).length, 0, '가져오기는 기록이 아니다. 이력으로')
-  assert.ok(k.logs.some((w) => w.title.startsWith('가져옴: dpms-api 코드')))
+  const j2 = srcJobs().filter((j) => j.id !== j1[0].id)
+  assert.equal(j2.length, 1)
+  const md2 = mdOf(j2[0])
+  assert.match(md2, /\| spring-boot \| 3\.3\.5 \|/)
+  assert.equal((md2.match(/^## /gm) || []).length, 1, '바뀐 표만 보낸다')
+  assert.equal(commits(), n0)
 })
 
-test('브레이크: 사라짐 10% 초과면 쓰지 않고 멈춤 줄 · [그대로 반영] 은 「원천에 없다」', async () => {
+test('브레이크: 사라짐 10% 초과면 넘기지 않고 멈춤 줄 · [그대로 반영] 은 「원천에서 없어진 것」 을 원천 글에', async () => {
   for (const i of [1, 2, 3]) fs.rmSync(path.join(src, 'data', `코드0${i}.csv`))
-  const n0 = commits()
+  const n = srcJobs().length
   const r = await s.hub.sourceRun('dpms', 'dpms-api 코드')
   assert.equal(r[0].state, 'stopped')
-  assert.equal(commits(), n0)
+  assert.equal(srcJobs().length, n)
   const st = await s.hub.stops(ADMIN)
   assert.ok(st.some((l) => l.kind === 'source' && /항목 3개가 한꺼번에 사라졌다/.test(l.text)))
   const f = await s.hub.sourceRun('dpms', 'dpms-api 코드', { force: true })
   assert.equal(f[0].state, 'changed')
-  assert.match(doc('코드표'), /missing="\d{4}-\d{2}-\d{2}"/)
-  assert.match(doc('코드표'), /## 코드01/, '지우지 않는다')
+  const last = srcJobs().slice(-1)[0]
+  assert.match(mdOf(last), /## 원천에서 없어진 것\n\n- 코드표 › 코드01: \d{4}-\d{2}-\d{2} 확인에 원천에 없다/)
+  // 한 번 알린 사라짐은 다시 알리지 않는다
+  assert.equal((await s.hub.sourceRun('dpms', 'dpms-api 코드'))[0].state, 'same')
 })
 
 test('대상 제한 · 자격 든 주소는 비밀로', async () => {
@@ -104,22 +113,6 @@ test('대상 제한 · 자격 든 주소는 비밀로', async () => {
   assert.ok(!execFileSync('git', ['log', '-p'], { cwd: kdir, encoding: 'utf8' }).includes('s3cr3t-token'), '이력에 0')
   assert.match(fs.readFileSync(path.join(tmp, 'kn', '.kmd', 'secrets.json'), 'utf8'), /s3cr3t-token/)
   fs.rmSync(out, { recursive: true, force: true })
-})
-
-test('표는 kmd 만: 세션은 표를 못 고치고, 글을 고쳐도 표는 그대로 · MCP section 에 원천 · 확인 시각', async () => {
-  // 팀 저장 문(S4 · P11) — 표를 고친 항목 글은 입력 오류(아무것도 쓰지 않는다) · 이미 있는 항목은 base 를 같이
-  const before = doc('배포절차')
-  const base = sha16(sectionOf(await s.hub.get('dpms'), 'term:꾸러미 판').sec.body)
-  const fake = await s.hub.save(ADMIN, 'dpms', { record: { title: 'x', body: 'y' }, sections: [{ coord: 'term:꾸러미 판', base, content: '<!-- baseline: src="가짜" rule=deps asof="2026-01-01" -->\n| a |\n|---|\n<!-- /baseline -->' }] }).then(() => null, (e) => e)
-  assert.equal(fake?.code, 'E_INPUT', '표를 고친 항목 글은 아무것도 쓰지 않는 입력 오류(넣지 못함은 없다 · P11)')
-  assert.equal(doc('배포절차'), before, '문서는 그대로')
-  const ok = await s.hub.save(ADMIN, 'dpms', { record: { title: '꾸러미 판: 설명 고침', body: '설명만' }, sections: [{ coord: 'term:꾸러미 판', base, content: '배포 전에 운영 서버의 판이 아래 표와 같은지 본다.' }] })
-  assert.deepEqual(ok.docs, ['docs/배포절차.md'], JSON.stringify(ok.held))
-  assert.match(doc('배포절차'), /배포 전에 운영 서버의 판이 아래 표와 같은지 본다\.\n\n<!-- baseline: src="dpms-api 코드"/)
-  const r = await fetch(s.url + '/mcp', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${me.key}` }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'section', arguments: { knowledge: 'dpms', coord: 'term:꾸러미 판' } } }) })
-  const sec = (await r.json()).result.structuredContent
-  assert.equal(sec.baseline[0].src, 'dpms-api 코드')
-  assert.ok(sec.baseline[0].checkedAt)
 })
 
 test('바깥 생성기: 기계 열쇠로 그 원천 · 그 종류만 · 같으면 묶음 0', async () => {

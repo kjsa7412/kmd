@@ -4500,6 +4500,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
     async sourceAdd(ctx, id, { name, at, kind = null, every = 'hourly', rules, cred = null, db = null, mode: pcMode = 'docs', meaning = false }) {
       const meta = await hub.meta(id, ctx)
       if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 관리자가 더한다. [관리자에게 부탁]')
+      // 「Claude 에 보내지 않음」 지식 — 가져온 것도 무인 들이기를 타므로(H-D32) 걸 때 막는다(H-D30)
+      if (rowFor(id)?.noClaude) throw new KmdError('E_CONFLICT', NOCLAUDE_WHY)
       name = String(name || '').trim()
       if (!name || name.length > 60 || /[\r\n"]/.test(name)) throw new KmdError('E_INPUT', '이름은 한 줄 60자 안')
       const pcScreen = mode === 'pc' || ctx.pc
