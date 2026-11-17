@@ -26,6 +26,7 @@ before(async () => {
   process.env.KMD_NO_CLAUDE = '1'
   process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
   process.env.KMD_CLAUDE_AGENT = path.join(HERE, 'fixture', 'fake-claude-agent.mjs')
+  process.env.KMD_UPLOAD_ASK = '0' // 승인 대기(H6)는 끄고 일 줄 · 단계 · 손잡이를 본다(승인 대기는 agent · harness-ask 시험이 본다)
   root = path.join(tmp, 'kn')
   fs.mkdirSync(root, { recursive: true })
   s = await startServer({ root, mode: 'pc', user: 'kim', port: 0, log: (...a) => { if (process.env.KLOG) console.error(...a) }, scryptN: 1 << 15 })
