@@ -262,7 +262,8 @@ export function placeExact(text, names) {
 // ── 장부 고침(지식 생성 하네스 H7 · H-O12 · H-D24) — 지식관리자가 항목 장부의 과거 결정을 거둔다 ──
 //   ops: [{ op: 'retire', coord, to?, why? }      폐기 — 그 줄에 「deprecated: <날짜>[ → 새 항목]: 까닭」(줄은 지우지 않는다)
 //         { op: 'merge', coord, into }             합치기 — coord 를 폐기하고 into 로 잇는다 · coord 의 라벨 · 별칭을 into 의 별칭으로 옮긴다
-//         { op: 'unalias', coord, alias }]         별칭 빼기 — 그 항목의 별칭 하나를 걷는다
+//         { op: 'unalias', coord, alias }          별칭 빼기 — 그 항목의 별칭 하나를 걷는다
+//         { op: 'gist', coord, gist }]             뜻 한 줄 적기 — 그 항목이 무엇인가 한 줄(80자 안 · 있으면 갈음한다 · 옛 장부 줄의 보강 · H12)
 //   → { text, done: [한 줄 말], errors: [까닭] } · 오류가 하나라도 있으면 text 는 처음 글 그대로다(아무것도 고치지 않는다)
 export function ledgerOps(text, ops, { today = new Date().toISOString().slice(0, 10) } = {}) {
   const t0 = String(text || '').replace(/\r\n/g, '\n')
@@ -317,6 +318,16 @@ export function ledgerOps(text, ops, { today = new Date().toISOString().slice(0,
       if (left.length) lines[j] = `  aliases: ${left.join(', ')}`
       else lines.splice(j, 1)
       done.push(`별칭 뺌: ${coord} 의 「${alias}」`)
+    } else if (o.op === 'gist') {
+      const gist = one(o.gist, 80)
+      const i = at(coord)
+      if (i < 0) { errors.push(`「${coord}」 는 항목 장부에 없다`); continue }
+      if (!gist) { errors.push(`「${coord}」 의 뜻 한 줄(gist)이 비었다`); continue }
+      const j = endOf(i)
+      const g = lines.slice(i + 1, j).findIndex((l) => /^\s+gist:/.test(l))
+      if (g >= 0) lines[i + 1 + g] = `  gist: ${gist}`
+      else lines.splice(j, 0, `  gist: ${gist}`)
+      done.push(`뜻 한 줄: ${coord}`)
     } else errors.push(`모르는 걸음: ${String(o?.op).slice(0, 20)}`)
   }
   if (errors.length) return { text: t0, done: [], errors }
