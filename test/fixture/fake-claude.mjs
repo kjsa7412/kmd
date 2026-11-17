@@ -43,7 +43,9 @@ function session() {
   const tsv = () => fs.readFileSync('재료.tsv', 'utf8').split('\n').slice(1).filter(Boolean).map((l) => l.split('\t')).map(([src, p, pick]) => ({ src, path: p, pick }))
   const headOf = (p) => p.split('/').pop().replace(/\.[^.]+$/, '').replace(/[#%]/g, '')
   function one(m) {
-    const text = String(m?.message?.content || '')
+    const text0 = String(m?.message?.content || '')
+    const tailAt = text0.indexOf('아래는 이 일에 같이 따르는 고정 생성 룰이다') // 일 설명 끝의 생성 룰 덩이(H5)는 재료가 아니다
+    const text = tailAt > 0 ? text0.slice(0, tailAt).trimEnd() : text0
     turn++
     if (!ok) return say({ is_error: true, subtype: 'error', result: '가짜 claude 세션: 읽기 도구 셋 · 빈 MCP · 스키마 · 세션 폴더를 지키지 않았다' })
     if (process.env.FAKE_CLAUDE_MODE === 'logout') return say({ is_error: true, subtype: 'error', result: 'Invalid API key · Please run /login' })

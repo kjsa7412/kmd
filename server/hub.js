@@ -47,7 +47,7 @@ import { inputFromItems } from '../core/weave.js'
 import { createQueue, Cancelled, isFinal, STAGES, STAGE_WRITE, STAGE_PUT } from '../core/queue.js'
 import { modelOf, ROLES, CHOICES, roleOf } from '../core/models.js'
 import { expandSections } from '../core/excerpt.js'
-import { FILE_SCHEMA, filePrompt, fileRecord, COMMIT_SCHEMA, commitPrompt, commitAnalyzed } from '../core/analyze.js'
+import { COMMIT_SCHEMA, commitPrompt, commitAnalyzed } from '../core/analyze.js'
 import { renderRecord } from '../core/frontmatter.js'
 import { stampAll, headingMatches, findHeading } from '../core/sections.js'
 import { docfmtDir, checkFormat } from '../core/docformat.js'
@@ -233,6 +233,11 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   const itemCount = new Map() // 지식 → 항목 장부 줄 수(읽을 때마다 · 얇은 지식은 무인 들이기를 한 줄로 · H-D17 나)
   const askFileOf = (jid) => path.join(dataDir, 'queue', `${jid}.ask.json`) // 승인 대기 저장 제안(H6) — 세션이 지은 저장 입력 그대로
   const readAsk = async (jid) => { try { return JSON.parse(await fs.readFile(askFileOf(jid), 'utf8')) } catch { return null } }
+  // 기초 세우기 세션의 일 설명 끝에도 같은 생성 룰을 싣는다(H5 의 남은 것 · 모든 채널이 같은 글) — 뼈대 · 묶음(무엇이 문서이고 항목인가를 정하는 걸음)
+  const SEED_RULES_TAIL = () => `
+
+아래는 이 일에 같이 따르는 고정 생성 룰이다(무엇이 항목인가 · 어디에 두나 · 성격 · 종류):
+${genRulesBlock({ profile: 'shape' })}`
   const jobSessions = new Map()
   const jobReadKeys = new Map() // 일감 → 스키마 답 세션의 읽기 열쇠(kmda_ · 저장 못 함) // 세션 일감(팀 · H-D34) 일감 id → { token, it } — 일감 하나에 세션 하나
   const queuedRecs = new Set() // 일(run)이 맡은 기록
@@ -930,7 +935,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const meta0 = await hub.meta(id, ctx)
       const k0 = await hub.get(id, ctx)
       const fset = seedFormsOf(k0, readShape(k0, await readStructure(meta0.dir)))
-      const fr = await askFix(fr0.s, seedFramePromptOf(g, { cards: fr0.sd.cards > 0, forms: formHintOf(fset) }), (v) => frameOfDraft(v, g, { clash: (x) => formClashOf(fset, x) }), '뼈대')
+      const fr = await askFix(fr0.s, seedFramePromptOf(g, { cards: fr0.sd.cards > 0, forms: formHintOf(fset) }) + SEED_RULES_TAIL(), (v) => frameOfDraft(v, g, { clash: (x) => formClashOf(fset, x) }), '뼈대')
       sessions.delete(fr0.s)
       await fr0.s.end().catch((e) => log('기초 세우기 세션 닫기', id, e.message))
       if (!fr) return
@@ -967,7 +972,7 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
         const o = await open(mats, SEED_PLAN_SCHEMA, tag)
         live[b.i] = { ...o, b, mats, tag }
         say(`문서 ${b.docs.length} · 재료 ${mats.length}: ${b.docs.map((d) => d.id).join(' · ')}`, '', tag)
-        const x = await askFix(o.s, seedBatchPromptOf(b, { mats }, { cards: o.sd.cards > 0, of: bs.length, kinds }), (v) => batchOfDraft(v, b, { mats }, { check: formCheck }), tag)
+        const x = await askFix(o.s, seedBatchPromptOf(b, { mats }, { cards: o.sd.cards > 0, of: bs.length, kinds }) + SEED_RULES_TAIL(), (v) => batchOfDraft(v, b, { mats }, { check: formCheck }), tag)
         if (!x) return null
         if (x.error) { say(`묶음을 받지 못했다: ${x.error}`, 'bad', tag); Object.assign(run, { state: 'fail', why: `${tag}: ${x.error}` }); return null }
         run.i = ++done
@@ -5932,39 +5937,8 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
       const w = (await hub.get(id)).byWork.get(recId)
       if (!w || !w.tags.some((t) => t.startsWith('ingest/')) || w.tags.includes('ingest-read')) return { ok: false, why: '정리할 넣은 파일 기록이 아니다' }
       // approve 개인 지식(PC4) — 들인 기록은 저장 문을 지나 들어갔다(원천 · 값 대조 칸) · 저장 문 밖에서 고쳐 쓰지 않는다
-      if (approveOf(id)) return { ok: false, why: '승인 저장 지식의 기록은 고쳐 쓰지 않는다' }
-      const file = hub.ingestFileOf(w)
-      if (run) hub.runLine(run, 'sys', `${file.split('/').pop()}: Claude 가 읽고 기록을 정리한다(무엇 · 핵심 · 정한 것 · 남은 것 + 본문)`)
-      const src = { file, author: w.author, date: w.date, md: w.body }
-      const prompt = filePrompt(src)
-      // 분석은 살림 자리에 남긴다(<살림>/convert/<지문>.read.json) — 쓰기가 넘어져 다시 해도 Claude 를 또 부르지 않는다
-      const keep = path.join(dataDir, 'convert', `${crypto.createHash('sha256').update(prompt).digest('hex')}.read.json`)
-      let a = await fs.readFile(keep, 'utf8').then((t) => ({ value: JSON.parse(t) }), () => null)
-      if (!a) {
-        a = await hub.askClaude(id, prompt, FILE_SCHEMA, { budget: 2, timeoutMs: 600_000, role: 'read' })
-        if (a.value) await writeJsonAtomic(keep, a.value).catch(() => {})
-      }
-      const rec = fileRecord(src, a.value)
-      if (!rec) {
-        if (run) hub.runLine(run, 'err', `기록은 받은 글 그대로 둔다: ${a.why || 'Claude 의 답이 기록 모양이 아니었다'}`)
-        return { ok: false, why: a.why || 'Claude 의 답이 기록 모양이 아니었다' }
-      }
-      await serial(path.resolve(meta.dir), async () => {
-        // 옆 임시 파일에 쓰고 이름을 바꾼다 — 감시 · 백신이 기록 파일을 잡고 있으면(EBUSY · EPERM) 잠깐 기다려 다시
-        const f = path.join(meta.dir, ...w.path.split('/'))
-        const tmp = `${f}.${process.pid}.tmp`
-        await fs.writeFile(tmp, renderRecord({ ...w, title: rec.title, tags: [...w.tags, 'ingest-read'] }, rec.body), 'utf8')
-        for (let i = 0; ; i++) {
-          try { await fs.rename(tmp, f); break } catch (e) {
-            if (i >= 12 || !['EPERM', 'EBUSY', 'EACCES'].includes(e.code)) { await fs.rm(tmp, { force: true }).catch(() => {}); throw e }
-            await new Promise((ok) => setTimeout(ok, 100 * (i + 1)))
-          }
-        }
-        await commitPaths(meta.dir, [w.path], `기록 정리: ${rec.title}`, 'kmd-auto')
-      })
-      cache.delete(id)
-      if (run) hub.runLine(run, 'ok', `기록을 정리했다. 「${rec.title}」`)
-      return { ok: true, title: rec.title }
+      // 모든 지식이 승인 저장이다 — 넣은 파일 기록을 Claude 로 다시 정리하던 길(filePrompt)은 닿지 않아 걷었다(H4a-3 · H-D34)
+      return { ok: false, why: '승인 저장 지식의 기록은 고쳐 쓰지 않는다' }
     },
     // 화면의 [Claude 로 기록 정리] — 이 PC · 바로 넣을 수 있는 사람만
     async readRecord(ctx, id, recId) {
