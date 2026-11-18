@@ -10,9 +10,9 @@ import { fileURLToPath } from 'node:url'
 import { ensureRepo, tryGit } from '../core/git.js'
 import { loadKnowledge } from '../core/knowledge.js'
 import { locate } from '../core/registry.js'
-import { parseDoc } from '../core/sections.js'
+import { parseDoc, replaceSection, removeSection, renameSection } from '../core/sections.js'
 import { parsePut } from '../core/parts.js'
-import { plan, apply, runOnce, verifyPlan, oldStates, vocabDash, registryHead, membersFix, formsNewdoc, formsHead, MARK_FILE } from '../core/oldform.js'
+import { plan, apply, runOnce, verifyPlan, oldStates, convertDoc, verifyConvert, vocabDash, registryHead, membersFix, formsNewdoc, formsHead, MARK_FILE } from '../core/oldform.js'
 import { main } from '../scripts/kmd-migrate.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -303,4 +303,219 @@ test('ref.line: 링크 뒤 「 · 」 없는 옛 기록 줄을 지금 꼴로 · 
   const p2 = await plan(dir)
   assert.equal(p2.counts['ref.line'], 0)
   assert.equal(p2.counts['record.logdir'], 0)
+})
+
+// ── 옛 문서 꼴 옮기기(convertDoc · verifyConvert) — kmd docfmt 에서 옮겨 왔다(O-9 · 옛 꼴은 이행기만 안다) ──
+
+const pick = ({ text, changed, moved, ok }) => ({ text, changed, moved, ok })
+const NEW = ['# 문서', '', '요약 한 줄.', '', '## 가', '<!-- applied: 2026-1021-하나 -->', '가의 글.', '', '## 나', '나의 글.', '', '<!-- kmd:참고 · kmd 가 적고 고친다. 손으로 고치지 않는다 -->', '**참고**', '', '- 가', '  - 2026-10-21 [하나](../work/2026-1021-하나.md)', '- 나', '  - 2026-10-22 [둘](../work/2026-1022-둘.md)', '<!-- /kmd:참고 -->', ''].join(String.fromCharCode(10))
+
+test('옛 문서 옮기기: 본문은 그대로 · 줄은 참고 블록으로 · 다르면 옮기지 않는다', () => {
+  const old = ['# 문서', '', '요약.', '', '## 가', '<!-- applied: a -->', '가의 글.', '', '> 기록 그대로: [셋](../work/2026-1023-셋.md) · Claude 로 다듬지 못했다', '', '붙인 글.', '', '**경과**', '- 2026-10-21 [하나](../work/2026-1021-하나.md)', '', '## 나', '나의 글.', ''].join('\n')
+  const c = convertDoc(old)
+  assert.equal(c.ok, true)
+  assert.equal(c.changed, true)
+  assert.equal(c.moved, 2)
+  assert.ok(!/\*\*경과\*\*|기록 그대로/.test(c.text.replace(/<!-- kmd:참고[\s\S]*$/, '')))
+  const b = parseDoc(c.text, '')
+  assert.deepEqual(b.sections.map((s) => [s.h, s.body, s.applied]), [['가', '가의 글.\n\n붙인 글.', 'a'], ['나', '나의 글.', null]])
+  assert.deepEqual(b.sections[0].log, ['- 2026-10-21 [하나](../work/2026-1021-하나.md)', '- 2026-10-23 [셋](../work/2026-1023-셋.md) · 다듬지 못함'])
+  assert.ok(c.text.includes('## 나\n나의 글.\n\n<!-- kmd:참고'))
+  // 이미 새 꼴 · 옛 꼴이 없으면 그대로
+  assert.deepEqual(pick(convertDoc(NEW)), { text: NEW, changed: false, moved: 0, ok: true })
+  assert.equal(convertDoc(NEW).why, null)
+  assert.equal(convertDoc(c.text).changed, false)
+  // 본문이 달라지면 ok: false
+  assert.equal(verifyConvert(old, c.text).ok, true)
+  assert.deepEqual(verifyConvert(old, c.text.replace('가의 글.', '가의 글')), { ok: false, why: '옮기면 본문 글이 달라진다' })
+  assert.equal(verifyConvert(old, c.text.replace('  - 2026-10-21 [하나](../work/2026-1021-하나.md)\n', '')).ok, false)
+})
+
+test('옮기기 검사는 원문으로 잰다 — 본문 줄을 꼬리로 떼면 ok: false', () => {
+  const old = '# a\n\n## 가\n가의 글.\n\n**경과**\n- 09:00 알람\n'
+  // 잘못 옮긴 글(본문 타임라인을 참고 블록으로) — parseDoc 끼리는 같아 보여도 거절
+  const bad = '# a\n\n## 가\n가의 글.\n\n<!-- kmd:참고 · kmd 가 적고 고친다. 손으로 고치지 않는다 -->\n**참고**\n\n- 가\n  - 09:00 알람\n<!-- /kmd:참고 -->\n'
+  assert.deepEqual(verifyConvert(old, bad), { ok: false, why: '옮기면 본문 글이 달라진다' })
+  // 본문에 글을 보태도 거절
+  const old2 = '# a\n\n## 가\n가의 글.\n\n**경과**\n- 2026-10-21 [하나](../work/2026-1021-하나.md)\n'
+  const c = convertDoc(old2)
+  assert.equal(c.ok, true)
+  assert.equal(verifyConvert(old2, c.text.replace('가의 글.', '가의 글.\n덧붙임')).ok, false)
+})
+
+// 옛 CDP 표식(팀 서버 문서의 실제 꼴) — 날짜 줄 경과 · cdp:baseline · cdp:form · gen 주석
+const CDP = [
+  '# 위험대장',
+  '<!-- cdp:form public-si/BM_501 -->',
+  '',
+  '결정이 필요한 것.',
+  '',
+  '## ISS-01 — 연계 확인',
+  '<!-- applied: 2026-1019-a -->',
+  '',
+  '**내용** — 모른다.',
+  '',
+  '**경과**',
+  '- `2026-09-30` 내부 회의에서 제기 ([회의록.md](../../work/2026-0930-회의록.md))',
+  '- 2026-10-02 [`연계검토`](../../work/2026-1002-연계검토.md) 경보 질문 12~14',
+  '- `2026-10-08` 자동제어 로직은 PLC 가 수행 (사경진 과장)',
+  '',
+  '**관련 좌표** — 회의록 `2026-10-01`',
+  '',
+  '## 표',
+  '<!-- cdp:baseline src="개발 DB 추출" asof="2026-10-12" -->',
+  '| 열 | 뜻 |',
+  '|---|---|',
+  '| a | 가 |',
+  '<!-- /cdp:baseline -->',
+  '',
+  '<!-- gen: WBS — 일정.xlsx 에서 생성',
+  '  (2026-10-02). 이 줄 아래는 다시 쓴다 -->',
+  '',
+  '## WBS',
+  '할 일.',
+  '',
+  '```md',
+  '<!-- 코드 안 주석은 둔다 -->',
+  '```',
+  '',
+].join('\n')
+
+test('옛 CDP 표식 옮기기: 날짜 줄 경과 · cdp:baseline · 주석 → 참고 메모 · 본문은 그대로', async () => {
+  const { strayMarks } = await import('../core/oldform.js')
+  const c = convertDoc(CDP)
+  assert.equal(c.ok, true, c.why)
+  assert.equal(c.changed, true)
+  assert.deepEqual(c.kinds, { kmd: 0, log: 3, table: 1, mark: 2 })
+  assert.equal(c.left, 0)
+  assert.equal(strayMarks(CDP), 4) // form · baseline 두 줄 · gen(코드 안 것은 세지 않는다)
+  const d = parseDoc(c.text, '')
+  // (a) 경과 줄은 그대로(앞의 「- 」 만) 그 항목 참고로
+  const iss = d.sections.find((s) => s.h === 'ISS-01 — 연계 확인')
+  assert.deepEqual(iss.log, ['- `2026-09-30` 내부 회의에서 제기 ([회의록.md](../../work/2026-0930-회의록.md))', '- 2026-10-02 [`연계검토`](../../work/2026-1002-연계검토.md) 경보 질문 12~14', '- `2026-10-08` 자동제어 로직은 PLC 가 수행 (사경진 과장)'])
+  assert.equal(iss.applied, '2026-1019-a')
+  assert.ok(iss.body.includes('**관련 좌표**') && !iss.body.includes('**경과**'))
+  // (b) 표는 본문에 · 주석 두 줄은 걷고 「표 출처」
+  const tb = d.sections.find((s) => s.h === '표')
+  assert.ok(tb.body.startsWith('| 열 | 뜻 |') && !tb.body.includes('cdp:'))
+  assert.deepEqual(tb.log, ['- 표 출처: 개발 DB 추출 · 2026-10-12'])
+  // (c) 머리글 주석은 (문서) · 바로 아래 ## 가 오는 여러 줄 주석은 그 항목
+  assert.deepEqual(d.docLog, ['- 표식: cdp:form public-si/BM_501'])
+  assert.deepEqual(d.sections.find((s) => s.h === 'WBS').log, ['- 표식: gen: WBS — 일정.xlsx 에서 생성 (2026-10-02). 이 줄 아래는 다시 쓴다'])
+  assert.ok(c.text.includes('<!-- 코드 안 주석은 둔다 -->'))
+  assert.ok(c.text.startsWith('# 위험대장\n\n결정이 필요한 것.'))
+  // 블록은 (문서) 가 맨 앞
+  const blk = c.text.slice(c.text.indexOf('**참고**'))
+  assert.ok(blk.indexOf('- (문서)') < blk.indexOf('- ISS-01'))
+  // 다시 옮기면 바뀜 없음(멱등)
+  const c2 = convertDoc(c.text)
+  assert.equal(c2.changed, false)
+  assert.equal(c2.moved, 0)
+  assert.equal(c2.ok, true)
+})
+
+test('옛 CDP 경과: 날짜로 시작하지 않는 줄이 섞이면 본문으로 둔다(까닭을 남긴다)', () => {
+  const t = '# 장애\n\n## 타임라인\n**경과**\n- `2026-10-01` 멈춤\n- 오후에 다시 켬\n'
+  const c = convertDoc(t)
+  assert.equal(c.ok, true)
+  assert.equal(c.changed, false)
+  assert.match(c.why, /타임라인.*날짜로 시작하지 않는 줄/)
+})
+
+test('옮기기 검사: 뗀 표식이 참고에 없거나 본문 줄이 빠지면 ok: false', () => {
+  const ok = convertDoc(CDP).text
+  // 메모 하나를 지운 글
+  const lost = ok.replace('  - 표 출처: 개발 DB 추출 · 2026-10-12\n', '')
+  assert.equal(verifyConvert(CDP, lost).ok, false)
+  // 본문 줄 하나가 빠진 글
+  assert.equal(verifyConvert(CDP, ok.replace('**관련 좌표** — 회의록 `2026-10-01`\n', '')).ok, false)
+  assert.equal(verifyConvert(CDP, ok).ok, true)
+})
+
+test('참고 블록 메모 줄 · (문서): 읽고 그대로 다시 쓴다 · 풀기 도우미', async () => {
+  const { parseRefLine } = await import('../core/sections.js')
+  const t = convertDoc(CDP).text
+  // 다른 항목을 고쳐 써도 메모 줄 · (문서) 줄은 그대로
+  const out = replaceSection(t, { heading: 'WBS', body: '할 일 바꿈.' })
+  const a = parseDoc(t, '')
+  const b = parseDoc(out, '')
+  assert.deepEqual(b.ref, a.ref)
+  assert.deepEqual(b.docLog, ['- 표식: cdp:form public-si/BM_501'])
+  // 이름 바꾸기 · 지우기도 (문서) 는 둔다
+  assert.deepEqual(parseDoc(removeSection(out, { heading: 'WBS' }), '').docLog, b.docLog)
+  assert.deepEqual(parseDoc(renameSection(out, { heading: '표', to: '표2' }), '').sections.find((s) => s.h === '표2').log, ['- 표 출처: 개발 DB 추출 · 2026-10-12'])
+  // 같은 링크의 메모 줄 둘은 합치지 않는다(기록 줄만 링크로 합친다)
+  const two = ['- `2026-10-01` 가 ([x](../../work/2026-1001-a.md))', '- `2026-10-02` 나 ([x](../../work/2026-1001-a.md))']
+  const r = replaceSection('# t\n\n## 가\n글.\n', { heading: '가', body: '글.', log: two })
+  assert.deepEqual(parseDoc(r, '').sections[0].log, two)
+  // 풀기 — 기록 줄 · 메모 줄
+  assert.deepEqual(parseRefLine('- 2026-10-21 [배포 창](../work/2026-1021-a.md) · 다듬지 못함'), { kind: 'rec', date: '2026-10-21', title: '배포 창', href: '../work/2026-1021-a.md', note: '다듬지 못함' })
+  assert.deepEqual(parseRefLine('- 표 출처: 개발 DB 추출 · 2026-10-12'), { kind: 'note', date: null, title: null, href: null, note: '표 출처: 개발 DB 추출 · 2026-10-12' })
+  assert.equal(parseRefLine('- 2026-10-02 [`연계검토`](../../work/2026-1002-b.md) 경보 질문').kind, 'note')
+})
+
+// ── 옛 CDP 표식 옮기기 검토 뒤 고침 ──
+
+test('옛 CDP 경과: 날짜로만 시작하는 사람의 타임라인은 본문에 둔다(까닭을 남긴다)', () => {
+  const t = '# 장애 보고\n\n## 장애 경과\n\n**경과**\n- 2026-10-01 09:00 DB 서버 응답 없음\n- 2026-10-01 09:30 재기동 · 복구\n\n원인은 디스크 가득 참.\n'
+  const c = convertDoc(t)
+  assert.deepEqual(pick(c), { text: t, changed: false, moved: 0, ok: true })
+  assert.match(c.why, /장애 경과.*사람이 쓴 타임라인/)
+  assert.ok(parseDoc(c.text, '').sections[0].body.includes('09:30 재기동'))
+})
+
+test('옛 CDP 경과: **경과** 와 목록 사이 빈 줄은 건너 찾는다', () => {
+  const t = '# a\n\n## 가\n글\n\n**경과**\n\n- `2026-10-01` 회의\n- 2026-10-02 [`검토`](../../work/2026-1002-검토.md) 질문\n\n뒤 글.\n'
+  const c = convertDoc(t)
+  assert.equal(c.ok, true, c.why)
+  assert.equal(c.kinds.log, 2)
+  const s = parseDoc(c.text, '').sections[0]
+  assert.equal(s.body, '글\n\n뒤 글.')
+  assert.deepEqual(s.log, ['- `2026-10-01` 회의', '- 2026-10-02 [`검토`](../../work/2026-1002-검토.md) 질문'])
+})
+
+test('옛 CDP 경과: 글이 같은 줄 둘은 둘 다 옮긴다 · 다시 읽고 써도 둘', () => {
+  const t = '# a\n\n## A\na\n\n**경과**\n- `2026-10-01` 회의\n- `2026-10-01` 회의\n'
+  const c = convertDoc(t)
+  assert.equal(c.ok, true, c.why)
+  assert.equal(c.moved, 2)
+  assert.deepEqual(parseDoc(c.text, '').sections[0].log, ['- `2026-10-01` 회의', '- `2026-10-01` 회의'])
+  const out = replaceSection(c.text, { heading: 'A', body: 'a 바꿈' })
+  assert.deepEqual(parseDoc(out, '').sections[0].log, ['- `2026-10-01` 회의', '- `2026-10-01` 회의'])
+  // 검사 — 둘 가운데 하나를 잃은 글은 ok: false(개수까지 센다)
+  assert.equal(verifyConvert(t, c.text.replace('  - `2026-10-01` 회의\n', '')).ok, false)
+})
+
+test('옛 표식 주석: 항목 끝 주석은 그 항목 · gen: 만 바로 아래 항목 · 빈 항목도 이름으로', () => {
+  const t = '# a\n\n## A\n표 하나\n\n<!-- TODO: 위 표 값 확인 -->\n\n## B\nb 글\n'
+  const c = convertDoc(t)
+  assert.equal(c.ok, true, c.why)
+  const d = parseDoc(c.text, '')
+  assert.deepEqual(d.sections.find((s) => s.h === 'A').log, ['- 표식: TODO: 위 표 값 확인'])
+  assert.deepEqual(d.sections.find((s) => s.h === 'B').log, [])
+  // 바로 아래 항목이 비어 있어도 그 항목으로
+  const g = '# a\n\n## A\n글\n\n<!-- gen: 표 — x.xlsx 에서 생성 -->\n\n## B\n## C\nc\n'
+  const cg = convertDoc(g)
+  assert.equal(cg.ok, true, cg.why)
+  const dg = parseDoc(cg.text, '')
+  assert.deepEqual(dg.sections.find((s) => s.h === 'B').log, ['- 표식: gen: 표 — x.xlsx 에서 생성'])
+  assert.deepEqual(dg.docLog, [])
+  // 검사 — 메모가 엉뚱한 항목에 붙으면 ok: false
+  const wrong = c.text.replace('- A\n  - 표식', '- B\n  - 표식')
+  assert.equal(verifyConvert(t, wrong, [{ h: 'A', l: '- 표식: TODO: 위 표 값 확인' }]).ok, false)
+  assert.equal(verifyConvert(t, c.text, [{ h: 'A', l: '- 표식: TODO: 위 표 값 확인' }]).ok, true)
+})
+
+test('옛 GDI 변경 이력(Q73): 머리 · 가운뎃점 줄 → 그 항목의 기록 줄 · 꼴이 아닌 줄이 섞이면 둔다 · 멱등', () => {
+  const t = '# a\n\n요약.\n\n## A\n글\n\n**변경 이력** (편입한 과거 기록 — 지금 상태는 위 본문이다)\n· 2026-07-02 [`x-신설`](../work/2026-0702-x-신설.md) A 신설\n· 2026-07-03 12:10 [`y`](../work/2026-0703-y.md) 고침\n\n## B\nb\n\n**변경** · 2026-08-01 [`z`](../work/2026-0801-z.md) 하나\n**변경** · 2026-08-02 [`w`](../work/2026-0802-w.md) 둘\n\n## C\nc\n\n**변경**\n· 2026-08-03 [`v`](../work/2026-0803-v.md) 셋\n이어진 본문 글\n'
+  const c = convertDoc(t)
+  assert.equal(c.ok, true, c.why)
+  assert.equal(c.kinds.change, 4)
+  const d = parseDoc(c.text, '')
+  assert.deepEqual(d.sections.find((s) => s.h === 'A').log, ['- 2026-07-02 [x-신설](../work/2026-0702-x-신설.md) · A 신설', '- 2026-07-03 [y](../work/2026-0703-y.md) · 고침'])
+  assert.equal(d.sections.find((s) => s.h === 'B').log.length, 2)
+  assert.ok(!c.text.split('<!-- kmd:참고')[0].includes('변경 이력'))
+  // C 는 꼴이 아닌 줄이 섞여 본문으로 둔다
+  assert.ok(c.text.includes('· 2026-08-03 [`v`]') && /C/.test(c.why))
+  assert.equal(convertDoc(c.text).moved, 0)
 })

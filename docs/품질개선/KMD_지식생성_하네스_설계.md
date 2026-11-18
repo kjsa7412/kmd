@@ -428,7 +428,11 @@ judge: {
 - 팀과 개인의 자리가 다르다. 지금 코드에서 팀은 `hub.openJob`(5019 · 팀 서버만 돈다) → `workerNext` → 일꾼이고, 개인 초안은 `pcIntakeOne` → `pcDraft`(2267 · 2127), 넣기 에이전트는 `pcAgent` → `agentIntakeSaveIn`(2169 · 2209)이다. H4a 가 이 셋을 넣기 에이전트 방식 하나로 합친다. 걸음 0 과 큰 원천 묶음은 팀 · 개인 자리마다 넣는다.
 
 
-### 5-2. `save` 입력 2판(모든 채널이 같은 칸 이름 · 단발의 `INTAKE_SCHEMA` 는 단발과 함께 걷는다)
+### 5-2. `save` 입력 꼴(하나: `sections · names · forms` · 옛잔재 O-11)
+
+저장 입력은 한 꼴이다(옛잔재 정리 O-11): `record`(일곱 칸 · `touches` | `touchesEmpty` · `fixes`) + `sections[{ coord | doc · heading, base, edits | content }]`(고칠 항목 · `edits` 한 칸은 「바꿀 곳」) + `names[{ coord, label, aliases?, doc, heading, … }]`(장부에 세울 항목 · 값은 빈칸 없는 열쇠) + `forms[{ name, aliases, folder?, kind, … }]`(세울 갈래). CLAUDE.md · MCP · kmd-migrate · 스킬이 모두 이 꼴이고, 무인 프롬프트도 이 꼴을 가르친다.
+
+아래 2판(`items · docs · skip`)은 H 단계에서 정했던 꼴이고 걷는다. 받는 갈래(`server/hub.js` 의 `inputFromItems` · MCP `save` · `propose` 의 `items` · `docs` · `skip` 칸)는 아직 코드에 남아 있다(옛잔재 G 의 남은 것 · 걷을 때 이 절의 2판 블록도 지운다).
 
 ```
 { first: { count },                                     // 첫 겹: 알갱이 수(측정만)
@@ -453,7 +457,7 @@ judge: {
 - 고침(`edit`)에서 `gist` · `aliases` 를 다시 적는 것은 H-O3 이 열 때만 받는다. 그때까지 고침의 두 칸은 버리고 잰다.
 - 엮기가 짓는 칸(`natures` · `depart` · `judge`)은 바깥에서 받지 않는다: 저장 문이 걷고(`weaveIn`) 서버 코드만 `opt.woven` 으로 넘긴다. `items` 와 옛 꼴(`sections` · `names` · `forms`)을 섞어 보내면 입력 오류다(H4c-1).
 - 무인 세션은 저장 제안(`propose`)을 쓰지 않는다: 승인할 사람이 없으므로 `save` 가 바로 무인 저장 문을 지난다(MCP `propose` 는 무인 세션에 입력 오류로 그렇게 알린다 · H4a-1 에서 실제 세션이 제안서만 내고 끝난 것을 보고 넣었다).
-- 옛 꼴 입력(`sections · names · distinct · forms`)은 계속 받는다. `distinct` 는 가름으로 읽고(까닭 없음 · 옛 입력) 측정 줄에 `legacy` 로 센다. 세션의 의무 시점은 H-O9.
+- 지금 꼴 입력은 `sections · names · forms` 다(O-11). `distinct` 는 가름으로 읽고(까닭 없음 · 옛 입력) 측정 줄에 `legacy` 로 센다. 세션의 의무 시점은 H-O9.
 - 올려 세우기(`act: "raise"`)는 두지 않는다(H-D31).
 
 ### 5-3. 채널별 차이표(저장이 일어나는 길 전부)

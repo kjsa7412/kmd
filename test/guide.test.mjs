@@ -1,7 +1,7 @@
 // 작성 가이드(agent/skills/kmd-build/작성가이드.md) — 항목 글의 모양을 kmd 가 지키는 것.
 //
-// 출처 줄(문서 끝 참고 블록 · 항목마다 기록 링크 한 줄씩 · 옛 꼴은 항목 끝 **경과**)은 저장이 단다 — 옛 줄은 보낸 글에 없어도 지키고 넣은 기록의 줄을 더한다 ·
-// 정리 검사는 소제목 ### 을 받고 항목 머리 ## 는 거절한다 · 코드 바뀜 기록은 from · append 로 넣지 못한다.
+// 출처 줄(문서 끝 참고 블록 · 항목마다 기록 링크 한 줄씩)은 저장이 단다. 옛 줄은 보낸 글에 없어도 지키고 넣은 기록의 줄을 더한다 ·
+// 보낸 글 끝의 **경과** 꼬리는 떼어 참고 줄로 옮긴다 · 검사는 소제목 ### 을 받고 항목 머리 ## 는 거절한다 · 코드 바뀜 기록은 from · append 로 넣지 못한다.
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -39,7 +39,7 @@ test('경과 가르기: 끝의 목록만 경과 · 뒤에 글이 오면 본문�
   assert.equal(logLine('docs/a/X.md', { id: '2026-1027-가(나)', title: '가: 나', date: '2026-10-27 10:00' }), '- 2026-10-27 [가](../../work/2026-1027-%EA%B0%80%28%EB%82%98%29.md)')
 })
 
-test('저장이 경과를 단다. 사람의 기록은 그 자신 · 옛 줄은 보낸 글에 없어도 지킨다 · 정리는 넣은 기록', async () => {
+test('저장이 참고 줄을 단다. 사람의 기록은 그 자신 · 옛 줄은 보낸 글에 없어도 지킨다 · 들이기(reflects)는 넣은 기록', async () => {
   const k0 = await load()
   const base = (await import('../core/text.js')).sha16(k0.byDocPath.get('docs/배포절차.md').sections.find((s) => s.h === '카나리').body)
   const a = await save(dir, { record: { title: '카나리: 첫 30분 20%', body: '첫 30분 요청 20%', touches: ['proc:카나리'] }, sections: [{ coord: 'proc:카나리', content: '첫 30분 요청 20% 로 보낸다.', base }] }, { user: 'lee' })
@@ -59,7 +59,7 @@ test('저장이 경과를 단다. 사람의 기록은 그 자신 · 옛 줄은 �
   assert.equal(body, '첫 1시간 요청 20% 로 보낸다.')
   assert.equal(log.length, 2)
   assert.ok(log[1].includes(encodeURI(b.id)))
-  // 정리(kmd-auto · reflects)는 넣은 기록의 줄 — 정리 이력 자신은 달지 않는다
+  // 들이기(kmd-auto · reflects)는 넣은 기록의 줄 · 그 이력 자신은 달지 않는다
   const w = await save(dir, { record: { title: '롤백: 5분 안', body: '롤백은 5분 안에 끝낸다', touches: ['proc:롤백'] } }, { user: 'lee' })
   const c = await save(dir, { record: { title: '정리: 롤백', body: '넣음', touches: ['proc:롤백'], tags: ['curate-llm'], reflects: [w.id] }, sections: [{ coord: 'proc:롤백', content: '롤백은 5분 안에 끝낸다.' }] }, { user: 'kmd-auto', system: true })
   const rl = sec('배포절차', '롤백').log

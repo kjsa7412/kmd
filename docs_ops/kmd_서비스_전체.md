@@ -6,7 +6,7 @@ kmd 를 처음부터 끝까지 한 장에 담는다. 무엇을 하는 서비스�
 
 **「저장이 곧 반영」 개편**(2026-11 · [KMD_개편_설계.md](../docs/품질개선/KMD_개편_설계.md)): 예전에는 기록을 모아 두었다가 정리 때 문서에 넣었다. 개편으로 정리를 걷었고, 모든 채널이 기록과 항목 글을 한 번에 저장한다. 2주 측정 · 한 팀이 2 ~ 4주 쓰기는 사람이 정한다.
 
-**저장 승인**(2026-11-10 확정 · [KMD_저장승인_설계.md](../docs/품질개선/KMD_저장승인_설계.md) · [KMD_지식관리_TODO.md](../docs/품질개선/KMD_지식관리_TODO.md)): 저장 방식은 승인 저장 하나다(`approve` · 팀 · 개인 지식 모두 늘). 사람 채널은 서버가 지은 **저장 제안**(쓰지 않음)을 보고 승인해야 들어가고(경고는 승인이 받아들임), 무인 채널은 검사를 넘으면 들어가고 끝내 못 넘으면 지식에 아무것도 쓰지 않고 일감이 **다시 시도**한다(자동 세 번 → 실패 일감 · 지식 생성 하네스 H4b 가 옛 「규칙 길」 을 걷었다). 값 대조는 재기만 한다. 결과는 「들어감」 하나다(못 넘으면 아무것도 쓰지 않는 입력 오류). 저장이 어떻게 들어갔는지는 지식 메뉴 **점검 › 지표**로 본다. 저장 승인 전 기록은 「기록」 으로만 보인다(읽기만).
+**저장 승인**(2026-11-10 확정 · [KMD_저장승인_설계.md](../docs/품질개선/KMD_저장승인_설계.md) · [KMD_지식관리_TODO.md](../docs/품질개선/KMD_지식관리_TODO.md)): 저장 방식은 승인 저장 하나다(`approve` · 팀 · 개인 지식 모두 늘). 사람 채널은 서버가 지은 **저장 제안**(쓰지 않음)을 보고 승인해야 들어가고(경고는 승인이 받아들임), 무인 채널은 검사를 넘으면 들어가고 끝내 못 넘으면 지식에 아무것도 쓰지 않고 일감이 **다시 시도**한다(자동 세 번 → 실패 일감 · 지식 생성 하네스 H4b 가 옛 「규칙 길」 을 걷었다). 값 대조는 재기만 한다. 결과는 「들어감」 하나다(못 넘으면 아무것도 쓰지 않는 입력 오류). 저장이 어떻게 들어갔는지는 지식 메뉴 **점검 › 지표**로 본다. 저장 승인 전 옛 기록은 이행기(`core/oldform.js`)가 옮겼고, 저장 문이 넣은 것이 없는 기록은 「기록」 으로 보인다(읽기만).
 
 **지식 생성 하네스**(2026-11-16 확정 · 개발 중 · [KMD_지식생성_하네스_설계.md](../docs/품질개선/KMD_지식생성_하네스_설계.md) · 진행 [KMD_지식생성_TODO.md](../docs/품질개선/KMD_지식생성_TODO.md)): 지식이 생길 때 「있는 항목을 고칠지 · 새 항목 · 새 문서 · 장부에 무엇을 올릴지」 는 지식 밖의 고정 생성 룰(R0 ~ R9 · `core/genrules.js` · 작성기준 6-4)이 정하고, 장부는 과거 결정(판례)이라 따를지는 글을 짓는 Claude 가 맡는다. 지금까지 들어간 것(H0 ~ H7 · H6 의 화면은 아직):
 - 생성 룰 데이터와 작성기준 6-4(뽑은 글 · `node scripts/genrules.mjs --check`).
@@ -283,7 +283,7 @@ kmd 를 처음부터 끝까지 한 장에 담는다. 무엇을 하는 서비스�
 
 1. 커밋된 HEAD 를 깨끗한 폴더로: `git archive HEAD | tar -x -C <폴더>`(Git Bash · Windows tar.exe 금지) · node_modules 는 junction.
 2. 그 폴더에서 `node scripts/pack.mjs` → `scp dist/kmd-<판>-team.tgz root@10.10.20.188:/tmp/`.
-3. 배포 전 `/srv/kmd/.kmd/jobs.json` 의 도는 일을 본다(배포는 kmd · kmd-worker 를 다시 켜 도는 들이기가 기다림으로 돌아간다 · 옛 정리 일감 줄이 남아 있으면 「개편으로 걷은 정리 일감」 으로 닫힌다 · 들이기는 같은 일감의 기록(`job/<id>`)이 이미 있으면 다시 넣지 않고 닫는다).
+3. 배포 전 `/srv/kmd/.kmd/jobs.json` 의 도는 일을 본다(배포는 kmd · kmd-worker 를 다시 켜 도는 들이기가 기다림으로 돌아간다 · 들이기는 같은 일감의 기록(`job/<id>`)이 이미 있으면 다시 넣지 않고 닫는다).
 4. 서버에서 풀고 `kmd-<판>-team/` 에서 `sh kmd-install.sh --team --url http://10.10.20.188:8090 --root /srv/kmd --port 8090`.
 5. 확인: `curl :8090/healthz` 의 build · 바뀐 코드가 `/opt/kmd` 에 있는지 grep · 보고에 커밋 해시.
 6. 서버 밖에서 지식 파일을 고쳤으면 `systemctl restart kmd`(팀 서버는 지식을 캐시한다). root 로 git 을 칠 때는 `sudo -u kmd git …`.
@@ -311,7 +311,7 @@ kmd 를 처음부터 끝까지 한 장에 담는다. 무엇을 하는 서비스�
 
 | 폴더 | 무엇 |
 |---|---|
-| `core/` | 지식 읽기(knowledge · sections · vocab · registry) · 저장(save · guard · docformat) · 찾기(search) · 저장 검사 · 들이기(gate · edits · propose · ingest · fix · queue · worker) · 짝 짓기(weave) · 생성 룰(genrules) · 과거 결정 카드(precedent) · 지표(metrics) · 짜임 · 기초 세우기(shape · restructure · survey) · 백업(backup · git · gitlab) · 원천(sources · baseline · docwatch · db) · 넣기(importer · ooxml · pdf · hwp) · 보내기(send) · 불러오기(restore) · 들어가기(auth · passwd · keystore · keyexe) · 에이전트(kit · teamkit) |
+| `core/` | 지식 읽기(knowledge · sections · vocab · registry) · 저장(save · guard · docformat) · 찾기(search) · 저장 검사 · 들이기(gate · edits · propose · ingest · queue · worker) · 옛 꼴 이행기(oldform) · 짝 짓기(weave) · 생성 룰(genrules) · 과거 결정 카드(precedent) · 지표(metrics) · 짜임 · 기초 세우기(shape · restructure · survey) · 백업(backup · git · gitlab) · 원천(sources · baseline · docwatch · db) · 넣기(importer · ooxml · pdf · hwp) · 보내기(send) · 불러오기(restore) · 들어가기(auth · passwd · keystore · keyexe) · 에이전트(kit · teamkit) |
 | `server/` | `hub.js`(모든 길의 가운데: 화면 · MCP 가 같은 길) · `http.js`(길 · 들어가기 · 설명서) · `mcp.js` · `views.js` · `bin/kmd.mjs`(명령) |
 | `app/` | 화면 `main.js` · `ui.js` · `kmd.css`(토큰) · `styleguide.html` |
 | `agent/` | 스킬과 CLAUDE.md 덩이(개인 · `team/` 팀) |
@@ -332,7 +332,7 @@ kmd 를 처음부터 끝까지 한 장에 담는다. 무엇을 하는 서비스�
 | [../docs/설명서_개발자.md](../docs/설명서_개발자.md) | 개발자 |
 | [../docs/품질개선/종합검토.md](../docs/품질개선/종합검토.md) | 남은 개선 거리(「따로 할 것」) |
 | [../docs/품질개선/KMD_개편_설계.md](../docs/품질개선/KMD_개편_설계.md) · [KMD_개편_TODO.md](../docs/품질개선/KMD_개편_TODO.md) | 「저장이 곧 반영」 개편(설계 · 단계 · 한 일) |
-| [../docs/품질개선/KMD_저장승인_설계.md](../docs/품질개선/KMD_저장승인_설계.md) · [KMD_바탕세우기_설계.md](../docs/품질개선/KMD_바탕세우기_설계.md) · [KMD_지식관리_TODO.md](../docs/품질개선/KMD_지식관리_TODO.md) | 저장 승인(제안 · 승인 · 규칙 길 · 지표) · 기초 세우기 · 메뉴 개편(설계 · 단계 · 한 일) |
+| [../docs/품질개선/KMD_저장승인_설계.md](../docs/품질개선/KMD_저장승인_설계.md) · [KMD_바탕세우기_설계.md](../docs/품질개선/KMD_바탕세우기_설계.md) · [KMD_지식관리_TODO.md](../docs/품질개선/KMD_지식관리_TODO.md) | 저장 승인(제안 · 승인 · 무인 채널 · 지표) · 기초 세우기 · 메뉴 개편(설계 · 단계 · 한 일) |
 | [../CHANGELOG.md](../CHANGELOG.md) | 바뀐 것 |
 
 설명서 그림을 다시 찍을 때: 로컬 시험 환경을 따로 띄우고(`KMD_LOCAL_DIR=.kmd-data/manual-env KMD_LOCAL_PORT=7391 KMD_LOCAL_FAKE_CLAUDE=1 node scripts/local.mjs`) 같은 화면을 1280×800 으로 찍어 `docs_ops/manual/img/` 의 같은 이름으로 바꾼다.

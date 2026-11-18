@@ -270,6 +270,6 @@ test('장부만 고치기(ledger): 뜻 한 줄 · 종류 뜻 · 폐기 · 합치
   const k2 = await load()
   assert.equal(k2.vocab.kinds.get('proc'), '배포 걸음')
   assert.equal(k2.vocab.coords.get('proc:롤백').gist, '앞 판으로 되돌림')
-  assert.equal((voc().match(/^뜻: /gm) || []).length, 1)
+  assert.equal((voc().match(/^뜻: /gm) || []).length, 4, '종류마다 한 줄(proc 는 갈음 · 늘지 않는다)')
   assert.ok(k2.logs.find((x) => x.id === JSON.parse(p2.text).record)?.tags.includes('format'), '--format 은 태그 format 도')
 })

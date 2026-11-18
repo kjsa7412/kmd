@@ -61,7 +61,7 @@ test('MCP: 도구 · brief · match · section', async () => {
   assert.deepEqual((await rpc('tools/list')).result.tools.map((t) => t.name), ['brief', 'match', 'search', 'section', 'propose', 'save'])
   const b = (await tool('brief', {})).structuredContent
   assert.equal(b.knowledge.length, 2)
-  // 팀 서버의 스킬 판 · 지식마다 내 안 넣은 메모 · 넣지 못함 수(S6 · 스킬 kmd-team-work 1단계가 한 줄로 전한다)
+  // 팀 서버의 스킬 판 · 지식마다 내가 받아들인 경고 수(스킬 kmd-team-work 1단계가 한 줄로 전한다 · 메모 · 넣지 못함은 걷었다)
   assert.equal(b.kit, TEAM_KIT_REV)
   assert.deepEqual(b.knowledge.map((k) => k.mine), [{ accepted: 0 }, { accepted: 0 }])
   const list = (await rpc('tools/list')).result.tools
@@ -78,7 +78,7 @@ test('MCP: 도구 · brief · match · section', async () => {
   assert.equal(sec.notYetInDocs, undefined, '안 넣은 기록 칸은 걷었다(P12)')
 })
 
-test('MCP save: 기록 글은 서식 칸으로 · 팀 지식은 검사를 넘은 항목 글이 기록과 한 묶음으로 문서에(지식관리자도 같은 저장 문) · 섞인 자리는 넣지 못함 · 나쁜 입력은 아무것도 안 쓴다', async () => {
+test('MCP save: 기록 글은 서식 칸으로 · 팀 지식은 검사를 넘은 항목 글이 기록과 한 묶음으로 문서에(지식관리자도 같은 저장 문) · 섞인 자리는 입력 오류 · 나쁜 입력은 아무것도 안 쓴다', async () => {
   // 이미 있는 항목을 고치려면 section 이 준 base 를 같이(그사이 남이 고친 글을 덮지 않게)
   const base = (await tool('section', { knowledge: 'dpms', coord: 'proc:카나리' })).structuredContent.base
   const inp = {

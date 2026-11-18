@@ -100,7 +100,9 @@ test('사람 채널: 제안서에 지은 근거 · 승인한 저장이 기록 �
   const forms = fs.readFileSync(path.join(KD(), '_forms.md'), 'utf8')
   assert.match(forms, /- 새 문서: 열림/)
   assert.match(forms, /\| 회의록 \| 회의, 주간 회의 \| - \| 사건 \|/)
-  assert.match(forms, /## 문서 성격\n\n\| 문서 \| 성격 \| 요약 \|\n\|---\|---\|---\|\n\| 회의록 \| 사건 \| 회의마다 정한 것과 남은 것을 적는다\. \|/)
+  // 시험 지식에 문서 성격 표가 이미 있다(지금 꼴 픽스처) · 새 문서 줄은 그 표 안에 하나 더한다
+  assert.match(forms.slice(forms.indexOf('## 문서 성격')), /^\| 문서 \| 성격 \| 요약 \|\n\|---\|---\|---\|\n(?:\|.*\|\n)*\| 회의록 \| 사건 \| 회의마다 정한 것과 남은 것을 적는다\. \|$/m)
+  assert.equal((forms.match(/^\| 회의록 \| 사건 \|/gm) || []).length, 1, '문서 성격 줄은 하나')
   assert.match(fs.readFileSync(path.join(KD(), '_vocab.md'), 'utf8'), /`회의:2026-11-10_주간_회의`: 2026-11-10 주간 회의\n {2}gist: 카나리 비율을 정한 주간 회의/)
   assert.match(fs.readFileSync(path.join(KD(), '_managed.md'), 'utf8'), /\| `회의:2026-11-10_주간_회의` \| `docs\/회의록\.md` \| `## 2026-11-10 주간 회의` \|/)
   // 사람이 기록 글에 「## 지은 근거」 를 쓰면 거절한다(kmd 가 쓰는 칸)

@@ -1,5 +1,5 @@
 // 저장 문 core — 기록 + 항목 글 + 표지가 한 저장 · 한 커밋(docs/품질개선/KMD_개편_설계.md S3 · core/save.js · core/parts.js · core/knowledge.js)
-//   서버(hub.save · S4): 속도 한도 · 같은 저장(md/) · 메모 · 넣지 못함(값 · 표 · 되돌림 잦은 문서) · 바로잡기 자리 · sent/ · 측정 줄 · 이 PC 는 그대로
+//   서버(hub.save · S4): 속도 한도 · 같은 저장(md/) · 메모 거절 · 걸린 항목은 입력 오류(아무것도 쓰지 않음) · 바로잡기 자리 · sent/ · 측정 줄 · 이 PC 는 그대로
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -45,7 +45,7 @@ after(() => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('칸 쓰고 읽기: 넣은 것 · 되돌린 항목 · 떼기(옛 넣지 못함 칸도 울타리째)', () => {
+test('칸 쓰고 읽기: 넣은 것 · 되돌린 항목 · 떼기(json 칸은 울타리째)', () => {
   const put = renderPut([{ doc: DOC, heading: '롤백', from: '5분', to: '10분' }, { doc: DOC, heading: '값: 설명', from: '', to: '3' }, { doc: 'docs/회의록.md', heading: '2026-10-21 HNC 통화', isNew: true }])
   assert.match(put, /^## 넣은 것\n- docs\/배포절차\.md › 롤백: 5분 → 10분\n/)
   assert.deepEqual(parsePut(`사람 글\n\n## 넣은 것\n- docs/x.md › 가짜\n\n${put}`), [
@@ -182,7 +182,7 @@ test('attach: 같은 커밋 · 같은 글은 건너뜀 · 다른 글은 E_CONFLI
   assert.equal(await status(), '')
 })
 
-// ── 서버(hub.save · S4) — 자리 · 속도 한도 · 같은 저장 · 메모 · 넣지 못함 · 바로잡기 · 보내기 표지 · 측정 줄 ──
+// ── 서버(hub.save · S4) — 자리 · 속도 한도 · 같은 저장 · 메모 거절 · 입력 오류 · 바로잡기 · 보내기 표지 · 측정 줄 ──
 let srv = null
 let sroot = null
 let me = null

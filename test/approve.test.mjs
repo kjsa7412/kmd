@@ -1,6 +1,6 @@
 // 저장 승인 P3 — approve 모드 특성 시험(저장 승인 설계 6-5 「먼저 더하는 특성 시험」 · 3절 · P-D5 · P-D12 · P-D16 · P-D17 · P-D29 · P-D34)
 //
-// held 모드 = 지금과 같음(dpms) · approve 모드(apv) 결과 = 들어감 하나 + 입력 오류(아무것도 안 씀) · proposal 없음 = E_APPROVE + propose 결과 ·
+// 모든 지식이 approve(dpms · apv) · 결과 = 들어감 하나 + 입력 오류(아무것도 안 씀) · proposal 없음 = E_APPROVE + propose 결과 ·
 // 해시 어긋남 = E_APPROVE · 대화 조절 뒤 마지막 해시만 · 경고를 그대로 승인 = 들어감 + 「## 받아들인 경고」 · 옛 키트 · 키트 없음 = E_APPROVE(안내 없음) ·
 // memo = E_INPUT · 경위만 = 들어감(글 그대로 · 이력) · 바뀐 것 값이 본문에 없음 = 오류 · touchesEmpty = 기록 모음 달 항목 · ingest/ 위조 = E_INPUT ·
 // 쓰기 자리 새 문서 · fresh 는 14일 뒤 떨어짐 · 새 지식 = approve · 저장 방식 스위치(총괄 관리자 · 이행 먼저) · 측정 줄 · 하루 요약

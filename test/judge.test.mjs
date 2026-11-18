@@ -1,4 +1,4 @@
-// 판정 나누기(저장 승인 설계 P1) — core 판정을 오류(errors) · 경고(warnings · id)로 나누는 함수와 옛 held 판정 덮개
+// 판정 나누기(저장 승인 설계 P1) — core 판정을 오류(errors) · 경고(warnings · id)로 나누는 함수와 「못 넘음」 으로 접는 덮개(foldJudge)
 //
 // judgeSection · judgeProposal · judgeEdits · judgeShape · judgeReflect(본문 반영) · planCheck id ·
 // 덮개(checkSection · checkProposal · applyEdits · checkShape)가 옛 판정 그대로인지(첫 오류 · 막는 첫 값 경고)

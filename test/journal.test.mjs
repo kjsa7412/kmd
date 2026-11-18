@@ -76,7 +76,7 @@ test('다음 저장이 남은 저널부터 되돌린다', async () => {
   assert.equal(await status(), '')
 })
 
-test('거두기는 반쯤 쓴 저장을 사람의 고침으로 들이지 않는다', async () => {
+test('손으로 고친 파일 찾기는 반쯤 쓴 저장을 사람의 고침으로 보지 않는다', async () => {
   const was = read(DOC)
   const j = await begin(dir)
   await j.add(DOC)

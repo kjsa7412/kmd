@@ -68,7 +68,7 @@ async function eight(mode) {
     const sent = await s.hub.send(KIM, 'gdi')
     out.send = { sent: sent.sent, got: (await s.hub.get('dpms')).works.filter((w) => w.tags.some((t) => t.startsWith('sent/'))).length }
     if (mode === 'pc') out.send.why = sent.why
-    // ⑧ 기록이 문서로 — 팀: 저장이 곧 반영(S13 · 정리를 걷었다) — 항목 글을 실은 저장은 그 순간 넣고, 항목 글 없는 기록은 메모 ·
+    // ⑧ 기록이 문서로 — 팀: 저장이 곧 반영(S13 · 정리를 걷었다) — 항목 글을 실은 저장은 그 순간 넣고, 항목 글 없는 기록은 기록만 ·
     //   이 PC: 정리가 따로 없다 — 남는 즉시 kmd 가 넣는다(저장 즉시 넣기 · core/pcplace.js)
     // 팀: lee 는 dpms 에 쓰기 자리를 받은 팀원이다(받지 않은 지식은 없음이 기본 · 권한 모델 v1.1)
     if (mode !== 'pc') { await s.auth.addUser({ id: 'lee', admin: false }); await seat(s, 'lee', { dpms: 'write' }) }
@@ -78,7 +78,7 @@ async function eight(mode) {
       rec = await s.hub.save(KIM, 'dpms', { record })
       await s.hub.idle('dpms')
     } else {
-      // 항목 글 없는 사람 기록 — 메모(문서 그대로 · 정리를 기다리는 pend 가 생기지 않는다 · S-D3)
+      // 항목 글 없는 사람 기록: 기록만(문서 그대로 · 정리를 기다리는 pend 가 생기지 않는다 · S-D3)
       const bare = await s.hub.save({ user: 'lee' }, 'dpms', { record: { ...record, title: '헬스 체크: 메모' } })
       assert.equal((await s.hub.get('dpms')).byWork.get(bare.id).state, 'memo')
       const k0 = await s.hub.get('dpms')

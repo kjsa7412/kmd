@@ -135,7 +135,12 @@ export function upsertForms(text, forms) {
     else {
       let last = -1
       lines.forEach((l, x) => { if (x < end && /^\|/.test(l)) last = x })
-      lines.splice(last + 1, 0, row)
+      // 갈래 표가 아직 없는 장부(문서 성격 표만 있는 것)면 첫 「## 」 앞에 표 머리째 세운다(파일 맨 앞에 줄을 넣지 않는다)
+      if (last < 0 && t.trim()) {
+        let at = end
+        while (at > 0 && !lines[at - 1].trim()) at--
+        lines.splice(at, 0, ...(at > 0 ? [''] : []), '| 갈래 | 별칭 | 폴더 | 종류 | 항목 | 서식 |', '|---|---|---|---|---|---|', row, ...(at < lines.length && lines[at].trim() ? [''] : []))
+      } else lines.splice(last + 1, 0, row)
     }
     t = lines.join('\n')
     // 속성 정의(서식 설계 F7) — props 가 오면 그 갈래의 「## 속성: <갈래>」 블록을 바꾼다(빈 목록이면 걷는다)

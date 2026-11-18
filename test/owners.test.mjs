@@ -171,7 +171,7 @@ test('지운 지식의 일(넣은 파일 이름 · 터미널 줄)은 남지 않�
   assert.equal(ledger()[id], undefined)
 })
 
-test('HTTP: 일반은 지식을 세우지 못한다 · 없는 사람은 주인 · 정리가 되지 않는다 · 옛 개인 길은 없다 · /healthz 는 살아 있나 · 판만', async () => {
+test('HTTP: 일반은 지식을 세우지 못한다 · 없는 사람은 주인 · 지식관리자가 되지 않는다 · 옛 개인 길은 없다 · /healthz 는 살아 있나 · 판만', async () => {
   const kim = await signIn(s, { id: 'kim', admin: true })
   const park = parkIn // 앞(before)에서 만든 팀원
   const post = (p, who, body) => fetch(s.url + p, { method: 'POST', headers: { cookie: who.cookie, 'content-type': 'application/json' }, body: JSON.stringify(body) })

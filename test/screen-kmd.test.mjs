@@ -579,7 +579,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   await page.close()
 })
 
-test('정리를 걷었다(S13): 항목 글 없는 기록은 메모 · 설정 › 일반의 팀 지식 표 · 문서 다듬기 단추 · 오늘 바뀐 것 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('정리를 걷었다(S13): 항목 글 없는 기록은 기록만 · 설정 › 일반의 팀 지식 표 · 문서 다듬기 단추 · 오늘 바뀐 것 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
   // lee — dpms 에 쓰기 자리를 받은 팀원(받지 않은 지식은 없음이 기본 · 권한 모델 v1.1)
   if (!s.auth.people().includes('lee')) { await s.auth.addUser({ id: 'lee', admin: false }); await seat(s, 'lee', { dpms: 'write' }) }
@@ -1396,7 +1396,7 @@ test('개인 화면: 지식 보내기 · 받는 팀 지식 고르기 · 지식 �
   }
 })
 
-test('팀 화면: 팀 지식만 — 지식 목록 · 이력 · 설정 · 넣지 못함 · 1280 · 1024 · 600 · 375 에서 잘린 요소 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('팀 화면: 팀 지식만 — 지식 목록 · 이력 · 설정 · 점검 · 1280 · 1024 · 600 · 375 에서 잘린 요소 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   const page = await browser.newPage({ viewport: VIEW })
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
@@ -2212,7 +2212,7 @@ test('무인 실패(지식 생성 하네스 H4b): 진행 탭의 실패 일감 �
   } finally { await page.close() }
 })
 
-test('저장 승인 P10: 점검 · 지표 — 탭 점검 · 지표(배지 없음) · 지표 줄 여섯 · [보기] → 기록 · 기간 · 빈 상태 · 오류 + 다시 읽기 · 옛 주소 · held 지식은 재지 않음 · 네 폭 잘림 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('저장 승인 P10: 점검 · 지표 — 탭 점검 · 지표(배지 없음) · 지표 줄 여섯 · [보기] → 기록 · 기간 · 빈 상태 · 오류 + 다시 읽기 · 옛 주소 · 모든 지식을 잰다 · 네 폭 잘림 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   const { localStamp } = await import('../core/save.js')
   const { renderRecord } = await import('../core/frontmatter.js')
   const dir = path.join(tmp, 'kn', 'apv10')

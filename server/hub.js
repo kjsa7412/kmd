@@ -268,7 +268,7 @@ ${genRulesBlock({ profile: 'shape' })}`
   //   keep — 아직 끝이 아니다(항목만 골랐다 · 못 넣어 한 시간 뒤 다시) — 다음 줄도 그 일에
   const codeNote = (recIds, k, x, { keep = false } = {}) => { for (const r of recIds) { const qj = codeJobs.get(r); if (qj) { if (!keep) codeJobs.delete(r); Q.line(qj, k, x) } } }
   // 일감 — 맡은 일감은 임대(기본 40분 · 일꾼이 부를 때마다 늘린다). 지나면 다시 기다림으로(세 번째면 failed · 까닭) ·
-  // 파일(<data>/jobs.json)에 두어 다시 켜도 기다리던 정리가 사라지지 않는다(맡았던 것은 기다림으로)
+  // 파일(<data>/jobs.json)에 두어 다시 켜도 기다리던 일감이 사라지지 않는다(맡았던 것은 기다림으로)
   const JOB_LEASE = config.jobLeaseMs ?? 40 * 60_000
   const jobsFile = path.join(dataDir, 'jobs.json')
   // 들이기 일감(S7 · 설계 3-5 · 2-6) — 같은 jobs 장부의 kind:'intake' 줄. 원천은 <data>/queue/<jid>.md(글) · .bin(파일 바이트)에 들고 있다가 저장 한 번으로(S-D18)
@@ -6675,7 +6675,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       const curates = !!ctx.admin
       if (ws && ws.ok === false && !id) {
         const d = (Date.now() - Date.parse(ws.since)) / 864e5
-        out.push(stopLine({ kind: 'worker', level: 'warn', what: mode === 'pc' ? '들이기(내 Claude)가 쉬고 있다' : '팀 일꾼이 쉬고 있다', amount: d < 1 ? '오늘부터' : `${Math.round(d)}일`, fix: mode === 'pc' ? '설정 › Claude 연결에서 다시 로그인하면 이어서 한다 · 그동안 들이기는 규칙 길로 넣는다' : ctx.admin ? '설정 › 팀 일꾼에서 다시 로그인하면 이어서 한다 · 그동안 들이기는 기다린다' : '그동안 들이기는 기다린다', told: ctx.admin ? null : curates ? '관리자에게 알렸다' : null }))
+        out.push(stopLine({ kind: 'worker', level: 'warn', what: mode === 'pc' ? '들이기(내 Claude)가 쉬고 있다' : '팀 일꾼이 쉬고 있다', amount: d < 1 ? '오늘부터' : `${Math.round(d)}일`, fix: mode === 'pc' ? '설정 › Claude 연결에서 다시 로그인하면 이어서 한다 · 그동안 들이기는 기다린다' : ctx.admin ? '설정 › 팀 일꾼에서 다시 로그인하면 이어서 한다 · 그동안 들이기는 기다린다' : '그동안 들이기는 기다린다', told: ctx.admin ? null : curates ? '관리자에게 알렸다' : null }))
       }
       // 팀 일꾼이 일감을 받지 않는다 — 기다리는 들이기가 10분 넘었고 일꾼을 10분 넘게 못 봤다(설치 뒤 일꾼을 띄우지 않았다 · 일꾼이 멈췄다)
       if (mode === 'team' && curates && !id && !(ws && ws.ok === false)) {

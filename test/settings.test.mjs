@@ -1,7 +1,7 @@
-// S7 필수(엔진) — 에이전트 설치 · 정리 전용 로그인 · 저절로 하는 일 켬/끔.
+// S7 필수(엔진) — 에이전트 설치 · 팀 일꾼 Claude 로그인 · 저절로 하는 일 켬/끔.
 //
 // 폴더에 붙이기 → 스킬 둘 · 연결 둘 · kmd 덩이(사람 줄은 그대로) · 옛 판 → 최신으로 · 빼기 → 사람 줄만 남음 ·
-// 정리 전용 로그인 → 주소 · 번호 → 열쇠는 비밀에만(응답 · 로그에 0) · 「넣은 파일을 문서로」 끄면 docx 는 첨부만.
+// 팀 일꾼 Claude 로그인 → 주소 · 번호 → 열쇠는 비밀에만(응답 · 로그에 0) · 「넣은 파일을 문서로」 끄면 docx 는 첨부만.
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -64,7 +64,7 @@ test('에이전트 설치: 붙이기 · 옛 판 → 최신 · 빼기 · 사람�
   assert.ok(!fs.existsSync(path.join(w, '.claude', 'skills', 'kmd-work')))
 })
 
-test('정리 전용 로그인: 비밀번호 한 번 더 → 주소 → 번호 → 열쇠는 비밀에만', async () => {
+test('팀 일꾼 Claude 로그인: 비밀번호 한 번 더 → 주소 → 번호 → 열쇠는 비밀에만', async () => {
   const H = { 'content-type': 'application/json', cookie: me.cookie }
   const post = (p, b) => fetch(s.url + p, { method: 'POST', headers: H, body: JSON.stringify(b || {}) })
   assert.equal((await post('/api/admin/claude/start')).status, 403, '비밀번호 한 번 더 없이는 안 된다')
@@ -83,7 +83,7 @@ test('정리 전용 로그인: 비밀번호 한 번 더 → 주소 → 번호 �
   assert.equal(ov.claude.token, true)
 })
 
-test('화면 있는 팀 서버 PC: 「kmd: Claude 로그인」 창 · 번호 칸 없음 · 작은 부르기로 확인 · 옛 정리 전용 열쇠는 걷는다', async () => {
+test('화면 있는 팀 서버 PC: 「kmd: Claude 로그인」 창 · 번호 칸 없음 · 작은 부르기로 확인 · 그 PC 의 로그인을 쓰고 저장해 둔 열쇠는 걷는다', async () => {
   const H = { 'content-type': 'application/json', cookie: me.cookie }
   const post = (p, b) => fetch(s.url + p, { method: 'POST', headers: H, body: JSON.stringify(b || {}) })
   const { prehash } = await import('../app/prehash.js')

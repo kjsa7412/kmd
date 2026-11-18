@@ -26,7 +26,7 @@ test('화면의 설정 메뉴 · 옆 메뉴(지식 메뉴 · 공통 메뉴) · �
   assert.deepEqual(labels(body('sideItems')), [...COMMON])
   // 작업 화면 갈 곳 글(workMenu) — 지식 메뉴 이름이거나 「문서 › 구조」
   for (const l of labels(body('workMenu'))) assert.ok(KN_MENU_PC.includes(l) || KN_MENU_TEAM.includes(l) || l === '문서 › 구조', `작업 갈 곳 「${l}」`)
-  // 지식 메뉴 화면의 본문 머리 탭(N5) — 생성(수기수집 · 자동수집) · 진행(도는 일 · 끝난 일) · 확인(넣지 못함 · 점검 · 승인)
+  // 지식 메뉴 화면의 본문 머리 탭(N5) — 생성(수기수집 · 자동수집) · 진행(도는 일 · 끝난 일) · 확인(점검 · 지표)
   const gen = main.match(/const GEN_TABS = \[(.*)\]\n/)
   assert.ok(gen, 'GEN_TABS')
   assert.deepEqual([...gen[1].matchAll(/\['(?:manual|auto)', '([^']+)'\]/g)].map((m) => m[1]), [...GEN_TABS])

@@ -207,7 +207,8 @@ test('과거 결정 카드(지식 생성 하네스 H3): match 가 카드 · 앞�
   const id = m.cards.filter((c) => c.type === '정체')
   const hit = id.find((c) => c.key === 'proc:카나리')
   assert.deepEqual([hit.via, hit.doc, hit.heading, hit.kind, typeof hit.base, typeof hit.body], ['이름 맞음', '배포절차', '카나리', 'proc', 'string', 'string'])
-  assert.ok(!('gist' in hit) && !('gistFrom' in hit)) // 뜻 한 줄이 없는 줄은 빈 칸(첫 문장으로 메우지 않는다 · O-9 · 점검이 알린다)
+  assert.equal(hit.gist, '새 판을 서버 하나에 먼저 올려 요청 일부로 보는 단계') // 장부의 뜻 한 줄 그대로
+  assert.ok(!('gistFrom' in hit)) // 첫 문장으로 메우던 칸은 없다(O-9 · 뜻 한 줄이 없으면 빈 칸 · 점검이 알린다)
   assert.ok(id.some((c) => c.key === 'proc:헬스 체크' && c.via === '원천에 나옴'), JSON.stringify(id.map((c) => [c.key, c.via]))) // 넣을 글에 나오는 있는 항목(거꾸로 대기)
   assert.ok(m.cards.some((c) => c.type === '놓임' && c.key === '배포절차'))
   assert.ok(m.cards.some((c) => c.type === '꼴' && c.key === 'proc' && c.items >= 1))

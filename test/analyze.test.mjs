@@ -129,8 +129,8 @@ test('기록 → 간 문서: 나중 기록이 같은 항목을 고쳐 표지가 
   try {
     fs.mkdirSync(path.join(dir, 'docs'))
     fs.mkdirSync(path.join(dir, 'work'))
-    fs.writeFileSync(path.join(dir, '_vocab.md'), '# 좌표 어휘\n\n## 화면\n- `화면:A`: 상황 지도\n- `화면:B`: 공정 도식\n')
-    fs.writeFileSync(path.join(dir, '_managed.md'), '# 관리\n\n| 항목 | 문서 | 머리 |\n| --- | --- | --- |\n| `화면:A` | `docs/화면.md` | `## A: 상황 지도` |\n| `화면:B` | `docs/화면.md` | `## B: 공정 도식` |\n')
+    fs.writeFileSync(path.join(dir, '_vocab.md'), '# 항목 장부\n\n## 화면\n- `화면:A`: 상황 지도\n- `화면:B`: 공정 도식\n')
+    fs.writeFileSync(path.join(dir, '_managed.md'), '# 문서 장부\n\n| 항목 | 문서 | 머리 |\n| --- | --- | --- |\n| `화면:A` | `docs/화면.md` | `## A: 상황 지도` |\n| `화면:B` | `docs/화면.md` | `## B: 공정 도식` |\n')
     fs.writeFileSync(path.join(dir, 'docs', '화면.md'), '# 화면\n\n## A: 상황 지도\n<!-- applied: 2026-1102-뒤 -->\n글\n\n## B: 공정 도식\n<!-- applied: 2026-1102-뒤 -->\n글\n')
     const rec = (id, date) => `---\nid: ${id}\ntitle: ${id}\ndate: ${date}\nauthor: kim\ntouches:\n  - 화면:A\n  - 화면:B\ntags:\n  - put\n---\n\n# ${id}\n\n글\n\n## 넣은 것\n- docs/화면.md › A: 상황 지도\n- docs/화면.md › B: 공정 도식\n`
     fs.writeFileSync(path.join(dir, 'work', '2026-1031-앞.md'), rec('2026-1031-앞', '2026-10-31 08:42'))

@@ -1,8 +1,8 @@
 // 저장 승인 PC4 — 개인 들이기 = 무인 채널 규칙(저장 승인 설계 P-D42 · b18 · b21 · b24 · 6-5 「개인 프로그램 특성 시험」 · 7-1 PC4)
 //
-// approve 개인 지식의 파일 넣기 · 가져올 곳(코드 바뀜)은 기록을 먼저(pend) 세우지 않는다: 초안(claude -p 들이기 초안) → 검사 → FIX → 규칙 길 →
-// 기록(원천 인용 · 원본 첨부) + 문서가 한 커밋 · 값 경고는 막지 않고 `## 값 대조`(규칙 길로 떨어지지 않는다) · Claude 끔 · 한 번 넣기 상한 → 규칙 길 ·
-// 코드 바뀜도 같은 규칙(초안이면 기능 항목 + 기록 · 규칙 길이면 이은 항목에 잇기만) · 정리(curateSoon)를 걸지 않는다 · 옛 개인 지식은 기록 먼저 그대로(PC5 · PC6 전)
+// approve 개인 지식의 파일 넣기 · 가져올 곳(코드 바뀜)은 기록을 먼저(pend) 세우지 않는다: 초안 → 검사 → 고쳐 받기 →
+// 기록(원천 인용 · 원본 첨부) + 문서가 한 커밋 · 값 경고는 막지 않고 `## 값 대조` · Claude 끔 · 한 번 넣기 상한 → 아무것도 쓰지 않고 다시 시도 ·
+// 코드 바뀜도 같은 규칙(초안이면 기능 항목 + 기록) · 규칙 길은 걷었다(하네스 H-D29)
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -53,7 +53,7 @@ before(async () => {
   process.env.KMD_CLAUDE_AGENT = path.join(HERE, 'fixture', 'fake-claude-agent.mjs')
   process.env.FAKE_AGENT_SCRIPT = path.join(HERE, 'fixture', 'agent-intake.mjs')
   process.env.KMD_UPLOAD_ASK = '0' // 승인 대기(H6)는 끄고 들이기 자체를 본다(승인 대기는 agent 시험 끝)
-  // dpms(옛 개인 지식 · 이행 전) · apv(이행을 마친 개인 지식 = 「저장 방식: 승인」 · 기록 없는 dpms 문서 · 기록 모음)
+  // dpms · apv(기록 없는 dpms 문서) 두 개인 지식 · 모두 승인 저장
   copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'pc'))
   copyDir(path.join(HERE, 'fixture', 'kmd', 'dpms'), pdir('apv'))
   fs.rmSync(path.join(pdir('apv'), 'work'), { recursive: true, force: true })

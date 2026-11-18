@@ -1,4 +1,4 @@
-// 글 걸음(바탕 세우기 설계 4-3 · 4-5 · Z3) — checkShape · hub.save opt.shape(hub.shapeWrite) · 예약 태그 · touches · 장부 항목 다시 놓기 · 참고 줄 · 넣지 못함 · fixes · 되돌리기 끔
+// 글 걸음(바탕 세우기 설계 4-3 · 4-5 · Z3) — checkShape · hub.save opt.shape(hub.shapeWrite) · 예약 태그 · touches · 장부 항목 다시 놓기 · 참고 줄 · 걸음 입력 오류 · fixes · 되돌리기 끔
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'

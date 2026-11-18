@@ -1,6 +1,6 @@
 // 세션 일감(지식 생성 하네스 H4a · H-D34) — 팀 일꾼이 Claude Code 세션(가짜 에이전트)을 띄워 팀 서버의 MCP 에 단기 열쇠로 붙는다.
 //   세션이 스스로 brief → section → save 를 부르고, 세션의 save 는 무인 저장 문을 지나 기록 + 항목 글 + 장부가 한 커밋에 선다.
-//   열쇠는 그 지식 · 그 일감에만 · 끝나면 끊긴다 · 세션이 아무것도 넣지 않으면 일감이 닫히는 길(지금은 규칙 길 · H4b 에서 다시 시도로).
+//   열쇠는 그 지식 · 그 일감에만 · 끝나면 끊긴다 · 세션이 아무것도 넣지 않으면 일감은 다시 시도(H4b · 규칙 길은 걷었다).
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
