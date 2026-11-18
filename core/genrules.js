@@ -10,7 +10,7 @@
 import { createHash } from 'node:crypto'
 import { FORMS } from './forms.js'
 
-export const GEN_RULES_REV = 2
+export const GEN_RULES_REV = 3
 
 // 성격 아홉(R0 · R4-1) — 차례는 조문의 차례다. 서식 계약의 「기록」 은 성격이 아니다
 export const NATURES = ['대상', '서술', '절차', '시험', '용어', '사건', '보고', '대장', '결정']
@@ -158,7 +158,7 @@ export const ARTICLES = [
       '6-2 정해지지 않은 것은 항목 글의 값으로 쓰지 않는다. 이슈를 받는 대장이 재료에 있으면 이슈 항목으로 세운다[둘째 겹]. 사건 항목의 「남은 것」 에는 「무엇이 열려 있다」 는 사실로 적는다.',
       '6-3 뺀 것은 무엇을 왜 뺐는지 적는다. 모두 뺐으면 항목도 기록도 쓰지 않는다(「넣을 것 없음」).',
       '6-4 기록의 칸: 제목 「무엇: 어떻게」 · 요약 한두 문장 · 바뀐 것(「대상: 옛 → 새」 · 「새로: 대상 값」 · 「뺌: 대상」) · 까닭 · 버린 안 · 영향 · 근거 · 근거 날짜(넣을 것이 말하는 때 · 모르면 비운다). 넣을 것에 없는 칸은 비운다. 지어내지 않는다.',
-      '6-5 「바뀐 것」 에 적은 값은 그 항목 글에 있어야 한다. 기록을 항목에 잇는 것은 kmd 가 한다.',
+      '6-5 「바뀐 것」 에 적은 새 값은 그 값을 지닌 대상 항목을 고치거나 세운 글(sections)에 있어야 한다. 건드린 항목(touches)으로만 잇는 것은 값을 바꾸지 않은 관련 항목뿐이다. 다른 글에 같은 수가 있어도 대신하지 않는다. 기록을 항목에 잇는 것은 kmd 가 한다.',
     ],
     aid: [
       '- 지식의 내용이 바뀐 일만 기록이다. 서식 · 짜임 · 장부만 바꾼 일은 이력이다(kmd 가 가른다).',
@@ -294,7 +294,7 @@ export function genRulesBlock({ profile = 'agent', heads = true } = {}) {
 // 지문 — 긴 판 글의 sha256 앞 16자. 판 번호와 함께 측정 줄 · brief 에 실린다
 export const rulesHash = () => createHash('sha256').update(genRulesText({ long: true })).digest('hex').slice(0, 16)
 // 판마다 지문 — 글이 바뀌었는데 판이 그대로면 시험이 실패한다
-export const GEN_RULES_HASH = { 1: 'ffad7271a047a232', 2: 'a4ea914c3dbc2016' }
+export const GEN_RULES_HASH = { 1: 'ffad7271a047a232', 2: 'a4ea914c3dbc2016', 3: '6826af10747592b6' }
 // 조문 번호의 닫힌 목록 — 「R2」 · 「R2-1」 · 「R5-1」 (판단 칸의 rule · against 를 이 목록으로 거른다)
 export function ruleIds() {
   const ids = new Set()

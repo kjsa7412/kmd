@@ -14,6 +14,7 @@ import { startServer } from '../server/http.js'
 import { copyDir, signIn, seat } from './helpers.mjs'
 import { proposeInputWhy, nearOf, nameNear } from '../core/guard.js'
 import { lineDiff } from '../core/propose.js'
+import { GEN_RULES_REV } from '../core/genrules.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s
@@ -215,7 +216,7 @@ test('과거 결정 카드(지식 생성 하네스 H3): match 가 카드 · 앞�
   assert.ok(m.cards.every((c) => !('n' in c) && !('no' in c)))
   assert.match(m.coverage.line, /^이름으로는 전수 \d+ · 뜻으로는 상위 \d+ \/ \d+/)
   assert.ok(Array.isArray(m.prior) && Array.isArray(m.toc) && m.toc.some((t) => t.doc === '배포절차'))
-  assert.equal(m.rulesRev, 2)
+  assert.equal(m.rulesRev, GEN_RULES_REV)
   // 걸리는 이름이 없으면 「판례 없음」 한 줄
   const none = await mcp('match', { q: '없는이름xyz', knowledge: 'dpms' }, P.rd)
   assert.equal(none.cards.filter((c) => c.type === '정체').length, 0)
@@ -230,7 +231,7 @@ test('과거 결정 카드(지식 생성 하네스 H3): match 가 카드 · 앞�
   assert.equal((await mcp('match', { q: '카나리', knowledge: 'dpms', source: 'x'.repeat(60_001) }, P.rd)).error, 'E_INPUT')
   // brief — 새 칸(옛 칸 rules · forms · kinds 는 그대로)
   const b = await mcp('brief', { knowledge: 'dpms' }, P.rd)
-  assert.deepEqual([b.rulesRev, b.ruleTitles.length, b.ruleTitles[1], typeof b.rulesHash, b.formsOwn], [2, 10, 'R1 무엇이 항목 하나인가', 'string', false])
+  assert.deepEqual([b.rulesRev, b.ruleTitles.length, b.ruleTitles[1], typeof b.rulesHash, b.formsOwn], [GEN_RULES_REV, 10, 'R1 무엇이 항목 하나인가', 'string', false])
   assert.ok(b.kindCards.seed.some((x) => x.kind === '회의' && x.nature === '사건' && x.gist))
   assert.ok(Array.isArray(b.natures) && Array.isArray(b.rules) && Array.isArray(b.kinds) && Array.isArray(b.forms))
 })

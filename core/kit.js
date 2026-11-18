@@ -24,7 +24,7 @@ export const SKILLS = ['kmd-work', 'kmd-save', 'kmd-build']
 //   스킬 글의 자리표 {{KIT_REV}} 를 이 값으로 바꿔 싣는다 → 세션이 MCP save 에 kit 으로 싣는다 →
 //   저장 측정 줄(savelog)에 싣는다(옛 판 안내 reinstall · nokit 은 P11 · PC6 에서 걷었다)
 //   kmd-build 는 kmd 가 띄운 넣기 에이전트도 읽으므로(hub.agentTask · 그대로 읽는다) 자리표를 두지 않는다
-export const PC_KIT_REV = 9
+export const PC_KIT_REV = 10
 //   자리표 {{GEN_RULES}} — 사람 세션용 생성 룰 덩이(core/genrules.js · H5): 스킬 글이 자리 · 종류 규칙을 따로 적지 않는다
 const withRev = (t) => t.replace(/\{\{KIT_REV\}\}/g, String(PC_KIT_REV)).replace(/\{\{GEN_RULES\}\}/g, () => genRulesBlock({ profile: 'session' }))
 const BEGIN = /<!--\s*kmd:begin(?:\s+v=(\S+))?\s*-->/

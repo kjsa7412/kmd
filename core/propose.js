@@ -129,7 +129,7 @@ export function proposalHash(x) {
 }
 
 //   approve 모드(P3 · opt.approve) — 저장 문이 줄 안에서 같은 판정을 다시 돌려 해시를 대 본다(hub saveIn):
-//     memo 는 입력 오류(core/save.js check · P-D34) · 「바뀐 것」 값이 이은 항목 글에 없으면 오류(본문 반영 judgeReflect · P-D12) ·
+//     memo 는 입력 오류(core/save.js check · P-D34) · 「바뀐 것」 값이 고칠 항목 글에 없으면 오류(본문 반영 judgeReflect · P-D12 · 이은 항목의 지금 글은 셈하지 않는다) ·
 //     항목 글도 건드린 항목도 없고 touchesEmpty 까닭이 있으면 기록 모음 달 항목(opt.month 'YYYY-MM')에 잇는다(P-D29) ·
 //     되돌림 잦은 문서(opt.reverts(doc) ≥ 2)의 값 바꿈은 경고(reverts) · 새 문서 갈래는 같은 제안의 forms 까지 본다(P-D9)
 //   → 더해 linked([{ doc, heading }] 글 그대로 이은 항목) · fresh([{ kind, name }] 새로 세운 것)
@@ -305,10 +305,12 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
     const sec = d?.sections.find((x) => x.h === month) || null
     items.push({ kind: '잇기', doc: RECORDS_DOC_PATH, heading: month, at: atOf(RECORDS_DOC_PATH, month), base: sec ? sha16(sec.body) : null, before: sec ? sec.body : null, after: sec ? sec.body : null, changed: [], records: true })
   }
-  // 본문 반영(P-D12) — 「바뀐 것」 값이 이은 항목(고침 · 신설의 새 글 · 잇기의 지금 글) 어디에도 없으면 오류(사람 채널)
+  // 본문 반영(P-D12 · 생성 룰 R6-5): 「바뀐 것」 값이 고칠 항목(고침 · 신설의 새 글) 어디에도 없으면 오류(사람 채널은 제안 막음 · 무인은 고쳐 받기 → 다시 시도)
+  //   이은 항목(잇기 · 글 그대로)의 지금 글은 셈하지 않는다: 값을 바꾸지 않은 관련 항목이다(같은 수가 다른 뜻으로 있으면 글을 하나도 고치지 않은 기록이 넘었다)
   if (approve && !errors.length) {
-    const r = judgeReflect(record, items.map((x) => ({ doc: x.doc, heading: x.heading, text: x.after ?? '' })))
-    for (const e of r.errors) err('unreflected', items.length ? items.map((x) => x.at).slice(0, 2).join(' · ') : '기록', e.why)
+    const fix = items.filter((x) => x.kind !== '잇기')
+    const r = judgeReflect(record, fix.map((x) => ({ doc: x.doc, heading: x.heading, text: x.after ?? '' })))
+    for (const e of r.errors) err('unreflected', fix.length ? fix.map((x) => x.at).slice(0, 2).join(' · ') : '기록', e.why)
   }
   const excluded = (Array.isArray(input.excluded) ? input.excluded : []).map((x) => ({ name: String(x.name), why: String(x.why || '') }))
   // ── 제안서 글(2-1) ──

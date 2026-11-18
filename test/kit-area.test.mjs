@@ -131,8 +131,8 @@ test('PC /api/agent: 개인 지식 더하기 · 팀 연결은 그대로 · 하�
 })
 
 // 개인 스킬 판(저장 승인 설계 P-D40 · PC2) — 지금 판의 스킬 글 해시(kitParts().ver) 한 줄. 개인 스킬 글 · 개인 덩이 · 작성가이드를 고치면
-//   core/kit.js 의 PC_KIT_REV 를 하나 올리고 이 줄을 새 판 · 새 해시로 바꾼다(판 9: kmd-build 스킬에서 「원본이 주인」 사본 문서 말을 뺐다)
-const PC_KIT_HASH = { 9: '4cc50393' }
+//   core/kit.js 의 PC_KIT_REV 를 하나 올리고 이 줄을 새 판 · 새 해시로 바꾼다(판 10: 생성 룰 3판(R6-5 바뀐 값은 고칠 항목 글에)을 싣는다)
+const PC_KIT_HASH = { 10: 'f3c868aa' }
 test('개인 스킬 판: 스킬 글이 바뀌면 PC_KIT_REV 도 오른다 · {{KIT_REV}} 를 판으로 바꿔 싣는다 · 새 흐름(제안 · 승인 · 메모 없음)', async () => {
   const parts = await kitParts()
   assert.equal(parts.rev, PC_KIT_REV)

@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { workOnce, knownTypes } from '../core/worker.js'
 import { copyDir } from './helpers.mjs'
+import { GEN_RULES_REV } from '../core/genrules.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s, wk, docsDir
@@ -73,7 +74,7 @@ test('세션 일감의 열쇠: 그 지식에만 · 팀 서버는 세션 일감�
   const t = await call('/session')
   assert.match(t.token, /^kmda_/)
   assert.match(t.system, /^아래 「생성 룰」 이 이 일의 규칙이다/)
-  assert.match(t.system, /생성 룰 2판/)
+  assert.match(t.system, new RegExp(`생성 룰 ${GEN_RULES_REV}판`))
   assert.match(t.system, /이 일은 무인 일감이다. 사람에게 묻거나 승인을 기다리지 않는다/)
   assert.match(t.system, /R8 판례를 따름 · 가름 · 벗어남/)
   assert.match(t.prompt, /knowledge id: dpms\)/)

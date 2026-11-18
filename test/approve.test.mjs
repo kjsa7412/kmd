@@ -167,6 +167,17 @@ test('approve: 경위만 기록 = 들어감(글 그대로 · 이은 항목 · �
   assert.equal(pv.proposal, null)
   const sv = await mcp('save', { ...val, proposal: p.proposal, kit: KIT })
   assert.equal(sv.error, 'E_INPUT')
+  // 같은 값이 이은 항목의 지금 글에 다른 뜻으로 이미 있어도(오류율 「1%」) 고칠 항목이 없으면 막는다: 이은 항목은 값을 바꾸지 않은 관련 항목이다
+  //   (2026-11-18 DPMS 「설계 문서 6종」: 바뀐 것 5 · 30초 · 365일 이 잇기 항목들의 다른 줄에 있어 기록만 들어갔다)
+  assert.match(fs.readFileSync(path.join(kdir('apv'), 'docs', '배포절차.md'), 'utf8'), /오류율이 1% 를 넘으면/)
+  const n1 = snap(kdir('apv'))
+  const same = { knowledge: 'apv', record: { title: '카나리: 첫 30분 비율 1%', changes: ['첫 30분 비율: 30% → 1%'], touches: ['proc:카나리'] } }
+  const ps = await mcp('propose', same)
+  assert.deepEqual(ps.errors.map((e) => e.code), ['unreflected'], JSON.stringify(ps.errors))
+  assert.equal(ps.proposal, null)
+  const ss = await mcp('save', { ...same, proposal: p.proposal, kit: KIT })
+  assert.equal(ss.error, 'E_INPUT')
+  assert.equal(snap(kdir('apv')), n1, '아무것도 쓰지 않는다')
 })
 
 test('approve: touchesEmpty = 기록 모음 달 항목(없으면 저장 문이 세움) · 두 번째는 잇기만', async () => {

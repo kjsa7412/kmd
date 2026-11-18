@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import { judgeSection, checkSection, judgeShape, checkShape, foldJudge } from '../core/gate.js'
 import { judgeProposal, checkProposal } from '../core/propose.js'
 import { judgeEdits, applyEdits } from '../core/edits.js'
-import { judgeReflect, judgeId } from '../core/values.js'
+import { judgeReflect, judgeId, reflectNames } from '../core/values.js'
 import { sha16 } from '../core/text.js'
 
 // 작은 지식 — 문서 하나(docs/배포절차.md) · 항목 둘
@@ -143,8 +143,14 @@ test('judgeReflect(본문 반영): 「바뀐 것」 값이 이은 항목 글 · 
   assert.deepEqual(judgeReflect(r, [{ doc: 'docs/배포절차.md', heading: '주기 20초', text: '' }]).errors, [])
   // 경위만(값 없음) — 넘음
   assert.deepEqual(judgeReflect(rec('- 주기 정한 까닭을 적었다'), [item(CUR)]).errors, [])
-  // 이은 항목이 없다 — 오류(기록 모음으로 빠져나가지 않게)
-  assert.match(judgeReflect(r, []).errors[0].why, /이은 항목이 없어/)
+  // 고칠 항목이 없다: 오류(이은 항목 · 기록 모음으로 빠져나가지 않게)
+  assert.match(judgeReflect(r, []).errors[0].why, /고칠 항목\(sections\)이 없어/)
+  // 「옛 → 새」 줄의 새 쪽 영문 이름(파일 · 설정 키)도 새 값이다 · 문서 판(v0.4)은 원본 메타라 요구하지 않는다(O-1)
+  const nm = rec('- 되돌리기: prev jar 손으로 복사 → rollback.ps1\n- 허용 근거: cmdTarget → cmdCodes\n- 운영설계서: v0.1 → v0.2')
+  assert.deepEqual(reflectNames(nm.body), ['rollback.ps1', 'cmdCodes'])
+  assert.deepEqual(judgeReflect(nm, [item('되돌리기는 rollback.ps1 로 한다.')]).errors.map((e) => e.values), [['cmdCodes']])
+  assert.deepEqual(judgeReflect(nm, [item('되돌리기는 `rollback.ps1` 로 한다. 허용 근거는 cmdCodes 다.')]).errors, [])
+  assert.deepEqual(judgeReflect(rec('- 운영설계서: v0.1 → v0.2'), []).errors, [], '문서 판만 바뀐 줄은 값이 아니다')
   // judgeId — 차례 · NFC 와 상관없이 같은 재료면 같다
   assert.equal(judgeId('x', 'a', 'b'), judgeId('x', 'a', 'b'))
   assert.notEqual(judgeId('x', 'a', 'b'), judgeId('y', 'a', 'b'))

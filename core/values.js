@@ -119,25 +119,43 @@ export function groundedIn(text, ...sets) {
   return (v) => flat.includes(v) && [...valuesOf(v)].every((x) => sets.some((s) => s.has(x)))
 }
 
-// 본문 반영 검사(저장 승인 설계 P-D12 · 3-1 「바뀐 것 값이 있는데 본문 바뀜 없음」 · 3-2) — 기록 「바뀐 것」 의 값(mustValues)이
-//   이 기록이 잇는 항목들의 글(이번 저장으로 바뀐 새 글 · 항목 글이 없으면 지금 글)이나 머리 가운데 어디에도 없으면 오류다.
+// 본문 반영 검사(저장 승인 설계 P-D12 · 3-1 「바뀐 것 값이 있는데 본문 바뀜 없음」 · 3-2 · 생성 룰 R6-5): 기록 「바뀐 것」 이 말한 새 값이
+//   이번 저장이 고치거나 세우는 항목(고칠 항목 · sections)의 새 글이나 머리 가운데 어디에도 없으면 오류다.
+//   이은 항목(touches 만 · 글 그대로)은 값을 바꾸지 않은 관련 항목이라 그 지금 글로 대신하지 않는다. 같은 수가 다른 뜻으로 이미 있으면
+//   (재시작 간격 「30초」 를 접수 상한 30초가 받아 줌 · 2026-11-18 DPMS 「설계 문서 6종」) 글을 하나도 고치지 않은 기록이 넘었다.
+//   새 값은 수 · 따옴표 값(mustValues)과, 「무엇: 옛 → 새」 줄의 새 쪽에만 있는 영문 이름(rollback.ps1 · cmdCodes · reflectNames)이다.
 //   경위만 있는 기록(값 없음)은 넘는다.
-//   record — { title, body } · items — [{ doc, heading, text }] → { errors: [{ id, code: 'unreflected', values, why }], values }
-//   쓰지 않고 판정만: 사람 채널은 propose 오류 · 무인 채널은 저장 문 판정(P3 · P6 에서 부른다)
+//   record — { title, body } · items — 고칠 항목 [{ doc, heading, text(새 글) }] → { errors: [{ id, code: 'unreflected', values, why }], values }
+//   쓰지 않고 판정만: 사람 채널은 propose 오류(제안 막음 · 경고가 아니다) · 무인 채널은 저장 문 판정(고쳐 받기 → 다시 시도 · P3 · P6 에서 부른다)
 //   기록 끝 `## 원천`(들인 원천 인용 · core/ingest.js intakeSrcPart)은 기록이 말한 값이 아니라 받은 글이다 — 바뀐 것 칸이 없는 들이기 기록도 원천 값으로 걸리지 않게 뺀다(PC4)
 //   서버가 단 꼴(머리 다음 줄 「- 파일 … · 지문 <16자>」)일 때만 뺀다 — 사람 글이 「## 원천」 머리로 값을 숨겨 반영 검사를 피하지 않게
 const SRC_PART_RE = /^## 원천[ \t]*\r?\n- (?:파일|커밋|다시 들이기|보낸 글) .* · 지문 [0-9a-f]{16}[ \t]*(?:\r?\n|$)/
+// 「무엇: 옛 → 새」 줄의 새 쪽에만 있는 영문 이름(파일 · 설정 키 · 식별자): 수가 아니라 값 장부(valuesOf)에 들지 않는 새 값.
+//   문서 판(v0.4)은 원본 메타라 지식 글에 넣지 않는다(옛 잔재 정리 O-1) · 커밋 해시 · 기록 id 는 경위다
+const NAME_RE = /[A-Za-z_][A-Za-z0-9_.\-]*[A-Za-z0-9_]/g
+const VER_RE = /^v\d+(?:\.\d+)*$/i
+export function reflectNames(body) {
+  const out = new Set()
+  for (const m of mustParts(body).matchAll(ARROW_RE)) {
+    const old = new Set(splitLeft(m[1])[1].match(NAME_RE) || [])
+    for (const n of m[2].replace(HASH_RE, ' ').replace(REC_ID_RE, ' ').match(NAME_RE) || []) if (!old.has(n) && !VER_RE.test(n) && n.length <= 30) out.add(n)
+  }
+  return [...out]
+}
 export function judgeReflect(record, items = []) {
-  const body0 = String(record?.body || '')
-  const values = mustValues(body0.split(/^(?=## )/m).filter((p) => !SRC_PART_RE.test(p)).join(''))
-  if (!values.length) return { errors: [], values }
+  const body0 = String(record?.body || '').split(/^(?=## )/m).filter((p) => !SRC_PART_RE.test(p)).join('')
+  const values = mustValues(body0)
+  const names = reflectNames(body0).filter((n) => !values.includes(n))
+  if (!values.length && !names.length) return { errors: [], values }
+  const texts = items.map((x) => `${x?.heading || ''}\n${x?.text || ''}`)
   const seen = new Set()
-  for (const x of items) for (const v of valuesOf(`${x?.heading || ''}\n${x?.text || ''}`)) seen.add(v)
-  const missing = values.filter((v) => !seen.has(v))
+  for (const t of texts) for (const v of valuesOf(t)) seen.add(v)
+  const flat = texts.join('\n')
+  const missing = [...values.filter((v) => !seen.has(v)), ...names.filter((n) => !flat.includes(n))]
   if (!missing.length) return { errors: [], values }
-  const where = items.length ? '이은 항목 글에' : '이은 항목이 없어 어느 글에도'
+  const where = items.length ? '고칠 항목 글에' : '고칠 항목(sections)이 없어 어느 글에도'
   return {
-    errors: [{ id: judgeId('unreflected', ...items.map((x) => `${x?.doc || ''}#${x?.heading || ''}`).sort(), ...[...missing].sort()), code: 'unreflected', values: missing, why: `기록의 바뀐 것 값이 ${where} 없다: ${missing.slice(0, 3).join(' · ')}. 그 값을 넣는 고칠 항목(sections)을 더하거나, 값이 아니면 바뀐 것에서 뺀다` }],
+    errors: [{ id: judgeId('unreflected', ...items.map((x) => `${x?.doc || ''}#${x?.heading || ''}`).sort(), ...[...missing].sort()), code: 'unreflected', values: missing, why: `기록의 바뀐 것 값이 ${where} 없다: ${missing.slice(0, 3).join(' · ')}. 그 값을 지닌 항목을 고치는 고칠 항목(sections)을 더하거나, 바꾼 값이 아니면 바뀐 것에서 뺀다(이은 항목 touches 는 값을 바꾸지 않은 관련 항목이라 그 지금 글로 대신하지 않는다 · 생성 룰 R6-5)` }],
     values,
   }
 }
