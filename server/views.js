@@ -333,7 +333,7 @@ export function tree(k) {
 
 // 이 문서를 가리키는 것 — 기록(이 문서의 항목을 건드린 것) · 문서(이 문서를 링크한 것) · 이름만 나온 곳
 function backlinks(k, d) {
-  const recs = k.works.filter((w) => w.id === d.rec || w.touches.some((c) => sectionOf(k, c)?.loc?.doc === d.path))
+  const recs = k.works.filter((w) => w.touches.some((c) => sectionOf(k, c)?.loc?.doc === d.path))
   const linkers = k.docs.filter((o) => o !== d && linksOf(o, k).includes(d.id))
   const names = [d.title, ...d.sections.flatMap((s) => coordsOfSection(k, d, s.h).flatMap((c) => [labelOf(k, c), ...(k.vocab.coords.get(c)?.aliases || [])]))].filter((x) => x && x.length >= 2)
   const uniq = [...new Set(names)]
@@ -346,10 +346,10 @@ function backlinks(k, d) {
   return { recs: recs.map(recRow), linkers: linkers.map((o) => ({ id: o.id, title: o.title })), ments }
 }
 
-// 기록 ↔ 문서 — 항목 표지(applied)와 정리 기록의 reflects 로 잇는다. 건드린 항목(touches)이 없는 넣은 파일 기록도
+// 기록 ↔ 문서 — 항목 표지(applied)와 기록의 reflects(가져올 곳 이력이 단다)로 잇는다. 건드린 항목(touches)이 없는 넣은 파일 기록도
 // 어느 문서 · 항목으로 갔는지, 문서가 어느 기록에서 왔는지 보인다(touches 만 보면 둘 다 0 이었다)
 const placedBy = (k, w) => [...k.works, ...k.logs].filter((o) => o !== w && o.reflects?.includes(w.id))
-// 상태 「문서에 들어감」(recordState) 과 같은 판정 — 항목 표지가 이 기록(또는 넣은 정리)인 곳만이 아니라
+// 상태 「문서에 들어감」(recordState) 과 같은 판정 — 항목 표지가 이 기록(또는 이 기록을 reflects 로 넣은 기록)인 곳만이 아니라
 //   저장 문이 넣었다고 적은 항목(넣은 것 칸 · 되돌린 항목 빼고) · 글 그대로 이은 항목(이은 항목 칸 · same 에도 적는다) · 건드린 항목에 더 늦은 기록이 들어 이 기록도 든 곳(reflectedIn)까지.
 //   표지만 보면 나중 기록이 같은 항목을 고친 순간 「들어감」 기록의 문서가 「없다」 로 보인다
 function landedIn(k, w, ids) {
@@ -366,11 +366,6 @@ function landedIn(k, w, ids) {
     return same.length ? { ...x, same } : x
   })
   for (const d of k.docs) {
-    // 문서 감시의 사본 — 문서 전체가 표지의 기록(rec)에서 왔다
-    if (d.rec && ids.has(d.rec)) {
-      for (const s of d.sections) add(d, s.h)
-      continue
-    }
     for (const s of d.sections) if (s.applied && ids.has(s.applied)) add(d, s.h)
   }
   if (w.state !== 'in') return done()
@@ -403,12 +398,6 @@ function originsOf(k, d) {
     const x = m.get(w.id)
     if (h != null && !x.hs.includes(h)) x.hs.push(h)
   }
-  // 문서 감시의 사본 — 표지의 기록(rec) 이 문서 전체를 들였다
-  const r0 = d.rec && k.byWork.get(d.rec)
-  if (r0) {
-    add(r0, 'rec', null)
-    for (const s of d.sections) add(r0, 'rec', s.h)
-  }
   for (const s of d.sections) {
     const a = s.applied && k.byWork.get(s.applied)
     if (!a) continue
@@ -423,7 +412,7 @@ export const atTag = (docId, heading) => 'at/' + sha16(`${docId}\n${String(headi
 export function docView(k, docId, { edit = false } = {}) {
   const d = k.docs.find((x) => x.id === docId)
   if (!d) return null
-  const last = [...d.sections.map((s) => s.applied && k.byWork.get(s.applied)), d.rec && k.byWork.get(d.rec)].filter(Boolean).sort((a, b) => b.date.localeCompare(a.date))[0]
+  const last = d.sections.map((s) => s.applied && k.byWork.get(s.applied)).filter(Boolean).sort((a, b) => b.date.localeCompare(a.date))[0]
   const sections = d.sections.map((s) => {
     const coords = coordsOfSection(k, d, s.h)
     // 항목 장부에 없는 항목을 화면에서 고친 기록 — 「at/<문서 · 머리 지문>」 으로 이 항목에 선다(넣을 곳은 관리자가 고른다)
@@ -472,7 +461,7 @@ export function recView(k, id) {
   })
   const fixes = w.fixes.map((f) => k.byWork.get(f)).filter(Boolean).map(recRow)
   const fixedBy = [...k.works, ...k.logs].filter((o) => o.fixes.includes(w.id)).map(recRow)
-  // 이 기록이 간 곳 — 이 기록(또는 이 기록을 넣은 정리)이 표지로 남은 항목 · 정리 기록이면 그 정리가 넣은 기록
+  // 이 기록이 간 곳 — 이 기록(또는 이 기록을 reflects 로 넣은 기록)이 표지로 남은 항목 · reflects 가 있는 기록이면 그 기록이 넣은 기록
   const via = placedBy(k, w)
   const went = landedIn(k, w, new Set([w.id, ...via.map((o) => o.id)]))
   const from = (w.reflects || []).map((x) => k.byWork.get(x)).filter(Boolean).map(recRow)

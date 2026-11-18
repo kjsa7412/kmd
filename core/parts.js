@@ -164,14 +164,8 @@ export function parseLinked(body) {
 export const FRESH_DAYS = 14
 const FRESH_KINDS = ['문서', '항목', '이름', '갈래', '종류', '성격']
 // 보이는 말 — 줄 머리(저장 꼴)는 그대로 두고 화면 · 지표에는 새 말로
-//   「성격」 = 문서 성격 줄(「문서: 성격」): 지식 생성 하네스 H2(엮기가 짓는다)
+//   「성격」 = 문서 성격 줄(「문서: 성격」): 새 문서와 같이 세운다(저장 입력 natures · kmd-migrate 엮기)
 export const FRESH_LABEL = Object.freeze({ 문서: '문서', 항목: '항목(문서)', 이름: '항목(장부)', 갈래: '갈래', 종류: '종류', 성격: '문서 성격' })
-// 지은 근거(지식 생성 하네스 H-D18) — 판단 칸을 한 줄씩: 「<한 일> <자리>: <조문 번호> · <판례 열쇠> <태도>(<다른 것이나 어긋난 조문> · <까닭>)」 · 판례가 없으면 「판례 없음」.
-//   엮기(core/weave.js inputFromItems)가 지은 줄만 싣는다 · 사람 입력의 같은 머리는 거절한다(KMD_PART_RE)
-export function renderJudge(lines) {
-  const xs = (Array.isArray(lines) ? lines : []).map((x) => String(x || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 600)).filter(Boolean).slice(0, 120)
-  return xs.length ? `## ${JUDGE_PART}\n${xs.map((x) => `- ${x}`).join('\n')}` : ''
-}
 export function renderFresh(rows) {
   const xs = (rows || []).filter((r) => FRESH_KINDS.includes(r?.kind) && r.name && !/[\r\n]/.test(String(r.name)))
   return xs.length ? `## ${FRESH_PART}\n${xs.map((r) => `- ${r.kind} ${r.name}`).join('\n')}` : ''
@@ -179,7 +173,7 @@ export function renderFresh(rows) {
 export function parseFresh(body) {
   const b = lineBlock(body, FRESH_PART)
   if (b == null) return []
-  return b.split('\n').map((l) => l.match(/^- (문서|항목|이름|갈래|종류) (.+)$/)).filter(Boolean).map((m) => ({ kind: m[1], name: m[2].trim() }))
+  return b.split('\n').map((l) => l.match(/^- (문서|항목|이름|갈래|종류|성격) (.+)$/)).filter(Boolean).map((m) => ({ kind: m[1], name: m[2].trim() }))
 }
 // fresh 표지 — 최근 days 안에 선 기록이 새로 세운 것(그 뒤 저절로 떨어진다 · 지식관리자의 조치를 기다리지 않는다)
 //   works — [{ id, date('YYYY-MM-DD HH:MM'), author, body }] → [{ kind, name, rec, date, author }]

@@ -32,7 +32,7 @@ export function draftBad(t, cur = '', { doc = null, old = null } = {}) {
 }
 
 // 판정 나누기(저장 승인 설계 P1 · 3-1 · 3-2) — 오류(errors)와 경고(warnings)를 따로 낸다. 쓰지 않고 판정만.
-//   오류: { id, code(conflict · format · machine), why, stale? } — 고쳐 다시 보내야 하는 것(지문 · 꼴 · 표지 · 섞인 자리)
+//   오류: { id, code(conflict · format), why, stale? } — 고쳐 다시 보내야 하는 것(지문 · 꼴 · 표지 · 섞인 자리)
 //   경고: { id, code(missing · invented · lost), doc, heading, values, why } — 값 대조(빠진 값 · 지어낸 값 · 옛 값 빠짐).
 //   id 는 같은 입력이면 같다(judgeId: 갈래 · 문서 · 머리 · 값) — 제안서 해시 · 받아들인 경고가 이 id 를 쓴다(P2 · P3).
 //   checkSection 은 이 판정을 「못 넘음」 하나로 접는다(오류가 먼저 · 경고는 빠진 → 지어낸 → 빠진 옛 값 차례).
@@ -100,7 +100,7 @@ export function checkSection(k, input) {
 // 문서 짜임의 글 걸음 검사(바탕 세우기 설계 4-5 · 권한 모델 7-2) — 나누기 · 합치기 · 엮임 · 문서 요약 · 바탕 새 항목. 팀 · 개인 모두 돈다.
 //   unit — { targets: [{ doc(docs/x.md), h, content }], sources: [{ doc, h, base }], intros: [{ doc, text, ground }], ground?(바탕: 재료 글) }
 //   근거는 출처 항목의 지금 글(바탕은 재료 글)뿐이다 — 기록 본문 · 제목은 근거가 아니다(「기록에도 같이 지어 넣으면 넘는」 구멍)
-//   judgeShape → { errors: [{ id, code(conflict · format · machine), why, stale? }], warnings: [{ id, code(invented · lost · dropped), doc, heading, values, why }], lint }
+//   judgeShape → { errors: [{ id, code(conflict · format), why, stale? }], warnings: [{ id, code(invented · lost · dropped), doc, heading, values, why }], lint }
 //     (저장 승인 설계 P1 · P-D24: 오류는 P7 부터 걸음 입력 오류 · 값 경고는 측정만). 출처가 없거나 바뀌었으면(conflict) 값은 보지 않는다.
 export function judgeShape(k, unit) {
   const errors = []

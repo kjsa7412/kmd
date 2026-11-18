@@ -165,8 +165,9 @@ function oldView(all) {
   }
 }
 // 지식 하나를 옛 읽기로 본 기록 상태(대 보기의 「앞」 · 시험이 옮기기 전 상태를 잰다): put 기록은 지금 상태 · 그 밖은 옛 상태
-//   work/ 의 이력 태그 기록은 옛 읽기에서 이력이라 뺀다
-export function oldStates(k) {
+//   work/ 의 이력 태그 기록은 옛 읽기에서 이력이라 뺀다 · abs(지식 폴더)에서 옛 머리말 curates 를 읽어 단다(loadKnowledge 의 기록은 이 칸이 없다)
+export async function oldStates(k, abs) {
+  await withCurates(k, abs)
   const s = oldView([...k.works, ...k.logs])
   const out = new Map()
   for (const w of k.works) {
@@ -1044,6 +1045,15 @@ export async function plan(dir, { personal = false, drop: drop0 = [] } = {}) {
     }
   }
   {
+    // 가져올 곳의 옛 규칙 files(G5b 에서 실행을 걷었다 · 지금 코드는 아무것도 하지 않는다): 지울지 다른 규칙으로 바꿀지는 사람이 정한다
+    const t = await textOf('_sources.json')
+    let decl = null
+    try { decl = t == null || !t.trim() ? null : JSON.parse(t) } catch { J('가져올 곳 선언을 읽지 못함', '_sources.json', 1, 'json 이 아니다') }
+    const srcs = Array.isArray(decl) ? decl : Array.isArray(decl?.sources) ? decl.sources : []
+    const files = srcs.filter((s) => (Array.isArray(s?.rules) ? s.rules : []).some((r) => r?.rule === 'files')).map((s) => String(s?.name || '?'))
+    J('가져올 곳의 옛 규칙 files', `_sources.json ${files.join(' · ')}`, files.length, '지금 코드는 이 규칙을 돌리지 않는다: 규칙을 지우거나 문서 폴더(docs) · git 가져올 곳으로 다시 세운다')
+  }
+  {
     const t = await textOf('_members.md')
     if (t != null) {
       const { text: a, stuck } = membersFix(nl(t))
@@ -1270,13 +1280,13 @@ export async function verifyPlan(dir, p) {
       if (t == null) await fs.rm(to, { force: true })
       else { await fs.mkdir(path.dirname(to), { recursive: true }); await fs.writeFile(to, t) }
     }
-    const A = await withCurates(await loadKnowledge({ id: 'a', name: 'a', dir: abs }), abs)
+    const A = await loadKnowledge({ id: 'a', name: 'a', dir: abs })
     const B = await loadKnowledge({ id: 'b', name: 'b', dir: tmp })
     const why = []
     const gone = new Set([...(p.gone || []), ...(p.moved || [])])
     const after = new Map(B.works.map((w) => [w.id, w]))
     // 앞(옛 꼴)의 상태는 옛 읽기로 본다: put 이 없는 기록 · work/ 의 이력 태그 기록(옛 읽기는 이력으로 보았다)
-    const sA = oldStates(A)
+    const sA = await oldStates(A, abs)
     const stateA = (w) => sA.get(w.id)
     for (const w of A.works) {
       if (gone.has(w.id) || isLogRecord(w.tags)) continue

@@ -198,7 +198,7 @@ kmd 를 처음부터 끝까지 한 장에 담는다. 무엇을 하는 서비스�
 
 | MCP 도구 | 하는 것 |
 |---|---|
-| `brief` | 지식 목록 · 지식 하나의 문서 · 최근 기록 · 알릴 것 · 갈래 서식 · 저장 방식 `saveMode`(늘 approve) · 스킬 판 `kit`(지금 판은 brief 의 `kit` · `core/teamkit.js` `TEAM_KIT_REV` · `core/kit.js` `PC_KIT_REV` · 측정 줄에만 싣는다) · 팀이면 지식마다 `mine`(승인으로 경고를 받아들인 내 기록 수 `accepted` · 지식 하나는 `you.recent` 에 제목 · 까닭) |
+| `brief` | 지식 목록 · 지식 하나의 문서 · 최근 기록 · 알릴 것 · 갈래 서식 · 스킬 판 `kit`(지금 판은 brief 의 `kit` · `core/teamkit.js` `TEAM_KIT_REV` · `core/kit.js` `PC_KIT_REV` · 측정 줄에만 싣는다) · 팀이면 지식마다 `mine`(승인으로 경고를 받아들인 내 기록 수 `accepted` · 지식 하나는 `you.recent` 에 제목 · 까닭) |
 | `match` | 이름으로 항목 찾기(항목 값 · 라벨 · 별칭 · 머리가 같으면 확정 · 문서 제목이 같으면 그 문서의 머리 목록 · 문서 없는 항목은 뒤로) |
 | `search` | 말 → 항목 후보와 자리 없는 글 토막 |
 | `section` | 항목 하나의 지금 글 · 지문(base) · 그 항목을 건드린 기록 · 항목 이력(`history`) |

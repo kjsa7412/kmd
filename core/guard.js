@@ -136,10 +136,10 @@ const ONE_LINE = (v, n) => typeof v === 'string' && v.trim().length > 0 && v.len
 const badKeys = (o) => Object.keys(o).some((x) => BAD_NAMES.has(x))
 const plainObj = (o) => o && typeof o === 'object' && !Array.isArray(o) && Object.getPrototypeOf(o) === Object.prototype
 export function proposeInputWhy(input) {
-  if (!plainObj(input) || badKeys(input)) return '제안은 { record, sections, names, forms, kinds, distinct, excluded } 이다'
+  if (!plainObj(input) || badKeys(input)) return '제안은 { record, sections, names, forms, natures, kinds, distinct, excluded } 이다'
   if (input.proposal != null && !(typeof input.proposal === 'string' && /^[0-9a-f]{64}$/.test(input.proposal))) return 'proposal 은 propose 가 준 64자 지문이다'
   const list = (k, n = PROPOSE_LIST_MAX) => input[k] == null || (Array.isArray(input[k]) && input[k].length <= n)
-  for (const k of ['distinct', 'excluded', 'forms', 'kinds', 'names']) if (!list(k)) return `${k} 는 ${PROPOSE_LIST_MAX}개 안의 목록이다`
+  for (const k of ['distinct', 'excluded', 'forms', 'natures', 'kinds', 'names']) if (!list(k)) return `${k} 는 ${PROPOSE_LIST_MAX}개 안의 목록이다`
   for (const x of input.distinct || []) if (!ONE_LINE(x, 200) || BAD_NAMES.has(x.trim())) return 'distinct 는 받아들일 이름(한 줄 200자 안)의 목록이다'
   for (const x of input.excluded || []) {
     if (!plainObj(x) || badKeys(x) || Object.keys(x).some((y) => !['name', 'why'].includes(y))) return 'excluded 는 { name, why } 의 목록이다'
@@ -164,6 +164,12 @@ export function proposeInputWhy(input) {
     for (const y of ['doc', 'heading']) if (n[y] != null && !ONE_LINE(n[y], 300)) return `항목의 ${y} 는 한 줄 300자 안이다`
     // 뜻 한 줄(gist) · 새 종류의 뜻(kindGist): 지식 생성 하네스 H2
     for (const y of ['gist', 'kindGist']) if (n[y] != null && !ONE_LINE(n[y], 80)) return `항목의 ${y} 는 한 줄 80자 안이다`
+  }
+  // 새 문서의 으뜸 성격과 요약(생성 룰 R3-4 · R7-2): 같은 제안이 세우는 문서에만(판정은 core/propose.js buildProposal)
+  for (const x of input.natures || []) {
+    if (!plainObj(x) || badKeys(x) || Object.keys(x).some((y) => !['doc', 'nature', 'summary'].includes(y))) return 'natures 는 { doc, nature, summary } 의 목록이다'
+    if (!ONE_LINE(x.doc, 200) || !FORM_KINDS.includes(x.nature)) return `natures 의 doc 은 한 줄 200자 안 · nature 는 성격 아홉(${FORM_KINDS.join(' · ')}) 가운데 하나다`
+    if (x.summary != null && !(typeof x.summary === 'string' && x.summary.length <= 300 && !/[\r\n]/.test(x.summary))) return 'natures 의 summary 는 한 줄 300자 안이다(요약 1 ~ 3문장)'
   }
   return null
 }
@@ -355,8 +361,7 @@ export const RECORDS_DOC_PATH = `docs/${RECORDS_DOC}.md`
 export const RECORDS_INTRO = '이을 항목이 없던 기록을 달마다 잇는다. 기록은 각 달 항목의 이력으로 붙는다.'
 export const RECORDS_MONTH_TEXT = '이 달에 이을 항목이 없던 기록을 잇는다.'
 export const isRecordsMonth = (h) => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(h || '').trim())
-//   depart — 벗어남을 적은 새 문서(H-D17 다 · H4c 부터 건다): 별칭 품기와 닫힌 갈래를 넘는다(머리 꼴 · 폴더 · 이름 모양은 그대로 본다)
-export function guardNewDoc(forms, docRel, headings = [], { depart = false } = {}) {
+export function guardNewDoc(forms, docRel, headings = []) {
   const errors = []
   const p = nfc(String(docRel)).replace(/\\/g, '/').replace(/^docs\//, '').replace(/\.md$/, '')
   const parts = p.split('/')
@@ -368,10 +373,9 @@ export function guardNewDoc(forms, docRel, headings = [], { depart = false } = {
   }
   if (FILEISH.some((re) => re.test(name))) errors.push({ code: 'E_INPUT', message: `새 문서 이름 「${name}」 에 파일 이름 조각(날짜 · 판 · 최종 · 확장자)이 있다. 문서 이름은 갈래 · 주제로 짓는다(예: 회의록 · 게이트웨이 설계 · 생성 룰 R3-6)` })
   if (name.length > 40) errors.push({ code: 'E_INPUT', message: `새 문서 이름이 너무 길다(40자 안). 문서 이름은 갈래 · 주제다(생성 룰 R3-6)` })
-  const f0 = formFor(forms, name)
-  const f = f0 && depart && norm(f0.name) !== norm(name) ? null : f0
+  const f = formFor(forms, name)
   if (f && norm(f.name) !== norm(name)) errors.push({ code: 'E_INPUT', form: f.name, message: `「${name}」 은 「${f.name}」 갈래다. 새 문서를 세우지 않고 「${f.name}」 문서에 항목(「언제 · 무엇」)으로 넣는다(생성 룰 R3-2: 같은 성격을 모으는 문서는 하나로 둔다)` })
-  if (!f && forms.closed && !depart) errors.push({ code: 'E_INPUT', message: `「${name}」 은 갈래 장부에 없는 문서다(이 지식은 새 문서가 닫음이다 · 생성 룰 R3-4). 있는 갈래(${forms.rows.map((x) => x.name).slice(0, 8).join(' · ')}${forms.rows.length > 8 ? ' …' : ''}) 문서에 넣거나, 같은 저장 제안에 새 갈래 줄(forms)을 실어 세운다` })
+  if (!f && forms.closed) errors.push({ code: 'E_INPUT', message: `「${name}」 은 갈래 장부에 없는 문서다(이 지식은 새 문서가 닫음이다 · 생성 룰 R3-4). 있는 갈래(${forms.rows.map((x) => x.name).slice(0, 8).join(' · ')}${forms.rows.length > 8 ? ' …' : ''}) 문서에 넣거나, 같은 저장 제안에 새 갈래 줄(forms)을 실어 세운다` })
   if (f && f.folder && folder !== f.folder) errors.push({ code: 'E_INPUT', form: f.name, message: `「${f.name}」 갈래 문서는 「${f.folder}/」 폴더에 둔다` })
   if (f) {
     const bad = headings.filter((h) => !headingFits(f, h))

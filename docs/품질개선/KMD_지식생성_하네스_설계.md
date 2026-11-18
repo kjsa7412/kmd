@@ -430,13 +430,13 @@ judge: {
 
 ### 5-2. `save` 입력 꼴(하나: `sections · names · forms` · 옛잔재 O-11)
 
-저장 입력은 한 꼴이다(옛잔재 정리 O-11): `record`(일곱 칸 · `touches` | `touchesEmpty` · `fixes`) + `sections[{ coord | doc · heading, base, edits | content }]`(고칠 항목 · `edits` 한 칸은 「바꿀 곳」) + `names[{ coord, label, aliases?, doc, heading, … }]`(장부에 세울 항목 · 값은 빈칸 없는 열쇠) + `forms[{ name, aliases, folder?, kind, … }]`(세울 갈래) + `kinds`(새 종류) · `distinct`(가름) · `excluded[{ name, why }]`(뺀 것). CLAUDE.md · MCP · kmd-migrate · 스킬 · 무인 프롬프트(`server/hub.js` 의 세션 system 글 · 생성 룰 덧붙임 `PROFILES.agent` 의 「내는 것」)가 모두 이 꼴을 가르친다.
+저장 입력은 한 꼴이다(옛잔재 정리 O-11): `record`(일곱 칸 · `touches` | `touchesEmpty` · `fixes`) + `sections[{ coord | doc · heading, base, edits | content }]`(고칠 항목 · `edits` 한 칸은 「바꿀 곳」) + `names[{ coord, label, aliases?, doc, heading, … }]`(장부에 세울 항목 · 값은 빈칸 없는 열쇠) + `forms[{ name, aliases, folder?, kind, … }]`(세울 갈래) + `natures[{ doc, nature, summary }]`(새 문서의 으뜸 성격과 요약) + `kinds`(새 종류) · `distinct`(가름) · `excluded[{ name, why }]`(뺀 것). CLAUDE.md · MCP · kmd-migrate · 스킬 · 무인 프롬프트(`server/hub.js` 의 세션 system 글 · 생성 룰 덧붙임 `PROFILES.agent` 의 「내는 것」)가 모두 이 꼴을 가르친다.
 
 - 2판(`items · docs · skip` · H4c 에서 정했던 꼴)은 걷었다(옛잔재 G5a). MCP `save` · `propose` 의 스키마에 없고, 그 칸이 오면 저장 문(`hub` 의 `inputIn`)이 지금 꼴을 알려 주는 `E_INPUT` 으로 돌려준다(아무것도 쓰지 않는다). 엮기(`core/weave.js` `weave`)는 들이기 초안(`core/ingest.js`)과 `kmd-migrate put` 만 부른다.
 - 처리 넷(R2-2)과 칸의 대응: 고침 = `sections` 의 있는 항목(`base` 와 같이) · 새 항목 = `sections` 의 새 머리(장부에 올릴 것은 `names` 로 같이) · 그대로 = 보내지 않는다 · 뺌 = `excluded` 한 줄.
 - 무인 세션이 넣을 것이 없으면(R6-3) `sections` · `names` · `forms` · `kinds` 를 비우고 `excluded` 만 보낸다: 아무것도 쓰지 않고 일감은 「넣을 것 없음」 으로 닫힌다(H-D26 · H-O8).
 - 무인 저장 문도 새 갈래(`forms`) · 새 종류(`kinds`)를 사람 채널과 같은 제안 판정(`buildProposal`)으로 받는다(2판에서 엮기가 짓던 갈래 줄을 세션이 직접 적는다).
-- 저장 문이 짓는 칸(`natures` · `depart` · `judge`)은 바깥에서 받지 않는다(저장 문이 걷는다). 2판이 걷히면서 이 칸을 짓는 길이 없어졌다: 무인 저장의 기록 끝 `## 지은 근거` · 문서 성격 줄 · 태도 수 측정(`acts` · `prec` · `none` · `miss`)은 서지 않는다. 무인 측정 줄에는 판(`rev`)과 앞선 값 카드 수(`prior`)만 남는다.
+- 새 문서의 성격 줄은 `natures[{ doc, nature, summary }]` 로 같은 제안에 싣는다(생성 룰 R3-4 · R7-2 · 옛잔재 G5): 이 제안의 `sections` 가 세우는 새 문서에만 받고(있는 문서 · 다른 문서는 제안 오류 `nature`) 판정은 `buildProposal` 이 한다. 갈래가 없는 새 문서에 성격 줄이 없으면 경고 `nature`(사람 채널은 승인이 받아들임 · 무인은 「값 대조」 로 잰다). 2판이 짓던 `depart`(벗어남) · `judge`(지은 근거)는 받는 길과 함께 걷었다(G5): 무인 저장의 기록 끝 `## 지은 근거` · 태도 수 측정(`acts` · `prec` · `none` · `miss`)은 서지 않는다. 무인 측정 줄에는 판(`rev`)과 앞선 값 카드 수(`prior`)만 남는다.
 - 무인 세션은 저장 제안(`propose`)을 쓰지 않는다: 승인할 사람이 없으므로 `save` 가 바로 무인 저장 문을 지난다(MCP `propose` 는 무인 세션에 입력 오류로 그렇게 알린다 · H4a-1 에서 실제 세션이 제안서만 내고 끝난 것을 보고 넣었다).
 - `distinct` 는 가름으로 읽는다(까닭 없음). 세션의 의무 시점은 H-O9.
 - 올려 세우기는 두지 않는다(H-D31).

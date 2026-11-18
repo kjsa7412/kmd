@@ -118,9 +118,9 @@ test('G4 — 새 문서: 파일 이름 조각 · 갈래의 별칭 · 갈래 장�
   assert.equal(own.closed, true)
   assert.match(guardNewDoc(own, 'docs/전화통화기록.md').errors[0].message, /회의록/) // 품기 맞춤은 모으는 갈래(사건 · 보고 · 대장)에만
   assert.match(guardNewDoc(own, 'docs/1.2_사업관리/회의록.md', ['HNC 통화']).errors[0].message, /YYYY-MM-DD/)
-  // 벗어남을 적은 새 문서는 별칭 품기와 닫힌 갈래를 넘는다(이름 모양은 그대로 본다)
-  assert.equal(guardNewDoc(own, 'docs/회의 운영 규칙.md', ['주간 회의'], { depart: true }).errors.length, 0)
-  assert.match(guardNewDoc(own, 'docs/회의 운영 규칙_v2.md', [], { depart: true }).errors[0].message, /파일 이름 조각/)
+  // 벗어남 옵션(depart)은 2판과 함께 걷었다: 닫힌 갈래 밖 문서 · 파일 이름 조각은 그대로 걸린다
+  assert.match(guardNewDoc(own, 'docs/회의 운영 규칙.md', ['주간 회의']).errors[0].message, /갈래 장부에 없는 문서|회의록/)
+  assert.match(guardNewDoc(own, 'docs/회의 운영 규칙_v2.md', []).errors[0].message, /파일 이름 조각/)
   // 「새 문서: 열림」 줄이 있으면 갈래 밖 문서도 선다 · 문서 성격 표는 갈래 줄이 아니다(세 칸)
   const open = formsOf('# 갈래 장부\n\n- 새 문서: 열림\n\n| 갈래 | 별칭 | 폴더 | 종류 | 항목 | 서식 |\n|---|---|---|---|---|---|\n| 회의록 | 회의, 미팅 | - | 사건 | - | - |\n| 설계서 | 설계 | - | 대상 | - | - |\n\n## 문서 성격\n\n| 문서 | 성격 | 요약 |\n|---|---|---|\n| 게이트웨이 설계 | 대상 | 게이트웨이의 구성 요소를 적는다 |\n')
   assert.deepEqual([open.own, open.closed, open.rows.map((f) => f.name), [...open.natures.keys()]], [true, false, ['회의록', '설계서'], ['게이트웨이 설계']])

@@ -36,7 +36,7 @@ export function placeOf(k, { coord, doc, heading }) {
 }
 
 // 제안 하나의 판정(저장 승인 설계 P1) — 쓰지 않고 오류 · 경고를 나눠 낸다
-//   → { text?(바꿀 곳을 다 댄 새 글), at?(항목 자리), errors: [{ id, code(notfound · conflict · edits · format · machine), why, stale?, near?, at? }],
+//   → { text?(바꿀 곳을 다 댄 새 글), at?(항목 자리), errors: [{ id, code(notfound · conflict · edits · format), why, stale?, near?, at? }],
 //       warnings: [{ id, code(missing · invented · lost · remain), doc, heading, values, why }], changed, lint }
 //   remain(기록이 바꿨다는 옛 값이 글에 아직 남음)은 막지 않는 알림이다. 다른 값 경고는 checkProposal 에서 「못 넘음」
 export function judgeProposal(k, { coord, doc, heading, base, edits, record, spread = false }) {
@@ -141,10 +141,9 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
   // 새 문서 갈래 — 같은 제안이 세우는 갈래까지(장부가 없던 지식도 이 제안으로 장부가 선다)
   const formsIn = (Array.isArray(input.forms) ? input.forms : []).filter((f) => f && typeof f.name === 'string' && f.name.trim())
   //   저장과 같은 함수로 본다(formsAfter · H-D14): 갈래 장부가 없던 지식은 이 제안의 갈래 줄이 서면 기본 갈래가 사라진다
-  // 엮기가 지은 칸(지식 생성 하네스 H4c · core/weave.js inputFromItems) — 벗어남을 적은 새 문서 · 지은 근거 줄
-  const departIn = (Array.isArray(input.depart) ? input.depart : []).filter((x) => typeof x === 'string').map((x) => x.normalize('NFC').replace(/^docs\/|\.md$/g, ''))
-  const judgeIn = (Array.isArray(input.judge) ? input.judge : []).filter((x) => typeof x === 'string' && x.trim()).map((x) => x.replace(/[\r\n]+/g, ' ').trim().slice(0, 600)).slice(0, 120)
-  const naturesIn = (Array.isArray(input.natures) ? input.natures : []).filter((x) => x && typeof x.doc === 'string' && x.doc.trim())
+  // 새 문서의 으뜸 성격과 요약(생성 룰 R3-4 · R7-2): 같은 제안이 세우는 새 문서에만 받는다(아래 판정)
+  const docRel = (x) => String(x).replace(/\\/g, '/').replace(/^\/+/, '').replace(/^docs\//, '').replace(/\.md$/, '').trim().normalize('NFC')
+  const naturesIn = (Array.isArray(input.natures) ? input.natures : []).filter((x) => x && typeof x.doc === 'string' && x.doc.trim()).map((x) => ({ ...x, doc: docRel(x.doc) }))
   const formsNow = approve && (formsIn.length || naturesIn.length) ? formsAfter(k.formsRaw != null ? k.formsRaw : k.forms.own ? upsertForms('', k.forms.rows) : '', formsIn.map((f) => ({ ...f, name: f.name.trim().normalize('NFC') })), naturesIn) : k.forms
   const distinct = new Set((input.distinct || []).map((x) => nearKey(x)))
   const passes = (name) => distinct.has(nearKey(name))
@@ -185,7 +184,7 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
       const heading = String(s.heading ?? '').trim().normalize('NFC')
       if (!newDoc) { err('newdoc', where, `「${rel}」 문서가 없다. 새 문서는 지식관리자가 세운다(you.ledgers) · 있는 문서 · 머리로 가리킨다`); continue }
       if (typeof s.content !== 'string') { err('newdoc', where, '새 문서의 항목은 글 전체(content)로 보낸다'); continue }
-      const g = guardNewDoc(formsNow, rel, [heading], { depart: departIn.includes(rel) })
+      const g = guardNewDoc(formsNow, rel, [heading])
       for (const e of g.errors) err('format', where, e.message)
       const name = rel.split('/').pop()
       const r = nearOf(k.docs.flatMap((d) => [d.id.split('/').pop(), d.title]), name)
@@ -229,6 +228,17 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
     const missing = mustValues(record.body).filter((v) => !all.has(v))
     if (missing.length) warnings.push({ id: judgeId('missing', '', '', ...[...missing].sort()), code: 'missing', at: '기록', why: `기록의 값이 글에 없다: ${missing.slice(0, 3).join(' · ')}`, values: missing })
   }
+  // 문서 성격 줄(R3-4 · 세울 때 한 번 정한다): 이 제안이 세우는 새 문서에만 · 한 문서에 하나
+  //   갈래가 없는 새 문서에 성격이 없으면 경고(점검의 「성격 없음」 이 된다)
+  const newDocSet = new Set(newDocs.map((d) => d.doc))
+  const natSeen = new Set()
+  for (const x of naturesIn) {
+    const at = `docs/${x.doc}.md`
+    if (!newDocSet.has(at)) err('nature', at, `성격 줄(natures)은 이 제안이 세우는 새 문서에만 단다. 「${x.doc}」 는 ${k.docs.some((d) => d.id === x.doc) ? '있는 문서다(성격은 세울 때 한 번 정한다 · 생성 룰 R3-4)' : '이 제안의 sections 가 세우는 문서가 아니다'}`)
+    else if (natSeen.has(x.doc)) err('nature', at, '한 문서에 성격 줄은 하나다')
+    natSeen.add(x.doc)
+  }
+  if (approve) for (const d of newDocs) if (!d.form && !natSeen.has(docRel(d.doc))) warnings.push({ id: judgeId('nature', d.doc, ''), code: 'nature', at: d.doc, why: '새 문서의 으뜸 성격과 요약이 없다(생성 룰 R3-4 · R7-2): natures 에 { doc, nature, summary } 를 같이 싣는다' })
   // 새 항목(장부) · 새 종류(P-D10) — 장부에 없던 것만 · 모양(G1)은 guardNames
   const kinds = new Set([...k.vocab.coords.keys()].map((c) => c.slice(0, c.indexOf(':'))))
   const names = (Array.isArray(input.names) ? input.names : []).filter((n) => n && typeof n.coord === 'string')
@@ -322,11 +332,10 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
   sect('고칠 항목', rowsFix)
   const first = (t) => { const l = String(t || '').split('\n').map((y) => y.trim()).find(Boolean) || ''; return l.length > 60 ? l.slice(0, 59) + '…' : l }
   sect('새 항목(문서)', items.filter((x) => x.kind === '신설').map((x) => `  ${x.at}   신설   ${first(x.after)}`))
-  const natureOf = (doc) => naturesIn.find((x) => `docs/${String(x.doc).replace(/^docs\//, '').replace(/\.md$/, '').normalize('NFC')}.md` === doc)?.nature || ''
+  const natureOf = (doc) => naturesIn.find((x) => `docs/${x.doc}.md` === doc)?.nature || ''
   sect('새 문서', newDocs.map((d) => `  ${docName(d.doc)}   신설${d.form ? `   갈래: ${d.form}` : ''}${natureOf(d.doc) ? `   성격: ${natureOf(d.doc)}` : ''}${d.near.length ? ` · 비슷한 문서 ${d.near.join(' · ')}` : ''}`))
   sect('새 갈래 · 새 종류', [...newForms.map((f) => `  갈래 ${f.name}   신설${f.near.length ? ` · 비슷한 갈래 ${f.near.join(' · ')}` : ''}`), ...newKinds.map((t) => `  종류 ${t.name}   신설${t.near.length ? ` · 비슷한 종류 ${t.near.join(' · ')}` : ''}`)])
   sect('새 항목(장부)', [...ledgerFix, ...newNames.map((n) => `  ${n.coord}   신설   자리: ${n.doc ? `${docName(n.doc)}${n.heading ? ` › ${n.heading}` : ''}` : '없음'} · ${n.near.length ? `비슷한 항목 ${n.near.join(' · ')}` : '비슷한 항목 없음'}`)])
-  if (judgeIn.length) sect('지은 근거', judgeIn.map((x) => `  ${x}`))
   sect('이을 항목(글 그대로)', items.filter((x) => x.kind === '잇기').map((x) => `  ${x.at}   잇기${x.before == null ? '   (항목이 아직 없음)' : ''}`))
   sect('뺀다', excluded.map((x) => `  ${x.name}   ${x.why || '뺌'}`))
   L.push('―― 검사 ――')
@@ -342,7 +351,7 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
   // 해시 — 머리 줄(지식 이름 · 보는 사람 수 · 길)은 빼고 싣는다: 명부가 바뀌거나 길이 달라도 같은 입력이면 같은 지문 · 집합 칸은 차례를 고른다
   const setOf = (xs, key) => [...(Array.isArray(xs) ? xs : [])].sort((a, b) => key(a).localeCompare(key(b)))
   const proposal = errors.length ? null : proposalHash({
-    record: rec, sections: secs, names: input.names || [], forms: input.forms || [], ...(naturesIn.length ? { natures: naturesIn } : {}), ...(departIn.length ? { depart: departIn } : {}), ...(judgeIn.length ? { judge: judgeIn } : {}),
+    record: rec, sections: secs, names: input.names || [], forms: input.forms || [], ...(naturesIn.length ? { natures: naturesIn } : {}),
     kinds: setOf(input.kinds, (x) => String(typeof x === 'string' ? x : x?.name || '')), excluded: setOf(excluded, (x) => x.name), distinct: [...new Set((input.distinct || []).map((x) => nearKey(x)))].sort(),
     bases: items.map((x) => [x.at, x.base]), warnings: warnings.map((w) => w.id), text: L.slice(1).join('\n'),
   })
@@ -353,7 +362,7 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
     ...newNames.map((n) => ({ kind: '이름', name: n.coord })), // 장부에 오른 새 항목 — 저장 꼴(기록 칸 줄 머리)은 「이름」 그대로(core/parts.js)
     ...newForms.map((x) => ({ kind: '갈래', name: x.name })),
     ...newKinds.map((x) => ({ kind: '종류', name: x.name })),
-    ...naturesIn.filter((x) => !k.forms.natures?.has(String(x.doc).replace(/^docs\//, '').replace(/\.md$/, '').normalize('NFC'))).map((x) => ({ kind: '성격', name: `${String(x.doc).replace(/^docs\//, '').replace(/\.md$/, '')}: ${x.nature}` })),
+    ...naturesIn.filter((x) => !k.forms.natures?.has(x.doc)).map((x) => ({ kind: '성격', name: `${x.doc}: ${x.nature}` })),
   ]
   return { text, items, newDocs, newNames, newForms, newKinds, warnings, errors, proposal, linked, fresh }
 }

@@ -62,9 +62,9 @@ export async function writeState(dataDir, id, st) {
   await fs.rename(f + '.tmp', f)
 }
 
-// 문서의 지문 — 항목마다(applied · watched 표지는 빼고 견준다). 참고 블록 · 경과는 읽을 때(parseDoc) 이미 떨어져
+// 문서의 지문 — 항목마다(applied 표지는 빼고 견준다 · 옛 표지는 이행기 core/oldform.js 가 걷는다). 참고 블록 · 경과는 읽을 때(parseDoc) 이미 떨어져
 // 항목 글에 없다 — 보내는 글에 보낸 쪽 기록 링크가 실리지 않는다
-const clean = (b) => String(b || '').replace(/<!--\s*(applied|watched):[^>]*-->/g, '').trim()
+const clean = (b) => String(b || '').replace(/<!--\s*applied:[^>]*-->/g, '').trim()
 export function marks(d) {
   const secs = {}
   // 지문은 옛 꼴과 같은 글(본문 + 출처 줄)로 잰다 — 꼴을 옮겼다고 모든 문서가 「바뀜」 으로 모이지 않게

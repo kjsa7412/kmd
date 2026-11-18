@@ -92,7 +92,6 @@ export async function loadKnowledge({ id, name, dir }, { cache = null } = {}) {
     }
     if (/^docs\/.+\.md$/i.test(p)) {
       const docId = p.slice(5, -3)
-      // rec — 문서 감시가 들인 사본의 앞 기록(표지의 rec · 문서 전체가 그 기록에서 왔다)
       docs.push(await parsed(f, p, (text, st) => ({ id: docId, path: p, mtime: st.mtime.toISOString(), ...parseDoc(text, path.basename(docId)) })))
     } else if (/^(work|log)\/[^/]+\.md$/i.test(p)) {
       const r = await parsed(f, p, (text) => {

@@ -65,7 +65,7 @@ function build(dir) {
   w('work/assets/2026-0101-이관/a.txt', 'a')
 }
 // 옮기기 전 상태는 옛 읽기로 잰다(지금 knowledge.js 는 put 으로만 가른다)
-const oldStatesOf = async (dir) => Object.fromEntries(oldStates(await loadKnowledge({ id: 'k', name: 'k', dir })))
+const oldStatesOf = async (dir) => Object.fromEntries(await oldStates(await loadKnowledge({ id: 'k', name: 'k', dir }), dir))
 const states = async (dir) => Object.fromEntries((await loadKnowledge({ id: 'k', name: 'k', dir })).works.map((w) => [w.id, w.state]))
 const read = (dir, rel) => fs.readFileSync(path.join(dir, ...rel.split('/')), 'utf8')
 const has = (dir, rel) => fs.existsSync(path.join(dir, ...rel.split('/')))
@@ -250,6 +250,38 @@ test('옛 상태 대 보기: none → 기록 · 옛 표지 기록의 바로잡�
     const st = await states(dir)
     assert.equal(st['2026-0110-자리-없음'], 'old')
   }
+})
+
+test('옛 머리말 curates: oldStates 가 폴더에서 직접 읽는다(curates 를 단 기록은 옛 읽기의 none) · 대 보기 통과', async () => {
+  const dir = path.join(tmp, 'curates')
+  build(dir)
+  fs.writeFileSync(path.join(dir, 'work', '2026-0109-정리-판단.md'), REC('2026-0109-정리-판단', { date: '2026-01-09 09:00', extra: 'curates:\n  - id: 2026-0102-배포-창\n    verdict: keep\n' }))
+  await ensureRepo(dir)
+  fs.writeFileSync(path.join(dir, '_sources.json'), JSON.stringify([{ name: '옛 코드', kind: 'git', rules: [{ rule: 'files', into: { doc: '코드' } }] }, { name: '문서', kind: 'docs', rules: [] }]))
+  const s0 = await oldStatesOf(dir)
+  assert.equal(s0['2026-0109-정리-판단'], 'none')
+  // 가져올 곳의 옛 규칙 files 는 판단 칸으로 센다(쓰지 않는다)
+  assert.deepEqual((await plan(dir, {})).judge.filter((j) => /옛 규칙 files/.test(j.what)).map((j) => [j.count, j.where]), [[1, '_sources.json 옛 코드']])
+  assert.equal(s0['2026-0104-늦은-기록'], 'old')
+  const p = await plan(dir, {})
+  const v = await verifyPlan(dir, p)
+  assert.equal(v.ok, true, v.why.join(' / '))
+})
+
+test('판 2: 개인 지식의 섹션 없는 문서 장부 줄(문서 한 벌)은 지운다 · 팀은 판단으로만', async () => {
+  const dir = path.join(tmp, 'whole')
+  build(dir)
+  await ensureRepo(dir)
+  assert.match(read(dir, '_managed.md'), /범위:전체/)
+  assert.ok((await plan(dir, {})).judge.some((j) => /섹션 없는 문서 장부 줄/.test(j.what)))
+  // 판 1 에서 멈춘 개인 지식: 판 2 규칙만 남은 꼴로 다시 돈다
+  fs.writeFileSync(path.join(dir, '.git', MARK_FILE), '1\n')
+  const r = await runOnce(dir, { personal: true, user: 'kim' })
+  assert.equal(r.skipped, false)
+  assert.doesNotMatch(read(dir, '_managed.md'), /범위:전체/)
+  assert.equal(fs.readFileSync(path.join(dir, '.git', MARK_FILE), 'utf8').trim(), String(OLDFORM_VER))
+  assert.ok(!(await plan(dir, { personal: true })).judge.some((j) => /섹션 없는 문서 장부 줄/.test(j.what)))
+  assert.equal((await runOnce(dir, { personal: true, user: 'kim' })).skipped, true)
 })
 
 test('runOnce: 판 표시가 지금 판보다 낮으면 다시 돈다', async () => {

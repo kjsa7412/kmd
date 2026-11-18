@@ -1038,7 +1038,7 @@ li.new{animation:flash 1.6s}
 .qrow .tx small{display:block;color:var(--text-3);font-size:var(--fs-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .qrow .el{font:var(--fs-xs) var(--mono);color:var(--text-3);width:40px;text-align:right;flex:none}
 .qrow .ac{display:flex;gap:var(--sp-2);flex:none}
-.imp .auto{font-size:var(--fs-xs);font-weight:var(--fw-md);color:var(--text-3);border:1px solid var(--border);border-radius:var(--r-xs);padding:0 var(--sp-2);margin-left:var(--sp-2)}
+.imp .auto{font-size:var(--fs-xs);font-weight:var(--fw-md);color:var(--text-3);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xs);padding:0 var(--sp-2);margin-left:var(--sp-2)}
 .qmini{display:flex;flex-direction:column;flex:none;width:76px}
 .qmini small{font-size:var(--fs-xs);color:var(--text-3);margin-top:3px;white-space:nowrap}
 .mini{display:flex;gap:var(--sp-1)}

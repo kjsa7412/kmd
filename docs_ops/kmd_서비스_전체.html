@@ -247,7 +247,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <path class="ln" d="M390 110 H404 M390 156 H404 M390 202 H404 M390 294 H404 M390 348 H404 V200"/>
 <a href="#core"><g>
 <rect class="box team" x="420" y="60" width="200" height="300" rx="10"/><text class="t" x="434" y="86">hub.save</text><text class="s" x="434" y="108">기록 + 항목 글 + 지문(base)</text>
-<text class="l" x="434" y="134">자리 · 저장 속도 · 같은 저장</text><text class="l" x="434" y="154">넣을 곳 · 지문</text><text class="l" x="434" y="174">꼴(E_FORMAT) · 값 대조</text><text class="l" x="434" y="194">원본이 주인 · 저절로 채우는 표</text><text class="l" x="434" y="214">본문 반영 · 되돌림 잦음</text>
+<text class="l" x="434" y="134">자리 · 저장 속도 · 같은 저장</text><text class="l" x="434" y="154">넣을 곳 · 지문</text><text class="l" x="434" y="174">꼴(E_FORMAT) · 값 대조</text><text class="l" x="434" y="194">문서 꼴 · 표지 밖 주석</text><text class="l" x="434" y="214">본문 반영 · 되돌림 잦음</text>
 <rect class="zone" x="430" y="232" width="180" height="116" rx="6"/><text class="l" x="438" y="250">예 · 카나리 비율</text><text class="l" x="438" y="268">record.changes:</text><text class="l" x="438" y="286"> 비율 10% → 20%</text><text class="l" x="438" y="304">sections[{ coord:</text><text class="l" x="438" y="322"> proc:카나리, base, edits }]</text><text class="l" x="438" y="340">→ 항목 검사를 넘음</text>
 </g></a>
 <path class="ln g" d="M620 110 H646" marker-end="url(#ah-one)"/><path class="ln w" d="M620 230 H646" marker-end="url(#ah-one)"/><path class="ln" d="M620 320 H646" marker-end="url(#ah-one)"/>
@@ -421,7 +421,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <tr><td><b>옛 판 · 지운 항목</b></td><td>문서 머리 [옛 판] 은 그 문서를 바꾼 판(git)과 그때의 글 · [지금과 견주기]. 지식 홈 「최근에 지운 항목」 은 지운 때의 글로 다시 세운다(쓰기 자리부터)</td><td>이력에 남는다</td></tr>
 <tr><td><b>점검</b></td><td>지식 메뉴 점검 › 점검 탭(지식관리자 · 개인은 주인 · 개인 지식 홈 카드도): 항목 없음 · 장부 밖 · 잃은 항목 · 장부에 없는 항목 · 별칭 겹침 · 깨진 머리 · 깨진 링크</td><td><code>core/guard.js</code> · <code>kmd guard</code></td></tr>
 <tr><td><b>감사 기록 · 찾기 점검</b></td><td>관리 쓰기 요청을 누가 · 때 · 길 · 지식 · 결과로(본문 없음). 찾기 점검은 「제목 문제」 와 건드린 항목의 이름을 걷어 낸 「바꾼 문제」 를 함께 잰다</td><td>설정 › 운영 · <code>audit.jsonl</code> · <code>kmd search-check</code></td></tr>
-<tr><td><b>표지 · 출처</b></td><td>눈에 안 보이는 주석 셋(<code>applied</code> · <code>watched</code> · <code>baseline</code>)과 문서 끝 <code>&lt;!-- kmd:참고 --&gt;</code> 블록</td><td>화면의 「출처 n」 칩</td></tr>
+<tr><td><b>표지 · 출처</b></td><td>눈에 안 보이는 주석 하나(<code>applied</code>)과 문서 끝 <code>&lt;!-- kmd:참고 --&gt;</code> 블록</td><td>화면의 「출처 n」 칩</td></tr>
 <tr><td><b>자리 · 기기 열쇠</b></td><td>지식 하나에 갖는 권한(없음 · 읽기 · 쓰기 · 지식관리자) · PC 마다 사람 이름으로 만든 열쇠 <code>kmdk_</code></td><td><a href="#roles">4 사람과 자리</a></td></tr>
 </table></div></div></div>
 
@@ -481,7 +481,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <div class="m-tbl"><table>
 <tr><th>자리</th><th>무엇</th><th>누가 쓰나</th></tr>
 <tr><td>표지 <code>applied</code></td><td>항목 머리 바로 아래 · 이 항목에 마지막으로 넣은 기록</td><td>kmd(저장 문)</td></tr>
-<tr><td>표지 <code>watched</code> · <code>baseline</code></td><td>원본이 주인인 문서 · 저절로 채우는 표의 기준선</td><td>kmd</td></tr>
+<tr><td>옛 표지 <code>watched</code> · <code>baseline</code></td><td>새로 달지 않는다 · 남은 것은 이행기(<code>core/oldform.js</code>)가 걷는다</td><td>kmd</td></tr>
 <tr><td><code>&lt;!-- kmd:참고 --&gt;</code></td><td>문서 끝 한 덩이 · 항목마다 넣은 기록(출처) 줄</td><td>kmd(<code>core/sections.js</code>)</td></tr>
 </table></div>
 </div>
@@ -500,7 +500,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <text class="l" x="52" y="266">오류율이 1% 를 넘으면 멈추고 롤백으로 간다.</text>
 <text class="s" x="52" y="290">본문 = 확정된 지식만(글 · 표 · 그림 · 코드)</text>
 <rect class="box" x="36" y="310" width="598" height="34" rx="8"/><text class="s" x="52" y="332">## 헬스 체크 · ## 롤백</text>
-<rect class="box" x="36" y="354" width="598" height="70" rx="8"/><text class="s" x="52" y="376">## 꾸러미 판</text><text class="l" x="52" y="398">| 꾸러미 | 판 | … 저절로 채우는 표(baseline)면 저장이 원래 표를 되붙인다</text>
+<rect class="box" x="36" y="354" width="598" height="70" rx="8"/><text class="s" x="52" y="376">## 꾸러미 판</text><text class="l" x="52" y="398">| 꾸러미 | 판 | … 표도 본문 글 그대로 저장한다</text>
 <rect class="box bk" x="36" y="434" width="598" height="180" rx="8"/><text class="s" x="52" y="458">&lt;!-- kmd:참고 · kmd 가 적고 고친다. 손으로 고치지 않는다 --&gt;</text>
 <text class="l" x="52" y="482">**참고**</text>
 <text class="l" x="52" y="502">- 카나리</text>
@@ -522,7 +522,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <p class="small muted">시험 지식의 <code>docs/배포절차.md</code> 에 세션이 바꿀 곳 하나(「10%」 → 「20%」)를 넣은 뒤의 모양이다. 표지는 항목 머리 바로 아래 한 줄, 출처는 문서 끝 참고 블록에 기록 줄로 붙는다. 둘 다 kmd 가 쓰고, 사람 · 세션이 보낸 항목 글에 섞이면 저장이 거절한다.</p>
 
 <h3>쓰는 길은 하나</h3>
-<div class="m-flow"><div class="m-st"><b>채널</b><small>세션 · 화면 · 들이기 · 보내기 · 대량 넣기</small></div><span class="m-ar">›</span><div class="m-st m-hi"><b>hub.save</b><small>자리 · 속도 · 항목 판정(팀)</small></div><span class="m-ar">›</span><div class="m-st"><b>core/save.js</b><small>한 줄 · 저널 · 꼴 · 원본이 주인</small></div><span class="m-ar">›</span><div class="m-st m-ok"><b>git 한 묶음</b><small>실패하면 모두 되돌림</small></div></div>
+<div class="m-flow"><div class="m-st"><b>채널</b><small>세션 · 화면 · 들이기 · 보내기 · 대량 넣기</small></div><span class="m-ar">›</span><div class="m-st m-hi"><b>hub.save</b><small>자리 · 속도 · 항목 판정(팀)</small></div><span class="m-ar">›</span><div class="m-st"><b>core/save.js</b><small>한 줄 · 저널 · 꼴 · 지문</small></div><span class="m-ar">›</span><div class="m-st m-ok"><b>git 한 묶음</b><small>실패하면 모두 되돌림</small></div></div>
 <p class="small muted">문서를 쓰는 새 경로는 모두 이 길과 문서 꼴 검사(<code>E_FORMAT</code>)를 지난다. 장부 · 설정 파일은 임시 파일 뒤 이름 바꾸기(원자 쓰기)로 쓰고, 깨진 파일을 빈 것으로 읽어 덮지 않는다.</p>
 
 <h3>링크는 세 꼴</h3>
@@ -577,7 +577,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <tr><th>일</th><th>총괄 관리자</th><th>지식관리자</th><th>쓰기</th><th>읽기</th></tr>
 <tr><td>그 지식이 보인다 · 찾기 · Claude 로 읽기</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td></tr>
 <tr><td>저장 제안 · 기록 남기기(제안을 승인해) · 새 문서 · 항목 · 갈래(제안으로) · 문서 고치기 · 자기 기록 고치기 · 파일 넣기 · 가져올 곳 부탁 · 자기 기록 되돌리기</td><td class="y">✓</td><td class="y">✓</td><td class="y">✓</td><td class="n"></td></tr>
-<tr><td>항목 지우기 · 이름 바꾸기 · 저절로 채우는 표 고치기 · 남의 기록 고치기 · 문서 다듬기 · 되돌리기 · 지식 설정(하루 요약 · 이슈 주소) · 권한 주기 · 구조 · 점검 · 지표 · 기초 세우기 · 가져올 곳(허락된 호스트)</td><td class="y">✓</td><td class="y">✓</td><td class="n"></td><td class="n"></td></tr>
+<tr><td>항목 지우기 · 이름 바꾸기 · 남의 기록 고치기 · 문서 다듬기 · 되돌리기 · 지식 설정(하루 요약 · 이슈 주소) · 권한 주기 · 구조 · 점검 · 지표 · 기초 세우기 · 가져올 곳(허락된 호스트)</td><td class="y">✓</td><td class="y">✓</td><td class="n"></td><td class="n"></td></tr>
 <tr><td>사람 · 묶음 · 지식 세우기/지우기/불러오기 · 주인 넘기기 · 백업 · Claude 연결 · 줄 멈춤 · 동시에 도는 수 · 서버 폴더 · ssh</td><td class="y">✓</td><td class="n"></td><td class="n"></td><td class="n"></td></tr>
 </table></div>
 <p class="small muted">받지 않은 지식은 <b>없음</b>이 기본이다. 개인 프로그램은 그 PC 사람 하나만 쓰므로 이 모델 밖이다(늘 관리). 기준: <a href="../docs/kmd_권한_모델.md">권한 모델</a> · 판정 <code>server/hub.js</code>(levelOf · meta · need · canSave · canDirect) · 자리 셈 <code>core/owners.js</code>.</p>
@@ -585,7 +585,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 
 <article class="man wide">
 <h2 id="flows"><span class="m-no">5</span>흐름 한눈에</h2>
-<p>길마다 한 장씩 그리고, 오른쪽에 그 길의 차례를 둔다. 모든 길은 <b>기록 + 항목 글을 한 번에 저장</b>한다(DB 테이블 정의 표는 저절로 채우는 표 그대로). 사람 길(① ② ③ 대량 넣기 ⑤)은 저장 제안을 승인해 들어가고 무인 길(③ 파일 넣기 ④)은 검사를 넘으면 들어간다(못 넘으면 다시 시도). 검사 칸마다의 로직은 <a href="#core">6 핵심 로직</a>에서 다룬다.</p>
+<p>길마다 한 장씩 그리고, 오른쪽에 그 길의 차례를 둔다. 모든 길은 <b>기록 + 항목 글을 한 번에 저장</b>한다(DB 의 바뀐 표는 원천 글로 지어 들이기 일감으로 넘긴다). 사람 길(① ② ③ 대량 넣기 ⑤)은 저장 제안을 승인해 들어가고 무인 길(③ 파일 넣기 ④)은 검사를 넘으면 들어간다(못 넘으면 다시 시도). 검사 칸마다의 로직은 <a href="#core">6 핵심 로직</a>에서 다룬다.</p>
 <nav class="jump" aria-label="5 흐름 안의 길">
 <a href="#flows-session">① 세션 저장</a><a href="#flows-edit">② 화면 고치기 · 정정</a><a href="#flows-import">③ 파일 넣기 · 대량 넣기</a><a href="#flows-src">④ 가져올 곳</a><a href="#flows-send">⑤ 공유</a><a href="#flows-backup">⑥ 백업 · 불러오기</a>
 </nav>
@@ -632,7 +632,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <defs><marker id="ah-flows-6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0,0 L10,5 L0,10 z"/></marker></defs>
 <rect class="zone" x="10" y="10" width="980" height="120" rx="12"/><text class="z" x="24" y="30">문서 고치기 · 쓰기 이상(항목 지우기 · 이름 바꾸기는 지식관리자)</text>
 <rect class="box" x="24" y="42" width="240" height="74" rx="10"/><text class="t" x="38" y="66">항목 [고치기]</text><text class="l" x="38" y="88">편집기 · 지문을 같이 연다</text><text class="l" x="38" y="106">Claude 없음</text>
-<rect class="box team" x="294" y="42" width="320" height="74" rx="10"/><text class="t" x="308" y="66">hub.edit → 저장 문</text><text class="l" x="308" y="88">값 대조 없이 고친 글 그대로 · 지문 · 꼴</text><text class="l" x="308" y="106">원본이 주인 · 저절로 채우는 표는 core 가</text>
+<rect class="box team" x="294" y="42" width="320" height="74" rx="10"/><text class="t" x="308" y="66">hub.edit → 저장 문</text><text class="l" x="308" y="88">값 대조 없이 고친 글 그대로 · 지문 · 꼴</text><text class="l" x="308" y="106">문서 꼴 · 표지는 core 가</text>
 <rect class="box pc" x="644" y="42" width="332" height="74" rx="10"/><text class="t" x="658" y="66">문서 + 기록 · 이력 「고침」</text><text class="l" x="658" y="88">옛 값 → 새 값 · 항목마다 되돌리기</text><text class="l" x="658" y="106">읽은 뒤 누가 고쳤으면 새 글을 다시 읽는다</text>
 <path class="ln a" d="M264 79 H290" marker-end="url(#ah-flows-6)"/><path class="ln g" d="M614 79 H640" marker-end="url(#ah-flows-6)"/>
 <rect class="zone" x="10" y="146" width="980" height="130" rx="12"/><text class="z" x="24" y="166">기록 고치기 · 자기 기록(남의 기록은 지식관리자)</text>
@@ -692,7 +692,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 
 <h3 id="flows-src">④ 가져올 곳: 시계 → 바뀐 것 → 브레이크 → 들이기</h3>
 <div class="pair"><div class="pl"><div class="flowfig" role="figure" aria-label="가져올 곳이 바뀐 것을 들이기 일감으로 넘기는 그림">
-<svg class="arch" viewBox="0 0 1000 340" role="img" aria-label="분마다 도는 시계가 때가 된 가져올 곳을 보고, 문서 폴더는 바뀐 파일마다, git 은 새 묶음마다 들이기 일감을 세운다. 많이 사라지면 브레이크로 멈춘다. DB 는 테이블마다 저절로 채우는 표">
+<svg class="arch" viewBox="0 0 1000 340" role="img" aria-label="분마다 도는 시계가 때가 된 가져올 곳을 보고, 문서 폴더는 바뀐 파일마다, git 은 새 묶음마다 들이기 일감을 세운다. 많이 사라지면 브레이크로 멈춘다. DB 는 바뀐 표를 원천 글로 지어 들이기 일감으로 넘긴다">
 <defs><marker id="ah-flows-3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0,0 L10,5 L0,10 z"/></marker></defs>
 <rect class="box team" x="14" y="40" width="200" height="100" rx="10"/><text class="t" x="28" y="66">시계(팀 서버)</text><text class="l" x="28" y="88">분마다 · 정한 때가 된 곳</text><text class="l" x="28" y="106">허락된 호스트만</text><text class="l" x="28" y="124">자격은 secrets.json</text>
 <rect class="box" x="244" y="20" width="300" height="70" rx="10"/><text class="t" x="258" y="44">문서 폴더</text><text class="l" x="258" y="66">바뀐 파일만 · 파일마다 들이기 일감 하나</text>
@@ -700,8 +700,8 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <rect class="box" x="244" y="184" width="300" height="70" rx="10"/><text class="t" x="258" y="208">DB</text><text class="l" x="258" y="230">읽기 전용 세션 · 카탈로그만</text>
 <rect class="box bk" x="574" y="20" width="200" height="70" rx="10"/><text class="t" x="588" y="44">브레이크</text><text class="l" x="588" y="66">10% 넘게 사라지면 멈춤</text>
 <rect class="box ai" x="574" y="102" width="200" height="70" rx="10"/><text class="t" x="588" y="126">팀 일꾼이 짓는다</text><text class="l" x="588" y="148">「바뀐 값」 · 차이를 읽고</text>
-<rect class="box" x="574" y="184" width="200" height="70" rx="10"/><text class="t" x="588" y="208">저절로 채우는 표</text><text class="l" x="588" y="230">테이블마다 정의 표 · table:</text>
-<rect class="box pc" x="804" y="60" width="182" height="194" rx="10"/><text class="t" x="818" y="86">저장 문 한 번</text><text class="l" x="818" y="110">원천 하나 = 저장 하나</text><text class="l" x="818" y="130">넣을 항목이 없으면</text><text class="l" x="818" y="150">건드린 항목에 글 그대로 잇기</text><text class="l" x="818" y="176">원본이 주인인 문서는</text><text class="l" x="818" y="196">watched 표지로 지킨다</text>
+<rect class="box" x="574" y="184" width="200" height="70" rx="10"/><text class="t" x="588" y="208">DB 바뀐 표</text><text class="l" x="588" y="230">원천 글로 지어 일감으로</text>
+<rect class="box pc" x="804" y="60" width="182" height="194" rx="10"/><text class="t" x="818" y="86">저장 문 한 번</text><text class="l" x="818" y="110">원천 하나 = 저장 하나</text><text class="l" x="818" y="130">넣을 항목이 없으면</text><text class="l" x="818" y="150">건드린 항목에 글 그대로 잇기</text><text class="l" x="818" y="176">세션이 짓고 저장 문이</text><text class="l" x="818" y="196">꼴 · 값 대조를 본다</text>
 <rect class="box bk" x="244" y="270" width="530" height="54" rx="10"/><text class="t" x="258" y="294">「크게 바뀜」 · 도는 일 탭 「살펴볼 일 n」</text><text class="l" x="258" y="314">사람이 보고 잇거나 그만둔다 · 새 파일 수 브레이크는 없다(하루 300)</text>
 <path class="ln a" d="M214 90 H228 V55 H240" marker-end="url(#ah-flows-3)"/><path class="ln" d="M228 90 V137 H240" marker-end="url(#ah-flows-3)"/><path class="ln" d="M228 137 V219 H240" marker-end="url(#ah-flows-3)"/>
 <path class="ln w" d="M544 55 H570" marker-end="url(#ah-flows-3)"/><path class="ln p" d="M544 137 H570" marker-end="url(#ah-flows-3)"/><path class="ln" d="M544 219 H570" marker-end="url(#ah-flows-3)"/>
@@ -814,7 +814,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <g class="hit" data-k="g6" role="button" tabindex="0" aria-label="6 바꿀 곳 대기: 자세히"><rect class="box" x="22" y="288" width="180" height="80" rx="8"/><text class="t" x="34" y="312">6 바꿀 곳 대기</text><text class="l" x="34" y="334">find 가 꼭 한 번</text><text class="l" x="34" y="352">없음 · 두 곳은 edits</text></g>
 <g class="hit" data-k="g7" role="button" tabindex="0" aria-label="7 문서 꼴: 자세히"><rect class="box" x="214" y="288" width="180" height="80" rx="8"/><text class="t" x="226" y="312">7 문서 꼴</text><text class="l" x="226" y="334">기록 링크 · 주석 · 머리 줄</text><text class="l" x="226" y="352">새로 든 줄만(format)</text></g>
 <g class="hit" data-k="g8" role="button" tabindex="0" aria-label="8 값 대조: 자세히"><rect class="box" x="406" y="288" width="180" height="80" rx="8"/><text class="t" x="418" y="312">8 값 대조</text><text class="l" x="418" y="334">빠진 값 · 지어낸 값</text><text class="l" x="418" y="352">말 없이 빠진 옛 값</text></g>
-<g class="hit" data-k="g9" role="button" tabindex="0" aria-label="9 되돌림 · 장부: 자세히"><rect class="box" x="598" y="288" width="180" height="80" rx="8"/><text class="t" x="610" y="312">9 되돌림 · 장부</text><text class="l" x="610" y="334">되돌림 잦음 · 세울 항목</text><text class="l" x="610" y="352">원본이 주인 · 저절로 표</text></g>
+<g class="hit" data-k="g9" role="button" tabindex="0" aria-label="9 되돌림 · 장부: 자세히"><rect class="box" x="598" y="288" width="180" height="80" rx="8"/><text class="t" x="610" y="312">9 되돌림 · 장부</text><text class="l" x="610" y="334">되돌림 잦음 · 세울 항목</text><text class="l" x="610" y="352">갈래 · 종류 · 새로 세움</text></g>
 <g class="hit" data-k="g10" role="button" tabindex="0" aria-label="10 한 묶음 쓰기: 자세히"><rect class="box bk" x="790" y="288" width="188" height="80" rx="8"/><text class="t" x="802" y="312">10 한 묶음 쓰기</text><text class="l" x="802" y="334">기록 · 문서 · 참고 · git</text><text class="l" x="802" y="352">실패하면 모두 되돌림</text></g>
 <path class="ln a" d="M500 368 V408" marker-end="url(#ah-core)"/>
 <text class="z" x="22" y="400">3 저장의 끝</text>
@@ -868,7 +868,7 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <tr><td>고치기(기록)</td><td>팀 화면 기록 [고치기]</td><td>고친 기록 → 정정 기록(옛 값 → 새 값)</td><td>팀 서버 · 규칙(옛 값이 한 곳), 안 되면 팀 일꾼(팀 구독)</td><td>정정 기록 + 항목 글 · 들어간 항목이 없으면 건드린 항목 · 기록 모음 달 항목에 잇기</td></tr>
 <tr><td>파일 넣기(20개까지)</td><td>팀 화면</td><td>여러 꼴 파일</td><td>팀 서버 파서 · 팀 일꾼(팀 구독)</td><td>들이기 일감(파일마다 · 팀 일꾼이 기록 + 항목 글을 지어 저장 한 번)</td></tr>
 <tr><td>대량 넣기</td><td>Claude Code</td><td>여러 꼴 파일</td><td>내 PC 파서 <code>kmd-parse</code> · 내 구독</td><td>스킬 <code>kmd-team-import</code> → 파일마다 <code>propose</code> → 규칙 표 한 번 승인 → 팀 저장(파일마다 <code>proposal</code> · git 한 묶음)</td></tr>
-<tr><td>가져올 곳</td><td>시계(팀 서버)</td><td>문서 폴더 · git · DB</td><td>팀 서버 · 팀 일꾼</td><td>들이기 일감(파일 · 커밋 하나씩 · 바뀐 표는 원천 글로 지어 넘긴다 · 옛 설명: DB 표는 저절로 채우는 표 그대로)</td></tr>
+<tr><td>가져올 곳</td><td>시계(팀 서버)</td><td>문서 폴더 · git · DB</td><td>팀 서버 · 팀 일꾼</td><td>들이기 일감(파일 · 커밋 하나씩 · 바뀐 표는 원천 글로 지어 넘긴다)</td></tr>
 <tr><td>보내기</td><td>개인 프로그램</td><td>개인 md</td><td>내 PC · 내 구독</td><td><code>claude -p</code> 가 팀 <code>section</code> · 지문을 읽고 항목 글로 → 팀 지식은 보내기 확인 창(팀 저장 제안 · [보내기] = 팀 쪽 승인) → 팀 저장(<code>channel: send</code> · 글마다 한 번) · 공유 화면에 「넣음 n · 이미 넣음 n」</td></tr>
 </table></div>
 <p class="small muted">서버가 아는 채널 이름: 저장 <code>session · bulk · http · send · edit · shape</code> · 들이기 <code>intake-file · intake-commit · intake-src · polish</code>(<code>server/hub.js</code>). 저장 속도 한도는 저장 채널만 센다.</p>
@@ -876,10 +876,10 @@ svg.arch .hit:focus-visible rect{stroke:var(--accent);stroke-width:3;stroke-dash
 <h3 id="core-steps">저장 한 번의 단계</h3>
 <ol>
 <li>원천을 지은 쪽(세션 스킬 · 들이기 · 사람 글)이 <b>기록 + 항목 글 + 지문(base)</b> 을 한 번에 보낸다(사람 채널은 승인한 <code>proposal</code> 도 · 세션은 스킬 판 <code>kit</code> 도: 측정 줄에만 싣는다).</li>
-<li>서버 저장 검사 한 곳: 자리(쓰기 이상) · 저장 속도(<code>E_RATE</code>) · 같은 저장(<code>same</code>) · 항목마다 꼴(<code>E_FORMAT</code>) · 값 대조 · 지문 · 원본이 주인 · 저절로 채우는 표 · 본문 반영. 개인 프로그램도 같은 검사. 사람 채널은 승인한 <code>proposal</code> 이 있어야 하고(없거나 어긋나면 <code>E_APPROVE</code>), 오류는 입력 오류(아무것도 쓰지 않음) · 경고는 받아들인 것으로 기록 끝 「받아들인 경고」.</li>
+<li>서버 저장 검사 한 곳: 자리(쓰기 이상) · 저장 속도(<code>E_RATE</code>) · 같은 저장(<code>same</code>) · 항목마다 꼴(<code>E_FORMAT</code>) · 값 대조 · 지문 · 본문 반영. 개인 프로그램도 같은 검사. 사람 채널은 승인한 <code>proposal</code> 이 있어야 하고(없거나 어긋나면 <code>E_APPROVE</code>), 오류는 입력 오류(아무것도 쓰지 않음) · 경고는 받아들인 것으로 기록 끝 「받아들인 경고」.</li>
 <li>넘으면 문서 · 참고 블록 · 기록 · git <b>한 묶음</b>(하나가 실패하면 모두 되돌린다) · 기록 본문 끝에 <code>## 넣은 것</code>(값이 바뀌면 「옛 값 → 새 값」) · 이력에 항목마다 「옛 값 → 새 값」 · [되돌리기](그 기록을 쓴 사람 · 지식관리자). 값 바꿈도 바로 들어가고 따로 알리지 않는다.</li>
 <li>지문이 어긋나면 사람 · 세션 · 보내기는 <code>E_CONFLICT</code> 로 아무것도 쓰지 않는다(다시 읽고 다시 댄다). 들이기는 서버가 새 글에 바꿀 곳을 한 번 다시 대고, 그래도 안 되면 아무것도 쓰지 않고 일감이 다시 시도한다(자동 세 번 뒤 실패 일감).</li>
-<li>검사를 넘지 못하면(꼴 · 값 · 지문 · 원본이 주인 …) 입력 오류로 아무것도 쓰지 않는다. 응답의 <code>proposals[]</code> 가 항목마다 까닭을 돌려주고, 세션은 그 자리에서 고쳐 다시 저장한다.</li>
+<li>검사를 넘지 못하면(꼴 · 값 · 지문 …) 입력 오류로 아무것도 쓰지 않는다. 응답의 <code>proposals[]</code> 가 항목마다 까닭을 돌려주고, 세션은 그 자리에서 고쳐 다시 저장한다.</li>
 <li>확정(머지 · 배포 · 결정)이 아니면 저장하지 않는다(<code>memo: true</code> 는 <code>E_INPUT</code>).</li>
 <li>7일 안에 두 번 되돌린 문서의 값 바꿈은 저장 제안의 경고다.</li>
 </ol>
@@ -1434,7 +1434,7 @@ curl -s localhost:8090/healthz                 # build 가 새 판인지</code><
 <rect class="box" x="756" y="416" width="220" height="100" rx="8"/><text class="t" x="768" y="438">찾기</text><text class="l" x="768" y="458">search</text><text class="l" x="768" y="474">말 → 항목 후보</text><text class="l" x="768" y="490">자리 없는 글의 토막</text>
 <rect class="box ai on" x="24" y="528" width="220" height="100" rx="8"/><text class="t" x="36" y="550">저장 검사 · 들이기</text><text class="l" x="36" y="570">gate · edits · propose</text><text class="l" x="36" y="586">ingest · queue · worker</text><text class="l" x="36" y="602">claude · claudelogin · models</text><text class="l" x="36" y="618">oldform(옛 꼴 이행기)</text>
 <rect class="box" x="268" y="528" width="220" height="100" rx="8"/><text class="t" x="280" y="550">일 줄 · 손으로 고친 파일</text><text class="l" x="280" y="570">queue · collect · feed</text><text class="l" x="280" y="586">stopline(멈춤 줄)</text><text class="l" x="280" y="602">analyze · excerpt</text>
-<rect class="box" x="512" y="528" width="220" height="100" rx="8"/><text class="t" x="524" y="550">원천</text><text class="l" x="524" y="570">sources · baseline</text><text class="l" x="524" y="586">docwatch · db</text><text class="l" x="524" y="602">codechange · watch</text><text class="l" x="524" y="618">watchmark</text>
+<rect class="box" x="512" y="528" width="220" height="100" rx="8"/><text class="t" x="524" y="550">원천</text><text class="l" x="524" y="570">sources</text><text class="l" x="524" y="586">docwatch · db</text><text class="l" x="524" y="602">codechange · watch</text><text class="l" x="524" y="618">oldform(이행기)</text>
 <rect class="box" x="756" y="528" width="220" height="100" rx="8"/><text class="t" x="768" y="550">넣기(파서)</text><text class="l" x="768" y="570">importer · ooxml</text><text class="l" x="768" y="586">pdf · hwp · text</text><text class="l" x="768" y="602">kmd-parse 가 같은 것을 묶는다</text>
 <rect class="box" x="24" y="640" width="220" height="100" rx="8"/><text class="t" x="36" y="662">들어가기</text><text class="l" x="36" y="682">auth · passwd</text><text class="l" x="36" y="698">keystore · keyexe</text><text class="l" x="36" y="714">owners · secrets</text><text class="l" x="36" y="730">기기 열쇠 · 문서 장부</text>
 <rect class="box" x="268" y="640" width="220" height="100" rx="8"/><text class="t" x="280" y="662">에이전트</text><text class="l" x="280" y="682">kit · teamkit · agent</text><text class="l" x="280" y="698">claudecfg · install</text><text class="l" x="280" y="714">pcops</text><text class="l" x="280" y="730">작업 폴더에 지식 붙이기</text>
@@ -1467,7 +1467,7 @@ curl -s localhost:8090/healthz                 # build 가 새 판인지</code><
 <text class="l" x="752" y="772">push</text>
 </svg>
 </div>
-<p class="small muted">① 세션이 <code>POST /mcp</code>(<code>server/http.js</code>) ② <code>tools/call</code> → 도구 save(<code>server/mcp.js</code>) ③ <code>hub.save</code> · 자리 · 저장 속도 · 저장 제안 칸 ④ 줄 안에서 지식을 새로 읽고 <code>gatePrepare</code> 가 항목마다 <code>checkProposal</code> · <code>checkSection</code>(<code>core/propose.js</code> · <code>core/gate.js</code>) ⑤ <code>core/save.js</code> <code>save</code>: 저널 · 문서 꼴 · 원본이 주인 · 기록 · 항목 · 참고 블록 ⑥ <code>commitPaths</code>(<code>core/git.js</code>) ⑦ 커밋 뒤 <code>backup.enqueue</code> → <code>kmd-backup</code> 으로 밀기(던지지 않음).</p>
+<p class="small muted">① 세션이 <code>POST /mcp</code>(<code>server/http.js</code>) ② <code>tools/call</code> → 도구 save(<code>server/mcp.js</code>) ③ <code>hub.save</code> · 자리 · 저장 속도 · 저장 제안 칸 ④ 줄 안에서 지식을 새로 읽고 <code>gatePrepare</code> 가 항목마다 <code>checkProposal</code> · <code>checkSection</code>(<code>core/propose.js</code> · <code>core/gate.js</code>) ⑤ <code>core/save.js</code> <code>save</code>: 저널 · 문서 꼴 · 기록 · 항목 · 참고 블록 ⑥ <code>commitPaths</code>(<code>core/git.js</code>) ⑦ 커밋 뒤 <code>backup.enqueue</code> → <code>kmd-backup</code> 으로 밀기(던지지 않음).</p>
 
 <h3>시험 · 화면 확인</h3>
 <div class="tchips">
@@ -1595,7 +1595,7 @@ s1: { g: '1 채널', t: '세션', what: 'Claude Code 세션이 일 뒤에 배운
   bad: [{ in: 'proposal 이 없거나 어긋남', msg: 'E_APPROVE · 아무것도 쓰지 않는다 · 새 제안(details.propose)을 돌려준다' }],
   src: 'agent/team/skills/kmd-team-save · server/mcp.js save · core/teamkit.js TEAM_KIT_REV', std: '권한 모델 7절 · 작성기준 6절' },
 s2: { g: '1 채널', t: '문서 고치기', what: '쓰기 자리 이상이 팀 화면에서 항목을 직접 고친다. 사람이 쓴 글이라 <b>값 대조 없이 고친 글 그대로</b> 들어가고, 이력에 「고침」(옛 값 → 새 값)이 남는다.',
-  rules: ['지문(base) · 원본이 주인 · 문서 꼴 · 저절로 채우는 표는 core 가 본다(팀 항목 검사 gatePrepare 는 거치지 않는다).', '항목 지우기 · 이름 바꾸기는 지식관리자만(structure).', '읽은 뒤 누가 고쳤으면 E_CONFLICT · 새 글을 다시 읽는다.'],
+  rules: ['지문(base) · 문서 꼴은 core 가 본다(팀 항목 검사 gatePrepare 는 거치지 않는다).', '항목 지우기 · 이름 바꾸기는 지식관리자만(structure).', '읽은 뒤 누가 고쳤으면 E_CONFLICT · 새 글을 다시 읽는다.'],
   src: 'server/hub.js edit · core/save.js asEdit · structure', std: '권한 모델 7절' },
 s3: { g: '1 채널', t: '기록 고치기', what: '기록을 고치면 그 기록이 넣은 항목을 <b>문서 고치기와 같은 편집기</b>로 고친다. 저장 확인 창을 거쳐 고친 글 그대로 들어가고, 원래 기록은 두고 <b>바로잡음</b> 기록을 새로 남겨 잇는다.',
   rules: ['자기 기록은 쓰기 이상 · 남의 기록은 지식관리자.', '저장 뒤 같은 옛 값이 남은 다른 항목을 알린다(고치지는 않는다).', '옛 값 · 새 값 치환과 팀 일꾼의 정정 일감은 걷었다(H-D38).'],
@@ -1607,7 +1607,7 @@ s4: { g: '1 채널', t: '파일 넣기', what: '팀 화면에서 파일을 넣�
 s5: { g: '1 채널', t: '대량 넣기', what: '폴더째 많은 파일을 Claude Code 에서 넣는다. 스킬 <code>kmd-team-import</code> 가 처음 한 번 파서 <code>kmd-parse</code> 를 팀 서버 <code>/dl</code> 에서 받고, 파일마다 brief · match · section → 기록 + 항목 글 → 팀 저장(channel bulk).',
   rules: ['내 PC · 내 구독으로 돈다(팀 일꾼을 쓰지 않는다).', '파일 하나 = 저장 하나 = git 한 묶음 · 같은 파일은 same 이라 다시 돌려도 된다.', '항목 글 없이 온 기록은 저장하지 않는다(입력 오류).', '받는 지식이 「Claude 에 보내지 않음」 이면 스킬이 멈춘다.'],
   src: 'agent/team/skills/kmd-team-import · server/bin/kmd-parse.mjs · scripts/pack.mjs(파서 zip)', std: '권한 모델 7절' },
-s6: { g: '1 채널', t: '가져올 곳', what: '분마다 도는 시계가 때가 된 가져올 곳(문서 폴더 · git · DB)을 본다. 바뀐 파일 · 새 커밋마다 <b>들이기 일감</b>을 세우고, DB 는 테이블마다 저절로 채우는 표를 맞춘다.',
+s6: { g: '1 채널', t: '가져올 곳', what: '분마다 도는 시계가 때가 된 가져올 곳(문서 폴더 · git · DB)을 본다. 바뀐 파일 · 새 커밋마다 <b>들이기 일감</b>을 세우고, DB 는 바뀐 표를 원천 글로 지어 들이기 일감으로 넘긴다.',
   rules: ['문서 폴더: 10% 넘게 사라지면 멈추고 「크게 바뀜」.', 'git: 더한 때의 묶음이 기준 · 한 번에 20 묶음까지 · 팀 일꾼이 「바뀐 값」 · 차이를 읽고 기록 + 항목 글.', 'DB: 읽기 전용 세션 · 카탈로그만.'],
   src: 'core/sources.js · core/codechange.js · core/db.js · server/hub.js dueSources', std: '서비스 전체 6-3' },
 s7: { g: '1 채널', t: '보내기(개인 → 팀)', what: '개인 프로그램이 고른 글마다 이 PC 의 기기 열쇠로 팀 지식을 읽고, 내 PC 의 Claude 가 기록 + 항목 글을 지어 <b>팀 저장 문으로 글마다 한 번</b> 보낸다.',
@@ -1639,7 +1639,7 @@ g6: { g: '2 저장 문', t: '6 바꿀 곳 대기', what: '바꿀 곳(find → re
   bad: [{ in: 'find 가 지금 글에 없음', msg: '지금 글에 없다(near: 가장 가까운 줄)' }, { in: 'find 가 두 곳', msg: '지금 글에 두 번 넘게 나온다' }],
   src: 'core/edits.js applyEdits · validEdits · core/propose.js checkProposal', std: '권한 모델 7절' },
 g7: { g: '2 저장 문', t: '7 문서 꼴', what: '본문에는 <b>확정된 지식만</b> 둔다. 기록 링크 · 시스템 주소 · 표지 밖 주석 · 항목 머리 줄이 새로 들면 저장은 거절된다(format). 지금 글에 이미 있던 줄은 거절하지 않는다.',
-  rules: ['<code>#</code> · <code>##</code> 머리 줄(소제목은 <code>###</code> 아래로) · 프런트매터 · script.', '표지 셋 밖의 <code>&lt;!-- --&gt;</code> 주석 · 기록 · 이력 링크(<code>../work/</code> · <code>../log/</code>) · 시스템 주소(<code>/api/…</code> · <code>#/…</code>).', '저절로 채우는 표를 고치면 machine · 원본이 주인인 문서는 watched.'],
+  rules: ['<code>#</code> · <code>##</code> 머리 줄(소제목은 <code>###</code> 아래로) · 프런트매터 · script.', '표지 셋 밖의 <code>&lt;!-- --&gt;</code> 주석 · 기록 · 이력 링크(<code>../work/</code> · <code>../log/</code>) · 시스템 주소(<code>/api/…</code> · <code>#/…</code>).'],
   ok: [{ cap: '통과', code: '`canary-1` 에 먼저 올리고, 첫 30분은 요청의 20% 만 보낸다.\n### 되돌림 기준\n오류율이 1% 를 넘으면 멈추고 롤백으로 간다.' }],
   bad: [{ in: '[근거](../work/2026-1017-카나리.md)', msg: '기록 · 이력 링크(../work/2026-1017-카나리.md): 본문에 두지 않는다 · 출처는 kmd 가 참고에 단다' }, { in: '<!-- 메모 -->', msg: '표지 밖 주석(<!-- -->): 본문에 두지 않는다' }],
   src: 'core/docformat.js formatProblems · formatMessage · core/gate.js draftBad · core/save.js', std: '작성기준 3절 · 8절' },
@@ -1649,9 +1649,9 @@ g8: { g: '2 저장 문', t: '8 값 대조', what: '글의 값(수 · 판 · 이�
   bad: [{ in: '기록 없이 30분 → 60분', msg: '근거에 없는 값이 있다: 60분' }, { in: '기록이 말하지 않은 10% 를 지움', msg: '옛 글의 값이 빠졌다: 10%. 바꾼 값이면 기록의 바뀐 것에 「옛 값 → 새 값」 으로 적는다' }],
   src: 'core/gate.js checkSection · core/values.js', std: '작성기준 3절 5' },
 g9: { g: '2 저장 문', t: '9 되돌림 · 장부', what: '항목 글이 넘어도 들어가면 안 되는 자리를 본다.',
-  rules: ['되돌림 잦음(reverts): 7일 안에 두 번 되돌린 문서의 값 바꿈은 경고.', '세울 항목 · 갈래(names): 비슷한 이름은 입력 오류(distinct 로 넘음) · 새로 선 것은 기록 끝 「새로 세움」.', '원본이 주인(watched) · 저절로 채우는 표(machine)는 core/save.js 가 본다.'],
+  rules: ['되돌림 잦음(reverts): 7일 안에 두 번 되돌린 문서의 값 바꿈은 경고.', '세울 항목 · 갈래(names): 비슷한 이름은 입력 오류(distinct 로 넘음) · 새로 선 것은 기록 끝 「새로 세움」.'],
   bad: [{ in: '7일 두 번 되돌린 문서의 값 바꿈', msg: '7일 안에 두 번 되돌린 문서: 값 바꿈은 넣지 않았다' }],
-  src: 'server/hub.js revertsOfDoc · saveIn(names) · core/save.js(watched · machine)', std: '권한 모델 7절 · 개편 설계 S-D55' },
+  src: 'server/hub.js revertsOfDoc · saveIn(names) · core/save.js', std: '권한 모델 7절 · 개편 설계 S-D55' },
 g10: { g: '2 저장 문', t: '10 한 묶음 쓰기', what: '넘은 항목 글과 기록 · 참고 블록 · 장부를 <b>한 커밋</b>으로 쓴다. 같은 지식의 저장은 한 줄로 서고, 저널에 쓴 파일을 적어 두어 하나라도 실패하면 모두 되돌린다.',
   rules: ['원자 쓰기(임시 → 이름 바꾸기) · 쓰고 다시 읽어 머리가 보낸 값 그대로인지 본다.', '항목 머리 아래 표지 <code>applied: &lt;기록 id&gt;</code> · 문서 끝 참고 블록에 기록 줄.', '기록 끝 「## 넣은 것」(태그 put) · 못 넘으면 아무것도 쓰지 않는다.', '커밋 뒤(측정 줄 · 알림 · 백업)는 던지지 않는다.'],
   ok: [{ cap: '한 커밋에 드는 파일(예)', code: 'work/2026-1104-카나리-비율.md\ndocs/배포절차.md   (## 카나리 글 · applied 표지 · 참고 줄)' }],

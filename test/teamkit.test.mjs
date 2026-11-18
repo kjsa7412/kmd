@@ -58,8 +58,8 @@ after(async () => {
 })
 
 // 스킬 판 표(S-D15) — 지금 판의 스킬 글 해시(teamKitParts().ver) 한 줄. 팀 스킬 글 · 팀 덩이 · 작성가이드를 고치면
-//   core/teamkit.js 의 TEAM_KIT_REV 를 하나 올리고 이 줄을 새 판 · 새 해시로 바꾼다(판 14: 작성가이드의 옛 꼴 · 걷은 길 말을 뺐다)
-const KIT_HASH = { 14: 'bfddda9d' }
+//   core/teamkit.js 의 TEAM_KIT_REV 를 하나 올리고 이 줄을 새 판 · 새 해시로 바꾼다(판 15: kmd-team-import 의 걷은 saveMode 조건을 뺐다)
+const KIT_HASH = { 15: 'b934ce4d' }
 test('스킬 판: 스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다 · 스킬 글의 {{KIT_REV}} 를 판으로 바꿔 싣는다', async () => {
   const parts = await teamKitParts()
   assert.equal(parts.rev, TEAM_KIT_REV)

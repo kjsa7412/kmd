@@ -38,6 +38,11 @@ test('V1: 제안과 저장이 같은 갈래 목록으로 판정한다(formsAfter
   const both = { record: R, sections: [sec('설계서', '수집기'), sec('회의록', '2026-11-10 주간 회의')], forms: [{ name: '설계서', kind: '대상' }] }
   const p = human(k, both)
   assert.deepEqual(p.errors, [], JSON.stringify(p.errors))
+  // 갈래가 없는 새 문서(회의록)에 성격 줄이 없으면 경고(R3-4) · 갈래가 있는 설계서는 경고 없음 · natures 를 실으면 경고가 사라진다
+  assert.deepEqual(p.warnings.filter((w) => w.code === 'nature').map((w) => w.at), ['docs/회의록.md'])
+  const pn = human(k, { ...both, natures: [{ doc: '회의록', nature: '사건', summary: '회의마다 한 항목.' }] })
+  assert.deepEqual([pn.errors, pn.warnings.filter((w) => w.code === 'nature')], [[], []])
+  assert.ok(pn.fresh.some((x) => x.kind === '성격' && x.name === '회의록: 사건'))
   // 제안이 지나가면 저장도 지나간다
   const r = await coreSave(dir, both, { user: 't', guard: 'strict' })
   assert.ok(r.id)

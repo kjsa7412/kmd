@@ -73,6 +73,7 @@ export const TOOLS = [
         sections: { type: 'array', items: { type: 'object' }, description: 'save 의 sections 와 같다({ coord | doc · heading, base, edits | content })' },
         names: { type: 'array', items: { type: 'object' }, description: 'save 의 names 와 같다' },
         forms: { type: 'array', items: { type: 'object' }, description: 'save 의 forms 와 같다' },
+        natures: { type: 'array', items: { type: 'object', properties: { doc: str('이 제안이 세우는 새 문서: 예 게이트웨이 설계'), nature: str('으뜸 성격: 대상 · 서술 · 절차 · 시험 · 용어 · 사건 · 보고 · 대장 · 결정 가운데 하나'), summary: str('요약 1 ~ 3문장(한 줄 300자 안): 이 문서가 무엇을 어떤 단위로 적나') }, required: ['doc', 'nature'] }, description: '새 문서의 으뜸 성격과 요약(생성 룰 R3-4 · R7-2): 같은 제안의 sections 가 세우는 새 문서에만 · 갈래 장부의 「## 문서 성격」 표에 선다 · 있는 문서의 성격은 고치지 않는다' },
         kinds: { type: 'array', items: { type: 'string' }, description: '새 종류(항목의 종류: 영문 소문자 또는 한글)' },
         distinct: { type: 'array', items: { type: 'string' }, description: '있는 것과 이름이 같거나 비슷하지만 다른 것으로 세울 항목 · 문서 · 머리 · 갈래 · 종류' },
         excluded: { type: 'array', items: { type: 'object', properties: { name: str('뺀 항목'), why: str('까닭 한 줄') }, required: ['name'] }, description: '제안서 「뺀다」 줄(기록에는 남지 않는다)' },
@@ -98,6 +99,7 @@ export const TOOLS = [
         distinct: { type: 'array', items: { type: 'string' }, description: 'propose 에 보낸 distinct 그대로' },
         excluded: { type: 'array', items: { type: 'object', properties: { name: str('뺀 항목'), why: str('까닭 한 줄') }, required: ['name'] }, description: 'propose 에 보낸 excluded 그대로' },
         kinds: { type: 'array', items: { type: 'string' }, description: 'propose 에 보낸 kinds 그대로' },
+        natures: { type: 'array', items: { type: 'object', properties: { doc: str('이 제안이 세우는 새 문서: 예 게이트웨이 설계'), nature: str('으뜸 성격: 대상 · 서술 · 절차 · 시험 · 용어 · 사건 · 보고 · 대장 · 결정 가운데 하나'), summary: str('요약 1 ~ 3문장(한 줄 300자 안): 이 문서가 무엇을 어떤 단위로 적나') }, required: ['doc', 'nature'] }, description: 'propose 에 보낸 natures 그대로. 새 문서의 으뜸 성격과 요약(생성 룰 R3-4 · R7-2): 같은 제안의 sections 가 세우는 새 문서에만 · 갈래 장부의 「## 문서 성격」 표에 선다 · 있는 문서의 성격은 고치지 않는다' },
         attach: { type: 'array', description: '원본 첨부(쓰기 자리부터 · 사람이 원본도 첨부하라고 했을 때만): 파일마다 { path: docs/assets/ 아래 자리, b64: 파일 바이트의 base64 }. save 한 번에 합 8MB 까지 · 그림 · pdf · 오피스 · hwp · txt · zip. 같은 자리에 같은 파일이 있으면 그대로(same) · 다른 파일이 있으면 덮지 않고 E_CONFLICT. 기록 · 항목 글과 한 묶음', items: { type: 'object', properties: { path: str('docs/assets/<경로>'), b64: str('파일 바이트의 base64') }, required: ['path', 'b64'] } },
         record: {
           type: 'object',
@@ -300,7 +302,7 @@ export function makeMcp(store) {
 
     // 저장 제안(저장 승인 설계 P-D3 · 2-1 · P2) — 쓰지 않는다 · 자리 · 입력 모양은 hub.propose 가 본다(쓰기 자리 · E_INPUT)
     async propose(args, ctx) {
-      let { knowledge, record, sections, names, forms, kinds, distinct, excluded } = args || {}
+      let { knowledge, record, sections, names, forms, natures, kinds, distinct, excluded } = args || {}
       // 무인 일감의 세션(넣기 에이전트 · 팀 세션 일감)에는 승인할 사람이 없다 — 저장 제안이 아니라 save 가 무인 저장 문을 지난다(지식 생성 하네스 H-D34)
       if (ctx?.agent?.intake) throw new KmdError('E_INPUT', '무인 일감의 세션이다: 저장 제안(propose) 없이 save 를 바로 부른다. 검사에 걸리면 save 가 걸린 까닭을 돌려주고 아무것도 쓰지 않는다: 그 자리만 고쳐 다시 save 한다')
       const listOf = (v) => {
@@ -309,19 +311,19 @@ export function makeMcp(store) {
       }
       if (typeof record === 'string') try { record = JSON.parse(record) } catch { /* 모양 검사가 거절한다 */ }
       if (typeof knowledge !== 'string' || !knowledge) throw new KmdError('E_INPUT', '지식 id(knowledge)가 없다')
-      const input = { record, sections: listOf(sections), names: listOf(names), forms: listOf(forms), kinds: listOf(kinds), distinct: listOf(distinct), excluded: listOf(excluded), ...oldOf(args) }
+      const input = { record, sections: listOf(sections), names: listOf(names), forms: listOf(forms), natures: listOf(natures), kinds: listOf(kinds), distinct: listOf(distinct), excluded: listOf(excluded), ...oldOf(args) }
       for (const x of Object.keys(input)) if (input[x] === undefined) delete input[x]
       return store.propose(ctx, knowledge, input, { form: true, path: '이 세션의 작업' })
     },
 
     async save(args, ctx) {
-      let { knowledge, record, sections, names, forms, kit, attach, proposal, distinct, excluded, kinds } = args || {}
+      let { knowledge, record, sections, names, forms, natures, kit, attach, proposal, distinct, excluded, kinds } = args || {}
       // 도구 모양을 배포 전에 받아 둔 세션은 모르는 칸(forms 등)의 목록을 글(JSON)로 보낸다 — 목록 글이면 풀어 받는다
       const listOf = (v) => {
         if (typeof v !== 'string') return v
         try { const x = JSON.parse(v); return Array.isArray(x) ? x : v } catch { return v }
       }
-      ;[sections, names, forms, attach, distinct, excluded, kinds] = [listOf(sections), listOf(names), listOf(forms), listOf(attach), listOf(distinct), listOf(excluded), listOf(kinds)]
+      ;[sections, names, forms, natures, attach, distinct, excluded, kinds] = [listOf(sections), listOf(names), listOf(forms), listOf(natures), listOf(attach), listOf(distinct), listOf(excluded), listOf(kinds)]
       // 첨부(S-D30 · K6-4) — 사람이 「원본도 첨부」 라고 했을 때만 스킬이 싣는다 · 한 번 합 8MB · 모양 · 자리 · 쓰기 자리는 저장 문이 본다
       if (attach != null) {
         if (!Array.isArray(attach)) throw new KmdError('E_INPUT', 'attach 는 { path, b64 } 의 목록이다')
@@ -342,7 +344,7 @@ export function makeMcp(store) {
       // 스킬 판(kit) — 측정 줄에만 싣는다(옛 판 · 판 없음 안내 reinstall · nokit 은 걷었다 · P11 · 혼자 쓰는 판)
       const have = typeof kit === 'number' || (typeof kit === 'string' && /^\s*\d{1,6}\s*$/.test(kit)) ? Number(kit) : null
       // 승인한 저장 제안(저장 승인 설계 P-D5 · P3 · PC1) — proposal 이 의무(없거나 어긋나면 E_APPROVE + 새 propose 결과)
-      const extra = { ...(proposal != null ? { proposal } : {}), ...(distinct != null ? { distinct } : {}), ...(excluded != null ? { excluded } : {}), ...(kinds != null ? { kinds } : {}), ...oldOf(args) }
+      const extra = { ...(proposal != null ? { proposal } : {}), ...(distinct != null ? { distinct } : {}), ...(excluded != null ? { excluded } : {}), ...(kinds != null ? { kinds } : {}), ...(natures != null ? { natures } : {}), ...oldOf(args) }
       const r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}), ...(forms ? { forms } : {}), ...(attach ? { attach } : {}), ...extra }, { guard: 'strict', form: true, channel, ...(Number.isInteger(have) ? { kit: have } : {}) })
       if (r.same) return { saved: r.id, same: true, docs: [], note: r.note }
       // 넣을 것 없음(무인 세션이 뺀 것 excluded 만 보냈다): 아무것도 쓰지 않았다(지식 생성 하네스 H-O8)
