@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
 import * as collect from '../core/collect.js'
-import { copyDir, seat } from './helpers.mjs'
+import { copyDir, seat, ensureRecordsDoc } from './helpers.mjs'
 import { sha16 } from '../core/text.js'
 import { sectionOf } from '../core/knowledge.js'
 
@@ -101,7 +101,7 @@ test('되돌리기: 옛 본문 + 판정 거두기 · 저장 문이 넣은 기록
   assert.ok(k.reverted.has(r.id), '주인이 되돌림: 다시 초안하지 않는다')
 })
 
-test('되돌리기 항목마다(S5): 이력 줄 · 자리 · 하나 되돌린 뒤 원 기록 in · 모두면 reverted · 새 항목은 지움 · 그 뒤 고친 항목은 E_CONFLICT · 쓰기 자리는 watched 403', async () => {
+test('되돌리기 항목마다(S5): 이력 줄 · 자리 · 하나 되돌린 뒤 원 기록 in · 모두면 reverted · 새 항목은 지움 · 그 뒤 고친 항목은 E_CONFLICT · 쓰기 자리는 자기 기록을 되돌린다', async () => {
   // lee 는 앞 시험에서 dpms 쓰기 자리 · choi 도 쓰기 자리(B)
   await s.auth.addUser({ id: 'choi', admin: false })
   await seat(s, 'choi', { dpms: 'write' })
@@ -170,16 +170,13 @@ test('되돌리기 항목마다(S5): 이력 줄 · 자리 · 하나 되돌린 �
   await s.hub.revert(LEE, 'dpms', { record: one.id, doc: 'docs/로그보관.md', heading: '디스크 점검' })
   k = await s.hub.get('dpms')
   assert.equal(k.byWork.get(one.id).state, 'reverted')
-  // 원본이 주인인 문서(watched)의 항목은 쓰기 자리가 되돌리지 못한다 — 지식관리자는 된다
+  // 쓰기 자리는 자기 기록을 되돌린다(옛 사본 문서 watched · 저절로 채우는 표 막기는 걷었다 · 옛잔재 G3)
   const b5 = sha16(sectionOf(k, 'term:보관 기간').sec.body)
   const wr = await s.hub.save(LEE, 'dpms', { record: { title: '보관 기간: 앱 60일', body: '## 바뀐 것\n- 앱 로그: 30일 → 60일' }, sections: [{ coord: 'term:보관 기간', base: b5, content: '앱 로그는 60일, 감사 로그는 1년 둔다.' }] })
   assert.equal(wr.put, 1, JSON.stringify(wr))
   const lf = path.join(dir, 'docs', '로그보관.md')
-  fs.writeFileSync(lf, '<!-- watched: src="원본" path="로그보관.md" -->\n' + fs.readFileSync(lf, 'utf8'))
-  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qam', 'watched'], { cwd: dir })
   s.hub.forget('dpms')
-  assert.equal(await code(s.hub.revert(LEE, 'dpms', { record: wr.id, doc: 'docs/로그보관.md', heading: '보관 기간' })), 'E_FORBIDDEN')
-  assert.equal(await code(s.hub.revert(KIM, 'dpms', { record: wr.id, doc: 'docs/로그보관.md', heading: '보관 기간' })), 'ok')
+  assert.equal(await code(s.hub.revert(LEE, 'dpms', { record: wr.id, doc: 'docs/로그보관.md', heading: '보관 기간' })), 'ok')
   assert.match(fs.readFileSync(lf, 'utf8'), /앱 로그는 30일/)
   // 머리가 다른 머리 안에 든 항목(배포 / 배포 절차) — 「배포」 만 되돌리면 「배포 절차」 는 그대로(S5 검토)
   const two = await s.hub.save(KIM, 'dpms', { record: { title: '배포: 순서', body: '## 바뀐 것\n- 배포 · 배포 절차를 세움' }, sections: [
@@ -241,7 +238,7 @@ test('저장 승인 P5: approve 지식의 화면 고치기는 저장 제안 — 
   fs.rmSync(path.join(dir, 'work'), { recursive: true, force: true })
   fs.writeFileSync(path.join(dir, 'README.md'), '# 테스트 승인 지식\n')
   await s.hub.sync(KIM)
-  await s.hub.ensureRecordsDoc('apv5')
+  await ensureRecordsDoc(s, 'apv5')
   await s.auth.addUser({ id: 'test-p5', admin: false }).catch(() => {})
   await seat(s, 'test-p5', { apv5: 'write' })
   const P5 = { user: 'test-p5' }

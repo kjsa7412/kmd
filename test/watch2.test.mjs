@@ -85,14 +85,13 @@ test('문서 폴더: 바뀐 파일만 들이기 일감으로(정리 일감 0 · 
   assert.equal((await team.hub.sourceRun('dpms', '운영문서'))[0].state, 'stopped')
 })
 
-test('문서 폴더: 예전 사본 문서(표지 watched)는 원본이 주인으로 남는다 · 가져오기가 건드리지 않는다', async () => {
+test('문서 폴더: 지식에 이미 든 문서는 가져오기가 건드리지 않는다(옛 사본 문서 표지 watched 갈래는 걷었다)', async () => {
   const kd = path.join(tmp, 'kn', 'dpms')
   const f = path.join(kd, 'docs', '운영문서', '옛사본.md')
-  W(f, '<!-- watched: src="운영문서" path="옛사본.md" rec="2026-1001-옛사본" -->\n# 옛사본\n\n## 순서\n그대로.\n')
-  // 예전에 들어와 있던 사본 — 지식에 이미 커밋돼 있다(편집기로 새로 만든 파일은 이제 들이지 않는다 · H6)
-  for (const a of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', '옛 사본']]) (await import('node:child_process')).execFileSync('git', a, { cwd: kd })
+  W(f, '# 옛사본\n\n## 순서\n그대로.\n')
+  // 지식에 이미 커밋돼 있는 문서(편집기로 새로 만든 파일은 들이지 않는다 · H6)
+  for (const a of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', '이미 든 문서']]) (await import('node:child_process')).execFileSync('git', a, { cwd: kd })
   team.hub.forget('dpms')
-  await assert.rejects(team.hub.edit(ADMIN, 'dpms', { doc: '운영문서/옛사본', sections: [{ h: '순서', body: '손으로' }] }), { code: 'E_FORBIDDEN' })
   const t0 = R(f)
   await team.hub.sourceRun('dpms', '운영문서', { force: true })
   assert.equal(R(f), t0)

@@ -1,15 +1,8 @@
-// 저절로 채우는 표(기준선 블록) — 원천을 규칙으로 읽은 결과를 항목 글 안에 둔다(v0.6 §5).
+// 표 원천 규칙(가져올 곳의 deps · tables · 꾸러미 찾기 probe)과 표 글(tableMd · parseTable).
 //
-//   <!-- baseline: src="dpms-api 코드" rule=deps asof="2026-10-23 10:00" -->
-//   | 꾸러미 | 판 |
-//   |---|---|
-//   | spring-boot | 3.3.4 |
-//   <!-- /baseline -->
-//
-// 블록 안은 원천 실행기 · 기계 열쇠만 쓴다(사람 · 세션의 저장은 블록을 그대로 둔다 — 고치려 하면 E_FORBIDDEN need:machine).
-// 같은 원천 · 같은 규칙이면 같은 글이 나온다(결정적 · 정렬 고정). 블록 글이 같으면 쓰지 않는다(확인 시각만 — 묶음 0).
-
-import { nfc } from './text.js'
+//   옛 「저절로 채우는 표」 블록(<!-- baseline: … --> 표 <!-- /baseline -->)은 새로 쓰지 않는다(가져온 표는 원천이다 · H-D36).
+//   팀 · 이 PC 지식의 블록은 0 이고 개인 지식은 열 때 이행기(core/oldform.js)가 블록 표식을 걷는다.
+//   splitBlocks · keepBlocks · hasBlockMarker 는 저장 · 화면 · 짜임(save · gate · excerpt · restructure · shape · views · mcp)이 아직 부른다.
 
 const OPEN = /^<!--\s*baseline:\s*(.*?)\s*-->\s*$/
 const CLOSE = /^<!--\s*\/baseline\s*-->\s*$/
@@ -46,7 +39,7 @@ const esc = (v) => String(v ?? '').replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' '
 export function tableMd(cols, rows) {
   return [`| ${cols.map(esc).join(' | ')} |`, `|${cols.map(() => '---').join('|')}|`, ...rows.map((r) => `| ${cols.map((_, i) => esc(r[i])).join(' | ')} |`)].join('\n')
 }
-export function blockMd({ src, rule, asof, missing = null, table }) {
+function blockMd({ src, rule, asof, missing = null, table }) {
   const a = [`src="${String(src).replace(/"/g, "'")}"`, `rule=${rule}`, `asof="${asof}"`, ...(missing ? [`missing="${missing}"`] : [])]
   return `<!-- baseline: ${a.join(' ')} -->\n${table}\n<!-- /baseline -->`
 }
@@ -57,26 +50,6 @@ export function parseTable(md) {
   if (ls.length < 2) return { cols: [], rows: [] }
   return { cols: cells(ls[0]), rows: ls.slice(2).map(cells) }
 }
-const norm = (t) => nfc(String(t || '')).split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n')
-export const sameTable = (a, b) => norm(a) === norm(b)
-// 옛 표와 규칙 결과 — 칸이 같고 줄의 모임이 같으면 같다(옛 표는 줄 차례가 다를 수 있다)
-export function sameRows(a, b) {
-  const x = parseTable(a)
-  const y = parseTable(b)
-  const key = (t) => JSON.stringify([t.cols.map((c) => nfc(c)), t.rows.map((r) => r.map((c) => nfc(c)).join('\u0001')).sort()])
-  return x.cols.length > 0 && key(x) === key(y)
-}
-
-// 글에 블록을 넣거나 갈아 끼운다(같은 원천 · 규칙의 블록 자리) — 블록 밖 글은 그대로
-export function putBlock(body, block) {
-  const { text, blocks } = splitBlocks(body)
-  const i = blocks.findIndex((b) => b.src === block.src && b.rule === block.rule)
-  const all = i >= 0 ? blocks.map((b, j) => (j === i ? block : b)) : [...blocks, block]
-  let out = text
-  if (i < 0) out = (out.trim() ? out.replace(/\s+$/, '') + '\n\n' : '') + `\u0000block${all.length - 1}\u0000`
-  return out.replace(/\u0000block(\d+)\u0000/g, (_, n) => blockMd(all[Number(n)])).trim()
-}
-
 // 사람 · 세션이 쓴 새 글에 원래 블록을 그대로 다시 단다(블록 자리는 원래 차례대로 · 새 글에 섞인 블록 표지는 걷는다)
 export function keepBlocks(oldBody, newBody) {
   const { blocks } = splitBlocks(oldBody)

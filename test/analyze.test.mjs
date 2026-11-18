@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { planRun } from '../core/sources.js'
+import { planOut } from '../core/sources.js'
 import { htmlToMd } from '../core/importer.js'
 import { fileRecord, commitAnalyzed, demote } from '../core/analyze.js'
 import { commitRecord } from '../core/codechange.js'
@@ -25,8 +25,9 @@ test('DB 두 번째 확인: 항목 장부가 선 뒤에도 같은 항목이다(�
   // 첫 확인이 남긴 키(「테이블 정의」) · 이번 확인은 항목 장부 자리(「docs/테이블 정의.md」) — 한 테이블만 칼럼이 늘었다
   const prev = tables.map((t) => `테이블 정의\n${t}`)
   const items = { dbtables: tables.map((t) => ({ key: t, doc: 'docs/테이블 정의.md', cols: ['칼럼'], rows: [[t === 't3' ? 'testcol' : 'id']] })) }
-  const plan = await planRun(k, src, items, { asof: '2026-10-26 14:00', prev })
+  const plan = await planOut(k, src, items, { asof: '2026-10-26 14:00', s0: { items: prev, sent: {} } })
   assert.equal(plan.vanished, 0)
+  assert.equal(plan.added, 0)
   assert.equal(plan.brake, false)
   assert.ok(plan.items.every((x) => x.startsWith('docs/테이블 정의.md\n')))
 })

@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
 import { post } from '../core/send.js'
-import { copyDir, signIn, seat } from './helpers.mjs'
+import { copyDir, signIn, seat, ensureRecordsDoc } from './helpers.mjs'
 import { workOnce } from '../core/worker.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -112,7 +112,7 @@ after(async () => {
 //   옛 판(proposal 없음)은 E_APPROVE + 새 판 안내(아무것도 안 씀) · 판(kit)은 savelog 에 · 개인 프로그램의 받기 갈래는 걷었다
 test('보내기(P7 · approve 팀 지식): 미리 보기 = 저장 제안 · 창 없이 E_APPROVE · 모두 빼면 안 보냄 · 승인한 제안으로 들어감 · 옛 판 E_APPROVE · 개인 받기 없음', async () => {
   await s.hub.setOwner(SHELL, 'apvs', { owner: 'kim' })
-  await s.hub.ensureRecordsDoc('apvs')
+  await ensureRecordsDoc(s, 'apvs')
   const proot = path.join(tmp, 'pcapv')
   mkKnowledge(path.join(proot, 'mine'), '')
   fs.writeFileSync(path.join(proot, 'mine', 'docs', '점검.md'), '# 점검\n\n## 순서\n전원 다음 통신을 본다.\n\n## 기록\n주마다 남긴다.\n')

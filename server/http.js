@@ -27,7 +27,6 @@ import { logoSvg } from '../app/logo.js'
 import * as teamkit from '../core/teamkit.js'
 import { KEY_EXE_CS, KEY_EXE_VER } from '../core/keyexe.js'
 import * as sendLib from '../core/send.js'
-import { watchedOf } from '../core/watchmark.js'
 import { pcLogin, makeTeamLogin } from '../core/claudelogin.js'
 import { checkClaude } from '../core/claude.js'
 import { getSecret, delSecret } from '../core/secrets.js'
@@ -454,7 +453,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     /^\/api\/k\/[^/]+\/shape\/job\/[0-9a-f]{12}$/,
     /^\/api\/k\/[^/]+\/seed\/feed$/,
   ]
-  const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|stops\/ack|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|shape\/survey|k\/[^/]+\/(?:owner|save-mode|access|delete|structure|polish|revert|unwatch|docfmt|shape(?:\/[a-z]+|\/job\/[0-9a-f]{12}\/stop)?|seed(?:\/(?:upload|pick|plan|write|try|step))?|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names|approve)|intake\/[0-9a-f]{12}\/(?:again|drop)|rec\/[^/]+\/fix|removed\/restore))$/
+  const AUDIT_RE = /^\/api\/(?:admin\/.+|queue\/(?:caps|hold)|requests\/[0-9a-f]+\/close|knowledge\/(?:add|sync)|restore|sudo|stops\/ack|me\/(?:password|logout-all|devices\/revoke)|device\/ticket|shape\/survey|k\/[^/]+\/(?:owner|save-mode|access|delete|structure|polish|revert|shape(?:\/[a-z]+|\/job\/[0-9a-f]{12}\/stop)?|seed(?:\/(?:upload|pick|plan|write|try|step))?|backup(?:\/[a-z]+)?|sources(?:\/(?:request|every|edit|remove|resync|meaning))?|held\/again-all|held\/[^/]+\/(?:again|drop|names|approve)|intake\/[0-9a-f]{12}\/(?:again|drop)|rec\/[^/]+\/fix|removed\/restore))$/
   const auditFile = path.join(dataDir, 'audit.jsonl')
   // 걷은 경고 — <살림>/acks.json { 사람: { key: 걷은 때 } } · 깨졌으면 빈 것으로 보되 덮지 않는다(쓰기 때 다시 읽어 깨졌으면 던진다)
   const stopKey = (x) => crypto.createHash('sha256').update([x.kind, x.kn || '', x.b || ''].join('\n')).digest('hex').slice(0, 16)
@@ -758,14 +757,6 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       admin(ctx)
       return out(200, await hub.backupAdopt(ctx, dec(ba[1])))
     }
-    // 옛 문서 옮기기(경과 → 참고 블록) — 그 지식의 관리 자리(총괄 관리자는 비밀번호 한 번 더) · { dry } 면 쓰지 않고 결과만 · { lift } 면 ### 올리기도(S13 · S-D31)
-    const dfm = p.match(/^\/api\/k\/([^/]+)\/docfmt$/)
-    if (dfm && req.method === 'POST') {
-      if (ctx?.admin) admin(ctx)
-      else need(ctx)
-      const b = await readBody(req)
-      return out(200, await hub.docfmt(dec(dfm[1]), ctx, { dry: !!b.dry, lift: b.lift === true }))
-    }
     // 문서 짜임(권한 모델 7-1절) — 지식관리자 · GET 은 지금 짜임 + 지문 · POST { ops, base, dry } 는 옮김 · 이름 · 새 문서 · 빈 폴더 · 차례를 한 커밋으로
     const stm = p.match(/^\/api\/k\/([^/]+)\/structure$/)
     if (stm) {
@@ -846,7 +837,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const b = await readBody(req, sm[2] === 'request' ? 64 << 10 : MAX_BODY) // 부탁은 작은 카드 하나
       if (sm[2] === 'every') return out(200, await hub.sourceEvery(ctx, id, b))
       if (sm[2] === 'edit') return out(200, await hub.sourceEdit(ctx, id, b))
-      if (sm[2] === 'remove') return out(200, await hub.sourceRemove(ctx, id, { name: String(b.name || ''), copies: b.copies === 'drop' ? 'drop' : 'keep' }))
+      if (sm[2] === 'remove') return out(200, await hub.sourceRemove(ctx, id, { name: String(b.name || '') }))
       if (sm[2] === 'checkdb') return out(200, await hub.sourceCheckDb(ctx, id, b))
       if (sm[2] === 'resync') return out(200, await hub.sourceResync(ctx, id, String(b.name || '')))
       if (sm[2] === 'meaning') return out(200, await hub.sourceMeaning(ctx, id, { name: String(b.name || ''), on: !!b.on }))
@@ -1221,8 +1212,6 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (sd[2] === 'inbox/send') return out(200, await hub.inboxSend(ctx, id, b))
       return out(200, await hub.inboxMove(ctx, id, { dry: !!b.dry }))
     }
-    const uw = p.match(/^\/api\/k\/([^/]+)\/unwatch$/)
-    if (uw) return out(200, await hub.unwatch(ctx, dec(uw[1]), await readBody(req)))
     const rmv = p.match(/^\/api\/k\/([^/]+)\/removed(\/restore)?$/)
     if (rmv) {
       const id = dec(rmv[1])
@@ -1387,13 +1376,8 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (what === 'doc') {
       const v = V.docView(k, url.searchParams.get('d'), { src: await hub.sourceState(k.id), edit: url.searchParams.get('edit') === '1', see: seeOf(ctx, id) })
       if (!v) throw new KmdError('E_NOTFOUND', '이 문서는 이제 없다')
-      // 원본이 주인인 문서 — 어디서 왔나 · 고치기 없음
-      const dd = k.docs.find((x) => x.id === url.searchParams.get('d'))
-      const watched = dd ? watchedOf(await fs.readFile(path.join(k.dir, ...dd.path.split('/')), 'utf8').catch(() => '')) : null
-      // 원본이 주인인 문서 — 그 가져올 곳이 이제 없으면 「원본이 없어졌다」(표지를 걷을 수 있다)
-      const orphan = watched ? !(await hub.sources(ctx, k.id).catch(() => [])).some((s) => s.name === watched.src) : false
       // direct — 화면 고치기가 바로 문서에 들어가나(쓰기 이상 · S-D6) · structure — 항목 지우기 · 이름 바꾸기(지식관리자 · S-D44)
-      return out(200, { ...v, watched: watched ? { ...watched, ...(orphan ? { orphan: true } : {}) } : null, direct: hub.canSave(ctx, k.id) && !watched, structure: hub.canDirect(ctx, k.id) && !watched })
+      return out(200, { ...v, direct: hub.canSave(ctx, k.id), structure: hub.canDirect(ctx, k.id) })
     }
     const v = V.recView(k, url.searchParams.get('r'))
     if (!v) throw new KmdError('E_NOTFOUND', '이 기록은 이제 없다')

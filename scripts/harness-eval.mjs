@@ -29,7 +29,7 @@ const OUT_DIR = path.join(ROOT, '.kmd-data/harness-eval')
 // ───────── 채점(Claude 없이 · test/harness-eval.test.mjs 가 건다) ─────────
 const re = (s, f = 'i') => new RegExp(s, f)
 const docName = (p) => String(p).replace(/^docs\/|\.md$/g, '')
-// 지식의 항목 전부 — 기록 모음의 달 항목은 뺀다 · 규칙 길 문서(들인 자료/)는 raw 로 표시한다
+// 지식의 항목 전부(기록 모음의 달 항목은 뺀다)
 export function itemsOf(k) {
   const out = []
   for (const d of k.docs) {

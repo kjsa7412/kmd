@@ -17,13 +17,13 @@ import path from 'node:path'
 import yaml from 'js-yaml'
 import { readText, nfc } from './text.js'
 import { splitFrontmatter, parseRecord, renderRecord } from './frontmatter.js'
-import { splitRef, withRef, parseRefLine, isLogEntry, parseDoc, replaceSection, REF_OPEN, REF_CLOSE } from './sections.js'
+import { splitRef, withRef, parseRefLine, isLogEntry, parseDoc, replaceSection, headsOf, logAt, mergeLog, noteLine, DOC_KEY, REF_OPEN, REF_CLOSE } from './sections.js'
 import { locate } from './registry.js'
 import { parseForms, TYPE_RE } from './guard.js'
 import { parseMembers, sameAccess } from './owners.js'
 import { renderPut, parsePut, dropPart } from './parts.js'
-import { convertDoc } from './docformat.js'
-import { toLevels } from './levels.js'
+import { isRecordLink } from './docformat.js'
+import { lintLevels } from './levels.js'
 import { loadKnowledge, sectionOf } from './knowledge.js'
 import { LOG_DIR } from './names.js'
 import { writeFileAtomic } from './atomic.js'
@@ -387,6 +387,402 @@ const FENCE = /^\s{0,3}(`{3,}|~{3,})/
 const BASE_OPEN = /^\s{0,3}<!--\s*baseline:.*-->\s*$/
 const BASE_CLOSE = /^\s{0,3}<!--\s*\/baseline\s*-->\s*$/
 const WATCHED = /^<!--\s*watched:.*-->\s*$/
+
+// ── 옛 문서 꼴 옮기기(core/docformat.js convertDoc · moveOldLogs · moveOldMarks · verifyConvert 의 사본 · G3 에서 원본과 kmd docfmt 를 걷었다) ──
+//   항목 끝 **경과** 꼬리 · 「> 기록 그대로」 줄 · 옛 CDP 경과 · cdp:baseline · 표지 밖 주석 · applied: null · 머리글의 applied · 옛 GDI 변경 이력
+const APPLIED_LINE = /^\s*<!--\s*applied:.*-->\s*$/
+// 줄 하나의 링크 주소(core/docformat.js hrefsIn 사본)
+function hrefsIn(t) {
+  const out = []
+  for (const m of t.matchAll(/\]\(\s*(?:<([^>\n]*)>|([^)\s]+))|<((?:https?:\/\/|\/|#\/)[^>\s]+)>/g)) out.push(m[1] ?? m[2] ?? m[3])
+  const d = t.match(/^\s{0,3}\[[^\]]+\]:\s*(?:<([^>]*)>|(\S+))/)
+  if (d) out.push(d[1] ?? d[2])
+  return out.filter((x) => x != null && x !== '')
+}
+// 본문 글(옮기기 앞) — 표지 · 참고 블록만 뺀 원문 줄(옛 꼴은 떼지 않는다 — 옮기기가 무엇을 뗐는지 따로 본다)
+const rawLines = (text) =>
+  splitRef(readText(text).split('\n'))
+    .lines.filter((l) => !APPLIED_LINE.test(l))
+    .map((l) => l.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+// 본문 글 — 머리글 · 항목 머리 · 항목 본문(표지 · 옛 꼴 · 참고 블록 뺌) · 빈칸은 하나로
+// 옛 CDP 표식 — 경과 머리 · 날짜로 시작하는 목록 줄(백틱 있든 없든) · 저절로 채우던 표의 주석 · 남겨 두는 표지
+const LOG_HEAD = /^\*\*경과\*\*\s*$/
+const DATED = /^\s*[-*+]\s+`?\d{4}-\d{2}-\d{2}/
+// CDP 가 쓴 경과 줄 — 날짜로 시작하고 · 「`YYYY-MM-DD`」(백틱 날짜)이거나 기록 링크(../work · ../log)가 있다
+const TICK_DATED = /^\s*[-*+]\s+`\d{4}-\d{2}-\d{2}`/
+const isCdpLog = (l) => DATED.test(l) && (TICK_DATED.test(l) || hrefsIn(l).some((h) => isRecordLink(h)))
+// 옛 GDI 변경 이력 — 「**변경 이력** (…)」 · 「**변경**」 머리(뒤에 첫 줄이 「 · 날짜 [..](기록)」 으로 붙기도) 아래
+//   「· YYYY-MM-DD [제목](../work|log/….md) 한 마디」 가운뎃점 줄들 → 그 항목의 기록 줄(「- 날짜 [제목](…) · 한 마디」)
+const CHANGE_HEAD = /^\*\*변경(?: 이력)?\*\*(?:\s*\([^)]*\))?(?:\s+·\s+(.*?))?\s*$/
+const CHANGE_LINE = /^\s*·\s+(\d{4}-\d{2}-\d{2})(?:\s+\d{1,2}:\d{2})?\s+\[([^\]]*)\]\(([^)\s]+)\)\s*(.*?)\s*$/
+// 가운뎃점 줄 하나(「**변경** · …」 처럼 머리가 붙은 줄도) → { href, rest, line(기록 줄 · 시각은 뺀다 — 기록에 있다) } · 그 꼴이 아니면 null
+function changeEntry(l) {
+  const h = changeHeadOf(l)
+  const m = String(h ? h.inline || '' : l).trim().match(CHANGE_LINE)
+  if (!m || !isRecordLink(m[3])) return null
+  const title = m[2].replace(/^`([^`]*)`$/, '$1')
+  return { href: m[3], rest: m[4], line: `- ${m[1]} [${title}](${m[3]})${m[4] ? ` · ${m[4]}` : ''}` }
+}
+// 머리 줄 · 그 아래 줄 → 가운뎃점 줄 목록(머리에 붙은 첫 줄 포함) · 머리가 아니면 null
+const changeHeadOf = (l) => {
+  const m = String(l).trim().match(CHANGE_HEAD)
+  return m ? { inline: m[1] ? `· ${m[1]}` : null } : null
+}
+
+// 아래 항목을 가리키는 생성 표식
+const GEN_MARK = /^\s*<!--\s*gen\s*:|이 줄 아래/i
+const CDP_BASE = /^\s{0,3}<!--\s*cdp:baseline\b(.*?)-->\s*$/i
+const CDP_BASE_END = /^\s{0,3}<!--\s*\/cdp:baseline\s*-->\s*$/i
+const MARK_START = /^\s{0,3}<!--/
+// 표지(작성기준 2-2) · 참고 블록 — 옮기지 않는다
+const KEEP_MARK = /^\s{0,3}<!--\s*(applied:|watched:|\/?baseline\b|\/?kmd:참고)/i
+// cdp:baseline 주석 → 「표 출처: <src> · <asof>」 메모
+function srcNote(attrs) {
+  const a = (k) => (String(attrs).match(new RegExp(`\\b${k}\\s*=\\s*"([^"]*)"`)) || [])[1]
+  const xs = [a('src'), a('asof')].filter(Boolean)
+  return noteLine(`표 출처: ${xs.length ? xs.join(' · ') : String(attrs).trim() || 'cdp:baseline'}`)
+}
+// 주석 줄(여럿이면 이어 붙인 글) → 「표식: <주석 안 글>」 메모
+const markNote = (t) => noteLine(`표식: ${String(t).replace(/^\s*<!--/, '').replace(/-->\s*$/, '').trim()}`)
+const norm = (l) => String(l).replace(/\s+/g, ' ').trim()
+
+// 남은 표지 밖 주석 줄 수(코드 울타리 밖 · 표지 · 참고 블록 뺌) — 옮긴 뒤 0 이어야 한다
+export function strayMarks(text) {
+  let fence = null
+  let n = 0
+  for (const ln of splitRef(readText(text).split('\n')).lines) {
+    const f = ln.match(FENCE)
+    if (f) {
+      fence = !fence ? f[1] : f[1][0] === fence[0] && f[1].length >= fence.length ? null : fence
+      continue
+    }
+    if (!fence && MARK_START.test(ln) && !KEEP_MARK.test(ln)) n++
+  }
+  return n
+}
+
+// 옛 CDP 표식을 참고 블록 메모로 — { text, moved, kinds: { log, table, mark }, why: [옮기지 않은 까닭], placed: [{ h, l }] }
+//   항목 안의 것은 그 항목 · 첫 ## 위(머리글)의 것은 (문서) 아래 · 다른 줄은 바이트 그대로(뗀 자리의 빈 줄만 하나로)
+export function moveOldMarks(text) {
+  const { lines, ref } = splitRef(String(text).split('\n'))
+  const secs = headsOf(lines).filter((h) => h.level === 2)
+  const owner = (i) => secs.find((h) => h.line < i && i < h.end)?.heading ?? DOC_KEY
+  const drop = new Set()
+  const notes = new Map()
+  // placed — 옮긴 메모마다 { h(붙인 항목 이름), l } · 검사(verifyConvert)가 이름까지 대조한다
+  const placed = []
+  const put = (h, l) => {
+    notes.set(h, [...(notes.get(h) || []), l])
+    placed.push({ h, l })
+  }
+  const note = (i, l) => put(owner(i), l)
+  const kinds = { log: 0, table: 0, mark: 0 }
+  const why = []
+  let chg = 0
+  let fence = null
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i]
+    const f = ln.match(FENCE)
+    if (f) {
+      fence = !fence ? f[1] : f[1][0] === fence[0] && f[1].length >= fence.length ? null : fence
+      continue
+    }
+    if (fence) continue
+    if (LOG_HEAD.test(ln.trim())) {
+      // 아래 목록(빈 줄은 건너 찾고 · 다음 빈 줄 앞까지) — 줄마다 CDP 꼴(날짜로 시작 · 기록 링크나 `날짜`)이어야 옛 경과다
+      //   날짜로만 시작하는 줄(장애 · 회의 타임라인)은 사람이 쓴 본문이다
+      let s = i + 1
+      while (s < lines.length && !lines[s].trim()) s++
+      let j = s
+      while (j < lines.length && lines[j].trim()) j++
+      const xs = lines.slice(s, j)
+      if (!xs.length) continue
+      if (xs.every(isCdpLog)) {
+        for (let x = i; x < j; x++) drop.add(x)
+        for (const l of xs) note(i, noteLine(l))
+        kinds.log += xs.length
+      } else if (xs.every((l) => DATED.test(l))) why.push(`「${owner(i)}」 의 **경과** 목록은 날짜 줄뿐이지만 기록 링크 · \`날짜\` 꼴이 아니라 사람이 쓴 타임라인으로 보고 본문으로 둔다`)
+      else why.push(`「${owner(i)}」 의 **경과** 목록에 날짜로 시작하지 않는 줄이 있어 본문으로 둔다`)
+      i = j - 1
+      continue
+    }
+    const ch = changeHeadOf(ln)
+    if (ch) {
+      // 아래 줄(머리에 붙은 첫 줄 + 다음 빈 줄 앞까지) — 모두 「· 날짜 [..](기록)」 꼴이어야 옮긴다 · 머리만 있고 붙은 줄이 없으면 빈 줄을 건너 찾는다
+      let s = i + 1
+      if (!ch.inline) while (s < lines.length && !lines[s].trim()) s++
+      let j = s
+      while (j < lines.length && lines[j].trim()) j++
+      const xs = [...(ch.inline ? [ln] : []), ...lines.slice(s, j)]
+      const es = xs.map(changeEntry)
+      if (!xs.length || es.some((e) => !e)) {
+        if (xs.length) why.push(`「${owner(i)}」 의 ${ln.trim().slice(0, 12)} 아래에 「· 날짜 [기록](../work/…)」 꼴이 아닌 줄이 있어 본문으로 둔다`)
+        continue
+      }
+      for (let x = i; x < j; x++) drop.add(x)
+      const h = owner(i)
+      for (const e of es) {
+        // 같은 항목에 같은 기록이 또 오면 한 줄로(읽을 때 같은 기록 줄은 하나로 합쳐지므로 한 마디를 잃지 않게)
+        const prev = placed.find((p) => p.h === h && p.href === e.href)
+        if (prev) {
+          if (e.rest) {
+            const at = notes.get(h).indexOf(prev.l)
+            prev.l = prev.l.endsWith(')') ? `${prev.l} · ${e.rest}` : `${prev.l} / ${e.rest}`
+            notes.get(h)[at] = prev.l
+          }
+        } else {
+          put(h, e.line)
+          placed[placed.length - 1].href = e.href
+        }
+      }
+      chg += es.length
+      i = j - 1
+      continue
+    }
+    if (!MARK_START.test(ln) || KEEP_MARK.test(ln)) continue
+    const cb = ln.match(CDP_BASE)
+    if (cb) {
+      drop.add(i)
+      note(i, srcNote(cb[1]))
+      kinds.table++
+      continue
+    }
+    if (CDP_BASE_END.test(ln)) {
+      drop.add(i)
+      continue
+    }
+    // 그 밖의 주석 — 닫는 「-->」 가 줄 끝에 오는 데까지(여러 줄도) · 뒤에 글이 붙거나 닫히지 않으면 둔다
+    let j = i
+    while (j < lines.length && !lines[j].slice(j === i ? ln.indexOf('<!--') + 4 : 0).includes('-->')) j++
+    if (j >= lines.length || !/-->\s*$/.test(lines[j])) {
+      why.push(`「${owner(i)}」 의 주석(${ln.trim().slice(0, 30)})이 닫히지 않거나 뒤에 글이 있어 둔다`)
+      continue
+    }
+    for (let x = i; x <= j; x++) drop.add(x)
+    // 아래를 가리키는 생성 표식(gen: · 「이 줄 아래는 다시 쓴다」)이고 바로 아래(빈 줄 건너) ## 머리가 오면 그 항목의 것
+    //   그 밖의 주석은 있던 항목의 것이다(항목 끝 메모가 다음 항목에 붙지 않게)
+    const t = lines.slice(i, j + 1).join(' ')
+    let n = j + 1
+    while (n < lines.length && !lines[n].trim()) n++
+    const next = GEN_MARK.test(t) && secs.find((h) => h.line === n)
+    if (next) put(next.heading, markNote(t))
+    else note(i, markNote(t))
+    kinds.mark++
+    i = j
+  }
+  if (chg) kinds.change = chg
+  if (!drop.size) return { text: String(text), moved: 0, kinds, why, placed }
+  // 뗀 자리 — 앞뒤 빈 줄이 겹치면 하나로
+  const out = []
+  let cut = false
+  lines.forEach((ln, i) => {
+    if (drop.has(i)) return void (cut = true)
+    if (cut && !ln.trim() && (!out.length || !out[out.length - 1].trim())) return
+    if (ln.trim()) cut = false
+    out.push(ln)
+  })
+  // 옮긴 메모는 합치지 않고 그대로 앞에 이어 붙인다(같은 글의 줄 둘도 둘)
+  for (const [h, xs] of notes) ref.set(h, [...xs, ...(ref.get(h) || [])])
+  return { text: withRef(out, ref), moved: kinds.log + kinds.table + kinds.mark + chg, kinds, why, placed: placed.map(({ h, l }) => ({ h, l })) }
+}
+
+// ── 옛 꼴 읽기(옛 문서 옮기기만 쓴다 · core/sections.js 는 지금 꼴만 읽는다 · O-9) ──
+//   항목 끝 `**경과**` 꼬리(모두 kmd 꼴의 기록 줄일 때만) · 「> 기록 그대로: [제목](../work/…) · Claude 로 다듬지 못했다」 줄(규칙 대체)
+export const RULE_LINE = /^>\s*기록 그대로:\s*\[([^\]]*)\]\(([^)\s]+)\)\s*·\s*Claude 로 다듬지 못했다\.?\s*$/
+const ROUGH = '다듬지 못함'
+const OLD_APPLIED = /^<!--\s*applied:\s*(.+?)\s*-->\s*$/
+function oldFenceOf(ln, fence) {
+  const f = ln.match(FENCE)
+  if (!f) return undefined
+  if (!fence) return f[1]
+  return f[1][0] === fence[0] && f[1].length >= fence.length ? null : fence
+}
+function cutOldLog(text) {
+  const lines = text.split('\n')
+  const at = logAt(lines)
+  if (at < 0) return { body: text, log: [] }
+  return { body: lines.slice(0, at).join('\n').replace(/^\n+|\s+$/g, ''), log: lines.slice(at + 1).map((l) => l.trim()).filter(Boolean) }
+}
+// 규칙 대체 줄 → 참고 줄(날짜는 기록 id 의 YYYY-MMDD)
+function ruleEntry(m) {
+  const d = String(m[2]).match(/(\d{4})-(\d{2})(\d{2})-[^/]*\.md$/)
+  return `- ${d ? `${d[1]}-${d[2]}-${d[3]} ` : ''}[${m[1]}](${m[2]}) · ${ROUGH}`
+}
+// 항목 글의 옛 꼴: { body, applied, log, old(옛 꼴 줄 수) }
+function oldBody(lines, from, to) {
+  let applied = null
+  const out = []
+  const rule = []
+  let fence = null
+  for (let i = from; i < to; i++) {
+    const ln = lines[i]
+    const f = oldFenceOf(ln, fence)
+    if (f !== undefined) fence = f
+    const m = ln.match(OLD_APPLIED)
+    if (m && /^null$/i.test(m[1])) continue
+    if (m && applied == null) {
+      applied = m[1]
+      continue
+    }
+    const r = !fence && f === undefined && ln.match(RULE_LINE)
+    if (r) {
+      rule.push(ruleEntry(r))
+      if (i + 1 < to && !lines[i + 1].trim()) i++
+      continue
+    }
+    out.push(ln)
+  }
+  const c = cutOldLog(out.join('\n').replace(/^\n+|\s+$/g, ''))
+  return { body: c.body, applied, log: mergeLog(c.log, rule), old: c.log.length + rule.length }
+}
+// 옛 꼴을 모두 참고 블록으로: { text, moved, found } · 항목마다 경과 꼬리 · 규칙 대체 줄을 떼고 본문은 그대로 · 머리글과 다른 줄은 바이트 그대로
+export function moveOldLogs(text) {
+  const { lines, ref, found } = splitRef(String(text).split('\n'))
+  const secs = headsOf(lines).filter((h) => h.level === 2)
+  const out = lines.slice()
+  let moved = 0
+  for (const h of [...secs].reverse()) {
+    const b = oldBody(lines, h.line + 1, h.end)
+    if (!b.old) continue
+    moved += b.old
+    ref.set(h.heading, mergeLog(b.log, ref.get(h.heading) || []))
+    const gap = lines.slice(h.end).some((l) => l.trim()) ? [''] : []
+    out.splice(h.line + 1, h.end - h.line - 1, ...(b.applied ? [`<!-- applied: ${b.applied} -->`] : []), ...b.body.split('\n'), ...gap)
+  }
+  if (!moved) return { text: String(text), moved: 0, found }
+  return { text: withRef(out, ref), moved, found }
+}
+// 남은 옛 꼴 줄 수
+const oldLeft = (text) => {
+  const { lines } = splitRef(String(text).split('\n'))
+  return headsOf(lines).filter((h) => h.level === 2).reduce((a, h) => a + oldBody(lines, h.line + 1, h.end).old, 0)
+}
+
+// 옮긴 글 검사 — 뗀 줄이 kmd 꼴(경과 머리 · 기록 줄 · 「기록 그대로」 줄) · 옛 CDP 표식뿐이고 · 옛 꼴이 남지 않고 · 참고 줄을 잃지 않았나
+//   앞은 원문(옛 꼴을 떼지 않은 것)으로 잰다 — parseDoc 끼리 견주면 잘못 뗀 본문을 놓친다
+//   뗀 옛 경과 줄 · 주석은 모두 참고 블록에 메모로 있어야 한다
+//   placed — 옮기기가 붙인 메모({ h, l }) · 주면 메모가 그 항목 이름 아래 그 개수만큼 있는지도 본다
+//   메모는 개수까지 센다(같은 글의 줄 둘이 하나로 줄면 잃은 것이다)
+export function verifyConvert(before, after, placed = null) {
+  const A = rawLines(after)
+  const gone = []
+  let k = 0
+  for (const l of rawLines(before)) {
+    if (k < A.length && A[k] === l) k++
+    else gone.push(l)
+  }
+  if (k < A.length) return { ok: false, why: '옮기면 본문 글이 달라진다' }
+  const a = parseDoc(readText(before), '')
+  const b = parseDoc(readText(after), '')
+  const refOf = (t) => splitRef(readText(t).split('\n')).ref
+  const ra = refOf(before)
+  const rb = refOf(after)
+  const cnt = (xs, x) => (xs || []).filter((y) => norm(y) === x).length
+  const allOf = (r) => [...r.values()].flat()
+  const wants = []
+  for (let i = 0; i < gone.length; i++) {
+    const l = gone[i]
+    if (/^\*\*경과\*\*$/.test(l) || isLogEntry(l) || RULE_LINE.test(l) || CDP_BASE_END.test(l)) continue
+    let want
+    const ch = changeHeadOf(l)
+    if (ch && !ch.inline) continue
+    if (changeEntry(l)) continue // 기록 줄 — 아래 링크 대조가 본다
+    if (ch) return { ok: false, why: '옮기면 본문 글이 달라진다' }
+    if (DATED.test(l)) want = noteLine(l)
+    else if (CDP_BASE.test(l)) want = srcNote(l.match(CDP_BASE)[1])
+    else if (MARK_START.test(l) && !KEEP_MARK.test(l)) {
+      let t = l
+      while (!/-->$/.test(t) && i + 1 < gone.length) t += ` ${gone[++i]}`
+      want = markNote(t)
+    } else return { ok: false, why: '옮기면 본문 글이 달라진다' }
+    // 기록 줄 꼴이 된 것은 아래 링크 대조가 본다
+    if (!isLogEntry(want)) wants.push(norm(want))
+  }
+  // 뗀 줄마다 참고에 메모 하나씩(앞에 있던 같은 글은 빼고 센다)
+  const before0 = allOf(ra)
+  const after0 = allOf(rb)
+  for (const w of new Set(wants)) {
+    const n = wants.filter((x) => x === w).length
+    if (cnt(after0, w) < cnt(before0, w) + n) return { ok: false, why: `뗀 줄이 참고에 없다(${w.slice(2, 32)})` }
+  }
+  if (placed) {
+    const ps = placed.filter((p) => !isLogEntry(p.l)).map((p) => ({ h: p.h, l: norm(p.l) }))
+    const key = (xs) => xs.slice().sort().join('\n')
+    if (key(ps.map((p) => p.l)) !== key(wants)) return { ok: false, why: '뗀 줄과 옮긴 메모가 맞지 않는다' }
+    for (const p of ps) {
+      const n = ps.filter((x) => x.h === p.h && x.l === p.l).length
+      if (cnt(rb.get(p.h), p.l) < cnt(ra.get(p.h), p.l) + n) return { ok: false, why: `「${p.h}」 에 붙을 메모가 없다(${p.l.slice(2, 32)})` }
+    }
+  }
+  if (oldLeft(readText(after))) return { ok: false, why: '옮긴 뒤에도 옛 꼴이 남는다' }
+  if (a.docLog.some((l) => !b.docLog.includes(l))) return { ok: false, why: '(문서) 참고 줄을 잃는다' }
+  for (const s of a.sections) {
+    const t = b.sections.find((x) => x.h === s.h)
+    if (!t || s.log.some((l) => !t.log.includes(l) && !t.log.includes(`${l} · 다듬지 못함`))) return { ok: false, why: `「${s.h}」 의 출처 줄을 잃는다` }
+    if ((t.applied || null) !== (s.applied || null)) return { ok: false, why: `「${s.h}」 의 표지가 바뀐다` }
+  }
+  // 뗀 기록 줄은 모두 참고 블록에 있어야 한다
+  const now = [...b.sections.flatMap((s) => s.log), ...b.docLog].join('\n')
+  const hrefOf = (l) => (l.match(/\]\(([^)\s]+)\)/) || [])[1]
+  if (gone.some((l) => hrefOf(l) && !now.includes(`](${hrefOf(l)})`))) return { ok: false, why: '뗀 출처 줄이 참고에 없다' }
+  return { ok: true }
+}
+
+// 문서 하나 옮기기 — { text, changed, moved, kinds: { kmd, log, table, mark }, ok, why, left(남은 표지 밖 주석 줄) }
+//   why — 옮기지 않은 까닭(ok 여도 · 사람이 쓴 것으로 보고 둔 경과 목록 같은 것)
+export function convertDoc(text0) {
+  const text = readText(text0)
+  const z0 = dropNullApplied(text)
+  const top = dropTopApplied(z0.text)
+  const z = { text: top.text, n: z0.n }
+  const r = moveOldLogs(z.text)
+  const m = moveOldMarks(r.text)
+  const kinds = { kmd: r.moved, ...m.kinds, ...(z.n ? { nul: z.n } : {}), ...(top.n ? { top: top.n } : {}) }
+  const moved = r.moved + m.moved + z.n + top.n
+  const note = m.why.length ? m.why.join(' / ') : null
+  if (!moved) return { text, changed: false, moved: 0, kinds, ok: true, why: note, left: strayMarks(text) }
+  const v = verifyConvert(text, m.text, m.placed)
+  if (!v.ok) return { text, changed: false, moved: 0, kinds: { kmd: 0, log: 0, table: 0, mark: 0 }, ok: false, why: v.why, left: strayMarks(text) }
+  return { text: m.text, changed: m.text !== text, moved, kinds, ok: true, why: note, left: strayMarks(m.text) }
+}
+
+// `<!-- applied: null -->` — 기록 id 가 아닌 뜻 없는 표지(옛 생성기가 남긴 것). 걷는다 · 본문 글이 아니라 보존 검증 대상이 아니다
+const NULL_APPLIED = /^\s{0,3}<!--\s*applied:\s*null\s*-->\s*$/i
+function dropNullApplied(text) {
+  const out = []
+  let fence = null
+  let n = 0
+  for (const l of text.split('\n')) {
+    const f = l.match(/^\s{0,3}(`{3,}|~{3,})/)
+    if (f) fence = !fence ? f[1][0] : f[1][0] === fence ? null : fence
+    if (!fence && NULL_APPLIED.test(l)) {
+      n++
+      continue
+    }
+    out.push(l)
+  }
+  return { text: out.join('\n'), n }
+}
+
+// 첫 ## 앞(제목 위 · 머리글)의 `<!-- applied: … -->` — 표지는 ## 머리 바로 아래에만 뜻이 있다(작성기준 2-2). 걷는다
+function dropTopApplied(text) {
+  const out = []
+  let fence = null
+  let n = 0
+  let sec = false
+  for (const l of text.split('\n')) {
+    const f = l.match(FENCE)
+    if (f) fence = !fence ? f[1][0] : f[1][0] === fence ? null : fence
+    else if (!fence && /^##\s/.test(l)) sec = true
+    if (!sec && !fence && !f && APPLIED_LINE.test(l)) {
+      n++
+      continue
+    }
+    out.push(l)
+  }
+  return n ? { text: out.join('\n').replace(/^\n+/, ''), n } : { text, n: 0 }
+}
 
 // 문서 하나: 지운 기록의 참고 줄 · 표지 · 옛 표식 메모 · (개인) 블록 표식 · 사본 표지 → { text, n: { refs, applied, marks, blocks, watched, stuck } }
 //   gone: 지운 기록 id 모음. 지운 기록을 가리키는 표지는 걷기만 한다(다른 기록으로 옮기지 않는다:
@@ -790,8 +1186,8 @@ export async function plan(dir, { personal = false, drop: drop0 = [] } = {}) {
       J('저절로 채우는 표 블록(<!-- baseline -->)', p, bl, '블록 표식만 걷고 표를 남길지 사람이 정한다')
       J('사본 문서 표지(watched)', p, WATCHED.test(live[0] || '') ? 1 : 0, '원본이 주인인 문서 · 표지를 걷으면 사람이 고치는 문서가 된다')
     }
-    const lv = toLevels(t1)
-    if (lv.heads) { heads3 += lv.heads; h3docs.push(p) }
+    const h3 = lintLevels(t1.split('\n')).filter((x) => x.code === 'sub-head').length
+    if (h3) { heads3 += h3; h3docs.push(p) }
   }
   J('항목 안 ### 소제목(수준 표시 전 꼴)', h3docs.join(' · '), heads3, '수준 표시로 옮길지 서식 맞춤에서 본다(목록 줄까지 바꾸므로 기계로 옮기지 않는다)')
 
@@ -965,7 +1361,7 @@ export function apply(dir, p, { user, msg = null, now = new Date(), personal = f
 }
 
 // 개인 지식 자동 이행: 판 표시가 없으면 한 번(기계 규칙만 · 판단이 드는 것은 쓰지 않는다)
-//   부르는 곳은 G 단계에서 단다(개인 프로그램이 지식을 열 때)
+//   부르는 곳: server/hub.js oldformOnce(개인 프로그램이 켤 때 · 지식을 처음 열 때 · 실패는 log 만)
 export async function runOnce(dir, { personal = true, user = 'kmd', now = new Date() } = {}) {
   const abs = path.resolve(dir)
   const mark = path.join(abs, '.git', MARK_FILE)

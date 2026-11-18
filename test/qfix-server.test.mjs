@@ -13,7 +13,7 @@ import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
 import { learn, loadLearned } from '../core/search.js'
 import { render } from '../server/views.js'
-import { convertDoc } from '../core/docformat.js'
+import { convertDoc } from '../core/oldform.js'
 import { parseDoc } from '../core/sections.js'
 import { copyDir, signIn } from './helpers.mjs'
 

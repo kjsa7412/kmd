@@ -164,3 +164,16 @@ test('값 견주기(서식 맞춤) — 줄 머리 수준 번호 · 옛 머리 �
   assert.equal(sameValues('3 개소', '개소').same, false, '줄 머리라도 점 없는 수는 값')
   assert.equal(sameValues('포트 8080', '포트 9090').same, false)
 })
+
+test('사건 · 보고 알림(작성기준 6-3 · R4-3): 정한 것 줄이 길고 링크가 없으면 · 무엇을이 세 문장을 넘으면 · 링크 줄 · 짧은 줄은 넘는다', () => {
+  const long = '프레임워크는 Spring Boot 3.3 과 Vue 3 으로 하고 망연계는 단방향 파일 송신으로 하며 제어 기능은 SCADA 를 거쳐 같은 경로로 보낸다'
+  const doc = (decided, what) => ['# 회의록', '', '회의 한 번을 항목 하나로 적는다.', '', '## 2026-09-30 내부 회의', '', '방향을 정했다.', '', '- **누가**: 김, 박', ...(what ? ['- **무엇을**:', ...what] : []), '- **정한 것**:', ...decided, '- **남은 것**:', '* 없음'].join('\n')
+  const xs = lintForm(doc([`* ${long}`], ['* 사업 구조를 보았다. 구성을 보았다. 대상 개소를 보았다. 요구를 모았다.']), { kind: '사건' })
+  assert.ok(codes(xs).includes('decided-long'), JSON.stringify(codes(xs)))
+  assert.ok(codes(xs).includes('what-sentences'), JSON.stringify(codes(xs)))
+  assert.ok(xs.filter((x) => ['decided-long', 'what-sentences'].includes(x.code)).every((x) => x.level === 'note'), '알림이다(고쳐 받지 않는다)')
+  const ok = lintForm(doc([`* 프레임워크는 [시스템아키텍처](시스템아키텍처.md#프레임워크) 로 정했다: ${long}`, '* 망연계는 단방향으로 한다'], ['* 사업 방향과 망연계를 다뤘다.']), { kind: '사건' })
+  assert.ok(!codes(ok).some((c) => ['decided-long', 'what-sentences'].includes(c)), JSON.stringify(codes(ok)))
+  const rep = ['# 주간보고', '', '주마다 하나.', '', '## 2026-11-06 5주차', '', '앞섰다.', '', '- **진도**:', '', '| 구분 | 계획 | 실적 |', '|---|---|---|', '| 기준 | 1% | 2% |', '', '- **한 일**:', '* 설계: 갱신', '- **정한 것**:', `* ${long}`, '- **남은 것**:', '* 없음'].join('\n')
+  assert.ok(codes(lintForm(rep, { kind: '보고' })).includes('decided-long'), '보고도')
+})

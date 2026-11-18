@@ -15,6 +15,7 @@ import { recover as recoverSave } from '../core/journal.js'
 import { renderReverted, parseReverted, parsePut, renderPut, dropPart, PUT_PART, REVERTED_PART, ACCEPTED_PART, VALUES_PART, LINKED_PART, FRESH_PART, itemKey, parseFresh } from '../core/parts.js'
 import { revertPlan } from '../core/revert.js'
 import * as collect from '../core/collect.js'
+import { runOnce as oldformRun } from '../core/oldform.js'
 import { ledgerOps } from '../core/namebook.js'
 import crypto from 'node:crypto'
 import net from 'node:net'
@@ -25,13 +26,12 @@ import { checkProposal, placeOf, buildProposal } from '../core/propose.js'
 import { metricsOf, readKnLines, daysOf, sinceOf } from '../core/metrics.js'
 import { checkSection, checkShape, judgeShape } from '../core/gate.js'
 import { valuesOf, mustValues } from '../core/values.js'
-import { splitBlocks, hasBlockMarker } from '../core/baseline.js'
 import { validEdits, judgeEdits } from '../core/edits.js'
 import { runClaude, claudeSession, checkClaude } from '../core/claude.js'
 import { kindOf, formBlock, formFixOf } from '../core/forms.js'
 import { lintForm, headProblem, missingIds } from '../core/formcheck.js'
 import * as feed from '../core/feed.js'
-import { inside as insideDir, checkTarget, readSource, probe, readDecl, editDecl, DECL_BROKEN, stripCreds, secretName, secretPrefix, docPrefix, runSource, planRun, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit, planOut, sendTables } from '../core/sources.js'
+import { inside as insideDir, checkTarget, readSource, probe, readDecl, editDecl, DECL_BROKEN, stripCreds, secretName, secretPrefix, docPrefix, runSource, readState as readSourceState, writeState as writeSourceState, sourceLines, everyMs, probeGit, planOut, sendTables } from '../core/sources.js'
 import { check } from '../core/check.js'
 import { commitPaths, ensureRepo, tryGit, maskUrl, remoteUrl } from '../core/git.js'
 import { stopLine, ageText } from '../core/stopline.js'
@@ -48,7 +48,7 @@ import { modelOf, ROLES, CHOICES } from '../core/models.js'
 import { expandSections } from '../core/excerpt.js'
 import { renderRecord } from '../core/frontmatter.js'
 import { stampAll, headingMatches, findHeading } from '../core/sections.js'
-import { docfmtDir, checkFormat } from '../core/docformat.js'
+import { checkFormat } from '../core/docformat.js'
 import { applyRestructure, readStructure, structureFp, stepFp } from '../core/restructure.js'
 import { readShape, cleanPlan, planCheck, stepsOf, diffPlan, unitFp, afterFrame, diagnose, snapshotOf, undoPlan, STEP_NO, SHAPE_CLAUDE_TYPES, SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, planMaterial, writeMaterial, planOfDraft, writeOfDraft, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SEED_PLAN_SCHEMA, seedPlanMaterial, seedSessionFixOf, seedSessionTsv, SEED_FRAME_SCHEMA, seedFramePromptOf, frameOfDraft, formClashOf, formHintOf, seedFormsOf, seedBatches, seedBatchPromptOf, batchOfDraft, mergeSeedPlan, seedWriteSessionPromptOf, seedWriteFixOf, seedPlanOfDraft, seedNormalize, seedCover, folderPlan, seedWriteMaterial, pickOf } from '../core/shape.js'
 import { parseOrder } from '../core/order.js'
@@ -65,7 +65,6 @@ import { isReservedTag } from '../core/names.js' // 예약 접두사(job/)까지
 import { isoOfStamp, logKind, atTag } from './views.js'
 import { restore as restoreFrom, checkUrl } from '../core/restore.js'
 import { writeJsonAtomic, writeFileAtomic } from '../core/atomic.js'
-import { watchedOf } from '../core/watchmark.js'
 import { connect as dbConnect, catalog as dbCatalog } from '../core/db.js'
 import { ensureProject, listGroups } from '../core/gitlab.js'
 import { getSecret, setSecret, listSecrets, delSecret } from '../core/secrets.js'
@@ -163,6 +162,20 @@ export async function makeHub({ root, dataDir, mode = 'team', pcUser = null, log
   }
   // 지식의 장부 줄 — 팀 서버의 지식은 모두 팀 지식이다(개인 지식은 각자의 PC 프로그램에만 · 팀 서버에 서지 않는다)
   const rowFor = (id) => owners.rowOf(R(), id)
+  // 옛 꼴 이행(docs/품질개선/KMD_옛잔재_정리.md O-9): 개인 프로그램이 지식을 처음 열 때 한 번 core/oldform.js runOnce.
+  //   판 표시(.git/kmd-oldform)가 있으면 runOnce 가 건너뛴다 · 바꾼 것은 이력 한 커밋 · 실패하면 log 만 하고 지식은 연다(던지지 않는다) · 팀 서버는 배포 때 kmd-migrate oldform 으로
+  const oldformDone = new Map()
+  const oldformOnce = (meta) => {
+    if (mode !== 'pc' || !meta?.dir) return Promise.resolve()
+    const key = path.resolve(meta.dir)
+    if (!oldformDone.has(key)) {
+      oldformDone.set(key, oldformRun(key, { personal: true, user: pcUser || 'kmd' }).then(
+        (r) => { if (r && !r.skipped && r.commit) log(`옛 꼴을 옮겼다 ${meta.id || key}: 커밋 ${String(r.commit).slice(0, 8)} · 파일 ${r.files} · 사람이 볼 것 ${r.judge}`) },
+        (e) => log(`옛 꼴을 옮기지 못했다 ${meta.id || key}: ${e?.message || e}`),
+      ))
+    }
+    return oldformDone.get(key)
+  }
   // 지식마다 자리(docs/kmd_권한_모델.md) — 이 PC 는 한 사람이라 늘 관리 · 팀은 장부의 자리 표로
   const levelFor = (id, ctx) => (mode === 'pc' && !ctx?.agent && !ctx?.machine ? 'admin' : owners.levelOf(R(), id, ctx))
   const visibleTo = (id, ctx) => owners.atLeast(levelFor(id, ctx), 'read')
@@ -1446,10 +1459,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         hold('reverts', '7일 안에 두 번 되돌린 문서: 값 바꿈은 넣지 않았다', { changed: r.changed })
         continue
       }
-      // 저절로 채우는 표 — 고치지 않았으면(checkSection 이 견줬다) 표를 뗀 글로 보낸다(저장이 원래 표를 되붙인다)
-      let text = r.text
-      if (hasBlockMarker(text)) text = splitBlocks(text).text.replace(/\u0000block\d+\u0000/g, '').replace(/\n{3,}/g, '\n\n').trim()
-      out.push({ ...(coord ? { coord } : { doc: at.doc, heading: at.heading }), content: text, ...(at.sec ? { base: s.base } : {}) })
+      out.push({ ...(coord ? { coord } : { doc: at.doc, heading: at.heading }), content: r.text, ...(at.sec ? { base: s.base } : {}) })
       proposals.push({ ...row, ok: true, changed: r.changed || [], ...(r.warnings ? { warnings: r.warnings } : {}), ...(r.lint ? { lint: r.lint } : {}) })
     }
     if (stale.length) throw Object.assign(new KmdError('E_CONFLICT', `읽은 뒤 바뀐 항목이 있다: ${stale.slice(0, 3).join(' · ')}. section 으로 다시 읽고 다시 보낸다(아무것도 쓰지 않았다)`, { details: { stale, proposals } }), { conflictWith })
@@ -1594,11 +1604,10 @@ ${genRulesBlock({ profile: 'shape' })}`
       const p = proposalOf(k, pin, p0)
       if (p.errors.length) throw proposeFail(p)
       if (p.proposal !== input.proposal) throw new KmdError('E_APPROVE', '승인한 저장 제안과 지금 제안이 다르다(입력이 바뀌었거나 그사이 지식이 바뀌었다). 새 제안을 사람에게 보이고 다시 승인받는다(아무것도 쓰지 않았다)', { details: { propose: p } })
-      const strip = (t) => (hasBlockMarker(t) ? splitBlocks(t).text.replace(/\u0000block\d+\u0000/g, '').replace(/\n{3,}/g, '\n\n').trim() : t)
       const sections = []
       for (const x of p.items) {
-        if (x.kind === '고침') sections.push({ ...(x.coord ? { coord: x.coord } : { doc: x.doc, heading: x.heading }), content: strip(x.after), base: x.base })
-        else if (x.kind === '신설') sections.push({ doc: x.doc, heading: x.heading, content: strip(x.after) })
+        if (x.kind === '고침') sections.push({ ...(x.coord ? { coord: x.coord } : { doc: x.doc, heading: x.heading }), content: x.after, base: x.base })
+        else if (x.kind === '신설') sections.push({ doc: x.doc, heading: x.heading, content: x.after })
       }
       // 기록 모음 달 항목이 아직 없다 — 저장 문이 세운다(서버가 쓴 한 줄 설명 · P-D29)
       const month = p.linked.find((x) => x.records && x.missing)
@@ -1650,11 +1659,10 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (errors.length) return { abort: { errors: errors.map(({ code, at, why, stale }) => ({ code, at, why, ...(stale ? { stale: true } : {}) })) } }
       // 사람이 올린 「넣을 것」(H6) — 판정만 하고 쓰지 않는다: 저장 제안 글을 돌려주고 사람의 승인을 기다린다
       if (un.ask) return { abort: { ask: { text: p.text, warnings: p.warnings.map(({ id: wid, code, at, why }) => ({ id: wid, code, at, why })) } } }
-      const strip = (t) => (hasBlockMarker(t) ? splitBlocks(t).text.replace(/\u0000block\d+\u0000/g, '').replace(/\n{3,}/g, '\n\n').trim() : t)
       const sections = []
       for (const x of p.items) {
-        if (x.kind === '고침') sections.push({ ...(x.coord ? { coord: x.coord } : { doc: x.doc, heading: x.heading }), content: strip(x.after), base: x.base })
-        else if (x.kind === '신설') sections.push({ doc: x.doc, heading: x.heading, content: strip(x.after) })
+        if (x.kind === '고침') sections.push({ ...(x.coord ? { coord: x.coord } : { doc: x.doc, heading: x.heading }), content: x.after, base: x.base })
+        else if (x.kind === '신설') sections.push({ doc: x.doc, heading: x.heading, content: x.after })
       }
       const month = p.linked.find((x) => x.records && x.missing)
       if (month) sections.push({ doc: RECORDS_DOC_PATH, heading: month.heading, content: RECORDS_MONTH_TEXT })
@@ -1906,7 +1914,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       for (const c of [...(j.src?.touches || [])].reverse()) {
         const x = sectionOf(k, c)
         const d = x?.loc?.doc && k.byDocPath.get(x.loc.doc)
-        if (!d || /<!--\s*watched:/.test(d.intro || '')) continue
+        if (!d) continue
         docs = [candOf(d), ...docs.filter((y) => y.doc !== d.path)]
       }
       docs = docs.slice(0, 5)
@@ -2585,7 +2593,7 @@ ${genRulesBlock({ profile: 'shape' })}`
     async get(id, ctx) {
       const meta = await hub.meta(id, ctx)
       if (!files.has(id)) files.set(id, new Map())
-      if (!cache.has(id)) cache.set(id, loadKnowledge(meta, { cache: files.get(id) }).then((k) => { itemCount.set(id, k.vocab.coords.size); return k }).catch((e) => { cache.delete(id); throw e }))
+      if (!cache.has(id)) cache.set(id, oldformOnce(meta).then(() => loadKnowledge(meta, { cache: files.get(id) })).then((k) => { itemCount.set(id, k.vocab.coords.size); return k }).catch((e) => { cache.delete(id); throw e }))
       return cache.get(id)
     },
     async all(ctx) {
@@ -2753,14 +2761,6 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (touched) await writeJsonAtomic(f, sent, { indent: 1 })
       return out
     },
-    // 기록 모음 문서가 없으면 세운다(셸 · 시험 — 옛 저장 방식 스위치가 켤 때 하던 일 · P-D29)
-    async ensureRecordsDoc(id) {
-      const meta = await hub.meta(id)
-      await ensureRepo(meta.dir)
-      const made = await recordsDoc(meta.dir, 'kmd')
-      cache.delete(id)
-      return made
-    },
 
     // 지식 점검 — 지식 생성 가드가 보는 것의 지금 상태(항목 없는 기록 · 장부 밖 항목 · 장부에 없는 항목 · 머리 잃은 항목 · 같은 말 여러 항목 · 깨진 머리)
     //   지식관리자만 · 목록은 줄마다 200 까지(수는 그대로)
@@ -2821,26 +2821,8 @@ ${genRulesBlock({ profile: 'shape' })}`
       const k = await hub.get(id, ctx)
       return searchCheck(k, await hub.index(id), { dataDir, freeze })
     },
-    // 옛 문서 옮기기(작성기준 10절) — 항목 끝 경과 · 「기록 그대로」 줄을 문서 끝 참고 블록으로. 그 지식의 관리 자리 · 셸만
-    //   dry 면 쓰지 않고 결과만 · 본문 글이 달라지는 문서 · 원본이 주인인 문서는 옮기지 않는다 · 옮긴 것은 git 한 묶음 + 이력 하나
-    //   levels — 수준 표시로 옮기기(작성기준 5-1 · 10절 --levels)
-    async docfmt(id, ctx, { dry = false, lift = false, levels = false } = {}) {
-      const meta = await hub.meta(id, ctx)
-      if (ctx) hub.need(ctx, id, 'admin')
-      if (!dry) {
-        const shut = backup.closed(meta)
-        if (shut) throw new KmdError('E_BEHIND', shut.message)
-      }
-      const r = await docfmtDir(meta.dir, { dry, lift: !!lift, levels: !!levels, user: 'kmd', by: ctx?.user && ctx.user !== 'kmd' ? ctx.user : null })
-      if (r.commit) {
-        cache.delete(id)
-        pushRemotes(meta, { log }).catch(() => {})
-      }
-      return { kn: id, name: meta.name, ...r }
-    },
-
     // 문서 짜임(권한 모델 7-1절) — 지식관리자 · 개인 프로그램. 읽기는 지금 짜임 + 지문 · 바꾸기는 한 커밋 + 이력 하나(core/restructure.js)
-    //   문서마다 { id, title, watched, form(갈래 장부에 있는 이름) } · 폴더는 문서 경로 + 차례 장부의 빈 폴더 · 지문이 어긋나면 바꾸기가 E_CONFLICT
+    //   문서마다 { id, title, form(갈래 장부에 있는 이름) } · 폴더는 문서 경로 + 차례 장부의 빈 폴더 · 지문이 어긋나면 바꾸기가 E_CONFLICT
     async structure(id, ctx) {
       const meta = await hub.meta(id, ctx)
       if (ctx) hub.need(ctx, id, 'admin')
@@ -2848,7 +2830,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       const forms = new Set(parseForms(f.forms).map((x) => x.name))
       const docs = [...f.docs].map(([rel, text]) => {
         const did = rel.slice(5, -3), base = did.split('/').pop()
-        return { id: did, title: parseDocText(text, base).title || base, watched: /^<!--\s*watched:/.test(text), form: forms.has(base) }
+        return { id: did, title: parseDocText(text, base).title || base, form: forms.has(base) }
       })
       const o = parseOrder(f.order)
       return { kn: id, name: meta.name, fp: structureFp(docs.map((d) => d.id), f.order), docs, order: o.order, dirs: o.dirs }
@@ -4155,8 +4137,6 @@ ${genRulesBlock({ profile: 'shape' })}`
       const dup = dry ? null : editDup.get(dupKey)
       if (dup && Date.now() - dup.at < 60_000) return dup.r
       const coords = [...new Set([...hs, ...remove, ...rename.map((x) => x.from)].flatMap((h) => coordsOfSection(k, d, h)))]
-      const w = watchedOf(await fs.readFile(path.join(k.dir, ...d.path.split('/')), 'utf8').catch((e) => (e.code === 'ENOENT' ? '' : Promise.reject(e))))
-      if (w) throw new KmdError('E_FORBIDDEN', `이 문서는 원본이 주인이다: ${w.src} 의 ${w.path} 를 고친다 · 덧붙일 말은 기록으로 남긴다`)
       const what = [...hs, ...remove.map((h) => `${h} 지움`), ...rename.map((x) => `${x.from} → ${x.to}`)]
       const title = (fixOf ? `바로잡음: ${fixOf.title}` : `화면에서 고침: ${d.title} 「${what.join(' · ')}」`).slice(0, 200)
       // 요약은 한두 문장(approve 모드 기록 칸 · SUMMARY_MAX 300) — 고친 항목이 많으면 앞 것만 + 「외 n」
@@ -4178,8 +4158,6 @@ ${genRulesBlock({ profile: 'shape' })}`
       for (const s of sections) {
         const h = String(s.h || '').trim()
         checkFormat(h, String(s.body ?? ''), { doc: d.path, old: d.sections.find((x) => x.h === h)?.body ?? null })
-        // 저절로 채우는 표는 지식관리자만 고친다(편집기는 표를 뺀 글을 준다 · 저장이 원래 표를 되붙인다)
-        if (!structure && hasBlockMarker(String(s.body ?? ''))) throw new KmdError('E_FORBIDDEN', '저절로 채우는 표는 kmd 가 가져온 곳에서 채운다. 표 밖의 글만 고친다')
       }
       // approve 모드 — 고친 항목의 저장 제안(쓰지 않는다 · 줄 안에서 새로 읽은 지식) · 지움 · 이름 바꿈만이면 제안 없음
       if (approve && sections.length) {
@@ -4294,17 +4272,6 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (whole && k.reverted?.has(record)) throw new KmdError('E_CONFLICT', '이미 되돌렸다')
       const plan = await revertPlan(k, record, { doc, heading })
       if (!whole && !plan.sections.length) throw new KmdError('E_CONFLICT', '그 항목은 이미 되돌렸거나 그 뒤 누가 고쳤다. 이력을 다시 읽는다')
-      // 지식관리자가 아니면 원본이 주인인 문서 · 저절로 채우는 표가 바뀌는 항목은 되돌리지 못한다(되돌리기는 system 저장이라 그 막기를 건너뛴다 · S-D53)
-      if (!curator) {
-        const meta = await hub.meta(id, ctx)
-        const blocks = (t) => splitBlocks(t || '').blocks.map((b) => JSON.stringify(b)).join('\n')
-        for (const p of plan.sections) {
-          const text = await fs.readFile(path.join(meta.dir, p.doc), 'utf8').catch((e) => (e.code === 'ENOENT' ? '' : Promise.reject(e)))
-          if (watchedOf(text)) throw new KmdError('E_FORBIDDEN', '원본이 주인인 문서는 지식관리자가 되돌린다')
-          const cur = k.byDocPath.get(p.doc)?.sections.find((x) => x.h === p.heading)
-          if (blocks(cur?.body) !== blocks(p.remove ? '' : p.content)) throw new KmdError('E_FORBIDDEN', '저절로 채우는 표가 바뀌는 항목은 지식관리자가 되돌린다')
-        }
-      }
       const name = (p) => p.doc.replace(/^docs\/|\.md$/g, '')
       const title = whole || !plan.sections.length ? `되돌림: ${w.title}` : `되돌림: ${name(plan.sections[0])} › ${plan.sections.map((p) => p.heading).join(' · ')}`
       const lines = plan.sections.map((p) => `- ${name(p)} › ${p.heading}: ${p.remove ? '그 기록이 세운 항목이라 지웠다' : '넣기 전 글로'}`)
@@ -4693,8 +4660,8 @@ ${genRulesBlock({ profile: 'shape' })}`
     },
     // 고치기 — 주소(경로 · git) · 넣을 문서 · 언제 · 뜻 갱신 · DB 접속 · 자격(요구 v0.2 R4). 이름은 상태 · 자격의 열쇠라 고치지 않는다.
     //   빈 비밀번호 · 토큰은 「그대로」 · 주소나 접속이 바뀌면 처음부터 다시 한 번 가져온다
-    //   넣을 지식(kn)이 바뀌면 옛 지식에서 지우고(사본은 copies 대로) 새 지식에 더해 처음부터 한 번 가져온다
-    async sourceEdit(ctx, id, { name, at = null, doc = null, every = null, meaning = null, db = null, cred = null, kn = null, copies = 'keep' }) {
+    //   넣을 지식(kn)이 바뀌면 옛 지식에서 지우고 새 지식에 더해 처음부터 한 번 가져온다
+    async sourceEdit(ctx, id, { name, at = null, doc = null, every = null, meaning = null, db = null, cred = null, kn = null }) {
       const meta = await hub.meta(id, ctx)
       if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 관리자가 고친다')
       const to = kn && kn !== id ? String(kn) : null
@@ -4750,7 +4717,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (to) {
         const sec = await getSecret(dataDir, secretName(id, name)).catch(() => null)
         if (sec) await setSecret(dataDir, secretName(to, name), sec)
-        const r = await hub.sourceRemove(ctx, id, { name, copies })
+        await hub.sourceRemove(ctx, id, { name })
         const tm = await hub.meta(to, ctx)
         const addKey = `${to}\n${name}`
         adding.add(addKey)
@@ -4762,7 +4729,7 @@ ${genRulesBlock({ profile: 'shape' })}`
           cache.delete(to)
           if (started) hub.watchSource(to, s)
           const run = await hub.sourceRun(to, name, { first: true }).catch((e) => [{ state: 'failed', why: e.message }])
-          return { source: s, run, moved: to, copies: r.copies, kept: r.kept }
+          return { source: s, run, moved: to }
         } finally {
           adding.delete(addKey)
         }
@@ -4787,7 +4754,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       return { source: s, run }
     },
     // 지우기 — 감시 · 상태 · 장부 · 자격을 걷는다. 이미 들어온 문서 · 기록은 그대로 둔다(지식의 글이다)
-    async sourceRemove(ctx, id, { name, copies = 'keep' }) {
+    async sourceRemove(ctx, id, { name }) {
       const meta = await hub.meta(id, ctx)
       if (!hub.canSource(ctx, id)) throw new KmdError('E_FORBIDDEN', '가져올 곳은 그 지식의 지식관리자가 지운다')
       const decl = await readDecl(meta.dir)
@@ -4804,42 +4771,8 @@ ${genRulesBlock({ profile: 'shape' })}`
       await writeSourceState(dataDir, id, st)
       await fs.rm(path.join(dataDir, 'watch', encodeURIComponent(id), `${crypto.createHash('sha1').update(String(name)).digest('hex').slice(0, 16)}.json`), { force: true })
       await delSecret(dataDir, secretName(id, name)).catch(() => {})
-      // 그 곳에서 온 사본 문서 — 「원본이 주인」 표지가 남으면 고칠 길이 없다
-      const mine = []
-      for (const d of (await hub.get(id)).docs) {
-        const t = await fs.readFile(path.join(meta.dir, ...d.path.split('/')), 'utf8').catch(() => '')
-        if (watchedOf(t)?.src === name) mine.push({ d, t })
-      }
-      if (mine.length) {
-        await serial(path.resolve(meta.dir), async () => {
-          for (const { d, t } of mine) {
-            const full = path.join(meta.dir, ...d.path.split('/'))
-            if (copies === 'drop') await fs.rm(full, { force: true })
-            else await fs.writeFile(full, t.split('\n').slice(1).join('\n').replace(/^\n+/, ''), 'utf8')
-          }
-          await commitPaths(meta.dir, mine.map((x) => x.d.path), `가져올 곳 지움: ${name} · 사본 ${mine.length} ${copies === 'drop' ? '지움' : '내 문서로'}`, ctx.user).catch((e) => log('사본 정리', id, e.message))
-        })
-      }
       cache.delete(id)
-      return { removed: name, copies: mine.length, kept: copies !== 'drop' }
-    },
-    // 원본이 없어진 사본 — 「원본이 주인」 표지를 걷어 내 문서로(고칠 수 있게)
-    async unwatch(ctx, id, { doc }) {
-      const meta = await hub.meta(id, ctx)
-      if (!hub.canDirect(ctx, id)) throw new KmdError('E_FORBIDDEN', '그 지식의 지식관리자가 한다')
-      const d = (await hub.get(id)).docs.find((x) => x.id === doc)
-      if (!d) throw new KmdError('E_NOTFOUND', '이 문서는 이제 없다')
-      const full = path.join(meta.dir, ...d.path.split('/'))
-      const t = await fs.readFile(full, 'utf8')
-      const w = watchedOf(t)
-      if (!w) return { ok: true }
-      if ((await readDecl(meta.dir)).some((s) => s.name === w.src)) throw new KmdError('E_CONFLICT', `원본이 아직 있다: ${w.src} 에서 가져온다 · 가져올 곳을 지우면 내 문서로 남는다`)
-      await serial(path.resolve(meta.dir), async () => {
-        await fs.writeFile(full, t.split('\n').slice(1).join('\n').replace(/^\n+/, ''), 'utf8')
-        await commitPaths(meta.dir, [d.path], `원본이 없어진 사본: 내 문서로 · ${d.title}`, ctx.user)
-      })
-      cache.delete(id)
-      return { ok: true }
+      return { removed: name }
     },
     // 그 지식의 관리 자리 사람(총괄 관리자 포함) — 정리 · 가져오기 알림을 받는 사람
     async curatorsOf(id) {
@@ -5198,7 +5131,6 @@ ${genRulesBlock({ profile: 'shape' })}`
       const d = k.byDocPath.get(rel)
       if (!d) throw new KmdError('E_NOTFOUND', '그런 문서가 없다')
       if (rowFor(id)?.noClaude) throw new KmdError('E_FORBIDDEN', '이 지식은 Claude 에 보내지 않는다: 다듬기는 팀 일꾼(Claude)이 한다')
-      if (/<!--\s*watched:/.test(d.intro || '') || watchedOf(await fs.readFile(path.join(k.dir, ...rel.split('/')), 'utf8').catch((e) => (e.code === 'ENOENT' ? '' : Promise.reject(e))))) throw new KmdError('E_FORBIDDEN', '원본이 주인인 문서는 다듬지 않는다')
       if (!d.sections.some((x) => x.h)) throw new KmdError('E_INPUT', '## 항목이 없는 문서는 다듬지 않는다')
       const r = await hub.openJob(id, { type: 'polish', by: ctx.user, src: { doc: rel, title: d.title || rel } })
       return { job: r.job || null, state: r.state, ...(r.again ? { again: true } : {}) }
@@ -7319,6 +7251,8 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (config.backupRoot) setTimeout(async () => { for (const m of await hub.list().catch(() => [])) await hub.autoBackup(m.id).catch((e) => log('지식백업', m.id, e.message)) }, 800).unref?.()
       // 거두기 — PC(또는 serve.json collect)에서 편집기로 고친 문서를 30초 고요 뒤 들인다
       await hub.known().catch(() => {}) // 처음 켤 때 — 지금 있는 지식을 아는 것으로
+      // 옛 꼴 이행(O-9): 개인 프로그램은 켤 때 지식마다 한 번(판 표시가 있으면 건너뛴다 · 실패해도 지식은 연다)
+      if (mode === 'pc') for (const m of await hub.list()) await oldformOnce(m)
       if (mode === 'pc' || config.collect) for (const m of await hub.list()) watchers.push(Object.assign(collect.watch(m.dir, () => hub.collect(m.id)), { dir: m.dir }))
       // 꺼져 있던 동안 편집기로 고친 것 — 켤 때 한 번 거둔다(다른 파일이 바뀔 때까지 기다리지 않게)
       if (mode === 'pc' || config.collect) setTimeout(async () => { for (const m of await hub.list().catch(() => [])) await hub.collect(m.id).catch(() => {}) }, config.collectOnStartMs ?? 1500).unref?.()
@@ -7389,7 +7323,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       const meta = await hub.meta(id)
       if (!hub.autoOf(pcUser, 'save')) return null // 설정에서 「편집기에서 고친 것 저장」 을 껐다
       const user = pcUser || 'kmd'
-      const r = await serial(path.resolve(meta.dir), () => collect.collectNow(meta.dir, { user, save: (x) => collect.writeCollect(meta.dir, { ...x, user }) }))
+      const r = await serial(path.resolve(meta.dir), () => collect.collectNow(meta.dir, { user }))
       if (r) {
         cache.delete(id)
         if (r.reverted?.length) log(`${meta.name}: 손으로 고친 기록 · 장부를 되돌렸다: ${r.reverted.join(' · ')}`)
@@ -7397,7 +7331,6 @@ ${genRulesBlock({ profile: 'shape' })}`
         for (const x of r.rescued || []) await feed.add(dataDir, user, { kind: 'edit', kn: id, yl: true, b: `편집기 고침을 되돌렸다: ${meta.name} › ${x.path}`, small: `${x.why} · 고친 글의 사본: ${x.copy}` }).catch(() => {})
         // 손으로 고친 문서(H6) — 들이지 않고 되돌려 두었다: 점검의 「손으로 고친 파일」 에서 [원천으로 넣기] 또는 [버리기]
         for (const x of r.hand || []) await feed.add(dataDir, user, { kind: 'edit', kn: id, yl: true, b: `편집기로 고친 글을 들이지 않았다: ${meta.name} › ${String(x.path).replace(/^docs\/|\.md$/g, '')}`, small: '문서는 되돌려 두었다 · 지식 › 점검의 「손으로 고친 파일」 에서 [원천으로 넣기]' })
-        if (r.id) pushRemotes(meta, { log }).catch(() => {})
       }
       return r
     },
@@ -7437,18 +7370,6 @@ const unbackedCache = new Map()
 // 새 개인 지식의 사람 칸 — 저장 방식 표지만(owners.parseMembers 가 save 'approve' · 주인 없음 · 설정 줄 없음으로 읽는다)
 const PC_MEMBERS = ['# 사람', ''].join('\n')
 const recordsDocText = () => `# ${RECORDS_DOC}\n\n${RECORDS_INTRO}\n`
-// 없으면 세운다(approve 로 켤 때) — 저장과 같은 줄에서 · 있으면 그대로
-async function recordsDoc(dir, user) {
-  return serial(path.resolve(dir), async () => {
-    await recoverSave(dir)
-    const full = path.join(dir, ...RECORDS_DOC_PATH.split('/'))
-    if (existsSync(full)) return false
-    await fs.mkdir(path.dirname(full), { recursive: true })
-    await fs.writeFile(full, recordsDocText(), 'utf8')
-    await commitPaths(dir, [RECORDS_DOC_PATH], `${RECORDS_DOC}: 세움`, user)
-    return true
-  })
-}
 
 async function unbacked(k) {
   const head = (await tryGit(k.dir, ['rev-parse', '-q', '--verify', 'HEAD'])).out.trim()

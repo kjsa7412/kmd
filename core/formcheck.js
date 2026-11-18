@@ -21,6 +21,9 @@ const isSep = (ln) => /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(ln) && /-/.test(ln)
 // cell-list 거름 — 설명 칸 머리 · 값 꼴 조각(수 · 영문 코드가 든 조각)
 // 날짜 머리 종류(사건 · 정례 보고) — 장 번호 검사 밖 · 주차 머리 알림
 const DATED = new Set(['사건', '보고'])
+// 사건 · 보고 항목의 알림 기준(작성기준 6-3): 정한 것 한 줄의 길이(링크 없이 이보다 길면 값을 풀어 적은 것) · 무엇을 문장 수
+export const DECIDED_MAX = 80
+export const WHAT_SENTENCES = 3
 // 단계 표(절차 · 시험) — 첫 칸 번호 · 결과 칸 · 동작 칸 · 시험 케이스 덩이 머리(「1. T1 …」 · 「2. IT-03 …」)
 const STEP_COL = /^(단계|순서)$/
 const NUM_COL = /^(번호|#|No\.?)$/i
@@ -150,6 +153,29 @@ export function lintForm(text0, { kind = '대상', props = null, form = null } =
       return { at: rows[at][0], n, rows: rows.slice(at + 1, (rows.findIndex(([, ln], k) => k > at && LABEL.test(ln)) + 1 || rows.length + 1) - 1) }
     }
     if (kind === '사건') { const w = starsUnder('무엇을'); if (w && w.n > 6) add('what-long', w.at, s.h, `무엇을 아래 ${w.n}줄: 여섯 줄까지(정한 것 · 남은 것 · 따로 항목으로)`) }
+    // 사건 · 보고(작성기준 6-3 · 생성 룰 R4-3): 정한 것 줄이 값을 풀어 적음(길고 링크 없음) · 무엇을이 세 문장을 넘음
+    if (DATED.has(kind)) {
+      const block = (name) => {
+        const at = rows.findIndex(([, ln]) => (ln.match(LABEL) || [])[1]?.trim() === name)
+        if (at < 0) return null
+        const xs = []
+        const inline = rows[at][1].replace(LABEL, '').trim()
+        if (inline) xs.push([rows[at][0], inline])
+        for (let k = at + 1; k < rows.length && !LABEL.test(rows[k][1]); k++) if (/^\*\s/.test(rows[k][1])) xs.push([rows[k][0], rows[k][1].replace(/^\*\s+/, '').trim()])
+        return { at: rows[at][0], xs }
+      }
+      const d = block('정한 것')
+      for (const [i, x] of d ? d.xs : []) {
+        if (/\]\([^)]+\)/.test(x)) continue
+        const n = x.replace(/`[^`]*`/g, '`').length
+        if (n > DECIDED_MAX) add('decided-long', i, s.h, `정한 것 줄이 ${n}자이고 링크가 없다: 한 줄(${DECIDED_MAX}자 안)로 줄이고 값은 그 값이 사는 항목에 넣어 링크한다(R4-3)`)
+      }
+      const w = block('무엇을')
+      if (w) {
+        const n = w.xs.reduce((a, [, x]) => a + Math.max(1, (x.match(/[.!?。](?=\s|$)/g) || []).length), 0)
+        if (n > WHAT_SENTENCES) add('what-sentences', w.at, s.h, `무엇을이 ${n}문장: 다룬 거리 ${WHAT_SENTENCES}문장까지 · 배경 사실은 그 대상 항목으로(R4-3)`)
+      }
+    }
     if (kind === '보고') {
       const w = starsUnder('한 일')
       if (w && w.n > 8) add('what-long', w.at, s.h, `한 일 아래 ${w.n}줄: 분야마다 한 줄 · 여덟 줄까지`)

@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 import { startServer } from '../server/http.js'
 import { SHELL } from '../server/hub.js'
-import { copyDir, signIn, seat } from './helpers.mjs'
+import { copyDir, signIn, seat, ensureRecordsDoc } from './helpers.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const SHOTS = process.env.KMD_SHOTS || path.join(os.tmpdir(), 'kmd-shots')
@@ -353,7 +353,7 @@ test('점검 자리별(저장 승인 P10 · P-D28): 승인 저장 지식은 지�
   fs.rmSync(path.join(dir, 'work'), { recursive: true, force: true })
   fs.writeFileSync(path.join(dir, 'README.md'), '# 테스트 점검 지식\n')
   await s.hub.sync({ user: 'boss', admin: true })
-  await s.hub.ensureRecordsDoc('apv10')
+  await ensureRecordsDoc(s, 'apv10')
   await s.hub.setOwner(SHELL, 'apv10', { owner: 'own' })
   await s.hub.setAccess(SHELL, 'apv10', { all: 'none', users: { rd: 'write' } })
   // 지식관리자(주인) — 점검 · 지표 탭 · 넣지 못함 탭 없음 · 배지 없음

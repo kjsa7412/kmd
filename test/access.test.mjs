@@ -197,8 +197,6 @@ test('관리 길: 가져올 곳 더하기 · 지금 가져오기 · 그대로 �
     assert.equal((await req('/api/k/dpms/sources/checkdb', P.own, { host: 'db.example.com', port: 1 })).status, 200, '허락된 호스트는 지식 관리자도')
   } finally { delete s.hub.config.sourceHosts }
   assert.equal((await req('/api/k/dpms/sources/request', P.rd, add)).status, 403)
-  assert.equal((await req('/api/k/dpms/docfmt', P.wr, { dry: true })).status, 403)
-  assert.equal((await req('/api/k/dpms/docfmt', P.own, { dry: true })).status, 200, '지식 관리자도 문서 옮기기')
   assert.equal((await req('/api/k/dpms/owner', P.wr, { noClaude: true })).status, 403)
   assert.equal((await req('/api/k/dpms/owner', P.own, { noClaude: true })).j.noClaude, true, '주인 = 관리: Claude 설정')
   assert.equal((await req('/api/k/dpms/owner', P.own, { noClaude: false })).j.noClaude, false)

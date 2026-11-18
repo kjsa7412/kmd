@@ -15,7 +15,7 @@ import { startServer } from '../server/http.js'
 import { makeMcp } from '../server/mcp.js'
 import { PC_KIT_REV } from '../core/kit.js'
 import { knowledgeRow } from '../server/views.js'
-import { copyDir } from './helpers.mjs'
+import { copyDir, ensureRecordsDoc } from './helpers.mjs'
 import { parseLinked } from '../core/parts.js'
 import { RECORDS_DOC, RECORDS_INTRO, RECORDS_DOC_PATH } from '../core/guard.js'
 
@@ -57,7 +57,7 @@ before(async () => {
   fs.mkdirSync(path.join(tmp, 'team'), { recursive: true })
   seedApv(path.join(tmp, 'team', 'apv'))
   team = await startServer({ root: path.join(tmp, 'team'), data: path.join(tmp, 'tdata'), port: 0, log: () => {}, scryptN: 1 << 15 })
-  await team.hub.ensureRecordsDoc('apv')
+  await ensureRecordsDoc(team, 'apv')
 })
 after(async () => {
   await pc?.close()

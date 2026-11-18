@@ -81,7 +81,7 @@ test('거두기는 반쯤 쓴 저장을 사람의 고침으로 들이지 않는�
   const j = await begin(dir)
   await j.add(DOC)
   write(DOC, was + '\nkmd 가 쓰다 만 글\n')
-  const r = await collectNow(dir, { user: 'lee', save: () => assert.fail('고침으로 들였다') })
+  const r = await collectNow(dir, { user: 'lee' })
   assert.equal(r, null)
   assert.equal(read(DOC), was)
 })

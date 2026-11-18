@@ -1,6 +1,6 @@
 // 낡은 말 시험(지식 생성 하네스 H5) — 세션이 읽는 글(스킬 글 · 폴더 덩이 · MCP 도구 설명)에 걷은 길의 말이 남지 않게.
 //   걷은 것: 규칙 길(무인 실패는 다시 시도) · 거두기 · 넣지 못함 · 바로 넣기 · 단발 claude -p · 원문을 그대로 옮긴 「들인 자료」 를 새로 세우는 말.
-//   생성 룰 조문(core/genrules.js)은 옛 문서를 가리키려고 「옛 규칙 길 문서」 를 말하므로 여기서 보지 않는다.
+//   생성 룰 조문(core/genrules.js)은 여기서 보지 않는다(조문의 말은 genrules 시험이 본다).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'

@@ -28,3 +28,18 @@ export async function signIn(s, { id = 'kim', admin = true, password = null } = 
 // 지식마다 자리 주기 — 받지 않은 지식은 없음이 기본이다(docs/kmd_권한_모델.md v1.1). 시험의 「팀원」 은 자리를 받아야 본다
 //   seats: { 지식: 'read' | 'write' | 'admin' | 'none' } · 셸 ctx 로(총괄 관리자 비밀번호 한 번 더 없이)
 export const seat = (s, user, seats) => s.hub.setSeats({ shell: true }, user, seats)
+
+// 기록 모음 문서 세우기(시험 전용 · 서버의 셸 길 hub.ensureRecordsDoc 은 걷었다: 없는 기록 모음을 다시 세우는 길을 두지 않는다 · 옛잔재 정리 O-5)
+export async function ensureRecordsDoc(s, id) {
+  const { ensureRepo, commitPaths } = await import('../core/git.js')
+  const { RECORDS_DOC, RECORDS_DOC_PATH, RECORDS_INTRO } = await import('../core/guard.js')
+  const meta = await s.hub.meta(id)
+  await ensureRepo(meta.dir)
+  const full = path.join(meta.dir, ...RECORDS_DOC_PATH.split('/'))
+  if (fs.existsSync(full)) return false
+  fs.mkdirSync(path.dirname(full), { recursive: true })
+  fs.writeFileSync(full, `# ${RECORDS_DOC}\n\n${RECORDS_INTRO}\n`, 'utf8')
+  await commitPaths(meta.dir, [RECORDS_DOC_PATH], `${RECORDS_DOC}: 세움`, 'kmd')
+  s.hub.forget(id)
+  return true
+}

@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process'
 import { makeHub, SHELL } from '../server/hub.js'
 import { loadKnowledge } from '../core/knowledge.js'
 import { parseDoc } from '../core/sections.js'
+import { ensureRecordsDoc } from './helpers.mjs'
 
 const git = (dir, ...a) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: dir, encoding: 'utf8' })
 const rec = (id, date, touches) => `---\nid: ${id}\ntitle: "${id}"\ndate: ${date}\nauthor: 김\ntouches:\n${touches.map((c) => `  - ${c}`).join('\n')}\n---\n\n# ${id}\n\n## 바뀐 것\n- 값\n`
@@ -272,7 +273,7 @@ test('approve 모드 짜임 — 걸음 실패: 연습 판 · 진짜 모두 아�
   const s = await setup()
   try {
     await s.hub.setOwner(SHELL, 'ops', { owner: '이' })
-    await s.hub.ensureRecordsDoc('ops')
+    await ensureRecordsDoc(s, 'ops')
     const RECS = { id: '기록 모음', was: '기록 모음', items: [] }
     const plan0 = (text) => { const p = PLAN(text); return { ...p, docs: [...p.docs, RECS] } }
     const withRecs = (p) => s.hub.shapeCheck('ops', s.ctx, { plan: p })

@@ -2130,7 +2130,6 @@ function docAside(k, d, t) {
       ['지금 보는 항목', `<b data-t="curSec">${esc(cur || '')}</b>`],
       ['마지막으로 바뀜', esc(d.last ? whenTxt(d.last.date) + ': ' + d.last.author + '의 기록에서' : whenTxt(d.when))],
       ['폴더', esc(d.path.replace(/^docs\/?|[^/]*$/g, '').replace(/\/$/, '') || '-')],
-      ['가져올 곳', d.watched ? esc(d.watched.src) + (d.watched.orphan ? ': 없어졌다' : '') : '없음'],
       ['자리', esc(knWhere(KN(k)) || (isTeam() ? '팀 서버' : '이 PC'))],
       isTeam() && !isPersonal(KN(k)) ? ['쓰는 사람', whoHtml(k)] : null,
       ['항목', String(its.length || d.items || 0)],
@@ -2255,17 +2254,16 @@ function docPane(t, right) {
   const oldShape = noSec && /<h[3-6][\s>]/.test(d.intro || '') // ## 없이 ### 로 시작하는 옛 문서 — 화면에서 고치면 글이 섞인다
   const kn0 = KN(k), wk = k + '|' + d.id
   const more = editing || right ? [] : [
-    d.watched || noSec || !isTeam() || isPersonal(kn0) || lvOf(kn0) !== 'admin' ? '' : `<button type="button" class="mi" data-a="polishDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="polishBtn"${kn0.noClaude ? ' disabled aria-disabled="true" title="Claude 에 보내지 않는 지식: 다듬기는 팀 일꾼(Claude)이 한다 · 지식관리 › 모든 지식 › 지식 상세 › 정책에서 바꾼다"' : ' title="팀 일꾼이 문체 · 짜임만 정돈한다 · 값은 그대로"'}>다듬기</button>`,
+    noSec || !isTeam() || isPersonal(kn0) || lvOf(kn0) !== 'admin' ? '' : `<button type="button" class="mi" data-a="polishDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="polishBtn"${kn0.noClaude ? ' disabled aria-disabled="true" title="Claude 에 보내지 않는 지식: 다듬기는 팀 일꾼(Claude)이 한다 · 지식관리 › 모든 지식 › 지식 상세 › 정책에서 바꾼다"' : ' title="팀 일꾼이 문체 · 짜임만 정돈한다 · 값은 그대로"'}>다듬기</button>`,
     !isTeam() ? '' : `<button type="button" class="mi" data-a="watchDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-v="${esc(d.title)}" data-t="watchDoc" aria-pressed="${!!watchList()[wk]}" title="남이 이 문서를 바꾸면 알린다(이 브라우저)">${watchList()[wk] ? '지켜보는 중' : '지켜보기'}</button>`,
     `<button type="button" class="mi" data-a="pastOpen" data-k="${esc(k)}" data-d="${esc(d.id)}" data-v="${esc(d.title)}" data-t="pastOpen" title="이 문서의 옛 판 · 지금과 견주기">옛 판</button>`,
     isTeam() || !kn0 || !kn0.dir ? '' : `<button type="button" class="mi" data-a="copyDocPath" data-v="${esc(kn0.dir + '\\' + String(d.path).split('/').join('\\'))}" data-t="copyDocPath" title="편집기로 고쳐도 된다: 저장하면 곧 들어간다">파일 경로 복사</button>`,
   ].filter(Boolean)
-  const acts = right ? '' : actsHtml('doc', d.title, editing, (more.length ? moreBtn('docMore', more.join('')) : '') + (editing || d.watched ? '' : `<button class="btn pri" data-a="editDoc" data-t="editBtn"${oldShape ? ' disabled title="## 항목이 없는 옛 문서: 화면에서 고칠 수 없다"' : roAttr(k)}>고치기</button>`))
+  const acts = right ? '' : actsHtml('doc', d.title, editing, (more.length ? moreBtn('docMore', more.join('')) : '') + (editing ? '' : `<button class="btn pri" data-a="editDoc" data-t="editBtn"${oldShape ? ' disabled title="## 항목이 없는 옛 문서: 화면에서 고칠 수 없다"' : roAttr(k)}>고치기</button>`))
   const nRec = (d.backlinks.recs || []).length
   const recN = right ? '' : `<button type="button" class="recn${nRec ? ' hot' : ''}" data-a="agRail" data-k="doc" data-g="recs" data-t="docRecN" title="이 문서의 기록: 오른쪽 칸에서 본다">기록 ${nRec}</button>`
   const main = `<div class="docw" data-t="docPane" data-name="${esc(d.title)}">${right ? rpHead() : ''}
   ${q ? `<div class="found" data-t="found"><span>찾기 <b>‘${esc(q)}’</b> 로 열었다</span><button type="button" class="lk" data-a="reopenSearch">찾은 것으로 돌아가기</button></div>` : ''}
-  ${d.watched && d.watched.orphan ? `<div class="callout warn stop" data-t="watchedOrphan"><i></i><span><b>원본이 없어졌다</b>: 가져오던 곳 「${esc(d.watched.src)}」 이 지워졌다 · 내 문서로 하면 고칠 수 있다</span><button class="btn sm r" data-a="unwatchDoc" data-k="${esc(k)}" data-d="${esc(d.id)}" data-t="unwatchBtn">내 문서로</button></div>` : ''}${d.watched && !d.watched.orphan ? `<div class="callout ${d.watched.missing ? 'warn' : 'gray'} stop" data-t="watched"><i></i><span><b>${d.watched.missing ? `원본에 없다: ${esc(d.watched.missing)} 부터` : '원본이 주인이다'}</b>: ${esc(d.watched.src)} 의 <span class="mono">${esc(d.watched.path)}</span> 에서 온다 · 고치려면 원본 파일을 고친다 · 덧붙일 말은 기록으로 남긴다</span></div>` : ''}
   ${right || editing ? '' : gdockHtml(k, 'd:' + d.id)}<div class="paper"><h1>${esc(d.title)}</h1><div class="docmeta" data-t="docMeta"><span>${d.last ? `${esc(whenTxt(d.last.date))} 바뀜 · ${esc(d.last.author)}` : d.when ? `${esc(whenTxt(d.when))} 바뀜(파일 날짜)` : ''}</span>${recN}</div>${noSec && !oldShape && !editing && !right ? '<div class="callout gray" data-t="newDocEdit">빈 문서다. [고치기] 로 첫 항목(## 머리 + 글)을 쓴다</div>' : ''}${oldShape && !editing && !right ? '<div class="callout gray" data-t="noSecEdit">이 문서는 ## 항목이 없어 화면에서 고칠 수 없다. 맨 위 ### 머리를 ## 로 올리면 항목으로 나뉜다</div>' : ''}${d.intro ? `<div class="dlead" data-t="docLead">${pvLinks(linkify(d.intro, k, null), k)}</div>` : ''}${body}${editing || right ? '' : docLinksHtml(k, d)}</div></div>`
   return { html: main, aside: right ? null : docAside(k, d, t), title: d.title, acts }
 }
@@ -5055,14 +5053,14 @@ function impTarget() {
   if (isTeam()) return { kn: null, none: true, label: '쓰기 자리가 있는 지식이 없다' } // 팀 화면은 받은편지함을 세우지 않는다
   return { kn: null, make: true, label: '넣을 지식이 없다' } // 받은편지함을 저절로 세우지 않는다(관리 설계 11-1 · [+ 새 지식] 으로)
 }
-const KIND_T = { docs: '문서 폴더', folder: '코드 폴더(예전)', git: '소스 코드 · git', db: 'DB · 읽기만' }
+const KIND_T = { docs: '문서 폴더', git: '소스 코드 · git', db: 'DB · 읽기만' }
 const KIND_I = { docs: 'doc', folder: 'doc', git: 'sync', db: 'server', pc: 'pair' }
 const isCode = (s) => s.kind === 'git' && !(s.rules && s.rules.length)
 const srcId = (s) => s.kn + '|' + s.name
 // 마지막으로 바뀐 것 — 바뀐 파일 · 표 · 묶음 수
 function srcChange(s) {
   const lc = (s.state || {}).lastChange
-  return lc && lc.commits != null ? `새 묶음 ${lc.commits} · 기록 ${lc.records} · ${whenTxt(lc.at)}` : lc ? `바뀐 파일 ${lc.files}${lc.removed ? '(지움 ' + lc.removed + ')' : ''} · ${lc.recs != null ? '기록 ' + lc.recs : lc.docs != null ? '문서 ' + lc.docs : '표 ' + lc.tables} · ${whenTxt(lc.at)}` : ''
+  return lc && lc.commits != null ? `새 묶음 ${lc.commits} · 기록 ${lc.records} · ${whenTxt(lc.at)}` : lc ? `바뀐 파일 ${lc.files}${lc.removed ? '(지움 ' + lc.removed + ')' : ''} · ${lc.records != null ? '기록 ' + lc.records : '표 ' + lc.tables} · ${whenTxt(lc.at)}` : ''
 }
 // 지금 도는 중 — 이 화면에서 누른 [지금 가져오기] 이거나, 뒤에서(시계 · 실시간 감시) 도는 것(「지금 하는 일」 과 같은 값)
 const srcRunning = (s) => S.srcRun[srcId(s)] === 'run' || ((S.busy && S.busy.items) || []).some((x) => x.kind === 'source' && x.kn === s.kn && x.name === s.name)
@@ -5133,15 +5131,12 @@ async function seSave() {
     const to = (S.kns.find((k) => k.id === e.kn) || {}).name || e.kn
     if (!await ask1('다른 지식으로 옮기기', '옮기기', false, `${s.name} 을 「${to}」 지식으로 옮긴다. 처음부터 다시 가져온다.\n\n계속할까?`)) return
     body.kn = e.kn
-    const c = await ask({ t: '옛 사본 문서', d: `「${s.knName}」 에 들어와 있던 사본 문서를 어떻게 할까? 남기면 내 문서가 되어 고칠 수 있다`, btns: [['drop', '사본도 지우기', 'danger'], ['keep', '사본은 남기기', 'pri']] })
-    if (!c) return
-    body.copies = c
   }
   e.busy = true; e.msg = { cls: 'gray', t: '<b>고치는 중…</b>' }; render()
   try {
     const r = await postJSON(`/api/k/${encodeURIComponent(s.kn)}/sources/edit`, body)
     const st = r.run && r.run[0]
-    e.msg = { t: `<b>${r.moved ? '옮겼다' : '고쳤다'}</b>${r.moved && r.copies ? ` · 옛 사본 ${r.copies} ${r.kept ? '은 내 문서로 남겼다' : '도 지웠다'}` : ''}${st ? (st.state === 'failed' ? ' · 그러나 못 가져왔다: ' + esc(st.why || '') : ' · 처음부터 다시 가져왔다') : ''}` }
+    e.msg = { t: `<b>${r.moved ? '옮겼다' : '고쳤다'}</b>${st ? (st.state === 'failed' ? ' · 그러나 못 가져왔다: ' + esc(st.why || '') : ' · 처음부터 다시 가져왔다') : ''}` }
     if (r.moved) { forgetKn(r.moved); e.id = r.moved + '|' + s.name; e.kn = r.moved }
     e.password = ''; e.gitToken = ''
     dropSrcs()
@@ -5153,16 +5148,13 @@ async function seSave() {
 async function seDelOk() {
   const e = S.se, s = srcOf(e.id)
   if (!s || e.busy) return
-  const c = await ask({ t: `${s.name} 지우기`, d: `${s.name} 에서 들어온 사본 문서를 어떻게 할까? 남기면 내 문서가 되어 고칠 수 있다`, btns: [['drop', '사본도 지우기', 'danger'], ['keep', '사본은 남기기', 'pri']] })
-  if (!c) return
   e.busy = true; render()
   try {
-    const drop = c === 'drop'
-    const r = await postJSON(`/api/k/${encodeURIComponent(s.kn)}/sources/remove`, { name: s.name, copies: drop ? 'drop' : 'keep' })
+    await postJSON(`/api/k/${encodeURIComponent(s.kn)}/sources/remove`, { name: s.name })
     S.se = null
     dropSrcs()
     forgetKn(s.kn)
-    toast(`지웠다: ${esc(s.name)}${r.copies ? ` · 사본 ${r.copies} ${r.kept ? '은 내 문서로 남겼다' : '도 지웠다'}` : ''}`)
+    toast(`지웠다: ${esc(s.name)}`)
   } catch (x) { e.busy = false; e.msg = { cls: 'danger', t: esc(x.message) } }
   render()
 }
@@ -7162,11 +7154,6 @@ const ACT = {
   impPage: (el) => { S.impPage = +el.dataset.v; paintJobs() },
   palQo: () => { const q = S.pal ? S.pal.q : ''; S.pal = null; openQo(); if (S.qo) S.qo.q = q; render() },
   palName: (el) => { S.pal = null; openTab({ kind: el.dataset.kind, kn: el.dataset.k, ref: el.dataset.v }); render(); scrollTopMain() },
-  unwatchDoc: async (el) => {
-    if (!await ask1('내 문서로 고치기', '내 문서로', false, '원본이 없어진 사본이다. 「원본이 주인」 표지를 걷어 내 문서로 고친다')) return
-    try { await postJSON(`/api/k/${encodeURIComponent(el.dataset.k)}/unwatch`, { doc: el.dataset.d }); forgetKn(el.dataset.k); toast('내 문서로 했다. 이제 고칠 수 있다') } catch (e) { toastErr(e) }
-    render()
-  },
   sudoCancel: () => sudoCancel(),
   admUnlock: async (el) => { try { await postJSON(`/api/admin/users/${encodeURIComponent(el.dataset.v)}/unlock`, {}); delete S.cache.admin; toast('풀었다') } catch (e) { toastErr(e) } render() },
   admAddReq: async (el) => {

@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright-core'
 import { execFileSync } from 'node:child_process'
 import { startServer } from '../server/http.js'
-import { copyDir, signIn, seat } from './helpers.mjs'
+import { copyDir, signIn, seat, ensureRecordsDoc } from './helpers.mjs'
 import { workOnce } from '../core/worker.js'
 import { sha16 } from '../core/text.js'
 import { sectionOf } from '../core/knowledge.js'
@@ -1845,7 +1845,7 @@ test('저장 승인 P5: 저장 확인 창 — 문서 고치기 · 바뀐 것 채
   fs.rmSync(path.join(dir, 'work'), { recursive: true, force: true })
   fs.writeFileSync(path.join(dir, 'README.md'), '# 테스트 승인 지식\n')
   await s.hub.sync({ user: 'kim', admin: true })
-  await s.hub.ensureRecordsDoc('apv5')
+  await ensureRecordsDoc(s, 'apv5')
   const wr = await signIn(s, { id: 'test-p5', admin: false })
   await seat(s, 'test-p5', { apv5: 'write' })
   const page = await browser.newPage({ viewport: VIEW })
@@ -2147,7 +2147,7 @@ test('무인 실패(지식 생성 하네스 H4b): 진행 탭의 실패 일감 �
   fs.rmSync(path.join(dir, 'work'), { recursive: true, force: true })
   fs.writeFileSync(path.join(dir, 'README.md'), '# 테스트 무인 지식\n')
   await s.hub.sync({ user: 'kim', admin: true })
-  await s.hub.ensureRecordsDoc('apv6')
+  await ensureRecordsDoc(s, 'apv6')
   // 끝내 못 넘은 들이기(팀 일꾼이 24시간 받지 않음 → 곧바로 실패 일감 · 지식에는 아무것도 쓰지 않는다) · 일을 건 사람이 자리를 잃어 닫힌 들이기
   const o1 = await s.hub.openJob('apv6', { type: 'file', by: 'kmd', auto: true, src: { rel: '자료/테스트 창고 점검.md', sha: 'e'.repeat(16), title: '테스트 창고 점검.md' }, md: '## 점검표\n문은 22시에 잠근다.\n' })
   const r1 = await s.hub.intakeGiveUp(s.hub.job(o1.job), 'worker', '팀 일꾼이 24시간 넘게 일감을 받지 않았다')
@@ -2223,7 +2223,7 @@ test('저장 승인 P10: 점검 · 지표 — 탭 점검 · 지표(배지 없음
   const at = localStamp(new Date(Date.now() - 10 * 86_400_000))
   fs.writeFileSync(path.join(dir, 'work', 'test-p10a.md'), renderRecord({ id: 'test-p10a', title: '테스트 지표 기록', date: at, author: 'kim', touchesEmpty: '시험', tags: ['put'] }, '본문\n\n## 새로 세움\n- 문서 docs/테스트 새 문서.md\n'))
   await s.hub.sync({ user: 'kim', admin: true })
-  await s.hub.ensureRecordsDoc('apv10')
+  await ensureRecordsDoc(s, 'apv10')
   const sl = path.join(tmp, 'kn', '.kmd', 'savelog')
   fs.mkdirSync(sl, { recursive: true })
   fs.writeFileSync(path.join(sl, 'apv10.jsonl'), [
@@ -2306,7 +2306,7 @@ test('지식 생성 하네스 H6 · H7: 점검의 「손으로 고친 파일」 
   copyDir(path.join(HERE, 'fixture', 'kmd', 'dpms'), dir)
   fs.writeFileSync(path.join(dir, 'README.md'), '# 테스트 손 고침 지식\n')
   await s.hub.sync({ user: 'kim', admin: true })
-  await s.hub.ensureRecordsDoc('apv11')
+  await ensureRecordsDoc(s, 'apv11')
   // 편집기로 고친 문서가 되돌려진 뒤의 목록(서버가 쓰는 꼴 그대로)
   fs.mkdirSync(path.join(dir, '.git', 'kmd-hand'), { recursive: true })
   fs.writeFileSync(path.join(dir, '.git', 'kmd-hand', 'index.json'), JSON.stringify([{ id: 'aaaaaaaaaaaa', path: 'docs/배포절차.md', kind: 'mod', at: '2026-11-17 10:00', by: 'kim', heads: [{ h: '카나리', body: '`canary-1` 에 먼저 올린다. 테스트로 고친 글.' }], gone: [] }]))

@@ -80,34 +80,14 @@ test('가져오는 곳: 드라이브 통째 · 집 폴더 통째는 받지 않�
   assert.throws(() => checkTarget(root, ctx), /지식 폴더는 가져올 곳이 될 수 없다/)
 })
 
-test('가져오는 곳을 지우면: 예전 사본은 내 문서로(기본) 또는 함께 지움 · 원본이 없어진 사본은 내 문서로 풀린다', async () => {
-  // 지금 문서 폴더 가져오기는 파일마다 기록으로 들이고 사본(표지 watched)을 새로 만들지 않는다 — 예전 사본을 손으로 둔다
-  const copy = (rel, srcName, text) => {
-    const f = path.join(root, 'dpms', 'docs', ...rel.split('/'))
-    fs.mkdirSync(path.dirname(f), { recursive: true })
-    fs.writeFileSync(f, `<!-- watched: src="${srcName}" path="${rel.split('/').pop()}" rec="r1" -->\n${text}`)
-    return f
-  }
-  const f = copy('운영/절차.md', '운영', '# 절차\n\n## 순서\n첫째.\n')
+test('가져오는 곳을 지우면: 들어온 문서 · 기록은 그대로 둔다(옛 사본 문서 갈래는 걷었다)', async () => {
+  const f = path.join(root, 'dpms', 'docs', '운영', '절차.md')
+  fs.mkdirSync(path.dirname(f), { recursive: true })
+  fs.writeFileSync(f, '# 절차\n\n## 순서\n첫째.\n')
   s.hub.forget()
   await s.hub.sourceAdd(KIM, 'dpms', { name: '운영', kind: 'docs', at: src, rules: [{ rule: 'docs', into: { doc: '운영' } }] })
-  assert.match(fs.readFileSync(f, 'utf8'), /^<!-- watched: src="운영"/, '가져오기는 예전 사본을 건드리지 않는다')
   const r = await s.hub.sourceRemove(KIM, 'dpms', { name: '운영' })
-  assert.deepEqual([r.copies, r.kept], [1, true])
-  assert.doesNotMatch(fs.readFileSync(f, 'utf8'), /watched/)
-  assert.equal((await s.hub.edit(KIM, 'dpms', { doc: '운영/절차', sections: [{ h: '순서', body: '이제 고칠 수 있다.' }] })).direct, true)
-  // 다시 붙이고 함께 지움
-  const f2 = copy('운영2/둘.md', '운영2', '# 둘\n\n## 하나\n둘.\n')
-  s.hub.forget()
-  await s.hub.sourceAdd(KIM, 'dpms', { name: '운영2', kind: 'docs', at: src, rules: [{ rule: 'docs', into: { doc: '운영2' } }] })
-  assert.equal((await s.hub.sourceRemove(KIM, 'dpms', { name: '운영2', copies: 'drop' })).copies, 1)
-  assert.ok(!fs.existsSync(f2))
-  // 원본이 없어진 사본(표지만 남음) — 문서 화면이 「없어졌다」 · 내 문서로
-  const orphan = path.join(root, 'dpms', 'docs', '남은사본.md')
-  fs.writeFileSync(orphan, '<!-- watched: src="옛곳" path="x.md" -->\n# 남은사본\n\n## 글\n옛 글.\n')
-  s.hub.forget()
-  assert.equal(await code(s.hub.edit(KIM, 'dpms', { doc: '남은사본', sections: [{ h: '글', body: '새 글' }] })), 'E_FORBIDDEN')
-  await s.hub.unwatch(KIM, 'dpms', { doc: '남은사본' })
-  assert.doesNotMatch(fs.readFileSync(orphan, 'utf8'), /watched/)
+  assert.deepEqual(r, { removed: '운영' })
+  assert.equal(fs.readFileSync(f, 'utf8'), '# 절차\n\n## 순서\n첫째.\n', '문서는 그대로')
 })
 

@@ -9,10 +9,11 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { parseDoc, replaceSection, removeSection, renameSection, stampAll } from '../core/sections.js'
-import { formatProblems, convertDoc, verifyConvert, docfmtDir, lintDoc, lintNew } from '../core/docformat.js'
+import { formatProblems, lintDoc, lintNew } from '../core/docformat.js'
+// 옛 문서 옮기기는 이행기(core/oldform.js) 안의 사본이다(kmd docfmt 는 걷었다 · O-9)
+import { convertDoc, verifyConvert } from '../core/oldform.js'
 import { save, sectionBase } from '../core/save.js'
 import { loadKnowledge } from '../core/knowledge.js'
 import { render, linkTarget, linksOf, citesOf, docView } from '../server/views.js'
@@ -190,64 +191,6 @@ test('옛 문서 옮기기: 본문은 그대로 · 줄은 참고 블록으로 ·
   assert.equal(verifyConvert(old, c.text.replace('  - 2026-10-21 [하나](../work/2026-1021-하나.md)\n', '')).ok, false)
 })
 
-test('지식 옮기기: dry 는 쓰지 않는다 · 옮기면 git 한 묶음과 이력 하나 · 원본이 주인인 문서는 건너뛴다', async () => {
-  const d2 = path.join(tmp, 'fmt')
-  fs.mkdirSync(path.join(d2, 'docs'), { recursive: true })
-  fs.writeFileSync(path.join(d2, 'docs', 'a.md'), '# a\n\n## 가\n가의 글.\n\n**경과**\n- 2026-10-21 [하나](../work/2026-1021-하나.md)\n')
-  fs.writeFileSync(path.join(d2, 'docs', 'w.md'), '<!-- watched: src="s" path="w.docx" rec="r1" -->\n# w\n\n## 가\n글\n\n**경과**\n- 2026-10-21 [하나](../work/2026-1021-하나.md)\n')
-  fs.writeFileSync(path.join(d2, 'docs', 'n.md'), '# n\n\n## 가\n글\n')
-  const dry = await docfmtDir(d2, { dry: true })
-  assert.equal(dry.files, 1)
-  assert.equal(dry.commit, null)
-  assert.ok(fs.readFileSync(path.join(d2, 'docs', 'a.md'), 'utf8').includes('**경과**'))
-  assert.ok(dry.docs.find((x) => x.doc === 'w').skipped)
-  const r = await docfmtDir(d2, { user: 'kmd', by: 'kim' })
-  assert.equal(r.files, 1)
-  assert.equal(r.moved, 1)
-  assert.match(r.commit, /^[0-9a-f]{40}$/)
-  const a = fs.readFileSync(path.join(d2, 'docs', 'a.md'), 'utf8')
-  assert.ok(!a.includes('**경과**') && a.includes('<!-- kmd:참고'))
-  assert.ok(fs.readFileSync(path.join(d2, 'docs', 'w.md'), 'utf8').includes('**경과**'))
-  const lg = fs.readFileSync(path.join(d2, 'log', `${r.log}.md`), 'utf8')
-  assert.match(lg, /tags:\n {2}- docfmt/)
-  assert.match(lg, /- a: 줄 1/)
-  assert.equal(execFileSync('git', ['status', '--porcelain', '--', 'docs/a.md', `log/${r.log}.md`], { cwd: d2, encoding: 'utf8' }).trim(), '')
-  // 두 번째는 할 것이 없다
-  const again = await docfmtDir(d2)
-  assert.equal(again.files, 0)
-  assert.equal(again.commit, null)
-})
-
-test('### 올리기(liftH3 · S-D31 · S13): --lift 일 때만 · ## 없는 문서의 머리를 한 단씩 · 문서 장부 줄도 같은 커밋 · 문서 장부 줄이 머리에 닿지 않으면 올리지 않는다', async () => {
-  const d3 = path.join(tmp, 'lift')
-  fs.mkdirSync(path.join(d3, 'docs'), { recursive: true })
-  const plc = '# PLC연계규격서\n\n소개.\n\n### 1. 개요\n개요 글.\n\n#### 1.1 범위\n범위 글.\n\n```\n### 코드 안\n```\n\n### 2. 통신\n주기 500ms.\n'
-  fs.writeFileSync(path.join(d3, 'docs', 'plc.md'), plc)
-  fs.writeFileSync(path.join(d3, 'docs', 'bad.md'), '# bad\n\n### 가\n글\n')
-  fs.writeFileSync(path.join(d3, 'docs', 'ok.md'), '# ok\n\n## 가\n글\n\n### 나\n글\n')
-  fs.writeFileSync(path.join(d3, '_managed.md'), '# 문서 장부\n\n| 이름 | 문서 | 항목 |\n|---|---|---|\n| `spec:개요` | `docs/plc.md` | `### 1. 개요` |\n| `spec:통신` | `docs/plc.md` | `### 2. 통신` |\n| `spec:없음` | `docs/bad.md` | `### 없는 머리` |\n')
-  // lift 없이는 그대로
-  const plain = await docfmtDir(d3, { dry: true })
-  assert.equal(plain.lifted, 0)
-  const dry = await docfmtDir(d3, { dry: true, lift: true })
-  assert.equal(dry.lifted, 2, 'plc 의 ### 둘(bad 는 문서 장부 줄이 닿지 않아 올리지 않는다 · ok 는 ## 가 있다)')
-  assert.match(dry.docs.find((x) => x.doc === 'bad').why, /### 올리지 않음: 장부 「spec:없음」/)
-  assert.equal(fs.readFileSync(path.join(d3, 'docs', 'plc.md'), 'utf8'), plc, 'dry 는 쓰지 않는다')
-  const r = await docfmtDir(d3, { lift: true, user: 'kmd', by: 'kim' })
-  assert.match(r.commit, /^[0-9a-f]{40}$/)
-  const doc = fs.readFileSync(path.join(d3, 'docs', 'plc.md'), 'utf8')
-  assert.match(doc, /^## 1\. 개요$/m)
-  assert.match(doc, /^### 1\.1 범위$/m)
-  assert.match(doc, /```\n### 코드 안\n```/, '코드 울타리 안은 그대로')
-  assert.deepEqual(parseDoc(doc, 'docs/plc.md').sections.map((x) => x.h), ['1. 개요', '2. 통신'])
-  const reg = fs.readFileSync(path.join(d3, '_managed.md'), 'utf8')
-  assert.match(reg, /\| `spec:개요` \| `docs\/plc\.md` \| `## 1\. 개요` \|/)
-  assert.match(reg, /\| `spec:없음` \| `docs\/bad\.md` \| `### 없는 머리` \|/, '올리지 않은 문서의 줄은 그대로')
-  assert.equal(fs.readFileSync(path.join(d3, 'docs', 'bad.md'), 'utf8'), '# bad\n\n### 가\n글\n')
-  assert.equal(execFileSync('git', ['status', '--porcelain', '--', 'docs/plc.md', '_managed.md'], { cwd: d3, encoding: 'utf8' }).trim(), '', '문서와 장부가 같은 커밋')
-  assert.match(fs.readFileSync(path.join(d3, 'log', `${r.log}.md`), 'utf8'), /### 올림 2/)
-})
-
 test('화면 링크: 문서 · 항목 · 없는 문서 · 기록 · 이력 · 바깥 · 열 수 없는 것 · 깨진 % · README.md', () => {
   const k = { id: 'K', docs: [{ id: '배포절차', path: 'docs/배포절차.md', intro: '', sections: [{ h: '준비', body: '' }] }, { id: 'ops/Backup', path: 'docs/ops/Backup.md', intro: '', sections: [] }], byWork: new Map([['2026-1021-a', {}], ['2026-1026-b', {}]]), atts: [] }
   const from = 'docs/x.md'
@@ -282,41 +225,6 @@ test('표는 감싼다', () => {
   const html = render({ id: 'K', docs: [], atts: [] }, 'docs/x.md', '| a | b |\n|---|---|\n| 1 | 2 |')
   assert.match(html, /^<div class="tblwrap"><table class="t">[\s\S]*<\/table><\/div>\s*$/)
 })
-
-test('POST /api/k/:k/docfmt: 관리자 · 비밀번호 한 번 더 · dry 는 쓰지 않는다', async () => {
-  const { startServer } = await import('../server/http.js')
-  const { signIn } = await import('./helpers.mjs')
-  const { prehash } = await import('../app/prehash.js')
-  process.env.KMD_NO_CLAUDE = '1'
-  const root = path.join(tmp, 'team')
-  fs.mkdirSync(path.join(root, 'demo', 'docs'), { recursive: true })
-  fs.mkdirSync(path.join(root, 'demo', 'work'), { recursive: true })
-  fs.writeFileSync(path.join(root, 'demo', 'README.md'), '# demo\n')
-  const f = path.join(root, 'demo', 'docs', 'a.md')
-  fs.writeFileSync(f, '# a\n\n## 가\n가의 글.\n\n**경과**\n- 2026-10-21 [하나](../work/2026-1021-하나.md)\n')
-  const s = await startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
-  try {
-    const me = await signIn(s, { id: 'kim' })
-    const H = { 'content-type': 'application/json', cookie: me.cookie }
-    const post = (p, b) => fetch(s.url + p, { method: 'POST', headers: H, body: JSON.stringify(b || {}) })
-    assert.equal((await post('/api/k/demo/docfmt', { dry: true })).status, 403, '비밀번호 한 번 더 없이는 안 된다')
-    const su = await post('/api/sudo', { pw: prehash('kim', me.pw) })
-    H.cookie = [me.cookie, ...su.headers.getSetCookie().map((c) => c.split(';')[0])].join('; ')
-    const dry = await (await post('/api/k/demo/docfmt', { dry: true })).json()
-    assert.deepEqual([dry.files, dry.moved, dry.commit], [1, 1, null])
-    assert.ok(fs.readFileSync(f, 'utf8').includes('**경과**'))
-    const r = await (await post('/api/k/demo/docfmt', {})).json()
-    assert.equal(r.files, 1)
-    assert.ok(fs.readFileSync(f, 'utf8').includes('<!-- kmd:참고'))
-    // 화면 자료도 새 꼴로(캐시를 지웠다)
-    const v = await (await fetch(`${s.url}/api/k/demo/doc?d=a`, { headers: { cookie: H.cookie } })).json()
-    assert.equal(v.sections[0].refs.length, 1)
-  } finally {
-    await s.close()
-  }
-})
-
-// ── 검토 뒤 고침 ──
 
 test('본문의 「**경과**」 타임라인은 본문이다 — kmd 꼴의 기록 줄만 꼬리로 뗀다', () => {
   const t = '# 장애 대응\n\n요약\n\n## 2026-10-01 DB 장애\n\n- **누가**: 김\n\n**경과**\n- 09:00 알람\n- 09:30 복구\n'
@@ -460,7 +368,7 @@ const CDP = [
 ].join('\n')
 
 test('옛 CDP 표식 옮기기: 날짜 줄 경과 · cdp:baseline · 주석 → 참고 메모 · 본문은 그대로', async () => {
-  const { strayMarks } = await import('../core/docformat.js')
+  const { strayMarks } = await import('../core/oldform.js')
   const c = convertDoc(CDP)
   assert.equal(c.ok, true, c.why)
   assert.equal(c.changed, true)

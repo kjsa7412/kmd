@@ -22,10 +22,9 @@ import os from 'node:os'
 import crypto from 'node:crypto'
 import { tryGit, maskUrl, commitPaths, ensureRepo } from './git.js'
 import { readText, nfc } from './text.js'
-import { parseDoc, headingMatches } from './sections.js'
 import { renderRecord } from './frontmatter.js'
 import { localStamp, serial, recordTakenSync } from './save.js'
-import { RULES, splitBlocks, putBlock, tableMd, sameTable, sameRows, probe, parseTable } from './baseline.js'
+import { RULES, tableMd, probe, parseTable } from './baseline.js'
 import { getSecret, setSecret } from './secrets.js'
 import { KmdError } from './errors.js'
 import { writeJsonAtomic } from './atomic.js'
@@ -253,61 +252,16 @@ function targetsOf(src, items) {
 }
 const docPath = (doc) => `docs/${String(doc).replace(/^docs\/|\.md$/g, '')}.md`
 
-export async function planRun(k, src, items, { asof, first = false, prev = [] }) {
-  const targets = targetsOf(src, items)
-  const changed = []
-  // 항목 키는 늘 `docs/문서.md` 꼴 — 문서 장부가 선 뒤에는 doc 이 `docs/….md` 로 와서, 꼴이 다르면 모든 항목이 「사라짐」 으로 셌다
-  const keyOf = (doc, heading) => `${docPath(doc)}\n${heading}`
-  const now = new Set(targets.map((t) => keyOf(t.doc, t.heading)))
-  prev = prev.map((key) => { const i = key.indexOf('\n'); return i < 0 ? key : keyOf(key.slice(0, i), key.slice(i + 1)) })
-  let added = 0
-  for (const t of targets) {
-    const d = k.byDocPath.get(docPath(t.doc))
-    const sec = d && d.sections.find((s) => headingMatches(s.h, t.heading))
-    const old = sec ? splitBlocks(sec.body).blocks.find((b) => b.src === src.name && b.rule === t.rule) : null
-    if (old && sameTable(old.table, t.table) && !old.missing) continue
-    if (!sec) added++
-    let body = sec ? sec.body : ''
-    // 처음 잇기 — 블록 밖 옛 표가 규칙 결과와 같으면 그 표를 걷고 블록으로(같지 않으면 그대로 둔다)
-    if (first && sec && !old) {
-      const { text } = splitBlocks(body)
-      const tbl = text.split('\n\n').find((para) => /^\s*\|/.test(para) && sameRows(para, t.table))
-      if (tbl) body = body.replace(tbl, '').replace(/\n{3,}/g, '\n\n').trim()
-    }
-    changed.push({ doc: docPath(t.doc), heading: t.heading, content: putBlock(body, { src: src.name, rule: t.rule, asof, table: t.table }), applied: sec ? sec.applied || null : null })
-  }
-  // 사라진 항목 — 지우지 않고 「원천에 없다」
-  const vanished = prev.filter((key) => !now.has(key))
-  const today = localStamp().slice(0, 10)
-  for (const key of vanished) {
-    const [doc, heading] = key.split('\n')
-    const d = k.byDocPath.get(docPath(doc))
-    const sec = d && d.sections.find((s) => s.h === heading)
-    const blk = sec && splitBlocks(sec.body).blocks.find((b) => b.src === src.name)
-    if (!blk || blk.missing) continue
-    changed.push({ doc: docPath(doc), heading, content: putBlock(sec.body, { ...blk, missing: today }), applied: sec.applied || null })
-  }
-  const brake = !first && (added > 10 || (prev.length && vanished.length / prev.length > 0.1))
-  return { changed, added, vanished: vanished.length, items: [...now], brake, total: targets.length }
-}
-
 // ── 가져온 표는 원천이다(지식 생성 하네스 H4d · H-D32 · H-D36) ──
 //   코드는 표를 문서에 바로 쓰지 않고 항목을 장부에 세우지도 않는다. 바뀐 표만 원천 글 하나로 지어 들이기 일감(intake-src)으로 넘기고,
 //   세션이 생성 룰과 과거 결정으로 자리 · 항목 · 종류를 정한다. 무엇이 바뀌었나는 문서의 표 블록이 아니라 「보낸 표의 지문」(상태의 sent)으로 본다.
-//   옛 상태(표 블록으로 맞추던 때 · sent 없음)는 지금 문서의 표 블록과 같은 표를 이미 보낸 것으로 친다(판을 올린 첫 확인에 모든 표를 다시 들이지 않게).
-//   옛 표 블록은 그대로 읽는다(세션이 그 항목을 고칠 때 갈음한다). 브레이크(한꺼번에 많이 더함 · 사라짐)는 그대로다.
+//   상태에 sent 가 없으면 아직 보낸 표가 없다(옛 상태 · 표 블록으로 맞추던 때의 이행은 걷었다: 팀 · 이 PC 의 상태 0). 브레이크(한꺼번에 많이 더함 · 사라짐)는 그대로다.
 const sha16 = (t) => crypto.createHash('sha256').update(String(t)).digest('hex').slice(0, 16)
 export async function planOut(k, src, items, { asof, first = false, s0 = {} }) {
   const targets = targetsOf(src, items)
   const keyOf = (doc, heading) => `${docPath(doc)}\n${heading}`
   const norm = (key) => { const i = key.indexOf('\n'); return i < 0 ? key : keyOf(key.slice(0, i), key.slice(i + 1)) }
-  let sent = s0.sent && typeof s0.sent === 'object' ? Object.fromEntries(Object.entries(s0.sent).map(([key, h]) => [norm(key), h])) : null
-  if (!sent) {
-    const old = await planRun(k, src, items, { asof, first: false, prev: [] })
-    const ch = new Set(old.changed.map((c) => `${c.doc}\n${c.heading}`))
-    sent = {}
-    for (const t of targets) if (!ch.has(keyOf(t.doc, t.heading))) sent[keyOf(t.doc, t.heading)] = sha16(t.table)
-  }
+  const sent = s0.sent && typeof s0.sent === 'object' ? Object.fromEntries(Object.entries(s0.sent).map(([key, h]) => [norm(key), h])) : {}
   const prev = [...new Set([...(s0.items || []).map(norm), ...Object.keys(sent)])]
   const now = {}
   const changed = []
@@ -610,8 +564,7 @@ async function runDocs(k, src, { dataDir, first = false, force = false, full = f
     const n = changeCount(scan.changes)
     line('ok', `바뀐 파일 ${n}${scan.changes.removed.length ? ` · 지운 파일 ${scan.changes.removed.length}` : ''}`)
     await onStage(1)
-    // L.recs — 기록 없이 들어온 예전 사본에 기록을 한 번 세웠다(대원칙 · 기록 → 문서)
-    if (!force && !first && !full && n === 0 && !s0.stopped && L.recs) {
+    if (!force && !first && !full && n === 0 && !s0.stopped) {
       await writeLedger(dataDir, k.id, src.name, { ...L, files: scan.files })
       Object.assign(s0, { checkedAt: now, failures: 0, failingSince: null, lastNote: '그대로' })
       await writeState(dataDir, k.id, st)
@@ -643,12 +596,12 @@ async function runDocs(k, src, { dataDir, first = false, force = false, full = f
     }
     line(c.fail ? 'err' : 'ok', `${tallyText(c) || '그대로'}${gone ? ` · 원본에서 지움 ${gone}(지식은 그대로)` : ''}`)
     await onStage(3)
-    await writeLedger(dataDir, k.id, src.name, { v: 1, files: scan.files, out: {}, rules: JSON.stringify(src.rules), recs: 1 })
+    await writeLedger(dataDir, k.id, src.name, { v: 1, files: scan.files, out: {}, rules: JSON.stringify(src.rules) })
     const real = full ? 0 : n
-    // recs · docs — 화면 「마지막으로 바뀐 것」 이 읽는 옛 칸(recs: 기록이 서거나 들이기에 넘긴 파일 · docs: 문서에 넣은 파일)
+    // records — 화면 「마지막으로 바뀐 것」(기록이 서거나 들이기에 넘긴 파일 · 문서에 넣은 파일)
     const recs = c.queued + c.record, docs = c.put
     const got = recs + docs > 0
-    const lastChange = got ? { at: now, files: real, recs, docs, queued: c.queued, tables: 0, removed: gone, added: full ? 0 : scan.changes.added.length, changed: full ? 0 : scan.changes.changed.length } : s0.lastChange
+    const lastChange = got ? { at: now, files: real, records: recs + docs, queued: c.queued, tables: 0, removed: gone, added: full ? 0 : scan.changes.added.length, changed: full ? 0 : scan.changes.changed.length } : s0.lastChange
     const note = got ? `${full ? '다시 맞춤: ' : ''}${tallyText(c)}` : full ? '다시 맞춤: 그대로' : n ? `바뀐 파일 ${n} · 기록은 그대로` : '그대로'
     Object.assign(s0, { checkedAt: now, failures: 0, failingSince: null, stopped: null, lastChange, lastNote: note })
     await writeState(dataDir, k.id, st)

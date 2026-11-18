@@ -1,26 +1,22 @@
-// 거두기 — 편집기로 직접 고친 문서를 30초 고요 뒤 저장 한 번으로 들인다(KM32).
+// 손으로 고친 파일: 편집기로 직접 고친 지식 폴더를 30초 고요 뒤 살핀다(H6 · H-D33 · H-D37: 옛 거두기는 걷었다).
 //
-//   docs/ 의 md(고침 · 새 파일 · 지움)  → 고친 기록 하나(태그 edit · 작성자 그 PC 사용자) + 바뀐 항목에 그 기록의 표지 + git 한 묶음
-//   work/ · log/ 의 손 고침             → 원래대로 되돌린다(기록은 고치지 않는다 — 바로잡으려면 바로잡는 기록을 쓴다)
-//   _vocab.md · _managed.md 손 고침       → 되돌리고 알린다(장부는 kmd 가 쓴다)
+//   docs/ 의 md(고침 · 새 파일 · 지움)  → 글을 들이지 않는다. 고친 글을 「손으로 고친 파일」 목록(.git/kmd-hand)에 두고 문서는 되돌린다
+//                                       (지식관리자가 「넣을 것으로 올리기」 · 「버리기」 를 고른다)
+//   work/ · log/ 의 손 고침             → 원래대로 되돌린다(기록은 고치지 않는다 · 바로잡으려면 바로잡는 기록을 쓴다)
+//   _vocab.md · _managed.md · _forms.md · _members.md 손 고침 → 되돌리고 사본을 둔다(장부는 kmd 가 쓴다)
 //
 // 감시는 지식 폴더마다 하나(fs.watch 재귀). kmd 자신이 쓰는 동안의 변화는 save 뒤 git 이 깨끗하니 저절로 빠진다.
-// 같은 폴더를 두 kmd 가 거두지 않게 `.git/kmd-collect.lock`(설치 id · pid)을 잡는다.
+// 같은 폴더를 두 kmd 가 살피지 않게 `.git/kmd-collect.lock`(설치 id · pid)을 잡는다.
 
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { tryGit, git, commitPaths } from './git.js'
+import { tryGit, git } from './git.js'
 import { readText, nfc } from './text.js'
-import { parseDoc, replaceSection, headingMatches } from './sections.js'
-import { parseRegistry, locate } from './registry.js'
-import { parseVocab } from './vocab.js'
-import { renderRecord } from './frontmatter.js'
-import { localStamp, recordTakenSync } from './save.js'
-import { watchedOf } from './watchmark.js'
-import { begin, recover, writeAtomic } from './journal.js'
-import { formsOf, guardNewDoc } from './guard.js'
+import { parseDoc } from './sections.js'
+import { localStamp } from './save.js'
+import { recover, writeAtomic } from './journal.js'
 
 let cfg = { quietMs: 30_000 }
 export function configure(o) {
@@ -54,7 +50,7 @@ async function lock(dir) {
 }
 
 // 한 번 거둔다 — { record, docs, reverted } 또는 null(거둘 것 없음)
-export async function collectNow(dir, { user, save, handOnly = true }) {
+export async function collectNow(dir, { user }) {
   if (!fs.existsSync(path.join(dir, '.git'))) return null
   if (!(await lock(dir))) return null
   // 꺼지며 남은 반쯤 쓴 저장은 먼저 되돌린다 — kmd 가 쓰다 만 글을 사람의 고침으로 들이지 않게
@@ -81,111 +77,33 @@ export async function collectNow(dir, { user, save, handOnly = true }) {
       reverted.push(f.path)
     }
   }
-  // 원본이 주인인 문서(문서 감시가 단 것) — 편집기 손 고침은 되돌린다(고치려면 원본 파일을 고친다)
-  for (const f of files) {
-    if (!/^docs\/.+\.md$/i.test(f.path) || f.code.includes('?')) continue
-    const head = (await tryGit(dir, ['show', `HEAD:${f.path}`])).out
-    const w = watchedOf(head)
-    if (w) {
-      await rescue(f.path, `원본이 주인인 문서다: ${w.src} 의 ${w.path} 를 고친다`)
-      await tryGit(dir, ['checkout', '--', f.path])
-      reverted.push(f.path)
-    }
-  }
   const docs = files.filter((f) => /^docs\/.+\.md$/i.test(f.path) && !reverted.includes(f.path)).map((f) => f.path)
   if (!docs.length) return reverted.length ? { reverted, rescued } : null
   // 손으로 고친 문서(H6 · H-D33) — 글을 그대로 들이지 않는다. 고친 글의 사본을 두고 문서는 되돌린다(새 파일은 치운다).
   //   사본은 「손으로 고친 파일」 목록(.git/kmd-hand/index.json)에 서고, 지식관리자가 「원천으로 넣기」(공식 절차 · 저장 제안) 또는 「버리기」 를 고른다
-  if (handOnly) {
-    const hand = []
-    for (const f of files.filter((x) => docs.includes(x.path))) {
-      const full = path.join(dir, ...f.path.split('/'))
-      const now = await fsp.readFile(full, 'utf8').then(readText, () => null)
-      const old = await git(dir, ['show', `HEAD:${f.path}`]).then(readText, () => null)
-      const kind = old == null ? 'new' : now == null ? 'del' : 'mod'
-      const a = old ? parseDoc(old, '').sections : []
-      const b = now ? parseDoc(now, '').sections : []
-      const heads = b.filter((s) => { const o = a.find((x) => x.h === s.h); return !o || o.body !== s.body }).map((s) => ({ h: s.h, body: s.body }))
-      const gone = a.filter((s) => !b.some((x) => x.h === s.h)).map((s) => s.h)
-      if (kind === 'new') await fsp.rm(full, { force: true })
-      else await tryGit(dir, ['checkout', '--', f.path])
-      reverted.push(f.path)
-      if (!heads.length && !gone.length && kind !== 'del') continue
-      hand.push({ id: crypto.randomBytes(6).toString('hex'), path: f.path, kind, at: localStamp(), by: user, heads, gone })
-    }
-    if (hand.length) {
-      const ix = path.join(dir, '.git', 'kmd-hand', 'index.json')
-      await fsp.mkdir(path.dirname(ix), { recursive: true })
-      const cur = await fsp.readFile(ix, 'utf8').then((t) => JSON.parse(t), () => [])
-      await writeAtomic(ix, JSON.stringify([...(Array.isArray(cur) ? cur : []), ...hand].slice(-200), null, 1))
-    }
-    return { reverted, rescued, hand }
-  }
-  // 바뀐 항목 — HEAD 의 글과 지금 글을 항목마다 견준다
-  const reg = parseRegistry(await fsp.readFile(path.join(dir, '_managed.md'), 'utf8').then(readText, () => ''))
-  const vocab = parseVocab(await fsp.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => ''))
-  const touched = []
-  const heads = []
-  for (const p of docs) {
-    const now = await fsp.readFile(path.join(dir, ...p.split('/')), 'utf8').then(readText, () => null)
-    const old = await git(dir, ['show', `HEAD:${p}`]).then(readText, () => null)
+  const hand = []
+  for (const f of files.filter((x) => docs.includes(x.path))) {
+    const full = path.join(dir, ...f.path.split('/'))
+    const now = await fsp.readFile(full, 'utf8').then(readText, () => null)
+    const old = await git(dir, ['show', `HEAD:${f.path}`]).then(readText, () => null)
+    const kind = old == null ? 'new' : now == null ? 'del' : 'mod'
     const a = old ? parseDoc(old, '').sections : []
     const b = now ? parseDoc(now, '').sections : []
-    for (const s of b) {
-      const o = a.find((x) => x.h === s.h)
-      if (o && o.body === s.body) continue
-      heads.push({ p, h: s.h })
-      for (const c of new Set([...vocab.coords.keys()])) {
-        const loc = locate(reg, c)
-        if (loc && loc.doc === p && headingMatches(s.h, loc.heading) && !touched.includes(c)) touched.push(c)
-      }
-    }
+    const heads = b.filter((s) => { const o = a.find((x) => x.h === s.h); return !o || o.body !== s.body }).map((s) => ({ h: s.h, body: s.body }))
+    const gone = a.filter((s) => !b.some((x) => x.h === s.h)).map((s) => s.h)
+    if (kind === 'new') await fsp.rm(full, { force: true })
+    else await tryGit(dir, ['checkout', '--', f.path])
+    reverted.push(f.path)
+    if (!heads.length && !gone.length && kind !== 'del') continue
+    hand.push({ id: crypto.randomBytes(6).toString('hex'), path: f.path, kind, at: localStamp(), by: user, heads, gone })
   }
-  const title = `편집기에서 고침: ${docs.map((p) => path.basename(p, '.md')).slice(0, 3).join(' · ')}${docs.length > 3 ? ` 외 ${docs.length - 3}` : ''}`
-  // 지식 생성 가드(검사만) — 편집기로 새로 만든 문서도 갈래 · 이름 · 머리 꼴을 본다. 글은 그대로 두고 어긴 것을 이력에 남긴다(지식 점검 목록에도 보인다)
-  const forms = formsOf(await fsp.readFile(path.join(dir, '_forms.md'), 'utf8').then(readText, () => ''))
-  const guardLines = []
-  for (const f of files.filter((x) => x.code.includes('?') && docs.includes(x.path))) {
-    const hs = heads.filter((h) => h.p === f.path).map((h) => h.h)
-    for (const e of guardNewDoc(forms, f.path, hs).errors) guardLines.push(`- ${f.path.replace(/^docs\/|\.md$/g, '')}: ${e.message}`)
+  if (hand.length) {
+    const ix = path.join(dir, '.git', 'kmd-hand', 'index.json')
+    await fsp.mkdir(path.dirname(ix), { recursive: true })
+    const cur = await fsp.readFile(ix, 'utf8').then((t) => JSON.parse(t), () => [])
+    await writeAtomic(ix, JSON.stringify([...(Array.isArray(cur) ? cur : []), ...hand].slice(-200), null, 1))
   }
-  const body = (heads.length ? heads.map((x) => `- ${x.p.replace(/^docs\/|\.md$/g, '')} › ${x.h}`).join('\n') : docs.map((p) => `- ${p}`).join('\n')) + (guardLines.length ? `\n\n지식 생성 가드(검사만 · 글은 그대로)\n${guardLines.join('\n')}` : '')
-  // 저장 — 기록 하나 · 바뀐 항목에 그 기록의 표지(자기 반영 — 아직 안 넣은 기록이 생기지 않는다)
-  return { ...(await save({ title, body, touches: touched, heads, docs, reverted })), reverted, rescued }
-}
-
-// 저장 한 번(collectNow 의 save 로 쓴다) — 고친 파일은 손댄 글 그대로 두고 표지만 붙인다
-export async function writeCollect(dir, { user, title, body, touches, heads, docs }) {
-  const date = localStamp()
-  const day = date.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2$3')
-  let id = `${day}-편집기에서-고침`
-  for (let n = 2; recordTakenSync(dir, id); n++) id = `${day}-편집기에서-고침-${n}`
-  // 이력(log/) — 편집기로 바로 고친 일은 기록이 아니다(글은 이미 문서에 있다)
-  await fsp.mkdir(path.join(dir, 'log'), { recursive: true })
-  // 넘어지거나 꺼지면 이력은 지우고 문서는 사람이 고친 글 그대로(표지만 빠진다 — 다음 거두기가 다시 들인다)
-  const j = await begin(dir)
-  try {
-    await j.add(`log/${id}.md`)
-    await writeAtomic(path.join(dir, 'log', `${id}.md`), renderRecord({ id, title, date, author: user, touches, tags: ['edit'] }, body))
-    for (const p of docs) {
-      const full = path.join(dir, ...p.split('/'))
-      let t = await fsp.readFile(full, 'utf8').then(readText, () => null)
-      if (t == null) continue
-      for (const x of heads.filter((h) => h.p === p)) {
-        const sec = parseDoc(t, '').sections.find((s) => s.h === x.h)
-        if (sec) t = replaceSection(t, { heading: x.h, body: sec.body, applied: id })
-      }
-      await j.add(p)
-      await writeAtomic(full, t)
-    }
-    // 지운 문서도 같은 묶음에(git add 가 지움을 싣는다)
-    const commit = await commitPaths(dir, [`log/${id}.md`, ...docs], title, user)
-    await j.done()
-    return { id, commit, docs }
-  } catch (e) {
-    await j.undo().catch(() => {})
-    throw e
-  }
+  return { reverted, rescued, hand }
 }
 
 // 감시 — 바뀜이 오면 시계를 다시 건다 · 고요해지면 거둔다
