@@ -1,4 +1,4 @@
-// 지식 옮겨 쓰기(다시 그리기) 도구 — 세션 스킬 kmd-migrate(.claude/skills/kmd-migrate)가 부른다.
+// 지식 옮겨 쓰기(다시 그리기) 도구: 세션 스킬 kmd-migrate(.claude/skills/kmd-migrate)가 부른다.
 //   지식 폴더(git)를 손에 쥔 사람이 세션에서 「기록으로 항목을 다시 그리기」 를 할 때, 서비스의 기준(저장 검사 · 값 대조 · 참고 블록 · 기록)을 그대로 지나게 한다.
 //   기능(화면 · 길)이 아니다. 서버를 거치지 않고 core 의 저장(core/save.js)과 검사(core/gate.js)를 지식 폴더에 바로 건다.
 //
@@ -9,6 +9,9 @@
 //   node scripts/kmd-migrate.mjs put   <지식 폴더> <input.json> --user <사람> [--allow-drop]  넣기: 줄 안에서 다시 검사 → 기록 + 항목 + git 커밋 한 묶음
 //   node scripts/kmd-migrate.mjs put   <지식 폴더> <input.json> --user <사람> --format       서식 맞춤: 값은 그대로 · 양식 · 서식만 → 기록이 아니라 이력(log/ · 태그 format)
 //   node scripts/kmd-migrate.mjs relog <지식 폴더> --user <사람> (--title <제목 앞> | <기록 id>…) [--dry]  기록으로 남긴 서식 맞춤을 이력으로: log/ 로 옮기고 태그 format · 참고 블록의 그 줄을 걷는다 · 커밋 하나
+//   node scripts/kmd-migrate.mjs residue <지식 폴더> [--personal] [--json]              옛 꼴 셈 표(core/oldform.js plan · 쓰지 않는다): 규칙마다 바꿀 셈 · 사람 · 세션이 볼 것
+//   node scripts/kmd-migrate.mjs oldform <지식 폴더> --user <사람> [--dry] [--drop <기록 id,… | 파일>] [--personal] [--msg <글>]
+//                                                                                      옛 꼴 → 지금 꼴(기계 규칙만 · 다시 읽은 상태가 같아야 쓴다) · 이력 하나 · 커밋 하나
 //
 //   input.json = { record: { title, body, touches?, tags? }, sections: [{ doc, heading, base, content | contentFile }] }
 //     빠진 항목 채우기: sections[] 에 base 대신 new: true · sources: [재료 기록 id](있는 문서의 없는 머리 · 사건 갈래면 「YYYY-MM-DD 무엇」)
@@ -17,7 +20,7 @@
 //   put 은 사라지는 표 행 · 문장이 있으면 넣지 않는다. 사람이 본 뒤 --allow-drop 으로만 넘는다. 값(gate)이 걸리면 늘 넣지 않는다(넣지 못함을 남기지 않는다).
 //   다시 그리기 재료(sourceOf)는 저장 승인 전 옛 표지(held · memo · migrate-held 태그)가 붙은 기록을 뺀다(값이 확정이 아니다 · 그 기록들은 「기록」 으로만 읽는다 · P12)
 //   저장은 넣지 못함 없이(partial 없음 · 저장승인 P-D25 · P7): 저장 검사(꼴 · 원본이 주인 · 지문 …)에 걸리면 입력 오류로 아무것도 쓰지 않고 종료 코드 2.
-//   팀 서버가 돌고 있는 폴더에 바로 쓰면 서버 캐시가 낡는다 — 사본에서 쓰고 백업 자리로 올린 뒤 「백업에서 받기」 를 쓴다(스킬 3절).
+//   팀 서버가 돌고 있는 폴더에 바로 쓰면 서버 캐시가 낡는다: 사본에서 쓰고 백업 자리로 올린 뒤 「백업에서 받기」 를 쓴다(스킬 3절).
 
 import { weave } from '../core/weave.js'
 import fs from 'node:fs/promises'
@@ -33,6 +36,7 @@ import { commitPaths } from '../core/git.js'
 import { writeAtomic } from '../core/journal.js'
 import { LOG_DIR } from '../core/names.js'
 import { sha16 } from '../core/text.js'
+import { plan as oldPlan, apply as oldApply, verifyPlan, RULES as OLD_RULES, RULE_SAY } from '../core/oldform.js'
 // 저장 승인 전 옛 표지(이행 도구는 P12 에서 걷었다 · 옛 기록은 지식에 그대로 있다)
 const OLD_TAGS = ['held', 'memo', 'migrate-held']
 const isOld = (w) => (w.tags || []).some((t) => OLD_TAGS.includes(t))
@@ -48,7 +52,7 @@ function args(argv) {
     const a = argv[i]
     if (a.startsWith('--')) {
       const key = a.slice(2)
-      if (['json', 'full', 'allow-drop', 'format', 'dry'].includes(key)) o[key] = true
+      if (['json', 'full', 'allow-drop', 'format', 'dry', 'personal'].includes(key)) o[key] = true
       else o[key] = argv[++i]
     } else pos.push(a)
   }
@@ -76,7 +80,7 @@ const idOfHref = (href) => {
   }
 }
 
-// 항목 하나에 이어진 기록 — 건드린 항목(touches → 장부) · 넣은 것 줄 · 항목 표지 · 참고 줄 · 문서 단위 참고 줄
+// 항목 하나에 이어진 기록: 건드린 항목(touches → 장부) · 넣은 것 줄 · 항목 표지 · 참고 줄 · 문서 단위 참고 줄
 export function linksOf(k, doc, sec) {
   const ids = new Map()
   const add = (id, how) => {
@@ -89,7 +93,7 @@ export function linksOf(k, doc, sec) {
   for (const w of [...k.works, ...k.logs]) {
     if (w.touches?.some((c) => coords.has(c))) add(w.id, 'name')
     if (parsePut(w.body).some((r) => r.doc === doc.path && r.heading === sec.h)) add(w.id, 'put')
-    // 글 그대로 이은 기록(승인 저장 · 「## 이은 항목」) — 경위다(값은 글에 없다)
+    // 글 그대로 이은 기록(승인 저장 · 「## 이은 항목」): 경위다(값은 글에 없다)
     if ((w.tags || []).includes('put') && parseLinked(w.body).some((r) => r.doc === doc.path && r.heading === sec.h)) add(w.id, 'linked')
   }
   if (sec.applied) add(sec.applied, 'applied')
@@ -106,7 +110,7 @@ export function linksOf(k, doc, sec) {
     const w = k.byWork.get(id)
     if (k.superseded.has(id) || k.reverted.has(id) || k.revertedItems.get(id)?.has(key)) continue
     const mark = []
-    // 저장 승인 전 옛 표지(넣지 못함 · 메모 · 이행 기록) — 값이 확정이 아니라 재료로 쓰지 않는다
+    // 저장 승인 전 옛 표지(넣지 못함 · 메모 · 이행 기록): 값이 확정이 아니라 재료로 쓰지 않는다
     if (isOld(w)) mark.push('old')
     if (w.tags.some((t) => DERIVED.includes(t))) mark.push('derived')
     const scope = how.size === 1 && how.has('doc') ? 'doc' : 'item'
@@ -115,7 +119,7 @@ export function linksOf(k, doc, sec) {
   out.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
   return out
 }
-// 재료가 되는 기록 — 옛 표지 기록은 빼고, 문서 단위 줄만 있는 기록은 셈에서 뺀다
+// 재료가 되는 기록: 옛 표지 기록은 빼고, 문서 단위 줄만 있는 기록은 셈에서 뺀다
 const sourceOf = (links) => links.filter((x) => !x.mark.includes('old') && x.scope === 'item')
 
 const proseLines = (body) => {
@@ -186,8 +190,8 @@ async function scan(dir, o) {
     console.log(`| ${d.path} | ${xs.length} | ${xs.filter((x) => !x.links).length} | ${xs.filter((x) => x.links >= 5).length} | ${xs.filter((x) => x.lines > 40).length} |`)
   }
   const top = items.filter((x) => x.links >= 1).sort((a, b) => b.links - a.links || b.lines - a.lines).slice(0, 20)
-  console.log('\n## 이어진 기록이 많은 항목(20)\n| 문서 › 머리 | 기록 | 파생 | 줄 | 같은 글 | 아직 안 넣은 옛 기록 |\n|---|---|---|---|---|---|')
-  for (const x of top) console.log(`| ${x.doc} › ${x.heading} | ${x.links} | ${x.derived} | ${x.lines} | ${x.dup ? 'O' : ''} | ${x.pend || ''} |`)
+  console.log('\n## 이어진 기록이 많은 항목(20)\n| 문서 › 머리 | 기록 | 파생 | 줄 | 같은 글 |\n|---|---|---|---|---|')
+  for (const x of top) console.log(`| ${x.doc} › ${x.heading} | ${x.links} | ${x.derived} | ${x.lines} | ${x.dup ? 'O' : ''} |`)
   if (boiler.length) {
     console.log('\n## 틀 문장(여러 항목에 같은 글 · 다시 그리기 대상 아님)')
     for (const b of boiler.slice(0, 10)) console.log(`- ${b.items}곳: ${b.line}`)
@@ -199,7 +203,7 @@ async function scan(dir, o) {
   }
 }
 
-// 사건 갈래(회의록 · 장애 대응 · 주간보고 …) 문서에 항목이 없는 사건 기록 — 후보다(이름 · 태그로 고른다 · 사람이 가른다)
+// 사건 갈래(회의록 · 장애 대응 · 주간보고 …) 문서에 항목이 없는 사건 기록: 후보다(이름 · 태그로 고른다 · 사람이 가른다)
 //   후보: 제목 · id · 태그에 갈래 이름이나 별칭이 든 기록(옛 표지 · 바로잡힘 · kmd 의 일 뺌)
 //   빠짐: 그 문서 어느 항목에도 이어지지 않았고, 그 문서 항목에 이어진 기록 본문(채우기 기록의 「## 근거」)에 id 가 없다
 export function eventGaps(k) {
@@ -297,14 +301,14 @@ async function readInput(file) {
   return j
 }
 
-// 항목마다 검사 — gate(꼴 · base · 값 대조) + 사라지는 표 행 · 문장
+// 항목마다 검사: gate(꼴 · base · 값 대조) + 사라지는 표 행 · 문장
 function inspect(k, input) {
   const spread = input.sections.length > 1
   return input.sections.map((s) => {
     let d = k.byDocPath.get(s.doc)
     const sec = d?.sections.find((x) => x.h === s.heading) || null
     const no = (why) => ({ doc: s.doc, heading: s.heading, ok: false, why, lostRows: [], lostLines: [] })
-    // 갈래 문서가 아직 없으면 — 빠진 항목 채우기(new)만 그 갈래 문서를 세운다(갈래 장부의 폴더 · 이름 그대로 · 저장의 새 문서 G4 가 # 이름을 단다)
+    // 갈래 문서가 아직 없으면: 빠진 항목 채우기(new)만 그 갈래 문서를 세운다(갈래 장부의 폴더 · 이름 그대로 · 저장의 새 문서 G4 가 # 이름을 단다)
     if (!d && s.new && formOfDoc(k, { path: s.doc })) d = { path: s.doc, sections: [], fresh: true }
     if (!d) return no('문서가 없다(새 문서는 갈래 장부에 있는 갈래 문서를 그 폴더 · 이름으로 · new 항목으로만 세운다)')
     if (s.new) return inspectNew(k, input, s, d, sec, spread)
@@ -316,7 +320,7 @@ function inspect(k, input) {
   })
 }
 
-// 빠진 항목 채우기(new) — 있는 문서에 없는 머리 · 재료 기록(sources)이 값의 근거다.
+// 빠진 항목 채우기(new): 있는 문서에 없는 머리 · 재료 기록(sources)이 값의 근거다.
 //   재료 기록 본문은 검사에만 「## 근거」 아래로 내려 싣는다(그 기록의 「바뀐 것」 이 이 항목의 요구 값이 되지 않게 · 지어낸 값은 잡히게)
 //   사건 갈래 문서(회의록 · 장애 대응 …)의 머리는 「YYYY-MM-DD 무엇」
 function inspectNew(k, input, s, d, sec, spread) {
@@ -345,7 +349,7 @@ function inspectNew(k, input, s, d, sec, spread) {
   return { doc: s.doc, heading: s.heading, new: true, fresh: !!d.fresh, before, ok: !!r.ok, code: r.code || null, why: r.why || null, changed: [], lint: r.lint || null, lostRows: [], lostLines: [], sources: ws.length }
 }
 
-// 사건 문서의 날짜 자리 — 새 머리의 날짜보다 늦은 첫 항목(그 앞에 끼운다) · 없으면 끝(null)
+// 사건 문서의 날짜 자리: 새 머리의 날짜보다 늦은 첫 항목(그 앞에 끼운다) · 없으면 끝(null)
 //   같은 날짜는 뒤에 · 날짜 없는 머리는 건너뛴다
 const dayOf = (h) => (String(h).match(/^(\d{4}-\d{2}-\d{2})/) || [])[1] || null
 export function dateSlot(d, heading) {
@@ -353,7 +357,7 @@ export function dateSlot(d, heading) {
   if (!day) return null
   return d.sections.find((x) => dayOf(x.h) && dayOf(x.h) > day)?.h || null
 }
-// 사건 문서의 차례 어긋남 — 앞 항목보다 이른 날짜의 항목 수
+// 사건 문서의 차례 어긋남: 앞 항목보다 이른 날짜의 항목 수
 export function outOfOrder(d) {
   let last = null
   let n = 0
@@ -399,8 +403,8 @@ async function put(dir, file, o) {
   if (!o.user) throw new Error('--user <사람> 이 있어야 한다(기록을 쓴 사람 · 그 지식의 지식관리자)')
   const abs = path.resolve(dir)
   const input = await readInput(file)
-  // save 에 넘기는 기록 그 자체 — prepare 가 건드린 항목(touches)을 채운다
-  //   서식 맞춤(--format)은 다시 그리기가 아니다 — rebuild 를 달지 않고 저장 문이 format(이력)을 단다
+  // save 에 넘기는 기록 그 자체: prepare 가 건드린 항목(touches)을 채운다
+  //   서식 맞춤(--format)은 다시 그리기가 아니다: rebuild 를 달지 않고 저장 문이 format(이력)을 단다
   const rec = { ...input.record, tags: [...new Set([...(Array.isArray(input.record.tags) ? input.record.tags : []), ...(o.format ? [] : ['rebuild'])])] }
   let fail = null
   const prepare = async () => {
@@ -412,7 +416,7 @@ async function put(dir, file, o) {
     if (bad.length) fail = { why: '검사에 걸렸다', rs: bad }
     else if (drops.length && !o['allow-drop']) fail = { why: '사라지는 표 행 · 문장이 있다(사람이 본 뒤 --allow-drop)', rs: drops }
     if (fail) return { abort: { same: false, id: null } }
-    // 건드린 항목 — 넣는 항목들의 장부 항목(기록이 이 항목들에 이어지게)
+    // 건드린 항목: 넣는 항목들의 장부 항목(기록이 이 항목들에 이어지게)
     if (!rec.touches?.length) {
       const coords = [...new Set(input.sections.flatMap((s) => { const d = k.byDocPath.get(s.doc); return d ? coordsOfSection(k, d, s.heading) : [] }))]
       if (coords.length) rec.touches = coords
@@ -420,7 +424,7 @@ async function put(dir, file, o) {
     }
     return { sections: input.sections.map((s) => ({ doc: s.doc, heading: s.heading, content: s.content, base: s.base, ...(s.new && s.before ? { before: s.before } : {}) })) }
   }
-  // 짝 짓기(지식 생성 하네스 H6 · H2 의 엮기) — 새 항목(new)에 종류(kind) · 뜻 한 줄(gist)을 적었으면 화면 · 세션의 저장과 같은 엮기가
+  // 짝 짓기(지식 생성 하네스 H6 · H2 의 엮기): 새 항목(new)에 종류(kind) · 뜻 한 줄(gist)을 적었으면 화면 · 세션의 저장과 같은 엮기가
   //   항목 장부 줄(뜻 한 줄) · 문서 장부 줄을 같이 짓는다. 새 문서(docs[{ path, nature, summary }])의 문서 성격 줄 · 모으는 갈래 줄도 같다.
   //   적지 않은 항목은 예전대로다(머리와 글만 · 장부는 건드리지 않는다). 엮기 오류가 있으면 아무것도 쓰지 않는다
   let woven = {}
@@ -439,7 +443,7 @@ async function put(dir, file, o) {
     const { docs: _docs, ...rest } = input
     r = await save(abs, { ...rest, ...woven, record: rec }, { user: o.user, prepare, marks: true, format: !!o.format })
   } catch (e) {
-    // 저장 검사에 걸림 — 입력 오류(아무것도 쓰지 않았다 · 넣지 못함을 남기지 않는다 · 종료 코드 2)
+    // 저장 검사에 걸림: 입력 오류(아무것도 쓰지 않았다 · 넣지 못함을 남기지 않는다 · 종료 코드 2)
     if (['E_INPUT', 'E_FORMAT', 'E_FORBIDDEN', 'E_NOTFOUND', 'E_CONFLICT'].includes(e.code)) e.exit = 2
     throw e
   }
@@ -450,7 +454,7 @@ async function put(dir, file, o) {
   console.log(JSON.stringify({ ok: true, record: r.id || r.record || null, commit: r.commit || null }, null, 1))
 }
 
-// 기록 → 이력(작성기준 「기록과 이력」) — 지식은 그대로 두고 양식 · 서식만 바꾼 일을 기록(work/)으로 남겼을 때.
+// 기록 → 이력(작성기준 「기록과 이력」): 지식은 그대로 두고 양식 · 서식만 바꾼 일을 기록(work/)으로 남겼을 때.
 //   기록 파일을 log/ 로(머리 · 본문 그대로 · 태그 format 더함) · 문서마다 참고 블록에서 그 기록 줄을 걷는다(splitRef · withRef) · 커밋 하나.
 //   applied 표지는 그대로 둔다(이력 id 를 가리켜도 기록 파일을 work/ · log/ 둘 다에서 찾는다 · 다듬기와 같다). 사본에서 쓰고 서버는 앞으로만 받는다(스킬 3절)
 async function relog(dir, ids, o) {
@@ -504,6 +508,51 @@ async function relog(dir, ids, o) {
   console.log(JSON.stringify({ ok: true, moved: pick.length, docs: docsChanged.length, commit }, null, 1))
 }
 
+// 옛 꼴(core/oldform.js): 셈 표 · 사람 · 세션이 볼 것
+const oldTable = (p) => {
+  const rows = OLD_RULES.map((r) => ({ r, w: p.changes.filter((c) => c.rule === r && c.kind === 'write').length, d: p.changes.filter((c) => c.rule === r && c.kind === 'delete').length, n: p.counts[r] || 0 }))
+  return ['| 규칙 | 뜻 | 고칠 파일 | 지울 파일 | 셈 |', '|---|---|---|---|---|', ...rows.map((x) => `| ${x.r} | ${RULE_SAY[x.r]} | ${x.w || '-'} | ${x.d || '-'} | ${x.n || '-'} |`)].join('\n')
+}
+const judgeLines = (p) => (p.judge.length ? p.judge.map((j) => `- ${j.what}: ${j.count}${j.where ? ` · ${String(j.where).slice(0, 160)}` : ''}${j.why ? `\n  ${String(j.why).slice(0, 800)}` : ''}`).join('\n') : '- 없음')
+// --drop: 기록 id 를 쉼표 · 빈칸으로, 또는 한 줄에 하나씩 적은 파일(# 줄은 설명)
+async function readDrop(v) {
+  if (!v) return []
+  const file = await fs.readFile(path.resolve(v), 'utf8').catch(() => null)
+  const lines = String(file ?? v).split(/\r?\n/).filter((l) => !l.trim().startsWith('#'))
+  return lines.join(' ').split(/[\s,]+/).map((x) => x.trim()).filter(Boolean)
+}
+async function residue(dir, o) {
+  await load(dir, o)
+  const p = await oldPlan(path.resolve(dir), { personal: !!o.personal })
+  if (o.json) return console.log(JSON.stringify({ counts: p.counts, judge: p.judge, files: new Set(p.changes.map((c) => c.path)).size, gone: p.gone.length }, null, 1))
+  console.log(`# ${path.basename(path.resolve(dir))} · 옛 꼴 셈(쓰지 않았다)\n\n${oldTable(p)}\n\n지울 기록 · 이력 ${p.gone.length} · 고칠 · 지울 파일 ${new Set(p.changes.map((c) => c.path)).size}\n\n## 사람 · 세션이 볼 것\n${judgeLines(p)}`)
+}
+async function oldform(dir, o) {
+  if (!o.user) throw new Error('--user <사람> 이 있어야 한다(이력을 쓴 사람 · 그 지식의 지식관리자)')
+  await load(dir, o)
+  const abs = path.resolve(dir)
+  const p = await oldPlan(abs, { personal: !!o.personal, drop: await readDrop(o.drop) })
+  console.log(`# ${path.basename(abs)} · 옛 꼴 옮김${o.dry ? '(마른 · 쓰지 않는다)' : ''}\n\n${oldTable(p)}`)
+  const byRule = new Map()
+  for (const c of p.changes) {
+    if (!byRule.has(c.rule)) byRule.set(c.rule, [])
+    byRule.get(c.rule).push(c)
+  }
+  for (const [r, cs] of byRule) {
+    console.log(`\n## ${r} · ${RULE_SAY[r]} (${cs.length})`)
+    for (const c of cs.slice(0, o.full ? cs.length : 12)) console.log(`- ${c.kind === 'delete' ? '지움' : '고침'} ${c.path}: ${c.why}`)
+    if (!o.full && cs.length > 12) console.log(`- 그 밖 ${cs.length - 12}(--full)`)
+  }
+  console.log(`\n## 사람 · 세션이 볼 것(쓰지 않는다)\n${judgeLines(p)}`)
+  const v = await verifyPlan(abs, p)
+  console.log(`\n## 대 보기(옮긴 뒤 지금 코드로 다시 읽기)\n${v.ok ? '- 같다: 기록 상태 · 항목 장부 · 문서 장부 자리 · 갈래 장부 · 사람 장부 · 문서 본문' : v.why.slice(0, 30).map((x) => `- 다르다: ${x}`).join('\n')}`)
+  if (o.dry) return
+  if (!p.changes.length) return console.log('\n바꿀 것이 없다')
+  if (!v.ok) throw Object.assign(new Error('쓰지 않았다: 다시 읽은 것이 앞과 다르다'), { exit: 2 })
+  const r = await oldApply(abs, p, { user: o.user, msg: o.msg || null, personal: !!o.personal })
+  console.log(JSON.stringify({ ok: true, commit: r.commit, log: r.log, files: r.files }, null, 1))
+}
+
 export async function main(argv) {
   const { pos, o } = args(argv)
   const [cmd, dir, a, b] = pos
@@ -514,7 +563,9 @@ export async function main(argv) {
   if (cmd === 'check' && dir && a) return check(dir, a, o)
   if (cmd === 'put' && dir && a) return put(dir, a, o)
   if (cmd === 'relog' && dir) return relog(dir, pos.slice(2), o)
-  console.error('쓰기: kmd-migrate.mjs scan <지식 폴더> | rec <지식 폴더> <기록 id> | trail <지식 폴더> <docs/x.md> <머리> | check <지식 폴더> <input.json> | put <지식 폴더> <input.json> --user <사람> [--allow-drop] [--format] | relog <지식 폴더> --user <사람> (--title <제목 앞> | <기록 id>…) [--dry]')
+  if (cmd === 'residue' && dir) return residue(dir, o)
+  if (cmd === 'oldform' && dir) return oldform(dir, o)
+  console.error('쓰기: kmd-migrate.mjs scan <지식 폴더> | rec <지식 폴더> <기록 id> | trail <지식 폴더> <docs/x.md> <머리> | check <지식 폴더> <input.json> | put <지식 폴더> <input.json> --user <사람> [--allow-drop] [--format] | relog <지식 폴더> --user <사람> (--title <제목 앞> | <기록 id>…) [--dry] | residue <지식 폴더> [--personal] [--json] | oldform <지식 폴더> --user <사람> [--dry] [--drop <기록 id,… | 파일>] [--personal]')
   process.exitCode = 1
 }
 
