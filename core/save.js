@@ -17,7 +17,7 @@
 //   asEdit    edit 태그 하나를 받는다(사람의 화면 고치기) · structure — 항목 지우기 · 이름 바꾸기를 받는다(지식관리자 화면 고치기)
 //   correction 좌표정정(touches-fix) 판정을 건너뛴다(서버가 정한 다시 저장) · onCommit — 커밋 뒤 줄을 놓기 전에(던져도 log 만)
 //   intake · approve 저장은 넣은 항목을 기록 끝 `## 넣은 것`(태그 put) 칸으로 남긴다(core/parts.js) · 넣지 못함(held)은 쓰지 않는다(저장 승인 P11):
-//             항목 하나라도 못 넣으면(넣을 곳 없음 · 원본이 주인 · 문서 꼴 · 저절로 채우는 표 · prepare 의 held) 아무것도 쓰지 않고 입력 오류다
+//             항목 하나라도 못 넣으면(넣을 곳 없음 · 문서 꼴 · 저절로 채우는 표 · prepare 의 held) 아무것도 쓰지 않고 입력 오류다
 //   approve   { accepted, values?, linked, fresh } — approve 모드 저장 문(무인 채널은 intake 와 같이 · values = `## 값 대조` · P6)(저장 승인 설계 P3 · hub saveIn 만 단다): 넣지 못함 없이 들어감 하나(태그 put ·
 //             `## 넣은 것` · 글 그대로 이은 항목 `## 이은 항목` · 승인한 경고 `## 받아들인 경고` · 새로 세운 것 `## 새로 세움` · core/parts.js)
 //   record.memo 는 받지 않는다(메모는 걷었다 · P11 · P12) · input.attach — docs/assets/ 아래 첨부(같은 저널 · 같은 커밋)
@@ -42,7 +42,6 @@ import { locate, parseRegistry } from './registry.js'
 import { parseVocab } from './vocab.js'
 import { ensureRepo, commitPaths, headSha } from './git.js'
 import { begin, recover, writeAtomic } from './journal.js'
-import { watchedOf } from './watchmark.js'
 import { upsertVocab, upsertRegistry, cleanNames, upsertPatternRow, upsertForms, formsAfter, formsText, cleanForms, cleanNatures, placeExact, ledgerOps, dropRegistryRows, dropFormRows, dropNatureRows } from './namebook.js'
 import { guardRecord, guardNames, guardNewDoc, formsOf, EMPTY_MAX } from './guard.js'
 import { valuesOf, valueDiff, sameValues } from './values.js'
@@ -434,19 +433,6 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
       if (a && a.date > date) fail('E_CONFLICT', `「${p.heading}」 에는 더 늦은 기록(${a.date})이 이미 들어 있다. 옛 날짜로 고치지 않는다`)
     }
   }
-  // 원본이 주인 — 문서 감시로 들어온 문서는 사람 · 세션이 고치지 못한다(원본 파일을 고친다 · 덧붙일 말은 기록으로)
-  if (!system) {
-    const keep = []
-    for (const p of plan) {
-      const w = watchedOf(await fs.readFile(p.full, 'utf8').catch(() => ''))
-      if (w) {
-        const why = `이 문서는 원본이 주인이다: ${w.src} 의 ${w.path} 를 고친다 · 덧붙일 말은 기록으로 남긴다`
-        fail('E_FORBIDDEN', why, { need: 'source' })
-      }
-      keep.push(p)
-    }
-    plan = keep
-  }
   // 읽은 뒤 바뀌었나(F4) — base 를 보낸 항목만. 하나라도 어긋나면 아무것도 쓰지 않는다
   for (const p of plan) {
     if (p.base == null) continue
@@ -517,14 +503,13 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
     }
     atts.push({ ...p, buf })
   }
-  // 문서 요약(짜임 글 걸음) — 쓰기 전에 본다: 문서가 없음 · 원본이 주인 · 문서 꼴은 넣지 못함(기록 끝 칸에 실리게)
+  // 문서 요약(짜임 글 걸음) — 쓰기 전에 본다: 문서가 없음 · 문서 꼴은 넣지 못함(기록 끝 칸에 실리게)
   const introsOk = []
   for (const x of intros) {
     const p = docPath(dir, x.doc)
     const cur = await fs.readFile(p.full, 'utf8').then(readText, (e) => (e.code === 'ENOENT' ? null : Promise.reject(e)))
     const row = (code, why) => held.push(heldRow({ doc: p.rel, heading: '(요약)', content: x.text }, code, why))
     if (cur == null) { row('notfound', '요약을 달 문서가 없다'); continue }
-    if (watchedOf(cur)) { row('watched', '원본이 주인인 문서다'); continue }
     const fc = formatCheck(x.text, { doc: p.rel, old: parseDoc(cur, '').intro || null })
     if (fc.problems.length) { row('format', formatMessage('요약', fc.problems)); continue }
     if (/^#{1,6}\s/m.test(x.text)) { row('format', '요약에 머리 줄을 넣지 않는다'); continue }
@@ -613,9 +598,8 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
       if (!system && old) content = keepBlocks(old.body, content)
       // 참고 줄(작성기준 2-1) — 옛 줄은 지키고(보낸 글에 없어도) 이번 기록의 줄을 더한다 · 문서 끝 참고 블록에 쓴다(본문에는 넣지 않는다)
       //   kmd 자신의 쓰기에 섞인 경과 꼬리 · 참고 블록은 떼어 줄로 옮긴다(사람 · 세션의 것은 save 의 검사가 이미 거절했다)
-      //   원본이 주인인 문서는 원본 글 그대로(줄을 달지 않는다)
       let log
-      if (!p.remove && p.rename == null && !watchedOf(start)) {
+      if (!p.remove && p.rename == null) {
         const r = splitRef(content.split('\n'))
         const now = splitLog(r.lines.join('\n'))
         log = mergeLog(old?.log || [], now.log, ...r.ref.values(), ...(shape && Array.isArray(p.src.log) ? [p.src.log.map(String)] : []))
@@ -631,7 +615,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
       await writeAtomic(p.full, after)
       shape.get(p.rel).after = after
     }
-    // 문서 요약(짜임 글 걸음) — 그 문서의 지금 글(이 저장이 쓴 것 다음)에서 `# 제목` 아래만 · 원본이 주인 · 문서 꼴은 넣지 못함
+    // 문서 요약(짜임 글 걸음) — 그 문서의 지금 글(이 저장이 쓴 것 다음)에서 `# 제목` 아래만 · 문서 꼴은 넣지 못함
     for (const p of introsOk) {
       const cur = readText(await fs.readFile(p.full, 'utf8'))
       const after = replaceIntro(cur, p.text)
@@ -639,13 +623,12 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
       if (!docs.includes(p.rel)) { await j.add(p.rel); docs.push(p.rel) }
       await writeAtomic(p.full, after)
     }
-    // 걷힌 출처로 들어오던 링크 — 같은 묶음에서 새 항목으로(원본이 주인인 문서는 원본 글 그대로)
+    // 걷힌 출처로 들어오던 링크 — 같은 묶음에서 새 항목으로
     if (relinkMoves.length) {
       const { readStructure, relinkItems } = await import('./restructure.js')
       const all = (await readStructure(dir)).docs
       const r = relinkItems(all, relinkMoves)
       for (const [rel, text] of r.texts) {
-        if (watchedOf(all.get(rel))) continue
         if (!docs.includes(rel)) { await j.add(rel); docs.push(rel) }
         await writeAtomic(path.join(dir, ...rel.split('/')), text)
       }

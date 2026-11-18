@@ -17,7 +17,7 @@
 //     creates 의 갈래가 대장(항목 패턴)이면 문서 장부에 패턴 줄을 같이 세운다
 //   같이 고치는 것 — 옮긴 항목 글 속 상대 링크 · 들어오는 `x.md#머리` · `#머리` · 참고 줄(moveSection) · applied 표지(글과 같이) ·
 //     문서 장부(placeExact: 정확한 줄은 제자리 · 패턴 줄로 닿던 장부 항목은 패턴 줄 위에 정확한 줄)
-//   막는 것 — 겹치는 머리(같은 머리 · 앞부분 겹침) · 원본이 주인 · 갈래 머리 꼴 · 저절로 채우는 표 · 머리 잃는 항목 ·
+//   막는 것 — 겹치는 머리(같은 머리 · 앞부분 겹침) · 갈래 머리 꼴 · 저절로 채우는 표 · 머리 잃는 항목 ·
 //     쓴 뒤 기록 상태가 바뀜(저널 되돌림)
 //   지문 — base 는 structureFp(옛 화면) 또는 stepFp(이 걸음이 건드리는 것만) · step('shape/<work>/<n>')이 있으면 이력 표지 · 멱등
 //
@@ -31,7 +31,6 @@ import { readText, nfc } from './text.js'
 import { renderRecord } from './frontmatter.js'
 import { ensureRepo, commitPaths } from './git.js'
 import { begin, writeAtomic } from './journal.js'
-import { watchedOf } from './watchmark.js'
 import { LOG_DIR } from './names.js'
 import { serial, localStamp, recordTaken } from './save.js'
 import { parseForms, guardNewDoc, formsOf, formFor, headingFits, formHeadRule } from './guard.js'
@@ -184,7 +183,7 @@ export function brokenLinks(docs) {
 const headProblem = (h) => (!h || !String(h).trim() ? '머리가 비었다' : /[\r\n]/.test(h) ? '머리는 한 줄이다' : String(h) !== String(h).trim() ? '머리 앞뒤에 빈칸을 두지 않는다' : [...String(h)].length > 120 ? '머리는 120자 안으로' : /^#/.test(h) ? '머리는 # 으로 시작하지 않는다' : '')
 const h2Of = (text) => headsOf(String(text).split('\n')).filter((x) => x.level === 2)
 
-// 문서 첫 `# 제목` 을 이름으로(없으면 맨 위에 · 표지 watched 줄 아래)
+// 문서 첫 `# 제목` 을 이름으로(없으면 맨 위에)
 function retitle(text, title) {
   const lines = text.split('\n')
   let fence = false
@@ -194,8 +193,7 @@ function retitle(text, title) {
     if (/^#\s+/.test(lines[i])) { if (lines[i] === `# ${title}`) return text; lines[i] = `# ${title}`; return lines.join('\n') }
     if (/^##\s/.test(lines[i])) break
   }
-  const at = lines[0] && /^<!--\s*watched:/.test(lines[0]) ? 1 : 0
-  lines.splice(at, 0, `# ${title}`, '')
+  lines.splice(0, 0, `# ${title}`, '')
   return lines.join('\n')
 }
 // 갈래 장부 줄 — 첫 칸(갈래) · 셋째 칸(폴더)만 바꾼다
@@ -275,7 +273,6 @@ export function planRestructure(files, ops = {}) {
     if (!docSet.has(fr)) { err(m.from, '없는 문서다'); continue }
     if (seenFrom.has(fr)) { err(m.from, '같은 문서를 두 번 옮긴다'); continue }
     seenFrom.add(fr)
-    if (watchedOf(readText(docs.get(fr)))) { err(m.from, '원본이 주인인 문서라 옮기지 않는다'); continue }
     const oldName = P.basename(m.from), newName = P.basename(m.to)
     const w = pathProblem(m.to, { doc: newName !== oldName })
     if (w) { err(m.to, w); continue }
@@ -306,7 +303,6 @@ export function planRestructure(files, ops = {}) {
   for (const d of dirs) { const w = pathProblem(d); if (w) err(d + '/', w) }
   for (const t of titles) {
     if (!docSet.has(t)) err(idOf(t), '없는 문서다')
-    else if (watchedOf(readText(docs.get(t)))) err(idOf(t), '원본이 주인인 문서라 제목을 바꾸지 않는다')
   }
   if (errors.length) return { errors, moves: [], writes: [], creates: [], summary: null, lines: [] }
 
@@ -353,7 +349,6 @@ export function planRestructure(files, ops = {}) {
     if (hp) { err(where, hp); continue }
     const same = srcRel === dstRel
     if (same && toH === it.from.h && !it.to.before) continue
-    if (watchedOf(readText(docs.get(src0))) || watchedOf(final.get(dstRel))) { err(where, '원본이 주인인 문서라 항목을 옮기지 않는다'); continue }
     const srcText = final.get(srcRel)
     const heads = h2Of(srcText)
     const sec = heads.find((x) => x.heading === it.from.h)
@@ -429,7 +424,6 @@ export function planRestructure(files, ops = {}) {
     const rel = relOf(d)
     if (!final.has(rel)) { err(d, '없는 문서다'); continue }
     const text = final.get(rel)
-    if (watchedOf(text)) { err(d, '원본이 주인인 문서라 걷지 않는다'); continue }
     const pd = parseDoc(text, P.basename(d))
     if (pd.sections.length) { err(d, `빈 문서가 아니다(항목 ${pd.sections.length})`); continue }
     if (pd.intro.trim()) { err(d, '빈 문서가 아니다(요약이 있다)'); continue }

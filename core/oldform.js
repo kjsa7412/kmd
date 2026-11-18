@@ -1038,6 +1038,8 @@ export async function plan(dir, { personal = false, drop: drop0 = [] } = {}) {
   // 3) 기록
   const ROW = (doc, heading) => ({ doc, heading, from: '', to: '', isNew: false })
   const oldTagged = []
+  // 쓴 뒤 지금 읽기가 그 상태로 읽어도 되는 기록(대 보기) · 여러 규칙이 같은 기록에 더하므로 합친다
+  const allowAdd = (id, xs) => { allow[id] = [...new Set([...(allow[id] || []), ...xs])] }
   const oldState = []
   const noneState = []
   for (const x of recs.values()) {
@@ -1082,6 +1084,10 @@ export async function plan(dir, { personal = false, drop: drop0 = [] } = {}) {
     const tags = w.tags
     // record.oldtag: 옛 표지(넣지 못함 · 메모 · 이행)
     if (tags.some((t) => OLD_TAGS.includes(t))) {
+      // 넣은 것이 있던 기록은 들어감 · 그 밖은 기록 · 이 기록이 가리킨 기록은 바로잡힘이 된다(지금 읽기는 옛 표지를 보지 않는다 · G2)
+      //   팀 지식은 판단으로 돌려 표지를 두지만 지금 코드는 그대로 그렇게 읽는다
+      allowAdd(w.id, tags.includes('put') ? ['in', 'fixed', 'old'] : ['old', 'fixed'])
+      for (const f of w.fixes) allowAdd(f, ['fixed'])
       if (!personal) { oldTagged.push(w.id); continue }
       const d = splitFrontmatter(text).data || {}
       let ls = setKey(fm.lines, 'tags', list(d.tags).filter((t) => !OLD_TAGS.includes(t)))
@@ -1092,9 +1098,6 @@ export async function plan(dir, { personal = false, drop: drop0 = [] } = {}) {
       }
       const next = fmJoin(ls, heldToLeft(fm.rest.replace(/\s+$/, '')).replace(/\s*$/, '\n'))
       await write(x.path, next, 'record.oldtag', `옛 표지 ${tags.filter((t) => OLD_TAGS.includes(t)).join(' · ')} 를 걷는다`)
-      // 넣은 것이 있던 기록은 들어감 · 이 기록이 가리킨 기록은 바로잡힘이 된다
-      allow[w.id] = put ? ['in', 'fixed', 'old'] : ['old']
-      for (const f of w.fixes) allow[f] = [...new Set([...(allow[f] || []), 'fixed'])]
       continue
     }
     if (tags.includes('put')) continue
@@ -1119,7 +1122,11 @@ export async function plan(dir, { personal = false, drop: drop0 = [] } = {}) {
       continue
     }
     if (st.state === 'old' || (st.state === 'fixed' && st.base === 'old')) oldState.push(w.id)
-    else if (st.state === 'none') noneState.push(w.id)
+    else if (st.state === 'none') {
+      // 옛 읽기의 none(자리를 찾지 못한 기록 · 정리 표시만 있는 기록)은 지금 읽기에서 기록(put 이 없다 · G2)
+      noneState.push(w.id)
+      allowAdd(w.id, ['old', 'fixed'])
+    }
   }
   // record.logdir: work/ 에 쓴 이력(이력 태그 · 옛 kmd 가 work/ 에 썼다)을 log/ 로 · 문서 참고 줄의 링크도 log/ 로
   const toLog = new Set()
@@ -1366,7 +1373,7 @@ export async function runOnce(dir, { personal = true, user = 'kmd', now = new Da
   const abs = path.resolve(dir)
   const mark = path.join(abs, '.git', MARK_FILE)
   const had = await fs.readFile(mark, 'utf8').then((t) => t.trim(), () => null)
-  if (had) return { skipped: true, ver: had }
+  if (had && Number(had) >= OLDFORM_VER) return { skipped: true, ver: had } // 판이 오르면(규칙을 더하면) 다시 돈다
   await ensureRepo(abs)
   const p = await plan(abs, { personal })
   const r = p.changes.length ? await apply(abs, p, { user, now, personal }) : { commit: null, log: null, files: 0 }

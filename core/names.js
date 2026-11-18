@@ -4,7 +4,7 @@
 // 사람 · 세션이 같은 이름 · 태그를 쓰면 기계가 쓴 것으로 보이므로 막는다.
 
 export const RESERVED_USERS = ['kmd', 'kmd-auto', 'kmd-worker']
-// watched — 문서 폴더 감시가 들인 파일의 기록(원본이 주인인 문서의 앞 기록)
+// watched — 예전 문서 폴더 감시가 들인 파일의 기록(사본 문서는 걷었다 · 사람 입력에서 막는 예약 이름으로만 남는다)
 // 저장 문이 붙이는 표지(docs/품질개선/KMD_개편_설계.md 2-2) — put(넣은 것) · intake(들이기 일감) ·
 //   polish(문서 다듬기) · revert(되돌림) · drop(버림) · 접두사 job/<일감 id>(들이기 일감)
 //   held · memo · migrate-held: 걷은 옛 표지(코드는 읽지 않는다 · core/oldform.js 가 옮겼다). 사람이 다시 달지 못하게 예약으로만 남긴다

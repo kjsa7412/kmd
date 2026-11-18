@@ -6,7 +6,7 @@
 //              git  — 지난번 본 커밋과 새 커밋의 차이(`diff --name-status`) · 처음이면 모두 「더함」
 //   전체 다시 맞추기  pass 번호를 새로 받아 모든 파일을 다시 읽는다(해시 · 규칙 결과) — 200 파일마다 장부를 적어
 //              끊겨도 같은 pass 로 다시 부르면 이미 한 파일은 건너뛴다(이어하기) · 진행은 onProgress(done, total)
-// 엔진은 지식에 쓰지 않는다 — 바뀐 것 목록과 읽는 길만 돌려준다(쓰기는 sources.js 의 planRun · 브레이크).
+// 엔진은 지식에 쓰지 않는다 — 바뀐 것 목록과 읽는 길만 돌려준다(쓰기는 sources.js 의 runSource · 브레이크).
 
 import fs from 'node:fs/promises'
 import path from 'node:path'

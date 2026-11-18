@@ -4117,7 +4117,7 @@ const sxBad = (n) => !n ? '이름을 쓴다' : n !== n.trim() ? '앞뒤 빈칸�
 const sxFileish = (n) => /(20\d\d)[-._ ]?(0[1-9]|1[0-2])[-._ ]?(0[1-9]|[12]\d|3[01])|(^|[\s_-])[vV]\d+(\.\d+)*($|[\s_-])|최종|사본|final|copy|\(\d+\)|\.(md|docx?|hwpx?|pdf|xlsx?|pptx?|txt)$/i.test(n)
 // 받은 짜임 → 고치는 판(처음 · 저장 뒤 · 다시 읽기)
 function sxInit(k, d) {
-  const docs = d.docs.map((x) => { const [f, file] = sxSplit(x.id); return { id: x.id, folder: f, file, title: x.title, name: x.title, watched: !!x.watched } })
+  const docs = d.docs.map((x) => { const [f, file] = sxSplit(x.id); return { id: x.id, folder: f, file, title: x.title, name: x.title } })
   const x = { k, fp: d.fp, O: docs.map((o) => ({ ...o })), W: docs.map((o) => ({ ...o })), ODIRS: new Set(d.dirs || []), WDIRS: new Set(d.dirs || []), ORDER: {}, OORDER: {}, open: (S.sx && S.sx.k === k && S.sx.open) || {}, sel: null, multi: new Set(), pick: false, edit: null, q: '', barOpen: false, seq: 0, busy: false }
   S.sx = x
   for (const o of docs) { let f = o.folder; while (f) { x.ODIRS.add(f); x.WDIRS.add(f); f = sxSplit(f)[0] } }
@@ -4135,7 +4135,6 @@ function sxDirs() { const x = S.sx, s = new Set(x.WDIRS); for (const d of x.W) {
 const sxKids = (p) => sxDirs().filter((f) => sxSplit(f)[0] === p)
 const sxDocsIn = (p) => S.sx.W.filter((d) => d.folder === p)
 const sxDeep = (p) => S.sx.W.filter((d) => d.folder === p || d.folder.startsWith(p + '/')).length
-const sxLocked = (p) => S.sx.W.some((d) => (d.folder === p || d.folder.startsWith(p + '/')) && d.watched)
 // 끝 파일 이름 — 이름을 바꿨거나 맞추기를 골랐으면 이름 · 아니면 옛 파일 이름 그대로
 const sxFile = (d) => (!sxO(d.id) || d.sync || d.name !== d.title ? d.name : d.file)
 const sxClash = (folder, name, self) => S.sx.W.some((d) => d.id !== self && d.folder === folder && sxFile(d).toLowerCase() === name.toLowerCase())
@@ -4171,7 +4170,7 @@ function sxOps() {
 }
 function sxMoveDoc(id, to, { open = false } = {}) {
   const d = sxW(id)
-  if (!d || d.watched) { toast('<b>원본이 주인인 문서는 옮기지 않는다</b>', 0, true); return false }
+  if (!d) return false
   if (d.folder === to) return true
   if (sxClash(to, sxFile(d), id)) { toast(`<b>「${esc(to || '맨 위')}」 에 같은 이름이 있다</b>`, 0, true); return false }
   d.folder = to; if (to && open) S.sx.open[to] = true; S.sx.sel = 'd:' + id; return true // 끌어 옮기면 그 폴더를 펴지 않는다 — 다음 끌 자리가 밀리지 않게(UX G4-08)
@@ -4181,7 +4180,6 @@ function sxMoveDir(from, toParent, newName) {
   if (to === from) return true
   if (toParent === from || toParent.startsWith(from + '/')) { toast('<b>폴더를 자기 안으로 옮길 수 없다</b>', 0, true); return false }
   if (sxDirs().some((f) => f.toLowerCase() === to.toLowerCase())) { toast(`<b>「${esc(to)}」 가 이미 있다</b>`, 0, true); return false }
-  if (sxLocked(from)) { toast('<b>원본이 주인인 문서가 든 폴더는 옮기지 않는다</b>', 0, true); return false }
   const re = (p) => (p === from ? to : p.startsWith(from + '/') ? to + p.slice(from.length) : p)
   for (const d of x.W) d.folder = re(d.folder)
   x.WDIRS = new Set([...x.WDIRS].map(re))
@@ -4210,7 +4208,7 @@ async function sxMoveKeys(keys) {
   x.multi = new Set()
   render()
   if (!ok && !no) toast('<b>이미 그 자리에 있다</b>')
-  else if (go.length > 1) toast(`<b>${ok}개를 「${esc(to || '맨 위')}」 안으로 옮겼다</b>${no ? ` · ${no}개는 못 옮겼다(같은 이름 · 원본이 주인)` : ''}`, 0, !!no)
+  else if (go.length > 1) toast(`<b>${ok}개를 「${esc(to || '맨 위')}」 안으로 옮겼다</b>${no ? ` · ${no}개는 못 옮겼다(같은 이름)` : ''}`, 0, !!no)
 }
 const sxSelFolder = () => { const s = S.sx.sel; if (!s) return ''; if (s.startsWith('f:')) return s.slice(2); const d = sxW(s.slice(2)); return d ? d.folder : '' }
 // 줄 안 이름 칸 — 검사 · 넣기
@@ -4231,7 +4229,7 @@ function sxEditCommit() {
   const v = sxEditCheck(); if (v == null) return
   x.edit = null
   if (e.t === 'doc') { sxW(e.id).name = v; x.sel = 'd:' + e.id }
-  if (e.t === 'newdoc') { const id = 'new:' + (++x.seq); x.W.push({ id, folder: e.parent, file: v, title: v, name: v, watched: false }); x.sel = 'd:' + id }
+  if (e.t === 'newdoc') { const id = 'new:' + (++x.seq); x.W.push({ id, folder: e.parent, file: v, title: v, name: v }); x.sel = 'd:' + id }
   if (e.t === 'newdir') { const p = e.parent ? e.parent + '/' + v : v; x.WDIRS.add(p); x.open[p] = true; x.sel = 'f:' + p }
   if (e.t === 'dir') sxMoveDir(e.id, sxSplit(e.id)[0], v)
   render()
@@ -4239,17 +4237,17 @@ function sxEditCommit() {
 function sxRow(key, dep) {
   const x = S.sx, e = x.edit
   if (key.startsWith('f:')) {
-    const f = key.slice(2), [, nm] = sxSplit(f), open = !!x.open[f] || !!x.q.trim(), n = sxDeep(f), lock = sxLocked(f)
+    const f = key.slice(2), [, nm] = sxSplit(f), open = !!x.open[f] || !!x.q.trim(), n = sxDeep(f)
     if (e && e.t === 'dir' && e.id === f) return sxEditRow(nm, dep, true)
     const mark = !x.ODIRS.has(f) ? (x.W.some((d) => sxO(d.id) && (d.folder === f || d.folder.startsWith(f + '/'))) ? '<i class="sx-dot ch" title="바뀜"></i>' : '<i class="sx-dot new" title="새 폴더"></i>') : ''
-    return `<div class="sx-row dir${x.sel === key ? ' on' : ''}${x.multi.has(key) ? ' pk' : ''}" role="treeitem" aria-selected="${x.multi.has(key)}" aria-level="${dep + 1}" aria-expanded="${open}" tabindex="0" draggable="${!lock}" data-a="sxClick" data-sk="${esc(key)}" data-t="sxDir" data-p="${esc(f)}" style="--dep:${dep}"><span class="ar" aria-hidden="true">${open ? '▾' : '▸'}</span>${svg('folder')}<span class="nm">${esc(nm)}</span>${mark}${lock ? '' : `<button type="button" class="sx-ib" data-a="sxMv" data-sk="${esc(key)}" aria-label="${esc(nm)} 옮기기" title="옮기기(M)" tabindex="-1">${svg('arrow')}</button><button type="button" class="sx-ib" data-a="sxRen" data-sk="${esc(key)}" aria-label="${esc(nm)} 이름 바꾸기" tabindex="-1">${svg('pen')}</button>`}${!n && !sxKids(f).length ? `<button type="button" class="sx-ib del" data-a="sxRm" data-sk="${esc(key)}" aria-label="빈 폴더 지우기" tabindex="-1">${svg('bin')}</button>` : ''}<span class="rc">${n}</span></div>`
+    return `<div class="sx-row dir${x.sel === key ? ' on' : ''}${x.multi.has(key) ? ' pk' : ''}" role="treeitem" aria-selected="${x.multi.has(key)}" aria-level="${dep + 1}" aria-expanded="${open}" tabindex="0" draggable="true" data-a="sxClick" data-sk="${esc(key)}" data-t="sxDir" data-p="${esc(f)}" style="--dep:${dep}"><span class="ar" aria-hidden="true">${open ? '▾' : '▸'}</span>${svg('folder')}<span class="nm">${esc(nm)}</span>${mark}<button type="button" class="sx-ib" data-a="sxMv" data-sk="${esc(key)}" aria-label="${esc(nm)} 옮기기" title="옮기기(M)" tabindex="-1">${svg('arrow')}</button><button type="button" class="sx-ib" data-a="sxRen" data-sk="${esc(key)}" aria-label="${esc(nm)} 이름 바꾸기" tabindex="-1">${svg('pen')}</button>${!n && !sxKids(f).length ? `<button type="button" class="sx-ib del" data-a="sxRm" data-sk="${esc(key)}" aria-label="빈 폴더 지우기" tabindex="-1">${svg('bin')}</button>` : ''}<span class="rc">${n}</span></div>`
   }
   const d = sxW(key.slice(2)); if (!d) return ''
   if (e && e.t === 'doc' && e.id === d.id) return sxEditRow(d.name, dep, false)
   const o = sxO(d.id)
-  const mk = !o ? '<i class="sx-dot new" title="새 문서"></i>' : sxChanged(d) ? '<i class="sx-dot ch" title="바뀜"></i>' : d.watched ? `<span class="sx-lock" title="원본이 주인">${svg('lock')}</span>` : o.file !== o.title ? '<i class="sx-dot df" title="파일 이름이 제목과 다르다"></i>' : ''
+  const mk = !o ? '<i class="sx-dot new" title="새 문서"></i>' : sxChanged(d) ? '<i class="sx-dot ch" title="바뀜"></i>' : o.file !== o.title ? '<i class="sx-dot df" title="파일 이름이 제목과 다르다"></i>' : ''
   const twin = sxDocsIn(d.folder).filter((z) => z.name === d.name).length > 1 ? ` <small class="muted mono">${esc(sxFile(d))}</small>` : ''
-  return `<div class="sx-row${x.sel === key ? ' on' : ''}${x.multi.has(key) ? ' pk' : ''}" role="treeitem" aria-selected="${x.multi.has(key)}" aria-level="${dep + 1}" tabindex="0" draggable="${!d.watched}" data-a="sxClick" data-sk="${esc(key)}" data-t="sxDoc" data-d="${esc(d.id)}" style="--dep:${dep}">${svg('doc')}<span class="nm">${esc(d.name)}${twin}</span>${d.watched ? '' : `<button type="button" class="sx-ib" data-a="sxMv" data-sk="${esc(key)}" aria-label="${esc(d.name)} 옮기기" title="옮기기(M)" tabindex="-1">${svg('arrow')}</button><button type="button" class="sx-ib" data-a="sxRen" data-sk="${esc(key)}" aria-label="${esc(d.name)} 이름 바꾸기" tabindex="-1">${svg('pen')}</button>`}${!o ? `<button type="button" class="sx-ib del" data-a="sxRm" data-sk="${esc(key)}" aria-label="만들지 않기" tabindex="-1">${svg('bin')}</button>` : ''}${mk}</div>`
+  return `<div class="sx-row${x.sel === key ? ' on' : ''}${x.multi.has(key) ? ' pk' : ''}" role="treeitem" aria-selected="${x.multi.has(key)}" aria-level="${dep + 1}" tabindex="0" draggable="true" data-a="sxClick" data-sk="${esc(key)}" data-t="sxDoc" data-d="${esc(d.id)}" style="--dep:${dep}">${svg('doc')}<span class="nm">${esc(d.name)}${twin}</span><button type="button" class="sx-ib" data-a="sxMv" data-sk="${esc(key)}" aria-label="${esc(d.name)} 옮기기" title="옮기기(M)" tabindex="-1">${svg('arrow')}</button><button type="button" class="sx-ib" data-a="sxRen" data-sk="${esc(key)}" aria-label="${esc(d.name)} 이름 바꾸기" tabindex="-1">${svg('pen')}</button>${!o ? `<button type="button" class="sx-ib del" data-a="sxRm" data-sk="${esc(key)}" aria-label="만들지 않기" tabindex="-1">${svg('bin')}</button>` : ''}${mk}</div>`
 }
 const sxEditRow = (v, dep, dir) => `<div class="sx-row${dir ? ' dir' : ''} edit" style="--dep:${dep}">${dir ? '<span class="ar"></span>' + svg('folder') : svg('doc')}<input class="inp sx-in" id="sxIn" data-in="sxIn" data-t="sxIn" value="${esc(v)}" aria-label="${dir ? '폴더' : '문서'} 이름" autocomplete="off" aria-describedby="sxWhy"><span class="sx-why" id="sxWhy" role="status"></span></div>`
 function sxTreeHtml() {
@@ -4299,7 +4297,7 @@ function viewStructure() {
   if (f && f.step === 2 && !f.srv && f.planKey !== sxPlanKey()) { f.step = 1; f.tried = null }
   const tabs = isTeam() ? '' : `<div class="tabs" role="tablist" aria-label="문서" data-t="sxTabs">${[['shape', '구조'], ['check', '점검']].map(([v, l]) => `<button type="button" role="tab" aria-selected="${(S.sxTab || 'shape') === v}" tabindex="${(S.sxTab || 'shape') === v ? 0 : -1}" data-a="sxTab" data-v="${v}" data-t="sxTab-${v}">${l}</button>`).join('')}</div>`
   if (!isTeam() && S.sxTab === 'check') return { crumb: '문서 › 구조', main: `<div class="sxy">${head(n)}${tabs}${guardBodyHtml(k)}</div>` }
-  const df = x.W.filter((z) => { const o = sxO(z.id); return o && o.file !== o.title && !z.sync && !z.watched }).length
+  const df = x.W.filter((z) => { const o = sxO(z.id); return o && o.file !== o.title && !z.sync }).length
   const tools = `<div class="sx-tools"><input class="inp sx-q" id="sxQ" data-in="sxQ" data-t="sxQ" value="${esc(x.q)}" placeholder="찾기" aria-label="문서 찾기" autocomplete="off"><button type="button" class="btn" data-a="sxPick" data-t="sxPick" aria-pressed="${x.pick}" title="누르는 줄마다 고른다(Ctrl · Shift 를 누르고 눌러도 된다)">여러 개 고르기</button><button type="button" class="btn" data-a="sxNewDir" data-t="sxNewDir">+ 폴더</button><button type="button" class="btn pri" data-a="sxNewDoc" data-t="sxNewDoc">+ 새 문서</button>${sxClaudeBtn(sh)}</div>`
   const strip = df ? `<div class="callout warn sx-strip" data-t="sxStrip"><span><i class="sx-dot df" aria-hidden="true"></i> 파일 이름이 제목과 다른 문서 <b>${df}</b> <small class="muted">· 점: 파랑 바뀜 · 초록 새것 · 노랑 파일 이름 ≠ 제목</small></span><button type="button" class="btn sm" data-a="sxFix" data-t="sxFix">제목으로 맞추기</button></div>` : ''
   const card = sxCardHtml(k, sh)
@@ -4535,21 +4533,21 @@ function sxFlowBarHtml() {
 function sxCardHtml(k, sh) {
   const x = S.sx, s = x.sel && x.sel.startsWith('d:') ? sxW(x.sel.slice(2)) : null
   if (!s) return ''
-  const head = `<div class="ch">${svg('doc')}<span class="u-f1 sx-cn">${esc(s.name)}</span>${s.watched ? `<span class="sx-lock" title="원본이 주인">${svg('lock')}</span>` : ''}</div>`
+  const head = `<div class="ch">${svg('doc')}<span class="u-f1 sx-cn">${esc(s.name)}</span></div>`
   if (!sh) return `<div class="card" data-t="sxCard">${head}<div class="cb">${loadingHtml}</div></div>`
   if (sh.error) return `<div class="card" data-t="sxCard">${head}<div class="cb">${errHtml(sh, 'sh:' + k)}</div></div>`
-  const its = sxItems(s.id), lock = s.watched
+  const its = sxItems(s.id)
   const rows = its.map((it) => {
     const key = sxIKey(s.id, it.h), on = x.isel === key
     const dot = typeof it.text === 'string' ? '<i class="sx-dot new" title="새 글"></i>' : !sxSame(s.id, it) ? '<i class="sx-dot ch" title="바뀜"></i>' : ''
-    return `<li class="sx-it${on ? ' on' : ''}" data-t="sxItem" data-h="${esc(it.h)}"><input type="checkbox" data-sxpick="${esc(key)}" aria-label="${esc(it.h)} 합치기에 넣기"${x.ipick.has(key) ? ' checked' : ''}${lock ? ' disabled' : ''}><button type="button" class="nm" data-a="sxISel" data-k="${esc(key)}" aria-pressed="${on}">${esc(it.h)}</button><span class="mt">${it.lines ?? 0}줄${it.names ? ` · 장부 항목 ${it.names}` : ''}</span>${dot}</li>${on && !lock ? `<li class="sx-ia" data-t="sxItemActs"><button type="button" class="btn sm" data-a="sxIMv" data-t="sxIMv">옮기기…</button><button type="button" class="btn sm" data-a="sxIRen" data-t="sxIRen">이름</button><button type="button" class="btn sm" data-a="sxISplit" data-t="sxISplit">나누기…</button></li>` : ''}`
+    return `<li class="sx-it${on ? ' on' : ''}" data-t="sxItem" data-h="${esc(it.h)}"><input type="checkbox" data-sxpick="${esc(key)}" aria-label="${esc(it.h)} 합치기에 넣기"${x.ipick.has(key) ? ' checked' : ''}><button type="button" class="nm" data-a="sxISel" data-k="${esc(key)}" aria-pressed="${on}">${esc(it.h)}</button><span class="mt">${it.lines ?? 0}줄${it.names ? ` · 장부 항목 ${it.names}` : ''}</span>${dot}</li>${on ? `<li class="sx-ia" data-t="sxItemActs"><button type="button" class="btn sm" data-a="sxIMv" data-t="sxIMv">옮기기…</button><button type="button" class="btn sm" data-a="sxIRen" data-t="sxIRen">이름</button><button type="button" class="btn sm" data-a="sxISplit" data-t="sxISplit">나누기…</button></li>` : ''}`
   }).join('')
   const np = x.ipick.size
-  const tools = lock ? '' : `<div class="sx-itools"><button type="button" class="btn sm" data-a="sxIMerge" data-t="sxIMerge"${np >= 2 ? '' : ' disabled'}>합치기…${np ? ` ${np}` : ''}</button>${np ? '<button type="button" class="btn ghost sm" data-a="sxIPickClear" data-t="sxIPickClear">풀기</button>' : ''}${!its.length && sxO(s.id) ? `<button type="button" class="btn sm" data-a="sxDrop" data-t="sxDrop" aria-pressed="${x.empty.has(s.id)}">${x.empty.has(s.id) ? '걷기 풀기' : '걷기'}</button>` : ''}</div>`
+  const tools = `<div class="sx-itools"><button type="button" class="btn sm" data-a="sxIMerge" data-t="sxIMerge"${np >= 2 ? '' : ' disabled'}>합치기…${np ? ` ${np}` : ''}</button>${np ? '<button type="button" class="btn ghost sm" data-a="sxIPickClear" data-t="sxIPickClear">풀기</button>' : ''}${!its.length && sxO(s.id) ? `<button type="button" class="btn sm" data-a="sxDrop" data-t="sxDrop" aria-pressed="${x.empty.has(s.id)}">${x.empty.has(s.id) ? '걷기 풀기' : '걷기'}</button>` : ''}</div>`
   return `<div class="card" data-t="sxCard">${head}<div class="cb">${tools}${its.length ? `<ul class="sx-its" data-t="sxItems">${rows}</ul>` : `<div class="empty2" data-t="sxNoItems"><b>${x.empty.has(s.id) ? '걷을 문서' : '항목 없음'}</b></div>`}</div></div>`
 }
 // 창 셋(설계 5-4) — 옮기기 · 합치기 · 나누기. 구조안에만 적는다(넣기 전에는 지식이 바뀌지 않는다)
-const sxDocOpts = () => S.sx.W.filter((d) => !d.watched && !S.sx.empty.has(d.id)).map((d) => [d.id, sxPath(d)]).sort((a, b) => sxBy(a[1], b[1]))
+const sxDocOpts = () => S.sx.W.filter((d) => !S.sx.empty.has(d.id)).map((d) => [d.id, sxPath(d)]).sort((a, b) => sxBy(a[1], b[1]))
 const sxAtOpts = (wid, skip) => [['', '맨 끝'], ...sxItems(wid).filter((it) => !skip.includes(sxIKey(wid, it.h))).map((it) => [it.h, it.h + ' 앞'])]
 const sxSel = (id, t, opts, v, extra = '') => `<select class="inp" id="${id}" data-sxw="${t}"${extra}>${opts.map(([o, l]) => `<option value="${esc(o)}"${o === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`
 const sxItemOf = (key) => { const i = key.indexOf('\n'), wid = key.slice(0, i), h = key.slice(i + 1); return { wid, h, it: sxItems(wid).find((z) => z.h === h) } }
@@ -4711,11 +4709,10 @@ function sxApplyPlan(plan) {
   for (const d of plan.docs) {
     const [folder, nm] = sxSplit(d.id)
     let w = d.was ? sxW(d.was) : null
-    if (w && w.watched) { widOf.set(d.id, w.id); continue }
     if (w) {
       if (sxIdOf(w) !== d.id) { w.folder = folder; w.name = nm; w.sync = nm === w.title && w.file !== nm }
     } else {
-      w = { id: 'new:' + (++x.seq), folder, file: nm, title: nm, name: nm, watched: false }
+      w = { id: 'new:' + (++x.seq), folder, file: nm, title: nm, name: nm }
       x.W.push(w)
     }
     widOf.set(d.id, w.id)
@@ -5178,7 +5175,7 @@ function sfForm(can) {
   if (f.type === 'git') where = full(fld(team ? 'git 주소' : 'git 주소 · 이 PC 의 저장소 폴더', 'at', f.at, team ? '예: https://gitlab.team.local/dpms/dpms-api.git' : '예: https://gitlab.team.local/dpms/dpms-api.git · D:\\work\\dpms-api', { need: 1, mono: 1 })) + (team ? '<div class="small muted u-full" data-t="credNote">들어가야 하는 저장소면: 더한 뒤 서버에서 자격 한 줄(표의 그 줄에 보인다) · 화면으로는 받지 않는다</div>' : fld('계정', 'gitUser', f.gitUser, '사내 저장소에 들어가는 계정') + fld('읽기 열쇠', 'gitToken', f.gitToken, '읽기 권한 열쇠', { pw: 1 }))
   if (f.type === 'db') where = fld('호스트', 'host', f.host, '예: db.team.local', { need: 1, mono: 1 }) + fld('포트', 'port', f.port, '5432', { need: 1, mono: 1 }) + fld('DB 이름', 'database', f.database, '예: gdi', { need: 1, mono: 1 }) + fld('스키마', 'schema', f.schema, 'public', { mono: 1 }) + fld('계정', 'user', f.user, '예: kmd_read', { need: 1, mono: 1 }) + (team ? '<div class="small muted" data-t="credNote" style="align-self:end">비밀번호는 화면으로 받지 않는다. 더한 뒤 서버에서 한 줄(표의 그 줄에 보인다)</div>' : fld('비밀번호', 'password', f.password, '이 PC 의 자격 저장소에만', { need: 1, pw: 1 }))
   const docsLike = f.type === 'docs'
-  const what = f.type === 'git' ? `<div class="field" style="margin:0" data-t="codeWhat"><div class="lbrow"><label>무엇을</label>${tipb('sf.whatCode', '무엇을')}</div><div class="small u-p4-0">묶음(지금부터) · 바뀐 코드는 Claude 로 간다</div></div>` : ruleSet ? `<div class="field" style="margin:0"><div class="lbrow"><label for="sf-rule">무엇을 채우나</label>${tipb('sf.rule.' + f.rule, '무엇을 채우나')}</div>${sel('rule', ruleSet.map((r) => [r[0], r[1]]), f.rule)}</div>` : `<div class="field" style="margin:0"><div class="lbrow"><label>무엇을</label>${tipb('sf.whatDocs', '무엇을')}</div><div class="small u-p4-0">문서: md · docx · pptx · xlsx · hwpx · hwp · pdf · 그림은 첨부로</div><div class="hint">들어온 문서는 원본이 주인이다(화면에서 고치지 않는다)</div></div>`
+  const what = f.type === 'git' ? `<div class="field" style="margin:0" data-t="codeWhat"><div class="lbrow"><label>무엇을</label>${tipb('sf.whatCode', '무엇을')}</div><div class="small u-p4-0">묶음(지금부터) · 바뀐 코드는 Claude 로 간다</div></div>` : ruleSet ? `<div class="field" style="margin:0"><div class="lbrow"><label for="sf-rule">무엇을 채우나</label>${tipb('sf.rule.' + f.rule, '무엇을 채우나')}</div>${sel('rule', ruleSet.map((r) => [r[0], r[1]]), f.rule)}</div>` : `<div class="field" style="margin:0"><div class="lbrow"><label>무엇을</label>${tipb('sf.whatDocs', '무엇을')}</div><div class="small u-p4-0">문서: md · docx · pptx · xlsx · hwpx · hwp · pdf · 그림은 첨부로</div></div>`
   const into = f.type === 'git' ? `<div class="field" style="margin:0"><div class="lbrow"><label for="sf-kn">넣을 지식</label>${tipb('sf.intoCode', '넣을 지식')}</div>${sel('kn', kns.map((k) => [k.id, k.name]), f.kn)}</div>` : `<div class="field" style="margin:0"><div class="lbrow"><label for="sf-kn">넣을 지식 › ${docsLike ? '출처 이름' : '문서'}</label>${tipb(docsLike ? 'sf.intoDocs' : 'sf.intoDb', '넣을 지식')}</div><div class="u-flex u-g3">${sel('kn', kns.map((k) => [k.id, k.name]), f.kn)}<input class="inp" id="sf-doc" aria-label="${docsLike ? '출처 이름' : '넣을 문서 이름'}" data-in="sf" data-f="doc" value="${esc(f.doc || '')}" placeholder="${esc(docsLike ? sfAutoName(f) || '폴더 이름' : SF_DOC[f.rule])}" style="width:45%"></div></div>`
   const paths = ''
   const when = `<div class="field" style="margin:0"><label for="sf-every">언제</label>${sel('every', [['hourly', '1시간마다'], ['daily 06:00', '매일 06:00'], ['weekly', '매주 월'], ['change', '바뀔 때(5분마다 보고)']], f.every)}</div>`
@@ -6751,7 +6748,6 @@ const ACT = {
   sxClick: (el, ev) => {
     const key = el.dataset.sk, x = S.sx
     if (ev && ev.detail === 2 && el.querySelector('[data-a=sxRen]')) { if (key.startsWith('f:')) x.open[key.slice(2)] = !x.open[key.slice(2)]; sxEditStart(key.startsWith('f:') ? { t: 'dir', id: key.slice(2) } : { t: 'doc', id: key.slice(2) }); return }
-    const lock = el.getAttribute('draggable') !== 'true'
     if (ev && ev.shiftKey && x.sel) {
       const rows = [...document.querySelectorAll('#sxTree .sx-row[data-sk]')].map((r) => [r.dataset.sk, r.getAttribute('draggable') === 'true'])
       const a = rows.findIndex((r) => r[0] === x.sel), b = rows.findIndex((r) => r[0] === key)
@@ -6759,7 +6755,6 @@ const ACT = {
       render(); sxFocus(key); return
     }
     if (ev && (ev.ctrlKey || ev.metaKey || x.pick)) {
-      if (lock) { toast('<b>원본이 주인인 것은 옮기지 않는다</b>', 0, true); return }
       if (x.multi.has(key)) x.multi.delete(key); else x.multi.add(key)
       x.sel = key; render(); sxFocus(key); return
     }
@@ -6828,7 +6823,7 @@ const ACT = {
   sxSave: () => sxSave(),
   sxFix: async () => {
     const x = S.sx
-    for (const d of x.W.filter((z) => { const o = sxO(z.id); return o && o.file !== o.title && !z.sync && !z.watched })) {
+    for (const d of x.W.filter((z) => { const o = sxO(z.id); return o && o.file !== o.title && !z.sync })) {
       if (d.file === d.title.replace(/\s+/g, '')) { if (!sxClash(d.folder, d.title, d.id)) d.sync = true; continue }
       const v = await ask({ t: `「${d.title}」`, d: `파일 이름 ${d.file}.md · 어느 쪽으로 맞출까`, btns: [['file', `파일 이름을 「${d.title}」로`, 'pri'], ['title', `제목을 「${d.file}」로`, '']] })
       if (v === false) break

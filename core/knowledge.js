@@ -18,7 +18,6 @@ import { formsOf } from './guard.js'
 import { parseRegistry, locate } from './registry.js'
 import { LOG_TAGS, isLogRecord } from './names.js'
 import { parsePut, parseReverted, parseLinked, itemKey } from './parts.js'
-import { watchedOf } from './watchmark.js'
 import { parseOrder, ORDER_FILE } from './order.js'
 
 const isDir = (p) => fs.stat(p).then((s) => s.isDirectory(), () => false)
@@ -94,7 +93,7 @@ export async function loadKnowledge({ id, name, dir }, { cache = null } = {}) {
     if (/^docs\/.+\.md$/i.test(p)) {
       const docId = p.slice(5, -3)
       // rec — 문서 감시가 들인 사본의 앞 기록(표지의 rec · 문서 전체가 그 기록에서 왔다)
-      docs.push(await parsed(f, p, (text, st) => ({ id: docId, path: p, mtime: st.mtime.toISOString(), ...parseDoc(text, path.basename(docId)), rec: watchedOf(text)?.rec || null, watched: !!watchedOf(text) })))
+      docs.push(await parsed(f, p, (text, st) => ({ id: docId, path: p, mtime: st.mtime.toISOString(), ...parseDoc(text, path.basename(docId)) })))
     } else if (/^(work|log)\/[^/]+\.md$/i.test(p)) {
       const r = await parsed(f, p, (text) => {
         const x = parseRecord(text, path.basename(p))

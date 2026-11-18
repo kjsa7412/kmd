@@ -121,8 +121,8 @@ export function groundedIn(text, ...sets) {
 
 // 본문 반영 검사(저장 승인 설계 P-D12 · 3-1 「바뀐 것 값이 있는데 본문 바뀜 없음」 · 3-2) — 기록 「바뀐 것」 의 값(mustValues)이
 //   이 기록이 잇는 항목들의 글(이번 저장으로 바뀐 새 글 · 항목 글이 없으면 지금 글)이나 머리 가운데 어디에도 없으면 오류다.
-//   경위만 있는 기록(값 없음)은 넘는다. 원본이 주인인 문서(watched)에 잇는 기록은 항목 글을 못 쓰므로 보지 않는다(skipped).
-//   record — { title, body } · items — [{ doc, heading, text, watched }] → { errors: [{ id, code: 'unreflected', values, why }], values, skipped? }
+//   경위만 있는 기록(값 없음)은 넘는다.
+//   record — { title, body } · items — [{ doc, heading, text }] → { errors: [{ id, code: 'unreflected', values, why }], values }
 //   쓰지 않고 판정만 — 사람 채널은 propose 오류 · 무인 채널은 규칙 길 방아쇠(P3 · P6 에서 부른다)
 //   기록 끝 `## 원천`(들인 원천 인용 · core/ingest.js intakeSrcPart)은 기록이 말한 값이 아니라 받은 글이다 — 바뀐 것 칸이 없는 들이기 기록도 원천 값으로 걸리지 않게 뺀다(PC4)
 //   서버가 단 꼴(머리 다음 줄 「- 파일 … · 지문 <16자>」)일 때만 뺀다 — 사람 글이 「## 원천」 머리로 값을 숨겨 반영 검사를 피하지 않게
@@ -131,7 +131,6 @@ export function judgeReflect(record, items = []) {
   const body0 = String(record?.body || '')
   const values = mustValues(body0.split(/^(?=## )/m).filter((p) => !SRC_PART_RE.test(p)).join(''))
   if (!values.length) return { errors: [], values }
-  if (items.some((x) => x?.watched)) return { errors: [], values, skipped: true }
   const seen = new Set()
   for (const x of items) for (const v of valuesOf(`${x?.heading || ''}\n${x?.text || ''}`)) seen.add(v)
   const missing = values.filter((v) => !seen.has(v))

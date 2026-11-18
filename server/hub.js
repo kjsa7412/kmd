@@ -1703,7 +1703,7 @@ ${genRulesBlock({ profile: 'shape' })}`
     // 보낸 지문(sent/)은 보내기 채널만(S-D16)
     if (!opt.system && (Array.isArray(rec0?.tags) ? rec0.tags : []).some((t) => String(t).trim().startsWith('sent/')) && channel !== 'send') throw new KmdError('E_INPUT', 'sent/ 표지는 보내기만 단다')
     // 화면 문서 고치기(opt.edit · S9 · hub.edit 만 단다)는 팀 검사(gatePrepare)를 거치지 않는다 — 값 검사 없이 고친 글 그대로(K-D4) ·
-    //   지문(base) · 원본이 주인 · 문서 꼴 · 저절로 채우는 표는 core 가 본다
+    //   지문(base) · 문서 꼴 · 저절로 채우는 표는 core 가 본다
     //   문서 짜임의 글 걸음(opt.shape · hub.shapeWrite 만 단다)도 팀 검사 대신 checkShape 로 가른다(팀 · 개인 모두 · 권한 모델 7-2)
     const team = mode === 'team' && !opt.system && !opt.edit && !opt.shape
     // 들이기 일감의 저장(S-D19 · S-D43) — 자리는 intakeCtx 가 일감을 끝낼 때 정했다 · 예약 사람 kmd · 저장 문이 붙이는 태그 · 새 문서를 세운다
@@ -2889,7 +2889,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         return next
       })
     },
-    // 지금 짜임(GET /api/k/:id/shape) — 지식관리자 · 문서 · 항목 머리 · 줄 수 · 이름 수 · 갈래 · watched · shapeFp · 열린 짜임 일 요약
+    // 지금 짜임(GET /api/k/:id/shape) — 지식관리자 · 문서 · 항목 머리 · 줄 수 · 이름 수 · 갈래 · shapeFp · 열린 짜임 일 요약
     async shape(id, ctx) {
       const meta = await hub.meta(id, ctx)
       if (ctx) hub.need(ctx, id, 'admin')
@@ -2897,7 +2897,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       const S = readShape(k, await readStructure(meta.dir))
       const w = await hub.shapeWork(id)
       const work = !w ? null : w.broken ? { broken: true } : { work: w.work, kind: w.kind || 'reshape', by: w.by, stage: w.stage, opened: w.opened, at: w.at, draft: !!w.plan, mine: !ctx || w.by === ctx.user, steps: w.tried?.steps?.length || 0, done: (w.done || []).length, blockers: w.tried?.diag?.blockers?.length || 0, ...(w.stage === 'stopped' && w.last?.fail ? { fail: w.last.fail } : {}), ...(w.undoOf ? { undoOf: w.undoOf } : {}) }
-      return { kn: id, name: meta.name, fp: S.fp, docs: S.docs.map((d) => ({ id: d.id, title: d.title, watched: d.watched, intro: d.intro, items: d.items.map((it) => ({ h: it.h, lines: it.lines, names: it.coords.length })) })), forms: S.forms, work, claude: hub.shapeClaudeState(id) }
+      return { kn: id, name: meta.name, fp: S.fp, docs: S.docs.map((d) => ({ id: d.id, title: d.title, intro: d.intro, items: d.items.map((it) => ({ h: it.h, lines: it.lines, names: it.coords.length })) })), forms: S.forms, work, claude: hub.shapeClaudeState(id) }
     },
     // 구조안 검사(POST /api/k/:id/shape/check { plan }) — planCheck · diffPlan · 짜임 마른 실행 → 걸림 · 경고 · 바뀔 것 · 걸음.
     //   짜임 일을 열고(처음이면) 초안을 장부에 둔다. 단계를 잇는 것은 연 사람만(그만두게 하기는 지식관리자 누구나)
@@ -3005,7 +3005,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         input = { sources: sources.map(clean), targets: targets.map(clean) }
         if (new Set(input.targets.map((t) => t.doc + '\n' + t.h)).size !== input.targets.length) throw new KmdError('E_INPUT', '같은 목표 머리가 둘이다')
       }
-      // 재료를 먼저 지어 본다 — 없는 출처 · 원본이 주인인 출처는 일을 세우지 않는다
+      // 재료를 먼저 지어 본다 — 없는 출처는 일을 세우지 않는다
       const sg = await shapeG(id, await hub.get(id, ctx), type, input)
       if (sg.error) throw new KmdError('E_INPUT', sg.error)
       if (mode === 'team') {
@@ -4171,7 +4171,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         accepted = p.warnings.map(({ id: wid, code, at, why: y }) => ({ id: wid, code, at, why: y }))
       } else if (dry) return { dry: true, propose: null }
       // 기록(이력 log/ · 태그 edit) + 항목 글 한 저장 — 이 PC 와 지식관리자는 kmd 자신의 쓰기(system)로 표까지 ·
-      //   쓰기 자리는 사람의 쓰기(문서 꼴 · 원본이 주인 · 표를 core 가 본다)
+      //   쓰기 자리는 사람의 쓰기(문서 꼴 · 표를 core 가 본다)
       const r = await hub.save(ctx, id, {
         record: { title, body: abody ?? `${lead}${why1 ? `\n\n## 까닭\n${why1}` : ''}`, ...tch, tags: ['edit'], ...(fixes.length ? { fixes } : {}) },
         sections: [
@@ -5119,7 +5119,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       saveJobs()
       return { state: 'queued', job: j.id }
     },
-    // 문서 다듬기(K10-4 · S-D37 · S13) — 지식관리자 · 문서 하나 · 원본이 주인인 문서 · ## 없는 문서 · 「Claude 에 보내지 않음」 지식은 거절 ·
+    // 문서 다듬기(K10-4 · S-D37 · S13) — 지식관리자 · 문서 하나 · ## 없는 문서 · 「Claude 에 보내지 않음」 지식은 거절 ·
     //   들이기 일감 type polish(openJob · 같은 문서에 열린 일감이 있으면 그것) → 팀 일꾼이 짓고 · 값 장부가 같은 항목만 한 저장
     async polish(ctx, id, { doc } = {}) {
       await hub.meta(id, ctx)
@@ -5136,7 +5136,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       return { job: r.job || null, state: r.state, ...(r.again ? { again: true } : {}) }
     },
     // 들이기 저장의 자리(S-D43) — 일감을 끝낼 때 명부에서 다시 읽는다: 가져올 곳은 kmd · 사람은 지금 자리(쓰기 이상 · 다듬기는 지식관리자) · 떠났거나 자리가 없으면 null(넣지 못함 seat)
-    //   shell · admin 류 ctx 를 쓰지 않는다 — 저장은 그 사람 이름 · 쓰기 자리 길(값 대조 · 원본이 주인 · 표 블록을 거친다)
+    //   shell · admin 류 ctx 를 쓰지 않는다 — 저장은 그 사람 이름 · 쓰기 자리 길(값 대조 · 표 블록을 거친다)
     intakeCtx(j) {
       if (j.by === 'kmd') return { user: 'kmd', intake: true }
       const u = hub.userOf(j.by)
@@ -7249,10 +7249,10 @@ ${genRulesBlock({ profile: 'shape' })}`
       }
       // 이 PC 의 백업 자리 · 팀 서버의 개인 지식 백업 자리 — 붙지 않은 지식마다(켤 때 한 번)
       if (config.backupRoot) setTimeout(async () => { for (const m of await hub.list().catch(() => [])) await hub.autoBackup(m.id).catch((e) => log('지식백업', m.id, e.message)) }, 800).unref?.()
-      // 거두기 — PC(또는 serve.json collect)에서 편집기로 고친 문서를 30초 고요 뒤 들인다
+      // 손으로 고친 파일: PC(또는 serve.json collect)에서 편집기로 고친 것을 30초 고요 뒤 본다(문서는 되돌려 두고 점검 「손으로 고친 파일」 로 · 들이지 않는다)
       await hub.known().catch(() => {}) // 처음 켤 때 — 지금 있는 지식을 아는 것으로
       // 옛 꼴 이행(O-9): 개인 프로그램은 켤 때 지식마다 한 번(판 표시가 있으면 건너뛴다 · 실패해도 지식은 연다)
-      if (mode === 'pc') for (const m of await hub.list()) await oldformOnce(m)
+      if (mode === 'pc') for (const m of await hub.list().catch((e) => { log('옛 꼴 이행 목록', e?.message || e); return [] })) await oldformOnce(m)
       if (mode === 'pc' || config.collect) for (const m of await hub.list()) watchers.push(Object.assign(collect.watch(m.dir, () => hub.collect(m.id)), { dir: m.dir }))
       // 꺼져 있던 동안 편집기로 고친 것 — 켤 때 한 번 거둔다(다른 파일이 바뀔 때까지 기다리지 않게)
       if (mode === 'pc' || config.collect) setTimeout(async () => { for (const m of await hub.list().catch(() => [])) await hub.collect(m.id).catch(() => {}) }, config.collectOnStartMs ?? 1500).unref?.()

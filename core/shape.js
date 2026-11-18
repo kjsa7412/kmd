@@ -20,7 +20,6 @@ import { parseForms, formsOf, formFor, headingFits, formHeadRule, FORM_KINDS, RE
 import { cleanForms } from './namebook.js'
 import { nameProblem, stepFp, brokenLinks } from './restructure.js'
 import { coordsOfSection } from './knowledge.js'
-import { watchedOf } from './watchmark.js'
 import { hasBlockMarker } from './baseline.js'
 import { judgeId } from './values.js'
 import { WRITE_RULES } from './writerules.js'
@@ -48,7 +47,7 @@ export function shapeFp(files) {
 }
 
 // ── 지금 짜임 ──
-//   { fp, docs: [{ id, title, watched, intro, items: [{ h, lines, sha, coords }] }], forms, order, dirs }
+//   { fp, docs: [{ id, title, intro, items: [{ h, lines, sha, coords }] }], forms, order, dirs }
 export function readShape(k, files) {
   const docs = []
   for (const [rel, text0] of files.docs) {
@@ -59,7 +58,6 @@ export function readShape(k, files) {
     docs.push({
       id,
       title: pd.title,
-      watched: !!watchedOf(text),
       intro: !!pd.intro.trim(),
       items: pd.sections.map((s) => ({ h: s.h, lines: s.body ? s.body.split('\n').length : 0, sha: sha16(s.body), coords: d ? coordsOfSection(k, d, s.h) : [] })),
     })
@@ -308,13 +306,6 @@ export function planCheck(k, S, Pl) {
       if (!kept && f && !headingFits(f, h)) err(`${d.id} › ${h}`, `「${f.name}」 의 항목 머리 꼴이 아니다: ${formHeadRule(f)}`)
     }
     if (d.items.length && (d.items.length < 5 || d.items.length > 40)) warn(d.id, `항목 ${d.items.length}(문서당 5~40)`)
-    // 원본이 주인인 문서 — 이름 · 자리 · 항목을 그대로
-    const w = d.was && cur.get(d.was)
-    if (w?.watched) {
-      if (d.was !== d.id) err(d.id, '원본이 주인인 문서는 옮기지 않는다')
-      const same = d.items.length === w.items.length && d.items.every((it, i) => it.from.length === 1 && it.from[0].doc === d.was && it.from[0].h === it.h && w.items[i]?.h === it.h)
-      if (!same) err(d.id, '원본이 주인인 문서의 항목은 그대로 둔다')
-    }
   }
   // 폴더당 문서 수
   const perDir = new Map()
@@ -334,7 +325,6 @@ export function planCheck(k, S, Pl) {
   for (const e of Pl.empty) {
     const d = cur.get(e)
     if (d?.intro) err(e, '요약이 있는 문서는 걷지 않는다')
-    if (d?.watched) err(e, '원본이 주인인 문서는 걷지 않는다')
   }
   // write 단위 — 50 항목 · 장부 항목 다시 놓기
   const nameAt = new Map(Pl.names.map((x) => [x.coord, x]))
@@ -532,7 +522,7 @@ export const SEED_RULES = [...RULES_BASE, '7. 덮임: 넣음으로 고른 재료
 export const RESHAPE_RULES = [
   ...RULES_BASE,
   '7. 덮임: 지금 항목은 모두 새 짜임 어딘가로 간다(지우기는 문서 고치기에서 · 이 일이 아니다).',
-  '8. 다시 잡기: 글이 그대로 갈 수 있으면 옮기기 · 이름 바꾸기를 먼저 쓴다. 나누기 · 합치기는 같은 대상이 두 곳에 갈라져 있거나 한 항목에 대상이 둘 이상 섞였을 때만. 원본이 주인인 문서는 그대로 둔다.',
+  '8. 다시 잡기: 글이 그대로 갈 수 있으면 옮기기 · 이름 바꾸기를 먼저 쓴다. 나누기 · 합치기는 같은 대상이 두 곳에 갈라져 있거나 한 항목에 대상이 둘 이상 섞였을 때만.',
 ].join('\n')
 
 // 스키마(claude -p --json-schema) — 구조안은 글을 싣지 않는다(합치기 · 나누기 글은 shape-write 가 짓는다)
@@ -560,26 +550,24 @@ export const SHAPE_CLAUDE_TYPES = ['shape-plan', 'shape-write']
 const firstLine = (body) => String(body || '').split('\n').map((l) => l.trim()).find((l) => l && !l.startsWith('<!--'))?.slice(0, 100) || ''
 const secOfK = (k, id, h) => k?.byDocPath.get(`docs/${id}.md`)?.sections.find((s) => s.h === h) || null
 
-// 구조안 재료 — 지금 짜임(문서 · 항목 머리 · 줄 수 · 첫 줄 · 장부 항목 · 갈래 · 원본이 주인). 항목 글 전체는 보내지 않는다(5-4)
+// 구조안 재료 — 지금 짜임(문서 · 항목 머리 · 줄 수 · 첫 줄 · 장부 항목 · 갈래). 항목 글 전체는 보내지 않는다(5-4)
 export function planMaterial(k, S, { plan = null, note = '' } = {}) {
   return {
     type: 'shape-plan',
     fp: S.fp,
-    docs: S.docs.map((d) => ({ id: d.id, title: d.title, watched: d.watched, items: d.items.map((it) => ({ h: it.h, lines: it.lines, first: firstLine(secOfK(k, d.id, it.h)?.body), names: it.coords.slice(0, 10) })) })),
+    docs: S.docs.map((d) => ({ id: d.id, title: d.title, items: d.items.map((it) => ({ h: it.h, lines: it.lines, first: firstLine(secOfK(k, d.id, it.h)?.body), names: it.coords.slice(0, 10) })) })),
     forms: S.forms.map((f) => ({ name: f.name, kind: f.kind, ...(f.folder ? { folder: f.folder } : {}), ...(f.pattern ? { pattern: f.pattern } : {}) })),
     ...(plan ? { plan } : {}),
     ...(note ? { note: String(note).slice(0, 1000) } : {}),
   }
 }
-// 글 재료 — 출처 항목의 지금 글 · 지문(base) · 목표(문서 · 머리 · 몫) → g | { error }(없는 출처 · 원본이 주인인 출처 · 너무 긴 출처)
+// 글 재료 — 출처 항목의 지금 글 · 지문(base) · 목표(문서 · 머리 · 몫) → g | { error }(없는 출처 · 너무 긴 출처)
 export const WRITE_SRC_MAX = 20000
 export function writeMaterial(k, S, { sources, targets }) {
-  const watched = new Set(S.docs.filter((d) => d.watched).map((d) => d.id))
   const srcs = []
   for (const s of sources) {
     const sec = secOfK(k, s.doc, s.h)
     if (!sec) return { error: `출처 항목이 없다: ${s.doc} › ${s.h}` }
-    if (watched.has(s.doc)) return { error: `원본이 주인인 문서의 항목은 다시 쓰지 않는다: ${s.doc} › ${s.h}` }
     if (sec.body.length > WRITE_SRC_MAX) return { error: `출처 항목 글이 ${WRITE_SRC_MAX}자를 넘는다: 손으로 쓴다(${s.h})` }
     srcs.push({ doc: s.doc, h: s.h, body: sec.body, base: sha16(sec.body) })
   }
@@ -594,13 +582,13 @@ export function shapePlanPromptOf(g) {
     '꼴: docs[{ id(새 문서 id · 「폴더/이름」 · .md 없이), was(지금 문서 id · 새 문서면 null), items[{ h(새 머리), from[{ doc(지금 문서 id), h(지금 머리) }], part?(나누기에서 이 항목이 가져갈 몫을 말로), note?(바꾼 까닭 한 줄) }] }] · names[{ coord, doc, h }](옮기거나 합친 항목에 닿던 장부 항목의 새 자리 · 바뀌는 것만) · empty[](항목이 모두 떠나 걷을 지금 문서 id) · why(한두 문장)',
     '- 지금 항목은 모두 어느 items 의 from 에 나온다. 지금 문서는 모두 어느 docs 의 was 이거나 empty 에 든다.',
     '- from 하나 = 옮기기 · 이름 바꾸기, 둘 이상 = 합치기, 같은 출처를 둘 이상의 항목이 쓰면 = 나누기. 머리끼리 같거나 앞부분이 겹치지 않게.',
-    '- 원본이 주인인 문서는 was = id · 항목 그대로 둔다. 바꿀 것이 없으면 지금 짜임 그대로를 돌려준다.',
+    '- 바꿀 것이 없으면 지금 짜임 그대로를 돌려준다.',
     RESHAPE_RULES,
     ...(g.note ? [`지식관리자의 말: ${g.note}`] : []),
     ...(g.plan ? [`화면의 지금 구조안(손으로 고친 것 · 이것을 바탕으로 고친다):\n${JSON.stringify({ docs: g.plan.docs, names: g.plan.names, empty: g.plan.empty })}`] : []),
     ...(g.forms?.length ? [`갈래: ${g.forms.map((f) => `${f.name}(${f.kind}${f.pattern ? ' · ' + f.pattern : ''})`).join(' · ')}`] : []),
     `지금 짜임(지문 ${g.fp}):`,
-    ...g.docs.map((d) => [`[doc ${d.id}] ${d.title}${d.watched ? ' · 원본이 주인' : ''}`, ...d.items.map((it) => `- ## ${it.h} (${it.lines}줄${it.names.length ? ' · 장부 항목 ' + it.names.join(', ') : ''})${it.first ? ' ' + it.first : ''}`)].join('\n')),
+    ...g.docs.map((d) => [`[doc ${d.id}] ${d.title}`, ...d.items.map((it) => `- ## ${it.h} (${it.lines}줄${it.names.length ? ' · 장부 항목 ' + it.names.join(', ') : ''})${it.first ? ' ' + it.first : ''}`)].join('\n')),
   ].join('\n')
 }
 export const shapePlanFixPromptOf = (g, prev, why) => [shapePlanPromptOf(g), `${FIXED}: ${why}`, '걸린 곳만 고친다.', `지난 초안:\n${JSON.stringify(prev)}`].join('\n\n')

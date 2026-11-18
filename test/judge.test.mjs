@@ -128,7 +128,7 @@ test('judgeShape: 출처 지문은 오류(값은 보지 않음) · 지어낸 값
   assert.deepEqual(checkShape(ks, fmt), { ok: false, code: 'format', why: '「가」 글이 비었다' })
 })
 
-test('judgeReflect(본문 반영): 「바뀐 것」 값이 이은 항목 글 · 머리 어디에도 없으면 오류 · 경위만 · watched 는 넘는다', () => {
+test('judgeReflect(본문 반영): 「바뀐 것」 값이 이은 항목 글 · 머리 어디에도 없으면 오류 · 경위만', () => {
   const r = rec('- 주기: 10초 → 20초')
   const item = (text, extra = {}) => ({ doc: 'docs/배포절차.md', heading: '헬스체크', text, ...extra })
   // 항목 글 없이 기록만(글은 아직 10초) — 오류
@@ -143,10 +143,6 @@ test('judgeReflect(본문 반영): 「바뀐 것」 값이 이은 항목 글 · 
   assert.deepEqual(judgeReflect(r, [{ doc: 'docs/배포절차.md', heading: '주기 20초', text: '' }]).errors, [])
   // 경위만(값 없음) — 넘음
   assert.deepEqual(judgeReflect(rec('- 주기 정한 까닭을 적었다'), [item(CUR)]).errors, [])
-  // 원본이 주인인 문서 — 보지 않는다
-  const w = judgeReflect(r, [item(CUR, { watched: true })])
-  assert.deepEqual(w.errors, [])
-  assert.equal(w.skipped, true)
   // 이은 항목이 없다 — 오류(기록 모음으로 빠져나가지 않게)
   assert.match(judgeReflect(r, []).errors[0].why, /이은 항목이 없어/)
   // judgeId — 차례 · NFC 와 상관없이 같은 재료면 같다

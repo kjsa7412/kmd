@@ -226,6 +226,44 @@ test('개인 지식: 한 번 이행(runOnce) · 옛 표지 기록은 남은 것 
   assert.equal(again.skipped, true)
 })
 
+// 옛 DPMS · GDI 판(fd3aed3^ · c12c73b^)에서 대 보기가 막혔던 꼴: 옛 읽기의 none(자리 없는 항목) · 옛 표지 기록의 바로잡기 · 앞 파일이 뒤 기록을 바로잡음
+function buildOldStates(dir) {
+  build(dir)
+  const w = (rel, text) => fs.writeFileSync(path.join(dir, ...rel.split('/')), text)
+  w('work/2026-0110-자리-없음.md', REC('2026-0110-자리-없음', { date: '2026-01-10 09:00', touches: ['없는갈래:값'] }))
+  w('work/2026-0111-넣지-못함-바로잡기.md', REC('2026-0111-넣지-못함-바로잡기', { date: '2026-01-11 09:00', touches: ['배포:창'], tags: ['held'], extra: 'supersedes: 2026-0102-배포-창\n', body: `창을 고치려 했다.\n\n${HELD}` }))
+  // 파일 차례로 앞(0099)이 뒤(0112)를 바로잡는다
+  w('work/2026-0099-메모-바로잡기.md', REC('2026-0099-메모-바로잡기', { date: '2026-01-13 09:00', touches: ['배포:절차'], tags: ['memo'], extra: 'supersedes: 2026-0112-메모\n' }))
+  w('work/2026-0112-메모.md', REC('2026-0112-메모', { date: '2026-01-12 09:00', touches: ['배포:절차'], tags: ['memo'] }))
+}
+
+test('옛 상태 대 보기: none → 기록 · 옛 표지 기록의 바로잡기 · 합친 허락 · 팀과 개인 모두 통과', async () => {
+  for (const personal of [false, true]) {
+    const dir = path.join(tmp, `oldstates-${personal ? 'me' : 'team'}`)
+    buildOldStates(dir)
+    await ensureRepo(dir)
+    const p = await plan(dir, { personal })
+    const v = await verifyPlan(dir, p)
+    assert.equal(v.ok, true, v.why.join(' / '))
+    await apply(dir, p, { user: 'kim', personal })
+    assert.equal((await plan(dir, { personal })).changes.length, 0)
+    const st = await states(dir)
+    assert.equal(st['2026-0110-자리-없음'], 'old')
+  }
+})
+
+test('runOnce: 판 표시가 지금 판보다 낮으면 다시 돈다', async () => {
+  const dir = path.join(tmp, 'oldver')
+  buildOldStates(dir)
+  await ensureRepo(dir)
+  fs.writeFileSync(path.join(dir, '.git', MARK_FILE), '0\n')
+  const r = await runOnce(dir, { personal: true, user: 'kim' })
+  assert.equal(r.skipped, false)
+  assert.ok(r.commit)
+  assert.equal(fs.readFileSync(path.join(dir, '.git', MARK_FILE), 'utf8').trim(), '1')
+  assert.equal((await runOnce(dir, { personal: true, user: 'kim' })).skipped, true)
+})
+
 test('kmd-migrate residue · oldform --dry: 쓰지 않는다', async () => {
   const dir = path.join(tmp, 'cli')
   build(dir)

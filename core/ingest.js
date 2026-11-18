@@ -27,7 +27,6 @@ export function ingestCandidates(k, w, max = 5) {
   const want = wordsIn(`${w.title} ${[...String(w.body).matchAll(/^#{1,3} (.+)$/gm)].map((m) => m[1]).join(' ')}`)
   const scored = []
   for (const d of k.docs) {
-    if (/<!--\s*watched:/.test(d.intro || '')) continue
     const have = wordsIn(`${d.title} ${d.id} ${d.sections.map((s) => s.h).join(' ')}`)
     const n = [...want].filter((x) => have.has(x)).length
     if (n) scored.push({ d, n })

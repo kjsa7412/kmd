@@ -1539,7 +1539,6 @@ details.ap.refs[open]>summary h4::after{content:"▾"}
 .sx-dot.ch{background:var(--accent)}
 .sx-dot.new{background:var(--ok)}
 .sx-dot.df{background:var(--warn-line)}
-.sx-lock{display:inline-flex;flex:none}
 .sx-ib{border:0;background:none;color:var(--text-3);cursor:pointer;border-radius:var(--r-xs);padding:var(--sp-1) var(--sp-2);display:none;line-height:0}
 .sx-ib svg{color:currentColor}
 .sx-row:hover .sx-ib,.sx-row:focus-within .sx-ib,.sx-row.on .sx-ib{display:inline-flex}

@@ -28,7 +28,7 @@ const BASE = {
   'docs/설계/게이트웨이설계서.md': '# 게이트웨이설계서\n\n## 표\n[테이블](게이트웨이테이블정의서.md#개요) · [같은 문서](#표)\n',
   'docs/운영/백업 절차.md': '# 백업 절차\n\n## 매일\n[표](/docs/설계/게이트웨이테이블정의서.md) · [바깥](https://example.com/a.md)\n',
   'docs/회의록.md': '# 회의록\n\n## 2026-11-01 착수\n정했다.\n',
-  'docs/원본.md': '<!-- watched: src="s" path="p.docx" -->\n# 원본\n',
+  'docs/원본.md': '# 원본\n',
   'docs/assets/x.png': 'png',
   'work/2026-1101-a.md': '---\nid: 2026-1101-a\ntitle: "a"\ndate: 2026-11-01 09:00\nauthor: 김\n---\n\n# a\n',
   '_managed.md': '| 이름 | 문서 | 머리 |\n|---|---|---|\n| `table:*` | `docs/설계/게이트웨이테이블정의서.md` | `## {값}` |\n| `proc:매일` | `docs/운영/백업 절차.md` | `## 매일` |\n',
@@ -94,10 +94,9 @@ test('옮기기 + 이름 바꾸기 — 링크(가리키는 쪽 · 옮긴 문서 
   fs.rmSync(dir, { recursive: true, force: true })
 })
 
-test('막는 것 — 원본이 주인 · 같은 이름 · 지문 어긋남 · 갈래 별칭(G4) · 아무것도 쓰지 않는다', async () => {
+test('막는 것 — 같은 이름 · 지문 어긋남 · 갈래 별칭(G4) · 아무것도 쓰지 않는다', async () => {
   const dir = make(BASE)
   const head0 = git(dir, 'rev-parse', 'HEAD').trim()
-  await assert.rejects(applyRestructure(dir, { moves: [{ from: '원본', to: '보관/원본' }] }, { user: 'kim' }), /원본이 주인/)
   await assert.rejects(applyRestructure(dir, { moves: [{ from: '회의록', to: '설계/게이트웨이설계서' }] }, { user: 'kim' }), /같은 이름/)
   await assert.rejects(applyRestructure(dir, { moves: [{ from: '회의록', to: '설계/게이트웨이설계서' }] }, { user: 'kim' }), (e) => e.code === 'E_INPUT' && Array.isArray(e.details))
   await assert.rejects(applyRestructure(dir, { creates: ['주간 회의 메모'] }, { user: 'kim' }), /회의록/)
@@ -189,7 +188,6 @@ test('제목만 맞추기(titles) — 경로는 그대로 · `# 제목` 만 파�
   assert.ok(r.lines.some((l) => l.startsWith('- 제목:')))
   assert.match(git(dir, 'log', '-1', '--format=%s'), /제목 1/)
   assert.equal(git(dir, 'status', '--porcelain').trim(), '')
-  await assert.rejects(applyRestructure(dir, { titles: ['원본'] }, { user: 'kim' }), /원본이 주인/)
   fs.rmSync(dir, { recursive: true, force: true })
 })
 
@@ -212,7 +210,7 @@ const ITEM = {
   'docs/운영/배포.md': '# 배포\n\n배포 절차를 모은다.\n\n## 배포 창\n화요일 09:00 에 연다.\n\n## 롤백\n되돌린다.\n',
   'docs/점검.md': '# 점검\n\n## 사전 점검\n[배포 창](운영/배포.md#배포%20창) 앞에 본다.\n',
   'docs/서버대장.md': '# 서버대장\n\n## web01\n웹 서버. [창](운영/배포.md#배포%20창)\n<!-- applied: 2026-1102-b -->\n\n## web02\n예비.\n',
-  'docs/원본.md': '<!-- watched: src="s" path="p.docx" -->\n# 원본\n\n## 가\n글\n',
+  'docs/원본.md': '# 원본\n\n## 가\n글\n',
   'work/2026-1101-a.md': rec('2026-1101-a', '2026-11-01 09:00', ['proc:배포창'], 'tags:\n  - put\n'),
   'work/2026-1102-b.md': rec('2026-1102-b', '2026-11-02 09:00', ['server:web01']),
   '_managed.md': '| 이름 | 문서 | 항목 |\n|---|---|---|\n| `proc:배포창` | `docs/운영/배포.md` | `## 배포 창` |\n| `server:*` | `docs/서버대장.md` | `## {값}` |\n',
@@ -284,7 +282,7 @@ test('항목 옮기기 · 이름 — 글자 그대로 · applied · 링크(글 �
   fs.rmSync(dir, { recursive: true, force: true })
 })
 
-test('항목 막는 것 — 앞부분 겹침 · 같은 머리 · 원본이 주인 · 갈래 머리 꼴 · 없는 항목 · 아무것도 쓰지 않는다', async () => {
+test('항목 막는 것 — 앞부분 겹침 · 같은 머리 · 갈래 머리 꼴 · 없는 항목 · 아무것도 쓰지 않는다', async () => {
   const dir = makeItems()
   fs.writeFileSync(path.join(dir, '_forms.md'), '| 갈래 | 별칭 | 폴더 | 종류 | 이름 | 서식 |\n|---|---|---|---|---|---|\n| 회의록 | 회의 | — | 사건 | — | 작업기록 |\n| 점검 | — | — | 대상 | — | 지식문서 |\n| 배포 | — | 운영 | 대상 | — | 지식문서 |\n| 서버대장 | — | — | 대장 | `server:*` | 지식문서 |\n| 원본 | — | — | 대상 | — | 지식문서 |\n')
   fs.writeFileSync(path.join(dir, 'docs/회의록.md'), '# 회의록\n\n## 2026-11-01 착수\n정했다.\n')
@@ -294,8 +292,6 @@ test('항목 막는 것 — 앞부분 겹침 · 같은 머리 · 원본이 주�
   const go = (items, opt = {}) => applyRestructure(dir, { items }, { user: 'kim', ...opt })
   await assert.rejects(go([{ from: { doc: '운영/배포', h: '롤백' }, to: { doc: '운영/배포', h: '배포' } }]), /겹치는 머리/, '「배포」 와 「배포 창」')
   await assert.rejects(go([{ from: { doc: '운영/배포', h: '롤백' }, to: { doc: '점검', h: '사전 점검' } }]), /겹치는 머리/)
-  await assert.rejects(go([{ from: { doc: '원본', h: '가' }, to: { doc: '점검' } }]), /원본이 주인/)
-  await assert.rejects(go([{ from: { doc: '점검', h: '사전 점검' }, to: { doc: '원본' } }]), /원본이 주인/)
   await assert.rejects(go([{ from: { doc: '운영/배포', h: '롤백' }, to: { doc: '회의록' } }]), /머리 꼴/)
   await assert.rejects(go([{ from: { doc: '운영/배포', h: '없음' }, to: { doc: '점검' } }]), /없는 항목/)
   await assert.rejects(go([{ from: { doc: '운영/배포', h: '배포' }, to: { doc: '점검' } }]), /없는 항목/, '앞부분 맞춤으로 집지 않는다')
