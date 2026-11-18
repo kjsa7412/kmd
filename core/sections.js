@@ -17,8 +17,7 @@
 // 항목 이름 아래 줄은 두 가지다 — (가) 기록 줄 `- YYYY-MM-DD [제목](../work|log/<id>.md)[ · 한 마디]`
 //   (나) 메모 줄(옛 경과 줄을 그대로 옮긴 것 · 「표 출처: …」 · 「표식: …」 같은 것). 둘 다 잃지 않고 읽고 그대로 다시 쓴다.
 // 문서 전체에 걸린 것은 예약 이름 `- (문서)` 아래에 둔다(블록 맨 앞 · 항목이 아니라 걷히지 않는다).
-// 옛 꼴도 받는다 — 항목 끝 `**경과**` 목록(모두 kmd 꼴의 기록 줄일 때만 · LOG_ENTRY) ·「> 기록 그대로: [제목](../work/…) · Claude 로 다듬지 못했다」 줄은
-// 읽을 때 log 로 옮기고, 그 항목을 쓸 때 참고 블록으로 옮겨 적는다.
+// 옛 꼴(항목 끝 `**경과**` 목록 · 「> 기록 그대로: …」 줄)은 읽지 않는다: 옛 문서 옮기기(core/docformat.js convertDoc · core/oldform.js)가 참고 블록으로 옮겼다(O-9).
 
 const APPLIED = /^<!--\s*applied:\s*(.+?)\s*-->\s*$/
 const FENCE = /^\s{0,3}(`{3,}|~{3,})/
@@ -28,9 +27,6 @@ export const REF_HEAD = '<!-- kmd:참고 · kmd 가 적고 고친다. 손으로 
 const REF_END = '<!-- /kmd:참고 -->'
 // 문서 전체에 걸린 참고 줄의 이름(항목 이름이 아니다)
 export const DOC_KEY = '(문서)'
-// 규칙 대체(Claude 로 다듬지 못한 정리)의 옛 줄
-export const RULE_LINE = /^>\s*기록 그대로:\s*\[([^\]]*)\]\(([^)\s]+)\)\s*·\s*Claude 로 다듬지 못했다\.?\s*$/
-export const ROUGH = '다듬지 못함'
 
 // kmd 가 쓴 참고 줄 꼴 — `- YYYY-MM-DD [제목](…/work|log/<id>.md)` (뒤에 「 · 한 마디」 가 붙기도). 이 꼴이 아닌 목록 줄은 본문이다
 //   (장애 · 회의의 「**경과**」 타임라인 같은 본문 목록을 출처 줄로 잘못 떼지 않게)
@@ -90,8 +86,7 @@ export function openFence(lines) {
 
 // 참고 줄 하나의 같음 열쇠 — 기록 줄은 링크(같은 기록이면 한 줄) · 메모 줄은 글 그대로
 const hrefOf = (l) => (isLogEntry(l) && (String(l).match(/\]\(([^)\s]+)\)/) || [])[1]) || String(l).trim()
-const roughOf = (l) => new RegExp(` · ${ROUGH}\\s*$`).test(l)
-// 줄 목록 합치기 — 같은 기록(링크)은 한 줄 · 「다듬지 못함」 은 남긴다
+// 줄 목록 합치기: 같은 기록(링크)은 한 줄(먼저 온 줄)
 //   메모 줄은 목록끼리 겹친 만큼만 한 줄로 — 한 목록 안에 같은 글이 둘이면 둘 다 둔다(같은 날 같은 설명의 옛 경과 줄)
 export function mergeLog(...lists) {
   const out = []
@@ -107,9 +102,7 @@ export function mergeLog(...lists) {
         if (out.filter((x) => hrefOf(x) === k).length < c) out.push(l)
         continue
       }
-      const i = out.findIndex((x) => hrefOf(x) === k)
-      if (i < 0) out.push(l)
-      else if (roughOf(l) && !roughOf(out[i])) out[i] = `${out[i]} · ${ROUGH}`
+      if (!out.some((x) => hrefOf(x) === k)) out.push(l)
     }
   }
   return out
@@ -214,51 +207,26 @@ export function logAt(lines) {
   const tail = lines.slice(at + 1).filter((l) => l.trim())
   return tail.length && tail.every(isLogEntry) ? at : -1
 }
-function cutLog(text) {
-  const lines = text.split('\n')
-  const at = logAt(lines)
-  const tail = at < 0 ? [] : lines.slice(at + 1)
-  if (at < 0) return { body: text, log: [] }
-  return { body: lines.slice(0, at).join('\n').replace(/^\n+|\s+$/g, ''), log: tail.map((l) => l.trim()).filter(Boolean) }
-}
-// 규칙 대체 줄 → 참고 줄(날짜는 기록 id 의 YYYY-MMDD)
-function ruleEntry(m) {
-  const d = String(m[2]).match(/(\d{4})-(\d{2})(\d{2})-[^/]*\.md$/)
-  return `- ${d ? `${d[1]}-${d[2]}-${d[3]} ` : ''}[${m[1]}](${m[2]}) · ${ROUGH}`
-}
-
-// 항목 글 — { body, applied, log(옛 꼴에서 옮긴 줄), old(옛 꼴 줄 수) } · cut 이 거짓이면(머리글) 옛 꼴을 보지 않는다
-function bodyOf(lines, from, to, { cut = true } = {}) {
+// 항목 글: { body, applied } · 첫 표지만 표지로 떼고 나머지 줄은 그대로
+function bodyOf(lines, from, to) {
   let applied = null
   const out = []
-  const rule = []
-  let fence = null
   for (let i = from; i < to; i++) {
     const ln = lines[i]
-    const f = fenceOf(ln, fence)
-    if (f !== undefined) fence = f
     const m = ln.match(APPLIED)
-    // `applied: null` 은 기록 id 가 아니다 — 표지로 받지 않고 줄만 뗀다(본문에 섞이지 않게)
+    // `applied: null` 은 기록 id 가 아니다: 표지로 받지 않고 줄만 뗀다(본문에 섞이지 않게)
     if (m && /^null$/i.test(m[1])) continue
     if (m && applied == null) {
       applied = m[1]
       continue
     }
-    const r = cut && !fence && f === undefined && ln.match(RULE_LINE)
-    if (r) {
-      rule.push(ruleEntry(r))
-      if (i + 1 < to && !lines[i + 1].trim()) i++
-      continue
-    }
     out.push(ln)
   }
-  const text = out.join('\n').replace(/^\n+|\s+$/g, '')
-  const c = cut ? cutLog(text) : { body: text, log: [] }
-  return { body: c.body, applied, log: mergeLog(c.log, rule), old: c.log.length + rule.length }
+  return { body: out.join('\n').replace(/^\n+|\s+$/g, ''), applied }
 }
 
 // 문서 하나 → { title, intro, sections: [{ h, level, body, applied, log }], ref: [{ h, log }], docLog((문서) 아래 줄) }
-//   body 는 본문만(표지 · 경과 · 참고 블록 뺌) — 지문(base)은 늘 이 글로 잰다
+//   body 는 본문만(표지 · 참고 블록 뺌): 지문(base)은 늘 이 글로 잰다
 export function parseDoc(text, fallbackTitle) {
   const { lines, ref } = splitRef(String(text ?? '').split('\n'))
   const heads = headsOf(lines)
@@ -268,10 +236,10 @@ export function parseDoc(text, fallbackTitle) {
   const introTo = secs.length ? secs[0].line : lines.length
   return {
     title: h1 ? h1.heading : fallbackTitle,
-    intro: introFrom < introTo ? bodyOf(lines, introFrom, introTo, { cut: false }).body : '',
+    intro: introFrom < introTo ? bodyOf(lines, introFrom, introTo).body : '',
     sections: secs.map((h) => {
       const b = bodyOf(lines, h.line + 1, h.end)
-      return { h: h.heading, level: 2, body: b.body, applied: b.applied, log: mergeLog(b.log, ref.get(h.heading) || []), ...(b.old ? { old: b.old } : {}) }
+      return { h: h.heading, level: 2, body: b.body, applied: b.applied, log: mergeLog(ref.get(h.heading) || []) }
     }),
     ref: [...ref].map(([h, log]) => ({ h, log })),
     docLog: ref.get(DOC_KEY) || [],
@@ -317,17 +285,14 @@ export function renameSection(text, { level = 2, heading, to }) {
 }
 
 // 항목 하나를 갈아 끼운다 — 없으면 문서 끝에 새로 붙인다. 블록과 그 항목 밖의 줄은 바이트 그대로 둔다
-//   log — 그 항목의 참고 줄 전부(없으면 지금 줄을 그대로) · 글 끝에 경과 꼬리가 오면 떼어 줄에 보탠다
-//   그 항목의 옛 꼴(경과 꼬리 · 규칙 대체 줄)은 이때 참고 블록으로 옮긴다
+//   log: 그 항목의 참고 줄 전부(없으면 지금 줄을 그대로)
 // before — 새 항목(없는 머리)일 때만: 이 머리 앞에 끼운다(사건 문서의 날짜 차례 · 없으면 끝에). 있는 항목은 제자리
 export function replaceSection(text, { level = 2, heading, body, applied, log, before = null }) {
   const { lines, ref, found } = splitRef(String(text).split('\n'))
   const h = findHeading(headsOf(lines).filter((x) => x.level === level), heading, (x) => x.heading)
   const name = h ? h.heading : heading
-  const sent = cutLog(String(body ?? '').replace(/^\n+|\s+$/g, ''))
-  const cur = h ? mergeLog(bodyOf(lines, h.line + 1, h.end).log, ref.get(name) || []) : ref.get(name) || []
-  const next = mergeLog(log !== undefined ? log : cur, sent.log)
-  const block = [...(applied ? [`<!-- applied: ${applied} -->`] : []), ...sent.body.replace(/^\n+|\s+$/g, '').split('\n')]
+  const next = mergeLog(log !== undefined ? log : ref.get(name) || [])
+  const block = [...(applied ? [`<!-- applied: ${applied} -->`] : []), ...String(body ?? '').replace(/^\n+|\s+$/g, '').split('\n')]
   // 항목 글이 열린 울타리로 끝나면 닫는다 — 다음 항목 · 참고 블록이 코드 안으로 들어가지 않게
   const open = openFence(block)
   if (open) block.push(open)
@@ -350,25 +315,6 @@ export function replaceSection(text, { level = 2, heading, body, applied, log, b
   return withRef(out, ref)
 }
 
-// 옛 꼴을 모두 참고 블록으로(옛 문서 옮기기 · core/docformat.js) — { text, moved }
-//   항목마다 경과 꼬리 · 규칙 대체 줄을 떼고 본문은 그대로 · 머리글과 다른 줄은 바이트 그대로
-export function moveOldLogs(text) {
-  const { lines, ref, found } = splitRef(String(text).split('\n'))
-  const secs = headsOf(lines).filter((h) => h.level === 2)
-  const out = lines.slice()
-  let moved = 0
-  for (const h of [...secs].reverse()) {
-    const b = bodyOf(lines, h.line + 1, h.end)
-    if (!b.old) continue
-    moved += b.old
-    ref.set(h.heading, mergeLog(b.log, ref.get(h.heading) || []))
-    const gap = lines.slice(h.end).some((l) => l.trim()) ? [''] : []
-    out.splice(h.line + 1, h.end - h.line - 1, ...(b.applied ? [`<!-- applied: ${b.applied} -->`] : []), ...b.body.split('\n'), ...gap)
-  }
-  if (!moved) return { text: String(text), moved: 0, found }
-  return { text: withRef(out, ref), moved, found }
-}
-
 // 모든 항목(## 머리)에 같은 표지를 단다 — 있던 표지는 걷는다(통째로 들인 문서 · 그 문서가 온 기록). 다른 줄은 그대로
 export function stampAll(text, applied) {
   const lines = String(text).split('\n')
@@ -385,8 +331,8 @@ export function stampAll(text, applied) {
   return out.join('\n')
 }
 
-// 경과(옛 꼴) — 항목 끝 `**경과**` 아래 한 줄씩. 이제는 참고 블록(위)에 둔다 — 아래는 옛 글을 읽고 옮기는 데 쓴다.
-//   줄은 kmd 가 단다 — 사람 · Claude 는 본문만 쓰고, 저장이 옛 줄을 지키며 이번에 넣은 기록의 줄을 더한다(지우지 않는다).
+// 경과 꼬리: 항목 끝 `**경과**` 아래 kmd 꼴 줄. 문서는 참고 블록(위)에 둔다: 아래는 보낸 글의 꼬리를 떼고(core/save.js) ·
+//   꼬리를 거절하고(core/docformat.js formatCheck) · 보내기 지문(core/send.js joinLog)에 쓴다.
 export function splitLog(body) {
   const text = String(body ?? '').replace(/\s+$/, '')
   const lines = text.split('\n')
@@ -398,7 +344,7 @@ export function splitLog(body) {
 }
 export const joinLog = (body, log) => (log.length ? [String(body).trim(), `**경과**\n${log.join('\n')}`].filter(Boolean).join('\n\n') : String(body).trim())
 const linkId = (id) => encodeURI(id).replace(/\(/g, '%28').replace(/\)/g, '%29')
-// 기록 하나의 참고 줄 — 링크는 그 문서에서 본 상대 경로(docs/X.md 면 ../work/…) · note 는 뒤에 「 · 다듬지 못함」 같은 한 마디
+// 기록 하나의 참고 줄: 링크는 그 문서에서 본 상대 경로(docs/X.md 면 ../work/…) · note 는 뒤에 붙는 한 마디
 export function logLine(docRel, w, note = '') {
   const up = '../'.repeat(String(docRel).split('/').length - 1)
   const title = String(w.title || w.id).split(/ — |: /)[0].replace(/[[\]]/g, '').trim()

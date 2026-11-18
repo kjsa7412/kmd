@@ -12,7 +12,7 @@ import { KmdError, httpStatusOf } from '../core/errors.js'
 import { save as coreSave, serial, localStamp, recordTakenSync, SECTIONS_MAX, assetPath, ATTACH_MAX_BYTES, checkInput } from '../core/save.js'
 import { audit as guardAudit, recordBody, RECORD_PARTS, proposeInputWhy, RECORDS_DOC, RECORDS_DOC_PATH, RECORDS_INTRO, RECORDS_MONTH_TEXT } from '../core/guard.js'
 import { recover as recoverSave } from '../core/journal.js'
-import { renderReverted, parseReverted, parsePut, dropPart, PUT_PART, HELD_PART, REVERTED_PART, ACCEPTED_PART, VALUES_PART, LINKED_PART, FRESH_PART, itemKey, parseFresh } from '../core/parts.js'
+import { renderReverted, parseReverted, parsePut, renderPut, dropPart, PUT_PART, REVERTED_PART, ACCEPTED_PART, VALUES_PART, LINKED_PART, FRESH_PART, itemKey, parseFresh } from '../core/parts.js'
 import { revertPlan } from '../core/revert.js'
 import * as collect from '../core/collect.js'
 import { ledgerOps } from '../core/namebook.js'
@@ -1521,13 +1521,13 @@ ${genRulesBlock({ profile: 'shape' })}`
   //   natures · depart · judge 는 엮기가 지은 칸이다(weaveIn 이 사람이 보낸 같은 이름의 칸을 걷은 뒤에만 선다)
   const proposeInputOf = (input) => Object.fromEntries(['record', 'sections', 'names', 'forms', 'kinds', 'distinct', 'excluded', 'natures', 'depart', 'judge'].filter((x) => input?.[x] !== undefined).map((x) => [x, input[x]]))
   // save 입력 2판(지식 생성 하네스 5-2 · H4c) — items · docs · skip 이 오면 엮기(core/weave.js)가 저장 입력으로 바꾼다: 열쇠 · names · touches · 갈래 줄 · 문서 성격 줄 · 지은 근거 줄.
-  //   엮기가 짓는 칸(natures · depart · judge · woven)은 바깥에서 받지 않는다(늘 걷는다). 안쪽 꼴 입력(sections · names)은 그대로 지난다.
+  //   엮기가 짓는 칸(natures · depart · judge · woven)은 바깥에서 받지 않는다(늘 걷는다). sections · names · forms 입력은 그대로 지난다(세션 · 스킬 · kmd-migrate 의 꼴).
   //   → { input, weave?(변환 결과: acts · stances · miss · skip · fold · empty) }
   async function weaveIn(id, input) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) return { input }
     const { natures: _n, depart: _d, judge: _j, woven: _w, ...clean } = input
     if (!Array.isArray(clean.items) && !Array.isArray(clean.docs) && !Array.isArray(clean.skip)) return { input: clean }
-    if (Array.isArray(clean.sections) && clean.sections.length) throw new KmdError('E_INPUT', 'items(새 꼴)와 sections(옛 꼴)를 같이 보내지 않는다')
+    if (Array.isArray(clean.sections) && clean.sections.length) throw new KmdError('E_INPUT', 'items 와 sections 를 같이 보내지 않는다: 한 저장은 한 꼴로')
     if (Array.isArray(clean.names) && clean.names.length) throw new KmdError('E_INPUT', 'items 로 보낼 때 names 는 싣지 않는다: 열쇠와 장부 줄은 kmd 가 짓는다(종류 · 뜻 한 줄은 items 의 kind · gist 에)')
     if (Array.isArray(clean.forms) && clean.forms.length) throw new KmdError('E_INPUT', 'items 로 보낼 때 forms 는 싣지 않는다: 새 문서는 docs 에 성격(nature)과 요약으로 적는다')
     const k = await hub.get(id)
@@ -5520,7 +5520,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       for (const { k, w } of logs) {
         if (taken.has(w.id)) continue
         const p = putFields(k.id, w.id, w)
-        const plain = [PUT_PART, HELD_PART, REVERTED_PART, ACCEPTED_PART, VALUES_PART, LINKED_PART, FRESH_PART].reduce((b, n) => dropPart(b, n), w.body).replace(/\s+/g, ' ').trim()
+        const plain = [PUT_PART, REVERTED_PART, ACCEPTED_PART, VALUES_PART, LINKED_PART, FRESH_PART].reduce((b, n) => dropPart(b, n), w.body).replace(/\s+/g, ' ').trim()
         const sub = p.items?.length
           ? p.items.slice(0, 3).map(itemText).join(' · ') + (p.items.length > 3 ? ` 외 ${p.items.length - 3}` : '')
           : plain.slice(0, 200)
@@ -6148,7 +6148,7 @@ ${genRulesBlock({ profile: 'shape' })}`
             return true
           }
           // 대원칙 — 지식은 기록 → 문서. 옛 폴더로 세울 때도 파일마다 기록 하나(글 그대로)를 먼저 남기고,
-          // 그 문서의 항목에 그 기록을 표지로 단다 · 이력 하나가 그 기록들을 넣었다고 적는다(reflects — 「문서에 들어감」)
+          // 그 문서의 항목에 그 기록을 표지로 단다 · 기록은 저장 문의 꼴(태그 put + 「## 넣은 것」 · 「문서에 들어감」) · 이력 하나가 그 기록들을 적는다(reflects · 이력 → 기록 잇기)
           const docs = plan.docs.filter((d) => !owners.isReservedFile(d.rel))
           let title = `파일 넣기: ${ctx.user} · ${docs.length + plan.atts.length}`
           if (docs.length) {
@@ -6166,7 +6166,9 @@ ${genRulesBlock({ profile: 'shape' })}`
             for (const d of docs) {
               const file = d.rel.replace(/^docs\//, '')
               const rid = idOf(`${day}-${(file.split('/').pop().replace(/\.md$/, '').replace(/[\\/:*?"<>|#%`'\s]+/g, '-').slice(0, 40).replace(/^-+|[-.]+$/g, '') || '문서')}`)
-              if (!(await put(`work/${rid}.md`, renderRecord({ id: rid, title: `${file.split('/').pop()}: 들여온 문서 · ${meta.name}`, date, author: ctx.user, tags: [] }, d.text)))) continue
+              const putRows = parseDocText(d.text, '').sections.map((s) => ({ doc: d.rel, heading: s.h, isNew: true }))
+              const recBody = putRows.length ? `${String(d.text).replace(/\s+$/, '')}\n\n${renderPut(putRows)}` : d.text
+              if (!(await put(`work/${rid}.md`, renderRecord({ id: rid, title: `${file.split('/').pop()}: 들여온 문서 · ${meta.name}`, date, author: ctx.user, tags: ['put'] }, recBody)))) continue
               ids.push(rid)
               stamped.push({ rel: d.rel, data: Buffer.from(stampAll(d.text, rid), 'utf8') })
             }

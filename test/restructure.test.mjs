@@ -213,7 +213,7 @@ const ITEM = {
   'docs/점검.md': '# 점검\n\n## 사전 점검\n[배포 창](운영/배포.md#배포%20창) 앞에 본다.\n',
   'docs/서버대장.md': '# 서버대장\n\n## web01\n웹 서버. [창](운영/배포.md#배포%20창)\n<!-- applied: 2026-1102-b -->\n\n## web02\n예비.\n',
   'docs/원본.md': '<!-- watched: src="s" path="p.docx" -->\n# 원본\n\n## 가\n글\n',
-  'work/2026-1101-a.md': rec('2026-1101-a', '2026-11-01 09:00', ['proc:배포창']),
+  'work/2026-1101-a.md': rec('2026-1101-a', '2026-11-01 09:00', ['proc:배포창'], 'tags:\n  - put\n'),
   'work/2026-1102-b.md': rec('2026-1102-b', '2026-11-02 09:00', ['server:web01']),
   '_managed.md': '| 이름 | 문서 | 항목 |\n|---|---|---|\n| `proc:배포창` | `docs/운영/배포.md` | `## 배포 창` |\n| `server:*` | `docs/서버대장.md` | `## {값}` |\n',
   '_vocab.md': '# 항목 장부\n\n## proc\n\n- `proc:배포창`: 배포 창\n\n## server\n\n- `server:web01`: web01\n- `server:web02`: web02\n',

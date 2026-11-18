@@ -1,7 +1,6 @@
 // kmd 가 쓰는 기록 칸 · 판정 기록(docs/kmd_문서_작성기준.md 2-3 · docs/품질개선/KMD_개편_설계.md 2-2 · 3-1).
 //
 //   `## 넣은 것`     저장 문이 넣은 항목 한 줄씩(「docs/x.md › 머리: 옛 값 → 새 값」 · 「(새 항목)」) — 태그 put 이 있는 기록만 읽는다
-//   `## 넣지 못함`   저장 승인 전 기록의 옛 칸(쓰지 않는다 · 보일 때 떼기만 · 사람 입력에서는 거절)
 //   `## 되돌린 항목` 되돌림 기록이 되돌린 항목 한 줄씩(「<기록 id>: docs/x.md › 머리」) — 태그 revert
 //   (저장 승인 P3 · approve 모드 저장 문이 단다 · 사람 입력에는 쓰지 못한다)
 //   `## 받아들인 경고` 사람이 승인한 제안서의 경고(```json``` 목록 { id, code, at, why }) — 승인 = 경고 받아들임(P-D5 · P-D27)
@@ -16,9 +15,8 @@
 //   사람 입력의 그 머리는 core/save.js 가 E_INPUT 으로 거절한다 · S-D45). 이 모듈은 다른 kmd 모듈을 부르지 않는다.
 
 export const PUT_PART = '넣은 것'
-export const HELD_PART = '넣지 못함'
 export const REVERTED_PART = '되돌린 항목'
-// 사람 입력 본문에 쓰지 못하는 머리 — kmd 가 쓰는 칸 + 「넣지 못함」 · 「고친 조각」(옛 칸 · 위조 막기로 새 입력은 거절)
+// 사람 입력 본문에 쓰지 못하는 머리: kmd 가 쓰는 칸 + 「넣지 못함」 · 「고친 조각」(걷은 칸 · 기록에 kmd 칸처럼 보이지 않게 새 입력은 거절)
 //   줄 끝 \r 도 같이 본다(CRLF 로 온 글이 읽을 때 \n 으로 바뀌어 칸이 되지 않게)
 export const ACCEPTED_PART = '받아들인 경고'
 export const VALUES_PART = '값 대조'
@@ -27,7 +25,7 @@ export const FRESH_PART = '새로 세움'
 export const JUDGE_PART = '지은 근거'
 export const KMD_PART_RE = /^## (넣은 것|넣지 못함|되돌린 항목|고친 조각|받아들인 경고|값 대조|이은 항목|새로 세움|지은 근거)[ \t\r]*$/m
 // 울타리(json) 칸 — 떼기(dropPart)가 울타리 끝까지 본다
-const JSON_PARTS = new Set([HELD_PART, ACCEPTED_PART, VALUES_PART])
+const JSON_PARTS = new Set([ACCEPTED_PART, VALUES_PART])
 const NEW_MARK = ' (새 항목)'
 const EMPTY = '—'
 
@@ -50,7 +48,7 @@ function lineBlock(body, name) {
   const end = rest.search(/^## /m)
   return end < 0 ? rest : rest.slice(0, end)
 }
-// 넣지 못함 칸의 울타리 — 글 안 가장 긴 백틱 줄보다 하나 길게(최소 3)
+// json 칸의 울타리: 글 안 가장 긴 백틱 줄보다 하나 길게(최소 3)
 const fenceFor = (text) => '`'.repeat(Math.max(3, ...[...String(text).matchAll(/`+/g)].map((m) => m[0].length + 1)))
 
 export function renderPut(rows) {
@@ -103,7 +101,7 @@ export function parseReverted(body) {
   return out
 }
 
-// 칸 하나 떼기 — 그 이름의 마지막 칸(머리부터 다음 「## 」 머리 앞까지 · 넣지 못함은 울타리 끝까지)을 뺀 본문
+// 칸 하나 떼기: 그 이름의 마지막 칸(머리부터 다음 「## 」 머리 앞까지 · json 칸은 울타리 끝까지)을 뺀 본문
 export function dropPart(body, name) {
   const s = String(body || '')
   const at = lastHead(s, name)

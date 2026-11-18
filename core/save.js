@@ -9,7 +9,6 @@
 //
 // 항목 글은 본문만이다(docs/kmd_문서_작성기준.md). 출처 줄은 저장이 문서 끝 참고 블록에 단다.
 // 사람 · 세션 · 에이전트의 글에 기록 링크 · 시스템 주소 · 주석 · 경과 꼬리 · 머리 줄이 섞이면 E_FORMAT 으로 거절한다.
-// kmd 자신의 쓰기(system)는 sections[].rough: [기록 id] 로 그 기록의 참고 줄에 「다듬지 못함」 을 붙일 수 있다.
 //
 // 저장 문(docs/품질개선/KMD_개편_설계.md 3-2 · S3) — 옵션을 주지 않으면 옛 저장과 결과가 같다.
 //   prepare   같은 줄(serial) 안 · 남은 저널을 되돌린 다음에 부른다 → { sections?, held?, proposals?, warnings? } | { abort: { same, id } }
@@ -32,7 +31,7 @@ import path from 'node:path'
 import { fail, KmdError } from './errors.js'
 import { nfc, oneLine, readText, sha16 } from './text.js'
 import { renderRecord, parseRecord } from './frontmatter.js'
-import { replaceSection, removeSection, renameSection, replaceIntro, parseDoc, headsOf, findHeading, splitLog, splitRef, mergeLog, logLine, logHas, ROUGH } from './sections.js'
+import { replaceSection, removeSection, renameSection, replaceIntro, parseDoc, headsOf, findHeading, splitLog, splitRef, mergeLog, logLine, logHas } from './sections.js'
 import { formatCheck, formatMessage, keptMessage, lintNew, lintMessage } from './docformat.js'
 import { lintFormNew, formMessage } from './formcheck.js'
 import { kindOf } from './forms.js'
@@ -413,7 +412,6 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
     } else {
       p = { ...docPath(dir, s.doc), level: 2, heading: nfc(s.heading.trim()), content: s.content ?? '', base: s.base, ...(s.remove ? { remove: true } : {}), ...(s.rename != null ? { rename: nfc(String(s.rename).trim()) } : {}), ...(s.before != null ? { before: nfc(String(s.before).trim()) } : {}), ...(system && s.applied !== undefined ? { applied: s.applied } : {}) }
     }
-    if (system && Array.isArray(s.rough)) p.rough = s.rough.map(String)
     p.src = s
     plan.push(p)
   }
@@ -556,7 +554,8 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
   //   저장 문이 붙이는 표지(입력으로는 받지 않는다) — 들이기 태그 · put
   const tags = [...(r.tags || []).map((t) => nfc(t.trim())), ...serverTags]
   // approve 모드 — 들어감 하나(항목 글이 없어도 · 글 그대로 이은 기록도 put · recordState 가 「들어감」 으로 읽는다)
-  if (putRows.length || approve) tags.push('put')
+  //   항목 글을 쓴 저장은 모두 put(넣은 것 칸은 marks 일 때만): 기록 상태는 put 으로만 가른다(표지 날짜를 견주지 않는다 · O-9)
+  if (putRows.length || approve || plan.some((p) => !p.remove && p.rename == null)) tags.push('put')
   // 장부만 바꾼 저장은 지식 이야기가 아니다 — 이력(log/ · 태그 ledger). 문서 · 항목 · 첨부 · 넣지 못함이 없고 메모가 아니고 건드린 항목이 없을 때
   //   (항목을 세우며 그 항목을 건드린 기록 「새 이슈: 인원 부족」 은 지식 이야기다 — 기록에 남는다 · 넣지 못함의 [항목 세우기]는 hub 가 ledger 를 단다)
   if ((names.length || formsIn.length || naturesIn.length) && !plan.length && !atts.length && !attSame.length && !touches.length) tags.push('ledger')
@@ -620,7 +619,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
         const r = splitRef(content.split('\n'))
         const now = splitLog(r.lines.join('\n'))
         log = mergeLog(old?.log || [], now.log, ...r.ref.values(), ...(shape && Array.isArray(p.src.log) ? [p.src.log.map(String)] : []))
-        for (const w of logged) if (!logHas(log, w.id)) log.push(logLine(p.rel, w, p.rough?.includes(w.id) ? ROUGH : ''))
+        for (const w of logged) if (!logHas(log, w.id)) log.push(logLine(p.rel, w))
         content = now.log.length || r.found ? now.body : content
       }
       const after = p.remove ? removeSection(start, { level: p.level, heading: p.heading }) : p.rename ? renameSection(start, { level: p.level, heading: p.heading, to: p.rename }) : replaceSection(start, { level: p.level, heading: p.heading, body: content, applied: p.applied !== undefined ? p.applied : id, log, before: p.before || null })

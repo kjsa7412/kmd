@@ -17,11 +17,11 @@ import path from 'node:path'
 import yaml from 'js-yaml'
 import { readText, nfc } from './text.js'
 import { splitFrontmatter, parseRecord, renderRecord } from './frontmatter.js'
-import { splitRef, withRef, parseRefLine, isLogEntry, parseDoc, replaceSection } from './sections.js'
+import { splitRef, withRef, parseRefLine, isLogEntry, parseDoc, replaceSection, REF_OPEN, REF_CLOSE } from './sections.js'
 import { locate } from './registry.js'
 import { parseForms, TYPE_RE } from './guard.js'
 import { parseMembers, sameAccess } from './owners.js'
-import { renderPut, parsePut, HELD_PART, dropPart } from './parts.js'
+import { renderPut, parsePut, dropPart } from './parts.js'
 import { convertDoc } from './docformat.js'
 import { toLevels } from './levels.js'
 import { loadKnowledge, sectionOf } from './knowledge.js'
@@ -37,7 +37,7 @@ export const OLDFORM_VER = 1
 export const MARK_FILE = 'kmd-oldform'
 
 // 기계 규칙 id: 셈 표의 차례
-export const RULES = ['forms.newdoc', 'forms.head', 'vocab.head', 'vocab.dash', 'registry.head', 'members', 'record.state', 'record.oldtag', 'record.fm', 'record.drop', 'record.refs', 'doc.marks', 'doc.blocks', 'log.old', 'seed']
+export const RULES = ['forms.newdoc', 'forms.head', 'vocab.head', 'vocab.dash', 'registry.head', 'members', 'record.state', 'record.oldtag', 'record.fm', 'record.drop', 'record.refs', 'record.logdir', 'doc.marks', 'doc.blocks', 'ref.line', 'log.old', 'seed']
 export const RULE_SAY = {
   'forms.newdoc': '갈래 장부 새 문서 줄',
   'forms.head': '갈래 장부 옛 표 머리',
@@ -50,8 +50,10 @@ export const RULE_SAY = {
   'record.fm': '기록 머리말 옛 칸(source · attachments)',
   'record.drop': '넘겨받은 지울 기록',
   'record.refs': '지운 기록을 가리키는 줄',
+  'record.logdir': 'work/ 에 쓴 이력(이력 태그)을 log/ 로',
   'doc.marks': '문서 옛 표식 · 옛 꼴',
   'doc.blocks': '저절로 채우는 표 블록 · 사본 문서 표지',
+  'ref.line': '참고 블록의 옛 기록 줄(링크 뒤 「 · 」 없는 한 마디)',
   'log.old': '정리 시절 이력',
   seed: '세움 메모 · 기록 없는 첨부',
 }
@@ -91,6 +93,15 @@ function oldVocab(text) {
 }
 // core/names.js 의 옛 표지(저장 승인 전) · 정리 시절 이력 태그(O-10)
 const OLD_TAGS = ['held', 'memo', 'migrate-held']
+// core/parts.js 의 옛 칸(저장 승인 전 넣지 못함 · json 울타리 칸)
+const HELD_PART = '넣지 못함'
+function dropHeld(body) {
+  const s = String(body || '')
+  const at = [...s.matchAll(new RegExp(`^## ${HELD_PART}[ \\t]*$`, 'gm'))].pop()?.index ?? -1
+  if (at < 0) return s
+  const m = s.slice(at).match(/^## [^\n]*\n(`{3,})json\n[\s\S]*?\n\1[ \t]*$/m)
+  return m ? (s.slice(0, at) + s.slice(at + m.index + m[0].length)).replace(/\s+$/, '') : dropPart(s, HELD_PART)
+}
 const OLD_LOG_TAGS = ['curate', 'curate-llm', 'curate-auto', 'docfmt', 'levels', 'tidy']
 // core/names.js LOG_TAGS(지금): 기록 · 이력 가르기
 const LOG_TAGS = ['edit', 'curate-auto', 'curate-llm', 'alias-auto', 'sources', 'polish', 'revert', 'drop', 'ledger', 'shape-done', 'format']
@@ -125,6 +136,26 @@ function reflectedState(k, s, w) {
   }
   if (!any && w.tags.includes('code-change')) return s.reflected.has(w.id) ? 'in' : 'old'
   return any ? 'in' : 'none'
+}
+// 옛 상태 재료: 기록 · 이력 목록에서(머리말 reflects 는 frontmatter.js 가 읽는다)
+function oldView(all) {
+  return {
+    reflected: new Set(all.flatMap((w) => w.reflects || [])),
+    reverted: new Set(all.flatMap((w) => w.reopens || [])),
+    superseded: new Set(all.filter((w) => w.fixes?.length && !w.tags.some((t) => ['held', 'migrate-held', 'touches-fix'].includes(t))).flatMap((w) => w.fixes)),
+    byWork: new Map(all.map((w) => [w.id, { date: w.date, reflects: w.reflects || [], tags: w.tags }])),
+  }
+}
+// 지식 하나를 옛 읽기로 본 기록 상태(대 보기의 「앞」 · 시험이 옮기기 전 상태를 잰다): put 기록은 지금 상태 · 그 밖은 옛 상태
+//   work/ 의 이력 태그 기록은 옛 읽기에서 이력이라 뺀다
+export function oldStates(k) {
+  const s = oldView([...k.works, ...k.logs])
+  const out = new Map()
+  for (const w of k.works) {
+    if (isLogRecord(w.tags)) continue
+    out.set(w.id, (w.tags || []).includes('put') && !w.tags.some((t) => t === 'held' || t === 'memo') ? w.state : oldStateOf(k, s, w).state)
+  }
+  return out
 }
 // put 이 없는 기록의 옛 상태: { state, base(바로잡힘을 빼고 본 상태) }
 export function oldStateOf(k, s, w) {
@@ -408,6 +439,47 @@ export function fixDoc(text0, { gone = new Set(), personal = false } = {}) {
   return { text: cut ? withRef(r.lines, r.ref) : lines.join('\n'), n }
 }
 
+// 참고 블록의 옛 기록 줄: 「- 날짜 [제목](../work/x.md) 한 마디」(링크 뒤 「 · 」 없음)는 메모 줄로 읽혀 출처가 기록을 잇지 못한다.
+//   「- 날짜 [제목](../work/x.md) · 한 마디」 로 고친다. 한 항목 아래 같은 기록 줄이 둘 이상이면(지금 읽기는 같은 링크를 한 줄로 합친다)
+//   앞 줄에 뒤 줄의 한 마디를 「 · 」 로 이어 한 줄로 만든다(한 마디를 잃지 않게). 줄 단위로만 고치고 다른 줄은 바이트 그대로
+//   → { text, fixed(고친 옛 줄), merged(합친 줄) }
+const REF_ENTRY = /^(\s+)-\s+((?:\d{4}-\d{2}-\d{2}\s+)?\[[^\]]*\]\(((?:\.\.\/)*(?:work|log)\/[^)\s/]+\.md)\))(.*)$/
+export function refLineFix(text0) {
+  const lines = nl(text0).split('\n')
+  const out = []
+  let fixed = 0
+  let merged = 0
+  let inBlock = false
+  let fence = null
+  let seen = null // 항목 아래 href → out 의 줄 번호
+  for (const l of lines) {
+    const fm = l.match(FENCE)
+    if (!inBlock && fm) fence = !fence ? fm[1] : fm[1][0] === fence[0] && fm[1].length >= fence.length ? null : fence
+    if (!fence && REF_OPEN.test(l)) { inBlock = true; seen = new Map(); out.push(l); continue }
+    if (inBlock && REF_CLOSE.test(l)) { inBlock = false; seen = null; out.push(l); continue }
+    if (!inBlock) { out.push(l); continue }
+    if (/^- /.test(l)) { seen = new Map(); out.push(l); continue }
+    const m = l.match(REF_ENTRY)
+    if (!m) { out.push(l); continue }
+    const rest = m[4]
+    let note = rest.trim()
+    if (note && !/^\s+·\s+/.test(rest)) fixed++
+    else note = note.replace(/^·\s+/, '')
+    const at = seen.get(m[3])
+    if (at != null) {
+      const prev = out[at]
+      const pm = prev.match(REF_ENTRY)
+      const pn = (pm?.[4] || '').trim().replace(/^·\s+/, '')
+      if (pm && note && !` · ${pn} · `.includes(` · ${note} · `)) out[at] = `${pm[1]}- ${pm[2]} · ${pn ? `${pn} · ` : ''}${note}`
+      merged++
+      continue
+    }
+    seen.set(m[3], out.length)
+    out.push(note ? `${m[1]}- ${m[2]} · ${note}` : l)
+  }
+  return { text: out.join('\n'), fixed, merged }
+}
+
 // ── 기록 규칙 ──
 // 넣지 못함 · 원천 칸 → 「## 남은 것」 사람 말(개인 지식 record.oldtag)
 function heldRows(body) {
@@ -426,7 +498,7 @@ const short = (s, n = 160) => { const t = String(s ?? '').replace(/\s+/g, ' ').t
 export function heldToLeft(body) {
   const rows = heldRows(body)
   const src = String(body).match(/^## 원천[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m)
-  let b = dropPart(body, HELD_PART)
+  let b = dropHeld(body)
   if (src) b = dropPart(b, '원천')
   const out = []
   for (const r of rows) {
@@ -489,12 +561,7 @@ export async function plan(dir, { personal = false, drop: drop0 = [] } = {}) {
 
   // 기록 상태 재료(옛 읽기): 머리말 칸을 그대로 읽는다
   const all = [...recs.values()].map((x) => x.r)
-  const s = {
-    reflected: new Set(all.flatMap((w) => list(recs.get(w.id).data.reflects))),
-    reverted: new Set(all.flatMap((w) => w.reopens)),
-    superseded: new Set(all.filter((w) => w.fixes.length && !w.tags.some((t) => ['held', 'migrate-held', 'touches-fix'].includes(t))).flatMap((w) => w.fixes)),
-    byWork: new Map(all.map((w) => [w.id, { date: w.date, reflects: list(recs.get(w.id).data.reflects), tags: w.tags }])),
-  }
+  const s = oldView(all)
   // 건드린 항목 바로잡기(touches-fix): knowledge.js 처럼 원 기록의 건드린 항목을 바꿔 읽는다
   const touchesOf = new Map(k.works.map((w) => [w.id, w.touches]))
 
@@ -658,6 +725,19 @@ export async function plan(dir, { personal = false, drop: drop0 = [] } = {}) {
     if (st.state === 'old' || (st.state === 'fixed' && st.base === 'old')) oldState.push(w.id)
     else if (st.state === 'none') noneState.push(w.id)
   }
+  // record.logdir: work/ 에 쓴 이력(이력 태그 · 옛 kmd 가 work/ 에 썼다)을 log/ 로 · 문서 참고 줄의 링크도 log/ 로
+  const toLog = new Set()
+  for (const x of recs.values()) {
+    const w = x.r
+    if (gone.has(w.id) || !x.path.startsWith('work/') || !isLogRecord(w.tags)) continue
+    const dst = `${LOG_DIR}/${w.id}.md`
+    if (files.includes(dst) || cur.has(dst)) { J('log/ 에 같은 id 가 있는 work/ 의 이력', x.path, 1, '사람이 둘 가운데 하나를 고른다'); continue }
+    const text = await textOf(x.path)
+    changes.push({ path: dst, kind: 'write', before: null, after: text, why: `work/ 의 이력(태그 ${w.tags.filter((t) => LOG_TAGS.includes(t)).join(' · ')})을 log/ 로`, rule: 'record.logdir' })
+    cur.set(dst, text)
+    await del(x.path, 'record.logdir', '이력을 log/ 로 옮겼다')
+    toLog.add(w.id)
+  }
   J('옛 표지 기록(held · memo · migrate-held · O-6)', 'work/', oldTagged.length, `값이 지금 글에 있으면 --drop 으로 지우고 없는 값은 새 기록으로 넣은 뒤 지운다: ${oldTagged.join(' · ')}`)
   J('저장 문 밖 기록 가운데 지금 글에 다 들지 않은 것(old · O-7)', 'work/', oldState.length, `값이 지금 글에 있으면 굳히고(새 기록) 아니면 --drop: ${oldState.join(' · ')}`)
   J('건드린 항목이 문서 장부에서 자리를 찾지 못하는 기록(none)', 'work/', noneState.length, `지금 꼴(put)로 적으면 들어감으로 읽힌다 · O-2(섹션 없는 장부 줄) 뒤 다시 센다: ${noneState.join(' · ')}`)
@@ -683,6 +763,17 @@ export async function plan(dir, { personal = false, drop: drop0 = [] } = {}) {
     const c = convertDoc(t)
     if (!c.ok) J('옛 꼴을 옮기지 못한 문서', p, 1, c.why || '')
     else if (c.changed) await write(p, c.text, 'doc.marks', `옛 문서 꼴 ${c.moved}줄을 참고 블록으로`, c.moved)
+    if (toLog.size) {
+      const t2 = nl(await textOf(p))
+      let t3 = t2
+      for (const id of toLog) for (const v of new Set([id, encodeURI(id).replace(/\(/g, '%28').replace(/\)/g, '%29')])) t3 = t3.split(`/work/${v}.md)`).join(`/${LOG_DIR}/${v}.md)`)
+      if (t3 !== t2) await write(p, t3, 'record.logdir', 'log/ 로 옮긴 이력을 가리키는 참고 줄')
+    }
+    {
+      const t2 = nl(await textOf(p))
+      const r = refLineFix(t2)
+      if (r.text !== t2) await write(p, r.text, 'ref.line', `옛 참고 줄 ${r.fixed} · 같은 기록 줄 합침 ${r.merged}`, r.fixed + r.merged)
+    }
     const t1 = nl(await textOf(p))
     const f = fixDoc(t1, { gone, personal })
     J('지운 기록을 가리키는 표지가 있는데 같은 머리가 둘 이상인 항목', p, f.n.stuck.length, f.n.stuck.join(' · '))
@@ -723,7 +814,7 @@ export async function plan(dir, { personal = false, drop: drop0 = [] } = {}) {
       for (const p of own) await del(p, 'seed', '기록 없는 첨부 폴더')
     }
   }
-  return { changes, judge, counts, allow, gone: [...gone], personal }
+  return { changes, judge, counts, allow, gone: [...gone], moved: [...toLog], personal }
 }
 const list = (v) => (v == null ? [] : (Array.isArray(v) ? v : [v]).filter((x) => x != null).map((x) => nfc(String(x).trim())).filter(Boolean))
 
@@ -755,17 +846,21 @@ export async function verifyPlan(dir, p) {
     const A = await loadKnowledge({ id: 'a', name: 'a', dir: abs })
     const B = await loadKnowledge({ id: 'b', name: 'b', dir: tmp })
     const why = []
-    const gone = new Set(p.gone || [])
+    const gone = new Set([...(p.gone || []), ...(p.moved || [])])
     const after = new Map(B.works.map((w) => [w.id, w]))
+    // 앞(옛 꼴)의 상태는 옛 읽기로 본다: put 이 없는 기록 · work/ 의 이력 태그 기록(옛 읽기는 이력으로 보았다)
+    const sA = oldStates(A)
+    const stateA = (w) => sA.get(w.id)
     for (const w of A.works) {
-      if (gone.has(w.id)) continue
+      if (gone.has(w.id) || isLogRecord(w.tags)) continue
       const b = after.get(w.id)
       if (!b) { why.push(`${w.id}: 기록이 사라졌다`); continue }
-      if (b.state === w.state) continue
+      const was = stateA(w)
+      if (b.state === was) continue
       if ((p.allow?.[w.id] || []).includes(b.state)) continue
       // 지운 기록이 바로잡았던 기록은 바로잡힘이 풀린다
-      if (w.state === 'fixed' && b.state === 'in' && !B.superseded.has(w.id)) continue
-      why.push(`${w.id}: 상태 ${w.state} → ${b.state}`)
+      if (was === 'fixed' && b.state === 'in' && !B.superseded.has(w.id)) continue
+      why.push(`${w.id}: 상태 ${was} → ${b.state}`)
     }
     // 폐기 줄은 글이 아니라 「폐기됐나 · 이을 항목」 으로 견준다(core/guard.js nextOf · 옛 줄표 까닭 줄도 같은 항목)
     const nextOf = (dep) => String(dep || '').match(/→\s*([^\s`]+:[^\s`]+)/)?.[1]?.replace(/:+$/, '') || null
@@ -780,9 +875,13 @@ export async function verifyPlan(dir, p) {
     if (!same(A.forms.rows, B.forms.rows) || closedA !== B.forms.closed) why.push('갈래 장부의 읽기가 바뀐다')
     // 문서 본문 · 머리는 그대로(표지 · 참고 줄만 바뀐다)
     const docB = new Map(B.docs.map((d) => [d.path, d]))
-    for (const d of A.docs) {
-      const e = docB.get(d.path)
-      if (!e) { why.push(`${d.path}: 문서가 사라졌다`); continue }
+    for (const d0 of A.docs) {
+      const e = docB.get(d0.path)
+      if (!e) { why.push(`${d0.path}: 문서가 사라졌다`); continue }
+      // 앞 글은 옛 꼴(경과 꼬리 · 기록 그대로 줄)을 뗀 본문으로 견준다(지금 parseDoc 은 옛 꼴을 떼지 않는다)
+      const raw = (await readOr(path.join(abs, ...d0.path.split('/')))) || ''
+      const c = convertDoc(raw)
+      const d = c.ok && c.changed ? { ...d0, ...parseDoc(c.text, d0.title) } : d0
       if (d.title !== e.title || d.sections.length !== e.sections.length || d.sections.some((s, i) => s.h !== e.sections[i].h || (s.body !== e.sections[i].body && !p.personal))) why.push(`${d.path}: 본문이 바뀐다`)
     }
     // 사람 장부: 자리 표(정리 줄의 사람은 지식관리자로)

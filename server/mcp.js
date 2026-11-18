@@ -381,7 +381,7 @@ export function makeMcp(store) {
     },
   }
 
-  // 상태 말 — 바로잡힘 · 되돌림은 「문서에 들어감」 으로 보이지 않게(S4) · 저장 승인 전 기록은 「기록」 하나(P12)
+  // 상태 말: 바로잡힘 · 되돌림은 「문서에 들어감」 으로 보이지 않게(S4) · 저장 문이 넣은 것이 없는 기록은 「기록」
   const STATE_WORD = { old: '기록', fixed: '바로잡힘', reverted: '되돌림', none: 'kmd 가 한 일' }
   const recOut = (w) => ({ id: w.id, date: w.date, author: w.author, title: w.title, state: STATE_WORD[w.state] || '문서에 들어감' })
 

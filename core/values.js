@@ -29,9 +29,12 @@ export function sameValues(oldText, newText) {
   const added = [...b].filter((v) => !a.has(v))
   return { same: !lost.length && !added.length, lost, added }
 }
+// 링크 대상 주소는 값이 아니다: 「](x.md#머리%20%28가%29)」 · 「](https://…:8090/…)」 · 「<https://…>」 속의 수(%20 → 20)를 값으로 읽지 않는다(링크 글은 값으로 읽는다)
+const LINK_TARGET_RE = /\]\((?:[^()\s]|\([^()\s]*\))*(?:\s+"[^"]*")?\)|<https?:\/\/[^\s>]+>/g
+export const noLinkTargets = (s) => String(s || '').replace(LINK_TARGET_RE, (m) => (m[0] === '<' ? ' ' : ']()'))
 export function valuesOf(text) {
   const out = new Set()
-  const s = String(text || '').replace(/^[ \t]*(?:`{3,}|~{3,}).*$/gm, '')
+  const s = noLinkTargets(text).replace(/^[ \t]*(?:`{3,}|~{3,}).*$/gm, '')
   for (const m of s.matchAll(VALUE_RE)) {
     if (m[4] && inName(s, m.index, m[0].length)) continue
     out.add((m[1] || m[2] || m[3] || m[4]).replace(/\s+/g, ''))
@@ -46,8 +49,8 @@ export function valuesOf(text) {
 //   거기 든 날짜(「2026-11-02」 → 2026 · 02) · 문서 판 · 커밋을 요구하면 늘 「기록의 값이 글에 없다」 로 남는다
 export const HASH_RE = /\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b/g
 export const REC_ID_RE = /\b\d{4}-\d{4}-[^\s`」"'),]+/g
-//   「고친 조각」 은 제안(core/propose.js)이라 값이 아니다 · 「넣은 것」 · 「넣지 못함」 · 「되돌린 항목」 · 「받아들인 경고」 · 「값 대조」 · 「이은 항목」 · 「새로 세움」 은 kmd 가 쓰는 칸(작성기준 2-3)이라 기록의 값이 아니다
-export const NOT_KNOWLEDGE = new Set(['지은 근거', '까닭', '버린 안', '근거', '고친 조각', '넣은 것', '넣지 못함', '되돌린 항목', '받아들인 경고', '값 대조', '이은 항목', '새로 세움'])
+//   「고친 조각」 은 제안(core/propose.js)이라 값이 아니다 · 「넣은 것」 · 「되돌린 항목」 · 「받아들인 경고」 · 「값 대조」 · 「이은 항목」 · 「새로 세움」 은 kmd 가 쓰는 칸(작성기준 2-3)이라 기록의 값이 아니다
+export const NOT_KNOWLEDGE = new Set(['지은 근거', '까닭', '버린 안', '근거', '고친 조각', '넣은 것', '되돌린 항목', '받아들인 경고', '값 대조', '이은 항목', '새로 세움'])
 export const knowledgeParts = (body) => {
   const s = String(body)
   if (!/^## 바뀐 것\s*$/m.test(s)) return s
@@ -82,7 +85,7 @@ export const DIFF_MAX = 5
 // 보이기 전용 값 목록(같은 값도 수만큼) — 시각(10:30) · 주소:포트(10.0.0.1:8090)는 쪼개지 않는다(UX T2-08 「00 → 30」)
 const WHOLE_RE = /\b\d{1,3}(?:\.\d{1,3}){3}(?::\d{2,5})?\b|\b\d{1,2}:\d{2}(?::\d{2})?\b/g
 function valueList(text) {
-  const s0 = String(text || '').replace(/^[ \t]*(?:`{3,}|~{3,}).*$/gm, '')
+  const s0 = noLinkTargets(text).replace(/^[ \t]*(?:`{3,}|~{3,}).*$/gm, '')
   const out = [...s0.matchAll(WHOLE_RE)].map((m) => m[0])
   const s = s0.replace(WHOLE_RE, ' ')
   for (const m of s.matchAll(VALUE_RE)) {

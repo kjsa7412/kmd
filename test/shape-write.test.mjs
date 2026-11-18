@@ -13,7 +13,7 @@ import { checkShape } from '../core/gate.js'
 import { parseDoc } from '../core/sections.js'
 
 const git = (dir, ...a) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: dir, encoding: 'utf8' })
-const rec = (id, date, touches) => `---\nid: ${id}\ntitle: "${id}"\ndate: ${date}\nauthor: 김\ntouches:\n${touches.map((c) => `  - ${c}`).join('\n')}\n---\n\n# ${id}\n\n## 바뀐 것\n- 값\n`
+const rec = (id, date, touches) => `---\nid: ${id}\ntitle: "${id}"\ndate: ${date}\nauthor: 김\ntouches:\n${touches.map((c) => `  - ${c}`).join('\n')}\ntags:\n  - put\n---\n\n# ${id}\n\n## 바뀐 것\n- 값\n`
 const FILES = {
   'docs/배포 절차.md': '# 배포 절차\n\n## 배포 창\n<!-- applied: 2026-1101-a -->\n화요일 10:00.\n\n## 사전 점검\n<!-- applied: 2026-1102-b -->\n디스크 80% 확인.\n\n## 사후 점검\n헬스 체크 3회.\n\n<!-- kmd:참고 · kmd 가 적고 고친다. 손으로 고치지 않는다 -->\n**참고**\n\n- 사전 점검\n  - 2026-11-02 [b](../work/2026-1102-b.md)\n<!-- /kmd:참고 -->\n',
   'work/2026-1101-a.md': rec('2026-1101-a', '2026-11-01 09:00', ['proc:배포창']),

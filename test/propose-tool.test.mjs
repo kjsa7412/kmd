@@ -229,7 +229,7 @@ test('과거 결정 카드(지식 생성 하네스 H3): match 가 카드 · 앞�
   assert.equal((await mcp('match', { q: '카나리', knowledge: 'dpms', source: 'x'.repeat(60_001) }, P.rd)).error, 'E_INPUT')
   // brief — 새 칸(옛 칸 rules · forms · kinds 는 그대로)
   const b = await mcp('brief', { knowledge: 'dpms' }, P.rd)
-  assert.deepEqual([b.rulesRev, b.ruleTitles.length, b.ruleTitles[1], typeof b.rulesHash, b.formsOwn], [1, 10, 'R1 무엇이 항목 하나인가', 'string', false])
+  assert.deepEqual([b.rulesRev, b.ruleTitles.length, b.ruleTitles[1], typeof b.rulesHash, b.formsOwn], [2, 10, 'R1 무엇이 항목 하나인가', 'string', false])
   assert.ok(b.kindCards.seed.some((x) => x.kind === '회의' && x.nature === '사건' && x.gist))
   assert.ok(Array.isArray(b.natures) && Array.isArray(b.rules) && Array.isArray(b.kinds) && Array.isArray(b.forms))
 })

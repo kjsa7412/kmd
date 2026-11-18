@@ -11,7 +11,7 @@
 
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { parseDoc, moveOldLogs, splitLog, splitRef, logAt, isLogEntry, headsOf, withRef, mergeLog, noteLine, REF_OPEN, REF_CLOSE, RULE_LINE, DOC_KEY } from './sections.js'
+import { parseDoc, splitLog, splitRef, logAt, isLogEntry, headsOf, withRef, mergeLog, noteLine, REF_OPEN, REF_CLOSE, DOC_KEY } from './sections.js'
 import { KmdError } from './errors.js'
 import { readText, nfc } from './text.js'
 import { renderRecord } from './frontmatter.js'
@@ -322,6 +322,78 @@ export function moveOldMarks(text) {
   return { text: withRef(out, ref), moved: kinds.log + kinds.table + kinds.mark + chg, kinds, why, placed: placed.map(({ h, l }) => ({ h, l })) }
 }
 
+// ── 옛 꼴 읽기(옛 문서 옮기기만 쓴다 · core/sections.js 는 지금 꼴만 읽는다 · O-9) ──
+//   항목 끝 `**경과**` 꼬리(모두 kmd 꼴의 기록 줄일 때만) · 「> 기록 그대로: [제목](../work/…) · Claude 로 다듬지 못했다」 줄(규칙 대체)
+export const RULE_LINE = /^>\s*기록 그대로:\s*\[([^\]]*)\]\(([^)\s]+)\)\s*·\s*Claude 로 다듬지 못했다\.?\s*$/
+const ROUGH = '다듬지 못함'
+const OLD_APPLIED = /^<!--\s*applied:\s*(.+?)\s*-->\s*$/
+function oldFenceOf(ln, fence) {
+  const f = ln.match(FENCE)
+  if (!f) return undefined
+  if (!fence) return f[1]
+  return f[1][0] === fence[0] && f[1].length >= fence.length ? null : fence
+}
+function cutOldLog(text) {
+  const lines = text.split('\n')
+  const at = logAt(lines)
+  if (at < 0) return { body: text, log: [] }
+  return { body: lines.slice(0, at).join('\n').replace(/^\n+|\s+$/g, ''), log: lines.slice(at + 1).map((l) => l.trim()).filter(Boolean) }
+}
+// 규칙 대체 줄 → 참고 줄(날짜는 기록 id 의 YYYY-MMDD)
+function ruleEntry(m) {
+  const d = String(m[2]).match(/(\d{4})-(\d{2})(\d{2})-[^/]*\.md$/)
+  return `- ${d ? `${d[1]}-${d[2]}-${d[3]} ` : ''}[${m[1]}](${m[2]}) · ${ROUGH}`
+}
+// 항목 글의 옛 꼴: { body, applied, log, old(옛 꼴 줄 수) }
+function oldBody(lines, from, to) {
+  let applied = null
+  const out = []
+  const rule = []
+  let fence = null
+  for (let i = from; i < to; i++) {
+    const ln = lines[i]
+    const f = oldFenceOf(ln, fence)
+    if (f !== undefined) fence = f
+    const m = ln.match(OLD_APPLIED)
+    if (m && /^null$/i.test(m[1])) continue
+    if (m && applied == null) {
+      applied = m[1]
+      continue
+    }
+    const r = !fence && f === undefined && ln.match(RULE_LINE)
+    if (r) {
+      rule.push(ruleEntry(r))
+      if (i + 1 < to && !lines[i + 1].trim()) i++
+      continue
+    }
+    out.push(ln)
+  }
+  const c = cutOldLog(out.join('\n').replace(/^\n+|\s+$/g, ''))
+  return { body: c.body, applied, log: mergeLog(c.log, rule), old: c.log.length + rule.length }
+}
+// 옛 꼴을 모두 참고 블록으로: { text, moved, found } · 항목마다 경과 꼬리 · 규칙 대체 줄을 떼고 본문은 그대로 · 머리글과 다른 줄은 바이트 그대로
+export function moveOldLogs(text) {
+  const { lines, ref, found } = splitRef(String(text).split('\n'))
+  const secs = headsOf(lines).filter((h) => h.level === 2)
+  const out = lines.slice()
+  let moved = 0
+  for (const h of [...secs].reverse()) {
+    const b = oldBody(lines, h.line + 1, h.end)
+    if (!b.old) continue
+    moved += b.old
+    ref.set(h.heading, mergeLog(b.log, ref.get(h.heading) || []))
+    const gap = lines.slice(h.end).some((l) => l.trim()) ? [''] : []
+    out.splice(h.line + 1, h.end - h.line - 1, ...(b.applied ? [`<!-- applied: ${b.applied} -->`] : []), ...b.body.split('\n'), ...gap)
+  }
+  if (!moved) return { text: String(text), moved: 0, found }
+  return { text: withRef(out, ref), moved, found }
+}
+// 남은 옛 꼴 줄 수
+const oldLeft = (text) => {
+  const { lines } = splitRef(String(text).split('\n'))
+  return headsOf(lines).filter((h) => h.level === 2).reduce((a, h) => a + oldBody(lines, h.line + 1, h.end).old, 0)
+}
+
 // 옮긴 글 검사 — 뗀 줄이 kmd 꼴(경과 머리 · 기록 줄 · 「기록 그대로」 줄) · 옛 CDP 표식뿐이고 · 옛 꼴이 남지 않고 · 참고 줄을 잃지 않았나
 //   앞은 원문(옛 꼴을 떼지 않은 것)으로 잰다 — parseDoc 끼리 견주면 잘못 뗀 본문을 놓친다
 //   뗀 옛 경과 줄 · 주석은 모두 참고 블록에 메모로 있어야 한다
@@ -378,7 +450,7 @@ export function verifyConvert(before, after, placed = null) {
       if (cnt(rb.get(p.h), p.l) < cnt(ra.get(p.h), p.l) + n) return { ok: false, why: `「${p.h}」 에 붙을 메모가 없다(${p.l.slice(2, 32)})` }
     }
   }
-  if (b.sections.some((s) => s.old)) return { ok: false, why: '옮긴 뒤에도 옛 꼴이 남는다' }
+  if (oldLeft(readText(after))) return { ok: false, why: '옮긴 뒤에도 옛 꼴이 남는다' }
   if (a.docLog.some((l) => !b.docLog.includes(l))) return { ok: false, why: '(문서) 참고 줄을 잃는다' }
   for (const s of a.sections) {
     const t = b.sections.find((x) => x.h === s.h)

@@ -12,7 +12,7 @@ import { loadKnowledge } from '../core/knowledge.js'
 import { locate } from '../core/registry.js'
 import { parseDoc } from '../core/sections.js'
 import { parsePut } from '../core/parts.js'
-import { plan, apply, runOnce, verifyPlan, vocabDash, registryHead, membersFix, formsNewdoc, formsHead, MARK_FILE } from '../core/oldform.js'
+import { plan, apply, runOnce, verifyPlan, oldStates, vocabDash, registryHead, membersFix, formsNewdoc, formsHead, MARK_FILE } from '../core/oldform.js'
 import { main } from '../scripts/kmd-migrate.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -64,6 +64,8 @@ function build(dir) {
   w('work/assets/2026-0102-배포-절차/b.txt', 'b')
   w('work/assets/2026-0101-이관/a.txt', 'a')
 }
+// 옮기기 전 상태는 옛 읽기로 잰다(지금 knowledge.js 는 put 으로만 가른다)
+const oldStatesOf = async (dir) => Object.fromEntries(oldStates(await loadKnowledge({ id: 'k', name: 'k', dir })))
 const states = async (dir) => Object.fromEntries((await loadKnowledge({ id: 'k', name: 'k', dir })).works.map((w) => [w.id, w.state]))
 const read = (dir, rel) => fs.readFileSync(path.join(dir, ...rel.split('/')), 'utf8')
 const has = (dir, rel) => fs.existsSync(path.join(dir, ...rel.split('/')))
@@ -89,7 +91,7 @@ test('팀 지식: 계획 · 대 보기 · 쓰기 · 멱등 · 상태 그대로',
   const dir = path.join(tmp, 'team')
   build(dir)
   await ensureRepo(dir)
-  const s0 = await states(dir)
+  const s0 = await oldStatesOf(dir)
   const k0 = await loadKnowledge({ id: 'k', name: 'k', dir })
   const voc0 = read(dir, '_vocab.md')
   const p = await plan(dir, { drop: ['2026-0107-바로잡기'] })
@@ -257,3 +259,48 @@ for (const kn of ['dpms', 'gdi']) {
     assert.equal((await tryGit(dir, ['rev-parse', 'HEAD'])).out.trim(), head0)
   })
 }
+
+// 참고 블록의 옛 기록 줄 · work/ 에 쓴 이력(G2 · C-REF-2 · C-STATE-1)
+test('ref.line: 링크 뒤 「 · 」 없는 옛 기록 줄을 지금 꼴로 · 같은 기록 줄은 한 줄로 · record.logdir: work/ 의 이력을 log/ 로', async () => {
+  const dir = path.join(tmp, 'refline')
+  const w = (rel, text) => {
+    const full = path.join(dir, ...rel.split('/'))
+    fs.mkdirSync(path.dirname(full), { recursive: true })
+    fs.writeFileSync(full, text)
+  }
+  w('_vocab.md', '# 항목 장부\n\n## 배포\n\n- `배포:절차`: 배포 절차\n')
+  w('_managed.md', '# 문서 장부\n\n| 항목 | 문서 | 머리 |\n|---|---|---|\n| `배포:절차` | `docs/배포.md` | `## 절차` |\n')
+  w('docs/배포.md', [
+    '# 배포', '', '## 절차', '<!-- applied: 2026-0102-절차 -->', '주 1회 배포한다.', '',
+    '<!-- kmd:참고 · kmd 가 적고 고친다. 손으로 고치지 않는다 -->', '**참고**', '',
+    '- 절차',
+    '  - 2026-01-02 [절차](../work/2026-0102-절차.md) PLC · SCADA 조사',
+    '  - 2026-01-02 [절차 다시](../work/2026-0102-절차.md) · §1~3',
+    '  - 2026-01-03 [손 고침](../work/2026-0103-손-고침.md)',
+    '  - 표 출처: 옛 문서',
+    '<!-- /kmd:참고 -->', '',
+  ].join('\n'))
+  w('work/2026-0102-절차.md', REC('2026-0102-절차', { date: '2026-01-02 10:00', touches: ['배포:절차'], tags: ['put'], body: '절차.\n\n## 넣은 것\n- docs/배포.md › 절차 (새 항목)' }))
+  w('work/2026-0103-손-고침.md', REC('2026-0103-손-고침', { date: '2026-01-03 10:00', tags: ['edit'] }))
+  await ensureRepo(dir)
+  // 지금 읽기: 옛 줄은 메모 줄 · work/ 의 이력 태그 기록은 기록으로 보인다(폴더로 가른다)
+  const k0 = await loadKnowledge({ id: 'k', name: 'k', dir })
+  assert.ok(k0.works.some((x) => x.id === '2026-0103-손-고침'))
+  const p = await plan(dir)
+  assert.equal(p.counts['ref.line'], 2, '고친 옛 줄 1 · 합친 줄 1')
+  assert.equal(p.counts['record.logdir'], 2, '기록 파일 · 참고 줄')
+  assert.deepEqual(p.moved, ['2026-0103-손-고침'])
+  assert.equal((await verifyPlan(dir, p)).ok, true)
+  await apply(dir, p, { user: 'kim' })
+  assert.equal(has(dir, 'work/2026-0103-손-고침.md'), false)
+  assert.equal(has(dir, 'log/2026-0103-손-고침.md'), true)
+  const d = parseDoc(read(dir, 'docs/배포.md'), '배포')
+  assert.deepEqual(d.sections[0].log, ['- 2026-01-02 [절차](../work/2026-0102-절차.md) · PLC · SCADA 조사 · §1~3', '- 2026-01-03 [손 고침](../log/2026-0103-손-고침.md)', '- 표 출처: 옛 문서'])
+  const k1 = await loadKnowledge({ id: 'k', name: 'k', dir })
+  assert.ok(k1.logs.some((x) => x.id === '2026-0103-손-고침'))
+  assert.equal(k1.works.find((x) => x.id === '2026-0102-절차').state, 'in')
+  // 멱등
+  const p2 = await plan(dir)
+  assert.equal(p2.counts['ref.line'], 0)
+  assert.equal(p2.counts['record.logdir'], 0)
+})

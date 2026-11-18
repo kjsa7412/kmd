@@ -7,7 +7,7 @@ export const RESERVED_USERS = ['kmd', 'kmd-auto', 'kmd-worker']
 // watched — 문서 폴더 감시가 들인 파일의 기록(원본이 주인인 문서의 앞 기록)
 // 저장 문이 붙이는 표지(docs/품질개선/KMD_개편_설계.md 2-2) — put(넣은 것) · intake(들이기 일감) ·
 //   polish(문서 다듬기) · revert(되돌림) · drop(버림) · 접두사 job/<일감 id>(들이기 일감)
-//   held · memo · migrate-held — 저장 승인 전 기록에만 있는 옛 표지(새로 붙이지 않는다 · 입력으로는 받지 않는다 · 읽을 때는 「기록」 · P12)
+//   held · memo · migrate-held: 걷은 옛 표지(코드는 읽지 않는다 · core/oldform.js 가 옮겼다). 사람이 다시 달지 못하게 예약으로만 남긴다
 export const RESERVED_TAGS = ['edit', 'curate-auto', 'curate-llm', 'alias-auto', 'sources', 'touches-fix', 'code-change', 'watched', 'held', 'memo', 'intake', 'polish', 'revert', 'put', 'drop', 'ledger', 'shape', 'shape-done', 'migrate-held', 'format']
 //   shape — 문서 짜임의 글 걸음(나누기 · 합치기 · 문서 요약 · 바탕 새 항목 · work/) · shape-done — 짜임 일 마감(log/) · shape/<work>/<n> — 걸음 표지(바탕 세우기 설계 4-3)
 export const RESERVED_TAG_PREFIXES = ['job/', 'shape/']

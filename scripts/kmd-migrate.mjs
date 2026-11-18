@@ -24,7 +24,6 @@
 //     record.body 는 기록 서식(docs/템플릿/기록.md): 「## 바뀐 것」 에 이 항목의 「옛 값 → 새 값」 · 뺀 값은 「옛 값 → (뺌)」 · 까닭 · 근거
 //
 //   put 은 사라지는 표 행 · 문장이 있으면 넣지 않는다. 사람이 본 뒤 --allow-drop 으로만 넘는다. 값(gate)이 걸리면 늘 넣지 않는다(넣지 못함을 남기지 않는다).
-//   다시 그리기 재료(sourceOf)는 저장 승인 전 옛 표지(held · memo · migrate-held 태그)가 붙은 기록을 뺀다(값이 확정이 아니다 · 그 기록들은 「기록」 으로만 읽는다 · P12)
 //   저장은 넣지 못함 없이(partial 없음 · 저장승인 P-D25 · P7): 저장 검사(꼴 · 원본이 주인 · 지문 …)에 걸리면 입력 오류로 아무것도 쓰지 않고 종료 코드 2.
 //   팀 서버가 돌고 있는 폴더에 바로 쓰면 서버 캐시가 낡는다: 사본에서 쓰고 백업 자리로 올린 뒤 「백업에서 받기」 를 쓴다(스킬 3절).
 
@@ -44,11 +43,8 @@ import { writeAtomic } from '../core/journal.js'
 import { LOG_DIR } from '../core/names.js'
 import { sha16 } from '../core/text.js'
 import { plan as oldPlan, apply as oldApply, verifyPlan, RULES as OLD_RULES, RULE_SAY } from '../core/oldform.js'
-// 저장 승인 전 옛 표지(이행 도구는 P12 에서 걷었다 · 옛 기록은 지식에 그대로 있다)
-const OLD_TAGS = ['held', 'memo', 'migrate-held']
-const isOld = (w) => (w.tags || []).some((t) => OLD_TAGS.includes(t))
 
-const DERIVED = ['polish', 'curate-llm', 'curate-auto', 'rebuild', 'intake']
+const DERIVED = ['polish', 'rebuild', 'intake']
 const DATE_LINE = /^\s*(?:[-*+]\s+)?(?:\*\*)?(\d{4}[-.]\d{1,2}[-.]\d{1,2}|\d{1,2}\/\d{1,2}|\d{1,2}월 \d{1,2}일)/
 const isTable = (l) => /^\s*\|/.test(l)
 
@@ -117,8 +113,6 @@ export function linksOf(k, doc, sec) {
     const w = k.byWork.get(id)
     if (k.superseded.has(id) || k.reverted.has(id) || k.revertedItems.get(id)?.has(key)) continue
     const mark = []
-    // 저장 승인 전 옛 표지(넣지 못함 · 메모 · 이행 기록): 값이 확정이 아니라 재료로 쓰지 않는다
-    if (isOld(w)) mark.push('old')
     if (w.tags.some((t) => DERIVED.includes(t))) mark.push('derived')
     const scope = how.size === 1 && how.has('doc') ? 'doc' : 'item'
     out.push({ id, kind: k.logs.includes(w) ? 'log' : 'work', date: w.date, title: w.title, author: w.author || null, state: w.state || null, tags: w.tags, how: [...how], scope, mark, put: parsePut(w.body).filter((r) => r.doc === doc.path && r.heading === sec.h).map((r) => ({ from: r.from, to: r.to, isNew: r.isNew })), body: w.body })
@@ -126,8 +120,8 @@ export function linksOf(k, doc, sec) {
   out.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
   return out
 }
-// 재료가 되는 기록: 옛 표지 기록은 빼고, 문서 단위 줄만 있는 기록은 셈에서 뺀다
-const sourceOf = (links) => links.filter((x) => !x.mark.includes('old') && x.scope === 'item')
+// 재료가 되는 기록: 문서 단위 줄만 있는 기록은 셈에서 뺀다
+const sourceOf = (links) => links.filter((x) => x.scope === 'item')
 
 const proseLines = (body) => {
   const out = []
@@ -229,7 +223,7 @@ export function eventGaps(k) {
     }
     const told = said.join('\n')
     const missing = k.works
-      .filter((w) => hit(w) && w.state !== 'fixed' && !isOld(w) && !k.superseded.has(w.id))
+      .filter((w) => hit(w) && w.state !== 'fixed' && !k.superseded.has(w.id))
       .filter((w) => !linked.has(w.id) && !told.includes(w.id))
       .sort((a, b) => a.date.localeCompare(b.date))
       .map((w) => ({ id: w.id, date: w.date, title: w.title, state: w.state || null }))
@@ -353,7 +347,6 @@ function inspectNew(k, input, s, d, sec, spread) {
   for (const id of ids) {
     const w = k.byWork.get(String(id))
     if (!w) return no(`없는 기록: ${id}`)
-    if (isOld(w)) return no(`저장 승인 전 옛 표지(넣지 못함 · 메모 · 이행) 기록은 재료가 아니다: ${id}`)
     ws.push(w)
   }
   const ground = ws.map((w) => `### ${w.title}\n${String(w.body).replace(/^#{1,2} /gm, '### ')}`).join('\n\n')
@@ -545,7 +538,7 @@ async function relog(dir, ids, o) {
   if (ids.length && pick.length !== ids.length) throw new Error(`기록에 없는 id: ${ids.filter((x) => !pick.some((w) => w.id === x)).join(' · ')}`)
   if (!pick.length) throw new Error('옮길 기록이 없다(--title <제목 앞> 또는 기록 id)')
   // 다른 기록이 근거로 가리키는 기록은 옮기지 않는다(그 기록의 지식 이야기가 끊긴다)
-  const cited = pick.filter((w) => k.works.some((x) => !pick.includes(x) && (x.body.includes(`/${w.id}.md`) || (x.reflects || []).includes(w.id) || (x.fixes || []).includes(w.id))))
+  const cited = pick.filter((w) => k.works.some((x) => !pick.includes(x) && (x.body.includes(`/${w.id}.md`) || (x.fixes || []).includes(w.id))))
   if (cited.length) throw new Error(`다른 기록이 가리키는 기록이다: ${cited.map((w) => w.id).join(' · ')}`)
   const paths = []
   const docsChanged = []

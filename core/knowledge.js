@@ -100,8 +100,8 @@ export async function loadKnowledge({ id, name, dir }, { cache = null } = {}) {
         const x = parseRecord(text, path.basename(p))
         return x ? { ...x, path: p, body: stripTitle(x.body, x.title) } : null
       })
-      // 이력 — log/ 의 것과 예전에 work/ 에 쓴 kmd 의 일(태그로 가른다)
-      if (r) (p.startsWith('log/') || isLogRecord(r.tags) ? logs : works).push({ ...r })
+      // 이력은 log/ · 기록은 work/(폴더로 가른다 · 저장 문이 이력 태그를 보고 log/ 에 쓴다)
+      if (r) (p.startsWith('log/') ? logs : works).push({ ...r })
     }
   }
   if (cache) for (const k of cache.keys()) if (!seen.has(k)) cache.delete(k)
@@ -134,13 +134,10 @@ export async function loadKnowledge({ id, name, dir }, { cache = null } = {}) {
       o.touches = w.touches
     }
   }
-  // 정리가 넣었다고 적은 기록(reflects) — 건드린 항목 없이 들어간 넣은 파일의 기록도 「넣음」 이 된다
-  k.reflected = new Set([...works, ...logs].flatMap((w) => w.reflects || []))
   // 바로잡힘(S-D46) — 나중 기록이 fixes 로 가리킨 기록. 건드린 항목만 바로잡은 것(touches-fix)은 바로잡힘이 아니다(누가 fixes 를 실을 수 있는지는 쓸 때 막는다 · S-D17)
-  //   저장 승인 전 기록의 fixes(옛 넣지 못함 다시 하기 · 이행 기록 migrate-held)도 바로잡힘으로 읽지 않는다 — 그 기록들은 「기록」 으로만 보인다(P12)
   k.superseded = new Set()
   for (const w of all) {
-    if (!w.fixes?.length || w.tags.some((t) => t === 'held' || t === 'migrate-held' || t === 'touches-fix')) continue
+    if (!w.fixes?.length || w.tags.includes('touches-fix')) continue
     for (const x of w.fixes) k.superseded.add(x)
   }
   // 항목마다 되돌림(S-D13) — revert 태그 기록의 마지막 「## 되돌린 항목」 칸 · 원 기록 id → 「문서 › 머리」 모음
@@ -203,35 +200,22 @@ export function coordsOfSection(k, doc, h) {
   return sectionMap(k).get(`${doc.path}\n${h}`) || []
 }
 
-// kmd 가 스스로 쓰는 기록(고친 기록 · 정리 · 가져오기)은 넣을 것이 아니다
+// kmd 가 스스로 쓰는 기록(고친 기록 · 가져오기)은 넣을 것이 아니다
 export const SYSTEM_TAGS = LOG_TAGS
 export const isSystemRecord = (w) => isLogRecord(w.tags)
-const INGEST = (w) => w.tags.some((t) => /^(ingest|touches\??)\//.test(t))
 
-// 상태 — in(문서에 들어감) · fixed(바로잡힘) · reverted(되돌림) · none(kmd 가 한 일) · old(저장 승인 전에 남은 기록 · 읽기만 · 옛 상태를 가르지 않는다)
-// 이 지식에 들어온 때 — 받은 기록은 recv/YYYYMMDDHHMM 태그(hub.receive) · 아니면 쓴 때
-export function arrivedOf(w) {
-  const t = w.tags.find((x) => /^recv\/\d{12}$/.test(x))
-  return t ? t.slice(5).replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$/, '$1-$2-$3 $4:$5') : w.date
-}
-// 이 항목에 그 기록이 들었나 — 항목 표지가 그 기록이거나 · 표지의 정리 기록이 넣었다고 적었거나 · 더 늦은 기록이 들었다.
+// 이 항목에 그 기록이 들었나: 항목 표지가 그 기록이다(저장 문이 넣은 곳은 기록의 「넣은 것」 칸이 말한다)
 export function reflectedIn(k, w, sec) {
-  if (!sec?.applied) return false
-  if (sec.applied === w.id) return true
-  const a = k.byWork.get(sec.applied)
-  if (a?.reflects?.includes(w.id)) return true // 정리 기록이 이 기록을 넣었다고 적었다
-  // 같은 분이면 순서를 모른다 — 넣었다고 적지 않은 한 아직 안 넣은 것으로(조용히 「넣음」 이 되지 않게) ·
-  //   받은 기록은 쓴 때가 아니라 받은 때로 본다(옛 날짜로 늦게 받은 기록이 그 전 정리로 「넣음」 이 되지 않게)
-  return !!a && a.date > arrivedOf(w)
+  return !!sec?.applied && sec.applied === w.id
 }
 
-// 상태 — 저장 문이 넣은 기록(put)은 들어감 · 항목마다 모두 되돌렸으면 되돌림 · 나중 정정 기록이 바로잡았으면 바로잡힘.
-//   저장 승인 전 기록(옛 넣지 못함 · 메모 · 아직 안 넣음 · 둠 · 이행된 기록)은 상태를 가르지 않고 old 하나(P12)
+// 상태: in(문서에 들어감) · fixed(바로잡힘) · reverted(되돌림) · none(건드린 항목만 바로잡은 기록) · old(기록: 저장 문이 넣은 것이 없는 기록)
+//   기록 상태는 put 표지 · 「## 넣은 것」 칸 · 되돌림 · fixes 로만 가른다
+//   (옛 꼴의 표지 날짜 견주기 · 정리 표시 reflects · curates · ingest/ 는 core/oldform.js 가 put 으로 굳혔다 · O-9)
 export function recordState(k, w) {
   const tags = w.tags || []
-  if (tags.some((t) => t === 'curate-auto' || t === 'curate-llm' || t === 'touches-fix')) return 'none'
+  if (tags.includes('touches-fix')) return 'none'
   if (k.reverted?.has(w.id)) return 'reverted'
-  if (tags.some((t) => t === 'held' || t === 'memo')) return 'old' // 옛 표지(넣지 못함 · 메모) — 값이 확정이 아니었다: 늘 「기록」
   const sup = !!k.superseded?.has(w.id)
   if (tags.includes('put')) {
     const items = parsePut(w.body)
@@ -239,26 +223,7 @@ export function recordState(k, w) {
     if (items.length && back && items.every((x) => back.has(itemKey(x.doc, x.heading)))) return 'reverted'
     return sup ? 'fixed' : 'in' // 넣은 뒤 정정 기록이 바로잡았으면 바로잡힘(UX T2-03 · 정함 안 A)
   }
-  // 저장 문 밖에서 들어간 기록(문서 표지 · 정리 기록의 reflects — 지식 추가로 들여온 문서 · 옛 정리) — 들어감 · 아니면 old
-  const st = reflectedState(k, w)
-  return sup && st !== 'none' ? 'fixed' : st
-}
-
-function reflectedState(k, w) {
-  if (!w.touches.length) {
-    if (k.reflected?.has(w.id)) return 'in'
-    if (w.tags.some((t) => t.startsWith('ingest/'))) return 'old' // 넣은 파일의 옛 기록(정리가 넣지 않았다)
-    return isSystemRecord(w) || INGEST(w) || w.curates.length || w.reopens.length ? 'none' : 'old'
-  }
-  let any = false
-  for (const c of w.touches) {
-    const x = sectionOf(k, c)
-    if (!x) continue
-    any = true
-    if (!reflectedIn(k, w, x.sec)) return 'old'
-  }
-  if (!any && w.tags.includes('code-change')) return k.reflected?.has(w.id) ? 'in' : 'old'
-  return any ? 'in' : 'none'
+  return sup ? 'fixed' : 'old'
 }
 
 // 라벨 — 장부에 있으면 그것

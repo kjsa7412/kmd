@@ -53,19 +53,22 @@ test('칸 쓰고 읽기: 넣은 것 · 되돌린 항목 · 떼기(옛 넣지 못
     { doc: DOC, heading: '값: 설명', from: '', to: '3', isNew: false },
     { doc: 'docs/회의록.md', heading: '2026-10-21 HNC 통화', from: '', to: '', isNew: true },
   ])
-  // 저장 승인 전 기록의 옛 넣지 못함 칸(쓰지 않는다 · 보일 때 떼기만 · P12)
-  const held = '## 넣지 못함\n```json\n[{ "doc": "x", "why": "가짜" }]\n```'
+  // json 칸(받아들인 경고)은 울타리 끝까지 뗀다(울타리 안의 「## 」 줄에서 멈추지 않는다)
+  const held = '## 받아들인 경고\n```json\n[{ "id": "x",\n## "why": "가짜" }]\n```'
   const rv = renderReverted([{ rec: '2026-1103-롤백', doc: DOC, heading: '롤백' }])
   assert.deepEqual(parseReverted(rv), [{ rec: '2026-1103-롤백', doc: DOC, heading: '롤백' }])
-  assert.equal(dropPart(`글\n\n${put}\n\n${held}`, '넣지 못함'), `글\n\n${put}`)
+  assert.equal(dropPart(`글\n\n${put}\n\n${held}`, '받아들인 경고'), `글\n\n${put}`)
   assert.equal(dropPart(`글\n\n${put}\n\n${held}`, '넣은 것'), `글\n\n${held}`)
   assert.deepEqual(valueDiff('시간 초과는 3초', '시간 초과는 5초'), { from: '3초', to: '5초' })
   assert.equal(valueDiff('같은 10분', '여전히 10분'), null)
+  // 링크 대상 주소 안의 수는 값이 아니다(%20 · %28 · 포트 · 경로) · 링크 글의 수는 값
+  assert.deepEqual([...valuesIn('[배포 창](../a/x.md#%EB%B0%B0%ED%8F%AC%20%28%EC%B0%BD%29) 은 10분 · [홈 3](https://ex.com:8090/a/2026) · <https://h.io/7>')], ['10분', '3'])
+  assert.equal(valueDiff('[가](x.md#a%201) 5분', '[가](x.md#a%202) 5분'), null)
   assert.ok(['held', 'memo', 'intake', 'polish', 'revert', 'put', 'drop', 'job/abc'].every(isReservedTag))
   assert.equal(httpStatusOf('E_RATE'), 429)
 })
 
-test('옵션 없는 저장은 옛 결과 그대로: 기록 + 문서 + 장부가 커밋 하나 · 새 표지 · 칸 없음', async () => {
+test('옵션 없는 저장: 기록 + 문서 + 장부가 커밋 하나 · 새 표지 · 넣은 것 칸 없음 · 항목 글을 썼으니 put', async () => {
   const h0 = await head()
   const r = await save(dir, {
     record: { title: '꾸러미 서버 이름', body: '꾸러미는 pkg-1 에 둔다.' },
@@ -78,7 +81,7 @@ test('옵션 없는 저장은 옛 결과 그대로: 기록 + 문서 + 장부가 
   assert.equal(r.put, undefined)
   assert.equal(r.held, undefined)
   assert.ok(!read(r.record).includes('## 넣은 것'))
-  assert.ok(!/\n {2}- put\n/.test(read(r.record)))
+  assert.ok(/\n {2}- put\n/.test(read(r.record)), '항목 글을 쓴 기록은 put(기록 상태는 put 으로만 가른다)')
   assert.equal(await status(), '')
 })
 

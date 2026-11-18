@@ -1,7 +1,7 @@
 // 문서 꼴 — 본문과 시스템 참고 정보를 나눈다(docs/kmd_문서_작성기준.md).
 //
-// 참고 블록(문서 끝)을 읽을 때 떼고 · 옛 경과 꼬리 · 「기록 그대로」 줄을 받아 주고 · 쓸 때 블록을 다시 쓴다 ·
-// 저장은 새 꼴로 쓰고 옛 줄을 잃지 않는다 · 사람 · 세션의 항목 글 검사(E_FORMAT) · 옛 문서 옮기기(본문 보존) ·
+// 참고 블록(문서 끝)을 읽을 때 떼고 · 옛 경과 꼬리 · 「기록 그대로」 줄은 읽지 않고(옛 문서 옮기기만 안다 · O-9) · 쓸 때 블록을 다시 쓴다 ·
+// 저장은 참고 줄을 잃지 않는다 · 사람 · 세션의 항목 글 검사(E_FORMAT) · 옛 문서 옮기기(본문 보존) ·
 // 화면 링크 풀이(문서 · 항목 · 없는 문서 · 기록 · 이력 · 바깥 · 열 수 없는 것 · 깨진 % · README.md) · 표 감싸기.
 
 import { test, before, after } from 'node:test'
@@ -44,12 +44,12 @@ test('읽기: 참고 블록을 떼어 항목마다 log · 마지막 항목 본�
   assert.deepEqual(d.ref.map((x) => x.h), ['가', '나'])
 })
 
-test('읽기: 옛 경과 꼬리 · 「기록 그대로」 줄은 log 로 받는다 · 본문은 깨끗하게', () => {
-  const old = ['# 문서', '', '## 가', '가의 글.', '', '> 기록 그대로: [셋](../work/2026-1023-셋.md) · Claude 로 다듬지 못했다', '', '붙인 기록 글.', '', '**경과**', '- 2026-10-21 [하나](../work/2026-1021-하나.md)', '- 2026-10-23 [셋](../work/2026-1023-셋.md)', ''].join('\n')
+test('읽기: 옛 경과 꼬리 · 「기록 그대로」 줄은 읽지 않는다(지금 꼴만 · 옛 꼴은 옛 문서 옮기기가 안다)', () => {
+  const old = ['# 문서', '', '## 가', '가의 글.', '', '> 기록 그대로: [셋](../work/2026-1023-셋.md) · Claude 로 다듬지 못했다', '', '붙인 기록 글.', '', '**경과**', '- 2026-10-21 [하나](../work/2026-1021-하나.md)', ''].join('\n')
   const s = parseDoc(old, '').sections[0]
-  assert.equal(s.body, '가의 글.\n\n붙인 기록 글.')
-  assert.deepEqual(s.log, ['- 2026-10-21 [하나](../work/2026-1021-하나.md)', '- 2026-10-23 [셋](../work/2026-1023-셋.md) · 다듬지 못함'])
-  assert.equal(s.old, 3)
+  assert.ok(s.body.includes('**경과**') && s.body.includes('기록 그대로'))
+  assert.deepEqual(s.log, [])
+  assert.equal(s.old, undefined)
 })
 
 test('코드 울타리 안의 표식은 블록이 아니다', () => {
@@ -72,10 +72,9 @@ test('쓰기: replaceSection 이 그 항목 줄만 고쳐 블록을 끝에 다�
   assert.deepEqual(d.sections[1].log, ['- 2026-10-22 [둘](../work/2026-1022-둘.md)'])
   assert.ok(w.startsWith('# 문서\n\n요약 한 줄.\n\n## 가\n<!-- applied: x1 -->\n가의 새 글.\n\n## 나\n나의 글.\n\n<!-- kmd:참고'))
   assert.ok(w.endsWith('<!-- /kmd:참고 -->\n'))
-  // 본문에 경과 꼬리가 오면 떼어 줄로(log 를 주지 않으면 지금 줄에 보탠다)
-  const w2 = replaceSection(NEW, { heading: '나', body: '나의 글.\n\n**경과**\n- 2026-10-26 [여섯](../work/x6.md)' })
-  assert.deepEqual(parseDoc(w2, '').sections[1].log, ['- 2026-10-22 [둘](../work/2026-1022-둘.md)', '- 2026-10-26 [여섯](../work/x6.md)'])
-  assert.ok(!/\*\*경과\*\*/.test(w2))
+  // log 를 주지 않으면 지금 줄을 그대로 둔다(보낸 글의 경과 꼬리를 떼는 것은 저장 문 · core/save.js)
+  const w2 = replaceSection(NEW, { heading: '나', body: '나의 새 글.' })
+  assert.deepEqual(parseDoc(w2, '').sections[1].log, ['- 2026-10-22 [둘](../work/2026-1022-둘.md)'])
   // 줄이 하나도 없으면 블록을 지운다
   let t = replaceSection(NEW, { heading: '가', body: '가', log: [] })
   t = replaceSection(t, { heading: '나', body: '나', log: [] })
@@ -88,9 +87,9 @@ test('쓰기: replaceSection 이 그 항목 줄만 고쳐 블록을 끝에 다�
   assert.deepEqual(d3.ref.map((x) => x.h), ['가', '나', '다'])
 })
 
-test('쓰기: 옛 꼴 항목을 쓰면 그 항목 꼬리를 블록으로 옮긴다 · 다른 항목의 옛 꼬리는 그대로', () => {
-  const old = ['# 문서', '', '## 가', '가의 글.', '', '**경과**', '- 2026-10-21 [하나](../work/a.md)', '', '## 나', '나의 글.', '', '**경과**', '- 2026-10-22 [둘](../work/b.md)', ''].join('\n')
-  const w = replaceSection(old, { heading: '가', body: '가의 새 글.' })
+test('쓰기: 다른 항목의 글은 바이트 그대로(옛 꼬리가 있어도 건드리지 않는다)', () => {
+  const old = ['# 문서', '', '## 가', '가의 글.', '', '## 나', '나의 글.', '', '**경과**', '- 2026-10-22 [둘](../work/b.md)', ''].join('\n')
+  const w = replaceSection(old, { heading: '가', body: '가의 새 글.', log: ['- 2026-10-21 [하나](../work/a.md)'] })
   assert.ok(w.includes('## 나\n나의 글.\n\n**경과**\n- 2026-10-22 [둘](../work/b.md)\n'))
   const d = parseDoc(w, '')
   assert.equal(d.sections[0].body, '가의 새 글.')
@@ -111,17 +110,13 @@ test('지우기 · 이름 바꾸기는 참고 줄도 같이 · stampAll 은 블�
   assert.ok(st.endsWith(BLOCK.join('\n') + '\n'))
 })
 
-test('저장: 새 꼴로 쓰고 옛 경과를 잃지 않는다 · base 는 본문으로 잰다', async () => {
+test('저장: 참고 줄을 잃지 않는다 · base 는 본문으로 잰다', async () => {
   const f = path.join(dir, 'docs', '롤백절차.md')
   const text = fs.readFileSync(f, 'utf8')
-  const h = parseDoc(text, '').sections[0].h
-  // 옛 꼴: 첫 항목 끝에 경과 꼬리를 손으로 단다
-  const lines = text.split('\n')
-  const at = lines.findIndex((l) => l === `## ${h}`)
-  const next = lines.findIndex((l, i) => i > at && /^## /.test(l))
-  const end = next < 0 ? lines.length : next
-  const before = lines.slice(0, end).join('\n').replace(/\s+$/, '')
-  fs.writeFileSync(f, `${before}\n\n**경과**\n- 2026-10-01 [옛 기록](../work/2026-1001-옛.md)\n\n${lines.slice(end).join('\n')}`)
+  const sec = parseDoc(text, '').sections[0]
+  const h = sec.h
+  // 앞 기록의 참고 줄 하나
+  fs.writeFileSync(f, replaceSection(text, { heading: h, body: sec.body, applied: sec.applied, log: ['- 2026-10-01 [옛 기록](../work/2026-1001-옛.md)'] }))
   const sec0 = parseDoc(fs.readFileSync(f, 'utf8'), '').sections[0]
   assert.deepEqual(sec0.log, ['- 2026-10-01 [옛 기록](../work/2026-1001-옛.md)'])
   const base = sectionBase(fs.readFileSync(f, 'utf8'), h)
@@ -129,7 +124,7 @@ test('저장: 새 꼴로 쓰고 옛 경과를 잃지 않는다 · base 는 본�
   assert.equal(k.byDocPath.get('docs/롤백절차.md').sections[0].body, sec0.body)
   const r = await save(dir, { record: { title: `${h}: 새 글`, body: '새 글', touches: ['proc:되돌리기'] }, sections: [{ doc: 'docs/롤백절차.md', heading: h, content: '되돌리기는 이전 판으로 3단계에 한다.', base }] }, { user: 'lee' })
   const raw = fs.readFileSync(f, 'utf8')
-  assert.ok(!/\*\*경과\*\*/.test(raw), '옛 꼬리는 새 꼴로 옮겨졌다')
+  assert.ok(!/\*\*경과\*\*/.test(raw))
   const s = parseDoc(raw, '').sections[0]
   assert.equal(s.body, '되돌리기는 이전 판으로 3단계에 한다.')
   assert.equal(s.log.length, 2)
@@ -181,9 +176,8 @@ test('옛 문서 옮기기: 본문은 그대로 · 줄은 참고 블록으로 ·
   assert.equal(c.changed, true)
   assert.equal(c.moved, 2)
   assert.ok(!/\*\*경과\*\*|기록 그대로/.test(c.text.replace(/<!-- kmd:참고[\s\S]*$/, '')))
-  const a = parseDoc(old, '')
   const b = parseDoc(c.text, '')
-  assert.deepEqual(b.sections.map((s) => [s.h, s.body, s.applied]), a.sections.map((s) => [s.h, s.body, s.applied]))
+  assert.deepEqual(b.sections.map((s) => [s.h, s.body, s.applied]), [['가', '가의 글.\n\n붙인 글.', 'a'], ['나', '나의 글.', null]])
   assert.deepEqual(b.sections[0].log, ['- 2026-10-21 [하나](../work/2026-1021-하나.md)', '- 2026-10-23 [셋](../work/2026-1023-셋.md) · 다듬지 못함'])
   assert.ok(c.text.includes('## 나\n나의 글.\n\n<!-- kmd:참고'))
   // 이미 새 꼴 · 옛 꼴이 없으면 그대로

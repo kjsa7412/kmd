@@ -79,18 +79,20 @@ test('커밋 기록: Claude 분석을 앞에 · 첫 줄(바뀐 값)과 차이는
   assert.equal(commitAnalyzed(rec, { title: 't', summary: 's', changes: [] }, { src: 'gw', c }), rec)
 })
 
-test('코드 바뀜 기록: 장부 밖 항목만 걸리면 「기록」(none 에 갇히지 않는다) · 정리가 넣었다고 적으면 「넣음」', async () => {
+test('코드 바뀜 기록: 넣은 것이 없으면 「기록」(none 에 갇히지 않는다) · 저장 문이 넣었으면(put) 「넣음」 · 정리 reflects 는 상태를 가르지 않는다', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-code-'))
   try {
     fs.mkdirSync(path.join(dir, 'work'), { recursive: true })
     fs.mkdirSync(path.join(dir, 'log'))
     const rec = (id, extra = '') => `---\nid: ${id}\ntitle: 바뀜 — src abc1234\ndate: 2026-10-26 16:11\nauthor: kmd\ntouches:\n  - org:HNC\ntags:\n  - code-change\n${extra}---\n\n# 바뀜\n\n글\n`
     fs.writeFileSync(path.join(dir, 'work', 'c1.md'), rec('c1'))
-    fs.writeFileSync(path.join(dir, 'work', 'c2.md'), rec('c2'))
-    fs.writeFileSync(path.join(dir, 'log', 't.md'), '---\nid: t\ntitle: 정리\ndate: 2026-10-26 16:20\nauthor: kmd-auto\ntags:\n  - curate-llm\nreflects:\n  - c2\n---\n\n# 정리\n\n넣었다\n')
+    fs.writeFileSync(path.join(dir, 'work', 'c2.md'), rec('c2').replace('  - code-change\n', '  - code-change\n  - put\n'))
+    fs.writeFileSync(path.join(dir, 'work', 'c3.md'), rec('c3'))
+    fs.writeFileSync(path.join(dir, 'log', 't.md'), '---\nid: t\ntitle: 정리\ndate: 2026-10-26 16:20\nauthor: kmd-auto\ntags:\n  - curate-llm\nreflects:\n  - c3\n---\n\n# 정리\n\n넣었다\n')
     const k = await loadKnowledge({ id: 't', name: 't', dir })
-    assert.equal(k.byWork.get('c1').state, 'old', '저장 승인 전 기록은 「기록」(P12)')
+    assert.equal(k.byWork.get('c1').state, 'old', '넣은 것이 없는 기록은 「기록」')
     assert.equal(k.byWork.get('c2').state, 'in')
+    assert.equal(k.byWork.get('c3').state, 'old', '옛 정리 reflects 는 상태를 가르지 않는다(oldform 이 put 으로 굳혔다)')
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
   }
@@ -103,7 +105,7 @@ test('출처: 넣은 파일 기록 → 간 문서 · 문서 → 온 기록(정�
     fs.mkdirSync(path.join(dir, 'work'))
     fs.mkdirSync(path.join(dir, 'log'))
     fs.writeFileSync(path.join(dir, 'docs', 'PLC 연계 규격서.md'), '# PLC 연계 규격서\n\n## 개요\n<!-- applied: 2026-1026-정리 -->\n글\n\n## 본문\n<!-- applied: 2026-1026-정리 -->\n글\n\n## 손으로\n글\n')
-    fs.writeFileSync(path.join(dir, 'work', '2026-1026-넣음.md'), '---\nid: 2026-1026-넣음\ntitle: 규격서 — 넣은 파일\ndate: 2026-10-26 13:29\nauthor: kim\ntags:\n  - ingest/규격서.html\n---\n\n# 규격서 — 넣은 파일\n\n글\n')
+    fs.writeFileSync(path.join(dir, 'work', '2026-1026-넣음.md'), '---\nid: 2026-1026-넣음\ntitle: 규격서 — 넣은 파일\ndate: 2026-10-26 13:29\nauthor: kim\ntags:\n  - ingest/규격서.html\n  - put\n---\n\n# 규격서 — 넣은 파일\n\n글\n\n## 넣은 것\n- docs/PLC 연계 규격서.md › 개요 (새 항목)\n- docs/PLC 연계 규격서.md › 본문 (새 항목)\n')
     fs.writeFileSync(path.join(dir, 'log', '2026-1026-정리.md'), '---\nid: 2026-1026-정리\ntitle: 규격서 — 문서에 새 항목 2\ndate: 2026-10-26 13:43\nauthor: kmd-auto\ntags:\n  - curate-llm\nreflects:\n  - 2026-1026-넣음\n---\n\n# 규격서 — 문서에 새 항목 2\n\n넣었다\n')
     const k = await loadKnowledge({ id: 't', name: 't', dir })
     const d = docView(k, 'PLC 연계 규격서')
@@ -129,7 +131,7 @@ test('기록 → 간 문서: 나중 기록이 같은 항목을 고쳐 표지가 
     fs.writeFileSync(path.join(dir, '_vocab.md'), '# 좌표 어휘\n\n## 화면\n- `화면:A`: 상황 지도\n- `화면:B`: 공정 도식\n')
     fs.writeFileSync(path.join(dir, '_managed.md'), '# 관리\n\n| 항목 | 문서 | 머리 |\n| --- | --- | --- |\n| `화면:A` | `docs/화면.md` | `## A: 상황 지도` |\n| `화면:B` | `docs/화면.md` | `## B: 공정 도식` |\n')
     fs.writeFileSync(path.join(dir, 'docs', '화면.md'), '# 화면\n\n## A: 상황 지도\n<!-- applied: 2026-1102-뒤 -->\n글\n\n## B: 공정 도식\n<!-- applied: 2026-1102-뒤 -->\n글\n')
-    const rec = (id, date) => `---\nid: ${id}\ntitle: ${id}\ndate: ${date}\nauthor: kim\ntouches:\n  - 화면:A\n  - 화면:B\n---\n\n# ${id}\n\n글\n`
+    const rec = (id, date) => `---\nid: ${id}\ntitle: ${id}\ndate: ${date}\nauthor: kim\ntouches:\n  - 화면:A\n  - 화면:B\ntags:\n  - put\n---\n\n# ${id}\n\n글\n\n## 넣은 것\n- docs/화면.md › A: 상황 지도\n- docs/화면.md › B: 공정 도식\n`
     fs.writeFileSync(path.join(dir, 'work', '2026-1031-앞.md'), rec('2026-1031-앞', '2026-10-31 08:42'))
     fs.writeFileSync(path.join(dir, 'work', '2026-1102-뒤.md'), rec('2026-1102-뒤', '2026-11-02 13:51'))
     const k = await loadKnowledge({ id: 't', name: 't', dir })
