@@ -49,8 +49,8 @@ export function valuesOf(text) {
 //   거기 든 날짜(「2026-11-02」 → 2026 · 02) · 문서 판 · 커밋을 요구하면 늘 「기록의 값이 글에 없다」 로 남는다
 export const HASH_RE = /\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b/g
 export const REC_ID_RE = /\b\d{4}-\d{4}-[^\s`」"'),]+/g
-//   「고친 조각」 은 제안(core/propose.js)이라 값이 아니다 · 「넣은 것」 · 「되돌린 항목」 · 「받아들인 경고」 · 「값 대조」 · 「이은 항목」 · 「새로 세움」 은 kmd 가 쓰는 칸(작성기준 2-3)이라 기록의 값이 아니다
-export const NOT_KNOWLEDGE = new Set(['지은 근거', '까닭', '버린 안', '근거', '고친 조각', '넣은 것', '되돌린 항목', '받아들인 경고', '값 대조', '이은 항목', '새로 세움'])
+//   「넣은 것」 · 「되돌린 항목」 · 「받아들인 경고」 · 「값 대조」 · 「이은 항목」 · 「새로 세움」 은 kmd 가 쓰는 칸(작성기준 2-3)이라 기록의 값이 아니다
+export const NOT_KNOWLEDGE = new Set(['지은 근거', '까닭', '버린 안', '근거', '넣은 것', '되돌린 항목', '받아들인 경고', '값 대조', '이은 항목', '새로 세움'])
 export const knowledgeParts = (body) => {
   const s = String(body)
   if (!/^## 바뀐 것\s*$/m.test(s)) return s
@@ -123,7 +123,7 @@ export function groundedIn(text, ...sets) {
 //   이 기록이 잇는 항목들의 글(이번 저장으로 바뀐 새 글 · 항목 글이 없으면 지금 글)이나 머리 가운데 어디에도 없으면 오류다.
 //   경위만 있는 기록(값 없음)은 넘는다.
 //   record — { title, body } · items — [{ doc, heading, text }] → { errors: [{ id, code: 'unreflected', values, why }], values }
-//   쓰지 않고 판정만 — 사람 채널은 propose 오류 · 무인 채널은 규칙 길 방아쇠(P3 · P6 에서 부른다)
+//   쓰지 않고 판정만: 사람 채널은 propose 오류 · 무인 채널은 저장 문 판정(P3 · P6 에서 부른다)
 //   기록 끝 `## 원천`(들인 원천 인용 · core/ingest.js intakeSrcPart)은 기록이 말한 값이 아니라 받은 글이다 — 바뀐 것 칸이 없는 들이기 기록도 원천 값으로 걸리지 않게 뺀다(PC4)
 //   서버가 단 꼴(머리 다음 줄 「- 파일 … · 지문 <16자>」)일 때만 뺀다 — 사람 글이 「## 원천」 머리로 값을 숨겨 반영 검사를 피하지 않게
 const SRC_PART_RE = /^## 원천[ \t]*\r?\n- (?:파일|커밋|다시 들이기|보낸 글) .* · 지문 [0-9a-f]{16}[ \t]*(?:\r?\n|$)/

@@ -11,7 +11,6 @@
 import { sha16 } from './text.js'
 import { guardNewDoc } from './guard.js'
 import { formatProblems, lintSection } from './docformat.js'
-import { splitBlocks, hasBlockMarker } from './baseline.js'
 import { valuesOf, mustValues, oldValues, namesIn, groundedIn, judgeId } from './values.js'
 
 // 초안 짜임 알림 — 머리 단계 건너뜀 · 5단계 머리(거절하지 않는다 · 결과에 lint 로 싣는다)
@@ -19,7 +18,7 @@ export function draftLint(outs) {
   const lint = outs.flatMap((o) => lintSection(o))
   return lint.length ? { lint } : {}
 }
-// 초안 글 검사 — 저장의 문서 꼴 검사 + 프런트매터 · script · 저절로 채우는 표를 고쳤나(cur 의 표와 같아야 한다)
+// 초안 글 검사: 저장의 문서 꼴 검사 + 프런트매터 · script
 export function draftBad(t, cur = '', { doc = null, old = null } = {}) {
   // 지금 글에 이미 있던 줄은 초안 탓이 아니다 — 새로 든 줄만
   //   가로줄(---)은 항목 끝 구분으로 지금 글에 있을 수 있다 — 지금 글보다 늘었을 때만 프런트매터로 본다
@@ -29,7 +28,6 @@ export function draftBad(t, cur = '', { doc = null, old = null } = {}) {
   if (/<script/i.test(t) && !/<script/i.test(was)) return 'script'
   const p = formatProblems(t, { doc, old })
   if (p.length) return p.slice(0, 2).map((x) => `${x.line}째 줄 ${x.what}`).join(' / ')
-  if (hasBlockMarker(t) && JSON.stringify(splitBlocks(t).blocks) !== JSON.stringify(splitBlocks(cur).blocks)) return '저절로 채우는 표를 고쳤다'
   return null
 }
 
@@ -49,14 +47,12 @@ export function judgeSection(k, { doc, heading, base, content, record, spread = 
   const cur = sec ? sec.body : ''
   if (sec && (!base || String(base) !== sha16(cur))) err('conflict', base ? '그사이 항목이 바뀌었다. section 으로 다시 읽고 그 위에서 다시 짓는다' : '이미 있는 항목이다. section 이 준 base 를 같이 보낸다(그사이 남이 고친 글을 덮지 않게)', { stale: true })
   const bad = draftBad(content, cur, { doc, old: sec ? cur : null })
-  if (bad) err(bad === '저절로 채우는 표를 고쳤다' ? 'machine' : 'format', `글에 머리 · 표지가 들었다: ${bad}`)
+  if (bad) err('format', `글에 머리 · 표지가 들었다: ${bad}`)
   if (!content.trim() && cur.trim()) err('format', '글을 비웠다. 항목을 지우는 일은 지식관리자가 화면에서 한다')
   const body = String(record?.body || '')
   const title = String(record?.title || '')
-  // 저절로 채우는 표의 값은 견주지 않는다 — 표는 저장이 원래 것을 되붙인다(core/baseline.js keepBlocks)
-  const plain = (t) => (hasBlockMarker(t) ? splitBlocks(t).text.replace(/\u0000block\d+\u0000/g, '') : t)
-  const now = valuesOf(plain(content))
-  const oldV = valuesOf(plain(cur))
+  const now = valuesOf(content)
+  const oldV = valuesOf(cur)
   const recV = valuesOf(body + ' ' + title)
   // 빠진 값 — 기록이 「바뀐 것」 에 적은 새 값이 글에 있어야 한다(항목 머리에 있는 값은 다시 쓰지 않아도 된다)
   if (!spread) {
@@ -66,7 +62,7 @@ export function judgeSection(k, { doc, heading, base, content, record, spread = 
   }
   // 지어낸 값 — 글의 값은 옛 글이나 기록에 있어야 한다(같은 문서의 항목 머리 · 항목 장부의 항목은 된다)
   const named = namesIn(k, d)
-  const grounded = groundedIn(plain(cur) + ' ' + body + ' ' + title, oldV, recV)
+  const grounded = groundedIn(cur + ' ' + body + ' ' + title, oldV, recV)
   const invented = [...now].filter((v) => !oldV.has(v) && !recV.has(v) && !named.has(v) && !grounded(v))
   if (invented.length) warn('invented', invented, `근거에 없는 값이 있다: ${invented.slice(0, 3).join(' · ')}`)
   // 옛 글의 값은 기록이 「옛 → 새」 로 말한 것만 빠진다(작성기준 3절 5)
@@ -111,7 +107,7 @@ export function judgeShape(k, unit) {
   const warnings = []
   const err = (code, why, at = {}, extra = {}) => errors.push({ id: judgeId(code, at.doc, at.h, why), code, why, ...extra })
   const warn = (code, at, values, why) => warnings.push({ id: judgeId(code, at.doc, at.h, ...[...values].sort()), code, doc: at.doc ?? null, heading: at.h ?? null, values, why })
-  const plain = (t) => (hasBlockMarker(t) ? splitBlocks(t).text.replace(/\u0000block\d+\u0000/g, '') : String(t || ''))
+  const plain = (t) => String(t || '')
   const secOf = (doc, h) => k.byDocPath.get(doc)?.sections.find((s) => s.h === h) || null
   // 지문 — 출처 항목마다 지금 글이 지을 때와 같아야 한다(하나라도 다르면 단위 전체 E_CONFLICT)
   const srcText = []
@@ -127,7 +123,7 @@ export function judgeShape(k, unit) {
     if (typeof t.content !== 'string' || !t.content.trim()) { err('format', `「${t.h}」 글이 비었다`, t); if (typeof t.content !== 'string') noText = true; continue }
     const cur = secOf(t.doc, t.h)
     const bad = draftBad(t.content, cur ? cur.body : '', { doc: t.doc, old: cur ? cur.body : null })
-    if (bad) { err(bad === '저절로 채우는 표를 고쳤다' ? 'machine' : 'format', `「${t.h}」 글에 머리 · 표지가 들었다: ${bad}`, t); continue }
+    if (bad) { err('format', `「${t.h}」 글에 머리 · 표지가 들었다: ${bad}`, t); continue }
     const f = k.forms ? guardNewDoc(k.forms, t.doc, [t.h]) : null
     const headBad = f?.errors.find((e) => /머리 꼴/.test(e.message))
     if (headBad) err('format', headBad.message, t)

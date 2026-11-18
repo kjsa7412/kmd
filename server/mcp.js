@@ -12,8 +12,6 @@ import { headingMatches } from '../core/sections.js'
 import { VERSION } from './version.js'
 import { sha16 } from '../core/text.js'
 import { formGuide } from '../core/guard.js'
-import { splitBlocks } from '../core/baseline.js'
-import { readDecl, everyMs } from '../core/sources.js'
 import { TEAM_KIT_REV } from '../core/teamkit.js'
 import { PC_KIT_REV } from '../core/kit.js'
 import { precedentsFor, seedKindCards } from '../core/precedent.js'
@@ -46,7 +44,7 @@ const oldOf = (args) => Object.fromEntries(OLD_PROPS.filter((x) => args?.[x] !==
 export const TOOLS = [
   {
     name: 'brief',
-    description: '지금 kmd 에 무엇이 있나: 지식 목록 · 지식 하나의 문서 · 최근 기록 · 종류(kinds) · 갈래(forms) · 생성 룰의 판과 조문 제목(rulesRev · ruleTitles) · 종류의 뜻(kindCards) · 문서의 성격(natures) · 저장 방식(saveMode: 늘 approve — 저장 제안을 승인받아 save) · kit(스킬 판: save 의 kit 에 그대로 싣는다 · 측정에만 쓴다). 팀 지식이면 지식마다 mine(accepted: 승인으로 경고를 받아들인 내 기록 수) · 지식 하나의 you.recent(그 기록의 제목 · 까닭) · parser(대량 넣기 파서 꾸러미: ver · url · sha256 · bytes · 없으면 null). 일을 시작할 때 한 번.',
+    description: '지금 kmd 에 무엇이 있나: 지식 목록 · 지식 하나의 문서 · 최근 기록 · 종류(kinds) · 갈래(forms) · 생성 룰의 판과 조문 제목(rulesRev · ruleTitles) · 종류의 뜻(kindCards) · 문서의 성격(natures) · kit(스킬 판: save 의 kit 에 그대로 싣는다 · 측정에만 쓴다). 팀 지식이면 지식마다 mine(accepted: 승인으로 경고를 받아들인 내 기록 수) · 지식 하나의 you.recent(그 기록의 제목 · 까닭) · parser(대량 넣기 파서 꾸러미: ver · url · sha256 · bytes · 없으면 null). 일을 시작할 때 한 번.',
     inputSchema: { type: 'object', properties: { knowledge: str('지식 id(없으면 목록)') } },
   },
   {
@@ -141,21 +139,6 @@ export const TOOLS = [
 
 const norm = (s) => String(s || '').replace(/\s+/g, '').toLowerCase()
 
-async function baselineInfo(k, body, store) {
-  const { blocks } = splitBlocks(body)
-  if (!blocks.length) return {}
-  const decl = await readDecl(k.dir).catch(() => []) // 깨진 장부 — 경고는 stops 줄이 한다
-  const st = await store.sourceState(k.id)
-  return {
-    baseline: blocks.map((b) => {
-      const d = decl.find((x) => x.name === b.src)
-      const s = st[b.src] || {}
-      const stale = !!s.checkedAt && (s.failures || 0) >= 2 && Date.now() - Date.parse(s.checkedAt) >= 2 * everyMs(d?.every)
-      return { src: b.src, asof: b.asof, checkedAt: s.checkedAt || null, every: d?.every || null, stale, ...(b.missing ? { missing: `원천에 없다: ${b.missing} 확인` } : {}) }
-    }),
-  }
-}
-
 // 첨부 — save 한 번의 합(S-D30 · 본문 12MB 안 · 파일 하나는 core 가 32MB 로 본다)
 export const MCP_ATTACH_MAX = 8 << 20
 
@@ -190,7 +173,6 @@ export function makeMcp(store) {
         id: k.id,
         name: k.name,
         ...whereOf(store, k.id),
-        saveMode: 'approve', // 늘 승인(옛 판 스킬이 이 칸을 읽는다)
         ...(store.mode === 'pc' ? { kit: PC_KIT_REV } : { kit: TEAM_KIT_REV, parser: await parserOf() }),
         docs: k.docs.map((d) => ({ doc: d.id, title: d.title, headings: d.sections.map((s) => s.h) })),
         recent: k.works.slice(0, 10).map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title })),
@@ -309,8 +291,6 @@ export function makeMcp(store) {
         coords,
         content: sec.body,
         base: sha16(sec.body),
-        // 저절로 채우는 표 — 원천 · 원천 기준 시각 · 확인 시각 · 낡음(낡았으면 답에 그 사실을 옮긴다)
-        ...(await baselineInfo(k, sec.body, store)),
         lastPut: sec.applied || null,
         records: recs.slice(0, 10).map(recOut),
         // 항목 이력(저장 승인 설계 P-D12 · P2) — 그 항목에 이어진 기록 줄(건드린 항목 · 표지 · 넣은 것 칸) · 새것부터 20 + 넘친 수

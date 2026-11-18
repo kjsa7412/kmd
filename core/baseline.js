@@ -1,64 +1,20 @@
 // 표 원천 규칙(가져올 곳의 deps · tables · 꾸러미 찾기 probe)과 표 글(tableMd · parseTable).
 //
 //   옛 「저절로 채우는 표」 블록(<!-- baseline: … --> 표 <!-- /baseline -->)은 새로 쓰지 않는다(가져온 표는 원천이다 · H-D36).
-//   팀 · 이 PC 지식의 블록은 0 이고 개인 지식은 열 때 이행기(core/oldform.js)가 블록 표식을 걷는다.
-//   splitBlocks · keepBlocks · hasBlockMarker 는 저장 · 화면 · 짜임(save · gate · excerpt · restructure · shape · views · mcp)이 아직 부른다.
-
-const OPEN = /^<!--\s*baseline:\s*(.*?)\s*-->\s*$/
-const CLOSE = /^<!--\s*\/baseline\s*-->\s*$/
-
-function attrs(s) {
-  const out = {}
-  for (const m of String(s).matchAll(/(\w+)=(?:"([^"]*)"|(\S+))/g)) out[m[1]] = m[2] ?? m[3]
-  return out
-}
-
-// 항목 글 → { text(블록 자리 표시), blocks: [{ src, rule, asof, missing, table }] }
-export function splitBlocks(body) {
-  const lines = String(body || '').split('\n')
-  const blocks = []
-  const text = []
-  for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(OPEN)
-    if (!m) {
-      text.push(lines[i])
-      continue
-    }
-    const a = attrs(m[1])
-    const inner = []
-    let j = i + 1
-    while (j < lines.length && !CLOSE.test(lines[j])) inner.push(lines[j++])
-    blocks.push({ src: a.src || '', rule: a.rule || '', asof: a.asof || '', missing: a.missing || null, table: inner.join('\n').trim() })
-    text.push(`\u0000block${blocks.length - 1}\u0000`)
-    i = j
-  }
-  return { text: text.join('\n'), blocks }
-}
+//   블록을 읽는 곳은 없다. 팀 지식에는 블록이 없고 개인 지식은 열 때 이행기(core/oldform.js)가 블록 표식을 걷는다(옛잔재 G5b).
+//   본문에 남은 블록 표식은 표지 밖 주석이라 저장 검사(E_FORMAT)가 거절한다.
 
 const esc = (v) => String(v ?? '').replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ').trim()
 export function tableMd(cols, rows) {
   return [`| ${cols.map(esc).join(' | ')} |`, `|${cols.map(() => '---').join('|')}|`, ...rows.map((r) => `| ${cols.map((_, i) => esc(r[i])).join(' | ')} |`)].join('\n')
 }
-function blockMd({ src, rule, asof, missing = null, table }) {
-  const a = [`src="${String(src).replace(/"/g, "'")}"`, `rule=${rule}`, `asof="${asof}"`, ...(missing ? [`missing="${missing}"`] : [])]
-  return `<!-- baseline: ${a.join(' ')} -->\n${table}\n<!-- /baseline -->`
-}
-// 블록 표를 다시 칸으로(화면 · 견주기)
+// 표 글을 다시 칸으로
 export function parseTable(md) {
   const ls = String(md || '').split('\n').filter((l) => /^\s*\|/.test(l))
   const cells = (l) => l.trim().replace(/^\||\|$/g, '').split(/(?<!\\)\|/).map((c) => c.replace(/\\\|/g, '|').trim())
   if (ls.length < 2) return { cols: [], rows: [] }
   return { cols: cells(ls[0]), rows: ls.slice(2).map(cells) }
 }
-// 사람 · 세션이 쓴 새 글에 원래 블록을 그대로 다시 단다(블록 자리는 원래 차례대로 · 새 글에 섞인 블록 표지는 걷는다)
-export function keepBlocks(oldBody, newBody) {
-  const { blocks } = splitBlocks(oldBody)
-  const cleaned = splitBlocks(newBody).text.replace(/\u0000block\d+\u0000/g, '').replace(/\n{3,}/g, '\n\n').trim()
-  if (!blocks.length) return cleaned
-  return [cleaned, ...blocks.map(blockMd)].filter(Boolean).join('\n\n')
-}
-export const hasBlockMarker = (s) => /<!--\s*\/?baseline/i.test(String(s || ''))
-
 // ── 닫힌 규칙 — 원천 파일들 → 항목들 [{ key(머리), cols, rows }] ──
 // files: [{ path, text }] (1MB 이하만 · 숨김 · .git · node_modules 밖)
 const SKIP = /(^|\/)(\.|node_modules\/|test\/|tests\/|attic\/|dist\/|build\/|target\/)/
@@ -117,20 +73,6 @@ export const RULES = {
       out.push({ key: m[1], cols, rows: rows.slice(0, 500) })
     }
     return out.sort((a, b) => a.key.localeCompare(b.key))
-  },
-  // 파일 목록 — 같은 종류 코드 파일 5개 넘는 폴더 · 이름 · 첫 설명 줄
-  files(files) {
-    const by = new Map()
-    for (const f of files) {
-      if (SKIP.test(f.path)) continue
-      const m = f.path.match(/^(.*)\/([^/]+)\.(js|mjs|ts|tsx|jsx|java|py|go|kt|cs|sql|xml)$/i)
-      if (!m) continue
-      const key = `${m[1]} · ${m[3].toLowerCase()}`
-      if (!by.has(key)) by.set(key, [])
-      const first = (f.text.split('\n').find((l) => /^\s*(\/\/|#|\*|--|\/\*\*?)\s*\S/.test(l)) || '').replace(/^\s*(\/\/|#|\*|--|\/\*\*?)\s*/, '').trim().slice(0, 80)
-      by.get(key).push([`${m[2]}.${m[3]}`, first])
-    }
-    return [...by.entries()].filter(([, r]) => r.length > 5).map(([key, rows]) => ({ key, cols: ['파일', '첫 설명'], rows: rows.sort((a, b) => a[0].localeCompare(b[0])) })).sort((a, b) => a.key.localeCompare(b.key))
   },
 }
 

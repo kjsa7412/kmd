@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url'
 import { loadKnowledge, sectionOf } from '../core/knowledge.js'
 import { formFor, RECORDS_DOC_PATH, RECORDS_INTRO, RECORDS_MONTH_TEXT } from '../core/guard.js'
 import { kindOf } from '../core/forms.js'
+import { KMD_PART_RE } from '../core/parts.js'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const FIX_DIR = path.join(ROOT, 'test/fixture/harness/빈지식')
@@ -124,7 +125,7 @@ export function scoreKnowledge(k, gold) {
 }
 // 과거 결정 카드의 recall(모델 없이 · 설계 9-3) — 기록마다 그 글(제목 + 본문 · kmd 가 단 칸은 뗀다)로 카드를 짓고, 그 기록이 건드린 항목이 정체 카드에 실리나.
 //   건드린 항목 가운데 지금 문서에 자리가 있는 것만 센다(폐기 줄은 정본으로). 걸린 길마다 따로 센다.
-const KMD_PARTS = /^## (넣은 것|넣지 못함|되돌린 항목|고친 조각|받아들인 경고|값 대조|이은 항목|새로 세움|지은 근거)[ \t\r]*$/
+const KMD_PARTS = KMD_PART_RE
 export async function recallOf(k, { n = 300 } = {}) {
   const { precedentsFor } = await import('../core/precedent.js')
   const { resolveName } = await import('../core/guard.js')
@@ -163,7 +164,7 @@ async function freshKn(dir, name) {
   await fs.mkdir(path.join(dir, 'docs'), { recursive: true })
   await fs.mkdir(path.join(dir, 'work'), { recursive: true })
   await fs.writeFile(path.join(dir, 'README.md'), `# ${name}\n`)
-  await fs.writeFile(path.join(dir, '_members.md'), ['# 사람', '', '- 저장 방식: 승인', ''].join('\n'))
+  await fs.writeFile(path.join(dir, '_members.md'), ['# 사람', ''].join('\n'))
   await fs.writeFile(path.join(dir, ...RECORDS_DOC_PATH.split('/')), `# 기록 모음\n\n${RECORDS_INTRO}\n`)
   const git = (...a) => execFileSync('git', a, { cwd: dir, stdio: 'pipe' })
   git('init', '-q')

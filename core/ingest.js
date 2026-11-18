@@ -4,7 +4,6 @@
 //   들이기 엔진(INTAKE_SCHEMA · 프롬프트 · draftToSave)은 S7 에 더했다(아래).
 
 import { sha16 } from './text.js'
-import { formFor, DEFAULT_FORMS } from './guard.js'
 import { kindOf as natureOfDoc } from './forms.js'
 import { weave } from './weave.js'
 import { valuesOf, groundedIn, judgeId } from './values.js'
@@ -37,11 +36,6 @@ export function ingestCandidates(k, w, max = 5) {
     .map(({ d }) => ({ doc: d.path, title: d.title, sections: d.sections.filter((s) => s.h).map((s) => ({ h: s.h, body: s.body.slice(0, 1500), base: sha16(s.body) })) }))
 }
 
-// 갈래 — 파일 이름 · 제목에 든 말로 고른다(Claude 없이). 문서 이름은 파일 이름이 아니라 갈래 · 주제(요구 15)
-//   갈래는 지식의 갈래 장부(`_forms.md` · core/guard.js) — 없으면 기본 갈래(회의록 · 장애 대응 · 보고서)
-export function kindOfName(s, forms = { rows: DEFAULT_FORMS }) {
-  return formFor(forms, s)?.name || null
-}
 // 날짜 — 파일 이름의 YYYY-MM-DD · YYYYMMDD · YYYY.MM.DD
 export const DATE_RE = /(20\d\d)[-._ ]?(0[1-9]|1[0-2])[-._ ]?(0[1-9]|[12]\d|3[01])/
 // 주제 — 파일 이름에서 날짜 · 번호 · 판 · 「최종」 같은 조각을 걷은 것(남는 것이 없으면 파일 이름)

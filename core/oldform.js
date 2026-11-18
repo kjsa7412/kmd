@@ -33,7 +33,8 @@ import { serial, localStamp, recordTaken } from './save.js'
 import { KmdError } from './errors.js'
 
 // 이행 판: 개인 지식의 .git/kmd-oldform 에 적는다(이 판을 지난 지식은 다시 돌리지 않는다)
-export const OLDFORM_VER = 1
+// 판 2(옛잔재 G5b): 개인 지식의 섹션 없는 문서 장부 줄(문서 한 벌)을 지운다
+export const OLDFORM_VER = 2
 export const MARK_FILE = 'kmd-oldform'
 
 // 기계 규칙 id: 셈 표의 차례
@@ -125,7 +126,7 @@ function reflectedState(k, s, w) {
   if (!w.touches.length) {
     if (s.reflected.has(w.id)) return 'in'
     if (w.tags.some((t) => t.startsWith('ingest/'))) return 'old'
-    return isLogRecord(w.tags) || INGEST(w) || w.curates.length || w.reopens.length ? 'none' : 'old'
+    return isLogRecord(w.tags) || INGEST(w) || (w.curates || []).length || w.reopens.length ? 'none' : 'old'
   }
   let any = false
   for (const c of w.touches) {
@@ -137,7 +138,24 @@ function reflectedState(k, s, w) {
   if (!any && w.tags.includes('code-change')) return s.reflected.has(w.id) ? 'in' : 'old'
   return any ? 'in' : 'none'
 }
-// 옛 상태 재료: 기록 · 이력 목록에서(머리말 reflects 는 frontmatter.js 가 읽는다)
+// core/frontmatter.js normCurates(2026-11-18 판): 옛 정리 기록 머리말 curates(지금 코드는 읽지 않는다 · G5b)
+function curatesOf(data) {
+  const v = data?.curates
+  if (v == null) return []
+  return (Array.isArray(v) ? v : [v])
+    .filter((x) => x && typeof x === 'object' && x.id && String(x.verdict || '').trim() === 'keep')
+    .map((x) => ({ id: nfc(String(x.id).trim()), verdict: 'keep' }))
+}
+// 기록 · 이력에 머리말 curates 를 단다(loadKnowledge 의 기록은 이 칸이 없다)
+async function withCurates(k, abs) {
+  for (const [sub, ws] of [['work', k.works], [LOG_DIR, k.logs]]) for (const w of ws) {
+    if (w.curates) continue
+    const text = await readOr(path.join(abs, sub, `${w.id}.md`))
+    w.curates = text == null ? [] : curatesOf(splitFrontmatter(text).data)
+  }
+  return k
+}
+// 옛 상태 재료: 기록 · 이력 목록에서(머리말 reflects 는 frontmatter.js 가 · curates 는 위 curatesOf 가 읽는다)
 function oldView(all) {
   return {
     reflected: new Set(all.flatMap((w) => w.reflects || [])),
@@ -914,7 +932,7 @@ export function heldToLeft(body) {
 // 지식 하나 읽기: loadKnowledge 의 것에 기록 파일 글 · 머리말 칸을 더한다
 async function readAll(dir) {
   const abs = path.resolve(dir)
-  const k = await loadKnowledge({ id: path.basename(abs), name: path.basename(abs), dir: abs })
+  const k = await withCurates(await loadKnowledge({ id: path.basename(abs), name: path.basename(abs), dir: abs }), abs)
   const files = await walk(abs)
   const recs = new Map() // id → { path, text, data, r }
   for (const p of files) {
@@ -923,7 +941,9 @@ async function readAll(dir) {
     if (text == null) continue
     const r = parseRecord(text, path.basename(p))
     if (!r) continue
-    recs.set(r.id, { path: p, text, data: splitFrontmatter(text).data || {}, r })
+    const data = splitFrontmatter(text).data || {}
+    r.curates = curatesOf(data)
+    recs.set(r.id, { path: p, text, data, r })
   }
   return { abs, k, files, recs }
 }
@@ -1016,7 +1036,11 @@ export async function plan(dir, { personal = false, drop: drop0 = [] } = {}) {
       if (a !== nl(t)) await write('_managed.md', a, 'registry.head', '옛 제목 · 표 머리 · 덧칸 · 설명 단락 → 「# 문서 장부」 한 표')
       const { odd } = registryRows(nl(t))
       J('문서 장부의 읽히지 않는 줄(그대로 옮겨 둠)', `_managed.md ${odd.join(' · ')}줄`, odd.length, '항목 · 문서 · 머리 꼴이 아니다')
-      J('섹션 없는 문서 장부 줄(문서 한 벌 · O-2)', '_managed.md', nl(t).split('\n').filter((l) => WHOLE_RE.test(l)).length, '그 문서의 대표 항목으로 retire 하거나 줄을 지운다(kmd-migrate put 의 ledger unplace)')
+      // 섹션 없는 문서 장부 줄(문서 한 벌 · O-2): 지금 읽기(core/registry.js)는 읽지 않는다. 팀은 사람이 고르고, 개인은 줄을 지운다(판단 칸이 판 표시 뒤 굳지 않게)
+      const now = nl(await textOf('_managed.md'))
+      const whole = now.split('\n').filter((l) => WHOLE_RE.test(l))
+      if (personal && whole.length) await write('_managed.md', now.split('\n').filter((l) => !WHOLE_RE.test(l)).join('\n'), 'registry.head', '섹션 없는 문서 한 벌 줄(읽히지 않는 줄)', whole.length)
+      else J('섹션 없는 문서 장부 줄(문서 한 벌 · O-2)', '_managed.md', whole.length, '그 문서의 대표 항목으로 retire 하거나 줄을 지운다(kmd-migrate put 의 ledger unplace)')
     }
   }
   {
@@ -1246,7 +1270,7 @@ export async function verifyPlan(dir, p) {
       if (t == null) await fs.rm(to, { force: true })
       else { await fs.mkdir(path.dirname(to), { recursive: true }); await fs.writeFile(to, t) }
     }
-    const A = await loadKnowledge({ id: 'a', name: 'a', dir: abs })
+    const A = await withCurates(await loadKnowledge({ id: 'a', name: 'a', dir: abs }), abs)
     const B = await loadKnowledge({ id: 'b', name: 'b', dir: tmp })
     const why = []
     const gone = new Set([...(p.gone || []), ...(p.moved || [])])

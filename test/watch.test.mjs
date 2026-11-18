@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { stats, scanFolder, readLedger } from '../core/watch.js'
 import { copyDir } from './helpers.mjs'
-import { writeDecl, readDecl } from '../core/sources.js'
+import { editDecl } from '../core/sources.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s, src, repo, kdir
@@ -23,7 +23,7 @@ const commits = () => Number(G(kdir, 'rev-list', '--count', 'HEAD'))
 // 표 규칙 · 코드 폴더는 새로 더하지 않는다(소스 코드는 git 커밋) — 감시 엔진은 예전 선언을 직접 적어 본다
 const legacyAdd = async (x) => {
   const src0 = { ...x, by: 'kim', since: '2026-10-23' }
-  await writeDecl(kdir, [...(await readDecl(kdir)), src0], { user: 'kim', title: `가져오는 곳 더함: ${x.name}` })
+  await editDecl(kdir, (cur) => [...cur, src0], { user: 'kim', title: `가져오는 곳 더함: ${x.name}` })
   s.hub.forget('dpms')
   s.hub.watchSource('dpms', src0)
   return { source: src0, run: await s.hub.sourceRun('dpms', x.name, { first: true }) }

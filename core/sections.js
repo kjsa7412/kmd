@@ -246,7 +246,7 @@ export function parseDoc(text, fallbackTitle) {
   }
 }
 
-// 머리 항목 맞추기 — 「rp_mst: 연구과제마스터」(옛 꼴 「rp_mst — 연구과제마스터」) 는 값 rp_mst 의 항목이다
+// 머리 항목 맞추기: 「rp_mst: 연구과제마스터」 는 값 rp_mst 의 항목이다 · 「배포」 로 「배포 절차」 를 집는 빈칸 앞부분 맞춤(찾기 · section · from · 링크)도 지금 길이다
 export function headingMatches(heading, want) {
   const a = heading.normalize('NFC')
   const b = want.normalize('NFC')
@@ -347,7 +347,7 @@ const linkId = (id) => encodeURI(id).replace(/\(/g, '%28').replace(/\)/g, '%29')
 // 기록 하나의 참고 줄: 링크는 그 문서에서 본 상대 경로(docs/X.md 면 ../work/…) · note 는 뒤에 붙는 한 마디
 export function logLine(docRel, w, note = '') {
   const up = '../'.repeat(String(docRel).split('/').length - 1)
-  const title = String(w.title || w.id).split(/ — |: /)[0].replace(/[[\]]/g, '').trim()
+  const title = String(w.title || w.id).split(/: /)[0].replace(/[[\]]/g, '').trim()
   return `- ${String(w.date || '').slice(0, 10)} [${title}](${up}${w.sub || 'work'}/${linkId(w.id)}.md)${note ? ` · ${note}` : ''}`
 }
 export const logHas = (log, id) => log.some((l) => l.includes(`/${linkId(id)}.md)`) || l.includes(`/${id}.md)`))

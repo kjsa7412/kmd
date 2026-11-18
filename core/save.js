@@ -10,14 +10,14 @@
 // 항목 글은 본문만이다(docs/kmd_문서_작성기준.md). 출처 줄은 저장이 문서 끝 참고 블록에 단다.
 // 사람 · 세션 · 에이전트의 글에 기록 링크 · 시스템 주소 · 주석 · 경과 꼬리 · 머리 줄이 섞이면 E_FORMAT 으로 거절한다.
 //
-// 저장 문(docs/품질개선/KMD_개편_설계.md 3-2 · S3) — 옵션을 주지 않으면 옛 저장과 결과가 같다.
+// 저장 문(docs/품질개선/KMD_개편_설계.md 3-2 · S3)
 //   prepare   같은 줄(serial) 안 · 남은 저널을 되돌린 다음에 부른다 → { sections?, held?, proposals?, warnings? } | { abort: { same, id } }
 //             돌려준 sections 도 입력과 같은 검사(guardSections)를 거친다
 //   intake    { tags } — 들이기 일감의 저장. 예약 사람 kmd · 저장 문이 붙이는 예약 태그(intake · job/<id> · code-change · polish)
 //   asEdit    edit 태그 하나를 받는다(사람의 화면 고치기) · structure — 항목 지우기 · 이름 바꾸기를 받는다(지식관리자 화면 고치기)
 //   correction 좌표정정(touches-fix) 판정을 건너뛴다(서버가 정한 다시 저장) · onCommit — 커밋 뒤 줄을 놓기 전에(던져도 log 만)
 //   intake · approve 저장은 넣은 항목을 기록 끝 `## 넣은 것`(태그 put) 칸으로 남긴다(core/parts.js) · 넣지 못함(held)은 쓰지 않는다(저장 승인 P11):
-//             항목 하나라도 못 넣으면(넣을 곳 없음 · 문서 꼴 · 저절로 채우는 표 · prepare 의 held) 아무것도 쓰지 않고 입력 오류다
+//             항목 하나라도 못 넣으면(넣을 곳 없음 · 문서 꼴 · prepare 의 held) 아무것도 쓰지 않고 입력 오류다
 //   approve   { accepted, values?, linked, fresh } — approve 모드 저장 문(무인 채널은 intake 와 같이 · values = `## 값 대조` · P6)(저장 승인 설계 P3 · hub saveIn 만 단다): 넣지 못함 없이 들어감 하나(태그 put ·
 //             `## 넣은 것` · 글 그대로 이은 항목 `## 이은 항목` · 승인한 경고 `## 받아들인 경고` · 새로 세운 것 `## 새로 세움` · core/parts.js)
 //   record.memo 는 받지 않는다(메모는 걷었다 · P11 · P12) · input.attach — docs/assets/ 아래 첨부(같은 저널 · 같은 커밋)
@@ -37,7 +37,6 @@ import { lintFormNew, formMessage } from './formcheck.js'
 import { kindOf } from './forms.js'
 import { isReservedUser, isReservedTag, isLogRecord, LOG_DIR } from './names.js'
 import { isReservedFile } from './owners.js'
-import { keepBlocks, hasBlockMarker } from './baseline.js'
 import { locate, parseRegistry } from './registry.js'
 import { parseVocab } from './vocab.js'
 import { ensureRepo, commitPaths, headSha } from './git.js'
@@ -71,7 +70,7 @@ export function localStamp(d = new Date()) {
 // 파일 이름 조각 — 제목의 앞부분 · 파일 이름에 못 쓰는 글자는 뺀다
 function slugOf(title) {
   const s = nfc(title)
-    .split(/\s+[—–-]\s+|:\s+/)[0]
+    .split(/\s+-\s+|:\s+/)[0]
     .replace(/[\\/:*?"<>|#%`'\u0000-\u001f]/g, '')
     .trim()
     .replace(/\s+/g, '-')
@@ -167,7 +166,7 @@ function heldRow(s, code, why, extra = {}) {
 }
 
 // 항목 검사(S-D44) — 입력 sections 와 prepare 가 돌려준 sections 에 둘 다 돈다.
-//   지우기 · 이름 바꾸기는 system 이나 structure(지식관리자 화면 고치기)만 · 저절로 채우는 표 표지는 거절(machine)
+//   지우기 · 이름 바꾸기는 system 이나 structure(지식관리자 화면 고치기)만
 function guardSections(secs, { system = false, structure = false } = {}) {
   const keep = []
   for (const s of secs) {
@@ -175,10 +174,6 @@ function guardSections(secs, { system = false, structure = false } = {}) {
     if (s.doc != null && isReservedFile(relOf(s.doc))) fail('E_FORBIDDEN', `kmd 가 쓰는 파일이다: ${s.doc}`)
     // 기록 모음(P-D29 · Q12) — 달 항목은 기록이 이어지는 자리라 지우기 · 이름 바꾸기를 막는다(짜임 · kmd 자신의 쓰기는 system)
     if (!system && (s.remove || s.rename != null) && s.doc != null && relOf(s.doc) === RECORDS_DOC_PATH) fail('E_FORBIDDEN', '기록 모음의 항목은 지우거나 이름을 바꾸지 않는다')
-    if (!system && hasBlockMarker(s.content ?? '')) {
-      const why = '저절로 채우는 표는 kmd 가 원천에서 채운다. 고치지 않는다'
-      fail('E_FORBIDDEN', why, { need: 'machine' })
-    }
     keep.push(s)
   }
   return { secs: keep }
@@ -240,7 +235,7 @@ export function save(dir, input, { user, now = new Date(), system = false, guard
   // 예약 태그 — 입력으로는 받지 않는다(저장 문이 붙이는 것은 아래 serverTags) · asEdit 은 edit 하나만
   const bad = (input.record.tags || []).filter(isReservedTag).filter((t) => !(asEdit && String(t).trim() === 'edit'))
   if (bad.length && !system) fail('E_FORBIDDEN', `kmd 가 쓰는 태그다: ${bad.join(' · ')}`)
-  if (!system && (input.record.curates?.length || input.record.reopens?.length || input.record.reflects?.length)) fail('E_FORBIDDEN', '정리 판정은 kmd 가 쓴다')
+  if (!system && (input.record.reopens?.length || input.record.reflects?.length)) fail('E_FORBIDDEN', '되돌림 · 넣은 기록 칸은 kmd 가 쓴다')
   let serverTags = []
   if (intake) {
     const t = intake.tags ?? []
@@ -259,7 +254,7 @@ export function save(dir, input, { user, now = new Date(), system = false, guard
     if (!secs0.length || secs0.some((s) => s.base == null || s.remove || s.rename != null || s.new || s.before != null)) fail('E_INPUT', '서식 맞춤은 있는 항목의 글만 바꾼다(지문 필수 · 새 항목 · 지우기 · 이름 바꾸기 없음)')
     serverTags = ['format']
   }
-  // 항목 지우기 · 이름 바꾸기 — 화면의 고치기(지식관리자)만 · 저절로 채우는 표는 고치지 않는다
+  // 항목 지우기 · 이름 바꾸기: 화면의 고치기(지식관리자)만
   const g0 = guardSections(secs0, { system, structure })
   // 문서 꼴(작성기준 8절) — 사람 · 세션 · 에이전트의 항목 글은 본문만. 지금 글과 견주어야 하므로 saveNow 에서 본다
   //   (kmd 자신의 쓰기는 고쳐서 넣는다)
@@ -280,7 +275,7 @@ export function save(dir, input, { user, now = new Date(), system = false, guard
     if (prepare) {
       prep = (await prepare()) || {}
       // 같은 저장(S-D16 · S-D48) — 아무것도 쓰지 않는다
-      //   무인 채널(P6)의 판정 오류 — 아무것도 쓰지 않고 오류를 돌려준다(부른 쪽이 FIX 고리 · 규칙 길로)
+      //   무인 채널(P6)의 판정 오류: 아무것도 쓰지 않고 오류를 돌려준다(부른 쪽이 고쳐 받기 · 일감이 다시 시도한다)
       if (prep.abort) return { same: !!prep.abort.same, id: prep.abort.id ?? null, ...(Array.isArray(prep.abort.errors) ? { errors: prep.abort.errors } : {}), ...(prep.abort.ask ? { ask: prep.abort.ask } : {}) }
       if (prep.sections != null) {
         const g = guardSections(sectionShape(prep.sections, { many: !system }), { system, structure })
@@ -416,7 +411,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
   }
   // 가드 G2 · G3 — 건드린 항목은 장부에 있는 것 · 항목 없는 기록은 까닭과 함께
   //   (항목 글로 가리킨 항목은 위에서 touches 에 들었다 · 문서 · 머리로 가리킨 항목은 이 기록의 자리다 — 넣지 못한 항목도 이 기록이 가리킨 자리다)
-  //   저절로 채우는 표(guardSections) · prepare 가 넣지 못함으로 돌린 항목도 같다 — 모두 넣지 못함이어도 「항목 없는 기록」 이 아니다(S-D8 · S3 검토)
+  //   prepare 가 넣지 못함으로 돌린 항목도 같다: 모두 넣지 못함이어도 「항목 없는 기록」 이 아니다(S-D8 · S3 검토)
   const placed = secs.some((p) => !p.remove && p.rename == null) || held.some((x) => x.doc || x.coord)
   const g = guardRecord(vocab, { ...r, touches, ...(placed ? { tags: [...(r.tags || []), 'at/'] } : {}) }, { mode, proposed, why: holdWhy })
   if (g.errors.length) guardFail(g.errors)
@@ -550,7 +545,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
   let id = base
   for (let n = 2; await recordTaken(dir, id); n++) id = `${base}-${n}`
 
-  const rec = { id, title: nfc(r.title.trim()), date, author: user, touches, touchesEmpty, tags: allTags, fixes: (r.fixes || []).map((x) => nfc(x.trim())), curates: r.curates || [], reopens: r.reopens || [], reflects: r.reflects || [] }
+  const rec = { id, title: nfc(r.title.trim()), date, author: user, touches, touchesEmpty, tags: allTags, fixes: (r.fixes || []).map((x) => nfc(x.trim())), reopens: r.reopens || [], reflects: r.reflects || [] }
   if (!system && !correction && (await isTouchesFix(dir, { ...rec, body: r.body }, touches, registry))) rec.tags.push('touches-fix')
   // 본문 끝 칸 — 넣은 것 · 이은 항목 · 받아들인 경고 · 값 대조 · 새로 세움
   let body = nfc(r.body)
@@ -592,10 +587,8 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
       const start = raw == null ? `# ${path.basename(p.rel, '.md')}\n${sum0 ? `\n${sum0}\n` : ''}` : readText(raw)
       // 새 문서는 kmd 가 세운 「# 이름」 과 견준다(요약이 없는 것은 이 저장 탓이 아니다)
       if (!shape.has(p.rel)) shape.set(p.rel, { before: start, after: null })
-      // 사람 · 세션의 저장은 그 항목의 저절로 채우는 표를 그대로 둔다(블록 안은 원천 실행기 · 기계 열쇠만)
       let content = nfc(p.content ?? '')
       const old = findHeading(parseDoc(start, '').sections, p.heading)
-      if (!system && old) content = keepBlocks(old.body, content)
       // 참고 줄(작성기준 2-1) — 옛 줄은 지키고(보낸 글에 없어도) 이번 기록의 줄을 더한다 · 문서 끝 참고 블록에 쓴다(본문에는 넣지 않는다)
       //   kmd 자신의 쓰기에 섞인 경과 꼬리 · 참고 블록은 떼어 줄로 옮긴다(사람 · 세션의 것은 save 의 검사가 이미 거절했다)
       let log

@@ -12,7 +12,7 @@ import { loadKnowledge } from '../core/knowledge.js'
 import { locate } from '../core/registry.js'
 import { parseDoc, replaceSection, removeSection, renameSection } from '../core/sections.js'
 import { parsePut } from '../core/parts.js'
-import { plan, apply, runOnce, verifyPlan, oldStates, convertDoc, verifyConvert, vocabDash, registryHead, membersFix, formsNewdoc, formsHead, MARK_FILE } from '../core/oldform.js'
+import { plan, apply, runOnce, verifyPlan, oldStates, convertDoc, verifyConvert, vocabDash, registryHead, membersFix, formsNewdoc, formsHead, MARK_FILE, OLDFORM_VER } from '../core/oldform.js'
 import { main } from '../scripts/kmd-migrate.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -214,7 +214,7 @@ test('개인 지식: 한 번 이행(runOnce) · 옛 표지 기록은 남은 것 
   const r = await runOnce(dir, { personal: true, user: 'kim' })
   assert.equal(r.skipped, false)
   assert.ok(r.commit)
-  assert.equal(fs.readFileSync(path.join(dir, '.git', MARK_FILE), 'utf8').trim(), '1')
+  assert.equal(fs.readFileSync(path.join(dir, '.git', MARK_FILE), 'utf8').trim(), String(OLDFORM_VER))
   const held = read(dir, 'work/2026-0105-넣지-못함.md')
   assert.doesNotMatch(held, /^\s+- held$/m)
   assert.doesNotMatch(held, /## 넣지 못함|```json/)
@@ -260,7 +260,7 @@ test('runOnce: 판 표시가 지금 판보다 낮으면 다시 돈다', async ()
   const r = await runOnce(dir, { personal: true, user: 'kim' })
   assert.equal(r.skipped, false)
   assert.ok(r.commit)
-  assert.equal(fs.readFileSync(path.join(dir, '.git', MARK_FILE), 'utf8').trim(), '1')
+  assert.equal(fs.readFileSync(path.join(dir, '.git', MARK_FILE), 'utf8').trim(), String(OLDFORM_VER))
   assert.equal((await runOnce(dir, { personal: true, user: 'kim' })).skipped, true)
 })
 

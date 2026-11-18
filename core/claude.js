@@ -215,7 +215,7 @@ export function parse({ code, so, se }) {
   // 끝 JSON 의 수치 — 시간 · 토큰 · 비용 · 턴(정리 장부 · 일꾼 기록이 자리마다 남긴다)
   const stat = j ? { cost: j.total_cost_usd || 0, model: j.model || null, apiMs: j.duration_api_ms || j.duration_ms || 0, tokens: (j.usage?.output_tokens || 0) + (j.usage?.input_tokens || 0), outTokens: j.usage?.output_tokens || 0, turns: j.num_turns || 0 } : {}
   if (!j || j.is_error || code) {
-    // claude 가 이 PC 에 없다 — 자리마다 다시 불러도 같다(일꾼은 멈추고 서버가 규칙으로 넣는다)
+    // claude 가 이 PC 에 없다: 자리마다 다시 불러도 같다(일꾼은 멈추고 일감은 기다린다)
     if (!j && /ENOENT|not found|is not recognized/i.test(se || '')) return { error: 'missing', message: 'Claude Code(claude) 가 설치되어 있지 않다' }
     // 까닭은 subtype(error_max_budget_usd · error_max_turns · error_during_execution)이 먼저 — 「종료 1」 만으로는 무엇인지 모른다 ·
     //   subtype 이 말하면 글로 가르지 않는다: 글 속 「limit · auth」 같은 낱말이 일꾼 전체를 멈추던 것(로그인 · 한도는 STOP)

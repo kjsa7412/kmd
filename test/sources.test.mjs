@@ -13,7 +13,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { startServer } from '../server/http.js'
 import { copyDir, signIn, seat } from './helpers.mjs'
-import { writeDecl, readDecl } from '../core/sources.js'
+import { editDecl } from '../core/sources.js'
 import { sha16 } from '../core/text.js'
 import { sectionOf } from '../core/knowledge.js'
 
@@ -50,7 +50,7 @@ const mdOf = (j) => fs.readFileSync(path.join(tmp, 'kn', '.kmd', 'queue', `${j.i
 test('잇기: 바뀐 표만 원천 글로 들이기에 넘긴다(문서에 바로 쓰지 않는다) · 같은 원천 두 번 → 일감 0 · 바뀐 판 → 그 표만', async () => {
   // 코드 폴더는 새로 더하지 못한다 — 예전 선언은 그대로 돈다
   assert.equal(await code(s.hub.sourceAdd(ADMIN, 'dpms', { name: 'x', kind: 'folder', at: src, rules: [] })), 'E_INPUT')
-  await writeDecl(kdir, [...(await readDecl(kdir)), { name: 'dpms-api 코드', kind: 'folder', at: src, every: 'hourly', rules: [{ rule: 'deps', into: { doc: '배포절차', heading: '꾸러미 판' } }, { rule: 'tables', paths: ['data'], into: { doc: '코드표' } }], by: 'kim', since: '2026-10-23' }], { user: 'kim', title: '가져오는 곳 더함. dpms-api 코드' })
+  await editDecl(kdir, (cur) => [...cur, { name: 'dpms-api 코드', kind: 'folder', at: src, every: 'hourly', rules: [{ rule: 'deps', into: { doc: '배포절차', heading: '꾸러미 판' } }, { rule: 'tables', paths: ['data'], into: { doc: '코드표' } }], by: 'kim', since: '2026-10-23' }], { user: 'kim', title: '가져오는 곳 더함. dpms-api 코드' })
   s.hub.forget('dpms')
   const n0 = commits()
   const before = doc('배포절차')

@@ -169,7 +169,7 @@ export function proposeInputWhy(input) {
 }
 
 // 자리가 있는 기록 — 건드린 항목이 없어도 들어갈 곳이 정해진 것(화면의 항목 고침 at/ · 넣은 파일 ingest/) · kmd 의 일(이력 · 정리)
-export const hasPlace = (rec) => (rec.tags || []).some((t) => /^(at|ingest)\//.test(t)) || isLogRecord(rec.tags) || (rec.reflects || []).length > 0 || (rec.curates || []).length > 0 || (rec.reopens || []).length > 0
+export const hasPlace = (rec) => (rec.tags || []).some((t) => /^(at|ingest)\//.test(t)) || isLogRecord(rec.tags) || (rec.reflects || []).length > 0 || (rec.reopens || []).length > 0
 
 // 기록 하나 — touches · touchesEmpty 를 판정한다
 //   vocab    — 이 저장 뒤의 항목 장부(같은 묶음에서 세운 항목이 들어 있다)

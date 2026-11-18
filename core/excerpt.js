@@ -7,7 +7,6 @@
 // 값은 원문 그대로 남고 모델은 자리 · 잇는 말 · 바뀐 값만 쓴다.
 
 import { headingMatches } from './sections.js'
-import { splitBlocks } from './baseline.js'
 import { sectionOf } from './knowledge.js'
 import { KmdError } from './errors.js'
 
@@ -115,9 +114,8 @@ export function expandSections(k, w, sections) {
     if (!content) throw new KmdError('E_INPUT', '항목 글이 비었다. content 또는 from 을 준다')
     if (append) {
       const cur = s.coord ? sectionOf(k, String(s.coord).trim().normalize('NFC'))?.sec : k.docs.find((d) => d.id === String(s.doc || '').replace(/^docs\/|\.md$/g, ''))?.sections.find((y) => headingMatches(y.h, String(s.heading || '')))
-      // section 이 주는 content 와 같은 글(sec.body · 본문만 — 참고 줄은 문서 끝 참고 블록) 끝에.
-      //   저절로 채우는 표는 빼고 붙인다 — 저장이 원래 표를 항목 끝에 다시 단다(블록 표지가 든 글은 받지 않으므로)
-      const now = splitBlocks(cur?.body || '').text.replace(/\u0000block\d+\u0000/g, '').replace(/\n{3,}/g, '\n\n').trim()
+      // section 이 주는 content 와 같은 글(sec.body · 본문만 · 참고 줄은 문서 끝 참고 블록) 끝에
+      const now = String(cur?.body || '').trim()
       content = [now, content].filter(Boolean).join('\n\n')
     }
     return { ...rest, content }

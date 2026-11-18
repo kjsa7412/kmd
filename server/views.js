@@ -8,7 +8,6 @@ import path from 'node:path'
 import { coordsOfSection, labelOf, sectionOf, reflectedIn } from '../core/knowledge.js'
 import { parsePut, parseLinked, itemKey } from '../core/parts.js'
 import { sha16 } from '../core/text.js'
-import { splitBlocks, parseTable } from '../core/baseline.js'
 import { parseRefLine, headingMatches } from '../core/sections.js'
 import { levelOf, eachLive } from '../core/levels.js'
 import { RECORDS_DOC } from '../core/guard.js'
@@ -124,19 +123,6 @@ function itemTarget(k, d, h0) {
 }
 
 // 문단 안의 줄바꿈은 줄마다 문단으로 — 목업(paras)이 줄 하나를 <p> 하나로 그린다
-// 저절로 채우는 표(기준선 블록)는 목업의 auto 상자로(편집기에서는 회색 잠금)
-const SYNC = '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5l2 2 M20 12a8 8 0 0 1-14 5l-2-2 M20 4v5h-5 M4 20v-5h5"/></svg>'
-const LOCK = '<svg viewBox="0 0 24 24"><path d="M6 11h12v10H6z M9 11V8a3 3 0 0 1 6 0v3"/></svg>'
-const hm = (iso) => {
-  if (!iso) return '아직'
-  const d = new Date(iso)
-  const p = (n) => String(n).padStart(2, '0')
-  return isNaN(d) ? String(iso).slice(5, 16) : `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
-}
-export function autoHtml(b, { checked = null, lock = false } = {}) {
-  const t = parseTable(b.table)
-  return `<div class="auto${lock ? ' lock' : ''}" data-t="${lock ? 'autoLock' : 'auto'}"><div class="ah">${SYNC} <b>저절로 채우는 표</b> · ${esc(b.src)} · ${esc(String(b.asof).slice(5, 16))} 부터 · ${esc(hm(checked))} 확인</div><table class="t"><tr>${t.cols.map((c) => `<th>${esc(c)}</th>`).join('')}</tr>${t.rows.map((r) => `<tr>${t.cols.map((_, i) => `<td>${esc(r[i] ?? '')}</td>`).join('')}</tr>`).join('')}</table>${lock ? `<div class="lkl">${LOCK} ${esc(b.src)}에서 저절로: 여기서는 고치지 않는다</div>` : ''}${b.missing ? `<div class="lkl">원천에 없다: ${esc(b.missing.slice(5))} 확인</div>` : ''}</div>`
-}
 // 수준 표시 줄(작성기준 5-1절 · 컨벤션 「문서 표시」) — md 목록으로 넘기지 않고 먼저 떼어 그린다(번호를 다시 매기지 않는다)
 //   글은 들여쓰지 않고 줄 머리 표시로 쓰고(쓰는 규칙), 화면은 그 표시를 읽어 짜임대로 그린다(그리는 규칙):
 //   - 라벨 줄(「- **이름**: …」)은 라벨 칸 + 내용 칸 · 바로 아래 「*」 줄과 표 · 울타리는 그 내용 칸 안(다음 라벨 · 수준 줄 · 문단 · 머리에서 닫는다)
@@ -186,13 +172,11 @@ function levelLines(text) {
   return { text: lines.join('\n'), lv, lbs }
 }
 const plainOf = (h) => h.replace(/<[^>]+>/g, '').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim()
-export function render(k, fromPath, text, { src = {} } = {}) {
+export function render(k, fromPath, text) {
   const env = { k, fromPath }
-  const { text: t0, blocks } = splitBlocks(String(text || ''))
-  const { text: t, lv, lbs } = levelLines(t0)
-  const html = md.render(t.replace(/\u0000block(\d+)\u0000/g, '\n\nKMDBLOCK$1\n\n'), env).replace(/<p>([\s\S]*?)<\/p>/g, (all, inner) => inner.split('<br>\n').map((x) => `<p>${x}</p>`).join('\n'))
+  const { text: t, lv, lbs } = levelLines(String(text || ''))
+  const html = md.render(t, env).replace(/<p>([\s\S]*?)<\/p>/g, (all, inner) => inner.split('<br>\n').map((x) => `<p>${x}</p>`).join('\n'))
   return html
-    .replace(/<p>KMDBLOCK(\d+)<\/p>/g, (_, n) => autoHtml(blocks[Number(n)], { checked: src[blocks[Number(n)].src]?.checkedAt }))
     .replace(/<p>KMDLBO(\d+)<\/p>/g, (_, n) => {
       const b = lbs[Number(n)]
       return `<div class="lbr" data-t="lbRow"><div class="lbn">${esc(b.name)}</div><div class="lbv">${b.rest.trim() ? `<p>${md.renderInline(b.rest, env)}</p>` : ''}`
@@ -207,11 +191,8 @@ export function render(k, fromPath, text, { src = {} } = {}) {
       return `<div class="lv l${x.n}${x.d ? ` d${x.d}` : ''}"${x.n <= 3 ? ` data-lv="${esc(plainOf(inner))}"` : ''}>${mark}<span class="lvx">${inner}</span></div>`
     })
 }
-// 편집기용 — 블록 뺀 글 · 잠긴 표
-export function editParts(body, { src = {} } = {}) {
-  const { text, blocks } = splitBlocks(String(body || ''))
-  return { md: text.replace(/\u0000block\d+\u0000/g, '').replace(/\n{3,}/g, '\n\n').trim(), locks: blocks.map((b) => autoHtml(b, { checked: src[b.src]?.checkedAt, lock: true })).join('') }
-}
+// 편집기용 글
+export const editParts = (body) => ({ md: String(body || '').replace(/\n{3,}/g, '\n\n').trim() })
 
 // 링크 모양 — 문서 'dlink doc' · 항목 'dlink item' · 없는 문서 'dlink doc missing' · 기록 · 이력 'dlink rec' · 바깥 'xlink'(새 창) ·
 // 열 수 없는 것은 <span class="deadlink">(눌러지는 것처럼 보이지 않게)
@@ -439,7 +420,7 @@ function originsOf(k, d) {
 
 export const atTag = (docId, heading) => 'at/' + sha16(`${docId}\n${String(heading).normalize('NFC')}`).slice(0, 12)
 // edit — 편집기용 md · 잠긴 표도 싣는다(Q84 · 읽기만 할 때는 본문이 두 번 실리지 않게 · 「고치기」 를 누를 때 ?edit=1 로)
-export function docView(k, docId, { src = {}, edit = false } = {}) {
+export function docView(k, docId, { edit = false } = {}) {
   const d = k.docs.find((x) => x.id === docId)
   if (!d) return null
   const last = [...d.sections.map((s) => s.applied && k.byWork.get(s.applied)), d.rec && k.byWork.get(d.rec)].filter(Boolean).sort((a, b) => b.date.localeCompare(a.date))[0]
@@ -453,8 +434,8 @@ export function docView(k, docId, { src = {}, edit = false } = {}) {
     return {
       h: s.h,
       // 본문만 — 출처(refs)는 화면이 참고 칸으로 따로 그린다
-      html: render(k, d.path, s.body, { src }),
-      ...(edit ? editParts(s.body, { src }) : {}),
+      html: render(k, d.path, s.body),
+      ...(edit ? editParts(s.body) : {}),
 
       base: sha16(s.body),
       recs: recs.length,
@@ -470,7 +451,7 @@ export function docView(k, docId, { src = {}, edit = false } = {}) {
     title: d.title,
     path: d.path,
     when: d.mtime,
-    intro: d.intro ? render(k, d.path, d.intro, { src }) : '',
+    intro: d.intro ? render(k, d.path, d.intro) : '',
     sections,
     // 출처 요약 — 항목마다 참고 줄 수
     refs: { n: sections.reduce((a, s) => a + s.refs.length, 0), items: sections.filter((s) => s.refs.length).map((s) => ({ h: s.h, n: s.refs.length })), doc: (d.docLog || []).map((l) => refOf(d.path, l, k)) },
@@ -655,25 +636,17 @@ export function model(k) {
     }
     if (hit.size) uses[it.key] = [...hit].sort()
   }
-  // 가져올 곳 — 항목 글 안 블록의 원천 이름(그래프의 「채운다」 선)
-  const sources = {}
-  for (const it of items) {
-    if (!it.doc) continue
-    const d = k.docs.find((x) => x.id === it.doc)
-    const s = d?.sections.find((x) => x.h === it.sec)
-    for (const b of s ? splitBlocks(s.body).blocks : []) (sources[b.src] ||= []).push(it.key)
-  }
-  const m = { items, docs, recs, uses, sources: Object.entries(sources).map(([name, keys]) => ({ id: name, name, items: keys })) }
+  const m = { items, docs, recs, uses }
   models.set(k, m)
   return m
 }
 
 // 항목 한 장 — 지금 글(그 문서 안의 그 부분)
-export function itemView(k, key, { src = {} } = {}) {
+export function itemView(k, key) {
   const it = model(k).items.find((x) => x.key === key)
   if (!it) return null
   const d = it.doc && k.docs.find((x) => x.id === it.doc)
   const s = d && d.sections.find((x) => x.h === it.sec)
   const by = s?.applied && k.byWork.get(s.applied)
-  return { ...it, docTitle: d ? d.title : null, html: s ? render(k, d.path, s.body, { src }) : null, by: by ? { id: by.id, date: by.date, author: by.author } : null }
+  return { ...it, docTitle: d ? d.title : null, html: s ? render(k, d.path, s.body) : null, by: by ? { id: by.id, date: by.date, author: by.author } : null }
 }

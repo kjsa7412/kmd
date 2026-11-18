@@ -20,7 +20,6 @@ import { parseForms, formsOf, formFor, headingFits, formHeadRule, FORM_KINDS, RE
 import { cleanForms } from './namebook.js'
 import { nameProblem, stepFp, brokenLinks } from './restructure.js'
 import { coordsOfSection } from './knowledge.js'
-import { hasBlockMarker } from './baseline.js'
 import { judgeId } from './values.js'
 import { WRITE_RULES } from './writerules.js'
 
@@ -333,8 +332,6 @@ export function planCheck(k, S, Pl) {
     for (const s of u.sources) {
       const dObj = k?.byDocPath.get(`docs/${s.doc}.md`)
       const sec = dObj?.sections.find((x) => x.h === s.h)
-      // 저절로 채우는 표 — 걷히는 출처(keep 이 아닌)면 표와 원천 규칙(_sources.json into)의 고리가 끊긴다. 항목째 옮기기(frame)나 제자리 고쳐 쓰기만
-      if (!s.keep && sec && hasBlockMarker(sec.body)) err(`${s.doc} › ${s.h}`, '저절로 채우는 표가 든 항목은 나누거나 합쳐 걷지 않는다(항목째 옮기거나 같은 머리로 남긴다)', 'machine')
       for (const c of s.coords) {
         const at = nameAt.get(c)
         if (!at || !u.targets.some((t) => t.doc === at.doc && t.h === at.h)) err(c, `「${s.doc} › ${s.h}」 에 닿던 장부 항목을 새 항목(${u.targets.map((t) => t.h).join(' · ')}) 가운데 하나에 놓는다(names)`, 'names')

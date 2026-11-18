@@ -1,7 +1,7 @@
 import zlib from 'node:zlib'
 // HTTP 서버 — 화면(app/) · 화면 자료(/api) · MCP(/mcp) · 들어가기 · 살아 있나(/healthz) 를 한 포트로.
 //
-// 누구인가 — 요청마다 한 번: Bearer 열쇠(기기 kmdk_ · 기계 kmdm_ · 예전 열쇠) 또는 서명 쿠키(화면).
+// 누구인가: 요청마다 한 번: Bearer 열쇠(기기 kmdk_ · 기계 kmdm_) 또는 서명 쿠키(화면).
 // 들어오지 않은 요청이 받는 것은 화면 파일 · /healthz · /api/me · 들어가기 길뿐이다. 기계 열쇠는 그 지식의
 // 기준선 길 하나만. 사람 관리(더하기 · 다시 정하기 · 풀기 · 기기 모두 끊기)는 관리자 + 재인증(15분).
 // 쓰는 요청(POST)은 같은 화면(Origin)이나 Origin 없는 프로그램만 받는다.
@@ -404,7 +404,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   }
   const need = (ctx) => {
     if (!ctx) throw new KmdError('E_AUTH', '들어온 뒤 쓴다')
-    if (ctx.machine) throw new KmdError('E_FORBIDDEN', '기계 열쇠는 저절로 채우는 표의 길만 쓴다', { need: 'person' })
+    if (ctx.machine) throw new KmdError('E_FORBIDDEN', '기계 열쇠는 가져온 표의 길만 쓴다', { need: 'person' })
     if (ctx.draft || ctx.worker) throw new KmdError('E_FORBIDDEN', '팀 일꾼은 들이기 초안만 올린다', { need: 'person' })
     return ctx
   }
@@ -443,7 +443,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     throw new KmdError('E_NOTFOUND', '그런 길은 없다')
   }
 
-  // 넣지 못함을 볼 자리(S10) — 팀이면 개편 전 기록도 · 지식관리자는 모두 · 그 밖은 내 것만(화면 거르기)
+  // 기록을 볼 자리(S10): 지식관리자는 모두 · 그 밖은 내 것만(화면 거르기)
   const LV_READ = ['read', 'write', 'admin'] // 읽기 자리부터(지식 단위 판정 hub.levelOf 의 값)
   const seeOf = (ctx, id) => ({ team: mode === 'team', user: ctx?.user || null, admin: hub.levelOf(ctx, id) === 'admin' })
   const GET_OK = [
@@ -1361,7 +1361,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (what === 'model') return out(200, V.model(k))
     if (what === 'guard') return out(200, await hub.guardAudit(ctx, id))
     if (what === 'item') {
-      const v = V.itemView(k, url.searchParams.get('key') || '', { src: await hub.sourceState(k.id) })
+      const v = V.itemView(k, url.searchParams.get('key') || '')
       if (!v) throw new KmdError('E_NOTFOUND', '이 항목은 이제 없다')
       return out(200, v)
     }
@@ -1374,7 +1374,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       return send(res, 200, await fs.readFile(path.join(k.dir, ...rel.split('/'))), type)
     }
     if (what === 'doc') {
-      const v = V.docView(k, url.searchParams.get('d'), { src: await hub.sourceState(k.id), edit: url.searchParams.get('edit') === '1', see: seeOf(ctx, id) })
+      const v = V.docView(k, url.searchParams.get('d'), { edit: url.searchParams.get('edit') === '1', see: seeOf(ctx, id) })
       if (!v) throw new KmdError('E_NOTFOUND', '이 문서는 이제 없다')
       // direct — 화면 고치기가 바로 문서에 들어가나(쓰기 이상 · S-D6) · structure — 항목 지우기 · 이름 바꾸기(지식관리자 · S-D44)
       return out(200, { ...v, direct: hub.canSave(ctx, k.id), structure: hub.canDirect(ctx, k.id) })

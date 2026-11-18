@@ -446,16 +446,6 @@ details.more>.in{padding:var(--sp-4) 0 var(--sp-1);font-size:var(--fs);color:var
 .hchip.tidy{color:var(--warn);border-color:var(--warn-line);background:var(--surface);font-weight:var(--fw-md)}
 .penrec{display:flex;gap:var(--sp-3);align-items:flex-start;margin:var(--sp-3) 0;padding:var(--sp-3) 9px;border-radius:var(--r);background:var(--pending-bg);color:var(--pending);font-size:var(--fs-mono)}
 .penrec i{width:6px;height:6px;border-radius:50%;background:var(--pending);flex:none;margin-top:var(--sp-3)}
-.auto{border:1px solid var(--border-strong);border-radius:var(--r);margin:var(--sp-4) 0;overflow-x:auto;background:var(--surface)}
-.auto .ah{display:block;padding:5px var(--sp-5);background:var(--surface-2);border-bottom:1px solid var(--border);font-size:var(--fs-sm);color:var(--text-2)}
-.auto .ah b{color:var(--text)}
-.auto table.t{margin:0}
-.auto table.t td,.auto table.t th{padding:var(--sp-2) var(--sp-5)}
-.auto .lkl{display:flex;align-items:center;gap:var(--sp-3);padding:5px var(--sp-5);font-size:var(--fs-sm);color:var(--text-2);border-top:1px dashed var(--border-strong);background:var(--surface-3)}
-.auto.lock{background:var(--surface-2);user-select:none}
-.auto.lock table.t td{color:var(--text-3);background:var(--surface-2)}
-.auto td.chg{background:var(--accent-bg)!important;color:var(--accent)!important;font-weight:var(--fw-md)}
-.ed .lockh{font-size:var(--fs-sm);color:var(--text-3);margin:var(--sp-5) 0 var(--sp-1)}
 
 /* 찾기 */
 .pscrim{position:fixed;inset:0;background:color-mix(in srgb,var(--nav-bg) 16%,transparent);z-index:var(--z-scrim);display:flex;justify-content:center;align-items:flex-start;padding:52px var(--sp-8) var(--sp-8)}

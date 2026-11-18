@@ -69,7 +69,7 @@ test('MCP: 도구 · brief · match · section', async () => {
   assert.ok(list.find((t) => t.name === 'save').inputSchema.properties.kit, 'save 에 스킬 판 칸')
   const one = (await tool('brief', { knowledge: 'dpms' })).structuredContent
   assert.deepEqual([one.kit, one.you.memos, one.you.held, one.you.recent], [TEAM_KIT_REV, undefined, undefined, []])
-  assert.equal(one.saveMode, 'approve', '모든 팀 지식은 승인 저장(P11)')
+  assert.equal(one.saveMode, undefined, '저장 방식 칸은 걷었다(늘 승인 · 옛잔재 G5b)')
   const m = (await tool('match', { q: '상태 점검' })).structuredContent
   assert.equal(m.found[0].coord, 'proc:헬스 체크', '별칭으로도 찾는다')
   assert.equal(m.found[0].doc, '배포절차')

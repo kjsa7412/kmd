@@ -76,8 +76,6 @@ async function editDecl(dir, fn, { user, title }) {
     return commitPaths(dir, [`log/${id}.md`, DECL], title, user)
   })
 }
-// 통째로 쓰기(예전 이름) — 그래도 깨진 장부 위에는 쓰지 않는다
-const writeDecl = (dir, list, opt) => editDecl(dir, () => list, opt)
 
 // ── 상태 — <data>/baseline/<지식>.json ──
 const stateFile = (dataDir, kn) => path.join(dataDir, 'baseline', `${encodeURIComponent(kn)}.json`)
@@ -307,14 +305,11 @@ export async function sendTables(intake, src, plan, { asof, line = () => {}, wha
 // ── 바뀐 것만 — 규칙마다 파일 단위 캐시(지문 장부의 out) ──
 //   deps    — 꾸러미 파일(package.json · go.mod · pom.xml · build.gradle · pyproject.toml)마다 줄 · 모아서 한 표
 //   tables  — 사람이 고른 파일 · 폴더(rule.paths) 안의 csv · tsv · json 마다 표 하나
-//   files   — 예전 규칙(새로는 더하지 않는다) — 바뀐 코드 파일이 있으면 그 규칙만 다시
 const MANIFEST = /(^|\/)(package\.json|go\.mod|pom\.xml|build\.gradle(\.kts)?|pyproject\.toml)$/
-const CODE = /\.(js|mjs|ts|tsx|jsx|java|py|go|kt|cs|sql|xml)$/i
 const underPaths = (p, paths) => !paths?.length || paths.some((x) => { const q = String(x).replace(/\\/g, '/').replace(/^\.?\/+|\/+$/g, ''); return !q || p === q || p.startsWith(q + '/') })
 const wants = {
   deps: () => (p) => MANIFEST.test(p),
   tables: (r) => (p) => /\.(csv|tsv|json)$/i.test(p) && underPaths(p, r.paths),
-  files: () => (p) => CODE.test(p),
 }
 export function wantOf(src) {
   const fs2 = src.rules.map((r) => (wants[r.rule] ? wants[r.rule](r) : () => false))
@@ -327,12 +322,6 @@ export async function rulesOut(src, scan, cache, { all }) {
   for (const r of src.rules) {
     const want = wants[r.rule] ? wants[r.rule](r) : () => false
     const paths = Object.keys(scan.files).filter(want).sort()
-    if (r.rule === 'files') {
-      const hit = all || !cache.files || paths.some((p) => touched.has(p)) || scan.changes.removed.some(want)
-      next.files = hit ? RULES.files(await Promise.all(paths.map(async (p) => ({ path: p, text: await scan.read(p) })))) : cache.files
-      items.files = next.files
-      continue
-    }
     if (!RULES[r.rule]) continue
     const c = all ? {} : { ...(cache[r.rule] || {}) }
     for (const p of paths) if (all || touched.has(p) || !(p in c)) c[p] = RULES[r.rule]([{ path: p, text: await scan.read(p) }])
@@ -731,7 +720,7 @@ export function sourceLines(k, decl, st, { now = Date.now(), admin = false } = {
   return out
 }
 
-export { probe, writeDecl, editDecl, stateFile, writeState }
+export { probe, editDecl, stateFile, writeState }
 
 // 살펴보기(git) — 닿나 · 마지막 커밋
 export async function probeGit(src, ctx) {

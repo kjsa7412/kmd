@@ -85,7 +85,7 @@ export async function runAgent({ prompt, system = '', files = [], mcp = null, bu
       if (signal?.aborted) return { ok: false, error: 'cancel', message: '그만뒀다' }
       const r = await once()
       if (!r.mcpDown || signal?.aborted) return r.mcpDown ? { ok: false, error: 'cancel', message: '그만뒀다' } : r
-      if (attempt >= 3) { line('err', 'kmd 연결이 서지 않았다. 세 번 띄워도 · 다음 정리 때 다시'); return { ok: false, error: 'fail', message: 'kmd MCP 가 이어지지 않았다' } }
+      if (attempt >= 3) { line('err', 'kmd 연결이 서지 않았다. 세 번 띄워도 · 일감이 다시 시도한다'); return { ok: false, error: 'fail', message: 'kmd MCP 가 이어지지 않았다' } }
       line('sys', `kmd 연결이 아직 서지 않았다. 끊고 다시 띄운다(${attempt + 1}번째)`)
       await new Promise((ok) => setTimeout(ok, 3000 * attempt))
     }

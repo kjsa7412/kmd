@@ -260,9 +260,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       prepWait.shift()?.()
     }
   }
-  const codeTried = new Map() // 에이전트가 맡았던 코드 바뀜 기록 → 시각 — 정리가 세 차례 돌아도 다시 띄우지 않고, 못 넣었으면 한 시간 뒤 정리 때 다시
-  const codeFresh = (id) => Date.now() - (codeTried.get(id) || 0) < 3600_000
-  // 코드 바뀜 기록 → 그 기록을 남긴 가져오기 일 — 정리가 문서에 넣으면 그 일의 터미널에 [문서] 줄로 잇는다(이 켜짐 동안만)
+  // 코드 바뀜 기록 → 그 기록을 남긴 가져오기 일: 들이기가 문서에 넣으면 그 일의 터미널에 [문서] 줄로 잇는다(이 켜짐 동안만)
   const codeJobs = new Map()
   //   keep — 아직 끝이 아니다(항목만 골랐다 · 못 넣어 한 시간 뒤 다시) — 다음 줄도 그 일에
   const codeNote = (recIds, k, x, { keep = false } = {}) => { for (const r of recIds) { const qj = codeJobs.get(r); if (qj) { if (!keep) codeJobs.delete(r); Q.line(qj, k, x) } } }
@@ -683,7 +681,7 @@ ${genRulesBlock({ profile: 'shape' })}`
   }
   // 받은 초안 하나 — { fix: 까닭 } | { result } | { fail: 까닭, stepFail?, texts? }
   //   구조안: cleanPlan 이 안 되거나 planCheck 걸림(장부 항목 자리는 화면이 놓으므로 빼고)이면 고쳐 쓰게 · 마지막이면 꼴이 된 안은 걸림과 함께 화면으로(사람이 고친다)
-  //   글: 결정적 오류(꼴 · 섞인 자리 · 저절로 채우는 표)면 고쳐 쓰게 · 마지막이면 걸음 실패 · 값 대조(지어낸 · 잃은 값)는 재기만
+  //   글: 결정적 오류(꼴 · 섞인 자리)면 고쳐 쓰게 · 마지막이면 걸음 실패 · 값 대조(지어낸 · 잃은 값)는 재기만
   async function shapeDraft(id, k, type, sg, draft, last, seen = null) {
     if (type === 'shape-plan') {
       const p = planOfDraft(sg.S, draft)
@@ -1338,7 +1336,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       }
       let r
       if (strict) {
-        // approve 모드 지식(통합 I1 · P-D24 · P-D2) — 결정적 오류(꼴 · 섞인 자리 · 저절로 채우는 표)만 걸음 실패 · 값 대조(지어낸 · 잃은 값)는 막지 않고 잰다(「값 대조(code): 까닭」 · savelog warned)
+        // approve 모드 지식(통합 I1 · P-D24 · P-D2): 결정적 오류(꼴 · 섞인 자리)만 걸음 실패 · 값 대조(지어낸 · 잃은 값)는 막지 않고 잰다(「값 대조(code): 까닭」 · savelog warned)
         const j = judgeShape(k, unit)
         const e = j.errors[0]
         if (e && e.code === 'conflict') throw new KmdError('E_CONFLICT', e.why)
@@ -1568,9 +1566,12 @@ ${genRulesBlock({ profile: 'shape' })}`
     throw new KmdError('E_INPUT', `${why}(첨부 원본의 글 지문이 ${md} 와 다르다)`)
   }
   // approve 모드 사람 채널 저장 — coreSave(prepare · approve) 결과(r0)를 돌려준다. bag 은 측정 줄 · 응답이 읽는다
+  // 메모(기록만)는 남기지 않는다(저장 승인 P11): 저장 문 들머리(hub.save)와 무인 들이기 세션의 save 가 부른다
+  function noMemo(rec) {
+    if (rec && rec.memo != null && rec.memo !== false) throw new KmdError('E_INPUT', '메모(기록만)는 남기지 않는다. 정해진 부분만 골라 다시 제안한다(정해지지 않은 것은 저장하지 않는다)')
+  }
   async function approveSave(ctx, id, meta, input, opt, channel, bag) {
     const rec0 = input.record
-    if (rec0?.memo === true) throw new KmdError('E_INPUT', '메모(기록만)는 남기지 않는다. 정해진 부분만 골라 다시 제안한다(정해지지 않은 것은 저장하지 않는다)')
     const bad = proposeInputWhy(Object.fromEntries(['proposal', 'distinct', 'excluded', 'forms', 'kinds', 'names'].filter((x) => input[x] !== undefined).map((x) => [x, input[x]])))
     if (bad) throw new KmdError('E_INPUT', bad)
     // 보내기는 창에서 승인한 제안으로만(P-D22) — 제안 없는 보내기 · left 는 받지 않는다
@@ -1688,11 +1689,12 @@ ${genRulesBlock({ profile: 'shape' })}`
     const rec0 = input?.record && typeof input.record === 'object' ? input.record : null
     if (input?.sections != null && !Array.isArray(input.sections)) throw new KmdError('E_INPUT', 'sections 는 목록이다')
     if (input?.sections?.some((s) => s?.doc && owners.isReservedFile(String(s.doc).replace(/\.md$/, '') + '.md'))) throw new KmdError('E_FORBIDDEN', 'kmd 가 쓰는 파일이다')
-    if (rec0?.memo === true && input.sections?.length) throw new KmdError('E_INPUT', '메모는 항목 글을 받지 않는다')
+    // 메모(기록만)는 저장 문 들머리 한 곳에서 거절한다(모든 채널 · P11)
+    noMemo(rec0)
     // 보낸 지문(sent/)은 보내기 채널만(S-D16)
     if (!opt.system && (Array.isArray(rec0?.tags) ? rec0.tags : []).some((t) => String(t).trim().startsWith('sent/')) && channel !== 'send') throw new KmdError('E_INPUT', 'sent/ 표지는 보내기만 단다')
     // 화면 문서 고치기(opt.edit · S9 · hub.edit 만 단다)는 팀 검사(gatePrepare)를 거치지 않는다 — 값 검사 없이 고친 글 그대로(K-D4) ·
-    //   지문(base) · 문서 꼴 · 저절로 채우는 표는 core 가 본다
+    //   지문(base) · 문서 꼴은 core 가 본다
     //   문서 짜임의 글 걸음(opt.shape · hub.shapeWrite 만 단다)도 팀 검사 대신 checkShape 로 가른다(팀 · 개인 모두 · 권한 모델 7-2)
     const team = mode === 'team' && !opt.system && !opt.edit && !opt.shape
     // 들이기 일감의 저장(S-D19 · S-D43) — 자리는 intakeCtx 가 일감을 끝낼 때 정했다 · 예약 사람 kmd · 저장 문이 붙이는 태그 · 새 문서를 세운다
@@ -1726,7 +1728,6 @@ ${genRulesBlock({ profile: 'shape' })}`
       }
     } else if (un) {
       // 무인 저장 문(P6): sections 모양은 사람 저장과 같은 검사 · 새 문서의 갈래(forms) · 새 종류(kinds)는 사람 채널과 같은 꼴로 제안 판정을 지난다(O-11)
-      if (rec0?.memo === true) throw new KmdError('E_INPUT', '무인 저장은 메모를 남기지 않는다')
       sectionShapes(input.sections)
       const k0 = await hub.get(id)
       input = unattendedTouches(k0, input)
@@ -1747,7 +1748,6 @@ ${genRulesBlock({ profile: 'shape' })}`
     } else if (team) {
       // 저장 승인 문 밖의 팀 저장(다듬기 등 서버 코드가 정한 채널) — 같은 항목 판정(gatePrepare) · 하나라도 걸리면 아무것도 쓰지 않는다(입력 오류 · P11)
       sectionShapes(input.sections)
-      if (rec0?.memo === true) throw new KmdError('E_INPUT', '메모(기록만)는 남기지 않는다(P11)')
       const prepare = async () => {
         // 줄 안 · 남은 저널을 되돌린 뒤 — hub.get 캐시가 아니라 새로 읽는다(S-D7 · 파일마다 mtime 캐시라 싸다)
         const k = await loadKnowledge(meta, { cache: files.get(id) })
@@ -2103,7 +2103,7 @@ ${genRulesBlock({ profile: 'shape' })}`
     const rec = input?.record && typeof input.record === 'object' && !Array.isArray(input.record) ? input.record : null
     if (!rec || typeof rec.title !== 'string' || !rec.title.trim()) throw new KmdError('E_INPUT', '기록 제목(record.title)이 없다')
     for (const x of ['forms', 'kinds', 'distinct']) if (input?.[x] != null && !Array.isArray(input[x])) throw new KmdError('E_INPUT', `${x} 는 목록이다`)
-    if (rec.memo === true) throw new KmdError('E_INPUT', '넣기 에이전트는 메모를 남기지 않는다')
+    noMemo(rec)
     if (input?.sections != null && !Array.isArray(input.sections)) throw new KmdError('E_INPUT', 'sections 는 목록이다')
     let body = typeof rec.body === 'string' ? rec.body : ''
     //   서식 칸(changes · why …)을 실었으면 세션처럼 엮는다 · 글(body)만이면 그대로(넣기 에이전트의 옛 꼴)
@@ -4504,7 +4504,7 @@ ${genRulesBlock({ profile: 'shape' })}`
           const k = await hub.get(id)
           const src = { ...s, folder: s.kind === 'folder' || !(/^(https?|ssh):\/\//i.test(s.at) || /^[^/\\\s]+@[^/\\\s]+:/.test(s.at)) ? s.at : undefined }
           // 들어온 것마다 intake 하나(S7 · 설계 4-5) — 팀은 들이기 일감(정리 일감을 세우지 않는다) · 이 PC 는 지금 길(파일 넣기 · 커밋 분석 → 기록 · 저장 즉시 넣기)
-          //   표 블록(저절로 채우는 표 · DB 표)은 save 로 그대로 — 기록 + 표가 이미 한 번에(system)
+          //   가져온 표(DB 표 · 표 규칙)는 원천 글로 들이기에 넘긴다(core/sources.js sendTables)
           const r = await runSource(k, src, { dataDir, first, force, full, pass, onProgress, onStage: (i) => (i >= STAGE_PUT ? Q.mark(qj, STAGE_PUT) : Q.step(qj, i)), line: (kk, x) => Q.line(qj, kk, x), meaning: hub.meaningOk(id), intake: mode === 'pc' ? pcIntake(id, meta, s) : teamIntake(id, s, qj), save: (input) => coreSave(meta.dir, input, { user: 'kmd', system: true }) })
           cache.delete(id)
           // 이 PC — 커밋 기록을 남겼다: 그 기록을 문서에 넣으면 이 일의 터미널에 한 줄씩 · 저장 즉시 넣기를 건다
@@ -4599,7 +4599,6 @@ ${genRulesBlock({ profile: 'shape' })}`
         srcWatch.set(key, { close: () => { clearTimeout(timer); w.close() } })
       } catch {}
     },
-    sourceState: (id) => readSourceState(dataDir, id),
     async sources(ctx, id) {
       const meta = await hub.meta(id, ctx)
       const decl = await readDecl(meta.dir)
@@ -5766,7 +5765,7 @@ ${genRulesBlock({ profile: 'shape' })}`
     },
     ingestFileOf(w) {
       const tag = w.tags.find((t) => t.startsWith('ingest/'))
-      return tag ? tag.slice(7) : `${w.title.split(/ — |: /)[0]}.md`
+      return tag ? tag.slice(7) : `${w.title.split(/: /)[0]}.md`
     },
     // 에이전트에게 줄 일 — 일 설명 · 스킬(kmd-build) · 일 폴더 파일(바꾼 글 · 원본). 이 PC 와 팀 일꾼이 같은 것을 쓴다
     async agentTask(meta, w, original = null) {
@@ -5780,7 +5779,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       const skill = [rules, (await fs.readFile(path.join(AGENT_DIR, 'skills', 'kmd-build', 'SKILL.md'), 'utf8').catch(() => '')).replace(/^---[\s\S]*?---\s*/, ''), guide].filter(Boolean).join('\n\n')
       // 코드 바뀜 — 파일이 아니라 커밋 하나의 분석 기록이다. 자리는 그 저장소가 만드는 시스템의 기능 · 설계 문서
       if (w.tags.includes('code-change')) {
-        const src = (w.title.match(/(?: —|:) (\S+) [0-9a-f]{7}(?:\.\.[0-9a-f]+)?$/) || [])[1] || '그 저장소'
+        const src = (w.title.match(/: (\S+) [0-9a-f]{7}(?:\.\.[0-9a-f]+)?$/) || [])[1] || '그 저장소'
         return {
           prompt: [
             `지식 「${meta.name}」(knowledge id: ${meta.id}) 에 소스 코드 커밋 하나의 기록을 들인다. kmd-build 순서대로, 다만 넣은 파일이 아니라 코드 바뀜이다.`,
@@ -6596,7 +6595,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       const candidates = []
       for (const w of k.works) {
         if (isSystemRecord(w) || w.tags.includes('private') || st.moved[w.id]) continue
-        const words = [...w.touches.map((c) => labelOf(k, c)), ...w.title.split(/\s+—\s+|:\s+/)].filter(Boolean)
+        const words = [...w.touches.map((c) => labelOf(k, c)), ...w.title.split(/:\s+/)].filter(Boolean)
         const hit = async (ms) => {
           for (const m of ms) {
             const k2 = await hub.get(m.id)
@@ -7228,9 +7227,9 @@ ${genRulesBlock({ profile: 'shape' })}`
       if (config.backupRoot) setTimeout(async () => { for (const m of await hub.list().catch(() => [])) await hub.autoBackup(m.id).catch((e) => log('지식백업', m.id, e.message)) }, 800).unref?.()
       // 손으로 고친 파일: PC(또는 serve.json collect)에서 편집기로 고친 것을 30초 고요 뒤 본다(문서는 되돌려 두고 점검 「손으로 고친 파일」 로 · 들이지 않는다)
       await hub.known().catch(() => {}) // 처음 켤 때 — 지금 있는 지식을 아는 것으로
-      // 옛 꼴 이행(O-9): 개인 프로그램은 켤 때 지식마다 한 번(판 표시가 있으면 건너뛴다 · 실패해도 지식은 연다)
+      // 옛 꼴 이행(O-9): 개인 프로그램은 켤 때 지식마다 한 번(판 표시가 있으면 바로 건너뛴다 · 실패해도 지식은 연다). 감시 · 거두기보다 먼저 끝낸다(이행 커밋 중의 파일을 손으로 고친 파일로 보지 않게)
       if (mode === 'pc') for (const m of await hub.list().catch((e) => { log('옛 꼴 이행 목록', e?.message || e); return [] })) await oldformOnce(m)
-      if (mode === 'pc' || config.collect) for (const m of await hub.list()) watchers.push(Object.assign(collect.watch(m.dir, () => hub.collect(m.id)), { dir: m.dir }))
+      if (mode === 'pc' || config.collect) for (const m of await hub.list().catch((e) => { log('손으로 고친 파일 감시 목록', e?.message || e); return [] })) watchers.push(Object.assign(collect.watch(m.dir, () => hub.collect(m.id)), { dir: m.dir }))
       // 꺼져 있던 동안 편집기로 고친 것 — 켤 때 한 번 거둔다(다른 파일이 바뀔 때까지 기다리지 않게)
       if (mode === 'pc' || config.collect) setTimeout(async () => { for (const m of await hub.list().catch(() => [])) await hub.collect(m.id).catch(() => {}) }, config.collectOnStartMs ?? 1500).unref?.()
       // 가져올 곳 — 할 일 시계(분마다 본다 · 각자의 every) · 켤 때 한 번

@@ -17,7 +17,7 @@
 //     creates 의 갈래가 대장(항목 패턴)이면 문서 장부에 패턴 줄을 같이 세운다
 //   같이 고치는 것 — 옮긴 항목 글 속 상대 링크 · 들어오는 `x.md#머리` · `#머리` · 참고 줄(moveSection) · applied 표지(글과 같이) ·
 //     문서 장부(placeExact: 정확한 줄은 제자리 · 패턴 줄로 닿던 장부 항목은 패턴 줄 위에 정확한 줄)
-//   막는 것 — 겹치는 머리(같은 머리 · 앞부분 겹침) · 갈래 머리 꼴 · 저절로 채우는 표 · 머리 잃는 항목 ·
+//   막는 것: 겹치는 머리(같은 머리 · 앞부분 겹침) · 갈래 머리 꼴 · 머리 잃는 항목 ·
 //     쓴 뒤 기록 상태가 바뀜(저널 되돌림)
 //   지문 — base 는 structureFp(옛 화면) 또는 stepFp(이 걸음이 건드리는 것만) · step('shape/<work>/<n>')이 있으면 이력 표지 · 멱등
 //
@@ -38,7 +38,6 @@ import { ORDER_FILE, parseOrder, renderOrder, byName, sortSiblings } from './ord
 import { parseDoc, headsOf, headingMatches, findHeading, moveSection } from './sections.js'
 import { parseRegistry, locate } from './registry.js'
 import { placeExact, upsertPatternRow } from './namebook.js'
-import { hasBlockMarker } from './baseline.js'
 import { loadKnowledge, coordsOfSection, sectionOf } from './knowledge.js'
 import { parseRecord } from './frontmatter.js'
 
@@ -353,8 +352,6 @@ export function planRestructure(files, ops = {}) {
     const heads = h2Of(srcText)
     const sec = heads.find((x) => x.heading === it.from.h)
     if (!sec) { err(where, '없는 항목이다(머리가 똑같아야 한다)'); continue }
-    const raw = srcText.split('\n').slice(sec.line, sec.end).join('\n')
-    if ((!same || toH !== it.from.h) && hasBlockMarker(raw)) { err(where, '저절로 채우는 표가 든 항목은 옮기거나 이름을 바꾸지 않는다(가져올 곳이 채운다)'); continue }
     // 겹치는 머리 — 같은 머리 · 앞부분 겹침(「배포」 와 「배포 절차」 · sectionOf 가 앞부분으로도 집는다)
     const others = h2Of(final.get(dstRel)).filter((x) => !(same && x.heading === it.from.h)).map((x) => x.heading)
     const clash = others.find((x) => x === toH || headingMatches(x, toH) || headingMatches(toH, x))

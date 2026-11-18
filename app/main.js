@@ -276,7 +276,7 @@ function openTab(t, o) {
 }
 function tabTitle(t) {
   if (t.kind === 'doc') { const tr = S.cache['tree:' + t.kn]; const d = tr && tr.docs && tr.docs.find((x) => x.id === t.ref); return d ? d.title : t.ref }
-  if (t.kind === 'rec') { const tr = S.cache['tree:' + t.kn]; const r = (tr && tr.records && tr.records.find((x) => x.id === t.ref)) || S.cache[`rec:${t.kn}:${t.ref}`]; return r && r.title ? r.title.split(/ — |: /)[0] : '기록' }
+  if (t.kind === 'rec') { const tr = S.cache['tree:' + t.kn]; const r = (tr && tr.records && tr.records.find((x) => x.id === t.ref)) || S.cache[`rec:${t.kn}:${t.ref}`]; return r && r.title ? r.title.split(/: /)[0] : '기록' }
   if (t.kind === 'item') { const it = itemByKey(t.kn, t.ref); return it ? it.short || it.name : t.ref.replace(/^#[^#]*#/, '').replace(/^[^:]+:/, '') }
   return t.ref
 }
@@ -606,7 +606,7 @@ const TIPS = {
   'sf.whatDocs': ['바뀐 파일만 다시 가져오고 원본은 첨부로 둔다. 원본에서 지우면 「원본에 없다」 로 남는다', ''],
   'sf.intoCode': ['기록은 이 지식에 남는다. 항목 장부의 항목이 걸리면 그 항목으로 들인다', ''],
   'sf.intoDocs': ['파일마다 기록으로 들고 갈래 · 주제 문서의 항목으로 넣는다(파일 이름 문서를 세우지 않는다). 이 이름은 기록의 출처다', ''],
-  'sf.intoDb': ['문서가 없으면 새로 선다. 표는 그 문서 안 「저절로 채우는 표」 상자로 들어간다', ''],
+  'sf.intoDb': ['문서가 없으면 새로 선다. 바뀐 테이블 정의는 원천 글로 들이기에 넘어가 그 문서의 항목으로 들어간다', ''],
 }
 // name = 붙은 이름(제목 · 칸 이름) — 화면 읽기 이름 「<name> 도움말」 · 표에 없는 id 는 그리지 않는다
 const tipb = (id, name) => TIPS[id] ? `<button type="button" class="tipb" data-a="tip" data-v="${esc(id)}" data-t="tip-${esc(id)}" data-n="${esc(name || '')}" aria-label="${esc(name || '')} 도움말" aria-expanded="false">!</button>` : ''
@@ -2064,11 +2064,11 @@ function treeBody(k) {
   }
   const rs = tr.records.filter((r) => (!f.mine || r.author === S.me.user) && (!nq || norm(r.title).includes(nq) || norm(r.author || '').includes(nq))), left = recLeft(tr)
   if (!tr.records.length) return `<div class="tn muted nc">${isTeam() ? '아직 없다' : '내 지식은 고치면 바로 문서다'}</div>`
-  const rest = (t) => { const m = String(t).match(/^(.+?)(?: — |: )(.+)$/); return m ? m[2] : '' }
+  const rest = (t) => { const m = String(t).match(/^(.+?): (.+)$/); return m ? m[2] : '' }
   // 기록 줄 둘째 줄 — 작성자 + 기록 글 첫 줄(머리 · 인용 · 표 줄은 건너뛰고 붙은 머리 앞까지 · 받은 모델이 없으면 제목 나머지)
   const mm = Mc(k)
   const sub2 = (r) => { const x = mm && mm.recById.get(r.id); const b = x && x.body ? plainMd(String(x.body).split('\n').find((l) => l.trim() && !/^\s*(#|>|\||<!--|-{3,})/.test(l)) || '').split(/\s*\\?#\\?#/)[0] : ''; return b || rest(r.title) }
-  return (rs.map((r) => `<div class="tn rec2${isAct('rec', k, r.id) ? ' on' : ''}" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="rec" data-state="${r.state}" data-pv="rec|${esc(k)}|${esc(r.id)}"><span class="nm">${esc(r.title.split(/ — |: /)[0])}</span><span class="dt">${esc(isToday(r.date) ? hhmm(r.date) : mdOf(r.date))}</span><span class="rs" title="${esc((r.author ? r.author + " " : "") + sub2(r))}">${r.author ? `<b>${esc(r.author)}</b>` : ''}${esc(sub2(r))}</span></div>`).join('') || '<div class="tn muted nc">맞는 기록이 없다</div>') + (left && tr.next ? `<div class="tn more" data-a="treeMore" data-k="${esc(k)}" data-t="moreRecs"${S.wait['treeMore:' + k] ? ' aria-busy="true"' : ''}>${S.wait['treeMore:' + k] ? '읽는 중…' : `더 보기(남은 ${left})`}</div>` : '')
+  return (rs.map((r) => `<div class="tn rec2${isAct('rec', k, r.id) ? ' on' : ''}" data-a="openRec" data-k="${esc(k)}" data-r="${esc(r.id)}" data-t="rec" data-state="${r.state}" data-pv="rec|${esc(k)}|${esc(r.id)}"><span class="nm">${esc(r.title.split(/: /)[0])}</span><span class="dt">${esc(isToday(r.date) ? hhmm(r.date) : mdOf(r.date))}</span><span class="rs" title="${esc((r.author ? r.author + " " : "") + sub2(r))}">${r.author ? `<b>${esc(r.author)}</b>` : ''}${esc(sub2(r))}</span></div>`).join('') || '<div class="tn muted nc">맞는 기록이 없다</div>') + (left && tr.next ? `<div class="tn more" data-a="treeMore" data-k="${esc(k)}" data-t="moreRecs"${S.wait['treeMore:' + k] ? ' aria-busy="true"' : ''}>${S.wait['treeMore:' + k] ? '읽는 중…' : `더 보기(남은 ${left})`}</div>` : '')
 }
 function rpHead() { return '<div class="rph"><i class="pd"></i>나란히 보기: 읽기만<button type="button" class="lk r small" data-a="closeSplit" data-t="closeSplit">나누기 닫기 ×</button></div>' }
 
@@ -2220,7 +2220,7 @@ function docLinksHtml(k, d) {
   return `<section class="dlinks" aria-label="이 문서" data-t="docLinks">${
     col('이 문서가 가리키는 문서', (d.links || []).length, (d.links || []).map((x) => lk('openDoc', ` data-k="${esc(k)}" data-d="${esc(x.id)}"`, 'd', esc(x.title), 'dlOut')), 8)
   }${col('이 문서를 가리키는 문서', (bl.linkers || []).length, (bl.linkers || []).map((x) => lk('openDoc', ` data-k="${esc(k)}" data-d="${esc(x.id)}"`, 'd', esc(x.title), 'dlIn')), 8)
-  }${col('기록', recs.length, recs.map((r) => lk('openRec', ` data-k="${esc(k)}" data-r="${esc(r.id)}"`, 'r', esc(String(r.title).split(/ — |: /)[0]), 'dlRec')), 6)
+  }${col('기록', recs.length, recs.map((r) => lk('openRec', ` data-k="${esc(k)}" data-r="${esc(r.id)}"`, 'r', esc(String(r.title).split(/: /)[0]), 'dlRec')), 6)
   }${col('이 문서의 항목', its.length, its.map((i) => lk('openItem', ` data-k="${esc(k)}" data-n="${esc(i.key)}"`, 'i', esc(i.name), 'dlItem')), 8)}</section>`
 }
 function docPane(t, right) {
@@ -2238,7 +2238,6 @@ function docPane(t, right) {
     ? errHtml(de, `doc:${k}:${t.ref}:ed`)
     : editing
     ? `<div class="ed" data-t="editor"><div class="edbar"><span class="lbl"><b>고치는 중</b>${tipb(de.structure ? 'ed' : 'edRo', '고치기')}</span><span class="toolbar"><button class="btn sm" data-a="edAddSec" data-t="edAddSec">항목 더하기</button><button class="btn sm${S.edit.preview ? ' on' : ''}" data-a="edPreview" data-t="edPreview" aria-pressed="${!!S.edit.preview}">바뀐 것 보기</button></span></div><div class="edcols${S.edit.preview ? ' on' : ''}"><textarea id="edTx" aria-label="문서 글(md)" data-in="edTx" data-t="edTx" spellcheck="false"${S.edit.busy ? ' readonly aria-busy="true"' : ''}>${esc(edText(de))}</textarea>${S.edit.preview ? `<aside class="edprev" data-t="edPrev" aria-label="바뀐 것"><div class="edprevin"><div class="edprevh">바뀐 것<span class="muted">저장 전</span></div><div id="edDiffs">${edPreviewHtml(k, de)}</div></div></aside>` : ''}</div>
-   ${de.sections.filter((s) => s.locks).map((s) => `<div class="lockh">항목 「${esc(s.h)}」 의 표: 회색은 잠겨 있다</div>${s.locks}`).join('')}
    ${S.edit.err ? formErr(S.edit.err, 'edErr') : ''}${(S.edit.errSecs || []).length ? `<div class="row" data-t="edErrSecs">${S.edit.errSecs.map((h) => `<button type="button" class="btn sm" data-a="edGoSec" data-v="${esc(h)}">「${esc(h)}」 로</button>`).join('')}</div>` : ''}${(S.edit.conflict || []).length ? `<div class="callout warn" data-t="edConflict"><div><b>그사이 바뀐 글</b>${S.edit.conflict.map((c) => `<div class="small"><b>${esc(c.h)}</b><pre class="cfpre">${esc(c.theirs)}</pre></div>`).join('')}<div class="row"><button class="btn sm pri" data-a="edForce" data-t="edForce">내 글로 저장</button><button class="btn sm" data-a="edTheirs" data-t="edTheirs">그쪽 글로</button></div></div></div>` : ''}<div class="edsave" data-t="edSave"><div class="edwhyrow"><input id="edWhy" data-in="edWhy" data-t="edWhy" maxlength="200" class="inp edwhy" placeholder="바꾼 까닭(선택)" aria-label="바꾼 까닭" value="${esc(S.edit.why || '')}">${tipb('ed.why', '바꾼 까닭')}</div><div class="edgo"><button class="btn pri" data-a="saveDoc" data-t="saveBtn"${S.edit.busy ? ' disabled' : ''}>${S.edit.busy ? '저장하는 중…' : '저장'}</button><button class="btn ghost" data-a="cancelEdit" data-t="cancelEdit"${S.edit.busy ? ' disabled' : ''}>취소</button><span class="ednote" data-t="edNote">${S.edit && S.edit.fixes ? '이 기록이 넣은 항목만 보인다 · 저장하면 바로잡는 기록이 남는다' : '저장하면 확인 창 뒤 문서에 들어간다'}</span></div></div></div>`
     : d.sections.map((s) => {
     // 찾기로 연 것만 「찾은 곳」 · 링크 · 개요로 연 항목은 머리를 잠깐 빛낸다
@@ -2297,7 +2296,7 @@ function recPane(t, right) {
       (r.tags || []).length ? ['태그', esc(r.tags.join(' · '))] : null,
     ]) },
   ])
-  return { html, aside: right ? null : aside, title: r.title.split(/ — |: /)[0], acts }
+  return { html, aside: right ? null : aside, title: r.title.split(/: /)[0], acts }
 }
 // 기록 상태(설계 4-8 · 저장 승인 P11 · P12) — 칩 · 속성 말: 들어감(c-ok) · 바로잡힘(c-ok) · 되돌림 · 저장 승인 전 기록(old)은 칩 없이 「기록」
 function recStateTx(k, r) {
@@ -2670,7 +2669,7 @@ function itemListBody(k) {
 }
 function itemRowHtml(k, i, dt, dep) {
   const rs = recsOfItem(k, i)
-  return `<div class="tn${isAct('item', k, i.key) ? ' on' : ''}" data-a="openItem" data-k="${esc(k)}" data-n="${esc(i.key)}" data-t="${dt || 'itemRow'}" data-name="${esc(i.name)}" data-pv="item|${esc(k)}|${esc(i.key)}"${dep ? ` style="--dep:${dep}"` : ''}><span class="nm">${inmHtml(i)}</span>${!i.doc && !i.whole ? '<small class="nd">문서 없음</small>' : ''}${rs.length ? `<span class="rc" title="기록">${rs.length}</span>` : ''}</div>`
+  return `<div class="tn${isAct('item', k, i.key) ? ' on' : ''}" data-a="openItem" data-k="${esc(k)}" data-n="${esc(i.key)}" data-t="${dt || 'itemRow'}" data-name="${esc(i.name)}" data-pv="item|${esc(k)}|${esc(i.key)}"${dep ? ` style="--dep:${dep}"` : ''}><span class="nm">${inmHtml(i)}</span>${!i.doc ? '<small class="nd">문서 없음</small>' : ''}${rs.length ? `<span class="rc" title="기록">${rs.length}</span>` : ''}</div>`
 }
 function itemsEmpty(k) {
   if (!M(k)) return `<div class="pg-text"><div class="big">${esc(KN(k).name)}: 항목</div>${modelErr(k) ? errHtml(modelErr(k), 'model:' + k) : loadingHtml}</div>`
@@ -2773,11 +2772,11 @@ function graphData(k, fo, bundle) {
   }
   if (f.doc) ds.forEach((d) => add('d:' + d.id, 'doc', d.title))
   const cut = Date.now() - 30 * 864e5
-  if (f.rec) rs.forEach((r) => { if (f.recent && (stampDate(r.date) || 0) < cut) return; add('r:' + r.id, 'rec', String(r.date || '').slice(5, 10) + ' ' + r.title.split(/ — |: /)[0]) })
+  if (f.rec) rs.forEach((r) => { if (f.recent && (stampDate(r.date) || 0) < cut) return; add('r:' + r.id, 'rec', String(r.date || '').slice(5, 10) + ' ' + r.title.split(/: /)[0]) })
   // 선은 한 가지(이어져 있다) — 같은 두 점 사이는 하나만. in(문서 ⊃ 항목)은 2D 표에서 상자로 보인다
   const E = [], seen = new Set()
   const edge = (a, b, t) => { const key = a < b ? a + '>' + b : b + '>' + a; if (has[a] && has[b] && a !== b && !seen.has(key)) { seen.add(key); E.push({ a, b, t }) } }
-  its.forEach((i) => { if (i.doc || i.whole) edge('d:' + (i.doc || i.whole), iid(i), 'in') })
+  its.forEach((i) => { if (i.doc) edge('d:' + i.doc, iid(i), 'in') })
   rs.forEach((r) => { r.items.forEach((key) => { const i = m.byKey.get(key); if (i) edge('r:' + r.id, iid(i), 'link') }); r.fixes.forEach((x) => edge('r:' + r.id, 'r:' + x, 'link')) })
   ds.forEach((d) => d.links.forEach((b) => edge('d:' + d.id, 'd:' + b, 'link')))
   ds.forEach((d) => (d.cites || []).forEach((r) => edge('d:' + d.id, 'r:' + r, 'link')))
@@ -3283,12 +3282,12 @@ function gErdSvg(k, G) {
   const boxOf = (key, title, head) => { if (!boxes.has(key)) boxes.set(key, { key, title, head, rows: [] }); return boxes.get(key) }
   nodes.filter((n) => n.kind === 'doc').forEach((n) => boxOf(n.id.slice(2), n.label, n))
   nodes.filter((n) => n.kind === 'item').forEach((n) => {
-    const it = m.byKey.get(n.id.slice(2)), d = it && (it.doc || it.whole), dd = d && m.docById.get(d)
+    const it = m.byKey.get(n.id.slice(2)), d = it && it.doc, dd = d && m.docById.get(d)
     ;(d ? boxOf(d, dd ? dd.title : d, byId.get('d:' + d) || null) : boxOf('_out', '문서 밖 항목', null)).rows.push(n)
   })
   nodes.filter((n) => n.kind === 'bundle').forEach((n) => boxOf('_bnd', n.label, n))
   // 가운데 점이 든 상자 — 맨 앞
-  const selBox = sel && (sel.startsWith('d:') ? sel.slice(2) : sel.startsWith('i:') ? (() => { const it = m.byKey.get(sel.slice(2)); return it ? it.doc || it.whole || '_out' : null })() : null)
+  const selBox = sel && (sel.startsWith('d:') ? sel.slice(2) : sel.startsWith('i:') ? (() => { const it = m.byKey.get(sel.slice(2)); return it ? it.doc || '_out' : null })() : null)
   const list = [...boxes.values()].sort((a, b) => (a.key === selBox ? -1 : b.key === selBox ? 1 : 0) || (dOrder.has(a.key) ? dOrder.get(a.key) : 1e9) - (dOrder.has(b.key) ? dOrder.get(b.key) : 1e9) || a.title.localeCompare(b.title))
   list.forEach((b) => { const d = m.docById.get(b.key), io = new Map(((d && d.items) || []).map((x, i) => ['i:' + x, i])); b.rows.sort((p, q) => (io.has(p.id) ? io.get(p.id) : 1e9) - (io.has(q.id) ? io.get(q.id) : 1e9)) })
   // 배치 — 칸의 가로 · 세로 비율에 맞춘다. 문서 상자 열 수(nc)를 바꿔 가며 상자를 낮은 열부터 채우고, 기록은 그 높이에 맞춰 여러 열로 접는다.
@@ -5230,7 +5229,7 @@ function stageLines(lines) {
     const x = String(l.x || '')
     if (l.k === 'tool' && /^저장/.test(x)) { s = Math.max(s, 2); saved = true }
     else if (saved && (l.k === 'ok' || l.k === 'cost')) s = 3
-    else if ((l.k === 'tool' && /^(지식 둘러보기|항목 맞추기|이름 맞추기|찾기|항목 읽기)/.test(x)) || /에 들인다(?: —|:) 기록|기록을 정리했다/.test(x)) s = Math.max(s, 1)
+    else if ((l.k === 'tool' && /^(지식 둘러보기|항목 맞추기|이름 맞추기|찾기|항목 읽기)/.test(x)) || /에 들인다: 기록|기록을 정리했다/.test(x)) s = Math.max(s, 1)
     return { ...l, s }
   })
 }
@@ -6573,7 +6572,7 @@ function checkChips(a) {
   return `<div class="row u-wrap u-g3" data-t="checkChips" style="margin:0 0 var(--sp-5)">${c(S.stops.length ? 'c-warn' : 'c-mute', '멈춤 ' + S.stops.length, 'stop')}${c(bk ? 'c-danger' : 'c-mute', '백업 문제 ' + bk, 'backup')}${c(rest ? 'c-warn' : a.claude.token || (a.worker && a.worker.ok) ? 'c-ok' : 'c-mute', '팀 일꾼 ' + (rest ? '쉼' : a.claude.token || (a.worker && a.worker.ok) ? '됨' : '로그인 전'), 'worker')}</div>`
 }
 // 감사 기록(UX T4-04 · 총괄 관리자) — 관리 쓰기 요청을 한 곳에서: 때 · 누가 · 무엇 · 지식 · 결과
-const AUDIT_SAY = [[/\/admin\/users\/[^/]+\/reset$/, '비밀번호 다시 정하기'], [/\/admin\/users\/[^/]+\/unlock$/, '잠금 풀기'], [/\/admin\/users\/[^/]+\/revoke-all$/, '기기 열쇠 모두 끊기'], [/\/admin\/users\/[^/]+\/logout-all$/, '모든 곳에서 내보내기'], [/\/admin\/users\/[^/]+\/admin$/, '총괄 관리자 주기 · 걷기'], [/\/admin\/users\/[^/]+\/off$/, '사람 끄기 · 켜기'], [/\/admin\/users\/[^/]+\/seats$/, '자리 주기'], [/\/admin\/users$/, '사람 더하기'], [/\/admin\/groups/, '묶음'], [/\/admin\/links$/, '설치 한 줄 만들기'], [/\/admin\/claude/, 'Claude 연결'], [/\/queue\/caps$/, '동시에 도는 수'], [/\/queue\/hold$/, '줄 멈춤'], [/\/requests\/.+\/close$/, '가져올 곳 부탁 닫기'], [/\/knowledge\/add$/, '지식 세우기'], [/\/knowledge\/sync$/, '지식 폴더 다시 읽기'], [/\/restore$/, '불러오기'], [/\/sudo$/, '비밀번호 한 번 더'], [/\/me\/password$/, '내 비밀번호 바꾸기'], [/\/me\/logout-all$/, '모두 나가기'], [/\/me\/devices\/revoke$/, '내 기기 끊기'], [/\/device\/ticket$/, '설치 번호 받기'], [/\/owner$/, '주인 · 지식 설정'], [/\/access$/, '권한'], [/\/delete$/, '지식 삭제'], [/\/structure$/, '구조'], [/\/polish$/, '문서 다듬기'], [/\/revert$/, '되돌리기'], [/\/unwatch$/, '원본 떼기'], [/\/docfmt$/, '문서 꼴 고치기'], [/\/backup/, '백업'], [/\/sources/, '가져올 곳'], [/\/rec\/[^/]+\/fix$/, '기록 바로잡기']]
+const AUDIT_SAY = [[/\/admin\/users\/[^/]+\/reset$/, '비밀번호 다시 정하기'], [/\/admin\/users\/[^/]+\/unlock$/, '잠금 풀기'], [/\/admin\/users\/[^/]+\/revoke-all$/, '기기 열쇠 모두 끊기'], [/\/admin\/users\/[^/]+\/logout-all$/, '모든 곳에서 내보내기'], [/\/admin\/users\/[^/]+\/admin$/, '총괄 관리자 주기 · 걷기'], [/\/admin\/users\/[^/]+\/off$/, '사람 끄기 · 켜기'], [/\/admin\/users\/[^/]+\/seats$/, '자리 주기'], [/\/admin\/users$/, '사람 더하기'], [/\/admin\/groups/, '묶음'], [/\/admin\/links$/, '설치 한 줄 만들기'], [/\/admin\/claude/, 'Claude 연결'], [/\/queue\/caps$/, '동시에 도는 수'], [/\/queue\/hold$/, '줄 멈춤'], [/\/requests\/.+\/close$/, '가져올 곳 부탁 닫기'], [/\/knowledge\/add$/, '지식 세우기'], [/\/knowledge\/sync$/, '지식 폴더 다시 읽기'], [/\/restore$/, '불러오기'], [/\/sudo$/, '비밀번호 한 번 더'], [/\/me\/password$/, '내 비밀번호 바꾸기'], [/\/me\/logout-all$/, '모두 나가기'], [/\/me\/devices\/revoke$/, '내 기기 끊기'], [/\/device\/ticket$/, '설치 번호 받기'], [/\/owner$/, '주인 · 지식 설정'], [/\/access$/, '권한'], [/\/delete$/, '지식 삭제'], [/\/structure$/, '구조'], [/\/polish$/, '문서 다듬기'], [/\/revert$/, '되돌리기'], [/\/backup/, '백업'], [/\/sources/, '가져올 곳'], [/\/rec\/[^/]+\/fix$/, '기록 바로잡기']]
 const auditSay = (p) => (AUDIT_SAY.find(([re]) => re.test(p)) || [null, p])[1]
 const auditOf = () => need('audit', '/api/admin/audit?n=300')
 function auditCard() {
