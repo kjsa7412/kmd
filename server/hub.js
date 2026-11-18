@@ -10,7 +10,7 @@ import os from 'node:os'
 import { listKnowledge, loadKnowledge, coordsOfSection, sectionOf, looksLikeKnowledge } from '../core/knowledge.js'
 import { KmdError, httpStatusOf } from '../core/errors.js'
 import { save as coreSave, serial, localStamp, recordTakenSync, SECTIONS_MAX, assetPath, ATTACH_MAX_BYTES, checkInput } from '../core/save.js'
-import { audit as guardAudit, recordBody, RECORD_PARTS, proposeInputWhy, INTAKE_FORM, RECORDS_DOC, RECORDS_DOC_PATH, RECORDS_INTRO, RECORDS_MONTH_TEXT } from '../core/guard.js'
+import { audit as guardAudit, recordBody, RECORD_PARTS, proposeInputWhy, RECORDS_DOC, RECORDS_DOC_PATH, RECORDS_INTRO, RECORDS_MONTH_TEXT } from '../core/guard.js'
 import { recover as recoverSave } from '../core/journal.js'
 import { renderReverted, parseReverted, parsePut, dropPart, PUT_PART, HELD_PART, REVERTED_PART, ACCEPTED_PART, VALUES_PART, LINKED_PART, FRESH_PART, itemKey, parseFresh } from '../core/parts.js'
 import { revertPlan } from '../core/revert.js'
@@ -1636,7 +1636,7 @@ ${genRulesBlock({ profile: 'shape' })}`
   }
   function unattendedPlan(k, input, { name = '' } = {}) {
     const inp = proposeInputOf({ ...input, sections: (Array.isArray(input.sections) ? input.sections : []).map((s) => reaimSection(k, s)) })
-    const p = buildProposal(k, inp, { newDoc: true, intakeDoc: true, approve: true, curator: false, reverts: (doc) => revertsIn(k, doc), month: monthOf(input.record), head: { name: name || k.name, viewers: null, path: '무인' } })
+    const p = buildProposal(k, inp, { newDoc: true, approve: true, curator: false, reverts: (doc) => revertsIn(k, doc), month: monthOf(input.record), head: { name: name || k.name, viewers: null, path: '무인' } })
     return { p, errors: p.errors }
   }
   // 무인 저장 문의 몸(saveIn 이 부른다) — coreSave(prepare · approve + intake) 결과(r0) · 판정 오류면 { errors } (쓰지 않았다)
@@ -2786,7 +2786,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       hub.need(ctx, id, 'admin')
       const a = guardAudit(k, { sectionOf, coordsOfSection })
       const cut = (xs) => xs.slice(0, 200)
-      return { id: k.id, name: k.name, counts: a.counts, unnamed: cut(a.unnamed), outside: cut(a.outside), lost: cut(a.lost), noName: cut(a.noName), aliasClash: cut(a.aliasClash), sameLabel: cut(a.sameLabel), brokenHead: cut(a.brokenHead), spaced: cut(a.spaced), forms: { own: k.forms.own, rows: k.forms.rows, closed: !!k.forms.closed } }
+      return { id: k.id, name: k.name, counts: a.counts, unnamed: cut(a.unnamed), outside: cut(a.outside), lost: cut(a.lost), noName: cut(a.noName), aliasClash: cut(a.aliasClash), sameLabel: cut(a.sameLabel), brokenHead: cut(a.brokenHead), spaced: cut(a.spaced), noGist: cut(a.noGist), noNature: cut(a.noNature), forms: { own: k.forms.own, rows: k.forms.rows, closed: !!k.forms.closed } }
     },
 
     // 찾기 — 색인은 지식마다 · 바뀐 파일만 다시(저장 뒤 · 처음 찾을 때) · 지식을 섞지 않는다
@@ -5310,7 +5310,7 @@ ${genRulesBlock({ profile: 'shape' })}`
         if (prev) extra.push(`- 같은 줄기의 앞 판을 이미 들였다: 기록 「${String(prev.title).slice(0, 120)}」(${String(prev.date || '').slice(0, 10)} 에 들임)${prev.touches.length ? ` · 그때 건드린 항목: ${prev.touches.slice(0, 20).join(' · ')}` : ''}. 이번 판에서 달라진 것만 고치고, 그대로인 항목은 act "same" 으로 적는다(R2-2). 날짜 없는 값은 날짜 있는 값을 이기지 못한다(R2-5).`)
       }
       const sib = [...jobs.values()].filter((x) => x.kind === 'intake' && x.kn === id && x.id !== j.id && SESSION_T.has(x.type) && ['queued', 'running'].includes(x.state)).map((x) => String(x.src?.title || x.src?.rel || '').slice(0, 60)).filter(Boolean)
-      if (sib.length) extra.push(`- 같이 온 것(아직 들이지 않은 다른 원천 ${sib.length}): ${sib.slice(0, 12).join(' · ')}. 이 원천에 없는 것을 미리 세우지 않는다(R9-5): 같은 종류를 모으는 문서는 하나로 둔다(R3-2).`)
+      if (sib.length) extra.push(`- 같이 온 것(아직 들이지 않은 다른 원천 ${sib.length}): ${sib.slice(0, 12).join(' · ')}. 이 원천에 없는 것을 미리 세우지 않는다(R9-3): 같은 종류를 모으는 문서는 하나로 둔다(R3-2).`)
       if (extra.length) task.prompt = `${task.prompt}\n${extra.join('\n')}`
       j.calls = (j.calls || 0) + 1
       saveJobs()

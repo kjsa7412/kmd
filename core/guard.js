@@ -36,7 +36,7 @@ export function newNameWhy(coord) {
   return null
 }
 
-// 폐기 줄의 새 항목 — 「2026-10-19 → 종류:값: 까닭」(옛 꼴 「→ 종류:값 — 까닭」) · 값 끝의 쌍점은 까닭 앞 쌍점이다
+// 폐기 줄의 새 항목 — 「2026-10-19 → 종류:값: 까닭」 · 값 끝의 쌍점은 까닭 앞 쌍점이다
 const nextOf = (dep) => String(dep || '').match(/→\s*([^\s`]+:[^\s`]+)/)?.[1]?.replace(/:+$/, '') || null
 
 // 찾는 키 — 값 · 라벨 · 별칭(살아 있는 항목만) → 항목들
@@ -158,13 +158,12 @@ export function proposeInputWhy(input) {
     if (plainObj(x) && x.label != null && !ONE_LINE(x.label, 60)) return '종류의 label 은 한 줄 60자 안이다'
   }
   for (const n of input.names || []) {
-    if (!plainObj(n) || badKeys(n) || Object.keys(n).some((y) => !['coord', 'label', 'aliases', 'doc', 'heading', 'gist', 'kindGist', 'fill'].includes(y))) return 'names 는 { coord, label, aliases, doc, heading, gist } 의 목록이다'
+    if (!plainObj(n) || badKeys(n) || Object.keys(n).some((y) => !['coord', 'label', 'aliases', 'doc', 'heading', 'gist', 'kindGist'].includes(y))) return 'names 는 { coord, label, aliases, doc, heading, gist } 의 목록이다'
     if (!ONE_LINE(n.coord, 200) || !ONE_LINE(n.label, 200)) return '항목(coord) · 라벨(label)은 한 줄 200자 안이다'
     if (!strs(n.aliases, 200)) return '항목의 별칭(aliases)은 20개 안 · 한 줄 200자 안이다'
     for (const y of ['doc', 'heading']) if (n[y] != null && !ONE_LINE(n[y], 300)) return `항목의 ${y} 는 한 줄 300자 안이다`
-    // 뜻 한 줄(gist) · 새 종류의 뜻(kindGist) · 자리 채움(fill · 자리 없는 옛 줄에만) — 지식 생성 하네스 H2
+    // 뜻 한 줄(gist) · 새 종류의 뜻(kindGist): 지식 생성 하네스 H2
     for (const y of ['gist', 'kindGist']) if (n[y] != null && !ONE_LINE(n[y], 80)) return `항목의 ${y} 는 한 줄 80자 안이다`
-    if (n.fill != null && typeof n.fill !== 'boolean') return '항목의 fill 은 true 또는 false 다'
   }
   return null
 }
@@ -248,22 +247,21 @@ export function guardNames(vocab, names) {
 
 // ── 갈래 장부(`_forms.md`) — 새 문서가 설 수 있는 갈래 ──
 //
-//   | 갈래 | 별칭 | 폴더 | 종류 | 항목 | 서식 |   (옛 표 머리 「다른 이름」 · 「이름」 도 읽는다: 칸 차례로 읽는다)
+//   | 갈래 | 별칭 | 폴더 | 종류 | 항목 | 서식 |   (칸 차례로 읽는다)
 //   |---|---|---|---|---|---|
 //   | 회의록 | 회의, 미팅, 통화, 면담, 전화 | 1.2_사업관리 | 사건 | — | 작업기록 |
 //
 //   종류(성격 · 생성 룰 R4-1 의 아홉): 대상 · 서술 · 절차 · 시험 · 용어 · 사건(머리가 「YYYY-MM-DD 무엇」) · 보고 · 대장(`##` 하나가 장부 항목 하나) · 결정
 //   갈래 장부는 모으는 갈래(같은 꼴의 항목이 쌓이는 문서)의 계약이다. 문서의 으뜸 성격은 같은 파일 끝의 「## 문서 성격」 표(문서 · 성격 · 요약 세 칸)에 따로 적는다(지식 생성 하네스 H-O6).
-//   새 문서: 기본은 열림이다(갈래에 없는 문서도 성격과 요약이 있으면 선다). 파일에 「- 새 문서: 닫음」 줄이 있으면 닫힘이다(H-O4).
-//     그 줄이 없는 옛 갈래 장부(갈래 줄이 하나라도 있다)는 닫힘으로 읽는다 — 옛 것을 다시 쓰지 않는다.
+//   새 문서: 기본은 열림이다(갈래에 없는 문서도 성격과 요약이 있으면 선다). 파일에 「- 새 문서: 닫음」 줄이 있으면 닫힘이다(H-O4 · O-3).
 //   항목: 그 문서의 항목 패턴(`이슈:*`) — 있으면 새 문서를 세울 때 문서 장부 행을 같이 세운다
 export const FORM_KINDS = ['대상', '서술', '절차', '시험', '용어', '사건', '보고', '대장', '결정']
 // 모으는 문서의 성격(R0 · R3-2) — 같은 꼴의 항목이 줄줄이 쌓인다
 export const GATHER_KINDS = ['사건', '보고', '대장', '용어', '결정']
 // 이름이 별칭을 품으면 그 갈래로 보는 것(품기 맞춤)은 이 성격의 갈래에만 한다(H-D15) — 그 밖의 갈래는 이름이 같을 때만
 const CONTAIN_KINDS = ['사건', '보고', '대장']
-// 기본 갈래 — 판정에는 쓰지 않는다(H-O4 · 빈 지식의 발판은 생성 룰이다). 남은 쓰임은 읽기 발판뿐이다:
-//   옛 문서의 성격 짐작(core/forms.js kindOf) · 원본 조사(core/survey.js). 규칙 길의 사건 고르기는 규칙 길과 함께 걷었다(H4b)
+// 기본 갈래 — 판정에는 쓰지 않는다(H-O4 · 빈 지식의 발판은 생성 룰이다). 남은 쓰임은 원본 조사(core/survey.js)뿐이다.
+//   이름으로 문서 성격을 짐작하던 읽기는 걷었다(O-9: 성격 표가 없으면 빈 칸 · 점검이 알린다)
 export const DEFAULT_FORMS = [
   { name: '회의록', aliases: ['회의', '미팅', '통화', '전화', '면담', 'minutes', 'meeting'], folder: '', kind: '사건', pattern: null, form: '작업기록' },
   { name: '장애 대응', aliases: ['장애', '사고', 'incident', 'postmortem'], folder: '', kind: '사건', pattern: null, form: '작업기록' },
@@ -300,7 +298,7 @@ export const formsOf = (text) => {
   const props = parseProps(text)
   const rows = parseForms(text).map((r) => (props.has(r.name) ? { ...r, props: props.get(r.name) } : r))
   const mark = CLOSED_RE.exec(String(text || ''))
-  return { rows, own: rows.length > 0, closed: mark ? mark[1] === '닫음' : rows.length > 0, natures: parseNatures(text) }
+  return { rows, own: rows.length > 0, closed: !!mark && mark[1] === '닫음', natures: parseNatures(text) }
 }
 // 문서 성격 표(「## 문서 성격」 아래 | 문서 | 성격 | 요약 |) — 세 칸이라 옛 판은 갈래 줄로 읽지 않는다(parseForms 는 네 칸 이상만)
 export const NATURES_HEAD = '## 문서 성격'
@@ -357,12 +355,8 @@ export const RECORDS_DOC_PATH = `docs/${RECORDS_DOC}.md`
 export const RECORDS_INTRO = '이을 항목이 없던 기록을 달마다 잇는다. 기록은 각 달 항목의 이력으로 붙는다.'
 export const RECORDS_MONTH_TEXT = '이 달에 이을 항목이 없던 기록을 잇는다.'
 export const isRecordsMonth = (h) => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(h || '').trim())
-// 들인 자료(저장 승인 설계 P-D35 · Q4 · P6) — 서버 고정 갈래 · 규칙 길이 맞는 갈래를 못 찾은 원본을 이 폴더 아래 주제 문서로 세운다(처음 쓸 때 선다) ·
-//   갈래 장부에 없어도 선다(고정 갈래) · 이름은 주제(규칙 길이 지었다 · 규칙 길은 걷었고 옛 문서는 그대로 읽는다) · 지식관리자는 원하면 나중에 옮긴다
-export const INTAKE_FORM = '들인 자료'
-//   intake — 무인 채널의 저장(P6 · 규칙 길)만 「들인 자료」 고정 갈래를 연다(사람 채널은 갈래 장부 · 꼴 검사 그대로)
 //   depart — 벗어남을 적은 새 문서(H-D17 다 · H4c 부터 건다): 별칭 품기와 닫힌 갈래를 넘는다(머리 꼴 · 폴더 · 이름 모양은 그대로 본다)
-export function guardNewDoc(forms, docRel, headings = [], { intake = false, depart = false } = {}) {
+export function guardNewDoc(forms, docRel, headings = [], { depart = false } = {}) {
   const errors = []
   const p = nfc(String(docRel)).replace(/\\/g, '/').replace(/^docs\//, '').replace(/\.md$/, '')
   const parts = p.split('/')
@@ -371,11 +365,6 @@ export function guardNewDoc(forms, docRel, headings = [], { intake = false, depa
   if (p === RECORDS_DOC) {
     const bad = headings.filter((h) => !isRecordsMonth(h))
     return { errors: bad.length ? [{ code: 'E_INPUT', form: RECORDS_DOC, message: `「${RECORDS_DOC}」 의 항목 머리는 달(YYYY-MM)이다: ${bad.slice(0, 3).join(' · ')}` }] : [], form: { name: RECORDS_DOC, kind: '사건', fixed: true } }
-  }
-  // 들인 자료(고정 갈래 · P6) — 한 단 아래 주제 문서만 · 이름 길이만 본다(갈래 고르기는 규칙 길이 먼저 했다)
-  if (folder === INTAKE_FORM && intake) {
-    const bad = !name.trim() || name.length > 40
-    return { errors: bad ? [{ code: 'E_INPUT', form: INTAKE_FORM, message: `「${INTAKE_FORM}」 문서 이름은 40자 안의 주제다` }] : [], form: { name: INTAKE_FORM, kind: '서술', fixed: true } }
   }
   if (FILEISH.some((re) => re.test(name))) errors.push({ code: 'E_INPUT', message: `새 문서 이름 「${name}」 에 파일 이름 조각(날짜 · 판 · 최종 · 확장자)이 있다. 문서 이름은 갈래 · 주제로 짓는다(예: 회의록 · 게이트웨이 설계 · 생성 룰 R3-6)` })
   if (name.length > 40) errors.push({ code: 'E_INPUT', message: `새 문서 이름이 너무 길다(40자 안). 문서 이름은 갈래 · 주제다(생성 룰 R3-6)` })
@@ -441,8 +430,8 @@ export function recordBody(rec, { trail = false } = {}) {
   return { body: [summary, ...parts.filter(([, xs]) => xs.length).map(([h, xs]) => `## ${h}\n${xs.map((x) => `- ${x}`).join('\n')}`)].filter(Boolean).join('\n\n') }
 }
 
-// 깨진 머리 — 설명이 비었거나(「값: · 다른 것」 · 「값:」) 괄호 하나만 남은 것(「수집기: (Collector)」) · 옛 꼴 「값 — …」 도
-const BROKEN_HEAD = /(?::| —) (?:·|\([^)]*\)\s*$)|(?::| —)\s*$/
+// 깨진 머리 — 설명이 비었거나(「값: · 다른 것」 · 「값:」) 괄호 하나만 남은 것(「수집기: (Collector)」)
+const BROKEN_HEAD = /: (?:·|\([^)]*\)\s*$)|:\s*$/
 
 // ── 지식 한 벌 점검 — 위반 목록(화면 · `kmd guard --check` 가 같은 계산) ──
 //   sectionOf · coordsOfSection 은 core/knowledge.js 의 것을 받는다(이 모듈이 지식 읽기를 끌어오지 않게)
@@ -478,6 +467,9 @@ export function audit(k, { sectionOf, coordsOfSection }) {
   const brokenHead = []
   for (const d of k.docs) for (const s of d.sections) if (BROKEN_HEAD.test(s.h || '')) brokenHead.push({ doc: d.id, heading: s.h })
   const spaced = live.filter(([c]) => /\s/.test(valueOf(c))).map(([c]) => c)
+  // 빈 칸(O-9) — 뜻 한 줄이 없는 항목 · 성격이 적히지 않은 문서(성격 표 줄도 갈래 줄도 없다). 읽기는 짐작으로 메우지 않고 빈 칸으로 두며 여기서 알린다
+  const noGist = live.filter(([, v]) => !v.gist).map(([c]) => c)
+  const noNature = k.docs.filter((d) => d.path && d.path !== RECORDS_DOC_PATH && !k.forms?.natures?.has?.(d.id) && !formFor(k.forms, d.id.split('/').pop())).map((d) => ({ doc: d.id }))
   // 깨진 문서 링크(UX T2-15) — 본문의 [글](x.md · x.md#머리)가 가리키는 문서가 없다 · 바깥 주소 · 기록 링크는 보지 않는다
   const brokenLink = []
   const byName = new Set(k.docs.filter((d) => d.path).flatMap((d) => [d.path, d.path.replace(/^docs\//, '')]))
@@ -492,7 +484,7 @@ export function audit(k, { sectionOf, coordsOfSection }) {
     if (!byName.has(p) && !byName.has(href) && !byName.has('docs/' + href)) brokenLink.push({ doc: d.id, heading: sec.h, link: m[1] })
   }
   return {
-    counts: { brokenLink: brokenLink.length, names: k.vocab.coords.size, live: live.length, records: k.works.length, sections: k.docs.reduce((n, d) => n + d.sections.length, 0), unnamed: unnamed.length, outside: outside.length, lost: lost.length, noName: noName.length, aliasClash: aliasClash.length, sameLabel: sameLabel.length, brokenHead: brokenHead.length, spaced: spaced.length },
-    unnamed, outside, lost, noName, aliasClash, sameLabel, brokenHead, spaced, brokenLink,
+    counts: { brokenLink: brokenLink.length, names: k.vocab.coords.size, live: live.length, records: k.works.length, sections: k.docs.reduce((n, d) => n + d.sections.length, 0), unnamed: unnamed.length, outside: outside.length, lost: lost.length, noName: noName.length, aliasClash: aliasClash.length, sameLabel: sameLabel.length, brokenHead: brokenHead.length, spaced: spaced.length, noGist: noGist.length, noNature: noNature.length },
+    unnamed, outside, lost, noName, aliasClash, sameLabel, brokenHead, spaced, brokenLink, noGist, noNature,
   }
 }

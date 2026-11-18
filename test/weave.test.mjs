@@ -1,5 +1,5 @@
 // 짝 짓기(core/weave.js · 지식 생성 하네스 H2) — 판정 한 줄에서 섹션 · 항목 장부 줄 · 문서 장부 줄 · 건드린 항목 · 문서 성격 줄을 같이 짓는다.
-//   빈 지식에서 짝이 100% 로 서는가 · 종류를 접지 않는가 · 열쇠 겹침 · 모으는 문서 접기 · 짜임 머리 · 자리 채움 · 저장과 다시 읽기.
+//   빈 지식에서 짝이 100% 로 서는가 · 종류를 접지 않는가 · 열쇠 겹침 · 모으는 문서 접기 · 짜임 머리 · 자리 없는 장부 줄 · 저장과 다시 읽기.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -93,7 +93,7 @@ test('빈 지식: 판례 0 건에서도 항목마다 짝이 선다 · 종류는 
   assert.deepEqual([k2.forms.own, k2.forms.closed, k2.forms.rows.map((f) => f.name)], [true, false, ['회의록']])
   assert.deepEqual(kindOf(k2.forms, '게이트웨이 설계'), { kind: '대상', form: null, props: null }) // 문서 성격 줄(짐작이 아니다)
   assert.equal(kindOf(k2.forms, '회의록').kind, '사건')
-  assert.equal(kindOf(k2.forms, '장애 대응 절차').guess, true) // 성격 줄도 갈래 줄도 없으면 이름 짐작(읽기 발판)
+  assert.deepEqual(kindOf(k2.forms, '장애 대응 절차'), { kind: '', form: null, props: null }) // 성격 줄도 갈래 줄도 없으면 빈 칸(이름으로 짐작하지 않는다 · O-9)
 
   // 둘째 걸음 — 있는 머리는 그 장부 항목을 건드린다 · 열쇠 겹침은 문서 줄기를 붙인다 · 같은 종류를 모으는 문서로 접는다 · 벗어남이면 접지 않는다
   const w2 = weave(k2, {
@@ -115,29 +115,21 @@ test('빈 지식: 판례 0 건에서도 항목마다 짝이 선다 · 종류는 
   assert.deepEqual(w2.natures.map((x) => x.doc), ['수집기 설치', '회의 운영 규칙']) // 접힌 문서는 성격 줄이 없다
 })
 
-test('자리 채움(H-O3): 자리 없는 옛 장부 줄과 같은 열쇠면 그 줄에 자리를 채운다 · 쓰기 자리도 한다 · 있는 자리는 고치지 않는다', async () => {
-  const VOCAB = `# 항목 장부\n\n## term\n\n- ${BT}term:버퍼${BT} — 버퍼\n- ${BT}term:수집기${BT} — 수집기\n`
+test('자리 없는 장부 줄(O-2 · 자리 채움을 걷었다): 같은 열쇠의 새 머리는 다른 항목이다 · 자리에 선 항목은 다시 세우지 않는다 · fill 은 받지 않는다', async () => {
+  const VOCAB = `# 항목 장부\n\n## term\n\n- ${BT}term:버퍼${BT}: 버퍼\n- ${BT}term:수집기${BT}: 수집기\n`
   const dir = emptyKn({
     '_vocab.md': VOCAB,
     '_managed.md': `# 문서 장부\n\n| 항목 | 문서 | 머리 |\n|---|---|---|\n| ${BT}term:수집기${BT} | ${BT}docs/설계.md${BT} | ${BT}## 수집기${BT} |\n`,
     'docs/설계.md': '# 설계\n\n게이트웨이 설계.\n\n## 수집기\n\n수집기는 값을 모은다.\n',
   })
   const k = await load(dir)
-  const w = weave(k, { lines: [{ doc: '설계', heading: '버퍼', act: 'new', kind: 'term', gist: '보낼 묶음을 잠시 담는 자리' }, { doc: '다른 문서', heading: '수집기', act: 'new', kind: 'term' }] })
+  const w = weave(k, { lines: [{ doc: '설계', heading: '버퍼', act: 'new', kind: 'term', gist: '보낼 묶음을 잠시 담는 자리' }, { doc: '설계', heading: '수집기', act: 'edit', kind: 'term' }] })
   assert.deepEqual(w.errors, [])
-  assert.deepEqual(w.names[0], { coord: 'term:버퍼', label: '버퍼', doc: '설계', heading: '버퍼', fill: true })
-  assert.equal(w.names[1].coord, 'term:다른_문서_수집기') // 자리가 있는 같은 열쇠는 겹침이다(다른 대상)
-  const input = { record: { title: '버퍼: 더함', body: '버퍼를 더했다.', touches: ['term:버퍼'] }, sections: [{ doc: '설계', heading: '버퍼', content: '버퍼는 보낼 묶음을 잠시 담는다.' }], names: [w.names[0]] }
-  const p = human(k, input, false)
-  assert.deepEqual(p.errors, [], JSON.stringify(p.errors))
-  assert.ok(p.fresh.some((f) => f.kind === '자리' && f.name === 'term:버퍼'))
-  assert.match(p.text, /term:버퍼 {3}자리 채움 {3}자리: 설계 › 버퍼/)
-  // 자리가 이미 있는 항목에 fill 을 달아 보내면 여느 장부 고침이다(쓰기 자리는 오류)
-  assert.ok(human(k, { ...input, names: [{ coord: 'term:수집기', label: '수집기', doc: '설계', heading: '버퍼', fill: true }] }).errors.some((e) => e.code === 'name'))
-  await coreSave(dir, input, { user: 't', guard: 'strict' })
-  const k2 = await load(dir)
-  assert.equal(sectionOf(k2, 'term:버퍼').sec.h, '버퍼')
-  assert.equal(fs.readFileSync(path.join(dir, '_vocab.md'), 'utf8'), VOCAB) // 항목 장부 줄은 그대로
+  assert.deepEqual(w.names, [{ coord: 'term:설계_버퍼', label: '버퍼', doc: '설계', heading: '버퍼', gist: '보낼 묶음을 잠시 담는 자리' }])
+  assert.deepEqual(w.fold.map((f) => [f.what, f.from, f.to]), [['key', 'term:버퍼', 'term:설계_버퍼']])
+  assert.ok(w.touches.includes('term:수집기'))
+  const { cleanNames } = await import('../core/namebook.js')
+  assert.equal(cleanNames([{ coord: 'term:버퍼', label: '버퍼', doc: '설계', heading: '버퍼', fill: true }])[0].fill, undefined)
 })
 
 test('들이기 초안 → 저장 덩이: 새 머리마다 짝 · 종류를 term 으로 접지 않는다 · 가짜 초안 다섯 뒤 짝 100%', async () => {

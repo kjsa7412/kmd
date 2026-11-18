@@ -2,7 +2,7 @@
 //
 //   장부는 과거 결정이고 따를지는 LLM 이 맡는다. 이 함수는 「무엇이 걸리는가」 만 결정적으로 찾는다(판정이 아니다 · 저장 줄에서 다시 짓지 않는다 · H-D12).
 //   모든 채널이 같은 카드를 받는다: MCP `match` · `brief` 응답(server/mcp.js). 카드는 번호가 아니라 안정된 열쇠로 가리킨다(H-D6).
-//   기록 모음과 옛 규칙 길 문서(`들인 자료/`)는 과거 결정에서 뺀다(R9-4: 원문 재료다).
+//   기록 모음은 과거 결정에서 뺀다(달마다 기록을 잇는 자리다 · 판례가 아니다).
 //
 //   precedentsFor(k, { q, text }) → { cards, prior, coverage, toc, none }
 //     q    — 찾을 이름(글 하나 또는 목록) · text — 원천 본문(거꾸로 대기 · 뜻 맞춤 · 앞선 값에 쓴다 · 없어도 된다)
@@ -12,7 +12,7 @@
 
 import { sha16, nfc } from './text.js'
 import { sectionOf, coordsOfSection } from './knowledge.js'
-import { resolveName, RECORDS_DOC_PATH, INTAKE_FORM, GATHER_KINDS, NEAR_RATIO } from './guard.js'
+import { resolveName, RECORDS_DOC_PATH, GATHER_KINDS, NEAR_RATIO } from './guard.js'
 import { kindOf } from './forms.js'
 import { normKey, wordsOf, COMMON } from './search.js'
 import { SEED_KINDS, NATURES, seedKind } from './genrules.js'
@@ -26,13 +26,12 @@ export const PRIOR_CARDS = 5
 export const TOC_MAX = 300 // 목차를 전부 싣는 지식의 머리 수
 
 const docId = (p) => String(p).replace(/^docs\/|\.md$/g, '')
-const isRaw = (d) => d.path === RECORDS_DOC_PATH || docId(d.path).startsWith(`${INTAKE_FORM}/`)
+const isRaw = (d) => d.path === RECORDS_DOC_PATH
 const firstSentence = (body) => {
   const l = String(body || '').split('\n').map((x) => x.trim()).find((x) => x && !/^(?:[|#>]|```|~~~|[-*]s|d+[.)]s|<!--)/.test(x)) || ''
   const m = /^(.{8,}?[.。!?다])(\s|$)/.exec(l)
   return (m ? m[1] : l).replace(/[`|]/g, '').slice(0, 80)
 }
-const gistOf = (v, sec) => v?.gist || firstSentence(sec?.body)
 
 // 지식마다 한 번 — 이름 표(장부 줄 · 장부 밖 머리 · 문서 제목)와 항목 안의 이름(표 첫 열 · 굵은 라벨 · 정의 목록)
 const cache = new WeakMap()
@@ -128,14 +127,14 @@ export function precedentsFor(k, { q = null, text = '', cap = null } = {}) {
       }
     }
   }
-  // 뜻 — 뜻 한 줄(없으면 항목 글 첫 문장) + 이름 낱말이 원천의 낱말과 겹치는 위 셋
+  // 뜻 — 뜻 한 줄 + 이름 낱말이 원천의 낱말과 겹치는 위 셋
   const words = new Set(wordsOf(`${terms.join(' ')} ${src.slice(0, 20_000)}`))
   let gistTotal = 0
   if (words.size) {
     const scored = []
     for (const x of T.ids) {
       if (hits.has(x.key)) continue
-      const ws = wordsOf(`${gistOf(x.v, x.sec)} ${x.label}`)
+      const ws = wordsOf(`${x.v?.gist || ''} ${x.label}`)
       const n = ws.filter((w) => words.has(w)).length
       if (n >= 2 || (n === 1 && ws.length <= 3)) scored.push({ x, n })
     }
@@ -157,8 +156,8 @@ export function precedentsFor(k, { q = null, text = '', cap = null } = {}) {
       ...(x.coord ? { coord: x.coord, label: x.label, kind: x.coord.slice(0, x.coord.indexOf(':')) } : {}),
       ...(x.doc ? { doc: x.doc, heading: x.heading } : {}),
       ...(x.v?.aliases?.length ? { aliases: x.v.aliases.slice(0, 8) } : {}),
-      ...(gistOf(x.v, x.sec) ? { gist: gistOf(x.v, x.sec), ...(x.v?.gist ? {} : { gistFrom: '첫 문장' }) } : {}),
-      ...(nature ? { nature: nature.kind, ...(nature.guess ? { natureGuess: true } : {}) } : {}),
+      ...(x.v?.gist ? { gist: x.v.gist } : {}),
+      ...(nature?.kind ? { nature: nature.kind } : {}),
       ...(x.innerName ? { inner: x.innerName } : {}),
       ...(x.sec ? { base: sha16(x.sec.body) } : {}),
       ...(withBody ? { body: x.sec.body.slice(0, CARD_BODY), ...(x.sec.body.length > CARD_BODY ? { bodyCut: true } : {}) } : {}),
@@ -174,7 +173,7 @@ export function precedentsFor(k, { q = null, text = '', cap = null } = {}) {
   for (const { d } of (small && T.docs.length <= DOC_CARDS ? T.docs.map((x) => ({ d: x })) : docScore).slice(0, DOC_CARDS)) {
     const n = kindOf(k.forms, d.id)
     const sum = k.forms.natures?.get(d.id)?.summary || firstSentence(d.intro || '')
-    cards.push({ type: '놓임', via: '문서', key: d.id, doc: d.id, title: d.title, nature: n.kind, ...(n.guess ? { natureGuess: true } : {}), ...(sum ? { summary: sum } : {}), items: d.sections.filter((s) => s.h).length, heads: d.sections.filter((s) => s.h).map((s) => s.h).slice(0, 6) })
+    cards.push({ type: '놓임', via: '문서', key: d.id, doc: d.id, title: d.title, ...(n.kind ? { nature: n.kind } : {}), ...(sum ? { summary: sum } : {}), items: d.sections.filter((s) => s.h).length, heads: d.sections.filter((s) => s.h).map((s) => s.h).slice(0, 6) })
   }
   for (const f of k.forms.rows) if (GATHER_KINDS.includes(f.kind)) cards.push({ type: '놓임', via: '모으는 갈래', key: f.name, name: f.name, nature: f.kind, ...(f.aliases?.length ? { aliases: f.aliases } : {}), ...(f.folder ? { folder: f.folder } : {}), ...(f.pattern ? { pattern: f.pattern } : {}), head: f.kind === '사건' ? '「YYYY-MM-DD 주제」' : f.pattern ? '「값: 설명」' : '주제 이름' })
   // 꼴 — 종류마다 한 줄(뜻 · 항목 수 · 사는 문서)

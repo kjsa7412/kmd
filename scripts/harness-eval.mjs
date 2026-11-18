@@ -19,7 +19,7 @@ import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { loadKnowledge, sectionOf } from '../core/knowledge.js'
-import { formFor, RECORDS_DOC_PATH, RECORDS_INTRO, RECORDS_MONTH_TEXT, INTAKE_FORM } from '../core/guard.js'
+import { formFor, RECORDS_DOC_PATH, RECORDS_INTRO, RECORDS_MONTH_TEXT } from '../core/guard.js'
 import { kindOf } from '../core/forms.js'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -34,7 +34,7 @@ export function itemsOf(k) {
   const out = []
   for (const d of k.docs) {
     if (d.path === RECORDS_DOC_PATH) continue
-    for (const s of d.sections) if (s.h) out.push({ doc: docName(d.path), h: s.h, body: s.body, raw: docName(d.path).startsWith(`${INTAKE_FORM}/`) })
+    for (const s of d.sections) if (s.h) out.push({ doc: docName(d.path), h: s.h, body: s.body })
   }
   return out
 }
@@ -50,7 +50,7 @@ function targetOf(gold, it) {
   }
   return null
 }
-// 문서의 성격 — 문서 성격 줄(H2 부터) · 갈래 장부 · 이름 짐작 차례
+// 문서의 성격 — 문서 성격 줄(H2 부터) · 갈래 장부 차례(없으면 빈 칸)
 function natureOf(k, doc) {
   const own = k.natures?.get?.(`docs/${doc}.md`) || k.natures?.get?.(doc)
   if (own) return own.nature || own
@@ -74,7 +74,7 @@ export function scoreKnowledge(k, gold) {
     const hit = items.filter((it) => re(f.re).test(it.body))
     const best = hit.find((it) => it.target === f.target) || hit.find((it) => f.alt && it.target === f.alt) || hit[0] || null
     const goldC = best && f.alt && best.target === f.alt ? f.alt : f.target
-    return { id: f.id, gold: goldC, at: best ? best.key : null, target: best ? best.target : null, placed: !!best && (best.target === f.target || (!!f.alt && best.target === f.alt)), raw: !!best?.raw }
+    return { id: f.id, gold: goldC, at: best ? best.key : null, target: best ? best.target : null, placed: !!best && (best.target === f.target || (!!f.alt && best.target === f.alt)) }
   })
   // 묶음 동치 — 알갱이 쌍마다: 정답에서 같은 대상인가 · 지식에서 같은 항목인가
   let tp = 0, fp = 0, fn = 0
@@ -118,7 +118,7 @@ export function scoreKnowledge(k, gold) {
     factPlaced: r4(facts.length ? facts.filter((f) => f.placed).length / facts.length : 0),
     pair: r4(items.length ? paired / items.length : 0),
     injected: inj.docs.length + inj.kinds.length + inj.values.length,
-    counts: { docs: docs.length, items: items.length, rawItems: items.filter((it) => it.raw).length, vocab: k.vocab.coords.size, kinds: kinds.length, formsOwn: !!k.forms?.own, records: k.works.length },
+    counts: { docs: docs.length, items: items.length, vocab: k.vocab.coords.size, kinds: kinds.length, formsOwn: !!k.forms?.own, records: k.works.length },
     detail: { docs, kinds, missing, dup, extra, nonItems, nature: natureRows.filter((x) => x.got !== x.want), facts: facts.filter((f) => !f.placed), values, inject: inj },
   }
 }
@@ -271,7 +271,7 @@ async function main() {
   const fin = JSON.parse(await fs.readFile(outFile, 'utf8'))
   console.log(`\n${ver}: 값 $${fin.cost.toFixed(2)} · ${Math.round(fin.ms / 60000)}분 · 넣음 ${fin.tally.put} · 못 넣음 ${fin.tally.fail} · 고쳐 받기 ${fin.tally.fix}`)
   const s = fin.score
-  console.log(`묶음 F1 ${s.f1} · 성격 ${s.nature} · 중복 ${s.dupRate} · 빠짐 ${s.missRate} · 지금 값 ${s.valueRate} · 짝 ${s.pair} · 주입 ${s.injected} · 문서 ${s.counts.docs} · 항목 ${s.counts.items}(원문 ${s.counts.rawItems})`)
+  console.log(`묶음 F1 ${s.f1} · 성격 ${s.nature} · 중복 ${s.dupRate} · 빠짐 ${s.missRate} · 지금 값 ${s.valueRate} · 짝 ${s.pair} · 주입 ${s.injected} · 문서 ${s.counts.docs} · 항목 ${s.counts.items}`)
   console.log(`결과: ${path.relative(ROOT, outFile)}`)
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch((e) => { console.error(e); process.exit(1) })

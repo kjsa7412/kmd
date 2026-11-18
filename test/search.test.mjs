@@ -105,7 +105,10 @@ test('찾기 후보 배우기: 사람이 고른 것은 다음에 약한 후보�
 test('gdi 사본: 6개 안 ≥ 88(위 한계)', { skip: !fs.existsSync(path.join(GDI, '_vocab.md')) && 'gdi 사본이 없다' }, async () => {
   const dir = path.join(tmp, 'gdi')
   for (const d of ['docs', 'work']) copyDir(path.join(GDI, d), path.join(dir, d))
-  for (const f of ['_vocab.md', '_managed.md']) fs.copyFileSync(path.join(GDI, f), path.join(dir, f))
+  // gdi_wiki 는 옛 꼴 장부(줄표 라벨 줄 · 옛 머리)다: 옛 꼴은 이행기만 안다(O-9) · 장부 규칙만 지금 꼴로 옮겨 읽는다
+  const { vocabHead, vocabDash, registryHead } = await import('../core/oldform.js')
+  fs.writeFileSync(path.join(dir, '_vocab.md'), vocabDash(vocabHead(fs.readFileSync(path.join(GDI, '_vocab.md'), 'utf8').replace(/\r\n/g, '\n'))))
+  fs.writeFileSync(path.join(dir, '_managed.md'), registryHead(fs.readFileSync(path.join(GDI, '_managed.md'), 'utf8').replace(/\r\n/g, '\n')))
   const k = await loadKnowledge({ id: 'gdi', name: 'gdi', dir })
   const idx = await buildIndex(k, {})
   const r = await searchCheck(k, idx, {})

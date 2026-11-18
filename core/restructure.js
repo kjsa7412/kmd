@@ -434,7 +434,7 @@ export function planRestructure(files, ops = {}) {
     if (pd.sections.length) { err(d, `빈 문서가 아니다(항목 ${pd.sections.length})`); continue }
     if (pd.intro.trim()) { err(d, '빈 문서가 아니다(요약이 있다)'); continue }
     const from0 = origin.get(rel) || rel
-    if ([...regRowsNow.rows, ...regRowsNow.wholes].some((x) => x.doc === from0 || x.doc === rel)) { err(d, '문서 장부 줄이 이 문서를 가리킨다'); continue }
+    if (regRowsNow.rows.some((x) => x.doc === from0 || x.doc === rel)) { err(d, '문서 장부 줄이 이 문서를 가리킨다'); continue }
     let inbound = null
     for (const [r2, t2] of final) {
       if (r2 === rel) continue

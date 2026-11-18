@@ -76,11 +76,11 @@ test('빠진 사건 채우기: 진단이 찾고 · 재료에 없는 값 · 머�
   const { eventGaps } = await import('../scripts/kmd-migrate.mjs')
   const g0 = eventGaps(await load()).find((g) => g.doc === EV)
   assert.ok(g0.missing.some((w) => w.id === '2026-1017-카나리'), '제목에 갈래의 별칭이 든 기록이 빠진 후보')
-  const mk = (heading, content) => input('ev.json', { record: { title: `회의록 채우기: ${heading}`, body: '장애대응 문서에 빠진 카나리 결정을 그 기록으로 채웠다.\n\n## 바뀐 것\n- 장애대응 항목: 카나리 새로 둠\n\n## 근거\n- 재료 기록: 2026-1017-카나리' }, sections: [{ doc: EV, heading, new: true, sources: ['2026-1017-카나리'], content }] })
+  const mk = (heading, content) => input('ev.json', { record: { title: `회의록 채우기: ${heading}`, body: '장애대응 문서에 빠진 카나리 결정을 그 기록으로 채웠다.\n\n## 바뀐 것\n- 장애대응 항목: 카나리 새로 둠\n\n## 근거\n- 재료 기록: 2026-1017-카나리' }, sections: [{ doc: EV, heading, new: true, sources: ['2026-1017-카나리'], kind: '사건', gist: '카나리 결정을 정한 일', content }] })
   const good = '- **정한 것**: 첫 30분은 요청의 10% 만 보낸다. 오류율 1% 를 넘으면 멈춘다'
   assert.match((await run('check', dir, mk('2026-10-17 카나리', good.replace('10%', '20%')))).text, /근거에 없는 값이 있다: 20%/)
   assert.match((await run('check', dir, mk('카나리', good))).text, /사건 갈래 문서의 머리는/)
-  assert.match((await run('check', dir, input('ev2.json', { record: { title: 't', body: 'b\n\n## 바뀐 것\n- x' }, sections: [{ doc: EV, heading: '2026-10-17 카나리', new: true, sources: [], content: good }] }))).text, /sources/)
+  assert.match((await run('check', dir, input('ev2.json', { record: { title: 't', body: 'b\n\n## 바뀐 것\n- x' }, sections: [{ doc: EV, heading: '2026-10-17 카나리', new: true, sources: [], kind: '사건', gist: '카나리 결정을 정한 일', content: good }] }))).text, /sources/)
   const p = await run('put', dir, mk('2026-10-17 카나리', good), '--user', 'kim')
   assert.equal(p.thrown, null, p.text)
   const k = await load()
@@ -89,14 +89,16 @@ test('빠진 사건 채우기: 진단이 찾고 · 재료에 없는 값 · 머�
   assert.match((await run('check', dir, mk('2026-10-17 카나리', good))).text, /이미 있는 머리다/)
   // 날짜 차례 — 더 이른 날의 새 항목은 늦은 항목 앞에 끼운다(옛 줄은 그대로)
   const before = fs.readFileSync(path.join(dir, ...EV.split('/')), 'utf8')
-  const early = input('ev3.json', { record: { title: '회의록 채우기: 2026-10-10 처음 10분', body: '앞선 날의 항목을 채웠다.\n\n## 바뀐 것\n- 장애대응 항목: 처음 10분 새로 둠' }, sections: [{ doc: EV, heading: '2026-10-10 처음 10분', new: true, sources: ['2026-1017-카나리'], content: '- **정한 것**: 오류율 1% 를 넘으면 멈춘다' }] })
+  const early = input('ev3.json', { record: { title: '회의록 채우기: 2026-10-10 처음 10분', body: '앞선 날의 항목을 채웠다.\n\n## 바뀐 것\n- 장애대응 항목: 처음 10분 새로 둠' }, sections: [{ doc: EV, heading: '2026-10-10 처음 10분', new: true, sources: ['2026-1017-카나리'], kind: '사건', gist: '오류율로 멈추기를 정한 일', content: '- **정한 것**: 오류율 1% 를 넘으면 멈춘다' }] })
   assert.match((await run('check', dir, early)).text, /자리: 「2026-10-17 카나리」 앞/)
   assert.equal((await run('put', dir, early, '--user', 'kim')).thrown, null)
   const heads = (await load()).byDocPath.get(EV).sections.map((s) => s.h)
   assert.ok(heads.indexOf('2026-10-10 처음 10분') === heads.indexOf('2026-10-17 카나리') - 1, '날짜 자리')
   const after = fs.readFileSync(path.join(dir, ...EV.split('/')), 'utf8')
   for (const l of before.split('\n').filter((x) => x.trim() && !/kmd:참고|^\*\*참고|^- |^  - /.test(x))) assert.ok(after.includes(l), `옛 줄 그대로: ${l}`)
-  // 짝 짓기(H6 · 엮기) — 새 항목에 종류 · 뜻 한 줄을 적으면 put 이 항목 장부 줄(뜻 한 줄) · 문서 장부 줄을 같이 짓는다. 적지 않으면 장부는 그대로다
+  // 짝 짓기(H6 · 엮기) — 새 항목의 종류 · 뜻 한 줄로 put 이 항목 장부 줄(뜻 한 줄) · 문서 장부 줄을 같이 짓는다. 적지 않으면 check 가 거절한다(장부 밖 항목을 세우지 않는다)
+  const bare = input('ev5.json', { record: { title: '회의록 채우기: 2026-10-13 종류 없음', body: '시험.\n\n## 바뀐 것\n- 장애대응 항목: 종류 없음 새로 둠' }, sections: [{ doc: EV, heading: '2026-10-13 종류 없음', new: true, sources: ['2026-1017-카나리'], content: '- **정한 것**: 오류율 1% 를 넘으면 멈춘다' }] })
+  assert.match((await run('check', dir, bare)).text, /종류\(kind\)와 뜻 한 줄\(gist\)/)
   const vocabOf = async () => (await load()).vocab.coords
   const n0 = (await vocabOf()).size
   const woven = input('ev4.json', { record: { title: '회의록 채우기: 2026-10-12 엮기 시험', body: '시험으로 채웠다.\n\n## 바뀐 것\n- 장애대응 항목: 엮기 시험 새로 둠' }, sections: [{ doc: EV, heading: '2026-10-12 엮기 시험', new: true, sources: ['2026-1017-카나리'], kind: '사건', gist: '카나리에서 오류율이 넘어 멈춘 일', content: '- **정한 것**: 오류율 1% 를 넘으면 멈춘다' }] })
@@ -117,7 +119,7 @@ test('빠진 사건 채우기: 갈래 문서가 없으면 new 항목이 그 문�
   await tryGit(dir, ['add', '-A'])
   await tryGit(dir, ['commit', '-qm', '갈래 장부: 주간보고'])
   assert.ok(!fs.existsSync(path.join(dir, ...WK.split('/'))))
-  const mk = (doc) => input('wk.json', { record: { title: '주간보고 채우기: 2026-10-17 카나리 주', body: '주간보고 문서가 없어 세우고 첫 항목을 넣었다.\n\n## 바뀐 것\n- 주간보고 항목: 카나리 주 새로 둠' }, sections: [{ doc, heading: '2026-10-17 카나리 주', new: true, sources: ['2026-1017-카나리'], content: '- **정한 것**: 오류율 1% 를 넘으면 멈춘다' }] })
+  const mk = (doc) => input('wk.json', { record: { title: '주간보고 채우기: 2026-10-17 카나리 주', body: '주간보고 문서가 없어 세우고 첫 항목을 넣었다.\n\n## 바뀐 것\n- 주간보고 항목: 카나리 주 새로 둠' }, sections: [{ doc, heading: '2026-10-17 카나리 주', new: true, sources: ['2026-1017-카나리'], kind: '보고', gist: '카나리를 돌린 주의 보고', content: '- **정한 것**: 오류율 1% 를 넘으면 멈춘다' }] })
   assert.match((await run('check', dir, mk('docs/없는갈래.md'))).text, /문서가 없다/)
   assert.match((await run('check', dir, mk(WK))).text, /자리: 새 문서/)
   const p = await run('put', dir, mk(WK), '--user', 'kim')
@@ -216,4 +218,58 @@ test('서식 맞춤(--format): 값이 같으면 이력(log/ · format) · 참고
   assert.ok(k2.logs.find((x) => x.id === id2)?.tags.includes('format'))
   assert.equal(k2.byDocPath.get(DOC).sections.find((s) => s.h === H).applied, id2, '표지는 그대로(이력 id · 다듬기와 같다)')
   assert.equal((await tryGit(dir, ['status', '--porcelain', '--', 'work', 'log', 'docs'])).out.trim(), '', '남은 변경 없음')
+})
+
+test('장부만 고치기(ledger): 뜻 한 줄 · 종류 뜻 · 폐기 · 합치기 · 장부 줄 걷기 · 있는 항목 names+gist → 이력 하나 · 걸리면 아무것도 쓰지 않는다', async () => {
+  const voc = () => fs.readFileSync(path.join(dir, '_vocab.md'), 'utf8')
+  const reg = () => fs.readFileSync(path.join(dir, '_managed.md'), 'utf8')
+  // 걸림: 없는 항목 · 없는 종류 절 · sections 와 같이 싣기 → 아무것도 쓰지 않는다
+  const v0 = voc()
+  const h0 = await head()
+  const bad = input('lg-bad.json', { ledger: [{ op: 'gist', coord: 'proc:없음', gist: 'x' }, { op: 'kind', kind: '없는종류', gist: 'y' }] })
+  const c0 = await run('check', dir, bad)
+  assert.equal(c0.code, 2)
+  assert.match(c0.text, /proc:없음」 는 항목 장부에 없다/)
+  assert.match(c0.text, /없는종류」 종류 절/)
+  const p0 = await run('put', dir, bad, '--user', 'kim')
+  assert.ok(p0.thrown && p0.thrown.exit === 2)
+  assert.equal(voc(), v0)
+  assert.equal(await head(), h0)
+  assert.match((await run('check', dir, input('lg-mix.json', { ledger: [{ op: 'gist', coord: 'proc:롤백', gist: 'x' }], sections: [{ doc: DOC, heading: '롤백', base: 'x', content: 'y' }] }))).thrown?.message || '', /sections 를 비운다/)
+  assert.match((await run('check', dir, input('lg-op.json', { ledger: [{ op: 'drop', coord: 'proc:롤백' }] }))).thrown?.message || '', /input\.ledger/)
+  // 넣기: 한 커밋 · 이력(log/ · 태그 ledger) · 항목 글은 그대로
+  const good = input('lg.json', {
+    why: '옛 장부 줄 보강',
+    ledger: [
+      { op: 'kind', kind: 'proc', gist: '배포 · 되돌림의 한 걸음' },
+      { op: 'retire', coord: 'proc:되돌리기', to: 'proc:롤백', why: '같은 걸음' },
+      { op: 'unplace', coord: 'proc:되돌리기' },
+    ],
+    names: [{ coord: 'proc:롤백', gist: '배포를 앞 판으로 되돌리는 걸음' }],
+  })
+  const c1 = await run('check', dir, good)
+  assert.equal(c1.code, 0, c1.text)
+  assert.match(c1.text, /종류 뜻: proc/)
+  assert.match(c1.text, /뜻 한 줄: proc:롤백/)
+  const body0 = await sectionBody('롤백')
+  const p1 = await run('put', dir, good, '--user', 'kim')
+  assert.equal(p1.thrown, null, String(p1.thrown?.message) + p1.text)
+  const r = JSON.parse(p1.text)
+  assert.ok(r.commit && r.commit !== h0)
+  assert.ok(fs.existsSync(path.join(dir, 'log', `${r.record}.md`)) && !fs.existsSync(path.join(dir, 'work', `${r.record}.md`)), '이력이다')
+  const k = await load()
+  assert.ok(k.logs.find((x) => x.id === r.record)?.tags.includes('ledger'))
+  assert.equal(k.vocab.coords.get('proc:롤백').gist, '배포를 앞 판으로 되돌리는 걸음')
+  assert.equal(k.vocab.kinds.get('proc'), '배포 · 되돌림의 한 걸음')
+  assert.match(k.vocab.coords.get('proc:되돌리기').deprecated, /→ proc:롤백: 같은 걸음$/)
+  assert.ok(!reg().includes('`proc:되돌리기`'), '문서 장부 줄을 걷었다')
+  assert.equal(await sectionBody('롤백'), body0, '항목 글은 그대로')
+  // 종류 뜻 · 뜻 한 줄은 다시 적으면 갈음한다
+  const p2 = await run('put', dir, input('lg2.json', { ledger: [{ op: 'kind', kind: 'proc', gist: '배포 걸음' }, { op: 'gist', coord: 'proc:롤백', gist: '앞 판으로 되돌림' }] }), '--user', 'kim', '--format')
+  assert.equal(p2.thrown, null, String(p2.thrown?.message))
+  const k2 = await load()
+  assert.equal(k2.vocab.kinds.get('proc'), '배포 걸음')
+  assert.equal(k2.vocab.coords.get('proc:롤백').gist, '앞 판으로 되돌림')
+  assert.equal((voc().match(/^뜻: /gm) || []).length, 1)
+  assert.ok(k2.logs.find((x) => x.id === JSON.parse(p2.text).record)?.tags.includes('format'), '--format 은 태그 format 도')
 })

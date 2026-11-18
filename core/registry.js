@@ -2,32 +2,18 @@
 //
 //   | `종류:*`        | `docs/문서.md` | `## {값}`   |   ← 그 종류의 항목은 모두 이 문서의 ## 머리
 //   | `종류:정확한값` | `docs/문서.md` | `## 머리`   |   ← 하나만
-//   | `종류:정확한값` | `docs/문서.md` | —           |   ← 문서 한 벌(CDP 에서 온 장부) · 항목 자리는 아니다(그래프만 쓴다)
 //
-// 위에서부터 먼저 걸리는 줄을 쓴다.
+// 위에서부터 먼저 걸리는 줄을 쓴다. 머리 칸이 없는 줄(옛 「문서 한 벌」 줄)은 읽지 않는다(옛 꼴은 core/oldform.js 만 안다 · O-2).
 
 import { nfc } from './text.js'
 
 export function parseRegistry(text) {
   const rows = []
-  const wholes = []
   for (const raw of String(text || '').split('\n')) {
     const m = raw.match(/^\|\s*`([^`]+)`\s*\|\s*`([^`]+)`\s*\|\s*`(#{1,6})\s+([^`]+)`\s*\|/)
-    if (m) {
-      rows.push({ pattern: nfc(m[1].trim()), doc: nfc(m[2].trim()), level: m[3].length, heading: nfc(m[4].trim()) })
-      continue
-    }
-    const w = raw.match(/^\|\s*`([^`]+)`\s*\|\s*`(docs\/[^`]+\.md)`\s*\|\s*(?:—|-)\s*\|/)
-    if (w) wholes.push({ pattern: nfc(w[1].trim()), doc: nfc(w[2].trim()) })
+    if (m) rows.push({ pattern: nfc(m[1].trim()), doc: nfc(m[2].trim()), level: m[3].length, heading: nfc(m[4].trim()) })
   }
-  return { rows, wholes }
-}
-
-// 항목(coord) → 그 항목이 가리키는 문서 한 벌의 경로(머리 없는 줄) · 없으면 null
-export function locateDoc(registry, coord) {
-  const c = nfc(coord)
-  const type = c.slice(0, c.indexOf(':'))
-  return (registry.wholes || []).find((r) => r.pattern === c || r.pattern === `${type}:*`)?.doc || null
+  return { rows }
 }
 
 // 항목(coord) → { doc, level, heading } · 걸리는 줄이 없으면 null(장부 밖 항목은 정상이다)

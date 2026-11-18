@@ -7,7 +7,6 @@ import MarkdownIt from 'markdown-it'
 import path from 'node:path'
 import { coordsOfSection, labelOf, sectionOf, reflectedIn } from '../core/knowledge.js'
 import { parsePut, parseLinked, itemKey } from '../core/parts.js'
-import { locateDoc } from '../core/registry.js'
 import { sha16 } from '../core/text.js'
 import { splitBlocks, parseTable } from '../core/baseline.js'
 import { parseRefLine, headingMatches } from '../core/sections.js'
@@ -602,9 +601,7 @@ export function model(k) {
   for (const [coord, v] of k.vocab.coords) {
     if (v.deprecated) continue
     const s = sectionOf(k, coord)
-    // 문서 한 벌을 가리키는 항목(문서 장부의 머리 없는 줄) — 항목 자리는 없고 그 문서에 든다(그래프의 「들어 있다」)
-    const whole = s?.sec ? null : k.byDocPath.get(locateDoc(k.registry, coord))?.id || null
-    add({ key: coord, coord, name: v.label, kind: kindOf(coord), doc: s?.sec ? s.doc.id : null, sec: s?.sec?.h || null, whole, aliases: v.aliases, table: coord.startsWith('table:'), first: firstOf(s?.sec?.body) })
+    add({ key: coord, coord, name: v.label, kind: kindOf(coord), doc: s?.sec ? s.doc.id : null, sec: s?.sec?.h || null, aliases: v.aliases, table: coord.startsWith('table:'), first: firstOf(s?.sec?.body) })
   }
   for (const d of k.docs)
     for (const s of d.sections) {

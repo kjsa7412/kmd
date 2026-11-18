@@ -12,7 +12,7 @@ import { WRITE_RULES } from '../core/writerules.js'
 
 const codes = (xs) => xs.map((x) => x.code)
 
-test('계약 — 종류 열 · 종류 정하기(갈래 장부 · 서식 결정기록 · 이름 짐작) · 속성 정의가 기본 속성을 이긴다', () => {
+test('계약 — 종류 열 · 종류 정하기(갈래 장부 · 서식 결정기록 · 문서 성격 표 · 없으면 빈 칸) · 속성 정의가 기본 속성을 이긴다', () => {
   assert.deepEqual(KINDS, ['대상', '서술', '절차', '시험', '용어', '사건', '보고', '대장', '결정', '기록'])
   for (const k of KINDS) assert.ok(FORMS[k].ask && FORMS[k].head && FORMS[k].order, k)
   const forms = formsOf(['| 갈래 | 별칭 | 폴더 | 종류 | 항목 | 서식 |', '|---|---|---|---|---|---|', '| 위험및이슈관리대장 | 이슈, 위험 | 1.2 | 대장 | `이슈:*` | 결정기록 |', '| 설계 결정 | 결정 | 3 | 대상 | - | 결정기록 |', '| 회의록 | 회의 | 1.2 | 사건 | - | 작업기록 |', '', '## 속성: 위험및이슈관리대장', '', '| 속성 | 원본 칸 | 쓰는 법 | 필수 |', '|---|---|---|---|', '| 유형 | 이슈 유형 | 범위 · 일정 | ! |', '| 제기 | 이슈 제기자 | 이름 | ? |'].join('\n'))
@@ -20,15 +20,16 @@ test('계약 — 종류 열 · 종류 정하기(갈래 장부 · 서식 결정�
   assert.deepEqual(kindOf(forms, '1.2/위험및이슈관리대장').props.map((p) => [p.name, p.must]), [['유형', true], ['제기', false]])
   assert.equal(kindOf(forms, '3/설계 결정').kind, '결정', '서식 결정기록 + 종류 대상 → 결정')
   assert.equal(kindOf(forms, '1.2/위험및이슈관리대장').kind, '대장', '대장은 서식이 결정기록이어도 대장')
+  // 성격 표 · 갈래 줄이 없으면 빈 칸이다(이름으로 짐작하지 않는다 · O-9 · 점검이 알린다)
   const none = formsOf('')
-  assert.equal(kindOf(none, '사업관리/위험및이슈관리대장').props, ISSUE_PROPS, '장부가 없으면 이슈 대장 기본 속성')
-  assert.equal(kindOf(none, '사업관리/주간보고').kind, '보고', '정례 보고')
-  assert.equal(kindOf(none, '사업관리/회의록').kind, '사건')
+  for (const d of ['사업관리/위험및이슈관리대장', '사업관리/주간보고', '사업관리/회의록', '설치/설치절차서', '공통/용어집']) assert.deepEqual(kindOf(none, d), { kind: '', form: null, props: null }, d)
   assert.equal(kindOf(forms, '1.2/회의록').kind, '사건')
-  assert.equal(kindOf(none, '설치/설치절차서').kind, '절차')
-  assert.equal(kindOf(none, '시험/통합테스트시나리오').kind, '시험')
-  assert.equal(kindOf(none, '공통/용어집').kind, '용어')
-  assert.equal(kindOf(none, '설계/코드정의서').kind, '대상')
+  const nat = formsOf('## 문서 성격\n\n| 문서 | 성격 | 요약 |\n|---|---|---|\n| 공통/용어집 | 용어 | 용어를 모은다 |\n| 설치/설치절차서 | 절차 | - |\n')
+  assert.equal(kindOf(nat, '공통/용어집').kind, '용어')
+  assert.equal(kindOf(nat, 'docs/설치/설치절차서.md').kind, '절차')
+  const reg = formsOf('| 갈래 | 별칭 | 폴더 | 종류 | 항목 | 서식 |\n|---|---|---|---|---|---|\n| 위험및이슈관리대장 | 이슈 | - | 대장 | - | - |\n| 주간보고 | - | - | 사건 | - | - |\n')
+  assert.equal(kindOf(reg, '위험및이슈관리대장').props, ISSUE_PROPS, '속성 정의가 없는 이슈 대장 갈래는 기본 속성')
+  assert.equal(kindOf(reg, '주간보고').kind, '보고', '사건 갈래 안의 정례 보고')
   assert.equal(parseProps('## 속성: x\n\n| 속성 | 원본 칸 |\n|---|---|\n| __proto__ | y |').size, 0, 'prototype 이름 막기')
   assert.equal(parseForms('## 속성: a\n| 유형 | 이슈 유형 | 범위 | ! |').length, 0)
 })
@@ -114,6 +115,7 @@ test('저장 문 — 새 항목의 서식 문제는 formLint 알림(저장은 �
   try {
     const dir = path.join(tmp, 'kn')
     fs.mkdirSync(path.join(dir, 'docs'), { recursive: true })
+    fs.writeFileSync(path.join(dir, '_forms.md'), '# 갈래 장부\n\n## 문서 성격\n\n| 문서 | 성격 | 요약 |\n|---|---|---|\n| 회의록 | 사건 | 회의 한 번에 항목 하나 |\n')
     fs.writeFileSync(path.join(dir, 'docs', '회의록.md'), '# 회의록\n\n회의 한 번에 항목 하나다.\n\n## 2022-08-01 사전\n\n사전 회의다.\n\n- **누가**: 김\n- **정한 것**:\n* 없음\n- **남은 것**:\n* 없음\n')
     await ensureRepo(dir)
     const r = await save(dir, { record: { title: '착수 회의', body: '착수 회의를 적었다.' }, sections: [{ doc: 'docs/회의록.md', heading: '2022-08-03 착수', content: '프로젝트명: 나라. 일시: 2022-08-03. 장소: 창원. 참석: 김.\n' }] }, { user: 'lee' })

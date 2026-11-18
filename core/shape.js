@@ -803,7 +803,7 @@ export function seedBatchPromptOf(b, g, { cards = false, of = 1, kinds = null } 
     SEED_RULES,
     '문서:',
     '- 문서마다 종류가 있다(아래 [doc] 줄). 대장은 원본 표의 ID 행마다 항목 하나(머리 「ID: 이름」 · 이름이 없으면 ID · 빈 행도). 사건은 「YYYY-MM-DD 주제」(정례 보고는 「YYYY-MM-DD N주차」). 대상 · 서술은 대상 이름(장 번호 없이). 표지 · 개정 이력 · 작성지침 · 필드 구조 같은 양식은 항목으로 세우지 않는다.',
-    ...b.docs.map((d) => `[doc ${d.id}]${kinds?.get(d.id) ? ` 종류: ${kinds.get(d.id).kind}` : ''}${d.note ? ` (${d.note})` : ''} 재료: ${d.src.map((s) => `${s} ${m.get(s)?.path || ''} · ${m.get(s)?.pick || ''}`).join(' | ')}`),
+    ...b.docs.map((d) => `[doc ${d.id}]${kinds?.get(d.id)?.kind ? ` 종류: ${kinds.get(d.id).kind}` : ''}${d.note ? ` (${d.note})` : ''} 재료: ${d.src.map((s) => `${s} ${m.get(s)?.path || ''} · ${m.get(s)?.pick || ''}`).join(' | ')}`),
     '정했으면 구조안 JSON 을 낸다.',
   ].join('\n')
 }

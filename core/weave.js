@@ -1,6 +1,6 @@
 // 짝 짓기(엮기) — 판정 한 줄에서 섹션(## 머리) · 항목 장부 줄(뜻 한 줄 gist) · 문서 장부 줄 · 건드린 항목 · 문서 성격 줄 · 사건 열쇠를 같이 짓는다.
 //
-//   지식 생성 하네스 H-D11 · H-D17(다) · H-O3(자리 채움) · H-O5 · H-O13 · 설계 5-1 걸음 3 · 6절.
+//   지식 생성 하네스 H-D11 · H-D17(다) · H-O5 · H-O13 · 설계 5-1 걸음 3 · 6절.
 //   LLM 은 무엇이 항목이고 어느 문서의 어느 머리인지 · 종류 · 식별자 · 뜻 한 줄을 적는다. 열쇠(`종류:값`) · 장부 줄 · 건드린 항목은 코드가 짓는다:
 //   같은 낱말의 머리와 장부 항목이 따로 서서 서로 모르는 일(조사 Z V4)을 검사가 아니라 꼴로 없앤다.
 //   이 모듈은 쓰지 않는다(순수 함수). 지식(k)은 읽기만 한다: vocab · registry · docs · forms · natures.
@@ -150,8 +150,8 @@ export function weave(k0, { lines = [], docs = [] } = {}) {
       if (made.has(c)) return made.get(c) !== at
       if (!k.vocab.coords.has(c)) return false
       const loc = locate(k.registry, c)
-      // 자리 없는 옛 줄(H-O3 · R9-3) — 같은 열쇠면 그 줄에 자리를 채운다(겹침이 아니다)
-      if (!loc) return false
+      // 자리 없는 장부 줄은 다른 항목이다(자리 채움은 걷었다 · O-2)
+      if (!loc) return true
       return !(loc.doc === doc && (nfc(loc.heading) === heading || headingMatches(heading, loc.heading)))
     }
     // 열쇠가 겹치면 문서 줄기를 앞에 붙인다(가름 · 다른 대상)
@@ -163,12 +163,13 @@ export function weave(k0, { lines = [], docs = [] } = {}) {
     made.set(coord, at)
     line.coords = [coord]
     touch(coord)
-    const fill = k.vocab.coords.has(coord) // 자리 없는 옛 줄에 자리 채움
+    // 같은 자리에 이미 선 장부 항목 — 새로 세우지 않는다(건드린 항목으로만)
+    if (k.vocab.coords.has(coord)) continue
     const gist = cleanGist(l0.gist)
     const aliases = (Array.isArray(l0.aliases) ? l0.aliases : []).map((a) => cleanGist(a).replace(/,/g, ' ')).filter((a) => a && sq(a) !== sq(value) && sq(a) !== sq(heading)).slice(0, 8)
     // 패턴 줄로 이미 닿는 머리에는 문서 장부 줄을 더하지 않는다(항목 장부 줄만)
     const byPattern = pk === kind && headingMatches(heading, value)
-    names.push({ coord, label: fill ? k.vocab.coords.get(coord).label : heading.replace(/^[^:：]{1,60}[:：]\s+/, (m) => (valueOf({ heading }) === value && !l0.id ? '' : m)).slice(0, 160) || value, ...(fill ? {} : aliases.length ? { aliases } : {}), ...(byPattern ? {} : { doc: docId(doc), heading: sec ? sec.h : heading }), ...(gist && !fill ? { gist } : {}), ...(fill ? { fill: true } : {}) })
+    names.push({ coord, label: heading.replace(/^[^:：]{1,60}[:：]\s+/, (m) => (valueOf({ heading }) === value && !l0.id ? '' : m)).slice(0, 160) || value, ...(aliases.length ? { aliases } : {}), ...(byPattern ? {} : { doc: docId(doc), heading: sec ? sec.h : heading }), ...(gist ? { gist } : {}) })
     if (!kindsNow.has(kind) && !newKinds.has(kind)) {
       const seed = seedKind(kind)
       const kg = seed ? '' : cleanGist(l0.kindGist)

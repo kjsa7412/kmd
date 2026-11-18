@@ -14,7 +14,13 @@
 //                                                                                      옛 꼴 → 지금 꼴(기계 규칙만 · 다시 읽은 상태가 같아야 쓴다) · 이력 하나 · 커밋 하나
 //
 //   input.json = { record: { title, body, touches?, tags? }, sections: [{ doc, heading, base, content | contentFile }] }
-//     빠진 항목 채우기: sections[] 에 base 대신 new: true · sources: [재료 기록 id](있는 문서의 없는 머리 · 사건 갈래면 「YYYY-MM-DD 무엇」)
+//     빠진 항목 채우기: sections[] 에 base 대신 new: true · sources: [재료 기록 id] · kind · gist(있는 문서의 없는 머리 · 사건 갈래면 「YYYY-MM-DD 무엇」)
+//       새 항목은 종류(kind)와 뜻 한 줄(gist)이 꼭 있다: 엮기가 항목 장부 줄 · 문서 장부 줄을 같이 짓는다(장부 밖 항목을 세우지 않는다)
+//   장부만 고치기(항목 없음): sections 를 비우고(또는 빼고) ledger · names · forms · natures 를 싣는다. 서버 화면의 장부 고침과 같은 저장 문(system 걸음 · 이력 log/ · 태그 ledger)
+//     ledger: [{ op: 'gist', coord, gist } | { op: 'retire', coord, to?, why? } | { op: 'merge', coord, into, why? } | { op: 'unalias', coord, alias }
+//              | { op: 'kind', kind, gist }(종류 뜻 줄) | { op: 'unplace', coord }(문서 장부 줄 걷기) | { op: 'unform', name } | { op: 'unnature', doc }]
+//     names 에 이미 장부에 있는 항목을 gist 와 함께 적으면 뜻 한 줄 고치기(gist 걸음)로 바꾼다. record 는 없어도 된다(걸음 목록으로 짓는다) · why 한 줄
+//     --format 을 달면 서식 맞춤 이력(태그 format)으로도 남긴다. 값 대조 · 꼴 검사는 없다(항목 글을 바꾸지 않는다)
 //     record.body 는 기록 서식(docs/템플릿/기록.md): 「## 바뀐 것」 에 이 항목의 「옛 값 → 새 값」 · 뺀 값은 「옛 값 → (뺌)」 · 까닭 · 근거
 //
 //   put 은 사라지는 표 행 · 문장이 있으면 넣지 않는다. 사람이 본 뒤 --allow-drop 으로만 넘는다. 값(gate)이 걸리면 늘 넣지 않는다(넣지 못함을 남기지 않는다).
@@ -23,6 +29,7 @@
 //   팀 서버가 돌고 있는 폴더에 바로 쓰면 서버 캐시가 낡는다: 사본에서 쓰고 백업 자리로 올린 뒤 「백업에서 받기」 를 쓴다(스킬 3절).
 
 import { weave } from '../core/weave.js'
+import { ledgerOps, upsertVocab, cleanNames } from '../core/namebook.js'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -287,11 +294,22 @@ export function dropsOf(oldBody, newBody) {
   return { rows, lines }
 }
 
+const LEDGER_OPS = ['gist', 'retire', 'merge', 'unalias', 'kind', 'unplace', 'unform', 'unnature']
+const ledgerOnly = (j) => (!Array.isArray(j.sections) || !j.sections.length) && ['ledger', 'names', 'forms', 'natures'].some((x) => Array.isArray(j[x]) && j[x].length)
 async function readInput(file) {
   const base = path.dirname(path.resolve(file))
   const j = JSON.parse(await fs.readFile(file, 'utf8'))
+  if (j.ledger != null) {
+    if (!Array.isArray(j.ledger) || j.ledger.length > 200 || j.ledger.some((x) => !x || typeof x !== 'object' || !LEDGER_OPS.includes(x.op))) throw new Error(`input.ledger 는 { op: ${LEDGER_OPS.join(' | ')}, … } 의 목록이다(200 안)`)
+    if (Array.isArray(j.sections) && j.sections.length) throw new Error('ledger 는 장부만 고치는 저장에서 싣는다(sections 를 비운다 · 항목 글은 따로 put)')
+  }
+  if (ledgerOnly(j)) {
+    if (j.record != null && (typeof j.record.title !== 'string' || typeof j.record.body !== 'string')) throw new Error('input.record 에 title · body 가 있어야 한다(장부만 고칠 때는 빼도 된다)')
+    j.sections = []
+    return j
+  }
   if (!j.record || typeof j.record.title !== 'string' || typeof j.record.body !== 'string') throw new Error('input.record 에 title · body 가 있어야 한다')
-  if (!Array.isArray(j.sections) || !j.sections.length) throw new Error('input.sections 는 항목 하나 이상의 목록이다')
+  if (!Array.isArray(j.sections) || !j.sections.length) throw new Error('input.sections 는 항목 하나 이상의 목록이다(장부만 고칠 때는 ledger · names · forms · natures)')
   for (const s of j.sections) {
     if (s.contentFile && s.content == null) s.content = await fs.readFile(path.resolve(base, s.contentFile), 'utf8')
     delete s.contentFile
@@ -328,6 +346,7 @@ function inspectNew(k, input, s, d, sec, spread) {
   if (sec) return no('이미 있는 머리다(있는 항목은 new 없이 base 와 함께 다시 그린다)')
   if (!/\S/.test(s.heading) || /[\r\n]/.test(s.heading) || s.heading.length > 120) return no('머리는 한 줄 · 120자 안')
   if (formOfDoc(k, d)?.kind === '사건' && !/^\d{4}-\d{2}-\d{2} \S/.test(s.heading)) return no('사건 갈래 문서의 머리는 「YYYY-MM-DD 무엇」')
+  if (typeof s.kind !== 'string' || !s.kind.trim() || typeof s.gist !== 'string' || !s.gist.trim()) return no('새 항목은 종류(kind)와 뜻 한 줄(gist)을 적는다(엮기가 장부 줄을 같이 짓는다 · 장부 밖 항목을 세우지 않는다)')
   const ids = Array.isArray(s.sources) ? s.sources : []
   if (!ids.length) return no('sources(재료 기록 id)가 있어야 한다')
   const ws = []
@@ -347,6 +366,57 @@ function inspectNew(k, input, s, d, sec, spread) {
   } else if (formOfDoc(k, d)?.kind === '사건') before = dateSlot(d, s.heading)
   s.before = before
   return { doc: s.doc, heading: s.heading, new: true, fresh: !!d.fresh, before, ok: !!r.ok, code: r.code || null, why: r.why || null, changed: [], lint: r.lint || null, lostRows: [], lostLines: [], sources: ws.length }
+}
+
+// 장부만 고치기: names 의 「있는 항목 + gist」 는 뜻 한 줄 걸음으로 바꾸고, 저장 문과 같은 차례(names 더하기 → 걸음)로 마른 계산한다
+function ledgerSplit(k, input) {
+  const ledger = [...(Array.isArray(input.ledger) ? input.ledger : [])]
+  const names = []
+  for (const n of Array.isArray(input.names) ? input.names : []) {
+    const c = typeof n?.coord === 'string' ? n.coord.trim().normalize('NFC') : ''
+    if (c && k.vocab.coords.has(c) && typeof n.gist === 'string' && n.gist.trim()) {
+      ledger.push({ op: 'gist', coord: c, gist: n.gist })
+      const { gist: _g, ...rest } = n
+      if ((rest.aliases || []).length || rest.doc || rest.heading) names.push(rest)
+    } else names.push(n)
+  }
+  return { ledger, names }
+}
+const LEDGER_DROP = ['unplace', 'unform', 'unnature']
+const vocabText = (dir) => fs.readFile(path.join(path.resolve(dir), '_vocab.md'), 'utf8').then((t) => t.replace(/\r\n/g, '\n'), (e) => (e.code === 'ENOENT' ? '' : Promise.reject(e)))
+function ledgerOf(k, input, voc) {
+  const { ledger, names } = ledgerSplit(k, input)
+  const clean = cleanNames(names)
+  const lo = ledgerOps(clean?.length ? upsertVocab(voc, clean) : voc, ledger.filter((x) => !LEDGER_DROP.includes(x.op)))
+  const errors = [...lo.errors, ...(clean ? [] : ['names 모양이 아니다({ coord: "종류:값", label, aliases?, doc?, heading?, gist? })'])]
+  const done = [
+    ...(clean || []).map((n) => `${k.vocab.coords.has(n.coord) ? '장부 고침' : '새 항목'}: ${n.coord}`),
+    ...lo.done,
+    ...ledger.filter((x) => LEDGER_DROP.includes(x.op)).map((x) => `걷기(${x.op}): ${x.coord || x.name || x.doc}`),
+    ...(Array.isArray(input.forms) ? input.forms : []).map((f) => `갈래: ${f?.name}`),
+    ...(Array.isArray(input.natures) ? input.natures : []).map((n) => `문서 성격: ${n?.doc}`),
+  ]
+  return { ledger, names, done, errors }
+}
+async function putLedger(abs, input, o) {
+  const k = await load(abs, o)
+  const l = ledgerOf(k, input, await vocabText(abs))
+  if (l.errors.length) {
+    for (const e of l.errors.slice(0, 10)) console.error(`✗ ${e}`)
+    throw Object.assign(new Error('넣지 않았다: 장부 걸음에 걸렸다. 아무것도 쓰지 않았다'), { exit: 2 })
+  }
+  const why = String(input.why || '').replace(/\s+/g, ' ').trim().slice(0, 200)
+  const r0 = input.record || { title: `장부 고침: ${l.done[0] || '-'}${l.done.length > 1 ? ` 밖에 ${l.done.length - 1}` : ''}`.slice(0, 200), body: `${l.done.map((x) => `- ${x}`).join('\n')}${why ? `\n\n까닭: ${why}` : ''}` }
+  const record = { ...r0, tags: [...new Set([...(Array.isArray(r0.tags) ? r0.tags : []), 'ledger', ...(o.format ? ['format'] : [])])] }
+  let r
+  try {
+    // 서버 화면의 장부 고침(hub.ledgerEdit)과 같은 저장 문: system 걸음 · 항목 글 없음 · 이력(log/)
+    r = await save(abs, { record, sections: [], ledger: l.ledger, ...(l.names.length ? { names: l.names } : {}), ...(Array.isArray(input.forms) ? { forms: input.forms } : {}), ...(Array.isArray(input.natures) ? { natures: input.natures } : {}) }, { user: o.user, system: true })
+  } catch (e) {
+    if (['E_INPUT', 'E_FORMAT', 'E_FORBIDDEN', 'E_NOTFOUND', 'E_CONFLICT'].includes(e.code)) e.exit = 2
+    throw e
+  }
+  console.log(JSON.stringify({ ok: true, record: r.id || r.record || null, commit: r.commit || null, done: l.done }, null, 1))
 }
 
 // 사건 문서의 날짜 자리: 새 머리의 날짜보다 늦은 첫 항목(그 앞에 끼운다) · 없으면 끝(null)
@@ -390,6 +460,15 @@ const show = (rs) => {
 async function check(dir, file, o) {
   const k = await load(dir, o)
   const input = await readInput(file)
+  if (!input.sections.length) {
+    const l = ledgerOf(k, input, await vocabText(dir))
+    if (o.json) return console.log(JSON.stringify(l, null, 1))
+    for (const x of l.done) console.log(`- ${x}`)
+    for (const e of l.errors) console.log(`✗ ${e}`)
+    console.log(`\n= 장부 걸음 ${l.done.length} · 걸림 ${l.errors.length}${l.errors.length ? ': 걸린 까닭을 고쳐 다시 check' : ': put 으로 넣을 수 있다(이력 · 태그 ledger)'}`)
+    process.exitCode = l.errors.length ? 2 : 0
+    return
+  }
   const rs = inspect(k, input)
   if (o.json) return console.log(JSON.stringify(rs, null, 1))
   show(rs)
@@ -403,6 +482,7 @@ async function put(dir, file, o) {
   if (!o.user) throw new Error('--user <사람> 이 있어야 한다(기록을 쓴 사람 · 그 지식의 지식관리자)')
   const abs = path.resolve(dir)
   const input = await readInput(file)
+  if (!input.sections.length) return putLedger(abs, input, o)
   // save 에 넘기는 기록 그 자체: prepare 가 건드린 항목(touches)을 채운다
   //   서식 맞춤(--format)은 다시 그리기가 아니다: rebuild 를 달지 않고 저장 문이 format(이력)을 단다
   const rec = { ...input.record, tags: [...new Set([...(Array.isArray(input.record.tags) ? input.record.tags : []), ...(o.format ? [] : ['rebuild'])])] }
@@ -426,9 +506,9 @@ async function put(dir, file, o) {
   }
   // 짝 짓기(지식 생성 하네스 H6 · H2 의 엮기): 새 항목(new)에 종류(kind) · 뜻 한 줄(gist)을 적었으면 화면 · 세션의 저장과 같은 엮기가
   //   항목 장부 줄(뜻 한 줄) · 문서 장부 줄을 같이 짓는다. 새 문서(docs[{ path, nature, summary }])의 문서 성격 줄 · 모으는 갈래 줄도 같다.
-  //   적지 않은 항목은 예전대로다(머리와 글만 · 장부는 건드리지 않는다). 엮기 오류가 있으면 아무것도 쓰지 않는다
+  //   새 항목은 kind · gist 가 꼭 있다(inspectNew). 엮기 오류가 있으면 아무것도 쓰지 않는다
   let woven = {}
-  const lines = input.sections.filter((s) => s.new && (s.kind || s.gist)).map((s) => ({ doc: s.doc, heading: s.heading, act: 'new', kind: s.kind, kindGist: s.kindGist, id: s.id, gist: s.gist, aliases: s.aliases, nature: s.nature }))
+  const lines = input.sections.filter((s) => s.new).map((s) => ({ doc: s.doc, heading: s.heading, act: 'new', kind: s.kind, kindGist: s.kindGist, id: s.id, gist: s.gist, aliases: s.aliases, nature: s.nature }))
   if (lines.length || (Array.isArray(input.docs) && input.docs.length)) {
     const w = weave(await load(abs, o), { lines, docs: Array.isArray(input.docs) ? input.docs : [] })
     if (w.errors.length) {

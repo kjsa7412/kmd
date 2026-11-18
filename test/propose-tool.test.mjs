@@ -207,14 +207,14 @@ test('과거 결정 카드(지식 생성 하네스 H3): match 가 카드 · 앞�
   const id = m.cards.filter((c) => c.type === '정체')
   const hit = id.find((c) => c.key === 'proc:카나리')
   assert.deepEqual([hit.via, hit.doc, hit.heading, hit.kind, typeof hit.base, typeof hit.body], ['이름 맞음', '배포절차', '카나리', 'proc', 'string', 'string'])
-  assert.ok(hit.gist && hit.gistFrom === '첫 문장') // 뜻 한 줄이 없는 옛 줄은 항목 글의 첫 문장으로
+  assert.ok(!('gist' in hit) && !('gistFrom' in hit)) // 뜻 한 줄이 없는 줄은 빈 칸(첫 문장으로 메우지 않는다 · O-9 · 점검이 알린다)
   assert.ok(id.some((c) => c.key === 'proc:헬스 체크' && c.via === '원천에 나옴'), JSON.stringify(id.map((c) => [c.key, c.via]))) // 넣을 글에 나오는 있는 항목(거꾸로 대기)
   assert.ok(m.cards.some((c) => c.type === '놓임' && c.key === '배포절차'))
   assert.ok(m.cards.some((c) => c.type === '꼴' && c.key === 'proc' && c.items >= 1))
   assert.ok(m.cards.every((c) => !('n' in c) && !('no' in c)))
   assert.match(m.coverage.line, /^이름으로는 전수 \d+ · 뜻으로는 상위 \d+ \/ \d+/)
   assert.ok(Array.isArray(m.prior) && Array.isArray(m.toc) && m.toc.some((t) => t.doc === '배포절차'))
-  assert.equal(m.rulesRev, 1)
+  assert.equal(m.rulesRev, 2)
   // 걸리는 이름이 없으면 「판례 없음」 한 줄
   const none = await mcp('match', { q: '없는이름xyz', knowledge: 'dpms' }, P.rd)
   assert.equal(none.cards.filter((c) => c.type === '정체').length, 0)

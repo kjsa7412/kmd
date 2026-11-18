@@ -1899,7 +1899,7 @@ function docsEmpty(k) {
 // 지식 점검(지식관리자) — 지식 생성 가드가 보는 것의 지금 상태(문서 작성기준 9절 · core/guard.js audit)
 const guardOf = (k) => need('guard:' + k, `/api/k/${encodeURIComponent(k)}/guard`)
 // 줄 이름은 짧게(메뉴 개편 4-1) · 뜻은 넷째 칸(줄 이름의 title)
-const GUARD_ROWS = [['unnamed', '항목 없음', 'rec', '건드린 항목이 없는 기록'], ['outside', '장부 밖', 'rec', '항목 장부에 없는 항목을 단 기록'], ['lost', '잃은 항목', 'item', '문서에 머리가 없는 항목'], ['noName', '장부에 없는 항목', 'sec', '항목 장부에 오르지 않은 머리'], ['aliasClash', '별칭 겹침', 'word', '별칭이 둘 이상의 항목에 겹친다'], ['sameLabel', '같은 라벨(알림)', 'word', '라벨이 같은 항목이 둘 이상이다'], ['brokenHead', '깨진 머리', 'sec', '머리 꼴이 깨진 항목'], ['spaced', '빈칸 값', 'name', '값에 빈칸이 든 옛 항목'], ['brokenLink', '깨진 링크', 'sec', '없는 문서 · 항목을 가리키는 링크']]
+const GUARD_ROWS = [['unnamed', '항목 없음', 'rec', '건드린 항목이 없는 기록'], ['outside', '장부 밖', 'rec', '항목 장부에 없는 항목을 단 기록'], ['lost', '잃은 항목', 'item', '문서에 머리가 없는 항목'], ['noName', '장부에 없는 항목', 'sec', '항목 장부에 오르지 않은 머리'], ['aliasClash', '별칭 겹침', 'word', '별칭이 둘 이상의 항목에 겹친다'], ['sameLabel', '같은 라벨(알림)', 'word', '라벨이 같은 항목이 둘 이상이다'], ['brokenHead', '깨진 머리', 'sec', '머리 꼴이 깨진 항목'], ['spaced', '빈칸 값', 'name', '값에 빈칸이 든 옛 항목'], ['noGist', '뜻 없는 항목', 'name', '뜻 한 줄이 없는 항목'], ['brokenLink', '깨진 링크', 'sec', '없는 문서 · 항목을 가리키는 링크'], ['noNature', '성격 없는 문서', 'doc', '문서 성격이 적히지 않은 문서']]
 function staleCard(k) {
   const n = KN(k), tr = treeOf(k)
   if (!n || !tr || tr.error || !(isPersonal(n) || n.level === 'admin')) return ''
@@ -1922,6 +1922,7 @@ function guardListHtml(k, g, key, kind) {
     if (kind === 'rec') return `<li data-a="openRec" data-k="${esc(k)}" data-r="${esc(x.id)}" data-t="guardRec"><span class="nm">${esc(x.title)}</span><small class="muted">${esc(x.why || (x.names || []).join(' · '))}</small></li>`
     if (kind === 'item') return `<li data-a="openItem" data-k="${esc(k)}" data-n="${esc(x.coord)}" data-t="guardItem"><span class="nm"><span class="iv">${esc(x.coord)}</span></span><small class="muted">${esc(x.doc.replace(/^docs\/|\.md$/g, ''))} 에 「${esc(x.heading)}」 머리가 없다</small></li>`
     if (kind === 'sec') return `<li data-a="openDoc" data-k="${esc(k)}" data-d="${esc(x.doc)}" data-h="${esc(x.heading)}" data-t="guardSec"><span class="nm">${esc(x.doc)} › ${esc(x.heading)}</span></li>`
+    if (kind === 'doc') return `<li data-a="openDoc" data-k="${esc(k)}" data-d="${esc(x.doc)}" data-t="guardDoc"><span class="nm">${esc(x.doc)}</span></li>`
     if (kind === 'word') return `<li data-t="guardWord"><span class="nm">${esc(x.word)}</span><small class="muted">${x.names.map(esc).join(' · ')}</small></li>`
     return `<li data-t="guardName"><span class="nm"><span class="iv">${esc(x)}</span></span></li>`
   }
@@ -1942,7 +1943,7 @@ function guardCard(k) {
   return `<div class="card" data-t="guardCard"><div class="ch">점검 <small>장부 항목 ${c.live} · 기록 ${c.records} · 문서 항목 ${c.sections} · 갈래 장부 ${g.forms.own ? g.forms.rows.length + (g.forms.closed ? ' · 새 문서 닫음' : '') : '없음'}</small><button type="button" class="btn ghost sm r" data-a="guardRe" data-t="guardRe">다시 읽기</button></div><div class="cb u-p1-7-3">${guardRowsHtml(k, g)}</div></div>`
 }
 // 점검 › 점검 — 줄 묶음 넷(기록 · 장부 · 문서 · 낱말)마다 (!) 하나(화면에 다섯까지)
-const GUARD_G = [['기록', 'chk.rec', ['unnamed', 'outside']], ['장부', 'chk.name', ['lost', 'spaced']], ['문서', 'chk.sec', ['noName', 'brokenHead', 'brokenLink']], ['낱말', 'chk.word', ['aliasClash', 'sameLabel']]]
+const GUARD_G = [['기록', 'chk.rec', ['unnamed', 'outside']], ['장부', 'chk.name', ['lost', 'spaced', 'noGist']], ['문서', 'chk.sec', ['noName', 'brokenHead', 'brokenLink', 'noNature']], ['낱말', 'chk.word', ['aliasClash', 'sameLabel']]]
 // 손으로 고친 파일(지식 생성 하네스 H6 · H-D33) — 편집기로 직접 고친 문서는 지식에 들이지 않는다(문서는 되돌리고 고친 글은 사본으로 둔다).
 //   지식관리자가 [넣을 것으로 올리기](Claude 가 지어 저장 제안으로 선다) 또는 [버리기] 를 고른다. 없으면 아무것도 그리지 않는다
 const handOf = (k) => (admKn(k) ? need('hand:' + k, `/api/k/${encodeURIComponent(k)}/hand`) : null)
@@ -4038,7 +4039,7 @@ function ckKn() {
   return ckOk(KN(k)) ? k : null
 }
 // 점검 수 — 알림 줄(같은 이름 · 빈칸 값)은 세지 않는다
-const GUARD_SOFT = ['sameLabel', 'spaced']
+const GUARD_SOFT = ['sameLabel', 'spaced', 'noGist', 'noNature']
 const guardN = (g) => (!g || g.error ? null : GUARD_ROWS.filter(([key]) => !GUARD_SOFT.includes(key)).reduce((n, [key]) => n + (g.counts[key] || 0), 0))
 const CK_NAME = { check: '점검', metrics: '지표' }
 function ckTabsHtml(k) {

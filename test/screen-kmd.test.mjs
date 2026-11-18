@@ -280,7 +280,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.equal(await page.locator('.band, .status').count(), 0, '점검에도 띠 · 아래 줄 없음')
   // 걸린 검사만 판(경고 · 알림 칩 + 묶음 + (!) · 큰 수 · 이름 · 보기) · 0 인 검사는 「문제 없음 n」 아래 이름 + 0(개편 5단계 · 확정안 7-5)
   for (const t of ['항목 없음', '장부 밖', '장부에 없는 항목']) assert.ok((await page.locator('[data-t=guardCard]').innerText()).includes(t), t)
-  assert.equal(await page.locator('[data-t=guardCard] .cktile').count() + await page.locator('[data-t=guardOk] .ck-z').count(), 9, '검사 열은 판이거나 문제 없음 줄')
+  assert.equal(await page.locator('[data-t=guardCard] .cktile').count() + await page.locator('[data-t=guardOk] .ck-z').count(), 11, '검사 열은 판이거나 문제 없음 줄(뜻 없는 항목 · 성격 없는 문서 알림 포함 · O-9)')
   const tileGroups = await page.locator('[data-t=guardCard] .cktile .ckt-g').evaluateAll((els) => new Set(els.map((e) => e.textContent.replace(/[·!\s]/g, ''))).size)
   assert.ok(tileGroups >= 1)
   assert.equal(await page.locator('[data-t=ckGroup] .tipb').count(), tileGroups, '판이 있는 줄 묶음마다 (!) 하나')

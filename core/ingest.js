@@ -244,8 +244,8 @@ export function draftToSave(k, g, draft, { measure = false } = {}) {
   //   있는 머리는 그 머리에 닿는 장부 항목을 건드린 항목으로 단다. 짜임 머리(개요 · 변경 이력 …)는 짝을 세우지 않는다(H-O13)
   const sq = (x) => String(x || '').normalize('NFC').replace(/\s+/g, '').toLowerCase()
   const kindBy = new Map((Array.isArray(draft.names) ? draft.names : []).filter((n) => n && typeof n.name === 'string' && typeof n.kind === 'string' && n.kind.trim()).map((n) => [sq(bareHeading(n.name)), n.kind.trim()]))
-  const natureFor = (doc) => { const x = natureOfDoc(k.forms, doc); return x.guess && x.kind === '대상' ? '서술' : x.kind }
-  const w = weave(k, { lines: sections.map((s) => ({ doc: s.doc, heading: s.heading, act: s.base == null ? 'new' : 'edit', kind: kindBy.get(sq(s.heading)) || kindBy.get(sq(String(s.heading).replace(/^[^:：]{1,60}[:：]\s+/, ''))) || null, nature: natureFor(s.doc) })) })
+  const natureFor = (doc) => natureOfDoc(k.forms, doc).kind || '서술' // 성격이 적히지 않은 문서는 서술의 씨앗 종류(이름으로 짐작하지 않는다 · O-9)
+  const w = weave(k, { lines: sections.map((s) => ({ doc: s.doc, heading: s.heading, act: s.base == null ? 'new' : 'edit', kind: kindBy.get(sq(s.heading)) || kindBy.get(sq(String(s.heading).replace(/^[^:：]{1,60}[:：]\s+/, ''))) || kindBy.get(sq(String(s.heading).replace(/[:：][\s\S]*$/, ''))) || null, nature: natureFor(s.doc) })) })
   if (w.errors.length) return { ok: false, why: w.errors.slice(0, 3).map((e) => `${e.at}: ${e.why}`).join(' / ') }
   const names = w.names
   for (const f of w.fold) warn.push(`fold:${f.what}`)

@@ -18,7 +18,7 @@ import yaml from 'js-yaml'
 import { readText, nfc } from './text.js'
 import { splitFrontmatter, parseRecord, renderRecord } from './frontmatter.js'
 import { splitRef, withRef, parseRefLine, isLogEntry, parseDoc, replaceSection } from './sections.js'
-import { parseRegistry, locate } from './registry.js'
+import { locate } from './registry.js'
 import { parseForms, TYPE_RE } from './guard.js'
 import { parseMembers, sameAccess } from './owners.js'
 import { renderPut, parsePut, HELD_PART, dropPart } from './parts.js'
@@ -64,6 +64,31 @@ const REG_TABLE = '| 항목 | 문서 | 머리 |\n|---|---|---|\n'
 const REG_HEAD = `# 문서 장부\n\n항목 하나가 어느 문서의 어느 머리(\`##\`)인지 여기에만 적는다.\n\n${REG_TABLE}`
 // core/guard.js formsOf: 「- 새 문서:」 줄이 없는 옛 갈래 장부(갈래 줄이 있다)는 닫힘으로 읽었다
 const CLOSED_RE = /^\s*[-*]\s*새 문서\s*[:：]\s*(닫음|열림)/m
+const oldClosed = (text) => { const m = CLOSED_RE.exec(String(text || '')); return m ? m[1] === '닫음' : parseForms(text).length > 0 }
+// core/vocab.js parseVocab(2026-11-18 판): 줄표 라벨 줄 · 라벨 꼬리 (구)/(example) 도 읽던 옛 읽기(대 보기의 「앞」 을 옛 읽기로 본다)
+function oldVocab(text) {
+  const coords = new Map()
+  let cur = null
+  for (const raw of String(text || '').split('\n')) {
+    if (/^##\s+(.+?)\s*$/.test(raw)) { cur = null; continue }
+    if (/^뜻\s*[:：]\s*(.+)$/.test(raw)) continue
+    const m = raw.match(/^\s*-\s+`([^`\s:]+:[^`]+)`\s*(?:[—–:-]\s*(.*))?$/)
+    if (m) {
+      const coord = nfc(m[1].trim())
+      cur = { coord, label: nfc((m[2] || '').replace(/\s*\((?:구|example)\)\s*$/, '').trim()) || coord.split(':').slice(1).join(':'), aliases: [], deprecated: null, gist: '' }
+      coords.set(coord, cur)
+      continue
+    }
+    const a = raw.match(/^\s+aliases:\s*(.+)$/)
+    if (a && cur) { cur.aliases.push(...a[1].split(',').map((x) => nfc(x.trim())).filter(Boolean)); continue }
+    const d = raw.match(/^\s+deprecated:\s*(.+)$/)
+    if (d && cur) { cur.deprecated = d[1].trim(); continue }
+    const gm = raw.match(/^\s+gist:\s*(.+)$/)
+    if (gm && cur) { cur.gist = nfc(gm[1].trim()).slice(0, 80); continue }
+    if (/^\S/.test(raw)) cur = null
+  }
+  return { coords }
+}
 // core/names.js 의 옛 표지(저장 승인 전) · 정리 시절 이력 태그(O-10)
 const OLD_TAGS = ['held', 'memo', 'migrate-held']
 const OLD_LOG_TAGS = ['curate', 'curate-llm', 'curate-auto', 'docfmt', 'levels', 'tidy']
@@ -528,8 +553,7 @@ export async function plan(dir, { personal = false, drop: drop0 = [] } = {}) {
       if (a !== nl(t)) await write('_managed.md', a, 'registry.head', '옛 제목 · 표 머리 · 덧칸 · 설명 단락 → 「# 문서 장부」 한 표')
       const { odd } = registryRows(nl(t))
       J('문서 장부의 읽히지 않는 줄(그대로 옮겨 둠)', `_managed.md ${odd.join(' · ')}줄`, odd.length, '항목 · 문서 · 머리 꼴이 아니다')
-      const reg = parseRegistry(t)
-      J('섹션 없는 문서 장부 줄(문서 한 벌 · O-2)', '_managed.md', reg.wholes.length, '그 문서의 대표 항목으로 retire 하거나 줄을 지운다')
+      J('섹션 없는 문서 장부 줄(문서 한 벌 · O-2)', '_managed.md', nl(t).split('\n').filter((l) => WHOLE_RE.test(l)).length, '그 문서의 대표 항목으로 retire 하거나 줄을 지운다(kmd-migrate put 의 ledger unplace)')
     }
   }
   {
@@ -746,11 +770,14 @@ export async function verifyPlan(dir, p) {
     // 폐기 줄은 글이 아니라 「폐기됐나 · 이을 항목」 으로 견준다(core/guard.js nextOf · 옛 줄표 까닭 줄도 같은 항목)
     const nextOf = (dep) => String(dep || '').match(/→\s*([^\s`]+:[^\s`]+)/)?.[1]?.replace(/:+$/, '') || null
     const vk = (v) => (v ? { ...v, deprecated: v.deprecated ? { next: nextOf(v.deprecated) } : null } : null)
-    for (const [c] of A.vocab.coords) if (!same(vk(A.vocab.coords.get(c)), vk(B.vocab.coords.get(c)))) why.push(`항목 장부 ${c} 의 읽기가 바뀐다`)
-    if (A.vocab.coords.size !== B.vocab.coords.size) why.push('항목 장부 줄 수가 바뀐다')
+    //   앞(옛 꼴)은 옛 읽기로 본다: 줄표 라벨 줄 · 「- 새 문서:」 줄이 없는 갈래 장부(닫힘) — 지금 읽기는 그 꼴을 모른다(O-9)
+    const vA = oldVocab((await readOr(path.join(abs, '_vocab.md'))) || '')
+    const closedA = oldClosed((await readOr(path.join(abs, '_forms.md'))) || '')
+    for (const [c] of vA.coords) if (!same(vk(vA.coords.get(c)), vk(B.vocab.coords.get(c)))) why.push(`항목 장부 ${c} 의 읽기가 바뀐다`)
+    if (vA.coords.size !== B.vocab.coords.size) why.push('항목 장부 줄 수가 바뀐다')
     if (!same(A.registry, B.registry)) why.push('문서 장부의 읽기가 바뀐다')
-    for (const c of A.vocab.coords.keys()) if (!same(locate(A.registry, c), locate(B.registry, c))) why.push(`${c} 의 자리가 바뀐다`)
-    if (!same(A.forms.rows, B.forms.rows) || A.forms.closed !== B.forms.closed) why.push('갈래 장부의 읽기가 바뀐다')
+    for (const c of vA.coords.keys()) if (!same(locate(A.registry, c), locate(B.registry, c))) why.push(`${c} 의 자리가 바뀐다`)
+    if (!same(A.forms.rows, B.forms.rows) || closedA !== B.forms.closed) why.push('갈래 장부의 읽기가 바뀐다')
     // 문서 본문 · 머리는 그대로(표지 · 참고 줄만 바뀐다)
     const docB = new Map(B.docs.map((d) => [d.path, d]))
     for (const d of A.docs) {

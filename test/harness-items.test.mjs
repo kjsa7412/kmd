@@ -108,7 +108,7 @@ test('사람 채널: 제안서에 지은 근거 · 승인한 저장이 기록 �
   assert.equal(forged.error, 'E_INPUT')
   // 측정 줄 — 판 · 한 일 수 · 태도 수
   const line = fs.readFileSync(path.join(tmp, 'kn', '.kmd', 'savelog', 'dpms.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)).find((l) => l.rec === r.saved)
-  assert.deepEqual([line.rev, line.acts, line.prec.na, line.none], [1, { edit: 0, new: 1, same: 0, skip: 1, doc: 1 }, 1, { all: 1, part: 1 }], JSON.stringify(line))
+  assert.deepEqual([line.rev, line.acts, line.prec.na, line.none], [2, { edit: 0, new: 1, same: 0, skip: 1, doc: 1 }, 1, { all: 1, part: 1 }], JSON.stringify(line))
 })
 
 test('모두 뺌은 아무것도 쓰지 않는다 · 옛 꼴과 섞어 보내면 입력 오류 · 옛 꼴 입력은 그대로 지난다', async () => {

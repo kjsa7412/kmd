@@ -48,7 +48,7 @@ test('성격 아홉: R4-1 의 물음은 서식 계약의 pick 한 곳에서 온�
 
 test('조문 번호: 닫힌 목록 · 씨앗 종류 · 채널 블록(닫힌 칸)', () => {
   const ids = ruleIds()
-  for (const id of ['R1', 'R1-1', 'R2-1', 'R2-6', 'R3-5', 'R4-1', 'R5-1', 'R6-3', 'R7-3', 'R8-5', 'R9-4']) assert.ok(ids.has(id), id)
+  for (const id of ['R1', 'R1-1', 'R2-1', 'R2-6', 'R3-5', 'R4-1', 'R5-1', 'R6-3', 'R7-3', 'R8-5', 'R9-3']) assert.ok(ids.has(id), id)
   assert.ok(!isRuleId('R2-9') && !isRuleId('R10') && isRuleId('r4-1'))
   assert.equal(ruleTitles().length, 10)
   // 씨앗 낱말은 성격마다 하나 이상 · 낱말은 겹치지 않는다 · 뜻 한 줄이 있다

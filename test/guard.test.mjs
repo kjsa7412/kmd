@@ -15,15 +15,15 @@ const VOCAB = `# 항목 장부
 
 ## 이슈
 
-- \`이슈:DPMS-ISS-15\` — 공수 부족 (필요 공수가 1명 가용 공수의 4.3배)
+- \`이슈:DPMS-ISS-15\`: 공수 부족 (필요 공수가 1명 가용 공수의 4.3배)
   aliases: ISS-15, 공수 부족
-- \`이슈:DPMS-ISS-02\` — SCADA 연계 방식 결정
-  deprecated: 2026-10-16 → 이슈:DPMS-ISS-15 — 합침
+- \`이슈:DPMS-ISS-02\`: SCADA 연계 방식 결정
+  deprecated: 2026-10-16 → 이슈:DPMS-ISS-15: 합침
 
 ## term
 
-- \`term:PLC\` — 현장 설비를 실제로 제어하는 장치
-- \`proc:헬스 체크\` — 옛 모양(빈칸) 이름
+- \`term:PLC\`: 현장 설비를 실제로 제어하는 장치
+- \`proc:헬스 체크\`: 옛 모양(빈칸) 이름
 `
 const MANAGED = `# 문서 장부
 
@@ -105,13 +105,17 @@ test('G4 — 새 문서: 파일 이름 조각 · 갈래의 별칭 · 갈래 장�
   assert.match(guardNewDoc(def, 'docs/2026-10-21_미팅메모.md').errors[0].message, /파일 이름 조각/)
   assert.equal(guardNewDoc(def, 'docs/회의록.md', ['2026-10-21 HNC 통화']).errors.length, 0)
   assert.equal(guardNewDoc(def, 'docs/게이트웨이 설계.md').errors.length, 0)
-  const own = formsOf(`| 갈래 | 별칭 | 폴더 | 종류 | 이름 | 서식 |
+  const table = `| 갈래 | 별칭 | 폴더 | 종류 | 항목 | 서식 |
 |---|---|---|---|---|---|
 | 회의록 | 회의, 미팅, 통화 | 1.2_사업관리 | 사건 | — | 작업기록 |
 | 위험및이슈관리대장 | 이슈, 위험 | 1.2_사업관리 | 대장 | \`이슈:*\` | 결정기록 |
-`)
+`
+  // 「새 문서:」 줄이 없으면 갈래 줄이 있어도 열림이다(옛 「닫힘」 읽기는 걷었다 · O-3 · 옛 장부는 core/oldform.js 가 「닫음」 줄을 적는다)
+  assert.equal(formsOf(table).closed, false)
+  assert.equal(guardNewDoc(formsOf(table), 'docs/게이트웨이 설계.md').errors.length, 0)
+  const own = formsOf(`- 새 문서: 닫음\n\n${table}`)
   assert.equal(own.own, true)
-  assert.equal(own.closed, true) // 「새 문서:」 줄이 없는 옛 갈래 장부는 닫힘으로 읽는다
+  assert.equal(own.closed, true)
   assert.match(guardNewDoc(own, 'docs/전화통화기록.md').errors[0].message, /회의록/) // 품기 맞춤은 모으는 갈래(사건 · 보고 · 대장)에만
   assert.match(guardNewDoc(own, 'docs/1.2_사업관리/회의록.md', ['HNC 통화']).errors[0].message, /YYYY-MM-DD/)
   // 벗어남을 적은 새 문서는 별칭 품기와 닫힌 갈래를 넘는다(이름 모양은 그대로 본다)
@@ -215,22 +219,22 @@ test('지식 점검 — 같은 말을 둘로: 별칭 겹침(고칠 것) · 같�
   const { audit } = await import('../core/guard.js')
   const v = parseVocab(`## 테이블정의서
 
-- \`테이블정의서:dp_chg_hst\` — 기준정보 변경 이력
+- \`테이블정의서:dp_chg_hst\`: 기준정보 변경 이력
   aliases: 변경 이력
-- \`테이블정의서:dp_cmd_ldgr\` — 명령 원장
+- \`테이블정의서:dp_cmd_ldgr\`: 명령 원장
 
 ## 납품
 
-- \`납품:변경이력\` — 변경 이력
+- \`납품:변경이력\`: 변경 이력
 
 ## 시험
 
-- \`시험:변경이력\` — 변경 이력
-- \`시험:요약\` — 요약
+- \`시험:변경이력\`: 변경 이력
+- \`시험:요약\`: 요약
 
 ## 결과
 
-- \`결과:요약\` — 요약
+- \`결과:요약\`: 요약
 `)
   const a = audit({ vocab: v, docs: [], works: [] }, { sectionOf: () => null, coordsOfSection: () => [] })
   assert.deepEqual(a.aliasClash.map((x) => [x.word, x.aliasOf]), [['변경이력', ['테이블정의서:dp_chg_hst']]])
@@ -247,7 +251,7 @@ test('기록 서식: 칸을 머리 달아 엮는다 · 바뀐 것이 없거나 �
   assert.equal(recordBody({ body: '요약.\n\n## 바뀐 것\n- a' }).body, '요약.\n\n## 바뀐 것\n- a')
 })
 
-test('머리 꼴 「값: 설명」 — 값으로 항목을 찾고 · 폐기 줄의 새 항목 · 깨진 머리(옛 줄표 꼴도)', async () => {
+test('머리 꼴 「값: 설명」 — 값으로 항목을 찾고 · 폐기 줄의 새 항목 · 깨진 머리', async () => {
   const { headingMatches } = await import('../core/sections.js')
   const { audit } = await import('../core/guard.js')
   assert.equal(headingMatches('OPS-001: 결재 알림 오류', 'OPS-001'), true)
@@ -258,5 +262,5 @@ test('머리 꼴 「값: 설명」 — 값으로 항목을 찾고 · 폐기 줄�
   assert.equal(v.coords.get('이슈:B').label, '새 이슈')
   const doc = (hs) => ({ id: 'd', sections: hs.map((h) => ({ h })) })
   const a = audit({ vocab: v, docs: [doc(['수집기: (Collector · CollectorService)', '권한: · 관리자 유지', '빈 설명:', '권한 — · 관리자', 'OPS-004: (정책)경상북도 연구 조회 오류', 'OPS-005: 연차 확인'])], works: [] }, { sectionOf: () => null, coordsOfSection: () => [] })
-  assert.deepEqual(a.brokenHead.map((x) => x.heading), ['수집기: (Collector · CollectorService)', '권한: · 관리자 유지', '빈 설명:', '권한 — · 관리자'])
+  assert.deepEqual(a.brokenHead.map((x) => x.heading), ['수집기: (Collector · CollectorService)', '권한: · 관리자 유지', '빈 설명:'])
 })

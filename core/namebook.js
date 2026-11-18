@@ -3,21 +3,20 @@
 //   names: [{ coord: '종류:값', label: '라벨', aliases?: ['별칭'], doc?: '문서', heading?: '머리' }]
 //
 // 글을 다시 짓지 않고 줄만 더하거나 바꾼다 — 사람이 적은 설명 · 순서는 그대로 남는다.
-//   항목 장부 — `## 종류` 아래 `- \`종류:값\` — 라벨` · 이미 있으면 별칭만 보탠다(라벨은 사람이 정한 것을 지킨다)
+//   항목 장부 — `## 종류` 아래 `- \`종류:값\`: 라벨` · 이미 있으면 별칭만 보탠다(라벨은 사람이 정한 것을 지킨다)
 //     새 항목의 뜻 한 줄은 `  gist: …`(aliases 뒤) · 새 종류의 뜻은 `## 종류` 아래 `뜻: …` 한 줄(names 의 kindGist · 씨앗 종류는 적지 않는다)
-//     fill(자리 채움 · H-O3) — 자리 없는 옛 줄에 문서 장부 줄만 더한다(항목 장부 줄은 그대로)
 //   문서 장부 — doc · heading 이 있으면 `| \`종류:값\` | \`docs/문서.md\` | \`## 머리\` |` · 같은 항목 줄이 있으면 바꾼다
 
 import { nfc } from './text.js'
 import { parseVocab } from './vocab.js'
 import { TYPE_RE, parseForms, FORM_KINDS, formsOf, NATURES_HEAD, parseNatures } from './guard.js'
 
-// 새로 서는 장부의 머리 글 — 이미 선 장부(옛 제목 「이름 장부」 · 「자리 장부」 · 표 머리 「| 이름 | 문서 | 항목 |」)는 고쳐 쓰지 않고 그대로 읽는다
+// 새로 서는 장부의 머리 글 — 이미 선 장부는 고쳐 쓰지 않는다(옛 제목 · 옛 표 머리는 core/oldform.js 가 지금 꼴로 옮긴다 · O-9)
 const VOCAB_HEAD = '# 항목 장부\n\n항목마다 `종류:값` 하나를 정하고 같은 것을 가리키는 다른 말은 별칭으로 잇는다.\n'
 const REG_TABLE = '| 항목 | 문서 | 머리 |\n|---|---|---|\n'
 const REG_HEAD = `# 문서 장부\n\n항목 하나가 어느 문서의 어느 머리(\`##\`)인지 여기에만 적는다.\n\n${REG_TABLE}`
-// 표 머리가 있나 — 새 꼴 「| 항목 |」 · 옛 꼴 「| 이름 |」 둘 다
-const hasRegTable = (t) => /^\|\s*(?:항목|이름)\s*\|/m.test(t)
+// 표 머리가 있나 — 「| 항목 | 문서 | 머리 |」
+const hasRegTable = (t) => /^\|\s*항목\s*\|/m.test(t)
 
 export const docRelOf = (doc) => `docs/${nfc(String(doc)).replace(/\\/g, '/').replace(/^docs\/|\.md$/g, '')}.md`
 
@@ -29,7 +28,6 @@ export function upsertVocab(text, names) {
     const have = parseVocab(t).coords.get(n.coord)
     const lines = t.split('\n')
     if (have) {
-      if (n.fill) continue
       const add = (n.aliases || []).filter((a) => a && a !== have.label && !have.aliases.includes(a))
       if (!add.length) continue
       const i = lines.findIndex((l) => l.match(/^\s*-\s+`([^`]+)`/)?.[1]?.trim() === n.coord)
@@ -94,7 +92,7 @@ export function cleanNames(list) {
     const one = (v, max) => (v == null ? null : nfc(String(v)).replace(/[\r\n`|]/g, ' ').trim().slice(0, max))
     const gist = one(x.gist, 80)
     const kindGist = one(x.kindGist, 80)
-    out.push({ coord, label: one(x.label, 160) || '', aliases: Array.isArray(x.aliases) ? x.aliases.map((a) => one(a, 120).replace(/,/g, ' ')).filter(Boolean).slice(0, 20) : [], doc: one(x.doc, 200), heading: one(x.heading, 160), ...(gist ? { gist } : {}), ...(kindGist ? { kindGist } : {}), ...(x.fill === true ? { fill: true } : {}) })
+    out.push({ coord, label: one(x.label, 160) || '', aliases: Array.isArray(x.aliases) ? x.aliases.map((a) => one(a, 120).replace(/,/g, ' ')).filter(Boolean).slice(0, 20) : [], doc: one(x.doc, 200), heading: one(x.heading, 160), ...(gist ? { gist } : {}), ...(kindGist ? { kindGist } : {}) })
   }
   return out
 }
@@ -263,7 +261,8 @@ export function placeExact(text, names) {
 //   ops: [{ op: 'retire', coord, to?, why? }      폐기 — 그 줄에 「deprecated: <날짜>[ → 새 항목]: 까닭」(줄은 지우지 않는다)
 //         { op: 'merge', coord, into }             합치기 — coord 를 폐기하고 into 로 잇는다 · coord 의 라벨 · 별칭을 into 의 별칭으로 옮긴다
 //         { op: 'unalias', coord, alias }          별칭 빼기 — 그 항목의 별칭 하나를 걷는다
-//         { op: 'gist', coord, gist }]             뜻 한 줄 적기 — 그 항목이 무엇인가 한 줄(80자 안 · 있으면 갈음한다 · 옛 장부 줄의 보강 · H12)
+//         { op: 'gist', coord, gist }              뜻 한 줄 적기 — 그 항목이 무엇인가 한 줄(80자 안 · 있으면 갈음한다 · H12)
+//         { op: 'kind', kind, gist }]              종류 뜻 줄 적기 — 「## 종류」 머리 아래 「뜻: …」 한 줄(80자 안 · 있으면 갈음한다 · R5-1 라 · 그 종류 절이 있어야 한다)
 //   → { text, done: [한 줄 말], errors: [까닭] } · 오류가 하나라도 있으면 text 는 처음 글 그대로다(아무것도 고치지 않는다)
 export function ledgerOps(text, ops, { today = new Date().toISOString().slice(0, 10) } = {}) {
   const t0 = String(text || '').replace(/\r\n/g, '\n')
@@ -291,6 +290,20 @@ export function ledgerOps(text, ops, { today = new Date().toISOString().slice(0,
     else lines.splice(i + 1, 0, `  aliases: ${xs.join(', ')}`)
   }
   for (const o of Array.isArray(ops) ? ops : []) {
+    if (o?.op === 'kind') {
+      const kind = one(o.kind, 40)
+      const gist = one(o.gist, 80)
+      const h = lines.findIndex((l) => /^##\s/.test(l) && nfc(l.replace(/^##\s+/, '').trim()) === kind)
+      if (!kind || h < 0) { errors.push(`「${kind}」 종류 절(## ${kind})이 항목 장부에 없다`); continue }
+      if (!gist) { errors.push(`「${kind}」 종류의 뜻(gist)이 비었다`); continue }
+      let e = h + 1
+      while (e < lines.length && !/^##\s/.test(lines[e])) e++
+      const g = lines.slice(h + 1, e).findIndex((l) => /^뜻\s*[:：]/.test(l))
+      if (g >= 0) lines[h + 1 + g] = `뜻: ${gist}`
+      else lines.splice(h + 1, 0, '', `뜻: ${gist}`)
+      done.push(`종류 뜻: ${kind}`)
+      continue
+    }
     const coord = one(o?.coord, 200)
     if (!coord) { errors.push('항목(coord)이 없다'); continue }
     if (o.op === 'retire') {

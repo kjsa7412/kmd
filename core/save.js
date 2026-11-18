@@ -342,12 +342,6 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
   const vocRaw = await fs.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => null)
   const formRaw = await fs.readFile(path.join(dir, '_forms.md'), 'utf8').then(readText, () => null)
   const guardWarn = []
-  // 자리 채움(H-O3) — 자리 없는 옛 장부 줄에만. 이미 자리가 있는 항목의 fill 은 버린다(있는 줄을 고치지 않는다)
-  {
-    const reg0 = parseRegistry(regRaw || '')
-    const voc0 = parseVocab(vocRaw || '')
-    names = names.filter((n) => !(n.fill && (!voc0.coords.has(n.coord) || locate(reg0, n.coord))))
-  }
   // 가드 G1 — 세울 항목의 모양(장부에 없던 것만). 거절형은 거절 · 붙잡아 두기는 그 항목만 세우지 않는다
   {
     const g = guardNames(parseVocab(vocRaw || ''), names)
@@ -392,7 +386,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
       fresh.get(p.rel).push(nfc(String(s.heading).trim()))
     }
     for (const [rel, hs] of fresh) {
-      const g = guardNewDoc(forms, rel, hs, { intake: !!intake && !!approve, depart: departIn.includes(rel.replace(/^docs\/|\.md$/g, '')) })
+      const g = guardNewDoc(forms, rel, hs, { depart: departIn.includes(rel.replace(/^docs\/|\.md$/g, '')) })
       if (g.errors.length && mode === 'strict') guardFail(g.errors)
       guardWarn.push(...g.errors.map((e) => `새 문서 ${rel.replace(/^docs\/|\.md$/g, '')}: ${e.message}`))
       if (g.registryRow) regNext = upsertPatternRow(regNext, g.registryRow.pattern, g.registryRow.doc)
@@ -713,6 +707,7 @@ async function saveNow(dir, r, secs, { user, now, system = false, ledger = [], n
       if (doc === '기록 모음') continue
       try {
         const k = kindOf(forms, doc)
+        if (!k.kind) continue // 성격이 적히지 않은 문서는 서식 계약이 없다(점검이 알린다 · O-9)
         const fx = lintFormNew(x.before, x.after, { kind: k.kind, props: k.props, form: k.form })
         if (fx.length) formLint.push({ doc, kind: k.kind, msg: formMessage(doc, fx), items: fx.slice(0, 20) })
       } catch (e) {
