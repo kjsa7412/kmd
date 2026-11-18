@@ -19,6 +19,7 @@
 | 지식 생성(있는 항목 고침 · 새 항목 · 새 문서 · 장부 올림을 정하는 고정 생성 룰 · 판례 · 판단 칸 · 엮기) | [docs/품질개선/KMD_지식생성_하네스_설계.md](docs/품질개선/KMD_지식생성_하네스_설계.md)(룰 R1 ~ R9 · 정한 것 H-D · 확정 H-O1 ~ 14 · 단계 H0 ~ H10 · 진행은 [KMD_지식생성_TODO.md](docs/품질개선/KMD_지식생성_TODO.md)) · 조문의 원본은 코드 `core/genrules.js` 이고 작성기준 6-4 는 `node scripts/genrules.mjs --write` 로 뽑는다 · 그림 [지식생성_하네스_결정.html](docs/품질개선/지식생성_하네스_결정.html) — 규칙 길을 걷는다(무인 실패는 다시 시도 · 원문을 넣지 않는다) · 가져올 곳도 공식 절차 · 사람이 직접 쓰는 채널(화면 저장 · 문서 고치기의 글 고침 · 거두기)은 폐기 · LLM 은 단발 `claude -p` 가 아니라 일반 세션(읽기 도구 + kmd MCP)으로 부른다(H-D32 ~ H-D34) · 장부는 판례이고 따를지는 LLM 이 맡는다 · 코드는 판단이 있었나 · 판단과 행동이 맞나만 본다 |
 | 문서 짜임(바탕 세우기 · 짜임 다시 잡기) | [docs/품질개선/KMD_바탕세우기_설계.md](docs/품질개선/KMD_바탕세우기_설계.md) · 세션 스킬 [.claude/skills/kmd-seed](.claude/skills/kmd-seed/SKILL.md) + `scripts/kmd-seed.mjs`(화면 기능이 아니다 · 넣기는 기초 세우기 화면) |
 | 다시 그리기(리빌드 · 기록으로 항목 다시 쓰기 · 진단) | 세션 스킬 [.claude/skills/kmd-migrate](.claude/skills/kmd-migrate/SKILL.md) + `scripts/kmd-migrate.mjs`(화면 기능으로 두지 않는다) · 안전 규칙의 근거는 [KMD_리빌드_설계.md](docs/품질개선/KMD_리빌드_설계.md)(기능 설계는 걷음) |
+| 옛 잔재 정리(옛 꼴 이행기 · 팀 지식 옮김 · 옛 읽기 걷기) | [docs/품질개선/KMD_옛잔재_정리.md](docs/품질개선/KMD_옛잔재_정리.md)(정한 것 O-1 ~ O-15 · 단계 A ~ H) · 검토 [KMD_옛잔재_검토.html](docs/품질개선/KMD_옛잔재_검토.html) — 옛 꼴은 `core/oldform.js` 한 곳만 안다 |
 | 서비스 전체 · 설명서(`/manual`) | [docs_ops/kmd_서비스_전체.md](docs_ops/kmd_서비스_전체.md) · [docs_ops/manual/](docs_ops/manual/) — 쓰는 법이 바뀌면 같이 고친다 |
 
 기준에 없는 것이 필요하면 기준 문서에 먼저 더하고 쓴다. 기준과 코드를 같은 커밋에서 맞춘다.
