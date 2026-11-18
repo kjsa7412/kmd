@@ -353,7 +353,7 @@
 - **gatePrepare**: `{ sections, warnings, errors, proposals, text, proposal }` 를 낸다. `errors` 가 있으면 저장 문이 던진다(사람 채널) / FIX 고리 · 규칙 길로 넘긴다(무인 채널). `held` · `extraHeld`(hub.js:837) · `autoMemo`(hub.js:872)는 approve 모드에서 쓰지 않는다.
 - **hub.propose**: 줄 밖에서 gatePrepare 만 돌린다(읽기만). save 는 줄 안에서 다시 돌려 `proposal` 을 대 본다. 사람 채널에서 `proposal` 이 없으면 줄에 들기 전에 E_APPROVE 다.
 - **무인 저장**: `intakeRunWait` 류가 초안 → gatePrepare → (errors 면 FIX_CODES 고리) → (그래도면 규칙 길 입력으로 바꿔) → 같은 저장 문으로 한 번에 넣는다. 저장 문은 무인 채널에서 `errors` 를 던지지 않고 돌려준다.
-- **본문 반영 검사**: 기록 「바뀐 것」 의 새 값(core/values.js `mustValues` · `reflectNames`)이 이번 저장의 고칠 항목(고침 · 신설)의 새 글에 있는지 본다. 이은 항목(잇기)의 지금 글은 셈하지 않는다(생성 룰 R6-5). 사람 채널은 errors(경고가 아니라 막음), 무인 채널은 고쳐 받기 → 다시 시도(규칙 길은 걷었다). watched 는 걷었다.
+- **본문 반영 검사**: 기록 「바뀐 것」 의 새 값(core/values.js `mustValues` · `reflectNames`)이 이번 저장의 고칠 항목(고침 · 신설)의 새 글에 있는지 본다. 이은 항목(잇기)의 지금 글은 셈하지 않는다(생성 룰 R6-5). 「옛 → 새」 줄의 새 값은 고칠 항목의 옛 글보다 늘었거나 그 줄의 옛 값이 줄었어야 한다(`valueCounts` · 한 글자 고친 항목으로 넘지 않게). `kmd-migrate check · put` 도 넣는 항목을 합쳐 같은 검사를 한다. 사람 채널은 errors(경고가 아니라 막음), 무인 채널은 고쳐 받기 → 다시 시도(규칙 길은 걷었다). watched 는 걷었다.
 - **recordState**: approve 모드 저장 문을 지난 기록은 조각이 없어도 「들어감(put)」 으로 읽는다. 새 예약 태그를 두지 않고, 저장 문이 기록 kmd 칸에 남기는 표지(이어진 항목 · 본문 바뀜 수)로 안다. 꼴은 P3 에서 정한다.
 - **core/save.js**: `partial` 분기는 approve 모드에서 쓰지 않는다. P11 에서 `heldRow`(save.js:150) · `guardSections` 의 partial(165) · `cleanHeld`(183) · `saveRecords` 의 heldPart(295-301) · `renderHeld`(parts.js:82)와 함께 걷는다.
 - **새 문서**: 쓰기 자리의 새 문서도 G4 와 함께 E_FORMAT(core/save.js)을 지난다.

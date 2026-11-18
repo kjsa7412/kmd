@@ -151,6 +151,17 @@ test('judgeReflect(본문 반영): 「바뀐 것」 값이 이은 항목 글 · 
   assert.deepEqual(judgeReflect(nm, [item('되돌리기는 rollback.ps1 로 한다.')]).errors.map((e) => e.values), [['cmdCodes']])
   assert.deepEqual(judgeReflect(nm, [item('되돌리기는 `rollback.ps1` 로 한다. 허용 근거는 cmdCodes 다.')]).errors, [])
   assert.deepEqual(judgeReflect(rec('- 운영설계서: v0.1 → v0.2'), []).errors, [], '문서 판만 바뀐 줄은 값이 아니다')
+  // 화살표 오른쪽 괄호 속 근거 말(dpms_gateway · PR · GDI)은 이름으로 세지 않는다
+  assert.deepEqual(reflectNames(rec('- 재시작 간격: 10초 → 5초 (dpms_gateway 기준 · PR 승인)\n- 상태: 검토 중 → 확정 (GDI 요청)').body), [])
+  // 「옛 → 새」 의 새 값은 이번에 들어가야 한다: 같은 값이 다른 뜻으로 이미 있는 항목을 한 글자만 고치면 막음(2026-11-18 DPMS)
+  const keep = { doc: 'docs/운영.md', heading: '보존', before: '- gt_api_log 365일\n- gt_mntr_hst 90일', text: '- gt_api_log 365일.\n- gt_mntr_hst 90일' }
+  const ret = rec('- gt_mntr_hst 보존: 90일 → 365일')
+  assert.deepEqual(judgeReflect(ret, [keep]).errors.map((e) => e.values), [['365일']])
+  assert.match(judgeReflect(ret, [keep]).errors[0].why, /옛 글 그대로만/)
+  assert.deepEqual(judgeReflect(ret, [{ ...keep, text: '- gt_api_log 365일\n- gt_mntr_hst 365일' }]).errors, [], '옛 값을 새 값으로 바꾸면 넘음')
+  assert.deepEqual(judgeReflect(rec('- 되돌리기: 손 복사 → rollback.ps1'), [{ ...keep, before: 'rollback.ps1 은 옛 판', text: 'rollback.ps1 은 옛 판.' }]).errors.map((e) => e.values), [['rollback.ps1']])
+  // 바뀐 것 칸이 없는 기록은 글 전체를 본다고 말한다
+  assert.match(judgeReflect({ title: 't', body: '재시작 간격 5초가 짧다' }, []).errors[0].why, /바뀐 것 칸이 없어 글 전체/)
   // judgeId — 차례 · NFC 와 상관없이 같은 재료면 같다
   assert.equal(judgeId('x', 'a', 'b'), judgeId('x', 'a', 'b'))
   assert.notEqual(judgeId('x', 'a', 'b'), judgeId('y', 'a', 'b'))

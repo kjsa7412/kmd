@@ -176,6 +176,24 @@ test('검사 · 넣기: 값이 빠지면 걸림 · 사라지는 문장은 사람
   assert.equal(await head(), h1)
 })
 
+test('본문 반영: 항목이 여럿이면 기록의 바뀐 것 값을 합쳐 본다 · 없는 값 · 옛 글 그대로인 값은 걸림(아무것도 쓰지 않음)', async () => {
+  const k = await load()
+  const sec = (h) => k.byDocPath.get(DOC).sections.find((s) => s.h === h).body
+  const two = (body, hc) => input('reflect.json', { record: { title: '두 항목', body }, sections: [{ doc: DOC, heading: '카나리', base: sha16(sec('카나리')), content: `${sec('카나리')} 그렇다.` }, { doc: DOC, heading: '헬스 체크', base: sha16(sec('헬스 체크')), content: hc ?? `${sec('헬스 체크')} 그렇다.` }] })
+  const h0 = await head()
+  const c1 = await run('check', dir, two('두 항목을 다듬었다.\n\n## 바뀐 것\n- 보존: 90일 → 777일\n- 부르는 주기: 10초 → 30초'))
+  assert.equal(c1.code, 2)
+  assert.match(c1.text, /기록 › 본문 반영\n검사: 걸림\(unreflected\)/)
+  assert.match(c1.text, /없다: 777일/)
+  assert.match(c1.text, /옛 글 그대로만 있다\(이번에 들어가지 않았다\): 30초/)
+  const p1 = await run('put', dir, two('두 항목을 다듬었다.\n\n## 바뀐 것\n- 보존: 90일 → 777일'), '--user', 'kim')
+  assert.match(String(p1.thrown?.message), /검사에 걸렸다/)
+  assert.equal(await head(), h0, '걸리면 커밋 없음')
+  // 새 값을 고칠 항목에 넣으면 넘는다
+  const c2 = await run('check', dir, two('두 항목을 다듬었다.\n\n## 바뀐 것\n- 시간 초과: 3초 → 5초', sec('헬스 체크').replace('시간 초과는 3초 — 3초', '시간 초과는 5초 — 5초')))
+  assert.doesNotMatch(c2.text, /본문 반영/)
+})
+
 test('서식 맞춤(--format): 값이 같으면 이력(log/ · format) · 참고 줄 없음 · 값이 바뀌면 아무것도 안 씀 · relog 가 기록을 이력으로', async () => {
   const H = '준비'
   const refOf = () => decodeURI(fs.readFileSync(path.join(dir, DOC), 'utf8').split('<!-- kmd:참고')[1] || '')

@@ -307,9 +307,10 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
   }
   // 본문 반영(P-D12 · 생성 룰 R6-5): 「바뀐 것」 값이 고칠 항목(고침 · 신설의 새 글) 어디에도 없으면 오류(사람 채널은 제안 막음 · 무인은 고쳐 받기 → 다시 시도)
   //   이은 항목(잇기 · 글 그대로)의 지금 글은 셈하지 않는다: 값을 바꾸지 않은 관련 항목이다(같은 수가 다른 뜻으로 있으면 글을 하나도 고치지 않은 기록이 넘었다)
+  //   「옛 → 새」 의 새 값은 고칠 항목의 옛 글보다 늘어야 한다(한 글자만 고친 항목으로 넘지 않게 · before)
   if (approve && !errors.length) {
     const fix = items.filter((x) => x.kind !== '잇기')
-    const r = judgeReflect(record, fix.map((x) => ({ doc: x.doc, heading: x.heading, text: x.after ?? '' })))
+    const r = judgeReflect(record, fix.map((x) => ({ doc: x.doc, heading: x.heading, before: x.before ?? '', text: x.after ?? '' })))
     for (const e of r.errors) err('unreflected', fix.length ? fix.map((x) => x.at).slice(0, 2).join(' · ') : '기록', e.why)
   }
   const excluded = (Array.isArray(input.excluded) ? input.excluded : []).map((x) => ({ name: String(x.name), why: String(x.why || '') }))

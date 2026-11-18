@@ -34,6 +34,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadKnowledge, coordsOfSection } from '../core/knowledge.js'
 import { checkSection } from '../core/gate.js'
+import { judgeReflect } from '../core/values.js'
 import { save } from '../core/save.js'
 import { parsePut, parseLinked, itemKey } from '../core/parts.js'
 import { parseRefLine, splitRef, withRef, logHas } from '../core/sections.js'
@@ -314,7 +315,19 @@ async function readInput(file) {
 }
 
 // 항목마다 검사: gate(꼴 · base · 값 대조) + 사라지는 표 행 · 문장
+//   본문 반영(생성 룰 R6-5 · core/values.js judgeReflect): 항목이 여럿이면 checkSection(spread)이 항목마다 빠진 값을 보지 않는다 —
+//   기록의 바뀐 것 값이 넣는 항목들 가운데 어디에 들어갔나(「옛 → 새」 의 새 값은 옛 글보다 늘었나)를 여기서 합쳐 본다(걸리면 「기록 › 본문 반영」 줄)
 function inspect(k, input) {
+  const rs = inspectSections(k, input)
+  const items = input.sections.map((s) => {
+    const sec = s.new ? null : k.byDocPath.get(s.doc)?.sections.find((x) => x.h === s.heading)
+    return { doc: s.doc, heading: s.heading, before: sec ? sec.body : '', text: s.content }
+  })
+  const r = judgeReflect(input.record, items)
+  for (const e of r.errors) rs.push({ doc: '기록', heading: '본문 반영', ok: false, code: e.code, why: e.why, changed: [], lint: null, lostRows: [], lostLines: [] })
+  return rs
+}
+function inspectSections(k, input) {
   const spread = input.sections.length > 1
   return input.sections.map((s) => {
     let d = k.byDocPath.get(s.doc)

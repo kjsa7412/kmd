@@ -32,15 +32,18 @@ export function sameValues(oldText, newText) {
 // 링크 대상 주소는 값이 아니다: 「](x.md#머리%20%28가%29)」 · 「](https://…:8090/…)」 · 「<https://…>」 속의 수(%20 → 20)를 값으로 읽지 않는다(링크 글은 값으로 읽는다)
 const LINK_TARGET_RE = /\]\((?:[^()\s]|\([^()\s]*\))*(?:\s+"[^"]*")?\)|<https?:\/\/[^\s>]+>/g
 export const noLinkTargets = (s) => String(s || '').replace(LINK_TARGET_RE, (m) => (m[0] === '<' ? ' ' : ']()'))
-export function valuesOf(text) {
-  const out = new Set()
+// 값마다 나온 수(valuesOf 와 같은 읽기) — 본문 반영 검사가 「이번에 늘었나」 를 본다
+export function valueCounts(text) {
+  const out = new Map()
   const s = noLinkTargets(text).replace(/^[ \t]*(?:`{3,}|~{3,}).*$/gm, '')
   for (const m of s.matchAll(VALUE_RE)) {
     if (m[4] && inName(s, m.index, m[0].length)) continue
-    out.add((m[1] || m[2] || m[3] || m[4]).replace(/\s+/g, ''))
+    const v = (m[1] || m[2] || m[3] || m[4]).replace(/\s+/g, '')
+    out.set(v, (out.get(v) || 0) + 1)
   }
   return out
 }
+export const valuesOf = (text) => new Set(valueCounts(text).keys())
 
 // 글에 꼭 있어야 할 기록의 값 — 커밋 해시 · 기록 id 는 경위라 글에 옮기지 않는다(작성기준) · 해시 속 숫자(092cc4a → 092)도 값이 아니다 ·
 //   30자 넘는 따옴표 말은 값이 아니라 옮긴 문장이다 ·
@@ -134,28 +137,57 @@ const SRC_PART_RE = /^## 원천[ \t]*\r?\n- (?:파일|커밋|다시 들이기|�
 //   문서 판(v0.4)은 원본 메타라 지식 글에 넣지 않는다(옛 잔재 정리 O-1) · 커밋 해시 · 기록 id 는 경위다
 const NAME_RE = /[A-Za-z_][A-Za-z0-9_.\-]*[A-Za-z0-9_]/g
 const VER_RE = /^v\d+(?:\.\d+)*$/i
+//   화살표 오른쪽 괄호 속(「5초 (dpms_gateway 기준 · PR 승인)」)은 근거 · 경위 말이라 이름으로 세지 않는다
+const PAREN_RE = /\([^()\n]*\)|（[^（）\n]*）/g
+const arrowNames = (left, right) => {
+  const old = new Set(splitLeft(left)[1].match(NAME_RE) || [])
+  return [...new Set(right.replace(PAREN_RE, ' ').replace(HASH_RE, ' ').replace(REC_ID_RE, ' ').match(NAME_RE) || [])].filter((n) => !old.has(n) && !VER_RE.test(n) && n.length <= 30)
+}
 export function reflectNames(body) {
   const out = new Set()
-  for (const m of mustParts(body).matchAll(ARROW_RE)) {
-    const old = new Set(splitLeft(m[1])[1].match(NAME_RE) || [])
-    for (const n of m[2].replace(HASH_RE, ' ').replace(REC_ID_RE, ' ').match(NAME_RE) || []) if (!old.has(n) && !VER_RE.test(n) && n.length <= 30) out.add(n)
-  }
+  for (const m of mustParts(body).matchAll(ARROW_RE)) for (const n of arrowNames(m[1], m[2])) out.add(n)
   return [...out]
 }
+const countIn = (s, n) => (n ? s.split(n).length - 1 : 0)
+//   「옛 → 새」 줄의 새 값은 고칠 항목 글에 있기만 해서는 안 되고 이번에 들어가야 한다(옛 글보다 늘었거나 그 줄의 옛 값이 줄었다) —
+//   같은 값이 다른 뜻으로 이미 있는 항목(보존 항목의 gt_api_log 「365일」)을 한 글자만 고쳐 sections 에 넣으면 값을 하나도 옮기지 않고 넘었다.
+//   items[].before — 그 항목의 지금 글(신설은 빈 글 · 없으면 빈 글로 본다)
 export function judgeReflect(record, items = []) {
   const body0 = String(record?.body || '').split(/^(?=## )/m).filter((p) => !SRC_PART_RE.test(p)).join('')
   const values = mustValues(body0)
   const names = reflectNames(body0).filter((n) => !values.includes(n))
   if (!values.length && !names.length) return { errors: [], values }
-  const texts = items.map((x) => `${x?.heading || ''}\n${x?.text || ''}`)
+  const its = items.map((x) => {
+    const after = `${x?.heading || ''}\n${x?.text || ''}`
+    const before = x?.before ? `${x?.heading || ''}\n${x.before}` : ''
+    return { after, before, a: valueCounts(after), b: valueCounts(before) }
+  })
   const seen = new Set()
-  for (const t of texts) for (const v of valuesOf(t)) seen.add(v)
-  const flat = texts.join('\n')
+  for (const it of its) for (const v of it.a.keys()) seen.add(v)
+  const flat = its.map((it) => it.after).join('\n')
   const missing = [...values.filter((v) => !seen.has(v)), ...names.filter((n) => !flat.includes(n))]
-  if (!missing.length) return { errors: [], values }
-  const where = items.length ? '고칠 항목 글에' : '고칠 항목(sections)이 없어 어느 글에도'
+  // 「옛 → 새」 줄마다: 새 쪽에만 있는 값 · 이름이 어느 고칠 항목에서 이번에 들어갔나
+  const stale = new Set()
+  for (const m of mustParts(body0).matchAll(ARROW_RE)) {
+    const oldV = valuesOf(splitLeft(m[1])[1])
+    const newV = [...valuesOf(m[2].replace(HASH_RE, ' ').replace(REC_ID_RE, ' '))].filter((v) => v.length <= 30)
+    const gone = [...oldV].filter((o) => !newV.includes(o))
+    const dropped = (it) => gone.some((o) => (it.a.get(o) || 0) < (it.b.get(o) || 0))
+    for (const v of newV.filter((x) => !oldV.has(x) && seen.has(x))) {
+      if (!its.some((it) => (it.a.get(v) || 0) > 0 && ((it.a.get(v) || 0) > (it.b.get(v) || 0) || dropped(it)))) stale.add(v)
+    }
+    for (const n of arrowNames(m[1], m[2]).filter((x) => !values.includes(x) && flat.includes(x))) {
+      if (!its.some((it) => countIn(it.after, n) > 0 && (countIn(it.after, n) > countIn(it.before, n) || dropped(it)))) stale.add(n)
+    }
+  }
+  const all = [...missing, ...[...stale].filter((v) => !missing.includes(v))]
+  if (!all.length) return { errors: [], values }
+  const part = /^## 바뀐 것\s*$/m.test(body0) ? '기록의 바뀐 것 값이' : '기록 글의 값이(바뀐 것 칸이 없어 글 전체를 본다)'
+  const bits = []
+  if (missing.length) bits.push(`${part} ${items.length ? '고칠 항목 글에' : '고칠 항목(sections)이 없어 어느 글에도'} 없다: ${missing.slice(0, 3).join(' · ')}`)
+  if (stale.size) bits.push(`「옛 → 새」 의 새 값이 고칠 항목 글에 옛 글 그대로만 있다(이번에 들어가지 않았다): ${[...stale].slice(0, 3).join(' · ')}`)
   return {
-    errors: [{ id: judgeId('unreflected', ...items.map((x) => `${x?.doc || ''}#${x?.heading || ''}`).sort(), ...[...missing].sort()), code: 'unreflected', values: missing, why: `기록의 바뀐 것 값이 ${where} 없다: ${missing.slice(0, 3).join(' · ')}. 그 값을 지닌 항목을 고치는 고칠 항목(sections)을 더하거나, 바꾼 값이 아니면 바뀐 것에서 뺀다(이은 항목 touches 는 값을 바꾸지 않은 관련 항목이라 그 지금 글로 대신하지 않는다 · 생성 룰 R6-5)` }],
+    errors: [{ id: judgeId('unreflected', ...items.map((x) => `${x?.doc || ''}#${x?.heading || ''}`).sort(), ...[...all].sort()), code: 'unreflected', values: all, why: `${bits.join('. ')}. 그 값을 지닌 항목을 고쳐 새 값을 넣는 고칠 항목(sections)을 더한다. 바꾸지 않은 값(그대로임을 확인 · 이슈 제기 · 경위)은 바뀐 것이 아니라 요약 · 까닭에 적는다(이은 항목 touches 는 값을 바꾸지 않은 관련 항목이라 그 지금 글로 대신하지 않는다 · 생성 룰 R6-5)` }],
     values,
   }
 }
