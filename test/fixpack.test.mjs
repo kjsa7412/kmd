@@ -11,7 +11,6 @@ import { startServer } from '../server/http.js'
 import { makeHub, SHELL } from '../server/hub.js'
 import { readStats } from '../core/knowledge.js'
 import { copyDir, signIn } from './helpers.mjs'
-import { saveRecords } from '../core/save.js'
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixture', 'kmd')
 let tmp, s, me
@@ -79,9 +78,9 @@ test('F12: 캐시는 요청 밖 · 둘째 요청은 다시 읽지 않는다 · �
 })
 
 test('주인: _members.md 가 따라간다 · 팀 서버의 지식은 자리 표대로 본다(개인 지식은 개인 프로그램에만)', async () => {
-  const row = await s.hub.setOwner(SHELL, 'gdi', { owner: '박', private: true, curators: ['박'] })
+  const row = await s.hub.setOwner(SHELL, 'gdi', { owner: '박', private: true })
   assert.equal('private' in row, false, '「개인」 은 받지 않는다')
-  assert.match(fs.readFileSync(path.join(tmp, 'kn', 'gdi', '_members.md'), 'utf8'), /- 주인: 박\n- 정리: 박/)
+  assert.match(fs.readFileSync(path.join(tmp, 'kn', 'gdi', '_members.md'), 'utf8'), /- 주인: 박\n- Claude 에 보내지 않음: /)
   assert.deepEqual((await s.hub.visible(ADMIN)).map((k) => k.id), ['dpms', 'gdi'])
   assert.equal(await code(s.hub.setOwner(KIM, 'gdi', { noClaude: true })), 'E_FORBIDDEN', '주인이 아니면 못 바꾼다')
   // 세션(김)의 MCP 에서도 같은 판정

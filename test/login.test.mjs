@@ -135,17 +135,11 @@ test('관리: 사람 더하기는 관리자 + 재인증 · 기계 열쇠는 기�
   assert.equal((await req('/api/admin/users', { body: { id: 'kmd-auto' }, cookie: su.cookie })).status, 400, '예약 이름')
 })
 
-test('예전 열쇠: 비밀번호를 안 정한 사람만 · 곧바로 비밀번호 정하기 · 그 뒤 화면 불가 · MCP 는 그대로', async () => {
-  const { code: c0 } = await s.auth.addUser({ id: 'old' })
-  const legacy = crypto.randomBytes(32).toString('base64url')
-  await s.auth.addLegacy('old', legacy)
-  assert.equal((await req('/api/me')).body.legacy, true)
-  const r = await req('/login', { body: { token: legacy } })
-  assert.equal(r.body.setPassword, true)
-  await req('/first', { body: { code: r.body.code, pw: prehash('old', 'old-pw-12345') } })
-  assert.equal((await req('/login', { body: { token: legacy } })).status, 401)
-  assert.equal((await rpc(legacy)).status, 200)
-  assert.ok(c0)
+test('열쇠만 붙여 들어가는 길은 없다: /login 은 아이디 · 비밀번호만 · 모르는 열쇠는 MCP 도 401', async () => {
+  const tok = crypto.randomBytes(32).toString('base64url')
+  assert.equal((await req('/api/me')).body.legacy, undefined)
+  assert.equal((await req('/login', { body: { token: tok } })).status, 401)
+  assert.equal((await rpc(tok)).status, 401)
 })
 
 test('PC: 한 번용 번호(60초) → 루프백 쿠키 · 팀 쿠키는 PC 에서 안 된다', async () => {

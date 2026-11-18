@@ -415,7 +415,7 @@ function landedIn(k, w, ids) {
   }
   return done()
 }
-// 이 문서가 온 곳 — 항목마다 넣은 기록(how: rec) 과 그 기록을 넣은 kmd 이력 기록(how: kmd · 옛 정리 · 바로 넣기 · 고침 · 다듬기) · 넣은 항목 머리
+// 이 문서가 온 곳 — 항목마다 넣은 기록(how: rec) 과 그 기록을 넣은 kmd 이력 기록(how: kmd · 고침 · 다듬기) · 넣은 항목 머리
 function originsOf(k, d) {
   const m = new Map()
   const add = (w, how, h) => {
@@ -500,11 +500,11 @@ export function recView(k, id) {
   return { ...recRow(w), html: render(k, w.path, w.body), tags: w.tags, items, fixes, fixedBy, went, via: via.map(recRow), from, ...(ingest ? { ingest: { read: w.tags.includes('ingest-read') } } : {}), ...(k.logs.includes(w) ? { log: logKind(w) } : {}) }
 }
 
-// 이력의 갈래(설계 3-4) — 가져오기 · 가져올 곳(설정) · 되돌림 · 고침 · 다듬기 · 서식(서식 맞춤) · 버림 · 들이기 · 저장(저장 문이 넣은 기록) · 정리(옛 기록 · 옛 넣지 못함도)
+// 이력의 갈래(설계 3-4) — 가져오기 · 가져올 곳(설정) · 되돌림 · 고침 · 다듬기 · 서식(서식 맞춤) · 버림 · 들이기 · 저장(저장 문이 넣은 기록) · 그 밖은 「이력」(지운 태그의 옛 이력 · O-10) 옛 넣지 못함도)
 export function logKind(w) {
   const t = w.tags || []
-  if (t.includes('sources')) return /^가져(오는|올) 곳/.test(w.title) ? '설정' : '가져오기' // 옛 기록 제목은 「가져오는 곳」(Q7 앞)
-  if (t.includes('revert') || ((w.reopens || []).length && /^되돌림/.test(w.title))) return '되돌림' // 옛 되돌림은 curate-auto · 제목 「되돌림:」
+  if (t.includes('sources')) return /^가져올 곳/.test(w.title) ? '설정' : '가져오기'
+  if (t.includes('revert')) return '되돌림'
   if (t.includes('edit')) return '고침'
   if (t.includes('polish')) return '다듬기'
   if (t.includes('format')) return '서식'
@@ -513,7 +513,7 @@ export function logKind(w) {
   if (t.includes('structure')) return '짜임'
   if (t.includes('intake')) return '들이기'
   if (t.includes('put')) return '저장'
-  return '정리'
+  return '이력'
 }
 // 이력 — 지식마다 날짜 순(새 것 위) · 화면 「이력」 한 곳에서 본다
 export function logRows(k, { limit = 300 } = {}) {

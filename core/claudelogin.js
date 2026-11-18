@@ -1,13 +1,13 @@
-// Claude 연결 — 정리 · 기록 만들기에 쓰는 Claude Code 로그인.
+// Claude 연결 — 들이기 · 짜임에 쓰는 Claude Code 로그인.
 //
 //   이 PC      설정 › Claude 연결 [Claude 로그인] — 「kmd — Claude 로그인」 창에서 `claude auth login`(그 창이 브라우저를 연다 ·
 //              이 PC 의 Claude Code 로그인을 새로 받는다 — `claude -p` 가 그것을 쓴다). Claude Code 의 로그인은 진짜 터미널이 있어야 돌아
 //              프로그램 안에 넣지 못한다 — 대신 화면이 그 창을 알려 주고 작은 부르기로 저절로 확인한다(core/claude.js checkClaude)
 //   팀 서버    설정 · 팀 › Claude 연결 — 비밀번호 한 번 더 → 서버 PC 에 화면이 있으면(Windows · macOS · 화면 있는 Linux) 이 PC 와 같은
-//              「kmd — Claude 로그인」 창 → 그 PC 의 Claude Code 로그인을 정리 일꾼이 쓴다 · 화면이 작은 부르기로 확인
-//              화면 없는 서버(헤드리스 Linux)만 — 서버가 정리 전용 OS 사용자로 `claude setup-token` 을 띄우고 나온
+//              「kmd — Claude 로그인」 창 → 그 PC 의 Claude Code 로그인을 팀 일꾼이 쓴다 · 화면이 작은 부르기로 확인
+//              화면 없는 서버(헤드리스 Linux)만 — 서버가 일꾼 전용 OS 사용자로 `claude setup-token` 을 띄우고 나온
 //              주소를 화면에 → 관리자가 그 주소에서 받은 번호를 붙여 넣으면 그 프로세스의 입력으로만 넘긴다(저장 안 함)
-//              → 나온 오래 가는 열쇠는 비밀 `claude-token` 으로만(화면 · 로그 · 응답에 0) → 정리 일꾼이 그것으로 돈다
+//              → 나온 오래 가는 열쇠는 비밀 `claude-token` 으로만(화면 · 로그 · 응답에 0) → 팀 일꾼이 그것으로 돈다
 //              setup-token 은 진짜 터미널이 있어야 돌아 `script` 의 가짜 터미널로 띄운다(Linux · macOS) — 못 다는 곳은
 //              자기 터미널에서 받은 열쇠를 `kmd secret set claude-token` 으로 넣으라고 알린다
 //   시험       KMD_CLAUDE_LOGIN = 가짜 스크립트(node 로 부른다)

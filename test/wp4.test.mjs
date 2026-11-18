@@ -46,25 +46,14 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('사람 몫 PC 일꾼 열쇠는 걷었다: 새로 만들지 않고 · 옛 열쇠는 받지 않고 켤 때 명부에서 지운다 · 팀 일꾼은 그대로', async () => {
-  // 팀 일꾼 열쇠 — 그대로(사람에 묶이지 않는다)
+test('팀 일꾼 열쇠: 사람에 묶이지 않는다', async () => {
   const tw = await s.auth.workerAdd()
   assert.deepEqual(Object.keys(s.auth.bearer(tw.key).worker), ['id'])
-  // 옛 판의 명부에 남은 사람 몫 PC 일꾼(owner) — 켤 때 지우고 · 열쇠는 받지 않는다
-  const { makeAuth } = await import('../core/auth.js')
-  const pwmod = await import('../core/passwd.js')
-  const d = path.join(tmp, 'oldauth')
-  fs.mkdirSync(d, { recursive: true })
-  const key = 'kmdw_' + 'x'.repeat(43)
-  fs.writeFileSync(path.join(d, 'auth.json'), JSON.stringify({ v: 1, setup: null, users: { yoon: { kind: 'person', keys: [{ id: 'd1', sha: 'a', at: new Date().toISOString() }] }, 'worker-old1': { kind: 'worker', owner: 'yoon', device: 'd1', keys: [{ id: 'w', sha: pwmod.sha(key), at: new Date().toISOString() }] } } }))
-  const a = await makeAuth({ dataDir: d, scryptN: 1 << 15 })
-  assert.equal(a.bearer(key), null, '옛 PC 일꾼 열쇠는 받지 않는다')
-  assert.ok(!a.users().some((u) => u.id === 'worker-old1'), '명부에서 지웠다')
 })
 
 test('떠남: 한 번에 끊고 아이디를 남긴다 · 지식은 넘기거나 주인 칸을 비운다 · 떠난 사람은 목록 · 링크 · 고르기에서 빠진다', async () => {
   const leeKey = lee.key
-  await s.hub.setOwner(SHELL, 'dpms', { curators: ['lee'] })
+  await s.hub.setAccess(SHELL, 'dpms', { users: { lee: 'admin' } })
   await s.hub.setOwner(SHELL, 'gdi', { owner: 'lee' })
   // 비밀번호 한 번 더 없이는 안 된다 · 나 자신은 안 된다
   assert.equal((await post('/api/admin/users/lee/off', kim)).status, 403)
@@ -81,9 +70,9 @@ test('떠남: 한 번에 끊고 아이디를 남긴다 · 지식은 넘기거나
   assert.ok(!(await get('/api/people', kim).then((x) => x.json())).includes('lee'))
   const ov = await get('/api/admin/overview', kim).then((x) => x.json())
   assert.ok(!ov.nopw.includes('lee') && !ov.people.includes('lee') && ov.off.includes('lee'))
-  // 지식 — 팀 지식 gdi 는 주인 없음 · dpms 정리하는 사람에서 빠짐
+  // 지식 — 팀 지식 gdi 는 주인 없음 · dpms 지식관리자 자리에서 빠짐
   const L = JSON.parse(fs.readFileSync(path.join(data, 'owners.json'), 'utf8')).knowledge
-  assert.deepEqual([L.gdi.owner, L.dpms.curators], [null, []])
+  assert.deepEqual([L.gdi.owner, L.dpms.access?.users?.lee], [null, undefined])
   // 사람 카드 — 떠난 사람 표 · 사람마다 지식 수
   const us = await get('/api/admin/users', kim).then((x) => x.json())
   assert.ok(us.users.find((u) => u.id === 'lee').off)

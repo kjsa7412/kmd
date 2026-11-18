@@ -47,25 +47,6 @@ test('개인 지식을 더하면 표에 쌓인다 · 연결은 kmd 하나 · 팀
   }
 })
 
-test('옛 폴더 줄: { area, kn } 은 하나짜리 목록 · 팀 지식만 붙었던 폴더는 개인 목록에 두지 않는다 · 섞인 폴더는 개인 지식만', async () => {
-  const data = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-kitd-'))
-  try {
-    fs.writeFileSync(path.join(data, 'agent.json'), JSON.stringify([
-      { name: 'w', path: 'D:\\w', at: 'x', area: 'me', kn: 'memo', knName: '메모' },
-      { name: 't', path: 'D:\\t', at: 'x', area: 'team', kn: 'dpms', knName: 'DPMS', team: 'http://t' },
-      { name: 'm', path: 'D:\\m', at: 'x', kns: [{ area: 'team', kn: 'dpms', knName: 'DPMS' }, { area: 'me', kn: 'memo', knName: '메모' }], def: 'team:dpms' },
-    ]))
-    const fs2 = await folders(data)
-    assert.deepEqual(fs2.map((f) => f.name), ['w', 'm'])
-    assert.deepEqual(fs2[0].kns, [{ area: 'me', kn: 'memo', knName: '메모' }])
-    assert.deepEqual(fs2[1].kns, [{ area: 'me', kn: 'memo', knName: '메모' }])
-    assert.equal(fs2[1].def, undefined)
-    assert.equal(addKn(fs2[0], { area: 'me', kn: 'memo', knName: '새 이름' }).kns.length, 1, '같은 지식은 이름만 새로')
-  } finally {
-    fs.rmSync(data, { recursive: true, force: true })
-  }
-})
-
 test('개인 프로그램 설치 한 줄은 작업 폴더를 팀 지식에 붙이지 않는다 · 이상한 이름은 싣지 않는다', () => {
   assert.doesNotMatch(installPs({ origin: 'http://kmd.team:7381', ticket: 'kmdt_abcdefghijklmnop', pkg: null }), /--kn/)
   assert.equal(safeKn("a'; rm -rf /"), null)
@@ -149,13 +130,9 @@ test('PC /api/agent: 개인 지식 더하기 · 팀 연결은 그대로 · 하�
   }
 })
 
-// 개인 스킬 판(저장 승인 설계 P-D40 · PC2) — 판마다 그 판의 스킬 글 해시(kitParts().ver). 개인 스킬 글 · 개인 덩이 · 작성가이드를 고치면
-//   core/kit.js 의 PC_KIT_REV 를 하나 올리고 이 표에 새 판 · 새 해시를 더한다(옛 판 줄은 그대로 둔다)
-//   (판 1 은 저장 승인 PC2: 늘 저장 제안 · 정리 거리 고르기 · 대화 조절 · 「바로 넣기가 곧 넣는다」 걷기 · 넣기 에이전트는 규칙 길)
-//   (판 2 는 저장 승인 PC6: 옛 개인 지식 길 · 옛 판 안내(reinstall · nokit) 걷기 · 이행 못한 지식은 저장 닫힘)
-//   (판 3 은 저장 승인 P12: 이행 못한 지식 안내 걷기 · 개인 지식은 처음부터 승인)
-//   (판 4 는 말 맞추기: 이름 → 항목 · 조각 → 고칠 항목 · 바꿀 곳 · 보이는 이름 → 라벨 · 다른 이름 → 별칭 · 이름 장부 → 항목 장부)
-const PC_KIT_HASH = { 1: 'ea86fd6a', 2: '74d9f2fb', 3: 'a6f440ea', 4: '395b776c', 5: 'e8f86f1c', 6: '1def142f' }
+// 개인 스킬 판(저장 승인 설계 P-D40 · PC2) — 지금 판의 스킬 글 해시(kitParts().ver) 한 줄. 개인 스킬 글 · 개인 덩이 · 작성가이드를 고치면
+//   core/kit.js 의 PC_KIT_REV 를 하나 올리고 이 줄을 새 판 · 새 해시로 바꾼다(판 7: 저장 방식 말을 「늘 승인」 으로)
+const PC_KIT_HASH = { 7: '7e6929f7' }
 test('개인 스킬 판: 스킬 글이 바뀌면 PC_KIT_REV 도 오른다 · {{KIT_REV}} 를 판으로 바꿔 싣는다 · 새 흐름(제안 · 승인 · 메모 없음)', async () => {
   const parts = await kitParts()
   assert.equal(parts.rev, PC_KIT_REV)

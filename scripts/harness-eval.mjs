@@ -5,16 +5,13 @@
 //   채점은 글자 일치가 아니라 묶음 동치다(같은 대상의 알갱이가 같은 항목에 모였나 · 쌍 단위).
 //   실제 Claude 를 부른다(돈이 든다) — 사람이 돌린다. 제품 지식 · 188 에는 쓰지 않는다: 쓰는 곳은 .kmd-data/harness-eval/ 뿐이다.
 //
-//   node scripts/harness-eval.mjs run   --order 설계서먼저|회의록먼저 [--tag 바탕] [--mode oneshot] [--only 1,2,…] [--budget 1]
+//   node scripts/harness-eval.mjs run   --order 설계서먼저|회의록먼저 [--tag 바탕] [--only 1,2,…]
 //   node scripts/harness-eval.mjs score <지식 폴더> [--log <run.json>]     이미 선 지식만 채점한다(Claude 없이)
 //   node scripts/harness-eval.mjs plan                                      원천 수 · 차례만 보인다(Claude 없이)
 //   node scripts/harness-eval.mjs recall <지식 폴더> [--n 300]              과거 결정 카드의 recall(Claude 없이 · 읽기만): 기록의 글로 카드를 지어
 //                                                                           그 기록이 건드린 항목이 카드에 실리나(설계 9-3 판례 recall · 문턱 0.9)
 //
-//   --mode oneshot  지금 프롬프트(단발 claude -p · 도구 0 · INTAKE_SCHEMA): server/hub.js 의 무인 들이기와 같은 걸음을 core 함수로 밟는다
-//                   (재료 → 초안 → draftToSave → 무인 판정 → 고쳐 받기 두 번). 바탕 값(H0)을 잴 때는 그 뒤에 규칙 길이 있었다:
-//                   규칙 길을 걷은 뒤(H4b)에는 끝내 못 넘으면 아무것도 쓰지 않는다(못 넣음).
-//   --mode session  세션 방식(H4a · H-D34): 임시 팀 서버를 띄우고 원천마다 들이기 일감을 열어 팀 일꾼(workOnce)이 Claude Code 세션을 띄운다.
+//   세션 방식(H4a · H-D34 · 단발 claude -p 길은 걷었다 · O-15): 임시 팀 서버를 띄우고 원천마다 들이기 일감을 열어 팀 일꾼(workOnce)이 Claude Code 세션을 띄운다.
 //                   세션은 그 서버의 MCP 에 단기 열쇠로 붙어 스스로 찾고 저장한다(system 글에 생성 룰 긴 판).
 //   결과: .kmd-data/harness-eval/<날짜>-<판>.json · 지식은 .kmd-data/harness-eval/kn/<판>/
 import fs from 'node:fs/promises'
@@ -176,99 +173,6 @@ async function freshKn(dir, name) {
   git('commit', '-q', '-m', '지식 만듦(평가 시험)')
 }
 
-// 단발(지금 프롬프트) — server/hub.js 의 intakeG · unattendedTouches · unattendedPlan · rulePut 과 같은 걸음을 core 함수로
-async function oneshotRunner({ budget }) {
-  const { ingestCandidates, formsOf, intakePromptOf, intakeFixPromptOf, draftToSave, INTAKE_SCHEMA } = await import('../core/ingest.js')
-  const { buildProposal } = await import('../core/propose.js')
-  const { WRITE_RULES } = await import('../core/writerules.js')
-  const { save: coreSave } = await import('../core/save.js')
-  const { runClaude } = await import('../core/claude.js')
-  const month = () => new Date().toISOString().slice(0, 7)
-  const intakeG = (k, s, md) => {
-    const docs = ingestCandidates(k, { title: s.title || '', body: md }).slice(0, 5)
-    const coords = [...k.vocab.coords.entries()].filter(([, v]) => !v.deprecated).map(([c]) => c)
-    return { type: s.type, src: { title: s.title, file: s.file, rel: s.file, type: s.type, md, ...(s.date ? { date: s.date } : {}) }, docs, ...formsOf(k), names: coords.slice(0, 200), kinds: [...new Set(coords.map((c) => c.split(':')[0]))] }
-  }
-  const touchesOf = (k, input) => {
-    const rec = input.record
-    const all = Array.isArray(rec.touches) ? rec.touches : []
-    const made = new Set((input.names || []).map((n) => n.coord))
-    const known = all.filter((c) => k.vocab.coords.has(c) || made.has(c))
-    if (known.length === all.length && (known.length || rec.touchesEmpty)) return input
-    const { touches: _t, touchesEmpty: _e, ...rest } = rec
-    return { ...input, record: { ...rest, ...(known.length ? { touches: known } : { touchesEmpty: '무인 들이기: 장부에 있는 건드린 항목이 없다' }) } }
-  }
-  const plan = (k, input, { rule = false } = {}) => {
-    const p = buildProposal(k, input, { newDoc: true, intakeDoc: true, approve: true, curator: false, reverts: () => 0, month: month(), head: { name: k.name, viewers: null, path: '무인' } })
-    return { p, errors: p.errors.filter((e) => !(rule && (e.code === 'unreflected' || e.code === 'near'))) }
-  }
-  const put = async (dir, name, input, { rule = false } = {}) => {
-    const bag = { accepted: [], values: [], linked: [], fresh: [], items: 0 }
-    const prepare = async () => {
-      const k = await loadKnowledge({ id: name, name, dir })
-      const { p, errors } = plan(k, touchesOf(k, input), { rule })
-      if (errors.length) return { abort: { errors: errors.map((e) => `${e.code} · ${e.at}: ${e.why}`) } }
-      const sections = []
-      for (const x of p.items) {
-        if (x.kind === '고침') sections.push({ ...(x.coord ? { coord: x.coord } : { doc: x.doc, heading: x.heading }), content: x.after, base: x.base })
-        else if (x.kind === '신설') sections.push({ doc: x.doc, heading: x.heading, content: x.after })
-      }
-      const m = p.linked.find((x) => x.records && x.missing)
-      if (m) sections.push({ doc: RECORDS_DOC_PATH, heading: m.heading, content: RECORDS_MONTH_TEXT })
-      bag.fresh = p.fresh
-      bag.linked = p.linked.filter((x) => !(x.records && x.missing))
-      return { sections, proposals: p.items.filter((x) => x.kind !== '잇기').map((x) => ({ coord: x.at, doc: x.doc, heading: x.heading, ok: true, changed: [] })) }
-    }
-    const k0 = await loadKnowledge({ id: name, name, dir })
-    const inp = touchesOf(k0, input)
-    try {
-      const r = await coreSave(dir, { record: inp.record, sections: [], ...(inp.names?.length ? { names: inp.names } : {}) }, { user: 'harness-eval', guard: 'strict', prepare, approve: bag, intake: { tags: [] } })
-      return r.errors?.length ? { ok: false, why: r.errors.join(' / ') } : { ok: true, id: r.id, fresh: bag.fresh.map((f) => `${f.kind} ${f.name}`) }
-    } catch (e) {
-      const errs = e.details?.errors || e.details?.abort?.errors
-      return { ok: false, why: String(errs ? [].concat(errs).join(' / ') : `${e.code || ''} ${e.message}`).slice(0, 600) }
-    }
-  }
-  return async function one(dir, name, s, md) {
-    const row = { n: s.n, file: s.file, calls: 0, fix: 0, cost: 0, ms: 0, rule: null, put: false, why: [] }
-    let k = await loadKnowledge({ id: name, name, dir })
-    const g = intakeG(k, s, md)
-    row.cands = g.docs.map((d) => docName(d.doc))
-    let prompt = intakePromptOf(g, { writeRules: WRITE_RULES })
-    row.promptChars = prompt.length
-    let last = '초안을 받지 못했다'
-    for (let i = 0; i <= 2; i++) {
-      const t0 = Date.now()
-      const r = await runClaude({ prompt, schema: INTAKE_SCHEMA, budget, timeoutMs: 15 * 60_000 })
-      row.calls++
-      row.cost += r.cost || 0
-      row.ms += Date.now() - t0
-      if (r.error) { last = `초안 실패(${r.error}): ${String(r.message || '').slice(0, 160)}`; row.why.push(last); if (['login', 'limit', 'missing'].includes(r.error)) { row.stop = r.error; return row } break }
-      const draft = r.value
-      if (i === 0) row.draft = { updates: (draft.updates || []).length, newDoc: draft.newDoc?.path || null, names: (draft.names || []).map((n) => `${n.kind || ''}:${n.name}`) }
-      k = await loadKnowledge({ id: name, name, dir })
-      const d = draftToSave(k, g, draft, { measure: true })
-      let why = null
-      if (d.ok && d.empty) { row.empty = d.empty; return row }
-      if (!d.ok) why = d.why
-      else if (d.held.length) why = d.held.map((h) => `${h.code}: ${h.why}`).join(' / ')
-      else {
-        const res = await put(dir, name, d.input)
-        if (res.ok) { row.put = true; row.fresh = res.fresh; row.warn = d.warn; row.valueWarn = d.values.length; return row }
-        why = res.why
-      }
-      last = why
-      row.why.push(String(why).slice(0, 300))
-      if (i === 2) break
-      row.fix++
-      prompt = intakeFixPromptOf(g, draft, why, { writeRules: WRITE_RULES })
-    }
-    // 끝내 못 넘었다 — 아무것도 쓰지 않는다(규칙 길은 걷었다 · H-D29)
-    row.why.push(`못 넣음: ${String(last).slice(0, 200)}`)
-    return row
-  }
-}
-
 // 세션 방식 — 임시 팀 서버 + 팀 일꾼. 서버는 127.0.0.1 의 빈 포트에 뜨고 쓰는 곳은 root(.kmd-data/harness-eval/kn/<판>-root) 뿐이다
 async function sessionRunner({ root, kn }) {
   const { startServer } = await import('../server/http.js')
@@ -279,9 +183,9 @@ async function sessionRunner({ root, kn }) {
   const s = await startServer({ root, port: 0, log: () => {}, scryptN: 1 << 15 })
   const wk = (await s.auth.workerAdd()).key
   const one = async (dir, name, src, md) => {
-    const row = { n: src.n, file: src.file, calls: 0, fix: 0, cost: 0, ms: 0, rule: null, put: false, why: [] }
+    const row = { n: src.n, file: src.file, calls: 0, fix: 0, cost: 0, ms: 0, put: false, why: [] }
     const o = await s.hub.openJob(kn, { type: src.type, by: 'kmd', auto: true, src: src.type === 'commit' ? { src: '게이트웨이', commit: 'a1b2c3d4e5f60718', title: src.title, touches: [] } : { rel: src.file, file: src.file, title: src.title, sha: sha16(md) }, md })
-    if (o.state !== 'queued') { row.why.push(`일감을 열지 못했다: ${JSON.stringify(o).slice(0, 200)}`); row.put = o.state === 'rule'; row.rule = o.state === 'rule' ? (o.why || '규칙 길') : null; return row }
+    if (o.state !== 'queued') { row.why.push(`일감을 열지 못했다: ${JSON.stringify(o).slice(0, 200)}`); return row }
     const logs = []
     const t0 = Date.now()
     const r = await workOnce({ server: s.url, key: wk, log: (x) => logs.push(String(x)) })
@@ -290,7 +194,6 @@ async function sessionRunner({ root, kn }) {
     row.session = !!r?.job?.session
     row.cost = j?.cost || 0
     row.calls = j?.calls || 0
-    row.rule = j?.result?.rule || null
     row.put = j?.state === 'done' && !j?.result?.aborted
     if (j?.result?.empty) row.empty = String(j.why || '넣을 것 없음').slice(0, 200)
     if (j?.why) row.why.push(String(j.why).slice(0, 300))
@@ -331,20 +234,18 @@ async function main() {
   if (cmd !== 'run') { console.error('쓰는 법: harness-eval.mjs run --order <차례> | score <지식 폴더> | recall <지식 폴더> | plan'); process.exit(2) }
   const order = arg('order')
   if (!gold.orders[order]) { console.error(`차례를 고른다: ${Object.keys(gold.orders).join(' · ')}`); process.exit(2) }
-  const mode = arg('mode', 'oneshot')
+  const mode = 'session'
   const tag = arg('tag', '바탕')
-  const budget = Number(arg('budget', '1')) || 1
   const only = arg('only') ? new Set(arg('only').split(',').map(Number)) : null
   const ver = `${tag}-${mode}-${order}`
-  if (!['oneshot', 'session'].includes(mode)) { console.error(`모르는 방식: ${mode}`); process.exit(2) }
   const KN_ID = 'empty-test' // 세션 방식의 지식 id(임시 팀 서버의 폴더 이름)
   const root = path.join(OUT_DIR, 'kn', `${ver}-root`)
-  const dir = mode === 'session' ? path.join(root, KN_ID) : path.join(OUT_DIR, 'kn', ver)
+  const dir = path.join(root, KN_ID)
   await fs.mkdir(OUT_DIR, { recursive: true })
-  if (mode === 'session') await fs.rm(root, { recursive: true, force: true })
+  await fs.rm(root, { recursive: true, force: true })
   await freshKn(dir, gold.kn)
-  const runner = mode === 'session' ? await sessionRunner({ root, kn: KN_ID }) : null
-  const one = runner ? runner.one : await oneshotRunner({ budget })
+  const runner = await sessionRunner({ root, kn: KN_ID })
+  const one = runner.one
   const rows = []
   const day = new Date().toISOString().slice(0, 10)
   const outFile = path.join(OUT_DIR, `${day}-${ver}.json`)
@@ -360,15 +261,15 @@ async function main() {
     row.added = { docs: after.docs.length - b.docs, items: itemsOf(after).length - b.items }
     if (s.expect === 'empty') row.emptyOk = row.added.items === 0 && row.added.docs === 0
     rows.push(row)
-    console.log(`[${n}] ${s.file}: ${row.put ? (row.rule ? `규칙 길(${row.rule})` : '넣음') : '못 넣음'} · 부름 ${row.calls} · 고쳐 받기 ${row.fix} · $${row.cost.toFixed(3)} · ${Math.round(row.ms / 1000)}초 · 문서 +${row.added.docs} 항목 +${row.added.items}${row.why.length ? ` · ${row.why[row.why.length - 1].slice(0, 100)}` : ''}`)
+    console.log(`[${n}] ${s.file}: ${row.put ? '넣음' : '못 넣음'} · 부름 ${row.calls} · 고쳐 받기 ${row.fix} · $${row.cost.toFixed(3)} · ${Math.round(row.ms / 1000)}초 · 문서 +${row.added.docs} 항목 +${row.added.items}${row.why.length ? ` · ${row.why[row.why.length - 1].slice(0, 100)}` : ''}`)
     const k = await loadKnowledge({ id: gold.kn, name: gold.kn, dir })
     const score = scoreKnowledge(k, gold)
-    await fs.writeFile(outFile, JSON.stringify({ ver, mode, order, day, head: execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT }).toString().trim(), partial: only ? [...only] : null, ms: Date.now() - t0, cost: rows.reduce((a, r) => a + r.cost, 0), tally: { sources: rows.length, put: rows.filter((r) => r.put && !r.rule).length, rule: rows.filter((r) => r.rule).length, fail: rows.filter((r) => !r.put).length, fix: rows.reduce((a, r) => a + r.fix, 0), calls: rows.reduce((a, r) => a + r.calls, 0) }, score, gates: gateOf(score), rows }, null, 2) + '\n')
+    await fs.writeFile(outFile, JSON.stringify({ ver, mode, order, day, head: execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT }).toString().trim(), partial: only ? [...only] : null, ms: Date.now() - t0, cost: rows.reduce((a, r) => a + r.cost, 0), tally: { sources: rows.length, put: rows.filter((r) => r.put).length, fail: rows.filter((r) => !r.put).length, fix: rows.reduce((a, r) => a + r.fix, 0), calls: rows.reduce((a, r) => a + r.calls, 0) }, score, gates: gateOf(score), rows }, null, 2) + '\n')
     if (row.stop) { console.error(`Claude 를 쓸 수 없어 멈춘다(${row.stop})`); break }
   }
-  if (runner) await runner.close()
+  await runner.close()
   const fin = JSON.parse(await fs.readFile(outFile, 'utf8'))
-  console.log(`\n${ver}: 값 $${fin.cost.toFixed(2)} · ${Math.round(fin.ms / 60000)}분 · 넣음 ${fin.tally.put} · 규칙 길 ${fin.tally.rule} · 못 넣음 ${fin.tally.fail} · 고쳐 받기 ${fin.tally.fix}`)
+  console.log(`\n${ver}: 값 $${fin.cost.toFixed(2)} · ${Math.round(fin.ms / 60000)}분 · 넣음 ${fin.tally.put} · 못 넣음 ${fin.tally.fail} · 고쳐 받기 ${fin.tally.fix}`)
   const s = fin.score
   console.log(`묶음 F1 ${s.f1} · 성격 ${s.nature} · 중복 ${s.dupRate} · 빠짐 ${s.missRate} · 지금 값 ${s.valueRate} · 짝 ${s.pair} · 주입 ${s.injected} · 문서 ${s.counts.docs} · 항목 ${s.counts.items}(원문 ${s.counts.rawItems})`)
   console.log(`결과: ${path.relative(ROOT, outFile)}`)

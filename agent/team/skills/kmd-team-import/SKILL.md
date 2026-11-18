@@ -48,7 +48,7 @@ description: 이 PC 의 폴더 · 파일(문서 · 회의록 · 오피스 · hwp
    - 경고가 있는 줄 · 새 문서 · 새 갈래가 서는 줄은 늘 보인다. 표가 길면 나머지는 「그 밖에 n 줄(경고 없음)」 로 줄이고, 사람이 「전체」 라고 하면 다 보인다.
    - 대화로 고친다: 파일 빼기(그 파일은 넣지 않음) · 넣을 곳 바꾸기 · 값 고치기(그 파일 입력을 고쳐 다시 propose 하고 바뀐 줄만 다시 보인다).
 5. **파일마다 넣는다**(승인 뒤 묻지 않고 이어서): 그 파일의 입력에 승인한 `proposal` · `kit` · 원본 첨부를 실어 `save` 한다.
-   - **원본 첨부**(`brief` 의 `saveMode` 가 `approve` 면 늘 · 아니면 사람이 「원본도 첨부」 라고 했을 때만): 그 파일 줄의 `atts`(`path` · `file` · `bytes`)를 `attach: [{ path, b64 }]` 로 같은 저장에 싣는다. `b64` 는 `[Convert]::ToBase64String([IO.File]::ReadAllBytes('<file>'))`. 팀 서버는 첨부 원본을 글로 바꿔 `md/<sha>` 와 맞을 때만 대량 넣기로 받는다. 한 저장에 8MB 까지: 더 큰 원본은 첨부하지 않고 글만 넣는다(`saveMode` 가 `approve` 면 `ingest/` · `md/` 표지도 떼고 · 끝에 알린다).
+   - **원본 첨부**(늘 · 저장은 늘 승인이다): 그 파일 줄의 `atts`(`path` · `file` · `bytes`)를 `attach: [{ path, b64 }]` 로 같은 저장에 싣는다. `b64` 는 `[Convert]::ToBase64String([IO.File]::ReadAllBytes('<file>'))`. 팀 서버는 첨부 원본을 글로 바꿔 `md/<sha>` 와 맞을 때만 대량 넣기로 받는다. 한 저장에 8MB 까지: 더 큰 원본은 첨부하지 않고 글만 넣는다(`ingest/` · `md/` 표지도 떼고 · 끝에 알린다).
    - `same: true` 면 「이미 넣음」 이다(앞에서 넣은 파일: 이어 하기). 다음 파일로.
    - `E_APPROVE` · `E_CONFLICT`(앞 파일이 같은 항목을 고쳐 지문이 바뀜): 그 파일만 `section` 으로 다시 읽고 다시 propose 한다. 표의 그 줄과 같고(넣을 곳 · 갈래 같음) 새 경고가 없으면 새 `proposal` 로 넣는다. 다르면 넣지 않고 끝에 모아 그 줄들만 다시 보이고 승인받는다.
    - `E_RATE` 면 `details.retryAfter` 초 쉬고 같은 파일을 다시 보낸다.

@@ -232,7 +232,6 @@ test('새 지식: backup false 면 GitLab 저절로 붙이기 없음 · 없으�
   assert.equal(s.hub.backupStateSync(meta), null, 'backup: false — 저장소를 저절로 붙이지 않았다')
   assert.equal(fs.existsSync(path.join(meta.dir, 'docs', '처음.md')), false, '빈 지식')
   assert.equal(fs.existsSync(path.join(meta.dir, 'docs', '기록 모음.md')), true, '기록 모음은 같이(P3)')
-  assert.equal(s.hub.saveModeOf(a.j.id), 'approve')
   const n0 = calls.length
   const b = await req('/api/knowledge/add', P.boss, { kind: 'new', name: 'test-저절로', empty: true })
   assert.equal(b.status, 200)

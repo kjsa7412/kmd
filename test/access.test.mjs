@@ -62,22 +62,16 @@ after(async () => {
   try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
 })
 
-test('판정: 총괄 관리자 · 주인 · 정리하는 사람 → 지식관리자 · 사람 · 묶음 · 모두의 가장 높은 것 · 자리 표가 없으면 없음', () => {
-  const reg = { groups: { 운영: { members: ['a'] } }, knowledge: { k: { owner: 'o', curators: ['c'], access: { all: 'read', users: { b: 'write' }, groups: { 운영: 'admin' } } }, old: { owner: 'o', curators: [] }, back: { restored: true } } }
+test('판정: 총괄 관리자 · 주인 → 지식관리자 · 사람 · 묶음 · 모두의 가장 높은 것 · 자리 표가 없으면 없음', () => {
+  const reg = { groups: { 운영: { members: ['a'] } }, knowledge: { k: { owner: 'o', access: { all: 'read', users: { b: 'write', c: 'admin' }, groups: { 운영: 'admin' } } }, old: { owner: 'o' } } }
   const L = (id, ctx) => owners.levelOf(reg, id, ctx)
   assert.deepEqual(['o', 'c', 'a', 'b', 'z'].map((u) => L('k', { user: u })), ['admin', 'admin', 'admin', 'write', 'read'])
   assert.equal(L('k', { user: 'z', admin: true }), 'admin', '전역 관리자')
-  // 기본이 바뀌었다(권한 모델 v1.1) — 예전 「줄 없음 · access 없음 → 모두 쓰기」 는 이제 없음 · 주인 · 총괄 관리자 · 예전 정리하는 사람만
+  // 기본은 없음(권한 모델 v1.1) — 줄 없음 · access 없음은 주인 · 총괄 관리자만
   assert.equal(L('nothing', { user: 'z' }), 'none', '줄이 없는 지식: 없음')
   assert.equal(L('nothing', { user: 'z', admin: true }), 'admin')
   assert.equal(L('old', { user: 'z' }), 'none', 'access 없는 옛 줄: 없음')
   assert.equal(L('old', { user: 'o' }), 'admin', 'access 없는 옛 줄의 주인은 그대로 지식관리자')
-  assert.deepEqual(owners.legacyAccessOf(reg.knowledge.old), { all: 'write', users: {}, groups: {} }, '옛 규칙은 옮기기에만 남는다')
-  assert.equal(L('back', { user: 'z' }), 'none', '되살림 · 주인 없음: 관리자만(지금과 같다)')
-  assert.equal(L('back', { user: 'z', admin: true }), 'admin')
-  reg.knowledge.back.curators = ['c']
-  assert.equal(L('back', { user: 'c' }), 'none', '되살림 · 주인 없음 줄의 정리하는 사람도 관리자만(권한 모델 4절)')
-  assert.equal(owners.seatOf(reg, 'back', 'c'), null)
   assert.equal(L('k', { agent: { kn: 'k' } }), 'admin', '에이전트 열쇠는 그 지식만')
   assert.equal(L('old', { agent: { kn: 'k' } }), 'none')
   assert.throws(() => owners.normAccess({ all: '아무거나' }), /자리는/)
@@ -262,14 +256,14 @@ test('거르기: 지금 하는 일 · 들이기 일감(다듬기) · 일 줄 · 
   assert.equal((await req('/api/settings', P.no)).j.kns, 1)
 })
 
-test('_members.md 왕복: 자리 표를 싣고 · 장부가 잃으면 켤 때 되찾는다 · 옛 꼴은 자리 줄 없음', async () => {
+test('_members.md 왕복: 자리 표를 싣고 · 장부가 잃으면 켤 때 되찾는다 · 자리 줄이 없으면 자리 표 없음', async () => {
   const md = fs.readFileSync(path.join(root, 'dpms', '_members.md'), 'utf8')
   assert.match(md, /- 주인: own\n/)
   assert.match(md, /- 모두: 없음\n- 읽기: rd\n- 쓰기: \n- 지식관리자: \n- 묶음: 개발=쓰기\n/)
   assert.deepEqual(owners.parseMembers(md).access, { all: 'none', users: { rd: 'read' }, groups: { 개발: 'write' } })
-  assert.equal(owners.parseMembers('- 주인: kim\n- 정리 방식: 손으로만\n').access, undefined, '옛 꼴: 자리 줄 없음')
-  assert.deepEqual(owners.parseMembers('- 모두: 없음\n- 관리: kim\n').access?.users, { kim: 'admin' }, '옛 이름 「관리」 도 읽는다')
-  // 장부가 옛 꼴로 돌아갔다(줄의 access 를 잃음) — 맞추기가 _members.md 를 따른다
+  assert.equal(owners.parseMembers('- 주인: kim\n').access, undefined, '자리 줄 없음')
+  assert.deepEqual(owners.parseMembers('- 모두: 없음\n- 지식관리자: kim\n').access?.users, { kim: 'admin' })
+  // 장부 줄이 자리 표를 잃었다 — 맞추기가 _members.md 를 따른다
   const L = ledger()
   delete L.knowledge.dpms.access
   fs.writeFileSync(path.join(data, 'owners.json'), JSON.stringify(L, null, 1))
@@ -327,11 +321,11 @@ test('떠남 · 지식 지우기 · setAdmin: 자리 줄 · 묶음에서 빠진�
 test('셸: kmd access(보기 · 바꾸기) · kmd group · kmd user key(그 사람의 자리 그대로)', async () => {
   const run = (...a) => execFileSync(process.execPath, [KMD, ...a, '--root', root], { encoding: 'utf8', env: { ...process.env, KMD_NO_BROWSER: '1' } })
   assert.match(run('access', 'dpms'), /dpms: 모두 없음 · 주인 own/)
-  const out = run('access', 'dpms', '--user', 'no=읽기', '--group', '개발=관리')
+  const out = run('access', 'dpms', '--user', 'no=읽기', '--group', '개발=지식관리자')
   assert.match(out, /읽기: no/)
   assert.match(out, /묶음: 개발=지식관리자/)
   assert.equal((await levels(P.no)).dpms, 'read/읽기', '도는 서버가 곧바로 본다')
-  assert.equal((await levels(P.wr)).dpms, 'admin/지식관리자', '셸의 옛 이름 「관리」 도 받는다')
+  assert.equal((await levels(P.wr)).dpms, 'admin/지식관리자', '셸의 「지식관리자」')
   run('access', 'dpms', '--user', 'no=없음', '--group', '개발=쓰기')
   assert.equal((await levels(P.no)).dpms, undefined, '「없음」 은 그 줄을 뺀다')
   assert.match(run('group', 'add', '검토', 'no,wr'), /묶음 검토: no, wr/)
@@ -344,17 +338,10 @@ test('셸: kmd access(보기 · 바꾸기) · kmd group · kmd user key(그 사�
   assert.throws(() => run('user', 'key', '없는사람'), /그런 사람은 없다/)
 })
 
-test('옛 줄의 정리하는 사람: 첫 자리 표 저장에서 낮추면 곧바로 · 사람 줄을 보내지 않으면 지식관리자로 옮긴다', async () => {
-  const reg = { groups: {}, knowledge: { k: { owner: 'o', curators: ['c', 'd'] } } }
-  owners.setAccess(reg, 'k', { all: 'read', users: { c: 'read' } })
-  assert.deepEqual(reg.knowledge.k.access.users, { c: 'read' }, '보낸 사람 줄 그대로(빠진 d 는 자리 없음)')
-  assert.deepEqual(reg.knowledge.k.curators, [])
-  const reg2 = { groups: {}, knowledge: { k: { owner: 'o', curators: ['c'] } } }
-  owners.setAccess(reg2, 'k', { all: 'none' })
-  assert.deepEqual(reg2.knowledge.k.access.users, { c: 'admin' }, '사람 줄을 안 보냈으면 지식관리자 줄로 옮긴다')
-  // 화면 — 주인이 첫 저장에서 정리하는 사람을 읽기로
+test('지식관리자 자리를 첫 자리 표 저장에서 낮추면 곧바로', async () => {
   const made = await s.hub.addKnowledge({ user: 'boss', admin: true }, { kind: 'new', name: '정리지식' })
-  await s.hub.setOwner(SHELL, made.id, { owner: 'own', curators: ['wr'] })
+  await s.hub.setOwner(SHELL, made.id, { owner: 'own' })
+  await s.hub.setAccess(SHELL, made.id, { users: { wr: 'admin' } })
   assert.equal((await levels(P.wr))[made.id], 'admin/지식관리자')
   assert.deepEqual((await req(`/api/k/${made.id}/access`, P.own)).j.users, { wr: 'admin' })
   const r = await req(`/api/k/${made.id}/access`, P.own, { all: 'none', users: { wr: 'read' } })

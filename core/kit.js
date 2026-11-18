@@ -24,7 +24,7 @@ export const SKILLS = ['kmd-work', 'kmd-save', 'kmd-build']
 //   스킬 글의 자리표 {{KIT_REV}} 를 이 값으로 바꿔 싣는다 → 세션이 MCP save 에 kit 으로 싣는다 →
 //   저장 측정 줄(savelog)에 싣는다(옛 판 안내 reinstall · nokit 은 P11 · PC6 에서 걷었다)
 //   kmd-build 는 kmd 가 띄운 넣기 에이전트도 읽으므로(hub.agentTask · 그대로 읽는다) 자리표를 두지 않는다
-export const PC_KIT_REV = 6
+export const PC_KIT_REV = 7
 //   자리표 {{GEN_RULES}} — 사람 세션용 생성 룰 덩이(core/genrules.js · H5): 스킬 글이 자리 · 종류 규칙을 따로 적지 않는다
 const withRev = (t) => t.replace(/\{\{KIT_REV\}\}/g, String(PC_KIT_REV)).replace(/\{\{GEN_RULES\}\}/g, () => genRulesBlock({ profile: 'session' }))
 const BEGIN = /<!--\s*kmd:begin(?:\s+v=(\S+))?\s*-->/
@@ -43,9 +43,9 @@ export async function kitParts() {
 }
 export const kitVersion = async () => (await kitParts()).ver
 
-// 폴더 줄의 개인 지식 목록 — [{ area: 'me', kn, knName }] · 옛 꼴 { area, kn, knName } 은 하나짜리 목록으로 · 팀 지식 줄(예전 한 덩이)은 읽지 않는다
+// 폴더 줄의 개인 지식 목록 — [{ area: 'me', kn, knName }]
 export function knsOf(f = {}) {
-  const ks = Array.isArray(f.kns) ? f.kns : f.area && f.kn ? [{ area: f.area, kn: f.kn, knName: f.knName || f.kn }] : []
+  const ks = Array.isArray(f.kns) ? f.kns : []
   return ks.filter((k) => k && k.kn && k.area === 'me').map((k) => ({ area: 'me', kn: k.kn, knName: k.knName || k.kn }))
 }
 // 개인 지식 하나 더하기(같은 것이면 이름만 새로) · 팀 지식은 받지 않는다(팀 화면 › 설정 › 에이전트 설치)
@@ -54,13 +54,11 @@ export function addKn(f, k) {
   if (k.area && k.area !== 'me') return { ...f, kns: ks }
   const i = ks.findIndex((x) => x.kn === k.kn)
   const one = { area: 'me', kn: k.kn, knName: k.knName || k.kn }
-  const { area, kn, knName, team, def, ...rest } = f
-  return { ...rest, kns: i < 0 ? [...ks, one] : ks.map((x, j) => (j === i ? one : x)) }
+  return { ...f, kns: i < 0 ? [...ks, one] : ks.map((x, j) => (j === i ? one : x)) }
 }
 // 개인 지식 하나 떼기
 export function dropKn(f, kn) {
-  const { area, kn: _k, knName, team, def, ...rest } = f
-  return { ...rest, kns: knsOf(f).filter((x) => x.kn !== kn) }
+  return { ...f, kns: knsOf(f).filter((x) => x.kn !== kn) }
 }
 
 // 이 폴더의 개인 지식 표(덩이 안 · 판 지문에는 들지 않는다)
@@ -151,15 +149,9 @@ export async function remove(dir) {
 
 // 이 PC 의 붙인 폴더 목록
 const listFile = (dataDir) => path.join(dataDir, 'agent.json')
-// 옛 줄({ area, kn, knName, team })도 { kns, def } 로 읽는다
 export async function folders(dataDir) {
   const list = await fs.readFile(listFile(dataDir), 'utf8').then(JSON.parse, () => [])
-  // 팀 지식만 붙었던 폴더(예전 한 덩이)는 개인 목록에 두지 않는다 — 팀 화면의 에이전트 설치가 맡는다
-  const had = (f) => (Array.isArray(f.kns) ? f.kns.length > 0 : !!(f.area && f.kn))
-  return list.filter((f) => !had(f) || knsOf(f).length).map((f) => {
-    const { area, kn, knName, team, def, ...rest } = f
-    return { ...rest, kns: knsOf(f) }
-  })
+  return list.map((f) => ({ ...f, kns: knsOf(f) }))
 }
 export async function setFolders(dataDir, list) {
   await writeJsonAtomic(listFile(dataDir), list, { indent: 1 })

@@ -119,7 +119,6 @@ test('Claude 안 — 조사(옛 판 · 비밀 의심 보류) → 거르기 → �
   const s = await setup()
   try {
     const id = await s.make('온보딩')
-    assert.equal(s.hub.saveModeOf(id), 'approve', '새 개인 지식은 approve')
     assert.equal(await code(s.hub.seedSurvey(s.ctx, id, { dir: 'src' })), 'E_INPUT', '전체 경로만')
     const st = await s.hub.seedSurvey(s.ctx, id, { dir: s.src })
     assert.equal(st.started, true)
@@ -399,7 +398,6 @@ test('팀 — 올리기 → 조사 → Claude 구조안 · 짓기(팀 일꾼 일
   const t = await teamSetup()
   try {
     const id = await t.make('테스트-팀기초')
-    assert.equal(t.s.hub.saveModeOf(id), 'approve', '새 팀 지식은 approve')
     const U = `/api/k/${encodeURIComponent(id)}/seed`
     // 올리기 → 닫기 → 조사(묶음)
     const up = await t.http(`${U}/upload`, t.P.ad, { group: { total: 5, last: true }, files: t.files(SRC) })

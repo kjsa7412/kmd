@@ -1,4 +1,4 @@
-// 지식 생성 가드(core/guard.js) — G1 모양 · G2 등재 · G3 자리 · G4 새 문서 · 거절형 / 붙잡아 두기 · core save 와 saveRecords 연결
+// 지식 생성 가드(core/guard.js) — G1 모양 · G2 등재 · G3 자리 · G4 새 문서 · 거절형 / 붙잡아 두기 · core save 연결
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -8,7 +8,7 @@ import path from 'node:path'
 import { parseVocab } from '../core/vocab.js'
 import { newNameWhy, resolveName, guardRecord, guardNames, guardNewDoc, formsOf, parseForms, nearNames, recordBody } from '../core/guard.js'
 import * as G from '../core/guard.js'
-import { save, saveRecords } from '../core/save.js'
+import { save } from '../core/save.js'
 import { parseRecord } from '../core/frontmatter.js'
 
 const VOCAB = `# 항목 장부
@@ -191,17 +191,6 @@ test('core save — 장부만 바꾼 저장은 이력(log/ · ledger) · 항목�
   const { logKind } = await import('../server/views.js')
   assert.equal(logKind(w), '장부')
   assert.equal(logKind({ tags: ['structure'], title: '문서 짜임 바꿈' }), '짜임')
-})
-
-test('saveRecords(받기) — 같은 말 항목을 바꿔 달고 항목 없는 기록은 「받음」 까닭', async () => {
-  const d = mk('recv')
-  const r = await saveRecords(d, [{ title: '받은 것', body: 'x', touches: ['이슈:ISS-15'] }, { title: '받은 메모', body: 'y' }], { user: 'kim' })
-  assert.equal(r.records.length, 2)
-  assert.equal(r.records[1].unnamed, true)
-  const w = parseRecord(fs.readFileSync(path.join(d, 'work', `${r.records[0].id}.md`), 'utf8'), 'x.md')
-  assert.deepEqual(w.touches, ['이슈:DPMS-ISS-15'])
-  const w2 = parseRecord(fs.readFileSync(path.join(d, 'work', `${r.records[1].id}.md`), 'utf8'), 'x.md')
-  assert.match(w2.touchesEmpty, /받음/)
 })
 
 test('지식 점검 — 항목 없는 기록 · 까닭을 적은 기록은 까닭과 함께 센다', async () => {

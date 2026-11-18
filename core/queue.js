@@ -3,7 +3,7 @@
 //   일     { id, kind, origin, kn, title, by, auto, state, stage, stages[], lane, order, msg, at, startedAt, endedAt, spec, parent, lines }
 //          파일 들이기는 hub 의 run 그대로가 일이다(/api/runs 도 같은 것을 본다)
 //   상태   wait 기다림 · run 도는 중 · pausing 멈추는 중 · pause 멈춤 · check 확인할 것 · fail 못함 — 아직 줄에 있다
-//          done · rule(규칙으로 넣음) · cancel(그만둠 · 건너뜀) — 끝났다
+//          done · cancel(그만둠 · 건너뜀) — 끝났다(rule 은 걷은 규칙 길의 옛 줄 · 이 PC 의 queue.json 에 2026-11-16 한 줄이 남아 끝난 것으로 읽는다)
 //   단계   수집 › 검토 › 짓기 › 넣기(S-D33 · 짓기 = Claude 가 기록 + 항목 글을 짓는다 · 넣기 = 저장 한 번) — 일을 하는 쪽이 step(일, i) 로 단계에 들어간다. 단계 사이가 멈출 수 있는 자리다:
 //          멈춤을 눌렀거나 줄 멈춤이면 거기서 서서 이어서를 기다리고, 그만두면 Cancelled 를 던진다. 도는 단계 안에서 끊는 것은 signal(그만두기)
 //   길     claude(Claude Code 로 들이는 문서 생성) · fetch(가져오기) — 길마다 동시에 도는 수(caps) · 기다리는 일은 order 차례로

@@ -1,6 +1,6 @@
 // 점검 지표(저장 승인 설계 P-D27 · P-D28 · P-D37 · P10) — 저장 측정 줄(savelog)과 기록 끝 「새로 세움」 표지(fresh)를 지식 · 기간으로 센다.
 //   지표 탭(GET /api/k/:id/metrics · 팀 지식관리자 · 개인 주인)과 scripts/savelog.mjs 가 같은 함수를 쓴다.
-//   할 일 목록이 아니다 — 「봤음」 장부 · 배지 없음. 로직(프롬프트 · FIX · 규칙 길 · 검사 기준) 개선의 근거다.
+//   할 일 목록이 아니다 — 「봤음」 장부 · 배지 없음. 로직(프롬프트 · 고쳐 받기 · 검사 기준) 개선의 근거다.
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { freshItems, FRESH_LABEL } from './parts.js'
@@ -8,8 +8,7 @@ import { freshItems, FRESH_LABEL } from './parts.js'
 export const METRIC_DAYS = Object.freeze([7, 14, 30, 90])
 export const METRIC_DEFAULT = 14 // Q15
 // 지표 줄 차례 — fresh 새로 생긴 것 · accepted 받아들인 경고 · warned 무인 값 경고 · fail 무인 실패 · fix FIX 번 수 · rounds 다시 제안 수
-//   fail(지식 생성 하네스 H4b · 옛 「규칙 길」 줄을 갈음한다): 첫 시도에 못 넘어 다시 시도로 간 무인 일감 / 무인 일감 · 끝내 실패로 남은 수는 codes 의 「끝내 실패」.
-//   측정 줄의 옛 rule 칸(규칙 길로 들어간 저장)은 읽지 않는다(옛 줄은 그대로 둔다)
+//   fail(지식 생성 하네스 H4b): 첫 시도에 못 넘어 다시 시도로 간 무인 일감 / 무인 일감 · 끝내 실패로 남은 수는 codes 의 「끝내 실패」.
 export const METRIC_KEYS = Object.freeze(['fresh', 'accepted', 'warned', 'fail', 'fix', 'rounds'])
 export const FAIL_FINAL = '끝내 실패'
 const RECS_MAX = 50

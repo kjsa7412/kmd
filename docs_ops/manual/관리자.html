@@ -63,7 +63,7 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 <li><b>뒤에도 바꾼다</b>사람 카드의 같은 표 · 또는 지식관리 › 모든 지식 › 지식 상세 › 권한. 묶음(개발 · 운영 …)으로 받은 자리는 따로 보인다.</li>
 </ol>
 <h3>사람이 떠날 때</h3>
-<p>⋯ <b>떠남</b> 한 번이 다 한다(그 사람의 기기 열쇠로 오면 「팀을 떠났다」 로 답한다). 들어가기 · 기기 · 예전 열쇠를 끊고 아이디는 남긴다(같은 아이디로 새 사람을 더하지 못한다). 그 사람이 주인인 지식은 <b>내가 주인을 잇는다</b> 또는 <b>주인 칸을 비운다</b>(뒤에 권한 창에서 넘긴다). 셸로는 <code>kmd user off &lt;아이디&gt; [--to &lt;받을 사람&gt;]</code>.</p>
+<p>⋯ <b>떠남</b> 한 번이 다 한다(그 사람의 기기 열쇠로 오면 「팀을 떠났다」 로 답한다). 들어가기 · 기기 열쇠를 끊고 아이디는 남긴다(같은 아이디로 새 사람을 더하지 못한다). 그 사람이 주인인 지식은 <b>내가 주인을 잇는다</b> 또는 <b>주인 칸을 비운다</b>(뒤에 권한 창에서 넘긴다). 셸로는 <code>kmd user off &lt;아이디&gt; [--to &lt;받을 사람&gt;]</code>.</p>
 
 <h2 id="knowledge"><span class="m-no">4</span>팀 지식 세우기 · 권한</h2>
 <ul>
@@ -100,7 +100,7 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 <p><b>운영 값</b> 카드(읽기만): 줄 멈춤 · 동시에 도는 수 · 지식 폴더 · 살림 자리 · <code>serve.json</code> 에 정한 손잡이(비밀 값은 「정함」 만). 바꾸는 곳은 줄마다 적혀 있고, <code>serve.json</code> 은 고친 뒤 서버를 다시 켠다.</p>
 <p>팀 일꾼은 설치가 함께 늘 켠다. 서버에 <code>claude</code>(Claude Code)가 깔려 있어야 한다. 일꾼이 받는 일은 들이기 일감 하나뿐이다(옛 정리 일감은 걷었다 · 다시 켜면 남은 옛 정리 일감 줄은 「개편으로 걷은 정리 일감」 으로 닫힌다).</p>
 <ul>
-<li><b>들이기</b>: 가져올 곳(문서 폴더 · git)에서 들어온 파일 · 묶음 하나마다 · 팀 화면 파일 넣기 · 다시 들이기 · 정정 · 문서 다듬기마다 일감 하나. 일꾼이 기록과 항목 글을 한 번에 짓고 서버가 검사해 넣는다. 고칠 수 있는 까닭으로 걸리면 두 번까지 다시 쓰고, 그래도 못 넘으면 <b>지식에 아무것도 쓰지 않고 다시 시도한다</b>(10분 · 1시간 · 6시간 뒤 · 자동 세 번). 그 뒤에도 못 넘으면 <b>실패 일감</b>으로 남아 진행 화면에서 그 지식의 지식관리자가 [다시 시도] 또는 [그만두기](원천을 버린다)를 누른다. 원문을 그대로 넣는 길(옛 「규칙 길」)은 없다. 로그인이 끝났거나 한도면 일감은 기다림으로 돌아간다(시도로 세지 않는다). 「Claude 에 보내지 않는」 지식은 일감을 세우지 않고 못 들임으로 알린다(다듬기는 거절). 맡은 일감은 40분 안에 끝나지 않으면 다시 기다림으로, 세 번이면 실패 일감. 파일 · 커밋 들이기는 일꾼이 Claude Code 세션을 띄워 팀 서버의 MCP 에 붙어 한다.</li>
+<li><b>들이기</b>: 가져올 곳(문서 폴더 · git)에서 들어온 파일 · 묶음 하나마다 · 팀 화면 파일 넣기 · 문서 다듬기 · Claude 짜임마다 일감 하나. 일꾼이 기록과 항목 글을 한 번에 짓고 서버가 검사해 넣는다. 고칠 수 있는 까닭으로 걸리면 두 번까지 다시 쓰고, 그래도 못 넘으면 <b>지식에 아무것도 쓰지 않고 다시 시도한다</b>(10분 · 1시간 · 6시간 뒤 · 자동 세 번). 그 뒤에도 못 넘으면 <b>실패 일감</b>으로 남아 진행 화면에서 그 지식의 지식관리자가 [다시 시도] 또는 [그만두기](원천을 버린다)를 누른다. 원문을 그대로 넣는 길(옛 「규칙 길」)은 없다. 로그인이 끝났거나 한도면 일감은 기다림으로 돌아간다(시도로 세지 않는다). 「Claude 에 보내지 않는」 지식은 일감을 세우지 않고 못 들임으로 알린다(다듬기는 거절). 맡은 일감은 40분 안에 끝나지 않으면 다시 기다림으로, 세 번이면 실패 일감. 파일 · 커밋 들이기는 일꾼이 Claude Code 세션을 띄워 팀 서버의 MCP 에 붙어 한다.</li>
 </ul>
 <p>일꾼 손잡이는 <code>/etc/kmd/worker.env</code> 의 환경 변수다: <code>KMD_WORKER_PAR</code>(Claude 동시 호출 · 기본 3) · <code>KMD_WORKER_JOBS</code>(일감을 나란히 · 기본 2) · <code>KMD_INGEST_BUDGET</code>(들이기 한 번의 예산 달러 · 기본 1.0) · <code>KMD_INGEST_EFFORT</code> · <code>KMD_INGEST_FIX</code>(고쳐 쓰기 · 기본 2). 옛 이름 <code>KMD_TIDY_*</code> 도 읽는다. 고친 뒤 <code>systemctl restart kmd-worker</code>.</p>
 
@@ -121,7 +121,7 @@ sudo sh kmd-install.sh --team --url http://kmd.team.local --root /srv/kmd --port
 <tr><td><code>kmd user add &lt;아이디&gt; [--admin] [--url &lt;팀 주소&gt;]</code></td><td>사람 더하기: 처음 들어오기 링크를 찍는다 · 자리는 화면의 사람 카드에서</td></tr>
 <tr><td><code>kmd user reset &lt;아이디&gt;</code></td><td>비밀번호 다시 정하기 링크(마지막 총괄 관리자가 잊었을 때도)</td></tr>
 <tr><td><code>kmd user off &lt;아이디&gt; [--to &lt;받을 사람&gt;]</code></td><td>떠남: 들어가기 · 기기를 끊고 아이디를 남긴다</td></tr>
-<tr><td><code>kmd owner &lt;지식&gt; [사람] [--curators 가,나]</code></td><td>지식의 주인 · 지식관리자</td></tr>
+<tr><td><code>kmd owner &lt;지식&gt; [사람]</code></td><td>지식의 주인(다른 지식관리자는 <code>kmd access</code>)</td></tr>
 <tr><td><code>kmd access &lt;지식&gt; [--all 자리] [--user 아이디=자리 …]</code></td><td>지식마다 자리를 셸로</td></tr>
 <tr><td><code>kmd group [add &lt;묶음&gt; &lt;아이디,…&gt; | rm &lt;묶음&gt;]</code></td><td>묶음 만들기 · 지우기 · 사람 넣고 빼기</td></tr>
 <tr><td><code>kmd worker add</code></td><td>팀 일꾼 열쇠 만들기(한 번만 보인다)</td></tr>

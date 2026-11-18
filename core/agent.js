@@ -7,7 +7,7 @@
 //   일 순서   --append-system-prompt-file 에 스킬(agent/skills/kmd-build) · 일 설명은 표준 입력
 //   줄        stream-json 한 줄마다 터미널 줄(말 · 도구 · 결과 · 비용)로 바꿔 onLine 에 준다
 // 환경변수는 허용 목록만(claude.js 와 같다). 시험은 KMD_CLAUDE_AGENT 에 가짜(node 스크립트)를 준다 —
-// KMD_CLAUDE(한 번 부르기 가짜)만 있으면 에이전트는 없는 것으로 본다(옛 길로).
+// KMD_CLAUDE(한 번 부르기 가짜)만 있으면 에이전트는 없는 것으로 본다(시험이 세션 길을 막을 때).
 
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'

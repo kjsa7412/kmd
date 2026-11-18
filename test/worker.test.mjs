@@ -39,23 +39,17 @@ test('지난 일꾼 폴더: 하루 지난 「kmd-worker-」 · 「kmd-agent-」 
   fs.rmSync(home, { recursive: true, force: true })
 })
 
-test('켤 때: 옛 정리 일감 줄은 그만둠(「개편으로 걷은 정리 일감」) · 일꾼에게는 들이기 일감만 · 개편 때(cutover.json)는 적지 않는다(P12)', async () => {
+test('켤 때: 일감이 없으면 일꾼에게 줄 것이 없다 · 개편 때(cutover.json)는 적지 않는다(P12)', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kmd-wk-'))
   try {
     copyDir(path.join(HERE, 'fixture', 'kmd'), path.join(tmp, 'kn'))
     const data = path.join(tmp, 'kn', '.kmd')
     fs.mkdirSync(data, { recursive: true })
     fs.writeFileSync(path.join(data, 'serve.json'), JSON.stringify({ decideMs: 3600000, sourceTickMs: 3600000, sendTickMs: 3600000, jobTickMs: 3600000, queueResumeMs: 3600000 }))
-    const at = new Date(Date.now() - 3600_000).toISOString()
-    fs.writeFileSync(path.join(data, 'jobs.json'), JSON.stringify([{ id: 'aaaaaaaaaaaa', kn: 'dpms', by: 'kim', auto: false, at, state: 'queued' }, { id: 'bbbbbbbbbbbb', kn: 'dpms', by: 'kmd', auto: true, at, state: 'running', worker: 'w1' }]))
+    fs.writeFileSync(path.join(data, 'jobs.json'), '[]')
     const hub = await makeHub({ root: path.join(tmp, 'kn'), dataDir: data, mode: 'team', log: () => {} })
     await hub.start()
     try {
-      for (const id of ['aaaaaaaaaaaa', 'bbbbbbbbbbbb']) {
-        const j = hub.job(id)
-        assert.equal(j.state, 'cancelled', id)
-        assert.equal(j.why, '개편으로 걷은 정리 일감')
-      }
       assert.equal(hub.workerNext({ worker: { id: 'w-test' } }), null, '들이기 일감이 없으면 일감이 없다')
       assert.ok(!fs.existsSync(path.join(data, 'cutover.json')), '개편 때는 걷었다(P12)')
     } finally { hub.stop() }

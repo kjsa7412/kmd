@@ -1,11 +1,11 @@
 // 메뉴 길 말(UX T5-07 · 메뉴 개편 N3) — 화면 메뉴 이름과 글 속 메뉴 길이 한 곳(core/menupath.js)과 맞는가
-//   지금 화면에 있는 길만 쓴다. 목표 메뉴(N6)에만 있는 길은 아직 쓰지 않는다 — 화면을 옮기는 단계에서 이 시험을 뒤집는다(N4: 옆 메뉴 · 「문서 › 구조」 · N5: 생성 › 수기수집 · 자동수집 · 진행 · P10: 점검 › 점검 · 지표(held 모드 지식은 점검 › 넣지 못함) · 옛 「확인 › …」 은 없는 길)
+//   지금 화면에 있는 길만 쓴다.
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { SET_TEAM, SET_PC, KN_MENU_PC, KN_MENU_TEAM, COMMON, GEN_TABS, PROGRESS, CHECK_TABS, MANAGE_PC, MANAGE_TEAM, DETAIL_PC, DETAIL_TEAM, okNow, okTarget } from '../core/menupath.js'
+import { SET_TEAM, SET_PC, KN_MENU_PC, KN_MENU_TEAM, COMMON, GEN_TABS, PROGRESS, CHECK_TABS, MANAGE_PC, MANAGE_TEAM, DETAIL_PC, DETAIL_TEAM, okNow } from '../core/menupath.js'
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 const main = fs.readFileSync(path.join(ROOT, 'app', 'main.js'), 'utf8').replace(/\r\n/g, '\n')
@@ -73,11 +73,7 @@ function paths() {
 }
 
 test('글 속 메뉴 길이 지금 화면에 있는 메뉴로 시작한다', () => {
-  const bad = paths().filter((p) => !okNow(p.menu, p.rest) && !okTarget(p.menu, p.rest)).map((p) => p.at)
+  const bad = paths().filter((p) => !okNow(p.menu, p.rest)).map((p) => p.at)
   assert.deepEqual(bad, [], '없는 메뉴를 가리키는 길:\n' + bad.join('\n'))
 })
 
-test('목표 메뉴에만 있는 길은 아직 쓰지 않는다(N6 뒤 지금 = 목표)', () => {
-  const early = paths().filter((p) => !okNow(p.menu, p.rest) && okTarget(p.menu, p.rest)).map((p) => p.at)
-  assert.deepEqual(early, [], '화면에 아직 없는 길(그 단계에서 쓴다):\n' + early.join('\n'))
-})

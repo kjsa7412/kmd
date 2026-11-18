@@ -182,25 +182,6 @@ function answer() {
     const secs = [...part.matchAll(/^## (.+)\n\(base ([0-9a-f]{16})\)\n([\s\S]*?)(?=\n\n## |(?![\s\S]))/gm)].map((m) => ({ h: m[1].trim(), base: m[2], body: m[3] }))
     return say({ structured_output: { updates: secs.map((s, i) => ({ heading: s.h, base: s.base, content: `${s.body.trim()}${i === 0 ? ' 999초' : ''}\n\n(다듬음)` })), why: '문장을 짧게' } })
   }
-  // 정정(S9 · core/fix.js corrPromptOf) — 항목마다 옛 값이 든 줄을 통째로 find 로 잡고 그 줄의 옛 값을 모두 새 값으로(줄이 같으면 하나만)
-  if (prompt.startsWith('정정 기록 하나를 항목에 반영한다')) {
-    if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'fix-record\n')
-    const sw = /^바꿀 값: (.+) → (.+)$/m.exec(prompt)
-    const items = (prompt.split('\n\n항목:\n')[1] || '').split(/^(?=\[item )/m).filter((x) => x.startsWith('[item ')).map((blk) => {
-      const m = /^\[item (.+?) › (.+)\]\n\(base ([0-9a-f]{16})\)\n([\s\S]*)$/.exec(blk.replace(/\n+$/, ''))
-      return m ? { doc: m[1], heading: m[2], base: m[3], body: m[4] } : null
-    }).filter(Boolean)
-    const updates = []
-    if (sw) {
-      const [, a, b] = sw
-      for (const it of items) {
-        const lines = [...new Set(it.body.split('\n').filter((l) => l.includes(a)))]
-        if (!lines.length) continue
-        updates.push({ doc: it.doc, heading: it.heading, base: it.base, edits: lines.map((l) => ({ find: l, replace: l.split(a).join(b) + (process.env.FAKE_CLAUDE_MODE === 'bad' && !prompt.includes('지난 초안이 kmd 검사에 걸렸다') ? ' 999초' : '') })) })
-      }
-    }
-    return say({ structured_output: { updates, why: updates.length ? '옛 값을 고쳤다' : '고칠 곳이 없다' } })
-  }
   // 들이기(S7 · core/ingest.js intakePromptOf) — 기록 + 항목 글 초안 하나
   //   커밋: 「바뀐 값: A → B」 의 A 가 든 후보 항목을 B 로(꼭 한 번이면 바꿀 곳 · 아니면 새 글) · 없으면 updates 비움
   //   파일: 파일의 ## 머리가 후보 항목과 같으면 그 항목을 파일 글로(새 글) · 나머지는 새 문서(경로 = 파일 이름)
@@ -268,30 +249,6 @@ function answer() {
     out.why = out.updates.length ? '같은 항목이 있다' : '이어지는 문서가 없다'
     return say({ structured_output: out })
   }
-  // 넣은 파일 — 파일의 머리(##)가 후보 문서의 항목과 같으면 그 항목을 파일 글로 · 아니면 새 문서(경로 = 파일 이름)
-  if (prompt.startsWith('넣은 파일(기록)을 지식에 들인다')) {
-    const cands = (prompt.split('문서 후보:\n')[1] || '').split('\n\n넣은 파일(')[0]
-    const head = /넣은 파일\(기록 [^ ]+ · ([^)]+)\):\n/.exec(prompt)
-    const body = prompt.split(/넣은 파일\(기록 [^)]+\):\n/)[1] || ''
-    const secs = [...body.matchAll(/^## (.+)\n([\s\S]*?)(?=\n## |(?![\s\S]))/gm)].map((m) => ({ heading: m[1].trim(), content: m[2].trim() }))
-    const docs = [...cands.matchAll(/^\[doc ([^\]]+)\]/gm)].map((m) => m[1])
-    const updates = []
-    for (const s of secs) {
-      const d = docs.find((p) => cands.split(`[doc ${p}]`)[1]?.split('\n[doc ')[0].includes(`\n## ${s.heading}\n`))
-      if (d) updates.push({ doc: d, heading: s.heading, content: s.content })
-    }
-    const rest = secs.filter((s) => !updates.some((u) => u.heading === s.heading))
-    const name = (head ? head[1] : '넣은 파일').split('/').pop().replace(/\.[^.]+$/, '')
-    // 갈래(프롬프트의 「이 지식의 갈래」 줄) — 파일 이름이 갈래 이름 · 별칭을 품으면 그 갈래 문서의 항목 하나(「YYYY-MM-DD 무엇」)로
-    const forms = [...((/- 이 지식의 갈래\(갈래 장부\): (.+)/.exec(prompt) || [])[1] || '').matchAll(/([^\s·(]+)\((사건|대상|서술|대장)(?: · ([^)]*))?\)/g)].map((m) => ({ path: m[1], kind: m[2], keys: [m[1].split('/').pop(), ...String(m[3] || '').split(',').map((x) => x.trim())].filter(Boolean) }))
-    const form = rest.length && forms.find((f) => f.kind === '사건' && f.keys.some((k) => k.length >= 2 && name.includes(k)))
-    if (form) {
-      const when = new Date().toISOString().slice(0, 10)
-      const content = rest.map((s) => `**${s.heading}**\n${s.content}`).join('\n\n')
-      return say({ structured_output: { updates, newDoc: { path: form.path, sections: [{ heading: `${when} ${name.replace(form.keys[0], '').replace(/^[-_ ]+/, '') || name}`, content }] }, why: '갈래 문서가 없다' } })
-    }
-    return say({ structured_output: { updates, newDoc: rest.length ? { path: name, sections: rest } : null, why: updates.length ? '같은 항목이 있다' : '이어지는 문서가 없다' } })
-  }
   // 넣은 파일의 기록 정리 — FAKE_CLAUDE_READ=<ms> 일 때만 답한다. FAKE_CLAUDE_SPANS 에 시작(s)을 적고, 함께 도는 부르기가
   //   둘이 되거나 그 ms 가 지나면 「e 함께 돈 수」 를 적고 답한다(띄우는 시간이 느린 PC 에서도 겹침을 그대로 잰다)
   if (prompt.startsWith('너는 지식 관리 도구 kmd 의 기록 작성자다') && process.env.FAKE_CLAUDE_READ) {
@@ -307,14 +264,6 @@ function answer() {
     }
     return tick()
   }
-  if (prompt.startsWith('아래 기록이 바꾼 항목을')) {
-    // 후보 줄은 「- 종류:값: 라벨」(값에 빈칸이 들 수 있다 · 첫 「: 」 앞까지가 항목)
-    const first = /^- (.+?): .+$/m.exec(prompt.split('후보:')[1] || '')
-    return say({ structured_output: { touches: first ? [first[1].trim()] : [], why: '제목이 그 항목을 말한다' } })
-  }
-  // 바꿀 곳 꼴(옛 PATCH_RULE 「답 꼴(조각)」 이 끝에 붙을 때) — 같은 초안을 지금 글 전체를 찾아 바꾸는 바꿀 곳 하나로(빈 글이면 rewrite) · 기록에 「조각어긋남」 이면 지금 글에 없는 find
-  const patch = prompt.includes('\n\n답 꼴(조각)')
-  if (patch) prompt = prompt.slice(0, prompt.indexOf('\n\n답 꼴(조각)'))
   const FIX = '\n\n지난 초안이 kmd 검사에 걸렸다'
   if (prompt.includes(FIX)) {
     if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'fix\n')
@@ -323,28 +272,8 @@ function answer() {
   }
   const recPart = prompt.split('기록(오래된 것부터):\n')[1] || ''
   const all = [...recPart.matchAll(/^\[([^\]]+)\] [^\n]*\n([\s\S]*?)(?=\n\n\[|$)/gm)].map((m) => ({ id: m[1], body: m[2].trim() }))
-  // 한 문서의 항목 묶음(batchPromptOf) — 항목마다 같은 초안 · 기록에 「묶음빠짐」 이 있으면 그 항목은 답에서 뺀다(일꾼이 따로 다시)
-  if (prompt.includes('[key ')) {
-    if (process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'batch\n')
-    const blocks = prompt.split('\n\n기록(오래된 것부터):')[0].split('[key ').slice(1)
-    const items = blocks.map((x) => {
-      const ids = (/^그 항목의 기록: (.+)$/m.exec(x) || [, ''])[1].split(', ').map((x) => x.replace(/\(.*$/, ''))
-      const cur = (x.split('지금 글:\n')[1] || '').split('\n\n---\n\n')[0].trim()
-      return { key: x.slice(0, x.indexOf(']')), recs: all.filter((r) => ids.includes(r.id)), cur }
-    })
-    // 바꿀 곳 묶음(A9) — 항목마다 지금 글 전체를 찾아 바꾸는 바꿀 곳 하나(빈 글이면 rewrite)
-    const asPatch = (cur, d) => { const { content, ...rest } = d; const now = cur === '(아직 없음)' ? '' : cur; return now.trim() ? { ...rest, edits: [{ find: now, replace: content }] } : { ...rest, edits: [], rewrite: content } }
-    if (patch && process.env.FAKE_CLAUDE_LOG) fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, 'bpatch\n')
-    return say({ structured_output: { items: items.filter((x) => !x.recs.some((r) => r.body.includes('묶음빠짐'))).map((x) => ({ key: x.key, ...(patch ? asPatch(x.cur, draft(x.cur, x.recs)) : draft(x.cur, x.recs)) })) } })
-  }
   const cur = (prompt.split('지금 글:\n')[1] || '').split('\n\n기록(오래된 것부터):')[0]
-  const d = draft(cur, all)
-  if (!patch) return say({ structured_output: d })
-  const { content, ...rest } = d
-  const now = cur === '(아직 없음)' ? '' : cur
-  if (!now.trim()) return say({ structured_output: { ...rest, edits: [], rewrite: content } })
-  const off = all.some((r) => r.body.includes('조각어긋남')) && !fixing
-  say({ structured_output: { ...rest, edits: [{ find: off ? '지금 글에 없는 줄' : now, replace: content }] } })
+  say({ structured_output: draft(cur, all) })
 }
 
 function draft(cur, recs) {

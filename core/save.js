@@ -222,19 +222,17 @@ export function serial(key, f) {
   return run
 }
 
-// system — kmd 자신이 쓰는 저장(고친 기록 · 정리 · 가져오기). 예약 이름 · 태그는 system 만
-// agent — kmd 가 띄운 에이전트(요구 v0.2 R8): 작성자 kmd-auto · 태그 curate-llm · 들인 기록의 reflects 는 쓰되,
-//         원본이 주인인 문서 · 저절로 채우는 표 · kmd 파일은 사람 · 세션과 같이 막힌다(system 이 아니다)
+// system — kmd 자신이 쓰는 저장(되돌림 · 짜임 · 가져오기). 예약 이름 · 태그는 system 만
 // guard — 지식 생성 가드(core/guard.js)의 길. 'strict'(거절형 — 세션 · 화면) · 'hold'(붙잡아 두기 — 그 밖의 길 · 기본)
 //         holdWhy — hold 에서 항목 없는 기록에 kmd 가 다는 까닭 · proposed — 세울 항목으로 실어 둔 것(일반 자리의 names)
 // format — 서식 맞춤(작성기준 「기록과 이력」 · 6-3 서식 계약): 지식은 그대로 두고 양식 · 서식만 바꾼 저장. 부르는 코드가 정한다(사람이 보낸 태그로 가르지 않는다)
 //         있는 항목만(지문 필수 · 새 항목 · 지우기 · 이름 바꾸기 · 장부 · 첨부 없음) · 옛 글과 새 글의 값 장부가 같아야 한다(날짜 표기만 맞춤) · 이력(log/ · 태그 format · 이력 갈래 「서식」)
 //   shape.strict — approve 모드 지식의 짜임 걸음(저장 승인 P-D24 · P7): 항목 하나라도 걸리면 넣지 못함 대신 걸음 입력 오류(E_INPUT · details.stepFail · 아무것도 쓰지 않는다)
-export function save(dir, input, { user, now = new Date(), system = false, agent = false, guard = 'hold', holdWhy = null, proposed = [], prepare = null, onCommit = null, asEdit = false, structure = false, correction = false, intake = null, shape = null, approve = null, accepted = null, marks: marksIn = false, format = false } = {}) {
+export function save(dir, input, { user, now = new Date(), system = false, guard = 'hold', holdWhy = null, proposed = [], prepare = null, onCommit = null, asEdit = false, structure = false, correction = false, intake = null, shape = null, approve = null, accepted = null, marks: marksIn = false, format = false } = {}) {
   if (!user || !oneLine(user)) fail('E_INPUT', '누가 쓰는지 모른다')
   // 들이기 일감은 예약 사람 kmd 로 쓸 수 있다(가져올 곳) — kmd-auto · kmd-worker 는 아니다(S-D43)
   const kmdIntake = !!intake && nfc(user).trim().toLowerCase() === 'kmd'
-  if (isReservedUser(user) && !system && !agent && !kmdIntake) fail('E_FORBIDDEN', `「${user}」 는 kmd 가 쓰는 이름이다`)
+  if (isReservedUser(user) && !system && !kmdIntake) fail('E_FORBIDDEN', `「${user}」 는 kmd 가 쓰는 이름이다`)
   if (prepare != null && typeof prepare !== 'function') fail('E_INPUT', 'prepare 는 함수다')
   //   marks — approve 모드 지식의 화면 고치기(못 넣으면 오류)도 넣은 것 칸 · put 표지(저장 승인 P5)
   const fresh = !!(prepare || intake || approve || marksIn) // 새 저장 문 — 항목 수를 센다
@@ -243,8 +241,8 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
   const secs0 = check(input, { system, many: fresh && !system })
   // 예약 태그 — 입력으로는 받지 않는다(저장 문이 붙이는 것은 아래 serverTags) · asEdit 은 edit 하나만
   const bad = (input.record.tags || []).filter(isReservedTag).filter((t) => !(asEdit && String(t).trim() === 'edit'))
-  if (bad.length && !system && !(agent && bad.every((t) => t === 'curate-llm'))) fail('E_FORBIDDEN', `kmd 가 쓰는 태그다: ${bad.join(' · ')}`)
-  if (!system && (input.record.curates?.length || input.record.reopens?.length || (input.record.reflects?.length && !agent))) fail('E_FORBIDDEN', '정리 판정은 kmd 가 쓴다')
+  if (bad.length && !system) fail('E_FORBIDDEN', `kmd 가 쓰는 태그다: ${bad.join(' · ')}`)
+  if (!system && (input.record.curates?.length || input.record.reopens?.length || input.record.reflects?.length)) fail('E_FORBIDDEN', '정리 판정은 kmd 가 쓴다')
   let serverTags = []
   if (intake) {
     const t = intake.tags ?? []
@@ -306,73 +304,6 @@ export function save(dir, input, { user, now = new Date(), system = false, agent
 function guardFail(errors) {
   const e = errors[0]
   fail(e.code || 'E_INPUT', errors.length > 1 ? `${e.message} (그 밖에 ${errors.length - 1}건)` : e.message, { guard: errors.map(({ code, ...x }) => x) })
-}
-
-// 기록 여럿 — 문서 항목 없이 기록만 · git 한 묶음(받기 — 보낸 것 150개가 커밋 150번이 되지 않게)
-//   글마다 검사하고 거절된 것은 { i, error } 로 돌려준다(나머지는 남긴다) · 커밋이 넘어지면 쓴 기록을 모두 지운다
-//   { records: [{ i, id } | { i, error }], commit } — 남긴 것이 없으면 commit null
-//   가드는 붙잡아 두기(hold) — 받은 것은 잃지 않는다: 폐기 · 같은 말 항목은 바꿔 달고, 장부 밖 항목 · 항목 없는 기록은 그 상태로(까닭 holdWhy)
-export function saveRecords(dir, records, { user, now = new Date(), holdWhy = '받음: 이 지식의 항목 장부에서 맞는 항목을 찾지 못했다' } = {}) {
-  if (!user || !oneLine(user)) fail('E_INPUT', '누가 쓰는지 모른다')
-  if (isReservedUser(user)) fail('E_FORBIDDEN', `「${user}」 는 kmd 가 쓰는 이름이다`)
-  return serial(path.resolve(dir), async () => {
-    await ensureRepo(dir)
-    const vocab = parseVocab(await fs.readFile(path.join(dir, '_vocab.md'), 'utf8').then(readText, () => ''))
-    // 쓰인 id — 처음에 폴더를 한 번 읽는다(같은 제목이 많으면 -2 · -3 … 을 찾느라 글마다 stat 수백 번이 된다)
-    const taken = new Set()
-    for (const sub of ['work', LOG_DIR]) for (const f of await fs.readdir(path.join(dir, sub)).catch(() => [])) if (f.endsWith('.md')) taken.add(nfc(f.slice(0, -3)).toLowerCase()) // 키는 소문자 — Windows 파일 이름은 대소문자를 가리지 않는다
-    const out = []
-    const written = []
-    const j = await begin(dir)
-    try {
-      for (const [i, r] of records.entries()) {
-        try {
-          if ((r?.sections?.length ?? 0) || (r?.names?.length ?? 0)) fail('E_INPUT', '기록 여럿 저장은 기록만 받는다')
-          check({ record: r })
-          const bad = (r.tags || []).filter(isReservedTag)
-          if (bad.length) fail('E_FORBIDDEN', `kmd 가 쓰는 태그다: ${bad.join(' · ')}`)
-          if (r.curates?.length || r.reopens?.length || r.reflects?.length) fail('E_FORBIDDEN', '정리 판정은 kmd 가 쓴다')
-          const g = guardRecord(vocab, r, { mode: 'hold', why: holdWhy })
-          const w = await writeRecord(dir, { ...r, touches: g.touches, touchesEmpty: g.touchesEmpty }, { user: nfc(user), now, taken, j })
-          written.push(w)
-          out.push({ i, id: w.id, ...(g.touchesEmpty ? { unnamed: true } : {}), ...(g.outside.length ? { outside: g.outside } : {}), ...(g.fixes.length ? { fixes: g.fixes } : {}) })
-        } catch (e) {
-          if (!(e instanceof KmdError)) throw e // 디스크 · git 은 묶음 전체의 실패
-          out.push({ i, error: e })
-        }
-      }
-      const commit = written.length ? await commitPaths(dir, written.map((w) => w.rel), written.length === 1 ? written[0].title : `${written[0].title} 외 ${written.length - 1}개`, nfc(user)) : null
-      await j.done()
-      return { records: out, commit }
-    } catch (e) {
-      await j.undo().catch((u) => console.error(`[save] 받기 되돌리기 실패 ${dir}: ${u?.message || u}`))
-      throw e
-    }
-  })
-}
-
-// 기록 파일 하나 쓰기(커밋 없이) — id 를 정하고 쓰고 다시 읽어 대조한다 · 대조가 어긋나면 지우고 던진다
-async function writeRecord(dir, r, { user, now, taken, j }) {
-  const date = r.date || localStamp(now)
-  const day = date.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1-$2$3')
-  const base = `${day}-${slugOf(r.title)}`
-  const sub = isLogRecord(r.tags) ? LOG_DIR : 'work'
-  await fs.mkdir(path.join(dir, sub), { recursive: true })
-  let id = base
-  for (let n = 2; taken.has(id.toLowerCase()); n++) id = `${base}-${n}`
-  taken.add(id.toLowerCase())
-  const touches = [...new Set((r.touches || []).map((x) => nfc(x.trim())))]
-  const rec = { id, title: nfc(r.title.trim()), date, author: user, touches, touchesEmpty: touches.length ? null : r.touchesEmpty || null, tags: (r.tags || []).map((t) => nfc(t.trim())), fixes: (r.fixes || []).map((x) => nfc(x.trim())), curates: [], reopens: [], reflects: [] }
-  const full = path.join(dir, sub, `${id}.md`)
-  await j.add(`${sub}/${id}.md`)
-  await writeAtomic(full, renderRecord(rec, nfc(r.body)))
-  const back = parseRecord(readText(await fs.readFile(full, 'utf8')), `${id}.md`)
-  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
-  if (!back || back.id !== id || back.title !== rec.title || back.date !== date || back.author !== user || !same(back.touches, touches) || !same(back.tags, rec.tags)) {
-    await fs.rm(full, { force: true })
-    fail('E_INPUT', '기록 머리가 보낸 값과 다르게 읽힌다. 제목 · 건드린 항목 · 태그의 글자를 확인한다')
-  }
-  return { id, rel: `${sub}/${id}.md`, full, title: rec.title }
 }
 
 // 값 장부는 core/values.js 로 옮겼다(S2 · docs/품질개선/KMD_개편_설계.md 3-1) — 부르는 곳을 바꾸지 않게 다시 내보낸다

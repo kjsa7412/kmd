@@ -12,7 +12,7 @@ import { startServer } from '../server/http.js'
 import { prehash } from '../app/prehash.js'
 import { KEY_EXE_VER } from '../core/keyexe.js'
 import { instructionsFor } from '../server/mcp.js'
-import { teamKitParts, teamRows, legacyRows, legacyTeamOnly, teamKns, teamBlock, asciiJson, TEAM_KIT_REV, TEAM_SKILLS, claudeCheckPs } from '../core/teamkit.js'
+import { teamKitParts, teamRows, teamKns, teamBlock, asciiJson, TEAM_KIT_REV, TEAM_SKILLS, claudeCheckPs } from '../core/teamkit.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s
@@ -57,17 +57,9 @@ after(async () => {
   fs.rmSync(tmp, { recursive: true, force: true })
 })
 
-// 스킬 판 표(S-D15) — 판마다 그 판의 스킬 글 해시(teamKitParts().ver). 팀 스킬 글 · 팀 덩이 · 작성가이드를 고치면
-//   core/teamkit.js 의 TEAM_KIT_REV 를 하나 올리고 이 표에 새 판 · 새 해시를 더한다(옛 판 줄은 그대로 둔다)
-//   (판 2 는 배포 전에 S6 검토가 메모 단계 글을 고쳐 해시를 바꿨다 · 한 번 배포한 판의 해시는 바꾸지 않는다)
-//   (판 3 은 S11: 대량 넣기 스킬 kmd-team-import · 그 작성가이드 사본 · 팀 덩이의 대량 넣기 줄)
-//   (판 5 는 작성기준 v1.2: 수준 표시 · 들여쓰지 않음)
-//   (판 6 은 UX 검토: 쓰기 자리 새 문서 항목 · 넣지 못함과 fixes · 머리 「값: 설명」 예 · 걷은 정리 말)
-//   (판 7 은 바탕 세우기 Z9: 대량 넣기 0단계의 빈 지식 한 줄(기초 세우기 먼저 · 넘으면 kmd-seed))
-//   (판 8 은 저장 승인 P4: 늘 저장 제안 · 정리 거리 고르기 · 대화 조절 · 메모 걷기 · 대량 넣기 규칙 표 한 번 승인)
-//   (판 9 는 저장 승인 P11: 저장 승인 전 팀 지식 갈래 · 옛 판 안내(reinstall · nokit) 걷기)
-//   (판 10 은 말 맞추기: 이름 → 항목 · 조각 → 고칠 항목 · 바꿀 곳 · 보이는 이름 → 라벨 · 다른 이름 → 별칭 · 이름 장부 → 항목 장부)
-const KIT_HASH = { 2: '10d1b294', 3: '85c4e1b0', 4: 'a91c981e', 5: '34c6e455', 6: '530dee29', 7: '4ec95b65', 8: 'bbb4fb34', 9: '836af2f3', 10: '5bb1bb7f', 11: '3a1a02b5', 12: 'ff7bc69a' }
+// 스킬 판 표(S-D15) — 지금 판의 스킬 글 해시(teamKitParts().ver) 한 줄. 팀 스킬 글 · 팀 덩이 · 작성가이드를 고치면
+//   core/teamkit.js 의 TEAM_KIT_REV 를 하나 올리고 이 줄을 새 판 · 새 해시로 바꾼다(판 13: 저장 방식 갈래 말을 「늘 승인」 으로)
+const KIT_HASH = { 13: 'a8fa0ef9' }
 test('스킬 판: 스킬 글이 바뀌면 TEAM_KIT_REV 도 오른다 · 스킬 글의 {{KIT_REV}} 를 판으로 바꿔 싣는다', async () => {
   const parts = await teamKitParts()
   assert.equal(parts.rev, TEAM_KIT_REV)
@@ -133,7 +125,7 @@ test('MCP 안내: 팀 · 개인 한 벌(where 만 다름) · memo 없음 · 저�
   }
 })
 
-test('팀 덩이: 표 읽기 · 옛 한 덩이의 팀 줄 옮기기 · 개인 지식이 없을 때만 옛 덩이를 걷는다 · 볼 수 없는 지식은 뺀다', async () => {
+test('팀 덩이: 표 읽기 · 볼 수 없는 지식은 뺀다', async () => {
   const parts = await teamKitParts()
   assert.deepEqual(TEAM_SKILLS, ['kmd-team-work', 'kmd-team-save', 'kmd-team-import'])
   assert.deepEqual(parts.skills.map((x) => x.rel), ['.claude/skills/kmd-team-work/SKILL.md', '.claude/skills/kmd-team-save/SKILL.md', '.claude/skills/kmd-team-import/SKILL.md', '.claude/skills/kmd-team-save/작성가이드.md', '.claude/skills/kmd-team-import/작성가이드.md'])
@@ -148,14 +140,6 @@ test('팀 덩이: 표 읽기 · 옛 한 덩이의 팀 줄 옮기기 · 개인 �
   assert.deepEqual(teamRows(teamBlock(parts, teamKns({ old: b2, add: 'dpms', visible }))).map((r) => r.kn), ['dpms', 'gdi'], '같은 지식은 한 번')
   assert.deepEqual(teamKns({ old: b2, add: 'dpms', visible: [visible[0]] }).map((r) => r.kn), ['dpms'], '지금 볼 수 없는 지식은 뺀다')
   assert.doesNotMatch(b2, /기본/, '기본 지식은 없다')
-  // 옛 한 덩이(팀 · 개인 섞인 표)
-  const oldTeam = '<!-- kmd:begin v=abc -->\n## kmd\n\n| 지식 | 영역 | 연결 | id | 남기면 보는 사람 |\n|---|---|---|---|---|\n| 「DPMS 지식」 (기본) | 팀 | kmd-team | dpms | 이 팀 지식을 보는 팀 사람 |\n<!-- kmd:end -->'
-  const oldMixed = oldTeam.replace('<!-- kmd:end -->', '| 「메모」 | 개인 | kmd | memo | 나만(이 PC) |\n<!-- kmd:end -->')
-  assert.deepEqual(legacyRows(oldMixed).map((r) => `${r.area}:${r.kn}`), ['team:dpms', 'me:memo'])
-  assert.equal(legacyTeamOnly(oldTeam), true)
-  assert.equal(legacyTeamOnly(oldMixed), false, '개인 지식이 있으면 개인 프로그램이 고친다')
-  assert.equal(legacyTeamOnly('<!-- kmd:begin v=abc -->\n## kmd\n<!-- kmd:end -->'), false, '표 없는 옛 덩이는 걷지 않는다')
-  assert.deepEqual(teamKns({ legacy: oldMixed, add: 'gdi', visible }).map((r) => r.kn), ['dpms', 'gdi'], '옛 덩이의 팀 줄을 옮긴다')
   assert.equal(JSON.parse(asciiJson({ a: '한글 「」' })).a, '한글 「」')
   assert.match(asciiJson({ a: '한' }), /^[\x00-\x7f]*$/)
 })
@@ -192,10 +176,7 @@ test('팀 에이전트 설치: 표 한 줄은 /a/ · 개인 프로그램을 깔�
   fs.mkdirSync(home, { recursive: true })
   fs.writeFileSync(path.join(work, 'CLAUDE.md'), '# 이 레포\n\n빌드는 gradle 로.\n')
   fs.writeFileSync(path.join(work, '.mcp.json'), JSON.stringify({ mcpServers: { other: { type: 'stdio', command: 'x' } } }))
-  // 예전 한 덩이(팀 지식만) · 옛 스킬 — 걷힌다
-  fs.mkdirSync(path.join(work, '.claude', 'skills', 'kmd-work'), { recursive: true })
-  fs.writeFileSync(path.join(work, '.claude', 'skills', 'kmd-work', 'SKILL.md'), 'old')
-  fs.appendFileSync(path.join(work, 'CLAUDE.md'), '\n<!-- kmd:begin v=old -->\n## kmd\n\n| 지식 | 영역 | 연결 | id | 남기면 보는 사람 |\n|---|---|---|---|---|\n| 「DPMS 지식」 (기본) | 팀 | kmd-team | dpms | x |\n<!-- kmd:end -->\n\n사람이 덧붙인 줄.\n')
+  fs.appendFileSync(path.join(work, 'CLAUDE.md'), '\n사람이 덧붙인 줄.\n')
   // Claude Code 확인은 이 PC 의 claude 에 닿지 않게 건너뛴다(확인 갈래는 아래 시험에서 가짜 claude 로)
   const env = { APPDATA: app, USERPROFILE: home, KMD_SKIP_CLAUDE_CHECK: '1' }
   const r1 = await ps(['-Command', t.body.line], { cwd: work, env })
@@ -203,7 +184,6 @@ test('팀 에이전트 설치: 표 한 줄은 /a/ · 개인 프로그램을 깔�
   assert.match(r1.out, /이 PC 를 팀 .* kim 로 이었다/, r1.out)
   assert.match(r1.out, /팀 지식 「DPMS 지식」 을 붙였다\. 이 폴더의 팀 지식 1 · 스킬 kmd-team-work · kmd-team-save · kmd-team-import · 연결 kmd-team/, r1.out)
   assert.doesNotMatch(r1.out, /Claude Code 로그인|Claude Code 가 이 PC 에|확인하지 못했다/, '확인을 건너뛰었다')
-  assert.match(r1.out, /예전 한 덩이/, r1.out)
   // 열쇠 · 헤더 도우미는 %USERPROFILE%\.kmd 에 — %APPDATA% 는 Claude 데스크톱 앱(MSIX) 안에서 가상화된다
   const keyDir = path.join(home, '.kmd', 'keys')
   const keys = fs.readdirSync(keyDir)
@@ -222,11 +202,9 @@ test('팀 에이전트 설치: 표 한 줄은 /a/ · 개인 프로그램을 깔�
   assert.ok(fs.existsSync(path.join(work, '.claude', 'skills', 'kmd-team-save', '작성가이드.md')))
   assert.ok(fs.existsSync(path.join(work, '.claude', 'skills', 'kmd-team-import', 'SKILL.md')))
   assert.ok(fs.existsSync(path.join(work, '.claude', 'skills', 'kmd-team-import', '작성가이드.md')))
-  assert.equal(fs.existsSync(path.join(work, '.claude', 'skills', 'kmd-work')), false, '옛 스킬을 걷었다')
   let md = fs.readFileSync(path.join(work, 'CLAUDE.md'), 'utf8')
   assert.match(md, /^# 이 레포\n\n빌드는 gradle 로\./)
   assert.match(md, /사람이 덧붙인 줄\./)
-  assert.doesNotMatch(md, /kmd:begin/, '옛 한 덩이를 걷었다')
   assert.match(md, /<!-- kmd-team:begin v=\w+ -->[\s\S]*\| 「DPMS 지식」 \| dpms \|[\s\S]*<!-- kmd-team:end -->/)
   assert.ok(!md.startsWith('\ufeff'), 'BOM 없이')
 

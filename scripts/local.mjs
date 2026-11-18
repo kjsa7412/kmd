@@ -74,7 +74,7 @@ if (first) {
     const { code } = await team.auth.addUser({ id, admin: id === 'kim' })
     await team.auth.first({ code, pw: prehash(id, PW[id]) })
   }
-  await team.hub.setOwner(SHELL, 'dpms', { owner: 'park', curators: ['park'] })
+  await team.hub.setOwner(SHELL, 'dpms', { owner: 'park' })
   // 받지 않은 지식은 없음이 기본(docs/kmd_권한_모델.md) — 팀원에게 자리를 준다
   await team.hub.setSeats(SHELL, 'park', { gdi: 'read' })
   await team.hub.setSeats(SHELL, 'lee', { dpms: 'write', gdi: 'write' })

@@ -49,7 +49,7 @@ test('팀 일꾼이 세션을 띄운다: 세션이 팀 서버의 MCP 로 찾고 
   const logs = []
   const a = await workOnce({ server: s.url, key: wk, log: (x) => logs.push(x) })
   assert.equal(a.job.session, true, '세션을 아는 일꾼에게는 세션 일감으로')
-  assert.deepEqual([a.summary.put, a.summary.rule], [1, 0], logs.join('\n'))
+  assert.deepEqual([a.summary.put, a.summary.rule], [1, undefined], logs.join('\n'))
   assert.equal(jobsOf('done').length, 1)
   const k = await fresh()
   const w = k.byWork.get(a.rec)

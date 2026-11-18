@@ -82,7 +82,6 @@ after(async () => {
 })
 
 test('개인 들이기 = 기록 + 문서 한 커밋 · pend 를 거치지 않음 · 원본 첨부 · 정리를 걸지 않는다', async () => {
-  assert.equal(pc.hub.saveModeOf('apv'), 'approve')
   const n0 = commits('apv')
   const file = docx([['Heading1', '매일 백업'], ['', 'DB 는 매일 02:00 에 백업한다. 14일치를 둔다.']])
   const r = await pc.hub.importFiles(ME, 'apv', [{ path: '운영/백업 바꿈.docx', data: file }])
@@ -171,7 +170,7 @@ test('코드 바뀜도 같은 규칙: 초안이면 기능 항목 + 기록 한 �
     const before = fs.readFileSync(path.join(pdir('apv'), 'docs', '배포절차.md'), 'utf8')
     const n1 = commits('apv')
     const r2 = (await pc.hub.sourceRun('apv', 'api 코드'))[0]
-    assert.deepEqual([r2.rule, r2.fail], [0, 1], JSON.stringify(r2).slice(0, 400))
+    assert.deepEqual([r2.put, r2.fail], [0, 1], JSON.stringify(r2).slice(0, 400))
     k = await fresh('apv')
     assert.equal(k.works.filter((x) => x.tags.includes('code-change')).find((x) => x.id !== w.id), undefined, '원문 기록을 넣지 않는다')
     assert.equal(commits('apv'), n1)
@@ -185,7 +184,6 @@ test('코드 바뀜도 같은 규칙: 초안이면 기능 항목 + 기록 한 �
 
 test('들인 기록은 저장 문 밖에서 고쳐 쓰지 않는다([기록 정리] 막음) · 반영 검사는 서버가 단 원천 칸만 뺀다', async () => {
   const w = (await fresh('apv')).works.find((x) => x.tags.includes('ingest/운영/백업 바꿈.docx'))
-  await assert.rejects(pc.hub.readRecord(ME, 'apv', w.id), (e) => e.code === 'E_FORBIDDEN')
   const items = [{ doc: 'docs/a.md', heading: '가', text: '아무 값 없음' }]
   assert.equal(judgeReflect({ body: '들였다.\n\n## 원천\n- 파일 a.md · 지문 0123456789abcdef\n\n> 시간 초과는 5초' }, items).errors.length, 0)
   assert.equal(judgeReflect({ body: '들였다.\n\n## 원천\n시간 초과는 5초' }, items).errors.length, 1, '사람 글의 「## 원천」 머리는 빼지 않는다')

@@ -12,7 +12,6 @@ import { fileURLToPath } from 'node:url'
 import { save } from '../core/save.js'
 import { loadKnowledge } from '../core/knowledge.js'
 import { splitLog, joinLog, logLine, parseDoc } from '../core/sections.js'
-import { check } from '../core/gate.js'
 import { expandSections } from '../core/excerpt.js'
 import { copyDir } from './helpers.mjs'
 

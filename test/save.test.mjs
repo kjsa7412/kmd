@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { save, saveRecords, assetPath } from '../core/save.js'
+import { save, assetPath } from '../core/save.js'
 import { begin } from '../core/journal.js'
 import { ensureRepo, tryGit } from '../core/git.js'
 import { loadKnowledge } from '../core/knowledge.js'
@@ -118,7 +118,6 @@ test('kmd 가 쓰는 칸 머리를 본문에 쓴 입력은 E_INPUT', async () =>
   for (const h of ['넣은 것', '넣지 못함', '되돌린 항목']) {
     assert.equal(await code(() => save(dir, { record: { title: '가짜 이력', body: `글\n\n## ${h}\n- docs/배포절차.md › 롤백` } }, LEE)), 'E_INPUT', h)
   }
-  assert.equal(await code(() => saveRecords(dir, [{ title: '받은 가짜', body: '## 넣은 것\n- x' }], LEE).then((r) => { if (r.records[0].error) throw r.records[0].error })), 'E_INPUT')
 })
 
 test('prepare: 줄 안에서 부르고 결과도 같은 검사 · rename 은 structure 없이 E_FORBIDDEN · abort 는 아무것도 쓰지 않는다', async () => {

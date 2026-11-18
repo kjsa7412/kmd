@@ -1,6 +1,6 @@
 // 들이기 — 넣은 파일(기록)을 지식 문서에 들일 때 쓰는 것: 후보 문서 · 갈래 장부 · 파일 이름의 갈래 · 주제 · 일 줄 자리 열쇠.
 //
-//   docs/품질개선/KMD_개편_설계.md 3-1 · 3-5. S2 에서 옛 정리 · 결정 모듈에서 옮겼다(옛 파일은 S13 에 걷었다).
+//   docs/품질개선/KMD_개편_설계.md 3-1 · 3-5.
 //   들이기 엔진(INTAKE_SCHEMA · 프롬프트 · draftToSave)은 S7 에 더했다(아래).
 
 import { sha16 } from './text.js'
@@ -102,8 +102,6 @@ export const INTAKE_SCHEMA = {
 
 // 원천 글을 프롬프트 · 기록에 싣는 상한 — 파일 하나 + 후보 다섯 × 1500자가 한 번 예산(KMD_INGEST_BUDGET)에 든다
 export const INTAKE_SRC_MAX = 60_000
-// 넣지 못함으로 끝난 들이기의 기록에 싣는 원천 앞부분(S-D50 · 기록만 저장이 200k 상한에 걸리지 않게)
-export const HELD_SRC_HEAD = 2000
 
 const formLine = (g) => `- 이 지식의 갈래(갈래 장부): ${(g.forms || []).map((f) => `${f.folder ? f.folder + '/' : ''}${f.name}(${f.kind}${f.aliases?.length ? ' · ' + f.aliases.join(', ') : ''})`).join(' · ') || '없음'}. 별칭에 걸리는 글은 그 갈래 문서로 간다(newDoc.path 는 폴더/갈래 이름).${g.formsOwn ? ' 갈래 장부에 없는 새 문서는 세우지 않는다: 이어지는 후보 문서에 넣는다.' : ''}`
 // 보내기(S12 · type send) — 개인 지식에서 보낸 글(기록 하나 · 문서 통째)
@@ -151,33 +149,13 @@ export const quoteSrc = (md, max) => String(md || '').slice(0, max).replace(/\r/
 const srcLine = (src, md) => `- ${src?.type === 'commit' ? `커밋 ${src.commit || ''}${src.src ? ` · ${src.src}` : ''}` : src?.type === 'send' ? `보낸 글 · ${src.from || '개인 지식'} 에서` : `파일 ${src?.rel || src?.file || src?.title || ''}`} · 지문 ${sha16(String(md || ''))}`
 // 들인 기록 끝 원천 칸 — 지문 · 원천 글 인용(INTAKE_SRC_MAX 까지) · 개인 들이기의 넣기 에이전트 저장도 같은 칸(저장 승인 PC4)
 export const intakeSrcPart = (src, md) => `## 원천\n${srcLine(src, md)}\n\n${quoteSrc(md, INTAKE_SRC_MAX)}`
-// 넣지 못함으로 끝난 들이기의 기록 — 원천 앞 2000자와 지문만(S-D50)
-export function heldRecord(src, md, { why = '' } = {}) {
-  // 정정(S9) — 들고 있던 정정 기록 초안 그대로(원천 글이 아니다) · 까닭은 넣지 못함 칸에
-  if (src?.type === 'fix') {
-    return {
-      title: String(src.title || '정정').replace(/\s+/g, ' ').trim().slice(0, 200),
-      body: String(md || '').slice(0, 20_000) || '정정',
-      ...(Array.isArray(src.touches) && src.touches.length ? { touches: src.touches } : { touchesEmpty: '정정: 원래 기록이 건드린 항목이 없다' }),
-      ...(src.rec ? { fixes: [src.rec] } : {}),
-    }
-  }
-  const title = String(src?.title || '넣을 것').replace(/\s+/g, ' ').trim().slice(0, 180)
-  return {
-    title: `${title}: 들이지 못함`.slice(0, 200),
-    body: [`${src?.type === 'commit' ? '커밋' : '파일'} 하나를 문서에 들이지 못했다${why ? `: ${String(why).replace(/\s+/g, ' ').slice(0, 200)}` : ''}.`, `## 원천\n${srcLine(src, md)}\n\n${quoteSrc(md, HELD_SRC_HEAD)}`].join('\n\n'),
-    tags: intakeTags(src),
-    ...(Array.isArray(src?.touches) && src.touches.length ? { touches: src.touches } : {}),
-    ...(src?.rec ? { fixes: [src.rec] } : {}),
-  }
-}
 
 // 규칙 길(Claude 없이 원문을 그대로 넣는 길)과 그 기록(ruleRecord)은 걷었다(지식 생성 하네스 H-D29): 무인 실패는 일감이 다시 시도한다.
 
 // 초안 → 저장 덩이(hub.save 의 input) — { ok: true, input, held, warn } | { ok: false, why }(고쳐 쓸 수 있는 까닭 · 모양)
 //   g — 서버 재료(후보 문서의 base 는 일꾼에게 보인 것) · k — 지금 지식(값 근거는 그 항목의 지금 글 전체) · draft — INTAKE_SCHEMA 꼴
 //   후보 밖 문서 · 없는 머리에 바꿀 곳 → 그 항목만 넣지 못함(notfound) · 새 문서에 ## 항목이 없다 → 넣지 못함(nosec · S-D31)
-//   넣을 곳이 하나도 없다 → 넣지 못함(notfound) — 기록만 남은 들이기가 「개편 전 기록」 으로 정리에 집히지 않게
+//   넣을 곳이 하나도 없다 → 넣지 못함(notfound)
 // 일꾼이 머리 줄 그대로(「## 4. 개소 현황」) 보내도 항목 머리로 읽는다 — 머리는 # 없이 견준다
 export const bareHeading = (h) => String(h).normalize('NFC').trim().replace(/^#{1,6}\s+/, '').trim()
 export function draftToSave(k, g, draft, { measure = false } = {}) {

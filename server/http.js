@@ -422,7 +422,6 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     const cookies = Object.fromEntries(String(req.headers.cookie || '').split(';').map((x) => x.trim().split('=')).filter((x) => x[0]))
     const b = await readBody(req)
     if (p === '/login') {
-      if (b.token) return send(res, 200, await auth.loginLegacy({ token: b.token, ip }))
       const r = await auth.login({ user: b.user, pw: b.pw, ip, cookies })
       return send(res, 200, { user: r.user, notice: r.notice }, undefined, { 'set-cookie': r.cookies })
     }
@@ -483,7 +482,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     if (req.method !== 'POST' && !(['GET', 'HEAD'].includes(req.method) && GET_OK.some((re) => re.test(p)))) throw new KmdError('E_METHOD', 'POST 로 보낸다')
     if (ctx?.agent) throw new KmdError('E_FORBIDDEN', '에이전트 열쇠는 MCP 길만 쓴다')
     if (p === '/api/me') {
-      if (!ctx) return out(200, { mode, anon: true, setup: !auth.hasUsers(), legacy: auth.legacyWaiting(), version: VERSION, host: req.headers.host, ...(typeof hub.config.helpContact === 'string' && hub.config.helpContact.trim() ? { help: hub.config.helpContact.trim().slice(0, 120) } : {}) }) // 들어가기 화면의 「잊었으면」 줄(serve.json helpContact · UX G5-04)
+      if (!ctx) return out(200, { mode, anon: true, setup: !auth.hasUsers(), version: VERSION, host: req.headers.host, ...(typeof hub.config.helpContact === 'string' && hub.config.helpContact.trim() ? { help: hub.config.helpContact.trim().slice(0, 120) } : {}) }) // 들어가기 화면의 「잊었으면」 줄(serve.json helpContact · UX G5-04)
       return out(200, { mode, user: ctx.user, admin: !!ctx.admin, sudo: !!ctx.sudo, password: ctx.password !== false, version: VERSION, host: req.headers.host, ...(mode === 'pc' ? { root: path.resolve(root), ...(isNoneRoot(root) ? { none: true } : {}) } : {}), ...(mode === 'team' && ctx.admin ? { root: path.resolve(root) } : {}) })
     }
     // 이 PC 의 지식 폴더 바꾸기 — 그 폴더에 .kmd 가 있으면 그대로 잇고 · 없거나 빈 폴더면 새로 세운다 · 다른 파일만 있는 폴더는 받지 않는다.
@@ -588,13 +587,13 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const ws = await fs.readFile(path.join(dataDir, 'worker.json'), 'utf8').then(JSON.parse, () => null)
       const keys = mode === 'pc' ? ['save', 'file', 'src', 'claude', 'find'] : ['file', 'find']
       const month = new Date().toISOString().slice(0, 7)
-      // 이달 들이기 수(Q64 · S13) — 들이기 일감의 기록(태그 intake · 다듬기 포함) · PC 는 옛 바로 넣기 기록(curate-llm · 읽기만)도 ·
+      // 이달 들이기 수(Q64 · S13) — 들이기 일감의 기록(태그 intake · 다듬기 포함) ·
       //   지식마다 읽은 지식(같은 것이면 다시 세지 않는다)에 기대어 동시에 센다
       const intakeN = (await Promise.all(ks.map(async (k) => {
         const kn = await hub.get(k.id)
         const c = monthC.get(k.id)
         if (c?.kn === kn && c.month === month) return c.n
-        const n = [...kn.works, ...kn.logs].filter((w) => (w.tags.includes('intake') || (mode === 'pc' && w.tags.includes('curate-llm'))) && String(w.date).startsWith(month)).length
+        const n = [...kn.works, ...kn.logs].filter((w) => w.tags.includes('intake') && String(w.date).startsWith(month)).length
         monthC.set(k.id, { kn, month, n })
         return n
       }))).reduce((a, b) => a + b, 0)
@@ -944,7 +943,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         // 저장소 붙음 여부(모든 지식 표 · 6-4) — 그 지식의 지식관리자에게만 · 주소는 싣지 않는다
         const repo = lv === 'admin' && !k.gone ? !!hub.backupStateSync(k) : undefined
         // save — 저장 방식(팀 · 개인 모두 늘 approve · 저장 승인 P11 · P12)
-        return { ...V.knowledgeRow(k, seeOf(ctx, k.id)), level: lv, save: k.gone ? null : hub.saveModeOf(k.id), ...(repo !== undefined ? { repo } : {}), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null, noClaude: !!row?.noClaude, ...(lv === 'admin' && row?.issueUrl ? { issueUrl: row.issueUrl } : {}), ...(LV_READ.includes(lv) && row?.issueUrl ? { issue: row.issueUrl } : {}), ...(lv === 'admin' && row?.review ? { review: true } : {}) } : {}), ...(chk ? { chk } : {}), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
+        return { ...V.knowledgeRow(k, seeOf(ctx, k.id)), level: lv, ...(repo !== undefined ? { repo } : {}), role: hub.roleIn(k.id, ctx), ...(mode === 'pc' ? { dir: k.dir } : {}), ...(sv?.route ? { route: sv.route.kn, sendN: sv.recs.filter((r) => !r.sent).length, sendWait: sv.wait.length } : {}), ...(mode === 'team' ? { owner: row?.owner || null, noClaude: !!row?.noClaude, ...(lv === 'admin' && row?.issueUrl ? { issueUrl: row.issueUrl } : {}), ...(LV_READ.includes(lv) && row?.issueUrl ? { issue: row.issueUrl } : {}), ...(lv === 'admin' && row?.review ? { review: true } : {}) } : {}), ...(chk ? { chk } : {}), ...(menu.hidden.includes(k.id) ? { hidden: true } : {}) }
       })))
     }
     // 에이전트 일 — 목록 · 줄(터미널)
@@ -992,7 +991,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
     // ── 나 — 재인증 · 설치 표 · 내 기기 · 모든 기기에서 나가기 ──
     if (p === '/api/sudo') return send(res, 200, { ok: true }, undefined, { 'set-cookie': await auth.sudo(ctx, { pw: (await readBody(req)).pw, ip: ipOf(req), cookieHeader: req.headers.cookie }) })
     if (p === '/api/device/ticket') {
-      if (ctx.device || ctx.legacy) throw new KmdError('E_FORBIDDEN', '열쇠로는 다른 열쇠를 만들지 못한다')
+      if (ctx.device) throw new KmdError('E_FORBIDDEN', '열쇠로는 다른 열쇠를 만들지 못한다')
       const t = auth.ticket(ctx, { ip: ipOf(req) })
       const origin = `${res.kmdSecure ? 'https' : 'http'}://${req.headers.host}`
       // 붙일 팀 지식(에이전트 설치 · 팀) — 보이는 팀 지식만 · 그 한 줄은 /a/ (작업 폴더에 붙이기만 · 개인 프로그램을 깔지 않는다)
@@ -1025,14 +1024,13 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       const b = await readBody(req)
       const kn = safeKn(b.kn)
       const block = typeof b.block === 'string' ? b.block : ''
-      const legacy = typeof b.legacy === 'string' ? b.legacy : ''
-      if (!kn || block.length > 60000 || legacy.length > 60000) throw new KmdError('E_INPUT', '팀 지식 id · 안내 덩이 모양이 맞지 않는다')
+      if (!kn || block.length > 60000) throw new KmdError('E_INPUT', '팀 지식 id · 안내 덩이 모양이 맞지 않는다')
       const visible = await hub.visible(ctx)
       const k = visible.find((x) => x.id === kn)
       if (!k) throw new KmdError('E_NOTFOUND', `「${kn}」 팀 지식이 없거나 읽을 자리가 없다`)
       const parts = await teamkit.teamKitParts()
-      const kns = teamkit.teamKns({ old: block, legacy, add: kn, visible })
-      const body = { block: teamkit.teamBlock(parts, kns), ver: parts.ver, skills: parts.skills, helper: teamkit.teamKeyHelperPs(), exeCs: KEY_EXE_CS, exeVer: KEY_EXE_VER, name: k.name, n: kns.length, dropLegacy: teamkit.legacyTeamOnly(legacy), legacy: !!legacy.trim(), oldSkills: teamkit.OLD_SKILLS, skillNames: teamkit.TEAM_SKILLS }
+      const kns = teamkit.teamKns({ old: block, add: kn, visible })
+      const body = { block: teamkit.teamBlock(parts, kns), ver: parts.ver, skills: parts.skills, helper: teamkit.teamKeyHelperPs(), exeCs: KEY_EXE_CS, exeVer: KEY_EXE_VER, name: k.name, n: kns.length, skillNames: teamkit.TEAM_SKILLS }
       return send(res, 200, teamkit.asciiJson(body), undefined, set ? { 'set-cookie': set } : {})
     }
     if (p === '/api/me/devices') return out(200, auth.devices(ctx.user))
@@ -1223,12 +1221,6 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (sd[2] === 'inbox/send') return out(200, await hub.inboxSend(ctx, id, b))
       return out(200, await hub.inboxMove(ctx, id, { dry: !!b.dry }))
     }
-    // 넣은 파일의 기록을 Claude 로 다듬기(개인 프로그램) — { r: 기록 id }
-    const rr = p.match(/^\/api\/k\/([^/]+)\/rec\/read$/)
-    if (rr) {
-      if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
-      return out(200, await hub.readRecord(ctx, dec(rr[1]), (await readBody(req)).r))
-    }
     const uw = p.match(/^\/api\/k\/([^/]+)\/unwatch$/)
     if (uw) return out(200, await hub.unwatch(ctx, dec(uw[1]), await readBody(req)))
     const rmv = p.match(/^\/api\/k\/([^/]+)\/removed(\/restore)?$/)
@@ -1292,10 +1284,10 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         const copy = mode === 'pc' ? { copy: c ? { url: c.url || null, branch: c.branch || null, verdict: c.verdict || null, last: c.last ? { at: c.last.at || null, ok: !!c.last.ok } : null } : { off: true } } : {}
         return out(200, b ? { url: maskUrl(b.url || ''), branch: b.branch || null, at: b.at || null, verdict: b.verdict || null, last: b.last ? { at: b.last.at || null, ok: !!b.last.ok } : null, ...copy } : { off: true, ...copy })
       }
-      // 주인 줄 — 그 지식을 보는 사람에게만. 자리 표(access) · 지식관리자는 관리 자리에게만(자리 표 보기와 같게) · 옛 정리 설정 칸은 걷었다(S13)
+      // 주인 줄 — 그 지식을 보는 사람에게만. 자리 표(access) · 지식관리자는 관리 자리에게만(자리 표 보기와 같게)
       if (what === 'owner' && req.method === 'GET') {
         await hub.meta(id, ctx)
-        const { tidyAt: _a, tidyMode: _m, ...row } = hub.owner(id) || {}
+        const row = hub.owner(id) || {}
         if (hub.levelOf(ctx, id) === 'admin') return out(200, row)
         const { owner = null, noClaude } = row
         return out(200, { owner, noClaude })
@@ -1305,11 +1297,11 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (req.method !== 'POST') throw new KmdError('E_INPUT', 'POST 로 보낸다')
       const body = await readBody(req)
       // 저장 문(S4) — 채널은 서버가 정한다: 본문에서는 channel: 'send'(보내기) 하나만 읽고 나머지 opt 칸은 받지 않는다(S-D54) ·
-      //   보내기는 기기 열쇠(예전 열쇠 포함 · 화면 쿠키 아님)로 오고 기록에 sent/<16자 지문> 표지가 있을 때만 · 아니면 http 로 받고 left 는 버린다(끝 검토 3)
+      //   보내기는 기기 열쇠(화면 쿠키 아님)로 오고 기록에 sent/<16자 지문> 표지가 있을 때만 · 아니면 http 로 받고 left 는 버린다(끝 검토 3)
       if (what === 'save') {
         const { channel, kit, ...input } = body && typeof body === 'object' && !Array.isArray(body) ? body : {}
         const tags = Array.isArray(input.record?.tags) ? input.record.tags : []
-        const send = channel === 'send' && !!(ctx.device || ctx.legacy) && tags.some((t) => /^sent\/[0-9a-f]{16}$/.test(String(t).trim()))
+        const send = channel === 'send' && !!ctx.device && tags.some((t) => /^sent\/[0-9a-f]{16}$/.test(String(t).trim()))
         if (!send) delete input.left
         // 보내기 판(kit · 저장 승인 P7) — 측정 줄에 싣는다(없으면 null 로 센다 · 옛 판 안내)
         return out(200, await hub.save(ctx, id, input, { guard: 'strict', channel: send ? 'send' : 'http', ...(send && Number.isInteger(kit) && kit >= 0 && kit < 1000 ? { kit } : {}) }))
@@ -1319,7 +1311,7 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
       if (what === 'propose') {
         const { channel: _c, ...input } = body && typeof body === 'object' && !Array.isArray(body) ? body : {}
         // 기기 열쇠로 온 제안은 개인 프로그램의 보내기 확인 창(P-D22 · P7)
-        return out(200, await hub.propose(ctx, id, input, { path: ctx.device || ctx.legacy ? '보내기' : '화면' }))
+        return out(200, await hub.propose(ctx, id, input, { path: ctx.device ? '보내기' : '화면' }))
       }
       if (what === 'learn') return out(200, await hub.learn(ctx, id, body))
       // 문서 고치기(S9) — 화면 길은 이미 있는 항목의 지문(base)을 꼭 받는다
@@ -1337,9 +1329,10 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
         return out(200, await hub.revert(ctx, id, { record, ...(doc != null ? { doc } : {}), ...(heading != null ? { heading } : {}) }))
       }
       if (what === 'owner') {
-        // 주인 · 지식관리자는 명부에 있는 사람만
+        // 주인은 명부에 있는 사람만 · 지식관리자는 자리 표로(access)
         const people = new Set(auth.users().filter((u) => u.kind === 'person' && !u.off).map((u) => u.id))
-        for (const u of [body.owner, ...(Array.isArray(body.curators) ? body.curators : [])].filter((x) => x != null && x !== '')) if (!people.has(String(u))) throw new KmdError('E_INPUT', `그런 사람은 없다: ${String(u).slice(0, 40)}`)
+        if (body.curators != null) throw new KmdError('E_INPUT', '지식관리자는 자리 표(access)로 준다')
+        for (const u of [body.owner].filter((x) => x != null && x !== '')) if (!people.has(String(u))) throw new KmdError('E_INPUT', `그런 사람은 없다: ${String(u).slice(0, 40)}`)
         // 주인 넘기기 — 관리자(팀 서버)는 비밀번호 한 번 더(남의 지식을 넘기는 일)
         if (body.review != null && typeof body.review !== 'boolean') throw new KmdError('E_INPUT', 'review 는 참 · 거짓이다')
         if (body.issueUrl != null && body.issueUrl !== '' && (typeof body.issueUrl !== 'string' || !owners.ISSUE_URL_RE.test(body.issueUrl) || !body.issueUrl.includes('{값}'))) throw new KmdError('E_INPUT', '이슈 주소는 http(s):// 로 시작하고 {값} 자리가 있는 한 줄이다(200자까지) · 예: https://jira.example/browse/{값}')
@@ -1529,8 +1522,6 @@ export async function startServer({ root, data = null, mode = 'team', user = os.
   // 에이전트가 이 kmd 의 MCP 에 닿는 주소(같은 PC 안)
   hub.selfUrl = `http://127.0.0.1:${server.address().port}`
   await hub.start()
-  // 옛 지식 한 번 옮기기 — 기본 자리 「모두: 쓰기」 → 「없음」(있던 사람에게 옛 기본 자리를 적은 뒤 · 장부에 accessV 2)
-  if (mode === 'team') await hub.migrateAccess(auth.people())
   const a = server.address()
   const shown = host === '0.0.0.0' || host === '::' ? 'localhost' : host
   const origin = `http://${shown.includes(':') ? `[${shown}]` : shown}:${a.port}`

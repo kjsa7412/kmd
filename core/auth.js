@@ -1,7 +1,7 @@
 // 명부 · 들어가기 · 세션 · 열쇠 — 팀 서버의 「누구인가」 한 곳.
 //
 //   <data>/auth.json  { v: 1, users: { <아이디>: 사람 줄 | 기계 줄 }, setup }
-//     사람 줄   { kind: 'person', admin, pw, sv, first, keys: [{ id, sha, host, osuser, at }], legacy: [sha], pwSetBy }
+//     사람 줄   { kind: 'person', admin, pw, sv, first, keys: [{ id, sha, host, osuser, at }], pwSetBy }
 //     기계 줄   { kind: 'machine', machine: { kn, source, types, exp }, keys: [{ id, sha, at }] }
 //   <data>/session.key   쿠키 서명 열쇠(32바이트 · 처음 시작 때)
 //   <data>/keys-used.json 열쇠의 마지막 사용(하루 한 번 적는다) — 90일 안 쓴 기기 열쇠는 끊긴다
@@ -70,9 +70,6 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
   const db = await readJson(file, { v: 1, users: {}, setup: null })
   if (!db || typeof db !== 'object' || typeof db.users !== 'object') throw new Error('auth.json 의 모양이 아니다')
   for (const id of Object.keys(db.users)) if (isReservedUser(id)) throw new Error(`명부에 kmd 가 쓰는 이름이 있다: ${id} · 이름을 바꾼 뒤 다시 띄운다`)
-  // 옛 사람 몫 PC 일꾼 열쇠(worker + owner) — 팀 서버가 사람 PC 에 일을 넘기던 옛 설계의 흔적 · 걷었다(아래 persist 가 처음 쓸 때 함께 사라진다)
-  const oldPcWorkers = Object.entries(db.users).filter(([, u]) => u.kind === 'worker' && u.owner).map(([id]) => id)
-  for (const id of oldPcWorkers) delete db.users[id]
   const keyFile = path.join(dataDir, 'session.key')
   let secret = await fs.readFile(keyFile).catch(() => null)
   if (!secret) {
@@ -146,9 +143,8 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
 
   const auth = {
     FAIL,
-    legacyWaiting: () => Object.values(db.users).some((u) => (u.legacy || []).length && !u.pw),
     hasUsers: () => Object.values(db.users).some((u) => (u.kind || 'person') === 'person'),
-    users: () => Object.entries(db.users).map(([id, u]) => ({ id, kind: u.kind || 'person', admin: !!u.admin, password: !!u.pw, firstOpen: !!u.first && Date.parse(u.first.exp) > now(), ...(u.first ? { firstExp: u.first.exp } : {}), devices: (u.keys || []).length, legacy: (u.legacy || []).length, machine: u.machine || null, ...(u.off ? { off: u.off } : {}), ...(u.kind === 'worker' && u.owner ? { owner: u.owner, device: u.device || null } : {}) })),
+    users: () => Object.entries(db.users).map(([id, u]) => ({ id, kind: u.kind || 'person', admin: !!u.admin, password: !!u.pw, firstOpen: !!u.first && Date.parse(u.first.exp) > now(), ...(u.first ? { firstExp: u.first.exp } : {}), devices: (u.keys || []).length, machine: u.machine || null, ...(u.off ? { off: u.off } : {}) })),
     // 지금 쓰는 사람 — 떠난 사람 · 열쇠 줄을 뺀 아이디
     people: () => Object.entries(db.users).filter(([, u]) => (u.kind || 'person') === 'person' && !u.off && !u.pc).map(([id]) => id),
     log: () => log.slice(),
@@ -204,19 +200,6 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
         await persist()
       }
       return { user: id, notice, cookies: [issue(id), cookie(markName(id), seal({ u: id, iat: now() }), 365 * 24 * H)] }
-    },
-    // 예전 열쇠(옮기는 동안) — 비밀번호를 아직 안 정한 사람만 · 곧바로 비밀번호 정하기로
-    async loginLegacy({ token, ip }) {
-      const s = pw.sha(String(token || ''))
-      const hit = Object.entries(db.users).find(([, u]) => (u.legacy || []).includes(s))
-      if (!hit || hit[1].pw || locks.locked('legacy', ip)) {
-        locks.fail('legacy', ip)
-        throw new KmdError('E_AUTH', '이 열쇠로는 들어올 수 없다. 비밀번호로 들어온다')
-      }
-      const { code, rec } = pw.newCode({ now: now(), ms: 15 * 60_000 })
-      hit[1].first = rec
-      await persist()
-      return { setPassword: true, user: hit[0], code }
     },
     // 처음 들어오기 링크 — 번호로 비밀번호를 정한다(한 번 · 24시간)
     async first({ code, pw: ph }) {
@@ -299,7 +282,7 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
       await note({ what: 'sv', user: id, ...(devices ? { devices: n } : {}) })
       return { devices: n }
     },
-    // 떠남 — 들어가기 · 기기 · 예전 열쇠를 한 번에 끊고 아이디를 남겨 둔다(되쓰지 않는다 · 다시 정하기 링크도 막는다)
+    // 떠남 — 들어가기 · 기기 열쇠를 한 번에 끊고 아이디를 남겨 둔다(되쓰지 않는다 · 다시 정하기 링크도 막는다)
     async off(id, { by = null } = {}) {
       const u = userOf(id)
       if (!u || (u.kind || 'person') !== 'person' || u.pc) throw new KmdError('E_NOTFOUND', '그런 사람은 없다')
@@ -308,9 +291,9 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
       const devices = (u.keys || []).length
       u.off = { at: new Date(now()).toISOString(), by }
       u.admin = false
-      u.goneKeys = [...(u.keys || []).map((k) => k.sha), ...(u.legacy || [])].filter(Boolean).slice(0, 50)
+      u.goneKeys = (u.keys || []).map((k) => k.sha).filter(Boolean).slice(0, 50)
       u.keys = []
-      u.legacy = []
+      delete u.legacy
       delete u.pw
       delete u.first
       delete u.pwSetBy
@@ -368,13 +351,6 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
       if (u.off) throw new KmdError('E_FORBIDDEN', '떠난 사람이다')
       if (!admin && Object.values(db.users).filter((x) => x.admin && !x.off && (x.kind || 'person') === 'person').length <= 1 && u.admin) throw new KmdError('E_INPUT', '마지막 관리자다')
       u.admin = !!admin
-      await persist()
-    },
-    // 예전 열쇠 들이기(옮기기) — 그 사람 줄에 sha 만
-    async addLegacy(id, token) {
-      const u = userOf(id)
-      if (!u) throw new KmdError('E_NOTFOUND', '그런 사람은 없다')
-      ;(u.legacy ||= []).push(pw.sha(token))
       await persist()
     },
 
@@ -481,8 +457,8 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
       return key
     },
 
-    // ── 정리 일꾼 열쇠(kmdw_) — 일감을 받고 상태를 알리는 것만. 재료 · 초안은 일감마다의 단기 열쇠(서버 메모리)로 ──
-    //   팀 정리 일꾼 · 개인 프로그램 자신의 일꾼만(사람 몫 PC 일꾼 열쇠는 걷었다 — 팀 · 개인 프로그램 분리)
+    // ── 일꾼 열쇠(kmdw_) — 일감을 받고 상태를 알리는 것만. 재료 · 초안은 일감마다의 단기 열쇠(서버 메모리)로 ──
+    //   팀 일꾼 · 개인 프로그램 자신의 일꾼만
     async workerAdd() {
       reload()
       const id = `worker-${crypto.randomBytes(4).toString('hex')}`
@@ -493,7 +469,7 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
       return { id, key }
     },
 
-    // Bearer → ctx · 기기 열쇠(90일 안 쓰면 끊김) · 기계 열쇠(1년) · 예전 열쇠
+    // Bearer → ctx · 기기 열쇠(90일 안 쓰면 끊김) · 기계 열쇠(1년) · 일꾼 열쇠
     // 떠난 사람의 열쇠인가 — { user, at } 또는 null(bearer 가 null 일 때만 본다)
     leftOf(token) {
       const s = pw.sha(String(token || ''))
@@ -507,8 +483,6 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
       for (const [id, u] of Object.entries(db.users)) {
         if (u.kind === 'worker') {
           if (!t.startsWith('kmdw_') || !u.keys.some((k) => k.sha === s)) continue
-          // 옛 사람 몫 PC 일꾼 열쇠(owner) — 걷었다 · 받지 않는다(켤 때 명부에서도 지운다)
-          if (u.owner) return null
           return { user: 'kmd-worker', admin: false, worker: { id } }
         }
         if (u.kind === 'machine') {
@@ -524,7 +498,6 @@ export async function makeAuth({ dataDir, mode = 'team', scryptN = null, now = (
           touch(s)
           return { user: id, admin: !!u.admin, device: dev.id, newDevice: now() - Date.parse(dev.at) < 24 * H ? dev.host : null }
         }
-        if ((u.legacy || []).includes(s)) return { user: id, admin: !!u.admin, legacy: true }
       }
       return null
     },

@@ -163,7 +163,7 @@ test('보내기(P7 · approve 팀 지식): 미리 보기 = 저장 제안 · 창 
     const pv2 = await pc.hub.sendPreview(ME, 'mine', pick)
     assert.ok(pv2.proposals[0].propose.items.some((x) => x.at === atOrder), JSON.stringify(pv2.proposals[0].propose))
     r = await pc.hub.sendPicked(ME, 'mine', pick)
-    assert.deepEqual({ put: r.put, held: r.held, fail: r.fail, same: r.same }, { put: 1, held: 0, fail: undefined, same: 0 }, JSON.stringify(r))
+    assert.deepEqual({ put: r.put, held: r.held, fail: r.fail, same: r.same }, { put: 1, held: undefined, fail: undefined, same: 0 }, JSON.stringify(r))
     assert.match(await secOf(), /통신/)
     const got = await recsOf()
     assert.equal(got.length, 2)

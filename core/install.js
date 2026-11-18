@@ -7,7 +7,6 @@
 //   ✓ Claude Code 에 이었다 — 새로 여는 것부터
 //   ✓ 늘 켜기 — 로그온 때 켜고 멈추면 다시 켠다
 //       개인 화면을 열었다 — 다음부터는 시작 메뉴의 kmd(또는 kmd open)
-//       기록이 남으면 곧바로 Claude 로 다듬어 문서에 넣는다 — 끄려면 설정
 // 안 된 단계는 ✓ 대신 · 와 사람이 붙일 한 줄. 새 판은 저절로 오지 않는다 — `kmd pc update`(운영 §5).
 
 import fs from 'node:fs'
@@ -27,7 +26,7 @@ export function pickBackupDir(root, { exists = fs.existsSync, sys = process.env.
   return null
 }
 
-export function installLines({ version, root, backup = null, kns = [], team = null, user = null, host = '', osuser = '', claude = { ok: true }, task = { ok: true }, screen = null, claudeTidy = true }) {
+export function installLines({ version, root, backup = null, kns = [], team = null, user = null, host = '', osuser = '', claude = { ok: true }, task = { ok: true }, screen = null }) {
   const L = []
   const ok = (t) => L.push(`✓ ${t}`)
   const no = (t) => L.push(`· ${t}`)
@@ -57,7 +56,6 @@ export function installLines({ version, root, backup = null, kns = [], team = nu
     no(`늘 켜기는 못 했다: ${task.why || '이 PC 에서 kmd up 으로 켠다'}`)
     dim('개인 화면은 kmd up 으로 켜면 열린다 · 켜 둔 뒤에는 kmd open')
   }
-  if (claudeTidy) dim('기록이 남으면 곧바로 Claude 로 다듬어 문서에 넣는다. 끄려면 설정')
   return L
 }
 

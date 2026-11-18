@@ -4,10 +4,9 @@
 //   2  단기 열쇠로 재료를 받는다(「Claude 에 보내지 않음」 지식은 서버가 재료를 내주지 않는다)
 //   3  들이기 일감(kind intake · S7)은 원천 하나를 claude -p 한 번(도구 0)으로 기록 + 항목 글 초안 하나 → 서버가 저장 문 한 번으로 넣는다.
 //      고칠 수 있는 까닭으로 돌려보내면 그 까닭을 붙여 KMD_INGEST_FIX 번(1 ~ 2 · 기본 2)까지 다시 쓴다(intakeOnce)
-//      정정(type fix)은 남은 항목의 바꿀 곳만(FIX_SCHEMA) · 다듬기(type polish · S13)는 문서 하나의 항목 글(POLISH_SCHEMA · 값은 그대로)
+//      다듬기(type polish · S13)는 문서 하나의 항목 글(POLISH_SCHEMA · 값은 그대로)
 //      Claude 짜임(type shape-plan · shape-write · 바탕 세우기 Z6)은 구조안(SHAPE_PLAN_SCHEMA) · 합치기 · 나누기 글(SHAPE_WRITE_SCHEMA) — 서버가 cleanPlan · judgeShape 로 다시 본다
-//      일감을 물을 때 아는 type 을 싣는다(KNOWN_TYPES) — 서버는 아는 일꾼에게만 shape-* 일감을 준다(옛 일꾼이 들이기 프롬프트로 짓지 않게)
-//   4  옛 정리 일감 · 팀 쪽 에이전트 길은 개편 S13 에 걷었다(서버가 들이기 일감만 낸다 · S-D21)
+//      일감을 물을 때 아는 type 을 싣는다(KNOWN_TYPES) — 서버는 그 type 을 아는 일꾼에게만 일감을 준다
 //   로그인이 끝났거나 한도면 다시 시도하지 않고 멈춘 뒤 서버에 알린다(멈춤 한 줄 「팀 일꾼이 쉬고 있다」)
 //   환경 변수(K7-3 · S-D38): KMD_WORKER_PAR · KMD_WORKER_JOBS · KMD_WORKER_TICK_MS · KMD_INGEST_BUDGET · KMD_INGEST_EFFORT · KMD_INGEST_FIX —
 //   옛 이름 KMD_TIDY_PAR · _JOBS · _TICK_MS · _BUDGET · _EFFORT 도 뒤 순서로 읽는다(188 의 worker.env · S-D38)
@@ -15,7 +14,6 @@
 import { runClaude } from './claude.js'
 import { genRulesBlock } from './genrules.js'
 import { INTAKE_SCHEMA, intakePromptOf, intakeFixPromptOf, POLISH_SCHEMA, polishPromptOf } from './ingest.js'
-import { FIX_SCHEMA, corrPromptOf, corrRetryPromptOf } from './fix.js'
 import { WRITE_RULES } from './writerules.js'
 import { SHAPE_PLAN_SCHEMA, SHAPE_WRITE_SCHEMA, shapePlanPromptOf, shapePlanFixPromptOf, shapeWritePromptOf, shapeWriteFixPromptOf, SHAPE_CLAUDE_TYPES, SEED_PLAN_SCHEMA, seedPlanPromptOf, seedPlanFixPromptOf } from './shape.js'
 import { modelOf } from './models.js'
@@ -28,8 +26,8 @@ import path from 'node:path'
 // 이 일꾼이 아는 일감 type(일감을 물을 때 싣는다)
 //   shape-seed — 기초 세우기 구조안(재료 kind seed · SEED_PLAN_SCHEMA)을 안다(TODO 10 · 서버는 이것을 알린 일꾼에게만 기초 세우기 일감을 준다)
 //   session — 파일 · 커밋 들이기를 세션으로 돈다(지식 생성 하네스 H-D34): Claude Code 세션을 띄워 팀 서버의 MCP 에 붙는다.
-//     Claude Code 를 세션으로 띄울 수 있을 때만 알린다(시험의 한 번 부르기 가짜만 있으면 옛 단발 길 · 단발 길은 H4a 의 남은 걸음에서 걷는다)
-export const KNOWN_TYPES = ['file', 'commit', 'fix', 'polish', ...SHAPE_CLAUDE_TYPES, 'shape-seed']
+//     Claude Code 를 세션으로 띄울 수 있을 때만 알린다
+export const KNOWN_TYPES = ['file', 'commit', 'polish', ...SHAPE_CLAUDE_TYPES, 'shape-seed']
 export const knownTypes = () => (agentAvailable() ? [...KNOWN_TYPES, 'session'] : KNOWN_TYPES)
 const STOP = { login: '로그인이 끝났다', limit: '한도에 닿았다', missing: 'Claude Code(claude) 가 설치되어 있지 않다' }
 async function call(server, key, p, body) {
@@ -57,9 +55,9 @@ const INGEST_FIX = () => Math.min(2, Math.max(1, Number(process.env.KMD_INGEST_F
 const TICK = () => Number(envOf('KMD_WORKER_TICK_MS', 'KMD_TIDY_TICK_MS')) || 15_000
 
 // 들이기 일감 하나(S7 · 설계 3-5) — 재료 → claude -p → done → { fix } 이면 까닭을 붙여 다시(KMD_INGEST_FIX 번까지) → 마지막.
-//   일꾼은 쓰지 않는다: 서버가 시도를 세고(본문의 tries 를 믿지 않는다) · 검사하고 · 저장 한 번으로 넣거나 기록만 + 넣지 못함
-//   돌려주는 것 { job, summary: { put, held, rule }, rec?, skipped?, requeued? }
-//   approve 모드 지식(저장 승인 P6)은 넣지 못함이 없다: 끝내 검사를 못 넘으면 서버가 규칙 길로 넣는다(rule · 까닭) · 그사이 항목이 바뀌면 다시 대기(requeued · 새 재료로 다시 짓는다)
+//   일꾼은 쓰지 않는다: 서버가 시도를 세고(본문의 tries 를 믿지 않는다) · 검사하고 · 저장 한 번으로 넣는다
+//   돌려주는 것 { job, summary: { put }, rec?, skipped?, requeued? }
+//   끝내 검사를 못 넘으면 서버가 다시 시도(세 번) → 실패 일감으로 둔다 · 그사이 항목이 바뀌면 다시 대기(requeued · 새 재료로 다시 짓는다)
 // 세션 일감 하나(지식 생성 하네스 H4a · H-D34) — 표(단기 열쇠 · 일 설명 · system 글 · 파일)를 받아 Claude Code 세션을 띄운다.
 //   세션은 읽기 도구(일 폴더 안)와 kmd MCP 만 쥔다(core/agent.js): 스스로 brief → match → section 으로 찾고 save 로 낸다. 검사 · 저장 · 일감 닫기는 서버가 한다.
 export async function sessionOnce({ server, key, job, dkey, log = () => {}, models = null, gate = slots(PAR) }) {
@@ -69,7 +67,7 @@ export async function sessionOnce({ server, key, job, dkey, log = () => {}, mode
     t = await call(server, dkey, `${base}/session`, {})
   } catch (e) {
     log(`세션 일감을 받지 못했다: ${job.kn}: ${e.message}`)
-    return { job, summary: { put: 0, held: 0 }, skipped: e.message }
+    return { job, summary: { put: 0 }, skipped: e.message }
   }
   const name = `${job.kn}: ${job.id}`
   let lost = false
@@ -92,21 +90,21 @@ export async function sessionOnce({ server, key, job, dkey, log = () => {}, mode
     clearInterval(watch)
   }
   log(`${name}: 세션 ${r.ok ? '끝' : `못 끝냄(${r.error})`} · ${Math.round((Date.now() - t0) / 1000)}초${r.cost ? ` · $${Number(r.cost).toFixed(3)}` : ''}`)
-  if (lost) return { job, summary: { put: 0, held: 0 }, skipped: 'lost' }
+  if (lost) return { job, summary: { put: 0 }, skipped: 'lost' }
   const code = r.ok ? null : ['login', 'limit'].includes(r.error) ? r.error : /ENOENT|not recognized|찾을 수 없/i.test(String(r.message || '')) ? 'missing' : r.error || 'fail'
   const d = await call(server, dkey, `${base}/done`, { session: { ok: !!r.ok, error: code, message: String(r.message || '').replace(/\s+/g, ' ').slice(0, 200), cost: r.cost || 0 } }).catch((e) => ({ error: e.message }))
-  if (d.error) { log(`${name}: 세션 끝을 알리지 못했다(${d.error})`); return { job, summary: { put: 0, held: 0 }, skipped: d.error } }
+  if (d.error) { log(`${name}: 세션 끝을 알리지 못했다(${d.error})`); return { job, summary: { put: 0 }, skipped: d.error } }
   if (code && STOP[code]) {
     log(`팀 일꾼이 쉰다: ${STOP[code]}`)
     await call(server, key, '/api/worker/status', { ok: false, reason: code, message: STOP[code] }).catch((e) => log(`일꾼 상태를 알리지 못했다(${e.status || e.message})`))
-    return { job, summary: { put: 0, held: 0 }, skipped: code, stop: code }
+    return { job, summary: { put: 0 }, skipped: code, stop: code }
   }
   await call(server, key, '/api/worker/status', { ok: true }).catch((e) => log(`일꾼 상태를 알리지 못했다(${e.status || e.message})`))
-  if (d.requeued) return { job, summary: { put: 0, held: 0, rule: 0 }, requeued: true }
-  if (d.stopped || d.aborted) return { job, summary: { put: 0, held: 0, rule: 0 }, skipped: d.stopped ? 'stopped' : 'aborted' }
-  if (d.empty) { log(`${name}: ${String(d.why || '넣을 것 없음').slice(0, 160)}`); return { job, summary: { put: 0, held: 0, rule: 0 }, empty: true } }
-  log(`${name}: ${d.same ? '같은 것을 이미 들였다' : `넣음 ${d.put || 0}${d.rule ? ` · 규칙 길(${String(d.rule).slice(0, 120)})` : ''}`}`)
-  return { job, summary: { put: d.put || 0, held: 0, rule: d.rule ? 1 : 0 }, rec: d.rec || null }
+  if (d.requeued) return { job, summary: { put: 0 }, requeued: true }
+  if (d.stopped || d.aborted) return { job, summary: { put: 0 }, skipped: d.stopped ? 'stopped' : 'aborted' }
+  if (d.empty) { log(`${name}: ${String(d.why || '넣을 것 없음').slice(0, 160)}`); return { job, summary: { put: 0 }, empty: true } }
+  log(`${name}: ${d.same ? '같은 것을 이미 들였다' : `넣음 ${d.put || 0}`}`)
+  return { job, summary: { put: d.put || 0 }, rec: d.rec || null }
 }
 
 export async function intakeOnce({ server, key, job, dkey, log = () => {}, budget = BUDGET(), models = null, gate = slots(PAR) }) {
@@ -127,24 +125,23 @@ export async function intakeOnce({ server, key, job, dkey, log = () => {}, budge
   } catch (e) {
     log(`재료를 받지 못했다: ${job.kn}: ${e.message}`)
     // 「Claude 에 보내지 않음」 이 그사이 켜졌다 · 원천이 없다 — 일감은 서버가 시계로 닫는다(24시간) · 여기서는 쉰다
-    return { job, summary: { put: 0, held: 0 }, skipped: e.message }
+    return { job, summary: { put: 0 }, skipped: e.message }
   }
   const name = `${job.kn}: ${g.src?.file || g.src?.title || job.id}`
   const model = modelOf('ingest', models)
   const opt = { writeRules: WRITE_RULES }
-  // 정정 일감(S9 · type fix) — 남은 항목마다 바꿀 곳만(FIX_SCHEMA) · 다듬기(S13 · type polish) — 문서 하나의 항목 글(POLISH_SCHEMA) · 그 밖은 기록 + 항목 글(INTAKE_SCHEMA)
-  const corr = g.type === 'fix'
+  // 다듬기(S13 · type polish) — 문서 하나의 항목 글(POLISH_SCHEMA) · 그 밖은 기록 + 항목 글(INTAKE_SCHEMA)
   const pol = g.type === 'polish'
   // Claude 짜임(Z6) — 구조안 · 글. 고쳐 쓰기도 같은 프롬프트에 까닭과 지난 초안을 붙인다
   const spl = g.type === 'shape-plan'
   const swr = g.type === 'shape-write'
   // 기초 세우기(TODO 10) — 구조안은 바탕 구조안(재료 카드 → 첫 짜임) · 글은 같은 글 프롬프트(재료가 출처)
   const sseed = spl && g.kind === 'seed'
-  const schema = sseed ? SEED_PLAN_SCHEMA : spl ? SHAPE_PLAN_SCHEMA : swr ? SHAPE_WRITE_SCHEMA : corr ? FIX_SCHEMA : pol ? POLISH_SCHEMA : INTAKE_SCHEMA
-  let prompt = sseed ? seedPlanPromptOf(g) : spl ? shapePlanPromptOf(g) : swr ? shapeWritePromptOf(g, opt) : corr ? corrPromptOf(g, opt) : pol ? polishPromptOf(g, opt) : intakePromptOf(g, opt)
+  const schema = sseed ? SEED_PLAN_SCHEMA : spl ? SHAPE_PLAN_SCHEMA : swr ? SHAPE_WRITE_SCHEMA : pol ? POLISH_SCHEMA : INTAKE_SCHEMA
+  let prompt = sseed ? seedPlanPromptOf(g) : spl ? shapePlanPromptOf(g) : swr ? shapeWritePromptOf(g, opt) : pol ? polishPromptOf(g, opt) : intakePromptOf(g, opt)
   for (let i = 0; i <= INGEST_FIX(); i++) {
     const p0 = await call(server, dkey, `${base}/progress`, {}).catch(gone)
-    if (lost || p0.stop) return { job, summary: { put: 0, held: 0 }, skipped: lost ? 'lost' : 'stopped' }
+    if (lost || p0.stop) return { job, summary: { put: 0 }, skipped: lost ? 'lost' : 'stopped' }
     await gate.take()
     let r
     const t0 = Date.now()
@@ -153,7 +150,7 @@ export async function intakeOnce({ server, key, job, dkey, log = () => {}, budge
     } finally { gate.give() }
     log(`${name}: ${r.error ? `초안을 받지 못했다(${r.error}${r.message ? ' · ' + String(r.message).slice(0, 80) : ''})` : '초안'} · ${Math.round((Date.now() - t0) / 1000)}초 · 보낸 글 ${prompt.length}자${r.model ? ` · ${r.model}` : ''}`)
     await call(server, dkey, `${base}/progress`, { end: true, ok: !r.error, why: r.error ? String(r.message || r.error).slice(0, 200) : null }).catch(gone)
-    if (lost) return { job, summary: { put: 0, held: 0 }, skipped: 'lost' }
+    if (lost) return { job, summary: { put: 0 }, skipped: 'lost' }
     if (r.error) {
       const code = ['login', 'limit', 'missing', 'budget', 'shape'].includes(r.error) ? r.error : /^시간이 넘었다/.test(r.message || '') ? 'timeout' : 'fail'
       const why = String(r.message || r.error).replace(/\s+/g, ' ').slice(0, 200)
@@ -161,27 +158,26 @@ export async function intakeOnce({ server, key, job, dkey, log = () => {}, budge
       if (STOP[r.error]) {
         log(`팀 일꾼이 쉰다: ${STOP[r.error]}`)
         await call(server, key, '/api/worker/status', { ok: false, reason: r.error, message: STOP[r.error] }).catch((e) => log(`일꾼 상태를 알리지 못했다(${e.status || e.message})`))
-        return { job, summary: { put: 0, held: 0 }, skipped: r.error, stop: r.error }
+        return { job, summary: { put: 0 }, skipped: r.error, stop: r.error }
       }
       if (d?.retry) continue
-      if (d?.rule) log(`${name}: 규칙 길로 넣었다(${String(d.rule).slice(0, 120)})`)
-      return { job, summary: { put: 0, held: d?.held || 0, rule: d?.rule ? 1 : 0 }, rec: d?.rec || null }
+      return { job, summary: { put: 0 }, rec: d?.rec || null }
     }
     const d = await call(server, dkey, `${base}/done`, { draft: r.value, cost: r.cost || 0 }).catch((e) => (gone(e), { error: e.message }))
-    if (lost) return { job, summary: { put: 0, held: 0 }, skipped: 'lost' }
-    if (d.error) { log(`${name}: 초안을 넣지 못했다(${d.error})`); return { job, summary: { put: 0, held: 0 }, skipped: d.error } }
+    if (lost) return { job, summary: { put: 0 }, skipped: 'lost' }
+    if (d.error) { log(`${name}: 초안을 넣지 못했다(${d.error})`); return { job, summary: { put: 0 }, skipped: d.error } }
     if (d.fix) {
       log(`${name}: 검사에 걸렸다 · 고쳐 쓴다(${String(d.fix).slice(0, 120)})`)
-      prompt = sseed ? seedPlanFixPromptOf(g, r.value, d.fix) : spl ? shapePlanFixPromptOf(g, r.value, d.fix) : swr ? shapeWriteFixPromptOf(g, r.value, d.fix, opt) : corr ? corrRetryPromptOf(g, r.value, d.fix, opt) : pol ? [polishPromptOf(g, opt), `지난 초안이 kmd 검사에 걸렸다: ${d.fix}`, '걸린 항목만 고치고 값은 옛 글 그대로 둔다.', `지난 초안:\n${JSON.stringify(r.value)}`].join('\n\n') : intakeFixPromptOf(g, r.value, d.fix, opt)
+      prompt = sseed ? seedPlanFixPromptOf(g, r.value, d.fix) : spl ? shapePlanFixPromptOf(g, r.value, d.fix) : swr ? shapeWriteFixPromptOf(g, r.value, d.fix, opt) : pol ? [polishPromptOf(g, opt), `지난 초안이 kmd 검사에 걸렸다: ${d.fix}`, '걸린 항목만 고치고 값은 옛 글 그대로 둔다.', `지난 초안:\n${JSON.stringify(r.value)}`].join('\n\n') : intakeFixPromptOf(g, r.value, d.fix, opt)
       continue
     }
     await call(server, key, '/api/worker/status', { ok: true }).catch((e) => log(`일꾼 상태를 알리지 못했다(${e.status || e.message})`))
-    if (d.requeued) { log(`${name}: 그사이 항목이 바뀌었다 · 새 글로 다시 짓게 일감을 돌려놓았다`); return { job, summary: { put: 0, held: 0, rule: 0 }, requeued: true } }
-    if (d.aborted) { log(`${name}: 아무것도 쓰지 않았다(${String(d.why || '').slice(0, 120)})`); return { job, summary: { put: 0, held: 0, rule: 0 }, skipped: 'aborted' } }
-    log(`${name}: ${d.same ? '같은 것을 이미 들였다' : `넣음 ${d.put || 0}${d.rule ? ` · 규칙 길(${String(d.rule).slice(0, 120)})` : ''}${(d.held || []).length ? ` · 넣지 못함 ${(d.held || []).length}` : ''}`}`)
-    return { job, summary: { put: d.put || 0, held: (d.held || []).length, rule: d.rule ? 1 : 0 }, rec: d.rec || null }
+    if (d.requeued) { log(`${name}: 그사이 항목이 바뀌었다 · 새 글로 다시 짓게 일감을 돌려놓았다`); return { job, summary: { put: 0 }, requeued: true } }
+    if (d.aborted) { log(`${name}: 아무것도 쓰지 않았다(${String(d.why || '').slice(0, 120)})`); return { job, summary: { put: 0 }, skipped: 'aborted' } }
+    log(`${name}: ${d.same ? '같은 것을 이미 들였다' : `넣음 ${d.put || 0}`}`)
+    return { job, summary: { put: d.put || 0 }, rec: d.rec || null }
   }
-  return { job, summary: { put: 0, held: 0 } }
+  return { job, summary: { put: 0 } }
 }
 
 // 일감 하나 — 없으면 null · models — 일마다 모델(core/models.js · 없으면 기본 배분) · 서버는 들이기 일감만 낸다(S13)
@@ -190,7 +186,7 @@ export async function workOnce({ server, key, log = () => {}, budget = BUDGET(),
   if (!n.job) return null
   if (n.job.kind !== 'intake') {
     log(`모르는 일감이다(${n.job.kind}): 건너뛴다`)
-    return { job: n.job, summary: { put: 0, held: 0 }, skipped: 'kind' }
+    return { job: n.job, summary: { put: 0 }, skipped: 'kind' }
   }
   return intakeOnce({ server, key, job: n.job, dkey: n.key, log, budget, models, gate })
 }
@@ -239,7 +235,7 @@ export function runWorker({ server, key, poll = 10_000, log = (...a) => console.
         if (before) await before()
         const r = await workOnce({ server, key, log, models, gate })
         if (r) {
-          log(`${r.job.kn}: ${{ polish: '다듬기', 'shape-plan': 'Claude 구조안', 'shape-write': 'Claude 짓기' }[r.job.type] || '들이기'} · 넣음 ${r.summary?.put ?? 0}${r.summary?.rule ? ' · 규칙 길' : ''}${r.summary?.held ? ` · 넣지 못함 ${r.summary.held}` : ''}`)
+          log(`${r.job.kn}: ${{ polish: '다듬기', 'shape-plan': 'Claude 구조안', 'shape-write': 'Claude 짓기' }[r.job.type] || '들이기'} · 넣음 ${r.summary?.put ?? 0}`)
           continue
         }
       } catch (e) {

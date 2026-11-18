@@ -67,8 +67,6 @@ const approved = async (inp, who = P.wr) => {
 }
 
 test('모든 팀 지식 = approve(P11): 옛 지식도 proposal 없이 저장하면 E_APPROVE · 메모 = E_INPUT · 걸린 항목은 넣지 못함이 아니라 제안 오류(아무것도 쓰지 않음)', async () => {
-  assert.equal(s.hub.saveModeOf('dpms'), 'approve')
-  assert.equal(s.hub.saveModeOf('apv'), 'approve')
   const n0 = snap(kdir('dpms'))
   const sec = await canary('dpms')
   const no = await mcp('save', { ...input(sec.base), knowledge: 'dpms', kit: KIT })
@@ -228,15 +226,13 @@ test('approve: ingest/ 위조 = E_INPUT(P-D16) · 사람 글의 kmd 칸 머리 =
 
 test('새 지식 = approve(기록 모음 같이) · 빈 지식 판정은 기록 모음을 세지 않음 · 저장 방식 스위치 · /held 길은 걷음(P11)', async () => {
   const made = await s.hub.addKnowledge({ user: 'boss', admin: true }, { kind: 'new', name: '새승인', empty: true })
-  assert.equal(s.hub.saveModeOf(made.id), 'approve')
   assert.ok(fs.existsSync(path.join(kdir(made.id), 'docs', '기록 모음.md')))
-  assert.match(fs.readFileSync(path.join(kdir(made.id), '_members.md'), 'utf8'), /- 저장 방식: 승인/)
+  assert.doesNotMatch(fs.readFileSync(path.join(kdir(made.id), '_members.md'), 'utf8'), /저장 방식/, '저장 방식 표지는 없다(늘 승인)')
   await s.hub.seedGate({ user: 'boss', admin: true }, made.id)
   // 저장 방식 스위치는 걷었다(P11) — 길이 없다 · 옛 지식도 approve
   const no = await req('/api/k/apv/save-mode', P.wr, { save: 'held' })
   assert.ok([404, 405].includes(no.status), String(no.status))
   assert.equal(s.hub.setSaveMode, undefined)
-  assert.equal(s.hub.saveModeOf('dpms'), 'approve')
   // 넣지 못함 길(/held)도 걷었다
   const h = await fetch(`${s.url}/api/k/dpms/held`, { headers: { cookie: P.wr.cookie } })
   assert.ok([404, 405].includes(h.status), String(h.status))

@@ -12,7 +12,6 @@
 //          %APPDATA% 에 두지 않는다 — Claude 데스크톱 앱(MSIX) 안에서 쓰면 앱 전용 자리로 가상화되어 앱 안 · 밖이 다른 열쇠를 읽는다.
 //          예전 자리(%APPDATA%\kmd\keys · %APPDATA%\kmd\kmd-team-key.ps1)는 새 자리에 없을 때 읽고, 받아지면 새 자리로 옮겨 적는다
 //   안내   <폴더>/CLAUDE.md 안 `<!-- kmd-team:begin v=… -->` ~ `<!-- kmd-team:end -->` · 「이 폴더의 팀 지식」 표 · 표지 밖의 줄은 그대로
-//   옛 꼴  예전 한 덩이(`kmd:begin` · 팀 · 개인 섞인 표)의 팀 줄은 팀 덩이로 옮긴다. 그 덩이에 개인 지식이 없으면 덩이와 옛 스킬을 걷는다
 //
 // 판단(표 읽기 · 덩이 만들기 · 옛 덩이 보기)은 여기(서버) · PC 의 스크립트는 파일을 읽고 쓰기만 한다.
 
@@ -26,11 +25,10 @@ const KIT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'agent
 export const TEAM_SKILLS = ['kmd-team-work', 'kmd-team-save', 'kmd-team-import']
 // 작성가이드 사본을 둘 스킬(항목 글을 짓는 스킬) — 원본은 개인 kmd-build 의 것 한 벌
 const GUIDE_SKILLS = ['kmd-team-save', 'kmd-team-import']
-export const OLD_SKILLS = ['kmd-work', 'kmd-save', 'kmd-build']
 // 스킬 판(S-D15) — 팀 스킬 글 · 팀 덩이 · 작성가이드를 고치면 하나 올린다(test/teamkit.test.mjs 의 판 표가 잊으면 실패한다).
 //   스킬 글의 자리표 {{KIT_REV}} 를 이 값으로 바꿔 싣는다 → 세션이 MCP save 에 kit 으로 싣는다 →
 //   저장 측정 줄(savelog)에 싣는다(옛 판 안내 reinstall · nokit 은 P11 에서 걷었다)
-export const TEAM_KIT_REV = 12
+export const TEAM_KIT_REV = 13
 const withRev = (t) => t.replace(/\{\{KIT_REV\}\}/g, String(TEAM_KIT_REV)).replace(/\{\{GEN_RULES\}\}/g, () => genRulesBlock({ profile: 'session' }))
 
 export async function teamKitParts() {
@@ -52,13 +50,6 @@ const ROW = /^\|\s*「(.+?)」\s*\|\s*([^|\s]+)\s*\|/
 export function teamRows(block = '') {
   return String(block).replace(/\r/g, '').split('\n').map((l) => l.match(ROW)).filter(Boolean).filter((m) => m[2] !== 'id' && !/^-+$/.test(m[2])).map((m) => ({ kn: m[2], knName: m[1] }))
 }
-// 옛 한 덩이(kmd:begin)의 표 — | 「이름」 (기본) | 팀|개인 | kmd-team|kmd | id | … |
-const OLD_ROW = /^\|\s*「(.+?)」(?:\s*\(기본\))?\s*\|\s*(팀|개인)\s*\|\s*(kmd-team|kmd)\s*\|\s*([^|\s]+)\s*\|/
-export function legacyRows(block = '') {
-  return String(block).replace(/\r/g, '').split('\n').map((l) => l.match(OLD_ROW)).filter(Boolean).map((m) => ({ area: m[2] === '팀' ? 'team' : 'me', kn: m[4], knName: m[1] }))
-}
-// 옛 덩이를 걷어도 되나 — 표가 있고 개인 지식 줄이 없을 때만(개인 지식이 있으면 개인 프로그램이 고친다)
-export const legacyTeamOnly = (block = '') => { const rs = legacyRows(block); return rs.length > 0 && rs.every((r) => r.area === 'team') }
 
 export function teamBlock({ block, ver }, kns) {
   const rows = kns.map((k) => `| 「${k.knName || k.kn}」 | ${k.kn} | 이 팀 지식을 보는 팀 사람 |`)
@@ -66,11 +57,11 @@ export function teamBlock({ block, ver }, kns) {
   return `<!-- kmd-team:begin v=${ver} -->\n${block}${table}\n<!-- kmd-team:end -->`
 }
 
-// 붙일 팀 지식 목록 — 있던 팀 덩이 + 옛 덩이의 팀 줄 + 새 지식 · 지금 그 사람이 볼 수 있는 것만(이름은 팀 서버의 지금 이름)
-export function teamKns({ old = '', legacy = '', add, visible }) {
+// 붙일 팀 지식 목록 — 있던 팀 덩이 + 새 지식 · 지금 그 사람이 볼 수 있는 것만(이름은 팀 서버의 지금 이름)
+export function teamKns({ old = '', add, visible }) {
   const name = new Map(visible.map((k) => [k.id, k.name]))
   const out = []
-  for (const r of [...teamRows(old), ...legacyRows(legacy).filter((r) => r.area === 'team'), { kn: add }]) {
+  for (const r of [...teamRows(old), { kn: add }]) {
     if (!name.has(r.kn) || out.some((x) => x.kn === r.kn)) continue
     out.push({ kn: r.kn, knName: name.get(r.kn) })
   }
@@ -154,13 +145,12 @@ export function teamAgentPs({ origin, ticket, kn }) {
     "  [IO.File]::WriteAllText($kf, [Convert]::ToBase64String([Security.Cryptography.ProtectedData]::Protect($u8.GetBytes($key), $null, 'CurrentUser')) + \"`n\")",
     '  Write-Host "✓ 이 PC 를 팀 $o 에 $($r.user) 로 이었다. 팀 화면 › 설정 › 서버 정보 › 내 기기에 한 줄이 생긴다"',
     '}',
-    // ② 팀 덩이 · 스킬 — 지금 CLAUDE.md 의 팀 덩이 · 옛 덩이만 보내고 새 덩이를 받는다
+    // ② 팀 덩이 · 스킬 — 지금 CLAUDE.md 의 팀 덩이만 보내고 새 덩이를 받는다
     "$cf = Join-Path $d 'CLAUDE.md'",
     "$c = if (Test-Path $cf) { [IO.File]::ReadAllText($cf, $u8) } else { '' }",
     "$rt = '(?s)<!--\\s*kmd-team:begin[^>]*-->.*?<!--\\s*kmd-team:end\\s*-->'",
-    "$rp = '(?s)<!--\\s*kmd:begin[^>]*-->.*?<!--\\s*kmd:end\\s*-->'",
-    '$mt = [regex]::Match($c, $rt); $mp = [regex]::Match($c, $rp)',
-    '$q = $u8.GetBytes((@{ kn = $kn; block = $mt.Value; legacy = $mp.Value } | ConvertTo-Json -Compress))',
+    '$mt = [regex]::Match($c, $rt)',
+    '$q = $u8.GetBytes((@{ kn = $kn; block = $mt.Value } | ConvertTo-Json -Compress))',
     "try { $r = Invoke-RestMethod \"$o/api/agent/team-kit\" -Method Post -Headers @{ Authorization = \"Bearer $key\" } -ContentType 'application/json; charset=utf-8' -Body $q -UseBasicParsing } catch { Write-Host \"· 붙이지 못했다: $(Why $_)\"; return }",
     // .mcp.json — 깨진 파일은 덮지 않고 멈춘다(다른 연결은 그대로)
     "$mf = Join-Path $d '.mcp.json'",
@@ -187,13 +177,8 @@ export function teamAgentPs({ origin, ticket, kn }) {
     '}',
     "$hh = if ($he) { \"`\"$he`\" $o\" } else { \"powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `\"$hp`\" $o\" }",
     "$m.mcpServers | Add-Member -Force -NotePropertyName 'kmd-team' -NotePropertyValue ([pscustomobject]@{ type = 'http'; url = \"$o/mcp\"; headersHelper = $hh })",
-    // 스킬 · 옛 것 걷기 · CLAUDE.md
+    // 스킬 · CLAUDE.md
     'foreach ($s in $r.skills) { $f = Join-Path $d $s.rel; New-Item -ItemType Directory -Force (Split-Path $f) | Out-Null; [IO.File]::WriteAllText($f, $s.text, $u8) }',
-    'if ($r.dropLegacy) {',
-    "  foreach ($s in $r.oldSkills) { Remove-Item (Join-Path $d \".claude\\skills\\$s\") -Recurse -Force -ErrorAction SilentlyContinue }",
-    "  $c = [regex]::Replace($c, $rp, '').Trim(); if ($c) { $c += \"`n\" }",
-    '  $mt = [regex]::Match($c, $rt)',
-    '}',
     // .mcp.json 이 git 에 실린 폴더(동료와 나눈다) — 이 PC 경로가 든 연결은 local 범위로(UX T3-07)
     // 바깥 프로그램 부르기 — 위의 ErrorActionPreference Stop 에서 PowerShell 5.1 은 stderr 한 줄(2>$null 이어도)을 멈추는 오류로 바꾼다.
     // 이 함수 안에서만 Continue 로 두고 종료 코드만 돌려준다(git 저장소가 아닌 폴더 · claude 의 경고에 설치가 끊기지 않게)
@@ -210,7 +195,6 @@ export function teamAgentPs({ origin, ticket, kn }) {
     'if ($mt.Success) { $c = $c.Substring(0, $mt.Index) + $r.block + $c.Substring($mt.Index + $mt.Length) } elseif ($c.Trim()) { $c = $c.TrimEnd() + "`n`n" + $r.block + "`n" } else { $c = $r.block + "`n" }',
     '[IO.File]::WriteAllText($cf, $c, $u8)',
     'Write-Host "✓ $d 에 팀 지식 「$($r.name)」 을 붙였다. 이 폴더의 팀 지식 $($r.n) · 스킬 $($r.skillNames -join \' · \') · 연결 kmd-team"',
-    'if ($r.dropLegacy) { Write-Host "    예전 한 덩이 kmd 안내 · 스킬(kmd-work · kmd-save · kmd-build)을 걷었다" } elseif ($r.legacy) { Write-Host "    개인 지식 안내(kmd)는 개인 프로그램이 고친다: 개인 화면 › 설정 › 에이전트 설치 › 지금 모두 최신으로" }',
     // 연결 시험 — 같은 열쇠로 /mcp 에 brief 를 한 번 묻는다
     'try { $tb = $u8.GetBytes((@{ jsonrpc = "2.0"; id = 1; method = "tools/call"; params = @{ name = "brief"; arguments = @{ knowledge = $kn } } } | ConvertTo-Json -Compress -Depth 6)); $tr = Invoke-RestMethod "$o/mcp" -Method Post -Headers @{ Authorization = "Bearer $key" } -ContentType \'application/json; charset=utf-8\' -Body $tb -UseBasicParsing; if ($tr.error) { Write-Host "· 연결 시험이 막혔다: $($tr.error.message)" } else { Write-Host "✓ 연결 시험: 이 PC 열쇠로 팀 지식 「$($r.name)」 을 읽었다" } } catch { Write-Host "· 연결 시험이 막혔다: $(Why $_)" }',
     ...claudeCheckPs(),

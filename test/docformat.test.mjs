@@ -15,7 +15,6 @@ import { parseDoc, replaceSection, removeSection, renameSection, stampAll } from
 import { formatProblems, convertDoc, verifyConvert, docfmtDir, lintDoc, lintNew } from '../core/docformat.js'
 import { save, sectionBase } from '../core/save.js'
 import { loadKnowledge } from '../core/knowledge.js'
-import { check as checkDraft } from '../core/gate.js'
 import { render, linkTarget, linksOf, citesOf, docView } from '../server/views.js'
 import { copyDir } from './helpers.mjs'
 

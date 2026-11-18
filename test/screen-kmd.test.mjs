@@ -16,7 +16,6 @@ import { copyDir, signIn, seat } from './helpers.mjs'
 import { workOnce } from '../core/worker.js'
 import { sha16 } from '../core/text.js'
 import { sectionOf } from '../core/knowledge.js'
-import { saveRecords } from '../core/save.js'
 import { setSecret } from '../core/secrets.js'
 import http from 'node:http'
 
@@ -281,7 +280,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   assert.equal(await page.locator('.band, .status').count(), 0, '점검에도 띠 · 아래 줄 없음')
   // 걸린 검사만 판(경고 · 알림 칩 + 묶음 + (!) · 큰 수 · 이름 · 보기) · 0 인 검사는 「문제 없음 n」 아래 이름 + 0(개편 5단계 · 확정안 7-5)
   for (const t of ['항목 없음', '장부 밖', '장부에 없는 항목']) assert.ok((await page.locator('[data-t=guardCard]').innerText()).includes(t), t)
-  assert.equal(await page.locator('[data-t=guardCard] .cktile').count() + await page.locator('[data-t=guardOk] .ck-z').count(), 10, '검사 열은 판이거나 문제 없음 줄')
+  assert.equal(await page.locator('[data-t=guardCard] .cktile').count() + await page.locator('[data-t=guardOk] .ck-z').count(), 9, '검사 열은 판이거나 문제 없음 줄')
   const tileGroups = await page.locator('[data-t=guardCard] .cktile .ckt-g').evaluateAll((els) => new Set(els.map((e) => e.textContent.replace(/[·!\s]/g, ''))).size)
   assert.ok(tileGroups >= 1)
   assert.equal(await page.locator('[data-t=ckGroup] .tipb').count(), tileGroups, '판이 있는 줄 묶음마다 (!) 하나')
@@ -580,7 +579,7 @@ test('셸 · 지식 목록 · 문서로 보기: 목업과 같은 글 · 단추 �
   await page.close()
 })
 
-test('정리를 걷었다(S13): 항목 글 없는 기록은 메모 · 옛 정리 화면은 넣지 못함으로 · 설정 › 일반의 팀 지식 표 · 문서 다듬기 단추 · 오늘 바뀐 것 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
+test('정리를 걷었다(S13): 항목 글 없는 기록은 메모 · 설정 › 일반의 팀 지식 표 · 문서 다듬기 단추 · 오늘 바뀐 것 · 금지어 0', { skip: !CHROME && 'Chrome 이 없다' }, async () => {
   process.env.KMD_CLAUDE = path.join(HERE, 'fixture', 'fake-claude.mjs')
   // lee — dpms 에 쓰기 자리를 받은 팀원(받지 않은 지식은 없음이 기본 · 권한 모델 v1.1)
   if (!s.auth.people().includes('lee')) { await s.auth.addUser({ id: 'lee', admin: false }); await seat(s, 'lee', { dpms: 'write' }) }
@@ -596,10 +595,6 @@ test('정리를 걷었다(S13): 항목 글 없는 기록은 메모 · 옛 정리
   await page.click('[data-t=nav-settings-team]')
   await page.waitForSelector('[data-t=mgNav]')
   assert.ok(!(await mgItems(page)).includes('정리'), '정리 메뉴는 걷었다')
-  // 옛 정리 화면(#tidy)은 점검으로
-  // 다시 그리기가 #app 을 통째로 바꾸므로 단추는 #app 밖(body)에 두고 만든 그 자리에서 누른다(옛 시험은 누르기 전에 지워져 가끔 실패했다)
-  await page.evaluate(() => { const x = document.createElement('button'); x.type = 'button'; x.dataset.a = 'nav'; x.dataset.s = 'tidy'; document.body.appendChild(x); x.click(); x.remove() })
-  await page.waitForFunction(() => /^점검/.test(document.querySelector('.main .big')?.textContent || ''))
   assert.equal(await page.locator('[data-t=tdKnSel], [data-t=tidyBtn], [data-t=tdSum]').count(), 0)
   // 지식관리 › 모든 지식(옛 설정 › 팀 지식 · N6) — 지식마다 표 · 옛 정리 표는 없다 · Claude 에 보내기는 지식 상세 › 정책
   await mg(page, 'team', 'kns')
@@ -1948,7 +1943,6 @@ test('저장 승인 PC3: 개인 화면 — 승인 저장 개인 지식의 저장
   fs.mkdirSync(data, { recursive: true })
   fs.writeFileSync(path.join(data, 'serve.json'), JSON.stringify({ curateOnStart: false, decideMs: 3600000, inboxTickMs: 3600000 }))
   const pc3 = await startServer({ root, data, mode: 'pc', user: 'kim', port: 0, log: () => {}, scryptN: 1 << 15 })
-  assert.equal(pc3.hub.saveModeOf('apv'), 'approve')
   const old = (await pc3.hub.get('apv')).works.find((w) => w.state === 'old')
   assert.ok(old, '옛 상태 기록이 있다')
   const page = await browser.newPage({ viewport: VIEW })

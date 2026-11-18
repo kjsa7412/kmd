@@ -454,8 +454,6 @@ export function audit(k, { sectionOf, coordsOfSection }) {
     const xs = w.touches.filter((c) => !k.vocab.coords.has(c))
     if (xs.length) outside.push({ id: w.id, title: w.title, date: w.date, names: xs })
   }
-  // 폐기된 항목을 단 기록 — 아직 안 넣은 기록(옛 pend)만 셌다 · 저장 승인 뒤에는 저장 문이 폐기된 항목을 받지 않는다(P12)
-  const deprecatedUse = []
   const lost = []
   for (const [c] of live) {
     const s = sectionOf(k, c)
@@ -494,7 +492,7 @@ export function audit(k, { sectionOf, coordsOfSection }) {
     if (!byName.has(p) && !byName.has(href) && !byName.has('docs/' + href)) brokenLink.push({ doc: d.id, heading: sec.h, link: m[1] })
   }
   return {
-    counts: { brokenLink: brokenLink.length, names: k.vocab.coords.size, live: live.length, records: k.works.length, sections: k.docs.reduce((n, d) => n + d.sections.length, 0), unnamed: unnamed.length, outside: outside.length, deprecatedUse: deprecatedUse.length, lost: lost.length, noName: noName.length, aliasClash: aliasClash.length, sameLabel: sameLabel.length, brokenHead: brokenHead.length, spaced: spaced.length },
-    unnamed, outside, deprecatedUse, lost, noName, aliasClash, sameLabel, brokenHead, spaced, brokenLink,
+    counts: { brokenLink: brokenLink.length, names: k.vocab.coords.size, live: live.length, records: k.works.length, sections: k.docs.reduce((n, d) => n + d.sections.length, 0), unnamed: unnamed.length, outside: outside.length, lost: lost.length, noName: noName.length, aliasClash: aliasClash.length, sameLabel: sameLabel.length, brokenHead: brokenHead.length, spaced: spaced.length },
+    unnamed, outside, lost, noName, aliasClash, sameLabel, brokenHead, spaced, brokenLink,
   }
 }

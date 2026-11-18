@@ -1,7 +1,7 @@
 // 저장소 · 지식백업 나눔(메뉴개편 8-3 · 11절 5 · G1) — 원격 둘 · 가지 받기.
 //
 // 저장소(kmd-backup · <살림>/backup/)는 지식마다 주소 + 가지(처음 값 main · git 가지 이름 규칙) · 지식백업(kmd-copy · <살림>/copy/)은
-// 이 PC 사본 자리 아래 <지식>.git · 저장소를 붙여도 꺼지지 않고 둘 다 보낸다 · 멈춤 줄 · 상태는 원격마다 · 옛 지식백업(저장소 원격에 붙은 사본)은 켤 때 옮긴다.
+// 이 PC 사본 자리 아래 <지식>.git · 저장소를 붙여도 꺼지지 않고 둘 다 보낸다 · 멈춤 줄 · 상태는 원격마다 .
 
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -78,7 +78,7 @@ test('팀: 저장소는 고른 가지로 민다 · 상태에 가지 · 나쁜 �
   }
 })
 
-test('개인: 지식백업 · 저장소는 따로 돈다 · 저장소를 붙여도 지식백업이 꺼지지 않는다 · 옛 지식백업 옮기기', async () => {
+test('개인: 지식백업 · 저장소는 따로 돈다 · 저장소를 붙여도 지식백업이 꺼지지 않는다', async () => {
   const dir = path.join(tmp, 'pc')
   const root = path.join(dir, 'kn')
   copyDir(FIX, root)
@@ -86,35 +86,10 @@ test('개인: 지식백업 · 저장소는 따로 돈다 · 저장소를 붙여�
   const repo = path.join(dir, 'repo.git')
   fs.mkdirSync(copies, { recursive: true })
   G(dir, 'init', '-q', '--bare', '-b', 'main', repo)
-  // 옛 판의 지식백업 — 사본 자리의 <지식>.git 이 저장소 원격(kmd-backup) · <살림>/backup/ 에 붙어 있다.
-  //   gdi = 옮기기 앞(원격 kmd-backup) · test-half = 반쯤 옮기다 넘어짐(원격은 이미 kmd-copy · 상태 파일은 아직 backup/)
-  copyDir(path.join(FIX, 'gdi'), path.join(root, 'test-half'))
-  fs.mkdirSync(path.join(root, '.kmd', 'backup'), { recursive: true })
-  const olds = {}
-  for (const [id, rm] of [['gdi', 'kmd-backup'], ['test-half', 'kmd-copy']]) {
-    const d = path.join(root, id)
-    const old = path.join(copies, `${id}.git`)
-    olds[id] = old
-    G(dir, 'init', '-q', '--bare', '-b', 'main', old)
-    G(d, 'init', '-q', '-b', 'main')
-    G(d, 'add', '-A')
-    G(d, 'commit', '-q', '-m', '처음')
-    G(d, 'remote', 'add', rm, old)
-    fs.writeFileSync(path.join(root, '.kmd', 'backup', `${id}.json`), JSON.stringify({ url: old, branch: 'main', pushed: null, at: new Date().toISOString() }))
-  }
-  const gdi = path.join(root, 'gdi')
+  fs.mkdirSync(path.join(root, '.kmd'), { recursive: true })
   fs.writeFileSync(path.join(root, '.kmd', 'serve.json'), JSON.stringify({ backupRoot: copies, backupRoots: [dir], decideMs: 3600000 }))
   const s = await startServer({ root, mode: 'pc', user: 'me', port: 0, log: () => {} })
   try {
-    // 옛 지식백업이 지식백업 원격으로 옮겨졌다(반쯤 옮긴 것도 이어서)
-    for (const id of ['gdi', 'test-half']) {
-      assert.equal(fs.existsSync(path.join(root, '.kmd', 'backup', `${id}.json`)), false, id)
-      assert.ok(fs.existsSync(path.join(root, '.kmd', 'copy', `${id}.json`)), id)
-      const rs = G(path.join(root, id), 'remote')
-      assert.match(rs, /kmd-copy/, id)
-      assert.doesNotMatch(rs, /kmd-backup/, id)
-      assert.equal(s.hub.backupStateSync(await s.hub.meta(id)), null, id + ': 저장소가 아니다')
-    }
     const me = { user: 'me' }
     const dmeta = await s.hub.meta('dpms', me)
     assert.ok(await until(() => !!s.hub.copyStateSync(dmeta)), '켤 때 지식백업이 저절로 붙는다')

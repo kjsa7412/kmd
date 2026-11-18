@@ -20,7 +20,7 @@ import { put as kput, get as kget, keyName } from '../../core/keystore.js'
 import { setSecret, listSecrets, getSecret } from '../../core/secrets.js'
 import { prehash } from '../../app/prehash.js'
 
-import { addMcp, removeMcp, safeOrigin } from '../../core/claudecfg.js'
+import { addMcp, safeOrigin } from '../../core/claudecfg.js'
 import { taskXml, upgrade, appHomeOf, launcherOf, linkVersion, makeShortcut, readPcRoot, writePcRoot, pcRootKind } from '../../core/pcops.js'
 import { installLines, pickBackupDir, startViaTask } from '../../core/install.js'
 import { ensureRepo } from '../../core/git.js'
@@ -51,8 +51,8 @@ const HELP = `kmd ${VERSION}
             없으면 주인 칸을 비운다(개인 지식은 관리자만 본다)
   kmd user key <아이디>                         그 사람의 기기 열쇠(kmdk_)를 하나 만들어 한 번만 찍는다(기기 이름 「셸」):
       서버 운영자의 자동화 · 시험용. 그 사람의 자리 그대로 API · MCP 를 쓴다 · 끊기는 화면 › 사람 › 기기 모두 끊기
-  kmd owner <지식> [사람] [--curators 가,나]
-      지식의 주인 · 지식관리자(--curators · 둘 다 그 지식의 지식관리자)
+  kmd owner <지식> [사람]
+      지식의 주인(그 지식의 지식관리자 · 다른 지식관리자는 kmd access)
   kmd access <지식> [--all 읽기|쓰기|지식관리자|없음] [--user 아이디=자리 …] [--group 묶음=자리 …]
       지식마다 자리(읽기 · 쓰기 · 지식관리자 · 옛 이름 관리도 받는다): 인자 없으면 지금 표를 보인다 · 자리 「없음」 이면 그 줄을 뺀다 · 여럿은 쉼표로도
   kmd group [add <묶음> <아이디,…> | rm <묶음> | <묶음> +아이디 -아이디]
@@ -277,7 +277,6 @@ async function agentCmd(o) {
   }
 }
 // 시작 메뉴의 kmd — 개인 프로그램을 켜 두고(꺼져 있으면 켠다) 개인 화면을 연다(팀 화면은 개인 프로그램을 부르지 않는다 · 분리)
-//   --pc 는 옛 시작 메뉴 바로 가기가 붙여 오므로 받아만 둔다
 async function openCmd(o) {
   const root = path.resolve(o._[0] || o.root || defaultPcRoot())
   let url = await runningPc(root, o)
@@ -461,15 +460,16 @@ async function backupCmd(o) {
   }
 }
 
-// 주인 · 개인 · 지식관리자 — 셸(서버를 띄운 사람)이 바로 정한다
+// 주인 — 셸(서버를 띄운 사람)이 바로 정한다 · 지식관리자는 kmd access 자리 표로
 async function ownerCmd(o) {
   const root = path.resolve(o.root || (fs.existsSync(defaultPcRoot()) ? defaultPcRoot() : '.'))
   const [id, who] = o._
   try {
-    if (!id) throw new Error('kmd owner <지식> [사람] [--curators 가,나]')
+    if (!id) throw new Error('kmd owner <지식> [사람]')
+    if (o.curators != null) throw new Error('지식관리자는 kmd access 자리 표로 준다(--curators 는 걷었다)')
     const hub = await makeHub({ root, dataDir: o.data ? path.resolve(o.data) : defaultDataDir(root), log: () => {} })
-    const row = await hub.setOwner(SHELL, id, { owner: who || undefined, curators: o.curators ? String(o.curators).split(',').map((x) => x.trim()).filter(Boolean) : undefined })
-    console.log(`${id}: 주인 ${row.owner || '없음'} · 지식관리자 ${row.curators.join(', ') || '없음'}: 도는 서버에도 곧 보인다`)
+    const row = await hub.setOwner(SHELL, id, { owner: who || undefined })
+    console.log(`${id}: 주인 ${row.owner || '없음'}: 도는 서버에도 곧 보인다`)
   } catch (e) {
     console.error(e.message)
     process.exitCode = 1
@@ -519,7 +519,7 @@ async function accessCmd(argv) {
       await hub.setAccess(SHELL, id, { ...(o.all !== undefined ? { all: String(o.all) } : {}), ...(us.length ? { users } : {}), ...(gs.length ? { groups } : {}) })
     }
     const v = await hub.accessView(SHELL, id)
-    console.log(`${id}: 모두 ${LV[v.all]}${v.legacy ? ' (옛 장부: 아직 자리 표가 없다)' : ''} · 주인 ${v.owner || '없음'}(관리)`)
+    console.log(`${id}: 모두 ${LV[v.all]}${v.noTable ? ' (아직 자리 표가 없다 · 기본 없음)' : ''} · 주인 ${v.owner || '없음'}(지식관리자)`)
     for (const l of ['admin', 'write', 'read']) {
       const who = Object.keys(v.users).filter((u) => v.users[u] === l)
       if (who.length) console.log(`  ${LV[l]}: ${who.sort().join(', ')}`)
@@ -700,7 +700,7 @@ async function guardCmd(o) {
     if (!id && !all) throw new Error('kmd guard <지식> | --all [--list]')
     const hub = await makeHub({ root: rootOf(o), dataDir: dataOf(o), log: () => {} })
     const ids = all ? (await hub.list()).map((k) => k.id) : [id]
-    const L = { unnamed: '항목 없는 기록', outside: '장부 밖 항목을 단 기록', deprecatedUse: '폐기된 항목을 단 반영 대기 기록', lost: '머리 잃은 항목', noName: '장부에 없는 항목', aliasClash: '별칭 겹침', sameLabel: '같은 라벨(알림)', brokenHead: '깨진 머리', spaced: '값에 빈칸이 든 항목(옛 모양)' }
+    const L = { unnamed: '항목 없는 기록', outside: '장부 밖 항목을 단 기록', lost: '머리 잃은 항목', noName: '장부에 없는 항목', aliasClash: '별칭 겹침', sameLabel: '같은 라벨(알림)', brokenHead: '깨진 머리', spaced: '값에 빈칸이 든 항목(옛 모양)' }
     for (const x of ids) {
       const r = await hub.guardAudit(SHELL, x)
       const c = r.counts
@@ -1024,11 +1024,9 @@ async function pcCmd(o) {
       }
       const helper = `"${launcherOf(home, 'kmd-key')}"`
       const url = await runningPc(root, o)
-      // 개인 연결 kmd 만 다시 건다 — 팀 연결(kmd-team)은 작업 폴더마다 팀 화면 › 설정 › 에이전트 설치가 둔다(예전 판이 사용자 범위에 건 것은 걷는다)
+      // 개인 연결 kmd 만 다시 건다 — 팀 연결(kmd-team)은 작업 폴더마다 팀 화면 › 설정 › 에이전트 설치가 둔다
       const c = await addMcp('kmd', url || `http://127.0.0.1:${o.port || 7373}`, helper)
       if (!c.ok && !c.skipped) console.log(`· Claude Code 의 kmd 를 다시 걸지 못했다${c.why ? ': ' + c.why : ''}${c.line ? ` · 한 번: ${c.line}` : ''}`)
-      const g = await removeMcp('kmd-team')
-      if (g.removed) console.log('· 예전 판이 Claude Code 사용자 범위에 건 kmd-team 을 걷었다. 팀 지식은 작업 폴더마다: 팀 화면 › 설정 › 에이전트 설치')
       // 다시 켜기 — 도는 kmd 를 이 PC 의 열쇠로 멈추고 새 판으로 · 안 켜지면 앞 판으로 되돌려 켠다
       if (!url) return void console.log('개인 프로그램이 꺼져 있다. 다음에 켤 때부터 새 판이다')
       const dir = path.join(home, 'versions', r.ver)

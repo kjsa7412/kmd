@@ -54,7 +54,7 @@ const V2_PROPS = {
 export const TOOLS = [
   {
     name: 'brief',
-    description: '지금 kmd 에 무엇이 있나: 지식 목록 · 지식 하나의 문서 · 최근 기록 · 종류(kinds) · 갈래(forms) · 생성 룰의 판과 조문 제목(rulesRev · ruleTitles) · 종류의 뜻(kindCards) · 문서의 성격(natures) · 저장 방식(saveMode: approve — 저장 제안을 승인받아 save) · kit(스킬 판: save 의 kit 에 그대로 싣는다 · 측정에만 쓴다). 팀 지식이면 지식마다 mine(accepted: 승인으로 경고를 받아들인 내 기록 수) · 지식 하나의 you.recent(그 기록의 제목 · 까닭) · parser(대량 넣기 파서 꾸러미: ver · url · sha256 · bytes · 없으면 null). 일을 시작할 때 한 번.',
+    description: '지금 kmd 에 무엇이 있나: 지식 목록 · 지식 하나의 문서 · 최근 기록 · 종류(kinds) · 갈래(forms) · 생성 룰의 판과 조문 제목(rulesRev · ruleTitles) · 종류의 뜻(kindCards) · 문서의 성격(natures) · 저장 방식(saveMode: 늘 approve — 저장 제안을 승인받아 save) · kit(스킬 판: save 의 kit 에 그대로 싣는다 · 측정에만 쓴다). 팀 지식이면 지식마다 mine(accepted: 승인으로 경고를 받아들인 내 기록 수) · 지식 하나의 you.recent(그 기록의 제목 · 까닭) · parser(대량 넣기 파서 꾸러미: ver · url · sha256 · bytes · 없으면 null). 일을 시작할 때 한 번.',
     inputSchema: { type: 'object', properties: { knowledge: str('지식 id(없으면 목록)') } },
   },
   {
@@ -105,7 +105,7 @@ export const TOOLS = [
       properties: {
         knowledge: str('지식 id'),
         kit: str('스킬 판(kmd-team-save · kmd-team-import · kmd-save 스킬 글이 준 값 그대로 · 예 "8")'),
-        proposal: str('승인한 저장 제안의 지문(propose 가 준 proposal 64자 그대로): 저장 제안을 받는 지식(brief 의 saveMode: approve)은 꼭 싣는다. 없거나 어긋나면 E_APPROVE 로 아무것도 쓰지 않고 새 제안(details.propose)을 돌려준다'),
+        proposal: str('승인한 저장 제안의 지문(propose 가 준 proposal 64자 그대로): 늘 싣는다(저장은 늘 승인이다). 없거나 어긋나면 E_APPROVE 로 아무것도 쓰지 않고 새 제안(details.propose)을 돌려준다'),
         distinct: { type: 'array', items: { type: 'string' }, description: 'propose 에 보낸 distinct 그대로' },
         excluded: { type: 'array', items: { type: 'object', properties: { name: str('뺀 항목'), why: str('까닭 한 줄') }, required: ['name'] }, description: 'propose 에 보낸 excluded 그대로' },
         kinds: { type: 'array', items: { type: 'string' }, description: 'propose 에 보낸 kinds 그대로' },
@@ -200,7 +200,7 @@ export function makeMcp(store) {
         id: k.id,
         name: k.name,
         ...whereOf(store, k.id),
-        saveMode: 'approve',
+        saveMode: 'approve', // 늘 승인(옛 판 스킬이 이 칸을 읽는다)
         ...(store.mode === 'pc' ? { kit: PC_KIT_REV } : { kit: TEAM_KIT_REV, parser: await parserOf() }),
         docs: k.docs.map((d) => ({ doc: d.id, title: d.title, headings: d.sections.map((s) => s.h) })),
         recent: k.works.slice(0, 10).map((w) => ({ id: w.id, date: w.date, author: w.author, title: w.title })),
@@ -381,8 +381,7 @@ export function makeMcp(store) {
     },
   }
 
-  // 상태 말 — 저장 문의 새 상태(넣지 못함 · 메모 · 바로잡힘 · 되돌림)는 「문서에 들어감」 으로 보이지 않게(S4 · 나머지 말은 S10)
-  //   팀 · 개인 한 벌(저장 승인 설계 P-D44 · P4 · PC2) — 저장 승인 전 기록은 「기록」 하나(옛 상태를 가르지 않는다 · P12)
+  // 상태 말 — 바로잡힘 · 되돌림은 「문서에 들어감」 으로 보이지 않게(S4) · 저장 승인 전 기록은 「기록」 하나(P12)
   const STATE_WORD = { old: '기록', fixed: '바로잡힘', reverted: '되돌림', none: 'kmd 가 한 일' }
   const recOut = (w) => ({ id: w.id, date: w.date, author: w.author, title: w.title, state: STATE_WORD[w.state] || '문서에 들어감' })
 

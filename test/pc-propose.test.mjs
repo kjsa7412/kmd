@@ -74,8 +74,6 @@ const input = (base, over = {}) => ({
 })
 
 test('저장 방식: 개인 지식은 모두 approve(표지 없는 지식도 · P12) · 옛 지식도 propose 를 받는다', async () => {
-  assert.equal(pc.hub.saveModeOf('apv'), 'approve')
-  assert.equal(pc.hub.saveModeOf('dpms'), 'approve')
   const r = await call('propose', { knowledge: 'dpms', record: { title: '헬스 체크: 주기', why: ['시험'], touches: ['proc:헬스 체크'] } })
   assert.ok(!r.error, JSON.stringify(r))
   assert.match(r.proposal, /^[0-9a-f]{64}$/)
@@ -183,11 +181,10 @@ test('지문은 저장 문 한 벌: approve 개인 지식에 base 없는 고침 
   assert.doesNotMatch(r.message, /이미 있는 항목이다/)
 })
 
-test('새 개인 지식 = approve: _members.md 「저장 방식: 승인」 · 기록 모음을 같이 세워 한 커밋 · proposal 없음 = E_APPROVE', async () => {
+test('새 개인 지식 = approve: _members.md 에 저장 방식 표지가 없다 · 기록 모음을 같이 세워 한 커밋 · proposal 없음 = E_APPROVE', async () => {
   const made = await pc.hub.addKnowledge(KIM, { kind: 'new', name: '테스트 새 개인' })
-  assert.equal(pc.hub.saveModeOf(made.id), 'approve')
   const d = made.dir
-  assert.match(fs.readFileSync(path.join(d, '_members.md'), 'utf8'), /^- 저장 방식: 승인$/m)
+  assert.doesNotMatch(fs.readFileSync(path.join(d, '_members.md'), 'utf8'), /저장 방식/)
   assert.ok(fs.existsSync(path.join(d, ...RECORDS_DOC_PATH.split('/'))), '기록 모음')
   const tracked = execFileSync('git', ['-c', 'core.quotepath=false', '-C', d, 'ls-files'], { encoding: 'utf8' }).split('\n')
   for (const f of ['_members.md', RECORDS_DOC_PATH, 'README.md', 'docs/처음.md']) assert.ok(tracked.includes(f), `${f} 커밋`)
@@ -219,16 +216,14 @@ test('개인 화면 길(http 채널)도 승인한 제안이면 들어감 · 표�
   const keep = fs.readFileSync(mf, 'utf8')
   try {
     fs.writeFileSync(mf, ['# 사람', '', '- 주인: kim', ''].join('\n'))
-    assert.equal(pc.hub.saveModeOf('apv'), 'approve')
   } finally { fs.writeFileSync(mf, keep) }
 })
 
-test('새 개인 지식: 사람 칸에 주인 · Claude 줄이 없다 · 주인 · 자리 고침이 저장 방식 표지를 지우지 않는다 · 빈 지식은 기록 모음을 세지 않는다', async () => {
+test('새 개인 지식: 사람 칸에 주인 · Claude 줄이 없다 · 주인 · 자리 고침 뒤에도 저장 방식 표지가 없다 · 빈 지식은 기록 모음을 세지 않는다', async () => {
   const made = await pc.hub.addKnowledge(KIM, { kind: 'new', name: '테스트 사람 칸', empty: true })
   const mf = path.join(made.dir, '_members.md')
-  assert.equal(fs.readFileSync(mf, 'utf8'), ['# 사람', '', '- 저장 방식: 승인', ''].join('\n'))
+  assert.equal(fs.readFileSync(mf, 'utf8'), ['# 사람', ''].join('\n'))
   await pc.hub.setOwner(KIM, made.id, { curators: ['kim'] })
-  assert.match(fs.readFileSync(mf, 'utf8'), /^- 저장 방식: 승인$/m, '주인 · 지식관리자 고침 뒤에도')
-  assert.equal(pc.hub.saveModeOf(made.id), 'approve')
+  assert.doesNotMatch(fs.readFileSync(mf, 'utf8'), /저장 방식/, '주인 · 지식관리자 고침 뒤에도')
   assert.equal(knowledgeRow(await pc.hub.get(made.id)).docs, 0, '빈 지식(기록 모음은 세지 않는다)')
 })

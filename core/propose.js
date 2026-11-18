@@ -11,14 +11,14 @@ import { sectionOf } from './knowledge.js'
 import { locate } from './registry.js'
 import { oldValues, valuesOf, judgeId, judgeReflect } from './values.js'
 import { judgeSection, foldJudge } from './gate.js'
-import { judgeEdits, validEdits } from './edits.js'
+import { judgeEdits } from './edits.js'
 import { headingMatches } from './sections.js'
 import { createHash } from 'node:crypto'
 import { guardRecord, guardNames, guardNewDoc, nearOf, nameNear, nearKey, RECORDS_DOC, RECORDS_DOC_PATH } from './guard.js'
 import { mustValues } from './values.js'
 import { formsAfter, upsertForms } from './namebook.js'
 
-// 바꿀 곳 대는 법은 core/edits.js 로 옮겼다(S2 · propose ↔ 옛 정리 모듈 순환 끊기) — 부르는 곳을 바꾸지 않게 다시 내보낸다
+// 바꿀 곳 대는 법은 core/edits.js 에 있다 — 부르는 곳을 바꾸지 않게 다시 내보낸다
 export { EDIT_MAX, EDIT_CHARS, validEdits, applyEdits } from './edits.js'
 
 // 항목 자리 — 항목(coord · 항목 장부) 또는 문서 · 머리(장부에 없는 항목도 · S-D55) → { doc(docs/x.md), heading, sec } | null
@@ -39,7 +39,7 @@ export function placeOf(k, { coord, doc, heading }) {
 // 제안 하나의 판정(저장 승인 설계 P1) — 쓰지 않고 오류 · 경고를 나눠 낸다
 //   → { text?(바꿀 곳을 다 댄 새 글), at?(항목 자리), errors: [{ id, code(notfound · conflict · edits · format · machine), why, stale?, near?, at? }],
 //       warnings: [{ id, code(missing · invented · lost · remain), doc, heading, values, why }], changed, lint }
-//   remain(기록이 바꿨다는 옛 값이 글에 아직 남음)은 held 모드에서도 막지 않는 알림이다. 다른 값 경고는 held 모드에서 「못 넘음」(checkProposal)
+//   remain(기록이 바꿨다는 옛 값이 글에 아직 남음)은 막지 않는 알림이다. 다른 값 경고는 checkProposal 에서 「못 넘음」
 export function judgeProposal(k, { coord, doc, heading, base, edits, record, spread = false }) {
   const at = placeOf(k, { coord, doc, heading })
   const where = at ? [at.doc, at.heading] : [doc ?? coord ?? '', heading ?? '']
@@ -62,7 +62,7 @@ export function judgeProposal(k, { coord, doc, heading, base, edits, record, spr
 // 제안 하나를 지금 지식에 대어 검사한다 — { ok, text, why, code, changed, stale, near, warnings, lint }
 //   k — 지식 · coord 또는 doc + heading — 항목 · base — 세션이 읽은 지문 · edits — 바꿀 곳 · record — 함께 보낸 기록({ title, body }) ·
 //   spread — 고칠 항목이 여럿(기록의 값이 항목들에 나뉜다)
-//   P1 부터 judgeProposal 위의 얇은 덮개(held 모드 판정 그대로: 첫 오류 · 없으면 remain 아닌 첫 값 경고가 「못 넘음」)
+//   judgeProposal 위의 얇은 덮개(첫 오류 · 없으면 remain 아닌 첫 값 경고가 「못 넘음」)
 export function checkProposal(k, input) {
   const j = judgeProposal(k, input)
   const e = j.errors[0]
@@ -71,18 +71,6 @@ export function checkProposal(k, input) {
   if (f) return f
   const warnings = j.warnings.filter((w) => w.code === 'remain').map((w) => w.why)
   return { ok: true, text: j.text, changed: j.changed, ...(warnings.length ? { warnings } : {}), ...(j.lint ? { lint: j.lint } : {}) }
-}
-
-// 옛 기록 본문의 「## 고친 조각」 칸 — 개편 전(S4 전) 세션 저장이 제안을 기록에 실었다. 새 입력에서는 받지 않는다(core/parts.js KMD_PART_RE) ·
-//   옛 기록 읽기만 남는다(쓰기는 S13 에 걷었다) · 값 검사(core/values.js knowledgeParts)는 이 칸을 지식 값으로 치지 않는다
-export const PROPOSAL_PART = '고친 조각'
-export function parseProposals(body) {
-  const m = String(body || '').match(new RegExp(`^## ${PROPOSAL_PART}\\s*\\n\`\`\`json\\n([\\s\\S]*?)\\n\`\`\``, 'm'))
-  if (!m) return []
-  try {
-    const v = JSON.parse(m[1])
-    return Array.isArray(v) ? v.filter((p) => p && typeof p === 'object' && !Array.isArray(p) && typeof p.coord === 'string' && typeof p.base === 'string' && validEdits(p.edits).ok) : []
-  } catch { return [] }
 }
 
 // ── 저장 제안(저장 승인 설계 P-D3 · P-D4 · P-D10 · 2-1 · P2) — 쓰지 않고, 서버가 정한 꼴의 【저장 제안】 글 · 항목 · 새로 서는 것 · 경고 · 오류 · 해시 ──
@@ -231,7 +219,7 @@ export function buildProposal(k, input, { newDoc = false, head = {}, extraErrors
       : { ...judgeSection(k, { doc: at.doc, heading: at.heading, base: s.base, content: s.content, record, spread }), text: s.content }
     for (const e of j.errors) err(e.code, where, e.why, { ...(e.near ? { near: [e.near] } : {}), ...(e.stale ? { stale: true } : {}) })
     for (const w of j.warnings) warnings.push(warnOf(w))
-    // 되돌림 잦은 문서(S-D11) — held 모드는 그 항목을 넣지 못함으로 · approve 모드는 경고(승인하면 받아들임)
+    // 되돌림 잦은 문서(S-D11) — 경고(승인하면 받아들임)
     if (approve && reverts && j.changed?.length && !j.errors.length && reverts(at.doc) >= 2) warnings.push({ id: judgeId('reverts', at.doc, at.heading, ...j.changed.map((c) => `${c.from}>${c.to}`).sort()), code: 'reverts', at: where, why: '7일 안에 두 번 되돌린 문서의 값을 바꾼다' })
     const after = typeof j.text === 'string' ? j.text : before
     items.push({ kind: '고침', ...(coord ? { coord } : {}), doc: at.doc, heading: at.heading, at: where, base: sha16(before), before, after, changed: j.changed || [] })
