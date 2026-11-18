@@ -430,39 +430,20 @@ judge: {
 
 ### 5-2. `save` 입력 꼴(하나: `sections · names · forms` · 옛잔재 O-11)
 
-저장 입력은 한 꼴이다(옛잔재 정리 O-11): `record`(일곱 칸 · `touches` | `touchesEmpty` · `fixes`) + `sections[{ coord | doc · heading, base, edits | content }]`(고칠 항목 · `edits` 한 칸은 「바꿀 곳」) + `names[{ coord, label, aliases?, doc, heading, … }]`(장부에 세울 항목 · 값은 빈칸 없는 열쇠) + `forms[{ name, aliases, folder?, kind, … }]`(세울 갈래). CLAUDE.md · MCP · kmd-migrate · 스킬이 모두 이 꼴이고, 무인 프롬프트도 이 꼴을 가르친다.
+저장 입력은 한 꼴이다(옛잔재 정리 O-11): `record`(일곱 칸 · `touches` | `touchesEmpty` · `fixes`) + `sections[{ coord | doc · heading, base, edits | content }]`(고칠 항목 · `edits` 한 칸은 「바꿀 곳」) + `names[{ coord, label, aliases?, doc, heading, … }]`(장부에 세울 항목 · 값은 빈칸 없는 열쇠) + `forms[{ name, aliases, folder?, kind, … }]`(세울 갈래) + `kinds`(새 종류) · `distinct`(가름) · `excluded[{ name, why }]`(뺀 것). CLAUDE.md · MCP · kmd-migrate · 스킬 · 무인 프롬프트(`server/hub.js` 의 세션 system 글 · 생성 룰 덧붙임 `PROFILES.agent` 의 「내는 것」)가 모두 이 꼴을 가르친다.
 
-아래 2판(`items · docs · skip`)은 H 단계에서 정했던 꼴이고 걷는다. 받는 갈래(`server/hub.js` 의 `inputFromItems` · MCP `save` · `propose` 의 `items` · `docs` · `skip` 칸)는 아직 코드에 남아 있다(옛잔재 G 의 남은 것 · 걷을 때 이 절의 2판 블록도 지운다).
-
-```
-{ first: { count },                                     // 첫 겹: 알갱이 수(측정만)
-  skip:  [{ what, rule, why }],                         // 뺀 것(R6-1 · R2-5 의 앞선 값 · R3-5 다)
-  docs:  [{ path, nature, summary,                      // 새 문서(여럿) · 으뜸 성격 · 요약
-            gather?: { aliases[], pattern? },           // 모으는 문서일 때만(R7-2)
-            judge }],
-  items: [{ first: { nature, kind },                    // 첫 겹의 답: 성격 · 씨앗 종류(측정만)
-            doc, heading, nature,                       // 자리와 성격
-            act: "edit" | "new" | "same",               // 고침 · 새 항목 · 그대로
-            target?,                                    // edit · same: 그 항목의 열쇠(종류:값 또는 문서 › 머리)
-            kind?, kindGist?, id?, gist?, aliases?,     // new 와 R7-3 에서: 종류(R5-1 라 면 그 뜻) · 식별자 · 뜻 한 줄 · 별칭
-            base?, edits? | content?,                   // 바꿀 곳 또는 새 글
-            judge }],
-  record: { title, summary, changes[], why[], dropped[], impact[], refs[],   // 모든 채널 같은 일곱 칸
-            asOf? } }                                    // 근거 날짜(넣을 것이 말하는 때 · 모르면 뺀다)
-```
-
-- 처리 넷(R2-2)과 칸의 대응: 고침 = `act: "edit"` · 새 항목 = `"new"` · 그대로 = `"same"` · 뺌 = `skip` 한 줄. H-D10 의 행위 수는 여기에 새 문서(`docs`)와 장부 올림(엮기가 지은 `names`)을 더한 것이다.
-- 지금 꼴과의 차이: `updates · newDoc · names[{ name, kind }]` 가 `items` 한 칸으로 합쳐진다. 값(열쇠) · `names` · `touches` · 문서 장부 줄은 LLM 이 내지 않고 엮기가 짓는다. 새 문서는 여럿 설 수 있고 성격을 적는 칸이 있다. 기록은 세션과 같은 일곱 칸에 근거 날짜가 붙는다.
-- `items` 가 비고 `skip` 만 있으면 「넣을 것 없음」 이다(H-D26 · H-O8).
-- 고침(`edit`)에서 `gist` · `aliases` 를 다시 적는 것은 H-O3 이 열 때만 받는다. 그때까지 고침의 두 칸은 버리고 잰다.
-- 엮기가 짓는 칸(`natures` · `depart` · `judge`)은 바깥에서 받지 않는다: 저장 문이 걷고(`weaveIn`) 서버 코드만 `opt.woven` 으로 넘긴다. `items` 와 옛 꼴(`sections` · `names` · `forms`)을 섞어 보내면 입력 오류다(H4c-1).
+- 2판(`items · docs · skip` · H4c 에서 정했던 꼴)은 걷었다(옛잔재 G5a). MCP `save` · `propose` 의 스키마에 없고, 그 칸이 오면 저장 문(`hub` 의 `inputIn`)이 지금 꼴을 알려 주는 `E_INPUT` 으로 돌려준다(아무것도 쓰지 않는다). 엮기(`core/weave.js` `weave`)는 들이기 초안(`core/ingest.js`)과 `kmd-migrate put` 만 부른다.
+- 처리 넷(R2-2)과 칸의 대응: 고침 = `sections` 의 있는 항목(`base` 와 같이) · 새 항목 = `sections` 의 새 머리(장부에 올릴 것은 `names` 로 같이) · 그대로 = 보내지 않는다 · 뺌 = `excluded` 한 줄.
+- 무인 세션이 넣을 것이 없으면(R6-3) `sections` · `names` · `forms` · `kinds` 를 비우고 `excluded` 만 보낸다: 아무것도 쓰지 않고 일감은 「넣을 것 없음」 으로 닫힌다(H-D26 · H-O8).
+- 무인 저장 문도 새 갈래(`forms`) · 새 종류(`kinds`)를 사람 채널과 같은 제안 판정(`buildProposal`)으로 받는다(2판에서 엮기가 짓던 갈래 줄을 세션이 직접 적는다).
+- 저장 문이 짓는 칸(`natures` · `depart` · `judge`)은 바깥에서 받지 않는다(저장 문이 걷는다). 2판이 걷히면서 이 칸을 짓는 길이 없어졌다: 무인 저장의 기록 끝 `## 지은 근거` · 문서 성격 줄 · 태도 수 측정(`acts` · `prec` · `none` · `miss`)은 서지 않는다. 무인 측정 줄에는 판(`rev`)과 앞선 값 카드 수(`prior`)만 남는다.
 - 무인 세션은 저장 제안(`propose`)을 쓰지 않는다: 승인할 사람이 없으므로 `save` 가 바로 무인 저장 문을 지난다(MCP `propose` 는 무인 세션에 입력 오류로 그렇게 알린다 · H4a-1 에서 실제 세션이 제안서만 내고 끝난 것을 보고 넣었다).
-- 지금 꼴 입력은 `sections · names · forms` 다(O-11). `distinct` 는 가름으로 읽고(까닭 없음 · 옛 입력) 측정 줄에 `legacy` 로 센다. 세션의 의무 시점은 H-O9.
-- 올려 세우기(`act: "raise"`)는 두지 않는다(H-D31).
+- `distinct` 는 가름으로 읽는다(까닭 없음). 세션의 의무 시점은 H-O9.
+- 올려 세우기는 두지 않는다(H-D31).
 
 ### 5-3. 채널별 차이표(저장이 일어나는 길 전부)
 
-채널 값은 끝 검토 1 이 `hub.save` 를 부르는 곳에서 읽은 것이다: `session · bulk`(`mcp.js:336`) · `http · send`(`http.js:1293`) · `edit`(`hub.js:4234`) · `fix`(4304) · `shape`(3144 · 4045 · 4060) · `polish`(1929) · `intake-file · intake-commit · intake-fix · intake-src`(`intakeChannel` 1849). 사람 채널은 `HUMAN_CHANNELS = session · http · send · bulk`(1491)다. `intake-again`(type `again` 으로 일감을 여는 곳이 없었다)과 `seed`(`channel: 'seed'` 로 부르는 곳이 없었다)는 죽은 채널이라 H0 에서 걷었다. H0 에서 `hub.save` · `coreSave` 를 부르는 곳을 다시 읽어 이 표와 맞음을 확인했다(줄 번호는 `ca6c909` 기준이라 어긋난다).
+채널 값은 끝 검토 1 이 `hub.save` 를 부르는 곳에서 읽은 것이다: `session · bulk`(`mcp.js:336`) · `http · send`(`http.js:1293`) · `edit`(`hub.js:4234`) · `fix`(4304) · `shape`(3144 · 4045 · 4060) · `polish`(1929) · `intake-file · intake-commit · intake-fix · intake-src`(`intakeChannel` 1849). 사람 채널은 `HUMAN_CHANNELS = session · http · send · bulk`(1491)다. `intake-again`(type `again` 으로 일감을 여는 곳이 없었다)과 `seed`(`channel: 'seed'` 로 부르는 곳이 없었다)는 죽은 채널이라 H0 에서 걷었다. H0 에서 `hub.save` · `coreSave` 를 부르는 곳을 다시 읽어 이 표와 맞음을 확인했다(줄 번호는 `ca6c909` 기준이라 어긋난다). 「판단 칸을 누가」 · 「짝을 누가」 열의 「엮기」 는 2판 때의 것이다: 2판을 걷은 뒤(5-2 · O-11) 무인 들이기 · 정정 · 세션은 장부 짝(`names`)을 LLM 이 적고, 판단 칸(`## 지은 근거`)을 짓는 길은 없다.
 
 | 길(채널) | 조문 | 판례를 얻는 법 | 판단 칸을 누가 | 짝을 누가 | `## 새로 세움` |
 |---|---|---|---|---|---|

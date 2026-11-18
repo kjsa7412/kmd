@@ -114,7 +114,7 @@
 알아 둘 것:
 
 - 들이기(파일 · 커밋)는 세션만 짓는다. 팀 서버는 세션을 띄울 수 있는 일꾼(`types` 에 `session`)에게만 그 일감을 준다. 시험은 `KMD_CLAUDE_AGENT`(세션 가짜 `fake-claude-agent.mjs`)와 대본 `FAKE_AGENT_SCRIPT`(`agent-intake.mjs`)를 쓴다. `KMD_CLAUDE`(스키마 답 가짜)는 정정 · 다듬기 · 보내기 초안 · 짜임 · 기초 세우기에만 쓰인다.
-- 세션은 저장 입력 2판(`items` · `docs` · `skip`)으로 보낸다. `kmd-build` 스킬 글의 「자리 정하기」 는 생성 룰을 가리키는 한 줄이다(H5).
+- 세션은 지금 꼴(`sections` · `names` · `forms` · 넣을 것이 없으면 `excluded` 만)으로 보낸다. 저장 입력 2판(`items` · `docs` · `skip`)은 옛잔재 O-11 로 걷었다(G5a). `kmd-build` 스킬 글의 「자리 정하기」 는 생성 룰을 가리키는 한 줄이다(H5).
 - 사람이 화면으로 올린 것은 일감에 `ask: true` 가 붙어 승인 대기를 거친다(팀). 서버 코드가 직접 연 일감 · 가져올 곳은 바로 들어간다. `serve.json` 의 `uploadAsk: false` 로 끌 수 있다.
 - 평가는 `node scripts/harness-eval.mjs run --order <차례> --mode session --tag <판>`(임시 팀 서버 + 팀 일꾼 · 실제 Claude · 원천 하나에 $0.3 ~ $0.8 · 2 ~ 6분). 두 차례를 한 셸에서 뒤로 띄우면 먼저 끝난 쪽이 셸을 닫으며 다른 쪽이 끊긴다: 차례로 띄우거나 세션과 떼어 띄운다. 평가가 도는 동안 코드 · `agent/skills` 를 고치지 않는다.
 - 화면 말에 「원천」 은 금지어다(시험 `bannedIn`). 화면에서는 「넣을 것」 · 「올린 것」 이라 한다.

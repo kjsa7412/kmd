@@ -258,11 +258,11 @@ export function seedKind(kind) {
 // 채널 덧붙임(H-D3) — 닫힌 칸 데이터다(자유 글이 아니다 · 판단 문장을 쓸 칸이 없다). rev 는 싣는 판(long · short)
 export const PROFILES = {
   // 무인 들이기 세션(팀 일꾼 · 개인 프로그램 · H-D34): 세션의 system 글
-  agent: { rev: 'long', materials: 'brief(생성 룰의 판 · 목차) → match(과거 결정 카드 · 앞선 값 · 덮임 줄) → section(글과 base)', output: 'save 입력(items · docs · skip · record)', limits: '' },
+  agent: { rev: 'long', materials: 'brief(생성 룰의 판 · 목차) → match(과거 결정 카드 · 앞선 값 · 덮임 줄) → section(글과 base)', output: 'save 입력(record · sections · names · forms · 넣을 것이 없으면 excluded 만)', limits: '' },
   // 사람의 세션(kmd-save · kmd-team-save · 대량 넣기): 스킬 자리표
   session: { rev: 'long', materials: 'brief → match → section', output: '제안서(propose)를 고치지 않고 사람에게 보인다. 가름과 벗어남은 말로 먼저 알린다. 승인받으면 save', limits: '' },
   // 보내기(보내는 PC 의 세션이 받는 팀의 MCP 에 붙는다)
-  send: { rev: 'short', materials: '받는 팀의 brief → match → section', output: 'save 입력(record · items)', limits: '' },
+  send: { rev: 'short', materials: '받는 팀의 brief → match → section', output: 'save 입력(record · sections · names)', limits: '' },
   // 기초 세우기 · 짜임 다시 잡기: 원천 묶음 전체를 한 번에 본다
   shape: { rev: 'long', only: ['R0', 'R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7'], materials: '구조안 재료(원천 묶음 전체)', output: '구조안', limits: '모든 재료는 src 이거나 skip 이다' },
   // 다시 그리기(kmd-migrate) · kmd-seed

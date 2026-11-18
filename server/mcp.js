@@ -39,18 +39,10 @@ export const instructionsFor = (mode) => INSTRUCTIONS + '\n' + (WHERE[mode] || W
 const whereOf = (store, id) => (store.mode === 'pc' ? { where: 'me', seenBy: '나만(이 PC)' } : { where: 'team', seenBy: '이 팀 지식을 보는 팀 사람' })
 
 const str = (description) => ({ type: 'string', description })
-// save 입력 2판(지식 생성 하네스 5-2 · H4c) — 알갱이마다 한 줄(items) · 새 문서(docs) · 뺀 것(skip). 열쇠 · 장부 줄 · 건드린 항목은 kmd 가 짓는다(엮기).
-//   판단 문장은 여기 적지 않는다: 무엇을 항목 · 문서로 세우고 과거 결정을 따를지는 생성 룰(조문 번호)이 정한다
-const JUDGE_DESC = 'judge: { rule: [근거 조문 번호 · 예 "R2-1"], prec: [{ of: 과거 결정의 열쇠(match 의 cards.key), stance: "follow"(따름) | "distinct"(가름) | "depart"(벗어남) | "na"(해당 없음), differs?: "id" | "kind" | "owner"(가름일 때 다른 것 · R8-2), against?: 어긋난 조문 번호(벗어남일 때 · R8-3), why?: 한 문장 }], none?: "all" | "part"(걸린 과거 결정이 없을 때 · R9-1) }'
-const V2_PROPS = {
-  items: {
-    type: 'array',
-    items: { type: 'object' },
-    description: `항목마다 한 줄(생성 룰 R1 · R2): { doc, heading, act: "edit"(있는 항목을 고침) | "new"(새 항목) | "same"(같은 대상인데 더할 것이 없다 · 글을 쓰지 않는다), target?(edit · same: 그 항목의 열쇠 「종류:값」 또는 「문서 › 머리」 · doc · heading 대신), nature?(성격 · R4-1), kind?(종류 한 낱말 · R5-1 · 새 종류면 kindGist 에 그 뜻), id?(식별자 · R5-2), gist?(뜻 한 줄 · R5-3 · 새 항목에 꼭), aliases?(R5-4), base?(있는 항목: section 이 준 base), edits? | content?(바꿀 곳 또는 새 글 전체), judge }. 열쇠(종류:값) · 장부 줄 · 건드린 항목은 kmd 가 짓는다: names · touches 를 따로 싣지 않는다. sections · names · forms 와 같이 보내지 않는다. ${JUDGE_DESC}`,
-  },
-  docs: { type: 'array', items: { type: 'object' }, description: '이번에 세우는 새 문서(R3-4 · R7-2): { path(폴더/이름 · .md 없이), nature(으뜸 성격), summary(이 문서가 무엇을 어떤 단위로 적나 1~3문장), gather?: { aliases: [넣을 글에서 실제로 본 낱말], pattern?: "종류:*" }(모으는 문서일 때만), judge }' },
-  skip: { type: 'array', items: { type: 'object' }, description: '뺀 것(R6-1 · R6-3): { what(무엇을), rule(조문 번호), why(왜 뺐나) }. 모두 뺐으면 items 를 비우고 skip 만 보낸다: 아무것도 쓰지 않는다(「넣을 것 없음」)' },
-}
+// 저장 입력 꼴은 하나(옛잔재 O-11 · 하네스 설계 5-2): record + sections · names · forms(+ kinds · distinct · excluded).
+//   2판(items · docs · skip)은 걷었다: 그 칸이 오면 저장 문이 지금 꼴을 알려 주는 E_INPUT 으로 돌려준다(아무것도 쓰지 않는다)
+const OLD_PROPS = ['items', 'docs', 'skip']
+const oldOf = (args) => Object.fromEntries(OLD_PROPS.filter((x) => args?.[x] !== undefined).map((x) => [x, args[x]]))
 export const TOOLS = [
   {
     name: 'brief',
@@ -82,7 +74,6 @@ export const TOOLS = [
         record: { type: 'object', description: 'save 의 record 와 같다(서식 칸 changes · why · dropped · impact · refs · touches …)' },
         sections: { type: 'array', items: { type: 'object' }, description: 'save 의 sections 와 같다({ coord | doc · heading, base, edits | content })' },
         names: { type: 'array', items: { type: 'object' }, description: 'save 의 names 와 같다' },
-        ...V2_PROPS,
         forms: { type: 'array', items: { type: 'object' }, description: 'save 의 forms 와 같다' },
         kinds: { type: 'array', items: { type: 'string' }, description: '새 종류(항목의 종류: 영문 소문자 또는 한글)' },
         distinct: { type: 'array', items: { type: 'string' }, description: '있는 것과 이름이 같거나 비슷하지만 다른 것으로 세울 항목 · 문서 · 머리 · 갈래 · 종류' },
@@ -137,7 +128,6 @@ export const TOOLS = [
           description: '세울 갈래(지식관리자): 새 문서가 설 수 있는 갈래를 갈래 장부에 더한다. 일반 자리는 저장 제안의 새 갈래로 보이고 승인하면 선다',
           items: { type: 'object', properties: { name: str('갈래 = 문서 이름: 예 회의록'), aliases: { type: 'array', items: { type: 'string' }, description: '이 갈래로 모을 별칭: 예 통화 · 미팅' }, folder: str('문서 폴더: 예 1.2_사업관리'), kind: str('대상 · 서술 · 사건 · 대장'), pattern: str('그 문서의 항목 패턴: 예 이슈:*'), form: str('서식: 지식문서 · 결정기록 · 작업기록 · 대장'), props: { type: 'array', items: { type: 'object', properties: { name: str('속성 이름: 예 진행상태'), src: str('원본 칸'), how: str('쓰는 법 · 닫힌 값'), must: { type: 'boolean' } } }, description: '대장의 속성 정의(작성기준 6-3): 항목 속성 표의 행 · 차례 · 필수. 주면 갈래 장부의 「## 속성: <갈래>」 를 바꾼다(빈 목록이면 걷는다)' } }, required: ['name'] },
         },
-        ...V2_PROPS,
         names: {
           type: 'array',
           description: '세울 항목(장부에 올린다): 종류는 그 지식의 종류(brief 의 kinds · 영문 소문자 또는 한글). 값은 빈칸 없는 열쇠(60자 안 · 문장 금지 · 설명은 label 에). 이미 장부에 있는 항목은 싣지 않는다(있는 항목의 자리 · 별칭 고침은 지식관리자만 · 그 항목을 건드리려면 touches 에 단다). doc · heading 을 주면 문서 장부에 그 문서의 그 머리가 이 항목의 자리로 오른다',
@@ -329,7 +319,8 @@ export function makeMcp(store) {
     },
 
     // 저장 제안(저장 승인 설계 P-D3 · 2-1 · P2) — 쓰지 않는다 · 자리 · 입력 모양은 hub.propose 가 본다(쓰기 자리 · E_INPUT)
-    async propose({ knowledge, record, sections, names, forms, kinds, distinct, excluded, items, docs, skip }, ctx) {
+    async propose(args, ctx) {
+      let { knowledge, record, sections, names, forms, kinds, distinct, excluded } = args || {}
       // 무인 일감의 세션(넣기 에이전트 · 팀 세션 일감)에는 승인할 사람이 없다 — 저장 제안이 아니라 save 가 무인 저장 문을 지난다(지식 생성 하네스 H-D34)
       if (ctx?.agent?.intake) throw new KmdError('E_INPUT', '무인 일감의 세션이다: 저장 제안(propose) 없이 save 를 바로 부른다. 검사에 걸리면 save 가 걸린 까닭을 돌려주고 아무것도 쓰지 않는다: 그 자리만 고쳐 다시 save 한다')
       const listOf = (v) => {
@@ -338,18 +329,19 @@ export function makeMcp(store) {
       }
       if (typeof record === 'string') try { record = JSON.parse(record) } catch { /* 모양 검사가 거절한다 */ }
       if (typeof knowledge !== 'string' || !knowledge) throw new KmdError('E_INPUT', '지식 id(knowledge)가 없다')
-      const input = { record, sections: listOf(sections), names: listOf(names), forms: listOf(forms), kinds: listOf(kinds), distinct: listOf(distinct), excluded: listOf(excluded), items: listOf(items), docs: listOf(docs), skip: listOf(skip) }
+      const input = { record, sections: listOf(sections), names: listOf(names), forms: listOf(forms), kinds: listOf(kinds), distinct: listOf(distinct), excluded: listOf(excluded), ...oldOf(args) }
       for (const x of Object.keys(input)) if (input[x] === undefined) delete input[x]
       return store.propose(ctx, knowledge, input, { form: true, path: '이 세션의 작업' })
     },
 
-    async save({ knowledge, record, sections, names, forms, kit, attach, proposal, distinct, excluded, kinds, items, docs, skip }, ctx) {
+    async save(args, ctx) {
+      let { knowledge, record, sections, names, forms, kit, attach, proposal, distinct, excluded, kinds } = args || {}
       // 도구 모양을 배포 전에 받아 둔 세션은 모르는 칸(forms 등)의 목록을 글(JSON)로 보낸다 — 목록 글이면 풀어 받는다
       const listOf = (v) => {
         if (typeof v !== 'string') return v
         try { const x = JSON.parse(v); return Array.isArray(x) ? x : v } catch { return v }
       }
-      ;[sections, names, forms, attach, distinct, excluded, kinds, items, docs, skip] = [listOf(sections), listOf(names), listOf(forms), listOf(attach), listOf(distinct), listOf(excluded), listOf(kinds), listOf(items), listOf(docs), listOf(skip)]
+      ;[sections, names, forms, attach, distinct, excluded, kinds] = [listOf(sections), listOf(names), listOf(forms), listOf(attach), listOf(distinct), listOf(excluded), listOf(kinds)]
       // 첨부(S-D30 · K6-4) — 사람이 「원본도 첨부」 라고 했을 때만 스킬이 싣는다 · 한 번 합 8MB · 모양 · 자리 · 쓰기 자리는 저장 문이 본다
       if (attach != null) {
         if (!Array.isArray(attach)) throw new KmdError('E_INPUT', 'attach 는 { path, b64 } 의 목록이다')
@@ -370,10 +362,10 @@ export function makeMcp(store) {
       // 스킬 판(kit) — 측정 줄에만 싣는다(옛 판 · 판 없음 안내 reinstall · nokit 은 걷었다 · P11 · 혼자 쓰는 판)
       const have = typeof kit === 'number' || (typeof kit === 'string' && /^\s*\d{1,6}\s*$/.test(kit)) ? Number(kit) : null
       // 승인한 저장 제안(저장 승인 설계 P-D5 · P3 · PC1) — proposal 이 의무(없거나 어긋나면 E_APPROVE + 새 propose 결과)
-      const extra = { ...(proposal != null ? { proposal } : {}), ...(distinct != null ? { distinct } : {}), ...(excluded != null ? { excluded } : {}), ...(kinds != null ? { kinds } : {}), ...(items != null ? { items } : {}), ...(docs != null ? { docs } : {}), ...(skip != null ? { skip } : {}) }
+      const extra = { ...(proposal != null ? { proposal } : {}), ...(distinct != null ? { distinct } : {}), ...(excluded != null ? { excluded } : {}), ...(kinds != null ? { kinds } : {}), ...oldOf(args) }
       const r = await store.save(ctx, k.id, { record, sections, ...(names ? { names } : {}), ...(forms ? { forms } : {}), ...(attach ? { attach } : {}), ...extra }, { guard: 'strict', form: true, channel, ...(Number.isInteger(have) ? { kit: have } : {}) })
       if (r.same) return { saved: r.id, same: true, docs: [], note: r.note }
-      // 쓸 것이 없다(모두 뺌 · 모두 그대로) — 아무것도 쓰지 않았다(지식 생성 하네스 H-O8)
+      // 넣을 것 없음(무인 세션이 뺀 것 excluded 만 보냈다): 아무것도 쓰지 않았다(지식 생성 하네스 H-O8)
       if (r.empty) return { saved: null, empty: true, docs: [], note: r.note }
       const n = r.docs.length
       const note = r.note || (n ? `저장했다. 기록 1 · 문서 ${n}` : '저장했다. 기록 1')
