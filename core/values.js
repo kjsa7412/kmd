@@ -19,12 +19,15 @@ const inName = (s, i, n) => /[A-Za-z_]/.test(s[i - 1] || '') || (s[i - 1] === '-
 // 서식 맞춤(이력 · 작성기준 「기록과 이력」)의 값 견주기 — 옛 글과 새 글의 값 장부가 같아야 한다 · 날짜 표기만 YYYY-MM-DD 로 맞춰 견준다
 //   { same, lost: [옛 글에만], added: [새 글에만] }
 //   줄 머리 수준 표시(「1.」 · 「1.1.」 · 「2)」 · 작성기준 5-1)는 짜임이지 값이 아니다 — 옛 「###」 소제목을 수준 줄로 옮기면 번호가 새로 붙는다
-const dayOf = (v) => { const m = /^(\d{4})[./](\d{1,2})[./](\d{1,2})\.?$/.exec(v); return m ? `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` : v }
+//   날짜 표기 맞추기: 「2026.08.01」 · 「2026. 8. 1.」 · 「2026/08/01」 · 「2026-8-1」 → 「2026-08-01」(달 1~12 · 날 1~31 일 때만 · 판 번호 「1.2.3」 은 네 자리가 아니라 그대로).
+//   서식 맞춤의 값 견주기는 여기 한 곳만 쓴다(저장 문 core/save.js · kmd-migrate check · put --format)
+const DAY_RE = /(?<![\d.])(\d{4})[ \t]*([./-])[ \t]*(\d{1,2})[ \t]*\2[ \t]*(\d{1,2})(?!\d)(?:\.(?!\d))?/g
+export const isoDates = (s) => String(s ?? '').replace(DAY_RE, (m, y, _sep, mo, d) => (+mo >= 1 && +mo <= 12 && +d >= 1 && +d <= 31 ? `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}` : m))
 //   옛 머리 줄의 장 번호(「### 4.1 설치」)도 같은 짜임이다(머리 줄에서만 점 없는 번호를 뗀다 · 일반 줄의 「3 개소」 는 값)
 const noMarks = (s) => String(s || '').replace(/^(#{1,6}[ \t]+|\*\*)(\d+(?:\.\d+){0,3})\.?[ \t]+(?=\S)/gm, '$1').replace(/^([ \t]*)(\d+(?:\.\d+){0,3})[.)][ \t]+(?=\S)/gm, '$1')
 export function sameValues(oldText, newText) {
-  const a = new Set([...valuesOf(noMarks(oldText))].map(dayOf))
-  const b = new Set([...valuesOf(noMarks(newText))].map(dayOf))
+  const a = valuesOf(noMarks(isoDates(oldText)))
+  const b = valuesOf(noMarks(isoDates(newText)))
   const lost = [...a].filter((v) => !b.has(v))
   const added = [...b].filter((v) => !a.has(v))
   return { same: !lost.length && !added.length, lost, added }

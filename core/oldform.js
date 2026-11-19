@@ -103,6 +103,8 @@ function dropHeld(body) {
   const m = s.slice(at).match(/^## [^\n]*\n(`{3,})json\n[\s\S]*?\n\1[ \t]*$/m)
   return m ? (s.slice(0, at) + s.slice(at + m.index + m[0].length)).replace(/\s+$/, '') : dropPart(s, HELD_PART)
 }
+// 지우지 않고 셈만 하는 옛 태그(이력은 그대로 읽힌다 · 지울지는 사람이 정한다)
+const OLD_KEEP_TAGS = ['rebuild', 'registry', 'transition']
 const OLD_LOG_TAGS = ['curate', 'curate-llm', 'curate-auto', 'docfmt', 'levels', 'tidy']
 // core/names.js LOG_TAGS(지금): 기록 · 이력 가르기
 const LOG_TAGS = ['edit', 'curate-auto', 'curate-llm', 'alias-auto', 'sources', 'polish', 'revert', 'drop', 'ledger', 'shape-done', 'format']
@@ -1233,9 +1235,10 @@ export async function plan(dir, { personal = false, drop: drop0 = [] } = {}) {
   J('항목 안 ### 소제목(수준 표시 전 꼴)', h3docs.join(' · '), heads3, '수준 표시로 옮길지 서식 맞춤에서 본다(목록 줄까지 바꾸므로 기계로 옮기지 않는다)')
 
   // 5) 남은 옛 태그 이력(지우지 않는 것) · 세움 메모 · 기록 없는 첨부
+  //   structure(문서 짜임 · kmd-migrate rename) · shape(짜임 다시 잡기)는 지금 엔진(core/restructure.js · 저장 문)이 다는 태그라 옛 태그가 아니다
   {
-    const keep = [...recs.values()].filter((x) => !gone.has(x.r.id) && x.path.startsWith('log/') && x.r.tags.some((t) => ['structure', 'rebuild', 'registry', 'shape', 'transition'].includes(t)))
-    J('지금 이력 태그 밖의 옛 태그 이력(structure · rebuild · registry · shape · transition)', 'log/', keep.length, '이력은 그대로 읽힌다 · 지울지는 사람이 정한다')
+    const keep = [...recs.values()].filter((x) => !gone.has(x.r.id) && x.path.startsWith('log/') && x.r.tags.some((t) => OLD_KEEP_TAGS.includes(t)))
+    J(`지금 이력 태그 밖의 옛 태그 이력(${OLD_KEEP_TAGS.join(' · ')})`, 'log/', keep.length, '이력은 그대로 읽힌다 · 지울지는 사람이 정한다')
   }
   if (files.includes('_seed.json')) await del('_seed.json', 'seed', '세움 메모(코드가 읽지 않는다 · git 이력에 남는다)')
   {

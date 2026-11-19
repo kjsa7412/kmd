@@ -6,7 +6,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ensureRepo, tryGit } from '../core/git.js'
+import { ensureRepo, tryGit, commitPaths } from '../core/git.js'
 import { loadKnowledge } from '../core/knowledge.js'
 import { sha16 } from '../core/text.js'
 import { copyDir } from './helpers.mjs'
@@ -290,4 +290,64 @@ test('장부만 고치기(ledger): 뜻 한 줄 · 종류 뜻 · 폐기 · 합치
   assert.equal(k2.vocab.coords.get('proc:롤백').gist, '앞 판으로 되돌림')
   assert.equal((voc().match(/^뜻: /gm) || []).length, 4, '종류마다 한 줄(proc 는 갈음 · 늘지 않는다)')
   assert.ok(k2.logs.find((x) => x.id === JSON.parse(p2.text).record)?.tags.includes('format'), '--format 은 태그 format 도')
+})
+
+test('서식 맞춤(--format) 날짜 표기: 2026.08.01 · 2026/09/01 을 ISO 로 맞춘 글은 check --format · put --format 을 넘는다(값 대조는 날짜 표기를 맞춰 견준다)', async () => {
+  const full = path.join(dir, DOC)
+  fs.writeFileSync(full, fs.readFileSync(full, 'utf8').replace('## 꾸러미 판', '## 점검 일정\n정기 점검은 2026.08.01 과 2026/09/01 에 한다.\n\n## 꾸러미 판'))
+  await commitPaths(dir, [DOC], '테스트: 점검 일정', 'kim')
+  const cur = await sectionBody('점검 일정')
+  const j = { record: { title: '서식 맞춤: 점검 일정 날짜 꼴', body: '날짜 꼴만 YYYY-MM-DD 로 맞췄다.' }, sections: [{ doc: DOC, heading: '점검 일정', base: sha16(cur), content: '정기 점검은 2026-08-01 과 2026-09-01 에 한다.' }] }
+  const plain = await run('check', dir, input('fmt-date0.json', j))
+  assert.equal(plain.code, 2, '서식 맞춤이 아니면 값 대조(근거에 없는 값)에 걸린다')
+  const c = await run('check', dir, input('fmt-date.json', j), '--format')
+  assert.equal(c.code, 0, c.text)
+  // 값이 바뀌면 --format 검사도 걸린다
+  const bad = await run('check', dir, input('fmt-date-bad.json', { ...j, sections: [{ ...j.sections[0], content: '정기 점검은 2026-08-02 과 2026-09-01 에 한다.' }] }), '--format')
+  assert.equal(bad.code, 2)
+  assert.match(bad.text, /서식 맞춤은 값을 바꾸지 않는다/)
+  const p = await run('put', dir, input('fmt-date.json', j), '--user', 'kim', '--format')
+  assert.equal(p.thrown, null, String(p.thrown?.message))
+  assert.equal(await sectionBody('점검 일정'), '정기 점검은 2026-08-01 과 2026-09-01 에 한다.')
+})
+
+test('머리 이름 바꾸기(rename): 같은 엔진 · 장부 줄 · 옛 머리 별칭 · 본문 링크 · 이력 글(세션) · 차례 장부를 만들지 않음 · 마른 실행 · 검사 · residue 가 structure 이력을 옛 태그로 세지 않음', async () => {
+  const ops = path.join(dir, 'docs', '운영.md')
+  fs.writeFileSync(ops, `${fs.readFileSync(ops, 'utf8').replace(/\s*$/, '')}\n\n자세히는 [헬스 체크](배포절차.md#헬스%20체크).\n`)
+  await commitPaths(dir, ['docs/운영.md'], '테스트: 링크', 'kim')
+  // 검사: 장 번호 머리 · 없는 머리는 걸리고 아무것도 쓰지 않는다
+  const h0 = await head()
+  const bad = await run('rename', dir, DOC, '헬스 체크', '3. 헬스 점검', '--user', 'kim')
+  assert.equal(bad.thrown?.exit, 2)
+  assert.match(bad.text, /장 번호/)
+  const none = await run('rename', dir, DOC, '없는 머리', '헬스 점검', '--user', 'kim', '--dry')
+  assert.equal(none.thrown?.exit, 2)
+  // 마른 실행: 바뀔 것만 보이고 쓰지 않는다
+  const dry = await run('rename', dir, DOC, '헬스 체크', '헬스 점검', '--user', 'kim', '--dry')
+  assert.equal(dry.thrown, null, String(dry.thrown?.message))
+  assert.match(dry.text, /항목 이름: 배포절차 › 헬스 체크 → 배포절차 › 헬스 점검/)
+  assert.match(dry.text, /별칭: proc:헬스 체크 \+ 헬스 체크/)
+  assert.equal(await head(), h0)
+  const r = await run('rename', dir, DOC, '헬스 체크', '헬스 점검', '--user', 'kim')
+  assert.equal(r.thrown, null, String(r.thrown?.message))
+  const out = JSON.parse(r.text.slice(r.text.indexOf('{')))
+  assert.ok(out.commit && out.log)
+  const k = await load()
+  const d = k.byDocPath.get(DOC)
+  assert.ok(d.sections.some((s) => s.h === '헬스 점검') && !d.sections.some((s) => s.h === '헬스 체크'))
+  assert.equal(d.sections.find((s) => s.h === '헬스 점검').applied, '2026-1021-헬스-체크', '표지는 글과 같이')
+  const v = k.vocab.coords.get('proc:헬스 체크')
+  assert.equal(v.label, '헬스 점검', '라벨은 새 머리')
+  assert.deepEqual(v.aliases, ['상태 점검', '헬스 체크'], '옛 머리는 별칭')
+  assert.match(fs.readFileSync(path.join(dir, '_managed.md'), 'utf8'), /\| `proc:헬스 체크` \| `docs\/배포절차.md` \| `## 헬스 점검` \|/)
+  assert.match(fs.readFileSync(ops, 'utf8'), /\[헬스 체크\]\(배포절차\.md#헬스%20점검\)/, '본문 링크')
+  assert.ok(!fs.existsSync(path.join(dir, '_order.md')), '차례 장부를 새로 만들지 않는다')
+  const lg = k.logs.find((x) => x.id === out.log)
+  assert.ok(lg.tags.includes('structure'))
+  assert.match(lg.body, /세션에서 kmd-migrate rename 으로 바꿨다/)
+  assert.doesNotMatch(lg.body, /구조 화면/)
+  assert.equal((await tryGit(dir, ['status', '--porcelain', '--', 'docs', 'log', '_vocab.md', '_managed.md'])).out.trim(), '', '남은 변경 없음')
+  // residue: 지금 엔진이 단 structure 이력은 옛 태그 이력이 아니다
+  const res = await run('residue', dir, '--json')
+  assert.ok(!JSON.parse(res.text).judge.some((j) => /옛 태그 이력/.test(j.what)), res.text)
 })

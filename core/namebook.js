@@ -225,6 +225,46 @@ export function cleanForms(list) {
   return out
 }
 
+// 항목 장부: 머리 이름 바꾸기(kmd-migrate rename · core/restructure.js items 의 relabel)
+//   renames: [{ coord, from(옛 머리), to(새 머리) }]: 라벨이 옛 머리와 같으면 새 머리로 · 옛 머리는 별칭으로 남긴다(옛 이름으로도 찾게)
+//   별칭으로 남기지 않는 것: 이미 라벨 · 별칭인 말 · 다른 항목의 라벨 · 별칭(같은 말이 두 항목을 가리키지 않게) · 쉼표가 든 말(별칭 줄을 쉼표로 가른다)
+//   → { text, done: [한 줄 말], skipped: [까닭] }
+export function relabelVocab(text, renames) {
+  const t0 = String(text || '').replace(/\r\n/g, '\n')
+  const lines = t0.split('\n')
+  const done = []
+  const skipped = []
+  const at = (coord) => lines.findIndex((l) => l.match(/^\s*-\s+`([^`]+)`/)?.[1]?.trim() === coord)
+  for (const r of Array.isArray(renames) ? renames : []) {
+    const coord = nfc(String(r?.coord || ''))
+    const from = nfc(String(r?.from || '')).trim()
+    const to = nfc(String(r?.to || '')).trim()
+    if (!coord || !from || !to || from === to) continue
+    const i = at(coord)
+    if (i < 0) continue
+    const voc = parseVocab(lines.join('\n')).coords
+    const have = voc.get(coord)
+    let label = have.label
+    if (label === from) {
+      lines[i] = lines[i].replace(/^(\s*-\s+`[^`]+`).*$/, `$1: ${to}`)
+      label = to
+      done.push(`라벨: ${coord} ${from} → ${to}`)
+    }
+    let aliases = have.aliases.filter((a) => a !== label)
+    const other = [...voc.values()].find((v) => v.coord !== coord && (v.label === from || v.aliases.includes(from)))
+    if (from === label || aliases.includes(from)) { /* 이미 있다 */ }
+    else if (/[,，]/.test(from)) skipped.push(`별칭으로 남기지 않음(쉼표가 든 말): ${coord} ${from}`)
+    else if (other) skipped.push(`별칭으로 남기지 않음(다른 항목 ${other.coord} 의 말): ${coord} ${from}`)
+    else { aliases = [...aliases, from]; done.push(`별칭: ${coord} + ${from}`) }
+    if (aliases.join('\u0001') === have.aliases.join('\u0001')) continue
+    const j = i + 1
+    const row = `  aliases: ${aliases.join(', ')}`
+    if (lines[j] && /^\s+aliases:/.test(lines[j])) { if (aliases.length) lines[j] = row; else lines.splice(j, 1) }
+    else if (aliases.length) lines.splice(j, 0, row)
+  }
+  return { text: lines.join('\n'), done, skipped }
+}
+
 // 문서 장부 — 정확한 자리 줄(문서 짜임의 항목 옮기기 · 이름 · 합치기 · 나누기).
 //   names: [{ coord, doc, heading }] — 그 항목이 이제 닿을 문서 · 머리
 //   있는 정확한 줄은 제자리에서 고친다. 없으면 그 항목에 닿던 패턴 줄(`종류:*`) **위에** 끼운다(위에서 먼저 걸리는 줄을 쓴다 · core/registry.js) ·

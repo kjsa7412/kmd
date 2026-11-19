@@ -5,13 +5,18 @@
 //   node scripts/kmd-migrate.mjs scan  <지식 폴더> [--doc docs/x.md] [--json]          진단: 문서마다 항목 · 기록 없는 항목 · 큰 항목 · 날짜 줄 · 같은 글 · 다시 그릴 만한 항목 · 사건 갈래 문서에 빠진 기록
 //   node scripts/kmd-migrate.mjs rec   <지식 폴더> <기록 id> [--json]                         기록 하나: 머리 · 상태 · 건드린 항목 · 넣은 곳 · 본문
 //   node scripts/kmd-migrate.mjs trail <지식 폴더> <docs/x.md> <머리> [--json] [--full]  항목 하나: 지금 글 · base · 이어진 기록(오래된 순 · 표시) · 넣은 줄
-//   node scripts/kmd-migrate.mjs check <지식 폴더> <input.json>                          마른 검사: 쓰지 않는다 · 값 대조 · 꼴 · 사라지는 표 행 · 문장
+//   node scripts/kmd-migrate.mjs check <지식 폴더> <input.json> [--format]               마른 검사: 쓰지 않는다 · 값 대조 · 꼴 · 사라지는 표 행 · 문장(--format: 값 장부가 같나만 · 날짜 표기는 맞춰 견준다)
 //   node scripts/kmd-migrate.mjs put   <지식 폴더> <input.json> --user <사람> [--allow-drop]  넣기: 줄 안에서 다시 검사 → 기록 + 항목 + git 커밋 한 묶음
 //   node scripts/kmd-migrate.mjs put   <지식 폴더> <input.json> --user <사람> --format       서식 맞춤: 값은 그대로 · 양식 · 서식만 → 기록이 아니라 이력(log/ · 태그 format)
 //   node scripts/kmd-migrate.mjs relog <지식 폴더> --user <사람> (--title <제목 앞> | <기록 id>…) [--dry]  기록으로 남긴 서식 맞춤을 이력으로: log/ 로 옮기고 태그 format · 참고 블록의 그 줄을 걷는다 · 커밋 하나
 //   node scripts/kmd-migrate.mjs residue <지식 폴더> [--personal] [--json]              옛 꼴 셈 표(core/oldform.js plan · 쓰지 않는다): 규칙마다 바꿀 셈 · 사람 · 세션이 볼 것
 //   node scripts/kmd-migrate.mjs oldform <지식 폴더> --user <사람> [--dry] [--drop <기록 id,… | 파일>] [--personal] [--msg <글>]
 //                                                                                      옛 꼴 → 지금 꼴(기계 규칙만 · 다시 읽은 상태가 같아야 쓴다) · 이력 하나 · 커밋 하나
+//   node scripts/kmd-migrate.mjs rename <지식 폴더> <docs/x.md> <옛 머리> <새 머리> --user <사람> [--dry]
+//   node scripts/kmd-migrate.mjs rename <지식 폴더> --map <map.json> --user <사람> [--dry]   map.json = [{ doc, from, to }]
+//                                                                                      머리 이름 바꾸기: 팀 화면 문서 짜임과 같은 엔진(core/restructure.js) ·
+//                                                                                      문서 장부 머리 · 항목 장부 라벨을 맞추고 옛 머리는 별칭으로 · 본문 링크(x.md#옛머리) · 참고 블록 키 ·
+//                                                                                      이력 하나(log/ · 태그 structure) · 커밋 하나 · 차례 장부가 없으면 만들지 않는다
 //
 //   input.json = { record: { title, body, touches?, tags? }, sections: [{ doc, heading, base, content | contentFile }] }
 //     빠진 항목 채우기: sections[] 에 base 대신 new: true · sources: [재료 기록 id] · kind · gist(있는 문서의 없는 머리 · 사건 갈래면 「YYYY-MM-DD 무엇」)
@@ -33,8 +38,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadKnowledge, coordsOfSection } from '../core/knowledge.js'
-import { checkSection } from '../core/gate.js'
-import { judgeReflect } from '../core/values.js'
+import { checkSection, judgeSection, foldJudge } from '../core/gate.js'
+import { judgeReflect, sameValues, isoDates } from '../core/values.js'
 import { save } from '../core/save.js'
 import { parsePut, parseLinked, itemKey } from '../core/parts.js'
 import { parseRefLine, splitRef, withRef, logHas } from '../core/sections.js'
@@ -43,6 +48,8 @@ import { commitPaths } from '../core/git.js'
 import { writeAtomic } from '../core/journal.js'
 import { LOG_DIR } from '../core/names.js'
 import { sha16 } from '../core/text.js'
+import { applyRestructure } from '../core/restructure.js'
+import { headProblem } from '../core/formcheck.js'
 import { plan as oldPlan, apply as oldApply, verifyPlan, RULES as OLD_RULES, RULE_SAY } from '../core/oldform.js'
 
 const DERIVED = ['polish', 'rebuild', 'intake']
@@ -279,7 +286,10 @@ const rowKeys = (body) => {
   }
   return keys
 }
-export function dropsOf(oldBody, newBody) {
+//   날짜 표기만 바뀐 줄(2026.08.01 → 2026-08-01)은 사라지는 문장이 아니다: 두 글 다 core/values.js isoDates 로 맞춰 견준다
+export function dropsOf(oldBody0, newBody0) {
+  const oldBody = isoDates(oldBody0)
+  const newBody = isoDates(newBody0)
   const ok = rowKeys(oldBody)
   const nk = rowKeys(newBody)
   const rows = [...ok.keys()].filter((x) => ok.get(x) === 1 && !nk.has(x))
@@ -317,8 +327,11 @@ async function readInput(file) {
 // 항목마다 검사: gate(꼴 · base · 값 대조) + 사라지는 표 행 · 문장
 //   본문 반영(생성 룰 R6-5 · core/values.js judgeReflect): 항목이 여럿이면 checkSection(spread)이 항목마다 빠진 값을 보지 않는다 —
 //   기록의 바뀐 것 값이 넣는 항목들 가운데 어디에 들어갔나(「옛 → 새」 의 새 값은 옛 글보다 늘었나)를 여기서 합쳐 본다(걸리면 「기록 › 본문 반영」 줄)
-function inspect(k, input) {
-  const rs = inspectSections(k, input)
+//   서식 맞춤(fmt · check --format · put --format): 값은 그대로라 값 대조(빠진 값 · 지어낸 값 · 옛 값 빠짐)와 본문 반영 대신 저장 문과 같은
+//   값 견주기(core/values.js sameValues · 날짜 표기는 맞춰 견준다)만 본다. 날짜를 ISO 로 맞춘 글이 「근거에 없는 값」 으로 막히지 않게
+function inspect(k, input, { fmt = false } = {}) {
+  const rs = inspectSections(k, input, { fmt })
+  if (fmt) return rs
   const items = input.sections.map((s) => {
     const sec = s.new ? null : k.byDocPath.get(s.doc)?.sections.find((x) => x.h === s.heading)
     return { doc: s.doc, heading: s.heading, before: sec ? sec.body : '', text: s.content }
@@ -327,7 +340,7 @@ function inspect(k, input) {
   for (const e of r.errors) rs.push({ doc: '기록', heading: '본문 반영', ok: false, code: e.code, why: e.why, changed: [], lint: null, lostRows: [], lostLines: [] })
   return rs
 }
-function inspectSections(k, input) {
+function inspectSections(k, input, { fmt = false } = {}) {
   const spread = input.sections.length > 1
   return input.sections.map((s) => {
     let d = k.byDocPath.get(s.doc)
@@ -336,13 +349,23 @@ function inspectSections(k, input) {
     // 갈래 문서가 아직 없으면: 빠진 항목 채우기(new)만 그 갈래 문서를 세운다(갈래 장부의 폴더 · 이름 그대로 · 저장의 새 문서 G4 가 # 이름을 단다)
     if (!d && s.new && formOfDoc(k, { path: s.doc })) d = { path: s.doc, sections: [], fresh: true }
     if (!d) return no('문서가 없다(새 문서는 갈래 장부에 있는 갈래 문서를 그 폴더 · 이름으로 · new 항목으로만 세운다)')
-    if (s.new) return inspectNew(k, input, s, d, sec, spread)
+    if (s.new) return fmt ? no('서식 맞춤은 있는 항목만(새 항목은 --format 없이)') : inspectNew(k, input, s, d, sec, spread)
     if (!sec) return no('머리가 없다(있는 항목만 다시 그린다 · 빠진 항목을 채우려면 new: true 와 sources)')
     const links = linksOf(k, d, sec)
-    const r = checkSection(k, { doc: s.doc, heading: s.heading, base: s.base, content: s.content, record: input.record, spread })
+    const r = fmt ? formatJudge(k, s, sec, input.record) : checkSection(k, { doc: s.doc, heading: s.heading, base: s.base, content: s.content, record: input.record, spread })
     const drop = dropsOf(sec.body, s.content)
     return { doc: s.doc, heading: s.heading, ok: !!r.ok, code: r.code || null, why: r.why || null, changed: r.changed || [], lint: r.lint || null, lostRows: drop.rows, lostLines: drop.lines, sources: sourceOf(links).length }
   })
+}
+
+// 서식 맞춤 판정: 꼴 · 지문 오류는 그대로 · 값 경고 대신 옛 글과 새 글의 값 장부가 같나(저장 문 core/save.js 와 같은 sameValues)
+function formatJudge(k, s, sec, record) {
+  const j = judgeSection(k, { doc: s.doc, heading: s.heading, base: s.base, content: s.content, record })
+  const f = foldJudge(j, { pass: () => true })
+  if (f) return f
+  const v = sameValues(sec.body, s.content)
+  if (!v.same) return { ok: false, code: 'values', why: `서식 맞춤은 값을 바꾸지 않는다: ${[v.lost.length ? `빠진 값 ${v.lost.slice(0, 5).join(' · ')}` : '', v.added.length ? `새 값 ${v.added.slice(0, 5).join(' · ')}` : ''].filter(Boolean).join(' · ')}. 값이 바뀌면 --format 없이 기록으로 남긴다` }
+  return { ok: true, changed: [], ...(j.lint ? { lint: j.lint } : {}) }
 }
 
 // 빠진 항목 채우기(new): 있는 문서에 없는 머리 · 재료 기록(sources)이 값의 근거다.
@@ -475,7 +498,7 @@ async function check(dir, file, o) {
     process.exitCode = l.errors.length ? 2 : 0
     return
   }
-  const rs = inspect(k, input)
+  const rs = inspect(k, input, { fmt: !!o.format })
   if (o.json) return console.log(JSON.stringify(rs, null, 1))
   show(rs)
   const bad = rs.filter((r) => !r.ok).length
@@ -496,10 +519,10 @@ async function put(dir, file, o) {
   const prepare = async () => {
     // 줄 안 · 새로 읽은 지식으로 다시 본다(그사이 바뀐 글을 덮지 않는다)
     const k = await load(abs, o)
-    const rs = inspect(k, input)
+    const rs = inspect(k, input, { fmt: !!o.format })
     const bad = rs.filter((r) => !r.ok)
     const drops = rs.filter((r) => r.lostRows?.length || r.lostLines?.length)
-    if (bad.length) fail = { why: '검사에 걸렸다', rs: bad }
+    if (bad.length) fail = { why: `검사에 걸렸다(${bad[0].doc} › ${bad[0].heading}: ${bad[0].why})`, rs: bad }
     else if (drops.length && !o['allow-drop']) fail = { why: '사라지는 표 행 · 문장이 있다(사람이 본 뒤 --allow-drop)', rs: drops }
     if (fail) return { abort: { same: false, id: null } }
     // 건드린 항목: 넣는 항목들의 장부 항목(기록이 이 항목들에 이어지게)
@@ -639,6 +662,65 @@ async function oldform(dir, o) {
   console.log(JSON.stringify({ ok: true, commit: r.commit, log: r.log, files: r.files }, null, 1))
 }
 
+// 머리 이름 바꾸기(rename): 문서 짜임 엔진(applyRestructure · items 의 같은 문서 이름)을 그대로 지난다.
+//   먼저 검사(check): 문서 · 옛 머리가 있나 · 새 머리가 그 문서 갈래의 머리 꼴인가(formcheck headProblem · 장 번호 · 양식 항목) ·
+//   엔진의 마른 계획(겹치는 머리 · 머리 잃는 장부 항목 · 링크 · 장부 줄). --dry 면 여기서 멈춘다(쓰지 않는다)
+//   이력 글은 「세션에서 kmd-migrate rename 으로 바꿨다」(채널 · 출처는 부르는 코드가 정한다 · 「구조 화면에서」 라 쓰지 않는다)
+export const RENAME_VIA = '세션에서 kmd-migrate rename 으로'
+const docIdOf = (doc) => String(doc || '').replace(/\\/g, '/').replace(/^docs\//, '').replace(/\.md$/i, '')
+async function readRenames(pos, o) {
+  if (o.map) {
+    const j = JSON.parse(await fs.readFile(path.resolve(o.map), 'utf8'))
+    if (!Array.isArray(j) || !j.length || j.length > 500 || j.some((x) => !x || typeof x.doc !== 'string' || typeof x.from !== 'string' || typeof x.to !== 'string')) throw new Error('map.json 은 [{ doc, from, to }] 목록이다(500 안)')
+    return j
+  }
+  const [doc, from, to] = pos
+  if (!doc || !from || !to) throw new Error('rename <지식 폴더> <docs/x.md> <옛 머리> <새 머리> 또는 --map <map.json>')
+  return [{ doc, from, to }]
+}
+export function renameCheck(k, renames) {
+  const errors = []
+  for (const r of renames) {
+    const rel = `docs/${docIdOf(r.doc)}.md`
+    const d = k.byDocPath.get(rel)
+    const at = `${rel} › ${r.from}`
+    if (!d) { errors.push({ where: at, why: '없는 문서다' }); continue }
+    if (!d.sections.some((x) => x.h === r.from)) { errors.push({ where: at, why: '없는 머리다(머리가 똑같아야 한다)' }); continue }
+    const to = String(r.to).trim()
+    if (!to || /[\r\n]/.test(to) || to.length > 120) { errors.push({ where: at, why: '새 머리는 한 줄 · 120자 안' }); continue }
+    const p = headProblem(formOfDoc(k, d)?.kind || '대상', to)
+    if (p) errors.push({ where: at, why: p })
+  }
+  return errors
+}
+async function rename(dir, pos, o) {
+  if (!o.user) throw new Error('--user <사람> 이 있어야 한다(이력을 쓴 사람 · 그 지식의 지식관리자)')
+  const abs = path.resolve(dir)
+  const renames = await readRenames(pos, o)
+  const k = await load(abs, o)
+  const errors = renameCheck(k, renames)
+  const ops = { items: renames.map((r) => ({ from: { doc: docIdOf(r.doc), h: r.from }, to: { doc: docIdOf(r.doc), h: String(r.to).trim() } })), relabel: true, noNewOrder: true }
+  let plan = null
+  if (!errors.length) {
+    try {
+      plan = await applyRestructure(abs, ops, { user: o.user, dry: true, via: RENAME_VIA })
+    } catch (e) {
+      for (const x of Array.isArray(e.details) ? e.details : [{ where: '엔진', why: e.message }]) errors.push({ where: x.where, why: x.why })
+    }
+  }
+  console.log(`# ${path.basename(abs)} · 머리 이름 바꾸기${o.dry ? '(마른 · 쓰지 않는다)' : ''}`)
+  for (const r of renames) console.log(`- ${docIdOf(r.doc)} › ${r.from} → ${String(r.to).trim()}`)
+  if (errors.length) {
+    console.log('\n## 걸림')
+    for (const e of errors) console.log(`- ${e.where}: ${e.why}`)
+    throw Object.assign(new Error(`쓰지 않았다: 검사에 걸렸다(${errors.length})`), { exit: 2 })
+  }
+  console.log(`\n## 바뀔 것\n${plan.lines.join('\n') || '- 없음'}\n- 고칠 링크 ${plan.summary?.links || 0} · 문서 장부 줄 ${plan.summary?.registry || 0} · 항목 장부 줄 ${plan.summary?.vocab || 0}${plan.summary?.order ? ' · 차례 장부' : ''}`)
+  if (o.dry) return
+  const r = await applyRestructure(abs, ops, { user: o.user, via: RENAME_VIA })
+  console.log(JSON.stringify({ ok: true, commit: r.commit || null, log: r.log || null, summary: r.summary }, null, 1))
+}
+
 export async function main(argv) {
   const { pos, o } = args(argv)
   const [cmd, dir, a, b] = pos
@@ -651,7 +733,8 @@ export async function main(argv) {
   if (cmd === 'relog' && dir) return relog(dir, pos.slice(2), o)
   if (cmd === 'residue' && dir) return residue(dir, o)
   if (cmd === 'oldform' && dir) return oldform(dir, o)
-  console.error('쓰기: kmd-migrate.mjs scan <지식 폴더> | rec <지식 폴더> <기록 id> | trail <지식 폴더> <docs/x.md> <머리> | check <지식 폴더> <input.json> | put <지식 폴더> <input.json> --user <사람> [--allow-drop] [--format] | relog <지식 폴더> --user <사람> (--title <제목 앞> | <기록 id>…) [--dry] | residue <지식 폴더> [--personal] [--json] | oldform <지식 폴더> --user <사람> [--dry] [--drop <기록 id,… | 파일>] [--personal]')
+  if (cmd === 'rename' && dir) return rename(dir, pos.slice(2), o)
+  console.error('쓰기: kmd-migrate.mjs scan <지식 폴더> | rec <지식 폴더> <기록 id> | trail <지식 폴더> <docs/x.md> <머리> | check <지식 폴더> <input.json> | put <지식 폴더> <input.json> --user <사람> [--allow-drop] [--format] | relog <지식 폴더> --user <사람> (--title <제목 앞> | <기록 id>…) [--dry] | residue <지식 폴더> [--personal] [--json] | oldform <지식 폴더> --user <사람> [--dry] [--drop <기록 id,… | 파일>] [--personal] | rename <지식 폴더> (<docs/x.md> <옛 머리> <새 머리> | --map <map.json>) --user <사람> [--dry]')
   process.exitCode = 1
 }
 

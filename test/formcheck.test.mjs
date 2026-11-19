@@ -182,3 +182,23 @@ test('사건 · 보고 알림(작성기준 6-3 · R4-3): 정한 것 줄이 길�
   const rep = ['# 주간보고', '', '주마다 하나.', '', '## 2026-11-06 5주차', '', '앞섰다.', '', '- **진도**:', '', '| 구분 | 계획 | 실적 |', '|---|---|---|', '| 기준 | 1% | 2% |', '', '- **한 일**:', '* 설계: 갱신', '- **정한 것**:', `* ${long}`, '- **남은 것**:', '* 없음'].join('\n')
   assert.ok(codes(lintForm(rep, { kind: '보고' })).includes('decided-long'), '보고도')
 })
+
+test('머리 장 번호 · 날짜 꼴 오탐: 네 자리 연도는 장 번호가 아니다 · 코드 꼴 · 울타리 안 날짜는 잡지 않는다', () => {
+  assert.equal(headProblem('대상', '2026 공휴일'), null)
+  assert.equal(headProblem('대상', 'OPS-021: 2027 운영 계획'), null)
+  assert.match(headProblem('대상', '4.1 설치'), /장 번호/)
+  assert.match(headProblem('대상', 'OPS-021: 3. 설치'), /장 번호/)
+  const text = ['# 운영', '', '운영 일정을 적는다.', '', '## 2026 공휴일', '', '공휴일은 쉰다. 로그 이름은 `app-2026.08.01.log` 다.', '', '```', '2026.08.01 점검', '```', '', '| 날짜 | 일 |', '|---|---|', '| `2026.09.01` | 점검 |', '', '## 정기 점검', '', '점검은 2026. 08. 01 에 한다.'].join('\n')
+  const out = lintForm(text, { kind: '대상' })
+  assert.ok(!out.some((x) => x.code === 'head-form'), JSON.stringify(out))
+  const raw = out.filter((x) => x.code === 'raw-date')
+  assert.equal(raw.length, 1, JSON.stringify(raw))
+  assert.equal(raw[0].where, '정기 점검')
+})
+
+test('값 견주기 날짜 표기: 점 · 빗금 · 띄어 쓴 점 · 한 자리 달은 ISO 로 맞춰 견준다 · 다른 날은 다르다 · 판 번호는 그대로', async () => {
+  const { sameValues, isoDates } = await import('../core/values.js')
+  assert.ok(sameValues('점검 2026/08/01 · 2026. 9. 1. · 2026-8-3', '점검 2026-08-01 · 2026-09-01 · 2026-08-03').same)
+  assert.ok(!sameValues('점검 2026/08/01', '점검 2026-08-02').same)
+  assert.equal(isoDates('판 1.2.3 · 2026.13.01'), '판 1.2.3 · 2026.13.01')
+})
