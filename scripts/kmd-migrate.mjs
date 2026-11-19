@@ -22,7 +22,7 @@
 //     빠진 항목 채우기: sections[] 에 base 대신 new: true · sources: [재료 기록 id] · kind · gist(있는 문서의 없는 머리 · 사건 갈래면 「YYYY-MM-DD 무엇」)
 //       새 항목은 종류(kind)와 뜻 한 줄(gist)이 꼭 있다: 엮기가 항목 장부 줄 · 문서 장부 줄을 같이 짓는다(장부 밖 항목을 세우지 않는다)
 //   장부만 고치기(항목 없음): sections 를 비우고(또는 빼고) ledger · names · forms · natures 를 싣는다. 서버 화면의 장부 고침과 같은 저장 문(system 걸음 · 이력 log/ · 태그 ledger)
-//     ledger: [{ op: 'gist', coord, gist } | { op: 'retire', coord, to?, why? } | { op: 'merge', coord, into, why? } | { op: 'unalias', coord, alias }
+//     ledger: [{ op: 'gist', coord, gist } | { op: 'retire', coord, to?, why? } | { op: 'merge', coord, into, why? } | { op: 'unalias', coord, alias } | { op: 'label', coord, label, keep? }
 //              | { op: 'kind', kind, gist }(종류 뜻 줄) | { op: 'unplace', coord }(문서 장부 줄 걷기) | { op: 'unform', name } | { op: 'unnature', doc }]
 //     names 에 이미 장부에 있는 항목을 gist 와 함께 적으면 뜻 한 줄 고치기(gist 걸음)로 바꾼다. record 는 없어도 된다(걸음 목록으로 짓는다) · why 한 줄
 //     --format 을 달면 서식 맞춤 이력(태그 format)으로도 남긴다. 값 대조 · 꼴 검사는 없다(항목 글을 바꾸지 않는다)
@@ -299,7 +299,7 @@ export function dropsOf(oldBody0, newBody0) {
   return { rows, lines }
 }
 
-const LEDGER_OPS = ['gist', 'retire', 'merge', 'unalias', 'kind', 'unplace', 'unform', 'unnature']
+const LEDGER_OPS = ['gist', 'retire', 'merge', 'unalias', 'label', 'kind', 'unplace', 'unform', 'unnature']
 const ledgerOnly = (j) => (!Array.isArray(j.sections) || !j.sections.length) && ['ledger', 'names', 'forms', 'natures'].some((x) => Array.isArray(j[x]) && j[x].length)
 async function readInput(file) {
   const base = path.dirname(path.resolve(file))

@@ -385,6 +385,21 @@ test('rename 검사 · 장부: 새 머리가 다른 항목의 말이면 걸림 �
   assert.match(lg.body, /별칭으로 남기지 않음\(다른 항목 proc:되돌리기 의 말\)/)
 })
 
+test('장부 고침 label: 라벨을 바꾸고 옛 라벨은 별칭(keep: false 면 남기지 않음) · 다른 항목의 말이면 걸림 · gist 뒤 별칭 줄도 그 줄을 고친다', async () => {
+  const { ledgerOps } = await import('../core/namebook.js')
+  const { parseVocab } = await import('../core/vocab.js')
+  const v0 = ['## term', '', '- `term:a`: 가: 옛 뜻', '  gist: 가: 새 뜻', '  aliases: 가1', '- `term:b`: 나', '  aliases: 다', ''].join('\n')
+  const r = ledgerOps(v0, [{ op: 'label', coord: 'term:a', label: '가: 새 뜻' }])
+  assert.deepEqual(r.errors, [])
+  const a = parseVocab(r.text).coords.get('term:a')
+  assert.equal(a.label, '가: 새 뜻')
+  assert.deepEqual(a.aliases, ['가1', '가: 옛 뜻'])
+  assert.equal(r.text.match(/aliases:/g).length, 2, r.text)
+  assert.deepEqual(parseVocab(ledgerOps(v0, [{ op: 'label', coord: 'term:a', label: '가: 새 뜻', keep: false }]).text).coords.get('term:a').aliases, ['가1'])
+  assert.match(ledgerOps(v0, [{ op: 'label', coord: 'term:a', label: '다' }]).errors.join(' '), /다른 항목 term:b/)
+  assert.deepEqual(parseVocab(ledgerOps(v0, [{ op: 'unalias', coord: 'term:a', alias: '가1' }]).text).coords.get('term:a').aliases, [], 'gist 뒤 별칭 줄도 뺀다')
+})
+
 test('upsertVocab: 별칭 줄이 gist 뒤에 있어도 그 줄에 더한다(줄을 하나 더 만들지 않는다)', async () => {
   const { upsertVocab } = await import('../core/namebook.js')
   const { parseVocab } = await import('../core/vocab.js')

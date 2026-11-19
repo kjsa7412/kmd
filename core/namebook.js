@@ -311,6 +311,7 @@ export function placeExact(text, names) {
 //   ops: [{ op: 'retire', coord, to?, why? }      폐기 — 그 줄에 「deprecated: <날짜>[ → 새 항목]: 까닭」(줄은 지우지 않는다)
 //         { op: 'merge', coord, into }             합치기 — coord 를 폐기하고 into 로 잇는다 · coord 의 라벨 · 별칭을 into 의 별칭으로 옮긴다
 //         { op: 'unalias', coord, alias }          별칭 빼기 — 그 항목의 별칭 하나를 걷는다
+//         { op: 'label', coord, label, keep? }     라벨 바꾸기 — 옛 라벨은 별칭으로 남긴다(옛 이름으로도 찾게 · keep: false 면 남기지 않는다) · 새 라벨이 다른 항목의 라벨 · 별칭이거나 쉼표가 들면 걸림
 //         { op: 'gist', coord, gist }              뜻 한 줄 적기 — 그 항목이 무엇인가 한 줄(80자 안 · 있으면 갈음한다 · H12)
 //         { op: 'kind', kind, gist }]              종류 뜻 줄 적기 — 「## 종류」 머리 아래 「뜻: …」 한 줄(80자 안 · 있으면 갈음한다 · R5-1 라 · 그 종류 절이 있어야 한다)
 //   → { text, done: [한 줄 말], errors: [까닭] } · 오류가 하나라도 있으면 text 는 처음 글 그대로다(아무것도 고치지 않는다)
@@ -331,13 +332,19 @@ export function ledgerOps(text, ops, { today = new Date().toISOString().slice(0,
     lines.splice(j, 0, `  deprecated: ${today}${to ? ` → ${to}` : ''}: ${why || '지식관리자가 폐기'}`)
     return true
   }
+  // 그 항목의 별칭 줄(하위 줄 어디든 · gist · deprecated 뒤일 수 있다) · 없으면 -1
+  const aliasRow = (i) => { for (let x = i + 1; x < endOf(i); x++) if (/^\s+aliases:/.test(lines[x])) return x; return -1 }
+  const setAliases = (i, xs) => {
+    const j = aliasRow(i)
+    if (j >= 0) { if (xs.length) lines[j] = `  aliases: ${xs.join(', ')}`; else lines.splice(j, 1) }
+    else if (xs.length) lines.splice(i + 1, 0, `  aliases: ${xs.join(', ')}`)
+  }
   const addAliases = (coord, add) => {
     const i = at(coord)
     const have = parseVocab(lines.join('\n')).coords.get(coord)
     const xs = add.filter((a) => a && a !== have.label && !have.aliases.includes(a))
     if (!xs.length) return
-    if (lines[i + 1] && /^\s+aliases:/.test(lines[i + 1])) lines[i + 1] = `${lines[i + 1].replace(/\s+$/, '')}, ${xs.join(', ')}`
-    else lines.splice(i + 1, 0, `  aliases: ${xs.join(', ')}`)
+    setAliases(i, [...have.aliases, ...xs])
   }
   for (const o of Array.isArray(ops) ? ops : []) {
     if (o?.op === 'kind') {
@@ -374,13 +381,25 @@ export function ledgerOps(text, ops, { today = new Date().toISOString().slice(0,
       const alias = one(o.alias, 120)
       const i = at(coord)
       if (i < 0) { errors.push(`「${coord}」 는 항목 장부에 없다`); continue }
-      const j = lines[i + 1] && /^\s+aliases:/.test(lines[i + 1]) ? i + 1 : -1
-      const xs = j < 0 ? [] : lines[j].replace(/^\s+aliases:\s*/, '').split(',').map((x) => nfc(x.trim())).filter(Boolean)
+      const xs = parseVocab(lines.join('\n')).coords.get(coord)?.aliases || []
       if (!alias || !xs.includes(alias)) { errors.push(`「${coord}」 에 별칭 「${alias}」 이 없다`); continue }
-      const left = xs.filter((x) => x !== alias)
-      if (left.length) lines[j] = `  aliases: ${left.join(', ')}`
-      else lines.splice(j, 1)
+      setAliases(i, xs.filter((x) => x !== alias))
       done.push(`별칭 뺌: ${coord} 의 「${alias}」`)
+    } else if (o.op === 'label') {
+      const label = one(o.label, 120)
+      const i = at(coord)
+      if (i < 0) { errors.push(`「${coord}」 는 항목 장부에 없다`); continue }
+      if (!label || /[,，]/.test(label)) { errors.push(`「${coord}」 의 새 라벨이 비었거나 쉼표가 들었다`); continue }
+      const v = parseVocab(lines.join('\n')).coords
+      const have = v.get(coord)
+      if (have.label === label) continue
+      const other = [...v.values()].find((x) => x.coord !== coord && (x.label === label || x.aliases.includes(label)))
+      if (other) { errors.push(`새 라벨 「${label}」 은 다른 항목 ${other.coord} 의 말이다`); continue }
+      lines[i] = lines[i].replace(/^(\s*-\s+`[^`]+`).*$/, `$1: ${label}`)
+      // 옛 라벨은 별칭으로(keep: false 면 · 쉼표가 들면 남기지 않는다) · 새 라벨이 별칭에 있었으면 걷는다
+      const keep = o.keep === false || /[,，]/.test(have.label) ? [] : [have.label]
+      setAliases(i, [...new Set([...have.aliases.filter((x) => x !== label), ...keep])])
+      done.push(`라벨: ${coord} ${have.label} → ${label}`)
     } else if (o.op === 'gist') {
       const gist = one(o.gist, 80)
       const i = at(coord)

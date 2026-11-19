@@ -4310,7 +4310,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       const r = await hub.importFiles(ctx, id, [{ path: name, data: Buffer.from(collect.handSource({ path: `docs/${doc}.md`, heads }, { title: d.title, why: String(why || '').replace(/\s+/g, ' ').slice(0, 200) }), 'utf8') }])
       return { ok: true, queued: true, rows: r.rows, summary: r.summary }
     },
-    // 장부 고침(지식 생성 하네스 H7 · H-O12) — 지식관리자가 항목 장부의 과거 결정을 거둔다: 폐기 · 합치기 · 별칭 빼기.
+    // 장부 고침(지식 생성 하네스 H7 · H-O12) — 지식관리자가 항목 장부의 과거 결정을 거둔다: 폐기 · 합치기 · 별칭 빼기 · 라벨 바꾸기.
     //   저장 문의 system 걸음 하나(이력에 남는다 · 줄은 지우지 않고 폐기 표시) · 까닭 한 줄이 꼭 있다
     async ledgerEdit(ctx, id, input) {
       await hub.meta(id, ctx)
