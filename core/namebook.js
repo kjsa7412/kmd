@@ -311,7 +311,7 @@ export function placeExact(text, names) {
 //   ops: [{ op: 'retire', coord, to?, why? }      폐기 — 그 줄에 「deprecated: <날짜>[ → 새 항목]: 까닭」(줄은 지우지 않는다)
 //         { op: 'merge', coord, into }             합치기 — coord 를 폐기하고 into 로 잇는다 · coord 의 라벨 · 별칭을 into 의 별칭으로 옮긴다
 //         { op: 'unalias', coord, alias }          별칭 빼기 — 그 항목의 별칭 하나를 걷는다
-//         { op: 'label', coord, label, keep? }     라벨 바꾸기 — 옛 라벨은 별칭으로 남긴다(옛 이름으로도 찾게 · keep: false 면 남기지 않는다) · 새 라벨이 다른 항목의 라벨 · 별칭이거나 쉼표가 들면 걸림
+//         { op: 'label', coord, label, keep? }     라벨 바꾸기: 옛 라벨은 별칭으로 남긴다(옛 이름으로도 찾게 · keep: false 면 남기지 않는다) · 새 라벨이 다른 항목의 라벨 · 별칭이거나 쉼표가 들면 걸림
 //         { op: 'gist', coord, gist }              뜻 한 줄 적기 — 그 항목이 무엇인가 한 줄(80자 안 · 있으면 갈음한다 · H12)
 //         { op: 'kind', kind, gist }]              종류 뜻 줄 적기 — 「## 종류」 머리 아래 「뜻: …」 한 줄(80자 안 · 있으면 갈음한다 · R5-1 라 · 그 종류 절이 있어야 한다)
 //   → { text, done: [한 줄 말], errors: [까닭] } · 오류가 하나라도 있으면 text 는 처음 글 그대로다(아무것도 고치지 않는다)
