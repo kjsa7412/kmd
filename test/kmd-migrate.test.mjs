@@ -384,3 +384,11 @@ test('rename 검사 · 장부: 새 머리가 다른 항목의 말이면 걸림 �
   assert.doesNotMatch(lg.body.split('\n')[0], /별칭으로 남겼다/)
   assert.match(lg.body, /별칭으로 남기지 않음\(다른 항목 proc:되돌리기 의 말\)/)
 })
+
+test('upsertVocab: 별칭 줄이 gist 뒤에 있어도 그 줄에 더한다(줄을 하나 더 만들지 않는다)', async () => {
+  const { upsertVocab } = await import('../core/namebook.js')
+  const { parseVocab } = await import('../core/vocab.js')
+  const t = upsertVocab('## proc\n\n- `proc:a`: A\n  gist: 뜻\n  aliases: 갑\n- `proc:b`: B\n', [{ coord: 'proc:a', label: 'A', aliases: ['을'] }])
+  assert.equal(t.match(/aliases:/g).length, 1, t)
+  assert.deepEqual(parseVocab(t).coords.get('proc:a').aliases, ['갑', '을'])
+})

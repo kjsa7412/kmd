@@ -31,9 +31,11 @@ export function upsertVocab(text, names) {
       const add = (n.aliases || []).filter((a) => a && a !== have.label && !have.aliases.includes(a))
       if (!add.length) continue
       const i = lines.findIndex((l) => l.match(/^\s*-\s+`([^`]+)`/)?.[1]?.trim() === n.coord)
-      const j = i + 1
-      if (lines[j] && /^\s+aliases:/.test(lines[j])) lines[j] = `${lines[j].replace(/\s+$/, '')}, ${add.join(', ')}`
-      else lines.splice(j, 0, `  aliases: ${add.join(', ')}`)
+      // 별칭 줄은 그 항목의 하위 줄 어디든(gist · deprecated 뒤일 수 있다 · relabelVocab 과 같다)
+      let j = -1
+      for (let x = i + 1; x < lines.length && /^\s+\S/.test(lines[x]) && !/^\s*-\s+`/.test(lines[x]); x++) if (/^\s+aliases:/.test(lines[x])) { j = x; break }
+      if (j >= 0) lines[j] = `${lines[j].replace(/\s+$/, '')}, ${add.join(', ')}`
+      else lines.splice(i + 1, 0, `  aliases: ${add.join(', ')}`)
       t = lines.join('\n')
       continue
     }
