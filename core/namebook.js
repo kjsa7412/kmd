@@ -250,17 +250,20 @@ export function relabelVocab(text, renames) {
       label = to
       done.push(`라벨: ${coord} ${from} → ${to}`)
     }
-    let aliases = have.aliases.filter((a) => a !== label)
+    let aliases = [...new Set(have.aliases.filter((a) => a !== label))]
     const other = [...voc.values()].find((v) => v.coord !== coord && (v.label === from || v.aliases.includes(from)))
     if (from === label || aliases.includes(from)) { /* 이미 있다 */ }
     else if (/[,，]/.test(from)) skipped.push(`별칭으로 남기지 않음(쉼표가 든 말): ${coord} ${from}`)
     else if (other) skipped.push(`별칭으로 남기지 않음(다른 항목 ${other.coord} 의 말): ${coord} ${from}`)
     else { aliases = [...aliases, from]; done.push(`별칭: ${coord} + ${from}`) }
     if (aliases.join('\u0001') === have.aliases.join('\u0001')) continue
-    const j = i + 1
+    // 별칭 줄은 그 항목의 하위 줄 어디든 있을 수 있다(gist · deprecated 뒤 · 다음 항목 줄이나 들여쓰지 않은 줄 앞까지) · 여럿이면 하나로 합친다
     const row = `  aliases: ${aliases.join(', ')}`
-    if (lines[j] && /^\s+aliases:/.test(lines[j])) { if (aliases.length) lines[j] = row; else lines.splice(j, 1) }
-    else if (aliases.length) lines.splice(j, 0, row)
+    const subs = []
+    for (let j = i + 1; j < lines.length && /^\s+\S/.test(lines[j]) && !/^\s*-\s+`/.test(lines[j]); j++) if (/^\s+aliases:/.test(lines[j])) subs.push(j)
+    for (const j of subs.slice(1).reverse()) lines.splice(j, 1)
+    if (subs.length) { if (aliases.length) lines[subs[0]] = row; else lines.splice(subs[0], 1) }
+    else if (aliases.length) lines.splice(i + 1, 0, row)
   }
   return { text: lines.join('\n'), done, skipped }
 }

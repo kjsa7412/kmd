@@ -21,8 +21,26 @@ const inName = (s, i, n) => /[A-Za-z_]/.test(s[i - 1] || '') || (s[i - 1] === '-
 //   줄 머리 수준 표시(「1.」 · 「1.1.」 · 「2)」 · 작성기준 5-1)는 짜임이지 값이 아니다 — 옛 「###」 소제목을 수준 줄로 옮기면 번호가 새로 붙는다
 //   날짜 표기 맞추기: 「2026.08.01」 · 「2026. 8. 1.」 · 「2026/08/01」 · 「2026-8-1」 → 「2026-08-01」(달 1~12 · 날 1~31 일 때만 · 판 번호 「1.2.3」 은 네 자리가 아니라 그대로).
 //   서식 맞춤의 값 견주기는 여기 한 곳만 쓴다(저장 문 core/save.js · kmd-migrate check · put --format)
-const DAY_RE = /(?<![\d.])(\d{4})[ \t]*([./-])[ \t]*(\d{1,2})[ \t]*\2[ \t]*(\d{1,2})(?!\d)(?:\.(?!\d))?/g
-export const isoDates = (s) => String(s ?? '').replace(DAY_RE, (m, y, _sep, mo, d) => (+mo >= 1 && +mo <= 12 && +d >= 1 && +d <= 31 ? `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}` : m))
+//   연도는 1900 ~ 2099 만(「4096/8/2」 · 「0001.1.1」 은 날짜가 아니다) · 빗금 · 대시는 붙여 쓴 것만(「1024 / 8 / 4」 는 셈) · 점은 「2026. 8. 1.」 처럼 띄어 써도 날짜 ·
+//   앞이 글자 · 수 · 점이거나(「v2024.1.3」) 뒤에 또 「.수」 가 이어지면(「2026.1.12.5」) 판 번호라 그대로 ·
+//   코드 꼴(「`…`」 · 울타리 코드 블록) 속은 값 그대로라 맞추지 않는다(서식 검사 raw-date 와 같은 원칙)
+const DAY_RE = /(?<![\w.])((?:19|20)\d{2})(?:(?<sep>[/-])(\d{1,2})\k<sep>(\d{1,2})|\.[ \t]*(\d{1,2})\.[ \t]*(\d{1,2}))(?![\d])(?![./-]\d)(?:\.(?!\d))?/g
+const CODE_OR_DAY = new RegExp(`(\`+)[^\\n]*?\\1|${DAY_RE.source}`, 'g')
+const isoLine = (l) => l.replace(CODE_OR_DAY, (m, code, y, _sep, mo1, d1, mo2, d2) => {
+  if (code) return m
+  const mo = mo1 ?? mo2, d = d1 ?? d2
+  return +mo >= 1 && +mo <= 12 && +d >= 1 && +d <= 31 ? `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}` : m
+})
+// 서식 검사 raw-date: 코드 꼴 밖에 isoDates 가 맞출 날짜 표기가 있나(한 줄 · 검사와 맞추기가 같은 기준)
+export const hasRawDate = (line) => isoLine(String(line ?? '')) !== String(line ?? '')
+export function isoDates(s) {
+  let fence = null
+  return String(s ?? '').split('\n').map((l) => {
+    const f = l.match(/^[ \t]*(`{3,}|~{3,})/)?.[1]
+    if (f && (!fence || (f[0] === fence[0] && f.length >= fence.length))) { fence = fence ? null : f; return l }
+    return fence ? l : isoLine(l)
+  }).join('\n')
+}
 //   옛 머리 줄의 장 번호(「### 4.1 설치」)도 같은 짜임이다(머리 줄에서만 점 없는 번호를 뗀다 · 일반 줄의 「3 개소」 는 값)
 const noMarks = (s) => String(s || '').replace(/^(#{1,6}[ \t]+|\*\*)(\d+(?:\.\d+){0,3})\.?[ \t]+(?=\S)/gm, '$1').replace(/^([ \t]*)(\d+(?:\.\d+){0,3})[.)][ \t]+(?=\S)/gm, '$1')
 export function sameValues(oldText, newText) {

@@ -8,6 +8,7 @@
 import { readText } from './text.js'
 import { splitRef, REF_OPEN, REF_CLOSE } from './sections.js'
 import { FORMS } from './forms.js'
+import { hasRawDate } from './values.js'
 
 export const FIX_CODES = new Set(['no-summary', 'no-lead', 'head-form', 'head-value', 'form-meta', 'id-rows', 'num-repeat', 'table-cols', 'missing-label', 'prop-rows', 'date-mismatch', 'raw-date', 'ref-key'])
 const FENCE = /^\s{0,3}(`{3,}|~{3,})/
@@ -17,9 +18,10 @@ const META_HEAD = /^(표지|개정\s*이력|작성\s*지침|해더|헤더|양식
 // 장 번호는 세 자리까지(「4.1 설치」 · 「12. 장애」): 네 자리 수는 연도라 장 번호가 아니다(「2026 공휴일」 · 「OPS-021: 2027 계획」)
 const HEAD_NUM = /^(?:[^:]{1,40}:\s*)?\d{1,3}(?:\.\d+)*\.?\s+\S/
 const DATE = /\d{4}-\d{2}-\d{2}/
-// 날짜 꼴 「YYYY. MM. DD」 · 코드 꼴(`…`) 속은 글이 아니라 값 그대로라 보지 않는다(코드 울타리 안은 parse 가 이미 비운다)
-const DOT_DATE = /\d{4}\.\s?\d{1,2}\.\s?\d{1,2}/
-const noCode = (s) => String(s).replace(/`[^`\n]*`/g, ' ')
+// 날짜 꼴 「YYYY. MM. DD」 · 「YYYY/MM/DD」 · 「YYYY-M-D」: 서식 맞춤이 맞추는 것(core/values.js isoDates)과 같은 기준으로 잡는다 ·
+//   코드 꼴(`…` · ``…``) 속은 글이 아니라 값 그대로라 보지 않는다(코드 울타리 안은 parse 가 이미 비운다)
+const DOT_DATE = { test: (s) => hasRawDate(s) }
+const noCode = (s) => String(s).replace(/(`+)[^\n]*?\1/g, ' ')
 const cellsOf = (ln) => ln.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map((x) => x.trim())
 const isSep = (ln) => /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(ln) && /-/.test(ln)
 // cell-list 거름 — 설명 칸 머리 · 값 꼴 조각(수 · 영문 코드가 든 조각)
@@ -250,7 +252,7 @@ export function lintForm(text0, { kind = '대상', props = null, form = null } =
       if (!/^\s*\|/.test(ln)) {
         header = null
         if (!LIST.test(ln.trim()) && !/^#/.test(ln) && (ln.match(/(?:^|[\s.,·])[가-힣A-Za-z][가-힣A-Za-z ]{0,10}\s*:\s+\S/g) || []).length >= 3) add('meta-lump', i, s.h, '한 문단에 「X: … Y: … Z: …」 셋 이상: 라벨 줄 · 표로 나눈다')
-        if (DOT_DATE.test(noCode(ln))) add('raw-date', i, s.h, '날짜 꼴 「YYYY. MM. DD」: YYYY-MM-DD 로')
+        if (DOT_DATE.test(noCode(ln))) add('raw-date', i, s.h, '날짜 꼴(점 · 빗금 · 한 자리 달 · 날): YYYY-MM-DD 로')
         continue
       }
       // 구분 줄이 뒤따르면 새 표의 머리다(빈 줄로만 나뉜 두 표가 앞 표 머리로 이어 읽히지 않게)

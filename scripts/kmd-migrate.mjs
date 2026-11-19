@@ -287,15 +287,15 @@ const rowKeys = (body) => {
   return keys
 }
 //   날짜 표기만 바뀐 줄(2026.08.01 → 2026-08-01)은 사라지는 문장이 아니다: 두 글 다 core/values.js isoDates 로 맞춰 견준다
+//   보여 주는 행 · 문장은 옛 글 그대로(맞춘 글은 견줄 때만)
 export function dropsOf(oldBody0, newBody0) {
-  const oldBody = isoDates(oldBody0)
   const newBody = isoDates(newBody0)
-  const ok = rowKeys(oldBody)
-  const nk = rowKeys(newBody)
-  const rows = [...ok.keys()].filter((x) => ok.get(x) === 1 && !nk.has(x))
+  const ok = rowKeys(oldBody0)
+  const nk = new Set([...rowKeys(newBody).keys()])
+  const rows = [...ok.keys()].filter((x) => ok.get(x) === 1 && !nk.has(isoDates(x)))
   const newG = proseLines(newBody).map(grams)
   const newFlat = newBody.replace(/\s+/g, '')
-  const lines = proseLines(oldBody).filter((t) => t.replace(/\s+/g, '').length >= 20).filter((t) => !newFlat.includes(t.replace(/\s+/g, '')) && !newG.some((g) => jac(grams(t), g) >= 0.6))
+  const lines = proseLines(oldBody0).filter((t) => t.replace(/\s+/g, '').length >= 20).filter((t) => { const u = isoDates(t); return !newFlat.includes(u.replace(/\s+/g, '')) && !newG.some((g) => jac(grams(u), g) >= 0.6) })
   return { rows, lines }
 }
 
@@ -680,14 +680,24 @@ async function readRenames(pos, o) {
 }
 export function renameCheck(k, renames) {
   const errors = []
+  const froms = new Set(renames.map((r) => `docs/${docIdOf(r.doc)}.md\n${r.from}`))
+  const seen = new Set()
   for (const r of renames) {
     const rel = `docs/${docIdOf(r.doc)}.md`
     const d = k.byDocPath.get(rel)
     const at = `${rel} › ${r.from}`
+    if (seen.has(`${rel}\n${r.from}`)) { errors.push({ where: at, why: '같은 옛 머리를 두 번 바꾸려 한다(한 번만 적는다)' }); continue }
+    seen.add(`${rel}\n${r.from}`)
     if (!d) { errors.push({ where: at, why: '없는 문서다' }); continue }
     if (!d.sections.some((x) => x.h === r.from)) { errors.push({ where: at, why: '없는 머리다(머리가 똑같아야 한다)' }); continue }
     const to = String(r.to).trim()
     if (!to || /[\r\n]/.test(to) || to.length > 120) { errors.push({ where: at, why: '새 머리는 한 줄 · 120자 안' }); continue }
+    if (to.includes('#')) { errors.push({ where: at, why: '새 머리에 # 를 넣지 않는다(링크 x.md#머리 가 모호해진다)' }); continue }
+    if (froms.has(`${rel}\n${to}`)) { errors.push({ where: at, why: '새 머리가 이번에 바꿀 다른 옛 머리다(이어 바꾸기 · 맞바꾸기는 한 번에 하지 않는다 · 나눠서 돌린다)' }); continue }
+    // 새 머리가 다른 항목의 라벨 · 별칭이면 같은 말이 두 항목을 가리킨다
+    const mine = new Set(coordsOfSection(k, d, r.from))
+    const other = [...k.vocab.coords.values()].find((v) => !mine.has(v.coord) && (v.label === to || v.aliases.includes(to)))
+    if (other) errors.push({ where: at, why: `새 머리가 다른 항목 ${other.coord} 의 ${other.label === to ? '라벨' : '별칭'}이다(같은 말이 두 항목을 가리킨다)` })
     const p = headProblem(formOfDoc(k, d)?.kind || '대상', to)
     if (p) errors.push({ where: at, why: p })
   }

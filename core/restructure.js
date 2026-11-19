@@ -504,10 +504,11 @@ export function planRestructure(files, ops = {}) {
   if (regText !== readText(files.registry || '')) writes.push({ rel: '_managed.md', text: regText.endsWith('\n') ? regText : regText + '\n' })
   // 항목 장부: 이름을 바꾼 항목의 라벨 · 옛 머리 별칭(relabel)
   let vocabRows = 0
+  let aliased = 0 // 옛 머리를 실제로 별칭으로 남긴 수(이력 첫 줄)
   if (ops.relabel && files.vocab && moved.length) {
     const renames = moved.filter((m) => m.h !== m.to).flatMap((m) => m.coords.map((coord) => ({ coord, from: m.h, to: m.to })))
     const v = relabelVocab(readText(files.vocab), renames)
-    if (v.text !== readText(files.vocab)) { writes.push({ rel: '_vocab.md', text: v.text.endsWith('\n') ? v.text : v.text + '\n' }); vocabRows = v.done.length }
+    if (v.text !== readText(files.vocab)) { writes.push({ rel: '_vocab.md', text: v.text.endsWith('\n') ? v.text : v.text + '\n' }); vocabRows = v.done.length; aliased = v.done.filter((x) => x.startsWith('별칭:')).length }
     lines.push(...v.done.map((x) => `- 항목 장부 ${x}`), ...v.skipped.map((x) => `- 항목 장부 ${x}`))
   }
   // 갈래 장부 — 갈래 이름 = 문서 이름 · 폴더 칸
@@ -575,7 +576,7 @@ export function planRestructure(files, ops = {}) {
     ...creates.map((c) => `- 새 문서: ${c}`),
     ...dirs.filter((d) => !finalIds.some((id) => id.startsWith(d + '/'))).map((d) => `- 빈 폴더: ${d}/`),
   ]
-  const summary = { vocab: vocabRows, moved: mv.length, titled, created: creates.length, links, registry: regRows, forms: formRows, sources: srcRows, order: orderChanged, docsTouched: writes.filter((w) => w.rel.startsWith('docs/')).length, items: itemsMoved, dropped: dropped.length }
+  const summary = { vocab: vocabRows, aliased, moved: mv.length, titled, created: creates.length, links, registry: regRows, forms: formRows, sources: srcRows, order: orderChanged, docsTouched: writes.filter((w) => w.rel.startsWith('docs/')).length, items: itemsMoved, dropped: dropped.length }
   return { errors: [], moves: mv, writes, creates: created, drops: removes, summary, lines: [...head, ...lines] }
 }
 
@@ -654,7 +655,7 @@ export function applyRestructure(dir, ops, { user, by = null, base = null, dry =
     const logRel = `${LOG_DIR}/${id}.md`
     const s = plan.summary
     const title = `문서 짜임 바꿈: ${[s.moved ? `옮김 ${s.moved}` : '', s.titled ? `제목 ${s.titled}` : '', s.created ? `새 문서 ${s.created}` : '', s.items ? `항목 ${s.items}` : '', s.dropped ? `걷음 ${s.dropped}` : '', s.links ? `링크 ${s.links}` : '', s.order ? '차례' : ''].filter(Boolean).join(' · ') || '장부'}`
-    const said = via ? `${via} 바꿨다(옛 → 새)${ops.relabel ? '. 이름을 바꾼 항목의 옛 머리는 항목 장부 별칭으로 남겼다' : ''}` : '구조 화면에서 바꿨다(옛 경로 → 새 경로). 이름이 바뀐 문서는 제목도 그 이름이다'
+    const said = via ? `${via} 바꿨다(옛 → 새)${ops.relabel && s.aliased ? '. 이름을 바꾼 항목의 옛 머리는 항목 장부 별칭으로 남겼다' : ''}` : '구조 화면에서 바꿨다(옛 경로 → 새 경로). 이름이 바뀐 문서는 제목도 그 이름이다'
     const body = [`${said}${by ? ` · 바꾼 사람 ${by}` : ''}`, ...plan.lines, s.links ? `- 고친 링크 ${s.links}(문서 ${s.docsTouched + s.moved})` : '', s.registry ? `- 문서 장부 줄 ${s.registry}` : '', s.vocab ? `- 항목 장부 줄 ${s.vocab}` : '', s.forms ? `- 갈래 장부 줄 ${s.forms}` : '', s.sources ? `- 가져올 곳 ${s.sources}` : '', s.order ? '- 차례 장부' : ''].filter(Boolean).join('\n')
     const j = await begin(dir)
     const paths = []
