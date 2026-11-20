@@ -6,7 +6,7 @@
 import { sha16 } from './text.js'
 import { kindOf as natureOfDoc } from './forms.js'
 import { weave } from './weave.js'
-import { valuesOf, groundedIn, judgeId } from './values.js'
+import { valuesOf, samePolished, groundedIn, judgeId } from './values.js'
 import { validEdits } from './edits.js'
 
 // 문서 경로 — 「폴더/이름」 · 「docs/폴더/이름.md」 를 「docs/폴더/이름.md」 로
@@ -292,13 +292,12 @@ export function polishPromptOf(g, { writeRules = '' } = {}) {
 }
 
 // 다듬기 초안 → 저장 덩이 — { ok: true, input, dropped: [{ heading, why }] } | { ok: false, why }
-//   받은 항목 · 받은 base 만 · 값 장부(valuesOf)가 옛 글과 같은 항목만 넣는다(아니면 그 항목만 빼고 까닭) · 글이 같으면 뺀다
+//   받은 항목 · 받은 base 만 · 값 장부(samePolished: 수준 표시 · 날짜 표기 · 감싼 백틱은 값이 아니다)가 옛 글과 같은 항목만 넣는다(아니면 그 항목만 빼고 까닭) · 글이 같으면 뺀다
 export function polishToSave(k, g, draft) {
   if (!draft || typeof draft !== 'object' || !Array.isArray(draft.updates)) return { ok: false, why: '초안 모양이 아니다: updates 가 없다' }
   const sections = []
   const dropped = []
   const doc = k.byDocPath?.get(g.doc)
-  const same = (a, b) => a.size === b.size && [...a].every((v) => b.has(v))
   for (const u of draft.updates.slice(0, 200)) {
     if (!u || typeof u.heading !== 'string' || typeof u.content !== 'string') return { ok: false, why: '초안 모양이 아니다: updates 의 heading · content' }
     const h = bareHeading(u.heading)
@@ -309,7 +308,7 @@ export function polishToSave(k, g, draft) {
     if (!cur || sha16(cur.body) !== seen.base) { dropped.push({ heading: h, why: '그사이 항목이 바뀌었다' }); continue }
     if (u.content.trim() === cur.body.trim()) continue
     if (!u.content.trim()) { dropped.push({ heading: h, why: '빈 글이다' }); continue }
-    if (!same(valuesOf(cur.body), valuesOf(u.content))) { dropped.push({ heading: h, why: '값이 바뀐다(다듬기는 값을 바꾸지 않는다)' }); continue }
+    { const v = samePolished(cur.body, u.content); if (!v.same) { dropped.push({ heading: h, why: `값이 바뀐다(다듬기는 값을 바꾸지 않는다: ${[...v.lost.map((x) => `-${x}`), ...v.added.map((x) => `+${x}`)].slice(0, 6).join(' · ')})` }); continue } }
     sections.push({ doc: g.doc, heading: h, base: seen.base, content: u.content })
   }
   const name = String(g.doc).replace(/^docs\/|\.md$/g, '')

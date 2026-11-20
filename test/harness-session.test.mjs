@@ -12,7 +12,8 @@ import { workOnce, knownTypes } from '../core/worker.js'
 import { copyDir } from './helpers.mjs'
 import { GEN_RULES_REV } from '../core/genrules.js'
 import { TOOLS } from '../server/mcp.js'
-import { polishPromptOf } from '../core/ingest.js'
+import { polishPromptOf, polishToSave } from '../core/ingest.js'
+import { sha16 } from '../core/text.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 let tmp, s, wk, docsDir
@@ -81,7 +82,7 @@ test('세션 일감의 열쇠: 그 지식에만 · 팀 서버는 세션 일감�
   assert.match(t.system, /R8 판례를 따름 · 가름 · 벗어남/)
   // 채널 평가 P3 · P5 · P9 · P14 · P22 — 틀리기 쉬운 칸을 반례와 함께 싣는다 · 들인 때는 근거 날짜가 아니라고 일 설명에 적는다
   assert.match(t.system, /gist 는 뜻 한 줄로 새 항목마다 꼭/)
-  for (const re of [/names\[\]\.gist\(뜻 한 줄/, /넣을 글에 날짜가 없으면 적지 않는다/, /까닭에 커밋 메시지를 그대로 옮김/, /원본 메타\(문서 번호 · 판/, /이을 항목\(R3-5\)/]) assert.match(t.system, re)
+  for (const re of [/names\[\]\.gist\(뜻 한 줄/, /넣을 글에 날짜가 없으면 적지 않는다/, /까닭에 커밋 메시지를 그대로 옮김/, /원본 메타\(문서 번호 · 판/, /이을 항목\(R3-5 · R2-1\)/, /뜻이 같은 항목이 있으면 새 항목을 세우지 않고/]) assert.match(t.system, re)
   assert.match(t.prompt, /kmd 에 넣은 사람 · 때: .*근거 날짜 · 까닭 · 제목에 쓰지 않는다/)
   assert.ok(TOOLS.find((x) => x.name === 'save').inputSchema.properties.names.items.properties.gist, 'MCP save 의 names 에 gist 칸')
   assert.match(t.prompt, /knowledge id: dpms\)/)
@@ -152,4 +153,19 @@ test('다듬기 프롬프트: 정돈 거리(오기 · 백틱 · 수준 표시 ·
   const p = polishPromptOf({ doc: 'docs/게이트웨이 설계.md', title: '게이트웨이 설계', sections: [{ h: 'gw_log', base: 'b1', body: '| 콜럼 | 형 |\n|---|---|\n| log_id | bigint |' }] })
   for (const re of [/정돈 거리/, /오기 · 맞춤법/, /「콜럼」 → 「컬럼」/, /백틱/, /수준 표시/, /줄표/, /반례\(다듬기가 아니다\)/]) assert.match(p, re)
   assert.match(p, /## gw_log\n\(base b1\)/)
+})
+
+// 검토 지적(prompts) — 프롬프트가 시키는 정돈(맨글 식별자에 백틱 · 「가.」 → 1. 2.)은 다듬기의 값 검사를 넘는다 · 값 글자를 바꾸면 그 항목만 빠진다
+test('다듬기 저장: 백틱 · 수준 표시 정돈은 값이 바뀐 것이 아니다', () => {
+  const old = '로그는 gw_log 테이블에 쌓인다.\n가. 수집\n나. 전송'
+  const k = { byDocPath: new Map([['docs/게이트웨이 설계.md', { sections: [{ h: 'gw_log', body: old }, { h: 'gw_send', body: '주기는 send_interval_sec 5초.' }] }]]) }
+  const g = { doc: 'docs/게이트웨이 설계.md', title: '게이트웨이 설계', sections: [{ h: 'gw_log', base: sha16(old), body: old }, { h: 'gw_send', base: sha16('주기는 send_interval_sec 5초.'), body: '주기는 send_interval_sec 5초.' }] }
+  const r = polishToSave(k, g, { updates: [
+    { heading: 'gw_log', base: sha16(old), content: '로그는 `gw_log` 테이블에 쌓인다.\n1. 수집\n2. 전송' },
+    { heading: 'gw_send', base: sha16('주기는 send_interval_sec 5초.'), content: '주기는 `send_interval_sc` 5초.' },
+  ] })
+  assert.equal(r.ok, true)
+  assert.deepEqual(r.input.sections.map((x) => x.heading), ['gw_log'])
+  assert.equal(r.dropped.length, 1)
+  assert.match(r.dropped[0].why, /값이 바뀐다.*\+send_interval_sc/)
 })

@@ -116,7 +116,9 @@ export function cleanPlan(raw) {
   for (const n of names) {
     if (!n || typeof n !== 'object' || !str(n.coord, 200) || !/^[^:\s]+:.+$/.test(n.coord) || !str(n.doc, 200) || !str(n.h, PLAN_LIMITS.head)) return bad('names[] 는 { coord, label, doc, h }')
     if (n.label != null && !str(n.label, 160)) return bad('names[].label')
-    outNames.push({ coord: nfc(n.coord), label: n.label ? nfc(n.label) : '', doc: cleanId(n.doc), h: nfc(n.h) })
+    if (n.gist != null && typeof n.gist !== 'string') return bad('names[].gist')
+    const gist = typeof n.gist === 'string' ? nfc(n.gist.replace(/\s+/g, ' ').trim()).slice(0, 80) : ''
+    outNames.push({ coord: nfc(n.coord), label: n.label ? nfc(n.label) : '', doc: cleanId(n.doc), h: nfc(n.h), ...(gist ? { gist } : {}) })
   }
   let order = null
   if (raw.order != null) {
@@ -646,7 +648,7 @@ export const SEED_PLAN_SCHEMA = {
   required: ['docs', 'why'],
   properties: {
     docs: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['id', 'items'], properties: { id: STR, items: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['h', 'src'], properties: { h: STR, src: { type: 'array', items: STR }, note: STR } } } } } },
-    names: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['coord', 'doc', 'h'], properties: { coord: STR, label: STR, doc: STR, h: STR } } },
+    names: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['coord', 'doc', 'h', 'gist'], properties: { coord: STR, label: STR, gist: STR, doc: STR, h: STR } } },
     skip: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['src', 'why'], properties: { src: STR, why: STR } } },
     why: STR,
   },
@@ -672,7 +674,8 @@ export function seedPlanMaterial(rows, { picks = {}, cards = [], note = '', exis
 export function seedPlanPromptOf(g) {
   return [
     '바탕 세우기 구조안을 짓는다. 빈 지식에 넣을 재료(원본 파일을 글로 바꾼 것)의 카드를 보고 첫 짜임 전체를 JSON 하나로 돌려준다. 항목 글은 쓰지 않는다.',
-    '꼴: docs[{ id(「폴더/이름」 · .md 없이), items[{ h(항목 머리), src[재료 id m:<16자>], note?(까닭 한 줄) }] }] · names[{ coord(종류:값), label?, doc, h }](둘 이상 재료에서 가리키는 고유물만) · skip[{ src, why }](쓰지 않는 넣음 재료와 까닭) · why(한두 문장)',
+    '꼴: docs[{ id(「폴더/이름」 · .md 없이), items[{ h(항목 머리), src[재료 id m:<16자>], note?(까닭 한 줄) }] }] · names[{ coord(종류:값), label?, gist(뜻 한 줄), doc, h }](둘 이상 재료에서 가리키는 고유물만) · skip[{ src, why }](쓰지 않는 넣음 재료와 까닭) · why(한두 문장)',
+    '- names 의 gist 는 그 항목이 무엇인가를 15 ~ 60자 한 문장으로(생성 룰 R5-3 · R7-1 · 장부에 남아 다음 판단의 재료가 된다). 이름 · 라벨을 되풀이하지 않는다. 좋은 예: { coord: "모듈:수집기", label: "수집기", gist: "PLC 값을 읽어 묶음으로 만들어 전송기에 넘기는 프로세스" }. 반례: gist 를 비움 · gist: "수집기".',
     '- 「넣음」 재료는 모두 어느 항목의 src 이거나 skip 에 든다. 「근거만」 재료는 값을 견줄 때만 쓴다(src 에 넣어도 되고 빼도 된다). 아래에 없는 재료 id 를 쓰지 않는다.',
     '- 항목 머리는 대상 이름(사건 갈래만 「YYYY-MM-DD 주제」 · 대장은 「값: 설명」). 한 문서 안에서 머리끼리 같거나 앞부분이 겹치지 않게.',
     SEED_RULES,
@@ -781,9 +784,10 @@ export function seedBatchPromptOf(b, g, { cards = false, of = 1, kinds = null } 
     `${SEED_BATCH_HEAD} 묶음 ${b.i + 1}/${of}. 아래 문서들의 항목을 이 폴더의 재료를 읽고 정한다. 문서 id 와 문서마다 재료는 정해져 있다(바꾸지 않는다 · 다른 문서를 더하지 않는다). 항목 글은 쓰지 않는다.`,
     `재료: 이 폴더의 「재료.tsv」 · 글은 md/<id 의 m: 뒤 16자>.md.${cards ? ' cards/*.json 은 재료 카드다(있으면 먼저 본다).' : ''} 먼저 Grep 으로 머리 줄(^#{1,3} )을 훑고, 애매한 곳만 Read 로 필요한 만큼 읽는다.`,
     SEED_SAFE,
-    '꼴: docs[{ id(아래 그대로), items[{ h(항목 머리), src[재료 id], note?(까닭 한 줄) }] }] · names[{ coord(종류:값), label?, doc, h }](둘 이상 재료에서 가리키는 고유물만) · skip[{ src, why }](이 묶음의 쓰지 않는 넣음 재료) · why(한 문장)',
+    '꼴: docs[{ id(아래 그대로), items[{ h(항목 머리), src[재료 id], note?(까닭 한 줄) }] }] · names[{ coord(종류:값), label?, gist(뜻 한 줄), doc, h }](둘 이상 재료에서 가리키는 고유물만) · skip[{ src, why }](이 묶음의 쓰지 않는 넣음 재료) · why(한 문장)',
     '- 이 묶음의 「넣음」 재료는 모두 어느 항목의 src 이거나 skip 에 든다. 항목 src 는 그 문서에 정해진 재료만 쓴다.',
     '- 항목 머리는 대상 이름(사건 갈래만 「YYYY-MM-DD 주제」 · 대장은 「값: 설명」). 한 문서 안에서 머리끼리 같거나 앞부분이 겹치지 않게.',
+    '- names 의 gist 는 그 항목이 무엇인가를 15 ~ 60자 한 문장으로(생성 룰 R5-3 · R7-1 · 장부에 남아 다음 판단의 재료가 된다). 이름 · 라벨을 되풀이하지 않는다. 좋은 예: { coord: "모듈:수집기", label: "수집기", gist: "PLC 값을 읽어 묶음으로 만들어 전송기에 넘기는 프로세스" }. 반례: gist 를 비움 · gist: "수집기".',
     '- names 의 coord 종류는 영문 소문자 또는 한글로 시작한다(24자 안 · 대문자 약어는 소문자로: dbms:PostgreSQL · was:Apache Tomcat · 시스템:나라119).',
     SEED_RULES,
     '문서:',
@@ -870,7 +874,7 @@ export function seedPlanOfDraft(draft) {
       return { h: it?.h, src: it?.src }
     }) : d?.items,
   }))
-  const c = cleanPlan({ v: 1, kind: 'seed', forms: null, dirs: [], docs, names: Array.isArray(draft.names) ? draft.names.map((x) => ({ coord: x?.coord, label: typeof x?.label === 'string' ? x.label : '', doc: x?.doc, h: x?.h })) : [], skip: Array.isArray(draft.skip) ? draft.skip : [] })
+  const c = cleanPlan({ v: 1, kind: 'seed', forms: null, dirs: [], docs, names: Array.isArray(draft.names) ? draft.names.map((x) => ({ coord: x?.coord, label: typeof x?.label === 'string' ? x.label : '', ...(typeof x?.gist === 'string' ? { gist: x.gist } : {}), doc: x?.doc, h: x?.h })) : [], skip: Array.isArray(draft.skip) ? draft.skip : [] })
   if (c.error) return { error: c.error }
   return { plan: c.plan, notes: notes.slice(0, 500), why: typeof draft.why === 'string' ? draft.why.slice(0, 400) : '' }
 }

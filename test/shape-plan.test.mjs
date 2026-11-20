@@ -7,7 +7,7 @@ import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { readStructure } from '../core/restructure.js'
 import { loadKnowledge } from '../core/knowledge.js'
-import { cleanPlan, shapeFp, readShape, diffPlan, planCheck, stepsOf } from '../core/shape.js'
+import { cleanPlan, shapeFp, readShape, diffPlan, planCheck, stepsOf, SEED_PLAN_SCHEMA, seedPlanPromptOf } from '../core/shape.js'
 
 const git = (dir, ...a) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: dir, encoding: 'utf8' })
 function make(files) {
@@ -256,4 +256,15 @@ test('서버: GET shape · POST shape/check — 쓰기 자리 403 · 지식관�
     await s.close()
     try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch {}
   }
+})
+
+// 채널 평가 P3 · Q1(바탕 세우기 몫) — 구조안의 names 도 뜻 한 줄(gist)을 싣는다: 스키마 · 프롬프트 꼴 · cleanPlan 이 지키고 넣기가 장부에 넘긴다
+test('바탕 세우기 구조안 names 의 gist: 스키마 · 프롬프트 · cleanPlan', () => {
+  assert.ok(SEED_PLAN_SCHEMA.properties.names.items.properties.gist)
+  assert.ok(SEED_PLAN_SCHEMA.properties.names.items.required.includes('gist'))
+  assert.match(seedPlanPromptOf({ mats: [] }), /gist\(뜻 한 줄\)/)
+  const p = P({ v: 1, kind: 'seed', docs: [{ id: 'a', was: null, items: [{ h: '수집기', from: [] }] }], names: [{ coord: '모듈:수집기', label: '수집기', gist: '  PLC 값을 읽어 묶음으로 만드는 프로세스 ', doc: 'a', h: '수집기' }, { coord: '모듈:전송기', doc: 'a', h: '수집기' }] })
+  assert.equal(p.names[0].gist, 'PLC 값을 읽어 묶음으로 만드는 프로세스')
+  assert.equal('gist' in p.names[1], false)
+  assert.match(cleanPlan({ v: 1, kind: 'seed', docs: [], names: [{ coord: 'a:b', doc: 'a', h: 'b', gist: 3 }] }).error, /gist/)
 })

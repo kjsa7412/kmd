@@ -1377,7 +1377,7 @@ ${genRulesBlock({ profile: 'shape' })}`
       : `문서 짜임으로 다시 썼다(짜임 일 ${work} · 걸음 ${n}). 새 글의 값은 출처 항목의 값만 쓴다.\n\n## 바뀐 것\n- ${kindWord}: ${what}`
     const record = { title, body, ...(touches.size ? { touches: [...touches] } : { touchesEmpty: seed ? '장부에 없는 항목을 세웠다' : '장부에 없는 항목을 다시 썼다' }), ...(fixes.length ? { fixes } : {}) }
     // 바탕 세우기 — 구조안 names 가운데 이 단위의 항목에 놓이는 것은 항목 장부 · 문서 장부에 같이 세운다(저장 문 names)
-    const names = seedNames ? plan.names.filter((x) => u0.targets.some((t) => t.doc === x.doc && t.h === x.h)).map((x) => ({ coord: x.coord, label: x.label || x.coord.slice(x.coord.indexOf(':') + 1), doc: rel(x.doc), heading: x.h })) : []
+    const names = seedNames ? plan.names.filter((x) => u0.targets.some((t) => t.doc === x.doc && t.h === x.h)).map((x) => ({ coord: x.coord, label: x.label || x.coord.slice(x.coord.indexOf(':') + 1), ...(x.gist ? { gist: x.gist } : {}), doc: rel(x.doc), heading: x.h })) : []
     const prepare = async () => {
       // 줄 안 — 새로 읽은 지식으로 단위를 다시 만든다(입력 걸음 재료는 받지 않는다)
       const k = await loadK()
@@ -5873,7 +5873,7 @@ ${genRulesBlock({ profile: 'shape' })}`
           '- 까닭(why · R6-4): 넣을 글이 말한 「왜 바꿨나 · 누가 정했나」 만. 없으면 비운다. 반례: 까닭에 커밋 메시지를 그대로 옮김(「collector: send interval 5 -> 10」) · 「최초 들임」 · 「설계서를 들였다」 · 넣은 사람 · 시각 · 파일 이름. 커밋 · 문서 판은 refs 에.',
           '- 제목(title): 「대상: 어떻게」. 반례: 「게이트웨이 설계서 v0.3 들임」 · 「회의록_1110.docx 들임」(들인 일이 아니라 지식이 어떻게 바뀌었나를 적는다).',
           '- 원본 메타(문서 번호 · 판 · 작성자 · 결재 · 쪽): 문서 요약(natures.summary) · 항목 글에 넣지 않는다. 필요하면 기록의 refs 에 「근거: GW-DS-001 v0.3」 처럼. 반례: 요약 「… 설정값을 적는다. 문서 번호 GW-DS-001, 판 v0.3.」',
-          '- 이을 항목(R3-5): 넣을 글(차이 · 분석 · 본문)에 그 항목의 이름 · 별칭 · 식별자(파일 · 설정 · 테이블 이름)가 나오지 않으면 그 항목을 고치거나 touches 에 달지 않는다. 비슷해 보인다고 붙이지 않는다. 반례: HealthCheck.java 의 시간 초과 커밋을 이름이 나오지 않는 「수집기」 항목에 붙임.',
+          '- 이을 항목(R3-5 · R2-1): 넣을 글(차이 · 분석 · 본문)에 그 항목의 이름 · 별칭 · 식별자(파일 · 설정 · 테이블 이름)가 나오거나, 뜻이 같아 같은 대상임을 보일 수 있을 때(R2-1 다: 「HealthCheck.java」 와 장부의 「헬스체크」 · 회의록의 「수집 프로세스」 와 「수집기」)만 그 항목을 고치고 touches 에 단다. 뜻이 같은 항목이 있으면 새 항목을 세우지 않고 그 항목을 고친다(R8-2). 어느 것으로도 같은 대상임을 보일 수 없으면 비슷해 보인다고 붙이지 않는다. 반례: HealthCheck.java 의 시간 초과 커밋을 이름도 뜻도 닿지 않는 「수집기」 항목에 붙임 · 장부에 헬스체크 항목이 있는데 「HealthCheck」 항목을 또 세움.',
         ].join('\n'), '넣을 글이 크면(항목이 여럿인 설계서 · 대장) 한 번에 다 보내지 않는다: 같은 문서로 갈 항목끼리 묶어 save 를 여러 번 부른다(묶음마다 기록 하나 · 앞 묶음이 세운 문서와 항목은 뒤 묶음에서 있는 것으로 보인다 · 한 저장이 고치는 있는 항목은 20개까지). 뒤 묶음을 보내기 전에 match 로 앞 묶음이 세운 것을 다시 본다.', genRulesBlock({ profile: 'agent' })].join('\n\n')
       const skill = [rules, (await fs.readFile(path.join(AGENT_DIR, 'skills', 'kmd-build', 'SKILL.md'), 'utf8').catch(() => '')).replace(/^---[\s\S]*?---\s*/, ''), guide].filter(Boolean).join('\n\n')
       // 코드 바뀜 — 파일이 아니라 커밋 하나의 분석 기록이다. 자리는 그 저장소가 만드는 시스템의 기능 · 설계 문서
@@ -5890,7 +5890,7 @@ ${genRulesBlock({ profile: 'shape' })}`
             '- 항목 글은 바뀐 이력 나열이 아니라 「지금 어떻게 동작하나」 로 쓴다. 기능 · 화면 · API · 설정 · 데이터. 차이 · 분석에 없는 것은 지어내지 않는다. 코드 줄 · 차이는 항목에 옮기지 않는다.',
             '- from · append 는 쓰지 않는다(kmd 가 거절한다). 기록의 「무엇이 바뀌었나 · 바뀐 것 · 영향 · 맞춰 볼 것 · 근거」 는 항목 글이 아니다. 고칠 항목을 section 으로 읽고 그 글을 지금 동작으로 고친 새 글 전체를 content · base 로 보낸다. 경과 줄은 kmd 가 단다.',
             '- 이 지식의 다른 주제(이 저장소와 상관없는 문서)는 고치지 않는다.',
-            '- 붙일 항목(R3-5): 차이 · 분석에 그 항목의 이름 · 별칭 · 식별자(파일 · 클래스 · 설정 · 테이블 이름)가 나올 때만 그 항목을 고친다. 안 나오면 붙이지 않고 그 기능 이름의 새 항목을 세우거나(차이가 통째로 그 기능이면) 뺀다(excluded · R3-5 다).',
+            '- 붙일 항목(R3-5 · R2-1): 차이 · 분석에 그 항목의 이름 · 별칭 · 식별자(파일 · 클래스 · 설정 · 테이블 이름)가 나오거나 뜻이 같아 같은 대상임을 보일 수 있을 때(R2-1 다: 클래스 HealthCheck 와 장부의 「헬스체크」)만 그 항목을 고친다. 뜻이 같은 항목이 있으면 새 항목을 세우지 않는다(R8-2). 어느 것으로도 같은 대상임을 보일 수 없으면 붙이지 않고 그 기능 이름의 새 항목을 세우거나(차이가 통째로 그 기능이면) 뺀다(excluded · R3-5 다).',
             '- 커밋 메시지 · 작성자 · 커밋 시각은 근거다: why 에 옮기지 않고 refs 에 「커밋 <짧은 해시> · <저장소>」 와 「근거 날짜: <커밋 날>」 만 적는다. 까닭은 분석 · 메시지가 「왜」 를 말할 때만 그 뜻을 한국어 한 줄로.',
             '도구의 knowledge 는 늘 위 id 를 쓴다.',
           ].join('\n'),

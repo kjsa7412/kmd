@@ -51,6 +51,22 @@ export function sameValues(oldText, newText) {
   const added = [...b].filter((v) => !a.has(v))
   return { same: !lost.length && !added.length, lost, added }
 }
+// 다듬기(core/ingest.js polishToSave)의 값 견주기 — sameValues(수준 표시 · 날짜 표기는 짜임) 위에, 백틱으로 감싼 것은 값이 바뀐 것이 아니다:
+//   새 글에만 있는 `코드` 값이 옛 글에 맨글로 이미 있으면(앞뒤가 영문 · 수 · _ 가 아닌 같은 글자) 같은 값으로 친다 · 거꾸로 옛 `코드` 를 맨글로 푼 것도 같다
+//   (다듬기 정돈 거리: 맨글 식별자를 백틱으로 감싼다 · 「가.」 · 「①」 를 1. 2. 로 바꾼다 · 값 글자가 바뀐 것은 그대로 잡힌다)
+const plainHas = (text, v) => {
+  const t = String(text || '')
+  for (let i = t.indexOf(v); i >= 0; i = t.indexOf(v, i + 1)) {
+    if (!/[A-Za-z0-9_]/.test(t[i - 1] || '') && !/[A-Za-z0-9_]/.test(t[i + v.length] || '')) return true
+  }
+  return false
+}
+export function samePolished(oldText, newText) {
+  const r = sameValues(oldText, newText)
+  const lost = r.lost.filter((v) => !plainHas(newText, v))
+  const added = r.added.filter((v) => !plainHas(oldText, v))
+  return { same: !lost.length && !added.length, lost, added }
+}
 // 링크 대상 주소는 값이 아니다: 「](x.md#머리%20%28가%29)」 · 「](https://…:8090/…)」 · 「<https://…>」 속의 수(%20 → 20)를 값으로 읽지 않는다(링크 글은 값으로 읽는다)
 const LINK_TARGET_RE = /\]\((?:[^()\s]|\([^()\s]*\))*(?:\s+"[^"]*")?\)|<https?:\/\/[^\s>]+>/g
 export const noLinkTargets = (s) => String(s || '').replace(LINK_TARGET_RE, (m) => (m[0] === '<' ? ' ' : ']()'))
